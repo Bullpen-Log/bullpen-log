@@ -1,7 +1,12 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  /* config options here */
+  images: {
+    remotePatterns: [
+      // 유튜브 영상 썸네일
+      { protocol: "https", hostname: "i.ytimg.com" },
+    ],
+  },
 };
 
 export default nextConfig;

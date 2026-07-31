@@ -1,0 +1,120 @@
+datasource db {
+  provider     = "postgresql"
+  relationMode = "prisma"
+}
+generator client {
+  provider = "prisma-client-js"
+}
+
+
+enum Role {
+  USER
+  ADMIN
+}
+
+model User {
+  id                String              @id @default(uuid())
+  email             String              @unique
+  password          String
+  nickname          String
+  role              Role                @default(USER)
+  createdAt         DateTime            @default(now())
+
+  userGuideProgress UserGuideProgress[]
+  pitchLogs         PitchLog[]
+  userExerciseLogs  UserExerciseLog[]
+  routines          Routine[]
+  articles          Article[]
+}
+
+model MechanicsGuide {
+  id          String              @id @default(uuid())
+  title       String
+  category    String              @default("스로잉 드릴")
+  description String              @db.Text
+  videoUrl    String
+  sortOrder   Int                 @default(0)
+  createdAt   DateTime            @default(now())
+  progress    UserGuideProgress[]
+}
+
+model UserGuideProgress {
+  userId    String
+  guideId   String
+  completed Boolean        @default(false)
+
+  user      User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  guide     MechanicsGuide @relation(fields: [guideId], references: [id], onDelete: Cascade)
+
+  @@id([userId, guideId])
+}
+
+model PitchLog {
+  id         String   @id @default(uuid())
+  userId     String
+  date       DateTime @db.Date
+  pitchType  String?
+  velocity   Float
+  pitchCount Int
+  intensity  Int
+  memo       String?  @db.Text
+  createdAt  DateTime @default(now())
+
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model ExerciseVideo {
+  id               String            @id @default(uuid())
+  title            String
+  category         String
+  description      String            @db.Text
+  videoUrl         String
+  createdAt        DateTime          @default(now())
+  userLogs         UserExerciseLog[]
+  routineExercises RoutineExercise[]
+}
+
+model UserExerciseLog {
+  userId     String
+  exerciseId String
+  date       DateTime      @db.Date
+  completed  Boolean       @default(false)
+
+  user       User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  exercise   ExerciseVideo @relation(fields: [exerciseId], references: [id], onDelete: Cascade)
+
+  @@id([userId, exerciseId, date])
+}
+
+model Routine {
+  id               String            @id @default(uuid())
+  userId           String
+  name             String
+  createdAt        DateTime          @default(now())
+
+  user             User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  routineExercises RoutineExercise[]
+}
+
+model RoutineExercise {
+  routineId  String
+  exerciseId String
+
+  routine    Routine       @relation(fields: [routineId], references: [id], onDelete: Cascade)
+  exercise   ExerciseVideo @relation(fields: [exerciseId], references: [id], onDelete: Cascade)
+
+  @@id([routineId, exerciseId])
+}
+
+model Article {
+  id            String   @id @default(uuid())
+  userId        String
+  title         String
+  content       String   @db.Text
+  tags          String[]
+  attachmentUrl String?
+  views         Int      @default(0)
+  createdAt     DateTime @default(now())
+
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
