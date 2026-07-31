@@ -3,15 +3,21 @@ import { getCurrentUser } from '@/lib/dal';
 import { logout } from '@/app/actions/auth';
 import { MobileNav, NavLinks } from '@/components/nav-links';
 
-export const NAV_ITEMS = [
+const NAV_ITEMS = [
   { href: '/training', label: '트레이닝' },
   { href: '/mechanics', label: '메커니즘' },
   { href: '/pitch-log', label: '투구기록' },
   { href: '/board', label: '자료실' },
 ];
 
+const ADMIN_NAV_ITEM = { href: '/admin', label: '관리자' };
+
 export async function SiteHeader() {
   const user = await getCurrentUser();
+
+  // 관리자에게만 관리자 메뉴를 추가로 보여준다.
+  const navItems =
+    user?.role === 'ADMIN' ? [...NAV_ITEMS, ADMIN_NAV_ITEM] : NAV_ITEMS;
 
   return (
     <>
@@ -24,7 +30,7 @@ export async function SiteHeader() {
           </span>
         </Link>
 
-        {user && <NavLinks items={NAV_ITEMS} />}
+        {user && <NavLinks items={navItems} />}
 
         <div className="ml-auto flex items-center gap-3">
           {user ? (
@@ -56,7 +62,7 @@ export async function SiteHeader() {
       </div>
     </header>
 
-    {user && <MobileNav items={NAV_ITEMS} />}
+    {user && <MobileNav items={navItems} />}
     </>
   );
 }

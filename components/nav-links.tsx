@@ -40,12 +40,13 @@ export function MobileNav({ items }: { items: NavItem[] }) {
 
   return (
     <nav className="fixed inset-x-0 bottom-0 z-50 border-t border-line bg-ink/95 pb-[env(safe-area-inset-bottom)] backdrop-blur-xl md:hidden">
-      <div className="grid grid-cols-4">
+      {/* 관리자에게는 항목이 하나 더 늘어나므로 개수에 맞춰 나눈다. */}
+      <div className="flex">
         {items.map((item) => (
           <Link
             key={item.href}
             href={item.href}
-            className={`flex items-center justify-center px-1 py-3.5 text-xs transition-colors ${
+            className={`flex flex-1 items-center justify-center px-1 py-3.5 text-center text-xs transition-colors ${
               isActive(item.href) ? 'text-gold' : 'text-muted'
             }`}
           >

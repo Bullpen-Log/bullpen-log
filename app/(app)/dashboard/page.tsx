@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { Activity, BookOpen, CalendarDays, FileText } from 'lucide-react';
+import { Activity, BookOpen, CalendarDays, FileText, Users } from 'lucide-react';
 import { requireUser } from '@/lib/dal';
 import { Eyebrow } from '@/components/ui';
 
@@ -30,8 +30,18 @@ const CATEGORIES = [
   },
 ] as const;
 
+const ADMIN_CATEGORY = {
+  href: '/admin',
+  title: '관리자',
+  desc: '회원 현황과 권한 관리, 사이트 활동 통계.',
+  icon: Users,
+} as const;
+
 export default async function DashboardPage() {
   const user = await requireUser();
+
+  const categories =
+    user.role === 'ADMIN' ? [...CATEGORIES, ADMIN_CATEGORY] : CATEGORIES;
 
   return (
     <div className="space-y-12">
@@ -44,7 +54,7 @@ export default async function DashboardPage() {
       </div>
 
       <div className="grid gap-5 sm:grid-cols-2">
-        {CATEGORIES.map(({ href, title, desc, icon: Icon }) => (
+        {categories.map(({ href, title, desc, icon: Icon }) => (
           <Link
             key={href}
             href={href}
