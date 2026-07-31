@@ -6,7 +6,7 @@ import { MobileNav, NavLinks } from '@/components/nav-links';
 const NAV_ITEMS = [
   { href: '/pitch-log', label: '투구기록' },
   { href: '/analysis', label: '영상분석' },
-  { href: '/stats', label: '통계' },
+  { href: '/report', label: '리포트' },
   { href: '/training', label: '트레이닝' },
   { href: '/mechanics', label: '메커니즘' },
   { href: '/board', label: '자료실' },

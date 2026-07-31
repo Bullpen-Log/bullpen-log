@@ -1,8 +1,8 @@
 import { prisma } from '@/lib/prisma';
 import { requireUser } from '@/lib/dal';
-import { StatsClient } from './stats-client';
+import { ReportClient } from './report-client';
 
-export default async function StatsPage() {
+export default async function ReportPage() {
   const user = await requireUser();
 
   const logs = await prisma.pitchLog.findMany({
@@ -15,5 +15,5 @@ export default async function StatsPage() {
     date: log.date.toISOString(),
   }));
 
-  return <StatsClient logs={serialized} />;
+  return <ReportClient logs={serialized} nickname={user.nickname} />;
 }

@@ -25,9 +25,9 @@ const CATEGORIES = [
     icon: Video,
   },
   {
-    href: '/stats',
-    title: '통계 및 피로도',
-    desc: '기간별 투구량·강도 추이와 이틀 연속 과부하 경고.',
+    href: '/report',
+    title: '리포트',
+    desc: '기간별 투구량·강도·구속 정리와 기록 메모 모아보기.',
     icon: TrendingUp,
   },
   {

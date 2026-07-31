@@ -4,7 +4,7 @@ import { AuthForm } from './auth-form';
 const HIGHLIGHTS = [
   { title: '투구기록', desc: '투구수·강도·구속과 그날의 영상' },
   { title: '영상분석', desc: '과거 폼을 느낀점과 함께 되돌아보기' },
-  { title: '통계·피로도', desc: '기간별 부하 추이와 과부하 경고' },
+  { title: '리포트', desc: '기간별 기록 정리와 코멘트' },
   { title: '트레이닝', desc: '파트별 운동과 메커니즘 드릴' },
 ];
 
