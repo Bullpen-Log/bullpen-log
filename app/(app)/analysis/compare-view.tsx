@@ -9,7 +9,7 @@ import {
   Play,
   RotateCcw,
 } from 'lucide-react';
-import { EmptyState, Select } from '@/components/ui';
+import { EmptyState } from '@/components/ui';
 import {
   formatTime,
   useFrameDuration,
@@ -27,7 +27,16 @@ export type ClipOption = {
   summary: string;
 };
 
-/** 한쪽 화면. 영상 선택과 기준점 맞추기를 각자 담당한다. */
+/** 날짜에서 연도를 떼어 좁은 화면에서도 읽히게 한다. */
+function shortDate(dateKey: string) {
+  const [, m, d] = dateKey.split('-');
+  return `${Number(m)}/${Number(d)}`;
+}
+
+/**
+ * 한쪽 화면. 모바일에서도 두 영상이 동시에 보이도록
+ * 영상 위에 라벨을 얹고 조작부는 아이콘만 남겼다.
+ */
 function ComparePane({
   side,
   clips,
@@ -45,9 +54,8 @@ function ComparePane({
   mark: number;
   onMark: () => void;
 }) {
-  const { frameDurationRef, fps } = useFrameDuration(videoRef);
+  const { frameDurationRef } = useFrameDuration(videoRef);
   const [current, setCurrent] = useState(0);
-  const [duration, setDuration] = useState(0);
 
   const clip = clips.find((c) => c.id === selectedId);
 
@@ -65,8 +73,9 @@ function ComparePane({
   };
 
   return (
-    <div className="flex flex-col overflow-hidden rounded-xl border border-line bg-surface-2">
-      <div className="flex items-center gap-2 border-b border-line px-3 py-2.5">
+    <div className="flex min-w-0 flex-col overflow-hidden rounded-xl border border-line bg-surface-2">
+      {/* 영상 선택 */}
+      <div className="flex items-center gap-1.5 border-b border-line p-1.5 sm:gap-2 sm:p-2">
         <span
           className={`flex h-6 w-6 shrink-0 items-center justify-center rounded text-xs font-bold ${
             side === 'A' ? 'bg-gold text-ink' : 'bg-cream/80 text-ink'
@@ -74,18 +83,18 @@ function ComparePane({
         >
           {side}
         </span>
-        <Select
+        <select
           value={selectedId}
           onChange={(e) => onSelect(e.target.value)}
           aria-label={`${side}면 영상 선택`}
-          className="min-w-0 flex-1 px-3 py-2 text-xs"
+          className="min-w-0 flex-1 cursor-pointer rounded-lg border border-line bg-surface px-2 py-1.5 text-xs text-cream focus:border-gold focus:outline-none"
         >
           {clips.map((c) => (
             <option key={c.id} value={c.id}>
-              {c.date} · {c.label}
+              {shortDate(c.date)} {c.label}
             </option>
           ))}
-        </Select>
+        </select>
       </div>
 
       <video
@@ -94,57 +103,49 @@ function ComparePane({
         playsInline
         preload="metadata"
         onTimeUpdate={(e) => setCurrent(e.currentTarget.currentTime)}
-        onLoadedMetadata={(e) => setDuration(e.currentTarget.duration)}
-        className="aspect-video w-full bg-black object-contain"
+        // 세로/가로 영상 모두 무난한 정사각형으로 두고, 넓어지면 16:9로 바꾼다.
+        className="aspect-square w-full bg-black object-contain sm:aspect-video"
         aria-label={`${side}면 영상`}
       />
 
       {clip && (
-        <p className="border-b border-line px-3 py-2 text-[11px] text-muted">
+        <p className="truncate border-t border-line px-2 py-1.5 text-[10px] text-muted sm:text-[11px]">
           {clip.summary}
         </p>
       )}
 
-      {/* 기준점 맞추기 */}
-      <div className="flex flex-wrap items-center gap-2 px-3 py-2.5">
-        <span className="text-[11px] text-muted">기준점 맞추기</span>
-        <div className="flex overflow-hidden rounded-lg border border-line">
-          <button
-            type="button"
-            onClick={() => nudge(-1)}
-            aria-label={`${side}면 한 프레임 뒤로`}
-            className="px-2 py-1.5 text-muted transition-colors hover:bg-surface hover:text-gold"
-          >
-            <ChevronLeft className="h-3.5 w-3.5" />
-          </button>
-          <span className="w-px bg-line" />
-          <button
-            type="button"
-            onClick={() => nudge(1)}
-            aria-label={`${side}면 한 프레임 앞으로`}
-            className="px-2 py-1.5 text-muted transition-colors hover:bg-surface hover:text-gold"
-          >
-            <ChevronRight className="h-3.5 w-3.5" />
-          </button>
-        </div>
-
+      {/* 기준점 맞추기 — 좁은 화면에서는 아이콘만 */}
+      <div className="flex items-center gap-1 border-t border-line p-1.5">
+        <button
+          type="button"
+          onClick={() => nudge(-1)}
+          aria-label={`${side}면 한 프레임 뒤로`}
+          className="flex h-9 w-9 items-center justify-center rounded-lg border border-line text-muted transition-colors hover:border-gold hover:text-gold"
+        >
+          <ChevronLeft className="h-4 w-4" />
+        </button>
+        <button
+          type="button"
+          onClick={() => nudge(1)}
+          aria-label={`${side}면 한 프레임 앞으로`}
+          className="flex h-9 w-9 items-center justify-center rounded-lg border border-line text-muted transition-colors hover:border-gold hover:text-gold"
+        >
+          <ChevronRight className="h-4 w-4" />
+        </button>
         <button
           type="button"
           onClick={onMark}
-          title="지금 화면을 이 영상의 기준점으로 지정"
-          className="inline-flex items-center gap-1 rounded-lg border border-line px-2.5 py-1.5 text-[11px] text-muted transition-colors hover:border-gold hover:text-gold"
+          title="지금 화면을 기준점으로 지정"
+          aria-label={`${side}면 기준점 지정`}
+          className="flex h-9 min-w-0 flex-1 items-center justify-center gap-1 rounded-lg border border-line text-[11px] text-muted transition-colors hover:border-gold hover:text-gold"
         >
-          <Flag className="h-3 w-3" />
-          여기를 기준점으로
+          <Flag className="h-3.5 w-3.5 shrink-0" />
+          <span className="truncate">기준점</span>
         </button>
-
-        <span className="ml-auto text-[11px] tabular-nums text-muted">
-          {formatTime(current)} / {formatTime(duration)}
-        </span>
       </div>
 
-      <div className="border-t border-line px-3 py-1.5 text-[10px] text-muted">
-        기준점 {formatTime(mark)} · 약 {fps}fps
+      <div className="border-t border-line px-2 py-1 text-[10px] tabular-nums text-muted">
+        {formatTime(current)} · 기준 {formatTime(mark)}
       </div>
     </div>
   );
@@ -263,7 +264,8 @@ export function CompareView({ clips }: { clips: ClipOption[] }) {
       role="group"
       aria-label="2분할 비교 재생기"
     >
-      <div className="grid gap-4 lg:grid-cols-2">
+      {/* 좁은 화면에서도 둘을 동시에 봐야 비교가 되므로 항상 좌우로 둔다. */}
+      <div className="grid grid-cols-2 gap-2 sm:gap-4">
         <ComparePane
           side="A"
           clips={clips}
@@ -284,60 +286,65 @@ export function CompareView({ clips }: { clips: ClipOption[] }) {
         />
       </div>
 
-      {/* 공용 조작부 — 두 영상을 함께 움직인다 */}
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-3 rounded-xl border border-gold-dim/40 bg-gold/[0.04] px-4 py-3">
-        <button
-          type="button"
-          onClick={resetToMarks}
-          title="두 영상을 각자의 기준점으로"
-          className="rounded-lg border border-line p-2 text-muted transition-colors hover:border-gold hover:text-gold"
-        >
-          <RotateCcw className="h-4 w-4" />
-        </button>
-
-        <button
-          type="button"
-          onClick={bothPlay}
-          aria-label={playing ? '둘 다 정지' : '둘 다 재생'}
-          className="rounded-lg bg-gold p-2 text-ink transition-colors hover:bg-gold-bright"
-        >
-          {playing ? (
-            <Pause className="h-4 w-4 fill-current" />
-          ) : (
-            <Play className="ml-0.5 h-4 w-4 fill-current" />
-          )}
-        </button>
-
-        <div className="flex overflow-hidden rounded-lg border border-line">
+      {/*
+        공용 조작부 — 스크롤해도 항상 손이 닿도록 아래에 붙여둔다.
+        모바일 하단 탭(약 3.25rem) 위에 오도록 위치를 잡는다.
+      */}
+      <div className="sticky bottom-[calc(3rem_+_env(safe-area-inset-bottom))] z-30 rounded-xl border border-gold-dim/50 bg-ink/95 p-2 backdrop-blur-xl sm:p-3 lg:bottom-4">
+        <div className="flex flex-wrap items-center gap-x-1.5 gap-y-2 sm:gap-x-3">
           <button
             type="button"
-            onClick={() => stepBoth(-1)}
-            className="flex items-center gap-1 px-2.5 py-2 text-xs text-muted transition-colors hover:bg-surface hover:text-gold"
+            onClick={resetToMarks}
+            aria-label="두 영상을 기준점으로"
+            title="두 영상을 각자의 기준점으로"
+            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border border-line text-muted transition-colors hover:border-gold hover:text-gold"
           >
-            <ChevronLeft className="h-3.5 w-3.5" />
-            이전 프레임
+            <RotateCcw className="h-4 w-4" />
           </button>
-          <span className="w-px bg-line" />
+
           <button
             type="button"
-            onClick={() => stepBoth(1)}
-            className="flex items-center gap-1 px-2.5 py-2 text-xs text-muted transition-colors hover:bg-surface hover:text-gold"
+            onClick={bothPlay}
+            aria-label={playing ? '둘 다 정지' : '둘 다 재생'}
+            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-gold text-ink transition-colors hover:bg-gold-bright"
           >
-            다음 프레임
-            <ChevronRight className="h-3.5 w-3.5" />
+            {playing ? (
+              <Pause className="h-4 w-4 fill-current" />
+            ) : (
+              <Play className="ml-0.5 h-4 w-4 fill-current" />
+            )}
           </button>
-        </div>
 
-        <div className="ml-auto flex items-center gap-2">
-          <span className="text-xs text-muted">재생 속도</span>
-          <div className="flex overflow-hidden rounded-lg border border-line">
+          <div className="flex h-11 shrink-0 overflow-hidden rounded-lg border border-line">
+            <button
+              type="button"
+              onClick={() => stepBoth(-1)}
+              aria-label="두 영상 이전 프레임"
+              className="flex items-center gap-1 px-3 text-xs text-muted transition-colors hover:bg-surface hover:text-gold"
+            >
+              <ChevronLeft className="h-4 w-4" />
+              <span className="hidden sm:inline">이전</span>
+            </button>
+            <span className="w-px bg-line" />
+            <button
+              type="button"
+              onClick={() => stepBoth(1)}
+              aria-label="두 영상 다음 프레임"
+              className="flex items-center gap-1 px-3 text-xs text-muted transition-colors hover:bg-surface hover:text-gold"
+            >
+              <span className="hidden sm:inline">다음</span>
+              <ChevronRight className="h-4 w-4" />
+            </button>
+          </div>
+
+          <div className="ml-auto flex h-11 shrink-0 overflow-hidden rounded-lg border border-line">
             {SPEEDS.map((s, i) => (
               <button
                 key={s}
                 type="button"
                 onClick={() => setSpeed(s)}
                 aria-pressed={speed === s}
-                className={`px-2.5 py-2 text-xs transition-colors ${
+                className={`px-2 text-[11px] transition-colors sm:px-2.5 sm:text-xs ${
                   i > 0 ? 'border-l border-line' : ''
                 } ${
                   speed === s
@@ -352,12 +359,16 @@ export function CompareView({ clips }: { clips: ClipOption[] }) {
         </div>
       </div>
 
-      <p className="rounded-xl border border-line bg-surface px-4 py-3 text-xs leading-relaxed text-muted">
-        <strong className="text-cream">쓰는 법</strong> — 각 화면의 &ldquo;기준점 맞추기&rdquo;로
-        두 영상을 같은 동작(예: 앞발 착지 순간)에 맞춘 뒤 &ldquo;여기를 기준점으로&rdquo;를
-        누르세요. 그다음 아래 공용 버튼으로 함께 넘기면 같은 시점끼리 비교됩니다.
-        ← → 키로도 이동할 수 있습니다.
-      </p>
+      <details className="rounded-xl border border-line bg-surface px-4 py-3 text-xs text-muted">
+        <summary className="cursor-pointer font-medium text-cream">쓰는 법</summary>
+        <p className="mt-2 leading-relaxed">
+          각 화면의 <strong className="text-cream">◀ ▶</strong>로 두 영상을 같은
+          동작(예: 앞발 착지 순간)에 맞춘 뒤{' '}
+          <strong className="text-cream">기준점</strong>을 누르세요. 그다음 아래 공용
+          버튼으로 함께 넘기면 같은 시점끼리 비교됩니다. 폰을 가로로 눕히면 더 크게
+          볼 수 있습니다.
+        </p>
+      </details>
     </div>
   );
 }

@@ -115,8 +115,8 @@ export function PitchVideoPlayer({
         aria-label={label}
       />
 
-      {/* 진행 바 */}
-      <div className="px-3 pt-3">
+      {/* 진행 바 — 손가락으로 잡기 쉽도록 세로 여백을 넉넉히 준다. */}
+      <div className="px-3 pt-2">
         <input
           type="range"
           min={0}
@@ -129,18 +129,21 @@ export function PitchVideoPlayer({
             setCurrent(v);
           }}
           aria-label="재생 위치"
-          className="w-full accent-[#c9a96a]"
+          className="h-6 w-full cursor-pointer accent-[#c9a96a]"
         />
       </div>
 
-      {/* 조작부 */}
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-3 px-3 pb-3 pt-1">
+      {/*
+        조작부 — 좁은 화면에서는 글자를 빼고 터치 영역을 키운다.
+        폭이 모자라면 속도 버튼이 아랫줄로 내려가도록 줄바꿈을 허용한다.
+      */}
+      <div className="flex flex-wrap items-center gap-x-1.5 gap-y-2 px-3 pb-3 pt-1 sm:gap-x-2.5">
         <button
           type="button"
           onClick={reset}
           aria-label="처음으로"
           title="처음으로"
-          className="rounded-lg border border-line p-2 text-muted transition-colors hover:border-gold hover:text-gold"
+          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border border-line text-muted transition-colors hover:border-gold hover:text-gold"
         >
           <RotateCcw className="h-4 w-4" />
         </button>
@@ -149,7 +152,7 @@ export function PitchVideoPlayer({
           type="button"
           onClick={togglePlay}
           aria-label={playing ? '일시정지' : '재생'}
-          className="rounded-lg bg-gold p-2 text-ink transition-colors hover:bg-gold-bright"
+          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-gold text-ink transition-colors hover:bg-gold-bright"
         >
           {playing ? (
             <Pause className="h-4 w-4 fill-current" />
@@ -159,37 +162,39 @@ export function PitchVideoPlayer({
         </button>
 
         {/* 프레임 이동 */}
-        <div className="flex overflow-hidden rounded-lg border border-line">
+        <div className="flex h-11 shrink-0 overflow-hidden rounded-lg border border-line">
           <button
             type="button"
             onClick={() => stepFrame(-1)}
-            className="flex items-center gap-1 px-2.5 py-2 text-xs text-muted transition-colors hover:bg-surface hover:text-gold"
+            aria-label="이전 프레임"
+            className="flex items-center gap-1 px-3 text-xs text-muted transition-colors hover:bg-surface hover:text-gold"
           >
-            <ChevronLeft className="h-3.5 w-3.5" />
-            이전 프레임
+            <ChevronLeft className="h-4 w-4" />
+            <span className="hidden sm:inline">이전 프레임</span>
           </button>
           <span className="w-px bg-line" />
           <button
             type="button"
             onClick={() => stepFrame(1)}
-            className="flex items-center gap-1 px-2.5 py-2 text-xs text-muted transition-colors hover:bg-surface hover:text-gold"
+            aria-label="다음 프레임"
+            className="flex items-center gap-1 px-3 text-xs text-muted transition-colors hover:bg-surface hover:text-gold"
           >
-            다음 프레임
-            <ChevronRight className="h-3.5 w-3.5" />
+            <span className="hidden sm:inline">다음 프레임</span>
+            <ChevronRight className="h-4 w-4" />
           </button>
         </div>
 
         {/* 재생 속도 */}
         <div className="ml-auto flex items-center gap-2">
-          <span className="text-xs text-muted">재생 속도</span>
-          <div className="flex overflow-hidden rounded-lg border border-line">
+          <span className="hidden text-xs text-muted lg:inline">재생 속도</span>
+          <div className="flex h-11 shrink-0 overflow-hidden rounded-lg border border-line">
             {SPEEDS.map((s, i) => (
               <button
                 key={s}
                 type="button"
                 onClick={() => setSpeed(s)}
                 aria-pressed={speed === s}
-                className={`px-2.5 py-2 text-xs transition-colors ${
+                className={`px-2 text-[11px] transition-colors sm:px-2.5 sm:text-xs ${
                   i > 0 ? 'border-l border-line' : ''
                 } ${
                   speed === s
