@@ -3,6 +3,7 @@
 import { useMemo, useState } from 'react';
 import { ChevronLeft, ChevronRight, VideoOff } from 'lucide-react';
 import { Badge, Card, EmptyState, PageHeading } from '@/components/ui';
+import { PitchVideoPlayer } from '@/components/pitch-video-player';
 import { toDateKey } from '@/lib/pitch-stats';
 import { PitchCalendar, type DaySummary } from '@/app/(app)/pitch-log/calendar';
 import type { Log } from '@/app/(app)/pitch-log/pitch-log-client';
@@ -154,20 +155,13 @@ export function AnalysisClient({ logs }: { logs: AnalysisLog[] }) {
 
                   {/* 영상 */}
                   {log.videos.length > 0 ? (
-                    <div
-                      className={`grid gap-4 ${
-                        log.videos.length > 1 ? 'sm:grid-cols-2' : ''
-                      }`}
-                    >
+                    <div className="grid gap-5">
                       {log.videos.map((video, i) => (
                         <div key={video.path} className="space-y-2">
                           {video.url ? (
-                            <video
+                            <PitchVideoPlayer
                               src={video.url}
-                              controls
-                              playsInline
-                              preload="metadata"
-                              className="aspect-video w-full rounded-xl border border-line bg-black object-contain"
+                              label={`${selectedDate} 투구 영상 ${i + 1}`}
                             />
                           ) : (
                             <div className="flex aspect-video items-center justify-center rounded-xl border border-line bg-surface-2 text-xs text-muted">
