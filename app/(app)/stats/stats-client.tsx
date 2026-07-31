@@ -3,12 +3,14 @@
 import { useMemo, useState } from 'react';
 import { Chart } from 'react-chartjs-2';
 import {
+  BarController,
   BarElement,
   CategoryScale,
   Chart as ChartJS,
   Filler,
   Legend,
   LinearScale,
+  LineController,
   LineElement,
   PointElement,
   Tooltip,
@@ -25,7 +27,11 @@ import {
 } from '@/lib/pitch-stats';
 import type { Log } from '@/app/(app)/pitch-log/pitch-log-client';
 
+// 범용 <Chart>는 전용 컴포넌트와 달리 컨트롤러를 자동 등록하지 않는다.
+// 막대+선을 섞어 쓰므로 두 컨트롤러를 직접 등록해야 한다.
 ChartJS.register(
+  BarController,
+  LineController,
   CategoryScale,
   LinearScale,
   BarElement,
