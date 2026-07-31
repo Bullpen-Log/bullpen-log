@@ -7,12 +7,11 @@ import { PitchVideoPlayer } from '@/components/pitch-video-player';
 import { toDateKey } from '@/lib/pitch-stats';
 import { PitchCalendar, type DaySummary } from '@/app/(app)/pitch-log/calendar';
 import type { Log } from '@/app/(app)/pitch-log/pitch-log-client';
+import { usePlaybackUrls } from '@/components/use-playback-urls';
 import { CompareView, type ClipOption } from './compare-view';
 
-/** 서버에서 재생용 임시 주소까지 붙여 내려준 형태 */
-export type AnalysisLog = Log & {
-  videos: { path: string; url: string | null }[];
-};
+/** 재생 주소는 화면에서 필요할 때 따로 받아오므로 경로만 내려온다. */
+export type AnalysisLog = Log;
 
 const MODES = [
   { key: 'single', label: '단일 보기' },
@@ -31,15 +30,13 @@ export function AnalysisClient({ logs }: { logs: AnalysisLog[] }) {
   const clips = useMemo<ClipOption[]>(
     () =>
       withVideo.flatMap((log) =>
-        log.videos
-          .filter((v) => v.url)
-          .map((v, i) => ({
-            id: `${log.id}-${i}`,
-            date: log.date.slice(0, 10),
-            url: v.url as string,
-            label: log.videos.length > 1 ? `영상 ${i + 1}` : '영상',
-            summary: `${log.maxVelocity}km/h · ${log.pitchCount}구 · 강도 ${log.intensity}/10`,
-          }))
+        log.videoPaths.map((path, i) => ({
+          id: `${log.id}-${i}`,
+          date: log.date.slice(0, 10),
+          path,
+          label: log.videoPaths.length > 1 ? `영상 ${i + 1}` : '영상',
+          summary: `${log.maxVelocity}km/h · ${log.pitchCount}구 · 강도 ${log.intensity}/10`,
+        }))
       ),
     [withVideo]
   );
@@ -72,6 +69,14 @@ export function AnalysisClient({ logs }: { logs: AnalysisLog[] }) {
     () => logs.filter((l) => l.date.slice(0, 10) === selectedDate),
     [logs, selectedDate]
   );
+
+  // 선택한 날짜의 영상 주소만 받아온다.
+  const selectedPaths = useMemo(
+    () => selectedLogs.flatMap((l) => l.videoPaths),
+    [selectedLogs]
+  );
+  const { urls: playbackUrls, loading: urlsLoading } =
+    usePlaybackUrls(selectedPaths);
 
   const videoDates = useMemo(
     () => [...new Set(withVideo.map((l) => l.date.slice(0, 10)))].sort(),
@@ -199,18 +204,18 @@ export function AnalysisClient({ logs }: { logs: AnalysisLog[] }) {
                   </div>
 
                   {/* 영상 */}
-                  {log.videos.length > 0 ? (
+                  {log.videoPaths.length > 0 ? (
                     <div className="grid gap-5">
-                      {log.videos.map((video, i) => (
-                        <div key={video.path} className="space-y-2">
-                          {video.url ? (
+                      {log.videoPaths.map((path, i) => (
+                        <div key={path} className="space-y-2">
+                          {playbackUrls[path] ? (
                             <PitchVideoPlayer
-                              src={video.url}
+                              src={playbackUrls[path]}
                               label={`${selectedDate} 투구 영상 ${i + 1}`}
                             />
                           ) : (
                             <div className="flex aspect-video items-center justify-center rounded-xl border border-line bg-surface-2 text-xs text-muted">
-                              영상을 불러올 수 없습니다
+                              {urlsLoading ? '불러오는 중…' : '영상을 불러올 수 없습니다'}
                             </div>
                           )}
                           <p className="text-xs text-muted">영상 {i + 1}</p>

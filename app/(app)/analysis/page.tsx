@@ -1,6 +1,5 @@
 import { prisma } from '@/lib/prisma';
 import { requireUser } from '@/lib/dal';
-import { createPlaybackUrls, isStorageConfigured } from '@/lib/storage';
 import { AnalysisClient } from './analysis-client';
 
 export default async function AnalysisPage() {
@@ -11,21 +10,14 @@ export default async function AnalysisPage() {
     orderBy: { date: 'asc' },
   });
 
-  // 비공개 저장소이므로 본인 영상에 대해서만 시간제한 재생 주소를 만들어 넘긴다.
-  const allPaths = logs.flatMap((l) => l.videoPaths);
-  const signed =
-    allPaths.length > 0 && isStorageConfigured()
-      ? await createPlaybackUrls(allPaths)
-      : [];
-
-  const urlByPath = Object.fromEntries(
-    signed.filter((s) => s.url).map((s) => [s.path, s.url as string])
-  );
-
+  /*
+   * 재생 주소는 여기서 만들지 않는다.
+   * 기록이 많아지면 열 때마다 전부 발급하느라 느려지므로,
+   * 실제로 보고 있는 영상만 /api/pitch-log/video-url 로 그때그때 받아온다.
+   */
   const serialized = logs.map((log) => ({
     ...log,
     date: log.date.toISOString(),
-    videos: log.videoPaths.map((path) => ({ path, url: urlByPath[path] ?? null })),
   }));
 
   return <AnalysisClient logs={serialized} />;

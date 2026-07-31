@@ -63,10 +63,32 @@ export async function createPlaybackUrl(path: string): Promise<string | null> {
   return data.signedUrl;
 }
 
-export async function createPlaybackUrls(paths: string[]) {
-  return Promise.all(
-    paths.map(async (path) => ({ path, url: await createPlaybackUrl(path) }))
-  );
+/**
+ * 여러 영상의 재생 주소를 한 번의 요청으로 받아온다.
+ * 하나씩 발급하면 영상 수만큼 왕복이 생겨 느려진다.
+ */
+export async function createPlaybackUrls(
+  paths: string[]
+): Promise<Record<string, string>> {
+  if (paths.length === 0) return {};
+
+  const { data, error } = await getClient()
+    .storage.from(VIDEO_BUCKET)
+    .createSignedUrls(paths, PLAYBACK_TTL_SECONDS);
+
+  if (error || !data) {
+    console.error('[storage] 재생 주소 일괄 생성 실패', error);
+    return {};
+  }
+
+  const result: Record<string, string> = {};
+  for (const item of data) {
+    // 개별 항목이 실패해도 나머지는 살린다.
+    if (item.path && item.signedUrl && !item.error) {
+      result[item.path] = item.signedUrl;
+    }
+  }
+  return result;
 }
 
 /** 기록을 지울 때 저장된 파일도 함께 정리한다. */

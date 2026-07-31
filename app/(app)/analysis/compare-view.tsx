@@ -15,23 +15,20 @@ import {
   useFrameDuration,
   type VideoWithFrameCallback,
 } from '@/components/use-frame-duration';
+import { usePlaybackUrls } from '@/components/use-playback-urls';
+import { ClipPicker } from './clip-picker';
 
 const SPEEDS = [0.25, 0.5, 1] as const;
 
 export type ClipOption = {
   id: string;
   date: string;
-  url: string;
+  /** 저장소 경로. 재생 주소는 고른 시점에 따로 받아온다. */
+  path: string;
   label: string;
   /** 그날의 기록 요약 (구속·투구수 등) */
   summary: string;
 };
-
-/** 날짜에서 연도를 떼어 좁은 화면에서도 읽히게 한다. */
-function shortDate(dateKey: string) {
-  const [, m, d] = dateKey.split('-');
-  return `${Number(m)}/${Number(d)}`;
-}
 
 /**
  * 한쪽 화면. 모바일에서도 두 영상이 동시에 보이도록
@@ -45,6 +42,8 @@ function ComparePane({
   videoRef,
   mark,
   onMark,
+  url,
+  loading,
 }: {
   side: 'A' | 'B';
   clips: ClipOption[];
@@ -53,6 +52,8 @@ function ComparePane({
   videoRef: React.RefObject<VideoWithFrameCallback | null>;
   mark: number;
   onMark: () => void;
+  url?: string;
+  loading: boolean;
 }) {
   const { frameDurationRef } = useFrameDuration(videoRef);
   const [current, setCurrent] = useState(0);
@@ -83,30 +84,31 @@ function ComparePane({
         >
           {side}
         </span>
-        <select
-          value={selectedId}
-          onChange={(e) => onSelect(e.target.value)}
-          aria-label={`${side}면 영상 선택`}
-          className="min-w-0 flex-1 cursor-pointer rounded-lg border border-line bg-surface px-2 py-1.5 text-xs text-cream focus:border-gold focus:outline-none"
-        >
-          {clips.map((c) => (
-            <option key={c.id} value={c.id}>
-              {shortDate(c.date)} {c.label}
-            </option>
-          ))}
-        </select>
+        <ClipPicker
+          clips={clips}
+          selectedId={selectedId}
+          onSelect={onSelect}
+          side={side}
+        />
       </div>
 
-      <video
-        ref={videoRef}
-        src={clip?.url}
-        playsInline
-        preload="metadata"
-        onTimeUpdate={(e) => setCurrent(e.currentTarget.currentTime)}
-        // 세로/가로 영상 모두 무난한 정사각형으로 두고, 넓어지면 16:9로 바꾼다.
-        className="aspect-square w-full bg-black object-contain sm:aspect-video"
-        aria-label={`${side}면 영상`}
-      />
+      <div className="relative">
+        <video
+          ref={videoRef}
+          src={url}
+          playsInline
+          preload="metadata"
+          onTimeUpdate={(e) => setCurrent(e.currentTarget.currentTime)}
+          // 세로/가로 영상 모두 무난한 정사각형으로 두고, 넓어지면 16:9로 바꾼다.
+          className="aspect-square w-full bg-black object-contain sm:aspect-video"
+          aria-label={`${side}면 영상`}
+        />
+        {!url && (
+          <p className="absolute inset-0 flex items-center justify-center text-xs text-muted">
+            {loading ? '불러오는 중…' : '영상을 선택하세요'}
+          </p>
+        )}
+      </div>
 
       {clip && (
         <p className="truncate border-t border-line px-2 py-1.5 text-[10px] text-muted sm:text-[11px]">
@@ -166,6 +168,11 @@ export function CompareView({ clips }: { clips: ClipOption[] }) {
 
   const frameA = useFrameDuration(videoA).frameDurationRef;
   const frameB = useFrameDuration(videoB).frameDurationRef;
+
+  // 지금 고른 두 영상의 재생 주소만 받아온다.
+  const clipA = clips.find((c) => c.id === idA);
+  const clipB = clips.find((c) => c.id === idB);
+  const { urls, loading } = usePlaybackUrls([clipA?.path, clipB?.path]);
 
   useEffect(() => {
     if (videoA.current) videoA.current.playbackRate = speed;
@@ -274,6 +281,8 @@ export function CompareView({ clips }: { clips: ClipOption[] }) {
           videoRef={videoA}
           mark={markA}
           onMark={() => setMarkA(videoA.current?.currentTime ?? 0)}
+          url={clipA ? urls[clipA.path] : undefined}
+          loading={loading}
         />
         <ComparePane
           side="B"
@@ -283,6 +292,8 @@ export function CompareView({ clips }: { clips: ClipOption[] }) {
           videoRef={videoB}
           mark={markB}
           onMark={() => setMarkB(videoB.current?.currentTime ?? 0)}
+          url={clipB ? urls[clipB.path] : undefined}
+          loading={loading}
         />
       </div>
 
