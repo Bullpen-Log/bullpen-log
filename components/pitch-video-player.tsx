@@ -2,27 +2,13 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ChevronLeft, ChevronRight, Pause, Play, RotateCcw } from 'lucide-react';
+import {
+  formatTime,
+  useFrameDuration,
+  type VideoWithFrameCallback,
+} from '@/components/use-frame-duration';
 
 const SPEEDS = [0.25, 0.5, 1] as const;
-
-/** 프레임 정보를 못 읽었을 때 쓰는 기본값 (30fps 기준) */
-const DEFAULT_FRAME_DURATION = 1 / 30;
-
-/** 브라우저마다 지원이 갈리는 API라 최소한의 타입만 직접 선언한다. */
-type VideoFrameMeta = { mediaTime: number };
-type VideoWithFrameCallback = HTMLVideoElement & {
-  requestVideoFrameCallback?: (
-    cb: (now: number, meta: VideoFrameMeta) => void
-  ) => number;
-  cancelVideoFrameCallback?: (handle: number) => void;
-};
-
-function formatTime(seconds: number) {
-  if (!Number.isFinite(seconds)) return '0:00.00';
-  const m = Math.floor(seconds / 60);
-  const s = seconds % 60;
-  return `${m}:${s.toFixed(2).padStart(5, '0')}`;
-}
 
 export function PitchVideoPlayer({
   src,
@@ -33,51 +19,12 @@ export function PitchVideoPlayer({
 }) {
   const videoRef = useRef<VideoWithFrameCallback>(null);
   const containerRef = useRef<HTMLDivElement>(null);
-  const frameDurationRef = useRef(DEFAULT_FRAME_DURATION);
-  const lastFrameTimeRef = useRef<number | null>(null);
+  const { frameDurationRef, fps } = useFrameDuration(videoRef);
 
   const [playing, setPlaying] = useState(false);
   const [speed, setSpeed] = useState<number>(0.5);
   const [current, setCurrent] = useState(0);
   const [duration, setDuration] = useState(0);
-  const [fps, setFps] = useState(Math.round(1 / DEFAULT_FRAME_DURATION));
-
-  /**
-   * 재생 중 연속한 두 프레임의 간격을 재서 실제 프레임 길이를 알아낸다.
-   * 60fps로 찍은 영상도 정확히 한 프레임씩 넘길 수 있다.
-   */
-  useEffect(() => {
-    const video = videoRef.current;
-    if (!video?.requestVideoFrameCallback) return;
-
-    let handle: number | undefined;
-    let cancelled = false;
-
-    const onFrame = (_now: number, meta: VideoFrameMeta) => {
-      if (cancelled) return;
-      const prev = lastFrameTimeRef.current;
-
-      if (prev != null) {
-        const delta = meta.mediaTime - prev;
-        // 재생 속도 배율을 걷어내야 실제 프레임 간격이 나온다.
-        const normalized = delta / (video.playbackRate || 1);
-        if (normalized > 0.001 && normalized < 0.2) {
-          frameDurationRef.current = normalized;
-          setFps(Math.round(1 / normalized));
-        }
-      }
-      lastFrameTimeRef.current = meta.mediaTime;
-
-      handle = video.requestVideoFrameCallback?.(onFrame);
-    };
-
-    handle = video.requestVideoFrameCallback(onFrame);
-
-    return () => {
-      cancelled = true;
-      if (handle != null) video.cancelVideoFrameCallback?.(handle);
-    };
-  }, []);
 
   // 속도 변경을 실제 영상에 반영한다.
   useEffect(() => {
@@ -94,20 +41,23 @@ export function PitchVideoPlayer({
     }
   }, []);
 
-  const stepFrame = useCallback((direction: 1 | -1) => {
-    const video = videoRef.current;
-    if (!video) return;
+  const stepFrame = useCallback(
+    (direction: 1 | -1) => {
+      const video = videoRef.current;
+      if (!video) return;
 
-    // 프레임 이동은 멈춘 상태에서만 의미가 있다.
-    video.pause();
-    const step = frameDurationRef.current * direction;
-    const next = Math.min(
-      Math.max(video.currentTime + step, 0),
-      video.duration || Infinity
-    );
-    video.currentTime = next;
-    setCurrent(next);
-  }, []);
+      // 프레임 이동은 멈춘 상태에서만 의미가 있다.
+      video.pause();
+      const step = frameDurationRef.current * direction;
+      const next = Math.min(
+        Math.max(video.currentTime + step, 0),
+        video.duration || Infinity
+      );
+      video.currentTime = next;
+      setCurrent(next);
+    },
+    [frameDurationRef]
+  );
 
   const reset = useCallback(() => {
     const video = videoRef.current;

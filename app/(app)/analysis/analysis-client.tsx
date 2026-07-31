@@ -7,16 +7,41 @@ import { PitchVideoPlayer } from '@/components/pitch-video-player';
 import { toDateKey } from '@/lib/pitch-stats';
 import { PitchCalendar, type DaySummary } from '@/app/(app)/pitch-log/calendar';
 import type { Log } from '@/app/(app)/pitch-log/pitch-log-client';
+import { CompareView, type ClipOption } from './compare-view';
 
 /** 서버에서 재생용 임시 주소까지 붙여 내려준 형태 */
 export type AnalysisLog = Log & {
   videos: { path: string; url: string | null }[];
 };
 
+const MODES = [
+  { key: 'single', label: '단일 보기' },
+  { key: 'compare', label: '2분할 비교' },
+] as const;
+
 export function AnalysisClient({ logs }: { logs: AnalysisLog[] }) {
+  const [mode, setMode] = useState<'single' | 'compare'>('single');
+
   const withVideo = useMemo(
     () => logs.filter((l) => l.videoPaths.length > 0),
     [logs]
+  );
+
+  /** 비교 화면에서 고를 수 있는 영상 목록 (오래된 순) */
+  const clips = useMemo<ClipOption[]>(
+    () =>
+      withVideo.flatMap((log) =>
+        log.videos
+          .filter((v) => v.url)
+          .map((v, i) => ({
+            id: `${log.id}-${i}`,
+            date: log.date.slice(0, 10),
+            url: v.url as string,
+            label: log.videos.length > 1 ? `영상 ${i + 1}` : '영상',
+            summary: `${log.maxVelocity}km/h · ${log.pitchCount}구 · 강도 ${log.intensity}/10`,
+          }))
+      ),
+    [withVideo]
   );
 
   // 영상이 있는 가장 최근 날짜를 기본으로 연다.
@@ -80,7 +105,7 @@ export function AnalysisClient({ logs }: { logs: AnalysisLog[] }) {
         title="영상분석"
         description="날짜를 선택하면 그날 던진 영상과 함께 그때의 기록·느낀점을 볼 수 있습니다. 과거 폼과 지금을 비교해보세요."
         action={
-          videoDates.length > 0 ? (
+          videoDates.length > 0 && mode === 'single' ? (
             <div className="flex items-center gap-2">
               <button
                 type="button"
@@ -106,11 +131,31 @@ export function AnalysisClient({ logs }: { logs: AnalysisLog[] }) {
         }
       />
 
+      {/* 보기 방식 전환 */}
+      {withVideo.length > 0 && (
+        <div className="flex gap-1 rounded-xl border border-line bg-surface p-1 sm:w-fit">
+          {MODES.map((m) => (
+            <button
+              key={m.key}
+              type="button"
+              onClick={() => setMode(m.key)}
+              className={`flex-1 rounded-lg px-5 py-2.5 text-sm font-medium transition-colors sm:flex-none ${
+                mode === m.key ? 'bg-gold text-ink' : 'text-muted hover:text-cream'
+              }`}
+            >
+              {m.label}
+            </button>
+          ))}
+        </div>
+      )}
+
       {withVideo.length === 0 ? (
         <EmptyState
           title="아직 등록된 영상이 없습니다"
-          description="투구 기록을 남길 때 영상 링크를 함께 첨부하면 이곳에서 다시 볼 수 있습니다."
+          description="투구 기록을 남길 때 영상을 함께 올리면 이곳에서 다시 볼 수 있습니다."
         />
+      ) : mode === 'compare' ? (
+        <CompareView clips={clips} />
       ) : (
         <div className="grid gap-6 lg:grid-cols-[minmax(0,340px)_1fr]">
           <Card className="lg:sticky lg:top-24 lg:self-start">
