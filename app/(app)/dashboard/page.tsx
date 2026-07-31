@@ -1,9 +1,35 @@
 import Link from 'next/link';
-import { Activity, BookOpen, CalendarDays, FileText, Users } from 'lucide-react';
+import {
+  Activity,
+  BookOpen,
+  CalendarDays,
+  FileText,
+  TrendingUp,
+  Users,
+  Video,
+} from 'lucide-react';
 import { requireUser } from '@/lib/dal';
 import { Eyebrow } from '@/components/ui';
 
 const CATEGORIES = [
+  {
+    href: '/pitch-log',
+    title: '투구 기록',
+    desc: '날짜별 투구수·강도·구속과 그날의 영상을 기록.',
+    icon: CalendarDays,
+  },
+  {
+    href: '/analysis',
+    title: '영상분석',
+    desc: '과거에 던진 영상을 그날의 느낀점과 함께 되돌아보기.',
+    icon: Video,
+  },
+  {
+    href: '/stats',
+    title: '통계 및 피로도',
+    desc: '기간별 투구량·강도 추이와 이틀 연속 과부하 경고.',
+    icon: TrendingUp,
+  },
   {
     href: '/training',
     title: '트레이닝',
@@ -17,15 +43,9 @@ const CATEGORIES = [
     icon: BookOpen,
   },
   {
-    href: '/pitch-log',
-    title: '투구 기록',
-    desc: '날짜별 구속·투구수·컨디션 기록과 추이 그래프.',
-    icon: CalendarDays,
-  },
-  {
     href: '/board',
     title: '참고자료',
-    desc: '투구 역학·트레이닝 논문과 분석글 게시판.',
+    desc: '투구 역학·트레이닝 분석글 게시판.',
     icon: FileText,
   },
 ] as const;

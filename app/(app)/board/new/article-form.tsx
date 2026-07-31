@@ -33,10 +33,10 @@ export function ArticleForm() {
       </Field>
 
       <Field label="태그" hint="쉼표로 구분해 최대 5개까지 입력할 수 있습니다.">
-        <Input name="tags" placeholder="논문, 어깨, 바이오메카닉스" />
+        <Input name="tags" placeholder="어깨, 바이오메카닉스, 회복" />
       </Field>
 
-      <Field label="자료 링크 (선택)" hint="논문 원문이나 참고 페이지 주소를 넣어주세요.">
+      <Field label="자료 링크 (선택)" hint="원문이나 참고 페이지 주소를 넣어주세요.">
         <Input name="attachmentUrl" type="url" placeholder="https://pubmed.ncbi.nlm.nih.gov/..." />
       </Field>
 

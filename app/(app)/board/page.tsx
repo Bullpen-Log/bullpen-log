@@ -25,14 +25,14 @@ export default async function BoardPage() {
       <PageHeading
         eyebrow="Library"
         title="참고자료"
-        description="투구 역학과 트레이닝에 관한 논문, 분석글을 공유하는 게시판입니다."
+        description="투구 역학과 트레이닝에 관한 분석글을 공유하는 게시판입니다."
         action={<ButtonLink href="/board/new">글쓰기</ButtonLink>}
       />
 
       {articles.length === 0 ? (
         <EmptyState
           title="아직 등록된 글이 없습니다"
-          description="첫 번째 자료를 공유해보세요. 논문 링크와 함께 요약을 남기면 좋습니다."
+          description="첫 번째 자료를 공유해보세요. 참고한 링크와 함께 요약을 남기면 좋습니다."
           action={
             <ButtonLink href="/board/new" variant="secondary" className="mt-2">
               첫 글 쓰기

@@ -1,22 +1,15 @@
 'use client';
 
 import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { toDateKey } from '@/lib/pitch-stats';
 
 const WEEKDAYS = ['일', '월', '화', '수', '목', '금', '토'];
 
 export type DaySummary = {
-  count: number;
   pitches: number;
   maxIntensity: number;
+  hasVideo: boolean;
 };
-
-/** 로컬 시간대 기준 YYYY-MM-DD 문자열 */
-export function toDateKey(date: Date) {
-  const y = date.getFullYear();
-  const m = String(date.getMonth() + 1).padStart(2, '0');
-  const d = String(date.getDate()).padStart(2, '0');
-  return `${y}-${m}-${d}`;
-}
 
 /** 강도에 따라 셀 배경 진하기를 다르게 준다. */
 function intensityClass(intensity: number) {
@@ -31,19 +24,21 @@ export function PitchCalendar({
   selected,
   onSelect,
   summaries,
+  /** 영상이 있는 날만 강조하고 싶을 때 사용 (영상분석 화면) */
+  videoOnly = false,
 }: {
   month: Date;
   onMonthChange: (next: Date) => void;
   selected: string;
   onSelect: (dateKey: string) => void;
   summaries: Record<string, DaySummary>;
+  videoOnly?: boolean;
 }) {
   const year = month.getFullYear();
   const monthIndex = month.getMonth();
 
-  const firstDay = new Date(year, monthIndex, 1);
   const daysInMonth = new Date(year, monthIndex + 1, 0).getDate();
-  const leadingBlanks = firstDay.getDay();
+  const leadingBlanks = new Date(year, monthIndex, 1).getDay();
   const todayKey = toDateKey(new Date());
 
   const cells: (number | null)[] = [
@@ -94,6 +89,7 @@ export function PitchCalendar({
 
           const key = toDateKey(new Date(year, monthIndex, day));
           const summary = summaries[key];
+          const marked = videoOnly ? summary?.hasVideo : Boolean(summary);
           const isSelected = key === selected;
           const isToday = key === todayKey;
 
@@ -107,7 +103,7 @@ export function PitchCalendar({
                   ? 'border-gold ring-1 ring-gold'
                   : 'border-transparent hover:border-line-strong'
               } ${
-                summary
+                marked && summary
                   ? intensityClass(summary.maxIntensity)
                   : 'bg-surface-2 text-muted hover:text-cream'
               }`}
@@ -115,9 +111,9 @@ export function PitchCalendar({
               <span className={isToday ? 'font-bold underline underline-offset-4' : ''}>
                 {day}
               </span>
-              {summary && (
+              {marked && summary && (
                 <span className="max-w-full truncate px-0.5 text-[9px] leading-none opacity-80 sm:text-[10px]">
-                  {summary.pitches}구
+                  {videoOnly ? `영상 ${summary.hasVideo ? '●' : ''}` : `${summary.pitches}구`}
                 </span>
               )}
             </button>
@@ -126,16 +122,22 @@ export function PitchCalendar({
       </div>
 
       <div className="flex flex-wrap items-center gap-x-3 gap-y-2 border-t border-line pt-4 text-[11px] text-muted">
-        <span>강도</span>
-        <span className="flex items-center gap-1.5">
-          <span className="h-3 w-5 rounded bg-gold/15" /> 낮음
-        </span>
-        <span className="flex items-center gap-1.5">
-          <span className="h-3 w-5 rounded bg-gold/40" /> 보통
-        </span>
-        <span className="flex items-center gap-1.5">
-          <span className="h-3 w-5 rounded bg-gold/70" /> 높음
-        </span>
+        {videoOnly ? (
+          <span>영상이 있는 날만 표시됩니다</span>
+        ) : (
+          <>
+            <span>강도</span>
+            <span className="flex items-center gap-1.5">
+              <span className="h-3 w-5 rounded bg-gold/15" /> 낮음
+            </span>
+            <span className="flex items-center gap-1.5">
+              <span className="h-3 w-5 rounded bg-gold/40" /> 보통
+            </span>
+            <span className="flex items-center gap-1.5">
+              <span className="h-3 w-5 rounded bg-gold/70" /> 높음
+            </span>
+          </>
+        )}
       </div>
     </div>
   );

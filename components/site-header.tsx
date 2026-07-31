@@ -4,9 +4,11 @@ import { logout } from '@/app/actions/auth';
 import { MobileNav, NavLinks } from '@/components/nav-links';
 
 const NAV_ITEMS = [
+  { href: '/pitch-log', label: '투구기록' },
+  { href: '/analysis', label: '영상분석' },
+  { href: '/stats', label: '통계' },
   { href: '/training', label: '트레이닝' },
   { href: '/mechanics', label: '메커니즘' },
-  { href: '/pitch-log', label: '투구기록' },
   { href: '/board', label: '자료실' },
 ];
 

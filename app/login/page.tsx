@@ -2,10 +2,10 @@ import Link from 'next/link';
 import { AuthForm } from './auth-form';
 
 const HIGHLIGHTS = [
-  { title: '트레이닝', desc: '부위별 컨디셔닝 운동과 루틴' },
-  { title: '메커니즘', desc: '와인드업부터 팔로우스루까지' },
-  { title: '투구기록', desc: '날짜별 구속·투구수·컨디션 추적' },
-  { title: '자료실', desc: '스포츠 과학 논문과 분석글' },
+  { title: '투구기록', desc: '투구수·강도·구속과 그날의 영상' },
+  { title: '영상분석', desc: '과거 폼을 느낀점과 함께 되돌아보기' },
+  { title: '통계·피로도', desc: '기간별 부하 추이와 과부하 경고' },
+  { title: '트레이닝', desc: '파트별 운동과 메커니즘 드릴' },
 ];
 
 export default function LoginPage() {

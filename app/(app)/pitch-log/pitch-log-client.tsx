@@ -1,19 +1,7 @@
 'use client';
 
 import { useCallback, useMemo, useState } from 'react';
-import { Line } from 'react-chartjs-2';
-import {
-  CategoryScale,
-  Chart as ChartJS,
-  Filler,
-  Legend,
-  LinearScale,
-  LineElement,
-  PointElement,
-  Title,
-  Tooltip,
-} from 'chart.js';
-import { Trash2, TriangleAlert } from 'lucide-react';
+import { Trash2, Video } from 'lucide-react';
 import {
   Badge,
   Button,
@@ -25,46 +13,29 @@ import {
   PageHeading,
   Textarea,
 } from '@/components/ui';
-import { PitchCalendar, toDateKey, type DaySummary } from './calendar';
+import { toDateKey } from '@/lib/pitch-stats';
+import { PitchCalendar, type DaySummary } from './calendar';
 
-ChartJS.register(
-  CategoryScale,
-  LinearScale,
-  PointElement,
-  LineElement,
-  Filler,
-  Title,
-  Tooltip,
-  Legend
-);
-
-type Log = {
+export type Log = {
   id: string;
   date: string;
-  velocity: number;
   pitchCount: number;
   intensity: number;
+  maxVelocity: number;
+  avgVelocity: number | null;
   memo: string | null;
+  videoUrls: string[];
 };
 
 const EMPTY_FORM = {
-  velocity: '',
   pitchCount: '',
   intensity: '5',
+  maxVelocity: '',
+  avgVelocity: '',
   memo: '',
+  video1: '',
+  video2: '',
 };
-
-/** 연속한 이틀의 체감 강도 합이 이 값을 넘으면 경고한다. */
-const TWO_DAY_INTENSITY_LIMIT = 10;
-
-/** dateKey에서 offset일 만큼 이동한 날짜 키를 반환한다. */
-function shiftDateKey(dateKey: string, offset: number) {
-  const [y, m, d] = dateKey.split('-').map(Number);
-  const date = new Date(y, m - 1, d + offset);
-  const mm = String(date.getMonth() + 1).padStart(2, '0');
-  const dd = String(date.getDate()).padStart(2, '0');
-  return `${date.getFullYear()}-${mm}-${dd}`;
-}
 
 export function PitchLogClient({ initialLogs }: { initialLogs: Log[] }) {
   const [logs, setLogs] = useState<Log[]>(initialLogs);
@@ -78,10 +49,10 @@ export function PitchLogClient({ initialLogs }: { initialLogs: Log[] }) {
   const [selectedDate, setSelectedDate] = useState(() => toDateKey(new Date()));
   const [form, setForm] = useState(EMPTY_FORM);
 
-  const fetchLogs = useCallback(async () => {
+  const refresh = useCallback(async () => {
     try {
       const res = await fetch('/api/pitch-log');
-      if (!res.ok) throw new Error('기록을 불러오지 못했습니다.');
+      if (!res.ok) throw new Error();
       setLogs(await res.json());
       setError(undefined);
     } catch {
@@ -89,63 +60,23 @@ export function PitchLogClient({ initialLogs }: { initialLogs: Log[] }) {
     }
   }, []);
 
-  /** 날짜별 요약 — 캘린더 셀에 표시할 값 */
   const summaries = useMemo(() => {
     return logs.reduce<Record<string, DaySummary>>((acc, log) => {
       const key = log.date.slice(0, 10);
-      const prev = acc[key] ?? { count: 0, pitches: 0, maxIntensity: 0 };
+      const prev = acc[key] ?? { pitches: 0, maxIntensity: 0, hasVideo: false };
       acc[key] = {
-        count: prev.count + 1,
         pitches: prev.pitches + log.pitchCount,
         maxIntensity: Math.max(prev.maxIntensity, log.intensity),
+        hasVideo: prev.hasVideo || log.videoUrls.length > 0,
       };
       return acc;
     }, {});
   }, [logs]);
 
   const selectedLogs = useMemo(
-    () => logs.filter((log) => log.date.slice(0, 10) === selectedDate),
+    () => logs.filter((l) => l.date.slice(0, 10) === selectedDate),
     [logs, selectedDate]
   );
-
-  const recent = useMemo(() => logs.slice(-30), [logs]);
-
-  /**
-   * 지금 입력 중인 강도까지 반영했을 때, 선택한 날과 그 앞/뒷날의
-   * 이틀치 강도 합이 한도를 넘는지 계산한다.
-   */
-  const intensityWarning = useMemo(() => {
-    const sumOn = (key: string) =>
-      logs
-        .filter((l) => l.date.slice(0, 10) === key)
-        .reduce((sum, l) => sum + l.intensity, 0);
-
-    const entered = Number(form.intensity) || 0;
-    const today = sumOn(selectedDate) + entered;
-    const prev = sumOn(shiftDateKey(selectedDate, -1));
-    const next = sumOn(shiftDateKey(selectedDate, 1));
-
-    const withPrev = prev + today;
-    const withNext = today + next;
-    const worst = Math.max(withPrev, withNext);
-
-    if (worst <= TWO_DAY_INTENSITY_LIMIT) return null;
-
-    return withPrev >= withNext
-      ? `전날과 합쳐 ${withPrev} — 이틀 합이 ${TWO_DAY_INTENSITY_LIMIT}을 넘습니다.`
-      : `다음날과 합쳐 ${withNext} — 이틀 합이 ${TWO_DAY_INTENSITY_LIMIT}을 넘습니다.`;
-  }, [logs, selectedDate, form.intensity]);
-
-  const stats = useMemo(() => {
-    if (logs.length === 0) return null;
-    const velocities = logs.map((l) => l.velocity);
-    return {
-      sessions: logs.length,
-      totalPitches: logs.reduce((sum, l) => sum + l.pitchCount, 0),
-      maxVelocity: Math.max(...velocities),
-      avgVelocity: velocities.reduce((a, b) => a + b, 0) / velocities.length,
-    };
-  }, [logs]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -156,7 +87,15 @@ export function PitchLogClient({ initialLogs }: { initialLogs: Log[] }) {
       const res = await fetch('/api/pitch-log', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...form, date: selectedDate }),
+        body: JSON.stringify({
+          date: selectedDate,
+          pitchCount: form.pitchCount,
+          intensity: form.intensity,
+          maxVelocity: form.maxVelocity,
+          avgVelocity: form.avgVelocity,
+          memo: form.memo,
+          videoUrls: [form.video1, form.video2].filter((v) => v.trim()),
+        }),
       });
 
       if (!res.ok) {
@@ -165,7 +104,7 @@ export function PitchLogClient({ initialLogs }: { initialLogs: Log[] }) {
       }
 
       setForm(EMPTY_FORM);
-      await fetchLogs();
+      await refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : '저장에 실패했습니다.');
     } finally {
@@ -179,58 +118,7 @@ export function PitchLogClient({ initialLogs }: { initialLogs: Log[] }) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ id }),
     });
-    if (res.ok) fetchLogs();
-  };
-
-  const chartData = {
-    labels: recent.map((l) => l.date.slice(5, 10).replace('-', '/')),
-    datasets: [
-      {
-        label: '구속 (km/h)',
-        data: recent.map((l) => l.velocity),
-        borderColor: '#c9a96a',
-        backgroundColor: 'rgba(201, 169, 106, 0.12)',
-        tension: 0.35,
-        fill: true,
-        pointRadius: 3,
-        pointBackgroundColor: '#c9a96a',
-        yAxisID: 'y',
-      },
-      {
-        label: '투구수',
-        data: recent.map((l) => l.pitchCount),
-        borderColor: '#6b7280',
-        backgroundColor: 'transparent',
-        borderDash: [5, 4],
-        tension: 0.35,
-        pointRadius: 2,
-        yAxisID: 'y1',
-      },
-    ],
-  };
-
-  const chartOptions = {
-    responsive: true,
-    maintainAspectRatio: false,
-    interaction: { mode: 'index' as const, intersect: false },
-    plugins: {
-      legend: {
-        labels: { color: '#8e8e99', usePointStyle: true, boxWidth: 8, padding: 16 },
-      },
-    },
-    scales: {
-      x: { ticks: { color: '#8e8e99' }, grid: { color: 'rgba(42, 42, 51, 0.6)' } },
-      y: {
-        position: 'left' as const,
-        ticks: { color: '#c9a96a' },
-        grid: { color: 'rgba(42, 42, 51, 0.6)' },
-      },
-      y1: {
-        position: 'right' as const,
-        ticks: { color: '#8e8e99' },
-        grid: { drawOnChartArea: false },
-      },
-    },
+    if (res.ok) refresh();
   };
 
   return (
@@ -238,31 +126,12 @@ export function PitchLogClient({ initialLogs }: { initialLogs: Log[] }) {
       <PageHeading
         eyebrow="Pitch Log"
         title="투구 기록"
-        description="캘린더에서 날짜를 선택해 그날의 투구를 기록하세요. 색이 진할수록 체감 강도가 높은 날입니다."
+        description="던진 날의 기록을 남기는 곳입니다. 통계와 피로도는 '통계 및 피로도'에서, 영상 되돌아보기는 '영상분석'에서 볼 수 있습니다."
       />
-
-      {stats && (
-        <div className="grid grid-cols-2 gap-px overflow-hidden rounded-2xl border border-line bg-line lg:grid-cols-4">
-          {[
-            { label: '총 기록', value: stats.sessions, unit: '회' },
-            { label: '누적 투구수', value: stats.totalPitches, unit: '구' },
-            { label: '최고 구속', value: stats.maxVelocity, unit: 'km/h' },
-            { label: '평균 구속', value: stats.avgVelocity.toFixed(1), unit: 'km/h' },
-          ].map((s) => (
-            <div key={s.label} className="bg-surface px-6 py-5">
-              <p className="text-xs uppercase tracking-wider text-muted">{s.label}</p>
-              <p className="mt-2 text-display text-3xl text-cream">
-                {s.value}
-                <span className="ml-1 text-sm text-muted">{s.unit}</span>
-              </p>
-            </div>
-          ))}
-        </div>
-      )}
 
       <FormError>{error}</FormError>
 
-      <div className="grid gap-6 lg:grid-cols-[minmax(0,380px)_1fr]">
+      <div className="grid gap-6 lg:grid-cols-[minmax(0,360px)_1fr]">
         <Card>
           <PitchCalendar
             month={month}
@@ -273,40 +142,14 @@ export function PitchLogClient({ initialLogs }: { initialLogs: Log[] }) {
           />
         </Card>
 
-        <Card className="flex flex-col">
-          <h3 className="text-sm font-semibold text-cream">최근 30건 추이</h3>
-          <div className="mt-4 h-[280px] flex-1">
-            {logs.length === 0 ? (
-              <div className="flex h-full items-center justify-center text-sm text-muted">
-                기록이 쌓이면 그래프가 표시됩니다.
-              </div>
-            ) : (
-              <Line data={chartData} options={chartOptions} />
-            )}
-          </div>
-        </Card>
-      </div>
-
-      <div className="grid gap-6 lg:grid-cols-2">
         <Card className="space-y-5">
           <div>
-            <h3 className="font-bold text-cream">기록 추가</h3>
+            <h2 className="font-bold text-cream">기록 추가</h2>
             <p className="mt-1 text-sm text-muted">{selectedDate}</p>
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-5">
             <div className="grid gap-5 sm:grid-cols-2">
-              <Field label="구속 (km/h)">
-                <Input
-                  type="number"
-                  step="0.1"
-                  min="1"
-                  value={form.velocity}
-                  onChange={(e) => setForm({ ...form, velocity: e.target.value })}
-                  placeholder="138"
-                  required
-                />
-              </Field>
               <Field label="투구수">
                 <Input
                   type="number"
@@ -317,35 +160,67 @@ export function PitchLogClient({ initialLogs }: { initialLogs: Log[] }) {
                   required
                 />
               </Field>
+              <Field label={`투구 강도 — ${form.intensity} / 10`}>
+                <input
+                  type="range"
+                  min="1"
+                  max="10"
+                  value={form.intensity}
+                  onChange={(e) => setForm({ ...form, intensity: e.target.value })}
+                  className="mt-3 w-full accent-[#c9a96a]"
+                />
+              </Field>
+            </div>
+
+            <div className="grid gap-5 sm:grid-cols-2">
+              <Field label="최고 구속 (km/h)">
+                <Input
+                  type="number"
+                  step="0.1"
+                  min="1"
+                  value={form.maxVelocity}
+                  onChange={(e) => setForm({ ...form, maxVelocity: e.target.value })}
+                  placeholder="138"
+                  required
+                />
+              </Field>
+              <Field label="평균 구속 (km/h)" hint="비워두셔도 됩니다.">
+                <Input
+                  type="number"
+                  step="0.1"
+                  min="1"
+                  value={form.avgVelocity}
+                  onChange={(e) => setForm({ ...form, avgVelocity: e.target.value })}
+                  placeholder="132"
+                />
+              </Field>
             </div>
 
             <Field
-              label={`체감 강도 — ${form.intensity} / 10`}
-              hint="연속한 이틀의 강도 합이 10을 넘지 않도록 주의하세요. 어깨·팔꿈치 피로가 누적됩니다."
+              label="영상 링크 1"
+              hint="그날 던진 영상의 유튜브 주소입니다. 최대 2개까지."
             >
-              <input
-                type="range"
-                min="1"
-                max="10"
-                value={form.intensity}
-                onChange={(e) => setForm({ ...form, intensity: e.target.value })}
-                className="w-full accent-[#c9a96a]"
+              <Input
+                value={form.video1}
+                onChange={(e) => setForm({ ...form, video1: e.target.value })}
+                placeholder="https://youtu.be/영상ID"
               />
             </Field>
 
-            {intensityWarning && (
-              <p className="flex items-start gap-2 rounded-lg border border-amber-800/60 bg-amber-950/30 px-4 py-3 text-sm text-amber-300">
-                <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0" />
-                <span>{intensityWarning}</span>
-              </p>
-            )}
+            <Field label="영상 링크 2">
+              <Input
+                value={form.video2}
+                onChange={(e) => setForm({ ...form, video2: e.target.value })}
+                placeholder="https://youtu.be/영상ID"
+              />
+            </Field>
 
-            <Field label="컨디션 메모">
+            <Field label="특이사항 · 느낀점">
               <Textarea
-                rows={3}
+                rows={4}
                 value={form.memo}
                 onChange={(e) => setForm({ ...form, memo: e.target.value })}
-                placeholder="팔꿈치 상태 양호, 릴리즈 포인트 일정함"
+                placeholder="릴리즈 포인트가 일정했고 5회부터 팔이 무거워짐"
               />
             </Field>
 
@@ -354,56 +229,62 @@ export function PitchLogClient({ initialLogs }: { initialLogs: Log[] }) {
             </Button>
           </form>
         </Card>
-
-        <Card className="space-y-5">
-          <div className="flex items-baseline justify-between">
-            <h3 className="font-bold text-cream">{selectedDate} 기록</h3>
-            <span className="text-xs text-muted">{selectedLogs.length}건</span>
-          </div>
-
-          {selectedLogs.length === 0 ? (
-            <EmptyState
-              title="이 날짜에는 기록이 없습니다"
-              description="왼쪽 폼에서 오늘의 투구를 남겨보세요."
-            />
-          ) : (
-            <ul className="space-y-3">
-              {selectedLogs.map((log) => (
-                <li
-                  key={log.id}
-                  className="rounded-xl border border-line bg-surface-2 p-4"
-                >
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <p className="text-display text-2xl leading-none text-gold">
-                        {log.velocity}
-                        <span className="ml-1 text-sm text-muted">km/h</span>
-                      </p>
-                      <div className="mt-2 flex flex-wrap gap-1.5">
-                        <Badge>{log.pitchCount}구</Badge>
-                        <Badge>강도 {log.intensity}/10</Badge>
-                      </div>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => handleDelete(log.id)}
-                      aria-label="기록 삭제"
-                      className="rounded-lg p-2 text-muted transition-colors hover:bg-red-950/40 hover:text-red-400"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </button>
-                  </div>
-                  {log.memo && (
-                    <p className="mt-3 border-t border-line pt-3 text-sm leading-relaxed text-muted">
-                      {log.memo}
-                    </p>
-                  )}
-                </li>
-              ))}
-            </ul>
-          )}
-        </Card>
       </div>
+
+      <Card className="space-y-5">
+        <div className="flex items-baseline justify-between">
+          <h2 className="font-bold text-cream">{selectedDate} 기록</h2>
+          <span className="text-xs text-muted">{selectedLogs.length}건</span>
+        </div>
+
+        {selectedLogs.length === 0 ? (
+          <EmptyState
+            title="이 날짜에는 기록이 없습니다"
+            description="위 폼에서 그날의 투구를 남겨보세요."
+          />
+        ) : (
+          <ul className="space-y-3">
+            {selectedLogs.map((log) => (
+              <li key={log.id} className="rounded-xl border border-line bg-surface-2 p-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="text-display text-2xl leading-none text-gold">
+                      {log.maxVelocity}
+                      <span className="ml-1 text-sm text-muted">km/h 최고</span>
+                    </p>
+                    <div className="mt-3 flex flex-wrap gap-1.5">
+                      <Badge>{log.pitchCount}구</Badge>
+                      <Badge>강도 {log.intensity}/10</Badge>
+                      {log.avgVelocity != null && (
+                        <Badge>평균 {log.avgVelocity} km/h</Badge>
+                      )}
+                      {log.videoUrls.length > 0 && (
+                        <Badge className="border-gold-dim/60 text-gold">
+                          <Video className="mr-1 h-3 w-3" />
+                          영상 {log.videoUrls.length}
+                        </Badge>
+                      )}
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => handleDelete(log.id)}
+                    aria-label="기록 삭제"
+                    className="rounded-lg p-2 text-muted transition-colors hover:bg-red-950/40 hover:text-red-400"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </button>
+                </div>
+                {log.memo && (
+                  <p className="mt-3 whitespace-pre-wrap border-t border-line pt-3 text-sm leading-relaxed text-muted">
+                    {log.memo}
+                  </p>
+                )}
+              </li>
+            ))}
+          </ul>
+        )}
+      </Card>
     </div>
   );
 }

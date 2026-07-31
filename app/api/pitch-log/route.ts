@@ -1,6 +1,9 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getCurrentUser } from '@/lib/dal';
+import { getYouTubeId } from '@/lib/youtube';
+
+const MAX_VIDEOS = 2;
 
 export async function GET() {
   const user = await getCurrentUser();
@@ -28,34 +31,84 @@ export async function POST(req: Request) {
 
   try {
     const body = await req.json();
-    const { date, velocity, pitchCount, intensity, memo } = body;
+    const { date, pitchCount, intensity, maxVelocity, avgVelocity, memo, videoUrls } =
+      body;
 
     if (!date) {
       return NextResponse.json({ error: '날짜는 필수입니다' }, { status: 400 });
     }
 
     const parsedDate = new Date(date);
-    const parsedVelocity = Number.parseFloat(velocity);
     const parsedCount = Number.parseInt(pitchCount, 10);
     const parsedIntensity = Number.parseInt(intensity, 10);
+    const parsedMax = Number.parseFloat(maxVelocity);
 
     if (
       Number.isNaN(parsedDate.getTime()) ||
-      Number.isNaN(parsedVelocity) ||
       Number.isNaN(parsedCount) ||
-      Number.isNaN(parsedIntensity)
+      Number.isNaN(parsedIntensity) ||
+      Number.isNaN(parsedMax)
     ) {
-      return NextResponse.json({ error: '입력값 형식이 올바르지 않습니다' }, { status: 400 });
+      return NextResponse.json(
+        { error: '투구수, 강도, 최고 구속을 올바르게 입력해주세요' },
+        { status: 400 }
+      );
+    }
+
+    if (parsedIntensity < 1 || parsedIntensity > 10) {
+      return NextResponse.json(
+        { error: '투구 강도는 1에서 10 사이여야 합니다' },
+        { status: 400 }
+      );
+    }
+
+    // 평균 구속은 선택 항목이라 값이 있을 때만 검사한다.
+    let parsedAvg: number | null = null;
+    if (avgVelocity !== '' && avgVelocity != null) {
+      parsedAvg = Number.parseFloat(avgVelocity);
+      if (Number.isNaN(parsedAvg)) {
+        return NextResponse.json(
+          { error: '평균 구속을 숫자로 입력해주세요' },
+          { status: 400 }
+        );
+      }
+      if (parsedAvg > parsedMax) {
+        return NextResponse.json(
+          { error: '평균 구속이 최고 구속보다 클 수 없습니다' },
+          { status: 400 }
+        );
+      }
+    }
+
+    const urls: string[] = Array.isArray(videoUrls)
+      ? videoUrls.map((u: unknown) => String(u ?? '').trim()).filter(Boolean)
+      : [];
+
+    if (urls.length > MAX_VIDEOS) {
+      return NextResponse.json(
+        { error: `영상은 최대 ${MAX_VIDEOS}개까지 첨부할 수 있습니다` },
+        { status: 400 }
+      );
+    }
+
+    const invalid = urls.find((u) => !getYouTubeId(u));
+    if (invalid) {
+      return NextResponse.json(
+        { error: '영상은 유튜브 링크만 첨부할 수 있습니다' },
+        { status: 400 }
+      );
     }
 
     const log = await prisma.pitchLog.create({
       data: {
         userId: user.id,
         date: parsedDate,
-        velocity: parsedVelocity,
         pitchCount: parsedCount,
         intensity: parsedIntensity,
-        memo: memo || null,
+        maxVelocity: parsedMax,
+        avgVelocity: parsedAvg,
+        memo: memo?.trim() || null,
+        videoUrls: urls,
       },
     });
 

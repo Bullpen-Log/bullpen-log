@@ -50,17 +50,19 @@ model UserGuideProgress {
 }
 
 model PitchLog {
-  id         String   @id @default(uuid())
-  userId     String
-  date       DateTime @db.Date
-  pitchType  String?
-  velocity   Float
-  pitchCount Int
-  intensity  Int
-  memo       String?  @db.Text
-  createdAt  DateTime @default(now())
+  id          String   @id @default(uuid())
+  userId      String
+  date        DateTime @db.Date
+  pitchCount  Int
+  intensity   Int
+  maxVelocity Float
+  avgVelocity Float?
+  memo        String?  @db.Text
+  /// 그날 던진 영상 링크. 최대 2개까지 저장한다.
+  videoUrls   String[]
+  createdAt   DateTime @default(now())
 
-  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model ExerciseVideo {
