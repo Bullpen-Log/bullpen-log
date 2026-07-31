@@ -58,8 +58,8 @@ model PitchLog {
   maxVelocity Float
   avgVelocity Float?
   memo        String?  @db.Text
-  /// 그날 던진 영상 링크. 최대 2개까지 저장한다.
-  videoUrls   String[]
+  /// 그날 던진 영상의 저장소 경로. 최대 2개까지 저장한다.
+  videoPaths  String[]
   createdAt   DateTime @default(now())
 
   user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)

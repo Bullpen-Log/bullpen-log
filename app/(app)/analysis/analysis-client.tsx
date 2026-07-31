@@ -3,15 +3,18 @@
 import { useMemo, useState } from 'react';
 import { ChevronLeft, ChevronRight, VideoOff } from 'lucide-react';
 import { Badge, Card, EmptyState, PageHeading } from '@/components/ui';
-import { VideoPlayer } from '@/components/video-card';
-import { getYouTubeEmbedUrl, getYouTubeThumbnail } from '@/lib/youtube';
 import { toDateKey } from '@/lib/pitch-stats';
 import { PitchCalendar, type DaySummary } from '@/app/(app)/pitch-log/calendar';
 import type { Log } from '@/app/(app)/pitch-log/pitch-log-client';
 
-export function AnalysisClient({ logs }: { logs: Log[] }) {
+/** 서버에서 재생용 임시 주소까지 붙여 내려준 형태 */
+export type AnalysisLog = Log & {
+  videos: { path: string; url: string | null }[];
+};
+
+export function AnalysisClient({ logs }: { logs: AnalysisLog[] }) {
   const withVideo = useMemo(
-    () => logs.filter((l) => l.videoUrls.length > 0),
+    () => logs.filter((l) => l.videoPaths.length > 0),
     [logs]
   );
 
@@ -33,7 +36,7 @@ export function AnalysisClient({ logs }: { logs: Log[] }) {
       acc[key] = {
         pitches: prev.pitches + log.pitchCount,
         maxIntensity: Math.max(prev.maxIntensity, log.intensity),
-        hasVideo: prev.hasVideo || log.videoUrls.length > 0,
+        hasVideo: prev.hasVideo || log.videoPaths.length > 0,
       };
       return acc;
     }, {});
@@ -150,19 +153,27 @@ export function AnalysisClient({ logs }: { logs: Log[] }) {
                   </div>
 
                   {/* 영상 */}
-                  {log.videoUrls.length > 0 ? (
+                  {log.videos.length > 0 ? (
                     <div
                       className={`grid gap-4 ${
-                        log.videoUrls.length > 1 ? 'sm:grid-cols-2' : ''
+                        log.videos.length > 1 ? 'sm:grid-cols-2' : ''
                       }`}
                     >
-                      {log.videoUrls.map((url, i) => (
-                        <div key={url} className="space-y-2">
-                          <VideoPlayer
-                            embedUrl={getYouTubeEmbedUrl(url)}
-                            thumbnailUrl={getYouTubeThumbnail(url)}
-                            title={`${selectedDate} 투구 영상 ${i + 1}`}
-                          />
+                      {log.videos.map((video, i) => (
+                        <div key={video.path} className="space-y-2">
+                          {video.url ? (
+                            <video
+                              src={video.url}
+                              controls
+                              playsInline
+                              preload="metadata"
+                              className="aspect-video w-full rounded-xl border border-line bg-black object-contain"
+                            />
+                          ) : (
+                            <div className="flex aspect-video items-center justify-center rounded-xl border border-line bg-surface-2 text-xs text-muted">
+                              영상을 불러올 수 없습니다
+                            </div>
+                          )}
                           <p className="text-xs text-muted">영상 {i + 1}</p>
                         </div>
                       ))}

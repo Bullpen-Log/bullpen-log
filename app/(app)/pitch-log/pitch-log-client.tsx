@@ -13,6 +13,7 @@ import {
   PageHeading,
   Textarea,
 } from '@/components/ui';
+import { VideoUpload, type UploadedVideo } from '@/components/video-upload';
 import { toDateKey } from '@/lib/pitch-stats';
 import { PitchCalendar, type DaySummary } from './calendar';
 
@@ -24,7 +25,7 @@ export type Log = {
   maxVelocity: number;
   avgVelocity: number | null;
   memo: string | null;
-  videoUrls: string[];
+  videoPaths: string[];
 };
 
 const EMPTY_FORM = {
@@ -33,8 +34,6 @@ const EMPTY_FORM = {
   maxVelocity: '',
   avgVelocity: '',
   memo: '',
-  video1: '',
-  video2: '',
 };
 
 export function PitchLogClient({ initialLogs }: { initialLogs: Log[] }) {
@@ -48,6 +47,7 @@ export function PitchLogClient({ initialLogs }: { initialLogs: Log[] }) {
   });
   const [selectedDate, setSelectedDate] = useState(() => toDateKey(new Date()));
   const [form, setForm] = useState(EMPTY_FORM);
+  const [videos, setVideos] = useState<UploadedVideo[]>([]);
 
   const refresh = useCallback(async () => {
     try {
@@ -67,7 +67,7 @@ export function PitchLogClient({ initialLogs }: { initialLogs: Log[] }) {
       acc[key] = {
         pitches: prev.pitches + log.pitchCount,
         maxIntensity: Math.max(prev.maxIntensity, log.intensity),
-        hasVideo: prev.hasVideo || log.videoUrls.length > 0,
+        hasVideo: prev.hasVideo || log.videoPaths.length > 0,
       };
       return acc;
     }, {});
@@ -94,7 +94,7 @@ export function PitchLogClient({ initialLogs }: { initialLogs: Log[] }) {
           maxVelocity: form.maxVelocity,
           avgVelocity: form.avgVelocity,
           memo: form.memo,
-          videoUrls: [form.video1, form.video2].filter((v) => v.trim()),
+          videoPaths: videos.map((v) => v.path),
         }),
       });
 
@@ -104,6 +104,8 @@ export function PitchLogClient({ initialLogs }: { initialLogs: Log[] }) {
       }
 
       setForm(EMPTY_FORM);
+      videos.forEach((v) => URL.revokeObjectURL(v.previewUrl));
+      setVideos([]);
       await refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : '저장에 실패했습니다.');
@@ -197,22 +199,10 @@ export function PitchLogClient({ initialLogs }: { initialLogs: Log[] }) {
             </div>
 
             <Field
-              label="영상 링크 1"
-              hint="그날 던진 영상의 유튜브 주소입니다. 최대 2개까지."
+              label="투구 영상"
+              hint="폰이나 컴퓨터에 있는 영상을 바로 올릴 수 있습니다."
             >
-              <Input
-                value={form.video1}
-                onChange={(e) => setForm({ ...form, video1: e.target.value })}
-                placeholder="https://youtu.be/영상ID"
-              />
-            </Field>
-
-            <Field label="영상 링크 2">
-              <Input
-                value={form.video2}
-                onChange={(e) => setForm({ ...form, video2: e.target.value })}
-                placeholder="https://youtu.be/영상ID"
-              />
+              <VideoUpload videos={videos} onChange={setVideos} max={2} />
             </Field>
 
             <Field label="특이사항 · 느낀점">
@@ -258,10 +248,10 @@ export function PitchLogClient({ initialLogs }: { initialLogs: Log[] }) {
                       {log.avgVelocity != null && (
                         <Badge>평균 {log.avgVelocity} km/h</Badge>
                       )}
-                      {log.videoUrls.length > 0 && (
+                      {log.videoPaths.length > 0 && (
                         <Badge className="border-gold-dim/60 text-gold">
                           <Video className="mr-1 h-3 w-3" />
-                          영상 {log.videoUrls.length}
+                          영상 {log.videoPaths.length}
                         </Badge>
                       )}
                     </div>

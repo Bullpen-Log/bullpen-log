@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getCurrentUser } from '@/lib/dal';
-import { getYouTubeId } from '@/lib/youtube';
+import { deleteVideos, isOwnedBy } from '@/lib/storage';
 
 const MAX_VIDEOS = 2;
 
@@ -31,7 +31,7 @@ export async function POST(req: Request) {
 
   try {
     const body = await req.json();
-    const { date, pitchCount, intensity, maxVelocity, avgVelocity, memo, videoUrls } =
+    const { date, pitchCount, intensity, maxVelocity, avgVelocity, memo, videoPaths } =
       body;
 
     if (!date) {
@@ -80,21 +80,21 @@ export async function POST(req: Request) {
       }
     }
 
-    const urls: string[] = Array.isArray(videoUrls)
-      ? videoUrls.map((u: unknown) => String(u ?? '').trim()).filter(Boolean)
+    const paths: string[] = Array.isArray(videoPaths)
+      ? videoPaths.map((p: unknown) => String(p ?? '').trim()).filter(Boolean)
       : [];
 
-    if (urls.length > MAX_VIDEOS) {
+    if (paths.length > MAX_VIDEOS) {
       return NextResponse.json(
         { error: `영상은 최대 ${MAX_VIDEOS}개까지 첨부할 수 있습니다` },
         { status: 400 }
       );
     }
 
-    const invalid = urls.find((u) => !getYouTubeId(u));
-    if (invalid) {
+    // 다른 사람 폴더의 경로를 끼워 넣지 못하게 막는다.
+    if (paths.some((p) => !isOwnedBy(p, user.id))) {
       return NextResponse.json(
-        { error: '영상은 유튜브 링크만 첨부할 수 있습니다' },
+        { error: '올바르지 않은 영상 경로입니다' },
         { status: 400 }
       );
     }
@@ -108,7 +108,7 @@ export async function POST(req: Request) {
         maxVelocity: parsedMax,
         avgVelocity: parsedAvg,
         memo: memo?.trim() || null,
-        videoUrls: urls,
+        videoPaths: paths,
       },
     });
 
@@ -131,13 +131,21 @@ export async function DELETE(req: Request) {
       return NextResponse.json({ error: 'id가 필요합니다' }, { status: 400 });
     }
 
-    // 본인 기록만 삭제할 수 있도록 userId를 함께 조건에 넣는다.
-    const result = await prisma.pitchLog.deleteMany({
+    // 본인 기록인지 먼저 확인하고, 저장된 영상 경로를 챙겨둔다.
+    const target = await prisma.pitchLog.findFirst({
       where: { id, userId: user.id },
+      select: { id: true, videoPaths: true },
     });
 
-    if (result.count === 0) {
+    if (!target) {
       return NextResponse.json({ error: '기록을 찾을 수 없습니다' }, { status: 404 });
+    }
+
+    await prisma.pitchLog.delete({ where: { id: target.id } });
+
+    // 기록이 사라지면 저장소에 파일만 남지 않도록 함께 지운다.
+    if (target.videoPaths.length > 0) {
+      await deleteVideos(target.videoPaths);
     }
 
     return NextResponse.json({ ok: true });
