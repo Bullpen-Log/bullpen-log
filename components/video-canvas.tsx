@@ -68,8 +68,17 @@ export const DRAW_TOOLS: {
 /** 촬영 배경이 밝든 어둡든 읽히도록 절제된 고대비 색만 쓴다. */
 export const DRAW_COLORS = ['#F5F5F4', '#E3CB95', '#5EEAD4', '#FCA5A5'];
 
-const READOUT_FONT =
-  '600 10px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace';
+/**
+ * 측정값 글자 크기. 화면이 작을수록 함께 줄여야 영상을 덜 가린다.
+ * (폰 세로에서 캔버스 폭이 300px 안팎이라 고정 크기로 두면 너무 커진다.)
+ */
+function readoutFont(canvasWidth: number) {
+  const size = Math.round(Math.max(7, Math.min(11, canvasWidth / 42)));
+  return {
+    font: `600 ${size}px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace`,
+    size,
+  };
+}
 
 /** 세 점이 이루는 각도(도). v가 꼭짓점. 반드시 화면 픽셀 좌표로 넘겨야 한다. */
 export function angleAt(a: Point, v: Point, b: Point) {
@@ -117,27 +126,27 @@ function readout(
   text: string,
   x: number,
   y: number,
-  color: string
+  color: string,
+  canvasWidth: number
 ) {
+  const { font, size } = readoutFont(canvasWidth);
   ctx.save();
-  ctx.font = READOUT_FONT;
+  ctx.font = font;
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  const w = ctx.measureText(text).width + 9;
-  const h = 15;
+  const w = ctx.measureText(text).width + size * 0.7;
+  const h = size + 5;
 
-  ctx.fillStyle = 'rgba(8,8,10,0.82)';
-  ctx.strokeStyle = color;
-  ctx.lineWidth = 1;
+  // 테두리를 빼고 배경만 살짝 깔아 영상이 최대한 비치게 한다.
+  ctx.fillStyle = 'rgba(8,8,10,0.6)';
   ctx.beginPath();
   // roundRect는 구형 사파리에 없어서 없으면 각진 사각형으로 대체한다.
   if (typeof ctx.roundRect === 'function') {
-    ctx.roundRect(x - w / 2, y - h / 2, w, h, 3);
+    ctx.roundRect(x - w / 2, y - h / 2, w, h, 2);
   } else {
     ctx.rect(x - w / 2, y - h / 2, w, h);
   }
   ctx.fill();
-  ctx.stroke();
 
   ctx.fillStyle = color;
   ctx.fillText(text, x, y + 0.5);
@@ -245,13 +254,20 @@ function drawShape(
       handle(ctx, a, shape.color);
       handle(ctx, b, shape.color);
 
+      // 라벨을 선 위에 얹으면 정작 봐야 할 동작을 가린다.
+      // 선과 직각 방향으로 살짝 비켜 놓는다.
       const deg = tiltFromVertical(a, b);
+      const len = Math.hypot(b.x - a.x, b.y - a.y) || 1;
+      const nx = -(b.y - a.y) / len;
+      const ny = (b.x - a.x) / len;
+      const offset = 14;
       readout(
         ctx,
-        `${deg.toFixed(1)}° 수직`,
-        (a.x + b.x) / 2,
-        (a.y + b.y) / 2 - 13,
-        shape.color
+        `${deg.toFixed(1)}°`,
+        (a.x + b.x) / 2 + nx * offset,
+        (a.y + b.y) / 2 + ny * offset,
+        shape.color,
+        w
       );
       break;
     }
@@ -294,9 +310,10 @@ function drawShape(
       readout(
         ctx,
         `${angleAt(a, v, b).toFixed(1)}°`,
-        v.x + Math.cos(mid) * (r + 17),
-        v.y + Math.sin(mid) * (r + 17),
-        shape.color
+        v.x + Math.cos(mid) * (r + 15),
+        v.y + Math.sin(mid) * (r + 15),
+        shape.color,
+        w
       );
       break;
     }
