@@ -341,31 +341,62 @@ export const ACWR_TARGET_MAX = 1.3;
 
 export type AcwrZone = 'low' | 'optimal' | 'caution' | 'danger';
 
+/** 게이지 눈금과 설명표에서 같이 쓰는 구간 정보 */
+export const ACWR_ZONE_ORDER: AcwrZone[] = ['low', 'optimal', 'caution', 'danger'];
+
 export const ACWR_ZONES: Record<
   AcwrZone,
-  { label: string; tone: 'good' | 'info' | 'warn' | 'bad'; advice: string }
+  {
+    /** 게이지 눈금에 쓰는 짧은 이름 */
+    short: string;
+    label: string;
+    range: string;
+    tone: 'good' | 'info' | 'warn' | 'bad';
+    /** 이 구간이 무슨 뜻인지 한 줄로 */
+    meaning: string;
+    advice: string;
+  }
 > = {
   low: {
+    short: '낮음',
     label: '부하 낮음',
+    range: '0.8 미만',
     tone: 'info',
+    meaning: '평소보다 적게 던지고 있습니다.',
     advice: '최근 부하가 평소보다 적습니다. 회복 중이라면 정상이며, 복귀할 때는 한 번에 늘리지 말고 조금씩 올리세요.',
   },
   optimal: {
+    short: '적정',
     label: '적정',
+    range: '0.8 ~ 1.3',
     tone: 'good',
+    meaning: '몸이 감당해온 양 안에서 던지고 있습니다.',
     advice: '평소 쌓아온 양에 맞는 부하입니다. 지금 흐름을 유지해도 좋습니다.',
   },
   caution: {
+    short: '주의',
     label: '주의',
+    range: '1.3 ~ 1.5',
     tone: 'warn',
+    meaning: '평소보다 빠르게 늘고 있습니다.',
     advice: '최근 부하가 평소보다 빠르게 올랐습니다. 이번 주는 투구수나 강도를 조금 낮추는 편이 안전합니다.',
   },
   danger: {
+    short: '위험',
     label: '위험',
+    range: '1.5 초과',
     tone: 'bad',
+    meaning: '평소 감당하던 양을 크게 넘었습니다.',
     advice: '평소 감당하던 양을 크게 넘었습니다. 투구량을 확실히 줄이고 회복에 시간을 주세요.',
   },
 };
+
+/** 지수를 일상적인 말로 바꾼다. 숫자만으로는 감이 안 오기 때문이다. */
+export function describeRatio(ratio: number) {
+  if (ratio >= 0.95 && ratio <= 1.05) return '평소와 비슷한 수준';
+  if (ratio > 1.05) return `평소의 ${ratio.toFixed(1)}배`;
+  return `평소의 ${Math.round(ratio * 100)}% 수준`;
+}
 
 export function zoneOf(ratio: number): AcwrZone {
   if (ratio < 0.8) return 'low';

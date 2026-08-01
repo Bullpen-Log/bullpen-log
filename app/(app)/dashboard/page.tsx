@@ -21,6 +21,7 @@ import {
   buildDateRangeOffset,
   computeAcwr,
   dailyLoad,
+  describeRatio,
   findFatigueWindows,
   formatShortDate,
   groupByDay,
@@ -31,6 +32,7 @@ import {
 import { LoadChart, type LoadPoint } from './load-chart';
 import {
   Delta,
+  LoadIndexHelp,
   StatCard,
   StatusChip,
   TONE,
@@ -233,8 +235,9 @@ export default async function DashboardPage() {
                 <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-muted">
                   현재 부하 지수
                 </p>
-                <p className="mt-0.5 text-[11px] text-muted/70">
-                  최근 7일 ÷ 평소 4주 평균
+                {/* 숫자만으로는 뜻을 알 수 없어 한 줄로 먼저 설명한다. */}
+                <p className="mt-1 text-[11px] leading-relaxed text-muted/70">
+                  지금 던지는 양이 평소보다 얼마나 많은지
                 </p>
               </div>
               {zone ? (
@@ -244,24 +247,37 @@ export default async function DashboardPage() {
               )}
             </div>
 
-            {acwr.ratio != null && zone ? (
+            {acwr.ratio != null && acwr.zone && zone ? (
               <>
-                <p className="flex items-baseline gap-2">
-                  <span
-                    className={`text-display text-5xl leading-none tabular-nums sm:text-6xl ${TONE[zone.tone].text}`}
-                  >
-                    {acwr.ratio.toFixed(2)}
-                  </span>
-                  <span className="text-sm text-muted">
-                    / {ACWR_TARGET_MAX.toFixed(2)} 목표
-                  </span>
-                </p>
-                <ZoneGauge ratio={acwr.ratio} />
+                <div>
+                  <p className="flex items-baseline gap-2">
+                    <span
+                      className={`text-display text-5xl leading-none tabular-nums sm:text-6xl ${TONE[zone.tone].text}`}
+                    >
+                      {acwr.ratio.toFixed(2)}
+                    </span>
+                    <span className="text-sm text-muted">
+                      / {ACWR_TARGET_MAX.toFixed(2)} 이하 권장
+                    </span>
+                  </p>
+                  {/* 배수를 일상어로 바꿔 바로 읽히게 한다. */}
+                  <p className={`mt-1.5 text-sm font-medium ${TONE[zone.tone].text}`}>
+                    {describeRatio(acwr.ratio)}
+                    <span className="ml-1.5 font-normal text-muted">
+                      · {zone.meaning}
+                    </span>
+                  </p>
+                </div>
+
+                <ZoneGauge ratio={acwr.ratio} activeZone={acwr.zone} />
+
                 <p className="text-xs leading-relaxed text-muted">{zone.advice}</p>
-                <p className="border-t border-line pt-3 text-[11px] tabular-nums text-muted/70">
-                  최근 7일 부하 {Math.round(acwr.acute)} · 평소 주당{' '}
-                  {Math.round(acwr.chronic)} · 부하 = 투구수 × 강도
-                </p>
+
+                <LoadIndexHelp
+                  acute={acwr.acute}
+                  chronic={acwr.chronic}
+                  activeZone={acwr.zone}
+                />
               </>
             ) : (
               <>
@@ -290,11 +306,14 @@ export default async function DashboardPage() {
                   </p>
                 </div>
 
-                <p className="border-t border-line pt-3 text-xs leading-relaxed text-muted">
+                <p className="text-xs leading-relaxed text-muted">
                   {hasRecords
                     ? `부하 지수는 최근 7일을 평소 4주 평균과 견줍니다. 아직 비교할 4주치가 없어 ${acwr.daysNeeded}일 더 쌓이면 표시됩니다.`
                     : '투구를 기록하면 이곳에 부하 지수가 표시됩니다.'}
                 </p>
+
+                {/* 지수가 아직 안 나와도 뭘 보게 될 건지는 미리 알 수 있어야 한다. */}
+                <LoadIndexHelp acute={acwr.acute} chronic={acwr.chronic} />
               </>
             )}
           </div>

@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
-import { ArrowDownRight, ArrowUpRight, Minus } from 'lucide-react';
+import { ArrowDownRight, ArrowUpRight, ChevronDown, Minus } from 'lucide-react';
+import { ACWR_ZONES, ACWR_ZONE_ORDER, type AcwrZone } from '@/lib/pitch-stats';
 
 export type Tone = 'good' | 'info' | 'warn' | 'bad' | 'neutral';
 
@@ -124,24 +125,46 @@ export function StatCard({
   );
 }
 
-const GAUGE_SEGMENTS = [
-  { width: 40, className: 'bg-sky-500/25' },
-  { width: 25, className: 'bg-emerald-500/35' },
-  { width: 10, className: 'bg-amber-500/35' },
-  { width: 25, className: 'bg-red-500/30' },
+/**
+ * 게이지는 0~2.0을 그리므로 구간 경계 0.8 / 1.3 / 1.5가
+ * 각각 40% / 65% / 75% 위치에 온다.
+ */
+const GAUGE_SEGMENTS: {
+  zone: AcwrZone;
+  short: string;
+  width: number;
+  fill: string;
+}[] = [
+  { zone: 'low', short: '낮음', width: 40, fill: 'bg-sky-500/25' },
+  { zone: 'optimal', short: '적정', width: 25, fill: 'bg-emerald-500/40' },
+  { zone: 'caution', short: '주의', width: 10, fill: 'bg-amber-500/40' },
+  { zone: 'danger', short: '위험', width: 25, fill: 'bg-red-500/35' },
 ];
 
-/** 0 ~ 2.0 범위에서 현재 부하 비율이 어디에 있는지 보여준다. */
-export function ZoneGauge({ ratio }: { ratio: number }) {
+const ZONE_TONE: Record<AcwrZone, Tone> = {
+  low: 'info',
+  optimal: 'good',
+  caution: 'warn',
+  danger: 'bad',
+};
+
+/** 0 ~ 2.0 범위에서 현재 부하 비율이 어디에 있는지, 각 구간이 뭘 뜻하는지 보여준다. */
+export function ZoneGauge({
+  ratio,
+  activeZone,
+}: {
+  ratio: number;
+  activeZone: AcwrZone;
+}) {
   const position = Math.min(Math.max(ratio / 2, 0), 1) * 100;
 
   return (
-    <div className="space-y-2">
+    <div>
       {/* 바늘을 막대 위에 겹쳐 현재 위치를 바로 읽히게 한다. */}
       <div className="relative py-1.5">
         <div className="flex h-2.5 w-full overflow-hidden rounded-full">
-          {GAUGE_SEGMENTS.map((s, i) => (
-            <span key={i} className={s.className} style={{ width: `${s.width}%` }} />
+          {GAUGE_SEGMENTS.map((s) => (
+            <span key={s.zone} className={s.fill} style={{ width: `${s.width}%` }} />
           ))}
         </div>
         <span
@@ -152,8 +175,26 @@ export function ZoneGauge({ ratio }: { ratio: number }) {
           <span className="block h-full w-[3px] rounded-full bg-cream shadow-[0_0_0_2px_rgba(10,10,11,0.9)]" />
         </span>
       </div>
-      {/* 눈금은 구간 경계와 같은 위치에 놓아야 읽을 때 헷갈리지 않는다. */}
-      <div className="relative h-3 text-[10px] tabular-nums text-muted/70">
+
+      {/* 구간 이름 — 색만 있고 뜻이 없으면 읽을 수 없다. */}
+      <div className="mt-1.5 flex">
+        {GAUGE_SEGMENTS.map((s) => (
+          <span
+            key={s.zone}
+            className={`text-center text-[10px] ${
+              s.zone === activeZone
+                ? `font-semibold ${TONE[ZONE_TONE[s.zone]].text}`
+                : 'text-muted/50'
+            }`}
+            style={{ width: `${s.width}%` }}
+          >
+            {s.short}
+          </span>
+        ))}
+      </div>
+
+      {/* 경계 숫자 */}
+      <div className="relative mt-1 h-3 text-[10px] tabular-nums text-muted/50">
         {[
           { value: '0', at: 0 },
           { value: '0.8', at: 40 },
@@ -220,5 +261,107 @@ export function WeekStrip({ bars }: { bars: WeekBar[] }) {
         ))}
       </div>
     </div>
+  );
+}
+
+/**
+ * 부하 지수 설명. 처음 보는 사람이 숫자만으로는 뜻을 알 수 없어
+ * 계산법과 구간의 의미를 펼쳐볼 수 있게 둔다.
+ */
+export function LoadIndexHelp({
+  acute,
+  chronic,
+  activeZone,
+}: {
+  acute: number;
+  chronic: number;
+  activeZone?: AcwrZone;
+}) {
+  return (
+    <details className="group border-t border-line pt-3">
+      <summary className="flex cursor-pointer list-none items-center gap-1.5 text-[11px] text-muted transition-colors hover:text-gold">
+        <ChevronDown className="h-3.5 w-3.5 transition-transform group-open:rotate-180" />
+        부하 지수가 뭔가요?
+      </summary>
+
+      <div className="mt-4 space-y-4 text-[11px] leading-relaxed text-muted">
+        <div>
+          <p className="font-semibold text-cream">어떻게 나오나요</p>
+          <div className="mt-2 space-y-1.5 rounded-lg border border-line bg-surface-2 px-3 py-2.5 tabular-nums">
+            <p>
+              하루 부하 <span className="text-cream">= 투구수 × 강도</span>
+              <span className="ml-1 text-muted/60">(50구를 강도 6으로 → 300)</span>
+            </p>
+            <p>
+              부하 지수{' '}
+              <span className="text-cream">
+                = 최근 7일 부하 ÷ 평소 4주 주당 평균
+              </span>
+            </p>
+            {chronic > 0 && (
+              <p className="border-t border-line pt-1.5 text-muted/70">
+                지금은 {Math.round(acute)} ÷ {Math.round(chronic)} ={' '}
+                <span className="text-cream">
+                  {(acute / chronic).toFixed(2)}
+                </span>
+              </p>
+            )}
+          </div>
+        </div>
+
+        <div>
+          <p className="font-semibold text-cream">왜 보나요</p>
+          <p className="mt-1.5">
+            몸은 평소 하던 양에 맞춰 적응해 있습니다. 그래서 절대적인 투구수보다
+            <span className="text-cream"> 평소보다 얼마나 늘었는지</span>가 부상 위험과 더
+            가깝습니다. 같은 100구라도 평소 100구를 던지던 사람과 30구를 던지던
+            사람에게 오는 부담이 다릅니다.
+          </p>
+        </div>
+
+        <div>
+          <p className="font-semibold text-cream">구간</p>
+          <ul className="mt-2 space-y-1.5">
+            {ACWR_ZONE_ORDER.map((zone) => {
+              const z = ACWR_ZONES[zone];
+              const active = zone === activeZone;
+              return (
+                <li
+                  key={zone}
+                  className={`flex gap-2 rounded-lg px-2 py-1.5 ${
+                    active ? 'bg-surface-2' : ''
+                  }`}
+                >
+                  <span
+                    className={`mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full ${TONE[ZONE_TONE[zone]].dot}`}
+                  />
+                  <span className="min-w-0">
+                    <span
+                      className={
+                        active ? `font-semibold ${TONE[ZONE_TONE[zone]].text}` : 'text-cream'
+                      }
+                    >
+                      {z.short}
+                    </span>
+                    <span className="ml-1.5 tabular-nums text-muted/60">{z.range}</span>
+                    {active && (
+                      <span className="ml-1.5 text-muted/60">← 지금</span>
+                    )}
+                    <span className="block">{z.meaning}</span>
+                  </span>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+
+        {/* 화면 아래의 안내와 겹치지 않게, 여기서는 지표 자체의 한계를 말한다. */}
+        <p className="rounded-lg border border-line bg-surface-2 px-3 py-2.5 text-muted/70">
+          <span className="text-cream">알아두세요.</span> 스포츠과학에서 널리 쓰이는
+          방식이지만 절대 기준은 아닙니다. 수면·컨디션·나이·폼 같은 요소는 들어가지
+          않고, 오직 기록한 투구수와 강도만으로 계산합니다.
+        </p>
+      </div>
+    </details>
   );
 }
