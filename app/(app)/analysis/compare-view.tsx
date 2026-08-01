@@ -172,7 +172,7 @@ export function CompareView({ clips }: { clips: ClipOption[] }) {
   // 지금 고른 두 영상의 재생 주소만 받아온다.
   const clipA = clips.find((c) => c.id === idA);
   const clipB = clips.find((c) => c.id === idB);
-  const { urls, loading } = usePlaybackUrls([clipA?.path, clipB?.path]);
+  const { urls, loading, ready } = usePlaybackUrls([clipA?.path, clipB?.path]);
 
   useEffect(() => {
     if (videoA.current) videoA.current.playbackRate = speed;
@@ -282,7 +282,7 @@ export function CompareView({ clips }: { clips: ClipOption[] }) {
           mark={markA}
           onMark={() => setMarkA(videoA.current?.currentTime ?? 0)}
           url={clipA ? urls[clipA.path] : undefined}
-          loading={loading}
+          loading={loading || !ready}
         />
         <ComparePane
           side="B"
@@ -293,7 +293,7 @@ export function CompareView({ clips }: { clips: ClipOption[] }) {
           mark={markB}
           onMark={() => setMarkB(videoB.current?.currentTime ?? 0)}
           url={clipB ? urls[clipB.path] : undefined}
-          loading={loading}
+          loading={loading || !ready}
         />
       </div>
 

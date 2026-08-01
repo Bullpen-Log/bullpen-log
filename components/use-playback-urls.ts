@@ -10,6 +10,8 @@ import { useEffect, useRef, useState } from 'react';
 export function usePlaybackUrls(paths: (string | undefined)[]) {
   const [urls, setUrls] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
+  // 첫 응답이 오기 전까지는 '실패'가 아니라 '아직 받는 중'으로 다뤄야 한다.
+  const [ready, setReady] = useState(false);
   const requestedRef = useRef<Set<string>>(new Set());
 
   // 배열은 매 렌더마다 새로 만들어지므로 문자열로 바꿔 비교한다.
@@ -40,7 +42,9 @@ export function usePlaybackUrls(paths: (string | undefined)[]) {
         missing.forEach((p) => requestedRef.current.delete(p));
       })
       .finally(() => {
-        if (!cancelled) setLoading(false);
+        if (cancelled) return;
+        setLoading(false);
+        setReady(true);
       });
 
     return () => {
@@ -48,5 +52,5 @@ export function usePlaybackUrls(paths: (string | undefined)[]) {
     };
   }, [key]);
 
-  return { urls, loading };
+  return { urls, loading, ready };
 }

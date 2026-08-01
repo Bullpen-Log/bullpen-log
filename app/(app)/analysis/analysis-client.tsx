@@ -75,8 +75,11 @@ export function AnalysisClient({ logs }: { logs: AnalysisLog[] }) {
     () => selectedLogs.flatMap((l) => l.videoPaths),
     [selectedLogs]
   );
-  const { urls: playbackUrls, loading: urlsLoading } =
-    usePlaybackUrls(selectedPaths);
+  const {
+    urls: playbackUrls,
+    loading: urlsLoading,
+    ready: urlsReady,
+  } = usePlaybackUrls(selectedPaths);
 
   const videoDates = useMemo(
     () => [...new Set(withVideo.map((l) => l.date.slice(0, 10)))].sort(),
@@ -215,7 +218,9 @@ export function AnalysisClient({ logs }: { logs: AnalysisLog[] }) {
                             />
                           ) : (
                             <div className="flex aspect-video items-center justify-center rounded-xl border border-line bg-surface-2 text-xs text-muted">
-                              {urlsLoading ? '불러오는 중…' : '영상을 불러올 수 없습니다'}
+                              {urlsLoading || !urlsReady
+                                ? '불러오는 중…'
+                                : '영상을 불러올 수 없습니다'}
                             </div>
                           )}
                           <p className="text-xs text-muted">영상 {i + 1}</p>
