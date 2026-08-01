@@ -69,7 +69,7 @@ export const DRAW_TOOLS: {
 export const DRAW_COLORS = ['#F5F5F4', '#E3CB95', '#5EEAD4', '#FCA5A5'];
 
 const READOUT_FONT =
-  '600 12px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace';
+  '600 10px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace';
 
 /** 세 점이 이루는 각도(도). v가 꼭짓점. 반드시 화면 픽셀 좌표로 넘겨야 한다. */
 export function angleAt(a: Point, v: Point, b: Point) {
@@ -123,8 +123,8 @@ function readout(
   ctx.font = READOUT_FONT;
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  const w = ctx.measureText(text).width + 14;
-  const h = 20;
+  const w = ctx.measureText(text).width + 9;
+  const h = 15;
 
   ctx.fillStyle = 'rgba(8,8,10,0.82)';
   ctx.strokeStyle = color;
@@ -132,7 +132,7 @@ function readout(
   ctx.beginPath();
   // roundRect는 구형 사파리에 없어서 없으면 각진 사각형으로 대체한다.
   if (typeof ctx.roundRect === 'function') {
-    ctx.roundRect(x - w / 2, y - h / 2, w, h, 4);
+    ctx.roundRect(x - w / 2, y - h / 2, w, h, 3);
   } else {
     ctx.rect(x - w / 2, y - h / 2, w, h);
   }
@@ -250,7 +250,7 @@ function drawShape(
         ctx,
         `${deg.toFixed(1)}° 수직`,
         (a.x + b.x) / 2,
-        (a.y + b.y) / 2 - 18,
+        (a.y + b.y) / 2 - 13,
         shape.color
       );
       break;
@@ -294,8 +294,8 @@ function drawShape(
       readout(
         ctx,
         `${angleAt(a, v, b).toFixed(1)}°`,
-        v.x + Math.cos(mid) * (r + 24),
-        v.y + Math.sin(mid) * (r + 24),
+        v.x + Math.cos(mid) * (r + 17),
+        v.y + Math.sin(mid) * (r + 17),
         shape.color
       );
       break;
