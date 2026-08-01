@@ -10,8 +10,30 @@ import {
   Undo2,
 } from 'lucide-react';
 
-/** 좌표는 0~1로 저장한다. 화면 크기가 바뀌어도 그림이 따라간다. */
+/**
+ * 좌표는 '영상 화면 안'에서의 0~1 비율로 저장한다.
+ * 캔버스 전체 기준이 아니라 영상이 실제로 그려지는 영역 기준이라,
+ * 확대하거나 창 비율이 바뀌어 여백(레터박스)이 달라져도 그림이 몸에 붙어 있는다.
+ */
 export type Point = { x: number; y: number };
+
+/** object-contain으로 그려진 영상이 캔버스 안에서 차지하는 실제 영역 */
+export type ContentBox = { ox: number; oy: number; dw: number; dh: number };
+
+export function getContentBox(
+  canvasW: number,
+  canvasH: number,
+  videoW: number,
+  videoH: number
+): ContentBox {
+  // 영상 크기를 아직 모르면 캔버스 전체를 쓴다.
+  if (!videoW || !videoH) return { ox: 0, oy: 0, dw: canvasW, dh: canvasH };
+
+  const scale = Math.min(canvasW / videoW, canvasH / videoH);
+  const dw = videoW * scale;
+  const dh = videoH * scale;
+  return { ox: (canvasW - dw) / 2, oy: (canvasH - dh) / 2, dw, dh };
+}
 
 export type Shape =
   /** 수직 기준선 */
@@ -174,13 +196,18 @@ function drawShape(
   ctx: CanvasRenderingContext2D,
   shape: Shape,
   w: number,
-  h: number
+  h: number,
+  box: ContentBox
 ) {
-  const px = (p: Point) => ({ x: p.x * w, y: p.y * h });
+  // 저장된 비율을 영상 화면 안의 실제 위치로 되돌린다.
+  const px = (p: Point) => ({
+    x: box.ox + p.x * box.dw,
+    y: box.oy + p.y * box.dh,
+  });
 
   switch (shape.kind) {
     case 'vref': {
-      const x = shape.x * w;
+      const x = box.ox + shape.x * box.dw;
       // 기준선은 측정선보다 얇은 실선으로 둬서 서로 구분되게 한다.
       stroke(
         ctx,
@@ -206,7 +233,7 @@ function drawShape(
       break;
     }
     case 'href': {
-      const y = shape.y * h;
+      const y = box.oy + shape.y * box.dh;
       stroke(
         ctx,
         () => {
@@ -350,12 +377,15 @@ export function VideoCanvas({
   tool,
   color,
   enabled,
+  videoRef,
 }: {
   shapes: Shape[];
   onCommit: (shape: Shape) => void;
   tool: ToolKind;
   color: string;
   enabled: boolean;
+  /** 영상 원본 비율을 알아야 그림을 화면에 붙여둘 수 있다. */
+  videoRef?: React.RefObject<HTMLVideoElement | null>;
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [draft, setDraft] = useState<Shape | null>(null);
@@ -379,14 +409,26 @@ export function VideoCanvas({
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.clearRect(0, 0, rect.width, rect.height);
 
-    for (const s of shapes) drawShape(ctx, s, rect.width, rect.height);
-    if (draft) drawShape(ctx, draft, rect.width, rect.height);
+    const video = videoRef?.current;
+    const box = getContentBox(
+      rect.width,
+      rect.height,
+      video?.videoWidth ?? 0,
+      video?.videoHeight ?? 0
+    );
+
+    for (const s of shapes) drawShape(ctx, s, rect.width, rect.height, box);
+    if (draft) drawShape(ctx, draft, rect.width, rect.height, box);
 
     // 각도 만드는 중에 찍은 점 표시
     for (const p of anglePts) {
-      handle(ctx, { x: p.x * rect.width, y: p.y * rect.height }, color);
+      handle(
+        ctx,
+        { x: box.ox + p.x * box.dw, y: box.oy + p.y * box.dh },
+        color
+      );
     }
-  }, [shapes, draft, anglePts, color]);
+  }, [shapes, draft, anglePts, color, videoRef]);
 
   useEffect(() => {
     redraw();
@@ -401,11 +443,19 @@ export function VideoCanvas({
     return () => observer.disconnect();
   }, [redraw]);
 
+  /** 누른 위치를 '영상 화면 안'의 비율로 바꾼다. */
   const toPoint = (e: React.PointerEvent): Point => {
     const rect = e.currentTarget.getBoundingClientRect();
+    const video = videoRef?.current;
+    const box = getContentBox(
+      rect.width,
+      rect.height,
+      video?.videoWidth ?? 0,
+      video?.videoHeight ?? 0
+    );
     return {
-      x: (e.clientX - rect.left) / rect.width,
-      y: (e.clientY - rect.top) / rect.height,
+      x: (e.clientX - rect.left - box.ox) / box.dw,
+      y: (e.clientY - rect.top - box.oy) / box.dh,
     };
   };
 

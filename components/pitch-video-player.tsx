@@ -4,10 +4,13 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ChevronLeft,
   ChevronRight,
+  Maximize2,
+  Minimize2,
   Pause,
   Play,
   RotateCcw,
   Ruler,
+  X,
 } from 'lucide-react';
 import {
   formatTime,
@@ -40,6 +43,9 @@ export function PitchVideoPlayer({
   const [current, setCurrent] = useState(0);
   const [duration, setDuration] = useState(0);
 
+  // 크게 보기. 화면 전체를 덮어 분석 공간을 넓힌다.
+  const [expanded, setExpanded] = useState(false);
+
   // 영상 위에 기준선·각도를 그어 재는 기능
   const [drawing, setDrawing] = useState(false);
   const [tool, setTool] = useState<ToolKind>('tilt');
@@ -50,6 +56,24 @@ export function PitchVideoPlayer({
   useEffect(() => {
     if (videoRef.current) videoRef.current.playbackRate = speed;
   }, [speed]);
+
+  // 크게 보는 동안에는 뒤 페이지가 스크롤되지 않게 하고, Esc로 닫는다.
+  useEffect(() => {
+    if (!expanded) return;
+
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setExpanded(false);
+    };
+    document.addEventListener('keydown', onKey);
+
+    const previous = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+
+    return () => {
+      document.removeEventListener('keydown', onKey);
+      document.body.style.overflow = previous;
+    };
+  }, [expanded]);
 
   const togglePlay = useCallback(() => {
     const video = videoRef.current;
@@ -107,15 +131,37 @@ export function PitchVideoPlayer({
   return (
     <div
       ref={containerRef}
-      className="overflow-hidden rounded-xl border border-line bg-surface-2 focus-within:border-gold focus:outline-none focus-visible:border-gold focus-visible:ring-1 focus-visible:ring-gold"
+      className={
+        expanded
+          ? 'fixed inset-0 z-[60] flex flex-col bg-ink focus:outline-none'
+          : 'overflow-hidden rounded-xl border border-line bg-surface-2 focus-within:border-gold focus:outline-none focus-visible:border-gold focus-visible:ring-1 focus-visible:ring-gold'
+      }
       onKeyDown={handleKeyDown}
       // Tab으로 이 영역에 들어와 화살표 키를 쓸 수 있게 한다.
       tabIndex={0}
       role="group"
       aria-label={`${label} 재생기`}
     >
-      {/* 영상과 그림판을 겹쳐 둔다. */}
-      <div className="relative">
+      {/* 크게 보기일 때만 상단에 제목과 닫기를 둔다. */}
+      {expanded && (
+        <div className="flex shrink-0 items-center gap-3 border-b border-line px-3 py-2.5">
+          <span className="min-w-0 flex-1 truncate text-sm text-cream">{label}</span>
+          <span className="hidden text-[11px] text-muted sm:inline">
+            Esc 키로 닫기
+          </span>
+          <button
+            type="button"
+            onClick={() => setExpanded(false)}
+            aria-label="크게 보기 닫기"
+            className="flex h-9 w-9 items-center justify-center rounded-lg border border-line text-muted transition-colors hover:border-gold hover:text-gold"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+      )}
+
+      {/* 영상과 그림판을 겹쳐 둔다. 크게 보기에서는 남는 높이를 모두 쓴다. */}
+      <div className={expanded ? 'relative min-h-0 flex-1' : 'relative'}>
         <video
           ref={videoRef}
           src={src}
@@ -133,9 +179,9 @@ export function PitchVideoPlayer({
             setDuration(e.currentTarget.duration);
             e.currentTarget.playbackRate = speed;
           }}
-          className={`aspect-video w-full bg-black object-contain ${
-            drawing ? '' : 'cursor-pointer'
-          }`}
+          className={`w-full bg-black object-contain ${
+            expanded ? 'h-full' : 'aspect-video'
+          } ${drawing ? '' : 'cursor-pointer'}`}
           aria-label={label}
         />
         <VideoCanvas
@@ -144,6 +190,7 @@ export function PitchVideoPlayer({
           tool={tool}
           color={color}
           enabled={drawing}
+          videoRef={videoRef}
         />
       </div>
 
@@ -242,6 +289,26 @@ export function PitchVideoPlayer({
         >
           <Ruler className="h-4 w-4" />
           <span className="hidden sm:inline">측정</span>
+        </button>
+
+        {/* 크게 보기 */}
+        <button
+          type="button"
+          onClick={() => setExpanded((v) => !v)}
+          aria-pressed={expanded}
+          title={expanded ? '작게 보기 (Esc)' : '크게 보기'}
+          aria-label={expanded ? '작게 보기' : '크게 보기'}
+          className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border transition-colors ${
+            expanded
+              ? 'border-gold bg-gold/10 text-gold'
+              : 'border-line text-muted hover:border-gold hover:text-gold'
+          }`}
+        >
+          {expanded ? (
+            <Minimize2 className="h-4 w-4" />
+          ) : (
+            <Maximize2 className="h-4 w-4" />
+          )}
         </button>
 
         {/* 재생 속도 */}

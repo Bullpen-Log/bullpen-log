@@ -6,11 +6,14 @@ import {
   ChevronRight,
   Eraser,
   Flag,
+  Maximize2,
+  Minimize2,
   Pause,
   Play,
   RotateCcw,
   Ruler,
   Undo2,
+  X,
 } from 'lucide-react';
 import { EmptyState } from '@/components/ui';
 import {
@@ -59,6 +62,7 @@ function ComparePane({
   color,
   shapes,
   onShapes,
+  expanded,
 }: {
   side: 'A' | 'B';
   clips: ClipOption[];
@@ -74,6 +78,7 @@ function ComparePane({
   color: string;
   shapes: Shape[];
   onShapes: (next: (prev: Shape[]) => Shape[]) => void;
+  expanded: boolean;
 }) {
   const { frameDurationRef } = useFrameDuration(videoRef);
   const [current, setCurrent] = useState(0);
@@ -112,7 +117,7 @@ function ComparePane({
         />
       </div>
 
-      <div className="relative">
+      <div className={expanded ? 'relative min-h-0 flex-1' : 'relative'}>
         <video
           ref={videoRef}
           src={url}
@@ -120,7 +125,9 @@ function ComparePane({
           preload="metadata"
           onTimeUpdate={(e) => setCurrent(e.currentTarget.currentTime)}
           // 세로/가로 영상 모두 무난한 정사각형으로 두고, 넓어지면 16:9로 바꾼다.
-          className="aspect-square w-full bg-black object-contain sm:aspect-video"
+          className={`w-full bg-black object-contain ${
+            expanded ? 'h-full' : 'aspect-square sm:aspect-video'
+          }`}
           aria-label={`${side}면 영상`}
         />
         <VideoCanvas
@@ -129,6 +136,7 @@ function ComparePane({
           tool={tool}
           color={color}
           enabled={drawing}
+          videoRef={videoRef}
         />
         {!url && (
           <p className="pointer-events-none absolute inset-0 flex items-center justify-center text-xs text-muted">
@@ -218,6 +226,9 @@ export function CompareView({ clips }: { clips: ClipOption[] }) {
   const [playing, setPlaying] = useState(false);
   const [speed, setSpeed] = useState<number>(0.5);
 
+  // 크게 보기. 두 영상을 나란히 보려면 공간이 넓을수록 좋다.
+  const [expanded, setExpanded] = useState(false);
+
   // 측정 도구는 양쪽이 함께 쓰고, 그은 선은 화면별로 따로 갖는다.
   const [drawing, setDrawing] = useState(false);
   const [tool, setTool] = useState<ToolKind>('tilt');
@@ -237,6 +248,24 @@ export function CompareView({ clips }: { clips: ClipOption[] }) {
     if (videoA.current) videoA.current.playbackRate = speed;
     if (videoB.current) videoB.current.playbackRate = speed;
   }, [speed]);
+
+  // 크게 보는 동안에는 뒤 페이지가 스크롤되지 않게 하고, Esc로 닫는다.
+  useEffect(() => {
+    if (!expanded) return;
+
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setExpanded(false);
+    };
+    document.addEventListener('keydown', onKey);
+
+    const previous = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+
+    return () => {
+      document.removeEventListener('keydown', onKey);
+      document.body.style.overflow = previous;
+    };
+  }, [expanded]);
 
   // 영상을 바꾸면 기준점도 함께 처음으로 되돌린다.
   const selectA = (id: string) => {
@@ -324,12 +353,32 @@ export function CompareView({ clips }: { clips: ClipOption[] }) {
 
   return (
     <div
-      className="space-y-4"
+      className={
+        expanded
+          ? 'fixed inset-0 z-[60] flex flex-col gap-2 bg-ink p-2 focus:outline-none'
+          : 'space-y-4'
+      }
       onKeyDown={handleKeyDown}
       tabIndex={0}
       role="group"
       aria-label="2분할 비교 재생기"
     >
+      {expanded && (
+        <div className="flex shrink-0 items-center gap-3 px-1">
+          <span className="text-sm text-cream">2분할 비교</span>
+          <span className="hidden text-[11px] text-muted sm:inline">
+            Esc 키로 닫기
+          </span>
+          <button
+            type="button"
+            onClick={() => setExpanded(false)}
+            aria-label="크게 보기 닫기"
+            className="ml-auto flex h-9 w-9 items-center justify-center rounded-lg border border-line text-muted transition-colors hover:border-gold hover:text-gold"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+      )}
       {/* 측정 도구 — 양쪽 화면에 공통으로 적용된다. */}
       {drawing && (
         <div className="overflow-hidden rounded-xl border border-line">
@@ -352,7 +401,11 @@ export function CompareView({ clips }: { clips: ClipOption[] }) {
       )}
 
       {/* 좁은 화면에서도 둘을 동시에 봐야 비교가 되므로 항상 좌우로 둔다. */}
-      <div className="grid grid-cols-2 gap-2 sm:gap-4">
+      <div
+        className={`grid grid-cols-2 gap-2 sm:gap-4 ${
+          expanded ? 'min-h-0 flex-1' : ''
+        }`}
+      >
         <ComparePane
           side="A"
           clips={clips}
@@ -368,6 +421,7 @@ export function CompareView({ clips }: { clips: ClipOption[] }) {
           color={color}
           shapes={shapesA}
           onShapes={setShapesA}
+          expanded={expanded}
         />
         <ComparePane
           side="B"
@@ -384,6 +438,7 @@ export function CompareView({ clips }: { clips: ClipOption[] }) {
           color={color}
           shapes={shapesB}
           onShapes={setShapesB}
+          expanded={expanded}
         />
       </div>
 
@@ -391,7 +446,13 @@ export function CompareView({ clips }: { clips: ClipOption[] }) {
         공용 조작부 — 스크롤해도 항상 손이 닿도록 아래에 붙여둔다.
         모바일 하단 탭(약 3.25rem) 위에 오도록 위치를 잡는다.
       */}
-      <div className="sticky bottom-[calc(3rem_+_env(safe-area-inset-bottom))] z-30 rounded-xl border border-gold-dim/50 bg-ink/95 p-2 backdrop-blur-xl sm:p-3 lg:bottom-4">
+      <div
+        className={`z-30 rounded-xl border border-gold-dim/50 bg-ink/95 p-2 backdrop-blur-xl sm:p-3 ${
+          expanded
+            ? 'shrink-0'
+            : 'sticky bottom-[calc(3rem_+_env(safe-area-inset-bottom))] lg:bottom-4'
+        }`}
+      >
         <div className="flex flex-wrap items-center gap-x-1.5 gap-y-2 sm:gap-x-3">
           <button
             type="button"
@@ -453,6 +514,25 @@ export function CompareView({ clips }: { clips: ClipOption[] }) {
             <span className="hidden sm:inline">측정</span>
           </button>
 
+          <button
+            type="button"
+            onClick={() => setExpanded((v) => !v)}
+            aria-pressed={expanded}
+            title={expanded ? '작게 보기 (Esc)' : '크게 보기'}
+            aria-label={expanded ? '작게 보기' : '크게 보기'}
+            className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border transition-colors ${
+              expanded
+                ? 'border-gold bg-gold/10 text-gold'
+                : 'border-line text-muted hover:border-gold hover:text-gold'
+            }`}
+          >
+            {expanded ? (
+              <Minimize2 className="h-4 w-4" />
+            ) : (
+              <Maximize2 className="h-4 w-4" />
+            )}
+          </button>
+
           <div className="ml-auto flex h-11 shrink-0 overflow-hidden rounded-lg border border-line">
             {SPEEDS.map((s, i) => (
               <button
@@ -475,7 +555,11 @@ export function CompareView({ clips }: { clips: ClipOption[] }) {
         </div>
       </div>
 
-      <details className="rounded-xl border border-line bg-surface px-4 py-3 text-xs text-muted">
+      <details
+        className={`rounded-xl border border-line bg-surface px-4 py-3 text-xs text-muted ${
+          expanded ? 'hidden' : ''
+        }`}
+      >
         <summary className="cursor-pointer font-medium text-cream">쓰는 법</summary>
         <p className="mt-2 leading-relaxed">
           각 화면의 <strong className="text-cream">◀ ▶</strong>로 두 영상을 같은
