@@ -4,6 +4,7 @@ import { redirect } from 'next/navigation';
 import bcrypt from 'bcryptjs';
 import { prisma } from '@/lib/prisma';
 import { createSession, deleteSession } from '@/lib/session';
+import { validateProfile } from '@/lib/profile';
 
 export type AuthState = { error?: string } | undefined;
 
@@ -31,6 +32,14 @@ export async function signup(_prev: AuthState, formData: FormData): Promise<Auth
     return { error: '비밀번호가 일치하지 않습니다.' };
   }
 
+  // 나이는 안전한 투구수 한도를 정하는 기준이라 가입할 때 함께 받는다.
+  const profile = validateProfile(
+    String(formData.get('birthDate') ?? ''),
+    String(formData.get('heightCm') ?? ''),
+    { requireBirthDate: true }
+  );
+  if ('error' in profile) return profile;
+
   const existing = await prisma.user.findUnique({ where: { email } });
   if (existing) {
     return { error: '이미 가입된 이메일입니다.' };
@@ -45,6 +54,7 @@ export async function signup(_prev: AuthState, formData: FormData): Promise<Auth
       nickname,
       password: await bcrypt.hash(password, 10),
       role,
+      ...profile.value,
     },
     select: { id: true, role: true },
   });

@@ -1,5 +1,11 @@
 import Link from 'next/link';
+import { toDateKey } from '@/lib/pitch-stats';
 import { AuthForm } from './auth-form';
+
+/** 렌더 중에 현재 시각을 직접 읽지 않도록 함수로 감싼다. */
+function todayKey() {
+  return toDateKey(new Date());
+}
 
 const HIGHLIGHTS = [
   { title: '투구기록', desc: '투구수·강도·구속과 그날의 영상' },
@@ -18,7 +24,7 @@ export default function LoginPage() {
         </span>
       </Link>
 
-      <AuthForm />
+      <AuthForm today={todayKey()} />
 
       <div className="mt-12 grid w-full max-w-md grid-cols-2 gap-x-6 gap-y-5 border-t border-line pt-8">
         {HIGHLIGHTS.map((item) => (

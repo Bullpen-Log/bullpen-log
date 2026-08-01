@@ -4,6 +4,7 @@ import { useActionState, useState } from 'react';
 import { useFormStatus } from 'react-dom';
 import { login, signup, type AuthState } from '@/app/actions/auth';
 import { Button, Field, FormError, Input } from '@/components/ui';
+import { MAX_HEIGHT_CM, MIN_HEIGHT_CM } from '@/lib/profile';
 
 function SubmitButton({ label }: { label: string }) {
   const { pending } = useFormStatus();
@@ -14,7 +15,8 @@ function SubmitButton({ label }: { label: string }) {
   );
 }
 
-export function AuthForm() {
+/** today는 생년월일에서 미래 날짜를 못 고르게 막는 데 쓴다. */
+export function AuthForm({ today }: { today: string }) {
   const [mode, setMode] = useState<'login' | 'signup'>('login');
   const action = mode === 'login' ? login : signup;
   const [state, formAction] = useActionState<AuthState, FormData>(action, undefined);
@@ -66,15 +68,41 @@ export function AuthForm() {
         </Field>
 
         {mode === 'signup' && (
-          <Field label="닉네임">
-            <Input
-              name="nickname"
-              type="text"
-              autoComplete="nickname"
-              placeholder="불펜지기"
-              required
-            />
-          </Field>
+          <>
+            <Field label="닉네임">
+              <Input
+                name="nickname"
+                type="text"
+                autoComplete="nickname"
+                placeholder="불펜지기"
+                required
+              />
+            </Field>
+
+            {/* 나이는 안전한 투구수 한도를 정하는 기준이라 가입할 때 받는다. */}
+            <div className="grid gap-5 sm:grid-cols-2">
+              <Field label="생년월일">
+                <Input name="birthDate" type="date" max={today} required />
+              </Field>
+
+              <Field label="키 (cm)">
+                <Input
+                  name="heightCm"
+                  type="number"
+                  inputMode="numeric"
+                  min={MIN_HEIGHT_CM}
+                  max={MAX_HEIGHT_CM}
+                  step={1}
+                  placeholder="선택"
+                />
+              </Field>
+            </div>
+
+            <p className="text-xs leading-relaxed text-muted/70">
+              생년월일은 나이에 맞는 안전한 투구수를 계산하는 데 쓰입니다.
+              키는 나중에 입력해도 됩니다.
+            </p>
+          </>
         )}
 
         <Field label="비밀번호" hint={mode === 'signup' ? '8자 이상 입력해주세요.' : undefined}>

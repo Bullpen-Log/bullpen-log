@@ -18,6 +18,10 @@ model User {
   password          String
   nickname          String
   role              Role                @default(USER)
+  /// 생년월일. 나이에 따라 안전한 투구수 한도가 달라져 투구량 조언에 필요하다.
+  birthDate         DateTime?           @db.Date
+  /// 키(cm). 영상에서 잰 길이를 몸 크기로 나눠 비교할 때 쓴다.
+  heightCm          Int?
   createdAt         DateTime            @default(now())
 
   userGuideProgress UserGuideProgress[]

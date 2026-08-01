@@ -5,6 +5,7 @@ import {
   CalendarDays,
   FileText,
   TrendingUp,
+  UserCog,
   Users,
   Video,
 } from 'lucide-react';
@@ -72,6 +73,23 @@ export default async function DashboardPage() {
         </h1>
         <p className="text-sm text-muted">오늘도 기록을 남겨볼까요?</p>
       </div>
+
+      {/* 가입할 때 생년월일을 받기 전에 가입한 회원에게만 보인다. */}
+      {!user.birthDate && (
+        <Link
+          href="/profile"
+          className="flex items-center gap-4 rounded-2xl border border-gold-dim/60 bg-gold/5 px-5 py-4 transition-colors hover:border-gold"
+        >
+          <UserCog className="h-5 w-5 shrink-0 text-gold" />
+          <span className="min-w-0 flex-1 text-sm leading-relaxed text-cream/90">
+            생년월일이 아직 등록되지 않았습니다. 나이에 맞는 안전한 투구수를
+            계산하려면 필요합니다.
+          </span>
+          <span className="shrink-0 text-xs font-medium uppercase tracking-[0.2em] text-gold">
+            입력 →
+          </span>
+        </Link>
+      )}
 
       <div className="grid gap-5 sm:grid-cols-2">
         {categories.map(({ href, title, desc, icon: Icon }) => (

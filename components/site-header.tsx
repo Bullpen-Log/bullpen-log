@@ -14,6 +14,12 @@ const NAV_ITEMS = [
 
 const ADMIN_NAV_ITEM = { href: '/admin', label: '관리자' };
 
+/**
+ * 내 정보는 데스크탑에서 오른쪽 위 닉네임을 눌러 들어간다.
+ * 모바일에는 그 자리가 없어 하단 내비게이션 끝에 붙인다.
+ */
+const PROFILE_NAV_ITEM = { href: '/profile', label: '내정보' };
+
 export async function SiteHeader() {
   const user = await getCurrentUser();
 
@@ -37,12 +43,18 @@ export async function SiteHeader() {
         <div className="ml-auto flex items-center gap-3">
           {user ? (
             <>
-              <div className="hidden text-right sm:block">
-                <p className="text-sm leading-tight text-cream">{user.nickname}</p>
+              <Link
+                href="/profile"
+                className="group hidden text-right sm:block"
+                aria-label="내 정보"
+              >
+                <p className="text-sm leading-tight text-cream transition-colors group-hover:text-gold">
+                  {user.nickname}
+                </p>
                 {user.role === 'ADMIN' && (
                   <p className="text-[10px] uppercase tracking-widest text-gold">Admin</p>
                 )}
-              </div>
+              </Link>
               <form action={logout}>
                 <button
                   type="submit"
@@ -64,7 +76,7 @@ export async function SiteHeader() {
       </div>
     </header>
 
-    {user && <MobileNav items={navItems} />}
+    {user && <MobileNav items={[...navItems, PROFILE_NAV_ITEM]} />}
     </>
   );
 }

@@ -1,6 +1,7 @@
 import { prisma } from '@/lib/prisma';
 import { requireAdmin } from '@/lib/dal';
 import { Badge, Card, PageHeading } from '@/components/ui';
+import { ageFromBirthDate } from '@/lib/profile';
 import { DeleteUser, RoleToggle } from './user-row-actions';
 
 function formatDate(date: Date) {
@@ -30,6 +31,8 @@ export default async function AdminPage() {
           nickname: true,
           role: true,
           createdAt: true,
+          birthDate: true,
+          heightCm: true,
           _count: { select: { pitchLogs: true, articles: true } },
           pitchLogs: {
             orderBy: { date: 'desc' },
@@ -99,6 +102,19 @@ export default async function AdminPage() {
                     {isSelf && <Badge>나</Badge>}
                   </div>
                   <p className="mt-1 truncate text-sm text-muted">{u.email}</p>
+                  <p className="mt-1.5 text-xs text-muted/80">
+                    {u.birthDate ? (
+                      <>만 {ageFromBirthDate(u.birthDate)}세</>
+                    ) : (
+                      <span className="text-gold/80">생년월일 미입력</span>
+                    )}
+                    {u.heightCm && (
+                      <>
+                        <span className="mx-2 text-line-strong">·</span>
+                        {u.heightCm}cm
+                      </>
+                    )}
+                  </p>
                   <p className="mt-2 text-xs text-muted/80">
                     가입 {formatDate(u.createdAt)}
                     <span className="mx-2 text-line-strong">·</span>
