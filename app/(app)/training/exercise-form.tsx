@@ -4,6 +4,13 @@ import { useActionState, useEffect, useRef } from 'react';
 import { useFormStatus } from 'react-dom';
 import { createExercise, type ActionState } from '@/app/actions/content';
 import { Button, Field, FormError, Input, Textarea } from '@/components/ui';
+import { CheckboxGroup, RadioGroup } from '@/components/choice-inputs';
+import {
+  BODY_PARTS,
+  DIFFICULTY_LEVELS,
+  EXERCISE_EQUIPMENT,
+  INTENSITY_LEVELS,
+} from '@/lib/exercise-meta';
 
 function SubmitButton() {
   const { pending } = useFormStatus();
@@ -53,6 +60,36 @@ export function ExerciseForm({ category }: { category: string }) {
           required
         />
       </Field>
+
+      {/* 나중에 몸 상태에 맞는 운동을 코드로 추려내려면 이 항목들이 필요하다. */}
+      <div className="space-y-5 border-t border-gold-dim/30 pt-5">
+        <CheckboxGroup
+          name="bodyParts"
+          label="목표 부위 · 필수"
+          hint="여러 개 고를 수 있습니다."
+          options={BODY_PARTS}
+        />
+
+        <RadioGroup
+          name="intensity"
+          label="운동 강도 · 필수"
+          hint="부하가 높은 날 어떤 운동을 뺄지 정하는 기준이 됩니다."
+          options={INTENSITY_LEVELS}
+          required
+        />
+
+        <RadioGroup
+          name="difficulty"
+          label="난이도"
+          options={DIFFICULTY_LEVELS}
+        />
+
+        <CheckboxGroup
+          name="equipment"
+          label="필요 장비"
+          options={EXERCISE_EQUIPMENT}
+        />
+      </div>
 
       <SubmitButton />
     </form>

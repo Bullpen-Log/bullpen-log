@@ -37,6 +37,10 @@ model MechanicsGuide {
   category    String              @default("스로잉 드릴")
   description String              @db.Text
   videoUrl    String
+  /// 이 드릴이 무엇을 교정하는지. 영상분석 결과와 이어지는 고리다.
+  focusPoints String[]
+  /// 드릴에 필요한 도구
+  equipment   String[]
   sortOrder   Int                 @default(0)
   createdAt   DateTime            @default(now())
   progress    UserGuideProgress[]
@@ -75,6 +79,14 @@ model ExerciseVideo {
   category         String
   description      String            @db.Text
   videoUrl         String
+  /// 이 운동이 목표로 하는 부위
+  bodyParts        String[]
+  /// 낮음 / 중간 / 높음. 부하 지수가 높을 때 '높음'을 빼는 데 쓴다.
+  intensity        String            @default("중간")
+  /// 초급 / 중급 / 상급. 선택 입력이라 비어 있을 수 있다.
+  difficulty       String?
+  /// 운동에 필요한 도구
+  equipment        String[]
   createdAt        DateTime          @default(now())
   userLogs         UserExerciseLog[]
   routineExercises RoutineExercise[]

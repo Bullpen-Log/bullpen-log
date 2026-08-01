@@ -8,6 +8,16 @@ import {
   MECHANICS_CATEGORY_NAMES,
   TRAINING_CATEGORY_NAMES,
 } from '@/lib/categories';
+import {
+  BODY_PARTS,
+  DIFFICULTY_NAMES,
+  DRILL_EQUIPMENT,
+  EXERCISE_EQUIPMENT,
+  FOCUS_POINTS,
+  INTENSITY_NAMES,
+  pickMany,
+  pickOne,
+} from '@/lib/exercise-meta';
 
 export type ActionState = { error?: string; success?: string } | undefined;
 
@@ -42,8 +52,37 @@ export async function createExercise(
     return { error: '유효한 유튜브 링크가 아닙니다. (예: https://youtu.be/영상ID)' };
   }
 
+  // 목록에 없는 값이 섞여 들어오지 않도록 서버에서 다시 거른다.
+  const bodyParts = pickMany(formData.getAll('bodyParts').map(String), BODY_PARTS);
+  if (bodyParts.length === 0) {
+    return { error: '목표 부위를 하나 이상 선택해주세요.' };
+  }
+
+  const intensity = pickOne(String(formData.get('intensity') ?? ''), INTENSITY_NAMES);
+  if (!intensity) {
+    return { error: '운동 강도를 선택해주세요.' };
+  }
+
+  const difficulty = pickOne(
+    String(formData.get('difficulty') ?? ''),
+    DIFFICULTY_NAMES
+  );
+  const equipment = pickMany(
+    formData.getAll('equipment').map(String),
+    EXERCISE_EQUIPMENT
+  );
+
   await prisma.exerciseVideo.create({
-    data: { title, category, description, videoUrl },
+    data: {
+      title,
+      category,
+      description,
+      videoUrl,
+      bodyParts,
+      intensity,
+      difficulty,
+      equipment,
+    },
   });
 
   revalidatePath('/training');
@@ -88,8 +127,29 @@ export async function createGuide(
     return { error: '순서는 숫자로 입력해주세요.' };
   }
 
+  const focusPoints = pickMany(
+    formData.getAll('focusPoints').map(String),
+    FOCUS_POINTS
+  );
+  if (focusPoints.length === 0) {
+    return { error: '교정 포인트를 하나 이상 선택해주세요.' };
+  }
+
+  const equipment = pickMany(
+    formData.getAll('equipment').map(String),
+    DRILL_EQUIPMENT
+  );
+
   await prisma.mechanicsGuide.create({
-    data: { title, category, description, videoUrl, sortOrder },
+    data: {
+      title,
+      category,
+      description,
+      videoUrl,
+      focusPoints,
+      equipment,
+      sortOrder,
+    },
   });
 
   revalidatePath('/mechanics');

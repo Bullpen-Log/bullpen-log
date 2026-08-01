@@ -4,6 +4,8 @@ import { useActionState, useEffect, useRef } from 'react';
 import { useFormStatus } from 'react-dom';
 import { createGuide, type ActionState } from '@/app/actions/content';
 import { Button, Field, FormError, Input, Textarea } from '@/components/ui';
+import { CheckboxGroup } from '@/components/choice-inputs';
+import { DRILL_EQUIPMENT, FOCUS_POINTS } from '@/lib/exercise-meta';
 
 function SubmitButton() {
   const { pending } = useFormStatus();
@@ -56,6 +58,22 @@ export function GuideForm({ category }: { category: string }) {
           required
         />
       </Field>
+
+      {/* 나중에 영상분석에서 찾은 문제와 드릴을 이어주는 항목이다. */}
+      <div className="space-y-5 border-t border-gold-dim/30 pt-5">
+        <CheckboxGroup
+          name="focusPoints"
+          label="교정 포인트 · 필수"
+          hint="이 드릴이 무엇을 고치는 드릴인지 고르세요."
+          options={FOCUS_POINTS}
+        />
+
+        <CheckboxGroup
+          name="equipment"
+          label="필요 장비"
+          options={DRILL_EQUIPMENT}
+        />
+      </div>
 
       <SubmitButton />
     </form>
