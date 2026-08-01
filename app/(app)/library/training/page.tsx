@@ -1,7 +1,6 @@
 import { prisma } from '@/lib/prisma';
 import { requireUser } from '@/lib/dal';
 import { getYouTubeEmbedUrl, getYouTubeThumbnail } from '@/lib/youtube';
-import { PageHeading } from '@/components/ui';
 import { TrainingClient, type ExerciseItem } from './training-client';
 
 export default async function TrainingPage() {
@@ -25,15 +24,6 @@ export default async function TrainingPage() {
     thumbnailUrl: getYouTubeThumbnail(ex.videoUrl),
   }));
 
-  return (
-    <div className="space-y-10">
-      <PageHeading
-        eyebrow="Training"
-        title="트레이닝"
-        description="투수에게 필요한 훈련을 5개 파트로 나눠 정리합니다. 보고 싶은 파트를 눌러 영상을 확인하세요."
-      />
-
-      <TrainingClient exercises={items} isAdmin={user.role === 'ADMIN'} />
-    </div>
-  );
+  // 제목과 탭은 라이브러리 레이아웃이 그린다.
+  return <TrainingClient exercises={items} isAdmin={user.role === 'ADMIN'} />;
 }

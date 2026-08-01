@@ -150,7 +150,7 @@ export default async function AdminPage() {
         <h2 className="text-lg font-bold text-cream">콘텐츠 현황</h2>
         <div className="grid gap-px overflow-hidden rounded-2xl border border-line bg-line sm:grid-cols-3">
           {[
-            { label: '트레이닝 영상', value: totalVideos, href: '/training' },
+            { label: '트레이닝 영상', value: totalVideos, href: '/library/training' },
             { label: '자료실 게시글', value: totalArticles, href: '/board' },
             { label: '투구 기록', value: totalLogs, href: '/pitch-log' },
           ].map((c) => (

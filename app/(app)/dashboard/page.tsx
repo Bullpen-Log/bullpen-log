@@ -30,6 +30,8 @@ import {
   summarize,
   toDateKey,
 } from '@/lib/pitch-stats';
+import { buildFacts } from '@/lib/report/facts';
+import { buildPitchPlan } from '@/lib/report/plan';
 import { LoadChart, type LoadPoint } from './load-chart';
 import { CheckinCard, type CheckinData } from './checkin-card';
 import {
@@ -38,6 +40,7 @@ import {
   MetricHelp,
   StatCard,
   StatusChip,
+  TodayPlanLine,
   TONE,
   WeekStrip,
   ZoneGauge,
@@ -47,9 +50,9 @@ import {
 const QUICK_LINKS = [
   { href: '/pitch-log', label: '투구기록', icon: CalendarDays },
   { href: '/analysis', label: '영상분석', icon: Video },
-  { href: '/report', label: '리포트', icon: TrendingUp },
-  { href: '/training', label: '트레이닝', icon: Activity },
-  { href: '/mechanics', label: '메커니즘', icon: BookOpen },
+  { href: '/coach', label: 'AI 코치', icon: TrendingUp },
+  { href: '/library/training', label: '트레이닝', icon: Activity },
+  { href: '/library/mechanics', label: '메커니즘', icon: BookOpen },
   { href: '/board', label: '자료실', icon: FileText },
 ] as const;
 
@@ -102,11 +105,11 @@ export default async function DashboardPage() {
     _count: true,
   });
 
-  // 사용자 시간대의 '오늘'이 서버(UTC)와 다를 수 있어 이틀치를 내려보내고
-  // 화면 쪽에서 자기 날짜에 맞는 것을 고르게 한다.
+  // 체크인은 오늘 카드에도, 오늘 계획 계산에도 쓰이므로 넉넉히 가져온다.
+  // (카드 쪽은 시간대 차이를 감안해 최근 이틀 중에서 자기 날짜를 고른다.)
   const checkinSince = new Date(today);
-  checkinSince.setDate(checkinSince.getDate() - 2);
-  const recentCheckins: CheckinData[] = (
+  checkinSince.setDate(checkinSince.getDate() - 10);
+  const allCheckins: CheckinData[] = (
     await prisma.dailyCheckin.findMany({
       where: { userId: user.id, date: { gte: checkinSince } },
       orderBy: { date: 'desc' },
@@ -118,6 +121,7 @@ export default async function DashboardPage() {
     condition: c.condition,
     sleep: c.sleep,
   }));
+  const recentCheckins = allCheckins.slice(0, 3);
 
   const byDay = groupByDay(
     logs.map((l) => ({
@@ -161,6 +165,34 @@ export default async function DashboardPage() {
   const zone = acwr.zone ? ACWR_ZONES[acwr.zone] : null;
   const recent = logs.slice(0, 4);
 
+  // 오늘 뭘 하면 되는지 한 줄로 보여준다.
+  // AI 코치 리포트와 같은 계산을 쓰므로 두 화면의 내용이 어긋나지 않는다.
+  const todayPlan = hasRecords
+    ? buildPitchPlan(
+        buildFacts({
+          nickname: user.nickname,
+          age,
+          heightCm: user.heightCm,
+          logs: logs.map((l) => ({
+            date: l.date.toISOString(),
+            pitchCount: l.pitchCount,
+            intensity: l.intensity,
+            maxVelocity: l.maxVelocity,
+            avgVelocity: l.avgVelocity,
+          })),
+          checkins: allCheckins,
+          memos: logs
+            .filter((l) => l.memo?.trim())
+            .slice(0, 5)
+            .map((l) => ({
+              date: l.date.toISOString().slice(0, 10),
+              text: l.memo!.trim(),
+            })),
+          today,
+        })
+      )
+    : null;
+
   const intensityTone: Tone =
     current.peakIntensity >= 9 ? 'warn' : current.activeDays > 0 ? 'good' : 'neutral';
   const restTone: Tone =
@@ -189,6 +221,9 @@ export default async function DashboardPage() {
 
       {/* ── 오늘 컨디션 체크인 ──────────────────────────────── */}
       <CheckinCard recent={recentCheckins} />
+
+      {/* ── 오늘 뭘 하면 되는지 한 줄 ───────────────────────── */}
+      {todayPlan && <TodayPlanLine plan={todayPlan} />}
 
       {/* ── 프로필 + 현재 부하 지수 ─────────────────────────── */}
       <section className="bg-spotlight overflow-hidden rounded-3xl border border-line">
@@ -445,10 +480,10 @@ export default async function DashboardPage() {
               </p>
             </div>
             <Link
-              href="/report"
+              href="/coach"
               className="text-xs text-muted transition-colors hover:text-gold"
             >
-              상세 리포트 →
+              AI 코치 →
             </Link>
           </div>
           <LoadChart points={chartPoints} />

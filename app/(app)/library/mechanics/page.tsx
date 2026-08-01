@@ -1,7 +1,6 @@
 import { prisma } from '@/lib/prisma';
 import { requireUser } from '@/lib/dal';
 import { getYouTubeEmbedUrl, getYouTubeThumbnail } from '@/lib/youtube';
-import { PageHeading } from '@/components/ui';
 import { MechanicsClient, type GuideItem } from './mechanics-client';
 
 export default async function MechanicsPage() {
@@ -33,26 +32,18 @@ export default async function MechanicsPage() {
 
   const completedCount = items.filter((g) => g.done).length;
 
+  // 제목과 탭은 라이브러리 레이아웃이 그린다.
   return (
-    <div className="space-y-10">
-      <PageHeading
-        eyebrow="Mechanics"
-        title="투구 메커니즘 가이드"
-        description="투구 동작을 3가지 드릴 파트로 나눠 학습합니다. 보고 싶은 파트를 눌러 드릴을 확인하세요."
-        action={
-          items.length > 0 ? (
-            <div className="sm:text-right">
-              <p className="text-display text-3xl leading-none text-gold">
-                {completedCount}
-                <span className="text-line-strong"> / {items.length}</span>
-              </p>
-              <p className="mt-1 text-xs uppercase tracking-widest text-muted">
-                학습 완료
-              </p>
-            </div>
-          ) : undefined
-        }
-      />
+    <div className="space-y-6">
+      {items.length > 0 && (
+        <div className="flex items-baseline justify-between rounded-2xl border border-line bg-surface px-5 py-4">
+          <span className="text-sm text-muted">학습 완료</span>
+          <span className="text-display text-2xl leading-none text-gold tabular-nums">
+            {completedCount}
+            <span className="text-line-strong"> / {items.length}</span>
+          </span>
+        </div>
+      )}
 
       <MechanicsClient guides={items} isAdmin={user.role === 'ADMIN'} />
     </div>

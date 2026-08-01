@@ -3,6 +3,7 @@ import { requireUser } from '@/lib/dal';
 import { isAiConfigured } from '@/lib/ai/client';
 import type { AiReportBody } from '@/lib/ai/report-prompt';
 import type { PitchPlan } from '@/lib/report/plan';
+import { PageHeading } from '@/components/ui';
 import { AiReportCard, type StoredReport } from './ai-report-card';
 import { ReportClient } from './report-client';
 
@@ -39,6 +40,12 @@ export default async function ReportPage() {
 
   return (
     <div className="space-y-8">
+      <PageHeading
+        eyebrow="AI Coach"
+        title="AI 코치"
+        description="기록과 몸 상태를 바탕으로 앞으로의 투구 계획을 정리합니다. 아래에는 그 근거가 되는 기간별 기록이 이어집니다."
+      />
+
       <AiReportCard
         report={report}
         canGenerate={logs.length > 0}

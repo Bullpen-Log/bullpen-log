@@ -109,7 +109,7 @@ export async function generateAiReport(): Promise<AiReportState> {
         model: AI_MODEL,
       },
     });
-    revalidatePath('/report');
+    revalidatePath('/coach');
     return { success: '통증 신호가 있어 휴식 안내를 저장했습니다.' };
   }
 
@@ -140,6 +140,6 @@ export async function generateAiReport(): Promise<AiReportState> {
     },
   });
 
-  revalidatePath('/report');
+  revalidatePath('/coach');
   return { success: '리포트를 만들었습니다.' };
 }

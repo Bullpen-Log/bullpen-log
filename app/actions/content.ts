@@ -85,7 +85,7 @@ export async function createExercise(
     },
   });
 
-  revalidatePath('/training');
+  revalidatePath('/library/training');
   return { success: '운동 영상이 등록되었습니다.' };
 }
 
@@ -95,7 +95,7 @@ export async function deleteExercise(formData: FormData) {
   if (!id) return;
 
   await prisma.exerciseVideo.delete({ where: { id } });
-  revalidatePath('/training');
+  revalidatePath('/library/training');
 }
 
 /* --------------------------------- 메커니즘 --------------------------------- */
@@ -152,7 +152,7 @@ export async function createGuide(
     },
   });
 
-  revalidatePath('/mechanics');
+  revalidatePath('/library/mechanics');
   return { success: '가이드가 등록되었습니다.' };
 }
 
@@ -162,7 +162,7 @@ export async function deleteGuide(formData: FormData) {
   if (!id) return;
 
   await prisma.mechanicsGuide.delete({ where: { id } });
-  revalidatePath('/mechanics');
+  revalidatePath('/library/mechanics');
 }
 
 /** 가이드 학습 완료 체크를 토글한다. (로그인한 사용자 누구나) */
@@ -183,5 +183,5 @@ export async function toggleGuideProgress(formData: FormData) {
     create: { userId: user.id, guideId, completed: true },
   });
 
-  revalidatePath('/mechanics');
+  revalidatePath('/library/mechanics');
 }

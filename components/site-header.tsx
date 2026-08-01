@@ -3,12 +3,12 @@ import { getCurrentUser } from '@/lib/dal';
 import { logout } from '@/app/actions/auth';
 import { MobileNav, NavLinks } from '@/components/nav-links';
 
+// 기록 → 분석 → 코치 → 재료 순으로, 실제 사용 흐름대로 놓는다.
 const NAV_ITEMS = [
   { href: '/pitch-log', label: '투구기록' },
   { href: '/analysis', label: '영상분석' },
-  { href: '/report', label: '리포트' },
-  { href: '/training', label: '트레이닝' },
-  { href: '/mechanics', label: '메커니즘' },
+  { href: '/coach', label: 'AI 코치' },
+  { href: '/library', label: '라이브러리' },
   { href: '/board', label: '자료실' },
 ];
 
