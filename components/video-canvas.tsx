@@ -88,19 +88,24 @@ export function tiltFromVertical(a: Point, b: Point) {
 /* --------------------------- 그리기 유틸 --------------------------- */
 
 /** 어떤 영상 위에서도 보이도록 어두운 테두리를 깔고 그 위에 선을 얹는다. */
-function stroke(ctx: CanvasRenderingContext2D, path: () => void, color: string, dash?: number[]) {
+function stroke(
+  ctx: CanvasRenderingContext2D,
+  path: () => void,
+  color: string,
+  { dash, width = 1.5 }: { dash?: number[]; width?: number } = {}
+) {
   ctx.save();
   ctx.setLineDash(dash ?? []);
   ctx.lineCap = 'round';
   ctx.lineJoin = 'round';
 
   ctx.strokeStyle = 'rgba(8,8,10,0.55)';
-  ctx.lineWidth = 3.5;
+  ctx.lineWidth = width + 2;
   path();
   ctx.stroke();
 
   ctx.strokeStyle = color;
-  ctx.lineWidth = 1.5;
+  ctx.lineWidth = width;
   path();
   ctx.stroke();
   ctx.restore();
@@ -141,16 +146,17 @@ function readout(
 
 /** 선 끝을 정확히 어디에 찍었는지 보이도록 작은 손잡이를 그린다. */
 function handle(ctx: CanvasRenderingContext2D, p: Point, color: string) {
+  const r = 1.75; // 반지름. 측정선을 가리지 않도록 작게 유지한다.
   ctx.save();
   ctx.strokeStyle = 'rgba(8,8,10,0.6)';
-  ctx.lineWidth = 3;
+  ctx.lineWidth = 2;
   ctx.beginPath();
-  ctx.rect(p.x - 3, p.y - 3, 6, 6);
+  ctx.rect(p.x - r, p.y - r, r * 2, r * 2);
   ctx.stroke();
   ctx.strokeStyle = color;
-  ctx.lineWidth = 1.5;
+  ctx.lineWidth = 1;
   ctx.beginPath();
-  ctx.rect(p.x - 3, p.y - 3, 6, 6);
+  ctx.rect(p.x - r, p.y - r, r * 2, r * 2);
   ctx.stroke();
   ctx.restore();
 }
@@ -166,19 +172,25 @@ function drawShape(
   switch (shape.kind) {
     case 'vref': {
       const x = shape.x * w;
-      stroke(ctx, () => {
-        ctx.beginPath();
-        ctx.moveTo(x, 0);
-        ctx.lineTo(x, h);
-      }, shape.color, [7, 5]);
+      // 기준선은 측정선보다 얇은 실선으로 둬서 서로 구분되게 한다.
+      stroke(
+        ctx,
+        () => {
+          ctx.beginPath();
+          ctx.moveTo(x, 0);
+          ctx.lineTo(x, h);
+        },
+        shape.color,
+        { width: 1 }
+      );
       // 눈금
       ctx.save();
       ctx.strokeStyle = shape.color;
       ctx.lineWidth = 1;
       for (let y = 24; y < h; y += 40) {
         ctx.beginPath();
-        ctx.moveTo(x - 4, y);
-        ctx.lineTo(x + 4, y);
+        ctx.moveTo(x - 3, y);
+        ctx.lineTo(x + 3, y);
         ctx.stroke();
       }
       ctx.restore();
@@ -186,18 +198,23 @@ function drawShape(
     }
     case 'href': {
       const y = shape.y * h;
-      stroke(ctx, () => {
-        ctx.beginPath();
-        ctx.moveTo(0, y);
-        ctx.lineTo(w, y);
-      }, shape.color, [7, 5]);
+      stroke(
+        ctx,
+        () => {
+          ctx.beginPath();
+          ctx.moveTo(0, y);
+          ctx.lineTo(w, y);
+        },
+        shape.color,
+        { width: 1 }
+      );
       ctx.save();
       ctx.strokeStyle = shape.color;
       ctx.lineWidth = 1;
       for (let x = 24; x < w; x += 40) {
         ctx.beginPath();
-        ctx.moveTo(x, y - 4);
-        ctx.lineTo(x, y + 4);
+        ctx.moveTo(x, y - 3);
+        ctx.lineTo(x, y + 3);
         ctx.stroke();
       }
       ctx.restore();
