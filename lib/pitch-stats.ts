@@ -324,3 +324,112 @@ export function buildReportFindings({
 
   return findings;
 }
+
+/* ------------------------------------------------------------------ *
+ * 급성:만성 부하 비율 (ACWR)
+ *
+ * 하루 부하를 "투구수 × 체감 강도"로 보고(세션 RPE 방식),
+ * 최근 7일 부하를 최근 28일의 주당 평균 부하와 견준다.
+ * 스포츠과학에서 널리 쓰이지만 절대 기준은 아니므로 참고 지표로 다룬다.
+ * ------------------------------------------------------------------ */
+
+export const ACUTE_WINDOW_DAYS = 7;
+export const CHRONIC_WINDOW_DAYS = 28;
+
+/** 이 값을 넘지 않게 유지하는 것을 목표로 본다. */
+export const ACWR_TARGET_MAX = 1.3;
+
+export type AcwrZone = 'low' | 'optimal' | 'caution' | 'danger';
+
+export const ACWR_ZONES: Record<
+  AcwrZone,
+  { label: string; tone: 'good' | 'info' | 'warn' | 'bad'; advice: string }
+> = {
+  low: {
+    label: '부하 낮음',
+    tone: 'info',
+    advice: '최근 부하가 평소보다 적습니다. 회복 중이라면 정상이며, 복귀할 때는 한 번에 늘리지 말고 조금씩 올리세요.',
+  },
+  optimal: {
+    label: '적정',
+    tone: 'good',
+    advice: '평소 쌓아온 양에 맞는 부하입니다. 지금 흐름을 유지해도 좋습니다.',
+  },
+  caution: {
+    label: '주의',
+    tone: 'warn',
+    advice: '최근 부하가 평소보다 빠르게 올랐습니다. 이번 주는 투구수나 강도를 조금 낮추는 편이 안전합니다.',
+  },
+  danger: {
+    label: '위험',
+    tone: 'bad',
+    advice: '평소 감당하던 양을 크게 넘었습니다. 투구량을 확실히 줄이고 회복에 시간을 주세요.',
+  },
+};
+
+export function zoneOf(ratio: number): AcwrZone {
+  if (ratio < 0.8) return 'low';
+  if (ratio <= 1.3) return 'optimal';
+  if (ratio <= 1.5) return 'caution';
+  return 'danger';
+}
+
+/** 하루 부하 = 투구수 × 체감 강도 */
+export function dailyLoad(day: DayTotals) {
+  return day.pitchCount * day.intensity;
+}
+
+function sumLoad(byDay: Map<string, DayTotals>, dateKeys: string[]) {
+  return dateKeys.reduce((sum, key) => {
+    const day = byDay.get(key);
+    return sum + (day ? dailyLoad(day) : 0);
+  }, 0);
+}
+
+/** 두 날짜 키 사이의 일수 (같은 날이면 1) */
+function daysBetween(fromKey: string, toKey: string) {
+  const [fy, fm, fd] = fromKey.split('-').map(Number);
+  const [ty, tm, td] = toKey.split('-').map(Number);
+  const from = Date.UTC(fy, fm - 1, fd);
+  const to = Date.UTC(ty, tm - 1, td);
+  return Math.floor((to - from) / 86_400_000) + 1;
+}
+
+export type AcwrResult = {
+  /** 최근 7일 부하 합 */
+  acute: number;
+  /** 최근 28일의 주당 평균 부하 */
+  chronic: number;
+  /**
+   * 급성 ÷ 만성. 기록 기간이 28일에 못 미치면 만성 부하를 신뢰할 수 없어
+   * null로 두고 화면에서는 "쌓는 중"으로 보여준다.
+   */
+  ratio: number | null;
+  zone: AcwrZone | null;
+  /** 첫 기록부터 오늘까지의 날 수 */
+  historyDays: number;
+  /** 신뢰할 수 있게 되기까지 남은 날 수 */
+  daysNeeded: number;
+};
+
+export function computeAcwr(
+  byDay: Map<string, DayTotals>,
+  today = new Date()
+): AcwrResult {
+  const todayKey = toDateKey(today);
+  const acute = sumLoad(byDay, buildDateRange(ACUTE_WINDOW_DAYS, today));
+  const chronicTotal = sumLoad(byDay, buildDateRange(CHRONIC_WINDOW_DAYS, today));
+  const chronic = chronicTotal / (CHRONIC_WINDOW_DAYS / ACUTE_WINDOW_DAYS);
+
+  const firstKey = [...byDay.keys()].sort()[0];
+  const historyDays = firstKey ? daysBetween(firstKey, todayKey) : 0;
+  const daysNeeded = Math.max(0, CHRONIC_WINDOW_DAYS - historyDays);
+
+  // 기간이 모자라거나 평소 부하가 0이면 비율에 의미가 없다.
+  if (daysNeeded > 0 || chronic <= 0) {
+    return { acute, chronic, ratio: null, zone: null, historyDays, daysNeeded };
+  }
+
+  const ratio = acute / chronic;
+  return { acute, chronic, ratio, zone: zoneOf(ratio), historyDays, daysNeeded };
+}
