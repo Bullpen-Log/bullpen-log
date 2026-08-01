@@ -115,9 +115,8 @@ export default async function DashboardPage() {
     date: c.date.toISOString().slice(0, 10),
     shoulder: c.shoulder,
     elbow: c.elbow,
-    fatigue: c.fatigue,
+    condition: c.condition,
     sleep: c.sleep,
-    equipment: c.equipment,
   }));
 
   const byDay = groupByDay(

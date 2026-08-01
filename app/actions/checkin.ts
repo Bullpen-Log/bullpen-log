@@ -25,9 +25,8 @@ export async function saveCheckin(
   const checked = validateCheckin({
     shoulder: String(formData.get('shoulder') ?? ''),
     elbow: String(formData.get('elbow') ?? ''),
-    fatigue: String(formData.get('fatigue') ?? ''),
+    condition: String(formData.get('condition') ?? ''),
     sleep: String(formData.get('sleep') ?? ''),
-    equipment: String(formData.get('equipment') ?? ''),
   });
   if ('error' in checked) return checked;
 

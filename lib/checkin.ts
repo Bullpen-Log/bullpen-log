@@ -7,18 +7,17 @@
  */
 
 export const BODY_FEELINGS = ['정상', '뻐근', '통증'] as const;
-export const SLEEP_LEVELS = ['충분', '부족'] as const;
-export const EQUIPMENT_ACCESS = ['맨몸만', '간단한 도구', '헬스장'] as const;
+export const SLEEP_LEVELS = ['충분', '보통', '부족'] as const;
 
-export const MIN_FATIGUE = 1;
-export const MAX_FATIGUE = 10;
+/** 전신 컨디션. 높을수록 좋다 — 1 안 좋음, 10 최상. */
+export const MIN_CONDITION = 1;
+export const MAX_CONDITION = 10;
 
 export type CheckinInput = {
   shoulder: string;
   elbow: string;
-  fatigue: number;
+  condition: number;
   sleep: string;
-  equipment: string;
 };
 
 /** 어깨나 팔꿈치에 통증이 있는가. 있으면 운동 처방을 멈추고 병원 안내로 보낸다. */
@@ -30,14 +29,12 @@ export function hasPain(checkin: Pick<CheckinInput, 'shoulder' | 'elbow'>) {
 export function validateCheckin(raw: {
   shoulder: string;
   elbow: string;
-  fatigue: string;
+  condition: string;
   sleep: string;
-  equipment: string;
 }): { error: string } | { value: CheckinInput } {
   const shoulder = raw.shoulder.trim();
   const elbow = raw.elbow.trim();
   const sleep = raw.sleep.trim();
-  const equipment = raw.equipment.trim();
 
   if (!(BODY_FEELINGS as readonly string[]).includes(shoulder)) {
     return { error: '어깨 상태를 선택해주세요.' };
@@ -46,23 +43,22 @@ export function validateCheckin(raw: {
     return { error: '팔꿈치 상태를 선택해주세요.' };
   }
 
-  const fatigue = Number(raw.fatigue);
+  const condition = Number(raw.condition);
   if (
-    !Number.isInteger(fatigue) ||
-    fatigue < MIN_FATIGUE ||
-    fatigue > MAX_FATIGUE
+    !Number.isInteger(condition) ||
+    condition < MIN_CONDITION ||
+    condition > MAX_CONDITION
   ) {
-    return { error: `피로감은 ${MIN_FATIGUE}~${MAX_FATIGUE} 중에서 골라주세요.` };
+    return {
+      error: `컨디션은 ${MIN_CONDITION}~${MAX_CONDITION} 중에서 골라주세요.`,
+    };
   }
 
   if (!(SLEEP_LEVELS as readonly string[]).includes(sleep)) {
     return { error: '수면 상태를 선택해주세요.' };
   }
-  if (!(EQUIPMENT_ACCESS as readonly string[]).includes(equipment)) {
-    return { error: '오늘 쓸 수 있는 장비를 선택해주세요.' };
-  }
 
-  return { value: { shoulder, elbow, fatigue, sleep, equipment } };
+  return { value: { shoulder, elbow, condition, sleep } };
 }
 
 /**

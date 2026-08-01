@@ -41,12 +41,10 @@ model DailyCheckin {
   shoulder  String
   /// 팔꿈치 느낌: 정상 / 뻐근 / 통증
   elbow     String
-  /// 전신 피로감 1(쌩쌩) ~ 10(녹초)
-  fatigue   Int
-  /// 수면: 충분 / 부족
+  /// 전신 컨디션 1(안 좋음) ~ 10(최상). 높을수록 좋다.
+  condition Int
+  /// 수면: 충분 / 보통 / 부족
   sleep     String
-  /// 오늘 쓸 수 있는 장비: 맨몸만 / 간단한 도구 / 헬스장
-  equipment String
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)

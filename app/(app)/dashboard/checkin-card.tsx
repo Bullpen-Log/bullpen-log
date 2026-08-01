@@ -6,9 +6,8 @@ import { AlertTriangle, CheckCircle2, ClipboardList, Pencil } from 'lucide-react
 import { saveCheckin, type CheckinState } from '@/app/actions/checkin';
 import {
   BODY_FEELINGS,
-  EQUIPMENT_ACCESS,
-  MAX_FATIGUE,
-  MIN_FATIGUE,
+  MAX_CONDITION,
+  MIN_CONDITION,
   SLEEP_LEVELS,
   hasPain,
 } from '@/lib/checkin';
@@ -19,9 +18,8 @@ export type CheckinData = {
   date: string;
   shoulder: string;
   elbow: string;
-  fatigue: number;
+  condition: number;
   sleep: string;
-  equipment: string;
 };
 
 /** 값에 따라 칩 색이 달라진다. '통증'은 항상 빨간색으로 도드라지게. */
@@ -183,9 +181,8 @@ export function CheckinCard({ recent }: { recent: CheckinData[] }) {
                 {[
                   ['어깨', today.shoulder],
                   ['팔꿈치', today.elbow],
-                  ['피로감', `${today.fatigue}/10`],
+                  ['컨디션', `${today.condition}/10`],
                   ['수면', today.sleep],
-                  ['장비', today.equipment],
                 ].map(([k, v]) => (
                   <div key={k} className="flex items-baseline gap-1.5">
                     <dt>{k}</dt>
@@ -252,23 +249,23 @@ export function CheckinCard({ recent }: { recent: CheckinData[] }) {
                 ))}
               </Row>
 
-              <Row label="전신 피로감">
+              <Row label="전신 컨디션">
                 {Array.from(
-                  { length: MAX_FATIGUE - MIN_FATIGUE + 1 },
-                  (_, i) => MIN_FATIGUE + i
+                  { length: MAX_CONDITION - MIN_CONDITION + 1 },
+                  (_, i) => MIN_CONDITION + i
                 ).map((n) => (
                   <ChipRadio
                     key={n}
-                    name="fatigue"
+                    name="condition"
                     value={String(n)}
                     required
-                    defaultChecked={today?.fatigue === n}
+                    defaultChecked={today?.condition === n}
                   >
                     {n}
                   </ChipRadio>
                 ))}
                 <span className="ml-1 self-center text-[10px] text-muted/60">
-                  1 쌩쌩 · 10 녹초
+                  1 안 좋음 · 10 최상
                 </span>
               </Row>
 
@@ -280,20 +277,6 @@ export function CheckinCard({ recent }: { recent: CheckinData[] }) {
                     value={v}
                     required
                     defaultChecked={today?.sleep === v}
-                  >
-                    {v}
-                  </ChipRadio>
-                ))}
-              </Row>
-
-              <Row label="오늘 장비">
-                {EQUIPMENT_ACCESS.map((v) => (
-                  <ChipRadio
-                    key={v}
-                    name="equipment"
-                    value={v}
-                    required
-                    defaultChecked={today?.equipment === v}
                   >
                     {v}
                   </ChipRadio>
