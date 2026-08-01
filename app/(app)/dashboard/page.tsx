@@ -17,6 +17,7 @@ import {
   ACWR_TARGET_MAX,
   ACWR_ZONES,
   CHRONIC_WINDOW_DAYS,
+  TWO_DAY_INTENSITY_LIMIT,
   buildDateRange,
   buildDateRangeOffset,
   computeAcwr,
@@ -33,6 +34,7 @@ import { LoadChart, type LoadPoint } from './load-chart';
 import {
   Delta,
   LoadIndexHelp,
+  MetricHelp,
   StatCard,
   StatusChip,
   TONE,
@@ -281,36 +283,55 @@ export default async function DashboardPage() {
               </>
             ) : (
               <>
-                {/* 비율은 아직 못 내지만 최근 7일 부하는 실제로 계산된 값이다. */}
-                <div>
-                  <p className="text-[11px] text-muted">최근 7일 부하</p>
-                  <p className="mt-1 flex items-baseline gap-2">
-                    <span className="text-display text-5xl leading-none text-cream tabular-nums sm:text-6xl">
-                      {Math.round(acwr.acute)}
-                    </span>
-                    <span className="text-xs text-muted">투구수 × 강도</span>
+                {/*
+                  지수 자리에 다른 숫자를 크게 띄우면 그게 지수로 읽힌다.
+                  그래서 여기서는 "아직 없음"을 분명히 하고,
+                  지금 계산되는 원값은 아래에 따로 작게 둔다.
+                */}
+                <div className="rounded-xl border border-dashed border-line bg-surface-2/40 px-4 py-4">
+                  <p className="text-sm font-medium text-cream">
+                    {hasRecords ? '아직 지수를 낼 수 없습니다' : '기록을 남기면 표시됩니다'}
+                  </p>
+
+                  {hasRecords && (
+                    <div className="mt-3 space-y-1.5">
+                      <div className="h-1.5 overflow-hidden rounded-full bg-surface">
+                        <div
+                          className="h-full rounded-full bg-gold/60"
+                          style={{
+                            width: `${Math.min(100, (acwr.historyDays / CHRONIC_WINDOW_DAYS) * 100)}%`,
+                          }}
+                        />
+                      </div>
+                      <p className="text-[11px] tabular-nums text-muted/70">
+                        기록 {acwr.historyDays}일 / {CHRONIC_WINDOW_DAYS}일 ·{' '}
+                        {acwr.daysNeeded}일 더 필요
+                      </p>
+                    </div>
+                  )}
+
+                  <p className="mt-3 text-xs leading-relaxed text-muted">
+                    {hasRecords
+                      ? '지수는 최근 7일을 평소 4주 평균과 견주는 값입니다. 비교할 4주치가 아직 없습니다.'
+                      : '투구를 기록하면 이곳에 부하 지수가 표시됩니다.'}
                   </p>
                 </div>
 
-                <div className="space-y-2">
-                  <div className="h-1.5 overflow-hidden rounded-full bg-surface-2">
-                    <div
-                      className="h-full rounded-full bg-gold/60"
-                      style={{
-                        width: `${Math.min(100, (acwr.historyDays / CHRONIC_WINDOW_DAYS) * 100)}%`,
-                      }}
-                    />
+                {/* 지금 계산되는 값 — 지수와 헷갈리지 않게 작게, 이름을 붙여서 */}
+                <div className="flex items-end justify-between gap-3 border-t border-line pt-3">
+                  <div className="min-w-0">
+                    <p className="text-[11px] text-cream">
+                      최근 7일 부하
+                      <span className="ml-1.5 text-muted/60">(지수 아님)</span>
+                    </p>
+                    <p className="mt-0.5 text-[11px] leading-relaxed text-muted/70">
+                      던진 날 {current.activeDays}일 · 부하 = 투구수 × 강도
+                    </p>
                   </div>
-                  <p className="text-[11px] tabular-nums text-muted/70">
-                    기록 {acwr.historyDays}일 / {CHRONIC_WINDOW_DAYS}일
-                  </p>
+                  <span className="text-display shrink-0 text-2xl leading-none text-cream tabular-nums">
+                    {Math.round(acwr.acute)}
+                  </span>
                 </div>
-
-                <p className="text-xs leading-relaxed text-muted">
-                  {hasRecords
-                    ? `부하 지수는 최근 7일을 평소 4주 평균과 견줍니다. 아직 비교할 4주치가 없어 ${acwr.daysNeeded}일 더 쌓이면 표시됩니다.`
-                    : '투구를 기록하면 이곳에 부하 지수가 표시됩니다.'}
-                </p>
 
                 {/* 지수가 아직 안 나와도 뭘 보게 될 건지는 미리 알 수 있어야 한다. */}
                 <LoadIndexHelp acute={acwr.acute} chronic={acwr.chronic} />
@@ -388,6 +409,8 @@ export default async function DashboardPage() {
         />
       </section>
 
+      <MetricHelp twoDayLimit={TWO_DAY_INTENSITY_LIMIT} />
+
       {/* ── 추이 + 최근 기록 ────────────────────────────────── */}
       <section className="grid gap-6 lg:grid-cols-[1fr_minmax(0,340px)]">
         {/* min-w-0이 없으면 그리드 안에서 캔버스가 카드를 밀어낼 수 있다. */}
@@ -395,8 +418,9 @@ export default async function DashboardPage() {
           <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
             <div>
               <h2 className="text-base font-bold text-cream">28일 투구 부하 추이</h2>
-              <p className="mt-1 text-xs text-muted">
-                막대 = 그날 투구수 · 선 = 7일 누적 부하
+              <p className="mt-1 text-xs leading-relaxed text-muted">
+                막대 = 그날 투구수 · 선 = 그날까지 최근 7일 부하의 합
+                <span className="text-muted/60"> (부하 = 투구수 × 강도)</span>
               </p>
             </div>
             <Link

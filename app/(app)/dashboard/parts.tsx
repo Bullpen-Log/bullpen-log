@@ -365,3 +365,43 @@ export function LoadIndexHelp({
     </details>
   );
 }
+
+/** 핵심 지표 4장이 각각 어떻게 나온 값인지. 용어를 처음 보는 사람 기준으로 쓴다. */
+export function MetricHelp({ twoDayLimit }: { twoDayLimit: number }) {
+  const items = [
+    {
+      title: '최근 7일 투구수',
+      body: '오늘을 포함한 지난 7일 동안 던진 공의 합계입니다. 아래 증감은 그 직전 7일과 비교한 값입니다.',
+    },
+    {
+      title: '최근 7일 구속',
+      body: '지난 7일 기록 중 가장 빠른 구속입니다. 아래 평균은 각 기록의 평균 구속을 투구수로 가중해 낸 값이라, 많이 던진 날이 더 크게 반영됩니다.',
+    },
+    {
+      title: '평균 투구 강도',
+      body: `기록할 때 본인이 매긴 1~10 강도를 던진 날 기준으로 평균 낸 값입니다. "이틀 연속 과부하"는 붙어 있는 이틀의 강도 합이 ${twoDayLimit}을 넘은 구간으로, 회복할 틈 없이 이어 던졌다는 뜻입니다.`,
+    },
+    {
+      title: '마지막 투구',
+      body: '마지막으로 기록을 남긴 날로부터 며칠이 지났는지입니다. "연투"는 최근 4주 안에서 쉬는 날 없이 연달아 던진 최장 일수로, 3일 이상이면 노란색으로 알립니다.',
+    },
+  ];
+
+  return (
+    <details className="group rounded-2xl border border-line bg-surface px-5 py-4">
+      <summary className="flex cursor-pointer list-none items-center gap-1.5 text-[11px] text-muted transition-colors hover:text-gold">
+        <ChevronDown className="h-3.5 w-3.5 transition-transform group-open:rotate-180" />
+        이 숫자들은 어떻게 나오나요?
+      </summary>
+
+      <dl className="mt-4 grid gap-4 sm:grid-cols-2">
+        {items.map((item) => (
+          <div key={item.title}>
+            <dt className="text-xs font-semibold text-cream">{item.title}</dt>
+            <dd className="mt-1 text-[11px] leading-relaxed text-muted">{item.body}</dd>
+          </div>
+        ))}
+      </dl>
+    </details>
+  );
+}
