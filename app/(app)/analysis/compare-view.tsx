@@ -125,7 +125,8 @@ function ComparePane({
           preload="metadata"
           onTimeUpdate={(e) => setCurrent(e.currentTarget.currentTime)}
           // 세로/가로 영상 모두 무난한 정사각형으로 두고, 넓어지면 16:9로 바꾼다.
-          className={`w-full bg-black object-contain ${
+          // block이 아니면 인라인 여백 때문에 캔버스가 영상보다 살짝 커져 좌표가 밀린다.
+          className={`block w-full bg-black object-contain ${
             expanded ? 'h-full' : 'aspect-square sm:aspect-video'
           }`}
           aria-label={`${side}면 영상`}

@@ -401,10 +401,17 @@ export function VideoCanvas({
 
     const rect = canvas.getBoundingClientRect();
     const dpr = window.devicePixelRatio || 1;
-    // 화면 밀도에 맞춰 실제 픽셀 수를 맞춰야 선이 흐려지지 않는다.
-    if (canvas.width !== Math.round(rect.width * dpr)) {
-      canvas.width = Math.round(rect.width * dpr);
-      canvas.height = Math.round(rect.height * dpr);
+    const nextW = Math.round(rect.width * dpr);
+    const nextH = Math.round(rect.height * dpr);
+    /*
+     * 화면 밀도에 맞춰 실제 픽셀 수를 맞춰야 선이 흐려지지 않는다.
+     * 가로만 검사하면 '높이만 바뀌는 경우'(측정 도구를 켜서 영상 영역이 줄 때 등)에
+     * 예전 높이가 남아 브라우저가 캔버스를 세로로 늘려버린다.
+     * 그러면 그린 위치가 손가락보다 위/아래로 밀린다. 반드시 둘 다 확인한다.
+     */
+    if (canvas.width !== nextW || canvas.height !== nextH) {
+      canvas.width = nextW;
+      canvas.height = nextH;
     }
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.clearRect(0, 0, rect.width, rect.height);
@@ -442,6 +449,15 @@ export function VideoCanvas({
     observer.observe(canvas);
     return () => observer.disconnect();
   }, [redraw]);
+
+  // 영상 원본 크기는 메타데이터가 로드된 뒤에야 알 수 있다.
+  // 그때 그리는 기준 영역이 바뀌므로 다시 그려야 한다.
+  useEffect(() => {
+    const video = videoRef?.current;
+    if (!video) return;
+    video.addEventListener('loadedmetadata', redraw);
+    return () => video.removeEventListener('loadedmetadata', redraw);
+  }, [videoRef, redraw]);
 
   /** 누른 위치를 '영상 화면 안'의 비율로 바꾼다. */
   const toPoint = (e: React.PointerEvent): Point => {

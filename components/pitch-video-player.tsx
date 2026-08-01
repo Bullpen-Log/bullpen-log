@@ -179,7 +179,8 @@ export function PitchVideoPlayer({
             setDuration(e.currentTarget.duration);
             e.currentTarget.playbackRate = speed;
           }}
-          className={`w-full bg-black object-contain ${
+          // block이 아니면 인라인 여백 때문에 캔버스가 영상보다 살짝 커져 좌표가 밀린다.
+          className={`block w-full bg-black object-contain ${
             expanded ? 'h-full' : 'aspect-video'
           } ${drawing ? '' : 'cursor-pointer'}`}
           aria-label={label}
