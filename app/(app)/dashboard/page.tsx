@@ -31,6 +31,7 @@ import {
   toDateKey,
 } from '@/lib/pitch-stats';
 import { LoadChart, type LoadPoint } from './load-chart';
+import { CheckinCard, type CheckinData } from './checkin-card';
 import {
   Delta,
   LoadIndexHelp,
@@ -101,6 +102,24 @@ export default async function DashboardPage() {
     _count: true,
   });
 
+  // 사용자 시간대의 '오늘'이 서버(UTC)와 다를 수 있어 이틀치를 내려보내고
+  // 화면 쪽에서 자기 날짜에 맞는 것을 고르게 한다.
+  const checkinSince = new Date(today);
+  checkinSince.setDate(checkinSince.getDate() - 2);
+  const recentCheckins: CheckinData[] = (
+    await prisma.dailyCheckin.findMany({
+      where: { userId: user.id, date: { gte: checkinSince } },
+      orderBy: { date: 'desc' },
+    })
+  ).map((c) => ({
+    date: c.date.toISOString().slice(0, 10),
+    shoulder: c.shoulder,
+    elbow: c.elbow,
+    fatigue: c.fatigue,
+    sleep: c.sleep,
+    equipment: c.equipment,
+  }));
+
   const byDay = groupByDay(
     logs.map((l) => ({
       date: l.date.toISOString(),
@@ -168,6 +187,9 @@ export default async function DashboardPage() {
           투구 기록하기
         </Link>
       </div>
+
+      {/* ── 오늘 컨디션 체크인 ──────────────────────────────── */}
+      <CheckinCard recent={recentCheckins} />
 
       {/* ── 프로필 + 현재 부하 지수 ─────────────────────────── */}
       <section className="bg-spotlight overflow-hidden rounded-3xl border border-line">
