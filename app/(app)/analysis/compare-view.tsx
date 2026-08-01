@@ -4,10 +4,13 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ChevronLeft,
   ChevronRight,
+  Eraser,
   Flag,
   Pause,
   Play,
   RotateCcw,
+  Ruler,
+  Undo2,
 } from 'lucide-react';
 import { EmptyState } from '@/components/ui';
 import {
@@ -16,6 +19,13 @@ import {
   type VideoWithFrameCallback,
 } from '@/components/use-frame-duration';
 import { usePlaybackUrls } from '@/components/use-playback-urls';
+import {
+  DRAW_COLORS,
+  DrawingToolbar,
+  VideoCanvas,
+  type Shape,
+  type ToolKind,
+} from '@/components/video-canvas';
 import { ClipPicker } from './clip-picker';
 
 const SPEEDS = [0.25, 0.5, 1] as const;
@@ -44,6 +54,11 @@ function ComparePane({
   onMark,
   url,
   loading,
+  drawing,
+  tool,
+  color,
+  shapes,
+  onShapes,
 }: {
   side: 'A' | 'B';
   clips: ClipOption[];
@@ -54,6 +69,11 @@ function ComparePane({
   onMark: () => void;
   url?: string;
   loading: boolean;
+  drawing: boolean;
+  tool: ToolKind;
+  color: string;
+  shapes: Shape[];
+  onShapes: (next: (prev: Shape[]) => Shape[]) => void;
 }) {
   const { frameDurationRef } = useFrameDuration(videoRef);
   const [current, setCurrent] = useState(0);
@@ -103,12 +123,44 @@ function ComparePane({
           className="aspect-square w-full bg-black object-contain sm:aspect-video"
           aria-label={`${side}면 영상`}
         />
+        <VideoCanvas
+          shapes={shapes}
+          onCommit={(s) => onShapes((prev) => [...prev, s])}
+          tool={tool}
+          color={color}
+          enabled={drawing}
+        />
         {!url && (
-          <p className="absolute inset-0 flex items-center justify-center text-xs text-muted">
+          <p className="pointer-events-none absolute inset-0 flex items-center justify-center text-xs text-muted">
             {loading ? '불러오는 중…' : '영상을 선택하세요'}
           </p>
         )}
       </div>
+
+      {/* 측정 중에는 화면별로 되돌리기·지우기를 둔다. */}
+      {drawing && (
+        <div className="flex items-center gap-1.5 border-t border-line px-2 py-1.5">
+          <span className="text-[10px] text-muted">{side}면 측정 {shapes.length}</span>
+          <button
+            type="button"
+            onClick={() => onShapes((prev) => prev.slice(0, -1))}
+            disabled={shapes.length === 0}
+            aria-label={`${side}면 되돌리기`}
+            className="ml-auto flex h-8 w-8 items-center justify-center rounded-lg border border-line text-muted transition-colors hover:border-gold hover:text-gold disabled:opacity-40"
+          >
+            <Undo2 className="h-3.5 w-3.5" />
+          </button>
+          <button
+            type="button"
+            onClick={() => onShapes(() => [])}
+            disabled={shapes.length === 0}
+            aria-label={`${side}면 전체 지우기`}
+            className="flex h-8 w-8 items-center justify-center rounded-lg border border-line text-muted transition-colors hover:border-red-800 hover:text-red-400 disabled:opacity-40"
+          >
+            <Eraser className="h-3.5 w-3.5" />
+          </button>
+        </div>
+      )}
 
       {clip && (
         <p className="truncate border-t border-line px-2 py-1.5 text-[10px] text-muted sm:text-[11px]">
@@ -165,6 +217,13 @@ export function CompareView({ clips }: { clips: ClipOption[] }) {
   const [markB, setMarkB] = useState(0);
   const [playing, setPlaying] = useState(false);
   const [speed, setSpeed] = useState<number>(0.5);
+
+  // 측정 도구는 양쪽이 함께 쓰고, 그은 선은 화면별로 따로 갖는다.
+  const [drawing, setDrawing] = useState(false);
+  const [tool, setTool] = useState<ToolKind>('tilt');
+  const [color, setColor] = useState(DRAW_COLORS[0]);
+  const [shapesA, setShapesA] = useState<Shape[]>([]);
+  const [shapesB, setShapesB] = useState<Shape[]>([]);
 
   const frameA = useFrameDuration(videoA).frameDurationRef;
   const frameB = useFrameDuration(videoB).frameDurationRef;
@@ -271,6 +330,27 @@ export function CompareView({ clips }: { clips: ClipOption[] }) {
       role="group"
       aria-label="2분할 비교 재생기"
     >
+      {/* 측정 도구 — 양쪽 화면에 공통으로 적용된다. */}
+      {drawing && (
+        <div className="overflow-hidden rounded-xl border border-line">
+          <DrawingToolbar
+            tool={tool}
+            onTool={setTool}
+            color={color}
+            onColor={setColor}
+            onUndo={() => {
+              setShapesA((p) => p.slice(0, -1));
+              setShapesB((p) => p.slice(0, -1));
+            }}
+            onClear={() => {
+              setShapesA([]);
+              setShapesB([]);
+            }}
+            canUndo={shapesA.length > 0 || shapesB.length > 0}
+          />
+        </div>
+      )}
+
       {/* 좁은 화면에서도 둘을 동시에 봐야 비교가 되므로 항상 좌우로 둔다. */}
       <div className="grid grid-cols-2 gap-2 sm:gap-4">
         <ComparePane
@@ -283,6 +363,11 @@ export function CompareView({ clips }: { clips: ClipOption[] }) {
           onMark={() => setMarkA(videoA.current?.currentTime ?? 0)}
           url={clipA ? urls[clipA.path] : undefined}
           loading={loading || !ready}
+          drawing={drawing}
+          tool={tool}
+          color={color}
+          shapes={shapesA}
+          onShapes={setShapesA}
         />
         <ComparePane
           side="B"
@@ -294,6 +379,11 @@ export function CompareView({ clips }: { clips: ClipOption[] }) {
           onMark={() => setMarkB(videoB.current?.currentTime ?? 0)}
           url={clipB ? urls[clipB.path] : undefined}
           loading={loading || !ready}
+          drawing={drawing}
+          tool={tool}
+          color={color}
+          shapes={shapesB}
+          onShapes={setShapesB}
         />
       </div>
 
@@ -347,6 +437,21 @@ export function CompareView({ clips }: { clips: ClipOption[] }) {
               <ChevronRight className="h-4 w-4" />
             </button>
           </div>
+
+          <button
+            type="button"
+            onClick={() => setDrawing((v) => !v)}
+            aria-pressed={drawing}
+            title="영상 위에 기준선·각도 긋기"
+            className={`flex h-11 shrink-0 items-center gap-1.5 rounded-lg border px-3 text-xs transition-colors ${
+              drawing
+                ? 'border-gold bg-gold/10 text-gold'
+                : 'border-line text-muted hover:border-gold hover:text-gold'
+            }`}
+          >
+            <Ruler className="h-4 w-4" />
+            <span className="hidden sm:inline">측정</span>
+          </button>
 
           <div className="ml-auto flex h-11 shrink-0 overflow-hidden rounded-lg border border-line">
             {SPEEDS.map((s, i) => (

@@ -1,26 +1,158 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import {
+  Crosshair,
+  Eraser,
+  MoveHorizontal,
+  MoveVertical,
+  Triangle,
+  Undo2,
+} from 'lucide-react';
 
 /** 좌표는 0~1로 저장한다. 화면 크기가 바뀌어도 그림이 따라간다. */
 export type Point = { x: number; y: number };
 
 export type Shape =
-  | { kind: 'line'; color: string; a: Point; b: Point }
+  /** 수직 기준선 */
+  | { kind: 'vref'; color: string; x: number }
+  /** 수평 기준선 */
+  | { kind: 'href'; color: string; y: number }
+  /** 두 점을 잇고 수직 대비 기울기를 표시 */
+  | { kind: 'tilt'; color: string; a: Point; b: Point }
+  /** 세 점이 이루는 각 */
   | { kind: 'angle'; color: string; a: Point; v: Point; b: Point }
-  | { kind: 'vertical'; color: string; x: number }
-  | { kind: 'horizontal'; color: string; y: number }
-  | { kind: 'free'; color: string; points: Point[] };
+  /** 릴리스 포인트 등 위치 표시 */
+  | { kind: 'marker'; color: string; p: Point };
 
 export type ToolKind = Shape['kind'];
 
-/** 세 점이 이루는 각도(도). v가 꼭짓점. */
+export const DRAW_TOOLS: {
+  kind: ToolKind;
+  label: string;
+  hint: string;
+  Icon: typeof Triangle;
+}[] = [
+  {
+    kind: 'tilt',
+    label: '기울기',
+    hint: '두 점을 이어 수직 대비 기울기를 잽니다. 몸통·어깨선에 씁니다.',
+    Icon: Triangle,
+  },
+  {
+    kind: 'angle',
+    label: '각도',
+    hint: '세 곳을 차례로 누르세요. 두 번째로 누른 곳이 꼭짓점입니다.',
+    Icon: Triangle,
+  },
+  {
+    kind: 'vref',
+    label: '수직 기준선',
+    hint: '기준선을 놓을 위치를 누르세요.',
+    Icon: MoveVertical,
+  },
+  {
+    kind: 'href',
+    label: '수평 기준선',
+    hint: '기준선을 놓을 위치를 누르세요.',
+    Icon: MoveHorizontal,
+  },
+  {
+    kind: 'marker',
+    label: '포인트',
+    hint: '릴리스 포인트처럼 짚어둘 위치를 누르세요.',
+    Icon: Crosshair,
+  },
+];
+
+/** 촬영 배경이 밝든 어둡든 읽히도록 절제된 고대비 색만 쓴다. */
+export const DRAW_COLORS = ['#F5F5F4', '#E3CB95', '#5EEAD4', '#FCA5A5'];
+
+const READOUT_FONT =
+  '600 12px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace';
+
+/** 세 점이 이루는 각도(도). v가 꼭짓점. 반드시 화면 픽셀 좌표로 넘겨야 한다. */
 export function angleAt(a: Point, v: Point, b: Point) {
   const a1 = Math.atan2(a.y - v.y, a.x - v.x);
   const a2 = Math.atan2(b.y - v.y, b.x - v.x);
   let deg = Math.abs((a1 - a2) * (180 / Math.PI));
   if (deg > 180) deg = 360 - deg;
   return deg;
+}
+
+/** 선이 수직축에서 몇 도 기울었는지 (0=수직, 90=수평). 픽셀 좌표 기준. */
+export function tiltFromVertical(a: Point, b: Point) {
+  return (Math.atan2(Math.abs(b.x - a.x), Math.abs(b.y - a.y)) * 180) / Math.PI;
+}
+
+/* --------------------------- 그리기 유틸 --------------------------- */
+
+/** 어떤 영상 위에서도 보이도록 어두운 테두리를 깔고 그 위에 선을 얹는다. */
+function stroke(ctx: CanvasRenderingContext2D, path: () => void, color: string, dash?: number[]) {
+  ctx.save();
+  ctx.setLineDash(dash ?? []);
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+
+  ctx.strokeStyle = 'rgba(8,8,10,0.55)';
+  ctx.lineWidth = 3.5;
+  path();
+  ctx.stroke();
+
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 1.5;
+  path();
+  ctx.stroke();
+  ctx.restore();
+}
+
+/** 측정값을 다는 작은 칩 */
+function readout(
+  ctx: CanvasRenderingContext2D,
+  text: string,
+  x: number,
+  y: number,
+  color: string
+) {
+  ctx.save();
+  ctx.font = READOUT_FONT;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  const w = ctx.measureText(text).width + 14;
+  const h = 20;
+
+  ctx.fillStyle = 'rgba(8,8,10,0.82)';
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  // roundRect는 구형 사파리에 없어서 없으면 각진 사각형으로 대체한다.
+  if (typeof ctx.roundRect === 'function') {
+    ctx.roundRect(x - w / 2, y - h / 2, w, h, 4);
+  } else {
+    ctx.rect(x - w / 2, y - h / 2, w, h);
+  }
+  ctx.fill();
+  ctx.stroke();
+
+  ctx.fillStyle = color;
+  ctx.fillText(text, x, y + 0.5);
+  ctx.restore();
+}
+
+/** 선 끝을 정확히 어디에 찍었는지 보이도록 작은 손잡이를 그린다. */
+function handle(ctx: CanvasRenderingContext2D, p: Point, color: string) {
+  ctx.save();
+  ctx.strokeStyle = 'rgba(8,8,10,0.6)';
+  ctx.lineWidth = 3;
+  ctx.beginPath();
+  ctx.rect(p.x - 3, p.y - 3, 6, 6);
+  ctx.stroke();
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.rect(p.x - 3, p.y - 3, 6, 6);
+  ctx.stroke();
+  ctx.restore();
 }
 
 function drawShape(
@@ -31,48 +163,79 @@ function drawShape(
 ) {
   const px = (p: Point) => ({ x: p.x * w, y: p.y * h });
 
-  ctx.strokeStyle = shape.color;
-  ctx.fillStyle = shape.color;
-  ctx.lineWidth = 2;
-  ctx.lineCap = 'round';
-  ctx.lineJoin = 'round';
-
   switch (shape.kind) {
-    case 'line': {
+    case 'vref': {
+      const x = shape.x * w;
+      stroke(ctx, () => {
+        ctx.beginPath();
+        ctx.moveTo(x, 0);
+        ctx.lineTo(x, h);
+      }, shape.color, [7, 5]);
+      // 눈금
+      ctx.save();
+      ctx.strokeStyle = shape.color;
+      ctx.lineWidth = 1;
+      for (let y = 24; y < h; y += 40) {
+        ctx.beginPath();
+        ctx.moveTo(x - 4, y);
+        ctx.lineTo(x + 4, y);
+        ctx.stroke();
+      }
+      ctx.restore();
+      break;
+    }
+    case 'href': {
+      const y = shape.y * h;
+      stroke(ctx, () => {
+        ctx.beginPath();
+        ctx.moveTo(0, y);
+        ctx.lineTo(w, y);
+      }, shape.color, [7, 5]);
+      ctx.save();
+      ctx.strokeStyle = shape.color;
+      ctx.lineWidth = 1;
+      for (let x = 24; x < w; x += 40) {
+        ctx.beginPath();
+        ctx.moveTo(x, y - 4);
+        ctx.lineTo(x, y + 4);
+        ctx.stroke();
+      }
+      ctx.restore();
+      break;
+    }
+    case 'tilt': {
       const a = px(shape.a);
       const b = px(shape.b);
+      stroke(ctx, () => {
+        ctx.beginPath();
+        ctx.moveTo(a.x, a.y);
+        ctx.lineTo(b.x, b.y);
+      }, shape.color);
+
+      // 기울기를 재는 기준이 되는 수직선을 옅게 함께 보여준다.
+      const top = a.y <= b.y ? a : b;
+      const bottom = a.y <= b.y ? b : a;
+      ctx.save();
+      ctx.setLineDash([4, 4]);
+      ctx.strokeStyle = 'rgba(245,245,244,0.35)';
+      ctx.lineWidth = 1;
       ctx.beginPath();
-      ctx.moveTo(a.x, a.y);
-      ctx.lineTo(b.x, b.y);
+      ctx.moveTo(bottom.x, bottom.y);
+      ctx.lineTo(bottom.x, top.y);
       ctx.stroke();
-      break;
-    }
-    case 'vertical': {
-      const x = shape.x * w;
-      ctx.beginPath();
-      ctx.moveTo(x, 0);
-      ctx.lineTo(x, h);
-      ctx.stroke();
-      break;
-    }
-    case 'horizontal': {
-      const y = shape.y * h;
-      ctx.beginPath();
-      ctx.moveTo(0, y);
-      ctx.lineTo(w, y);
-      ctx.stroke();
-      break;
-    }
-    case 'free': {
-      if (shape.points.length < 2) break;
-      ctx.beginPath();
-      const first = px(shape.points[0]);
-      ctx.moveTo(first.x, first.y);
-      for (const p of shape.points.slice(1)) {
-        const q = px(p);
-        ctx.lineTo(q.x, q.y);
-      }
-      ctx.stroke();
+      ctx.restore();
+
+      handle(ctx, a, shape.color);
+      handle(ctx, b, shape.color);
+
+      const deg = tiltFromVertical(a, b);
+      readout(
+        ctx,
+        `${deg.toFixed(1)}° 수직`,
+        (a.x + b.x) / 2,
+        (a.y + b.y) / 2 - 18,
+        shape.color
+      );
       break;
     }
     case 'angle': {
@@ -80,17 +243,17 @@ function drawShape(
       const v = px(shape.v);
       const b = px(shape.b);
 
-      ctx.beginPath();
-      ctx.moveTo(a.x, a.y);
-      ctx.lineTo(v.x, v.y);
-      ctx.lineTo(b.x, b.y);
-      ctx.stroke();
+      stroke(ctx, () => {
+        ctx.beginPath();
+        ctx.moveTo(a.x, a.y);
+        ctx.lineTo(v.x, v.y);
+        ctx.lineTo(b.x, b.y);
+      }, shape.color);
 
-      // 꼭짓점에 호를 그려 각을 표시한다.
       const r = Math.min(
-        34,
-        Math.hypot(a.x - v.x, a.y - v.y) * 0.5,
-        Math.hypot(b.x - v.x, b.y - v.y) * 0.5
+        30,
+        Math.hypot(a.x - v.x, a.y - v.y) * 0.45,
+        Math.hypot(b.x - v.x, b.y - v.y) * 0.45
       );
       const start = Math.atan2(a.y - v.y, a.x - v.x);
       const end = Math.atan2(b.y - v.y, b.x - v.x);
@@ -98,30 +261,54 @@ function drawShape(
       while (diff > Math.PI) diff -= 2 * Math.PI;
       while (diff < -Math.PI) diff += 2 * Math.PI;
 
+      ctx.save();
+      ctx.strokeStyle = shape.color;
+      ctx.lineWidth = 1;
       ctx.beginPath();
       ctx.arc(v.x, v.y, r, start, start + diff);
       ctx.stroke();
+      ctx.restore();
 
-      // 각도는 반드시 화면 픽셀 좌표로 재야 한다.
-      // 0~1 정규화 좌표는 가로세로 축척이 달라 눈에 보이는 각도와 어긋난다.
-      const deg = angleAt(a, v, b);
+      handle(ctx, a, shape.color);
+      handle(ctx, v, shape.color);
+      handle(ctx, b, shape.color);
+
       const mid = start + diff / 2;
-      const lx = v.x + Math.cos(mid) * (r + 22);
-      const ly = v.y + Math.sin(mid) * (r + 22);
-      const text = `${deg.toFixed(1)}°`;
-
-      ctx.font = 'bold 15px ui-sans-serif, system-ui, sans-serif';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      const tw = ctx.measureText(text).width;
-      ctx.fillStyle = 'rgba(10,10,11,0.78)';
-      ctx.fillRect(lx - tw / 2 - 6, ly - 11, tw + 12, 22);
-      ctx.fillStyle = shape.color;
-      ctx.fillText(text, lx, ly);
+      readout(
+        ctx,
+        `${angleAt(a, v, b).toFixed(1)}°`,
+        v.x + Math.cos(mid) * (r + 24),
+        v.y + Math.sin(mid) * (r + 24),
+        shape.color
+      );
+      break;
+    }
+    case 'marker': {
+      const p = px(shape.p);
+      stroke(ctx, () => {
+        ctx.beginPath();
+        ctx.moveTo(p.x - 11, p.y);
+        ctx.lineTo(p.x - 4, p.y);
+        ctx.moveTo(p.x + 4, p.y);
+        ctx.lineTo(p.x + 11, p.y);
+        ctx.moveTo(p.x, p.y - 11);
+        ctx.lineTo(p.x, p.y - 4);
+        ctx.moveTo(p.x, p.y + 4);
+        ctx.lineTo(p.x, p.y + 11);
+      }, shape.color);
+      ctx.save();
+      ctx.strokeStyle = shape.color;
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, 3, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.restore();
       break;
     }
   }
 }
+
+/* ------------------------------ 캔버스 ------------------------------ */
 
 export function VideoCanvas({
   shapes,
@@ -163,10 +350,7 @@ export function VideoCanvas({
 
     // 각도 만드는 중에 찍은 점 표시
     for (const p of anglePts) {
-      ctx.beginPath();
-      ctx.arc(p.x * rect.width, p.y * rect.height, 4, 0, Math.PI * 2);
-      ctx.fillStyle = color;
-      ctx.fill();
+      handle(ctx, { x: p.x * rect.width, y: p.y * rect.height }, color);
     }
   }, [shapes, draft, anglePts, color]);
 
@@ -196,8 +380,9 @@ export function VideoCanvas({
     e.currentTarget.setPointerCapture(e.pointerId);
     const p = toPoint(e);
 
-    if (tool === 'vertical') return onCommit({ kind: 'vertical', color, x: p.x });
-    if (tool === 'horizontal') return onCommit({ kind: 'horizontal', color, y: p.y });
+    if (tool === 'vref') return onCommit({ kind: 'vref', color, x: p.x });
+    if (tool === 'href') return onCommit({ kind: 'href', color, y: p.y });
+    if (tool === 'marker') return onCommit({ kind: 'marker', color, p });
 
     if (tool === 'angle') {
       const next = [...anglePts, p];
@@ -211,34 +396,22 @@ export function VideoCanvas({
     }
 
     drawingRef.current = true;
-    if (tool === 'free') setDraft({ kind: 'free', color, points: [p] });
-    else setDraft({ kind: 'line', color, a: p, b: p });
+    setDraft({ kind: 'tilt', color, a: p, b: p });
   };
 
   const handleMove = (e: React.PointerEvent) => {
     if (!enabled || !drawingRef.current) return;
     const p = toPoint(e);
-    setDraft((prev) => {
-      if (!prev) return prev;
-      if (prev.kind === 'free') return { ...prev, points: [...prev.points, p] };
-      if (prev.kind === 'line') return { ...prev, b: p };
-      return prev;
-    });
+    setDraft((prev) => (prev && prev.kind === 'tilt' ? { ...prev, b: p } : prev));
   };
 
   const handleUp = () => {
     if (!enabled || !drawingRef.current) return;
     drawingRef.current = false;
     setDraft((prev) => {
-      if (prev) {
-        // 점만 찍고 만 경우는 버린다.
-        const meaningful =
-          prev.kind === 'free'
-            ? prev.points.length > 2
-            : prev.kind === 'line'
-              ? Math.hypot(prev.a.x - prev.b.x, prev.a.y - prev.b.y) > 0.01
-              : true;
-        if (meaningful) onCommit(prev);
+      // 점만 찍고 만 경우는 버린다.
+      if (prev && prev.kind === 'tilt') {
+        if (Math.hypot(prev.a.x - prev.b.x, prev.a.y - prev.b.y) > 0.01) onCommit(prev);
       }
       return null;
     });
@@ -255,5 +428,106 @@ export function VideoCanvas({
         enabled ? 'cursor-crosshair touch-none' : 'pointer-events-none'
       }`}
     />
+  );
+}
+
+/* ------------------------------ 도구 모음 ------------------------------ */
+
+export function DrawingToolbar({
+  tool,
+  onTool,
+  color,
+  onColor,
+  onUndo,
+  onClear,
+  canUndo,
+  compact = false,
+}: {
+  tool: ToolKind;
+  onTool: (t: ToolKind) => void;
+  color: string;
+  onColor: (c: string) => void;
+  onUndo: () => void;
+  onClear: () => void;
+  canUndo: boolean;
+  /** 2분할처럼 좁은 곳에서는 설명을 감춘다 */
+  compact?: boolean;
+}) {
+  const active = DRAW_TOOLS.find((t) => t.kind === tool);
+
+  return (
+    <div className="flex flex-wrap items-center gap-x-2 gap-y-2 border-b border-line bg-surface px-3 py-2.5">
+      <div className="flex overflow-hidden rounded-lg border border-line">
+        {DRAW_TOOLS.map((t, i) => (
+          <button
+            key={t.kind}
+            type="button"
+            onClick={() => onTool(t.kind)}
+            aria-pressed={tool === t.kind}
+            title={t.label}
+            aria-label={t.label}
+            className={`flex h-10 items-center gap-1.5 px-2.5 text-[11px] transition-colors ${
+              i > 0 ? 'border-l border-line' : ''
+            } ${
+              tool === t.kind
+                ? 'bg-gold font-semibold text-ink'
+                : 'text-muted hover:bg-surface-2 hover:text-cream'
+            }`}
+          >
+            <t.Icon
+              className={`h-3.5 w-3.5 ${t.kind === 'tilt' ? 'rotate-90' : ''}`}
+            />
+            {!compact && <span className="hidden md:inline">{t.label}</span>}
+          </button>
+        ))}
+      </div>
+
+      <div className="flex items-center gap-1">
+        {DRAW_COLORS.map((c) => (
+          <button
+            key={c}
+            type="button"
+            onClick={() => onColor(c)}
+            aria-pressed={color === c}
+            aria-label={`선 색 ${c}`}
+            className={`h-7 w-7 rounded border transition-colors ${
+              color === c ? 'border-gold' : 'border-line hover:border-line-strong'
+            }`}
+          >
+            <span
+              className="mx-auto block h-3.5 w-3.5 rounded-sm"
+              style={{ backgroundColor: c }}
+            />
+          </button>
+        ))}
+      </div>
+
+      <div className="ml-auto flex gap-1.5">
+        <button
+          type="button"
+          onClick={onUndo}
+          disabled={!canUndo}
+          aria-label="되돌리기"
+          title="되돌리기"
+          className="flex h-10 w-10 items-center justify-center rounded-lg border border-line text-muted transition-colors hover:border-gold hover:text-gold disabled:opacity-40"
+        >
+          <Undo2 className="h-4 w-4" />
+        </button>
+        <button
+          type="button"
+          onClick={onClear}
+          disabled={!canUndo}
+          aria-label="전체 지우기"
+          title="전체 지우기"
+          className="flex h-10 w-10 items-center justify-center rounded-lg border border-line text-muted transition-colors hover:border-red-800 hover:text-red-400 disabled:opacity-40"
+        >
+          <Eraser className="h-4 w-4" />
+        </button>
+      </div>
+
+      {!compact && active && (
+        <p className="w-full text-[11px] text-muted">{active.hint}</p>
+      )}
+    </div>
   );
 }

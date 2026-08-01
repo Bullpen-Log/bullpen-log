@@ -4,36 +4,25 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ChevronLeft,
   ChevronRight,
-  Eraser,
-  MoveHorizontal,
-  MoveVertical,
   Pause,
-  Pencil,
   Play,
   RotateCcw,
-  Slash,
-  Spline,
-  Triangle,
-  Undo2,
+  Ruler,
 } from 'lucide-react';
 import {
   formatTime,
   useFrameDuration,
   type VideoWithFrameCallback,
 } from '@/components/use-frame-duration';
-import { VideoCanvas, type Shape, type ToolKind } from '@/components/video-canvas';
+import {
+  DRAW_COLORS,
+  DrawingToolbar,
+  VideoCanvas,
+  type Shape,
+  type ToolKind,
+} from '@/components/video-canvas';
 
 const SPEEDS = [0.25, 0.5, 1] as const;
-
-const TOOLS: { kind: ToolKind; label: string; Icon: typeof Slash }[] = [
-  { kind: 'line', label: '직선', Icon: Slash },
-  { kind: 'angle', label: '각도', Icon: Triangle },
-  { kind: 'vertical', label: '수직선', Icon: MoveVertical },
-  { kind: 'horizontal', label: '수평선', Icon: MoveHorizontal },
-  { kind: 'free', label: '자유선', Icon: Spline },
-];
-
-const COLORS = ['#c9a96a', '#ef4444', '#38bdf8', '#f4f2ee'];
 
 export function PitchVideoPlayer({
   src,
@@ -51,10 +40,10 @@ export function PitchVideoPlayer({
   const [current, setCurrent] = useState(0);
   const [duration, setDuration] = useState(0);
 
-  // 영상 위에 선·각도를 그리는 기능
+  // 영상 위에 기준선·각도를 그어 재는 기능
   const [drawing, setDrawing] = useState(false);
-  const [tool, setTool] = useState<ToolKind>('line');
-  const [color, setColor] = useState(COLORS[0]);
+  const [tool, setTool] = useState<ToolKind>('tilt');
+  const [color, setColor] = useState(DRAW_COLORS[0]);
   const [shapes, setShapes] = useState<Shape[]>([]);
 
   // 속도 변경을 실제 영상에 반영한다.
@@ -158,80 +147,16 @@ export function PitchVideoPlayer({
         />
       </div>
 
-      {/* 그리기 도구 */}
       {drawing && (
-        <div className="flex flex-wrap items-center gap-x-2 gap-y-2 border-b border-line bg-surface px-3 py-2.5">
-          <div className="flex overflow-hidden rounded-lg border border-line">
-            {TOOLS.map((t, i) => (
-              <button
-                key={t.kind}
-                type="button"
-                onClick={() => setTool(t.kind)}
-                aria-pressed={tool === t.kind}
-                title={t.label}
-                aria-label={t.label}
-                className={`flex h-10 w-10 items-center justify-center transition-colors ${
-                  i > 0 ? 'border-l border-line' : ''
-                } ${
-                  tool === t.kind
-                    ? 'bg-gold text-ink'
-                    : 'text-muted hover:bg-surface-2 hover:text-cream'
-                }`}
-              >
-                <t.Icon className="h-4 w-4" />
-              </button>
-            ))}
-          </div>
-
-          <div className="flex items-center gap-1.5">
-            {COLORS.map((c) => (
-              <button
-                key={c}
-                type="button"
-                onClick={() => setColor(c)}
-                aria-pressed={color === c}
-                aria-label={`색상 ${c}`}
-                style={{ backgroundColor: c }}
-                className={`h-7 w-7 rounded-full transition-transform ${
-                  color === c
-                    ? 'scale-110 ring-2 ring-cream ring-offset-2 ring-offset-surface'
-                    : 'opacity-70 hover:opacity-100'
-                }`}
-              />
-            ))}
-          </div>
-
-          <div className="ml-auto flex gap-1.5">
-            <button
-              type="button"
-              onClick={() => setShapes((prev) => prev.slice(0, -1))}
-              disabled={shapes.length === 0}
-              aria-label="되돌리기"
-              title="되돌리기"
-              className="flex h-10 w-10 items-center justify-center rounded-lg border border-line text-muted transition-colors hover:border-gold hover:text-gold disabled:opacity-40"
-            >
-              <Undo2 className="h-4 w-4" />
-            </button>
-            <button
-              type="button"
-              onClick={() => setShapes([])}
-              disabled={shapes.length === 0}
-              aria-label="전체 지우기"
-              title="전체 지우기"
-              className="flex h-10 w-10 items-center justify-center rounded-lg border border-line text-muted transition-colors hover:border-red-800 hover:text-red-400 disabled:opacity-40"
-            >
-              <Eraser className="h-4 w-4" />
-            </button>
-          </div>
-
-          <p className="w-full text-[11px] text-muted">
-            {tool === 'angle'
-              ? '세 곳을 차례로 누르세요. 두 번째로 누른 곳이 각의 꼭짓점이 되고 각도가 표시됩니다.'
-              : tool === 'vertical' || tool === 'horizontal'
-                ? '기준선을 놓을 위치를 누르세요.'
-                : '드래그해서 그립니다.'}
-          </p>
-        </div>
+        <DrawingToolbar
+          tool={tool}
+          onTool={setTool}
+          color={color}
+          onColor={setColor}
+          onUndo={() => setShapes((prev) => prev.slice(0, -1))}
+          onClear={() => setShapes([])}
+          canUndo={shapes.length > 0}
+        />
       )}
 
       {/* 진행 바 — 손가락으로 잡기 쉽도록 세로 여백을 넉넉히 준다. */}
@@ -315,8 +240,8 @@ export function PitchVideoPlayer({
               : 'border-line text-muted hover:border-gold hover:text-gold'
           }`}
         >
-          <Pencil className="h-4 w-4" />
-          <span className="hidden sm:inline">그리기</span>
+          <Ruler className="h-4 w-4" />
+          <span className="hidden sm:inline">측정</span>
         </button>
 
         {/* 재생 속도 */}
