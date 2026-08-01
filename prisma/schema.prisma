@@ -30,6 +30,34 @@ model User {
   routines          Routine[]
   articles          Article[]
   checkins          DailyCheckin[]
+  aiReports         AiReport[]
+}
+
+/**
+ * 생성된 AI 리포트. 한 번 만든 리포트는 그대로 보관해
+ * 다시 열어도 같은 내용과 같은 근거가 보이게 한다.
+ */
+model AiReport {
+  id           String   @id @default(uuid())
+  userId       String
+  /// 리포트 기준일
+  asOf         DateTime @db.Date
+  /// 통증 등으로 투구 계획을 내지 않은 리포트인가
+  halted       Boolean  @default(false)
+  haltReason   String?  @db.Text
+  /// AI가 쓴 본문. 계획이 멈춘 리포트에는 없다(AI를 부르지 않음).
+  body         Json?
+  /// 생성 시점의 수치와 계획. 근거를 나중에도 그대로 보여주기 위해 함께 저장한다.
+  facts        Json
+  plan         Json
+  model        String
+  inputTokens  Int      @default(0)
+  outputTokens Int      @default(0)
+  createdAt    DateTime @default(now())
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, asOf])
+  @@index([userId, asOf])
 }
 
 /// 하루 한 번 남기는 몸상태 체크인. 운동 처방과 리포트의 입력이 된다.

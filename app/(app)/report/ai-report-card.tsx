@@ -1,0 +1,268 @@
+'use client';
+
+import { useActionState, useState } from 'react';
+import { useFormStatus } from 'react-dom';
+import {
+  AlertTriangle,
+  ChevronDown,
+  Minus,
+  Moon,
+  Sparkles,
+  Sun,
+} from 'lucide-react';
+import { generateAiReport, type AiReportState } from '@/app/actions/ai-report';
+import type { AiReportBody } from '@/lib/ai/report-prompt';
+import type { PitchPlan } from '@/lib/report/plan';
+
+export type StoredReport = {
+  asOf: string;
+  halted: boolean;
+  haltReason: string | null;
+  body: AiReportBody | null;
+  plan: PitchPlan;
+  createdAt: string;
+};
+
+function GenerateButton({ label }: { label: string }) {
+  const { pending } = useFormStatus();
+  return (
+    <button
+      type="submit"
+      disabled={pending}
+      className="inline-flex items-center gap-2 rounded-xl bg-gold px-4 py-2.5 text-sm font-semibold text-ink transition-colors hover:bg-gold-bright disabled:cursor-not-allowed disabled:opacity-50"
+    >
+      <Sparkles className={`h-4 w-4 ${pending ? 'animate-pulse' : ''}`} />
+      {pending ? '분석 중… (10초쯤 걸립니다)' : label}
+    </button>
+  );
+}
+
+/** 하루치 계획 한 줄 */
+function DayRow({ day }: { day: PitchPlan['days'][number] }) {
+  return (
+    <div
+      className={`flex flex-wrap items-center gap-x-3 gap-y-1 rounded-xl border px-4 py-3 ${
+        day.throwing
+          ? 'border-line bg-surface-2'
+          : 'border-sky-500/30 bg-sky-500/[0.06]'
+      }`}
+    >
+      <span className="w-12 shrink-0 text-sm font-bold text-cream">
+        {day.label}
+      </span>
+      <span className="shrink-0 text-[11px] tabular-nums text-muted/70">
+        {day.dateKey.slice(5)}
+      </span>
+
+      {day.throwing ? (
+        <span className="flex items-baseline gap-1.5">
+          <Sun className="h-3.5 w-3.5 self-center text-gold" />
+          <span className="text-display text-xl leading-none text-gold tabular-nums">
+            {day.maxPitches}
+          </span>
+          <span className="text-xs text-muted">구 이하</span>
+          <span className="mx-1 text-line-strong">·</span>
+          <span className="text-xs text-muted">
+            강도 <span className="text-cream">{day.maxIntensity}</span> 이하
+          </span>
+        </span>
+      ) : (
+        <span className="flex items-center gap-1.5 text-sm font-medium text-sky-300">
+          <Moon className="h-3.5 w-3.5" />
+          휴식
+        </span>
+      )}
+
+      <span className="ml-auto text-[11px] text-muted/70">{day.reason}</span>
+    </div>
+  );
+}
+
+export function AiReportCard({
+  report,
+  canGenerate,
+  aiReady,
+}: {
+  report: StoredReport | null;
+  /** 투구 기록이 있어야 만들 수 있다 */
+  canGenerate: boolean;
+  aiReady: boolean;
+}) {
+  const [state, formAction] = useActionState<AiReportState, FormData>(
+    generateAiReport,
+    undefined
+  );
+  const [showBasis, setShowBasis] = useState(false);
+
+  const plan = report?.plan;
+
+  return (
+    <section className="overflow-hidden rounded-2xl border border-line bg-surface">
+      {/* 머리말 */}
+      <div className="flex flex-wrap items-center gap-3 border-b border-line px-5 py-4 sm:px-6">
+        <span className="flex h-9 w-9 items-center justify-center rounded-xl border border-gold-dim/50 bg-gold/10 text-gold">
+          <Sparkles className="h-4 w-4" />
+        </span>
+        <div className="min-w-0 flex-1">
+          <h2 className="text-sm font-bold text-cream">AI 코치 리포트</h2>
+          <p className="mt-0.5 text-xs text-muted">
+            {report
+              ? `${report.asOf} 기준 · 다시 만들기 전까지 내용이 바뀌지 않습니다`
+              : '기록을 바탕으로 앞으로 3일 투구 계획을 만듭니다'}
+          </p>
+        </div>
+
+        {aiReady && canGenerate && (
+          <form action={formAction}>
+            <GenerateButton label={report ? '다시 만들기' : '리포트 만들기'} />
+          </form>
+        )}
+      </div>
+
+      <div className="space-y-5 px-5 py-5 sm:px-6 sm:py-6">
+        {state?.error && (
+          <p className="rounded-lg border border-red-900/60 bg-red-950/40 px-4 py-3 text-sm text-red-300">
+            {state.error}
+          </p>
+        )}
+
+        {!aiReady && (
+          <p className="rounded-xl border border-dashed border-line px-4 py-6 text-center text-sm text-muted">
+            AI 기능이 아직 설정되지 않았습니다.
+          </p>
+        )}
+
+        {aiReady && !canGenerate && (
+          <p className="rounded-xl border border-dashed border-line px-4 py-6 text-center text-sm text-muted">
+            투구 기록을 먼저 남겨주세요. 기록이 있어야 계획을 만들 수 있습니다.
+          </p>
+        )}
+
+        {aiReady && canGenerate && !report && (
+          <p className="rounded-xl border border-dashed border-line px-4 py-6 text-center text-sm text-muted">
+            아직 만든 리포트가 없습니다. 위 버튼을 눌러 만들어보세요.
+          </p>
+        )}
+
+        {/* 통증 등으로 계획을 내지 않은 경우 */}
+        {report?.halted && (
+          <div className="rounded-xl border border-red-900/60 bg-red-950/30 p-5">
+            <p className="flex items-center gap-2 text-sm font-bold text-red-300">
+              <AlertTriangle className="h-4 w-4" />
+              투구 계획을 제공하지 않았습니다
+            </p>
+            <p className="mt-2 text-sm leading-relaxed text-red-100/90">
+              {report.haltReason}
+            </p>
+          </div>
+        )}
+
+        {/* 정상 리포트 */}
+        {report && !report.halted && report.body && plan && (
+          <>
+            <p className="text-lg font-bold leading-snug text-cream">
+              {report.body.headline}
+            </p>
+
+            <p className="whitespace-pre-wrap text-sm leading-relaxed text-cream/80">
+              {report.body.assessment}
+            </p>
+
+            {/* 코드가 계산한 계획 — 리포트의 근거 */}
+            <div className="space-y-2">
+              <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-muted">
+                향후 3일 계획
+              </p>
+              {plan.days.map((day) => (
+                <DayRow key={day.dateKey} day={day} />
+              ))}
+              <p className="pt-1 text-[11px] tabular-nums text-muted/70">
+                3일 합계 상한 {plan.threeDayTotal}구
+              </p>
+            </div>
+
+            {plan.youthNote && (
+              <p className="rounded-xl border border-amber-500/30 bg-amber-500/[0.07] px-4 py-3 text-xs leading-relaxed text-amber-200/90">
+                {plan.youthNote}
+              </p>
+            )}
+
+            {/* 실행 항목 */}
+            <div className="space-y-3">
+              <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-muted">
+                실행 항목
+              </p>
+              {report.body.actions.map((action, i) => (
+                <div
+                  key={i}
+                  className="rounded-xl border border-line bg-surface-2 px-4 py-3"
+                >
+                  <p className="text-sm font-semibold text-cream">
+                    {action.title}
+                  </p>
+                  <p className="mt-1 text-sm leading-relaxed text-muted">
+                    {action.detail}
+                  </p>
+                </div>
+              ))}
+            </div>
+
+            {/* 지켜볼 점 */}
+            {report.body.watchouts.length > 0 && (
+              <div>
+                <p className="mb-2 text-[11px] font-medium uppercase tracking-[0.18em] text-muted">
+                  지켜볼 점
+                </p>
+                <ul className="space-y-1.5">
+                  {report.body.watchouts.map((w, i) => (
+                    <li key={i} className="flex gap-2 text-sm leading-relaxed text-muted">
+                      <Minus className="mt-1.5 h-3 w-3 shrink-0 text-gold/60" />
+                      <span>{w}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </>
+        )}
+
+        {/* 계획이 나온 근거 — 언제든 펼쳐서 검산할 수 있게 한다 */}
+        {plan && plan.basis.length > 0 && (
+          <div className="border-t border-line pt-4">
+            <button
+              type="button"
+              onClick={() => setShowBasis((v) => !v)}
+              aria-expanded={showBasis}
+              className="flex items-center gap-1.5 text-[11px] text-muted transition-colors hover:text-gold"
+            >
+              <ChevronDown
+                className={`h-3.5 w-3.5 transition-transform ${showBasis ? 'rotate-180' : ''}`}
+              />
+              이 계획이 나온 근거
+            </button>
+
+            {showBasis && (
+              <ul className="mt-3 space-y-1.5">
+                {plan.basis.map((b, i) => (
+                  <li
+                    key={i}
+                    className="flex gap-2 text-[11px] leading-relaxed text-muted"
+                  >
+                    <span className="text-line-strong">·</span>
+                    <span>{b}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        )}
+
+        <p className="text-[11px] leading-relaxed text-muted/60">
+          수치와 계획은 기록에서 규칙으로 계산한 값이고, 문장은 그 수치를 설명한
+          것입니다. 훈련량 관리를 돕는 참고 자료이며 의학적 진단이 아닙니다.
+          통증이 있으면 수치와 관계없이 전문의와 상담하세요.
+        </p>
+      </div>
+    </section>
+  );
+}
