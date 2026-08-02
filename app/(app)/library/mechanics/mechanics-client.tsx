@@ -2,13 +2,18 @@
 
 import { useMemo, useState } from 'react';
 import { Check, Pencil, Trash2, X } from 'lucide-react';
-import { deleteGuide, toggleGuideProgress } from '@/app/actions/content';
+import {
+  deleteGuide,
+  setGuideThumbnail,
+  toggleGuideProgress,
+} from '@/app/actions/content';
 import { MECHANICS_CATEGORIES } from '@/lib/categories';
 import { DRILL_EQUIPMENT, FOCUS_POINTS } from '@/lib/exercise-meta';
 import { CategorySection } from '@/components/category-section';
 import { LibraryVideo } from '@/components/library-video';
 import { LibraryTile } from '@/components/exercise-tile';
 import { DrillBadges } from '@/components/meta-badges';
+import { ThumbnailFixer } from '@/components/thumbnail-fixer';
 import {
   MetaFilter,
   matchesFilter,
@@ -139,6 +144,19 @@ function GuideDetail({
         <p className="mt-4 flex-1 whitespace-pre-wrap text-sm leading-relaxed text-muted">
           {item.description}
         </p>
+
+        {isAdmin && !item.thumbUrl && (
+          <div className="mt-4 border-t border-line pt-4">
+            <p className="mb-2 text-xs text-muted">
+              이 영상은 미리보기 이미지가 없습니다.
+            </p>
+            <ThumbnailFixer
+              itemId={item.id}
+              videoPath={item.videoPath}
+              onSave={(fd) => setGuideThumbnail(undefined, fd)}
+            />
+          </div>
+        )}
 
         <form action={toggleGuideProgress} className="mt-6">
           <input type="hidden" name="guideId" value={item.id} />

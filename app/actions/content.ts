@@ -338,6 +338,54 @@ export async function updateGuide(
   return { success: '수정했습니다.' };
 }
 
+/**
+ * 이미 올려둔 영상의 미리보기 이미지만 새로 지정한다.
+ * 업로드할 때 캡처가 실패한 영상을, 영상을 다시 올리지 않고 고치기 위한 것.
+ */
+export async function setExerciseThumbnail(
+  _prev: ActionState,
+  formData: FormData
+): Promise<ActionState> {
+  if (!(await assertAdmin())) return { error: '관리자만 바꿀 수 있습니다.' };
+
+  const id = String(formData.get('id') ?? '');
+  const thumbPath = String(formData.get('thumbPath') ?? '').trim();
+  if (!thumbPath || !isLibraryPath(thumbPath)) {
+    return { error: '미리보기 이미지를 만들지 못했습니다.' };
+  }
+
+  const existing = id ? await prisma.exerciseVideo.findUnique({ where: { id } }) : null;
+  if (!existing) return { error: '대상을 찾을 수 없습니다.' };
+
+  await prisma.exerciseVideo.update({ where: { id }, data: { thumbPath } });
+  if (existing.thumbPath) await deleteVideos([existing.thumbPath]);
+
+  revalidatePath('/library/training');
+  return { success: '미리보기 이미지를 만들었습니다.' };
+}
+
+export async function setGuideThumbnail(
+  _prev: ActionState,
+  formData: FormData
+): Promise<ActionState> {
+  if (!(await assertAdmin())) return { error: '관리자만 바꿀 수 있습니다.' };
+
+  const id = String(formData.get('id') ?? '');
+  const thumbPath = String(formData.get('thumbPath') ?? '').trim();
+  if (!thumbPath || !isLibraryPath(thumbPath)) {
+    return { error: '미리보기 이미지를 만들지 못했습니다.' };
+  }
+
+  const existing = id ? await prisma.mechanicsGuide.findUnique({ where: { id } }) : null;
+  if (!existing) return { error: '대상을 찾을 수 없습니다.' };
+
+  await prisma.mechanicsGuide.update({ where: { id }, data: { thumbPath } });
+  if (existing.thumbPath) await deleteVideos([existing.thumbPath]);
+
+  revalidatePath('/library/mechanics');
+  return { success: '미리보기 이미지를 만들었습니다.' };
+}
+
 /** 가이드 학습 완료 체크를 토글한다. (로그인한 사용자 누구나) */
 export async function toggleGuideProgress(formData: FormData) {
   const user = await getCurrentUser();

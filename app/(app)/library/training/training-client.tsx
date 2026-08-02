@@ -2,13 +2,14 @@
 
 import { useMemo, useState } from 'react';
 import { Pencil, Trash2, X } from 'lucide-react';
-import { deleteExercise } from '@/app/actions/content';
+import { deleteExercise, setExerciseThumbnail } from '@/app/actions/content';
 import { TRAINING_CATEGORIES } from '@/lib/categories';
 import { BODY_PARTS, EXERCISE_EQUIPMENT, INTENSITY_NAMES } from '@/lib/exercise-meta';
 import { CategorySection } from '@/components/category-section';
 import { LibraryVideo } from '@/components/library-video';
 import { LibraryTile } from '@/components/exercise-tile';
 import { ExerciseBadges } from '@/components/meta-badges';
+import { ThumbnailFixer } from '@/components/thumbnail-fixer';
 import {
   MetaFilter,
   matchesFilter,
@@ -132,6 +133,20 @@ function ExerciseDetail({
         <p className="whitespace-pre-wrap text-sm leading-relaxed text-muted">
           {item.description}
         </p>
+
+        {/* 업로드할 때 캡처가 실패한 영상은 여기서 이미지만 다시 만들 수 있다. */}
+        {isAdmin && !item.thumbUrl && (
+          <div className="border-t border-line pt-4">
+            <p className="mb-2 text-xs text-muted">
+              이 영상은 미리보기 이미지가 없습니다.
+            </p>
+            <ThumbnailFixer
+              itemId={item.id}
+              videoPath={item.videoPath}
+              onSave={(fd) => setExerciseThumbnail(undefined, fd)}
+            />
+          </div>
+        )}
       </div>
     </Card>
   );
