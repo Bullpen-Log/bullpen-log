@@ -36,9 +36,12 @@ const UNKNOWN_ZONE_INTENSITY = ['낮음', '중간'];
 /** 컨디션이 이 값 이하면 고강도를 뺀다. */
 const LOW_CONDITION_THRESHOLD = 4;
 
-/** 어느 부위가 뻐근할 때 함께 피해야 하는 부위들 */
+/**
+ * 어느 부위가 뻐근할 때 함께 피해야 하는 부위들.
+ * 가슴 운동(벤치프레스 등)은 어깨에도 부하가 걸리므로 어깨 쪽에 함께 넣는다.
+ */
 const RELATED_PARTS: Record<string, string[]> = {
-  shoulder: ['어깨', '견갑'],
+  shoulder: ['어깨', '견갑', '가슴'],
   elbow: ['팔꿈치', '손목·전완'],
 };
 
