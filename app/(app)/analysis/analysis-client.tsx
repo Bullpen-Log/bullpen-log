@@ -8,6 +8,7 @@ import { toDateKey } from '@/lib/pitch-stats';
 import { PitchCalendar, type DaySummary } from '@/app/(app)/pitch-log/calendar';
 import type { Log } from '@/app/(app)/pitch-log/pitch-log-client';
 import { usePlaybackUrls } from '@/components/use-playback-urls';
+import { FilmingGuide } from '@/components/filming-guide';
 import { CompareView, type ClipOption } from './compare-view';
 
 /** 재생 주소는 화면에서 필요할 때 따로 받아오므로 경로만 내려온다. */
@@ -156,6 +157,9 @@ export function AnalysisClient({ logs }: { logs: AnalysisLog[] }) {
           ))}
         </div>
       )}
+
+      {/* 촬영 조건이 일정해야 날짜 간 비교가 의미를 갖는다. */}
+      <FilmingGuide defaultOpen={withVideo.length === 0} />
 
       {withVideo.length === 0 ? (
         <EmptyState

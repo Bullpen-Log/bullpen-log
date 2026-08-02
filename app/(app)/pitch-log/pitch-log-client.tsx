@@ -14,6 +14,7 @@ import {
   Textarea,
 } from '@/components/ui';
 import { VideoUpload, type UploadedVideo } from '@/components/video-upload';
+import { FilmingGuide } from '@/components/filming-guide';
 import { toDateKey } from '@/lib/pitch-stats';
 import { PitchCalendar, type DaySummary } from './calendar';
 
@@ -202,7 +203,11 @@ export function PitchLogClient({ initialLogs }: { initialLogs: Log[] }) {
               label="투구 영상"
               hint="폰이나 컴퓨터에 있는 영상을 바로 올릴 수 있습니다."
             >
-              <VideoUpload videos={videos} onChange={setVideos} max={2} />
+              <div className="space-y-3">
+                {/* 올리기 전에 촬영 조건을 한 번 보고 가도록 바로 위에 둔다. */}
+                <FilmingGuide />
+                <VideoUpload videos={videos} onChange={setVideos} max={2} />
+              </div>
             </Field>
 
             <Field label="특이사항 · 느낀점">
