@@ -27,6 +27,11 @@ export default async function ProfilePage() {
             nickname={user.nickname}
             birthDate={user.birthDate ? toDateInputValue(user.birthDate) : ''}
             heightCm={user.heightCm}
+            baseline={{
+              baselineFreq: user.baselineFreq,
+              baselineVolume: user.baselineVolume,
+              baselineIntensity: user.baselineIntensity,
+            }}
             today={todayKey()}
           />
         </Card>

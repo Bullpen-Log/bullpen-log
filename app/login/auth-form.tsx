@@ -5,6 +5,40 @@ import { useFormStatus } from 'react-dom';
 import { login, signup, type AuthState } from '@/app/actions/auth';
 import { Button, Field, FormError, Input } from '@/components/ui';
 import { MAX_HEIGHT_CM, MIN_HEIGHT_CM } from '@/lib/profile';
+import {
+  BASELINE_FREQ_NAMES,
+  BASELINE_INTENSITY_NAMES,
+  BASELINE_VOLUME_NAMES,
+} from '@/lib/baseline';
+
+/** 가입 문진용 한 줄 칩 라디오 */
+function ChipRow({
+  label,
+  name,
+  options,
+}: {
+  label: string;
+  name: string;
+  options: readonly string[];
+}) {
+  return (
+    <fieldset>
+      <legend className="mb-2 block text-xs font-medium uppercase tracking-wider text-muted">
+        {label}
+      </legend>
+      <div className="flex flex-wrap gap-1.5">
+        {options.map((option) => (
+          <label key={option} className="inline-flex">
+            <input type="radio" name={name} value={option} required className="peer sr-only" />
+            <span className="cursor-pointer select-none rounded-lg border border-line bg-surface-2 px-3 py-2 text-xs text-muted transition-colors hover:border-gold-dim hover:text-cream peer-checked:border-gold peer-checked:bg-gold/10 peer-checked:font-medium peer-checked:text-gold peer-focus-visible:ring-1 peer-focus-visible:ring-gold">
+              {option}
+            </span>
+          </label>
+        ))}
+      </div>
+    </fieldset>
+  );
+}
 
 function SubmitButton({ label }: { label: string }) {
   const { pending } = useFormStatus();
@@ -102,6 +136,19 @@ export function AuthForm({ today }: { today: string }) {
               생년월일은 나이에 맞는 안전한 투구수를 계산하는 데 쓰입니다.
               키는 나중에 입력해도 됩니다.
             </p>
+
+            {/* 평소 투구량 문진 — 이 답으로 부하 지수를 첫날부터 계산한다. */}
+            <div className="space-y-4 border-t border-line pt-5">
+              <p className="text-sm font-semibold text-cream">
+                평소 얼마나 던지시나요?
+                <span className="mt-1 block text-xs font-normal text-muted">
+                  부하 지수를 첫날부터 보여드리기 위한 3문항입니다.
+                </span>
+              </p>
+              <ChipRow label="던지는 횟수" name="baselineFreq" options={BASELINE_FREQ_NAMES} />
+              <ChipRow label="한 번에 던지는 양" name="baselineVolume" options={BASELINE_VOLUME_NAMES} />
+              <ChipRow label="평소 강도" name="baselineIntensity" options={BASELINE_INTENSITY_NAMES} />
+            </div>
           </>
         )}
 

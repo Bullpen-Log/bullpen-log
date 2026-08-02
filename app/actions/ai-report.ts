@@ -5,6 +5,7 @@ import { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 import { requireUser } from '@/lib/dal';
 import { ageFromBirthDate } from '@/lib/profile';
+import { estimateDailyLoad } from '@/lib/baseline';
 import { toDateKey } from '@/lib/pitch-stats';
 import { AI_MODEL, isAiConfigured } from '@/lib/ai/client';
 import { generateReportBody } from '@/lib/ai/report';
@@ -55,6 +56,7 @@ export async function generateAiReport(): Promise<AiReportState> {
     nickname: user.nickname,
     age: user.birthDate ? ageFromBirthDate(user.birthDate, today) : null,
     heightCm: user.heightCm,
+    baselineDailyLoad: estimateDailyLoad(user),
     logs: logs.map((l) => ({
       date: l.date.toISOString(),
       pitchCount: l.pitchCount,

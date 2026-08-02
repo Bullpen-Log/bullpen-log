@@ -13,6 +13,7 @@ import {
 import { prisma } from '@/lib/prisma';
 import { requireUser } from '@/lib/dal';
 import { ageFromBirthDate } from '@/lib/profile';
+import { estimateDailyLoad } from '@/lib/baseline';
 import {
   ACWR_TARGET_MAX,
   ACWR_ZONES,
@@ -139,7 +140,9 @@ export default async function DashboardPage() {
 
   const current = summarize(byDay, last7);
   const previous = summarize(byDay, prev7);
-  const acwr = computeAcwr(byDay, today);
+  // 가입 문진 추정치가 있으면 기록 첫날부터 지수가 나온다.
+  const seedDailyLoad = estimateDailyLoad(user);
+  const acwr = computeAcwr(byDay, today, { seedDailyLoad });
   const fatigue = findFatigueWindows(byDay, last28);
   const streak = longestThrowStreak(byDay, last28);
 
@@ -173,6 +176,7 @@ export default async function DashboardPage() {
           nickname: user.nickname,
           age,
           heightCm: user.heightCm,
+          baselineDailyLoad: seedDailyLoad,
           logs: logs.map((l) => ({
             date: l.date.toISOString(),
             pitchCount: l.pitchCount,
@@ -325,6 +329,13 @@ export default async function DashboardPage() {
                       · {zone.meaning}
                     </span>
                   </p>
+                  {/* 문진 추정치가 섞여 있는 동안에는 그 사실을 숨기지 않는다. */}
+                  {acwr.estimated && (
+                    <p className="mt-2 inline-flex items-center gap-1.5 rounded-full border border-line-strong bg-surface-2 px-2.5 py-1 text-[11px] text-muted">
+                      문진 추정 기준 · 실측 반영 {Math.round(acwr.realWeight * 100)}%
+                      <span className="text-muted/60">— 기록할수록 정확해집니다</span>
+                    </p>
+                  )}
                 </div>
 
                 <ZoneGauge ratio={acwr.ratio} activeZone={acwr.zone} />
@@ -368,9 +379,19 @@ export default async function DashboardPage() {
 
                   <p className="mt-3 text-xs leading-relaxed text-muted">
                     {hasRecords
-                      ? '지수는 최근 7일을 평소 4주 평균과 견주는 값입니다. 비교할 4주치가 아직 없습니다.'
+                      ? '지수는 최근 부하를 평소 부하와 견주는 값입니다. 비교할 기준이 아직 없습니다.'
                       : '투구를 기록하면 이곳에 부하 지수가 표시됩니다.'}
                   </p>
+
+                  {/* 문진만 채우면 기다릴 필요가 없다는 걸 알려준다. */}
+                  {seedDailyLoad == null && (
+                    <Link
+                      href="/profile"
+                      className="mt-3 inline-flex items-center gap-1.5 rounded-lg border border-gold-dim/60 bg-gold/10 px-3 py-2 text-xs font-medium text-gold transition-colors hover:bg-gold/20"
+                    >
+                      평소 투구량 3문항 입력하고 바로 보기 →
+                    </Link>
+                  )}
                 </div>
 
                 {/* 지금 계산되는 값 — 지수와 헷갈리지 않게 작게, 이름을 붙여서 */}

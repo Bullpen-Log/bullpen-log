@@ -128,6 +128,7 @@ export function buildFacts({
   logs,
   checkins,
   memos,
+  baselineDailyLoad = null,
   today = new Date(),
 }: {
   nickname: string;
@@ -136,6 +137,8 @@ export function buildFacts({
   logs: PitchLogLike[];
   checkins: CheckinLike[];
   memos: MemoNote[];
+  /** 가입 문진으로 추정한 하루 평균 부하. 부하 지수의 시작점이 된다. */
+  baselineDailyLoad?: number | null;
   today?: Date;
 }): ReportFacts {
   const asOf = toDateKey(today);
@@ -163,7 +166,7 @@ export function buildFacts({
       previous,
       changePercent: changeRate(current.totalPitches, previous.totalPitches),
     },
-    load: computeAcwr(byDay, today),
+    load: computeAcwr(byDay, today, { seedDailyLoad: baselineDailyLoad }),
     patterns: {
       fatigueWindows: findFatigueWindows(byDay, last28).length,
       longestStreak: longestThrowStreak(byDay, last28),

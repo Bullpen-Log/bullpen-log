@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache';
 import { prisma } from '@/lib/prisma';
 import { getCurrentUser } from '@/lib/dal';
 import { validateProfile } from '@/lib/profile';
+import { validateBaseline } from '@/lib/baseline';
 
 export type ProfileState = { error?: string; success?: string } | undefined;
 
@@ -27,9 +28,23 @@ export async function updateProfile(
   );
   if ('error' in checked) return checked;
 
+  // 평소 투구량 문진 — 기존 회원이 나중에 채우는 경우가 있어 여기서도 받는다.
+  const rawBaseline = {
+    baselineFreq: String(formData.get('baselineFreq') ?? ''),
+    baselineVolume: String(formData.get('baselineVolume') ?? ''),
+    baselineIntensity: String(formData.get('baselineIntensity') ?? ''),
+  };
+  const anyBaseline = Object.values(rawBaseline).some((v) => v.trim() !== '');
+  let baselineValue = {};
+  if (anyBaseline) {
+    const baseline = validateBaseline(rawBaseline);
+    if ('error' in baseline) return baseline;
+    baselineValue = baseline.value;
+  }
+
   await prisma.user.update({
     where: { id: user.id },
-    data: { nickname, ...checked.value },
+    data: { nickname, ...checked.value, ...baselineValue },
   });
 
   // 헤더의 닉네임과 대시보드 안내 문구가 바로 반영되게 한다.

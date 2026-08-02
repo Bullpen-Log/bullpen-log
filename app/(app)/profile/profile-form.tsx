@@ -5,6 +5,12 @@ import { useFormStatus } from 'react-dom';
 import { updateProfile, type ProfileState } from '@/app/actions/profile';
 import { Button, Field, FormError, Input } from '@/components/ui';
 import { MAX_HEIGHT_CM, MIN_HEIGHT_CM } from '@/lib/profile';
+import { RadioGroup } from '@/components/choice-inputs';
+import {
+  BASELINE_FREQ_NAMES,
+  BASELINE_INTENSITY_NAMES,
+  BASELINE_VOLUME_NAMES,
+} from '@/lib/baseline';
 
 function SubmitButton() {
   const { pending } = useFormStatus();
@@ -19,12 +25,18 @@ export function ProfileForm({
   nickname,
   birthDate,
   heightCm,
+  baseline,
   /** 오늘 날짜(YYYY-MM-DD). 미래 날짜를 못 고르게 막는 데 쓴다. */
   today,
 }: {
   nickname: string;
   birthDate: string;
   heightCm: number | null;
+  baseline: {
+    baselineFreq: string | null;
+    baselineVolume: string | null;
+    baselineIntensity: string | null;
+  };
   today: string;
 }) {
   const [state, formAction] = useActionState<ProfileState, FormData>(
@@ -81,6 +93,35 @@ export function ProfileForm({
           placeholder="180"
         />
       </Field>
+
+      {/* 평소 투구량 문진 — 부하 지수의 추정 기준선. 3개 모두 답해야 저장된다. */}
+      <div className="space-y-4 border-t border-line pt-5">
+        <p className="text-sm font-semibold text-cream">
+          평소 얼마나 던지시나요?
+          <span className="mt-1 block text-xs font-normal text-muted">
+            이 답으로 부하 지수를 기록 첫날부터 계산합니다. 상황이 바뀌면 언제든
+            고칠 수 있습니다.
+          </span>
+        </p>
+        <RadioGroup
+          name="baselineFreq"
+          label="던지는 횟수"
+          options={BASELINE_FREQ_NAMES.map((name) => ({ name }))}
+          selected={baseline.baselineFreq}
+        />
+        <RadioGroup
+          name="baselineVolume"
+          label="한 번에 던지는 양"
+          options={BASELINE_VOLUME_NAMES.map((name) => ({ name }))}
+          selected={baseline.baselineVolume}
+        />
+        <RadioGroup
+          name="baselineIntensity"
+          label="평소 강도"
+          options={BASELINE_INTENSITY_NAMES.map((name) => ({ name }))}
+          selected={baseline.baselineIntensity}
+        />
+      </div>
 
       <SubmitButton />
     </form>

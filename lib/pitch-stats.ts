@@ -410,13 +410,6 @@ export function dailyLoad(day: DayTotals) {
   return day.pitchCount * day.intensity;
 }
 
-function sumLoad(byDay: Map<string, DayTotals>, dateKeys: string[]) {
-  return dateKeys.reduce((sum, key) => {
-    const day = byDay.get(key);
-    return sum + (day ? dailyLoad(day) : 0);
-  }, 0);
-}
-
 /** 두 날짜 키 사이의 일수 (같은 날이면 1) */
 function daysBetween(fromKey: string, toKey: string) {
   const [fy, fm, fd] = fromKey.split('-').map(Number);
@@ -426,41 +419,148 @@ function daysBetween(fromKey: string, toKey: string) {
   return Math.floor((to - from) / 86_400_000) + 1;
 }
 
+/**
+ * 지수가중이동평균(EWMA)의 가중치.
+ * λ = 2 / (기간 + 1). 최근 날짜일수록 크게 반영된다.
+ */
+const ACUTE_LAMBDA = 2 / (ACUTE_WINDOW_DAYS + 1);
+const CHRONIC_LAMBDA = 2 / (CHRONIC_WINDOW_DAYS + 1);
+
+/** 실측 반영률이 이 값을 넘으면 추정 표시를 뗀다. */
+export const REAL_WEIGHT_TRUSTED = 0.9;
+
 export type AcwrResult = {
-  /** 최근 7일 부하 합 */
+  /** 최근 급성 부하 (주당 환산값 — 화면 표기 호환용) */
   acute: number;
-  /** 최근 28일의 주당 평균 부하 */
+  /** 평소 만성 부하 (주당 환산값) */
   chronic: number;
   /**
-   * 급성 ÷ 만성. 기록 기간이 28일에 못 미치면 만성 부하를 신뢰할 수 없어
-   * null로 두고 화면에서는 "쌓는 중"으로 보여준다.
+   * 급성 ÷ 만성.
+   * 문진 기준선이 있으면 기록 첫날부터 나오고,
+   * 없으면 예전처럼 28일치가 쌓여야 나온다.
    */
   ratio: number | null;
   zone: AcwrZone | null;
   /** 첫 기록부터 오늘까지의 날 수 */
   historyDays: number;
-  /** 신뢰할 수 있게 되기까지 남은 날 수 */
+  /** (기준선 없는 경우) 지수가 나오기까지 남은 날 수 */
   daysNeeded: number;
+  /** 문진 추정치가 섞여 있는가 */
+  estimated: boolean;
+  /** 만성 부하에서 실제 기록이 차지하는 비중 (0~1) */
+  realWeight: number;
 };
 
+/**
+ * 부하 지수를 EWMA로 계산한다.
+ *
+ * - 급성·만성 모두 하루 부하의 지수가중평균이라 최근일수록 크게 반영된다.
+ * - seedDailyLoad(가입 문진 추정치)가 있으면 그 값을 시작점으로 삼아
+ *   첫 기록부터 지수를 낼 수 있다. 기록이 쌓일수록 시작점의 영향은
+ *   (1-λ)^일수 로 줄어들며, 그 비율을 realWeight로 함께 돌려준다.
+ * - 기준선이 없으면 예전과 같은 28일 규칙을 지킨다(첫 주 평균을 시작점으로 사용).
+ */
 export function computeAcwr(
   byDay: Map<string, DayTotals>,
-  today = new Date()
+  today = new Date(),
+  opts?: { seedDailyLoad?: number | null }
 ): AcwrResult {
   const todayKey = toDateKey(today);
-  const acute = sumLoad(byDay, buildDateRange(ACUTE_WINDOW_DAYS, today));
-  const chronicTotal = sumLoad(byDay, buildDateRange(CHRONIC_WINDOW_DAYS, today));
-  const chronic = chronicTotal / (CHRONIC_WINDOW_DAYS / ACUTE_WINDOW_DAYS);
+  const seed = opts?.seedDailyLoad ?? null;
 
   const firstKey = [...byDay.keys()].sort()[0];
   const historyDays = firstKey ? daysBetween(firstKey, todayKey) : 0;
   const daysNeeded = Math.max(0, CHRONIC_WINDOW_DAYS - historyDays);
 
-  // 기간이 모자라거나 평소 부하가 0이면 비율에 의미가 없다.
-  if (daysNeeded > 0 || chronic <= 0) {
-    return { acute, chronic, ratio: null, zone: null, historyDays, daysNeeded };
+  // 기록이 하나도 없으면 지수를 내지 않는다.
+  // (기준선만으로 1.0을 보여주는 건 실측이 아니라 눈속임이다.)
+  if (!firstKey) {
+    return {
+      acute: seed != null ? seed * 7 : 0,
+      chronic: seed != null ? seed * 7 : 0,
+      ratio: null,
+      zone: null,
+      historyDays: 0,
+      daysNeeded: seed != null ? 0 : CHRONIC_WINDOW_DAYS,
+      estimated: seed != null,
+      realWeight: 0,
+    };
   }
 
-  const ratio = acute / chronic;
-  return { acute, chronic, ratio, zone: zoneOf(ratio), historyDays, daysNeeded };
+  // 첫 기록일부터 오늘까지 하루씩 EWMA를 갱신한다. 기록 없는 날은 0.
+  const days: string[] = [];
+  for (let key = firstKey; ; key = shiftDateKey(key, 1)) {
+    days.push(key);
+    if (key === todayKey || days.length > 400) break;
+  }
+
+  // 시작점: 문진 추정치가 있으면 그 값, 없으면 첫 주 실측 평균.
+  // (0에서 시작하면 만성이 낮게 잡혀 지수가 부풀어 오른다.)
+  let init: number;
+  if (seed != null) {
+    init = seed;
+  } else {
+    const firstWeek = days.slice(0, Math.min(7, days.length));
+    init =
+      firstWeek.reduce((sum, k) => {
+        const d = byDay.get(k);
+        return sum + (d ? dailyLoad(d) : 0);
+      }, 0) / firstWeek.length;
+  }
+
+  let acuteEwma = init;
+  let chronicEwma = init;
+  for (const key of days) {
+    const load = byDay.has(key) ? dailyLoad(byDay.get(key)!) : 0;
+    acuteEwma = load * ACUTE_LAMBDA + acuteEwma * (1 - ACUTE_LAMBDA);
+    chronicEwma = load * CHRONIC_LAMBDA + chronicEwma * (1 - CHRONIC_LAMBDA);
+  }
+
+  // 만성 부하에서 시작점(추정 or 첫 주)이 아직 차지하는 비중
+  const seedWeight = Math.pow(1 - CHRONIC_LAMBDA, days.length);
+  const realWeight = 1 - seedWeight;
+  const estimated = seed != null && realWeight < REAL_WEIGHT_TRUSTED;
+
+  // 주당 환산값으로 돌려줘 기존 화면·문구("최근 7일 부하")와 호환한다.
+  const acute = acuteEwma * 7;
+  const chronic = chronicEwma * 7;
+
+  // 기준선이 없으면 예전 규칙대로 28일을 채워야 지수를 낸다.
+  if (seed == null && daysNeeded > 0) {
+    return {
+      acute,
+      chronic,
+      ratio: null,
+      zone: null,
+      historyDays,
+      daysNeeded,
+      estimated: false,
+      realWeight,
+    };
+  }
+
+  if (chronic <= 0) {
+    return {
+      acute,
+      chronic,
+      ratio: null,
+      zone: null,
+      historyDays,
+      daysNeeded: 0,
+      estimated,
+      realWeight,
+    };
+  }
+
+  const ratio = acuteEwma / chronicEwma;
+  return {
+    acute,
+    chronic,
+    ratio,
+    zone: zoneOf(ratio),
+    historyDays,
+    daysNeeded: 0,
+    estimated,
+    realWeight,
+  };
 }

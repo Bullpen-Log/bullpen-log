@@ -77,6 +77,11 @@ export function buildUserPrompt(facts: ReportFacts, plan: PitchPlan): string {
     lines.push(
       `- 최근 7일 부하 ${Math.round(load.acute)} ÷ 평소 주당 ${Math.round(load.chronic)}`
     );
+    if (load.estimated) {
+      lines.push(
+        `- 주의: 평소 부하에 가입 문진 추정치가 섞여 있음 (실측 반영 ${Math.round(load.realWeight * 100)}%). 단정적으로 쓰지 말 것.`
+      );
+    }
   } else {
     lines.push(
       `- 아직 계산할 수 없음 (기록 ${load.historyDays}일 / 필요 28일, ${load.daysNeeded}일 더 필요)`

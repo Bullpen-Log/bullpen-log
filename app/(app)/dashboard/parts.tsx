@@ -305,8 +305,13 @@ export function LoadIndexHelp({
             <p>
               부하 지수{' '}
               <span className="text-cream">
-                = 최근 7일 부하 ÷ 평소 4주 주당 평균
+                = 최근 부하 ÷ 평소 부하
               </span>
+              <span className="ml-1 text-muted/60">(최근일수록 크게 반영되는 평균)</span>
+            </p>
+            <p className="text-muted/70">
+              가입 때 답한 평소 투구량이 처음 기준이 되고, 기록이 쌓일수록 실제
+              기록으로 바뀝니다.
             </p>
             {chronic > 0 && (
               <p className="border-t border-line pt-1.5 text-muted/70">

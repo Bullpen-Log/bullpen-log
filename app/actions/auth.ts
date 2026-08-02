@@ -5,6 +5,7 @@ import bcrypt from 'bcryptjs';
 import { prisma } from '@/lib/prisma';
 import { createSession, deleteSession } from '@/lib/session';
 import { validateProfile } from '@/lib/profile';
+import { validateBaseline } from '@/lib/baseline';
 
 export type AuthState = { error?: string } | undefined;
 
@@ -40,6 +41,14 @@ export async function signup(_prev: AuthState, formData: FormData): Promise<Auth
   );
   if ('error' in profile) return profile;
 
+  // 평소 투구량 문진 — 부하 지수를 첫날부터 내기 위한 추정 기준선.
+  const baseline = validateBaseline({
+    baselineFreq: String(formData.get('baselineFreq') ?? ''),
+    baselineVolume: String(formData.get('baselineVolume') ?? ''),
+    baselineIntensity: String(formData.get('baselineIntensity') ?? ''),
+  });
+  if ('error' in baseline) return baseline;
+
   const existing = await prisma.user.findUnique({ where: { email } });
   if (existing) {
     return { error: '이미 가입된 이메일입니다.' };
@@ -55,6 +64,7 @@ export async function signup(_prev: AuthState, formData: FormData): Promise<Auth
       password: await bcrypt.hash(password, 10),
       role,
       ...profile.value,
+      ...baseline.value,
     },
     select: { id: true, role: true },
   });
