@@ -25,6 +25,12 @@ const SAMPLES_PER_SECOND = 30;
 /** 너무 긴 영상은 여기까지만 분석한다(초). */
 const MAX_ANALYZE_SECONDS = 40;
 
+/**
+ * 전체 분석 프레임 수 상한. 슬로모 영상은 재생 시간이 길어서
+ * 초당 프레임을 조금 줄여도 실제 동작 기준으로는 충분히 촘촘하다.
+ */
+const MAX_TOTAL_SAMPLES = 600;
+
 type Landmarker = {
   detectForVideo: (
     video: HTMLVideoElement,
@@ -119,7 +125,11 @@ export async function extractPoseTrack(
     );
     if (duration <= 0) throw new Error('영상 길이를 읽을 수 없습니다.');
 
-    const step = 1 / SAMPLES_PER_SECOND;
+    const perSecond = Math.min(
+      SAMPLES_PER_SECOND,
+      Math.max(10, Math.floor(MAX_TOTAL_SAMPLES / duration))
+    );
+    const step = 1 / perSecond;
     const frames: PoseFrame[] = [];
     let qualitySum = 0;
     let qualityCount = 0;

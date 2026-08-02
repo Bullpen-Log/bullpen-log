@@ -1,8 +1,9 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { Activity, Loader2, Play, Pause } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Activity, ChevronLeft, ChevronRight, Loader2, Play, Pause } from 'lucide-react';
 import { extractPoseTrack, frameAt } from '@/lib/pose/extract';
+import { detectPitchEvents } from '@/lib/pose/detect';
 import { LM, QUALITY_THRESHOLD, type PoseTrack } from '@/lib/pose/types';
 import { getContentBox } from '@/components/video-canvas';
 import type { VideoWithFrameCallback } from '@/components/use-frame-duration';
@@ -15,6 +16,23 @@ import type { VideoWithFrameCallback } from '@/components/use-frame-duration';
  */
 
 const BODY_START = 11; // 얼굴 세부 관절(0~10)은 선을 긋지 않는다.
+
+type EventKey = 'kneeUp' | 'footPlant' | 'release';
+
+const EVENT_ORDER: EventKey[] = ['kneeUp', 'footPlant', 'release'];
+
+const EVENT_LABELS: Record<EventKey, string> = {
+  kneeUp: '니업',
+  footPlant: '착지',
+  release: '릴리스',
+};
+
+/** "현재 프레임을 ~로 지정" 버튼 문구용 조사 처리 */
+const EVENT_AS: Record<EventKey, string> = {
+  kneeUp: '니업으로',
+  footPlant: '착지로',
+  release: '릴리스로',
+};
 
 function drawSkeleton(
   ctx: CanvasRenderingContext2D,
@@ -71,9 +89,41 @@ export function PoseAnalysis({ src, label }: { src: string; label: string }) {
   const [track, setTrack] = useState<PoseTrack | null>(null);
   const [playing, setPlaying] = useState(false);
 
+  // 구간(니업·착지·릴리스) — 자동 감지 결과 + 사용자가 프레임으로 직접 보정한 값
+  const [forcedSide, setForcedSide] = useState<'left' | 'right' | null>(null);
+  const [overrides, setOverrides] = useState<Partial<Record<EventKey, number>>>({});
+  const [selected, setSelected] = useState<EventKey | null>(null);
+  const [now, setNow] = useState(0);
+
   const videoRef = useRef<VideoWithFrameCallback>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const abortRef = useRef<AbortController | null>(null);
+
+  const events = useMemo(
+    () => (track ? detectPitchEvents(track, forcedSide ?? undefined) : null),
+    [track, forcedSide]
+  );
+
+  const effectiveTime = (key: EventKey): number | null =>
+    overrides[key] ?? events?.[key]?.t ?? null;
+
+  const seekTo = (t: number) => {
+    const v = videoRef.current;
+    if (!v) return;
+    v.pause();
+    v.currentTime = t;
+    setNow(t);
+  };
+
+  const stepFrame = (dir: 1 | -1) => {
+    const v = videoRef.current;
+    if (!v || !track) return;
+    v.pause();
+    const max = Number.isFinite(v.duration) ? v.duration : Infinity;
+    const t = Math.min(Math.max(v.currentTime + dir * track.sampleStep, 0), max);
+    v.currentTime = t;
+    setNow(t);
+  };
 
   const run = async () => {
     setPhase('loading');
@@ -196,6 +246,7 @@ export function PoseAnalysis({ src, label }: { src: string; label: string }) {
           }}
           onPlay={() => setPlaying(true)}
           onPause={() => setPlaying(false)}
+          onTimeUpdate={(e) => setNow(e.currentTarget.currentTime)}
           className="block aspect-video w-full cursor-pointer object-contain"
           aria-label={`${label} 스켈레톤 보기`}
         />
@@ -225,6 +276,111 @@ export function PoseAnalysis({ src, label }: { src: string; label: string }) {
         <span className="absolute right-2 top-2 rounded-full bg-ink/70 px-2.5 py-1 text-[10px] text-teal-300">
           스켈레톤 · 인식 신뢰도 {Math.round((track?.quality ?? 0) * 100)}%
         </span>
+      </div>
+
+      {/* 구간 — 자동 감지된 순간으로 이동하고, 틀리면 프레임 단위로 직접 지정 */}
+      <div className="space-y-2.5 rounded-xl border border-line bg-surface-2 p-3">
+        <div className="flex flex-wrap items-center gap-1.5">
+          {EVENT_ORDER.map((key) => {
+            const t = effectiveTime(key);
+            const auto = events?.[key];
+            const overridden = overrides[key] != null;
+            const blurry = !overridden && auto != null && auto.confidence < QUALITY_THRESHOLD;
+            return (
+              <button
+                key={key}
+                type="button"
+                onClick={() => {
+                  setSelected(key);
+                  if (t != null) seekTo(t);
+                }}
+                className={`rounded-lg border px-2.5 py-1.5 text-xs transition-colors ${
+                  selected === key
+                    ? 'border-gold bg-gold/10 text-gold'
+                    : 'border-line text-muted hover:border-gold-dim hover:text-cream'
+                }`}
+              >
+                {EVENT_LABELS[key]}{' '}
+                {t != null ? `${t.toFixed(2)}초` : '감지 못함'}
+                {blurry && '?'}
+                {overridden && ' ✎'}
+              </button>
+            );
+          })}
+          {events && (
+            <button
+              type="button"
+              onClick={() =>
+                setForcedSide(events.throwingSide === 'right' ? 'left' : 'right')
+              }
+              className="ml-auto rounded-lg border border-line px-2.5 py-1.5 text-[11px] text-muted transition-colors hover:border-gold-dim hover:text-cream"
+            >
+              {events.throwingSide === 'right' ? '우투로 인식' : '좌투로 인식'} · 전환
+            </button>
+          )}
+        </div>
+
+        <div className="flex flex-wrap items-center gap-1.5">
+          <button
+            type="button"
+            onClick={() => stepFrame(-1)}
+            aria-label="이전 프레임"
+            className="rounded-lg border border-line p-1.5 text-muted transition-colors hover:border-gold hover:text-gold"
+          >
+            <ChevronLeft className="h-3.5 w-3.5" />
+          </button>
+          <button
+            type="button"
+            onClick={() => stepFrame(1)}
+            aria-label="다음 프레임"
+            className="rounded-lg border border-line p-1.5 text-muted transition-colors hover:border-gold hover:text-gold"
+          >
+            <ChevronRight className="h-3.5 w-3.5" />
+          </button>
+          <span className="px-1 text-[11px] tabular-nums text-muted">
+            현재 {now.toFixed(2)}초
+          </span>
+          <button
+            type="button"
+            disabled={!selected}
+            onClick={() => {
+              if (!selected) return;
+              const v = videoRef.current;
+              if (!v) return;
+              setOverrides((prev) => ({ ...prev, [selected]: v.currentTime }));
+            }}
+            className="rounded-lg border border-line-strong px-2.5 py-1.5 text-[11px] text-cream transition-colors enabled:hover:border-gold enabled:hover:text-gold disabled:opacity-40"
+          >
+            현재 프레임을 {selected ? EVENT_AS[selected] : '구간으로'} 지정
+          </button>
+          {selected && overrides[selected] != null && (
+            <button
+              type="button"
+              onClick={() =>
+                setOverrides((prev) => {
+                  const next = { ...prev };
+                  delete next[selected];
+                  return next;
+                })
+              }
+              className="rounded-lg px-2 py-1.5 text-[11px] text-muted underline-offset-2 hover:text-cream hover:underline"
+            >
+              자동값 복원
+            </button>
+          )}
+        </div>
+
+        {events && !events.kneeUp && !events.footPlant && !events.release ? (
+          <p className="text-[11px] leading-relaxed text-amber-200/90">
+            투구 동작을 자동으로 찾지 못했습니다. 구간을 누른 뒤 ◀ ▶로 프레임을
+            맞추고 직접 지정해주세요.
+          </p>
+        ) : (
+          <p className="text-[11px] leading-relaxed text-muted/60">
+            구간을 누르면 그 순간으로 이동합니다. 위치가 틀리면 ◀ ▶로 맞춘 뒤
+            지정을 누르세요. ?는 그 순간 관절 인식이 흐렸다는 표시입니다.
+          </p>
+        )}
       </div>
 
       {lowQuality && (
