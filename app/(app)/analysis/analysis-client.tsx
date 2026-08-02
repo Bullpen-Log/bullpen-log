@@ -9,6 +9,7 @@ import { PitchCalendar, type DaySummary } from '@/app/(app)/pitch-log/calendar';
 import type { Log } from '@/app/(app)/pitch-log/pitch-log-client';
 import { usePlaybackUrls } from '@/components/use-playback-urls';
 import { FilmingGuide } from '@/components/filming-guide';
+import { PoseAnalysis } from '@/components/pose-analysis';
 import { CompareView, type ClipOption } from './compare-view';
 
 /** 재생 주소는 화면에서 필요할 때 따로 받아오므로 경로만 내려온다. */
@@ -216,10 +217,17 @@ export function AnalysisClient({ logs }: { logs: AnalysisLog[] }) {
                       {log.videoPaths.map((path, i) => (
                         <div key={path} className="space-y-2">
                           {playbackUrls[path] ? (
-                            <PitchVideoPlayer
-                              src={playbackUrls[path]}
-                              label={`${selectedDate} 투구 영상 ${i + 1}`}
-                            />
+                            <>
+                              <PitchVideoPlayer
+                                src={playbackUrls[path]}
+                                label={`${selectedDate} 투구 영상 ${i + 1}`}
+                              />
+                              {/* v0: 관절 추출 + 스켈레톤. 측정은 다음 단계. */}
+                              <PoseAnalysis
+                                src={playbackUrls[path]}
+                                label={`${selectedDate} 투구 영상 ${i + 1}`}
+                              />
+                            </>
                           ) : (
                             <div className="flex aspect-video items-center justify-center rounded-xl border border-line bg-surface-2 text-xs text-muted">
                               {urlsLoading || !urlsReady
