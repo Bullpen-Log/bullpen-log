@@ -45,7 +45,8 @@ const LOW_CONDITION_THRESHOLD = 4;
  */
 const RELATED_PARTS: Record<string, string[]> = {
   shoulder: ['어깨', '견갑', '가슴', '등'],
-  elbow: ['팔꿈치', '손목·전완'],
+  // 이두·삼두는 모두 팔꿈치를 지나는 근육이라 팔꿈치 쪽에 함께 넣는다.
+  elbow: ['팔꿈치', '손목·전완', '이두', '삼두'],
 };
 
 export type ExclusionReason = {
