@@ -6,7 +6,7 @@ import { deleteExercise } from '@/app/actions/content';
 import { TRAINING_CATEGORIES } from '@/lib/categories';
 import { BODY_PARTS, EXERCISE_EQUIPMENT, INTENSITY_NAMES } from '@/lib/exercise-meta';
 import { CategorySection } from '@/components/category-section';
-import { VideoPlayer } from '@/components/video-card';
+import { LibraryVideo } from '@/components/library-video';
 import { ExerciseBadges } from '@/components/meta-badges';
 import {
   MetaFilter,
@@ -25,8 +25,7 @@ export type ExerciseItem = {
   intensity: string;
   difficulty: string | null;
   equipment: string[];
-  embedUrl: string | null;
-  thumbnailUrl: string | null;
+  videoPath: string;
 };
 
 const FILTER_GROUPS = [
@@ -44,11 +43,7 @@ function ExerciseCard({
 }) {
   return (
     <Card className="flex flex-col gap-4 p-4 sm:p-5">
-      <VideoPlayer
-        embedUrl={item.embedUrl}
-        thumbnailUrl={item.thumbnailUrl}
-        title={item.title}
-      />
+      <LibraryVideo path={item.videoPath} title={item.title} />
 
       <div className="flex items-start justify-between gap-3">
         <h3 className="font-bold text-cream">{item.title}</h3>

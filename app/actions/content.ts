@@ -3,7 +3,7 @@
 import { revalidatePath } from 'next/cache';
 import { prisma } from '@/lib/prisma';
 import { getCurrentUser } from '@/lib/dal';
-import { getYouTubeId } from '@/lib/youtube';
+import { deleteVideos, isLibraryPath } from '@/lib/storage';
 import {
   MECHANICS_CATEGORY_NAMES,
   TRAINING_CATEGORY_NAMES,
@@ -40,16 +40,17 @@ export async function createExercise(
   const title = String(formData.get('title') ?? '').trim();
   const category = String(formData.get('category') ?? '').trim();
   const description = String(formData.get('description') ?? '').trim();
-  const videoUrl = String(formData.get('videoUrl') ?? '').trim();
+  const videoPath = String(formData.get('videoPath') ?? '').trim();
 
-  if (!title || !description || !videoUrl) {
-    return { error: '영상 링크를 포함한 모든 필수 항목을 입력해주세요.' };
+  if (!title || !description) {
+    return { error: '모든 필수 항목을 입력해주세요.' };
   }
   if (!TRAINING_CATEGORY_NAMES.includes(category)) {
     return { error: '알 수 없는 카테고리입니다.' };
   }
-  if (!getYouTubeId(videoUrl)) {
-    return { error: '유효한 유튜브 링크가 아닙니다. (예: https://youtu.be/영상ID)' };
+  // 올린 영상의 경로만 받는다. 다른 폴더를 가리키면 거부한다.
+  if (!videoPath || !isLibraryPath(videoPath)) {
+    return { error: '영상을 올려주세요.' };
   }
 
   // 목록에 없는 값이 섞여 들어오지 않도록 서버에서 다시 거른다.
@@ -77,7 +78,7 @@ export async function createExercise(
       title,
       category,
       description,
-      videoUrl,
+      videoPath,
       bodyParts,
       intensity,
       difficulty,
@@ -94,7 +95,9 @@ export async function deleteExercise(formData: FormData) {
   const id = String(formData.get('id') ?? '');
   if (!id) return;
 
-  await prisma.exerciseVideo.delete({ where: { id } });
+  // 기록을 지우면 저장소의 영상 파일도 함께 정리한다.
+  const removed = await prisma.exerciseVideo.delete({ where: { id } });
+  await deleteVideos([removed.videoPath]);
   revalidatePath('/library/training');
 }
 
@@ -109,17 +112,17 @@ export async function createGuide(
   const title = String(formData.get('title') ?? '').trim();
   const category = String(formData.get('category') ?? '').trim();
   const description = String(formData.get('description') ?? '').trim();
-  const videoUrl = String(formData.get('videoUrl') ?? '').trim();
+  const videoPath = String(formData.get('videoPath') ?? '').trim();
   const sortOrderRaw = String(formData.get('sortOrder') ?? '').trim();
 
-  if (!title || !description || !videoUrl) {
-    return { error: '영상 링크를 포함한 모든 필수 항목을 입력해주세요.' };
+  if (!title || !description) {
+    return { error: '모든 필수 항목을 입력해주세요.' };
   }
   if (!MECHANICS_CATEGORY_NAMES.includes(category)) {
     return { error: '알 수 없는 카테고리입니다.' };
   }
-  if (!getYouTubeId(videoUrl)) {
-    return { error: '유효한 유튜브 링크가 아닙니다. (예: https://youtu.be/영상ID)' };
+  if (!videoPath || !isLibraryPath(videoPath)) {
+    return { error: '영상을 올려주세요.' };
   }
 
   const sortOrder = sortOrderRaw ? Number.parseInt(sortOrderRaw, 10) : 0;
@@ -145,7 +148,7 @@ export async function createGuide(
       title,
       category,
       description,
-      videoUrl,
+      videoPath,
       focusPoints,
       equipment,
       sortOrder,
@@ -161,7 +164,8 @@ export async function deleteGuide(formData: FormData) {
   const id = String(formData.get('id') ?? '');
   if (!id) return;
 
-  await prisma.mechanicsGuide.delete({ where: { id } });
+  const removed = await prisma.mechanicsGuide.delete({ where: { id } });
+  await deleteVideos([removed.videoPath]);
   revalidatePath('/library/mechanics');
 }
 

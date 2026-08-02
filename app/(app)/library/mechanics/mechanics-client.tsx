@@ -6,7 +6,7 @@ import { deleteGuide, toggleGuideProgress } from '@/app/actions/content';
 import { MECHANICS_CATEGORIES } from '@/lib/categories';
 import { DRILL_EQUIPMENT, FOCUS_POINTS } from '@/lib/exercise-meta';
 import { CategorySection } from '@/components/category-section';
-import { VideoPlayer } from '@/components/video-card';
+import { LibraryVideo } from '@/components/library-video';
 import { DrillBadges } from '@/components/meta-badges';
 import {
   MetaFilter,
@@ -23,8 +23,7 @@ export type GuideItem = {
   description: string;
   focusPoints: string[];
   equipment: string[];
-  embedUrl: string | null;
-  thumbnailUrl: string | null;
+  videoPath: string;
   done: boolean;
 };
 
@@ -40,11 +39,7 @@ function GuideCard({ item, isAdmin }: { item: GuideItem; isAdmin: boolean }) {
         item.done ? 'border-gold-dim/50' : ''
       }`}
     >
-      <VideoPlayer
-        embedUrl={item.embedUrl}
-        thumbnailUrl={item.thumbnailUrl}
-        title={item.title}
-      />
+      <LibraryVideo path={item.videoPath} title={item.title} />
 
       <div className="flex flex-col">
         <div className="flex items-start justify-between gap-3">

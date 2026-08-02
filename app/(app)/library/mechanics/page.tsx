@@ -1,6 +1,5 @@
 import { prisma } from '@/lib/prisma';
 import { requireUser } from '@/lib/dal';
-import { getYouTubeEmbedUrl, getYouTubeThumbnail } from '@/lib/youtube';
 import { MechanicsClient, type GuideItem } from './mechanics-client';
 
 export default async function MechanicsPage() {
@@ -25,8 +24,7 @@ export default async function MechanicsPage() {
     description: g.description,
     focusPoints: g.focusPoints,
     equipment: g.equipment,
-    embedUrl: getYouTubeEmbedUrl(g.videoUrl),
-    thumbnailUrl: getYouTubeThumbnail(g.videoUrl),
+    videoPath: g.videoPath,
     done: completedIds.has(g.id),
   }));
 

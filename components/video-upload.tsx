@@ -21,8 +21,12 @@ function formatSize(bytes: number) {
  * 브라우저에서 저장소로 파일을 직접 올린다.
  * 서버는 업로드 주소만 발급하므로 큰 파일도 통과한다.
  */
-async function uploadToStorage(file: File, onProgress: (percent: number) => void) {
-  const res = await fetch('/api/pitch-log/upload-url', {
+async function uploadToStorage(
+  file: File,
+  endpoint: string,
+  onProgress: (percent: number) => void
+) {
+  const res = await fetch(endpoint, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -59,11 +63,14 @@ export function VideoUpload({
   onChange,
   max = 2,
   disabled,
+  /** 업로드 주소를 받아올 곳. 라이브러리 영상은 관리자 전용 주소를 쓴다. */
+  endpoint = '/api/pitch-log/upload-url',
 }: {
   videos: UploadedVideo[];
   onChange: (next: UploadedVideo[]) => void;
   max?: number;
   disabled?: boolean;
+  endpoint?: string;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
@@ -97,7 +104,7 @@ export function VideoUpload({
     setProgress(0);
 
     try {
-      const path = await uploadToStorage(file, setProgress);
+      const path = await uploadToStorage(file, endpoint, setProgress);
       onChange([
         ...videos,
         { path, name: file.name, previewUrl: URL.createObjectURL(file) },

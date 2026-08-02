@@ -3,6 +3,15 @@ import { createClient } from '@supabase/supabase-js';
 
 export const VIDEO_BUCKET = 'pitch-videos';
 
+/**
+ * 라이브러리(트레이닝·드릴) 영상이 들어가는 폴더.
+ *
+ * 투구 영상은 `{userId}/` 아래에 두고 본인만 볼 수 있게 하지만,
+ * 라이브러리 영상은 관리자가 올려 모든 회원이 함께 보는 자료다.
+ * 그래서 사용자 폴더와 완전히 분리해 두고, 접근 규칙도 따로 둔다.
+ */
+export const LIBRARY_PREFIX = 'library';
+
 /** 업로드 가능한 최대 용량. 버킷 설정과 같은 값을 유지해야 한다. */
 export const MAX_VIDEO_BYTES = 50 * 1024 * 1024; // 50MB
 
@@ -105,4 +114,32 @@ export async function deleteVideos(paths: string[]) {
 /** 해당 경로가 그 사용자의 폴더인지 확인한다. */
 export function isOwnedBy(path: string, userId: string) {
   return path.startsWith(`${userId}/`);
+}
+
+/**
+ * 라이브러리 영상을 올릴 임시 주소를 만든다.
+ * 사용자 폴더가 아니라 공용 폴더에 넣는다.
+ */
+export async function createLibraryUploadTarget(fileName: string) {
+  const ext =
+    fileName.split('.').pop()?.toLowerCase().replace(/[^a-z0-9]/g, '') || 'mp4';
+  const path = `${LIBRARY_PREFIX}/${crypto.randomUUID()}.${ext}`;
+
+  const { data, error } = await getClient()
+    .storage.from(VIDEO_BUCKET)
+    .createSignedUploadUrl(path);
+
+  if (error || !data) {
+    throw new Error(error?.message ?? '업로드 주소를 만들지 못했습니다.');
+  }
+
+  return { path: data.path, signedUrl: data.signedUrl, token: data.token };
+}
+
+/**
+ * 라이브러리 폴더의 경로인지 확인한다.
+ * 이 검사를 통과한 경로만 회원 누구에게나 재생 주소를 내준다.
+ */
+export function isLibraryPath(path: string) {
+  return path.startsWith(`${LIBRARY_PREFIX}/`) && !path.includes('..');
 }

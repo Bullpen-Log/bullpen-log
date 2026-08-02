@@ -1,10 +1,11 @@
 'use client';
 
-import { useActionState, useEffect, useRef } from 'react';
+import { useActionState, useState } from 'react';
 import { useFormStatus } from 'react-dom';
 import { createGuide, type ActionState } from '@/app/actions/content';
 import { Button, Field, FormError, Input, Textarea } from '@/components/ui';
 import { CheckboxGroup } from '@/components/choice-inputs';
+import { VideoUpload, type UploadedVideo } from '@/components/video-upload';
 import { DRILL_EQUIPMENT, FOCUS_POINTS } from '@/lib/exercise-meta';
 
 function SubmitButton() {
@@ -21,14 +22,25 @@ export function GuideForm({ category }: { category: string }) {
     createGuide,
     undefined
   );
-  const formRef = useRef<HTMLFormElement>(null);
+  const [videos, setVideos] = useState<UploadedVideo[]>([]);
 
-  useEffect(() => {
-    if (state?.success) formRef.current?.reset();
-  }, [state]);
+  /**
+   * 등록에 성공하면 폼을 비워 다음 항목을 바로 입력할 수 있게 한다.
+   * key를 바꿔 폼을 새로 그리면 입력칸이 한 번에 비워지므로
+   * effect 안에서 상태를 건드릴 필요가 없다.
+   */
+  const [formKey, setFormKey] = useState(0);
+  const [seenState, setSeenState] = useState(state);
+  if (state !== seenState) {
+    setSeenState(state);
+    if (state?.success) {
+      setVideos([]);
+      setFormKey((k) => k + 1);
+    }
+  }
 
   return (
-    <form ref={formRef} action={formAction} className="space-y-5">
+    <form key={formKey} action={formAction} className="space-y-5">
       <input type="hidden" name="category" value={category} />
 
       <FormError>{state?.error}</FormError>
@@ -42,8 +54,14 @@ export function GuideForm({ category }: { category: string }) {
         <Input name="title" placeholder="타월 드릴" required />
       </Field>
 
-      <Field label="유튜브 영상 링크" hint="유튜브 주소를 그대로 붙여넣으면 됩니다.">
-        <Input name="videoUrl" placeholder="https://youtu.be/영상ID" required />
+      <Field label="드릴 영상" hint="폰이나 컴퓨터에 있는 영상을 바로 올립니다.">
+        <input type="hidden" name="videoPath" value={videos[0]?.path ?? ''} />
+        <VideoUpload
+          videos={videos}
+          onChange={setVideos}
+          max={1}
+          endpoint="/api/library/upload-url"
+        />
       </Field>
 
       <Field label="노출 순서" hint="숫자가 작을수록 위에 표시됩니다. 비워두면 0.">
