@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Activity, ChevronLeft, ChevronRight, Loader2, Play, Pause } from 'lucide-react';
 import { extractPoseTrack, frameAt } from '@/lib/pose/extract';
 import { detectPitchEvents } from '@/lib/pose/detect';
+import { measurePitchMetrics } from '@/lib/pose/measure';
 import { LM, QUALITY_THRESHOLD, type PoseTrack } from '@/lib/pose/types';
 import { getContentBox } from '@/components/video-canvas';
 import type { VideoWithFrameCallback } from '@/components/use-frame-duration';
@@ -80,7 +81,15 @@ function drawSkeleton(
   }
 }
 
-export function PoseAnalysis({ src, label }: { src: string; label: string }) {
+export function PoseAnalysis({
+  src,
+  label,
+  heightCm,
+}: {
+  src: string;
+  label: string;
+  heightCm?: number | null;
+}) {
   const [phase, setPhase] = useState<'idle' | 'loading' | 'analyzing' | 'ready' | 'error'>(
     'idle'
   );
@@ -106,6 +115,22 @@ export function PoseAnalysis({ src, label }: { src: string; label: string }) {
 
   const effectiveTime = (key: EventKey): number | null =>
     overrides[key] ?? events?.[key]?.t ?? null;
+
+  // 지표 — 수동 보정된 구간 기준으로 다시 계산된다.
+  const metrics = useMemo(() => {
+    if (!track || !events) return null;
+    return measurePitchMetrics(
+      track,
+      {
+        kneeUp: overrides.kneeUp ?? events.kneeUp?.t ?? null,
+        footPlant: overrides.footPlant ?? events.footPlant?.t ?? null,
+        release: overrides.release ?? events.release?.t ?? null,
+      },
+      events.throwingSide,
+      events.direction,
+      heightCm
+    );
+  }, [track, events, overrides, heightCm]);
 
   const seekTo = (t: number) => {
     const v = videoRef.current;
@@ -382,6 +407,39 @@ export function PoseAnalysis({ src, label }: { src: string; label: string }) {
           </p>
         )}
       </div>
+
+      {/* 지표 — 구간 프레임에서 잰 수치. 절대값보다 지난 영상과의 변화가 중요하다. */}
+      {metrics && !lowQuality && (
+        <div className="space-y-1.5">
+          <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-4">
+            {metrics.map((m) => (
+              <div
+                key={`${m.phase}-${m.key}`}
+                className="rounded-xl border border-line bg-surface-2 px-3 py-2.5"
+              >
+                <p className="text-[10px] uppercase tracking-wider text-muted">
+                  {EVENT_LABELS[m.phase]} · {m.label}
+                </p>
+                {m.display ? (
+                  <p className="mt-1 text-sm font-semibold text-cream">{m.display}</p>
+                ) : (
+                  <p className="mt-1 text-xs text-muted">
+                    {m.reason === '구간 없음'
+                      ? '구간 지정 필요'
+                      : m.reason === '기준 없음'
+                        ? '측정 불가 (전신 필요)'
+                        : '측정 불가 (흐림)'}
+                  </p>
+                )}
+              </div>
+            ))}
+          </div>
+          <p className="text-[11px] leading-relaxed text-muted/60">
+            90도 측면 촬영 기준의 근사값입니다. 절대값보다는 같은 조건으로 찍은
+            지난 영상과의 변화를 보세요. 구간을 수동 지정하면 수치도 다시 계산됩니다.
+          </p>
+        </div>
+      )}
 
       {lowQuality && (
         <p className="rounded-lg border border-amber-500/30 bg-amber-500/[0.07] px-3 py-2 text-[11px] leading-relaxed text-amber-200/90">

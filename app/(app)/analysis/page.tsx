@@ -20,5 +20,5 @@ export default async function AnalysisPage() {
     date: log.date.toISOString(),
   }));
 
-  return <AnalysisClient logs={serialized} />;
+  return <AnalysisClient logs={serialized} heightCm={user.heightCm} />;
 }

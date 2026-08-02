@@ -20,7 +20,13 @@ const MODES = [
   { key: 'compare', label: '2분할 비교' },
 ] as const;
 
-export function AnalysisClient({ logs }: { logs: AnalysisLog[] }) {
+export function AnalysisClient({
+  logs,
+  heightCm,
+}: {
+  logs: AnalysisLog[];
+  heightCm: number | null;
+}) {
   const [mode, setMode] = useState<'single' | 'compare'>('single');
 
   const withVideo = useMemo(
@@ -222,10 +228,11 @@ export function AnalysisClient({ logs }: { logs: AnalysisLog[] }) {
                                 src={playbackUrls[path]}
                                 label={`${selectedDate} 투구 영상 ${i + 1}`}
                               />
-                              {/* v0: 관절 추출 + 스켈레톤. 측정은 다음 단계. */}
+                              {/* 관절 추출 + 스켈레톤 + 구간 검출 + 지표 측정 */}
                               <PoseAnalysis
                                 src={playbackUrls[path]}
                                 label={`${selectedDate} 투구 영상 ${i + 1}`}
+                                heightCm={heightCm}
                               />
                             </>
                           ) : (
