@@ -7,6 +7,7 @@ import { TRAINING_CATEGORIES } from '@/lib/categories';
 import { BODY_PARTS, EXERCISE_EQUIPMENT, INTENSITY_NAMES } from '@/lib/exercise-meta';
 import { CategorySection } from '@/components/category-section';
 import { LibraryVideo } from '@/components/library-video';
+import { LibraryTile } from '@/components/exercise-tile';
 import { ExerciseBadges } from '@/components/meta-badges';
 import {
   MetaFilter,
@@ -35,16 +36,18 @@ const FILTER_GROUPS = [
   { key: 'equipment', label: '장비', options: EXERCISE_EQUIPMENT },
 ];
 
-function ExerciseCard({
+/** 펼쳤을 때 보이는 전체 내용 */
+function ExerciseDetail({
   item,
   isAdmin,
+  onClose,
 }: {
   item: ExerciseItem;
   isAdmin: boolean;
+  onClose: () => void;
 }) {
   const [editing, setEditing] = useState(false);
 
-  // 수정 중에는 카드 자리에 폼을 펼친다.
   if (editing) {
     const draft: ExerciseDraft = {
       id: item.id,
@@ -79,46 +82,95 @@ function ExerciseCard({
   }
 
   return (
-    <Card className="flex flex-col gap-4 p-4 sm:p-5">
+    <Card className="grid gap-5 border-gold-dim/40 p-4 sm:p-5 md:grid-cols-[minmax(0,420px)_1fr]">
       <LibraryVideo path={item.videoPath} title={item.title} thumbUrl={item.thumbUrl} />
 
-      <div className="flex items-start justify-between gap-3">
-        <h3 className="font-bold text-cream">{item.title}</h3>
-        {isAdmin && (
+      <div className="flex flex-col gap-4">
+        <div className="flex items-start justify-between gap-3">
+          <h3 className="text-lg font-bold text-cream">{item.title}</h3>
           <div className="flex shrink-0 items-center gap-1">
+            {isAdmin && (
+              <>
+                <button
+                  type="button"
+                  onClick={() => setEditing(true)}
+                  aria-label={`${item.title} 수정`}
+                  className="rounded-lg p-2 text-muted transition-colors hover:bg-surface-2 hover:text-gold"
+                >
+                  <Pencil className="h-4 w-4" />
+                </button>
+                <form action={deleteExercise}>
+                  <input type="hidden" name="id" value={item.id} />
+                  <button
+                    type="submit"
+                    aria-label={`${item.title} 삭제`}
+                    className="rounded-lg p-2 text-muted transition-colors hover:bg-red-950/40 hover:text-red-400"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </button>
+                </form>
+              </>
+            )}
             <button
               type="button"
-              onClick={() => setEditing(true)}
-              aria-label={`${item.title} 수정`}
-              className="rounded-lg p-2 text-muted transition-colors hover:bg-surface-2 hover:text-gold"
+              onClick={onClose}
+              aria-label="닫기"
+              className="rounded-lg p-2 text-muted transition-colors hover:text-cream"
             >
-              <Pencil className="h-4 w-4" />
+              <X className="h-4 w-4" />
             </button>
-            <form action={deleteExercise}>
-              <input type="hidden" name="id" value={item.id} />
-              <button
-                type="submit"
-                aria-label={`${item.title} 삭제`}
-                className="rounded-lg p-2 text-muted transition-colors hover:bg-red-950/40 hover:text-red-400"
-              >
-                <Trash2 className="h-4 w-4" />
-              </button>
-            </form>
           </div>
-        )}
+        </div>
+
+        <ExerciseBadges
+          bodyParts={item.bodyParts}
+          intensity={item.intensity}
+          difficulty={item.difficulty}
+          equipment={item.equipment}
+        />
+
+        <p className="whitespace-pre-wrap text-sm leading-relaxed text-muted">
+          {item.description}
+        </p>
       </div>
-
-      <ExerciseBadges
-        bodyParts={item.bodyParts}
-        intensity={item.intensity}
-        difficulty={item.difficulty}
-        equipment={item.equipment}
-      />
-
-      <p className="whitespace-pre-wrap text-sm leading-relaxed text-muted">
-        {item.description}
-      </p>
     </Card>
+  );
+}
+
+/**
+ * 목록은 작은 카드로 촘촘히 깔고, 고른 하나만 그 자리에서 넓게 펼친다.
+ * 영상이 수십 개여도 스크롤이 길어지지 않는다.
+ */
+function ExerciseGrid({
+  items,
+  isAdmin,
+}: {
+  items: ExerciseItem[];
+  isAdmin: boolean;
+}) {
+  const [openId, setOpenId] = useState<string | null>(null);
+
+  return (
+    <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+      {items.map((item) =>
+        openId === item.id ? (
+          <div key={item.id} className="col-span-full">
+            <ExerciseDetail
+              item={item}
+              isAdmin={isAdmin}
+              onClose={() => setOpenId(null)}
+            />
+          </div>
+        ) : (
+          <LibraryTile
+            key={item.id}
+            title={item.title}
+            thumbUrl={item.thumbUrl}
+            onSelect={() => setOpenId(item.id)}
+          />
+        )
+      )}
+    </div>
   );
 }
 
@@ -169,13 +221,7 @@ export function TrainingClient({
 
       {filtering ? (
         // 조건을 고른 동안에는 카테고리를 접어두지 않고 결과만 펼쳐 보여준다.
-        matched.length > 0 && (
-          <div className="grid gap-6 md:grid-cols-2">
-            {matched.map((ex) => (
-              <ExerciseCard key={ex.id} item={ex} isAdmin={isAdmin} />
-            ))}
-          </div>
-        )
+        matched.length > 0 && <ExerciseGrid items={matched} isAdmin={isAdmin} />
       ) : (
         <div className="space-y-4">
           {TRAINING_CATEGORIES.map((category) => {
@@ -197,11 +243,7 @@ export function TrainingClient({
                       : '아직 등록된 영상이 없습니다.'}
                   </p>
                 ) : (
-                  <div className="grid gap-6 md:grid-cols-2">
-                    {items.map((ex) => (
-                      <ExerciseCard key={ex.id} item={ex} isAdmin={isAdmin} />
-                    ))}
-                  </div>
+                  <ExerciseGrid items={items} isAdmin={isAdmin} />
                 )}
               </CategorySection>
             );

@@ -7,6 +7,7 @@ import { MECHANICS_CATEGORIES } from '@/lib/categories';
 import { DRILL_EQUIPMENT, FOCUS_POINTS } from '@/lib/exercise-meta';
 import { CategorySection } from '@/components/category-section';
 import { LibraryVideo } from '@/components/library-video';
+import { LibraryTile } from '@/components/exercise-tile';
 import { DrillBadges } from '@/components/meta-badges';
 import {
   MetaFilter,
@@ -34,7 +35,16 @@ const FILTER_GROUPS = [
   { key: 'equipment', label: '장비', options: DRILL_EQUIPMENT },
 ];
 
-function GuideCard({ item, isAdmin }: { item: GuideItem; isAdmin: boolean }) {
+/** 펼쳤을 때 보이는 전체 내용 */
+function GuideDetail({
+  item,
+  isAdmin,
+  onClose,
+}: {
+  item: GuideItem;
+  isAdmin: boolean;
+  onClose: () => void;
+}) {
   const [editing, setEditing] = useState(false);
 
   if (editing) {
@@ -71,8 +81,8 @@ function GuideCard({ item, isAdmin }: { item: GuideItem; isAdmin: boolean }) {
 
   return (
     <Card
-      className={`grid gap-6 p-4 sm:p-6 md:grid-cols-[300px_1fr] ${
-        item.done ? 'border-gold-dim/50' : ''
+      className={`grid gap-5 p-4 sm:p-5 md:grid-cols-[minmax(0,420px)_1fr] ${
+        item.done ? 'border-gold-dim/50' : 'border-gold-dim/40'
       }`}
     >
       <LibraryVideo path={item.videoPath} title={item.title} thumbUrl={item.thumbUrl} />
@@ -88,28 +98,38 @@ function GuideCard({ item, isAdmin }: { item: GuideItem; isAdmin: boolean }) {
             <h3 className="text-lg font-bold text-cream">{item.title}</h3>
           </div>
 
-          {isAdmin && (
-            <div className="flex shrink-0 items-center gap-1">
-              <button
-                type="button"
-                onClick={() => setEditing(true)}
-                aria-label={`${item.title} 수정`}
-                className="rounded-lg p-2 text-muted transition-colors hover:bg-surface-2 hover:text-gold"
-              >
-                <Pencil className="h-4 w-4" />
-              </button>
-              <form action={deleteGuide}>
-                <input type="hidden" name="id" value={item.id} />
+          <div className="flex shrink-0 items-center gap-1">
+            {isAdmin && (
+              <>
                 <button
-                  type="submit"
-                  aria-label={`${item.title} 삭제`}
-                  className="rounded-lg p-2 text-muted transition-colors hover:bg-red-950/40 hover:text-red-400"
+                  type="button"
+                  onClick={() => setEditing(true)}
+                  aria-label={`${item.title} 수정`}
+                  className="rounded-lg p-2 text-muted transition-colors hover:bg-surface-2 hover:text-gold"
                 >
-                  <Trash2 className="h-4 w-4" />
+                  <Pencil className="h-4 w-4" />
                 </button>
-              </form>
-            </div>
-          )}
+                <form action={deleteGuide}>
+                  <input type="hidden" name="id" value={item.id} />
+                  <button
+                    type="submit"
+                    aria-label={`${item.title} 삭제`}
+                    className="rounded-lg p-2 text-muted transition-colors hover:bg-red-950/40 hover:text-red-400"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </button>
+                </form>
+              </>
+            )}
+            <button
+              type="button"
+              onClick={onClose}
+              aria-label="닫기"
+              className="rounded-lg p-2 text-muted transition-colors hover:text-cream"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
         </div>
 
         <div className="mt-3">
@@ -136,6 +156,37 @@ function GuideCard({ item, isAdmin }: { item: GuideItem; isAdmin: boolean }) {
         </form>
       </div>
     </Card>
+  );
+}
+
+/**
+ * 목록은 작은 카드로 촘촘히 깔고, 고른 하나만 그 자리에서 넓게 펼친다.
+ * 드릴이 수십 개여도 스크롤이 길어지지 않는다.
+ */
+function GuideGrid({ items, isAdmin }: { items: GuideItem[]; isAdmin: boolean }) {
+  const [openId, setOpenId] = useState<string | null>(null);
+
+  return (
+    <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+      {items.map((item) =>
+        openId === item.id ? (
+          <div key={item.id} className="col-span-full">
+            <GuideDetail
+              item={item}
+              isAdmin={isAdmin}
+              onClose={() => setOpenId(null)}
+            />
+          </div>
+        ) : (
+          <LibraryTile
+            key={item.id}
+            title={item.title}
+            thumbUrl={item.thumbUrl}
+            onSelect={() => setOpenId(item.id)}
+          />
+        )
+      )}
+    </div>
   );
 }
 
@@ -182,13 +233,7 @@ export function MechanicsClient({
       )}
 
       {filtering ? (
-        matched.length > 0 && (
-          <div className="space-y-6">
-            {matched.map((g) => (
-              <GuideCard key={g.id} item={g} isAdmin={isAdmin} />
-            ))}
-          </div>
-        )
+        matched.length > 0 && <GuideGrid items={matched} isAdmin={isAdmin} />
       ) : (
         <div className="space-y-4">
           {MECHANICS_CATEGORIES.map((category) => {
@@ -210,11 +255,7 @@ export function MechanicsClient({
                       : '아직 등록된 드릴이 없습니다.'}
                   </p>
                 ) : (
-                  <div className="space-y-6">
-                    {items.map((g) => (
-                      <GuideCard key={g.id} item={g} isAdmin={isAdmin} />
-                    ))}
-                  </div>
+                  <GuideGrid items={items} isAdmin={isAdmin} />
                 )}
               </CategorySection>
             );
