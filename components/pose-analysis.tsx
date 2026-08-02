@@ -99,7 +99,8 @@ export function PoseAnalysis({
   const [playing, setPlaying] = useState(false);
 
   // 구간(니업·착지·릴리스) — 자동 감지 결과 + 사용자가 프레임으로 직접 보정한 값
-  const [forcedSide, setForcedSide] = useState<'left' | 'right' | null>(null);
+  // 뒤에서 찍은 영상은 인식 모델이 좌우 라벨을 뒤집으므로 표기만 고칠 수 있게 한다.
+  const [handedLabel, setHandedLabel] = useState<'left' | 'right' | null>(null);
   const [overrides, setOverrides] = useState<Partial<Record<EventKey, number>>>({});
   const [selected, setSelected] = useState<EventKey | null>(null);
   const [now, setNow] = useState(0);
@@ -109,14 +110,15 @@ export function PoseAnalysis({
   const abortRef = useRef<AbortController | null>(null);
 
   const events = useMemo(
-    () => (track ? detectPitchEvents(track, forcedSide ?? undefined) : null),
-    [track, forcedSide]
+    () => (track ? detectPitchEvents(track, handedLabel ?? undefined) : null),
+    [track, handedLabel]
   );
 
   const effectiveTime = (key: EventKey): number | null =>
     overrides[key] ?? events?.[key]?.t ?? null;
 
   // 지표 — 수동 보정된 구간 기준으로 다시 계산된다.
+  // 좌/우투 표기(throwingSide)가 아니라 실제로 감지된 팔(wristSide)로 잰다.
   const metrics = useMemo(() => {
     if (!track || !events) return null;
     return measurePitchMetrics(
@@ -126,9 +128,10 @@ export function PoseAnalysis({
         footPlant: overrides.footPlant ?? events.footPlant?.t ?? null,
         release: overrides.release ?? events.release?.t ?? null,
       },
-      events.throwingSide,
+      events.wristSide,
       events.direction,
-      heightCm
+      heightCm,
+      events.leadSide
     );
   }, [track, events, overrides, heightCm]);
 
@@ -341,7 +344,7 @@ export function PoseAnalysis({
             <button
               type="button"
               onClick={() =>
-                setForcedSide(events.throwingSide === 'right' ? 'left' : 'right')
+                setHandedLabel(events.throwingSide === 'right' ? 'left' : 'right')
               }
               className="ml-auto rounded-lg border border-line px-2.5 py-1.5 text-[11px] text-muted transition-colors hover:border-gold-dim hover:text-cream"
             >
@@ -400,10 +403,16 @@ export function PoseAnalysis({
           )}
         </div>
 
-        {events && !events.kneeUp && !events.footPlant && !events.release ? (
+        {events && !events.sideViewOk ? (
+          <p className="text-[11px] leading-relaxed text-muted/60">
+            구간을 직접 지정할 수는 있지만, 촬영 각도 때문에 수치는 실제와 다르게
+            나옵니다.
+          </p>
+        ) : events && !events.kneeUp && !events.footPlant && !events.release ? (
           <p className="text-[11px] leading-relaxed text-amber-200/90">
-            투구 동작을 자동으로 찾지 못했습니다. 구간을 누른 뒤 ◀ ▶로 프레임을
-            맞추고 직접 지정해주세요.
+            투구 동작을 찾지 못했습니다. 팔을 휘두르는 장면이 화면 안에 다 들어와
+            있는지 확인해주세요. 구간을 누른 뒤 ◀ ▶로 프레임을 맞추고 직접
+            지정하면 수치는 똑같이 계산됩니다.
           </p>
         ) : (
           <p className="text-[11px] leading-relaxed text-muted/60">
@@ -412,6 +421,15 @@ export function PoseAnalysis({
           </p>
         )}
       </div>
+
+      {events && !events.sideViewOk && (
+        <p className="rounded-lg border border-amber-500/30 bg-amber-500/[0.07] px-3 py-2 text-[11px] leading-relaxed text-amber-200/90">
+          투구 방향의 앞이나 뒤에서 찍힌 영상이라 자동 분석을 하지 않았습니다.
+          이 각도에서는 몸이 화면 안쪽으로 움직여 거리와 각도를 잴 수 없어,
+          숫자를 내면 전부 틀린 값이 됩니다. 위 촬영 가이드대로 1루 또는 3루
+          쪽에서 옆모습으로 찍어주세요. 스켈레톤은 그대로 보실 수 있습니다.
+        </p>
+      )}
 
       {badCameraAngle && (
         <p className="rounded-lg border border-amber-500/30 bg-amber-500/[0.07] px-3 py-2 text-[11px] leading-relaxed text-amber-200/90">

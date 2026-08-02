@@ -89,15 +89,17 @@ export function measurePitchMetrics(
   times: Record<MetricPhase, number | null>,
   side: 'left' | 'right',
   direction: 1 | -1,
-  heightCm?: number | null
+  heightCm?: number | null,
+  /** 앞다리 — 위치로 정해진 값. 생략하면 던지는 팔의 반대쪽으로 본다. */
+  leadSide: 'left' | 'right' = side === 'right' ? 'left' : 'right'
 ): PitchMetric[] {
   const w = track.videoWidth;
   const h = track.videoHeight;
 
-  const leadHip = side === 'right' ? LM.leftHip : LM.rightHip;
-  const leadKnee = side === 'right' ? LM.leftKnee : LM.rightKnee;
-  const leadAnkle = side === 'right' ? LM.leftAnkle : LM.rightAnkle;
-  const rearAnkle = side === 'right' ? LM.rightAnkle : LM.leftAnkle;
+  const leadHip = leadSide === 'left' ? LM.leftHip : LM.rightHip;
+  const leadKnee = leadSide === 'left' ? LM.leftKnee : LM.rightKnee;
+  const leadAnkle = leadSide === 'left' ? LM.leftAnkle : LM.rightAnkle;
+  const rearAnkle = leadSide === 'left' ? LM.rightAnkle : LM.leftAnkle;
   const throwShoulder = side === 'right' ? LM.rightShoulder : LM.leftShoulder;
   const throwWrist = side === 'right' ? LM.rightWrist : LM.leftWrist;
 
