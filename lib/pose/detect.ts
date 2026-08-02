@@ -108,17 +108,6 @@ export function detectPitchEvents(
   const leftWrist = jointSeries(track, LM.leftWrist);
   const rightWrist = jointSeries(track, LM.rightWrist);
 
-  // 1) 던지는 팔 — 투구 중 가장 빠르게 움직이는 손목이 던지는 손이다.
-  const throwingSide: 'left' | 'right' =
-    forcedSide ??
-    (wristPeakSpeed(track, leftWrist) > wristPeakSpeed(track, rightWrist)
-      ? 'left'
-      : 'right');
-  const leadKneeIdx = throwingSide === 'right' ? LM.leftKnee : LM.rightKnee;
-  const leadAnkleIdx = throwingSide === 'right' ? LM.leftAnkle : LM.rightAnkle;
-  const leadShoulderIdx = throwingSide === 'right' ? LM.leftShoulder : LM.rightShoulder;
-  const throwingWrist = throwingSide === 'right' ? rightWrist : leftWrist;
-
   // 몸통 길이(어깨 중심~골반 중심)를 자로 삼아 거리 기준을 몸 크기에 맞춘다.
   const trunkLengths: number[] = [];
   for (const f of frames) {
@@ -136,31 +125,58 @@ export function detectPitchEvents(
   }
   const trunk = median(trunkLengths) ?? 0.15;
 
-  // 2) 니업 — 리드 무릎(던지는 팔 반대쪽)이 화면에서 가장 높이 올라간 순간.
-  const kneeSeries = jointSeries(track, leadKneeIdx);
-  const kneeY = smooth(coordOf(kneeSeries, 'y', VIS_OK));
-  const kneeVals = kneeY.filter((v): v is number => v != null);
-  let kneeUp: PitchEvent | null = null;
-  let kneeUpIdx = -1;
-  if (kneeVals.length > 0) {
-    const baseline = median(kneeVals)!;
+  // 무릎별 리프트 정보 — 니업 검출과 던지는 팔 판별에 함께 쓴다.
+  const kneeLiftInfo = (kneeIdx: number) => {
+    const series = jointSeries(track, kneeIdx);
+    const y = smooth(coordOf(series, 'y', VIS_OK));
+    const vals = y.filter((v): v is number => v != null);
+    if (vals.length === 0) return { lift: 0, minIdx: -1, series };
+    const baseline = median(vals)!;
     let minY = Infinity;
-    for (let i = 0; i < kneeY.length; i++) {
-      const v = kneeY[i];
+    let minIdx = -1;
+    for (let i = 0; i < y.length; i++) {
+      const v = y[i];
       if (v != null && v < minY) {
         minY = v;
-        kneeUpIdx = i;
+        minIdx = i;
       }
     }
-    // 무릎이 충분히 올라오지 않았으면 투구 동작이 아니라고 본다.
-    if (kneeUpIdx >= 0 && baseline - minY >= MIN_KNEE_LIFT_RATIO * trunk) {
-      kneeUp = {
-        t: frames[kneeUpIdx].t,
-        confidence: kneeSeries[kneeUpIdx]?.v ?? 0,
-      };
-    } else {
-      kneeUpIdx = -1;
-    }
+    return { lift: baseline - minY, minIdx, series };
+  };
+  const leftKneeInfo = kneeLiftInfo(LM.leftKnee);
+  const rightKneeInfo = kneeLiftInfo(LM.rightKnee);
+  const liftGate = MIN_KNEE_LIFT_RATIO * trunk;
+
+  // 1) 던지는 팔 — 가장 확실한 신호는 리드 무릎 리프트다(반대쪽이 던지는 팔).
+  //    일반 속도 영상에선 던지는 손이 모션 블러로 지워져 손목 속도가
+  //    글러브 손 쪽으로 역전되기도 하므로, 손목 속도는 무릎이 안 올라간
+  //    영상(캐치볼 등)에서만 예비 수단으로 쓴다.
+  let throwingSide: 'left' | 'right';
+  if (forcedSide) {
+    throwingSide = forcedSide;
+  } else if (Math.max(leftKneeInfo.lift, rightKneeInfo.lift) >= liftGate) {
+    throwingSide = leftKneeInfo.lift > rightKneeInfo.lift ? 'right' : 'left';
+  } else {
+    throwingSide =
+      wristPeakSpeed(track, leftWrist) > wristPeakSpeed(track, rightWrist)
+        ? 'left'
+        : 'right';
+  }
+  const leadAnkleIdx = throwingSide === 'right' ? LM.leftAnkle : LM.rightAnkle;
+  const leadShoulderIdx = throwingSide === 'right' ? LM.leftShoulder : LM.rightShoulder;
+  const throwingWrist = throwingSide === 'right' ? rightWrist : leftWrist;
+
+  // 2) 니업 — 리드 무릎(던지는 팔 반대쪽)이 화면에서 가장 높이 올라간 순간.
+  //    무릎이 충분히 올라오지 않았으면 투구 동작이 아니라고 본다.
+  const leadKneeInfo = throwingSide === 'right' ? leftKneeInfo : rightKneeInfo;
+  let kneeUp: PitchEvent | null = null;
+  let kneeUpIdx = -1;
+  if (leadKneeInfo.minIdx >= 0 && leadKneeInfo.lift >= liftGate) {
+    kneeUpIdx = leadKneeInfo.minIdx;
+    kneeUp = {
+      t: frames[kneeUpIdx].t,
+      confidence: leadKneeInfo.series[kneeUpIdx]?.v ?? 0,
+    };
   }
 
   // 3) 진행 방향 — 니업 이후 골반이 이동하는 쪽. (스트라이드는 홈 방향이다)

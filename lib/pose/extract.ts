@@ -39,40 +39,55 @@ type Landmarker = {
   close: () => void;
 };
 
-let landmarkerPromise: Promise<{
-  landmarker: Landmarker;
-  connections: { start: number; end: number }[];
+type Vision = typeof import('@mediapipe/tasks-vision');
+
+let filesetPromise: Promise<{
+  vision: Vision;
+  fileset: Awaited<ReturnType<Vision['FilesetResolver']['forVisionTasks']>>;
 }> | null = null;
 
-/** 모델을 한 번만 내려받아 재사용한다. GPU가 안 되면 CPU로 물러선다. */
-function loadLandmarker() {
-  landmarkerPromise ??= (async () => {
+/** 실행 파일(wasm)은 한 번만 내려받아 재사용한다. */
+function loadFileset() {
+  filesetPromise ??= (async () => {
     const vision = await import('@mediapipe/tasks-vision');
     const fileset = await vision.FilesetResolver.forVisionTasks(WASM_URL);
-
-    const create = (delegate: 'GPU' | 'CPU') =>
-      vision.PoseLandmarker.createFromOptions(fileset, {
-        baseOptions: { modelAssetPath: MODEL_URL, delegate },
-        runningMode: 'VIDEO',
-        numPoses: 1,
-      });
-
-    let landmarker: Landmarker;
-    try {
-      landmarker = await create('GPU');
-    } catch {
-      landmarker = await create('CPU');
-    }
-
-    return {
-      landmarker,
-      connections: vision.PoseLandmarker.POSE_CONNECTIONS.map((c) => ({
-        start: c.start,
-        end: c.end,
-      })),
-    };
+    return { vision, fileset };
   })();
-  return landmarkerPromise;
+  return filesetPromise;
+}
+
+/**
+ * 엔진은 영상마다 새로 만들고 끝나면 버린다.
+ *
+ * 재사용하면 (1) timestamp가 이전 영상보다 작아져 그래프가 죽고,
+ * (2) 이전 영상의 추적 상태가 새어 들어와 같은 영상인데 분석 순서에 따라
+ * 결과가 미세하게 달라진다. 모델 파일은 브라우저가 캐시하므로 새로 만드는
+ * 비용은 1초 남짓이고, 대신 같은 영상이면 언제나 같은 결과가 나온다.
+ */
+async function createLandmarker() {
+  const { vision, fileset } = await loadFileset();
+
+  const create = (delegate: 'GPU' | 'CPU') =>
+    vision.PoseLandmarker.createFromOptions(fileset, {
+      baseOptions: { modelAssetPath: MODEL_URL, delegate },
+      runningMode: 'VIDEO',
+      numPoses: 1,
+    });
+
+  let landmarker: Landmarker;
+  try {
+    landmarker = await create('GPU');
+  } catch {
+    landmarker = await create('CPU');
+  }
+
+  return {
+    landmarker,
+    connections: vision.PoseLandmarker.POSE_CONNECTIONS.map((c) => ({
+      start: c.start,
+      end: c.end,
+    })),
+  };
 }
 
 function seekTo(video: HTMLVideoElement, t: number): Promise<void> {
@@ -104,7 +119,7 @@ export async function extractPoseTrack(
   onProgress: (ratio: number) => void,
   signal?: AbortSignal
 ): Promise<PoseTrack> {
-  const { landmarker, connections } = await loadLandmarker();
+  const { landmarker, connections } = await createLandmarker();
 
   const video = document.createElement('video');
   video.crossOrigin = 'anonymous';
@@ -134,7 +149,8 @@ export async function extractPoseTrack(
     let qualitySum = 0;
     let qualityCount = 0;
 
-    // detectForVideo의 timestamp는 단조 증가해야 해서 소수점 오차를 피해 정수 ms를 쓴다.
+    // timestamp는 단조 증가해야 해서 소수점 오차를 피해 정수 ms를 쓴다.
+    // (엔진을 영상마다 새로 만들므로 0부터 시작해도 안전하다)
     for (let i = 0; i * step <= duration; i++) {
       if (signal?.aborted) throw new Error('분석이 취소되었습니다.');
 
@@ -176,7 +192,13 @@ export async function extractPoseTrack(
       sampleStep: step,
       quality: qualityCount ? qualitySum / qualityCount : 0,
     };
+  } catch (err) {
+    // 우리가 만든 한국어 안내문은 그대로 올려보낸다.
+    if (err instanceof Error && /[가-힣]/.test(err.message)) throw err;
+    // 그 외(MediaPipe 내부 오류 등)는 사람이 읽을 안내로 바꾼다.
+    throw new Error('분석 도구에 문제가 생겨 중단됐습니다. 한 번 더 눌러 다시 시도해주세요.');
   } finally {
+    landmarker.close();
     video.src = '';
   }
 }

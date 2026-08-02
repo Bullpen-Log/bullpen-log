@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Activity, ChevronLeft, ChevronRight, Loader2, Play, Pause } from 'lucide-react';
 import { extractPoseTrack, frameAt } from '@/lib/pose/extract';
 import { detectPitchEvents } from '@/lib/pose/detect';
-import { measurePitchMetrics } from '@/lib/pose/measure';
+import { measurePitchMetrics, MIN_PLAUSIBLE_STRIDE_PCT } from '@/lib/pose/measure';
 import { LM, QUALITY_THRESHOLD, type PoseTrack } from '@/lib/pose/types';
 import { getContentBox } from '@/components/video-canvas';
 import type { VideoWithFrameCallback } from '@/components/use-frame-duration';
@@ -255,6 +255,11 @@ export function PoseAnalysis({
   // ready
   const lowQuality = track && track.quality < QUALITY_THRESHOLD;
 
+  // 스트라이드가 비정상적으로 짧으면 측면(90도) 촬영이 아니라는 신호다.
+  const strideMetric = metrics?.find((m) => m.key === 'stride');
+  const badCameraAngle =
+    strideMetric?.value != null && strideMetric.value < MIN_PLAUSIBLE_STRIDE_PCT;
+
   return (
     <div className="space-y-2">
       <div className="relative overflow-hidden rounded-xl border border-gold-dim/50 bg-black">
@@ -407,6 +412,15 @@ export function PoseAnalysis({
           </p>
         )}
       </div>
+
+      {badCameraAngle && (
+        <p className="rounded-lg border border-amber-500/30 bg-amber-500/[0.07] px-3 py-2 text-[11px] leading-relaxed text-amber-200/90">
+          스트라이드가 신장의 {strideMetric?.value}%로 측정됐습니다 — 옆(90도)이
+          아닌 각도에서 찍힌 영상 같습니다. 이런 영상은 거리·각도 수치가 실제보다
+          작게 나오고 좌/우투 인식도 뒤집힐 수 있습니다. 위 촬영 가이드대로 옆에서
+          다시 찍으면 정확해집니다.
+        </p>
+      )}
 
       {/* 지표 — 구간 프레임에서 잰 수치. 절대값보다 지난 영상과의 변화가 중요하다. */}
       {metrics && !lowQuality && (
