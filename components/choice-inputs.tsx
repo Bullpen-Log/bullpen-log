@@ -29,11 +29,14 @@ export function CheckboxGroup({
   label,
   hint,
   options,
+  /** 수정할 때 미리 체크해둘 값들 */
+  selected,
 }: {
   name: string;
   label: string;
   hint?: string;
   options: readonly string[];
+  selected?: readonly string[];
 }) {
   return (
     <fieldset>
@@ -45,6 +48,7 @@ export function CheckboxGroup({
               type="checkbox"
               name={name}
               value={option}
+              defaultChecked={selected?.includes(option)}
               className="peer sr-only"
             />
             <span
@@ -65,6 +69,8 @@ export function RadioGroup({
   hint,
   options,
   required,
+  /** 수정할 때 미리 고를 값 */
+  selected,
 }: {
   name: string;
   label: string;
@@ -72,6 +78,7 @@ export function RadioGroup({
   /** desc가 있으면 항목 아래에 설명이 붙는다. */
   options: readonly { name: string; desc?: string }[];
   required?: boolean;
+  selected?: string | null;
 }) {
   return (
     <fieldset>
@@ -84,6 +91,7 @@ export function RadioGroup({
               name={name}
               value={option.name}
               required={required}
+              defaultChecked={selected === option.name}
               className="peer sr-only"
             />
             <span

@@ -31,6 +31,7 @@ export default async function MechanicsPage() {
     equipment: g.equipment,
     videoPath: g.videoPath,
     thumbUrl: g.thumbPath ? (thumbUrls[g.thumbPath] ?? null) : null,
+    sortOrder: g.sortOrder,
     done: completedIds.has(g.id),
   }));
 

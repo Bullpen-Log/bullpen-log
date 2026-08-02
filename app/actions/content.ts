@@ -105,6 +105,90 @@ export async function deleteExercise(formData: FormData) {
   revalidatePath('/library/training');
 }
 
+/**
+ * 등록된 운동을 수정한다.
+ * 영상은 새로 올렸을 때만 바꾸고, 그때 예전 파일을 정리한다.
+ */
+export async function updateExercise(
+  _prev: ActionState,
+  formData: FormData
+): Promise<ActionState> {
+  if (!(await assertAdmin())) return { error: '관리자만 수정할 수 있습니다.' };
+
+  const id = String(formData.get('id') ?? '');
+  const existing = id ? await prisma.exerciseVideo.findUnique({ where: { id } }) : null;
+  if (!existing) return { error: '대상을 찾을 수 없습니다.' };
+
+  const title = String(formData.get('title') ?? '').trim();
+  const category = String(formData.get('category') ?? '').trim();
+  const description = String(formData.get('description') ?? '').trim();
+
+  if (!title || !description) {
+    return { error: '모든 필수 항목을 입력해주세요.' };
+  }
+  if (!TRAINING_CATEGORY_NAMES.includes(category)) {
+    return { error: '알 수 없는 카테고리입니다.' };
+  }
+
+  // 새 영상을 올렸으면 교체하고, 아니면 쓰던 것을 그대로 둔다.
+  const newVideo = String(formData.get('videoPath') ?? '').trim();
+  const newThumbRaw = String(formData.get('thumbPath') ?? '').trim();
+  const replacing = Boolean(newVideo);
+  if (replacing && !isLibraryPath(newVideo)) {
+    return { error: '영상을 다시 올려주세요.' };
+  }
+  const videoPath = replacing ? newVideo : existing.videoPath;
+  const thumbPath = replacing
+    ? newThumbRaw && isLibraryPath(newThumbRaw)
+      ? newThumbRaw
+      : null
+    : existing.thumbPath;
+
+  const bodyParts = pickMany(formData.getAll('bodyParts').map(String), BODY_PARTS);
+  if (bodyParts.length === 0) {
+    return { error: '목표 부위를 하나 이상 선택해주세요.' };
+  }
+
+  const intensity = pickOne(String(formData.get('intensity') ?? ''), INTENSITY_NAMES);
+  if (!intensity) {
+    return { error: '운동 강도를 선택해주세요.' };
+  }
+
+  const difficulty = pickOne(
+    String(formData.get('difficulty') ?? ''),
+    DIFFICULTY_NAMES
+  );
+  const equipment = pickMany(
+    formData.getAll('equipment').map(String),
+    EXERCISE_EQUIPMENT
+  );
+
+  await prisma.exerciseVideo.update({
+    where: { id },
+    data: {
+      title,
+      category,
+      description,
+      videoPath,
+      thumbPath,
+      bodyParts,
+      intensity,
+      difficulty,
+      equipment,
+    },
+  });
+
+  // DB를 먼저 바꾼 뒤에 옛 파일을 지운다. 순서가 반대면 실패 시 영상이 사라진다.
+  if (replacing) {
+    await deleteVideos(
+      [existing.videoPath, existing.thumbPath].filter((p): p is string => !!p)
+    );
+  }
+
+  revalidatePath('/library/training');
+  return { success: '수정했습니다.' };
+}
+
 /* --------------------------------- 메커니즘 --------------------------------- */
 
 export async function createGuide(
@@ -174,6 +258,84 @@ export async function deleteGuide(formData: FormData) {
   const removed = await prisma.mechanicsGuide.delete({ where: { id } });
   await deleteVideos([removed.videoPath, removed.thumbPath].filter((p): p is string => !!p));
   revalidatePath('/library/mechanics');
+}
+
+/** 등록된 드릴을 수정한다. 영상은 새로 올렸을 때만 교체한다. */
+export async function updateGuide(
+  _prev: ActionState,
+  formData: FormData
+): Promise<ActionState> {
+  if (!(await assertAdmin())) return { error: '관리자만 수정할 수 있습니다.' };
+
+  const id = String(formData.get('id') ?? '');
+  const existing = id ? await prisma.mechanicsGuide.findUnique({ where: { id } }) : null;
+  if (!existing) return { error: '대상을 찾을 수 없습니다.' };
+
+  const title = String(formData.get('title') ?? '').trim();
+  const category = String(formData.get('category') ?? '').trim();
+  const description = String(formData.get('description') ?? '').trim();
+  const sortOrderRaw = String(formData.get('sortOrder') ?? '').trim();
+
+  if (!title || !description) {
+    return { error: '모든 필수 항목을 입력해주세요.' };
+  }
+  if (!MECHANICS_CATEGORY_NAMES.includes(category)) {
+    return { error: '알 수 없는 카테고리입니다.' };
+  }
+
+  const newVideo = String(formData.get('videoPath') ?? '').trim();
+  const newThumbRaw = String(formData.get('thumbPath') ?? '').trim();
+  const replacing = Boolean(newVideo);
+  if (replacing && !isLibraryPath(newVideo)) {
+    return { error: '영상을 다시 올려주세요.' };
+  }
+  const videoPath = replacing ? newVideo : existing.videoPath;
+  const thumbPath = replacing
+    ? newThumbRaw && isLibraryPath(newThumbRaw)
+      ? newThumbRaw
+      : null
+    : existing.thumbPath;
+
+  const sortOrder = sortOrderRaw ? Number.parseInt(sortOrderRaw, 10) : 0;
+  if (Number.isNaN(sortOrder)) {
+    return { error: '순서는 숫자로 입력해주세요.' };
+  }
+
+  const focusPoints = pickMany(
+    formData.getAll('focusPoints').map(String),
+    FOCUS_POINTS
+  );
+  if (focusPoints.length === 0) {
+    return { error: '교정 포인트를 하나 이상 선택해주세요.' };
+  }
+
+  const equipment = pickMany(
+    formData.getAll('equipment').map(String),
+    DRILL_EQUIPMENT
+  );
+
+  await prisma.mechanicsGuide.update({
+    where: { id },
+    data: {
+      title,
+      category,
+      description,
+      videoPath,
+      thumbPath,
+      focusPoints,
+      equipment,
+      sortOrder,
+    },
+  });
+
+  if (replacing) {
+    await deleteVideos(
+      [existing.videoPath, existing.thumbPath].filter((p): p is string => !!p)
+    );
+  }
+
+  revalidatePath('/library/mechanics');
+  return { success: '수정했습니다.' };
 }
 
 /** 가이드 학습 완료 체크를 토글한다. (로그인한 사용자 누구나) */

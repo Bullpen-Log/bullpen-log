@@ -1,7 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { Check, Trash2 } from 'lucide-react';
+import { Check, Pencil, Trash2, X } from 'lucide-react';
 import { deleteGuide, toggleGuideProgress } from '@/app/actions/content';
 import { MECHANICS_CATEGORIES } from '@/lib/categories';
 import { DRILL_EQUIPMENT, FOCUS_POINTS } from '@/lib/exercise-meta';
@@ -14,7 +14,7 @@ import {
   type FilterState,
 } from '@/components/meta-filter';
 import { Badge, Card } from '@/components/ui';
-import { GuideForm } from './guide-form';
+import { GuideForm, type GuideDraft } from './guide-form';
 
 export type GuideItem = {
   id: string;
@@ -25,6 +25,7 @@ export type GuideItem = {
   equipment: string[];
   videoPath: string;
   thumbUrl: string | null;
+  sortOrder: number;
   done: boolean;
 };
 
@@ -34,6 +35,40 @@ const FILTER_GROUPS = [
 ];
 
 function GuideCard({ item, isAdmin }: { item: GuideItem; isAdmin: boolean }) {
+  const [editing, setEditing] = useState(false);
+
+  if (editing) {
+    const draft: GuideDraft = {
+      id: item.id,
+      title: item.title,
+      category: item.category,
+      description: item.description,
+      focusPoints: item.focusPoints,
+      equipment: item.equipment,
+      sortOrder: item.sortOrder,
+    };
+    return (
+      <Card className="border-gold-dim/50 bg-gold/[0.03] p-4 sm:p-6">
+        <div className="mb-4 flex items-center justify-between gap-3">
+          <p className="text-sm font-bold text-gold">드릴 수정</p>
+          <button
+            type="button"
+            onClick={() => setEditing(false)}
+            aria-label="수정 닫기"
+            className="rounded-lg p-1.5 text-muted transition-colors hover:text-cream"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+        <GuideForm
+          category={item.category}
+          initial={draft}
+          onDone={() => setEditing(false)}
+        />
+      </Card>
+    );
+  }
+
   return (
     <Card
       className={`grid gap-6 p-4 sm:p-6 md:grid-cols-[300px_1fr] ${
@@ -54,16 +89,26 @@ function GuideCard({ item, isAdmin }: { item: GuideItem; isAdmin: boolean }) {
           </div>
 
           {isAdmin && (
-            <form action={deleteGuide}>
-              <input type="hidden" name="id" value={item.id} />
+            <div className="flex shrink-0 items-center gap-1">
               <button
-                type="submit"
-                aria-label={`${item.title} 삭제`}
-                className="rounded-lg p-2 text-muted transition-colors hover:bg-red-950/40 hover:text-red-400"
+                type="button"
+                onClick={() => setEditing(true)}
+                aria-label={`${item.title} 수정`}
+                className="rounded-lg p-2 text-muted transition-colors hover:bg-surface-2 hover:text-gold"
               >
-                <Trash2 className="h-4 w-4" />
+                <Pencil className="h-4 w-4" />
               </button>
-            </form>
+              <form action={deleteGuide}>
+                <input type="hidden" name="id" value={item.id} />
+                <button
+                  type="submit"
+                  aria-label={`${item.title} 삭제`}
+                  className="rounded-lg p-2 text-muted transition-colors hover:bg-red-950/40 hover:text-red-400"
+                >
+                  <Trash2 className="h-4 w-4" />
+                </button>
+              </form>
+            </div>
           )}
         </div>
 
