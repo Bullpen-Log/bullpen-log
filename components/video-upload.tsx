@@ -2,6 +2,7 @@
 
 import { useRef, useState } from 'react';
 import { Film, Loader2, Upload, X } from 'lucide-react';
+import { captureThumbnail } from '@/lib/capture-thumbnail';
 
 export const MAX_VIDEO_MB = 50;
 const MAX_VIDEO_BYTES = MAX_VIDEO_MB * 1024 * 1024;
@@ -11,6 +12,8 @@ export type UploadedVideo = {
   name: string;
   /** 업로드 직후 미리보기에 쓰는 로컬 주소 */
   previewUrl: string;
+  /** 재생 전에 보여줄 이미지 경로. 캡처에 실패하면 없다. */
+  thumbPath?: string;
 };
 
 function formatSize(bytes: number) {
@@ -22,17 +25,19 @@ function formatSize(bytes: number) {
  * 서버는 업로드 주소만 발급하므로 큰 파일도 통과한다.
  */
 async function uploadToStorage(
-  file: File,
+  file: Blob & { name?: string },
   endpoint: string,
-  onProgress: (percent: number) => void
+  onProgress: (percent: number) => void,
+  kind: 'video' | 'thumbnail' = 'video'
 ) {
   const res = await fetch(endpoint, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      fileName: file.name,
+      fileName: file.name ?? 'thumbnail.jpg',
       fileSize: file.size,
       fileType: file.type,
+      kind,
     }),
   });
 
@@ -65,12 +70,15 @@ export function VideoUpload({
   disabled,
   /** 업로드 주소를 받아올 곳. 라이브러리 영상은 관리자 전용 주소를 쓴다. */
   endpoint = '/api/pitch-log/upload-url',
+  /** 목록에서 재생 전에 보여줄 이미지를 함께 만들지 여부 */
+  withThumbnail = false,
 }: {
   videos: UploadedVideo[];
   onChange: (next: UploadedVideo[]) => void;
   max?: number;
   disabled?: boolean;
   endpoint?: string;
+  withThumbnail?: boolean;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
@@ -105,9 +113,28 @@ export function VideoUpload({
 
     try {
       const path = await uploadToStorage(file, endpoint, setProgress);
+
+      // 재생 전에 보여줄 이미지. 실패해도 등록은 그대로 진행한다.
+      let thumbPath: string | undefined;
+      if (withThumbnail) {
+        const shot = await captureThumbnail(file);
+        if (shot) {
+          try {
+            thumbPath = await uploadToStorage(
+              Object.assign(shot, { name: 'thumb.jpg' }),
+              endpoint,
+              () => {},
+              'thumbnail'
+            );
+          } catch {
+            thumbPath = undefined;
+          }
+        }
+      }
+
       onChange([
         ...videos,
-        { path, name: file.name, previewUrl: URL.createObjectURL(file) },
+        { path, name: file.name, previewUrl: URL.createObjectURL(file), thumbPath },
       ]);
     } catch (err) {
       setError(err instanceof Error ? err.message : '업로드에 실패했습니다.');

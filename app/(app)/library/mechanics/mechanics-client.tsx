@@ -24,6 +24,7 @@ export type GuideItem = {
   focusPoints: string[];
   equipment: string[];
   videoPath: string;
+  thumbUrl: string | null;
   done: boolean;
 };
 
@@ -39,7 +40,7 @@ function GuideCard({ item, isAdmin }: { item: GuideItem; isAdmin: boolean }) {
         item.done ? 'border-gold-dim/50' : ''
       }`}
     >
-      <LibraryVideo path={item.videoPath} title={item.title} />
+      <LibraryVideo path={item.videoPath} title={item.title} thumbUrl={item.thumbUrl} />
 
       <div className="flex flex-col">
         <div className="flex items-start justify-between gap-3">

@@ -41,6 +41,9 @@ export async function createExercise(
   const category = String(formData.get('category') ?? '').trim();
   const description = String(formData.get('description') ?? '').trim();
   const videoPath = String(formData.get('videoPath') ?? '').trim();
+  // 미리보기 이미지는 없어도 되므로 형식이 어긋나면 조용히 버린다.
+  const rawThumb = String(formData.get('thumbPath') ?? '').trim();
+  const thumbPath = rawThumb && isLibraryPath(rawThumb) ? rawThumb : null;
 
   if (!title || !description) {
     return { error: '모든 필수 항목을 입력해주세요.' };
@@ -79,6 +82,7 @@ export async function createExercise(
       category,
       description,
       videoPath,
+      thumbPath,
       bodyParts,
       intensity,
       difficulty,
@@ -97,7 +101,7 @@ export async function deleteExercise(formData: FormData) {
 
   // 기록을 지우면 저장소의 영상 파일도 함께 정리한다.
   const removed = await prisma.exerciseVideo.delete({ where: { id } });
-  await deleteVideos([removed.videoPath]);
+  await deleteVideos([removed.videoPath, removed.thumbPath].filter((p): p is string => !!p));
   revalidatePath('/library/training');
 }
 
@@ -113,6 +117,8 @@ export async function createGuide(
   const category = String(formData.get('category') ?? '').trim();
   const description = String(formData.get('description') ?? '').trim();
   const videoPath = String(formData.get('videoPath') ?? '').trim();
+  const rawThumb = String(formData.get('thumbPath') ?? '').trim();
+  const thumbPath = rawThumb && isLibraryPath(rawThumb) ? rawThumb : null;
   const sortOrderRaw = String(formData.get('sortOrder') ?? '').trim();
 
   if (!title || !description) {
@@ -149,6 +155,7 @@ export async function createGuide(
       category,
       description,
       videoPath,
+      thumbPath,
       focusPoints,
       equipment,
       sortOrder,
@@ -165,7 +172,7 @@ export async function deleteGuide(formData: FormData) {
   if (!id) return;
 
   const removed = await prisma.mechanicsGuide.delete({ where: { id } });
-  await deleteVideos([removed.videoPath]);
+  await deleteVideos([removed.videoPath, removed.thumbPath].filter((p): p is string => !!p));
   revalidatePath('/library/mechanics');
 }
 

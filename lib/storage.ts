@@ -116,13 +116,20 @@ export function isOwnedBy(path: string, userId: string) {
   return path.startsWith(`${userId}/`);
 }
 
+/** 미리보기 이미지의 최대 용량. 캡처한 한 장면이라 넉넉한 값이다. */
+export const MAX_THUMB_BYTES = 2 * 1024 * 1024; // 2MB
+
 /**
- * 라이브러리 영상을 올릴 임시 주소를 만든다.
+ * 라이브러리 파일(영상 또는 미리보기 이미지)을 올릴 임시 주소를 만든다.
  * 사용자 폴더가 아니라 공용 폴더에 넣는다.
  */
-export async function createLibraryUploadTarget(fileName: string) {
+export async function createLibraryUploadTarget(
+  fileName: string,
+  kind: 'video' | 'thumbnail' = 'video'
+) {
+  const fallback = kind === 'thumbnail' ? 'jpg' : 'mp4';
   const ext =
-    fileName.split('.').pop()?.toLowerCase().replace(/[^a-z0-9]/g, '') || 'mp4';
+    fileName.split('.').pop()?.toLowerCase().replace(/[^a-z0-9]/g, '') || fallback;
   const path = `${LIBRARY_PREFIX}/${crypto.randomUUID()}.${ext}`;
 
   const { data, error } = await getClient()

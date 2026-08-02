@@ -87,6 +87,8 @@ model MechanicsGuide {
   description String              @db.Text
   /// 저장소에 올린 영상 경로 (library/... )
   videoPath   String
+  /// 재생 전에 보여줄 미리보기 이미지 경로. 없으면 빈 화면으로 표시한다.
+  thumbPath   String?
   /// 이 드릴이 무엇을 교정하는지. 영상분석 결과와 이어지는 고리다.
   focusPoints String[]
   /// 드릴에 필요한 도구
@@ -130,6 +132,8 @@ model ExerciseVideo {
   description      String            @db.Text
   /// 저장소에 올린 영상 경로 (library/... )
   videoPath        String
+  /// 재생 전에 보여줄 미리보기 이미지 경로. 없으면 빈 화면으로 표시한다.
+  thumbPath        String?
   /// 이 운동이 목표로 하는 부위
   bodyParts        String[]
   /// 낮음 / 중간 / 높음. 부하 지수가 높을 때 '높음'을 빼는 데 쓴다.

@@ -26,6 +26,7 @@ export type ExerciseItem = {
   difficulty: string | null;
   equipment: string[];
   videoPath: string;
+  thumbUrl: string | null;
 };
 
 const FILTER_GROUPS = [
@@ -43,7 +44,7 @@ function ExerciseCard({
 }) {
   return (
     <Card className="flex flex-col gap-4 p-4 sm:p-5">
-      <LibraryVideo path={item.videoPath} title={item.title} />
+      <LibraryVideo path={item.videoPath} title={item.title} thumbUrl={item.thumbUrl} />
 
       <div className="flex items-start justify-between gap-3">
         <h3 className="font-bold text-cream">{item.title}</h3>

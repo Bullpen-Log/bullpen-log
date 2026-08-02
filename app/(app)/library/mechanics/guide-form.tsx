@@ -56,11 +56,13 @@ export function GuideForm({ category }: { category: string }) {
 
       <Field label="드릴 영상" hint="폰이나 컴퓨터에 있는 영상을 바로 올립니다.">
         <input type="hidden" name="videoPath" value={videos[0]?.path ?? ''} />
+        <input type="hidden" name="thumbPath" value={videos[0]?.thumbPath ?? ''} />
         <VideoUpload
           videos={videos}
           onChange={setVideos}
           max={1}
           endpoint="/api/library/upload-url"
+          withThumbnail
         />
       </Field>
 

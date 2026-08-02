@@ -1,5 +1,6 @@
 import { prisma } from '@/lib/prisma';
 import { requireUser } from '@/lib/dal';
+import { createPlaybackUrls } from '@/lib/storage';
 import { MechanicsClient, type GuideItem } from './mechanics-client';
 
 export default async function MechanicsPage() {
@@ -17,6 +18,10 @@ export default async function MechanicsPage() {
 
   const completedIds = new Set(progress.map((p) => p.guideId));
 
+  const thumbUrls = await createPlaybackUrls(
+    guides.map((g) => g.thumbPath).filter((p): p is string => !!p)
+  );
+
   const items: GuideItem[] = guides.map((g) => ({
     id: g.id,
     title: g.title,
@@ -25,6 +30,7 @@ export default async function MechanicsPage() {
     focusPoints: g.focusPoints,
     equipment: g.equipment,
     videoPath: g.videoPath,
+    thumbUrl: g.thumbPath ? (thumbUrls[g.thumbPath] ?? null) : null,
     done: completedIds.has(g.id),
   }));
 

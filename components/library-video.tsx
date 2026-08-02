@@ -13,9 +13,12 @@ import { Loader2, Play } from 'lucide-react';
 export function LibraryVideo({
   path,
   title,
+  thumbUrl,
 }: {
   path: string;
   title: string;
+  /** 재생 전에 보여줄 이미지. 없으면 빈 화면에 재생 버튼만 나온다. */
+  thumbUrl?: string | null;
 }) {
   const [url, setUrl] = useState<string>();
   const [loading, setLoading] = useState(false);
@@ -48,6 +51,8 @@ export function LibraryVideo({
     return (
       <video
         src={url}
+        // 미리보기 이미지가 있으면 첫 프레임을 받기 전에도 화면이 비지 않는다.
+        poster={thumbUrl ?? undefined}
         controls
         autoPlay
         playsInline
@@ -65,7 +70,21 @@ export function LibraryVideo({
       aria-label={`${title} 재생`}
       className="group relative flex aspect-video w-full items-center justify-center overflow-hidden rounded-xl border border-line bg-surface-2 transition-colors hover:border-gold-dim disabled:cursor-wait"
     >
-      <span className="flex h-14 w-14 items-center justify-center rounded-full bg-gold text-ink shadow-lg transition-transform group-hover:scale-110">
+      {thumbUrl && (
+        <>
+          {/* 서명된 임시 주소라 이미지 최적화 대상이 아니다. */}
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={thumbUrl}
+            alt=""
+            loading="lazy"
+            className="absolute inset-0 h-full w-full object-cover"
+          />
+          <span className="absolute inset-0 bg-ink/40 transition-colors group-hover:bg-ink/20" />
+        </>
+      )}
+
+      <span className="relative flex h-14 w-14 items-center justify-center rounded-full bg-gold text-ink shadow-lg transition-transform group-hover:scale-110">
         {loading ? (
           <Loader2 className="h-6 w-6 animate-spin" />
         ) : (
