@@ -80,8 +80,10 @@ async function createLandmarker(delegate: 'GPU' | 'CPU') {
   };
 }
 
+/** 화면에 실제로 표시된 프레임을 알려주는 브라우저 기능 */
+type FrameMetadata = { mediaTime: number };
 type VideoWithFrameCallback = HTMLVideoElement & {
-  requestVideoFrameCallback?: (cb: () => void) => number;
+  requestVideoFrameCallback?: (cb: (now: number, metadata: FrameMetadata) => void) => number;
 };
 
 /**
@@ -275,11 +277,13 @@ function scanByPlayback(
       stallTimer = setTimeout(() => finish(), PLAYBACK_STALL_MS);
     };
 
-    const stepCb = () => {
+    const stepCb = (_now: number, metadata?: FrameMetadata) => {
       if (finished) return;
       if (signal?.aborted) return finish(new Error('분석이 취소되었습니다.'));
       armStallTimer();
-      const t = video.currentTime;
+      // mediaTime은 "지금 화면에 표시된 그 프레임"의 정확한 시각이다.
+      // currentTime은 표시된 프레임보다 앞서 있을 수 있어 좌표-시각이 어긋난다.
+      const t = metadata?.mediaTime ?? video.currentTime;
       const ts = Math.round(t * 1000) + 1;
       if (t <= duration && ts > lastTs) {
         lastTs = ts;
@@ -310,53 +314,6 @@ function scanByPlayback(
     // 재생이 막히면(자동재생 정책 등) 실패가 아니라 빈 결과로 끝낸다 → seek 방식으로 넘어간다
     video.play().catch(() => finish());
   });
-}
-
-/**
- * seek로 옮긴 프레임이 화면에 실제로 반영되는 브라우저인지 미리 본다.
- *
- * 서로 다른 두 시점을 캔버스로 떠서 픽셀이 같으면 화면이 멈춰 있다는 뜻이다.
- * 이 확인은 1초도 걸리지 않고, 여기서 걸러지면 처음부터 재생 캡처로 간다
- * (Safari에서 첫 시도를 통째로 버리지 않게 된다).
- */
-async function seekUpdatesFrames(video: HTMLVideoElement, duration: number): Promise<boolean> {
-  // 개발 중 재생 캡처 경로를 강제로 확인하기 위한 스위치
-  if (
-    process.env.NODE_ENV === 'development' &&
-    typeof window !== 'undefined' &&
-    (window as { __forcePlaybackScan?: boolean }).__forcePlaybackScan
-  ) {
-    return false;
-  }
-  try {
-    const w = 64;
-    const h = Math.max(1, Math.round((video.videoHeight / video.videoWidth) * w)) || 64;
-    const canvas = document.createElement('canvas');
-    canvas.width = w;
-    canvas.height = h;
-    const ctx = canvas.getContext('2d', { willReadFrequently: true });
-    if (!ctx) return true;
-
-    const shotAt = async (t: number) => {
-      await seekTo(video, t);
-      ctx.drawImage(video, 0, 0, w, h);
-      return ctx.getImageData(0, 0, w, h).data;
-    };
-
-    // 영상 앞/뒤 두 지점 — 같은 투구라도 자세가 확실히 다른 구간
-    const a = await shotAt(Math.min(0.2, duration * 0.1));
-    const b = await shotAt(duration * 0.6);
-
-    let diff = 0;
-    for (let i = 0; i < a.length; i += 4) {
-      if (Math.abs(a[i] - b[i]) > 8) diff++;
-    }
-    // 픽셀의 1% 이상이 달라졌으면 화면이 갱신되는 것으로 본다
-    return diff > (a.length / 4) * 0.01;
-  } catch {
-    // 캔버스에 그릴 수 없으면(CORS 등) 판단을 보류하고 기존 경로로 간다
-    return true;
-  }
 }
 
 /**
@@ -406,75 +363,70 @@ export async function extractPoseTrack(
     /** 좌표가 실제로 움직인 프레임 수 — 여러 시도 중 더 나은 쪽을 고르는 기준 */
     const distinct = (s: ScanResult) => s.frames.length - s.identical;
 
-    // seek가 화면을 갱신하는 브라우저인지 먼저 확인한다(1초 이내).
-    // Safari처럼 갱신되지 않으면 처음부터 재생 캡처로 간다 — 첫 시도를 버리지 않는다.
-    const canSeek = await seekUpdatesFrames(video, duration);
+    /*
+     * 재생 캡처를 기본으로 쓴다.
+     *
+     * seek(프레임 이동)는 브라우저마다 동작이 달라 믿을 수 없다 —
+     * Safari는 화면을 아예 갱신하지 않거나(iOS), 요청한 것보다 늦은
+     * 프레임을 주기도 한다(macOS). 후자는 "멈춘 화면" 검사로도 못 걸러
+     * 좌표가 실제 시각과 어긋난 채 저장된다.
+     *
+     * 재생 중에는 어떤 브라우저든 프레임이 반드시 갱신되고,
+     * requestVideoFrameCallback이 "지금 표시된 프레임의 정확한 시각"을
+     * 알려주므로 좌표와 시각이 절대 어긋나지 않는다.
+     */
+    const canPlaybackScan =
+      typeof (video as VideoWithFrameCallback).requestVideoFrameCallback === 'function';
 
     let scan: ScanResult;
     try {
-      scan = canSeek
-        ? await scanBySeek(engine.landmarker, video, duration, step, onProgress, signal)
-        : await scanByPlayback(
+      scan = canPlaybackScan
+        ? await scanByPlayback(
             engine.landmarker,
             video as VideoWithFrameCallback,
             duration,
             onProgress,
             signal
-          );
+          )
+        : await scanBySeek(engine.landmarker, video, duration, step, onProgress, signal);
     } finally {
       engine.landmarker.close();
     }
 
-    // 화면이 멈춘 채 읽혔으면(seek 경로) 실제로 재생하면서 다시 읽는다.
-    const stale =
-      scan.frames.length > 0 && scan.identical / scan.frames.length > STALE_FRAME_RATIO;
-    if (canSeek && (stale || scan.coverage < RETRY_COVERAGE)) {
+    // 재생이 막혔거나(자동재생 차단) 결과가 부실하면 seek로 한 번 더 시도한다.
+    if (canPlaybackScan && (scan.frames.length === 0 || scan.coverage < RETRY_COVERAGE)) {
       const retryEngine = await createLandmarker(usedGpu ? 'GPU' : 'CPU');
       try {
-        const retry = await scanByPlayback(
-          retryEngine.landmarker,
-          video as VideoWithFrameCallback,
-          duration,
-          onProgress,
-          signal
-        );
-        if (distinct(retry) > distinct(scan)) scan = retry;
-      } finally {
-        retryEngine.landmarker.close();
-      }
-    }
-
-    // 재생 캡처가 막혔으면(자동재생 차단 등) seek로라도 읽어본다.
-    if (!canSeek && scan.frames.length === 0) {
-      const fallback = await createLandmarker(usedGpu ? 'GPU' : 'CPU');
-      try {
         const retry = await scanBySeek(
-          fallback.landmarker,
+          retryEngine.landmarker,
           video,
           duration,
           step,
           onProgress,
           signal
         );
-        if (distinct(retry) > distinct(scan)) scan = retry;
+        const stale =
+          retry.frames.length > 0 && retry.identical / retry.frames.length > STALE_FRAME_RATIO;
+        if (!stale && distinct(retry) > distinct(scan)) scan = retry;
       } finally {
-        fallback.landmarker.close();
+        retryEngine.landmarker.close();
       }
     }
 
-    // 그래도 나쁘고 GPU였다면 CPU로 마지막 한 번 (GPU가 조용히 오작동하는 기기 대비)
+    // 그래도 사람을 많이 놓쳤고 GPU였다면 CPU로 마지막 한 번
+    // (일부 GPU·브라우저 조합에서 오류 없이 빈 결과만 나오는 사례 대비)
     if (usedGpu && scan.coverage < RETRY_COVERAGE) {
       const cpu = await createLandmarker('CPU');
       try {
-        const retry = canSeek
-          ? await scanBySeek(cpu.landmarker, video, duration, step, onProgress, signal)
-          : await scanByPlayback(
+        const retry = canPlaybackScan
+          ? await scanByPlayback(
               cpu.landmarker,
               video as VideoWithFrameCallback,
               duration,
               onProgress,
               signal
-            );
+            )
+          : await scanBySeek(cpu.landmarker, video, duration, step, onProgress, signal);
         if (distinct(retry) > distinct(scan)) scan = retry;
       } finally {
         cpu.landmarker.close();
