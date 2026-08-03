@@ -215,7 +215,11 @@ export function detectPitchEvents(
   // 팔을 휘두르지 않았으면 투구가 아니다.
   if (throwPath.peakSpeed < MIN_WRIST_SPEED) return empty(wristSide);
 
-  // 3) 릴리스 — 손목이 어깨 중심보다 앞으로 뻗은 정도가 최댓값의 80%에 처음 닿는 순간.
+  // 3) 릴리스 — 팔 채찍(손목 최고 속도) 직후 손목 전방 신전이 만드는 첫 피크.
+  //
+  //    신전의 "전역 최대"를 쓰면 안 된다: 투구가 끝나고 걸어다니는 구간에서
+  //    팔이 몸보다 앞에 오래 머물면 그쪽이 더 커질 수 있다. 반면 손목 최고
+  //    속도는 어떤 영상에서도 팔 채찍 그 자체라 흔들리지 않는 닻이 된다.
   const ext = smooth(
     frames.map((_, i) => {
       const w = px(i, throwWristIdx);
@@ -225,19 +229,61 @@ export function detectPitchEvents(
     }),
     3
   );
-  let maxExt = 0;
-  let extPeakIdx = -1;
-  for (let i = 0; i < ext.length; i++) {
-    const v = ext[i];
-    if (v != null && v > maxExt) {
-      maxExt = v;
-      extPeakIdx = i;
+
+  const wristSpeed = smooth(
+    frames.map((_, i) => {
+      if (i < 2) return null;
+      const a = px(i - 2, throwWristIdx);
+      const b = px(i, throwWristIdx);
+      if (!a || !b || a.v < WRIST_VIS_OK || b.v < WRIST_VIS_OK) return null;
+      const dt = frames[i].t - frames[i - 2].t;
+      if (dt <= 0) return null;
+      return Math.hypot(b.x - a.x, b.y - a.y) / dt / trunk;
+    }),
+    3
+  );
+  let fastIdx = -1;
+  let fastV = 0;
+  for (let i = 0; i < wristSpeed.length; i++) {
+    const v = wristSpeed[i];
+    if (v != null && v > fastV) {
+      fastV = v;
+      fastIdx = i;
     }
   }
+
+  // 채찍 지점부터 앞으로 훑어 신전의 첫 피크를 찾는다.
+  // 피크를 지나 절반 아래로 떨어지거나 인식이 길게 끊기면 멈춘다.
+  let extPeakIdx = -1;
+  if (fastIdx >= 0) {
+    let nullRun = 0;
+    for (let j = fastIdx; j < ext.length; j++) {
+      const v = ext[j];
+      if (v == null) {
+        if (++nullRun > 3) break;
+        continue;
+      }
+      nullRun = 0;
+      if (extPeakIdx < 0 || v > (ext[extPeakIdx] as number)) extPeakIdx = j;
+      else if (v < (ext[extPeakIdx] as number) * 0.5) break;
+    }
+  }
+  // 채찍 부근에서 피크를 못 찾으면(인식 결손) 전역 최대로 물러선다.
+  if (extPeakIdx < 0 || ext[extPeakIdx] == null) {
+    let best = 0;
+    for (let i = 0; i < ext.length; i++) {
+      const v = ext[i];
+      if (v != null && v > best) {
+        best = v;
+        extPeakIdx = i;
+      }
+    }
+  }
+  const maxExt = extPeakIdx >= 0 ? (ext[extPeakIdx] as number) : 0;
   if (maxExt < MIN_THROW_EXT || extPeakIdx < 0) return empty(wristSide);
 
-  // 신전이 최대인 지점(팔로스루)에서 거꾸로 훑어 80% 선을 넘어선 첫 프레임을 찾는다.
-  // 영상 앞부분에서 팔을 앞으로 두고 서 있어도 그 자세를 릴리스로 오인하지 않는다.
+  // 피크에서 거꾸로 훑어 80% 선을 넘어선 첫 프레임 = 릴리스.
+  // (공은 팔이 완전히 펴지기 직전에 손을 떠난다)
   let releaseIdx = extPeakIdx;
   while (releaseIdx > 0) {
     const prev = ext[releaseIdx - 1];

@@ -521,9 +521,12 @@ export function PoseAnalysis({
                 setHandedLabel(events.throwingSide === 'right' ? 'left' : 'right');
                 setSaveState('idle');
               }}
+              title="투구 방향의 뒤에서 찍힌 영상은 좌우가 뒤집혀 인식될 수 있습니다. 표기만 바뀌고 측정값은 그대로입니다."
               className="ml-auto rounded-lg border border-line px-2.5 py-1.5 text-[11px] text-muted transition-colors hover:border-gold-dim hover:text-cream"
             >
-              {events.throwingSide === 'right' ? '우투로 인식' : '좌투로 인식'} · 전환
+              {events.throwingSide === 'right'
+                ? '우투로 인식 — 틀리면 좌투로 바꾸기'
+                : '좌투로 인식 — 틀리면 우투로 바꾸기'}
             </button>
           )}
         </div>
