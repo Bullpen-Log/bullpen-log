@@ -126,7 +126,45 @@ model PitchLog {
   videoPaths  String[]
   createdAt   DateTime @default(now())
 
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user          User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  poseAnalyses  PoseAnalysis[]
+}
+
+/**
+ * 폼 분석 결과. 영상 하나당 최신 분석 1개를 보관해 다시 열 때
+ * 재분석 없이 바로 보여주고, 지난 세션과의 변화 비교에 쓴다.
+ * 측면 촬영이 아니거나 인식이 나쁜 분석은 저장하지 않는다(비교 오염 방지).
+ */
+model PoseAnalysis {
+  id           String   @id @default(uuid())
+  userId       String
+  pitchLogId   String
+  /// PitchLog.videoPaths 중 어떤 영상의 분석인지
+  videoPath    String   @unique
+  /// 화면 표기용 좌/우투 (사용자가 전환 버튼으로 고칠 수 있음)
+  throwingSide String
+  /// 실제 측정에 쓴 팔 (인식 라벨 기준)
+  wristSide    String
+  leadSide     String
+  direction    Int
+  quality      Float
+  coverage     Float
+  /// 자동 감지된 구간 (초)
+  kneeUpT      Float?
+  footPlantT   Float?
+  releaseT     Float?
+  /// 사용자가 프레임으로 직접 보정한 구간 (초)
+  kneeUpManualT    Float?
+  footPlantManualT Float?
+  releaseManualT   Float?
+  /// 지표 배열 [{key,label,phase,value,display,reason,confidence}]
+  metrics      Json
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  pitchLog     PitchLog @relation(fields: [pitchLogId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
 }
 
 model ExerciseVideo {

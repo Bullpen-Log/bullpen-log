@@ -10,6 +10,7 @@ import type { Log } from '@/app/(app)/pitch-log/pitch-log-client';
 import { usePlaybackUrls } from '@/components/use-playback-urls';
 import { FilmingGuide } from '@/components/filming-guide';
 import { PoseAnalysis } from '@/components/pose-analysis';
+import type { SavedAnalysisView } from '@/lib/pose/saved';
 import { CompareView, type ClipOption } from './compare-view';
 
 /** 재생 주소는 화면에서 필요할 때 따로 받아오므로 경로만 내려온다. */
@@ -23,10 +24,29 @@ const MODES = [
 export function AnalysisClient({
   logs,
   heightCm,
+  savedAnalyses,
 }: {
   logs: AnalysisLog[];
   heightCm: number | null;
+  savedAnalyses: SavedAnalysisView[];
 }) {
+  /** 영상 경로 → 저장된 분석 */
+  const savedByPath = useMemo(
+    () => new Map(savedAnalyses.map((a) => [a.videoPath, a])),
+    [savedAnalyses]
+  );
+
+  /** 이 영상보다 앞선 날짜의 가장 최근 저장 분석 — 변화 비교의 기준 */
+  const previousFor = (date: string, videoPath: string): SavedAnalysisView | null => {
+    let best: SavedAnalysisView | null = null;
+    for (const a of savedAnalyses) {
+      if (a.videoPath === videoPath || a.date >= date) continue;
+      if (!best || a.date > best.date || (a.date === best.date && a.updatedAt > best.updatedAt)) {
+        best = a;
+      }
+    }
+    return best;
+  };
   const [mode, setMode] = useState<'single' | 'compare'>('single');
 
   const withVideo = useMemo(
@@ -228,11 +248,15 @@ export function AnalysisClient({
                                 src={playbackUrls[path]}
                                 label={`${selectedDate} 투구 영상 ${i + 1}`}
                               />
-                              {/* 관절 추출 + 스켈레톤 + 구간 검출 + 지표 측정 */}
+                              {/* 관절 추출 + 스켈레톤 + 구간 검출 + 지표 측정 + 저장/비교 */}
                               <PoseAnalysis
                                 src={playbackUrls[path]}
                                 label={`${selectedDate} 투구 영상 ${i + 1}`}
                                 heightCm={heightCm}
+                                pitchLogId={log.id}
+                                videoPath={path}
+                                saved={savedByPath.get(path) ?? null}
+                                previous={previousFor(selectedDate, path)}
                               />
                             </>
                           ) : (

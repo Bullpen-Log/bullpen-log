@@ -31,6 +31,8 @@ export type PoseTrack = {
   sampleStep: number;
   /** 몸통 핵심 관절의 평균 인식 신뢰도 (0~1) */
   quality: number;
+  /** 분석한 프레임 중 사람이 인식된 비율 (0~1) — 낮으면 스켈레톤이 끊긴다 */
+  coverage: number;
 };
 
 /** MediaPipe Pose 관절 번호 중 우리가 쓰는 것들 */

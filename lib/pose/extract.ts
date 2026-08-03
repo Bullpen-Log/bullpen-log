@@ -64,23 +64,13 @@ function loadFileset() {
  * 결과가 미세하게 달라진다. 모델 파일은 브라우저가 캐시하므로 새로 만드는
  * 비용은 1초 남짓이고, 대신 같은 영상이면 언제나 같은 결과가 나온다.
  */
-async function createLandmarker() {
+async function createLandmarker(delegate: 'GPU' | 'CPU') {
   const { vision, fileset } = await loadFileset();
-
-  const create = (delegate: 'GPU' | 'CPU') =>
-    vision.PoseLandmarker.createFromOptions(fileset, {
-      baseOptions: { modelAssetPath: MODEL_URL, delegate },
-      runningMode: 'VIDEO',
-      numPoses: 1,
-    });
-
-  let landmarker: Landmarker;
-  try {
-    landmarker = await create('GPU');
-  } catch {
-    landmarker = await create('CPU');
-  }
-
+  const landmarker: Landmarker = await vision.PoseLandmarker.createFromOptions(fileset, {
+    baseOptions: { modelAssetPath: MODEL_URL, delegate },
+    runningMode: 'VIDEO',
+    numPoses: 1,
+  });
   return {
     landmarker,
     connections: vision.PoseLandmarker.POSE_CONNECTIONS.map((c) => ({
@@ -90,13 +80,39 @@ async function createLandmarker() {
   };
 }
 
-function seekTo(video: HTMLVideoElement, t: number): Promise<void> {
+type VideoWithFrameCallback = HTMLVideoElement & {
+  requestVideoFrameCallback?: (cb: () => void) => number;
+};
+
+/**
+ * 원하는 시각으로 이동하고 **그 프레임이 실제로 그려질 때까지** 기다린다.
+ *
+ * seeked 이벤트는 브라우저(특히 Safari)에서 새 프레임이 화면에 준비되기
+ * 전에 먼저 올 수 있다. 그 상태에서 관절을 읽으면 매번 이전(첫) 장면을
+ * 분석해 스켈레톤이 처음 자세에 고정되는 사고가 난다. 프레임 표시를
+ * 보장하는 requestVideoFrameCallback을 기다려 이를 막는다.
+ */
+function seekTo(video: VideoWithFrameCallback, t: number): Promise<void> {
   return new Promise((resolve, reject) => {
-    const onSeeked = () => {
+    let settled = false;
+    const finish = () => {
+      if (settled) return;
+      settled = true;
       cleanup();
       resolve();
     };
+    const onSeeked = () => {
+      if (typeof video.requestVideoFrameCallback === 'function') {
+        video.requestVideoFrameCallback(finish);
+        // 같은 프레임으로의 이동 등 콜백이 안 오는 예외 상황 대비
+        setTimeout(finish, 300);
+      } else {
+        finish();
+      }
+    };
     const onError = () => {
+      if (settled) return;
+      settled = true;
       cleanup();
       reject(new Error('영상 탐색에 실패했습니다.'));
     };
@@ -111,6 +127,64 @@ function seekTo(video: HTMLVideoElement, t: number): Promise<void> {
 }
 
 /**
+ * 사람을 놓친 프레임이 이 비율보다 많으면 GPU가 조용히 오작동하는
+ * 기기로 보고 CPU로 한 번 더 시도한다. (일부 GPU·브라우저 조합에서
+ * 오류 없이 빈 결과만 계속 나오는 사례가 있다)
+ */
+const RETRY_COVERAGE = 0.7;
+
+/** 엔진 하나로 영상을 처음부터 끝까지 훑는다. */
+async function scanVideo(
+  landmarker: Landmarker,
+  video: HTMLVideoElement,
+  duration: number,
+  step: number,
+  onProgress: (ratio: number) => void,
+  signal?: AbortSignal
+) {
+  const frames: PoseFrame[] = [];
+  let qualitySum = 0;
+  let qualityCount = 0;
+  let sampled = 0;
+
+  // timestamp는 단조 증가해야 해서 소수점 오차를 피해 정수 ms를 쓴다.
+  // (엔진을 영상마다 새로 만들므로 0부터 시작해도 안전하다)
+  for (let i = 0; i * step <= duration; i++) {
+    if (signal?.aborted) throw new Error('분석이 취소되었습니다.');
+
+    const t = i * step;
+    await seekTo(video, t);
+    const result = landmarker.detectForVideo(video, Math.round(t * 1000) + 1);
+    const landmarks = result.landmarks[0];
+    sampled++;
+
+    if (landmarks && landmarks.length >= 33) {
+      frames.push({
+        t,
+        landmarks: landmarks.map((p) => ({
+          x: p.x,
+          y: p.y,
+          z: p.z,
+          visibility: p.visibility,
+        })),
+      });
+      for (const idx of CORE_LANDMARKS) {
+        qualitySum += landmarks[idx]?.visibility ?? 0;
+        qualityCount++;
+      }
+    }
+
+    onProgress(Math.min(1, t / duration));
+  }
+
+  return {
+    frames,
+    quality: qualityCount ? qualitySum / qualityCount : 0,
+    coverage: sampled > 0 ? frames.length / sampled : 0,
+  };
+}
+
+/**
  * 영상 전체를 훑어 관절 좌표 시계열을 만든다.
  * onProgress는 0~1 진행률을 받는다.
  */
@@ -119,8 +193,6 @@ export async function extractPoseTrack(
   onProgress: (ratio: number) => void,
   signal?: AbortSignal
 ): Promise<PoseTrack> {
-  const { landmarker, connections } = await createLandmarker();
-
   const video = document.createElement('video');
   video.crossOrigin = 'anonymous';
   video.muted = true;
@@ -145,52 +217,49 @@ export async function extractPoseTrack(
       Math.max(10, Math.floor(MAX_TOTAL_SAMPLES / duration))
     );
     const step = 1 / perSecond;
-    const frames: PoseFrame[] = [];
-    let qualitySum = 0;
-    let qualityCount = 0;
 
-    // timestamp는 단조 증가해야 해서 소수점 오차를 피해 정수 ms를 쓴다.
-    // (엔진을 영상마다 새로 만들므로 0부터 시작해도 안전하다)
-    for (let i = 0; i * step <= duration; i++) {
-      if (signal?.aborted) throw new Error('분석이 취소되었습니다.');
-
-      const t = i * step;
-      await seekTo(video, t);
-      const result = landmarker.detectForVideo(video, Math.round(t * 1000) + 1);
-      const landmarks = result.landmarks[0];
-
-      if (landmarks && landmarks.length >= 33) {
-        frames.push({
-          t,
-          landmarks: landmarks.map((p) => ({
-            x: p.x,
-            y: p.y,
-            z: p.z,
-            visibility: p.visibility,
-          })),
-        });
-        for (const idx of CORE_LANDMARKS) {
-          qualitySum += landmarks[idx]?.visibility ?? 0;
-          qualityCount++;
-        }
-      }
-
-      onProgress(Math.min(1, t / duration));
+    // 1차: GPU (기기가 지원하지 않으면 생성 단계에서 CPU로)
+    let usedGpu = true;
+    let engine: Awaited<ReturnType<typeof createLandmarker>>;
+    try {
+      engine = await createLandmarker('GPU');
+    } catch {
+      engine = await createLandmarker('CPU');
+      usedGpu = false;
     }
 
-    if (frames.length === 0) {
+    let scan: Awaited<ReturnType<typeof scanVideo>>;
+    try {
+      scan = await scanVideo(engine.landmarker, video, duration, step, onProgress, signal);
+    } finally {
+      engine.landmarker.close();
+    }
+
+    // GPU가 오류 없이 빈 결과만 내는 기기가 있다 — 커버리지가 낮으면 CPU로 재시도.
+    if (usedGpu && scan.coverage < RETRY_COVERAGE) {
+      const cpu = await createLandmarker('CPU');
+      try {
+        const retry = await scanVideo(cpu.landmarker, video, duration, step, onProgress, signal);
+        if (retry.frames.length > scan.frames.length) scan = retry;
+      } finally {
+        cpu.landmarker.close();
+      }
+    }
+
+    if (scan.frames.length === 0) {
       throw new Error(
         '영상에서 사람을 인식하지 못했습니다. 전신이 나오게, 밝은 곳에서 찍힌 영상인지 확인해주세요.'
       );
     }
 
     return {
-      frames,
-      connections,
+      frames: scan.frames,
+      connections: engine.connections,
       videoWidth: video.videoWidth,
       videoHeight: video.videoHeight,
       sampleStep: step,
-      quality: qualityCount ? qualitySum / qualityCount : 0,
+      quality: scan.quality,
+      coverage: scan.coverage,
     };
   } catch (err) {
     // 우리가 만든 한국어 안내문은 그대로 올려보낸다.
@@ -198,7 +267,6 @@ export async function extractPoseTrack(
     // 그 외(MediaPipe 내부 오류 등)는 사람이 읽을 안내로 바꾼다.
     throw new Error('분석 도구에 문제가 생겨 중단됐습니다. 한 번 더 눌러 다시 시도해주세요.');
   } finally {
-    landmarker.close();
     video.src = '';
   }
 }

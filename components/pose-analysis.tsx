@@ -1,10 +1,17 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { Activity, ChevronLeft, ChevronRight, Loader2, Play, Pause } from 'lucide-react';
 import { extractPoseTrack, frameAt } from '@/lib/pose/extract';
 import { detectPitchEvents } from '@/lib/pose/detect';
-import { measurePitchMetrics, MIN_PLAUSIBLE_STRIDE_PCT } from '@/lib/pose/measure';
+import {
+  measurePitchMetrics,
+  MIN_PLAUSIBLE_STRIDE_PCT,
+  type PitchMetric,
+} from '@/lib/pose/measure';
+import { compareMetrics, type SavedAnalysisView } from '@/lib/pose/saved';
+import { savePoseAnalysis } from '@/app/actions/pose-analysis';
 import { LM, QUALITY_THRESHOLD, type PoseTrack } from '@/lib/pose/types';
 import { getContentBox } from '@/components/video-canvas';
 import type { VideoWithFrameCallback } from '@/components/use-frame-duration';
@@ -35,6 +42,13 @@ const EVENT_AS: Record<EventKey, string> = {
   release: '릴리스로',
 };
 
+/**
+ * 이보다 멀리 떨어진 프레임밖에 없으면 스켈레톤을 그리지 않는다.
+ * 인식이 끊긴 구간에서 엉뚱한(마지막으로 인식된) 자세를 몸 위에
+ * 고정해 보여주는 것보다 비워두는 쪽이 정직하다.
+ */
+const MAX_DRAW_GAP_SECONDS = 0.3;
+
 function drawSkeleton(
   ctx: CanvasRenderingContext2D,
   track: PoseTrack,
@@ -44,6 +58,7 @@ function drawSkeleton(
 ) {
   const frame = frameAt(track, t);
   if (!frame) return;
+  if (Math.abs(frame.t - t) > Math.max(MAX_DRAW_GAP_SECONDS, track.sampleStep * 3)) return;
 
   const box = getContentBox(canvasW, canvasH, track.videoWidth, track.videoHeight);
   const px = (x: number) => box.ox + x * box.dw;
@@ -81,14 +96,86 @@ function drawSkeleton(
   }
 }
 
+/** 지표 카드 그리드 — 새 분석과 저장된 분석 양쪽에서 같은 모양으로 쓴다. */
+function MetricsGrid({ metrics }: { metrics: PitchMetric[] }) {
+  return (
+    <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-4">
+      {metrics.map((m) => (
+        <div
+          key={`${m.phase}-${m.key}`}
+          className="rounded-xl border border-line bg-surface-2 px-3 py-2.5"
+        >
+          <p className="text-[10px] uppercase tracking-wider text-muted">
+            {EVENT_LABELS[m.phase as EventKey]} · {m.label}
+          </p>
+          {m.display ? (
+            <p className="mt-1 text-sm font-semibold text-cream">{m.display}</p>
+          ) : (
+            <p className="mt-1 text-xs text-muted">
+              {m.reason === '구간 없음'
+                ? '구간 지정 필요'
+                : m.reason === '기준 없음'
+                  ? '측정 불가 (전신 필요)'
+                  : '측정 불가 (흐림)'}
+            </p>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/** 지난 저장 분석과의 변화. 둘 다 측정된 지표만 나온다. */
+function DeltaBlock({
+  current,
+  previous,
+}: {
+  current: PitchMetric[];
+  previous: SavedAnalysisView;
+}) {
+  const deltas = compareMetrics(current, previous.metrics);
+  if (deltas.length === 0) return null;
+  return (
+    <div className="space-y-1 rounded-xl border border-gold-dim/40 bg-gold/[0.04] px-3 py-2.5">
+      <p className="text-[10px] uppercase tracking-wider text-gold">
+        지난 분석 대비 · {previous.date}
+      </p>
+      <div className="flex flex-wrap gap-x-4 gap-y-1">
+        {deltas.map((d) => (
+          <span key={`${d.phase}-${d.key}`} className="text-[11px] text-cream/90">
+            {EVENT_LABELS[d.phase as EventKey]} {d.label}{' '}
+            <span className={d.delta === 0 ? 'text-muted' : 'font-semibold text-gold'}>
+              {d.delta > 0 ? '+' : ''}
+              {d.delta}
+              {d.unit}
+            </span>
+          </span>
+        ))}
+      </div>
+      <p className="text-[11px] leading-relaxed text-muted/60">
+        같은 조건(측면·같은 거리)으로 찍었을 때만 의미 있는 비교입니다.
+      </p>
+    </div>
+  );
+}
+
 export function PoseAnalysis({
   src,
   label,
   heightCm,
+  pitchLogId,
+  videoPath,
+  saved,
+  previous,
 }: {
   src: string;
   label: string;
   heightCm?: number | null;
+  /** 저장·비교용 — 없으면 저장 기능이 숨겨진다 (비교 화면 등) */
+  pitchLogId?: string;
+  videoPath?: string;
+  saved?: SavedAnalysisView | null;
+  previous?: SavedAnalysisView | null;
 }) {
   const [phase, setPhase] = useState<'idle' | 'loading' | 'analyzing' | 'ready' | 'error'>(
     'idle'
@@ -108,6 +195,10 @@ export function PoseAnalysis({
   const videoRef = useRef<VideoWithFrameCallback>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const abortRef = useRef<AbortController | null>(null);
+
+  const router = useRouter();
+  const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
+  const [saveError, setSaveError] = useState<string>();
 
   const events = useMemo(
     () => (track ? detectPitchEvents(track, handedLabel ?? undefined) : null),
@@ -178,6 +269,42 @@ export function PoseAnalysis({
 
   useEffect(() => () => abortRef.current?.abort(), []);
 
+  const handleSave = () => {
+    if (!track || !events || !metrics || !pitchLogId || !videoPath) return;
+    setSaveState('saving');
+    setSaveError(undefined);
+    savePoseAnalysis({
+      pitchLogId,
+      videoPath,
+      throwingSide: events.throwingSide,
+      wristSide: events.wristSide,
+      leadSide: events.leadSide,
+      direction: events.direction,
+      quality: track.quality,
+      coverage: track.coverage,
+      kneeUpT: events.kneeUp?.t ?? null,
+      footPlantT: events.footPlant?.t ?? null,
+      releaseT: events.release?.t ?? null,
+      kneeUpManualT: overrides.kneeUp ?? null,
+      footPlantManualT: overrides.footPlant ?? null,
+      releaseManualT: overrides.release ?? null,
+      metrics,
+    })
+      .then((res) => {
+        if ('error' in res) {
+          setSaveState('error');
+          setSaveError(res.error);
+        } else {
+          setSaveState('saved');
+          router.refresh();
+        }
+      })
+      .catch(() => {
+        setSaveState('error');
+        setSaveError('저장에 실패했습니다. 잠시 후 다시 시도해주세요.');
+      });
+  };
+
   // 재생 시각에 맞춰 스켈레톤을 계속 다시 그린다.
   const draw = useCallback(() => {
     const video = videoRef.current;
@@ -206,7 +333,12 @@ export function PoseAnalysis({
 
     let raf = 0;
     const loop = () => {
-      draw();
+      // 한 프레임에서 예외가 나도 그리기 루프가 영원히 죽지 않게 한다.
+      try {
+        draw();
+      } catch {
+        // 다음 프레임에서 다시 시도
+      }
       raf = requestAnimationFrame(loop);
     };
     raf = requestAnimationFrame(loop);
@@ -216,13 +348,29 @@ export function PoseAnalysis({
   if (phase === 'idle' || phase === 'error') {
     return (
       <div className="space-y-2">
+        {/* 저장된 분석이 있으면 재분석 없이 바로 보여준다 */}
+        {saved && (
+          <div className="space-y-2 rounded-xl border border-line bg-surface p-3">
+            <div className="flex items-baseline justify-between gap-2">
+              <p className="text-[10px] font-medium uppercase tracking-wider text-gold">
+                저장된 폼 분석
+              </p>
+              <span className="text-[10px] text-muted">
+                {saved.throwingSide === 'right' ? '우투' : '좌투'} · 인식 신뢰도{' '}
+                {Math.round(saved.quality * 100)}%
+              </span>
+            </div>
+            <MetricsGrid metrics={saved.metrics} />
+            {previous && <DeltaBlock current={saved.metrics} previous={previous} />}
+          </div>
+        )}
         <button
           type="button"
           onClick={run}
           className="inline-flex items-center gap-1.5 rounded-lg border border-line-strong bg-surface-2 px-3 py-2 text-xs text-cream transition-colors hover:border-gold hover:text-gold"
         >
           <Activity className="h-3.5 w-3.5" />
-          폼 분석 (베타)
+          {saved ? '다시 분석 (스켈레톤 보기)' : '폼 분석 (베타)'}
         </button>
         {phase === 'error' && (
           <p className="rounded-lg border border-red-900/60 bg-red-950/40 px-3 py-2 text-xs leading-relaxed text-red-300">
@@ -311,6 +459,32 @@ export function PoseAnalysis({
         </span>
       </div>
 
+      {/* 인식이 많이 끊겼으면 스켈레톤이 사라지는 구간이 생긴다 — 이유를 알려주고 재시도 */}
+      {track && track.coverage < 0.8 && (
+        <div className="space-y-2 rounded-lg border border-amber-500/30 bg-amber-500/[0.07] px-3 py-2">
+          <p className="text-[11px] leading-relaxed text-amber-200/90">
+            영상 구간의 {Math.round(track.coverage * 100)}%에서만 몸을 인식했습니다.
+            인식이 끊긴 구간에서는 스켈레톤이 표시되지 않습니다. 일시적인 문제일 수
+            있으니 다시 분석해보고, 계속 그러면 밝은 곳에서 전신이 크게 나오게 다시
+            찍어주세요.
+          </p>
+          <button
+            type="button"
+            onClick={() => {
+              abortRef.current?.abort();
+              setTrack(null);
+              setOverrides({});
+              setSelected(null);
+              setHandedLabel(null);
+              setPhase('idle');
+            }}
+            className="rounded-lg border border-amber-500/40 px-2.5 py-1.5 text-[11px] text-amber-200 transition-colors hover:border-amber-400 hover:text-amber-100"
+          >
+            다시 분석하기
+          </button>
+        </div>
+      )}
+
       {/* 구간 — 자동 감지된 순간으로 이동하고, 틀리면 프레임 단위로 직접 지정 */}
       <div className="space-y-2.5 rounded-xl border border-line bg-surface-2 p-3">
         <div className="flex flex-wrap items-center gap-1.5">
@@ -343,9 +517,10 @@ export function PoseAnalysis({
           {events && (
             <button
               type="button"
-              onClick={() =>
-                setHandedLabel(events.throwingSide === 'right' ? 'left' : 'right')
-              }
+              onClick={() => {
+                setHandedLabel(events.throwingSide === 'right' ? 'left' : 'right');
+                setSaveState('idle');
+              }}
               className="ml-auto rounded-lg border border-line px-2.5 py-1.5 text-[11px] text-muted transition-colors hover:border-gold-dim hover:text-cream"
             >
               {events.throwingSide === 'right' ? '우투로 인식' : '좌투로 인식'} · 전환
@@ -381,6 +556,7 @@ export function PoseAnalysis({
               const v = videoRef.current;
               if (!v) return;
               setOverrides((prev) => ({ ...prev, [selected]: v.currentTime }));
+              setSaveState('idle');
             }}
             className="rounded-lg border border-line-strong px-2.5 py-1.5 text-[11px] text-cream transition-colors enabled:hover:border-gold enabled:hover:text-gold disabled:opacity-40"
           >
@@ -389,13 +565,14 @@ export function PoseAnalysis({
           {selected && overrides[selected] != null && (
             <button
               type="button"
-              onClick={() =>
+              onClick={() => {
                 setOverrides((prev) => {
                   const next = { ...prev };
                   delete next[selected];
                   return next;
-                })
-              }
+                });
+                setSaveState('idle');
+              }}
               className="rounded-lg px-2 py-1.5 text-[11px] text-muted underline-offset-2 hover:text-cream hover:underline"
             >
               자동값 복원
@@ -443,33 +620,39 @@ export function PoseAnalysis({
       {/* 지표 — 구간 프레임에서 잰 수치. 절대값보다 지난 영상과의 변화가 중요하다. */}
       {metrics && !lowQuality && (
         <div className="space-y-1.5">
-          <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-4">
-            {metrics.map((m) => (
-              <div
-                key={`${m.phase}-${m.key}`}
-                className="rounded-xl border border-line bg-surface-2 px-3 py-2.5"
-              >
-                <p className="text-[10px] uppercase tracking-wider text-muted">
-                  {EVENT_LABELS[m.phase]} · {m.label}
-                </p>
-                {m.display ? (
-                  <p className="mt-1 text-sm font-semibold text-cream">{m.display}</p>
-                ) : (
-                  <p className="mt-1 text-xs text-muted">
-                    {m.reason === '구간 없음'
-                      ? '구간 지정 필요'
-                      : m.reason === '기준 없음'
-                        ? '측정 불가 (전신 필요)'
-                        : '측정 불가 (흐림)'}
-                  </p>
-                )}
-              </div>
-            ))}
-          </div>
+          <MetricsGrid metrics={metrics} />
           <p className="text-[11px] leading-relaxed text-muted/60">
             90도 측면 촬영 기준의 근사값입니다. 절대값보다는 같은 조건으로 찍은
             지난 영상과의 변화를 보세요. 구간을 수동 지정하면 수치도 다시 계산됩니다.
           </p>
+
+          {previous && <DeltaBlock current={metrics} previous={previous} />}
+
+          {/* 저장 — 측면·인식 상태가 좋은 분석만. 다음에 재분석 없이 보고 비교에 쓴다. */}
+          {pitchLogId && videoPath && events?.sideViewOk && track && track.coverage >= 0.8 && (
+            <div className="flex flex-wrap items-center gap-2 pt-1">
+              <button
+                type="button"
+                onClick={handleSave}
+                disabled={saveState === 'saving' || saveState === 'saved'}
+                className="rounded-lg border border-gold-dim bg-gold/10 px-3 py-2 text-xs font-medium text-gold transition-colors enabled:hover:border-gold disabled:opacity-60"
+              >
+                {saveState === 'saving'
+                  ? '저장 중…'
+                  : saveState === 'saved'
+                    ? '저장됨 ✓'
+                    : saved
+                      ? '분석 다시 저장'
+                      : '이 분석 저장'}
+              </button>
+              <span className="text-[11px] text-muted/60">
+                저장하면 다음에 재분석 없이 바로 보이고, 이후 세션과 자동 비교됩니다.
+              </span>
+              {saveState === 'error' && saveError && (
+                <span className="text-[11px] text-red-300">{saveError}</span>
+              )}
+            </div>
+          )}
         </div>
       )}
 
