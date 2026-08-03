@@ -220,9 +220,17 @@ async function scanBySeek(
 }
 
 /**
+ * 재생이 시작되지도, 프레임이 들어오지도 않을 때 무한정 기다리지 않는다.
+ * (자동재생 차단·디코딩 실패 등)
+ */
+const PLAYBACK_STALL_MS = 6000;
+
+/**
  * 영상을 실제로 재생하면서 화면에 표시되는 프레임마다 관절을 읽는다.
- * seek가 화면을 갱신하지 못하는 브라우저를 위한 대체 방식 —
- * 재생 중에는 어떤 브라우저든 프레임이 반드시 갱신된다.
+ *
+ * Safari는 seek로 프레임을 옮겨도 화면(디코딩된 프레임)이 갱신되지 않는
+ * 경우가 있어 같은 장면만 반복해 읽힌다. 재생 중에는 어떤 브라우저든
+ * 프레임이 반드시 갱신되므로 이 방식이 근본 해법이다.
  */
 function scanByPlayback(
   landmarker: Landmarker,
@@ -243,10 +251,12 @@ function scanByPlayback(
     let sampled = 0;
     let lastTs = 0;
     let finished = false;
+    let stallTimer: ReturnType<typeof setTimeout> | null = null;
 
     const finish = (err?: Error) => {
       if (finished) return;
       finished = true;
+      if (stallTimer) clearTimeout(stallTimer);
       video.pause();
       video.onended = null;
       if (err) {
@@ -258,9 +268,17 @@ function scanByPlayback(
       resolve(out);
     };
 
+    // 프레임이 한동안 안 들어오면 지금까지 모은 것으로 끝낸다
+    // (실패로 처리하지 않아야 상위에서 seek 결과와 비교할 수 있다)
+    const armStallTimer = () => {
+      if (stallTimer) clearTimeout(stallTimer);
+      stallTimer = setTimeout(() => finish(), PLAYBACK_STALL_MS);
+    };
+
     const stepCb = () => {
       if (finished) return;
       if (signal?.aborted) return finish(new Error('분석이 취소되었습니다.'));
+      armStallTimer();
       const t = video.currentTime;
       const ts = Math.round(t * 1000) + 1;
       if (t <= duration && ts > lastTs) {
@@ -287,9 +305,58 @@ function scanByPlayback(
 
     video.onended = () => finish();
     video.currentTime = 0;
+    armStallTimer();
     video.requestVideoFrameCallback(stepCb);
-    video.play().catch(() => finish(new Error('영상을 재생할 수 없습니다.')));
+    // 재생이 막히면(자동재생 정책 등) 실패가 아니라 빈 결과로 끝낸다 → seek 방식으로 넘어간다
+    video.play().catch(() => finish());
   });
+}
+
+/**
+ * seek로 옮긴 프레임이 화면에 실제로 반영되는 브라우저인지 미리 본다.
+ *
+ * 서로 다른 두 시점을 캔버스로 떠서 픽셀이 같으면 화면이 멈춰 있다는 뜻이다.
+ * 이 확인은 1초도 걸리지 않고, 여기서 걸러지면 처음부터 재생 캡처로 간다
+ * (Safari에서 첫 시도를 통째로 버리지 않게 된다).
+ */
+async function seekUpdatesFrames(video: HTMLVideoElement, duration: number): Promise<boolean> {
+  // 개발 중 재생 캡처 경로를 강제로 확인하기 위한 스위치
+  if (
+    process.env.NODE_ENV === 'development' &&
+    typeof window !== 'undefined' &&
+    (window as { __forcePlaybackScan?: boolean }).__forcePlaybackScan
+  ) {
+    return false;
+  }
+  try {
+    const w = 64;
+    const h = Math.max(1, Math.round((video.videoHeight / video.videoWidth) * w)) || 64;
+    const canvas = document.createElement('canvas');
+    canvas.width = w;
+    canvas.height = h;
+    const ctx = canvas.getContext('2d', { willReadFrequently: true });
+    if (!ctx) return true;
+
+    const shotAt = async (t: number) => {
+      await seekTo(video, t);
+      ctx.drawImage(video, 0, 0, w, h);
+      return ctx.getImageData(0, 0, w, h).data;
+    };
+
+    // 영상 앞/뒤 두 지점 — 같은 투구라도 자세가 확실히 다른 구간
+    const a = await shotAt(Math.min(0.2, duration * 0.1));
+    const b = await shotAt(duration * 0.6);
+
+    let diff = 0;
+    for (let i = 0; i < a.length; i += 4) {
+      if (Math.abs(a[i] - b[i]) > 8) diff++;
+    }
+    // 픽셀의 1% 이상이 달라졌으면 화면이 갱신되는 것으로 본다
+    return diff > (a.length / 4) * 0.01;
+  } catch {
+    // 캔버스에 그릴 수 없으면(CORS 등) 판단을 보류하고 기존 경로로 간다
+    return true;
+  }
 }
 
 /**
@@ -336,21 +403,32 @@ export async function extractPoseTrack(
       usedGpu = false;
     }
 
+    /** 좌표가 실제로 움직인 프레임 수 — 여러 시도 중 더 나은 쪽을 고르는 기준 */
+    const distinct = (s: ScanResult) => s.frames.length - s.identical;
+
+    // seek가 화면을 갱신하는 브라우저인지 먼저 확인한다(1초 이내).
+    // Safari처럼 갱신되지 않으면 처음부터 재생 캡처로 간다 — 첫 시도를 버리지 않는다.
+    const canSeek = await seekUpdatesFrames(video, duration);
+
     let scan: ScanResult;
     try {
-      scan = await scanBySeek(engine.landmarker, video, duration, step, onProgress, signal);
+      scan = canSeek
+        ? await scanBySeek(engine.landmarker, video, duration, step, onProgress, signal)
+        : await scanByPlayback(
+            engine.landmarker,
+            video as VideoWithFrameCallback,
+            duration,
+            onProgress,
+            signal
+          );
     } finally {
       engine.landmarker.close();
     }
 
-    /** 좌표가 실제로 움직인 프레임 수 — 재시도 결과 중 더 나은 쪽을 고르는 기준 */
-    const distinct = (s: ScanResult) => s.frames.length - s.identical;
-
-    // 화면이 멈춘 채 읽혔거나(주로 Safari의 seek) 사람을 많이 놓쳤으면
-    // 실제로 재생하면서 다시 읽는다.
+    // 화면이 멈춘 채 읽혔으면(seek 경로) 실제로 재생하면서 다시 읽는다.
     const stale =
       scan.frames.length > 0 && scan.identical / scan.frames.length > STALE_FRAME_RATIO;
-    if (stale || scan.coverage < RETRY_COVERAGE) {
+    if (canSeek && (stale || scan.coverage < RETRY_COVERAGE)) {
       const retryEngine = await createLandmarker(usedGpu ? 'GPU' : 'CPU');
       try {
         const retry = await scanByPlayback(
@@ -366,11 +444,37 @@ export async function extractPoseTrack(
       }
     }
 
+    // 재생 캡처가 막혔으면(자동재생 차단 등) seek로라도 읽어본다.
+    if (!canSeek && scan.frames.length === 0) {
+      const fallback = await createLandmarker(usedGpu ? 'GPU' : 'CPU');
+      try {
+        const retry = await scanBySeek(
+          fallback.landmarker,
+          video,
+          duration,
+          step,
+          onProgress,
+          signal
+        );
+        if (distinct(retry) > distinct(scan)) scan = retry;
+      } finally {
+        fallback.landmarker.close();
+      }
+    }
+
     // 그래도 나쁘고 GPU였다면 CPU로 마지막 한 번 (GPU가 조용히 오작동하는 기기 대비)
     if (usedGpu && scan.coverage < RETRY_COVERAGE) {
       const cpu = await createLandmarker('CPU');
       try {
-        const retry = await scanBySeek(cpu.landmarker, video, duration, step, onProgress, signal);
+        const retry = canSeek
+          ? await scanBySeek(cpu.landmarker, video, duration, step, onProgress, signal)
+          : await scanByPlayback(
+              cpu.landmarker,
+              video as VideoWithFrameCallback,
+              duration,
+              onProgress,
+              signal
+            );
         if (distinct(retry) > distinct(scan)) scan = retry;
       } finally {
         cpu.landmarker.close();
