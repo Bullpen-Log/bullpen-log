@@ -2,9 +2,9 @@ import { Dumbbell, Flame, Target, TrendingUp } from 'lucide-react';
 
 /** 강도별 색. 문자열을 그대로 써야 Tailwind가 클래스를 찾아낸다. */
 const INTENSITY_STYLE: Record<string, string> = {
-  낮음: 'border-emerald-500/30 bg-emerald-500/10 text-emerald-300',
-  중간: 'border-amber-500/30 bg-amber-500/10 text-amber-300',
-  높음: 'border-red-500/40 bg-red-500/10 text-red-700',
+  낮음: 'border-emerald-200 bg-emerald-50 text-emerald-700',
+  중간: 'border-amber-200 bg-amber-50 text-amber-700',
+  높음: 'border-red-200 bg-red-50 text-red-700',
 };
 
 const baseChip =

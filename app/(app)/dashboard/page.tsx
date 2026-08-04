@@ -87,6 +87,15 @@ export default async function DashboardPage() {
     _count: true,
   });
 
+  // 오늘 마친 운동 수 — 대시보드에서 이어서 하도록 안내한다.
+  const doneToday = await prisma.userExerciseLog.count({
+    where: {
+      userId: user.id,
+      date: new Date(`${todayKey}T00:00:00.000Z`),
+      completed: true,
+    },
+  });
+
   // 체크인은 오늘 카드에도, 오늘 계획 계산에도 쓰이므로 넉넉히 가져온다.
   // (카드 쪽은 시간대 차이를 감안해 최근 이틀 중에서 자기 날짜를 고른다.)
   const checkinSince = new Date(today);
@@ -233,6 +242,30 @@ export default async function DashboardPage() {
 
       {/* ── 오늘 뭘 하면 되는지 한 줄 ───────────────────────── */}
       {todayPlan && <TodayPlanLine plan={todayPlan} />}
+
+      {/* ── 오늘의 운동 진행 상황 ───────────────────────────── */}
+      <Link
+        href="/today"
+        className="flex items-center gap-4 rounded-2xl border border-line bg-surface px-5 py-4 transition-colors hover:border-sky-soft"
+      >
+        <span
+          aria-hidden
+          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-sky-tint text-xl"
+        >
+          ✅
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block text-sm font-bold text-ink">오늘의 운동</span>
+          <span className="block text-xs text-muted">
+            {doneToday > 0
+              ? `${doneToday}개 완료 — 이어서 하기`
+              : '오늘 몸 상태에 맞춰 고른 운동을 확인하세요'}
+          </span>
+        </span>
+        <span aria-hidden className="shrink-0 text-muted">
+          →
+        </span>
+      </Link>
 
       {/* ── 프로필 + 현재 부하 지수 ─────────────────────────── */}
       <section className="bg-spotlight overflow-hidden rounded-3xl border border-line">

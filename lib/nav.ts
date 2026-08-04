@@ -35,6 +35,7 @@ export const NAV_GROUPS: NavGroup[] = [
   {
     title: '트레이닝',
     items: [
+      { href: '/today', label: '오늘의 운동', icon: '✅' },
       { href: '/library/training', label: '트레이닝', icon: '💪' },
       { href: '/library/mechanics', label: '메커니즘 드릴', icon: '⚙️' },
     ],
@@ -53,8 +54,8 @@ export const NAV_GROUPS: NavGroup[] = [
 export const MOBILE_TABS: NavItem[] = [
   { href: '/dashboard', label: '홈', icon: '⚾' },
   { href: '/pitch-log', label: '기록', icon: '📅' },
+  { href: '/today', label: '오늘운동', icon: '✅' },
   { href: '/coach', label: 'AI 코치', icon: '🎯' },
-  { href: '/analysis', label: '영상', icon: '🎬' },
   { href: '/more', label: '더보기', icon: '☰' },
 ];
 
