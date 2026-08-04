@@ -43,7 +43,7 @@ export default async function MechanicsPage() {
       {items.length > 0 && (
         <div className="flex items-baseline justify-between rounded-2xl border border-line bg-surface px-5 py-4">
           <span className="text-sm text-muted">학습 완료</span>
-          <span className="text-display text-2xl leading-none text-gold tabular-nums">
+          <span className="text-display text-2xl leading-none text-sky tabular-nums">
             {completedCount}
             <span className="text-line-strong"> / {items.length}</span>
           </span>

@@ -4,7 +4,7 @@ import { Dumbbell, Flame, Target, TrendingUp } from 'lucide-react';
 const INTENSITY_STYLE: Record<string, string> = {
   낮음: 'border-emerald-500/30 bg-emerald-500/10 text-emerald-300',
   중간: 'border-amber-500/30 bg-amber-500/10 text-amber-300',
-  높음: 'border-red-500/40 bg-red-500/10 text-red-300',
+  높음: 'border-red-500/40 bg-red-500/10 text-red-700',
 };
 
 const baseChip =
@@ -70,7 +70,7 @@ export function DrillBadges({
       {focusPoints.map((point) => (
         <span
           key={point}
-          className={`${baseChip} border-gold-dim/50 bg-gold/10 text-gold`}
+          className={`${baseChip} border-sky-soft/50 bg-sky/10 text-sky`}
           title="교정 포인트"
         >
           <Target className="h-3 w-3" />

@@ -39,7 +39,7 @@ export function CategorySection({
         >
           <span className="min-w-0 flex-1">
             <span className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-              <span className="text-lg font-bold text-cream">{name}</span>
+              <span className="text-lg font-bold text-ink">{name}</span>
               <span className="text-xs text-muted">{count}개</span>
             </span>
             <span className="mt-1 block text-sm text-muted">{desc}</span>
@@ -47,7 +47,7 @@ export function CategorySection({
 
           <ChevronDown
             className={`h-5 w-5 shrink-0 text-muted transition-transform duration-200 ${
-              open ? 'rotate-180 text-gold' : ''
+              open ? 'rotate-180 text-sky' : ''
             }`}
           />
         </button>
@@ -60,14 +60,14 @@ export function CategorySection({
               <button
                 type="button"
                 onClick={() => setFormOpen((v) => !v)}
-                className="inline-flex items-center gap-1.5 rounded-lg border border-gold-dim/60 bg-gold/[0.06] px-3 py-2 text-xs font-medium text-gold transition-colors hover:bg-gold/15"
+                className="inline-flex items-center gap-1.5 rounded-lg border border-sky-soft/60 bg-sky/[0.06] px-3 py-2 text-xs font-medium text-sky transition-colors hover:bg-sky/15"
               >
                 {formOpen ? <X className="h-3.5 w-3.5" /> : <Plus className="h-3.5 w-3.5" />}
                 {formOpen ? '닫기' : '영상 추가'}
               </button>
 
               {formOpen && (
-                <div className="mt-4 rounded-2xl border border-gold-dim/40 bg-gold/[0.04] p-5 sm:p-6">
+                <div className="mt-4 rounded-2xl border border-sky-soft/40 bg-sky/[0.04] p-5 sm:p-6">
                   {form}
                 </div>
               )}

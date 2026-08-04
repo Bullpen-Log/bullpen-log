@@ -85,7 +85,7 @@ export function ExerciseForm({
 
       <FormError>{state?.error}</FormError>
       {state?.success && (
-        <p className="rounded-lg border border-gold-dim/50 bg-gold/10 px-4 py-3 text-sm text-gold-bright">
+        <p className="rounded-lg border border-sky-soft/50 bg-sky/10 px-4 py-3 text-sm text-sky-strong">
           {state.success}
         </p>
       )}
@@ -113,14 +113,14 @@ export function ExerciseForm({
 
         {editing && !replacing ? (
           <div className="flex flex-wrap items-center gap-3 rounded-xl border border-line bg-surface-2 px-4 py-3">
-            <Film className="h-4 w-4 shrink-0 text-gold" />
+            <Film className="h-4 w-4 shrink-0 text-sky" />
             <span className="min-w-0 flex-1 text-sm text-muted">
               지금 올려둔 영상을 그대로 씁니다
             </span>
             <button
               type="button"
               onClick={() => setReplacing(true)}
-              className="inline-flex items-center gap-1.5 rounded-lg border border-line-strong px-3 py-2 text-xs text-cream transition-colors hover:border-gold hover:text-gold"
+              className="inline-flex items-center gap-1.5 rounded-lg border border-line-strong px-3 py-2 text-xs text-ink transition-colors hover:border-sky hover:text-sky"
             >
               <RefreshCw className="h-3.5 w-3.5" />
               영상 교체
@@ -142,7 +142,7 @@ export function ExerciseForm({
                   setVideos([]);
                   setReplacing(false);
                 }}
-                className="text-xs text-muted transition-colors hover:text-cream"
+                className="text-xs text-muted transition-colors hover:text-ink"
               >
                 교체 취소 — 기존 영상 그대로 두기
               </button>
@@ -162,7 +162,7 @@ export function ExerciseForm({
       </Field>
 
       {/* 나중에 몸 상태에 맞는 운동을 코드로 추려내려면 이 항목들이 필요하다. */}
-      <div className="space-y-5 border-t border-gold-dim/30 pt-5">
+      <div className="space-y-5 border-t border-sky-soft/30 pt-5">
         <CheckboxGroup
           name="bodyParts"
           label="목표 부위 · 필수"
@@ -201,7 +201,7 @@ export function ExerciseForm({
           <button
             type="button"
             onClick={onDone}
-            className="text-sm text-muted transition-colors hover:text-cream"
+            className="text-sm text-muted transition-colors hover:text-ink"
           >
             취소
           </button>

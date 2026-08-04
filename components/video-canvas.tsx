@@ -570,8 +570,8 @@ export function DrawingToolbar({
               i > 0 ? 'border-l border-line' : ''
             } ${
               tool === t.kind
-                ? 'bg-gold font-semibold text-ink'
-                : 'text-muted hover:bg-surface-2 hover:text-cream'
+                ? 'bg-sky font-semibold text-white'
+                : 'text-muted hover:bg-surface-2 hover:text-ink'
             }`}
           >
             <t.Icon
@@ -591,7 +591,7 @@ export function DrawingToolbar({
             aria-pressed={color === c}
             aria-label={`선 색 ${c}`}
             className={`h-7 w-7 rounded border transition-colors ${
-              color === c ? 'border-gold' : 'border-line hover:border-line-strong'
+              color === c ? 'border-sky' : 'border-line hover:border-line-strong'
             }`}
           >
             <span
@@ -609,7 +609,7 @@ export function DrawingToolbar({
           disabled={!canUndo}
           aria-label="되돌리기"
           title="되돌리기"
-          className="flex h-10 w-10 items-center justify-center rounded-lg border border-line text-muted transition-colors hover:border-gold hover:text-gold disabled:opacity-40"
+          className="flex h-10 w-10 items-center justify-center rounded-lg border border-line text-muted transition-colors hover:border-sky hover:text-sky disabled:opacity-40"
         >
           <Undo2 className="h-4 w-4" />
         </button>
@@ -619,7 +619,7 @@ export function DrawingToolbar({
           disabled={!canUndo}
           aria-label="전체 지우기"
           title="전체 지우기"
-          className="flex h-10 w-10 items-center justify-center rounded-lg border border-line text-muted transition-colors hover:border-red-800 hover:text-red-400 disabled:opacity-40"
+          className="flex h-10 w-10 items-center justify-center rounded-lg border border-line text-muted transition-colors hover:border-red-400 hover:text-red-600 disabled:opacity-40"
         >
           <Eraser className="h-4 w-4" />
         </button>

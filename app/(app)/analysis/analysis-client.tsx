@@ -147,7 +147,7 @@ export function AnalysisClient({
                 type="button"
                 onClick={() => goToVideoDate(-1)}
                 aria-label="이전 영상 날짜"
-                className="rounded-lg border border-line p-2 text-muted transition-colors hover:border-gold hover:text-gold"
+                className="rounded-lg border border-line p-2 text-muted transition-colors hover:border-sky hover:text-sky"
               >
                 <ChevronLeft className="h-4 w-4" />
               </button>
@@ -158,7 +158,7 @@ export function AnalysisClient({
                 type="button"
                 onClick={() => goToVideoDate(1)}
                 aria-label="다음 영상 날짜"
-                className="rounded-lg border border-line p-2 text-muted transition-colors hover:border-gold hover:text-gold"
+                className="rounded-lg border border-line p-2 text-muted transition-colors hover:border-sky hover:text-sky"
               >
                 <ChevronRight className="h-4 w-4" />
               </button>
@@ -176,7 +176,7 @@ export function AnalysisClient({
               type="button"
               onClick={() => setMode(m.key)}
               className={`flex-1 rounded-lg px-5 py-2.5 text-sm font-medium transition-colors sm:flex-none ${
-                mode === m.key ? 'bg-gold text-ink' : 'text-muted hover:text-cream'
+                mode === m.key ? 'bg-sky text-white' : 'text-muted hover:text-ink'
               }`}
             >
               {m.label}
@@ -210,7 +210,7 @@ export function AnalysisClient({
 
           <div className="space-y-6">
             <div className="flex items-baseline justify-between border-b border-line pb-3">
-              <h2 className="text-lg font-bold text-cream">{selectedDate}</h2>
+              <h2 className="text-lg font-bold text-ink">{selectedDate}</h2>
               <span className="text-xs text-muted">{selectedLogs.length}건의 기록</span>
             </div>
 
@@ -224,7 +224,7 @@ export function AnalysisClient({
                 <Card key={log.id} className="space-y-5">
                   {/* 그날의 수치 */}
                   <div className="flex flex-wrap items-center gap-2">
-                    <span className="text-display text-2xl leading-none text-gold">
+                    <span className="text-display text-2xl leading-none text-sky">
                       {log.maxVelocity}
                       <span className="ml-1 text-sm text-muted">km/h 최고</span>
                     </span>
@@ -278,11 +278,11 @@ export function AnalysisClient({
 
                   {/* 그날의 느낀점 */}
                   <div className="rounded-xl border border-line bg-surface-2 p-4">
-                    <p className="text-xs font-medium uppercase tracking-wider text-gold">
+                    <p className="text-xs font-medium uppercase tracking-wider text-sky">
                       그날의 느낀점
                     </p>
                     {log.memo ? (
-                      <p className="mt-2 whitespace-pre-wrap text-sm leading-relaxed text-cream/90">
+                      <p className="mt-2 whitespace-pre-wrap text-sm leading-relaxed text-ink/90">
                         {log.memo}
                       </p>
                     ) : (

@@ -109,7 +109,7 @@ function MetricsGrid({ metrics }: { metrics: PitchMetric[] }) {
             {EVENT_LABELS[m.phase as EventKey]} · {m.label}
           </p>
           {m.display ? (
-            <p className="mt-1 text-sm font-semibold text-cream">{m.display}</p>
+            <p className="mt-1 text-sm font-semibold text-ink">{m.display}</p>
           ) : (
             <p className="mt-1 text-xs text-muted">
               {m.reason === '구간 없음'
@@ -136,15 +136,15 @@ function DeltaBlock({
   const deltas = compareMetrics(current, previous.metrics);
   if (deltas.length === 0) return null;
   return (
-    <div className="space-y-1 rounded-xl border border-gold-dim/40 bg-gold/[0.04] px-3 py-2.5">
-      <p className="text-[10px] uppercase tracking-wider text-gold">
+    <div className="space-y-1 rounded-xl border border-sky-soft/40 bg-sky/[0.04] px-3 py-2.5">
+      <p className="text-[10px] uppercase tracking-wider text-sky">
         지난 분석 대비 · {previous.date}
       </p>
       <div className="flex flex-wrap gap-x-4 gap-y-1">
         {deltas.map((d) => (
-          <span key={`${d.phase}-${d.key}`} className="text-[11px] text-cream/90">
+          <span key={`${d.phase}-${d.key}`} className="text-[11px] text-ink/90">
             {EVENT_LABELS[d.phase as EventKey]} {d.label}{' '}
-            <span className={d.delta === 0 ? 'text-muted' : 'font-semibold text-gold'}>
+            <span className={d.delta === 0 ? 'text-muted' : 'font-semibold text-sky'}>
               {d.delta > 0 ? '+' : ''}
               {d.delta}
               {d.unit}
@@ -352,7 +352,7 @@ export function PoseAnalysis({
         {saved && (
           <div className="space-y-2 rounded-xl border border-line bg-surface p-3">
             <div className="flex items-baseline justify-between gap-2">
-              <p className="text-[10px] font-medium uppercase tracking-wider text-gold">
+              <p className="text-[10px] font-medium uppercase tracking-wider text-sky">
                 저장된 폼 분석
               </p>
               <span className="text-[10px] text-muted">
@@ -367,13 +367,13 @@ export function PoseAnalysis({
         <button
           type="button"
           onClick={run}
-          className="inline-flex items-center gap-1.5 rounded-lg border border-line-strong bg-surface-2 px-3 py-2 text-xs text-cream transition-colors hover:border-gold hover:text-gold"
+          className="inline-flex items-center gap-1.5 rounded-lg border border-line-strong bg-surface-2 px-3 py-2 text-xs text-ink transition-colors hover:border-sky hover:text-sky"
         >
           <Activity className="h-3.5 w-3.5" />
           {saved ? '다시 분석 (스켈레톤 보기)' : '폼 분석 (베타)'}
         </button>
         {phase === 'error' && (
-          <p className="rounded-lg border border-red-900/60 bg-red-950/40 px-3 py-2 text-xs leading-relaxed text-red-300">
+          <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs leading-relaxed text-red-700">
             {error}
           </p>
         )}
@@ -385,14 +385,14 @@ export function PoseAnalysis({
     return (
       <div className="space-y-2 rounded-xl border border-line bg-surface-2 px-4 py-3">
         <p className="flex items-center gap-2 text-xs text-muted">
-          <Loader2 className="h-3.5 w-3.5 animate-spin text-gold" />
+          <Loader2 className="h-3.5 w-3.5 animate-spin text-sky" />
           {phase === 'loading'
             ? '분석 도구 준비 중… (처음 한 번만 내려받습니다)'
             : `관절 위치 추출 중… ${Math.round(progress * 100)}%`}
         </p>
         <div className="h-1.5 overflow-hidden rounded-full bg-surface">
           <div
-            className="h-full rounded-full bg-gold transition-[width] duration-200"
+            className="h-full rounded-full bg-sky transition-[width] duration-200"
             style={{ width: `${Math.round(progress * 100)}%` }}
           />
         </div>
@@ -413,7 +413,7 @@ export function PoseAnalysis({
 
   return (
     <div className="space-y-2">
-      <div className="relative overflow-hidden rounded-xl border border-gold-dim/50 bg-black">
+      <div className="relative overflow-hidden rounded-xl border border-sky-soft/50 bg-black">
         <video
           ref={videoRef}
           src={src}
@@ -445,7 +445,7 @@ export function PoseAnalysis({
             else v.pause();
           }}
           aria-label={playing ? '일시정지' : '재생'}
-          className="absolute bottom-2 left-2 flex h-9 w-9 items-center justify-center rounded-full bg-gold text-ink shadow-lg"
+          className="absolute bottom-2 left-2 flex h-9 w-9 items-center justify-center rounded-full bg-sky text-white shadow-lg"
         >
           {playing ? (
             <Pause className="h-4 w-4 fill-current" />
@@ -461,8 +461,8 @@ export function PoseAnalysis({
 
       {/* 인식이 많이 끊겼으면 스켈레톤이 사라지는 구간이 생긴다 — 이유를 알려주고 재시도 */}
       {track && track.coverage < 0.8 && (
-        <div className="space-y-2 rounded-lg border border-amber-500/30 bg-amber-500/[0.07] px-3 py-2">
-          <p className="text-[11px] leading-relaxed text-amber-200/90">
+        <div className="space-y-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2">
+          <p className="text-[11px] leading-relaxed text-amber-800">
             영상 구간의 {Math.round(track.coverage * 100)}%에서만 몸을 인식했습니다.
             인식이 끊긴 구간에서는 스켈레톤이 표시되지 않습니다. 일시적인 문제일 수
             있으니 다시 분석해보고, 계속 그러면 밝은 곳에서 전신이 크게 나오게 다시
@@ -478,7 +478,7 @@ export function PoseAnalysis({
               setHandedLabel(null);
               setPhase('idle');
             }}
-            className="rounded-lg border border-amber-500/40 px-2.5 py-1.5 text-[11px] text-amber-200 transition-colors hover:border-amber-400 hover:text-amber-100"
+            className="rounded-lg border border-amber-300 px-2.5 py-1.5 text-[11px] text-amber-800 transition-colors hover:border-amber-500 hover:text-amber-900"
           >
             다시 분석하기
           </button>
@@ -503,8 +503,8 @@ export function PoseAnalysis({
                 }}
                 className={`rounded-lg border px-2.5 py-1.5 text-xs transition-colors ${
                   selected === key
-                    ? 'border-gold bg-gold/10 text-gold'
-                    : 'border-line text-muted hover:border-gold-dim hover:text-cream'
+                    ? 'border-sky bg-sky/10 text-sky'
+                    : 'border-line text-muted hover:border-sky-soft hover:text-ink'
                 }`}
               >
                 {EVENT_LABELS[key]}{' '}
@@ -522,7 +522,7 @@ export function PoseAnalysis({
                 setSaveState('idle');
               }}
               title="투구 방향의 뒤에서 찍힌 영상은 좌우가 뒤집혀 인식될 수 있습니다. 표기만 바뀌고 측정값은 그대로입니다."
-              className="ml-auto rounded-lg border border-line px-2.5 py-1.5 text-[11px] text-muted transition-colors hover:border-gold-dim hover:text-cream"
+              className="ml-auto rounded-lg border border-line px-2.5 py-1.5 text-[11px] text-muted transition-colors hover:border-sky-soft hover:text-ink"
             >
               {events.throwingSide === 'right'
                 ? '우투로 인식 — 틀리면 좌투로 바꾸기'
@@ -536,7 +536,7 @@ export function PoseAnalysis({
             type="button"
             onClick={() => stepFrame(-1)}
             aria-label="이전 프레임"
-            className="rounded-lg border border-line p-1.5 text-muted transition-colors hover:border-gold hover:text-gold"
+            className="rounded-lg border border-line p-1.5 text-muted transition-colors hover:border-sky hover:text-sky"
           >
             <ChevronLeft className="h-3.5 w-3.5" />
           </button>
@@ -544,7 +544,7 @@ export function PoseAnalysis({
             type="button"
             onClick={() => stepFrame(1)}
             aria-label="다음 프레임"
-            className="rounded-lg border border-line p-1.5 text-muted transition-colors hover:border-gold hover:text-gold"
+            className="rounded-lg border border-line p-1.5 text-muted transition-colors hover:border-sky hover:text-sky"
           >
             <ChevronRight className="h-3.5 w-3.5" />
           </button>
@@ -561,7 +561,7 @@ export function PoseAnalysis({
               setOverrides((prev) => ({ ...prev, [selected]: v.currentTime }));
               setSaveState('idle');
             }}
-            className="rounded-lg border border-line-strong px-2.5 py-1.5 text-[11px] text-cream transition-colors enabled:hover:border-gold enabled:hover:text-gold disabled:opacity-40"
+            className="rounded-lg border border-line-strong px-2.5 py-1.5 text-[11px] text-ink transition-colors enabled:hover:border-sky enabled:hover:text-sky disabled:opacity-40"
           >
             현재 프레임을 {selected ? EVENT_AS[selected] : '구간으로'} 지정
           </button>
@@ -576,7 +576,7 @@ export function PoseAnalysis({
                 });
                 setSaveState('idle');
               }}
-              className="rounded-lg px-2 py-1.5 text-[11px] text-muted underline-offset-2 hover:text-cream hover:underline"
+              className="rounded-lg px-2 py-1.5 text-[11px] text-muted underline-offset-2 hover:text-ink hover:underline"
             >
               자동값 복원
             </button>
@@ -589,7 +589,7 @@ export function PoseAnalysis({
             나옵니다.
           </p>
         ) : events && !events.kneeUp && !events.footPlant && !events.release ? (
-          <p className="text-[11px] leading-relaxed text-amber-200/90">
+          <p className="text-[11px] leading-relaxed text-amber-800">
             투구 동작을 찾지 못했습니다. 팔을 휘두르는 장면이 화면 안에 다 들어와
             있는지 확인해주세요. 구간을 누른 뒤 ◀ ▶로 프레임을 맞추고 직접
             지정하면 수치는 똑같이 계산됩니다.
@@ -603,7 +603,7 @@ export function PoseAnalysis({
       </div>
 
       {events && !events.sideViewOk && (
-        <p className="rounded-lg border border-amber-500/30 bg-amber-500/[0.07] px-3 py-2 text-[11px] leading-relaxed text-amber-200/90">
+        <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] leading-relaxed text-amber-800">
           투구 방향의 앞이나 뒤에서 찍힌 영상이라 자동 분석을 하지 않았습니다.
           이 각도에서는 몸이 화면 안쪽으로 움직여 거리와 각도를 잴 수 없어,
           숫자를 내면 전부 틀린 값이 됩니다. 위 촬영 가이드대로 1루 또는 3루
@@ -612,7 +612,7 @@ export function PoseAnalysis({
       )}
 
       {badCameraAngle && (
-        <p className="rounded-lg border border-amber-500/30 bg-amber-500/[0.07] px-3 py-2 text-[11px] leading-relaxed text-amber-200/90">
+        <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] leading-relaxed text-amber-800">
           스트라이드가 신장의 {strideMetric?.value}%로 측정됐습니다 — 옆(90도)이
           아닌 각도에서 찍힌 영상 같습니다. 이런 영상은 거리·각도 수치가 실제보다
           작게 나오고 좌/우투 인식도 뒤집힐 수 있습니다. 위 촬영 가이드대로 옆에서
@@ -638,7 +638,7 @@ export function PoseAnalysis({
                 type="button"
                 onClick={handleSave}
                 disabled={saveState === 'saving' || saveState === 'saved'}
-                className="rounded-lg border border-gold-dim bg-gold/10 px-3 py-2 text-xs font-medium text-gold transition-colors enabled:hover:border-gold disabled:opacity-60"
+                className="rounded-lg border border-sky-soft bg-sky/10 px-3 py-2 text-xs font-medium text-sky transition-colors enabled:hover:border-sky disabled:opacity-60"
               >
                 {saveState === 'saving'
                   ? '저장 중…'
@@ -652,7 +652,7 @@ export function PoseAnalysis({
                 저장하면 다음에 재분석 없이 바로 보이고, 이후 세션과 자동 비교됩니다.
               </span>
               {saveState === 'error' && saveError && (
-                <span className="text-[11px] text-red-300">{saveError}</span>
+                <span className="text-[11px] text-red-700">{saveError}</span>
               )}
             </div>
           )}
@@ -660,7 +660,7 @@ export function PoseAnalysis({
       )}
 
       {lowQuality && (
-        <p className="rounded-lg border border-amber-500/30 bg-amber-500/[0.07] px-3 py-2 text-[11px] leading-relaxed text-amber-200/90">
+        <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] leading-relaxed text-amber-800">
           관절 인식 신뢰도가 낮습니다. 밝은 곳에서 전신이 다 나오게, 배경과 구분되는
           옷으로 다시 찍으면 좋아집니다. 이 상태의 측정값은 신뢰하기 어렵습니다.
         </p>

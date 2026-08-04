@@ -61,7 +61,7 @@ export function ClipPicker({
         aria-haspopup="listbox"
         aria-expanded={open}
         aria-label={`${side}면 영상 선택`}
-        className="flex w-full items-center gap-1 rounded-lg border border-line bg-surface px-2 py-1.5 text-xs text-cream transition-colors hover:border-gold"
+        className="flex w-full items-center gap-1 rounded-lg border border-line bg-surface px-2 py-1.5 text-xs text-ink transition-colors hover:border-sky"
       >
         <span className="min-w-0 flex-1 truncate text-left">
           {selected ? `${shortDate(selected.date)} ${selected.label}` : '선택'}
@@ -87,14 +87,14 @@ export function ClipPicker({
                 onChange={(e) => setQuery(e.target.value)}
                 placeholder="날짜 검색"
                 aria-label="날짜로 검색"
-                className="min-w-0 flex-1 bg-transparent text-xs text-cream placeholder:text-muted/60 focus:outline-none"
+                className="min-w-0 flex-1 bg-transparent text-xs text-ink placeholder:text-muted/60 focus:outline-none"
               />
               {query && (
                 <button
                   type="button"
                   onClick={() => setQuery('')}
                   aria-label="검색어 지우기"
-                  className="shrink-0 text-muted hover:text-cream"
+                  className="shrink-0 text-muted hover:text-ink"
                 >
                   <X className="h-3.5 w-3.5" />
                 </button>
@@ -122,11 +122,11 @@ export function ClipPicker({
                           setQuery('');
                         }}
                         className={`flex w-full items-start gap-2 px-3 py-2 text-left transition-colors hover:bg-surface-2 ${
-                          c.id === selectedId ? 'bg-gold/10' : ''
+                          c.id === selectedId ? 'bg-sky/10' : ''
                         }`}
                       >
                         <span className="min-w-0 flex-1">
-                          <span className="block text-xs text-cream">
+                          <span className="block text-xs text-ink">
                             {shortDate(c.date)} · {c.label}
                           </span>
                           <span className="mt-0.5 block truncate text-[10px] text-muted">
@@ -134,7 +134,7 @@ export function ClipPicker({
                           </span>
                         </span>
                         {c.id === selectedId && (
-                          <Check className="mt-0.5 h-3.5 w-3.5 shrink-0 text-gold" />
+                          <Check className="mt-0.5 h-3.5 w-3.5 shrink-0 text-sky" />
                         )}
                       </button>
                     ))}

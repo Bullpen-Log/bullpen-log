@@ -74,7 +74,7 @@ export function GuideForm({
 
       <FormError>{state?.error}</FormError>
       {state?.success && (
-        <p className="rounded-lg border border-gold-dim/50 bg-gold/10 px-4 py-3 text-sm text-gold-bright">
+        <p className="rounded-lg border border-sky-soft/50 bg-sky/10 px-4 py-3 text-sm text-sky-strong">
           {state.success}
         </p>
       )}
@@ -101,14 +101,14 @@ export function GuideForm({
 
         {editing && !replacing ? (
           <div className="flex flex-wrap items-center gap-3 rounded-xl border border-line bg-surface-2 px-4 py-3">
-            <Film className="h-4 w-4 shrink-0 text-gold" />
+            <Film className="h-4 w-4 shrink-0 text-sky" />
             <span className="min-w-0 flex-1 text-sm text-muted">
               지금 올려둔 영상을 그대로 씁니다
             </span>
             <button
               type="button"
               onClick={() => setReplacing(true)}
-              className="inline-flex items-center gap-1.5 rounded-lg border border-line-strong px-3 py-2 text-xs text-cream transition-colors hover:border-gold hover:text-gold"
+              className="inline-flex items-center gap-1.5 rounded-lg border border-line-strong px-3 py-2 text-xs text-ink transition-colors hover:border-sky hover:text-sky"
             >
               <RefreshCw className="h-3.5 w-3.5" />
               영상 교체
@@ -130,7 +130,7 @@ export function GuideForm({
                   setVideos([]);
                   setReplacing(false);
                 }}
-                className="text-xs text-muted transition-colors hover:text-cream"
+                className="text-xs text-muted transition-colors hover:text-ink"
               >
                 교체 취소 — 기존 영상 그대로 두기
               </button>
@@ -159,7 +159,7 @@ export function GuideForm({
       </Field>
 
       {/* 나중에 영상분석에서 찾은 문제와 드릴을 이어주는 항목이다. */}
-      <div className="space-y-5 border-t border-gold-dim/30 pt-5">
+      <div className="space-y-5 border-t border-sky-soft/30 pt-5">
         <CheckboxGroup
           name="focusPoints"
           label="교정 포인트 · 필수"
@@ -182,7 +182,7 @@ export function GuideForm({
           <button
             type="button"
             onClick={onDone}
-            className="text-sm text-muted transition-colors hover:text-cream"
+            className="text-sm text-muted transition-colors hover:text-ink"
           >
             취소
           </button>

@@ -63,14 +63,14 @@ function GuideDetail({
       sortOrder: item.sortOrder,
     };
     return (
-      <Card className="border-gold-dim/50 bg-gold/[0.03] p-4 sm:p-6">
+      <Card className="border-sky-soft/50 bg-sky/[0.03] p-4 sm:p-6">
         <div className="mb-4 flex items-center justify-between gap-3">
-          <p className="text-sm font-bold text-gold">드릴 수정</p>
+          <p className="text-sm font-bold text-sky">드릴 수정</p>
           <button
             type="button"
             onClick={() => setEditing(false)}
             aria-label="수정 닫기"
-            className="rounded-lg p-1.5 text-muted transition-colors hover:text-cream"
+            className="rounded-lg p-1.5 text-muted transition-colors hover:text-ink"
           >
             <X className="h-4 w-4" />
           </button>
@@ -87,7 +87,7 @@ function GuideDetail({
   return (
     <Card
       className={`grid gap-5 p-4 sm:p-5 md:grid-cols-[minmax(0,420px)_1fr] ${
-        item.done ? 'border-gold-dim/50' : 'border-gold-dim/40'
+        item.done ? 'border-sky-soft/50' : 'border-sky-soft/40'
       }`}
     >
       <LibraryVideo path={item.videoPath} title={item.title} thumbUrl={item.thumbUrl} />
@@ -96,11 +96,11 @@ function GuideDetail({
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0 space-y-2">
             {item.done && (
-              <Badge className="border-gold bg-gold/10 text-gold-bright">
+              <Badge className="border-sky bg-sky/10 text-sky-strong">
                 학습 완료
               </Badge>
             )}
-            <h3 className="text-lg font-bold text-cream">{item.title}</h3>
+            <h3 className="text-lg font-bold text-ink">{item.title}</h3>
           </div>
 
           <div className="flex shrink-0 items-center gap-1">
@@ -110,7 +110,7 @@ function GuideDetail({
                   type="button"
                   onClick={() => setEditing(true)}
                   aria-label={`${item.title} 수정`}
-                  className="rounded-lg p-2 text-muted transition-colors hover:bg-surface-2 hover:text-gold"
+                  className="rounded-lg p-2 text-muted transition-colors hover:bg-surface-2 hover:text-sky"
                 >
                   <Pencil className="h-4 w-4" />
                 </button>
@@ -119,7 +119,7 @@ function GuideDetail({
                   <button
                     type="submit"
                     aria-label={`${item.title} 삭제`}
-                    className="rounded-lg p-2 text-muted transition-colors hover:bg-red-950/40 hover:text-red-400"
+                    className="rounded-lg p-2 text-muted transition-colors hover:bg-red-950/40 hover:text-red-600"
                   >
                     <Trash2 className="h-4 w-4" />
                   </button>
@@ -130,7 +130,7 @@ function GuideDetail({
               type="button"
               onClick={onClose}
               aria-label="닫기"
-              className="rounded-lg p-2 text-muted transition-colors hover:text-cream"
+              className="rounded-lg p-2 text-muted transition-colors hover:text-ink"
             >
               <X className="h-4 w-4" />
             </button>
@@ -164,8 +164,8 @@ function GuideDetail({
             type="submit"
             className={`inline-flex w-full items-center justify-center gap-2 rounded-xl border px-4 py-2.5 text-sm transition-colors sm:w-auto ${
               item.done
-                ? 'border-gold bg-gold/10 text-gold-bright hover:bg-gold/20'
-                : 'border-line-strong bg-surface-2 text-muted hover:border-gold hover:text-gold'
+                ? 'border-sky bg-sky/10 text-sky-strong hover:bg-sky/20'
+                : 'border-line-strong bg-surface-2 text-muted hover:border-sky hover:text-sky'
             }`}
           >
             <Check className="h-4 w-4" />

@@ -1,15 +1,5 @@
 import Link from 'next/link';
-import {
-  Activity,
-  BookOpen,
-  CalendarDays,
-  FileText,
-  Plus,
-  TrendingUp,
-  UserCog,
-  Users,
-  Video,
-} from 'lucide-react';
+import { Plus, UserCog } from 'lucide-react';
 import { prisma } from '@/lib/prisma';
 import { requireUser } from '@/lib/dal';
 import { ageFromBirthDate } from '@/lib/profile';
@@ -47,15 +37,6 @@ import {
   ZoneGauge,
   type Tone,
 } from './parts';
-
-const QUICK_LINKS = [
-  { href: '/pitch-log', label: '투구기록', icon: CalendarDays },
-  { href: '/analysis', label: '영상분석', icon: Video },
-  { href: '/coach', label: 'AI 코치', icon: TrendingUp },
-  { href: '/library/training', label: '트레이닝', icon: Activity },
-  { href: '/library/mechanics', label: '메커니즘', icon: BookOpen },
-  { href: '/board', label: '자료실', icon: FileText },
-] as const;
 
 /** 렌더 중에 현재 시각을 직접 읽지 않도록 함수로 감싼다. */
 function now() {
@@ -197,31 +178,55 @@ export default async function DashboardPage() {
       )
     : null;
 
+  // 인사말은 접속 시각에 맞춘다.
+  const hour = today.getHours();
+  const greeting =
+    hour < 6
+      ? '늦은 밤이네요'
+      : hour < 12
+        ? '좋은 아침입니다'
+        : hour < 18
+          ? '좋은 오후입니다'
+          : '좋은 저녁입니다';
+  const todayLabel = today.toLocaleDateString('ko-KR', {
+    month: 'long',
+    day: 'numeric',
+    weekday: 'long',
+  });
+
   const intensityTone: Tone =
     current.peakIntensity >= 9 ? 'warn' : current.activeDays > 0 ? 'good' : 'neutral';
   const restTone: Tone =
     restDays == null ? 'neutral' : restDays === 0 ? 'warn' : restDays >= 7 ? 'info' : 'good';
 
   return (
-    <div className="space-y-8">
-      {/* ── 헤더 ────────────────────────────────────────────── */}
-      <div className="flex flex-wrap items-end justify-between gap-4">
-        <div className="space-y-2">
-          <p className="text-xs font-medium uppercase tracking-[0.25em] text-gold">
-            Live Dashboard
-          </p>
-          <h1 className="text-2xl font-bold tracking-tight text-cream sm:text-3xl">
-            {user.nickname}님의 컨디션
-          </h1>
+    <div className="space-y-6">
+      {/* ── 인사 히어로 ─────────────────────────────────────── */}
+      <section className="bg-hero rounded-2xl px-6 py-6 text-white sm:px-8 sm:py-7">
+        <h1 className="text-2xl font-bold sm:text-3xl">
+          {greeting}, {user.nickname} ⚡
+        </h1>
+        <p className="mt-1.5 text-sm text-white/85">
+          {todayLabel}
+          {restDays != null && ` · 마지막 투구 ${restDays === 0 ? '오늘' : `${restDays}일 전`}`}
+        </p>
+
+        <div className="mt-4 flex flex-wrap gap-2">
+          <Link
+            href="/pitch-log"
+            className="inline-flex items-center gap-2 rounded-full bg-white px-4 py-2.5 text-sm font-semibold text-sky-strong transition-colors hover:bg-white/90"
+          >
+            <Plus className="h-4 w-4" />
+            투구 기록하기
+          </Link>
+          <Link
+            href="/coach"
+            className="inline-flex items-center gap-2 rounded-full bg-white/20 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-white/30"
+          >
+            🎯 오늘의 코칭 받기
+          </Link>
         </div>
-        <Link
-          href="/pitch-log"
-          className="inline-flex items-center gap-2 rounded-xl bg-gold px-4 py-2.5 text-sm font-semibold text-ink transition-colors hover:bg-gold-bright"
-        >
-          <Plus className="h-4 w-4" />
-          투구 기록하기
-        </Link>
-      </div>
+      </section>
 
       {/* ── 오늘 컨디션 체크인 ──────────────────────────────── */}
       <CheckinCard recent={recentCheckins} />
@@ -235,11 +240,11 @@ export default async function DashboardPage() {
           {/* 선수 정보 */}
           <div className="flex flex-col justify-between gap-7 bg-surface/80 px-6 py-8 sm:px-8 sm:py-9">
             <div className="flex items-center gap-4">
-              <span className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl border border-gold-dim/50 bg-gold/10 text-2xl font-bold text-gold">
+              <span className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl border border-sky-soft/50 bg-sky/10 text-2xl font-bold text-sky">
                 {user.nickname.slice(0, 1)}
               </span>
               <div className="min-w-0">
-                <p className="truncate text-xl font-bold text-cream">
+                <p className="truncate text-xl font-bold text-ink">
                   {user.nickname}
                 </p>
                 <p className="mt-1 text-sm text-muted">
@@ -249,7 +254,7 @@ export default async function DashboardPage() {
                   ]
                     .filter(Boolean)
                     .join(' · ') || (
-                    <Link href="/profile" className="text-gold hover:underline">
+                    <Link href="/profile" className="text-sky hover:underline">
                       신체 정보 입력하기 →
                     </Link>
                   )}
@@ -280,7 +285,7 @@ export default async function DashboardPage() {
                   </dt>
                   {/* 단위까지 디스플레이 글꼴이 되지 않게 숫자에만 적용한다. */}
                   <dd className="mt-2 flex items-baseline gap-1">
-                    <span className="text-display text-2xl leading-none text-cream tabular-nums">
+                    <span className="text-display text-2xl leading-none text-ink tabular-nums">
                       {s.value}
                     </span>
                     <span className="text-[11px] text-muted">{s.unit}</span>
@@ -356,7 +361,7 @@ export default async function DashboardPage() {
                   지금 계산되는 원값은 아래에 따로 작게 둔다.
                 */}
                 <div className="rounded-xl border border-dashed border-line bg-surface-2/40 px-4 py-4">
-                  <p className="text-sm font-medium text-cream">
+                  <p className="text-sm font-medium text-ink">
                     {hasRecords ? '아직 지수를 낼 수 없습니다' : '기록을 남기면 표시됩니다'}
                   </p>
 
@@ -364,7 +369,7 @@ export default async function DashboardPage() {
                     <div className="mt-3 space-y-1.5">
                       <div className="h-1.5 overflow-hidden rounded-full bg-surface">
                         <div
-                          className="h-full rounded-full bg-gold/60"
+                          className="h-full rounded-full bg-sky/60"
                           style={{
                             width: `${Math.min(100, (acwr.historyDays / CHRONIC_WINDOW_DAYS) * 100)}%`,
                           }}
@@ -387,7 +392,7 @@ export default async function DashboardPage() {
                   {seedDailyLoad == null && (
                     <Link
                       href="/profile"
-                      className="mt-3 inline-flex items-center gap-1.5 rounded-lg border border-gold-dim/60 bg-gold/10 px-3 py-2 text-xs font-medium text-gold transition-colors hover:bg-gold/20"
+                      className="mt-3 inline-flex items-center gap-1.5 rounded-lg border border-sky-soft/60 bg-sky/10 px-3 py-2 text-xs font-medium text-sky transition-colors hover:bg-sky/20"
                     >
                       평소 투구량 3문항 입력하고 바로 보기 →
                     </Link>
@@ -397,7 +402,7 @@ export default async function DashboardPage() {
                 {/* 지금 계산되는 값 — 지수와 헷갈리지 않게 작게, 이름을 붙여서 */}
                 <div className="flex items-end justify-between gap-3 border-t border-line pt-3">
                   <div className="min-w-0">
-                    <p className="text-[11px] text-cream">
+                    <p className="text-[11px] text-ink">
                       최근 7일 부하
                       <span className="ml-1.5 text-muted/60">(지수 아님)</span>
                     </p>
@@ -405,7 +410,7 @@ export default async function DashboardPage() {
                       던진 날 {current.activeDays}일 · 부하 = 투구수 × 강도
                     </p>
                   </div>
-                  <span className="text-display shrink-0 text-2xl leading-none text-cream tabular-nums">
+                  <span className="text-display shrink-0 text-2xl leading-none text-ink tabular-nums">
                     {Math.round(acwr.acute)}
                   </span>
                 </div>
@@ -494,7 +499,7 @@ export default async function DashboardPage() {
         <div className="min-w-0 rounded-2xl border border-line bg-surface p-5 sm:p-6">
           <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
             <div>
-              <h2 className="text-base font-bold text-cream">28일 투구 부하 추이</h2>
+              <h2 className="text-base font-bold text-ink">28일 투구 부하 추이</h2>
               <p className="mt-1 text-xs leading-relaxed text-muted">
                 막대 = 그날 투구수 · 선 = 그날까지 최근 7일 부하의 합
                 <span className="text-muted/60"> (부하 = 투구수 × 강도)</span>
@@ -502,7 +507,7 @@ export default async function DashboardPage() {
             </div>
             <Link
               href="/coach"
-              className="text-xs text-muted transition-colors hover:text-gold"
+              className="text-xs text-muted transition-colors hover:text-sky"
             >
               AI 코치 →
             </Link>
@@ -512,10 +517,10 @@ export default async function DashboardPage() {
 
         <div className="rounded-2xl border border-line bg-surface p-5 sm:p-6">
           <div className="mb-4 flex items-baseline justify-between">
-            <h2 className="text-base font-bold text-cream">최근 기록</h2>
+            <h2 className="text-base font-bold text-ink">최근 기록</h2>
             <Link
               href="/pitch-log"
-              className="text-xs text-muted transition-colors hover:text-gold"
+              className="text-xs text-muted transition-colors hover:text-sky"
             >
               전체 →
             </Link>
@@ -533,7 +538,7 @@ export default async function DashboardPage() {
                   className="rounded-xl border border-line bg-surface-2 px-4 py-3"
                 >
                   <div className="flex items-center justify-between gap-2">
-                    <span className="text-sm font-medium text-cream tabular-nums">
+                    <span className="text-sm font-medium text-ink tabular-nums">
                       {log.date.toISOString().slice(5, 10).replace('-', '/')}
                     </span>
                     <span className="flex items-center gap-1.5 text-xs text-muted tabular-nums">
@@ -541,7 +546,7 @@ export default async function DashboardPage() {
                       <span className="text-line-strong">·</span>
                       강도 {log.intensity}
                       <span className="text-line-strong">·</span>
-                      <span className="text-gold">{log.maxVelocity}</span>
+                      <span className="text-sky">{log.maxVelocity}</span>
                     </span>
                   </div>
                   {log.memo && (
@@ -560,39 +565,18 @@ export default async function DashboardPage() {
       {!user.birthDate && (
         <Link
           href="/profile"
-          className="flex items-center gap-4 rounded-2xl border border-gold-dim/60 bg-gold/5 px-5 py-4 transition-colors hover:border-gold"
+          className="flex items-center gap-4 rounded-2xl border border-sky-soft/60 bg-sky/5 px-5 py-4 transition-colors hover:border-sky"
         >
-          <UserCog className="h-5 w-5 shrink-0 text-gold" />
-          <span className="min-w-0 flex-1 text-sm leading-relaxed text-cream/90">
+          <UserCog className="h-5 w-5 shrink-0 text-sky" />
+          <span className="min-w-0 flex-1 text-sm leading-relaxed text-ink/90">
             생년월일이 아직 등록되지 않았습니다. 나이에 맞는 안전한 투구수를
             계산하려면 필요합니다.
           </span>
-          <span className="shrink-0 text-xs font-medium uppercase tracking-[0.2em] text-gold">
+          <span className="shrink-0 text-xs font-medium uppercase tracking-[0.2em] text-sky">
             입력 →
           </span>
         </Link>
       )}
-
-      {/* ── 바로가기 ────────────────────────────────────────── */}
-      <section className="grid grid-cols-3 gap-px overflow-hidden rounded-2xl border border-line bg-line sm:grid-cols-6">
-        {[
-          ...QUICK_LINKS,
-          ...(user.role === 'ADMIN'
-            ? [{ href: '/admin', label: '관리자', icon: Users } as const]
-            : []),
-        ].map(({ href, label, icon: Icon }) => (
-          <Link
-            key={href}
-            href={href}
-            className="group flex flex-col items-center gap-2 bg-surface px-3 py-5 transition-colors hover:bg-surface-2"
-          >
-            <Icon className="h-4 w-4 text-muted transition-colors group-hover:text-gold" />
-            <span className="text-xs text-muted transition-colors group-hover:text-cream">
-              {label}
-            </span>
-          </Link>
-        ))}
-      </section>
 
       <p className="pb-2 text-center text-[11px] leading-relaxed text-muted/60">
         부하 지수는 훈련량 관리를 돕는 참고 지표입니다. 통증이 있다면 수치와 관계없이

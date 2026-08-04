@@ -68,7 +68,7 @@ export function LibraryVideo({
       onClick={play}
       disabled={loading}
       aria-label={`${title} 재생`}
-      className="group relative flex aspect-video w-full items-center justify-center overflow-hidden rounded-xl border border-line bg-surface-2 transition-colors hover:border-gold-dim disabled:cursor-wait"
+      className="group relative flex aspect-video w-full items-center justify-center overflow-hidden rounded-xl border border-line bg-surface-2 transition-colors hover:border-sky-soft disabled:cursor-wait"
     >
       {thumbUrl && (
         <>
@@ -84,7 +84,7 @@ export function LibraryVideo({
         </>
       )}
 
-      <span className="relative flex h-14 w-14 items-center justify-center rounded-full bg-gold text-ink shadow-lg transition-transform group-hover:scale-110">
+      <span className="relative flex h-14 w-14 items-center justify-center rounded-full bg-sky text-white shadow-lg transition-transform group-hover:scale-110">
         {loading ? (
           <Loader2 className="h-6 w-6 animate-spin" />
         ) : (

@@ -40,7 +40,7 @@ export default async function ArticleDetailPage({
     <article className="mx-auto max-w-3xl space-y-8">
       <Link
         href="/board"
-        className="inline-flex items-center gap-2 text-sm text-muted transition-colors hover:text-gold"
+        className="inline-flex items-center gap-2 text-sm text-muted transition-colors hover:text-sky"
       >
         <ArrowLeft className="h-4 w-4" />
         자료실로 돌아가기
@@ -50,19 +50,19 @@ export default async function ArticleDetailPage({
         {article.tags.length > 0 && (
           <div className="flex flex-wrap gap-1.5">
             {article.tags.map((tag) => (
-              <Badge key={tag} className="border-gold-dim/40 text-gold">
+              <Badge key={tag} className="border-sky-soft/40 text-sky">
                 #{tag}
               </Badge>
             ))}
           </div>
         )}
 
-        <h1 className="text-3xl font-bold leading-tight tracking-tight text-cream">
+        <h1 className="text-3xl font-bold leading-tight tracking-tight text-ink">
           {article.title}
         </h1>
 
         <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-muted">
-          <span className="text-cream">{article.user.nickname}</span>
+          <span className="text-ink">{article.user.nickname}</span>
           <span>{formatDate(article.createdAt)}</span>
           <span className="flex items-center gap-1">
             <Eye className="h-3.5 w-3.5" />
@@ -90,19 +90,19 @@ export default async function ArticleDetailPage({
           href={article.attachmentUrl}
           target="_blank"
           rel="noopener noreferrer"
-          className="flex items-center gap-3 rounded-xl border border-line bg-surface px-5 py-4 text-sm transition-colors hover:border-gold"
+          className="flex items-center gap-3 rounded-xl border border-line bg-surface px-5 py-4 text-sm transition-colors hover:border-sky"
         >
-          <ExternalLink className="h-4 w-4 shrink-0 text-gold" />
+          <ExternalLink className="h-4 w-4 shrink-0 text-sky" />
           <span className="min-w-0 flex-1 truncate text-muted">
             {article.attachmentUrl}
           </span>
-          <span className="shrink-0 text-xs font-medium uppercase tracking-wider text-gold">
+          <span className="shrink-0 text-xs font-medium uppercase tracking-wider text-sky">
             원문 보기
           </span>
         </a>
       )}
 
-      <div className="whitespace-pre-wrap text-[15px] leading-[1.9] text-cream/90">
+      <div className="whitespace-pre-wrap text-[15px] leading-[1.9] text-ink/90">
         {article.content}
       </div>
     </article>

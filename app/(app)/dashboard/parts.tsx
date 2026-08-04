@@ -38,9 +38,9 @@ export const TONE: Record<
     bar: 'bg-amber-500/70',
   },
   bad: {
-    text: 'text-red-400',
+    text: 'text-red-600',
     dot: 'bg-red-400',
-    chip: 'border-red-500/40 bg-red-500/10 text-red-300',
+    chip: 'border-red-500/40 bg-red-500/10 text-red-700',
     bar: 'bg-red-500/70',
   },
   neutral: {
@@ -125,7 +125,7 @@ export function StatCard({
         {label}
       </p>
       <p className="mt-3 flex items-baseline gap-1.5">
-        <span className="text-display text-3xl leading-none text-cream tabular-nums sm:text-4xl">
+        <span className="text-display text-3xl leading-none text-ink tabular-nums sm:text-4xl">
           {value}
         </span>
         {unit && <span className="text-xs text-muted">{unit}</span>}
@@ -182,7 +182,7 @@ export function ZoneGauge({
           style={{ left: `${position}%` }}
           aria-hidden
         >
-          <span className="block h-full w-[3px] rounded-full bg-cream shadow-[0_0_0_2px_rgba(10,10,11,0.9)]" />
+          <span className="block h-full w-[3px] rounded-full bg-ink shadow-[0_0_0_2px_#ffffff]" />
         </span>
       </div>
 
@@ -250,7 +250,7 @@ export function WeekStrip({ bars }: { bars: WeekBar[] }) {
             {/* 막대가 너무 뚱뚱해 보이지 않도록 폭에 상한을 둔다. */}
             {bar.pitches > 0 ? (
               <span
-                className="mx-auto w-full max-w-[34px] rounded-t-sm bg-gold/55"
+                className="mx-auto w-full max-w-[34px] rounded-t-sm bg-sky/55"
                 style={{ height: `${Math.max(8, (bar.pitches / peak) * 100)}%` }}
                 title={`${bar.label} ${bar.pitches}구`}
               />
@@ -289,22 +289,22 @@ export function LoadIndexHelp({
 }) {
   return (
     <details className="group border-t border-line pt-3">
-      <summary className="flex cursor-pointer list-none items-center gap-1.5 text-[11px] text-muted transition-colors hover:text-gold">
+      <summary className="flex cursor-pointer list-none items-center gap-1.5 text-[11px] text-muted transition-colors hover:text-sky">
         <ChevronDown className="h-3.5 w-3.5 transition-transform group-open:rotate-180" />
         부하 지수가 뭔가요?
       </summary>
 
       <div className="mt-4 space-y-4 text-[11px] leading-relaxed text-muted">
         <div>
-          <p className="font-semibold text-cream">어떻게 나오나요</p>
+          <p className="font-semibold text-ink">어떻게 나오나요</p>
           <div className="mt-2 space-y-1.5 rounded-lg border border-line bg-surface-2 px-3 py-2.5 tabular-nums">
             <p>
-              하루 부하 <span className="text-cream">= 투구수 × 강도</span>
+              하루 부하 <span className="text-ink">= 투구수 × 강도</span>
               <span className="ml-1 text-muted/60">(50구를 강도 6으로 → 300)</span>
             </p>
             <p>
               부하 지수{' '}
-              <span className="text-cream">
+              <span className="text-ink">
                 = 최근 부하 ÷ 평소 부하
               </span>
               <span className="ml-1 text-muted/60">(최근일수록 크게 반영되는 평균)</span>
@@ -316,7 +316,7 @@ export function LoadIndexHelp({
             {chronic > 0 && (
               <p className="border-t border-line pt-1.5 text-muted/70">
                 지금은 {Math.round(acute)} ÷ {Math.round(chronic)} ={' '}
-                <span className="text-cream">
+                <span className="text-ink">
                   {(acute / chronic).toFixed(2)}
                 </span>
               </p>
@@ -325,17 +325,17 @@ export function LoadIndexHelp({
         </div>
 
         <div>
-          <p className="font-semibold text-cream">왜 보나요</p>
+          <p className="font-semibold text-ink">왜 보나요</p>
           <p className="mt-1.5">
             몸은 평소 하던 양에 맞춰 적응해 있습니다. 그래서 절대적인 투구수보다
-            <span className="text-cream"> 평소보다 얼마나 늘었는지</span>가 부상 위험과 더
+            <span className="text-ink"> 평소보다 얼마나 늘었는지</span>가 부상 위험과 더
             가깝습니다. 같은 100구라도 평소 100구를 던지던 사람과 30구를 던지던
             사람에게 오는 부담이 다릅니다.
           </p>
         </div>
 
         <div>
-          <p className="font-semibold text-cream">구간</p>
+          <p className="font-semibold text-ink">구간</p>
           <ul className="mt-2 space-y-1.5">
             {ACWR_ZONE_ORDER.map((zone) => {
               const z = ACWR_ZONES[zone];
@@ -353,7 +353,7 @@ export function LoadIndexHelp({
                   <span className="min-w-0">
                     <span
                       className={
-                        active ? `font-semibold ${TONE[ZONE_TONE[zone]].text}` : 'text-cream'
+                        active ? `font-semibold ${TONE[ZONE_TONE[zone]].text}` : 'text-ink'
                       }
                     >
                       {z.short}
@@ -372,7 +372,7 @@ export function LoadIndexHelp({
 
         {/* 화면 아래의 안내와 겹치지 않게, 여기서는 지표 자체의 한계를 말한다. */}
         <p className="rounded-lg border border-line bg-surface-2 px-3 py-2.5 text-muted/70">
-          <span className="text-cream">알아두세요.</span> 스포츠과학에서 널리 쓰이는
+          <span className="text-ink">알아두세요.</span> 스포츠과학에서 널리 쓰이는
           방식이지만 절대 기준은 아닙니다. 수면·컨디션·나이·폼 같은 요소는 들어가지
           않고, 오직 기록한 투구수와 강도만으로 계산합니다.
         </p>
@@ -404,7 +404,7 @@ export function MetricHelp({ twoDayLimit }: { twoDayLimit: number }) {
 
   return (
     <details className="group rounded-2xl border border-line bg-surface px-5 py-4">
-      <summary className="flex cursor-pointer list-none items-center gap-1.5 text-[11px] text-muted transition-colors hover:text-gold">
+      <summary className="flex cursor-pointer list-none items-center gap-1.5 text-[11px] text-muted transition-colors hover:text-sky">
         <ChevronDown className="h-3.5 w-3.5 transition-transform group-open:rotate-180" />
         이 숫자들은 어떻게 나오나요?
       </summary>
@@ -412,7 +412,7 @@ export function MetricHelp({ twoDayLimit }: { twoDayLimit: number }) {
       <dl className="mt-4 grid gap-4 sm:grid-cols-2">
         {items.map((item) => (
           <div key={item.title}>
-            <dt className="text-xs font-semibold text-cream">{item.title}</dt>
+            <dt className="text-xs font-semibold text-ink">{item.title}</dt>
             <dd className="mt-1 text-[11px] leading-relaxed text-muted">{item.body}</dd>
           </div>
         ))}
@@ -431,11 +431,11 @@ export function TodayPlanLine({ plan }: { plan: PitchPlan }) {
     return (
       <Link
         href="/coach"
-        className="flex items-start gap-3 rounded-2xl border border-red-900/60 bg-red-950/25 px-5 py-4 transition-colors hover:border-red-800"
+        className="flex items-start gap-3 rounded-2xl border border-red-900/60 bg-red-950/25 px-5 py-4 transition-colors hover:border-red-400"
       >
-        <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-red-400" />
+        <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-red-600" />
         <span className="min-w-0 flex-1">
-          <span className="block text-sm font-bold text-red-300">
+          <span className="block text-sm font-bold text-red-700">
             오늘은 던지지 마세요
           </span>
           <span className="mt-1 block text-xs leading-relaxed text-red-100/80">
@@ -454,7 +454,7 @@ export function TodayPlanLine({ plan }: { plan: PitchPlan }) {
       href="/coach"
       className={`flex flex-wrap items-center gap-x-4 gap-y-2 rounded-2xl border px-5 py-4 transition-colors ${
         today.throwing
-          ? 'border-line bg-surface hover:border-gold'
+          ? 'border-line bg-surface hover:border-sky'
           : 'border-sky-500/30 bg-sky-500/[0.06] hover:border-sky-500/60'
       }`}
     >
@@ -464,14 +464,14 @@ export function TodayPlanLine({ plan }: { plan: PitchPlan }) {
 
       {today.throwing ? (
         <span className="flex items-baseline gap-1.5">
-          <Sun className="h-4 w-4 self-center text-gold" />
-          <span className="text-display text-2xl leading-none text-gold tabular-nums">
+          <Sun className="h-4 w-4 self-center text-sky" />
+          <span className="text-display text-2xl leading-none text-sky tabular-nums">
             {today.maxPitches}
           </span>
           <span className="text-sm text-muted">구 이하</span>
           <span className="mx-1 text-line-strong">·</span>
           <span className="text-sm text-muted">
-            강도 <span className="text-cream">{today.maxIntensity}</span> 이하
+            강도 <span className="text-ink">{today.maxIntensity}</span> 이하
           </span>
         </span>
       ) : (

@@ -48,7 +48,7 @@ export default async function BoardPage() {
                 className="group flex flex-col gap-3 px-6 py-5 transition-colors hover:bg-surface-2"
               >
                 <div className="flex items-start justify-between gap-4">
-                  <h2 className="font-semibold text-cream transition-colors group-hover:text-gold">
+                  <h2 className="font-semibold text-ink transition-colors group-hover:text-sky">
                     {article.title}
                   </h2>
                   {article.attachmentUrl && (
@@ -64,7 +64,7 @@ export default async function BoardPage() {
                   {article.tags.length > 0 && (
                     <div className="flex flex-wrap gap-1.5">
                       {article.tags.map((tag) => (
-                        <Badge key={tag} className="border-gold-dim/40 text-gold">
+                        <Badge key={tag} className="border-sky-soft/40 text-sky">
                           #{tag}
                         </Badge>
                       ))}

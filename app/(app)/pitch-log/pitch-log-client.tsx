@@ -147,7 +147,7 @@ export function PitchLogClient({ initialLogs }: { initialLogs: Log[] }) {
 
         <Card className="space-y-5">
           <div>
-            <h2 className="font-bold text-cream">기록 추가</h2>
+            <h2 className="font-bold text-ink">기록 추가</h2>
             <p className="mt-1 text-sm text-muted">{selectedDate}</p>
           </div>
 
@@ -170,7 +170,7 @@ export function PitchLogClient({ initialLogs }: { initialLogs: Log[] }) {
                   max="10"
                   value={form.intensity}
                   onChange={(e) => setForm({ ...form, intensity: e.target.value })}
-                  className="mt-3 w-full accent-[#c9a96a]"
+                  className="mt-3 w-full accent-[#0ea5e9]"
                 />
               </Field>
             </div>
@@ -228,7 +228,7 @@ export function PitchLogClient({ initialLogs }: { initialLogs: Log[] }) {
 
       <Card className="space-y-5">
         <div className="flex items-baseline justify-between">
-          <h2 className="font-bold text-cream">{selectedDate} 기록</h2>
+          <h2 className="font-bold text-ink">{selectedDate} 기록</h2>
           <span className="text-xs text-muted">{selectedLogs.length}건</span>
         </div>
 
@@ -243,7 +243,7 @@ export function PitchLogClient({ initialLogs }: { initialLogs: Log[] }) {
               <li key={log.id} className="rounded-xl border border-line bg-surface-2 p-4">
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
-                    <p className="text-display text-2xl leading-none text-gold">
+                    <p className="text-display text-2xl leading-none text-sky">
                       {log.maxVelocity}
                       <span className="ml-1 text-sm text-muted">km/h 최고</span>
                     </p>
@@ -254,7 +254,7 @@ export function PitchLogClient({ initialLogs }: { initialLogs: Log[] }) {
                         <Badge>평균 {log.avgVelocity} km/h</Badge>
                       )}
                       {log.videoPaths.length > 0 && (
-                        <Badge className="border-gold-dim/60 text-gold">
+                        <Badge className="border-sky-soft/60 text-sky">
                           <Video className="mr-1 h-3 w-3" />
                           영상 {log.videoPaths.length}
                         </Badge>
@@ -265,7 +265,7 @@ export function PitchLogClient({ initialLogs }: { initialLogs: Log[] }) {
                     type="button"
                     onClick={() => handleDelete(log.id)}
                     aria-label="기록 삭제"
-                    className="rounded-lg p-2 text-muted transition-colors hover:bg-red-950/40 hover:text-red-400"
+                    className="rounded-lg p-2 text-muted transition-colors hover:bg-red-950/40 hover:text-red-600"
                   >
                     <Trash2 className="h-4 w-4" />
                   </button>

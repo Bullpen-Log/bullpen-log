@@ -43,10 +43,10 @@ export default async function LandingPage() {
       <section className="bg-spotlight border-b border-line">
         <div className="mx-auto flex max-w-4xl flex-col items-center px-6 py-28 text-center sm:py-36">
           <Eyebrow>For Pitchers</Eyebrow>
-          <h1 className="text-display mt-6 text-6xl leading-[0.95] text-cream sm:text-8xl">
+          <h1 className="text-display mt-6 text-6xl leading-[0.95] text-ink sm:text-8xl">
             BULLPEN
             <br />
-            <span className="text-gold">LOG</span>
+            <span className="text-sky">LOG</span>
           </h1>
           <p className="mt-7 max-w-xl text-base leading-relaxed text-muted">
             트레이닝, 메커니즘, 투구 기록, 자료실. 투수에게 필요한 것들을 한 곳에
@@ -71,9 +71,9 @@ export default async function LandingPage() {
       <section className="mx-auto max-w-6xl px-6 py-24">
         <div className="grid gap-px overflow-hidden rounded-2xl border border-line bg-line sm:grid-cols-2">
           {PILLARS.map((p) => (
-            <div key={p.num} className="bg-ink p-8 sm:p-10">
-              <span className="text-display text-3xl text-gold-dim">{p.num}</span>
-              <h2 className="mt-4 text-xl font-bold text-cream">{p.title}</h2>
+            <div key={p.num} className="bg-surface p-8 sm:p-10">
+              <span className="text-display text-3xl text-sky-soft">{p.num}</span>
+              <h2 className="mt-4 text-xl font-bold text-ink">{p.title}</h2>
               <p className="mt-3 text-sm leading-relaxed text-muted">{p.desc}</p>
             </div>
           ))}
@@ -82,7 +82,7 @@ export default async function LandingPage() {
 
       <footer className="border-t border-line">
         <div className="mx-auto flex max-w-6xl flex-col gap-2 px-6 py-10 text-center sm:flex-row sm:justify-between sm:text-left">
-          <span className="text-display text-lg text-cream">BULLPEN LOG</span>
+          <span className="text-display text-lg text-ink">BULLPEN LOG</span>
           <span className="text-xs text-muted">
             투수를 위한 트레이닝 &amp; 기록 플랫폼
           </span>

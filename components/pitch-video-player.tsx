@@ -134,7 +134,7 @@ export function PitchVideoPlayer({
       className={
         expanded
           ? 'fixed inset-0 z-[60] flex flex-col bg-ink focus:outline-none'
-          : 'overflow-hidden rounded-xl border border-line bg-surface-2 focus-within:border-gold focus:outline-none focus-visible:border-gold focus-visible:ring-1 focus-visible:ring-gold'
+          : 'overflow-hidden rounded-xl border border-line bg-surface-2 focus-within:border-sky focus:outline-none focus-visible:border-sky focus-visible:ring-1 focus-visible:ring-sky'
       }
       onKeyDown={handleKeyDown}
       // Tab으로 이 영역에 들어와 화살표 키를 쓸 수 있게 한다.
@@ -145,7 +145,7 @@ export function PitchVideoPlayer({
       {/* 크게 보기일 때만 상단에 제목과 닫기를 둔다. */}
       {expanded && (
         <div className="flex shrink-0 items-center gap-3 border-b border-line px-3 py-2.5">
-          <span className="min-w-0 flex-1 truncate text-sm text-cream">{label}</span>
+          <span className="min-w-0 flex-1 truncate text-sm text-ink">{label}</span>
           <span className="hidden text-[11px] text-muted sm:inline">
             Esc 키로 닫기
           </span>
@@ -153,7 +153,7 @@ export function PitchVideoPlayer({
             type="button"
             onClick={() => setExpanded(false)}
             aria-label="크게 보기 닫기"
-            className="flex h-9 w-9 items-center justify-center rounded-lg border border-line text-muted transition-colors hover:border-gold hover:text-gold"
+            className="flex h-9 w-9 items-center justify-center rounded-lg border border-line text-muted transition-colors hover:border-sky hover:text-sky"
           >
             <X className="h-4 w-4" />
           </button>
@@ -221,7 +221,7 @@ export function PitchVideoPlayer({
             setCurrent(v);
           }}
           aria-label="재생 위치"
-          className="h-6 w-full cursor-pointer accent-[#c9a96a]"
+          className="h-6 w-full cursor-pointer accent-[#0ea5e9]"
         />
       </div>
 
@@ -235,7 +235,7 @@ export function PitchVideoPlayer({
           onClick={reset}
           aria-label="처음으로"
           title="처음으로"
-          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border border-line text-muted transition-colors hover:border-gold hover:text-gold"
+          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border border-line text-muted transition-colors hover:border-sky hover:text-sky"
         >
           <RotateCcw className="h-4 w-4" />
         </button>
@@ -244,7 +244,7 @@ export function PitchVideoPlayer({
           type="button"
           onClick={togglePlay}
           aria-label={playing ? '일시정지' : '재생'}
-          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-gold text-ink transition-colors hover:bg-gold-bright"
+          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-sky text-white transition-colors hover:bg-sky-strong"
         >
           {playing ? (
             <Pause className="h-4 w-4 fill-current" />
@@ -259,7 +259,7 @@ export function PitchVideoPlayer({
             type="button"
             onClick={() => stepFrame(-1)}
             aria-label="이전 프레임"
-            className="flex items-center gap-1 px-3 text-xs text-muted transition-colors hover:bg-surface hover:text-gold"
+            className="flex items-center gap-1 px-3 text-xs text-muted transition-colors hover:bg-surface hover:text-sky"
           >
             <ChevronLeft className="h-4 w-4" />
             <span className="hidden sm:inline">이전 프레임</span>
@@ -269,7 +269,7 @@ export function PitchVideoPlayer({
             type="button"
             onClick={() => stepFrame(1)}
             aria-label="다음 프레임"
-            className="flex items-center gap-1 px-3 text-xs text-muted transition-colors hover:bg-surface hover:text-gold"
+            className="flex items-center gap-1 px-3 text-xs text-muted transition-colors hover:bg-surface hover:text-sky"
           >
             <span className="hidden sm:inline">다음 프레임</span>
             <ChevronRight className="h-4 w-4" />
@@ -284,8 +284,8 @@ export function PitchVideoPlayer({
           title="영상 위에 선·각도 그리기"
           className={`flex h-11 shrink-0 items-center gap-1.5 rounded-lg border px-3 text-xs transition-colors ${
             drawing
-              ? 'border-gold bg-gold/10 text-gold'
-              : 'border-line text-muted hover:border-gold hover:text-gold'
+              ? 'border-sky bg-sky/10 text-sky'
+              : 'border-line text-muted hover:border-sky hover:text-sky'
           }`}
         >
           <Ruler className="h-4 w-4" />
@@ -301,8 +301,8 @@ export function PitchVideoPlayer({
           aria-label={expanded ? '작게 보기' : '크게 보기'}
           className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border transition-colors ${
             expanded
-              ? 'border-gold bg-gold/10 text-gold'
-              : 'border-line text-muted hover:border-gold hover:text-gold'
+              ? 'border-sky bg-sky/10 text-sky'
+              : 'border-line text-muted hover:border-sky hover:text-sky'
           }`}
         >
           {expanded ? (
@@ -326,8 +326,8 @@ export function PitchVideoPlayer({
                   i > 0 ? 'border-l border-line' : ''
                 } ${
                   speed === s
-                    ? 'bg-gold font-semibold text-ink'
-                    : 'text-muted hover:bg-surface hover:text-cream'
+                    ? 'bg-sky font-semibold text-white'
+                    : 'text-muted hover:bg-surface hover:text-ink'
                 }`}
               >
                 {s}x

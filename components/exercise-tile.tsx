@@ -21,7 +21,7 @@ export function LibraryTile({
     <button
       type="button"
       onClick={onSelect}
-      className="group flex flex-col overflow-hidden rounded-xl border border-line bg-surface text-left transition-colors hover:border-gold"
+      className="group flex flex-col overflow-hidden rounded-xl border border-line bg-surface text-left transition-colors hover:border-sky"
     >
       <span className="relative flex aspect-video w-full items-center justify-center overflow-hidden bg-surface-2">
         {thumbUrl && (
@@ -37,12 +37,12 @@ export function LibraryTile({
             <span className="absolute inset-0 bg-ink/35 transition-colors group-hover:bg-ink/15" />
           </>
         )}
-        <span className="relative flex h-9 w-9 items-center justify-center rounded-full bg-gold/90 text-ink transition-transform group-hover:scale-110">
+        <span className="relative flex h-9 w-9 items-center justify-center rounded-full bg-sky/90 text-white transition-transform group-hover:scale-110">
           <Play className="ml-0.5 h-4 w-4 fill-current" />
         </span>
       </span>
 
-      <span className="line-clamp-2 px-3 py-2.5 text-sm font-medium leading-snug text-cream transition-colors group-hover:text-gold">
+      <span className="line-clamp-2 px-3 py-2.5 text-sm font-medium leading-snug text-ink transition-colors group-hover:text-sky">
         {title}
       </span>
     </button>

@@ -1,4 +1,5 @@
 import { requireUser } from '@/lib/dal';
+import { logout } from '@/app/actions/auth';
 import { Badge, Card, PageHeading } from '@/components/ui';
 import { ageFromBirthDate, toDateInputValue } from '@/lib/profile';
 import { toDateKey } from '@/lib/pitch-stats';
@@ -38,15 +39,15 @@ export default async function ProfilePage() {
 
         <div className="space-y-6">
           <Card className="space-y-4">
-            <h2 className="text-sm font-bold text-cream">계정</h2>
+            <h2 className="text-sm font-bold text-ink">계정</h2>
             <dl className="space-y-3 text-sm">
               <div>
                 <dt className="text-xs uppercase tracking-wider text-muted">이메일</dt>
-                <dd className="mt-1 break-all text-cream">{user.email}</dd>
+                <dd className="mt-1 break-all text-ink">{user.email}</dd>
               </div>
               <div>
                 <dt className="text-xs uppercase tracking-wider text-muted">만 나이</dt>
-                <dd className="mt-1 text-cream">
+                <dd className="mt-1 text-ink">
                   {age != null ? `${age}세` : '생년월일을 입력해주세요'}
                 </dd>
               </div>
@@ -54,11 +55,20 @@ export default async function ProfilePage() {
                 <div>
                   <dt className="text-xs uppercase tracking-wider text-muted">권한</dt>
                   <dd className="mt-1">
-                    <Badge className="border-gold-dim/60 text-gold">관리자</Badge>
+                    <Badge className="border-sky-soft/60 text-sky">관리자</Badge>
                   </dd>
                 </div>
               )}
             </dl>
+
+            <form action={logout} className="border-t border-line pt-4">
+              <button
+                type="submit"
+                className="w-full rounded-xl border border-line px-4 py-2.5 text-sm text-muted transition-colors hover:border-line-strong hover:text-ink"
+              >
+                로그아웃
+              </button>
+            </form>
           </Card>
 
           <p className="rounded-xl border border-line bg-surface px-5 py-4 text-xs leading-relaxed text-muted">

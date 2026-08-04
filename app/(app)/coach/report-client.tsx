@@ -63,7 +63,7 @@ const TONE_STYLES: Record<
   ReportFinding['tone'],
   { box: string; icon: string; Icon: typeof CheckCircle2 }
 > = {
-  good: { box: 'border-line bg-surface', icon: 'text-gold', Icon: CheckCircle2 },
+  good: { box: 'border-line bg-surface', icon: 'text-sky', Icon: CheckCircle2 },
   info: { box: 'border-line bg-surface', icon: 'text-muted', Icon: Info },
   warn: {
     box: 'border-amber-800/60 bg-amber-950/25',
@@ -99,14 +99,14 @@ function MetricRow({
     <div className="flex items-baseline justify-between gap-3 border-b border-line py-3 last:border-b-0">
       <span className="text-sm text-muted">{label}</span>
       <span className="flex items-baseline gap-2">
-        <span className="text-display text-2xl tabular-nums text-cream">
+        <span className="text-display text-2xl tabular-nums text-ink">
           {value}
           {unit && <span className="ml-1 text-xs text-muted">{unit}</span>}
         </span>
         {rounded != null && (
           <span
             className={`flex items-center gap-0.5 text-[11px] tabular-nums ${
-              flat ? 'text-muted' : positive ? 'text-gold' : 'text-amber-400'
+              flat ? 'text-muted' : positive ? 'text-sky' : 'text-amber-400'
             }`}
           >
             {flat ? (
@@ -204,8 +204,8 @@ export function ReportClient({
           type: 'line' as const,
           label: '투구 강도',
           data: currentKeys.map((k) => byDay.get(k)?.intensity ?? 0),
-          borderColor: '#c9a96a',
-          backgroundColor: '#c9a96a',
+          borderColor: '#0ea5e9',
+          backgroundColor: '#0ea5e9',
           tension: 0.35,
           pointRadius: days === 7 ? 4 : 2,
           yAxisID: 'y1',
@@ -224,7 +224,7 @@ export function ReportClient({
           type: 'line' as const,
           label: '최고 구속',
           data: currentKeys.map((k) => byDay.get(k)?.maxVelocity ?? null),
-          borderColor: '#c9a96a',
+          borderColor: '#0ea5e9',
           backgroundColor: 'rgba(201, 169, 106, 0.12)',
           tension: 0.35,
           fill: true,
@@ -253,7 +253,7 @@ export function ReportClient({
     interaction: { mode: 'index' as const, intersect: false },
     plugins: {
       legend: {
-        labels: { color: '#8e8e99', usePointStyle: true, boxWidth: 8, padding: 16 },
+        labels: { color: '#64748b', usePointStyle: true, boxWidth: 8, padding: 16 },
       },
     },
   };
@@ -261,20 +261,20 @@ export function ReportClient({
   const volumeOptions = {
     ...baseOptions,
     scales: {
-      x: { ticks: { color: '#8e8e99' }, grid: { color: 'rgba(42,42,51,0.6)' } },
+      x: { ticks: { color: '#64748b' }, grid: { color: 'rgba(203,213,225,0.8)' } },
       y: {
         position: 'left' as const,
         beginAtZero: true,
-        title: { display: true, text: '투구수', color: '#8e8e99' },
-        ticks: { color: '#8e8e99' },
-        grid: { color: 'rgba(42,42,51,0.6)' },
+        title: { display: true, text: '투구수', color: '#64748b' },
+        ticks: { color: '#64748b' },
+        grid: { color: 'rgba(203,213,225,0.8)' },
       },
       y1: {
         position: 'right' as const,
         beginAtZero: true,
         suggestedMax: 10,
-        title: { display: true, text: '강도', color: '#c9a96a' },
-        ticks: { color: '#c9a96a', stepSize: 2 },
+        title: { display: true, text: '강도', color: '#0ea5e9' },
+        ticks: { color: '#0ea5e9', stepSize: 2 },
         grid: { drawOnChartArea: false },
       },
     },
@@ -283,11 +283,11 @@ export function ReportClient({
   const velocityOptions = {
     ...baseOptions,
     scales: {
-      x: { ticks: { color: '#8e8e99' }, grid: { color: 'rgba(42,42,51,0.6)' } },
+      x: { ticks: { color: '#64748b' }, grid: { color: 'rgba(203,213,225,0.8)' } },
       y: {
-        ticks: { color: '#8e8e99' },
-        grid: { color: 'rgba(42,42,51,0.6)' },
-        title: { display: true, text: 'km/h', color: '#8e8e99' },
+        ticks: { color: '#64748b' },
+        grid: { color: 'rgba(203,213,225,0.8)' },
+        title: { display: true, text: 'km/h', color: '#64748b' },
       },
     },
   };
@@ -330,7 +330,7 @@ export function ReportClient({
               type="button"
               onClick={() => setDays(p.key)}
               className={`rounded-lg px-5 py-2.5 text-sm font-medium transition-colors ${
-                days === p.key ? 'bg-gold text-ink' : 'text-muted hover:text-cream'
+                days === p.key ? 'bg-sky text-white' : 'text-muted hover:text-ink'
               }`}
             >
               {p.label}
@@ -343,7 +343,7 @@ export function ReportClient({
       {/* 요약 지표 — 직전 동일 기간과 비교 */}
       <div className="grid gap-5 lg:grid-cols-3">
         <Card>
-          <h2 className="text-sm font-bold text-cream">투구량</h2>
+          <h2 className="text-sm font-bold text-ink">투구량</h2>
           <p className="mb-2 mt-1 text-xs text-muted">직전 {days}일과 비교</p>
           <MetricRow
             label="총 투구수"
@@ -372,7 +372,7 @@ export function ReportClient({
         </Card>
 
         <Card>
-          <h2 className="text-sm font-bold text-cream">투구 강도</h2>
+          <h2 className="text-sm font-bold text-ink">투구 강도</h2>
           <p className="mb-2 mt-1 text-xs text-muted">1~10 자가 평가 기준</p>
           <MetricRow
             label="평균 강도"
@@ -391,7 +391,7 @@ export function ReportClient({
         </Card>
 
         <Card>
-          <h2 className="text-sm font-bold text-cream">구속</h2>
+          <h2 className="text-sm font-bold text-ink">구속</h2>
           <p className="mb-2 mt-1 text-xs text-muted">직전 {days}일과 비교</p>
           <MetricRow
             label="최고 구속"
@@ -421,7 +421,7 @@ export function ReportClient({
       {/* 코멘트 */}
       {findings.length > 0 && (
         <section className="space-y-3">
-          <h2 className="text-lg font-bold text-cream">코멘트</h2>
+          <h2 className="text-lg font-bold text-ink">코멘트</h2>
           <div className="grid gap-3 lg:grid-cols-2">
             {findings.map((f) => {
               const style = TONE_STYLES[f.tone];
@@ -433,7 +433,7 @@ export function ReportClient({
                 >
                   <Icon className={`mt-0.5 h-4 w-4 shrink-0 ${style.icon}`} />
                   <div className="min-w-0">
-                    <p className="text-sm font-semibold text-cream">{f.title}</p>
+                    <p className="text-sm font-semibold text-ink">{f.title}</p>
                     <p className="mt-1 text-xs leading-relaxed text-muted">
                       {f.detail}
                     </p>
@@ -449,7 +449,7 @@ export function ReportClient({
               {fatigueWindows.slice(0, 10).map((w) => (
                 <span
                   key={`${w.firstDay}-${w.secondDay}`}
-                  className="rounded-lg border border-amber-800/60 bg-amber-950/30 px-2.5 py-1 text-[11px] tabular-nums text-amber-200"
+                  className="rounded-lg border border-amber-800/60 bg-amber-950/30 px-2.5 py-1 text-[11px] tabular-nums text-amber-800"
                 >
                   {formatShortDate(w.firstDay)}→{formatShortDate(w.secondDay)} 합{' '}
                   {w.total}
@@ -462,11 +462,11 @@ export function ReportClient({
 
       {/* 그래프 */}
       <section className="space-y-5">
-        <h2 className="text-lg font-bold text-cream">추이</h2>
+        <h2 className="text-lg font-bold text-ink">추이</h2>
 
         <Card className="space-y-4">
           <div>
-            <h3 className="font-bold text-cream">투구량 &amp; 강도</h3>
+            <h3 className="font-bold text-ink">투구량 &amp; 강도</h3>
             <p className="mt-1 text-sm text-muted">
               막대는 그날 던진 개수, 선은 체감 강도입니다.
             </p>
@@ -478,7 +478,7 @@ export function ReportClient({
 
         <Card className="space-y-4">
           <div>
-            <h3 className="font-bold text-cream">구속</h3>
+            <h3 className="font-bold text-ink">구속</h3>
             <p className="mt-1 text-sm text-muted">
               평균 구속은 입력한 날만 표시됩니다.
             </p>
@@ -492,7 +492,7 @@ export function ReportClient({
       {/* 메모 모아보기 */}
       <section className="space-y-4">
         <div className="flex items-baseline justify-between">
-          <h2 className="text-lg font-bold text-cream">기록 메모</h2>
+          <h2 className="text-lg font-bold text-ink">기록 메모</h2>
           <span className="text-xs text-muted">메모 남긴 날 {memoDates.length}일</span>
         </div>
 
@@ -512,8 +512,8 @@ export function ReportClient({
                   onClick={() => setPickedMemoDate(d)}
                   className={`shrink-0 rounded-lg border px-3 py-2 text-xs tabular-nums transition-colors ${
                     d === activeMemoDate
-                      ? 'border-gold bg-gold/10 text-gold'
-                      : 'border-line text-muted hover:border-line-strong hover:text-cream'
+                      ? 'border-sky bg-sky/10 text-sky'
+                      : 'border-line text-muted hover:border-line-strong hover:text-ink'
                   }`}
                 >
                   {formatShortDate(d)}
@@ -529,7 +529,7 @@ export function ReportClient({
                   className="rounded-xl border border-line bg-surface-2 p-4"
                 >
                   <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] tabular-nums text-muted">
-                    <span className="text-cream">{log.date.slice(0, 10)}</span>
+                    <span className="text-ink">{log.date.slice(0, 10)}</span>
                     <span>{log.pitchCount}구</span>
                     <span>강도 {log.intensity}/10</span>
                     <span>최고 {log.maxVelocity}km/h</span>
@@ -537,8 +537,8 @@ export function ReportClient({
                       <span>평균 {log.avgVelocity}km/h</span>
                     )}
                   </div>
-                  <p className="mt-3 flex gap-2 whitespace-pre-wrap text-sm leading-relaxed text-cream/90">
-                    <NotebookPen className="mt-0.5 h-4 w-4 shrink-0 text-gold" />
+                  <p className="mt-3 flex gap-2 whitespace-pre-wrap text-sm leading-relaxed text-ink/90">
+                    <NotebookPen className="mt-0.5 h-4 w-4 shrink-0 text-sky" />
                     {log.memo}
                   </p>
                 </div>

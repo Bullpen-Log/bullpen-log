@@ -104,7 +104,7 @@ function ComparePane({
       <div className="flex items-center gap-1.5 border-b border-line p-1.5 sm:gap-2 sm:p-2">
         <span
           className={`flex h-6 w-6 shrink-0 items-center justify-center rounded text-xs font-bold ${
-            side === 'A' ? 'bg-gold text-ink' : 'bg-cream/80 text-ink'
+            side === 'A' ? 'bg-sky text-white' : 'bg-white text-ink border border-line'
           }`}
         >
           {side}
@@ -155,7 +155,7 @@ function ComparePane({
             onClick={() => onShapes((prev) => prev.slice(0, -1))}
             disabled={shapes.length === 0}
             aria-label={`${side}면 되돌리기`}
-            className="ml-auto flex h-8 w-8 items-center justify-center rounded-lg border border-line text-muted transition-colors hover:border-gold hover:text-gold disabled:opacity-40"
+            className="ml-auto flex h-8 w-8 items-center justify-center rounded-lg border border-line text-muted transition-colors hover:border-sky hover:text-sky disabled:opacity-40"
           >
             <Undo2 className="h-3.5 w-3.5" />
           </button>
@@ -164,7 +164,7 @@ function ComparePane({
             onClick={() => onShapes(() => [])}
             disabled={shapes.length === 0}
             aria-label={`${side}면 전체 지우기`}
-            className="flex h-8 w-8 items-center justify-center rounded-lg border border-line text-muted transition-colors hover:border-red-800 hover:text-red-400 disabled:opacity-40"
+            className="flex h-8 w-8 items-center justify-center rounded-lg border border-line text-muted transition-colors hover:border-red-400 hover:text-red-600 disabled:opacity-40"
           >
             <Eraser className="h-3.5 w-3.5" />
           </button>
@@ -183,7 +183,7 @@ function ComparePane({
           type="button"
           onClick={() => nudge(-1)}
           aria-label={`${side}면 한 프레임 뒤로`}
-          className="flex h-9 w-9 items-center justify-center rounded-lg border border-line text-muted transition-colors hover:border-gold hover:text-gold"
+          className="flex h-9 w-9 items-center justify-center rounded-lg border border-line text-muted transition-colors hover:border-sky hover:text-sky"
         >
           <ChevronLeft className="h-4 w-4" />
         </button>
@@ -191,7 +191,7 @@ function ComparePane({
           type="button"
           onClick={() => nudge(1)}
           aria-label={`${side}면 한 프레임 앞으로`}
-          className="flex h-9 w-9 items-center justify-center rounded-lg border border-line text-muted transition-colors hover:border-gold hover:text-gold"
+          className="flex h-9 w-9 items-center justify-center rounded-lg border border-line text-muted transition-colors hover:border-sky hover:text-sky"
         >
           <ChevronRight className="h-4 w-4" />
         </button>
@@ -200,7 +200,7 @@ function ComparePane({
           onClick={onMark}
           title="지금 화면을 기준점으로 지정"
           aria-label={`${side}면 기준점 지정`}
-          className="flex h-9 min-w-0 flex-1 items-center justify-center gap-1 rounded-lg border border-line text-[11px] text-muted transition-colors hover:border-gold hover:text-gold"
+          className="flex h-9 min-w-0 flex-1 items-center justify-center gap-1 rounded-lg border border-line text-[11px] text-muted transition-colors hover:border-sky hover:text-sky"
         >
           <Flag className="h-3.5 w-3.5 shrink-0" />
           <span className="truncate">기준점</span>
@@ -366,7 +366,7 @@ export function CompareView({ clips }: { clips: ClipOption[] }) {
     >
       {expanded && (
         <div className="flex shrink-0 items-center gap-3 px-1">
-          <span className="text-sm text-cream">2분할 비교</span>
+          <span className="text-sm text-ink">2분할 비교</span>
           <span className="hidden text-[11px] text-muted sm:inline">
             Esc 키로 닫기
           </span>
@@ -374,7 +374,7 @@ export function CompareView({ clips }: { clips: ClipOption[] }) {
             type="button"
             onClick={() => setExpanded(false)}
             aria-label="크게 보기 닫기"
-            className="ml-auto flex h-9 w-9 items-center justify-center rounded-lg border border-line text-muted transition-colors hover:border-gold hover:text-gold"
+            className="ml-auto flex h-9 w-9 items-center justify-center rounded-lg border border-line text-muted transition-colors hover:border-sky hover:text-sky"
           >
             <X className="h-4 w-4" />
           </button>
@@ -448,7 +448,7 @@ export function CompareView({ clips }: { clips: ClipOption[] }) {
         모바일 하단 탭(약 3.25rem) 위에 오도록 위치를 잡는다.
       */}
       <div
-        className={`z-30 rounded-xl border border-gold-dim/50 bg-ink/95 p-2 backdrop-blur-xl sm:p-3 ${
+        className={`z-30 rounded-xl border border-sky-soft/50 bg-ink/95 p-2 backdrop-blur-xl sm:p-3 ${
           expanded
             ? 'shrink-0'
             : 'sticky bottom-[calc(3rem_+_env(safe-area-inset-bottom))] lg:bottom-4'
@@ -460,7 +460,7 @@ export function CompareView({ clips }: { clips: ClipOption[] }) {
             onClick={resetToMarks}
             aria-label="두 영상을 기준점으로"
             title="두 영상을 각자의 기준점으로"
-            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border border-line text-muted transition-colors hover:border-gold hover:text-gold"
+            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border border-line text-muted transition-colors hover:border-sky hover:text-sky"
           >
             <RotateCcw className="h-4 w-4" />
           </button>
@@ -469,7 +469,7 @@ export function CompareView({ clips }: { clips: ClipOption[] }) {
             type="button"
             onClick={bothPlay}
             aria-label={playing ? '둘 다 정지' : '둘 다 재생'}
-            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-gold text-ink transition-colors hover:bg-gold-bright"
+            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-sky text-white transition-colors hover:bg-sky-strong"
           >
             {playing ? (
               <Pause className="h-4 w-4 fill-current" />
@@ -483,7 +483,7 @@ export function CompareView({ clips }: { clips: ClipOption[] }) {
               type="button"
               onClick={() => stepBoth(-1)}
               aria-label="두 영상 이전 프레임"
-              className="flex items-center gap-1 px-3 text-xs text-muted transition-colors hover:bg-surface hover:text-gold"
+              className="flex items-center gap-1 px-3 text-xs text-muted transition-colors hover:bg-surface hover:text-sky"
             >
               <ChevronLeft className="h-4 w-4" />
               <span className="hidden sm:inline">이전</span>
@@ -493,7 +493,7 @@ export function CompareView({ clips }: { clips: ClipOption[] }) {
               type="button"
               onClick={() => stepBoth(1)}
               aria-label="두 영상 다음 프레임"
-              className="flex items-center gap-1 px-3 text-xs text-muted transition-colors hover:bg-surface hover:text-gold"
+              className="flex items-center gap-1 px-3 text-xs text-muted transition-colors hover:bg-surface hover:text-sky"
             >
               <span className="hidden sm:inline">다음</span>
               <ChevronRight className="h-4 w-4" />
@@ -507,8 +507,8 @@ export function CompareView({ clips }: { clips: ClipOption[] }) {
             title="영상 위에 기준선·각도 긋기"
             className={`flex h-11 shrink-0 items-center gap-1.5 rounded-lg border px-3 text-xs transition-colors ${
               drawing
-                ? 'border-gold bg-gold/10 text-gold'
-                : 'border-line text-muted hover:border-gold hover:text-gold'
+                ? 'border-sky bg-sky/10 text-sky'
+                : 'border-line text-muted hover:border-sky hover:text-sky'
             }`}
           >
             <Ruler className="h-4 w-4" />
@@ -523,8 +523,8 @@ export function CompareView({ clips }: { clips: ClipOption[] }) {
             aria-label={expanded ? '작게 보기' : '크게 보기'}
             className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border transition-colors ${
               expanded
-                ? 'border-gold bg-gold/10 text-gold'
-                : 'border-line text-muted hover:border-gold hover:text-gold'
+                ? 'border-sky bg-sky/10 text-sky'
+                : 'border-line text-muted hover:border-sky hover:text-sky'
             }`}
           >
             {expanded ? (
@@ -545,8 +545,8 @@ export function CompareView({ clips }: { clips: ClipOption[] }) {
                   i > 0 ? 'border-l border-line' : ''
                 } ${
                   speed === s
-                    ? 'bg-gold font-semibold text-ink'
-                    : 'text-muted hover:bg-surface hover:text-cream'
+                    ? 'bg-sky font-semibold text-white'
+                    : 'text-muted hover:bg-surface hover:text-ink'
                 }`}
               >
                 {s}x
@@ -561,11 +561,11 @@ export function CompareView({ clips }: { clips: ClipOption[] }) {
           expanded ? 'hidden' : ''
         }`}
       >
-        <summary className="cursor-pointer font-medium text-cream">쓰는 법</summary>
+        <summary className="cursor-pointer font-medium text-ink">쓰는 법</summary>
         <p className="mt-2 leading-relaxed">
-          각 화면의 <strong className="text-cream">◀ ▶</strong>로 두 영상을 같은
+          각 화면의 <strong className="text-ink">◀ ▶</strong>로 두 영상을 같은
           동작(예: 앞발 착지 순간)에 맞춘 뒤{' '}
-          <strong className="text-cream">기준점</strong>을 누르세요. 그다음 아래 공용
+          <strong className="text-ink">기준점</strong>을 누르세요. 그다음 아래 공용
           버튼으로 함께 넘기면 같은 시점끼리 비교됩니다. 폰을 가로로 눕히면 더 크게
           볼 수 있습니다.
         </p>

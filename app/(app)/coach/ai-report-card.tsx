@@ -29,7 +29,7 @@ function GenerateButton({ label }: { label: string }) {
     <button
       type="submit"
       disabled={pending}
-      className="inline-flex items-center gap-2 rounded-xl bg-gold px-4 py-2.5 text-sm font-semibold text-ink transition-colors hover:bg-gold-bright disabled:cursor-not-allowed disabled:opacity-50"
+      className="inline-flex items-center gap-2 rounded-xl bg-sky px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-sky-strong disabled:cursor-not-allowed disabled:opacity-50"
     >
       <Sparkles className={`h-4 w-4 ${pending ? 'animate-pulse' : ''}`} />
       {pending ? '분석 중… (10초쯤 걸립니다)' : label}
@@ -47,7 +47,7 @@ function DayRow({ day }: { day: PitchPlan['days'][number] }) {
           : 'border-sky-500/30 bg-sky-500/[0.06]'
       }`}
     >
-      <span className="w-12 shrink-0 text-sm font-bold text-cream">
+      <span className="w-12 shrink-0 text-sm font-bold text-ink">
         {day.label}
       </span>
       <span className="shrink-0 text-[11px] tabular-nums text-muted/70">
@@ -56,14 +56,14 @@ function DayRow({ day }: { day: PitchPlan['days'][number] }) {
 
       {day.throwing ? (
         <span className="flex items-baseline gap-1.5">
-          <Sun className="h-3.5 w-3.5 self-center text-gold" />
-          <span className="text-display text-xl leading-none text-gold tabular-nums">
+          <Sun className="h-3.5 w-3.5 self-center text-sky" />
+          <span className="text-display text-xl leading-none text-sky tabular-nums">
             {day.maxPitches}
           </span>
           <span className="text-xs text-muted">구 이하</span>
           <span className="mx-1 text-line-strong">·</span>
           <span className="text-xs text-muted">
-            강도 <span className="text-cream">{day.maxIntensity}</span> 이하
+            강도 <span className="text-ink">{day.maxIntensity}</span> 이하
           </span>
         </span>
       ) : (
@@ -100,11 +100,11 @@ export function AiReportCard({
     <section className="overflow-hidden rounded-2xl border border-line bg-surface">
       {/* 머리말 */}
       <div className="flex flex-wrap items-center gap-3 border-b border-line px-5 py-4 sm:px-6">
-        <span className="flex h-9 w-9 items-center justify-center rounded-xl border border-gold-dim/50 bg-gold/10 text-gold">
+        <span className="flex h-9 w-9 items-center justify-center rounded-xl border border-sky-soft/50 bg-sky/10 text-sky">
           <Sparkles className="h-4 w-4" />
         </span>
         <div className="min-w-0 flex-1">
-          <h2 className="text-sm font-bold text-cream">AI 코치 리포트</h2>
+          <h2 className="text-sm font-bold text-ink">AI 코치 리포트</h2>
           <p className="mt-0.5 text-xs text-muted">
             {report
               ? `${report.asOf} 기준 · 다시 만들기 전까지 내용이 바뀌지 않습니다`
@@ -121,7 +121,7 @@ export function AiReportCard({
 
       <div className="space-y-5 px-5 py-5 sm:px-6 sm:py-6">
         {state?.error && (
-          <p className="rounded-lg border border-red-900/60 bg-red-950/40 px-4 py-3 text-sm text-red-300">
+          <p className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
             {state.error}
           </p>
         )}
@@ -147,7 +147,7 @@ export function AiReportCard({
         {/* 통증 등으로 계획을 내지 않은 경우 */}
         {report?.halted && (
           <div className="rounded-xl border border-red-900/60 bg-red-950/30 p-5">
-            <p className="flex items-center gap-2 text-sm font-bold text-red-300">
+            <p className="flex items-center gap-2 text-sm font-bold text-red-700">
               <AlertTriangle className="h-4 w-4" />
               투구 계획을 제공하지 않았습니다
             </p>
@@ -160,11 +160,11 @@ export function AiReportCard({
         {/* 정상 리포트 */}
         {report && !report.halted && report.body && plan && (
           <>
-            <p className="text-lg font-bold leading-snug text-cream">
+            <p className="text-lg font-bold leading-snug text-ink">
               {report.body.headline}
             </p>
 
-            <p className="whitespace-pre-wrap text-sm leading-relaxed text-cream/80">
+            <p className="whitespace-pre-wrap text-sm leading-relaxed text-ink/80">
               {report.body.assessment}
             </p>
 
@@ -182,7 +182,7 @@ export function AiReportCard({
             </div>
 
             {plan.youthNote && (
-              <p className="rounded-xl border border-amber-500/30 bg-amber-500/[0.07] px-4 py-3 text-xs leading-relaxed text-amber-200/90">
+              <p className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs leading-relaxed text-amber-800">
                 {plan.youthNote}
               </p>
             )}
@@ -197,7 +197,7 @@ export function AiReportCard({
                   key={i}
                   className="rounded-xl border border-line bg-surface-2 px-4 py-3"
                 >
-                  <p className="text-sm font-semibold text-cream">
+                  <p className="text-sm font-semibold text-ink">
                     {action.title}
                   </p>
                   <p className="mt-1 text-sm leading-relaxed text-muted">
@@ -216,7 +216,7 @@ export function AiReportCard({
                 <ul className="space-y-1.5">
                   {report.body.watchouts.map((w, i) => (
                     <li key={i} className="flex gap-2 text-sm leading-relaxed text-muted">
-                      <Minus className="mt-1.5 h-3 w-3 shrink-0 text-gold/60" />
+                      <Minus className="mt-1.5 h-3 w-3 shrink-0 text-sky/60" />
                       <span>{w}</span>
                     </li>
                   ))}
@@ -233,7 +233,7 @@ export function AiReportCard({
               type="button"
               onClick={() => setShowBasis((v) => !v)}
               aria-expanded={showBasis}
-              className="flex items-center gap-1.5 text-[11px] text-muted transition-colors hover:text-gold"
+              className="flex items-center gap-1.5 text-[11px] text-muted transition-colors hover:text-sky"
             >
               <ChevronDown
                 className={`h-3.5 w-3.5 transition-transform ${showBasis ? 'rotate-180' : ''}`}

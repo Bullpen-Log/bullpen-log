@@ -159,7 +159,7 @@ export function VideoUpload({
           type="button"
           onClick={() => inputRef.current?.click()}
           disabled={disabled || uploading || full}
-          className="inline-flex items-center gap-2 rounded-xl border border-line-strong bg-surface-2 px-4 py-3 text-sm text-cream transition-colors hover:border-gold hover:text-gold disabled:cursor-not-allowed disabled:opacity-50"
+          className="inline-flex items-center gap-2 rounded-xl border border-line-strong bg-surface-2 px-4 py-3 text-sm text-ink transition-colors hover:border-sky hover:text-sky disabled:cursor-not-allowed disabled:opacity-50"
         >
           {uploading ? (
             <>
@@ -189,14 +189,14 @@ export function VideoUpload({
       {uploading && (
         <div className="h-1.5 overflow-hidden rounded-full bg-surface-2">
           <div
-            className="h-full rounded-full bg-gold transition-[width] duration-200"
+            className="h-full rounded-full bg-sky transition-[width] duration-200"
             style={{ width: `${progress}%` }}
           />
         </div>
       )}
 
       {error && (
-        <p className="rounded-lg border border-red-900/60 bg-red-950/40 px-4 py-3 text-sm text-red-300">
+        <p className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
           {error}
         </p>
       )}
@@ -215,7 +215,7 @@ export function VideoUpload({
                 className="aspect-video w-full bg-black object-contain"
               />
               <div className="flex items-center gap-2 px-3 py-2">
-                <Film className="h-3.5 w-3.5 shrink-0 text-gold" />
+                <Film className="h-3.5 w-3.5 shrink-0 text-sky" />
                 <span className="min-w-0 flex-1 truncate text-xs text-muted">
                   {v.name}
                 </span>
@@ -223,7 +223,7 @@ export function VideoUpload({
                   type="button"
                   onClick={() => remove(v.path)}
                   aria-label={`${v.name} 첨부 취소`}
-                  className="rounded p-1 text-muted transition-colors hover:text-red-400"
+                  className="rounded p-1 text-muted transition-colors hover:text-red-600"
                 >
                   <X className="h-3.5 w-3.5" />
                 </button>

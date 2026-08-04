@@ -71,7 +71,7 @@ export default async function AdminPage() {
         {stats.map((s) => (
           <div key={s.label} className="bg-surface px-5 py-5">
             <p className="text-xs uppercase tracking-wider text-muted">{s.label}</p>
-            <p className="text-display mt-2 text-3xl text-cream">
+            <p className="text-display mt-2 text-3xl text-ink">
               {s.value}
               <span className="ml-1 text-sm text-muted">{s.unit}</span>
             </p>
@@ -82,7 +82,7 @@ export default async function AdminPage() {
       {/* 회원 목록 */}
       <section className="space-y-4">
         <div className="flex items-baseline justify-between">
-          <h2 className="text-lg font-bold text-cream">회원 목록</h2>
+          <h2 className="text-lg font-bold text-ink">회원 목록</h2>
           <span className="text-xs text-muted">최근 가입순</span>
         </div>
 
@@ -95,9 +95,9 @@ export default async function AdminPage() {
               <Card key={u.id} className="flex flex-col gap-4 sm:flex-row sm:items-center">
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-2">
-                    <span className="font-bold text-cream">{u.nickname}</span>
+                    <span className="font-bold text-ink">{u.nickname}</span>
                     {u.role === 'ADMIN' && (
-                      <Badge className="border-gold-dim/60 text-gold">관리자</Badge>
+                      <Badge className="border-sky-soft/60 text-sky">관리자</Badge>
                     )}
                     {isSelf && <Badge>나</Badge>}
                   </div>
@@ -106,7 +106,7 @@ export default async function AdminPage() {
                     {u.birthDate ? (
                       <>만 {ageFromBirthDate(u.birthDate)}세</>
                     ) : (
-                      <span className="text-gold/80">생년월일 미입력</span>
+                      <span className="text-sky/80">생년월일 미입력</span>
                     )}
                     {u.heightCm && (
                       <>
@@ -147,7 +147,7 @@ export default async function AdminPage() {
 
       {/* 콘텐츠 현황 */}
       <section className="space-y-4">
-        <h2 className="text-lg font-bold text-cream">콘텐츠 현황</h2>
+        <h2 className="text-lg font-bold text-ink">콘텐츠 현황</h2>
         <div className="grid gap-px overflow-hidden rounded-2xl border border-line bg-line sm:grid-cols-3">
           {[
             { label: '트레이닝 영상', value: totalVideos, href: '/library/training' },
@@ -156,7 +156,7 @@ export default async function AdminPage() {
           ].map((c) => (
             <div key={c.label} className="bg-surface px-5 py-5">
               <p className="text-xs uppercase tracking-wider text-muted">{c.label}</p>
-              <p className="text-display mt-2 text-2xl text-cream">{c.value}</p>
+              <p className="text-display mt-2 text-2xl text-ink">{c.value}</p>
             </div>
           ))}
         </div>

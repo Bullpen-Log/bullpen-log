@@ -8,7 +8,7 @@ function cn(...classes: (string | false | undefined | null)[]) {
 /** 섹션 상단의 작은 골드 라벨 (예: "TRAINING") */
 export function Eyebrow({ children }: { children: ReactNode }) {
   return (
-    <span className="text-xs font-medium uppercase tracking-[0.25em] text-gold">
+    <span className="text-xs font-medium uppercase tracking-[0.25em] text-sky">
       {children}
     </span>
   );
@@ -29,7 +29,7 @@ export function PageHeading({
     <div className="flex flex-col gap-6 border-b border-line pb-8 sm:flex-row sm:items-end sm:justify-between">
       <div className="space-y-3">
         {eyebrow && <Eyebrow>{eyebrow}</Eyebrow>}
-        <h1 className="text-3xl font-bold tracking-tight text-cream sm:text-4xl">
+        <h1 className="text-3xl font-bold tracking-tight text-ink sm:text-4xl">
           {title}
         </h1>
         {description && (
@@ -63,12 +63,12 @@ type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'danger';
 
 const buttonStyles: Record<ButtonVariant, string> = {
   primary:
-    'bg-gold text-ink hover:bg-gold-bright focus-visible:outline-gold font-semibold',
+    'bg-sky text-white hover:bg-sky-strong focus-visible:outline-sky font-semibold',
   secondary:
-    'border border-line-strong bg-surface-2 text-cream hover:border-gold hover:text-gold focus-visible:outline-gold',
-  ghost: 'text-muted hover:text-cream focus-visible:outline-line-strong',
+    'border border-line-strong bg-surface-2 text-ink hover:border-sky hover:text-sky focus-visible:outline-sky',
+  ghost: 'text-muted hover:text-ink focus-visible:outline-line-strong',
   danger:
-    'border border-red-900/60 bg-red-950/40 text-red-300 hover:bg-red-950/70 focus-visible:outline-red-700',
+    'border border-red-200 bg-red-50 text-red-700 hover:bg-red-100 focus-visible:outline-red-700',
 };
 
 const buttonBase =
@@ -95,7 +95,7 @@ export function ButtonLink({
 }
 
 const fieldStyles =
-  'w-full rounded-xl border border-line bg-surface-2 px-4 py-3 text-sm text-cream placeholder:text-muted/60 transition-colors focus:border-gold focus:outline-none';
+  'w-full rounded-xl border border-line bg-surface-2 px-4 py-3 text-sm text-ink placeholder:text-muted/60 transition-colors focus:border-sky focus:outline-none';
 
 export function Field({
   label,
@@ -160,7 +160,7 @@ export function EmptyState({
 }) {
   return (
     <div className="flex flex-col items-center justify-center gap-3 rounded-2xl border border-dashed border-line px-6 py-16 text-center">
-      <p className="text-sm font-medium text-cream">{title}</p>
+      <p className="text-sm font-medium text-ink">{title}</p>
       {description && (
         <p className="max-w-sm text-sm leading-relaxed text-muted">{description}</p>
       )}
@@ -172,7 +172,7 @@ export function EmptyState({
 export function FormError({ children }: { children?: ReactNode }) {
   if (!children) return null;
   return (
-    <p className="rounded-lg border border-red-900/60 bg-red-950/40 px-4 py-3 text-sm text-red-300">
+    <p className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
       {children}
     </p>
   );

@@ -94,7 +94,7 @@ export function ThumbnailFixer({
         type="button"
         onClick={run}
         disabled={busy}
-        className="inline-flex items-center gap-1.5 rounded-lg border border-line-strong bg-surface-2 px-3 py-2 text-xs text-cream transition-colors hover:border-gold hover:text-gold disabled:cursor-wait disabled:opacity-60"
+        className="inline-flex items-center gap-1.5 rounded-lg border border-line-strong bg-surface-2 px-3 py-2 text-xs text-ink transition-colors hover:border-sky hover:text-sky disabled:cursor-wait disabled:opacity-60"
       >
         {busy ? (
           <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -107,7 +107,7 @@ export function ThumbnailFixer({
       {message && (
         <p
           className={`text-xs leading-relaxed ${
-            failed ? 'text-red-300' : 'text-emerald-400'
+            failed ? 'text-red-700' : 'text-emerald-400'
           }`}
         >
           {message}

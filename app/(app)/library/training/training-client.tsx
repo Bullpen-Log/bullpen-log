@@ -61,14 +61,14 @@ function ExerciseDetail({
       equipment: item.equipment,
     };
     return (
-      <Card className="border-gold-dim/50 bg-gold/[0.03] p-4 sm:p-5">
+      <Card className="border-sky-soft/50 bg-sky/[0.03] p-4 sm:p-5">
         <div className="mb-4 flex items-center justify-between gap-3">
-          <p className="text-sm font-bold text-gold">운동 수정</p>
+          <p className="text-sm font-bold text-sky">운동 수정</p>
           <button
             type="button"
             onClick={() => setEditing(false)}
             aria-label="수정 닫기"
-            className="rounded-lg p-1.5 text-muted transition-colors hover:text-cream"
+            className="rounded-lg p-1.5 text-muted transition-colors hover:text-ink"
           >
             <X className="h-4 w-4" />
           </button>
@@ -83,12 +83,12 @@ function ExerciseDetail({
   }
 
   return (
-    <Card className="grid gap-5 border-gold-dim/40 p-4 sm:p-5 md:grid-cols-[minmax(0,420px)_1fr]">
+    <Card className="grid gap-5 border-sky-soft/40 p-4 sm:p-5 md:grid-cols-[minmax(0,420px)_1fr]">
       <LibraryVideo path={item.videoPath} title={item.title} thumbUrl={item.thumbUrl} />
 
       <div className="flex flex-col gap-4">
         <div className="flex items-start justify-between gap-3">
-          <h3 className="text-lg font-bold text-cream">{item.title}</h3>
+          <h3 className="text-lg font-bold text-ink">{item.title}</h3>
           <div className="flex shrink-0 items-center gap-1">
             {isAdmin && (
               <>
@@ -96,7 +96,7 @@ function ExerciseDetail({
                   type="button"
                   onClick={() => setEditing(true)}
                   aria-label={`${item.title} 수정`}
-                  className="rounded-lg p-2 text-muted transition-colors hover:bg-surface-2 hover:text-gold"
+                  className="rounded-lg p-2 text-muted transition-colors hover:bg-surface-2 hover:text-sky"
                 >
                   <Pencil className="h-4 w-4" />
                 </button>
@@ -105,7 +105,7 @@ function ExerciseDetail({
                   <button
                     type="submit"
                     aria-label={`${item.title} 삭제`}
-                    className="rounded-lg p-2 text-muted transition-colors hover:bg-red-950/40 hover:text-red-400"
+                    className="rounded-lg p-2 text-muted transition-colors hover:bg-red-950/40 hover:text-red-600"
                   >
                     <Trash2 className="h-4 w-4" />
                   </button>
@@ -116,7 +116,7 @@ function ExerciseDetail({
               type="button"
               onClick={onClose}
               aria-label="닫기"
-              className="rounded-lg p-2 text-muted transition-colors hover:text-cream"
+              className="rounded-lg p-2 text-muted transition-colors hover:text-ink"
             >
               <X className="h-4 w-4" />
             </button>

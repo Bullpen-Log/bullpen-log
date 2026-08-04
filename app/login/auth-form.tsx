@@ -30,7 +30,7 @@ function ChipRow({
         {options.map((option) => (
           <label key={option} className="inline-flex">
             <input type="radio" name={name} value={option} required className="peer sr-only" />
-            <span className="cursor-pointer select-none rounded-lg border border-line bg-surface-2 px-3 py-2 text-xs text-muted transition-colors hover:border-gold-dim hover:text-cream peer-checked:border-gold peer-checked:bg-gold/10 peer-checked:font-medium peer-checked:text-gold peer-focus-visible:ring-1 peer-focus-visible:ring-gold">
+            <span className="cursor-pointer select-none rounded-lg border border-line bg-surface-2 px-3 py-2 text-xs text-muted transition-colors hover:border-sky-soft hover:text-ink peer-checked:border-sky peer-checked:bg-sky/10 peer-checked:font-medium peer-checked:text-sky peer-focus-visible:ring-1 peer-focus-visible:ring-sky">
               {option}
             </span>
           </label>
@@ -65,7 +65,7 @@ export function AuthForm({ today }: { today: string }) {
             type="button"
             onClick={() => setMode(m)}
             className={`rounded-lg px-4 py-2.5 text-sm font-medium transition-colors ${
-              mode === m ? 'bg-gold text-ink' : 'text-muted hover:text-cream'
+              mode === m ? 'bg-sky text-white' : 'text-muted hover:text-ink'
             }`}
           >
             {m === 'login' ? '로그인' : '회원가입'}
@@ -79,7 +79,7 @@ export function AuthForm({ today }: { today: string }) {
         className="space-y-5 rounded-2xl border border-line bg-surface p-8"
       >
         <div className="space-y-2">
-          <h1 className="text-2xl font-bold tracking-tight text-cream">
+          <h1 className="text-2xl font-bold tracking-tight text-ink">
             {mode === 'login' ? '다시 오신 걸 환영합니다' : '계정 만들기'}
           </h1>
           <p className="text-sm text-muted">
@@ -139,7 +139,7 @@ export function AuthForm({ today }: { today: string }) {
 
             {/* 평소 투구량 문진 — 이 답으로 부하 지수를 첫날부터 계산한다. */}
             <div className="space-y-4 border-t border-line pt-5">
-              <p className="text-sm font-semibold text-cream">
+              <p className="text-sm font-semibold text-ink">
                 평소 얼마나 던지시나요?
                 <span className="mt-1 block text-xs font-normal text-muted">
                   부하 지수를 첫날부터 보여드리기 위한 3문항입니다.

@@ -18,11 +18,11 @@ function Legend({ label, hint }: { label: string; hint?: string }) {
 }
 
 const chipBase =
-  'cursor-pointer select-none rounded-lg border px-3 py-2 text-xs transition-colors border-line bg-surface-2 text-muted hover:border-gold-dim hover:text-cream';
+  'cursor-pointer select-none rounded-lg border px-3 py-2 text-xs transition-colors border-line bg-surface-2 text-muted hover:border-sky-soft hover:text-ink';
 
 /** 선택된 항목에 색이 들어가도록 peer-checked를 쓴다. */
 const chipChecked =
-  'peer-checked:border-gold peer-checked:bg-gold/10 peer-checked:text-gold peer-checked:font-medium';
+  'peer-checked:border-sky peer-checked:bg-sky/10 peer-checked:text-sky peer-checked:font-medium';
 
 export function CheckboxGroup({
   name,
@@ -52,7 +52,7 @@ export function CheckboxGroup({
               className="peer sr-only"
             />
             <span
-              className={`${chipBase} ${chipChecked} peer-focus-visible:ring-1 peer-focus-visible:ring-gold`}
+              className={`${chipBase} ${chipChecked} peer-focus-visible:ring-1 peer-focus-visible:ring-sky`}
             >
               {option}
             </span>
@@ -95,7 +95,7 @@ export function RadioGroup({
               className="peer sr-only"
             />
             <span
-              className={`${chipBase} ${chipChecked} block h-full peer-focus-visible:ring-1 peer-focus-visible:ring-gold`}
+              className={`${chipBase} ${chipChecked} block h-full peer-focus-visible:ring-1 peer-focus-visible:ring-sky`}
             >
               <span className="block">{option.name}</span>
               {option.desc && (

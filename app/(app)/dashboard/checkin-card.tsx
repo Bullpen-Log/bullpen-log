@@ -25,14 +25,14 @@ export type CheckinData = {
 /** 값에 따라 칩 색이 달라진다. '통증'은 항상 빨간색으로 도드라지게. */
 function feelingChipClass(value: string) {
   if (value === '통증')
-    return 'peer-checked:border-red-500/70 peer-checked:bg-red-500/10 peer-checked:text-red-300';
+    return 'peer-checked:border-red-500/70 peer-checked:bg-red-500/10 peer-checked:text-red-700';
   if (value === '뻐근')
     return 'peer-checked:border-amber-500/60 peer-checked:bg-amber-500/10 peer-checked:text-amber-300';
-  return 'peer-checked:border-gold peer-checked:bg-gold/10 peer-checked:text-gold';
+  return 'peer-checked:border-sky peer-checked:bg-sky/10 peer-checked:text-sky';
 }
 
 const chipBase =
-  'cursor-pointer select-none rounded-lg border border-line bg-surface-2 px-3 py-2 text-xs text-muted transition-colors hover:border-gold-dim hover:text-cream peer-checked:font-medium';
+  'cursor-pointer select-none rounded-lg border border-line bg-surface-2 px-3 py-2 text-xs text-muted transition-colors hover:border-sky-soft hover:text-ink peer-checked:font-medium';
 
 function ChipRadio({
   name,
@@ -60,7 +60,7 @@ function ChipRadio({
         className="peer sr-only"
       />
       <span
-        className={`${chipBase} ${className ?? 'peer-checked:border-gold peer-checked:bg-gold/10 peer-checked:text-gold'} peer-focus-visible:ring-1 peer-focus-visible:ring-gold`}
+        className={`${chipBase} ${className ?? 'peer-checked:border-sky peer-checked:bg-sky/10 peer-checked:text-sky'} peer-focus-visible:ring-1 peer-focus-visible:ring-sky`}
       >
         {children}
       </span>
@@ -83,7 +83,7 @@ function SubmitButton() {
     <button
       type="submit"
       disabled={pending}
-      className="rounded-xl bg-gold px-5 py-2.5 text-sm font-semibold text-ink transition-colors hover:bg-gold-bright disabled:cursor-not-allowed disabled:opacity-50"
+      className="rounded-xl bg-sky px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-sky-strong disabled:cursor-not-allowed disabled:opacity-50"
     >
       {pending ? '저장 중…' : '체크인 저장'}
     </button>
@@ -136,8 +136,8 @@ export function CheckinCard({ recent }: { recent: CheckinData[] }) {
         <span
           className={`flex h-9 w-9 items-center justify-center rounded-xl border ${
             painToday
-              ? 'border-red-900/70 text-red-400'
-              : 'border-line-strong text-gold'
+              ? 'border-red-900/70 text-red-600'
+              : 'border-line-strong text-sky'
           }`}
         >
           {painToday ? (
@@ -147,7 +147,7 @@ export function CheckinCard({ recent }: { recent: CheckinData[] }) {
           )}
         </span>
         <div className="min-w-0 flex-1">
-          <h2 className="text-sm font-bold text-cream">오늘 컨디션 체크인</h2>
+          <h2 className="text-sm font-bold text-ink">오늘 컨디션 체크인</h2>
           <p className="mt-0.5 text-xs text-muted">
             30초면 됩니다. 리포트와 운동 추천의 기준이 됩니다.
           </p>
@@ -162,7 +162,7 @@ export function CheckinCard({ recent }: { recent: CheckinData[] }) {
             <button
               type="button"
               onClick={() => setEditing(true)}
-              className="inline-flex items-center gap-1 rounded-lg border border-line px-2.5 py-1.5 text-xs text-muted transition-colors hover:border-gold hover:text-gold"
+              className="inline-flex items-center gap-1 rounded-lg border border-line px-2.5 py-1.5 text-xs text-muted transition-colors hover:border-sky hover:text-sky"
             >
               <Pencil className="h-3 w-3" />
               수정
@@ -189,10 +189,10 @@ export function CheckinCard({ recent }: { recent: CheckinData[] }) {
                     <dd
                       className={
                         v === '통증'
-                          ? 'font-semibold text-red-400'
+                          ? 'font-semibold text-red-600'
                           : v === '뻐근'
                             ? 'font-medium text-amber-400'
-                            : 'text-cream'
+                            : 'text-ink'
                       }
                     >
                       {v}
@@ -202,7 +202,7 @@ export function CheckinCard({ recent }: { recent: CheckinData[] }) {
               </dl>
 
               {painToday && (
-                <p className="mt-4 rounded-xl border border-red-900/60 bg-red-950/40 px-4 py-3 text-xs leading-relaxed text-red-200">
+                <p className="mt-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-xs leading-relaxed text-red-200">
                   통증이 있는 날은 던지거나 무리한 운동을 하지 마세요. 통증이
                   이어지면 전문의 진료를 받아보는 것이 좋습니다. 통증이 있는
                   동안에는 운동 추천도 제공하지 않습니다.
@@ -214,7 +214,7 @@ export function CheckinCard({ recent }: { recent: CheckinData[] }) {
               <input type="hidden" name="date" value={todayKey} />
 
               {state?.error && (
-                <p className="rounded-lg border border-red-900/60 bg-red-950/40 px-4 py-3 text-sm text-red-300">
+                <p className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
                   {state.error}
                 </p>
               )}
@@ -289,7 +289,7 @@ export function CheckinCard({ recent }: { recent: CheckinData[] }) {
                   <button
                     type="button"
                     onClick={() => setEditing(false)}
-                    className="text-xs text-muted transition-colors hover:text-cream"
+                    className="text-xs text-muted transition-colors hover:text-ink"
                   >
                     취소
                   </button>

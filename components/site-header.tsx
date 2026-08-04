@@ -29,11 +29,11 @@ export async function SiteHeader() {
 
   return (
     <>
-    <header className="sticky top-0 z-50 border-b border-line bg-ink/85 backdrop-blur-xl">
+    <header className="sticky top-0 z-50 border-b border-line bg-surface/85 backdrop-blur-xl">
       <div className="mx-auto flex h-16 max-w-6xl items-center gap-4 px-4 sm:gap-6 sm:px-6">
         <Link href={user ? '/dashboard' : '/'} className="group flex items-center gap-2.5">
           <span aria-hidden className="text-lg">⚾</span>
-          <span className="text-display text-lg leading-none text-cream transition-colors group-hover:text-gold sm:text-xl">
+          <span className="text-display text-lg leading-none text-ink transition-colors group-hover:text-sky sm:text-xl">
             BULLPEN LOG
           </span>
         </Link>
@@ -48,17 +48,17 @@ export async function SiteHeader() {
                 className="group hidden text-right sm:block"
                 aria-label="내 정보"
               >
-                <p className="text-sm leading-tight text-cream transition-colors group-hover:text-gold">
+                <p className="text-sm leading-tight text-ink transition-colors group-hover:text-sky">
                   {user.nickname}
                 </p>
                 {user.role === 'ADMIN' && (
-                  <p className="text-[10px] uppercase tracking-widest text-gold">Admin</p>
+                  <p className="text-[10px] uppercase tracking-widest text-sky">Admin</p>
                 )}
               </Link>
               <form action={logout}>
                 <button
                   type="submit"
-                  className="rounded-lg border border-line px-3 py-2 text-xs text-muted transition-colors hover:border-line-strong hover:text-cream"
+                  className="rounded-lg border border-line px-3 py-2 text-xs text-muted transition-colors hover:border-line-strong hover:text-ink"
                 >
                   로그아웃
                 </button>
@@ -67,7 +67,7 @@ export async function SiteHeader() {
           ) : (
             <Link
               href="/login"
-              className="rounded-lg bg-gold px-4 py-2 text-xs font-semibold text-ink transition-colors hover:bg-gold-bright"
+              className="rounded-lg bg-sky px-4 py-2 text-xs font-semibold text-white transition-colors hover:bg-sky-strong"
             >
               로그인
             </Link>

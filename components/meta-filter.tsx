@@ -42,12 +42,12 @@ export function MetaFilter({
   return (
     <div className="space-y-4 rounded-2xl border border-line bg-surface p-5 sm:p-6">
       <div className="flex items-center justify-between gap-3">
-        <h2 className="text-sm font-bold text-cream">조건으로 찾기</h2>
+        <h2 className="text-sm font-bold text-ink">조건으로 찾기</h2>
         {active ? (
           <button
             type="button"
             onClick={() => onChange({})}
-            className="inline-flex items-center gap-1 text-xs text-muted transition-colors hover:text-gold"
+            className="inline-flex items-center gap-1 text-xs text-muted transition-colors hover:text-sky"
           >
             <X className="h-3.5 w-3.5" />
             초기화
@@ -74,8 +74,8 @@ export function MetaFilter({
                     aria-pressed={on}
                     className={`rounded-lg border px-2.5 py-1.5 text-xs transition-colors ${
                       on
-                        ? 'border-gold bg-gold/10 font-medium text-gold'
-                        : 'border-line bg-surface-2 text-muted hover:border-gold-dim hover:text-cream'
+                        ? 'border-sky bg-sky/10 font-medium text-sky'
+                        : 'border-line bg-surface-2 text-muted hover:border-sky-soft hover:text-ink'
                     }`}
                   >
                     {option}
@@ -93,7 +93,7 @@ export function MetaFilter({
             <span className="text-amber-400">조건에 맞는 영상이 없습니다</span>
           ) : (
             <>
-              <span className="text-cream">{matched}개</span> 찾음 (전체 {total}개)
+              <span className="text-ink">{matched}개</span> 찾음 (전체 {total}개)
             </>
           )}
         </p>

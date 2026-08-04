@@ -49,7 +49,7 @@ export function ProfileForm({
       <FormError>{state?.error}</FormError>
 
       {state?.success && (
-        <p className="rounded-lg border border-gold-dim/60 bg-gold/10 px-4 py-3 text-sm text-gold">
+        <p className="rounded-lg border border-sky-soft/60 bg-sky/10 px-4 py-3 text-sm text-sky">
           {state.success}
         </p>
       )}
@@ -96,7 +96,7 @@ export function ProfileForm({
 
       {/* 평소 투구량 문진 — 부하 지수의 추정 기준선. 3개 모두 답해야 저장된다. */}
       <div className="space-y-4 border-t border-line pt-5">
-        <p className="text-sm font-semibold text-cream">
+        <p className="text-sm font-semibold text-ink">
           평소 얼마나 던지시나요?
           <span className="mt-1 block text-xs font-normal text-muted">
             이 답으로 부하 지수를 기록 첫날부터 계산합니다. 상황이 바뀌면 언제든

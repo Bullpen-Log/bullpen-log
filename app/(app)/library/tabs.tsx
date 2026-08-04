@@ -38,7 +38,7 @@ export function LibraryTabs() {
             <span
               className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border transition-colors ${
                 active
-                  ? 'border-gold-dim/60 bg-gold/10 text-gold'
+                  ? 'border-sky-soft/60 bg-sky/10 text-sky'
                   : 'border-line-strong text-muted'
               }`}
             >
@@ -46,7 +46,7 @@ export function LibraryTabs() {
             </span>
             <span className="min-w-0">
               <span
-                className={`block text-sm font-bold ${active ? 'text-gold' : 'text-cream'}`}
+                className={`block text-sm font-bold ${active ? 'text-sky' : 'text-ink'}`}
               >
                 {label}
               </span>
