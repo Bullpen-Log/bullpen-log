@@ -5,6 +5,7 @@ import { useFormStatus } from 'react-dom';
 import { updateProfile, type ProfileState } from '@/app/actions/profile';
 import { Button, Field, FormError, Input } from '@/components/ui';
 import { MAX_HEIGHT_CM, MIN_HEIGHT_CM } from '@/lib/profile';
+import { TARGET_VELOCITY_MAX, TARGET_VELOCITY_MIN } from '@/lib/velocity';
 import { RadioGroup } from '@/components/choice-inputs';
 import {
   BASELINE_FREQ_NAMES,
@@ -25,6 +26,7 @@ export function ProfileForm({
   nickname,
   birthDate,
   heightCm,
+  targetVelocity,
   baseline,
   /** 오늘 날짜(YYYY-MM-DD). 미래 날짜를 못 고르게 막는 데 쓴다. */
   today,
@@ -32,6 +34,7 @@ export function ProfileForm({
   nickname: string;
   birthDate: string;
   heightCm: number | null;
+  targetVelocity: number | null;
   baseline: {
     baselineFreq: string | null;
     baselineVolume: string | null;
@@ -91,6 +94,22 @@ export function ProfileForm({
           max={MAX_HEIGHT_CM}
           step={1}
           placeholder="180"
+        />
+      </Field>
+
+      <Field
+        label="목표 최고 구속 (km/h)"
+        hint="선택 입력입니다. 지금 구속과의 격차를 홈 화면에서 보여드립니다. 비워두면 목표를 지웁니다."
+      >
+        <Input
+          name="targetVelocity"
+          type="number"
+          inputMode="numeric"
+          defaultValue={targetVelocity ?? ''}
+          min={TARGET_VELOCITY_MIN}
+          max={TARGET_VELOCITY_MAX}
+          step={1}
+          placeholder="140"
         />
       </Field>
 

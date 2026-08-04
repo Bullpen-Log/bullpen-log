@@ -21,6 +21,7 @@ export const getCurrentUser = cache(async () => {
       role: true,
       birthDate: true,
       heightCm: true,
+      targetVelocity: true,
       baselineFreq: true,
       baselineVolume: true,
       baselineIntensity: true,

@@ -22,8 +22,10 @@ import {
   toDateKey,
 } from '@/lib/pitch-stats';
 import { buildFacts } from '@/lib/report/facts';
+import { buildVelocityStats } from '@/lib/velocity';
 import { buildPitchPlan } from '@/lib/report/plan';
 import { LoadChart, type LoadPoint } from './load-chart';
+import { VelocityCard } from './velocity-card';
 import { CheckinCard, type CheckinData } from './checkin-card';
 import {
   Delta,
@@ -86,6 +88,20 @@ export default async function DashboardPage() {
     _max: { maxVelocity: true },
     _count: true,
   });
+
+  // 구속 추이는 전체 기록으로 본다 — 개인 최고는 70일 안에만 있는 게 아니다.
+  const velocityLogs = await prisma.pitchLog.findMany({
+    where: { userId: user.id },
+    orderBy: { date: 'asc' },
+    select: { date: true, maxVelocity: true, avgVelocity: true },
+  });
+  const velocity = buildVelocityStats(
+    velocityLogs.map((l) => ({
+      date: l.date.toISOString(),
+      maxVelocity: l.maxVelocity,
+      avgVelocity: l.avgVelocity,
+    }))
+  );
 
   // 오늘 마친 운동 수 — 대시보드에서 이어서 하도록 안내한다.
   const doneToday = await prisma.userExerciseLog.count({
@@ -455,6 +471,9 @@ export default async function DashboardPage() {
           </div>
         </div>
       </section>
+
+      {/* ── 구속 (목표·추이·신기록) ─────────────────────────── */}
+      <VelocityCard stats={velocity} target={user.targetVelocity} />
 
       {/* ── 핵심 지표 4개 ───────────────────────────────────── */}
       <section className="grid grid-cols-2 gap-px overflow-hidden rounded-2xl border border-line bg-line lg:grid-cols-4">

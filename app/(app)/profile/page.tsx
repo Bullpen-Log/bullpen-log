@@ -28,6 +28,7 @@ export default async function ProfilePage() {
             nickname={user.nickname}
             birthDate={user.birthDate ? toDateInputValue(user.birthDate) : ''}
             heightCm={user.heightCm}
+            targetVelocity={user.targetVelocity}
             baseline={{
               baselineFreq: user.baselineFreq,
               baselineVolume: user.baselineVolume,

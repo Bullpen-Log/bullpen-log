@@ -5,6 +5,7 @@ import { prisma } from '@/lib/prisma';
 import { getCurrentUser } from '@/lib/dal';
 import { validateProfile } from '@/lib/profile';
 import { validateBaseline } from '@/lib/baseline';
+import { validateTargetVelocity } from '@/lib/velocity';
 
 export type ProfileState = { error?: string; success?: string } | undefined;
 
@@ -42,9 +43,18 @@ export async function updateProfile(
     baselineValue = baseline.value;
   }
 
+  // 목표 구속 — 비워두면 목표를 지운다.
+  const target = validateTargetVelocity(String(formData.get('targetVelocity') ?? ''));
+  if ('error' in target) return target;
+
   await prisma.user.update({
     where: { id: user.id },
-    data: { nickname, ...checked.value, ...baselineValue },
+    data: {
+      nickname,
+      ...checked.value,
+      ...baselineValue,
+      targetVelocity: target.value,
+    },
   });
 
   // 헤더의 닉네임과 대시보드 안내 문구가 바로 반영되게 한다.
