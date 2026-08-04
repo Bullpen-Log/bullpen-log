@@ -31,11 +31,13 @@ const MAX_ANALYZE_SECONDS = 40;
  */
 const MAX_TOTAL_SAMPLES = 600;
 
+type RawLandmark = { x: number; y: number; z: number; visibility: number };
+
 type Landmarker = {
   detectForVideo: (
     video: HTMLVideoElement,
     timestampMs: number
-  ) => { landmarks: { x: number; y: number; z: number; visibility: number }[][] };
+  ) => { landmarks: RawLandmark[][]; worldLandmarks?: RawLandmark[][] };
   close: () => void;
 };
 
@@ -153,16 +155,19 @@ type ScanResult = {
 function collectFrame(
   out: ScanResult,
   t: number,
-  landmarks: { x: number; y: number; z: number; visibility: number }[]
+  landmarks: RawLandmark[],
+  world?: RawLandmark[]
 ) {
+  const copy = (p: RawLandmark) => ({
+    x: p.x,
+    y: p.y,
+    z: p.z,
+    visibility: p.visibility,
+  });
   const frame: PoseFrame = {
     t,
-    landmarks: landmarks.map((p) => ({
-      x: p.x,
-      y: p.y,
-      z: p.z,
-      visibility: p.visibility,
-    })),
+    landmarks: landmarks.map(copy),
+    ...(world && world.length >= 33 ? { world: world.map(copy) } : {}),
   };
   const prev = out.frames.at(-1);
   if (prev) {
@@ -206,7 +211,7 @@ async function scanBySeek(
     sampled++;
 
     if (landmarks && landmarks.length >= 33) {
-      collectFrame(out, t, landmarks);
+      collectFrame(out, t, landmarks, result.worldLandmarks?.[0]);
       for (const idx of CORE_LANDMARKS) {
         qualitySum += landmarks[idx]?.visibility ?? 0;
         qualityCount++;
@@ -259,6 +264,7 @@ function scanByPlayback(
       if (finished) return;
       finished = true;
       if (stallTimer) clearTimeout(stallTimer);
+      document.removeEventListener('visibilitychange', onVisibility);
       video.pause();
       video.onended = null;
       if (err) {
@@ -274,8 +280,28 @@ function scanByPlayback(
     // (실패로 처리하지 않아야 상위에서 seek 결과와 비교할 수 있다)
     const armStallTimer = () => {
       if (stallTimer) clearTimeout(stallTimer);
+      // 화면이 가려져 있으면 프레임이 안 오는 게 정상이라 시간을 재지 않는다
+      if (document.hidden) return;
       stallTimer = setTimeout(() => finish(), PLAYBACK_STALL_MS);
     };
+
+    /*
+     * 다른 탭으로 넘어가면 브라우저가 프레임 표시를 늦추거나 멈춘다.
+     * 그대로 두면 분석이 기어가거나 중간에 끊기므로, 가려지면 재생을
+     * 멈췄다가 돌아오면 이어서 재생한다. 분석은 그 자리에서 계속된다.
+     */
+    const onVisibility = () => {
+      if (finished) return;
+      if (document.hidden) {
+        if (stallTimer) clearTimeout(stallTimer);
+        stallTimer = null;
+        video.pause();
+      } else {
+        armStallTimer();
+        video.play().catch(() => {});
+      }
+    };
+    document.addEventListener('visibilitychange', onVisibility);
 
     const stepCb = (_now: number, metadata?: FrameMetadata) => {
       if (finished) return;
@@ -292,7 +318,7 @@ function scanByPlayback(
           const result = landmarker.detectForVideo(video, ts);
           const landmarks = result.landmarks[0];
           if (landmarks && landmarks.length >= 33) {
-            collectFrame(out, t, landmarks);
+            collectFrame(out, t, landmarks, result.worldLandmarks?.[0]);
             for (const idx of CORE_LANDMARKS) {
               qualitySum += landmarks[idx]?.visibility ?? 0;
               qualityCount++;

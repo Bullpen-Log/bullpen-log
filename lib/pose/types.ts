@@ -18,6 +18,12 @@ export type PoseFrame = {
   t: number;
   /** MediaPipe 관절 33개 */
   landmarks: PosePoint[];
+  /**
+   * 미터 단위 3D 좌표 (골반 중심이 원점, 화면 축과 정렬).
+   * 카메라 한 대에서 추정한 깊이라 절대 정확도는 낮지만,
+   * 수평면 회전(골반·어깨가 언제 열리는가)의 시간 흐름을 보는 데 쓴다.
+   */
+  world?: PosePoint[];
 };
 
 export type PoseTrack = {
