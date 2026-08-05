@@ -3,7 +3,7 @@
 import { revalidatePath } from 'next/cache';
 import { prisma } from '@/lib/prisma';
 import { getCurrentUser } from '@/lib/dal';
-import { validateCheckin, validateCheckinDate } from '@/lib/checkin';
+import { CHECKIN_PARTS, validateCheckin, validateCheckinDate } from '@/lib/checkin';
 
 export type CheckinState = { error?: string; success?: string } | undefined;
 
@@ -22,9 +22,11 @@ export async function saveCheckin(
     return { error: '체크인 날짜가 올바르지 않습니다. 새로고침 후 다시 시도해주세요.' };
   }
 
+  const parts = Object.fromEntries(
+    CHECKIN_PARTS.map((p) => [p.key, String(formData.get(p.key) ?? '')])
+  );
   const checked = validateCheckin({
-    shoulder: String(formData.get('shoulder') ?? ''),
-    elbow: String(formData.get('elbow') ?? ''),
+    ...parts,
     condition: String(formData.get('condition') ?? ''),
     sleep: String(formData.get('sleep') ?? ''),
   });
@@ -39,5 +41,7 @@ export async function saveCheckin(
   });
 
   revalidatePath('/dashboard');
+  // 통증·뻐근함은 오늘의 운동 후보를 바꾼다.
+  revalidatePath('/today');
   return { success: '오늘 체크인을 저장했습니다.' };
 }

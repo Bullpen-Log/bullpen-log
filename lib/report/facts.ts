@@ -13,7 +13,7 @@ import {
   type PeriodSummary,
   type PitchLogLike,
 } from '@/lib/pitch-stats';
-import { hasPain } from '@/lib/checkin';
+import { hasPain, type CheckinParts } from '@/lib/checkin';
 
 /**
  * 리포트에 쓰이는 모든 수치를 한곳에 모은다.
@@ -22,10 +22,8 @@ import { hasPain } from '@/lib/checkin';
  * 문장으로 풀어쓸 뿐 새로운 숫자를 만들지 않는다.
  */
 
-export type CheckinLike = {
+export type CheckinLike = CheckinParts & {
   date: string;
-  shoulder: string;
-  elbow: string;
   condition: number;
   sleep: string;
 };

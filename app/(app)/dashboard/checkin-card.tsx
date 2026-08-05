@@ -6,18 +6,18 @@ import { AlertTriangle, CheckCircle2, ClipboardList, Pencil } from 'lucide-react
 import { saveCheckin, type CheckinState } from '@/app/actions/checkin';
 import {
   BODY_FEELINGS,
+  CHECKIN_PARTS,
   MAX_CONDITION,
   MIN_CONDITION,
   SLEEP_LEVELS,
+  type CheckinParts,
   hasPain,
 } from '@/lib/checkin';
 import { toDateKey } from '@/lib/pitch-stats';
 
-export type CheckinData = {
+export type CheckinData = CheckinParts & {
   /** YYYY-MM-DD */
   date: string;
-  shoulder: string;
-  elbow: string;
   condition: number;
   sleep: string;
 };
@@ -27,7 +27,7 @@ function feelingChipClass(value: string) {
   if (value === '통증')
     return 'peer-checked:border-red-500/70 peer-checked:bg-red-500/10 peer-checked:text-red-700';
   if (value === '뻐근')
-    return 'peer-checked:border-amber-500/60 peer-checked:bg-amber-500/10 peer-checked:text-amber-300';
+    return 'peer-checked:border-amber-500/60 peer-checked:bg-amber-500/10 peer-checked:text-amber-700';
   return 'peer-checked:border-sky peer-checked:bg-sky/10 peer-checked:text-sky';
 }
 
@@ -127,7 +127,7 @@ export function CheckinCard({ recent }: { recent: CheckinData[] }) {
     <section
       className={`rounded-2xl border p-5 sm:p-6 ${
         painToday
-          ? 'border-red-900/70 bg-red-950/20'
+          ? 'border-red-200 bg-red-50'
           : 'border-line bg-surface'
       }`}
     >
@@ -136,7 +136,7 @@ export function CheckinCard({ recent }: { recent: CheckinData[] }) {
         <span
           className={`flex h-9 w-9 items-center justify-center rounded-xl border ${
             painToday
-              ? 'border-red-900/70 text-red-600'
+              ? 'border-red-300 text-red-600'
               : 'border-line-strong text-sky'
           }`}
         >
@@ -155,7 +155,7 @@ export function CheckinCard({ recent }: { recent: CheckinData[] }) {
 
         {today && !editing && (
           <span className="flex items-center gap-2">
-            <span className="inline-flex items-center gap-1.5 text-xs text-emerald-400">
+            <span className="inline-flex items-center gap-1.5 text-xs text-emerald-600">
               <CheckCircle2 className="h-4 w-4" />
               완료
             </span>
@@ -179,8 +179,7 @@ export function CheckinCard({ recent }: { recent: CheckinData[] }) {
               {/* 완료 요약 */}
               <dl className="flex flex-wrap gap-x-5 gap-y-1.5 text-xs text-muted">
                 {[
-                  ['어깨', today.shoulder],
-                  ['팔꿈치', today.elbow],
+                  ...CHECKIN_PARTS.map((p) => [p.label, today[p.key]] as const),
                   ['컨디션', `${today.condition}/10`],
                   ['수면', today.sleep],
                 ].map(([k, v]) => (
@@ -191,7 +190,7 @@ export function CheckinCard({ recent }: { recent: CheckinData[] }) {
                         v === '통증'
                           ? 'font-semibold text-red-600'
                           : v === '뻐근'
-                            ? 'font-medium text-amber-400'
+                            ? 'font-medium text-amber-600'
                             : 'text-ink'
                       }
                     >
@@ -202,7 +201,7 @@ export function CheckinCard({ recent }: { recent: CheckinData[] }) {
               </dl>
 
               {painToday && (
-                <p className="mt-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-xs leading-relaxed text-red-200">
+                <p className="mt-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-xs leading-relaxed text-red-700">
                   통증이 있는 날은 던지거나 무리한 운동을 하지 마세요. 통증이
                   이어지면 전문의 진료를 받아보는 것이 좋습니다. 통증이 있는
                   동안에는 운동 추천도 제공하지 않습니다.
@@ -219,35 +218,26 @@ export function CheckinCard({ recent }: { recent: CheckinData[] }) {
                 </p>
               )}
 
-              <Row label="어깨">
-                {BODY_FEELINGS.map((v) => (
-                  <ChipRadio
-                    key={v}
-                    name="shoulder"
-                    value={v}
-                    required
-                    defaultChecked={today?.shoulder === v}
-                    className={feelingChipClass(v)}
-                  >
-                    {v}
-                  </ChipRadio>
-                ))}
-              </Row>
+              <p className="text-xs text-muted">
+                아픈 곳만 바꿔주세요. 나머지는 정상으로 저장됩니다.
+              </p>
 
-              <Row label="팔꿈치">
-                {BODY_FEELINGS.map((v) => (
-                  <ChipRadio
-                    key={v}
-                    name="elbow"
-                    value={v}
-                    required
-                    defaultChecked={today?.elbow === v}
-                    className={feelingChipClass(v)}
-                  >
-                    {v}
-                  </ChipRadio>
-                ))}
-              </Row>
+              {CHECKIN_PARTS.map((part) => (
+                <Row key={part.key} label={part.label}>
+                  {BODY_FEELINGS.map((v) => (
+                    <ChipRadio
+                      key={v}
+                      name={part.key}
+                      value={v}
+                      required
+                      defaultChecked={(today?.[part.key] ?? '정상') === v}
+                      className={feelingChipClass(v)}
+                    >
+                      {v}
+                    </ChipRadio>
+                  ))}
+                </Row>
+              ))}
 
               <Row label="전신 컨디션">
                 {Array.from(

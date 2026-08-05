@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getCurrentUser } from '@/lib/dal';
 import { deleteVideos, isOwnedBy } from '@/lib/storage';
+import { validateSessionType } from '@/lib/session-type';
 
 const MAX_VIDEOS = 2;
 
@@ -31,11 +32,24 @@ export async function POST(req: Request) {
 
   try {
     const body = await req.json();
-    const { date, pitchCount, intensity, maxVelocity, avgVelocity, memo, videoPaths } =
-      body;
+    const {
+      date,
+      sessionType,
+      pitchCount,
+      intensity,
+      maxVelocity,
+      avgVelocity,
+      memo,
+      videoPaths,
+    } = body;
 
     if (!date) {
       return NextResponse.json({ error: '날짜는 필수입니다' }, { status: 400 });
+    }
+
+    const checkedType = validateSessionType(String(sessionType ?? ''));
+    if ('error' in checkedType) {
+      return NextResponse.json({ error: checkedType.error }, { status: 400 });
     }
 
     const parsedDate = new Date(date);
@@ -103,6 +117,7 @@ export async function POST(req: Request) {
       data: {
         userId: user.id,
         date: parsedDate,
+        sessionType: checkedType.value,
         pitchCount: parsedCount,
         intensity: parsedIntensity,
         maxVelocity: parsedMax,

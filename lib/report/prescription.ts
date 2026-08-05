@@ -1,3 +1,4 @@
+import { CHECKIN_PARTS, type CheckinPartKey } from '@/lib/checkin';
 import { YOUTH_AGE_THRESHOLD } from '@/lib/report/plan';
 import type { ReportFacts } from '@/lib/report/facts';
 import type { PitchPlan } from '@/lib/report/plan';
@@ -42,11 +43,19 @@ const LOW_CONDITION_THRESHOLD = 4;
  * 가슴(프레스류)과 등(풀업·로우류) 모두 어깨 관절을 지나는 동작이라
  * 어깨가 좋지 않은 날에는 함께 뺀다. 다만 빠지는 것은 강도 '높음'뿐이라
  * 가벼운 로우나 페이스풀 같은 어깨 보강 운동은 그대로 남는다.
+ *
+ * 여기 적는 이름은 ExerciseVideo.bodyParts에 실제로 쓰는 말과 같아야 한다.
+ * (현재 라이브러리: 고관절, 햄스트링·둔근, 코어, 등, 가슴, 어깨, 견갑)
+ * 아직 라이브러리에 없는 부위도 미리 적어둔다 — 운동이 추가되면 바로 걸린다.
  */
-const RELATED_PARTS: Record<string, string[]> = {
+const RELATED_PARTS: Record<CheckinPartKey, string[]> = {
   shoulder: ['어깨', '견갑', '가슴', '등'],
   // 이두·삼두는 모두 팔꿈치를 지나는 근육이라 팔꿈치 쪽에 함께 넣는다.
   elbow: ['팔꿈치', '손목·전완', '이두', '삼두'],
+  wrist: ['손목·전완', '팔꿈치'],
+  // 허리가 아플 때 코어 고강도(데드리프트류)와 등·고관절 동작이 함께 걸린다.
+  lowerBack: ['코어', '등', '고관절', '허리'],
+  lowerBody: ['하체', '고관절', '햄스트링·둔근', '전신'],
 };
 
 export type ExclusionReason = {
@@ -133,10 +142,7 @@ export function selectCandidates({
 
   // 5) 뻐근한 부위는 그 부위를 쓰는 고강도 운동을 뺀다.
   //    (가벼운 회복·가동성 운동은 오히려 도움이 되므로 남긴다.)
-  for (const [key, label] of [
-    ['shoulder', '어깨'],
-    ['elbow', '팔꿈치'],
-  ] as const) {
+  for (const { key, label } of CHECKIN_PARTS) {
     if (today?.[key] !== '뻐근') continue;
     const parts = RELATED_PARTS[key];
     basis.push(`${label} 뻐근함 → ${parts.join('·')} 부위 고강도 제외`);

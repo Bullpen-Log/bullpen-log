@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { ACWR_ZONES } from '@/lib/pitch-stats';
 import type { ReportFacts } from '@/lib/report/facts';
 import type { PitchPlan } from '@/lib/report/plan';
+import { summarizeParts } from '@/lib/checkin';
 
 /**
  * 리포트 프롬프트와 검사 규칙.
@@ -103,7 +104,7 @@ export function buildUserPrompt(facts: ReportFacts, plan: PitchPlan): string {
     lines.push(`- 수면 부족한 날: ${condition.poorSleepDays}일`);
     if (condition.today) {
       lines.push(
-        `- 오늘: 어깨 ${condition.today.shoulder}, 팔꿈치 ${condition.today.elbow}, 컨디션 ${condition.today.condition}/10, 수면 ${condition.today.sleep}`
+        `- 오늘: ${summarizeParts(condition.today)}, 컨디션 ${condition.today.condition}/10, 수면 ${condition.today.sleep}`
       );
     }
   } else {

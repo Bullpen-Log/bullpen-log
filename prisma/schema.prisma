@@ -71,10 +71,12 @@ model DailyCheckin {
   id        String   @id @default(uuid())
   userId    String
   date      DateTime @db.Date
-  /// 어깨 느낌: 정상 / 뻐근 / 통증
+  /// 각 부위 느낌: 정상 / 뻐근 / 통증 (lib/checkin.ts의 CHECKIN_PARTS와 짝을 이룬다)
   shoulder  String
-  /// 팔꿈치 느낌: 정상 / 뻐근 / 통증
   elbow     String
+  wrist     String   @default("정상")
+  lowerBack String   @default("정상")
+  lowerBody String   @default("정상")
   /// 전신 컨디션 1(안 좋음) ~ 10(최상). 높을수록 좋다.
   condition Int
   /// 수면: 충분 / 보통 / 부족
@@ -119,6 +121,8 @@ model PitchLog {
   id          String   @id @default(uuid())
   userId      String
   date        DateTime @db.Date
+  /// 불펜 / 라이브 / 경기 / 캐치볼. 같은 투구수라도 성격이 달라 나눠 본다.
+  sessionType String   @default("불펜")
   pitchCount  Int
   intensity   Int
   maxVelocity Float

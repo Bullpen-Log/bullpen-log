@@ -16,11 +16,13 @@ import {
 import { VideoUpload, type UploadedVideo } from '@/components/video-upload';
 import { FilmingGuide } from '@/components/filming-guide';
 import { toDateKey } from '@/lib/pitch-stats';
+import { DEFAULT_SESSION_TYPE, SESSION_TYPES } from '@/lib/session-type';
 import { PitchCalendar, type DaySummary } from './calendar';
 
 export type Log = {
   id: string;
   date: string;
+  sessionType: string;
   pitchCount: number;
   intensity: number;
   maxVelocity: number;
@@ -30,6 +32,7 @@ export type Log = {
 };
 
 const EMPTY_FORM = {
+  sessionType: DEFAULT_SESSION_TYPE as string,
   pitchCount: '',
   intensity: '5',
   maxVelocity: '',
@@ -90,6 +93,7 @@ export function PitchLogClient({ initialLogs }: { initialLogs: Log[] }) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           date: selectedDate,
+          sessionType: form.sessionType,
           pitchCount: form.pitchCount,
           intensity: form.intensity,
           maxVelocity: form.maxVelocity,
@@ -152,6 +156,34 @@ export function PitchLogClient({ initialLogs }: { initialLogs: Log[] }) {
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-5">
+            <Field
+              label="투구 종류"
+              hint={
+                SESSION_TYPES.find((t) => t.name === form.sessionType)?.hint
+              }
+            >
+              <div className="mt-1 flex flex-wrap gap-2">
+                {SESSION_TYPES.map((t) => {
+                  const active = form.sessionType === t.name;
+                  return (
+                    <button
+                      key={t.name}
+                      type="button"
+                      onClick={() => setForm({ ...form, sessionType: t.name })}
+                      aria-pressed={active}
+                      className={`rounded-xl border px-4 py-2 text-sm transition-colors ${
+                        active
+                          ? 'border-sky bg-sky/10 font-semibold text-sky-strong'
+                          : 'border-line bg-surface-2 text-muted hover:border-sky-soft hover:text-ink'
+                      }`}
+                    >
+                      {t.name}
+                    </button>
+                  );
+                })}
+              </div>
+            </Field>
+
             <div className="grid gap-5 sm:grid-cols-2">
               <Field label="투구수">
                 <Input
@@ -248,6 +280,9 @@ export function PitchLogClient({ initialLogs }: { initialLogs: Log[] }) {
                       <span className="ml-1 text-sm text-muted">km/h 최고</span>
                     </p>
                     <div className="mt-3 flex flex-wrap gap-1.5">
+                      <Badge className="border-sky-soft/60 font-semibold text-sky-strong">
+                        {log.sessionType}
+                      </Badge>
                       <Badge>{log.pitchCount}구</Badge>
                       <Badge>강도 {log.intensity}/10</Badge>
                       {log.avgVelocity != null && (
@@ -265,7 +300,7 @@ export function PitchLogClient({ initialLogs }: { initialLogs: Log[] }) {
                     type="button"
                     onClick={() => handleDelete(log.id)}
                     aria-label="기록 삭제"
-                    className="rounded-lg p-2 text-muted transition-colors hover:bg-red-950/40 hover:text-red-600"
+                    className="rounded-lg p-2 text-muted transition-colors hover:bg-red-50 hover:text-red-600"
                   >
                     <Trash2 className="h-4 w-4" />
                   </button>

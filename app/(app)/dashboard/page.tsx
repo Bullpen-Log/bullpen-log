@@ -39,6 +39,7 @@ import {
   ZoneGauge,
   type Tone,
 } from './parts';
+import { pickCheckinParts } from '@/lib/checkin';
 
 /** 렌더 중에 현재 시각을 직접 읽지 않도록 함수로 감싼다. */
 function now() {
@@ -123,8 +124,7 @@ export default async function DashboardPage() {
     })
   ).map((c) => ({
     date: c.date.toISOString().slice(0, 10),
-    shoulder: c.shoulder,
-    elbow: c.elbow,
+    ...pickCheckinParts(c),
     condition: c.condition,
     sleep: c.sleep,
   }));

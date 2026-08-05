@@ -11,6 +11,7 @@ import { AI_MODEL, isAiConfigured } from '@/lib/ai/client';
 import { generateReportBody } from '@/lib/ai/report';
 import { buildFacts, type CheckinLike, type MemoNote } from '@/lib/report/facts';
 import { buildPitchPlan } from '@/lib/report/plan';
+import { pickCheckinParts } from '@/lib/checkin';
 
 export type AiReportState = { error?: string; success?: string } | undefined;
 
@@ -66,8 +67,7 @@ export async function generateAiReport(): Promise<AiReportState> {
     })),
     checkins: checkins.map<CheckinLike>((c) => ({
       date: c.date.toISOString().slice(0, 10),
-      shoulder: c.shoulder,
-      elbow: c.elbow,
+      ...pickCheckinParts(c),
       condition: c.condition,
       sleep: c.sleep,
     })),

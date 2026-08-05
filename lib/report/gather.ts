@@ -4,6 +4,7 @@ import { ageFromBirthDate } from '@/lib/profile';
 import { estimateDailyLoad } from '@/lib/baseline';
 import { buildFacts, type CheckinLike, type MemoNote } from '@/lib/report/facts';
 import { buildPitchPlan } from '@/lib/report/plan';
+import { pickCheckinParts } from '@/lib/checkin';
 
 /** 부하 계산에 필요한 기간. 4주 만성 부하에 여유를 둔다. */
 export const LOOKBACK_DAYS = 45;
@@ -53,8 +54,7 @@ export async function gatherFactsAndPlan(user: UserForFacts, today: Date) {
     })),
     checkins: checkins.map<CheckinLike>((c) => ({
       date: c.date.toISOString().slice(0, 10),
-      shoulder: c.shoulder,
-      elbow: c.elbow,
+      ...pickCheckinParts(c),
       condition: c.condition,
       sleep: c.sleep,
     })),
