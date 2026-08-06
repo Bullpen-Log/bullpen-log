@@ -20,7 +20,7 @@ AI가 투구수나 부하 지수를 지어내지 못하게 막는 구조이고, 
 ### 2. 받아서 설치
 
 ```bash
-git clone https://github.com/als216c/bullpen-log.git
+git clone https://github.com/Bullpen-Log/bullpen-log.git
 cd bullpen-log
 npm install
 ```
