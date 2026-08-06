@@ -55,6 +55,7 @@ const METRICS = [
     unit: '구',
     kind: 'bar',
     hint: '그날 던진 개수입니다.',
+    sparse: false,
   },
   {
     key: 'load',
@@ -62,13 +63,20 @@ const METRICS = [
     unit: '',
     kind: 'line',
     hint: '그날까지 최근 7일 부하의 합입니다. (부하 = 투구수 × 강도)',
+    sparse: false,
   },
   {
     key: 'velocity',
     label: '최고 구속',
     unit: 'km/h',
     kind: 'line',
-    hint: '던진 날만 표시됩니다.',
+    hint: '던진 날만 값이 있습니다. 쉰 날은 건너뛰고 이어집니다.',
+    /*
+     * 던진 날에만 값이 있어 대부분의 칸이 비어 있다.
+     * 다른 지표처럼 점을 숨기고 빈 칸에서 선을 끊으면, 하루만 던진 날은
+     * 선도 점도 없이 사라져 그래프가 통째로 비어 보인다.
+     */
+    sparse: true,
   },
   {
     key: 'intensity',
@@ -76,6 +84,7 @@ const METRICS = [
     unit: '/ 10',
     kind: 'bar',
     hint: '스스로 매긴 그날의 힘 쓴 정도입니다.',
+    sparse: false,
   },
 ] as const;
 
@@ -162,11 +171,15 @@ export function TrendChart({ points }: { points: TrendPoint[] }) {
                     borderWidth: 2,
                     tension: 0.3,
                     fill: true,
-                    pointRadius: points.length > 14 ? 0 : 3,
+                    // 값이 드문 지표는 점을 항상 찍어야 보인다.
+                    pointRadius: active.sparse ? 3 : points.length > 14 ? 0 : 3,
                     pointBackgroundColor: chart.accentStrong,
                     pointHoverRadius: 5,
-                    // 안 던진 날은 값이 없다. 선을 이어버리면 던진 것처럼 보인다.
-                    spanGaps: false,
+                    /*
+                     * 구속은 쉰 날을 건너뛰고 이어야 세션 간 흐름이 보인다.
+                     * 부하처럼 매일 값이 있는 지표는 끊어야 사실과 맞는다.
+                     */
+                    spanGaps: active.sparse,
                   },
             ],
           }}

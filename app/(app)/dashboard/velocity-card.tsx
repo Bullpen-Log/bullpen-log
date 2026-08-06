@@ -1,24 +1,13 @@
-'use client';
-
 import Link from 'next/link';
-import { Line } from 'react-chartjs-2';
-import {
-  CategoryScale,
-  Chart as ChartJS,
-  Filler,
-  LineElement,
-  LinearScale,
-  PointElement,
-  Tooltip,
-} from 'chart.js';
 import type { VelocityStats } from '@/lib/velocity';
-import { useChartTheme } from '@/lib/chart-theme';
 
-ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Filler, Tooltip);
-
-/** 그래프에 보여줄 최근 기록 수 */
-const WINDOW = 20;
-
+/**
+ * 개인 최고 구속과 목표까지 남은 거리.
+ *
+ * 추이 그래프는 여기에 두지 않는다. 아래 '최근 28일 추이'에서 '최고 구속'을
+ * 고르면 같은 것을 볼 수 있어, 한 화면에 같은 그래프가 두 번 나오게 된다.
+ * 여기는 "지금 어디까지 왔나"를 한눈에 보는 자리로 둔다.
+ */
 export function VelocityCard({
   stats,
   target,
@@ -26,8 +15,6 @@ export function VelocityCard({
   stats: VelocityStats;
   target: number | null;
 }) {
-  const chart = useChartTheme();
-  const points = stats.points.slice(-WINDOW);
   const gap = target != null && stats.best != null ? target - stats.best : null;
 
   return (
@@ -81,97 +68,22 @@ export function VelocityCard({
         </Link>
       )}
 
-      {/* 추이 */}
-      {points.length >= 2 ? (
-        <div className="space-y-2">
-          <div className="h-[180px]">
-            <Line
-              data={{
-                labels: points.map((p) => p.dateKey.slice(5)),
-                datasets: [
-                  {
-                    label: '최고 구속',
-                    data: points.map((p) => p.max),
-                    borderColor: chart.accent,
-                    backgroundColor: `${chart.accent}1f`,
-                    borderWidth: 2,
-                    tension: 0.3,
-                    fill: true,
-                    // 신기록을 세운 날만 점을 크게 찍는다.
-                    pointRadius: points.map((p) => (p.isNewBest ? 5 : 0)),
-                    pointBackgroundColor: chart.accentStrong,
-                    pointBorderColor: chart.surface,
-                    pointBorderWidth: 2,
-                    pointHoverRadius: 5,
-                  },
-                  {
-                    label: '그날까지 최고',
-                    data: points.map((p) => p.best),
-                    borderColor: `${chart.accentStrong}59`,
-                    borderWidth: 1.5,
-                    borderDash: [4, 4],
-                    pointRadius: 0,
-                    stepped: true,
-                    fill: false,
-                  },
-                ],
-              }}
-              options={{
-                responsive: true,
-                maintainAspectRatio: false,
-                interaction: { mode: 'index', intersect: false },
-                plugins: {
-                  tooltip: {
-                    backgroundColor: chart.tooltipBg,
-                    titleColor: chart.tooltipTitle,
-                    bodyColor: chart.tooltipBody,
-                    padding: 10,
-                    displayColors: false,
-                    callbacks: {
-                      label: (ctx) => `${ctx.dataset.label} ${ctx.parsed.y}km/h`,
-                    },
-                  },
-                },
-                scales: {
-                  x: {
-                    grid: { display: false },
-                    border: { color: chart.border },
-                    ticks: { color: chart.tick, font: { size: 10 }, maxTicksLimit: 7 },
-                  },
-                  y: {
-                    grid: { color: chart.grid },
-                    border: { display: false },
-                    ticks: { color: chart.tick, font: { size: 10 } },
-                    title: { display: true, text: 'km/h', color: chart.tick },
-                  },
-                },
-              }}
-            />
-          </div>
-
-          {stats.trend != null && (
-            <p className="text-xs text-muted">
-              최근 5회 평균이 그 전 5회보다{' '}
-              <span
-                className={
-                  stats.trend > 0
-                    ? 'font-semibold text-sky'
-                    : stats.trend < 0
-                      ? 'font-semibold text-warn'
-                      : ''
-                }
-              >
-                {stats.trend > 0 ? '+' : ''}
-                {stats.trend}km/h
-              </span>
-            </p>
-          )}
-        </div>
-      ) : (
-        <p className="rounded-xl border border-dashed border-line px-4 py-6 text-center text-sm text-muted">
-          {stats.points.length === 0
-            ? '투구를 기록하면 구속 추이가 그려집니다.'
-            : '기록이 2회 이상 쌓이면 추이가 그려집니다.'}
+      {/* 흐름은 한 줄로만 — 그래프는 아래 추이에서 본다. */}
+      {stats.trend != null && (
+        <p className="text-xs text-muted">
+          최근 5회 평균이 그 전 5회보다{' '}
+          <span
+            className={
+              stats.trend > 0
+                ? 'font-semibold text-sky'
+                : stats.trend < 0
+                  ? 'font-semibold text-warn'
+                  : ''
+            }
+          >
+            {stats.trend > 0 ? '+' : ''}
+            {stats.trend}km/h
+          </span>
         </p>
       )}
     </section>
