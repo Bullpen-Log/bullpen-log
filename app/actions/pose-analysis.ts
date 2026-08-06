@@ -51,6 +51,6 @@ export async function savePoseAnalysis(
     update: data,
   });
 
-  revalidatePath('/analysis');
+  revalidatePath('/pitch-log');
   return { ok: true };
 }

@@ -25,9 +25,8 @@ export type NavGroup = {
  *
  *   홈 · 투구 일지 · AI 리포트 · AI 트레이닝 · 라이브러리 · 자료실
  *
- * '투구 일지'는 지금 기록과 영상분석 두 화면으로 나뉘어 있는데, 둘 다
- * 같은 PitchLog 를 보고 있어 원래 한 몸이다. 한 화면으로 합치기 전까지는
- * 이 그룹 아래 나란히 둔다 — 먼저 감추면 영상분석에 들어갈 길이 없어진다.
+ * '투구 일지'는 기록·영상·폼 분석·느낀점을 날짜 하나로 묶은 화면이다.
+ * 예전에는 '투구기록'과 '영상분석' 둘로 나뉘어 있었다.
  *
  * 라이브러리의 '트레이닝'은 'AI 트레이닝'과 이름이 겹쳐 헷갈리므로
  * 내용 그대로 '운동 영상'·'투구 드릴'로 부른다.
@@ -37,11 +36,7 @@ export const NAV_GROUPS: NavGroup[] = [
     items: [{ href: '/dashboard', label: '홈', icon: '⚾' }],
   },
   {
-    title: '투구 일지',
-    items: [
-      { href: '/pitch-log', label: '기록 & 메모', icon: '📅' },
-      { href: '/analysis', label: '영상 분석', icon: '🎬' },
-    ],
+    items: [{ href: '/pitch-log', label: '투구 일지', icon: '📅' }],
   },
   {
     title: 'AI 코치',

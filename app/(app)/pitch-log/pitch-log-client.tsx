@@ -1,23 +1,15 @@
 'use client';
 
 import { useCallback, useMemo, useState } from 'react';
-import { Trash2, Video } from 'lucide-react';
-import {
-  Badge,
-  Button,
-  Card,
-  EmptyState,
-  Field,
-  FormError,
-  Input,
-  PageHeading,
-  Textarea,
-} from '@/components/ui';
-import { VideoUpload, type UploadedVideo } from '@/components/video-upload';
-import { FilmingGuide } from '@/components/filming-guide';
+import { ChevronLeft, ChevronRight, Plus, X } from 'lucide-react';
+import { Card, EmptyState, FormError, PageHeading } from '@/components/ui';
+import { usePlaybackUrls } from '@/components/use-playback-urls';
 import { toDateKey } from '@/lib/pitch-stats';
-import { DEFAULT_SESSION_TYPE, SESSION_TYPES } from '@/lib/session-type';
+import type { SavedAnalysisView } from '@/lib/pose/saved';
 import { PitchCalendar, type DaySummary } from './calendar';
+import { EntryForm } from './entry-form';
+import { DayRecord } from './day-record';
+import { CompareView, type ClipOption } from './compare-view';
 
 export type Log = {
   id: string;
@@ -31,27 +23,47 @@ export type Log = {
   videoPaths: string[];
 };
 
-const EMPTY_FORM = {
-  sessionType: DEFAULT_SESSION_TYPE as string,
-  pitchCount: '',
-  intensity: '5',
-  maxVelocity: '',
-  avgVelocity: '',
-  memo: '',
-};
+const MODES = [
+  { key: 'day', label: '날짜별 보기' },
+  { key: 'compare', label: '2분할 비교' },
+] as const;
 
-export function PitchLogClient({ initialLogs }: { initialLogs: Log[] }) {
+/**
+ * 투구 일지 — 기록, 영상, 폼 분석, 느낀점을 날짜 하나로 묶어 본다.
+ *
+ * 달력에서 날짜를 고르면 그날 있었던 일이 전부 아래에 나온다.
+ * 예전에는 이게 '투구기록'과 '영상분석' 두 화면으로 나뉘어 있었는데,
+ * 둘 다 같은 PitchLog 를 보고 있어 원래 한 몸이었다.
+ */
+export function PitchLogClient({
+  initialLogs,
+  heightCm,
+  savedAnalyses,
+}: {
+  initialLogs: Log[];
+  heightCm: number | null;
+  savedAnalyses: SavedAnalysisView[];
+}) {
   const [logs, setLogs] = useState<Log[]>(initialLogs);
   const [error, setError] = useState<string>();
-  const [saving, setSaving] = useState(false);
+  const [mode, setMode] = useState<'day' | 'compare'>('day');
 
+  const [selectedDate, setSelectedDate] = useState(() => toDateKey(new Date()));
   const [month, setMonth] = useState(() => {
     const now = new Date();
     return new Date(now.getFullYear(), now.getMonth(), 1);
   });
-  const [selectedDate, setSelectedDate] = useState(() => toDateKey(new Date()));
-  const [form, setForm] = useState(EMPTY_FORM);
-  const [videos, setVideos] = useState<UploadedVideo[]>([]);
+
+  /**
+   * 폼을 펼쳐 둘지. null 이면 "알아서" — 기록이 없는 날은 열고, 있는 날은 접는다.
+   * 날짜를 바꾸면 다시 null 로 돌려 그 날짜에 맞게 정한다.
+   */
+  const [formOpen, setFormOpen] = useState<boolean | null>(null);
+
+  const selectDate = useCallback((date: string) => {
+    setSelectedDate(date);
+    setFormOpen(null);
+  }, []);
 
   const refresh = useCallback(async () => {
     try {
@@ -63,6 +75,18 @@ export function PitchLogClient({ initialLogs }: { initialLogs: Log[] }) {
       setError('기록을 불러오지 못했습니다. 잠시 후 다시 시도해주세요.');
     }
   }, []);
+
+  const handleDelete = useCallback(
+    async (id: string) => {
+      const res = await fetch('/api/pitch-log', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id }),
+      });
+      if (res.ok) refresh();
+    },
+    [refresh]
+  );
 
   const summaries = useMemo(() => {
     return logs.reduce<Record<string, DaySummary>>((acc, log) => {
@@ -82,239 +106,221 @@ export function PitchLogClient({ initialLogs }: { initialLogs: Log[] }) {
     [logs, selectedDate]
   );
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setSaving(true);
-    setError(undefined);
+  const showForm = formOpen ?? selectedLogs.length === 0;
 
-    try {
-      const res = await fetch('/api/pitch-log', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          date: selectedDate,
-          sessionType: form.sessionType,
-          pitchCount: form.pitchCount,
-          intensity: form.intensity,
-          maxVelocity: form.maxVelocity,
-          avgVelocity: form.avgVelocity,
-          memo: form.memo,
-          videoPaths: videos.map((v) => v.path),
-        }),
-      });
+  /* ---------------------------- 영상 ---------------------------- */
 
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        throw new Error(data.error ?? '저장에 실패했습니다.');
+  const withVideo = useMemo(
+    () => logs.filter((l) => l.videoPaths.length > 0),
+    [logs]
+  );
+
+  // 선택한 날짜의 영상 주소만 받아온다. 기록이 많아지면 전부 발급하기엔 느리다.
+  const selectedPaths = useMemo(
+    () => selectedLogs.flatMap((l) => l.videoPaths),
+    [selectedLogs]
+  );
+  const { urls: playbackUrls, loading: urlsLoading, ready: urlsReady } =
+    usePlaybackUrls(selectedPaths);
+
+  const savedByPath = useMemo(
+    () => new Map(savedAnalyses.map((a) => [a.videoPath, a])),
+    [savedAnalyses]
+  );
+
+  const savedFor = useCallback(
+    (videoPath: string) => savedByPath.get(videoPath) ?? null,
+    [savedByPath]
+  );
+
+  /** 이 영상보다 앞선 날짜의 가장 최근 저장 분석 — 변화 비교의 기준 */
+  const previousFor = useCallback(
+    (date: string, videoPath: string): SavedAnalysisView | null => {
+      let best: SavedAnalysisView | null = null;
+      for (const a of savedAnalyses) {
+        if (a.videoPath === videoPath || a.date >= date) continue;
+        if (
+          !best ||
+          a.date > best.date ||
+          (a.date === best.date && a.updatedAt > best.updatedAt)
+        ) {
+          best = a;
+        }
       }
+      return best;
+    },
+    [savedAnalyses]
+  );
 
-      setForm(EMPTY_FORM);
-      videos.forEach((v) => URL.revokeObjectURL(v.previewUrl));
-      setVideos([]);
-      await refresh();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : '저장에 실패했습니다.');
-    } finally {
-      setSaving(false);
-    }
-  };
+  /** 비교 화면에서 고를 수 있는 영상 목록 (오래된 순) */
+  const clips = useMemo<ClipOption[]>(
+    () =>
+      withVideo.flatMap((log) =>
+        log.videoPaths.map((path, i) => ({
+          id: `${log.id}-${i}`,
+          date: log.date.slice(0, 10),
+          path,
+          label: log.videoPaths.length > 1 ? `영상 ${i + 1}` : '영상',
+          summary: `${log.maxVelocity}km/h · ${log.pitchCount}구 · 강도 ${log.intensity}/10`,
+        }))
+      ),
+    [withVideo]
+  );
 
-  const handleDelete = async (id: string) => {
-    const res = await fetch('/api/pitch-log', {
-      method: 'DELETE',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id }),
-    });
-    if (res.ok) refresh();
+  /** 영상이 있는 날짜만 앞뒤로 건너뛴다 — 폼을 되돌아볼 때 쓴다. */
+  const videoDates = useMemo(
+    () => [...new Set(withVideo.map((l) => l.date.slice(0, 10)))].sort(),
+    [withVideo]
+  );
+
+  const goToVideoDate = (offset: number) => {
+    if (videoDates.length === 0) return;
+    const currentIndex = videoDates.indexOf(selectedDate);
+    // 지금 날짜에 영상이 없으면 가까운 쪽에서 출발한다.
+    const base =
+      currentIndex >= 0
+        ? currentIndex
+        : videoDates.findIndex((d) => d > selectedDate) - (offset > 0 ? 1 : 0);
+    const next = Math.min(Math.max(base + offset, 0), videoDates.length - 1);
+    const target = videoDates[next];
+    if (!target) return;
+    selectDate(target);
+    const [y, m] = target.split('-').map(Number);
+    setMonth(new Date(y, m - 1, 1));
   };
 
   return (
-    <div className="space-y-10">
+    <div className="space-y-8">
       <PageHeading
         eyebrow="Pitch Log"
         title="투구 일지"
-        description="던진 날의 기록과 느낀점을 남기는 곳입니다. 그날 찍은 영상은 '영상 분석'에서, 기간별 정리는 'AI 리포트'에서 볼 수 있습니다."
+        description="날짜를 고르면 그날의 기록·영상·느낀점이 한 번에 열립니다. 기간별 정리는 'AI 리포트'에서 볼 수 있습니다."
+        action={
+          videoDates.length > 0 && mode === 'day' ? (
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => goToVideoDate(-1)}
+                aria-label="이전 영상 날짜"
+                className="rounded-lg border border-line p-2 text-muted transition-colors hover:border-sky hover:text-sky"
+              >
+                <ChevronLeft className="h-4 w-4" />
+              </button>
+              <span className="text-xs text-muted">영상 {videoDates.length}일</span>
+              <button
+                type="button"
+                onClick={() => goToVideoDate(1)}
+                aria-label="다음 영상 날짜"
+                className="rounded-lg border border-line p-2 text-muted transition-colors hover:border-sky hover:text-sky"
+              >
+                <ChevronRight className="h-4 w-4" />
+              </button>
+            </div>
+          ) : undefined
+        }
       />
 
       <FormError>{error}</FormError>
 
-      <div className="grid gap-6 lg:grid-cols-[minmax(0,360px)_1fr]">
-        <Card>
-          <PitchCalendar
-            month={month}
-            onMonthChange={setMonth}
-            selected={selectedDate}
-            onSelect={setSelectedDate}
-            summaries={summaries}
-          />
-        </Card>
-
-        <Card className="space-y-5">
-          <div>
-            <h2 className="font-bold text-ink">기록 추가</h2>
-            <p className="mt-1 text-sm text-muted">{selectedDate}</p>
-          </div>
-
-          <form onSubmit={handleSubmit} className="space-y-5">
-            <Field
-              label="투구 종류"
-              hint={
-                SESSION_TYPES.find((t) => t.name === form.sessionType)?.hint
-              }
+      {/* 2분할 비교는 영상이 두 개 이상 있어야 뜻이 있다. */}
+      {clips.length >= 2 && (
+        <div className="flex gap-1 rounded-xl border border-line bg-surface p-1 sm:w-fit">
+          {MODES.map((m) => (
+            <button
+              key={m.key}
+              type="button"
+              onClick={() => setMode(m.key)}
+              className={`flex-1 rounded-lg px-5 py-2.5 text-sm font-medium transition-colors sm:flex-none ${
+                mode === m.key ? 'bg-sky text-white' : 'text-muted hover:text-ink'
+              }`}
             >
-              <div className="mt-1 flex flex-wrap gap-2">
-                {SESSION_TYPES.map((t) => {
-                  const active = form.sessionType === t.name;
-                  return (
-                    <button
-                      key={t.name}
-                      type="button"
-                      onClick={() => setForm({ ...form, sessionType: t.name })}
-                      aria-pressed={active}
-                      className={`rounded-xl border px-4 py-2 text-sm transition-colors ${
-                        active
-                          ? 'border-sky bg-sky/10 font-semibold text-sky-strong'
-                          : 'border-line bg-surface-2 text-muted hover:border-sky-soft hover:text-ink'
-                      }`}
-                    >
-                      {t.name}
-                    </button>
-                  );
-                })}
-              </div>
-            </Field>
-
-            <div className="grid gap-5 sm:grid-cols-2">
-              <Field label="투구수">
-                <Input
-                  type="number"
-                  min="1"
-                  value={form.pitchCount}
-                  onChange={(e) => setForm({ ...form, pitchCount: e.target.value })}
-                  placeholder="45"
-                  required
-                />
-              </Field>
-              <Field label={`투구 강도 — ${form.intensity} / 10`}>
-                <input
-                  type="range"
-                  min="1"
-                  max="10"
-                  value={form.intensity}
-                  onChange={(e) => setForm({ ...form, intensity: e.target.value })}
-                  className="mt-3 w-full accent-[#0ea5e9]"
-                />
-              </Field>
-            </div>
-
-            <div className="grid gap-5 sm:grid-cols-2">
-              <Field label="최고 구속 (km/h)">
-                <Input
-                  type="number"
-                  step="0.1"
-                  min="1"
-                  value={form.maxVelocity}
-                  onChange={(e) => setForm({ ...form, maxVelocity: e.target.value })}
-                  placeholder="138"
-                  required
-                />
-              </Field>
-              <Field label="평균 구속 (km/h)" hint="비워두셔도 됩니다.">
-                <Input
-                  type="number"
-                  step="0.1"
-                  min="1"
-                  value={form.avgVelocity}
-                  onChange={(e) => setForm({ ...form, avgVelocity: e.target.value })}
-                  placeholder="132"
-                />
-              </Field>
-            </div>
-
-            <Field
-              label="투구 영상"
-              hint="폰이나 컴퓨터에 있는 영상을 바로 올릴 수 있습니다."
-            >
-              <div className="space-y-3">
-                {/* 올리기 전에 촬영 조건을 한 번 보고 가도록 바로 위에 둔다. */}
-                <FilmingGuide />
-                <VideoUpload videos={videos} onChange={setVideos} max={2} />
-              </div>
-            </Field>
-
-            <Field label="특이사항 · 느낀점">
-              <Textarea
-                rows={4}
-                value={form.memo}
-                onChange={(e) => setForm({ ...form, memo: e.target.value })}
-                placeholder="릴리즈 포인트가 일정했고 5회부터 팔이 무거워짐"
-              />
-            </Field>
-
-            <Button type="submit" disabled={saving} className="w-full">
-              {saving ? '저장 중…' : '기록 저장'}
-            </Button>
-          </form>
-        </Card>
-      </div>
-
-      <Card className="space-y-5">
-        <div className="flex items-baseline justify-between">
-          <h2 className="font-bold text-ink">{selectedDate} 기록</h2>
-          <span className="text-xs text-muted">{selectedLogs.length}건</span>
+              {m.label}
+            </button>
+          ))}
         </div>
+      )}
 
-        {selectedLogs.length === 0 ? (
-          <EmptyState
-            title="이 날짜에는 기록이 없습니다"
-            description="위 폼에서 그날의 투구를 남겨보세요."
-          />
-        ) : (
-          <ul className="space-y-3">
-            {selectedLogs.map((log) => (
-              <li key={log.id} className="rounded-xl border border-line bg-surface-2 p-4">
+      {mode === 'compare' ? (
+        <CompareView clips={clips} />
+      ) : (
+        <div className="grid gap-6 lg:grid-cols-[minmax(0,340px)_1fr]">
+          <Card className="lg:sticky lg:top-24 lg:self-start">
+            <PitchCalendar
+              month={month}
+              onMonthChange={setMonth}
+              selected={selectedDate}
+              onSelect={selectDate}
+              summaries={summaries}
+            />
+          </Card>
+
+          <div className="space-y-5">
+            <div className="flex items-baseline justify-between border-b border-line pb-3">
+              <h2 className="text-lg font-bold text-ink">{selectedDate}</h2>
+              <span className="text-xs text-muted">
+                {selectedLogs.length > 0 ? `${selectedLogs.length}건의 기록` : '기록 없음'}
+              </span>
+            </div>
+
+            {/* 기록 추가 — 기록이 없는 날은 바로 열려 있다. */}
+            {showForm ? (
+              <Card className="space-y-5">
                 <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0">
-                    <p className="text-display text-2xl leading-none text-sky">
-                      {log.maxVelocity}
-                      <span className="ml-1 text-sm text-muted">km/h 최고</span>
-                    </p>
-                    <div className="mt-3 flex flex-wrap gap-1.5">
-                      <Badge className="border-sky-soft/60 font-semibold text-sky-strong">
-                        {log.sessionType}
-                      </Badge>
-                      <Badge>{log.pitchCount}구</Badge>
-                      <Badge>강도 {log.intensity}/10</Badge>
-                      {log.avgVelocity != null && (
-                        <Badge>평균 {log.avgVelocity} km/h</Badge>
-                      )}
-                      {log.videoPaths.length > 0 && (
-                        <Badge className="border-sky-soft/60 text-sky">
-                          <Video className="mr-1 h-3 w-3" />
-                          영상 {log.videoPaths.length}
-                        </Badge>
-                      )}
-                    </div>
+                  <div>
+                    <h3 className="font-bold text-ink">기록 추가</h3>
+                    <p className="mt-1 text-sm text-muted">{selectedDate}</p>
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => handleDelete(log.id)}
-                    aria-label="기록 삭제"
-                    className="rounded-lg p-2 text-muted transition-colors hover:bg-red-50 hover:text-red-600"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </button>
+                  {selectedLogs.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => setFormOpen(false)}
+                      aria-label="입력 폼 닫기"
+                      className="rounded-lg p-2 text-muted transition-colors hover:bg-surface-2 hover:text-ink"
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
+                  )}
                 </div>
-                {log.memo && (
-                  <p className="mt-3 whitespace-pre-wrap border-t border-line pt-3 text-sm leading-relaxed text-muted">
-                    {log.memo}
-                  </p>
-                )}
-              </li>
+                <EntryForm
+                  key={selectedDate}
+                  date={selectedDate}
+                  onSaved={refresh}
+                  onError={setError}
+                />
+              </Card>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setFormOpen(true)}
+                className="flex w-full items-center justify-center gap-2 rounded-2xl border border-dashed border-sky-soft bg-sky-tint px-4 py-3.5 text-sm font-medium text-sky-strong transition-colors hover:bg-sky-tint/70"
+              >
+                <Plus className="h-4 w-4" />이 날짜에 기록 추가
+              </button>
+            )}
+
+            {selectedLogs.length === 0 && !showForm && (
+              <EmptyState
+                title="이 날짜에는 기록이 없습니다"
+                description="달력에서 색이 있는 날짜를 골라보세요."
+              />
+            )}
+
+            {selectedLogs.map((log) => (
+              <DayRecord
+                key={log.id}
+                log={log}
+                date={selectedDate}
+                heightCm={heightCm}
+                playbackUrls={playbackUrls}
+                urlsPending={urlsLoading || !urlsReady}
+                savedFor={savedFor}
+                previousFor={previousFor}
+                onDelete={handleDelete}
+              />
             ))}
-          </ul>
-        )}
-      </Card>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
