@@ -70,6 +70,7 @@ export async function generateAiReport(): Promise<AiReportState> {
       ...pickCheckinParts(c),
       condition: c.condition,
       sleep: c.sleep,
+      preferredParts: c.preferredParts,
     })),
     // 메모는 최근 것 위주로 넘긴다. 통증 표현 감지에도 쓰인다.
     memos: logs

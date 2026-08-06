@@ -26,6 +26,8 @@ export type CheckinLike = CheckinParts & {
   date: string;
   condition: number;
   sleep: string;
+  /** 오늘 하고 싶다고 고른 운동 부위 */
+  preferredParts: string[];
 };
 
 export type MemoNote = { date: string; text: string };

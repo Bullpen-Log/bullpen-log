@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache';
 import { prisma } from '@/lib/prisma';
 import { getCurrentUser } from '@/lib/dal';
 import { CHECKIN_PARTS, validateCheckin, validateCheckinDate } from '@/lib/checkin';
+import { availableParts } from '@/lib/report/today-pick';
 
 export type CheckinState = { error?: string; success?: string } | undefined;
 
@@ -25,11 +26,26 @@ export async function saveCheckin(
   const parts = Object.fromEntries(
     CHECKIN_PARTS.map((p) => [p.key, String(formData.get(p.key) ?? '')])
   );
-  const checked = validateCheckin({
-    ...parts,
-    condition: String(formData.get('condition') ?? ''),
-    sleep: String(formData.get('sleep') ?? ''),
+  /*
+   * 고를 수 있는 부위는 라이브러리에서 그때그때 뽑는다.
+   * 화면이 보여준 목록과 저장할 때 인정하는 목록이 같아야 하고,
+   * 운동을 새로 올리면 코드를 고치지 않아도 따라온다.
+   */
+  const library = await prisma.exerciseVideo.findMany({
+    select: { id: true, bodyParts: true },
   });
+
+  const checked = validateCheckin(
+    {
+      ...parts,
+      condition: String(formData.get('condition') ?? ''),
+      sleep: String(formData.get('sleep') ?? ''),
+    },
+    {
+      raw: formData.getAll('preferredParts').map(String),
+      available: availableParts(library),
+    }
+  );
   if ('error' in checked) return checked;
 
   const date = new Date(`${dateKey}T00:00:00.000Z`);

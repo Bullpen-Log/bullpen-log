@@ -81,6 +81,9 @@ model DailyCheckin {
   condition Int
   /// 수면: 충분 / 보통 / 부족
   sleep     String
+  /// 오늘 하고 싶은 운동 부위. 비워두면 가리지 않는다.
+  /// 안전 필터를 뚫는 값이 아니라, 통과한 후보 중 순서를 바꾸는 데만 쓴다.
+  preferredParts String[]
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)

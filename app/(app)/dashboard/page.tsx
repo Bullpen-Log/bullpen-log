@@ -40,6 +40,7 @@ import {
   type Tone,
 } from './parts';
 import { pickCheckinParts } from '@/lib/checkin';
+import { availableParts } from '@/lib/report/today-pick';
 import { ReportSummaryCard, toReportSummary } from './report-summary';
 
 /** 렌더 중에 현재 시각을 직접 읽지 않도록 함수로 감싼다. */
@@ -84,6 +85,12 @@ export default async function DashboardPage() {
       videoPaths: true,
     },
   });
+
+  // 체크인에서 '오늘 하고 싶은 부위'로 고를 수 있는 목록.
+  // 코드에 적어두지 않고 라이브러리에 실제로 있는 것만 보여준다.
+  const libraryParts = availableParts(
+    await prisma.exerciseVideo.findMany({ select: { id: true, bodyParts: true } })
+  );
 
   // 가장 최근 리포트 한 건 — 홈에는 결론 한 줄만 얹는다.
   const latestReport = await prisma.aiReport.findFirst({
@@ -135,6 +142,7 @@ export default async function DashboardPage() {
     ...pickCheckinParts(c),
     condition: c.condition,
     sleep: c.sleep,
+    preferredParts: c.preferredParts,
   }));
   const recentCheckins = allCheckins.slice(0, 3);
 
@@ -266,7 +274,7 @@ export default async function DashboardPage() {
       </section>
 
       {/* ── 오늘 컨디션 체크인 ──────────────────────────────── */}
-      <CheckinCard recent={recentCheckins} />
+      <CheckinCard recent={recentCheckins} parts={libraryParts} />
 
       {/* ── 오늘 뭘 하면 되는지 한 줄 ───────────────────────── */}
       {todayPlan && <TodayPlanLine plan={todayPlan} />}

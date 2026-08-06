@@ -5,6 +5,7 @@ import { createPlaybackUrls } from '@/lib/storage';
 import { toDateKey } from '@/lib/pitch-stats';
 import { gatherFactsAndPlan } from '@/lib/report/gather';
 import { selectCandidates, MIN_CANDIDATES } from '@/lib/report/prescription';
+import { pickForToday } from '@/lib/report/today-pick';
 import { Card, EmptyState, PageHeading } from '@/components/ui';
 import { TodayList, type TodayExercise } from './today-client';
 
@@ -12,9 +13,6 @@ import { TodayList, type TodayExercise } from './today-client';
 function now() {
   return new Date();
 }
-
-/** 하루에 제안할 운동 수. 너무 많으면 아무것도 안 하게 된다. */
-const PICK_COUNT = 5;
 
 export default async function TodayPage() {
   const user = await requireUser();
@@ -42,27 +40,13 @@ export default async function TodayPage() {
   // 후보에는 화면에 필요한 필드(설명·썸네일)가 없으므로 원본에서 다시 찾는다.
   const byId = new Map(library.map((ex) => [ex.id, ex]));
 
-  /*
-   * 후보 중 오늘 할 것을 고른다.
-   * 이미 완료한 것은 사라지면 안 되므로 항상 남기고,
-   * 나머지는 부위가 겹치지 않게 돌아가며 골라 한쪽만 계속 쓰지 않게 한다.
-   */
-  const chosen: typeof picked.candidates = [];
-  const usedParts = new Set<string>();
-  for (const ex of picked.candidates) {
-    if (doneIds.has(ex.id)) chosen.push(ex);
-  }
-  for (const ex of picked.candidates) {
-    if (chosen.length >= PICK_COUNT) break;
-    if (doneIds.has(ex.id)) continue;
-    if (ex.bodyParts.some((p) => usedParts.has(p))) continue;
-    ex.bodyParts.forEach((p) => usedParts.add(p));
-    chosen.push(ex);
-  }
-  for (const ex of picked.candidates) {
-    if (chosen.length >= PICK_COUNT) break;
-    if (!chosen.includes(ex)) chosen.push(ex);
-  }
+  // 오늘 고른 부위가 있으면 그쪽부터 채운다. (규칙은 lib/report/today-pick.ts)
+  const preferredParts = facts.condition.today?.preferredParts ?? [];
+  const chosen = pickForToday({
+    candidates: picked.candidates,
+    doneIds,
+    preferredParts,
+  });
 
   const full = chosen.map((c) => byId.get(c.id)).filter((ex) => ex != null);
 

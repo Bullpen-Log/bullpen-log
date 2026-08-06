@@ -57,6 +57,7 @@ export async function gatherFactsAndPlan(user: UserForFacts, today: Date) {
       ...pickCheckinParts(c),
       condition: c.condition,
       sleep: c.sleep,
+      preferredParts: c.preferredParts,
     })),
     memos: logs
       .filter((l) => l.memo?.trim())

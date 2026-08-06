@@ -153,6 +153,22 @@ export function selectCandidates({
     );
   }
 
+  /*
+   * 6) 오늘 하고 싶다고 고른 부위를 앞으로 당긴다.
+   *
+   * 여기서는 아무것도 빼지 않는다 — 빼는 일은 위의 안전 규칙만 한다.
+   * 선호로 후보를 걸러버리면 "하체만 하고 싶다"고 고른 날 어깨 회복 운동이
+   * 사라지는데, 그건 사용자가 바란 것도 아니고 몸에 좋지도 않다.
+   */
+  const wanted = new Set(today?.preferredParts ?? []);
+  if (wanted.size > 0) {
+    basis.push(`오늘 하고 싶은 부위(${[...wanted].join('·')})를 먼저 배치`);
+    pool = [
+      ...pool.filter((ex) => ex.bodyParts.some((p) => wanted.has(p))),
+      ...pool.filter((ex) => !ex.bodyParts.some((p) => wanted.has(p))),
+    ];
+  }
+
   return {
     halted: false,
     haltReason: null,

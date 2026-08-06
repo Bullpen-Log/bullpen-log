@@ -8,6 +8,7 @@ import {
   BODY_FEELINGS,
   CHECKIN_PARTS,
   MAX_CONDITION,
+  MAX_PREFERRED_PARTS,
   MIN_CONDITION,
   SLEEP_LEVELS,
   type CheckinParts,
@@ -20,6 +21,8 @@ export type CheckinData = CheckinParts & {
   date: string;
   condition: number;
   sleep: string;
+  /** 오늘 하고 싶다고 고른 운동 부위 */
+  preferredParts: string[];
 };
 
 /** 값에 따라 칩 색이 달라진다. '통증'은 항상 빨간색으로 도드라지게. */
@@ -68,6 +71,36 @@ function ChipRadio({
   );
 }
 
+/** 여러 개를 고를 수 있는 칩. 다시 누르면 꺼진다. */
+function ChipCheckbox({
+  name,
+  value,
+  defaultChecked,
+  children,
+}: {
+  name: string;
+  value: string;
+  defaultChecked?: boolean;
+  children: React.ReactNode;
+}) {
+  return (
+    <label className="inline-flex">
+      <input
+        type="checkbox"
+        name={name}
+        value={value}
+        defaultChecked={defaultChecked}
+        className="peer sr-only"
+      />
+      <span
+        className={`${chipBase} peer-checked:border-sky peer-checked:bg-sky/10 peer-checked:font-medium peer-checked:text-sky peer-focus-visible:ring-1 peer-focus-visible:ring-sky`}
+      >
+        {children}
+      </span>
+    </label>
+  );
+}
+
 function Row({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
@@ -99,7 +132,14 @@ function useClientTodayKey() {
   );
 }
 
-export function CheckinCard({ recent }: { recent: CheckinData[] }) {
+export function CheckinCard({
+  recent,
+  parts,
+}: {
+  recent: CheckinData[];
+  /** 고를 수 있는 운동 부위 — 라이브러리에서 뽑아 넘어온다 */
+  parts: string[];
+}) {
   // 서버(UTC)와 한국 시간의 날짜가 다른 시간대가 있어,
   // '오늘'은 화면이 뜬 뒤 사용자 시간 기준으로 정한다.
   const todayKey = useClientTodayKey();
@@ -200,6 +240,21 @@ export function CheckinCard({ recent }: { recent: CheckinData[] }) {
                 ))}
               </dl>
 
+              {/* 고른 게 있으면 보여준다. 안 보이면 저장됐는지 알 수 없다. */}
+              {today.preferredParts.length > 0 && (
+                <p className="mt-3 flex flex-wrap items-center gap-1.5 text-xs text-muted">
+                  오늘 하고 싶은 부위
+                  {today.preferredParts.map((part) => (
+                    <span
+                      key={part}
+                      className="rounded-lg border border-sky-soft/60 bg-sky/10 px-2 py-0.5 font-medium text-sky-strong"
+                    >
+                      {part}
+                    </span>
+                  ))}
+                </p>
+              )}
+
               {painToday && (
                 <p className="mt-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-xs leading-relaxed text-red-700">
                   통증이 있는 날은 던지거나 무리한 운동을 하지 마세요. 통증이
@@ -272,6 +327,29 @@ export function CheckinCard({ recent }: { recent: CheckinData[] }) {
                   </ChipRadio>
                 ))}
               </Row>
+
+              {/*
+                * 오늘 하고 싶은 부위. 안 골라도 되고, 골라도 안전 규칙을
+                * 뚫지는 않는다 — 통과한 후보 중 순서만 앞당긴다.
+                * 목록은 라이브러리에 실제로 있는 부위에서 뽑아 넘어온다.
+                */}
+              {parts.length > 0 && (
+                <Row label="오늘 하고 싶은 부위">
+                  {parts.map((part) => (
+                    <ChipCheckbox
+                      key={part}
+                      name="preferredParts"
+                      value={part}
+                      defaultChecked={today?.preferredParts?.includes(part)}
+                    >
+                      {part}
+                    </ChipCheckbox>
+                  ))}
+                  <span className="ml-1 self-center text-[10px] text-muted/60">
+                    최대 {MAX_PREFERRED_PARTS}개 · 안 골라도 됩니다
+                  </span>
+                </Row>
+              )}
 
               <div className="flex items-center gap-3 pt-1">
                 <SubmitButton />
