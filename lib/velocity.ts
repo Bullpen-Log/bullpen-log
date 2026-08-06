@@ -129,9 +129,3 @@ export function validateTargetVelocity(
   }
   return { value: n };
 }
-
-/** 목표까지 얼마나 왔는지 (0~1). 목표나 기록이 없으면 null */
-export function goalProgress(best: number | null, target: number | null): number | null {
-  if (best == null || target == null || target <= 0) return null;
-  return Math.min(1, Math.max(0, best / target));
-}

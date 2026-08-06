@@ -125,10 +125,6 @@ export function Textarea({ className, ...props }: ComponentProps<'textarea'>) {
   return <textarea className={cn(fieldStyles, 'resize-y', className)} {...props} />;
 }
 
-export function Select({ className, ...props }: ComponentProps<'select'>) {
-  return <select className={cn(fieldStyles, 'cursor-pointer', className)} {...props} />;
-}
-
 export function Badge({
   children,
   className,

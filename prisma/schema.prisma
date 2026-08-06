@@ -210,6 +210,13 @@ model UserExerciseLog {
   @@id([userId, exerciseId, date])
 }
 
+/**
+ * 아직 화면이 없는 표.
+ *
+ * 운동을 "화요일 하체 루틴"처럼 묶는 기능을 하려다 표만 만들어 둔 상태다.
+ * 지금은 어디에서도 읽거나 쓰지 않는다 — 찾아봐도 화면이 없으니 헤매지 말 것.
+ * 메뉴 개편 5단계에서 채울 예정이라 지우지 않고 둔다.
+ */
 model Routine {
   id               String            @id @default(uuid())
   userId           String

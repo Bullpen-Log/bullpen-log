@@ -78,16 +78,6 @@ export function hasPain(checkin: Partial<CheckinParts>) {
   return CHECKIN_PARTS.some((p) => checkin[p.key] === '통증');
 }
 
-/** 통증이 있는 부위 이름들 — 안내 문구에 그대로 쓴다. */
-export function painfulParts(checkin: Partial<CheckinParts>): string[] {
-  return CHECKIN_PARTS.filter((p) => checkin[p.key] === '통증').map((p) => p.label);
-}
-
-/** 뻐근한 부위 이름들 */
-export function stiffParts(checkin: Partial<CheckinParts>): string[] {
-  return CHECKIN_PARTS.filter((p) => checkin[p.key] === '뻐근').map((p) => p.label);
-}
-
 /**
  * DB 행이나 폼 값에서 부위 값만 뽑는다.
  * 부위를 늘려도 호출부를 고칠 일이 없게 여기 한 곳에서 처리한다.

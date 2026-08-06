@@ -59,19 +59,6 @@ export async function createUploadTarget(userId: string, fileName: string) {
   return { path: data.path, signedUrl: data.signedUrl, token: data.token };
 }
 
-/** 비공개 영상을 재생하기 위한 시간제한 주소를 만든다. */
-export async function createPlaybackUrl(path: string): Promise<string | null> {
-  const { data, error } = await getClient()
-    .storage.from(VIDEO_BUCKET)
-    .createSignedUrl(path, PLAYBACK_TTL_SECONDS);
-
-  if (error || !data) {
-    console.error('[storage] 재생 주소 생성 실패', path, error);
-    return null;
-  }
-  return data.signedUrl;
-}
-
 /**
  * 여러 영상의 재생 주소를 한 번의 요청으로 받아온다.
  * 하나씩 발급하면 영상 수만큼 왕복이 생겨 느려진다.
