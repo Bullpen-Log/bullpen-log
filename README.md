@@ -48,6 +48,26 @@ cp .env.example .env
 
 ### 4. DB 준비
 
+**여기서 두 갈래로 나뉜다. 자기가 어느 쪽인지 먼저 확인할 것.**
+
+#### (가) 이미 돌아가는 Supabase에 합류하는 경우 — 팀원이라면 보통 이쪽
+
+같이 쓰는 DB에는 표가 이미 다 만들어져 있다. 만들 게 없고, 코드가 DB를 읽을 수 있게
+클라이언트만 생성하면 된다.
+
+```bash
+npx prisma generate --schema=prisma/schema.prisma
+```
+
+> ⚠️ **`prisma migrate dev` 를 실행하지 말 것.**
+> 남과 같이 쓰는 DB에서 이 명령을 쓰면, 상황에 따라 **표를 전부 지우고 다시 만들겠느냐**고
+> 물어온다. 무심코 넘기면 다른 사람 기록까지 사라진다.
+> 표 구조를 바꿔야 할 일이 생기면 혼자 하지 말고 팀에 먼저 말할 것.
+
+**5번은 건너뛴다.** 저장소는 이미 만들어져 있다.
+
+#### (나) 내 Supabase를 새로 만든 경우
+
 ```bash
 npx prisma migrate dev --schema=prisma/schema.prisma
 ```
@@ -55,7 +75,7 @@ npx prisma migrate dev --schema=prisma/schema.prisma
 > `--schema` 플래그를 빼면 "Specify a schema" 오류가 난다. 이 프로젝트는 `prisma.config.ts`를 쓰기 때문에
 > 명시해줘야 한다. 매번 붙인다고 생각하면 편하다.
 
-### 5. Supabase Storage 버킷
+### 5. Supabase Storage 버킷 — (나)인 경우에만
 
 영상 업로드에 **비공개** 버킷 `pitch-videos`가 필요하다. Supabase → Storage에서 만든다.
 공개로 만들면 안 된다 — 남의 투구 영상이 URL만 알면 다 보인다. 앱은 서명된 임시 URL로만 재생한다.

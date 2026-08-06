@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "prisma generate && prisma migrate deploy && next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "backup": "node --env-file=.env scripts/backup.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.115.0",
