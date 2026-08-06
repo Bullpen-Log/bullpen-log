@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import type { NavGroup, NavItem } from '@/lib/nav';
+import { BaseballMark } from '@/components/logo';
 
 /**
  * 현재 위치 판정. 하위 경로도 같은 메뉴로 본다.
@@ -31,7 +32,7 @@ export function Sidebar({
         href="/dashboard"
         className="flex h-16 shrink-0 items-center gap-2.5 border-b border-line px-5"
       >
-        <span aria-hidden className="text-xl">⚾</span>
+        <BaseballMark className="h-9 w-9" />
         <span className="text-display text-lg leading-none text-ink">
           BULLPEN LOG
         </span>
@@ -108,7 +109,7 @@ export function MobileTopBar({ nickname }: { nickname: string }) {
   return (
     <header className="sticky top-0 z-40 flex h-14 items-center gap-3 border-b border-line bg-surface/95 px-4 backdrop-blur-xl lg:hidden">
       <Link href="/dashboard" className="flex items-center gap-2">
-        <span aria-hidden className="text-lg">⚾</span>
+        <BaseballMark className="h-8 w-8" />
         <span className="text-display text-base leading-none text-ink">
           BULLPEN LOG
         </span>

@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { toDateKey } from '@/lib/pitch-stats';
 import { AuthForm } from './auth-form';
+import { BaseballMark } from '@/components/logo';
 
 /** 렌더 중에 현재 시각을 직접 읽지 않도록 함수로 감싼다. */
 function todayKey() {
@@ -18,7 +19,7 @@ export default function LoginPage() {
   return (
     <main className="bg-spotlight flex min-h-screen flex-col items-center justify-center px-6 py-16">
       <Link href="/" className="group mb-10 flex items-center gap-3">
-        <span aria-hidden className="text-2xl">⚾</span>
+        <BaseballMark className="h-12 w-12" />
         <span className="text-display text-3xl leading-none text-ink transition-colors group-hover:text-sky">
           BULLPEN LOG
         </span>
