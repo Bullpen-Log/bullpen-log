@@ -11,6 +11,8 @@ import { AI_MODEL, isAiConfigured } from '@/lib/ai/client';
 import { generateReportBody } from '@/lib/ai/report';
 import { buildFacts, type CheckinLike, type MemoNote } from '@/lib/report/facts';
 import { buildPitchPlan } from '@/lib/report/plan';
+import { selectCandidates } from '@/lib/report/prescription';
+import { pickForToday } from '@/lib/report/today-pick';
 import { pickCheckinParts } from '@/lib/checkin';
 
 export type AiReportState = { error?: string; success?: string } | undefined;
@@ -113,10 +115,48 @@ export async function generateAiReport(): Promise<AiReportState> {
       },
     });
     revalidatePath('/coach');
+    // 예전 훈련 설명이 화면에 남아 있으면 안 된다.
+    revalidatePath('/today');
     return { success: '통증 신호가 있어 휴식 안내를 저장했습니다.' };
   }
 
-  const result = await generateReportBody(facts, plan);
+  /*
+   * 오늘 배정될 운동을 여기서 미리 계산해 AI에게 넘긴다.
+   * '오늘의 트레이닝' 화면과 같은 함수를 쓰므로 두 화면이 서로 다른 운동을
+   * 말할 일이 없고, AI 호출도 한 번으로 끝난다.
+   */
+  const library = await prisma.exerciseVideo.findMany({
+    orderBy: { createdAt: 'asc' },
+  });
+  const picked = selectCandidates({ facts, plan, library });
+  const chosen = pickForToday({
+    candidates: picked.candidates,
+    // 리포트를 만드는 시점에는 아직 아무것도 안 했다고 본다.
+    doneIds: new Set<string>(),
+    preferredParts: facts.condition.today?.preferredParts ?? [],
+  });
+
+  const training =
+    chosen.length > 0
+      ? {
+          picked: chosen.map((ex) => ({
+            title: ex.title,
+            category: ex.category,
+            intensity: ex.intensity,
+            bodyParts: ex.bodyParts,
+          })),
+          excluded: picked.excluded,
+          basis: picked.basis,
+          preferredParts: facts.condition.today?.preferredParts ?? [],
+        }
+      : undefined;
+
+  const result = await generateReportBody(
+    facts,
+    plan,
+    training,
+    library.map((ex) => ex.title)
+  );
   if (!result.ok) return { error: result.reason };
 
   await prisma.aiReport.upsert({
@@ -144,5 +184,6 @@ export async function generateAiReport(): Promise<AiReportState> {
   });
 
   revalidatePath('/coach');
+  revalidatePath('/today');
   return { success: '리포트를 만들었습니다.' };
 }

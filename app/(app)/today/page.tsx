@@ -7,6 +7,8 @@ import { gatherFactsAndPlan } from '@/lib/report/gather';
 import { selectCandidates, MIN_CANDIDATES } from '@/lib/report/prescription';
 import { pickForToday } from '@/lib/report/today-pick';
 import { Card, EmptyState, PageHeading } from '@/components/ui';
+import type { AiReportBody } from '@/lib/ai/report-prompt';
+import { Sparkles } from 'lucide-react';
 import { TodayList, type TodayExercise } from './today-client';
 
 /** 렌더 중에 현재 시각을 직접 읽지 않도록 함수로 감싼다. */
@@ -21,7 +23,7 @@ export default async function TodayPage() {
 
   const { facts, plan, hasLogs } = await gatherFactsAndPlan(user, today);
 
-  const [library, doneLogs] = await Promise.all([
+  const [library, doneLogs, todayReport] = await Promise.all([
     prisma.exerciseVideo.findMany({ orderBy: { createdAt: 'asc' } }),
     prisma.userExerciseLog.findMany({
       where: {
@@ -31,9 +33,32 @@ export default async function TodayPage() {
       },
       select: { exerciseId: true },
     }),
+    /*
+     * 오늘 만든 리포트가 있으면 거기에 훈련 설명이 들어 있다.
+     * 여기서 AI를 새로 부르지는 않는다 — 저장된 것을 읽을 뿐이라
+     * 화면을 열 때마다 돈이 나가지 않는다.
+     */
+    prisma.aiReport.findUnique({
+      where: {
+        userId_asOf: {
+          userId: user.id,
+          asOf: new Date(`${todayKey}T00:00:00.000Z`),
+        },
+      },
+      select: { halted: true, body: true },
+    }),
   ]);
 
   const picked = selectCandidates({ facts, plan, library });
+
+  /*
+   * 리포트를 만든 뒤에 통증을 입력했다면 처방이 멈춘다.
+   * 그때는 예전 설명을 보여주면 안 되므로 함께 감춘다.
+   */
+  const aiTraining =
+    !todayReport?.halted && !picked.halted
+      ? ((todayReport?.body as AiReportBody | null)?.training ?? null)
+      : null;
   const doneIds = new Set(doneLogs.map((d) => d.exerciseId));
   const todayPlan = plan.days[0] ?? null;
 
@@ -87,6 +112,20 @@ export default async function TodayPage() {
               : '휴식'}
           </span>
           <span className="text-xs text-muted">{todayPlan.reason}</span>
+        </Card>
+      )}
+
+      {/* 왜 오늘 이런 구성인지 — 고르는 건 코드, 설명은 AI가 한다 */}
+      {aiTraining && (
+        <Card className="space-y-2 border-sky-soft/60 bg-sky-tint">
+          <p className="flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-[0.18em] text-sky-strong">
+            <Sparkles className="h-3.5 w-3.5" />
+            오늘의 훈련
+          </p>
+          <p className="text-base font-bold leading-snug text-ink">
+            {aiTraining.focus}
+          </p>
+          <p className="text-sm leading-relaxed text-ink/80">{aiTraining.why}</p>
         </Card>
       )}
 

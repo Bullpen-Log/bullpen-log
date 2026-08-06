@@ -25,6 +25,18 @@ export const ReportSchema = z.object({
   ),
   /** 지켜볼 점 */
   watchouts: z.array(z.string()),
+  /**
+   * 오늘 훈련에 대한 설명.
+   *
+   * 운동을 고르는 것은 코드가 한다. AI는 이미 정해진 목록을 보고
+   * 왜 오늘 이런 구성인지를 풀어쓸 뿐이다. 여기서 새 운동을 권할 수 없다.
+   */
+  training: z.object({
+    /** 오늘 훈련을 한 줄로 */
+    focus: z.string(),
+    /** 왜 이 구성인지 2~3문장 */
+    why: z.string(),
+  }),
 });
 
 export type AiReportBody = z.infer<typeof ReportSchema>;
@@ -47,7 +59,28 @@ export const SYSTEM_PROMPT = `당신은 야구 투수의 훈련 부하를 관리
 - 각 문장은 받은 수치에 근거해야 합니다.`;
 
 /** AI에게 넘길 자료를 사람이 읽을 수 있는 형태로 정리한다. */
-export function buildUserPrompt(facts: ReportFacts, plan: PitchPlan): string {
+/**
+ * 오늘 배정된 운동. 코드가 이미 고른 결과이며 AI는 읽기만 한다.
+ * 라이브러리가 비어 있거나 통증으로 처방이 멈춘 날에는 넘기지 않는다.
+ */
+export type TrainingContext = {
+  picked: {
+    title: string;
+    category: string;
+    intensity: string;
+    bodyParts: string[];
+  }[];
+  /** 안전 규칙으로 무엇이 왜 빠졌는지 */
+  excluded: { rule: string; count: number }[];
+  basis: string[];
+  preferredParts: string[];
+};
+
+export function buildUserPrompt(
+  facts: ReportFacts,
+  plan: PitchPlan,
+  training?: TrainingContext
+): string {
   const { volume, load, patterns, condition, profile } = facts;
   const zone = load.zone ? ACWR_ZONES[load.zone] : null;
 
@@ -131,11 +164,65 @@ export function buildUserPrompt(facts: ReportFacts, plan: PitchPlan): string {
   for (const b of plan.basis) lines.push(`- ${b}`);
   if (plan.youthNote) lines.push(`- ${plan.youthNote}`);
 
+  if (training) {
+    lines.push(`\n# 오늘 배정된 운동 (규칙으로 고름 — 바꾸거나 더할 수 없습니다)`);
+    if (training.preferredParts.length > 0) {
+      lines.push(`- 선수가 오늘 하고 싶다고 고른 부위: ${training.preferredParts.join(', ')}`);
+    }
+    for (const ex of training.picked) {
+      lines.push(
+        `- ${ex.title} (${ex.category} · 강도 ${ex.intensity} · ${ex.bodyParts.join('·')})`
+      );
+    }
+    if (training.basis.length > 0) {
+      lines.push(`\n## 이 구성이 나온 근거`);
+      for (const b of training.basis) lines.push(`- ${b}`);
+    }
+    if (training.excluded.length > 0) {
+      lines.push(`\n## 안전 규칙으로 빠진 것`);
+      for (const e of training.excluded) lines.push(`- ${e.rule}: ${e.count}개`);
+    }
+    lines.push(
+      `\ntraining.focus 는 오늘 훈련을 한 줄로, training.why 는 왜 이 구성인지를 2~3문장으로 써주세요.` +
+        ` 위 목록에 없는 운동은 절대 언급하지 마세요.`
+    );
+  }
+
   lines.push(
     `\n위 자료를 바탕으로 리포트를 작성하세요. 실행 항목(actions)은 3~4개, 지켜볼 점(watchouts)은 1~3개로 해주세요.`
   );
 
   return lines.join('\n');
+}
+
+/**
+ * AI가 배정되지 않은 운동을 권하지 않았는지 검사한다.
+ *
+ * 투구수를 검사하는 것과 같은 이유다. 프롬프트에 "목록에 없는 것은 언급
+ * 하지 마세요"라고 적어두는 것만으로는 부족하고, 나온 글을 다시 봐야 한다.
+ * 통증이나 부하 때문에 뺀 고강도 운동을 AI가 이름으로 권하면
+ * 안전장치를 우회한 셈이 된다.
+ */
+export function checkTrainingMentions(
+  body: AiReportBody,
+  {
+    pickedTitles,
+    allTitles,
+  }: { pickedTitles: string[]; allTitles: string[] }
+): { ok: true } | { ok: false; offending: string[] } {
+  const text = [body.training.focus, body.training.why].join('\n');
+
+  /*
+   * '벤치프레스'가 빠지고 '인클라인 벤치프레스'가 배정된 경우,
+   * 후자를 쓴 글에 전자도 들어 있는 것처럼 보인다.
+   * 배정된 이름의 일부인 것은 검사에서 뺀다.
+   */
+  const offending = allTitles
+    .filter((t) => !pickedTitles.includes(t))
+    .filter((t) => !pickedTitles.some((p) => p.includes(t)))
+    .filter((t) => text.includes(t));
+
+  return offending.length === 0 ? { ok: true } : { ok: false, offending };
 }
 
 /** 텍스트에서 "N구" 형태로 언급된 투구수를 모두 뽑는다. */

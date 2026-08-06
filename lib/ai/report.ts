@@ -6,7 +6,9 @@ import {
   SYSTEM_PROMPT,
   buildUserPrompt,
   checkPitchCounts,
+  checkTrainingMentions,
   type AiReportBody,
+  type TrainingContext,
 } from '@/lib/ai/report-prompt';
 import type { ReportFacts } from '@/lib/report/facts';
 import type { PitchPlan } from '@/lib/report/plan';
@@ -23,14 +25,18 @@ export type GenerateResult =
  */
 export async function generateReportBody(
   facts: ReportFacts,
-  plan: PitchPlan
+  plan: PitchPlan,
+  /** 오늘 배정된 운동. 라이브러리가 비어 있으면 없을 수 있다. */
+  training?: TrainingContext,
+  /** 배정되지 않은 운동을 권했는지 검사할 때 쓰는 전체 목록 */
+  allExerciseTitles: string[] = []
 ): Promise<GenerateResult> {
   try {
     const response = await getAiClient().messages.parse({
       model: AI_MODEL,
       max_tokens: 4000,
       system: SYSTEM_PROMPT,
-      messages: [{ role: 'user', content: buildUserPrompt(facts, plan) }],
+      messages: [{ role: 'user', content: buildUserPrompt(facts, plan, training) }],
       output_config: { format: zodOutputFormat(ReportSchema) },
     });
 
@@ -44,6 +50,20 @@ export async function generateReportBody(
         ok: false,
         reason: `계획에 없는 투구수(${numbers.offending.join(', ')}구)가 포함되어 저장하지 않았습니다.`,
       };
+    }
+
+    // 안전 규칙으로 뺀 운동을 이름으로 권했다면 저장하지 않는다.
+    if (training) {
+      const mentions = checkTrainingMentions(body, {
+        pickedTitles: training.picked.map((p) => p.title),
+        allTitles: allExerciseTitles,
+      });
+      if (!mentions.ok) {
+        return {
+          ok: false,
+          reason: `오늘 배정되지 않은 운동(${mentions.offending.join(', ')})이 언급되어 저장하지 않았습니다.`,
+        };
+      }
     }
 
     return {
