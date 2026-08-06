@@ -24,15 +24,12 @@ export function PitchCalendar({
   selected,
   onSelect,
   summaries,
-  /** 영상이 있는 날만 강조하고 싶을 때 사용 (영상분석 화면) */
-  videoOnly = false,
 }: {
   month: Date;
   onMonthChange: (next: Date) => void;
   selected: string;
   onSelect: (dateKey: string) => void;
   summaries: Record<string, DaySummary>;
-  videoOnly?: boolean;
 }) {
   const year = month.getFullYear();
   const monthIndex = month.getMonth();
@@ -89,15 +86,30 @@ export function PitchCalendar({
 
           const key = toDateKey(new Date(year, monthIndex, day));
           const summary = summaries[key];
-          const marked = videoOnly ? summary?.hasVideo : Boolean(summary);
+          const marked = Boolean(summary);
           const isSelected = key === selected;
           const isToday = key === todayKey;
+
+          /*
+           * 화면에는 숫자만 보이지만, 눈으로 보지 않는 사람에게는
+           * 며칠인지·그날 뭐가 있었는지가 들려야 고를 수 있다.
+           */
+          const spoken = [
+            `${monthIndex + 1}월 ${day}일`,
+            isToday ? '오늘' : null,
+            summary ? `${summary.pitches}구` : '기록 없음',
+            summary?.hasVideo ? '영상 있음' : null,
+          ]
+            .filter(Boolean)
+            .join(', ');
 
           return (
             <button
               key={key}
               type="button"
               onClick={() => onSelect(key)}
+              aria-label={spoken}
+              aria-pressed={isSelected}
               className={`relative flex aspect-square flex-col items-center justify-center rounded-lg border text-sm transition-colors ${
                 isSelected
                   ? 'border-sky ring-1 ring-sky'
@@ -113,8 +125,16 @@ export function PitchCalendar({
               </span>
               {marked && summary && (
                 <span className="max-w-full truncate px-0.5 text-[9px] leading-none opacity-80 sm:text-[10px]">
-                  {videoOnly ? `영상 ${summary.hasVideo ? '●' : ''}` : `${summary.pitches}구`}
+                  {summary.pitches}구
                 </span>
+              )}
+              {/* 달력이 영상으로 가는 유일한 입구가 되었으니, 어느 날에
+                  영상이 있는지 한눈에 보여야 한다. 읽어주는 이름에도 들어간다. */}
+              {summary?.hasVideo && (
+                <span
+                  aria-hidden
+                  className="absolute right-1 top-1 h-1.5 w-1.5 rounded-full bg-sky-strong ring-1 ring-surface"
+                />
               )}
             </button>
           );
@@ -122,22 +142,19 @@ export function PitchCalendar({
       </div>
 
       <div className="flex flex-wrap items-center gap-x-3 gap-y-2 border-t border-line pt-4 text-[11px] text-muted">
-        {videoOnly ? (
-          <span>영상이 있는 날만 표시됩니다</span>
-        ) : (
-          <>
-            <span>강도</span>
-            <span className="flex items-center gap-1.5">
-              <span className="h-3 w-5 rounded bg-sky/15" /> 낮음
-            </span>
-            <span className="flex items-center gap-1.5">
-              <span className="h-3 w-5 rounded bg-sky/40" /> 보통
-            </span>
-            <span className="flex items-center gap-1.5">
-              <span className="h-3 w-5 rounded bg-sky/70" /> 높음
-            </span>
-          </>
-        )}
+        <span>강도</span>
+        <span className="flex items-center gap-1.5">
+          <span className="h-3 w-5 rounded bg-sky/15" /> 낮음
+        </span>
+        <span className="flex items-center gap-1.5">
+          <span className="h-3 w-5 rounded bg-sky/40" /> 보통
+        </span>
+        <span className="flex items-center gap-1.5">
+          <span className="h-3 w-5 rounded bg-sky/70" /> 높음
+        </span>
+        <span className="flex items-center gap-1.5">
+          <span className="h-1.5 w-1.5 rounded-full bg-sky-strong" /> 영상
+        </span>
       </div>
     </div>
   );
