@@ -97,7 +97,11 @@ npm run dev      # 개발 서버
 npm run build    # prisma generate + migrate deploy + next build
 npm run lint     # eslint
 npx tsc --noEmit # 타입 검사 — 커밋 전에 한 번 돌리면 좋다
+npm run backup   # DB 전체를 ~/bullpen-log-backups 에 JSON 으로 받아둔다
 ```
+
+여럿이 같은 DB를 보고 개발하면 누군가 실수로 지우는 일이 언젠가 생긴다.
+표 구조를 바꾸거나 데이터를 손대기 전에 `npm run backup` 을 한 번 돌려두면 마음이 편하다.
 
 ---
 
