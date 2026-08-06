@@ -1,0 +1,21 @@
+# 맥과 윈도우에서 같이 개발할 때 줄바꿈 문자가 달라 생기는 문제를 막는다.
+#
+# 윈도우는 줄 끝에 CRLF, 맥·리눅스는 LF 를 쓴다. 그냥 두면 윈도우에서
+# 파일을 한 글자만 고쳐도 "모든 줄이 바뀐 것"으로 보여서, 무엇을 고쳤는지
+# 알아볼 수가 없게 된다.
+#
+# 저장소 안에는 언제나 LF 로 담고, 각자 컴퓨터에서는 알아서 쓰게 한다.
+* text=auto eol=lf
+
+# 아래는 텍스트가 아니라 그대로 둔다 (건드리면 파일이 깨진다)
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.webp binary
+*.ico binary
+*.mp4 binary
+*.mov binary
+*.woff binary
+*.woff2 binary
+*.pdf binary

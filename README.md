@@ -11,9 +11,13 @@ AI가 투구수나 부하 지수를 지어내지 못하게 막는 구조이고, 
 
 ## 처음 실행하기
 
+> 맥과 윈도우 양쪽에서 개발한다. 명령이 다른 곳은 그때그때 적어둔다.
+> 윈도우는 **PowerShell** 기준이며, 예전 명령 프롬프트(cmd)가 아니다.
+
 ### 1. 필요한 것
 
-- **Node.js 22 이상** (개발은 24에서 하고 있다)
+- **Node.js 22 이상** (개발은 24에서 하고 있다) — nodejs.org 의 LTS
+- **Git** — 맥은 거의 깔려 있고, **윈도우는 따로 받아야 한다** (git-scm.com)
 - Supabase 계정 — Postgres와 영상 저장소로 쓴다
 - Anthropic API 키 — AI 리포트용. 이것만 없어도 나머지 기능은 다 돌아간다
 
@@ -30,8 +34,20 @@ npm install
 `.env.example`을 `.env`로 복사하고 값을 채운다.
 
 ```bash
+# 맥
 cp .env.example .env
+open -e .env
 ```
+
+```powershell
+# 윈도우 (PowerShell)
+Copy-Item .env.example .env
+notepad .env
+```
+
+> ⚠️ **윈도우에서 파일 탐색기로 `.env` 를 새로 만들지 말 것.** 확장자를 숨기는 설정 때문에
+> `.env.txt` 가 만들어지는데, 겉보기엔 똑같아서 왜 안 되는지 한참 헤매게 된다.
+> 위처럼 복사한 뒤 열어서 고치면 그럴 일이 없다.
 
 | 변수 | 어디서 얻나 |
 |---|---|
@@ -150,6 +166,23 @@ git pull
 ### 커밋 메시지
 
 무엇을 바꿨는지보다 **왜 바꿨는지**를 적는다. 코드를 보면 무엇인지는 알 수 있지만 왜인지는 알 수 없다.
+
+### 윈도우에서 자주 걸리는 것
+
+**`npm` 을 쳤는데 "이 시스템에서 스크립트를 실행할 수 없으므로" 라는 오류가 날 때**
+
+PowerShell 이 기본으로 스크립트 실행을 막아둔 탓이다. PowerShell 에서 한 번만 실행하면 된다.
+
+```powershell
+Set-ExecutionPolicy -Scope CurrentUser RemoteSigned
+```
+
+관리자 권한도 필요 없고, 내 계정에만 적용된다.
+
+**줄바꿈 경고(`LF will be replaced by CRLF`)가 뜰 때**
+
+무시해도 된다. `.gitattributes` 가 저장소 안에는 항상 LF 로 담기도록 잡아두고 있어서,
+맥과 윈도우가 서로 다른 줄바꿈을 커밋하는 일은 생기지 않는다.
 
 ### 손대기 전에 알아둘 것
 
