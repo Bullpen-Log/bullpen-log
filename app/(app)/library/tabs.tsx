@@ -7,13 +7,13 @@ import { Activity, BookOpen } from 'lucide-react';
 const TABS = [
   {
     href: '/library/training',
-    label: '트레이닝',
+    label: '운동 영상',
     desc: '근력·모빌리티·회복 운동',
     icon: Activity,
   },
   {
     href: '/library/mechanics',
-    label: '메커니즘 드릴',
+    label: '투구 드릴',
     desc: '투구 동작 교정 드릴',
     icon: BookOpen,
   },

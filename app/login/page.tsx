@@ -9,10 +9,10 @@ function todayKey() {
 }
 
 const HIGHLIGHTS = [
-  { title: '투구기록', desc: '투구수·강도·구속과 그날의 영상' },
-  { title: '영상분석', desc: '과거 폼을 느낀점과 함께 되돌아보기' },
-  { title: '리포트', desc: '기간별 기록 정리와 코멘트' },
-  { title: '트레이닝', desc: '파트별 운동과 메커니즘 드릴' },
+  { title: '투구 일지', desc: '투구수·강도·구속과 그날의 영상' },
+  { title: '영상 분석', desc: '과거 폼을 느낀점과 함께 되돌아보기' },
+  { title: 'AI 리포트', desc: '기간별 기록 정리와 코멘트' },
+  { title: 'AI 트레이닝', desc: '몸 상태에 맞춰 고른 오늘의 운동' },
 ];
 
 export default function LoginPage() {

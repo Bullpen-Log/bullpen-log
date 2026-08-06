@@ -104,7 +104,7 @@ export function AiReportCard({
           <Sparkles className="h-4 w-4" />
         </span>
         <div className="min-w-0 flex-1">
-          <h2 className="text-sm font-bold text-ink">AI 코치 리포트</h2>
+          <h2 className="text-sm font-bold text-ink">AI 리포트</h2>
           <p className="mt-0.5 text-xs text-muted">
             {report
               ? `${report.asOf} 기준 · 다시 만들기 전까지 내용이 바뀌지 않습니다`

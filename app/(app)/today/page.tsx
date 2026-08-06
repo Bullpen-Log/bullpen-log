@@ -86,8 +86,8 @@ export default async function TodayPage() {
   return (
     <div className="space-y-6">
       <PageHeading
-        eyebrow="Today"
-        title="오늘의 운동"
+        eyebrow="AI Training"
+        title="AI 개인맞춤 트레이닝"
         description="오늘 몸 상태와 최근 투구량에 맞춰 고른 운동입니다. 마친 것은 눌러서 표시해주세요."
       />
 

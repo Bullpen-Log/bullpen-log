@@ -20,42 +20,64 @@ export type NavGroup = {
   items: NavItem[];
 };
 
+/**
+ * 큰 카테고리 여섯 개로 나눈다.
+ *
+ *   홈 · 투구 일지 · AI 리포트 · AI 트레이닝 · 라이브러리 · 자료실
+ *
+ * '투구 일지'는 지금 기록과 영상분석 두 화면으로 나뉘어 있는데, 둘 다
+ * 같은 PitchLog 를 보고 있어 원래 한 몸이다. 한 화면으로 합치기 전까지는
+ * 이 그룹 아래 나란히 둔다 — 먼저 감추면 영상분석에 들어갈 길이 없어진다.
+ *
+ * 라이브러리의 '트레이닝'은 'AI 트레이닝'과 이름이 겹쳐 헷갈리므로
+ * 내용 그대로 '운동 영상'·'투구 드릴'로 부른다.
+ */
 export const NAV_GROUPS: NavGroup[] = [
   {
     items: [{ href: '/dashboard', label: '홈', icon: '⚾' }],
   },
   {
-    title: '기록 & 분석',
+    title: '투구 일지',
     items: [
-      { href: '/pitch-log', label: '투구기록', icon: '📅' },
-      { href: '/analysis', label: '영상분석', icon: '🎬' },
-      { href: '/coach', label: 'AI 코치', icon: '🎯' },
+      { href: '/pitch-log', label: '기록 & 메모', icon: '📅' },
+      { href: '/analysis', label: '영상 분석', icon: '🎬' },
     ],
   },
   {
-    title: '트레이닝',
+    title: 'AI 코치',
     items: [
-      { href: '/today', label: '오늘의 운동', icon: '✅' },
-      { href: '/library/training', label: '트레이닝', icon: '💪' },
-      { href: '/library/mechanics', label: '메커니즘 드릴', icon: '⚙️' },
+      { href: '/coach', label: 'AI 리포트', icon: '📊' },
+      { href: '/today', label: 'AI 트레이닝', icon: '🎯' },
     ],
   },
   {
-    title: '더보기',
+    title: '라이브러리',
     items: [
-      { href: '/board', label: '자료실', icon: '📚' },
+      { href: '/library/training', label: '운동 영상', icon: '💪' },
+      { href: '/library/mechanics', label: '투구 드릴', icon: '⚙️' },
+    ],
+  },
+  {
+    items: [{ href: '/board', label: '자료실', icon: '📚' }],
+  },
+  {
+    title: '설정',
+    items: [
       { href: '/profile', label: '내 정보', icon: '👤' },
       { href: '/admin', label: '관리자', icon: '🛠️', adminOnly: true },
     ],
   },
 ];
 
-/** 모바일 하단 탭 — 자주 쓰는 4개 + 더보기 */
+/**
+ * 모바일 하단 탭 — 매일 쓰는 4개 + 더보기.
+ * 라이브러리와 자료실은 매일 열지 않으므로 '더보기'로 보낸다.
+ */
 export const MOBILE_TABS: NavItem[] = [
   { href: '/dashboard', label: '홈', icon: '⚾' },
-  { href: '/pitch-log', label: '기록', icon: '📅' },
-  { href: '/today', label: '오늘운동', icon: '✅' },
-  { href: '/coach', label: 'AI 코치', icon: '🎯' },
+  { href: '/pitch-log', label: '일지', icon: '📅' },
+  { href: '/today', label: '트레이닝', icon: '🎯' },
+  { href: '/coach', label: '리포트', icon: '📊' },
   { href: '/more', label: '더보기', icon: '☰' },
 ];
 

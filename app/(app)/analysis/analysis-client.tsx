@@ -137,8 +137,8 @@ export function AnalysisClient({
   return (
     <div className="space-y-10">
       <PageHeading
-        eyebrow="Analysis"
-        title="영상분석"
+        eyebrow="Pitch Log"
+        title="영상 분석"
         description="날짜를 선택하면 그날 던진 영상과 함께 그때의 기록·느낀점을 볼 수 있습니다. 과거 폼과 지금을 비교해보세요."
         action={
           videoDates.length > 0 && mode === 'single' ? (

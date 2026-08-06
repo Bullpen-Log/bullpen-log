@@ -485,7 +485,7 @@ export function TodayPlanLine({ plan }: { plan: PitchPlan }) {
       <span className="text-xs text-muted">{today.reason}</span>
 
       <span className="ml-auto shrink-0 text-[11px] font-medium uppercase tracking-[0.18em] text-muted">
-        AI 코치 →
+        AI 리포트 →
       </span>
     </Link>
   );

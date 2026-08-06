@@ -299,7 +299,7 @@ export function buildReportFindings({
       findings.push({
         tone: 'info',
         title: `최고 구속이 ${Math.abs(rounded)}km/h 떨어졌습니다`,
-        detail: `직전 ${days}일 ${previous.maxVelocity}km/h → ${label} ${current.maxVelocity}km/h. 피로가 쌓였는지, 폼이 달라졌는지 영상분석에서 확인해보세요.`,
+        detail: `직전 ${days}일 ${previous.maxVelocity}km/h → ${label} ${current.maxVelocity}km/h. 피로가 쌓였는지, 폼이 달라졌는지 영상 분석에서 확인해보세요.`,
       });
     }
   }

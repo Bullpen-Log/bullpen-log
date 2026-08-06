@@ -132,8 +132,8 @@ export function PitchLogClient({ initialLogs }: { initialLogs: Log[] }) {
     <div className="space-y-10">
       <PageHeading
         eyebrow="Pitch Log"
-        title="투구 기록"
-        description="던진 날의 기록을 남기는 곳입니다. 기간별 정리는 '리포트'에서, 영상 되돌아보기는 '영상분석'에서 볼 수 있습니다."
+        title="투구 일지"
+        description="던진 날의 기록과 느낀점을 남기는 곳입니다. 그날 찍은 영상은 '영상 분석'에서, 기간별 정리는 'AI 리포트'에서 볼 수 있습니다."
       />
 
       <FormError>{error}</FormError>
