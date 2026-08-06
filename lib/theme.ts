@@ -1,10 +1,9 @@
 /**
  * 라이트/다크 모드.
  *
- * 고를 수 있는 건 라이트와 다크 둘뿐이다. 다만 한 번도 고른 적이 없는
- * 사람에게는 기기 설정(prefers-color-scheme)을 처음 값으로 쓴다.
- * 다크를 쓰는 사람이 첫 화면부터 눈부시지 않게 하기 위해서이고,
- * 한 번 고르고 나면 그 값이 계속 유지된다.
+ * 고를 수 있는 건 라이트와 다크 둘뿐이고, 아무것도 고르지 않았으면
+ * 언제나 라이트로 시작한다. 기기 설정(prefers-color-scheme)은 보지 않는다 —
+ * 처음 들어온 사람이 늘 같은 화면을 보게 하려는 것이다.
  *
  * 고른 값은 브라우저(localStorage)에만 둔다. 서버에 저장하면 로그인 전
  * 화면에서는 쓸 수가 없고, 기기마다 다르게 두고 싶은 설정이기도 하다.
@@ -22,7 +21,7 @@ export const THEME_CHOICES = [
 
 export type ThemeChoice = (typeof THEME_CHOICES)[number]['value'];
 
-/** 아무것도 고르지 않았고 기기 설정도 못 읽을 때 */
+/** 아무것도 고르지 않았을 때 */
 export const DEFAULT_THEME: ThemeChoice = 'light';
 
 export function isThemeChoice(value: string | null): value is ThemeChoice {
@@ -43,10 +42,7 @@ export const THEME_INIT_SCRIPT = `
 (function () {
   try {
     var stored = localStorage.getItem('${THEME_STORAGE_KEY}');
-    var dark = stored
-      ? stored === 'dark'
-      : window.matchMedia('(prefers-color-scheme: dark)').matches;
-    document.documentElement.dataset.theme = dark ? 'dark' : 'light';
+    document.documentElement.dataset.theme = stored === 'dark' ? 'dark' : 'light';
   } catch (e) {
     document.documentElement.dataset.theme = 'light';
   }
@@ -56,9 +52,8 @@ export const THEME_INIT_SCRIPT = `
 /**
  * 지금 화면에 칠해져 있는 값.
  *
- * 저장된 값을 다시 읽지 않고 <html> 을 그대로 본다. 저장 전(첫 방문)에는
- * 위 스크립트가 기기 설정으로 이미 칠해 두었기 때문에, 이쪽이 언제나
- * 화면과 일치한다.
+ * 저장된 값을 다시 읽지 않고 <html> 을 그대로 본다. 위 스크립트가 이미
+ * 칠해 두었기 때문에 이쪽이 언제나 화면과 일치한다.
  */
 export function readTheme(): ThemeChoice {
   if (typeof document === 'undefined') return DEFAULT_THEME;
