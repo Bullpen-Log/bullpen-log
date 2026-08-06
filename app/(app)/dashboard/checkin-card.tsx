@@ -27,7 +27,7 @@ function feelingChipClass(value: string) {
   if (value === '통증')
     return 'peer-checked:border-red-500/70 peer-checked:bg-red-500/10 peer-checked:text-red-700';
   if (value === '뻐근')
-    return 'peer-checked:border-amber-500/60 peer-checked:bg-amber-500/10 peer-checked:text-amber-700';
+    return 'peer-checked:border-amber-500/60 peer-checked:bg-amber-500/10 peer-checked:text-warn';
   return 'peer-checked:border-sky peer-checked:bg-sky/10 peer-checked:text-sky';
 }
 
@@ -190,7 +190,7 @@ export function CheckinCard({ recent }: { recent: CheckinData[] }) {
                         v === '통증'
                           ? 'font-semibold text-red-600'
                           : v === '뻐근'
-                            ? 'font-medium text-amber-600'
+                            ? 'font-medium text-warn'
                             : 'text-ink'
                       }
                     >

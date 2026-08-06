@@ -90,7 +90,7 @@ export function MetaFilter({
       {active && (
         <p className="border-t border-line pt-3 text-xs text-muted">
           {matched === 0 ? (
-            <span className="text-amber-400">조건에 맞는 영상이 없습니다</span>
+            <span className="text-warn">조건에 맞는 영상이 없습니다</span>
           ) : (
             <>
               <span className="text-ink">{matched}개</span> 찾음 (전체 {total}개)

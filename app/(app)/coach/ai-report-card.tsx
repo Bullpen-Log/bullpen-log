@@ -182,7 +182,7 @@ export function AiReportCard({
             </div>
 
             {plan.youthNote && (
-              <p className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs leading-relaxed text-amber-800">
+              <p className="rounded-xl border border-warn-line bg-warn-bg px-4 py-3 text-xs leading-relaxed text-warn">
                 {plan.youthNote}
               </p>
             )}

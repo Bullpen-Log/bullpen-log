@@ -80,7 +80,7 @@ export function LibraryVideo({
             loading="lazy"
             className="absolute inset-0 h-full w-full object-cover"
           />
-          <span className="absolute inset-0 bg-ink/40 transition-colors group-hover:bg-ink/20" />
+          <span className="absolute inset-0 bg-shade/40 transition-colors group-hover:bg-shade/20" />
         </>
       )}
 

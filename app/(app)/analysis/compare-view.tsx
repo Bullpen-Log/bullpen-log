@@ -356,7 +356,7 @@ export function CompareView({ clips }: { clips: ClipOption[] }) {
     <div
       className={
         expanded
-          ? 'fixed inset-0 z-[60] flex flex-col gap-2 bg-ink p-2 focus:outline-none'
+          ? 'fixed inset-0 z-[60] flex flex-col gap-2 bg-shade p-2 focus:outline-none'
           : 'space-y-4'
       }
       onKeyDown={handleKeyDown}
@@ -448,7 +448,7 @@ export function CompareView({ clips }: { clips: ClipOption[] }) {
         모바일 하단 탭(약 3.25rem) 위에 오도록 위치를 잡는다.
       */}
       <div
-        className={`z-30 rounded-xl border border-sky-soft/50 bg-ink/95 p-2 backdrop-blur-xl sm:p-3 ${
+        className={`z-30 rounded-xl border border-sky-soft/50 bg-shade/95 p-2 backdrop-blur-xl sm:p-3 ${
           expanded
             ? 'shrink-0'
             : 'sticky bottom-[calc(3rem_+_env(safe-area-inset-bottom))] lg:bottom-4'

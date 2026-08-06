@@ -454,15 +454,15 @@ export function PoseAnalysis({
           )}
         </button>
 
-        <span className="absolute right-2 top-2 rounded-full bg-ink/70 px-2.5 py-1 text-[10px] text-teal-300">
+        <span className="absolute right-2 top-2 rounded-full bg-shade/70 px-2.5 py-1 text-[10px] text-teal-300">
           스켈레톤 · 인식 신뢰도 {Math.round((track?.quality ?? 0) * 100)}%
         </span>
       </div>
 
       {/* 인식이 많이 끊겼으면 스켈레톤이 사라지는 구간이 생긴다 — 이유를 알려주고 재시도 */}
       {track && track.coverage < 0.8 && (
-        <div className="space-y-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2">
-          <p className="text-[11px] leading-relaxed text-amber-800">
+        <div className="space-y-2 rounded-lg border border-warn-line bg-warn-bg px-3 py-2">
+          <p className="text-[11px] leading-relaxed text-warn">
             영상 구간의 {Math.round(track.coverage * 100)}%에서만 몸을 인식했습니다.
             인식이 끊긴 구간에서는 스켈레톤이 표시되지 않습니다. 일시적인 문제일 수
             있으니 다시 분석해보고, 계속 그러면 밝은 곳에서 전신이 크게 나오게 다시
@@ -478,7 +478,7 @@ export function PoseAnalysis({
               setHandedLabel(null);
               setPhase('idle');
             }}
-            className="rounded-lg border border-amber-300 px-2.5 py-1.5 text-[11px] text-amber-800 transition-colors hover:border-amber-500 hover:text-amber-900"
+            className="rounded-lg border border-warn-line px-2.5 py-1.5 text-[11px] text-warn transition-colors hover:border-warn hover:text-warn"
           >
             다시 분석하기
           </button>
@@ -589,7 +589,7 @@ export function PoseAnalysis({
             나옵니다.
           </p>
         ) : events && !events.kneeUp && !events.footPlant && !events.release ? (
-          <p className="text-[11px] leading-relaxed text-amber-800">
+          <p className="text-[11px] leading-relaxed text-warn">
             투구 동작을 찾지 못했습니다. 팔을 휘두르는 장면이 화면 안에 다 들어와
             있는지 확인해주세요. 구간을 누른 뒤 ◀ ▶로 프레임을 맞추고 직접
             지정하면 수치는 똑같이 계산됩니다.
@@ -603,7 +603,7 @@ export function PoseAnalysis({
       </div>
 
       {events && !events.sideViewOk && (
-        <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] leading-relaxed text-amber-800">
+        <p className="rounded-lg border border-warn-line bg-warn-bg px-3 py-2 text-[11px] leading-relaxed text-warn">
           투구 방향의 앞이나 뒤에서 찍힌 영상이라 자동 분석을 하지 않았습니다.
           이 각도에서는 몸이 화면 안쪽으로 움직여 거리와 각도를 잴 수 없어,
           숫자를 내면 전부 틀린 값이 됩니다. 위 촬영 가이드대로 1루 또는 3루
@@ -612,7 +612,7 @@ export function PoseAnalysis({
       )}
 
       {badCameraAngle && (
-        <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] leading-relaxed text-amber-800">
+        <p className="rounded-lg border border-warn-line bg-warn-bg px-3 py-2 text-[11px] leading-relaxed text-warn">
           스트라이드가 신장의 {strideMetric?.value}%로 측정됐습니다 — 옆(90도)이
           아닌 각도에서 찍힌 영상 같습니다. 이런 영상은 거리·각도 수치가 실제보다
           작게 나오고 좌/우투 인식도 뒤집힐 수 있습니다. 위 촬영 가이드대로 옆에서
@@ -660,7 +660,7 @@ export function PoseAnalysis({
       )}
 
       {lowQuality && (
-        <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] leading-relaxed text-amber-800">
+        <p className="rounded-lg border border-warn-line bg-warn-bg px-3 py-2 text-[11px] leading-relaxed text-warn">
           관절 인식 신뢰도가 낮습니다. 밝은 곳에서 전신이 다 나오게, 배경과 구분되는
           옷으로 다시 찍으면 좋아집니다. 이 상태의 측정값은 신뢰하기 어렵습니다.
         </p>

@@ -12,6 +12,7 @@ import {
   Tooltip,
 } from 'chart.js';
 import type { VelocityStats } from '@/lib/velocity';
+import { useChartTheme } from '@/lib/chart-theme';
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Filler, Tooltip);
 
@@ -25,6 +26,7 @@ export function VelocityCard({
   stats: VelocityStats;
   target: number | null;
 }) {
+  const chart = useChartTheme();
   const points = stats.points.slice(-WINDOW);
   const gap = target != null && stats.best != null ? target - stats.best : null;
 
@@ -90,22 +92,22 @@ export function VelocityCard({
                   {
                     label: '최고 구속',
                     data: points.map((p) => p.max),
-                    borderColor: '#0ea5e9',
-                    backgroundColor: 'rgba(14, 165, 233, 0.12)',
+                    borderColor: chart.accent,
+                    backgroundColor: `${chart.accent}1f`,
                     borderWidth: 2,
                     tension: 0.3,
                     fill: true,
                     // 신기록을 세운 날만 점을 크게 찍는다.
                     pointRadius: points.map((p) => (p.isNewBest ? 5 : 0)),
-                    pointBackgroundColor: '#0284c7',
-                    pointBorderColor: '#ffffff',
+                    pointBackgroundColor: chart.accentStrong,
+                    pointBorderColor: chart.surface,
                     pointBorderWidth: 2,
                     pointHoverRadius: 5,
                   },
                   {
                     label: '그날까지 최고',
                     data: points.map((p) => p.best),
-                    borderColor: 'rgba(2, 132, 199, 0.35)',
+                    borderColor: `${chart.accentStrong}59`,
                     borderWidth: 1.5,
                     borderDash: [4, 4],
                     pointRadius: 0,
@@ -120,9 +122,9 @@ export function VelocityCard({
                 interaction: { mode: 'index', intersect: false },
                 plugins: {
                   tooltip: {
-                    backgroundColor: '#0f172a',
-                    titleColor: '#ffffff',
-                    bodyColor: '#cbd5e1',
+                    backgroundColor: chart.tooltipBg,
+                    titleColor: chart.tooltipTitle,
+                    bodyColor: chart.tooltipBody,
                     padding: 10,
                     displayColors: false,
                     callbacks: {
@@ -133,14 +135,14 @@ export function VelocityCard({
                 scales: {
                   x: {
                     grid: { display: false },
-                    border: { color: 'rgba(203, 213, 225, 0.9)' },
-                    ticks: { color: '#64748b', font: { size: 10 }, maxTicksLimit: 7 },
+                    border: { color: chart.border },
+                    ticks: { color: chart.tick, font: { size: 10 }, maxTicksLimit: 7 },
                   },
                   y: {
-                    grid: { color: 'rgba(203, 213, 225, 0.5)' },
+                    grid: { color: chart.grid },
                     border: { display: false },
-                    ticks: { color: '#64748b', font: { size: 10 } },
-                    title: { display: true, text: 'km/h', color: '#64748b' },
+                    ticks: { color: chart.tick, font: { size: 10 } },
+                    title: { display: true, text: 'km/h', color: chart.tick },
                   },
                 },
               }}
@@ -155,7 +157,7 @@ export function VelocityCard({
                   stats.trend > 0
                     ? 'font-semibold text-sky'
                     : stats.trend < 0
-                      ? 'font-semibold text-amber-700'
+                      ? 'font-semibold text-warn'
                       : ''
                 }
               >

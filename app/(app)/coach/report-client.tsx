@@ -25,6 +25,7 @@ import {
   TriangleAlert,
 } from 'lucide-react';
 import { Card, EmptyState, PageHeading } from '@/components/ui';
+import { useChartTheme } from '@/lib/chart-theme';
 import {
   TWO_DAY_INTENSITY_LIMIT,
   buildDateRange,
@@ -66,8 +67,8 @@ const TONE_STYLES: Record<
   good: { box: 'border-line bg-surface', icon: 'text-sky', Icon: CheckCircle2 },
   info: { box: 'border-line bg-surface', icon: 'text-muted', Icon: Info },
   warn: {
-    box: 'border-amber-800/60 bg-amber-950/25',
-    icon: 'text-amber-400',
+    box: 'border-warn-line bg-warn-bg',
+    icon: 'text-warn',
     Icon: TriangleAlert,
   },
 };
@@ -106,7 +107,7 @@ function MetricRow({
         {rounded != null && (
           <span
             className={`flex items-center gap-0.5 text-[11px] tabular-nums ${
-              flat ? 'text-muted' : positive ? 'text-sky' : 'text-amber-400'
+              flat ? 'text-muted' : positive ? 'text-sky' : 'text-warn'
             }`}
           >
             {flat ? (
@@ -133,6 +134,7 @@ export function ReportClient({
 }) {
   const [days, setDays] = useState<7 | 30>(7);
 
+  const chart = useChartTheme();
   const byDay = useMemo(() => groupByDay(logs), [logs]);
 
   const currentKeys = useMemo(() => buildDateRange(days), [days]);
@@ -193,8 +195,8 @@ export function ReportClient({
           type: 'bar' as const,
           label: '투구수',
           data: currentKeys.map((k) => byDay.get(k)?.pitchCount ?? 0),
-          backgroundColor: 'rgba(201, 169, 106, 0.28)',
-          borderColor: 'rgba(201, 169, 106, 0.5)',
+          backgroundColor: `${chart.accent}3d`,
+          borderColor: `${chart.accent}80`,
           borderWidth: 1,
           borderRadius: 3,
           yAxisID: 'y',
@@ -204,8 +206,8 @@ export function ReportClient({
           type: 'line' as const,
           label: '투구 강도',
           data: currentKeys.map((k) => byDay.get(k)?.intensity ?? 0),
-          borderColor: '#0ea5e9',
-          backgroundColor: '#0ea5e9',
+          borderColor: chart.accentStrong,
+          backgroundColor: chart.accentStrong,
           tension: 0.35,
           pointRadius: days === 7 ? 4 : 2,
           yAxisID: 'y1',
@@ -213,7 +215,7 @@ export function ReportClient({
         },
       ],
     }),
-    [byDay, currentKeys, days]
+    [byDay, currentKeys, days, chart]
   );
 
   const velocityData = useMemo(
@@ -224,8 +226,8 @@ export function ReportClient({
           type: 'line' as const,
           label: '최고 구속',
           data: currentKeys.map((k) => byDay.get(k)?.maxVelocity ?? null),
-          borderColor: '#0ea5e9',
-          backgroundColor: 'rgba(201, 169, 106, 0.12)',
+          borderColor: chart.accent,
+          backgroundColor: `${chart.accent}1f`,
           tension: 0.35,
           fill: true,
           pointRadius: days === 7 ? 4 : 2,
@@ -235,7 +237,7 @@ export function ReportClient({
           type: 'line' as const,
           label: '평균 구속',
           data: currentKeys.map((k) => byDay.get(k)?.avgVelocity ?? null),
-          borderColor: '#6b7280',
+          borderColor: chart.tick,
           backgroundColor: 'transparent',
           borderDash: [5, 4],
           tension: 0.35,
@@ -244,7 +246,7 @@ export function ReportClient({
         },
       ],
     }),
-    [byDay, currentKeys, days]
+    [byDay, currentKeys, days, chart]
   );
 
   const baseOptions = {
@@ -253,7 +255,7 @@ export function ReportClient({
     interaction: { mode: 'index' as const, intersect: false },
     plugins: {
       legend: {
-        labels: { color: '#64748b', usePointStyle: true, boxWidth: 8, padding: 16 },
+        labels: { color: chart.tick, usePointStyle: true, boxWidth: 8, padding: 16 },
       },
     },
   };
@@ -261,20 +263,20 @@ export function ReportClient({
   const volumeOptions = {
     ...baseOptions,
     scales: {
-      x: { ticks: { color: '#64748b' }, grid: { color: 'rgba(203,213,225,0.8)' } },
+      x: { ticks: { color: chart.tick }, grid: { color: chart.grid } },
       y: {
         position: 'left' as const,
         beginAtZero: true,
-        title: { display: true, text: '투구수', color: '#64748b' },
-        ticks: { color: '#64748b' },
-        grid: { color: 'rgba(203,213,225,0.8)' },
+        title: { display: true, text: '투구수', color: chart.tick },
+        ticks: { color: chart.tick },
+        grid: { color: chart.grid },
       },
       y1: {
         position: 'right' as const,
         beginAtZero: true,
         suggestedMax: 10,
-        title: { display: true, text: '강도', color: '#0ea5e9' },
-        ticks: { color: '#0ea5e9', stepSize: 2 },
+        title: { display: true, text: '강도', color: chart.accentStrong },
+        ticks: { color: chart.accentStrong, stepSize: 2 },
         grid: { drawOnChartArea: false },
       },
     },
@@ -283,11 +285,11 @@ export function ReportClient({
   const velocityOptions = {
     ...baseOptions,
     scales: {
-      x: { ticks: { color: '#64748b' }, grid: { color: 'rgba(203,213,225,0.8)' } },
+      x: { ticks: { color: chart.tick }, grid: { color: chart.grid } },
       y: {
-        ticks: { color: '#64748b' },
-        grid: { color: 'rgba(203,213,225,0.8)' },
-        title: { display: true, text: 'km/h', color: '#64748b' },
+        ticks: { color: chart.tick },
+        grid: { color: chart.grid },
+        title: { display: true, text: 'km/h', color: chart.tick },
       },
     },
   };
@@ -449,7 +451,7 @@ export function ReportClient({
               {fatigueWindows.slice(0, 10).map((w) => (
                 <span
                   key={`${w.firstDay}-${w.secondDay}`}
-                  className="rounded-lg border border-amber-800/60 bg-amber-950/30 px-2.5 py-1 text-[11px] tabular-nums text-amber-800"
+                  className="rounded-lg border border-warn-line bg-warn-bg px-2.5 py-1 text-[11px] tabular-nums text-warn"
                 >
                   {formatShortDate(w.firstDay)}→{formatShortDate(w.secondDay)} 합{' '}
                   {w.total}

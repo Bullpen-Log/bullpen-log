@@ -24,8 +24,56 @@
   --color-ink: #0f172a;
   --color-muted: #64748b;
 
+  /*
+   * 경고 — 주의는 필요하지만 위험은 아닌 것 (부하 주의 구간, 급증 알림 등).
+   * 위험(통증)은 빨강을 따로 쓴다.
+   */
+  --color-warn: #b45309;
+  --color-warn-line: #fde68a;
+  --color-warn-bg: #fffbeb;
+
+  /*
+   * 두 모드에서 항상 어두운 색.
+   * 영상 위 오버레이나 전체화면 플레이어 배경처럼, 테마와 무관하게
+   * 어두워야 하는 곳에 쓴다. 여기에 ink를 쓰면 다크 모드에서
+   * 흰색으로 뒤집혀 영상 배경이 하얘진다.
+   */
+  --color-shade: #0f172a;
+
   --font-sans: var(--font-noto-sans-kr);
   --font-display: var(--font-bebas);
+}
+
+/*
+ * 다크 모드 — 토큰 값만 갈아끼운다.
+ * 화면 코드는 bg-surface / text-ink 처럼 뜻으로 색을 쓰고 있어서
+ * 여기만 바꾸면 전 화면이 따라온다.
+ *
+ * data-theme 은 첫 페인트 전에 app/layout.tsx 의 인라인 스크립트가 붙인다.
+ */
+:root[data-theme='dark'] {
+  color-scheme: dark;
+
+  --color-page: #0b1220;
+  --color-surface: #141d2b;
+  --color-surface-2: #1e293b;
+
+  --color-line: #2a3648;
+  --color-line-strong: #44556e;
+
+  /* 버튼 배경으로 쓰이므로 흰 글자와의 대비를 라이트와 같게 유지한다 */
+  --color-sky: #0ea5e9;
+  /* 옅은 바탕 위 글자였던 것이, 어두운 바탕 위 글자로 뒤집힌다 */
+  --color-sky-strong: #7dd3fc;
+  --color-sky-soft: #1f5f85;
+  --color-sky-tint: #0e2a3d;
+
+  --color-ink: #e8eef7;
+  --color-muted: #94a3b8;
+
+  --color-warn: #fcd34d;
+  --color-warn-line: #78350f;
+  --color-warn-bg: #2a1e08;
 }
 
 html {
@@ -48,6 +96,17 @@ body {
 /* 인사 카드용 진한 하늘색 그라데이션 (흰 글자를 얹는다) */
 .bg-hero {
   background-image: linear-gradient(135deg, #0284c7 0%, #0ea5e9 55%, #38bdf8 100%);
+}
+
+/* 다크에서는 같은 밝기로 두면 화면에서 혼자 튄다. 한 단계 가라앉힌다. */
+:root[data-theme='dark'] .bg-hero {
+  background-image: linear-gradient(135deg, #075985 0%, #0369a1 55%, #0284c7 100%);
+}
+
+:root[data-theme='dark'] .bg-spotlight {
+  background-image:
+    radial-gradient(ellipse 80% 60% at 50% -10%, rgba(14, 165, 233, 0.2), transparent 70%),
+    radial-gradient(ellipse 60% 50% at 100% 0%, rgba(56, 189, 248, 0.12), transparent 60%);
 }
 
 /* 카드 위 이미지에 얹는 어두운 오버레이 (영상·썸네일은 어두운 편이 잘 보인다) */

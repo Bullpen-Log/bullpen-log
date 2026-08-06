@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import type { NavGroup, NavItem } from '@/lib/nav';
 import { BaseballMark } from '@/components/logo';
+import { ThemeToggle } from '@/components/theme-toggle';
 
 /**
  * 현재 위치 판정. 하위 경로도 같은 메뉴로 본다.
@@ -65,6 +66,10 @@ export function Sidebar({
           </div>
         ))}
       </nav>
+
+      <div className="shrink-0 border-t border-line px-3 py-3">
+        <ThemeToggle />
+      </div>
 
       <Link
         href="/profile"

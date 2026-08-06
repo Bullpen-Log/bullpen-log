@@ -133,7 +133,7 @@ export function PitchVideoPlayer({
       ref={containerRef}
       className={
         expanded
-          ? 'fixed inset-0 z-[60] flex flex-col bg-ink focus:outline-none'
+          ? 'fixed inset-0 z-[60] flex flex-col bg-shade focus:outline-none'
           : 'overflow-hidden rounded-xl border border-line bg-surface-2 focus-within:border-sky focus:outline-none focus-visible:border-sky focus-visible:ring-1 focus-visible:ring-sky'
       }
       onKeyDown={handleKeyDown}

@@ -32,9 +32,9 @@ export const TONE: Record<
     bar: 'bg-sky-500/70',
   },
   warn: {
-    text: 'text-amber-400',
+    text: 'text-warn',
     dot: 'bg-amber-400',
-    chip: 'border-amber-500/30 bg-amber-500/10 text-amber-300',
+    chip: 'border-amber-500/30 bg-amber-500/10 text-warn',
     bar: 'bg-amber-500/70',
   },
   bad: {
@@ -182,7 +182,8 @@ export function ZoneGauge({
           style={{ left: `${position}%` }}
           aria-hidden
         >
-          <span className="block h-full w-[3px] rounded-full bg-ink shadow-[0_0_0_2px_#ffffff]" />
+          {/* 게이지 색은 테마와 무관하므로 바늘도 항상 어둡게 두어야 읽힌다 */}
+          <span className="block h-full w-[3px] rounded-full bg-shade shadow-[0_0_0_2px_#ffffff]" />
         </span>
       </div>
 

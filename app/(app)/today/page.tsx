@@ -107,11 +107,11 @@ export default async function TodayPage() {
       )}
 
       {picked.halted ? (
-        <Card className="space-y-2 border-amber-200 bg-amber-50">
-          <p className="text-sm font-bold text-amber-900">
+        <Card className="space-y-2 border-warn-line bg-warn-bg">
+          <p className="text-sm font-bold text-warn">
             오늘은 운동을 처방하지 않았습니다
           </p>
-          <p className="text-sm leading-relaxed text-amber-800">
+          <p className="text-sm leading-relaxed text-warn">
             {picked.haltReason ??
               '통증 신호가 있어 훈련 조언을 만들지 않았습니다.'}{' '}
             통증이 있는 날은 쉬는 것이 가장 좋은 훈련입니다. 통증이 아니라면{' '}
@@ -145,7 +145,7 @@ export default async function TodayPage() {
 
           {/* 후보가 빠듯하면 숨기지 않고 알린다. */}
           {picked.tooFew && (
-            <p className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-[13px] leading-relaxed text-amber-800">
+            <p className="rounded-lg border border-warn-line bg-warn-bg px-4 py-3 text-[13px] leading-relaxed text-warn">
               오늘 조건을 통과한 운동이 {picked.candidates.length}개뿐입니다(권장{' '}
               {MIN_CANDIDATES}개 이상). 낮은 강도 운동이 더 채워지면 더 알맞게 고를 수
               있습니다.

@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { requireUser } from '@/lib/dal';
 import { logout } from '@/app/actions/auth';
 import { moreGroups } from '@/lib/nav';
+import { ThemeToggle } from '@/components/theme-toggle';
 
 /**
  * 모바일 "더보기" — 전체 메뉴를 한 화면에 펼친다.
@@ -55,6 +56,14 @@ export default async function MorePage() {
           </div>
         </section>
       ))}
+
+      <section className="space-y-3">
+        <h2 className="flex items-center gap-2 text-sm font-bold text-ink">
+          <span aria-hidden className="h-4 w-1 rounded-full bg-sky" />
+          화면
+        </h2>
+        <ThemeToggle />
+      </section>
 
       <form action={logout}>
         <button

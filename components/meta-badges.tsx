@@ -3,7 +3,7 @@ import { Dumbbell, Flame, Target, TrendingUp } from 'lucide-react';
 /** 강도별 색. 문자열을 그대로 써야 Tailwind가 클래스를 찾아낸다. */
 const INTENSITY_STYLE: Record<string, string> = {
   낮음: 'border-emerald-200 bg-emerald-50 text-emerald-700',
-  중간: 'border-amber-200 bg-amber-50 text-amber-700',
+  중간: 'border-warn-line bg-warn-bg text-warn',
   높음: 'border-red-200 bg-red-50 text-red-700',
 };
 

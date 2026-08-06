@@ -34,7 +34,7 @@ export function LibraryTile({
               loading="lazy"
               className="absolute inset-0 h-full w-full object-cover"
             />
-            <span className="absolute inset-0 bg-ink/35 transition-colors group-hover:bg-ink/15" />
+            <span className="absolute inset-0 bg-shade/35 transition-colors group-hover:bg-shade/15" />
           </>
         )}
         <span className="relative flex h-9 w-9 items-center justify-center rounded-full bg-sky/90 text-white transition-transform group-hover:scale-110">
