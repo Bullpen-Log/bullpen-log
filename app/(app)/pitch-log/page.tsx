@@ -4,8 +4,20 @@ import type { PitchMetric } from '@/lib/pose/measure';
 import type { SavedAnalysisView } from '@/lib/pose/saved';
 import { PitchLogClient } from './pitch-log-client';
 
-export default async function PitchLogPage() {
+/** ?date=2026-08-04 처럼 넘어온 값만 받는다. 형식이 아니면 무시하고 오늘로 연다. */
+function readDateParam(raw: string | string[] | undefined): string | null {
+  const value = Array.isArray(raw) ? raw[0] : raw;
+  return value && /^\d{4}-\d{2}-\d{2}$/.test(value) ? value : null;
+}
+
+export default async function PitchLogPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
+}) {
   const user = await requireUser();
+  // 홈 달력에서 날짜를 눌러 들어오면 그 날짜로 열린다.
+  const initialDate = readDateParam((await searchParams).date);
 
   const [logs, analyses] = await Promise.all([
     prisma.pitchLog.findMany({
@@ -56,6 +68,7 @@ export default async function PitchLogPage() {
   return (
     <PitchLogClient
       initialLogs={initialLogs}
+      initialDate={initialDate}
       heightCm={user.heightCm}
       savedAnalyses={savedAnalyses}
     />

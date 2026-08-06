@@ -41,6 +41,7 @@ import {
 } from './parts';
 import { pickCheckinParts } from '@/lib/checkin';
 import { availableParts } from '@/lib/report/today-pick';
+import { LogCalendar } from './log-calendar';
 import { ReportSummaryCard, toReportSummary } from './report-summary';
 
 /** 렌더 중에 현재 시각을 직접 읽지 않도록 함수로 감싼다. */
@@ -189,6 +190,29 @@ export default async function DashboardPage() {
       rollingLoad,
     };
   });
+
+  /*
+   * 홈 달력용 요약. 투구 일지와 같은 모양이라야 두 화면이 같은 날을
+   * 같게 표시한다. (강도 진하기, 영상 있는 날 점)
+   */
+  const calendarSummaries = logs.reduce<
+    Record<string, { pitches: number; maxIntensity: number; hasVideo: boolean }>
+  >((acc, log) => {
+    const key = log.date.toISOString().slice(0, 10);
+    const prev = acc[key] ?? { pitches: 0, maxIntensity: 0, hasVideo: false };
+    acc[key] = {
+      pitches: prev.pitches + log.pitchCount,
+      maxIntensity: Math.max(prev.maxIntensity, log.intensity),
+      hasVideo: prev.hasVideo || log.videoPaths.length > 0,
+    };
+    return acc;
+  }, {});
+
+  /*
+   * 기록이 있는 가장 최근 달을 펴둔다. 이번 달이 비었는데 이번 달을 열면
+   * 아무것도 없는 달력만 보인다.
+   */
+  const calendarMonth = (lastThrowKey ?? todayKey).slice(0, 7);
 
   const hasRecords = allTimeMax._count > 0;
   const zone = acwr.zone ? ACWR_ZONES[acwr.zone] : null;
@@ -589,7 +613,20 @@ export default async function DashboardPage() {
           <TrendChart points={chartPoints} />
         </div>
 
-        <div className="rounded-2xl border border-line bg-surface p-5 sm:p-6">
+        <div className="space-y-6">
+          {/* 날짜를 누르면 그날 일지로 바로 넘어간다 */}
+          <div className="rounded-2xl border border-line bg-surface p-5 sm:p-6">
+            <div className="mb-4 flex items-baseline justify-between">
+              <h2 className="text-base font-bold text-ink">기록 달력</h2>
+              <span className="text-xs text-muted">눌러서 일지 열기</span>
+            </div>
+            <LogCalendar
+              summaries={calendarSummaries}
+              initialMonth={calendarMonth}
+            />
+          </div>
+
+          <div className="rounded-2xl border border-line bg-surface p-5 sm:p-6">
           <div className="mb-4 flex items-baseline justify-between">
             <h2 className="text-base font-bold text-ink">최근 기록</h2>
             <Link
@@ -632,6 +669,7 @@ export default async function DashboardPage() {
               ))}
             </ul>
           )}
+          </div>
         </div>
       </section>
 

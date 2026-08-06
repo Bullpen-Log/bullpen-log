@@ -37,10 +37,13 @@ const MODES = [
  */
 export function PitchLogClient({
   initialLogs,
+  initialDate,
   heightCm,
   savedAnalyses,
 }: {
   initialLogs: Log[];
+  /** 홈 달력에서 넘어온 날짜. 없으면 오늘로 연다. */
+  initialDate: string | null;
   heightCm: number | null;
   savedAnalyses: SavedAnalysisView[];
 }) {
@@ -48,10 +51,13 @@ export function PitchLogClient({
   const [error, setError] = useState<string>();
   const [mode, setMode] = useState<'day' | 'compare'>('day');
 
-  const [selectedDate, setSelectedDate] = useState(() => toDateKey(new Date()));
+  const [selectedDate, setSelectedDate] = useState(
+    () => initialDate ?? toDateKey(new Date())
+  );
+  // 넘어온 날짜가 지난달이면 달력도 그 달을 펴야 한다.
   const [month, setMonth] = useState(() => {
-    const now = new Date();
-    return new Date(now.getFullYear(), now.getMonth(), 1);
+    const [y, m] = (initialDate ?? toDateKey(new Date())).split('-').map(Number);
+    return new Date(y, m - 1, 1);
   });
 
   /**
