@@ -24,7 +24,7 @@ import {
 import { buildFacts } from '@/lib/report/facts';
 import { buildVelocityStats } from '@/lib/velocity';
 import { buildPitchPlan } from '@/lib/report/plan';
-import { LoadChart, type LoadPoint } from './load-chart';
+import { TrendChart, type TrendPoint } from './trend-chart';
 import { VelocityCard } from './velocity-card';
 import { CheckinCard, type CheckinData } from './checkin-card';
 import {
@@ -40,6 +40,7 @@ import {
   type Tone,
 } from './parts';
 import { pickCheckinParts } from '@/lib/checkin';
+import { ReportSummaryCard, toReportSummary } from './report-summary';
 
 /** 렌더 중에 현재 시각을 직접 읽지 않도록 함수로 감싼다. */
 function now() {
@@ -82,6 +83,13 @@ export default async function DashboardPage() {
       memo: true,
       videoPaths: true,
     },
+  });
+
+  // 가장 최근 리포트 한 건 — 홈에는 결론 한 줄만 얹는다.
+  const latestReport = await prisma.aiReport.findFirst({
+    where: { userId: user.id },
+    orderBy: { asOf: 'desc' },
+    select: { asOf: true, halted: true, haltReason: true, body: true },
   });
 
   const allTimeMax = await prisma.pitchLog.aggregate({
@@ -156,16 +164,20 @@ export default async function DashboardPage() {
   const lastThrowKey = [...byDay.keys()].sort().at(-1);
   const restDays = lastThrowKey ? daysSince(lastThrowKey, todayKey) : null;
 
-  // 차트: 막대는 그날 투구수, 선은 그날까지의 7일 누적 부하
-  const chartPoints: LoadPoint[] = last28.map((key, i) => {
+  // 그래프에서 고를 수 있는 네 가지를 한 번에 만들어 둔다.
+  const chartPoints: TrendPoint[] = last28.map((key, i) => {
     const window = last28.slice(Math.max(0, i - 6), i + 1);
     const rollingLoad = window.reduce((sum, k) => {
       const day = byDay.get(k);
       return sum + (day ? dailyLoad(day) : 0);
     }, 0);
+    const day = byDay.get(key);
     return {
       label: formatShortDate(key),
-      pitches: byDay.get(key)?.pitchCount ?? 0,
+      pitches: day?.pitchCount ?? 0,
+      intensity: day?.intensity ?? 0,
+      // 안 던진 날은 null 이어야 선이 끊긴다. 0으로 두면 구속이 떨어진 것처럼 보인다.
+      maxVelocity: day?.maxVelocity ?? null,
       rollingLoad,
     };
   });
@@ -258,6 +270,9 @@ export default async function DashboardPage() {
 
       {/* ── 오늘 뭘 하면 되는지 한 줄 ───────────────────────── */}
       {todayPlan && <TodayPlanLine plan={todayPlan} />}
+
+      {/* ── AI 리포트 요약 ──────────────────────────────────── */}
+      <ReportSummaryCard report={toReportSummary(latestReport, todayKey)} />
 
       {/* ── AI 트레이닝 진행 상황 ───────────────────────────── */}
       <Link
@@ -551,10 +566,9 @@ export default async function DashboardPage() {
         <div className="min-w-0 rounded-2xl border border-line bg-surface p-5 sm:p-6">
           <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
             <div>
-              <h2 className="text-base font-bold text-ink">28일 투구 부하 추이</h2>
+              <h2 className="text-base font-bold text-ink">최근 28일 추이</h2>
               <p className="mt-1 text-xs leading-relaxed text-muted">
-                막대 = 그날 투구수 · 선 = 그날까지 최근 7일 부하의 합
-                <span className="text-muted/60"> (부하 = 투구수 × 강도)</span>
+                보고 싶은 항목을 골라보세요.
               </p>
             </div>
             <Link
@@ -564,7 +578,7 @@ export default async function DashboardPage() {
               AI 리포트 →
             </Link>
           </div>
-          <LoadChart points={chartPoints} />
+          <TrendChart points={chartPoints} />
         </div>
 
         <div className="rounded-2xl border border-line bg-surface p-5 sm:p-6">
