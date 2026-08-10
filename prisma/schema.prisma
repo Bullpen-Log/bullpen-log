@@ -187,7 +187,8 @@ model ExerciseVideo {
   thumbPath        String?
   /// 이 운동이 목표로 하는 부위
   bodyParts        String[]
-  /// 낮음 / 중간 / 높음. 부하 지수가 높을 때 '높음'을 빼는 데 쓴다.
+  /// 매우 낮음 / 낮음 / 중간 / 높음 / 매우 높음 (lib/exercise-meta.ts)
+  /// 부하가 높거나 몸이 안 좋은 날 위쪽 단계를 후보에서 빼는 데 쓴다.
   intensity        String            @default("중간")
   /// 초급 / 중급 / 상급. 선택 입력이라 비어 있을 수 있다.
   difficulty       String?

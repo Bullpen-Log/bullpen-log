@@ -27,14 +27,51 @@ export const BODY_PARTS = [
 ] as const;
 
 /**
- * 운동 강도. 부하 지수가 높을 때 '높음'을 후보에서 빼는 데 쓰이므로
- * 기준을 설명과 함께 못 박아 둔다.
+ * 운동 강도 다섯 단계.
+ *
+ * 이 값은 안전 필터가 직접 쓴다. 부하가 높거나 몸이 안 좋은 날에는
+ * 위쪽 단계를 후보에서 빼기 때문에, 올릴 때 정확히 매기는 것이 중요하다.
+ *
+ * `level` 숫자를 함께 두는 이유가 있다. 규칙을 이름으로 쓰면
+ * ("'높음'이 아니면 통과") 나중에 단계를 늘렸을 때 새 이름이 그 조건을
+ * 그냥 통과해버린다. 숫자로 비교하면 그런 구멍이 생기지 않는다.
  */
 export const INTENSITY_LEVELS = [
-  { name: '낮음', desc: '회복·이완 수준. 투구한 날에도 할 수 있음' },
-  { name: '중간', desc: '평소 훈련일에 하는 수준' },
-  { name: '높음', desc: '최대 근력·전력 동작. 다음 날 회복 필요' },
+  { level: 1, name: '매우 낮음', desc: '스트레칭·가동성. 통증만 없다면 매일 해도 되는 수준' },
+  { level: 2, name: '낮음', desc: '회복·이완 수준. 많이 던진 날에도 할 수 있음' },
+  { level: 3, name: '중간', desc: '평소 훈련일에 하는 수준' },
+  { level: 4, name: '높음', desc: '무게를 다루는 근력 운동. 다음 날 뻐근함이 남음' },
+  { level: 5, name: '매우 높음', desc: '최대 근력·전력 점프. 며칠 회복이 필요하고 등판 전후에는 피함' },
 ] as const;
+
+export type IntensityName = (typeof INTENSITY_LEVELS)[number]['name'];
+
+/** 이름 → 단계 숫자. 목록에 없는 값은 가장 위험한 쪽으로 본다. */
+export function intensityLevel(name: string): number {
+  const found = INTENSITY_LEVELS.find((l) => l.name === name);
+  /*
+   * 모르는 이름이 오면 최고 단계로 친다.
+   * 안전 쪽에서 틀리는 편이 맞다 — 잘못 들어온 값이 필터를 통과해
+   * 몸이 안 좋은 날 고강도 운동이 추천되는 것보다는, 빠지는 쪽이 낫다.
+   */
+  return found ? found.level : MAX_INTENSITY_LEVEL;
+}
+
+export const MAX_INTENSITY_LEVEL = 5;
+
+/** 이 단계까지만 허용한다는 뜻 — 규칙을 읽기 쉽게 이름을 붙여 둔다. */
+export const INTENSITY_CAP = {
+  /** 스트레칭·가동성만 */
+  MOBILITY_ONLY: 1,
+  /** 가벼운 회복까지 */
+  RECOVERY: 2,
+  /** 평소 훈련까지 — 무게 드는 것은 제외 */
+  MODERATE: 3,
+  /** 근력까지 — 최대 강도만 제외 */
+  STRENGTH: 4,
+  /** 제한 없음 */
+  ALL: 5,
+} as const;
 
 export const DIFFICULTY_LEVELS = [
   { name: '초급', desc: '처음 봐도 따라 할 수 있음' },

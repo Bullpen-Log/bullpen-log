@@ -1,4 +1,5 @@
 import { CHECKIN_PARTS, type CheckinPartKey } from '@/lib/checkin';
+import { INTENSITY_CAP, intensityLevel } from '@/lib/exercise-meta';
 import { YOUTH_AGE_THRESHOLD } from '@/lib/report/plan';
 import type { ReportFacts } from '@/lib/report/facts';
 import type { PitchPlan } from '@/lib/report/plan';
@@ -23,26 +24,32 @@ export type ExerciseLike = {
   equipment: string[];
 };
 
-/** 부하 구간별로 허용하는 운동 강도 */
-const ALLOWED_INTENSITY: Record<string, string[]> = {
-  danger: ['낮음'],
-  caution: ['낮음', '중간'],
-  optimal: ['낮음', '중간', '높음'],
-  low: ['낮음', '중간', '높음'],
+/**
+ * 부하 구간별로 허용하는 강도 상한.
+ *
+ * 이름이 아니라 단계 숫자로 비교한다. 강도 단계를 나중에 더 늘려도
+ * 새 이름이 필터를 그냥 통과하는 일이 생기지 않는다.
+ */
+const ZONE_CAP: Record<string, number> = {
+  danger: INTENSITY_CAP.RECOVERY,
+  caution: INTENSITY_CAP.MODERATE,
+  optimal: INTENSITY_CAP.ALL,
+  low: INTENSITY_CAP.ALL,
 };
 
 /** 부하 지수를 아직 못 낼 때는 보수적으로 간다. */
-const UNKNOWN_ZONE_INTENSITY = ['낮음', '중간'];
+const UNKNOWN_ZONE_CAP = INTENSITY_CAP.MODERATE;
 
-/** 컨디션이 이 값 이하면 고강도를 뺀다. */
+/** 컨디션이 이 값 이하면 무게 드는 운동을 뺀다. */
 const LOW_CONDITION_THRESHOLD = 4;
 
 /**
  * 어느 부위가 뻐근할 때 함께 피해야 하는 부위들.
  *
  * 가슴(프레스류)과 등(풀업·로우류) 모두 어깨 관절을 지나는 동작이라
- * 어깨가 좋지 않은 날에는 함께 뺀다. 다만 빠지는 것은 강도 '높음'뿐이라
- * 가벼운 로우나 페이스풀 같은 어깨 보강 운동은 그대로 남는다.
+ * 어깨가 좋지 않은 날에는 함께 뺀다. 다만 빠지는 것은 무게를 다루는
+ * 단계(높음 이상)뿐이라, 가벼운 로우나 페이스풀 같은 어깨 보강 운동은
+ * 그대로 남는다.
  *
  * 여기 적는 이름은 ExerciseVideo.bodyParts에 실제로 쓰는 말과 같아야 한다.
  * (현재 라이브러리: 고관절, 햄스트링·둔근, 코어, 등, 가슴, 어깨, 견갑)
@@ -111,37 +118,47 @@ export function selectCandidates({
     if (removed > 0) excluded.push({ rule, count: removed });
   };
 
+  /*
+   * 규칙마다 "여기까지만 허용" 하는 상한이 있고, 가장 낮은 것이 이긴다.
+   * 이름 비교가 아니라 단계 숫자라서, 강도 단계를 더 늘려도 새 이름이
+   * 조건을 빠져나가는 일이 없다.
+   */
+  const capTo = (rule: string, cap: number) =>
+    drop(rule, (ex) => intensityLevel(ex.intensity) <= cap);
+
   // 2) 부하 구간에 따른 강도 상한
-  const allowed = facts.load.zone
-    ? ALLOWED_INTENSITY[facts.load.zone]
-    : UNKNOWN_ZONE_INTENSITY;
+  const zoneCap = facts.load.zone
+    ? (ZONE_CAP[facts.load.zone] ?? UNKNOWN_ZONE_CAP)
+    : UNKNOWN_ZONE_CAP;
 
   if (facts.load.zone === 'danger') {
-    basis.push('부하 위험 구간 → 낮은 강도 운동만');
+    basis.push('부하 위험 구간 → 회복 수준까지만');
   } else if (facts.load.zone === 'caution') {
-    basis.push('부하 주의 구간 → 높은 강도 제외');
+    basis.push('부하 주의 구간 → 무게 드는 운동 제외');
   } else if (facts.load.zone) {
     basis.push('부하가 적정 범위 → 강도 제한 없음');
   } else {
-    basis.push('부하 지수를 아직 낼 수 없어 높은 강도 제외');
+    basis.push('부하 지수를 아직 낼 수 없어 무게 드는 운동 제외');
   }
-  drop('부하 구간에 맞지 않는 강도', (ex) => allowed.includes(ex.intensity));
+  capTo('부하 구간에 맞지 않는 강도', zoneCap);
 
-  // 3) 성장기는 고강도를 뺀다.
+  // 3) 성장기는 최대 강도를 뺀다.
   if (facts.profile.age != null && facts.profile.age < YOUTH_AGE_THRESHOLD) {
-    basis.push(`만 ${facts.profile.age}세(성장기) → 높은 강도 제외`);
-    drop('성장기 고강도 제한', (ex) => ex.intensity !== '높음');
+    basis.push(`만 ${facts.profile.age}세(성장기) → 매우 높은 강도 제외`);
+    capTo('성장기 고강도 제한', INTENSITY_CAP.STRENGTH);
   }
 
-  // 4) 컨디션이 낮은 날도 고강도를 뺀다.
+  // 4) 컨디션이 낮은 날은 무게 드는 것부터 뺀다.
   const today = facts.condition.today;
   if (today && today.condition <= LOW_CONDITION_THRESHOLD) {
-    basis.push(`오늘 컨디션 ${today.condition}/10 → 높은 강도 제외`);
-    drop('컨디션 저하', (ex) => ex.intensity !== '높음');
+    basis.push(`오늘 컨디션 ${today.condition}/10 → 무게 드는 운동 제외`);
+    capTo('컨디션 저하', INTENSITY_CAP.MODERATE);
   }
 
-  // 5) 뻐근한 부위는 그 부위를 쓰는 고강도 운동을 뺀다.
-  //    (가벼운 회복·가동성 운동은 오히려 도움이 되므로 남긴다.)
+  /*
+   * 5) 뻐근한 부위는 그 부위를 쓰는 무거운 운동을 뺀다.
+   *    가벼운 회복·가동성 운동은 오히려 도움이 되므로 남긴다.
+   */
   for (const { key, label } of CHECKIN_PARTS) {
     if (today?.[key] !== '뻐근') continue;
     const parts = RELATED_PARTS[key];
@@ -149,7 +166,8 @@ export function selectCandidates({
     drop(
       `${label} 뻐근함`,
       (ex) =>
-        ex.intensity !== '높음' || !ex.bodyParts.some((p) => parts.includes(p))
+        intensityLevel(ex.intensity) <= INTENSITY_CAP.MODERATE ||
+        !ex.bodyParts.some((p) => parts.includes(p))
     );
   }
 
