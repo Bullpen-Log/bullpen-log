@@ -90,7 +90,12 @@ function GuideDetail({
         item.done ? 'border-sky-soft/50' : 'border-sky-soft/40'
       }`}
     >
-      <LibraryVideo path={item.videoPath} title={item.title} thumbUrl={item.thumbUrl} />
+      <LibraryVideo
+        path={item.videoPath}
+        title={item.title}
+        thumbUrl={item.thumbUrl}
+        isAdmin={isAdmin}
+      />
 
       <div className="flex flex-col">
         <div className="flex items-start justify-between gap-3">

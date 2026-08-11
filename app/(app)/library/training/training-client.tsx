@@ -84,7 +84,12 @@ function ExerciseDetail({
 
   return (
     <Card className="grid gap-5 border-sky-soft/40 p-4 sm:p-5 md:grid-cols-[minmax(0,420px)_1fr]">
-      <LibraryVideo path={item.videoPath} title={item.title} thumbUrl={item.thumbUrl} />
+      <LibraryVideo
+        path={item.videoPath}
+        title={item.title}
+        thumbUrl={item.thumbUrl}
+        isAdmin={isAdmin}
+      />
 
       <div className="flex flex-col gap-4">
         <div className="flex items-start justify-between gap-3">

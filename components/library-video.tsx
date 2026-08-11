@@ -14,11 +14,20 @@ export function LibraryVideo({
   path,
   title,
   thumbUrl,
+  isAdmin = false,
 }: {
   path: string;
   title: string;
   /** 재생 전에 보여줄 이미지. 없으면 빈 화면에 재생 버튼만 나온다. */
   thumbUrl?: string | null;
+  /**
+   * 관리자에게만 재생 막대를 보여준다.
+   *
+   * 재생 막대에는 음량 버튼이 딸려 있는데, 브라우저가 통째로 붙여주는 것이라
+   * 음량만 빼는 방법이 없다. 그래서 관리자가 아니면 막대 자체를 감춘다.
+   * 관리자는 올린 영상을 점검해야 하므로 소리를 켤 수 있어야 한다.
+   */
+  isAdmin?: boolean;
 }) {
   const [url, setUrl] = useState<string>();
   const [loading, setLoading] = useState(false);
@@ -53,7 +62,10 @@ export function LibraryVideo({
         src={url}
         // 미리보기 이미지가 있으면 첫 프레임을 받기 전에도 화면이 비지 않는다.
         poster={thumbUrl ?? undefined}
-        controls
+        // 관리자만 재생 막대(=음량 버튼)를 본다. 위 isAdmin 설명 참고.
+        controls={isAdmin}
+        // 막대가 없으면 멈출 방법도 없으므로, 짧은 시연 영상처럼 계속 돌린다.
+        loop={!isAdmin}
         autoPlay
         /*
          * 라이브러리 영상은 소리 없이 튼다.
