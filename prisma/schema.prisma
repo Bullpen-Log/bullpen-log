@@ -194,6 +194,13 @@ model ExerciseVideo {
   difficulty       String?
   /// 운동에 필요한 도구
   equipment        String[]
+  /**
+   * 세부 정보(설명·강도·부위·난이도·장비)를 제대로 채운 시각.
+   *
+   * 비어 있으면 제목과 영상만 올린 상태로 본다. 나중에 정보를 채우는 작업을
+   * 할 때 이 값이 있는 것은 건드리지 않아, 이미 손본 내용을 덮어쓰지 않는다.
+   */
+  detailsFilledAt  DateTime?
   createdAt        DateTime          @default(now())
   userLogs         UserExerciseLog[]
   routineExercises RoutineExercise[]
