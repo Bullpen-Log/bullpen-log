@@ -55,6 +55,18 @@ export function LibraryVideo({
         poster={thumbUrl ?? undefined}
         controls
         autoPlay
+        /*
+         * 라이브러리 영상은 소리 없이 튼다.
+         *
+         * 동작을 보여주는 시연 영상이라 소리가 필요 없고, 촬영할 때 들어간
+         * 주변 소음이 그대로 나가면 곤란하다. 헬스장에서 폰으로 열었을 때
+         * 갑자기 소리가 나는 것도 막는다.
+         *
+         * 더불어 브라우저는 소리 있는 영상의 자동 재생을 막는다.
+         * 음소거로 두면 autoPlay 가 실제로 동작한다.
+         * 소리를 듣고 싶으면 재생기의 음량 버튼으로 켤 수 있다.
+         */
+        muted
         playsInline
         aria-label={title}
         className="aspect-video w-full rounded-xl border border-line bg-black object-contain"
