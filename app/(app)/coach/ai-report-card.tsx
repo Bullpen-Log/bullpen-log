@@ -67,7 +67,7 @@ function DayRow({ day }: { day: PitchPlan['days'][number] }) {
           </span>
         </span>
       ) : (
-        <span className="flex items-center gap-1.5 text-sm font-medium text-sky-300">
+        <span className="flex items-center gap-1.5 text-sm font-medium text-sky-strong">
           <Moon className="h-3.5 w-3.5" />
           휴식
         </span>
@@ -121,7 +121,7 @@ export function AiReportCard({
 
       <div className="space-y-5 px-5 py-5 sm:px-6 sm:py-6">
         {state?.error && (
-          <p className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          <p className="rounded-lg border border-danger-line bg-danger-bg px-4 py-3 text-sm text-danger">
             {state.error}
           </p>
         )}
@@ -146,12 +146,12 @@ export function AiReportCard({
 
         {/* 통증 등으로 계획을 내지 않은 경우 */}
         {report?.halted && (
-          <div className="rounded-xl border border-red-900/60 bg-red-950/30 p-5">
-            <p className="flex items-center gap-2 text-sm font-bold text-red-700">
+          <div className="rounded-xl border border-danger-line bg-danger-bg p-5">
+            <p className="flex items-center gap-2 text-sm font-bold text-danger">
               <AlertTriangle className="h-4 w-4" />
               투구 계획을 제공하지 않았습니다
             </p>
-            <p className="mt-2 text-sm leading-relaxed text-red-100/90">
+            <p className="mt-2 text-sm leading-relaxed text-danger/80">
               {report.haltReason}
             </p>
           </div>

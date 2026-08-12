@@ -124,7 +124,7 @@ function GuideDetail({
                   <button
                     type="submit"
                     aria-label={`${item.title} 삭제`}
-                    className="rounded-lg p-2 text-muted transition-colors hover:bg-red-950/40 hover:text-red-600"
+                    className="rounded-lg p-2 text-muted transition-colors hover:bg-danger-bg hover:text-danger"
                   >
                     <Trash2 className="h-4 w-4" />
                   </button>

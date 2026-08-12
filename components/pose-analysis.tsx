@@ -373,7 +373,7 @@ export function PoseAnalysis({
           {saved ? '다시 분석 (스켈레톤 보기)' : '폼 분석 (베타)'}
         </button>
         {phase === 'error' && (
-          <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs leading-relaxed text-red-700">
+          <p className="rounded-lg border border-danger-line bg-danger-bg px-3 py-2 text-xs leading-relaxed text-danger">
             {error}
           </p>
         )}
@@ -652,7 +652,7 @@ export function PoseAnalysis({
                 저장하면 다음에 재분석 없이 바로 보이고, 이후 세션과 자동 비교됩니다.
               </span>
               {saveState === 'error' && saveError && (
-                <span className="text-[11px] text-red-700">{saveError}</span>
+                <span className="text-[11px] text-danger">{saveError}</span>
               )}
             </div>
           )}

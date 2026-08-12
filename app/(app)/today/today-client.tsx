@@ -70,7 +70,7 @@ export function TodayList({ exercises }: { exercises: TodayExercise[] }) {
       </div>
 
       {error && (
-        <p className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+        <p className="rounded-lg border border-danger-line bg-danger-bg px-4 py-3 text-sm text-danger">
           {error}
         </p>
       )}

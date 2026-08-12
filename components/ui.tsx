@@ -68,7 +68,7 @@ const buttonStyles: Record<ButtonVariant, string> = {
     'border border-line-strong bg-surface-2 text-ink hover:border-sky hover:text-sky focus-visible:outline-sky',
   ghost: 'text-muted hover:text-ink focus-visible:outline-line-strong',
   danger:
-    'border border-red-200 bg-red-50 text-red-700 hover:bg-red-100 focus-visible:outline-red-700',
+    'border border-danger-line bg-danger-bg text-danger hover:border-danger focus-visible:outline-danger',
 };
 
 const buttonBase =
@@ -168,7 +168,7 @@ export function EmptyState({
 export function FormError({ children }: { children?: ReactNode }) {
   if (!children) return null;
   return (
-    <p className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+    <p className="rounded-lg border border-danger-line bg-danger-bg px-4 py-3 text-sm text-danger">
       {children}
     </p>
   );

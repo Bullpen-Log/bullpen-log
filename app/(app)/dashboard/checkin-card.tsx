@@ -179,7 +179,7 @@ export function CheckinCard({
     <section
       className={`rounded-2xl border p-5 sm:p-6 ${
         painToday
-          ? 'border-red-200 bg-red-50'
+          ? 'border-danger-line bg-danger-bg'
           : 'border-line bg-surface'
       }`}
     >
@@ -188,7 +188,7 @@ export function CheckinCard({
         <span
           className={`flex h-9 w-9 items-center justify-center rounded-xl border ${
             painToday
-              ? 'border-red-300 text-red-600'
+              ? 'border-danger-line text-danger'
               : 'border-line-strong text-sky'
           }`}
         >
@@ -207,7 +207,7 @@ export function CheckinCard({
 
         {today && !editing && (
           <span className="flex items-center gap-2">
-            <span className="inline-flex items-center gap-1.5 text-xs text-emerald-600">
+            <span className="inline-flex items-center gap-1.5 text-xs text-ok">
               <CheckCircle2 className="h-4 w-4" />
               완료
             </span>
@@ -240,7 +240,7 @@ export function CheckinCard({
                     <dd
                       className={
                         v === '통증'
-                          ? 'font-semibold text-red-600'
+                          ? 'font-semibold text-danger'
                           : v === '뻐근'
                             ? 'font-medium text-warn'
                             : 'text-ink'
@@ -268,7 +268,7 @@ export function CheckinCard({
               )}
 
               {painToday && (
-                <p className="mt-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-xs leading-relaxed text-red-700">
+                <p className="mt-4 rounded-xl border border-danger-line bg-danger-bg px-4 py-3 text-xs leading-relaxed text-danger">
                   통증이 있는 날은 던지거나 무리한 운동을 하지 마세요. 통증이
                   이어지면 전문의 진료를 받아보는 것이 좋습니다. 통증이 있는
                   동안에는 운동 추천도 제공하지 않습니다.
@@ -280,7 +280,7 @@ export function CheckinCard({
               <input type="hidden" name="date" value={todayKey} />
 
               {state?.error && (
-                <p className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                <p className="rounded-lg border border-danger-line bg-danger-bg px-4 py-3 text-sm text-danger">
                   {state.error}
                 </p>
               )}

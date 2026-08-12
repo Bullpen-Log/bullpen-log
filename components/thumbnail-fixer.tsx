@@ -107,7 +107,7 @@ export function ThumbnailFixer({
       {message && (
         <p
           className={`text-xs leading-relaxed ${
-            failed ? 'text-red-700' : 'text-emerald-400'
+            failed ? 'text-danger' : 'text-ok'
           }`}
         >
           {message}

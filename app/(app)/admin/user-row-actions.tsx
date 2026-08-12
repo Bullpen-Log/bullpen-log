@@ -34,7 +34,7 @@ function ActionButton({
       }}
       className={`inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs transition-colors disabled:opacity-40 ${
         danger
-          ? 'border-line text-muted hover:border-red-400 hover:bg-red-950/40 hover:text-red-600'
+          ? 'border-line text-muted hover:border-danger hover:bg-danger-bg hover:text-danger'
           : 'border-line text-muted hover:border-sky hover:text-sky'
       }`}
     >

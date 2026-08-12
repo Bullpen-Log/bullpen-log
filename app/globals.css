@@ -33,6 +33,16 @@
   --color-warn-bg: #fffbeb;
 
   /*
+   * 상태색 — 좋음(초록)·위험(빨강).
+   * warn과 같은 규칙: 라이트에서는 진한 글자색, 다크에서는 밝은 글자색.
+   * emerald-400 같은 원색 클래스를 글자에 직접 쓰면 흰 바탕에서 안 읽힌다.
+   */
+  --color-ok: #047857;
+  --color-danger: #b91c1c;
+  --color-danger-line: #fecaca;
+  --color-danger-bg: #fef2f2;
+
+  /*
    * 두 모드에서 항상 어두운 색.
    * 영상 위 오버레이나 전체화면 플레이어 배경처럼, 테마와 무관하게
    * 어두워야 하는 곳에 쓴다. 여기에 ink를 쓰면 다크 모드에서
@@ -74,6 +84,11 @@
   --color-warn: #fcd34d;
   --color-warn-line: #78350f;
   --color-warn-bg: #2a1e08;
+
+  --color-ok: #34d399;
+  --color-danger: #f87171;
+  --color-danger-line: #7f1d1d;
+  --color-danger-bg: #2a1010;
 }
 
 html {

@@ -14,33 +14,40 @@ import type { PitchPlan } from '@/lib/report/plan';
 
 export type Tone = 'good' | 'info' | 'warn' | 'bad' | 'neutral';
 
-/** 상태별 색. 문자열을 그대로 써야 Tailwind가 클래스를 찾아낸다. */
+/**
+ * 상태별 색. 문자열을 그대로 써야 Tailwind가 클래스를 찾아낸다.
+ *
+ * 글자는 테마 토큰(ok·warn·danger·sky-strong)을 쓴다 — 라이트에서는
+ * 진하게, 다크에서는 밝게 뒤집혀 두 모드 모두에서 읽힌다.
+ * 점은 같은 토큰의 채움색, 반투명 워시(chip 배경·bar)는 두 모드에서
+ * 모두 무난해 원색을 그대로 둔다.
+ */
 export const TONE: Record<
   Tone,
   { text: string; dot: string; chip: string; bar: string }
 > = {
   good: {
-    text: 'text-emerald-400',
-    dot: 'bg-emerald-400',
-    chip: 'border-emerald-500/30 bg-emerald-500/10 text-emerald-300',
+    text: 'text-ok',
+    dot: 'bg-ok',
+    chip: 'border-emerald-500/30 bg-emerald-500/10 text-ok',
     bar: 'bg-emerald-500/70',
   },
   info: {
-    text: 'text-sky-400',
-    dot: 'bg-sky-400',
-    chip: 'border-sky-500/30 bg-sky-500/10 text-sky-300',
+    text: 'text-sky-strong',
+    dot: 'bg-sky',
+    chip: 'border-sky-500/30 bg-sky-500/10 text-sky-strong',
     bar: 'bg-sky-500/70',
   },
   warn: {
     text: 'text-warn',
-    dot: 'bg-amber-400',
+    dot: 'bg-warn',
     chip: 'border-amber-500/30 bg-amber-500/10 text-warn',
     bar: 'bg-amber-500/70',
   },
   bad: {
-    text: 'text-red-600',
-    dot: 'bg-red-400',
-    chip: 'border-red-500/40 bg-red-500/10 text-red-700',
+    text: 'text-danger',
+    dot: 'bg-danger',
+    chip: 'border-red-500/40 bg-red-500/10 text-danger',
     bar: 'bg-red-500/70',
   },
   neutral: {
@@ -432,14 +439,14 @@ export function TodayPlanLine({ plan }: { plan: PitchPlan }) {
     return (
       <Link
         href="/coach"
-        className="flex items-start gap-3 rounded-2xl border border-red-900/60 bg-red-950/25 px-5 py-4 transition-colors hover:border-red-400"
+        className="flex items-start gap-3 rounded-2xl border border-danger-line bg-danger-bg px-5 py-4 transition-colors hover:border-danger"
       >
-        <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-red-600" />
+        <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-danger" />
         <span className="min-w-0 flex-1">
-          <span className="block text-sm font-bold text-red-700">
+          <span className="block text-sm font-bold text-danger">
             오늘은 던지지 마세요
           </span>
-          <span className="mt-1 block text-xs leading-relaxed text-red-100/80">
+          <span className="mt-1 block text-xs leading-relaxed text-danger/80">
             {plan.haltReason}
           </span>
         </span>
@@ -476,7 +483,7 @@ export function TodayPlanLine({ plan }: { plan: PitchPlan }) {
           </span>
         </span>
       ) : (
-        <span className="flex items-center gap-2 text-base font-bold text-sky-300">
+        <span className="flex items-center gap-2 text-base font-bold text-sky-strong">
           <Moon className="h-4 w-4" />
           휴식
         </span>
