@@ -86,6 +86,7 @@ export const EXERCISE_EQUIPMENT = [
   '바벨',
   '케틀벨',
   '메디신볼',
+  '짐볼',
   '폼롤러',
   '마사지볼',
   '케이블',
