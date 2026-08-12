@@ -34,7 +34,18 @@ export const getCurrentUser = cache(async () => {
 /** 로그인이 필요한 페이지에서 사용. 비로그인 시 /login으로 보낸다. */
 export async function requireUser() {
   const user = await getCurrentUser();
-  if (!user) redirect('/login');
+  if (!user) {
+    /*
+     * 토큰은 멀쩡한데 회원이 없는 경우가 있다 — 관리자가 계정을 삭제했는데
+     * 그 사람 브라우저에 로그인 쿠키가 남아 있을 때.
+     *
+     * 이때 그냥 /login 으로 보내면 프록시가 토큰만 보고 다시 /dashboard 로
+     * 돌려보내 무한 리다이렉트가 된다. 페이지를 그리는 중에는 쿠키를 지울
+     * 수 없으므로, 쿠키를 지워주는 경로를 한 번 거쳐서 나간다.
+     */
+    const session = await getSession();
+    redirect(session ? '/api/session/clear' : '/login');
+  }
   return user;
 }
 
