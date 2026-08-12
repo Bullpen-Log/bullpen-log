@@ -5,14 +5,24 @@ import { prisma } from '@/lib/prisma';
 import { getCurrentUser } from '@/lib/dal';
 import { CHECKIN_PARTS, validateCheckin, validateCheckinDate } from '@/lib/checkin';
 import { availableParts } from '@/lib/report/today-pick';
+import { withInput, type FormValues } from '@/lib/form-values';
 
-export type CheckinState = { error?: string; success?: string } | undefined;
+export type CheckinState = {
+  error?: string;
+  success?: string;
+  values?: FormValues;
+} | undefined;
 
 /** 오늘의 몸상태 체크인을 저장한다. 이미 있으면 덮어쓴다. */
 export async function saveCheckin(
   _prev: CheckinState,
   formData: FormData
 ): Promise<CheckinState> {
+  // 오류로 끝나면 고른 것들을 돌려준다. 부위마다 다시 고르게 할 수 없다.
+  return withInput(await trySaveCheckin(formData), formData);
+}
+
+async function trySaveCheckin(formData: FormData): Promise<CheckinState> {
   const user = await getCurrentUser();
   if (!user) return { error: '로그인이 필요합니다.' };
 

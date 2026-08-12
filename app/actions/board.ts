@@ -4,13 +4,19 @@ import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { prisma } from '@/lib/prisma';
 import { getCurrentUser } from '@/lib/dal';
+import { withInput, type FormValues } from '@/lib/form-values';
 
-export type BoardState = { error?: string } | undefined;
+export type BoardState = { error?: string; values?: FormValues } | undefined;
 
 export async function createArticle(
   _prev: BoardState,
   formData: FormData
 ): Promise<BoardState> {
+  // 오류로 끝나면 쓰던 글을 돌려준다. 길게 쓴 내용이 날아가면 안 된다.
+  return withInput(await tryCreateArticle(formData), formData);
+}
+
+async function tryCreateArticle(formData: FormData): Promise<BoardState> {
   const user = await getCurrentUser();
   if (!user) return { error: '로그인이 필요합니다.' };
 

@@ -14,6 +14,7 @@ import {
   type CheckinParts,
   hasPain,
 } from '@/lib/checkin';
+import { kept, keptAll } from '@/lib/form-values';
 import { toDateKey } from '@/lib/pitch-stats';
 
 export type CheckinData = CheckinParts & {
@@ -163,6 +164,17 @@ export function CheckinCard({
     : null;
   const painToday = today ? hasPain(today) : false;
 
+  /*
+   * 오류로 되돌아왔을 때 방금 고른 것들을 그대로 다시 보여준다.
+   * 부위가 여러 줄이라, 저장 전 상태로 돌아가면 처음부터 다시 골라야 한다.
+   */
+  const before = state?.values;
+  const pick = (name: string, fallback: string | number | undefined) =>
+    before ? kept(before, name) : fallback === undefined ? undefined : String(fallback);
+  const pickedParts = before
+    ? keptAll(before, 'preferredParts') ?? []
+    : today?.preferredParts ?? [];
+
   return (
     <section
       className={`rounded-2xl border p-5 sm:p-6 ${
@@ -285,7 +297,7 @@ export function CheckinCard({
                       name={part.key}
                       value={v}
                       required
-                      defaultChecked={(today?.[part.key] ?? '정상') === v}
+                      defaultChecked={pick(part.key, today?.[part.key] ?? '정상') === v}
                       className={feelingChipClass(v)}
                     >
                       {v}
@@ -304,7 +316,7 @@ export function CheckinCard({
                     name="condition"
                     value={String(n)}
                     required
-                    defaultChecked={today?.condition === n}
+                    defaultChecked={pick('condition', today?.condition) === String(n)}
                   >
                     {n}
                   </ChipRadio>
@@ -321,7 +333,7 @@ export function CheckinCard({
                     name="sleep"
                     value={v}
                     required
-                    defaultChecked={today?.sleep === v}
+                    defaultChecked={pick('sleep', today?.sleep) === v}
                   >
                     {v}
                   </ChipRadio>
@@ -340,7 +352,7 @@ export function CheckinCard({
                       key={part}
                       name="preferredParts"
                       value={part}
-                      defaultChecked={today?.preferredParts?.includes(part)}
+                      defaultChecked={pickedParts.includes(part)}
                     >
                       {part}
                     </ChipCheckbox>

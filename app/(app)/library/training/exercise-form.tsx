@@ -10,6 +10,7 @@ import {
 } from '@/app/actions/content';
 import { Button, Field, FormError, Input, Textarea } from '@/components/ui';
 import { CheckboxGroup, RadioGroup } from '@/components/choice-inputs';
+import { kept, keptAll } from '@/lib/form-values';
 import { VideoUpload, type UploadedVideo } from '@/components/video-upload';
 import {
   BODY_PARTS,
@@ -78,6 +79,17 @@ export function ExerciseForm({
     }
   }
 
+  /*
+   * 오류로 되돌아왔을 때 방금 보낸 내용을 그대로 다시 보여준다.
+   * 기존 값(initial)으로 되돌리지 않는 이유는, 수정 중에 지웠던 항목이
+   * 되살아나 사용자가 한 일이 없던 것처럼 보이기 때문이다.
+   */
+  const before = state?.values;
+  const pick = (name: string, fallback?: string | null) =>
+    before ? kept(before, name) ?? '' : fallback ?? undefined;
+  const pickAll = (name: string, fallback?: string[]) =>
+    before ? keptAll(before, name) ?? [] : fallback;
+
   return (
     <form key={formKey} action={formAction} className="space-y-5">
       <input type="hidden" name="category" value={initial?.category ?? category} />
@@ -93,7 +105,7 @@ export function ExerciseForm({
       <Field label={`운동 이름 — ${initial?.category ?? category}`}>
         <Input
           name="title"
-          defaultValue={initial?.title}
+          defaultValue={pick('title', initial?.title)}
           placeholder="트랩바 데드리프트"
           required
         />
@@ -155,7 +167,7 @@ export function ExerciseForm({
         <Textarea
           name="description"
           rows={4}
-          defaultValue={initial?.description}
+          defaultValue={pick('description', initial?.description)}
           placeholder="허리를 중립으로 유지하고 고관절을 접으며 내려갑니다."
           required
         />
@@ -168,7 +180,7 @@ export function ExerciseForm({
           label="목표 부위 · 필수"
           hint="여러 개 고를 수 있습니다."
           options={BODY_PARTS}
-          selected={initial?.bodyParts}
+          selected={pickAll('bodyParts', initial?.bodyParts)}
         />
 
         <RadioGroup
@@ -177,21 +189,21 @@ export function ExerciseForm({
           hint="부하가 높은 날 어떤 운동을 뺄지 정하는 기준이 됩니다."
           options={INTENSITY_LEVELS}
           required
-          selected={initial?.intensity}
+          selected={pick('intensity', initial?.intensity)}
         />
 
         <RadioGroup
           name="difficulty"
           label="난이도"
           options={DIFFICULTY_LEVELS}
-          selected={initial?.difficulty}
+          selected={pick('difficulty', initial?.difficulty)}
         />
 
         <CheckboxGroup
           name="equipment"
           label="필요 장비"
           options={EXERCISE_EQUIPMENT}
-          selected={initial?.equipment}
+          selected={pickAll('equipment', initial?.equipment)}
         />
       </div>
 

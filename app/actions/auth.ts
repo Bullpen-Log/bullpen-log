@@ -6,12 +6,22 @@ import { prisma } from '@/lib/prisma';
 import { createSession, deleteSession } from '@/lib/session';
 import { validateProfile } from '@/lib/profile';
 import { validateBaseline } from '@/lib/baseline';
+import { withInput, type FormValues } from '@/lib/form-values';
 
-export type AuthState = { error?: string } | undefined;
+export type AuthState = { error?: string; values?: FormValues } | undefined;
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
+/**
+ * 가입 실패로 끝나면 입력한 값을 함께 돌려준다.
+ * 이메일 하나 잘못 썼다고 문진까지 다시 채우게 할 수는 없다.
+ * (비밀번호는 돌려보내지 않는다 — lib/form-values.ts 참고)
+ */
 export async function signup(_prev: AuthState, formData: FormData): Promise<AuthState> {
+  return withInput(await trySignup(formData), formData);
+}
+
+async function trySignup(formData: FormData): Promise<AuthState> {
   const email = String(formData.get('email') ?? '').trim().toLowerCase();
   const nickname = String(formData.get('nickname') ?? '').trim();
   const password = String(formData.get('password') ?? '');
@@ -74,6 +84,10 @@ export async function signup(_prev: AuthState, formData: FormData): Promise<Auth
 }
 
 export async function login(_prev: AuthState, formData: FormData): Promise<AuthState> {
+  return withInput(await tryLogin(formData), formData);
+}
+
+async function tryLogin(formData: FormData): Promise<AuthState> {
   const email = String(formData.get('email') ?? '').trim().toLowerCase();
   const password = String(formData.get('password') ?? '');
 

@@ -4,6 +4,7 @@ import { useActionState } from 'react';
 import { useFormStatus } from 'react-dom';
 import { updateProfile, type ProfileState } from '@/app/actions/profile';
 import { Button, Field, FormError, Input } from '@/components/ui';
+import { kept } from '@/lib/form-values';
 import { MAX_HEIGHT_CM, MIN_HEIGHT_CM } from '@/lib/profile';
 import { TARGET_VELOCITY_MAX, TARGET_VELOCITY_MIN } from '@/lib/velocity';
 import { RadioGroup } from '@/components/choice-inputs';
@@ -47,6 +48,14 @@ export function ProfileForm({
     undefined
   );
 
+  /*
+   * 오류로 되돌아왔을 때 고치던 내용을 그대로 다시 보여준다.
+   * 저장 전 값으로 되돌아가면 방금 고친 것이 사라져버린다.
+   */
+  const before = state?.values;
+  const pick = (name: string, fallback: string | number | null) =>
+    before ? kept(before, name) ?? '' : fallback == null ? '' : String(fallback);
+
   return (
     <form action={formAction} className="space-y-5">
       <FormError>{state?.error}</FormError>
@@ -61,7 +70,7 @@ export function ProfileForm({
         <Input
           name="nickname"
           type="text"
-          defaultValue={nickname}
+          defaultValue={pick('nickname', nickname)}
           autoComplete="nickname"
           minLength={2}
           required
@@ -75,7 +84,7 @@ export function ProfileForm({
         <Input
           name="birthDate"
           type="date"
-          defaultValue={birthDate}
+          defaultValue={pick('birthDate', birthDate)}
           max={today}
           required
         />
@@ -89,7 +98,7 @@ export function ProfileForm({
           name="heightCm"
           type="number"
           inputMode="numeric"
-          defaultValue={heightCm ?? ''}
+          defaultValue={pick('heightCm', heightCm)}
           min={MIN_HEIGHT_CM}
           max={MAX_HEIGHT_CM}
           step={1}
@@ -105,7 +114,7 @@ export function ProfileForm({
           name="targetVelocity"
           type="number"
           inputMode="numeric"
-          defaultValue={targetVelocity ?? ''}
+          defaultValue={pick('targetVelocity', targetVelocity)}
           min={TARGET_VELOCITY_MIN}
           max={TARGET_VELOCITY_MAX}
           step={1}
@@ -126,19 +135,19 @@ export function ProfileForm({
           name="baselineFreq"
           label="던지는 횟수"
           options={BASELINE_FREQ_NAMES.map((name) => ({ name }))}
-          selected={baseline.baselineFreq}
+          selected={pick('baselineFreq', baseline.baselineFreq)}
         />
         <RadioGroup
           name="baselineVolume"
           label="한 번에 던지는 양"
           options={BASELINE_VOLUME_NAMES.map((name) => ({ name }))}
-          selected={baseline.baselineVolume}
+          selected={pick('baselineVolume', baseline.baselineVolume)}
         />
         <RadioGroup
           name="baselineIntensity"
           label="평소 강도"
           options={BASELINE_INTENSITY_NAMES.map((name) => ({ name }))}
-          selected={baseline.baselineIntensity}
+          selected={pick('baselineIntensity', baseline.baselineIntensity)}
         />
       </div>
 

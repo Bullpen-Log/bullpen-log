@@ -4,6 +4,7 @@ import { useActionState, useState } from 'react';
 import { useFormStatus } from 'react-dom';
 import { login, signup, type AuthState } from '@/app/actions/auth';
 import { Button, Field, FormError, Input } from '@/components/ui';
+import { kept } from '@/lib/form-values';
 import { MAX_HEIGHT_CM, MIN_HEIGHT_CM } from '@/lib/profile';
 import {
   BASELINE_FREQ_NAMES,
@@ -16,10 +17,13 @@ function ChipRow({
   label,
   name,
   options,
+  /** 가입에 실패해 되돌아왔을 때 다시 골라둘 값 */
+  selected,
 }: {
   label: string;
   name: string;
   options: readonly string[];
+  selected?: string;
 }) {
   return (
     <fieldset>
@@ -29,7 +33,14 @@ function ChipRow({
       <div className="flex flex-wrap gap-1.5">
         {options.map((option) => (
           <label key={option} className="inline-flex">
-            <input type="radio" name={name} value={option} required className="peer sr-only" />
+            <input
+              type="radio"
+              name={name}
+              value={option}
+              required
+              defaultChecked={selected === option}
+              className="peer sr-only"
+            />
             <span className="cursor-pointer select-none rounded-lg border border-line bg-surface-2 px-3 py-2 text-xs text-muted transition-colors hover:border-sky-soft hover:text-ink peer-checked:border-sky peer-checked:bg-sky/10 peer-checked:font-medium peer-checked:text-sky peer-focus-visible:ring-1 peer-focus-visible:ring-sky">
               {option}
             </span>
@@ -54,6 +65,13 @@ export function AuthForm({ today }: { today: string }) {
   const [mode, setMode] = useState<'login' | 'signup'>('login');
   const action = mode === 'login' ? login : signup;
   const [state, formAction] = useActionState<AuthState, FormData>(action, undefined);
+
+  /*
+   * 실패해서 되돌아왔을 때 채워뒀던 값을 그대로 되살린다.
+   * 이메일 하나 겹쳤다고 문진까지 다시 고르게 할 수는 없다.
+   * 비밀번호는 서버가 돌려주지 않으므로 다시 입력해야 한다.
+   */
+  const before = state?.values;
 
   return (
     <div className="w-full max-w-md">
@@ -96,6 +114,7 @@ export function AuthForm({ today }: { today: string }) {
             name="email"
             type="email"
             autoComplete="email"
+            defaultValue={kept(before, 'email')}
             placeholder="pitcher@example.com"
             required
           />
@@ -108,6 +127,7 @@ export function AuthForm({ today }: { today: string }) {
                 name="nickname"
                 type="text"
                 autoComplete="nickname"
+                defaultValue={kept(before, 'nickname')}
                 placeholder="불펜지기"
                 required
               />
@@ -116,7 +136,13 @@ export function AuthForm({ today }: { today: string }) {
             {/* 나이는 안전한 투구수 한도를 정하는 기준이라 가입할 때 받는다. */}
             <div className="grid gap-5 sm:grid-cols-2">
               <Field label="생년월일">
-                <Input name="birthDate" type="date" max={today} required />
+                <Input
+                  name="birthDate"
+                  type="date"
+                  defaultValue={kept(before, 'birthDate')}
+                  max={today}
+                  required
+                />
               </Field>
 
               <Field label="키 (cm)">
@@ -124,6 +150,7 @@ export function AuthForm({ today }: { today: string }) {
                   name="heightCm"
                   type="number"
                   inputMode="numeric"
+                  defaultValue={kept(before, 'heightCm')}
                   min={MIN_HEIGHT_CM}
                   max={MAX_HEIGHT_CM}
                   step={1}
@@ -145,9 +172,24 @@ export function AuthForm({ today }: { today: string }) {
                   부하 지수를 첫날부터 보여드리기 위한 3문항입니다.
                 </span>
               </p>
-              <ChipRow label="던지는 횟수" name="baselineFreq" options={BASELINE_FREQ_NAMES} />
-              <ChipRow label="한 번에 던지는 양" name="baselineVolume" options={BASELINE_VOLUME_NAMES} />
-              <ChipRow label="평소 강도" name="baselineIntensity" options={BASELINE_INTENSITY_NAMES} />
+              <ChipRow
+                label="던지는 횟수"
+                name="baselineFreq"
+                options={BASELINE_FREQ_NAMES}
+                selected={kept(before, 'baselineFreq')}
+              />
+              <ChipRow
+                label="한 번에 던지는 양"
+                name="baselineVolume"
+                options={BASELINE_VOLUME_NAMES}
+                selected={kept(before, 'baselineVolume')}
+              />
+              <ChipRow
+                label="평소 강도"
+                name="baselineIntensity"
+                options={BASELINE_INTENSITY_NAMES}
+                selected={kept(before, 'baselineIntensity')}
+              />
             </div>
           </>
         )}

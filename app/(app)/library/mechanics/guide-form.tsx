@@ -6,6 +6,7 @@ import { Film, RefreshCw } from 'lucide-react';
 import { createGuide, updateGuide, type ActionState } from '@/app/actions/content';
 import { Button, Field, FormError, Input, Textarea } from '@/components/ui';
 import { CheckboxGroup } from '@/components/choice-inputs';
+import { kept, keptAll } from '@/lib/form-values';
 import { VideoUpload, type UploadedVideo } from '@/components/video-upload';
 import { DRILL_EQUIPMENT, FOCUS_POINTS } from '@/lib/exercise-meta';
 
@@ -67,6 +68,17 @@ export function GuideForm({
     }
   }
 
+  /*
+   * 오류로 되돌아왔을 때 방금 보낸 내용을 그대로 다시 보여준다.
+   * 기존 값(initial)으로 되돌리지 않는 이유는, 수정 중에 지웠던 항목이
+   * 되살아나 사용자가 한 일이 없던 것처럼 보이기 때문이다.
+   */
+  const before = state?.values;
+  const pick = (name: string, fallback?: string | number | null) =>
+    before ? kept(before, name) ?? '' : fallback ?? undefined;
+  const pickAll = (name: string, fallback?: string[]) =>
+    before ? keptAll(before, name) ?? [] : fallback;
+
   return (
     <form key={formKey} action={formAction} className="space-y-5">
       <input type="hidden" name="category" value={initial?.category ?? category} />
@@ -82,7 +94,7 @@ export function GuideForm({
       <Field label={`드릴 이름 — ${initial?.category ?? category}`}>
         <Input
           name="title"
-          defaultValue={initial?.title}
+          defaultValue={pick('title', initial?.title)}
           placeholder="타월 드릴"
           required
         />
@@ -143,7 +155,7 @@ export function GuideForm({
         <Input
           name="sortOrder"
           type="number"
-          defaultValue={initial?.sortOrder}
+          defaultValue={pick('sortOrder', initial?.sortOrder)}
           placeholder="1"
         />
       </Field>
@@ -152,7 +164,7 @@ export function GuideForm({
         <Textarea
           name="description"
           rows={4}
-          defaultValue={initial?.description}
+          defaultValue={pick('description', initial?.description)}
           placeholder="앞발이 착지하는 순간까지 상체를 닫아두고, 골반이 먼저 열리도록 합니다."
           required
         />
@@ -165,14 +177,14 @@ export function GuideForm({
           label="교정 포인트 · 필수"
           hint="이 드릴이 무엇을 고치는 드릴인지 고르세요."
           options={FOCUS_POINTS}
-          selected={initial?.focusPoints}
+          selected={pickAll('focusPoints', initial?.focusPoints)}
         />
 
         <CheckboxGroup
           name="equipment"
           label="필요 장비"
           options={DRILL_EQUIPMENT}
-          selected={initial?.equipment}
+          selected={pickAll('equipment', initial?.equipment)}
         />
       </div>
 

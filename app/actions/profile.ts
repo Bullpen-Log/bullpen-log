@@ -6,14 +6,24 @@ import { getCurrentUser } from '@/lib/dal';
 import { validateProfile } from '@/lib/profile';
 import { validateBaseline } from '@/lib/baseline';
 import { validateTargetVelocity } from '@/lib/velocity';
+import { withInput, type FormValues } from '@/lib/form-values';
 
-export type ProfileState = { error?: string; success?: string } | undefined;
+export type ProfileState = {
+  error?: string;
+  success?: string;
+  values?: FormValues;
+} | undefined;
 
 /** 내 신체 정보(생년월일·키)와 닉네임을 수정한다. */
 export async function updateProfile(
   _prev: ProfileState,
   formData: FormData
 ): Promise<ProfileState> {
+  // 오류로 끝나면 고치던 내용을 돌려준다. 저장 전 값으로 되돌아가면 안 된다.
+  return withInput(await tryUpdateProfile(formData), formData);
+}
+
+async function tryUpdateProfile(formData: FormData): Promise<ProfileState> {
   const user = await getCurrentUser();
   if (!user) return { error: '로그인이 필요합니다.' };
 

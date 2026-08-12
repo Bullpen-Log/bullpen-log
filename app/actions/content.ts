@@ -18,8 +18,13 @@ import {
   pickMany,
   pickOne,
 } from '@/lib/exercise-meta';
+import { withInput, type FormValues } from '@/lib/form-values';
 
-export type ActionState = { error?: string; success?: string } | undefined;
+export type ActionState = {
+  error?: string;
+  success?: string;
+  values?: FormValues;
+} | undefined;
 
 async function assertAdmin() {
   const user = await getCurrentUser();
@@ -31,10 +36,18 @@ async function assertAdmin() {
 
 /* ---------------------------------- 트레이닝 --------------------------------- */
 
+/**
+ * 오류로 끝나면 입력한 값을 함께 돌려준다.
+ * 부위 하나 안 골랐다고 설명까지 다시 쓰게 할 수는 없다.
+ */
 export async function createExercise(
   _prev: ActionState,
   formData: FormData
 ): Promise<ActionState> {
+  return withInput(await tryCreateExercise(formData), formData);
+}
+
+async function tryCreateExercise(formData: FormData): Promise<ActionState> {
   if (!(await assertAdmin())) return { error: '관리자만 등록할 수 있습니다.' };
 
   const title = String(formData.get('title') ?? '').trim();
@@ -113,6 +126,10 @@ export async function updateExercise(
   _prev: ActionState,
   formData: FormData
 ): Promise<ActionState> {
+  return withInput(await tryUpdateExercise(formData), formData);
+}
+
+async function tryUpdateExercise(formData: FormData): Promise<ActionState> {
   if (!(await assertAdmin())) return { error: '관리자만 수정할 수 있습니다.' };
 
   const id = String(formData.get('id') ?? '');
@@ -195,6 +212,10 @@ export async function createGuide(
   _prev: ActionState,
   formData: FormData
 ): Promise<ActionState> {
+  return withInput(await tryCreateGuide(formData), formData);
+}
+
+async function tryCreateGuide(formData: FormData): Promise<ActionState> {
   if (!(await assertAdmin())) return { error: '관리자만 등록할 수 있습니다.' };
 
   const title = String(formData.get('title') ?? '').trim();
@@ -265,6 +286,10 @@ export async function updateGuide(
   _prev: ActionState,
   formData: FormData
 ): Promise<ActionState> {
+  return withInput(await tryUpdateGuide(formData), formData);
+}
+
+async function tryUpdateGuide(formData: FormData): Promise<ActionState> {
   if (!(await assertAdmin())) return { error: '관리자만 수정할 수 있습니다.' };
 
   const id = String(formData.get('id') ?? '');
