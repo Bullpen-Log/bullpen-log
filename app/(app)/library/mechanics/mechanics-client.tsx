@@ -266,7 +266,6 @@ export function MechanicsClient({
               <CategorySection
                 key={category.name}
                 name={category.name}
-                desc={category.desc}
                 count={items.length}
                 isAdmin={isAdmin}
                 form={<GuideForm category={category.name} />}

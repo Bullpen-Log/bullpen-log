@@ -251,7 +251,6 @@ export function TrainingClient({
               <CategorySection
                 key={category.name}
                 name={category.name}
-                desc={category.desc}
                 count={items.length}
                 isAdmin={isAdmin}
                 form={<ExerciseForm category={category.name} />}

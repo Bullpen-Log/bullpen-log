@@ -10,14 +10,12 @@ import { ChevronDown, Plus, X } from 'lucide-react';
  */
 export function CategorySection({
   name,
-  desc,
   count,
   isAdmin,
   form,
   children,
 }: {
   name: string;
-  desc: string;
   count: number;
   isAdmin: boolean;
   form: ReactNode;
@@ -37,12 +35,9 @@ export function CategorySection({
           aria-controls={panelId}
           className="flex w-full items-center gap-4 p-5 text-left transition-colors hover:bg-surface-2 sm:p-6"
         >
-          <span className="min-w-0 flex-1">
-            <span className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-              <span className="text-lg font-bold text-ink">{name}</span>
-              <span className="text-xs text-muted">{count}개</span>
-            </span>
-            <span className="mt-1 block text-sm text-muted">{desc}</span>
+          <span className="flex min-w-0 flex-1 flex-wrap items-baseline gap-x-3 gap-y-1">
+            <span className="text-lg font-bold text-ink">{name}</span>
+            <span className="text-xs text-muted">{count}개</span>
           </span>
 
           <ChevronDown
