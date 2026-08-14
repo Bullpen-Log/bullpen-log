@@ -1,6 +1,6 @@
 'use client';
 
-import { Trash2, VideoOff } from 'lucide-react';
+import { Pencil, Trash2, VideoOff } from 'lucide-react';
 import { Badge, Card } from '@/components/ui';
 import { PitchVideoPlayer } from '@/components/pitch-video-player';
 import { PoseAnalysis } from '@/components/pose-analysis';
@@ -22,6 +22,7 @@ export function DayRecord({
   urlsPending,
   savedFor,
   previousFor,
+  onEdit,
   onDelete,
 }: {
   log: Log;
@@ -32,6 +33,7 @@ export function DayRecord({
   urlsPending: boolean;
   savedFor: (videoPath: string) => SavedAnalysisView | null;
   previousFor: (date: string, videoPath: string) => SavedAnalysisView | null;
+  onEdit: (log: Log) => void;
   onDelete: (id: string) => void;
 }) {
   return (
@@ -54,14 +56,24 @@ export function DayRecord({
             )}
           </div>
         </div>
-        <button
-          type="button"
-          onClick={() => onDelete(log.id)}
-          aria-label="기록 삭제"
-          className="rounded-lg p-2 text-muted transition-colors hover:bg-danger-bg hover:text-danger"
-        >
-          <Trash2 className="h-4 w-4" />
-        </button>
+        <div className="flex shrink-0 items-center gap-1">
+          <button
+            type="button"
+            onClick={() => onEdit(log)}
+            aria-label="기록 수정"
+            className="rounded-lg p-2 text-muted transition-colors hover:bg-surface-2 hover:text-sky"
+          >
+            <Pencil className="h-4 w-4" />
+          </button>
+          <button
+            type="button"
+            onClick={() => onDelete(log.id)}
+            aria-label="기록 삭제"
+            className="rounded-lg p-2 text-muted transition-colors hover:bg-danger-bg hover:text-danger"
+          >
+            <Trash2 className="h-4 w-4" />
+          </button>
+        </div>
       </div>
 
       {/* 영상과 폼 분석 */}

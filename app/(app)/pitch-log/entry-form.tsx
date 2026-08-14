@@ -7,7 +7,7 @@ import { FilmingGuide } from '@/components/filming-guide';
 import { DEFAULT_SESSION_TYPE, SESSION_TYPES } from '@/lib/session-type';
 
 /**
- * 하루치 투구를 남기는 입력 폼.
+ * 하루치 투구를 남기는 입력 폼. 새로 남길 때와 고칠 때 모두 쓴다.
  *
  * 일지 화면에서 접었다 펼 수 있게 따로 뒀다. 지난 기록을 돌아볼 때는
  * 폼이 자리만 차지하고, 오늘 던진 걸 남길 때는 바로 열려 있어야 한다.
@@ -22,16 +22,45 @@ const EMPTY_FORM = {
   memo: '',
 };
 
+/** 고칠 기록. 주어지면 수정 모드가 된다. */
+export type EntryDraft = {
+  id: string;
+  sessionType: string;
+  pitchCount: number;
+  intensity: number;
+  maxVelocity: number;
+  avgVelocity: number | null;
+  memo: string | null;
+};
+
 export function EntryForm({
   date,
+  initial,
   onSaved,
   onError,
+  onCancel,
 }: {
   date: string;
+  /** 주어지면 등록이 아니라 수정 폼이 된다. */
+  initial?: EntryDraft;
   onSaved: () => Promise<void> | void;
   onError: (message?: string) => void;
+  onCancel?: () => void;
 }) {
-  const [form, setForm] = useState(EMPTY_FORM);
+  const editing = Boolean(initial);
+
+  const [form, setForm] = useState(() =>
+    initial
+      ? {
+          sessionType: initial.sessionType,
+          pitchCount: String(initial.pitchCount),
+          intensity: String(initial.intensity),
+          maxVelocity: String(initial.maxVelocity),
+          avgVelocity: initial.avgVelocity == null ? '' : String(initial.avgVelocity),
+          memo: initial.memo ?? '',
+        }
+      : EMPTY_FORM
+  );
   const [videos, setVideos] = useState<UploadedVideo[]>([]);
   const [saving, setSaving] = useState(false);
 
@@ -42,31 +71,34 @@ export function EntryForm({
 
     try {
       const res = await fetch('/api/pitch-log', {
-        method: 'POST',
+        method: editing ? 'PATCH' : 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          date,
+          ...(editing ? { id: initial!.id } : { date, videoPaths: videos.map((v) => v.path) }),
           sessionType: form.sessionType,
           pitchCount: form.pitchCount,
           intensity: form.intensity,
           maxVelocity: form.maxVelocity,
           avgVelocity: form.avgVelocity,
           memo: form.memo,
-          videoPaths: videos.map((v) => v.path),
         }),
       });
 
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
-        throw new Error(data.error ?? '저장에 실패했습니다.');
+        throw new Error(data.error ?? (editing ? '수정에 실패했습니다.' : '저장에 실패했습니다.'));
       }
 
-      setForm(EMPTY_FORM);
-      videos.forEach((v) => URL.revokeObjectURL(v.previewUrl));
-      setVideos([]);
+      // 수정은 폼을 비우지 않는다. 저장하면 폼 자체가 닫히기 때문이다.
+      if (!editing) {
+        setForm(EMPTY_FORM);
+        videos.forEach((v) => URL.revokeObjectURL(v.previewUrl));
+        setVideos([]);
+      }
       await onSaved();
     } catch (err) {
-      onError(err instanceof Error ? err.message : '저장에 실패했습니다.');
+      const fallback = editing ? '수정에 실패했습니다.' : '저장에 실패했습니다.';
+      onError(err instanceof Error ? err.message : fallback);
     } finally {
       setSaving(false);
     }
@@ -147,16 +179,22 @@ export function EntryForm({
         </Field>
       </div>
 
-      <Field
-        label="투구 영상"
-        hint="폰이나 컴퓨터에 있는 영상을 바로 올릴 수 있습니다."
-      >
-        <div className="space-y-3">
-          {/* 올리기 전에 촬영 조건을 한 번 보고 가도록 바로 위에 둔다. */}
-          <FilmingGuide />
-          <VideoUpload videos={videos} onChange={setVideos} max={2} />
-        </div>
-      </Field>
+      {/*
+        영상은 새로 남길 때만 올린다. 고칠 때 영상을 빼면 그 영상에 붙은
+        폼 분석이 주인 없이 남으므로, 영상을 바꿔야 하면 지우고 다시 남긴다.
+      */}
+      {!editing && (
+        <Field
+          label="투구 영상"
+          hint="폰이나 컴퓨터에 있는 영상을 바로 올릴 수 있습니다."
+        >
+          <div className="space-y-3">
+            {/* 올리기 전에 촬영 조건을 한 번 보고 가도록 바로 위에 둔다. */}
+            <FilmingGuide />
+            <VideoUpload videos={videos} onChange={setVideos} max={2} />
+          </div>
+        </Field>
+      )}
 
       <Field label="특이사항 · 느낀점">
         <Textarea
@@ -167,9 +205,24 @@ export function EntryForm({
         />
       </Field>
 
-      <Button type="submit" disabled={saving} className="w-full">
-        {saving ? '저장 중…' : `${date} 기록 저장`}
-      </Button>
+      <div className="flex flex-wrap items-center gap-3">
+        <Button type="submit" disabled={saving} className="w-full sm:w-auto">
+          {saving
+            ? '저장 중…'
+            : editing
+              ? '수정 저장'
+              : `${date} 기록 저장`}
+        </Button>
+        {editing && onCancel && (
+          <button
+            type="button"
+            onClick={onCancel}
+            className="text-sm text-muted transition-colors hover:text-ink"
+          >
+            취소
+          </button>
+        )}
+      </div>
     </form>
   );
 }

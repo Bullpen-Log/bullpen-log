@@ -66,9 +66,13 @@ export function PitchLogClient({
    */
   const [formOpen, setFormOpen] = useState<boolean | null>(null);
 
+  /** 지금 고치고 있는 기록의 id. 그 카드만 입력 폼으로 바뀐다. */
+  const [editingId, setEditingId] = useState<string | null>(null);
+
   const selectDate = useCallback((date: string) => {
     setSelectedDate(date);
     setFormOpen(null);
+    setEditingId(null);
   }, []);
 
   const refresh = useCallback(async () => {
@@ -89,10 +93,19 @@ export function PitchLogClient({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id }),
       });
-      if (res.ok) refresh();
+      if (res.ok) {
+        if (editingId === id) setEditingId(null);
+        refresh();
+      }
     },
-    [refresh]
+    [refresh, editingId]
   );
+
+  /** 수정 저장이 끝나면 목록을 새로 받고 폼을 닫는다. */
+  const handleEdited = useCallback(async () => {
+    await refresh();
+    setEditingId(null);
+  }, [refresh]);
 
   const summaries = useMemo(() => {
     return logs.reduce<Record<string, DaySummary>>((acc, log) => {
@@ -311,19 +324,42 @@ export function PitchLogClient({
               />
             )}
 
-            {selectedLogs.map((log) => (
-              <DayRecord
-                key={log.id}
-                log={log}
-                date={selectedDate}
-                heightCm={heightCm}
-                playbackUrls={playbackUrls}
-                urlsPending={urlsLoading || !urlsReady}
-                savedFor={savedFor}
-                previousFor={previousFor}
-                onDelete={handleDelete}
-              />
-            ))}
+            {selectedLogs.map((log) =>
+              editingId === log.id ? (
+                // 고치는 동안에는 그 카드 자리에 입력 폼을 띄운다.
+                <Card key={log.id} className="space-y-5">
+                  <div>
+                    <h3 className="font-bold text-ink">기록 수정</h3>
+                    <p className="mt-1 text-sm text-muted">
+                      {selectedDate} · 영상은 그대로 유지됩니다
+                    </p>
+                  </div>
+                  <EntryForm
+                    date={selectedDate}
+                    initial={log}
+                    onSaved={handleEdited}
+                    onError={setError}
+                    onCancel={() => setEditingId(null)}
+                  />
+                </Card>
+              ) : (
+                <DayRecord
+                  key={log.id}
+                  log={log}
+                  date={selectedDate}
+                  heightCm={heightCm}
+                  playbackUrls={playbackUrls}
+                  urlsPending={urlsLoading || !urlsReady}
+                  savedFor={savedFor}
+                  previousFor={previousFor}
+                  onEdit={(l) => {
+                    setEditingId(l.id);
+                    setError(undefined);
+                  }}
+                  onDelete={handleDelete}
+                />
+              )
+            )}
           </div>
         </div>
       )}
