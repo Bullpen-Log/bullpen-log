@@ -1,5 +1,5 @@
 import { CHECKIN_PARTS, type CheckinPartKey } from '@/lib/checkin';
-import { INTENSITY_CAP, intensityLevel } from '@/lib/exercise-meta';
+import { INTENSITY_CAP, intensityLevel, type BodyPart } from '@/lib/exercise-meta';
 import { YOUTH_AGE_THRESHOLD } from '@/lib/report/plan';
 import type { ReportFacts } from '@/lib/report/facts';
 import type { PitchPlan } from '@/lib/report/plan';
@@ -51,18 +51,19 @@ const LOW_CONDITION_THRESHOLD = 4;
  * 단계(높음 이상)뿐이라, 가벼운 로우나 페이스풀 같은 어깨 보강 운동은
  * 그대로 남는다.
  *
- * 여기 적는 이름은 ExerciseVideo.bodyParts에 실제로 쓰는 말과 같아야 한다.
- * (현재 라이브러리: 고관절, 햄스트링·둔근, 코어, 등, 가슴, 어깨, 견갑)
- * 아직 라이브러리에 없는 부위도 미리 적어둔다 — 운동이 추가되면 바로 걸린다.
+ * 여기 적는 이름은 BODY_PARTS 에 있는 것이어야 한다. 타입으로 묶어두었으므로
+ * 목록에 없는 이름을 적으면 빌드가 실패한다. 예전에 '허리', '하체' 처럼
+ * 목록에 없는 이름이 섞여 있었는데, 어떤 운동과도 매칭되지 않아 그 줄이
+ * 아무 일도 하지 않았다. 눈으로는 규칙이 있어 보여 알아채기 어렵다.
  */
-const RELATED_PARTS: Record<CheckinPartKey, string[]> = {
+const RELATED_PARTS: Record<CheckinPartKey, BodyPart[]> = {
   shoulder: ['어깨', '견갑', '가슴', '등'],
   // 이두·삼두는 모두 팔꿈치를 지나는 근육이라 팔꿈치 쪽에 함께 넣는다.
   elbow: ['팔꿈치', '손목·전완', '이두', '삼두'],
   wrist: ['손목·전완', '팔꿈치'],
   // 허리가 아플 때 코어 고강도(데드리프트류)와 등·고관절 동작이 함께 걸린다.
-  lowerBack: ['코어', '등', '고관절', '허리'],
-  lowerBody: ['하체', '고관절', '햄스트링·둔근', '전신'],
+  lowerBack: ['코어', '등', '고관절'],
+  lowerBody: ['고관절', '햄스트링·둔근', '전신'],
 };
 
 export type ExclusionReason = {
@@ -161,7 +162,11 @@ export function selectCandidates({
    */
   for (const { key, label } of CHECKIN_PARTS) {
     if (today?.[key] !== '뻐근') continue;
-    const parts = RELATED_PARTS[key];
+    /*
+     * 적을 때는 BodyPart 로 검사받고(오타·없는 부위를 막는다),
+     * 비교할 때는 문자열로 본다 — DB에서 온 bodyParts 는 string[] 이다.
+     */
+    const parts: readonly string[] = RELATED_PARTS[key];
     basis.push(`${label} 뻐근함 → ${parts.join('·')} 부위 고강도 제외`);
     drop(
       `${label} 뻐근함`,
