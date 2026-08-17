@@ -192,3 +192,4 @@ Set-ExecutionPolicy -Scope CurrentUser RemoteSigned
   헷갈리면 `node_modules/next/dist/docs/`를 본다.
 - 맥에서 iCloud 동기화 때문에 `.next` 안에 `파일 2.js` 같은 중복이 생겨 타입 검사가 깨질 때가 있다.
   그럴 땐 `find .next -name "* 2.*" -delete`.
+윈도우 데스크탑에서도 작업합니다.
