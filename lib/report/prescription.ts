@@ -150,7 +150,11 @@ export function selectCandidates({
    * 무게를 다루는 운동은 빼고 회복·가동성 수준부터 다시 올린다.
    */
   if (plan.recovering) {
-    basis.push('최근 통증 기록 → 회복 수준 운동까지만');
+    basis.push(
+      plan.needsPainCheck
+        ? '메모의 통증 표현 확인 전 → 회복 수준 운동까지만'
+        : '최근 통증 기록 → 회복 수준 운동까지만'
+    );
     capTo('통증 회복 중', INTENSITY_CAP.RECOVERY);
   }
 

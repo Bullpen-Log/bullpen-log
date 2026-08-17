@@ -105,6 +105,11 @@ export type PitchPlan = {
    * 운동 처방도 이 값을 보고 회복 수준까지만 남긴다.
    */
   recovering: boolean;
+  /**
+   * 메모에 통증으로 보이는 표현이 있는데 오늘 체크인이 없어, 실제로 아픈지
+   * 확인이 필요한 상태. 확인될 때까지 투구는 쉬는 쪽으로 둔다.
+   */
+  needsPainCheck: boolean;
   days: DayPlan[];
   /** 향후 3일 권장 총 투구수 */
   threeDayTotal: number;
@@ -145,6 +150,7 @@ export function buildPitchPlan(facts: ReportFacts): PitchPlan {
       days: [],
       threeDayTotal: 0,
       recovering: false,
+      needsPainCheck: false,
       basis: ['오늘 체크인 통증 → 계획 중단'],
       youthNote,
     };
@@ -159,27 +165,40 @@ export function buildPitchPlan(facts: ReportFacts): PitchPlan {
       days: [],
       threeDayTotal: 0,
       recovering: false,
+      needsPainCheck: false,
       basis: ['최근 통증 기록 + 오늘 체크인 없음 → 계획 중단'],
       youthNote,
     };
   }
 
-  // 오늘은 괜찮다고 했지만 최근에 통증이 있었던 경우 — 낮춘 수준으로 복귀한다.
-  const recovering = condition.painRecently;
+  /*
+   * 메모의 통증 표현은 '확정'이 아니라 '추정'이다.
+   *
+   * "어제 결렸는데 오늘은 괜찮다"처럼 다 나은 이야기도 걸리고, 찾는 단어가
+   * 넓어서(결림·저림·아프…) 잘못 잡히는 일이 잦다. 예전에는 이것만으로 계획을
+   * 통째로 멈췄고, 메모를 고치지 않으면 풀리지 않았다.
+   *
+   * 그래서 오늘 체크인이 있으면 그쪽을 믿고 메모는 넘어간다. 체크인이 통증을
+   * 받는 정식 창구이고, 오늘 상태가 지난 메모보다 최신이다.
+   *
+   * 체크인이 없을 때만 확인을 요청한다. 이때도 잠그지 않되, 확인되기 전까지
+   * 투구는 쉬고 운동은 회복 수준까지만 남긴다. 아플 수도 있는 팔로 던지는
+   * 것이 진짜 위험이고, 가벼운 가동성 운동은 그렇지 않다.
+   */
+  const needsPainCheck =
+    condition.painWordsInMemo.length > 0 && condition.today == null;
 
-  // 메모에 통증으로 보이는 표현이 있어도 멈춘다.
-  // 잘못 잡았을 수 있으므로 체크인으로 정정하는 길을 함께 안내한다.
-  if (condition.painWordsInMemo.length > 0) {
-    return {
-      halted: true,
-      haltReason: `최근 메모에 통증으로 보이는 표현(${condition.painWordsInMemo.join(', ')})이 있어 계획을 내지 않았습니다. 실제로 통증이 있다면 던지지 말고 전문의와 상담하세요. 통증이 아니라면 오늘 체크인에서 몸 상태를 정확히 남겨주시면 다음 리포트부터 반영됩니다.`,
-      days: [],
-      threeDayTotal: 0,
-      recovering: false,
-      basis: ['메모의 통증 표현 → 계획 중단'],
-      youthNote,
-    };
+  if (needsPainCheck) {
+    basis.push(
+      `메모의 통증 표현(${condition.painWordsInMemo.join(', ')}) 확인 전 → 투구는 휴식`
+    );
   }
+
+  /*
+   * 오늘은 괜찮다고 했지만 최근에 통증이 있었던 경우, 또는 메모 확인을
+   * 기다리는 경우 — 어느 쪽이든 낮춘 수준에서 다시 시작한다.
+   */
+  const recovering = condition.painRecently || needsPainCheck;
 
   // 2) 마지막 등판량에 따라 남은 휴식일을 센다.
   const lastOuting = patterns.lastOutingPitches ?? 0;
@@ -205,14 +224,19 @@ export function buildPitchPlan(facts: ReportFacts): PitchPlan {
    * 회복 중이면 부하 구간이 좋게 나와도 더 풀어주지 않는다.
    * 두 기준 중 낮은 쪽을 쓴다 — 안전 쪽에서 틀리는 편이 맞다.
    */
+  // 낮추는 까닭이 체크인 기록인지 메모 추정인지 밝혀야 안내가 사실과 맞는다.
+  const recoveryLabel = needsPainCheck
+    ? '메모의 통증 표현을 확인하기 전이라 절반 수준으로 낮춤'
+    : RECOVERY_ADJUSTMENT.label;
+
   const adj = recovering
     ? {
         volume: Math.min(zoneAdj.volume, RECOVERY_ADJUSTMENT.volume),
         maxIntensity: Math.min(zoneAdj.maxIntensity, RECOVERY_ADJUSTMENT.maxIntensity),
-        label: RECOVERY_ADJUSTMENT.label,
+        label: recoveryLabel,
       }
     : zoneAdj;
-  if (recovering) basis.push(RECOVERY_ADJUSTMENT.label);
+  if (recovering) basis.push(recoveryLabel);
 
   // 4) 기준 투구수 — 평소 던지던 양이 없으면 상한의 절반에서 시작한다.
   const baseline = patterns.baselinePitches ?? Math.round(cap * 0.5);
@@ -240,6 +264,18 @@ export function buildPitchPlan(facts: ReportFacts): PitchPlan {
 
   const days: DayPlan[] = DAY_LABELS.map((label, i) => {
     const dateKey = shiftDateKey(facts.asOf, i);
+
+    // 통증인지 아닌지 확인되기 전에는 던지는 계획을 내지 않는다.
+    if (needsPainCheck) {
+      return {
+        dateKey,
+        label,
+        throwing: false,
+        maxPitches: null,
+        maxIntensity: null,
+        reason: '메모의 통증 표현 확인 필요',
+      };
+    }
 
     // 남은 휴식일 안에 드는 날은 무조건 쉰다.
     if (i < remainingRest) {
@@ -279,6 +315,7 @@ export function buildPitchPlan(facts: ReportFacts): PitchPlan {
     halted: false,
     haltReason: null,
     recovering,
+    needsPainCheck,
     days,
     threeDayTotal: days.reduce((sum, d) => sum + (d.maxPitches ?? 0), 0),
     basis,

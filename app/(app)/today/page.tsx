@@ -117,7 +117,33 @@ export default async function TodayPage() {
         최근 통증이 있었지만 오늘은 괜찮다고 한 경우.
         운동이 왜 가벼운 것만 나오는지 모르면 고장으로 보인다.
       */}
-      {plan.recovering && !picked.halted && (
+      {plan.needsPainCheck && !picked.halted && (
+        <Card className="space-y-2 border-warn-line bg-warn-bg py-4">
+          <p className="text-sm font-bold text-warn">지금 통증이 있으신가요?</p>
+          <p className="text-sm leading-relaxed text-warn">
+            최근 투구 일지 메모에{' '}
+            <strong>{facts.condition.painWordsInMemo.join(', ')}</strong> 같은 표현이
+            있었습니다. 실제로 통증이 있는지 알 수 없어, 확인될 때까지 투구는 휴식으로
+            두고 운동은 회복·가동성 수준만 골랐습니다.
+          </p>
+          <p className="text-sm leading-relaxed text-warn">
+            통증이 있다면 던지지 말고 전문의와 상담하세요. 통증이 아니라면 오늘 체크인을
+            남겨주시면 바로 평소 계획으로 돌아갑니다.
+          </p>
+          <Link
+            href="/dashboard#checkin"
+            className="inline-block rounded-lg border border-warn-line px-3 py-1.5 text-xs font-semibold text-warn transition-colors hover:bg-warn-line/20"
+          >
+            오늘 체크인하기
+          </Link>
+        </Card>
+      )}
+
+      {/*
+        최근 통증이 있었지만 오늘은 괜찮다고 한 경우.
+        운동이 왜 가벼운 것만 나오는지 모르면 고장으로 보인다.
+      */}
+      {plan.recovering && !plan.needsPainCheck && !picked.halted && (
         <Card className="space-y-1 border-warn-line bg-warn-bg py-4">
           <p className="text-sm font-bold text-warn">회복 수준으로 낮춰 배정했습니다</p>
           <p className="text-sm leading-relaxed text-warn">
@@ -129,9 +155,9 @@ export default async function TodayPage() {
 
       {/*
         체크인을 안 한 날은 몸 상태를 못 본 채 고른 것이므로 그대로 알린다.
-        통증으로 처방이 멈춘 날에는 아래에 따로 안내가 나가므로 겹치지 않게 뺀다.
+        위의 두 안내(통증 확인·처방 중단)가 이미 체크인을 청하고 있으면 겹치지 않게 뺀다.
       */}
-      {!hasCheckinToday && !picked.halted && (
+      {!hasCheckinToday && !plan.needsPainCheck && !picked.halted && (
         <Card className="flex flex-wrap items-center gap-x-3 gap-y-2 border-warn-line bg-warn-bg py-4">
           <p className="text-sm leading-relaxed text-warn">
             오늘 체크인을 하지 않으셔서 <strong>몸 상태는 반영되지 않았습니다.</strong>{' '}
