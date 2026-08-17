@@ -1,7 +1,7 @@
 'use client';
 
 import { ChevronLeft, ChevronRight } from 'lucide-react';
-import { toDateKey } from '@/lib/pitch-stats';
+import { dateKeyOf, toDateKey } from '@/lib/pitch-stats';
 
 const WEEKDAYS = ['일', '월', '화', '수', '목', '금', '토'];
 
@@ -84,7 +84,7 @@ export function PitchCalendar({
         {cells.map((day, i) => {
           if (day === null) return <div key={`blank-${i}`} />;
 
-          const key = toDateKey(new Date(year, monthIndex, day));
+          const key = dateKeyOf(year, monthIndex, day);
           const summary = summaries[key];
           const marked = Boolean(summary);
           const isSelected = key === selected;

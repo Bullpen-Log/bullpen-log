@@ -9,17 +9,51 @@ export type PitchLogLike = {
   avgVelocity: number | null;
 };
 
-/** 로컬 시간대 기준 YYYY-MM-DD */
+/**
+ * 이 서비스가 날짜를 세는 기준 시간대.
+ *
+ * 예전에는 서버와 브라우저가 각자 자기 시간대로 '오늘'을 정했다.
+ * 배포된 서버는 UTC로 도는데 선수는 한국에 있어서, 한국 시간 0시부터
+ * 9시 사이에는 두 쪽이 서로 다른 날을 오늘이라고 불렀다. 그 시간에
+ * 체크인을 하면 방금 남긴 기록을 오늘의 운동이 못 찾는다.
+ *
+ * 기준을 한 곳에 못박아 어디서 계산하든 같은 날짜가 나오게 한다.
+ * 해외에 있어도 한국 날짜를 따른다 — 팀·경기 일정이 한국 기준이라
+ * 그쪽이 헷갈리지 않는다.
+ */
+export const SERVICE_TIME_ZONE = 'Asia/Seoul';
+
+const dateKeyParts = new Intl.DateTimeFormat('en-US', {
+  timeZone: SERVICE_TIME_ZONE,
+  year: 'numeric',
+  month: '2-digit',
+  day: '2-digit',
+});
+
+/** 한국 시간 기준 YYYY-MM-DD */
 export function toDateKey(date: Date) {
-  const y = date.getFullYear();
-  const m = String(date.getMonth() + 1).padStart(2, '0');
-  const d = String(date.getDate()).padStart(2, '0');
-  return `${y}-${m}-${d}`;
+  const parts = dateKeyParts.formatToParts(date);
+  const get = (type: string) => parts.find((p) => p.type === type)?.value ?? '';
+  return `${get('year')}-${get('month')}-${get('day')}`;
+}
+
+const pad = (n: number) => String(n).padStart(2, '0');
+
+/**
+ * 연·월·일을 이미 아는 곳(달력 등)에서 쓰는 키 만들기.
+ *
+ * Date를 만들었다가 되돌리면 만드는 쪽의 시간대를 타므로, UTC로만 계산해
+ * 시간대와 무관하게 같은 값이 나오게 한다. 월 넘김(12월 32일 → 1월 1일)은
+ * Date.UTC가 알아서 처리한다.
+ */
+export function dateKeyOf(year: number, monthIndex: number, day: number) {
+  const d = new Date(Date.UTC(year, monthIndex, day));
+  return `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())}`;
 }
 
 export function shiftDateKey(dateKey: string, offset: number) {
   const [y, m, d] = dateKey.split('-').map(Number);
-  return toDateKey(new Date(y, m - 1, d + offset));
+  return dateKeyOf(y, m - 1, d + offset);
 }
 
 export function formatShortDate(dateKey: string) {

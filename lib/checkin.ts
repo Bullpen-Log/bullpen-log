@@ -6,6 +6,8 @@
  * 여기 값을 바꿀 때는 통증 판정 로직(hasPain)도 함께 봐야 한다.
  */
 
+import { toDateKey } from '@/lib/pitch-stats';
+
 export const BODY_FEELINGS = ['정상', '뻐근', '통증'] as const;
 export const SLEEP_LEVELS = ['충분', '보통', '부족'] as const;
 
@@ -143,8 +145,11 @@ export function validateCheckin(
 
 /**
  * 체크인 날짜를 검사한다. YYYY-MM-DD 형식이어야 하고,
- * 시간대 차이를 감안해 서버 기준 어제~내일까지만 허용한다.
+ * 한국 시간 기준 어제~내일까지만 허용한다.
  * (기록을 과거로 소급하거나 미래에 미리 쓰는 것을 막는다.)
+ *
+ * 서버가 UTC로 돌아도 기준은 한국 날짜다. 예전에는 서버 UTC 날짜로 쟀는데,
+ * 한국 시간 새벽에 체크인하면 '내일'로 판정돼 거절되는 일이 있었다.
  */
 export function validateCheckinDate(
   dateKey: string,
@@ -155,7 +160,8 @@ export function validateCheckinDate(
   const candidate = Date.UTC(y, m - 1, d);
   if (Number.isNaN(candidate)) return false;
 
-  const today = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
+  const [ty, tm, td] = toDateKey(now).split('-').map(Number);
+  const today = Date.UTC(ty, tm - 1, td);
   const diffDays = Math.abs(candidate - today) / 86_400_000;
   return diffDays <= 1;
 }
