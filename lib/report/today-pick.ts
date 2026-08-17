@@ -1,3 +1,5 @@
+import { INTENSITY_CAP, intensityLevel } from '@/lib/exercise-meta';
+
 /**
  * 안전 필터를 통과한 후보 중에서 오늘 할 것을 고른다.
  *
@@ -9,7 +11,27 @@
 export type Pickable = {
   id: string;
   bodyParts: string[];
+  intensity: string;
 };
+
+/**
+ * 운동을 세션 안의 어느 순서에 놓을지.
+ *
+ * '매우 낮음'은 강도 목록에서 스트레칭·가동성으로 정의된 단계이고, 지금
+ * 라이브러리에서도 90/90 힙 스위치·월드 그레이티스트 스트레치처럼 전부
+ * 몸을 여는 동작이다. 그래서 이 단계만 워밍업으로 본다.
+ *
+ * '낮음'을 마무리로 묶고 싶지만 그렇게 하지 않았다. 데드버그·플랭크처럼
+ * 본운동에 가까운 것이 섞여 있어, 마무리라고 적으면 틀린 말이 된다.
+ * 마무리까지 정확히 나누려면 운동마다 역할을 따로 지정해야 한다.
+ */
+export type SessionPhase = 'warmup' | 'main';
+
+export function sessionPhase(intensity: string): SessionPhase {
+  return intensityLevel(intensity) <= INTENSITY_CAP.MOBILITY_ONLY
+    ? 'warmup'
+    : 'main';
+}
 
 /** 하루에 제안할 운동 수. 너무 많으면 아무것도 안 하게 된다. */
 export const PICK_COUNT = 5;
@@ -70,11 +92,28 @@ export function pickForToday<T extends Pickable>({
     if (doneIds.has(ex.id)) take(ex);
   }
 
+  /*
+   * 2) 워밍업 한 자리를 먼저 잡아둔다.
+   *
+   * 나중에 채우려 하면 본운동이 다섯 자리를 다 먹어, 몸을 열지 않고
+   * 바로 무게를 드는 구성이 된다. 후보에 워밍업이 없으면 그냥 넘어간다 —
+   * 없는 것을 억지로 만들지는 않는다.
+   */
+  if (
+    chosen.length < count &&
+    !chosen.some((ex) => sessionPhase(ex.intensity) === 'warmup')
+  ) {
+    const warmup = ordered.find(
+      (ex) => !taken.has(ex.id) && sessionPhase(ex.intensity) === 'warmup'
+    );
+    if (warmup) take(warmup);
+  }
+
   const wanted = new Set(preferredParts);
   const matchesPreference = (ex: T) => ex.bodyParts.some((p) => wanted.has(p));
 
   /*
-   * 2) 고른 부위가 있으면 그것부터 채운다.
+   * 3) 고른 부위가 있으면 그것부터 채운다.
    *    이때는 부위가 겹쳐도 넣는다 — "오늘 하체"라고 골랐는데 하체 운동을
    *    하나만 주면 고른 의미가 없다.
    */
@@ -87,7 +126,7 @@ export function pickForToday<T extends Pickable>({
   }
 
   /*
-   * 3) 남은 자리는 부위가 겹치지 않게 채운다.
+   * 4) 남은 자리는 부위가 겹치지 않게 채운다.
    *    한쪽 부위만 계속 시키지 않으려는 것이다.
    */
   const usedParts = new Set<string>();
@@ -101,7 +140,7 @@ export function pickForToday<T extends Pickable>({
     take(ex);
   }
 
-  // 4) 그래도 자리가 남으면 겹침을 따지지 않고 채운다.
+  // 5) 그래도 자리가 남으면 겹침을 따지지 않고 채운다.
   for (const ex of ordered) {
     if (chosen.length >= count) break;
     if (taken.has(ex.id)) continue;
@@ -118,7 +157,7 @@ export function pickForToday<T extends Pickable>({
  * 없고 고관절·햄스트링·둔근으로 나뉘어 있는데, 없는 이름을 보여주면
  * 골라도 아무것도 안 나온다. 실제로 있는 것만 보여준다.
  */
-export function availableParts(library: Pickable[]): string[] {
+export function availableParts(library: { bodyParts: string[] }[]): string[] {
   const counts = new Map<string, number>();
   for (const ex of library) {
     for (const part of ex.bodyParts) {

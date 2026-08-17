@@ -3,6 +3,7 @@
 import { useState, useTransition } from 'react';
 import { Check } from 'lucide-react';
 import { setExerciseDone } from '@/app/actions/exercise-log';
+import { sessionPhase } from '@/lib/report/today-pick';
 import { ExerciseBadges } from '@/components/meta-badges';
 
 export type TodayExercise = {
@@ -75,12 +76,49 @@ export function TodayList({ exercises }: { exercises: TodayExercise[] }) {
         </p>
       )}
 
-      <ul className="space-y-2.5">
-        {items.map((ex) => (
+      {/*
+        워밍업과 본운동을 나눠 보여준다. 순서 없이 한 줄로 늘어놓으면
+        스트레칭과 무게 드는 운동이 섞여, 뭘 먼저 할지 알 수 없다.
+        해당하는 운동이 없는 구간은 제목도 내지 않는다.
+      */}
+      {SECTIONS.map(({ phase, label, hint }) => {
+        const group = items.filter((ex) => sessionPhase(ex.intensity) === phase);
+        if (group.length === 0) return null;
+
+        return (
+          <section key={phase} className="space-y-2.5">
+            <div className="flex flex-wrap items-baseline gap-x-2 px-1">
+              <h2 className="text-sm font-bold text-ink">{label}</h2>
+              <span className="text-xs text-muted">{hint}</span>
+            </div>
+            <ExerciseList items={group} onToggle={toggle} />
+          </section>
+        );
+      })}
+    </div>
+  );
+}
+
+/** 세션 안의 구간. 순서대로 화면에 나온다. */
+const SECTIONS = [
+  { phase: 'warmup', label: '워밍업', hint: '가볍게 몸을 열고 시작하세요' },
+  { phase: 'main', label: '본운동', hint: '오늘의 핵심 운동입니다' },
+] as const;
+
+function ExerciseList({
+  items,
+  onToggle,
+}: {
+  items: TodayExercise[];
+  onToggle: (id: string) => void;
+}) {
+  return (
+    <ul className="space-y-2.5">
+      {items.map((ex) => (
           <li key={ex.id}>
             <button
               type="button"
-              onClick={() => toggle(ex.id)}
+              onClick={() => onToggle(ex.id)}
               aria-pressed={ex.done}
               className={`flex w-full items-start gap-3 rounded-2xl border px-4 py-4 text-left transition-colors ${
                 ex.done
@@ -126,8 +164,7 @@ export function TodayList({ exercises }: { exercises: TodayExercise[] }) {
               )}
             </button>
           </li>
-        ))}
-      </ul>
-    </div>
+      ))}
+    </ul>
   );
 }
