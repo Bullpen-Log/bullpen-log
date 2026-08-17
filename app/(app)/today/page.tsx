@@ -3,9 +3,9 @@ import { prisma } from '@/lib/prisma';
 import { requireUser } from '@/lib/dal';
 import { createPlaybackUrls } from '@/lib/storage';
 import { toDateKey } from '@/lib/pitch-stats';
-import { gatherFactsAndPlan } from '@/lib/report/gather';
+import { gatherFactsAndPlan, recentExerciseIds } from '@/lib/report/gather';
 import { selectCandidates, MIN_CANDIDATES } from '@/lib/report/prescription';
-import { pickForToday } from '@/lib/report/today-pick';
+import { pickForToday, RECENT_DAYS } from '@/lib/report/today-pick';
 import { Card, EmptyState, PageHeading } from '@/components/ui';
 import type { AiReportBody } from '@/lib/ai/report-prompt';
 import { Sparkles } from 'lucide-react';
@@ -23,7 +23,7 @@ export default async function TodayPage() {
 
   const { facts, plan, hasLogs } = await gatherFactsAndPlan(user, today);
 
-  const [library, doneLogs, todayReport] = await Promise.all([
+  const [library, doneLogs, recentIds, todayReport] = await Promise.all([
     prisma.exerciseVideo.findMany({ orderBy: { createdAt: 'asc' } }),
     prisma.userExerciseLog.findMany({
       where: {
@@ -33,6 +33,8 @@ export default async function TodayPage() {
       },
       select: { exerciseId: true },
     }),
+    // 최근에 한 운동은 뒤로 미뤄, 매일 같은 것만 나오지 않게 한다.
+    recentExerciseIds(user.id, today),
     /*
      * 오늘 만든 리포트가 있으면 거기에 훈련 설명이 들어 있다.
      * 여기서 AI를 새로 부르지는 않는다 — 저장된 것을 읽을 뿐이라
@@ -70,6 +72,7 @@ export default async function TodayPage() {
   const chosen = pickForToday({
     candidates: picked.candidates,
     doneIds,
+    recentIds,
     preferredParts,
   });
 
@@ -187,6 +190,12 @@ export default async function TodayPage() {
                   {b}
                 </li>
               ))}
+              {recentIds.size > 0 && (
+                <li className="flex gap-2 text-[13px] leading-relaxed text-muted">
+                  <span aria-hidden className="text-sky">—</span>
+                  최근 {RECENT_DAYS}일 안에 한 운동 {recentIds.size}개는 뒤로 미룸
+                </li>
+              )}
             </ul>
             {picked.excluded.length > 0 && (
               <p className="mt-3 border-t border-line pt-3 text-xs leading-relaxed text-muted">

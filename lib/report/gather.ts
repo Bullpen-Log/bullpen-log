@@ -5,6 +5,8 @@ import { estimateDailyLoad } from '@/lib/baseline';
 import { buildFacts, type CheckinLike, type MemoNote } from '@/lib/report/facts';
 import { buildPitchPlan } from '@/lib/report/plan';
 import { pickCheckinParts } from '@/lib/checkin';
+import { RECENT_DAYS } from '@/lib/report/today-pick';
+import { shiftDateKey, toDateKey } from '@/lib/pitch-stats';
 
 /** 부하 계산에 필요한 기간. 4주 만성 부하에 여유를 둔다. */
 export const LOOKBACK_DAYS = 45;
@@ -70,4 +72,32 @@ export async function gatherFactsAndPlan(user: UserForFacts, today: Date) {
   });
 
   return { facts, plan: buildPitchPlan(facts), hasLogs: logs.length > 0 };
+}
+
+/**
+ * 최근 며칠 안에 마친 운동의 id.
+ *
+ * 오늘 것은 넣지 않는다. 오늘 한 운동은 목록에 그대로 남아 있어야
+ * 완료 표시를 켜고 끌 수 있는데, 여기 섞이면 뒤로 밀려버린다.
+ *
+ * 오늘의 운동 화면과 리포트가 같은 목록을 내야 하므로 두 곳이 이 함수를
+ * 함께 쓴다. 각자 조회하면 기간이 어긋나도 아무도 눈치채지 못한다.
+ */
+export async function recentExerciseIds(
+  userId: string,
+  today: Date
+): Promise<Set<string>> {
+  const todayKey = toDateKey(today);
+  const logs = await prisma.userExerciseLog.findMany({
+    where: {
+      userId,
+      completed: true,
+      date: {
+        gte: new Date(`${shiftDateKey(todayKey, -RECENT_DAYS)}T00:00:00.000Z`),
+        lt: new Date(`${todayKey}T00:00:00.000Z`),
+      },
+    },
+    select: { exerciseId: true },
+  });
+  return new Set(logs.map((l) => l.exerciseId));
 }

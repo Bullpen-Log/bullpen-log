@@ -13,6 +13,7 @@ import { buildFacts, type CheckinLike, type MemoNote } from '@/lib/report/facts'
 import { buildPitchPlan } from '@/lib/report/plan';
 import { selectCandidates } from '@/lib/report/prescription';
 import { pickForToday } from '@/lib/report/today-pick';
+import { recentExerciseIds } from '@/lib/report/gather';
 import { pickCheckinParts } from '@/lib/checkin';
 
 export type AiReportState = { error?: string; success?: string } | undefined;
@@ -133,6 +134,8 @@ export async function generateAiReport(): Promise<AiReportState> {
     candidates: picked.candidates,
     // 리포트를 만드는 시점에는 아직 아무것도 안 했다고 본다.
     doneIds: new Set<string>(),
+    // 오늘의 운동 화면과 같은 기준으로 미뤄야 두 곳의 목록이 어긋나지 않는다.
+    recentIds: await recentExerciseIds(user.id, today),
     preferredParts: facts.condition.today?.preferredParts ?? [],
   });
 
