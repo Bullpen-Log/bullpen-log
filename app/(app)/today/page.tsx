@@ -67,6 +67,12 @@ export default async function TodayPage() {
   // 후보에는 화면에 필요한 필드(설명·썸네일)가 없으므로 원본에서 다시 찾는다.
   const byId = new Map(library.map((ex) => [ex.id, ex]));
 
+  /*
+   * 오늘 체크인이 없으면 안전 규칙 중 컨디션·뻐근한 부위 두 가지가 빠진다.
+   * 화면에서 "몸 상태에 맞췄다"고 말하면 안 되는 상태다.
+   */
+  const hasCheckinToday = facts.condition.today != null;
+
   // 오늘 고른 부위가 있으면 그쪽부터 채운다. (규칙은 lib/report/today-pick.ts)
   const preferredParts = facts.condition.today?.preferredParts ?? [];
   const chosen = pickForToday({
@@ -100,8 +106,31 @@ export default async function TodayPage() {
       <PageHeading
         eyebrow="AI Training"
         title="AI 개인맞춤 트레이닝"
-        description="오늘 몸 상태와 최근 투구량에 맞춰 고른 운동입니다. 마친 것은 눌러서 표시해주세요."
+        description={
+          hasCheckinToday
+            ? '오늘 몸 상태와 최근 투구량에 맞춰 고른 운동입니다. 마친 것은 눌러서 표시해주세요.'
+            : '최근 투구량에 맞춰 고른 운동입니다. 마친 것은 눌러서 표시해주세요.'
+        }
       />
+
+      {/*
+        체크인을 안 한 날은 몸 상태를 못 본 채 고른 것이므로 그대로 알린다.
+        통증으로 처방이 멈춘 날에는 아래에 따로 안내가 나가므로 겹치지 않게 뺀다.
+      */}
+      {!hasCheckinToday && !picked.halted && (
+        <Card className="flex flex-wrap items-center gap-x-3 gap-y-2 border-warn-line bg-warn-bg py-4">
+          <p className="text-sm leading-relaxed text-warn">
+            오늘 체크인을 하지 않으셔서 <strong>몸 상태는 반영되지 않았습니다.</strong>{' '}
+            투구량만 보고 고른 운동입니다.
+          </p>
+          <Link
+            href="/dashboard#checkin"
+            className="rounded-lg border border-warn-line px-3 py-1.5 text-xs font-semibold text-warn transition-colors hover:bg-warn-line/20"
+          >
+            체크인하러 가기
+          </Link>
+        </Card>
+      )}
 
       {/* 오늘의 투구 계획 — 운동과 같은 근거에서 나온다 */}
       {todayPlan && !plan.halted && (

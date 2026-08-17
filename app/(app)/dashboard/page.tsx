@@ -322,7 +322,9 @@ export default async function DashboardPage() {
           <span className="block text-xs text-muted">
             {doneToday > 0
               ? `${doneToday}개 완료 — 이어서 하기`
-              : '오늘 몸 상태에 맞춰 고른 운동을 확인하세요'}
+              : allCheckins.some((c) => c.date === todayKey)
+                ? '오늘 몸 상태에 맞춰 고른 운동을 확인하세요'
+                : '오늘 고른 운동을 확인하세요 (체크인하면 몸 상태까지 반영됩니다)'}
           </span>
         </span>
         <span aria-hidden className="shrink-0 text-muted">

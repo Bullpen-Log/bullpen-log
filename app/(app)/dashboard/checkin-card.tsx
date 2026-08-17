@@ -177,7 +177,9 @@ export function CheckinCard({
 
   return (
     <section
-      className={`rounded-2xl border p-5 sm:p-6 ${
+      // 다른 화면에서 '체크인하러 가기'로 곧장 내려올 수 있게 이름을 붙인다.
+      id="checkin"
+      className={`scroll-mt-20 rounded-2xl border p-5 sm:p-6 ${
         painToday
           ? 'border-danger-line bg-danger-bg'
           : 'border-line bg-surface'

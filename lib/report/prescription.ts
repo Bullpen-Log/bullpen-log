@@ -149,8 +149,20 @@ export function selectCandidates({
     capTo('성장기 고강도 제한', INTENSITY_CAP.STRENGTH);
   }
 
-  // 4) 컨디션이 낮은 날은 무게 드는 것부터 뺀다.
   const today = facts.condition.today;
+
+  /*
+   * 체크인이 없으면 아래 두 규칙(컨디션 저하·뻐근한 부위)이 통째로 건너뛰어진다.
+   * 남은 것은 투구 부하로 정한 상한뿐이다.
+   *
+   * 그 사실을 근거에 적어두지 않으면, 몸 상태를 보고 고른 것처럼 보인다.
+   * 실제로는 보지 않았으므로 그대로 밝힌다.
+   */
+  if (!today) {
+    basis.push('오늘 체크인이 없어 몸 상태(컨디션·뻐근한 부위)는 반영하지 못함');
+  }
+
+  // 4) 컨디션이 낮은 날은 무게 드는 것부터 뺀다.
   if (today && today.condition <= LOW_CONDITION_THRESHOLD) {
     basis.push(`오늘 컨디션 ${today.condition}/10 → 무게 드는 운동 제외`);
     capTo('컨디션 저하', INTENSITY_CAP.MODERATE);
