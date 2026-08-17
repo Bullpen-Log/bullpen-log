@@ -95,6 +95,8 @@ export type ReportFacts = {
   };
   condition: {
     today: CheckinLike | null;
+    /** 오늘 체크인에 통증이 있는가 (체크인이 없으면 false) */
+    painToday: boolean;
     /** 최근 7일 체크인 중 통증을 표시한 날이 있는가 */
     painRecently: boolean;
     /** 최근 메모에서 통증으로 보이는 표현이 걸렸는가 */
@@ -158,6 +160,15 @@ export function buildFacts({
   const recentCheckins = checkins.filter((c) => last7.includes(c.date));
   const conditions = recentCheckins.map((c) => c.condition);
 
+  /*
+   * 오늘 체크인은 따로 꺼내 둔다.
+   *
+   * "지금 아픈가"와 "최근에 아팠던 적이 있나"는 다르게 다뤄야 한다.
+   * 둘을 뭉뚱그리면, 며칠 전에 한 번 아팠다는 이유로 오늘 멀쩡한 사람의
+   * 계획까지 계속 멈춘다.
+   */
+  const todayCheckin = checkins.find((c) => c.date === asOf) ?? null;
+
   return {
     asOf,
     profile: { nickname, age, heightCm },
@@ -180,7 +191,8 @@ export function buildFacts({
         : null,
     },
     condition: {
-      today: checkins.find((c) => c.date === asOf) ?? null,
+      today: todayCheckin,
+      painToday: todayCheckin ? hasPain(todayCheckin) : false,
       painRecently: recentCheckins.some(hasPain),
       painWordsInMemo: findPainKeywords(memos),
       avgCondition: conditions.length

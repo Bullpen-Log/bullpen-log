@@ -143,6 +143,17 @@ export function selectCandidates({
   }
   capTo('부하 구간에 맞지 않는 강도', zoneCap);
 
+  /*
+   * 2-1) 최근 통증이 있었지만 오늘은 괜찮다고 한 경우.
+   *
+   * 계획을 아예 멈추지는 않되(그러면 지난 통증 기록 하나로 며칠이 잠긴다),
+   * 무게를 다루는 운동은 빼고 회복·가동성 수준부터 다시 올린다.
+   */
+  if (plan.recovering) {
+    basis.push('최근 통증 기록 → 회복 수준 운동까지만');
+    capTo('통증 회복 중', INTENSITY_CAP.RECOVERY);
+  }
+
   // 3) 성장기는 최대 강도를 뺀다.
   if (facts.profile.age != null && facts.profile.age < YOUTH_AGE_THRESHOLD) {
     basis.push(`만 ${facts.profile.age}세(성장기) → 매우 높은 강도 제외`);

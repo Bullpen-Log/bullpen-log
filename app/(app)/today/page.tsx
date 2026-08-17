@@ -114,6 +114,20 @@ export default async function TodayPage() {
       />
 
       {/*
+        최근 통증이 있었지만 오늘은 괜찮다고 한 경우.
+        운동이 왜 가벼운 것만 나오는지 모르면 고장으로 보인다.
+      */}
+      {plan.recovering && !picked.halted && (
+        <Card className="space-y-1 border-warn-line bg-warn-bg py-4">
+          <p className="text-sm font-bold text-warn">회복 수준으로 낮춰 배정했습니다</p>
+          <p className="text-sm leading-relaxed text-warn">
+            최근 체크인에 통증 기록이 있어, 오늘은 무게를 다루는 운동을 빼고 회복·가동성
+            운동만 골랐습니다. 통증이 다시 느껴지면 오늘 체크인에 그대로 남겨주세요.
+          </p>
+        </Card>
+      )}
+
+      {/*
         체크인을 안 한 날은 몸 상태를 못 본 채 고른 것이므로 그대로 알린다.
         통증으로 처방이 멈춘 날에는 아래에 따로 안내가 나가므로 겹치지 않게 뺀다.
       */}

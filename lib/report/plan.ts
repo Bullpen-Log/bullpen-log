@@ -73,6 +73,18 @@ const UNKNOWN_ZONE = {
   label: '4주치 기록이 아직 없어 보수적으로 잡음',
 };
 
+/**
+ * 최근에 통증이 있었지만 오늘은 괜찮다고 한 경우의 상한.
+ *
+ * 통증이 사라진 다음 날 평소 양으로 돌아가는 것이 재발의 흔한 경로다.
+ * 계획을 아예 멈추는 대신 절반에서 다시 올리도록 한다.
+ */
+const RECOVERY_ADJUSTMENT = {
+  volume: 0.5,
+  maxIntensity: 5,
+  label: '최근 통증 기록이 있어 절반 수준에서 서서히 복귀',
+};
+
 export type DayPlan = {
   dateKey: string;
   /** 오늘 / 내일 / 모레 */
@@ -88,6 +100,11 @@ export type PitchPlan = {
   /** 통증이 있으면 계획 대신 휴식·진료 안내만 낸다 */
   halted: boolean;
   haltReason: string | null;
+  /**
+   * 최근 통증이 있었지만 오늘은 괜찮다고 해서, 낮춘 수준으로 다시 시작하는 상태.
+   * 운동 처방도 이 값을 보고 회복 수준까지만 남긴다.
+   */
+  recovering: boolean;
   days: DayPlan[];
   /** 향후 3일 권장 총 투구수 */
   threeDayTotal: number;
@@ -109,18 +126,46 @@ export function buildPitchPlan(facts: ReportFacts): PitchPlan {
       ? `만 ${profile.age}세는 성장기라 위 수치보다 더 보수적으로 잡는 것이 안전합니다. 지도자와 상의하세요.`
       : null;
 
-  // 1) 통증 신호가 있으면 계획 자체를 내지 않는다. 다른 어떤 규칙보다 우선한다.
-  if (condition.painRecently) {
+  /*
+   * 1) 통증 신호. 다른 어떤 규칙보다 우선한다.
+   *
+   * 판정을 세 갈래로 나눈다. 예전에는 최근 7일 안에 통증이 한 번이라도
+   * 있으면 무조건 멈췄는데, 지난 체크인은 고칠 수 없어서(어제~내일만 허용)
+   * 실수로 한 번 누르면 이레 동안 아무것도 못 받는 상태가 됐다.
+   * 화면은 "체크인에서 고쳐주세요"라고 안내하면서 고칠 수 없었다.
+   *
+   * 그래서 '지금 아픈가'를 기준으로 삼는다. 오늘 괜찮다고 하면 계획을 내되,
+   * 곧바로 평소 양으로 돌아가지 않고 절반에서 다시 올린다.
+   */
+  if (condition.painToday) {
     return {
       halted: true,
       haltReason:
-        '최근 체크인에 통증이 기록되어 있습니다. 통증이 있는 동안에는 투구 계획을 제공하지 않습니다. 통증이 이어지면 전문의 진료를 받아보세요.',
+        '오늘 체크인에 통증이 기록되어 있습니다. 통증이 있는 동안에는 투구 계획을 제공하지 않습니다. 통증이 이어지면 전문의 진료를 받아보세요. 통증이 가라앉았다면 오늘 체크인을 다시 저장해주세요.',
       days: [],
       threeDayTotal: 0,
-      basis: ['체크인 통증 기록 → 계획 중단'],
+      recovering: false,
+      basis: ['오늘 체크인 통증 → 계획 중단'],
       youthNote,
     };
   }
+
+  // 최근에 통증이 있었는데 오늘 체크인이 없으면, 나은 것인지 알 수 없어 멈춘다.
+  if (condition.painRecently && condition.today == null) {
+    return {
+      halted: true,
+      haltReason:
+        '최근 체크인에 통증이 기록되어 있습니다. 지금 어떤 상태인지 알 수 없어 계획을 내지 않았습니다. 오늘 체크인을 남겨주시면 상태에 맞춰 다시 계획을 만듭니다. 통증이 이어지면 전문의 진료를 받아보세요.',
+      days: [],
+      threeDayTotal: 0,
+      recovering: false,
+      basis: ['최근 통증 기록 + 오늘 체크인 없음 → 계획 중단'],
+      youthNote,
+    };
+  }
+
+  // 오늘은 괜찮다고 했지만 최근에 통증이 있었던 경우 — 낮춘 수준으로 복귀한다.
+  const recovering = condition.painRecently;
 
   // 메모에 통증으로 보이는 표현이 있어도 멈춘다.
   // 잘못 잡았을 수 있으므로 체크인으로 정정하는 길을 함께 안내한다.
@@ -130,6 +175,7 @@ export function buildPitchPlan(facts: ReportFacts): PitchPlan {
       haltReason: `최근 메모에 통증으로 보이는 표현(${condition.painWordsInMemo.join(', ')})이 있어 계획을 내지 않았습니다. 실제로 통증이 있다면 던지지 말고 전문의와 상담하세요. 통증이 아니라면 오늘 체크인에서 몸 상태를 정확히 남겨주시면 다음 리포트부터 반영됩니다.`,
       days: [],
       threeDayTotal: 0,
+      recovering: false,
       basis: ['메모의 통증 표현 → 계획 중단'],
       youthNote,
     };
@@ -148,12 +194,25 @@ export function buildPitchPlan(facts: ReportFacts): PitchPlan {
   }
 
   // 3) 부하 구간에 따른 조절 계수
-  const adj = load.zone ? ZONE_ADJUSTMENT[load.zone] : UNKNOWN_ZONE;
+  const zoneAdj = load.zone ? ZONE_ADJUSTMENT[load.zone] : UNKNOWN_ZONE;
   basis.push(
     load.zone
-      ? `부하 지수 ${load.ratio?.toFixed(2)} (${load.zone === 'danger' ? '위험' : load.zone === 'caution' ? '주의' : load.zone === 'optimal' ? '적정' : '낮음'}) → ${adj.label}`
-      : adj.label
+      ? `부하 지수 ${load.ratio?.toFixed(2)} (${load.zone === 'danger' ? '위험' : load.zone === 'caution' ? '주의' : load.zone === 'optimal' ? '적정' : '낮음'}) → ${zoneAdj.label}`
+      : zoneAdj.label
   );
+
+  /*
+   * 회복 중이면 부하 구간이 좋게 나와도 더 풀어주지 않는다.
+   * 두 기준 중 낮은 쪽을 쓴다 — 안전 쪽에서 틀리는 편이 맞다.
+   */
+  const adj = recovering
+    ? {
+        volume: Math.min(zoneAdj.volume, RECOVERY_ADJUSTMENT.volume),
+        maxIntensity: Math.min(zoneAdj.maxIntensity, RECOVERY_ADJUSTMENT.maxIntensity),
+        label: RECOVERY_ADJUSTMENT.label,
+      }
+    : zoneAdj;
+  if (recovering) basis.push(RECOVERY_ADJUSTMENT.label);
 
   // 4) 기준 투구수 — 평소 던지던 양이 없으면 상한의 절반에서 시작한다.
   const baseline = patterns.baselinePitches ?? Math.round(cap * 0.5);
@@ -219,6 +278,7 @@ export function buildPitchPlan(facts: ReportFacts): PitchPlan {
   return {
     halted: false,
     haltReason: null,
+    recovering,
     days,
     threeDayTotal: days.reduce((sum, d) => sum + (d.maxPitches ?? 0), 0),
     basis,
