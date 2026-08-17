@@ -15,7 +15,7 @@ import {
   matchesFilter,
   type FilterState,
 } from '@/components/meta-filter';
-import { Card } from '@/components/ui';
+import { Button, Card, EmptyState } from '@/components/ui';
 import { ExerciseForm, type ExerciseDraft } from './exercise-form';
 
 export type ExerciseItem = {
@@ -241,7 +241,20 @@ export function TrainingClient({
 
       {filtering ? (
         // 조건을 고른 동안에는 카테고리를 접어두지 않고 결과만 펼쳐 보여준다.
-        matched.length > 0 && <ExerciseGrid items={matched} isAdmin={isAdmin} />
+        // 하나도 안 걸렸을 때 화면이 비어 버리면 고장으로 보이므로 이유를 적어준다.
+        matched.length > 0 ? (
+          <ExerciseGrid items={matched} isAdmin={isAdmin} />
+        ) : (
+          <EmptyState
+            title="조건에 맞는 운동이 없습니다"
+            description="고른 조건을 하나씩 줄이면 더 많은 운동이 나옵니다."
+            action={
+              <Button variant="secondary" className="mt-2" onClick={() => setFilter({})}>
+                조건 모두 지우기
+              </Button>
+            }
+          />
+        )
       ) : (
         <div className="space-y-4">
           {TRAINING_CATEGORIES.map((category) => {
