@@ -1,11 +1,13 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
+import { redirect } from 'next/navigation';
 import { prisma } from '@/lib/prisma';
 import { getCurrentUser } from '@/lib/dal';
 import { validateProfile } from '@/lib/profile';
 import { validateBaseline } from '@/lib/baseline';
 import { validateTargetVelocity } from '@/lib/velocity';
+import { WORKOUT_MINUTES_CHOICES } from '@/lib/report/theme';
 import { withInput, type FormValues } from '@/lib/form-values';
 
 export type ProfileState = {
@@ -13,6 +15,32 @@ export type ProfileState = {
   success?: string;
   values?: FormValues;
 } | undefined;
+
+/**
+ * 오늘의 운동 화면에서 하루 운동 시간을 기본값으로 저장한다.
+ *
+ * 시간 버튼 자체는 주소(?time=)로만 움직여 오늘 하루에 그친다.
+ * 이 동작은 그 값을 프로필 기본값으로 굳히는 것이라, 끝나면 주소의
+ * ?time= 을 지운 화면으로 보낸다 — 이제 기본값이 같은 값이다.
+ */
+export async function saveWorkoutMinutes(formData: FormData) {
+  const user = await getCurrentUser();
+  if (!user) redirect('/login');
+
+  const minutes = Number.parseInt(String(formData.get('minutes') ?? ''), 10);
+  if (!(WORKOUT_MINUTES_CHOICES as readonly number[]).includes(minutes)) {
+    redirect('/today');
+  }
+
+  await prisma.user.update({
+    where: { id: user.id },
+    data: { dailyWorkoutMinutes: minutes },
+  });
+
+  revalidatePath('/today');
+  revalidatePath('/profile');
+  redirect('/today');
+}
 
 /** 내 신체 정보(생년월일·키)와 닉네임을 수정한다. */
 export async function updateProfile(
@@ -57,12 +85,27 @@ async function tryUpdateProfile(formData: FormData): Promise<ProfileState> {
   const target = validateTargetVelocity(String(formData.get('targetVelocity') ?? ''));
   if ('error' in target) return target;
 
+  /*
+   * 하루 운동 시간 — "45분" 형태로 오므로 숫자만 꺼내 허용 목록과 대조한다.
+   * 안 고르고 저장하면(기존 화면 등) 지금 값을 그대로 둔다.
+   */
+  const rawMinutes = String(formData.get('dailyWorkoutMinutes') ?? '').trim();
+  let minutesValue = {};
+  if (rawMinutes !== '') {
+    const minutes = Number.parseInt(rawMinutes, 10);
+    if (!(WORKOUT_MINUTES_CHOICES as readonly number[]).includes(minutes)) {
+      return { error: '하루 운동 시간을 다시 골라주세요.' };
+    }
+    minutesValue = { dailyWorkoutMinutes: minutes };
+  }
+
   await prisma.user.update({
     where: { id: user.id },
     data: {
       nickname,
       ...checked.value,
       ...baselineValue,
+      ...minutesValue,
       targetVelocity: target.value,
     },
   });

@@ -12,8 +12,13 @@ import { generateReportBody } from '@/lib/ai/report';
 import { buildFacts, type CheckinLike, type MemoNote } from '@/lib/report/facts';
 import { buildPitchPlan } from '@/lib/report/plan';
 import { selectCandidates } from '@/lib/report/prescription';
-import { pickForToday } from '@/lib/report/today-pick';
-import { recentExerciseIds } from '@/lib/report/gather';
+import {
+  DEFAULT_WORKOUT_MINUTES,
+  decideTheme,
+  effectiveMinutes,
+  pickForTheme,
+} from '@/lib/report/theme';
+import { lastStrengthDates, recentExerciseIds } from '@/lib/report/gather';
 import { pickCheckinParts } from '@/lib/checkin';
 
 export type AiReportState = { error?: string; success?: string } | undefined;
@@ -130,26 +135,43 @@ export async function generateAiReport(): Promise<AiReportState> {
     orderBy: { createdAt: 'asc' },
   });
   const picked = selectCandidates({ facts, plan, library });
-  const chosen = pickForToday({
+
+  // 오늘의 운동 화면과 같은 테마·같은 목록이 나와야 두 화면이 어긋나지 않는다.
+  const [recentIds, strengthDates] = await Promise.all([
+    recentExerciseIds(user.id, today),
+    lastStrengthDates(user.id, today),
+  ]);
+  const theme = decideTheme({
+    facts,
+    plan,
+    lastLowerKey: strengthDates.lower,
+    lastUpperKey: strengthDates.upper,
+  });
+  const themed = pickForTheme({
     candidates: picked.candidates,
+    theme: theme.key,
+    minutes: effectiveMinutes(
+      theme.key,
+      user.dailyWorkoutMinutes ?? DEFAULT_WORKOUT_MINUTES
+    ),
     // 리포트를 만드는 시점에는 아직 아무것도 안 했다고 본다.
     doneIds: new Set<string>(),
-    // 오늘의 운동 화면과 같은 기준으로 미뤄야 두 곳의 목록이 어긋나지 않는다.
-    recentIds: await recentExerciseIds(user.id, today),
+    recentIds,
     preferredParts: facts.condition.today?.preferredParts ?? [],
   });
 
   const training =
-    chosen.length > 0
+    themed.picks.length > 0
       ? {
-          picked: chosen.map((ex) => ({
+          theme: { label: theme.label, reason: theme.reason },
+          picked: themed.picks.map(({ exercise: ex }) => ({
             title: ex.title,
             category: ex.category,
             intensity: ex.intensity,
             bodyParts: ex.bodyParts,
           })),
           excluded: picked.excluded,
-          basis: picked.basis,
+          basis: [...picked.basis, ...themed.notes],
           preferredParts: facts.condition.today?.preferredParts ?? [],
         }
       : undefined;

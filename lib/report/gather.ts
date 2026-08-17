@@ -101,3 +101,46 @@ export async function recentExerciseIds(
   });
   return new Set(logs.map((l) => l.exerciseId));
 }
+
+/** 하체·상체를 번갈아 돌리기 위해 살펴보는 기간(일) */
+const ROTATION_LOOKBACK_DAYS = 14;
+
+/**
+ * 최근 2주 안에 하체/상체 스트렝스를 완료한 마지막 날짜.
+ *
+ * 오늘의 테마(하체 데이·상체 데이)를 번갈아 정하는 데 쓴다.
+ * 오늘 것은 넣지 않는다 — 오늘 완료한 운동이 오늘의 테마를 도중에
+ * 뒤집으면, 체크할 때마다 목록이 바뀌는 이상한 화면이 된다.
+ */
+export async function lastStrengthDates(
+  userId: string,
+  today: Date
+): Promise<{ lower: string | null; upper: string | null }> {
+  const todayKey = toDateKey(today);
+  const logs = await prisma.userExerciseLog.findMany({
+    where: {
+      userId,
+      completed: true,
+      date: {
+        gte: new Date(
+          `${shiftDateKey(todayKey, -ROTATION_LOOKBACK_DAYS)}T00:00:00.000Z`
+        ),
+        lt: new Date(`${todayKey}T00:00:00.000Z`),
+      },
+    },
+    select: { date: true, exercise: { select: { category: true } } },
+  });
+
+  let lower: string | null = null;
+  let upper: string | null = null;
+  for (const log of logs) {
+    const key = log.date.toISOString().slice(0, 10);
+    if (log.exercise.category === '하체 스트렝스' && (!lower || key > lower)) {
+      lower = key;
+    }
+    if (log.exercise.category === '상체 스트렝스' && (!upper || key > upper)) {
+      upper = key;
+    }
+  }
+  return { lower, upper };
+}

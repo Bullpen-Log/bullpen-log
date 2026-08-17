@@ -64,6 +64,8 @@ export const SYSTEM_PROMPT = `당신은 야구 투수의 훈련 부하를 관리
  * 라이브러리가 비어 있거나 통증으로 처방이 멈춘 날에는 넘기지 않는다.
  */
 export type TrainingContext = {
+  /** 오늘의 훈련 테마 — 코드가 정했고 AI는 이 틀 안에서 설명만 한다 */
+  theme?: { label: string; reason: string };
   picked: {
     title: string;
     category: string;
@@ -166,6 +168,9 @@ export function buildUserPrompt(
 
   if (training) {
     lines.push(`\n# 오늘 배정된 운동 (규칙으로 고름 — 바꾸거나 더할 수 없습니다)`);
+    if (training.theme) {
+      lines.push(`- 오늘의 테마: ${training.theme.label} — ${training.theme.reason}`);
+    }
     if (training.preferredParts.length > 0) {
       lines.push(`- 선수가 오늘 하고 싶다고 고른 부위: ${training.preferredParts.join(', ')}`);
     }
@@ -183,7 +188,7 @@ export function buildUserPrompt(
       for (const e of training.excluded) lines.push(`- ${e.rule}: ${e.count}개`);
     }
     lines.push(
-      `\ntraining.focus 는 오늘 훈련을 한 줄로, training.why 는 왜 이 구성인지를 2~3문장으로 써주세요.` +
+      `\ntraining.focus 는 오늘 훈련을 한 줄로(테마가 있으면 테마를 담아), training.why 는 왜 이 구성인지를 2~3문장으로 써주세요.` +
         ` 위 목록에 없는 운동은 절대 언급하지 마세요.`
     );
   }

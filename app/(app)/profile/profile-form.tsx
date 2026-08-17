@@ -13,6 +13,10 @@ import {
   BASELINE_INTENSITY_NAMES,
   BASELINE_VOLUME_NAMES,
 } from '@/lib/baseline';
+import {
+  DEFAULT_WORKOUT_MINUTES,
+  WORKOUT_MINUTES_CHOICES,
+} from '@/lib/report/theme';
 
 function SubmitButton() {
   const { pending } = useFormStatus();
@@ -28,6 +32,7 @@ export function ProfileForm({
   birthDate,
   heightCm,
   targetVelocity,
+  dailyWorkoutMinutes,
   baseline,
   /** 오늘 날짜(YYYY-MM-DD). 미래 날짜를 못 고르게 막는 데 쓴다. */
   today,
@@ -36,6 +41,7 @@ export function ProfileForm({
   birthDate: string;
   heightCm: number | null;
   targetVelocity: number | null;
+  dailyWorkoutMinutes: number | null;
   baseline: {
     baselineFreq: string | null;
     baselineVolume: string | null;
@@ -121,6 +127,18 @@ export function ProfileForm({
           placeholder="140"
         />
       </Field>
+
+      {/* 하루 운동 시간 — AI 트레이닝이 이 시간에 맞춰 종목 수를 정한다. */}
+      <RadioGroup
+        name="dailyWorkoutMinutes"
+        label="하루 운동 시간"
+        hint="AI 트레이닝이 이 시간에 맞춰 운동 개수를 정합니다. 몸 상태가 안 좋은 날은 자동으로 줄어듭니다."
+        options={WORKOUT_MINUTES_CHOICES.map((m) => ({ name: `${m}분` }))}
+        selected={pick(
+          'dailyWorkoutMinutes',
+          `${dailyWorkoutMinutes ?? DEFAULT_WORKOUT_MINUTES}분`
+        )}
+      />
 
       {/* 평소 투구량 문진 — 부하 지수의 추정 기준선. 3개 모두 답해야 저장된다. */}
       <div className="space-y-4 border-t border-line pt-5">

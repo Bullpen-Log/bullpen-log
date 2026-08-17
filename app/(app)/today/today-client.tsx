@@ -3,7 +3,7 @@
 import { useState, useTransition } from 'react';
 import { Check } from 'lucide-react';
 import { setExerciseDone } from '@/app/actions/exercise-log';
-import { sessionPhase } from '@/lib/report/today-pick';
+import { SLOT_LABELS, SLOT_ORDER, type SlotKey } from '@/lib/report/theme';
 import { ExerciseBadges } from '@/components/meta-badges';
 
 export type TodayExercise = {
@@ -17,6 +17,8 @@ export type TodayExercise = {
   equipment: string[];
   thumbUrl: string | null;
   done: boolean;
+  /** 세션 안에서 이 운동이 놓이는 구간 (워밍업·본운동·코어·암케어) */
+  slot: SlotKey;
 };
 
 /**
@@ -77,16 +79,17 @@ export function TodayList({ exercises }: { exercises: TodayExercise[] }) {
       )}
 
       {/*
-        워밍업과 본운동을 나눠 보여준다. 순서 없이 한 줄로 늘어놓으면
-        스트레칭과 무게 드는 운동이 섞여, 뭘 먼저 할지 알 수 없다.
-        해당하는 운동이 없는 구간은 제목도 내지 않는다.
+        구간별로 나눠 보여준다: 워밍업 → 본운동 → 코어 → 암케어.
+        순서 없이 한 줄로 늘어놓으면 스트레칭과 무게 드는 운동이 섞여
+        뭘 먼저 할지 알 수 없다. 해당 운동이 없는 구간은 제목도 내지 않는다.
       */}
-      {SECTIONS.map(({ phase, label, hint }) => {
-        const group = items.filter((ex) => sessionPhase(ex.intensity) === phase);
+      {SLOT_ORDER.map((slot) => {
+        const group = items.filter((ex) => ex.slot === slot);
         if (group.length === 0) return null;
+        const { label, hint } = SLOT_LABELS[slot];
 
         return (
-          <section key={phase} className="space-y-2.5">
+          <section key={slot} className="space-y-2.5">
             <div className="flex flex-wrap items-baseline gap-x-2 px-1">
               <h2 className="text-sm font-bold text-ink">{label}</h2>
               <span className="text-xs text-muted">{hint}</span>
@@ -98,12 +101,6 @@ export function TodayList({ exercises }: { exercises: TodayExercise[] }) {
     </div>
   );
 }
-
-/** 세션 안의 구간. 순서대로 화면에 나온다. */
-const SECTIONS = [
-  { phase: 'warmup', label: '워밍업', hint: '가볍게 몸을 열고 시작하세요' },
-  { phase: 'main', label: '본운동', hint: '오늘의 핵심 운동입니다' },
-] as const;
 
 function ExerciseList({
   items,

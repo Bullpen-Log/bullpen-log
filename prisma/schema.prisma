@@ -28,6 +28,9 @@ model User {
   baselineFreq      String?
   baselineVolume    String?
   baselineIntensity String?
+  /// 하루 운동 시간(분). 오늘의 운동 종목 수를 이 시간에 맞춰 계산한다.
+  /// 비어 있으면 기본값(lib/report/theme.ts의 DEFAULT_WORKOUT_MINUTES)을 쓴다.
+  dailyWorkoutMinutes Int?
   createdAt         DateTime            @default(now())
 
   userGuideProgress UserGuideProgress[]

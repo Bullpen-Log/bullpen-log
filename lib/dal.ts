@@ -25,6 +25,7 @@ export const getCurrentUser = cache(async () => {
       baselineFreq: true,
       baselineVolume: true,
       baselineIntensity: true,
+      dailyWorkoutMinutes: true,
     },
   });
 

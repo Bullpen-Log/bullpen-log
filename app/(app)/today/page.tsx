@@ -3,10 +3,22 @@ import { prisma } from '@/lib/prisma';
 import { requireUser } from '@/lib/dal';
 import { createPlaybackUrls } from '@/lib/storage';
 import { toDateKey } from '@/lib/pitch-stats';
-import { gatherFactsAndPlan, recentExerciseIds } from '@/lib/report/gather';
+import {
+  gatherFactsAndPlan,
+  lastStrengthDates,
+  recentExerciseIds,
+} from '@/lib/report/gather';
 import { selectCandidates, MIN_CANDIDATES } from '@/lib/report/prescription';
-import { pickForToday, RECENT_DAYS } from '@/lib/report/today-pick';
+import { RECENT_DAYS } from '@/lib/report/today-pick';
+import {
+  DEFAULT_WORKOUT_MINUTES,
+  WORKOUT_MINUTES_CHOICES,
+  decideTheme,
+  effectiveMinutes,
+  pickForTheme,
+} from '@/lib/report/theme';
 import { Card, EmptyState, PageHeading } from '@/components/ui';
+import { saveWorkoutMinutes } from '@/app/actions/profile';
 import type { AiReportBody } from '@/lib/ai/report-prompt';
 import { Sparkles } from 'lucide-react';
 import { TodayList, type TodayExercise } from './today-client';
@@ -16,14 +28,31 @@ function now() {
   return new Date();
 }
 
-export default async function TodayPage() {
+/** 주소의 ?time= 값을 허용 목록 안에서만 받는다. */
+function readTimeParam(raw: string | string[] | undefined): number | null {
+  const value = Number(Array.isArray(raw) ? raw[0] : raw);
+  return (WORKOUT_MINUTES_CHOICES as readonly number[]).includes(value)
+    ? value
+    : null;
+}
+
+export default async function TodayPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
+}) {
   const user = await requireUser();
   const today = now();
   const todayKey = toDateKey(today);
 
+  // 오늘 하루만 시간을 바꾸고 싶을 때 ?time=30 처럼 주소로 조절한다.
+  const timeOverride = readTimeParam((await searchParams).time);
+  const savedMinutes = user.dailyWorkoutMinutes ?? DEFAULT_WORKOUT_MINUTES;
+  const baseMinutes = timeOverride ?? savedMinutes;
+
   const { facts, plan, hasLogs } = await gatherFactsAndPlan(user, today);
 
-  const [library, doneLogs, recentIds, todayReport] = await Promise.all([
+  const [library, doneLogs, recentIds, strengthDates, todayReport] = await Promise.all([
     prisma.exerciseVideo.findMany({ orderBy: { createdAt: 'asc' } }),
     prisma.userExerciseLog.findMany({
       where: {
@@ -35,6 +64,8 @@ export default async function TodayPage() {
     }),
     // 최근에 한 운동은 뒤로 미뤄, 매일 같은 것만 나오지 않게 한다.
     recentExerciseIds(user.id, today),
+    // 하체·상체를 번갈아 돌리기 위한 최근 완료 기록.
+    lastStrengthDates(user.id, today),
     /*
      * 오늘 만든 리포트가 있으면 거기에 훈련 설명이 들어 있다.
      * 여기서 AI를 새로 부르지는 않는다 — 저장된 것을 읽을 뿐이라
@@ -73,22 +104,40 @@ export default async function TodayPage() {
    */
   const hasCheckinToday = facts.condition.today != null;
 
-  // 오늘 고른 부위가 있으면 그쪽부터 채운다. (규칙은 lib/report/today-pick.ts)
+  /*
+   * 오늘의 테마를 정하고, 시간에 맞춰 구성한다.
+   * 테마는 안전 필터와 무관하다 — 위험한 운동은 이미 후보에서 빠져 있다.
+   */
+  const theme = decideTheme({
+    facts,
+    plan,
+    lastLowerKey: strengthDates.lower,
+    lastUpperKey: strengthDates.upper,
+  });
+  const minutes = effectiveMinutes(theme.key, baseMinutes);
+
+  // 오늘 고른 부위가 있으면 본운동 안에서 그쪽을 앞으로 당긴다.
   const preferredParts = facts.condition.today?.preferredParts ?? [];
-  const chosen = pickForToday({
+  const themed = pickForTheme({
     candidates: picked.candidates,
+    theme: theme.key,
+    minutes,
     doneIds,
     recentIds,
     preferredParts,
   });
 
-  const full = chosen.map((c) => byId.get(c.id)).filter((ex) => ex != null);
+  const full = themed.picks
+    .map((p) => ({ slot: p.slot, ex: byId.get(p.exercise.id) }))
+    .filter((p): p is { slot: (typeof p)['slot']; ex: NonNullable<(typeof p)['ex']> } =>
+      p.ex != null
+    );
 
   const thumbUrls = await createPlaybackUrls(
-    full.map((ex) => ex.thumbPath).filter((p): p is string => !!p)
+    full.map((p) => p.ex.thumbPath).filter((p): p is string => !!p)
   );
 
-  const exercises: TodayExercise[] = full.map((ex) => ({
+  const exercises: TodayExercise[] = full.map(({ slot, ex }) => ({
     id: ex.id,
     title: ex.title,
     category: ex.category,
@@ -99,6 +148,7 @@ export default async function TodayPage() {
     equipment: ex.equipment,
     thumbUrl: ex.thumbPath ? (thumbUrls[ex.thumbPath] ?? null) : null,
     done: doneIds.has(ex.id),
+    slot,
   }));
 
   return (
@@ -236,6 +286,56 @@ export default async function TodayPage() {
         />
       ) : (
         <>
+          {/* 오늘의 테마 — 무엇을 위한 하루인지 먼저 말한다 */}
+          <Card className="space-y-3">
+            <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+              <p className="text-lg font-bold text-ink">오늘은 {theme.label}</p>
+              <p className="text-sm text-muted">
+                {exercises.length}종목 · 약 {themed.estimatedMinutes}분
+              </p>
+            </div>
+            <p className="text-sm leading-relaxed text-muted">{theme.reason}</p>
+
+            {/* 시간 고르기 — 누르면 오늘에 적용되고, 저장 버튼으로 기본값이 된다 */}
+            <div className="flex flex-wrap items-center gap-2 border-t border-line pt-3">
+              <span className="text-xs text-muted">운동 시간</span>
+              {WORKOUT_MINUTES_CHOICES.map((m) => (
+                <Link
+                  key={m}
+                  href={`/today?time=${m}`}
+                  className={`rounded-lg border px-3 py-1.5 text-xs font-semibold transition-colors ${
+                    m === baseMinutes
+                      ? 'border-sky bg-sky-tint text-sky-strong'
+                      : 'border-line text-muted hover:border-sky-soft'
+                  }`}
+                >
+                  {m}분{m === savedMinutes ? ' (기본)' : ''}
+                </Link>
+              ))}
+              {minutes < baseMinutes && (
+                <span className="text-xs text-warn">
+                  회복 데이라 {minutes}분으로 줄였습니다
+                </span>
+              )}
+            </div>
+
+            {/* 방금 고른 시간이 기본값과 다르면, 여기서 바로 굳힐 수 있게 한다 */}
+            {timeOverride != null && timeOverride !== savedMinutes && (
+              <form action={saveWorkoutMinutes} className="flex items-center gap-2">
+                <input type="hidden" name="minutes" value={timeOverride} />
+                <button
+                  type="submit"
+                  className="rounded-lg bg-sky px-3 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-sky-strong"
+                >
+                  {timeOverride}분을 기본값으로 저장
+                </button>
+                <span className="text-xs text-muted">
+                  저장하지 않으면 오늘만 {timeOverride}분으로 구성됩니다
+                </span>
+              </form>
+            )}
+          </Card>
+
           <TodayList exercises={exercises} />
 
           {/* 후보가 빠듯하면 숨기지 않고 알린다. */}
@@ -253,10 +353,20 @@ export default async function TodayPage() {
               왜 이 운동인가요?
             </summary>
             <ul className="mt-3 space-y-1.5">
+              <li className="flex gap-2 text-[13px] leading-relaxed text-muted">
+                <span aria-hidden className="text-sky">—</span>
+                {theme.reason}
+              </li>
               {picked.basis.map((b) => (
                 <li key={b} className="flex gap-2 text-[13px] leading-relaxed text-muted">
                   <span aria-hidden className="text-sky">—</span>
                   {b}
+                </li>
+              ))}
+              {themed.notes.map((n) => (
+                <li key={n} className="flex gap-2 text-[13px] leading-relaxed text-muted">
+                  <span aria-hidden className="text-sky">—</span>
+                  {n}
                 </li>
               ))}
               {recentIds.size > 0 && (

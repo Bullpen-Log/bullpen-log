@@ -29,6 +29,7 @@ export default async function ProfilePage() {
             birthDate={user.birthDate ? toDateInputValue(user.birthDate) : ''}
             heightCm={user.heightCm}
             targetVelocity={user.targetVelocity}
+            dailyWorkoutMinutes={user.dailyWorkoutMinutes}
             baseline={{
               baselineFreq: user.baselineFreq,
               baselineVolume: user.baselineVolume,
