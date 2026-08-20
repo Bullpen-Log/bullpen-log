@@ -39,6 +39,9 @@ export const NAV_GROUPS: NavGroup[] = [
     items: [{ href: '/pitch-log', label: '투구 일지', icon: '📅' }],
   },
   {
+    items: [{ href: '/velocity', label: '구속 측정', icon: '📡' }],
+  },
+  {
     title: 'AI 코치',
     items: [
       { href: '/coach', label: 'AI 리포트', icon: '📊' },
