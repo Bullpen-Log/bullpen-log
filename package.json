@@ -8,7 +8,8 @@
     "start": "next start",
     "lint": "eslint",
     "backup": "node --env-file=.env scripts/backup.mjs",
-    "restore": "node --env-file=.env scripts/restore.mjs"
+    "restore": "node --env-file=.env scripts/restore.mjs",
+    "velocity:test": "node scripts/velocity-selftest.mts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.115.0",
