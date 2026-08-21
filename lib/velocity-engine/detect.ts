@@ -212,6 +212,23 @@ export type TrackOptions = {
   maxGapFrames?: number;
 };
 
+/**
+ * 공으로 인정할 최소 축소율 — 마지막 지름이 첫 지름의 이 값 이하여야 한다.
+ *
+ * 카메라에서 멀어지는 공은 반드시 작아진다. 이 조건이 없으면 벽의 밝은 점처럼
+ * 가만히 있는 것이 공으로 뽑힌다. 실제로 실내 연습장 영상에서 크기가 그대로인
+ * 점 하나를 119프레임 내내 공으로 따라간 적이 있다.
+ */
+const MAX_END_SIZE_RATIO = 0.85;
+
+/**
+ * 하나의 궤적으로 볼 수 있는 최대 시간(초).
+ *
+ * 던진 공이 실내 네트나 포수에 닿기까지는 아무리 느려도 1초를 넘지 않는다.
+ * 그보다 긴 것은 공이 아니라 배경의 무언가다.
+ */
+const MAX_TRACK_SECONDS = 1.0;
+
 export function trackBall(
   frames: FrameBlobs[],
   options: TrackOptions
@@ -229,6 +246,7 @@ export function trackBall(
   const half = Math.min(frameWidth, frameHeight) / 2;
 
   let best: BallObservation[] = [];
+  let bestScore = 0;
 
   // 앞쪽 프레임들을 차례로 씨앗 삼아 가장 긴 궤적을 찾는다.
   for (let s = 0; s < Math.min(frames.length, 12); s++) {
@@ -283,7 +301,24 @@ export function trackBall(
         track.push(last);
       }
 
-      if (track.length > best.length) best = track;
+      /*
+       * 궤적을 고를 때 "가장 긴 것"을 쓰면 안 된다.
+       *
+       * 가만히 있는 밝은 점은 영상 내내 이어져 아주 긴 궤적이 되는 반면,
+       * 진짜 공은 0.2~0.4초 만에 지나간다. 길이만 보면 가짜가 항상 이긴다.
+       * 그래서 "얼마나 작아졌는가"를 함께 본다 — 멀어지는 공만 가진 성질이다.
+       */
+      const trimmed = track.filter((o) => o.t - track[0].t <= MAX_TRACK_SECONDS);
+      if (trimmed.length < 3) continue;
+
+      const sizeRatio = trimmed[trimmed.length - 1].diameterPx / trimmed[0].diameterPx;
+      if (sizeRatio > MAX_END_SIZE_RATIO) continue; // 작아지지 않았다 = 공이 아니다
+
+      const score = trimmed.length * (1 - sizeRatio);
+      if (score > bestScore) {
+        bestScore = score;
+        best = trimmed;
+      }
     }
   }
 

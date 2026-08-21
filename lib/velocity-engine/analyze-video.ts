@@ -134,6 +134,22 @@ function cornerShift(
   return meanDiff;
 }
 
+/**
+ * 두 프레임이 사실상 같은 장면인가.
+ *
+ * 영상은 압축돼 있어 완전히 똑같지는 않으므로, 몇 픽셀만 띄엄띄엄 보고
+ * 차이가 거의 없으면 같은 장면으로 본다.
+ */
+function isSameFrame(prev: Float32Array, curr: Float32Array): boolean {
+  let diff = 0;
+  let n = 0;
+  for (let i = 0; i < prev.length; i += 97) {
+    diff += Math.abs(curr[i] - prev[i]);
+    n++;
+  }
+  return n > 0 && diff / n < 0.6;
+}
+
 export async function analyzeVideo(options: AnalyzeOptions): Promise<AnalyzeResult> {
   const { file, startSec = 0, endSec, fovDeg = DEFAULT_FOV_DEG, onProgress } = options;
 
@@ -194,7 +210,18 @@ export async function analyzeVideo(options: AnalyzeOptions): Promise<AnalyzeResu
       const luma = toLuma(ctx.getImageData(0, 0, width, height).data, width, height);
 
       const prev = lumas[lumas.length - 1];
-      if (prev) shakePx = Math.max(shakePx, cornerShift(prev, luma, width, height));
+      if (prev) {
+        shakePx = Math.max(shakePx, cornerShift(prev, luma, width, height));
+
+        /*
+         * 같은 장면이 두 번 나오면 건너뛴다.
+         *
+         * 영상의 실제 프레임 수를 알 수 없어 촘촘히 훑는데, 30fps 영상을 77번
+         * 꺼내면 같은 장면이 두세 번씩 나온다. 그대로 두면 공이 멈춰 있는 것처럼
+         * 보여 속도가 낮게 나오고, 계산할 것도 두 배로 늘어난다.
+         */
+        if (isSameFrame(prev, luma)) continue;
+      }
 
       times.push(t);
       lumas.push(luma);

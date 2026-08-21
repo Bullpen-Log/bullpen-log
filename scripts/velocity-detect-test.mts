@@ -143,6 +143,30 @@ console.log('\n════ 3. 여러 개가 움직여도 공을 따라가는가
   }
 }
 
+console.log('\n════ 3-1. 가만히 있는 밝은 점을 공으로 착각하지 않는가 ════\n');
+{
+  /*
+   * 실제 실내 연습장 영상에서, 크기가 그대로인 밝은 점 하나를 119프레임 내내
+   * 공으로 따라간 적이 있다. 가장 긴 궤적을 고르는 규칙 때문이었다.
+   * 멀어지는 공은 반드시 작아지므로, 그 조건으로 걸러야 한다.
+   */
+  const fps = 60;
+  const lumas: Float32Array[] = [];
+  for (let i = 0; i < 40; i++) {
+    const curr = makeBackground();
+    drawCircle(curr, 300, 200, 12);   // 크기·위치 그대로인 점 (조명 등)
+    lumas.push(toLuma(curr, W, H));
+  }
+  const background = buildBackground(lumas);
+  const frames: FrameBlobs[] = lumas.map((luma, i) => ({
+    t: i / fps,
+    blobs: findMovedBlobs(background, luma, W, H),
+  }));
+  const track = trackBall(frames, { frameWidth: W, frameHeight: H });
+  check('작아지지 않는 것은 공으로 뽑지 않음', track.length === 0,
+    track.length ? `${track.length}프레임을 공으로 착각함` : '궤적 없음');
+}
+
 console.log('\n════ 4. 감지부터 구속까지 한 번에 ════\n');
 {
   /*
