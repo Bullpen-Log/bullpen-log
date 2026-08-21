@@ -8,6 +8,7 @@ import {
   type FrameBlobs,
 } from './detect.ts';
 import { focalPxFromFov, type BallObservation, type CameraLens } from './geometry.ts';
+import { checkFootage } from './validate.ts';
 import { measureVelocity, type MeasureResult } from './measure.ts';
 
 /**
@@ -65,6 +66,8 @@ export type AnalyzeResult = {
   analyzeSize: { width: number; height: number };
   /** 원본 해상도 */
   sourceSize: { width: number; height: number };
+  /** 영상의 실제 초당 장면 수. 세지 못했으면 null */
+  fps: number | null;
   frameCount: number;
   /** 카메라가 얼마나 흔들렸는지 (픽셀, 원본 기준) */
   shakePx: number;
@@ -232,6 +235,15 @@ export async function analyzeVideo(options: AnalyzeOptions): Promise<AnalyzeResu
     if (lumas.length < 3) throw new Error('영상에서 프레임을 충분히 읽지 못했습니다.');
 
     /*
+     * 같은 장면을 건너뛰고 남은 수로 영상의 실제 초당 장면 수를 센다.
+     * 브라우저는 이 값을 알려주지 않아 직접 세는 수밖에 없다.
+     */
+    const measuredFps =
+      times.length > 1
+        ? (times.length - 1) / (times[times.length - 1] - times[0])
+        : null;
+
+    /*
      * 2) 배경 기준선을 만든다.
      *
      * 분석 구간 안의 프레임만으로 만들면, 공이 오래 머무는 자리는 배경으로
@@ -276,20 +288,44 @@ export async function analyzeVideo(options: AnalyzeOptions): Promise<AnalyzeResu
       diameterPx: o.diameterPx / scale,
     }));
 
+    /*
+     * 렌즈의 초점거리는 화면의 '긴 쪽'을 기준으로 구한다.
+     *
+     * 폰에 적힌 화각(약 69도)은 가로로 눕혀 찍었을 때의 값이다. 세로로 찍으면
+     * 같은 렌즈인데도 가로가 짧아져, 짧은 쪽에 그 화각을 대입하면 초점거리를
+     * 실제보다 작게 본다. 그러면 공이 실제보다 가까이 있다고 계산돼 구속이
+     * 낮게 나온다. 앱의 촬영 안내가 세로 화면이라 거의 모든 영상이 여기 걸린다.
+     *
+     * 초점거리는 방향과 무관한 렌즈의 성질이므로, 긴 쪽으로 한 번 구해 두면
+     * 가로·세로 어느 쪽으로 찍어도 같은 값을 쓴다.
+     */
     const lens: CameraLens = {
-      focalPx: focalPxFromFov(sourceW, fovDeg),
+      focalPx: focalPxFromFov(Math.max(sourceW, sourceH), fovDeg),
       frameWidth: sourceW,
       frameHeight: sourceH,
     };
 
-    const measure = measureVelocity({
-      observations: scaled,
-      lens,
-      stability: { maxBackgroundShiftPx: shakePx },
+    /*
+     * 촬영 자체가 안 되는 조건이면 그것부터 알려준다.
+     * 공을 못 찾았다고만 하면 무엇을 고쳐야 할지 알 수 없다.
+     */
+    const footage = checkFootage({
+      frameWidth: sourceW,
+      frameHeight: sourceH,
+      fps: measuredFps,
     });
+
+    const measure: MeasureResult = footage
+      ? { ok: false, ...footage }
+      : measureVelocity({
+          observations: scaled,
+          lens,
+          stability: { maxBackgroundShiftPx: shakePx },
+        });
 
     return {
       measure,
+      fps: measuredFps,
       track,
       analyzeSize: { width, height },
       sourceSize: { width: sourceW, height: sourceH },

@@ -58,8 +58,16 @@ export function VelocityClient() {
           <li>· <strong className="text-ink">투수 바로 뒤 1m 이내</strong>에 두고, 던지는 방향을 향하게 하세요</li>
           <li>· 공을 놓는 지점이 <strong className="text-ink">화면 한가운데</strong> 오도록 높이를 맞추세요</li>
           <li>· 공이 네트·포수에 닿을 때까지 녹화를 이어가세요</li>
-          <li>· 슬로모션으로 찍으면 더 정확합니다</li>
+          <li>
+            · <strong className="text-ink">반드시 슬로모션</strong>으로, 화질은{' '}
+            <strong className="text-ink">1080p 이상</strong>으로 찍으세요
+          </li>
         </ul>
+        <p className="rounded-lg border border-line bg-surface-2 px-4 py-3 text-[13px] leading-relaxed text-muted">
+          슬로모션이 <strong className="text-ink">권장이 아니라 필수</strong>인 이유가
+          있습니다. 일반 촬영(초당 30장)에서는 공이 손을 떠나 네트에 닿기까지가 한두
+          장면 사이에 끝나버려, 날아가는 모습이 아예 안 담깁니다.
+        </p>
         <p className="rounded-lg border border-line bg-surface-2 px-4 py-3 text-[13px] leading-relaxed text-muted">
           조건을 못 지킨 영상은 <strong className="text-ink">숫자를 내지 않고 이유를 알려드립니다.</strong>{' '}
           틀린 구속이 기록에 남는 것보다 낫기 때문입니다.
@@ -117,7 +125,9 @@ export function VelocityClient() {
           <p className="text-sm leading-relaxed text-warn">{result.measure.message}</p>
           <p className="text-sm leading-relaxed text-warn">{result.measure.fix}</p>
           <p className="border-t border-warn-line pt-2 text-xs text-warn/80">
-            살펴본 프레임 {result.frameCount}개 · 공을 이어붙인 프레임 {result.track.length}개
+            {result.sourceSize.width}×{result.sourceSize.height}
+            {result.fps != null && ` · 초당 ${Math.round(result.fps)}장`} · 살펴본 프레임{' '}
+            {result.frameCount}개 · 공을 이어붙인 프레임 {result.track.length}개
             {result.shakePx > 0 && ` · 흔들림 ${result.shakePx}`}
           </p>
         </Card>

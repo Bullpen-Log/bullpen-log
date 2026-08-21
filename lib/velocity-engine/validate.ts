@@ -118,9 +118,52 @@ const FALLBACK_FRAME_GAP_SEC = 1 / 30;
  */
 export const MAX_CAMERA_SHAKE_PX = 6;
 
+/**
+ * 쓸 만한 화면 가로 픽셀 수의 최소값.
+ *
+ * 이 방식은 공의 지름을 픽셀로 재서 거리를 구한다. 화질이 낮으면 조금만
+ * 멀어져도 공이 몇 픽셀로 뭉개져 잴 수가 없다. 화각 69도 기준으로 공이
+ * 9픽셀이 되는 거리는 가로 720에서 4.2m, 1080에서 6.4m, 1920에서 11.3m다.
+ * 릴리스가 1.5m 앞이라고 보면 720에서는 쓸 구간이 2.7m밖에 안 남는다.
+ */
+export const MIN_FRAME_WIDTH_PX = 1000;
+
+/**
+ * 공이 날아가는 동안 담겨야 할 최소 장면 수를 위한 초당 프레임 하한.
+ *
+ * 실제로 30fps·720p로 찍은 투구 영상을 넣어보니, 공이 손을 떠난 다음
+ * 장면에서 이미 네트에 닿아 있었다. 쓸 만한 구간(공이 9픽셀보다 크게 찍히는
+ * 구간)을 130km/h로 지나는 데 720p에서 0.076초밖에 안 걸리기 때문이다.
+ * 30fps면 그 사이 두세 장, 240fps면 열여덟 장이 담긴다.
+ */
+export const MIN_FPS = 60;
+
+/**
+ * 영상 자체가 측정에 쓸 수 있는 조건인지 미리 본다.
+ *
+ * 공을 찾기 전에 알 수 있는 것들이라 먼저 확인한다. 한참 분석한 뒤에
+ * "공을 못 찾았다"고만 말하면, 무엇을 고쳐야 하는지 알 수 없다.
+ */
+export function checkFootage(input: {
+  frameWidth: number;
+  frameHeight: number;
+  /** 영상의 실제 초당 장면 수. 셀 수 없으면 넣지 않는다. */
+  fps?: number | null;
+}): Rejection | null {
+  // 세로로 찍으면 가로가 짧다. 둘 중 긴 쪽을 기준으로 본다.
+  const longSide = Math.max(input.frameWidth, input.frameHeight);
+  if (longSide < MIN_FRAME_WIDTH_PX) return reject('RESOLUTION_TOO_LOW');
+  if (input.fps != null && input.fps > 0 && input.fps < MIN_FPS) {
+    return reject('FRAME_RATE_TOO_LOW');
+  }
+  return null;
+}
+
 /* ------------------------------ 거부 사유 ------------------------------ */
 
 export type RejectCode =
+  | 'RESOLUTION_TOO_LOW'
+  | 'FRAME_RATE_TOO_LOW'
   | 'NOT_ENOUGH_FRAMES'
   | 'CAMERA_SHAKE'
   | 'TOO_FAR'
@@ -140,6 +183,14 @@ export type Rejection = {
 };
 
 const REJECTIONS: Record<RejectCode, Omit<Rejection, 'code'>> = {
+  RESOLUTION_TOO_LOW: {
+    message: '영상 화질이 낮아 공이 너무 작게 찍혔습니다.',
+    fix: '카메라 설정에서 1080p 이상으로 바꿔 다시 찍어주세요. 화질이 낮으면 공이 몇 픽셀 안 돼 거리를 잴 수 없습니다.',
+  },
+  FRAME_RATE_TOO_LOW: {
+    message: '초당 장면 수가 부족해 공이 날아가는 모습이 담기지 않았습니다.',
+    fix: '슬로모션으로 찍어주세요. 일반 촬영(30장/초)에서는 공이 손을 떠나 네트에 닿기까지가 한두 장면 사이에 끝나버립니다.',
+  },
   NOT_ENOUGH_FRAMES: {
     message: '공을 충분히 잡지 못했습니다.',
     fix: '밝은 곳에서, 공이 가려지지 않게 다시 찍어주세요. 슬로모션으로 찍으면 더 잘 잡힙니다.',
