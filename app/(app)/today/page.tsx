@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { prisma } from '@/lib/prisma';
 import { requireUser } from '@/lib/dal';
 import { createPlaybackUrls } from '@/lib/storage';
+import { referenceThumbUrl } from '@/lib/reference-video';
 import { toDateKey } from '@/lib/pitch-stats';
 import {
   gatherFactsAndPlan,
@@ -146,7 +147,16 @@ export default async function TodayPage({
     intensity: ex.intensity,
     difficulty: ex.difficulty,
     equipment: ex.equipment,
-    thumbUrl: ex.thumbPath ? (thumbUrls[ex.thumbPath] ?? null) : null,
+    /*
+     * 아직 촬영하지 않은 운동은 유튜브 참고 영상의 미리보기를 그대로 쓴다.
+     * 우리 저장소에 담아 둔 것이 없어 발급받을 주소도 없다.
+     */
+    thumbUrl: ex.referenceVideoId
+      ? referenceThumbUrl(ex.referenceVideoId)
+      : ex.thumbPath
+        ? (thumbUrls[ex.thumbPath] ?? null)
+        : null,
+    isReference: ex.source === 'REFERENCE',
     done: doneIds.has(ex.id),
     slot,
   }));

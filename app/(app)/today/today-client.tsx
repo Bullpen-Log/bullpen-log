@@ -16,6 +16,8 @@ export type TodayExercise = {
   difficulty: string | null;
   equipment: string[];
   thumbUrl: string | null;
+  /** 아직 촬영 전이라 유튜브 참고 영상으로 대신하고 있는가 */
+  isReference: boolean;
   done: boolean;
   /** 세션 안에서 이 운동이 놓이는 구간 (워밍업·본운동·코어·암케어) */
   slot: SlotKey;
@@ -142,6 +144,11 @@ function ExerciseList({
                     {ex.title}
                   </span>
                   <span className="text-[11px] text-muted">{ex.category}</span>
+                  {ex.isReference && (
+                    <span className="rounded bg-warn-bg px-1.5 py-0.5 text-[10px] font-semibold text-warn">
+                      참고 영상
+                    </span>
+                  )}
                 </span>
                 <ExerciseBadges
                   bodyParts={ex.bodyParts}
