@@ -11,17 +11,25 @@ import { Play } from 'lucide-react';
 export function LibraryTile({
   title,
   thumbUrl,
+  isReference = false,
   onSelect,
 }: {
   title: string;
   thumbUrl: string | null;
+  /**
+   * 아직 촬영하지 않아 유튜브 참고 영상으로 대신하고 있는 운동인가.
+   * 직접 찍은 것과 섞이면 무엇이 남았는지 알 수 없으므로 눈에 띄게 표시한다.
+   */
+  isReference?: boolean;
   onSelect: () => void;
 }) {
   return (
     <button
       type="button"
       onClick={onSelect}
-      className="group flex flex-col overflow-hidden rounded-xl border border-line bg-surface text-left transition-colors hover:border-sky"
+      className={`group flex flex-col overflow-hidden rounded-xl border bg-surface text-left transition-colors hover:border-sky ${
+        isReference ? 'border-warn-line' : 'border-line'
+      }`}
     >
       <span className="relative flex aspect-video w-full items-center justify-center overflow-hidden bg-surface-2">
         {thumbUrl && (
@@ -40,6 +48,12 @@ export function LibraryTile({
         <span className="relative flex h-9 w-9 items-center justify-center rounded-full bg-sky/90 text-white transition-transform group-hover:scale-110">
           <Play className="ml-0.5 h-4 w-4 fill-current" />
         </span>
+
+        {isReference && (
+          <span className="absolute left-1.5 top-1.5 rounded-md bg-warn-bg px-1.5 py-0.5 text-[10px] font-semibold text-warn">
+            참고 영상
+          </span>
+        )}
       </span>
 
       <span className="line-clamp-2 px-3 py-2.5 text-sm font-medium leading-snug text-ink transition-colors group-hover:text-sky">

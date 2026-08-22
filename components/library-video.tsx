@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { Loader2, Play } from 'lucide-react';
+import { referenceEmbedUrl, referenceWatchUrl } from '@/lib/reference-video';
 
 /**
  * 라이브러리에 올린 영상 재생기.
@@ -12,11 +13,20 @@ import { Loader2, Play } from 'lucide-react';
  */
 export function LibraryVideo({
   path,
+  referenceVideoId,
   title,
   thumbUrl,
   isAdmin = false,
 }: {
-  path: string;
+  /** 우리 저장소에 올린 영상 경로. 참고 영상이면 없다. */
+  path?: string | null;
+  /**
+   * 아직 촬영하지 않아 유튜브 참고 영상으로 대신하는 경우의 영상 ID.
+   *
+   * 이 값이 있으면 유튜브 재생기를 그대로 띄운다. 영상을 우리 쪽으로
+   * 가져오지 않고 가리키기만 한다. (lib/reference-video.ts 참고)
+   */
+  referenceVideoId?: string | null;
   title: string;
   /** 재생 전에 보여줄 이미지. 없으면 빈 화면에 재생 버튼만 나온다. */
   thumbUrl?: string | null;
@@ -33,8 +43,66 @@ export function LibraryVideo({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string>();
 
+  /*
+   * 참고 영상은 유튜브 재생기를 그대로 띄운다.
+   *
+   * 누르기 전에는 미리보기 이미지만 두고 재생기를 심지 않는다. 목록에
+   * 스무 개가 있으면 유튜브 창이 스무 개 뜨는 셈이라 화면이 크게 느려진다.
+   */
+  const [showEmbed, setShowEmbed] = useState(false);
+
+  if (referenceVideoId) {
+    if (showEmbed) {
+      return (
+        <iframe
+          src={referenceEmbedUrl(referenceVideoId)}
+          title={title}
+          allow="accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture"
+          allowFullScreen
+          className="aspect-video w-full rounded-xl border border-line bg-black"
+        />
+      );
+    }
+    return (
+      <div className="space-y-2">
+        <button
+          type="button"
+          onClick={() => setShowEmbed(true)}
+          aria-label={`${title} 참고 영상 재생`}
+          className="group relative flex aspect-video w-full items-center justify-center overflow-hidden rounded-xl border border-warn-line bg-surface-2 transition-colors hover:border-sky-soft"
+        >
+          {thumbUrl && (
+            // 유튜브가 공개하는 주소라 이미지 최적화 대상이 아니다.
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={thumbUrl}
+              alt=""
+              loading="lazy"
+              className="absolute inset-0 h-full w-full object-cover"
+            />
+          )}
+          <span className="absolute inset-0 bg-shade/40 transition-colors group-hover:bg-shade/20" />
+          <span className="relative flex h-14 w-14 items-center justify-center rounded-full bg-sky text-white shadow-lg transition-transform group-hover:scale-110">
+            <Play className="ml-0.5 h-6 w-6 fill-current" />
+          </span>
+          <span className="absolute left-2 top-2 rounded-md bg-warn-bg px-2 py-1 text-[11px] font-semibold text-warn">
+            참고 영상
+          </span>
+        </button>
+        <a
+          href={referenceWatchUrl(referenceVideoId)}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="block text-center text-xs text-muted underline-offset-2 hover:underline"
+        >
+          유튜브에서 열기
+        </a>
+      </div>
+    );
+  }
+
   const play = async () => {
-    if (loading) return;
+    if (loading || !path) return;
     setLoading(true);
     setError(undefined);
 

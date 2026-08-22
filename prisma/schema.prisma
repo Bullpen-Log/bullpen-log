@@ -12,6 +12,14 @@ enum Role {
   ADMIN
 }
 
+/// 운동 영상의 출처. 직접 찍은 것과 참고용으로 걸어둔 것을 구분한다.
+enum ExerciseSource {
+  /// 직접 촬영해 저장소에 올린 영상
+  OWN
+  /// 아직 촬영 전이라 유튜브 참고 영상으로 대신하는 것
+  REFERENCE
+}
+
 model User {
   id                String              @id @default(uuid())
   email             String              @unique
@@ -184,10 +192,26 @@ model ExerciseVideo {
   title            String
   category         String
   description      String            @db.Text
-  /// 저장소에 올린 영상 경로 (library/... )
-  videoPath        String
+  /**
+   * 저장소에 올린 영상 경로 (library/... ).
+   *
+   * 참고 영상(source = REFERENCE)은 유튜브에서 바로 재생하므로 비어 있다.
+   * 직접 촬영한 영상을 나중에 올리면 이 값이 채워지고 source 가 OWN 으로 바뀐다.
+   */
+  videoPath        String?
   /// 재생 전에 보여줄 미리보기 이미지 경로. 없으면 빈 화면으로 표시한다.
   thumbPath        String?
+  /**
+   * 영상의 출처.
+   *
+   * OWN       — 직접 찍어 올린 영상. videoPath 를 쓴다.
+   * REFERENCE — 아직 촬영하지 않아 유튜브 참고 영상으로 대신하는 것.
+   *             영상과 미리보기 모두 유튜브 주소를 가리키기만 하고
+   *             우리 저장소에는 아무것도 담지 않는다.
+   */
+  source           ExerciseSource    @default(OWN)
+  /// 참고 영상의 유튜브 영상 ID (11자). source 가 REFERENCE 일 때만 채운다.
+  referenceVideoId String?
   /// 이 운동이 목표로 하는 부위
   bodyParts        String[]
   /// 매우 낮음 / 낮음 / 중간 / 높음 / 매우 높음 (lib/exercise-meta.ts)

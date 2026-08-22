@@ -27,7 +27,12 @@ export type ExerciseItem = {
   intensity: string;
   difficulty: string | null;
   equipment: string[];
-  videoPath: string;
+  /** 우리 저장소에 올린 영상 경로. 참고 영상이면 없다. */
+  videoPath: string | null;
+  /** OWN(직접 촬영) / REFERENCE(아직 촬영 전, 유튜브 참고 영상) */
+  source: 'OWN' | 'REFERENCE';
+  /** 참고 영상의 유튜브 영상 ID */
+  referenceVideoId: string | null;
   thumbUrl: string | null;
 };
 
@@ -86,6 +91,7 @@ function ExerciseDetail({
     <Card className="grid gap-5 border-sky-soft/40 p-4 sm:p-5 md:grid-cols-[minmax(0,420px)_1fr]">
       <LibraryVideo
         path={item.videoPath}
+        referenceVideoId={item.referenceVideoId}
         title={item.title}
         thumbUrl={item.thumbUrl}
         isAdmin={isAdmin}
@@ -93,7 +99,14 @@ function ExerciseDetail({
 
       <div className="flex flex-col gap-4">
         <div className="flex items-start justify-between gap-3">
-          <h3 className="text-lg font-bold text-ink">{item.title}</h3>
+          <div className="flex flex-wrap items-center gap-2">
+            <h3 className="text-lg font-bold text-ink">{item.title}</h3>
+            {item.source === 'REFERENCE' && (
+              <span className="rounded-md bg-warn-bg px-2 py-0.5 text-[11px] font-semibold text-warn">
+                촬영 전 · 참고 영상
+              </span>
+            )}
+          </div>
           <div className="flex shrink-0 items-center gap-1">
             {isAdmin && (
               <>
@@ -140,7 +153,7 @@ function ExerciseDetail({
         </p>
 
         {/* 업로드할 때 캡처가 실패한 영상은 여기서 이미지만 다시 만들 수 있다. */}
-        {isAdmin && !item.thumbUrl && (
+        {isAdmin && !item.thumbUrl && item.videoPath && (
           <div className="border-t border-line pt-4">
             <p className="mb-2 text-xs text-muted">
               이 영상은 미리보기 이미지가 없습니다.
@@ -186,6 +199,7 @@ function ExerciseGrid({
             key={item.id}
             title={item.title}
             thumbUrl={item.thumbUrl}
+            isReference={item.source === 'REFERENCE'}
             onSelect={() => setOpenId(item.id)}
           />
         )
@@ -202,11 +216,28 @@ export function TrainingClient({
   isAdmin: boolean;
 }) {
   const [filter, setFilter] = useState<FilterState>({});
+  /*
+   * 직접 촬영한 것만 / 참고 영상만 골라 보기.
+   *
+   * 촬영 전 운동을 참고 영상으로 미리 등록해 두었기 때문에, 둘이 섞이면
+   * 무엇이 남았는지 알 수 없다. 조건 고르기(MetaFilter)는 부위·강도·장비를
+   * 다루는 곳이라, 성격이 다른 이 항목은 따로 둔다.
+   */
+  const [sourceView, setSourceView] = useState<'ALL' | 'OWN' | 'REFERENCE'>('ALL');
+
+  const visible = useMemo(
+    () => (sourceView === 'ALL' ? exercises : exercises.filter((ex) => ex.source === sourceView)),
+    [exercises, sourceView]
+  );
+
+  const ownCount = useMemo(() => exercises.filter((ex) => ex.source === 'OWN').length, [exercises]);
+  const referenceCount = exercises.length - ownCount;
+
   const filtering = Object.values(filter).some((v) => v.length > 0);
 
   const matched = useMemo(
     () =>
-      exercises.filter((ex) =>
+      visible.filter((ex) =>
         matchesFilter(filter, {
           bodyParts: ex.bodyParts,
           // 강도는 하나뿐이지만 검사 방식을 맞추려 배열로 넘긴다.
@@ -214,27 +245,59 @@ export function TrainingClient({
           equipment: ex.equipment,
         })
       ),
-    [exercises, filter]
+    [visible, filter]
   );
 
   const byCategory = useMemo(
     () =>
-      exercises.reduce<Record<string, ExerciseItem[]>>((acc, ex) => {
+      visible.reduce<Record<string, ExerciseItem[]>>((acc, ex) => {
         (acc[ex.category] ??= []).push(ex);
         return acc;
       }, {}),
-    [exercises]
+    [visible]
   );
 
   return (
     <div className="space-y-6">
+      {/* 촬영이 어디까지 됐는지 — 참고 영상이 하나라도 있을 때만 보여준다 */}
+      {referenceCount > 0 && (
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-2xl border border-line bg-surface px-5 py-4">
+          <span className="text-sm text-muted">
+            직접 촬영 <strong className="text-ink">{ownCount}</strong>개 · 촬영 전{' '}
+            <strong className="text-warn">{referenceCount}</strong>개
+          </span>
+          <span className="ml-auto flex flex-wrap gap-1.5">
+            {(
+              [
+                ['ALL', '전체'],
+                ['OWN', '직접 촬영'],
+                ['REFERENCE', '참고 영상'],
+              ] as const
+            ).map(([key, label]) => (
+              <button
+                key={key}
+                type="button"
+                onClick={() => setSourceView(key)}
+                className={`rounded-lg border px-3 py-1.5 text-xs font-semibold transition-colors ${
+                  sourceView === key
+                    ? 'border-sky bg-sky-tint text-sky-strong'
+                    : 'border-line text-muted hover:border-sky-soft'
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </span>
+        </div>
+      )}
+
       {/* 영상이 하나도 없으면 조건 고르기가 의미 없다. */}
-      {exercises.length > 0 && (
+      {visible.length > 0 && (
         <MetaFilter
           groups={FILTER_GROUPS}
           value={filter}
           onChange={setFilter}
-          total={exercises.length}
+          total={visible.length}
           matched={matched.length}
         />
       )}
