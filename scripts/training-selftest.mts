@@ -20,6 +20,8 @@ import { buildFacts, type CheckinLike } from '../lib/report/facts.ts';
 import {
   countMissingDays,
   countSessionTypes,
+  buildReportFindings,
+  loadBySessionType,
   dailyLoad,
   groupByDay,
   longestThrowStreak,
@@ -443,6 +445,136 @@ console.log('\n[투구 종류] 무엇을 하며 지냈는지 세는가');
     week
   );
   check('쉰 날은 하루로 센다', rested[0]?.count === 1, `${rested[0]?.count}`);
+}
+
+console.log('\n[종류별 부하] 무엇 때문에 힘든지 나뉘는가');
+{
+  const week = ['2026-06-08', '2026-06-09', '2026-06-10'];
+  const prevWeek = ['2026-06-05', '2026-06-06', '2026-06-07'];
+  const log = (date: string, sessionType: string, pitchCount: number, intensity: number) => ({
+    date,
+    sessionType,
+    pitchCount,
+    intensity,
+  });
+
+  const split = loadBySessionType(
+    [
+      log('2026-06-08', '경기', 80, 9), // 720
+      log('2026-06-09', '불펜', 40, 6), // 240
+      log('2026-06-10', '캐치볼', 30, 2), // 60
+      log('2026-06-10', '휴식', 0, 0), // 부하 없음
+    ],
+    week
+  );
+  const share = (name: string) => split.find((t) => t.name === name)?.share ?? 0;
+
+  check('부하가 0인 종류는 빠진다', !split.some((t) => t.name === '휴식'));
+  // 손으로 계산한 값과 맞춰본다: 경기 80×9=720, 불펜 40×6=240, 캐치볼 30×2=60
+  const expected = 720 / (720 + 240 + 60);
+  check(
+    '경기 부하 비중이 손계산과 같다',
+    Math.abs(share('경기') - expected) < 1e-9,
+    `경기 ${Math.round(share('경기') * 100)}% · 불펜 ${Math.round(share('불펜') * 100)}% · 캐치볼 ${Math.round(share('캐치볼') * 100)}%`
+  );
+  check(
+    '비중을 다 더하면 100%',
+    Math.abs(split.reduce((s, t) => s + t.share, 0) - 1) < 1e-9
+  );
+
+  /*
+   * 같은 100구라도 캐치볼과 경기는 부하가 다르다.
+   * 투구수 비중과 부하 비중이 갈리는지 확인한다.
+   */
+  const sameCount = loadBySessionType(
+    [log('2026-06-08', '경기', 50, 9), log('2026-06-09', '캐치볼', 50, 2)],
+    week
+  );
+  check(
+    '같은 투구수라도 강도가 다르면 부하 비중이 다르다',
+    (sameCount.find((t) => t.name === '경기')?.share ?? 0) > 0.8,
+    `경기 ${Math.round((sameCount.find((t) => t.name === '경기')?.share ?? 0) * 100)}%`
+  );
+
+  // 경기가 늘었는데 연습을 안 줄이면 짚어줘야 한다.
+  const surge = buildReportFindings({
+    days: 3,
+    current: summarize(new Map(), []),
+    previous: summarize(new Map(), []),
+    fatigueCount: 0,
+    streak: 0,
+    loadNow: loadBySessionType(
+      [log('2026-06-08', '경기', 90, 9), log('2026-06-09', '불펜', 40, 6)],
+      week
+    ),
+    loadPrev: loadBySessionType(
+      [log('2026-06-05', '경기', 30, 8), log('2026-06-06', '불펜', 40, 6)],
+      prevWeek
+    ),
+  });
+  check(
+    '경기가 늘고 연습이 그대로면 알려준다',
+    surge.some((f) => f.title.includes('경기가 늘었는데')),
+    surge.map((f) => f.title).join(' / ') || '(없음)'
+  );
+
+  // 경기가 늘어도 연습을 줄였으면 말하지 않는다.
+  const balanced = buildReportFindings({
+    days: 3,
+    current: summarize(new Map(), []),
+    previous: summarize(new Map(), []),
+    fatigueCount: 0,
+    streak: 0,
+    loadNow: loadBySessionType([log('2026-06-08', '경기', 90, 9)], week),
+    loadPrev: loadBySessionType(
+      [log('2026-06-05', '경기', 30, 8), log('2026-06-06', '불펜', 60, 7)],
+      prevWeek
+    ),
+  });
+  check(
+    '연습을 줄였으면 잔소리하지 않는다',
+    !balanced.some((f) => f.title.includes('경기가 늘었는데'))
+  );
+
+  /*
+   * 연습만 하다 시즌에 들어가는 때. 직전 경기가 0이라 '몇 배'로는 못 잡는데,
+   * 정작 이때가 가장 위험하다.
+   */
+  const seasonStart = buildReportFindings({
+    days: 3,
+    current: summarize(new Map(), []),
+    previous: summarize(new Map(), []),
+    fatigueCount: 0,
+    streak: 0,
+    loadNow: loadBySessionType(
+      [log('2026-06-08', '경기', 80, 9), log('2026-06-09', '불펜', 40, 6)],
+      week
+    ),
+    loadPrev: loadBySessionType([log('2026-06-05', '불펜', 40, 6)], prevWeek),
+  });
+  check(
+    '연습만 하다 첫 경기를 던지면 알려준다',
+    seasonStart.some((f) => f.title.includes('경기가 시작됐는데')),
+    seasonStart.map((f) => f.title).join(' / ') || '(없음)'
+  );
+
+  // 몸풀이로 조금 던진 것까지 잡으면 잔소리가 된다.
+  const tinyGame = buildReportFindings({
+    days: 3,
+    current: summarize(new Map(), []),
+    previous: summarize(new Map(), []),
+    fatigueCount: 0,
+    streak: 0,
+    loadNow: loadBySessionType(
+      [log('2026-06-08', '경기', 5, 6), log('2026-06-09', '불펜', 60, 7)],
+      week
+    ),
+    loadPrev: loadBySessionType([log('2026-06-05', '불펜', 60, 7)], prevWeek),
+  });
+  check(
+    '경기를 조금만 던진 것은 넘어간다',
+    !tinyGame.some((f) => f.title.includes('경기가 시작됐는데'))
+  );
 }
 
 console.log('\n[일정 만들기] 눌러야 생기고, 만든 것은 그대로 남는가');

@@ -240,6 +240,69 @@ export function countSessionTypes(
   }).filter((t) => t.count > 0);
 }
 
+/** 종류별 부하. 같은 투구수라도 어디에 쓴 부하인지가 다르다. */
+export type SessionTypeLoad = {
+  name: string;
+  /** 그 종류에서 나온 부하의 합 (투구수 × 강도) */
+  load: number;
+  /** 전체 부하에서 차지하는 비율 (0~1) */
+  share: number;
+};
+
+type LoadLog = SessionLog & { intensity: number };
+
+/**
+ * 기간 안의 부하를 종류별로 나눈다.
+ *
+ * 총 부하만 보면 "무엇 때문에 힘든지"를 알 수 없다. 같은 부하라도 경기에서 온
+ * 것과 불펜에서 온 것은 다루는 법이 다르다 — 경기는 내가 양을 못 정하므로,
+ * 경기가 늘면 연습을 줄여서 맞춰야 한다.
+ *
+ * 부하가 0인 종류(휴식)는 빼고 돌려준다.
+ */
+export function loadBySessionType(
+  logs: LoadLog[],
+  dateKeys: string[]
+): SessionTypeLoad[] {
+  const within = new Set(dateKeys);
+  const byType = new Map<string, number>();
+  let total = 0;
+
+  for (const log of logs) {
+    if (!within.has(log.date.slice(0, 10))) continue;
+    const load = log.pitchCount * log.intensity;
+    if (load <= 0) continue;
+    byType.set(log.sessionType, (byType.get(log.sessionType) ?? 0) + load);
+    total += load;
+  }
+
+  if (total === 0) return [];
+
+  return SESSION_TYPE_NAMES.map((name) => {
+    const load = byType.get(name) ?? 0;
+    return { name, load, share: load / total };
+  }).filter((t) => t.load > 0);
+}
+
+/**
+ * 경기 부하가 늘었는데 연습을 안 줄인 경우를 잡는 기준.
+ *
+ * 경기는 내가 던질 양을 정할 수 없다. 그래서 경기가 늘면 연습으로 그만큼
+ * 덜어내야 하는데, 시즌에 들어가면 연습량을 그대로 두는 일이 흔하다.
+ * 시즌 중 어깨·팔꿈치가 상하는 흔한 경로다.
+ */
+export const GAME_LOAD_SURGE_RATIO = 1.3;
+/** 연습 부하가 이 비율보다 덜 줄었으면 '안 줄인 것'으로 본다. */
+export const PRACTICE_KEPT_RATIO = 0.9;
+/**
+ * 경기가 없다가 생긴 경우, 이 비중 이상이어야 알린다.
+ *
+ * 연습만 하다 시즌에 들어가는 때가 가장 위험한데, '직전보다 몇 배'로만 보면
+ * 직전이 0이라 나눌 수가 없어 이 경우가 통째로 빠진다. 그래서 따로 본다.
+ * 다만 한 이닝 몸풀이처럼 적게 던진 것까지 잡으면 잔소리가 되므로 선을 둔다.
+ */
+export const NEW_GAME_SHARE = 0.2;
+
 /**
  * 최근 28일 중 이 날 수 이상 기록이 비면 화면에 알린다.
  *
@@ -384,12 +447,18 @@ export function buildReportFindings({
   previous,
   fatigueCount,
   streak,
+  loadNow = [],
+  loadPrev = [],
 }: {
   days: number;
   current: PeriodSummary;
   previous: PeriodSummary;
   fatigueCount: number;
   streak: number;
+  /** 이번 기간의 종류별 부하 (없으면 그 항목은 건너뛴다) */
+  loadNow?: SessionTypeLoad[];
+  /** 직전 같은 기간의 종류별 부하 */
+  loadPrev?: SessionTypeLoad[];
 }): ReportFinding[] {
   const findings: ReportFinding[] = [];
   const label = `최근 ${days}일`;
@@ -459,6 +528,43 @@ export function buildReportFindings({
       tone: 'warn',
       title: `${streak}일 연속으로 던진 구간이 있습니다`,
       detail: '연투가 이어지면 회복이 따라가지 못합니다. 중간에 쉬는 날을 넣어보세요.',
+    });
+  }
+
+  /*
+   * 4-1) 경기가 늘었는데 연습을 안 줄인 경우.
+   *
+   * 경기는 내가 던질 양을 정할 수 없다. 그래서 경기가 늘면 연습으로 그만큼
+   * 덜어내야 하는데, 시즌에 들어가면 연습량을 그대로 두는 일이 흔하다.
+   * 총 투구수만 보면 "조금 늘었네" 정도로 보여서 놓치기 쉽다.
+   */
+  const gameLoad = (list: SessionTypeLoad[]) =>
+    list.find((t) => t.name === '경기')?.load ?? 0;
+  const totalLoad = (list: SessionTypeLoad[]) =>
+    list.reduce((sum, t) => sum + t.load, 0);
+
+  const gameNow = gameLoad(loadNow);
+  const gamePrev = gameLoad(loadPrev);
+  const practiceNow = totalLoad(loadNow) - gameNow;
+  const practicePrev = totalLoad(loadPrev) - gamePrev;
+
+  const gameShare = loadNow.find((t) => t.name === '경기')?.share ?? 0;
+  const keptPractice = practiceNow >= practicePrev * PRACTICE_KEPT_RATIO;
+
+  // 없다가 생긴 경우와 늘어난 경우를 나눠 본다. 앞은 나눗셈이 안 된다.
+  const gameStarted = gamePrev === 0 && gameShare >= NEW_GAME_SHARE;
+  const gameSurged = gamePrev > 0 && gameNow > gamePrev * GAME_LOAD_SURGE_RATIO;
+
+  if (gameNow > 0 && keptPractice && (gameStarted || gameSurged)) {
+    const share = Math.round(gameShare * 100);
+    findings.push({
+      tone: 'warn',
+      title: gameStarted
+        ? '경기가 시작됐는데 연습량은 그대로입니다'
+        : '경기가 늘었는데 연습량은 그대로입니다',
+      detail: gameStarted
+        ? `${label} 경기 부하가 전체의 ${share}%인데, 연습량은 직전 기간과 비슷합니다. 경기는 던질 양을 내가 정할 수 없으므로, 그만큼 불펜이나 캐치볼을 줄여 균형을 맞추는 편이 좋습니다.`
+        : `${label} 경기에서 온 부하가 직전 기간보다 늘어 전체의 ${share}%가 됐습니다. 경기는 던질 양을 내가 정할 수 없으므로, 늘어난 만큼 불펜이나 캐치볼을 줄여 균형을 맞추는 편이 좋습니다.`,
     });
   }
 

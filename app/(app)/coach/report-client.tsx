@@ -32,6 +32,7 @@ import {
   buildDateRangeOffset,
   buildReportFindings,
   countSessionTypes,
+  loadBySessionType,
   findFatigueWindows,
   formatShortDate,
   groupByDay,
@@ -40,6 +41,19 @@ import {
   type ReportFinding,
 } from '@/lib/pitch-stats';
 import type { Log } from '@/app/(app)/pitch-log/pitch-log-client';
+
+/**
+ * 부하 막대의 종류별 색.
+ *
+ * 몸에 남는 정도 순으로 진하게 간다 — 경기가 가장 진하고 캐치볼이 가장 옅다.
+ * 목록에 없는 종류가 생겨도 회색으로 그려지므로 화면이 깨지지는 않는다.
+ */
+const LOAD_BAR_COLOR: Record<string, string> = {
+  경기: 'bg-sky-strong',
+  라이브: 'bg-sky',
+  불펜: 'bg-sky-soft',
+  캐치볼: 'bg-line-strong',
+};
 
 // 범용 <Chart>는 전용 컴포넌트와 달리 컨트롤러를 자동 등록하지 않는다.
 // 막대+선을 섞어 쓰므로 두 컨트롤러를 직접 등록해야 한다.
@@ -160,6 +174,16 @@ export function ReportClient({
     [byDay, currentKeys]
   );
 
+  // 종류별 부하 — 총량만으로는 '무엇 때문에 힘든지'가 안 보인다.
+  const loadNow = useMemo(
+    () => loadBySessionType(logs, currentKeys),
+    [logs, currentKeys]
+  );
+  const loadPrev = useMemo(
+    () => loadBySessionType(logs, previousKeys),
+    [logs, previousKeys]
+  );
+
   const findings = useMemo(
     () =>
       buildReportFindings({
@@ -168,8 +192,10 @@ export function ReportClient({
         previous,
         fatigueCount: fatigueWindows.length,
         streak,
+        loadNow,
+        loadPrev,
       }),
-    [days, current, previous, fatigueWindows.length, streak]
+    [days, current, previous, fatigueWindows.length, streak, loadNow, loadPrev]
   );
 
   /* ------------------------------- 메모 ------------------------------- */
@@ -390,6 +416,38 @@ export function ReportClient({
                   {t.pitches > 0 ? `${t.count}회 (${t.pitches}구)` : `${t.count}일`}
                 </span>
               ))}
+            </div>
+          )}
+
+          {/*
+            부하가 어디에서 왔는지.
+
+            투구수 비중과는 다르다 — 캐치볼 100구와 경기 100구는 같은 100구지만
+            몸에 남는 것이 다르고, 부하(투구수 × 강도)는 그 차이를 담고 있다.
+          */}
+          {loadNow.length > 1 && (
+            <div className="mt-3 space-y-2 border-t border-line pt-3">
+              <p className="text-xs text-muted">부하가 어디에서 왔나</p>
+              <div className="flex h-2 overflow-hidden rounded-full bg-surface-2">
+                {loadNow.map((t) => (
+                  <div
+                    key={t.name}
+                    className={LOAD_BAR_COLOR[t.name] ?? 'bg-line-strong'}
+                    style={{ width: `${t.share * 100}%` }}
+                    title={`${t.name} ${Math.round(t.share * 100)}%`}
+                  />
+                ))}
+              </div>
+              <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted">
+                {loadNow.map((t) => (
+                  <span key={t.name} className="inline-flex items-center gap-1.5">
+                    <span
+                      className={`h-2 w-2 rounded-full ${LOAD_BAR_COLOR[t.name] ?? 'bg-line-strong'}`}
+                    />
+                    {t.name} {Math.round(t.share * 100)}%
+                  </span>
+                ))}
+              </div>
             </div>
           )}
         </Card>
