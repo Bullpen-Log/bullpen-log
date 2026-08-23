@@ -107,10 +107,14 @@ model MechanicsGuide {
   title       String
   category    String              @default("스로잉 드릴")
   description String              @db.Text
-  /// 저장소에 올린 영상 경로 (library/... )
-  videoPath   String
+  /// 저장소에 올린 영상 경로. 참고 영상(REFERENCE)은 유튜브에서 재생하므로 비어 있다.
+  videoPath   String?
   /// 재생 전에 보여줄 미리보기 이미지 경로. 없으면 빈 화면으로 표시한다.
   thumbPath   String?
+  /// 영상 출처 — 운동(ExerciseVideo)과 같은 규칙이다.
+  source           ExerciseSource @default(OWN)
+  /// 참고 영상의 유튜브 영상 ID (11자). source 가 REFERENCE 일 때만 채운다.
+  referenceVideoId String?
   /// 이 드릴이 무엇을 교정하는지. 영상분석 결과와 이어지는 고리다.
   focusPoints String[]
   /// 드릴에 필요한 도구
