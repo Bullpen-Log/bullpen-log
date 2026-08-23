@@ -30,6 +30,7 @@ export default async function ProfilePage() {
             heightCm={user.heightCm}
             targetVelocity={user.targetVelocity}
             dailyWorkoutMinutes={user.dailyWorkoutMinutes}
+            ownedEquipment={user.ownedEquipment}
             baseline={{
               baselineFreq: user.baselineFreq,
               baselineVolume: user.baselineVolume,

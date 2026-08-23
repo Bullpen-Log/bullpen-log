@@ -12,6 +12,7 @@ import { generateReportBody } from '@/lib/ai/report';
 import { buildFacts, type CheckinLike, type MemoNote } from '@/lib/report/facts';
 import { buildPitchPlan } from '@/lib/report/plan';
 import { selectCandidates } from '@/lib/report/prescription';
+import { filterByEquipment } from '@/lib/report/equipment';
 import { formatPrescription } from '@/lib/exercise-meta';
 import {
   DEFAULT_WORKOUT_MINUTES,
@@ -135,7 +136,9 @@ export async function generateAiReport(): Promise<AiReportState> {
   const library = await prisma.exerciseVideo.findMany({
     orderBy: { createdAt: 'asc' },
   });
-  const picked = selectCandidates({ facts, plan, library });
+  // 화면과 같은 순서로 거른다 — 장비를 먼저 빼고, 그다음 안전 규칙.
+  const usable = filterByEquipment(library, user.ownedEquipment);
+  const picked = selectCandidates({ facts, plan, library: usable.pool });
 
   // 오늘의 운동 화면과 같은 테마·같은 목록이 나와야 두 화면이 어긋나지 않는다.
   const [recentIds, strengthDates] = await Promise.all([
@@ -181,6 +184,11 @@ export async function generateAiReport(): Promise<AiReportState> {
         }
       : undefined;
 
+  /*
+   * AI가 지어낸 운동 이름을 잡아내는 데 쓰는 목록이다. 장비로 거르기 전의
+   * 전체를 넘긴다 — 거른 뒤 것을 넘기면, 있지도 않은 운동을 지어낸 것과
+   * 장비가 없어 오늘 빠진 운동을 말한 것을 구별하지 못한다.
+   */
   const result = await generateReportBody(
     facts,
     plan,

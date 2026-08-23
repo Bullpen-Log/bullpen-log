@@ -39,6 +39,10 @@ model User {
   /// 하루 운동 시간(분). 오늘의 운동 종목 수를 이 시간에 맞춰 계산한다.
   /// 비어 있으면 기본값(lib/report/theme.ts의 DEFAULT_WORKOUT_MINUTES)을 쓴다.
   dailyWorkoutMinutes Int?
+  /// 가지고 있는 운동 장비. AI 트레이닝에서 할 수 없는 운동을 빼는 데 쓴다.
+  /// 비어 있으면 아직 안 골랐다는 뜻이라 아무것도 빼지 않는다.
+  /// 이름은 lib/exercise-meta.ts의 EXERCISE_EQUIPMENT 안에서만 쓴다.
+  ownedEquipment    String[]
   createdAt         DateTime            @default(now())
 
   userGuideProgress UserGuideProgress[]

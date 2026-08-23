@@ -11,6 +11,7 @@ import {
   recentExerciseIds,
 } from '@/lib/report/gather';
 import { selectCandidates, MIN_CANDIDATES } from '@/lib/report/prescription';
+import { filterByEquipment } from '@/lib/report/equipment';
 import { RECENT_DAYS } from '@/lib/report/today-pick';
 import {
   DEFAULT_WORKOUT_MINUTES,
@@ -84,7 +85,16 @@ export default async function TodayPage({
     }),
   ]);
 
-  const picked = selectCandidates({ facts, plan, library });
+  /*
+   * 가진 장비로 할 수 없는 운동을 먼저 뺀다.
+   *
+   * 안전 필터보다 앞에 두는 이유가 있다. 뒤에 두면 "안전 규칙을 통과한 20개
+   * 중 18개가 장비가 없어 빠졌다" 같은 상태가 되어, 안전 필터가 얼마나
+   * 걸렀는지가 실제보다 커 보인다. 할 수 없는 것은 처음부터 없는 셈 치는 편이
+   * 근거를 읽기 쉽다.
+   */
+  const usable = filterByEquipment(library, user.ownedEquipment);
+  const picked = selectCandidates({ facts, plan, library: usable.pool });
 
   /*
    * 리포트를 만든 뒤에 통증을 입력했다면 처방이 멈춘다.
@@ -360,6 +370,23 @@ export default async function TodayPage({
             </p>
           )}
 
+          {/*
+            장비 때문에 많이 빠졌으면, 무엇 하나만 있으면 얼마나 늘어나는지
+            알려준다. 목록이 왜 빈약한지 모른 채로 두지 않기 위해서다.
+          */}
+          {usable.bestAddition && (
+            <p className="rounded-lg border border-line bg-surface px-4 py-3 text-[13px] leading-relaxed text-muted">
+              가진 장비로 할 수 없는 운동 {usable.excludedCount}개를 뺐습니다.{' '}
+              <span className="font-semibold text-ink">
+                {usable.bestAddition.name}
+              </span>
+              이 있으면 {usable.bestAddition.unlocks}개를 더 할 수 있습니다.{' '}
+              <Link href="/profile" className="text-sky underline underline-offset-2">
+                프로필에서 장비 고치기
+              </Link>
+            </p>
+          )}
+
           {/* 왜 이 운동들인지 — 숫자와 규칙을 그대로 보여준다 */}
           <details className="rounded-2xl border border-line bg-surface px-5 py-4">
             <summary className="cursor-pointer text-sm font-medium text-ink">
@@ -389,10 +416,15 @@ export default async function TodayPage({
                 </li>
               )}
             </ul>
-            {picked.excluded.length > 0 && (
+            {(picked.excluded.length > 0 || usable.excludedCount > 0) && (
               <p className="mt-3 border-t border-line pt-3 text-xs leading-relaxed text-muted">
                 제외:{' '}
-                {picked.excluded.map((e) => `${e.rule} ${e.count}개`).join(' · ')}
+                {[
+                  ...(usable.excludedCount > 0
+                    ? [`가진 장비로 할 수 없음 ${usable.excludedCount}개`]
+                    : []),
+                  ...picked.excluded.map((e) => `${e.rule} ${e.count}개`),
+                ].join(' · ')}
               </p>
             )}
           </details>

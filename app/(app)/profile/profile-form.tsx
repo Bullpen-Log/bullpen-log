@@ -4,10 +4,10 @@ import { useActionState } from 'react';
 import { useFormStatus } from 'react-dom';
 import { updateProfile, type ProfileState } from '@/app/actions/profile';
 import { Button, Field, FormError, Input } from '@/components/ui';
-import { kept } from '@/lib/form-values';
+import { kept, keptAll } from '@/lib/form-values';
 import { MAX_HEIGHT_CM, MIN_HEIGHT_CM } from '@/lib/profile';
 import { TARGET_VELOCITY_MAX, TARGET_VELOCITY_MIN } from '@/lib/velocity';
-import { RadioGroup } from '@/components/choice-inputs';
+import { CheckboxGroup, RadioGroup } from '@/components/choice-inputs';
 import {
   BASELINE_FREQ_NAMES,
   BASELINE_INTENSITY_NAMES,
@@ -17,6 +17,7 @@ import {
   DEFAULT_WORKOUT_MINUTES,
   WORKOUT_MINUTES_CHOICES,
 } from '@/lib/report/theme';
+import { SELECTABLE_EQUIPMENT } from '@/lib/report/equipment';
 
 function SubmitButton() {
   const { pending } = useFormStatus();
@@ -33,6 +34,7 @@ export function ProfileForm({
   heightCm,
   targetVelocity,
   dailyWorkoutMinutes,
+  ownedEquipment,
   baseline,
   /** 오늘 날짜(YYYY-MM-DD). 미래 날짜를 못 고르게 막는 데 쓴다. */
   today,
@@ -42,6 +44,8 @@ export function ProfileForm({
   heightCm: number | null;
   targetVelocity: number | null;
   dailyWorkoutMinutes: number | null;
+  /** 가지고 있는 장비. 비어 있으면 아직 안 골랐다는 뜻이다. */
+  ownedEquipment: string[];
   baseline: {
     baselineFreq: string | null;
     baselineVolume: string | null;
@@ -61,6 +65,19 @@ export function ProfileForm({
   const before = state?.values;
   const pick = (name: string, fallback: string | number | null) =>
     before ? kept(before, name) ?? '' : fallback == null ? '' : String(fallback);
+
+  /*
+   * 아직 한 번도 안 고른 사람은 전부 켜 둔 채로 보여준다.
+   *
+   * 빈 목록을 그대로 보여주면, 프로필을 저장하는 순간 "아무 장비도 없음"이
+   * 되어 맨몸 운동만 나온다. 프로필을 고치러 들어온 것뿐인데 훈련 내용이
+   * 조용히 반토막 나는 셈이라, 없는 것을 직접 끄게 한다.
+   */
+  const equipmentDefaults =
+    ownedEquipment.length > 0 ? ownedEquipment : [...SELECTABLE_EQUIPMENT];
+  const equipmentSelected = before
+    ? keptAll(before, 'ownedEquipment') ?? []
+    : equipmentDefaults;
 
   return (
     <form action={formAction} className="space-y-5">
@@ -139,6 +156,20 @@ export function ProfileForm({
           `${dailyWorkoutMinutes ?? DEFAULT_WORKOUT_MINUTES}분`
         )}
       />
+
+      {/*
+        가진 장비 — AI 트레이닝에서 할 수 없는 운동을 뺄 때 쓴다.
+        안전 규칙이 아니라 "못 하는 것"을 빼는 것이라 프로필에 둔다.
+      */}
+      <div className="border-t border-line pt-5">
+        <CheckboxGroup
+          name="ownedEquipment"
+          label="가지고 있는 장비"
+          hint="없는 것을 꺼 두면 AI 트레이닝이 그 운동을 빼고 짭니다. 맨몸 운동은 항상 나옵니다."
+          options={SELECTABLE_EQUIPMENT}
+          selected={equipmentSelected}
+        />
+      </div>
 
       {/* 평소 투구량 문진 — 부하 지수의 추정 기준선. 3개 모두 답해야 저장된다. */}
       <div className="space-y-4 border-t border-line pt-5">
