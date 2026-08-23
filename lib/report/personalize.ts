@@ -1,4 +1,5 @@
-import { DIFFICULTY_LEVELS } from '@/lib/exercise-meta';
+import { DIFFICULTY_LEVELS, pickMany, pickOne } from '@/lib/exercise-meta';
+import { ALWAYS_OWNED, SELECTABLE_EQUIPMENT } from '@/lib/report/equipment';
 
 /**
  * 사람마다 다른 두 가지 — 경력과 목표.
@@ -176,4 +177,37 @@ for (const level of TRAINING_LEVELS) {
       throw new Error(`난이도 목록에 없는 이름: ${name} (${level.name})`);
     }
   }
+}
+
+/* ------------------------------- 프로필 저장 ------------------------------ */
+
+/**
+ * 프로필 폼에서 경력·목표·장비를 읽는다.
+ *
+ * 목록에 없는 값은 버린다. 화면에서 고르는 것이라 이상한 값이 올 일은 드물지만,
+ * 폼은 누구나 고쳐 보낼 수 있고 여기 들어온 값은 그대로 DB에 남아 나중에 운동을
+ * 고르는 데 쓰인다. 목록 밖의 이름이 저장되면 그 사용자는 어떤 규칙에도 걸리지
+ * 않는 상태가 된다.
+ *
+ * 서버 액션 안에 두지 않고 따로 뺀 이유는 시험할 수 있게 하기 위해서다.
+ */
+export function readTrainingProfile(formData: FormData) {
+  return {
+    trainingLevel: pickOne(
+      String(formData.get('trainingLevel') ?? ''),
+      TRAINING_LEVEL_NAMES
+    ),
+    trainingGoal: pickOne(
+      String(formData.get('trainingGoal') ?? ''),
+      TRAINING_GOAL_NAMES
+    ),
+    /*
+     * 하나도 안 고르고 저장하면 '맨몸'만 남는다. 빈 배열로 두면 "아직 안 골랐다"
+     * 는 뜻이 되어 아무것도 안 걸러지므로, 맨몸만 있다는 뜻과 구별할 수 없다.
+     */
+    ownedEquipment: [
+      ALWAYS_OWNED,
+      ...pickMany(formData.getAll('ownedEquipment').map(String), SELECTABLE_EQUIPMENT),
+    ],
+  };
 }

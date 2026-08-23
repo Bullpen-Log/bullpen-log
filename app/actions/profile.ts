@@ -8,12 +8,7 @@ import { validateProfile } from '@/lib/profile';
 import { validateBaseline } from '@/lib/baseline';
 import { validateTargetVelocity } from '@/lib/velocity';
 import { WORKOUT_MINUTES_CHOICES } from '@/lib/report/theme';
-import { ALWAYS_OWNED, SELECTABLE_EQUIPMENT } from '@/lib/report/equipment';
-import { pickMany, pickOne } from '@/lib/exercise-meta';
-import {
-  TRAINING_GOAL_NAMES,
-  TRAINING_LEVEL_NAMES,
-} from '@/lib/report/personalize';
+import { readTrainingProfile } from '@/lib/report/personalize';
 import { withInput, type FormValues } from '@/lib/form-values';
 
 export type ProfileState = {
@@ -105,18 +100,6 @@ async function tryUpdateProfile(formData: FormData): Promise<ProfileState> {
     minutesValue = { dailyWorkoutMinutes: minutes };
   }
 
-  /*
-   * 가진 장비.
-   *
-   * 하나도 안 고르고 저장하면 '맨몸'만 남는다. 빈 배열로 두면 "아직 안 골랐다"
-   * 는 뜻이 되어 아무것도 안 걸러지므로, 맨몸만 있다는 뜻과 구별할 수 없다.
-   * 목록에 없는 이름은 pickMany 가 버린다.
-   */
-  const ownedEquipment = [
-    ALWAYS_OWNED,
-    ...pickMany(formData.getAll('ownedEquipment').map(String), SELECTABLE_EQUIPMENT),
-  ];
-
   await prisma.user.update({
     where: { id: user.id },
     data: {
@@ -125,16 +108,8 @@ async function tryUpdateProfile(formData: FormData): Promise<ProfileState> {
       ...baselineValue,
       ...minutesValue,
       targetVelocity: target.value,
-      ownedEquipment,
-      // 안 고르고 저장하면 null 이 되어 아무것도 안 걸러진다.
-      trainingLevel: pickOne(
-        String(formData.get('trainingLevel') ?? ''),
-        TRAINING_LEVEL_NAMES
-      ),
-      trainingGoal: pickOne(
-        String(formData.get('trainingGoal') ?? ''),
-        TRAINING_GOAL_NAMES
-      ),
+      // 경력·목표·장비. 안 고르면 비워 두고, 그러면 아무것도 안 걸러진다.
+      ...readTrainingProfile(formData),
     },
   });
 

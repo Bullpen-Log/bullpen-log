@@ -312,19 +312,29 @@ function isWarmup(ex: ThemedExercise): boolean {
   return ex.category === '모빌리티' || intensityLevel(ex.intensity) <= 1;
 }
 
+/**
+ * 완료된 운동을 어느 구간에 되돌려 놓을지 정한다.
+ *
+ * 반드시 이 테마에 실제로 있는 구간을 돌려줘야 한다. 없는 구간 이름을 주면
+ * 그 운동은 목록에서 조용히 사라지고, 사용자는 잘못 누른 체크를 풀 수 없다.
+ *
+ * 예전에는 맞는 구간이 없으면 무조건 'main'을 줬는데, 회복 데이에는 본운동
+ * 구간이 없다. 하체 운동을 마친 뒤 통증을 입력해 테마가 회복으로 바뀌면
+ * 방금 체크한 운동이 사라졌다.
+ */
 function slotOf(ex: ThemedExercise, specs: SlotSpec[]): SlotKey {
-  // 완료된 운동을 자기 자리로 되돌릴 때 쓴다. 맞는 구간이 없으면 본운동에 둔다.
-  if (isWarmup(ex)) return specs.some((s) => s.slot === 'warmup') ? 'warmup' : 'main';
+  if (isWarmup(ex) && specs.some((s) => s.slot === 'warmup')) return 'warmup';
   for (const spec of specs) {
     if (spec.slot !== 'warmup' && spec.categories.includes(ex.category)) return spec.slot;
   }
-  return 'main';
+  // 맞는 구간이 없으면 본운동에, 본운동이 없는 테마라면 첫 구간에 둔다.
+  return (specs.find((s) => s.slot === 'main') ?? specs[0]).slot;
 }
 
 /**
  * 테마와 시간에 맞춰 오늘의 운동을 고른다.
  *
- * 반환 순서는 화면 순서와 같다: 워밍업 → 본운동 → 코어 → 암케어.
+ * 반환 순서는 화면 순서와 같다: 워밍업 → 본운동 → 코어 → 보강 → 암케어.
  */
 export function pickForTheme<T extends ThemedExercise>({
   candidates,
@@ -371,8 +381,8 @@ export function pickForTheme<T extends ThemedExercise>({
   // 1) 오늘 이미 완료한 운동은 자기 구간에 먼저 넣는다. 사라지면 체크를 못 푼다.
   for (const ex of ordered) {
     if (!doneIds.has(ex.id)) continue;
-    const slot = slotOf(ex, specs);
-    (bySlot.get(slot) ?? bySlot.get('main'))?.push(ex);
+    // slotOf 는 이 테마에 있는 구간만 돌려주므로 여기서 못 찾는 일은 없다.
+    bySlot.get(slotOf(ex, specs))!.push(ex);
     taken.add(ex.id);
   }
 

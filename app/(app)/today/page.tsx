@@ -137,9 +137,27 @@ export default async function TodayPage({
 
   // 오늘 고른 부위가 있으면 본운동 안에서 그쪽을 앞으로 당긴다.
   const preferredParts = facts.condition.today?.preferredParts ?? [];
+  /*
+   * 오늘 이미 완료한 운동은, 걸러진 뒤에도 목록에 남겨야 한다.
+   *
+   * 안전 필터가 하는 일은 "위험한 것을 추천하지 않는 것"이지 "이미 한 일을
+   * 감추는 것"이 아니다. 그런데 아침에 데드리프트를 하고 체크한 뒤 컨디션을
+   * 3으로 입력하면, 그 운동이 후보에서 빠지면서 화면에서도 사라졌다.
+   * 잘못 누른 체크를 풀 방법이 없어지고, 한 일이 없던 것처럼 보인다.
+   *
+   * 장비나 경력을 나중에 고쳤을 때도 같은 일이 생기므로, 걸러지기 전인
+   * 라이브러리 전체에서 찾는다. 완료한 것은 pickForTheme 이 자기 구간에
+   * 넣고 바로 '가져간 것'으로 표시하므로, 다시 추천되지는 않는다.
+   */
+  const inCandidates = new Set(picked.candidates.map((ex) => ex.id));
+  const candidates = [
+    ...picked.candidates,
+    ...library.filter((ex) => doneIds.has(ex.id) && !inCandidates.has(ex.id)),
+  ];
+
   const goal = findGoal(user.trainingGoal);
   const themed = pickForTheme({
-    candidates: picked.candidates,
+    candidates,
     theme: theme.key,
     minutes,
     doneIds,
