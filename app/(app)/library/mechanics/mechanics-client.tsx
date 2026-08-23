@@ -29,7 +29,12 @@ export type GuideItem = {
   description: string;
   focusPoints: string[];
   equipment: string[];
-  videoPath: string;
+  /** 우리 저장소에 올린 영상 경로. 참고 영상이면 없다. */
+  videoPath: string | null;
+  /** OWN(직접 촬영) / REFERENCE(아직 촬영 전, 유튜브 참고 영상) */
+  source: 'OWN' | 'REFERENCE';
+  /** 참고 영상의 유튜브 영상 ID */
+  referenceVideoId: string | null;
   thumbUrl: string | null;
   sortOrder: number;
   done: boolean;
@@ -92,6 +97,7 @@ function GuideDetail({
     >
       <LibraryVideo
         path={item.videoPath}
+        referenceVideoId={item.referenceVideoId}
         title={item.title}
         thumbUrl={item.thumbUrl}
         isAdmin={isAdmin}
@@ -105,7 +111,14 @@ function GuideDetail({
                 학습 완료
               </Badge>
             )}
-            <h3 className="text-lg font-bold text-ink">{item.title}</h3>
+            <div className="flex flex-wrap items-center gap-2">
+              <h3 className="text-lg font-bold text-ink">{item.title}</h3>
+              {item.source === 'REFERENCE' && (
+                <span className="rounded-md bg-warn-bg px-2 py-0.5 text-[11px] font-semibold text-warn">
+                  촬영 전 · 참고 영상
+                </span>
+              )}
+            </div>
           </div>
 
           <div className="flex shrink-0 items-center gap-1">
@@ -150,7 +163,7 @@ function GuideDetail({
           {item.description}
         </p>
 
-        {isAdmin && !item.thumbUrl && (
+        {isAdmin && !item.thumbUrl && item.videoPath && (
           <div className="mt-4 border-t border-line pt-4">
             <p className="mb-2 text-xs text-muted">
               이 영상은 미리보기 이미지가 없습니다.
@@ -205,6 +218,7 @@ function GuideGrid({ items, isAdmin }: { items: GuideItem[]; isAdmin: boolean })
             key={item.id}
             title={item.title}
             thumbUrl={item.thumbUrl}
+            isReference={item.source === 'REFERENCE'}
             onSelect={() => setOpenId(item.id)}
           />
         )

@@ -1,6 +1,7 @@
 import { prisma } from '@/lib/prisma';
 import { requireUser } from '@/lib/dal';
 import { createPlaybackUrls } from '@/lib/storage';
+import { referenceThumbUrl } from '@/lib/reference-video';
 import { MechanicsClient, type GuideItem } from './mechanics-client';
 
 export default async function MechanicsPage() {
@@ -30,7 +31,17 @@ export default async function MechanicsPage() {
     focusPoints: g.focusPoints,
     equipment: g.equipment,
     videoPath: g.videoPath,
-    thumbUrl: g.thumbPath ? (thumbUrls[g.thumbPath] ?? null) : null,
+    source: g.source,
+    referenceVideoId: g.referenceVideoId,
+    /*
+     * 참고 영상의 미리보기는 유튜브가 공개한 고정 주소를 그대로 쓴다.
+     * 우리 저장소에 담아 두지 않으므로 발급받을 주소도 없다.
+     */
+    thumbUrl: g.referenceVideoId
+      ? referenceThumbUrl(g.referenceVideoId)
+      : g.thumbPath
+        ? (thumbUrls[g.thumbPath] ?? null)
+        : null,
     sortOrder: g.sortOrder,
     done: completedIds.has(g.id),
   }));
