@@ -15,6 +15,8 @@ export type TodayExercise = {
   intensity: string;
   difficulty: string | null;
   equipment: string[];
+  /** '3세트 × 10회 · 세트 사이 45초 휴식' — 아직 안 채운 운동은 null */
+  prescription: string | null;
   thumbUrl: string | null;
   /** 아직 촬영 전이라 유튜브 참고 영상으로 대신하고 있는가 */
   isReference: boolean;
@@ -150,6 +152,15 @@ function ExerciseList({
                     </span>
                   )}
                 </span>
+                {ex.prescription && (
+                  <span
+                    className={`block text-xs font-semibold ${
+                      ex.done ? 'text-sky-strong' : 'text-muted'
+                    }`}
+                  >
+                    {ex.prescription}
+                  </span>
+                )}
                 <ExerciseBadges
                   bodyParts={ex.bodyParts}
                   intensity={ex.intensity}

@@ -17,6 +17,7 @@ import {
   INTENSITY_NAMES,
   pickMany,
   pickOne,
+  type Prescription,
 } from '@/lib/exercise-meta';
 import { withInput, type FormValues } from '@/lib/form-values';
 
@@ -35,6 +36,32 @@ async function assertAdmin() {
 }
 
 /* ---------------------------------- 트레이닝 --------------------------------- */
+
+/** 숫자 칸 하나. 비어 있거나 범위를 벗어나면 null 로 본다. */
+function readNumber(formData: FormData, name: string, min: number, max: number) {
+  const raw = String(formData.get(name) ?? '').trim();
+  if (!raw) return null;
+  const value = Number(raw);
+  if (!Number.isInteger(value) || value < min || value > max) return null;
+  return value;
+}
+
+/**
+ * 세트·횟수·휴식을 읽는다.
+ *
+ * 다 비워도 된다 — 그러면 AI 트레이닝이 종류로 시간을 어림한다.
+ * 횟수와 버티는 시간을 둘 다 적으면 버티는 시간을 쓴다(시간형 운동으로 본다).
+ */
+function readPrescription(formData: FormData): Prescription {
+  const holdSeconds = readNumber(formData, 'holdSeconds', 1, 600);
+  return {
+    sets: readNumber(formData, 'sets', 1, 10),
+    reps: holdSeconds != null ? null : readNumber(formData, 'reps', 1, 100),
+    holdSeconds,
+    restSeconds: readNumber(formData, 'restSeconds', 0, 600),
+    perSide: formData.get('perSide') === 'on',
+  };
+}
 
 /**
  * 오류로 끝나면 입력한 값을 함께 돌려준다.
@@ -100,6 +127,7 @@ async function tryCreateExercise(formData: FormData): Promise<ActionState> {
       intensity,
       difficulty,
       equipment,
+      ...readPrescription(formData),
     },
   });
 
@@ -192,6 +220,7 @@ async function tryUpdateExercise(formData: FormData): Promise<ActionState> {
       intensity,
       difficulty,
       equipment,
+      ...readPrescription(formData),
     },
   });
 

@@ -1,4 +1,4 @@
-import { intensityLevel } from '@/lib/exercise-meta';
+import { intensityLevel, type Prescription } from '@/lib/exercise-meta';
 import type { ReportFacts } from '@/lib/report/facts';
 import type { PitchPlan } from '@/lib/report/plan';
 
@@ -34,15 +34,49 @@ export const DEFAULT_WORKOUT_MINUTES = 45;
  */
 export const RECOVERY_MAX_MINUTES = 35;
 
+/** 한 운동을 끝내고 다음 운동으로 넘어가는 데 걸리는 시간(초) */
+const SECONDS_BETWEEN_EXERCISES = 30;
+
+/** 세트·휴식이 비어 있을 때 쓸 값 */
+const FALLBACK_REST_SECONDS = 60;
+
+/** 한 번 반복하는 데 걸리는 대략의 시간(초) */
+function secondsPerRep(category: string, level: number): number {
+  if (category === '파워') return 4; // 한 번마다 자세를 다시 잡는다
+  if (level >= 4) return 4; // 무거운 것은 천천히
+  return 3;
+}
+
 /**
  * 운동 하나에 걸리는 대략의 시간(분).
  *
- * 세트·횟수 데이터가 아직 없어 종류별 어림값을 쓴다. 무게를 다루는 운동은
- * 세팅과 세트 사이 휴식 때문에 더 길게 잡는다. 나중에 운동마다 세트·횟수가
- * 채워지면 이 어림값 대신 실제 값으로 계산하면 된다.
+ * 예전에는 카테고리마다 고정된 숫자를 썼다("하체는 무조건 7분"). 그러다 보니
+ * 30초 버티는 스트레칭과 3세트짜리 데드리프트가 같은 시간으로 계산돼서,
+ * "45분에 맞췄습니다"라고 적어놓고 실제로는 한참 다른 양이 나왔다.
+ *
+ * 지금은 운동에 적힌 세트·횟수·휴식으로 직접 센다.
+ *   (한 세트에 걸리는 시간 × 세트 수) + (세트 사이 휴식 × (세트 수 − 1)) + 넘어가는 시간
+ *
+ * 3세트면 세트 사이에 쉬는 것은 두 번이다. 세 번으로 세면 무거운 운동이
+ * 실제보다 3분씩 길게 나온다.
+ *
+ * 아직 세트·횟수를 안 채운 운동은 예전처럼 종류로 어림한다.
  */
-export function estimateMinutes(ex: { category: string; intensity: string }): number {
+export function estimateMinutes(
+  ex: { category: string; intensity: string } & Partial<Prescription>
+): number {
   const level = intensityLevel(ex.intensity);
+
+  const sets = ex.sets ?? null;
+  const work = ex.holdSeconds ?? (ex.reps != null ? ex.reps * secondsPerRep(ex.category, level) : null);
+  if (sets != null && sets > 0 && work != null) {
+    const perSet = ex.perSide ? work * 2 : work;
+    const rest = ex.restSeconds ?? FALLBACK_REST_SECONDS;
+    const seconds = sets * perSet + (sets - 1) * rest + SECONDS_BETWEEN_EXERCISES;
+    return seconds / 60;
+  }
+
+  // 세트·횟수가 아직 없는 운동 — 종류와 강도로 어림한다.
   if (ex.category === '모빌리티' || level <= 1) return 3;
   if (ex.category === '암케어') return 4;
   if (ex.category === '코어') return 5;
@@ -50,7 +84,6 @@ export function estimateMinutes(ex: { category: string; intensity: string }): nu
   if (ex.category === '상체 스트렝스' || ex.category === '하체 스트렝스') {
     return level >= 4 ? 9 : 7;
   }
-  // 새 카테고리가 생겨도 대략은 맞게 — 강도로 어림한다.
   return level >= 4 ? 8 : level === 3 ? 6 : 4;
 }
 
@@ -180,9 +213,12 @@ type SlotSpec = {
   share: number;
   /** 이 구간을 채우는 카테고리 (워밍업은 별도 규칙) */
   categories: string[];
-  /** 개수 계산에 쓰는 이 구간의 평균 소요시간 */
-  typicalMinutes: number;
-  /** 시간이 아무리 길어도 이 개수까지만 */
+  /**
+   * 시간이 아무리 길어도 이 개수까지만.
+   *
+   * 시간은 아래에서 운동마다 실제로 더해 채운다. 이 값은 짧은 운동만 골라
+   * 열 개씩 늘어놓는 일을 막는 안전장치다.
+   */
   maxCount: number;
 };
 
@@ -196,26 +232,26 @@ type SlotSpec = {
  */
 const COMPOSITIONS: Record<ThemeKey, SlotSpec[]> = {
   lower: [
-    { slot: 'warmup', share: 0.15, categories: ['모빌리티'], typicalMinutes: 3, maxCount: 3 },
-    { slot: 'main', share: 0.5, categories: ['하체 스트렝스', '파워'], typicalMinutes: 7, maxCount: 6 },
-    { slot: 'core', share: 0.2, categories: ['코어'], typicalMinutes: 5, maxCount: 3 },
-    { slot: 'armcare', share: 0.15, categories: ['암케어'], typicalMinutes: 4, maxCount: 3 },
+    { slot: 'warmup', share: 0.15, categories: ['모빌리티'], maxCount: 5 },
+    { slot: 'main', share: 0.5, categories: ['하체 스트렝스', '파워'], maxCount: 8 },
+    { slot: 'core', share: 0.2, categories: ['코어'], maxCount: 4 },
+    { slot: 'armcare', share: 0.15, categories: ['암케어'], maxCount: 4 },
   ],
   upper: [
-    { slot: 'warmup', share: 0.15, categories: ['모빌리티'], typicalMinutes: 3, maxCount: 3 },
-    { slot: 'main', share: 0.5, categories: ['상체 스트렝스', '파워'], typicalMinutes: 7, maxCount: 6 },
-    { slot: 'core', share: 0.2, categories: ['코어'], typicalMinutes: 5, maxCount: 3 },
-    { slot: 'armcare', share: 0.15, categories: ['암케어'], typicalMinutes: 4, maxCount: 3 },
+    { slot: 'warmup', share: 0.15, categories: ['모빌리티'], maxCount: 5 },
+    { slot: 'main', share: 0.5, categories: ['상체 스트렝스', '파워'], maxCount: 8 },
+    { slot: 'core', share: 0.2, categories: ['코어'], maxCount: 4 },
+    { slot: 'armcare', share: 0.15, categories: ['암케어'], maxCount: 4 },
   ],
   assist: [
-    { slot: 'warmup', share: 0.15, categories: ['모빌리티'], typicalMinutes: 3, maxCount: 3 },
-    { slot: 'main', share: 0.45, categories: ['코어'], typicalMinutes: 5, maxCount: 5 },
-    { slot: 'armcare', share: 0.4, categories: ['암케어'], typicalMinutes: 4, maxCount: 4 },
+    { slot: 'warmup', share: 0.15, categories: ['모빌리티'], maxCount: 5 },
+    { slot: 'main', share: 0.45, categories: ['코어'], maxCount: 8 },
+    { slot: 'armcare', share: 0.4, categories: ['암케어'], maxCount: 7 },
   ],
   recovery: [
-    { slot: 'warmup', share: 0.35, categories: ['모빌리티'], typicalMinutes: 3, maxCount: 3 },
-    { slot: 'armcare', share: 0.35, categories: ['암케어'], typicalMinutes: 4, maxCount: 3 },
-    { slot: 'core', share: 0.3, categories: ['코어'], typicalMinutes: 5, maxCount: 2 },
+    { slot: 'warmup', share: 0.35, categories: ['모빌리티'], maxCount: 4 },
+    { slot: 'armcare', share: 0.35, categories: ['암케어'], maxCount: 4 },
+    { slot: 'core', share: 0.3, categories: ['코어'], maxCount: 3 },
   ],
 };
 
@@ -229,7 +265,7 @@ export type ThemedExercise = {
   category: string;
   intensity: string;
   bodyParts: string[];
-};
+} & Partial<Prescription>;
 
 export type ThemedPick<T> = { exercise: T; slot: SlotKey };
 
@@ -300,12 +336,10 @@ export function pickForTheme<T extends ThemedExercise>({
 
   const wanted = new Set(preferredParts);
 
-  // 2) 구간마다 시간 배분에 맞는 개수를 채운다.
+  // 2) 구간마다 배분된 시간이 찰 때까지 운동을 넣는다.
   for (const spec of specs) {
     const chosen = bySlot.get(spec.slot)!;
     const budget = minutes * spec.share;
-    // 시간을 평균 소요시간으로 나눈 만큼. 자리가 있는 한 최소 1개는 준다.
-    const target = Math.min(spec.maxCount, Math.max(1, Math.floor(budget / spec.typicalMinutes)));
 
     let pool = ordered.filter((ex) =>
       spec.slot === 'warmup'
@@ -321,23 +355,47 @@ export function pickForTheme<T extends ThemedExercise>({
       ];
     }
 
+    /*
+     * 배분된 시간이 찰 때까지 넣는다.
+     *
+     * 딱 맞아떨어지는 일은 거의 없으므로, 남은 시간에 그 운동의 절반 이상이
+     * 들어가면 넣는다. 그렇게 하지 않으면 8분이 남았는데 9분짜리가 안 들어가
+     * 시간이 그냥 버려진다. 넘치더라도 절반을 넘기지는 않는다.
+     *
+     * 자리를 못 찾으면 다음 운동을 계속 본다(멈추지 않는다). 긴 운동이 안
+     * 들어갈 때 짧은 운동으로 남은 시간을 채울 수 있어서다.
+     */
+    let used = chosen.reduce((sum, ex) => sum + estimateMinutes(ex), 0);
+    const fits = (cost: number) => chosen.length === 0 || used + cost / 2 <= budget;
+
     for (const ex of pool) {
-      if (chosen.length >= target) break;
+      if (chosen.length >= spec.maxCount) break;
       if (taken.has(ex.id)) continue;
+      const cost = estimateMinutes(ex);
+      if (!fits(cost)) continue;
       chosen.push(ex);
       taken.add(ex.id);
+      used += cost;
     }
 
-    // 채우다 모자라면 사실대로 남긴다. 조용히 빈약해지는 것이 최악이다.
-    if (chosen.length < target && spec.slot === 'main') {
+    /*
+     * 본운동에 넣을 것이 하나도 없으면 다른 운동으로라도 채운다.
+     * 그리고 그 사실을 적어둔다 — 조용히 빈약해지는 것이 최악이다.
+     */
+    if (chosen.length === 0 && spec.slot === 'main') {
       const label = SLOT_LABELS[spec.slot].label;
-      const filler = ordered.filter((ex) => !taken.has(ex.id) && !isWarmup(ex));
-      for (const ex of filler) {
-        if (chosen.length >= target) break;
+      for (const ex of ordered) {
+        if (taken.has(ex.id) || isWarmup(ex)) continue;
+        const cost = estimateMinutes(ex);
+        if (!fits(cost)) continue;
         chosen.push(ex);
         taken.add(ex.id);
+        used += cost;
+        if (chosen.length >= spec.maxCount) break;
       }
-      notes.push(`${spec.categories.join('·')} 운동이 부족해 ${label} 일부를 다른 운동으로 채웠습니다.`);
+      if (chosen.length > 0) {
+        notes.push(`${spec.categories.join('·')} 운동이 부족해 ${label}을 다른 운동으로 채웠습니다.`);
+      }
     }
   }
 
@@ -346,9 +404,8 @@ export function pickForTheme<T extends ThemedExercise>({
     for (const ex of bySlot.get(slot) ?? []) picks.push({ exercise: ex, slot });
   }
 
-  const estimatedMinutes = picks.reduce(
-    (sum, p) => sum + estimateMinutes(p.exercise),
-    0
+  const estimatedMinutes = Math.round(
+    picks.reduce((sum, p) => sum + estimateMinutes(p.exercise), 0)
   );
 
   return { picks, estimatedMinutes, notes };

@@ -28,6 +28,11 @@ export default async function TrainingPage() {
     videoPath: ex.videoPath,
     source: ex.source,
     referenceVideoId: ex.referenceVideoId,
+    sets: ex.sets,
+    reps: ex.reps,
+    holdSeconds: ex.holdSeconds,
+    restSeconds: ex.restSeconds,
+    perSide: ex.perSide,
     /*
      * 참고 영상의 미리보기는 유튜브가 공개한 고정 주소를 그대로 쓴다.
      * 우리 저장소에 담아 두지 않으므로 발급받을 주소도 없다.

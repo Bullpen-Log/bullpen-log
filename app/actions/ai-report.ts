@@ -12,6 +12,7 @@ import { generateReportBody } from '@/lib/ai/report';
 import { buildFacts, type CheckinLike, type MemoNote } from '@/lib/report/facts';
 import { buildPitchPlan } from '@/lib/report/plan';
 import { selectCandidates } from '@/lib/report/prescription';
+import { formatPrescription } from '@/lib/exercise-meta';
 import {
   DEFAULT_WORKOUT_MINUTES,
   decideTheme,
@@ -147,13 +148,14 @@ export async function generateAiReport(): Promise<AiReportState> {
     lastLowerKey: strengthDates.lower,
     lastUpperKey: strengthDates.upper,
   });
+  const requestedMinutes = effectiveMinutes(
+    theme.key,
+    user.dailyWorkoutMinutes ?? DEFAULT_WORKOUT_MINUTES
+  );
   const themed = pickForTheme({
     candidates: picked.candidates,
     theme: theme.key,
-    minutes: effectiveMinutes(
-      theme.key,
-      user.dailyWorkoutMinutes ?? DEFAULT_WORKOUT_MINUTES
-    ),
+    minutes: requestedMinutes,
     // 리포트를 만드는 시점에는 아직 아무것도 안 했다고 본다.
     doneIds: new Set<string>(),
     recentIds,
@@ -169,10 +171,13 @@ export async function generateAiReport(): Promise<AiReportState> {
             category: ex.category,
             intensity: ex.intensity,
             bodyParts: ex.bodyParts,
+            prescription: formatPrescription(ex),
           })),
           excluded: picked.excluded,
           basis: [...picked.basis, ...themed.notes],
           preferredParts: facts.condition.today?.preferredParts ?? [],
+          requestedMinutes,
+          estimatedMinutes: themed.estimatedMinutes,
         }
       : undefined;
 

@@ -71,11 +71,16 @@ export type ExclusionReason = {
   count: number;
 };
 
-export type PrescriptionCandidates = {
+/**
+ * 이 함수는 후보를 걸러내고 순서만 바꾼다. 그래서 넘겨받은 운동이 어떤 필드를
+ * 더 갖고 있든 그대로 돌려준다. 타입을 ExerciseLike 로 고정해두면 세트·횟수
+ * 같은 필드가 여기를 지나면서 사라져, 다음 단계에서 쓸 수 없게 된다.
+ */
+export type PrescriptionCandidates<T extends ExerciseLike = ExerciseLike> = {
   /** 통증 등으로 처방 자체를 하지 않는가 */
   halted: boolean;
   haltReason: string | null;
-  candidates: ExerciseLike[];
+  candidates: T[];
   /** 무엇이 왜 빠졌는지 — 화면에 근거로 그대로 보여준다 */
   excluded: ExclusionReason[];
   /** 적용된 조건 요약 */
@@ -87,15 +92,15 @@ export type PrescriptionCandidates = {
 /** 이 개수보다 적으면 라이브러리가 부족하다고 본다. */
 export const MIN_CANDIDATES = 4;
 
-export function selectCandidates({
+export function selectCandidates<T extends ExerciseLike>({
   facts,
   plan,
   library,
 }: {
   facts: ReportFacts;
   plan: PitchPlan;
-  library: ExerciseLike[];
-}): PrescriptionCandidates {
+  library: T[];
+}): PrescriptionCandidates<T> {
   // 1) 통증이면 운동 처방을 아예 하지 않는다. 투구 계획과 같은 기준이다.
   if (plan.halted) {
     return {
@@ -112,7 +117,7 @@ export function selectCandidates({
   const excluded: ExclusionReason[] = [];
   let pool = library;
 
-  const drop = (rule: string, keep: (ex: ExerciseLike) => boolean) => {
+  const drop = (rule: string, keep: (ex: T) => boolean) => {
     const before = pool.length;
     pool = pool.filter(keep);
     const removed = before - pool.length;

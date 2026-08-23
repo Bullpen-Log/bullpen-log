@@ -17,6 +17,7 @@ import {
   DIFFICULTY_LEVELS,
   EXERCISE_EQUIPMENT,
   INTENSITY_LEVELS,
+  type Prescription,
 } from '@/lib/exercise-meta';
 
 /** 수정할 때 폼에 채워 넣을 기존 값 */
@@ -29,7 +30,12 @@ export type ExerciseDraft = {
   intensity: string;
   difficulty: string | null;
   equipment: string[];
-};
+} & Partial<Prescription>;
+
+/** 숫자 항목의 기본값 — 비어 있으면 입력칸도 비워둔다. */
+function num(value: number | null | undefined): string | undefined {
+  return value == null ? undefined : String(value);
+}
 
 function SubmitButton({ label }: { label: string }) {
   const { pending } = useFormStatus();
@@ -205,6 +211,78 @@ export function ExerciseForm({
           options={EXERCISE_EQUIPMENT}
           selected={pickAll('equipment', initial?.equipment)}
         />
+      </div>
+
+      {/*
+        수행 방법. AI 트레이닝이 "45분에 맞춰 몇 개" 를 정할 때 이 값으로
+        운동마다 걸리는 시간을 계산한다. 비워두면 종류로 어림하므로,
+        정확한 시간 배분을 원하면 채워두는 편이 좋다.
+      */}
+      <div className="space-y-4 border-t border-sky-soft/30 pt-5">
+        <p className="text-xs font-medium uppercase tracking-wider text-muted">
+          수행 방법
+        </p>
+        <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+          <Field label="세트">
+            <Input
+              name="sets"
+              type="number"
+              min={1}
+              max={10}
+              inputMode="numeric"
+              placeholder="3"
+              defaultValue={pick('sets', num(initial?.sets))}
+            />
+          </Field>
+          <Field label="횟수">
+            <Input
+              name="reps"
+              type="number"
+              min={1}
+              max={100}
+              inputMode="numeric"
+              placeholder="10"
+              defaultValue={pick('reps', num(initial?.reps))}
+            />
+          </Field>
+          <Field label="버티는 시간(초)">
+            <Input
+              name="holdSeconds"
+              type="number"
+              min={1}
+              max={600}
+              inputMode="numeric"
+              placeholder="30"
+              defaultValue={pick('holdSeconds', num(initial?.holdSeconds))}
+            />
+          </Field>
+          <Field label="휴식(초)">
+            <Input
+              name="restSeconds"
+              type="number"
+              min={0}
+              max={600}
+              inputMode="numeric"
+              placeholder="60"
+              defaultValue={pick('restSeconds', num(initial?.restSeconds))}
+            />
+          </Field>
+        </div>
+        <p className="text-xs text-muted/70">
+          시간으로 버티는 운동은 횟수를 비우고 버티는 시간만 적습니다.
+        </p>
+        <label className="flex items-center gap-2.5 text-sm text-ink">
+          <input
+            type="checkbox"
+            name="perSide"
+            value="on"
+            defaultChecked={
+              before ? kept(before, 'perSide') === 'on' : Boolean(initial?.perSide)
+            }
+            className="h-4 w-4 rounded border-line-strong accent-sky"
+          />
+          좌우를 따로 하는 운동 (한 세트에 양쪽 다)
+        </label>
       </div>
 
       <div className="flex flex-wrap items-center gap-3">

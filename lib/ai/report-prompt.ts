@@ -71,11 +71,16 @@ export type TrainingContext = {
     category: string;
     intensity: string;
     bodyParts: string[];
+    /** '3세트 × 10회 · 세트 사이 45초 휴식' — 아직 안 채운 운동은 null */
+    prescription: string | null;
   }[];
   /** 안전 규칙으로 무엇이 왜 빠졌는지 */
   excluded: { rule: string; count: number }[];
   basis: string[];
   preferredParts: string[];
+  /** 선수가 고른 운동 시간과, 이 구성의 실제 소요 시간(분) */
+  requestedMinutes: number;
+  estimatedMinutes: number;
 };
 
 export function buildUserPrompt(
@@ -174,9 +179,17 @@ export function buildUserPrompt(
     if (training.preferredParts.length > 0) {
       lines.push(`- 선수가 오늘 하고 싶다고 고른 부위: ${training.preferredParts.join(', ')}`);
     }
+    /*
+     * 시간을 함께 넘긴다. 이걸 안 주면 AI가 "가볍게 30분이면 됩니다" 같은
+     * 말을 지어내는데, 화면에는 47분치 운동이 떠 있어 서로 어긋난다.
+     */
+    lines.push(
+      `- 선수가 고른 운동 시간: ${training.requestedMinutes}분 / 이 구성의 실제 소요: 약 ${training.estimatedMinutes}분`
+    );
     for (const ex of training.picked) {
+      const how = ex.prescription ? ` · ${ex.prescription}` : '';
       lines.push(
-        `- ${ex.title} (${ex.category} · 강도 ${ex.intensity} · ${ex.bodyParts.join('·')})`
+        `- ${ex.title} (${ex.category} · 강도 ${ex.intensity} · ${ex.bodyParts.join('·')})${how}`
       );
     }
     if (training.basis.length > 0) {

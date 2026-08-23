@@ -4,7 +4,13 @@ import { useMemo, useState } from 'react';
 import { Pencil, Trash2, X } from 'lucide-react';
 import { deleteExercise, setExerciseThumbnail } from '@/app/actions/content';
 import { TRAINING_CATEGORIES } from '@/lib/categories';
-import { BODY_PARTS, EXERCISE_EQUIPMENT, INTENSITY_NAMES } from '@/lib/exercise-meta';
+import {
+  BODY_PARTS,
+  EXERCISE_EQUIPMENT,
+  INTENSITY_NAMES,
+  formatPrescription,
+  type Prescription,
+} from '@/lib/exercise-meta';
 import { CategorySection } from '@/components/category-section';
 import { LibraryVideo } from '@/components/library-video';
 import { LibraryTile } from '@/components/exercise-tile';
@@ -34,7 +40,7 @@ export type ExerciseItem = {
   /** 참고 영상의 유튜브 영상 ID */
   referenceVideoId: string | null;
   thumbUrl: string | null;
-};
+} & Prescription;
 
 const FILTER_GROUPS = [
   { key: 'bodyParts', label: '목표 부위', options: BODY_PARTS },
@@ -64,6 +70,11 @@ function ExerciseDetail({
       intensity: item.intensity,
       difficulty: item.difficulty,
       equipment: item.equipment,
+      sets: item.sets,
+      reps: item.reps,
+      holdSeconds: item.holdSeconds,
+      restSeconds: item.restSeconds,
+      perSide: item.perSide,
     };
     return (
       <Card className="border-sky-soft/50 bg-sky/[0.03] p-4 sm:p-5">
@@ -147,6 +158,10 @@ function ExerciseDetail({
           difficulty={item.difficulty}
           equipment={item.equipment}
         />
+
+        {formatPrescription(item) && (
+          <p className="text-sm font-semibold text-ink">{formatPrescription(item)}</p>
+        )}
 
         <p className="whitespace-pre-wrap text-sm leading-relaxed text-muted">
           {item.description}

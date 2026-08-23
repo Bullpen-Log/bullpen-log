@@ -125,6 +125,52 @@ export const EXERCISE_EQUIPMENT = [
 /** 도구 이름 하나. 이 목록 밖의 이름은 어디서도 쓸 수 없다. */
 export type EquipmentName = (typeof EXERCISE_EQUIPMENT)[number];
 
+/* ------------------------------ 세트·횟수·휴식 ----------------------------- */
+
+/**
+ * 운동을 어떻게 수행하는가.
+ *
+ * 아직 채우지 않은 운동이 있을 수 있어 전부 비어 있을 수 있다.
+ * 비어 있으면 화면에 아무것도 내지 않는다 — 지어내는 것보다 낫다.
+ */
+export type Prescription = {
+  sets: number | null;
+  /** 횟수로 하는 운동 */
+  reps: number | null;
+  /** 시간으로 버티는 운동 (횟수 대신) */
+  holdSeconds: number | null;
+  restSeconds: number | null;
+  /** 좌우를 따로 하는 운동인가 — 한 세트에 양쪽을 다 한다는 뜻 */
+  perSide: boolean;
+};
+
+/** 초를 사람이 읽기 좋게. 180 → '3분', 90 → '1분 30초', 45 → '45초' */
+export function formatSeconds(seconds: number): string {
+  if (seconds < 60) return `${seconds}초`;
+  const m = Math.floor(seconds / 60);
+  const s = seconds % 60;
+  return s === 0 ? `${m}분` : `${m}분 ${s}초`;
+}
+
+/**
+ * "3세트 × 10회 (좌우 각각) · 휴식 45초" 처럼 한 줄로 만든다.
+ * 세트나 횟수가 비어 있으면 null 을 준다.
+ */
+export function formatPrescription(p: Partial<Prescription>): string | null {
+  if (p.sets == null) return null;
+  const amount =
+    p.holdSeconds != null
+      ? `${formatSeconds(p.holdSeconds)} 버티기`
+      : p.reps != null
+        ? `${p.reps}회`
+        : null;
+  if (amount == null) return null;
+
+  const side = p.perSide ? ' (좌우 각각)' : '';
+  const rest = p.restSeconds != null ? ` · 세트 사이 ${formatSeconds(p.restSeconds)} 휴식` : '';
+  return `${p.sets}세트 × ${amount}${side}${rest}`;
+}
+
 /* --------------------------------- 메커니즘 -------------------------------- */
 
 /** 드릴이 무엇을 교정하는지. 나중에 영상분석 결과와 이어지는 고리다. */
