@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getCurrentUser } from '@/lib/dal';
 import { deleteVideos, isOwnedBy } from '@/lib/storage';
-import { validateSessionType } from '@/lib/session-type';
+import { isRestSession, validateSessionType } from '@/lib/session-type';
 
 const MAX_VIDEOS = 2;
 
@@ -11,7 +11,7 @@ type CheckedEntry = {
   sessionType: string;
   pitchCount: number;
   intensity: number;
-  maxVelocity: number;
+  maxVelocity: number | null;
   avgVelocity: number | null;
   memo: string | null;
 };
@@ -26,33 +26,59 @@ function checkEntry(body: Record<string, unknown>): { error: string } | CheckedE
   const checkedType = validateSessionType(String(body.sessionType ?? ''));
   if ('error' in checkedType) return checkedType;
 
-  const pitchCount = Number.parseInt(String(body.pitchCount), 10);
-  const intensity = Number.parseInt(String(body.intensity), 10);
-  const maxVelocity = Number.parseFloat(String(body.maxVelocity));
+  /*
+   * 쉰 날은 투구수와 강도가 0이다.
+   *
+   * 화면에서 그 칸을 감추므로 값이 아예 안 오거나 빈 값으로 온다.
+   * 여기서 0으로 못박아, 부하에 아무것도 더하지 않게 한다.
+   */
+  const resting = isRestSession(checkedType.value);
 
-  if (
-    Number.isNaN(pitchCount) ||
-    Number.isNaN(intensity) ||
-    Number.isNaN(maxVelocity)
-  ) {
-    return { error: '투구수, 강도, 최고 구속을 올바르게 입력해주세요' };
+  const pitchCount = resting ? 0 : Number.parseInt(String(body.pitchCount), 10);
+  const intensity = resting ? 0 : Number.parseInt(String(body.intensity), 10);
+
+  if (!resting) {
+    if (Number.isNaN(pitchCount) || Number.isNaN(intensity)) {
+      return { error: '투구수와 강도를 올바르게 입력해주세요' };
+    }
+    if (pitchCount < 1) {
+      return { error: '투구수는 1개 이상이어야 합니다. 안 던진 날은 종류에서 휴식을 고르세요' };
+    }
+    if (intensity < 1 || intensity > 10) {
+      return { error: '투구 강도는 1에서 10 사이여야 합니다' };
+    }
   }
 
-  if (intensity < 1 || intensity > 10) {
-    return { error: '투구 강도는 1에서 10 사이여야 합니다' };
-  }
+  /*
+   * 구속은 둘 다 선택 항목이다.
+   *
+   * 스피드건이 없는 선수가 훨씬 많은데, 구속을 필수로 두면 그 선수들은 기록을
+   * 아예 못 남긴다. 기록이 없으면 부하 지수도 AI 트레이닝도 돌지 않으므로
+   * 앱이 통째로 멈춘다. 부하는 투구수 × 강도라서 구속 없이도 계산된다.
+   */
+  const readVelocity = (
+    raw: unknown,
+    label: string
+  ): { error: string } | { value: number | null } => {
+    if (raw === '' || raw == null) return { value: null };
+    const value = Number.parseFloat(String(raw));
+    if (Number.isNaN(value) || value <= 0) {
+      return { error: `${label}을 숫자로 입력해주세요` };
+    }
+    return { value };
+  };
 
-  // 평균 구속은 선택 항목이라 값이 있을 때만 검사한다.
-  let avgVelocity: number | null = null;
-  const rawAvg = body.avgVelocity;
-  if (rawAvg !== '' && rawAvg != null) {
-    avgVelocity = Number.parseFloat(String(rawAvg));
-    if (Number.isNaN(avgVelocity)) {
-      return { error: '평균 구속을 숫자로 입력해주세요' };
-    }
-    if (avgVelocity > maxVelocity) {
-      return { error: '평균 구속이 최고 구속보다 클 수 없습니다' };
-    }
+  const max = resting ? { value: null } : readVelocity(body.maxVelocity, '최고 구속');
+  if ('error' in max) return max;
+  const avg = resting ? { value: null } : readVelocity(body.avgVelocity, '평균 구속');
+  if ('error' in avg) return avg;
+
+  const maxVelocity = max.value;
+  const avgVelocity = avg.value;
+
+  // 최고 구속이 없으면 견줄 대상이 없으므로 이 검사도 건너뛴다.
+  if (maxVelocity != null && avgVelocity != null && avgVelocity > maxVelocity) {
+    return { error: '평균 구속이 최고 구속보다 클 수 없습니다' };
   }
 
   return {

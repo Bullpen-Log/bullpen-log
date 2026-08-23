@@ -534,7 +534,9 @@ export function ReportClient({
                     <span className="text-ink">{log.date.slice(0, 10)}</span>
                     <span>{log.pitchCount}구</span>
                     <span>강도 {log.intensity}/10</span>
-                    <span>최고 {log.maxVelocity}km/h</span>
+                    {log.maxVelocity != null && (
+                      <span>최고 {log.maxVelocity}km/h</span>
+                    )}
                     {log.avgVelocity != null && (
                       <span>평균 {log.avgVelocity}km/h</span>
                     )}

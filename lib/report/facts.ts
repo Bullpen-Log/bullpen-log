@@ -7,6 +7,7 @@ import {
   findFatigueWindows,
   groupByDay,
   longestThrowStreak,
+  countMissingDays,
   summarize,
   toDateKey,
   type AcwrResult,
@@ -87,6 +88,13 @@ export type ReportFacts = {
     fatigueWindows: number;
     /** 최근 4주 최장 연투 일수 */
     longestStreak: number;
+    /**
+     * 최근 4주 중 기록이 아예 없는 날 수.
+     *
+     * 부하 지수는 이런 날을 0으로 치므로, 많으면 지수가 실제보다 낮게 나온다.
+     * 화면에서 그 사실을 밝히는 데 쓴다.
+     */
+    missingDays: number;
     lastThrowDate: string | null;
     /** 마지막으로 던진 날의 투구수. 필요한 휴식일을 정하는 기준이다 */
     lastOutingPitches: number | null;
@@ -185,6 +193,7 @@ export function buildFacts({
     patterns: {
       fatigueWindows: findFatigueWindows(byDay, last28).length,
       longestStreak: longestThrowStreak(byDay, last28),
+      missingDays: countMissingDays(byDay, last28),
       lastThrowDate,
       lastOutingPitches: lastThrowDate
         ? (byDay.get(lastThrowDate)?.pitchCount ?? null)

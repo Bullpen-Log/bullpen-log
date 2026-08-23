@@ -186,7 +186,13 @@ model PitchLog {
   sessionType String   @default("불펜")
   pitchCount  Int
   intensity   Int
-  maxVelocity Float
+  /// 최고·평균 구속(km/h). 둘 다 없어도 된다.
+  ///
+  /// 스피드건이 없는 선수가 훨씬 많다. 구속을 필수로 두면 그 선수들은 기록
+  /// 자체를 못 남기고, 기록이 없으면 부하 지수도 AI 트레이닝도 돌지 않아
+  /// 앱이 아무 일도 못 하게 된다. 부하는 투구수 × 강도로 내므로 구속이
+  /// 없어도 안전 계산은 그대로 돌아간다.
+  maxVelocity Float?
   avgVelocity Float?
   memo        String?  @db.Text
   /// 그날 던진 영상의 저장소 경로. 최대 2개까지 저장한다.

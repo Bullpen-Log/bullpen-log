@@ -17,7 +17,14 @@
 import { PrismaClient } from '@prisma/client';
 import { PrismaPg } from '@prisma/adapter-pg';
 import { buildFacts, type CheckinLike } from '../lib/report/facts.ts';
-import type { PitchLogLike } from '../lib/pitch-stats.ts';
+import {
+  countMissingDays,
+  dailyLoad,
+  groupByDay,
+  longestThrowStreak,
+  summarize,
+  type PitchLogLike,
+} from '../lib/pitch-stats.ts';
 import { buildPitchPlan } from '../lib/report/plan.ts';
 import { selectCandidates } from '../lib/report/prescription.ts';
 import { equipmentForToday, filterByEquipment } from '../lib/report/equipment.ts';
@@ -323,6 +330,82 @@ console.log('\n[완료 표시] 체크한 운동이 사라지지 않는가');
     `테마 ${themes.length}가지 × 카테고리 ${cats.length}가지 모두 남는다`,
     lost === 0,
     `잃어버린 것 ${lost}개`
+  );
+}
+
+console.log('\n[투구일지] 기록 방식이 부하를 왜곡하지 않는가');
+{
+  const day = '2026-06-10';
+  const log = (n: number, i: number) => ({
+    date: day,
+    pitchCount: n,
+    intensity: i,
+    maxVelocity: null,
+    avgVelocity: null,
+  });
+  const loadOf = (logs: PitchLogLike[]) => dailyLoad(groupByDay(logs).get(day)!);
+
+  /*
+   * 같은 60구를 어떻게 나눠 적든 부하가 같아야 한다.
+   * 예전에는 강도를 더해서 420 / 840 / 1260 으로 벌어졌다.
+   * 성실하게 나눠 적을수록 위험 구간으로 밀려 훈련이 회복 데이로 떨어졌다.
+   */
+  const once = loadOf([log(60, 7)]);
+  const twice = loadOf([log(30, 7), log(30, 7)]);
+  const thrice = loadOf([log(20, 7), log(20, 7), log(20, 7)]);
+  check(
+    '나눠 적어도 부하가 같다',
+    once === twice && twice === thrice,
+    `${once} / ${twice} / ${thrice}`
+  );
+
+  // 강도가 다른 세션이 섞이면 투구수로 가중평균이 나와야 한다.
+  const mixed = groupByDay([log(40, 8), log(20, 3)]).get(day)!;
+  check(
+    '강도가 다르면 투구수로 가중평균',
+    dailyLoad(mixed) === 40 * 8 + 20 * 3,
+    `부하 ${dailyLoad(mixed)} · 강도 ${mixed.intensity.toFixed(1)}`
+  );
+  check('합쳐도 강도는 1~10 안에 있다', mixed.intensity > 0 && mixed.intensity <= 10);
+
+  // 쉰 날은 부하가 0이고, 던진 날로 세지 않는다.
+  const rest = groupByDay([{ ...log(0, 0) }]).get(day)!;
+  check('쉰 날은 부하 0', dailyLoad(rest) === 0);
+  check(
+    '쉰 날은 던진 날로 세지 않는다',
+    summarize(groupByDay([log(0, 0)]), [day]).activeDays === 0
+  );
+  check(
+    '쉰 날은 연투를 끊는다',
+    longestThrowStreak(
+      groupByDay([
+        { ...log(30, 7), date: '2026-06-09' },
+        { ...log(0, 0), date: '2026-06-10' },
+        { ...log(30, 7), date: '2026-06-11' },
+      ]),
+      ['2026-06-09', '2026-06-10', '2026-06-11']
+    ) === 1
+  );
+
+  /*
+   * 기록이 아예 없는 날과, 쉰 날을 적어 둔 것은 다르다.
+   * 앞은 "모른다"이고 뒤는 "진짜 0"이다.
+   */
+  const week = ['2026-06-08', '2026-06-09', '2026-06-10'];
+  check(
+    '기록이 없는 날을 센다',
+    countMissingDays(groupByDay([log(30, 7)]), week) === 2
+  );
+  check(
+    '쉰 날을 적어두면 빠진 날이 아니다',
+    countMissingDays(
+      groupByDay([
+        { ...log(0, 0), date: '2026-06-08' },
+        { ...log(0, 0), date: '2026-06-09' },
+        log(30, 7),
+      ]),
+      week
+    ) === 0
   );
 }
 

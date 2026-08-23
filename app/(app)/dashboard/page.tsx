@@ -10,6 +10,8 @@ import {
   CHRONIC_WINDOW_DAYS,
   TWO_DAY_INTENSITY_LIMIT,
   buildDateRange,
+  countMissingDays,
+  MISSING_DAYS_WARNING,
   buildDateRangeOffset,
   computeAcwr,
   dailyLoad,
@@ -216,6 +218,11 @@ export default async function DashboardPage() {
 
   const hasRecords = allTimeMax._count > 0;
   const zone = acwr.zone ? ACWR_ZONES[acwr.zone] : null;
+  /*
+   * 최근 28일 중 기록이 아예 없는 날.
+   * 쉰 날을 '휴식'으로 적어 둔 것은 여기 들어가지 않는다 — 그건 진짜 0이다.
+   */
+  const missingDays = countMissingDays(byDay, buildDateRange(CHRONIC_WINDOW_DAYS, today));
   const recent = logs.slice(0, 4);
 
   // 오늘 뭘 하면 되는지 한 줄로 보여준다.
@@ -432,6 +439,19 @@ export default async function DashboardPage() {
                       · {zone.meaning}
                     </span>
                   </p>
+                  {/*
+                    기록이 빠진 날이 많으면 지수가 실제보다 낮게 나온다.
+                    낮은 숫자는 "더 던져도 된다"는 뜻으로 읽히므로 그냥 두면 안 된다.
+                  */}
+                  {missingDays >= MISSING_DAYS_WARNING && (
+                    <p className="mt-2 rounded-lg border border-warn-line bg-warn-bg px-3 py-2 text-[11px] leading-relaxed text-warn">
+                      최근 {CHRONIC_WINDOW_DAYS}일 중 <strong>{missingDays}일</strong>은
+                      기록이 없습니다. 안 던진 날로 계산하므로 지수가 실제보다 낮게
+                      나올 수 있습니다. 쉰 날은 투구 일지에서 <strong>휴식</strong>으로
+                      남겨주세요.
+                    </p>
+                  )}
+
                   {/* 문진 추정치가 섞여 있는 동안에는 그 사실을 숨기지 않는다. */}
                   {acwr.estimated && (
                     <p className="mt-2 inline-flex items-center gap-1.5 rounded-full border border-line-strong bg-surface-2 px-2.5 py-1 text-[11px] text-muted">
@@ -658,8 +678,12 @@ export default async function DashboardPage() {
                       {log.pitchCount}구
                       <span className="text-line-strong">·</span>
                       강도 {log.intensity}
-                      <span className="text-line-strong">·</span>
-                      <span className="text-sky">{log.maxVelocity}</span>
+                      {log.maxVelocity != null && (
+                        <>
+                          <span className="text-line-strong">·</span>
+                          <span className="text-sky">{log.maxVelocity}</span>
+                        </>
+                      )}
                     </span>
                   </div>
                   {log.memo && (

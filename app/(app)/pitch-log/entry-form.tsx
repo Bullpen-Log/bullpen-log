@@ -4,7 +4,11 @@ import { useState } from 'react';
 import { Button, Field, Input, Textarea } from '@/components/ui';
 import { VideoUpload, type UploadedVideo } from '@/components/video-upload';
 import { FilmingGuide } from '@/components/filming-guide';
-import { DEFAULT_SESSION_TYPE, SESSION_TYPES } from '@/lib/session-type';
+import {
+  DEFAULT_SESSION_TYPE,
+  SESSION_TYPES,
+  isRestSession,
+} from '@/lib/session-type';
 
 /**
  * 하루치 투구를 남기는 입력 폼. 새로 남길 때와 고칠 때 모두 쓴다.
@@ -28,7 +32,7 @@ export type EntryDraft = {
   sessionType: string;
   pitchCount: number;
   intensity: number;
-  maxVelocity: number;
+  maxVelocity: number | null;
   avgVelocity: number | null;
   memo: string | null;
 };
@@ -55,7 +59,7 @@ export function EntryForm({
           sessionType: initial.sessionType,
           pitchCount: String(initial.pitchCount),
           intensity: String(initial.intensity),
-          maxVelocity: String(initial.maxVelocity),
+          maxVelocity: initial.maxVelocity == null ? '' : String(initial.maxVelocity),
           avgVelocity: initial.avgVelocity == null ? '' : String(initial.avgVelocity),
           memo: initial.memo ?? '',
         }
@@ -104,6 +108,8 @@ export function EntryForm({
     }
   };
 
+  const resting = isRestSession(form.sessionType);
+
   return (
     <form onSubmit={handleSubmit} className="space-y-5">
       <Field
@@ -132,6 +138,12 @@ export function EntryForm({
         </div>
       </Field>
 
+      {/*
+        쉰 날에는 투구수·강도·구속 칸을 감춘다.
+        안 던졌는데 "투구수를 입력하세요"라고 하면 남길 수가 없다.
+      */}
+      {!resting && (
+      <>
       <div className="grid gap-5 sm:grid-cols-2">
         <Field label="투구수">
           <Input
@@ -155,8 +167,16 @@ export function EntryForm({
         </Field>
       </div>
 
+      {/*
+        구속은 둘 다 선택 항목이다.
+
+        예전에는 최고 구속이 필수였는데, 스피드건이 없는 선수는 그것 때문에
+        기록을 아예 못 남겼다. 기록이 없으면 부하 지수도 AI 트레이닝도 돌지
+        않으니 앱이 통째로 멈추는 셈이었다. 부하는 투구수 × 강도로 내므로
+        구속이 없어도 계산은 그대로 된다.
+      */}
       <div className="grid gap-5 sm:grid-cols-2">
-        <Field label="최고 구속 (km/h)">
+        <Field label="최고 구속 (km/h)" hint="스피드건이 없으면 비워두세요.">
           <Input
             type="number"
             step="0.1"
@@ -164,7 +184,6 @@ export function EntryForm({
             value={form.maxVelocity}
             onChange={(e) => setForm({ ...form, maxVelocity: e.target.value })}
             placeholder="138"
-            required
           />
         </Field>
         <Field label="평균 구속 (km/h)" hint="비워두셔도 됩니다.">
@@ -178,12 +197,14 @@ export function EntryForm({
           />
         </Field>
       </div>
+      </>
+      )}
 
       {/*
         영상은 새로 남길 때만 올린다. 고칠 때 영상을 빼면 그 영상에 붙은
         폼 분석이 주인 없이 남으므로, 영상을 바꿔야 하면 지우고 다시 남긴다.
       */}
-      {!editing && (
+      {!editing && !resting && (
         <Field
           label="투구 영상"
           hint="폰이나 컴퓨터에 있는 영상을 바로 올릴 수 있습니다."
@@ -196,12 +217,16 @@ export function EntryForm({
         </Field>
       )}
 
-      <Field label="특이사항 · 느낀점">
+      <Field label={resting ? '메모' : '특이사항 · 느낀점'}>
         <Textarea
           rows={4}
           value={form.memo}
           onChange={(e) => setForm({ ...form, memo: e.target.value })}
-          placeholder="릴리즈 포인트가 일정했고 5회부터 팔이 무거워짐"
+          placeholder={
+            resting
+              ? '어깨가 뻐근해서 쉼'
+              : '릴리즈 포인트가 일정했고 5회부터 팔이 무거워짐'
+          }
         />
       </Field>
 

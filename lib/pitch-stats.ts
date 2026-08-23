@@ -5,7 +5,8 @@ export type PitchLogLike = {
   date: string; // YYYY-MM-DD 또는 ISO 문자열
   pitchCount: number;
   intensity: number;
-  maxVelocity: number;
+  /** 스피드건이 없어 안 적은 기록은 null */
+  maxVelocity: number | null;
   avgVelocity: number | null;
 };
 
@@ -64,6 +65,14 @@ export function formatShortDate(dateKey: string) {
 export type DayTotals = {
   dateKey: string;
   pitchCount: number;
+  /**
+   * 그날의 체감 강도(1~10). 여러 번 던진 날은 투구수로 가중평균을 낸다.
+   *
+   * 예전에는 그냥 더했다. 그래서 30구를 강도 7로 두 번 나눠 적으면 강도가
+   * 14가 됐고, 부하(투구수 × 강도)가 420이 아니라 840으로 잡혔다. 같은 60구를
+   * 한 번에 적은 사람보다 두 배 위험한 것으로 계산된 것이다. 성실하게 나눠
+   * 적을수록 손해를 보는 셈이라 반드시 평균이어야 한다.
+   */
   intensity: number;
   maxVelocity: number | null;
   avgVelocity: number | null;
@@ -71,14 +80,17 @@ export type DayTotals = {
 
 /**
  * 하루에 여러 번 기록했을 수 있으므로 날짜별로 합친다.
- * 투구수와 강도는 더하고, 최고 구속은 그날의 최댓값을,
- * 평균 구속은 투구수로 가중평균을 낸다.
+ *
+ * 투구수는 더하고, 강도와 평균 구속은 투구수로 가중평균을 내고,
+ * 최고 구속은 그날의 최댓값을 쓴다.
+ *
+ * 강도를 더하지 않는 이유는 DayTotals.intensity 주석에 적어 두었다.
  */
 export function groupByDay(logs: PitchLogLike[]): Map<string, DayTotals> {
-  // 가중평균을 내려면 (평균구속 × 투구수)의 합과 그 투구수 합이 필요하다.
+  // 가중평균을 내려면 (값 × 투구수)의 합과 그 투구수 합이 필요하다.
   const acc = new Map<
     string,
-    DayTotals & { avgWeightedSum: number; avgWeight: number }
+    DayTotals & { intensitySum: number; avgWeightedSum: number; avgWeight: number }
   >();
 
   for (const log of logs) {
@@ -88,12 +100,15 @@ export function groupByDay(logs: PitchLogLike[]): Map<string, DayTotals> {
     const hasAvg = log.avgVelocity != null;
     const weightedSum = hasAvg ? log.avgVelocity! * log.pitchCount : 0;
     const weight = hasAvg ? log.pitchCount : 0;
+    // 강도의 가중평균을 내려면 (강도 × 투구수)의 합이 필요하다.
+    const intensitySum = log.intensity * log.pitchCount;
 
     if (!prev) {
       acc.set(key, {
         dateKey: key,
         pitchCount: log.pitchCount,
         intensity: log.intensity,
+        intensitySum,
         maxVelocity: log.maxVelocity,
         avgVelocity: log.avgVelocity,
         avgWeightedSum: weightedSum,
@@ -104,12 +119,22 @@ export function groupByDay(logs: PitchLogLike[]): Map<string, DayTotals> {
 
     const avgWeightedSum = prev.avgWeightedSum + weightedSum;
     const avgWeight = prev.avgWeight + weight;
+    const pitchCount = prev.pitchCount + log.pitchCount;
+    const totalIntensity = prev.intensitySum + intensitySum;
 
     acc.set(key, {
       dateKey: key,
-      pitchCount: prev.pitchCount + log.pitchCount,
-      intensity: prev.intensity + log.intensity,
-      maxVelocity: Math.max(prev.maxVelocity ?? 0, log.maxVelocity),
+      pitchCount,
+      // 투구수로 가중한 평균. 이렇게 두면 투구수 × 강도가 세션별 부하의 합과 같다.
+      intensity: pitchCount > 0 ? totalIntensity / pitchCount : log.intensity,
+      intensitySum: totalIntensity,
+      // 둘 다 없을 수 있으므로 있는 것만 견준다. 없으면 그대로 null 로 둔다.
+      maxVelocity:
+        prev.maxVelocity == null
+          ? log.maxVelocity
+          : log.maxVelocity == null
+            ? prev.maxVelocity
+            : Math.max(prev.maxVelocity, log.maxVelocity),
       avgVelocity: avgWeight > 0 ? avgWeightedSum / avgWeight : null,
       avgWeightedSum,
       avgWeight,
@@ -158,6 +183,30 @@ export type FatigueWindow = {
  * 연속한 이틀의 강도 합이 한도를 넘는 구간을 찾는다.
  * 최근 구간이 앞에 오도록 정렬해 반환한다.
  */
+/**
+ * 최근 28일 중 이 날 수 이상 기록이 비면 화면에 알린다.
+ *
+ * 일주일쯤은 누구나 빠뜨린다. 그것까지 경고하면 잔소리가 되어 결국 아무도 안
+ * 읽는다. 4주 중 열흘이 비면 지수가 눈에 띄게 낮아지므로 그때부터 말한다.
+ */
+export const MISSING_DAYS_WARNING = 10;
+
+/**
+ * 기간 안에서 기록이 아예 없는 날을 센다.
+ *
+ * 부하 지수는 기록 없는 날을 0으로 치므로, 빠진 날이 많으면 지수가 실제보다
+ * 낮게 나온다. 그 사실을 화면에 밝히려고 세어 둔다 — 조용히 낮은 숫자를
+ * 보여주면 "더 던져도 된다"는 뜻으로 읽힌다.
+ *
+ * 쉰 날을 적어 둔 것은 빠진 날이 아니다. 그건 진짜 0이다.
+ */
+export function countMissingDays(
+  byDay: Map<string, DayTotals>,
+  dateKeys: string[]
+): number {
+  return dateKeys.filter((key) => !byDay.has(key)).length;
+}
+
 export function findFatigueWindows(
   byDay: Map<string, DayTotals>,
   dateKeys: string[]
@@ -205,9 +254,16 @@ export function summarize(
   byDay: Map<string, DayTotals>,
   dateKeys: string[]
 ): PeriodSummary {
+  /*
+   * 쉰 날(투구수 0)은 던진 날에서 뺀다.
+   *
+   * 안 그러면 '기록한 날 수'와 '던진 날 수'가 섞여, 쉰 날을 성실하게 적을수록
+   * 하루 평균 투구수가 낮아 보이고 평균 강도도 내려간다. 기록을 잘 남기는
+   * 사람이 손해를 보면 안 된다.
+   */
   const days = dateKeys
     .map((k) => byDay.get(k))
-    .filter((d): d is DayTotals => d != null);
+    .filter((d): d is DayTotals => d != null && d.pitchCount > 0);
 
   if (days.length === 0) return EMPTY_SUMMARY;
 
@@ -237,7 +293,9 @@ export function longestThrowStreak(
   let longest = 0;
   let run = 0;
   for (const key of dateKeys) {
-    if (byDay.has(key)) {
+    // 쉰 날을 적어둔 것은 '던진 날'이 아니므로 연투가 끊긴다.
+    const threw = (byDay.get(key)?.pitchCount ?? 0) > 0;
+    if (threw) {
       run += 1;
       longest = Math.max(longest, run);
     } else {

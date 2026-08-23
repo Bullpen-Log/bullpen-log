@@ -41,9 +41,23 @@ export function DayRecord({
       {/* 그날의 수치 */}
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
+          {/*
+            구속을 안 적은 기록도 있다(스피드건이 없는 경우). 그때는 빈칸을
+            내지 말고 투구수를 대신 크게 보여준다 — 그날 한 일이 없어 보이면
+            기록을 남길 마음이 안 든다.
+          */}
           <p className="text-display text-2xl leading-none text-sky">
-            {log.maxVelocity}
-            <span className="ml-1 text-sm text-muted">km/h 최고</span>
+            {log.maxVelocity != null ? (
+              <>
+                {log.maxVelocity}
+                <span className="ml-1 text-sm text-muted">km/h 최고</span>
+              </>
+            ) : (
+              <>
+                {log.pitchCount}
+                <span className="ml-1 text-sm text-muted">구</span>
+              </>
+            )}
           </p>
           <div className="mt-3 flex flex-wrap gap-1.5">
             <Badge className="border-sky-soft/60 font-semibold text-sky-strong">

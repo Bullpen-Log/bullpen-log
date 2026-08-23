@@ -17,7 +17,7 @@ export type Log = {
   sessionType: string;
   pitchCount: number;
   intensity: number;
-  maxVelocity: number;
+  maxVelocity: number | null;
   avgVelocity: number | null;
   memo: string | null;
   videoPaths: string[];
@@ -180,7 +180,13 @@ export function PitchLogClient({
           date: log.date.slice(0, 10),
           path,
           label: log.videoPaths.length > 1 ? `영상 ${i + 1}` : '영상',
-          summary: `${log.maxVelocity}km/h · ${log.pitchCount}구 · 강도 ${log.intensity}/10`,
+          summary: [
+            log.maxVelocity != null ? `${log.maxVelocity}km/h` : null,
+            `${log.pitchCount}구`,
+            `강도 ${log.intensity}/10`,
+          ]
+            .filter(Boolean)
+            .join(' · '),
         }))
       ),
     [withVideo]

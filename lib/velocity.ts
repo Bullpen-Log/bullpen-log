@@ -8,7 +8,8 @@
 export type VelocityLog = {
   /** ISO 문자열 또는 YYYY-MM-DD */
   date: string;
-  maxVelocity: number;
+  /** 스피드건이 없어 안 적은 기록은 null. 그런 기록은 추이에서 빠진다. */
+  maxVelocity: number | null;
   avgVelocity: number | null;
 };
 
@@ -49,7 +50,9 @@ export function buildVelocityStats(logs: VelocityLog[]): VelocityStats {
   const byDay = new Map<string, { max: number; avgSum: number; avgCount: number }>();
 
   for (const log of logs) {
-    if (!Number.isFinite(log.maxVelocity) || log.maxVelocity <= 0) continue;
+    if (log.maxVelocity == null || !Number.isFinite(log.maxVelocity) || log.maxVelocity <= 0) {
+      continue;
+    }
     const key = dayKey(log.date);
     const prev = byDay.get(key);
     if (!prev) {
