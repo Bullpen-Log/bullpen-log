@@ -20,7 +20,7 @@ import { buildFacts, type CheckinLike } from '../lib/report/facts.ts';
 import type { PitchLogLike } from '../lib/pitch-stats.ts';
 import { buildPitchPlan } from '../lib/report/plan.ts';
 import { selectCandidates } from '../lib/report/prescription.ts';
-import { filterByEquipment } from '../lib/report/equipment.ts';
+import { equipmentForToday, filterByEquipment } from '../lib/report/equipment.ts';
 import {
   TRAINING_GOALS,
   TRAINING_LEVELS,
@@ -319,6 +319,52 @@ console.log('\n[완료 표시] 체크한 운동이 사라지지 않는가');
     lost === 0,
     `잃어버린 것 ${lost}개`
   );
+}
+
+console.log('\n[오늘 장비] 날마다 다른 장비가 반영되는가');
+{
+  const owned = ['맨몸', '밴드', '덤벨', '바벨', '벤치'];
+
+  check(
+    '오늘 것을 안 골랐으면 가진 것을 다 쓴다',
+    equipmentForToday(owned, null).join(',') === owned.join(','),
+    equipmentForToday(owned, null).join(',')
+  );
+  check(
+    '빈 목록도 안 고른 것으로 본다',
+    equipmentForToday(owned, []).length === owned.length
+  );
+
+  /*
+   * 설정에서 장비를 뺐는데 오늘 목록에는 남아 있는 경우.
+   * 그대로 두면 없는 기구로 하는 운동이 나온다.
+   */
+  const today = equipmentForToday(owned, ['맨몸', '밴드', '케이블']);
+  check(
+    '가진 것이 아닌 장비는 오늘 목록에서도 뺀다',
+    !today.includes('케이블') && today.includes('밴드'),
+    today.join(',')
+  );
+
+  check(
+    '가진 장비를 아직 안 골랐으면 아무것도 안 거른다',
+    equipmentForToday([], ['밴드']).length === 0
+  );
+
+  // 헬스장 가는 날과 집에서 하는 날의 훈련이 실제로 달라야 한다.
+  const gymPlan = planFor({ person: { condition: 8 }, owned });
+  const homeOnly = equipmentForToday(owned, ['맨몸', '밴드']);
+  const homePlan = planFor({ person: { condition: 8 }, owned: homeOnly });
+  const usesGymGear = homePlan.themed.picks.filter((p) =>
+    p.exercise.equipment.some((e: string) => e !== '맨몸' && !homeOnly.includes(e))
+  );
+  check('오늘 못 쓰는 장비 운동은 안 나온다', usesGymGear.length === 0);
+  check(
+    '헬스장 가는 날과 집에서 하는 날의 후보가 다르다',
+    homePlan.picked.candidates.length < gymPlan.picked.candidates.length,
+    `집 ${homePlan.picked.candidates.length}개 · 헬스장 ${gymPlan.picked.candidates.length}개`
+  );
+  check('장비가 줄어도 훈련은 나온다', homePlan.themed.picks.length > 0);
 }
 
 console.log('\n[프로필 저장] 폼에서 온 값을 제대로 걸러내는가');

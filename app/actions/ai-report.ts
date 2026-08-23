@@ -12,7 +12,7 @@ import { generateReportBody } from '@/lib/ai/report';
 import { buildFacts, type CheckinLike, type MemoNote } from '@/lib/report/facts';
 import { buildPitchPlan } from '@/lib/report/plan';
 import { selectCandidates } from '@/lib/report/prescription';
-import { filterByEquipment } from '@/lib/report/equipment';
+import { equipmentForToday, filterByEquipment } from '@/lib/report/equipment';
 import { filterByLevel, findGoal } from '@/lib/report/personalize';
 import { formatPrescription } from '@/lib/exercise-meta';
 import {
@@ -139,7 +139,18 @@ export async function generateAiReport(): Promise<AiReportState> {
     orderBy: { createdAt: 'asc' },
   });
   // 화면과 같은 순서로 거른다 — 장비를 먼저 빼고, 그다음 안전 규칙.
-  const usable = filterByEquipment(library, user.ownedEquipment);
+  /*
+   * 오늘 쓸 수 있는 장비를 화면과 같은 기준으로 본다. 여기서 다른 목록을 쓰면
+   * 리포트가 화면에 없는 운동을 설명하게 된다.
+   */
+  const todaySetup = await prisma.dailyTrainingSetup.findUnique({
+    where: { userId_date: { userId: user.id, date: asOf } },
+    select: { availableEquipment: true },
+  });
+  const usable = filterByEquipment(
+    library,
+    equipmentForToday(user.ownedEquipment, todaySetup?.availableEquipment)
+  );
   const leveled = filterByLevel(usable.pool, user.trainingLevel);
   const picked = selectCandidates({ facts, plan, library: leveled.pool });
 

@@ -19,6 +19,29 @@ export const SELECTABLE_EQUIPMENT = EXERCISE_EQUIPMENT.filter(
   (name) => name !== ALWAYS_OWNED
 );
 
+/**
+ * 오늘 실제로 쓸 수 있는 장비를 정한다.
+ *
+ * 두 가지를 나눠 둔 이유가 있다. '가지고 있는 것'은 잘 안 바뀌지만, 그중
+ * 오늘 쓸 수 있는 것은 날마다 다르다 — 집에서 하는 날과 헬스장 가는 날이
+ * 다르고, 밴드는 가방에 있지만 바벨은 없는 날이 있다.
+ *
+ * 오늘 것을 안 골랐으면 가진 것을 다 쓸 수 있다고 본다. 매일 고르라고 하면
+ * 대부분은 안 고를 텐데, 그때 아무것도 못 쓴다고 보면 훈련이 맨몸만 남는다.
+ *
+ * 오늘 고른 것 중에 가진 것이 아닌 게 있으면 무시한다. 프로필에서 장비를
+ * 뺐는데 오늘 목록에는 남아 있는 경우다.
+ */
+export function equipmentForToday(
+  owned: string[],
+  availableToday: string[] | null | undefined
+): string[] {
+  if (owned.length === 0) return []; // 가진 장비를 아직 안 골랐으면 아무것도 안 거른다
+  if (!availableToday || availableToday.length === 0) return owned;
+  const has = new Set(owned);
+  return [ALWAYS_OWNED, ...availableToday.filter((name) => name !== ALWAYS_OWNED && has.has(name))];
+}
+
 type WithEquipment = { equipment: string[] };
 
 /** 이 운동을 가진 장비로 할 수 있는가 */
@@ -46,7 +69,15 @@ export type EquipmentFilterResult<T> = {
  */
 export function filterByEquipment<T extends WithEquipment>(
   library: T[],
-  ownedEquipment: string[]
+  ownedEquipment: string[],
+  /**
+   * 무엇을 더하라고 권할지 정하는 후보. 안 주면 목록 전체에서 찾는다.
+   *
+   * 오늘만 장비를 좁혀 놓은 날에는 여기에 '가지고 있지만 오늘 끈 것'을 넣는다.
+   * 그렇게 하지 않으면 갖고 있지도 않은 기구를 "그날이면 더 할 수 있다"고
+   * 권하게 되는데, 그건 오늘 다시 켠다고 되는 일이 아니다.
+   */
+  suggestFrom?: readonly string[]
 ): EquipmentFilterResult<T> {
   if (ownedEquipment.length === 0) {
     return { pool: library, excludedCount: 0, bestAddition: null };
@@ -65,7 +96,7 @@ export function filterByEquipment<T extends WithEquipment>(
    * 숫자로 알려주기 위한 것이다.
    */
   let bestAddition: EquipmentFilterResult<T>['bestAddition'] = null;
-  for (const name of SELECTABLE_EQUIPMENT) {
+  for (const name of suggestFrom ?? SELECTABLE_EQUIPMENT) {
     if (owned.has(name)) continue;
     const withIt = new Set(owned).add(name);
     const unlocks = library.filter(

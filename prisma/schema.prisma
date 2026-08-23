@@ -59,6 +59,7 @@ model User {
   articles          Article[]
   checkins          DailyCheckin[]
   aiReports         AiReport[]
+  trainingSetups    DailyTrainingSetup[]
 }
 
 /**
@@ -89,6 +90,27 @@ model AiReport {
 }
 
 /// 하루 한 번 남기는 몸상태 체크인. 운동 처방과 리포트의 입력이 된다.
+/// 그날 하루의 훈련 설정.
+///
+/// 장비는 날마다 다르다. 집에서 하는 날과 헬스장 가는 날에 쓸 수 있는 것이
+/// 다른데, 프로필에 한 번 적어둔 목록만 보면 오늘 없는 기구가 계속 나온다.
+/// 그래서 '가지고 있는 것'(User.ownedEquipment)과 '오늘 쓸 수 있는 것'을
+/// 나눠 두고, 오늘 것은 날짜별로 여기에 남긴다.
+///
+/// 이 줄이 없는 날은 아직 안 고른 날이라, 가진 것을 다 쓸 수 있다고 본다.
+model DailyTrainingSetup {
+  id                 String   @id @default(uuid())
+  userId             String
+  date               DateTime @db.Date
+  /// 오늘 쓸 수 있는 장비. 이름은 lib/exercise-meta.ts의 EXERCISE_EQUIPMENT 안에서만 쓴다.
+  availableEquipment String[]
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+  user               User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, date])
+}
+
 model DailyCheckin {
   id        String   @id @default(uuid())
   userId    String

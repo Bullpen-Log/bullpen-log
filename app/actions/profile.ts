@@ -8,7 +8,6 @@ import { validateProfile } from '@/lib/profile';
 import { validateBaseline } from '@/lib/baseline';
 import { validateTargetVelocity } from '@/lib/velocity';
 import { WORKOUT_MINUTES_CHOICES } from '@/lib/report/theme';
-import { readTrainingProfile } from '@/lib/report/personalize';
 import { withInput, type FormValues } from '@/lib/form-values';
 
 export type ProfileState = {
@@ -108,8 +107,11 @@ async function tryUpdateProfile(formData: FormData): Promise<ProfileState> {
       ...baselineValue,
       ...minutesValue,
       targetVelocity: target.value,
-      // 경력·목표·장비. 안 고르면 비워 두고, 그러면 아무것도 안 걸러진다.
-      ...readTrainingProfile(formData),
+      /*
+       * 경력·목표·장비는 여기서 건드리지 않는다. AI 트레이닝 화면에서 고르고
+       * saveTrainingSettings 가 저장한다. 이 폼은 그 항목을 보내지 않으므로,
+       * 여기서 함께 쓰면 프로필을 저장할 때마다 설정이 지워진다.
+       */
     },
   });
 

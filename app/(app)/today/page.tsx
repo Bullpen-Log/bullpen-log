@@ -11,7 +11,7 @@ import {
   recentExerciseIds,
 } from '@/lib/report/gather';
 import { selectCandidates, MIN_CANDIDATES } from '@/lib/report/prescription';
-import { filterByEquipment } from '@/lib/report/equipment';
+import { equipmentForToday, filterByEquipment } from '@/lib/report/equipment';
 import { filterByLevel, findGoal } from '@/lib/report/personalize';
 import { RECENT_DAYS } from '@/lib/report/today-pick';
 import {
@@ -26,6 +26,7 @@ import { saveWorkoutMinutes } from '@/app/actions/profile';
 import type { AiReportBody } from '@/lib/ai/report-prompt';
 import { Sparkles } from 'lucide-react';
 import { TodayList, type TodayExercise } from './today-client';
+import { TodayEquipment, TrainingSettings } from './training-settings';
 
 /** 렌더 중에 현재 시각을 직접 읽지 않도록 함수로 감싼다. */
 function now() {
@@ -56,7 +57,8 @@ export default async function TodayPage({
 
   const { facts, plan, hasLogs } = await gatherFactsAndPlan(user, today);
 
-  const [library, doneLogs, recentIds, strengthDates, todayReport] = await Promise.all([
+  const [library, doneLogs, recentIds, strengthDates, todayReport, todaySetup] =
+    await Promise.all([
     prisma.exerciseVideo.findMany({ orderBy: { createdAt: 'asc' } }),
     prisma.userExerciseLog.findMany({
       where: {
@@ -84,6 +86,19 @@ export default async function TodayPage({
       },
       select: { halted: true, body: true },
     }),
+    /*
+     * 오늘 쓸 수 있는 장비. 장비는 날마다 다르므로 프로필의 '가진 것'과 따로 둔다.
+     * 이 줄이 없는 날은 아직 안 고른 날이라, 가진 것을 다 쓸 수 있다고 본다.
+     */
+    prisma.dailyTrainingSetup.findUnique({
+      where: {
+        userId_date: {
+          userId: user.id,
+          date: new Date(`${todayKey}T00:00:00.000Z`),
+        },
+      },
+      select: { availableEquipment: true },
+    }),
   ]);
 
   /*
@@ -94,7 +109,21 @@ export default async function TodayPage({
    * 걸렀는지가 실제보다 커 보인다. 할 수 없는 것은 처음부터 없는 셈 치는 편이
    * 근거를 읽기 쉽다.
    */
-  const usable = filterByEquipment(library, user.ownedEquipment);
+  const todayEquipment = equipmentForToday(
+    user.ownedEquipment,
+    todaySetup?.availableEquipment
+  );
+  /*
+   * 오늘 일부러 좁혀 놓았는가. 안내 문구가 달라진다 —
+   * 덤벨을 가진 사람에게 "덤벨이 있으면"이라고 말하면 틀린 말이다.
+   */
+  const narrowedToday = todayEquipment.length < user.ownedEquipment.length;
+  const usable = filterByEquipment(
+    library,
+    todayEquipment,
+    // 오늘만 좁혀 놓았으면 '가지고 있지만 오늘 끈 것' 중에서 권한다.
+    narrowedToday ? user.ownedEquipment : undefined
+  );
   /*
    * 경력에 맞는 난이도만 남긴다. 장비와 같은 성격이라 같은 자리에 둔다 —
    * 위험해서가 아니라 아직 할 만한 것이 아니라서 빼는 것이다.
@@ -384,6 +413,12 @@ export default async function TodayPage({
                 </span>
               </form>
             )}
+
+            {/* 오늘 쓸 수 있는 장비 — 날마다 다르므로 결과 바로 옆에 둔다 */}
+            <TodayEquipment
+              owned={user.ownedEquipment}
+              availableToday={todaySetup?.availableEquipment ?? null}
+            />
           </Card>
 
           <TodayList exercises={exercises} />
@@ -398,19 +433,20 @@ export default async function TodayPage({
           )}
 
           {/*
-            장비 때문에 많이 빠졌으면, 무엇 하나만 있으면 얼마나 늘어나는지
+            장비 때문에 많이 빠졌으면, 무엇 하나만 더 있으면 얼마나 늘어나는지
             알려준다. 목록이 왜 빈약한지 모른 채로 두지 않기 위해서다.
+
+            "가진 것이 아니라서"와 "오늘 못 써서"는 다른 이야기다. 덤벨을 가진
+            사람에게 "덤벨이 있으면"이라고 하면 틀린 말이 된다.
           */}
           {usable.bestAddition && (
             <p className="rounded-lg border border-line bg-surface px-4 py-3 text-[13px] leading-relaxed text-muted">
-              가진 장비로 할 수 없는 운동 {usable.excludedCount}개를 뺐습니다.{' '}
-              <span className="font-semibold text-ink">
-                {usable.bestAddition.name}
-              </span>
-              이 있으면 {usable.bestAddition.unlocks}개를 더 할 수 있습니다.{' '}
-              <Link href="/profile" className="text-sky underline underline-offset-2">
-                프로필에서 장비 고치기
-              </Link>
+              {narrowedToday ? '오늘 쓸 수 있는' : '가진'} 장비로 할 수 없는 운동{' '}
+              {usable.excludedCount}개를 뺐습니다.{' '}
+              <span className="font-semibold text-ink">{usable.bestAddition.name}</span>
+              {narrowedToday
+                ? `을 쓸 수 있는 날이면 ${usable.bestAddition.unlocks}개를 더 할 수 있습니다.`
+                : `이 있으면 ${usable.bestAddition.unlocks}개를 더 할 수 있습니다.`}
             </p>
           )}
 
@@ -461,7 +497,9 @@ export default async function TodayPage({
                 제외:{' '}
                 {[
                   ...(usable.excludedCount > 0
-                    ? [`가진 장비로 할 수 없음 ${usable.excludedCount}개`]
+                    ? [
+                        `${narrowedToday ? '오늘 쓸 수 있는' : '가진'} 장비로 할 수 없음 ${usable.excludedCount}개`,
+                      ]
                     : []),
                   ...(leveled.excludedCount > 0
                     ? [`경력 대비 이른 난이도 ${leveled.excludedCount}개`]
@@ -473,6 +511,17 @@ export default async function TodayPage({
           </details>
         </>
       )}
+
+      {/*
+        어쩌다 한 번 고치는 설정.
+        운동 목록이 안 나오는 날(통증·기록 없음)에도 보여야 한다 —
+        가입하고 처음 들어온 사람은 여기서 처음 고르게 되기 때문이다.
+      */}
+      <TrainingSettings
+        trainingLevel={user.trainingLevel}
+        trainingGoal={user.trainingGoal}
+        ownedEquipment={user.ownedEquipment}
+      />
     </div>
   );
 }

@@ -1,13 +1,15 @@
 'use client';
 
+import Link from 'next/link';
+
 import { useActionState } from 'react';
 import { useFormStatus } from 'react-dom';
 import { updateProfile, type ProfileState } from '@/app/actions/profile';
 import { Button, Field, FormError, Input } from '@/components/ui';
-import { kept, keptAll } from '@/lib/form-values';
+import { kept } from '@/lib/form-values';
 import { MAX_HEIGHT_CM, MIN_HEIGHT_CM } from '@/lib/profile';
 import { TARGET_VELOCITY_MAX, TARGET_VELOCITY_MIN } from '@/lib/velocity';
-import { CheckboxGroup, RadioGroup } from '@/components/choice-inputs';
+import { RadioGroup } from '@/components/choice-inputs';
 import {
   BASELINE_FREQ_NAMES,
   BASELINE_INTENSITY_NAMES,
@@ -17,8 +19,6 @@ import {
   DEFAULT_WORKOUT_MINUTES,
   WORKOUT_MINUTES_CHOICES,
 } from '@/lib/report/theme';
-import { SELECTABLE_EQUIPMENT } from '@/lib/report/equipment';
-import { TRAINING_GOALS, TRAINING_LEVELS } from '@/lib/report/personalize';
 
 function SubmitButton() {
   const { pending } = useFormStatus();
@@ -35,9 +35,6 @@ export function ProfileForm({
   heightCm,
   targetVelocity,
   dailyWorkoutMinutes,
-  ownedEquipment,
-  trainingLevel,
-  trainingGoal,
   baseline,
   /** 오늘 날짜(YYYY-MM-DD). 미래 날짜를 못 고르게 막는 데 쓴다. */
   today,
@@ -47,10 +44,6 @@ export function ProfileForm({
   heightCm: number | null;
   targetVelocity: number | null;
   dailyWorkoutMinutes: number | null;
-  /** 가지고 있는 장비. 비어 있으면 아직 안 골랐다는 뜻이다. */
-  ownedEquipment: string[];
-  trainingLevel: string | null;
-  trainingGoal: string | null;
   baseline: {
     baselineFreq: string | null;
     baselineVolume: string | null;
@@ -70,19 +63,6 @@ export function ProfileForm({
   const before = state?.values;
   const pick = (name: string, fallback: string | number | null) =>
     before ? kept(before, name) ?? '' : fallback == null ? '' : String(fallback);
-
-  /*
-   * 아직 한 번도 안 고른 사람은 전부 켜 둔 채로 보여준다.
-   *
-   * 빈 목록을 그대로 보여주면, 프로필을 저장하는 순간 "아무 장비도 없음"이
-   * 되어 맨몸 운동만 나온다. 프로필을 고치러 들어온 것뿐인데 훈련 내용이
-   * 조용히 반토막 나는 셈이라, 없는 것을 직접 끄게 한다.
-   */
-  const equipmentDefaults =
-    ownedEquipment.length > 0 ? ownedEquipment : [...SELECTABLE_EQUIPMENT];
-  const equipmentSelected = before
-    ? keptAll(before, 'ownedEquipment') ?? []
-    : equipmentDefaults;
 
   return (
     <form action={formAction} className="space-y-5">
@@ -163,44 +143,20 @@ export function ProfileForm({
       />
 
       {/*
-        경력과 목표 — AI 트레이닝을 사람에 맞추는 두 가지다.
-        경력은 어떤 난이도까지 줄지를, 목표는 시간을 어디에 더 쓸지를 정한다.
+        경력·목표·장비는 AI 트레이닝 화면에서 고른다.
+        결과를 보면서 바로 고칠 수 있어야 해서 그쪽으로 옮겼다.
       */}
-      <div className="space-y-4 border-t border-line pt-5">
-        <p className="text-sm font-semibold text-ink">
-          트레이닝을 어떻게 맞출까요?
-          <span className="mt-1 block text-xs font-normal text-muted">
-            AI 트레이닝이 이 답으로 운동 난이도와 시간 배분을 정합니다.
-          </span>
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-2 border-t border-line pt-5">
+        <p className="text-sm text-muted">
+          웨이트 경력 · 훈련 목표 · 가지고 있는 장비는{' '}
+          <strong className="text-ink">AI 트레이닝</strong> 화면에서 고릅니다.
         </p>
-        <RadioGroup
-          name="trainingLevel"
-          label="웨이트 트레이닝 경력"
-          hint="경력에 비해 이른 운동을 빼는 기준입니다. 안 고르면 아무것도 빼지 않습니다."
-          options={TRAINING_LEVELS.map((l) => ({ name: l.name, desc: l.desc }))}
-          selected={pick('trainingLevel', trainingLevel)}
-        />
-        <RadioGroup
-          name="trainingGoal"
-          label="훈련 목표"
-          hint="같은 시간을 어디에 더 쓸지 정합니다. 몸 상태가 안 좋은 날에는 목표와 상관없이 회복이 먼저입니다."
-          options={TRAINING_GOALS.map((g) => ({ name: g.name, desc: g.desc }))}
-          selected={pick('trainingGoal', trainingGoal)}
-        />
-      </div>
-
-      {/*
-        가진 장비 — AI 트레이닝에서 할 수 없는 운동을 뺄 때 쓴다.
-        안전 규칙이 아니라 "못 하는 것"을 빼는 것이라 프로필에 둔다.
-      */}
-      <div className="border-t border-line pt-5">
-        <CheckboxGroup
-          name="ownedEquipment"
-          label="가지고 있는 장비"
-          hint="없는 것을 꺼 두면 AI 트레이닝이 그 운동을 빼고 짭니다. 맨몸 운동은 항상 나옵니다."
-          options={SELECTABLE_EQUIPMENT}
-          selected={equipmentSelected}
-        />
+        <Link
+          href="/today"
+          className="rounded-lg border border-line-strong px-3 py-1.5 text-xs font-semibold text-ink transition-colors hover:border-sky hover:text-sky"
+        >
+          AI 트레이닝으로 가기
+        </Link>
       </div>
 
       {/* 평소 투구량 문진 — 부하 지수의 추정 기준선. 3개 모두 답해야 저장된다. */}
