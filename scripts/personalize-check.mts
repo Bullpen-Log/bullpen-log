@@ -89,7 +89,7 @@ for (const level of TRAINING_LEVELS) {
       theme: 'lower',
       minutes: effectiveMinutes('lower', MINUTES),
       doneIds: new Set<string>(),
-      goal: '구속 향상',
+      goal: '파워 향상',
     });
     // 구간이 통째로 비면 문제로 본다.
     const slots = new Set(picks.map((p) => p.slot));

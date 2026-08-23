@@ -277,7 +277,7 @@ const COMPOSITIONS: Record<ThemeKey, SlotSpec[]> = {
  * 시간이 늘거나 줄어든다 — "45분"이라고 해놓고 52분치를 주게 된다.
  *
  * 회복 데이는 목표와 상관없이 그대로 둔다. 몸을 지키려고 잡은 날인데
- * "구속 향상"을 골랐다고 파워 비중을 올리면 회복 데이의 뜻이 없어진다.
+ * '파워 향상'을 골랐다고 파워 비중을 올리면 회복 데이의 뜻이 없어진다.
  */
 export function compositionFor(theme: ThemeKey, goalName: string | null): SlotSpec[] {
   const base = COMPOSITIONS[theme];

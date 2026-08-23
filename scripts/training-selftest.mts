@@ -436,11 +436,11 @@ console.log('\n[프로필 저장] 폼에서 온 값을 제대로 걸러내는가
 {
   const form = new FormData();
   form.set('trainingLevel', '중급');
-  form.set('trainingGoal', '구속 향상');
+  form.set('trainingGoal', '파워 향상');
   for (const v of ['밴드', '덤벨', '바벨', '없는장비']) form.append('ownedEquipment', v);
   const saved = readTrainingProfile(form);
   check('경력을 그대로 저장', saved.trainingLevel === '중급', String(saved.trainingLevel));
-  check('목표를 그대로 저장', saved.trainingGoal === '구속 향상', String(saved.trainingGoal));
+  check('목표를 그대로 저장', saved.trainingGoal === '파워 향상', String(saved.trainingGoal));
   check('맨몸은 항상 들어간다', saved.ownedEquipment.includes('맨몸'));
   check(
     '목록에 없는 장비는 버린다',
