@@ -18,8 +18,8 @@ import {
  * 여기라서 "왜 이 운동이지?" 싶을 때마다 다른 화면으로 건너가야 했다.
  *
  * 두 덩이로 나눠 놓았다.
- *   오늘 쓸 수 있는 장비 — 날마다 바뀌므로 늘 펼쳐 둔다
- *   경력·목표·가진 장비 — 어쩌다 한 번 고치므로 접어 둔다
+ *   경력·목표·가진 장비 — 어쩌다 한 번 고치므로 맨 위에 접어 둔다
+ *   오늘 쓸 수 있는 장비 — 날마다 바뀌므로 결과 바로 옆에 펼쳐 둔다
  */
 
 function SaveButton({ label }: { label: string }) {
@@ -39,7 +39,7 @@ function SaveButton({ label }: { label: string }) {
  * 오늘 쓸 수 있는 장비.
  *
  * 가진 것이 없으면(아직 안 고름) 아무것도 보여주지 않는다. 고를 것이 없는
- * 화면을 내놓느니, 아래 설정에서 가진 장비부터 고르게 하는 편이 낫다.
+ * 빈 칸을 내놓느니, 맨 위 '트레이닝 설정'에서 가진 장비부터 고르게 하는 편이 낫다.
  */
 export function TodayEquipment({
   owned,
@@ -139,7 +139,7 @@ export function TrainingSettings({
           <CheckboxGroup
             name="ownedEquipment"
             label="가지고 있는 장비"
-            hint="여기서 고른 것 중에 오늘 쓸 수 있는 것을 위에서 다시 고릅니다."
+            hint="여기서 고른 것 중에 오늘 쓸 수 있는 것을 아래 ‘오늘 쓸 수 있는 장비’에서 다시 고릅니다."
             options={SELECTABLE_EQUIPMENT}
             selected={equipmentSelected}
           />

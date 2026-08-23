@@ -243,6 +243,22 @@ export default async function TodayPage({
       />
 
       {/*
+        트레이닝 설정.
+
+        맨 아래에 두었더니 운동 목록을 다 지나야 나와서, 설정이 있다는 것조차
+        모르고 지나치기 쉬웠다. 접혀 있을 때는 한 줄이라 맨 위에 두어도
+        아래 안내를 밀어내지 않는다.
+
+        운동 목록이 안 나오는 날(통증·기록 없음)에도 보여야 한다 —
+        가입하고 처음 들어온 사람은 여기서 처음 고르게 되기 때문이다.
+      */}
+      <TrainingSettings
+        trainingLevel={user.trainingLevel}
+        trainingGoal={user.trainingGoal}
+        ownedEquipment={user.ownedEquipment}
+      />
+
+      {/*
         최근 통증이 있었지만 오늘은 괜찮다고 한 경우.
         운동이 왜 가벼운 것만 나오는지 모르면 고장으로 보인다.
       */}
@@ -511,17 +527,6 @@ export default async function TodayPage({
           </details>
         </>
       )}
-
-      {/*
-        어쩌다 한 번 고치는 설정.
-        운동 목록이 안 나오는 날(통증·기록 없음)에도 보여야 한다 —
-        가입하고 처음 들어온 사람은 여기서 처음 고르게 되기 때문이다.
-      */}
-      <TrainingSettings
-        trainingLevel={user.trainingLevel}
-        trainingGoal={user.trainingGoal}
-        ownedEquipment={user.ownedEquipment}
-      />
     </div>
   );
 }
