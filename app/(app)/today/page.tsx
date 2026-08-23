@@ -12,6 +12,7 @@ import {
 } from '@/lib/report/gather';
 import { selectCandidates, MIN_CANDIDATES } from '@/lib/report/prescription';
 import { filterByEquipment } from '@/lib/report/equipment';
+import { filterByLevel, findGoal } from '@/lib/report/personalize';
 import { RECENT_DAYS } from '@/lib/report/today-pick';
 import {
   DEFAULT_WORKOUT_MINUTES,
@@ -94,7 +95,13 @@ export default async function TodayPage({
    * 근거를 읽기 쉽다.
    */
   const usable = filterByEquipment(library, user.ownedEquipment);
-  const picked = selectCandidates({ facts, plan, library: usable.pool });
+  /*
+   * 경력에 맞는 난이도만 남긴다. 장비와 같은 성격이라 같은 자리에 둔다 —
+   * 위험해서가 아니라 아직 할 만한 것이 아니라서 빼는 것이다.
+   * (경력이 입문일 때 최대 강도를 빼는 규칙은 안전 필터 쪽에 따로 있다.)
+   */
+  const leveled = filterByLevel(usable.pool, user.trainingLevel);
+  const picked = selectCandidates({ facts, plan, library: leveled.pool });
 
   /*
    * 리포트를 만든 뒤에 통증을 입력했다면 처방이 멈춘다.
@@ -130,6 +137,7 @@ export default async function TodayPage({
 
   // 오늘 고른 부위가 있으면 본운동 안에서 그쪽을 앞으로 당긴다.
   const preferredParts = facts.condition.today?.preferredParts ?? [];
+  const goal = findGoal(user.trainingGoal);
   const themed = pickForTheme({
     candidates: picked.candidates,
     theme: theme.key,
@@ -137,6 +145,7 @@ export default async function TodayPage({
     doneIds,
     recentIds,
     preferredParts,
+    goal: goal.name,
   });
 
   const full = themed.picks
@@ -397,6 +406,19 @@ export default async function TodayPage({
                 <span aria-hidden className="text-sky">—</span>
                 {theme.reason}
               </li>
+              {user.trainingGoal && (
+                <li className="flex gap-2 text-[13px] leading-relaxed text-muted">
+                  <span aria-hidden className="text-sky">—</span>
+                  목표 &lsquo;{goal.name}&rsquo; → {goal.desc}
+                </li>
+              )}
+              {leveled.excludedCount > 0 && (
+                <li className="flex gap-2 text-[13px] leading-relaxed text-muted">
+                  <span aria-hidden className="text-sky">—</span>
+                  웨이트 경력 {user.trainingLevel} → 아직 이른 운동{' '}
+                  {leveled.excludedCount}개 제외
+                </li>
+              )}
               {picked.basis.map((b) => (
                 <li key={b} className="flex gap-2 text-[13px] leading-relaxed text-muted">
                   <span aria-hidden className="text-sky">—</span>
@@ -422,6 +444,9 @@ export default async function TodayPage({
                 {[
                   ...(usable.excludedCount > 0
                     ? [`가진 장비로 할 수 없음 ${usable.excludedCount}개`]
+                    : []),
+                  ...(leveled.excludedCount > 0
+                    ? [`경력 대비 이른 난이도 ${leveled.excludedCount}개`]
                     : []),
                   ...picked.excluded.map((e) => `${e.rule} ${e.count}개`),
                 ].join(' · ')}

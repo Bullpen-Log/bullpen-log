@@ -1,6 +1,7 @@
 import { CHECKIN_PARTS, type CheckinPartKey } from '@/lib/checkin';
 import { INTENSITY_CAP, intensityLevel, type BodyPart } from '@/lib/exercise-meta';
 import { YOUTH_AGE_THRESHOLD } from '@/lib/report/plan';
+import { BEGINNER_LEVEL_NAME } from '@/lib/report/personalize';
 import type { ReportFacts } from '@/lib/report/facts';
 import type { PitchPlan } from '@/lib/report/plan';
 
@@ -167,6 +168,19 @@ export function selectCandidates<T extends ExerciseLike>({
   if (facts.profile.age != null && facts.profile.age < YOUTH_AGE_THRESHOLD) {
     basis.push(`만 ${facts.profile.age}세(성장기) → 매우 높은 강도 제외`);
     capTo('성장기 고강도 제한', INTENSITY_CAP.STRENGTH);
+  }
+
+  /*
+   * 3-1) 웨이트가 처음인 사람도 최대 강도를 뺀다.
+   *
+   * 어떤 난이도로 적혀 있든, 강도가 '매우 높음'인 것은 전력으로 뛰거나 최대
+   * 무게를 다루는 운동이다. 동작을 아는 것과 그 무게를 감당하는 것은 다르다.
+   * 난이도로 거르는 일(personalize.ts)과 나눠 둔 이유가 이것이다 —
+   * 저쪽은 "못 한다"를 보고 여기는 "다친다"를 본다.
+   */
+  if (facts.profile.trainingLevel === BEGINNER_LEVEL_NAME) {
+    basis.push(`웨이트 경력 ${BEGINNER_LEVEL_NAME} → 매우 높은 강도 제외`);
+    capTo('경력 대비 과한 강도', INTENSITY_CAP.STRENGTH);
   }
 
   const today = facts.condition.today;

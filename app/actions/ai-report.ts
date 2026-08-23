@@ -13,6 +13,7 @@ import { buildFacts, type CheckinLike, type MemoNote } from '@/lib/report/facts'
 import { buildPitchPlan } from '@/lib/report/plan';
 import { selectCandidates } from '@/lib/report/prescription';
 import { filterByEquipment } from '@/lib/report/equipment';
+import { filterByLevel, findGoal } from '@/lib/report/personalize';
 import { formatPrescription } from '@/lib/exercise-meta';
 import {
   DEFAULT_WORKOUT_MINUTES,
@@ -67,6 +68,7 @@ export async function generateAiReport(): Promise<AiReportState> {
     nickname: user.nickname,
     age: user.birthDate ? ageFromBirthDate(user.birthDate, today) : null,
     heightCm: user.heightCm,
+    trainingLevel: user.trainingLevel,
     baselineDailyLoad: estimateDailyLoad(user),
     logs: logs.map((l) => ({
       date: l.date.toISOString(),
@@ -138,7 +140,8 @@ export async function generateAiReport(): Promise<AiReportState> {
   });
   // 화면과 같은 순서로 거른다 — 장비를 먼저 빼고, 그다음 안전 규칙.
   const usable = filterByEquipment(library, user.ownedEquipment);
-  const picked = selectCandidates({ facts, plan, library: usable.pool });
+  const leveled = filterByLevel(usable.pool, user.trainingLevel);
+  const picked = selectCandidates({ facts, plan, library: leveled.pool });
 
   // 오늘의 운동 화면과 같은 테마·같은 목록이 나와야 두 화면이 어긋나지 않는다.
   const [recentIds, strengthDates] = await Promise.all([
@@ -163,6 +166,7 @@ export async function generateAiReport(): Promise<AiReportState> {
     doneIds: new Set<string>(),
     recentIds,
     preferredParts: facts.condition.today?.preferredParts ?? [],
+    goal: user.trainingGoal,
   });
 
   const training =
@@ -178,6 +182,7 @@ export async function generateAiReport(): Promise<AiReportState> {
           })),
           excluded: picked.excluded,
           basis: [...picked.basis, ...themed.notes],
+          goal: user.trainingGoal ? findGoal(user.trainingGoal).name : null,
           preferredParts: facts.condition.today?.preferredParts ?? [],
           requestedMinutes,
           estimatedMinutes: themed.estimatedMinutes,

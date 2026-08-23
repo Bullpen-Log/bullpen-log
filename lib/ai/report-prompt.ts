@@ -78,6 +78,8 @@ export type TrainingContext = {
   excluded: { rule: string; count: number }[];
   basis: string[];
   preferredParts: string[];
+  /** 선수가 고른 훈련 목표. 안 골랐으면 null */
+  goal: string | null;
   /** 선수가 고른 운동 시간과, 이 구성의 실제 소요 시간(분) */
   requestedMinutes: number;
   estimatedMinutes: number;
@@ -175,6 +177,9 @@ export function buildUserPrompt(
     lines.push(`\n# 오늘 배정된 운동 (규칙으로 고름 — 바꾸거나 더할 수 없습니다)`);
     if (training.theme) {
       lines.push(`- 오늘의 테마: ${training.theme.label} — ${training.theme.reason}`);
+    }
+    if (training.goal) {
+      lines.push(`- 선수의 훈련 목표: ${training.goal}`);
     }
     if (training.preferredParts.length > 0) {
       lines.push(`- 선수가 오늘 하고 싶다고 고른 부위: ${training.preferredParts.join(', ')}`);

@@ -9,7 +9,11 @@ import { validateBaseline } from '@/lib/baseline';
 import { validateTargetVelocity } from '@/lib/velocity';
 import { WORKOUT_MINUTES_CHOICES } from '@/lib/report/theme';
 import { ALWAYS_OWNED, SELECTABLE_EQUIPMENT } from '@/lib/report/equipment';
-import { pickMany } from '@/lib/exercise-meta';
+import { pickMany, pickOne } from '@/lib/exercise-meta';
+import {
+  TRAINING_GOAL_NAMES,
+  TRAINING_LEVEL_NAMES,
+} from '@/lib/report/personalize';
 import { withInput, type FormValues } from '@/lib/form-values';
 
 export type ProfileState = {
@@ -122,6 +126,15 @@ async function tryUpdateProfile(formData: FormData): Promise<ProfileState> {
       ...minutesValue,
       targetVelocity: target.value,
       ownedEquipment,
+      // 안 고르고 저장하면 null 이 되어 아무것도 안 걸러진다.
+      trainingLevel: pickOne(
+        String(formData.get('trainingLevel') ?? ''),
+        TRAINING_LEVEL_NAMES
+      ),
+      trainingGoal: pickOne(
+        String(formData.get('trainingGoal') ?? ''),
+        TRAINING_GOAL_NAMES
+      ),
     },
   });
 

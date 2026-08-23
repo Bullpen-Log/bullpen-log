@@ -19,6 +19,7 @@ type UserForFacts = {
   baselineFreq: string | null;
   baselineVolume: string | null;
   baselineIntensity: string | null;
+  trainingLevel: string | null;
 };
 
 /**
@@ -46,6 +47,7 @@ export async function gatherFactsAndPlan(user: UserForFacts, today: Date) {
     nickname: user.nickname,
     age: user.birthDate ? ageFromBirthDate(user.birthDate, today) : null,
     heightCm: user.heightCm,
+    trainingLevel: user.trainingLevel,
     baselineDailyLoad: estimateDailyLoad(user),
     logs: logs.map((l) => ({
       date: l.date.toISOString(),

@@ -1,6 +1,7 @@
 import { intensityLevel, type Prescription } from '@/lib/exercise-meta';
 import type { ReportFacts } from '@/lib/report/facts';
 import type { PitchPlan } from '@/lib/report/plan';
+import { findGoal } from '@/lib/report/personalize';
 
 /**
  * 오늘의 훈련 테마와, 운동 시간에 맞춘 구성.
@@ -195,17 +196,26 @@ export function decideTheme({
 
 /* ------------------------------ 시간 배분과 구성 ----------------------------- */
 
-export type SlotKey = 'warmup' | 'main' | 'core' | 'armcare';
+export type SlotKey = 'warmup' | 'main' | 'core' | 'prehab' | 'armcare';
 
 export const SLOT_LABELS: Record<SlotKey, { label: string; hint: string }> = {
   warmup: { label: '워밍업', hint: '가볍게 몸을 열고 시작하세요' },
   main: { label: '본운동', hint: '오늘 테마의 핵심입니다' },
   core: { label: '코어', hint: '몸통을 단단하게' },
+  /*
+   * 보강.
+   *
+   * 이 구간이 없던 때는 '회복 및 보강' 39개 중 31개가 어느 구간에도 못 들어가
+   * 한 번도 나오지 않았다. 고관절·내전근 보강은 투수의 부상 방지에서 가장
+   * 중요한 축인데, 목표에 '부상 방지'를 두고 정작 그 운동을 안 쓰면
+   * 이름만 있는 목표가 된다.
+   */
+  prehab: { label: '보강', hint: '고관절·내전근처럼 약해지기 쉬운 곳' },
   armcare: { label: '암케어', hint: '어깨·팔꿈치 관리로 마무리' },
 };
 
 /** 화면·구성에서 쓰는 구간 순서 */
-export const SLOT_ORDER: SlotKey[] = ['warmup', 'main', 'core', 'armcare'];
+export const SLOT_ORDER: SlotKey[] = ['warmup', 'main', 'core', 'prehab', 'armcare'];
 
 type SlotSpec = {
   slot: SlotKey;
@@ -233,27 +243,55 @@ type SlotSpec = {
 const COMPOSITIONS: Record<ThemeKey, SlotSpec[]> = {
   lower: [
     { slot: 'warmup', share: 0.15, categories: ['모빌리티'], maxCount: 5 },
-    { slot: 'main', share: 0.5, categories: ['하체 스트렝스', '파워'], maxCount: 8 },
-    { slot: 'core', share: 0.2, categories: ['코어'], maxCount: 4 },
+    { slot: 'main', share: 0.45, categories: ['하체 스트렝스', '파워'], maxCount: 8 },
+    { slot: 'core', share: 0.15, categories: ['코어'], maxCount: 4 },
+    { slot: 'prehab', share: 0.1, categories: ['회복 및 보강'], maxCount: 3 },
     { slot: 'armcare', share: 0.15, categories: ['암케어'], maxCount: 4 },
   ],
   upper: [
     { slot: 'warmup', share: 0.15, categories: ['모빌리티'], maxCount: 5 },
-    { slot: 'main', share: 0.5, categories: ['상체 스트렝스', '파워'], maxCount: 8 },
-    { slot: 'core', share: 0.2, categories: ['코어'], maxCount: 4 },
+    { slot: 'main', share: 0.45, categories: ['상체 스트렝스', '파워'], maxCount: 8 },
+    { slot: 'core', share: 0.15, categories: ['코어'], maxCount: 4 },
+    { slot: 'prehab', share: 0.1, categories: ['회복 및 보강'], maxCount: 3 },
     { slot: 'armcare', share: 0.15, categories: ['암케어'], maxCount: 4 },
   ],
   assist: [
     { slot: 'warmup', share: 0.15, categories: ['모빌리티'], maxCount: 5 },
-    { slot: 'main', share: 0.45, categories: ['코어'], maxCount: 8 },
-    { slot: 'armcare', share: 0.4, categories: ['암케어'], maxCount: 7 },
+    { slot: 'main', share: 0.35, categories: ['코어'], maxCount: 8 },
+    { slot: 'prehab', share: 0.15, categories: ['회복 및 보강'], maxCount: 4 },
+    { slot: 'armcare', share: 0.35, categories: ['암케어'], maxCount: 7 },
   ],
   recovery: [
-    { slot: 'warmup', share: 0.35, categories: ['모빌리티'], maxCount: 4 },
-    { slot: 'armcare', share: 0.35, categories: ['암케어'], maxCount: 4 },
-    { slot: 'core', share: 0.3, categories: ['코어'], maxCount: 3 },
+    { slot: 'warmup', share: 0.3, categories: ['모빌리티'], maxCount: 4 },
+    { slot: 'core', share: 0.15, categories: ['코어'], maxCount: 3 },
+    { slot: 'prehab', share: 0.25, categories: ['회복 및 보강'], maxCount: 4 },
+    { slot: 'armcare', share: 0.3, categories: ['암케어'], maxCount: 4 },
   ],
 };
+
+/**
+ * 훈련 목표를 반영한 시간 배분을 만든다.
+ *
+ * 목표마다 구간에 곱하는 값이 있고(personalize.ts의 weights), 곱한 뒤 합이
+ * 1이 되도록 다시 나눈다. 정규화를 빼먹으면 목표를 고른 것만으로 전체 운동
+ * 시간이 늘거나 줄어든다 — "45분"이라고 해놓고 52분치를 주게 된다.
+ *
+ * 회복 데이는 목표와 상관없이 그대로 둔다. 몸을 지키려고 잡은 날인데
+ * "구속 향상"을 골랐다고 파워 비중을 올리면 회복 데이의 뜻이 없어진다.
+ */
+export function compositionFor(theme: ThemeKey, goalName: string | null): SlotSpec[] {
+  const base = COMPOSITIONS[theme];
+  if (theme === 'recovery') return base;
+
+  const goal = findGoal(goalName);
+  const weighted = base.map((spec) => ({
+    spec,
+    share: spec.share * goal.weights[spec.slot],
+  }));
+  const total = weighted.reduce((sum, w) => sum + w.share, 0);
+
+  return weighted.map(({ spec, share }) => ({ ...spec, share: share / total }));
+}
 
 /** 테마를 반영해 실제로 쓸 시간을 정한다. 회복 데이는 길게 잡아도 줄인다. */
 export function effectiveMinutes(theme: ThemeKey, requested: number): number {
@@ -295,6 +333,7 @@ export function pickForTheme<T extends ThemedExercise>({
   doneIds,
   recentIds,
   preferredParts = [],
+  goal = null,
 }: {
   candidates: T[];
   theme: ThemeKey;
@@ -306,8 +345,11 @@ export function pickForTheme<T extends ThemedExercise>({
   recentIds?: Set<string>;
   /** 오늘 하고 싶다고 고른 부위 — 본운동 안에서 앞으로 당긴다 */
   preferredParts?: string[];
+  /** 훈련 목표 — 구간별 시간 배분과 본운동 순서를 바꾼다 */
+  goal?: string | null;
 }): { picks: ThemedPick<T>[]; estimatedMinutes: number; notes: string[] } {
-  const specs = COMPOSITIONS[theme];
+  const specs = compositionFor(theme, goal);
+  const goalPrefer: readonly string[] = findGoal(goal).prefer;
   const notes: string[] = [];
 
   /*
@@ -347,7 +389,20 @@ export function pickForTheme<T extends ThemedExercise>({
         : !isWarmup(ex) && spec.categories.includes(ex.category)
     );
 
-    // 오늘 하고 싶은 부위는 본운동 안에서 앞으로 당긴다. 테마를 바꾸지는 않는다.
+    /*
+     * 본운동 안의 순서를 정한다. 목표를 먼저 반영하고, 그 위에 오늘 고른
+     * 부위를 얹는다. 둘 다 나누기만 하고 순서를 뒤섞지 않으므로(안정 분할),
+     * 오늘 고른 부위 안에서도 목표에 맞는 것이 앞에 남는다.
+     *
+     * 오늘 고른 부위를 나중에 얹는 이유는, 그쪽이 오늘 하루의 선택이라
+     * 오래 두고 정한 목표보다 우선해야 하기 때문이다.
+     */
+    if (spec.slot === 'main' && goalPrefer.length > 0) {
+      pool = [
+        ...pool.filter((ex) => goalPrefer.includes(ex.category)),
+        ...pool.filter((ex) => !goalPrefer.includes(ex.category)),
+      ];
+    }
     if (spec.slot === 'main' && wanted.size > 0) {
       pool = [
         ...pool.filter((ex) => ex.bodyParts.some((p) => wanted.has(p))),

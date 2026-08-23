@@ -72,6 +72,8 @@ export type ReportFacts = {
     nickname: string;
     age: number | null;
     heightCm: number | null;
+    /** 웨이트 트레이닝 경력. 안 골랐으면 null (personalize.ts의 TRAINING_LEVELS) */
+    trainingLevel: string | null;
   };
   volume: {
     current: PeriodSummary;
@@ -127,6 +129,7 @@ export function buildFacts({
   nickname,
   age,
   heightCm,
+  trainingLevel = null,
   logs,
   checkins,
   memos,
@@ -136,6 +139,7 @@ export function buildFacts({
   nickname: string;
   age: number | null;
   heightCm: number | null;
+  trainingLevel?: string | null;
   logs: PitchLogLike[];
   checkins: CheckinLike[];
   memos: MemoNote[];
@@ -171,7 +175,7 @@ export function buildFacts({
 
   return {
     asOf,
-    profile: { nickname, age, heightCm },
+    profile: { nickname, age, heightCm, trainingLevel },
     volume: {
       current,
       previous,

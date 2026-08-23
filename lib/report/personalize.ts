@@ -1,0 +1,179 @@
+import { DIFFICULTY_LEVELS } from '@/lib/exercise-meta';
+
+/**
+ * 사람마다 다른 두 가지 — 경력과 목표.
+ *
+ * 지금까지 AI 트레이닝이 사람을 구별하는 기준은 몸 상태(체크인)와 투구량뿐이었다.
+ * 그러다 보니 웨이트를 처음 하는 고등학생과 3년째 하는 선수가 같은 데드리프트를
+ * 받았고, 구속을 올리고 싶은 사람과 어깨가 걱정인 사람이 같은 구성을 받았다.
+ *
+ * 여기서 정하는 것은 두 가지다.
+ *   경력 → 어떤 난이도의 운동까지 줄 것인가 (lib/report/personalize.ts, 이 파일)
+ *   목표 → 시간을 어디에 더 쓸 것인가      (lib/report/theme.ts 의 compositionFor)
+ *
+ * 둘 다 안전 규칙이 아니다. 안전은 lib/report/prescription.ts 가 따로 본다.
+ * 다만 경력이 초급이면 최대 강도를 빼는 규칙 하나는 안전 쪽에 두었다 —
+ * 그건 "못 한다"가 아니라 "다친다"에 가깝기 때문이다.
+ */
+
+/* ---------------------------------- 경력 ---------------------------------- */
+
+/**
+ * 웨이트 트레이닝 경력.
+ *
+ * 기간으로 묻는 이유는, 스스로 초급인지 중급인지 판단하기 어렵기 때문이다.
+ * "얼마나 오래 했는가"는 누구나 답할 수 있다.
+ */
+export const TRAINING_LEVELS = [
+  {
+    name: '입문',
+    desc: '웨이트 트레이닝을 안 해봤거나 6개월 미만',
+    /** 이 난이도까지만 준다 */
+    allow: ['초급'],
+    /** 이 순서로 앞에 놓는다 */
+    prefer: ['초급'],
+  },
+  {
+    name: '초급',
+    desc: '6개월 ~ 1년',
+    allow: ['초급', '중급'],
+    prefer: ['초급', '중급'],
+  },
+  {
+    name: '중급',
+    desc: '1년 ~ 3년',
+    allow: ['초급', '중급', '상급'],
+    prefer: ['중급', '초급', '상급'],
+  },
+  {
+    name: '상급',
+    desc: '3년 이상',
+    allow: ['초급', '중급', '상급'],
+    prefer: ['상급', '중급', '초급'],
+  },
+] as const;
+
+export type TrainingLevelName = (typeof TRAINING_LEVELS)[number]['name'];
+
+export const TRAINING_LEVEL_NAMES: readonly string[] = TRAINING_LEVELS.map(
+  (l) => l.name
+);
+
+/** 목록에 없는 이름이 오면 null — 그러면 아무것도 거르지 않는다. */
+export function findLevel(name: string | null) {
+  return TRAINING_LEVELS.find((l) => l.name === name) ?? null;
+}
+
+/**
+ * 경력이 '입문'이면 최대 강도를 뺀다.
+ *
+ * 이 값은 안전 필터(prescription.ts)가 쓴다. 난이도가 '초급'으로 적힌 운동이라도
+ * 강도가 '매우 높음'이면 전력으로 뛰거나 최대 무게를 다루는 것이라,
+ * 처음 하는 사람에게는 이르다.
+ */
+export const BEGINNER_LEVEL_NAME: TrainingLevelName = '입문';
+
+type WithDifficulty = { difficulty: string | null };
+
+export type LevelFilterResult<T> = {
+  pool: T[];
+  /** 경력에 안 맞아 뺀 개수. 0이면 화면에 아무 말도 하지 않는다. */
+  excludedCount: number;
+};
+
+/**
+ * 경력에 맞는 난이도만 남기고, 알맞은 것을 앞으로 당긴다.
+ *
+ * 난이도가 안 적힌 운동은 빼지 않는다. 등록하다 만 것을 벌주는 셈이 되고,
+ * 무엇보다 "안 적혀 있다"가 "어렵다"를 뜻하지는 않는다.
+ *
+ * 경력을 아직 안 고른 사람은 아무것도 빼지 않는다. 장비와 같은 원칙이다 —
+ * 안 고른 것과 없는 것은 다르다.
+ */
+export function filterByLevel<T extends WithDifficulty>(
+  library: T[],
+  levelName: string | null
+): LevelFilterResult<T> {
+  const level = findLevel(levelName);
+  if (!level) return { pool: library, excludedCount: 0 };
+
+  const allow: readonly string[] = level.allow;
+  const kept = library.filter(
+    (ex) => ex.difficulty == null || allow.includes(ex.difficulty)
+  );
+
+  /*
+   * 남은 것을 경력에 맞는 순서로 놓는다. 빼지는 않고 순서만 바꾸므로,
+   * 후보가 빠듯한 날에도 줄 것이 사라지지 않는다.
+   */
+  const rank = (ex: T) => {
+    if (ex.difficulty == null) return level.prefer.length; // 안 적힌 것은 맨 뒤
+    const at = level.prefer.indexOf(ex.difficulty as never);
+    return at === -1 ? level.prefer.length : at;
+  };
+  const pool = [...kept].sort((a, b) => rank(a) - rank(b));
+
+  return { pool, excludedCount: library.length - kept.length };
+}
+
+/* ---------------------------------- 목표 ---------------------------------- */
+
+/**
+ * 훈련 목표.
+ *
+ * 시간 배분을 바꾸는 데 쓴다. 어떤 운동을 주느냐가 아니라, 같은 시간을
+ * 어디에 더 쓰느냐의 문제다. 그래서 안전과는 무관하다.
+ *
+ * `weights` 는 구간별 배분에 곱하는 값이다. 테마마다 표를 따로 만들지 않고
+ * 곱셈으로 두는 이유가 있다 — 표를 네 벌 적어두면 나중에 테마를 하나 더
+ * 만들 때 한 벌을 빠뜨리고, 빠뜨린 줄은 아무 일도 하지 않아 알아채기 어렵다.
+ *
+ * `prefer` 는 본운동 안에서 앞으로 당길 카테고리다.
+ */
+export const TRAINING_GOALS = [
+  {
+    name: '균형 잡힌 관리',
+    desc: '근력·파워·어깨 관리를 고르게',
+    weights: { warmup: 1, main: 1, core: 1, prehab: 1, armcare: 1 },
+    prefer: [] as string[],
+  },
+  {
+    name: '구속 향상',
+    desc: '빠르게 힘을 내는 훈련과 하체에 시간을 더 씁니다',
+    weights: { warmup: 1, main: 1.15, core: 0.9, prehab: 0.8, armcare: 0.8 },
+    prefer: ['파워'],
+  },
+  {
+    name: '부상 방지',
+    desc: '어깨·팔꿈치 관리와 고관절 보강에 시간을 더 씁니다',
+    weights: { warmup: 1.3, main: 0.7, core: 1, prehab: 1.7, armcare: 1.6 },
+    prefer: [],
+  },
+  {
+    name: '근력 향상',
+    desc: '무게를 다루는 운동에 시간을 더 씁니다',
+    weights: { warmup: 0.85, main: 1.2, core: 0.9, prehab: 0.8, armcare: 0.85 },
+    prefer: ['하체 스트렝스', '상체 스트렝스'],
+  },
+] as const;
+
+export type TrainingGoal = (typeof TRAINING_GOALS)[number];
+
+export const TRAINING_GOAL_NAMES: readonly string[] = TRAINING_GOALS.map(
+  (g) => g.name
+);
+
+/** 아직 안 고른 사람은 '균형 잡힌 관리'로 본다. */
+export function findGoal(name: string | null): TrainingGoal {
+  return TRAINING_GOALS.find((g) => g.name === name) ?? TRAINING_GOALS[0];
+}
+
+/* 난이도 이름이 실제 목록과 어긋나면 조용히 아무 일도 안 하므로 여기서 막는다. */
+const known = new Set<string>(DIFFICULTY_LEVELS.map((d) => d.name));
+for (const level of TRAINING_LEVELS) {
+  for (const name of [...level.allow, ...level.prefer]) {
+    if (!known.has(name)) {
+      throw new Error(`난이도 목록에 없는 이름: ${name} (${level.name})`);
+    }
+  }
+}
