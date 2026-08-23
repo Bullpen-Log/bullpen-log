@@ -104,6 +104,16 @@ model DailyTrainingSetup {
   date               DateTime @db.Date
   /// 오늘 쓸 수 있는 장비. 이름은 lib/exercise-meta.ts의 EXERCISE_EQUIPMENT 안에서만 쓴다.
   availableEquipment String[]
+  /// 만들어 둔 오늘의 운동 일정. 없으면 아직 안 만든 날이다.
+  ///
+  /// 화면을 열 때마다 새로 계산하지 않고 만든 것을 그대로 보여준다. 그러지 않으면
+  /// 아침에 본 일정과 저녁에 본 일정이 달라진다 — 최근에 한 운동을 뒤로 미루는
+  /// 규칙 때문에 새로고침만 해도 바뀔 수 있다.
+  ///
+  /// 다만 안전은 볼 때마다 다시 본다. 만든 뒤에 통증을 입력했다면 저장해 둔
+  /// 일정이 있어도 보여주지 않는다. 모양은 lib/report/daily-plan.ts의 DailyPlan.
+  plan               Json?
+  generatedAt        DateTime?
   createdAt          DateTime @default(now())
   updatedAt          DateTime @updatedAt
   user               User     @relation(fields: [userId], references: [id], onDelete: Cascade)

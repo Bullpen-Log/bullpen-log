@@ -11,17 +11,8 @@ import { AI_MODEL, isAiConfigured } from '@/lib/ai/client';
 import { generateReportBody } from '@/lib/ai/report';
 import { buildFacts, type CheckinLike, type MemoNote } from '@/lib/report/facts';
 import { buildPitchPlan } from '@/lib/report/plan';
-import { selectCandidates } from '@/lib/report/prescription';
-import { equipmentForToday, filterByEquipment } from '@/lib/report/equipment';
-import { filterByLevel, findGoal } from '@/lib/report/personalize';
+import { readDailyPlan } from '@/lib/report/daily-plan';
 import { formatPrescription } from '@/lib/exercise-meta';
-import {
-  DEFAULT_WORKOUT_MINUTES,
-  decideTheme,
-  effectiveMinutes,
-  pickForTheme,
-} from '@/lib/report/theme';
-import { lastStrengthDates, recentExerciseIds } from '@/lib/report/gather';
 import { pickCheckinParts } from '@/lib/checkin';
 
 export type AiReportState = { error?: string; success?: string } | undefined;
@@ -131,72 +122,43 @@ export async function generateAiReport(): Promise<AiReportState> {
   }
 
   /*
-   * 오늘 배정될 운동을 여기서 미리 계산해 AI에게 넘긴다.
-   * '오늘의 트레이닝' 화면과 같은 함수를 쓰므로 두 화면이 서로 다른 운동을
-   * 말할 일이 없고, AI 호출도 한 번으로 끝난다.
-   */
-  const library = await prisma.exerciseVideo.findMany({
-    orderBy: { createdAt: 'asc' },
-  });
-  // 화면과 같은 순서로 거른다 — 장비를 먼저 빼고, 그다음 안전 규칙.
-  /*
-   * 오늘 쓸 수 있는 장비를 화면과 같은 기준으로 본다. 여기서 다른 목록을 쓰면
-   * 리포트가 화면에 없는 운동을 설명하게 된다.
+   * 오늘 만들어 둔 운동 일정을 AI에게 넘긴다.
+   *
+   * 여기서 새로 만들지 않는다. 예전에는 리포트가 자기 몫의 일정을 따로
+   * 계산했는데, 선수가 만든 적 없는 운동을 리포트만 설명하는 일이 생겼다.
+   * 일정을 아직 안 만든 날에는 훈련 이야기를 아예 넣지 않는다.
    */
   const todaySetup = await prisma.dailyTrainingSetup.findUnique({
     where: { userId_date: { userId: user.id, date: asOf } },
-    select: { availableEquipment: true },
+    select: { plan: true },
   });
-  const usable = filterByEquipment(
-    library,
-    equipmentForToday(user.ownedEquipment, todaySetup?.availableEquipment)
-  );
-  const leveled = filterByLevel(usable.pool, user.trainingLevel);
-  const picked = selectCandidates({ facts, plan, library: leveled.pool });
+  const dailyPlan = readDailyPlan(todaySetup?.plan);
 
-  // 오늘의 운동 화면과 같은 테마·같은 목록이 나와야 두 화면이 어긋나지 않는다.
-  const [recentIds, strengthDates] = await Promise.all([
-    recentExerciseIds(user.id, today),
-    lastStrengthDates(user.id, today),
-  ]);
-  const theme = decideTheme({
-    facts,
-    plan,
-    lastLowerKey: strengthDates.lower,
-    lastUpperKey: strengthDates.upper,
+  const library = await prisma.exerciseVideo.findMany({
+    orderBy: { createdAt: 'asc' },
   });
-  const requestedMinutes = effectiveMinutes(
-    theme.key,
-    user.dailyWorkoutMinutes ?? DEFAULT_WORKOUT_MINUTES
-  );
-  const themed = pickForTheme({
-    candidates: picked.candidates,
-    theme: theme.key,
-    minutes: requestedMinutes,
-    // 리포트를 만드는 시점에는 아직 아무것도 안 했다고 본다.
-    doneIds: new Set<string>(),
-    recentIds,
-    preferredParts: facts.condition.today?.preferredParts ?? [],
-    goal: user.trainingGoal,
-  });
+  const byId = new Map(library.map((ex) => [ex.id, ex]));
 
   const training =
-    themed.picks.length > 0
+    dailyPlan != null
       ? {
-          theme: { label: theme.label, reason: theme.reason },
-          picked: themed.picks.map(({ exercise: ex }) => ({
-            title: ex.title,
-            category: ex.category,
-            intensity: ex.intensity,
-            bodyParts: ex.bodyParts,
-            prescription: formatPrescription(ex),
-          })),
-          excluded: picked.excluded,
-          basis: [...picked.basis, ...themed.notes],
-          goal: user.trainingGoal ? findGoal(user.trainingGoal).name : null,
+          theme: { label: dailyPlan.theme.label, reason: dailyPlan.theme.reason },
+          picked: dailyPlan.picks
+            .map((p) => byId.get(p.exerciseId))
+            .filter((ex): ex is NonNullable<typeof ex> => ex != null)
+            .map((ex) => ({
+              title: ex.title,
+              category: ex.category,
+              intensity: ex.intensity,
+              bodyParts: ex.bodyParts,
+              prescription: formatPrescription(ex),
+            })),
+          excluded: dailyPlan.excluded,
+          basis: [...dailyPlan.basis, ...dailyPlan.notes],
+          goal: dailyPlan.goal,
           preferredParts: facts.condition.today?.preferredParts ?? [],
-          requestedMinutes,
-          estimatedMinutes: themed.estimatedMinutes,
+          requestedMinutes: dailyPlan.minutes,
+          estimatedMinutes: dailyPlan.estimatedMinutes,
         }
       : undefined;
 

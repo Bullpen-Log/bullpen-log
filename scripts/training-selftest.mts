@@ -37,6 +37,11 @@ import {
   type ThemeKey,
 } from '../lib/report/theme.ts';
 import { intensityLevel } from '../lib/exercise-meta.ts';
+import {
+  buildDailyPlan,
+  isHalted,
+  readDailyPlan,
+} from '../lib/report/daily-plan.ts';
 
 let passed = 0;
 let failed = 0;
@@ -319,6 +324,66 @@ console.log('\n[완료 표시] 체크한 운동이 사라지지 않는가');
     lost === 0,
     `잃어버린 것 ${lost}개`
   );
+}
+
+console.log('\n[일정 만들기] 눌러야 생기고, 만든 것은 그대로 남는가');
+{
+  const make = (person: Person = { condition: 8 }, minutes = 45) => {
+    const facts = factsFor(person);
+    return buildDailyPlan({
+      user: { ownedEquipment: [], trainingLevel: null, trainingGoal: null },
+      facts,
+      plan: buildPitchPlan(facts),
+      library,
+      availableToday: null,
+      requestedMinutes: minutes,
+      recentIds: new Set<string>(),
+      lastLowerKey: null,
+      lastUpperKey: null,
+    });
+  };
+
+  const built = make();
+  check('만들면 일정이 나온다', !isHalted(built));
+  if (!isHalted(built)) {
+    check('운동이 담겨 있다', built.picks.length > 0, `${built.picks.length}개`);
+    check('근거도 함께 담긴다', built.basis.length > 0);
+    check(
+      '고른 시간이 남아 있다',
+      built.requestedMinutes === 45,
+      `${built.requestedMinutes}분 → 실제 ${built.estimatedMinutes}분`
+    );
+
+    /*
+     * 저장했다 다시 읽어도 같아야 한다. Json 으로 오갈 때 모양이 깨지면
+     * 화면에서 값이 비어 터진다.
+     */
+    const roundTrip = readDailyPlan(JSON.parse(JSON.stringify(built)));
+    check('저장했다 읽어도 그대로다', roundTrip != null);
+    check(
+      '읽은 것의 운동이 같다',
+      roundTrip?.picks.map((p) => p.exerciseId).join(',') ===
+        built.picks.map((p) => p.exerciseId).join(',')
+    );
+  }
+
+  // 같은 조건이면 몇 번을 만들어도 같아야 한다. 새로고침으로 바뀌면 안 된다.
+  const again = make();
+  check(
+    '같은 조건이면 같은 일정이 나온다',
+    !isHalted(built) &&
+      !isHalted(again) &&
+      built.picks.map((p) => p.exerciseId).join(',') ===
+        again.picks.map((p) => p.exerciseId).join(',')
+  );
+
+  // 통증인 날에는 만들어지지 않는다. 빈 일정을 남기면 '이미 만든 날'이 된다.
+  const painDay = make({ condition: 6, pain: true });
+  check('통증인 날에는 일정이 만들어지지 않는다', isHalted(painDay));
+
+  // 모양이 아닌 것은 없는 것으로 본다 — 옛 기록을 억지로 읽으면 화면이 터진다.
+  check('모양이 다른 기록은 없는 것으로 본다', readDailyPlan({ version: 0 }) === null);
+  check('빈 값도 없는 것으로 본다', readDailyPlan(null) === null);
 }
 
 console.log('\n[오늘 장비] 날마다 다른 장비가 반영되는가');

@@ -5,60 +5,32 @@ import { createPlaybackUrls } from '@/lib/storage';
 import { referenceThumbUrl } from '@/lib/reference-video';
 import { formatPrescription } from '@/lib/exercise-meta';
 import { toDateKey } from '@/lib/pitch-stats';
-import {
-  gatherFactsAndPlan,
-  lastStrengthDates,
-  recentExerciseIds,
-} from '@/lib/report/gather';
+import { gatherFactsAndPlan } from '@/lib/report/gather';
 import { selectCandidates, MIN_CANDIDATES } from '@/lib/report/prescription';
 import { equipmentForToday, filterByEquipment } from '@/lib/report/equipment';
-import { filterByLevel, findGoal } from '@/lib/report/personalize';
-import { RECENT_DAYS } from '@/lib/report/today-pick';
-import {
-  DEFAULT_WORKOUT_MINUTES,
-  WORKOUT_MINUTES_CHOICES,
-  decideTheme,
-  effectiveMinutes,
-  pickForTheme,
-} from '@/lib/report/theme';
+import { readDailyPlan } from '@/lib/report/daily-plan';
+import { filterByLevel } from '@/lib/report/personalize';
+import { DEFAULT_WORKOUT_MINUTES } from '@/lib/report/theme';
 import { Card, EmptyState, PageHeading } from '@/components/ui';
-import { saveWorkoutMinutes } from '@/app/actions/profile';
 import type { AiReportBody } from '@/lib/ai/report-prompt';
 import { Sparkles } from 'lucide-react';
 import { TodayList, type TodayExercise } from './today-client';
-import { TodayEquipment, TrainingSettings } from './training-settings';
+import { PlanForm, TrainingSettings } from './training-settings';
 
 /** 렌더 중에 현재 시각을 직접 읽지 않도록 함수로 감싼다. */
 function now() {
   return new Date();
 }
 
-/** 주소의 ?time= 값을 허용 목록 안에서만 받는다. */
-function readTimeParam(raw: string | string[] | undefined): number | null {
-  const value = Number(Array.isArray(raw) ? raw[0] : raw);
-  return (WORKOUT_MINUTES_CHOICES as readonly number[]).includes(value)
-    ? value
-    : null;
-}
-
-export default async function TodayPage({
-  searchParams,
-}: {
-  searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
-}) {
+export default async function TodayPage() {
   const user = await requireUser();
   const today = now();
   const todayKey = toDateKey(today);
-
-  // 오늘 하루만 시간을 바꾸고 싶을 때 ?time=30 처럼 주소로 조절한다.
-  const timeOverride = readTimeParam((await searchParams).time);
   const savedMinutes = user.dailyWorkoutMinutes ?? DEFAULT_WORKOUT_MINUTES;
-  const baseMinutes = timeOverride ?? savedMinutes;
 
   const { facts, plan, hasLogs } = await gatherFactsAndPlan(user, today);
 
-  const [library, doneLogs, recentIds, strengthDates, todayReport, todaySetup] =
-    await Promise.all([
+  const [library, doneLogs, todayReport, todaySetup] = await Promise.all([
     prisma.exerciseVideo.findMany({ orderBy: { createdAt: 'asc' } }),
     prisma.userExerciseLog.findMany({
       where: {
@@ -68,10 +40,6 @@ export default async function TodayPage({
       },
       select: { exerciseId: true },
     }),
-    // 최근에 한 운동은 뒤로 미뤄, 매일 같은 것만 나오지 않게 한다.
-    recentExerciseIds(user.id, today),
-    // 하체·상체를 번갈아 돌리기 위한 최근 완료 기록.
-    lastStrengthDates(user.id, today),
     /*
      * 오늘 만든 리포트가 있으면 거기에 훈련 설명이 들어 있다.
      * 여기서 AI를 새로 부르지는 않는다 — 저장된 것을 읽을 뿐이라
@@ -97,7 +65,7 @@ export default async function TodayPage({
           date: new Date(`${todayKey}T00:00:00.000Z`),
         },
       },
-      select: { availableEquipment: true },
+      select: { availableEquipment: true, plan: true, generatedAt: true },
     }),
   ]);
 
@@ -153,50 +121,30 @@ export default async function TodayPage({
   const hasCheckinToday = facts.condition.today != null;
 
   /*
-   * 오늘의 테마를 정하고, 시간에 맞춰 구성한다.
-   * 테마는 안전 필터와 무관하다 — 위험한 운동은 이미 후보에서 빠져 있다.
+   * 오늘 만들어 둔 일정을 읽는다.
+   *
+   * 화면을 열 때 새로 만들지 않는다. 예전에는 그렇게 해서, 만든 적도 없는
+   * 일정이 늘 떠 있었고 새로고침만 해도 내용이 바뀌었다. 만드는 것은
+   * generateTodayPlan 이 하고, 여기서는 만들어 둔 것을 보여주기만 한다.
    */
-  const theme = decideTheme({
-    facts,
-    plan,
-    lastLowerKey: strengthDates.lower,
-    lastUpperKey: strengthDates.upper,
-  });
-  const minutes = effectiveMinutes(theme.key, baseMinutes);
+  const savedPlan = readDailyPlan(todaySetup?.plan);
 
-  // 오늘 고른 부위가 있으면 본운동 안에서 그쪽을 앞으로 당긴다.
-  const preferredParts = facts.condition.today?.preferredParts ?? [];
   /*
-   * 오늘 이미 완료한 운동은, 걸러진 뒤에도 목록에 남겨야 한다.
+   * 안전만은 볼 때마다 다시 본다.
    *
-   * 안전 필터가 하는 일은 "위험한 것을 추천하지 않는 것"이지 "이미 한 일을
-   * 감추는 것"이 아니다. 그런데 아침에 데드리프트를 하고 체크한 뒤 컨디션을
-   * 3으로 입력하면, 그 운동이 후보에서 빠지면서 화면에서도 사라졌다.
-   * 잘못 누른 체크를 풀 방법이 없어지고, 한 일이 없던 것처럼 보인다.
-   *
-   * 장비나 경력을 나중에 고쳤을 때도 같은 일이 생기므로, 걸러지기 전인
-   * 라이브러리 전체에서 찾는다. 완료한 것은 pickForTheme 이 자기 구간에
-   * 넣고 바로 '가져간 것'으로 표시하므로, 다시 추천되지는 않는다.
+   * 아침에 일정을 만든 뒤 낮에 통증을 입력할 수 있다. 그때 저장해 둔 목록을
+   * 그대로 보여주면, 던지지 말라고 해놓고 데드리프트를 시키는 꼴이 된다.
+   * 지금 기준으로 통과하지 못하는 운동은 뺀다 — 단, 이미 마친 것은 남긴다.
+   * 한 일을 감추면 잘못 누른 체크를 풀 수가 없다.
    */
-  const inCandidates = new Set(picked.candidates.map((ex) => ex.id));
-  const candidates = [
-    ...picked.candidates,
-    ...library.filter((ex) => doneIds.has(ex.id) && !inCandidates.has(ex.id)),
-  ];
+  const safeIds = new Set(picked.candidates.map((ex) => ex.id));
+  const shownPicks = (savedPlan?.picks ?? []).filter(
+    (p) => safeIds.has(p.exerciseId) || doneIds.has(p.exerciseId)
+  );
+  const droppedForSafety = (savedPlan?.picks.length ?? 0) - shownPicks.length;
 
-  const goal = findGoal(user.trainingGoal);
-  const themed = pickForTheme({
-    candidates,
-    theme: theme.key,
-    minutes,
-    doneIds,
-    recentIds,
-    preferredParts,
-    goal: goal.name,
-  });
-
-  const full = themed.picks
-    .map((p) => ({ slot: p.slot, ex: byId.get(p.exercise.id) }))
+  const full = shownPicks
+    .map((p) => ({ slot: p.slot, ex: byId.get(p.exerciseId) }))
     .filter((p): p is { slot: (typeof p)['slot']; ex: NonNullable<(typeof p)['ex']> } =>
       p.ex != null
     );
@@ -236,9 +184,11 @@ export default async function TodayPage({
         eyebrow="AI Training"
         title="AI 개인맞춤 트레이닝"
         description={
-          hasCheckinToday
-            ? '오늘 몸 상태와 최근 투구량에 맞춰 고른 운동입니다. 마친 것은 눌러서 표시해주세요.'
-            : '최근 투구량에 맞춰 고른 운동입니다. 마친 것은 눌러서 표시해주세요.'
+          savedPlan == null
+            ? '오늘 할 운동을 만들어 드립니다. 하루에 한 번 만들고, 내일이 되면 새로 만듭니다.'
+            : hasCheckinToday
+              ? '오늘 몸 상태와 최근 투구량에 맞춰 고른 운동입니다. 마친 것은 눌러서 표시해주세요.'
+              : '최근 투구량에 맞춰 고른 운동입니다. 마친 것은 눌러서 표시해주세요.'
         }
       />
 
@@ -374,67 +324,93 @@ export default async function TodayPage({
             </Link>
           }
         />
+      ) : savedPlan == null ? (
+        /*
+          아직 안 만든 날.
+
+          예전에는 화면을 열면 일정이 이미 만들어져 있었다. 만든 적도 없는 것이
+          떠 있으니 "이걸 하라는 건가" 싶고, 새로고침하면 내용이 달라지기도 했다.
+          이제는 오늘 조건을 고르고 눌러야 생긴다.
+        */
+        <Card className="space-y-4">
+          <div className="space-y-1">
+            <p className="text-lg font-bold text-ink">오늘 운동 일정을 만들어보세요</p>
+            <p className="text-sm leading-relaxed text-muted">
+              최근 투구량{hasCheckinToday ? '과 오늘 몸 상태' : ''}에 맞춰 오늘 할
+              운동을 골라드립니다. 만든 일정은 오늘 하루 그대로 남고, 내일이 되면
+              다시 만들 수 있습니다.
+            </p>
+          </div>
+          <PlanForm
+            owned={user.ownedEquipment}
+            availableToday={todaySetup?.availableEquipment.length ? todaySetup.availableEquipment : null}
+            minutes={savedMinutes}
+            defaultMinutes={savedMinutes}
+            generated={false}
+          />
+        </Card>
       ) : exercises.length === 0 ? (
-        <EmptyState
-          title="지금 조건에 맞는 운동이 없습니다"
-          description="오늘 상태에서 안전하게 할 수 있는 운동이 라이브러리에 아직 없습니다. 낮은 강도의 회복·가동성 운동이 채워지면 이곳에 표시됩니다."
-        />
+        <Card className="space-y-4">
+          <p className="text-sm font-bold text-ink">
+            만들어 둔 일정에 남은 운동이 없습니다
+          </p>
+          <p className="text-sm leading-relaxed text-muted">
+            {droppedForSafety > 0
+              ? '일정을 만든 뒤 몸 상태가 바뀌어, 오늘 하기에 무리인 운동이 모두 빠졌습니다.'
+              : '오늘 상태에서 안전하게 할 수 있는 운동이 라이브러리에 아직 없습니다.'}{' '}
+            아래에서 다시 만들어보세요.
+          </p>
+          <PlanForm
+            owned={user.ownedEquipment}
+            availableToday={todaySetup?.availableEquipment.length ? todaySetup.availableEquipment : null}
+            minutes={savedPlan.requestedMinutes}
+            defaultMinutes={savedMinutes}
+            generated={false}
+          />
+        </Card>
       ) : (
         <>
-          {/* 오늘의 테마 — 무엇을 위한 하루인지 먼저 말한다 */}
+          {/* 오늘의 일정 — 무엇을 위한 하루인지 먼저 말한다 */}
           <Card className="space-y-3">
             <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
-              <p className="text-lg font-bold text-ink">오늘은 {theme.label}</p>
+              <p className="text-lg font-bold text-ink">오늘은 {savedPlan.theme.label}</p>
               <p className="text-sm text-muted">
-                {exercises.length}종목 · 약 {themed.estimatedMinutes}분
+                {exercises.length}종목 · 약 {savedPlan.estimatedMinutes}분
               </p>
             </div>
-            <p className="text-sm leading-relaxed text-muted">{theme.reason}</p>
-
-            {/* 시간 고르기 — 누르면 오늘에 적용되고, 저장 버튼으로 기본값이 된다 */}
-            <div className="flex flex-wrap items-center gap-2 border-t border-line pt-3">
-              <span className="text-xs text-muted">운동 시간</span>
-              {WORKOUT_MINUTES_CHOICES.map((m) => (
-                <Link
-                  key={m}
-                  href={`/today?time=${m}`}
-                  className={`rounded-lg border px-3 py-1.5 text-xs font-semibold transition-colors ${
-                    m === baseMinutes
-                      ? 'border-sky bg-sky-tint text-sky-strong'
-                      : 'border-line text-muted hover:border-sky-soft'
-                  }`}
-                >
-                  {m}분{m === savedMinutes ? ' (기본)' : ''}
-                </Link>
-              ))}
-              {minutes < baseMinutes && (
-                <span className="text-xs text-warn">
-                  회복 데이라 {minutes}분으로 줄였습니다
-                </span>
-              )}
-            </div>
-
-            {/* 방금 고른 시간이 기본값과 다르면, 여기서 바로 굳힐 수 있게 한다 */}
-            {timeOverride != null && timeOverride !== savedMinutes && (
-              <form action={saveWorkoutMinutes} className="flex items-center gap-2">
-                <input type="hidden" name="minutes" value={timeOverride} />
-                <button
-                  type="submit"
-                  className="rounded-lg bg-sky px-3 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-sky-strong"
-                >
-                  {timeOverride}분을 기본값으로 저장
-                </button>
-                <span className="text-xs text-muted">
-                  저장하지 않으면 오늘만 {timeOverride}분으로 구성됩니다
-                </span>
-              </form>
+            <p className="text-sm leading-relaxed text-muted">{savedPlan.theme.reason}</p>
+            {savedPlan.minutes < savedPlan.requestedMinutes && (
+              <p className="text-xs text-warn">
+                {savedPlan.requestedMinutes}분을 고르셨지만 회복 데이라{' '}
+                {savedPlan.minutes}분으로 줄였습니다
+              </p>
             )}
 
-            {/* 오늘 쓸 수 있는 장비 — 날마다 다르므로 결과 바로 옆에 둔다 */}
-            <TodayEquipment
-              owned={user.ownedEquipment}
-              availableToday={todaySetup?.availableEquipment ?? null}
-            />
+            {/*
+              만든 뒤에 몸 상태가 나빠졌으면 그만큼 빠졌다고 말한다.
+              말없이 줄어들면 앱이 잘못된 것으로 보인다.
+            */}
+            {droppedForSafety > 0 && (
+              <p className="rounded-lg border border-warn-line bg-warn-bg px-3 py-2 text-xs leading-relaxed text-warn">
+                일정을 만든 뒤 몸 상태가 바뀌어, 오늘 하기에 무리인 운동{' '}
+                {droppedForSafety}개를 뺐습니다.
+              </p>
+            )}
+
+            {/* 조건을 바꿔 다시 만들 수 있게 — 시간과 오늘 장비를 함께 고른다 */}
+            <div className="border-t border-line pt-3">
+              <PlanForm
+                owned={user.ownedEquipment}
+                availableToday={
+                  todaySetup?.availableEquipment.length
+                    ? todaySetup.availableEquipment
+                    : null
+                }
+                minutes={savedPlan.requestedMinutes}
+                defaultMinutes={savedMinutes}
+                generated
+              />
+            </div>
           </Card>
 
           <TodayList exercises={exercises} />
@@ -455,72 +431,61 @@ export default async function TodayPage({
             "가진 것이 아니라서"와 "오늘 못 써서"는 다른 이야기다. 덤벨을 가진
             사람에게 "덤벨이 있으면"이라고 하면 틀린 말이 된다.
           */}
-          {usable.bestAddition && (
+          {savedPlan.equipment.bestAddition && (
             <p className="rounded-lg border border-line bg-surface px-4 py-3 text-[13px] leading-relaxed text-muted">
-              {narrowedToday ? '오늘 쓸 수 있는' : '가진'} 장비로 할 수 없는 운동{' '}
-              {usable.excludedCount}개를 뺐습니다.{' '}
-              <span className="font-semibold text-ink">{usable.bestAddition.name}</span>
-              {narrowedToday
-                ? `을 쓸 수 있는 날이면 ${usable.bestAddition.unlocks}개를 더 할 수 있습니다.`
-                : `이 있으면 ${usable.bestAddition.unlocks}개를 더 할 수 있습니다.`}
+              {savedPlan.equipment.narrowed ? '오늘 쓸 수 있는' : '가진'} 장비로 할 수
+              없는 운동 {savedPlan.equipment.excludedCount}개를 뺐습니다.{' '}
+              <span className="font-semibold text-ink">
+                {savedPlan.equipment.bestAddition.name}
+              </span>
+              {savedPlan.equipment.narrowed
+                ? `을 쓸 수 있는 날이면 ${savedPlan.equipment.bestAddition.unlocks}개를 더 할 수 있습니다.`
+                : `이 있으면 ${savedPlan.equipment.bestAddition.unlocks}개를 더 할 수 있습니다.`}
             </p>
           )}
 
-          {/* 왜 이 운동들인지 — 숫자와 규칙을 그대로 보여준다 */}
+          {/*
+            왜 이 운동들인지 — 만들 때 쓴 근거를 그대로 보여준다.
+
+            여기서 다시 계산하지 않는다. 만든 뒤에 체크인을 하면 근거만 새로
+            바뀌어서, "컨디션 3/10이라 무게 드는 운동을 뺐습니다"라고 적혀 있는데
+            목록에는 데드리프트가 있는 상태가 된다.
+          */}
           <details className="rounded-2xl border border-line bg-surface px-5 py-4">
             <summary className="cursor-pointer text-sm font-medium text-ink">
               왜 이 운동인가요?
             </summary>
             <ul className="mt-3 space-y-1.5">
-              <li className="flex gap-2 text-[13px] leading-relaxed text-muted">
-                <span aria-hidden className="text-sky">—</span>
-                {theme.reason}
-              </li>
-              {user.trainingGoal && (
-                <li className="flex gap-2 text-[13px] leading-relaxed text-muted">
+              {[
+                savedPlan.theme.reason,
+                ...(savedPlan.goal ? [`목표 '${savedPlan.goal}'에 맞춰 시간을 배분`] : []),
+                ...(savedPlan.levelExcludedCount > 0
+                  ? [
+                      `웨이트 경력 ${user.trainingLevel} → 아직 이른 운동 ${savedPlan.levelExcludedCount}개 제외`,
+                    ]
+                  : []),
+                ...savedPlan.basis,
+                ...savedPlan.notes,
+              ].map((line) => (
+                <li key={line} className="flex gap-2 text-[13px] leading-relaxed text-muted">
                   <span aria-hidden className="text-sky">—</span>
-                  목표 &lsquo;{goal.name}&rsquo; → {goal.desc}
-                </li>
-              )}
-              {leveled.excludedCount > 0 && (
-                <li className="flex gap-2 text-[13px] leading-relaxed text-muted">
-                  <span aria-hidden className="text-sky">—</span>
-                  웨이트 경력 {user.trainingLevel} → 아직 이른 운동{' '}
-                  {leveled.excludedCount}개 제외
-                </li>
-              )}
-              {picked.basis.map((b) => (
-                <li key={b} className="flex gap-2 text-[13px] leading-relaxed text-muted">
-                  <span aria-hidden className="text-sky">—</span>
-                  {b}
+                  {line}
                 </li>
               ))}
-              {themed.notes.map((n) => (
-                <li key={n} className="flex gap-2 text-[13px] leading-relaxed text-muted">
-                  <span aria-hidden className="text-sky">—</span>
-                  {n}
-                </li>
-              ))}
-              {recentIds.size > 0 && (
-                <li className="flex gap-2 text-[13px] leading-relaxed text-muted">
-                  <span aria-hidden className="text-sky">—</span>
-                  최근 {RECENT_DAYS}일 안에 한 운동 {recentIds.size}개는 뒤로 미룸
-                </li>
-              )}
             </ul>
-            {(picked.excluded.length > 0 || usable.excludedCount > 0) && (
+            {(savedPlan.excluded.length > 0 || savedPlan.equipment.excludedCount > 0) && (
               <p className="mt-3 border-t border-line pt-3 text-xs leading-relaxed text-muted">
                 제외:{' '}
                 {[
-                  ...(usable.excludedCount > 0
+                  ...(savedPlan.equipment.excludedCount > 0
                     ? [
-                        `${narrowedToday ? '오늘 쓸 수 있는' : '가진'} 장비로 할 수 없음 ${usable.excludedCount}개`,
+                        `${savedPlan.equipment.narrowed ? '오늘 쓸 수 있는' : '가진'} 장비로 할 수 없음 ${savedPlan.equipment.excludedCount}개`,
                       ]
                     : []),
-                  ...(leveled.excludedCount > 0
-                    ? [`경력 대비 이른 난이도 ${leveled.excludedCount}개`]
+                  ...(savedPlan.levelExcludedCount > 0
+                    ? [`경력 대비 이른 난이도 ${savedPlan.levelExcludedCount}개`]
                     : []),
-                  ...picked.excluded.map((e) => `${e.rule} ${e.count}개`),
+                  ...savedPlan.excluded.map((e) => `${e.rule} ${e.count}개`),
                 ].join(' · ')}
               </p>
             )}

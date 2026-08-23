@@ -2,14 +2,15 @@
 
 import { useState } from 'react';
 import { useFormStatus } from 'react-dom';
-import { ChevronDown, Settings2 } from 'lucide-react';
+import { ChevronDown, RefreshCw, Settings2 } from 'lucide-react';
 import { CheckboxGroup, RadioGroup } from '@/components/choice-inputs';
 import { SELECTABLE_EQUIPMENT } from '@/lib/report/equipment';
 import { TRAINING_GOALS, TRAINING_LEVELS } from '@/lib/report/personalize';
 import {
-  saveTodayEquipment,
+  generateTodayPlan,
   saveTrainingSettings,
 } from '@/app/actions/training-setup';
+import { WORKOUT_MINUTES_CHOICES } from '@/lib/report/theme';
 
 /**
  * AI 트레이닝 화면의 설정.
@@ -19,57 +20,117 @@ import {
  *
  * 두 덩이로 나눠 놓았다.
  *   경력·목표·가진 장비 — 어쩌다 한 번 고치므로 맨 위에 접어 둔다
- *   오늘 쓸 수 있는 장비 — 날마다 바뀌므로 결과 바로 옆에 펼쳐 둔다
+ *   오늘 시간·장비    — 일정을 만들 때마다 고르므로 만들기 버튼과 한 폼에 둔다
  */
 
-function SaveButton({ label }: { label: string }) {
+function SubmitButton({ label, busy = '만드는 중…' }: { label: string; busy?: string }) {
   const { pending } = useFormStatus();
   return (
     <button
       type="submit"
       disabled={pending}
-      className="rounded-lg bg-sky px-3 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-sky-strong disabled:opacity-60"
+      className="rounded-xl bg-sky px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-sky-strong disabled:opacity-60"
     >
-      {pending ? '저장 중…' : label}
+      {pending ? busy : label}
     </button>
   );
 }
 
 /**
- * 오늘 쓸 수 있는 장비.
+ * 오늘의 운동 일정을 만드는 폼.
  *
- * 가진 것이 없으면(아직 안 고름) 아무것도 보여주지 않는다. 고를 것이 없는
- * 빈 칸을 내놓느니, 맨 위 '트레이닝 설정'에서 가진 장비부터 고르게 하는 편이 낫다.
+ * 예전에는 화면을 열면 일정이 이미 만들어져 있었다. 만든 적도 없는 것이 떠
+ * 있으니 "이걸 하라는 건가" 싶고, 새로고침하면 내용이 달라지기도 했다.
+ * 이제는 여기서 오늘 조건을 고르고 눌러야 생긴다.
+ *
+ * 시간과 장비를 한 폼에 두는 이유는, 둘 다 일정을 만드는 재료이기 때문이다.
+ * 따로 저장했다가 따로 만들게 하면 무엇이 반영된 것인지 알기 어렵다.
  */
-export function TodayEquipment({
+export function PlanForm({
   owned,
   availableToday,
+  minutes,
+  defaultMinutes,
+  generated,
 }: {
   /** 가지고 있는 장비 (맨몸 포함) */
   owned: string[];
   /** 오늘 고른 장비. 안 골랐으면 null */
   availableToday: string[] | null;
+  /** 이번에 쓸 시간(분) */
+  minutes: number;
+  /** 프로필에 저장된 기본 시간(분) */
+  defaultMinutes: number;
+  /** 오늘 일정을 이미 만들었는가 */
+  generated: boolean;
 }) {
-  const choices = owned.filter((name) => name !== '맨몸');
-  if (choices.length === 0) return null;
+  /*
+   * 이미 만든 날에는 접어 둔다. 다 만들어 놓고도 만들기 폼이 계속 펼쳐져 있으면
+   * 무엇을 더 해야 하는 화면처럼 보인다.
+   */
+  const [open, setOpen] = useState(!generated);
 
+  const choices = owned.filter((name) => name !== '맨몸');
   // 안 골랐으면 가진 것을 다 쓸 수 있다는 뜻이라, 전부 켜서 보여준다.
-  const selected = availableToday ?? owned;
+  const equipmentSelected = availableToday ?? owned;
+
+  if (generated && !open) {
+    return (
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        className="rounded-lg border border-line-strong px-3 py-1.5 text-xs font-semibold text-ink transition-colors hover:border-sky hover:text-sky"
+      >
+        <RefreshCw className="mr-1.5 inline h-3.5 w-3.5" />
+        다시 만들기
+      </button>
+    );
+  }
 
   return (
-    <form action={saveTodayEquipment} className="space-y-3 border-t border-line pt-3">
-      <CheckboxGroup
-        name="availableEquipment"
-        label="오늘 쓸 수 있는 장비"
-        hint={
-          availableToday
-            ? '오늘 고른 장비에 맞춰 운동을 골랐습니다. 바꾸면 다시 짭니다.'
-            : '헬스장에 안 가는 날처럼 오늘 못 쓰는 것이 있으면 꺼주세요. 맨몸 운동은 항상 나옵니다.'
-        }
-        options={choices}
-        selected={selected}
+    <form action={generateTodayPlan} className="space-y-4">
+      <RadioGroup
+        name="minutes"
+        label="오늘 운동 시간"
+        options={WORKOUT_MINUTES_CHOICES.map((m) => ({
+          name: `${m}분`,
+          desc: m === defaultMinutes ? '기본값' : undefined,
+        }))}
+        selected={`${minutes}분`}
       />
-      <SaveButton label="오늘 이걸로 다시 짜기" />
+
+      {choices.length > 0 && (
+        <CheckboxGroup
+          name="availableEquipment"
+          label="오늘 쓸 수 있는 장비"
+          hint="헬스장에 안 가는 날처럼 오늘 못 쓰는 것이 있으면 꺼주세요. 맨몸 운동은 항상 나옵니다."
+          options={choices}
+          selected={equipmentSelected}
+        />
+      )}
+
+      <label className="flex items-center gap-2.5 text-xs text-muted">
+        <input
+          type="checkbox"
+          name="saveMinutes"
+          value="on"
+          className="h-4 w-4 rounded border-line-strong accent-sky"
+        />
+        이 시간을 앞으로도 기본으로 쓰기
+      </label>
+
+      <div className="flex flex-wrap items-center gap-3">
+        <SubmitButton label={generated ? '이 조건으로 다시 만들기' : '오늘 운동 일정 만들기'} />
+        {generated && (
+          <button
+            type="button"
+            onClick={() => setOpen(false)}
+            className="text-xs text-muted transition-colors hover:text-ink"
+          >
+            취소
+          </button>
+        )}
+      </div>
     </form>
   );
 }
@@ -143,7 +204,7 @@ export function TrainingSettings({
             options={SELECTABLE_EQUIPMENT}
             selected={equipmentSelected}
           />
-          <SaveButton label="설정 저장" />
+          <SubmitButton label="설정 저장" busy="저장 중…" />
         </form>
       )}
     </div>
