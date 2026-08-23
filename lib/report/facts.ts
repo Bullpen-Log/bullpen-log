@@ -96,8 +96,15 @@ export type ReportFacts = {
      */
     missingDays: number;
     lastThrowDate: string | null;
-    /** 마지막으로 던진 날의 투구수. 필요한 휴식일을 정하는 기준이다 */
+    /** 마지막으로 던진 날의 투구수 (화면에 그대로 보여주는 값) */
     lastOutingPitches: number | null;
+    /**
+     * 마지막으로 던진 날의 전력 환산 투구수.
+     *
+     * 휴식일은 이 값으로 정한다. 캐치볼 80구와 경기 80구를 같게 보면 안 된다.
+     * (lib/pitch-stats.ts 의 INTENSITY_STRESS_FACTOR)
+     */
+    lastOutingAdjusted: number | null;
     /** 마지막 투구 후 지난 날 수. 기록이 없으면 null */
     restDays: number | null;
     /** 던진 날 기준 하루 평균 투구수 (최근 4주). 계획의 기준선이 된다 */
@@ -197,6 +204,9 @@ export function buildFacts({
       lastThrowDate,
       lastOutingPitches: lastThrowDate
         ? (byDay.get(lastThrowDate)?.pitchCount ?? null)
+        : null,
+      lastOutingAdjusted: lastThrowDate
+        ? (byDay.get(lastThrowDate)?.adjustedPitches ?? null)
         : null,
       restDays: lastThrowDate ? daysBetween(lastThrowDate, asOf) : null,
       baselinePitches: month.activeDays

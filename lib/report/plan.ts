@@ -40,6 +40,17 @@ export const REST_REQUIREMENTS = [
   { minPitches: 0, restDays: 0 },
 ] as const;
 
+/**
+ * 강도와 상관없이 이만큼 던졌으면 최소 이 정도는 쉰다.
+ *
+ * 전력 환산은 선수가 매긴 강도에 기대는데, 강도 4 이하는 뒷받침하는 연구가
+ * 없고 낮게 적으면 휴식일이 줄어든다. 순수한 양 자체도 피로 요인이므로
+ * 바닥선을 하나 둔다. 대한야구소프트볼협회 고교 일일 상한이 105구인 것을
+ * 감안했다.
+ */
+export const HIGH_VOLUME_PITCHES = 100;
+export const HIGH_VOLUME_MIN_REST = 1;
+
 /** 성장기로 보아 추가 주의를 안내할 나이 */
 export const YOUTH_AGE_THRESHOLD = 15;
 
@@ -200,16 +211,36 @@ export function buildPitchPlan(facts: ReportFacts): PitchPlan {
    */
   const recovering = condition.painRecently || needsPainCheck;
 
-  // 2) 마지막 등판량에 따라 남은 휴식일을 센다.
+  /*
+   * 2) 마지막 등판량에 따라 남은 휴식일을 센다.
+   *
+   * 투구수를 그대로 쓰지 않고 전력 환산 투구수를 쓴다. 휴식일 표는 '경기에서
+   * 전력으로 던진 투구수' 기준이라, 캐치볼 80구에 그대로 적용하면 4일을
+   * 쉬라고 하게 된다. (근거는 lib/pitch-stats.ts 의 INTENSITY_STRESS_FACTOR)
+   */
   const lastOuting = patterns.lastOutingPitches ?? 0;
-  const needRest = requiredRestDays(lastOuting);
+  const lastAdjusted = Math.round(patterns.lastOutingAdjusted ?? lastOuting);
+
+  /*
+   * 다만 강도는 선수가 직접 매기는 값이라 낮게 적으면 휴식일이 줄어든다.
+   * 그리고 계수의 근거가 있는 구간은 강도 5~10뿐이다. 그래서 양 자체로
+   * 거는 바닥선을 하나 둔다 — 아무리 가볍게 던졌어도 하루에 이만큼을 던졌으면
+   * 하루는 쉬는 것이 맞다.
+   */
+  const needRest = Math.max(
+    requiredRestDays(lastAdjusted),
+    lastOuting >= HIGH_VOLUME_PITCHES ? HIGH_VOLUME_MIN_REST : 0
+  );
   const restedSoFar = patterns.restDays ?? 99;
   const remainingRest = Math.max(0, needRest - restedSoFar);
 
   if (needRest > 0 && patterns.lastThrowDate) {
-    basis.push(
-      `마지막 등판 ${lastOuting}구 → 휴식 ${needRest}일 필요 (경과 ${restedSoFar}일)`
-    );
+    // 환산값이 실제 투구수와 다르면 둘 다 보여준다. 안 그러면 숫자가 어디서 왔는지 모른다.
+    const amount =
+      lastAdjusted === lastOuting
+        ? `${lastOuting}구`
+        : `${lastOuting}구(전력 환산 ${lastAdjusted}구)`;
+    basis.push(`마지막 등판 ${amount} → 휴식 ${needRest}일 필요 (경과 ${restedSoFar}일)`);
   }
 
   // 3) 부하 구간에 따른 조절 계수

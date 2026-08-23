@@ -63,6 +63,7 @@ export async function generateAiReport(): Promise<AiReportState> {
     baselineDailyLoad: estimateDailyLoad(user),
     logs: logs.map((l) => ({
       date: l.date.toISOString(),
+      sessionType: l.sessionType,
       pitchCount: l.pitchCount,
       intensity: l.intensity,
       maxVelocity: l.maxVelocity,

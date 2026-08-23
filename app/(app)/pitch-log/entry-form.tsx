@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { Button, Field, Input, Textarea } from '@/components/ui';
 import { VideoUpload, type UploadedVideo } from '@/components/video-upload';
 import { FilmingGuide } from '@/components/filming-guide';
+import { IntensityGuide } from '@/components/intensity-guide';
 import {
   DEFAULT_SESSION_TYPE,
   SESSION_TYPES,
@@ -164,6 +165,13 @@ export function EntryForm({
             onChange={(e) => setForm({ ...form, intensity: e.target.value })}
             className="mt-3 w-full accent-[#0ea5e9]"
           />
+          {/*
+            강도는 부하 지수와 필요한 휴식일을 정하는 값이라, 감으로 찍으면
+            그 뒤 계산이 전부 흔들린다. 고르는 자리 바로 옆에 기준을 둔다.
+          */}
+          <div className="mt-3">
+            <IntensityGuide />
+          </div>
         </Field>
       </div>
 

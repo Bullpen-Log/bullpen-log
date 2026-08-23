@@ -5,6 +5,8 @@ export const TWO_DAY_INTENSITY_LIMIT = 10;
 
 export type PitchLogLike = {
   date: string; // YYYY-MM-DD 또는 ISO 문자열
+  /** 불펜 / 라이브 / 경기 / 캐치볼 / 휴식. 경기는 전력으로 본다(stressFactor) */
+  sessionType?: string;
   pitchCount: number;
   intensity: number;
   /** 스피드건이 없어 안 적은 기록은 null */
@@ -76,6 +78,14 @@ export type DayTotals = {
    * 적을수록 손해를 보는 셈이라 반드시 평균이어야 한다.
    */
   intensity: number;
+  /**
+   * 전력으로 던졌다면 몇 구에 해당하는가.
+   *
+   * 휴식일을 정할 때 쓴다. 투구수만 보면 캐치볼 80구에도 4일 휴식이 나오고,
+   * 부하(투구수 × 강도)로 보면 절반 힘이 절반 부담이라고 보는 셈이라 반대로
+   * 위험하다. 자세한 근거는 INTENSITY_STRESS_FACTOR 주석에 적어 두었다.
+   */
+  adjustedPitches: number;
   maxVelocity: number | null;
   avgVelocity: number | null;
 };
@@ -104,6 +114,15 @@ export function groupByDay(logs: PitchLogLike[]): Map<string, DayTotals> {
     const weight = hasAvg ? log.pitchCount : 0;
     // 강도의 가중평균을 내려면 (강도 × 투구수)의 합이 필요하다.
     const intensitySum = log.intensity * log.pitchCount;
+    /*
+     * 전력 환산은 세션마다 따로 내서 더한다. 하루 평균 강도로 한 번에 내면
+     * 불펜 40구(강도 8)와 캐치볼 40구(강도 2)를 강도 5짜리 80구로 뭉개게 된다.
+     */
+    const adjusted = effortAdjustedPitches(
+      log.pitchCount,
+      log.intensity,
+      log.sessionType
+    );
 
     if (!prev) {
       acc.set(key, {
@@ -111,6 +130,7 @@ export function groupByDay(logs: PitchLogLike[]): Map<string, DayTotals> {
         pitchCount: log.pitchCount,
         intensity: log.intensity,
         intensitySum,
+        adjustedPitches: adjusted,
         maxVelocity: log.maxVelocity,
         avgVelocity: log.avgVelocity,
         avgWeightedSum: weightedSum,
@@ -130,6 +150,7 @@ export function groupByDay(logs: PitchLogLike[]): Map<string, DayTotals> {
       // 투구수로 가중한 평균. 이렇게 두면 투구수 × 강도가 세션별 부하의 합과 같다.
       intensity: pitchCount > 0 ? totalIntensity / pitchCount : log.intensity,
       intensitySum: totalIntensity,
+      adjustedPitches: prev.adjustedPitches + adjusted,
       // 둘 다 없을 수 있으므로 있는 것만 견준다. 없으면 그대로 null 로 둔다.
       maxVelocity:
         prev.maxVelocity == null
@@ -150,6 +171,7 @@ export function groupByDay(logs: PitchLogLike[]): Map<string, DayTotals> {
       dateKey: v.dateKey,
       pitchCount: v.pitchCount,
       intensity: v.intensity,
+      adjustedPitches: v.adjustedPitches,
       maxVelocity: v.maxVelocity,
       avgVelocity: v.avgVelocity,
     });
@@ -663,6 +685,79 @@ export function zoneOf(ratio: number): AcwrZone {
 /** 하루 부하 = 투구수 × 체감 강도 */
 export function dailyLoad(day: DayTotals) {
   return day.pitchCount * day.intensity;
+}
+
+/* ------------------------------------------------------------------ *
+ * 전력 환산 투구수
+ *
+ * 휴식일 표(Pitch Smart)는 '경기에서 전력으로 던진 투구수' 기준으로 만들어졌다.
+ * 그런데 그 표를 종류·강도와 상관없이 그대로 적용하면 캐치볼 80구에도 4일
+ * 휴식이 나온다. 그렇다고 부하(투구수 × 강도)로 바꾸면 반대로 위험해진다 —
+ * 절반 힘으로 던진 공이 절반 부담일 거라고 보는 셈인데, 연구는 그렇지 않다고
+ * 말한다.
+ *
+ * 실제로 측정된 값은 두 점뿐이다.
+ *   50% 노력 → 최대 팔꿈치 외반 토크의 75%  (Fleisig 1996, 대학 투수 27명)
+ *   60% 노력 → 79% (73.2 / 92.5 N·m)        (Wolf 2025, 대학 투수 19명)
+ *
+ * 두 점을 잇는 직선을 100%까지 그으면 한 단계에 0.05씩이고, 이 직선은
+ * Fleisig의 75% 노력 지점에서 0.875를 준다(논문 값 0.80~0.85). 실제보다
+ * 조금 높게 잡히므로 안전한 쪽으로 어긋난다.
+ *
+ * 참고: IJSPT 2023 체계적 문헌고찰 — 네 연구 모두 "노력이 커질수록 토크가
+ * 커진다"고 밝혔다. 다만 Wolf 2025는 표본이 작아 인접 단계 간 차이를
+ * 가려내지는 못했다("유의차 없음"이 "같다"는 뜻은 아니다).
+ * ------------------------------------------------------------------ */
+
+/**
+ * 체감 강도 → 팔 부담 계수.
+ *
+ * 5~10은 위 연구에서 나온 값이고, 4 이하는 측정한 연구가 없다.
+ *
+ * 4 이하를 0에 가깝게 낮추지 않은 이유가 있다. 연구가 보여주는 것은 노력이
+ * 줄어도 팔에 가는 힘은 훨씬 덜 준다는 사실이다(절반 힘에도 구속은 최고의
+ * 80%가 나온다). 그 흐름대로면 가벼운 던지기도 공짜가 아니다. 근거가 없는
+ * 구간에서는 덜 쉬게 만드는 쪽보다 더 쉬게 만드는 쪽으로 틀리는 편이 낫다.
+ */
+export const INTENSITY_STRESS_FACTOR: Record<number, number> = {
+  10: 1.0,
+  9: 0.95,
+  8: 0.9,
+  7: 0.85,
+  6: 0.8, // 실측 0.79
+  5: 0.75, // 실측
+  // ↓ 측정한 연구 없음. 아래는 판단으로 그은 선이다.
+  4: 0.7,
+  3: 0.6,
+  2: 0.5,
+  1: 0.4,
+};
+
+/** 근거 없는 구간에서도 이 아래로는 내리지 않는다. 던지는 것은 공짜가 아니다. */
+export const MIN_STRESS_FACTOR = 0.4;
+
+/**
+ * 경기는 강도와 상관없이 전력으로 본다.
+ *
+ * 연구가 거듭 말하는 것이 "선수의 체감 노력은 실제 부하와 맞지 않는다"는
+ * 것인데, 경기에서 특히 그렇다. 던질 양도 강도도 내가 정할 수 없고, 지고 있으면
+ * 힘이 더 들어간다. 게다가 휴식일 표 자체가 경기 기준으로 만들어진 것이라,
+ * 경기에 계수를 곱하면 그 표를 만든 전제를 흔드는 셈이 된다.
+ */
+export function stressFactor(intensity: number, sessionType?: string): number {
+  if (sessionType === '경기') return 1;
+  const rounded = Math.round(intensity);
+  if (rounded <= 0) return 0; // 안 던진 날
+  return INTENSITY_STRESS_FACTOR[Math.min(10, rounded)] ?? MIN_STRESS_FACTOR;
+}
+
+/** 한 세션을 '전력으로 던졌다면 몇 구에 해당하는가'로 바꾼다. */
+export function effortAdjustedPitches(
+  pitchCount: number,
+  intensity: number,
+  sessionType?: string
+): number {
+  return pitchCount * stressFactor(intensity, sessionType);
 }
 
 /** 두 날짜 키 사이의 일수 (같은 날이면 1) */

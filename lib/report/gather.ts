@@ -51,6 +51,7 @@ export async function gatherFactsAndPlan(user: UserForFacts, today: Date) {
     baselineDailyLoad: estimateDailyLoad(user),
     logs: logs.map((l) => ({
       date: l.date.toISOString(),
+      sessionType: l.sessionType,
       pitchCount: l.pitchCount,
       intensity: l.intensity,
       maxVelocity: l.maxVelocity,

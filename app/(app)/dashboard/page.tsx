@@ -154,6 +154,7 @@ export default async function DashboardPage() {
   const byDay = groupByDay(
     logs.map((l) => ({
       date: l.date.toISOString(),
+      sessionType: l.sessionType,
       pitchCount: l.pitchCount,
       intensity: l.intensity,
       maxVelocity: l.maxVelocity,
@@ -250,7 +251,8 @@ export default async function DashboardPage() {
           baselineDailyLoad: seedDailyLoad,
           logs: logs.map((l) => ({
             date: l.date.toISOString(),
-            pitchCount: l.pitchCount,
+            sessionType: l.sessionType,
+      pitchCount: l.pitchCount,
             intensity: l.intensity,
             maxVelocity: l.maxVelocity,
             avgVelocity: l.avgVelocity,

@@ -26,9 +26,16 @@ import {
   groupByDay,
   longestThrowStreak,
   summarize,
+  stressFactor,
+  MIN_STRESS_FACTOR,
   type PitchLogLike,
 } from '../lib/pitch-stats.ts';
-import { buildPitchPlan } from '../lib/report/plan.ts';
+import {
+  buildPitchPlan,
+  requiredRestDays,
+  HIGH_VOLUME_PITCHES,
+  HIGH_VOLUME_MIN_REST,
+} from '../lib/report/plan.ts';
 import { selectCandidates } from '../lib/report/prescription.ts';
 import { equipmentForToday, filterByEquipment } from '../lib/report/equipment.ts';
 import {
@@ -409,6 +416,84 @@ console.log('\n[투구일지] 기록 방식이 부하를 왜곡하지 않는가'
       ]),
       week
     ) === 0
+  );
+}
+
+console.log('\n[전력 환산] 휴식일이 강도를 반영하는가');
+{
+  /*
+   * 계수는 논문에서 나온 값이라 함부로 바꾸면 안 된다. 여기서 못박아 둔다.
+   *   50% 노력 → 최대 팔꿈치 토크의 75%  (Fleisig 1996, n=27)
+   *   60% 노력 → 79%                      (Wolf 2025, n=19)
+   */
+  check('강도 5 계수는 논문값 0.75', stressFactor(5) === 0.75);
+  check('강도 6 계수는 논문값에 맞춘 0.80', stressFactor(6) === 0.8, `${stressFactor(6)}`);
+  check('강도 10은 전력', stressFactor(10) === 1);
+  check(
+    '강도가 낮아질수록 계수도 낮아진다',
+    [10, 9, 8, 7, 6, 5, 4, 3, 2, 1].every(
+      (i, idx, arr) => idx === 0 || stressFactor(arr[idx - 1]) >= stressFactor(i)
+    )
+  );
+  check(
+    '근거 없는 구간에도 바닥이 있다',
+    stressFactor(1) >= MIN_STRESS_FACTOR,
+    `강도 1 → ${stressFactor(1)}`
+  );
+
+  // 경기는 강도를 낮게 적어도 전력으로 본다 — 던질 양도 강도도 못 정한다.
+  check('경기는 강도와 무관하게 전력', stressFactor(3, '경기') === 1);
+  check('불펜은 강도를 반영', stressFactor(3, '불펜') === 0.6, `${stressFactor(3, '불펜')}`);
+
+  const restFor = (logs: { sessionType: string; pitchCount: number; intensity: number }[]) => {
+    const day = groupByDay(
+      logs.map((l) => ({
+        date: '2026-06-10',
+        sessionType: l.sessionType,
+        pitchCount: l.pitchCount,
+        intensity: l.intensity,
+        maxVelocity: null,
+        avgVelocity: null,
+      }))
+    ).get('2026-06-10')!;
+    return {
+      adjusted: Math.round(day.adjustedPitches),
+      rest: Math.max(
+        requiredRestDays(Math.round(day.adjustedPitches)),
+        day.pitchCount >= HIGH_VOLUME_PITCHES ? HIGH_VOLUME_MIN_REST : 0
+      ),
+    };
+  };
+
+  // 경기는 지금까지와 같아야 한다. 휴식일 표가 원래 경기 기준이다.
+  const game = restFor([{ sessionType: '경기', pitchCount: 80, intensity: 9 }]);
+  check('경기 80구 → 휴식 4일 (기존과 같음)', game.rest === 4, `환산 ${game.adjusted}구`);
+
+  // 문제였던 경우. 캐치볼 80구에 4일을 쉬라고 하고 있었다.
+  const catchPlay = restFor([{ sessionType: '캐치볼', pitchCount: 80, intensity: 2 }]);
+  check(
+    '캐치볼 80구 → 휴식이 줄어든다',
+    catchPlay.rest < 4,
+    `환산 ${catchPlay.adjusted}구 → ${catchPlay.rest}일`
+  );
+
+  // 강도를 낮게 적어도 양이 많으면 바닥선이 걸린다.
+  const sandbag = restFor([{ sessionType: '캐치볼', pitchCount: 120, intensity: 1 }]);
+  check(
+    '강도를 1로 적어도 120구면 최소 1일',
+    sandbag.rest >= HIGH_VOLUME_MIN_REST,
+    `환산 ${sandbag.adjusted}구 → ${sandbag.rest}일`
+  );
+
+  // 하루에 성격이 다른 세션을 하면 각각 환산해서 더해야 한다.
+  const mixed = restFor([
+    { sessionType: '불펜', pitchCount: 40, intensity: 8 },
+    { sessionType: '캐치볼', pitchCount: 40, intensity: 2 },
+  ]);
+  check(
+    '세션마다 따로 환산해서 더한다',
+    mixed.adjusted === Math.round(40 * 0.9 + 40 * 0.5),
+    `환산 ${mixed.adjusted}구 (손계산 ${40 * 0.9 + 40 * 0.5})`
   );
 }
 
