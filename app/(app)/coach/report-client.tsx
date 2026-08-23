@@ -31,6 +31,7 @@ import {
   buildDateRange,
   buildDateRangeOffset,
   buildReportFindings,
+  countSessionTypes,
   findFatigueWindows,
   formatShortDate,
   groupByDay,
@@ -141,6 +142,10 @@ export function ReportClient({
   const previousKeys = useMemo(() => buildDateRangeOffset(days, days), [days]);
 
   const current = useMemo(() => summarize(byDay, currentKeys), [byDay, currentKeys]);
+  const sessionCounts = useMemo(
+    () => countSessionTypes(logs, currentKeys),
+    [logs, currentKeys]
+  );
   const previous = useMemo(
     () => summarize(byDay, previousKeys),
     [byDay, previousKeys]
@@ -371,6 +376,22 @@ export function ReportClient({
             invert
           />
           <MetricRow label="하루 최다" value={current.maxDailyPitches} unit="구" />
+
+          {/*
+            무엇을 하며 지냈는지. 총 투구수만으로는 같은 800구라도 경기 위주였는지
+            불펜 위주였는지 알 수 없는데, 몸에 남는 것은 그쪽이 더 다르다.
+          */}
+          {sessionCounts.length > 0 && (
+            <div className="mt-3 flex flex-wrap gap-x-1.5 gap-y-1 border-t border-line pt-3 text-xs text-muted">
+              {sessionCounts.map((t, i) => (
+                <span key={t.name} className="whitespace-nowrap">
+                  {i > 0 && <span className="mr-1.5 text-line-strong">·</span>}
+                  <span className="text-ink">{t.name}</span>{' '}
+                  {t.pitches > 0 ? `${t.count}회 (${t.pitches}구)` : `${t.count}일`}
+                </span>
+              ))}
+            </div>
+          )}
         </Card>
 
         <Card>

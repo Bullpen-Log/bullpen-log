@@ -19,6 +19,7 @@ import { PrismaPg } from '@prisma/adapter-pg';
 import { buildFacts, type CheckinLike } from '../lib/report/facts.ts';
 import {
   countMissingDays,
+  countSessionTypes,
   dailyLoad,
   groupByDay,
   longestThrowStreak,
@@ -407,6 +408,41 @@ console.log('\n[투구일지] 기록 방식이 부하를 왜곡하지 않는가'
       week
     ) === 0
   );
+}
+
+console.log('\n[투구 종류] 무엇을 하며 지냈는지 세는가');
+{
+  const week = ['2026-06-08', '2026-06-09', '2026-06-10'];
+  const log = (date: string, sessionType: string, pitchCount: number) => ({
+    date,
+    sessionType,
+    pitchCount,
+  });
+
+  const counted = countSessionTypes(
+    [
+      log('2026-06-08', '경기', 80),
+      log('2026-06-09', '불펜', 40),
+      log('2026-06-09', '캐치볼', 20),
+      log('2026-06-10', '휴식', 0),
+      // 기간 밖은 세면 안 된다
+      log('2026-05-01', '경기', 90),
+    ],
+    week
+  );
+  const find = (name: string) => counted.find((t) => t.name === name);
+
+  check('종류별로 센다', counted.length === 4, counted.map((t) => t.name).join(','));
+  check('기간 밖 기록은 빼고 센다', find('경기')?.pitches === 80, `경기 ${find('경기')?.pitches}구`);
+  check('같은 날 두 종류를 따로 센다', find('불펜')?.count === 1 && find('캐치볼')?.count === 1);
+  check('한 번도 없는 종류는 안 나온다', find('라이브') === undefined);
+
+  // 쉰 날은 '몇 번'이 아니라 '며칠'이다.
+  const rested = countSessionTypes(
+    [log('2026-06-10', '휴식', 0), log('2026-06-10', '휴식', 0)],
+    week
+  );
+  check('쉰 날은 하루로 센다', rested[0]?.count === 1, `${rested[0]?.count}`);
 }
 
 console.log('\n[일정 만들기] 눌러야 생기고, 만든 것은 그대로 남는가');

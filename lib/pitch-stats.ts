@@ -1,3 +1,5 @@
+import { SESSION_TYPE_NAMES, isRestSession } from '@/lib/session-type';
+
 /** 연속한 이틀의 체감 강도 합이 이 값을 넘으면 과부하로 본다. */
 export const TWO_DAY_INTENSITY_LIMIT = 10;
 
@@ -183,6 +185,61 @@ export type FatigueWindow = {
  * 연속한 이틀의 강도 합이 한도를 넘는 구간을 찾는다.
  * 최근 구간이 앞에 오도록 정렬해 반환한다.
  */
+/** 무엇을 하며 지냈는지 한 줄로 보여주기 위한 종류별 집계 */
+export type SessionTypeCount = {
+  name: string;
+  /** 그 종류로 남긴 기록 수 (휴식은 날 수) */
+  count: number;
+  /** 그 종류로 던진 공의 합계 */
+  pitches: number;
+};
+
+type SessionLog = { date: string; sessionType: string; pitchCount: number };
+
+/**
+ * 기간 안의 기록을 종류별로 센다.
+ *
+ * 투구수만 보면 "지난 4주에 무엇을 하며 지냈는지"가 안 보인다. 같은 800구라도
+ * 경기 위주였는지 불펜 위주였는지에 따라 몸에 남는 것이 다르다.
+ *
+ * 한 번도 없는 종류는 빼고 돌려준다. '경기 0회'가 줄줄이 적혀 있으면 정작
+ * 한 것이 눈에 안 들어온다.
+ */
+export function countSessionTypes(
+  logs: SessionLog[],
+  dateKeys: string[]
+): SessionTypeCount[] {
+  const within = new Set(dateKeys);
+  const byType = new Map<string, { count: number; pitches: number; days: Set<string> }>();
+
+  for (const log of logs) {
+    const key = log.date.slice(0, 10);
+    if (!within.has(key)) continue;
+    const prev = byType.get(log.sessionType) ?? {
+      count: 0,
+      pitches: 0,
+      days: new Set<string>(),
+    };
+    prev.count += 1;
+    prev.pitches += log.pitchCount;
+    prev.days.add(key);
+    byType.set(log.sessionType, prev);
+  }
+
+  return SESSION_TYPE_NAMES.map((name) => {
+    const v = byType.get(name);
+    if (!v) return { name, count: 0, pitches: 0 };
+    /*
+     * 쉰 날은 '몇 번'이 아니라 '며칠'이다. 하루에 두 번 적어도 하루 쉰 것이다.
+     */
+    return {
+      name,
+      count: isRestSession(name) ? v.days.size : v.count,
+      pitches: v.pitches,
+    };
+  }).filter((t) => t.count > 0);
+}
+
 /**
  * 최근 28일 중 이 날 수 이상 기록이 비면 화면에 알린다.
  *

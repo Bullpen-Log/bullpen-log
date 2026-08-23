@@ -11,6 +11,7 @@ import {
   TWO_DAY_INTENSITY_LIMIT,
   buildDateRange,
   countMissingDays,
+  countSessionTypes,
   MISSING_DAYS_WARNING,
   buildDateRangeOffset,
   computeAcwr,
@@ -80,6 +81,7 @@ export default async function DashboardPage() {
     select: {
       id: true,
       date: true,
+      sessionType: true,
       pitchCount: true,
       intensity: true,
       maxVelocity: true,
@@ -169,6 +171,18 @@ export default async function DashboardPage() {
   const seedDailyLoad = estimateDailyLoad(user);
   const acwr = computeAcwr(byDay, today, { seedDailyLoad });
   const fatigue = findFatigueWindows(byDay, last28);
+  /*
+   * 최근 4주에 무엇을 하며 지냈는지.
+   * 같은 800구라도 경기 위주였는지 불펜 위주였는지에 따라 몸에 남는 것이 다르다.
+   */
+  const sessionCounts = countSessionTypes(
+    logs.map((l) => ({
+      date: l.date.toISOString(),
+      sessionType: l.sessionType,
+      pitchCount: l.pitchCount,
+    })),
+    last28
+  );
   const streak = longestThrowStreak(byDay, last28);
 
   const age = user.birthDate ? ageFromBirthDate(user.birthDate, today) : null;
@@ -619,11 +633,28 @@ export default async function DashboardPage() {
         {/* min-w-0이 없으면 그리드 안에서 캔버스가 카드를 밀어낼 수 있다. */}
         <div className="min-w-0 rounded-2xl border border-line bg-surface p-5 sm:p-6">
           <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
-            <div>
+            <div className="min-w-0">
               <h2 className="text-base font-bold text-ink">최근 28일 추이</h2>
-              <p className="mt-1 text-xs leading-relaxed text-muted">
-                보고 싶은 항목을 골라보세요.
-              </p>
+              {/*
+                무엇을 하며 지냈는지 한 줄로 먼저 보여준다. 그래프는 얼마나
+                던졌는지는 알려주지만 무엇을 했는지는 알려주지 않는다.
+              */}
+              {sessionCounts.length > 0 ? (
+                <p className="mt-1 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-xs text-muted">
+                  {sessionCounts.map((t, i) => (
+                    <span key={t.name} className="whitespace-nowrap">
+                      {i > 0 && <span className="mr-1.5 text-line-strong">·</span>}
+                      <span className="text-ink">{t.name}</span>{' '}
+                      {/* 쉰 날은 '몇 번'이 아니라 '며칠'이다 */}
+                      {t.pitches > 0 ? `${t.count}회 (${t.pitches}구)` : `${t.count}일`}
+                    </span>
+                  ))}
+                </p>
+              ) : (
+                <p className="mt-1 text-xs leading-relaxed text-muted">
+                  보고 싶은 항목을 골라보세요.
+                </p>
+              )}
             </div>
             <Link
               href="/coach"
