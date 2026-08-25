@@ -16,6 +16,11 @@ import type { AiReportBody } from '@/lib/ai/report-prompt';
 import { Sparkles } from 'lucide-react';
 import { TodayList, type TodayExercise } from './today-client';
 import { PlanForm, TrainingSettings } from './training-settings';
+import { TodayChecklist } from './today-checklist';
+import { TodayRecord } from './today-record';
+import { CheckinCard, type CheckinData } from '@/app/(app)/dashboard/checkin-card';
+import { pickCheckinParts } from '@/lib/checkin';
+import { availableParts } from '@/lib/report/today-pick';
 
 /** 렌더 중에 현재 시각을 직접 읽지 않도록 함수로 감싼다. */
 function now() {
@@ -30,8 +35,39 @@ export default async function TodayPage() {
 
   const { facts, plan, hasLogs } = await gatherFactsAndPlan(user, today);
 
-  const [library, doneLogs, todayReport, todaySetup] = await Promise.all([
-    prisma.exerciseVideo.findMany({ orderBy: { createdAt: 'asc' } }),
+  /*
+   * "오늘 계획대로 던졌나"를 견주기 위한, 오늘 기록을 빼고 낸 계획.
+   *
+   * 위의 plan 은 오늘 던진 것까지 넣고 계산한 것이라 45구를 남기는 순간
+   * 오늘이 '휴식'으로 바뀐다(이미 던졌으니 더 쉬라는 뜻이다). 그걸 아침에
+   * 본 계획인 양 견주면 "오늘은 쉬는 게 계획이었습니다"라는 엉뚱한 말이 나온다.
+   */
+  const { plan: planBeforeToday } = await gatherFactsAndPlan(user, today, {
+    excludeToday: true,
+  });
+
+  const [library, doneLogs, todayReport, todaySetup, todayLog, recentCheckins] =
+    await Promise.all([
+    /*
+     * 안전 재확인과 체크인 부위 목록에 쓸 가벼운 목록.
+     *
+     * 예전에는 여기서 415개를 통째로 불렀다. 설명 글과 영상 경로까지 딸려와
+     * 화면 한 번 여는 데 짐이 컸는데, 정작 화면에 그리는 것은 오늘 일정에
+     * 담긴 열댓 개뿐이다. 거르는 데 필요한 항목만 가져오고, 그릴 것은
+     * 아래에서 따로 부른다.
+     */
+    prisma.exerciseVideo.findMany({
+      orderBy: { createdAt: 'asc' },
+      select: {
+        id: true,
+        title: true,
+        category: true,
+        bodyParts: true,
+        intensity: true,
+        difficulty: true,
+        equipment: true,
+      },
+    }),
     prisma.userExerciseLog.findMany({
       where: {
         userId: user.id,
@@ -67,6 +103,35 @@ export default async function TodayPage() {
       },
       select: { availableEquipment: true, plan: true, generatedAt: true },
     }),
+    /*
+     * 오늘 남긴 투구 기록. 지난 날짜는 투구 일지에서 다루므로 오늘 것만 본다.
+     * 하루에 여러 번 던진 날은 첫 기록을 보여주고, 나머지는 일지에서 본다.
+     */
+    prisma.pitchLog.findFirst({
+      where: { userId: user.id, date: new Date(`${todayKey}T00:00:00.000Z`) },
+      orderBy: { createdAt: 'asc' },
+      select: {
+        id: true,
+        sessionType: true,
+        pitchCount: true,
+        intensity: true,
+        maxVelocity: true,
+        avgVelocity: true,
+        memo: true,
+      },
+    }),
+    /*
+     * 체크인 카드가 최근 며칠을 함께 보여준다. 시간대 차이로 서버가 보는
+     * '오늘'과 사용자가 보는 '오늘'이 다를 수 있어 넉넉히 가져온다.
+     */
+    prisma.dailyCheckin.findMany({
+      where: {
+        userId: user.id,
+        date: { gte: new Date(new Date(`${todayKey}T00:00:00.000Z`).getTime() - 10 * 86400000) },
+      },
+      orderBy: { date: 'desc' },
+      take: 3,
+    }),
   ]);
 
   /*
@@ -77,6 +142,15 @@ export default async function TodayPage() {
    * 걸렀는지가 실제보다 커 보인다. 할 수 없는 것은 처음부터 없는 셈 치는 편이
    * 근거를 읽기 쉽다.
    */
+  /*
+   * 오늘 만들어 둔 일정을 읽는다.
+   *
+   * 화면을 열 때 새로 만들지 않는다. 예전에는 그렇게 해서, 만든 적도 없는
+   * 일정이 늘 떠 있었고 새로고침만 해도 내용이 바뀌었다. 만드는 것은
+   * generateTodayPlan 이 하고, 여기서는 만들어 둔 것을 보여주기만 한다.
+   */
+  const savedPlan = readDailyPlan(todaySetup?.plan);
+
   const todayEquipment = equipmentForToday(
     user.ownedEquipment,
     todaySetup?.availableEquipment
@@ -108,11 +182,28 @@ export default async function TodayPage() {
     !todayReport?.halted && !picked.halted
       ? ((todayReport?.body as AiReportBody | null)?.training ?? null)
       : null;
-  const doneIds = new Set(doneLogs.map((d) => d.exerciseId));
-  const todayPlan = plan.days[0] ?? null;
+  /**
+   * 오늘의 투구 계획. 오늘 기록을 넣기 전 기준이다.
+   *
+   * 넣은 뒤로 계산하면 던진 그 순간 '휴식'으로 바뀌어, 방금 남긴 기록과
+   * 나란히 놓였을 때 서로 어긋나 보인다.
+   */
+  const plannedToday = planBeforeToday.days[0] ?? null;
 
-  // 후보에는 화면에 필요한 필드(설명·썸네일)가 없으므로 원본에서 다시 찾는다.
-  const byId = new Map(library.map((ex) => [ex.id, ex]));
+  /*
+   * 화면에 그릴 운동만 자세히 가져온다.
+   *
+   * 오늘 일정에 담긴 것과, 오늘 완료 표시한 것. 완료한 것을 함께 부르는 이유는
+   * 일정을 다시 만든 뒤에도 아까 체크한 운동이 목록에 남아야 하기 때문이다.
+   * 사라지면 잘못 누른 체크를 풀 수가 없다.
+   */
+  const planIds = (savedPlan?.picks ?? []).map((p) => p.exerciseId);
+  const doneIds = new Set(doneLogs.map((d) => d.exerciseId));
+  const needed = [...new Set([...planIds, ...doneIds])];
+  const detailed = needed.length
+    ? await prisma.exerciseVideo.findMany({ where: { id: { in: needed } } })
+    : [];
+  const byId = new Map(detailed.map((ex) => [ex.id, ex]));
 
   /*
    * 오늘 체크인이 없으면 안전 규칙 중 컨디션·뻐근한 부위 두 가지가 빠진다.
@@ -127,7 +218,19 @@ export default async function TodayPage() {
    * 일정이 늘 떠 있었고 새로고침만 해도 내용이 바뀌었다. 만드는 것은
    * generateTodayPlan 이 하고, 여기서는 만들어 둔 것을 보여주기만 한다.
    */
-  const savedPlan = readDailyPlan(todaySetup?.plan);
+  // 체크인 카드가 쓰는 모양으로 바꾼다.
+  const checkinData: CheckinData[] = recentCheckins.map((c) => ({
+    date: c.date.toISOString().slice(0, 10),
+    ...pickCheckinParts(c),
+    condition: c.condition,
+    sleep: c.sleep,
+    preferredParts: c.preferredParts,
+  }));
+  /*
+   * 체크인에서 '오늘 하고 싶은 부위'로 고를 수 있는 목록.
+   * 코드에 적어두지 않고 라이브러리에 실제로 있는 것만 보여준다.
+   */
+  const libraryParts = availableParts(library);
 
   /*
    * 안전만은 볼 때마다 다시 본다.
@@ -202,6 +305,14 @@ export default async function TodayPage() {
         운동 목록이 안 나오는 날(통증·기록 없음)에도 보여야 한다 —
         가입하고 처음 들어온 사람은 여기서 처음 고르게 되기 때문이다.
       */}
+      {/* 무엇이 남았는지 먼저 보여준다. 이 화면은 길어서 목차 노릇도 한다. */}
+      <TodayChecklist
+        checkedIn={hasCheckinToday}
+        recorded={todayLog != null}
+        exerciseTotal={exercises.length}
+        exerciseDone={exercises.filter((e) => e.done).length}
+      />
+
       <TrainingSettings
         trainingLevel={user.trainingLevel}
         trainingGoal={user.trainingGoal}
@@ -226,7 +337,7 @@ export default async function TodayPage() {
             남겨주시면 바로 평소 계획으로 돌아갑니다.
           </p>
           <Link
-            href="/dashboard#checkin"
+            href="#checkin"
             className="inline-block rounded-lg border border-warn-line px-3 py-1.5 text-xs font-semibold text-warn transition-colors hover:bg-warn-line/20"
           >
             오늘 체크인하기
@@ -249,38 +360,61 @@ export default async function TodayPage() {
       )}
 
       {/*
-        체크인을 안 한 날은 몸 상태를 못 본 채 고른 것이므로 그대로 알린다.
-        위의 두 안내(통증 확인·처방 중단)가 이미 체크인을 청하고 있으면 겹치지 않게 뺀다.
-      */}
-      {!hasCheckinToday && !plan.needsPainCheck && !picked.halted && (
-        <Card className="flex flex-wrap items-center gap-x-3 gap-y-2 border-warn-line bg-warn-bg py-4">
-          <p className="text-sm leading-relaxed text-warn">
-            오늘 체크인을 하지 않으셔서 <strong>몸 상태는 반영되지 않았습니다.</strong>{' '}
-            투구량만 보고 고른 운동입니다.
-          </p>
-          <Link
-            href="/dashboard#checkin"
-            className="rounded-lg border border-warn-line px-3 py-1.5 text-xs font-semibold text-warn transition-colors hover:bg-warn-line/20"
-          >
-            체크인하러 가기
-          </Link>
-        </Card>
-      )}
+        오늘 컨디션 체크인.
 
-      {/* 오늘의 투구 계획 — 운동과 같은 근거에서 나온다 */}
-      {todayPlan && !plan.halted && (
-        <Card className="flex flex-wrap items-center gap-x-3 gap-y-1 py-4">
-          <span className="text-xs font-medium uppercase tracking-wider text-sky">
-            오늘 투구
-          </span>
-          <span className="text-sm font-semibold text-ink">
-            {todayPlan.throwing
-              ? `${todayPlan.maxPitches}구 이하 · 강도 ${todayPlan.maxIntensity} 이하`
-              : '휴식'}
-          </span>
-          <span className="text-xs text-muted">{todayPlan.reason}</span>
-        </Card>
-      )}
+        예전에는 홈에 있었고 여기서는 "체크인하러 가기" 링크만 걸어 두었다.
+        그런데 체크인은 이 화면의 결과(무엇을 고를지)를 정하는 입력이라,
+        결과 옆에 있는 편이 맞다. 하고 나면 한 줄 요약으로 접힌다.
+      */}
+      <CheckinCard recent={checkinData} parts={libraryParts} />
+
+      {/*
+        오늘의 투구 — 계획과 기록을 한 카드에 둔다.
+
+        계획만 세워주고 지켰는지 아무도 안 보면 그 계획은 장식이다.
+        나란히 두면 넘겼는지 바로 보인다.
+      */}
+      <Card className="space-y-3 py-4">
+        {/*
+          계획은 오늘 기록을 넣기 전 기준으로 보여준다.
+
+          넣고 나면 '휴식'으로 바뀌는데(이미 던졌으니 더 쉬라는 뜻이다),
+          바로 아래 "45구 기록" 옆에 "오늘 계획: 휴식"이 있으면 서로 어긋나
+          보인다. 아침에 본 계획을 그대로 두고, 넘겼으면 아래에서 알린다.
+        */}
+        {plannedToday && !planBeforeToday.halted && (
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+            <span className="text-xs font-medium uppercase tracking-wider text-sky">
+              오늘 투구
+            </span>
+            <span className="text-sm font-semibold text-ink">
+              {plannedToday.throwing
+                ? `${plannedToday.maxPitches}구 이하 · 강도 ${plannedToday.maxIntensity} 이하`
+                : '휴식'}
+            </span>
+            <span className="text-xs text-muted">{plannedToday.reason}</span>
+          </div>
+        )}
+        <div
+          className={
+            plannedToday && !planBeforeToday.halted ? 'border-t border-line pt-3' : ''
+          }
+        >
+          <TodayRecord
+            date={todayKey}
+            log={todayLog}
+            plan={
+              plannedToday && !planBeforeToday.halted
+                ? {
+                    throwing: plannedToday.throwing,
+                    maxPitches: plannedToday.maxPitches,
+                    maxIntensity: plannedToday.maxIntensity,
+                  }
+                : null
+            }
+          />
+        </div>
+      </Card>
 
       {/* 왜 오늘 이런 구성인지 — 고르는 건 코드, 설명은 AI가 한다 */}
       {aiTraining && (
@@ -305,7 +439,7 @@ export default async function TodayPage() {
             {picked.haltReason ??
               '통증 신호가 있어 훈련 조언을 만들지 않았습니다.'}{' '}
             통증이 있는 날은 쉬는 것이 가장 좋은 훈련입니다. 통증이 아니라면{' '}
-            <Link href="/dashboard" className="font-semibold underline">
+            <Link href="#checkin" className="font-semibold underline">
               오늘 체크인
             </Link>
             에서 상태를 고쳐주세요.

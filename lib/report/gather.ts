@@ -28,7 +28,21 @@ type UserForFacts = {
  * 리포트와 오늘의 운동이 서로 다른 근거로 말하면 안 되므로
  * 같은 함수에서 같은 수치와 같은 계획을 만든다.
  */
-export async function gatherFactsAndPlan(user: UserForFacts, today: Date) {
+export async function gatherFactsAndPlan(
+  user: UserForFacts,
+  today: Date,
+  options?: {
+    /**
+     * 오늘 남긴 기록을 빼고 계산한다.
+     *
+     * "오늘 계획대로 던졌나"를 견주려면 오늘 던진 것을 넣기 전의 계획이
+     * 필요하다. 넣고 나면 계획이 '휴식'으로 바뀌는데(이미 던졌으니 더 쉬라는
+     * 뜻이다), 그걸 아침 계획인 양 견주면 "오늘은 쉬는 게 계획이었습니다"라는
+     * 엉뚱한 말이 나온다.
+     */
+    excludeToday?: boolean;
+  }
+) {
   const since = new Date(today);
   since.setDate(since.getDate() - LOOKBACK_DAYS);
 
@@ -43,13 +57,18 @@ export async function gatherFactsAndPlan(user: UserForFacts, today: Date) {
     }),
   ]);
 
+  const todayKey = toDateKey(today);
+  const usedLogs = options?.excludeToday
+    ? logs.filter((l) => toDateKey(l.date) !== todayKey)
+    : logs;
+
   const facts = buildFacts({
     nickname: user.nickname,
     age: user.birthDate ? ageFromBirthDate(user.birthDate, today) : null,
     heightCm: user.heightCm,
     trainingLevel: user.trainingLevel,
     baselineDailyLoad: estimateDailyLoad(user),
-    logs: logs.map((l) => ({
+    logs: usedLogs.map((l) => ({
       date: l.date.toISOString(),
       sessionType: l.sessionType,
       pitchCount: l.pitchCount,
@@ -64,7 +83,7 @@ export async function gatherFactsAndPlan(user: UserForFacts, today: Date) {
       sleep: c.sleep,
       preferredParts: c.preferredParts,
     })),
-    memos: logs
+    memos: usedLogs
       .filter((l) => l.memo?.trim())
       .slice(-5)
       .map<MemoNote>((l) => ({
