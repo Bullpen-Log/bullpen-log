@@ -104,7 +104,11 @@ export function AiReportCard({
           <Sparkles className="h-4 w-4" />
         </span>
         <div className="min-w-0 flex-1">
-          <h2 className="text-sm font-bold text-ink">AI 리포트</h2>
+          {/*
+            이름에서는 'AI'를 뺐지만, 여기서는 AI를 실제로 부른다.
+            무엇을 코드가 계산하고 무엇을 AI가 쓰는지는 아래 안내에 적혀 있다.
+          */}
+          <h2 className="text-sm font-bold text-ink">리포트</h2>
           <p className="mt-0.5 text-xs text-muted">
             {report
               ? `${report.asOf} 기준 · 다시 만들기 전까지 내용이 바뀌지 않습니다`

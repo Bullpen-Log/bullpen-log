@@ -53,7 +53,7 @@ function checkEntry(body: Record<string, unknown>): { error: string } | CheckedE
    * 구속은 둘 다 선택 항목이다.
    *
    * 스피드건이 없는 선수가 훨씬 많은데, 구속을 필수로 두면 그 선수들은 기록을
-   * 아예 못 남긴다. 기록이 없으면 부하 지수도 AI 트레이닝도 돌지 않으므로
+   * 아예 못 남긴다. 기록이 없으면 부하 지수도 트레이닝도 돌지 않으므로
    * 앱이 통째로 멈춘다. 부하는 투구수 × 강도라서 구속 없이도 계산된다.
    */
   const readVelocity = (

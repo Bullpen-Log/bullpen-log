@@ -13,7 +13,7 @@ import {
 import { WORKOUT_MINUTES_CHOICES } from '@/lib/report/theme';
 
 /**
- * AI 트레이닝 화면의 설정.
+ * 트레이닝 화면의 설정.
  *
  * 고르는 곳을 결과 옆에 둔다. 예전에는 프로필에 있었는데, 정작 결과를 보는 곳은
  * 여기라서 "왜 이 운동이지?" 싶을 때마다 다른 화면으로 건너가야 했다.

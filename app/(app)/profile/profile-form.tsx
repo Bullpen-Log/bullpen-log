@@ -130,11 +130,11 @@ export function ProfileForm({
         />
       </Field>
 
-      {/* 하루 운동 시간 — AI 트레이닝이 이 시간에 맞춰 종목 수를 정한다. */}
+      {/* 하루 운동 시간 — 트레이닝 화면이 이 시간에 맞춰 종목 수를 정한다. */}
       <RadioGroup
         name="dailyWorkoutMinutes"
         label="하루 운동 시간"
-        hint="AI 트레이닝이 이 시간에 맞춰 운동 개수를 정합니다. 몸 상태가 안 좋은 날은 자동으로 줄어듭니다."
+        hint="트레이닝 화면이 이 시간에 맞춰 운동 개수를 정합니다. 몸 상태가 안 좋은 날은 자동으로 줄어듭니다."
         options={WORKOUT_MINUTES_CHOICES.map((m) => ({ name: `${m}분` }))}
         selected={pick(
           'dailyWorkoutMinutes',
@@ -143,19 +143,19 @@ export function ProfileForm({
       />
 
       {/*
-        경력·목표·장비는 AI 트레이닝 화면에서 고른다.
+        경력·목표·장비는 트레이닝 화면에서 고른다.
         결과를 보면서 바로 고칠 수 있어야 해서 그쪽으로 옮겼다.
       */}
       <div className="flex flex-wrap items-center gap-x-3 gap-y-2 border-t border-line pt-5">
         <p className="text-sm text-muted">
           웨이트 경력 · 훈련 목표 · 가지고 있는 장비는{' '}
-          <strong className="text-ink">AI 트레이닝</strong> 화면에서 고릅니다.
+          <strong className="text-ink">트레이닝</strong> 화면에서 고릅니다.
         </p>
         <Link
           href="/today"
           className="rounded-lg border border-line-strong px-3 py-1.5 text-xs font-semibold text-ink transition-colors hover:border-sky hover:text-sky"
         >
-          AI 트레이닝으로 가기
+          트레이닝으로 가기
         </Link>
       </div>
 

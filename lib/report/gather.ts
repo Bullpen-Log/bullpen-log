@@ -25,7 +25,7 @@ type UserForFacts = {
 /**
  * 리포트·운동 처방이 공통으로 쓰는 자료를 한 번에 모은다.
  *
- * AI 리포트와 오늘의 운동이 서로 다른 근거로 말하면 안 되므로
+ * 리포트와 오늘의 운동이 서로 다른 근거로 말하면 안 되므로
  * 같은 함수에서 같은 수치와 같은 계획을 만든다.
  */
 export async function gatherFactsAndPlan(user: UserForFacts, today: Date) {

@@ -41,8 +41,8 @@ export default async function ReportPage() {
   return (
     <div className="space-y-8">
       <PageHeading
-        eyebrow="AI Report"
-        title="AI 리포트"
+        eyebrow="Report"
+        title="리포트"
         description="기록과 몸 상태를 바탕으로 앞으로의 투구 계획을 정리합니다. 아래에는 그 근거가 되는 기간별 기록이 이어집니다."
       />
 

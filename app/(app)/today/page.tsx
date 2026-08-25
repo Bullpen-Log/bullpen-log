@@ -181,8 +181,8 @@ export default async function TodayPage() {
   return (
     <div className="space-y-6">
       <PageHeading
-        eyebrow="AI Training"
-        title="AI 개인맞춤 트레이닝"
+        eyebrow="Training"
+        title="개인맞춤 트레이닝"
         description={
           savedPlan == null
             ? '오늘 할 운동을 만들어 드립니다. 하루에 한 번 만들고, 내일이 되면 새로 만듭니다.'

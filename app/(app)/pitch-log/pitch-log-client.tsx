@@ -219,7 +219,7 @@ export function PitchLogClient({
       <PageHeading
         eyebrow="Pitch Log"
         title="투구 일지"
-        description="날짜를 고르면 그날의 기록·영상·느낀점이 한 번에 열립니다. 기간별 정리는 'AI 리포트'에서 볼 수 있습니다."
+        description="날짜를 고르면 그날의 기록·영상·느낀점이 한 번에 열립니다. 기간별 정리는 '리포트'에서 볼 수 있습니다."
         action={
           videoDates.length > 0 && mode === 'day' ? (
             <div className="flex items-center gap-2">

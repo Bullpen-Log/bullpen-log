@@ -3,7 +3,7 @@ import { AlertTriangle, ArrowRight, Sparkles } from 'lucide-react';
 import type { AiReportBody } from '@/lib/ai/report-prompt';
 
 /**
- * 홈에 얹는 AI 리포트 한 줄 요약.
+ * 홈에 얹는 리포트 한 줄 요약.
  *
  * 리포트를 만들어놓고도 다른 화면에 있으면 잊어버린다. 결론 한 줄만
  * 여기에 띄우고, 더 보고 싶으면 리포트 화면으로 넘긴다.
@@ -34,7 +34,7 @@ export function ReportSummaryCard({ report }: { report: ReportSummary | null }) 
         <Sparkles className="h-5 w-5 shrink-0 text-sky-strong" />
         <span className="min-w-0 flex-1">
           <span className="block text-sm font-semibold text-sky-strong">
-            AI 리포트를 아직 만들지 않았습니다
+            리포트를 아직 만들지 않았습니다
           </span>
           <span className="mt-0.5 block text-xs text-muted">
             기록을 바탕으로 지금 상태와 앞으로 며칠 계획을 정리해드립니다.
@@ -73,7 +73,7 @@ export function ReportSummaryCard({ report }: { report: ReportSummary | null }) 
       <div className="flex items-center justify-between gap-3">
         <span className="flex items-center gap-2 text-[11px] font-medium uppercase tracking-[0.18em] text-muted">
           <Sparkles className="h-3.5 w-3.5 text-sky" />
-          AI 리포트
+          리포트
         </span>
         <span className="text-xs text-muted">
           {report.daysOld === 0

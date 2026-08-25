@@ -431,7 +431,7 @@ export function MetricHelp({ twoDayLimit }: { twoDayLimit: number }) {
 
 /**
  * 오늘 뭘 하면 되는지 한 줄.
- * AI 코치 리포트와 같은 계산(buildPitchPlan)을 쓰므로 두 화면이 어긋나지 않는다.
+ * 리포트 화면과 같은 계산(buildPitchPlan)을 쓰므로 두 화면이 어긋나지 않는다.
  */
 export function TodayPlanLine({ plan }: { plan: PitchPlan }) {
   // 통증 신호가 있으면 계획 대신 휴식 안내만 낸다.
@@ -492,7 +492,7 @@ export function TodayPlanLine({ plan }: { plan: PitchPlan }) {
       <span className="text-xs text-muted">{today.reason}</span>
 
       <span className="ml-auto shrink-0 text-[11px] font-medium uppercase tracking-[0.18em] text-muted">
-        AI 리포트 →
+        리포트 →
       </span>
     </Link>
   );

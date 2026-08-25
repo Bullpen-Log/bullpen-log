@@ -49,7 +49,7 @@ function readNumber(formData: FormData, name: string, min: number, max: number) 
 /**
  * 세트·횟수·휴식을 읽는다.
  *
- * 다 비워도 된다 — 그러면 AI 트레이닝이 종류로 시간을 어림한다.
+ * 다 비워도 된다 — 그러면 트레이닝이 종류로 시간을 어림한다.
  * 횟수와 버티는 시간을 둘 다 적으면 버티는 시간을 쓴다(시간형 운동으로 본다).
  */
 function readPrescription(formData: FormData): Prescription {

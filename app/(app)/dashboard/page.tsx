@@ -241,7 +241,7 @@ export default async function DashboardPage() {
   const recent = logs.slice(0, 4);
 
   // 오늘 뭘 하면 되는지 한 줄로 보여준다.
-  // AI 코치 리포트와 같은 계산을 쓰므로 두 화면의 내용이 어긋나지 않는다.
+  // 리포트 화면과 같은 계산을 쓰므로 두 화면의 내용이 어긋나지 않는다.
   const todayPlan = hasRecords
     ? buildPitchPlan(
         buildFacts({
@@ -326,10 +326,10 @@ export default async function DashboardPage() {
       {/* ── 오늘 뭘 하면 되는지 한 줄 ───────────────────────── */}
       {todayPlan && <TodayPlanLine plan={todayPlan} />}
 
-      {/* ── AI 리포트 요약 ──────────────────────────────────── */}
+      {/* ── 리포트 요약 ─────────────────────────────────────── */}
       <ReportSummaryCard report={toReportSummary(latestReport, todayKey)} />
 
-      {/* ── AI 트레이닝 진행 상황 ───────────────────────────── */}
+      {/* ── 트레이닝 진행 상황 ──────────────────────────────── */}
       <Link
         href="/today"
         className="flex items-center gap-4 rounded-2xl border border-line bg-surface px-5 py-4 transition-colors hover:border-sky-soft"
@@ -341,7 +341,7 @@ export default async function DashboardPage() {
           ✅
         </span>
         <span className="min-w-0 flex-1">
-          <span className="block text-sm font-bold text-ink">AI 트레이닝</span>
+          <span className="block text-sm font-bold text-ink">트레이닝</span>
           <span className="block text-xs text-muted">
             {doneToday > 0
               ? `${doneToday}개 완료 — 이어서 하기`
@@ -662,7 +662,7 @@ export default async function DashboardPage() {
               href="/coach"
               className="text-xs text-muted transition-colors hover:text-sky"
             >
-              AI 리포트 →
+              리포트 →
             </Link>
           </div>
           <TrendChart points={chartPoints} />
