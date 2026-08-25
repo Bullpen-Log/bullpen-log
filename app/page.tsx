@@ -54,7 +54,7 @@ export default async function LandingPage() {
           </p>
           <div className="mt-10 flex flex-col gap-3 sm:flex-row">
             {user ? (
-              <ButtonLink href="/dashboard">대시보드로 이동 →</ButtonLink>
+              <ButtonLink href="/today">오늘 트레이닝 →</ButtonLink>
             ) : (
               <>
                 <ButtonLink href="/login">시작하기 →</ButtonLink>

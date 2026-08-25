@@ -6,6 +6,7 @@ import type { PitchPlan } from '@/lib/report/plan';
 import { PageHeading } from '@/components/ui';
 import { AiReportCard, type StoredReport } from './ai-report-card';
 import { ReportClient } from './report-client';
+import { StatsOverview } from './overview';
 
 export default async function ReportPage() {
   const user = await requireUser();
@@ -41,9 +42,28 @@ export default async function ReportPage() {
   return (
     <div className="space-y-8">
       <PageHeading
-        eyebrow="Report"
-        title="리포트"
-        description="기록과 몸 상태를 바탕으로 앞으로의 투구 계획을 정리합니다. 아래에는 그 근거가 되는 기간별 기록이 이어집니다."
+        eyebrow="Analysis"
+        title="분석"
+        description="지금 몸이 어떤 상태인지, 그동안 어떻게 던져왔는지 정리합니다. 아래로 내려가면 기간별 기록과 코멘트가 이어집니다."
+      />
+
+      {/*
+        예전에는 홈(대시보드)에 있던 것들이다. 홈은 입력(체크인)과 출력(부하·추이)이
+        섞여 있었고, 정작 매일 해야 하는 기록은 다른 화면에 있었다. 하는 일 기준으로
+        나눠, 오늘 할 일은 트레이닝 화면에 두고 돌아보는 것은 여기로 모았다.
+      */}
+      <StatsOverview
+        logs={serialized.map((l) => ({
+          date: l.date,
+          sessionType: l.sessionType,
+          pitchCount: l.pitchCount,
+          intensity: l.intensity,
+          maxVelocity: l.maxVelocity,
+          avgVelocity: l.avgVelocity,
+        }))}
+        user={user}
+        today={new Date()}
+        totalRecords={logs.length}
       />
 
       <AiReportCard

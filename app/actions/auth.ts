@@ -80,7 +80,7 @@ async function trySignup(formData: FormData): Promise<AuthState> {
   });
 
   await createSession({ userId: user.id, role: user.role });
-  redirect('/dashboard');
+  redirect('/today');
 }
 
 export async function login(_prev: AuthState, formData: FormData): Promise<AuthState> {
@@ -106,7 +106,7 @@ async function tryLogin(formData: FormData): Promise<AuthState> {
   }
 
   await createSession({ userId: user.id, role: user.role });
-  redirect('/dashboard');
+  redirect('/today');
 }
 
 export async function logout() {

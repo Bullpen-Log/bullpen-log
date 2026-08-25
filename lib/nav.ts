@@ -41,20 +41,16 @@ export type NavGroup = {
  */
 export const NAV_GROUPS: NavGroup[] = [
   {
-    items: [{ href: '/dashboard', label: '홈', icon: '⚾' }],
+    items: [{ href: '/today', label: '오늘', icon: '⚾' }],
   },
   {
-    items: [{ href: '/pitch-log', label: '투구 일지', icon: '📅' }],
+    items: [{ href: '/pitch-log', label: '기록', icon: '📅' }],
   },
   {
     items: [{ href: '/velocity', label: '구속 측정', icon: '📡' }],
   },
   {
-    title: '코치',
-    items: [
-      { href: '/coach', label: '리포트', icon: '📊' },
-      { href: '/today', label: '트레이닝', icon: '🎯' },
-    ],
+    items: [{ href: '/coach', label: '분석', icon: '📊' }],
   },
   {
     title: '라이브러리',
@@ -80,10 +76,10 @@ export const NAV_GROUPS: NavGroup[] = [
  * 라이브러리와 자료실은 매일 열지 않으므로 '더보기'로 보낸다.
  */
 export const MOBILE_TABS: NavItem[] = [
-  { href: '/dashboard', label: '홈', icon: '⚾' },
-  { href: '/pitch-log', label: '일지', icon: '📅' },
-  { href: '/today', label: '트레이닝', icon: '🎯' },
-  { href: '/coach', label: '리포트', icon: '📊' },
+  { href: '/today', label: '오늘', icon: '⚾' },
+  { href: '/pitch-log', label: '기록', icon: '📅' },
+  { href: '/coach', label: '분석', icon: '📊' },
+  { href: '/velocity', label: '구속', icon: '📡' },
   { href: '/more', label: '더보기', icon: '☰' },
 ];
 

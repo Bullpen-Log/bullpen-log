@@ -18,7 +18,7 @@ import { TodayList, type TodayExercise } from './today-client';
 import { PlanForm, TrainingSettings } from './training-settings';
 import { TodayChecklist } from './today-checklist';
 import { TodayRecord } from './today-record';
-import { CheckinCard, type CheckinData } from '@/app/(app)/dashboard/checkin-card';
+import { CheckinCard, type CheckinData } from '@/components/checkin-card';
 import { pickCheckinParts } from '@/lib/checkin';
 import { availableParts } from '@/lib/report/today-pick';
 

@@ -30,7 +30,7 @@ export function Sidebar({
   return (
     <aside className="fixed inset-y-0 left-0 z-40 hidden w-60 flex-col border-r border-line bg-surface lg:flex">
       <Link
-        href="/dashboard"
+        href="/today"
         className="flex h-16 shrink-0 items-center gap-2.5 border-b border-line px-5"
       >
         <BaseballMark className="h-9 w-9" />
@@ -113,7 +113,7 @@ export function Avatar({
 export function MobileTopBar({ nickname }: { nickname: string }) {
   return (
     <header className="sticky top-0 z-40 flex h-14 items-center gap-3 border-b border-line bg-surface/95 px-4 backdrop-blur-xl lg:hidden">
-      <Link href="/dashboard" className="flex items-center gap-2">
+      <Link href="/today" className="flex items-center gap-2">
         <BaseballMark className="h-8 w-8" />
         <span className="text-display text-base leading-none text-ink">
           BULLPEN LOG

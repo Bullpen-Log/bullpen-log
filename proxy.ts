@@ -17,7 +17,7 @@ export async function proxy(request: NextRequest) {
 
   // 이미 로그인한 사용자가 로그인 페이지에 접근한 경우
   if (pathname === '/login' && session) {
-    return NextResponse.redirect(new URL('/dashboard', request.url));
+    return NextResponse.redirect(new URL('/today', request.url));
   }
 
   return NextResponse.next();
