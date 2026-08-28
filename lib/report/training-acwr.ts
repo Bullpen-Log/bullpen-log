@@ -45,6 +45,7 @@ export async function trainingLoad(
           select: {
             category: true,
             intensity: true,
+            bodyParts: true,
             sets: true,
             reps: true,
             holdSeconds: true,

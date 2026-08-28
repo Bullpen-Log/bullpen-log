@@ -55,7 +55,7 @@ import {
   SLOT_ORDER,
   type ThemeKey,
 } from '../lib/report/theme.ts';
-import { intensityLevel } from '../lib/exercise-meta.ts';
+import { BODY_PARTS, intensityLevel } from '../lib/exercise-meta.ts';
 import {
   exerciseMinutes,
   intensityFactor,
@@ -64,6 +64,7 @@ import {
 } from '../lib/training-load.ts';
 import { computeAcwr, zoneOf } from '../lib/pitch-stats.ts';
 import { buildTrainingLoad } from '../lib/training-load.ts';
+import { buildPartVolume, VOLUME_GROUPS } from '../lib/training-volume.ts';
 import {
   REPORT_EVERY_PITCH_LOGS,
   reportReadiness,
@@ -85,6 +86,13 @@ import {
 
 let passed = 0;
 let failed = 0;
+
+/** buildPartVolume 이 받는 줄 모양 */
+type PartVolumeInput = {
+  date: Date;
+  setsDone: number | null;
+  exercise: { bodyParts: string[]; sets: number | null; category: string };
+};
 
 function check(name: string, ok: boolean, detail = '') {
   if (ok) {
@@ -517,6 +525,130 @@ console.log('\n[운동 부하] 무거운 운동과 가벼운 운동이 갈리는
     '기록이 없으면 지수를 안 낸다',
     buildTrainingLoad([], [], TODAY).ratio === null
   );
+}
+
+console.log('\n[부위별 볼륨] 무엇을 하고 무엇을 안 했는지 보이는가');
+{
+  const find = (title: string) => {
+    const ex = library.find((e) => e.title === title);
+    if (!ex) throw new Error(`시험용 운동을 못 찾음: ${title}`);
+    return ex;
+  };
+  const at = (back: number) => new Date(TODAY.getTime() - back * 86400000);
+  const row = (back: number, title: string, sets: number | null) => {
+    const ex = find(title);
+    return {
+      date: at(back),
+      setsDone: sets,
+      exercise: { bodyParts: ex.bodyParts, sets: ex.sets, category: ex.category },
+    };
+  };
+  const get = (rows: PartVolumeInput[], key: string) =>
+    buildPartVolume(rows, TODAY).byPart.find((p) => p.key === key)!;
+  const armCare = (rows: PartVolumeInput[]) =>
+    buildPartVolume(rows, TODAY).armCare;
+
+  check(
+    '라이브러리의 모든 부위가 어느 묶음에는 들어간다',
+    BODY_PARTS.every((part) =>
+      VOLUME_GROUPS.some((g) => (g.parts as readonly string[]).includes(part))
+    ),
+    '빠진 부위가 있으면 그 운동은 어디에도 안 세어진다'
+  );
+
+  {
+    // 데드리프트 [등, 코어, 고관절, 햄스트링·둔근, 손목·전완]
+    const rows = [row(1, '데드리프트', 3)];
+    check(
+      '한 운동이 여러 부위에 모두 세어진다',
+      get(rows, 'lower').sets === 3 &&
+        get(rows, 'core').sets === 3 &&
+        get(rows, 'back').sets === 3,
+      '데드리프트는 하체이면서 등이다'
+    );
+    check(
+      '안 쓰는 부위는 0이다',
+      get(rows, 'push').sets === 0,
+      '데드리프트는 가슴·어깨가 아니다'
+    );
+  }
+
+  {
+    /*
+     * 한 운동이 같은 묶음에 두 부위로 걸리는 경우.
+     * 벤치프레스 [가슴, 삼두, 어깨]는 셋 다 '가슴·어깨'라 세 번 세면 안 된다.
+     */
+    const rows = [row(1, '벤치프레스', 3)];
+    check(
+      '같은 묶음에 두 번 걸려도 한 번만 센다',
+      get(rows, 'push').sets === 3,
+      `가슴·어깨 ${get(rows, 'push').sets}세트 (3이어야 한다)`
+    );
+  }
+
+  {
+    const rows = [
+      row(1, '데드리프트', 3),
+      row(3, '바벨 스쿼트', 4),
+      row(9, '데드리프트', 5), // 지난주
+    ];
+    const lower = get(rows, 'lower');
+    check(
+      '이번 주와 지난주를 갈라서 센다',
+      lower.sets === 7 && lower.previous === 5,
+      `이번 주 ${lower.sets}세트 · 지난주 ${lower.previous}세트`
+    );
+  }
+
+  {
+    const rows = [row(20, '데드리프트', 3)];
+    check(
+      '2주보다 오래된 것은 어느 쪽에도 안 센다',
+      get(rows, 'lower').sets === 0 && get(rows, 'lower').previous === 0
+    );
+  }
+
+  {
+    const dead = find('데드리프트');
+    const rows = [row(1, '데드리프트', null)];
+    check(
+      '세트를 안 적으면 계획 세트로 센다',
+      get(rows, 'lower').sets === dead.sets,
+      `계획 ${dead.sets}세트`
+    );
+  }
+
+  {
+    /*
+     * 암케어는 부위가 아니라 카테고리로 센다.
+     *
+     * 처음에는 '팔꿈치·손목' 부위로 셌는데, 데드리프트에도 손목·전완이 들어
+     * 있어(그립) 하체만 한 주에도 그 줄이 6세트로 찼다. 암케어를 통째로
+     * 건너뛴 사람이 "팔 6세트"를 보고 했다고 착각한다. 이 시험이 그걸 잡았다.
+     */
+    const legOnly = [row(1, '데드리프트', 6), row(3, '바벨 스쿼트', 6)];
+    check(
+      '하체만 해도 팔·전완 줄은 찬다 (그립)',
+      get(legOnly, 'arm').sets > 0,
+      `팔·전완 ${get(legOnly, 'arm').sets}세트 — 틀린 값이 아니다`
+    );
+    check(
+      '하지만 암케어는 0으로 나온다',
+      armCare(legOnly).sets === 0,
+      '투수에게 이건 부위가 아니라 했나 안 했나의 문제다'
+    );
+
+    const withCare = [...legOnly, row(2, '튜빙 외회전 0도', 3)];
+    check(
+      '암케어를 하면 암케어로 센다',
+      armCare(withCare).sets === 3,
+      `암케어 ${armCare(withCare).sets}세트`
+    );
+    check(
+      '지난주 암케어와도 견준다',
+      armCare([...withCare, row(9, '튜빙 외회전 0도', 5)]).previous === 5
+    );
+  }
 }
 
 console.log('\n[가입 문진] 받은 답이 실제로 쓰이는가');

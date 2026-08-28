@@ -4,6 +4,7 @@ import {
   type AcwrResult,
   type AcwrZone,
 } from '@/lib/pitch-stats';
+import { buildPartVolume, type VolumeSummary } from '@/lib/training-volume';
 import {
   intensityLevel,
   isCompound,
@@ -235,13 +236,20 @@ export type TrainingLoad = AcwrResult & {
   estimatedIntensityDays: number;
   /** 최근 7일 중 세트를 안 적어 계획값으로 센 운동 수 */
   estimatedSetsCount: number;
+  /**
+   * 부위별 주당 세트 수와 암케어 세트.
+   *
+   * 지수 하나로는 하체만 잔뜩 하고 암케어를 건너뛴 주와 골고루 한 주가
+   * 똑같아 보인다. 무엇을 하고 무엇을 안 했는지는 여기서만 보인다.
+   */
+  volume: VolumeSummary;
 };
 
 /** DB에서 읽어 온 줄. 시험에서는 이 모양을 손으로 만들어 넣는다. */
 export type ExerciseLogRow = {
   date: Date;
   setsDone: number | null;
-  exercise: Omit<LoggedExercise, 'setsDone'>;
+  exercise: Omit<LoggedExercise, 'setsDone'> & { bodyParts?: string[] };
 };
 export type TrainingNoteRow = { date: Date; intensity: number };
 
@@ -313,5 +321,17 @@ export function buildTrainingLoad(
     recentDays,
     estimatedIntensityDays,
     estimatedSetsCount,
+    volume: buildPartVolume(
+      logs.map((l) => ({
+        date: l.date,
+        setsDone: l.setsDone,
+        exercise: {
+          bodyParts: l.exercise.bodyParts ?? [],
+          sets: l.exercise.sets ?? null,
+          category: l.exercise.category,
+        },
+      })),
+      today
+    ),
   };
 }

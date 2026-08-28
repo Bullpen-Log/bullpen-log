@@ -24,6 +24,7 @@ import { TRAINING_ADVICE, type TrainingLoad } from '@/lib/training-load';
 import { ACWR_ZONES } from '@/lib/pitch-stats';
 import { TrendChart, type TrendPoint } from './trend-chart';
 import { LoadPanel, type LoadView } from './load-panel';
+import { PartVolumeCard } from './part-volume';
 import { Delta, MetricHelp, StatCard, TONE, type Tone } from './parts';
 
 /**
@@ -293,6 +294,14 @@ export function StatsOverview({
 
       {/* 지표가 어떻게 나오는 숫자인지 — 안 적어두면 그냥 믿거나 그냥 무시한다 */}
       <MetricHelp twoDayLimit={TWO_DAY_INTENSITY_LIMIT} />
+
+      {/*
+        ── 부위별 세트 ──────────────────────────────────────
+        지수는 "지금 많은가"를 말하고 여기는 "무엇을 하고 무엇을 안 했나"를
+        말한다. 지수 하나로는 하체만 잔뜩 하고 암케어를 건너뛴 주와 골고루
+        한 주가 똑같아 보인다.
+      */}
+      <PartVolumeCard volume={training.volume} />
 
       {/* ── 최근 28일 추이 ──────────────────────────────────── */}
       <div className="min-w-0 rounded-2xl border border-line bg-surface p-5 sm:p-6">
