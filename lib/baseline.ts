@@ -37,9 +37,8 @@ export const BASELINE_INTENSITY = [
 /**
  * 평소 웨이트 빈도 → 주당 운동 세션 수.
  *
- * 운동 부하는 '시간 × 강도'라, 여기에 하루 운동 시간(dailyWorkoutMinutes)을
- * 곱하면 주당 부하가 나온다. 평소 운동 강도는 따로 묻지 않는다 — 문항을 하나
- * 더 늘리는 값어치가 없어서, 중간(6)으로 둔다. 기록이 쌓이면 실제 값으로 밀린다.
+ * 운동 부하는 '환산 세트'로 센다(lib/training-load.ts). 여기에 하루 운동
+ * 시간을 곱하면 주당 부하가 나온다.
  */
 export const BASELINE_WORKOUT_FREQ = [
   { name: '거의 안 함', sessionsPerWeek: 0.5 },
@@ -48,8 +47,20 @@ export const BASELINE_WORKOUT_FREQ = [
   { name: '주 5회 이상', sessionsPerWeek: 5.5 },
 ] as const;
 
-/** 문진에서 안 물어보는 평소 운동 강도. 1~10 중 가운데. */
-const ASSUMED_WORKOUT_INTENSITY = 6;
+/**
+ * 운동 1분이 만드는 환산 세트.
+ *
+ * 지어낸 값이 아니라 실제로 재서 넣었다. 우리가 만드는 스트렝스 일정을
+ * 30·45·60·90분으로 뽑아 환산 세트를 세어보니 분당 0.164~0.187로 일정했다.
+ *
+ *   하체 45분 → 9종목 8.4 환산 세트 (분당 0.187)
+ *   상체 90분 → 16종목 14.8 환산 세트 (분당 0.164)
+ *
+ * 문진에 답하는 사람은 웨이트를 하는 사람이므로 스트렝스 쪽 값을 쓴다.
+ * 회복·보조 위주 일정은 분당 0.10쯤인데, 그건 우리가 몸 상태를 보고 내주는
+ * 날이지 본인이 "평소 주 3회 웨이트"라고 답할 때 떠올리는 날이 아니다.
+ */
+const EQUIVALENT_SETS_PER_MINUTE = 0.17;
 
 /** 던지는 손. 폼 분석에서 어느 팔을 보는지 정한다. */
 export const THROWING_HANDS = ['우투', '좌투'] as const;
@@ -170,11 +181,14 @@ export function estimateDailyLoad(answers: {
 }
 
 /**
- * 문진 답 → 하루 평균 운동 부하 추정치.
+ * 문진 답 → 하루 평균 운동 부하 추정치(환산 세트).
  *
- * 운동 부하 = 시간(분) × 강도이므로, 주당 (회수 × 세션 분 × 강도)를 7로 나눈다.
- * 세션 시간은 본인이 고른 하루 운동 시간을 쓴다 — 우리가 그 시간에 맞춰
- * 일정을 짜므로 실제 하는 시간과 가장 가깝다.
+ * 주당 (회수 × 세션 분 × 분당 환산 세트)를 7로 나눈다. 세션 시간은 본인이
+ * 고른 하루 운동 시간을 쓴다 — 우리가 그 시간에 맞춰 일정을 짜므로 실제와
+ * 가장 가깝다.
+ *
+ * 강도는 곱하지 않는다. 환산 세트에는 운동마다 붙은 강도가 이미 들어 있고,
+ * 그날 강도 배수는 '평소처럼 했으면 1.0'이라 평균으로는 1이다.
  *
  * 답이 없으면 추정하지 않는다(null). 그러면 운동 지수는 28일이 쌓여야 나온다.
  */
@@ -188,7 +202,7 @@ export function estimateTrainingDailyLoad(answers: {
   if (!freq) return null;
 
   const minutes = answers.dailyWorkoutMinutes ?? DEFAULT_SESSION_MINUTES;
-  return (freq.sessionsPerWeek * minutes * ASSUMED_WORKOUT_INTENSITY) / 7;
+  return (freq.sessionsPerWeek * minutes * EQUIVALENT_SETS_PER_MINUTE) / 7;
 }
 
 /**

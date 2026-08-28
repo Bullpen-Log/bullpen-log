@@ -5,28 +5,47 @@ import {
   type AcwrZone,
 } from '@/lib/pitch-stats';
 import {
-  INTENSITY_LEVELS,
   intensityLevel,
+  isCompound,
   minutesForSets,
   type Prescription,
 } from '@/lib/exercise-meta';
-import { MAX_CONDITION } from '@/lib/checkin';
 
 /**
  * 운동 부하.
  *
- * 투구와 같은 방식으로 센다 — 지속 시간 × 강도(session-RPE, Foster 2001).
- * 다만 단위가 다르다. 투구는 '투구수 × 강도'이고 운동은 '분 × 강도'다.
+ * 세트 하나를 단위로 센다.
  *
- *   두 값을 더하지 않는다.
+ *   운동 부하 = Σ (실제 세트 × 운동 계수) × 그날 강도 배수
  *
- * 더하려면 투구수를 분으로 바꿔야 하는데, 구당 몇 초인지를 우리가 재본 적이
- * 없다. 재보지 않은 숫자로 두 부하를 섞으면, 나온 지수가 무엇을 뜻하는지
- * 아무도 설명할 수 없게 된다. 그래서 투구 지수와 운동 지수를 따로 낸다.
- * 지수는 '평소 대비 몇 배'라 단위가 없어서, 나란히 두고 읽을 수 있다.
+ * 나온 값의 단위는 '환산 세트'다 — 데드리프트 한 세트를 1로 놓았을 때 몇 세트
+ * 만큼 했는가. 숫자가 무엇을 뜻하는지 한 문장으로 말할 수 있어야 한다는 뜻이다.
+ *
+ * ── 왜 시간으로 안 세나 ─────────────────────────────────────────
+ *
+ * 처음에는 시간 × 강도였다(session-RPE, Foster 2001). 그 방식은 지구력·구기
+ * 종목에서 검증됐는데, 웨이트에는 맞지 않는다. 실제로 재보니 이랬다.
+ *
+ *   데드리프트 한 세트 220초 = 수행 40초 + 휴식 180초
+ *   → 부하의 82%가 '가만히 있는 시간'에서 나온다
+ *
+ *   데드리프트(매우 높음) 1.00 = 밀리터리 프레스(높음) 1.00
+ *   → 둘 다 휴식 180초라, 라이브러리에 붙여 둔 강도가 사라진다
+ *
+ *   피전 포즈(스트레칭) 0.36 vs 사이드 레터럴 레이즈 0.41
+ *   → 스트레칭과 어깨 운동이 거의 같은 부하가 된다
+ *
+ * 시간을 버리고 세트로 세면 이 셋이 한 번에 풀린다. 세트 수는 근력 문헌에서
+ * 용량 변수로 널리 쓰는 값이기도 하다(주당 세트 수 — Schoenfeld 계열 메타분석).
+ *
+ * ── 투구 부하와는 합치지 않는다 ──────────────────────────────────
+ *
+ * 투구는 '투구수 × 강도'라 단위가 다르다. 합치려면 공 하나에 몇 초인지를
+ * 정해야 하는데 그 값을 재본 적이 없다. 지수는 '평소 대비 몇 배'라 단위가
+ * 없으므로, 둘을 나란히 두고 읽으면 된다.
  */
 
-/** 운동 시간을 재는 데 쓰는 최소 정보 */
+/** 부하를 세는 데 쓰는 최소 정보 */
 export type LoggedExercise = {
   category: string;
   intensity: string;
@@ -38,36 +57,107 @@ export type LoggedExercise = {
 /**
  * 이 운동에 실제로 쓴 시간(분).
  *
- * 세트를 안 적었으면 계획 세트로 센다. 완료 표시를 했다는 것은 했다는 뜻이고,
- * 그때 가장 그럴듯한 값은 우리가 짜 준 세트 수다. 0으로 두면 실제로 한 운동이
- * 계산에서 사라진다 — 안 한 것을 한 것으로 세는 것만큼이나 틀린 일이다.
+ * 부하 계산에는 더 이상 쓰지 않는다. 화면에서 "이번 주 471분"처럼 보여주는
+ * 데만 쓴다 — 사람은 분을 이해하지, 환산 세트를 처음부터 이해하지는 않는다.
  *
- * 다만 추정한 것은 추정이라고 화면에 밝힌다(estimatedCount).
+ * 세트를 안 적었으면 계획 세트로 센다. 완료 표시를 했다는 것은 했다는 뜻이고,
+ * 그때 가장 그럴듯한 값은 우리가 짜 준 세트 수다.
  */
 export function exerciseMinutes(ex: LoggedExercise): number {
   return minutesForSets(ex, ex.setsDone ?? undefined) ?? 0;
 }
 
+/* ───────────────────── 세트 하나가 요구하는 크기 ───────────────────── */
+
 /**
- * 운동 자체의 강도를 1~10 눈금으로 바꾼다.
+ * 동원 근육량 계수.
  *
- * 사용자가 그날 강도를 안 적었을 때만 쓴다. 라이브러리의 강도는 5단계
- * (매우 낮음~매우 높음)라 두 배 해서 맞춘다 — 매우 높음이 10(전력)이 되는데,
- * 최대에 가까운 무게를 드는 세트라면 그만한 값이 맞다.
+ * 그 운동 한 세트가 몸 전체에 얼마나 요구하는가. 데드리프트를 1로 놓는다.
+ *
+ * 연구에서 그대로 가져온 숫자가 아니다 — 근력 문헌은 보통 중량(볼륨 로드)이나
+ * 세트 수로 세지, 종목 간 가중치를 정해 두지 않는다. 여기 값은 우리 판단이고,
+ * 근거는 하나다: 한 세트에 동원되는 근육량과 회복에 걸리는 시간.
+ * 그래서 세트 사이 휴식을 정할 때 쓴 것과 같은 기준(다관절/단관절)을 쓴다.
  */
-export function exerciseIntensityScore(intensity: string): number {
-  const level = intensityLevel(intensity);
-  return Math.min(MAX_CONDITION, level * 2);
+const MASS_FACTOR: Record<string, number> = {
+  파워: 1.0, // 전신 + 신경계. 무게는 가벼워도 회복은 오래 걸린다
+  코어: 0.45,
+  암케어: 0.35,
+  '회복 및 보강': 0.3,
+  모빌리티: 0.15,
+};
+
+/** 스트렝스는 다관절이냐 단관절이냐로 갈린다 */
+const COMPOUND_MASS = 1.0;
+const ISOLATION_MASS = 0.55;
+
+/**
+ * 라이브러리에 붙여 둔 강도(5단계) → 배수.
+ *
+ * 이 값이 사라지지 않게 하는 것이 이번 개편의 핵심이다. 예전 방식에서는
+ * 강도가 다른 두 운동이 휴식이 같다는 이유로 같은 부하가 됐다.
+ */
+const LEVEL_FACTOR: Record<number, number> = {
+  5: 1.0, // 매우 높음
+  4: 0.8, // 높음
+  3: 0.55, // 중간
+  2: 0.35, // 낮음
+  1: 0.2, // 매우 낮음
+};
+
+/**
+ * 좌우를 따로 하는 운동의 배수.
+ *
+ * "3세트"라고 적어도 실제로는 좌우 여섯 세트를 한다. 그렇다고 두 배로 세지는
+ * 않는다 — 한쪽씩 하면 한 세트에 쓰는 무게가 양쪽으로 할 때보다 가볍다.
+ * 시간과 볼륨은 늘지만 전신에 걸리는 부담은 두 배가 아니라고 보고 1.5로 둔다.
+ */
+const PER_SIDE_FACTOR = 1.5;
+
+/**
+ * 운동 한 세트의 부하 계수.
+ *
+ * 데드리프트(다관절 · 매우 높음) 한 세트가 1.0이다.
+ */
+export function setFactor(ex: {
+  category: string;
+  intensity: string;
+  bodyParts?: readonly string[];
+  perSide?: boolean | null;
+}): number {
+  const mass =
+    MASS_FACTOR[ex.category] ??
+    (isCompound(ex.bodyParts ?? []) ? COMPOUND_MASS : ISOLATION_MASS);
+  const level = LEVEL_FACTOR[intensityLevel(ex.intensity)] ?? 0.55;
+  return mass * level * (ex.perSide ? PER_SIDE_FACTOR : 1);
+}
+
+/**
+ * 그날 강도(1~10) → 전체에 곱하는 배수.
+ *
+ * 운동 계수가 이미 "이 운동이 얼마나 무거운가"를 담고 있으므로, 그날 강도는
+ * 조절만 한다. 그대로 곱하면 스트레칭에도 '강도 8'이 통째로 붙는다.
+ *
+ *   강도 1 → 0.5   강도 6 → 1.0   강도 10 → 1.4
+ *
+ * 안 적은 날은 1.0이다. 계수대로 했다고 보는 것이며, 예전처럼 따로 추정하는
+ * 규칙을 두지 않는다 — 운동별 강도는 이미 계수 안에 들어가 있다.
+ */
+export function intensityFactor(recorded: number | null): number {
+  if (recorded == null) return 1;
+  return 0.4 + recorded / 10;
 }
 
 /** 강도를 안 적은 날도 계산하는가를 부르는 쪽이 알 수 있게 함께 돌려준다. */
 export type TrainingDayLoad = {
-  /** 그날 부하 (분 × 강도) */
+  /** 그날 부하 — 환산 세트 (데드리프트 한 세트 = 1) */
   load: number;
-  /** 그날 실제로 쓴 시간(분) */
+  /** 그날 실제로 쓴 시간(분). 화면 표시용 */
   minutes: number;
-  /** 쓴 강도. 사용자가 적은 값이거나, 운동에서 뽑은 추정값 */
-  intensity: number;
+  /** 강도 배수를 빼고 센 환산 세트 */
+  sets: number;
+  /** 쓴 강도. 안 적었으면 null */
+  intensity: number | null;
   /** 강도를 사용자가 적었는가 */
   intensityRecorded: boolean;
   /** 세트를 안 적어 계획값으로 센 운동 수 */
@@ -76,44 +166,31 @@ export type TrainingDayLoad = {
   exerciseCount: number;
 };
 
-/**
- * 하루치 운동 부하.
- *
- * 강도를 적었으면 (총 시간 × 그 강도)다. 안 적었으면 운동마다 자기 강도를
- * 써서 더한다 — 11분짜리 데드리프트(강도 10)와 3분짜리 스트레칭(강도 2)을
- * 단순 평균 내면 둘 다 6이 되는데, 그건 어느 쪽도 아니다.
- */
+/** 하루치 운동 부하. */
 export function trainingDayLoad(
   exercises: LoggedExercise[],
   recordedIntensity: number | null
 ): TrainingDayLoad {
   let minutes = 0;
-  let weighted = 0;
+  let sets = 0;
   let estimatedCount = 0;
 
   for (const ex of exercises) {
-    const m = exerciseMinutes(ex);
-    minutes += m;
-    weighted += m * exerciseIntensityScore(ex.intensity);
+    minutes += exerciseMinutes(ex);
+    /*
+     * 세트를 안 적었으면 계획 세트로 센다. 체크했다는 것은 했다는 뜻이고,
+     * 0으로 두면 실제로 한 운동이 계산에서 사라진다.
+     */
+    const count = ex.setsDone ?? ex.sets ?? 0;
+    sets += count * setFactor(ex);
     if (ex.setsDone == null) estimatedCount++;
   }
 
-  if (minutes === 0) {
-    return {
-      load: 0,
-      minutes: 0,
-      intensity: recordedIntensity ?? 0,
-      intensityRecorded: recordedIntensity != null,
-      estimatedCount,
-      exerciseCount: exercises.length,
-    };
-  }
-
-  const intensity = recordedIntensity ?? weighted / minutes;
   return {
-    load: minutes * intensity,
+    load: sets * intensityFactor(recordedIntensity),
     minutes,
-    intensity,
+    sets,
+    intensity: recordedIntensity,
     intensityRecorded: recordedIntensity != null,
     estimatedCount,
     exerciseCount: exercises.length,
@@ -134,10 +211,9 @@ export const TRAINING_ADVICE: Record<AcwrZone, string> = {
   danger: '평소 감당하던 양을 크게 넘었습니다. 무게를 다루는 운동을 줄이고 회복에 시간을 주세요. 던지는 날이 겹치면 특히 조심하세요.',
 };
 
-/** 강도 눈금 설명 — 화면에서 "이 숫자가 뭔가요"에 그대로 쓴다. */
-export const TRAINING_INTENSITY_FALLBACK_NOTE = `강도를 안 적은 날은 운동마다 붙은 강도(${INTENSITY_LEVELS.map(
-  (l) => l.name
-).join('·')})를 시간만큼 반영해 대신 셉니다.`;
+/** 계산 방법 한 줄 — 화면의 "이 숫자가 뭔가요"에 그대로 쓴다. */
+export const TRAINING_LOAD_NOTE =
+  '운동 부하 = 세트 수 × 운동별 계수 × 그날 강도. 계수는 데드리프트 한 세트를 1로 놓고, 동원하는 근육량과 라이브러리에 붙은 강도로 정합니다.';
 
 /* ─────────────────────────── 부하 지수 ─────────────────────────── */
 

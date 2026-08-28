@@ -57,8 +57,9 @@ import {
 } from '../lib/report/theme.ts';
 import { intensityLevel } from '../lib/exercise-meta.ts';
 import {
-  exerciseIntensityScore,
   exerciseMinutes,
+  intensityFactor,
+  setFactor,
   trainingDayLoad,
 } from '../lib/training-load.ts';
 import { computeAcwr, zoneOf } from '../lib/pitch-stats.ts';
@@ -296,11 +297,67 @@ for (const minutes of WORKOUT_MINUTES_CHOICES) {
   );
 }
 
-console.log('\n[운동 부하] 실제로 한 만큼으로 세는가');
+console.log('\n[운동 부하] 무거운 운동과 가벼운 운동이 갈리는가');
 {
   /*
-   * 재료는 실제 DB 운동을 쓴다. 세트당 시간 계산이 바뀌면 여기가 먼저 깨진다.
+   * 재료는 실제 DB 운동을 쓴다. 계수 표가 바뀌면 여기가 먼저 깨진다.
    */
+  const find = (title: string) => {
+    const ex = library.find((e) => e.title === title);
+    if (!ex) throw new Error(`시험용 운동을 못 찾음: ${title}`);
+    return ex;
+  };
+  const dead = find('데드리프트');       // 다관절 · 매우 높음
+  const military = find('밀리터리 프레스'); // 다관절 · 높음
+  const lateral = find('사이드 레터럴 레이즈'); // 단관절 · 중간
+  const stretch = find('피전 포즈');       // 모빌리티 · 매우 낮음
+  /*
+   * 이 시험이 이번 개편의 이유다.
+   *
+   * 예전에는 시간(수행 + 휴식)으로 셌더니 데드리프트와 밀리터리 프레스가
+   * 똑같이 1.00이 나왔다. 둘 다 휴식이 180초라서, 라이브러리에 붙여 둔 강도가
+   * 계산에서 사라진 것이다.
+   */
+  check(
+    '강도가 다르면 부하도 다르다',
+    setFactor(dead) > setFactor(military),
+    `데드리프트(매우 높음) ${setFactor(dead).toFixed(2)} > 밀리터리 프레스(높음) ${setFactor(military).toFixed(2)}`
+  );
+  check(
+    '데드리프트 한 세트가 1.0 이다',
+    Math.abs(setFactor(dead) - 1) < 0.001,
+    '다른 값은 모두 이것에 대한 배수다'
+  );
+  check(
+    '다관절이 단관절보다 크다',
+    setFactor(military) > setFactor(lateral),
+    `밀리터리 프레스 ${setFactor(military).toFixed(2)} > 사이드 레터럴 ${setFactor(lateral).toFixed(2)}`
+  );
+  check(
+    '웨이트와 스트레칭이 확실히 갈린다',
+    setFactor(lateral) > setFactor(stretch) * 5,
+    `사이드 레터럴 ${setFactor(lateral).toFixed(2)} vs 피전 포즈 ${setFactor(stretch).toFixed(2)} (예전엔 0.41 vs 0.36)`
+  );
+  check(
+    '데드리프트와 스트레칭이 10배 넘게 벌어진다',
+    setFactor(dead) > setFactor(stretch) * 10,
+    `${(setFactor(dead) / setFactor(stretch)).toFixed(0)}배 (예전엔 2.8배)`
+  );
+
+  /*
+   * 시간은 부하 계산에서 빠졌지만 화면에는 그대로 나온다("이번 주 471분").
+   * 사람은 분을 이해하지, 환산 세트를 처음부터 이해하지는 않는다.
+   */
+  const planned = exerciseMinutes({ ...dead, setsDone: null });
+  const half = exerciseMinutes({ ...dead, setsDone: 2 });
+  check(
+    '시간도 실제 세트로 센다 (화면 표시용)',
+    planned > 0 && Math.abs(half - (planned * 2) / 3) < 0.01,
+    `계획 ${dead.sets}세트 ${planned.toFixed(1)}분 → 2세트 ${half.toFixed(1)}분`
+  );
+}
+
+{
   const find = (title: string) => {
     const ex = library.find((e) => e.title === title);
     if (!ex) throw new Error(`시험용 운동을 못 찾음: ${title}`);
@@ -309,65 +366,65 @@ console.log('\n[운동 부하] 실제로 한 만큼으로 세는가');
   const dead = find('데드리프트');
   const stretch = find('피전 포즈');
 
-  const planned = exerciseMinutes({ ...dead, setsDone: null });
-  const half = exerciseMinutes({ ...dead, setsDone: 2 });
+  const three = trainingDayLoad([{ ...dead, setsDone: 3 }], 6);
+  const two = trainingDayLoad([{ ...dead, setsDone: 2 }], 6);
   check(
     '세트를 적으면 그 세트로 센다',
-    Math.abs(half - (planned * 2) / 3) < 0.01,
-    `계획 ${dead.sets}세트 ${planned.toFixed(1)}분 → 2세트 ${half.toFixed(1)}분`
-  );
-  check(
-    '세트를 안 적으면 계획 세트로 센다',
-    planned > 0 && exerciseMinutes({ ...dead, setsDone: null }) === planned,
-    `${planned.toFixed(1)}분`
+    Math.abs(two.load - (three.load * 2) / 3) < 0.001,
+    `3세트 ${three.load.toFixed(2)} → 2세트 ${two.load.toFixed(2)}`
   );
 
-  const withIntensity = trainingDayLoad(
-    [{ ...dead, setsDone: 3 }, { ...stretch, setsDone: 3 }],
-    7
+  const noSets = trainingDayLoad([{ ...dead, setsDone: null }], 6);
+  check(
+    '세트를 안 적으면 계획 세트로 센다',
+    Math.abs(noSets.load - three.load) < 0.001 && noSets.estimatedCount === 1,
+    `계획 ${dead.sets}세트 → ${noSets.load.toFixed(2)}`
+  );
+
+  const hard = trainingDayLoad([{ ...dead, setsDone: 3 }], 10);
+  const easy = trainingDayLoad([{ ...dead, setsDone: 3 }], 1);
+  check(
+    '같은 세트라도 힘들었던 날이 더 크다',
+    hard.load > three.load && three.load > easy.load,
+    `강도 1 ${easy.load.toFixed(2)} < 6 ${three.load.toFixed(2)} < 10 ${hard.load.toFixed(2)}`
   );
   check(
-    '강도를 적으면 (총 시간 × 그 강도)',
-    Math.abs(withIntensity.load - withIntensity.minutes * 7) < 0.01,
-    `${withIntensity.minutes.toFixed(1)}분 × 7 = ${withIntensity.load.toFixed(0)}`
+    '강도는 조절만 한다 — 세 배씩 벌어지지 않는다',
+    hard.load / easy.load < 3,
+    `가장 힘든 날 ÷ 가장 가벼운 날 = ${(hard.load / easy.load).toFixed(1)}배`
+  );
+
+  const noIntensity = trainingDayLoad([{ ...dead, setsDone: 3 }], null);
+  check(
+    '강도를 안 적으면 계수대로 센다',
+    Math.abs(noIntensity.load - noIntensity.sets) < 0.001 &&
+      !noIntensity.intensityRecorded,
+    '운동별 강도는 이미 계수 안에 있어 따로 추정하지 않는다'
   );
 
   /*
-   * 강도를 안 적은 날은 운동마다 자기 강도를 쓴다.
-   *
-   * 단순 평균이 아니라 시간만큼 반영해야 한다 — 11분짜리 데드리프트(강도 10)와
-   * 4분짜리 스트레칭(강도 2)을 그냥 평균 내면 둘 다 6이 되는데, 그건 어느 쪽도
-   * 아니다. 긴 쪽으로 끌려가는 것이 맞다.
+   * 하루 전체로 봤을 때 무거운 날과 회복하는 날이 갈리는가.
+   * 예전 방식으로는 3.8배였다 — 스트레칭 다섯 개가 데드리프트 두 개에 가까웠다.
    */
-  const guessed = trainingDayLoad(
-    [{ ...dead, setsDone: 3 }, { ...stretch, setsDone: 3 }],
-    null
+  const heavy = trainingDayLoad(
+    [{ ...dead, setsDone: 3 }, { ...find('바벨 스쿼트'), setsDone: 3 }],
+    8
   );
-  const simpleAverage =
-    (exerciseIntensityScore(dead.intensity) +
-      exerciseIntensityScore(stretch.intensity)) /
-    2;
-  check(
-    '강도를 안 적으면 운동 강도로 대신 센다',
-    !guessed.intensityRecorded && guessed.load > 0,
-    `추정 강도 ${guessed.intensity.toFixed(1)}`
+  const recovery = trainingDayLoad(
+    Array.from({ length: 5 }, () => ({ ...stretch, setsDone: 3 })),
+    3
   );
   check(
-    '추정 강도는 시간이 긴 운동 쪽으로 기운다',
-    guessed.intensity > simpleAverage,
-    `단순 평균 ${simpleAverage.toFixed(1)} < 시간 반영 ${guessed.intensity.toFixed(1)}`
+    '무거운 날과 회복하는 날이 확실히 갈린다',
+    heavy.load > recovery.load * 8,
+    `하체 ${heavy.load.toFixed(1)} vs 회복 ${recovery.load.toFixed(1)} = ${(heavy.load / recovery.load).toFixed(1)}배`
   );
 
+  check('아무것도 안 한 날은 부하 0', trainingDayLoad([], 8).load === 0);
   check(
-    '세트를 안 적은 운동 수를 세어 둔다',
-    trainingDayLoad([{ ...dead, setsDone: null }, { ...stretch, setsDone: 3 }], 7)
-      .estimatedCount === 1
-  );
-
-  check(
-    '아무것도 안 한 날은 부하 0',
-    trainingDayLoad([], 8).load === 0,
-    '강도만 적어도 시간이 없으면 셀 수 없다'
+    '강도 배수는 6을 기준으로 1.0',
+    Math.abs(intensityFactor(6) - 1) < 0.001,
+    '평소처럼 했으면 계수 그대로'
   );
 }
 
@@ -383,9 +440,9 @@ console.log('\n[운동 부하] 실제로 한 만큼으로 세는가');
       new Date(TODAY.getTime() - (n - 1 - i) * 86400000).toISOString().slice(0, 10)
     );
 
-  // 40일 동안 이틀에 한 번 350씩(50분 × 강도 7) — 평소대로.
+  // 40일 동안 이틀에 한 번 6 환산 세트씩 — 평소대로.
   const steady = new Map<string, number>();
-  for (const [i, key] of dayKeys(40).entries()) steady.set(key, i % 2 === 0 ? 350 : 0);
+  for (const [i, key] of dayKeys(40).entries()) steady.set(key, i % 2 === 0 ? 6 : 0);
   const steadyAcwr = computeAcwr(steady, TODAY);
   check(
     '평소대로 운동하면 적정 구간',
@@ -393,9 +450,9 @@ console.log('\n[운동 부하] 실제로 한 만큼으로 세는가');
     `지수 ${steadyAcwr.ratio?.toFixed(2)}`
   );
 
-  // 같은 사람이 최근 일주일만 매일 700씩 — 갑자기 늘린 경우.
+  // 같은 사람이 최근 일주일만 매일 12씩 — 갑자기 늘린 경우.
   const spike = new Map(steady);
-  for (const key of dayKeys(40).slice(-7)) spike.set(key, 700);
+  for (const key of dayKeys(40).slice(-7)) spike.set(key, 12);
   const spikeAcwr = computeAcwr(spike, TODAY);
   check(
     '갑자기 늘리면 위험 구간',
@@ -403,9 +460,9 @@ console.log('\n[운동 부하] 실제로 한 만큼으로 세는가');
     `지수 ${spikeAcwr.ratio?.toFixed(2)}`
   );
 
-  // 28일이 안 쌓이면 지수를 내지 않는다(운동은 문진 기준선이 없다).
+  // 28일이 안 쌓이고 문진 기준선도 없으면 지수를 내지 않는다.
   const short = new Map<string, number>();
-  for (const key of dayKeys(10)) short.set(key, 350);
+  for (const key of dayKeys(10)) short.set(key, 6);
   const shortAcwr = computeAcwr(short, TODAY);
   check(
     '기록이 28일 미만이면 지수를 안 낸다',
@@ -440,11 +497,7 @@ console.log('\n[운동 부하] 실제로 한 만큼으로 세는가');
     { date: at(30), setsDone: 3, exercise: dead },
   ];
 
-  const built = buildTrainingLoad(
-    rows,
-    [{ date: at(1), intensity: 8 }],
-    TODAY
-  );
+  const built = buildTrainingLoad(rows, [{ date: at(1), intensity: 8 }], TODAY);
   check(
     '하루에 여러 줄이 와도 한 날로 묶는다',
     built.recentDays === 2,
@@ -596,6 +649,35 @@ console.log('\n[가입 문진] 받은 답이 실제로 쓰이는가');
     '문진의 기본 운동 시간이 트레이닝 쪽 기본값과 같다',
     DEFAULT_SESSION_MINUTES === DEFAULT_WORKOUT_MINUTES,
     `${DEFAULT_SESSION_MINUTES}분`
+  );
+
+  /*
+   * 문진 추정치가 실제 일정과 맞는가.
+   *
+   * 추정은 '분당 0.17 환산 세트'라는 상수 하나에 기대고 있다. 운동 계수 표를
+   * 손보면 실제 일정의 환산 세트가 달라지는데, 상수는 그대로 남아 조용히
+   * 어긋난다. 그래서 실제로 뽑아 보고 견준다.
+   */
+  const themed = pickForTheme({
+    candidates: library,
+    theme: 'lower',
+    minutes: 45,
+    doneIds: new Set<string>(),
+    goal: null,
+  });
+  const realSets = themed.picks.reduce(
+    (sum, x) => sum + (x.exercise.sets ?? 3) * setFactor(x.exercise),
+    0
+  );
+  const guessPerWeek = estimateTrainingDailyLoad({
+    baselineWorkoutFreq: '주 3~4회',
+    dailyWorkoutMinutes: 45,
+  })! * 7;
+  const guessPerSession = guessPerWeek / 3.5;
+  check(
+    '문진 추정치가 실제 45분 일정과 맞는다',
+    Math.abs(realSets - guessPerSession) / realSets < 0.3,
+    `실제 ${realSets.toFixed(1)} vs 추정 ${guessPerSession.toFixed(1)} 환산 세트`
   );
 }
 

@@ -314,8 +314,10 @@ export function LoadIndexHelp({
               <span className="ml-1 text-muted/60">(50구를 강도 6으로 → 300)</span>
             </p>
             <p>
-              운동 부하 <span className="text-ink">= 운동 시간(분) × 강도</span>
-              <span className="ml-1 text-muted/60">(50분을 강도 7로 → 350)</span>
+              운동 부하 <span className="text-ink">= 세트 수 × 운동 계수 × 강도</span>
+              <span className="ml-1 text-muted/60">
+                (계수는 데드리프트 한 세트를 1로 놓은 값)
+              </span>
             </p>
             <p>
               부하 지수{' '}
@@ -397,6 +399,21 @@ export function LoadIndexHelp({
           숫자 둘이 나란히 있으면 "그래서 몇이야?"가 먼저 떠오른다.
         */}
         <div>
+          <p className="font-semibold text-ink">운동 계수가 뭔가요</p>
+          <p className="mt-1.5">
+            운동 한 세트가 몸에 얼마나 요구하는지입니다. 동원하는 근육량과 그
+            운동에 붙은 강도로 정합니다 — 데드리프트 한 세트가 1이고, 사이드
+            레터럴 레이즈는 0.3, 스트레칭은 0.04입니다.
+          </p>
+          <p className="mt-1.5">
+            처음에는 시간으로 셌는데 그러면 부하의 80%가{' '}
+            <span className="text-ink">세트 사이 쉬는 시간</span>에서 나왔고,
+            휴식이 같다는 이유로 데드리프트와 밀리터리 프레스가 같은 값이
+            됐습니다. 세트로 세면 그 문제가 없습니다.
+          </p>
+        </div>
+
+        <div>
           <p className="font-semibold text-ink">왜 하나로 안 합치나요</p>
           <p className="mt-1.5">
             투구는 <span className="text-ink">투구수</span>로, 운동은{' '}
@@ -428,7 +445,7 @@ export function MetricHelp({ twoDayLimit }: { twoDayLimit: number }) {
     },
     {
       title: '이번 주 운동',
-      body: '지난 7일 중 운동을 마쳤다고 표시한 날 수입니다. 시간은 운동마다 정해진 세트당 시간(수행 + 세트 사이 휴식)에 실제로 한 세트를 곱해 더한 값이고, 세트를 안 적은 운동은 계획 세트로 셉니다.',
+      body: '지난 7일 중 운동을 마쳤다고 표시한 날 수입니다. 시간은 운동마다 정해진 세트당 시간(수행 + 세트 사이 휴식)에 실제로 한 세트를 곱해 더한 값입니다. 다만 부하 지수는 시간이 아니라 세트로 셉니다 — 위 "부하 지수가 뭔가요"를 보세요.',
     },
     {
       title: '마지막 투구',
