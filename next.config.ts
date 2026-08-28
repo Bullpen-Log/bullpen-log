@@ -14,7 +14,11 @@ const nextConfig: NextConfig = {
       // 영상분석은 투구 일지 안으로 들어갔다.
       { source: "/analysis", destination: "/pitch-log", permanent: false },
       { source: "/report", destination: "/coach", permanent: false },
-      { source: "/training", destination: "/library/training", permanent: false },
+      /*
+       * /training 은 예전에 /library/training(운동 영상)으로 보내던 자리였다.
+       * 지금은 트레이닝 화면이 실제로 거기 있으므로 그 줄을 지웠다. 남겨 두면
+       * 새 화면이 열리지 않고 영상 목록으로 튕긴다 — 실제로 그렇게 됐었다.
+       */
       { source: "/mechanics", destination: "/library/mechanics", permanent: false },
     ];
   },

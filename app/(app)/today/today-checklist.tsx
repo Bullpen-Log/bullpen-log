@@ -1,18 +1,25 @@
+import Link from 'next/link';
 import { Check, Circle, CircleDot } from 'lucide-react';
 
 /**
  * 오늘 남은 일을 한 줄로.
  *
- * 이 화면은 체크인·투구 기록·운동이 모두 들어와 길다. 스크롤을 내리기 전에
- * 무엇이 남았는지 보이지 않으면, 다 한 줄 알고 닫아버리기 쉽다.
- *
  * 기록률을 올리는 것이 이 앱에서 가장 값어치 있는 일이라(기록이 없으면 부하
  * 지수도 트레이닝도 돌지 않는다), 남은 일을 눈에 띄게 두는 것 자체가 기능이다.
+ *
+ * '운동'은 이제 트레이닝 화면에 있다. 홈에서 세 가지가 다 보여야 하는 이유가
+ * 여기 있다 — 화면을 나눈 뒤로는, 다른 화면에 남은 일이 있다는 것을 알려주지
+ * 않으면 하루가 끝난 줄 알고 닫아버린다. 그래서 눌러서 건너갈 수 있게 한다.
  */
 
-type Step =
-  | { label: string; state: 'done' | 'todo' }
-  | { label: string; state: 'partial'; detail: string };
+type Step = {
+  label: string;
+  state: 'done' | 'todo' | 'partial';
+  /** 'partial' 일 때 옆에 붙는 진행 표시 (3/8) */
+  detail?: string;
+  /** 다른 화면에 있는 일이면 건너갈 주소 */
+  href?: string;
+};
 
 function Item({ step }: { step: Step }) {
   const tone =
@@ -22,8 +29,8 @@ function Item({ step }: { step: Step }) {
         ? 'text-ink'
         : 'text-muted';
 
-  return (
-    <span className={`inline-flex items-center gap-1.5 whitespace-nowrap ${tone}`}>
+  const inner = (
+    <>
       {step.state === 'done' ? (
         <Check className="h-3.5 w-3.5" strokeWidth={3} />
       ) : step.state === 'partial' ? (
@@ -32,10 +39,18 @@ function Item({ step }: { step: Step }) {
         <Circle className="h-3.5 w-3.5" />
       )}
       {step.label}
-      {step.state === 'partial' && (
-        <span className="text-muted">{step.detail}</span>
-      )}
-    </span>
+      {step.detail && <span className="text-muted">{step.detail}</span>}
+    </>
+  );
+
+  const className = `inline-flex items-center gap-1.5 whitespace-nowrap ${tone}`;
+
+  return step.href ? (
+    <Link href={step.href} className={`${className} underline-offset-4 hover:underline`}>
+      {inner}
+    </Link>
+  ) : (
+    <span className={className}>{inner}</span>
   );
 }
 
@@ -55,15 +70,18 @@ export function TodayChecklist({
   const steps: Step[] = [
     { label: '체크인', state: checkedIn ? 'done' : 'todo' },
     { label: '투구 기록', state: recorded ? 'done' : 'todo' },
-    exerciseTotal === 0
-      ? { label: '운동', state: 'todo' }
-      : exerciseDone >= exerciseTotal
-        ? { label: '운동', state: 'done' }
-        : {
-            label: '운동',
-            state: 'partial',
-            detail: `${exerciseDone}/${exerciseTotal}`,
-          },
+    {
+      label: '운동',
+      href: '/training',
+      ...(exerciseTotal === 0
+        ? { state: 'todo' as const }
+        : exerciseDone >= exerciseTotal
+          ? { state: 'done' as const }
+          : {
+              state: 'partial' as const,
+              detail: `${exerciseDone}/${exerciseTotal}`,
+            }),
+    },
   ];
 
   const allDone = steps.every((s) => s.state === 'done');

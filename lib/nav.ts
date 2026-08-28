@@ -23,11 +23,19 @@ export type NavGroup = {
 /**
  * 큰 카테고리로 나눈다.
  *
- *   오늘 · 기록 · 분석 · 라이브러리 · 자료실 · 설정
+ *   홈 · 투구 일지 · 트레이닝 · 분석 · 라이브러리 · 자료실 · 설정
+ *
+ * 홈과 트레이닝은 '남기는 것'과 '하는 것'으로 갈랐다. 홈에서 체크인과 투구
+ * 기록을 남기고 운동 일정을 만들면, 실제 운동은 트레이닝에서 한다. 예전에는
+ * 한 화면에 다 있어서 운동 하나 체크하려고 한참 스크롤해야 했다.
+ * (일정 만들기는 양쪽에 다 있다.)
  *
  * '구속 측정'은 뺐다. 영상으로 잰 구속이 스피드건과 맞는지 확인이 끝나지
  * 않아서다. 화면은 app/(app)/_velocity 에 그대로 있고, 왜 껐는지도 거기 적어
  * 두었다.
+ *
+ * 주소는 예전 것을 그대로 쓴다(/today = 홈). 주소는 사용자에게 거의 안 보이는데
+ * 스무 군데를 고치면 어딘가 하나는 놓치게 된다.
  *
  * '투구 일지'는 기록·영상·폼 분석·느낀점을 날짜 하나로 묶은 화면이다.
  * 예전에는 '투구기록'과 '영상분석' 둘로 나뉘어 있었다.
@@ -45,10 +53,13 @@ export type NavGroup = {
  */
 export const NAV_GROUPS: NavGroup[] = [
   {
-    items: [{ href: '/today', label: '오늘', icon: '⚾' }],
+    items: [{ href: '/today', label: '홈', icon: '🏠' }],
   },
   {
-    items: [{ href: '/pitch-log', label: '기록', icon: '📅' }],
+    items: [{ href: '/pitch-log', label: '투구 일지', icon: '📅' }],
+  },
+  {
+    items: [{ href: '/training', label: '트레이닝', icon: '💪' }],
   },
   {
     items: [{ href: '/coach', label: '분석', icon: '📊' }],
@@ -56,7 +67,7 @@ export const NAV_GROUPS: NavGroup[] = [
   {
     title: '라이브러리',
     items: [
-      { href: '/library/training', label: '운동 영상', icon: '💪' },
+      { href: '/library/training', label: '운동 영상', icon: '🎬' },
       { href: '/library/mechanics', label: '투구 드릴', icon: '⚙️' },
     ],
   },
@@ -77,8 +88,9 @@ export const NAV_GROUPS: NavGroup[] = [
  * 라이브러리와 자료실은 매일 열지 않으므로 '더보기'로 보낸다.
  */
 export const MOBILE_TABS: NavItem[] = [
-  { href: '/today', label: '오늘', icon: '⚾' },
-  { href: '/pitch-log', label: '기록', icon: '📅' },
+  { href: '/today', label: '홈', icon: '🏠' },
+  { href: '/pitch-log', label: '투구 일지', icon: '📅' },
+  { href: '/training', label: '트레이닝', icon: '💪' },
   { href: '/coach', label: '분석', icon: '📊' },
   { href: '/more', label: '더보기', icon: '☰' },
 ];

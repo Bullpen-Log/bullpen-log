@@ -38,6 +38,23 @@ function dateOnly(today: Date) {
   return new Date(`${toDateKey(today)}T00:00:00.000Z`);
 }
 
+/*
+ * 일정은 홈과 트레이닝 두 곳에서 만들 수 있다. 만들고 나면 누른 화면으로
+ * 돌아와야 한다 — 트레이닝에서 눌렀는데 홈으로 튕기면 방금 만든 목록을 보러
+ * 다시 들어가야 한다.
+ *
+ * 폼이 보내온 값을 그대로 redirect 에 넘기지는 않는다. 주소를 마음대로 넣을 수
+ * 있으면 남의 사이트로 보내는 링크를 만들 수 있다. 아는 곳만 허용한다.
+ */
+const RETURN_TO = ['/today', '/training'] as const;
+
+function returnPath(formData: FormData): (typeof RETURN_TO)[number] {
+  const asked = String(formData.get('returnTo') ?? '');
+  return (RETURN_TO as readonly string[]).includes(asked)
+    ? (asked as (typeof RETURN_TO)[number])
+    : '/today';
+}
+
 /**
  * 경력·목표·가지고 있는 장비를 저장한다.
  *
@@ -57,8 +74,10 @@ export async function saveTrainingSettings(formData: FormData) {
     data: readTrainingProfile(formData),
   });
 
+  const back = returnPath(formData);
   revalidatePath('/today');
-  redirect('/today');
+  revalidatePath('/training');
+  redirect(back);
 }
 
 /**
@@ -147,6 +166,8 @@ export async function generateTodayPlan(formData: FormData) {
     });
   }
 
+  const back = returnPath(formData);
   revalidatePath('/today');
-  redirect('/today');
+  revalidatePath('/training');
+  redirect(back);
 }

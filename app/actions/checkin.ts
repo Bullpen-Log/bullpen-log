@@ -69,5 +69,6 @@ async function trySaveCheckin(formData: FormData): Promise<CheckinState> {
   revalidatePath('/dashboard');
   // 통증·뻐근함은 오늘의 운동 후보를 바꾼다.
   revalidatePath('/today');
+  revalidatePath('/training');
   return { success: '오늘 체크인을 저장했습니다.' };
 }

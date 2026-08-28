@@ -31,7 +31,7 @@ export type TodayExercise = {
  * 저장이 끝나기 전에 화면을 먼저 바꿔 손맛을 살리고,
  * 실패하면 원래대로 되돌리며 이유를 알린다.
  */
-export function TodayList({ exercises }: { exercises: TodayExercise[] }) {
+export function ExerciseChecklist({ exercises }: { exercises: TodayExercise[] }) {
   const [items, setItems] = useState(exercises);
   const [error, setError] = useState<string>();
   const [, startTransition] = useTransition();

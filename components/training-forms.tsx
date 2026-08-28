@@ -13,13 +13,14 @@ import {
 import { WORKOUT_MINUTES_CHOICES } from '@/lib/report/theme';
 
 /**
- * 트레이닝 화면의 설정.
+ * 트레이닝 설정과 일정 만들기 폼.
  *
- * 고르는 곳을 결과 옆에 둔다. 예전에는 프로필에 있었는데, 정작 결과를 보는 곳은
- * 여기라서 "왜 이 운동이지?" 싶을 때마다 다른 화면으로 건너가야 했다.
+ * 홈과 트레이닝 두 화면이 함께 쓴다. 홈에서는 "오늘 것을 만든다", 트레이닝에서는
+ * "조건을 바꿔 다시 만든다"로 쓰임이 다르지만 폼은 같다. 그래서 화면 폴더가 아니라
+ * components 에 둔다.
  *
  * 두 덩이로 나눠 놓았다.
- *   경력·목표·가진 장비 — 어쩌다 한 번 고치므로 맨 위에 접어 둔다
+ *   경력·목표·가진 장비 — 어쩌다 한 번 고치므로 접어 둔다
  *   오늘 시간·장비    — 일정을 만들 때마다 고르므로 만들기 버튼과 한 폼에 둔다
  */
 
@@ -52,6 +53,7 @@ export function PlanForm({
   minutes,
   defaultMinutes,
   generated,
+  returnTo,
 }: {
   /** 가지고 있는 장비 (맨몸 포함) */
   owned: string[];
@@ -63,6 +65,8 @@ export function PlanForm({
   defaultMinutes: number;
   /** 오늘 일정을 이미 만들었는가 */
   generated: boolean;
+  /** 만들고 나서 돌아올 화면. 홈과 트레이닝 두 곳에서 쓴다. */
+  returnTo: '/today' | '/training';
 }) {
   /*
    * 이미 만든 날에는 접어 둔다. 다 만들어 놓고도 만들기 폼이 계속 펼쳐져 있으면
@@ -89,6 +93,7 @@ export function PlanForm({
 
   return (
     <form action={generateTodayPlan} className="space-y-4">
+      <input type="hidden" name="returnTo" value={returnTo} />
       <RadioGroup
         name="minutes"
         label="오늘 운동 시간"
@@ -140,10 +145,13 @@ export function TrainingSettings({
   trainingLevel,
   trainingGoal,
   ownedEquipment,
+  returnTo,
 }: {
   trainingLevel: string | null;
   trainingGoal: string | null;
   ownedEquipment: string[];
+  /** 저장하고 나서 돌아올 화면 */
+  returnTo: '/today' | '/training';
 }) {
   const [open, setOpen] = useState(false);
 
@@ -183,6 +191,7 @@ export function TrainingSettings({
 
       {open && (
         <form action={saveTrainingSettings} className="mt-4 space-y-5">
+          <input type="hidden" name="returnTo" value={returnTo} />
           <RadioGroup
             name="trainingLevel"
             label="웨이트 트레이닝 경력"
