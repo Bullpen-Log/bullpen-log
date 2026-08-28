@@ -1,4 +1,4 @@
-import { isCompound, minutesForSets } from '../lib/exercise-meta.ts';
+import { isCompound } from '../lib/exercise-meta.ts';
 
 /**
  * 세트·횟수·휴식을 정하는 규칙.
