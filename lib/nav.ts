@@ -21,9 +21,13 @@ export type NavGroup = {
 };
 
 /**
- * 큰 카테고리 여섯 개로 나눈다.
+ * 큰 카테고리로 나눈다.
  *
- *   홈 · 투구 일지 · 리포트 · 트레이닝 · 라이브러리 · 자료실
+ *   오늘 · 기록 · 분석 · 라이브러리 · 자료실 · 설정
+ *
+ * '구속 측정'은 뺐다. 영상으로 잰 구속이 스피드건과 맞는지 확인이 끝나지
+ * 않아서다. 화면은 app/(app)/_velocity 에 그대로 있고, 왜 껐는지도 거기 적어
+ * 두었다.
  *
  * '투구 일지'는 기록·영상·폼 분석·느낀점을 날짜 하나로 묶은 화면이다.
  * 예전에는 '투구기록'과 '영상분석' 둘로 나뉘어 있었다.
@@ -45,9 +49,6 @@ export const NAV_GROUPS: NavGroup[] = [
   },
   {
     items: [{ href: '/pitch-log', label: '기록', icon: '📅' }],
-  },
-  {
-    items: [{ href: '/velocity', label: '구속 측정', icon: '📡' }],
   },
   {
     items: [{ href: '/coach', label: '분석', icon: '📊' }],
@@ -72,14 +73,13 @@ export const NAV_GROUPS: NavGroup[] = [
 ];
 
 /**
- * 모바일 하단 탭 — 매일 쓰는 4개 + 더보기.
+ * 모바일 하단 탭 — 매일 쓰는 것 + 더보기.
  * 라이브러리와 자료실은 매일 열지 않으므로 '더보기'로 보낸다.
  */
 export const MOBILE_TABS: NavItem[] = [
   { href: '/today', label: '오늘', icon: '⚾' },
   { href: '/pitch-log', label: '기록', icon: '📅' },
   { href: '/coach', label: '분석', icon: '📊' },
-  { href: '/velocity', label: '구속', icon: '📡' },
   { href: '/more', label: '더보기', icon: '☰' },
 ];
 
