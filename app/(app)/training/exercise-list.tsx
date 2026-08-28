@@ -28,6 +28,17 @@ export type TodayExercise = {
   manual: boolean;
   /** 지금 몸 상태 기준으로는 권하지 않는 운동인가 */
   unsafe: boolean;
+  /**
+   * 이 운동이 시간형(버티기)인가.
+   *
+   * 횟수를 적을지 초를 적을지가 달라진다. 30초 플랭크에 "몇 회 했나요"를
+   * 물으면 답할 수가 없다.
+   */
+  isHold: boolean;
+  /** 실제로 한 만큼. 아직 안 적었으면 빈 문자열 */
+  doneSets: string;
+  doneReps: string;
+  doneHoldSeconds: string;
 };
 
 /**
@@ -35,6 +46,12 @@ export type TodayExercise = {
  *
  * 저장이 끝나기 전에 화면을 먼저 바꿔 손맛을 살리고,
  * 실패하면 원래대로 되돌리며 이유를 알린다.
+ *
+ * 완료로 표시하면 "실제로 몇 세트 몇 회 했는지" 적는 칸이 열린다. 계획값을
+ * 미리 채워 두지 않는다 — 눌러서 넘어가기는 편하지만, 실제로 한 것과 다른
+ * 숫자가 그대로 저장된다. 그 숫자로 운동 부하를 계산하므로 편한 것보다 맞는
+ * 것이 먼저다. 안 적어도 되고, 그러면 '한 것은 맞지만 얼마나 했는지는 모름'이
+ * 된다.
  */
 export function ExerciseChecklist({
   exercises,
@@ -47,6 +64,33 @@ export function ExerciseChecklist({
   const [items, setItems] = useState(exercises);
   const [error, setError] = useState<string>();
   const [, startTransition] = useTransition();
+
+  /**
+   * 실제로 한 만큼을 적는 칸의 값.
+   *
+   * 저장은 칸에서 손을 뗄 때(blur) 한다. 한 글자마다 저장하면 '1'을 치는
+   * 순간 1세트로 저장됐다가 '10'으로 고쳐지는데, 그 사이에 화면을 닫으면
+   * 틀린 값이 남는다.
+   */
+  const setAmount = (id: string, field: 'doneSets' | 'doneReps' | 'doneHoldSeconds', value: string) => {
+    // 숫자만 받는다. 붙여넣기로 들어온 글자도 여기서 걸린다.
+    const digits = value.replace(/[^0-9]/g, '').slice(0, 3);
+    setItems((prev) => prev.map((e) => (e.id === id ? { ...e, [field]: digits } : e)));
+  };
+
+  const saveAmount = (id: string) => {
+    const target = items.find((e) => e.id === id);
+    if (!target || !target.done) return;
+    setError(undefined);
+    startTransition(async () => {
+      const res = await setExerciseDone(id, true, {
+        sets: target.doneSets,
+        reps: target.isHold ? '' : target.doneReps,
+        holdSeconds: target.isHold ? target.doneHoldSeconds : '',
+      });
+      if ('error' in res) setError(res.error);
+    });
+  };
 
   /*
    * 화면이 새로 그려지기 전에는 부모가 준 목록이 그대로라, 여기서 지운 것을
@@ -84,7 +128,19 @@ export function ExerciseChecklist({
     if (!target) return;
     const next = !target.done;
 
-    setItems((prev) => prev.map((e) => (e.id === id ? { ...e, done: next } : e)));
+    /*
+     * 완료를 풀면 적어 둔 세트·횟수도 지운다. 서버에서도 줄째로 지우므로,
+     * 화면에만 남겨두면 다시 체크했을 때 저장되지 않은 숫자가 보인다.
+     */
+    setItems((prev) =>
+      prev.map((e) =>
+        e.id === id
+          ? next
+            ? { ...e, done: true }
+            : { ...e, done: false, doneSets: '', doneReps: '', doneHoldSeconds: '' }
+          : e
+      )
+    );
     setError(undefined);
 
     startTransition(async () => {
@@ -138,7 +194,13 @@ export function ExerciseChecklist({
               <h2 className="text-sm font-bold text-ink">{label}</h2>
               <span className="text-xs text-muted">{hint}</span>
             </div>
-            <ExerciseList items={group} onToggle={toggle} onRemove={remove} />
+            <ExerciseList
+              items={group}
+              onToggle={toggle}
+              onRemove={remove}
+              onAmountChange={setAmount}
+              onAmountBlur={saveAmount}
+            />
           </section>
         );
       })}
@@ -148,14 +210,53 @@ export function ExerciseChecklist({
   );
 }
 
+/** 실제로 한 만큼을 적는 작은 칸 하나 */
+function AmountInput({
+  value,
+  unit,
+  label,
+  onChange,
+  onBlur,
+}: {
+  value: string;
+  unit: string;
+  label: string;
+  onChange: (value: string) => void;
+  onBlur: () => void;
+}) {
+  return (
+    <label className="inline-flex items-center gap-1 text-xs text-muted">
+      <input
+        type="text"
+        inputMode="numeric"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        onBlur={onBlur}
+        aria-label={label}
+        placeholder="—"
+        className="w-11 rounded-lg border border-line bg-surface px-2 py-1 text-center text-sm font-semibold text-ink outline-none transition-colors placeholder:font-normal placeholder:text-muted/50 focus:border-sky"
+      />
+      {unit}
+    </label>
+  );
+}
+
 function ExerciseList({
   items,
   onToggle,
   onRemove,
+  onAmountChange,
+  onAmountBlur,
 }: {
   items: TodayExercise[];
   onToggle: (id: string) => void;
   onRemove: (id: string) => void;
+  onAmountChange: (
+    id: string,
+    field: 'doneSets' | 'doneReps' | 'doneHoldSeconds',
+    value: string
+  ) => void;
+  onAmountBlur: (id: string) => void;
 }) {
   return (
     <ul className="space-y-2.5">
@@ -165,14 +266,17 @@ function ExerciseList({
             두고, 완료 쪽이 남은 자리를 다 쓰게 한다.
           */
           <li key={ex.id} className="flex items-stretch gap-2">
+            <div
+              className={`flex min-w-0 flex-1 flex-col rounded-2xl border transition-colors ${
+                ex.done ? 'border-sky bg-sky-tint' : 'border-line bg-surface'
+              }`}
+            >
             <button
               type="button"
               onClick={() => onToggle(ex.id)}
               aria-pressed={ex.done}
-              className={`flex min-w-0 flex-1 items-start gap-3 rounded-2xl border px-4 py-4 text-left transition-colors ${
-                ex.done
-                  ? 'border-sky bg-sky-tint'
-                  : 'border-line bg-surface hover:border-sky-soft'
+              className={`flex w-full items-start gap-3 rounded-2xl px-4 py-4 text-left transition-colors ${
+                ex.done ? '' : 'hover:bg-surface-2'
               }`}
             >
               <span
@@ -241,6 +345,47 @@ function ExerciseList({
                 />
               )}
             </button>
+
+            {/*
+              실제로 한 만큼.
+
+              완료 단추 안에 넣을 수는 없다(단추 안의 입력칸은 누를 수가 없다).
+              같은 테두리 안에 아래 줄로 붙여 한 덩어리로 보이게 한다.
+            */}
+            {ex.done && (
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-2 border-t border-sky-soft/50 px-4 py-2.5">
+                <span className="text-xs font-medium text-sky-strong">실제로 한 것</span>
+                <AmountInput
+                  value={ex.doneSets}
+                  unit="세트"
+                  label={`${ex.title} 실제로 한 세트 수`}
+                  onChange={(v) => onAmountChange(ex.id, 'doneSets', v)}
+                  onBlur={() => onAmountBlur(ex.id)}
+                />
+                <span aria-hidden className="text-xs text-muted">
+                  ×
+                </span>
+                {ex.isHold ? (
+                  <AmountInput
+                    value={ex.doneHoldSeconds}
+                    unit="초"
+                    label={`${ex.title} 세트당 실제로 버틴 시간(초)`}
+                    onChange={(v) => onAmountChange(ex.id, 'doneHoldSeconds', v)}
+                    onBlur={() => onAmountBlur(ex.id)}
+                  />
+                ) : (
+                  <AmountInput
+                    value={ex.doneReps}
+                    unit="회"
+                    label={`${ex.title} 세트당 실제로 한 횟수`}
+                    onChange={(v) => onAmountChange(ex.id, 'doneReps', v)}
+                    onBlur={() => onAmountBlur(ex.id)}
+                  />
+                )}
+                <span className="text-[11px] text-muted">안 적어도 됩니다</span>
+              </div>
+            )}
+            </div>
 
             <button
               type="button"

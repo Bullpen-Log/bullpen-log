@@ -13,6 +13,7 @@ import { PlanForm } from '@/components/training-forms';
 import type { AiReportBody } from '@/lib/ai/report-prompt';
 import { ExerciseChecklist, type TodayExercise } from './exercise-list';
 import { AddExercise, type PickableExercise } from './add-exercise';
+import { TrainingNote } from './training-note';
 
 /**
  * 트레이닝 — 오늘 할 운동.
@@ -44,10 +45,17 @@ export default async function TrainingPage() {
    * 여기서 AI를 새로 부르지는 않는다 — 저장된 것을 읽을 뿐이라 화면을 열
    * 때마다 돈이 나가지 않는다.
    */
-  const todayReport = await prisma.aiReport.findUnique({
-    where: { userId_asOf: { userId: user.id, asOf: core.midnight } },
-    select: { halted: true, body: true },
-  });
+  const [todayReport, trainingNote] = await Promise.all([
+    prisma.aiReport.findUnique({
+      where: { userId_asOf: { userId: user.id, asOf: core.midnight } },
+      select: { halted: true, body: true },
+    }),
+    /* 오늘 운동이 어땠는지 — 하루에 하나. 목록 아래에 적는다. */
+    prisma.dailyTrainingNote.findUnique({
+      where: { userId_date: { userId: user.id, date: core.midnight } },
+      select: { intensity: true, memo: true },
+    }),
+  ]);
 
   /*
    * 리포트를 만든 뒤에 통증을 입력했다면 처방이 멈춘다.
@@ -117,6 +125,16 @@ export default async function TrainingPage() {
      * 통과 못 하는 것은 이미 목록에서 빠진 뒤다.
      */
     unsafe,
+    /*
+     * 시간형(버티기)이면 횟수 대신 초를 적게 한다. 30초 플랭크에
+     * "몇 회 했나요"를 물으면 답할 수가 없다.
+     */
+    isHold: ex.holdSeconds != null,
+    // 적어 둔 값이 있으면 그대로 보여준다. 없으면 빈칸 — 미리 채우지 않는다.
+    doneSets: core.doneAmounts.get(ex.id)?.setsDone?.toString() ?? '',
+    doneReps: core.doneAmounts.get(ex.id)?.repsDone?.toString() ?? '',
+    doneHoldSeconds:
+      core.doneAmounts.get(ex.id)?.holdSecondsDone?.toString() ?? '',
   }));
 
   /*
@@ -298,6 +316,17 @@ export default async function TrainingPage() {
               ownedEquipment={user.ownedEquipment}
             />
           </ExerciseChecklist>
+
+          {/*
+            오늘 운동이 어땠는지 — 하루에 하나.
+            목록을 다 지나온 자리에 둔다. 운동을 하기 전에 "얼마나 힘들었나"를
+            물으면 답할 것이 없다.
+          */}
+          <TrainingNote
+            intensity={trainingNote?.intensity ?? null}
+            memo={trainingNote?.memo ?? null}
+            done={exercises.some((ex) => ex.done)}
+          />
 
           {/* 후보가 빠듯하면 숨기지 않고 알린다. */}
           {picked.tooFew && (

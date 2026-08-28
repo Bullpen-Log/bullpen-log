@@ -78,7 +78,12 @@ export async function loadTodayCore(user: UserForToday, today: Date) {
     }),
     prisma.userExerciseLog.findMany({
       where: { userId: user.id, date: midnight, completed: true },
-      select: { exerciseId: true },
+      select: {
+        exerciseId: true,
+        setsDone: true,
+        repsDone: true,
+        holdSecondsDone: true,
+      },
     }),
     /*
      * 오늘 쓸 수 있는 장비와 오늘 만들어 둔 일정.
@@ -162,6 +167,8 @@ export async function loadTodayCore(user: UserForToday, today: Date) {
    *                   빼면 방금 넣은 운동이 사라지는 셈이라, 대신 표시만 한다.
    */
   const doneIds = new Set(doneLogs.map((d) => d.exerciseId));
+  /** 운동별로 실제 얼마나 했는지 — 화면의 입력칸을 채운다 */
+  const doneAmounts = new Map(doneLogs.map((d) => [d.exerciseId, d]));
   const safeIds = new Set(picked.candidates.map((ex) => ex.id));
   const shownPicks = (savedPlan?.picks ?? [])
     .filter(
@@ -192,6 +199,7 @@ export async function loadTodayCore(user: UserForToday, today: Date) {
     savedPlan,
     picked,
     doneIds,
+    doneAmounts,
     /** 오늘 실제로 보여줄 운동 (안전 재확인을 통과했거나 이미 마친 것) */
     shownPicks,
     /** 일정을 만든 뒤 몸 상태가 바뀌어 빠진 개수 */
