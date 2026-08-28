@@ -1,10 +1,7 @@
 import Link from 'next/link';
 import { UserCog } from 'lucide-react';
-import { ageFromBirthDate } from '@/lib/profile';
 import { estimateDailyLoad } from '@/lib/baseline';
 import {
-  ACWR_TARGET_MAX,
-  ACWR_ZONES,
   CHRONIC_WINDOW_DAYS,
   TWO_DAY_INTENSITY_LIMIT,
   buildDateRange,
@@ -14,7 +11,6 @@ import {
   countMissingDays,
   countSessionTypes,
   dailyLoad,
-  describeRatio,
   findFatigueWindows,
   formatShortDate,
   groupByDay,
@@ -24,29 +20,28 @@ import {
   toDateKey,
 } from '@/lib/pitch-stats';
 import { buildVelocityStats } from '@/lib/velocity';
+import { TRAINING_ADVICE, type TrainingLoad } from '@/lib/training-load';
+import { ACWR_ZONES } from '@/lib/pitch-stats';
 import { TrendChart, type TrendPoint } from './trend-chart';
-import { VelocityCard } from './velocity-card';
-import {
-  Delta,
-  LoadIndexHelp,
-  MetricHelp,
-  StatCard,
-  StatusChip,
-  TONE,
-  WeekStrip,
-  ZoneGauge,
-  type Tone,
-} from './parts';
+import { LoadPanel, type LoadView } from './load-panel';
+import { Delta, MetricHelp, StatCard, TONE, type Tone } from './parts';
 
 /**
  * 분석 화면 윗부분 — 지금 몸이 어떤 상태인지.
  *
- * 예전에는 홈(대시보드)에 있었다. 그런데 홈은 입력(체크인)과 출력(부하·추이)이
- * 섞여 있었고, 정작 매일 해야 하는 기록은 다른 화면에 있었다. 그래서 하는 일
- * 기준으로 나눴다 — 오늘 할 일은 트레이닝 화면에, 돌아보는 것은 여기에.
+ * 예전에는 여기에 프로필 카드(이름·나이·키·최근 7일 막대·누적 건수)와 구속
+ * 카드가 따로 있었고, 그 밑에 지표 넷과 차트가 또 있었다. 구속만 세 군데에
+ * 나왔다. 볼 것이 많으면 아무것도 안 보이는 셈이라, 하나만 크게 두고 나머지는
+ * 뒷받침으로 내렸다.
  *
- * 아래에 이어지는 리포트(기간별 정리와 코멘트)와 같은 자료를 쓰므로 두 부분이
- * 서로 다른 말을 하지 않는다.
+ *   지금 조심할 것 — 투구·운동 부하 지수 (걱정스러운 쪽이 크게)
+ *   뒷받침 넷      — 이번 주 투구 / 이번 주 운동 / 마지막 투구 / 최고 구속
+ *   28일 추이
+ *
+ * 프로필 카드는 뺐다. 이름과 나이는 이 화면을 열 때 알고 싶은 것이 아니다.
+ * 구속 카드도 뺐다 — 스피드건이 없는 사용자가 대부분이라 크게 둘 값이 아니다.
+ *
+ * 아래에 이어지는 리포트와 같은 자료를 쓰므로 두 부분이 서로 다른 말을 하지 않는다.
  */
 
 /** 직전 기간 대비 변화율(%). 견줄 것이 없으면 null */
@@ -85,12 +80,15 @@ export type OverviewUser = {
 
 export function StatsOverview({
   logs,
+  training,
   user,
   today,
   totalRecords,
 }: {
   /** 전체 기록. 개인 최고 구속은 최근 몇 주 안에만 있는 것이 아니다. */
   logs: OverviewLog[];
+  /** 운동 부하. 투구와 합치지 않고 나란히 둔다. */
+  training: TrainingLoad;
   user: OverviewUser;
   today: Date;
   /** 기록이 하나라도 있는지 판단할 전체 건수 */
@@ -124,7 +122,6 @@ export function StatsOverview({
   );
   const streak = longestThrowStreak(byDay, last28);
 
-  const age = user.birthDate ? ageFromBirthDate(user.birthDate, today) : null;
   const lastThrowKey = [...byDay.keys()].sort().at(-1);
   const restDays = lastThrowKey ? daysSince(lastThrowKey, todayKey) : null;
 
@@ -147,231 +144,73 @@ export function StatsOverview({
   });
 
   const hasRecords = totalRecords > 0;
-  const zone = acwr.zone ? ACWR_ZONES[acwr.zone] : null;
   /*
    * 최근 28일 중 기록이 아예 없는 날.
    * 쉰 날을 '휴식'으로 적어 둔 것은 여기 들어가지 않는다 — 그건 진짜 0이다.
    */
   const missingDays = countMissingDays(byDay, last28);
 
-  const intensityTone: Tone =
-    current.peakIntensity >= 9 ? 'warn' : current.activeDays > 0 ? 'good' : 'neutral';
   const restTone: Tone =
     restDays == null ? 'neutral' : restDays === 0 ? 'warn' : restDays >= 7 ? 'info' : 'good';
 
+  /*
+   * 부하 지수 둘. 합치지 않고 나란히 둔다 —
+   * 투구는 '투구수 × 강도', 운동은 '분 × 강도'라 단위가 다르다.
+   */
+  const pitchingView: LoadView = {
+    name: '투구',
+    what: '지금 던지는 양이 평소보다 얼마나 많은지',
+    ratio: acwr.ratio,
+    zone: acwr.zone,
+    historyDays: acwr.historyDays,
+    daysNeeded: acwr.daysNeeded,
+    estimated: acwr.estimated,
+    realWeight: acwr.realWeight,
+    acute: acwr.acute,
+    chronic: acwr.chronic,
+    advice: acwr.zone ? ACWR_ZONES[acwr.zone].advice : '',
+    hasRecords,
+    emptyHint: hasRecords
+      ? '지수는 최근 부하를 평소 부하와 견주는 값입니다. 비교할 기준이 아직 없습니다.'
+      : '투구를 기록하면 이곳에 부하 지수가 표시됩니다.',
+  };
+  const trainingView: LoadView = {
+    name: '운동',
+    what: '지금 하는 운동량이 평소보다 얼마나 많은지',
+    ratio: training.ratio,
+    zone: training.zone,
+    historyDays: training.historyDays,
+    daysNeeded: training.daysNeeded,
+    estimated: training.estimated,
+    realWeight: training.realWeight,
+    acute: training.acute,
+    chronic: training.chronic,
+    advice: training.zone ? TRAINING_ADVICE[training.zone] : '',
+    hasRecords: training.historyDays > 0,
+    /*
+     * 운동에는 문진 기준선이 없어 28일이 쌓여야 지수가 나온다.
+     * 투구처럼 "문진 채우고 바로 보기" 길이 없으므로 그렇게 말하지 않는다.
+     */
+    emptyHint:
+      training.historyDays > 0
+        ? '평소 운동량과 견줄 기준이 아직 없습니다. 계속 기록하면 나옵니다.'
+        : '트레이닝에서 운동을 마쳤다고 표시하면 여기에 나옵니다.',
+  };
+
   return (
     <div className="space-y-6">
-      {/* ── 프로필 + 현재 부하 지수 ─────────────────────────── */}
-      <section className="bg-spotlight overflow-hidden rounded-3xl border border-line">
-        <div className="grid gap-px bg-line lg:grid-cols-[1fr_minmax(0,420px)]">
-          {/* 선수 정보 */}
-          <div className="flex flex-col justify-between gap-7 bg-surface/80 px-6 py-8 sm:px-8 sm:py-9">
-            <div className="flex items-center gap-4">
-              <span className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl border border-sky-soft/50 bg-sky/10 text-2xl font-bold text-sky">
-                {user.nickname.slice(0, 1)}
-              </span>
-              <div className="min-w-0">
-                <p className="truncate text-xl font-bold text-ink">
-                  {user.nickname}
-                </p>
-                <p className="mt-1 text-sm text-muted">
-                  {[
-                    age != null ? `만 ${age}세` : null,
-                    user.heightCm ? `${user.heightCm}cm` : null,
-                  ]
-                    .filter(Boolean)
-                    .join(' · ') || (
-                    <Link href="/profile" className="text-sky hover:underline">
-                      신체 정보 입력하기 →
-                    </Link>
-                  )}
-                </p>
-              </div>
-            </div>
+      {/* ── 지금 조심할 것 ──────────────────────────────────── */}
+      <LoadPanel
+        pitching={pitchingView}
+        training={trainingView}
+        missingDays={missingDays}
+        missingWarningAt={MISSING_DAYS_WARNING}
+      />
 
-            <WeekStrip
-              bars={last7.map((key) => ({
-                label: formatShortDate(key),
-                pitches: byDay.get(key)?.pitchCount ?? 0,
-              }))}
-            />
-
-            <dl className="grid grid-cols-3 gap-4 border-t border-line pt-6">
-              {[
-                {
-                  label: '개인 최고',
-                  value: velocity.best ?? '—',
-                  unit: 'km/h',
-                },
-                { label: '최근 7일', value: current.totalPitches, unit: '구' },
-                { label: '누적 기록', value: totalRecords, unit: '건' },
-              ].map((s) => (
-                <div key={s.label}>
-                  <dt className="text-[10px] uppercase tracking-[0.18em] text-muted">
-                    {s.label}
-                  </dt>
-                  {/* 단위까지 디스플레이 글꼴이 되지 않게 숫자에만 적용한다. */}
-                  <dd className="mt-2 flex items-baseline gap-1">
-                    <span className="text-display text-2xl leading-none text-ink tabular-nums">
-                      {s.value}
-                    </span>
-                    <span className="text-[11px] text-muted">{s.unit}</span>
-                  </dd>
-                </div>
-              ))}
-            </dl>
-          </div>
-
-          {/* 현재 부하 지수 */}
-          <div className="flex flex-col justify-center gap-4 bg-surface px-6 py-7 sm:px-8">
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-muted">
-                  현재 부하 지수
-                </p>
-                {/* 숫자만으로는 뜻을 알 수 없어 한 줄로 먼저 설명한다. */}
-                <p className="mt-1 text-[11px] leading-relaxed text-muted/70">
-                  지금 던지는 양이 평소보다 얼마나 많은지
-                </p>
-              </div>
-              {zone ? (
-                <StatusChip tone={zone.tone}>{zone.label}</StatusChip>
-              ) : (
-                <StatusChip tone="neutral">데이터 쌓는 중</StatusChip>
-              )}
-            </div>
-
-            {acwr.ratio != null && acwr.zone && zone ? (
-              <>
-                <div>
-                  <p className="flex items-baseline gap-2">
-                    <span
-                      className={`text-display text-5xl leading-none tabular-nums sm:text-6xl ${TONE[zone.tone].text}`}
-                    >
-                      {acwr.ratio.toFixed(2)}
-                    </span>
-                    <span className="text-sm text-muted">
-                      / {ACWR_TARGET_MAX.toFixed(2)} 이하 권장
-                    </span>
-                  </p>
-                  {/* 배수를 일상어로 바꿔 바로 읽히게 한다. */}
-                  <p className={`mt-1.5 text-sm font-medium ${TONE[zone.tone].text}`}>
-                    {describeRatio(acwr.ratio)}
-                    <span className="ml-1.5 font-normal text-muted">
-                      · {zone.meaning}
-                    </span>
-                  </p>
-                  {/*
-                    기록이 빠진 날이 많으면 지수가 실제보다 낮게 나온다.
-                    낮은 숫자는 "더 던져도 된다"는 뜻으로 읽히므로 그냥 두면 안 된다.
-                  */}
-                  {missingDays >= MISSING_DAYS_WARNING && (
-                    <p className="mt-2 rounded-lg border border-warn-line bg-warn-bg px-3 py-2 text-[11px] leading-relaxed text-warn">
-                      최근 {CHRONIC_WINDOW_DAYS}일 중 <strong>{missingDays}일</strong>은
-                      기록이 없어 안 던진 날로 계산했습니다. 실제로 던진 날이 있으면{' '}
-                      <Link href="/pitch-log" className="underline">
-                        기록
-                      </Link>
-                      에서 추가해주세요. 지수가 실제보다 낮게 나오고 있을 수 있습니다.
-                    </p>
-                  )}
-
-                  {/* 문진 추정치가 섞여 있는 동안에는 그 사실을 숨기지 않는다. */}
-                  {acwr.estimated && (
-                    <p className="mt-2 inline-flex items-center gap-1.5 rounded-full border border-line-strong bg-surface-2 px-2.5 py-1 text-[11px] text-muted">
-                      문진 추정 기준 · 실측 반영 {Math.round(acwr.realWeight * 100)}%
-                      <span className="text-muted/60">— 기록할수록 정확해집니다</span>
-                    </p>
-                  )}
-                </div>
-
-                <ZoneGauge ratio={acwr.ratio} activeZone={acwr.zone} />
-
-                <p className="text-xs leading-relaxed text-muted">{zone.advice}</p>
-
-                <LoadIndexHelp
-                  acute={acwr.acute}
-                  chronic={acwr.chronic}
-                  activeZone={acwr.zone}
-                />
-              </>
-            ) : (
-              <>
-                {/*
-                  지수 자리에 다른 숫자를 크게 띄우면 그게 지수로 읽힌다.
-                  그래서 여기서는 "아직 없음"을 분명히 하고,
-                  지금 계산되는 원값은 아래에 따로 작게 둔다.
-                */}
-                <div className="rounded-xl border border-dashed border-line bg-surface-2/40 px-4 py-4">
-                  <p className="text-sm font-medium text-ink">
-                    {hasRecords ? '아직 지수를 낼 수 없습니다' : '기록을 남기면 표시됩니다'}
-                  </p>
-
-                  {hasRecords && (
-                    <div className="mt-3 space-y-1.5">
-                      <div className="h-1.5 overflow-hidden rounded-full bg-surface">
-                        <div
-                          className="h-full rounded-full bg-sky/60"
-                          style={{
-                            width: `${Math.min(100, (acwr.historyDays / CHRONIC_WINDOW_DAYS) * 100)}%`,
-                          }}
-                        />
-                      </div>
-                      <p className="text-[11px] tabular-nums text-muted/70">
-                        기록 {acwr.historyDays}일 / {CHRONIC_WINDOW_DAYS}일 ·{' '}
-                        {acwr.daysNeeded}일 더 필요
-                      </p>
-                    </div>
-                  )}
-
-                  <p className="mt-3 text-xs leading-relaxed text-muted">
-                    {hasRecords
-                      ? '지수는 최근 부하를 평소 부하와 견주는 값입니다. 비교할 기준이 아직 없습니다.'
-                      : '투구를 기록하면 이곳에 부하 지수가 표시됩니다.'}
-                  </p>
-
-                  {/* 문진만 채우면 기다릴 필요가 없다는 걸 알려준다. */}
-                  {seedDailyLoad == null && (
-                    <Link
-                      href="/profile"
-                      className="mt-3 inline-flex items-center gap-1.5 rounded-lg border border-sky-soft/60 bg-sky/10 px-3 py-2 text-xs font-medium text-sky transition-colors hover:bg-sky/20"
-                    >
-                      평소 투구량 3문항 입력하고 바로 보기 →
-                    </Link>
-                  )}
-                </div>
-
-                {/* 지금 계산되는 값 — 지수와 헷갈리지 않게 작게, 이름을 붙여서 */}
-                <div className="flex items-end justify-between gap-3 border-t border-line pt-3">
-                  <div className="min-w-0">
-                    <p className="text-[11px] text-ink">
-                      최근 7일 부하
-                      <span className="ml-1.5 text-muted/60">(지수 아님)</span>
-                    </p>
-                    <p className="mt-0.5 text-[11px] leading-relaxed text-muted/70">
-                      던진 날 {current.activeDays}일 · 부하 = 투구수 × 강도
-                    </p>
-                  </div>
-                  <span className="text-display shrink-0 text-2xl leading-none text-ink tabular-nums">
-                    {Math.round(acwr.acute)}
-                  </span>
-                </div>
-
-                {/* 지수가 아직 안 나와도 뭘 보게 될 건지는 미리 알 수 있어야 한다. */}
-                <LoadIndexHelp acute={acwr.acute} chronic={acwr.chronic} />
-              </>
-            )}
-          </div>
-        </div>
-      </section>
-
-      {/* ── 구속 (목표·추이·신기록) ─────────────────────────── */}
-      <VelocityCard stats={velocity} target={user.targetVelocity} />
-
-      {/* ── 핵심 지표 4개 ───────────────────────────────────── */}
+      {/* ── 뒷받침 넷 ───────────────────────────────────────── */}
       <section className="grid grid-cols-2 gap-px overflow-hidden rounded-2xl border border-line bg-line lg:grid-cols-4">
         <StatCard
-          label="최근 7일 투구수"
+          label="이번 주 투구"
           value={current.totalPitches}
           unit="구"
           tone={
@@ -384,32 +223,19 @@ export function StatsOverview({
             />
           }
         />
+        {/*
+          운동은 '몇 개 했나'가 아니라 '며칠·몇 분 했나'로 보여준다.
+          부하를 시간으로 세기 때문에, 개수만으로는 그 숫자와 이어지지 않는다.
+        */}
         <StatCard
-          label="최근 7일 구속"
-          value={current.maxVelocity ?? '—'}
-          unit="km/h 최고"
+          label="이번 주 운동"
+          value={training.recentDays || '—'}
+          unit={training.recentDays ? '일' : ''}
           footer={
-            current.avgVelocity != null ? (
+            training.recentDays ? (
               <span className="text-xs text-muted">
-                평균 {current.avgVelocity.toFixed(1)} km/h
+                {training.recentMinutes}분 · 운동 {training.recentCount}개
               </span>
-            ) : (
-              <span className="text-xs text-muted/60">기록 없음</span>
-            )
-          }
-        />
-        <StatCard
-          label="평균 투구 강도"
-          value={current.activeDays ? current.avgIntensity.toFixed(1) : '—'}
-          unit="/ 10"
-          tone={intensityTone}
-          footer={
-            fatigue.length > 0 ? (
-              <span className={`text-xs ${TONE.warn.text}`}>
-                이틀 연속 과부하 {fatigue.length}회
-              </span>
-            ) : current.activeDays ? (
-              <span className={`text-xs ${TONE.good.text}`}>연속 과부하 없음</span>
             ) : (
               <span className="text-xs text-muted/60">기록 없음</span>
             )
@@ -421,7 +247,15 @@ export function StatsOverview({
           unit={restDays == null || restDays === 0 ? '' : '일 전'}
           tone={restTone}
           footer={
-            streak >= 3 ? (
+            /*
+              이틀 연속 높은 강도로 던진 것이 연투 일수보다 먼저다.
+              사흘 가볍게 던진 것보다 이틀 세게 던진 쪽이 팔에 남는다.
+            */
+            fatigue.length > 0 ? (
+              <span className={`text-xs ${TONE.warn.text}`}>
+                이틀 연속 과부하 {fatigue.length}회
+              </span>
+            ) : streak >= 3 ? (
               <span className={`text-xs ${TONE.warn.text}`}>
                 최장 {streak}일 연투
               </span>
@@ -431,6 +265,27 @@ export function StatsOverview({
               </span>
             ) : (
               <span className="text-xs text-muted/60">기록 없음</span>
+            )
+          }
+        />
+        {/*
+          구속은 크게 두지 않는다. 스피드건이 없어 못 적는 사용자가 대부분이라,
+          큰 자리를 주면 대다수 화면에 빈칸이 크게 남는다. 적은 사람에게는
+          여기서 개인 최고를 보여주고, 추이는 아래 그래프에서 본다.
+        */}
+        <StatCard
+          label="개인 최고 구속"
+          value={velocity.best ?? '—'}
+          unit={velocity.best ? 'km/h' : ''}
+          footer={
+            velocity.best ? (
+              <span className="text-xs text-muted">
+                {user.targetVelocity
+                  ? `목표 ${user.targetVelocity} km/h`
+                  : '아래 그래프에서 추이를 봅니다'}
+              </span>
+            ) : (
+              <span className="text-xs text-muted/60">스피드건이 없으면 비워두세요</span>
             )
           }
         />

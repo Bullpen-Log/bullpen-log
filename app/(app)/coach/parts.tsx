@@ -290,10 +290,13 @@ export function LoadIndexHelp({
   acute,
   chronic,
   activeZone,
+  training,
 }: {
   acute: number;
   chronic: number;
   activeZone?: AcwrZone;
+  /** 운동 부하도 함께 설명한다. 지수 둘이 나란히 있는데 하나만 풀면 안 된다. */
+  training?: { acute: number; chronic: number };
 }) {
   return (
     <details className="group border-t border-line pt-3">
@@ -307,8 +310,12 @@ export function LoadIndexHelp({
           <p className="font-semibold text-ink">어떻게 나오나요</p>
           <div className="mt-2 space-y-1.5 rounded-lg border border-line bg-surface-2 px-3 py-2.5 tabular-nums">
             <p>
-              하루 부하 <span className="text-ink">= 투구수 × 강도</span>
+              투구 부하 <span className="text-ink">= 투구수 × 강도</span>
               <span className="ml-1 text-muted/60">(50구를 강도 6으로 → 300)</span>
+            </p>
+            <p>
+              운동 부하 <span className="text-ink">= 운동 시간(분) × 강도</span>
+              <span className="ml-1 text-muted/60">(50분을 강도 7로 → 350)</span>
             </p>
             <p>
               부하 지수{' '}
@@ -323,9 +330,16 @@ export function LoadIndexHelp({
             </p>
             {chronic > 0 && (
               <p className="border-t border-line pt-1.5 text-muted/70">
-                지금은 {Math.round(acute)} ÷ {Math.round(chronic)} ={' '}
+                지금 투구는 {Math.round(acute)} ÷ {Math.round(chronic)} ={' '}
+                <span className="text-ink">{(acute / chronic).toFixed(2)}</span>
+              </p>
+            )}
+            {training && training.chronic > 0 && (
+              <p className="text-muted/70">
+                지금 운동은 {Math.round(training.acute)} ÷{' '}
+                {Math.round(training.chronic)} ={' '}
                 <span className="text-ink">
-                  {(acute / chronic).toFixed(2)}
+                  {(training.acute / training.chronic).toFixed(2)}
                 </span>
               </p>
             )}
@@ -378,35 +392,51 @@ export function LoadIndexHelp({
           </ul>
         </div>
 
+        {/*
+          왜 안 합치는지는 물어볼 만한 것이라 미리 답해 둔다.
+          숫자 둘이 나란히 있으면 "그래서 몇이야?"가 먼저 떠오른다.
+        */}
+        <div>
+          <p className="font-semibold text-ink">왜 하나로 안 합치나요</p>
+          <p className="mt-1.5">
+            투구는 <span className="text-ink">투구수</span>로, 운동은{' '}
+            <span className="text-ink">시간</span>으로 셉니다. 단위가 달라 그대로
+            더할 수 없고, 합치려면 &ldquo;공 하나에 몇 초&rdquo;를 정해야 하는데 그
+            값을 아직 재본 적이 없습니다. 재보지 않은 숫자로 섞으면 나온 값이 무엇을
+            뜻하는지 설명할 수 없게 됩니다. 지수는 &lsquo;평소 대비 몇 배&rsquo;라
+            단위가 없으니, 둘을 나란히 두고 읽으시면 됩니다.
+          </p>
+        </div>
+
         {/* 화면 아래의 안내와 겹치지 않게, 여기서는 지표 자체의 한계를 말한다. */}
         <p className="rounded-lg border border-line bg-surface-2 px-3 py-2.5 text-muted/70">
           <span className="text-ink">알아두세요.</span> 스포츠과학에서 널리 쓰이는
           방식이지만 절대 기준은 아닙니다. 수면·컨디션·나이·폼 같은 요소는 들어가지
-          않고, 오직 기록한 투구수와 강도만으로 계산합니다.
+          않고, 기록한 양과 강도만으로 계산합니다.
         </p>
       </div>
     </details>
   );
 }
 
-/** 핵심 지표 4장이 각각 어떻게 나온 값인지. 용어를 처음 보는 사람 기준으로 쓴다. */
+/** 뒷받침 카드 4장이 각각 어떻게 나온 값인지. 용어를 처음 보는 사람 기준으로 쓴다. */
 export function MetricHelp({ twoDayLimit }: { twoDayLimit: number }) {
   const items = [
     {
-      title: '최근 7일 투구수',
+      title: '이번 주 투구',
       body: '오늘을 포함한 지난 7일 동안 던진 공의 합계입니다. 아래 증감은 그 직전 7일과 비교한 값입니다.',
     },
     {
-      title: '최근 7일 구속',
-      body: '지난 7일 기록 중 가장 빠른 구속입니다. 아래 평균은 각 기록의 평균 구속을 투구수로 가중해 낸 값이라, 많이 던진 날이 더 크게 반영됩니다.',
-    },
-    {
-      title: '평균 투구 강도',
-      body: `기록할 때 본인이 매긴 1~10 강도를 던진 날 기준으로 평균 낸 값입니다. "이틀 연속 과부하"는 붙어 있는 이틀의 강도 합이 ${twoDayLimit}을 넘은 구간으로, 회복할 틈 없이 이어 던졌다는 뜻입니다.`,
+      title: '이번 주 운동',
+      body: '지난 7일 중 운동을 마쳤다고 표시한 날 수입니다. 시간은 운동마다 정해진 세트당 시간(수행 + 세트 사이 휴식)에 실제로 한 세트를 곱해 더한 값이고, 세트를 안 적은 운동은 계획 세트로 셉니다.',
     },
     {
       title: '마지막 투구',
-      body: '마지막으로 기록을 남긴 날로부터 며칠이 지났는지입니다. "연투"는 최근 4주 안에서 쉬는 날 없이 연달아 던진 최장 일수로, 3일 이상이면 노란색으로 알립니다.',
+      body: `마지막으로 기록을 남긴 날로부터 며칠이 지났는지입니다. "이틀 연속 과부하"는 붙어 있는 이틀의 강도 합이 ${twoDayLimit}을 넘은 구간으로, 회복할 틈 없이 이어 던졌다는 뜻입니다. "연투"는 최근 4주 안에서 쉬는 날 없이 연달아 던진 최장 일수입니다.`,
+    },
+    {
+      title: '개인 최고 구속',
+      body: '지금까지 기록한 것 중 가장 빠른 구속입니다. 스피드건이 없으면 비워두셔도 되고, 그래도 나머지 계산은 모두 그대로 돌아갑니다. 추이는 아래 그래프에서 봅니다.',
     },
   ];
 

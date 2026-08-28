@@ -1,5 +1,6 @@
 import { prisma } from '@/lib/prisma';
 import { requireUser } from '@/lib/dal';
+import { trainingLoad } from '@/lib/report/training-acwr';
 import { isAiConfigured } from '@/lib/ai/client';
 import type { AiReportBody } from '@/lib/ai/report-prompt';
 import type { PitchPlan } from '@/lib/report/plan';
@@ -11,7 +12,8 @@ import { StatsOverview } from './overview';
 export default async function ReportPage() {
   const user = await requireUser();
 
-  const [logs, latestReport] = await Promise.all([
+  const today = new Date();
+  const [logs, latestReport, training] = await Promise.all([
     prisma.pitchLog.findMany({
       where: { userId: user.id },
       orderBy: { date: 'asc' },
@@ -20,6 +22,8 @@ export default async function ReportPage() {
       where: { userId: user.id },
       orderBy: { asOf: 'desc' },
     }),
+    /* 운동 부하. 투구와 합치지 않고 나란히 보여준다. */
+    trainingLoad(user.id, today),
   ]);
 
   const serialized = logs.map((log) => ({
@@ -61,8 +65,9 @@ export default async function ReportPage() {
           maxVelocity: l.maxVelocity,
           avgVelocity: l.avgVelocity,
         }))}
+        training={training}
         user={user}
-        today={new Date()}
+        today={today}
         totalRecords={logs.length}
       />
 

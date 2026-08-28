@@ -1,4 +1,9 @@
-import { computeAcwr, toDateKey, type AcwrResult } from '@/lib/pitch-stats';
+import {
+  computeAcwr,
+  toDateKey,
+  type AcwrResult,
+  type AcwrZone,
+} from '@/lib/pitch-stats';
 import {
   INTENSITY_LEVELS,
   intensityLevel,
@@ -114,6 +119,20 @@ export function trainingDayLoad(
     exerciseCount: exercises.length,
   };
 }
+
+/**
+ * 운동 부하 구간별 조언.
+ *
+ * 투구 쪽 문구(ACWR_ZONES.advice)를 그대로 쓸 수 없다. "투구량을 확실히
+ * 줄이세요"가 운동 부하 밑에 붙으면, 운동을 많이 한 사람에게 던지는 것을 줄이라고
+ * 말하는 꼴이 된다. 실제로 그렇게 나오는 것을 보고 나눴다.
+ */
+export const TRAINING_ADVICE: Record<AcwrZone, string> = {
+  low: '최근 운동량이 평소보다 적습니다. 회복 중이라면 정상이며, 다시 올릴 때는 한 번에 늘리지 말고 조금씩 올리세요.',
+  optimal: '평소 쌓아온 양에 맞는 운동량입니다. 지금 흐름을 유지해도 좋습니다.',
+  caution: '최근 운동량이 평소보다 빠르게 올랐습니다. 이번 주는 세트 수나 강도를 조금 낮추는 편이 안전합니다.',
+  danger: '평소 감당하던 양을 크게 넘었습니다. 무게를 다루는 운동을 줄이고 회복에 시간을 주세요. 던지는 날이 겹치면 특히 조심하세요.',
+};
 
 /** 강도 눈금 설명 — 화면에서 "이 숫자가 뭔가요"에 그대로 쓴다. */
 export const TRAINING_INTENSITY_FALLBACK_NOTE = `강도를 안 적은 날은 운동마다 붙은 강도(${INTENSITY_LEVELS.map(
