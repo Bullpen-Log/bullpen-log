@@ -152,6 +152,91 @@ export function formatSeconds(seconds: number): string {
   return s === 0 ? `${m}분` : `${m}분 ${s}초`;
 }
 
+/* ------------------------- 큰 근육 · 작은 근육 ------------------------- */
+
+/**
+ * 다관절(큰 근육) 운동으로 보는 부위.
+ *
+ * 세트 사이 쉬는 시간이 여기서 갈린다. 연구는 "다관절 vs 단관절"로 나누는데,
+ * 앱에는 관절 수가 없고 목표 부위가 있다. 큰 근육이 목표에 하나라도 들어가면
+ * 다관절 동작으로 본다 — 벤치프레스[가슴·삼두·어깨], 풀업[등·견갑·이두],
+ * 스쿼트[고관절·햄스트링·둔근]가 모두 이 규칙으로 맞게 갈린다.
+ */
+export const LARGE_MUSCLE_PARTS: readonly string[] = [
+  '햄스트링·둔근',
+  '고관절',
+  '등',
+  '가슴',
+  '전신',
+];
+
+/**
+ * 큰 근육을 쓰는 다관절 동작인가.
+ *
+ * 큰 근육 부위가 있으면 다관절로 본다. 여기에 하나를 더 본다 — 어깨와 함께
+ * 이두·삼두가 목표에 들어가면 어깨관절과 팔꿈치관절이 같이 움직이는 동작이다
+ * (밀리터리 프레스, 덤벨 숄더 프레스). 부위 이름만으로는 작은 근육처럼 보이지만
+ * 회복에 걸리는 시간은 다관절 쪽이다.
+ *
+ * 반대로 사이드 레터럴 레이즈[어깨·견갑]는 팔꿈치가 고정이라 단관절로 남는다.
+ */
+export function isCompound(bodyParts: readonly string[]): boolean {
+  if (bodyParts.some((p) => LARGE_MUSCLE_PARTS.includes(p))) return true;
+  const shoulder = bodyParts.includes('어깨');
+  const elbow = bodyParts.includes('삼두') || bodyParts.includes('이두');
+  return shoulder && elbow;
+}
+
+/* --------------------------- 걸리는 시간 --------------------------- */
+
+/**
+ * 한 번 반복하는 데 걸리는 대략의 시간(초).
+ *
+ * 파워는 뛰는 것 자체는 1초여도 다시 자세를 잡는 시간이 붙는다.
+ * NSCA는 뎁스 점프의 반복 사이에 5~10초를 두라고 한다.
+ */
+export function secondsPerRep(category: string, intensityLevel: number): number {
+  if (category === '파워') return 6;
+  if (intensityLevel >= 4) return 4; // 무거운 것은 천천히
+  return 3;
+}
+
+/** 세트·휴식이 비어 있을 때 쓸 값 */
+export const FALLBACK_REST_SECONDS = 60;
+
+/**
+ * 한 세트에 걸리는 시간(초) = 실제 수행 + 세트 사이 휴식.
+ *
+ * 이 단위로 잡아두면 "3세트 짜줬는데 2세트만 했다"를 그대로 계산할 수 있다.
+ * 계획이 아니라 실제로 한 만큼이 부하가 되어야 한다.
+ */
+export function secondsPerSet(
+  ex: { category: string; intensity: string } & Partial<Prescription>
+): number | null {
+  const level = intensityLevel(ex.intensity);
+  const work =
+    ex.holdSeconds ??
+    (ex.reps != null ? ex.reps * secondsPerRep(ex.category, level) : null);
+  if (work == null) return null;
+  return (ex.perSide ? work * 2 : work) + (ex.restSeconds ?? FALLBACK_REST_SECONDS);
+}
+
+/**
+ * 이 운동을 지정한 세트만큼 했을 때 걸리는 시간(분).
+ *
+ * 마지막 세트 뒤의 휴식은 다음 운동으로 넘어가는 시간이라 빼지 않고 그대로 둔다.
+ * 세트 수를 안 주면 운동에 적힌 기본 세트로 센다.
+ */
+export function minutesForSets(
+  ex: { category: string; intensity: string } & Partial<Prescription>,
+  sets?: number
+): number | null {
+  const perSet = secondsPerSet(ex);
+  const count = sets ?? ex.sets ?? null;
+  if (perSet == null || count == null || count <= 0) return null;
+  return (count * perSet) / 60;
+}
+
 /**
  * "3세트 × 10회 (좌우 각각) · 휴식 45초" 처럼 한 줄로 만든다.
  * 세트나 횟수가 비어 있으면 null 을 준다.

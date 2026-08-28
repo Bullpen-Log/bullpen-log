@@ -1,3 +1,5 @@
+import { isCompound, minutesForSets } from '../lib/exercise-meta.ts';
+
 /**
  * 세트·횟수·휴식을 정하는 규칙.
  *
@@ -219,13 +221,6 @@ export function isPerSide(title, description, category) {
 
 /* ──────────────────────── 횟수·시간·휴식 ──────────────────────── */
 
-/** 한 번 하는 데 걸리는 대략의 시간(초) — 시간 어림에만 쓴다. */
-export function secondsPerRep(category, level) {
-  if (category === '파워') return 4; // 한 번마다 자세를 다시 잡는다
-  if (level >= 4) return 4; // 무거운 것은 천천히
-  return 3;
-}
-
 /** 버티는 시간(초) */
 export function holdSecondsFor(category, level) {
   if (category === '모빌리티') return 30; // 스트레칭은 30초쯤 머문다
@@ -235,35 +230,37 @@ export function holdSecondsFor(category, level) {
   return 30;
 }
 
-/**
- * 세트 사이 쉬는 시간(초).
- *
- * 무거운 근력 운동과 파워 운동은 완전히 회복해야 다음 세트가 의미 있다.
- * 스트레칭·회복 운동은 길게 쉴 이유가 없다.
- */
-export function restSecondsFor(category, level) {
-  if (category === '모빌리티') return 20;
-  if (category === '회복 및 보강') return 45;
-  if (category === '암케어') return 45;
-  if (category === '코어') return 60;
-  if (category === '파워') return level >= 5 ? 180 : 120;
-  // 상체·하체 스트렝스
-  if (level >= 5) return 180;
-  if (level === 4) return 120;
-  if (level === 3) return 90;
-  return 60;
-}
+/* ---------------------------- 세트 사이 휴식 ---------------------------- */
 
-/**
- * 한 운동을 끝내는 데 걸리는 대략의 분.
+/*
+ * 처음에는 강도만 보고 정했다. 그런데 같은 강도라도 바벨 스쿼트와 사이드
+ * 레터럴 레이즈는 회복에 걸리는 시간이 전혀 다르다. 연구는 관절 수로 나눈다.
  *
- * 3세트면 세트 사이에 쉬는 것은 두 번이다(마지막 세트 뒤는 다음 운동으로
- * 넘어가는 시간이라 따로 30초를 잡았다). 이걸 세 번으로 세면 무거운 운동은
- * 실제보다 3분씩 길게 나온다.
+ *   de Salles 외 (2009), Sports Medicine — 35편 종합 리뷰
+ *     근력(1RM의 50~90%)   3~5분
+ *     파워                 3~5분 (1분보다 우수)
+ *     근비대(중강도)        30~60초
+ *     근지구력             20초~1분
+ *     단관절은 2분이면 충분, 다관절은 3~5분
+ *
+ *   NSCA — 플라이오메트릭
+ *     ATP 재합성과 동작 품질을 위해 세트 사이 3~5분
+ *     (뎁스 점프는 반복 사이 5~10초, 세트 사이 2~3분)
+ *
+ * 관절 수를 세는 항목이 앱에 없으므로 목표 부위로 가른다(isCompound).
  */
-export function estimateMinutes({ category, level, sets, reps, holdSeconds, restSeconds, perSide }) {
-  const work = holdSeconds ?? reps * secondsPerRep(category, level);
-  const perSet = perSide ? work * 2 : work;
-  const total = sets * perSet + (sets - 1) * restSeconds + 30;
-  return Math.round((total / 60) * 10) / 10;
+
+/** 세트 사이 쉬는 시간(초) */
+export function restSecondsFor(category, level, bodyParts = []) {
+  if (category === '모빌리티') return 20; // 부하가 아니라 늘리는 것이다
+  if (category === '암케어') return 45; // 작은 근육 · 저강도 · 지구력 성격
+  if (category === '회복 및 보강') return 45;
+  if (category === '코어') return 60; // 근지구력 쪽
+
+  // 파워는 관절 수와 상관없이 완전히 회복해야 다음 세트가 의미 있다.
+  if (category === '파워') return 180;
+
+  // 상체·하체 스트렝스 — 여기서 큰 근육과 작은 근육이 갈린다.
+  if (isCompound(bodyParts)) return level >= 4 ? 180 : 120;
+  return level >= 4 ? 120 : 60;
 }

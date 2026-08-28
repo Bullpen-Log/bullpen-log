@@ -36,9 +36,6 @@ const NOSE_TO_HEIGHT = 0.93;
  * (실영상 대조: 측면 영상 79% vs 정면·후면 영상 3~37%)
  */
 export const MIN_PLAUSIBLE_STRIDE_PCT = 45;
-/** 릴리스 손목은 모션 블러가 흔해 기준을 낮춘다 (detect와 동일). */
-const WRIST_VIS_OK = 0.35;
-
 type Px = { x: number; y: number; v: number };
 
 function px(frame: PoseFrame, idx: number, w: number, h: number): Px | null {
@@ -100,8 +97,6 @@ export function measurePitchMetrics(
   const leadKnee = leadSide === 'left' ? LM.leftKnee : LM.rightKnee;
   const leadAnkle = leadSide === 'left' ? LM.leftAnkle : LM.rightAnkle;
   const rearAnkle = leadSide === 'left' ? LM.rightAnkle : LM.leftAnkle;
-  const throwShoulder = side === 'right' ? LM.rightShoulder : LM.leftShoulder;
-  const throwWrist = side === 'right' ? LM.rightWrist : LM.leftWrist;
 
   const heightPx = estimateHeightPx(track);
   const cmPerPx = heightPx && heightCm ? heightCm / heightPx : null;
@@ -147,30 +142,7 @@ export function measurePitchMetrics(
 
   const vis = QUALITY_THRESHOLD;
 
-  // 1) 니업 — 무릎 최고 높이 (골반 기준)
-  add(
-    'kneeLift',
-    '무릎 높이',
-    'kneeUp',
-    [
-      { idx: LM.leftHip, minVis: vis },
-      { idx: LM.rightHip, minVis: vis },
-      { idx: leadKnee, minVis: vis },
-    ],
-    ([lh, rh, knee]) => {
-      if (!heightPx) return null;
-      const hipC = mid(lh, rh);
-      const liftPx = hipC.y - knee.y; // 양수 = 무릎이 골반보다 위
-      const pct = (liftPx / heightPx) * 100;
-      const where = pct >= 0 ? '골반 위' : '골반 아래';
-      const amount = cmPerPx
-        ? `${Math.abs(Math.round(liftPx * cmPerPx))}㎝`
-        : `신장의 ${Math.abs(Math.round(pct))}%`;
-      return { value: Math.round(pct * 10) / 10, display: `${where} ${amount}` };
-    }
-  );
-
-  // 2) 착지 — 스트라이드 길이
+  // 1) 착지 — 스트라이드 길이
   add(
     'stride',
     '스트라이드',
@@ -188,7 +160,7 @@ export function measurePitchMetrics(
     }
   );
 
-  // 3) 착지 — 앞무릎 각도 (곧게 펴면 180도)
+  // 2) 착지 — 앞무릎 각도 (곧게 펴면 180도)
   add(
     'plantKnee',
     '앞무릎 각도',
@@ -205,7 +177,7 @@ export function measurePitchMetrics(
     }
   );
 
-  // 4·5) 몸통 기울기 (수직 기준, 홈 쪽이 +)
+  // 3·4) 몸통 기울기 (수직 기준, 홈 쪽이 +)
   const trunkTilt = (phase: MetricPhase, key: string, label: string) =>
     add(
       key,
@@ -231,25 +203,7 @@ export function measurePitchMetrics(
   trunkTilt('footPlant', 'plantTrunk', '몸통 기울기');
   trunkTilt('release', 'releaseTrunk', '몸통 기울기');
 
-  // 6) 릴리스 — 팔 슬롯 (수평 0도, 완전 오버핸드 90도)
-  add(
-    'armSlot',
-    '팔 슬롯',
-    'release',
-    [
-      { idx: throwShoulder, minVis: vis },
-      { idx: throwWrist, minVis: WRIST_VIS_OK },
-    ],
-    ([shoulder, wrist]) => {
-      const forward = (wrist.x - shoulder.x) * direction;
-      const up = shoulder.y - wrist.y;
-      if (forward === 0 && up === 0) return null;
-      const deg = (Math.atan2(up, Math.abs(forward)) * 180) / Math.PI;
-      return { value: Math.round(deg), display: `수평 대비 ${Math.round(deg)}°` };
-    }
-  );
-
-  // 7) 릴리스 — 앞무릎 각도 (펴면서 버텨주는지)
+  // 5) 릴리스 — 앞무릎 각도 (펴면서 버텨주는지)
   add(
     'releaseKnee',
     '앞무릎 각도',

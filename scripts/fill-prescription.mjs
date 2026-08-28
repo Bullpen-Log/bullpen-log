@@ -10,12 +10,12 @@
 import { PrismaClient } from '@prisma/client';
 import { PrismaPg } from '@prisma/adapter-pg';
 import { intensityLevel } from '../lib/exercise-meta.ts';
+import { minutesForSets } from '../lib/exercise-meta.ts';
 import {
   isHold,
   isPerSide,
   holdSecondsFor,
   restSecondsFor,
-  estimateMinutes,
   REVIEWED_TITLES,
 } from './prescription-rules.mjs';
 
@@ -29,6 +29,7 @@ const prisma = new PrismaClient({
 const rows = await prisma.exerciseVideo.findMany({
   select: {
     id: true, title: true, category: true, intensity: true, description: true,
+    bodyParts: true,
     sets: true, reps: true, holdSeconds: true, restSeconds: true, perSide: true,
   },
 });
@@ -60,14 +61,14 @@ for (const e of rows) {
     sets: 3,
     reps: hold ? null : e.category === '파워' ? 5 : 10,
     holdSeconds: hold ? holdSecondsFor(e.category, level) : null,
-    restSeconds: restSecondsFor(e.category, level),
+    restSeconds: restSecondsFor(e.category, level, e.bodyParts),
     perSide: isPerSide(e.title, e.description, e.category),
   };
 
   updates.push({
     ...e,
     data,
-    minutes: estimateMinutes({ category: e.category, level, ...data }),
+    minutes: Math.round((minutesForSets({ ...e, ...data }) ?? 0) * 10) / 10,
   });
 }
 

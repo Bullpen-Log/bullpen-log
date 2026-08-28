@@ -46,6 +46,7 @@ import {
 } from '../lib/report/personalize.ts';
 import {
   WORKOUT_MINUTES_CHOICES,
+  compositionFor,
   decideTheme,
   effectiveMinutes,
   estimateMinutes,
@@ -270,18 +271,46 @@ console.log('\n[목표] 고른 목표가 실제로 배분을 바꾸는가');
       .reduce((sum, p) => sum + estimateMinutes(p.exercise), 0);
   };
 
-  const pairs: [string, string, string][] = [
+  /*
+   * 배분(시간 예산)이 달라지는지 먼저 본다. 이게 목표 기능의 알맹이다.
+   */
+  for (const [slot, goal, label] of [
     ['armcare', '부상 방지', '암케어'],
     ['main', '근력 향상', '본운동'],
     ['prehab', '부상 방지', '보강'],
-  ];
-  for (const [slot, goal, label] of pairs) {
-    const base = minutesOf('균형 잡힌 관리', slot);
-    const withGoal = minutesOf(goal, slot);
+  ] as [string, string, string][]) {
+    const budget = (g: string) =>
+      (compositionFor('lower', g).find((sp) => sp.slot === slot)?.share ?? 0) * 45;
     check(
-      `${goal} → ${label} 시간이 늘어남`,
-      withGoal > base,
-      `${base.toFixed(1)}분 → ${withGoal.toFixed(1)}분`
+      `${goal} → ${label} 배분이 늘어남`,
+      budget(goal) > budget('균형 잡힌 관리'),
+      `${budget('균형 잡힌 관리').toFixed(1)}분 → ${budget(goal).toFixed(1)}분`
+    );
+  }
+
+  /*
+   * 배분이 실제 구성으로 이어지는지도 본다. 다만 45분에서는 안 된다 —
+   * 무거운 운동 하나가 11분이라, 본운동 배분이 20분에서 24분으로 늘어도
+   * 2개에서 3개로 넘어가지 못한다(3개면 33분이 필요하다).
+   *
+   * 줄이는 쪽(부상 방지)은 45분에서도 갈린다. 늘리는 쪽은 90분부터 갈린다.
+   */
+  check(
+    '부상 방지 → 45분에서도 본운동이 줄어든다',
+    minutesOf('부상 방지', 'main') < minutesOf('균형 잡힌 관리', 'main'),
+    `${minutesOf('균형 잡힌 관리', 'main').toFixed(1)}분 → ${minutesOf('부상 방지', 'main').toFixed(1)}분`
+  );
+  {
+    const at90 = (goal: string) => {
+      const { themed } = planFor({ person: { condition: 8 }, goal, minutes: 90 });
+      return themed.picks
+        .filter((x) => x.slot === 'main')
+        .reduce((sum, x) => sum + estimateMinutes(x.exercise), 0);
+    };
+    check(
+      '근력 향상 → 90분에서는 본운동이 늘어난다',
+      at90('근력 향상') > at90('균형 잡힌 관리'),
+      `${at90('균형 잡힌 관리').toFixed(1)}분 → ${at90('근력 향상').toFixed(1)}분`
     );
   }
 }

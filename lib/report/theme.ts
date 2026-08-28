@@ -1,4 +1,8 @@
-import { intensityLevel, type Prescription } from '@/lib/exercise-meta';
+import {
+  intensityLevel,
+  minutesForSets,
+  type Prescription,
+} from '@/lib/exercise-meta';
 import type { ReportFacts } from '@/lib/report/facts';
 import type { PitchPlan } from '@/lib/report/plan';
 import { findGoal } from '@/lib/report/personalize';
@@ -35,48 +39,26 @@ export const DEFAULT_WORKOUT_MINUTES = 45;
  */
 export const RECOVERY_MAX_MINUTES = 35;
 
-/** 한 운동을 끝내고 다음 운동으로 넘어가는 데 걸리는 시간(초) */
-const SECONDS_BETWEEN_EXERCISES = 30;
-
-/** 세트·휴식이 비어 있을 때 쓸 값 */
-const FALLBACK_REST_SECONDS = 60;
-
-/** 한 번 반복하는 데 걸리는 대략의 시간(초) */
-function secondsPerRep(category: string, level: number): number {
-  if (category === '파워') return 4; // 한 번마다 자세를 다시 잡는다
-  if (level >= 4) return 4; // 무거운 것은 천천히
-  return 3;
-}
-
 /**
  * 운동 하나에 걸리는 대략의 시간(분).
  *
- * 예전에는 카테고리마다 고정된 숫자를 썼다("하체는 무조건 7분"). 그러다 보니
- * 30초 버티는 스트레칭과 3세트짜리 데드리프트가 같은 시간으로 계산돼서,
- * "45분에 맞췄습니다"라고 적어놓고 실제로는 한참 다른 양이 나왔다.
+ * 세트 단위로 센다 — (세트당 시간 × 세트 수). 세트당 시간은 실제 수행 시간에
+ * 세트 사이 휴식을 더한 값이다(lib/exercise-meta.ts의 secondsPerSet).
  *
- * 지금은 운동에 적힌 세트·횟수·휴식으로 직접 센다.
- *   (한 세트에 걸리는 시간 × 세트 수) + (세트 사이 휴식 × (세트 수 − 1)) + 넘어가는 시간
+ * 세트 단위로 두는 이유가 있다. 나중에 "3세트 짜줬는데 2세트만 했다"를 그대로
+ * 계산해야 하기 때문이다. 부하는 계획이 아니라 실제로 한 만큼이어야 한다.
+ * sets 를 주면 그 세트 수로, 안 주면 운동에 적힌 기본 세트로 센다.
  *
- * 3세트면 세트 사이에 쉬는 것은 두 번이다. 세 번으로 세면 무거운 운동이
- * 실제보다 3분씩 길게 나온다.
- *
- * 아직 세트·횟수를 안 채운 운동은 예전처럼 종류로 어림한다.
+ * 아직 세트·횟수를 안 채운 운동은 종류와 강도로 어림한다.
  */
 export function estimateMinutes(
-  ex: { category: string; intensity: string } & Partial<Prescription>
+  ex: { category: string; intensity: string } & Partial<Prescription>,
+  sets?: number
 ): number {
+  const measured = minutesForSets(ex, sets);
+  if (measured != null) return measured;
+
   const level = intensityLevel(ex.intensity);
-
-  const sets = ex.sets ?? null;
-  const work = ex.holdSeconds ?? (ex.reps != null ? ex.reps * secondsPerRep(ex.category, level) : null);
-  if (sets != null && sets > 0 && work != null) {
-    const perSet = ex.perSide ? work * 2 : work;
-    const rest = ex.restSeconds ?? FALLBACK_REST_SECONDS;
-    const seconds = sets * perSet + (sets - 1) * rest + SECONDS_BETWEEN_EXERCISES;
-    return seconds / 60;
-  }
-
   // 세트·횟수가 아직 없는 운동 — 종류와 강도로 어림한다.
   if (ex.category === '모빌리티' || level <= 1) return 3;
   if (ex.category === '암케어') return 4;
