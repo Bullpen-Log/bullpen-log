@@ -24,7 +24,7 @@ import {
   NotebookPen,
   TriangleAlert,
 } from 'lucide-react';
-import { Card, EmptyState, PageHeading } from '@/components/ui';
+import { Card, EmptyState } from '@/components/ui';
 import { useChartTheme } from '@/lib/chart-theme';
 import {
   TWO_DAY_INTENSITY_LIMIT,
@@ -249,37 +249,6 @@ export function ReportClient({
     [byDay, currentKeys, days, chart]
   );
 
-  const velocityData = useMemo(
-    () => ({
-      labels: currentKeys.map(formatShortDate),
-      datasets: [
-        {
-          type: 'line' as const,
-          label: '최고 구속',
-          data: currentKeys.map((k) => byDay.get(k)?.maxVelocity ?? null),
-          borderColor: chart.accent,
-          backgroundColor: `${chart.accent}1f`,
-          tension: 0.35,
-          fill: true,
-          pointRadius: days === 7 ? 4 : 2,
-          spanGaps: true,
-        },
-        {
-          type: 'line' as const,
-          label: '평균 구속',
-          data: currentKeys.map((k) => byDay.get(k)?.avgVelocity ?? null),
-          borderColor: chart.tick,
-          backgroundColor: 'transparent',
-          borderDash: [5, 4],
-          tension: 0.35,
-          pointRadius: days === 7 ? 3 : 1,
-          spanGaps: true,
-        },
-      ],
-    }),
-    [byDay, currentKeys, days, chart]
-  );
-
   const baseOptions = {
     responsive: true,
     maintainAspectRatio: false,
@@ -313,18 +282,6 @@ export function ReportClient({
     },
   };
 
-  const velocityOptions = {
-    ...baseOptions,
-    scales: {
-      x: { ticks: { color: chart.tick }, grid: { color: chart.grid } },
-      y: {
-        ticks: { color: chart.tick },
-        grid: { color: chart.grid },
-        title: { display: true, text: 'km/h', color: chart.tick },
-      },
-    },
-  };
-
   const periodLabel = `최근 ${days}일`;
   const rangeLabel = `${formatShortDate(currentKeys[0])} – ${formatShortDate(
     currentKeys.at(-1) as string
@@ -332,27 +289,27 @@ export function ReportClient({
 
   if (logs.length === 0) {
     return (
-      <div className="space-y-10">
-        <PageHeading
-          eyebrow="Report"
-          title="리포트"
-          description="투구 기록이 쌓이면 기간별 투구량·강도·구속을 정리한 리포트를 만들어 드립니다."
-        />
-        <EmptyState
-          title="아직 정리할 기록이 없습니다"
-          description="투구 기록에서 며칠치를 남기면 이곳에 리포트가 만들어집니다."
-        />
-      </div>
+      <EmptyState
+        title="아직 정리할 기록이 없습니다"
+        description="투구 기록에서 며칠치를 남기면 이곳에 기간별 정리가 만들어집니다."
+      />
     );
   }
 
   return (
-    <div className="space-y-8">
-      <PageHeading
-        eyebrow="Report"
-        title="리포트"
-        description={`${nickname}님의 ${periodLabel} 투구 기록을 정리했습니다.`}
-      />
+    <div className="space-y-6">
+      {/*
+        제목을 따로 두지 않는다. 화면 맨 위에 '분석'이 이미 있는데 여기서
+        '리포트'라고 또 붙이면, 바로 위 AI 리포트 카드와 이름이 겹쳐서
+        같은 것이 두 번 있는 것처럼 보인다.
+      */}
+      <div>
+        <h2 className="text-lg font-bold text-ink">기간별 돌아보기</h2>
+        <p className="mt-1 text-sm leading-relaxed text-muted">
+          {nickname}님의 {periodLabel}{' '}기록입니다. 위쪽 지수가 &lsquo;지금&rsquo;을
+          본다면 여기는 &lsquo;그동안&rsquo;을 봅니다.
+        </p>
+      </div>
 
       {/* 기간 선택 */}
       <div className="flex flex-wrap items-center gap-3">
@@ -374,7 +331,7 @@ export function ReportClient({
       </div>
 
       {/* 요약 지표 — 직전 동일 기간과 비교 */}
-      <div className="grid gap-5 lg:grid-cols-3">
+      <div className="grid gap-5 lg:grid-cols-2">
         <Card>
           <h2 className="text-sm font-bold text-ink">투구량</h2>
           <p className="mb-2 mt-1 text-xs text-muted">직전 {days}일과 비교</p>
@@ -471,32 +428,6 @@ export function ReportClient({
           <MetricRow label="최장 연투" value={streak} unit="일" />
         </Card>
 
-        <Card>
-          <h2 className="text-sm font-bold text-ink">구속</h2>
-          <p className="mb-2 mt-1 text-xs text-muted">직전 {days}일과 비교</p>
-          <MetricRow
-            label="최고 구속"
-            value={current.maxVelocity ?? '—'}
-            unit={current.maxVelocity ? 'km/h' : ''}
-            delta={
-              current.maxVelocity != null && previous.maxVelocity != null
-                ? current.maxVelocity - previous.maxVelocity
-                : null
-            }
-            deltaUnit="km/h"
-          />
-          <MetricRow
-            label="평균 구속"
-            value={current.avgVelocity ? current.avgVelocity.toFixed(1) : '—'}
-            unit={current.avgVelocity ? 'km/h' : ''}
-            delta={
-              current.avgVelocity != null && previous.avgVelocity != null
-                ? current.avgVelocity - previous.avgVelocity
-                : null
-            }
-            deltaUnit="km/h"
-          />
-        </Card>
       </div>
 
       {/* 코멘트 */}
@@ -557,17 +488,6 @@ export function ReportClient({
           </div>
         </Card>
 
-        <Card className="space-y-4">
-          <div>
-            <h3 className="font-bold text-ink">구속</h3>
-            <p className="mt-1 text-sm text-muted">
-              평균 구속은 입력한 날만 표시됩니다.
-            </p>
-          </div>
-          <div className="h-[280px]">
-            <Chart type="line" data={velocityData} options={velocityOptions} />
-          </div>
-        </Card>
       </section>
 
       {/* 메모 모아보기 */}

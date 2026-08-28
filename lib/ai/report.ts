@@ -9,6 +9,7 @@ import {
   checkTrainingMentions,
   type AiReportBody,
   type TrainingContext,
+  type WorkoutLoadContext,
 } from '@/lib/ai/report-prompt';
 import type { ReportFacts } from '@/lib/report/facts';
 import type { PitchPlan } from '@/lib/report/plan';
@@ -29,14 +30,18 @@ export async function generateReportBody(
   /** 오늘 배정된 운동. 라이브러리가 비어 있으면 없을 수 있다. */
   training?: TrainingContext,
   /** 배정되지 않은 운동을 권했는지 검사할 때 쓰는 전체 목록 */
-  allExerciseTitles: string[] = []
+  allExerciseTitles: string[] = [],
+  /** 최근 운동량과 운동 부하 지수. 투구와 합치지 않고 따로 넘긴다. */
+  workout?: WorkoutLoadContext
 ): Promise<GenerateResult> {
   try {
     const response = await getAiClient().messages.parse({
       model: AI_MODEL,
       max_tokens: 4000,
       system: SYSTEM_PROMPT,
-      messages: [{ role: 'user', content: buildUserPrompt(facts, plan, training) }],
+      messages: [
+        { role: 'user', content: buildUserPrompt(facts, plan, training, workout) },
+      ],
       output_config: { format: zodOutputFormat(ReportSchema) },
     });
 

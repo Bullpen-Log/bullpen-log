@@ -1,6 +1,7 @@
 import { prisma } from '@/lib/prisma';
 import { requireUser } from '@/lib/dal';
 import { trainingLoad } from '@/lib/report/training-acwr';
+import { reportReadiness } from '@/lib/report/cadence';
 import { isAiConfigured } from '@/lib/ai/client';
 import type { AiReportBody } from '@/lib/ai/report-prompt';
 import type { PitchPlan } from '@/lib/report/plan';
@@ -30,6 +31,19 @@ export default async function ReportPage() {
     ...log,
     date: log.date.toISOString(),
   }));
+
+  /*
+   * 마지막 리포트 이후 새로 쌓인 투구 기록 수.
+   *
+   * 기록한 날짜(date)가 아니라 남긴 시각(createdAt)으로 센다. 지난 날짜를
+   * 뒤늦게 채워 넣어도 '새로 알게 된 것'은 늘어난 셈이라 세는 것이 맞다.
+   */
+  const newRecords = latestReport
+    ? await prisma.pitchLog.count({
+        where: { userId: user.id, createdAt: { gt: latestReport.createdAt } },
+      })
+    : logs.length;
+  const readiness = reportReadiness(newRecords, latestReport != null);
 
   // Json 컬럼은 타입이 없으므로 저장할 때의 모양대로 되돌린다.
   const report: StoredReport | null = latestReport
@@ -73,7 +87,7 @@ export default async function ReportPage() {
 
       <AiReportCard
         report={report}
-        canGenerate={logs.length > 0}
+        readiness={readiness}
         aiReady={isAiConfigured()}
       />
       <ReportClient logs={serialized} nickname={user.nickname} />

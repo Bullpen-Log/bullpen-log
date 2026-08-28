@@ -9,6 +9,9 @@ import { estimateDailyLoad } from '@/lib/baseline';
 import { toDateKey } from '@/lib/pitch-stats';
 import { AI_MODEL, isAiConfigured } from '@/lib/ai/client';
 import { generateReportBody } from '@/lib/ai/report';
+import { trainingLoad } from '@/lib/report/training-acwr';
+import { reportReadiness } from '@/lib/report/cadence';
+import { ACWR_ZONES } from '@/lib/pitch-stats';
 import { buildFacts, type CheckinLike, type MemoNote } from '@/lib/report/facts';
 import { buildPitchPlan } from '@/lib/report/plan';
 import { readDailyPlan } from '@/lib/report/daily-plan';
@@ -53,6 +56,27 @@ export async function generateAiReport(): Promise<AiReportState> {
 
   if (logs.length === 0) {
     return { error: '투구 기록이 있어야 리포트를 만들 수 있습니다.' };
+  }
+
+  /*
+   * 리포트는 투구 기록 다섯 번마다 만든다.
+   *
+   * 화면에서도 단추를 감추지만 여기서 한 번 더 본다 — 화면을 거치지 않고
+   * 들어올 수 있고, 부르면 AI 비용이 실제로 나간다.
+   */
+  const latest = await prisma.aiReport.findFirst({
+    where: { userId: user.id },
+    orderBy: { asOf: 'desc' },
+    select: { createdAt: true },
+  });
+  const newRecords = latest
+    ? await prisma.pitchLog.count({
+        where: { userId: user.id, createdAt: { gt: latest.createdAt } },
+      })
+    : logs.length;
+  const readiness = reportReadiness(newRecords, latest != null);
+  if (!readiness.ready) {
+    return { error: readiness.message };
   }
 
   const facts = buildFacts({
@@ -168,11 +192,31 @@ export async function generateAiReport(): Promise<AiReportState> {
    * 전체를 넘긴다 — 거른 뒤 것을 넘기면, 있지도 않은 운동을 지어낸 것과
    * 장비가 없어 오늘 빠진 운동을 말한 것을 구별하지 못한다.
    */
+  /*
+   * 최근 운동량과 운동 부하.
+   *
+   * 투구만 보면 몸에 걸린 부담의 절반만 보는 셈이다. 다만 두 부하는 단위가
+   * 달라 합치지 않는다 — 프롬프트에서도 합치지 말라고 못 박아 두었다.
+   */
+  const workoutLoad = await trainingLoad(user.id, today);
+  const workoutZone = workoutLoad.zone ? ACWR_ZONES[workoutLoad.zone] : null;
+
   const result = await generateReportBody(
     facts,
     plan,
     training,
-    library.map((ex) => ex.title)
+    library.map((ex) => ex.title),
+    {
+      ratio: workoutLoad.ratio,
+      zoneLabel: workoutZone?.label ?? null,
+      zoneMeaning: workoutZone?.meaning ?? null,
+      historyDays: workoutLoad.historyDays,
+      daysNeeded: workoutLoad.daysNeeded,
+      recentDays: workoutLoad.recentDays,
+      recentMinutes: workoutLoad.recentMinutes,
+      recentCount: workoutLoad.recentCount,
+      estimatedIntensityDays: workoutLoad.estimatedIntensityDays,
+    }
   );
   if (!result.ok) return { error: result.reason };
 

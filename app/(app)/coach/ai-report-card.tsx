@@ -11,6 +11,10 @@ import {
   Sun,
 } from 'lucide-react';
 import { generateAiReport, type AiReportState } from '@/app/actions/ai-report';
+import {
+  REPORT_EVERY_PITCH_LOGS,
+  type ReportReadiness,
+} from '@/lib/report/cadence';
 import type { AiReportBody } from '@/lib/ai/report-prompt';
 import type { PitchPlan } from '@/lib/report/plan';
 
@@ -80,12 +84,12 @@ function DayRow({ day }: { day: PitchPlan['days'][number] }) {
 
 export function AiReportCard({
   report,
-  canGenerate,
+  readiness,
   aiReady,
 }: {
   report: StoredReport | null;
-  /** 투구 기록이 있어야 만들 수 있다 */
-  canGenerate: boolean;
+  /** 투구 기록이 몇 번 쌓였는지, 지금 만들 수 있는지 */
+  readiness: ReportReadiness;
   aiReady: boolean;
 }) {
   const [state, formAction] = useActionState<AiReportState, FormData>(
@@ -116,7 +120,11 @@ export function AiReportCard({
           </p>
         </div>
 
-        {aiReady && canGenerate && (
+        {/*
+          날짜가 아니라 기록 수로 연다. 하루 사이에는 달라지는 것이 거의 없어,
+          어제 리포트와 오늘 리포트가 거의 같은 말을 했다.
+        */}
+        {aiReady && readiness.ready && (
           <form action={formAction}>
             <GenerateButton label={report ? '다시 만들기' : '리포트 만들기'} />
           </form>
@@ -136,15 +144,34 @@ export function AiReportCard({
           </p>
         )}
 
-        {aiReady && !canGenerate && (
+        {/*
+          아직 못 만드는 날에도 무엇을 기다리는지는 보여준다.
+          단추만 없으면 고장 난 것으로 보인다.
+        */}
+        {aiReady && !readiness.ready && (
+          <div className="rounded-xl border border-dashed border-line px-4 py-6 text-center">
+            <p className="text-sm leading-relaxed text-muted">{readiness.message}</p>
+            <div className="mx-auto mt-3 h-1.5 max-w-56 overflow-hidden rounded-full bg-surface-2">
+              <div
+                className="h-full rounded-full bg-sky/60"
+                style={{
+                  width: `${(readiness.newRecords / REPORT_EVERY_PITCH_LOGS) * 100}%`,
+                }}
+              />
+            </div>
+          </div>
+        )}
+
+        {aiReady && readiness.ready && !report && (
           <p className="rounded-xl border border-dashed border-line px-4 py-6 text-center text-sm text-muted">
-            투구 기록을 먼저 남겨주세요. 기록이 있어야 계획을 만들 수 있습니다.
+            {readiness.message} 위 버튼을 눌러 만들어보세요.
           </p>
         )}
 
-        {aiReady && canGenerate && !report && (
-          <p className="rounded-xl border border-dashed border-line px-4 py-6 text-center text-sm text-muted">
-            아직 만든 리포트가 없습니다. 위 버튼을 눌러 만들어보세요.
+        {/* 이미 만든 리포트가 있는데 새 기록이 쌓인 경우 */}
+        {aiReady && readiness.ready && report && (
+          <p className="rounded-lg border border-sky-soft/60 bg-sky-tint px-4 py-2.5 text-xs leading-relaxed text-sky-strong">
+            {readiness.message}
           </p>
         )}
 

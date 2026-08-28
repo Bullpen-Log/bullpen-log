@@ -52,6 +52,19 @@ export const SYSTEM_PROMPT = `당신은 야구 투수의 훈련 부하를 관리
 4. 진단하지 마세요. 부상명·질환명을 추측하거나 언급하지 않습니다.
 5. 통증이 언급되면 훈련 조언 대신 휴식과 전문의 상담을 안내하세요.
 6. 데이터가 부족하면 "아직 알 수 없다"고 쓰세요. 추측으로 채우지 마세요.
+7. 사실을 나열하고 끝내지 마세요. 수치를 말했으면 그것이 무슨 뜻인지,
+   그래서 무엇을 하거나 무엇을 보고 판단하면 되는지까지 쓰세요.
+
+   나쁜 예: "하체 볼륨이 늘었고 투구 강도도 올랐습니다."
+     → 두 사실을 붙여놓기만 했습니다. 읽는 사람은 "그래서 어쩌라고"에서 멈춥니다.
+
+   좋은 예: "하체 볼륨과 투구 강도가 같은 주에 함께 올랐습니다. 둘 다 오르면
+            회복이 따라오지 못하니, 다음 불펜 전날은 하체 운동을 빼는 편이
+            안전합니다."
+     → 무슨 뜻인지 말하고, 무엇을 하면 되는지로 끝났습니다.
+
+8. 투구 부하와 운동 부하는 단위가 달라 하나로 합치지 않습니다. 둘을 더하거나
+   평균 낸 숫자를 만들지 마세요. 각각이 평소보다 몇 배인지로만 말합니다.
 
 말투:
 - 존댓말, 담백하고 단정하게. 과장하거나 몰아붙이지 않습니다.
@@ -85,10 +98,31 @@ export type TrainingContext = {
   estimatedMinutes: number;
 };
 
+/**
+ * 최근 운동량과 운동 부하 지수.
+ *
+ * 투구만 보면 몸에 걸린 부담의 절반만 보는 셈이다. 다만 두 부하는 단위가 달라
+ * (투구수 × 강도 / 분 × 강도) 합치지 않는다 — 프롬프트에서도 합치지 말라고
+ * 못 박아 둔다.
+ */
+export type WorkoutLoadContext = {
+  ratio: number | null;
+  zoneLabel: string | null;
+  zoneMeaning: string | null;
+  historyDays: number;
+  daysNeeded: number;
+  recentDays: number;
+  recentMinutes: number;
+  recentCount: number;
+  /** 최근 7일 중 강도를 안 적어 추정한 날 수 */
+  estimatedIntensityDays: number;
+};
+
 export function buildUserPrompt(
   facts: ReportFacts,
   plan: PitchPlan,
-  training?: TrainingContext
+  training?: TrainingContext,
+  workout?: WorkoutLoadContext
 ): string {
   const { volume, load, patterns, condition, profile } = facts;
   const zone = load.zone ? ACWR_ZONES[load.zone] : null;
@@ -130,6 +164,35 @@ export function buildUserPrompt(
       `- 아직 계산할 수 없음 (기록 ${load.historyDays}일 / 필요 28일, ${load.daysNeeded}일 더 필요)`
     );
     lines.push(`- 최근 7일 부하: ${Math.round(load.acute)}`);
+  }
+
+  if (workout) {
+    lines.push(`\n# 최근 7일 운동`);
+    if (workout.recentDays > 0) {
+      lines.push(
+        `- 운동한 날 ${workout.recentDays}일 · 총 ${workout.recentMinutes}분 · 운동 ${workout.recentCount}개`
+      );
+    } else {
+      lines.push(`- 기록 없음`);
+    }
+    if (workout.estimatedIntensityDays > 0) {
+      lines.push(
+        `- 주의: ${workout.estimatedIntensityDays}일은 운동 강도를 안 적어 운동 자체의 강도로 추정했음. 단정적으로 쓰지 말 것.`
+      );
+    }
+
+    lines.push(`\n# 운동 부하 지수`);
+    if (workout.ratio != null) {
+      lines.push(`- 지수: ${workout.ratio.toFixed(2)} (${workout.zoneLabel})`);
+      lines.push(`- 뜻: ${workout.zoneMeaning}`);
+      lines.push(
+        `- 투구 부하와 단위가 다르므로(운동은 시간 × 강도) 두 지수를 더하거나 평균 내지 말 것.`
+      );
+    } else {
+      lines.push(
+        `- 아직 계산할 수 없음 (기록 ${workout.historyDays}일 / 필요 28일, ${workout.daysNeeded}일 더 필요)`
+      );
+    }
   }
 
   lines.push(`\n# 패턴`);

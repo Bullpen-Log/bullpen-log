@@ -63,6 +63,11 @@ import {
 import { computeAcwr, zoneOf } from '../lib/pitch-stats.ts';
 import { buildTrainingLoad } from '../lib/training-load.ts';
 import {
+  REPORT_EVERY_PITCH_LOGS,
+  reportReadiness,
+} from '../lib/report/cadence.ts';
+import { SYSTEM_PROMPT } from '../lib/ai/report-prompt.ts';
+import {
   buildDailyPlan,
   isHalted,
   readDailyPlan,
@@ -449,6 +454,63 @@ console.log('\n[운동 부하] 실제로 한 만큼으로 세는가');
   check(
     '기록이 없으면 지수를 안 낸다',
     buildTrainingLoad([], [], TODAY).ratio === null
+  );
+}
+
+console.log('\n[리포트 주기] 기록이 쌓여야 만들어지는가');
+{
+  /*
+   * 날짜가 아니라 기록 수로 연다. 하루 사이에는 달라지는 것이 거의 없어,
+   * 어제 리포트와 오늘 리포트가 거의 같은 말을 했다(만들 때마다 돈도 나간다).
+   */
+  const none = reportReadiness(0, false);
+  check('첫 리포트 — 기록이 없으면 못 만든다', !none.ready, none.message);
+
+  const almost = reportReadiness(REPORT_EVERY_PITCH_LOGS - 1, false);
+  check(
+    `첫 리포트 — ${REPORT_EVERY_PITCH_LOGS - 1}개면 아직`,
+    !almost.ready && almost.remaining === 1,
+    almost.message
+  );
+
+  const first = reportReadiness(REPORT_EVERY_PITCH_LOGS, false);
+  check('첫 리포트 — 다섯 개면 만들 수 있다', first.ready, first.message);
+
+  const after = reportReadiness(2, true);
+  check(
+    '만든 뒤 두 개 쌓임 — 아직',
+    !after.ready && after.remaining === 3,
+    after.message
+  );
+  check(
+    '기다리는 동안에도 몇 개 남았는지 말한다',
+    after.message.includes('3번 더'),
+    after.message
+  );
+
+  const again = reportReadiness(7, true);
+  check('만든 뒤 다섯 개 넘게 쌓임 — 다시 만들 수 있다', again.ready, again.message);
+}
+
+{
+  /*
+   * 문장 규칙.
+   *
+   * "하체 볼륨이 늘었고 투구 강도도 올랐습니다" 같은 사실 나열은 읽는 사람이
+   * "그래서 어쩌라고"에서 멈춘다. 프롬프트에 그 규칙과 예시가 살아 있는지 본다.
+   * (AI를 부르지 않고 프롬프트 자체를 확인한다 — 돈이 들지 않고 빠르다.)
+   */
+  check(
+    '프롬프트가 사실 나열을 막는다',
+    SYSTEM_PROMPT.includes('사실을 나열하고 끝내지 마세요'),
+  );
+  check(
+    '프롬프트에 나쁜 예와 좋은 예가 함께 있다',
+    SYSTEM_PROMPT.includes('나쁜 예:') && SYSTEM_PROMPT.includes('좋은 예:')
+  );
+  check(
+    '프롬프트가 두 부하를 합치지 못하게 막는다',
+    SYSTEM_PROMPT.includes('하나로 합치지 않습니다')
   );
 }
 
