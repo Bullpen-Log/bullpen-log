@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useFormStatus } from 'react-dom';
-import { ChevronDown, RefreshCw, Settings2 } from 'lucide-react';
+import { RefreshCw } from 'lucide-react';
 import { CheckboxGroup, RadioGroup } from '@/components/choice-inputs';
 import { SELECTABLE_EQUIPMENT } from '@/lib/report/equipment';
 import { TRAINING_GOALS, TRAINING_LEVELS } from '@/lib/report/personalize';
@@ -140,8 +140,13 @@ export function PlanForm({
   );
 }
 
-/** 어쩌다 한 번 고치는 설정. 기본은 접혀 있다. */
-export function TrainingSettings({
+/**
+ * 어쩌다 한 번 고치는 설정 — 경력·목표·가진 장비.
+ *
+ * 홈의 상자를 누르면 뜨는 창 안에서 쓴다. 예전에는 스스로 접혔다 펴졌는데,
+ * 이제 창이 그 노릇을 하므로 폼만 남겼다.
+ */
+export function TrainingSettingsForm({
   trainingLevel,
   trainingGoal,
   ownedEquipment,
@@ -153,8 +158,6 @@ export function TrainingSettings({
   /** 저장하고 나서 돌아올 화면 */
   returnTo: '/today' | '/training';
 }) {
-  const [open, setOpen] = useState(false);
-
   /*
    * 한 번도 안 고른 사람에게는 장비를 전부 켜서 보여준다.
    *
@@ -165,57 +168,31 @@ export function TrainingSettings({
   const equipmentSelected =
     ownedEquipment.length > 0 ? ownedEquipment : [...SELECTABLE_EQUIPMENT];
 
-  const summary = [
-    trainingLevel ? `경력 ${trainingLevel}` : '경력 미설정',
-    trainingGoal ?? '목표 미설정',
-    ownedEquipment.length > 0
-      ? `장비 ${ownedEquipment.length}개`
-      : '장비 미설정',
-  ].join(' · ');
-
   return (
-    <div className="rounded-2xl border border-line bg-surface px-5 py-4">
-      <button
-        type="button"
-        onClick={() => setOpen((v) => !v)}
-        aria-expanded={open}
-        className="flex w-full items-center gap-2 text-left"
-      >
-        <Settings2 className="h-4 w-4 shrink-0 text-sky" />
-        <span className="text-sm font-medium text-ink">트레이닝 설정</span>
-        <span className="min-w-0 flex-1 truncate text-xs text-muted">{summary}</span>
-        <ChevronDown
-          className={`h-4 w-4 shrink-0 text-muted transition-transform ${open ? 'rotate-180' : ''}`}
-        />
-      </button>
-
-      {open && (
-        <form action={saveTrainingSettings} className="mt-4 space-y-5">
-          <input type="hidden" name="returnTo" value={returnTo} />
-          <RadioGroup
-            name="trainingLevel"
-            label="웨이트 트레이닝 경력"
-            hint="경력에 비해 이른 운동을 빼는 기준입니다. 안 고르면 아무것도 빼지 않습니다."
-            options={TRAINING_LEVELS.map((l) => ({ name: l.name, desc: l.desc }))}
-            selected={trainingLevel}
-          />
-          <RadioGroup
-            name="trainingGoal"
-            label="훈련 목표"
-            hint="같은 시간을 어디에 더 쓸지 정합니다. 몸 상태가 안 좋은 날에는 목표와 상관없이 회복이 먼저입니다."
-            options={TRAINING_GOALS.map((g) => ({ name: g.name, desc: g.desc }))}
-            selected={trainingGoal}
-          />
-          <CheckboxGroup
-            name="ownedEquipment"
-            label="가지고 있는 장비"
-            hint="여기서 고른 것 중에 오늘 쓸 수 있는 것을 아래 ‘오늘 쓸 수 있는 장비’에서 다시 고릅니다."
-            options={SELECTABLE_EQUIPMENT}
-            selected={equipmentSelected}
-          />
-          <SubmitButton label="설정 저장" busy="저장 중…" />
-        </form>
-      )}
-    </div>
+    <form action={saveTrainingSettings} className="space-y-5">
+      <input type="hidden" name="returnTo" value={returnTo} />
+      <RadioGroup
+        name="trainingLevel"
+        label="웨이트 트레이닝 경력"
+        hint="경력에 비해 이른 운동을 빼는 기준입니다. 안 고르면 아무것도 빼지 않습니다."
+        options={TRAINING_LEVELS.map((l) => ({ name: l.name, desc: l.desc }))}
+        selected={trainingLevel}
+      />
+      <RadioGroup
+        name="trainingGoal"
+        label="훈련 목표"
+        hint="같은 시간을 어디에 더 쓸지 정합니다. 몸 상태가 안 좋은 날에는 목표와 상관없이 회복이 먼저입니다."
+        options={TRAINING_GOALS.map((g) => ({ name: g.name, desc: g.desc }))}
+        selected={trainingGoal}
+      />
+      <CheckboxGroup
+        name="ownedEquipment"
+        label="가지고 있는 장비"
+        hint="여기서 고른 것 중에 오늘 쓸 수 있는 것을 일정을 만들 때 다시 고릅니다."
+        options={SELECTABLE_EQUIPMENT}
+        selected={equipmentSelected}
+      />
+      <SubmitButton label="설정 저장" busy="저장 중…" />
+    </form>
   );
 }

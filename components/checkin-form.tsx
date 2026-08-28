@@ -2,7 +2,7 @@
 
 import { useActionState, useState, useSyncExternalStore } from 'react';
 import { useFormStatus } from 'react-dom';
-import { AlertTriangle, CheckCircle2, ClipboardList, Pencil } from 'lucide-react';
+import { CheckCircle2, Pencil } from 'lucide-react';
 import { saveCheckin, type CheckinState } from '@/app/actions/checkin';
 import {
   BODY_FEELINGS,
@@ -133,7 +133,13 @@ function useClientTodayKey() {
   );
 }
 
-export function CheckinCard({
+/**
+ * 오늘 컨디션 체크인.
+ *
+ * 홈의 상자를 누르면 뜨는 창 안에서 쓴다. 그래서 자기 껍데기(테두리·제목)를
+ * 만들지 않는다 — 창이 이미 가지고 있어서 겹친다.
+ */
+export function CheckinForm({
   recent,
   parts,
 }: {
@@ -176,58 +182,31 @@ export function CheckinCard({
     : today?.preferredParts ?? [];
 
   return (
-    <section
-      // 다른 화면에서 '체크인하러 가기'로 곧장 내려올 수 있게 이름을 붙인다.
-      id="checkin"
-      className={`scroll-mt-20 rounded-2xl border p-5 sm:p-6 ${
-        painToday
-          ? 'border-danger-line bg-danger-bg'
-          : 'border-line bg-surface'
-      }`}
-    >
-      {/* 제목 줄 */}
-      <div className="flex flex-wrap items-center gap-3">
-        <span
-          className={`flex h-9 w-9 items-center justify-center rounded-xl border ${
-            painToday
-              ? 'border-danger-line text-danger'
-              : 'border-line-strong text-sky'
-          }`}
-        >
-          {painToday ? (
-            <AlertTriangle className="h-4 w-4" />
-          ) : (
-            <ClipboardList className="h-4 w-4" />
-          )}
-        </span>
-        <div className="min-w-0 flex-1">
-          <h2 className="text-sm font-bold text-ink">오늘 컨디션 체크인</h2>
-          <p className="mt-0.5 text-xs text-muted">
-            30초면 됩니다. 리포트와 운동 추천의 기준이 됩니다.
-          </p>
-        </div>
-
-        {today && !editing && (
-          <span className="flex items-center gap-2">
-            <span className="inline-flex items-center gap-1.5 text-xs text-ok">
-              <CheckCircle2 className="h-4 w-4" />
-              완료
-            </span>
-            <button
-              type="button"
-              onClick={() => setEditing(true)}
-              className="inline-flex items-center gap-1 rounded-lg border border-line px-2.5 py-1.5 text-xs text-muted transition-colors hover:border-sky hover:text-sky"
-            >
-              <Pencil className="h-3 w-3" />
-              수정
-            </button>
+    <div>
+      {/*
+        제목과 설명은 창 머리에 있으므로 여기서 다시 적지 않는다.
+        이미 남긴 날에는 요약을 보여주고, 고칠 수 있게 단추를 하나 둔다.
+      */}
+      {today && !editing && (
+        <div className="mb-4 flex items-center gap-2">
+          <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-ok">
+            <CheckCircle2 className="h-4 w-4" />
+            오늘 체크인을 남겼습니다
           </span>
-        )}
-      </div>
+          <button
+            type="button"
+            onClick={() => setEditing(true)}
+            className="ml-auto inline-flex items-center gap-1 rounded-lg border border-line px-2.5 py-1.5 text-xs text-muted transition-colors hover:border-sky hover:text-sky"
+          >
+            <Pencil className="h-3 w-3" />
+            수정
+          </button>
+        </div>
+      )}
 
       {/* 아직 오늘 날짜를 모르는 첫 순간에는 내용을 그리지 않는다. */}
       {todayKey && (
-        <div className="mt-4">
+        <div>
           {today && !editing ? (
             <>
               {/* 완료 요약 */}
@@ -381,6 +360,6 @@ export function CheckinCard({
           )}
         </div>
       )}
-    </section>
+    </div>
   );
 }
