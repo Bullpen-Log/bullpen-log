@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma';
 import { getCurrentUser } from '@/lib/dal';
 import { deleteVideos, isOwnedBy } from '@/lib/storage';
 import { isRestSession, validateSessionType } from '@/lib/session-type';
+import { isFutureDateKey, toDateKey } from '@/lib/pitch-stats';
 
 const MAX_VIDEOS = 2;
 
@@ -126,6 +127,21 @@ export async function POST(req: Request) {
     const parsedDate = new Date(date);
     if (Number.isNaN(parsedDate.getTime())) {
       return NextResponse.json({ error: '날짜가 올바르지 않습니다' }, { status: 400 });
+    }
+
+    /*
+     * 앞으로 올 날짜에는 남길 수 없다.
+     *
+     * 던진 것을 적는 곳이지 계획을 적는 곳이 아니다. 미리 적어두면 "최근 7일
+     * 부하"에 아직 던지지 않은 것이 들어가, 그 숫자로 정해지는 휴식일과 운동
+     * 강도가 통째로 어긋난다. 화면에서도 앞날은 못 누르게 해두었지만,
+     * 여기서 한 번 더 본다 — 화면을 거치지 않고 들어올 수 있다.
+     */
+    if (isFutureDateKey(toDateKey(parsedDate))) {
+      return NextResponse.json(
+        { error: '아직 오지 않은 날짜에는 기록할 수 없습니다.' },
+        { status: 400 }
+      );
     }
 
     const checked = checkEntry(body);

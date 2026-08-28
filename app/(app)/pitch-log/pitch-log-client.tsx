@@ -5,7 +5,7 @@ import { Plus } from 'lucide-react';
 import { Card, FormError, PageHeading } from '@/components/ui';
 import { Modal } from '@/components/modal';
 import { usePlaybackUrls } from '@/components/use-playback-urls';
-import { toDateKey } from '@/lib/pitch-stats';
+import { isFutureDateKey, toDateKey } from '@/lib/pitch-stats';
 import { REST_SESSION_TYPE } from '@/lib/session-type';
 import type { SavedAnalysisView } from '@/lib/pose/saved';
 import {
@@ -170,7 +170,15 @@ export function PitchLogClient({
     [logs, selectedDate]
   );
 
-  const showForm = formOpen ?? selectedLogs.length === 0;
+  /*
+   * 앞으로 올 날짜에는 남길 수 없다. 던진 것을 적는 곳이지 계획을 적는 곳이
+   * 아니다 — 미리 적어두면 "최근 7일 부하"에 아직 던지지 않은 것이 들어간다.
+   *
+   * 날짜는 서버가 정한 오늘이 아니라 브라우저 기준으로 본다. 이 판단은 무엇을
+   * 보여줄지만 정하고, 실제로 막는 것은 서버가 다시 한다.
+   */
+  const future = isFutureDateKey(selectedDate);
+  const showForm = !future && (formOpen ?? selectedLogs.length === 0);
 
   /* ---------------------------- 영상 ---------------------------- */
 
@@ -310,14 +318,24 @@ export function PitchLogClient({
         onClose={() => setDayOpen(false)}
         title={spokenDate(selectedDate)}
         description={
-          selectedLogs.length > 0
-            ? `${selectedLogs.length}건의 기록`
-            : '이 날은 아직 기록이 없습니다'
+          future
+            ? '아직 오지 않은 날입니다'
+            : selectedLogs.length > 0
+              ? `${selectedLogs.length}건의 기록`
+              : '이 날은 아직 기록이 없습니다'
         }
         size="wide"
       >
         <div className="space-y-5">
           <FormError>{error}</FormError>
+
+          {future && (
+            <p className="rounded-xl border border-dashed border-line px-4 py-8 text-center text-sm leading-relaxed text-muted">
+              앞으로 올 날짜에는 기록할 수 없습니다.
+              <br />
+              던지고 나서 그날 또는 그 뒤에 남겨주세요.
+            </p>
+          )}
 
           {/* 기록 추가 — 기록이 없는 날은 바로 열려 있다. */}
           {showForm ? (
@@ -343,7 +361,7 @@ export function PitchLogClient({
                 onError={setError}
               />
             </div>
-          ) : (
+          ) : future ? null : (
             <button
               type="button"
               onClick={() => setFormOpen(true)}

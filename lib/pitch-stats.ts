@@ -61,6 +61,19 @@ export function shiftDateKey(dateKey: string, offset: number) {
   return dateKeyOf(y, m - 1, d + offset);
 }
 
+/**
+ * 아직 오지 않은 날인가.
+ *
+ * 투구도 운동도 지나간 일을 적는 것이다. 앞으로 던질 것을 미리 적어두면
+ * 부하 계산이 통째로 어긋난다 — "최근 7일"에 아직 하지 않은 것이 들어간다.
+ *
+ * '오늘'은 서비스 기준(한국) 날짜로 센다. 기기 시계가 하루 앞서 있어도
+ * 내일 칸이 열리지 않게 하려면 서버가 정해야 한다.
+ */
+export function isFutureDateKey(dateKey: string, now = new Date()): boolean {
+  return dateKey > toDateKey(now);
+}
+
 export function formatShortDate(dateKey: string) {
   const [, m, d] = dateKey.split('-');
   return `${Number(m)}/${Number(d)}`;
