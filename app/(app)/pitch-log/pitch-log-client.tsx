@@ -8,7 +8,11 @@ import { usePlaybackUrls } from '@/components/use-playback-urls';
 import { toDateKey } from '@/lib/pitch-stats';
 import { REST_SESSION_TYPE } from '@/lib/session-type';
 import type { SavedAnalysisView } from '@/lib/pose/saved';
-import { PitchCalendar, type DaySummary } from './calendar';
+import {
+  LegendSwatch,
+  MonthCalendar,
+  type DayMark,
+} from '@/components/month-calendar';
 import { EntryForm } from './entry-form';
 import { DayRecord } from './day-record';
 import { CompareView, type ClipOption } from './compare-view';
@@ -126,24 +130,39 @@ export function PitchLogClient({
     setFormOpen(false);
   }, [refresh]);
 
-  const summaries = useMemo(() => {
-    return logs.reduce<Record<string, DaySummary>>((acc, log) => {
+  /**
+   * 달력에 칠할 것.
+   *
+   * '안 던진 날'과 '아직 아무것도 안 남긴 날'은 전혀 다른 뜻인데 둘 다 빈칸이면
+   * 구별이 안 된다. 쉬는 날은 색을 채우지 않고 점선으로 표시한다(intensity null).
+   */
+  const marks = useMemo(() => {
+    type Acc = { pitches: number; intensity: number; video: boolean; rested: boolean };
+    const byDay = logs.reduce<Record<string, Acc>>((acc, log) => {
       const key = log.date.slice(0, 10);
-      const prev = acc[key] ?? {
-        pitches: 0,
-        maxIntensity: 0,
-        hasVideo: false,
-        rested: true,
-      };
+      const prev = acc[key] ?? { pitches: 0, intensity: 0, video: false, rested: true };
       acc[key] = {
         pitches: prev.pitches + log.pitchCount,
-        maxIntensity: Math.max(prev.maxIntensity, log.intensity),
-        hasVideo: prev.hasVideo || log.videoPaths.length > 0,
+        intensity: Math.max(prev.intensity, log.intensity),
+        video: prev.video || log.videoPaths.length > 0,
         // 하루에 여러 건이면, 한 건이라도 던졌으면 던진 날이다.
         rested: prev.rested && log.sessionType === REST_SESSION_TYPE,
       };
       return acc;
     }, {});
+
+    const out: Record<string, DayMark> = {};
+    for (const [key, d] of Object.entries(byDay)) {
+      out[key] = {
+        intensity: d.rested ? null : d.intensity,
+        label: d.rested ? '휴식' : `${d.pitches}구`,
+        dot: d.video,
+        spoken: [d.rested ? '쉬는 날로 남김' : `${d.pitches}구`, d.video ? '영상 있음' : null]
+          .filter(Boolean)
+          .join(', '),
+      };
+    }
+    return out;
   }, [logs]);
 
   const selectedLogs = useMemo(
@@ -266,13 +285,24 @@ export function PitchLogClient({
       <FormError>{error}</FormError>
 
       <Card>
-        <PitchCalendar
+        <MonthCalendar
           month={month}
           onMonthChange={setMonth}
           selected={dayOpen ? selectedDate : null}
           onSelect={openDay}
-          summaries={summaries}
-        />
+          marks={marks}
+        >
+          <span>강도</span>
+          <LegendSwatch className="h-3 w-5 rounded bg-sky/15">낮음</LegendSwatch>
+          <LegendSwatch className="h-3 w-5 rounded bg-sky/40">보통</LegendSwatch>
+          <LegendSwatch className="h-3 w-5 rounded bg-sky/70">높음</LegendSwatch>
+          <LegendSwatch className="h-3 w-5 rounded border border-dashed border-line-strong">
+            쉬는 날
+          </LegendSwatch>
+          <LegendSwatch className="h-1.5 w-1.5 rounded-full bg-sky-strong">
+            영상
+          </LegendSwatch>
+        </MonthCalendar>
       </Card>
 
       <Modal

@@ -14,6 +14,8 @@ import type { AiReportBody } from '@/lib/ai/report-prompt';
 import { ExerciseChecklist, type TodayExercise } from './exercise-list';
 import { AddExercise, type PickableExercise } from './add-exercise';
 import { TrainingNote } from './training-note';
+import { TrainingHistory } from './history';
+import { trainingSummaries } from '@/lib/report/training-history';
 
 /**
  * 트레이닝 — 오늘 할 운동.
@@ -32,10 +34,61 @@ function now() {
   return new Date();
 }
 
-export default async function TrainingPage() {
+/**
+ * 오늘 할 것과 지난 기록을 오가는 두 칸.
+ *
+ * 주소로 나눈다(?view=history). 화면 안에서 접었다 폈다 하면 오늘 것과 지난
+ * 것을 둘 다 그려서 내려보내야 하는데, 지난 기록은 달력이라 짐이 따로 있다.
+ * 주소로 나누면 보는 쪽만 그린다.
+ */
+const VIEWS = [
+  { key: 'today', label: '오늘', href: '/training' },
+  { key: 'history', label: '기록', href: '/training?view=history' },
+] as const;
+
+function ViewTabs({ current }: { current: 'today' | 'history' }) {
+  return (
+    <div className="flex gap-1 rounded-xl border border-line bg-surface p-1 sm:w-fit">
+      {VIEWS.map((v) => (
+        <Link
+          key={v.key}
+          href={v.href}
+          className={`flex-1 rounded-lg px-6 py-2 text-center text-sm font-medium transition-colors sm:flex-none ${
+            current === v.key ? 'bg-sky text-white' : 'text-muted hover:text-ink'
+          }`}
+        >
+          {v.label}
+        </Link>
+      ))}
+    </div>
+  );
+}
+
+export default async function TrainingPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
+}) {
   const user = await requireUser();
   const today = now();
   const savedMinutes = user.dailyWorkoutMinutes ?? DEFAULT_WORKOUT_MINUTES;
+
+  const view = (await searchParams).view === 'history' ? 'history' : 'today';
+
+  if (view === 'history') {
+    const summaries = await trainingSummaries(user.id);
+    return (
+      <div className="space-y-6">
+        <PageHeading
+          eyebrow="Training"
+          title="운동 기록"
+          description="날짜를 누르면 그날 무엇을 얼마나 했는지 볼 수 있습니다."
+        />
+        <ViewTabs current="history" />
+        <TrainingHistory summaries={summaries} />
+      </div>
+    );
+  }
 
   const core = await loadTodayCore(user, today);
   const { savedPlan, picked, doneIds, shownPicks, droppedForSafety } = core;
@@ -189,6 +242,8 @@ export default async function TrainingPage() {
               : '최근 투구량에 맞춰 고른 운동입니다. 마친 것은 눌러서 표시해주세요.'
         }
       />
+
+      <ViewTabs current="today" />
 
       {/* 왜 오늘 이런 구성인지 — 고르는 건 코드, 설명은 AI가 한다 */}
       {aiTraining && (

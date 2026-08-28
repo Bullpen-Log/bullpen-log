@@ -1,47 +1,64 @@
 'use client';
 
+import type { ReactNode } from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { dateKeyOf, toDateKey } from '@/lib/pitch-stats';
 
+/**
+ * 한 달 달력.
+ *
+ * 투구 일지와 트레이닝이 함께 쓴다. 둘 다 "언제 무엇을 했는지 한눈에 보고,
+ * 날짜를 눌러 그날을 연다"가 하는 일이라 달력을 두 벌 두면 한쪽만 고쳐진다.
+ *
+ * 날마다 무엇을 칠할지는 부르는 쪽이 정한다(marks). 이 파일은 날짜를 늘어놓고
+ * 누른 날을 알려주는 일까지만 한다.
+ */
+
 const WEEKDAYS = ['일', '월', '화', '수', '목', '금', '토'];
 
-export type DaySummary = {
-  pitches: number;
-  maxIntensity: number;
-  hasVideo: boolean;
-  /** 그날 기록이 전부 '쉬는 날'인가 — 던진 날과 다르게 보여야 한다 */
-  rested: boolean;
+export type DayMark = {
+  /**
+   * 칸 색을 정하는 값 1~10.
+   *
+   * null 이면 색을 채우지 않고 점선 테두리만 준다 — "남겼는데 강도랄 것이
+   * 없는 날"(쉬는 날, 강도를 안 적은 날)이다. 아무것도 안 남긴 날과는 다르다.
+   */
+  intensity: number | null;
+  /** 칸에 적는 짧은 말 — '20구', '6개', '휴식' */
+  label: string;
+  /** 오른쪽 위 작은 점 — 영상이나 메모가 있는 날 */
+  dot?: boolean;
+  /** 화면 낭독기가 읽을 말. 숫자만 보이면 눈으로 안 보는 사람은 고를 수 없다. */
+  spoken: string;
 };
 
-/** 강도에 따라 셀 배경 진하기를 다르게 준다. */
+/** 강도에 따라 칸 배경 진하기를 다르게 준다. */
 function intensityClass(intensity: number) {
   if (intensity >= 8) return 'bg-sky/70 text-white';
   if (intensity >= 5) return 'bg-sky/40 text-ink';
   return 'bg-sky/15 text-ink';
 }
 
-/*
- * 쉬는 날은 색을 채우지 않고 테두리만 준다.
- *
- * '안 던진 날'과 '아직 아무것도 안 남긴 날'은 전혀 다른 뜻인데, 둘 다 빈칸이면
- * 구별이 안 된다. 기록률이 이 앱에서 가장 값어치 있는 것이라, 남겼다는 사실
- * 자체가 눈에 보여야 한다.
- */
-const RESTED_CLASS = 'border-dashed border-line-strong bg-surface-2 text-muted';
+/** 색을 안 채우는 날 — 남긴 것은 있다는 뜻으로 점선만 준다. */
+const OUTLINE_CLASS = 'border-dashed border-line-strong bg-surface-2 text-muted';
 
-export function PitchCalendar({
+export function MonthCalendar({
   month,
   onMonthChange,
   selected,
   onSelect,
-  summaries,
+  marks,
+  children,
 }: {
   month: Date;
   onMonthChange: (next: Date) => void;
-  /** 지금 열려 있는 날짜. 창을 닫으면 null 이라 아무 데도 표시가 안 남는다. */
+  /** 지금 열려 있는 날짜. 아무것도 안 열었으면 null */
   selected: string | null;
   onSelect: (dateKey: string) => void;
-  summaries: Record<string, DaySummary>;
+  /** 날짜(YYYY-MM-DD)마다 무엇을 칠할지 */
+  marks: Record<string, DayMark>;
+  /** 달력 아래 범례 */
+  children?: ReactNode;
 }) {
   const year = month.getFullYear();
   const monthIndex = month.getMonth();
@@ -97,45 +114,30 @@ export function PitchCalendar({
           if (day === null) return <div key={`blank-${i}`} />;
 
           const key = dateKeyOf(year, monthIndex, day);
-          const summary = summaries[key];
-          const marked = Boolean(summary);
+          const mark = marks[key];
           const isSelected = key === selected;
           const isToday = key === todayKey;
-
-          /*
-           * 화면에는 숫자만 보이지만, 눈으로 보지 않는 사람에게는
-           * 며칠인지·그날 뭐가 있었는지가 들려야 고를 수 있다.
-           */
-          const spoken = [
-            `${monthIndex + 1}월 ${day}일`,
-            isToday ? '오늘' : null,
-            summary
-              ? summary.rested
-                ? '쉬는 날로 남김'
-                : `${summary.pitches}구`
-              : '기록 없음',
-            summary?.hasVideo ? '영상 있음' : null,
-          ]
-            .filter(Boolean)
-            .join(', ');
 
           return (
             <button
               key={key}
               type="button"
               onClick={() => onSelect(key)}
-              aria-label={spoken}
+              aria-label={
+                mark ? `${monthIndex + 1}월 ${day}일, ${mark.spoken}` :
+                `${monthIndex + 1}월 ${day}일${isToday ? ', 오늘' : ''}, 기록 없음`
+              }
               aria-pressed={isSelected}
               className={`relative flex min-h-[3.25rem] flex-col items-center justify-center gap-0.5 rounded-lg border text-sm transition-colors sm:min-h-[4.5rem] ${
                 isSelected
                   ? 'border-sky ring-1 ring-sky'
-                  : summary?.rested
-                    ? RESTED_CLASS
+                  : mark && mark.intensity == null
+                    ? OUTLINE_CLASS
                     : 'border-transparent hover:border-line-strong'
               } ${
-                marked && summary && !summary.rested
-                  ? intensityClass(summary.maxIntensity)
-                  : marked
+                mark?.intensity != null
+                  ? intensityClass(mark.intensity)
+                  : mark
                     ? ''
                     : 'bg-surface-2 text-muted hover:text-ink'
               }`}
@@ -147,14 +149,12 @@ export function PitchCalendar({
               >
                 {day}
               </span>
-              {marked && summary && (
+              {mark && (
                 <span className="max-w-full truncate px-0.5 text-[10px] leading-none opacity-80 sm:text-[11px]">
-                  {summary.rested ? '휴식' : `${summary.pitches}구`}
+                  {mark.label}
                 </span>
               )}
-              {/* 달력이 영상으로 가는 유일한 입구가 되었으니, 어느 날에
-                  영상이 있는지 한눈에 보여야 한다. 읽어주는 이름에도 들어간다. */}
-              {summary?.hasVideo && (
+              {mark?.dot && (
                 <span
                   aria-hidden
                   className="absolute right-1 top-1 h-1.5 w-1.5 rounded-full bg-sky-strong ring-1 ring-surface"
@@ -165,25 +165,27 @@ export function PitchCalendar({
         })}
       </div>
 
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-2 border-t border-line pt-4 text-[11px] text-muted">
-        <span>강도</span>
-        <span className="flex items-center gap-1.5">
-          <span className="h-3 w-5 rounded bg-sky/15" /> 낮음
-        </span>
-        <span className="flex items-center gap-1.5">
-          <span className="h-3 w-5 rounded bg-sky/40" /> 보통
-        </span>
-        <span className="flex items-center gap-1.5">
-          <span className="h-3 w-5 rounded bg-sky/70" /> 높음
-        </span>
-        <span className="flex items-center gap-1.5">
-          <span className="h-3 w-5 rounded border border-dashed border-line-strong" />{' '}
-          쉬는 날
-        </span>
-        <span className="flex items-center gap-1.5">
-          <span className="h-1.5 w-1.5 rounded-full bg-sky-strong" /> 영상
-        </span>
-      </div>
+      {children && (
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-2 border-t border-line pt-4 text-[11px] text-muted">
+          {children}
+        </div>
+      )}
     </div>
+  );
+}
+
+/** 두 화면이 같은 범례를 쓰도록 조각을 함께 둔다. */
+export function LegendSwatch({
+  className,
+  children,
+}: {
+  className: string;
+  children: ReactNode;
+}) {
+  return (
+    <span className="flex items-center gap-1.5">
+      <span className={className} />
+      {children}
+    </span>
   );
 }
