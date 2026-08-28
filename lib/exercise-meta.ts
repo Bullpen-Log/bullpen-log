@@ -125,6 +125,20 @@ export const EXERCISE_EQUIPMENT = [
 /** 도구 이름 하나. 이 목록 밖의 이름은 어디서도 쓸 수 없다. */
 export type EquipmentName = (typeof EXERCISE_EQUIPMENT)[number];
 
+/**
+ * 무게를 숫자로 적을 수 있는 장비.
+ *
+ * 맨몸 스트레칭에 "몇 kg 들었나요"를 물으면 답할 것이 없다. 밴드는 무게가
+ * 아니라 장력이라 kg으로 적을 수 없고, 메디신볼·짐볼은 무게가 고정이라
+ * 매번 적을 값어치가 없다.
+ */
+const WEIGHTED_EQUIPMENT: readonly string[] = ['덤벨', '바벨', '원판', '케틀벨'];
+
+/** 이 운동에 무게 칸을 낼 것인가 */
+export function usesWeight(equipment: readonly string[]): boolean {
+  return equipment.some((e) => WEIGHTED_EQUIPMENT.includes(e));
+}
+
 /* ------------------------------ 세트·횟수·휴식 ----------------------------- */
 
 /**

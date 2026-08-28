@@ -41,6 +41,8 @@ export async function trainingLoad(
       select: {
         date: true,
         setsDone: true,
+        weightKg: true,
+        exerciseId: true,
         exercise: {
           select: {
             category: true,

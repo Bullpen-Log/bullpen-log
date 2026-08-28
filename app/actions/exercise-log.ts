@@ -22,6 +22,8 @@ function positiveInt(value: unknown, max: number): number | null {
 const MAX_SETS = 30;
 const MAX_REPS = 200;
 const MAX_HOLD_SECONDS = 600;
+/** 사람이 드는 무게의 위쪽 끝. 세계기록도 여기 안에 들어온다. */
+const MAX_WEIGHT_KG = 500;
 
 /**
  * 오늘 그 운동을 했는지 표시하고, 실제로 한 만큼을 남긴다.
@@ -36,7 +38,12 @@ const MAX_HOLD_SECONDS = 600;
 export async function setExerciseDone(
   exerciseId: string,
   done: boolean,
-  amount?: { sets?: unknown; reps?: unknown; holdSeconds?: unknown }
+  amount?: {
+    sets?: unknown;
+    reps?: unknown;
+    holdSeconds?: unknown;
+    weightKg?: unknown;
+  }
 ): Promise<{ ok: true } | { error: string }> {
   const user = await requireUser();
 
@@ -59,6 +66,7 @@ export async function setExerciseDone(
       setsDone: positiveInt(amount?.sets, MAX_SETS),
       repsDone: positiveInt(amount?.reps, MAX_REPS),
       holdSecondsDone: positiveInt(amount?.holdSeconds, MAX_HOLD_SECONDS),
+      weightKg: positiveInt(amount?.weightKg, MAX_WEIGHT_KG),
     };
     await prisma.userExerciseLog.upsert({
       where: { userId_exerciseId_date: key },

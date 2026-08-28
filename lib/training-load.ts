@@ -53,6 +53,10 @@ export type LoggedExercise = {
 } & Prescription & {
     /** 실제로 한 세트 수. 안 적었으면 null */
     setsDone: number | null;
+    /** 실제로 든 무게(kg). 안 적었거나 맨몸이면 null */
+    weightKg?: number | null;
+    /** 이 운동에서 내가 평소 들던 무게(kg). 견줄 것이 없으면 null */
+    referenceKg?: number | null;
   };
 
 /**
@@ -134,6 +138,33 @@ export function setFactor(ex: {
 }
 
 /**
+ * 평소보다 무겁게 들었는가.
+ *
+ *   배수 = 이번 무게 / 내 평소 무게
+ *
+ * 1RM을 추정하지 않는다. 실패까지 간 세트가 아니면 추정식이 크게 틀리는데,
+ * 우리는 실패까지 갔는지 모른다. 대신 본인의 최근 평균과 견준다 — 자기 자신이
+ * 기준이라 초보든 상급자든 똑같이 작동하고, 추정이 하나도 안 들어간다.
+ *
+ * 무게를 안 적었거나 견줄 기록이 없으면 1이다(조절하지 않음). 무게는 선택
+ * 입력이라, 안 적는 사람도 계산이 그대로 돌아야 한다.
+ *
+ * 위아래로 잘라 둔다. 100을 1000으로 잘못 치면 그날 하나가 지수 전체를
+ * 뒤집는데, 그건 기록이 아니라 오타다.
+ */
+const WEIGHT_FACTOR_MIN = 0.6;
+const WEIGHT_FACTOR_MAX = 1.6;
+
+export function weightFactor(
+  weightKg: number | null | undefined,
+  referenceKg: number | null | undefined
+): number {
+  if (weightKg == null || referenceKg == null || referenceKg <= 0) return 1;
+  const raw = weightKg / referenceKg;
+  return Math.min(WEIGHT_FACTOR_MAX, Math.max(WEIGHT_FACTOR_MIN, raw));
+}
+
+/**
  * 그날 강도(1~10) → 전체에 곱하는 배수.
  *
  * 운동 계수가 이미 "이 운동이 얼마나 무거운가"를 담고 있으므로, 그날 강도는
@@ -183,7 +214,7 @@ export function trainingDayLoad(
      * 0으로 두면 실제로 한 운동이 계산에서 사라진다.
      */
     const count = ex.setsDone ?? ex.sets ?? 0;
-    sets += count * setFactor(ex);
+    sets += count * setFactor(ex) * weightFactor(ex.weightKg, ex.referenceKg);
     if (ex.setsDone == null) estimatedCount++;
   }
 
@@ -249,8 +280,36 @@ export type TrainingLoad = AcwrResult & {
 export type ExerciseLogRow = {
   date: Date;
   setsDone: number | null;
-  exercise: Omit<LoggedExercise, 'setsDone'> & { bodyParts?: string[] };
+  weightKg?: number | null;
+  /** 어느 운동인지 — 평소 무게를 운동마다 따로 내야 한다 */
+  exerciseId?: string;
+  exercise: Omit<LoggedExercise, 'setsDone' | 'weightKg' | 'referenceKg'> & {
+    bodyParts?: string[];
+  };
 };
+
+/**
+ * 운동마다 '내가 평소 들던 무게'.
+ *
+ * 기간 전체의 평균을 쓴다. 꾸준히 늘려온 사람은 최근이 평균보다 위로 올라가
+ * 부하가 조금 높게 잡히는데, 그게 맞다 — 실제로 더 든 것이다.
+ *
+ * 한 번밖에 안 적었으면 견줄 것이 없으므로 내놓지 않는다. 그 한 번이 곧
+ * 평균이 되어 배수가 늘 1이 되는데, 그러면 무게를 적은 값어치가 없다.
+ */
+function referenceWeights(rows: ExerciseLogRow[]): Map<string, number> {
+  const bucket = new Map<string, number[]>();
+  for (const row of rows) {
+    if (row.exerciseId == null || row.weightKg == null || row.weightKg <= 0) continue;
+    bucket.set(row.exerciseId, [...(bucket.get(row.exerciseId) ?? []), row.weightKg]);
+  }
+  const out = new Map<string, number>();
+  for (const [id, values] of bucket) {
+    if (values.length < 2) continue;
+    out.set(id, values.reduce((a, b) => a + b, 0) / values.length);
+  }
+  return out;
+}
 export type TrainingNoteRow = { date: Date; intensity: number };
 
 /**
@@ -266,11 +325,19 @@ export function buildTrainingLoad(
   /** 가입 문진으로 추정한 하루 평균 운동 부하. 없으면 28일이 쌓여야 지수가 나온다. */
   seedDailyLoad: number | null = null
 ): TrainingLoad {
+  const reference = referenceWeights(logs);
+
   const byDay = new Map<string, LoggedExercise[]>();
   for (const log of logs) {
     const key = toDateKey(log.date);
     const list = byDay.get(key) ?? [];
-    list.push({ ...log.exercise, setsDone: log.setsDone });
+    list.push({
+      ...log.exercise,
+      setsDone: log.setsDone,
+      weightKg: log.weightKg ?? null,
+      referenceKg:
+        log.exerciseId != null ? (reference.get(log.exerciseId) ?? null) : null,
+    });
     byDay.set(key, list);
   }
 

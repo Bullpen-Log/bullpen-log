@@ -83,6 +83,7 @@ export async function loadTodayCore(user: UserForToday, today: Date) {
         setsDone: true,
         repsDone: true,
         holdSecondsDone: true,
+        weightKg: true,
       },
     }),
     /*

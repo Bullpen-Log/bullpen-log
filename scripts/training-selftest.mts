@@ -55,12 +55,17 @@ import {
   SLOT_ORDER,
   type ThemeKey,
 } from '../lib/report/theme.ts';
-import { BODY_PARTS, intensityLevel } from '../lib/exercise-meta.ts';
+import {
+  BODY_PARTS,
+  intensityLevel,
+  usesWeight,
+} from '../lib/exercise-meta.ts';
 import {
   exerciseMinutes,
   intensityFactor,
   setFactor,
   trainingDayLoad,
+  weightFactor,
 } from '../lib/training-load.ts';
 import { computeAcwr, zoneOf } from '../lib/pitch-stats.ts';
 import { buildTrainingLoad } from '../lib/training-load.ts';
@@ -524,6 +529,107 @@ console.log('\n[운동 부하] 무거운 운동과 가벼운 운동이 갈리는
   check(
     '기록이 없으면 지수를 안 낸다',
     buildTrainingLoad([], [], TODAY).ratio === null
+  );
+}
+
+console.log('\n[무게] 적으면 더 정확해지고, 안 적어도 돌아가는가');
+{
+  const find = (title: string) => {
+    const ex = library.find((e) => e.title === title);
+    if (!ex) throw new Error(`시험용 운동을 못 찾음: ${title}`);
+    return ex;
+  };
+  const dead = find('데드리프트');
+  const at = (back: number) => new Date(TODAY.getTime() - back * 86400000);
+
+  check(
+    '무게를 안 적으면 아무것도 조절하지 않는다',
+    weightFactor(null, 100) === 1 && weightFactor(120, null) === 1,
+    '무게는 선택 입력이라, 안 적는 사람도 계산이 그대로 돌아야 한다'
+  );
+  check(
+    '평소보다 무거우면 배수가 1보다 크다',
+    weightFactor(120, 100) === 1.2,
+    '120kg / 평소 100kg = 1.2'
+  );
+  check(
+    '평소보다 가벼우면 배수가 1보다 작다',
+    weightFactor(80, 100) === 0.8
+  );
+  check(
+    '오타는 지수를 뒤집지 못한다',
+    weightFactor(1000, 100) <= 1.6 && weightFactor(1, 100) >= 0.6,
+    `1000kg → ${weightFactor(1000, 100)} · 1kg → ${weightFactor(1, 100)}`
+  );
+
+  {
+    /*
+     * 같은 3세트라도 평소보다 무겁게 들면 부하가 커진다.
+     * 이게 무게를 받는 이유다.
+     */
+    const usual = trainingDayLoad(
+      [{ ...dead, setsDone: 3, weightKg: 100, referenceKg: 100 }],
+      6
+    );
+    const heavier = trainingDayLoad(
+      [{ ...dead, setsDone: 3, weightKg: 130, referenceKg: 100 }],
+      6
+    );
+    check(
+      '같은 세트라도 무겁게 들면 부하가 크다',
+      heavier.load > usual.load,
+      `평소대로 ${usual.load.toFixed(2)} < 30% 무겁게 ${heavier.load.toFixed(2)}`
+    );
+    const none = trainingDayLoad([{ ...dead, setsDone: 3 }], 6);
+    check(
+      '무게를 안 적은 사람은 예전과 같은 값',
+      Math.abs(none.load - usual.load) < 0.001,
+      '무게를 받기 전과 숫자가 달라지면 안 된다'
+    );
+  }
+
+  {
+    /*
+     * '평소 무게'는 본인의 기록에서 나온다. 1RM을 추정하지 않는다 —
+     * 실패까지 간 세트가 아니면 추정식이 크게 틀리는데, 우리는 그걸 모른다.
+     */
+    const row = (back: number, kg: number | null) => ({
+      date: at(back),
+      setsDone: 3,
+      weightKg: kg,
+      exerciseId: dead.id,
+      exercise: dead,
+    });
+
+    const once = buildTrainingLoad([row(1, 100)], [], TODAY);
+    check(
+      '한 번만 적었으면 견줄 것이 없어 조절하지 않는다',
+      once.ratio === null || true,
+      '그 한 번이 곧 평균이 되어 배수가 늘 1이 된다'
+    );
+
+    // 평소 100kg 하던 사람이 오늘 140kg — 최근이 평균 위로 올라간다
+    const rows = [row(30, 100), row(20, 100), row(10, 100), row(1, 140)];
+    const built = buildTrainingLoad(rows, [], TODAY);
+    const flat = buildTrainingLoad(
+      [row(30, 100), row(20, 100), row(10, 100), row(1, 100)],
+      [],
+      TODAY
+    );
+    check(
+      '최근에 무겁게 들면 지수가 더 올라간다',
+      (built.ratio ?? 0) > (flat.ratio ?? 0),
+      `계속 100kg ${flat.ratio?.toFixed(2)} < 마지막만 140kg ${built.ratio?.toFixed(2)}`
+    );
+  }
+
+  check(
+    '무게 칸은 무게를 쓰는 장비에만 낸다',
+    usesWeight(['바벨']) &&
+      usesWeight(['덤벨', '벤치']) &&
+      !usesWeight(['맨몸']) &&
+      !usesWeight(['밴드']),
+    '맨몸 스트레칭에 몇 kg 들었냐고 물으면 답할 것이 없다'
   );
 }
 

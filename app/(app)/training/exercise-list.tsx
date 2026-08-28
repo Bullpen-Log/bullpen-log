@@ -39,6 +39,14 @@ export type TodayExercise = {
   doneSets: string;
   doneReps: string;
   doneHoldSeconds: string;
+  doneWeightKg: string;
+  /**
+   * 무게 칸을 보여줄 운동인가.
+   *
+   * 맨몸 스트레칭에 "몇 kg 들었나요"를 물으면 답할 것이 없다. 무게를 쓰는
+   * 장비를 하나라도 쓰는 운동에만 낸다.
+   */
+  usesWeight: boolean;
 };
 
 /**
@@ -72,7 +80,11 @@ export function ExerciseChecklist({
    * 순간 1세트로 저장됐다가 '10'으로 고쳐지는데, 그 사이에 화면을 닫으면
    * 틀린 값이 남는다.
    */
-  const setAmount = (id: string, field: 'doneSets' | 'doneReps' | 'doneHoldSeconds', value: string) => {
+  const setAmount = (
+    id: string,
+    field: 'doneSets' | 'doneReps' | 'doneHoldSeconds' | 'doneWeightKg',
+    value: string
+  ) => {
     // 숫자만 받는다. 붙여넣기로 들어온 글자도 여기서 걸린다.
     const digits = value.replace(/[^0-9]/g, '').slice(0, 3);
     setItems((prev) => prev.map((e) => (e.id === id ? { ...e, [field]: digits } : e)));
@@ -87,6 +99,7 @@ export function ExerciseChecklist({
         sets: target.doneSets,
         reps: target.isHold ? '' : target.doneReps,
         holdSeconds: target.isHold ? target.doneHoldSeconds : '',
+        weightKg: target.usesWeight ? target.doneWeightKg : '',
       });
       if ('error' in res) setError(res.error);
     });
@@ -137,7 +150,14 @@ export function ExerciseChecklist({
         e.id === id
           ? next
             ? { ...e, done: true }
-            : { ...e, done: false, doneSets: '', doneReps: '', doneHoldSeconds: '' }
+            : {
+                ...e,
+                done: false,
+                doneSets: '',
+                doneReps: '',
+                doneHoldSeconds: '',
+                doneWeightKg: '',
+              }
           : e
       )
     );
@@ -253,7 +273,7 @@ function ExerciseList({
   onRemove: (id: string) => void;
   onAmountChange: (
     id: string,
-    field: 'doneSets' | 'doneReps' | 'doneHoldSeconds',
+    field: 'doneSets' | 'doneReps' | 'doneHoldSeconds' | 'doneWeightKg',
     value: string
   ) => void;
   onAmountBlur: (id: string) => void;
@@ -381,6 +401,25 @@ function ExerciseList({
                     onChange={(v) => onAmountChange(ex.id, 'doneReps', v)}
                     onBlur={() => onAmountBlur(ex.id)}
                   />
+                )}
+                {/*
+                  무게는 선택이다. 적으면 "평소보다 무겁게 들었나"를 부하에
+                  반영한다 — 1RM을 추정하지 않고 본인의 최근 평균과 견준다.
+                  맨몸 운동에는 아예 칸을 내지 않는다.
+                */}
+                {ex.usesWeight && (
+                  <>
+                    <span aria-hidden className="text-xs text-muted">
+                      ·
+                    </span>
+                    <AmountInput
+                      value={ex.doneWeightKg}
+                      unit="kg"
+                      label={`${ex.title} 실제로 든 무게(kg)`}
+                      onChange={(v) => onAmountChange(ex.id, 'doneWeightKg', v)}
+                      onBlur={() => onAmountBlur(ex.id)}
+                    />
+                  </>
                 )}
                 <span className="text-[11px] text-muted">안 적어도 됩니다</span>
               </div>

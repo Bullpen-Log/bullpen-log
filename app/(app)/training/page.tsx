@@ -4,7 +4,7 @@ import { prisma } from '@/lib/prisma';
 import { requireUser } from '@/lib/dal';
 import { createPlaybackUrls } from '@/lib/storage';
 import { referenceThumbUrl } from '@/lib/reference-video';
-import { formatPrescription } from '@/lib/exercise-meta';
+import { formatPrescription, usesWeight } from '@/lib/exercise-meta';
 import { loadTodayCore } from '@/lib/report/today-data';
 import { MIN_CANDIDATES } from '@/lib/report/prescription';
 import { DEFAULT_WORKOUT_MINUTES } from '@/lib/report/theme';
@@ -188,6 +188,9 @@ export default async function TrainingPage({
     doneReps: core.doneAmounts.get(ex.id)?.repsDone?.toString() ?? '',
     doneHoldSeconds:
       core.doneAmounts.get(ex.id)?.holdSecondsDone?.toString() ?? '',
+    doneWeightKg: core.doneAmounts.get(ex.id)?.weightKg?.toString() ?? '',
+    /* 맨몸·밴드 운동에는 무게 칸을 내지 않는다 — 적을 값이 없다. */
+    usesWeight: usesWeight(ex.equipment),
   }));
 
   /*

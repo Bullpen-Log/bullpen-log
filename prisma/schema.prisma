@@ -338,6 +338,12 @@ model UserExerciseLog {
   repsDone        Int?
   /// 세트당 실제로 버틴 시간(초). 횟수형 운동이면 null.
   holdSecondsDone Int?
+  /// 실제로 든 무게(kg). 안 적었거나 맨몸이면 null.
+  ///
+  /// 적으면 부하를 더 정확하게 센다 — 같은 3세트라도 평소보다 무겁게 들었으면
+  /// 더 큰 부하다. 1RM을 추정하지 않고 본인의 최근 평균과 견준다.
+  /// 안 적어도 계산은 그대로 돈다(lib/training-load.ts).
+  weightKg        Int?
 
   user       User          @relation(fields: [userId], references: [id], onDelete: Cascade)
   exercise   ExerciseVideo @relation(fields: [exerciseId], references: [id], onDelete: Cascade)
