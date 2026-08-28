@@ -32,10 +32,24 @@ model User {
   heightCm          Int?
   /// 목표 최고 구속(km/h). 지금 구속과의 격차를 보여주는 기준이 된다.
   targetVelocity    Int?
+  /// 던지는 손. 폼 분석에서 어느 팔을 보는지 정한다.
+  /// 이름은 lib/baseline.ts의 THROWING_HANDS 안에서만 쓴다.
+  throwingHand      String?
+  /// 어디서 야구를 하는지 — 초등학교/중학교/…/사회인.
+  ///
+  /// 이 값으로 무엇을 강제로 바꾸지는 않는다. 나이는 생년월일로 이미 알고 있고,
+  /// 안전 한도도 거기서 나온다. 나중에 "고등학교 투수들은 보통 어떤지"를 보려고
+  /// 모으는 값이다. 이름은 lib/baseline.ts의 COMPETITION_LEVELS 안에서만 쓴다.
+  competitionLevel  String?
   /// 가입 문진 — 평소 투구량. 부하 지수의 추정 기준선을 만든다. (lib/baseline.ts)
   baselineFreq      String?
   baselineVolume    String?
   baselineIntensity String?
+  /// 가입 문진 — 평소 웨이트 빈도. 운동 부하 지수의 추정 기준선을 만든다.
+  ///
+  /// 없으면 운동 지수는 28일이 쌓여야 나온다. 투구는 위 세 문항 덕에 첫날부터
+  /// 나오는데 운동만 한 달을 기다리는 것은 앞뒤가 안 맞아서 함께 받는다.
+  baselineWorkoutFreq String?
   /// 하루 운동 시간(분). 오늘의 운동 종목 수를 이 시간에 맞춰 계산한다.
   /// 비어 있으면 기본값(lib/report/theme.ts의 DEFAULT_WORKOUT_MINUTES)을 쓴다.
   dailyWorkoutMinutes Int?

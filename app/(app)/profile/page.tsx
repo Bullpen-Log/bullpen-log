@@ -34,6 +34,9 @@ export default async function ProfilePage() {
               baselineFreq: user.baselineFreq,
               baselineVolume: user.baselineVolume,
               baselineIntensity: user.baselineIntensity,
+          baselineWorkoutFreq: user.baselineWorkoutFreq,
+          throwingHand: user.throwingHand,
+          competitionLevel: user.competitionLevel,
             }}
             today={todayKey()}
           />

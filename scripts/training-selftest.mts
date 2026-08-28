@@ -45,6 +45,7 @@ import {
   readTrainingProfile,
 } from '../lib/report/personalize.ts';
 import {
+  DEFAULT_WORKOUT_MINUTES,
   WORKOUT_MINUTES_CHOICES,
   compositionFor,
   decideTheme,
@@ -67,6 +68,14 @@ import {
   reportReadiness,
 } from '../lib/report/cadence.ts';
 import { SYSTEM_PROMPT } from '../lib/ai/report-prompt.ts';
+import {
+  BASELINE_WORKOUT_FREQ_NAMES,
+  COMPETITION_LEVELS,
+  DEFAULT_SESSION_MINUTES,
+  THROWING_HANDS,
+  estimateTrainingDailyLoad,
+  validateBaseline,
+} from '../lib/baseline.ts';
 import {
   buildDailyPlan,
   isHalted,
@@ -454,6 +463,139 @@ console.log('\n[운동 부하] 실제로 한 만큼으로 세는가');
   check(
     '기록이 없으면 지수를 안 낸다',
     buildTrainingLoad([], [], TODAY).ratio === null
+  );
+}
+
+console.log('\n[가입 문진] 받은 답이 실제로 쓰이는가');
+{
+  /*
+   * 문항을 하나 늘릴 때마다 가입에서 그만큼 사람이 빠진다.
+   * 그래서 받는 값마다 쓰이는 곳이 있어야 한다 — 여기서 그것을 확인한다.
+   */
+  const ok = validateBaseline({
+    baselineFreq: '주 2~3회',
+    baselineVolume: '30~60구',
+    baselineIntensity: '절반 전력',
+    baselineWorkoutFreq: '주 3~4회',
+    throwingHand: '우투',
+    competitionLevel: '고등학교',
+  });
+  check('여덟 문항을 다 답하면 통과', !('error' in ok));
+
+  const noLevel = validateBaseline({
+    baselineFreq: '주 2~3회',
+    baselineVolume: '30~60구',
+    baselineIntensity: '절반 전력',
+    baselineWorkoutFreq: '주 3~4회',
+    throwingHand: '좌투',
+    competitionLevel: '',
+  });
+  check(
+    '수준은 안 골라도 통과한다',
+    !('error' in noLevel) && noLevel.value.competitionLevel === null,
+    '아무 계산에도 안 쓰는 값이라 이것 때문에 가입이 막히면 안 된다'
+  );
+
+  const badHand = validateBaseline({
+    baselineFreq: '주 2~3회',
+    baselineVolume: '30~60구',
+    baselineIntensity: '절반 전력',
+    baselineWorkoutFreq: '주 3~4회',
+    throwingHand: '양손',
+    competitionLevel: '',
+  });
+  check('목록에 없는 손은 막는다', 'error' in badHand);
+
+  const noWorkout = validateBaseline({
+    baselineFreq: '주 2~3회',
+    baselineVolume: '30~60구',
+    baselineIntensity: '절반 전력',
+    baselineWorkoutFreq: '',
+    throwingHand: '우투',
+    competitionLevel: '',
+  });
+  check('웨이트 횟수를 빠뜨리면 막는다', 'error' in noWorkout);
+
+  check(
+    '화면에 쓰는 목록이 비어 있지 않다',
+    BASELINE_WORKOUT_FREQ_NAMES.length > 0 &&
+      COMPETITION_LEVELS.length > 0 &&
+      THROWING_HANDS.length === 2
+  );
+}
+
+{
+  /*
+   * 웨이트 빈도가 운동 부하의 시작 기준선이 되는가.
+   *
+   * 이게 없으면 운동 지수만 28일을 기다려야 한다 — 투구는 문진 덕에 첫날부터
+   * 나오는데 운동만 한 달을 기다리는 것은 앞뒤가 안 맞는다.
+   */
+  const none = estimateTrainingDailyLoad({
+    baselineWorkoutFreq: null,
+    dailyWorkoutMinutes: 45,
+  });
+  check('안 답하면 추정하지 않는다', none === null, '그러면 28일이 쌓여야 나온다');
+
+  const light = estimateTrainingDailyLoad({
+    baselineWorkoutFreq: '주 1~2회',
+    dailyWorkoutMinutes: 45,
+  });
+  const heavy = estimateTrainingDailyLoad({
+    baselineWorkoutFreq: '주 5회 이상',
+    dailyWorkoutMinutes: 45,
+  });
+  check(
+    '많이 하는 사람의 기준선이 더 높다',
+    light != null && heavy != null && heavy > light,
+    `주 1~2회 ${light?.toFixed(0)} < 주 5회 이상 ${heavy?.toFixed(0)}`
+  );
+
+  const longer = estimateTrainingDailyLoad({
+    baselineWorkoutFreq: '주 3~4회',
+    dailyWorkoutMinutes: 90,
+  });
+  const shorter = estimateTrainingDailyLoad({
+    baselineWorkoutFreq: '주 3~4회',
+    dailyWorkoutMinutes: 30,
+  });
+  check(
+    '오래 하는 사람의 기준선이 더 높다',
+    longer != null && shorter != null && longer > shorter,
+    `30분 ${shorter?.toFixed(0)} < 90분 ${longer?.toFixed(0)}`
+  );
+
+  /*
+   * 기준선을 넣으면 첫날부터 지수가 나오는가.
+   * 평소대로 운동하는 사람이면 적정 구간이어야 한다.
+   */
+  const find = (title: string) => {
+    const ex = library.find((e) => e.title === title);
+    if (!ex) throw new Error(`시험용 운동을 못 찾음: ${title}`);
+    return ex;
+  };
+  const dead = find('데드리프트');
+  const seed = estimateTrainingDailyLoad({
+    baselineWorkoutFreq: '주 3~4회',
+    dailyWorkoutMinutes: 45,
+  });
+  const fresh = buildTrainingLoad(
+    [{ date: new Date(TODAY.getTime() - 86400000), setsDone: 3, exercise: dead }],
+    [{ date: new Date(TODAY.getTime() - 86400000), intensity: 6 }],
+    TODAY,
+    seed
+  );
+  check(
+    '문진을 답하면 기록 하루만 있어도 지수가 나온다',
+    fresh.ratio != null,
+    `지수 ${fresh.ratio?.toFixed(2)} · 추정 표시 ${fresh.estimated}`
+  );
+  check('그때는 추정이라고 표시한다', fresh.estimated);
+
+  check(
+    '문진의 기본 운동 시간이 트레이닝 쪽 기본값과 같다',
+    DEFAULT_SESSION_MINUTES === DEFAULT_WORKOUT_MINUTES,
+    `${DEFAULT_SESSION_MINUTES}분`
   );
 }
 

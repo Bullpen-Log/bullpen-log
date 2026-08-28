@@ -188,12 +188,12 @@ export function StatsOverview({
     advice: training.zone ? TRAINING_ADVICE[training.zone] : '',
     hasRecords: training.historyDays > 0,
     /*
-     * 운동에는 문진 기준선이 없어 28일이 쌓여야 지수가 나온다.
-     * 투구처럼 "문진 채우고 바로 보기" 길이 없으므로 그렇게 말하지 않는다.
+     * 투구와 마찬가지로, 문진에 '평소 웨이트 빈도'를 답하면 첫날부터 나온다.
+     * 안 답한 사람에게는 그 길이 있다는 것을 알려준다.
      */
     emptyHint:
       training.historyDays > 0
-        ? '평소 운동량과 견줄 기준이 아직 없습니다. 계속 기록하면 나옵니다.'
+        ? '평소 운동량과 견줄 기준이 아직 없습니다. 내 정보에서 평소 웨이트 횟수를 답하면 바로 나옵니다.'
         : '트레이닝에서 운동을 마쳤다고 표시하면 여기에 나옵니다.',
   };
 

@@ -178,7 +178,9 @@ export type TrainingNoteRow = { date: Date; intensity: number };
 export function buildTrainingLoad(
   logs: ExerciseLogRow[],
   notes: TrainingNoteRow[],
-  today = new Date()
+  today = new Date(),
+  /** 가입 문진으로 추정한 하루 평균 운동 부하. 없으면 28일이 쌓여야 지수가 나온다. */
+  seedDailyLoad: number | null = null
 ): TrainingLoad {
   const byDay = new Map<string, LoggedExercise[]>();
   for (const log of logs) {
@@ -205,7 +207,7 @@ export function buildTrainingLoad(
     detail.set(key, day);
   }
 
-  const acwr = computeAcwr(dailyLoads, today);
+  const acwr = computeAcwr(dailyLoads, today, { seedDailyLoad });
 
   /* 최근 7일 — 화면에서 "이번 주 운동"으로 쓴다. */
   const todayKey = toDateKey(today);

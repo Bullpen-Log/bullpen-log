@@ -67,11 +67,14 @@ async function tryUpdateProfile(formData: FormData): Promise<ProfileState> {
   );
   if ('error' in checked) return checked;
 
-  // 평소 투구량 문진 — 기존 회원이 나중에 채우는 경우가 있어 여기서도 받는다.
+  // 가입 문진 — 기존 회원이 나중에 채우는 경우가 있어 여기서도 받는다.
   const rawBaseline = {
     baselineFreq: String(formData.get('baselineFreq') ?? ''),
     baselineVolume: String(formData.get('baselineVolume') ?? ''),
     baselineIntensity: String(formData.get('baselineIntensity') ?? ''),
+    baselineWorkoutFreq: String(formData.get('baselineWorkoutFreq') ?? ''),
+    throwingHand: String(formData.get('throwingHand') ?? ''),
+    competitionLevel: String(formData.get('competitionLevel') ?? ''),
   };
   const anyBaseline = Object.values(rawBaseline).some((v) => v.trim() !== '');
   let baselineValue = {};

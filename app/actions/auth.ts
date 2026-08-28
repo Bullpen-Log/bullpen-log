@@ -56,6 +56,9 @@ async function trySignup(formData: FormData): Promise<AuthState> {
     baselineFreq: String(formData.get('baselineFreq') ?? ''),
     baselineVolume: String(formData.get('baselineVolume') ?? ''),
     baselineIntensity: String(formData.get('baselineIntensity') ?? ''),
+    baselineWorkoutFreq: String(formData.get('baselineWorkoutFreq') ?? ''),
+    throwingHand: String(formData.get('throwingHand') ?? ''),
+    competitionLevel: String(formData.get('competitionLevel') ?? ''),
   });
   if ('error' in baseline) return baseline;
 

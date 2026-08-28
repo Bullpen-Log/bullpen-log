@@ -1,6 +1,7 @@
 import 'server-only';
 import { prisma } from '@/lib/prisma';
 import { buildTrainingLoad, type TrainingLoad } from '@/lib/training-load';
+import { estimateTrainingDailyLoad } from '@/lib/baseline';
 
 export type { TrainingLoad };
 
@@ -15,10 +16,8 @@ export type { TrainingLoad };
  * 아무도 설명할 수 없다. 지수는 '평소 대비 몇 배'라 단위가 없으므로, 둘을
  * 나란히 두고 읽으면 된다.
  *
- * 시작 기준선(seed)이 없다. 투구는 가입 문진으로 평소 양을 추정해 첫날부터
- * 지수를 낼 수 있지만, 운동은 아직 문진에서 묻지 않는다. 그래서 28일이 쌓여야
- * 지수가 나온다 — 기준선 없는 투구 기록과 같은 규칙이다.
- * (가입 설문을 손볼 때 '평소 웨이트 빈도'를 함께 받으면 이 기다림을 없앨 수 있다.)
+ * 시작 기준선은 가입 문진의 '평소 웨이트 빈도'에서 나온다. 투구와 같은 방식이라,
+ * 답한 사람은 첫날부터 지수를 본다. 안 답했으면 28일이 쌓여야 나온다.
  */
 
 /** 부하 계산에 필요한 기간. 4주 만성 부하에 여유를 둔다. */
@@ -32,7 +31,11 @@ export async function trainingLoad(
   const since = new Date(today);
   since.setDate(since.getDate() - LOOKBACK_DAYS);
 
-  const [logs, notes] = await Promise.all([
+  const [user, logs, notes] = await Promise.all([
+    prisma.user.findUnique({
+      where: { id: userId },
+      select: { baselineWorkoutFreq: true, dailyWorkoutMinutes: true },
+    }),
     prisma.userExerciseLog.findMany({
       where: { userId, completed: true, date: { gte: since } },
       select: {
@@ -57,5 +60,16 @@ export async function trainingLoad(
     }),
   ]);
 
-  return buildTrainingLoad(logs, notes, today);
+  /*
+   * 가입 문진으로 평소 운동량을 추정해 첫날부터 지수를 낸다.
+   * 안 답했으면 null 이고, 그때는 28일이 쌓여야 나온다.
+   */
+  const seed = user
+    ? estimateTrainingDailyLoad({
+        baselineWorkoutFreq: user.baselineWorkoutFreq,
+        dailyWorkoutMinutes: user.dailyWorkoutMinutes,
+      })
+    : null;
+
+  return buildTrainingLoad(logs, notes, today, seed);
 }

@@ -14,6 +14,9 @@ import {
   BASELINE_FREQ_NAMES,
   BASELINE_INTENSITY_NAMES,
   BASELINE_VOLUME_NAMES,
+  BASELINE_WORKOUT_FREQ_NAMES,
+  COMPETITION_LEVELS,
+  THROWING_HANDS,
 } from '@/lib/baseline';
 import {
   DEFAULT_WORKOUT_MINUTES,
@@ -48,6 +51,9 @@ export function ProfileForm({
     baselineFreq: string | null;
     baselineVolume: string | null;
     baselineIntensity: string | null;
+    baselineWorkoutFreq: string | null;
+    throwingHand: string | null;
+    competitionLevel: string | null;
   };
   today: string;
 }) {
@@ -185,6 +191,46 @@ export function ProfileForm({
           label="평소 강도"
           options={BASELINE_INTENSITY_NAMES.map((name) => ({ name }))}
           selected={pick('baselineIntensity', baseline.baselineIntensity)}
+        />
+      </div>
+
+      {/*
+        웨이트 빈도 — 운동 부하 지수의 기준선. 투구와 같은 이유로 받는다.
+        이게 없으면 운동 지수만 28일을 기다려야 해서 앞뒤가 안 맞는다.
+      */}
+      <div className="space-y-4 border-t border-line pt-5">
+        <p className="text-sm font-semibold text-ink">
+          평소 웨이트는 얼마나 하시나요?
+          <span className="mt-1 block text-xs font-normal text-muted">
+            이 답으로 운동 부하 지수를 기록 첫날부터 계산합니다.
+          </span>
+        </p>
+        <RadioGroup
+          name="baselineWorkoutFreq"
+          label="웨이트 횟수"
+          options={BASELINE_WORKOUT_FREQ_NAMES.map((name) => ({ name }))}
+          selected={pick('baselineWorkoutFreq', baseline.baselineWorkoutFreq)}
+        />
+      </div>
+
+      <div className="space-y-4 border-t border-line pt-5">
+        <RadioGroup
+          name="throwingHand"
+          label="던지는 손"
+          hint="투구폼 분석에서 어느 팔을 볼지 정합니다."
+          options={THROWING_HANDS.map((name) => ({ name }))}
+          selected={pick('throwingHand', baseline.throwingHand)}
+        />
+        {/*
+          수준은 지금 아무 계산에도 안 쓴다 — 나이는 생년월일로 이미 알고
+          안전 한도도 거기서 나온다. 그 사실을 숨기지 않고 적어 둔다.
+        */}
+        <RadioGroup
+          name="competitionLevel"
+          label="어디서 야구를 하시나요"
+          hint="훈련 내용을 바꾸는 값이 아닙니다. 나중에 비슷한 또래와 견줘 보여드리려고 여쭙습니다. 안 고르셔도 됩니다."
+          options={COMPETITION_LEVELS.map((name) => ({ name }))}
+          selected={pick('competitionLevel', baseline.competitionLevel)}
         />
       </div>
 

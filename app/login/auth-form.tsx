@@ -10,6 +10,9 @@ import {
   BASELINE_FREQ_NAMES,
   BASELINE_INTENSITY_NAMES,
   BASELINE_VOLUME_NAMES,
+  BASELINE_WORKOUT_FREQ_NAMES,
+  COMPETITION_LEVELS,
+  THROWING_HANDS,
 } from '@/lib/baseline';
 
 /** 가입 문진용 한 줄 칩 라디오 */
@@ -164,6 +167,13 @@ export function AuthForm({ today }: { today: string }) {
               키는 나중에 입력해도 됩니다.
             </p>
 
+            <ChipRow
+              label="던지는 손"
+              name="throwingHand"
+              options={THROWING_HANDS}
+              selected={kept(before, 'throwingHand')}
+            />
+
             {/* 평소 투구량 문진 — 이 답으로 부하 지수를 첫날부터 계산한다. */}
             <div className="space-y-4 border-t border-line pt-5">
               <p className="text-sm font-semibold text-ink">
@@ -190,6 +200,43 @@ export function AuthForm({ today }: { today: string }) {
                 options={BASELINE_INTENSITY_NAMES}
                 selected={kept(before, 'baselineIntensity')}
               />
+            </div>
+
+            {/*
+              웨이트 빈도. 투구와 같은 이유로 받는다 — 이게 없으면 운동 부하
+              지수만 28일을 기다려야 해서 앞뒤가 안 맞는다.
+            */}
+            <div className="space-y-4 border-t border-line pt-5">
+              <p className="text-sm font-semibold text-ink">
+                평소 웨이트는 얼마나 하시나요?
+                <span className="mt-1 block text-xs font-normal text-muted">
+                  운동 부하도 첫날부터 보여드리기 위한 1문항입니다.
+                </span>
+              </p>
+              <ChipRow
+                label="웨이트 횟수"
+                name="baselineWorkoutFreq"
+                options={BASELINE_WORKOUT_FREQ_NAMES}
+                selected={kept(before, 'baselineWorkoutFreq')}
+              />
+            </div>
+
+            {/*
+              수준. 지금은 아무 계산에도 안 쓴다 — 나이는 생년월일로 이미 알고
+              안전 한도도 거기서 나온다. 나중에 또래와 견주려고 모으는 값이라,
+              안 골라도 가입이 된다.
+            */}
+            <div className="space-y-4 border-t border-line pt-5">
+              <ChipRow
+                label="어디서 야구를 하시나요"
+                name="competitionLevel"
+                options={COMPETITION_LEVELS}
+                selected={kept(before, 'competitionLevel')}
+              />
+              <p className="text-xs leading-relaxed text-muted/70">
+                안 고르셔도 됩니다. 훈련 내용을 바꾸는 값이 아니라, 나중에 비슷한
+                또래와 견줘 보여드리려고 여쭙습니다.
+              </p>
             </div>
           </>
         )}
