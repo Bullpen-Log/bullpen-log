@@ -6,7 +6,7 @@ import { selectCandidates } from '@/lib/report/prescription';
 import { equipmentForToday, filterByEquipment } from '@/lib/report/equipment';
 import { filterByLevel } from '@/lib/report/personalize';
 import { readDailyPlan } from '@/lib/report/daily-plan';
-import { workoutConflict, type ThemeKey } from '@/lib/report/theme';
+import { estimateMinutes, workoutConflict, type ThemeKey } from '@/lib/report/theme';
 
 /**
  * 홈과 트레이닝이 함께 쓰는 오늘 자료.
@@ -54,6 +54,10 @@ export async function loadTodayCore(user: UserForToday, today: Date) {
      * 예전에는 415개를 통째로 불렀다. 설명 글과 영상 경로까지 딸려와 화면 한 번
      * 여는 데 짐이 컸는데, 정작 그리는 것은 오늘 일정에 담긴 열댓 개뿐이다.
      * 그릴 것은 트레이닝 화면에서 따로 부른다.
+     *
+     * 세트·횟수까지 가져오는 이유는 '운동 추가' 창 때문이다. 400개를 늘어놓고
+     * 고르게 하면서 "몇 세트 몇 회짜리인지"를 안 보여주면 고를 수가 없다.
+     * 숫자 다섯 개라 짐이 되지 않는다.
      */
     prisma.exerciseVideo.findMany({
       orderBy: { createdAt: 'asc' },
@@ -65,6 +69,11 @@ export async function loadTodayCore(user: UserForToday, today: Date) {
         intensity: true,
         difficulty: true,
         equipment: true,
+        sets: true,
+        reps: true,
+        holdSeconds: true,
+        restSeconds: true,
+        perSide: true,
       },
     }),
     prisma.userExerciseLog.findMany({
@@ -145,13 +154,31 @@ export async function loadTodayCore(user: UserForToday, today: Date) {
    *
    * 아침에 일정을 만든 뒤 낮에 통증을 입력할 수 있다. 그때 저장해 둔 목록을
    * 그대로 보여주면, 던지지 말라고 해놓고 데드리프트를 시키는 꼴이 된다.
-   * 지금 기준으로 통과하지 못하는 운동은 뺀다 — 단, 이미 마친 것은 남긴다.
-   * 한 일을 감추면 잘못 누른 체크를 풀 수가 없다.
+   * 지금 기준으로 통과하지 못하는 운동은 뺀다.
+   *
+   * 두 가지는 남긴다.
+   *   이미 마친 것   — 감추면 잘못 누른 체크를 풀 수가 없다.
+   *   직접 더한 것   — 우리가 고른 것이 아니라 본인이 넣은 것이다. 말없이
+   *                   빼면 방금 넣은 운동이 사라지는 셈이라, 대신 표시만 한다.
    */
   const doneIds = new Set(doneLogs.map((d) => d.exerciseId));
   const safeIds = new Set(picked.candidates.map((ex) => ex.id));
-  const shownPicks = (savedPlan?.picks ?? []).filter(
-    (p) => safeIds.has(p.exerciseId) || doneIds.has(p.exerciseId)
+  const shownPicks = (savedPlan?.picks ?? [])
+    .filter(
+      (p) => safeIds.has(p.exerciseId) || doneIds.has(p.exerciseId) || p.manual
+    )
+    .map((p) => ({
+      ...p,
+      /** 지금 몸 상태 기준으로는 권하지 않는 운동인가 */
+      unsafe: !safeIds.has(p.exerciseId),
+    }));
+
+  const byId = new Map(library.map((ex) => [ex.id, ex]));
+  const shownMinutes = Math.round(
+    shownPicks.reduce((sum, p) => {
+      const ex = byId.get(p.exerciseId);
+      return ex ? sum + estimateMinutes(ex) : sum;
+    }, 0)
   );
 
   return {
@@ -169,6 +196,15 @@ export async function loadTodayCore(user: UserForToday, today: Date) {
     shownPicks,
     /** 일정을 만든 뒤 몸 상태가 바뀌어 빠진 개수 */
     droppedForSafety: (savedPlan?.picks.length ?? 0) - shownPicks.length,
+    /** 목록에 남아 있지만 지금은 권하지 않는 운동 수 (직접 더한 것) */
+    unsafeShown: shownPicks.filter((p) => p.unsafe).length,
+    /*
+     * 지금 목록의 실제 소요 시간(분).
+     *
+     * 만들 때 찍어 둔 값을 쓰면, 운동을 빼도 숫자가 안 바뀐다.
+     * 홈과 트레이닝이 같은 숫자를 말해야 하므로 여기서 한 번만 센다.
+     */
+    shownMinutes,
     /** 오늘 체크인을 남겼는가. 안 남기면 안전 규칙 두 가지가 빠진다. */
     hasCheckinToday: facts.condition.today != null,
     /** 오늘 고른 운동 종류 — 파워 / 웨이트 / 회복. 안 골랐으면 null */

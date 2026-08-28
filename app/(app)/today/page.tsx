@@ -175,7 +175,11 @@ export default async function HomePage() {
             : `${exerciseDone}/${exerciseTotal}`,
         lines: [
           savedPlan.theme.label,
-          `${exerciseTotal}종목 · 약 ${savedPlan.estimatedMinutes}분`,
+          /*
+           * 시간은 만들 때 찍어 둔 값이 아니라 지금 목록에서 센다.
+           * 트레이닝에서 운동을 빼도 홈의 숫자가 그대로면 서로 어긋난다.
+           */
+          `${exerciseTotal}종목 · 약 ${core.shownMinutes}분`,
           savedPlan.theme.reason,
         ],
       }

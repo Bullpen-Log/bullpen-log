@@ -384,13 +384,24 @@ function isWarmup(ex: ThemedExercise): boolean {
  * 구간이 없다. 하체 운동을 마친 뒤 통증을 입력해 테마가 회복으로 바뀌면
  * 방금 체크한 운동이 사라졌다.
  */
-function slotOf(ex: ThemedExercise, specs: SlotSpec[]): SlotKey {
+export function slotOf(ex: ThemedExercise, specs: SlotSpec[]): SlotKey {
   if (isWarmup(ex) && specs.some((s) => s.slot === 'warmup')) return 'warmup';
   for (const spec of specs) {
     if (spec.slot !== 'warmup' && spec.categories.includes(ex.category)) return spec.slot;
   }
   // 맞는 구간이 없으면 본운동에, 본운동이 없는 테마라면 첫 구간에 둔다.
   return (specs.find((s) => s.slot === 'main') ?? specs[0]).slot;
+}
+
+/**
+ * 사용자가 직접 더한 운동을 어느 구간에 놓을지.
+ *
+ * 만들어 준 목록을 그대로 하는 사람은 없다. 빼기도 하고 더하기도 하는데,
+ * 더한 것도 자기 자리에 들어가야 순서(워밍업 → 본운동 → …)가 뜻을 잃지 않는다.
+ * 목표는 구간의 시간 배분을 정하는 값이라 여기서는 보지 않는다 — 자리만 정한다.
+ */
+export function slotForTheme(ex: ThemedExercise, theme: ThemeKey): SlotKey {
+  return slotOf(ex, COMPOSITIONS[theme]);
 }
 
 /**

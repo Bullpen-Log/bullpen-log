@@ -12,6 +12,7 @@ import { Card, EmptyState, PageHeading } from '@/components/ui';
 import { PlanForm } from '@/components/training-forms';
 import type { AiReportBody } from '@/lib/ai/report-prompt';
 import { ExerciseChecklist, type TodayExercise } from './exercise-list';
+import { AddExercise, type PickableExercise } from './add-exercise';
 
 /**
  * 트레이닝 — 오늘 할 운동.
@@ -73,16 +74,21 @@ export default async function TrainingPage() {
   const byId = new Map(detailed.map((ex) => [ex.id, ex]));
 
   const full = shownPicks
-    .map((p) => ({ slot: p.slot, ex: byId.get(p.exerciseId) }))
-    .filter((p): p is { slot: (typeof p)['slot']; ex: NonNullable<(typeof p)['ex']> } =>
-      p.ex != null
+    .map((p) => ({
+      slot: p.slot,
+      manual: p.manual === true,
+      unsafe: p.unsafe,
+      ex: byId.get(p.exerciseId),
+    }))
+    .filter(
+      (p): p is typeof p & { ex: NonNullable<(typeof p)['ex']> } => p.ex != null
     );
 
   const thumbUrls = await createPlaybackUrls(
     full.map((p) => p.ex.thumbPath).filter((p): p is string => !!p)
   );
 
-  const exercises: TodayExercise[] = full.map(({ slot, ex }) => ({
+  const exercises: TodayExercise[] = full.map(({ slot, manual, unsafe, ex }) => ({
     id: ex.id,
     title: ex.title,
     category: ex.category,
@@ -105,6 +111,34 @@ export default async function TrainingPage() {
     isReference: ex.source === 'REFERENCE',
     done: doneIds.has(ex.id),
     slot,
+    manual,
+    /*
+     * 직접 넣은 운동만 여기 걸릴 수 있다. 우리가 고른 것 중 지금 기준을
+     * 통과 못 하는 것은 이미 목록에서 빠진 뒤다.
+     */
+    unsafe,
+  }));
+
+  /*
+   * 목록에 더할 수 있는 운동.
+   *
+   * 안전 필터를 통과 못 한 것도 넣는다 — 무엇이 걸리는지 표시하고, 하고 말고는
+   * 본인이 정한다. 설명 글과 영상 경로는 빼고 부른 목록(core.library)이라
+   * 400개를 넘겨도 화면이 무겁지 않다.
+   */
+  const pickable: PickableExercise[] = core.library.map((ex) => ({
+    id: ex.id,
+    title: ex.title,
+    category: ex.category,
+    bodyParts: ex.bodyParts,
+    intensity: ex.intensity,
+    difficulty: ex.difficulty,
+    equipment: ex.equipment,
+    sets: ex.sets,
+    reps: ex.reps,
+    holdSeconds: ex.holdSeconds,
+    restSeconds: ex.restSeconds,
+    perSide: ex.perSide,
   }));
 
   /** 홈과 트레이닝 둘 다에서 만들 수 있다. 여기서 만들면 여기로 돌아온다. */
@@ -219,7 +253,12 @@ export default async function TrainingPage() {
             <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
               <p className="text-lg font-bold text-ink">오늘은 {savedPlan.theme.label}</p>
               <p className="text-sm text-muted">
-                {exercises.length}종목 · 약 {savedPlan.estimatedMinutes}분
+                {/*
+                  시간은 만들 때 찍어 둔 값이 아니라 지금 목록에서 센다 —
+                  운동을 빼도 "약 50분"이 그대로 남으면 안 된다. 홈도 같은
+                  값을 쓴다(lib/report/today-data.ts).
+                */}
+                {exercises.length}종목 · 약 {core.shownMinutes}분
               </p>
             </div>
             <p className="text-sm leading-relaxed text-muted">{savedPlan.theme.reason}</p>
@@ -247,7 +286,18 @@ export default async function TrainingPage() {
             </div>
           </Card>
 
-          <ExerciseChecklist exercises={exercises} />
+          <ExerciseChecklist exercises={exercises}>
+            {/*
+              만들어 준 목록을 그대로 하는 사람은 없다. 빼는 것은 목록에서
+              바로, 더하는 것은 여기서 찾아서.
+            */}
+            <AddExercise
+              library={pickable}
+              inPlanIds={savedPlan.picks.map((p) => p.exerciseId)}
+              safeIds={picked.candidates.map((ex) => ex.id)}
+              ownedEquipment={user.ownedEquipment}
+            />
+          </ExerciseChecklist>
 
           {/* 후보가 빠듯하면 숨기지 않고 알린다. */}
           {picked.tooFew && (

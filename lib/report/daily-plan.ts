@@ -49,7 +49,14 @@ export type DailyPlan = {
   minutes: number;
   /** 이 구성의 실제 소요(분) */
   estimatedMinutes: number;
-  picks: { exerciseId: string; slot: SlotKey }[];
+  /**
+   * 오늘 할 운동.
+   *
+   * manual 은 사용자가 목록에서 직접 더한 것이다. 만들어 준 것과 구별해 두는
+   * 이유는 안전 재확인 때문이다 — 우리가 고른 것은 몸 상태가 나빠지면 빼지만,
+   * 사용자가 일부러 넣은 것은 남기고 표시만 한다. 최종 선택은 본인 몫이다.
+   */
+  picks: { exerciseId: string; slot: SlotKey; manual?: boolean }[];
   /** 무엇을 보고 이렇게 골랐는지 */
   basis: string[];
   notes: string[];
