@@ -120,6 +120,7 @@ export default async function TrainingPage() {
       defaultMinutes={savedMinutes}
       generated={generated}
       returnTo="/training"
+      clash={core.workoutClash}
     />
   );
 

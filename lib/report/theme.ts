@@ -88,11 +88,45 @@ export type SessionTheme = {
  */
 const LOW_CONDITION_THRESHOLD = 4;
 
+/**
+ * 오늘 고른 운동 종류 때문에 몸 상태와 부딪히는가.
+ *
+ * 부딪히면 기본은 가벼운 쪽으로 준다. 다만 막지는 않는다 — 사용자가 알고도
+ * 원하면 원한 대로 준다. 이 함수는 '무엇이 걸렸는지'만 말하고, 무엇을 줄지는
+ * decideTheme 이 정한다.
+ *
+ * 통증은 여기서 다루지 않는다. 그것만은 고를 수 있는 것이 아니다.
+ */
+export function workoutConflict({
+  facts,
+  preferredWorkout,
+}: {
+  facts: ReportFacts;
+  preferredWorkout: string | null;
+}): { reason: string; fallback: ThemeKey } | null {
+  // 회복을 원했으면 부딪힐 일이 없다. 가벼운 쪽으로 가는 것은 언제나 괜찮다.
+  if (preferredWorkout == null || preferredWorkout === '회복') return null;
+
+  if (facts.load.zone === 'danger') {
+    return { reason: '투구 부하가 위험 구간입니다', fallback: 'recovery' };
+  }
+  const condition = facts.condition.today?.condition;
+  if (condition != null && condition <= LOW_CONDITION_THRESHOLD) {
+    return { reason: `오늘 컨디션이 ${condition}/10입니다`, fallback: 'recovery' };
+  }
+  if (facts.load.zone === 'caution') {
+    return { reason: '투구 부하가 주의 구간입니다', fallback: 'assist' };
+  }
+  return null;
+}
+
 export function decideTheme({
   facts,
   plan,
   lastLowerKey,
   lastUpperKey,
+  preferredWorkout = null,
+  override = false,
 }: {
   facts: ReportFacts;
   plan: PitchPlan;
@@ -100,39 +134,83 @@ export function decideTheme({
   lastLowerKey: string | null;
   /** 최근 2주 안에 상체 스트렝스를 완료한 마지막 날 (없으면 null) */
   lastUpperKey: string | null;
+  /** 오늘 체크인에서 고른 운동 종류 — 파워 / 웨이트 / 회복 */
+  preferredWorkout?: string | null;
+  /**
+   * 몸 상태 경고를 보고도 원한 대로 받겠다고 했는가.
+   *
+   * 최종 선택은 사용자 몫이라는 원칙에서 나온 값이다. 우리는 왜 가벼운 쪽을
+   * 권하는지 말하고, 그래도 하겠다면 하게 한다. 통증만은 예외다.
+   */
+  override?: boolean;
 }): SessionTheme {
-  // 1) 몸을 지키는 조건이 먼저다. 여기 걸리면 무조건 회복.
-  if (plan.recovering) {
+  /*
+   * 1) 통증은 고를 수 있는 것이 아니다. 무엇을 골랐든, 밀고 나가겠다고 해도
+   *    여기서 멈춘다.
+   *
+   * halted 는 통증 때문에만 켜진다 — 오늘 통증이 있거나, 최근 통증이 있었는데
+   * 오늘 상태를 모르거나. 처음에는 recovering 만 봤는데, 그러면 '오늘 통증'인
+   * 사람에게 상체 스트렝스 데이가 나왔다. 실제로는 그 앞에서 처방이 멈춰
+   * 아무것도 안 나오지만, 이 함수가 혼자 불려도 맞는 답을 내야 한다.
+   * (자가 시험이 잡았다.)
+   */
+  if (plan.halted || plan.recovering) {
     return {
       key: 'recovery',
       label: '회복·재생 데이',
-      reason: '최근 통증 기록이 있어 재생과 가동성 위주로 구성했습니다.',
-    };
-  }
-  if (facts.load.zone === 'danger') {
-    return {
-      key: 'recovery',
-      label: '회복·재생 데이',
-      reason: '투구 부하가 위험 구간이라 회복 위주로 구성했습니다.',
-    };
-  }
-  const condition = facts.condition.today?.condition;
-  if (condition != null && condition <= LOW_CONDITION_THRESHOLD) {
-    return {
-      key: 'recovery',
-      label: '회복·재생 데이',
-      reason: `오늘 컨디션이 ${condition}/10이라 회복 위주로 구성했습니다.`,
+      reason: plan.halted
+        ? '통증 기록이 있어 재생과 가동성 외에는 권하지 않습니다.'
+        : '최근 통증 기록이 있어 재생과 가동성 위주로 구성했습니다.',
     };
   }
 
-  // 2) 부하가 주의 구간이면 무게 대신 몸통과 팔 관리에 집중한다.
-  if (facts.load.zone === 'caution') {
+  // 2) 회복을 골랐으면 몸이 좋아도 회복으로 간다. 쉬겠다는데 말릴 이유가 없다.
+  if (preferredWorkout === '회복') {
     return {
-      key: 'assist',
-      label: '보조·코어 데이',
-      reason: '투구 부하가 주의 구간이라 무게 대신 코어와 암케어에 집중합니다.',
+      key: 'recovery',
+      label: '회복·재생 데이',
+      reason: '오늘은 회복 위주로 하고 싶다고 하셔서 그렇게 구성했습니다.',
     };
   }
+
+  /*
+   * 3) 몸 상태가 걸리면 가벼운 쪽으로 권한다.
+   *
+   * 아무것도 안 골랐으면(추천대로) 권하는 대로 간다. 골랐는데 부딪히면,
+   * 알고도 원한 경우에만 원한 대로 준다.
+   */
+  const conflict = workoutConflict({ facts, preferredWorkout });
+  const forcing = conflict != null && override;
+
+  if (!forcing) {
+    if (facts.load.zone === 'danger') {
+      return {
+        key: 'recovery',
+        label: '회복·재생 데이',
+        reason: '투구 부하가 위험 구간이라 회복 위주로 구성했습니다.',
+      };
+    }
+    const condition = facts.condition.today?.condition;
+    if (condition != null && condition <= LOW_CONDITION_THRESHOLD) {
+      return {
+        key: 'recovery',
+        label: '회복·재생 데이',
+        reason: `오늘 컨디션이 ${condition}/10이라 회복 위주로 구성했습니다.`,
+      };
+    }
+    if (facts.load.zone === 'caution') {
+      return {
+        key: 'assist',
+        label: '보조·코어 데이',
+        reason: '투구 부하가 주의 구간이라 무게 대신 코어와 암케어에 집중합니다.',
+      };
+    }
+  }
+
+  /** 몸 상태 경고를 넘기고 온 날에는 그 사실을 이유에 붙인다. */
+  const forcedNote = forcing
+    ? ` ${conflict.reason}만, 그래도 하겠다고 하셔서 그대로 만들었습니다. 무리가 오면 바로 멈추세요.`
+    : '';
 
   /*
    * 3) 몸이 괜찮은 날은 하체와 상체를 번갈아 간다.
@@ -148,12 +226,14 @@ export function decideTheme({
       ? {
           key: 'lower',
           label: '하체 스트렝스 데이',
-          reason: '부하가 적정 범위입니다. 투구의 힘은 하체에서 나옵니다.',
+          reason:
+            '부하가 적정 범위입니다. 투구의 힘은 하체에서 나옵니다.' + forcedNote,
         }
       : {
           key: 'upper',
           label: '상체 스트렝스 데이',
-          reason: '부하가 적정 범위라 상체 근력을 훈련하기 좋은 날입니다.',
+          reason:
+            '부하가 적정 범위라 상체 근력을 훈련하기 좋은 날입니다.' + forcedNote,
         };
   }
   if (lastLowerKey == null || (lastUpperKey != null && lastLowerKey < lastUpperKey)) {
@@ -161,18 +241,18 @@ export function decideTheme({
       key: 'lower',
       label: '하체 스트렝스 데이',
       reason:
-        lastUpperKey != null
+        (lastUpperKey != null
           ? '최근에 상체를 했으니 오늘은 하체 차례입니다.'
-          : '최근 하체 기록이 없어 하체부터 시작합니다.',
+          : '최근 하체 기록이 없어 하체부터 시작합니다.') + forcedNote,
     };
   }
   return {
     key: 'upper',
     label: '상체 스트렝스 데이',
     reason:
-      lastLowerKey != null
+      (lastLowerKey != null
         ? '최근에 하체를 했으니 오늘은 상체 차례입니다.'
-        : '최근 상체 기록이 없어 상체부터 시작합니다.',
+        : '최근 상체 기록이 없어 상체부터 시작합니다.') + forcedNote,
   };
 }
 
@@ -325,6 +405,7 @@ export function pickForTheme<T extends ThemedExercise>({
   doneIds,
   recentIds,
   preferredParts = [],
+  preferredWorkout = null,
   goal = null,
 }: {
   candidates: T[];
@@ -337,12 +418,37 @@ export function pickForTheme<T extends ThemedExercise>({
   recentIds?: Set<string>;
   /** 오늘 하고 싶다고 고른 부위 — 본운동 안에서 앞으로 당긴다 */
   preferredParts?: string[];
+  /**
+   * 오늘 하고 싶다고 고른 운동 종류 — 파워 / 웨이트.
+   *
+   * 본운동은 스트렝스와 파워가 섞인 자리라, 고른 쪽을 앞으로 당긴다.
+   * '회복'은 여기 오지 않는다 — 그건 테마 자체를 회복으로 바꾼다.
+   */
+  preferredWorkout?: string | null;
   /** 훈련 목표 — 구간별 시간 배분과 본운동 순서를 바꾼다 */
   goal?: string | null;
 }): { picks: ThemedPick<T>[]; estimatedMinutes: number; notes: string[] } {
   const specs = compositionFor(theme, goal);
   const goalPrefer: readonly string[] = findGoal(goal).prefer;
   const notes: string[] = [];
+
+  /*
+   * 본운동에서 먼저 볼 카테고리.
+   *
+   * '웨이트'는 이 테마의 스트렝스를 뜻한다 — 하체 데이면 하체 스트렝스,
+   * 상체 데이면 상체 스트렝스. 회복·보조 데이에는 본운동에 스트렝스가 없으므로
+   * 아무것도 하지 않는다.
+   */
+  const mainFirst =
+    preferredWorkout === '파워'
+      ? '파워'
+      : preferredWorkout === '웨이트'
+        ? theme === 'lower'
+          ? '하체 스트렝스'
+          : theme === 'upper'
+            ? '상체 스트렝스'
+            : null
+        : null;
 
   /*
    * 최근에 한 것을 뒤로 보낸다. 빼지 않는 이유는 예전과 같다 —
@@ -399,6 +505,19 @@ export function pickForTheme<T extends ThemedExercise>({
       pool = [
         ...pool.filter((ex) => ex.bodyParts.some((p) => wanted.has(p))),
         ...pool.filter((ex) => !ex.bodyParts.some((p) => wanted.has(p))),
+      ];
+    }
+    /*
+     * 마지막으로 오늘 고른 운동 종류를 얹는다.
+     *
+     * 제일 나중에 얹는 것이 제일 앞에 온다(안정 분할이라 앞의 순서는 그 안에서
+     * 유지된다). 종류는 부위보다 큰 결정이다 — "오늘 하체"보다 "오늘 파워"가
+     * 몸에 걸리는 부담을 더 크게 가른다.
+     */
+    if (spec.slot === 'main' && mainFirst != null) {
+      pool = [
+        ...pool.filter((ex) => ex.category === mainFirst),
+        ...pool.filter((ex) => ex.category !== mainFirst),
       ];
     }
 

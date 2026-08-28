@@ -3,6 +3,7 @@ import { filterByLevel, findGoal } from '@/lib/report/personalize';
 import { selectCandidates, type ExerciseLike } from '@/lib/report/prescription';
 import {
   decideTheme,
+  workoutConflict,
   effectiveMinutes,
   pickForTheme,
   type SlotKey,
@@ -33,6 +34,15 @@ export type DailyPlan = {
   version: 1;
   theme: { key: ThemeKey; label: string; reason: string };
   goal: string | null;
+  /** 오늘 체크인에서 고른 운동 종류 — 파워 / 웨이트 / 회복. 안 골랐으면 null */
+  preferredWorkout?: string | null;
+  /**
+   * 몸 상태 경고를 넘기고 만든 날인가.
+   *
+   * 화면이 이 사실을 그대로 말해야 한다. 말없이 지나가면, 컨디션이 낮은 날에
+   * 무거운 운동이 나온 것이 앱의 잘못처럼 보인다.
+   */
+  overrode?: boolean;
   /** 선수가 고른 운동 시간(분) */
   requestedMinutes: number;
   /** 테마까지 반영해 실제로 쓴 시간(분) — 회복 데이는 줄어든다 */
@@ -83,6 +93,7 @@ export function buildDailyPlan<T extends ExerciseLike>({
   recentIds,
   lastLowerKey,
   lastUpperKey,
+  override = false,
 }: {
   user: UserForPlan;
   facts: ReportFacts;
@@ -95,6 +106,8 @@ export function buildDailyPlan<T extends ExerciseLike>({
   recentIds: Set<string>;
   lastLowerKey: string | null;
   lastUpperKey: string | null;
+  /** 몸 상태 경고를 보고도 고른 대로 받겠다고 했는가 */
+  override?: boolean;
 }): BuildResult {
   /*
    * 오늘 쓸 수 있는 장비 → 경력 → 안전 순서로 거른다.
@@ -117,7 +130,21 @@ export function buildDailyPlan<T extends ExerciseLike>({
     return { halted: true, reason: picked.haltReason };
   }
 
-  const theme = decideTheme({ facts, plan, lastLowerKey, lastUpperKey });
+  /*
+   * 오늘 고른 운동 종류. 체크인을 안 한 날은 없는 것으로 본다.
+   *
+   * override 는 "몸 상태 경고를 봤고 그래도 하겠다"는 뜻이다. 일정을 만들 때
+   * 폼에서 넘어온다 — 오늘 하루만의 결정이라 저장해 두지 않는다.
+   */
+  const preferredWorkout = facts.condition.today?.preferredWorkout ?? null;
+  const theme = decideTheme({
+    facts,
+    plan,
+    lastLowerKey,
+    lastUpperKey,
+    preferredWorkout,
+    override,
+  });
   const minutes = effectiveMinutes(theme.key, requestedMinutes);
   const goal = findGoal(user.trainingGoal);
 
@@ -129,6 +156,7 @@ export function buildDailyPlan<T extends ExerciseLike>({
     doneIds: new Set<string>(),
     recentIds,
     preferredParts: facts.condition.today?.preferredParts ?? [],
+    preferredWorkout,
     goal: goal.name,
   });
 
@@ -136,6 +164,9 @@ export function buildDailyPlan<T extends ExerciseLike>({
     version: 1,
     theme: { key: theme.key, label: theme.label, reason: theme.reason },
     goal: user.trainingGoal,
+    preferredWorkout,
+    /** 몸 상태 경고를 넘기고 만든 날인가. 화면이 그 사실을 그대로 말한다. */
+    overrode: override && workoutConflict({ facts, preferredWorkout }) != null,
     requestedMinutes,
     minutes,
     estimatedMinutes: themed.estimatedMinutes,

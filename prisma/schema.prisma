@@ -138,6 +138,10 @@ model DailyCheckin {
   /// 오늘 하고 싶은 운동 부위. 비워두면 가리지 않는다.
   /// 안전 필터를 뚫는 값이 아니라, 통과한 후보 중 순서를 바꾸는 데만 쓴다.
   preferredParts String[]
+  /// 오늘 하고 싶은 운동 종류: 파워 / 웨이트 / 회복. 비워두면 '추천대로'.
+  /// 부위와 같은 성격이다 — 순서를 바꾸고 테마를 고르는 데 쓰되, 통증이 있는
+  /// 날에는 무엇을 골랐든 회복으로 간다.
+  preferredWorkout String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)

@@ -54,6 +54,7 @@ export function PlanForm({
   defaultMinutes,
   generated,
   returnTo,
+  clash = null,
 }: {
   /** 가지고 있는 장비 (맨몸 포함) */
   owned: string[];
@@ -67,6 +68,14 @@ export function PlanForm({
   generated: boolean;
   /** 만들고 나서 돌아올 화면. 홈과 트레이닝 두 곳에서 쓴다. */
   returnTo: '/today' | '/training';
+  /**
+   * 오늘 고른 운동 종류가 몸 상태와 부딪힐 때만 들어온다.
+   *
+   * 부딪혀도 막지 않는다. 왜 가벼운 쪽을 권하는지 말하고, 그래도 하겠다면
+   * 하게 한다 — 최종 선택은 사용자 몫이다. (통증만은 예외라, 그날은 애초에
+   * 이 값이 들어오지 않는다.)
+   */
+  clash?: { kind: string; reason: string; fallbackLabel: string } | null;
 }) {
   /*
    * 이미 만든 날에는 접어 둔다. 다 만들어 놓고도 만들기 폼이 계속 펼쳐져 있으면
@@ -94,6 +103,29 @@ export function PlanForm({
   return (
     <form action={generateTodayPlan} className="space-y-4">
       <input type="hidden" name="returnTo" value={returnTo} />
+
+      {clash && (
+        <div className="space-y-2 rounded-xl border border-warn-line bg-warn-bg px-4 py-3">
+          <p className="text-sm font-bold text-warn">
+            {clash.kind} 운동을 하고 싶다고 하셨는데, {clash.reason}.
+          </p>
+          <p className="text-[13px] leading-relaxed text-warn">
+            그래서 기본은 {clash.fallbackLabel} 위주로 만들어 드립니다. 몸이
+            괜찮다고 느끼시면 원하신 대로 만들어 드릴 수도 있습니다 — 정하는 것은
+            본인입니다.
+          </p>
+          <label className="flex items-start gap-2.5 text-[13px] font-medium leading-relaxed text-warn">
+            <input
+              type="checkbox"
+              name="overrideCondition"
+              value="on"
+              className="mt-0.5 h-4 w-4 shrink-0 rounded border-warn-line accent-sky"
+            />
+            알겠습니다. 그래도 {clash.kind} 운동으로 만들어주세요
+          </label>
+        </div>
+      )}
+
       <RadioGroup
         name="minutes"
         label="오늘 운동 시간"

@@ -3,7 +3,12 @@
 import { revalidatePath } from 'next/cache';
 import { prisma } from '@/lib/prisma';
 import { getCurrentUser } from '@/lib/dal';
-import { CHECKIN_PARTS, validateCheckin, validateCheckinDate } from '@/lib/checkin';
+import {
+  CHECKIN_PARTS,
+  pickWorkoutKind,
+  validateCheckin,
+  validateCheckinDate,
+} from '@/lib/checkin';
 import { availableParts } from '@/lib/report/today-pick';
 import { withInput, type FormValues } from '@/lib/form-values';
 
@@ -60,10 +65,19 @@ async function trySaveCheckin(formData: FormData): Promise<CheckinState> {
 
   const date = new Date(`${dateKey}T00:00:00.000Z`);
 
+  /*
+   * 운동 종류는 검사에 넣지 않고 여기서 거른다. 목록에 없는 값이 오면
+   * 안 고른 것으로 보면 되지, 저장 전체를 막을 일이 아니다.
+   */
+  const value = {
+    ...checked.value,
+    preferredWorkout: pickWorkoutKind(formData.get('preferredWorkout')),
+  };
+
   await prisma.dailyCheckin.upsert({
     where: { userId_date: { userId: user.id, date } },
-    update: checked.value,
-    create: { userId: user.id, date, ...checked.value },
+    update: value,
+    create: { userId: user.id, date, ...value },
   });
 
   revalidatePath('/dashboard');

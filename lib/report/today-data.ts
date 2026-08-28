@@ -6,6 +6,7 @@ import { selectCandidates } from '@/lib/report/prescription';
 import { equipmentForToday, filterByEquipment } from '@/lib/report/equipment';
 import { filterByLevel } from '@/lib/report/personalize';
 import { readDailyPlan } from '@/lib/report/daily-plan';
+import { workoutConflict, type ThemeKey } from '@/lib/report/theme';
 
 /**
  * 홈과 트레이닝이 함께 쓰는 오늘 자료.
@@ -18,6 +19,14 @@ import { readDailyPlan } from '@/lib/report/daily-plan';
  * 트레이닝에는 7개만 있는 식이다. 한쪽만 고치고 다른 쪽을 잊으면 그렇게 된다.
  * 그래서 한 함수에서 한 번에 만든다.
  */
+
+/** 부딪혔을 때 대신 주는 것을 사람 말로. 화면 문구에 그대로 들어간다. */
+const FALLBACK_LABEL: Record<ThemeKey, string> = {
+  recovery: '회복·가동성',
+  assist: '코어·암케어',
+  lower: '하체 스트렝스',
+  upper: '상체 스트렝스',
+};
 
 /** 이 함수가 실제로 들여다보는 회원 항목만 적는다. */
 export type UserForToday = {
@@ -110,6 +119,28 @@ export async function loadTodayCore(user: UserForToday, today: Date) {
   const picked = selectCandidates({ facts, plan, library: leveled.pool });
 
   /*
+   * 오늘 고른 운동 종류가 몸 상태와 부딪히는가.
+   *
+   * 부딪히면 기본은 가벼운 쪽으로 주되, 알고도 원하면 원한 대로 준다.
+   * 화면은 이 값을 보고 경고와 '그래도 하겠다'를 그린다.
+   *
+   * 통증이 있어 이미 회복으로 정해진 날에는 아무것도 안 내놓는다. 그날은
+   * 무엇을 눌러도 회복이라, 되돌릴 수 있는 것처럼 보이면 거짓말이 된다.
+   */
+  const preferredWorkout = facts.condition.today?.preferredWorkout ?? null;
+  const conflict = plan.recovering
+    ? null
+    : workoutConflict({ facts, preferredWorkout });
+  const workoutClash =
+    conflict && preferredWorkout
+      ? {
+          kind: preferredWorkout,
+          reason: conflict.reason,
+          fallbackLabel: FALLBACK_LABEL[conflict.fallback],
+        }
+      : null;
+
+  /*
    * 안전만은 볼 때마다 다시 본다.
    *
    * 아침에 일정을 만든 뒤 낮에 통증을 입력할 수 있다. 그때 저장해 둔 목록을
@@ -140,6 +171,10 @@ export async function loadTodayCore(user: UserForToday, today: Date) {
     droppedForSafety: (savedPlan?.picks.length ?? 0) - shownPicks.length,
     /** 오늘 체크인을 남겼는가. 안 남기면 안전 규칙 두 가지가 빠진다. */
     hasCheckinToday: facts.condition.today != null,
+    /** 오늘 고른 운동 종류 — 파워 / 웨이트 / 회복. 안 골랐으면 null */
+    preferredWorkout,
+    /** 고른 종류가 몸 상태와 부딪히는가. 안 부딪히면 null */
+    workoutClash,
     /*
      * 장비와 경력 때문에 몇 개가 빠졌는지는 여기서 돌려주지 않는다.
      * 화면에 쓰는 값은 일정을 만들 때 찍어 둔 것(savedPlan.equipment)이라야

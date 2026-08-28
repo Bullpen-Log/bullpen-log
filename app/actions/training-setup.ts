@@ -134,6 +134,13 @@ export async function generateTodayPlan(formData: FormData) {
     recentIds,
     lastLowerKey: strengthDates.lower,
     lastUpperKey: strengthDates.upper,
+    /*
+     * "몸 상태 경고를 봤고 그래도 하겠다."
+     *
+     * 오늘 하루만의 결정이라 저장하지 않는다. 내일 또 같은 상황이면 경고를
+     * 다시 보여주고 다시 고르게 하는 편이 맞다.
+     */
+    override: formData.get('overrideCondition') === 'on',
   });
 
   const date = dateOnly(today);

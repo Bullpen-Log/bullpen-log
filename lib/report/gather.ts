@@ -82,6 +82,7 @@ export async function gatherFactsAndPlan(
       condition: c.condition,
       sleep: c.sleep,
       preferredParts: c.preferredParts,
+      preferredWorkout: c.preferredWorkout,
     })),
     memos: usedLogs
       .filter((l) => l.memo?.trim())

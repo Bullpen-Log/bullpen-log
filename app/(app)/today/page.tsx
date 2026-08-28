@@ -88,6 +88,7 @@ export default async function HomePage() {
     condition: c.condition,
     sleep: c.sleep,
     preferredParts: c.preferredParts,
+    preferredWorkout: c.preferredWorkout,
   }));
   /*
    * 체크인에서 '오늘 하고 싶은 부위'로 고를 수 있는 목록.
@@ -209,6 +210,7 @@ export default async function HomePage() {
       defaultMinutes={savedMinutes}
       generated={false}
       returnTo="/today"
+      clash={core.workoutClash}
     />
   );
 

@@ -99,6 +99,8 @@ type Person = {
    * 조용히 넘어갔다. 시험이 아무것도 안 보면서 통과하는 것이 가장 나쁘다.
    */
   baselineDailyLoad?: number;
+  /** 오늘 체크인에서 고른 운동 종류 — 파워 / 웨이트 / 회복 */
+  wants?: string | null;
 };
 
 function factsFor(p: Person) {
@@ -132,6 +134,7 @@ function factsFor(p: Person) {
               lowerBack: '괜찮음',
               lowerBody: '괜찮음',
               preferredParts: [],
+              preferredWorkout: p.wants ?? null,
             } satisfies CheckinLike,
           ],
     memos: [],
@@ -146,6 +149,7 @@ function planFor({
   goal = null as string | null,
   minutes = 45,
   doneIds = new Set<string>(),
+  override = false,
 }) {
   const facts = factsFor({ ...person, trainingLevel: level });
   const plan = buildPitchPlan(facts);
@@ -160,12 +164,21 @@ function planFor({
     ...library.filter((ex) => doneIds.has(ex.id) && !inCandidates.has(ex.id)),
   ];
 
-  const theme = decideTheme({ facts, plan, lastLowerKey: null, lastUpperKey: null });
+  const preferredWorkout = facts.condition.today?.preferredWorkout ?? null;
+  const theme = decideTheme({
+    facts,
+    plan,
+    lastLowerKey: null,
+    lastUpperKey: null,
+    preferredWorkout,
+    override,
+  });
   const themed = pickForTheme({
     candidates,
     theme: theme.key,
     minutes: effectiveMinutes(theme.key, minutes),
     doneIds,
+    preferredWorkout,
     goal,
   });
   return { facts, plan, picked, theme, themed, usable, leveled };
@@ -259,6 +272,74 @@ for (const minutes of WORKOUT_MINUTES_CHOICES) {
     `${minutes}분 요청 → ${themed.estimatedMinutes}분`,
     gap <= 0.15,
     `${theme.label}, 오차 ${Math.round(gap * 100)}%`
+  );
+}
+
+console.log('\n[오늘 하고 싶은 운동] 고른 대로 가되, 몸 상태는 말해주는가');
+{
+  // 회복을 고르면 몸이 좋아도 회복으로 간다. 쉬겠다는데 말릴 이유가 없다.
+  const { theme } = planFor({ person: { condition: 9, wants: '회복' } });
+  check('회복을 고름 → 몸이 좋아도 회복 데이', theme.key === 'recovery', theme.label);
+}
+{
+  // 아무것도 안 고른 날은 예전과 똑같이 돈다.
+  const before = planFor({ person: { condition: 9 } });
+  const after = planFor({ person: { condition: 9, wants: null } });
+  check(
+    '아무것도 안 고름 → 예전과 같은 테마',
+    before.theme.key === after.theme.key && before.theme.key !== 'recovery',
+    after.theme.label
+  );
+}
+{
+  /*
+   * 부딪히는 날. 기본은 가벼운 쪽이지만 막지는 않는다.
+   * 이 세 줄이 "경고는 하되 강제하지 않는다"는 약속 그 자체다.
+   */
+  const person = { condition: 3, wants: '파워' };
+  const suggested = planFor({ person });
+  const forced = planFor({ person, override: true });
+  check(
+    '파워를 골랐지만 컨디션 3 → 기본은 회복',
+    suggested.theme.key === 'recovery',
+    suggested.theme.label
+  );
+  check(
+    '그래도 하겠다고 하면 → 파워를 할 수 있는 테마',
+    forced.theme.key === 'lower' || forced.theme.key === 'upper',
+    forced.theme.label
+  );
+  check(
+    '밀고 나간 날은 그 사실을 이유에 적는다',
+    forced.theme.reason.includes('그래도 하겠다고 하셔서'),
+    forced.theme.reason.slice(-38)
+  );
+}
+{
+  // 통증만은 예외다. 무엇을 골랐든, 밀고 나가겠다고 해도 회복이다.
+  const forced = planFor({
+    person: { condition: 8, pain: true, wants: '파워' },
+    override: true,
+  });
+  check('통증이 있으면 밀고 나갈 수 없다', forced.theme.key === 'recovery', forced.theme.label);
+  check('통증이 있으면 처방 자체가 멈춘다', forced.picked.halted);
+}
+{
+  /*
+   * 고른 종류가 본운동 순서에 실제로 반영되는가.
+   * 테마는 그대로 두고 무엇이 먼저 오는지만 본다.
+   */
+  const firstMain = (wants: string | null) => {
+    const { themed } = planFor({ person: { condition: 8, wants }, minutes: 90 });
+    return themed.picks.find((p) => p.slot === 'main')?.exercise.category ?? null;
+  };
+  const power = firstMain('파워');
+  const weight = firstMain('웨이트');
+  check('파워를 고름 → 본운동 첫 자리가 파워', power === '파워', String(power));
+  check(
+    '웨이트를 고름 → 본운동 첫 자리가 스트렝스',
+    (weight ?? '').includes('스트렝스'),
+    String(weight)
   );
 }
 

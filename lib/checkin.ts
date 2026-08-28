@@ -39,6 +39,8 @@ export type CheckinInput = CheckinParts & {
   sleep: string;
   /** 오늘 하고 싶은 운동 부위. 안 고르면 빈 배열이다. */
   preferredParts: string[];
+  /** 오늘 하고 싶은 운동 종류. 안 고르면 null('추천대로'). */
+  preferredWorkout?: string | null;
 };
 
 /**
@@ -49,6 +51,41 @@ export type CheckinInput = CheckinParts & {
  * 체크인 저장이 막히면 안 된다.
  */
 export const MAX_PREFERRED_PARTS = 3;
+
+/* ─────────────────────── 오늘 하고 싶은 운동 종류 ─────────────────────── */
+
+/**
+ * 부위만으로는 부족해서 넣었다.
+ *
+ * "오늘 하체"까지는 골랐는데 그게 무거운 스쿼트인지 점프인지 가벼운 가동성인지
+ * 알 길이 없었다. 세 가지는 몸에 걸리는 부담이 전혀 다르다.
+ *
+ * 부위와 같은 성격의 값이다 — 안전 규칙을 뚫는 것이 아니라, 통과한 후보 안에서
+ * 순서와 테마를 바꾼다. 통증이 있는 날에는 무엇을 골랐든 회복으로 간다.
+ */
+export const WORKOUT_KINDS = [
+  { name: '파워', desc: '점프·메디신볼처럼 빠르게 힘 쓰기' },
+  { name: '웨이트', desc: '무게를 들어 근력 기르기' },
+  { name: '회복', desc: '가동성·보강 위주로 가볍게' },
+] as const;
+
+export type WorkoutKind = (typeof WORKOUT_KINDS)[number]['name'];
+
+/**
+ * 아무것도 안 골랐을 때 화면에 보이는 이름.
+ *
+ * 저장은 null 로 한다 — '고르지 않음'을 값으로 저장하면, 나중에 목록을 고칠 때
+ * 그 값이 무엇이었는지 다시 따져야 한다.
+ */
+export const NO_WORKOUT_KIND = '추천대로';
+
+/** 폼에서 넘어온 값을 정리한다. 목록에 없으면 안 고른 것으로 본다. */
+export function pickWorkoutKind(value: unknown): WorkoutKind | null {
+  const name = typeof value === 'string' ? value.trim() : '';
+  return (WORKOUT_KINDS as readonly { name: string }[]).some((k) => k.name === name)
+    ? (name as WorkoutKind)
+    : null;
+}
 
 /**
  * 고른 부위를 정리한다.

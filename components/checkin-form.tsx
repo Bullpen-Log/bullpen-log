@@ -10,7 +10,9 @@ import {
   MAX_CONDITION,
   MAX_PREFERRED_PARTS,
   MIN_CONDITION,
+  NO_WORKOUT_KIND,
   SLEEP_LEVELS,
+  WORKOUT_KINDS,
   type CheckinParts,
   hasPain,
 } from '@/lib/checkin';
@@ -24,6 +26,8 @@ export type CheckinData = CheckinParts & {
   sleep: string;
   /** 오늘 하고 싶다고 고른 운동 부위 */
   preferredParts: string[];
+  /** 오늘 하고 싶다고 고른 운동 종류. 안 골랐으면 null */
+  preferredWorkout: string | null;
 };
 
 /** 값에 따라 칩 색이 달라진다. '통증'은 항상 빨간색으로 도드라지게. */
@@ -180,6 +184,10 @@ export function CheckinForm({
   const pickedParts = before
     ? keptAll(before, 'preferredParts') ?? []
     : today?.preferredParts ?? [];
+  /** 고른 운동 종류. '' 는 추천대로 — 안 고른 것과 같은 뜻이다. */
+  const pickedWorkout = before
+    ? (kept(before, 'preferredWorkout') ?? '')
+    : (today?.preferredWorkout ?? '');
 
   return (
     <div>
@@ -234,6 +242,14 @@ export function CheckinForm({
               </dl>
 
               {/* 고른 게 있으면 보여준다. 안 보이면 저장됐는지 알 수 없다. */}
+              {today.preferredWorkout && (
+                <p className="mt-3 flex flex-wrap items-center gap-1.5 text-xs text-muted">
+                  오늘 하고 싶은 운동
+                  <span className="rounded-lg border border-sky-soft/60 bg-sky/10 px-2 py-0.5 font-medium text-sky-strong">
+                    {today.preferredWorkout}
+                  </span>
+                </p>
+              )}
               {today.preferredParts.length > 0 && (
                 <p className="mt-3 flex flex-wrap items-center gap-1.5 text-xs text-muted">
                   오늘 하고 싶은 부위
@@ -319,6 +335,38 @@ export function CheckinForm({
                     {v}
                   </ChipRadio>
                 ))}
+              </Row>
+
+              {/*
+                * 오늘 하고 싶은 운동 종류.
+                *
+                * 부위보다 앞에 둔다. "오늘 하체"보다 "오늘 파워"가 몸에 걸리는
+                * 부담을 더 크게 가르기 때문이다.
+                *
+                * '추천대로'는 빈 값으로 보낸다. '고르지 않음'을 값으로 저장하면
+                * 나중에 목록을 고칠 때 그게 무엇이었는지 다시 따져야 한다.
+                */}
+              <Row label="오늘 하고 싶은 운동">
+                <ChipRadio
+                  name="preferredWorkout"
+                  value=""
+                  defaultChecked={pickedWorkout === ''}
+                >
+                  {NO_WORKOUT_KIND}
+                </ChipRadio>
+                {WORKOUT_KINDS.map((k) => (
+                  <ChipRadio
+                    key={k.name}
+                    name="preferredWorkout"
+                    value={k.name}
+                    defaultChecked={pickedWorkout === k.name}
+                  >
+                    {k.name}
+                  </ChipRadio>
+                ))}
+                <span className="ml-1 self-center text-[10px] leading-relaxed text-muted/60">
+                  {WORKOUT_KINDS.map((k) => `${k.name} ${k.desc}`).join(' · ')}
+                </span>
               </Row>
 
               {/*
