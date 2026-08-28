@@ -4,6 +4,7 @@ import { Pencil, Trash2, VideoOff } from 'lucide-react';
 import { Badge, Card } from '@/components/ui';
 import { PitchVideoPlayer } from '@/components/pitch-video-player';
 import { PoseAnalysis } from '@/components/pose-analysis';
+import { REST_SESSION_TYPE } from '@/lib/session-type';
 import type { SavedAnalysisView } from '@/lib/pose/saved';
 import type { Log } from './pitch-log-client';
 
@@ -36,6 +37,14 @@ export function DayRecord({
   onEdit: (log: Log) => void;
   onDelete: (id: string) => void;
 }) {
+  /*
+   * 안 던진 날로 남긴 기록.
+   *
+   * 투구수도 강도도 0인데 그대로 그리면 "0구 · 강도 0/10"이 되어, 형편없는
+   * 훈련을 한 날처럼 보인다. 쉰 것은 아무것도 안 한 것이 아니라 계획의 일부다.
+   */
+  const rested = log.sessionType === REST_SESSION_TYPE;
+
   return (
     <Card className="space-y-5">
       {/* 그날의 수치 */}
@@ -47,7 +56,9 @@ export function DayRecord({
             기록을 남길 마음이 안 든다.
           */}
           <p className="text-display text-2xl leading-none text-sky">
-            {log.maxVelocity != null ? (
+            {rested ? (
+              <span className="text-muted">쉬는 날</span>
+            ) : log.maxVelocity != null ? (
               <>
                 {log.maxVelocity}
                 <span className="ml-1 text-sm text-muted">km/h 최고</span>
@@ -60,13 +71,19 @@ export function DayRecord({
             )}
           </p>
           <div className="mt-3 flex flex-wrap gap-1.5">
-            <Badge className="border-sky-soft/60 font-semibold text-sky-strong">
-              {log.sessionType}
-            </Badge>
-            <Badge>{log.pitchCount}구</Badge>
-            <Badge>강도 {log.intensity}/10</Badge>
-            {log.avgVelocity != null && (
-              <Badge>평균 {log.avgVelocity} km/h</Badge>
+            {rested ? (
+              <Badge>던지지 않았습니다</Badge>
+            ) : (
+              <>
+                <Badge className="border-sky-soft/60 font-semibold text-sky-strong">
+                  {log.sessionType}
+                </Badge>
+                <Badge>{log.pitchCount}구</Badge>
+                <Badge>강도 {log.intensity}/10</Badge>
+                {log.avgVelocity != null && (
+                  <Badge>평균 {log.avgVelocity} km/h</Badge>
+                )}
+              </>
             )}
           </div>
         </div>
@@ -123,7 +140,7 @@ export function DayRecord({
             </div>
           ))}
         </div>
-      ) : (
+      ) : rested ? null : (
         <p className="flex items-center gap-2 rounded-xl border border-dashed border-line px-4 py-5 text-sm text-muted">
           <VideoOff className="h-4 w-4" />이 기록에는 영상이 없습니다
         </p>

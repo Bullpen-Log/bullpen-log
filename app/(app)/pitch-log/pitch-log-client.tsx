@@ -1,10 +1,12 @@
 'use client';
 
 import { useCallback, useMemo, useState } from 'react';
-import { ChevronLeft, ChevronRight, Plus, X } from 'lucide-react';
-import { Card, EmptyState, FormError, PageHeading } from '@/components/ui';
+import { Plus } from 'lucide-react';
+import { Card, FormError, PageHeading } from '@/components/ui';
+import { Modal } from '@/components/modal';
 import { usePlaybackUrls } from '@/components/use-playback-urls';
 import { toDateKey } from '@/lib/pitch-stats';
+import { REST_SESSION_TYPE } from '@/lib/session-type';
 import type { SavedAnalysisView } from '@/lib/pose/saved';
 import { PitchCalendar, type DaySummary } from './calendar';
 import { EntryForm } from './entry-form';
@@ -23,17 +25,28 @@ export type Log = {
   videoPaths: string[];
 };
 
-const MODES = [
-  { key: 'day', label: '날짜별 보기' },
-  { key: 'compare', label: '2분할 비교' },
-] as const;
+const WEEKDAYS = ['일', '월', '화', '수', '목', '금', '토'];
+
+/** 2026-08-24 → 8월 24일 (월) */
+function spokenDate(key: string) {
+  const [y, m, d] = key.split('-').map(Number);
+  const weekday = WEEKDAYS[new Date(y, m - 1, d).getDay()];
+  return `${m}월 ${d}일 (${weekday})`;
+}
 
 /**
- * 투구 일지 — 기록, 영상, 폼 분석, 느낀점을 날짜 하나로 묶어 본다.
+ * 투구 일지 — 달력 하나.
  *
- * 달력에서 날짜를 고르면 그날 있었던 일이 전부 아래에 나온다.
- * 예전에는 이게 '투구기록'과 '영상분석' 두 화면으로 나뉘어 있었는데,
- * 둘 다 같은 PitchLog 를 보고 있어 원래 한 몸이었다.
+ * 예전에는 달력이 왼쪽 사이드바로 좁게 눌려 있고, 오른쪽에 그날 기록과 입력
+ * 폼이 늘 펼쳐져 있었다. 달력은 작아서 언제 던졌는지 한눈에 안 들어오고,
+ * 오른쪽은 아무 날짜나 눌러도 뭔가 잔뜩 나와서 화면이 늘 꽉 차 있었다.
+ *
+ * 이제 달력만 크게 둔다. 날짜를 누르면 그날 것이 창으로 뜬다 — 기록·영상·
+ * 폼 분석·수정·삭제가 전부 거기 있고, 기록이 없는 날이면 '이날 기록하기'가
+ * 뜬다. 홈의 상자들과 같은 방식이라 앱 전체가 같은 손놀림으로 돈다.
+ *
+ * 2분할 비교는 날짜 하나에 매인 것이 아니라(여러 날의 영상을 견준다) 창에
+ * 넣을 수 없어, 화면을 통째로 바꾸는 방식을 그대로 둔다.
  */
 export function PitchLogClient({
   initialLogs,
@@ -42,18 +55,21 @@ export function PitchLogClient({
   savedAnalyses,
 }: {
   initialLogs: Log[];
-  /** 홈 달력에서 넘어온 날짜. 없으면 오늘로 연다. */
+  /** 다른 화면에서 날짜를 지정해 들어온 경우. 그 날짜 창을 바로 연다. */
   initialDate: string | null;
   heightCm: number | null;
   savedAnalyses: SavedAnalysisView[];
 }) {
   const [logs, setLogs] = useState<Log[]>(initialLogs);
   const [error, setError] = useState<string>();
-  const [mode, setMode] = useState<'day' | 'compare'>('day');
+  const [comparing, setComparing] = useState(false);
 
   const [selectedDate, setSelectedDate] = useState(
     () => initialDate ?? toDateKey(new Date())
   );
+  /** 날짜 창이 열려 있는가. 날짜를 지정해 들어왔으면 바로 연다. */
+  const [dayOpen, setDayOpen] = useState(() => initialDate != null);
+
   // 넘어온 날짜가 지난달이면 달력도 그 달을 펴야 한다.
   const [month, setMonth] = useState(() => {
     const [y, m] = (initialDate ?? toDateKey(new Date())).split('-').map(Number);
@@ -61,18 +77,20 @@ export function PitchLogClient({
   });
 
   /**
-   * 폼을 펼쳐 둘지. null 이면 "알아서" — 기록이 없는 날은 열고, 있는 날은 접는다.
-   * 날짜를 바꾸면 다시 null 로 돌려 그 날짜에 맞게 정한다.
+   * 창 안에서 입력 폼을 펼쳐 둘지. null 이면 "알아서" —
+   * 기록이 없는 날은 열고, 있는 날은 접는다.
    */
   const [formOpen, setFormOpen] = useState<boolean | null>(null);
 
   /** 지금 고치고 있는 기록의 id. 그 카드만 입력 폼으로 바뀐다. */
   const [editingId, setEditingId] = useState<string | null>(null);
 
-  const selectDate = useCallback((date: string) => {
+  const openDay = useCallback((date: string) => {
     setSelectedDate(date);
     setFormOpen(null);
     setEditingId(null);
+    setError(undefined);
+    setDayOpen(true);
   }, []);
 
   const refresh = useCallback(async () => {
@@ -101,20 +119,28 @@ export function PitchLogClient({
     [refresh, editingId]
   );
 
-  /** 수정 저장이 끝나면 목록을 새로 받고 폼을 닫는다. */
-  const handleEdited = useCallback(async () => {
+  /** 저장이 끝나면 목록을 새로 받고 폼을 닫는다. 창은 열어 둔다. */
+  const handleSaved = useCallback(async () => {
     await refresh();
     setEditingId(null);
+    setFormOpen(false);
   }, [refresh]);
 
   const summaries = useMemo(() => {
     return logs.reduce<Record<string, DaySummary>>((acc, log) => {
       const key = log.date.slice(0, 10);
-      const prev = acc[key] ?? { pitches: 0, maxIntensity: 0, hasVideo: false };
+      const prev = acc[key] ?? {
+        pitches: 0,
+        maxIntensity: 0,
+        hasVideo: false,
+        rested: true,
+      };
       acc[key] = {
         pitches: prev.pitches + log.pitchCount,
         maxIntensity: Math.max(prev.maxIntensity, log.intensity),
         hasVideo: prev.hasVideo || log.videoPaths.length > 0,
+        // 하루에 여러 건이면, 한 건이라도 던졌으면 던진 날이다.
+        rested: prev.rested && log.sessionType === REST_SESSION_TYPE,
       };
       return acc;
     }, {});
@@ -134,10 +160,13 @@ export function PitchLogClient({
     [logs]
   );
 
-  // 선택한 날짜의 영상 주소만 받아온다. 기록이 많아지면 전부 발급하기엔 느리다.
+  /*
+   * 선택한 날짜의 영상 주소만 받아온다. 기록이 많아지면 전부 발급하기엔 느리다.
+   * 창이 닫혀 있으면 아무것도 안 받는다 — 달력만 보는 동안에는 필요 없다.
+   */
   const selectedPaths = useMemo(
-    () => selectedLogs.flatMap((l) => l.videoPaths),
-    [selectedLogs]
+    () => (dayOpen ? selectedLogs.flatMap((l) => l.videoPaths) : []),
+    [dayOpen, selectedLogs]
   );
   const { urls: playbackUrls, loading: urlsLoading, ready: urlsReady } =
     usePlaybackUrls(selectedPaths);
@@ -192,183 +221,147 @@ export function PitchLogClient({
     [withVideo]
   );
 
-  /** 영상이 있는 날짜만 앞뒤로 건너뛴다 — 폼을 되돌아볼 때 쓴다. */
-  const videoDates = useMemo(
-    () => [...new Set(withVideo.map((l) => l.date.slice(0, 10)))].sort(),
-    [withVideo]
-  );
-
-  const goToVideoDate = (offset: number) => {
-    if (videoDates.length === 0) return;
-    const currentIndex = videoDates.indexOf(selectedDate);
-    // 지금 날짜에 영상이 없으면 가까운 쪽에서 출발한다.
-    const base =
-      currentIndex >= 0
-        ? currentIndex
-        : videoDates.findIndex((d) => d > selectedDate) - (offset > 0 ? 1 : 0);
-    const next = Math.min(Math.max(base + offset, 0), videoDates.length - 1);
-    const target = videoDates[next];
-    if (!target) return;
-    selectDate(target);
-    const [y, m] = target.split('-').map(Number);
-    setMonth(new Date(y, m - 1, 1));
-  };
+  if (comparing) {
+    return (
+      <div className="space-y-6">
+        <PageHeading
+          eyebrow="Pitch Log"
+          title="2분할 비교"
+          description="서로 다른 날의 투구 영상을 나란히 놓고 봅니다."
+          action={
+            <button
+              type="button"
+              onClick={() => setComparing(false)}
+              className="rounded-lg border border-line-strong px-3 py-1.5 text-xs font-semibold text-ink transition-colors hover:border-sky hover:text-sky"
+            >
+              달력으로 돌아가기
+            </button>
+          }
+        />
+        <CompareView clips={clips} />
+      </div>
+    );
+  }
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-6">
       <PageHeading
         eyebrow="Pitch Log"
         title="투구 일지"
-        description="날짜를 고르면 그날의 기록·영상·느낀점이 한 번에 열립니다. 기간별 정리는 '리포트'에서 볼 수 있습니다."
+        description="날짜를 누르면 그날의 기록·영상·느낀점이 열립니다. 기록이 없는 날도 눌러서 남길 수 있습니다."
         action={
-          videoDates.length > 0 && mode === 'day' ? (
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={() => goToVideoDate(-1)}
-                aria-label="이전 영상 날짜"
-                className="rounded-lg border border-line p-2 text-muted transition-colors hover:border-sky hover:text-sky"
-              >
-                <ChevronLeft className="h-4 w-4" />
-              </button>
-              <span className="text-xs text-muted">영상 {videoDates.length}일</span>
-              <button
-                type="button"
-                onClick={() => goToVideoDate(1)}
-                aria-label="다음 영상 날짜"
-                className="rounded-lg border border-line p-2 text-muted transition-colors hover:border-sky hover:text-sky"
-              >
-                <ChevronRight className="h-4 w-4" />
-              </button>
-            </div>
+          // 2분할 비교는 영상이 두 개 이상 있어야 뜻이 있다.
+          clips.length >= 2 ? (
+            <button
+              type="button"
+              onClick={() => setComparing(true)}
+              className="rounded-lg border border-line-strong px-3 py-1.5 text-xs font-semibold text-ink transition-colors hover:border-sky hover:text-sky"
+            >
+              2분할 비교
+            </button>
           ) : undefined
         }
       />
 
       <FormError>{error}</FormError>
 
-      {/* 2분할 비교는 영상이 두 개 이상 있어야 뜻이 있다. */}
-      {clips.length >= 2 && (
-        <div className="flex gap-1 rounded-xl border border-line bg-surface p-1 sm:w-fit">
-          {MODES.map((m) => (
-            <button
-              key={m.key}
-              type="button"
-              onClick={() => setMode(m.key)}
-              className={`flex-1 rounded-lg px-5 py-2.5 text-sm font-medium transition-colors sm:flex-none ${
-                mode === m.key ? 'bg-sky text-white' : 'text-muted hover:text-ink'
-              }`}
-            >
-              {m.label}
-            </button>
-          ))}
-        </div>
-      )}
+      <Card>
+        <PitchCalendar
+          month={month}
+          onMonthChange={setMonth}
+          selected={dayOpen ? selectedDate : null}
+          onSelect={openDay}
+          summaries={summaries}
+        />
+      </Card>
 
-      {mode === 'compare' ? (
-        <CompareView clips={clips} />
-      ) : (
-        <div className="grid gap-6 lg:grid-cols-[minmax(0,340px)_1fr]">
-          <Card className="lg:sticky lg:top-24 lg:self-start">
-            <PitchCalendar
-              month={month}
-              onMonthChange={setMonth}
-              selected={selectedDate}
-              onSelect={selectDate}
-              summaries={summaries}
-            />
-          </Card>
+      <Modal
+        open={dayOpen}
+        onClose={() => setDayOpen(false)}
+        title={spokenDate(selectedDate)}
+        description={
+          selectedLogs.length > 0
+            ? `${selectedLogs.length}건의 기록`
+            : '이 날은 아직 기록이 없습니다'
+        }
+        size="wide"
+      >
+        <div className="space-y-5">
+          <FormError>{error}</FormError>
 
-          <div className="space-y-5">
-            <div className="flex items-baseline justify-between border-b border-line pb-3">
-              <h2 className="text-lg font-bold text-ink">{selectedDate}</h2>
-              <span className="text-xs text-muted">
-                {selectedLogs.length > 0 ? `${selectedLogs.length}건의 기록` : '기록 없음'}
-              </span>
+          {/* 기록 추가 — 기록이 없는 날은 바로 열려 있다. */}
+          {showForm ? (
+            <div className="space-y-4 rounded-2xl border border-line bg-surface-2 p-4">
+              <div className="flex items-start justify-between gap-3">
+                <h3 className="font-bold text-ink">
+                  {selectedLogs.length > 0 ? '기록 추가' : '이날 기록하기'}
+                </h3>
+                {selectedLogs.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setFormOpen(false)}
+                    className="text-xs text-muted transition-colors hover:text-ink"
+                  >
+                    취소
+                  </button>
+                )}
+              </div>
+              <EntryForm
+                key={selectedDate}
+                date={selectedDate}
+                onSaved={handleSaved}
+                onError={setError}
+              />
             </div>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setFormOpen(true)}
+              className="flex w-full items-center justify-center gap-2 rounded-2xl border border-dashed border-sky-soft bg-sky-tint px-4 py-3.5 text-sm font-medium text-sky-strong transition-colors hover:bg-sky-tint/70"
+            >
+              <Plus className="h-4 w-4" />이 날짜에 기록 추가
+            </button>
+          )}
 
-            {/* 기록 추가 — 기록이 없는 날은 바로 열려 있다. */}
-            {showForm ? (
-              <Card className="space-y-5">
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <h3 className="font-bold text-ink">기록 추가</h3>
-                    <p className="mt-1 text-sm text-muted">{selectedDate}</p>
-                  </div>
-                  {selectedLogs.length > 0 && (
-                    <button
-                      type="button"
-                      onClick={() => setFormOpen(false)}
-                      aria-label="입력 폼 닫기"
-                      className="rounded-lg p-2 text-muted transition-colors hover:bg-surface-2 hover:text-ink"
-                    >
-                      <X className="h-4 w-4" />
-                    </button>
-                  )}
+          {selectedLogs.map((log) =>
+            editingId === log.id ? (
+              // 고치는 동안에는 그 카드 자리에 입력 폼을 띄운다.
+              <div
+                key={log.id}
+                className="space-y-4 rounded-2xl border border-line bg-surface-2 p-4"
+              >
+                <div>
+                  <h3 className="font-bold text-ink">기록 수정</h3>
+                  <p className="mt-1 text-sm text-muted">영상은 그대로 유지됩니다</p>
                 </div>
                 <EntryForm
-                  key={selectedDate}
                   date={selectedDate}
-                  onSaved={refresh}
+                  initial={log}
+                  onSaved={handleSaved}
                   onError={setError}
+                  onCancel={() => setEditingId(null)}
                 />
-              </Card>
+              </div>
             ) : (
-              <button
-                type="button"
-                onClick={() => setFormOpen(true)}
-                className="flex w-full items-center justify-center gap-2 rounded-2xl border border-dashed border-sky-soft bg-sky-tint px-4 py-3.5 text-sm font-medium text-sky-strong transition-colors hover:bg-sky-tint/70"
-              >
-                <Plus className="h-4 w-4" />이 날짜에 기록 추가
-              </button>
-            )}
-
-            {selectedLogs.length === 0 && !showForm && (
-              <EmptyState
-                title="이 날짜에는 기록이 없습니다"
-                description="달력에서 색이 있는 날짜를 골라보세요."
+              <DayRecord
+                key={log.id}
+                log={log}
+                date={selectedDate}
+                heightCm={heightCm}
+                playbackUrls={playbackUrls}
+                urlsPending={urlsLoading || !urlsReady}
+                savedFor={savedFor}
+                previousFor={previousFor}
+                onEdit={(l) => {
+                  setEditingId(l.id);
+                  setError(undefined);
+                }}
+                onDelete={handleDelete}
               />
-            )}
-
-            {selectedLogs.map((log) =>
-              editingId === log.id ? (
-                // 고치는 동안에는 그 카드 자리에 입력 폼을 띄운다.
-                <Card key={log.id} className="space-y-5">
-                  <div>
-                    <h3 className="font-bold text-ink">기록 수정</h3>
-                    <p className="mt-1 text-sm text-muted">
-                      {selectedDate} · 영상은 그대로 유지됩니다
-                    </p>
-                  </div>
-                  <EntryForm
-                    date={selectedDate}
-                    initial={log}
-                    onSaved={handleEdited}
-                    onError={setError}
-                    onCancel={() => setEditingId(null)}
-                  />
-                </Card>
-              ) : (
-                <DayRecord
-                  key={log.id}
-                  log={log}
-                  date={selectedDate}
-                  heightCm={heightCm}
-                  playbackUrls={playbackUrls}
-                  urlsPending={urlsLoading || !urlsReady}
-                  savedFor={savedFor}
-                  previousFor={previousFor}
-                  onEdit={(l) => {
-                    setEditingId(l.id);
-                    setError(undefined);
-                  }}
-                  onDelete={handleDelete}
-                />
-              )
-            )}
-          </div>
+            )
+          )}
         </div>
-      )}
+      </Modal>
     </div>
   );
 }

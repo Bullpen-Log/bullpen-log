@@ -9,6 +9,8 @@ export type DaySummary = {
   pitches: number;
   maxIntensity: number;
   hasVideo: boolean;
+  /** 그날 기록이 전부 '쉬는 날'인가 — 던진 날과 다르게 보여야 한다 */
+  rested: boolean;
 };
 
 /** 강도에 따라 셀 배경 진하기를 다르게 준다. */
@@ -17,6 +19,15 @@ function intensityClass(intensity: number) {
   if (intensity >= 5) return 'bg-sky/40 text-ink';
   return 'bg-sky/15 text-ink';
 }
+
+/*
+ * 쉬는 날은 색을 채우지 않고 테두리만 준다.
+ *
+ * '안 던진 날'과 '아직 아무것도 안 남긴 날'은 전혀 다른 뜻인데, 둘 다 빈칸이면
+ * 구별이 안 된다. 기록률이 이 앱에서 가장 값어치 있는 것이라, 남겼다는 사실
+ * 자체가 눈에 보여야 한다.
+ */
+const RESTED_CLASS = 'border-dashed border-line-strong bg-surface-2 text-muted';
 
 export function PitchCalendar({
   month,
@@ -27,7 +38,8 @@ export function PitchCalendar({
 }: {
   month: Date;
   onMonthChange: (next: Date) => void;
-  selected: string;
+  /** 지금 열려 있는 날짜. 창을 닫으면 null 이라 아무 데도 표시가 안 남는다. */
+  selected: string | null;
   onSelect: (dateKey: string) => void;
   summaries: Record<string, DaySummary>;
 }) {
@@ -97,7 +109,11 @@ export function PitchCalendar({
           const spoken = [
             `${monthIndex + 1}월 ${day}일`,
             isToday ? '오늘' : null,
-            summary ? `${summary.pitches}구` : '기록 없음',
+            summary
+              ? summary.rested
+                ? '쉬는 날로 남김'
+                : `${summary.pitches}구`
+              : '기록 없음',
             summary?.hasVideo ? '영상 있음' : null,
           ]
             .filter(Boolean)
@@ -110,22 +126,30 @@ export function PitchCalendar({
               onClick={() => onSelect(key)}
               aria-label={spoken}
               aria-pressed={isSelected}
-              className={`relative flex aspect-square flex-col items-center justify-center rounded-lg border text-sm transition-colors ${
+              className={`relative flex min-h-[3.25rem] flex-col items-center justify-center gap-0.5 rounded-lg border text-sm transition-colors sm:min-h-[4.5rem] ${
                 isSelected
                   ? 'border-sky ring-1 ring-sky'
-                  : 'border-transparent hover:border-line-strong'
+                  : summary?.rested
+                    ? RESTED_CLASS
+                    : 'border-transparent hover:border-line-strong'
               } ${
-                marked && summary
+                marked && summary && !summary.rested
                   ? intensityClass(summary.maxIntensity)
-                  : 'bg-surface-2 text-muted hover:text-ink'
+                  : marked
+                    ? ''
+                    : 'bg-surface-2 text-muted hover:text-ink'
               }`}
             >
-              <span className={isToday ? 'font-bold underline underline-offset-4' : ''}>
+              <span
+                className={
+                  isToday ? 'font-bold underline underline-offset-4' : 'font-medium'
+                }
+              >
                 {day}
               </span>
               {marked && summary && (
-                <span className="max-w-full truncate px-0.5 text-[9px] leading-none opacity-80 sm:text-[10px]">
-                  {summary.pitches}구
+                <span className="max-w-full truncate px-0.5 text-[10px] leading-none opacity-80 sm:text-[11px]">
+                  {summary.rested ? '휴식' : `${summary.pitches}구`}
                 </span>
               )}
               {/* 달력이 영상으로 가는 유일한 입구가 되었으니, 어느 날에
@@ -151,6 +175,10 @@ export function PitchCalendar({
         </span>
         <span className="flex items-center gap-1.5">
           <span className="h-3 w-5 rounded bg-sky/70" /> 높음
+        </span>
+        <span className="flex items-center gap-1.5">
+          <span className="h-3 w-5 rounded border border-dashed border-line-strong" />{' '}
+          쉬는 날
         </span>
         <span className="flex items-center gap-1.5">
           <span className="h-1.5 w-1.5 rounded-full bg-sky-strong" /> 영상

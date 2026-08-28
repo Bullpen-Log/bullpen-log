@@ -19,6 +19,7 @@ export function Modal({
   onClose,
   title,
   description,
+  size = 'default',
   children,
 }: {
   open: boolean;
@@ -26,6 +27,13 @@ export function Modal({
   title: string;
   /** 제목 밑 한 줄 설명. 없으면 안 그린다. */
   description?: string;
+  /**
+   * 창 너비.
+   *
+   * 'wide' 는 영상과 폼 분석처럼 좁으면 못 보는 것을 담을 때 쓴다. 기본 너비에
+   * 영상을 넣으면 재생 화면이 손바닥만 해져서 볼 이유가 없어진다.
+   */
+  size?: 'default' | 'wide';
   children: ReactNode;
 }) {
   const ref = useRef<HTMLDialogElement>(null);
@@ -69,7 +77,11 @@ export function Modal({
       onClick={(e) => {
         if (e.target === ref.current) onClose();
       }}
-      className="w-[min(38rem,calc(100vw-1.5rem))] rounded-2xl border border-line bg-surface p-0 text-ink shadow-2xl backdrop:bg-black/50"
+      className={`${
+        size === 'wide'
+          ? 'w-[min(62rem,calc(100vw-1.5rem))]'
+          : 'w-[min(38rem,calc(100vw-1.5rem))]'
+      } rounded-2xl border border-line bg-surface p-0 text-ink shadow-2xl backdrop:bg-black/50`}
     >
       <div className="flex items-start gap-3 border-b border-line px-5 py-4">
         <div className="min-w-0 flex-1">
@@ -92,7 +104,13 @@ export function Modal({
         내용이 길면 창 안에서만 굴러간다. 창째로 늘어나면 화면 밖으로 나가
         저장 버튼을 누를 수 없게 된다.
       */}
-      <div className="max-h-[70vh] overflow-y-auto px-5 py-5">{children}</div>
+      <div
+        className={`overflow-y-auto px-5 py-5 ${
+          size === 'wide' ? 'max-h-[80vh]' : 'max-h-[70vh]'
+        }`}
+      >
+        {children}
+      </div>
     </dialog>
   );
 }
