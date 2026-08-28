@@ -56,6 +56,13 @@ import {
 } from '../lib/report/theme.ts';
 import { intensityLevel } from '../lib/exercise-meta.ts';
 import {
+  exerciseIntensityScore,
+  exerciseMinutes,
+  trainingDayLoad,
+} from '../lib/training-load.ts';
+import { computeAcwr, zoneOf } from '../lib/pitch-stats.ts';
+import { buildTrainingLoad } from '../lib/training-load.ts';
+import {
   buildDailyPlan,
   isHalted,
   readDailyPlan,
@@ -272,6 +279,176 @@ for (const minutes of WORKOUT_MINUTES_CHOICES) {
     `${minutes}분 요청 → ${themed.estimatedMinutes}분`,
     gap <= 0.15,
     `${theme.label}, 오차 ${Math.round(gap * 100)}%`
+  );
+}
+
+console.log('\n[운동 부하] 실제로 한 만큼으로 세는가');
+{
+  /*
+   * 재료는 실제 DB 운동을 쓴다. 세트당 시간 계산이 바뀌면 여기가 먼저 깨진다.
+   */
+  const find = (title: string) => {
+    const ex = library.find((e) => e.title === title);
+    if (!ex) throw new Error(`시험용 운동을 못 찾음: ${title}`);
+    return ex;
+  };
+  const dead = find('데드리프트');
+  const stretch = find('피전 포즈');
+
+  const planned = exerciseMinutes({ ...dead, setsDone: null });
+  const half = exerciseMinutes({ ...dead, setsDone: 2 });
+  check(
+    '세트를 적으면 그 세트로 센다',
+    Math.abs(half - (planned * 2) / 3) < 0.01,
+    `계획 ${dead.sets}세트 ${planned.toFixed(1)}분 → 2세트 ${half.toFixed(1)}분`
+  );
+  check(
+    '세트를 안 적으면 계획 세트로 센다',
+    planned > 0 && exerciseMinutes({ ...dead, setsDone: null }) === planned,
+    `${planned.toFixed(1)}분`
+  );
+
+  const withIntensity = trainingDayLoad(
+    [{ ...dead, setsDone: 3 }, { ...stretch, setsDone: 3 }],
+    7
+  );
+  check(
+    '강도를 적으면 (총 시간 × 그 강도)',
+    Math.abs(withIntensity.load - withIntensity.minutes * 7) < 0.01,
+    `${withIntensity.minutes.toFixed(1)}분 × 7 = ${withIntensity.load.toFixed(0)}`
+  );
+
+  /*
+   * 강도를 안 적은 날은 운동마다 자기 강도를 쓴다.
+   *
+   * 단순 평균이 아니라 시간만큼 반영해야 한다 — 11분짜리 데드리프트(강도 10)와
+   * 4분짜리 스트레칭(강도 2)을 그냥 평균 내면 둘 다 6이 되는데, 그건 어느 쪽도
+   * 아니다. 긴 쪽으로 끌려가는 것이 맞다.
+   */
+  const guessed = trainingDayLoad(
+    [{ ...dead, setsDone: 3 }, { ...stretch, setsDone: 3 }],
+    null
+  );
+  const simpleAverage =
+    (exerciseIntensityScore(dead.intensity) +
+      exerciseIntensityScore(stretch.intensity)) /
+    2;
+  check(
+    '강도를 안 적으면 운동 강도로 대신 센다',
+    !guessed.intensityRecorded && guessed.load > 0,
+    `추정 강도 ${guessed.intensity.toFixed(1)}`
+  );
+  check(
+    '추정 강도는 시간이 긴 운동 쪽으로 기운다',
+    guessed.intensity > simpleAverage,
+    `단순 평균 ${simpleAverage.toFixed(1)} < 시간 반영 ${guessed.intensity.toFixed(1)}`
+  );
+
+  check(
+    '세트를 안 적은 운동 수를 세어 둔다',
+    trainingDayLoad([{ ...dead, setsDone: null }, { ...stretch, setsDone: 3 }], 7)
+      .estimatedCount === 1
+  );
+
+  check(
+    '아무것도 안 한 날은 부하 0',
+    trainingDayLoad([], 8).load === 0,
+    '강도만 적어도 시간이 없으면 셀 수 없다'
+  );
+}
+
+{
+  /*
+   * 지수가 실제로 오르내리는가.
+   *
+   * 계산기는 투구와 같은 것을 쓰므로(computeAcwr), 여기서는 '운동 부하를
+   * 넣었을 때 구간이 제대로 나오는가'만 본다.
+   */
+  const dayKeys = (n: number) =>
+    Array.from({ length: n }, (_, i) =>
+      new Date(TODAY.getTime() - (n - 1 - i) * 86400000).toISOString().slice(0, 10)
+    );
+
+  // 40일 동안 이틀에 한 번 350씩(50분 × 강도 7) — 평소대로.
+  const steady = new Map<string, number>();
+  for (const [i, key] of dayKeys(40).entries()) steady.set(key, i % 2 === 0 ? 350 : 0);
+  const steadyAcwr = computeAcwr(steady, TODAY);
+  check(
+    '평소대로 운동하면 적정 구간',
+    steadyAcwr.zone === 'optimal',
+    `지수 ${steadyAcwr.ratio?.toFixed(2)}`
+  );
+
+  // 같은 사람이 최근 일주일만 매일 700씩 — 갑자기 늘린 경우.
+  const spike = new Map(steady);
+  for (const key of dayKeys(40).slice(-7)) spike.set(key, 700);
+  const spikeAcwr = computeAcwr(spike, TODAY);
+  check(
+    '갑자기 늘리면 위험 구간',
+    spikeAcwr.zone === 'danger',
+    `지수 ${spikeAcwr.ratio?.toFixed(2)}`
+  );
+
+  // 28일이 안 쌓이면 지수를 내지 않는다(운동은 문진 기준선이 없다).
+  const short = new Map<string, number>();
+  for (const key of dayKeys(10)) short.set(key, 350);
+  const shortAcwr = computeAcwr(short, TODAY);
+  check(
+    '기록이 28일 미만이면 지수를 안 낸다',
+    shortAcwr.ratio === null && shortAcwr.daysNeeded > 0,
+    `${shortAcwr.daysNeeded}일 더 필요`
+  );
+
+  check('구간 경계 — 1.4는 주의', zoneOf(1.4) === 'caution');
+  check('구간 경계 — 1.6은 위험', zoneOf(1.6) === 'danger');
+}
+
+{
+  /*
+   * DB에서 읽어 온 줄을 날짜별로 묶는 부분.
+   *
+   * 하루에 여러 줄이 오고(운동 하나에 한 줄), 날짜는 Date 객체다. 시간대가
+   * 어긋나면 어제 칸에 오늘 것이 들어가는데, 조회와 붙어 있으면 눈에 안 띈다.
+   */
+  const find = (title: string) => {
+    const ex = library.find((e) => e.title === title);
+    if (!ex) throw new Error(`시험용 운동을 못 찾음: ${title}`);
+    return ex;
+  };
+  const dead = find('데드리프트');
+  const stretch = find('피전 포즈');
+  const at = (back: number) => new Date(TODAY.getTime() - back * 86400000);
+
+  const rows = [
+    { date: at(1), setsDone: 3, exercise: dead },
+    { date: at(1), setsDone: 3, exercise: stretch },
+    { date: at(3), setsDone: 2, exercise: dead },
+    { date: at(30), setsDone: 3, exercise: dead },
+  ];
+
+  const built = buildTrainingLoad(
+    rows,
+    [{ date: at(1), intensity: 8 }],
+    TODAY
+  );
+  check(
+    '하루에 여러 줄이 와도 한 날로 묶는다',
+    built.recentDays === 2,
+    `최근 7일 중 운동한 날 ${built.recentDays}일`
+  );
+  check(
+    '최근 7일 밖의 기록은 이번 주에 안 센다',
+    built.recentCount === 3,
+    `운동 ${built.recentCount}개 · ${built.recentMinutes}분`
+  );
+  check(
+    '강도를 안 적은 날 수를 세어 둔다',
+    built.estimatedIntensityDays === 1,
+    `${at(3).toISOString().slice(5, 10)} 는 강도가 없다`
+  );
+  check(
+    '기록이 없으면 지수를 안 낸다',
+    buildTrainingLoad([], [], TODAY).ratio === null
   );
 }
 

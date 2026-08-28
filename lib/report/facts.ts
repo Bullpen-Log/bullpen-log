@@ -4,6 +4,7 @@ import {
   buildDateRange,
   buildDateRangeOffset,
   computeAcwr,
+  pitchLoadByDay,
   findFatigueWindows,
   groupByDay,
   longestThrowStreak,
@@ -198,7 +199,9 @@ export function buildFacts({
       previous,
       changePercent: changeRate(current.totalPitches, previous.totalPitches),
     },
-    load: computeAcwr(byDay, today, { seedDailyLoad: baselineDailyLoad }),
+    load: computeAcwr(pitchLoadByDay(byDay), today, {
+      seedDailyLoad: baselineDailyLoad,
+    }),
     patterns: {
       fatigueWindows: findFatigueWindows(byDay, last28).length,
       longestStreak: longestThrowStreak(byDay, last28),

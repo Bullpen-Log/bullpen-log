@@ -10,6 +10,7 @@ import {
   buildDateRange,
   buildDateRangeOffset,
   computeAcwr,
+  pitchLoadByDay,
   countMissingDays,
   countSessionTypes,
   dailyLoad,
@@ -107,7 +108,7 @@ export function StatsOverview({
   const previous = summarize(byDay, prev7);
   // 가입 문진 추정치가 있으면 기록 첫날부터 지수가 나온다.
   const seedDailyLoad = estimateDailyLoad(user);
-  const acwr = computeAcwr(byDay, today, { seedDailyLoad });
+  const acwr = computeAcwr(pitchLoadByDay(byDay), today, { seedDailyLoad });
   const fatigue = findFatigueWindows(byDay, last28);
   /*
    * 최근 4주에 무엇을 하며 지냈는지.

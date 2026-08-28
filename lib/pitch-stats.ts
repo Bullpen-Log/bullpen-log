@@ -700,6 +700,13 @@ export function dailyLoad(day: DayTotals) {
   return day.pitchCount * day.intensity;
 }
 
+/** 날짜별 투구 기록을 부하 지수 계산기가 받는 모양으로 바꾼다. */
+export function pitchLoadByDay(
+  byDay: Map<string, DayTotals>
+): Map<string, number> {
+  return new Map([...byDay].map(([key, day]) => [key, dailyLoad(day)]));
+}
+
 /* ------------------------------------------------------------------ *
  * 전력 환산 투구수
  *
@@ -822,16 +829,21 @@ export type AcwrResult = {
  *   첫 기록부터 지수를 낼 수 있다. 기록이 쌓일수록 시작점의 영향은
  *   (1-λ)^일수 로 줄어들며, 그 비율을 realWeight로 함께 돌려준다.
  * - 기준선이 없으면 예전과 같은 28일 규칙을 지킨다(첫 주 평균을 시작점으로 사용).
+ *
+ * 받는 것은 '날짜별 하루 부하'다. 무엇을 부하로 볼지는 부르는 쪽이 정한다 —
+ * 투구는 투구수 × 강도, 운동은 시간(분) × 강도. 둘은 단위가 달라 합치지 않고
+ * 각각 지수를 낸다. 지수는 '평소 대비 몇 배'라 단위가 없어서, 같은 계산기를
+ * 두 곳에 쓸 수 있다.
  */
 export function computeAcwr(
-  byDay: Map<string, DayTotals>,
+  dailyLoads: Map<string, number>,
   today = new Date(),
   opts?: { seedDailyLoad?: number | null }
 ): AcwrResult {
   const todayKey = toDateKey(today);
   const seed = opts?.seedDailyLoad ?? null;
 
-  const firstKey = [...byDay.keys()].sort()[0];
+  const firstKey = [...dailyLoads.keys()].sort()[0];
   const historyDays = firstKey ? daysBetween(firstKey, todayKey) : 0;
   const daysNeeded = Math.max(0, CHRONIC_WINDOW_DAYS - historyDays);
 
@@ -865,16 +877,14 @@ export function computeAcwr(
   } else {
     const firstWeek = days.slice(0, Math.min(7, days.length));
     init =
-      firstWeek.reduce((sum, k) => {
-        const d = byDay.get(k);
-        return sum + (d ? dailyLoad(d) : 0);
-      }, 0) / firstWeek.length;
+      firstWeek.reduce((sum, k) => sum + (dailyLoads.get(k) ?? 0), 0) /
+      firstWeek.length;
   }
 
   let acuteEwma = init;
   let chronicEwma = init;
   for (const key of days) {
-    const load = byDay.has(key) ? dailyLoad(byDay.get(key)!) : 0;
+    const load = dailyLoads.get(key) ?? 0;
     acuteEwma = load * ACUTE_LAMBDA + acuteEwma * (1 - ACUTE_LAMBDA);
     chronicEwma = load * CHRONIC_LAMBDA + chronicEwma * (1 - CHRONIC_LAMBDA);
   }
