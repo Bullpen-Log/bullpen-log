@@ -48,6 +48,14 @@ export type LoadView = {
    * 운동 부하 밑에 붙는다 — 운동을 많이 한 사람에게 던지는 것을 줄이라는 말이 된다.
    */
   advice: string;
+  /**
+   * 이 구간이 무슨 뜻인지 한 줄로.
+   *
+   * 조언과 같은 이유로 갈라 둔다. 예전에는 지수 구간표(ACWR_ZONES)의 문장을
+   * 둘 다 썼는데, 그 문장이 투구용이라 운동 부하 밑에 "던지고 있습니다"가
+   * 붙었다.
+   */
+  meaning: string;
 };
 
 /**
@@ -102,7 +110,7 @@ function Primary({ view }: { view: LoadView }) {
             </p>
             <p className={`mt-1.5 text-sm font-medium ${TONE[zone.tone].text}`}>
               {describeRatio(view.ratio)}
-              <span className="ml-1.5 font-normal text-muted">· {zone.meaning}</span>
+              <span className="ml-1.5 font-normal text-muted">· {view.meaning}</span>
             </p>
             {/* 문진 추정치가 섞여 있는 동안에는 그 사실을 숨기지 않는다. */}
             {view.estimated && (
@@ -159,7 +167,7 @@ function Secondary({ view }: { view: LoadView }) {
             {view.ratio.toFixed(2)}
           </span>
           <StatusChip tone={zone.tone}>{zone.label}</StatusChip>
-          <span className="text-xs text-muted">{zone.meaning}</span>
+          <span className="text-xs text-muted">{view.meaning}</span>
         </>
       ) : (
         <span className="text-xs text-muted">

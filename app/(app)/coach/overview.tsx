@@ -20,7 +20,11 @@ import {
   summarize,
   toDateKey,
 } from '@/lib/pitch-stats';
-import { TRAINING_ADVICE, type TrainingLoad } from '@/lib/training-load';
+import {
+  TRAINING_ADVICE,
+  TRAINING_MEANING,
+  type TrainingLoad,
+} from '@/lib/training-load';
 import { ACWR_ZONES } from '@/lib/pitch-stats';
 import { TrendChart, type TrendPoint } from './trend-chart';
 import { LoadPanel, type LoadView } from './load-panel';
@@ -188,6 +192,7 @@ export function StatsOverview({
     acute: acwr.acute,
     chronic: acwr.chronic,
     advice: acwr.zone ? ACWR_ZONES[acwr.zone].advice : '',
+    meaning: acwr.zone ? ACWR_ZONES[acwr.zone].meaning : '',
     hasRecords,
     emptyHint: hasRecords
       ? '지수는 최근 부하를 평소 부하와 견주는 값입니다. 비교할 기준이 아직 없습니다.'
@@ -205,6 +210,7 @@ export function StatsOverview({
     acute: training.acute,
     chronic: training.chronic,
     advice: training.zone ? TRAINING_ADVICE[training.zone] : '',
+    meaning: training.zone ? TRAINING_MEANING[training.zone] : '',
     hasRecords: training.historyDays > 0,
     /*
      * 투구와 마찬가지로, 문진에 '평소 웨이트 빈도'를 답하면 첫날부터 나온다.

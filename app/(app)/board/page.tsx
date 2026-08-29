@@ -24,7 +24,7 @@ export default async function BoardPage() {
     <div className="space-y-10">
       <PageHeading
         eyebrow="Library"
-        title="참고자료"
+        title="자료실"
         description="투구 역학과 트레이닝에 관한 분석글을 공유하는 게시판입니다."
         action={<ButtonLink href="/board/new">글쓰기</ButtonLink>}
       />

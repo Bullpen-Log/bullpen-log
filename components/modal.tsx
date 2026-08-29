@@ -77,7 +77,14 @@ export function Modal({
       onClick={(e) => {
         if (e.target === ref.current) onClose();
       }}
-      className={`${
+      /*
+       * m-auto 가 창을 화면 가운데로 보낸다.
+       *
+       * 브라우저는 원래 <dialog> 에 margin:auto 를 줘서 가운데로 보내는데,
+       * Tailwind 가 모든 요소의 여백을 0 으로 초기화하면서 그 규칙까지 지웠다.
+       * 그래서 앱의 창이 전부 화면 왼쪽 위 구석(0,0)에 붙어 있었다.
+       */
+      className={`m-auto ${
         size === 'wide'
           ? 'w-[min(62rem,calc(100vw-1.5rem))]'
           : 'w-[min(38rem,calc(100vw-1.5rem))]'
