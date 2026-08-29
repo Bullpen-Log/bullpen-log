@@ -13,7 +13,13 @@ function formatDate(date: Date) {
 }
 
 export default async function BoardPage() {
-  await requireUser();
+  const user = await requireUser();
+  /*
+   * 자료실은 운영자가 자료를 올리는 곳이다. 누구나 쓸 수 있게 열어두면 신고·차단
+   * 같은 것이 곧 필요해지는데, 지금 그것을 감당할 준비가 안 되어 있다.
+   * 커뮤니티가 필요해지면 그때 연다.
+   */
+  const canWrite = user.role === 'ADMIN';
 
   const articles = await prisma.article.findMany({
     orderBy: { createdAt: 'desc' },
@@ -25,18 +31,24 @@ export default async function BoardPage() {
       <PageHeading
         eyebrow="Library"
         title="자료실"
-        description="투구 역학과 트레이닝에 관한 분석글을 공유하는 게시판입니다."
-        action={<ButtonLink href="/board/new">글쓰기</ButtonLink>}
+        description="투구 역학과 트레이닝에 관한 자료를 모아둔 곳입니다."
+        action={canWrite ? <ButtonLink href="/board/new">글쓰기</ButtonLink> : undefined}
       />
 
       {articles.length === 0 ? (
         <EmptyState
-          title="아직 등록된 글이 없습니다"
-          description="첫 번째 자료를 공유해보세요. 참고한 링크와 함께 요약을 남기면 좋습니다."
+          title="아직 등록된 자료가 없습니다"
+          description={
+            canWrite
+              ? '첫 번째 자료를 올려보세요. 참고한 링크와 함께 요약을 남기면 좋습니다.'
+              : '투구 역학과 트레이닝 자료가 올라오면 여기에 보입니다.'
+          }
           action={
-            <ButtonLink href="/board/new" variant="secondary" className="mt-2">
-              첫 글 쓰기
-            </ButtonLink>
+            canWrite ? (
+              <ButtonLink href="/board/new" variant="secondary" className="mt-2">
+                첫 글 쓰기
+              </ButtonLink>
+            ) : undefined
           }
         />
       ) : (

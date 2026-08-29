@@ -3,6 +3,8 @@
 import { redirect } from 'next/navigation';
 import bcrypt from 'bcryptjs';
 import { prisma } from '@/lib/prisma';
+import { getCurrentUser } from '@/lib/dal';
+import { deleteVideos } from '@/lib/storage';
 import { createSession, deleteSession } from '@/lib/session';
 import { validateProfile } from '@/lib/profile';
 import { validateBaseline } from '@/lib/baseline';
@@ -41,6 +43,16 @@ async function trySignup(formData: FormData): Promise<AuthState> {
   }
   if (password !== passwordConfirm) {
     return { error: '비밀번호가 일치하지 않습니다.' };
+  }
+
+  /*
+   * 약관·개인정보 동의.
+   *
+   * 화면에서 required 로 막고 있지만 여기서 한 번 더 본다 — 화면을 거치지 않고
+   * 들어올 수 있고, 동의 없이 만들어진 계정은 나중에 되돌릴 방법이 없다.
+   */
+  if (formData.get('agreeTerms') !== 'on' || formData.get('agreePrivacy') !== 'on') {
+    return { error: '이용약관과 개인정보 처리방침에 동의해주세요.' };
   }
 
   // 나이는 안전한 투구수 한도를 정하는 기준이라 가입할 때 함께 받는다.
@@ -113,6 +125,114 @@ async function tryLogin(formData: FormData): Promise<AuthState> {
 }
 
 export async function logout() {
+  await deleteSession();
+  redirect('/login');
+}
+
+/* ─────────────────────────── 계정 관리 ─────────────────────────── */
+
+export type AccountState = { error?: string; success?: string } | undefined;
+
+/** 비밀번호 규칙 한 곳. 가입과 변경이 같은 선을 봐야 한다. */
+const MIN_PASSWORD = 8;
+
+/**
+ * 비밀번호 바꾸기.
+ *
+ * 지금까지는 바꿀 방법이 아예 없었다. 남의 컴퓨터에서 로그인했거나 비밀번호를
+ * 남에게 보여준 적이 있어도 손쓸 도리가 없었다는 뜻이다.
+ *
+ * 지금 비밀번호를 먼저 확인한다. 로그인한 채로 자리를 비운 사이 누가 바꿔 버리면
+ * 본인이 되레 못 들어오게 된다.
+ */
+export async function changePassword(
+  _prev: AccountState,
+  formData: FormData
+): Promise<AccountState> {
+  const user = await getCurrentUser();
+  if (!user) return { error: '로그인이 필요합니다.' };
+
+  const current = String(formData.get('currentPassword') ?? '');
+  const next = String(formData.get('newPassword') ?? '');
+  const confirm = String(formData.get('newPasswordConfirm') ?? '');
+
+  if (!current || !next) {
+    return { error: '지금 비밀번호와 새 비밀번호를 모두 입력해주세요.' };
+  }
+  if (next.length < MIN_PASSWORD) {
+    return { error: `새 비밀번호는 ${MIN_PASSWORD}자 이상이어야 합니다.` };
+  }
+  if (next !== confirm) {
+    return { error: '새 비밀번호가 서로 다릅니다.' };
+  }
+  if (next === current) {
+    return { error: '지금 쓰는 비밀번호와 같습니다. 다른 것으로 정해주세요.' };
+  }
+
+  const row = await prisma.user.findUnique({
+    where: { id: user.id },
+    select: { password: true },
+  });
+  if (!row || !(await bcrypt.compare(current, row.password))) {
+    return { error: '지금 비밀번호가 맞지 않습니다.' };
+  }
+
+  await prisma.user.update({
+    where: { id: user.id },
+    data: { password: await bcrypt.hash(next, 10) },
+  });
+
+  return { success: '비밀번호를 바꿨습니다.' };
+}
+
+/**
+ * 회원 탈퇴.
+ *
+ * 나갈 문이 없는 서비스는 못 쓰는 서비스다. 그만두고 싶은 사람이 사람을 찾아
+ * 연락해야 했다.
+ *
+ * 비밀번호와 '탈퇴' 두 글자를 함께 받는다. 지우면 투구 기록·영상·체크인·운동
+ * 기록이 전부 사라지고 되돌릴 수 없다 — 실수로 누르는 자리가 아니어야 한다.
+ *
+ * 저장소의 영상 파일은 함께 지운다. DB 에서만 지우면 파일만 남아 떠돈다.
+ */
+export async function deleteAccount(
+  _prev: AccountState,
+  formData: FormData
+): Promise<AccountState> {
+  const user = await getCurrentUser();
+  if (!user) return { error: '로그인이 필요합니다.' };
+
+  const password = String(formData.get('password') ?? '');
+  const typed = String(formData.get('confirmWord') ?? '').trim();
+
+  if (typed !== '탈퇴') {
+    return { error: '확인란에 탈퇴 두 글자를 그대로 적어주세요.' };
+  }
+  if (!password) {
+    return { error: '비밀번호를 입력해주세요.' };
+  }
+
+  const row = await prisma.user.findUnique({
+    where: { id: user.id },
+    select: { password: true },
+  });
+  if (!row || !(await bcrypt.compare(password, row.password))) {
+    return { error: '비밀번호가 맞지 않습니다.' };
+  }
+
+  /*
+   * 올려둔 영상을 먼저 챙겨 지운다. 회원을 지우면 기록이 함께 사라져(Cascade)
+   * 경로를 알 길이 없어지고, 파일만 저장소에 남는다.
+   */
+  const logs = await prisma.pitchLog.findMany({
+    where: { userId: user.id },
+    select: { videoPaths: true },
+  });
+  const paths = logs.flatMap((l) => l.videoPaths);
+  if (paths.length > 0) await deleteVideos(paths);
+
+  await prisma.user.delete({ where: { id: user.id } });
   await deleteSession();
   redirect('/login');
 }

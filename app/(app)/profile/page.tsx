@@ -3,6 +3,7 @@ import { logout } from '@/app/actions/auth';
 import { Badge, Card, PageHeading } from '@/components/ui';
 import { ageFromBirthDate, toDateInputValue } from '@/lib/profile';
 import { toDateKey } from '@/lib/pitch-stats';
+import { AccountActions } from './account-actions';
 import { ProfileForm } from './profile-form';
 
 /** 렌더 중에 현재 시각을 직접 읽지 않도록 함수로 감싼다. */
@@ -74,6 +75,9 @@ export default async function ProfilePage() {
                 로그아웃
               </button>
             </form>
+
+            {/* 비밀번호 바꾸기 · 회원 탈퇴. 창으로 연다 — 매일 볼 것이 아니다. */}
+            <AccountActions />
           </Card>
 
           <p className="rounded-xl border border-line bg-surface px-5 py-4 text-xs leading-relaxed text-muted">

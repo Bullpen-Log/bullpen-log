@@ -19,6 +19,14 @@ export async function createArticle(
 async function tryCreateArticle(formData: FormData): Promise<BoardState> {
   const user = await getCurrentUser();
   if (!user) return { error: '로그인이 필요합니다.' };
+  /*
+   * 자료실은 운영자가 투구 역학·트레이닝 자료를 올리는 곳이다. 누구나 쓸 수
+   * 있게 열어두면 신고·차단 같은 것이 곧 필요해지는데, 지금 그것을 감당할
+   * 준비가 안 되어 있다. 커뮤니티가 필요해지면 그때 연다.
+   */
+  if (user.role !== 'ADMIN') {
+    return { error: '자료실 글은 관리자만 올릴 수 있습니다.' };
+  }
 
   const title = String(formData.get('title') ?? '').trim();
   const content = String(formData.get('content') ?? '').trim();

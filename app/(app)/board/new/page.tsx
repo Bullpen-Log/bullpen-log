@@ -1,9 +1,10 @@
-import { requireUser } from '@/lib/dal';
+import { requireAdmin } from '@/lib/dal';
 import { PageHeading } from '@/components/ui';
 import { ArticleForm } from './article-form';
 
 export default async function NewArticlePage() {
-  await requireUser();
+  // 자료실은 운영자가 올리는 곳이다. 주소를 직접 쳐서 들어와도 막힌다.
+  await requireAdmin();
 
   return (
     <div className="mx-auto max-w-3xl space-y-10">

@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useActionState, useState } from 'react';
 import { useFormStatus } from 'react-dom';
 import { login, signup, type AuthState } from '@/app/actions/auth';
@@ -261,6 +262,56 @@ export function AuthForm({ today }: { today: string }) {
               required
             />
           </Field>
+        )}
+
+        {/*
+          동의 두 가지.
+          받는 정보를 보면 그냥 넘어갈 수준이 아니다 — 생년월일, 키, 통증 부위,
+          투구 기록, 영상. 통증 기록은 건강에 관한 정보라 따로 동의를 받는다.
+          미리 체크해 두지 않는다. 눌러서 동의한 것과 켜져 있어서 넘어간 것은 다르다.
+        */}
+        {mode === 'signup' && (
+          <div className="space-y-2.5 rounded-xl border border-line bg-surface-2 px-4 py-3.5">
+            <label className="flex cursor-pointer items-start gap-2.5 text-sm text-ink">
+              <input
+                type="checkbox"
+                name="agreeTerms"
+                required
+                className="mt-0.5 h-4 w-4 shrink-0 accent-[#0ea5e9]"
+              />
+              <span className="leading-relaxed">
+                <Link
+                  href="/terms"
+                  target="_blank"
+                  className="font-medium text-sky underline"
+                >
+                  이용약관
+                </Link>
+                에 동의합니다. <span className="text-muted">(필수)</span>
+              </span>
+            </label>
+
+            <label className="flex cursor-pointer items-start gap-2.5 text-sm text-ink">
+              <input
+                type="checkbox"
+                name="agreePrivacy"
+                required
+                className="mt-0.5 h-4 w-4 shrink-0 accent-[#0ea5e9]"
+              />
+              <span className="leading-relaxed">
+                <Link
+                  href="/privacy"
+                  target="_blank"
+                  className="font-medium text-sky underline"
+                >
+                  개인정보 처리방침
+                </Link>
+                에 동의합니다. 여기에는 어깨·팔꿈치 통증 같은{' '}
+                <strong>건강에 관한 정보</strong>가 들어갑니다.{' '}
+                <span className="text-muted">(필수)</span>
+              </span>
+            </label>
+          </div>
         )}
 
         <SubmitButton label={mode === 'login' ? '로그인' : '가입하고 시작하기'} />
