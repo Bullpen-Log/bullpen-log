@@ -7,6 +7,7 @@ import {
   TWO_DAY_INTENSITY_LIMIT,
   buildDateRange,
   buildDateRangeOffset,
+  acwrTrend,
   computeAcwr,
   pitchLoadByDay,
   countMissingDays,
@@ -129,7 +130,13 @@ export function StatsOverview({
   const acwrByDay = groupByDay(
     logs.filter((l) => toDateKey(new Date(l.date)) >= acwrFrom)
   );
-  const acwr = computeAcwr(pitchLoadByDay(acwrByDay), today, { seedDailyLoad });
+  const pitchLoads = pitchLoadByDay(acwrByDay);
+  const acwr = computeAcwr(pitchLoads, today, { seedDailyLoad });
+  /*
+   * 최근 2주 지수 흐름. 지수 하나만 보여주면 그 값이 요일 때문에 오르내린다는
+   * 것을 알 수가 없어서 함께 낸다.
+   */
+  const acwrHistory = acwrTrend(pitchLoads, today, 14, { seedDailyLoad });
   const fatigue = findFatigueWindows(byDay, last28);
   /*
    * 최근 4주에 무엇을 하며 지냈는지.
@@ -192,6 +199,7 @@ export function StatsOverview({
     acute: acwr.acute,
     chronic: acwr.chronic,
     advice: acwr.zone ? ACWR_ZONES[acwr.zone].advice : '',
+    trend: acwrHistory,
     meaning: acwr.zone ? ACWR_ZONES[acwr.zone].meaning : '',
     hasRecords,
     emptyHint: hasRecords
@@ -210,6 +218,7 @@ export function StatsOverview({
     acute: training.acute,
     chronic: training.chronic,
     advice: training.zone ? TRAINING_ADVICE[training.zone] : '',
+    trend: training.trend,
     meaning: training.zone ? TRAINING_MEANING[training.zone] : '',
     hasRecords: training.historyDays > 0,
     /*
@@ -230,6 +239,7 @@ export function StatsOverview({
         training={trainingView}
         missingDays={missingDays}
         missingWarningAt={MISSING_DAYS_WARNING}
+        throwStreak={streak}
       />
 
       {/* ── 뒷받침 넷 ───────────────────────────────────────── */}

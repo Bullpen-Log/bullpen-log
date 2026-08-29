@@ -3,6 +3,8 @@ import {
   toDateKey,
   type AcwrResult,
   type AcwrZone,
+  acwrTrend,
+  type AcwrTrendPoint,
 } from '@/lib/pitch-stats';
 import { buildPartVolume, type VolumeSummary } from '@/lib/training-volume';
 import {
@@ -271,6 +273,8 @@ export const TRAINING_LOAD_NOTE =
  */
 
 export type TrainingLoad = AcwrResult & {
+  /** 최근 2주 지수 흐름. 하루 값이 요일 때문에 오르내려서 함께 본다. */
+  trend: AcwrTrendPoint[];
   /** 최근 7일에 마친 운동 수 */
   recentCount: number;
   /** 최근 7일 운동 시간(분) */
@@ -373,6 +377,7 @@ export function buildTrainingLoad(
   }
 
   const acwr = computeAcwr(dailyLoads, today, { seedDailyLoad });
+  const trend = acwrTrend(dailyLoads, today, 14, { seedDailyLoad });
 
   /* 최근 7일 — 화면에서 "이번 주 운동"으로 쓴다. */
   const todayKey = toDateKey(today);
@@ -397,6 +402,7 @@ export function buildTrainingLoad(
 
   return {
     ...acwr,
+    trend,
     recentCount,
     recentMinutes: Math.round(recentMinutes),
     recentDays,

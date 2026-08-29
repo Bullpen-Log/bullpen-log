@@ -835,6 +835,45 @@ export type AcwrResult = {
  * 각각 지수를 낸다. 지수는 '평소 대비 몇 배'라 단위가 없어서, 같은 계산기를
  * 두 곳에 쓸 수 있다.
  */
+export type AcwrTrendPoint = {
+  dateKey: string;
+  /** 그날 기준으로 낸 지수. 아직 못 내는 날은 null */
+  ratio: number | null;
+};
+
+/**
+ * 최근 며칠의 지수를 하루씩 낸다.
+ *
+ * 지수 하나만 크게 보여주면 요일 때문에 오르내리는 것을 알 수가 없다. 같은
+ * 훈련을 12주 반복한 선수도 오늘이 무슨 요일이냐에 따라 0.79~1.25 사이를
+ * 오간다 — 최근 부하는 최근 며칠에 크게 반응하도록(가중평균) 만들어져 실질적
+ * 기억이 4일쯤인데, 훈련 주기는 7일이라 주기를 못 담아내기 때문이다.
+ *
+ * 계산을 바꾸지는 않는다. 이 방식은 급증을 빨리 잡아내려고 고른 것이고 실제로
+ * 잘 잡는다(몰아 던지면 2.04). 대신 흐름을 함께 보여줘서, 오늘 값이 낮아도
+ * 흐름이 평평하면 그것이 보이게 한다.
+ */
+export function acwrTrend(
+  dailyLoads: Map<string, number>,
+  today = new Date(),
+  days = 14,
+  opts?: { seedDailyLoad?: number | null }
+): AcwrTrendPoint[] {
+  const todayKey = toDateKey(today);
+  return Array.from({ length: days }, (_, i) => {
+    const dateKey = shiftDateKey(todayKey, i - days + 1);
+    /*
+     * 그날까지의 부하만 넣어 그날 기준으로 낸다. 뒤 날짜를 함께 넣으면
+     * "그때 화면에 뜬 값"이 아니라 지금 와서 다시 센 값이 된다.
+     */
+    const upTo = new Map(
+      [...dailyLoads].filter(([key]) => key <= dateKey)
+    );
+    const at = new Date(`${dateKey}T12:00:00.000Z`);
+    return { dateKey, ratio: computeAcwr(upTo, at, opts).ratio };
+  });
+}
+
 export function computeAcwr(
   dailyLoads: Map<string, number>,
   today = new Date(),
