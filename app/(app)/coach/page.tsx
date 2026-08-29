@@ -90,7 +90,7 @@ export default async function ReportPage() {
         readiness={readiness}
         aiReady={isAiConfigured()}
       />
-      <ReportClient logs={serialized} nickname={user.nickname} />
+      <ReportClient logs={serialized} />
     </div>
   );
 }

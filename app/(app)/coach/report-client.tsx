@@ -19,6 +19,7 @@ import {
   ArrowDown,
   ArrowUp,
   CheckCircle2,
+  ChevronDown,
   Info,
   Minus,
   NotebookPen,
@@ -142,10 +143,8 @@ function MetricRow({
 
 export function ReportClient({
   logs,
-  nickname,
 }: {
   logs: Log[];
-  nickname: string;
 }) {
   const [days, setDays] = useState<7 | 30>(7);
 
@@ -283,6 +282,9 @@ export function ReportClient({
   };
 
   const periodLabel = `최근 ${days}일`;
+
+  /** 펼쳐져 있는가. 안쪽을 그릴지 정한다(그래프 크기 때문에). */
+  const [open, setOpen] = useState(false);
   const rangeLabel = `${formatShortDate(currentKeys[0])} – ${formatShortDate(
     currentKeys.at(-1) as string
   )}`;
@@ -290,27 +292,55 @@ export function ReportClient({
   if (logs.length === 0) {
     return (
       <EmptyState
-        title="아직 정리할 기록이 없습니다"
+        title="아직 돌아볼 기록이 없습니다"
         description="투구 기록에서 며칠치를 남기면 이곳에 기간별 정리가 만들어집니다."
       />
     );
   }
 
+  /*
+   * 접어 둔다.
+   *
+   * 이 덩이만 모바일에서 1,700px이었다 — 폰 화면 두 개. 분석 화면 전체가
+   * 5,700px이 된 데 이만큼이 들어 있었다.
+   *
+   * 여기는 '그동안'을 보는 곳이라 매번 열 이유가 없다. 지금 상태는 위쪽 지수가
+   * 이미 말한다. 다만 코멘트가 몇 개 있는지는 접힌 채로도 보여준다 — 볼 것이
+   * 있는지 모르면 아무도 안 연다.
+   */
   return (
-    <div className="space-y-6">
-      {/*
-        제목을 따로 두지 않는다. 화면 맨 위에 '분석'이 이미 있는데 여기서
-        '리포트'라고 또 붙이면, 바로 위 AI 리포트 카드와 이름이 겹쳐서
-        같은 것이 두 번 있는 것처럼 보인다.
-      */}
-      <div>
-        <h2 className="text-lg font-bold text-ink">기간별 돌아보기</h2>
-        <p className="mt-1 text-sm leading-relaxed text-muted">
-          {nickname}님의 {periodLabel}{' '}기록입니다. 위쪽 지수가 &lsquo;지금&rsquo;을
-          본다면 여기는 &lsquo;그동안&rsquo;을 봅니다.
-        </p>
-      </div>
+    <details
+      className="group rounded-2xl border border-line bg-surface px-5 py-4 sm:px-6"
+      /*
+       * 열릴 때까지 안쪽을 그리지 않는다.
+       *
+       * 안에 그래프가 있는데, 접힌 <details> 안에서는 담는 상자의 크기가 0이다.
+       * Chart.js 는 상자 크기에 맞춰 그리므로 그때 그리면 찌그러진 채로 나온다.
+       * 열린 뒤에 붙여야 처음부터 제 크기로 그려진다.
+       */
+      onToggle={(e) => setOpen(e.currentTarget.open)}
+    >
+      <summary className="flex cursor-pointer list-none items-start gap-2">
+        <ChevronDown className="mt-1 h-4 w-4 shrink-0 text-muted transition-transform group-open:rotate-180" />
+        <span className="min-w-0 flex-1">
+          <span className="flex flex-wrap items-baseline gap-x-2">
+            <span className="text-base font-bold text-ink">기간별 돌아보기</span>
+            <span className="text-xs text-muted">{periodLabel}</span>
+            {findings.length > 0 && (
+              <span className="rounded-lg border border-sky-soft/60 bg-sky/10 px-2 py-0.5 text-[11px] font-medium text-sky-strong">
+                코멘트 {findings.length}개
+              </span>
+            )}
+          </span>
+          <span className="mt-1 block text-sm leading-relaxed text-muted">
+            7일·30일 기록과 코멘트. 위쪽 지수가 &lsquo;지금&rsquo;을 본다면 여기는
+            &lsquo;그동안&rsquo;을 봅니다.
+          </span>
+        </span>
+      </summary>
 
+      {open && (
+      <div className="mt-6 space-y-6">
       {/* 기간 선택 */}
       <div className="flex flex-wrap items-center gap-3">
         <div className="flex gap-1 rounded-xl border border-line bg-surface p-1">
@@ -550,6 +580,8 @@ export function ReportClient({
           </Card>
         )}
       </section>
-    </div>
+      </div>
+      )}
+    </details>
   );
 }

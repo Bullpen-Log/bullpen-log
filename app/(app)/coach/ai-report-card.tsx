@@ -82,6 +82,46 @@ function DayRow({ day }: { day: PitchPlan['days'][number] }) {
   );
 }
 
+/**
+ * 접었다 펴는 한 덩이.
+ *
+ * 리포트는 모바일에서 1,900px이었다 — 폰 화면 두 개 반. 매일 다 읽을 내용이
+ * 아닌데 전부 펼쳐져 있으니, 아래 '기간별 돌아보기'까지 가려면 한참 굴려야 했다.
+ *
+ * 오늘 무엇을 할지(headline·향후 3일·실행 항목 제목)는 열어 두고, 왜 그런지와
+ * 지켜볼 점은 접는다. 궁금할 때만 열면 된다.
+ *
+ * <details> 를 쓴다. 열고 닫는 상태를 우리가 들고 있을 이유가 없고,
+ * 자바스크립트가 아직 안 붙은 순간에도 눌린다.
+ */
+function Section({
+  title,
+  hint,
+  children,
+}: {
+  title: string;
+  /** 접혀 있을 때 제목 옆에 보이는 한 줄 */
+  hint?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <details className="group border-t border-line pt-4">
+      <summary className="flex cursor-pointer list-none items-center gap-1.5">
+        <ChevronDown className="h-3.5 w-3.5 shrink-0 text-muted transition-transform group-open:rotate-180" />
+        <span className="text-[11px] font-medium uppercase tracking-[0.18em] text-muted">
+          {title}
+        </span>
+        {hint && (
+          <span className="min-w-0 flex-1 truncate text-[11px] text-muted/60">
+            {hint}
+          </span>
+        )}
+      </summary>
+      <div className="mt-3">{children}</div>
+    </details>
+  );
+}
+
 export function AiReportCard({
   report,
   readiness,
@@ -195,11 +235,17 @@ export function AiReportCard({
               {report.body.headline}
             </p>
 
-            <p className="whitespace-pre-wrap text-sm leading-relaxed text-ink/80">
-              {report.body.assessment}
-            </p>
+            {/*
+              해석은 접는다. 한 줄 요약(headline)이 위에 있고, 오늘 무엇을
+              할지는 아래 계획에 있다. 왜 그런지가 궁금할 때만 열면 된다.
+            */}
+            <Section title="지금 상태 해석">
+              <p className="whitespace-pre-wrap text-sm leading-relaxed text-ink/80">
+                {report.body.assessment}
+              </p>
+            </Section>
 
-            {/* 코드가 계산한 계획 — 리포트의 근거 */}
+            {/* 코드가 계산한 계획 — 리포트의 근거. 오늘 할 일이라 늘 펼쳐 둔다 */}
             <div className="space-y-2">
               <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-muted">
                 향후 3일 계획
@@ -223,27 +269,34 @@ export function AiReportCard({
               <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-muted">
                 실행 항목
               </p>
+              {/*
+                제목은 늘 보이고 이유만 접는다. 무엇을 할지는 한눈에 들어와야
+                하고, 왜 그런지는 물음이 생겼을 때 열면 된다.
+              */}
               {report.body.actions.map((action, i) => (
-                <div
+                <details
                   key={i}
-                  className="rounded-xl border border-line bg-surface-2 px-4 py-3"
+                  className="group rounded-xl border border-line bg-surface-2 px-4 py-3"
                 >
-                  <p className="text-sm font-semibold text-ink">
-                    {action.title}
-                  </p>
-                  <p className="mt-1 text-sm leading-relaxed text-muted">
+                  <summary className="flex cursor-pointer list-none items-start gap-2">
+                    <ChevronDown className="mt-0.5 h-4 w-4 shrink-0 text-muted transition-transform group-open:rotate-180" />
+                    <span className="text-sm font-semibold text-ink">
+                      {action.title}
+                    </span>
+                  </summary>
+                  <p className="mt-2 pl-6 text-sm leading-relaxed text-muted">
                     {action.detail}
                   </p>
-                </div>
+                </details>
               ))}
             </div>
 
-            {/* 지켜볼 점 */}
+            {/* 지켜볼 점 — 오늘 당장 할 일은 아니라 접어 둔다 */}
             {report.body.watchouts.length > 0 && (
-              <div>
-                <p className="mb-2 text-[11px] font-medium uppercase tracking-[0.18em] text-muted">
-                  지켜볼 점
-                </p>
+              <Section
+                title="지켜볼 점"
+                hint={`${report.body.watchouts.length}가지`}
+              >
                 <ul className="space-y-1.5">
                   {report.body.watchouts.map((w, i) => (
                     <li key={i} className="flex gap-2 text-sm leading-relaxed text-muted">
@@ -252,7 +305,7 @@ export function AiReportCard({
                     </li>
                   ))}
                 </ul>
-              </div>
+              </Section>
             )}
           </>
         )}
