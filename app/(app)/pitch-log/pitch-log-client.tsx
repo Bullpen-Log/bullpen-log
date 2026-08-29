@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Plus } from 'lucide-react';
 import { Card, FormError, PageHeading } from '@/components/ui';
 import { Modal } from '@/components/modal';
@@ -60,6 +60,7 @@ export function PitchLogClient({
   savedAnalyses,
   todayKey,
   todayPlan,
+  loadedFrom,
 }: {
   initialLogs: Log[];
   /** 다른 화면에서 날짜를 지정해 들어온 경우. 그 날짜 창을 바로 연다. */
@@ -70,10 +71,23 @@ export function PitchLogClient({
   todayKey: string;
   /** 오늘 던질 양. 통증 등으로 계획을 안 낸 날은 null */
   todayPlan: PlanNoteData | null;
+  /**
+   * 처음에 받아 온 가장 오래된 달 (YYYY-MM).
+   *
+   * 이보다 옛날 달로 넘기면 그때 그 달만 따로 받아 온다. 처음부터 전부 읽으면
+   * 몇 년 쓴 사람에게는 열 때마다 천 건이 넘어온다.
+   */
+  loadedFrom: string;
 }) {
   const [logs, setLogs] = useState<Log[]>(initialLogs);
   const [error, setError] = useState<string>();
   const [comparing, setComparing] = useState(false);
+  /*
+   * 이미 받아 온 달들. 처음 받아 온 범위(loadedFrom 이후)는 통째로 있는 것으로
+   * 친다. 같은 달을 두 번 받지 않으려고 둔다.
+   */
+  const loadedMonths = useRef(new Set<string>());
+  const [loadingMonth, setLoadingMonth] = useState(false);
 
   const [selectedDate, setSelectedDate] = useState(
     () => initialDate ?? toDateKey(new Date())
@@ -104,16 +118,62 @@ export function PitchLogClient({
     setDayOpen(true);
   }, []);
 
+  /** 달력이 보고 있는 달 (YYYY-MM) */
+  const monthKey = `${month.getFullYear()}-${String(month.getMonth() + 1).padStart(2, '0')}`;
+
+  /*
+   * 처음 받아 온 범위보다 옛날 달로 넘어가면 그 달만 따로 받아 온다.
+   * 한 번 받은 달은 다시 받지 않는다.
+   */
+  useEffect(() => {
+    if (monthKey >= loadedFrom || loadedMonths.current.has(monthKey)) return;
+    loadedMonths.current.add(monthKey);
+    let cancelled = false;
+
+    setLoadingMonth(true);
+    fetch(`/api/pitch-log?month=${monthKey}`)
+      .then((res) => (res.ok ? res.json() : Promise.reject(new Error())))
+      .then((older: Log[]) => {
+        if (cancelled) return;
+        // 이미 가진 것과 겹칠 수 있어(영상 있는 기록) id 로 합친다.
+        setLogs((prev) => {
+          const seen = new Set(prev.map((l) => l.id));
+          return [...prev, ...older.filter((l) => !seen.has(l.id))];
+        });
+      })
+      .catch(() => {
+        if (cancelled) return;
+        // 다시 넘어오면 한 번 더 받아볼 수 있게 표시를 지운다.
+        loadedMonths.current.delete(monthKey);
+        setError('그 달 기록을 불러오지 못했습니다. 잠시 후 다시 시도해주세요.');
+      })
+      .finally(() => {
+        if (!cancelled) setLoadingMonth(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [monthKey, loadedFrom]);
+
   const refresh = useCallback(async () => {
     try {
-      const res = await fetch('/api/pitch-log');
+      /*
+       * 지금 보고 있는 달만 다시 받아 그 달만 갈아 끼운다. 전부 다시 받으면
+       * 옛날 달을 보다가 저장했을 때 그 달이 목록에서 사라진다.
+       */
+      const res = await fetch(`/api/pitch-log?month=${monthKey}`);
       if (!res.ok) throw new Error();
-      setLogs(await res.json());
+      const fresh: Log[] = await res.json();
+      setLogs((prev) => [
+        ...prev.filter((l) => l.date.slice(0, 7) !== monthKey),
+        ...fresh,
+      ]);
       setError(undefined);
     } catch {
       setError('기록을 불러오지 못했습니다. 잠시 후 다시 시도해주세요.');
     }
-  }, []);
+  }, [monthKey]);
 
   const handleDelete = useCallback(
     async (id: string) => {
@@ -299,7 +359,16 @@ export function PitchLogClient({
 
       <FormError>{error}</FormError>
 
-      <Card>
+      <Card className="relative">
+        {/* 옛날 달을 받아 오는 동안. 달력이 빈 채로 있으면 기록이 없는 줄 안다. */}
+        {loadingMonth && (
+          <p
+            aria-live="polite"
+            className="absolute right-5 top-5 rounded-lg border border-line bg-surface-2 px-2.5 py-1 text-[11px] text-muted"
+          >
+            지난 기록 불러오는 중…
+          </p>
+        )}
         <MonthCalendar
           month={month}
           onMonthChange={setMonth}

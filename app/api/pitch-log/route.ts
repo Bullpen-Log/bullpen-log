@@ -119,15 +119,43 @@ function checkEntry(body: Record<string, unknown>): { error: string } | CheckedE
   };
 }
 
-export async function GET() {
+/**
+ * 기록 읽기.
+ *
+ * ?month=2026-08 을 주면 그 달만 준다. 안 주면 예전처럼 전부 준다.
+ *
+ * 달로 자를 수 있게 한 이유: 일지 화면이 가입 이래 모든 기록을 한 번에 읽고
+ * 있었다. 지금은 수십 건이라 순식간이지만 매일 남기는 선수라면 3년에 천 건이
+ * 넘는다. 달력은 한 번에 한 달만 보여주므로 그 달치만 있으면 된다.
+ */
+export async function GET(req: Request) {
   const user = await getCurrentUser();
   if (!user) {
     return NextResponse.json({ error: '로그인이 필요합니다' }, { status: 401 });
   }
 
+  const month = new URL(req.url).searchParams.get('month');
+  if (month != null && !/^\d{4}-\d{2}$/.test(month)) {
+    return NextResponse.json({ error: '달은 2026-08 형식이어야 합니다' }, { status: 400 });
+  }
+
   try {
     const logs = await prisma.pitchLog.findMany({
-      where: { userId: user.id },
+      where: {
+        userId: user.id,
+        ...(month
+          ? {
+              /*
+               * 그 달의 1일부터 다음 달 1일 직전까지.
+               * 날짜는 UTC 자정으로 저장하므로 여기서도 UTC로 자른다.
+               */
+              date: {
+                gte: new Date(`${month}-01T00:00:00.000Z`),
+                lt: nextMonthStart(month),
+              },
+            }
+          : {}),
+      },
       orderBy: { date: 'asc' },
     });
     return NextResponse.json(logs);
@@ -135,6 +163,12 @@ export async function GET() {
     console.error('[GET /api/pitch-log]', error);
     return NextResponse.json({ error: '데이터 조회 실패' }, { status: 500 });
   }
+}
+
+/** 2026-12 → 2027-01-01 (UTC). 해 넘김은 Date.UTC 가 알아서 한다. */
+function nextMonthStart(month: string) {
+  const [y, m] = month.split('-').map(Number);
+  return new Date(Date.UTC(y, m, 1));
 }
 
 export async function POST(req: Request) {

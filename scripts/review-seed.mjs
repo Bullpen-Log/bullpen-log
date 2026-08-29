@@ -77,6 +77,25 @@ const user = await prisma.user.create({
 
 /* ── 8주치 투구 기록 ────────────────────────────────────────── */
 const logs = [];
+
+/*
+ * 아주 오래된 기록 한 줌.
+ *
+ * 일지 화면은 최근 열세 달만 미리 읽고, 그보다 옛날 달로 넘기면 그때 받아 온다.
+ * 그 자리를 시험하려면 열세 달 밖에 뭔가 있어야 한다.
+ */
+for (const back of [400, 401, 430]) {
+  const key = dayKey(-back);
+  logs.push({
+    date: at(key),
+    sessionType: '불펜',
+    pitchCount: 35,
+    intensity: 6,
+    maxVelocity: 128,
+    avgVelocity: 121,
+    memo: '아주 예전 기록',
+  });
+}
 for (let i = 55; i >= 0; i--) {
   const key = dayKey(-i);
   const w = new Date(`${key}T00:00:00Z`).getUTCDay();
