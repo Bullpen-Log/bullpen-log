@@ -12,68 +12,14 @@ import {
 import { ACWR_ZONES, ACWR_ZONE_ORDER, type AcwrZone } from '@/lib/pitch-stats';
 import type { PitchPlan } from '@/lib/report/plan';
 
-export type Tone = 'good' | 'info' | 'warn' | 'bad' | 'neutral';
-
-/**
- * 상태별 색. 문자열을 그대로 써야 Tailwind가 클래스를 찾아낸다.
- *
- * 글자는 테마 토큰(ok·warn·danger·sky-strong)을 쓴다 — 라이트에서는
- * 진하게, 다크에서는 밝게 뒤집혀 두 모드 모두에서 읽힌다.
- * 점은 같은 토큰의 채움색, 반투명 워시(chip 배경·bar)는 두 모드에서
- * 모두 무난해 원색을 그대로 둔다.
+/*
+ * 상태 색과 칩은 components/tone.tsx 로 옮겼다. 홈에서도 부하 상태를 보여주게
+ * 되면서 두 화면이 같은 색을 써야 했는데, 여기 두면 다른 화면이 비슷한 색을
+ * 새로 만들게 된다. 여기서는 그대로 다시 내보내, 부르는 쪽을 고치지 않는다.
  */
-export const TONE: Record<
-  Tone,
-  { text: string; dot: string; chip: string; bar: string }
-> = {
-  good: {
-    text: 'text-ok',
-    dot: 'bg-ok',
-    chip: 'border-emerald-500/30 bg-emerald-500/10 text-ok',
-    bar: 'bg-emerald-500/70',
-  },
-  info: {
-    text: 'text-sky-strong',
-    dot: 'bg-sky',
-    chip: 'border-sky-500/30 bg-sky-500/10 text-sky-strong',
-    bar: 'bg-sky-500/70',
-  },
-  warn: {
-    text: 'text-warn',
-    dot: 'bg-warn',
-    chip: 'border-amber-500/30 bg-amber-500/10 text-warn',
-    bar: 'bg-amber-500/70',
-  },
-  bad: {
-    text: 'text-danger',
-    dot: 'bg-danger',
-    chip: 'border-red-500/40 bg-red-500/10 text-danger',
-    bar: 'bg-red-500/70',
-  },
-  neutral: {
-    text: 'text-muted',
-    dot: 'bg-line-strong',
-    chip: 'border-line-strong bg-surface-2 text-muted',
-    bar: 'bg-line-strong',
-  },
-};
+import { TONE, StatusChip, type Tone } from '@/components/tone';
 
-export function StatusChip({
-  tone,
-  children,
-}: {
-  tone: Tone;
-  children: ReactNode;
-}) {
-  return (
-    <span
-      className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium ${TONE[tone].chip}`}
-    >
-      <span className={`h-1.5 w-1.5 rounded-full ${TONE[tone].dot}`} />
-      {children}
-    </span>
-  );
-}
+export { TONE, StatusChip, type Tone };
 
 /** 지난 기간 대비 변화. 값이 없으면 비교 자체를 생략한다. */
 export function Delta({

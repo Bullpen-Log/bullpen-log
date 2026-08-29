@@ -18,6 +18,67 @@ import { Modal } from '@/components/modal';
 
 export type TileState = 'done' | 'todo' | 'warn';
 
+/**
+ * 상자 안에 넣는 작은 막대 그림.
+ *
+ * 글만 두세 줄 있으면 상자가 헐렁해 보인다. 넓은 화면에서 특히 그렇다.
+ * 크기를 키워 봐야 안쪽 여백만 늘어나므로, 볼 값어치가 있는 것으로 채운다 —
+ * 최근 며칠이 어땠는지는 숫자 한 줄보다 막대가 빨리 읽힌다.
+ */
+export function MiniBars({
+  bars,
+  label,
+  max,
+}: {
+  /** 왼쪽이 오래된 날. 값이 0이면 빈 칸으로 둔다. */
+  bars: { key: string; value: number; title: string }[];
+  label: string;
+  /**
+   * 막대 높이의 기준. 안 주면 그중 가장 큰 값에 맞춘다.
+   *
+   * 투구수처럼 위가 열려 있는 값은 가장 큰 날을 꽉 채우는 게 맞다. 반대로
+   * 컨디션(1~10)처럼 상한이 정해진 값은 10을 기준으로 그려야 한다 — 매일 5인
+   * 사람도 막대가 꽉 차면 "괜찮다"로 잘못 읽힌다.
+   */
+  max?: number;
+}) {
+  const peak = max ?? Math.max(...bars.map((b) => b.value), 1);
+  /*
+   * 이레 내내 0인 경우.
+   *
+   * 지우지는 않는다 — '한 주 내내 안 했다'도 읽을 값어치가 있다. 다만 높이까지
+   * 그대로 두면 56px 짜리 빈 띠 아래에 실선 몇 개만 남아, 뭔가 깨진 것처럼 보인다.
+   */
+  const empty = bars.every((b) => b.value === 0);
+
+  return (
+    <span className="mt-3 block">
+      <span
+        className={`flex items-end gap-1 ${empty ? 'h-5' : 'h-14'}`}
+        aria-hidden
+      >
+        {bars.map((b) => (
+          <span
+            key={b.key}
+            title={b.title}
+            className="flex h-full flex-1 flex-col justify-end"
+          >
+            {b.value > 0 ? (
+              <span
+                className="block rounded-sm bg-sky/50"
+                style={{ height: `${Math.max(12, (b.value / peak) * 100)}%` }}
+              />
+            ) : (
+              <span className="block h-[3px] rounded-sm bg-line-strong/60" />
+            )}
+          </span>
+        ))}
+      </span>
+      <span className="mt-1.5 block text-[10px] text-muted/70">{label}</span>
+    </span>
+  );
+}
+
 const STATE_STYLE: Record<TileState, { chip: string; box: string }> = {
   done: {
     chip: 'border-sky-soft/60 bg-sky/10 text-sky-strong',
@@ -39,6 +100,7 @@ function TileFace({
   state,
   badge,
   lines,
+  extra,
   action,
   asLink,
 }: {
@@ -49,6 +111,8 @@ function TileFace({
   badge: string;
   /** 상자 안에 적는 지금 상태. 두세 줄이 알맞다. */
   lines: string[];
+  /** 글 아래에 붙는 작은 그림. 없으면 안 그린다. */
+  extra?: ReactNode;
   /** 아래에 적는 할 일 — '체크인하기', '고치기' */
   action: string;
   asLink: boolean;
@@ -72,13 +136,15 @@ function TileFace({
       </div>
 
       {/* 지금 상태 — 창을 열지 않고도 읽을 수 있어야 한다 */}
-      <ul className="mt-3 flex-1 space-y-1">
+      <ul className="mt-3 space-y-1">
         {lines.map((line) => (
           <li key={line} className="text-[13px] leading-relaxed text-muted">
             {line}
           </li>
         ))}
       </ul>
+
+      <span className="flex-1">{extra}</span>
 
       <span className="mt-3 inline-flex items-center gap-1 text-xs font-semibold text-sky">
         {action}
@@ -93,7 +159,7 @@ function TileFace({
 }
 
 const BOX_BASE =
-  'flex min-h-[10.5rem] w-full flex-col rounded-2xl border bg-surface px-5 py-4 text-left transition-colors';
+  'flex min-h-[13rem] w-full flex-col rounded-2xl border bg-surface px-5 py-5 text-left transition-colors';
 
 /** 누르면 창이 뜨는 상자. */
 export function HomeTile({
@@ -102,6 +168,7 @@ export function HomeTile({
   state,
   badge,
   lines,
+  extra,
   action,
   modalTitle,
   modalDescription,
@@ -112,6 +179,7 @@ export function HomeTile({
   state: TileState;
   badge: string;
   lines: string[];
+  extra?: ReactNode;
   action: string;
   /** 창 제목. 안 주면 상자 제목을 그대로 쓴다. */
   modalTitle?: string;
@@ -134,6 +202,7 @@ export function HomeTile({
           state={state}
           badge={badge}
           lines={lines}
+          extra={extra}
           action={action}
           asLink={false}
         />
@@ -164,6 +233,7 @@ export function HomeTileLink({
   state,
   badge,
   lines,
+  extra,
   action,
 }: {
   href: string;
@@ -172,6 +242,7 @@ export function HomeTileLink({
   state: TileState;
   badge: string;
   lines: string[];
+  extra?: ReactNode;
   action: string;
 }) {
   return (
@@ -182,6 +253,7 @@ export function HomeTileLink({
         state={state}
         badge={badge}
         lines={lines}
+        extra={extra}
         action={action}
         asLink
       />
