@@ -20,6 +20,7 @@ import {
   type FilterState,
 } from '@/components/meta-filter';
 import { Badge, Button, Card, EmptyState } from '@/components/ui';
+import { ConfirmDeleteForm } from '@/components/confirm-delete';
 import { GuideForm, type GuideDraft } from './guide-form';
 
 export type GuideItem = {
@@ -132,16 +133,25 @@ function GuideDetail({
                 >
                   <Pencil className="h-4 w-4" />
                 </button>
-                <form action={deleteGuide}>
-                  <input type="hidden" name="id" value={item.id} />
-                  <button
-                    type="submit"
-                    aria-label={`${item.title} 삭제`}
-                    className="rounded-lg p-2 text-muted transition-colors hover:bg-danger-bg hover:text-danger"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </button>
-                </form>
+                <ConfirmDeleteForm
+                  action={deleteGuide}
+                  hidden={{ id: item.id }}
+                  ariaLabel={`${item.title} 삭제`}
+                  title="이 드릴을 지울까요?"
+                  detail={
+                    <div className="space-y-2">
+                      <p>
+                        <strong className="text-ink">{item.title}</strong>
+                      </p>
+                      <p className="text-muted">
+                        모든 회원의 라이브러리에서 사라집니다. 되돌릴 수 없습니다.
+                      </p>
+                    </div>
+                  }
+                  className="rounded-lg p-2 text-muted transition-colors hover:bg-danger-bg hover:text-danger"
+                >
+                  <Trash2 className="h-4 w-4" />
+                </ConfirmDeleteForm>
               </>
             )}
             <button

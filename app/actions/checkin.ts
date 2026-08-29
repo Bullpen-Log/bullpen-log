@@ -47,6 +47,7 @@ async function trySaveCheckin(formData: FormData): Promise<CheckinState> {
    * 운동을 새로 올리면 코드를 고치지 않아도 따라온다.
    */
   const library = await prisma.exerciseVideo.findMany({
+    where: { hiddenAt: null }, // 숨긴 운동은 새 일정에 안 나온다
     select: { id: true, bodyParts: true },
   });
 

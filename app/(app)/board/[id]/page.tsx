@@ -4,7 +4,8 @@ import { ArrowLeft, ExternalLink, Eye, Trash2 } from 'lucide-react';
 import { prisma } from '@/lib/prisma';
 import { requireUser } from '@/lib/dal';
 import { deleteArticle } from '@/app/actions/board';
-import { Badge, Button } from '@/components/ui';
+import { Badge } from '@/components/ui';
+import { ConfirmDeleteForm } from '@/components/confirm-delete';
 
 function formatDate(date: Date) {
   return new Intl.DateTimeFormat('ko-KR', {
@@ -70,17 +71,26 @@ export default async function ArticleDetailPage({
           </span>
 
           {canDelete && (
-            <form action={deleteArticle} className="ml-auto">
-              <input type="hidden" name="id" value={article.id} />
-              <Button
-                type="submit"
-                variant="danger"
-                className="px-3 py-2 text-xs"
+            <div className="ml-auto">
+              <ConfirmDeleteForm
+                action={deleteArticle}
+                hidden={{ id: article.id }}
+                ariaLabel={`${article.title} 삭제`}
+                title="이 글을 지울까요?"
+                detail={
+                  <div className="space-y-2">
+                    <p>
+                      <strong className="text-ink">{article.title}</strong>
+                    </p>
+                    <p className="text-muted">되돌릴 수 없습니다.</p>
+                  </div>
+                }
+                className="inline-flex items-center gap-1.5 rounded-xl border border-danger-line bg-danger-bg px-3 py-2 text-xs font-semibold text-danger transition-colors hover:bg-danger-bg/70"
               >
                 <Trash2 className="h-3.5 w-3.5" />
                 삭제
-              </Button>
-            </form>
+              </ConfirmDeleteForm>
+            </div>
           )}
         </div>
       </header>

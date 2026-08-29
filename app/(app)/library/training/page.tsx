@@ -7,8 +7,20 @@ import { TrainingClient, type ExerciseItem } from './training-client';
 export default async function TrainingPage() {
   const user = await requireUser();
 
+  const isAdmin = user.role === 'ADMIN';
+
+  /*
+   * 숨긴 운동은 관리자에게만 보인다. 숨김은 지우기 대신 쓰는 것이라, 되돌릴
+   * 사람에게는 보여야 하고 나머지에게는 안 보여야 한다.
+   */
   const exercises = await prisma.exerciseVideo.findMany({
+    where: isAdmin ? {} : { hiddenAt: null },
     orderBy: { createdAt: 'desc' },
+    /*
+     * 이 운동을 한 기록이 몇 건인지 함께 센다. 지우기 전에 무엇이 함께
+     * 사라지는지 숫자로 보여주기 위해서다 — 지우면 그 기록이 전부 딸려 간다.
+     */
+    include: { _count: { select: { userLogs: true } } },
   });
 
   // 미리보기 이미지 주소는 한 번의 요청으로 모아서 받는다.
@@ -28,6 +40,9 @@ export default async function TrainingPage() {
     videoPath: ex.videoPath,
     source: ex.source,
     referenceVideoId: ex.referenceVideoId,
+    hiddenAt: ex.hiddenAt ? ex.hiddenAt.toISOString() : null,
+    // 지우기 전에 보여줄 숫자. 관리자만 지울 수 있어 다른 사람에게는 안 쓴다.
+    usedCount: ex._count.userLogs,
     sets: ex.sets,
     reps: ex.reps,
     holdSeconds: ex.holdSeconds,
@@ -45,5 +60,5 @@ export default async function TrainingPage() {
   }));
 
   // 제목과 탭은 라이브러리 레이아웃이 그린다.
-  return <TrainingClient exercises={items} isAdmin={user.role === 'ADMIN'} />;
+  return <TrainingClient exercises={items} isAdmin={isAdmin} />;
 }

@@ -317,6 +317,18 @@ model ExerciseVideo {
    * 할 때 이 값이 있는 것은 건드리지 않아, 이미 손본 내용을 덮어쓰지 않는다.
    */
   detailsFilledAt  DateTime?
+  /**
+   * 숨긴 시각. 비어 있으면 보이는 운동이다.
+   *
+   * 지우기 대신 쓴다. 운동을 지우면 그 운동을 한 모든 회원의 기록이 함께
+   * 사라지고(UserExerciseLog 가 딸려 있다), 지나간 운동 부하까지 소급해서
+   * 바뀐다. 어제 "부하 1.2"였던 사람이 오늘 "0.9"가 되는데 본인은 아무것도
+   * 안 했다 — 관리자가 "이 영상 다시 찍어야겠다" 하고 지운 것만으로.
+   *
+   * 숨기면 새 일정에는 안 나오고 지난 기록은 그대로 남는다. 관리자 화면에서
+   * 언제든 되돌릴 수 있다.
+   */
+  hiddenAt         DateTime?
   createdAt        DateTime          @default(now())
   userLogs         UserExerciseLog[]
   routineExercises RoutineExercise[]

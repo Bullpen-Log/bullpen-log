@@ -135,6 +135,31 @@ async function tryCreateExercise(formData: FormData): Promise<ActionState> {
   return { success: '운동 영상이 등록되었습니다.' };
 }
 
+/**
+ * 운동을 숨기거나 다시 꺼낸다.
+ *
+ * 지우기 대신 쓰라고 만든 것이다. 지우면 그 운동을 한 모든 회원의 기록이 함께
+ * 사라지고, 지나간 운동 부하까지 소급해서 바뀐다. 숨기면 새 일정에는 안 나오고
+ * 지난 기록은 그대로 남는다.
+ */
+export async function toggleExerciseHidden(formData: FormData) {
+  if (!(await assertAdmin())) return;
+  const id = String(formData.get('id') ?? '');
+  if (!id) return;
+
+  const target = await prisma.exerciseVideo.findUnique({
+    where: { id },
+    select: { hiddenAt: true },
+  });
+  if (!target) return;
+
+  await prisma.exerciseVideo.update({
+    where: { id },
+    data: { hiddenAt: target.hiddenAt ? null : new Date() },
+  });
+  revalidatePath('/library/training');
+}
+
 export async function deleteExercise(formData: FormData) {
   if (!(await assertAdmin())) return;
   const id = String(formData.get('id') ?? '');

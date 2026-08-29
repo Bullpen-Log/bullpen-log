@@ -113,7 +113,10 @@ function check(name: string, ok: boolean, detail = '') {
 const prisma = new PrismaClient({
   adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL }),
 });
-const library = await prisma.exerciseVideo.findMany({ orderBy: { createdAt: 'asc' } });
+const library = await prisma.exerciseVideo.findMany({
+  where: { hiddenAt: null },
+  orderBy: { createdAt: 'asc' },
+});
 await prisma.$disconnect();
 
 /* 날짜는 고정값이라 언제 돌려도 같은 결과가 나온다. */

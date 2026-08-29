@@ -160,6 +160,7 @@ export async function generateAiReport(): Promise<AiReportState> {
   const dailyPlan = readDailyPlan(todaySetup?.plan);
 
   const library = await prisma.exerciseVideo.findMany({
+    where: { hiddenAt: null }, // 숨긴 운동은 새 일정에 안 나온다
     orderBy: { createdAt: 'asc' },
   });
   const byId = new Map(library.map((ex) => [ex.id, ex]));

@@ -5,6 +5,7 @@ import { Badge, Card } from '@/components/ui';
 import { PitchVideoPlayer } from '@/components/pitch-video-player';
 import { PoseAnalysis } from '@/components/pose-analysis';
 import { REST_SESSION_TYPE } from '@/lib/session-type';
+import { ConfirmDelete } from '@/components/confirm-delete';
 import type { SavedAnalysisView } from '@/lib/pose/saved';
 import type { Log } from './pitch-log-client';
 
@@ -15,6 +16,14 @@ import type { Log } from './pitch-log-client';
  * 나뉘어 있었다. 그날 무슨 일이 있었는지 알려면 두 화면을 오가야 했는데,
  * 원래 한 기록이므로 여기서 한 번에 본다.
  */
+const WEEKDAYS = ['일', '월', '화', '수', '목', '금', '토'];
+
+/** 2026-08-28 → 8월 28일 (금) */
+function spokenDate(key: string) {
+  const [y, m, d] = key.split('-').map(Number);
+  return `${m}월 ${d}일 (${WEEKDAYS[new Date(y, m - 1, d).getDay()]})`;
+}
+
 export function DayRecord({
   log,
   date,
@@ -96,14 +105,37 @@ export function DayRecord({
           >
             <Pencil className="h-4 w-4" />
           </button>
-          <button
-            type="button"
-            onClick={() => onDelete(log.id)}
-            aria-label="기록 삭제"
+          {/*
+            휴지통이 연필 바로 옆이라 잘못 누르기 쉽다. 게다가 기록만이 아니라
+            올려둔 영상까지 저장소에서 영구히 사라진다. 무엇이 없어지는지
+            이름을 대고 한 번 묻는다.
+          */}
+          <ConfirmDelete
+            onConfirm={() => onDelete(log.id)}
+            ariaLabel="기록 삭제"
+            title="이 기록을 지울까요?"
+            detail={
+              <div className="space-y-2">
+                <p>
+                  <strong className="text-ink">
+                    {spokenDate(date)} · {rested ? '쉬는 날' : `${log.sessionType} ${log.pitchCount}구`}
+                  </strong>
+                </p>
+                {log.videoPaths.length > 0 && (
+                  <p className="text-warn">
+                    올려둔 영상 {log.videoPaths.length}개와 그 영상의 폼 분석도 함께
+                    지워집니다.
+                  </p>
+                )}
+                <p className="text-muted">
+                  되돌릴 수 없습니다. 수치만 고치실 거라면 옆의 연필을 눌러주세요.
+                </p>
+              </div>
+            }
             className="rounded-lg p-2 text-muted transition-colors hover:bg-danger-bg hover:text-danger"
           >
             <Trash2 className="h-4 w-4" />
-          </button>
+          </ConfirmDelete>
         </div>
       </div>
 

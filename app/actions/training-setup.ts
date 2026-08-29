@@ -142,7 +142,11 @@ export async function generateTodayPlan(formData: FormData) {
   const today = new Date();
   const { facts, plan } = await gatherFactsAndPlan(user, today);
   const [library, recentIds, strengthDates] = await Promise.all([
-    prisma.exerciseVideo.findMany({ orderBy: { createdAt: 'asc' } }),
+    prisma.exerciseVideo.findMany({
+      // 숨긴 운동은 새 일정에 안 나온다
+      where: { hiddenAt: null },
+      orderBy: { createdAt: 'asc' },
+    }),
     recentExerciseIds(user.id, today),
     lastStrengthDates(user.id, today),
   ]);

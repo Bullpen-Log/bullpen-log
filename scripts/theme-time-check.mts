@@ -29,7 +29,10 @@ const prisma = new PrismaClient({
   adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL }),
 });
 
-const library = await prisma.exerciseVideo.findMany({ orderBy: { createdAt: 'asc' } });
+const library = await prisma.exerciseVideo.findMany({
+  where: { hiddenAt: null },
+  orderBy: { createdAt: 'asc' },
+});
 await prisma.$disconnect();
 
 const missing = library.filter((ex) => ex.sets == null);

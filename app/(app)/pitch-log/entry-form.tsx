@@ -147,9 +147,11 @@ export function EntryForm({
       <>
       <div className="grid gap-5 sm:grid-cols-2">
         <Field label="투구수">
+          {/* 상한은 오타를 잡는 자리다. 서버에서 같은 선으로 한 번 더 본다. */}
           <Input
             type="number"
             min="1"
+            max="500"
             value={form.pitchCount}
             onChange={(e) => setForm({ ...form, pitchCount: e.target.value })}
             placeholder="45"
@@ -188,7 +190,8 @@ export function EntryForm({
           <Input
             type="number"
             step="0.1"
-            min="1"
+            min="30"
+            max="200"
             value={form.maxVelocity}
             onChange={(e) => setForm({ ...form, maxVelocity: e.target.value })}
             placeholder="138"
@@ -198,7 +201,8 @@ export function EntryForm({
           <Input
             type="number"
             step="0.1"
-            min="1"
+            min="30"
+            max="200"
             value={form.avgVelocity}
             onChange={(e) => setForm({ ...form, avgVelocity: e.target.value })}
             placeholder="132"

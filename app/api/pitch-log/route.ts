@@ -7,6 +7,23 @@ import { isFutureDateKey, toDateKey } from '@/lib/pitch-stats';
 
 const MAX_VIDEOS = 2;
 
+/*
+ * 값의 범위.
+ *
+ * 규칙으로 무엇을 하라고 시키려는 것이 아니라 오타를 잡으려는 것이다. 450 을
+ * 치려다 4500 을 치면 그 하루가 부하 지수를 끌어올리는데, 지수는 28일을
+ * 되돌아보므로 한 달 내내 '위험'이 뜬다. 그 숫자로 휴식일과 운동 강도가
+ * 정해지니 앱이 통째로 헛돈다.
+ *
+ * 그래서 선은 넉넉하게 긋는다. 실제로 있을 법한 값은 하나도 막지 않고,
+ * 자릿수를 잘못 친 것만 걸리는 자리다.
+ *   투구수 500 — 한 번에 500구를 던지는 사람은 없다(경기 최다가 120구쯤)
+ *   구속 30~200 — 세계 기록이 169km/h 이고, 초등학생도 30km/h 는 넘는다
+ */
+const MAX_PITCH_COUNT = 500;
+const MIN_VELOCITY = 30;
+const MAX_VELOCITY = 200;
+
 /** 저장할 수 있는 형태로 다듬은 기록 값 */
 type CheckedEntry = {
   sessionType: string;
@@ -45,6 +62,11 @@ function checkEntry(body: Record<string, unknown>): { error: string } | CheckedE
     if (pitchCount < 1) {
       return { error: '투구수는 1개 이상이어야 합니다. 안 던진 날은 종류에서 휴식을 고르세요' };
     }
+    if (pitchCount > MAX_PITCH_COUNT) {
+      return {
+        error: `투구수가 ${MAX_PITCH_COUNT}구를 넘습니다. 자릿수를 잘못 누르지 않았는지 확인해주세요. 나눠 던졌다면 세션을 나눠 남기시면 됩니다`,
+      };
+    }
     if (intensity < 1 || intensity > 10) {
       return { error: '투구 강도는 1에서 10 사이여야 합니다' };
     }
@@ -65,6 +87,11 @@ function checkEntry(body: Record<string, unknown>): { error: string } | CheckedE
     const value = Number.parseFloat(String(raw));
     if (Number.isNaN(value) || value <= 0) {
       return { error: `${label}을 숫자로 입력해주세요` };
+    }
+    if (value < MIN_VELOCITY || value > MAX_VELOCITY) {
+      return {
+        error: `${label}은 ${MIN_VELOCITY}~${MAX_VELOCITY} km/h 사이로 입력해주세요. 단위가 mph 라면 km/h 로 바꿔서 넣어주세요`,
+      };
     }
     return { value };
   };

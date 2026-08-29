@@ -1,8 +1,12 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { Pencil, Trash2, X } from 'lucide-react';
-import { deleteExercise, setExerciseThumbnail } from '@/app/actions/content';
+import { Eye, EyeOff, Pencil, Trash2, X } from 'lucide-react';
+import {
+  deleteExercise,
+  setExerciseThumbnail,
+  toggleExerciseHidden,
+} from '@/app/actions/content';
 import { TRAINING_CATEGORIES } from '@/lib/categories';
 import {
   BODY_PARTS,
@@ -22,6 +26,7 @@ import {
   type FilterState,
 } from '@/components/meta-filter';
 import { Button, Card, EmptyState } from '@/components/ui';
+import { ConfirmDeleteForm } from '@/components/confirm-delete';
 import { ExerciseForm, type ExerciseDraft } from './exercise-form';
 
 export type ExerciseItem = {
@@ -40,6 +45,10 @@ export type ExerciseItem = {
   /** 참고 영상의 유튜브 영상 ID */
   referenceVideoId: string | null;
   thumbUrl: string | null;
+  /** 숨긴 시각. 없으면 보이는 운동. 숨긴 것은 관리자에게만 보인다. */
+  hiddenAt: string | null;
+  /** 이 운동을 한 기록 수. 관리자가 아니면 0 */
+  usedCount: number;
 } & Prescription;
 
 const FILTER_GROUPS = [
@@ -117,6 +126,11 @@ function ExerciseDetail({
                 촬영 전 · 참고 영상
               </span>
             )}
+            {item.hiddenAt && (
+              <span className="rounded-md border border-line-strong bg-surface-2 px-2 py-0.5 text-[11px] font-semibold text-muted">
+                숨김 · 새 일정에 안 나옴
+              </span>
+            )}
           </div>
           <div className="flex shrink-0 items-center gap-1">
             {isAdmin && (
@@ -129,16 +143,63 @@ function ExerciseDetail({
                 >
                   <Pencil className="h-4 w-4" />
                 </button>
-                <form action={deleteExercise}>
+
+                {/*
+                  숨기기 — 지우기 대신 먼저 손이 가야 하는 쪽이라 앞에 둔다.
+                  숨기면 새 일정에는 안 나오고 지난 기록은 그대로 남는다.
+                */}
+                <form action={toggleExerciseHidden}>
                   <input type="hidden" name="id" value={item.id} />
                   <button
                     type="submit"
-                    aria-label={`${item.title} 삭제`}
-                    className="rounded-lg p-2 text-muted transition-colors hover:bg-danger-bg hover:text-danger"
+                    aria-label={
+                      item.hiddenAt ? `${item.title} 다시 보이기` : `${item.title} 숨기기`
+                    }
+                    title={
+                      item.hiddenAt
+                        ? '다시 보이기 — 새 일정에 다시 나옵니다'
+                        : '숨기기 — 새 일정에 안 나오고, 지난 기록은 남습니다'
+                    }
+                    className="rounded-lg p-2 text-muted transition-colors hover:bg-surface-2 hover:text-sky"
                   >
-                    <Trash2 className="h-4 w-4" />
+                    {item.hiddenAt ? (
+                      <Eye className="h-4 w-4" />
+                    ) : (
+                      <EyeOff className="h-4 w-4" />
+                    )}
                   </button>
                 </form>
+
+                <ConfirmDeleteForm
+                  action={deleteExercise}
+                  hidden={{ id: item.id }}
+                  ariaLabel={`${item.title} 삭제`}
+                  title="이 운동을 지울까요?"
+                  detail={
+                    <div className="space-y-2">
+                      <p>
+                        <strong className="text-ink">{item.title}</strong>
+                      </p>
+                      {item.usedCount > 0 ? (
+                        <p className="text-warn">
+                          회원들이 이 운동을 한 기록{' '}
+                          <strong>{item.usedCount}건</strong>이 함께 지워집니다. 지나간
+                          운동 부하 지수도 그만큼 다시 계산됩니다 — 본인은 아무것도 안
+                          했는데 어제와 다른 숫자를 보게 됩니다.
+                        </p>
+                      ) : (
+                        <p className="text-muted">아직 아무도 이 운동을 하지 않았습니다.</p>
+                      )}
+                      <p className="text-muted">
+                        되돌릴 수 없습니다. 새 일정에만 안 나오게 하려면 옆의{' '}
+                        <strong>숨기기</strong>를 쓰세요 — 지난 기록이 그대로 남습니다.
+                      </p>
+                    </div>
+                  }
+                  className="rounded-lg p-2 text-muted transition-colors hover:bg-danger-bg hover:text-danger"
+                >
+                  <Trash2 className="h-4 w-4" />
+                </ConfirmDeleteForm>
               </>
             )}
             <button

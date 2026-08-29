@@ -60,6 +60,7 @@ export async function loadTodayCore(user: UserForToday, today: Date) {
      * 숫자 다섯 개라 짐이 되지 않는다.
      */
     prisma.exerciseVideo.findMany({
+      where: { hiddenAt: null }, // 숨긴 운동은 새 일정에 안 나온다
       orderBy: { createdAt: 'asc' },
       select: {
         id: true,
