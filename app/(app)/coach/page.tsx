@@ -2,6 +2,22 @@ import { prisma } from '@/lib/prisma';
 import { requireUser } from '@/lib/dal';
 import { trainingLoad } from '@/lib/report/training-acwr';
 import { reportReadiness } from '@/lib/report/cadence';
+import { toDateKey } from '@/lib/pitch-stats';
+
+/**
+ * 이 화면이 읽어 오는 기간(일).
+ *
+ * 예전에는 기간을 안 걸고 투구 기록을 통째로 읽었다. 3년을 쓰면 천 건이 넘고,
+ * 그 전부가 화면까지 따라온다. 정작 쓰는 것은 아래 셋뿐이다.
+ *
+ *   최근 7일·직전 7일 요약    14일
+ *   28일 추이                28일
+ *   기간별 돌아보기 30일 비교  60일
+ *
+ * 여기에 여유를 둬 70일로 자른다. 개인 최고 구속만 전체 기간이 필요한데,
+ * 그건 줄 하나만 따로 물어보면 된다.
+ */
+const PAGE_LOOKBACK_DAYS = 70;
 import { isAiConfigured } from '@/lib/ai/client';
 import type { AiReportBody } from '@/lib/ai/report-prompt';
 import type { PitchPlan } from '@/lib/report/plan';
@@ -14,9 +30,12 @@ export default async function ReportPage() {
   const user = await requireUser();
 
   const today = new Date();
-  const [logs, latestReport, training] = await Promise.all([
+  const since = new Date(today);
+  since.setDate(since.getDate() - PAGE_LOOKBACK_DAYS);
+
+  const [logs, latestReport, training, bestVelocityLog] = await Promise.all([
     prisma.pitchLog.findMany({
-      where: { userId: user.id },
+      where: { userId: user.id, date: { gte: since } },
       orderBy: { date: 'asc' },
     }),
     prisma.aiReport.findFirst({
@@ -25,6 +44,17 @@ export default async function ReportPage() {
     }),
     /* 운동 부하. 투구와 합치지 않고 나란히 보여준다. */
     trainingLoad(user.id, today),
+    /*
+     * 개인 최고 구속 — 이것만 전체 기간이 필요하다.
+     *
+     * 기록 전부를 읽어 와서 훑는 대신 가장 빠른 줄 하나만 묻는다.
+     * 세운 날짜도 같이 온다.
+     */
+    prisma.pitchLog.findFirst({
+      where: { userId: user.id, maxVelocity: { not: null } },
+      orderBy: { maxVelocity: 'desc' },
+      select: { maxVelocity: true, date: true },
+    }),
   ]);
 
   const serialized = logs.map((log) => ({
@@ -71,6 +101,14 @@ export default async function ReportPage() {
         나눠, 오늘 할 일은 트레이닝 화면에 두고 돌아보는 것은 여기로 모았다.
       */}
       <StatsOverview
+        bestVelocity={
+          bestVelocityLog?.maxVelocity != null
+            ? {
+                value: bestVelocityLog.maxVelocity,
+                date: toDateKey(bestVelocityLog.date),
+              }
+            : null
+        }
         logs={serialized.map((l) => ({
           date: l.date,
           sessionType: l.sessionType,

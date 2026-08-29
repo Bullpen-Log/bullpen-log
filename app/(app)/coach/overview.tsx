@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { UserCog } from 'lucide-react';
 import { estimateDailyLoad } from '@/lib/baseline';
+import { LOOKBACK_DAYS } from '@/lib/report/gather';
 import {
   CHRONIC_WINDOW_DAYS,
   TWO_DAY_INTENSITY_LIMIT,
@@ -19,7 +20,6 @@ import {
   summarize,
   toDateKey,
 } from '@/lib/pitch-stats';
-import { buildVelocityStats } from '@/lib/velocity';
 import { TRAINING_ADVICE, type TrainingLoad } from '@/lib/training-load';
 import { ACWR_ZONES } from '@/lib/pitch-stats';
 import { TrendChart, type TrendPoint } from './trend-chart';
@@ -82,12 +82,18 @@ export type OverviewUser = {
 export function StatsOverview({
   logs,
   training,
+  bestVelocity,
   user,
   today,
   totalRecords,
 }: {
-  /** 전체 기록. 개인 최고 구속은 최근 몇 주 안에만 있는 것이 아니다. */
+  /**
+   * 최근 기록. 화면이 쓰는 만큼만 온다(coach/page.tsx 의 PAGE_LOOKBACK_DAYS).
+   * 전체 기간이 필요한 개인 최고 구속은 따로 받는다.
+   */
   logs: OverviewLog[];
+  /** 전체 기간 개인 최고 구속. 한 번도 안 적었으면 null */
+  bestVelocity: { value: number; date: string } | null;
   /** 운동 부하. 투구와 합치지 않고 나란히 둔다. */
   training: TrainingLoad;
   user: OverviewUser;
@@ -96,7 +102,6 @@ export function StatsOverview({
   totalRecords: number;
 }) {
   const todayKey = toDateKey(today);
-  const velocity = buildVelocityStats(logs);
   const byDay = groupByDay(logs);
 
   const last7 = buildDateRange(7, today);
@@ -107,7 +112,20 @@ export function StatsOverview({
   const previous = summarize(byDay, prev7);
   // 가입 문진 추정치가 있으면 기록 첫날부터 지수가 나온다.
   const seedDailyLoad = estimateDailyLoad(user);
-  const acwr = computeAcwr(pitchLoadByDay(byDay), today, { seedDailyLoad });
+  /*
+   * 부하 지수는 다른 화면과 같은 기간에서 낸다.
+   *
+   * 예전에는 이 화면만 기록 전부로 계산했다. 그러면 오래 쓴 사람에게 홈·트레이닝
+   * (45일 기준)과 여기가 미세하게 다른 숫자를 보여준다. 같은 이름의 값이
+   * 화면마다 다르면 어느 쪽을 믿어야 할지 알 수 없다.
+   */
+  const acwrFrom = toDateKey(
+    new Date(today.getTime() - LOOKBACK_DAYS * 86400000)
+  );
+  const acwrByDay = groupByDay(
+    logs.filter((l) => toDateKey(new Date(l.date)) >= acwrFrom)
+  );
+  const acwr = computeAcwr(pitchLoadByDay(acwrByDay), today, { seedDailyLoad });
   const fatigue = findFatigueWindows(byDay, last28);
   /*
    * 최근 4주에 무엇을 하며 지냈는지.
@@ -276,14 +294,14 @@ export function StatsOverview({
         */}
         <StatCard
           label="개인 최고 구속"
-          value={velocity.best ?? '—'}
-          unit={velocity.best ? 'km/h' : ''}
+          value={bestVelocity?.value ?? '—'}
+          unit={bestVelocity ? 'km/h' : ''}
           footer={
-            velocity.best ? (
+            bestVelocity ? (
               <span className="text-xs text-muted">
                 {user.targetVelocity
                   ? `목표 ${user.targetVelocity} km/h`
-                  : '아래 그래프에서 추이를 봅니다'}
+                  : `${formatShortDate(bestVelocity.date)} 기록`}
               </span>
             ) : (
               <span className="text-xs text-muted/60">스피드건이 없으면 비워두세요</span>

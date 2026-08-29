@@ -258,6 +258,29 @@ export default async function HomePage() {
       )}
 
       {/*
+        처음 온 사람에게 어디부터인지 알려준다.
+
+        상자 넷이 다 '아직'인 화면에서는 무엇을 먼저 눌러야 하는지가 안 보인다.
+        각 상자가 자기 할 말은 하지만, 그걸 읽으려면 이미 눌러본 뒤다.
+
+        투구 기록이 하나도 없을 때만 낸다. 한 번이라도 남긴 사람에게는 잔소리가
+        되고, 매일 뜨는 안내는 곧 안 읽게 된다.
+      */}
+      {!core.hasLogs && (
+        <div className="rounded-2xl border border-sky-soft/60 bg-sky-tint px-5 py-4">
+          <p className="text-sm font-bold text-sky-strong">
+            여기부터 시작하세요
+          </p>
+          <p className="mt-1.5 text-sm leading-relaxed text-ink/80">
+            <strong className="text-ink">오늘 투구</strong>를 먼저 남겨주세요. 던진
+            양을 알아야 부하를 재고 무리가 안 되는 운동을 고를 수 있습니다. 오늘 안
+            던지셨다면 <strong className="text-ink">‘오늘 안 던졌어요’</strong>를
+            눌러주시면 됩니다.
+          </p>
+        </div>
+      )}
+
+      {/*
         오늘 할 넷.
 
         순서는 하루의 순서다 — 몸 상태를 먼저 남기고(체크인), 던진 것을 남기고,
