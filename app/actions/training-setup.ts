@@ -8,7 +8,10 @@ import { getCurrentUser } from '@/lib/dal';
 import { toDateKey } from '@/lib/pitch-stats';
 import { pickMany } from '@/lib/exercise-meta';
 import { ALWAYS_OWNED, SELECTABLE_EQUIPMENT } from '@/lib/report/equipment';
-import { readTrainingProfile } from '@/lib/report/personalize';
+import {
+  readOwnedEquipment,
+  readTrainingProfile,
+} from '@/lib/report/personalize';
 import { buildDailyPlan, isHalted } from '@/lib/report/daily-plan';
 import {
   gatherFactsAndPlan,
@@ -56,10 +59,14 @@ function returnPath(formData: FormData): (typeof RETURN_TO)[number] {
 }
 
 /**
- * 경력·목표·가지고 있는 장비를 저장한다.
+ * 경력과 목표를 저장한다.
  *
  * 값이 목록에 없으면 readTrainingProfile 이 버린다. 여기서 걸러진 값은
  * 그대로 DB에 남아 운동을 고르는 데 쓰이므로, 걸러내는 일이 중요하다.
+ *
+ * 장비는 건드리지 않는다 — 그쪽은 saveOwnedEquipment 가 맡는다. 한 폼에 묶여
+ * 있던 때는 경력만 고치러 열었다가 저장해도 장비까지 저장돼서, 있지도 않은
+ * 장비를 가지고 있다고 남겼다.
  *
  * 이미 만들어 둔 오늘 일정은 건드리지 않는다. 설정을 고쳤다고 눈앞의 일정이
  * 말없이 바뀌면, 하던 운동이 어디 갔는지 알 수 없다. 새 설정으로 받고 싶으면
@@ -72,6 +79,22 @@ export async function saveTrainingSettings(formData: FormData) {
   await prisma.user.update({
     where: { id: user.id },
     data: readTrainingProfile(formData),
+  });
+
+  const back = returnPath(formData);
+  revalidatePath('/today');
+  revalidatePath('/training');
+  redirect(back);
+}
+
+/** 가지고 있는 장비만 저장한다. 경력·목표는 건드리지 않는다. */
+export async function saveOwnedEquipment(formData: FormData) {
+  const user = await getCurrentUser();
+  if (!user) redirect('/login');
+
+  await prisma.user.update({
+    where: { id: user.id },
+    data: readOwnedEquipment(formData),
   });
 
   const back = returnPath(formData);

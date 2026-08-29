@@ -8,6 +8,7 @@ import { SELECTABLE_EQUIPMENT } from '@/lib/report/equipment';
 import { TRAINING_GOALS, TRAINING_LEVELS } from '@/lib/report/personalize';
 import {
   generateTodayPlan,
+  saveOwnedEquipment,
   saveTrainingSettings,
 } from '@/app/actions/training-setup';
 import { WORKOUT_MINUTES_CHOICES } from '@/lib/report/theme';
@@ -175,8 +176,15 @@ export function PlanForm({
 /**
  * 어쩌다 한 번 고치는 설정 — 경력·목표·가진 장비.
  *
- * 홈의 상자를 누르면 뜨는 창 안에서 쓴다. 예전에는 스스로 접혔다 펴졌는데,
- * 이제 창이 그 노릇을 하므로 폼만 남겼다.
+ * 홈과 트레이닝 화면의 창 안에서 쓴다.
+ *
+ * 폼을 둘로 나눠 두었다. 예전에는 셋이 한 폼이라, 경력만 고치러 열었다가
+ * 저장해도 장비가 함께 저장됐다. 그런데 아직 장비를 안 고른 사람에게는 화면이
+ * 전부 켜진 채로 나오므로(안 그러면 저장하는 순간 맨몸 운동만 남는다),
+ * 결과적으로 있지도 않은 장비 열여섯 개를 "가지고 있다"고 저장하게 됐다.
+ * 그러면 바벨이 없는데 바벨 운동이 나온다.
+ *
+ * 이제 각자 자기 단추로만 저장된다 — 안 건드린 것은 안 바뀐다.
  */
 export function TrainingSettingsForm({
   trainingLevel,
@@ -194,37 +202,55 @@ export function TrainingSettingsForm({
    * 한 번도 안 고른 사람에게는 장비를 전부 켜서 보여준다.
    *
    * 빈 목록을 그대로 보여주면, 저장하는 순간 "아무 장비도 없음"이 되어 맨몸
-   * 운동만 나온다. 경력을 고치러 열었을 뿐인데 훈련이 반토막 나는 셈이라,
-   * 없는 것을 직접 끄게 한다.
+   * 운동만 나온다. 그래서 전부 켜 두고 없는 것을 끄게 한다 — 다만 그 사실을
+   * 안내에 적어 둔다. 예전에는 이 상태로 다른 것과 한 폼에 묶여 있어서,
+   * 경력만 고치고 저장해도 장비 열여섯 개가 통째로 저장됐다.
    */
-  const equipmentSelected =
-    ownedEquipment.length > 0 ? ownedEquipment : [...SELECTABLE_EQUIPMENT];
+  const hasChosenEquipment = ownedEquipment.length > 0;
+  const equipmentSelected = hasChosenEquipment
+    ? ownedEquipment
+    : [...SELECTABLE_EQUIPMENT];
 
   return (
-    <form action={saveTrainingSettings} className="space-y-5">
-      <input type="hidden" name="returnTo" value={returnTo} />
-      <RadioGroup
-        name="trainingLevel"
-        label="웨이트 트레이닝 경력"
-        hint="경력에 비해 이른 운동을 빼는 기준입니다. 안 고르면 아무것도 빼지 않습니다."
-        options={TRAINING_LEVELS.map((l) => ({ name: l.name, desc: l.desc }))}
-        selected={trainingLevel}
-      />
-      <RadioGroup
-        name="trainingGoal"
-        label="훈련 목표"
-        hint="같은 시간을 어디에 더 쓸지 정합니다. 몸 상태가 안 좋은 날에는 목표와 상관없이 회복이 먼저입니다."
-        options={TRAINING_GOALS.map((g) => ({ name: g.name, desc: g.desc }))}
-        selected={trainingGoal}
-      />
-      <CheckboxGroup
-        name="ownedEquipment"
-        label="가지고 있는 장비"
-        hint="여기서 고른 것 중에 오늘 쓸 수 있는 것을 일정을 만들 때 다시 고릅니다."
-        options={SELECTABLE_EQUIPMENT}
-        selected={equipmentSelected}
-      />
-      <SubmitButton label="설정 저장" busy="저장 중…" />
-    </form>
+    <div className="space-y-6">
+      <form action={saveTrainingSettings} className="space-y-5">
+        <input type="hidden" name="returnTo" value={returnTo} />
+        <RadioGroup
+          name="trainingLevel"
+          label="웨이트 트레이닝 경력"
+          hint="경력에 비해 이른 운동을 빼는 기준입니다. 안 고르면 아무것도 빼지 않습니다."
+          options={TRAINING_LEVELS.map((l) => ({ name: l.name, desc: l.desc }))}
+          selected={trainingLevel}
+        />
+        <RadioGroup
+          name="trainingGoal"
+          label="훈련 목표"
+          hint="같은 시간을 어디에 더 쓸지 정합니다. 몸 상태가 안 좋은 날에는 목표와 상관없이 회복이 먼저입니다."
+          options={TRAINING_GOALS.map((g) => ({ name: g.name, desc: g.desc }))}
+          selected={trainingGoal}
+        />
+        <SubmitButton label="경력·목표 저장" busy="저장 중…" />
+      </form>
+
+      {/*
+        장비는 자기 폼과 자기 단추를 쓴다. 위에서 경력만 고치고 저장해도
+        여기 값은 그대로 남는다.
+      */}
+      <form action={saveOwnedEquipment} className="space-y-5 border-t border-line pt-6">
+        <input type="hidden" name="returnTo" value={returnTo} />
+        <CheckboxGroup
+          name="ownedEquipment"
+          label="가지고 있는 장비"
+          hint={
+            hasChosenEquipment
+              ? '여기서 고른 것 중에 오늘 쓸 수 있는 것을 일정을 만들 때 다시 고릅니다.'
+              : '아직 고르신 적이 없어 전부 켜 두었습니다. 없는 것을 꺼주세요 — 그래야 못 하는 운동이 안 나옵니다.'
+          }
+          options={SELECTABLE_EQUIPMENT}
+          selected={equipmentSelected}
+        />
+        <SubmitButton label="가진 장비 저장" busy="저장 중…" />
+      </form>
+    </div>
   );
 }

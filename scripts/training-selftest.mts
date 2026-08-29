@@ -42,6 +42,7 @@ import {
   TRAINING_GOALS,
   TRAINING_LEVELS,
   filterByLevel,
+  readOwnedEquipment,
   readTrainingProfile,
 } from '../lib/report/personalize.ts';
 import {
@@ -1585,25 +1586,47 @@ console.log('\n[프로필 저장] 폼에서 온 값을 제대로 걸러내는가
   form.set('trainingLevel', '중급');
   form.set('trainingGoal', '파워 향상');
   for (const v of ['밴드', '덤벨', '바벨', '없는장비']) form.append('ownedEquipment', v);
+
   const saved = readTrainingProfile(form);
   check('경력을 그대로 저장', saved.trainingLevel === '중급', String(saved.trainingLevel));
   check('목표를 그대로 저장', saved.trainingGoal === '파워 향상', String(saved.trainingGoal));
-  check('맨몸은 항상 들어간다', saved.ownedEquipment.includes('맨몸'));
+
+  const gear = readOwnedEquipment(form);
+  check('맨몸은 항상 들어간다', gear.ownedEquipment.includes('맨몸'));
   check(
     '목록에 없는 장비는 버린다',
-    !saved.ownedEquipment.includes('없는장비'),
-    saved.ownedEquipment.join(',')
+    !gear.ownedEquipment.includes('없는장비'),
+    gear.ownedEquipment.join(',')
+  );
+
+  /*
+   * 경력·목표 저장과 장비 저장이 서로를 안 건드리는가.
+   *
+   * 예전에는 셋이 한 폼이라, 경력만 고치러 열었다가 저장해도 장비가 함께
+   * 저장됐다. 아직 장비를 안 고른 사람에게는 화면이 전부 켜진 채로 나오므로,
+   * 결과적으로 있지도 않은 장비 열여섯 개를 "가지고 있다"고 남기게 됐다.
+   * 실제로 저장해보고 그 상태를 발견해 폼을 나눴다.
+   */
+  check(
+    '경력·목표를 저장해도 장비는 안 건드린다',
+    !('ownedEquipment' in saved),
+    '저장할 값에 장비가 아예 들어 있지 않다'
+  );
+  check(
+    '장비를 저장해도 경력·목표는 안 건드린다',
+    !('trainingLevel' in gear) && !('trainingGoal' in gear)
   );
 }
 {
   // 아무것도 안 고르고 저장한 경우
   const empty = readTrainingProfile(new FormData());
+  const emptyGear = readOwnedEquipment(new FormData());
   check('경력을 안 고르면 비워 둔다', empty.trainingLevel === null);
   check('목표를 안 고르면 비워 둔다', empty.trainingGoal === null);
   check(
     '장비를 안 고르면 맨몸만 남는다',
-    empty.ownedEquipment.length === 1 && empty.ownedEquipment[0] === '맨몸',
-    empty.ownedEquipment.join(',')
+    emptyGear.ownedEquipment.length === 1 && emptyGear.ownedEquipment[0] === '맨몸',
+    emptyGear.ownedEquipment.join(',')
   );
   /*
    * "맨몸만 있다"와 "아직 안 골랐다"는 달라야 한다. 둘을 같게 두면, 프로필을
@@ -1611,7 +1634,7 @@ console.log('\n[프로필 저장] 폼에서 온 값을 제대로 걸러내는가
    */
   check(
     '맨몸만 있는 것과 안 고른 것이 구별된다',
-    filterByEquipment(library, empty.ownedEquipment).pool.length < library.length
+    filterByEquipment(library, emptyGear.ownedEquipment).pool.length < library.length
   );
 }
 {

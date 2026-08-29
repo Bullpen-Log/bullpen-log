@@ -209,10 +209,25 @@ export function readTrainingProfile(formData: FormData) {
       String(formData.get('trainingGoal') ?? ''),
       TRAINING_GOAL_NAMES
     ),
-    /*
-     * 하나도 안 고르고 저장하면 '맨몸'만 남는다. 빈 배열로 두면 "아직 안 골랐다"
-     * 는 뜻이 되어 아무것도 안 걸러지므로, 맨몸만 있다는 뜻과 구별할 수 없다.
-     */
+  };
+}
+
+/**
+ * 가지고 있는 장비만 읽는다.
+ *
+ * 경력·목표와 폼을 나눠 둔 이유가 있다. 예전에는 셋이 한 폼이라, 경력만 고치러
+ * 열었다가 저장해도 장비가 함께 저장됐다. 그런데 아직 장비를 안 고른 사람에게는
+ * 화면이 전부 켜진 채로 나오므로(안 그러면 저장하는 순간 맨몸 운동만 남는다),
+ * 결과적으로 있지도 않은 장비 열여섯 개를 "가지고 있다"고 저장하게 됐다.
+ * 그러면 바벨이 없는데 바벨 운동이 나온다.
+ *
+ * 이제 장비는 자기 단추로만 저장된다. 안 건드리면 안 바뀐다.
+ *
+ * 하나도 안 고르고 저장하면 '맨몸'만 남는다. 빈 배열로 두면 "아직 안 골랐다"는
+ * 뜻이 되어 아무것도 안 걸러지므로, 맨몸만 있다는 뜻과 구별할 수 없다.
+ */
+export function readOwnedEquipment(formData: FormData) {
+  return {
     ownedEquipment: [
       ALWAYS_OWNED,
       ...pickMany(formData.getAll('ownedEquipment').map(String), SELECTABLE_EQUIPMENT),
