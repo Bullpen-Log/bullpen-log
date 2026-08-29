@@ -9,6 +9,7 @@ import { CHECKIN_PARTS, hasPain, pickCheckinParts } from '@/lib/checkin';
 import { formatShortDate, shiftDateKey } from '@/lib/pitch-stats';
 import { REST_SESSION_TYPE } from '@/lib/session-type';
 import { Card, PageHeading } from '@/components/ui';
+import { PlanNote } from '@/components/plan-note';
 import { CheckinForm, type CheckinData } from '@/components/checkin-form';
 import { PlanForm, TrainingSettingsForm } from '@/components/training-forms';
 import { trainingLoad } from '@/lib/report/training-acwr';
@@ -427,21 +428,7 @@ export default async function HomePage() {
               바로 아래 "45구 기록" 옆에 "오늘 계획: 휴식"이 있으면 서로 어긋나
               보인다. 아침에 본 계획을 그대로 두고, 넘겼으면 아래에서 알린다.
             */}
-            {showPlannedToday && (
-              <div className="rounded-xl border border-line bg-surface-2 px-4 py-3">
-                <p className="text-xs font-medium uppercase tracking-wider text-sky">
-                  오늘 계획
-                </p>
-                <p className="mt-1 text-sm font-semibold text-ink">
-                  {plannedToday.throwing
-                    ? `${plannedToday.maxPitches}구 이하 · 강도 ${plannedToday.maxIntensity} 이하`
-                    : '휴식'}
-                </p>
-                <p className="mt-0.5 text-xs leading-relaxed text-muted">
-                  {plannedToday.reason}
-                </p>
-              </div>
-            )}
+            {showPlannedToday && <PlanNote plan={plannedToday} />}
             <TodayRecord
               date={core.todayKey}
               log={todayLog}

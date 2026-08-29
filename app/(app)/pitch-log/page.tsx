@@ -1,5 +1,8 @@
 import { prisma } from '@/lib/prisma';
 import { requireUser } from '@/lib/dal';
+import { gatherFactsAndPlan } from '@/lib/report/gather';
+import { toDateKey } from '@/lib/pitch-stats';
+import type { PlanNoteData } from '@/components/plan-note';
 import type { PitchMetric } from '@/lib/pose/measure';
 import type { SavedAnalysisView } from '@/lib/pose/saved';
 import { PitchLogClient } from './pitch-log-client';
@@ -19,7 +22,8 @@ export default async function PitchLogPage({
   // 홈 달력에서 날짜를 눌러 들어오면 그 날짜로 열린다.
   const initialDate = readDateParam((await searchParams).date);
 
-  const [logs, analyses] = await Promise.all([
+  const now = new Date();
+  const [logs, analyses, { plan }] = await Promise.all([
     prisma.pitchLog.findMany({
       where: { userId: user.id },
       orderBy: { date: 'asc' },
@@ -27,7 +31,28 @@ export default async function PitchLogPage({
     prisma.poseAnalysis.findMany({
       where: { userId: user.id },
     }),
+    /*
+     * 오늘 던질 양. 달력에서 오늘을 눌러 남길 때 견줄 기준이 된다.
+     *
+     * 오늘 기록을 빼고 낸다. 넣고 계산하면 던진 그 순간 '휴식'으로 바뀌어,
+     * 방금 남긴 45구 옆에 "오늘 계획: 휴식"이 있게 된다.
+     *
+     * 지난 날짜에는 안 보여준다. 그날 아침에 무엇이 계획이었는지는 남겨두지
+     * 않아서, 지금 다시 계산한 값을 그때 계획인 양 보여줄 수는 없다.
+     */
+    gatherFactsAndPlan(user, now, { excludeToday: true }),
   ]);
+
+  const todayPlanDay = plan.days[0] ?? null;
+  const todayPlan: PlanNoteData | null =
+    todayPlanDay && !plan.halted
+      ? {
+          throwing: todayPlanDay.throwing,
+          maxPitches: todayPlanDay.maxPitches,
+          maxIntensity: todayPlanDay.maxIntensity,
+          reason: todayPlanDay.reason,
+        }
+      : null;
 
   /*
    * 재생 주소는 여기서 만들지 않는다.
@@ -71,6 +96,8 @@ export default async function PitchLogPage({
       initialDate={initialDate}
       heightCm={user.heightCm}
       savedAnalyses={savedAnalyses}
+      todayKey={toDateKey(now)}
+      todayPlan={todayPlan}
     />
   );
 }

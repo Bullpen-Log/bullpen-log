@@ -13,6 +13,7 @@ import {
   MonthCalendar,
   type DayMark,
 } from '@/components/month-calendar';
+import { PlanNote, type PlanNoteData } from '@/components/plan-note';
 import { EntryForm } from './entry-form';
 import { DayRecord } from './day-record';
 import { CompareView, type ClipOption } from './compare-view';
@@ -57,12 +58,18 @@ export function PitchLogClient({
   initialDate,
   heightCm,
   savedAnalyses,
+  todayKey,
+  todayPlan,
 }: {
   initialLogs: Log[];
   /** 다른 화면에서 날짜를 지정해 들어온 경우. 그 날짜 창을 바로 연다. */
   initialDate: string | null;
   heightCm: number | null;
   savedAnalyses: SavedAnalysisView[];
+  /** 서버가 정한 오늘. 계획을 오늘 창에만 띄우는 데 쓴다. */
+  todayKey: string;
+  /** 오늘 던질 양. 통증 등으로 계획을 안 낸 날은 null */
+  todayPlan: PlanNoteData | null;
 }) {
   const [logs, setLogs] = useState<Log[]>(initialLogs);
   const [error, setError] = useState<string>();
@@ -336,6 +343,13 @@ export function PitchLogClient({
               던지고 나서 그날 또는 그 뒤에 남겨주세요.
             </p>
           )}
+
+          {/*
+            오늘 던질 양.
+            지난 날짜에는 안 띄운다 — 그날 아침에 무엇이 계획이었는지는 남겨두지
+            않아서, 지금 다시 계산한 값을 그때 계획인 양 보여줄 수는 없다.
+          */}
+          {selectedDate === todayKey && todayPlan && <PlanNote plan={todayPlan} />}
 
           {/* 기록 추가 — 기록이 없는 날은 바로 열려 있다. */}
           {showForm ? (

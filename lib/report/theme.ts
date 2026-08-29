@@ -213,6 +213,20 @@ export function decideTheme({
     : '';
 
   /*
+   * 오늘 던진 날이면 그 이야기를 먼저 한다.
+   *
+   * 운동을 고를 때 투구량은 실제로 보고 있다 — 부하가 높으면 무게를 다루는
+   * 운동이 후보에서 빠진다. 그런데 화면에 적히는 이유는 '상체 다음은 하체'
+   * 하나뿐이라, 60구를 던지고 온 사람에게 웨이트를 시키는 것처럼 보였다.
+   * 감안했다는 사실이 안 보이면 감안하지 않은 것과 같다.
+   */
+  const threwToday =
+    facts.patterns.restDays === 0 && (facts.patterns.lastOutingPitches ?? 0) > 0;
+  const todayNote = threwToday
+    ? `오늘 ${facts.patterns.lastOutingPitches}구를 던지셨습니다. 그 부담을 빼고 골랐습니다. `
+    : '';
+
+  /*
    * 3) 몸이 괜찮은 날은 하체와 상체를 번갈아 간다.
    *
    * 완료 기록에서 마지막으로 한 날을 찾아 더 오래된 쪽을 고른다.
@@ -227,13 +241,17 @@ export function decideTheme({
           key: 'lower',
           label: '하체 스트렝스 데이',
           reason:
-            '부하가 적정 범위입니다. 투구의 힘은 하체에서 나옵니다.' + forcedNote,
+            todayNote +
+            '부하가 적정 범위입니다. 투구의 힘은 하체에서 나옵니다.' +
+            forcedNote,
         }
       : {
           key: 'upper',
           label: '상체 스트렝스 데이',
           reason:
-            '부하가 적정 범위라 상체 근력을 훈련하기 좋은 날입니다.' + forcedNote,
+            todayNote +
+            '부하가 적정 범위라 상체 근력을 훈련하기 좋은 날입니다.' +
+            forcedNote,
         };
   }
   if (lastLowerKey == null || (lastUpperKey != null && lastLowerKey < lastUpperKey)) {
@@ -241,18 +259,22 @@ export function decideTheme({
       key: 'lower',
       label: '하체 스트렝스 데이',
       reason:
+        todayNote +
         (lastUpperKey != null
           ? '최근에 상체를 했으니 오늘은 하체 차례입니다.'
-          : '최근 하체 기록이 없어 하체부터 시작합니다.') + forcedNote,
+          : '최근 하체 기록이 없어 하체부터 시작합니다.') +
+        forcedNote,
     };
   }
   return {
     key: 'upper',
     label: '상체 스트렝스 데이',
     reason:
+      todayNote +
       (lastLowerKey != null
         ? '최근에 하체를 했으니 오늘은 상체 차례입니다.'
-        : '최근 상체 기록이 없어 상체부터 시작합니다.') + forcedNote,
+        : '최근 상체 기록이 없어 상체부터 시작합니다.') +
+      forcedNote,
   };
 }
 

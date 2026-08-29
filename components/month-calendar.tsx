@@ -117,29 +117,46 @@ export function MonthCalendar({
           const mark = marks[key];
           const isSelected = key === selected;
           const isToday = key === todayKey;
+          /*
+           * 아직 안 온 날.
+           *
+           * 투구도 운동도 지나간 일을 적는 곳이라 앞날에는 남길 수 없다. 그런데
+           * 예전에는 앞날 칸이 '기록 없는 지난 날'과 똑같이 회색으로 열려 있어서,
+           * 눌러서 "앞으로 올 날짜에는 기록할 수 없습니다"를 봐야 알았다.
+           * 누르고 나서 알려주는 것과 보면 아는 것은 다르다.
+           */
+          const isFuture = key > todayKey;
 
           return (
             <button
               key={key}
               type="button"
+              disabled={isFuture}
               onClick={() => onSelect(key)}
               aria-label={
-                mark ? `${monthIndex + 1}월 ${day}일, ${mark.spoken}` :
-                `${monthIndex + 1}월 ${day}일${isToday ? ', 오늘' : ''}, 기록 없음`
+                isFuture
+                  ? `${monthIndex + 1}월 ${day}일, 아직 오지 않은 날`
+                  : mark
+                    ? `${monthIndex + 1}월 ${day}일, ${mark.spoken}`
+                    : `${monthIndex + 1}월 ${day}일${isToday ? ', 오늘' : ''}, 기록 없음`
               }
               aria-pressed={isSelected}
               className={`relative flex min-h-[3.25rem] flex-col items-center justify-center gap-0.5 rounded-lg border text-sm transition-colors sm:min-h-[4.5rem] ${
-                isSelected
-                  ? 'border-sky ring-1 ring-sky'
-                  : mark && mark.intensity == null
-                    ? OUTLINE_CLASS
-                    : 'border-transparent hover:border-line-strong'
+                isFuture
+                  ? 'cursor-default border-transparent bg-transparent text-muted/35'
+                  : isSelected
+                    ? 'border-sky ring-1 ring-sky'
+                    : mark && mark.intensity == null
+                      ? OUTLINE_CLASS
+                      : 'border-transparent hover:border-line-strong'
               } ${
-                mark?.intensity != null
-                  ? intensityClass(mark.intensity)
-                  : mark
-                    ? ''
-                    : 'bg-surface-2 text-muted hover:text-ink'
+                isFuture
+                  ? ''
+                  : mark?.intensity != null
+                    ? intensityClass(mark.intensity)
+                    : mark
+                      ? ''
+                      : 'bg-surface-2 text-muted hover:text-ink'
               }`}
             >
               <span
