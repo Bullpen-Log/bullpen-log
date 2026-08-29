@@ -15,6 +15,7 @@ import { ExerciseChecklist, type TodayExercise } from './exercise-list';
 import { AddExercise, type PickableExercise } from './add-exercise';
 import { TrainingNote } from './training-note';
 import { TrainingHistory } from './history';
+import { TrainingSettingsButton } from './settings-button';
 import { trainingSummaries } from '@/lib/report/training-history';
 
 /**
@@ -46,20 +47,49 @@ const VIEWS = [
   { key: 'history', label: '기록', href: '/training?view=history' },
 ] as const;
 
-function ViewTabs({ current }: { current: 'today' | 'history' }) {
+/**
+ * 탭 줄.
+ *
+ * 오른쪽 끝에 트레이닝 설정을 붙인다. 홈에도 같은 것이 있지만, 설정을 고치고
+ * 싶어지는 순간은 대개 여기다 — 운동 목록을 보다가 "이건 장비가 없어서 못
+ * 하는데" 싶을 때. 그때 홈으로 건너갔다 돌아오게 하면 하던 일을 놓친다.
+ *
+ * 두 탭 모두에 둔다. 지난 기록을 보다가도 "다음부터는 목표를 바꿔야겠다"가
+ * 나올 수 있다.
+ */
+function ViewTabs({
+  current,
+  settings,
+}: {
+  current: 'today' | 'history';
+  settings: {
+    trainingLevel: string | null;
+    trainingGoal: string | null;
+    ownedEquipment: string[];
+  };
+}) {
   return (
-    <div className="flex gap-1 rounded-xl border border-line bg-surface p-1 sm:w-fit">
-      {VIEWS.map((v) => (
-        <Link
-          key={v.key}
-          href={v.href}
-          className={`flex-1 rounded-lg px-6 py-2 text-center text-sm font-medium transition-colors sm:flex-none ${
-            current === v.key ? 'bg-sky text-white' : 'text-muted hover:text-ink'
-          }`}
-        >
-          {v.label}
-        </Link>
-      ))}
+    <div className="flex flex-wrap items-center gap-3">
+      <div className="flex gap-1 rounded-xl border border-line bg-surface p-1">
+        {VIEWS.map((v) => (
+          <Link
+            key={v.key}
+            href={v.href}
+            className={`rounded-lg px-6 py-2 text-center text-sm font-medium transition-colors ${
+              current === v.key ? 'bg-sky text-white' : 'text-muted hover:text-ink'
+            }`}
+          >
+            {v.label}
+          </Link>
+        ))}
+      </div>
+      <div className="ml-auto">
+        <TrainingSettingsButton
+          trainingLevel={settings.trainingLevel}
+          trainingGoal={settings.trainingGoal}
+          ownedEquipment={settings.ownedEquipment}
+        />
+      </div>
     </div>
   );
 }
@@ -84,7 +114,7 @@ export default async function TrainingPage({
           title="운동 기록"
           description="날짜를 누르면 그날 무엇을 얼마나 했는지 볼 수 있습니다."
         />
-        <ViewTabs current="history" />
+        <ViewTabs current="history" settings={user} />
         <TrainingHistory summaries={summaries} />
       </div>
     );
@@ -246,7 +276,7 @@ export default async function TrainingPage({
         }
       />
 
-      <ViewTabs current="today" />
+      <ViewTabs current="today" settings={user} />
 
       {/* 왜 오늘 이런 구성인지 — 고르는 건 코드, 설명은 AI가 한다 */}
       {aiTraining && (
