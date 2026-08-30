@@ -14,7 +14,8 @@
     "equipment:check": "node --env-file=.env --import ./scripts/alias-register.mjs scripts/equipment-check.mts",
     "theme:check": "node --env-file=.env --import ./scripts/alias-register.mjs scripts/theme-time-check.mts",
     "velocity:test": "node scripts/velocity-selftest.mts",
-    "velocity:detect-test": "node scripts/velocity-detect-test.mts"
+    "velocity:detect-test": "node scripts/velocity-detect-test.mts",
+    "rotation:check": "node --env-file=.env --import ./scripts/alias-register.mjs scripts/rotation-check.mts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.115.0",

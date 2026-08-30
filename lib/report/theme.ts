@@ -435,18 +435,40 @@ export function slotForTheme(ex: ThemedExercise, theme: ThemeKey): SlotKey {
 const SLOT_SLACK_MINUTES = 1.5;
 
 /**
+ * 한 번 한 운동을 몇 세션 뒤부터 다시 내보낼 수 있다고 볼 것인가.
+ *
+ * 예전에는 안 해본 운동이 언제나 앞이라, 445개를 거의 다 소진할 때까지 같은
+ * 운동이 다시 나오지 않았다. 그러면 "지난번 몇 kg 들었나"를 견줄 수가 없다 —
+ * 재보니 사회인 사용자는 1년을 써도 본운동의 18%만 견줄 것이 있었다.
+ *
+ * 날이 아니라 세션으로 센다. 날로 세면 매일 하는 사람과 주 2회 하는 사람에게
+ * 전혀 다른 뜻이 되기 때문이다(lib/report/gather.ts 에 자세히).
+ *
+ * 여섯인 이유 — 1년치를 두 사람으로 재고 골랐다(npm run rotation:check).
+ * 주 2~3회 하는 사람에게 두어 주에 한 번꼴이라, 지난번 무게가 아직 기억나는
+ * 간격이다. 더 짧게 하면 후보가 좁아져 같은 계열 동작이 몰린다.
+ */
+const RETURN_SESSIONS = 6;
+
+/**
  * 후보를 어떤 순서로 볼지 정한다.
  *
  * 예전에는 "최근 사흘 안에 했나"만 보고 그것만 뒤로 보냈다. 그런데 사흘이
  * 지나면 다시 맨 앞으로 돌아오므로, 등록순 앞자리 몇 개가 영원히 돌았다.
- * 실제로 재보니 두 달에 라이브러리 415개 중 29개(7%)만 화면에 나왔고,
- * 완료 표시를 안 하는 사람은 매일 똑같은 일곱 개를 받았다.
+ * 두 달에 라이브러리 415개 중 29개(7%)만 화면에 나왔다.
  *
- * 세 무리로 나눈다.
+ * 지금은 네 무리로 나눈 뒤, 앞의 둘을 번갈아 낸다.
  *
- *   1) 한 번도 안 한 것      날짜로 돌려가며 앞에 놓는다
- *   2) 예전에 한 것          오래 안 한 것부터
- *   3) 최근 사흘에 한 것      맨 뒤 (회복 규칙은 그대로 지킨다)
+ *   ① 돌아올 때가 된 것   여섯 세션 넘게 안 한 것 — 오래된 것부터
+ *   ② 아직 안 해본 것     날마다 다른 순서로 섞어서
+ *   ③ 아직 이른 것        여섯 세션이 안 지난 것 — 뒤로
+ *   ④ 최근 사흘에 한 것   맨 뒤. 회복 규칙은 그대로 지킨다
+ *
+ * ①과 ②를 번갈아 내는 것이 핵심이다. 처음에는 한 줄로 세워 보았는데 — 안 해본
+ * 것을 "N세션 전에 한 셈"으로 쳐서 함께 정렬했다 — 그 값을 얼마로 잡느냐가
+ * 두 가지를 한꺼번에 정해 버렸다. 라이브러리가 굳지 않을 만큼 크게 잡으면
+ * 실제 재등장은 마흔 세션 뒤에나 일어나, 처음 몇 달은 견줄 기록이 하나도 없었다
+ * (첫 서른 세션에 7%). 번갈아 내면 둘이 따로 논다 — 같은 조건에서 55%.
  *
  * 빼지는 않는다. 후보가 적은 날에 빼버리면 줄 것이 없어진다.
  */
@@ -454,46 +476,50 @@ function orderCandidates<T extends ThemedExercise>(
   candidates: T[],
   {
     recentIds,
-    history,
+    sessionsAgo,
     rotationSeed,
-  }: { recentIds: Set<string>; history: Map<string, string>; rotationSeed?: string }
+  }: { recentIds: Set<string>; sessionsAgo: Map<string, number>; rotationSeed?: string }
 ): T[] {
-  if (recentIds.size === 0 && history.size === 0 && rotationSeed == null) {
+  if (recentIds.size === 0 && sessionsAgo.size === 0 && rotationSeed == null) {
     return candidates;
   }
 
-  const rank = (ex: T, index: number): [number, number] => {
-    if (recentIds.has(ex.id)) return [2, index];
-    const last = history.get(ex.id);
-    if (last == null) {
-      /*
-       * 아직 안 해본 것 — 날짜를 섞어 자리를 정한다.
-       *
-       * 처음에는 등록순을 날짜만큼 밀어봤는데(index + offset), 그건 모두를
-       * 같은 만큼 밀 뿐이라 앞뒤 순서가 그대로다. 워밍업처럼 구간이 두 자리인
-       * 곳에서는 맨 앞 둘이 거의 안 바뀌어, 모빌리티 69개 중 두 달에 2개만
-       * 나왔다.
-       *
-       * 그래서 운동 id 와 날짜를 함께 섞는다. 같은 날에는 늘 같은 순서가
-       * 나오므로(만들어 둔 일정을 다시 열어도 목록이 그대로다), 날이 바뀌면
-       * 전혀 다른 자리가 된다.
-       */
-      return [0, rotationSeed ? mix(ex.id, rotationSeed) : index];
-    }
-    // 예전에 한 것 — 오래된 날짜일수록 앞
-    return [1, Number(last.replace(/-/g, ''))];
-  };
+  const due: T[] = [];
+  const fresh: T[] = [];
+  const early: T[] = [];
+  const recent: T[] = [];
 
-  return candidates
-    .map((ex, index) => ({ ex, key: rank(ex, index), index }))
-    .sort((a, b) =>
-      a.key[0] !== b.key[0]
-        ? a.key[0] - b.key[0]
-        : a.key[1] !== b.key[1]
-          ? a.key[1] - b.key[1]
-          : a.index - b.index
-    )
-    .map((v) => v.ex);
+  for (const ex of candidates) {
+    if (recentIds.has(ex.id)) {
+      recent.push(ex);
+      continue;
+    }
+    const ago = sessionsAgo.get(ex.id);
+    if (ago == null) fresh.push(ex);
+    else if (ago >= RETURN_SESSIONS) due.push(ex);
+    else early.push(ex);
+  }
+
+  /*
+   * 씨앗이 없으면 모두 0이라 원래 순서가 그대로 남는다(정렬이 안정적이다).
+   * 시험 스크립트가 등록순을 못박고 견주는 곳이 있어 그 자리를 지킨다.
+   */
+  const seedOf = (ex: T) => (rotationSeed ? mix(ex.id, rotationSeed) : 0);
+  const byAge = (a: T, b: T) =>
+    (sessionsAgo.get(b.id) ?? 0) - (sessionsAgo.get(a.id) ?? 0) || seedOf(a) - seedOf(b);
+
+  due.sort(byAge);
+  early.sort(byAge);
+  fresh.sort((a, b) => seedOf(a) - seedOf(b));
+
+  // 돌아올 것 하나, 처음 보는 것 하나 — 번갈아
+  const mixed: T[] = [];
+  for (let i = 0; i < Math.max(due.length, fresh.length); i++) {
+    if (i < due.length) mixed.push(due[i]);
+    if (i < fresh.length) mixed.push(fresh[i]);
+  }
+
+  return [...mixed, ...early, ...recent];
 }
 
 /**
@@ -523,7 +549,7 @@ export function pickForTheme<T extends ThemedExercise>({
   minutes,
   doneIds,
   recentIds,
-  history,
+  sessionsAgo,
   rotationSeed,
   preferredParts = [],
   preferredWorkout = null,
@@ -538,12 +564,12 @@ export function pickForTheme<T extends ThemedExercise>({
   /** 최근 며칠 안에 한 것 — 빼지는 않고 뒤로 미룬다(회복 규칙) */
   recentIds?: Set<string>;
   /**
-   * 운동별로 마지막에 한 날 (YYYY-MM-DD). 오래 안 한 것부터 내보낸다.
+   * 운동별로 몇 세션 전에 했는가. 오래 안 한 것부터 내보낸다.
    *
    * 없으면 예전처럼 등록순으로 간다. 시험 스크립트가 순서를 못박고 견주는
    * 곳이 있어 기본값을 바꾸지 않는다.
    */
-  history?: Map<string, string>;
+  sessionsAgo?: Map<string, number>;
   /**
    * 아직 안 해본 운동들의 순서를 섞는 씨앗.
    *
@@ -591,7 +617,7 @@ export function pickForTheme<T extends ThemedExercise>({
 
   const ordered = orderCandidates(candidates, {
     recentIds: recentIds ?? new Set<string>(),
-    history: history ?? new Map<string, string>(),
+    sessionsAgo: sessionsAgo ?? new Map<string, number>(),
     rotationSeed,
   });
 

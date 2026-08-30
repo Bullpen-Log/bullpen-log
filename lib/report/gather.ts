@@ -126,26 +126,29 @@ export async function recentExerciseIds(
 }
 
 /**
- * 운동별로 마지막에 한 날.
+ * 운동별로 "몇 세션 전에 했는가".
  *
  * recentExerciseIds 가 "최근 사흘에 했나(예/아니오)"만 알려주는 것과 다르다.
  * 그 둘만으로 순서를 정했더니 라이브러리 415개 중 두 달에 29개(7%)만 화면에
- * 나왔다. 사흘이 지나면 다시 맨 앞으로 돌아오기 때문이다 — 하체 98개 중
- * 3개, 암케어 74개 중 4개만 돌았다.
+ * 나왔다. 사흘이 지나면 다시 맨 앞으로 돌아오기 때문이다.
  *
- * 그래서 '했나 안 했나'가 아니라 '언제 했나'를 가져온다. 오래 안 한 것부터
- * 내보내면 라이브러리를 골고루 훑는다. 한 번도 안 한 운동은 여기 없으므로
- * 가장 오래된 것으로 친다(theme.ts).
+ * 날짜가 아니라 세션 수로 세는 이유가 있다. 날짜로 세면 매일 하는 사람과 주
+ * 2회 하는 사람에게 전혀 다른 뜻이 된다 — '14일'이 한쪽에는 14세션이고
+ * 다른 쪽에는 4세션이다. 실제로 재보니 같은 설정으로 한쪽은 넉 달에 167개,
+ * 다른 쪽은 81개를 썼다. 세션으로 세면 재등장 리듬이 8.9회와 8.8회로 같아진다.
+ *
+ * 세션은 '운동을 하나라도 완료한 날'이다. 오늘도 이미 뭔가 했다면 0세션 전이
+ * 된다. 한 번도 안 한 운동은 여기 없고, theme.ts 가 따로 값을 매긴다.
  *
  * 기간을 반년으로 둔다. 그보다 예전 것은 사실상 '안 한 것'과 같고, 오래된
  * 기록까지 다 읽으면 몇 년 쓴 사람에게 느려진다.
  */
 const HISTORY_DAYS = 180;
 
-export async function exerciseHistory(
+export async function exerciseSessionsAgo(
   userId: string,
   today: Date
-): Promise<Map<string, string>> {
+): Promise<Map<string, number>> {
   const todayKey = toDateKey(today);
   const logs = await prisma.userExerciseLog.findMany({
     where: {
@@ -157,13 +160,26 @@ export async function exerciseHistory(
       },
     },
     select: { exerciseId: true, date: true },
-    orderBy: { date: 'asc' },
+    orderBy: { date: 'desc' },
   });
 
-  // 뒤에 오는 것이 더 최근이므로 그대로 덮어쓰면 마지막 날짜가 남는다.
-  const last = new Map<string, string>();
-  for (const l of logs) last.set(l.exerciseId, toDateKey(l.date));
-  return last;
+  /*
+   * 운동한 날을 최근 순으로 늘어놓고 번호를 매긴다.
+   * 오늘이 0, 그 전 세션이 1 — 그것이 '몇 세션 전'이다.
+   */
+  const order = new Map<string, number>();
+  for (const l of logs) {
+    const key = toDateKey(l.date);
+    if (!order.has(key)) order.set(key, order.size);
+  }
+
+  // 최근 순으로 왔으므로, 운동마다 처음 만나는 줄이 가장 최근 것이다.
+  const ago = new Map<string, number>();
+  for (const l of logs) {
+    if (ago.has(l.exerciseId)) continue;
+    ago.set(l.exerciseId, order.get(toDateKey(l.date))!);
+  }
+  return ago;
 }
 
 /** 하체·상체를 번갈아 돌리기 위해 살펴보는 기간(일) */

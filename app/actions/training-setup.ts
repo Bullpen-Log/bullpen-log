@@ -16,7 +16,7 @@ import { buildDailyPlan, isHalted } from '@/lib/report/daily-plan';
 import {
   gatherFactsAndPlan,
   lastStrengthDates,
-  exerciseHistory,
+  exerciseSessionsAgo,
   recentExerciseIds,
 } from '@/lib/report/gather';
 import {
@@ -157,7 +157,7 @@ export async function generateTodayPlan(formData: FormData) {
 
   const today = new Date();
   const { facts, plan } = await gatherFactsAndPlan(user, today);
-  const [library, recentIds, history, strengthDates] = await Promise.all([
+  const [library, recentIds, sessionsAgo, strengthDates] = await Promise.all([
     prisma.exerciseVideo.findMany({
       // 숨긴 운동은 새 일정에 안 나온다
       where: { hiddenAt: null },
@@ -165,10 +165,10 @@ export async function generateTodayPlan(formData: FormData) {
     }),
     recentExerciseIds(user.id, today),
     /*
-     * 운동별 마지막 수행일. 오래 안 한 것부터 내보내려고 함께 읽는다.
+     * 운동별로 몇 세션 전에 했는가. 오래 안 한 것부터 내보내려고 함께 읽는다.
      * 이것이 없으면 등록순 앞자리 몇 개만 영원히 돈다.
      */
-    exerciseHistory(user.id, today),
+    exerciseSessionsAgo(user.id, today),
     lastStrengthDates(user.id, today),
   ]);
 
@@ -197,7 +197,7 @@ export async function generateTodayPlan(formData: FormData) {
     availableToday: availableEquipment.length > 0 ? availableEquipment : null,
     requestedMinutes,
     recentIds,
-    history,
+    sessionsAgo,
     rotationSeed,
     lastLowerKey: strengthDates.lower,
     lastUpperKey: strengthDates.upper,
