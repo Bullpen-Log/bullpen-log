@@ -324,3 +324,23 @@ export function pickOne(
 ): string | null {
   return value && allowed.includes(value) ? value : null;
 }
+
+/* ------------------------------ 실제로 한 만큼 ------------------------------ */
+
+/**
+ * 사람이 하루에 할 수 있는 범위.
+ *
+ * 잘못 눌러 999세트가 저장되는 것을 막는 자리다. 서버(app/actions/exercise-log.ts)와
+ * 화면(트레이닝 목록)이 같은 값을 봐야 한다 — 화면이 더 큰 값을 받아주면,
+ * 서버가 그것을 '안 적음'으로 버리는데 화면에는 친 숫자가 그대로 남는다.
+ * 실제로 250회를 치면 화면엔 250이 남고 DB에는 아무것도 안 들어갔다.
+ */
+export const AMOUNT_LIMITS = {
+  sets: 30,
+  reps: 200,
+  holdSeconds: 600,
+  /** 사람이 드는 무게의 위쪽 끝. 세계기록도 여기 안에 들어온다. */
+  weightKg: 500,
+} as const;
+
+export type AmountField = keyof typeof AMOUNT_LIMITS;

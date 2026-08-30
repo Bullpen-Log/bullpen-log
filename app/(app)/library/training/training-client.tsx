@@ -81,6 +81,7 @@ function ExerciseDetail({
       intensity: item.intensity,
       difficulty: item.difficulty,
       equipment: item.equipment,
+      isReference: item.source === 'REFERENCE',
       sets: item.sets,
       reps: item.reps,
       holdSeconds: item.holdSeconds,

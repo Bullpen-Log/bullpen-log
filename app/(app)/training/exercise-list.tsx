@@ -5,6 +5,7 @@ import { AlertTriangle, Check, X } from 'lucide-react';
 import { setExerciseDone } from '@/app/actions/exercise-log';
 import { removeFromTodayPlan } from '@/app/actions/plan-edit';
 import { SLOT_LABELS, SLOT_ORDER, type SlotKey } from '@/lib/report/theme';
+import { AMOUNT_LIMITS, type AmountField } from '@/lib/exercise-meta';
 import { ExerciseBadges } from '@/components/meta-badges';
 
 export type TodayExercise = {
@@ -49,6 +50,14 @@ export type TodayExercise = {
   usesWeight: boolean;
 };
 
+/** 화면의 칸 이름을 상한 이름에 이어 준다. */
+const AMOUNT_FIELD = {
+  doneSets: 'sets',
+  doneReps: 'reps',
+  doneHoldSeconds: 'holdSeconds',
+  doneWeightKg: 'weightKg',
+} as const satisfies Record<string, AmountField>;
+
 /**
  * 오늘 할 운동 목록. 누르면 바로 완료로 표시된다.
  *
@@ -87,7 +96,18 @@ export function ExerciseChecklist({
   ) => {
     // 숫자만 받는다. 붙여넣기로 들어온 글자도 여기서 걸린다.
     const digits = value.replace(/[^0-9]/g, '').slice(0, 3);
-    setItems((prev) => prev.map((e) => (e.id === id ? { ...e, [field]: digits } : e)));
+    /*
+     * 넘치는 값은 여기서 최댓값으로 깎는다.
+     *
+     * 예전에는 그냥 받아 두고 서버가 범위 밖이면 '안 적음'으로 버렸다. 그래서
+     * 250회를 치면 화면엔 250 이 남고 DB 에는 아무것도 안 들어갔다 — 저장된
+     * 줄 알지만 부하 계산에서는 '얼마나 했는지 모름'이 된다. 깎아서 보여주면
+     * 무엇이 저장됐는지 눈으로 확인된다.
+     */
+    const max = AMOUNT_LIMITS[AMOUNT_FIELD[field]];
+    const capped =
+      digits === '' ? '' : String(Math.min(Number(digits), max));
+    setItems((prev) => prev.map((e) => (e.id === id ? { ...e, [field]: capped } : e)));
   };
 
   const saveAmount = (id: string) => {

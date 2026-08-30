@@ -6,7 +6,12 @@ import { selectCandidates } from '@/lib/report/prescription';
 import { equipmentForToday, filterByEquipment } from '@/lib/report/equipment';
 import { filterByLevel } from '@/lib/report/personalize';
 import { readDailyPlan } from '@/lib/report/daily-plan';
-import { estimateMinutes, workoutConflict, type ThemeKey } from '@/lib/report/theme';
+import {
+  estimateMinutes,
+  slotForTheme,
+  workoutConflict,
+  type ThemeKey,
+} from '@/lib/report/theme';
 
 /**
  * 홈과 트레이닝이 함께 쓰는 오늘 자료.
@@ -172,7 +177,7 @@ export async function loadTodayCore(user: UserForToday, today: Date) {
   /** 운동별로 실제 얼마나 했는지 — 화면의 입력칸을 채운다 */
   const doneAmounts = new Map(doneLogs.map((d) => [d.exerciseId, d]));
   const safeIds = new Set(picked.candidates.map((ex) => ex.id));
-  const shownPicks = (savedPlan?.picks ?? [])
+  const planned = (savedPlan?.picks ?? [])
     .filter(
       (p) => safeIds.has(p.exerciseId) || doneIds.has(p.exerciseId) || p.manual
     )
@@ -181,6 +186,33 @@ export async function loadTodayCore(user: UserForToday, today: Date) {
       /** 지금 몸 상태 기준으로는 권하지 않는 운동인가 */
       unsafe: !safeIds.has(p.exerciseId),
     }));
+
+  /*
+   * 오늘 마쳤는데 지금 일정에는 없는 운동.
+   *
+   * 일정을 '다시 만들기'하면 새로 고른 목록이 저장된다. 그때 아까 체크한 운동이
+   * 새 목록에서 빠지면 화면에서 통째로 사라졌다 — 체크를 풀 수도, 그 운동을 볼
+   * 수도 없는데 기록은 남아 운동 부하에 그대로 들어갔다. 실제로 '1/8 완료'가
+   * '0/8 완료'로 돌아가는 것을 봤다.
+   *
+   * 위 filter 는 저장된 목록 '안에서만' 걸러서 이 경우를 못 잡는다. 빠진 것을
+   * 여기서 도로 넣는다. 슬롯은 그 운동이 어느 자리에 어울리는지로 다시 정한다.
+   */
+  const inPlan = new Set(planned.map((p) => p.exerciseId));
+  const strays = [...doneIds]
+    .filter((id) => !inPlan.has(id))
+    .map((exerciseId) => {
+      const ex = library.find((e) => e.id === exerciseId);
+      return {
+        exerciseId,
+        slot: ex && savedPlan ? slotForTheme(ex, savedPlan.theme.key) : 'main',
+        manual: true,
+        unsafe: !safeIds.has(exerciseId),
+      };
+    })
+    .filter((p) => library.some((e) => e.id === p.exerciseId));
+
+  const shownPicks = [...planned, ...strays];
 
   const byId = new Map(library.map((ex) => [ex.id, ex]));
   const shownMinutes = Math.round(

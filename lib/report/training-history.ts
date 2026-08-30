@@ -72,6 +72,14 @@ export type TrainingDayDetail = {
     setsDone: number | null;
     repsDone: number | null;
     holdSecondsDone: number | null;
+    /**
+     * 실제로 든 무게(kg). 안 적었거나 맨몸이면 null.
+     *
+     * 적는 자리는 있는데 다시 볼 자리가 없었다. 무게는 부하 계산에 쓰이는
+     * 값이기도 하지만, 사용자에게는 "지난주에 몇 kg 들었지"가 더 중요하다 —
+     * 그걸 모르면 조금씩 올릴 수가 없다.
+     */
+    weightKg: number | null;
   }[];
   intensity: number | null;
   memo: string | null;
@@ -92,6 +100,7 @@ export async function trainingDay(
         setsDone: true,
         repsDone: true,
         holdSecondsDone: true,
+        weightKg: true,
         exercise: {
           select: {
             title: true,
@@ -121,6 +130,7 @@ export async function trainingDay(
       setsDone: l.setsDone,
       repsDone: l.repsDone,
       holdSecondsDone: l.holdSecondsDone,
+      weightKg: l.weightKg,
     })),
     intensity: note?.intensity ?? null,
     memo: note?.memo ?? null,

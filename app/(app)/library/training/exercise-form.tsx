@@ -30,6 +30,14 @@ export type ExerciseDraft = {
   intensity: string;
   difficulty: string | null;
   equipment: string[];
+  /**
+   * 아직 촬영 전(유튜브 참고 영상)인가.
+   *
+   * 그러면 '지금 올려둔 영상'이라는 말이 맞지 않는다 — 우리 저장소에는
+   * 아무것도 없고 유튜브를 가리키고만 있다. 영상을 올리는 순간 참고 영상에서
+   * 벗어나므로, 그 사실도 함께 알려준다.
+   */
+  isReference?: boolean;
 } & Partial<Prescription>;
 
 /** 숫자 항목의 기본값 — 비어 있으면 입력칸도 비워둔다. */
@@ -120,9 +128,11 @@ export function ExerciseForm({
       <Field
         label="운동 영상"
         hint={
-          editing
-            ? '그대로 두면 지금 영상이 유지됩니다.'
-            : '폰이나 컴퓨터에 있는 영상을 바로 올립니다.'
+          !editing
+            ? '폰이나 컴퓨터에 있는 영상을 바로 올립니다.'
+            : initial?.isReference
+              ? '직접 찍은 영상을 올리면 유튜브 참고 영상 대신 그것이 나옵니다.'
+              : '그대로 두면 지금 영상이 유지됩니다.'
         }
       >
         {/* 새로 올렸을 때만 경로가 실려간다. 비어 있으면 서버가 기존 영상을 유지한다. */}
@@ -133,7 +143,9 @@ export function ExerciseForm({
           <div className="flex flex-wrap items-center gap-3 rounded-xl border border-line bg-surface-2 px-4 py-3">
             <Film className="h-4 w-4 shrink-0 text-sky" />
             <span className="min-w-0 flex-1 text-sm text-muted">
-              지금 올려둔 영상을 그대로 씁니다
+              {initial?.isReference
+                ? '지금은 유튜브 참고 영상을 보여주고 있습니다'
+                : '지금 올려둔 영상을 그대로 씁니다'}
             </span>
             <button
               type="button"
@@ -141,7 +153,7 @@ export function ExerciseForm({
               className="inline-flex items-center gap-1.5 rounded-lg border border-line-strong px-3 py-2 text-xs text-ink transition-colors hover:border-sky hover:text-sky"
             >
               <RefreshCw className="h-3.5 w-3.5" />
-              영상 교체
+              {initial?.isReference ? '직접 찍은 영상 올리기' : '영상 교체'}
             </button>
           </div>
         ) : (

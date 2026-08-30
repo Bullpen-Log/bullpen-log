@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache';
 import { prisma } from '@/lib/prisma';
 import { requireUser } from '@/lib/dal';
 import { toDateKey } from '@/lib/pitch-stats';
+import { AMOUNT_LIMITS } from '@/lib/exercise-meta';
 
 /** 0보다 큰 정수만 받는다. 빈칸이나 이상한 값은 '안 적음'으로 본다. */
 function positiveInt(value: unknown, max: number): number | null {
@@ -18,12 +19,10 @@ function positiveInt(value: unknown, max: number): number | null {
   return rounded >= 1 && rounded <= max ? rounded : null;
 }
 
-/** 사람이 하루에 할 수 있는 범위. 잘못 눌러 999세트가 저장되는 것을 막는다. */
-const MAX_SETS = 30;
-const MAX_REPS = 200;
-const MAX_HOLD_SECONDS = 600;
-/** 사람이 드는 무게의 위쪽 끝. 세계기록도 여기 안에 들어온다. */
-const MAX_WEIGHT_KG = 500;
+/*
+ * 범위는 lib/exercise-meta.ts 에 있다. 화면도 같은 값을 봐야 한다 —
+ * 화면이 더 큰 값을 받아주면 여기서 조용히 버려지고, 사용자는 저장된 줄 안다.
+ */
 
 /**
  * 오늘 그 운동을 했는지 표시하고, 실제로 한 만큼을 남긴다.
@@ -63,10 +62,10 @@ export async function setExerciseDone(
   if (done) {
     const value = {
       completed: true,
-      setsDone: positiveInt(amount?.sets, MAX_SETS),
-      repsDone: positiveInt(amount?.reps, MAX_REPS),
-      holdSecondsDone: positiveInt(amount?.holdSeconds, MAX_HOLD_SECONDS),
-      weightKg: positiveInt(amount?.weightKg, MAX_WEIGHT_KG),
+      setsDone: positiveInt(amount?.sets, AMOUNT_LIMITS.sets),
+      repsDone: positiveInt(amount?.reps, AMOUNT_LIMITS.reps),
+      holdSecondsDone: positiveInt(amount?.holdSeconds, AMOUNT_LIMITS.holdSeconds),
+      weightKg: positiveInt(amount?.weightKg, AMOUNT_LIMITS.weightKg),
     };
     await prisma.userExerciseLog.upsert({
       where: { userId_exerciseId_date: key },

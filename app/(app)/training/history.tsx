@@ -36,14 +36,21 @@ function spokenDate(key: string) {
   return `${m}월 ${d}일 (${WEEKDAYS[new Date(y, m - 1, d).getDay()]})`;
 }
 
-/** 실제로 적은 만큼을 사람 말로. 아무것도 안 적었으면 null. */
+/**
+ * 실제로 적은 만큼을 사람 말로. 아무것도 안 적었으면 null.
+ *
+ * 무게는 '×'로 잇지 않고 뒤에 따로 붙인다 — '3세트 × 10회 × 40kg'은 곱셈처럼
+ * 읽히는데 무게는 곱하는 값이 아니다.
+ */
 function amountText(ex: TrainingDayDetail['exercises'][number]): string | null {
   const parts: string[] = [];
   if (ex.setsDone != null) parts.push(`${ex.setsDone}세트`);
   if (ex.repsDone != null) parts.push(`${ex.repsDone}회`);
   if (ex.holdSecondsDone != null) parts.push(`${ex.holdSecondsDone}초`);
-  if (parts.length === 0) return null;
-  return parts.join(' × ');
+  const amount = parts.join(' × ');
+  const weight = ex.weightKg != null ? `${ex.weightKg}kg` : null;
+  if (!amount && !weight) return null;
+  return [amount, weight].filter(Boolean).join(' · ');
 }
 
 export function TrainingHistory({

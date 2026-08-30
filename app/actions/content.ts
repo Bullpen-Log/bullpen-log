@@ -246,6 +246,15 @@ async function tryUpdateExercise(formData: FormData): Promise<ActionState> {
       difficulty,
       equipment,
       ...readPrescription(formData),
+      /*
+       * 직접 찍은 영상을 올렸으면 참고 영상에서 벗어난다.
+       *
+       * 이걸 안 하면 videoPath 만 채워지고 source 는 REFERENCE 로 남는데,
+       * 재생기가 referenceVideoId 를 먼저 보므로 올린 영상은 영영 안 나온다.
+       * 유튜브 영상이 계속 재생되고 '직접 촬영 N개' 숫자도 그대로다.
+       * 저장소에는 아무도 못 보는 파일만 쌓인다.
+       */
+      ...(replacing ? { source: 'OWN' as const, referenceVideoId: null } : {}),
     },
   });
 
@@ -404,6 +413,8 @@ async function tryUpdateGuide(formData: FormData): Promise<ActionState> {
       focusPoints,
       equipment,
       sortOrder,
+      // 운동과 같은 이유 — updateExercise 주석 참고.
+      ...(replacing ? { source: 'OWN' as const, referenceVideoId: null } : {}),
     },
   });
 
