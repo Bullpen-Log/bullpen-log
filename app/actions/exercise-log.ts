@@ -3,8 +3,16 @@
 import { revalidatePath } from 'next/cache';
 import { prisma } from '@/lib/prisma';
 import { requireUser } from '@/lib/dal';
-import { toDateKey } from '@/lib/pitch-stats';
+import { shiftDateKey, toDateKey } from '@/lib/pitch-stats';
 import { AMOUNT_LIMITS } from '@/lib/exercise-meta';
+
+/**
+ * 며칠 전 것까지 고칠 수 있는가.
+ *
+ * 일주일이면 무엇을 했는지는 기억한다. 그보다 오래되면 기억이 아니라 짐작이
+ * 되고, 짐작으로 채운 기록은 부하 지수를 흐린다.
+ */
+const BACKFILL_DAYS = 7;
 
 /** 0보다 큰 정수만 받는다. 빈칸이나 이상한 값은 '안 적음'으로 본다. */
 function positiveInt(value: unknown, max: number): number | null {
@@ -42,7 +50,19 @@ export async function setExerciseDone(
     reps?: unknown;
     holdSeconds?: unknown;
     weightKg?: unknown;
-  }
+  },
+  /**
+   * 어느 날 것인가 (YYYY-MM-DD). 안 주면 오늘.
+   *
+   * 지난 날짜를 받는 이유는 하나다 — 운동은 했는데 체크를 깜빡하는 일이
+   * 흔하고, 그러면 그 기록이 영영 안 들어간다. 부하 지수도 낮게 나오고,
+   * '오래 안 한 것부터' 고르는 규칙도 그 운동을 안 한 것으로 본다.
+   *
+   * 다만 수치(세트·횟수·무게)는 오늘 것만 받는다. 사흘 전에 몇 kg 들었는지를
+   * 지금 적으면 그 숫자를 믿을 수가 없다. 지난 날짜는 '했다/안 했다'만 남기고,
+   * 부하는 계획 세트로 셈한다(그리고 추정으로 표시된다).
+   */
+  dateKey?: string
 ): Promise<{ ok: true } | { error: string }> {
   const user = await requireUser();
 
@@ -56,17 +76,41 @@ export async function setExerciseDone(
   });
   if (!exercise) return { error: '운동을 찾을 수 없습니다.' };
 
-  const date = new Date(`${toDateKey(new Date())}T00:00:00.000Z`);
+  const todayKey = toDateKey(new Date());
+  const target = dateKey ?? todayKey;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(target)) {
+    return { error: '날짜가 올바르지 않습니다.' };
+  }
+  if (target > todayKey) {
+    return { error: '아직 오지 않은 날짜에는 남길 수 없습니다.' };
+  }
+  if (target < shiftDateKey(todayKey, -BACKFILL_DAYS)) {
+    return {
+      error: `${BACKFILL_DAYS}일이 지난 기록은 고칠 수 없습니다. 그쯤이면 무엇을 했는지 정확히 기억하기 어렵습니다.`,
+    };
+  }
+  const past = target !== todayKey;
+
+  const date = new Date(`${target}T00:00:00.000Z`);
   const key = { userId: user.id, exerciseId, date };
 
   if (done) {
-    const value = {
-      completed: true,
-      setsDone: positiveInt(amount?.sets, AMOUNT_LIMITS.sets),
-      repsDone: positiveInt(amount?.reps, AMOUNT_LIMITS.reps),
-      holdSecondsDone: positiveInt(amount?.holdSeconds, AMOUNT_LIMITS.holdSeconds),
-      weightKg: positiveInt(amount?.weightKg, AMOUNT_LIMITS.weightKg),
-    };
+    /* 지난 날짜는 수치를 안 받는다 — 위 dateKey 설명 참고. */
+    const value = past
+      ? {
+          completed: true,
+          setsDone: null,
+          repsDone: null,
+          holdSecondsDone: null,
+          weightKg: null,
+        }
+      : {
+          completed: true,
+          setsDone: positiveInt(amount?.sets, AMOUNT_LIMITS.sets),
+          repsDone: positiveInt(amount?.reps, AMOUNT_LIMITS.reps),
+          holdSecondsDone: positiveInt(amount?.holdSeconds, AMOUNT_LIMITS.holdSeconds),
+          weightKg: positiveInt(amount?.weightKg, AMOUNT_LIMITS.weightKg),
+        };
     await prisma.userExerciseLog.upsert({
       where: { userId_exerciseId_date: key },
       create: { ...key, ...value },
