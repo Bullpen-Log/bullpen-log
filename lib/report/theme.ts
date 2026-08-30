@@ -28,7 +28,7 @@ import { findGoal } from '@/lib/report/personalize';
 /* ------------------------------- 운동 시간 ------------------------------- */
 
 /** 고를 수 있는 하루 운동 시간(분) */
-export const WORKOUT_MINUTES_CHOICES = [30, 45, 60, 90] as const;
+export const WORKOUT_MINUTES_CHOICES = [15, 20, 30, 45, 60, 90] as const;
 
 /** 프로필에서 아직 고르지 않은 사용자의 기본값 */
 export const DEFAULT_WORKOUT_MINUTES = 45;
@@ -339,11 +339,15 @@ const COMPOSITIONS: Record<ThemeKey, SlotSpec[]> = {
     { slot: 'prehab', share: 0.1, categories: ['회복 및 보강'], maxCount: 3 },
     { slot: 'armcare', share: 0.15, categories: ['암케어'], maxCount: 4 },
   ],
+  /*
+   * 보조 데이는 개수 상한을 넉넉히 둔다. 코어·암케어는 하나에 4분 안팎이라,
+   * 90분을 부탁하면 상한에 먼저 걸려 74분밖에 안 나왔다.
+   */
   assist: [
-    { slot: 'warmup', share: 0.15, categories: ['모빌리티'], maxCount: 5 },
-    { slot: 'main', share: 0.35, categories: ['코어'], maxCount: 8 },
-    { slot: 'prehab', share: 0.15, categories: ['회복 및 보강'], maxCount: 4 },
-    { slot: 'armcare', share: 0.35, categories: ['암케어'], maxCount: 7 },
+    { slot: 'warmup', share: 0.15, categories: ['모빌리티'], maxCount: 6 },
+    { slot: 'main', share: 0.35, categories: ['코어'], maxCount: 9 },
+    { slot: 'prehab', share: 0.15, categories: ['회복 및 보강'], maxCount: 5 },
+    { slot: 'armcare', share: 0.35, categories: ['암케어'], maxCount: 9 },
   ],
   recovery: [
     { slot: 'warmup', share: 0.3, categories: ['모빌리티'], maxCount: 4 },
@@ -354,23 +358,56 @@ const COMPOSITIONS: Record<ThemeKey, SlotSpec[]> = {
 };
 
 /**
+ * 짧은 날에 먼저 빼는 구간.
+ *
+ * 워밍업·본운동·암케어는 남긴다. 몸을 열지 않고 시작하거나 어깨를 안 챙기고
+ * 끝내는 것은 시간이 없다고 해서 할 일이 아니고, 본운동은 그날의 목적이다.
+ */
+const OPTIONAL_SLOTS: SlotKey[] = ['core', 'prehab'];
+
+/**
+ * 이 시간 아래로는 구간을 줄인다.
+ *
+ * 구간마다 적어도 하나는 들어가야 하는데, 다섯 구간이면 그것만으로 30분을
+ * 넘는다. 실제로 30분을 부탁하면 35분이 나왔다. 시간이 짧은 날에 다섯 블록을
+ * 다 넣는 트레이너는 없다 — 몸 풀고, 오늘 할 것 하고, 어깨 챙기고 끝낸다.
+ */
+const SHORT_SESSION_MINUTES = 32;
+
+/**
  * 훈련 목표를 반영한 시간 배분을 만든다.
  *
  * 목표마다 구간에 곱하는 값이 있고(personalize.ts의 weights), 곱한 뒤 합이
  * 1이 되도록 다시 나눈다. 정규화를 빼먹으면 목표를 고른 것만으로 전체 운동
  * 시간이 늘거나 줄어든다 — "45분"이라고 해놓고 52분치를 주게 된다.
  *
- * 회복 데이는 목표와 상관없이 그대로 둔다. 몸을 지키려고 잡은 날인데
- * '파워 향상'을 골랐다고 파워 비중을 올리면 회복 데이의 뜻이 없어진다.
+ * 회복 데이는 목표를 반영하지 않는다. 몸을 지키려고 잡은 날인데 '파워 향상'을
+ * 골랐다고 파워 비중을 올리면 회복 데이의 뜻이 없어진다. 다만 짧은 날에
+ * 구간을 줄이는 것은 회복 데이에도 똑같이 한다.
  */
-export function compositionFor(theme: ThemeKey, goalName: string | null): SlotSpec[] {
-  const base = COMPOSITIONS[theme];
-  if (theme === 'recovery') return base;
+export function compositionFor(
+  theme: ThemeKey,
+  goalName: string | null,
+  minutes?: number
+): SlotSpec[] {
+  let base: readonly SlotSpec[] = COMPOSITIONS[theme];
 
-  const goal = findGoal(goalName);
+  /*
+   * 짧은 날은 구간을 줄인다. 남는 구간이 없어지지 않게 최소 둘은 지킨다.
+   *
+   * 회복 데이는 줄이지 않는다. 코어와 보강이 곁가지가 아니라 그날의 내용이고,
+   * 회복 운동은 하나에 3~4분이라 다 넣어도 시간이 안 넘친다. 실제로 빼봤더니
+   * 30분을 부탁했는데 19분치밖에 안 나왔다.
+   */
+  if (theme !== 'recovery' && minutes != null && minutes < SHORT_SESSION_MINUTES) {
+    const kept = base.filter((spec) => !OPTIONAL_SLOTS.includes(spec.slot));
+    if (kept.length >= 2) base = kept;
+  }
+
+  const goal = theme === 'recovery' ? null : findGoal(goalName);
   const weighted = base.map((spec) => ({
     spec,
-    share: spec.share * goal.weights[spec.slot],
+    share: spec.share * (goal ? goal.weights[spec.slot] : 1),
   }));
   const total = weighted.reduce((sum, w) => sum + w.share, 0);
 
@@ -440,6 +477,19 @@ export function slotForTheme(ex: ThemedExercise, theme: ThemeKey): SlotKey {
  * 넘치므로 크게 잡으면 안 된다 — 2분씩 다섯이면 벌써 10분이다.
  */
 const SLOT_SLACK_MINUTES = 1.5;
+
+/**
+ * 하루 전체로 넘겨도 되는 한도(분).
+ *
+ * 구간마다 봐주는 것만으로는 부족했다. 1.5분씩 다섯 구간이면 7.5분인데,
+ * 90분에는 8%지만 30분에는 25%다. 실제로 30분을 부탁하면 37분이 나왔다.
+ *
+ * 고른 시간에 비례해서 줄인다. 3분을 그대로 두면 15분을 부탁한 사람에게는
+ * 20%가 되어 또 같은 문제가 된다.
+ */
+function totalSlack(minutes: number): number {
+  return Math.min(3, minutes * 0.12);
+}
 
 /**
  * 한 번 한 운동을 몇 세션 뒤부터 다시 내보낼 수 있다고 볼 것인가.
@@ -605,7 +655,7 @@ export function pickForTheme<T extends ThemedExercise>({
   /** 훈련 목표 — 구간별 시간 배분과 본운동 순서를 바꾼다 */
   goal?: string | null;
 }): { picks: ThemedPick<T>[]; estimatedMinutes: number; notes: string[] } {
-  const specs = compositionFor(theme, goal);
+  const specs = compositionFor(theme, goal, minutes);
   const goalPrefer: readonly string[] = findGoal(goal).prefer;
   const notes: string[] = [];
 
@@ -635,6 +685,8 @@ export function pickForTheme<T extends ThemedExercise>({
 
   const taken = new Set<string>();
   const bySlot = new Map<SlotKey, T[]>(specs.map((s) => [s.slot, []]));
+  /** 여기까지 고른 것의 총 소요(분). 구간을 넘나들며 쌓인다. */
+  let totalUsed = 0;
 
   // 1) 오늘 이미 완료한 운동은 자기 구간에 먼저 넣는다. 사라지면 체크를 못 푼다.
   for (const ex of ordered) {
@@ -709,8 +761,16 @@ export function pickForTheme<T extends ThemedExercise>({
      * 들어갈 때 짧은 운동으로 남은 시간을 채울 수 있어서다.
      */
     let used = chosen.reduce((sum, ex) => sum + estimateMinutes(ex), 0);
+    totalUsed += used;
+    /*
+     * 구간에 배분된 시간과 하루 전체, 둘 다 봐야 한다. 구간만 보면 다섯이
+     * 조금씩 넘쳐 30분이 37분이 된다.
+     *
+     * 구간의 첫 하나는 무조건 넣는다. 구간이 비는 것이 더 나쁘다.
+     */
     const fits = (cost: number) =>
-      chosen.length === 0 || used + cost <= budget + SLOT_SLACK_MINUTES;
+      used + cost <= budget + SLOT_SLACK_MINUTES &&
+      totalUsed + cost <= minutes + totalSlack(minutes);
 
     /*
      * 같은 계열이 몰리지 않게 한다.
@@ -733,14 +793,43 @@ export function pickForTheme<T extends ThemedExercise>({
 
     const remaining = pool.filter((ex) => !taken.has(ex.id));
     while (chosen.length < spec.maxCount) {
-      const canTake = (ex: T) => !taken.has(ex.id) && fits(estimateMinutes(ex));
+      const free = (ex: T) => !taken.has(ex.id);
+      const canTake = (ex: T) => free(ex) && fits(estimateMinutes(ex));
+      /*
+       * 시간 안에 드는 것 중에서 계열이 안 겹치는 것 → 시간 안에 드는 것 →
+       * (구간이 비었을 때만) 시간을 넘겨서라도 하나.
+       *
+       * 마지막 줄이 마지막 수단이라는 점이 중요하다. 예전에는 구간의 첫 하나를
+       * 시간과 상관없이 넣었는데, 다섯 구간이 저마다 비싼 것을 하나씩 집어
+       * 30분을 부탁하면 37분이 나왔다. 들어갈 것이 정말 없을 때만 넘긴다.
+       */
+      /*
+       * 넘길 수밖에 없을 때는 가장 짧은 것으로 넘긴다.
+       *
+       * 순서상 첫 번째를 집으면 하필 12분짜리가 걸려 15분 일정이 19분이 됐다.
+       * 어차피 넘길 거라면 조금만 넘기는 편이 맞다.
+       */
+      const cheapest = (pick: (ex: T) => boolean) =>
+        remaining
+          .filter(pick)
+          .reduce<T | undefined>(
+            (best, ex) =>
+              best == null || estimateMinutes(ex) < estimateMinutes(best) ? ex : best,
+            undefined
+          );
+
       const next =
         remaining.find((ex) => canTake(ex) && !clashes(ex)) ??
-        remaining.find(canTake);
+        remaining.find(canTake) ??
+        (chosen.length === 0
+          ? (cheapest((ex) => free(ex) && !clashes(ex)) ?? cheapest(free))
+          : undefined);
       if (next == null) break;
       chosen.push(next);
       taken.add(next.id);
-      used += estimateMinutes(next);
+      const spent = estimateMinutes(next);
+      used += spent;
+      totalUsed += spent;
       if (next.movementPattern) usedPatterns.add(next.movementPattern);
     }
 
@@ -757,6 +846,7 @@ export function pickForTheme<T extends ThemedExercise>({
         chosen.push(ex);
         taken.add(ex.id);
         used += cost;
+        totalUsed += cost;
         if (chosen.length >= spec.maxCount) break;
       }
       if (chosen.length > 0) {

@@ -135,6 +135,7 @@ export function PlanForm({
           desc: m === defaultMinutes ? '기본값' : undefined,
         }))}
         selected={`${minutes}분`}
+        compact
       />
 
       {choices.length > 0 && (

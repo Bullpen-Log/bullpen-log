@@ -71,6 +71,7 @@ export function RadioGroup({
   required,
   /** 수정할 때 미리 고를 값 */
   selected,
+  compact = false,
 }: {
   name: string;
   label: string;
@@ -79,11 +80,18 @@ export function RadioGroup({
   options: readonly { name: string; desc?: string }[];
   required?: boolean;
   selected?: string | null;
+  /**
+   * 짧은 항목을 한 줄에 여러 개 늘어놓는다.
+   *
+   * 기본 모양은 설명이 붙는 항목(경력·목표)에 맞춰져 있어 휴대폰에서 한 줄에
+   * 하나씩 온다. '15분' 같은 두세 글자짜리가 여섯 개면 화면 한 판을 다 쓴다.
+   */
+  compact?: boolean;
 }) {
   return (
     <fieldset>
       <Legend label={label} hint={hint} />
-      <div className="grid gap-2 sm:grid-cols-3">
+      <div className={compact ? 'flex flex-wrap gap-2' : 'grid gap-2 sm:grid-cols-3'}>
         {options.map((option) => (
           <label key={option.name} className="block">
             <input
@@ -97,12 +105,15 @@ export function RadioGroup({
             <span
               className={`${chipBase} ${chipChecked} block h-full peer-focus-visible:ring-1 peer-focus-visible:ring-sky`}
             >
-              <span className="block">{option.name}</span>
-              {option.desc && (
-                <span className="mt-1 block text-[11px] leading-relaxed opacity-70">
-                  {option.desc}
-                </span>
-              )}
+              <span className={compact ? 'inline' : 'block'}>{option.name}</span>
+              {option.desc &&
+                (compact ? (
+                  <span className="ml-1.5 text-[11px] opacity-70">{option.desc}</span>
+                ) : (
+                  <span className="mt-1 block text-[11px] leading-relaxed opacity-70">
+                    {option.desc}
+                  </span>
+                ))}
             </span>
           </label>
         ))}

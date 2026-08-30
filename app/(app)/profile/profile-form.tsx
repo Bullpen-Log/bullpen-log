@@ -146,6 +146,7 @@ export function ProfileForm({
           'dailyWorkoutMinutes',
           `${dailyWorkoutMinutes ?? DEFAULT_WORKOUT_MINUTES}분`
         )}
+        compact
       />
 
       {/*

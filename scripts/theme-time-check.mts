@@ -25,6 +25,9 @@ const THEMES: ThemeKey[] = ['lower', 'upper', 'assist', 'recovery'];
 /** 실제 소요가 고른 시간의 몇 %까지 벗어나도 괜찮다고 볼 것인가 */
 const TOLERANCE = 0.15;
 
+/** 며칠치를 만들어 볼 것인가. 날마다 순서가 달라 소요 시간도 달라진다. */
+const SEEDS = Array.from({ length: 14 }, (_, i) => `2026-08-${String(i + 1).padStart(2, '0')}`);
+
 const prisma = new PrismaClient({
   adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL }),
 });
@@ -46,12 +49,28 @@ for (const theme of THEMES) {
   console.log(`\n■ ${theme}`);
   for (const requested of WORKOUT_MINUTES_CHOICES) {
     const minutes = effectiveMinutes(theme, requested);
-    const { picks, estimatedMinutes, notes } = pickForTheme({
-      candidates: library,
-      theme,
-      minutes,
-      doneIds: new Set<string>(),
-    });
+
+    /*
+     * 날마다 다른 순서로 여러 번 만들어 보고 가장 나쁜 날을 본다.
+     *
+     * 예전에는 씨앗 없이 한 번만 불렀다. 그러면 등록순 하나만 시험하는 셈인데,
+     * 실제 사용자는 날마다 섞인 순서를 받는다. 순서가 달라지면 고르는 운동이
+     * 달라지고 소요 시간도 달라진다 — 통과한다고 나왔지만 실제로는 벗어나는
+     * 날이 있었다.
+     */
+    const runs = SEEDS.map((seed) =>
+      pickForTheme({
+        candidates: library,
+        theme,
+        minutes,
+        doneIds: new Set<string>(),
+        rotationSeed: seed,
+      })
+    );
+    const worst = runs.reduce((a, b) =>
+      Math.abs(a.estimatedMinutes - minutes) >= Math.abs(b.estimatedMinutes - minutes) ? a : b
+    );
+    const { picks, estimatedMinutes, notes } = worst;
 
     const gap = Math.abs(estimatedMinutes - minutes) / minutes;
     const ok = gap <= TOLERANCE;
@@ -64,9 +83,10 @@ for (const theme of THEMES) {
       .join(' · ');
 
     const cap = requested !== minutes ? ` (회복이라 ${minutes}분으로 줄임)` : '';
+    const range = `${Math.min(...runs.map((r) => r.estimatedMinutes))}~${Math.max(...runs.map((r) => r.estimatedMinutes))}분`;
     console.log(
-      `  ${ok ? '✅' : '❌'} ${String(requested).padStart(2)}분 요청${cap} → 실제 ${estimatedMinutes}분` +
-        `, 운동 ${picks.length}개  [${shape}]`
+      `  ${ok ? '✅' : '❌'} ${String(requested).padStart(2)}분 요청${cap} → ${SEEDS.length}일 중 ${range}` +
+        `, 가장 나쁜 날 ${estimatedMinutes}분 · 운동 ${picks.length}개  [${shape}]`
     );
     for (const n of notes) console.log(`     · ${n}`);
   }
