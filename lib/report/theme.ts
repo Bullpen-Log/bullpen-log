@@ -455,10 +455,10 @@ function orderCandidates<T extends ThemedExercise>(
   {
     recentIds,
     history,
-    todayKey,
-  }: { recentIds: Set<string>; history: Map<string, string>; todayKey?: string }
+    rotationSeed,
+  }: { recentIds: Set<string>; history: Map<string, string>; rotationSeed?: string }
 ): T[] {
-  if (recentIds.size === 0 && history.size === 0 && todayKey == null) {
+  if (recentIds.size === 0 && history.size === 0 && rotationSeed == null) {
     return candidates;
   }
 
@@ -478,7 +478,7 @@ function orderCandidates<T extends ThemedExercise>(
        * 나오므로(만들어 둔 일정을 다시 열어도 목록이 그대로다), 날이 바뀌면
        * 전혀 다른 자리가 된다.
        */
-      return [0, todayKey ? mix(ex.id, todayKey) : index];
+      return [0, rotationSeed ? mix(ex.id, rotationSeed) : index];
     }
     // 예전에 한 것 — 오래된 날짜일수록 앞
     return [1, Number(last.replace(/-/g, ''))];
@@ -500,11 +500,11 @@ function orderCandidates<T extends ThemedExercise>(
  * 글자 두 개를 섞어 숫자 하나로 (FNV-1a).
  *
  * 아무 숫자나 만들려는 것이 아니라, 같은 입력에는 늘 같은 값이 나와야 한다 —
- * 오늘 만든 일정을 저녁에 다시 열었을 때 순서가 달라지면 안 된다.
+ * 만들어 둔 일정을 저녁에 다시 열었을 때 순서가 달라지면 안 된다.
  */
-function mix(id: string, dateKey: string): number {
+function mix(id: string, seed: string): number {
   let h = 0x811c9dc5;
-  const text = `${id}:${dateKey}`;
+  const text = `${id}:${seed}`;
   for (let i = 0; i < text.length; i++) {
     h ^= text.charCodeAt(i);
     h = Math.imul(h, 0x01000193) >>> 0;
@@ -524,7 +524,7 @@ export function pickForTheme<T extends ThemedExercise>({
   doneIds,
   recentIds,
   history,
-  todayKey,
+  rotationSeed,
   preferredParts = [],
   preferredWorkout = null,
   goal = null,
@@ -545,12 +545,16 @@ export function pickForTheme<T extends ThemedExercise>({
    */
   history?: Map<string, string>;
   /**
-   * 오늘 날짜 (YYYY-MM-DD).
+   * 아직 안 해본 운동들의 순서를 섞는 씨앗.
    *
-   * 아직 아무것도 안 해본 운동들 사이의 순서를 날마다 돌리는 데 쓴다.
-   * 이것이 없으면 완료 표시를 안 하는 사람은 매일 똑같은 일곱 개를 받는다.
+   * 보통은 오늘 날짜를 넣는다 — 그러면 날마다 다른 순서가 나오고, 같은 날에는
+   * 늘 같은 순서라 만들어 둔 일정이 안 바뀐다. 이것이 없으면 완료 표시를 안
+   * 하는 사람은 매일 똑같은 일곱 개를 받는다.
+   *
+   * 날짜가 아니어도 된다. '다시 만들기'는 여기에 지금 일정을 섞어 넣어, 같은
+   * 날에도 다른 목록이 나오게 한다.
    */
-  todayKey?: string;
+  rotationSeed?: string;
   /** 오늘 하고 싶다고 고른 부위 — 본운동 안에서 앞으로 당긴다 */
   preferredParts?: string[];
   /**
@@ -588,7 +592,7 @@ export function pickForTheme<T extends ThemedExercise>({
   const ordered = orderCandidates(candidates, {
     recentIds: recentIds ?? new Set<string>(),
     history: history ?? new Map<string, string>(),
-    todayKey,
+    rotationSeed,
   });
 
   const taken = new Set<string>();

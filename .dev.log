@@ -1,0 +1,23 @@
+
+> bullpen-log@0.1.0 dev
+> next dev
+
+▲ Next.js 16.2.12 (Turbopack)
+- Local:         http://localhost:3000
+- Network:       http://59.16.189.13:3000
+- Environments: .env
+✓ Ready in 455ms
+
+ GET /api/session/clear 307 in 76ms (next.js: 52ms, application-code: 24ms)
+ GET /today 307 in 704ms (next.js: 131ms, proxy.ts: 6ms, application-code: 568ms)
+ GET /login 200 in 138ms (next.js: 62ms, proxy.ts: 4ms, application-code: 72ms)
+ GET /training 200 in 355ms (next.js: 51ms, proxy.ts: 8ms, application-code: 296ms)
+ GET /training 200 in 891ms (next.js: 3ms, proxy.ts: 5ms, application-code: 882ms)
+ POST /training 303 in 1165ms (next.js: 4ms, proxy.ts: 6ms, application-code: 1156ms)
+  └─ ƒ generateTodayPlan({}) in 242ms app/actions/training-setup.ts
+ GET /training 200 in 530ms (next.js: 3ms, proxy.ts: 5ms, application-code: 522ms)
+ POST /training 303 in 733ms (next.js: 4ms, proxy.ts: 5ms, application-code: 724ms)
+  └─ ƒ generateTodayPlan({}) in 180ms app/actions/training-setup.ts
+ GET /training 200 in 203ms (next.js: 3ms, proxy.ts: 5ms, application-code: 195ms)
+ POST /training 303 in 400ms (next.js: 4ms, proxy.ts: 5ms, application-code: 391ms)
+  └─ ƒ generateTodayPlan({}) in 176ms app/actions/training-setup.ts

@@ -114,6 +114,21 @@ export async function saveOwnedEquipment(formData: FormData) {
  * 빈 일정을 남겨두면, 나중에 몸이 괜찮아졌을 때 '이미 만든 날'로 보여서
  * 다시 만들 수가 없다.
  */
+/**
+ * 저장해 둔 일정에서 운동 id 만 꺼낸다.
+ *
+ * plan 은 Json 이라 모양을 믿을 수 없다. 기대한 모양이 아니면 빈 목록으로 둔다 —
+ * 씨앗이 날짜만 남을 뿐 아무것도 깨지지 않는다.
+ */
+function readPlanExerciseIds(plan: unknown): string[] {
+  if (!plan || typeof plan !== 'object') return [];
+  const picks = (plan as { picks?: unknown }).picks;
+  if (!Array.isArray(picks)) return [];
+  return picks
+    .map((p) => (p as { exerciseId?: unknown })?.exerciseId)
+    .filter((id): id is string => typeof id === 'string');
+}
+
 export async function generateTodayPlan(formData: FormData) {
   const user = await getCurrentUser();
   if (!user) redirect('/login');
@@ -157,6 +172,23 @@ export async function generateTodayPlan(formData: FormData) {
     lastStrengthDates(user.id, today),
   ]);
 
+  /*
+   * '다시 만들기'를 누르면 다른 목록이 나오게 한다.
+   *
+   * 순서를 섞는 씨앗이 날짜뿐이면 같은 날에는 늘 같은 결과가 나온다. 실제로
+   * 눌러보니 여덟 개 중 일곱이 그대로였다 — 버튼을 누른 사람 기대와 다르다.
+   *
+   * 그래서 지금 저장돼 있는 일정을 씨앗에 섞는다. 같은 날이라도 지금 목록과는
+   * 다른 것이 나오고, 만들고 나면 그것이 저장되므로 다음에 또 눌러도 계속
+   * 달라진다. 아직 아무것도 없으면 날짜만으로 간다.
+   */
+  const before = await prisma.dailyTrainingSetup.findUnique({
+    where: { userId_date: { userId: user.id, date: dateOnly(today) } },
+    select: { plan: true },
+  });
+  const previousIds = readPlanExerciseIds(before?.plan);
+  const rotationSeed = [toDateKey(today), ...previousIds].join('|');
+
   const built = buildDailyPlan({
     user,
     facts,
@@ -166,7 +198,7 @@ export async function generateTodayPlan(formData: FormData) {
     requestedMinutes,
     recentIds,
     history,
-    todayKey: toDateKey(today),
+    rotationSeed,
     lastLowerKey: strengthDates.lower,
     lastUpperKey: strengthDates.upper,
     /*
