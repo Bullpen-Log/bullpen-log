@@ -67,6 +67,7 @@ model User {
   createdAt         DateTime            @default(now())
 
   userGuideProgress UserGuideProgress[]
+  drillLogs         UserDrillLog[]
   pitchLogs         PitchLog[]
   userExerciseLogs  UserExerciseLog[]
   routines          Routine[]
@@ -186,6 +187,33 @@ model MechanicsGuide {
   sortOrder   Int                 @default(0)
   createdAt   DateTime            @default(now())
   progress    UserGuideProgress[]
+  drillLogs   UserDrillLog[]
+}
+
+/**
+ * 오늘 이 드릴을 했다.
+ *
+ * UserGuideProgress 와 다른 것이다. 저쪽은 '이 드릴을 익혔다'는 한 번짜리
+ * 표시라 날짜가 없다. 그래서 "이번 주에 드릴 몇 번 했나"를 셀 수가 없었고,
+ * 드릴이 훈련이 아니라 읽을거리처럼 다뤄지고 있었다.
+ *
+ * 세트나 횟수를 두지 않는다. 드릴은 앱이 "몇 번 해라"라고 정해 주는 것이
+ * 아니라, 선수가 설명을 읽고 필요한 것을 골라서 하는 것이다. 우리가 아는 것은
+ * '골랐다'와 '했다'까지다.
+ */
+model UserDrillLog {
+  userId  String
+  guideId String
+  date    DateTime @db.Date
+
+  /// 골라 담기만 하고 아직 안 한 상태와, 하고 나서 체크한 상태를 가른다.
+  done    Boolean  @default(false)
+
+  user  User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  guide MechanicsGuide @relation(fields: [guideId], references: [id], onDelete: Cascade)
+
+  @@id([userId, guideId, date])
+  @@index([userId, date])
 }
 
 model UserGuideProgress {

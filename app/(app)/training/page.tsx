@@ -15,6 +15,11 @@ import type { AiReportBody } from '@/lib/ai/report-prompt';
 import { ExerciseChecklist, type TodayExercise } from './exercise-list';
 import { AddExercise, type PickableExercise } from './add-exercise';
 import { TrainingNote } from './training-note';
+import {
+  DrillSection,
+  type PickableDrill,
+  type TodayDrill,
+} from './drill-list';
 import { TrainingHistory } from './history';
 import { TrainingSettingsButton } from './settings-button';
 import { trainingSummaries } from '@/lib/report/training-history';
@@ -129,7 +134,7 @@ export default async function TrainingPage({
    * 여기서 AI를 새로 부르지는 않는다 — 저장된 것을 읽을 뿐이라 화면을 열
    * 때마다 돈이 나가지 않는다.
    */
-  const [todayReport, trainingNote] = await Promise.all([
+  const [todayReport, trainingNote, drillLibrary, todayDrills] = await Promise.all([
     prisma.aiReport.findUnique({
       where: { userId_asOf: { userId: user.id, asOf: core.midnight } },
       select: { halted: true, body: true },
@@ -139,7 +144,47 @@ export default async function TrainingPage({
       where: { userId_date: { userId: user.id, date: core.midnight } },
       select: { intensity: true, memo: true },
     }),
+    /*
+     * 투구 드릴. 앱이 골라 주지 않으므로 목록을 통째로 넘긴다 — 선수가 찾아서
+     * 고른다. 116개라 설명은 앞부분만 잘라 보낸다.
+     */
+    prisma.mechanicsGuide.findMany({
+      orderBy: [{ sortOrder: 'asc' }, { title: 'asc' }],
+      select: {
+        id: true,
+        title: true,
+        category: true,
+        focusPoints: true,
+        equipment: true,
+        description: true,
+      },
+    }),
+    prisma.userDrillLog.findMany({
+      where: { userId: user.id, date: core.midnight },
+      select: { guideId: true, done: true },
+    }),
   ]);
+
+  /*
+   * 설명에서 '어떤 운동인가' 부분만 뽑는다. 고를 때 필요한 것은 그것이고,
+   * 하는 방법까지 넣으면 창이 글로 가득 찬다.
+   */
+  const drillSummary = (text: string) => {
+    const body = text.replace(/■\s*어떤 운동인가\s*/, '').split('■')[0];
+    return body.trim().slice(0, 120);
+  };
+  const drillDoneMap = new Map(todayDrills.map((d) => [d.guideId, d.done]));
+  const pickableDrills: PickableDrill[] = drillLibrary.map((d) => ({
+    id: d.id,
+    title: d.title,
+    category: d.category,
+    focusPoints: d.focusPoints,
+    equipment: d.equipment,
+    summary: drillSummary(d.description),
+  }));
+  const todayDrillList: TodayDrill[] = pickableDrills
+    .filter((d) => drillDoneMap.has(d.id))
+    .map((d) => ({ ...d, done: drillDoneMap.get(d.id) ?? false }));
 
   /*
    * 리포트를 만든 뒤에 통증을 입력했다면 처방이 멈춘다.
@@ -417,6 +462,14 @@ export default async function TrainingPage({
               ownedEquipment={user.ownedEquipment}
             />
           </ExerciseChecklist>
+
+          {/*
+            투구 드릴.
+
+            운동 목록 아래에 따로 둔다. 앱이 골라 주는 것과 선수가 고르는 것을
+            같은 목록에 섞으면, 담은 것도 앱이 시킨 것처럼 보인다.
+          */}
+          <DrillSection today={todayDrillList} library={pickableDrills} />
 
           {/*
             오늘 운동이 어땠는지 — 하루에 하나.

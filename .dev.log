@@ -6,22 +6,18 @@
 - Local:         http://localhost:3000
 - Network:       http://59.16.189.13:3000
 - Environments: .env
-✓ Ready in 406ms
+✓ Ready in 410ms
 
- GET /training 200 in 1898ms (next.js: 215ms, proxy.ts: 171ms, application-code: 1512ms)
- GET /training 200 in 505ms (next.js: 5ms, proxy.ts: 5ms, application-code: 495ms)
- GET /training 200 in 526ms (next.js: 3ms, proxy.ts: 5ms, application-code: 517ms)
- POST /training 200 in 376ms (next.js: 3ms, proxy.ts: 6ms, application-code: 367ms)
-  └─ ƒ setExerciseDone("e45ca1c0-aafc-48f3-b450-933ad8da28c3", true) in 113ms app/actions/exercise-log.ts
-✓ Compiled in 433ms
- GET /training 200 in 409ms (next.js: 127ms, proxy.ts: 25ms, application-code: 257ms)
- GET /training 200 in 1146ms (next.js: 4ms, proxy.ts: 5ms, application-code: 1138ms)
- POST /training 200 in 3.0s (next.js: 4ms, proxy.ts: 5ms, application-code: 3.0s)
-  └─ ƒ setExerciseDone("e45ca1c0-aafc-48f3-b450-933ad8da28c3", true, {"holdSeconds":"","reps":"8","sets":"3","...":"1 item not stringified"}) in 93ms app/actions/exercise-log.ts
-✓ Compiled in 417ms
- GET /training 200 in 404ms (next.js: 117ms, proxy.ts: 25ms, application-code: 261ms)
- GET /training 200 in 608ms (next.js: 4ms, proxy.ts: 6ms, application-code: 598ms)
- POST /training 200 in 358ms (next.js: 4ms, proxy.ts: 5ms, application-code: 349ms)
-  └─ ƒ setExerciseDone("e45ca1c0-aafc-48f3-b450-933ad8da28c3", true, {"holdSeconds":"","reps":"8","sets":"3","...":"1 item not stringified"}) in 95ms app/actions/exercise-log.ts
- POST /training 200 in 286ms (next.js: 3ms, proxy.ts: 8ms, application-code: 275ms)
-  └─ ƒ setExerciseDone("e45ca1c0-aafc-48f3-b450-933ad8da28c3", true, {"holdSeconds":"","reps":"8","sets":"3","...":"1 item not stringified"}) in 75ms app/actions/exercise-log.ts
+ GET /api/session/clear 307 in 73ms (next.js: 51ms, application-code: 22ms)
+ GET /today 307 in 692ms (next.js: 127ms, proxy.ts: 6ms, application-code: 559ms)
+ GET /login 200 in 137ms (next.js: 62ms, proxy.ts: 4ms, application-code: 71ms)
+ GET /training 200 in 1419ms (next.js: 45ms, proxy.ts: 5ms, application-code: 1369ms)
+ GET /training 200 in 260ms (next.js: 3ms, proxy.ts: 5ms, application-code: 252ms)
+ POST /training 303 in 505ms (next.js: 4ms, proxy.ts: 6ms, application-code: 495ms)
+  └─ ƒ generateTodayPlan({}) in 209ms app/actions/training-setup.ts
+ POST /training 200 in 448ms (next.js: 3ms, proxy.ts: 5ms, application-code: 440ms)
+  └─ ƒ addDrillToToday("0ca54974-66ee-4327-92cf-05b8f2ccc0f3") in 150ms app/actions/drill-log.ts
+ POST /training 200 in 366ms (next.js: 3ms, proxy.ts: 5ms, application-code: 358ms)
+  └─ ƒ setDrillDone("0ca54974-66ee-4327-92cf-05b8f2ccc0f3", true) in 79ms app/actions/drill-log.ts
+ POST /training 200 in 392ms (next.js: 3ms, proxy.ts: 5ms, application-code: 384ms)
+  └─ ƒ removeDrillFromToday("0ca54974-66ee-4327-92cf-05b8f2ccc0f3") in 80ms app/actions/drill-log.ts
