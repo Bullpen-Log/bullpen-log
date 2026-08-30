@@ -177,6 +177,8 @@ model MechanicsGuide {
   source           ExerciseSource @default(OWN)
   /// 참고 영상의 유튜브 영상 ID (11자). source 가 REFERENCE 일 때만 채운다.
   referenceVideoId String?
+  /// 영상의 가로세로 비율. 운동 영상과 같은 규칙이다(ExerciseVideo.aspectRatio).
+  aspectRatio Float?
   /// 이 드릴이 무엇을 교정하는지. 영상분석 결과와 이어지는 고리다.
   focusPoints String[]
   /// 드릴에 필요한 도구
@@ -310,6 +312,19 @@ model ExerciseVideo {
   restSeconds      Int?
   /// 좌우를 나눠 하는 운동인가. 그렇다면 한 세트에 양쪽을 다 한다.
   perSide          Boolean           @default(false)
+  /**
+   * 영상의 가로세로 비율 (가로 ÷ 세로).
+   *
+   * 16:9 가로면 1.78, 9:16 세로면 0.56 이다. 비어 있으면 가로(16:9)로 본다 —
+   * 지금 들어 있는 참고 영상은 재보니 전부 1920x1080 이라, 비워 두면 예전과
+   * 똑같이 나온다.
+   *
+   * 왜 저장하나: 요즘 운동 채널은 대부분 세로 쇼츠로 찍는다. 세로 영상을 16:9
+   * 틀에 넣으면 좌우가 검게 막히고, 420px 자리에서 실제 영상이 158px 로
+   * 쪼그라든다. 재생기에서는 알 길이 없어(유튜브 iframe 은 크기를 안 알려준다)
+   * 등록할 때 한 번 재서 적어 둔다.
+   */
+  aspectRatio      Float?
   /**
    * 세부 정보(설명·강도·부위·난이도·장비)를 제대로 채운 시각.
    *

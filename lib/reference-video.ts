@@ -55,3 +55,35 @@ export function referenceEmbedUrl(videoId: string): string {
 export function referenceWatchUrl(videoId: string): string {
   return `https://www.youtube.com/watch?v=${videoId}`;
 }
+
+/* ------------------------------ 영상 비율 ------------------------------ */
+
+/**
+ * 비율을 모를 때 쓰는 값 (16:9).
+ *
+ * 지금 들어 있는 참고 영상 383개를 재보니 전부 1920x1080 이었다. 그래서 비어
+ * 있으면 가로로 보는 것이 지금 화면과 똑같은 결과를 준다.
+ */
+export const DEFAULT_ASPECT = 16 / 9;
+
+/**
+ * 세로로 세워 보여줄 영상인가.
+ *
+ * 정사각(1.0)은 가로 틀에 넣어도 크게 안 상하므로 가로로 본다. 확실히 세로일
+ * 때만 틀을 바꾼다 — 틀이 자꾸 바뀌면 목록이 들쭉날쭉해 보인다.
+ */
+export function isPortraitVideo(aspectRatio: number | null | undefined): boolean {
+  return (aspectRatio ?? DEFAULT_ASPECT) < 0.95;
+}
+
+/**
+ * 영상 틀에 줄 Tailwind 클래스.
+ *
+ * 세로 영상을 가로로 꽉 채우면 화면 하나를 통째로 잡아먹는다. 폭을 제한하고
+ * 가운데에 세운다 — 420px 자리에서 256x455 쯤이 된다.
+ */
+export function videoFrameClass(aspectRatio: number | null | undefined): string {
+  return isPortraitVideo(aspectRatio)
+    ? 'aspect-[9/16] mx-auto w-full max-w-[16rem]'
+    : 'aspect-video w-full';
+}

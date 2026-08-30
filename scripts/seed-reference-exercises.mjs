@@ -22,6 +22,7 @@
 import { readFileSync } from 'node:fs';
 import { PrismaClient } from '@prisma/client';
 import { PrismaPg } from '@prisma/adapter-pg';
+import { describeAspect, probeAspect } from './youtube-aspect.mjs';
 
 const [listPath, detailPath, category] = process.argv.slice(2);
 const isDrill = process.argv.includes('--drill');
@@ -76,6 +77,38 @@ for (const r of rows) {
           detailsFilledAt: new Date(),
         }
   );
+}
+
+/*
+ * 영상 비율을 재서 함께 넣는다.
+ *
+ * 세로로 찍은 쇼츠를 가로 틀에 넣으면 좌우가 검게 막히고 영상이 손바닥만
+ * 해진다. 재생기는 유튜브 iframe 이라 크기를 알려주지 않으므로, 등록할 때
+ * 한 번 재서 적어 둔다.
+ *
+ * 함께 확인하는 것이 하나 더 있다 — 다른 사이트에서 틀 수 있는 영상인가.
+ * 막혀 있으면 우리 화면에서 재생이 안 되고 '유튜브에서 열기'만 남으므로,
+ * 등록하기 전에 알려준다.
+ */
+if (toCreate.length > 0) {
+  console.log(`영상 ${toCreate.length}편의 비율을 잽니다…`);
+  const blocked = [];
+  for (let i = 0; i < toCreate.length; i++) {
+    const item = toCreate[i];
+    const got = await probeAspect(item.referenceVideoId);
+    if (got) {
+      item.aspectRatio = got.ratio;
+      if (!got.embeddable) blocked.push(item.title);
+    }
+    if (i < toCreate.length - 1) await new Promise((r) => setTimeout(r, 250));
+  }
+  const portrait = toCreate.filter((t) => t.aspectRatio != null && t.aspectRatio < 0.95);
+  const unknown = toCreate.filter((t) => t.aspectRatio == null);
+  console.log(`  세로 ${portrait.length}편 · 가로 ${toCreate.length - portrait.length - unknown.length}편 · 못 읽음 ${unknown.length}편`);
+  if (blocked.length) {
+    console.log(`  ⚠ 다른 사이트에서 재생이 막힌 영상 ${blocked.length}편 — 등록해도 화면에서 안 틀어집니다:`);
+    for (const t of blocked) console.log(`     - ${t}`);
+  }
 }
 
 console.log(`[${category}] 등록할 것 ${toCreate.length}개`);

@@ -2,7 +2,11 @@
 
 import { useState } from 'react';
 import { Loader2, Play } from 'lucide-react';
-import { referenceEmbedUrl, referenceWatchUrl } from '@/lib/reference-video';
+import {
+  referenceEmbedUrl,
+  referenceWatchUrl,
+  videoFrameClass,
+} from '@/lib/reference-video';
 
 /**
  * 라이브러리에 올린 영상 재생기.
@@ -16,6 +20,7 @@ export function LibraryVideo({
   referenceVideoId,
   title,
   thumbUrl,
+  aspectRatio,
   isAdmin = false,
 }: {
   /** 우리 저장소에 올린 영상 경로. 참고 영상이면 없다. */
@@ -30,6 +35,13 @@ export function LibraryVideo({
   title: string;
   /** 재생 전에 보여줄 이미지. 없으면 빈 화면에 재생 버튼만 나온다. */
   thumbUrl?: string | null;
+  /**
+   * 영상의 가로세로 비율. 없으면 가로(16:9)로 본다.
+   *
+   * 세로로 찍은 쇼츠를 가로 틀에 넣으면 좌우가 검게 막히고 영상이 손바닥만
+   * 해진다. 등록할 때 재 둔 값으로 틀을 바꾼다.
+   */
+  aspectRatio?: number | null;
   /**
    * 관리자에게만 재생 막대를 보여준다.
    *
@@ -51,6 +63,9 @@ export function LibraryVideo({
    */
   const [showEmbed, setShowEmbed] = useState(false);
 
+  /* 세로 영상이면 세로 틀. 자세한 규칙은 lib/reference-video.ts */
+  const frame = videoFrameClass(aspectRatio);
+
   if (referenceVideoId) {
     if (showEmbed) {
       return (
@@ -59,7 +74,7 @@ export function LibraryVideo({
           title={title}
           allow="accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture"
           allowFullScreen
-          className="aspect-video w-full rounded-xl border border-line bg-black"
+          className={`${frame} rounded-xl border border-line bg-black`}
         />
       );
     }
@@ -69,7 +84,7 @@ export function LibraryVideo({
           type="button"
           onClick={() => setShowEmbed(true)}
           aria-label={`${title} 참고 영상 재생`}
-          className="group relative flex aspect-video w-full items-center justify-center overflow-hidden rounded-xl border border-warn-line bg-surface-2 transition-colors hover:border-sky-soft"
+          className={`group relative flex ${frame} items-center justify-center overflow-hidden rounded-xl border border-warn-line bg-surface-2 transition-colors hover:border-sky-soft`}
         >
           {thumbUrl && (
             // 유튜브가 공개하는 주소라 이미지 최적화 대상이 아니다.
@@ -149,7 +164,7 @@ export function LibraryVideo({
         muted
         playsInline
         aria-label={title}
-        className="aspect-video w-full rounded-xl border border-line bg-black object-contain"
+        className={`${frame} rounded-xl border border-line bg-black object-contain`}
       />
     );
   }
@@ -160,7 +175,7 @@ export function LibraryVideo({
       onClick={play}
       disabled={loading}
       aria-label={`${title} 재생`}
-      className="group relative flex aspect-video w-full items-center justify-center overflow-hidden rounded-xl border border-line bg-surface-2 transition-colors hover:border-sky-soft disabled:cursor-wait"
+      className={`group relative flex ${frame} items-center justify-center overflow-hidden rounded-xl border border-line bg-surface-2 transition-colors hover:border-sky-soft disabled:cursor-wait`}
     >
       {thumbUrl && (
         <>

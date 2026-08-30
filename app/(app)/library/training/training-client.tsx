@@ -49,6 +49,8 @@ export type ExerciseItem = {
   hiddenAt: string | null;
   /** 이 운동을 한 기록 수. 관리자가 아니면 0 */
   usedCount: number;
+  /** 영상의 가로세로 비율. 없으면 가로(16:9)로 본다. */
+  aspectRatio: number | null;
 } & Prescription;
 
 const FILTER_GROUPS = [
@@ -114,6 +116,7 @@ function ExerciseDetail({
         referenceVideoId={item.referenceVideoId}
         title={item.title}
         thumbUrl={item.thumbUrl}
+        aspectRatio={item.aspectRatio}
         isAdmin={isAdmin}
       />
 

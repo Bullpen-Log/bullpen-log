@@ -37,6 +37,8 @@ export type GuideItem = {
   /** 참고 영상의 유튜브 영상 ID */
   referenceVideoId: string | null;
   thumbUrl: string | null;
+  /** 영상의 가로세로 비율. 없으면 가로(16:9)로 본다. */
+  aspectRatio: number | null;
   sortOrder: number;
   done: boolean;
 };
@@ -101,6 +103,7 @@ function GuideDetail({
         referenceVideoId={item.referenceVideoId}
         title={item.title}
         thumbUrl={item.thumbUrl}
+        aspectRatio={item.aspectRatio}
         isAdmin={isAdmin}
       />
 

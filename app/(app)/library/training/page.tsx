@@ -41,6 +41,7 @@ export default async function TrainingPage() {
     source: ex.source,
     referenceVideoId: ex.referenceVideoId,
     hiddenAt: ex.hiddenAt ? ex.hiddenAt.toISOString() : null,
+    aspectRatio: ex.aspectRatio,
     // 지우기 전에 보여줄 숫자. 관리자만 지울 수 있어 다른 사람에게는 안 쓴다.
     usedCount: ex._count.userLogs,
     sets: ex.sets,
