@@ -98,6 +98,8 @@ export function buildDailyPlan<T extends ExerciseLike>({
   availableToday,
   requestedMinutes,
   recentIds,
+  history,
+  todayKey,
   lastLowerKey,
   lastUpperKey,
   override = false,
@@ -111,6 +113,10 @@ export function buildDailyPlan<T extends ExerciseLike>({
   requestedMinutes: number;
   /** 최근 며칠 안에 한 운동 — 빼지는 않고 뒤로 미룬다 */
   recentIds: Set<string>;
+  /** 운동별 마지막 수행일. 오래 안 한 것부터 내보내는 데 쓴다. */
+  history?: Map<string, string>;
+  /** 오늘 날짜. 아직 안 해본 운동들의 순서를 날마다 돌리는 데 쓴다. */
+  todayKey?: string;
   lastLowerKey: string | null;
   lastUpperKey: string | null;
   /** 몸 상태 경고를 보고도 고른 대로 받겠다고 했는가 */
@@ -162,6 +168,8 @@ export function buildDailyPlan<T extends ExerciseLike>({
     // 만드는 시점에는 아직 아무것도 안 했다.
     doneIds: new Set<string>(),
     recentIds,
+    history,
+    todayKey: todayKey ?? facts.asOf,
     preferredParts: facts.condition.today?.preferredParts ?? [],
     preferredWorkout,
     goal: goal.name,

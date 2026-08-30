@@ -125,6 +125,47 @@ export async function recentExerciseIds(
   return new Set(logs.map((l) => l.exerciseId));
 }
 
+/**
+ * 운동별로 마지막에 한 날.
+ *
+ * recentExerciseIds 가 "최근 사흘에 했나(예/아니오)"만 알려주는 것과 다르다.
+ * 그 둘만으로 순서를 정했더니 라이브러리 415개 중 두 달에 29개(7%)만 화면에
+ * 나왔다. 사흘이 지나면 다시 맨 앞으로 돌아오기 때문이다 — 하체 98개 중
+ * 3개, 암케어 74개 중 4개만 돌았다.
+ *
+ * 그래서 '했나 안 했나'가 아니라 '언제 했나'를 가져온다. 오래 안 한 것부터
+ * 내보내면 라이브러리를 골고루 훑는다. 한 번도 안 한 운동은 여기 없으므로
+ * 가장 오래된 것으로 친다(theme.ts).
+ *
+ * 기간을 반년으로 둔다. 그보다 예전 것은 사실상 '안 한 것'과 같고, 오래된
+ * 기록까지 다 읽으면 몇 년 쓴 사람에게 느려진다.
+ */
+const HISTORY_DAYS = 180;
+
+export async function exerciseHistory(
+  userId: string,
+  today: Date
+): Promise<Map<string, string>> {
+  const todayKey = toDateKey(today);
+  const logs = await prisma.userExerciseLog.findMany({
+    where: {
+      userId,
+      completed: true,
+      date: {
+        gte: new Date(`${shiftDateKey(todayKey, -HISTORY_DAYS)}T00:00:00.000Z`),
+        lte: new Date(`${todayKey}T00:00:00.000Z`),
+      },
+    },
+    select: { exerciseId: true, date: true },
+    orderBy: { date: 'asc' },
+  });
+
+  // 뒤에 오는 것이 더 최근이므로 그대로 덮어쓰면 마지막 날짜가 남는다.
+  const last = new Map<string, string>();
+  for (const l of logs) last.set(l.exerciseId, toDateKey(l.date));
+  return last;
+}
+
 /** 하체·상체를 번갈아 돌리기 위해 살펴보는 기간(일) */
 const ROTATION_LOOKBACK_DAYS = 14;
 

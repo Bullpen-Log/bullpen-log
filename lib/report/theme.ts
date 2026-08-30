@@ -427,6 +427,84 @@ export function slotForTheme(ex: ThemedExercise, theme: ThemeKey): SlotKey {
 }
 
 /**
+ * 후보를 어떤 순서로 볼지 정한다.
+ *
+ * 예전에는 "최근 사흘 안에 했나"만 보고 그것만 뒤로 보냈다. 그런데 사흘이
+ * 지나면 다시 맨 앞으로 돌아오므로, 등록순 앞자리 몇 개가 영원히 돌았다.
+ * 실제로 재보니 두 달에 라이브러리 415개 중 29개(7%)만 화면에 나왔고,
+ * 완료 표시를 안 하는 사람은 매일 똑같은 일곱 개를 받았다.
+ *
+ * 세 무리로 나눈다.
+ *
+ *   1) 한 번도 안 한 것      날짜로 돌려가며 앞에 놓는다
+ *   2) 예전에 한 것          오래 안 한 것부터
+ *   3) 최근 사흘에 한 것      맨 뒤 (회복 규칙은 그대로 지킨다)
+ *
+ * 빼지는 않는다. 후보가 적은 날에 빼버리면 줄 것이 없어진다.
+ */
+function orderCandidates<T extends ThemedExercise>(
+  candidates: T[],
+  {
+    recentIds,
+    history,
+    todayKey,
+  }: { recentIds: Set<string>; history: Map<string, string>; todayKey?: string }
+): T[] {
+  if (recentIds.size === 0 && history.size === 0 && todayKey == null) {
+    return candidates;
+  }
+
+  const rank = (ex: T, index: number): [number, number] => {
+    if (recentIds.has(ex.id)) return [2, index];
+    const last = history.get(ex.id);
+    if (last == null) {
+      /*
+       * 아직 안 해본 것 — 날짜를 섞어 자리를 정한다.
+       *
+       * 처음에는 등록순을 날짜만큼 밀어봤는데(index + offset), 그건 모두를
+       * 같은 만큼 밀 뿐이라 앞뒤 순서가 그대로다. 워밍업처럼 구간이 두 자리인
+       * 곳에서는 맨 앞 둘이 거의 안 바뀌어, 모빌리티 69개 중 두 달에 2개만
+       * 나왔다.
+       *
+       * 그래서 운동 id 와 날짜를 함께 섞는다. 같은 날에는 늘 같은 순서가
+       * 나오므로(만들어 둔 일정을 다시 열어도 목록이 그대로다), 날이 바뀌면
+       * 전혀 다른 자리가 된다.
+       */
+      return [0, todayKey ? mix(ex.id, todayKey) : index];
+    }
+    // 예전에 한 것 — 오래된 날짜일수록 앞
+    return [1, Number(last.replace(/-/g, ''))];
+  };
+
+  return candidates
+    .map((ex, index) => ({ ex, key: rank(ex, index), index }))
+    .sort((a, b) =>
+      a.key[0] !== b.key[0]
+        ? a.key[0] - b.key[0]
+        : a.key[1] !== b.key[1]
+          ? a.key[1] - b.key[1]
+          : a.index - b.index
+    )
+    .map((v) => v.ex);
+}
+
+/**
+ * 글자 두 개를 섞어 숫자 하나로 (FNV-1a).
+ *
+ * 아무 숫자나 만들려는 것이 아니라, 같은 입력에는 늘 같은 값이 나와야 한다 —
+ * 오늘 만든 일정을 저녁에 다시 열었을 때 순서가 달라지면 안 된다.
+ */
+function mix(id: string, dateKey: string): number {
+  let h = 0x811c9dc5;
+  const text = `${id}:${dateKey}`;
+  for (let i = 0; i < text.length; i++) {
+    h ^= text.charCodeAt(i);
+    h = Math.imul(h, 0x01000193) >>> 0;
+  }
+  return h;
+}
+
+/**
  * 테마와 시간에 맞춰 오늘의 운동을 고른다.
  *
  * 반환 순서는 화면 순서와 같다: 워밍업 → 본운동 → 코어 → 보강 → 암케어.
@@ -437,6 +515,8 @@ export function pickForTheme<T extends ThemedExercise>({
   minutes,
   doneIds,
   recentIds,
+  history,
+  todayKey,
   preferredParts = [],
   preferredWorkout = null,
   goal = null,
@@ -447,8 +527,22 @@ export function pickForTheme<T extends ThemedExercise>({
   minutes: number;
   /** 오늘 이미 완료한 것 — 목록에서 사라지면 안 된다 */
   doneIds: Set<string>;
-  /** 최근 며칠 안에 한 것 — 빼지는 않고 뒤로 미룬다 */
+  /** 최근 며칠 안에 한 것 — 빼지는 않고 뒤로 미룬다(회복 규칙) */
   recentIds?: Set<string>;
+  /**
+   * 운동별로 마지막에 한 날 (YYYY-MM-DD). 오래 안 한 것부터 내보낸다.
+   *
+   * 없으면 예전처럼 등록순으로 간다. 시험 스크립트가 순서를 못박고 견주는
+   * 곳이 있어 기본값을 바꾸지 않는다.
+   */
+  history?: Map<string, string>;
+  /**
+   * 오늘 날짜 (YYYY-MM-DD).
+   *
+   * 아직 아무것도 안 해본 운동들 사이의 순서를 날마다 돌리는 데 쓴다.
+   * 이것이 없으면 완료 표시를 안 하는 사람은 매일 똑같은 일곱 개를 받는다.
+   */
+  todayKey?: string;
   /** 오늘 하고 싶다고 고른 부위 — 본운동 안에서 앞으로 당긴다 */
   preferredParts?: string[];
   /**
@@ -483,18 +577,11 @@ export function pickForTheme<T extends ThemedExercise>({
             : null
         : null;
 
-  /*
-   * 최근에 한 것을 뒤로 보낸다. 빼지 않는 이유는 예전과 같다 —
-   * 후보가 적은 날에 빼버리면 줄 것이 없다.
-   */
-  const recent = recentIds ?? new Set<string>();
-  const ordered =
-    recent.size > 0
-      ? [
-          ...candidates.filter((ex) => !recent.has(ex.id)),
-          ...candidates.filter((ex) => recent.has(ex.id)),
-        ]
-      : candidates;
+  const ordered = orderCandidates(candidates, {
+    recentIds: recentIds ?? new Set<string>(),
+    history: history ?? new Map<string, string>(),
+    todayKey,
+  });
 
   const taken = new Set<string>();
   const bySlot = new Map<SlotKey, T[]>(specs.map((s) => [s.slot, []]));
