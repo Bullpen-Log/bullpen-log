@@ -21,3 +21,16 @@
  GET /training 200 in 203ms (next.js: 3ms, proxy.ts: 5ms, application-code: 195ms)
  POST /training 303 in 400ms (next.js: 4ms, proxy.ts: 5ms, application-code: 391ms)
   └─ ƒ generateTodayPlan({}) in 176ms app/actions/training-setup.ts
+ GET /training 200 in 232ms (next.js: 76ms, proxy.ts: 44ms, application-code: 112ms)
+ GET /api/session/clear 307 in 46ms (next.js: 33ms, application-code: 14ms)
+ GET /api/session/clear 307 in 7ms (next.js: 3ms, application-code: 4ms)
+ GET /login 200 in 71ms (next.js: 35ms, proxy.ts: 5ms, application-code: 31ms)
+ GET /login 200 in 26ms (next.js: 4ms, proxy.ts: 5ms, application-code: 17ms)
+ GET /login 200 in 162ms (next.js: 79ms, proxy.ts: 45ms, application-code: 39ms)
+ GET /terms 200 in 233ms (next.js: 34ms, proxy.ts: 4ms, application-code: 196ms)
+ GET /privacy 200 in 623ms (next.js: 506ms, proxy.ts: 4ms, application-code: 114ms)
+ GET /terms 200 in 85ms (next.js: 4ms, proxy.ts: 4ms, application-code: 77ms)
+✓ Compiled in 75ms
+ GET /terms 200 in 248ms (next.js: 75ms, proxy.ts: 51ms, application-code: 123ms)
+ GET /terms 200 in 72ms (next.js: 4ms, proxy.ts: 7ms, application-code: 61ms)
+ GET /privacy 200 in 138ms (next.js: 8ms, proxy.ts: 3ms, application-code: 126ms)

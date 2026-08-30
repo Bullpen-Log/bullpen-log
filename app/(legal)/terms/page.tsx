@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { Article, Blank, Item, Items, LegalHeading } from '../_parts';
+import { Article, Item, Items, LegalHeading } from '../_parts';
 
 export const metadata: Metadata = {
   title: '이용약관 — Bullpen Log',
@@ -14,7 +14,7 @@ export const metadata: Metadata = {
  * 좋다. 다만 아무것도 없이 가입을 받는 것보다는 낫다 — 지금은 동의 절차 자체가
  * 없었다.
  *
- * 노란 표시(Blank)는 운영자만 아는 것이라 비워 둔 자리다. 배포 전에 채워야 한다.
+ * 시행일은 아직 정하지 않았다. 정식 공개일에 맞춰 넣는다.
  */
 export default function TermsPage() {
   return (
@@ -33,9 +33,9 @@ export default function TermsPage() {
 
       <Article no={1} title="목적">
         <p>
-          이 약관은 <Blank>[운영자/사업자명]</Blank>(이하 &lsquo;회사&rsquo;)가 제공하는
-          Bullpen Log 서비스(이하 &lsquo;서비스&rsquo;)를 이용하는 데 필요한 회사와
-          회원 사이의 권리·의무와 책임을 정하는 것을 목적으로 합니다.
+          이 약관은 Bullpen Log(이하 &lsquo;회사&rsquo;)가 제공하는
+          서비스(이하 &lsquo;서비스&rsquo;)를 이용하는 데 필요한 회사와 회원 사이의
+          권리·의무와 책임을 정하는 것을 목적으로 합니다.
         </p>
       </Article>
 
@@ -83,7 +83,7 @@ export default function TermsPage() {
           </Item>
           <Item>
             계정은 본인만 사용해야 하며, 비밀번호 관리 책임은 회원에게 있습니다.
-            계정이 도용된 것으로 보이면 즉시 <Blank>[문의 이메일]</Blank>로 알려주세요.
+            계정이 도용된 것으로 보이면 즉시 <a href="mailto:bullpenlog.com@gmail.com" className="font-medium text-sky underline underline-offset-2">bullpenlog.com@gmail.com</a>로 알려주세요.
           </Item>
         </Items>
       </Article>
@@ -219,7 +219,7 @@ export default function TermsPage() {
       <Article no={12} title="분쟁 해결">
         <Items>
           <Item>
-            서비스 이용과 관련한 문의는 <Blank>[문의 이메일]</Blank>로 보내주세요.
+            서비스 이용과 관련한 문의는 <a href="mailto:bullpenlog.com@gmail.com" className="font-medium text-sky underline underline-offset-2">bullpenlog.com@gmail.com</a>로 보내주세요.
           </Item>
           <Item>
             회사와 회원 사이에 분쟁이 생기면 서로 성실히 협의해 해결합니다. 협의가

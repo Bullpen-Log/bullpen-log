@@ -136,7 +136,7 @@ export default function PrivacyPage() {
             모두 삭제됩니다.
           </Item>
           <Item>
-            그 밖의 요청은 <Blank>[문의 이메일]</Blank>로 보내주시면 처리하고
+            그 밖의 요청은 <a href="mailto:bullpenlog.com@gmail.com" className="font-medium text-sky underline underline-offset-2">bullpenlog.com@gmail.com</a>로 보내주시면 처리하고
             알려드립니다.
           </Item>
         </Items>
@@ -172,7 +172,7 @@ export default function PrivacyPage() {
             개인정보 보호책임자: <Blank>[이름]</Blank>
           </Item>
           <Item>
-            연락처: <Blank>[문의 이메일]</Blank>
+            연락처: <a href="mailto:bullpenlog.com@gmail.com" className="font-medium text-sky underline underline-offset-2">bullpenlog.com@gmail.com</a>
           </Item>
           <Item>
             개인정보 침해로 신고·상담이 필요하시면 개인정보침해신고센터(118),
