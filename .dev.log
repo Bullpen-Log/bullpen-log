@@ -6,19 +6,17 @@
 - Local:         http://localhost:3000
 - Network:       http://59.16.189.13:3000
 - Environments: .env
-✓ Ready in 457ms
+✓ Ready in 449ms
 
- GET /login 200 in 576ms (next.js: 166ms, proxy.ts: 160ms, application-code: 250ms)
- GET /login 200 in 57ms (next.js: 5ms, proxy.ts: 5ms, application-code: 47ms)
- GET /training 200 in 703ms (next.js: 86ms, proxy.ts: 29ms, application-code: 588ms)
-✓ Compiled in 429ms
- GET /training 200 in 315ms (next.js: 5ms, proxy.ts: 5ms, application-code: 305ms)
- GET /training 200 in 577ms (next.js: 112ms, proxy.ts: 46ms, application-code: 419ms)
- GET /training 200 in 353ms (next.js: 4ms, proxy.ts: 6ms, application-code: 343ms)
- GET /training 200 in 240ms (next.js: 10ms, proxy.ts: 28ms, application-code: 203ms)
- GET /training 200 in 312ms (next.js: 4ms, proxy.ts: 6ms, application-code: 301ms)
- GET /training 200 in 248ms (next.js: 77ms, proxy.ts: 44ms, application-code: 127ms)
- GET /training 200 in 293ms (next.js: 4ms, proxy.ts: 6ms, application-code: 283ms)
- GET /training 200 in 827ms (next.js: 3ms, proxy.ts: 4ms, application-code: 820ms)
- POST /training 303 in 1068ms (next.js: 4ms, proxy.ts: 6ms, application-code: 1058ms)
-  └─ ƒ generateTodayPlan({}) in 193ms app/actions/training-setup.ts
+ GET /login 200 in 583ms (next.js: 180ms, proxy.ts: 157ms, application-code: 246ms)
+ GET /login 200 in 54ms (next.js: 4ms, proxy.ts: 5ms, application-code: 45ms)
+ GET /today 200 in 831ms (next.js: 62ms, proxy.ts: 7ms, application-code: 762ms)
+✓ Compiled in 418ms
+ GET /today 200 in 449ms (next.js: 95ms, proxy.ts: 52ms, application-code: 302ms)
+ GET /today 200 in 387ms (next.js: 4ms, proxy.ts: 5ms, application-code: 378ms)
+ POST /today 200 in 339ms (next.js: 4ms, proxy.ts: 7ms, application-code: 328ms)
+  └─ ƒ saveCheckin(undefined, {}) in 113ms app/actions/checkin.ts
+ GET /today 200 in 296ms (next.js: 4ms, proxy.ts: 4ms, application-code: 288ms)
+✓ Compiled in 91ms
+ GET /today 200 in 397ms (next.js: 95ms, proxy.ts: 47ms, application-code: 255ms)
+ GET /today 200 in 360ms (next.js: 5ms, proxy.ts: 5ms, application-code: 350ms)

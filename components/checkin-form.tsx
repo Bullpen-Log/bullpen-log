@@ -2,7 +2,7 @@
 
 import { useActionState, useState, useSyncExternalStore } from 'react';
 import { useFormStatus } from 'react-dom';
-import { CheckCircle2, Pencil } from 'lucide-react';
+import { CheckCircle2, ChevronDown, Pencil } from 'lucide-react';
 import { saveCheckin, type CheckinState } from '@/app/actions/checkin';
 import {
   BODY_FEELINGS,
@@ -49,6 +49,7 @@ function ChipRadio({
   className,
   children,
   required,
+  onPick,
 }: {
   name: string;
   value: string;
@@ -56,6 +57,8 @@ function ChipRadio({
   className?: string;
   children: React.ReactNode;
   required?: boolean;
+  /** 골랐을 때 알린다. 접었다 폈다 하는 자리에서 요약을 다시 그리는 데 쓴다. */
+  onPick?: (value: string) => void;
 }) {
   return (
     <label className="inline-flex">
@@ -65,6 +68,7 @@ function ChipRadio({
         value={value}
         defaultChecked={defaultChecked}
         required={required}
+        onChange={() => onPick?.(value)}
         className="peer sr-only"
       />
       <span
@@ -156,6 +160,15 @@ export function CheckinForm({
   const todayKey = useClientTodayKey();
 
   const [editing, setEditing] = useState(false);
+  /**
+   * 몸 상태 칸을 폈는가.
+   *
+   * 지금 고른 값도 함께 들고 있어야 한다. 라디오는 폼이 직접 들고 있으므로
+   * (defaultChecked), 접었을 때 "다 정상"이라고 말하려면 바뀐 값을 따로 알아야
+   * 한다. 아무것도 안 건드렸으면 null 이고, 그때는 서버가 준 값을 그대로 쓴다.
+   */
+  const [partsOpen, setPartsOpen] = useState(false);
+  const [partEdits, setPartEdits] = useState<Record<string, string> | null>(null);
   const [state, formAction] = useActionState<CheckinState, FormData>(
     saveCheckin,
     undefined
@@ -167,6 +180,8 @@ export function CheckinForm({
   if (state !== seenState) {
     setSeenState(state);
     if (state?.success) setEditing(false);
+    // 저장에 실패해 돌아오면 서버가 준 값으로 다시 시작한다
+    setPartEdits(null);
   }
 
   const today = todayKey
@@ -188,6 +203,23 @@ export function CheckinForm({
   const pickedWorkout = before
     ? (kept(before, 'preferredWorkout') ?? '')
     : (today?.preferredWorkout ?? '');
+
+  /*
+   * 지금 몸 상태. 손댄 것이 있으면 그것을, 없으면 서버가 준 값을 본다.
+   * 하나라도 정상이 아니면 접지 않는다 — 아픈 곳을 숨기면 안 된다.
+   */
+  const partNow = (key: string, fallback: string) =>
+    partEdits?.[key] ?? pick(key, fallback) ?? fallback;
+  const hurting = CHECKIN_PARTS.filter(
+    (p) => partNow(p.key, today?.[p.key] ?? '정상') !== '정상'
+  );
+  const partsExpanded = partsOpen || hurting.length > 0;
+  const partsSummary =
+    hurting.length === 0
+      ? null
+      : hurting
+          .map((p) => `${p.label} ${partNow(p.key, today?.[p.key] ?? '정상')}`)
+          .join(' · ');
 
   return (
     <div>
@@ -282,26 +314,76 @@ export function CheckinForm({
                 </p>
               )}
 
-              <p className="text-xs text-muted">
-                아픈 곳만 바꿔주세요. 나머지는 정상으로 저장됩니다.
-              </p>
-
-              {CHECKIN_PARTS.map((part) => (
-                <Row key={part.key} label={part.label}>
-                  {BODY_FEELINGS.map((v) => (
-                    <ChipRadio
-                      key={v}
-                      name={part.key}
-                      value={v}
-                      required
-                      defaultChecked={pick(part.key, today?.[part.key] ?? '정상') === v}
-                      className={feelingChipClass(v)}
+              {/*
+                * 몸 상태는 접어 둔다.
+                *
+                * 다섯 부위가 저마다 세 칸이라 화면의 대부분을 먹는데, 다섯 개
+                * 모두 이미 '정상'이 기본값이라 대개 손댈 일이 없다. 매일 지나쳐
+                * 스크롤해야 하는 것이 실제 부담이었다.
+                *
+                * 접혀 있어도 값은 그대로 폼에 들어간다 — 라디오를 숨기기만 하고
+                * 지우지 않는다. 아픈 곳이 있는 날에는 저절로 펴진다.
+                */}
+              <div className="rounded-xl border border-line bg-surface-2/50 px-3 py-2.5">
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
+                  <span className="text-xs font-medium text-muted">몸 상태</span>
+                  <span
+                    className={`text-xs ${partsSummary ? 'font-medium text-warn' : 'text-ink'}`}
+                  >
+                    {partsSummary ?? '다 정상'}
+                  </span>
+                  {/*
+                    아픈 곳이 있으면 접는 단추를 아예 내지 않는다. 못 누르는
+                    단추를 남겨두면 고장 난 줄 안다. 다시 정상으로 바꾸면
+                    단추가 돌아온다.
+                  */}
+                  {hurting.length === 0 && (
+                    <button
+                      type="button"
+                      onClick={() => setPartsOpen((v) => !v)}
+                      aria-expanded={partsExpanded}
+                      className="ml-auto inline-flex items-center gap-1 rounded-lg border border-line px-2.5 py-1 text-xs text-muted transition-colors hover:border-sky hover:text-sky"
                     >
-                      {v}
-                    </ChipRadio>
+                      <ChevronDown
+                        aria-hidden
+                        className={`h-3.5 w-3.5 transition-transform ${partsExpanded ? 'rotate-180' : ''}`}
+                      />
+                      {partsExpanded ? '접기' : '아픈 데 있어요'}
+                    </button>
+                  )}
+                </div>
+
+                <div className={partsExpanded ? 'mt-3 space-y-3' : 'hidden'}>
+                  {CHECKIN_PARTS.map((part) => (
+                    <Row key={part.key} label={part.label}>
+                      {BODY_FEELINGS.map((v) => (
+                        <ChipRadio
+                          key={v}
+                          name={part.key}
+                          value={v}
+                          required
+                          defaultChecked={pick(part.key, today?.[part.key] ?? '정상') === v}
+                          className={feelingChipClass(v)}
+                          onPick={(v) =>
+                            setPartEdits((prev) => ({
+                              ...(prev ??
+                                Object.fromEntries(
+                                  CHECKIN_PARTS.map((q) => [
+                                    q.key,
+                                    partNow(q.key, today?.[q.key] ?? '정상'),
+                                  ])
+                                )),
+                              [part.key]: v,
+                            }))
+                          }
+                        >
+                          {v}
+                        </ChipRadio>
+                      ))}
+                    </Row>
                   ))}
-                </Row>
-              ))}
+                </div>
+              </div>
 
               <Row label="전신 컨디션">
                 {Array.from(
