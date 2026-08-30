@@ -344,3 +344,32 @@ export const AMOUNT_LIMITS = {
 } as const;
 
 export type AmountField = keyof typeof AMOUNT_LIMITS;
+
+/** 실제로 한 만큼. 안 적은 칸은 null 이다. */
+export type DoneAmount = {
+  setsDone: number | null;
+  repsDone: number | null;
+  holdSecondsDone: number | null;
+  weightKg: number | null;
+};
+
+/**
+ * 실제로 한 만큼을 사람 말로. 아무것도 안 적었으면 null.
+ *
+ * '3세트 × 10회 · 20kg' 처럼 만든다. 수량과 무게를 다른 기호로 나누는 이유는,
+ * 무게가 곱해지는 값이 아니라서다 — 3세트 × 10회 × 20kg 은 읽는 순간
+ * 600 이라는 없는 숫자를 떠올리게 한다.
+ *
+ * 기록 화면과 트레이닝 화면이 같은 것을 보여줘야 해서 여기 둔다. 양쪽에
+ * 따로 두면 한쪽만 고치고 다른 쪽을 잊는다.
+ */
+export function formatAmount(a: DoneAmount): string | null {
+  const parts: string[] = [];
+  if (a.setsDone != null) parts.push(`${a.setsDone}세트`);
+  if (a.repsDone != null) parts.push(`${a.repsDone}회`);
+  if (a.holdSecondsDone != null) parts.push(`${a.holdSecondsDone}초`);
+  const amount = parts.join(' × ');
+  const weight = a.weightKg != null ? `${a.weightKg}kg` : null;
+  if (!amount && !weight) return null;
+  return [amount, weight].filter(Boolean).join(' · ');
+}

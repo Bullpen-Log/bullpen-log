@@ -6,6 +6,7 @@ import { createPlaybackUrls } from '@/lib/storage';
 import { referenceThumbUrl } from '@/lib/reference-video';
 import { formatPrescription, usesWeight } from '@/lib/exercise-meta';
 import { loadTodayCore } from '@/lib/report/today-data';
+import { recentAmounts } from '@/lib/report/exercise-recent';
 import { MIN_CANDIDATES } from '@/lib/report/prescription';
 import { DEFAULT_WORKOUT_MINUTES } from '@/lib/report/theme';
 import { Card, EmptyState, PageHeading } from '@/components/ui';
@@ -175,9 +176,17 @@ export default async function TrainingPage({
       (p): p is typeof p & { ex: NonNullable<(typeof p)['ex']> } => p.ex != null
     );
 
-  const thumbUrls = await createPlaybackUrls(
-    full.map((p) => p.ex.thumbPath).filter((p): p is string => !!p)
-  );
+  const [thumbUrls, pastAmounts] = await Promise.all([
+    createPlaybackUrls(
+      full.map((p) => p.ex.thumbPath).filter((p): p is string => !!p)
+    ),
+    /*
+     * 이 운동을 지난번에 얼마나 했는가.
+     *
+     * 오늘 그릴 운동만 묻는다. 400개를 다 물으면 볼 일 없는 것까지 읽게 된다.
+     */
+    recentAmounts(user.id, full.map((p) => p.ex.id), today),
+  ]);
 
   const exercises: TodayExercise[] = full.map(({ slot, manual, unsafe, ex }) => ({
     id: ex.id,
@@ -221,6 +230,10 @@ export default async function TrainingPage({
     doneWeightKg: core.doneAmounts.get(ex.id)?.weightKg?.toString() ?? '',
     /* 맨몸·밴드 운동에는 무게 칸을 내지 않는다 — 적을 값이 없다. */
     usesWeight: usesWeight(ex.equipment),
+    /*
+     * 지난번에 얼마나 했는지. 처음 하는 운동이면 빈 목록이라 아무것도 안 나온다.
+     */
+    past: pastAmounts.get(ex.id) ?? [],
   }));
 
   /*

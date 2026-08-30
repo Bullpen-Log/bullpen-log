@@ -1,11 +1,12 @@
 'use client';
 
 import { useState, useTransition } from 'react';
-import { AlertTriangle, Check, X } from 'lucide-react';
+import { AlertTriangle, Check, ChevronDown, History, X } from 'lucide-react';
 import { setExerciseDone } from '@/app/actions/exercise-log';
 import { removeFromTodayPlan } from '@/app/actions/plan-edit';
 import { SLOT_LABELS, SLOT_ORDER, type SlotKey } from '@/lib/report/theme';
-import { AMOUNT_LIMITS, type AmountField } from '@/lib/exercise-meta';
+import { AMOUNT_LIMITS, formatAmount, type AmountField } from '@/lib/exercise-meta';
+import type { PastAmount } from '@/lib/report/exercise-recent';
 import { ExerciseBadges } from '@/components/meta-badges';
 
 export type TodayExercise = {
@@ -48,6 +49,14 @@ export type TodayExercise = {
    * 장비를 하나라도 쓰는 운동에만 낸다.
    */
   usesWeight: boolean;
+  /**
+   * 이 운동을 지난번에 얼마나 했는가. 최근 것이 앞에 온다.
+   *
+   * 무게를 올릴지 횟수를 늘릴지는 지난번 숫자를 봐야 정할 수 있는데, 그것을
+   * 보려고 기록 화면까지 넘어가게 하면 아무도 안 본다. 처음 하는 운동이면
+   * 빈 목록이고, 그때는 줄 자체가 안 나온다.
+   */
+  past: PastAmount[];
 };
 
 /** 화면의 칸 이름을 상한 이름에 이어 준다. */
@@ -250,6 +259,89 @@ export function ExerciseChecklist({
   );
 }
 
+/** '2026-08-24' → '8/24' */
+function shortDate(key: string): string {
+  const [, month, day] = key.split('-');
+  return `${Number(month)}/${Number(day)}`;
+}
+
+/**
+ * 지난번에 얼마나 했는지 보여주는 줄.
+ *
+ * 무게를 올릴지 횟수를 늘릴지는 지난번 숫자를 봐야 정할 수 있다. 기록 화면까지
+ * 넘어가서 찾아보게 하면 아무도 안 보므로, 오늘 할 운동에 그대로 붙여 둔다.
+ *
+ * 완료 단추 안에 넣을 수는 없다(단추 안의 단추). 같은 테두리 안에 아래 줄로
+ * 붙여 한 덩어리로 보이게 한다 — '실제로 한 것' 칸과 같은 방식이다.
+ */
+function PastRecord({ title, past }: { title: string; past: PastAmount[] }) {
+  const [open, setOpen] = useState(false);
+
+  const last = past[0];
+  const text = last ? formatAmount(last) : null;
+  // 숫자가 하나도 안 적힌 기록은 서버에서 이미 걸러 오지만, 여기서도 막아 둔다.
+  if (!last || !text) return null;
+
+  const line = (
+    <span className="min-w-0 flex-1 truncate text-left">
+      <span className="font-medium text-muted">지난번 {shortDate(last.date)}</span>
+      <span className="mx-1.5 text-line-strong">·</span>
+      <span className="font-semibold text-ink/75">{text}</span>
+    </span>
+  );
+
+  /*
+   * 한 번밖에 안 했으면 펼칠 것이 없다. 눌러도 아무 일이 없는 단추를 두면
+   * 고장 난 줄 안다.
+   */
+  if (past.length === 1) {
+    return (
+      <div className="flex items-center gap-2 border-t border-line px-4 py-2.5 text-xs">
+        <History aria-hidden className="h-3.5 w-3.5 shrink-0 text-muted" />
+        {line}
+      </div>
+    );
+  }
+
+  return (
+    <div className="border-t border-line">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
+        aria-label={`${title} 지난 기록 ${open ? '접기' : '펼치기'}`}
+        className="flex w-full items-center gap-2 px-4 py-2.5 text-xs transition-colors hover:bg-surface-2"
+      >
+        <History aria-hidden className="h-3.5 w-3.5 shrink-0 text-muted" />
+        {line}
+        <ChevronDown
+          aria-hidden
+          className={`h-3.5 w-3.5 shrink-0 text-muted transition-transform ${
+            open ? 'rotate-180' : ''
+          }`}
+        />
+      </button>
+
+      {open && (
+        <ul className="space-y-1 px-4 pb-2.5 pl-[2.1rem] text-xs">
+          {past.slice(1).map((p) => {
+            const t = formatAmount(p);
+            if (!t) return null;
+            return (
+              <li key={p.date} className="flex gap-2">
+                <span className="w-10 shrink-0 tabular-nums text-muted">
+                  {shortDate(p.date)}
+                </span>
+                <span className="text-ink/70">{t}</span>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </div>
+  );
+}
+
 /** 실제로 한 만큼을 적는 작은 칸 하나 */
 function AmountInput({
   value,
@@ -385,6 +477,8 @@ function ExerciseList({
                 />
               )}
             </button>
+
+            <PastRecord title={ex.title} past={ex.past} />
 
             {/*
               실제로 한 만큼.

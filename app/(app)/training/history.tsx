@@ -11,6 +11,7 @@ import {
   type DayMark,
 } from '@/components/month-calendar';
 import { toDateKey } from '@/lib/pitch-stats';
+import { formatAmount } from '@/lib/exercise-meta';
 import type {
   TrainingDayDetail,
   TrainingDaySummary,
@@ -48,17 +49,6 @@ function spokenDate(key: string) {
  * 무게는 '×'로 잇지 않고 뒤에 따로 붙인다 — '3세트 × 10회 × 40kg'은 곱셈처럼
  * 읽히는데 무게는 곱하는 값이 아니다.
  */
-function amountText(ex: TrainingDayDetail['exercises'][number]): string | null {
-  const parts: string[] = [];
-  if (ex.setsDone != null) parts.push(`${ex.setsDone}세트`);
-  if (ex.repsDone != null) parts.push(`${ex.repsDone}회`);
-  if (ex.holdSecondsDone != null) parts.push(`${ex.holdSecondsDone}초`);
-  const amount = parts.join(' × ');
-  const weight = ex.weightKg != null ? `${ex.weightKg}kg` : null;
-  if (!amount && !weight) return null;
-  return [amount, weight].filter(Boolean).join(' · ');
-}
-
 export function TrainingHistory({
   summaries,
 }: {
@@ -230,7 +220,7 @@ export function TrainingHistory({
           {detail && detail.exercises.length > 0 && (
             <ul className="space-y-2">
               {detail.exercises.map((ex) => {
-                const amount = amountText(ex);
+                const amount = formatAmount(ex);
                 const row = (
                   <>
                     <span
