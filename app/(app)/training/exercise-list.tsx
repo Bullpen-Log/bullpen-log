@@ -1,11 +1,16 @@
 'use client';
 
 import { useState, useTransition } from 'react';
-import { AlertTriangle, Check, ChevronDown, History, X } from 'lucide-react';
+import { AlertTriangle, Check, ChevronDown, History, RotateCcw, X } from 'lucide-react';
 import { setExerciseDone } from '@/app/actions/exercise-log';
 import { removeFromTodayPlan } from '@/app/actions/plan-edit';
 import { SLOT_LABELS, SLOT_ORDER, type SlotKey } from '@/lib/report/theme';
-import { AMOUNT_LIMITS, formatAmount, type AmountField } from '@/lib/exercise-meta';
+import {
+  AMOUNT_LIMITS,
+  WEIGHT_STEP,
+  formatAmount,
+  type AmountField,
+} from '@/lib/exercise-meta';
 import type { PastAmount } from '@/lib/report/exercise-recent';
 import { ExerciseBadges } from '@/components/meta-badges';
 
@@ -103,8 +108,14 @@ export function ExerciseChecklist({
     field: 'doneSets' | 'doneReps' | 'doneHoldSeconds' | 'doneWeightKg',
     value: string
   ) => {
-    // 숫자만 받는다. 붙여넣기로 들어온 글자도 여기서 걸린다.
-    const digits = value.replace(/[^0-9]/g, '').slice(0, 3);
+    /*
+     * 숫자만 받는다. 붙여넣기로 들어온 글자도 여기서 걸린다.
+     * 무게만 소수점을 받는다 — 원판이 2.5kg 단위라 62.5 를 적어야 한다.
+     */
+    const weight = field === 'doneWeightKg';
+    const cleaned = weight
+      ? value.replace(/[^0-9.]/g, '').replace(/(\..*)\./g, '$1').slice(0, 5)
+      : value.replace(/[^0-9]/g, '').slice(0, 3);
     /*
      * 넘치는 값은 여기서 최댓값으로 깎는다.
      *
@@ -114,17 +125,25 @@ export function ExerciseChecklist({
      * 무엇이 저장됐는지 눈으로 확인된다.
      */
     const max = AMOUNT_LIMITS[AMOUNT_FIELD[field]];
+    // 치는 도중의 '62.' 은 그대로 둔다. 여기서 자르면 소수점을 칠 수가 없다.
     const capped =
-      digits === '' ? '' : String(Math.min(Number(digits), max));
+      cleaned === '' || cleaned.endsWith('.')
+        ? cleaned
+        : String(Math.min(Number(cleaned), max));
     setItems((prev) => prev.map((e) => (e.id === id ? { ...e, [field]: capped } : e)));
   };
 
-  const saveAmount = (id: string) => {
-    const target = items.find((e) => e.id === id);
-    if (!target || !target.done) return;
+  /**
+   * 적은 값을 서버에 보낸다.
+   *
+   * 값을 인자로 받는다 — 화면 상태에서 읽으면 안 된다. 단추로 값을 바꾼 직후에는
+   * 아직 반영 전이라, 바꾸기 전 값을 저장하게 된다.
+   */
+  const persist = (target: TodayExercise) => {
+    if (!target.done) return;
     setError(undefined);
     startTransition(async () => {
-      const res = await setExerciseDone(id, true, {
+      const res = await setExerciseDone(target.id, true, {
         sets: target.doneSets,
         reps: target.isHold ? '' : target.doneReps,
         holdSeconds: target.isHold ? target.doneHoldSeconds : '',
@@ -132,6 +151,66 @@ export function ExerciseChecklist({
       });
       if ('error' in res) setError(res.error);
     });
+  };
+
+  /**
+   * 한 운동의 값을 바꾸고 바로 저장한다.
+   *
+   * 칸에 직접 칠 때는 손을 뗄 때(blur) 저장하지만, 단추로 바꾼 것은 손을 뗄
+   * 일이 없다. 눌러 놓고 화면을 닫으면 그대로 사라졌다 — 실제로 그랬다.
+   */
+  const changeAndSave = (
+    id: string,
+    change: (ex: TodayExercise) => TodayExercise
+  ) => {
+    /*
+     * 바뀐 값을 먼저 만들고, 그것으로 화면과 서버를 둘 다 고친다.
+     *
+     * 처음에는 setItems 안에서 만들어 밖에서 저장했는데, 그 안의 함수가 언제
+     * 도는지는 React 가 정한다. 아직 안 돌았을 때 저장하면 바꾸기 전 값이
+     * 그대로 서버로 갔다 — 화면은 15kg 인데 DB 는 12.5kg 였다.
+     */
+    const current = items.find((e) => e.id === id);
+    if (!current) return;
+    const next = change(current);
+    setItems((prev) => prev.map((e) => (e.id === id ? next : e)));
+    persist(next);
+  };
+
+  /** 무게를 한 칸 올리거나 내린다. 키보드를 띄우지 않고 고칠 수 있게. */
+  const nudgeWeight = (id: string, direction: 1 | -1) =>
+    changeAndSave(id, (e) => {
+      const now = Number(e.doneWeightKg);
+      const base = Number.isFinite(now) && e.doneWeightKg !== '' ? now : 0;
+      const next = Math.max(0, base + direction * WEIGHT_STEP);
+      return {
+        ...e,
+        doneWeightKg: next === 0 ? '' : String(Math.min(next, AMOUNT_LIMITS.weightKg)),
+      };
+    });
+
+  /**
+   * 지난번 적은 것을 그대로 가져온다.
+   *
+   * 미리 채워 두는 것과 다르다. 숫자가 단추에 그대로 적혀 있어, 무엇을 넣는지
+   * 보고 누른다. 안 누르면 빈칸 그대로다.
+   */
+  const fillFromLast = (id: string) =>
+    changeAndSave(id, (e) => {
+      const last = e.past[0];
+      if (last == null) return e;
+      return {
+        ...e,
+        doneSets: last.setsDone?.toString() ?? '',
+        doneReps: last.repsDone?.toString() ?? '',
+        doneHoldSeconds: last.holdSecondsDone?.toString() ?? '',
+        doneWeightKg: last.weightKg?.toString() ?? '',
+      };
+    });
+
+  const saveAmount = (id: string) => {
+    const target = items.find((e) => e.id === id);
+    if (target) persist(target);
   };
 
   /*
@@ -249,6 +328,8 @@ export function ExerciseChecklist({
               onRemove={remove}
               onAmountChange={setAmount}
               onAmountBlur={saveAmount}
+              onWeightNudge={nudgeWeight}
+              onFillFromLast={fillFromLast}
             />
           </section>
         );
@@ -343,16 +424,41 @@ function PastRecord({ title, past }: { title: string; past: PastAmount[] }) {
 }
 
 /** 실제로 한 만큼을 적는 작은 칸 하나 */
+/** 무게를 한 칸 올리고 내리는 작은 단추 */
+function NudgeButton({
+  label,
+  onClick,
+  children,
+}: {
+  label: string;
+  onClick: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-label={label}
+      className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border border-line bg-surface text-sm font-semibold text-muted transition-colors hover:border-sky hover:text-sky"
+    >
+      {children}
+    </button>
+  );
+}
+
 function AmountInput({
   value,
   unit,
   label,
+  wide = false,
   onChange,
   onBlur,
 }: {
   value: string;
   unit: string;
   label: string;
+  /** 소수점이 들어가는 칸(무게)은 조금 넓어야 '62.5'가 다 보인다 */
+  wide?: boolean;
   onChange: (value: string) => void;
   onBlur: () => void;
 }) {
@@ -366,7 +472,7 @@ function AmountInput({
         onBlur={onBlur}
         aria-label={label}
         placeholder="—"
-        className="w-11 rounded-lg border border-line bg-surface px-2 py-1 text-center text-sm font-semibold text-ink outline-none transition-colors placeholder:font-normal placeholder:text-muted/50 focus:border-sky"
+        className={`${wide ? 'w-14' : 'w-11'} rounded-lg border border-line bg-surface px-2 py-1 text-center text-sm font-semibold text-ink outline-none transition-colors placeholder:font-normal placeholder:text-muted/50 focus:border-sky`}
       />
       {unit}
     </label>
@@ -379,6 +485,8 @@ function ExerciseList({
   onRemove,
   onAmountChange,
   onAmountBlur,
+  onWeightNudge,
+  onFillFromLast,
 }: {
   items: TodayExercise[];
   onToggle: (id: string) => void;
@@ -389,10 +497,18 @@ function ExerciseList({
     value: string
   ) => void;
   onAmountBlur: (id: string) => void;
+  onWeightNudge: (id: string, direction: 1 | -1) => void;
+  onFillFromLast: (id: string) => void;
 }) {
   return (
     <ul className="space-y-2.5">
-      {items.map((ex) => (
+      {items.map((ex) => {
+        const lastText = ex.past[0] ? formatAmount(ex.past[0]) : null;
+        // 하나라도 적었으면 '지난번 그대로'를 내지 않는다 — 적은 것을 덮으면 안 된다
+        const anyAmount = Boolean(
+          ex.doneSets || ex.doneReps || ex.doneHoldSeconds || ex.doneWeightKg
+        );
+        return (
           /*
             빼기 단추를 완료 단추 안에 넣을 수는 없다(단추 안의 단추). 나란히
             두고, 완료 쪽이 남은 자리를 다 쓰게 한다.
@@ -487,55 +603,87 @@ function ExerciseList({
               같은 테두리 안에 아래 줄로 붙여 한 덩어리로 보이게 한다.
             */}
             {ex.done && (
-              <div className="flex flex-wrap items-center gap-x-3 gap-y-2 border-t border-sky-soft/50 px-4 py-2.5">
-                <span className="text-xs font-medium text-sky-strong">실제로 한 것</span>
-                <AmountInput
-                  value={ex.doneSets}
-                  unit="세트"
-                  label={`${ex.title} 실제로 한 세트 수`}
-                  onChange={(v) => onAmountChange(ex.id, 'doneSets', v)}
-                  onBlur={() => onAmountBlur(ex.id)}
-                />
-                <span aria-hidden className="text-xs text-muted">
-                  ×
-                </span>
-                {ex.isHold ? (
+              <div className="space-y-2 border-t border-sky-soft/50 px-4 py-2.5">
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+                  <span className="text-xs font-medium text-sky-strong">실제로 한 것</span>
                   <AmountInput
-                    value={ex.doneHoldSeconds}
-                    unit="초"
-                    label={`${ex.title} 세트당 실제로 버틴 시간(초)`}
-                    onChange={(v) => onAmountChange(ex.id, 'doneHoldSeconds', v)}
+                    value={ex.doneSets}
+                    unit="세트"
+                    label={`${ex.title} 실제로 한 세트 수`}
+                    onChange={(v) => onAmountChange(ex.id, 'doneSets', v)}
                     onBlur={() => onAmountBlur(ex.id)}
                   />
-                ) : (
-                  <AmountInput
-                    value={ex.doneReps}
-                    unit="회"
-                    label={`${ex.title} 세트당 실제로 한 횟수`}
-                    onChange={(v) => onAmountChange(ex.id, 'doneReps', v)}
-                    onBlur={() => onAmountBlur(ex.id)}
-                  />
-                )}
-                {/*
-                  무게는 선택이다. 적으면 "평소보다 무겁게 들었나"를 부하에
-                  반영한다 — 1RM을 추정하지 않고 본인의 최근 평균과 견준다.
-                  맨몸 운동에는 아예 칸을 내지 않는다.
-                */}
-                {ex.usesWeight && (
-                  <>
-                    <span aria-hidden className="text-xs text-muted">
-                      ·
-                    </span>
+                  {/*
+                    세트마다 무게가 다른 사람이 대부분이라(40 → 50 → 60),
+                    횟수와 무게는 '가장 무거웠던 세트' 기준으로 적게 한다.
+                    사람이 기억하는 숫자이고, 증량을 정하는 것도 그 숫자다.
+                  */}
+                  {ex.usesWeight && (
+                    <span className="text-[11px] text-muted">중 가장 무거웠던 세트</span>
+                  )}
+                  {ex.isHold ? (
                     <AmountInput
-                      value={ex.doneWeightKg}
-                      unit="kg"
-                      label={`${ex.title} 실제로 든 무게(kg)`}
-                      onChange={(v) => onAmountChange(ex.id, 'doneWeightKg', v)}
+                      value={ex.doneHoldSeconds}
+                      unit="초"
+                      label={`${ex.title} 세트당 실제로 버틴 시간(초)`}
+                      onChange={(v) => onAmountChange(ex.id, 'doneHoldSeconds', v)}
                       onBlur={() => onAmountBlur(ex.id)}
                     />
-                  </>
+                  ) : (
+                    <AmountInput
+                      value={ex.doneReps}
+                      unit="회"
+                      label={
+                        ex.usesWeight
+                          ? `${ex.title} 가장 무거웠던 세트의 횟수`
+                          : `${ex.title} 세트당 실제로 한 횟수`
+                      }
+                      onChange={(v) => onAmountChange(ex.id, 'doneReps', v)}
+                      onBlur={() => onAmountBlur(ex.id)}
+                    />
+                  )}
+                  {ex.usesWeight && (
+                    <span className="inline-flex items-center gap-1">
+                      <NudgeButton
+                        label={`${ex.title} 무게 ${WEIGHT_STEP}kg 내리기`}
+                        onClick={() => onWeightNudge(ex.id, -1)}
+                      >
+                        −
+                      </NudgeButton>
+                      <AmountInput
+                        value={ex.doneWeightKg}
+                        unit="kg"
+                        wide
+                        label={`${ex.title} 가장 무거웠던 세트의 무게(kg)`}
+                        onChange={(v) => onAmountChange(ex.id, 'doneWeightKg', v)}
+                        onBlur={() => onAmountBlur(ex.id)}
+                      />
+                      <NudgeButton
+                        label={`${ex.title} 무게 ${WEIGHT_STEP}kg 올리기`}
+                        onClick={() => onWeightNudge(ex.id, 1)}
+                      >
+                        +
+                      </NudgeButton>
+                    </span>
+                  )}
+                  <span className="text-[11px] text-muted">안 적어도 됩니다</span>
+                </div>
+
+                {/*
+                  지난번 값을 그대로 가져오는 단추.
+                  미리 채워 두는 것과 다르다 — 숫자가 단추에 적혀 있어 무엇을
+                  넣는지 보고 누른다. 이미 뭔가 적었으면 내지 않는다.
+                */}
+                {lastText && !anyAmount && (
+                  <button
+                    type="button"
+                    onClick={() => onFillFromLast(ex.id)}
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-sky-soft/70 bg-surface px-2.5 py-1 text-[11px] text-sky-strong transition-colors hover:border-sky hover:bg-sky/5"
+                  >
+                    <RotateCcw aria-hidden className="h-3 w-3" />
+                    지난번 그대로 · {lastText}
+                  </button>
                 )}
-                <span className="text-[11px] text-muted">안 적어도 됩니다</span>
               </div>
             )}
             </div>
@@ -550,7 +698,8 @@ function ExerciseList({
               <X className="h-4 w-4" />
             </button>
           </li>
-      ))}
+        );
+      })}
     </ul>
   );
 }

@@ -4,7 +4,7 @@ import { revalidatePath } from 'next/cache';
 import { prisma } from '@/lib/prisma';
 import { requireUser } from '@/lib/dal';
 import { shiftDateKey, toDateKey } from '@/lib/pitch-stats';
-import { AMOUNT_LIMITS } from '@/lib/exercise-meta';
+import { AMOUNT_LIMITS, WEIGHT_PRECISION } from '@/lib/exercise-meta';
 
 /**
  * 며칠 전 것까지 고칠 수 있는가.
@@ -14,8 +14,13 @@ import { AMOUNT_LIMITS } from '@/lib/exercise-meta';
  */
 const BACKFILL_DAYS = 7;
 
-/** 0보다 큰 정수만 받는다. 빈칸이나 이상한 값은 '안 적음'으로 본다. */
-function positiveInt(value: unknown, max: number): number | null {
+/**
+ * 0보다 큰 수만 받는다. 빈칸이나 이상한 값은 '안 적음'으로 본다.
+ *
+ * step 은 값을 어디에 맞춰 자를지다. 세트·횟수는 1(정수), 무게는 0.5 —
+ * 원판이 2.5kg 단위로 늘어나므로 62.5 를 담아야 한다.
+ */
+function positiveNumber(value: unknown, max: number, step = 1): number | null {
   const n =
     typeof value === 'number'
       ? value
@@ -23,8 +28,10 @@ function positiveInt(value: unknown, max: number): number | null {
         ? Number(value)
         : NaN;
   if (!Number.isFinite(n)) return null;
-  const rounded = Math.round(n);
-  return rounded >= 1 && rounded <= max ? rounded : null;
+  const snapped = Math.round(n / step) * step;
+  // 0.1 + 0.2 같은 자리 오차를 없앤다
+  const clean = Math.round(snapped * 100) / 100;
+  return clean >= step && clean <= max ? clean : null;
 }
 
 /*
@@ -106,10 +113,10 @@ export async function setExerciseDone(
         }
       : {
           completed: true,
-          setsDone: positiveInt(amount?.sets, AMOUNT_LIMITS.sets),
-          repsDone: positiveInt(amount?.reps, AMOUNT_LIMITS.reps),
-          holdSecondsDone: positiveInt(amount?.holdSeconds, AMOUNT_LIMITS.holdSeconds),
-          weightKg: positiveInt(amount?.weightKg, AMOUNT_LIMITS.weightKg),
+          setsDone: positiveNumber(amount?.sets, AMOUNT_LIMITS.sets),
+          repsDone: positiveNumber(amount?.reps, AMOUNT_LIMITS.reps),
+          holdSecondsDone: positiveNumber(amount?.holdSeconds, AMOUNT_LIMITS.holdSeconds),
+          weightKg: positiveNumber(amount?.weightKg, AMOUNT_LIMITS.weightKg, WEIGHT_PRECISION),
         };
     await prisma.userExerciseLog.upsert({
       where: { userId_exerciseId_date: key },
@@ -139,7 +146,7 @@ export async function saveTrainingNote(
 ): Promise<{ ok: true } | { error: string }> {
   const user = await requireUser();
 
-  const value = positiveInt(intensity, 10);
+  const value = positiveNumber(intensity, 10);
   if (value == null) return { error: '운동 강도를 1~10 중에서 골라주세요.' };
 
   const text = typeof memo === 'string' ? memo.trim().slice(0, 1000) : '';

@@ -374,6 +374,22 @@ export const AMOUNT_LIMITS = {
 
 export type AmountField = keyof typeof AMOUNT_LIMITS;
 
+/**
+ * 무게를 올리고 내리는 단위(kg).
+ *
+ * 원판은 한 쌍이 2.5kg 씩 늘어나고, 덤벨도 대개 2.5kg 간격이다. 1kg 씩
+ * 움직이게 하면 실제로 쓸 수 없는 숫자를 만들게 된다.
+ */
+export const WEIGHT_STEP = 2.5;
+
+/** 저장은 0.5kg 자리까지. 2.5 간격을 담으려면 이만큼은 필요하다. */
+export const WEIGHT_PRECISION = 0.5;
+
+/** 60 은 '60kg', 62.5 는 '62.5kg' — 없는 소수점을 붙이지 않는다. */
+export function formatKg(kg: number): string {
+  return `${Number.isInteger(kg) ? kg : kg.toFixed(1)}kg`;
+}
+
 /** 실제로 한 만큼. 안 적은 칸은 null 이다. */
 export type DoneAmount = {
   setsDone: number | null;
@@ -398,7 +414,7 @@ export function formatAmount(a: DoneAmount): string | null {
   if (a.repsDone != null) parts.push(`${a.repsDone}회`);
   if (a.holdSecondsDone != null) parts.push(`${a.holdSecondsDone}초`);
   const amount = parts.join(' × ');
-  const weight = a.weightKg != null ? `${a.weightKg}kg` : null;
+  const weight = a.weightKg != null ? formatKg(a.weightKg) : null;
   if (!amount && !weight) return null;
   return [amount, weight].filter(Boolean).join(' · ');
 }
