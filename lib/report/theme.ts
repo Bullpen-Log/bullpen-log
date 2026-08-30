@@ -387,6 +387,13 @@ export type ThemedExercise = {
   category: string;
   intensity: string;
   bodyParts: string[];
+  /**
+   * 몸을 어떤 방식으로 쓰는가 — 힌지·스쿼트·런지·밀기·당기기·회전·운반.
+   *
+   * 한 구간에 같은 계열이 몰리지 않게 하는 데 쓴다. 비어 있으면 따지지 않는다 —
+   * 스트레칭이나 종아리처럼 이 축으로 가를 것이 없는 운동이 많다.
+   */
+  movementPattern?: string | null;
 } & Partial<Prescription>;
 
 export type ThemedPick<T> = { exercise: T; slot: SlotKey };
@@ -527,10 +534,15 @@ function orderCandidates<T extends ThemedExercise>(
  *
  * 아무 숫자나 만들려는 것이 아니라, 같은 입력에는 늘 같은 값이 나와야 한다 —
  * 만들어 둔 일정을 저녁에 다시 열었을 때 순서가 달라지면 안 된다.
+ *
+ * 씨앗을 앞에 붙인다. 뒤에 붙였더니 8월 30일과 8월 31일이 완전히 같은 순서를
+ * 냈다. 마지막 글자만 다르면 모든 값이 똑같은 만큼 밀리는데, 똑같이 밀면
+ * 순서는 그대로다. 앞에 두면 그 차이가 뒤따르는 계산을 모두 지나며 흩어진다.
+ * (이어진 날끼리 자리가 그대로일 확률: 뒤에 붙일 때 22%, 앞에 붙이면 1%.)
  */
 function mix(id: string, seed: string): number {
   let h = 0x811c9dc5;
-  const text = `${id}:${seed}`;
+  const text = `${seed}:${id}`;
   for (let i = 0; i < text.length; i++) {
     h ^= text.charCodeAt(i);
     h = Math.imul(h, 0x01000193) >>> 0;
@@ -700,14 +712,36 @@ export function pickForTheme<T extends ThemedExercise>({
     const fits = (cost: number) =>
       chosen.length === 0 || used + cost <= budget + SLOT_SLACK_MINUTES;
 
-    for (const ex of pool) {
-      if (chosen.length >= spec.maxCount) break;
-      if (taken.has(ex.id)) continue;
-      const cost = estimateMinutes(ex);
-      if (!fits(cost)) continue;
-      chosen.push(ex);
-      taken.add(ex.id);
-      used += cost;
+    /*
+     * 같은 계열이 몰리지 않게 한다.
+     *
+     * 앞에서 이미 고른 것과 동작 계열이 겹치면 한 바퀴 미룬다. 스쿼트를 넣고
+     * 나면 다음 자리는 힌지·런지 쪽을 먼저 본다는 뜻이다.
+     *
+     * 왜 필요한가. 카테고리(하체 스트렝스)만 맞으면 무엇이든 들어가던 때는
+     * 60일 중 25일이 본운동을 무릎 계열로만 채웠다. 구속은 뒤쪽 사슬에서
+     * 나오는데 그쪽이 통째로 빠지는 날이다.
+     *
+     * 막지는 않는다. 겹치지 않는 것이 하나도 안 남으면 겹쳐도 넣는다 —
+     * 구간이 비는 것이 훨씬 나쁘다. 계열이 비어 있는 운동은 이 규칙을 지나간다.
+     */
+    const usedPatterns = new Set(
+      chosen.map((ex) => ex.movementPattern).filter((p): p is string => !!p)
+    );
+    const clashes = (ex: T) =>
+      ex.movementPattern != null && usedPatterns.has(ex.movementPattern);
+
+    const remaining = pool.filter((ex) => !taken.has(ex.id));
+    while (chosen.length < spec.maxCount) {
+      const canTake = (ex: T) => !taken.has(ex.id) && fits(estimateMinutes(ex));
+      const next =
+        remaining.find((ex) => canTake(ex) && !clashes(ex)) ??
+        remaining.find(canTake);
+      if (next == null) break;
+      chosen.push(next);
+      taken.add(next.id);
+      used += estimateMinutes(next);
+      if (next.movementPattern) usedPatterns.add(next.movementPattern);
     }
 
     /*

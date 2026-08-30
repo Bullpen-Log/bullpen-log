@@ -46,17 +46,37 @@ const EARLY_SESSIONS = 30;
 /** 1년 동안 적어도 이만큼은 라이브러리를 써야 한다 */
 const MIN_YEAR_COVERAGE = 250;
 /**
- * 동작 편중이 예전보다 이만큼 넘게 나빠지면 알린다.
+ * 하체 본운동 중 힌지(고관절 접기) 계열이 차지해야 하는 최소 비율.
  *
- * 실패로 치지 않는다. 재등장 텀을 넣으면 후보 풀이 좁아져 같은 계열이 몰리는
- * 것은 알고 받아들인 대가이고, 이건 동작 패턴 항목이 생겨야 풀린다.
- * 다만 눈에서 사라지면 안 되므로 계속 적어 둔다.
+ * 처음에는 '무릎 계열만 나온 날'을 셌다. 그런데 45분이면 본운동이 평균 1.9개라
+ * 한 개뿐인 날이 적지 않고, 그런 날은 하나가 스쿼트면 그냥 '무릎만'이 된다 —
+ * 균형을 맞출 자리가 없는 날을 세고 있었던 셈이다.
+ *
+ * 하루가 아니라 며칠에 걸친 균형을 본다. 후보 풀에서 힌지는 55/151(36%)이니
+ * 뽑히는 비율도 그 언저리여야 한다. 크게 낮으면 뒤쪽 사슬이 빠지고 있다는 뜻이다.
  */
-const KNEE_ONLY_SLACK = 0.05;
+const MIN_HINGE_SHARE = 0.3;
+/**
+ * 힌지가 한 번도 안 나오고 지나가도 되는 하체날 연속 길이의 상한.
+ *
+ * 비율이 맞아도 몰려 있으면 안 되니 함께 본다. 다만 이쪽은 느슨하게 잡는다 —
+ * 45분이면 본운동이 평균 1.9개라, 비율이 맞아도 우연히 몇 번 이어질 수 있다.
+ * 진짜 지켜야 하는 것은 위의 비율이고, 이것은 크게 벌어지는 것만 잡는다.
+ *
+ * '오래 안 한 계열을 먼저 본다'는 규칙도 넣어 봤는데 거꾸로 갔다. 계열의
+ * '가장 최근'으로 재면 운동이 많은 계열이 불리해진다 — 힌지 55개 중 하나만
+ * 최근에 했어도 힌지 전체가 뒤로 밀려, 비율이 49%에서 10%로 떨어졌다.
+ */
+const MAX_HINGE_DROUGHT = 5;
 
-/** 제목으로 하체 동작을 가른다 — 앱에는 아직 동작 패턴 항목이 없다. */
-const KNEE = /스쿼트|런지|스텝업|스플릿|레그 ?프레스|시시|박스 점프|카프/;
-const HINGE = /데드리프트|RDL|힌지|굿모닝|힙 ?쓰러스트|브리지|스윙|풀 ?스루|햄스트링|노르딕/;
+/**
+ * 하체 본운동이 한쪽으로 몰렸는가를 재는 기준.
+ *
+ * 고관절을 접는 계열(힌지)이 얼마나 들어가는지를 본다. 구속은 뒤쪽 사슬 —
+ * 햄스트링과 둔근 — 에서 나오는데, 무릎 계열(스쿼트·런지)로만 채우면 그쪽이
+ * 통째로 빠진다.
+ */
+const HINGE_PATTERN = '힌지';
 
 const day = (n: number) =>
   new Date(Date.UTC(2026, 0, 5) + n * 86400000).toISOString().slice(0, 10);
@@ -83,7 +103,8 @@ type Result = {
   comparable: number;
   earlyComparable: number;
   coverage: number;
-  kneeOnly: number;
+  hingeShare: number;
+  drought: number;
   lowerDays: number;
   meanSessionGap: number | null;
 };
@@ -148,7 +169,10 @@ function run(days: number, regular: boolean, oldWay = false): Result {
   let earlyMain = 0;
   let earlyComparable = 0;
   let lowerDays = 0;
-  let kneeOnly = 0;
+  let lowerMain = 0;
+  let hingeMain = 0;
+  let drought = 0;
+  let worstDrought = 0;
 
   for (let i = 0; i < days; i++) {
     if (!regular && !irregularDay(i)) continue;
@@ -185,7 +209,7 @@ function run(days: number, regular: boolean, oldWay = false): Result {
           goal: '균형 잡힌 관리',
         });
 
-    const mainTitles: string[] = [];
+    const mainPatterns: (string | null)[] = [];
     for (const p of picked.picks) {
       const id = p.exercise.id;
       if (p.slot === 'main') {
@@ -196,7 +220,7 @@ function run(days: number, regular: boolean, oldWay = false): Result {
           earlyMain++;
           if (had) earlyComparable++;
         }
-        mainTitles.push(p.exercise.title);
+        mainPatterns.push(p.exercise.movementPattern);
       }
       const before = lastSession.get(id);
       if (before != null) returns.push(session - before);
@@ -207,9 +231,10 @@ function run(days: number, regular: boolean, oldWay = false): Result {
 
     if (theme === 'lower') {
       lowerDays++;
-      const knee = mainTitles.some((t) => KNEE.test(t));
-      const hinge = mainTitles.some((t) => HINGE.test(t));
-      if (knee && !hinge) kneeOnly++;
+      lowerMain += mainPatterns.filter((p) => p != null).length;
+      hingeMain += mainPatterns.filter((p) => p === HINGE_PATTERN).length;
+      if (mainPatterns.some((p) => p === HINGE_PATTERN)) drought = 0;
+      else worstDrought = Math.max(worstDrought, ++drought);
     }
   }
 
@@ -218,7 +243,8 @@ function run(days: number, regular: boolean, oldWay = false): Result {
     comparable: mainPicks ? comparable / mainPicks : 0,
     earlyComparable: earlyMain ? earlyComparable / earlyMain : 0,
     coverage: seen.size,
-    kneeOnly,
+    hingeShare: lowerMain ? hingeMain / lowerMain : 0,
+    drought: worstDrought,
     lowerDays,
     meanSessionGap: returns.length
       ? returns.reduce((a, b) => a + b, 0) / returns.length
@@ -253,7 +279,10 @@ for (const [label, regular] of [
     `  같은 운동이 다시 나오기까지        ${((before.meanSessionGap?.toFixed(1) ?? '—') + '세션').padStart(8)}  ${((now.meanSessionGap?.toFixed(1) ?? '—') + '세션').padStart(8)}`
   );
   console.log(
-    `  무릎 동작만 나온 하체날            ${(before.kneeOnly + '/' + before.lowerDays).padStart(8)}  ${(now.kneeOnly + '/' + now.lowerDays).padStart(8)}`
+    `  하체 본운동 중 힌지 계열           ${pct(before.hingeShare).padStart(8)}  ${pct(now.hingeShare).padStart(8)}`
+  );
+  console.log(
+    `  힌지 없이 지나간 하체날 최대       ${(before.drought + '일').padStart(8)}  ${(now.drought + '일').padStart(8)}`
   );
 
   if (now.comparable < MIN_COMPARABLE) {
@@ -270,13 +299,17 @@ for (const [label, regular] of [
     console.log(`  ✗ 1년에 쓰는 운동이 ${MIN_YEAR_COVERAGE}개보다 적습니다 — 라이브러리가 굳고 있습니다.`);
     failed = true;
   }
-  const beforeRate = before.kneeOnly / before.lowerDays;
-  const nowRate = now.kneeOnly / now.lowerDays;
-  if (nowRate > beforeRate + KNEE_ONLY_SLACK) {
+  if (now.hingeShare < MIN_HINGE_SHARE) {
     console.log(
-      `  ⚠ 무릎 동작만 나온 날이 예전보다 늘었습니다 (${pct(beforeRate)} → ${pct(nowRate)}).`
+      `  ✗ 하체 본운동 중 힌지가 ${pct(now.hingeShare)} 뿐입니다 (${pct(MIN_HINGE_SHARE)} 이상이어야 합니다).`
     );
-    console.log('    받아들인 대가입니다 — 동작 패턴 항목이 생기면 풀립니다.');
+    failed = true;
+  }
+  if (now.drought > MAX_HINGE_DROUGHT) {
+    console.log(
+      `  ✗ 힌지 없이 하체날이 ${now.drought}번 이어졌습니다 (${MAX_HINGE_DROUGHT}번까지).`
+    );
+    failed = true;
   }
 }
 
@@ -284,7 +317,7 @@ console.log('');
 console.log(
   failed
     ? '실패 — 재등장 규칙(lib/report/theme.ts 의 RETURN_SESSIONS·NEW_EXERCISE_BONUS)을 다시 보세요.'
-    : '모두 통과 — 지난 기록을 견줄 수 있고, 라이브러리도 굳지 않습니다.'
+    : '모두 통과 — 지난 기록을 견줄 수 있고, 라이브러리도 굳지 않고, 동작 계열도 골고루 들어갑니다.'
 );
 console.log('');
 if (failed) process.exit(1);

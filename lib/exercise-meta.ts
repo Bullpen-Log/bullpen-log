@@ -147,6 +147,35 @@ export type EquipmentName = (typeof EXERCISE_EQUIPMENT)[number];
 const WEIGHTED_EQUIPMENT: readonly string[] = ['덤벨', '바벨', '원판', '케틀벨'];
 
 /** 이 운동에 무게 칸을 낼 것인가 */
+/* ------------------------------- 동작 패턴 ------------------------------- */
+
+/**
+ * 몸을 어떤 방식으로 쓰는가.
+ *
+ * BODY_PARTS 와 다른 축이다. 저쪽은 '어느 근육을 쓰나'이고 이쪽은 '어떻게
+ * 움직이나'다. 데드리프트와 스쿼트는 둘 다 하체인데 몸을 쓰는 방식이 다르다.
+ *
+ * 하루 구성을 짤 때 필요한 축이다. 카테고리만 맞으면 무엇이든 들어가던 때는
+ * 60일 중 25일이 본운동을 무릎 계열로만 채웠다.
+ *
+ * 빠른 동작을 따로 두지 않는다. 박스 점프는 빠른 스쿼트이지 다른 계열이
+ * 아니다 — 관절이 하는 일로 가른다. 그래야 "스쿼트 하고 나서 점프"가
+ * 겹친다는 것이 드러난다.
+ */
+export const MOVEMENT_PATTERNS = [
+  { name: '힌지', desc: '고관절을 접었다 편다 — 데드리프트·RDL·브리지' },
+  { name: '스쿼트', desc: '두 발로 무릎을 굽혔다 편다 — 스쿼트·레그프레스' },
+  { name: '런지', desc: '한 발에 실어 무릎을 굽힌다 — 런지·스텝업·스플릿' },
+  { name: '밀기', desc: '몸에서 밀어낸다 — 프레스·푸쉬업·딥스' },
+  { name: '당기기', desc: '몸쪽으로 당긴다 — 로우·풀업·컬' },
+  { name: '회전', desc: '몸통을 돌리거나 돌아가지 않게 버틴다' },
+  { name: '운반', desc: '무게를 들고 버티거나 걷는다' },
+] as const;
+
+export const MOVEMENT_PATTERN_NAMES: readonly string[] = MOVEMENT_PATTERNS.map(
+  (p) => p.name
+);
+
 export function usesWeight(equipment: readonly string[]): boolean {
   return equipment.some((e) => WEIGHTED_EQUIPMENT.includes(e));
 }
