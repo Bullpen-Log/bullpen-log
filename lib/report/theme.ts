@@ -427,6 +427,14 @@ export function slotForTheme(ex: ThemedExercise, theme: ThemeKey): SlotKey {
 }
 
 /**
+ * 구간마다 배분된 시간을 넘겨도 되는 한도(분).
+ *
+ * 딱 맞아떨어지는 일이 거의 없어 조금은 넘겨야 한다. 다섯 구간이 각자 조금씩
+ * 넘치므로 크게 잡으면 안 된다 — 2분씩 다섯이면 벌써 10분이다.
+ */
+const SLOT_SLACK_MINUTES = 1.5;
+
+/**
  * 후보를 어떤 순서로 볼지 정한다.
  *
  * 예전에는 "최근 사흘 안에 했나"만 보고 그것만 뒤로 보냈다. 그런데 사흘이
@@ -644,15 +652,23 @@ export function pickForTheme<T extends ThemedExercise>({
     /*
      * 배분된 시간이 찰 때까지 넣는다.
      *
-     * 딱 맞아떨어지는 일은 거의 없으므로, 남은 시간에 그 운동의 절반 이상이
-     * 들어가면 넣는다. 그렇게 하지 않으면 8분이 남았는데 9분짜리가 안 들어가
-     * 시간이 그냥 버려진다. 넘치더라도 절반을 넘기지는 않는다.
+     * 딱 맞아떨어지는 일은 거의 없으므로 조금 넘치는 것은 받아들인다. 그렇게
+     * 하지 않으면 8분이 남았는데 9분짜리가 안 들어가 시간이 그냥 버려진다.
+     *
+     * 넘겨도 되는 양은 분으로 못박는다. 예전에는 '그 운동의 절반'까지 봐줬는데,
+     * 그건 운동이 7~10분씩 하던 때 정한 값이다. 세트 수를 운동 성격에 맞게
+     * 나눈 뒤로는 1분짜리 스트레칭과 15분짜리 데드리프트가 같은 목록에 있어,
+     * 절반을 봐주면 긴 운동 하나가 예산을 7분씩 넘겼다. 45분을 부탁했는데
+     * 55분이 나왔다.
+     *
+     * 구간이 비는 것보다는 넘치는 편이 낫다. 첫 하나는 무조건 넣는다.
      *
      * 자리를 못 찾으면 다음 운동을 계속 본다(멈추지 않는다). 긴 운동이 안
      * 들어갈 때 짧은 운동으로 남은 시간을 채울 수 있어서다.
      */
     let used = chosen.reduce((sum, ex) => sum + estimateMinutes(ex), 0);
-    const fits = (cost: number) => chosen.length === 0 || used + cost / 2 <= budget;
+    const fits = (cost: number) =>
+      chosen.length === 0 || used + cost <= budget + SLOT_SLACK_MINUTES;
 
     for (const ex of pool) {
       if (chosen.length >= spec.maxCount) break;

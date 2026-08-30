@@ -365,11 +365,15 @@ console.log('\n[운동 부하] 무거운 운동과 가벼운 운동이 갈리는
    * 시간은 부하 계산에서 빠졌지만 화면에는 그대로 나온다("이번 주 471분").
    * 사람은 분을 이해하지, 환산 세트를 처음부터 이해하지는 않는다.
    */
+  /*
+   * 계획 세트를 숫자로 못박지 않는다. 처방 규칙이 바뀌면(예: 무거운 운동을
+   * 4세트로) 시험이 함께 깨지는데, 그건 코드가 틀린 것이 아니다.
+   */
   const planned = exerciseMinutes({ ...dead, setsDone: null });
   const half = exerciseMinutes({ ...dead, setsDone: 2 });
   check(
     '시간도 실제 세트로 센다 (화면 표시용)',
-    planned > 0 && Math.abs(half - (planned * 2) / 3) < 0.01,
+    planned > 0 && Math.abs(half - (planned * 2) / (dead.sets ?? 3)) < 0.01,
     `계획 ${dead.sets}세트 ${planned.toFixed(1)}분 → 2세트 ${half.toFixed(1)}분`
   );
 }
@@ -391,10 +395,12 @@ console.log('\n[운동 부하] 무거운 운동과 가벼운 운동이 갈리는
     `3세트 ${three.load.toFixed(2)} → 2세트 ${two.load.toFixed(2)}`
   );
 
+  // 계획 세트와 견준다. 숫자를 못박으면 처방 규칙이 바뀔 때 함께 깨진다.
+  const asPlanned = trainingDayLoad([{ ...dead, setsDone: dead.sets }], 6);
   const noSets = trainingDayLoad([{ ...dead, setsDone: null }], 6);
   check(
     '세트를 안 적으면 계획 세트로 센다',
-    Math.abs(noSets.load - three.load) < 0.001 && noSets.estimatedCount === 1,
+    Math.abs(noSets.load - asPlanned.load) < 0.001 && noSets.estimatedCount === 1,
     `계획 ${dead.sets}세트 → ${noSets.load.toFixed(2)}`
   );
 

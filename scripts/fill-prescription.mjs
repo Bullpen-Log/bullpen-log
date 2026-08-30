@@ -16,6 +16,7 @@ import {
   isPerSide,
   holdSecondsFor,
   restSecondsFor,
+  setsFor,
   REVIEWED_TITLES,
 } from './prescription-rules.mjs';
 
@@ -58,7 +59,7 @@ for (const e of rows) {
   const hold = isHold(e.title, e.description, e.category);
 
   const data = {
-    sets: 3,
+    sets: setsFor(e.category, level),
     reps: hold ? null : e.category === '파워' ? 5 : 10,
     holdSeconds: hold ? holdSecondsFor(e.category, level) : null,
     restSeconds: restSecondsFor(e.category, level, e.bodyParts),
