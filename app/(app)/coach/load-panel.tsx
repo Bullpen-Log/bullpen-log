@@ -183,7 +183,7 @@ function Primary({ view }: { view: LoadView }) {
     <div className="space-y-4 px-6 py-7 sm:px-8">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-muted">
+          <p className="text-[11px] font-medium tracking-normal text-muted">
             {view.name} 부하 지수
           </p>
           <p className="mt-1 text-[11px] leading-relaxed text-muted/70">{view.what}</p>

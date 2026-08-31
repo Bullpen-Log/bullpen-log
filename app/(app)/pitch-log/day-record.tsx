@@ -180,7 +180,7 @@ export function DayRecord({
 
       {/* 그날의 느낀점 */}
       <div className="rounded-xl border border-line bg-surface-2 p-4">
-        <p className="text-xs font-medium uppercase tracking-wider text-sky">
+        <p className="text-xs font-medium tracking-normal text-sky">
           그날의 느낀점
         </p>
         {log.memo ? (

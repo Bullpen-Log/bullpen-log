@@ -339,7 +339,7 @@ export default async function TrainingPage({
       {/* 왜 오늘 이런 구성인지 — 고르는 건 코드, 설명은 AI가 한다 */}
       {aiTraining && (
         <Card className="space-y-2 border-sky-soft/60 bg-sky-tint">
-          <p className="flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-[0.18em] text-sky-strong">
+          <p className="flex items-center gap-1.5 text-[11px] font-medium tracking-normal text-sky-strong">
             <Sparkles className="h-3.5 w-3.5" />
             오늘의 훈련
           </p>
@@ -412,20 +412,32 @@ export default async function TrainingPage({
         </Card>
       ) : (
         <>
-          {/* 오늘의 일정 — 무엇을 위한 하루인지 먼저 말한다 */}
-          <Card className="space-y-3">
+          {/*
+            오늘의 일정 — 무엇을 위한 하루인지 먼저 말한다.
+
+            이 화면에서 가장 위에 오는 카드인데 운동 한 줄과 똑같은 흰 상자였다.
+            엷은 하늘색 바탕을 깔고 제목을 키워, 훑어봤을 때 여기가 머리라는
+            것이 보이게 한다.
+          */}
+          <Card className="space-y-3 border-sky-soft/40 bg-gradient-to-br from-sky/[0.07] via-surface to-surface">
             <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
-              <p className="text-lg font-bold text-ink">오늘은 {savedPlan.theme.label}</p>
+              <p className="text-heading text-xl text-ink sm:text-2xl">
+                오늘은 {savedPlan.theme.label}
+              </p>
               <p className="text-sm text-muted">
                 {/*
                   시간은 만들 때 찍어 둔 값이 아니라 지금 목록에서 센다 —
                   운동을 빼도 "약 50분"이 그대로 남으면 안 된다. 홈도 같은
                   값을 쓴다(lib/report/today-data.ts).
                 */}
-                {exercises.length}종목 · 약 {core.shownMinutes}분
+                <span className="text-display text-base text-ink">{exercises.length}</span>
+                종목 · 약{' '}
+                <span className="text-display text-base text-ink">{core.shownMinutes}</span>분
               </p>
             </div>
-            <p className="text-sm leading-relaxed text-muted">{savedPlan.theme.reason}</p>
+            <p className="text-sm leading-relaxed break-keep text-muted">
+              {savedPlan.theme.reason}
+            </p>
             {savedPlan.minutes < savedPlan.requestedMinutes && (
               <p className="text-xs text-warn">
                 {savedPlan.requestedMinutes}분을 고르셨지만 회복 데이라{' '}
@@ -445,7 +457,7 @@ export default async function TrainingPage({
             )}
 
             {/* 조건을 바꿔 다시 만들 수 있게 — 시간과 오늘 장비를 함께 고른다 */}
-            <div className="border-t border-line pt-3">
+            <div className="border-t border-sky-soft/30 pt-3">
               {planForm(true, savedPlan.requestedMinutes)}
             </div>
           </Card>

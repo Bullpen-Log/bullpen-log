@@ -1,6 +1,7 @@
 'use client';
 
 import { useSyncExternalStore } from 'react';
+import { Moon, Sun } from 'lucide-react';
 import {
   applyTheme,
   getServerTheme,
@@ -47,9 +48,11 @@ export function ThemeToggle({ className = '' }: { className?: string }) {
                 : 'text-muted hover:bg-surface hover:text-ink'
             }`}
           >
-            <span aria-hidden className="text-sm leading-none">
-              {option.icon}
-            </span>
+            {option.value === 'light' ? (
+              <Sun aria-hidden className="h-3.5 w-3.5" />
+            ) : (
+              <Moon aria-hidden className="h-3.5 w-3.5" />
+            )}
             {option.label}
           </button>
         );

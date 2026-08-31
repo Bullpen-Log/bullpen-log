@@ -31,7 +31,7 @@ function ChipRow({
 }) {
   return (
     <fieldset>
-      <legend className="mb-2 block text-xs font-medium uppercase tracking-wider text-muted">
+      <legend className="mb-2 block text-xs font-medium tracking-normal text-muted">
         {label}
       </legend>
       <div className="flex flex-wrap gap-1.5">

@@ -15,8 +15,8 @@
 export const THEME_STORAGE_KEY = 'bullpen-theme';
 
 export const THEME_CHOICES = [
-  { value: 'light', label: '라이트', icon: '☀️', hint: '밝은 화면' },
-  { value: 'dark', label: '다크', icon: '🌙', hint: '어두운 화면' },
+  { value: 'light', label: '라이트', hint: '밝은 화면' },
+  { value: 'dark', label: '다크', hint: '어두운 화면' },
 ] as const;
 
 export type ThemeChoice = (typeof THEME_CHOICES)[number]['value'];

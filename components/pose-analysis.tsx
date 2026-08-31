@@ -105,7 +105,7 @@ function MetricsGrid({ metrics }: { metrics: PitchMetric[] }) {
           key={`${m.phase}-${m.key}`}
           className="rounded-xl border border-line bg-surface-2 px-3 py-2.5"
         >
-          <p className="text-[10px] uppercase tracking-wider text-muted">
+          <p className="text-[10px] tracking-normal text-muted">
             {EVENT_LABELS[m.phase as EventKey]} · {m.label}
           </p>
           {m.display ? (
@@ -137,7 +137,7 @@ function DeltaBlock({
   if (deltas.length === 0) return null;
   return (
     <div className="space-y-1 rounded-xl border border-sky-soft/40 bg-sky/[0.04] px-3 py-2.5">
-      <p className="text-[10px] uppercase tracking-wider text-sky">
+      <p className="text-[10px] tracking-normal text-sky">
         지난 분석 대비 · {previous.date}
       </p>
       <div className="flex flex-wrap gap-x-4 gap-y-1">
@@ -352,7 +352,7 @@ export function PoseAnalysis({
         {saved && (
           <div className="space-y-2 rounded-xl border border-line bg-surface p-3">
             <div className="flex items-baseline justify-between gap-2">
-              <p className="text-[10px] font-medium uppercase tracking-wider text-sky">
+              <p className="text-[10px] font-medium tracking-normal text-sky">
                 저장된 폼 분석
               </p>
               <span className="text-[10px] text-muted">

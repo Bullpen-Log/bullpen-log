@@ -60,7 +60,7 @@ export function MetaFilter({
       <div className="space-y-3.5">
         {groups.map((group) => (
           <div key={group.key}>
-            <p className="mb-2 text-[11px] font-medium uppercase tracking-wider text-muted">
+            <p className="mb-2 text-[11px] font-medium tracking-normal text-muted">
               {group.label}
             </p>
             <div className="flex flex-wrap gap-1.5">

@@ -53,28 +53,37 @@ export function MiniBars({
 
   return (
     <span className="mt-3 block">
+      {/*
+        바닥선을 하나 깔아 둔다. 없으면 막대가 허공에 떠 있는 네모 몇 개로 보였다.
+        오늘(맨 오른쪽)은 진하게 — 어제까지의 흐름과 지금을 가르는 선이다.
+      */}
       <span
-        className={`flex items-end gap-1 ${empty ? 'h-5' : 'h-14'}`}
+        className={`flex items-end gap-1 border-b border-line ${empty ? 'h-5' : 'h-14'}`}
         aria-hidden
       >
-        {bars.map((b) => (
-          <span
-            key={b.key}
-            title={b.title}
-            className="flex h-full flex-1 flex-col justify-end"
-          >
-            {b.value > 0 ? (
-              <span
-                className="block rounded-sm bg-sky/50"
-                style={{ height: `${Math.max(12, (b.value / peak) * 100)}%` }}
-              />
-            ) : (
-              <span className="block h-[3px] rounded-sm bg-line-strong/60" />
-            )}
-          </span>
-        ))}
+        {bars.map((b, i) => {
+          const isToday = i === bars.length - 1;
+          return (
+            <span
+              key={b.key}
+              title={b.title}
+              className="flex h-full flex-1 flex-col justify-end"
+            >
+              {b.value > 0 ? (
+                <span
+                  className={`block rounded-t-[3px] bg-gradient-to-t ${
+                    isToday ? 'from-sky/60 to-sky' : 'from-sky/25 to-sky/60'
+                  }`}
+                  style={{ height: `${Math.max(12, (b.value / peak) * 100)}%` }}
+                />
+              ) : (
+                <span className="block h-[2px] rounded-full bg-line-strong/50" />
+              )}
+            </span>
+          );
+        })}
       </span>
-      <span className="mt-1.5 block text-[10px] text-muted/70">{label}</span>
+      <span className="mt-2 block text-[10px] text-muted/70">{label}</span>
     </span>
   );
 }

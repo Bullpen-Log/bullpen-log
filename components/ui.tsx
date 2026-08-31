@@ -6,9 +6,23 @@ function cn(...classes: (string | false | undefined | null)[]) {
 }
 
 /** 섹션 상단의 작은 골드 라벨 (예: "TRAINING") */
+/** 한글이 한 글자라도 있으면 넓은 자간을 쓰지 않는다 */
+const HAS_HANGUL = /[ㄱ-ㆎ가-힣]/;
+
+/**
+ * 페이지 제목 위의 작은 머리글 (HOME · LIBRARY …).
+ *
+ * 자간을 벌리는 것은 영문 대문자에서만 통한다. 한글에 0.25em 을 주면
+ * '투 구 일 지'처럼 낱자로 흩어져, 낱말로 읽히지 않는다.
+ */
 export function Eyebrow({ children }: { children: ReactNode }) {
+  const korean = typeof children === 'string' && HAS_HANGUL.test(children);
   return (
-    <span className="text-xs font-medium uppercase tracking-[0.25em] text-sky">
+    <span
+      className={`text-xs font-medium text-sky ${
+        korean ? 'tracking-normal' : 'uppercase tracking-[0.25em]'
+      }`}
+    >
       {children}
     </span>
   );
@@ -110,7 +124,7 @@ export function Field({
 }) {
   return (
     <label className="block space-y-2">
-      <span className="block text-xs font-medium uppercase tracking-wider text-muted">
+      <span className="block text-xs font-medium tracking-normal text-muted">
         {label}
       </span>
       {children}

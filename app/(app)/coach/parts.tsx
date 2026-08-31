@@ -74,7 +74,7 @@ export function StatCard({
           tone === 'neutral' ? 'bg-transparent' : TONE[tone].bar
         }`}
       />
-      <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-muted">
+      <p className="text-[11px] font-medium tracking-normal text-muted">
         {label}
       </p>
       <p className="mt-3 flex items-baseline gap-1.5">
@@ -195,7 +195,7 @@ export function WeekStrip({ bars }: { bars: WeekBar[] }) {
 
   return (
     <div>
-      <p className="text-[10px] uppercase tracking-[0.18em] text-muted">
+      <p className="text-[10px] tracking-normal text-muted">
         일별 투구수
       </p>
       <div className="mt-3 flex h-20 items-end gap-1.5">
@@ -459,7 +459,7 @@ export function TodayPlanLine({ plan }: { plan: PitchPlan }) {
           : 'border-sky-500/30 bg-sky-500/[0.06] hover:border-sky-500/60'
       }`}
     >
-      <span className="text-[11px] font-medium uppercase tracking-[0.18em] text-muted">
+      <span className="text-[11px] font-medium tracking-normal text-muted">
         오늘
       </span>
 
@@ -484,7 +484,7 @@ export function TodayPlanLine({ plan }: { plan: PitchPlan }) {
 
       <span className="text-xs text-muted">{today.reason}</span>
 
-      <span className="ml-auto shrink-0 text-[11px] font-medium uppercase tracking-[0.18em] text-muted">
+      <span className="ml-auto shrink-0 text-[11px] font-medium tracking-normal text-muted">
         리포트 →
       </span>
     </Link>

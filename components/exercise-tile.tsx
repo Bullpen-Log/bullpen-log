@@ -27,9 +27,12 @@ export function LibraryTile({
     <button
       type="button"
       onClick={onSelect}
-      className={`group flex flex-col overflow-hidden rounded-xl border bg-surface text-left transition-colors hover:border-sky ${
-        isReference ? 'border-warn-line' : 'border-line'
-      }`}
+      /*
+        299개가 한 화면에 깔린다. 참고 영상이라고 테두리를 노랗게 칠했더니
+        격자 전체가 노란 상자 밭이 됐다 — 표시는 모서리 딱지 하나로 충분하다.
+        대신 올려놨을 때 살짝 떠오르게 해서 누를 수 있는 것으로 보이게 한다.
+      */
+      className="group flex flex-col overflow-hidden rounded-2xl border border-line bg-surface text-left transition-all duration-200 hover:-translate-y-0.5 hover:border-sky hover:shadow-lg hover:shadow-sky/10"
     >
       <span className="relative flex aspect-video w-full items-center justify-center overflow-hidden bg-surface-2">
         {thumbUrl && (
@@ -50,13 +53,13 @@ export function LibraryTile({
         </span>
 
         {isReference && (
-          <span className="absolute left-1.5 top-1.5 rounded-md bg-warn-bg px-1.5 py-0.5 text-[10px] font-semibold text-warn">
+          <span className="absolute left-2 top-2 rounded-md bg-shade/70 px-1.5 py-0.5 text-[10px] font-semibold text-white backdrop-blur-sm">
             참고 영상
           </span>
         )}
       </span>
 
-      <span className="line-clamp-2 px-3 py-2.5 text-sm font-medium leading-snug text-ink transition-colors group-hover:text-sky">
+      <span className="line-clamp-2 px-3 py-2.5 text-sm font-semibold leading-snug break-keep text-ink transition-colors group-hover:text-sky">
         {title}
       </span>
     </button>

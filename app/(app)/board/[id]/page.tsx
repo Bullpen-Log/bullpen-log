@@ -106,7 +106,7 @@ export default async function ArticleDetailPage({
           <span className="min-w-0 flex-1 truncate text-muted">
             {article.attachmentUrl}
           </span>
-          <span className="shrink-0 text-xs font-medium uppercase tracking-wider text-sky">
+          <span className="shrink-0 text-xs font-medium tracking-normal text-sky">
             원문 보기
           </span>
         </a>

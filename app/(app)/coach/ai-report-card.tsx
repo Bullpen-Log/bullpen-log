@@ -114,7 +114,7 @@ function Section({
     <details className="group border-t border-line pt-4">
       <summary className="flex cursor-pointer list-none items-center gap-1.5">
         <ChevronDown className="h-3.5 w-3.5 shrink-0 text-muted transition-transform group-open:rotate-180" />
-        <span className="text-[11px] font-medium uppercase tracking-[0.18em] text-muted">
+        <span className="text-[11px] font-medium tracking-normal text-muted">
           {title}
         </span>
         {hint && (
@@ -259,7 +259,7 @@ export function AiReportCard({
             */}
             {plan && (
               <div className="space-y-2">
-                <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-muted">
+                <p className="text-[11px] font-medium tracking-normal text-muted">
                   오늘 안내
                 </p>
                 <DayRow day={plan.today} />
@@ -274,7 +274,7 @@ export function AiReportCard({
 
             {/* 실행 항목 */}
             <div className="space-y-3">
-              <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-muted">
+              <p className="text-[11px] font-medium tracking-normal text-muted">
                 실행 항목
               </p>
               {/*

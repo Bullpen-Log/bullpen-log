@@ -70,7 +70,7 @@ export default async function AdminPage() {
       <div className="grid grid-cols-2 gap-px overflow-hidden rounded-2xl border border-line bg-line lg:grid-cols-4">
         {stats.map((s) => (
           <div key={s.label} className="bg-surface px-5 py-5">
-            <p className="text-xs uppercase tracking-wider text-muted">{s.label}</p>
+            <p className="text-xs tracking-normal text-muted">{s.label}</p>
             <p className="text-display mt-2 text-3xl text-ink">
               {s.value}
               <span className="ml-1 text-sm text-muted">{s.unit}</span>
@@ -155,7 +155,7 @@ export default async function AdminPage() {
             { label: '투구 기록', value: totalLogs, href: '/pitch-log' },
           ].map((c) => (
             <div key={c.label} className="bg-surface px-5 py-5">
-              <p className="text-xs uppercase tracking-wider text-muted">{c.label}</p>
+              <p className="text-xs tracking-normal text-muted">{c.label}</p>
               <p className="text-display mt-2 text-2xl text-ink">{c.value}</p>
             </div>
           ))}

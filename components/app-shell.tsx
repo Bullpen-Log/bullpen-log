@@ -44,7 +44,7 @@ export function Sidebar({
         {groups.map((group, gi) => (
           <div key={group.title ?? `g${gi}`} className="space-y-1">
             {group.title && (
-              <p className="px-3 pb-1 text-[11px] font-semibold uppercase tracking-wider text-muted">
+              <p className="px-3 pb-1 text-[11px] font-semibold tracking-normal text-muted">
                 {group.title}
               </p>
             )}

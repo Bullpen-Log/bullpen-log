@@ -80,7 +80,7 @@ export function SummaryPanel({
       {/* ── 지금 몸 상태 ─────────────────────────────── */}
       <section className="rounded-2xl border border-line bg-surface px-5 py-4">
         <div className="flex items-baseline justify-between gap-2">
-          <h2 className="text-sm font-bold text-ink">지금 부하</h2>
+          <h2 className="text-heading text-sm text-ink">지금 부하</h2>
           <Link
             href="/coach"
             className="inline-flex items-center gap-0.5 text-xs font-medium text-sky transition-colors hover:text-sky-strong"
@@ -101,14 +101,14 @@ export function SummaryPanel({
 
       {/* ── 이번 주 ──────────────────────────────────── */}
       <section className="rounded-2xl border border-line bg-surface px-5 py-4">
-        <h2 className="text-sm font-bold text-ink">이번 주</h2>
+        <h2 className="text-heading text-sm text-ink">이번 주</h2>
         <dl className="mt-3 space-y-2 text-sm">
           <div className="flex items-baseline gap-2">
             <dt className="w-12 shrink-0 text-xs text-muted">투구</dt>
             <dd className="text-ink">
               {week.pitches > 0 ? (
                 <>
-                  <span className="font-semibold tabular-nums">{week.pitches}</span>구
+                  <span className="text-display text-xl leading-none">{week.pitches}</span>구
                   <span className="ml-1.5 text-xs text-muted">
                     {week.throwDays}일 던짐
                   </span>
@@ -123,7 +123,7 @@ export function SummaryPanel({
             <dd className="text-ink">
               {week.workoutDays > 0 ? (
                 <>
-                  <span className="font-semibold tabular-nums">
+                  <span className="text-display text-xl leading-none">
                     {week.workoutDays}
                   </span>
                   일
@@ -142,7 +142,7 @@ export function SummaryPanel({
       {/* ── 최근 기록 ────────────────────────────────── */}
       <section className="rounded-2xl border border-line bg-surface px-5 py-4">
         <div className="flex items-baseline justify-between gap-2">
-          <h2 className="text-sm font-bold text-ink">최근 기록</h2>
+          <h2 className="text-heading text-sm text-ink">최근 기록</h2>
           <Link
             href="/pitch-log"
             className="inline-flex items-center gap-0.5 text-xs font-medium text-sky transition-colors hover:text-sky-strong"

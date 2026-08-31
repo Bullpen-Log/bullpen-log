@@ -9,7 +9,7 @@
 function Legend({ label, hint }: { label: string; hint?: string }) {
   return (
     <legend className="mb-2.5 block">
-      <span className="text-xs font-medium uppercase tracking-wider text-muted">
+      <span className="text-xs font-medium tracking-normal text-muted">
         {label}
       </span>
       {hint && <span className="mt-1 block text-xs text-muted/70">{hint}</span>}

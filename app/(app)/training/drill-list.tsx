@@ -3,6 +3,7 @@
 import { useState, useTransition } from 'react';
 import { Check, Plus, Search, X } from 'lucide-react';
 import { Modal } from '@/components/modal';
+import { CategoryBadge } from '@/components/category-badge';
 import {
   addDrillToToday,
   removeDrillFromToday,
@@ -141,7 +142,7 @@ export function DrillSection({
                     >
                       {d.title}
                     </span>
-                    <span className="text-[11px] text-muted">{d.category}</span>
+                    <CategoryBadge name={d.category} />
                   </span>
                   {d.equipment.length > 0 && (
                     <span className="block text-[11px] text-muted">
@@ -264,7 +265,7 @@ function DrillPicker({
                     <span className="min-w-0 flex-1 space-y-1">
                       <span className="flex flex-wrap items-baseline gap-x-2">
                         <span className="text-sm font-semibold text-ink">{d.title}</span>
-                        <span className="text-[11px] text-muted">{d.category}</span>
+                        <CategoryBadge name={d.category} />
                         {d.equipment.length > 0 && (
                           <span className="text-[11px] text-muted">
                             · {d.equipment.join(' · ')}

@@ -176,7 +176,7 @@ export function FilmingGuide({ defaultOpen = false }: { defaultOpen?: boolean })
               { label: '어떻게 담나', view: <FramingView /> },
             ].map(({ label, view }) => (
               <div key={label} className="rounded-xl border border-line bg-surface-2 p-4">
-                <p className="mb-2 text-[11px] font-medium uppercase tracking-[0.18em] text-muted">
+                <p className="mb-2 text-[11px] font-medium tracking-normal text-muted">
                   {label}
                 </p>
                 {view}

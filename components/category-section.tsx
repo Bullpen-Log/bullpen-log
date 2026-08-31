@@ -2,6 +2,7 @@
 
 import { useState, type ReactNode } from 'react';
 import { ChevronDown, Plus, X } from 'lucide-react';
+import { CategoryIcon } from './category-badge';
 
 /**
  * 카테고리 하나를 감싸는 접이식 섹션.
@@ -35,8 +36,10 @@ export function CategorySection({
           aria-controls={panelId}
           className="flex w-full items-center gap-4 p-5 text-left transition-colors hover:bg-surface-2 sm:p-6"
         >
+          <CategoryIcon name={name} className="h-11 w-11" />
+
           <span className="flex min-w-0 flex-1 flex-wrap items-baseline gap-x-3 gap-y-1">
-            <span className="text-lg font-bold text-ink">{name}</span>
+            <span className="text-heading text-lg text-ink">{name}</span>
             <span className="text-xs text-muted">{count}개</span>
           </span>
 

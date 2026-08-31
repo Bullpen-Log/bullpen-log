@@ -13,6 +13,7 @@ import {
 } from '@/lib/exercise-meta';
 import type { PastAmount } from '@/lib/report/exercise-recent';
 import { ExerciseBadges } from '@/components/meta-badges';
+import { CategoryBadge } from '@/components/category-badge';
 
 export type TodayExercise = {
   id: string;
@@ -286,7 +287,8 @@ export function ExerciseChecklist({
       <div className="rounded-2xl border border-line bg-surface px-5 py-4">
         <div className="flex items-baseline justify-between gap-3">
           <p className="text-sm font-bold text-ink">
-            오늘 {doneCount}/{items.length} 완료
+            오늘 <span className="text-display text-lg">{doneCount}</span>
+            <span className="text-muted">/{items.length}</span> 완료
           </p>
           {allDone && (
             <span className="text-sm font-semibold text-sky">전부 마쳤습니다 👏</span>
@@ -319,7 +321,7 @@ export function ExerciseChecklist({
         return (
           <section key={slot} className="space-y-2.5">
             <div className="flex flex-wrap items-baseline gap-x-2 px-1">
-              <h2 className="text-sm font-bold text-ink">{label}</h2>
+              <h2 className="text-heading text-[15px] text-ink">{label}</h2>
               <span className="text-xs text-muted">{hint}</span>
             </div>
             <ExerciseList
@@ -539,22 +541,19 @@ function ExerciseList({
               <span className="min-w-0 flex-1 space-y-1.5">
                 <span className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
                   <span
-                    className={`text-sm font-semibold ${
+                    className={`text-[15px] font-bold tracking-[-0.01em] break-keep ${
                       ex.done ? 'text-sky-strong' : 'text-ink'
                     }`}
                   >
                     {ex.title}
                   </span>
-                  <span className="text-[11px] text-muted">{ex.category}</span>
+                  <CategoryBadge name={ex.category} />
+                  {/* 출처 표시. 상자를 씌우면 카테고리 배지와 같은 무게가 되어 글자만 남긴다. */}
                   {ex.isReference && (
-                    <span className="rounded bg-warn-bg px-1.5 py-0.5 text-[10px] font-semibold text-warn">
-                      참고 영상
-                    </span>
+                    <span className="text-[10px] font-medium text-muted">참고 영상</span>
                   )}
                   {ex.manual && (
-                    <span className="rounded bg-surface-2 px-1.5 py-0.5 text-[10px] font-semibold text-muted">
-                      직접 넣음
-                    </span>
+                    <span className="text-[10px] font-medium text-muted">직접 넣음</span>
                   )}
                 </span>
                 {ex.prescription && (
@@ -589,7 +588,7 @@ function ExerciseList({
                 <img
                   src={ex.thumbUrl}
                   alt=""
-                  className="hidden h-14 w-20 shrink-0 rounded-lg object-cover sm:block"
+                  className="hidden h-16 w-24 shrink-0 rounded-xl object-cover ring-1 ring-line sm:block"
                 />
               )}
             </button>

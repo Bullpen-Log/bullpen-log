@@ -5,6 +5,7 @@ import { AlertTriangle, Plus, Search } from 'lucide-react';
 import { Modal } from '@/components/modal';
 import { MetaFilter, matchesFilter, type FilterState } from '@/components/meta-filter';
 import { ExerciseBadges } from '@/components/meta-badges';
+import { CategoryBadge } from '@/components/category-badge';
 import { addToTodayPlan } from '@/app/actions/plan-edit';
 import {
   BODY_PARTS,
@@ -179,7 +180,7 @@ export function AddExercise({
                         <span className="text-sm font-semibold text-ink">
                           {ex.title}
                         </span>
-                        <span className="text-[11px] text-muted">{ex.category}</span>
+                        <CategoryBadge name={ex.category} />
                       </div>
                       {prescription && (
                         <p className="text-xs font-semibold text-muted">

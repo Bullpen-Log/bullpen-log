@@ -21,7 +21,7 @@ export type PlanNoteData = {
 export function PlanNote({ plan }: { plan: PlanNoteData }) {
   return (
     <div className="rounded-xl border border-line bg-surface-2 px-4 py-3">
-      <p className="text-xs font-medium uppercase tracking-wider text-sky">오늘 계획</p>
+      <p className="text-xs font-medium tracking-normal text-sky">오늘 계획</p>
       <p className="mt-1 text-sm font-semibold text-ink">
         {plan.throwing
           ? `${plan.maxPitches}구 이하 · 강도 ${plan.maxIntensity} 이하`

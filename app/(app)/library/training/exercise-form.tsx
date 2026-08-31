@@ -231,7 +231,7 @@ export function ExerciseForm({
         정확한 시간 배분을 원하면 채워두는 편이 좋다.
       */}
       <div className="space-y-4 border-t border-sky-soft/30 pt-5">
-        <p className="text-xs font-medium uppercase tracking-wider text-muted">
+        <p className="text-xs font-medium tracking-normal text-muted">
           수행 방법
         </p>
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">

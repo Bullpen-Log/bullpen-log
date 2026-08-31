@@ -48,18 +48,18 @@ export default async function ProfilePage() {
             <h2 className="text-sm font-bold text-ink">계정</h2>
             <dl className="space-y-3 text-sm">
               <div>
-                <dt className="text-xs uppercase tracking-wider text-muted">이메일</dt>
+                <dt className="text-xs tracking-normal text-muted">이메일</dt>
                 <dd className="mt-1 break-all text-ink">{user.email}</dd>
               </div>
               <div>
-                <dt className="text-xs uppercase tracking-wider text-muted">만 나이</dt>
+                <dt className="text-xs tracking-normal text-muted">만 나이</dt>
                 <dd className="mt-1 text-ink">
                   {age != null ? `${age}세` : '생년월일을 입력해주세요'}
                 </dd>
               </div>
               {user.role === 'ADMIN' && (
                 <div>
-                  <dt className="text-xs uppercase tracking-wider text-muted">권한</dt>
+                  <dt className="text-xs tracking-normal text-muted">권한</dt>
                   <dd className="mt-1">
                     <Badge className="border-sky-soft/60 text-sky">관리자</Badge>
                   </dd>

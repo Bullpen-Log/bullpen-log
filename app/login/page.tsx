@@ -30,7 +30,7 @@ export default function LoginPage() {
       <div className="mt-12 grid w-full max-w-md grid-cols-2 gap-x-6 gap-y-5 border-t border-line pt-8">
         {HIGHLIGHTS.map((item) => (
           <div key={item.title}>
-            <p className="text-xs font-medium uppercase tracking-[0.2em] text-sky">
+            <p className="text-xs font-medium tracking-normal text-sky">
               {item.title}
             </p>
             <p className="mt-1.5 text-xs leading-relaxed text-muted">{item.desc}</p>

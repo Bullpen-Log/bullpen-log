@@ -375,7 +375,7 @@ export function StatsOverview({
             생년월일이 아직 등록되지 않았습니다. 나이에 맞는 안전한 투구수를
             계산하려면 필요합니다.
           </span>
-          <span className="shrink-0 text-xs font-medium uppercase tracking-[0.2em] text-sky">
+          <span className="shrink-0 text-xs font-medium tracking-normal text-sky">
             입력 →
           </span>
         </Link>

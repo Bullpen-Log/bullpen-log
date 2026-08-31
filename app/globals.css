@@ -50,6 +50,23 @@
    */
   --color-shade: #0f172a;
 
+  /*
+   * 카테고리 색.
+   *
+   * 운동 445개가 전부 같은 회색 알약으로 나와서, 목록이 아니라 설정 화면처럼
+   * 보였다. 카테고리마다 색을 하나씩 준다.
+   *
+   * 무지개가 되지 않게 밝기를 맞춰 고른다. 넓은 면을 칠하지 않고 아이콘과
+   * 작은 배지에만 쓰므로, 일곱 가지여도 한 벌로 읽힌다.
+   */
+  --color-cat-lower: #4f46e5;
+  --color-cat-upper: #0284c7;
+  --color-cat-mobility: #0d9488;
+  --color-cat-power: #ea580c;
+  --color-cat-core: #7c3aed;
+  --color-cat-armcare: #e11d48;
+  --color-cat-recovery: #059669;
+
   --font-sans: 'Pretendard Variable', Pretendard, system-ui, -apple-system, 'Malgun Gothic', sans-serif;
   --font-display: var(--font-bebas);
 }
@@ -89,6 +106,15 @@
   --color-danger: #f87171;
   --color-danger-line: #7f1d1d;
   --color-danger-bg: #2a1010;
+
+  /* 어두운 바탕에서는 같은 색이 가라앉는다. 한 단계 밝은 쪽으로 바꾼다. */
+  --color-cat-lower: #a5b4fc;
+  --color-cat-upper: #7dd3fc;
+  --color-cat-mobility: #5eead4;
+  --color-cat-power: #fdba74;
+  --color-cat-core: #c4b5fd;
+  --color-cat-armcare: #fda4af;
+  --color-cat-recovery: #6ee7b7;
 }
 
 html {
