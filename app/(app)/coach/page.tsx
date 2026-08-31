@@ -26,11 +26,7 @@ import { AiReportCard, type StoredReport } from './ai-report-card';
 import { ReportClient } from './report-client';
 import { StatsOverview } from './overview';
 import { CoachTabs, readCoachView } from './tabs';
-import {
-  trainingReview,
-  REVIEW_DAYS,
-  REVIEW_WEEKS,
-} from '@/lib/report/training-review';
+import { trainingReview, REVIEW_WEEKS } from '@/lib/report/training-review';
 import { TrainingReviewCards } from './training-review';
 
 /** 칸마다 머리말을 바꾼다 — 무엇을 보는 화면인지 한 줄로 말해준다 */
@@ -76,7 +72,7 @@ export default async function ReportPage({
     }),
     /*
      * 트레이닝 칸의 돌아보기. 그 칸을 볼 때만 읽는다 — 투구나 리포트를 보러
-     * 온 사람에게 8주치 운동 기록을 읽힐 이유가 없다.
+     * 온 사람에게 4주치 운동 기록을 읽힐 이유가 없다.
      */
     view === 'training' ? trainingReview(user.id, today) : null,
   ]);
@@ -152,11 +148,7 @@ export default async function ReportPage({
       />
 
       {view === 'training' && review && (
-        <TrainingReviewCards
-          review={review}
-          weeks={REVIEW_WEEKS}
-          days={REVIEW_DAYS}
-        />
+        <TrainingReviewCards review={review} weeks={REVIEW_WEEKS} />
       )}
 
       {view === 'report' && (

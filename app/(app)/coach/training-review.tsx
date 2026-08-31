@@ -1,18 +1,16 @@
-import { TrendingDown, TrendingUp } from 'lucide-react';
 import { VOLUME_GROUPS, type VolumeGroupKey } from '@/lib/training-volume';
 import type { ReviewWeek, TrainingReview } from '@/lib/report/training-review';
 
 /**
- * 트레이닝 돌아보기 — 주별 흐름 · 부위 추이 · 무게 변화.
+ * 트레이닝 돌아보기 — 주별 흐름 · 부위 추이.
  *
- * 세 카드가 한 가지씩 답한다.
+ * 두 카드가 한 가지씩 답한다.
  *
  *   요즘 꾸준한가          주별 흐름
  *   빠뜨린 부위가 있나      부위 추이
- *   더 들게 되었나         무게 변화
  *
- * 셋 다 4주(무게는 8주)를 가로로 편다. '이번 주'만 보면 이번 주가 원래 그런
- * 주인지 요즘 계속 그런지 알 수가 없다.
+ * 둘 다 4주를 가로로 편다. '이번 주'만 보면 이번 주가 원래 그런 주인지 요즘
+ * 계속 그런지 알 수가 없다.
  */
 
 /** 막대를 꽉 채우는 기준 — 주 5일이면 충분히 한 주다 */
@@ -147,75 +145,17 @@ function PartTrend({ weeks }: { weeks: ReviewWeek[] }) {
   );
 }
 
-/* ───────────────────────────── 무게 변화 ───────────────────────────── */
-
-function WeightRows({ weights }: { weights: TrainingReview['weights'] }) {
-  return (
-    <ul className="mt-4 space-y-3">
-      {weights.map((w) => {
-        const diff = Math.round((w.latestKg - w.firstKg) * 10) / 10;
-        const up = diff > 0;
-        const flat = diff === 0;
-        return (
-          <li
-            key={w.exerciseId}
-            className="flex flex-wrap items-baseline gap-x-3 gap-y-1 border-t border-line pt-3 first:border-0 first:pt-0"
-          >
-            <span className="min-w-0 flex-1 text-[13px] font-semibold break-keep text-ink">
-              {w.title}
-            </span>
-            <span className="flex items-baseline gap-1.5 tabular-nums">
-              <span className="text-xs text-muted/60">{w.firstKg}</span>
-              <span className="text-xs text-line-strong">→</span>
-              <span className="text-display text-lg leading-none text-ink">
-                {w.latestKg}
-              </span>
-              <span className="text-xs text-muted">kg</span>
-            </span>
-            <span
-              className={`inline-flex shrink-0 items-center gap-1 text-xs font-semibold tabular-nums ${
-                flat ? 'text-muted/60' : up ? 'text-sky-strong' : 'text-warn'
-              }`}
-            >
-              {flat ? (
-                '그대로'
-              ) : (
-                <>
-                  {up ? (
-                    <TrendingUp className="h-3.5 w-3.5" />
-                  ) : (
-                    <TrendingDown className="h-3.5 w-3.5" />
-                  )}
-                  {up ? '+' : ''}
-                  {diff}kg
-                </>
-              )}
-            </span>
-            <span className="w-full text-[11px] text-muted/60">
-              {shortDate(w.firstDate)} → {shortDate(w.latestDate)} · {w.records}번
-              기록
-            </span>
-          </li>
-        );
-      })}
-    </ul>
-  );
-}
-
 /* ───────────────────────────── 묶음 ───────────────────────────── */
 
 export function TrainingReviewCards({
   review,
   weeks: weekCount,
-  days,
 }: {
   review: TrainingReview;
   /** 주별 흐름과 부위 추이가 보는 주 수 */
   weeks: number;
-  /** 무게 변화가 보는 기간(일) */
-  days: number;
 }) {
-  const { weeks, weights, hasAnyWeight } = review;
+  const { weeks } = review;
   const busiest = Math.max(...weeks.map((w) => w.days), 0);
   const anyTraining = weeks.some((w) => w.days > 0);
 
@@ -277,29 +217,6 @@ export function TrainingReviewCards({
         )}
       </section>
 
-      {/* ── 무게 변화 ─────────────────────────────────────── */}
-      <section className="rounded-2xl border border-line bg-surface px-5 py-5 sm:px-6">
-        <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
-          <h2 className="text-base font-bold text-ink">무게 변화</h2>
-          <p className="text-xs text-muted">최근 {days}일 · 톱세트 기준</p>
-        </div>
-
-        {weights.length > 0 ? (
-          <>
-            <WeightRows weights={weights} />
-            <p className="mt-3 text-[11px] leading-relaxed text-muted/70">
-              운동을 마칠 때 적은 &lsquo;가장 무거웠던 세트&rsquo;를 처음과 마지막으로
-              견준 값입니다. 두 번 이상 적은 운동만 나옵니다.
-            </p>
-          </>
-        ) : (
-          <p className="mt-4 rounded-xl border border-dashed border-line px-4 py-8 text-center text-sm leading-relaxed text-muted">
-            {hasAnyWeight
-              ? '무게를 적은 운동이 아직 하나뿐입니다. 같은 운동을 한 번 더 적으면 변화가 보입니다.'
-              : '아직 적어둔 무게가 없습니다. 운동을 마칠 때 가장 무거웠던 세트를 적어두면 여기에서 변화를 봅니다.'}
-          </p>
-        )}
-      </section>
     </>
   );
 }

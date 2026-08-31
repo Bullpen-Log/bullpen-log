@@ -14,31 +14,16 @@ import {
  * 몇인지. 한 주만 보면 이번 주가 원래 그런 주인지 요즘 계속 그런지 알 수 없고,
  * "암케어를 3주째 안 하고 있다" 같은 것은 아예 안 보인다.
  *
- * 여기서 세 가지를 낸다.
+ * 여기서 두 가지를 낸다.
  *
  *   주별 흐름   최근 4주, 주마다 며칠·몇 분·평균 강도
  *   부위 추이   같은 4주를 부위별 세트로
- *   무게 변화   적어 둔 톱세트가 늘었는가
- *
- * 무게는 지금까지 어디에서도 안 보여줬다. 적으라고 해놓고 보여주지 않으면
- * 적을 이유가 없다.
  */
 
 /** 몇 주를 보여주는가 */
 export const REVIEW_WEEKS = 4;
-/**
- * 얼마나 거슬러 읽는가.
- *
- * 주별 흐름은 4주면 되지만 무게 변화는 그보다 길게 봐야 한다. 4주 안에 같은
- * 운동을 두 번 이상 하고 무게까지 적은 경우가 생각보다 드물어서, 그 창으로만
- * 보면 대부분 "견줄 것이 없음"이 된다.
- */
-export const REVIEW_DAYS = 56;
-
-/** 무게 변화를 말하려면 적어도 이만큼은 적혀 있어야 한다 */
-const MIN_WEIGHT_RECORDS = 2;
-/** 화면에 몇 개까지 */
-const MAX_WEIGHT_ROWS = 6;
+/** 읽어 오는 기간 */
+export const REVIEW_DAYS = REVIEW_WEEKS * 7;
 
 export type ReviewWeek = {
   /** 0 = 이번 주(오늘 포함 7일), 1 = 그 직전 7일 … */
@@ -59,26 +44,8 @@ export type ReviewWeek = {
   armCare: number;
 };
 
-export type WeightChange = {
-  exerciseId: string;
-  title: string;
-  category: string;
-  /** 가장 최근에 적은 톱세트 */
-  latestKg: number;
-  latestDate: string;
-  /** 이 기간 처음에 적은 톱세트 */
-  firstKg: number;
-  firstDate: string;
-  /** 무게를 적은 날 수 */
-  records: number;
-};
-
 export type TrainingReview = {
   weeks: ReviewWeek[];
-  /** 무게가 달라진 순으로. 변화가 없는 운동은 뒤로 간다. */
-  weights: WeightChange[];
-  /** 이 기간에 무게를 적은 날이 하나라도 있었는가 */
-  hasAnyWeight: boolean;
 };
 
 /** n일 전 날짜 키 */
@@ -102,11 +69,9 @@ export async function trainingReview(
       select: {
         date: true,
         setsDone: true,
-        weightKg: true,
         exerciseId: true,
         exercise: {
           select: {
-            title: true,
             category: true,
             intensity: true,
             bodyParts: true,
@@ -212,60 +177,5 @@ export async function trainingReview(
     };
   });
 
-  /* ── 무게 변화 ────────────────────────────────────────────
-   * 하루에 여러 줄이 있을 수 있으니 운동+날짜로 가장 무거운 것만 남긴다.
-   */
-  type Mark = { date: string; kg: number };
-  const marksBy = new Map<
-    string,
-    { title: string; category: string; byDay: Map<string, number> }
-  >();
-  for (const log of logs) {
-    if (log.weightKg == null || log.weightKg <= 0) continue;
-    const entry = marksBy.get(log.exerciseId) ?? {
-      title: log.exercise.title,
-      category: log.exercise.category,
-      byDay: new Map<string, number>(),
-    };
-    const key = toDateKey(log.date);
-    entry.byDay.set(key, Math.max(entry.byDay.get(key) ?? 0, log.weightKg));
-    marksBy.set(log.exerciseId, entry);
-  }
-
-  const weights: WeightChange[] = [];
-  for (const [exerciseId, entry] of marksBy) {
-    const marks: Mark[] = [...entry.byDay]
-      .map(([date, kg]) => ({ date, kg }))
-      .sort((a, b) => a.date.localeCompare(b.date));
-    if (marks.length < MIN_WEIGHT_RECORDS) continue;
-    const first = marks[0];
-    const latest = marks[marks.length - 1];
-    weights.push({
-      exerciseId,
-      title: entry.title,
-      category: entry.category,
-      latestKg: latest.kg,
-      latestDate: latest.date,
-      firstKg: first.kg,
-      firstDate: first.date,
-      records: marks.length,
-    });
-  }
-
-  /*
-   * 많이 오른 것부터. 오른 것이 없으면 그대로거나 내려간 것이 오는데, 그것도
-   * 알아야 하는 정보다 — 무게를 줄인 주가 이어지면 몸이 힘들다는 뜻일 수 있다.
-   */
-  weights.sort((a, b) => {
-    const da = a.latestKg - a.firstKg;
-    const db = b.latestKg - b.firstKg;
-    if (db !== da) return db - da;
-    return b.records - a.records;
-  });
-
-  return {
-    weeks,
-    weights: weights.slice(0, MAX_WEIGHT_ROWS),
-    hasAnyWeight: marksBy.size > 0,
-  };
+  return { weeks };
 }
