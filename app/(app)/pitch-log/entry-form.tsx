@@ -1,8 +1,9 @@
 'use client';
 
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Button, Field, Input, Textarea } from '@/components/ui';
 import { VideoUpload, type UploadedVideo } from '@/components/video-upload';
+import { usePlaybackUrls } from '@/components/use-playback-urls';
 import { FilmingGuide } from '@/components/filming-guide';
 import { IntensityGuide } from '@/components/intensity-guide';
 import {
@@ -36,7 +37,14 @@ export type EntryDraft = {
   maxVelocity: number | null;
   avgVelocity: number | null;
   memo: string | null;
+  /** 이미 붙어 있는 영상의 저장소 경로 */
+  videoPaths: string[];
 };
+
+/** 저장소 경로에서 사람이 읽을 이름만 떼어낸다 */
+function fileNameOf(path: string) {
+  return path.split('/').pop() || path;
+}
 
 export function EntryForm({
   date,
@@ -44,6 +52,7 @@ export function EntryForm({
   onSaved,
   onError,
   onCancel,
+  analyzedPaths,
 }: {
   date: string;
   /** 주어지면 등록이 아니라 수정 폼이 된다. */
@@ -51,6 +60,8 @@ export function EntryForm({
   onSaved: () => Promise<void> | void;
   onError: (message?: string) => void;
   onCancel?: () => void;
+  /** 폼 분석이 저장돼 있는 영상 경로 — 뺄 때 함께 사라진다고 알려주려고 받는다 */
+  analyzedPaths?: readonly string[];
 }) {
   const editing = Boolean(initial);
 
@@ -66,8 +77,44 @@ export function EntryForm({
         }
       : EMPTY_FORM
   );
-  const [videos, setVideos] = useState<UploadedVideo[]>([]);
+  const [videos, setVideos] = useState<UploadedVideo[]>(() =>
+    (initial?.videoPaths ?? []).map((path) => ({ path, name: fileNameOf(path) }))
+  );
   const [saving, setSaving] = useState(false);
+
+  /*
+   * 이미 올려둔 영상의 재생 주소를 받아온다.
+   *
+   * 저장소 파일은 주소를 그때그때 발급받아야 열린다. 주소가 오기 전에는
+   * 목록에 이름만 보이고, 오면 그 자리에서 재생할 수 있게 된다.
+   */
+  const existingPaths = useMemo(
+    () => (initial?.videoPaths ?? []).slice(),
+    [initial?.videoPaths]
+  );
+  const { urls: playbackUrls } = usePlaybackUrls(existingPaths);
+
+  /*
+   * 주소가 오면 그 자리에서 합친다.
+   *
+   * 상태에 다시 넣지 않는다. 주소는 받아온 것에서 그대로 나오는 값이라,
+   * 굳이 따로 들고 있으면 둘이 어긋날 자리만 생긴다.
+   */
+  const shownVideos = useMemo(
+    () =>
+      videos.map((v) =>
+        v.previewUrl ? v : { ...v, previewUrl: playbackUrls[v.path] }
+      ),
+    [videos, playbackUrls]
+  );
+
+  /** 이 영상을 빼면 폼 분석도 같이 사라진다 — 뺄 때 알린다 */
+  const removeNote = (video: UploadedVideo) =>
+    analyzedPaths?.includes(video.path)
+      ? '이 영상에는 폼 분석이 저장돼 있습니다. 영상을 빼면 분석도 함께 지워지고, 되돌릴 수 없습니다.'
+      : initial?.videoPaths.includes(video.path)
+        ? '저장돼 있던 영상입니다. 빼면 되돌릴 수 없습니다.'
+        : undefined;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -79,7 +126,8 @@ export function EntryForm({
         method: editing ? 'PATCH' : 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          ...(editing ? { id: initial!.id } : { date, videoPaths: videos.map((v) => v.path) }),
+          ...(editing ? { id: initial!.id } : { date }),
+          videoPaths: videos.map((v) => v.path),
           sessionType: form.sessionType,
           pitchCount: form.pitchCount,
           intensity: form.intensity,
@@ -97,7 +145,10 @@ export function EntryForm({
       // 수정은 폼을 비우지 않는다. 저장하면 폼 자체가 닫히기 때문이다.
       if (!editing) {
         setForm(EMPTY_FORM);
-        videos.forEach((v) => URL.revokeObjectURL(v.previewUrl));
+        /* 방금 올린 것만 주소를 거둔다 — 저장소 재생 주소는 거둘 것이 없다 */
+        videos.forEach((v) => {
+          if (v.previewUrl?.startsWith('blob:')) URL.revokeObjectURL(v.previewUrl);
+        });
         setVideos([]);
       }
       await onSaved();
@@ -219,18 +270,33 @@ export function EntryForm({
       )}
 
       {/*
-        영상은 새로 남길 때만 올린다. 고칠 때 영상을 빼면 그 영상에 붙은
-        폼 분석이 주인 없이 남으므로, 영상을 바꿔야 하면 지우고 다시 남긴다.
+        고칠 때도 영상을 바꿀 수 있다.
+
+        예전에는 새로 남길 때만 열어두었다 — 영상을 빼면 거기 붙은 폼 분석이
+        주인 없이 남기 때문이다. 그래서 영상 하나 바꾸려면 기록을 통째로 지우고
+        다시 써야 했다. 지금은 뺀 영상의 분석을 서버가 함께 지우므로 열어둔다.
+
+        쉰 날에도 이미 붙어 있는 영상은 보여준다. 안 보이면 뺄 수가 없다.
       */}
-      {!editing && !resting && (
+      {(!resting || videos.length > 0) && (
         <Field
           label="투구 영상"
-          hint="폰이나 컴퓨터에 있는 영상을 바로 올릴 수 있습니다."
+          hint={
+            resting
+              ? '쉰 날에는 새로 올릴 수 없습니다. 이미 붙어 있는 영상은 뺄 수 있습니다.'
+              : '폰이나 컴퓨터에 있는 영상을 바로 올릴 수 있습니다.'
+          }
         >
           <div className="space-y-3">
             {/* 올리기 전에 촬영 조건을 한 번 보고 가도록 바로 위에 둔다. */}
-            <FilmingGuide />
-            <VideoUpload videos={videos} onChange={setVideos} max={2} />
+            {!resting && <FilmingGuide />}
+            <VideoUpload
+              videos={shownVideos}
+              onChange={setVideos}
+              max={2}
+              disabled={resting}
+              confirmRemove={removeNote}
+            />
           </div>
         </Field>
       )}

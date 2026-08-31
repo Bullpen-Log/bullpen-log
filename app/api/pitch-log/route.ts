@@ -120,6 +120,32 @@ function checkEntry(body: Record<string, unknown>): { error: string } | CheckedE
 }
 
 /**
+ * 폼에서 온 영상 경로를 검사한다.
+ *
+ * 새로 남길 때와 고칠 때가 같은 규칙을 써야 한다. 따로 두면 한쪽만 고쳐져
+ * 서로 어긋난다 — 실제로 고치는 쪽에는 검사가 아예 없던 때가 있었다.
+ */
+function checkVideoPaths(
+  raw: unknown,
+  userId: string
+): { error: string } | { paths: string[] } {
+  const paths: string[] = Array.isArray(raw)
+    ? raw.map((p: unknown) => String(p ?? '').trim()).filter(Boolean)
+    : [];
+
+  if (paths.length > MAX_VIDEOS) {
+    return { error: `영상은 최대 ${MAX_VIDEOS}개까지 첨부할 수 있습니다` };
+  }
+
+  // 다른 사람 폴더의 경로를 끼워 넣지 못하게 막는다.
+  if (paths.some((p) => !isOwnedBy(p, userId))) {
+    return { error: '올바르지 않은 영상 경로입니다' };
+  }
+
+  return { paths };
+}
+
+/**
  * 기록 읽기.
  *
  * ?month=2026-08 을 주면 그 달만 준다. 안 주면 예전처럼 전부 준다.
@@ -210,24 +236,11 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: checked.error }, { status: 400 });
     }
 
-    const paths: string[] = Array.isArray(videoPaths)
-      ? videoPaths.map((p: unknown) => String(p ?? '').trim()).filter(Boolean)
-      : [];
-
-    if (paths.length > MAX_VIDEOS) {
-      return NextResponse.json(
-        { error: `영상은 최대 ${MAX_VIDEOS}개까지 첨부할 수 있습니다` },
-        { status: 400 }
-      );
+    const checkedPaths = checkVideoPaths(videoPaths, user.id);
+    if ('error' in checkedPaths) {
+      return NextResponse.json({ error: checkedPaths.error }, { status: 400 });
     }
-
-    // 다른 사람 폴더의 경로를 끼워 넣지 못하게 막는다.
-    if (paths.some((p) => !isOwnedBy(p, user.id))) {
-      return NextResponse.json(
-        { error: '올바르지 않은 영상 경로입니다' },
-        { status: 400 }
-      );
-    }
+    const paths = checkedPaths.paths;
 
     const log = await prisma.pitchLog.create({
       data: {
@@ -246,11 +259,17 @@ export async function POST(req: Request) {
 }
 
 /**
- * 이미 남긴 기록의 수치와 느낀점을 고친다.
+ * 이미 남긴 기록을 고친다. 영상도 함께 바꿀 수 있다.
  *
- * 영상은 건드리지 않는다. 영상을 빼면 그 영상에 붙은 폼 분석이
- * 주인 없이 남게 되고, 날짜를 옮기면 다른 날 기록과 뒤섞인다.
- * 둘 다 고칠 일이 생기면 지우고 다시 남기는 편이 안전하다.
+ * 예전에는 수치와 느낀점만 고칠 수 있었다. 영상을 빼면 거기 붙은 폼 분석이
+ * 주인 없이 남기 때문인데, 그러다 보니 영상 하나 바꾸려고 기록을 통째로
+ * 지우고 다시 써야 했다. 지금은 뺀 영상의 분석을 여기서 같이 지운다.
+ *
+ * 지우는 순서가 중요하다. 기록을 먼저 고치고, 그 다음 분석을 지우고, 저장소
+ * 파일은 맨 마지막이다. 파일부터 지웠다가 기록 고치기가 실패하면 화면에는
+ * 영상이 있는데 열리지 않는 상태가 된다.
+ *
+ * 날짜는 여전히 못 옮긴다. 옮기면 다른 날 기록과 뒤섞인다.
  */
 export async function PATCH(req: Request) {
   const user = await getCurrentUser();
@@ -268,7 +287,7 @@ export async function PATCH(req: Request) {
     // 남의 기록을 고치지 못하게 본인 것인지 먼저 확인한다.
     const target = await prisma.pitchLog.findFirst({
       where: { id, userId: user.id },
-      select: { id: true },
+      select: { id: true, videoPaths: true },
     });
 
     if (!target) {
@@ -278,6 +297,45 @@ export async function PATCH(req: Request) {
     const checked = checkEntry(body);
     if ('error' in checked) {
       return NextResponse.json({ error: checked.error }, { status: 400 });
+    }
+
+    /*
+     * 영상 목록은 보낼 때만 손댄다.
+     *
+     * 예전 화면은 이 값을 아예 안 보냈다. 없을 때 빈 목록으로 치면 그런
+     * 화면에서 고치는 순간 영상이 통째로 날아간다.
+     */
+    const touchesVideos = body.videoPaths !== undefined;
+    let removed: string[] = [];
+
+    if (touchesVideos) {
+      const checkedPaths = checkVideoPaths(body.videoPaths, user.id);
+      if ('error' in checkedPaths) {
+        return NextResponse.json({ error: checkedPaths.error }, { status: 400 });
+      }
+      const next = new Set(checkedPaths.paths);
+      removed = target.videoPaths.filter((p) => !next.has(p));
+
+      const log = await prisma.pitchLog.update({
+        where: { id: target.id },
+        data: { ...checked, videoPaths: checkedPaths.paths },
+      });
+
+      if (removed.length > 0) {
+        /*
+         * 뺀 영상의 폼 분석을 지운다.
+         *
+         * 안 지우면 어느 기록에도 안 붙은 분석이 남아, 지난 세션과 견주는
+         * 자리에 사라진 영상의 값이 계속 끼어든다.
+         */
+        await prisma.poseAnalysis.deleteMany({
+          where: { userId: user.id, videoPath: { in: removed } },
+        });
+        // 저장소에 못 찾는 파일이 쌓이지 않게 함께 지운다.
+        await deleteVideos(removed);
+      }
+
+      return NextResponse.json(log);
     }
 
     const log = await prisma.pitchLog.update({

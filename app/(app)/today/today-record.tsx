@@ -30,6 +30,8 @@ export type TodayLog = {
   maxVelocity: number | null;
   avgVelocity: number | null;
   memo: string | null;
+  /** 붙어 있는 영상. 고치는 폼이 이걸 그대로 다시 보내므로 빠뜨리면 안 된다. */
+  videoPaths: string[];
 };
 
 /** 오늘의 투구 계획 — 기록과 나란히 두어 지켰는지 바로 보이게 한다. */
@@ -44,11 +46,14 @@ export function TodayRecord({
   date,
   log,
   plan,
+  analyzedPaths,
 }: {
   /** 오늘 날짜 (YYYY-MM-DD) */
   date: string;
   /** 오늘 남긴 기록. 없으면 null */
   log: TodayLog | null;
+  /** 폼 분석이 저장된 영상 경로 — 뺄 때 함께 사라진다고 알리는 데 쓴다 */
+  analyzedPaths?: readonly string[];
   /** 오늘의 투구 계획. 계획을 안 낸 날은 null */
   plan: TodayPitchPlan | null;
 }) {
@@ -120,6 +125,7 @@ export function TodayRecord({
           onSaved={done}
           onError={setError}
           onCancel={() => setMode('view')}
+          analyzedPaths={analyzedPaths}
         />
       ) : log ? (
         <div className="flex flex-wrap items-center gap-x-3 gap-y-2">

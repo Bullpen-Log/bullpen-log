@@ -174,7 +174,9 @@ export function DayClient({
           >
             <div>
               <h2 className="font-bold text-ink">기록 수정</h2>
-              <p className="mt-1 text-sm text-muted">영상은 그대로 유지됩니다</p>
+              <p className="mt-1 text-sm text-muted">
+                영상도 함께 바꿀 수 있습니다
+              </p>
             </div>
             <EntryForm
               date={date}
@@ -182,6 +184,8 @@ export function DayClient({
               onSaved={handleSaved}
               onError={setError}
               onCancel={() => setEditingId(null)}
+              /* 폼 분석이 붙은 영상은 뺄 때 알려주려고 넘긴다 */
+              analyzedPaths={saved.map((a) => a.videoPath)}
             />
           </div>
         ) : (

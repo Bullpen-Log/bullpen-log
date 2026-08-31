@@ -10,8 +10,14 @@ const MAX_VIDEO_BYTES = MAX_VIDEO_MB * 1024 * 1024;
 export type UploadedVideo = {
   path: string;
   name: string;
-  /** 업로드 직후 미리보기에 쓰는 로컬 주소 */
-  previewUrl: string;
+  /**
+   * 미리보기에 쓸 주소.
+   *
+   * 방금 올린 영상은 브라우저가 들고 있는 파일을 바로 가리키고, 예전에 올려둔
+   * 영상은 저장소에서 발급받은 재생 주소가 들어온다. 아직 못 받았으면 비어
+   * 있을 수 있다 — 그때는 이름만 보여준다.
+   */
+  previewUrl?: string;
   /** 재생 전에 보여줄 이미지 경로. 캡처에 실패하면 없다. */
   thumbPath?: string;
 };
@@ -68,6 +74,7 @@ export function VideoUpload({
   onChange,
   max = 2,
   disabled,
+  confirmRemove,
   /** 업로드 주소를 받아올 곳. 라이브러리 영상은 관리자 전용 주소를 쓴다. */
   endpoint = '/api/pitch-log/upload-url',
   /** 목록에서 재생 전에 보여줄 이미지를 함께 만들지 여부 */
@@ -77,6 +84,13 @@ export function VideoUpload({
   onChange: (next: UploadedVideo[]) => void;
   max?: number;
   disabled?: boolean;
+  /**
+   * 이 영상을 빼기 전에 알려줄 말. 비워 두면 바로 뺀다.
+   *
+   * 되돌릴 수 없는 일에는 한 번 물어야 한다. 다만 막지는 않는다 —
+   * 알려주고 정하는 것은 쓰는 사람 몫이다.
+   */
+  confirmRemove?: (video: UploadedVideo) => string | undefined;
   endpoint?: string;
   withThumbnail?: boolean;
 }) {
@@ -84,6 +98,8 @@ export function VideoUpload({
   const [uploading, setUploading] = useState(false);
   const [progress, setProgress] = useState(0);
   const [error, setError] = useState<string>();
+  /** 한 번 눌러 물어본 영상. 같은 것을 또 누르면 그때 뺀다. */
+  const [asking, setAsking] = useState<string | null>(null);
 
   const handlePick = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -146,7 +162,25 @@ export function VideoUpload({
 
   const remove = (path: string) => {
     const target = videos.find((v) => v.path === path);
-    if (target) URL.revokeObjectURL(target.previewUrl);
+    if (!target) return;
+
+    // 알릴 말이 있으면 먼저 보여주고, 같은 것을 다시 누를 때 뺀다.
+    if (asking !== path && confirmRemove?.(target)) {
+      setAsking(path);
+      return;
+    }
+
+    /*
+     * 방금 올린 영상만 주소를 거둔다.
+     *
+     * blob: 로 시작하는 것이 브라우저가 들고 있는 파일이다. 저장소에서 받은
+     * 재생 주소를 여기 넣으면 아무 일도 일어나지 않지만, 뜻이 다른 것을 같이
+     * 다루면 나중에 헷갈린다.
+     */
+    if (target.previewUrl?.startsWith('blob:')) {
+      URL.revokeObjectURL(target.previewUrl);
+    }
+    setAsking(null);
     onChange(videos.filter((v) => v.path !== path));
   };
 
@@ -208,12 +242,19 @@ export function VideoUpload({
               key={v.path}
               className="overflow-hidden rounded-xl border border-line bg-surface-2"
             >
-              <video
-                src={v.previewUrl}
-                controls
-                playsInline
-                className="aspect-video w-full bg-black object-contain"
-              />
+              {v.previewUrl ? (
+                <video
+                  src={v.previewUrl}
+                  controls
+                  playsInline
+                  className="aspect-video w-full bg-black object-contain"
+                />
+              ) : (
+                /* 재생 주소를 아직 못 받은 영상 — 이름만이라도 보여준다 */
+                <div className="flex aspect-video w-full items-center justify-center bg-surface">
+                  <Film className="h-6 w-6 text-line-strong" />
+                </div>
+              )}
               <div className="flex items-center gap-2 px-3 py-2">
                 <Film className="h-3.5 w-3.5 shrink-0 text-sky" />
                 <span className="min-w-0 flex-1 truncate text-xs text-muted">
@@ -222,12 +263,43 @@ export function VideoUpload({
                 <button
                   type="button"
                   onClick={() => remove(v.path)}
-                  aria-label={`${v.name} 첨부 취소`}
-                  className="rounded p-1 text-muted transition-colors hover:text-red-600"
+                  aria-label={
+                    asking === v.path ? `${v.name} 정말 빼기` : `${v.name} 빼기`
+                  }
+                  className={`rounded p-1 transition-colors ${
+                    asking === v.path
+                      ? 'text-danger'
+                      : 'text-muted hover:text-red-600'
+                  }`}
                 >
                   <X className="h-3.5 w-3.5" />
                 </button>
               </div>
+
+              {/* 한 번 눌렀을 때 나오는 안내 — 다시 누르면 뺀다 */}
+              {asking === v.path && (
+                <div className="border-t border-danger-line bg-danger-bg px-3 py-2.5">
+                  <p className="text-[11px] leading-relaxed text-danger">
+                    {confirmRemove?.(v)}
+                  </p>
+                  <div className="mt-2 flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => remove(v.path)}
+                      className="rounded-lg bg-danger px-3 py-1.5 text-[11px] font-semibold text-white"
+                    >
+                      빼기
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setAsking(null)}
+                      className="rounded-lg border border-line px-3 py-1.5 text-[11px] text-muted transition-colors hover:text-ink"
+                    >
+                      그대로 두기
+                    </button>
+                  </div>
+                </div>
+              )}
             </li>
           ))}
         </ul>

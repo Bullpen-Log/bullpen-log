@@ -59,6 +59,7 @@ export default async function HomePage() {
     training,
     recentLogs,
     weekLogs,
+    analyzedPaths,
   ] = await Promise.all([
     gatherFactsAndPlan(user, today, { excludeToday: true }),
     /*
@@ -76,6 +77,8 @@ export default async function HomePage() {
         maxVelocity: true,
         avgVelocity: true,
         memo: true,
+        /* 고치는 폼이 영상도 다루므로 함께 읽는다 — 없으면 고칠 때 다 빠진다 */
+        videoPaths: true,
       },
     }),
     /*
@@ -125,6 +128,16 @@ export default async function HomePage() {
         date: { gte: new Date(core.midnight.getTime() - 6 * 86400000) },
       },
       select: { date: true, pitchCount: true },
+    }),
+    /*
+     * 오늘 기록의 영상 중 폼 분석이 저장된 것.
+     *
+     * 고치는 폼이 "이 영상을 빼면 분석도 지워집니다"라고 알려주는 데 쓴다.
+     * 이 값이 없으면 그 말을 못 하고, 사용자는 모른 채 분석을 잃는다.
+     */
+    prisma.poseAnalysis.findMany({
+      where: { userId: user.id, pitchLog: { date: core.midnight } },
+      select: { videoPath: true },
     }),
   ]);
 
@@ -458,6 +471,7 @@ export default async function HomePage() {
             <TodayRecord
               date={core.todayKey}
               log={todayLog}
+              analyzedPaths={analyzedPaths.map((a) => a.videoPath)}
               plan={
                 showPlannedToday
                   ? {
