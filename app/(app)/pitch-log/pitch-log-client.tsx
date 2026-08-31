@@ -227,7 +227,7 @@ export function PitchLogClient({
       <PageHeading
         eyebrow="Pitch Log"
         title="투구 일지"
-        description="날짜를 누르면 그날의 기록·영상·느낀점이 열립니다. 기록이 없는 날도 눌러서 남길 수 있습니다."
+        description="날짜를 누르면 그날 화면으로 넘어갑니다. 기록이 없는 날도 눌러서 남길 수 있습니다."
         action={
           // 2분할 비교는 영상이 두 개 이상 있어야 뜻이 있다.
           clips.length >= 2 ? (

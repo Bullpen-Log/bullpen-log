@@ -118,7 +118,7 @@ export default async function TrainingPage({
         <PageHeading
           eyebrow="Training"
           title="운동 기록"
-          description="날짜를 누르면 그날 무엇을 얼마나 했는지 볼 수 있습니다."
+          description="날짜를 누르면 그날 화면으로 넘어가, 무엇을 얼마나 했는지 볼 수 있습니다."
         />
         <ViewTabs current="history" settings={user} />
         <TrainingHistory summaries={summaries} />

@@ -222,7 +222,25 @@ function Primary({ view }: { view: LoadView }) {
           </div>
 
           <ZoneGauge ratio={view.ratio} activeZone={view.zone} />
-          <p className="text-xs leading-relaxed text-muted">{view.advice}</p>
+          <p className="text-xs leading-relaxed text-muted">
+            {view.advice}
+            {/*
+              평소치가 아직 문진 추정일 때는 조언을 단정하지 않는다.
+
+              가입 첫날에 52구를 한 번 남겼더니 지수가 1.42(주의)가 되면서
+              "이번 주는 투구수나 강도를 조금 낮추는 편이 안전합니다"가 떴다.
+              실측이 7%뿐인데 처음 쓰는 사람에게는 앱이 "무리했다"고 말한
+              것으로 읽힌다. 리포트를 쓰는 AI 에게는 이미 같은 조건에서
+              단정하지 말라고 일러두고 있었는데, 규칙으로 내는 이 문장에는
+              그 장치가 없었다.
+            */}
+            {view.estimated && (
+              <span className="text-muted/70">
+                {' '}다만 아직 평소치가 문진 추정이라 이 숫자는 크게 흔들립니다.
+                며칠만 더 남기면 자리를 잡습니다.
+              </span>
+            )}
+          </p>
           <TrendLine trend={view.trend} />
         </>
       ) : (
