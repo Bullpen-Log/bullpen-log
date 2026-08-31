@@ -1,0 +1,1151 @@
+<title>불펜 로그 사용 설명서</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=IBM+Plex+Sans+KR:wght@300;400;500;600;700&display=swap">
+
+<style>
+  /* ─────────────────────────────────────────────────────────────
+     불펜 로그 앱이 쓰는 토큰을 그대로 옮겼다 (app/globals.css).
+     설명서가 제품의 일부처럼 보여야 하기 때문이다.
+     ───────────────────────────────────────────────────────────── */
+  :root {
+    --page: #f4f7fb;
+    --surface: #ffffff;
+    --surface-2: #f1f5f9;
+    --line: #e4e9f0;
+    --line-strong: #cbd5e1;
+
+    --sky: #0ea5e9;
+    --sky-strong: #0284c7;
+    --sky-soft: #7dd3fc;
+    --sky-tint: #e0f2fe;
+
+    --ink: #0f172a;
+    --muted: #64748b;
+
+    --warn: #b45309;
+    --warn-line: #fde68a;
+    --warn-bg: #fffbeb;
+
+    --ok: #047857;
+    --ok-bg: #ecfdf5;
+    --danger: #b91c1c;
+    --danger-line: #fecaca;
+    --danger-bg: #fef2f2;
+
+    /* 게이지 — 앱의 부하 구간 색 */
+    --zone-low: #bae6fd;
+    --zone-ok: #86efac;
+    --zone-caution: #fcd34d;
+    --zone-danger: #fca5a5;
+
+    --shadow: 0 1px 2px rgb(15 23 42 / 0.04), 0 8px 24px -12px rgb(15 23 42 / 0.12);
+
+    --sans: 'IBM Plex Sans KR', 'Pretendard Variable', Pretendard, system-ui, -apple-system, sans-serif;
+    --num: 'Bebas Neue', var(--sans);
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme='light']) {
+      --page: #0b1220;
+      --surface: #141d2b;
+      --surface-2: #1e293b;
+      --line: #2a3648;
+      --line-strong: #44556e;
+
+      --sky: #0ea5e9;
+      --sky-strong: #7dd3fc;
+      --sky-soft: #1f5f85;
+      --sky-tint: #0e2a3d;
+
+      --ink: #e8eef7;
+      --muted: #94a3b8;
+
+      --warn: #fcd34d;
+      --warn-line: #78350f;
+      --warn-bg: #2a1e08;
+
+      --ok: #34d399;
+      --ok-bg: #0d2b21;
+      --danger: #f87171;
+      --danger-line: #7f1d1d;
+      --danger-bg: #2a1010;
+
+      --zone-low: #1e5a7a;
+      --zone-ok: #1f7a4d;
+      --zone-caution: #8a6a12;
+      --zone-danger: #7f2a2a;
+
+      --shadow: 0 1px 2px rgb(0 0 0 / 0.3), 0 8px 24px -12px rgb(0 0 0 / 0.6);
+    }
+  }
+
+  :root[data-theme='dark'] {
+    --page: #0b1220;
+    --surface: #141d2b;
+    --surface-2: #1e293b;
+    --line: #2a3648;
+    --line-strong: #44556e;
+
+    --sky: #0ea5e9;
+    --sky-strong: #7dd3fc;
+    --sky-soft: #1f5f85;
+    --sky-tint: #0e2a3d;
+
+    --ink: #e8eef7;
+    --muted: #94a3b8;
+
+    --warn: #fcd34d;
+    --warn-line: #78350f;
+    --warn-bg: #2a1e08;
+
+    --ok: #34d399;
+    --ok-bg: #0d2b21;
+    --danger: #f87171;
+    --danger-line: #7f1d1d;
+    --danger-bg: #2a1010;
+
+    --zone-low: #1e5a7a;
+    --zone-ok: #1f7a4d;
+    --zone-caution: #8a6a12;
+    --zone-danger: #7f2a2a;
+
+    --shadow: 0 1px 2px rgb(0 0 0 / 0.3), 0 8px 24px -12px rgb(0 0 0 / 0.6);
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--page);
+    color: var(--ink);
+    font-family: var(--sans);
+    font-size: 16px;
+    line-height: 1.75;
+    font-weight: 400;
+    word-break: keep-all;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* ── 뼈대 ─────────────────────────────────────────────── */
+  .wrap {
+    max-width: 1180px;
+    margin: 0 auto;
+    padding: 0 20px 96px;
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 0 56px;
+  }
+
+  @media (min-width: 1020px) {
+    .wrap { grid-template-columns: 232px minmax(0, 1fr); }
+    .masthead { grid-column: 1 / -1; }
+  }
+
+  /* ── 표지 ─────────────────────────────────────────────── */
+  .masthead {
+    padding: 72px 0 40px;
+    border-bottom: 1px solid var(--line);
+    margin-bottom: 48px;
+  }
+
+  .brand {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    font-family: var(--num);
+    font-size: 20px;
+    letter-spacing: 0.06em;
+    color: var(--sky-strong);
+    margin-bottom: 20px;
+  }
+
+  .ball {
+    width: 26px;
+    height: 26px;
+    border-radius: 999px;
+    background: var(--sky);
+    display: grid;
+    place-items: center;
+    flex: none;
+  }
+  .ball svg { width: 15px; height: 15px; display: block; }
+
+  h1 {
+    margin: 0;
+    font-size: clamp(2.1rem, 6vw, 3.4rem);
+    line-height: 1.12;
+    font-weight: 700;
+    letter-spacing: -0.035em;
+    text-wrap: balance;
+  }
+
+  .standfirst {
+    margin: 20px 0 0;
+    max-width: 60ch;
+    font-size: clamp(1rem, 2.4vw, 1.15rem);
+    line-height: 1.8;
+    color: var(--muted);
+  }
+
+  .meta {
+    margin-top: 28px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .pill {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 6px;
+    padding: 5px 12px;
+    border-radius: 999px;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    font-size: 0.8rem;
+    color: var(--muted);
+  }
+  .pill b {
+    font-family: var(--num);
+    font-size: 1.05rem;
+    font-weight: 400;
+    letter-spacing: 0.02em;
+    color: var(--ink);
+  }
+
+  /* ── 차례 ─────────────────────────────────────────────── */
+  .toc {
+    align-self: start;
+    margin-bottom: 44px;
+  }
+
+  @media (min-width: 1020px) {
+    .toc {
+      position: sticky;
+      top: 32px;
+      margin-bottom: 0;
+    }
+  }
+
+  .toc-label {
+    font-family: var(--num);
+    font-size: 0.95rem;
+    letter-spacing: 0.14em;
+    color: var(--muted);
+    margin-bottom: 12px;
+  }
+
+  .toc ol {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    counter-reset: toc;
+  }
+
+  .toc a {
+    counter-increment: toc;
+    display: flex;
+    gap: 10px;
+    padding: 7px 10px;
+    border-radius: 9px;
+    color: var(--muted);
+    text-decoration: none;
+    font-size: 0.9rem;
+    line-height: 1.45;
+    transition: background 0.15s, color 0.15s;
+  }
+  .toc a::before {
+    content: counter(toc);
+    font-family: var(--num);
+    font-size: 0.95rem;
+    color: var(--line-strong);
+    flex: none;
+    min-width: 12px;
+  }
+  .toc a:hover,
+  .toc a:focus-visible { background: var(--surface); color: var(--ink); }
+  .toc a:focus-visible { outline: 2px solid var(--sky); outline-offset: 1px; }
+
+  /* ── 본문 ─────────────────────────────────────────────── */
+  main { min-width: 0; }
+
+  section { margin-bottom: 72px; scroll-margin-top: 24px; }
+
+  .eyebrow {
+    display: block;
+    font-family: var(--num);
+    font-size: 1rem;
+    letter-spacing: 0.16em;
+    color: var(--sky-strong);
+    margin-bottom: 6px;
+  }
+
+  h2 {
+    margin: 0 0 12px;
+    font-size: clamp(1.5rem, 3.6vw, 1.95rem);
+    line-height: 1.3;
+    font-weight: 700;
+    letter-spacing: -0.03em;
+    text-wrap: balance;
+  }
+
+  h3 {
+    margin: 40px 0 12px;
+    font-size: 1.12rem;
+    font-weight: 600;
+    letter-spacing: -0.02em;
+    line-height: 1.45;
+  }
+
+  h4 {
+    margin: 28px 0 8px;
+    font-size: 0.98rem;
+    font-weight: 600;
+    color: var(--sky-strong);
+    letter-spacing: -0.01em;
+  }
+
+  p { margin: 0 0 16px; max-width: 68ch; }
+  main a { color: var(--sky-strong); text-decoration-thickness: 1px; text-underline-offset: 2px; }
+
+  ul, ol.body { margin: 0 0 18px; padding-left: 20px; max-width: 68ch; }
+  li { margin-bottom: 7px; }
+  li::marker { color: var(--line-strong); }
+
+  b, strong { font-weight: 600; }
+  code {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 0.88em;
+    background: var(--surface-2);
+    border: 1px solid var(--line);
+    border-radius: 5px;
+    padding: 1px 5px;
+  }
+
+  /* ── 표 ───────────────────────────────────────────────── */
+  .table-wrap {
+    overflow-x: auto;
+    margin: 0 0 22px;
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    background: var(--surface);
+    box-shadow: var(--shadow);
+  }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.92rem;
+    font-variant-numeric: tabular-nums;
+  }
+  th, td {
+    text-align: left;
+    padding: 11px 16px;
+    border-bottom: 1px solid var(--line);
+    vertical-align: top;
+    line-height: 1.6;
+  }
+  th {
+    font-weight: 600;
+    font-size: 0.78rem;
+    letter-spacing: 0.02em;
+    color: var(--muted);
+    background: var(--surface-2);
+    white-space: nowrap;
+  }
+  tbody tr:last-child td { border-bottom: none; }
+  td:first-child { white-space: nowrap; font-weight: 500; }
+  td.wrap-ok { white-space: normal; }
+
+  /* ── 알림 상자 ───────────────────────────────────────── */
+  .note {
+    margin: 0 0 22px;
+    padding: 16px 20px;
+    border-radius: 14px;
+    border: 1px solid var(--line);
+    background: var(--surface);
+    max-width: 68ch;
+  }
+  .note > :last-child { margin-bottom: 0; }
+  .note p { max-width: none; }
+
+  .note-title {
+    display: block;
+    font-weight: 600;
+    font-size: 0.9rem;
+    margin-bottom: 6px;
+    letter-spacing: -0.01em;
+  }
+
+  .note.tip { border-color: var(--sky-soft); background: var(--sky-tint); }
+  .note.tip .note-title { color: var(--sky-strong); }
+  .note.tip, .note.tip p { color: var(--ink); }
+
+  .note.warn { border-color: var(--warn-line); background: var(--warn-bg); }
+  .note.warn, .note.warn p, .note.warn .note-title { color: var(--warn); }
+
+  .note.rule { border-color: var(--line); border-left: 3px solid var(--sky); }
+  .note.rule .note-title { color: var(--ink); }
+
+  /* ── 부하 게이지 (앱 화면을 그대로 옮긴 것) ───────────── */
+  .gauge {
+    margin: 0 0 24px;
+    padding: 22px 22px 18px;
+    border: 1px solid var(--line);
+    border-radius: 16px;
+    background: var(--surface);
+    box-shadow: var(--shadow);
+    max-width: 68ch;
+  }
+  .gauge-value {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    margin-bottom: 16px;
+  }
+  .gauge-num {
+    font-family: var(--num);
+    font-size: 3rem;
+    line-height: 0.9;
+    color: var(--ok);
+    letter-spacing: 0.01em;
+  }
+  .gauge-of { font-size: 0.9rem; color: var(--muted); }
+  .gauge-bar {
+    position: relative;
+    display: grid;
+    grid-template-columns: 40% 25% 10% 25%;
+    height: 12px;
+    border-radius: 999px;
+    overflow: hidden;
+  }
+  .gauge-bar span { display: block; }
+  .z1 { background: var(--zone-low); }
+  .z2 { background: var(--zone-ok); }
+  .z3 { background: var(--zone-caution); }
+  .z4 { background: var(--zone-danger); }
+  /*
+    눈금은 0~2.0 을 100% 에 선형으로 편 것이다. 1.29 는 1.29/2.0 = 64.5% 지점.
+    구간 폭도 같은 자로 잰다 — 0.8/2.0=40%, 0.5/2.0=25%, 0.2/2.0=10%, 나머지 25%.
+  */
+  .needle {
+    position: absolute;
+    top: -4px;
+    bottom: -4px;
+    left: 64.5%;
+    width: 3px;
+    border-radius: 2px;
+    background: var(--ink);
+  }
+  .gauge-names, .gauge-ticks {
+    display: grid;
+    grid-template-columns: 40% 25% 10% 25%;
+    font-size: 0.72rem;
+    color: var(--muted);
+  }
+  .gauge-names { margin-top: 8px; text-align: center; }
+  .gauge-names span:nth-child(2) { color: var(--ok); font-weight: 600; }
+  .gauge-ticks {
+    position: relative;
+    margin-top: 2px;
+    font-family: var(--num);
+    font-size: 0.85rem;
+    letter-spacing: 0.03em;
+  }
+  /* 각 눈금은 자기 구간의 오른쪽 끝을 가리킨다. 0 만 왼쪽 끝에 따로 둔다. */
+  .gauge-ticks span { text-align: right; }
+  .tick-zero { position: absolute; left: 0; }
+  .gauge-caption {
+    margin: 14px 0 0;
+    font-size: 0.85rem;
+    color: var(--muted);
+    max-width: none;
+  }
+
+  /* ── 하루 흐름 ───────────────────────────────────────── */
+  .flow {
+    display: grid;
+    gap: 12px;
+    grid-template-columns: 1fr;
+    margin: 0 0 24px;
+    counter-reset: step;
+    max-width: 68ch;
+  }
+  @media (min-width: 640px) { .flow { grid-template-columns: repeat(3, 1fr); } }
+
+  .step {
+    position: relative;
+    padding: 18px 18px 16px;
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    background: var(--surface);
+    box-shadow: var(--shadow);
+  }
+  .step::before {
+    counter-increment: step;
+    content: counter(step);
+    display: block;
+    font-family: var(--num);
+    font-size: 1.5rem;
+    line-height: 1;
+    color: var(--sky);
+    margin-bottom: 8px;
+  }
+  .step b { display: block; font-size: 0.98rem; margin-bottom: 4px; }
+  .step span { font-size: 0.85rem; color: var(--muted); line-height: 1.6; }
+
+  /* ── 마무리 ──────────────────────────────────────────── */
+  .colophon {
+    border-top: 1px solid var(--line);
+    padding-top: 28px;
+    font-size: 0.85rem;
+    color: var(--muted);
+  }
+  .colophon p { max-width: 68ch; }
+
+  @media (prefers-reduced-motion: reduce) {
+    * { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
+  }
+</style>
+
+<div class="wrap">
+  <header class="masthead">
+    <div class="brand">
+      <span class="ball" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round">
+          <circle cx="12" cy="12" r="9"></circle>
+          <path d="M5.5 5.5c2.5 2 3.5 4 3.5 6.5s-1 4.5-3.5 6.5"></path>
+          <path d="M18.5 5.5c-2.5 2-3.5 4-3.5 6.5s1 4.5 3.5 6.5"></path>
+        </svg>
+      </span>
+      BULLPEN LOG
+    </div>
+
+    <h1>불펜 로그 사용 설명서</h1>
+
+    <p class="standfirst">
+      야구를 좋아해서 마운드에 오르는 사람들을 위한 안내서입니다.
+      전문 용어를 최대한 빼고, 화면에서 실제로 무슨 일이 일어나는지만 적었습니다.
+    </p>
+
+    <div class="meta">
+      <span class="pill"><b>445</b> 운동 영상</span>
+      <span class="pill"><b>116</b> 투구 드릴</span>
+      <span class="pill"><b>7</b> 갈래</span>
+      <span class="pill">읽는 데 <b>10</b> 분</span>
+    </div>
+  </header>
+
+  <nav class="toc" aria-label="차례">
+    <div class="toc-label">CONTENTS</div>
+    <ol>
+      <li><a href="#what">불펜 로그는 무엇인가요</a></li>
+      <li><a href="#start">시작하기 — 처음 3분</a></li>
+      <li><a href="#daily">매일 하는 일</a></li>
+      <li><a href="#screens">화면별 설명</a></li>
+      <li><a href="#faq">자주 헷갈리는 것</a></li>
+      <li><a href="#words">용어 사전</a></li>
+      <li><a href="#principles">이 앱이 지키려는 것</a></li>
+    </ol>
+  </nav>
+
+  <main>
+    <!-- ─────────────────────────────────────────────── -->
+    <section id="what">
+      <span class="eyebrow">01</span>
+      <h2>불펜 로그는 무엇인가요</h2>
+
+      <p>투수 한 명이 관리해야 하는 것은 세 가지입니다.</p>
+      <ul>
+        <li><b>얼마나 던졌는가</b> — 오늘 몇 개를 얼마나 세게 던졌는지</li>
+        <li><b>몸을 어떻게 만드는가</b> — 웨이트, 가동성, 어깨 관리</li>
+        <li><b>어떻게 던지는가</b> — 투구 동작을 다듬는 드릴</li>
+      </ul>
+      <p>
+        보통은 이 셋을 따로 합니다. 투구수는 머릿속에, 운동은 유튜브에서 찾아서,
+        드릴은 어디서 본 것을 기억나는 대로. <b>불펜 로그는 이 셋을 한 앱에 모은 것</b>입니다.
+      </p>
+
+      <h3>해주는 것</h3>
+      <div class="table-wrap">
+        <table>
+          <tbody>
+            <tr><td>투구 기록</td><td class="wrap-ok">던진 날마다 개수·강도·구속을 남기고 달력으로 되돌아봅니다</td></tr>
+            <tr><td>부하 관리</td><td class="wrap-ok">지금 던지는 양이 평소보다 많은지 숫자로 보여줍니다</td></tr>
+            <tr><td>오늘의 운동</td><td class="wrap-ok">최근 투구량과 오늘 몸 상태에 맞춰 운동 목록을 만들어 줍니다</td></tr>
+            <tr><td>운동 영상</td><td class="wrap-ok">445개의 운동을 부위·강도·장비로 찾아볼 수 있습니다</td></tr>
+            <tr><td>투구 드릴</td><td class="wrap-ok">116개의 드릴을 설명과 함께 보고 직접 골라 담습니다</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3>안 해주는 것 — 미리 알아두시면 좋습니다</h3>
+      <ul>
+        <li>
+          <b>투구 폼을 봐주지 않습니다.</b> 영상을 올려둘 수는 있지만, 앱이
+          "팔이 늦게 나옵니다" 같은 진단을 하지는 않습니다. 그래서
+          <b>투구 드릴은 앱이 골라주지 않습니다</b> — 설명을 읽고 본인에게 필요한 것을
+          직접 담습니다.
+        </li>
+        <li>
+          <b>구속을 올려준다고 약속하지 않습니다.</b> 구속은 파워, 투구 동작, 유연성,
+          타이밍이 함께 만드는 것입니다. 훈련 목표에 '파워 향상'은 있어도
+          '구속 향상'이라고 적지 않은 이유입니다.
+        </li>
+        <li>
+          <b>의사가 아닙니다.</b> 부하 지수는 훈련량 관리를 돕는 참고 숫자입니다.
+          아프면 숫자와 상관없이 병원에 가세요.
+        </li>
+      </ul>
+    </section>
+
+    <!-- ─────────────────────────────────────────────── -->
+    <section id="start">
+      <span class="eyebrow">02</span>
+      <h2>시작하기 — 처음 3분</h2>
+
+      <h3>회원가입에서 묻는 것</h3>
+      <p>가입 화면에서 몇 가지를 묻는데, 각각 쓰이는 데가 있습니다.</p>
+
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>묻는 것</th><th>왜 묻는가</th></tr></thead>
+          <tbody>
+            <tr><td>생년월일</td><td class="wrap-ok">나이에 따라 하루 안전 투구수 상한이 다릅니다</td></tr>
+            <tr><td>던지는 손</td><td class="wrap-ok">좌투·우투</td></tr>
+            <tr><td>평소 얼마나 던지나요</td><td class="wrap-ok">3문항. 이게 있어야 <b>첫날부터</b> 부하 지수가 나옵니다</td></tr>
+            <tr><td>평소 웨이트는</td><td class="wrap-ok">1문항. 운동 부하도 같은 이유</td></tr>
+            <tr><td>어디서 야구를</td><td class="wrap-ok"><b>안 골라도 됩니다.</b> 지금은 아무 계산에도 안 씁니다</td></tr>
+            <tr><td>키</td><td class="wrap-ok">나중에 넣어도 됩니다</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="note tip">
+        <span class="note-title">"평소 얼마나 던지나요"를 왜 묻는지</span>
+        <p>
+          부하 지수는 <b>최근 1주일</b>과 <b>최근 4주 평균</b>을 견주는 숫자입니다.
+          가입 첫날에는 4주치 기록이 없으니 이 문진 답으로 4주치를 대신 채웁니다.
+          화면에도 <code>문진 추정 기준 · 실측 반영 7%</code> 처럼 얼마나 실제 기록인지
+          표시되고, 기록이 쌓일수록 이 비율이 올라갑니다.
+        </p>
+      </div>
+
+      <h3>나이별 하루 투구수 상한</h3>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>나이</th><th>하루 최대</th></tr></thead>
+          <tbody>
+            <tr><td>~10세</td><td>75구</td></tr>
+            <tr><td>11~12세</td><td>85구</td></tr>
+            <tr><td>13~16세</td><td>95구</td></tr>
+            <tr><td>17~18세</td><td>105구</td></tr>
+            <tr><td>19세 이상</td><td>120구</td></tr>
+            <tr><td>나이 미입력</td><td>95구 (보수적으로)</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p>유소년 투구수 가이드(Pitch Smart)에서 쓰는 구간을 그대로 옮긴 값입니다.</p>
+
+      <h3>가입 직후 홈 화면</h3>
+      <p>가입하면 홈에 <b>"여기부터 시작하세요"</b> 라는 파란 상자가 뜹니다.</p>
+      <div class="note rule">
+        <p>오늘 투구를 먼저 남겨주세요. 던진 양을 알아야 부하를 재고 무리가 안 되는 운동을 고를 수 있습니다.</p>
+      </div>
+      <p>
+        그 말대로입니다. <b>투구 기록이 없으면 운동 일정을 만들 수 없습니다.</b>
+        최근에 얼마나 던졌는지 모르면 오늘 어깨를 써도 되는지 판단할 수 없기 때문입니다.
+      </p>
+    </section>
+
+    <!-- ─────────────────────────────────────────────── -->
+    <section id="daily">
+      <span class="eyebrow">03</span>
+      <h2>매일 하는 일</h2>
+
+      <p>순서는 이렇습니다. 셋 다 홈에서 시작합니다.</p>
+
+      <div class="flow">
+        <div class="step"><b>오늘 투구 남기기</b><span>안 던졌어도 눌러두면 좋습니다</span></div>
+        <div class="step"><b>오늘 체크인</b><span>30초. 컨디션과 아픈 곳</span></div>
+        <div class="step"><b>운동 일정 만들고 하기</b><span>트레이닝 화면에서</span></div>
+      </div>
+
+      <h3>① 오늘 투구 남기기</h3>
+      <p>홈의 <b>오늘 투구</b> 상자를 누릅니다.</p>
+
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>칸</th><th>설명</th></tr></thead>
+          <tbody>
+            <tr><td>투구 종류</td><td class="wrap-ok">불펜 · 라이브 · 경기 · 캐치볼 · 휴식</td></tr>
+            <tr><td>투구수</td><td class="wrap-ok">실제로 던진 개수 (필수)</td></tr>
+            <tr><td>투구 강도</td><td class="wrap-ok">1~10. 아래 기준표 참고</td></tr>
+            <tr><td>최고 구속</td><td class="wrap-ok">스피드건이 없으면 <b>비워두세요</b></td></tr>
+            <tr><td>평균 구속</td><td class="wrap-ok">비워두셔도 됩니다</td></tr>
+            <tr><td>투구 영상</td><td class="wrap-ok">최대 2개 · 50MB</td></tr>
+            <tr><td>느낀점</td><td class="wrap-ok">자유롭게</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <p>
+        안 던진 날이라면 <b>오늘 안 던졌어요</b>를 누르면 끝입니다. 남기지 않아도 앱은
+        안 던진 날로 보지만, 눌러두면 달력에 "쉬는 날"로 명확히 남습니다.
+      </p>
+
+      <h4>투구 강도 기준 — 감으로 찍지 마세요</h4>
+      <p>이 숫자가 부하 지수와 필요한 휴식일을 정합니다.</p>
+
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>강도</th><th>이름</th><th>어떤 상황</th></tr></thead>
+          <tbody>
+            <tr><td>1–2</td><td>몸 푸는 정도</td><td class="wrap-ok">가까운 거리 캐치볼. 팔에 힘을 거의 안 씁니다</td></tr>
+            <tr><td>3–4</td><td>편하게</td><td class="wrap-ok">롱토스 워밍업, 가벼운 플랫. 폼 확인하는 정도</td></tr>
+            <tr><td>5–6</td><td>절반쯤 힘</td><td class="wrap-ok">불펜 초반, 폼 점검. 여유 있지만 제대로 된 투구 동작</td></tr>
+            <tr><td>7–8</td><td>세게</td><td class="wrap-ok">불펜 본 세션, 라이브. 경기와 비슷하지만 여유가 남음</td></tr>
+            <tr><td>9–10</td><td>전력</td><td class="wrap-ok">경기, 최고 구속 측정. 더 세게는 못 던짐</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="note warn">
+        <span class="note-title">가볍게 느껴져도 팔에 가는 부담은 큽니다</span>
+        <p>
+          절반 힘으로 던져도 구속은 최고의 80%가 나오고, 팔꿈치에 걸리는 힘은
+          75%나 됩니다. 실제로 던진 만큼 적어주세요.
+        </p>
+      </div>
+
+      <h4>던진 양에 따라 며칠 쉬어야 하는가</h4>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>던진 개수</th><th>필요한 휴식일</th></tr></thead>
+          <tbody>
+            <tr><td>31~45구</td><td>1일</td></tr>
+            <tr><td>46~60구</td><td>2일</td></tr>
+            <tr><td>61~75구</td><td>3일</td></tr>
+            <tr><td>76구 이상</td><td>4일</td></tr>
+            <tr><td>100구 이상</td><td>강도와 무관하게 최소 1일</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p>고교 연령 기준표를 따릅니다. 그보다 어리면 더 보수적으로 보셔야 합니다.</p>
+
+      <h3>② 오늘 체크인 — 30초</h3>
+      <p>여기서 남긴 것이 오늘 받을 운동을 바꿉니다.</p>
+
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>항목</th><th>무엇을 바꾸나</th></tr></thead>
+          <tbody>
+            <tr><td>몸 상태</td><td class="wrap-ok">통증이 있으면 그날은 <b>운동 일정을 아예 만들지 않습니다</b></td></tr>
+            <tr><td>전신 컨디션</td><td class="wrap-ok">1~10. 낮으면 강도가 내려갑니다</td></tr>
+            <tr><td>수면</td><td class="wrap-ok">충분 / 보통 / 부족. 컨디션과 함께 봅니다</td></tr>
+            <tr><td>하고 싶은 운동</td><td class="wrap-ok">추천대로 / 파워 / 웨이트 / 회복</td></tr>
+            <tr><td>하고 싶은 부위</td><td class="wrap-ok">최대 3개. 안 골라도 됩니다</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="note warn">
+        <span class="note-title">여기만은 앱이 밀어붙입니다 — 통증</span>
+        <p>
+          불펜 로그는 기본적으로 <b>권하기만 하고 최종 선택은 사용자에게 맡깁니다.</b>
+          "오늘 파워 하고 싶다"고 했는데 몸 상태가 안 좋으면, 왜 가벼운 쪽을 권하는지
+          설명하고 <b>"그래도 하겠다"는 체크박스</b>를 줍니다.
+        </p>
+        <p>
+          통증만 예외입니다. 아프다고 표시하면 트레이닝 화면에
+          <b>"오늘은 운동을 처방하지 않았습니다"</b> 만 뜨고, 일정을 만드는 단추 자체가
+          없어집니다. 밀고 나갈 방법이 없습니다 — 통증은 고르는 문제가 아니기 때문입니다.
+        </p>
+        <p>
+          잘못 눌렀다면 홈의 오늘 체크인에서 고치면 바로 풀립니다. 이미 만들어 둔
+          일정이 있으면 그대로 다시 나옵니다.
+        </p>
+      </div>
+    </section>
+
+    <!-- ─────────────────────────────────────────────── -->
+    <section id="screens">
+      <span class="eyebrow">04</span>
+      <h2>화면별 설명</h2>
+
+      <h3>홈</h3>
+      <p>하루에 할 일 네 가지를 상자로 보여줍니다.</p>
+      <div class="table-wrap">
+        <table>
+          <tbody>
+            <tr><td>오늘 체크인</td><td class="wrap-ok">컨디션·아픈 곳 + 최근 7일 컨디션 막대</td></tr>
+            <tr><td>오늘 투구</td><td class="wrap-ok">오늘 계획과 실제 기록 + 최근 7일 투구수 막대</td></tr>
+            <tr><td>운동 일정</td><td class="wrap-ok">오늘의 테마와 진행률</td></tr>
+            <tr><td>트레이닝 설정</td><td class="wrap-ok">경력 · 가진 장비</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p>
+        아래로 내려가면 <b>지금 부하</b>, <b>이번 주</b>(투구수·운동일수),
+        <b>최근 기록</b>이 이어집니다.
+      </p>
+
+      <h3>투구 일지</h3>
+      <p>달력입니다. 날짜를 누르면 그날의 기록·영상·느낀점이 열립니다.</p>
+      <ul>
+        <li>칸의 <b>색이 진할수록 그날 강도가 높습니다</b> (낮음 / 보통 / 높음)</li>
+        <li><b>점선 칸</b>은 쉬는 날</li>
+        <li>칸 아래 <b>파란 점</b>은 그날 영상이 있다는 뜻</li>
+        <li><b>기록이 없는 날도 눌러서 나중에 남길 수 있습니다</b> — 며칠 빼먹었어도 채워 넣으세요</li>
+      </ul>
+
+      <h3>트레이닝</h3>
+
+      <h4>일정을 만들 때 고르는 것</h4>
+      <div class="table-wrap">
+        <table>
+          <tbody>
+            <tr><td>오늘 운동 시간</td><td class="wrap-ok">45 · 60 · 90분</td></tr>
+            <tr><td>오늘 훈련 목표</td><td class="wrap-ok">균형 잡힌 관리 / 파워 향상 / 부상 방지 / 근력 향상</td></tr>
+            <tr><td>오늘 쓸 장비</td><td class="wrap-ok">헬스장에 안 가는 날처럼 오늘 못 쓰는 것을 꺼둡니다</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="note tip">
+        <span class="note-title">훈련 목표는 왜 매번 고르나요</span>
+        <p>
+          예전에는 설정에 한 번 저장해 두는 값이었습니다. 그러니 '파워 향상'으로
+          정해둔 사람의 <b>모든 날</b>이 파워 위주가 됐습니다. 오늘은 어깨가 뻐근해서
+          관리에 쓰고 싶은 날에도요. 목표는 날마다 달라지는 것이라 만들 때 함께 고릅니다.
+          지난번에 고른 것이 미리 골라져 있으니, 그대로 갈 거면 손댈 필요 없습니다.
+        </p>
+      </div>
+
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>목표</th><th>시간을 더 쓰는 곳</th></tr></thead>
+          <tbody>
+            <tr><td>균형 잡힌 관리</td><td class="wrap-ok">근력·파워·어깨 관리를 고르게</td></tr>
+            <tr><td>파워 향상</td><td class="wrap-ok">빠르게 힘을 내는 훈련과 하체</td></tr>
+            <tr><td>부상 방지</td><td class="wrap-ok">어깨·팔꿈치 관리와 고관절 보강</td></tr>
+            <tr><td>근력 향상</td><td class="wrap-ok">무게를 다루는 운동</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h4>만들어진 일정 읽는 법</h4>
+      <p>맨 위 카드에 <b>오늘의 테마</b>가 뜹니다.</p>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>테마</th><th>언제 나오나</th></tr></thead>
+          <tbody>
+            <tr><td>하체 스트렝스 데이</td><td class="wrap-ok">어깨를 쓸 여유가 있고 하체 차례일 때</td></tr>
+            <tr><td>상체 스트렝스 데이</td><td class="wrap-ok">마찬가지로 상체 차례일 때</td></tr>
+            <tr><td>보조·코어 데이</td><td class="wrap-ok">던진 다음 날처럼 큰 무게를 들기 부담스러울 때</td></tr>
+            <tr><td>회복·재생 데이</td><td class="wrap-ok">많이 던진 직후, 컨디션이 나쁠 때, 통증이 있을 때</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p>
+        그 아래 이유가 한 줄로 적힙니다. 운동은 순서대로
+        <b>워밍업 → 본운동 → 코어 → 보강 → 암케어</b> 구간으로 묶여 나옵니다.
+      </p>
+
+      <div class="note tip">
+        <span class="note-title">회복 데이는 시간이 줄어듭니다</span>
+        <p>
+          45분을 골라도 30분, 60·90분을 골라도 40분으로 잡습니다. 회복이 목적인 날에
+          한 시간 가까이 시키면 그건 이미 회복이 아니기 때문입니다. 화면에도
+          "45분을 고르셨지만 회복 데이라 30분으로 줄였습니다" 라고 적힙니다.
+        </p>
+      </div>
+
+      <h4>운동을 하면서</h4>
+      <ul>
+        <li><b>운동 줄을 누르면 완료 표시</b>가 됩니다. 위쪽 진행률 막대가 함께 찹니다.</li>
+        <li>
+          완료하면 <b>"실제로 한 것"</b> 칸이 열립니다 — 세트 / 회 / kg.
+          <ul>
+            <li><b>비워둬도 됩니다.</b> 안 적는다고 뭐가 안 되지는 않습니다.</li>
+            <li>적어두면 다음에 같은 운동이 나올 때 <b>"지난번 8/24 · 3세트 × 10회 15kg"</b> 처럼 보여줍니다. 그게 이 칸의 목적입니다.</li>
+            <li>무게는 <b>± 단추</b>로도 2.5kg씩 바꿀 수 있습니다. 폰에서 키보드를 안 띄우려고요.</li>
+            <li>세트마다 무게가 다르면 <b>가장 무거웠던 세트</b>를 적으시면 됩니다.</li>
+          </ul>
+        </li>
+        <li><b>X 단추</b>로 마음에 안 드는 운동을 빼고, 맨 아래 <b>운동 추가</b>로 더 넣습니다.</li>
+        <li>하나라도 마치면 <b>"오늘 운동은 어땠나요?"</b> 가 열립니다. 운동 강도(1~10)와 느낀점을 하루 한 번 남기면 그게 <b>운동 부하 지수</b>가 됩니다.</li>
+        <li><b>다시 만들기</b>를 누르면 조건을 바꿔 새 목록을 받습니다. 누를 때마다 다른 운동이 나옵니다.</li>
+      </ul>
+
+      <h4>투구 드릴</h4>
+      <p>운동 목록 아래에 따로 있습니다. <b>비어 있는 채로 시작합니다.</b></p>
+      <div class="note rule">
+        <p>투구 드릴은 앱이 골라 주지 않습니다 — 무엇이 필요한지는 본인이 가장 잘 압니다.</p>
+      </div>
+      <p>
+        <b>드릴 고르기</b>를 누르면 116개를 이름·설명·장비로 찾아볼 수 있고, 종류
+        (무브먼트 패턴 / 스로잉 / 메디신볼)로 걸러집니다. 설명을 읽고 필요한 것을
+        담으세요. 하루 최대 8개입니다. 세트나 횟수는 없습니다 — 담고, 했으면 체크하는
+        것이 전부입니다.
+      </p>
+
+      <h3>분석</h3>
+
+      <h4>부하 지수 — 이 앱에서 가장 중요한 숫자</h4>
+      <p>
+        <b>최근 1주일에 한 양 ÷ 최근 4주 평균</b>입니다. 쉽게 말해
+        <b>"평소보다 얼마나 많이 하고 있는가"</b>.
+      </p>
+
+      <div class="gauge">
+        <div class="gauge-value">
+          <span class="gauge-num">1.29</span>
+          <span class="gauge-of">/ 1.30 이하 권장</span>
+        </div>
+        <div class="gauge-bar" role="img" aria-label="부하 지수 게이지. 1.29는 적정 구간입니다.">
+          <span class="z1"></span><span class="z2"></span><span class="z3"></span><span class="z4"></span>
+          <span class="needle"></span>
+        </div>
+        <div class="gauge-names" aria-hidden="true">
+          <span>낮음</span><span>적정</span><span>주의</span><span>위험</span>
+        </div>
+        <div class="gauge-ticks" aria-hidden="true">
+          <span class="tick-zero">0</span>
+          <span>0.8</span><span>1.3</span><span>1.5</span><span>2.0</span>
+        </div>
+        <p class="gauge-caption">앱의 분석 화면에 나오는 게이지입니다. 1.0이면 평소와 똑같이 하고 있다는 뜻입니다.</p>
+      </div>
+
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>구간</th><th>값</th><th>뜻</th></tr></thead>
+          <tbody>
+            <tr><td>낮음</td><td>0.8 미만</td><td class="wrap-ok">평소보다 적게 하고 있습니다</td></tr>
+            <tr><td>적정</td><td>0.8 ~ 1.3</td><td class="wrap-ok">평소 쌓아온 양에 맞습니다</td></tr>
+            <tr><td>주의</td><td>1.3 ~ 1.5</td><td class="wrap-ok">갑자기 늘었습니다</td></tr>
+            <tr><td>위험</td><td>1.5 초과</td><td class="wrap-ok">부상 위험이 올라가는 구간</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <p>
+        투구와 운동에 각각 하나씩 있습니다. 요일에 따라 오르내립니다 — 던진 다음 날은
+        높고 이틀 쉰 날은 낮게 나옵니다. <b>하루 값보다 흐름을 보세요.</b>
+        화면에 최근 2주 흐름 그래프가 있습니다.
+      </p>
+
+      <h4>그 밖에 보이는 것</h4>
+      <ul>
+        <li><b>이번 주 투구 / 운동</b> — 지난주와 견줍니다</li>
+        <li><b>마지막 투구 / 개인 최고 구속</b></li>
+        <li>
+          <b>이번 주 부위별 세트</b> — 하체·코어·등견갑·가슴어깨·팔전완·암케어.
+          한 운동이 여러 부위를 쓰면 <b>각 부위에 모두 셉니다</b>(데드리프트는 하체이면서
+          등입니다). 그래서 다 더하면 실제 세트 수보다 큽니다. <b>적정 세트 수를
+          정해두지 않았습니다</b> — 사람마다 다릅니다. 지난주와 견줘 보세요.
+        </li>
+        <li><b>최근 28일 추이</b> — 투구수 / 누적 부하 / 최고 구속 / 투구 강도</li>
+        <li><b>리포트</b> — 투구 기록이 <b>5번</b> 모이면 앞으로 3일 투구 계획을 만들어 줍니다</li>
+        <li><b>기간별 돌아보기</b> — 7일·30일 단위 기록과 코멘트</li>
+      </ul>
+
+      <h3>라이브러리</h3>
+      <div class="table-wrap">
+        <table>
+          <tbody>
+            <tr><td>운동 영상</td><td>445개</td><td class="wrap-ok">하체·상체 스트렝스, 모빌리티, 파워, 코어, 암케어, 회복 및 보강</td></tr>
+            <tr><td>투구 드릴</td><td>116개</td><td class="wrap-ok">스로잉 · 메디신볼 · 무브먼트 패턴</td></tr>
+            <tr><td>자료실</td><td></td><td class="wrap-ok">투구 역학과 트레이닝에 관한 자료</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p>
+        <b>조건으로 찾기</b>로 목표 부위 · 강도 · 장비를 걸러 볼 수 있습니다.
+        카테고리마다 색과 아이콘이 있어서, 목록에서 무엇이 어느 갈래인지 글자를
+        읽기 전에 알아볼 수 있습니다.
+      </p>
+      <p>
+        아직 직접 촬영하지 못한 운동에는 <b>"참고 영상"</b> 표시가 붙습니다.
+        유튜브에서 찾아 연결해 둔 것이고, 촬영이 끝나는 대로 바뀝니다.
+      </p>
+
+      <h3>더보기 · 내 정보</h3>
+      <p>
+        라이브러리 바로가기, 내 정보, 화면 밝기(라이트/다크), 로그아웃이 있습니다.
+        <b>내 정보</b>에서 닉네임, 생년월일, 키, 목표 최고 구속, 던지는 손, 평소 문진 답,
+        하루 운동 시간 기본값을 고칠 수 있습니다.
+      </p>
+      <p>
+        목표 최고 구속을 넣어두면 홈에서 지금 구속과의 격차를 보여줍니다.
+        비워두면 안 씁니다.
+      </p>
+    </section>
+
+    <!-- ─────────────────────────────────────────────── -->
+    <section id="faq">
+      <span class="eyebrow">05</span>
+      <h2>자주 헷갈리는 것</h2>
+
+      <h3>부하 지수가 1.29인데 괜찮은 건가요?</h3>
+      <p>
+        1.3 이하면 적정입니다. <b>평소 하던 양의 1.29배</b>라는 뜻이고, 몸이 감당해온
+        범위 안이라는 의미입니다. 다만 가입 직후에는 문진 답으로 계산한 추정값이라
+        <code>실측 반영 7%</code> 같은 표시가 붙습니다 — 기록이 쌓일수록 정확해집니다.
+      </p>
+
+      <h3>왜 오늘은 이 운동인가요?</h3>
+      <p>일정 맨 아래 <b>"왜 이 운동인가요?"</b> 를 누르면 그날 쓴 근거가 그대로 나옵니다.</p>
+      <div class="note rule">
+        <p>
+          오늘 45구를 던지셨습니다. 하체는 빼고 코어와 어깨 관리 위주로 잡았습니다.<br>
+          목표 '균형 잡힌 관리'에 맞춰 시간을 배분<br>
+          부하가 적정 범위 → 강도 제한 없음
+        </p>
+      </div>
+
+      <h3>없는 장비 운동이 나와요</h3>
+      <p>
+        <b>트레이닝 설정에서 가진 장비를 한 번도 안 고르면 "전부 있다"로 봅니다.</b>
+        빈 목록을 그대로 믿으면 맨몸 운동만 나가버리기 때문입니다.
+        이 상태면 일정 위에 노란 안내가 뜹니다. <b>트레이닝 설정 → 가지고 있는 장비</b>에서
+        없는 것을 꺼주세요.
+      </p>
+      <p>두 단계인 것에 이유가 있습니다.</p>
+      <ul>
+        <li><b>가지고 있는 장비</b> (트레이닝 설정) — 어쩌다 한 번 고칩니다</li>
+        <li><b>오늘 쓸 수 있는 장비</b> (일정 만들 때) — 헬스장에 안 가는 날 꺼둡니다</li>
+      </ul>
+
+      <h3>무게를 안 적으면 안 되나요?</h3>
+      <p>
+        됩니다. 칸 옆에 "안 적어도 됩니다" 라고 적혀 있습니다. 다만 적어두면 다음에
+        같은 운동이 나올 때 지난번 기록을 보여드립니다.
+      </p>
+
+      <h3>목표를 '파워 향상'으로 했는데 코어 운동만 나와요</h3>
+      <p>
+        <b>몸 상태가 목표보다 먼저입니다.</b> 어제 많이 던졌거나 컨디션이 낮으면
+        그날은 회복·보조 위주로 잡습니다. 목표는 "같은 시간을 어디에 더 쓸지"를
+        정하는 값이지, 몸 상태를 이기는 값이 아닙니다.
+      </p>
+      <p>
+        정말 하고 싶으시면 <b>체크인의 "오늘 하고 싶은 운동"에서 파워를 고르세요.</b>
+        부딪히면 앱이 왜 가벼운 쪽을 권하는지 설명하고
+        <b>"그래도 만들어주세요"</b> 체크박스를 줍니다. 최종 선택은 사용자 몫입니다.
+        (통증만 예외)
+      </p>
+
+      <h3>며칠 빼먹었어요</h3>
+      <p>괜찮습니다.</p>
+      <ul>
+        <li>투구 일지에서 <b>지난 날짜를 눌러 나중에 채워 넣을 수 있습니다.</b></li>
+        <li>
+          부하 지수는 기록이 없는 날을 <b>안 던진 날</b>로 봅니다. 그래서 실제로
+          던졌는데 안 적으면 지수가 실제보다 낮게 나옵니다. 화면이 그 사실을
+          그대로 알려줍니다 — "최근 28일 중 27일은 투구 기록이 없어 안 던진 날로
+          계산했습니다."
+        </li>
+        <li>
+          오래 쉬었다 돌아와도 문제없습니다. 최근 4주 평균이 낮아져 있으니 갑자기
+          많이 던지면 지수가 확 올라가는데, 그게 바로 조심하라는 신호입니다.
+        </li>
+      </ul>
+
+      <h3>스피드건이 없어요</h3>
+      <p>
+        구속 칸은 비워두세요. 필수가 아닙니다. 투구수와 강도만 있으면 부하 관리는
+        그대로 됩니다.
+      </p>
+
+      <h3>아픈데 계속 해도 되나요?</h3>
+      <div class="note warn">
+        <span class="note-title">안 됩니다</span>
+        <p>
+          체크인에서 "아픈 데 있어요"를 고르면 트레이닝 화면에
+          <b>"오늘은 운동을 처방하지 않았습니다"</b> 만 뜨고, 일정을 만드는 단추가
+          사라집니다. 통증이 있는 날은 쉬는 것이 가장 좋은 훈련입니다.
+        </p>
+        <p>
+          그리고 앱이 하는 말은 여기까지입니다. <b>통증이 있으면 숫자와 관계없이
+          전문의와 상담하세요.</b> 부하 지수는 훈련량 관리를 돕는 참고 지표일 뿐,
+          의학적 진단이 아닙니다.
+        </p>
+      </div>
+    </section>
+
+    <!-- ─────────────────────────────────────────────── -->
+    <section id="words">
+      <span class="eyebrow">06</span>
+      <h2>용어 사전</h2>
+
+      <div class="table-wrap">
+        <table>
+          <tbody>
+            <tr><td>부하 지수</td><td class="wrap-ok">최근 1주일에 한 양 ÷ 최근 4주 평균. 1.0이면 평소와 같음</td></tr>
+            <tr><td>적정 범위</td><td class="wrap-ok">0.8 ~ 1.3. 이 안이면 몸이 감당해온 양</td></tr>
+            <tr><td>환산 세트</td><td class="wrap-ok">무게와 종류를 감안해 운동량을 하나의 단위로 맞춘 값</td></tr>
+            <tr><td>테마</td><td class="wrap-ok">그날 일정의 성격 (하체 / 상체 / 보조·코어 / 회복·재생)</td></tr>
+            <tr><td>구간</td><td class="wrap-ok">일정 안의 순서 — 워밍업 · 본운동 · 코어 · 보강 · 암케어</td></tr>
+            <tr><td>암케어</td><td class="wrap-ok">어깨·팔꿈치를 지키는 관리 운동</td></tr>
+            <tr><td>보강</td><td class="wrap-ok">고관절·내전근처럼 약해지기 쉬운 곳을 채우는 운동</td></tr>
+            <tr><td>모빌리티</td><td class="wrap-ok">관절이 움직이는 범위를 넓히는 운동</td></tr>
+            <tr><td>참고 영상</td><td class="wrap-ok">아직 직접 촬영하지 못해 유튜브 영상으로 대신한 운동</td></tr>
+            <tr><td>연투</td><td class="wrap-ok">쉬는 날 없이 연달아 던진 일수</td></tr>
+            <tr><td>이틀 연속 과부하</td><td class="wrap-ok">붙어 있는 이틀의 강도 합이 10을 넘은 구간</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- ─────────────────────────────────────────────── -->
+    <section id="principles">
+      <span class="eyebrow">07</span>
+      <h2>이 앱이 지키려는 것</h2>
+
+      <p>만들면서 정한 원칙입니다. 화면 곳곳에서 이렇게 동작합니다.</p>
+
+      <div class="note rule">
+        <span class="note-title">권하되 강요하지 않습니다</span>
+        <p>
+          몸 상태와 부딪히는 선택을 해도, 왜 다른 쪽을 권하는지 설명하고 그래도
+          하겠다면 하게 합니다. <b>통증만 예외입니다.</b>
+        </p>
+      </div>
+
+      <div class="note rule">
+        <span class="note-title">숨기지 않습니다</span>
+        <p>
+          왜 이 운동인지, 어떤 근거로 계산했는지, 무엇이 추정값이고 무엇이 실측인지
+          화면에 적습니다.
+        </p>
+      </div>
+
+      <div class="note rule">
+        <span class="note-title">미리 채워 넣지 않습니다</span>
+        <p>
+          세트·횟수·무게 칸은 비어 있습니다. 앱이 넣어둔 숫자를 본인이 한 것으로
+          착각하게 만들지 않기 위해서입니다.
+        </p>
+      </div>
+
+      <div class="note rule">
+        <span class="note-title">못 하는 것은 못 한다고 합니다</span>
+        <p>
+          폼 분석은 안 합니다. 구속을 올려준다고 하지 않습니다. 의학적 판단은
+          하지 않습니다.
+        </p>
+      </div>
+
+      <div class="colophon">
+        <p>
+          Bullpen Log — 투수를 위한 트레이닝 &amp; 기록 플랫폼<br>
+          문의: <a href="mailto:bullpenlog.com@gmail.com">bullpenlog.com@gmail.com</a>
+        </p>
+      </div>
+    </section>
+  </main>
+</div>
