@@ -75,10 +75,23 @@ export const RECOVERY_SHARE = 0.7;
 export const RECOVERY_MAX_MINUTES = 40;
 
 /**
+ * 종목을 바꾸는 데 드는 시간(분).
+ *
+ * 세트 사이 휴식만 세고 있었다. 자리를 옮기고, 덤벨을 찾고, 무게를 갈고, 다음
+ * 것이 무엇인지 보는 시간이 통째로 빠져 있었다. 그래서 "59분"이라고 계산한
+ * 60분 세션에 종목이 열넷 들어갔고, 실제로 하면 한 시간 반 가까이 걸렸다.
+ *
+ * 종목당 1분으로 잡는다. 넉넉하지는 않지만, 이것만 넣어도 한 시간에 열넷이
+ * 들어가는 일은 없어진다. 계산이 현실보다 짧으면 시간을 지킬 수가 없다.
+ */
+export const TRANSITION_MINUTES = 1;
+
+/**
  * 운동 하나에 걸리는 대략의 시간(분).
  *
- * 세트 단위로 센다 — (세트당 시간 × 세트 수). 세트당 시간은 실제 수행 시간에
- * 세트 사이 휴식을 더한 값이다(lib/exercise-meta.ts의 secondsPerSet).
+ * 세트 단위로 센다 — (세트당 시간 × 세트 수) + 종목을 바꾸는 시간. 세트당
+ * 시간은 실제 수행 시간에 세트 사이 휴식을 더한 값이다(lib/exercise-meta.ts의
+ * secondsPerSet).
  *
  * 세트 단위로 두는 이유가 있다. 나중에 "3세트 짜줬는데 2세트만 했다"를 그대로
  * 계산해야 하기 때문이다. 부하는 계획이 아니라 실제로 한 만큼이어야 한다.
@@ -91,10 +104,13 @@ export function estimateMinutes(
   sets?: number
 ): number {
   const measured = minutesForSets(ex, sets);
-  if (measured != null) return measured;
+  if (measured != null) return measured + TRANSITION_MINUTES;
 
   const level = intensityLevel(ex.intensity);
-  // 세트·횟수가 아직 없는 운동 — 종류와 강도로 어림한다.
+  /*
+   * 세트·횟수가 아직 없는 운동 — 종류와 강도로 어림한다.
+   * 이 값들은 이미 종목을 바꾸는 시간을 머금은 어림이라 따로 더하지 않는다.
+   */
   if (ex.category === '모빌리티' || level <= 1) return 3;
   if (ex.category === '암케어') return 4;
   if (ex.category === '코어') return 5;
@@ -447,7 +463,7 @@ type SlotSpec = {
  */
 const COMPOSITIONS: Record<ThemeKey, SlotSpec[]> = {
   lower: [
-    { slot: 'warmup', share: 0.15, categories: ['모빌리티'], maxCount: 5 },
+    { slot: 'warmup', share: 0.15, categories: ['모빌리티'], maxCount: 4 },
     {
       slot: 'main',
       share: 0.45,
@@ -461,7 +477,7 @@ const COMPOSITIONS: Record<ThemeKey, SlotSpec[]> = {
     { slot: 'armcare', share: 0.15, categories: ['암케어'], maxCount: 4 },
   ],
   upper: [
-    { slot: 'warmup', share: 0.15, categories: ['모빌리티'], maxCount: 5 },
+    { slot: 'warmup', share: 0.15, categories: ['모빌리티'], maxCount: 4 },
     {
       slot: 'main',
       share: 0.45,
@@ -479,10 +495,10 @@ const COMPOSITIONS: Record<ThemeKey, SlotSpec[]> = {
    * 90분을 부탁하면 상한에 먼저 걸려 74분밖에 안 나왔다.
    */
   assist: [
-    { slot: 'warmup', share: 0.15, categories: ['모빌리티'], maxCount: 6 },
+    { slot: 'warmup', share: 0.15, categories: ['모빌리티'], maxCount: 5 },
     { slot: 'main', share: 0.35, categories: ['코어'], maxCount: 9 },
     { slot: 'prehab', share: 0.15, categories: ['회복 및 보강'], maxCount: 5 },
-    { slot: 'armcare', share: 0.35, categories: ['암케어'], maxCount: 9 },
+    { slot: 'armcare', share: 0.35, categories: ['암케어'], maxCount: 6 },
   ],
   /*
    * 회복 데이도 상한을 넉넉히 둔다.
@@ -838,6 +854,8 @@ export function pickForTheme<T extends ThemedExercise>({
 
   const taken = new Set<string>();
   const bySlot = new Map<SlotKey, T[]>(specs.map((s) => [s.slot, []]));
+  /* 본운동 후보를 순서까지 정한 채로 들고 있는다 — 남는 시간을 여기서 더 쓴다 */
+  let mainPool: T[] = [];
   /** 여기까지 고른 것의 총 소요(분). 구간을 넘나들며 쌓인다. */
   let totalUsed = 0;
 
@@ -904,6 +922,8 @@ export function pickForTheme<T extends ThemedExercise>({
         ...pool.filter((ex) => ex.category !== mainFirst),
       ];
     }
+
+    if (spec.slot === 'main') mainPool = pool;
 
     /*
      * 배분된 시간이 찰 때까지 넣는다.
@@ -1073,6 +1093,49 @@ export function pickForTheme<T extends ThemedExercise>({
       }
       if (chosen.length > 0) {
         notes.push(`${spec.categories.join('·')} 운동이 부족해 ${label}을 다른 운동으로 채웠습니다.`);
+      }
+    }
+  }
+
+  /*
+   * 남은 시간을 본운동으로 넘긴다.
+   *
+   * 구간마다 개수 상한이 있어서, 상한에 먼저 닿으면 그 구간의 시간 몫이 그냥
+   * 버려졌다. 워밍업을 셋으로 조이자 60분 세션이 50분밖에 안 나온 것이 그
+   * 탓이다 — 아낀 시간이 아무 데도 안 갔다.
+   *
+   * 남는 시간은 본운동으로 보낸다. 무게를 드는 시간을 늘리는 것이 맞지,
+   * 스트레칭을 하나 더 하는 것이 아니다. 본운동 상한과 계열 겹침은 그대로
+   * 지킨다 — 여기서만 규칙을 풀면 어느 날 밀기만 넷이 나온다.
+   */
+  const mainSpec = specs.find((sp) => sp.slot === 'main');
+  const mainPicks = mainSpec ? (bySlot.get('main') ?? []) : [];
+  if (mainSpec && mainPicks.length > 0) {
+    const pool = mainPool;
+    const usedPatterns = new Set(
+      mainPicks
+        .filter((ex) => ex.category !== '파워')
+        .map((ex) => ex.movementPattern)
+        .filter((p): p is string => !!p)
+    );
+    while (mainPicks.length < mainSpec.maxCount) {
+      const room = minutes + totalSlack(minutes) - totalUsed;
+      const free = pool.filter(
+        (ex) => !taken.has(ex.id) && estimateMinutes(ex) <= room
+      );
+      if (free.length === 0) break;
+      const next =
+        free.find(
+          (ex) =>
+            ex.category === '파워' ||
+            ex.movementPattern == null ||
+            !usedPatterns.has(ex.movementPattern)
+        ) ?? free[0];
+      mainPicks.push(next);
+      taken.add(next.id);
+      totalUsed += estimateMinutes(next);
+      if (next.movementPattern && next.category !== '파워') {
+        usedPatterns.add(next.movementPattern);
       }
     }
   }
