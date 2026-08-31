@@ -206,7 +206,7 @@ export function CheckinForm({
 
   /*
    * 지금 몸 상태. 손댄 것이 있으면 그것을, 없으면 서버가 준 값을 본다.
-   * 하나라도 정상이 아니면 접지 않는다 — 아픈 곳을 숨기면 안 된다.
+   * 하나라도 정상이 아니면 접지 않는다 — 불편한 곳을 숨기면 안 된다.
    */
   const partNow = (key: string, fallback: string) =>
     partEdits?.[key] ?? pick(key, fallback) ?? fallback;
@@ -322,7 +322,7 @@ export function CheckinForm({
                 * 스크롤해야 하는 것이 실제 부담이었다.
                 *
                 * 접혀 있어도 값은 그대로 폼에 들어간다 — 라디오를 숨기기만 하고
-                * 지우지 않는다. 아픈 곳이 있는 날에는 저절로 펴진다.
+                * 지우지 않는다. 불편한 곳이 있는 날에는 저절로 펴진다.
                 */}
               <div className="rounded-xl border border-line bg-surface-2/50 px-3 py-2.5">
                 <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
@@ -333,7 +333,7 @@ export function CheckinForm({
                     {partsSummary ?? '다 정상'}
                   </span>
                   {/*
-                    아픈 곳이 있으면 접는 단추를 아예 내지 않는다. 못 누르는
+                    불편한 곳이 있으면 접는 단추를 아예 내지 않는다. 못 누르는
                     단추를 남겨두면 고장 난 줄 안다. 다시 정상으로 바꾸면
                     단추가 돌아온다.
                   */}
@@ -348,7 +348,7 @@ export function CheckinForm({
                         aria-hidden
                         className={`h-3.5 w-3.5 transition-transform ${partsExpanded ? 'rotate-180' : ''}`}
                       />
-                      {partsExpanded ? '접기' : '아픈 데 있어요'}
+                      {partsExpanded ? '접기' : '불편한 곳 있어요'}
                     </button>
                   )}
                 </div>

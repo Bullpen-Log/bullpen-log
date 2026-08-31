@@ -350,8 +350,8 @@ export default async function TrainingPage({
             : savedPlan == null
               ? '오늘 할 운동을 만들어 드립니다. 하루에 한 번 만들고, 내일이 되면 새로 만듭니다.'
               : core.hasCheckinToday
-                ? '오늘 몸 상태와 최근 투구량에 맞춰 고른 운동입니다. 마친 것은 눌러서 표시해주세요.'
-                : '최근 투구량에 맞춰 고른 운동입니다. 마친 것은 눌러서 표시해주세요.'
+                ? '최근 투구량 · 오늘 몸 상태 · 고르신 목표에 맞춰 고른 운동입니다. 마친 것은 눌러서 표시해주세요.'
+                : '최근 투구량과 고르신 목표에 맞춰 고른 운동입니다. 마친 것은 눌러서 표시해주세요.'
         }
       />
 
@@ -417,7 +417,7 @@ export default async function TrainingPage({
           <div className="space-y-1">
             <p className="text-lg font-bold text-ink">오늘 운동 일정을 만들어보세요</p>
             <p className="text-sm leading-relaxed text-muted">
-              최근 투구량{core.hasCheckinToday ? '과 오늘 몸 상태' : ''}에 맞춰 오늘 할
+              최근 투구량{core.hasCheckinToday ? ' · 오늘 몸 상태' : ''} · 오늘 목표에 맞춰 오늘 할
               운동을 골라드립니다. 만든 일정은 오늘 하루 그대로 남고, 내일이 되면
               다시 만들 수 있습니다.
             </p>

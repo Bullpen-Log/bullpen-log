@@ -185,14 +185,19 @@ export default async function HomePage() {
     lines: checkinToday
       ? [
           `컨디션 ${checkinToday.condition}/10 · 수면 ${checkinToday.sleep}`,
-          painToday ? `${painParts.join('·')} 통증` : '아픈 곳 없음',
+          /*
+            예전에는 '아픈 곳 없음'이었다. 체크인은 다섯 부위를 정상·뻐근·통증
+            셋으로 묻는데, 뻐근한 것은 아픈 것이 아니라서 그 말로는 절반이
+            빠진다. 실제로 이 줄이 뜨는 조건도 '전부 정상'일 때다.
+          */
+          painToday ? `${painParts.join('·')} 통증` : '불편한 곳 없음',
           ...(checkinToday.preferredParts.length > 0
             ? [`하고 싶은 부위 ${checkinToday.preferredParts.join('·')}`]
             : []),
         ]
       : [
           '30초면 됩니다.',
-          '오늘 컨디션과 아픈 곳을 남기면, 그에 맞춰 운동을 골라드립니다.',
+          '오늘 컨디션과 몸 상태를 남기면, 그에 맞춰 운동을 골라드립니다.',
         ],
   };
 
@@ -247,7 +252,13 @@ export default async function HomePage() {
               ]
             : [
                 '아직 만들지 않았습니다.',
-                `최근 투구량${core.hasCheckinToday ? '과 오늘 몸 상태' : ''}에 맞춰 오늘 할 운동을 골라드립니다.`,
+                /*
+                  고르는 데 쓰는 것을 다 적는다. 투구량과 몸 상태만 적어 두었는데
+                  실제로는 그날 고른 목표(균형·파워·부상 방지·근력)도 함께 본다.
+                  체크인 전이면 '오늘 몸 상태'는 저절로 빠진다 — 아직 모르는 것을
+                  봤다고 할 수는 없다.
+                */
+                `최근 투구량${core.hasCheckinToday ? ' · 오늘 몸 상태' : ''} · 오늘 목표에 맞춰 골라드립니다.`,
               ],
       };
 
