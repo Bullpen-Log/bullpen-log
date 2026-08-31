@@ -141,6 +141,15 @@ export const EXERCISE_EQUIPMENT = [
  */
 const WEIGHTED_EQUIPMENT: readonly string[] = ['덤벨', '바벨', '원판', '케틀벨'];
 
+/**
+ * 무게를 반드시 적어야 하는 장비.
+ *
+ * 무게 칸이 뜨는 넷 중 둘만이다. 바벨과 덤벨은 몇 kg 을 들었는지가 곧 그날의
+ * 운동이라, 안 적으면 그 기록으로 할 수 있는 말이 없다. 원판과 케틀벨은
+ * 무게가 정해진 물건 하나를 집어 드는 쪽이라 매번 적게 하면 성가시기만 하다.
+ */
+const REQUIRED_WEIGHT_EQUIPMENT: readonly string[] = ['덤벨', '바벨'];
+
 /** 이 운동에 무게 칸을 낼 것인가 */
 /* ------------------------------- 동작 패턴 ------------------------------- */
 
@@ -178,6 +187,11 @@ export const MOVEMENT_PATTERNS = [
 
 export function usesWeight(equipment: readonly string[]): boolean {
   return equipment.some((e) => WEIGHTED_EQUIPMENT.includes(e));
+}
+
+/** 이 운동은 무게를 안 적으면 완료로 남길 수 없는가 */
+export function needsWeight(equipment: readonly string[]): boolean {
+  return equipment.some((e) => REQUIRED_WEIGHT_EQUIPMENT.includes(e));
 }
 
 /* ------------------------------ 세트·횟수·휴식 ----------------------------- */

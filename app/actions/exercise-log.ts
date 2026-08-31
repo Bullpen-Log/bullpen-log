@@ -4,7 +4,8 @@ import { revalidatePath } from 'next/cache';
 import { prisma } from '@/lib/prisma';
 import { requireUser } from '@/lib/dal';
 import { shiftDateKey, toDateKey } from '@/lib/pitch-stats';
-import { AMOUNT_LIMITS, WEIGHT_PRECISION } from '@/lib/exercise-meta';
+import { AMOUNT_LIMITS, WEIGHT_PRECISION, needsWeight } from '@/lib/exercise-meta';
+import { withJosa } from '@/lib/korean';
 
 /**
  * 며칠 전 것까지 고칠 수 있는가.
@@ -79,7 +80,7 @@ export async function setExerciseDone(
 
   const exercise = await prisma.exerciseVideo.findUnique({
     where: { id: exerciseId },
-    select: { id: true },
+    select: { id: true, title: true, equipment: true },
   });
   if (!exercise) return { error: '운동을 찾을 수 없습니다.' };
 
@@ -118,6 +119,21 @@ export async function setExerciseDone(
           holdSecondsDone: positiveNumber(amount?.holdSeconds, AMOUNT_LIMITS.holdSeconds),
           weightKg: positiveNumber(amount?.weightKg, AMOUNT_LIMITS.weightKg, WEIGHT_PRECISION),
         };
+
+    /*
+     * 바벨·덤벨은 무게를 안 적으면 완료로 남기지 않는다.
+     *
+     * 몇 kg 을 들었는지가 곧 그날의 운동이라, 안 적힌 기록으로는 늘었는지
+     * 줄었는지 아무 말도 할 수 없다. 화면에서도 막지만 여기서 한 번 더 본다.
+     *
+     * 지난 날짜(past)는 수치를 아예 안 받으므로 이 규칙에서 빠진다. 그때 몇 kg
+     * 들었는지를 지금 적게 하면 그 숫자를 믿을 수가 없다.
+     */
+    if (!past && needsWeight(exercise.equipment) && value.weightKg == null) {
+      return {
+        error: `${withJosa(exercise.title, '은/는')} 무게를 적어야 완료로 남길 수 있습니다.`,
+      };
+    }
     await prisma.userExerciseLog.upsert({
       where: { userId_exerciseId_date: key },
       create: { ...key, ...value },

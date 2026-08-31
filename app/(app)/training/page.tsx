@@ -1,11 +1,11 @@
-import { favoriteDrillIds, favoriteExerciseIds } from '@/lib/favorites';
+import { favoriteExerciseIds } from '@/lib/favorites';
 import Link from 'next/link';
 import { Sparkles } from 'lucide-react';
 import { prisma } from '@/lib/prisma';
 import { requireUser } from '@/lib/dal';
 import { createPlaybackUrls } from '@/lib/storage';
 import { referenceThumbUrl } from '@/lib/reference-video';
-import { formatPrescription, usesWeight } from '@/lib/exercise-meta';
+import { formatPrescription, needsWeight, usesWeight } from '@/lib/exercise-meta';
 import { loadTodayCore } from '@/lib/report/today-data';
 import { recentAmounts } from '@/lib/report/exercise-recent';
 import { MIN_CANDIDATES } from '@/lib/report/prescription';
@@ -16,11 +16,6 @@ import type { AiReportBody } from '@/lib/ai/report-prompt';
 import { ExerciseChecklist, type TodayExercise } from './exercise-list';
 import { AddExercise, type PickableExercise } from './add-exercise';
 import { TrainingNote } from './training-note';
-import {
-  DrillSection,
-  type PickableDrill,
-  type TodayDrill,
-} from './drill-list';
 import { TrainingHistory } from './history';
 import { josa } from '@/lib/korean';
 import { TrainingSettingsButton } from './settings-button';
@@ -134,14 +129,7 @@ export default async function TrainingPage({
    * 여기서 AI를 새로 부르지는 않는다 — 저장된 것을 읽을 뿐이라 화면을 열
    * 때마다 돈이 나가지 않는다.
    */
-  const [
-    todayReport,
-    trainingNote,
-    drillLibrary,
-    todayDrills,
-    favExercises,
-    favDrills,
-  ] = await Promise.all([
+  const [todayReport, trainingNote, favExercises] = await Promise.all([
     prisma.aiReport.findUnique({
       where: { userId_asOf: { userId: user.id, asOf: core.midnight } },
       select: { halted: true, body: true },
@@ -151,51 +139,9 @@ export default async function TrainingPage({
       where: { userId_date: { userId: user.id, date: core.midnight } },
       select: { intensity: true, memo: true },
     }),
-    /*
-     * 투구 드릴. 앱이 골라 주지 않으므로 목록을 통째로 넘긴다 — 선수가 찾아서
-     * 고른다. 116개라 설명은 앞부분만 잘라 보낸다.
-     */
-    prisma.mechanicsGuide.findMany({
-      orderBy: [{ sortOrder: 'asc' }, { title: 'asc' }],
-      select: {
-        id: true,
-        title: true,
-        category: true,
-        focusPoints: true,
-        equipment: true,
-        description: true,
-      },
-    }),
-    prisma.userDrillLog.findMany({
-      where: { userId: user.id, date: core.midnight },
-      select: { guideId: true, done: true },
-    }),
     /* 별을 달아 둔 것 — 목록에 표시하고, 고르는 창에서 위로 올린다 */
     favoriteExerciseIds(user.id),
-    favoriteDrillIds(user.id),
   ]);
-
-  /*
-   * 설명에서 '어떤 운동인가' 부분만 뽑는다. 고를 때 필요한 것은 그것이고,
-   * 하는 방법까지 넣으면 창이 글로 가득 찬다.
-   */
-  const drillSummary = (text: string) => {
-    const body = text.replace(/■\s*어떤 운동인가\s*/, '').split('■')[0];
-    return body.trim().slice(0, 120);
-  };
-  const drillDoneMap = new Map(todayDrills.map((d) => [d.guideId, d.done]));
-  const pickableDrills: PickableDrill[] = drillLibrary.map((d) => ({
-    id: d.id,
-    title: d.title,
-    category: d.category,
-    focusPoints: d.focusPoints,
-    equipment: d.equipment,
-    summary: drillSummary(d.description),
-    favorite: favDrills.has(d.id),
-  }));
-  const todayDrillList: TodayDrill[] = pickableDrills
-    .filter((d) => drillDoneMap.has(d.id))
-    .map((d) => ({ ...d, done: drillDoneMap.get(d.id) ?? false }));
 
   /*
    * 리포트를 만든 뒤에 통증을 입력했다면 처방이 멈춘다.
@@ -287,6 +233,7 @@ export default async function TrainingPage({
     doneWeightKg: core.doneAmounts.get(ex.id)?.weightKg?.toString() ?? '',
     /* 맨몸·밴드 운동에는 무게 칸을 내지 않는다 — 적을 값이 없다. */
     usesWeight: usesWeight(ex.equipment),
+    needsWeight: needsWeight(ex.equipment),
     /*
      * 지난번에 얼마나 했는지. 처음 하는 운동이면 빈 목록이라 아무것도 안 나온다.
      */
@@ -521,14 +468,6 @@ export default async function TrainingPage({
               ownedEquipment={user.ownedEquipment}
             />
           </ExerciseChecklist>
-
-          {/*
-            투구 드릴.
-
-            운동 목록 아래에 따로 둔다. 앱이 골라 주는 것과 선수가 고르는 것을
-            같은 목록에 섞으면, 담은 것도 앱이 시킨 것처럼 보인다.
-          */}
-          <DrillSection today={todayDrillList} library={pickableDrills} />
 
           {/*
             오늘 운동이 어땠는지 — 하루에 하나.
