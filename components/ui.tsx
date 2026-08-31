@@ -29,11 +29,13 @@ export function PageHeading({
     <div className="flex flex-col gap-6 border-b border-line pb-8 sm:flex-row sm:items-end sm:justify-between">
       <div className="space-y-3">
         {eyebrow && <Eyebrow>{eyebrow}</Eyebrow>}
-        <h1 className="text-3xl font-bold tracking-tight text-ink sm:text-4xl">
+        <h1 className="text-heading text-[1.75rem] leading-[1.15] text-ink sm:text-[2.5rem]">
           {title}
         </h1>
         {description && (
-          <p className="max-w-2xl text-sm leading-relaxed text-muted">{description}</p>
+          <p className="max-w-2xl break-keep text-sm leading-relaxed text-muted">
+            {description}
+          </p>
         )}
       </div>
       {action && <div className="shrink-0">{action}</div>}

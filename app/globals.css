@@ -50,7 +50,7 @@
    */
   --color-shade: #0f172a;
 
-  --font-sans: var(--font-noto-sans-kr);
+  --font-sans: 'Pretendard Variable', Pretendard, system-ui, -apple-system, 'Malgun Gothic', sans-serif;
   --font-display: var(--font-bebas);
 }
 
@@ -132,6 +132,23 @@ body {
 .text-display {
   font-family: var(--font-display);
   letter-spacing: 0.02em;
+}
+
+/**
+ * 한글 제목.
+ *
+ * 굵기만으로 제목과 본문을 가르고 있었다. Pretendard 는 900까지 있으므로
+ * 굵기를 더 벌리고, 자간을 좁혀 덩어리로 보이게 한다. 한글은 자간이 넉넉하면
+ * 글자가 흩어져 보이고 영문보다 그 차이가 크다.
+ *
+ * word-break: keep-all 이 중요하다. 브라우저는 한글을 아무 데서나 끊는데,
+ * '트레이닝 설정'이 '트레이닝 설'/'정'으로 갈리면 읽는 속도가 뚝 떨어진다.
+ * 낱말 단위로만 끊는다.
+ */
+.text-heading {
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  word-break: keep-all;
 }
 
 /* 폼 요소 기본 스타일 정리 */

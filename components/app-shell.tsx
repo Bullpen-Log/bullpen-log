@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { NAV_ICONS } from '@/components/nav-icons';
 import { usePathname } from 'next/navigation';
 import type { NavGroup, NavItem } from '@/lib/nav';
 import { BaseballMark } from '@/components/logo';
@@ -47,7 +48,9 @@ export function Sidebar({
                 {group.title}
               </p>
             )}
-            {group.items.map((item) => (
+            {group.items.map((item) => {
+              const Icon = NAV_ICONS[item.icon];
+              return (
               <Link
                 key={item.href}
                 href={item.href}
@@ -57,12 +60,15 @@ export function Sidebar({
                     : 'text-ink hover:bg-surface-2'
                 }`}
               >
-                <span aria-hidden className="text-base leading-none">
-                  {item.icon}
-                </span>
+                <Icon
+                  aria-hidden
+                  className="h-[1.125rem] w-[1.125rem] shrink-0"
+                  strokeWidth={isActive(item.href) ? 2.4 : 1.9}
+                />
                 {item.label}
               </Link>
-            ))}
+              );
+            })}
           </div>
         ))}
       </nav>
@@ -135,6 +141,7 @@ export function MobileTabs({ tabs }: { tabs: NavItem[] }) {
       <div className="flex">
         {tabs.map((tab) => {
           const active = isActive(tab.href);
+          const Icon = NAV_ICONS[tab.icon];
           return (
             <Link
               key={tab.href}
@@ -143,9 +150,11 @@ export function MobileTabs({ tabs }: { tabs: NavItem[] }) {
                 active ? 'font-semibold text-sky' : 'text-muted'
               }`}
             >
-              <span aria-hidden className="text-lg leading-none">
-                {tab.icon}
-              </span>
+              <Icon
+                aria-hidden
+                className="h-5 w-5"
+                strokeWidth={active ? 2.4 : 1.9}
+              />
               {tab.label}
             </Link>
           );

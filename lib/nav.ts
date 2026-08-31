@@ -5,11 +5,34 @@
  * 같은 목록을 나눠 보여준다. 한 곳에서 정의해 두 화면이 어긋나지 않게 한다.
  */
 
+/** 쓸 수 있는 아이콘 이름. 그림은 components/nav-icons.tsx 에 있다. */
+export type NavIconName =
+  | 'home'
+  | 'calendar'
+  | 'dumbbell'
+  | 'chart'
+  | 'film'
+  | 'target'
+  | 'book'
+  | 'user'
+  | 'settings'
+  | 'menu';
+
 export type NavItem = {
   href: string;
   label: string;
-  /** 이모지 아이콘 — 캐주얼한 인상을 위해 그림 대신 이모지를 쓴다 */
-  icon: string;
+  /**
+   * 아이콘 이름.
+   *
+   * 예전에는 이모지 문자를 썼다. 캐주얼하게 보이려던 것인데, 이모지는 기기마다
+   * 다른 그림이 나오고 저마다 알록달록해서 앱의 색과 따로 논다. 무엇보다
+   * '임시로 넣어둔 것'처럼 보였다. 굵기와 색을 앱이 정할 수 있는 선 아이콘을 쓴다.
+   *
+   * 그림이 아니라 이름만 둔다. 이 파일은 서버에서도 읽는데, 리액트 컴포넌트는
+   * 서버에서 화면 쪽으로 건네줄 수 없다 — 실제로 넘겼더니 화면이 통째로 죽었다.
+   * 이름을 그림으로 바꾸는 일은 components/nav-icons.tsx 가 한다.
+   */
+  icon: NavIconName;
   /** 관리자에게만 보이는 항목 */
   adminOnly?: boolean;
 };
@@ -53,32 +76,32 @@ export type NavGroup = {
  */
 export const NAV_GROUPS: NavGroup[] = [
   {
-    items: [{ href: '/today', label: '홈', icon: '🏠' }],
+    items: [{ href: '/today', label: '홈', icon: 'home' }],
   },
   {
-    items: [{ href: '/pitch-log', label: '투구 일지', icon: '📅' }],
+    items: [{ href: '/pitch-log', label: '투구 일지', icon: 'calendar' }],
   },
   {
-    items: [{ href: '/training', label: '트레이닝', icon: '💪' }],
+    items: [{ href: '/training', label: '트레이닝', icon: 'dumbbell' }],
   },
   {
-    items: [{ href: '/coach', label: '분석', icon: '📊' }],
+    items: [{ href: '/coach', label: '분석', icon: 'chart' }],
   },
   {
     title: '라이브러리',
     items: [
-      { href: '/library/training', label: '운동 영상', icon: '🎬' },
-      { href: '/library/mechanics', label: '투구 드릴', icon: '⚙️' },
+      { href: '/library/training', label: '운동 영상', icon: 'film' },
+      { href: '/library/mechanics', label: '투구 드릴', icon: 'target' },
     ],
   },
   {
-    items: [{ href: '/board', label: '자료실', icon: '📚' }],
+    items: [{ href: '/board', label: '자료실', icon: 'book' }],
   },
   {
     title: '설정',
     items: [
-      { href: '/profile', label: '내 정보', icon: '👤' },
-      { href: '/admin', label: '관리자', icon: '🛠️', adminOnly: true },
+      { href: '/profile', label: '내 정보', icon: 'user' },
+      { href: '/admin', label: '관리자', icon: 'settings', adminOnly: true },
     ],
   },
 ];
@@ -88,11 +111,11 @@ export const NAV_GROUPS: NavGroup[] = [
  * 라이브러리와 자료실은 매일 열지 않으므로 '더보기'로 보낸다.
  */
 export const MOBILE_TABS: NavItem[] = [
-  { href: '/today', label: '홈', icon: '🏠' },
-  { href: '/pitch-log', label: '투구 일지', icon: '📅' },
-  { href: '/training', label: '트레이닝', icon: '💪' },
-  { href: '/coach', label: '분석', icon: '📊' },
-  { href: '/more', label: '더보기', icon: '☰' },
+  { href: '/today', label: '홈', icon: 'home' },
+  { href: '/pitch-log', label: '투구 일지', icon: 'calendar' },
+  { href: '/training', label: '트레이닝', icon: 'dumbbell' },
+  { href: '/coach', label: '분석', icon: 'chart' },
+  { href: '/more', label: '더보기', icon: 'menu' },
 ];
 
 /** 관리자가 아니면 관리자 전용 항목을 걸러낸다. */

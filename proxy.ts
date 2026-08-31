@@ -27,6 +27,15 @@ export async function proxy(request: NextRequest) {
   return NextResponse.next();
 }
 
+/*
+ * 로그인 검사를 건너뛸 주소.
+ *
+ * public/ 아래 파일도 여기 걸린다. 글꼴을 public/fonts 에 두었더니 로그인
+ * 화면으로 되돌려져 글꼴이 통째로 안 내려왔다 — 로그인 전 화면이 시스템
+ * 글꼴로 나왔다. 파일 확장자로도 함께 거른다.
+ */
 export const config = {
-  matcher: ['/((?!api|_next/static|_next/image|favicon.ico|.*\\.svg).*)'],
+  matcher: [
+    '/((?!api|_next/static|_next/image|favicon.ico|fonts/|.*\\.(?:svg|png|jpg|jpeg|webp|gif|ico|woff2|woff|css|txt|xml|webmanifest)).*)',
+  ],
 };

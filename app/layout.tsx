@@ -1,15 +1,16 @@
 import type { Metadata } from "next";
-import { Noto_Sans_KR, Bebas_Neue } from "next/font/google";
+import { Bebas_Neue } from "next/font/google";
 import Script from "next/script";
 import { THEME_INIT_SCRIPT } from "@/lib/theme";
 import "./globals.css";
 
-const notoSansKr = Noto_Sans_KR({
-  variable: "--font-noto-sans-kr",
-  subsets: ["latin"],
-  weight: ["300", "400", "500", "700", "900"],
-});
-
+/**
+ * 숫자 전용 서체.
+ *
+ * 구속·투구수·부하 지수처럼 크게 보여주는 숫자에만 쓴다. 한글을 지원하지
+ * 않으므로 제목에는 쓸 수 없다 — 예전에는 display 로 지정해 두고 정작 한글
+ * 제목은 본문과 같은 서체로 나왔다.
+ */
 const bebas = Bebas_Neue({
   variable: "--font-bebas",
   subsets: ["latin"],
@@ -32,9 +33,23 @@ export default function RootLayout({
     // 달라지는 게 정상이므로 그 경고만 끈다.
     <html
       lang="ko"
-      className={`${notoSansKr.variable} ${bebas.variable} h-full`}
+      className={`${bebas.variable} h-full`}
       suppressHydrationWarning
     >
+      <head>
+        {/*
+         * Pretendard — 본문과 제목을 함께 맡는다.
+         *
+         * 한글 글꼴은 통째로 받으면 2MB가 넘는다. 글자 조각을 92개로 나눠 두고
+         * 브라우저가 화면에 실제로 쓰이는 조각만 받아가는 방식(unicode-range)을
+         * 쓴다. 한 조각이 34KB라, 보통 한 화면에 몇 개만 내려온다.
+         *
+         * next/font 로는 이 방식을 다룰 수 없어(파일이 여럿이고 범위가 나뉜다)
+         * 평범한 스타일시트로 넣는다. font-display: swap 이라 글꼴을 기다리며
+         * 화면이 비는 일은 없다.
+         */}
+        <link rel="stylesheet" href="/fonts/pretendard/pretendard.css" />
+      </head>
       <body className="min-h-full font-sans">
         {/*
          * 첫 페인트 전에 테마를 칠해 밝은 화면이 번쩍이지 않게 한다.

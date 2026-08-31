@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { NAV_ICONS } from '@/components/nav-icons';
 import { requireUser } from '@/lib/dal';
 import { logout } from '@/app/actions/auth';
 import { moreGroups } from '@/lib/nav';
@@ -39,20 +40,26 @@ export default async function MorePage() {
             </h2>
           )}
           <div className="grid grid-cols-2 gap-3">
-            {group.items.map((item) => (
+            {group.items.map((item) => {
+              const Icon = NAV_ICONS[item.icon];
+              return (
               <Link
                 key={item.href}
                 href={item.href}
                 className="flex items-center gap-3 rounded-2xl border border-line bg-surface px-4 py-4 transition-colors hover:border-sky-soft"
               >
-                <span aria-hidden className="text-xl leading-none">
-                  {item.icon}
+                <span
+                  aria-hidden
+                  className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-surface-2 text-muted"
+                >
+                  <Icon className="h-[1.125rem] w-[1.125rem]" strokeWidth={1.9} />
                 </span>
                 <span className="min-w-0 text-sm font-semibold text-ink">
                   {item.label}
                 </span>
               </Link>
-            ))}
+              );
+            })}
           </div>
         </section>
       ))}
