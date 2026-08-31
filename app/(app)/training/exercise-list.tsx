@@ -77,6 +77,17 @@ export type TodayExercise = {
   past: PastAmount[];
 };
 
+/**
+ * 체크는 했는데 무게가 비어 서버로 못 넘어간 줄인가.
+ *
+ * 바벨·덤벨은 무게를 적어야 기록이 되므로, 그 사이에는 화면에만 켜져 있다.
+ * 진행 숫자를 세는 곳과 줄을 그리는 곳이 서로 다른 컴포넌트라, 규칙은 밖에
+ * 하나만 둔다 — 둘이 어긋나면 "5/5 완료"라고 해놓고 줄에는 경고가 뜬다.
+ */
+function waitingForWeight(e: TodayExercise): boolean {
+  return e.done && e.needsWeight && e.doneWeightKg.trim() === '';
+}
+
 /** 화면의 칸 이름을 상한 이름에 이어 준다. */
 const AMOUNT_FIELD = {
   doneSets: 'sets',
@@ -254,7 +265,15 @@ export function ExerciseChecklist({
     setItems(exercises);
   }
 
-  const doneCount = items.filter((e) => e.done).length;
+  /*
+   * 진행 숫자는 '실제로 저장된 것'만 센다.
+   *
+   * 화면에 체크된 것을 그대로 세었더니 "5/5 전부 마쳤습니다"라고 해놓고
+   * 실제로는 셋만 저장된 날이 나왔다. 숫자가 사실과 다르면 그 숫자를 보고
+   * 판단할 수가 없다. 저장 단추를 따로 두는 대신 숫자가 사실을 말하게 한다.
+   */
+  const pending = items.filter(waitingForWeight);
+  const doneCount = items.filter((e) => e.done && !waitingForWeight(e)).length;
   const allDone = items.length > 0 && doneCount === items.length;
 
   const toggle = (id: string) => {
@@ -342,6 +361,22 @@ export function ExerciseChecklist({
             style={{ width: `${items.length ? (doneCount / items.length) * 100 : 0}%` }}
           />
         </div>
+
+        {/*
+          아직 안 넘어간 것을 맨 위에서 한 번 알린다.
+
+          줄마다 적어 두어도 목록이 길면 스크롤 밖으로 나간다. 몇 개가 남았는지는
+          여기서 보이고, 무엇이 남았는지는 그 줄에 적혀 있다.
+        */}
+        {pending.length > 0 && (
+          <p className="mt-3 flex items-start gap-1.5 text-[11px] leading-relaxed text-danger">
+            <AlertTriangle aria-hidden className="mt-0.5 h-3 w-3 shrink-0" />
+            <span>
+              <b>{pending.length}개</b>는 무게를 적어야 기록됩니다 —{' '}
+              {pending.map((e) => e.title).join(' · ')}
+            </span>
+          </p>
+        )}
 
         {/*
           체크가 왜 중요한지 밝힌다.
@@ -579,8 +614,7 @@ function ExerciseList({
           ex.doneSets || ex.doneReps || ex.doneHoldSeconds || ex.doneWeightKg
         );
         /* 체크는 했는데 무게가 비어 서버로 못 보낸 상태 */
-        const needsMore =
-          ex.done && ex.needsWeight && ex.doneWeightKg.trim() === '';
+        const needsMore = waitingForWeight(ex);
         return (
           /*
             빼기 단추를 완료 단추 안에 넣을 수는 없다(단추 안의 단추). 나란히
