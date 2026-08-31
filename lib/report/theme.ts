@@ -4,7 +4,7 @@ import {
   type Prescription,
 } from '@/lib/exercise-meta';
 import type { ReportFacts } from '@/lib/report/facts';
-import type { PitchPlan } from '@/lib/report/plan';
+import { remainingRestDays, type PitchPlan } from '@/lib/report/plan';
 import { findGoal } from '@/lib/report/personalize';
 
 /**
@@ -89,6 +89,42 @@ export type SessionTheme = {
 const LOW_CONDITION_THRESHOLD = 4;
 
 /**
+ * 마지막 등판의 여파가 오늘 훈련에 어떻게 걸리는가.
+ *
+ * 예전에는 던진 것이 훈련에 거의 안 걸렸다. 부하 지수(ACWR)가 강도 상한을
+ * 낮추기는 했지만, 그건 4주 평균에 견주는 값이라 어제 82구를 던진 것이
+ * 바로 반영되지 않는다. 그래서 어제 완투하고 온 사람에게 오늘 하체
+ * 스트렝스 데이가 그대로 나왔다.
+ *
+ * 남은 휴식일로 센다. 투구 계획이 "오늘은 쉬세요"라고 말하는 그 값과 같은
+ * 것을 본다(lib/report/plan.ts 의 remainingRestDays). 각자 계산하면 언젠가
+ * 어긋난다 — 투구는 쉬라는데 훈련은 데드리프트를 내주는 식이다.
+ *
+ *   2일 이상 남음  큰 등판 직후 — 회복만
+ *   1일 남음       코어·암케어까지
+ *   0일            평소대로
+ */
+function outingStrain(facts: ReportFacts): {
+  level: 0 | 1 | 2;
+  pitches: number;
+  daysAgo: number;
+} {
+  const remaining = remainingRestDays(facts.patterns);
+  return {
+    level: remaining >= 2 ? 2 : remaining >= 1 ? 1 : 0,
+    pitches: facts.patterns.lastOutingPitches ?? 0,
+    daysAgo: facts.patterns.restDays ?? 0,
+  };
+}
+
+/** '오늘 82구를 던지셨습니다' / '어제 82구를 던지셨습니다' */
+function outingPhrase(strain: { pitches: number; daysAgo: number }): string {
+  const when =
+    strain.daysAgo === 0 ? '오늘' : strain.daysAgo === 1 ? '어제' : `${strain.daysAgo}일 전`;
+  return `${when} ${strain.pitches}구를 던지셨습니다`;
+}
+
+/**
  * 오늘 고른 운동 종류 때문에 몸 상태와 부딪히는가.
  *
  * 부딪히면 기본은 가벼운 쪽으로 준다. 다만 막지는 않는다 — 사용자가 알고도
@@ -107,6 +143,17 @@ export function workoutConflict({
   // 회복을 원했으면 부딪힐 일이 없다. 가벼운 쪽으로 가는 것은 언제나 괜찮다.
   if (preferredWorkout == null || preferredWorkout === '회복') return null;
 
+  /*
+   * 등판 여파를 맨 앞에 본다.
+   *
+   * 부하 구간과 같은 결론(회복)에 이르더라도 이유가 다르다. 부하 지수는 4주
+   * 평균에 견준 값이라 "위험 구간"이라고만 하면 왜 그런지 알 수 없다.
+   * "어제 90구를 던지셨습니다"는 원인을 그대로 말한다.
+   */
+  const strain = outingStrain(facts);
+  if (strain.level === 2) {
+    return { reason: outingPhrase(strain), fallback: 'recovery' };
+  }
   if (facts.load.zone === 'danger') {
     return { reason: '투구 부하가 위험 구간입니다', fallback: 'recovery' };
   }
@@ -116,6 +163,9 @@ export function workoutConflict({
   }
   if (facts.load.zone === 'caution') {
     return { reason: '투구 부하가 주의 구간입니다', fallback: 'assist' };
+  }
+  if (strain.level === 1) {
+    return { reason: outingPhrase(strain), fallback: 'assist' };
   }
   return null;
 }
@@ -183,6 +233,21 @@ export function decideTheme({
   const forcing = conflict != null && override;
 
   if (!forcing) {
+    /*
+     * 등판 여파를 맨 앞에 본다.
+     *
+     * 부하 지수는 4주 평균에 견주는 값이라 어제 90구가 바로 반영되지 않고,
+     * 반영되더라도 "위험 구간"이라고만 하면 왜 그런지 알 수 없다. 던진 것이
+     * 원인이면 그것을 그대로 말하는 편이 낫다.
+     */
+    const strain = outingStrain(facts);
+    if (strain.level === 2) {
+      return {
+        key: 'recovery',
+        label: '회복·재생 데이',
+        reason: `${outingPhrase(strain)}. 아직 회복할 시간이 필요해 가볍게만 구성했습니다.`,
+      };
+    }
     if (facts.load.zone === 'danger') {
       return {
         key: 'recovery',
@@ -203,6 +268,13 @@ export function decideTheme({
         key: 'assist',
         label: '보조·코어 데이',
         reason: '투구 부하가 주의 구간이라 무게 대신 코어와 암케어에 집중합니다.',
+      };
+    }
+    if (strain.level === 1) {
+      return {
+        key: 'assist',
+        label: '보조·코어 데이',
+        reason: `${outingPhrase(strain)}. 하체는 빼고 코어와 어깨 관리 위주로 잡았습니다.`,
       };
     }
   }

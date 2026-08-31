@@ -176,7 +176,20 @@ export function buildFacts({
   const previous = summarize(byDay, prev7);
   const month = summarize(byDay, last28);
 
-  const lastThrowDate = [...byDay.keys()].sort().at(-1) ?? null;
+  /*
+   * 마지막으로 '던진' 날.
+   *
+   * 기록이 있는 마지막 날이 아니다. 휴식은 0구로 남기는데, 그것까지 세면
+   * 어제 휴식을 적은 사람은 마지막 등판이 0구로 덮인다. 그러면 필요한 휴식일이
+   * 0이 되어, 그저께 90구를 던졌어도 오늘 아무 제한 없이 계획이 나온다.
+   * 휴식을 성실히 적을수록 안전장치가 꺼지는 셈이었다.
+   */
+  const lastThrowDate =
+    [...byDay.entries()]
+      .filter(([, d]) => d.pitchCount > 0)
+      .map(([key]) => key)
+      .sort()
+      .at(-1) ?? null;
 
   // 최근 7일 체크인만 컨디션 요약에 쓴다.
   const recentCheckins = checkins.filter((c) => last7.includes(c.date));

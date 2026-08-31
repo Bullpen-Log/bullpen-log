@@ -65,6 +65,31 @@ export function requiredRestDays(pitches: number) {
   return REST_REQUIREMENTS.find((r) => pitches >= r.minPitches)?.restDays ?? 0;
 }
 
+/**
+ * 마지막 등판에서 아직 남은 휴식일.
+ *
+ * 0 이면 다 쉬었다는 뜻이고, 1 이상이면 아직 등판 여파 안에 있다는 뜻이다.
+ * 던진 기록이 없으면 0 이다.
+ *
+ * 투구 계획과 훈련 구성이 같은 값을 봐야 해서 여기 둔다. 각자 계산하면
+ * 언젠가 어긋난다 — 투구는 "오늘은 쉬세요"라는데 훈련은 하체 스트렝스를
+ * 내주는 식이다.
+ */
+export function remainingRestDays(patterns: ReportFacts['patterns']): number {
+  const lastOuting = patterns.lastOutingPitches ?? 0;
+  const lastAdjusted = Math.round(patterns.lastOutingAdjusted ?? lastOuting);
+  /*
+   * 강도는 선수가 직접 매기는 값이라 낮게 적으면 휴식일이 줄어든다. 그리고
+   * 계수의 근거가 있는 구간은 강도 5~10뿐이다. 그래서 양 자체로 거는 바닥선을
+   * 하나 둔다 — 아무리 가볍게 던졌어도 하루에 이만큼을 던졌으면 하루는 쉰다.
+   */
+  const needRest = Math.max(
+    requiredRestDays(lastAdjusted),
+    lastOuting >= HIGH_VOLUME_PITCHES ? HIGH_VOLUME_MIN_REST : 0
+  );
+  return Math.max(0, needRest - (patterns.restDays ?? 99));
+}
+
 /** 부하 구간별 조절 계수 — 평소 투구수에 곱한다. */
 const ZONE_ADJUSTMENT: Record<
   string,
@@ -247,18 +272,12 @@ export function buildPitchPlan(facts: ReportFacts): PitchPlan {
   const lastOuting = patterns.lastOutingPitches ?? 0;
   const lastAdjusted = Math.round(patterns.lastOutingAdjusted ?? lastOuting);
 
-  /*
-   * 다만 강도는 선수가 직접 매기는 값이라 낮게 적으면 휴식일이 줄어든다.
-   * 그리고 계수의 근거가 있는 구간은 강도 5~10뿐이다. 그래서 양 자체로
-   * 거는 바닥선을 하나 둔다 — 아무리 가볍게 던졌어도 하루에 이만큼을 던졌으면
-   * 하루는 쉬는 것이 맞다.
-   */
   const needRest = Math.max(
     requiredRestDays(lastAdjusted),
     lastOuting >= HIGH_VOLUME_PITCHES ? HIGH_VOLUME_MIN_REST : 0
   );
   const restedSoFar = patterns.restDays ?? 99;
-  const remainingRest = Math.max(0, needRest - restedSoFar);
+  const remainingRest = remainingRestDays(patterns);
 
   if (needRest > 0 && patterns.lastThrowDate) {
     // 환산값이 실제 투구수와 다르면 둘 다 보여준다. 안 그러면 숫자가 어디서 왔는지 모른다.

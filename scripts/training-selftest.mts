@@ -242,6 +242,58 @@ console.log('\n[안전] 몸이 안 좋은 날 무거운 운동이 섞이지 않�
   );
 }
 {
+  /*
+   * 던지고 난 다음 며칠 — 등판 여파가 훈련을 가볍게 만드는가.
+   *
+   * 부하 지수만으로는 부족하다. 그건 4주 평균에 견주는 값이라 어제 90구를
+   * 던진 것이 바로 반영되지 않는다. 실제로 어제 완투하고 온 사람에게 하체
+   * 스트렝스 데이가 그대로 나왔다.
+   *
+   * 날짜를 하나씩 밀어가며 테마가 무거운 쪽으로 돌아오는지 본다.
+   */
+  const outing = (daysAgo: number) => {
+    const pitches = [0, 0, 0, 0, 0, 0, 0];
+    // pitches[0] 이 어제다. 오늘 던진 경우는 여기서 다루지 않는다.
+    if (daysAgo >= 1) pitches[daysAgo - 1] = 90;
+    const { theme } = planFor({ person: { condition: 8, pitches } });
+    return theme.key;
+  };
+
+  check('어제 90구 → 회복 데이', outing(1) === 'recovery', outing(1));
+  check('이틀 전 90구 → 아직 회복 데이', outing(2) === 'recovery', outing(2));
+  check('사흘 전 90구 → 보조·코어 데이', outing(3) === 'assist', outing(3));
+  check(
+    '닷새 전 90구 → 평소대로 스트렝스',
+    outing(5) === 'lower' || outing(5) === 'upper',
+    outing(5)
+  );
+
+  // 가볍게 던진 날은 다음 날을 막지 않는다.
+  const light = planFor({
+    person: { condition: 8, pitches: [25, 0, 0, 0, 0, 0, 0] },
+  }).theme.key;
+  check('어제 25구 → 평소대로', light === 'lower' || light === 'upper', light);
+}
+{
+  /*
+   * 휴식을 기록해도 마지막 등판이 지워지지 않아야 한다.
+   *
+   * lastThrowDate 가 '기록이 있는 마지막 날'이었을 때는, 어제 휴식을 적으면
+   * 마지막 등판이 0구로 덮였다. 필요한 휴식일이 0이 되어, 그저께 90구를
+   * 던졌어도 오늘 아무 제한 없이 계획이 나왔다 — 휴식을 성실히 적을수록
+   * 안전장치가 꺼지는 셈이었다.
+   */
+  const { facts, theme } = planFor({
+    person: { condition: 8, pitches: [0, 90, 0, 0, 0, 0, 0] },
+  });
+  check(
+    '어제 휴식(0구)을 적어도 마지막 등판은 그제 90구',
+    facts.patterns.lastOutingPitches === 90,
+    `${facts.patterns.lastOutingPitches}구`
+  );
+  check('그제 90구 → 오늘은 아직 가볍게', theme.key === 'recovery', theme.key);
+}
+{
   // 평소 조금만 던지던 사람이 갑자기 많이 던지면 부하가 위험 구간으로 간다.
   const spike = [200, 190, 180, 170, 190, 180, 200];
   const { facts, picked } = planFor({

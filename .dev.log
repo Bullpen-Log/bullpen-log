@@ -6,9 +6,14 @@
 - Local:         http://localhost:3000
 - Network:       http://59.16.189.13:3000
 - Environments: .env
-✓ Ready in 1474ms
+✓ Ready in 1409ms
 
- GET /login 200 in 511ms (next.js: 138ms, proxy.ts: 155ms, application-code: 217ms)
- GET /coach 200 in 1019ms (next.js: 110ms, proxy.ts: 9ms, application-code: 900ms)
- GET /pitch-log 200 in 247ms (next.js: 31ms, proxy.ts: 5ms, application-code: 210ms)
- GET /today 200 in 567ms (next.js: 42ms, proxy.ts: 5ms, application-code: 519ms)
+ GET /today 200 in 1133ms (next.js: 125ms, proxy.ts: 137ms, application-code: 871ms)
+ GET /training 200 in 1198ms (next.js: 61ms, proxy.ts: 5ms, application-code: 1132ms)
+ GET /training 200 in 264ms (next.js: 3ms, proxy.ts: 5ms, application-code: 255ms)
+ POST /training 303 in 515ms (next.js: 4ms, proxy.ts: 6ms, application-code: 505ms)
+  └─ ƒ generateTodayPlan({}) in 218ms app/actions/training-setup.ts
+ GET /training 200 in 252ms (next.js: 4ms, proxy.ts: 5ms, application-code: 244ms)
+ GET /training 200 in 230ms (next.js: 3ms, proxy.ts: 5ms, application-code: 223ms)
+ POST /training 303 in 459ms (next.js: 3ms, proxy.ts: 4ms, application-code: 452ms)
+  └─ ƒ generateTodayPlan({}) in 207ms app/actions/training-setup.ts
