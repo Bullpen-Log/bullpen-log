@@ -2,7 +2,7 @@
 
 import { X } from 'lucide-react';
 
-export type FilterGroup = {
+type FilterGroup = {
   key: string;
   label: string;
   options: readonly string[];

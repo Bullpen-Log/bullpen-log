@@ -32,9 +32,6 @@ export const MECHANICS_CATEGORIES = [
   { name: '무브먼트 패턴 드릴', tone: 'mobility' },
 ] as const satisfies readonly { name: string; tone: CategoryTone }[];
 
-export type TrainingCategory = (typeof TRAINING_CATEGORIES)[number]['name'];
-export type MechanicsCategory = (typeof MECHANICS_CATEGORIES)[number]['name'];
-
 export const TRAINING_CATEGORY_NAMES: readonly string[] = TRAINING_CATEGORIES.map(
   (c) => c.name
 );

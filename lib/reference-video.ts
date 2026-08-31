@@ -9,33 +9,6 @@
  * 저장소 용량을 쓰지 않는다는 이점도 있다. 참고 영상은 수백 개가 될 수 있다.
  */
 
-/** 유튜브 영상 ID는 11자다. */
-const VIDEO_ID_RE = /^[\w-]{11}$/;
-
-/**
- * 여러 형태의 유튜브 주소에서 영상 ID만 뽑는다.
- *
- * 촬영 리스트의 링크가 쇼츠 주소(youtube.com/shorts/...)로 되어 있는데,
- * 화면에 삽입할 때는 다른 형식을 써야 한다. 영상 ID는 같으므로 여기서
- * 한 번 뽑아 두면 어느 형식이든 만들어 쓸 수 있다.
- */
-export function parseYoutubeId(input: string): string | null {
-  const value = input.trim();
-  if (VIDEO_ID_RE.test(value)) return value;
-
-  const patterns = [
-    /youtube\.com\/shorts\/([\w-]{11})/,
-    /youtube\.com\/watch\?[^#]*\bv=([\w-]{11})/,
-    /youtube\.com\/embed\/([\w-]{11})/,
-    /youtu\.be\/([\w-]{11})/,
-  ];
-  for (const re of patterns) {
-    const m = value.match(re);
-    if (m) return m[1];
-  }
-  return null;
-}
-
 /** 목록에 보여줄 미리보기 이미지 주소. 유튜브가 공개하는 고정 주소다. */
 export function referenceThumbUrl(videoId: string): string {
   return `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`;

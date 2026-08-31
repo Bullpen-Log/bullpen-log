@@ -261,4 +261,3 @@ export async function loadTodayCore(user: UserForToday, today: Date) {
   };
 }
 
-export type TodayCore = Awaited<ReturnType<typeof loadTodayCore>>;

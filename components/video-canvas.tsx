@@ -18,7 +18,7 @@ import {
 export type Point = { x: number; y: number };
 
 /** object-contain으로 그려진 영상이 캔버스 안에서 차지하는 실제 영역 */
-export type ContentBox = { ox: number; oy: number; dw: number; dh: number };
+type ContentBox = { ox: number; oy: number; dw: number; dh: number };
 
 export function getContentBox(
   canvasW: number,

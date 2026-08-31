@@ -96,7 +96,7 @@ export function Sidebar({
 }
 
 /** 이름 첫 글자를 딴 동그란 아바타 */
-export function Avatar({
+function Avatar({
   nickname,
   size = 'md',
 }: {

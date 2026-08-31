@@ -24,10 +24,6 @@ export type ThemeChoice = (typeof THEME_CHOICES)[number]['value'];
 /** 아무것도 고르지 않았을 때 */
 export const DEFAULT_THEME: ThemeChoice = 'light';
 
-export function isThemeChoice(value: string | null): value is ThemeChoice {
-  return THEME_CHOICES.some((c) => c.value === value);
-}
-
 /**
  * 첫 페인트 전에 실행되는 스크립트.
  *

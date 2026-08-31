@@ -55,8 +55,6 @@ export const INTENSITY_LEVELS = [
   { level: 5, name: '매우 높음', desc: '최대 근력·전력 점프. 며칠 회복이 필요하고 등판 전후에는 피함' },
 ] as const;
 
-export type IntensityName = (typeof INTENSITY_LEVELS)[number]['name'];
-
 /** 이름 → 단계 숫자. 목록에 없는 값은 가장 위험한 쪽으로 본다. */
 export function intensityLevel(name: string): number {
   const found = INTENSITY_LEVELS.find((l) => l.name === name);
@@ -134,9 +132,6 @@ export const EXERCISE_EQUIPMENT = [
   '박스',
 ] as const;
 
-/** 도구 이름 하나. 이 목록 밖의 이름은 어디서도 쓸 수 없다. */
-export type EquipmentName = (typeof EXERCISE_EQUIPMENT)[number];
-
 /**
  * 무게를 숫자로 적을 수 있는 장비.
  *
@@ -171,10 +166,6 @@ export const MOVEMENT_PATTERNS = [
   { name: '회전', desc: '몸통을 돌리거나 돌아가지 않게 버틴다' },
   { name: '운반', desc: '무게를 들고 버티거나 걷는다' },
 ] as const;
-
-export const MOVEMENT_PATTERN_NAMES: readonly string[] = MOVEMENT_PATTERNS.map(
-  (p) => p.name
-);
 
 export function usesWeight(equipment: readonly string[]): boolean {
   return equipment.some((e) => WEIGHTED_EQUIPMENT.includes(e));
