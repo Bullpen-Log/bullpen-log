@@ -50,10 +50,19 @@ export function nearestMinutesChoice(minutes: number): number {
 export const DEFAULT_WORKOUT_MINUTES = 45;
 
 /**
- * 회복 데이의 시간 상한.
- * 90분을 골라둔 사용자라도 회복이 목적인 날 90분을 시키면 회복이 아니다.
+ * 회복 데이에 쓸 시간의 비율과 상한.
+ *
+ * 예전에는 무조건 35분이었다. 시간 선택지가 15분부터였을 때는 그것으로 됐지만,
+ * 45분부터로 바꾸고 나니 45분을 고른 사람과 90분을 고른 사람이 똑같이 35분을
+ * 받게 됐다. 90분을 비워둔 사람에게 35분은 너무 적고, 45분을 고른 사람에게는
+ * 줄인 티가 거의 안 났다.
+ *
+ * 그래서 고른 시간의 70%로 줄이되 40분을 넘기지 않는다. 회복이 목적인 날
+ * 한 시간 가까이 시키면 그건 이미 회복이 아니고, 실제로 45분을 잡아보니
+ * 회복 계열 운동만으로는 그만큼이 채워지지도 않았다(theme:check).
  */
-export const RECOVERY_MAX_MINUTES = 35;
+export const RECOVERY_SHARE = 0.7;
+export const RECOVERY_MAX_MINUTES = 40;
 
 /**
  * 운동 하나에 걸리는 대략의 시간(분).
@@ -437,11 +446,18 @@ const COMPOSITIONS: Record<ThemeKey, SlotSpec[]> = {
     { slot: 'prehab', share: 0.15, categories: ['회복 및 보강'], maxCount: 5 },
     { slot: 'armcare', share: 0.35, categories: ['암케어'], maxCount: 9 },
   ],
+  /*
+   * 회복 데이도 상한을 넉넉히 둔다.
+   *
+   * 예전에는 회복이 무조건 35분이라 넷씩이면 충분했다. 시간에 비례해 30·40·45분이
+   * 되고 나니 워밍업과 암케어가 개수 상한에 먼저 걸려, 45분을 잡아도 35분치밖에
+   * 안 나왔다. 회복 운동은 하나에 1~4분이라 개수가 있어야 시간이 찬다.
+   */
   recovery: [
-    { slot: 'warmup', share: 0.3, categories: ['모빌리티'], maxCount: 4 },
-    { slot: 'core', share: 0.15, categories: ['코어'], maxCount: 3 },
-    { slot: 'prehab', share: 0.25, categories: ['회복 및 보강'], maxCount: 4 },
-    { slot: 'armcare', share: 0.3, categories: ['암케어'], maxCount: 4 },
+    { slot: 'warmup', share: 0.25, categories: ['모빌리티'], maxCount: 5 },
+    { slot: 'core', share: 0.15, categories: ['코어'], maxCount: 4 },
+    { slot: 'prehab', share: 0.3, categories: ['회복 및 보강'], maxCount: 6 },
+    { slot: 'armcare', share: 0.3, categories: ['암케어'], maxCount: 8 },
   ],
 };
 
@@ -502,9 +518,16 @@ export function compositionFor(
   return weighted.map(({ spec, share }) => ({ ...spec, share: share / total }));
 }
 
-/** 테마를 반영해 실제로 쓸 시간을 정한다. 회복 데이는 길게 잡아도 줄인다. */
+/**
+ * 테마를 반영해 실제로 쓸 시간을 정한다. 회복 데이는 길게 잡아도 줄인다.
+ *
+ * 5분 단위로 내림한다. "31분으로 줄였습니다"는 계산기가 뱉은 값처럼 보이고,
+ * 사람이 시계를 보며 운동하는 단위도 아니다. 45·60·90분은 각각 30·40·40분이 된다.
+ */
 export function effectiveMinutes(theme: ThemeKey, requested: number): number {
-  return theme === 'recovery' ? Math.min(requested, RECOVERY_MAX_MINUTES) : requested;
+  if (theme !== 'recovery') return requested;
+  const scaled = Math.floor((requested * RECOVERY_SHARE) / 5) * 5;
+  return Math.min(scaled, RECOVERY_MAX_MINUTES);
 }
 
 export type ThemedExercise = {
