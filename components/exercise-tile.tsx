@@ -1,6 +1,6 @@
 'use client';
 
-import { Play } from 'lucide-react';
+import { Play, Star } from 'lucide-react';
 
 /**
  * 목록에서 쓰는 작은 카드. 미리보기 사진과 이름만 보여준다.
@@ -12,6 +12,7 @@ export function LibraryTile({
   title,
   thumbUrl,
   isReference = false,
+  favorite = false,
   onSelect,
 }: {
   title: string;
@@ -21,6 +22,8 @@ export function LibraryTile({
    * 직접 찍은 것과 섞이면 무엇이 남았는지 알 수 없으므로 눈에 띄게 표시한다.
    */
   isReference?: boolean;
+  /** 별을 달아 둔 것인가. 격자에서 눈에 띄게만 하고, 여기서 켜고 끄지는 않는다. */
+  favorite?: boolean;
   onSelect: () => void;
 }) {
   return (
@@ -55,6 +58,19 @@ export function LibraryTile({
         {isReference && (
           <span className="absolute left-2 top-2 rounded-md bg-shade/70 px-1.5 py-0.5 text-[10px] font-semibold text-white backdrop-blur-sm">
             참고 영상
+          </span>
+        )}
+
+        {/*
+          별은 오른쪽 위 모서리에만 둔다. 여기서 켜고 끄게 하면 영상을 보려고
+          누른 것인지 별을 누른 것인지 헷갈린다 — 켜고 끄는 것은 상세에서 한다.
+        */}
+        {favorite && (
+          <span
+            aria-hidden
+            className="absolute right-2 top-2 flex h-6 w-6 items-center justify-center rounded-full bg-shade/70 text-warn backdrop-blur-sm"
+          >
+            <Star className="h-3.5 w-3.5" fill="currentColor" strokeWidth={1.5} />
           </span>
         )}
       </span>

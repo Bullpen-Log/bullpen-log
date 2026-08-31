@@ -1,9 +1,11 @@
 'use client';
 
 import { useState, useTransition } from 'react';
-import { Check, Plus, Search, X } from 'lucide-react';
+import { Check, Plus, Search, Star, X } from 'lucide-react';
 import { Modal } from '@/components/modal';
 import { CategoryBadge } from '@/components/category-badge';
+import { FavoriteButton } from '@/components/favorite-button';
+import { toggleDrillFavorite } from '@/app/actions/favorite';
 import {
   addDrillToToday,
   removeDrillFromToday,
@@ -28,6 +30,8 @@ export type PickableDrill = {
   equipment: string[];
   /** 무엇을 하는 드릴인지 — 고르는 데 필요한 만큼만 앞부분을 잘라 넘긴다 */
   summary: string;
+  /** 이 사람이 별을 달아 뒀는가 */
+  favorite: boolean;
 };
 
 export type TodayDrill = PickableDrill & { done: boolean };
@@ -151,15 +155,27 @@ export function DrillSection({
                   )}
                 </span>
               </button>
-              <button
-                type="button"
-                onClick={() => remove(d.id)}
-                aria-label={`${d.title} 오늘 목록에서 빼기`}
-                title="목록에서 빼기"
-                className="shrink-0 rounded-2xl border border-line px-2.5 text-muted transition-colors hover:border-danger-line hover:bg-danger-bg hover:text-danger"
-              >
-                <X className="h-4 w-4" />
-              </button>
+              {/*
+                별과 빼기를 한 칸에 위아래로 쌓는다. 폰에서 가로로 늘어놓으면
+                줄이 좁아지고, 별을 달고 싶어지는 순간은 대개 해보고 난 뒤다.
+              */}
+              <span className="flex shrink-0 flex-col overflow-hidden rounded-2xl border border-line">
+                <FavoriteButton
+                  className="flex-1 px-2.5"
+                  favorite={d.favorite}
+                  label={d.title}
+                  onToggle={() => toggleDrillFavorite(d.id)}
+                />
+                <button
+                  type="button"
+                  onClick={() => remove(d.id)}
+                  aria-label={`${d.title} 오늘 목록에서 빼기`}
+                  title="목록에서 빼기"
+                  className="flex-1 border-t border-line px-2.5 py-2 text-muted transition-colors hover:bg-danger-bg hover:text-danger"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </span>
             </li>
           ))}
         </ul>
@@ -183,20 +199,29 @@ function DrillPicker({
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
   const [category, setCategory] = useState<string | null>(null);
+  const [onlyFavorites, setOnlyFavorites] = useState(false);
 
   const categories = [...new Set(library.map((d) => d.category))];
+  const favoriteCount = library.filter((d) => d.favorite).length;
 
   const text = query.trim().toLowerCase();
-  const found = library.filter((d) => {
-    if (category && d.category !== category) return false;
-    if (!text) return true;
-    return (
-      d.title.toLowerCase().includes(text) ||
-      d.summary.toLowerCase().includes(text) ||
-      d.focusPoints.some((f) => f.toLowerCase().includes(text)) ||
-      d.equipment.some((e) => e.toLowerCase().includes(text))
-    );
-  });
+  const found = library
+    .filter((d) => {
+      if (onlyFavorites && !d.favorite) return false;
+      if (category && d.category !== category) return false;
+      if (!text) return true;
+      return (
+        d.title.toLowerCase().includes(text) ||
+        d.summary.toLowerCase().includes(text) ||
+        d.focusPoints.some((f) => f.toLowerCase().includes(text)) ||
+        d.equipment.some((e) => e.toLowerCase().includes(text))
+      );
+    })
+    /*
+     * 별 단 것을 맨 위로. 116개 중 앞에서 30개만 보여주므로, 늘 하던 드릴이
+     * 뒤에 있으면 매번 검색해서 찾아야 한다.
+     */
+    .sort((a, b) => Number(b.favorite) - Number(a.favorite));
 
   return (
     <>
@@ -229,6 +254,20 @@ function DrillPicker({
           </label>
 
           <div className="flex flex-wrap gap-1.5">
+            {favoriteCount > 0 && (
+              <FilterChip
+                on={onlyFavorites}
+                onClick={() => setOnlyFavorites((v) => !v)}
+              >
+                <Star
+                  aria-hidden
+                  className="mr-1 inline-block h-3 w-3 align-[-1px]"
+                  fill={onlyFavorites ? 'currentColor' : 'none'}
+                  strokeWidth={1.9}
+                />
+                즐겨찾기 {favoriteCount}
+              </FilterChip>
+            )}
             <FilterChip on={category === null} onClick={() => setCategory(null)}>
               전체
             </FilterChip>
@@ -264,6 +303,14 @@ function DrillPicker({
                   >
                     <span className="min-w-0 flex-1 space-y-1">
                       <span className="flex flex-wrap items-baseline gap-x-2">
+                        {d.favorite && (
+                          <Star
+                            aria-label="즐겨찾기"
+                            className="h-3.5 w-3.5 shrink-0 self-center text-warn"
+                            fill="currentColor"
+                            strokeWidth={1.5}
+                          />
+                        )}
                         <span className="text-sm font-semibold text-ink">{d.title}</span>
                         <CategoryBadge name={d.category} />
                         {d.equipment.length > 0 && (

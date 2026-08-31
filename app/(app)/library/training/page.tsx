@@ -1,5 +1,6 @@
 import { prisma } from '@/lib/prisma';
 import { requireUser } from '@/lib/dal';
+import { favoriteExerciseIds } from '@/lib/favorites';
 import { createPlaybackUrls } from '@/lib/storage';
 import { referenceThumbUrl } from '@/lib/reference-video';
 import { TrainingClient, type ExerciseItem } from './training-client';
@@ -23,12 +24,15 @@ export default async function TrainingPage() {
     include: { _count: { select: { userLogs: true } } },
   });
 
+  const favoriteIds = await favoriteExerciseIds(user.id);
+
   // 미리보기 이미지 주소는 한 번의 요청으로 모아서 받는다.
   const thumbUrls = await createPlaybackUrls(
     exercises.map((ex) => ex.thumbPath).filter((p): p is string => !!p)
   );
 
   const items: ExerciseItem[] = exercises.map((ex) => ({
+    favorite: favoriteIds.has(ex.id),
     id: ex.id,
     title: ex.title,
     category: ex.category,

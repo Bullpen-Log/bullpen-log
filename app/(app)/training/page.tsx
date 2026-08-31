@@ -1,3 +1,4 @@
+import { favoriteDrillIds, favoriteExerciseIds } from '@/lib/favorites';
 import Link from 'next/link';
 import { Sparkles } from 'lucide-react';
 import { prisma } from '@/lib/prisma';
@@ -133,7 +134,14 @@ export default async function TrainingPage({
    * 여기서 AI를 새로 부르지는 않는다 — 저장된 것을 읽을 뿐이라 화면을 열
    * 때마다 돈이 나가지 않는다.
    */
-  const [todayReport, trainingNote, drillLibrary, todayDrills] = await Promise.all([
+  const [
+    todayReport,
+    trainingNote,
+    drillLibrary,
+    todayDrills,
+    favExercises,
+    favDrills,
+  ] = await Promise.all([
     prisma.aiReport.findUnique({
       where: { userId_asOf: { userId: user.id, asOf: core.midnight } },
       select: { halted: true, body: true },
@@ -162,6 +170,9 @@ export default async function TrainingPage({
       where: { userId: user.id, date: core.midnight },
       select: { guideId: true, done: true },
     }),
+    /* 별을 달아 둔 것 — 목록에 표시하고, 고르는 창에서 위로 올린다 */
+    favoriteExerciseIds(user.id),
+    favoriteDrillIds(user.id),
   ]);
 
   /*
@@ -180,6 +191,7 @@ export default async function TrainingPage({
     focusPoints: d.focusPoints,
     equipment: d.equipment,
     summary: drillSummary(d.description),
+    favorite: favDrills.has(d.id),
   }));
   const todayDrillList: TodayDrill[] = pickableDrills
     .filter((d) => drillDoneMap.has(d.id))
@@ -233,6 +245,7 @@ export default async function TrainingPage({
   ]);
 
   const exercises: TodayExercise[] = full.map(({ slot, manual, unsafe, ex }) => ({
+    favorite: favExercises.has(ex.id),
     id: ex.id,
     title: ex.title,
     category: ex.category,
@@ -288,6 +301,7 @@ export default async function TrainingPage({
    * 400개를 넘겨도 화면이 무겁지 않다.
    */
   const pickable: PickableExercise[] = core.library.map((ex) => ({
+    favorite: favExercises.has(ex.id),
     id: ex.id,
     title: ex.title,
     category: ex.category,

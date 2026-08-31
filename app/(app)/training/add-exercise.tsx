@@ -1,7 +1,7 @@
 'use client';
 
 import { useMemo, useState, useTransition } from 'react';
-import { AlertTriangle, Plus, Search } from 'lucide-react';
+import { AlertTriangle, Plus, Search, Star } from 'lucide-react';
 import { Modal } from '@/components/modal';
 import { MetaFilter, matchesFilter, type FilterState } from '@/components/meta-filter';
 import { ExerciseBadges } from '@/components/meta-badges';
@@ -37,6 +37,8 @@ export type PickableExercise = {
   intensity: string;
   difficulty: string | null;
   equipment: string[];
+  /** 이 사람이 별을 달아 뒀는가. 위로 올려 주고, 이것만 볼 수도 있다. */
+  favorite: boolean;
 } & Prescription;
 
 const FILTER_GROUPS = [
@@ -71,6 +73,13 @@ export function AddExercise({
   /** 방금 더한 운동. 화면이 새로 그려지기 전까지 눌린 티를 낸다. */
   const [added, setAdded] = useState<string[]>([]);
   const [limit, setLimit] = useState(PAGE);
+  /** 별 단 것만 보기 */
+  const [onlyFavorites, setOnlyFavorites] = useState(false);
+
+  const favoriteCount = useMemo(
+    () => library.filter((ex) => ex.favorite).length,
+    [library]
+  );
 
   const inPlan = useMemo(
     () => new Set([...inPlanIds, ...added]),
@@ -81,8 +90,9 @@ export function AddExercise({
 
   const matched = useMemo(() => {
     const text = query.trim();
-    return library.filter(
+    const found = library.filter(
       (ex) =>
+        (!onlyFavorites || ex.favorite) &&
         matchesFilter(filter, {
           bodyParts: ex.bodyParts,
           intensity: [ex.intensity],
@@ -90,7 +100,15 @@ export function AddExercise({
         }) &&
         (text === '' || ex.title.includes(text) || ex.category.includes(text))
     );
-  }, [library, filter, query]);
+    /*
+     * 별 단 것을 맨 위로 올린다.
+     *
+     * 이 창을 여는 이유는 앱이 짜 준 목록을 자기 것으로 고치기 위해서다.
+     * 445개 중에 40개씩 끊어 보여주므로, 늘 하던 운동이 세 번째 장에 있으면
+     * 사실상 없는 것과 같다. 나머지 순서는 그대로 둔다.
+     */
+    return found.sort((a, b) => Number(b.favorite) - Number(a.favorite));
+  }, [library, filter, query, onlyFavorites]);
 
   const add = (id: string) => {
     setError(undefined);
@@ -148,6 +166,36 @@ export function AddExercise({
             />
           </label>
 
+          {/* 늘 하던 운동으로 바로 가는 길 */}
+          {favoriteCount > 0 && (
+            <button
+              type="button"
+              onClick={() => {
+                setOnlyFavorites((v) => !v);
+                setLimit(PAGE);
+              }}
+              aria-pressed={onlyFavorites}
+              className={`inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors ${
+                onlyFavorites
+                  ? 'border-warn-line bg-warn-bg text-warn'
+                  : 'border-line-strong bg-surface-2 text-muted hover:border-warn-line hover:text-warn'
+              }`}
+            >
+              <Star
+                className="h-3.5 w-3.5"
+                fill={onlyFavorites ? 'currentColor' : 'none'}
+                strokeWidth={1.9}
+              />
+              {/*
+                '즐겨찾기 2 만 보기'로 쓰면 숫자 뒤에 '만'이 붙어 2만(20,000)처럼
+                읽힌다. 라이브러리 칩과 같은 모양으로 두고, 눌린 상태가 '이것만
+                보는 중'이라는 뜻을 대신한다.
+              */}
+              즐겨찾기
+              <span className="text-display text-sm leading-none">{favoriteCount}</span>
+            </button>
+          )}
+
           <MetaFilter
             groups={FILTER_GROUPS}
             value={filter}
@@ -177,6 +225,14 @@ export function AddExercise({
                   >
                     <div className="min-w-0 flex-1 space-y-1.5">
                       <div className="flex flex-wrap items-baseline gap-x-2">
+                        {ex.favorite && (
+                          <Star
+                            aria-label="즐겨찾기"
+                            className="h-3.5 w-3.5 shrink-0 self-center text-warn"
+                            fill="currentColor"
+                            strokeWidth={1.5}
+                          />
+                        )}
                         <span className="text-sm font-semibold text-ink">
                           {ex.title}
                         </span>

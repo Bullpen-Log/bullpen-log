@@ -14,6 +14,8 @@ import {
 import type { PastAmount } from '@/lib/report/exercise-recent';
 import { ExerciseBadges } from '@/components/meta-badges';
 import { CategoryBadge } from '@/components/category-badge';
+import { FavoriteButton } from '@/components/favorite-button';
+import { toggleExerciseFavorite } from '@/app/actions/favorite';
 
 export type TodayExercise = {
   id: string;
@@ -36,6 +38,8 @@ export type TodayExercise = {
   manual: boolean;
   /** 지금 몸 상태 기준으로는 권하지 않는 운동인가 */
   unsafe: boolean;
+  /** 이 사람이 별을 달아 뒀는가 */
+  favorite: boolean;
   /**
    * 이 운동이 시간형(버티기)인가.
    *
@@ -687,15 +691,30 @@ function ExerciseList({
             )}
             </div>
 
-            <button
-              type="button"
-              onClick={() => onRemove(ex.id)}
-              aria-label={`${ex.title} 목록에서 빼기`}
-              title="목록에서 빼기"
-              className="shrink-0 rounded-2xl border border-line px-2.5 text-muted transition-colors hover:border-danger-line hover:bg-danger-bg hover:text-danger"
-            >
-              <X className="h-4 w-4" />
-            </button>
+            {/*
+              별과 빼기를 한 칸에 위아래로 쌓는다.
+
+              별을 달고 싶어지는 순간은 대개 해보고 난 직후다 — 그 자리가
+              여기다. 다만 폰에서 가로로 늘어놓으면 운동 이름이 들어갈 자리가
+              없어져서, 이미 있던 빼기 단추 칸을 둘로 나눠 쓴다.
+            */}
+            <span className="flex shrink-0 flex-col overflow-hidden rounded-2xl border border-line">
+              <FavoriteButton
+                className="flex-1 px-2.5"
+                favorite={ex.favorite}
+                label={ex.title}
+                onToggle={() => toggleExerciseFavorite(ex.id)}
+              />
+              <button
+                type="button"
+                onClick={() => onRemove(ex.id)}
+                aria-label={`${ex.title} 목록에서 빼기`}
+                title="목록에서 빼기"
+                className="flex-1 border-t border-line px-2.5 py-2 text-muted transition-colors hover:bg-danger-bg hover:text-danger"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </span>
           </li>
         );
       })}

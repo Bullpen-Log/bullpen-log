@@ -1,12 +1,10 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { Check, Pencil, Trash2, X } from 'lucide-react';
-import {
-  deleteGuide,
-  setGuideThumbnail,
-  toggleGuideProgress,
-} from '@/app/actions/content';
+import { Pencil, Star, Trash2, X } from 'lucide-react';
+import { deleteGuide, setGuideThumbnail } from '@/app/actions/content';
+import { toggleDrillFavorite } from '@/app/actions/favorite';
+import { FavoriteButton } from '@/components/favorite-button';
 import { MECHANICS_CATEGORIES } from '@/lib/categories';
 import { DRILL_EQUIPMENT, FOCUS_POINTS } from '@/lib/exercise-meta';
 import { CategorySection } from '@/components/category-section';
@@ -19,7 +17,7 @@ import {
   matchesFilter,
   type FilterState,
 } from '@/components/meta-filter';
-import { Badge, Button, Card, EmptyState } from '@/components/ui';
+import { Button, Card, EmptyState } from '@/components/ui';
 import { ConfirmDeleteForm } from '@/components/confirm-delete';
 import { GuideForm, type GuideDraft } from './guide-form';
 
@@ -40,7 +38,8 @@ export type GuideItem = {
   /** 영상의 가로세로 비율. 없으면 가로(16:9)로 본다. */
   aspectRatio: number | null;
   sortOrder: number;
-  done: boolean;
+  /** 이 사람이 별을 달아 뒀는가 */
+  favorite: boolean;
 };
 
 const FILTER_GROUPS = [
@@ -95,7 +94,7 @@ function GuideDetail({
   return (
     <Card
       className={`grid gap-5 p-4 sm:p-5 md:grid-cols-[minmax(0,420px)_1fr] ${
-        item.done ? 'border-sky-soft/50' : 'border-sky-soft/40'
+        item.favorite ? 'border-warn-line' : 'border-sky-soft/40'
       }`}
     >
       <LibraryVideo
@@ -110,11 +109,6 @@ function GuideDetail({
       <div className="flex flex-col">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0 space-y-2">
-            {item.done && (
-              <Badge className="border-sky bg-sky/10 text-sky-strong">
-                학습 완료
-              </Badge>
-            )}
             <div className="flex flex-wrap items-center gap-2">
               <h3 className="text-lg font-bold text-ink">{item.title}</h3>
               {item.source === 'REFERENCE' && (
@@ -189,20 +183,18 @@ function GuideDetail({
           </div>
         )}
 
-        <form action={toggleGuideProgress} className="mt-6">
-          <input type="hidden" name="guideId" value={item.id} />
-          <button
-            type="submit"
-            className={`inline-flex w-full items-center justify-center gap-2 rounded-xl border px-4 py-2.5 text-sm transition-colors sm:w-auto ${
-              item.done
-                ? 'border-sky bg-sky/10 text-sky-strong hover:bg-sky/20'
-                : 'border-line-strong bg-surface-2 text-muted hover:border-sky hover:text-sky'
-            }`}
-          >
-            <Check className="h-4 w-4" />
-            {item.done ? '학습 완료 취소' : '학습 완료로 표시'}
-          </button>
-        </form>
+        {/*
+          예전에는 여기가 '학습 완료로 표시'였다. 다 익혀야 하는 목록처럼
+          읽혀서 별로 바꿨다 — 오늘 할 것을 고를 때 이 드릴을 다시 찾기 쉽게
+          해주는 것이 실제로 필요한 일이었다.
+        */}
+        <FavoriteButton
+          className="mt-6"
+          variant="full"
+          favorite={item.favorite}
+          label={item.title}
+          onToggle={() => toggleDrillFavorite(item.id)}
+        />
       </div>
     </Card>
   );
@@ -232,6 +224,7 @@ function GuideGrid({ items, isAdmin }: { items: GuideItem[]; isAdmin: boolean })
             title={item.title}
             thumbUrl={item.thumbUrl}
             isReference={item.source === 'REFERENCE'}
+            favorite={item.favorite}
             onSelect={() => setOpenId(item.id)}
           />
         )
@@ -248,17 +241,22 @@ export function MechanicsClient({
   isAdmin: boolean;
 }) {
   const [filter, setFilter] = useState<FilterState>({});
-  const filtering = Object.values(filter).some((v) => v.length > 0);
+  /** 별을 달아 둔 것만 볼지. 조건 필터와 따로 둔다 — 성격이 다른 거르기다. */
+  const [onlyFavorites, setOnlyFavorites] = useState(false);
+  const favoriteCount = guides.filter((g) => g.favorite).length;
+  const filtering = Object.values(filter).some((v) => v.length > 0) || onlyFavorites;
 
   const matched = useMemo(
     () =>
-      guides.filter((g) =>
-        matchesFilter(filter, {
-          focusPoints: g.focusPoints,
-          equipment: g.equipment,
-        })
+      guides.filter(
+        (g) =>
+          (!onlyFavorites || g.favorite) &&
+          matchesFilter(filter, {
+            focusPoints: g.focusPoints,
+            equipment: g.equipment,
+          })
       ),
-    [guides, filter]
+    [guides, filter, onlyFavorites]
   );
 
   const byCategory = useMemo(
@@ -272,6 +270,42 @@ export function MechanicsClient({
 
   return (
     <div className="space-y-6">
+      {/*
+        즐겨찾기만 보기.
+        오늘 할 것을 고칠 때 116개를 다시 훑지 않아도 되게 하려고 둔다.
+        한 번도 별을 안 단 사람에게는 무엇을 하는 단추인지 함께 적어 준다.
+      */}
+      {guides.length > 0 && (
+        <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-line bg-surface px-5 py-3.5">
+          <button
+            type="button"
+            onClick={() => setOnlyFavorites((v) => !v)}
+            aria-pressed={onlyFavorites}
+            disabled={favoriteCount === 0}
+            className={`inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-60 ${
+              onlyFavorites
+                ? 'border-warn-line bg-warn-bg text-warn'
+                : 'border-line-strong bg-surface-2 text-muted enabled:hover:border-warn-line enabled:hover:text-warn'
+            }`}
+          >
+            <Star
+              className="h-3.5 w-3.5"
+              fill={onlyFavorites ? 'currentColor' : 'none'}
+              strokeWidth={1.9}
+            />
+            즐겨찾기
+            {favoriteCount > 0 && (
+              <span className="text-display text-sm leading-none">{favoriteCount}</span>
+            )}
+          </button>
+          <span className="text-xs text-muted">
+            {favoriteCount === 0
+              ? '드릴을 열고 별을 달아두면 여기서 모아 볼 수 있습니다'
+              : '오늘 할 드릴을 고를 때 이 목록에서 바로 담을 수 있습니다'}
+          </span>
+        </div>
+      )}
+
       {guides.length > 0 && (
         <MetaFilter
           groups={FILTER_GROUPS}
@@ -291,7 +325,14 @@ export function MechanicsClient({
             title="조건에 맞는 드릴이 없습니다"
             description="고른 조건을 하나씩 줄이면 더 많은 드릴이 나옵니다."
             action={
-              <Button variant="secondary" className="mt-2" onClick={() => setFilter({})}>
+              <Button
+                variant="secondary"
+                className="mt-2"
+                onClick={() => {
+                  setFilter({});
+                  setOnlyFavorites(false);
+                }}
+              >
                 조건 모두 지우기
               </Button>
             }

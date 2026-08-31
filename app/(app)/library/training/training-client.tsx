@@ -1,12 +1,14 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { Eye, EyeOff, Pencil, Trash2, X } from 'lucide-react';
+import { Eye, EyeOff, Pencil, Star, Trash2, X } from 'lucide-react';
 import {
   deleteExercise,
   setExerciseThumbnail,
   toggleExerciseHidden,
 } from '@/app/actions/content';
+import { toggleExerciseFavorite } from '@/app/actions/favorite';
+import { FavoriteButton } from '@/components/favorite-button';
 import { TRAINING_CATEGORIES } from '@/lib/categories';
 import {
   BODY_PARTS,
@@ -51,6 +53,8 @@ export type ExerciseItem = {
   usedCount: number;
   /** 영상의 가로세로 비율. 없으면 가로(16:9)로 본다. */
   aspectRatio: number | null;
+  /** 이 사람이 별을 달아 뒀는가 */
+  favorite: boolean;
 } & Prescription;
 
 const FILTER_GROUPS = [
@@ -245,6 +249,18 @@ function ExerciseDetail({
             />
           </div>
         )}
+
+        {/*
+          별을 다는 자리. 앱이 짜 준 일정을 고칠 때 445개에서 이 운동을 다시
+          찾는 것이 일이라, 여기서 담아 두면 '운동 추가' 창 맨 위에 모인다.
+        */}
+        <FavoriteButton
+          className="pt-1"
+          variant="full"
+          favorite={item.favorite}
+          label={item.title}
+          onToggle={() => toggleExerciseFavorite(item.id)}
+        />
       </div>
     </Card>
   );
@@ -280,6 +296,7 @@ function ExerciseGrid({
             title={item.title}
             thumbUrl={item.thumbUrl}
             isReference={item.source === 'REFERENCE'}
+            favorite={item.favorite}
             onSelect={() => setOpenId(item.id)}
           />
         )
@@ -304,16 +321,28 @@ export function TrainingClient({
    * 다루는 곳이라, 성격이 다른 이 항목은 따로 둔다.
    */
   const [sourceView, setSourceView] = useState<'ALL' | 'OWN' | 'REFERENCE'>('ALL');
+  /** 별을 달아 둔 것만 볼지. 촬영 여부와 겹쳐 쓸 수 있게 따로 둔다. */
+  const [onlyFavorites, setOnlyFavorites] = useState(false);
 
   const visible = useMemo(
-    () => (sourceView === 'ALL' ? exercises : exercises.filter((ex) => ex.source === sourceView)),
-    [exercises, sourceView]
+    () =>
+      exercises.filter(
+        (ex) =>
+          (sourceView === 'ALL' || ex.source === sourceView) &&
+          (!onlyFavorites || ex.favorite)
+      ),
+    [exercises, sourceView, onlyFavorites]
+  );
+
+  const favoriteCount = useMemo(
+    () => exercises.filter((ex) => ex.favorite).length,
+    [exercises]
   );
 
   const ownCount = useMemo(() => exercises.filter((ex) => ex.source === 'OWN').length, [exercises]);
   const referenceCount = exercises.length - ownCount;
 
-  const filtering = Object.values(filter).some((v) => v.length > 0);
+  const filtering = Object.values(filter).some((v) => v.length > 0) || onlyFavorites;
 
   const matched = useMemo(
     () =>
@@ -339,6 +368,41 @@ export function TrainingClient({
 
   return (
     <div className="space-y-6">
+      {/*
+        즐겨찾기만 보기.
+        일정을 고칠 때 445개를 다시 훑지 않아도 되게 하려고 둔다.
+      */}
+      {exercises.length > 0 && (
+        <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-line bg-surface px-5 py-3.5">
+          <button
+            type="button"
+            onClick={() => setOnlyFavorites((v) => !v)}
+            aria-pressed={onlyFavorites}
+            disabled={favoriteCount === 0}
+            className={`inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-60 ${
+              onlyFavorites
+                ? 'border-warn-line bg-warn-bg text-warn'
+                : 'border-line-strong bg-surface-2 text-muted enabled:hover:border-warn-line enabled:hover:text-warn'
+            }`}
+          >
+            <Star
+              className="h-3.5 w-3.5"
+              fill={onlyFavorites ? 'currentColor' : 'none'}
+              strokeWidth={1.9}
+            />
+            즐겨찾기
+            {favoriteCount > 0 && (
+              <span className="text-display text-sm leading-none">{favoriteCount}</span>
+            )}
+          </button>
+          <span className="text-xs text-muted">
+            {favoriteCount === 0
+              ? '운동을 열고 별을 달아두면 여기서 모아 볼 수 있습니다'
+              : '오늘 일정에 운동을 더할 때 이 목록에서 바로 담을 수 있습니다'}
+          </span>
+        </div>
+      )}
+
       {/* 촬영이 어디까지 됐는지 — 참고 영상이 하나라도 있을 때만 보여준다 */}
       {referenceCount > 0 && (
         <div className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-2xl border border-line bg-surface px-5 py-4">
@@ -392,7 +456,14 @@ export function TrainingClient({
             title="조건에 맞는 운동이 없습니다"
             description="고른 조건을 하나씩 줄이면 더 많은 운동이 나옵니다."
             action={
-              <Button variant="secondary" className="mt-2" onClick={() => setFilter({})}>
+              <Button
+                variant="secondary"
+                className="mt-2"
+                onClick={() => {
+                  setFilter({});
+                  setOnlyFavorites(false);
+                }}
+              >
                 조건 모두 지우기
               </Button>
             }

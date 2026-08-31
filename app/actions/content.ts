@@ -475,24 +475,3 @@ export async function setGuideThumbnail(
   revalidatePath('/library/mechanics');
   return { success: '미리보기 이미지를 만들었습니다.' };
 }
-
-/** 가이드 학습 완료 체크를 토글한다. (로그인한 사용자 누구나) */
-export async function toggleGuideProgress(formData: FormData) {
-  const user = await getCurrentUser();
-  if (!user) return;
-
-  const guideId = String(formData.get('guideId') ?? '');
-  if (!guideId) return;
-
-  const existing = await prisma.userGuideProgress.findUnique({
-    where: { userId_guideId: { userId: user.id, guideId } },
-  });
-
-  await prisma.userGuideProgress.upsert({
-    where: { userId_guideId: { userId: user.id, guideId } },
-    update: { completed: !existing?.completed },
-    create: { userId: user.id, guideId, completed: true },
-  });
-
-  revalidatePath('/library/mechanics');
-}

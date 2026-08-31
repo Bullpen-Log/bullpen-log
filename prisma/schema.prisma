@@ -66,7 +66,8 @@ model User {
   ownedEquipment    String[]
   createdAt         DateTime            @default(now())
 
-  userGuideProgress UserGuideProgress[]
+  exerciseFavorites UserExerciseFavorite[]
+  drillFavorites    UserDrillFavorite[]
   drillLogs         UserDrillLog[]
   pitchLogs         PitchLog[]
   userExerciseLogs  UserExerciseLog[]
@@ -186,16 +187,16 @@ model MechanicsGuide {
   equipment   String[]
   sortOrder   Int                 @default(0)
   createdAt   DateTime            @default(now())
-  progress    UserGuideProgress[]
+  favorites   UserDrillFavorite[]
   drillLogs   UserDrillLog[]
 }
 
 /**
  * 오늘 이 드릴을 했다.
  *
- * UserGuideProgress 와 다른 것이다. 저쪽은 '이 드릴을 익혔다'는 한 번짜리
- * 표시라 날짜가 없다. 그래서 "이번 주에 드릴 몇 번 했나"를 셀 수가 없었고,
- * 드릴이 훈련이 아니라 읽을거리처럼 다뤄지고 있었다.
+ * 즐겨찾기와 다른 것이다. 저쪽은 '다시 찾기 쉽게 달아 둔 별'이라 날짜가 없고,
+ * 이쪽은 '그날 했다'는 기록이다. 둘을 하나로 두면 "이번 주에 드릴 몇 번 했나"를
+ * 셀 수가 없다.
  *
  * 세트나 횟수를 두지 않는다. 드릴은 앱이 "몇 번 해라"라고 정해 주는 것이
  * 아니라, 선수가 설명을 읽고 필요한 것을 골라서 하는 것이다. 우리가 아는 것은
@@ -216,15 +217,40 @@ model UserDrillLog {
   @@index([userId, date])
 }
 
-model UserGuideProgress {
+/**
+ * 즐겨찾기 — 운동.
+ *
+ * 앱이 골라 준 일정을 손으로 고치는 순간에 쓰는 표다. 445개 중에서 "그 운동"을
+ * 다시 찾는 것이 일이라, 마음에 든 것에 별을 달아두고 운동을 더할 때 위에서
+ * 바로 집는다.
+ *
+ * 앱이 무엇을 고를지에는 영향을 주지 않는다. 별을 달았다고 그 운동이 더 자주
+ * 나오면, 같은 운동만 반복하지 않게 텀을 두고 돌리기로 한 결정을 되돌리는 셈이다.
+ * 이 표는 '찾기'에만 쓴다.
+ */
+model UserExerciseFavorite {
+  userId     String
+  exerciseId String
+  createdAt  DateTime      @default(now())
+
+  user       User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  exercise   ExerciseVideo @relation(fields: [exerciseId], references: [id], onDelete: Cascade)
+
+  @@id([userId, exerciseId])
+  @@index([userId])
+}
+
+/** 즐겨찾기 — 투구 드릴. 운동 쪽과 같은 뜻이고, 드릴 고르는 창에서 쓴다. */
+model UserDrillFavorite {
   userId    String
   guideId   String
-  completed Boolean        @default(false)
+  createdAt DateTime       @default(now())
 
   user      User           @relation(fields: [userId], references: [id], onDelete: Cascade)
   guide     MechanicsGuide @relation(fields: [guideId], references: [id], onDelete: Cascade)
 
   @@id([userId, guideId])
+  @@index([userId])
 }
 
 model PitchLog {
@@ -390,6 +416,7 @@ model ExerciseVideo {
   createdAt        DateTime          @default(now())
   userLogs         UserExerciseLog[]
   routineExercises RoutineExercise[]
+  favorites        UserExerciseFavorite[]
 }
 
 model UserExerciseLog {
