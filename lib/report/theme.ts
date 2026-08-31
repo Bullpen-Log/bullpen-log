@@ -5,7 +5,7 @@ import {
 } from '@/lib/exercise-meta';
 import type { ReportFacts } from '@/lib/report/facts';
 import { remainingRestDays, type PitchPlan } from '@/lib/report/plan';
-import { findGoal } from '@/lib/report/personalize';
+import { findGoal, type GoalMix } from '@/lib/report/personalize';
 
 /**
  * 오늘의 훈련 테마와, 운동 시간에 맞춘 구성.
@@ -796,6 +796,10 @@ export function pickForTheme<T extends ThemedExercise>({
 }): { picks: ThemedPick<T>[]; estimatedMinutes: number; notes: string[] } {
   const specs = compositionFor(theme, goal, minutes);
   const goalPrefer: readonly string[] = findGoal(goal).prefer;
+  /*
+   * 목표가 정한 본운동의 섞임. 회복 데이에는 본운동이 없어 쓰이지 않는다.
+   */
+  const goalMix: GoalMix = theme === 'recovery' ? {} : findGoal(goal).mix;
   const notes: string[] = [];
 
   /*
@@ -961,10 +965,36 @@ export function pickForTheme<T extends ThemedExercise>({
       ex.movementPattern != null &&
       usedPatterns.has(ex.movementPattern);
 
+    /*
+     * 목표가 정한 파워 비중을 지킨다.
+     *
+     * 이름이 약속한 것과 실제가 맞아야 한다 — '근력 향상'을 골랐는데 점프가
+     * 나오면 안 되고, '파워 향상'이라고 무게 드는 운동이 하나도 없으면 안 된다.
+     * 본운동에만 건다. 다른 구간에는 파워가 애초에 안 들어간다.
+     */
+    const isPower = (ex: T) => ex.category === '파워';
+    const powerFull = () =>
+      spec.slot === 'main' &&
+      goalMix.maxPower != null &&
+      chosen.filter(isPower).length >= goalMix.maxPower;
+    /*
+     * 스트렝스가 아직 모자란가 — 모자라면 이번 차례는 스트렝스를 먼저 본다.
+     *
+     * 첫 자리는 건드리지 않는다(chosen.length > 0). 처음부터 스트렝스를
+     * 강제했더니 파워 향상 날에 파워가 27%까지 떨어졌다 — 목표가 뒤집힌 셈이다.
+     * 첫 하나는 목표가 당겨 놓은 순서대로 가고, 그 뒤에 모자란 것을 채운다.
+     */
+    const shortOnStrength = () =>
+      spec.slot === 'main' &&
+      goalMix.minStrength != null &&
+      chosen.length > 0 &&
+      chosen.filter((ex) => !isPower(ex)).length < goalMix.minStrength;
+    const mixAllows = (ex: T) => !(isPower(ex) && powerFull());
+
     const remaining = pool.filter((ex) => !taken.has(ex.id));
     while (chosen.length < spec.maxCount) {
       const free = (ex: T) => !taken.has(ex.id);
-      const canTake = (ex: T) => free(ex) && fits(estimateMinutes(ex));
+      const canTake = (ex: T) => free(ex) && fits(estimateMinutes(ex)) && mixAllows(ex);
       /*
        * 시간 안에 드는 것 중에서 계열이 안 겹치는 것 → 시간 안에 드는 것 →
        * (구간이 비었을 때만) 시간을 넘겨서라도 하나.
@@ -989,10 +1019,20 @@ export function pickForTheme<T extends ThemedExercise>({
           );
 
       const next =
+        /*
+         * 스트렝스가 모자란 동안에는 스트렝스부터 본다. 파워 향상 날에도
+         * 무게 드는 운동 하나는 이렇게 확보된다.
+         */
+        (shortOnStrength()
+          ? (remaining.find((ex) => canTake(ex) && !isPower(ex) && !clashes(ex)) ??
+            remaining.find((ex) => canTake(ex) && !isPower(ex)))
+          : undefined) ??
         remaining.find((ex) => canTake(ex) && !clashes(ex)) ??
         remaining.find(canTake) ??
         (chosen.length === 0
-          ? (cheapest((ex) => free(ex) && !clashes(ex)) ?? cheapest(free))
+          ? (cheapest((ex) => free(ex) && mixAllows(ex) && !clashes(ex)) ??
+            cheapest((ex) => free(ex) && mixAllows(ex)) ??
+            cheapest(free))
           : undefined);
       if (next == null) break;
       chosen.push(next);

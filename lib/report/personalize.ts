@@ -131,12 +131,28 @@ export function filterByLevel<T extends WithDifficulty>(
  *
  * `prefer` 는 본운동 안에서 앞으로 당길 카테고리다.
  */
+/**
+ * 목표가 본운동의 섞임을 어떻게 가르는가.
+ *
+ * weights 는 구간별 '시간'을 나누고, prefer 는 '순서'를 당긴다. 둘 다 막지는
+ * 않는다 — 그래서 근력 향상을 골라도 파워가 본운동에 들어왔다. 여기는 개수로
+ * 가른다.
+ *
+ *   maxPower     본운동에 파워를 이만큼까지만. 0 이면 아예 안 넣는다.
+ *   minStrength  스트렝스를 적어도 이만큼은 넣는다.
+ *
+ * 둘 다 본운동에만 걸린다. 워밍업·코어·보강·암케어는 파워가 애초에 안 들어간다.
+ */
+export type GoalMix = { maxPower?: number; minStrength?: number };
+
 export const TRAINING_GOALS = [
   {
     name: '균형 잡힌 관리',
-    desc: '근력·파워·어깨 관리를 고르게',
+    desc: '근력 위주에 파워를 하나씩 · 어깨 관리까지 고르게',
     weights: { warmup: 1, main: 1, core: 1, prehab: 1, armcare: 1 },
     prefer: [] as string[],
+    /* 파워도 넣되 하나까지 — '고르게'가 파워 위주가 되면 안 된다 */
+    mix: { maxPower: 1 },
   },
   {
     /*
@@ -151,18 +167,36 @@ export const TRAINING_GOALS = [
     desc: '빠르게 힘을 내는 훈련과 하체에 시간을 더 씁니다',
     weights: { warmup: 1, main: 1.15, core: 0.9, prehab: 0.8, armcare: 0.8 },
     prefer: ['파워'],
+    /*
+     * 파워 위주로 가되 무게 드는 운동을 하나는 남긴다.
+     *
+     * 그냥 두었더니 45분 상체날 60일이 전부 파워였다 — 스트렝스 0개.
+     * 근력이 받쳐주지 않으면 파워도 결국 안 는다.
+     */
+    mix: { minStrength: 1 },
   },
   {
     name: '부상 방지',
     desc: '어깨·팔꿈치 관리와 고관절 보강에 시간을 더 씁니다',
     weights: { warmup: 1.3, main: 0.7, core: 1, prehab: 1.7, armcare: 1.6 },
     prefer: [],
+    /* 본운동 자체를 줄이는 목표라 섞임까지 따로 가리지 않는다 */
+    mix: {},
   },
   {
     name: '근력 향상',
-    desc: '무게를 다루는 운동에 시간을 더 씁니다',
+    desc: '무게를 다루는 운동으로만 채웁니다 — 점프·던지기는 빼고',
     weights: { warmup: 0.85, main: 1.2, core: 0.9, prehab: 0.8, armcare: 0.85 },
     prefer: ['하체 스트렝스', '상체 스트렝스'],
+    /*
+     * 파워를 아예 안 넣는다.
+     *
+     * '근력 향상'이라 적어놓고 점프가 나오면 이름이 약속한 것과 다르다.
+     * 앞으로 당기기(prefer)만으로는 못 막았다 — 60분 상체날 60일 중 42일에
+     * 파워가 끼어들었다. 시간이 늘면 스트렝스를 다 뽑고 남은 자리를 파워가
+     * 채우기 때문이다.
+     */
+    mix: { maxPower: 0 },
   },
 ] as const;
 
