@@ -20,7 +20,7 @@ import { toDateKey } from '@/lib/pitch-stats';
 const PAGE_LOOKBACK_DAYS = 70;
 import { isAiConfigured } from '@/lib/ai/client';
 import type { AiReportBody } from '@/lib/ai/report-prompt';
-import type { PitchPlan } from '@/lib/report/plan';
+import { readPitchPlan } from '@/lib/report/plan';
 import { PageHeading } from '@/components/ui';
 import { AiReportCard, type StoredReport } from './ai-report-card';
 import { ReportClient } from './report-client';
@@ -82,7 +82,7 @@ export default async function ReportPage() {
         halted: latestReport.halted,
         haltReason: latestReport.haltReason,
         body: (latestReport.body as AiReportBody | null) ?? null,
-        plan: latestReport.plan as unknown as PitchPlan,
+        plan: readPitchPlan(latestReport.plan),
         createdAt: latestReport.createdAt.toISOString(),
       }
     : null;

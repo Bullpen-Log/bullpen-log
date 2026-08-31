@@ -6,18 +6,9 @@
 - Local:         http://localhost:3000
 - Network:       http://59.16.189.13:3000
 - Environments: .env
-✓ Ready in 410ms
+✓ Ready in 1474ms
 
- GET /api/session/clear 307 in 73ms (next.js: 51ms, application-code: 22ms)
- GET /today 307 in 692ms (next.js: 127ms, proxy.ts: 6ms, application-code: 559ms)
- GET /login 200 in 137ms (next.js: 62ms, proxy.ts: 4ms, application-code: 71ms)
- GET /training 200 in 1419ms (next.js: 45ms, proxy.ts: 5ms, application-code: 1369ms)
- GET /training 200 in 260ms (next.js: 3ms, proxy.ts: 5ms, application-code: 252ms)
- POST /training 303 in 505ms (next.js: 4ms, proxy.ts: 6ms, application-code: 495ms)
-  └─ ƒ generateTodayPlan({}) in 209ms app/actions/training-setup.ts
- POST /training 200 in 448ms (next.js: 3ms, proxy.ts: 5ms, application-code: 440ms)
-  └─ ƒ addDrillToToday("0ca54974-66ee-4327-92cf-05b8f2ccc0f3") in 150ms app/actions/drill-log.ts
- POST /training 200 in 366ms (next.js: 3ms, proxy.ts: 5ms, application-code: 358ms)
-  └─ ƒ setDrillDone("0ca54974-66ee-4327-92cf-05b8f2ccc0f3", true) in 79ms app/actions/drill-log.ts
- POST /training 200 in 392ms (next.js: 3ms, proxy.ts: 5ms, application-code: 384ms)
-  └─ ƒ removeDrillFromToday("0ca54974-66ee-4327-92cf-05b8f2ccc0f3") in 80ms app/actions/drill-log.ts
+ GET /login 200 in 511ms (next.js: 138ms, proxy.ts: 155ms, application-code: 217ms)
+ GET /coach 200 in 1019ms (next.js: 110ms, proxy.ts: 9ms, application-code: 900ms)
+ GET /pitch-log 200 in 247ms (next.js: 31ms, proxy.ts: 5ms, application-code: 210ms)
+ GET /today 200 in 567ms (next.js: 42ms, proxy.ts: 5ms, application-code: 519ms)

@@ -224,14 +224,11 @@ export function buildUserPrompt(
   lines.push(
     `\n# 확정된 투구 계획 (규칙으로 계산됨 — 이 수치를 그대로 써야 합니다)`
   );
-  for (const day of plan.days) {
-    lines.push(
-      day.throwing
-        ? `- ${day.label}(${day.dateKey}): 투구 가능, 최대 ${day.maxPitches}구, 강도 ${day.maxIntensity} 이하 — ${day.reason}`
-        : `- ${day.label}(${day.dateKey}): 휴식 — ${day.reason}`
-    );
-  }
-  lines.push(`- 3일 합계 상한: ${plan.threeDayTotal}구`);
+  lines.push(
+    plan.today.throwing
+      ? `- 오늘(${plan.today.dateKey}): 투구 가능, 최대 ${plan.today.maxPitches}구, 강도 ${plan.today.maxIntensity} 이하 — ${plan.today.reason}`
+      : `- 오늘(${plan.today.dateKey}): 휴식 — ${plan.today.reason}`
+  );
   lines.push(`\n## 이 계획이 나온 근거`);
   for (const b of plan.basis) lines.push(`- ${b}`);
   if (plan.youthNote) lines.push(`- ${plan.youthNote}`);
@@ -326,10 +323,7 @@ export function checkPitchCounts(
   plan: PitchPlan
 ): { ok: true } | { ok: false; offending: number[] } {
   const allowed = new Set<number>();
-  for (const day of plan.days) {
-    if (day.maxPitches != null) allowed.add(day.maxPitches);
-  }
-  allowed.add(plan.threeDayTotal);
+  if (plan.today.maxPitches != null) allowed.add(plan.today.maxPitches);
   allowed.add(facts.volume.current.totalPitches);
   allowed.add(facts.volume.previous.totalPitches);
   allowed.add(facts.volume.current.maxDailyPitches);

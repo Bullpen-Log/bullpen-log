@@ -447,7 +447,7 @@ export function TodayPlanLine({ plan }: { plan: PitchPlan }) {
     );
   }
 
-  const today = plan.days[0];
+  const today = plan.today;
   if (!today) return null;
 
   return (

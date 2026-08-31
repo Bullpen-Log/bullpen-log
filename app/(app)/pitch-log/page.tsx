@@ -77,7 +77,7 @@ export default async function PitchLogPage({
     gatherFactsAndPlan(user, now, { excludeToday: true }),
   ]);
 
-  const todayPlanDay = plan.days[0] ?? null;
+  const todayPlanDay = plan.today;
   const todayPlan: PlanNoteData | null =
     todayPlanDay && !plan.halted
       ? {

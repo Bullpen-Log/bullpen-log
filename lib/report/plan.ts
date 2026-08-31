@@ -1,4 +1,3 @@
-import { shiftDateKey } from '@/lib/pitch-stats';
 import type { ReportFacts } from '@/lib/report/facts';
 
 /**
@@ -121,16 +120,45 @@ export type PitchPlan = {
    * 확인이 필요한 상태. 확인될 때까지 투구는 쉬는 쪽으로 둔다.
    */
   needsPainCheck: boolean;
-  days: DayPlan[];
-  /** 향후 3일 권장 총 투구수 */
-  threeDayTotal: number;
+  /**
+   * 오늘 하루의 안내.
+   *
+   * 예전에는 오늘·내일·모레 사흘치를 그렸다. 그런데 주 사용자는 사회인·동호회
+   * 선수라 다음 경기가 언제인지도 모르고, 몇 구 던질지는 경기 상황이 정한다 —
+   * 강판당하면 20구, 완투하면 100구다. 모레 계획은 지킬 수 있는 것이 아니라
+   * 지어낸 이야기에 가까웠다.
+   *
+   * 오늘 하나만 남긴다. 이것도 "몇 구 던져라"가 아니라 "여기까지"라는 상한이고,
+   * 쉬는 날이면 숫자 없이 쉬라고만 한다. 미리 정하는 것이 아니라 이미 던진
+   * 것에 대한 답이다.
+   */
+  today: DayPlan;
   /** 어떤 규칙이 적용됐는지 — 화면에 근거로 그대로 보여준다 */
   basis: string[];
   /** 성장기 회원에게 덧붙일 주의 */
   youthNote: string | null;
 };
 
-const DAY_LABELS = ['오늘', '내일', '모레'];
+/**
+ * 오늘 하나만 만든다.
+ *
+ * 사흘치를 그리던 때의 흔적이 하나 사라진다 — '연투가 길면 첫 등판 다음 날을
+ * 쉬게 한다'는 규칙은 내일·모레가 있어야 놓을 자리가 있었다. 연투가 길었다는
+ * 사실 자체는 근거에 그대로 남긴다.
+ */
+const TODAY_LABEL = '오늘';
+
+/** 오늘은 쉬는 날. 이유만 다르고 모양은 늘 같다. */
+function restDay(asOf: string, reason: string): DayPlan {
+  return {
+    dateKey: asOf,
+    label: TODAY_LABEL,
+    throwing: false,
+    maxPitches: null,
+    maxIntensity: null,
+    reason,
+  };
+}
 
 export function buildPitchPlan(facts: ReportFacts): PitchPlan {
   const { patterns, load, profile, condition } = facts;
@@ -158,8 +186,7 @@ export function buildPitchPlan(facts: ReportFacts): PitchPlan {
       halted: true,
       haltReason:
         '오늘 체크인에 통증이 기록되어 있습니다. 통증이 있는 동안에는 투구 계획을 제공하지 않습니다. 통증이 이어지면 전문의 진료를 받아보세요. 통증이 가라앉았다면 오늘 체크인을 다시 저장해주세요.',
-      days: [],
-      threeDayTotal: 0,
+      today: restDay(facts.asOf, '통증 기록'),
       recovering: false,
       needsPainCheck: false,
       basis: ['오늘 체크인 통증 → 계획 중단'],
@@ -173,8 +200,7 @@ export function buildPitchPlan(facts: ReportFacts): PitchPlan {
       halted: true,
       haltReason:
         '최근 체크인에 통증이 기록되어 있습니다. 지금 어떤 상태인지 알 수 없어 계획을 내지 않았습니다. 오늘 체크인을 남겨주시면 상태에 맞춰 다시 계획을 만듭니다. 통증이 이어지면 전문의 진료를 받아보세요.',
-      days: [],
-      threeDayTotal: 0,
+      today: restDay(facts.asOf, '통증 확인 필요'),
       recovering: false,
       needsPainCheck: false,
       basis: ['최근 통증 기록 + 오늘 체크인 없음 → 계획 중단'],
@@ -287,69 +313,71 @@ export function buildPitchPlan(facts: ReportFacts): PitchPlan {
     target = cap;
   }
 
-  // 6) 연투가 길었으면 하루는 반드시 쉰다.
-  const streakRest = patterns.longestStreak >= 3;
-  if (streakRest) {
-    basis.push(`최근 4주 최장 연투 ${patterns.longestStreak}일 → 중간 휴식일 확보`);
+  /*
+   * 6) 연투가 길었던 사실을 알린다.
+   *
+   * 예전에는 여기서 쉬는 날을 하나 끼워 넣었다. 사흘치를 그릴 때는 '첫 등판
+   * 다음 날'이라는 놓을 자리가 있었지만, 오늘 하나만 정하는 지금은 없다.
+   *
+   * 그렇다고 오늘을 쉬라고 할 수도 없다. longestStreak 는 최근 4주의 최장
+   * 연투라 지금 연투 중이라는 뜻이 아니다 — 넉 주 전 일로 오늘을 막는 셈이 된다.
+   *
+   * 그래서 사실만 적는다. 하는 일이 없어졌는데 문구만 남겨 두면, 화면에는
+   * 규칙이 있어 보이지만 실제로는 아무 일도 안 하는 줄이 된다.
+   */
+  if (patterns.longestStreak >= 3) {
+    basis.push(
+      `최근 4주 최장 연투 ${patterns.longestStreak}일 — 이어 던진 뒤에는 하루 쉬는 편이 좋습니다`
+    );
   }
 
-  const days: DayPlan[] = DAY_LABELS.map((label, i) => {
-    const dateKey = shiftDateKey(facts.asOf, i);
-
-    // 통증인지 아닌지 확인되기 전에는 던지는 계획을 내지 않는다.
-    if (needsPainCheck) {
-      return {
-        dateKey,
-        label,
-        throwing: false,
-        maxPitches: null,
-        maxIntensity: null,
-        reason: '메모의 통증 표현 확인 필요',
-      };
-    }
-
-    // 남은 휴식일 안에 드는 날은 무조건 쉰다.
-    if (i < remainingRest) {
-      return {
-        dateKey,
-        label,
-        throwing: false,
-        maxPitches: null,
-        maxIntensity: null,
-        reason: `마지막 등판(${lastOuting}구) 회복 중`,
-      };
-    }
-
-    // 연투가 길었던 회원은 첫 등판 다음 날을 쉬게 한다.
-    if (streakRest && i === remainingRest + 1) {
-      return {
-        dateKey,
-        label,
-        throwing: false,
-        maxPitches: null,
-        maxIntensity: null,
-        reason: '연투가 길어 회복일 배치',
-      };
-    }
-
-    return {
-      dateKey,
-      label,
-      throwing: true,
-      maxPitches: target,
-      maxIntensity: adj.maxIntensity,
-      reason: adj.label,
-    };
-  });
+  /*
+   * 오늘 하루만 정한다.
+   *
+   * 사흘치를 그리던 때에는 '연투가 길면 첫 등판 다음 날을 쉬게 한다'는 규칙이
+   * 있었는데, 내일·모레가 있어야 놓을 자리가 있었다. 지금은 그 사실을 근거로만
+   * 남긴다 — longestStreak 는 최근 4주의 최장 연투라, 그것만으로 오늘을
+   * 쉬라고 하면 넉 주 전 일로 오늘을 막는 셈이 된다.
+   */
+  const today: DayPlan = needsPainCheck
+    ? restDay(facts.asOf, '메모의 통증 표현 확인 필요')
+    : remainingRest > 0
+      ? restDay(facts.asOf, `마지막 등판(${lastOuting}구) 회복 중`)
+      : {
+          dateKey: facts.asOf,
+          label: TODAY_LABEL,
+          throwing: true,
+          maxPitches: target,
+          maxIntensity: adj.maxIntensity,
+          reason: adj.label,
+        };
 
   return {
     halted: false,
     haltReason: null,
     recovering,
     needsPainCheck,
-    days,
-    threeDayTotal: days.reduce((sum, d) => sum + (d.maxPitches ?? 0), 0),
+    today,
     basis,
     youthNote,
   };
+}
+
+/**
+ * 저장해 둔 계획을 읽는다.
+ *
+ * AiReport.plan 은 만들 때의 모양 그대로 Json 에 들어간다. 사흘치를 그리던
+ * 때에 저장된 것은 today 가 없고 days 배열이 있다. 그대로 읽으면 화면이
+ * 터지므로 여기서 옛 모양을 오늘 하나로 옮겨 준다.
+ *
+ * 모양을 알 수 없으면 null 이다 — 억지로 읽으려 하면 값이 비어 곳곳에서
+ * 터진다. 다시 만들라고 하는 편이 낫다.
+ */
+export function readPitchPlan(value: unknown): PitchPlan | null {
+  if (!value || typeof value !== 'object') return null;
+  const plan = value as Partial<PitchPlan> & { days?: DayPlan[] };
+  if (plan.today) return plan as PitchPlan;
+  const first = plan.days?.[0];
+  if (!first) return null;
+  return { ...(plan as PitchPlan), today: first };
 }

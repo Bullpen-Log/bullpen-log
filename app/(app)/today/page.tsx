@@ -149,7 +149,7 @@ export default async function HomePage() {
    * 넣은 뒤로 계산하면 던진 그 순간 '휴식'으로 바뀌어, 방금 남긴 기록과
    * 나란히 놓였을 때 서로 어긋나 보인다.
    */
-  const plannedToday = planBeforeToday.days[0] ?? null;
+  const plannedToday = planBeforeToday.today;
   const showPlannedToday = plannedToday != null && !planBeforeToday.halted;
 
   const exerciseTotal = shownPicks.length;

@@ -23,7 +23,13 @@ export type StoredReport = {
   halted: boolean;
   haltReason: string | null;
   body: AiReportBody | null;
-  plan: PitchPlan;
+  /**
+   * 저장할 때의 모양을 못 알아보면 null 이다.
+   *
+   * 계획의 모양이 바뀌면 옛 기록은 못 읽는 것으로 본다(readPitchPlan).
+   * 억지로 읽으려 하면 값이 비어 화면 곳곳에서 터진다.
+   */
+  plan: PitchPlan | null;
   createdAt: string;
 };
 
@@ -42,7 +48,7 @@ function GenerateButton({ label }: { label: string }) {
 }
 
 /** 하루치 계획 한 줄 */
-function DayRow({ day }: { day: PitchPlan['days'][number] }) {
+function DayRow({ day }: { day: PitchPlan['today'] }) {
   return (
     <div
       className={`flex flex-wrap items-center gap-x-3 gap-y-1 rounded-xl border px-4 py-3 ${
@@ -245,20 +251,22 @@ export function AiReportCard({
               </p>
             </Section>
 
-            {/* 코드가 계산한 계획 — 리포트의 근거. 오늘 할 일이라 늘 펼쳐 둔다 */}
-            <div className="space-y-2">
-              <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-muted">
-                향후 3일 계획
-              </p>
-              {plan.days.map((day) => (
-                <DayRow key={day.dateKey} day={day} />
-              ))}
-              <p className="pt-1 text-[11px] tabular-nums text-muted/70">
-                3일 합계 상한 {plan.threeDayTotal}구
-              </p>
-            </div>
+            {/*
+              코드가 계산한 오늘 안내 — 리포트의 근거.
 
-            {plan.youthNote && (
+              예전에는 오늘·내일·모레 사흘치를 그렸다. 다음 경기가 언제인지도
+              모르는 사람에게 모레 계획은 지어낸 이야기였다.
+            */}
+            {plan && (
+              <div className="space-y-2">
+                <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-muted">
+                  오늘 안내
+                </p>
+                <DayRow day={plan.today} />
+              </div>
+            )}
+
+            {plan?.youthNote && (
               <p className="rounded-xl border border-warn-line bg-warn-bg px-4 py-3 text-xs leading-relaxed text-warn">
                 {plan.youthNote}
               </p>
