@@ -51,7 +51,17 @@ export function MonthCalendar({
   children,
 }: {
   month: Date;
-  onMonthChange: (next: Date) => void;
+  /**
+   * 달을 옮긴다. 바뀔 값이 아니라 '바꾸는 방법'을 넘긴다.
+   *
+   * 예전에는 눌린 순간의 달에서 계산한 Date 를 그대로 넘겼다. 그러면 화면이
+   * 다시 그려지기 전에 여러 번 누른 클릭이 전부 같은 값을 계산한다 — 1년 전으로
+   * 가려고 화살표를 연타하면 한 달만 갔다. 실제로 빠르게 세 번 눌러도 한 달만
+   * 움직였다.
+   *
+   * 지금 값에서 계산하게 하면 눌린 만큼 정확히 옮겨진다.
+   */
+  onMonthChange: (update: (prev: Date) => Date) => void;
   /** 지금 열려 있는 날짜. 아무것도 안 열었으면 null */
   selected: string | null;
   onSelect: (dateKey: string) => void;
@@ -82,7 +92,9 @@ export function MonthCalendar({
           <button
             type="button"
             aria-label="이전 달"
-            onClick={() => onMonthChange(new Date(year, monthIndex - 1, 1))}
+            onClick={() =>
+              onMonthChange((prev) => new Date(prev.getFullYear(), prev.getMonth() - 1, 1))
+            }
             className="rounded-lg border border-line p-2 text-muted transition-colors hover:border-sky hover:text-sky"
           >
             <ChevronLeft className="h-4 w-4" />
@@ -90,7 +102,9 @@ export function MonthCalendar({
           <button
             type="button"
             aria-label="다음 달"
-            onClick={() => onMonthChange(new Date(year, monthIndex + 1, 1))}
+            onClick={() =>
+              onMonthChange((prev) => new Date(prev.getFullYear(), prev.getMonth() + 1, 1))
+            }
             className="rounded-lg border border-line p-2 text-muted transition-colors hover:border-sky hover:text-sky"
           >
             <ChevronRight className="h-4 w-4" />
