@@ -197,3 +197,74 @@ input[type="date"]::-webkit-calendar-picker-indicator {
 ::-webkit-scrollbar-thumb:hover {
   background: var(--color-muted);
 }
+
+/**
+ * 1~10 강도 슬라이더.
+ *
+ * 브라우저 기본에 accent-color 만 얹어 뒀더니, 크롬이 안 채워진 쪽 트랙을
+ * 하늘색에서 뽑아낸 탁한 갈색으로 그렸다. 투구 강도와 운동 강도는 자주 만지는
+ * 입력이라 여기가 지저분하면 화면 전체가 싸 보인다.
+ *
+ * 채워진 길이는 --range-pct 로 받는다. 웹킷에는 진행 부분을 칠하는 가상 요소가
+ * 없어서, 트랙 배경을 그 지점에서 끊는 그러데이션으로 만든다.
+ * 손잡이는 20px 로 키웠다 — 폰에서 16px 짜리는 잡히지 않는다.
+ */
+.range {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 1.5rem;
+  background: transparent;
+  cursor: pointer;
+}
+.range:focus {
+  outline: none;
+}
+
+.range::-webkit-slider-runnable-track {
+  height: 6px;
+  border-radius: 999px;
+  background: linear-gradient(
+    to right,
+    var(--color-sky) var(--range-pct, 50%),
+    var(--color-surface-2) var(--range-pct, 50%)
+  );
+}
+.range::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 20px;
+  width: 20px;
+  margin-top: -7px;
+  border-radius: 999px;
+  background: var(--color-sky);
+  border: 2px solid var(--color-surface);
+  box-shadow: 0 1px 4px rgb(15 23 42 / 0.25);
+  transition: transform 0.12s ease;
+}
+.range:active::-webkit-slider-thumb {
+  transform: scale(1.15);
+}
+.range:focus-visible::-webkit-slider-thumb {
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-sky) 35%, transparent);
+}
+
+/* 파이어폭스는 진행 부분을 따로 칠해 주므로 그러데이션이 필요 없다 */
+.range::-moz-range-track {
+  height: 6px;
+  border-radius: 999px;
+  background: var(--color-surface-2);
+}
+.range::-moz-range-progress {
+  height: 6px;
+  border-radius: 999px;
+  background: var(--color-sky);
+}
+.range::-moz-range-thumb {
+  height: 20px;
+  width: 20px;
+  border-radius: 999px;
+  background: var(--color-sky);
+  border: 2px solid var(--color-surface);
+  box-shadow: 0 1px 4px rgb(15 23 42 / 0.25);
+}

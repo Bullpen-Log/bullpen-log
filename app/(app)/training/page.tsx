@@ -21,6 +21,7 @@ import {
   type TodayDrill,
 } from './drill-list';
 import { TrainingHistory } from './history';
+import { josa } from '@/lib/korean';
 import { TrainingSettingsButton } from './settings-button';
 import { trainingSummaries } from '@/lib/report/training-history';
 
@@ -325,11 +326,18 @@ export default async function TrainingPage({
         eyebrow="Training"
         title="트레이닝"
         description={
-          savedPlan == null
-            ? '오늘 할 운동을 만들어 드립니다. 하루에 한 번 만들고, 내일이 되면 새로 만듭니다.'
-            : core.hasCheckinToday
-              ? '오늘 몸 상태와 최근 투구량에 맞춰 고른 운동입니다. 마친 것은 눌러서 표시해주세요.'
-              : '최근 투구량에 맞춰 고른 운동입니다. 마친 것은 눌러서 표시해주세요.'
+          /*
+            통증인 날에는 목록이 아예 안 나온다. 그런데도 "고른 운동입니다. 마친
+            것은 눌러서 표시해주세요"가 그대로 남아 있어, 아래에서는 처방을 안
+            했다고 하면서 위에서는 마친 것을 표시하라고 했다.
+          */
+          picked.halted
+            ? '오늘은 쉬는 것이 훈련입니다.'
+            : savedPlan == null
+              ? '오늘 할 운동을 만들어 드립니다. 하루에 한 번 만들고, 내일이 되면 새로 만듭니다.'
+              : core.hasCheckinToday
+                ? '오늘 몸 상태와 최근 투구량에 맞춰 고른 운동입니다. 마친 것은 눌러서 표시해주세요.'
+                : '최근 투구량에 맞춰 고른 운동입니다. 마친 것은 눌러서 표시해주세요.'
         }
       />
 
@@ -354,14 +362,20 @@ export default async function TrainingPage({
           <p className="text-sm font-bold text-warn">
             오늘은 운동을 처방하지 않았습니다
           </p>
+          {/*
+            까닭과 할 일을 한 번씩만 말한다. 예전에는 haltReason 안에 이미
+            "체크인을 다시 저장해주세요"가 들어 있는데 뒤에서 또 "체크인에서
+            상태를 고쳐주세요"라고 해, 같은 말을 두 번 하는 문단이 됐다.
+          */}
           <p className="text-sm leading-relaxed text-warn">
-            {picked.haltReason ??
-              '통증 신호가 있어 훈련 조언을 만들지 않았습니다.'}{' '}
-            통증이 있는 날은 쉬는 것이 가장 좋은 훈련입니다. 통증이 아니라면{' '}
+            {picked.haltReason ?? '통증 신호가 있어 훈련 조언을 만들지 않았습니다.'}
+          </p>
+          <p className="text-sm leading-relaxed text-warn">
+            통증이 아니었다면{' '}
             <Link href="/today" className="font-semibold underline">
               홈의 오늘 체크인
             </Link>
-            에서 상태를 고쳐주세요.
+            에서 상태를 고쳐주세요. 만들어 둔 일정이 있으면 그대로 다시 나옵니다.
           </p>
         </Card>
       ) : !core.hasLogs ? (
@@ -461,6 +475,26 @@ export default async function TrainingPage({
             </div>
           </Card>
 
+          {/*
+            장비를 한 번도 안 고른 사람에게 알린다.
+
+            안 고르면 '전부 가지고 있다'로 본다 — 빈 목록을 그대로 믿으면 저장도
+            안 한 사람에게 맨몸 운동만 나가기 때문이다. 그 대신, 처음 쓰는 사람은
+            케틀벨도 벤치도 없는데 케틀벨 운동을 받게 된다.
+
+            빠진 것이 없으니 아래의 '장비로 할 수 없는 운동 N개를 뺐습니다'도 안
+            뜬다. 그래서 목록에 없는 장비가 섞인 이유를 알 길이 없었다.
+            아래 안내들과 나란히 두지 않고 목록 위에 두는 이유는, 이것을 볼 사람이
+            처음 쓰는 사람이기 때문이다. 운동 열여섯 개 밑에 있으면 닿지 않는다.
+          */}
+          {user.ownedEquipment.length === 0 && (
+            <p className="rounded-lg border border-warn-line bg-warn-bg px-4 py-3 text-[13px] leading-relaxed text-warn">
+              가진 장비를 아직 안 고르셔서 <b>전부 있다고 보고</b> 골랐습니다. 없는
+              장비가 섞여 있으면 위의 <b>트레이닝 설정</b>에서 정해주세요 — 그다음부터는
+              실제로 할 수 있는 운동만 나옵니다.
+            </p>
+          )}
+
           <ExerciseChecklist exercises={exercises}>
             {/*
               만들어 준 목록을 그대로 하는 사람은 없다. 빼는 것은 목록에서
@@ -516,9 +550,13 @@ export default async function TrainingPage({
               <span className="font-semibold text-ink">
                 {savedPlan.equipment.bestAddition.name}
               </span>
+              {/*
+                조사를 글자로 박아두면 반드시 틀린다. '벤치이 있으면'이 실제로
+                화면에 나왔다 — 받침이 없는 이름에는 '가'가 붙어야 한다.
+              */}
               {savedPlan.equipment.narrowed
-                ? `을 쓸 수 있는 날이면 ${savedPlan.equipment.bestAddition.unlocks}개를 더 할 수 있습니다.`
-                : `이 있으면 ${savedPlan.equipment.bestAddition.unlocks}개를 더 할 수 있습니다.`}
+                ? `${josa(savedPlan.equipment.bestAddition.name, '을/를')} 쓸 수 있는 날이면 ${savedPlan.equipment.bestAddition.unlocks}개를 더 할 수 있습니다.`
+                : `${josa(savedPlan.equipment.bestAddition.name, '이/가')} 있으면 ${savedPlan.equipment.bestAddition.unlocks}개를 더 할 수 있습니다.`}
             </p>
           )}
 

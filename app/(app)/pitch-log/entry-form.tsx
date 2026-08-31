@@ -165,7 +165,13 @@ export function EntryForm({
             max="10"
             value={form.intensity}
             onChange={(e) => setForm({ ...form, intensity: e.target.value })}
-            className="mt-3 w-full accent-[#0ea5e9]"
+            /* 채워진 길이를 CSS 로 넘긴다 — .range 안에서 트랙을 여기서 끊는다 */
+            style={
+              {
+                '--range-pct': `${((Number(form.intensity) - 1) / 9) * 100}%`,
+              } as React.CSSProperties
+            }
+            className="range mt-3"
           />
           {/*
             강도는 부하 지수와 필요한 휴식일을 정하는 값이라, 감으로 찍으면

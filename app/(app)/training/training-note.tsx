@@ -102,7 +102,8 @@ export function TrainingNote({
           step={1}
           value={value}
           onChange={(e) => setValue(Number(e.target.value))}
-          className="w-full accent-sky"
+          style={{ '--range-pct': `${((value - 1) / 9) * 100}%` } as React.CSSProperties}
+          className="range"
         />
         <div className="flex justify-between text-[11px] text-muted">
           <span>1 아주 가벼움</span>

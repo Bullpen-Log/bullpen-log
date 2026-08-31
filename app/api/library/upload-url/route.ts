@@ -1,3 +1,4 @@
+import { withJosa } from '@/lib/korean';
 import { NextResponse } from 'next/server';
 import { getCurrentUser } from '@/lib/dal';
 import {
@@ -60,7 +61,12 @@ export async function POST(req: Request) {
     if (size > limit) {
       const mb = Math.round(limit / 1024 / 1024);
       return NextResponse.json(
-        { error: `${isThumb ? '이미지' : '영상'}는 ${mb}MB 이하만 올릴 수 있습니다` },
+        {
+        error: (() => {
+          const kind = isThumb ? '이미지' : '영상';
+          return `${withJosa(kind, '은/는')} ${mb}MB 이하만 올릴 수 있습니다`;
+        })(),
+      },
         { status: 400 }
       );
     }

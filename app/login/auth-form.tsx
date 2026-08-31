@@ -23,11 +23,20 @@ function ChipRow({
   options,
   /** 가입에 실패해 되돌아왔을 때 다시 골라둘 값 */
   selected,
+  /**
+   * 안 골라도 넘어갈 수 있는 줄인가.
+   *
+   * 예전에는 모든 줄이 필수였다. 그래서 '어디서 야구를 하시나요'는 바로 아래에
+   * "안 고르셔도 됩니다"라고 적어두고도, 안 고르면 브라우저가 가입을 막았다.
+   * 처음 보는 화면에서 글과 동작이 어긋나면 앱을 못 믿게 된다.
+   */
+  optional = false,
 }: {
   label: string;
   name: string;
   options: readonly string[];
   selected?: string;
+  optional?: boolean;
 }) {
   return (
     <fieldset>
@@ -41,7 +50,7 @@ function ChipRow({
               type="radio"
               name={name}
               value={option}
-              required
+              required={!optional}
               defaultChecked={selected === option}
               className="peer sr-only"
             />
@@ -231,6 +240,7 @@ export function AuthForm({ today }: { today: string }) {
               <ChipRow
                 label="어디서 야구를 하시나요"
                 name="competitionLevel"
+                optional
                 options={COMPETITION_LEVELS}
                 selected={kept(before, 'competitionLevel')}
               />

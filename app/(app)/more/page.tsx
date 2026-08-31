@@ -40,13 +40,22 @@ export default async function MorePage() {
             </h2>
           )}
           <div className="grid grid-cols-2 gap-3">
-            {group.items.map((item) => {
+            {group.items.map((item, i) => {
               const Icon = NAV_ICONS[item.icon];
+              /*
+                홀수 개면 마지막 것이 왼쪽에 혼자 남아 한 칸이 비어 보인다.
+                라이브러리가 셋(운동 영상·투구 드릴·자료실)이라 실제로 그랬다.
+                마지막 하나를 두 칸 폭으로 늘려 줄을 채운다.
+              */
+              const lastAlone =
+                group.items.length % 2 === 1 && i === group.items.length - 1;
               return (
               <Link
                 key={item.href}
                 href={item.href}
-                className="flex items-center gap-3 rounded-2xl border border-line bg-surface px-4 py-4 transition-colors hover:border-sky-soft"
+                className={`flex items-center gap-3 rounded-2xl border border-line bg-surface px-4 py-4 transition-colors hover:border-sky-soft ${
+                  lastAlone ? 'col-span-2' : ''
+                }`}
               >
                 <span
                   aria-hidden
