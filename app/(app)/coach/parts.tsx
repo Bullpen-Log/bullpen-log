@@ -233,17 +233,24 @@ export function WeekStrip({ bars }: { bars: WeekBar[] }) {
  * 계산법과 구간의 의미를 펼쳐볼 수 있게 둔다.
  */
 export function LoadIndexHelp({
+  which,
   acute,
   chronic,
   activeZone,
-  training,
 }: {
+  /**
+   * 어느 지수를 푸는가.
+   *
+   * 예전에는 둘을 한 카드에 나란히 두고 여기서 같이 풀었다. 지금은 칸이 갈려
+   * 한 번에 하나만 보이므로, 안 보이는 지수까지 설명하면 "그 숫자가 어디 있지"
+   * 하고 찾게 된다.
+   */
+  which: 'pitching' | 'training';
   acute: number;
   chronic: number;
   activeZone?: AcwrZone;
-  /** 운동 부하도 함께 설명한다. 지수 둘이 나란히 있는데 하나만 풀면 안 된다. */
-  training?: { acute: number; chronic: number };
 }) {
+  const pitching = which === 'pitching';
   return (
     <details className="group border-t border-line pt-3">
       <summary className="flex cursor-pointer list-none items-center gap-1.5 text-[11px] text-muted transition-colors hover:text-sky">
@@ -255,16 +262,20 @@ export function LoadIndexHelp({
         <div>
           <p className="font-semibold text-ink">어떻게 나오나요</p>
           <div className="mt-2 space-y-1.5 rounded-lg border border-line bg-surface-2 px-3 py-2.5 tabular-nums">
-            <p>
-              투구 부하 <span className="text-ink">= 투구수 × 강도</span>
-              <span className="ml-1 text-muted/60">(50구를 강도 6으로 → 300)</span>
-            </p>
-            <p>
-              운동 부하 <span className="text-ink">= 세트 수 × 운동 계수 × 강도</span>
-              <span className="ml-1 text-muted/60">
-                (계수는 데드리프트 한 세트를 1로 놓은 값)
-              </span>
-            </p>
+            {pitching ? (
+              <p>
+                투구 부하 <span className="text-ink">= 투구수 × 강도</span>
+                <span className="ml-1 text-muted/60">(50구를 강도 6으로 → 300)</span>
+              </p>
+            ) : (
+              <p>
+                운동 부하{' '}
+                <span className="text-ink">= 세트 수 × 운동 계수 × 강도</span>
+                <span className="ml-1 text-muted/60">
+                  (계수는 데드리프트 한 세트를 1로 놓은 값)
+                </span>
+              </p>
+            )}
             <p>
               부하 지수{' '}
               <span className="text-ink">
@@ -273,22 +284,15 @@ export function LoadIndexHelp({
               <span className="ml-1 text-muted/60">(최근일수록 크게 반영되는 평균)</span>
             </p>
             <p className="text-muted/70">
-              가입 때 답한 평소 투구량이 처음 기준이 되고, 기록이 쌓일수록 실제
-              기록으로 바뀝니다.
+              {pitching
+                ? '가입 때 답한 평소 투구량이 처음 기준이 되고, 기록이 쌓일수록 실제 기록으로 바뀝니다.'
+                : '가입 때 답한 평소 웨이트 횟수가 처음 기준이 되고, 기록이 쌓일수록 실제 기록으로 바뀝니다.'}
             </p>
             {chronic > 0 && (
               <p className="border-t border-line pt-1.5 text-muted/70">
-                지금 투구는 {Math.round(acute)} ÷ {Math.round(chronic)} ={' '}
+                지금 {pitching ? '투구' : '운동'}은 {Math.round(acute)} ÷{' '}
+                {Math.round(chronic)} ={' '}
                 <span className="text-ink">{(acute / chronic).toFixed(2)}</span>
-              </p>
-            )}
-            {training && training.chronic > 0 && (
-              <p className="text-muted/70">
-                지금 운동은 {Math.round(training.acute)} ÷{' '}
-                {Math.round(training.chronic)} ={' '}
-                <span className="text-ink">
-                  {(training.acute / training.chronic).toFixed(2)}
-                </span>
               </p>
             )}
           </div>
@@ -297,7 +301,7 @@ export function LoadIndexHelp({
         <div>
           <p className="font-semibold text-ink">왜 보나요</p>
           <p className="mt-1.5">
-            몸은 평소 하던 양에 맞춰 적응해 있습니다. 그래서 절대적인 투구수보다
+            몸은 평소 하던 양에 맞춰 적응해 있습니다. 그래서 절대적인 양보다
             <span className="text-ink"> 평소보다 얼마나 늘었는지</span>가 부상 위험과 더
             가깝습니다. 같은 100구라도 평소 100구를 던지던 사람과 30구를 던지던
             사람에게 오는 부담이 다릅니다.

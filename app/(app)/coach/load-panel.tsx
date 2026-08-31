@@ -72,23 +72,6 @@ export type LoadView = {
 const STREAK_WARNING = 7;
 
 /**
- * 걱정스러운 정도. 큰 쪽이 위로 온다.
- *
- * '낮음'은 위험하지 않지만 '적정'보다는 할 말이 있다 — 회복 중이거나
- * 기록을 빠뜨렸을 수 있어서다. 지수를 아직 못 내면 맨 아래다.
- */
-const CONCERN: Record<AcwrZone, number> = {
-  danger: 3,
-  caution: 2,
-  low: 1,
-  optimal: 0,
-};
-
-function concernOf(view: LoadView): number {
-  return view.zone ? CONCERN[view.zone] : -1;
-}
-
-/**
  * 최근 2주 지수 흐름.
  *
  * 지수 하나만 크게 보여주면 그 값이 요일 때문에 오르내린다는 것을 알 수가
@@ -271,68 +254,44 @@ function Primary({ view }: { view: LoadView }) {
   );
 }
 
-/** 나머지 하나 — 한 줄로 */
-function Secondary({ view }: { view: LoadView }) {
-  const zone = view.zone ? ACWR_ZONES[view.zone] : null;
-
-  return (
-    <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 border-t border-line px-6 py-4 sm:px-8">
-      <span className="text-sm font-medium text-ink">{view.name} 부하</span>
-      {view.ratio != null && zone ? (
-        <>
-          <span
-            className={`text-display text-xl leading-none tabular-nums ${TONE[zone.tone].text}`}
-          >
-            {view.ratio.toFixed(2)}
-          </span>
-          <StatusChip tone={zone.tone}>{zone.label}</StatusChip>
-          <span className="text-xs text-muted">{view.meaning}</span>
-        </>
-      ) : (
-        <span className="text-xs text-muted">
-          {view.hasRecords && view.daysNeeded > 0
-            ? `기록 ${view.historyDays}일 / ${CHRONIC_WINDOW_DAYS}일 · ${view.daysNeeded}일 더 필요`
-            : view.emptyHint}
-        </span>
-      )}
-    </div>
-  );
-}
-
+/**
+ * 부하 지수 카드 — 한 번에 하나.
+ *
+ * 예전에는 투구와 운동 지수를 한 카드에 위아래로 두고 걱정스러운 쪽을 위로
+ * 올렸다. 분석이 칸으로 갈리면서 투구 지수는 투구 칸, 운동 지수는 트레이닝
+ * 칸으로 갔다 — 각 칸이 자기 지수만 크게 보여준다.
+ *
+ * 기록 빠진 날과 연투 알림은 투구에만 붙는다. 운동에는 해당하는 것이 없다.
+ */
 export function LoadPanel({
-  pitching,
-  training,
-  /** 최근 28일 중 투구 기록이 빠진 날 수 */
+  which,
+  view,
+  /** 최근 28일 중 투구 기록이 빠진 날 수. 투구 칸에서만 온다. */
   missingDays,
   missingWarningAt,
+  /** 최근 4주 최장 연투 일수. 투구 칸에서만 온다. */
   throwStreak,
 }: {
-  pitching: LoadView;
-  training: LoadView;
-  missingDays: number;
-  missingWarningAt: number;
-  /** 최근 4주 최장 연투 일수 */
-  throwStreak: number;
+  which: 'pitching' | 'training';
+  view: LoadView;
+  missingDays?: number;
+  missingWarningAt?: number;
+  throwStreak?: number;
 }) {
-  /*
-   * 걱정스러운 쪽을 위로. 같으면 투구가 위로 간다 —
-   * 투수에게 팔은 다른 부위와 다르다.
-   */
-  const [primary, secondary] =
-    concernOf(training) > concernOf(pitching)
-      ? [training, pitching]
-      : [pitching, training];
+  const isPitching = which === 'pitching';
 
   return (
     <section className="bg-spotlight overflow-hidden rounded-3xl border border-line bg-surface">
-      <Primary view={primary} />
-      <Secondary view={secondary} />
+      <Primary view={view} />
 
       {/*
         기록이 빠진 날이 많으면 지수가 실제보다 낮게 나온다.
         낮은 숫자는 "더 던져도 된다"는 뜻으로 읽히므로 그냥 두면 안 된다.
       */}
-      {missingDays >= missingWarningAt && (
+      {isPitching &&
+        missingDays != null &&
+        missingWarningAt != null &&
+        missingDays >= missingWarningAt && (
         <p className="border-t border-warn-line bg-warn-bg px-6 py-3 text-[11px] leading-relaxed text-warn sm:px-8">
           최근 {CHRONIC_WINDOW_DAYS}일 중 <strong>{missingDays}일</strong>은 투구
           기록이 없어 안 던진 날로 계산했습니다. 실제로 던진 날이 있으면{' '}
@@ -349,7 +308,7 @@ export function LoadPanel({
         보고 나면 한참 아래 작은 카드에 있는 연투 숫자는 눈에 안 들어온다.
         그래서 지수 옆에 붙인다.
       */}
-      {throwStreak >= STREAK_WARNING && (
+      {isPitching && throwStreak != null && throwStreak >= STREAK_WARNING && (
         <p className="border-t border-warn-line bg-warn-bg px-6 py-3 text-[11px] leading-relaxed text-warn sm:px-8">
           최근 4주에 <strong>{throwStreak}일 연속</strong>으로 던진 구간이 있습니다.
           지수는 평소와 견준 값이라 늘 많이 던져온 사람은 높게 나오지 않습니다 —
@@ -360,10 +319,10 @@ export function LoadPanel({
       {/* 어떻게 나온 숫자인지 — 안 적어두면 그냥 믿거나 그냥 무시한다 */}
       <div className="px-6 pb-4 sm:px-8">
         <LoadIndexHelp
-          acute={pitching.acute}
-          chronic={pitching.chronic}
-          activeZone={pitching.zone ?? undefined}
-          training={{ acute: training.acute, chronic: training.chronic }}
+          which={which}
+          acute={view.acute}
+          chronic={view.chronic}
+          activeZone={view.zone ?? undefined}
         />
       </div>
     </section>

@@ -246,20 +246,19 @@ export function StatsOverview({
 
   return (
     <div className="space-y-6">
-      {/* ── 지금 조심할 것 ──────────────────────────────────── */}
-      <LoadPanel
-        pitching={pitchingView}
-        training={trainingView}
-        missingDays={missingDays}
-        missingWarningAt={MISSING_DAYS_WARNING}
-        throwStreak={streak}
-      />
-
       {tabs}
 
       {/* ── 투구 ────────────────────────────────────────────── */}
       {view === 'pitch' && (
       <>
+      <LoadPanel
+        which="pitching"
+        view={pitchingView}
+        missingDays={missingDays}
+        missingWarningAt={MISSING_DAYS_WARNING}
+        throwStreak={streak}
+      />
+
       {/* 셋이라 두 칸으로 두면 남는 칸이 회색 덩이로 보인다 */}
       <section className="grid gap-px overflow-hidden rounded-2xl border border-line bg-line sm:grid-cols-3">
         <StatCard
@@ -381,6 +380,8 @@ export function StatsOverview({
       {/* ── 트레이닝 ────────────────────────────────────────── */}
       {view === 'training' && (
         <>
+          <LoadPanel which="training" view={trainingView} />
+
           <section className="grid gap-px overflow-hidden rounded-2xl border border-line bg-line">
             {/*
               운동은 '몇 개 했나'가 아니라 '며칠·몇 분 했나'로 보여준다.
