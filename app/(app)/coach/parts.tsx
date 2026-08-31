@@ -383,7 +383,19 @@ export function LoadIndexHelp({
 }
 
 /** 뒷받침 카드 4장이 각각 어떻게 나온 값인지. 용어를 처음 보는 사람 기준으로 쓴다. */
-export function MetricHelp({ twoDayLimit }: { twoDayLimit: number }) {
+export function MetricHelp({
+  twoDayLimit,
+  show,
+}: {
+  twoDayLimit: number;
+  /**
+   * 설명할 항목의 이름. 안 주면 전부 낸다.
+   *
+   * 분석이 세 칸으로 갈리면서 한 칸에 안 보이는 숫자까지 설명하면
+   * "그 숫자가 어디 있지" 하고 찾게 된다.
+   */
+  show?: readonly string[];
+}) {
   const items = [
     {
       title: '이번 주 투구',
@@ -403,15 +415,20 @@ export function MetricHelp({ twoDayLimit }: { twoDayLimit: number }) {
     },
   ];
 
+  const shown = show ? items.filter((i) => show.includes(i.title)) : items;
+  if (shown.length === 0) return null;
+
   return (
     <details className="group rounded-2xl border border-line bg-surface px-5 py-4">
       <summary className="flex cursor-pointer list-none items-center gap-1.5 text-[11px] text-muted transition-colors hover:text-sky">
         <ChevronDown className="h-3.5 w-3.5 transition-transform group-open:rotate-180" />
-        이 숫자들은 어떻게 나오나요?
+        {shown.length === 1
+          ? '이 숫자는 어떻게 나오나요?'
+          : '이 숫자들은 어떻게 나오나요?'}
       </summary>
 
       <dl className="mt-4 grid gap-4 sm:grid-cols-2">
-        {items.map((item) => (
+        {shown.map((item) => (
           <div key={item.title}>
             <dt className="text-xs font-semibold text-ink">{item.title}</dt>
             <dd className="mt-1 text-[11px] leading-relaxed text-muted">{item.body}</dd>

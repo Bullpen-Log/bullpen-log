@@ -25,9 +25,22 @@ import { PageHeading } from '@/components/ui';
 import { AiReportCard, type StoredReport } from './ai-report-card';
 import { ReportClient } from './report-client';
 import { StatsOverview } from './overview';
+import { CoachTabs, readCoachView } from './tabs';
 
-export default async function ReportPage() {
+/** 칸마다 머리말을 바꾼다 — 무엇을 보는 화면인지 한 줄로 말해준다 */
+const VIEW_TEXT = {
+  pitch: '얼마나 던졌고 어떻게 달라지고 있는지 봅니다. 아래로 내려가면 기간별 기록이 이어집니다.',
+  training: '무엇을 얼마나 했는지, 빠진 부위는 없는지 봅니다.',
+  report: '그동안의 기록을 읽고 정리한 코멘트입니다.',
+} as const;
+
+export default async function ReportPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
+}) {
   const user = await requireUser();
+  const view = readCoachView((await searchParams).view);
 
   const today = new Date();
   const since = new Date(today);
@@ -92,15 +105,19 @@ export default async function ReportPage() {
       <PageHeading
         eyebrow="Analysis"
         title="분석"
-        description="지금 몸이 어떤 상태인지, 그동안 어떻게 던져왔는지 정리합니다. 아래로 내려가면 기간별 기록과 코멘트가 이어집니다."
+        description={VIEW_TEXT[view]}
       />
 
       {/*
         예전에는 홈(대시보드)에 있던 것들이다. 홈은 입력(체크인)과 출력(부하·추이)이
         섞여 있었고, 정작 매일 해야 하는 기록은 다른 화면에 있었다. 하는 일 기준으로
         나눠, 오늘 할 일은 트레이닝 화면에 두고 돌아보는 것은 여기로 모았다.
+
+        부하 지수 둘은 어느 칸에서도 보이고, 그 아래가 칸마다 갈린다.
       */}
       <StatsOverview
+        view={view}
+        tabs={<CoachTabs current={view} />}
         bestVelocity={
           bestVelocityLog?.maxVelocity != null
             ? {
@@ -123,12 +140,20 @@ export default async function ReportPage() {
         totalRecords={logs.length}
       />
 
-      <AiReportCard
-        report={report}
-        readiness={readiness}
-        aiReady={isAiConfigured()}
-      />
-      <ReportClient logs={serialized} />
+      {view === 'report' && (
+        <AiReportCard
+          report={report}
+          readiness={readiness}
+          aiReady={isAiConfigured()}
+        />
+      )}
+      {view === 'pitch' && <ReportClient logs={serialized} />}
+
+      {/* 어느 칸에서든 맨 아래에 남긴다 — 부하 지수는 세 칸 모두에 보인다 */}
+      <p className="pb-2 text-center text-[11px] leading-relaxed text-muted/60">
+        부하 지수는 훈련량 관리를 돕는 참고 지표입니다. 통증이 있다면 수치와
+        관계없이 전문의와 상담하세요.
+      </p>
     </div>
   );
 }

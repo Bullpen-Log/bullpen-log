@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import Link from 'next/link';
 import { UserCog } from 'lucide-react';
 import { estimateDailyLoad } from '@/lib/baseline';
@@ -31,6 +32,7 @@ import { TrendChart, type TrendPoint } from './trend-chart';
 import { LoadPanel, type LoadView } from './load-panel';
 import { PartVolumeCard } from './part-volume';
 import { Delta, MetricHelp, StatCard, TONE, type Tone } from './parts';
+import type { CoachView } from './tabs';
 
 /**
  * 분석 화면 윗부분 — 지금 몸이 어떤 상태인지.
@@ -91,6 +93,8 @@ export function StatsOverview({
   user,
   today,
   totalRecords,
+  view,
+  tabs,
 }: {
   /**
    * 최근 기록. 화면이 쓰는 만큼만 온다(coach/page.tsx 의 PAGE_LOOKBACK_DAYS).
@@ -105,6 +109,15 @@ export function StatsOverview({
   today: Date;
   /** 기록이 하나라도 있는지 판단할 전체 건수 */
   totalRecords: number;
+  /** 어느 칸을 보고 있는가 */
+  view: CoachView;
+  /**
+   * 칸을 고르는 줄.
+   *
+   * 부하 지수 바로 아래, 나머지 위에 놓여야 해서 여기서 그린다. 무엇을 그릴지는
+   * 이 파일이 정할 일이 아니므로 받아서 끼운다.
+   */
+  tabs: ReactNode;
 }) {
   const todayKey = toDateKey(today);
   const byDay = groupByDay(logs);
@@ -242,8 +255,13 @@ export function StatsOverview({
         throwStreak={streak}
       />
 
-      {/* ── 뒷받침 넷 ───────────────────────────────────────── */}
-      <section className="grid grid-cols-2 gap-px overflow-hidden rounded-2xl border border-line bg-line lg:grid-cols-4">
+      {tabs}
+
+      {/* ── 투구 ────────────────────────────────────────────── */}
+      {view === 'pitch' && (
+      <>
+      {/* 셋이라 두 칸으로 두면 남는 칸이 회색 덩이로 보인다 */}
+      <section className="grid gap-px overflow-hidden rounded-2xl border border-line bg-line sm:grid-cols-3">
         <StatCard
           label="이번 주 투구"
           value={current.totalPitches}
@@ -256,24 +274,6 @@ export function StatsOverview({
               percent={changeRate(current.totalPitches, previous.totalPitches)}
               invert
             />
-          }
-        />
-        {/*
-          운동은 '몇 개 했나'가 아니라 '며칠·몇 분 했나'로 보여준다.
-          부하를 시간으로 세기 때문에, 개수만으로는 그 숫자와 이어지지 않는다.
-        */}
-        <StatCard
-          label="이번 주 운동"
-          value={training.recentDays || '—'}
-          unit={training.recentDays ? '일' : ''}
-          footer={
-            training.recentDays ? (
-              <span className="text-xs text-muted">
-                {training.recentMinutes}분 · 운동 {training.recentCount}개
-              </span>
-            ) : (
-              <span className="text-xs text-muted/60">기록 없음</span>
-            )
           }
         />
         <StatCard
@@ -327,15 +327,10 @@ export function StatsOverview({
       </section>
 
       {/* 지표가 어떻게 나오는 숫자인지 — 안 적어두면 그냥 믿거나 그냥 무시한다 */}
-      <MetricHelp twoDayLimit={TWO_DAY_INTENSITY_LIMIT} />
-
-      {/*
-        ── 부위별 세트 ──────────────────────────────────────
-        지수는 "지금 많은가"를 말하고 여기는 "무엇을 하고 무엇을 안 했나"를
-        말한다. 지수 하나로는 하체만 잔뜩 하고 암케어를 건너뛴 주와 골고루
-        한 주가 똑같아 보인다.
-      */}
-      <PartVolumeCard volume={training.volume} />
+      <MetricHelp
+        twoDayLimit={TWO_DAY_INTENSITY_LIMIT}
+        show={['이번 주 투구', '마지막 투구', '개인 최고 구속']}
+      />
 
       {/* ── 최근 28일 추이 ──────────────────────────────────── */}
       <div className="min-w-0 rounded-2xl border border-line bg-surface p-5 sm:p-6">
@@ -380,11 +375,47 @@ export function StatsOverview({
           </span>
         </Link>
       )}
+      </>
+      )}
 
-      <p className="pb-2 text-center text-[11px] leading-relaxed text-muted/60">
-        부하 지수는 훈련량 관리를 돕는 참고 지표입니다. 통증이 있다면 수치와 관계없이
-        전문의와 상담하세요.
-      </p>
+      {/* ── 트레이닝 ────────────────────────────────────────── */}
+      {view === 'training' && (
+        <>
+          <section className="grid gap-px overflow-hidden rounded-2xl border border-line bg-line">
+            {/*
+              운동은 '몇 개 했나'가 아니라 '며칠·몇 분 했나'로 보여준다.
+              부하를 시간으로 세기 때문에, 개수만으로는 그 숫자와 이어지지 않는다.
+            */}
+            <StatCard
+              label="이번 주 운동"
+              value={training.recentDays || '—'}
+              unit={training.recentDays ? '일' : ''}
+              footer={
+                training.recentDays ? (
+                  <span className="text-xs text-muted">
+                    {training.recentMinutes}분 · 운동 {training.recentCount}개
+                  </span>
+                ) : (
+                  <span className="text-xs text-muted/60">기록 없음</span>
+                )
+              }
+            />
+          </section>
+
+          <MetricHelp
+            twoDayLimit={TWO_DAY_INTENSITY_LIMIT}
+            show={['이번 주 운동']}
+          />
+
+          {/*
+            지수는 "지금 많은가"를 말하고 여기는 "무엇을 하고 무엇을 안 했나"를
+            말한다. 지수 하나로는 하체만 잔뜩 하고 암케어를 건너뛴 주와 골고루
+            한 주가 똑같아 보인다.
+          */}
+          <PartVolumeCard volume={training.volume} />
+        </>
+      )}
+
     </div>
   );
 }
