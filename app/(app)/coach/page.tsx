@@ -26,6 +26,12 @@ import { AiReportCard, type StoredReport } from './ai-report-card';
 import { ReportClient } from './report-client';
 import { StatsOverview } from './overview';
 import { CoachTabs, readCoachView } from './tabs';
+import {
+  trainingReview,
+  REVIEW_DAYS,
+  REVIEW_WEEKS,
+} from '@/lib/report/training-review';
+import { TrainingReviewCards } from './training-review';
 
 /** 칸마다 머리말을 바꾼다 — 무엇을 보는 화면인지 한 줄로 말해준다 */
 const VIEW_TEXT = {
@@ -46,7 +52,7 @@ export default async function ReportPage({
   const since = new Date(today);
   since.setDate(since.getDate() - PAGE_LOOKBACK_DAYS);
 
-  const [logs, latestReport, training, bestVelocityLog] = await Promise.all([
+  const [logs, latestReport, training, bestVelocityLog, review] = await Promise.all([
     prisma.pitchLog.findMany({
       where: { userId: user.id, date: { gte: since } },
       orderBy: { date: 'asc' },
@@ -68,6 +74,11 @@ export default async function ReportPage({
       orderBy: { maxVelocity: 'desc' },
       select: { maxVelocity: true, date: true },
     }),
+    /*
+     * 트레이닝 칸의 돌아보기. 그 칸을 볼 때만 읽는다 — 투구나 리포트를 보러
+     * 온 사람에게 8주치 운동 기록을 읽힐 이유가 없다.
+     */
+    view === 'training' ? trainingReview(user.id, today) : null,
   ]);
 
   const serialized = logs.map((log) => ({
@@ -139,6 +150,14 @@ export default async function ReportPage({
         today={today}
         totalRecords={logs.length}
       />
+
+      {view === 'training' && review && (
+        <TrainingReviewCards
+          review={review}
+          weeks={REVIEW_WEEKS}
+          days={REVIEW_DAYS}
+        />
+      )}
 
       {view === 'report' && (
         <AiReportCard

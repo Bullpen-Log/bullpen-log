@@ -30,7 +30,6 @@ import {
 import { ACWR_ZONES } from '@/lib/pitch-stats';
 import { TrendChart, type TrendPoint } from './trend-chart';
 import { LoadPanel, type LoadView } from './load-panel';
-import { PartVolumeCard } from './part-volume';
 import { Delta, MetricHelp, StatCard, TONE, type Tone } from './parts';
 import type { CoachView } from './tabs';
 
@@ -378,44 +377,14 @@ export function StatsOverview({
       )}
 
       {/* ── 트레이닝 ────────────────────────────────────────── */}
-      {view === 'training' && (
-        <>
-          <LoadPanel which="training" view={trainingView} />
+      {/*
+        나머지는 페이지가 낸다(training-review.tsx).
 
-          <section className="grid gap-px overflow-hidden rounded-2xl border border-line bg-line">
-            {/*
-              운동은 '몇 개 했나'가 아니라 '며칠·몇 분 했나'로 보여준다.
-              부하를 시간으로 세기 때문에, 개수만으로는 그 숫자와 이어지지 않는다.
-            */}
-            <StatCard
-              label="이번 주 운동"
-              value={training.recentDays || '—'}
-              unit={training.recentDays ? '일' : ''}
-              footer={
-                training.recentDays ? (
-                  <span className="text-xs text-muted">
-                    {training.recentMinutes}분 · 운동 {training.recentCount}개
-                  </span>
-                ) : (
-                  <span className="text-xs text-muted/60">기록 없음</span>
-                )
-              }
-            />
-          </section>
-
-          <MetricHelp
-            twoDayLimit={TWO_DAY_INTENSITY_LIMIT}
-            show={['이번 주 운동']}
-          />
-
-          {/*
-            지수는 "지금 많은가"를 말하고 여기는 "무엇을 하고 무엇을 안 했나"를
-            말한다. 지수 하나로는 하체만 잔뜩 하고 암케어를 건너뛴 주와 골고루
-            한 주가 똑같아 보인다.
-          */}
-          <PartVolumeCard volume={training.volume} />
-        </>
-      )}
+        예전에는 여기에 '이번 주 운동' 카드와 '이번 주 부위별 세트'가 있었다.
+        둘 다 최근 4주 카드와 부위 추이 표에 그대로 들어가 있어서, 남겨 두면
+        같은 숫자를 두 번 보여주게 된다.
+      */}
+      {view === 'training' && <LoadPanel which="training" view={trainingView} />}
 
     </div>
   );

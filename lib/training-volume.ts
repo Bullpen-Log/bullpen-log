@@ -87,7 +87,7 @@ export type VolumeSummary = {
 };
 
 /** 부위 묶음을 빨리 찾기 위한 표 */
-const GROUP_OF = new Map<string, VolumeGroupKey[]>();
+export const GROUP_OF = new Map<string, VolumeGroupKey[]>();
 for (const g of VOLUME_GROUPS) {
   for (const part of g.parts) {
     GROUP_OF.set(part, [...(GROUP_OF.get(part) ?? []), g.key]);
@@ -101,7 +101,7 @@ export type VolumeRow = {
 };
 
 /** 암케어를 따로 세는 카테고리 이름 */
-const ARM_CARE_CATEGORY = '암케어';
+export const ARM_CARE_CATEGORY = '암케어';
 
 /**
  * 최근 7일과 그 직전 7일의 부위별 세트 수.
