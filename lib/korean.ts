@@ -121,3 +121,30 @@ export function josa(word: string, pair: JosaPair): string {
 export function withJosa(word: string, pair: JosaPair): string {
   return `${word}${josa(word, pair)}`;
 }
+
+/* ------------------------------- 이름 찾기 ------------------------------- */
+
+/**
+ * 검색용으로 다듬은 글자.
+ *
+ * 띄어쓰기를 지우고 소문자로 내린다. 등록된 이름이 '덤벨 프레스'라고 해서
+ * 찾는 사람도 꼭 그렇게 띄어 쓰지는 않는다 — '덤벨프레스'라고 붙여 치면
+ * 하나도 안 나왔다. 사이에 낀 공백은 이름의 일부가 아니라 표기 습관이다.
+ *
+ * 영문도 같이 내린다. 'TRX'를 'trx'로 쳐도 찾아야 한다.
+ */
+export function searchKey(text: string): string {
+  return text.replace(/\s+/g, '').toLowerCase();
+}
+
+/**
+ * 찾는 말이 이름 안에 있는가.
+ *
+ * 양쪽에서 띄어쓰기를 지우고 견주므로, 어느 쪽을 붙여 쓰든 찾아진다.
+ *   '덤벨프레스'  → 덤벨 프레스  ✓
+ *   '덤벨 프레스' → 덤벨프레스   ✓
+ */
+export function matchesSearch(text: string, query: string): boolean {
+  const q = searchKey(query);
+  return q === '' || searchKey(text).includes(q);
+}

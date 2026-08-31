@@ -4,6 +4,7 @@ import { useMemo, useState, useTransition } from 'react';
 import { AlertTriangle, Plus, Search, Star } from 'lucide-react';
 import { Modal } from '@/components/modal';
 import { MetaFilter, matchesFilter, type FilterState } from '@/components/meta-filter';
+import { matchesSearch } from '@/lib/korean';
 import { ExerciseBadges } from '@/components/meta-badges';
 import { CategoryBadge } from '@/components/category-badge';
 import { addToTodayPlan } from '@/app/actions/plan-edit';
@@ -98,7 +99,13 @@ export function AddExercise({
           intensity: [ex.intensity],
           equipment: ex.equipment,
         }) &&
-        (text === '' || ex.title.includes(text) || ex.category.includes(text))
+        /*
+         * 띄어쓰기는 무시하고 견준다.
+         *
+         * 등록된 이름이 '덤벨 프레스'라고 해서 찾는 사람도 그렇게 띄어 쓰지는
+         * 않는다. '덤벨프레스'로 치면 하나도 안 나왔다.
+         */
+        (matchesSearch(ex.title, text) || matchesSearch(ex.category, text))
     );
     /*
      * 별 단 것을 맨 위로 올린다.
