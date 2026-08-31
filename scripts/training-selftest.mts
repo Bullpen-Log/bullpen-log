@@ -43,6 +43,7 @@ import {
   TRAINING_LEVELS,
   filterByLevel,
   readOwnedEquipment,
+  readTrainingGoal,
   readTrainingProfile,
 } from '../lib/report/personalize.ts';
 import {
@@ -1540,7 +1541,7 @@ console.log('\n[일정 만들기] 눌러야 생기고, 만든 것은 그대로 �
   const make = (person: Person = { condition: 8 }, minutes = 45) => {
     const facts = factsFor(person);
     return buildDailyPlan({
-      user: { ownedEquipment: [], trainingLevel: null, trainingGoal: null },
+      user: { ownedEquipment: [], trainingLevel: null },
       facts,
       plan: buildPitchPlan(facts),
       library,
@@ -1650,7 +1651,11 @@ console.log('\n[프로필 저장] 폼에서 온 값을 제대로 걸러내는가
 
   const saved = readTrainingProfile(form);
   check('경력을 그대로 저장', saved.trainingLevel === '중급', String(saved.trainingLevel));
-  check('목표를 그대로 저장', saved.trainingGoal === '파워 향상', String(saved.trainingGoal));
+  /*
+   * 목표는 프로필이 아니라 일정 폼에서 온다. 여기서 함께 저장하면, 경력만
+   * 고치러 열었다가 저장하는 순간 지난번 목표가 통째로 지워진다.
+   */
+  check('경력 폼은 목표를 건드리지 않는다', !('trainingGoal' in saved));
 
   const gear = readOwnedEquipment(form);
   check('맨몸은 항상 들어간다', gear.ownedEquipment.includes('맨몸'));
@@ -1674,7 +1679,7 @@ console.log('\n[프로필 저장] 폼에서 온 값을 제대로 걸러내는가
     '저장할 값에 장비가 아예 들어 있지 않다'
   );
   check(
-    '장비를 저장해도 경력·목표는 안 건드린다',
+    '장비를 저장해도 경력은 안 건드린다',
     !('trainingLevel' in gear) && !('trainingGoal' in gear)
   );
 }
@@ -1683,7 +1688,6 @@ console.log('\n[프로필 저장] 폼에서 온 값을 제대로 걸러내는가
   const empty = readTrainingProfile(new FormData());
   const emptyGear = readOwnedEquipment(new FormData());
   check('경력을 안 고르면 비워 둔다', empty.trainingLevel === null);
-  check('목표를 안 고르면 비워 둔다', empty.trainingGoal === null);
   check(
     '장비를 안 고르면 맨몸만 남는다',
     emptyGear.ownedEquipment.length === 1 && emptyGear.ownedEquipment[0] === '맨몸',
@@ -1702,10 +1706,39 @@ console.log('\n[프로필 저장] 폼에서 온 값을 제대로 걸러내는가
   // 목록에 없는 이름을 억지로 보낸 경우
   const bad = new FormData();
   bad.set('trainingLevel', '초고수');
-  bad.set('trainingGoal', '아무거나');
   const saved = readTrainingProfile(bad);
   check('목록에 없는 경력은 버린다', saved.trainingLevel === null);
-  check('목록에 없는 목표는 버린다', saved.trainingGoal === null);
+}
+
+console.log('\n[오늘의 목표] 일정을 만들 때마다 고르는가');
+{
+  const withGoal = new FormData();
+  withGoal.set('trainingGoal', '파워 향상');
+  check(
+    '고른 목표를 그대로 쓴다',
+    readTrainingGoal(withGoal, '부상 방지') === '파워 향상'
+  );
+
+  /*
+   * 안 고르고 만들면 지난번에 고른 것으로 간다. 매번 균형으로 되돌리면
+   * 파워 위주로 몇 주 가려는 사람이 날마다 다시 골라야 한다.
+   */
+  check(
+    '안 고르면 지난번 목표로 간다',
+    readTrainingGoal(new FormData(), '부상 방지') === '부상 방지'
+  );
+  check('지난번도 없으면 비운다', readTrainingGoal(new FormData(), null) === null);
+
+  /*
+   * 폼은 누구나 고쳐 보낼 수 있다. 목록 밖 이름이 들어오면 어떤 배분 규칙에도
+   * 걸리지 않는 상태가 되므로, 버리고 지난번 값으로 돌아간다.
+   */
+  const badGoal = new FormData();
+  badGoal.set('trainingGoal', '아무거나');
+  check(
+    '목록에 없는 목표는 버린다',
+    readTrainingGoal(badGoal, '근력 향상') === '근력 향상'
+  );
 }
 
 console.log('\n[가장 빠듯한 경우] 그래도 훈련이 나오는가');

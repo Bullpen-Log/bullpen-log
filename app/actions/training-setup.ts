@@ -10,6 +10,7 @@ import { pickMany } from '@/lib/exercise-meta';
 import { ALWAYS_OWNED, SELECTABLE_EQUIPMENT } from '@/lib/report/equipment';
 import {
   readOwnedEquipment,
+  readTrainingGoal,
   readTrainingProfile,
 } from '@/lib/report/personalize';
 import { buildDailyPlan, isHalted } from '@/lib/report/daily-plan';
@@ -32,7 +33,7 @@ import {
  * 그래서 고르는 곳을 결과 옆으로 옮겼다.
  *
  * 세 가지를 나눠 둔다.
- *   오래 가는 것 — 경력·목표·가지고 있는 장비 (User)
+ *   오래 가는 것 — 경력·가지고 있는 장비 (User)
  *   그날만인 것 — 오늘 쓸 수 있는 장비        (DailyTrainingSetup)
  *   눌러야 생기는 것 — 오늘의 운동 일정        (DailyTrainingSetup.plan)
  */
@@ -88,7 +89,7 @@ export async function saveTrainingSettings(formData: FormData) {
   redirect(back);
 }
 
-/** 가지고 있는 장비만 저장한다. 경력·목표는 건드리지 않는다. */
+/** 가지고 있는 장비만 저장한다. 경력은 건드리지 않는다. */
 export async function saveOwnedEquipment(formData: FormData) {
   const user = await getCurrentUser();
   if (!user) redirect('/login');
@@ -148,6 +149,13 @@ export async function generateTodayPlan(formData: FormData) {
    */
   const availableEquipment = chosen.length > 0 ? [ALWAYS_OWNED, ...chosen] : [];
 
+  /*
+   * 오늘의 훈련 목표. 목록에 없는 이름이 오면 버리고 지난번 값으로 돌아간다 —
+   * 폼은 누구나 고쳐 보낼 수 있고, 목록 밖 이름이 오면 어떤 배분 규칙에도
+   * 걸리지 않는 상태가 된다.
+   */
+  const trainingGoal = readTrainingGoal(formData, user.trainingGoal);
+
   const rawMinutes = Number.parseInt(String(formData.get('minutes') ?? ''), 10);
   const requestedMinutes = (WORKOUT_MINUTES_CHOICES as readonly number[]).includes(
     rawMinutes
@@ -196,6 +204,7 @@ export async function generateTodayPlan(formData: FormData) {
     library,
     availableToday: availableEquipment.length > 0 ? availableEquipment : null,
     requestedMinutes,
+    trainingGoal,
     recentIds,
     sessionsAgo,
     rotationSeed,
@@ -232,11 +241,28 @@ export async function generateTodayPlan(formData: FormData) {
     });
   }
 
-  // 이 시간을 앞으로도 쓰겠다고 했으면 기본값으로 굳힌다.
-  if (formData.get('saveMinutes') === 'on') {
+  /*
+   * 이 조건을 앞으로도 쓰겠다고 했으면 기본값으로 굳힌다.
+   *
+   * 굳히지 않아도 목표는 다음에 열 때 미리 짚어져 있다 — 아래에서 늘 저장하기
+   * 때문이다. 여기 체크는 '시간'을 굳히는 뜻이다.
+   */
+  if (formData.get('saveDefaults') === 'on') {
     await prisma.user.update({
       where: { id: user.id },
       data: { dailyWorkoutMinutes: requestedMinutes },
+    });
+  }
+
+  /*
+   * 목표는 체크와 상관없이 늘 남긴다. 다음에 폼을 열었을 때 지난번에 고른
+   * 것이 짚여 있어야 매번 처음부터 고르지 않는다. 저장해 둔 값은 기본값일
+   * 뿐이고, 그날 고른 것이 일정 안에 함께 저장된다.
+   */
+  if (trainingGoal !== user.trainingGoal) {
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { trainingGoal },
     });
   }
 

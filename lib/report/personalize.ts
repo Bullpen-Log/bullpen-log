@@ -205,17 +205,33 @@ export function readTrainingProfile(formData: FormData) {
       String(formData.get('trainingLevel') ?? ''),
       TRAINING_LEVEL_NAMES
     ),
-    trainingGoal: pickOne(
-      String(formData.get('trainingGoal') ?? ''),
-      TRAINING_GOAL_NAMES
-    ),
   };
+}
+
+/**
+ * 일정을 만드는 폼에서 온 오늘의 훈련 목표.
+ *
+ * 목록에 없는 이름이면 지난번에 고른 것으로 돌아간다. 아무것도 없으면 null 이고,
+ * 그때는 균형 잡힌 관리로 본다(findGoal).
+ *
+ * 목표는 설정이 아니라 여기서 온다. 설정에 두었을 때는 한 번 '파워 향상'으로
+ * 정해둔 사람의 모든 날이 파워 위주가 됐다 — 오늘은 어깨 관리에 쓰고 싶은
+ * 날에도 그랬다.
+ */
+export function readTrainingGoal(
+  formData: FormData,
+  fallback: string | null
+): string | null {
+  return (
+    pickOne(String(formData.get('trainingGoal') ?? ''), TRAINING_GOAL_NAMES) ??
+    fallback
+  );
 }
 
 /**
  * 가지고 있는 장비만 읽는다.
  *
- * 경력·목표와 폼을 나눠 둔 이유가 있다. 예전에는 셋이 한 폼이라, 경력만 고치러
+ * 경력과 폼을 나눠 둔 이유가 있다. 예전에는 셋이 한 폼이라, 경력만 고치러
  * 열었다가 저장해도 장비가 함께 저장됐다. 그런데 아직 장비를 안 고른 사람에게는
  * 화면이 전부 켜진 채로 나오므로(안 그러면 저장하는 순간 맨몸 운동만 남는다),
  * 결과적으로 있지도 않은 장비 열여섯 개를 "가지고 있다"고 저장하게 됐다.

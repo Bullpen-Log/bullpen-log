@@ -28,7 +28,23 @@ import { findGoal } from '@/lib/report/personalize';
 /* ------------------------------- 운동 시간 ------------------------------- */
 
 /** 고를 수 있는 하루 운동 시간(분) */
-export const WORKOUT_MINUTES_CHOICES = [15, 20, 30, 45, 60, 90] as const;
+export const WORKOUT_MINUTES_CHOICES = [45, 60, 90] as const;
+
+/**
+ * 저장돼 있던 시간을 지금 고를 수 있는 값으로 맞춘다.
+ *
+ * 예전에는 15분·20분·30분도 고를 수 있었다. 그때 고른 값이 그대로 남아 있으면
+ * 라디오에서 짝이 없어 아무것도 안 골라진 채로 뜬다 — 화면만 보면 시간을
+ * 고르지 않은 것처럼 보인다. 짧은 쪽은 올려서, 긴 쪽은 내려서 가장 가까운
+ * 값을 짚어준다.
+ */
+export function nearestMinutesChoice(minutes: number): number {
+  const choices = WORKOUT_MINUTES_CHOICES as readonly number[];
+  if (choices.includes(minutes)) return minutes;
+  return choices.reduce((best, m) =>
+    Math.abs(m - minutes) < Math.abs(best - minutes) ? m : best
+  );
+}
 
 /** 프로필에서 아직 고르지 않은 사용자의 기본값 */
 export const DEFAULT_WORKOUT_MINUTES = 45;

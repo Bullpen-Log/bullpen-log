@@ -20,6 +20,7 @@ import {
 } from '@/lib/baseline';
 import {
   DEFAULT_WORKOUT_MINUTES,
+  nearestMinutesChoice,
   WORKOUT_MINUTES_CHOICES,
 } from '@/lib/report/theme';
 
@@ -144,7 +145,9 @@ export function ProfileForm({
         options={WORKOUT_MINUTES_CHOICES.map((m) => ({ name: `${m}분` }))}
         selected={pick(
           'dailyWorkoutMinutes',
-          `${dailyWorkoutMinutes ?? DEFAULT_WORKOUT_MINUTES}분`
+          // 예전에 고를 수 있던 15·20·30분이 저장돼 있으면 짝이 없어 아무것도
+          // 안 골라진 채로 뜬다. 가장 가까운 값을 짚어준다.
+          `${nearestMinutesChoice(dailyWorkoutMinutes ?? DEFAULT_WORKOUT_MINUTES)}분`
         )}
         compact
       />

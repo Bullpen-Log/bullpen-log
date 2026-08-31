@@ -70,7 +70,6 @@ function ViewTabs({
   current: 'today' | 'history';
   settings: {
     trainingLevel: string | null;
-    trainingGoal: string | null;
     ownedEquipment: string[];
   };
 }) {
@@ -92,7 +91,6 @@ function ViewTabs({
       <div className="ml-auto">
         <TrainingSettingsButton
           trainingLevel={settings.trainingLevel}
-          trainingGoal={settings.trainingGoal}
           ownedEquipment={settings.ownedEquipment}
         />
       </div>
@@ -314,6 +312,7 @@ export default async function TrainingPage({
       }
       minutes={minutes}
       defaultMinutes={savedMinutes}
+      goal={user.trainingGoal}
       generated={generated}
       returnTo="/training"
       clash={core.workoutClash}

@@ -87,7 +87,6 @@ export function isHalted(result: BuildResult): result is HaltedPlan {
 type UserForPlan = {
   ownedEquipment: string[];
   trainingLevel: string | null;
-  trainingGoal: string | null;
 };
 
 export function buildDailyPlan<T extends ExerciseLike>({
@@ -97,6 +96,7 @@ export function buildDailyPlan<T extends ExerciseLike>({
   library,
   availableToday,
   requestedMinutes,
+  trainingGoal = null,
   recentIds,
   sessionsAgo,
   rotationSeed,
@@ -111,6 +111,14 @@ export function buildDailyPlan<T extends ExerciseLike>({
   /** 오늘 쓸 수 있다고 고른 장비. 안 골랐으면 null */
   availableToday: string[] | null;
   requestedMinutes: number;
+  /**
+   * 오늘의 훈련 목표. 일정을 만드는 폼에서 그날그날 온다.
+   *
+   * 예전에는 user.trainingGoal 을 읽었다. 설정에 한 번 저장해 두는 값이라,
+   * '파워 향상'으로 정해둔 사람은 그 뒤 모든 날이 파워 위주가 됐다.
+   * 목표는 날마다 달라지는 것이라 그날 고른 값을 받는다. 안 주면 균형이다.
+   */
+  trainingGoal?: string | null;
   /** 최근 며칠 안에 한 운동 — 빼지는 않고 뒤로 미룬다 */
   recentIds: Set<string>;
   /** 운동별로 몇 세션 전에 했는가. 오래 안 한 것부터 내보내는 데 쓴다. */
@@ -159,7 +167,7 @@ export function buildDailyPlan<T extends ExerciseLike>({
     override,
   });
   const minutes = effectiveMinutes(theme.key, requestedMinutes);
-  const goal = findGoal(user.trainingGoal);
+  const goal = findGoal(trainingGoal);
 
   const themed = pickForTheme({
     candidates: picked.candidates,
@@ -178,7 +186,7 @@ export function buildDailyPlan<T extends ExerciseLike>({
   return {
     version: 1,
     theme: { key: theme.key, label: theme.label, reason: theme.reason },
-    goal: user.trainingGoal,
+    goal: goal.name,
     preferredWorkout,
     /** 몸 상태 경고를 넘기고 만든 날인가. 화면이 그 사실을 그대로 말한다. */
     overrode: override && workoutConflict({ facts, preferredWorkout }) != null,

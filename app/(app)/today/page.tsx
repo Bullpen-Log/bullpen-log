@@ -157,10 +157,12 @@ export default async function HomePage() {
 
   /* ─────────────────── 상자 넷에 적을 내용 ─────────────────── */
 
+  /*
+   * 목표는 여기 세지 않는다. 일정을 만들 때 그날그날 고르는 값이라 설정에
+   * 남아 있지 않아도 '아직 안 한 것'이 아니다.
+   */
   const settingsSet =
-    user.trainingLevel != null &&
-    user.trainingGoal != null &&
-    user.ownedEquipment.length > 0;
+    user.trainingLevel != null && user.ownedEquipment.length > 0;
 
   /*
    * 서버가 보는 '오늘'로 오늘 체크인을 찾는다.
@@ -303,6 +305,7 @@ export default async function HomePage() {
       }
       minutes={savedMinutes}
       defaultMinutes={savedMinutes}
+      goal={user.trainingGoal}
       generated={false}
       returnTo="/today"
       clash={core.workoutClash}
@@ -526,12 +529,12 @@ export default async function HomePage() {
           lines={
             settingsSet
               ? [
-                  `경력 ${user.trainingLevel} · 목표 ${user.trainingGoal}`,
+                  `경력 ${user.trainingLevel}`,
                   `가진 장비 ${user.ownedEquipment.length}개`,
                   '한 번 정해두면 그대로 갑니다.',
                 ]
               : [
-                  `경력 ${user.trainingLevel ?? '미설정'} · 목표 ${user.trainingGoal ?? '미설정'}`,
+                  `경력 ${user.trainingLevel ?? '미설정'}`,
                   user.ownedEquipment.length > 0
                     ? `가진 장비 ${user.ownedEquipment.length}개`
                     : '가진 장비 미설정',
@@ -568,7 +571,6 @@ export default async function HomePage() {
         >
           <TrainingSettingsForm
             trainingLevel={user.trainingLevel}
-            trainingGoal={user.trainingGoal}
             ownedEquipment={user.ownedEquipment}
             returnTo="/today"
           />

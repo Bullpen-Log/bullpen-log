@@ -11,7 +11,10 @@ import {
   saveOwnedEquipment,
   saveTrainingSettings,
 } from '@/app/actions/training-setup';
-import { WORKOUT_MINUTES_CHOICES } from '@/lib/report/theme';
+import {
+  nearestMinutesChoice,
+  WORKOUT_MINUTES_CHOICES,
+} from '@/lib/report/theme';
 
 /**
  * 트레이닝 설정과 일정 만들기 폼.
@@ -21,8 +24,12 @@ import { WORKOUT_MINUTES_CHOICES } from '@/lib/report/theme';
  * components 에 둔다.
  *
  * 두 덩이로 나눠 놓았다.
- *   경력·목표·가진 장비 — 어쩌다 한 번 고치므로 접어 둔다
- *   오늘 시간·장비    — 일정을 만들 때마다 고르므로 만들기 버튼과 한 폼에 둔다
+ *   경력·가진 장비      — 어쩌다 한 번 고치므로 접어 둔다
+ *   오늘 시간·목표·장비 — 일정을 만들 때마다 고르므로 만들기 버튼과 한 폼에 둔다
+ *
+ * 목표는 원래 설정 쪽에 있었다. 그런데 한 번 '파워 향상'으로 정해두면 그다음
+ * 모든 날이 파워 위주가 된다 — 오늘은 어깨가 뻐근해서 관리에 쓰고 싶은 날도
+ * 마찬가지였다. 목표는 날마다 달라지는 것이므로 만들 때 함께 고른다.
  */
 
 function SubmitButton({ label, busy = '만드는 중…' }: { label: string; busy?: string }) {
@@ -53,6 +60,7 @@ export function PlanForm({
   availableToday,
   minutes,
   defaultMinutes,
+  goal,
   generated,
   returnTo,
   clash = null,
@@ -65,6 +73,8 @@ export function PlanForm({
   minutes: number;
   /** 프로필에 저장된 기본 시간(분) */
   defaultMinutes: number;
+  /** 지난번에 고른 훈련 목표. 한 번도 안 골랐으면 null */
+  goal: string | null;
   /** 오늘 일정을 이미 만들었는가 */
   generated: boolean;
   /** 만들고 나서 돌아올 화면. 홈과 트레이닝 두 곳에서 쓴다. */
@@ -132,10 +142,23 @@ export function PlanForm({
         label="오늘 운동 시간"
         options={WORKOUT_MINUTES_CHOICES.map((m) => ({
           name: `${m}분`,
-          desc: m === defaultMinutes ? '기본값' : undefined,
+          desc: m === nearestMinutesChoice(defaultMinutes) ? '기본값' : undefined,
         }))}
-        selected={`${minutes}분`}
+        selected={`${nearestMinutesChoice(minutes)}분`}
         compact
+      />
+
+      {/*
+        목표를 여기서 고른다. 설정에 두었을 때는 한 번 정한 것이 계속 따라와
+        매일 같은 쪽으로만 쏠렸다. 지난번에 고른 것을 미리 짚어 두되, 만들 때마다
+        눈에 보이므로 바꾸고 싶은 날에는 바로 바꿀 수 있다.
+      */}
+      <RadioGroup
+        name="trainingGoal"
+        label="오늘 훈련 목표"
+        hint="같은 시간을 어디에 더 쓸지 정합니다. 몸 상태가 안 좋은 날에는 목표와 상관없이 회복이 먼저입니다."
+        options={TRAINING_GOALS.map((g) => ({ name: g.name, desc: g.desc }))}
+        selected={goal ?? TRAINING_GOALS[0].name}
       />
 
       {choices.length > 0 && (
@@ -151,11 +174,11 @@ export function PlanForm({
       <label className="flex items-center gap-2.5 text-xs text-muted">
         <input
           type="checkbox"
-          name="saveMinutes"
+          name="saveDefaults"
           value="on"
           className="h-4 w-4 rounded border-line-strong accent-sky"
         />
-        이 시간을 앞으로도 기본으로 쓰기
+        이 시간과 목표를 앞으로도 기본으로 쓰기
       </label>
 
       <div className="flex flex-wrap items-center gap-3">
@@ -189,12 +212,10 @@ export function PlanForm({
  */
 export function TrainingSettingsForm({
   trainingLevel,
-  trainingGoal,
   ownedEquipment,
   returnTo,
 }: {
   trainingLevel: string | null;
-  trainingGoal: string | null;
   ownedEquipment: string[];
   /** 저장하고 나서 돌아올 화면 */
   returnTo: '/today' | '/training';
@@ -223,14 +244,7 @@ export function TrainingSettingsForm({
           options={TRAINING_LEVELS.map((l) => ({ name: l.name, desc: l.desc }))}
           selected={trainingLevel}
         />
-        <RadioGroup
-          name="trainingGoal"
-          label="훈련 목표"
-          hint="같은 시간을 어디에 더 쓸지 정합니다. 몸 상태가 안 좋은 날에는 목표와 상관없이 회복이 먼저입니다."
-          options={TRAINING_GOALS.map((g) => ({ name: g.name, desc: g.desc }))}
-          selected={trainingGoal}
-        />
-        <SubmitButton label="경력·목표 저장" busy="저장 중…" />
+        <SubmitButton label="경력 저장" busy="저장 중…" />
       </form>
 
       {/*

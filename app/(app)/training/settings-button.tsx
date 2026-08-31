@@ -18,11 +18,9 @@ import { TrainingSettingsForm } from '@/components/training-forms';
  */
 export function TrainingSettingsButton({
   trainingLevel,
-  trainingGoal,
   ownedEquipment,
 }: {
   trainingLevel: string | null;
-  trainingGoal: string | null;
   ownedEquipment: string[];
 }) {
   const [open, setOpen] = useState(false);
@@ -46,7 +44,6 @@ export function TrainingSettingsButton({
       >
         <TrainingSettingsForm
           trainingLevel={trainingLevel}
-          trainingGoal={trainingGoal}
           ownedEquipment={ownedEquipment}
           returnTo="/training"
         />
