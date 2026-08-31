@@ -112,6 +112,10 @@ type Result = {
   earlyComparable: number;
   coverage: number;
   hingeShare: number;
+  /** 상체 스트렝스가 둘 이상인 날 중, 밀기와 당기기가 둘 다 들어간 비율 */
+  upperBalance: number;
+  upperDaysWithTwo: number;
+  upperDays: number;
   drought: number;
   lowerDays: number;
   meanSessionGap: number | null;
@@ -179,6 +183,9 @@ function run(days: number, regular: boolean, oldWay = false): Result {
   let lowerDays = 0;
   let lowerMain = 0;
   let hingeMain = 0;
+  let upperDays = 0;
+  let upperDaysWithTwo = 0;
+  let upperBalanced = 0;
   let drought = 0;
   let worstDrought = 0;
 
@@ -218,9 +225,14 @@ function run(days: number, regular: boolean, oldWay = false): Result {
         });
 
     const mainPatterns: (string | null)[] = [];
+    /* 상체날 본운동의 밀기/당기기 — 파워는 빼고 스트렝스만 센다 */
+    const upperStrength: (string | null)[] = [];
     for (const p of picked.picks) {
       const id = p.exercise.id;
       if (p.slot === 'main') {
+        if (p.exercise.category === '상체 스트렝스') {
+          upperStrength.push(p.exercise.movementPattern);
+        }
         const had = lastSession.has(id);
         mainPicks++;
         if (had) comparable++;
@@ -235,6 +247,22 @@ function run(days: number, regular: boolean, oldWay = false): Result {
       lastSession.set(id, session);
       lastDay.set(id, today);
       seen.add(id);
+    }
+
+    if (theme === 'upper') {
+      /*
+       * 상체날에 밀기와 당기기가 둘 다 들어갔는가.
+       *
+       * 벤치프레스만 두 개 나오는 날은 가슴만 하고 등을 안 한 날이다. 투수의
+       * 어깨는 미는 쪽만 키우면 앞으로 말리므로, 하루 안에서 갈라야 한다.
+       * 스트렝스만 센다 — 파워의 밀기·당기기는 성격이 달라 셈에서 뺀다.
+       */
+      upperDays++;
+      const kinds = new Set(upperStrength.filter((x): x is string => !!x));
+      if (upperStrength.length >= 2) {
+        upperDaysWithTwo++;
+        if (kinds.has('밀기') && kinds.has('당기기')) upperBalanced++;
+      }
     }
 
     if (theme === 'lower') {
@@ -252,6 +280,9 @@ function run(days: number, regular: boolean, oldWay = false): Result {
     earlyComparable: earlyMain ? earlyComparable / earlyMain : 0,
     coverage: seen.size,
     hingeShare: lowerMain ? hingeMain / lowerMain : 0,
+    upperBalance: upperDaysWithTwo ? upperBalanced / upperDaysWithTwo : 0,
+    upperDaysWithTwo,
+    upperDays,
     drought: worstDrought,
     lowerDays,
     meanSessionGap: returns.length
@@ -288,6 +319,12 @@ for (const [label, regular] of [
   );
   console.log(
     `  하체 본운동 중 힌지 계열           ${pct(before.hingeShare).padStart(8)}  ${pct(now.hingeShare).padStart(8)}`
+  );
+  console.log(
+    `  상체날 밀기+당기기 둘 다           ${pct(before.upperBalance).padStart(8)}  ${pct(now.upperBalance).padStart(8)}`
+  );
+  console.log(
+    `     (상체날 ${now.upperDays}일 중 스트렝스가 둘 이상인 날 ${now.upperDaysWithTwo}일)`
   );
   console.log(
     `  힌지 없이 지나간 하체날 최대       ${(before.drought + '일').padStart(8)}  ${(now.drought + '일').padStart(8)}`

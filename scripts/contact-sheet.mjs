@@ -9,7 +9,7 @@
  * 번호를 크게 박아 둔다. 보고 나서 "3번은 다른 운동"처럼 가리키려면 그림과
  * 목록이 같은 번호를 써야 한다.
  */
-import { mkdirSync, writeFileSync } from 'node:fs';
+import { mkdirSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
 import sharp from 'sharp';
 

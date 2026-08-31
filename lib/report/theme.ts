@@ -411,6 +411,20 @@ type SlotSpec = {
    * 열 개씩 늘어놓는 일을 막는 안전장치다.
    */
   maxCount: number;
+  /**
+   * 이 구간에 들어올 수 있는 파워 운동의 동작 계열.
+   *
+   * 파워 53개는 몸 쓰는 방향이 제각각이다 — 스쿼트 점프 22개는 하체이고,
+   * 메디신볼 던지기 계열(밀기·당기기·회전) 10개는 상체다. 그런데 상체날
+   * 본운동이 '상체 스트렝스 + 파워'라 스쿼트 점프가 그 자리를 채웠다.
+   * 실제로 재보니 상체날 본운동의 43%가 파워였고 그 76%가 하체 점프였다.
+   *
+   * 그러면 상체 스트렝스가 하루에 하나밖에 안 들어가고, 밀기와 당기기를
+   * 가를 수가 없다 — 상체날 50일 중 스트렝스가 둘 이상인 날이 10일뿐이었다.
+   *
+   * 계열이 비어 있는 파워는 지나간다. 막아버리면 영영 안 나온다.
+   */
+  powerPatterns?: readonly string[];
 };
 
 /*
@@ -424,14 +438,28 @@ type SlotSpec = {
 const COMPOSITIONS: Record<ThemeKey, SlotSpec[]> = {
   lower: [
     { slot: 'warmup', share: 0.15, categories: ['모빌리티'], maxCount: 5 },
-    { slot: 'main', share: 0.45, categories: ['하체 스트렝스', '파워'], maxCount: 8 },
+    {
+      slot: 'main',
+      share: 0.45,
+      categories: ['하체 스트렝스', '파워'],
+      /* 하체날의 파워는 뛰고 미는 계열만 */
+      powerPatterns: ['스쿼트', '런지', '힌지'],
+      maxCount: 8,
+    },
     { slot: 'core', share: 0.15, categories: ['코어'], maxCount: 4 },
     { slot: 'prehab', share: 0.1, categories: ['회복 및 보강'], maxCount: 3 },
     { slot: 'armcare', share: 0.15, categories: ['암케어'], maxCount: 4 },
   ],
   upper: [
     { slot: 'warmup', share: 0.15, categories: ['모빌리티'], maxCount: 5 },
-    { slot: 'main', share: 0.45, categories: ['상체 스트렝스', '파워'], maxCount: 8 },
+    {
+      slot: 'main',
+      share: 0.45,
+      categories: ['상체 스트렝스', '파워'],
+      /* 상체날의 파워는 던지는 계열만 — 스쿼트·런지 점프는 하체날 몫이다 */
+      powerPatterns: ['밀기', '당기기', '회전'],
+      maxCount: 8,
+    },
     { slot: 'core', share: 0.15, categories: ['코어'], maxCount: 4 },
     { slot: 'prehab', share: 0.1, categories: ['회복 및 보강'], maxCount: 3 },
     { slot: 'armcare', share: 0.15, categories: ['암케어'], maxCount: 4 },
@@ -814,11 +842,20 @@ export function pickForTheme<T extends ThemedExercise>({
     const chosen = bySlot.get(spec.slot)!;
     const budget = minutes * spec.share;
 
-    let pool = ordered.filter((ex) =>
-      spec.slot === 'warmup'
-        ? isWarmup(ex)
-        : !isWarmup(ex) && spec.categories.includes(ex.category)
-    );
+    let pool = ordered.filter((ex) => {
+      if (spec.slot === 'warmup') return isWarmup(ex);
+      if (isWarmup(ex) || !spec.categories.includes(ex.category)) return false;
+      /* 파워는 이 구간에 맞는 계열만 — 상체날에 스쿼트 점프가 들어오지 않게 */
+      if (
+        ex.category === '파워' &&
+        spec.powerPatterns &&
+        ex.movementPattern != null &&
+        !spec.powerPatterns.includes(ex.movementPattern)
+      ) {
+        return false;
+      }
+      return true;
+    });
 
     /*
      * 본운동 안의 순서를 정한다. 목표를 먼저 반영하고, 그 위에 오늘 고른
@@ -896,11 +933,33 @@ export function pickForTheme<T extends ThemedExercise>({
      * 막지는 않는다. 겹치지 않는 것이 하나도 안 남으면 겹쳐도 넣는다 —
      * 구간이 비는 것이 훨씬 나쁘다. 계열이 비어 있는 운동은 이 규칙을 지나간다.
      */
+    /*
+     * 파워는 계열 셈에서 뺀다.
+     *
+     * 상체날 본운동은 '상체 스트렝스 + 파워'가 한 구간이다. 그런데 파워의
+     * 밀기(4개)나 당기기(3개)가 먼저 뽑히면 그 계열이 찼다고 보고, 상체
+     * 스트렝스의 밀기 23개가 통째로 뒤로 밀렸다. 가슴을 아예 안 하는 날이
+     * 그렇게 생긴다.
+     *
+     * 파워는 성격이 다르다. 메디신볼 던지기를 '밀기 한 번 했다'로 세면
+     * 벤치프레스를 대신한 셈이 되는데, 폭발력 훈련과 근력 훈련은 하는 일이
+     * 다르다. 하체도 마찬가지다 — 파워 스쿼트 점프가 스쿼트 자리를 채우면
+     * 무게를 드는 스쿼트가 빠진다.
+     *
+     * 그래서 파워는 넣지도 않고(usedPatterns) 검사받지도 않는다(clashes).
+     * 스트렝스끼리만 밀기·당기기가 갈린다.
+     */
+    const countsForPattern = (ex: T) => ex.category !== '파워';
     const usedPatterns = new Set(
-      chosen.map((ex) => ex.movementPattern).filter((p): p is string => !!p)
+      chosen
+        .filter(countsForPattern)
+        .map((ex) => ex.movementPattern)
+        .filter((p): p is string => !!p)
     );
     const clashes = (ex: T) =>
-      ex.movementPattern != null && usedPatterns.has(ex.movementPattern);
+      countsForPattern(ex) &&
+      ex.movementPattern != null &&
+      usedPatterns.has(ex.movementPattern);
 
     const remaining = pool.filter((ex) => !taken.has(ex.id));
     while (chosen.length < spec.maxCount) {
@@ -941,7 +1000,9 @@ export function pickForTheme<T extends ThemedExercise>({
       const spent = estimateMinutes(next);
       used += spent;
       totalUsed += spent;
-      if (next.movementPattern) usedPatterns.add(next.movementPattern);
+      if (next.movementPattern && countsForPattern(next)) {
+        usedPatterns.add(next.movementPattern);
+      }
     }
 
     /*

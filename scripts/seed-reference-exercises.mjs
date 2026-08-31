@@ -22,7 +22,7 @@
 import { readFileSync } from 'node:fs';
 import { PrismaClient } from '@prisma/client';
 import { PrismaPg } from '@prisma/adapter-pg';
-import { describeAspect, probeAspect } from './youtube-aspect.mjs';
+import { probeAspect } from './youtube-aspect.mjs';
 
 const [listPath, detailPath, category] = process.argv.slice(2);
 const isDrill = process.argv.includes('--drill');

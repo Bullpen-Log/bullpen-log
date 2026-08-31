@@ -304,6 +304,24 @@ export function ExerciseChecklist({
             style={{ width: `${items.length ? (doneCount / items.length) * 100 : 0}%` }}
           />
         </div>
+
+        {/*
+          체크가 왜 중요한지 밝힌다.
+
+          이 앱의 여러 규칙이 '완료 체크된 것'에만 매달려 있다 — 운동 부하 지수,
+          같은 운동을 사흘 뒤로 미루는 것, 하체와 상체를 번갈아 가는 것까지.
+          그런데 정작 화면에는 그 말이 없었다. 운동은 했는데 체크를 깜빡하면
+          앱은 안 한 것으로 보고, 다음 날 또 같은 부위를 내준다.
+
+          아직 하나도 안 눌렀을 때만 말한다. 다 하고 나서까지 잔소리할 일이 아니다.
+        */}
+        {doneCount === 0 && items.length > 0 && (
+          <p className="mt-3 text-[11px] leading-relaxed text-muted">
+            마친 운동은 눌러서 표시해주세요. 이 표시로 <b>운동 부하</b>를 재고,
+            다음 일정에서 <b>같은 부위가 겹치지 않게</b> 고릅니다 — 표시가 없으면
+            앱은 안 한 것으로 봅니다.
+          </p>
+        )}
       </div>
 
       {error && (

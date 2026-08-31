@@ -15,7 +15,7 @@
  */
 import { PrismaClient } from '@prisma/client';
 import { PrismaPg } from '@prisma/adapter-pg';
-import { describeAspect, probeAspect } from './youtube-aspect.mjs';
+import { probeAspect } from './youtube-aspect.mjs';
 
 const apply = process.argv.includes('--yes');
 const redoAll = process.argv.includes('--all');
