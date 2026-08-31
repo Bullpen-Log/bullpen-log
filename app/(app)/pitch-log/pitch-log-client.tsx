@@ -1,21 +1,15 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Plus } from 'lucide-react';
+import { useRouter } from 'next/navigation';
 import { Card, FormError, PageHeading } from '@/components/ui';
-import { Modal } from '@/components/modal';
-import { usePlaybackUrls } from '@/components/use-playback-urls';
-import { isFutureDateKey, toDateKey } from '@/lib/pitch-stats';
+import { toDateKey } from '@/lib/pitch-stats';
 import { REST_SESSION_TYPE } from '@/lib/session-type';
-import type { SavedAnalysisView } from '@/lib/pose/saved';
 import {
   LegendSwatch,
   MonthCalendar,
   type DayMark,
 } from '@/components/month-calendar';
-import { PlanNote, type PlanNoteData } from '@/components/plan-note';
-import { EntryForm } from './entry-form';
-import { DayRecord } from './day-record';
 import { CompareView, type ClipOption } from './compare-view';
 
 export type Log = {
@@ -30,14 +24,6 @@ export type Log = {
   videoPaths: string[];
 };
 
-const WEEKDAYS = ['일', '월', '화', '수', '목', '금', '토'];
-
-/** 2026-08-24 → 8월 24일 (월) */
-function spokenDate(key: string) {
-  const [y, m, d] = key.split('-').map(Number);
-  const weekday = WEEKDAYS[new Date(y, m - 1, d).getDay()];
-  return `${m}월 ${d}일 (${weekday})`;
-}
 
 /**
  * 투구 일지 — 달력 하나.
@@ -46,31 +32,24 @@ function spokenDate(key: string) {
  * 폼이 늘 펼쳐져 있었다. 달력은 작아서 언제 던졌는지 한눈에 안 들어오고,
  * 오른쪽은 아무 날짜나 눌러도 뭔가 잔뜩 나와서 화면이 늘 꽉 차 있었다.
  *
- * 이제 달력만 크게 둔다. 날짜를 누르면 그날 것이 창으로 뜬다 — 기록·영상·
- * 폼 분석·수정·삭제가 전부 거기 있고, 기록이 없는 날이면 '이날 기록하기'가
- * 뜬다. 홈의 상자들과 같은 방식이라 앱 전체가 같은 손놀림으로 돈다.
+ * 이제 달력만 크게 둔다. 날짜를 누르면 /pitch-log/<날짜> 로 넘어가고,
+ * 기록·영상·폼 분석·수정·삭제는 전부 거기 있다.
  *
- * 2분할 비교는 날짜 하나에 매인 것이 아니라(여러 날의 영상을 견준다) 창에
- * 넣을 수 없어, 화면을 통째로 바꾸는 방식을 그대로 둔다.
+ * 한때 그것을 작은 창으로 띄웠는데, 영상 하나만 있어도 창 안에서 몇 판을
+ * 굴려야 했고 그날 적어둔 글은 맨 아래에 묻혔다. 창은 잠깐 확인하고 닫는
+ * 그릇이지 되짚어 읽는 그릇이 아니다.
+ *
+ * 2분할 비교는 날짜 하나에 매인 것이 아니라(여러 날의 영상을 견준다) 여기
+ * 남는다 — 화면을 통째로 바꾸는 방식 그대로다.
  */
 export function PitchLogClient({
   initialLogs,
   initialDate,
-  heightCm,
-  savedAnalyses,
-  todayKey,
-  todayPlan,
   loadedFrom,
 }: {
   initialLogs: Log[];
-  /** 다른 화면에서 날짜를 지정해 들어온 경우. 그 날짜 창을 바로 연다. */
+  /** 다른 화면에서 날짜를 지정해 들어온 경우. 그 칸을 짚어 둔다. */
   initialDate: string | null;
-  heightCm: number | null;
-  savedAnalyses: SavedAnalysisView[];
-  /** 서버가 정한 오늘. 계획을 오늘 창에만 띄우는 데 쓴다. */
-  todayKey: string;
-  /** 오늘 던질 양. 통증 등으로 계획을 안 낸 날은 null */
-  todayPlan: PlanNoteData | null;
   /**
    * 처음에 받아 온 가장 오래된 달 (YYYY-MM).
    *
@@ -86,14 +65,16 @@ export function PitchLogClient({
    * 이미 받아 온 달들. 처음 받아 온 범위(loadedFrom 이후)는 통째로 있는 것으로
    * 친다. 같은 달을 두 번 받지 않으려고 둔다.
    */
+  const router = useRouter();
+
   const loadedMonths = useRef(new Set<string>());
   const [loadingMonth, setLoadingMonth] = useState(false);
 
-  const [selectedDate, setSelectedDate] = useState(
-    () => initialDate ?? toDateKey(new Date())
-  );
-  /** 날짜 창이 열려 있는가. 날짜를 지정해 들어왔으면 바로 연다. */
-  const [dayOpen, setDayOpen] = useState(() => initialDate != null);
+  /*
+   * 달력에서 짚어 둔 날. 어느 칸이 눌린 것으로 보일지에만 쓴다 —
+   * 그날 기록은 /pitch-log/<날짜> 로 넘어가서 본다.
+   */
+  const selectedDate = initialDate;
 
   // 넘어온 날짜가 지난달이면 달력도 그 달을 펴야 한다.
   const [month, setMonth] = useState(() => {
@@ -101,22 +82,20 @@ export function PitchLogClient({
     return new Date(y, m - 1, 1);
   });
 
-  /**
-   * 창 안에서 입력 폼을 펼쳐 둘지. null 이면 "알아서" —
-   * 기록이 없는 날은 열고, 있는 날은 접는다.
+  /*
+   * 날짜를 누르면 그날 페이지로 간다.
+   *
+   * 예전에는 작은 창을 열었다. 그 안에 수치·느낀점·영상·폼 분석·수정 폼이 전부
+   * 들어가니 영상 하나만 있어도 창 안에서 몇 판을 굴려야 했고, 정작 그날 적어둔
+   * 글은 맨 아래에 묻혔다. 창은 잠깐 확인하고 닫는 그릇인데 지난 기록을 되짚는
+   * 일은 그렇지 않다.
    */
-  const [formOpen, setFormOpen] = useState<boolean | null>(null);
-
-  /** 지금 고치고 있는 기록의 id. 그 카드만 입력 폼으로 바뀐다. */
-  const [editingId, setEditingId] = useState<string | null>(null);
-
-  const openDay = useCallback((date: string) => {
-    setSelectedDate(date);
-    setFormOpen(null);
-    setEditingId(null);
-    setError(undefined);
-    setDayOpen(true);
-  }, []);
+  const openDay = useCallback(
+    (date: string) => {
+      router.push(`/pitch-log/${date}`);
+    },
+    [router]
+  );
 
   /** 달력이 보고 있는 달 (YYYY-MM) */
   const monthKey = `${month.getFullYear()}-${String(month.getMonth() + 1).padStart(2, '0')}`;
@@ -156,46 +135,6 @@ export function PitchLogClient({
     };
   }, [monthKey, loadedFrom]);
 
-  const refresh = useCallback(async () => {
-    try {
-      /*
-       * 지금 보고 있는 달만 다시 받아 그 달만 갈아 끼운다. 전부 다시 받으면
-       * 옛날 달을 보다가 저장했을 때 그 달이 목록에서 사라진다.
-       */
-      const res = await fetch(`/api/pitch-log?month=${monthKey}`);
-      if (!res.ok) throw new Error();
-      const fresh: Log[] = await res.json();
-      setLogs((prev) => [
-        ...prev.filter((l) => l.date.slice(0, 7) !== monthKey),
-        ...fresh,
-      ]);
-      setError(undefined);
-    } catch {
-      setError('기록을 불러오지 못했습니다. 잠시 후 다시 시도해주세요.');
-    }
-  }, [monthKey]);
-
-  const handleDelete = useCallback(
-    async (id: string) => {
-      const res = await fetch('/api/pitch-log', {
-        method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id }),
-      });
-      if (res.ok) {
-        if (editingId === id) setEditingId(null);
-        refresh();
-      }
-    },
-    [refresh, editingId]
-  );
-
-  /** 저장이 끝나면 목록을 새로 받고 폼을 닫는다. 창은 열어 둔다. */
-  const handleSaved = useCallback(async () => {
-    await refresh();
-    setEditingId(null);
-    setFormOpen(false);
-  }, [refresh]);
 
   /**
    * 달력에 칠할 것.
@@ -232,21 +171,6 @@ export function PitchLogClient({
     return out;
   }, [logs]);
 
-  const selectedLogs = useMemo(
-    () => logs.filter((l) => l.date.slice(0, 10) === selectedDate),
-    [logs, selectedDate]
-  );
-
-  /*
-   * 앞으로 올 날짜에는 남길 수 없다. 던진 것을 적는 곳이지 계획을 적는 곳이
-   * 아니다 — 미리 적어두면 "최근 7일 부하"에 아직 던지지 않은 것이 들어간다.
-   *
-   * 날짜는 서버가 정한 오늘이 아니라 브라우저 기준으로 본다. 이 판단은 무엇을
-   * 보여줄지만 정하고, 실제로 막는 것은 서버가 다시 한다.
-   */
-  const future = isFutureDateKey(selectedDate);
-  const showForm = !future && (formOpen ?? selectedLogs.length === 0);
-
   /* ---------------------------- 영상 ---------------------------- */
 
   const withVideo = useMemo(
@@ -254,45 +178,6 @@ export function PitchLogClient({
     [logs]
   );
 
-  /*
-   * 선택한 날짜의 영상 주소만 받아온다. 기록이 많아지면 전부 발급하기엔 느리다.
-   * 창이 닫혀 있으면 아무것도 안 받는다 — 달력만 보는 동안에는 필요 없다.
-   */
-  const selectedPaths = useMemo(
-    () => (dayOpen ? selectedLogs.flatMap((l) => l.videoPaths) : []),
-    [dayOpen, selectedLogs]
-  );
-  const { urls: playbackUrls, loading: urlsLoading, ready: urlsReady } =
-    usePlaybackUrls(selectedPaths);
-
-  const savedByPath = useMemo(
-    () => new Map(savedAnalyses.map((a) => [a.videoPath, a])),
-    [savedAnalyses]
-  );
-
-  const savedFor = useCallback(
-    (videoPath: string) => savedByPath.get(videoPath) ?? null,
-    [savedByPath]
-  );
-
-  /** 이 영상보다 앞선 날짜의 가장 최근 저장 분석 — 변화 비교의 기준 */
-  const previousFor = useCallback(
-    (date: string, videoPath: string): SavedAnalysisView | null => {
-      let best: SavedAnalysisView | null = null;
-      for (const a of savedAnalyses) {
-        if (a.videoPath === videoPath || a.date >= date) continue;
-        if (
-          !best ||
-          a.date > best.date ||
-          (a.date === best.date && a.updatedAt > best.updatedAt)
-        ) {
-          best = a;
-        }
-      }
-      return best;
-    },
-    [savedAnalyses]
-  );
 
   /** 비교 화면에서 고를 수 있는 영상 목록 (오래된 순) */
   const clips = useMemo<ClipOption[]>(
@@ -372,7 +257,7 @@ export function PitchLogClient({
         <MonthCalendar
           month={month}
           onMonthChange={setMonth}
-          selected={dayOpen ? selectedDate : null}
+          selected={selectedDate}
           onSelect={openDay}
           marks={marks}
         >
@@ -389,110 +274,6 @@ export function PitchLogClient({
         </MonthCalendar>
       </Card>
 
-      <Modal
-        open={dayOpen}
-        onClose={() => setDayOpen(false)}
-        title={spokenDate(selectedDate)}
-        description={
-          future
-            ? '아직 오지 않은 날입니다'
-            : selectedLogs.length > 0
-              ? `${selectedLogs.length}건의 기록`
-              : '이 날은 아직 기록이 없습니다'
-        }
-        size="wide"
-      >
-        <div className="space-y-5">
-          <FormError>{error}</FormError>
-
-          {future && (
-            <p className="rounded-xl border border-dashed border-line px-4 py-8 text-center text-sm leading-relaxed text-muted">
-              앞으로 올 날짜에는 기록할 수 없습니다.
-              <br />
-              던지고 나서 그날 또는 그 뒤에 남겨주세요.
-            </p>
-          )}
-
-          {/*
-            오늘 던질 양.
-            지난 날짜에는 안 띄운다 — 그날 아침에 무엇이 계획이었는지는 남겨두지
-            않아서, 지금 다시 계산한 값을 그때 계획인 양 보여줄 수는 없다.
-          */}
-          {selectedDate === todayKey && todayPlan && <PlanNote plan={todayPlan} />}
-
-          {/* 기록 추가 — 기록이 없는 날은 바로 열려 있다. */}
-          {showForm ? (
-            <div className="space-y-4 rounded-2xl border border-line bg-surface-2 p-4">
-              <div className="flex items-start justify-between gap-3">
-                <h3 className="font-bold text-ink">
-                  {selectedLogs.length > 0 ? '기록 추가' : '이날 기록하기'}
-                </h3>
-                {selectedLogs.length > 0 && (
-                  <button
-                    type="button"
-                    onClick={() => setFormOpen(false)}
-                    className="text-xs text-muted transition-colors hover:text-ink"
-                  >
-                    취소
-                  </button>
-                )}
-              </div>
-              <EntryForm
-                key={selectedDate}
-                date={selectedDate}
-                onSaved={handleSaved}
-                onError={setError}
-              />
-            </div>
-          ) : future ? null : (
-            <button
-              type="button"
-              onClick={() => setFormOpen(true)}
-              className="flex w-full items-center justify-center gap-2 rounded-2xl border border-dashed border-sky-soft bg-sky-tint px-4 py-3.5 text-sm font-medium text-sky-strong transition-colors hover:bg-sky-tint/70"
-            >
-              <Plus className="h-4 w-4" />이 날짜에 기록 추가
-            </button>
-          )}
-
-          {selectedLogs.map((log) =>
-            editingId === log.id ? (
-              // 고치는 동안에는 그 카드 자리에 입력 폼을 띄운다.
-              <div
-                key={log.id}
-                className="space-y-4 rounded-2xl border border-line bg-surface-2 p-4"
-              >
-                <div>
-                  <h3 className="font-bold text-ink">기록 수정</h3>
-                  <p className="mt-1 text-sm text-muted">영상은 그대로 유지됩니다</p>
-                </div>
-                <EntryForm
-                  date={selectedDate}
-                  initial={log}
-                  onSaved={handleSaved}
-                  onError={setError}
-                  onCancel={() => setEditingId(null)}
-                />
-              </div>
-            ) : (
-              <DayRecord
-                key={log.id}
-                log={log}
-                date={selectedDate}
-                heightCm={heightCm}
-                playbackUrls={playbackUrls}
-                urlsPending={urlsLoading || !urlsReady}
-                savedFor={savedFor}
-                previousFor={previousFor}
-                onEdit={(l) => {
-                  setEditingId(l.id);
-                  setError(undefined);
-                }}
-                onDelete={handleDelete}
-              />
-            )
-          )}
-        </div>
-      </Modal>
     </div>
   );
 }
