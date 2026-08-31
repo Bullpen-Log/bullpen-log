@@ -408,8 +408,19 @@ export default async function HomePage() {
         폰에서는 걸지 않는다. 한 줄에 하나씩 놓이는데 높이를 맞추면 두 줄짜리
         상자가 제일 긴 상자만큼 늘어나, 스크롤만 길어진다.
       */}
+      <div className="space-y-3">
+        {/*
+          제목을 세워 두 덩이를 가른다.
+
+          예전에는 상자 일곱 개가 그냥 이어져 있었다. 앞의 넷은 오늘 해야 하는
+          것이고 뒤의 셋은 지나간 것을 보는 자리인데, 경계가 없으니 아래로
+          내려가다 어디서 성격이 바뀌는지 알 수 없었다.
+        */}
+        <h2 className="text-heading px-1 text-xl text-ink">오늘 할 일</h2>
+
       <div className="grid gap-4 sm:auto-rows-fr sm:grid-cols-2">
         <HomeTile
+          tone="mobility"
           icon={<ClipboardList className="h-4 w-4" />}
           title="오늘 체크인"
           state={checkinTile.state}
@@ -424,6 +435,7 @@ export default async function HomePage() {
         </HomeTile>
 
         <HomeTile
+          tone="core"
           icon={<Target className="h-4 w-4" />}
           title="오늘 투구"
           state={pitchTile.state}
@@ -467,7 +479,8 @@ export default async function HomePage() {
         {savedPlan ? (
           <HomeTileLink
             href="/training"
-            icon={<Dumbbell className="h-4 w-4" />}
+            tone="power"
+          icon={<Dumbbell className="h-4 w-4" />}
             title="운동 일정"
             state={planTile.state}
             badge={planTile.badge}
@@ -533,6 +546,7 @@ export default async function HomePage() {
         )}
 
         <HomeTile
+          tone="recovery"
           icon={<Settings2 className="h-4 w-4" />}
           title="트레이닝 설정"
           state={settingsSet ? 'done' : 'todo'}
@@ -587,8 +601,11 @@ export default async function HomePage() {
           />
         </HomeTile>
       </div>
+      </div>
 
-      <SummaryPanel
+      <div className="space-y-3">
+        <h2 className="text-heading px-1 text-xl text-ink">돌아보기</h2>
+        <SummaryPanel
         pitching={{
           ratio: facts.load.ratio,
           zone: facts.load.zone,
@@ -607,7 +624,8 @@ export default async function HomePage() {
           workoutMinutes: training.recentMinutes,
         }}
         recent={summaryRecent}
-      />
+        />
+      </div>
       </div>
     </div>
   );

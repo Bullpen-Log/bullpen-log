@@ -88,6 +88,25 @@ export function MiniBars({
   );
 }
 
+/**
+ * 아이콘 배경색.
+ *
+ * 라이브러리 카테고리와 같은 토큰(--color-cat-*)을 쓴다. 색이 서로 다르면
+ * 상자 넷을 훑을 때 제목을 읽기 전에 어느 것인지 알아본다. 넓은 면이 아니라
+ * 44px 짜리 사각형에만 칠하므로 화면이 알록달록해지지는 않는다.
+ *
+ * 표로 적어 두는 이유 — Tailwind 는 소스에 그대로 적힌 클래스만 찾아 넣는다.
+ */
+export type TileTone = 'mobility' | 'core' | 'power' | 'recovery' | 'armcare';
+
+const TONE_CLASS: Record<TileTone, string> = {
+  mobility: 'bg-cat-mobility/10 text-cat-mobility',
+  core: 'bg-cat-core/10 text-cat-core',
+  power: 'bg-cat-power/10 text-cat-power',
+  recovery: 'bg-cat-recovery/10 text-cat-recovery',
+  armcare: 'bg-cat-armcare/10 text-cat-armcare',
+};
+
 const STATE_STYLE: Record<TileState, { chip: string; box: string }> = {
   done: {
     chip: 'border-sky-soft/60 bg-sky/10 text-sky-strong',
@@ -105,6 +124,7 @@ const STATE_STYLE: Record<TileState, { chip: string; box: string }> = {
 
 function TileFace({
   icon,
+  tone,
   title,
   state,
   badge,
@@ -114,6 +134,7 @@ function TileFace({
   asLink,
 }: {
   icon: ReactNode;
+  tone?: TileTone;
   title: string;
   state: TileState;
   /** 오른쪽 위 표시 — '완료', '통증' 같은 짧은 말 */
@@ -131,7 +152,11 @@ function TileFace({
   return (
     <>
       <div className="flex items-center gap-2.5">
-        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-line-strong text-sky">
+        <span
+          className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl ${
+            tone ? TONE_CLASS[tone] : 'border border-line-strong text-sky'
+          }`}
+        >
           {icon}
         </span>
         <span className="min-w-0 flex-1 text-[15px] font-bold text-ink">{title}</span>
@@ -173,6 +198,7 @@ const BOX_BASE =
 /** 누르면 창이 뜨는 상자. */
 export function HomeTile({
   icon,
+  tone,
   title,
   state,
   badge,
@@ -184,6 +210,7 @@ export function HomeTile({
   children,
 }: {
   icon: ReactNode;
+  tone?: TileTone;
   title: string;
   state: TileState;
   badge: string;
@@ -207,6 +234,7 @@ export function HomeTile({
       >
         <TileFace
           icon={icon}
+          tone={tone}
           title={title}
           state={state}
           badge={badge}
@@ -238,6 +266,7 @@ export function HomeTile({
 export function HomeTileLink({
   href,
   icon,
+  tone,
   title,
   state,
   badge,
@@ -247,6 +276,7 @@ export function HomeTileLink({
 }: {
   href: string;
   icon: ReactNode;
+  tone?: TileTone;
   title: string;
   state: TileState;
   badge: string;
@@ -258,6 +288,7 @@ export function HomeTileLink({
     <Link href={href} className={`${BOX_BASE} ${STATE_STYLE[state].box}`}>
       <TileFace
         icon={icon}
+        tone={tone}
         title={title}
         state={state}
         badge={badge}

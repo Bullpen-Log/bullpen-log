@@ -33,6 +33,20 @@ export type NavItem = {
    * 이름을 그림으로 바꾸는 일은 components/nav-icons.tsx 가 한다.
    */
   icon: NavIconName;
+  /**
+   * 한 줄 설명. '더보기' 목록에서 이름 아래에 붙는다.
+   *
+   * 이름만 있으면 '자료실'이 무엇을 모아둔 곳인지, '투구 드릴'이 무엇을
+   * 하는 것인지 눌러 봐야 안다. 사이드바처럼 자리가 좁은 곳에서는 안 쓴다.
+   */
+  desc?: string;
+  /**
+   * 아이콘 배경색. 목록에서 항목을 눈으로 가르는 데 쓴다.
+   *
+   * 라이브러리 카테고리와 같은 색 토큰(--color-cat-*)을 그대로 쓴다.
+   * 같은 앱 안에서 색 체계를 두 벌 만들 이유가 없다.
+   */
+  tone?: 'lower' | 'upper' | 'mobility' | 'power' | 'core' | 'armcare' | 'recovery';
   /** 관리자에게만 보이는 항목 */
   adminOnly?: boolean;
 };
@@ -90,18 +104,47 @@ export const NAV_GROUPS: NavGroup[] = [
   {
     title: '라이브러리',
     items: [
-      { href: '/library/training', label: '운동 영상', icon: 'film' },
-      { href: '/library/mechanics', label: '투구 드릴', icon: 'target' },
+      {
+        href: '/library/training',
+        label: '운동 영상',
+        icon: 'film',
+        desc: '부위·강도·장비로 찾는 운동',
+        tone: 'power',
+      },
+      {
+        href: '/library/mechanics',
+        label: '투구 드릴',
+        icon: 'target',
+        desc: '설명을 보고 직접 고르는 드릴',
+        tone: 'mobility',
+      },
+      {
+        href: '/board',
+        label: '자료실',
+        icon: 'book',
+        desc: '투구 역학과 트레이닝 자료',
+        tone: 'upper',
+      },
     ],
-  },
-  {
-    items: [{ href: '/board', label: '자료실', icon: 'book' }],
   },
   {
     title: '설정',
     items: [
-      { href: '/profile', label: '내 정보', icon: 'user' },
-      { href: '/admin', label: '관리자', icon: 'settings', adminOnly: true },
+      {
+        href: '/profile',
+        label: '내 정보',
+        icon: 'user',
+        desc: '신체 정보 · 평소 문진 · 기본 운동 시간',
+        tone: 'recovery',
+      },
+      {
+        href: '/admin',
+        label: '관리자',
+        icon: 'settings',
+        desc: '회원과 영상 관리',
+        tone: 'armcare',
+        adminOnly: true,
+      },
     ],
   },
 ];
