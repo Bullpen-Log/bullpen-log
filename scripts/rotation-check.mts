@@ -86,8 +86,18 @@ const MAX_HINGE_DROUGHT = 5;
  */
 const HINGE_PATTERN = '힌지';
 
-const day = (n: number) =>
-  new Date(Date.UTC(2026, 0, 5) + n * 86400000).toISOString().slice(0, 10);
+/*
+ * 한 해만 돌리면 답이 운에 달린다.
+ *
+ * 뽑는 순서는 날짜를 씨앗으로 섞기 때문에, 시작 연도가 다르면 같은 규칙이라도
+ * 다른 해가 나온다. 사회인 쪽은 하체날이 쉰 날뿐이라 힌지 비율이 해마다
+ * 19%에서 47%까지 널뛰었다 — 규칙을 고치지 않아도 통과와 실패가 갈렸다.
+ * 여러 해를 돌려 평균을 본다. 이래야 재는 것이 규칙이지 운이 아니다.
+ */
+const YEARS = 8;
+
+const dayIn = (startYear: number) => (n: number) =>
+  new Date(Date.UTC(startYear, 0, 5) + n * 86400000).toISOString().slice(0, 10);
 const gap = (from: string, to: string) =>
   (Date.parse(to) - Date.parse(from)) / 86400000;
 
@@ -116,7 +126,10 @@ type Result = {
   upperBalance: number;
   upperDaysWithTwo: number;
   upperDays: number;
+  /** 한 해 안에서 힌지 없이 이어진 하체날의 최대 — 여러 해면 그 평균 */
   drought: number;
+  /** 여러 해 중 가장 나빴던 해의 값 */
+  droughtWorst: number;
   lowerDays: number;
   meanSessionGap: number | null;
 };
@@ -168,7 +181,13 @@ function orderOldWay(
     .map((v) => v.ex);
 }
 
-function run(days: number, regular: boolean, oldWay = false): Result {
+function run(
+  days: number,
+  regular: boolean,
+  oldWay = false,
+  startYear = 2026
+): Result {
+  const day = dayIn(startYear);
   /** 운동 → 마지막으로 한 세션 번호 (1부터) */
   const lastSession = new Map<string, number>();
   /** 운동 → 마지막으로 한 날 (최근 사흘 규칙에 쓴다) */
@@ -284,12 +303,49 @@ function run(days: number, regular: boolean, oldWay = false): Result {
     upperDaysWithTwo,
     upperDays,
     drought: worstDrought,
+    droughtWorst: worstDrought,
     lowerDays,
     meanSessionGap: returns.length
       ? returns.reduce((a, b) => a + b, 0) / returns.length
       : null,
   };
 }
+
+/**
+ * 여러 해를 하나로 모은다.
+ *
+ * '힌지 없이 지나간 하체날'은 평균과 최악을 따로 낸다. 판정은 평균으로 한다 —
+ * 문턱이 '한 해 안에서 몇 번까지'라는 뜻이라, 여러 해 중 최악을 갖다 대면
+ * 해를 늘릴수록 무조건 나빠진다(더 나쁜 해를 만날 기회가 늘어날 뿐이다).
+ * 가장 나쁜 해는 옆에 같이 적어 눈으로 보게 둔다.
+ */
+function average(runs: readonly Result[]): Result {
+  const mean = (pick: (r: Result) => number) =>
+    runs.reduce((sum, r) => sum + pick(r), 0) / runs.length;
+  const gaps = runs.map((r) => r.meanSessionGap).filter((g) => g != null);
+  return {
+    sessions: Math.round(mean((r) => r.sessions)),
+    comparable: mean((r) => r.comparable),
+    earlyComparable: mean((r) => r.earlyComparable),
+    coverage: Math.round(mean((r) => r.coverage)),
+    hingeShare: mean((r) => r.hingeShare),
+    upperBalance: mean((r) => r.upperBalance),
+    upperDaysWithTwo: Math.round(mean((r) => r.upperDaysWithTwo)),
+    upperDays: Math.round(mean((r) => r.upperDays)),
+    drought: mean((r) => r.drought),
+    droughtWorst: Math.max(...runs.map((r) => r.droughtWorst)),
+    lowerDays: Math.round(mean((r) => r.lowerDays)),
+    meanSessionGap: gaps.length
+      ? gaps.reduce((a, b) => a + b, 0) / gaps.length
+      : null,
+  };
+}
+
+/** 해마다 시작 연도를 바꿔 YEARS 해를 돌린 평균 */
+const runYears = (regular: boolean, oldWay: boolean) =>
+  average(
+    Array.from({ length: YEARS }, (_, i) => run(365, regular, oldWay, 2020 + i))
+  );
 
 const pct = (v: number) => `${Math.round(v * 100)}%`;
 let failed = false;
@@ -298,10 +354,12 @@ for (const [label, regular] of [
   ['매일 하는 사람', true],
   ['사회인 사용자 (주 2~3회 · 2주 공백)', false],
 ] as const) {
-  const before = run(365, regular, true);
-  const now = run(365, regular, false);
+  const before = runYears(regular, true);
+  const now = runYears(regular, false);
   console.log('');
-  console.log(`■ ${label} — 1년에 실제 운동 ${now.sessions}회`);
+  console.log(
+    `■ ${label} — 1년에 실제 운동 ${now.sessions}회 · ${YEARS}해 평균`
+  );
   console.log('');
   console.log('                                     예전 규칙      지금');
   console.log('  ' + '─'.repeat(52));
@@ -327,7 +385,7 @@ for (const [label, regular] of [
     `     (상체날 ${now.upperDays}일 중 스트렝스가 둘 이상인 날 ${now.upperDaysWithTwo}일)`
   );
   console.log(
-    `  힌지 없이 지나간 하체날 최대       ${(before.drought + '일').padStart(8)}  ${(now.drought + '일').padStart(8)}`
+    `  힌지 없이 지나간 하체날 최대       ${(before.drought.toFixed(1) + '일').padStart(8)}  ${(now.drought.toFixed(1) + '일').padStart(8)}   (가장 나쁜 해 ${now.droughtWorst}일)`
   );
 
   if (now.comparable < MIN_COMPARABLE) {
@@ -352,7 +410,7 @@ for (const [label, regular] of [
   }
   if (now.drought > MAX_HINGE_DROUGHT) {
     console.log(
-      `  ✗ 힌지 없이 하체날이 ${now.drought}번 이어졌습니다 (${MAX_HINGE_DROUGHT}번까지).`
+      `  ✗ 힌지 없이 하체날이 ${now.drought.toFixed(1)}번 이어졌습니다 (${MAX_HINGE_DROUGHT}번까지).`
     );
     failed = true;
   }
