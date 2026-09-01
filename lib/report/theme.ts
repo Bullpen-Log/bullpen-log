@@ -1120,6 +1120,18 @@ export function pickForTheme<T extends ThemedExercise>({
       goalMix.maxPower != null &&
       chosen.filter(isPower).length >= goalMix.maxPower;
     /*
+     * 파워가 아직 모자란가 — 모자라면 이번 차례는 파워를 먼저 본다.
+     *
+     * 파워를 스트렝스보다 먼저 채운다. 파워 하나가 14분 남짓이라, 15분짜리
+     * 무게 운동을 먼저 넣으면 남는 자리에 파워가 안 들어간다. 실제로 60분
+     * 상체날에 파워 하나로 끝난 날이 나왔다.
+     */
+    const shortOnPower = () =>
+      spec.slot === 'main' &&
+      goalMix.minPower != null &&
+      chosen.filter(isPower).length < goalMix.minPower;
+
+    /*
      * 스트렝스가 아직 모자란가 — 모자라면 이번 차례는 스트렝스를 먼저 본다.
      *
      * 첫 자리는 건드리지 않는다(chosen.length > 0). 처음부터 스트렝스를
@@ -1165,6 +1177,11 @@ export function pickForTheme<T extends ThemedExercise>({
          * 스트렝스가 모자란 동안에는 스트렝스부터 본다. 파워 향상 날에도
          * 무게 드는 운동 하나는 이렇게 확보된다.
          */
+        /* 파워가 먼저다 — 자리를 못 잡으면 아예 못 들어간다 */
+        (shortOnPower()
+          ? (remaining.find((ex) => canTake(ex) && isPower(ex) && !clashes(ex)) ??
+            remaining.find((ex) => canTake(ex) && isPower(ex)))
+          : undefined) ??
         (shortOnStrength()
           ? (remaining.find((ex) => canTake(ex) && !isPower(ex) && !clashes(ex)) ??
             remaining.find((ex) => canTake(ex) && !isPower(ex)))

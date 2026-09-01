@@ -143,7 +143,12 @@ export function filterByLevel<T extends WithDifficulty>(
  *
  * 둘 다 본운동에만 걸린다. 워밍업·코어·보강·암케어는 파워가 애초에 안 들어간다.
  */
-export type GoalMix = { maxPower?: number; minStrength?: number };
+export type GoalMix = {
+  maxPower?: number;
+  /** 파워를 적어도 이만큼은 넣는다. 자리가 모자라면 들어가는 만큼만. */
+  minPower?: number;
+  minStrength?: number;
+};
 
 export const TRAINING_GOALS = [
   {
@@ -168,12 +173,17 @@ export const TRAINING_GOALS = [
     weights: { warmup: 1, main: 1.15, core: 0.9, prehab: 0.8, armcare: 0.8 },
     prefer: ['파워'],
     /*
-     * 파워 위주로 가되 무게 드는 운동을 하나는 남긴다.
+     * 파워를 먼저 둘 채우고, 무게 드는 운동을 하나 남긴다.
      *
-     * 그냥 두었더니 45분 상체날 60일이 전부 파워였다 — 스트렝스 0개.
-     * 근력이 받쳐주지 않으면 파워도 결국 안 는다.
+     * 무게부터 채우면 파워가 들어갈 자리가 없어진다. 파워 운동은 3세트 × 5회에
+     * 휴식이 3분이라 하나에 14분 남짓인데, 60분 본운동 몫이 41분이다. 무게
+     * 운동(15분)을 먼저 넣으면 남는 12분에 파워가 안 들어가 파워 하나로 끝난
+     * 날이 나왔다. 파워를 먼저 둘 채우면 남는 자리에 짧은 무게 운동이 들어간다.
+     *
+     * 무게를 하나 남기는 것은 그냥 두었더니 45분 상체날 60일이 전부 파워였기
+     * 때문이다 — 근력이 받쳐주지 않으면 파워도 결국 안 는다.
      */
-    mix: { minStrength: 1 },
+    mix: { minPower: 2, minStrength: 1 },
   },
   {
     name: '부상 방지',
