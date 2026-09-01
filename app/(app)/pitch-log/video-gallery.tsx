@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from 'react';
 import Link from 'next/link';
-import { ChevronDown, Film, X } from 'lucide-react';
+import { ChevronDown, Film, Play, X } from 'lucide-react';
 import { usePlaybackUrls } from '@/components/use-playback-urls';
 import { REST_SESSION_TYPE, SESSION_TYPES } from '@/lib/session-type';
 import type { ClipOption } from './compare-view';
@@ -63,15 +63,27 @@ type Clip = ClipOption & {
 
 export function VideoGallery({
   logs,
+  selecting,
+  onSelectingChange,
   onCompare,
 }: {
   logs: Log[];
+  /**
+   * 비교할 둘을 고르는 중인가.
+   *
+   * 평소에는 눌러서 그 영상을 본다. 고르기까지 겸하게 했더니 영상 하나를
+   * 확인할 방법이 없어졌다 — 누르면 골라지기만 했다.
+   */
+  selecting: boolean;
+  onSelectingChange: (v: boolean) => void;
   /** 두 개를 고르고 '비교하기'를 눌렀을 때 */
   onCompare: (aId: string, bId: string) => void;
 }) {
   const [filter, setFilter] = useState<string>('all');
   const [sort, setSort] = useState<Sort>('recent');
   const [picked, setPicked] = useState<(Clip | null)[]>([null, null]);
+  /** 지금 재생 중인 영상. 한 번에 하나만 튼다. */
+  const [playingId, setPlayingId] = useState<string | null>(null);
   const [toggled, setToggled] = useState<Record<string, boolean>>({});
 
   const clips = useMemo<Clip[]>(
@@ -181,12 +193,30 @@ export function VideoGallery({
   }
 
   return (
-    <div className={clips.length >= 2 ? 'space-y-3 pb-24' : 'space-y-3'}>
+    <div className={selecting ? 'space-y-3 pb-24' : 'space-y-3'}>
       <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
         <p className="text-sm font-bold text-ink">
           투구 영상{' '}
           <span className="text-display text-base">{clips.length}</span>개
         </p>
+        {clips.length >= 2 && (
+          <button
+            type="button"
+            onClick={() => {
+              onSelectingChange(!selecting);
+              setPicked([null, null]);
+              setPlayingId(null);
+            }}
+            className={`rounded-lg border px-3 py-1.5 text-xs font-semibold transition-colors ${
+              selecting
+                ? 'border-line-strong text-muted hover:text-ink'
+                : 'border-sky bg-sky-tint text-sky-strong hover:bg-sky-tint/70'
+            }`}
+          >
+            {selecting ? '고르기 그만두기' : '2분할 비교'}
+          </button>
+        )}
+
         <span className="ml-auto flex flex-wrap gap-1.5">
           {SORTS.map((s) => (
             <button
@@ -265,48 +295,81 @@ export function VideoGallery({
                 {group.items.map((clip) => {
                   const slot = slotOf(clip.id);
                   const url = urls[clip.path];
+                  const playing = playingId === clip.id && url != null;
                   return (
                     <li key={clip.id}>
                       <div
                         className={`overflow-hidden rounded-xl border transition-colors ${
-                          slot >= 0
+                          selecting && slot >= 0
                             ? 'border-sky ring-1 ring-sky'
                             : 'border-line'
                         }`}
                       >
-                        <button
-                          type="button"
-                          onClick={() => pick(clip)}
-                          aria-pressed={slot >= 0}
-                          className="relative block w-full"
-                        >
-                          {url ? (
-                            /*
-                              영상의 한 프레임을 그대로 쓴다. preload="metadata" 라
-                              머리 부분만 받으므로 목록이 무거워지지 않는다.
-                            */
-                            <video
-                              src={`${url}#t=0.5`}
-                              preload="metadata"
-                              muted
-                              playsInline
-                              className="aspect-video w-full bg-shade object-contain"
-                            />
-                          ) : (
-                            <span className="flex aspect-video w-full items-center justify-center bg-surface-2">
-                              <Film
-                                aria-hidden
-                                className="h-6 w-6 text-line-strong"
+                        {playing ? (
+                          /* 눌러서 튼 영상 — 조작 막대를 붙여 그 자리에서 본다 */
+                          <video
+                            src={url}
+                            controls
+                            autoPlay
+                            playsInline
+                            onEnded={() => setPlayingId(null)}
+                            className="aspect-video w-full bg-shade object-contain"
+                          />
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() =>
+                              selecting ? pick(clip) : setPlayingId(clip.id)
+                            }
+                            aria-pressed={selecting ? slot >= 0 : undefined}
+                            aria-label={`${spokenDate(clip.date)} 영상 ${
+                              selecting ? '고르기' : '재생'
+                            }`}
+                            disabled={!url}
+                            className="group relative block w-full"
+                          >
+                            {url ? (
+                              /*
+                                영상의 한 프레임을 그대로 쓴다.
+                                preload="metadata" 라 머리 부분만 받으므로
+                                목록이 무거워지지 않는다.
+                              */
+                              <video
+                                src={`${url}#t=0.5`}
+                                preload="metadata"
+                                muted
+                                playsInline
+                                className="aspect-video w-full bg-shade object-contain"
                               />
-                            </span>
-                          )}
+                            ) : (
+                              <span className="flex aspect-video w-full items-center justify-center bg-surface-2">
+                                <Film
+                                  aria-hidden
+                                  className="h-6 w-6 text-line-strong"
+                                />
+                              </span>
+                            )}
 
-                          {slot >= 0 && (
-                            <span className="absolute top-2 right-2 flex h-6 w-6 items-center justify-center rounded-full bg-sky text-[11px] font-bold text-white shadow">
-                              {slot === 0 ? 'A' : 'B'}
-                            </span>
-                          )}
-                        </button>
+                            {/* 평소에는 재생 표시, 고르는 중에는 A/B */}
+                            {selecting
+                              ? slot >= 0 && (
+                                  <span className="absolute top-2 right-2 flex h-6 w-6 items-center justify-center rounded-full bg-sky text-[11px] font-bold text-white shadow">
+                                    {slot === 0 ? 'A' : 'B'}
+                                  </span>
+                                )
+                              : url && (
+                                  <span className="absolute inset-0 flex items-center justify-center">
+                                    <span className="flex h-10 w-10 items-center justify-center rounded-full bg-shade/60 text-white transition-colors group-hover:bg-sky">
+                                      <Play
+                                        aria-hidden
+                                        className="ml-0.5 h-4 w-4"
+                                        fill="currentColor"
+                                      />
+                                    </span>
+                                  </span>
+                                )}
+                          </button>
+                        )}
 
                         <div className="space-y-1 px-3 py-2.5">
                           <p className="flex flex-wrap items-baseline gap-x-1.5">
@@ -340,9 +403,9 @@ export function VideoGallery({
 
       {/*
         고른 두 개 — 아래에 붙여 둔다. 위로 올라가 확인하지 않아도 되게.
-        영상이 하나뿐이면 견줄 것이 없으므로 아예 안 낸다.
+        고르는 중에만 낸다 — 평소에는 영상을 보는 화면이다.
       */}
-      {clips.length >= 2 && (
+      {selecting && (
         <div className="fixed inset-x-0 bottom-16 z-30 px-4 sm:bottom-4">
           <div className="mx-auto flex max-w-3xl flex-wrap items-center gap-2 rounded-2xl border border-line-strong bg-surface px-4 py-3 shadow-2xl">
             {[0, 1].map((i) => {

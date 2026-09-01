@@ -70,6 +70,8 @@ export function PitchLogClient({
   const [view, setView] = useState<'calendar' | 'list' | 'gallery'>('calendar');
   /* 갤러리에서 두 개를 골라 들어오면 그 둘로 비교 화면을 연다 */
   const [preset, setPreset] = useState<{ a: string; b: string } | null>(null);
+  /* 영상 칸에서 비교할 둘을 고르는 중인가 */
+  const [selecting, setSelecting] = useState(false);
   const [error, setError] = useState<string>();
   /*
    * 2분할 비교는 두 걸음이다 — 고르고, 견준다.
@@ -261,7 +263,10 @@ export function PitchLogClient({
           clips.length >= 2 && view !== 'gallery' ? (
             <button
               type="button"
-              onClick={() => setView('gallery')}
+              onClick={() => {
+                setView('gallery');
+                setSelecting(true);
+              }}
               className="rounded-lg border border-line-strong px-3 py-1.5 text-xs font-semibold text-ink transition-colors hover:border-sky hover:text-sky"
             >
               2분할 비교
@@ -308,6 +313,8 @@ export function PitchLogClient({
       {view === 'gallery' && (
         <VideoGallery
           logs={logs}
+          selecting={selecting}
+          onSelectingChange={setSelecting}
           onCompare={(a, b) => {
             setPreset({ a, b });
             setComparing(true);
