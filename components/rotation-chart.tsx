@@ -63,8 +63,8 @@ export function RotationChart({
   if (!geom) {
     return (
       <p className="rounded-xl border border-dashed border-line px-4 py-6 text-center text-[11px] leading-relaxed text-muted">
-        골반·어깨 회전을 읽을 수 있는 구간이 없습니다. 옆에서, 전신이 크게 나오게
-        찍으면 잡힙니다.
+        어깨와 골반이 도는 것을 읽을 수 있는 구간이 없습니다. 옆에서, 전신이
+        크게 나오게 찍으면 잡힙니다.
       </p>
     );
   }
@@ -77,7 +77,7 @@ export function RotationChart({
         <Legend color={HIP} label="골반" />
         <Legend color={SHOULDER} label="어깨" />
         <span className="ml-auto text-[11px] text-muted/70">
-          시작 자세에서 얼마나 돌았나
+          0° 닫힘 · 90° 열림
         </span>
       </div>
 
@@ -96,7 +96,7 @@ export function RotationChart({
           onSeek(geom.t0 + ratio * geom.span);
         }}
       >
-        {/* 0도 — 시작 자세 */}
+        {/* 0도 — 가장 닫힌 자세 */}
         <line
           x1="0"
           x2="100"

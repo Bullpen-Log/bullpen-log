@@ -1,40 +1,52 @@
-import { LM, QUALITY_THRESHOLD, type PoseTrack } from '@/lib/pose/types';
+import { LM, type PoseTrack } from '@/lib/pose/types';
 
 /**
  * 골반과 어깨가 언제 열리는가.
  *
  * 투구에서 힘은 아래에서 위로 간다 — 앞발이 닿고, 골반이 먼저 돌고, 그 뒤에
  * 어깨가 따라온다. 둘이 함께 돌면 몸통을 비틀어 모은 힘이 없는 셈이라 팔로만
- * 던지게 된다. 그 사이가 벌어진 정도를 '분리'라고 부른다.
+ * 던지게 된다. 순서와 시간차의 문제라 곡선으로 봐야 보인다.
  *
- * 세 순간(니업·착지·릴리스)의 각도 숫자로는 이것이 보이지 않는다. 순서와
- * 시간차의 문제라 곡선으로 봐야 한다.
+ * ■ 깊이(z)를 쓰지 않는다
  *
- * ■ 어떻게 재는가
+ * 처음에는 MediaPipe 의 3D 좌표로 축의 방위각을 냈다. 그런데 옆에서 찍으면
+ * 먼 쪽 어깨와 골반이 몸에 가려지고, 가려지는 때가 정확히 몸이 닫혀 있는
+ * 순간이다 — 분리를 봐야 하는 바로 그 구간이다. 그 구간에서 깊이는 카메라가
+ * 본 값이 아니라 모델이 지어낸 값이고, 신뢰도가 낮아 프레임 자체가 버려졌다.
+ * 곡선이 분리가 끝난 지점에서야 시작됐다.
  *
- * MediaPipe 가 관절마다 3D 좌표(world)를 함께 낸다. 골반 중심이 원점인 미터
- * 단위다. 왼쪽에서 오른쪽으로 가는 벡터를 수평면(x-z)에 눕히면 그 축이 얼마나
- * 돌았는지가 나온다. 골반 축과 어깨 축을 각각 재서 나란히 놓는다.
+ * 대신 화면에 보이는 폭을 쓴다. 몸이 닫히면 두 어깨가 겹쳐 폭이 좁아지고,
+ * 열리면 넓어진다. 이건 카메라가 실제로 본 것이다.
+ *
+ *   닫힘 0°  → 폭 0        열림 90° → 폭 최대
+ *   열린 정도 = asin(지금 폭 ÷ 그 영상에서 가장 넓었던 폭)
+ *
+ * ■ 무엇에 견주어 재는가
+ *
+ * 폭을 그대로 쓰면 안 된다. 스트라이드로 카메라와의 거리가 바뀌어 몸이 커졌다
+ * 작아졌다 하기 때문이다. 몸통 길이(어깨 가운데 ↔ 골반 가운데)로 나눈다 —
+ * 몸통은 수직축 회전에 거의 안 변해서 자尺으로 쓸 수 있다.
  *
  * ■ 믿을 수 있는 만큼만
  *
- * 깊이(z)는 카메라 한 대에서 추정한 값이라 절대 정확도가 낮다. 모션캡처가
- * ±3~5도라면 이쪽은 ±10~15도로 봐야 한다. 그래서 "오늘 42도"라는 절대값이
- * 아니라 '어느 쪽이 먼저 도는가'와 '지난번과 견줘 어떤가'에 쓴다 — 오차가
- * 같은 방향으로 생기므로 모양과 변화는 남는다.
- *
- * 시작점을 0으로 맞춰 그린다. 카메라가 놓인 각도에 따라 처음 값이 제각각인데,
- * 궁금한 것은 '처음보다 얼마나 돌았나'이지 절대 방위가 아니다.
+ * '가장 넓었던 폭'을 90도로 놓는 것이라, 그 영상에서 실제로 몸이 다 열리지
+ * 않았다면 전체가 부풀려진다. 절대값이 아니라 순서와 모양, 그리고 같은
+ * 방식으로 찍은 지난 영상과의 차이에 쓴다.
  */
 
 export type RotationPoint = {
   /** 영상에서의 시각(초) */
   t: number;
-  /** 시작 자세 대비 골반이 돈 각도(도) */
+  /** 골반이 열린 정도(0~90도). 0이 가장 닫힌 자세다. */
   hip: number;
-  /** 시작 자세 대비 어깨가 돈 각도(도) */
+  /** 어깨가 열린 정도(0~90도) */
   shoulder: number;
-  /** 어깨 − 골반. 클수록 몸통이 많이 비틀려 있다. */
+  /**
+   * 어깨 − 골반.
+   *
+   * 음수면 골반이 앞서 열린 것이다 — 아래에서 위로 힘이 갔다는 뜻이다.
+   * 양수면 어깨가 먼저 열린 것이라 팔로만 던진 쪽에 가깝다.
+   */
   separation: number;
 };
 
@@ -44,72 +56,106 @@ export type RotationSeries = {
   peak: { t: number; separation: number } | null;
 };
 
-/** 수평면에서 이 축이 얼마나 돌았는가(도). 왼쪽 → 오른쪽 벡터를 본다. */
-function axisAngle(
-  left: { x: number; z: number },
-  right: { x: number; z: number }
-): number {
-  return Math.atan2(right.z - left.z, right.x - left.x) * (180 / Math.PI);
-}
-
 /**
- * 각도가 -180과 180을 넘나들 때 곡선이 튀지 않게 이어 붙인다.
+ * 이보다 낮으면 관절 위치 자체를 못 믿는다.
  *
- * 몸이 반 바퀴를 돌면 179도 다음이 -179도가 된다. 그대로 그리면 곡선이
- * 위아래로 한 번 크게 튀어, 실제로는 2도 돈 것이 358도 돈 것처럼 보인다.
+ * 예전에는 0.5였는데, 옆모습에서 가려진 어깨가 그 아래로 떨어져 정작 필요한
+ * 구간이 통째로 버려졌다. 가려져도 화면상 자리는 꽤 맞게 찍으므로, 완전히
+ * 놓친 프레임만 걸러낸다.
  */
-function unwrap(prev: number, next: number): number {
-  let d = next - prev;
-  while (d > 180) d -= 360;
-  while (d < -180) d += 360;
-  return prev + d;
-}
+const MIN_VISIBILITY = 0.2;
+
+/** 몸통이 이보다 짧게 잡히면 사람을 제대로 못 본 프레임이다 */
+const MIN_TORSO_PX = 8;
+
+/** 가장 넓었던 폭을 정할 때 위에서 몇 번째를 쓸 것인가 — 튄 값 하나에 안 끌리게 */
+const WIDTH_PERCENTILE = 0.9;
+
+type Sample = { t: number; hip: number; shoulder: number };
 
 export function rotationSeries(track: PoseTrack): RotationSeries {
-  const raw: { t: number; hip: number; shoulder: number }[] = [];
+  const W = track.videoWidth || 1;
+  const H = track.videoHeight || 1;
+  const samples: Sample[] = [];
 
   for (const frame of track.frames) {
-    const w = frame.world;
-    if (!w) continue;
-    const lh = w[LM.leftHip];
-    const rh = w[LM.rightHip];
-    const ls = w[LM.leftShoulder];
-    const rs = w[LM.rightShoulder];
-    if (!lh || !rh || !ls || !rs) continue;
+    const p = frame.landmarks;
+    const ls = p[LM.leftShoulder];
+    const rs = p[LM.rightShoulder];
+    const lh = p[LM.leftHip];
+    const rh = p[LM.rightHip];
+    if (!ls || !rs || !lh || !rh) continue;
+    if (
+      Math.min(ls.visibility, rs.visibility, lh.visibility, rh.visibility) <
+      MIN_VISIBILITY
+    ) {
+      continue;
+    }
 
-    /* 네 관절 모두 또렷하게 보일 때만 쓴다 — 하나라도 흐리면 축이 엉뚱해진다 */
-    const vis = Math.min(lh.visibility, rh.visibility, ls.visibility, rs.visibility);
-    if (vis < QUALITY_THRESHOLD) continue;
+    /* 화면 픽셀로 옮긴다 — 가로·세로 정규화 기준이 달라 그대로 견주면 안 된다 */
+    const sx = (a: { x: number }) => a.x * W;
+    const sy = (a: { y: number }) => a.y * H;
 
-    raw.push({
-      t: frame.t,
-      hip: axisAngle(lh, rh),
-      shoulder: axisAngle(ls, rs),
-    });
+    const shoulderW = Math.abs(sx(ls) - sx(rs));
+    const hipW = Math.abs(sx(lh) - sx(rh));
+
+    /* 자尺 — 어깨 가운데에서 골반 가운데까지 */
+    const scx = (sx(ls) + sx(rs)) / 2;
+    const scy = (sy(ls) + sy(rs)) / 2;
+    const hcx = (sx(lh) + sx(rh)) / 2;
+    const hcy = (sy(lh) + sy(rh)) / 2;
+    const torso = Math.hypot(scx - hcx, scy - hcy);
+    if (torso < MIN_TORSO_PX) continue;
+
+    samples.push({ t: frame.t, hip: hipW / torso, shoulder: shoulderW / torso });
   }
 
-  if (raw.length < 2) return { points: [], peak: null };
+  if (samples.length < 4) return { points: [], peak: null };
 
-  /* 끊긴 곳을 이어 붙이고 시작점을 0으로 맞춘다 */
-  let hip = raw[0].hip;
-  let shoulder = raw[0].shoulder;
-  const hip0 = hip;
-  const shoulder0 = shoulder;
+  /* 그 영상에서 가장 열렸던 순간을 90도로 놓는다 */
+  const widest = (pick: (s: Sample) => number) => {
+    const sorted = samples.map(pick).sort((a, b) => a - b);
+    const at = Math.min(
+      sorted.length - 1,
+      Math.floor(sorted.length * WIDTH_PERCENTILE)
+    );
+    return Math.max(1e-6, sorted[at]);
+  };
+  const hipMax = widest((s) => s.hip);
+  const shoulderMax = widest((s) => s.shoulder);
 
-  const points: RotationPoint[] = raw.map((r, i) => {
-    if (i > 0) {
-      hip = unwrap(hip, r.hip);
-      shoulder = unwrap(shoulder, r.shoulder);
-    }
-    const h = hip - hip0;
-    const s = shoulder - shoulder0;
+  const openness = (w: number, max: number) =>
+    (Math.asin(Math.max(0, Math.min(1, w / max))) * 180) / Math.PI;
+
+  const raw = samples.map((s) => ({
+    t: s.t,
+    hip: openness(s.hip, hipMax),
+    shoulder: openness(s.shoulder, shoulderMax),
+  }));
+
+  /*
+   * 세 점 가운데값으로 다듬는다.
+   *
+   * 관절이 프레임마다 한두 픽셀씩 떨려 곡선이 지저분해진다. 평균이 아니라
+   * 가운데값을 쓰는 이유는, 한 프레임이 크게 튀었을 때 평균은 그 값에 끌려가고
+   * 가운데값은 버티기 때문이다.
+   */
+  const mid3 = (a: number, b: number, c: number) => a + b + c - Math.min(a, b, c) - Math.max(a, b, c);
+  const smooth = raw.map((r, i) => {
+    if (i === 0 || i === raw.length - 1) return r;
     return {
       t: r.t,
-      hip: Math.round(h * 10) / 10,
-      shoulder: Math.round(s * 10) / 10,
-      separation: Math.round((s - h) * 10) / 10,
+      hip: mid3(raw[i - 1].hip, r.hip, raw[i + 1].hip),
+      shoulder: mid3(raw[i - 1].shoulder, r.shoulder, raw[i + 1].shoulder),
     };
   });
+
+  const points: RotationPoint[] = smooth.map((r) => ({
+    t: r.t,
+    hip: Math.round(r.hip * 10) / 10,
+    shoulder: Math.round(r.shoulder * 10) / 10,
+    separation: Math.round((r.shoulder - r.hip) * 10) / 10,
+  }));
 
   const peak = points.reduce<RotationPoint | null>(
     (best, p) =>
