@@ -214,13 +214,22 @@ function ComparePane({
   );
 }
 
-export function CompareView({ clips }: { clips: ClipOption[] }) {
+export function CompareView({
+  clips,
+  initialA,
+  initialB,
+}: {
+  clips: ClipOption[];
+  /** 갤러리에서 골라 들어온 경우. 없으면 가장 예전 것과 가장 최근 것. */
+  initialA?: string;
+  initialB?: string;
+}) {
   const videoA = useRef<VideoWithFrameCallback>(null);
   const videoB = useRef<VideoWithFrameCallback>(null);
 
   // 기본값: 가장 예전 영상과 가장 최근 영상을 비교
-  const [idA, setIdA] = useState(clips[0]?.id ?? '');
-  const [idB, setIdB] = useState(clips.at(-1)?.id ?? '');
+  const [idA, setIdA] = useState(initialA ?? clips[0]?.id ?? '');
+  const [idB, setIdB] = useState(initialB ?? clips.at(-1)?.id ?? '');
 
   const [markA, setMarkA] = useState(0);
   const [markB, setMarkB] = useState(0);

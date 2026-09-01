@@ -12,6 +12,7 @@ import {
 } from '@/components/month-calendar';
 import { CompareView, type ClipOption } from './compare-view';
 import { LogList } from './log-list';
+import { VideoGallery } from './video-gallery';
 
 export type Log = {
   id: string;
@@ -66,7 +67,9 @@ export function PitchLogClient({
    * 다른 화면에서 날짜를 지정해 들어오면 달력으로 연다 — 그 날짜를 짚어
    * 보여주려고 온 것이기 때문이다.
    */
-  const [view, setView] = useState<'calendar' | 'list'>('calendar');
+  const [view, setView] = useState<'calendar' | 'list' | 'gallery'>('calendar');
+  /* 갤러리에서 두 개를 골라 들어오면 그 둘로 비교 화면을 연다 */
+  const [preset, setPreset] = useState<{ a: string; b: string } | null>(null);
   const [error, setError] = useState<string>();
   const [comparing, setComparing] = useState(false);
   /*
@@ -225,7 +228,7 @@ export function PitchLogClient({
             </button>
           }
         />
-        <CompareView clips={clips} />
+        <CompareView clips={clips} initialA={preset?.a} initialB={preset?.b} />
       </div>
     );
   }
@@ -238,7 +241,9 @@ export function PitchLogClient({
         description={
           view === 'calendar'
             ? '날짜를 누르면 그날 화면으로 넘어갑니다. 기록이 없는 날도 눌러서 남길 수 있습니다.'
-            : '최근 기록부터 봅니다. 위에서 걸러 영상 있는 날이나 경기 날만 볼 수 있습니다.'
+            : view === 'list'
+              ? '최근 기록부터 봅니다. 위에서 걸러 영상 있는 날이나 경기 날만 볼 수 있습니다.'
+              : '올린 투구 영상을 달별로 모아 봅니다. 두 개를 고르면 바로 나란히 견줄 수 있습니다.'
         }
         action={
           // 2분할 비교는 영상이 두 개 이상 있어야 뜻이 있다.
@@ -268,6 +273,7 @@ export function PitchLogClient({
           [
             ['calendar', '달력'],
             ['list', '목록'],
+            ['gallery', '영상'],
           ] as const
         ).map(([key, label]) => (
           <button
@@ -287,6 +293,16 @@ export function PitchLogClient({
       </nav>
 
       {view === 'list' && <LogList logs={logs} />}
+
+      {view === 'gallery' && (
+        <VideoGallery
+          logs={logs}
+          onCompare={(a, b) => {
+            setPreset({ a, b });
+            setComparing(true);
+          }}
+        />
+      )}
 
       {view === 'calendar' && (
       <Card className="relative">
