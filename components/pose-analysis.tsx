@@ -54,11 +54,15 @@ const MAX_DRAW_GAP_SECONDS = 0.3;
  *
  * 한 가지 색으로 그리면 옆에서 찍은 영상에서 두 팔과 두 다리가 겹쳐 보여
  * 어느 쪽이 던지는 팔인지 알 수가 없다.
+ *
+ * 색은 앱이 쓰는 것에서 가져온다(globals.css 의 --color-sky, --color-cat-core).
+ * 관절마다 다른 색을 뿌리면 무지개가 되고, 그러면 색이 아무 뜻도 없어진다.
+ * 여기서 색이 말하는 것은 하나다 — 왼쪽인가 오른쪽인가.
  */
 const SIDE_COLOR = {
   left: 'rgba(56, 189, 248, 0.95)',
-  right: 'rgba(251, 146, 60, 0.95)',
-  center: 'rgba(226, 232, 240, 0.9)',
+  right: 'rgba(167, 139, 250, 0.95)',
+  center: 'rgba(203, 213, 225, 0.85)',
 } as const;
 
 const LEFT_POINTS = new Set<number>([
@@ -79,30 +83,29 @@ function sideOf(a: number, b?: number): keyof typeof SIDE_COLOR {
 /**
  * 관절 옆에 띄우는 각도.
  *
- * 부위마다 색을 달리해 어느 숫자가 무엇인지 색만 보고 알게 한다. 몸통
- * 기울기(수직 대비)만 좌우가 없어 이름표를 안 붙인다.
+ * 숫자 색은 좌우만 가른다. 어느 관절인지는 숫자가 붙어 있는 자리가 말해 주므로
+ * 부위마다 색을 또 주면 뜻이 겹치고 화면만 알록달록해진다.
  */
 type AngleSpec = {
   /** 각을 재는 세 점 — 가운데가 꼭짓점 */
   a: number;
   v: number;
   b: number;
-  color: string;
 };
 
 const ANGLE_SPECS: AngleSpec[] = [
   /* 팔꿈치 — 어깨·팔꿈치·손목 */
-  { a: LM.leftShoulder, v: LM.leftElbow, b: LM.leftWrist, color: '#f472b6' },
-  { a: LM.rightShoulder, v: LM.rightElbow, b: LM.rightWrist, color: '#f472b6' },
+  { a: LM.leftShoulder, v: LM.leftElbow, b: LM.leftWrist },
+  { a: LM.rightShoulder, v: LM.rightElbow, b: LM.rightWrist },
   /* 어깨 — 팔꿈치·어깨·골반 */
-  { a: LM.leftElbow, v: LM.leftShoulder, b: LM.leftHip, color: '#fb923c' },
-  { a: LM.rightElbow, v: LM.rightShoulder, b: LM.rightHip, color: '#fb923c' },
+  { a: LM.leftElbow, v: LM.leftShoulder, b: LM.leftHip },
+  { a: LM.rightElbow, v: LM.rightShoulder, b: LM.rightHip },
   /* 고관절 — 어깨·골반·무릎 */
-  { a: LM.leftShoulder, v: LM.leftHip, b: LM.leftKnee, color: '#4ade80' },
-  { a: LM.rightShoulder, v: LM.rightHip, b: LM.rightKnee, color: '#4ade80' },
+  { a: LM.leftShoulder, v: LM.leftHip, b: LM.leftKnee },
+  { a: LM.rightShoulder, v: LM.rightHip, b: LM.rightKnee },
   /* 무릎 — 골반·무릎·발목 */
-  { a: LM.leftHip, v: LM.leftKnee, b: LM.leftAnkle, color: '#facc15' },
-  { a: LM.rightHip, v: LM.rightKnee, b: LM.rightAnkle, color: '#facc15' },
+  { a: LM.leftHip, v: LM.leftKnee, b: LM.leftAnkle },
+  { a: LM.rightHip, v: LM.rightKnee, b: LM.rightAnkle },
 ];
 
 /** 세 점이 이루는 각(도). 가운데가 꼭짓점이다. */
@@ -121,33 +124,43 @@ function angleBetween(
 /**
  * 아주 작게 그린다.
  *
- * 관절 열 곳에 숫자가 붙으므로 크면 폼이 안 보인다. 대신 어두운 판을 깔아
- * 밝은 배경(흙·잔디) 위에서도 읽히게 한다.
+ * 관절 열 곳에 숫자가 붙으므로 크면 폼이 안 보인다. 판을 깔지 않고 글자에
+ * 어두운 테두리만 둘러 읽히게 한다 — 판을 깔면 그만큼 몸이 가려진다.
+ *
+ * 관절과 숫자를 가는 선으로 잇는다. 숫자를 몸에서 조금 떼어 놓아야 관절이
+ * 안 가려지는데, 떼어 놓으면 어느 관절 것인지 헷갈린다.
  */
 function angleLabel(
   ctx: CanvasRenderingContext2D,
   text: string,
-  x: number,
-  y: number,
+  jx: number,
+  jy: number,
   color: string,
   scale: number
 ) {
-  const size = Math.max(8, Math.round(9 * scale));
-  ctx.font = `600 ${size}px system-ui, sans-serif`;
+  const size = Math.max(8, Math.round(9.5 * scale));
+  const lead = Math.max(6, 9 * scale);
+  const x = jx + lead;
+  const y = jy - lead;
+
+  ctx.strokeStyle = color;
+  ctx.lineWidth = Math.max(0.6, scale * 0.7);
+  ctx.globalAlpha = 0.55;
+  ctx.beginPath();
+  ctx.moveTo(jx, jy);
+  ctx.lineTo(x - 1, y + 1);
+  ctx.stroke();
+  ctx.globalAlpha = 1;
+
+  ctx.font = `700 ${size}px system-ui, sans-serif`;
   ctx.textAlign = 'left';
   ctx.textBaseline = 'middle';
-
-  const padX = Math.max(2, size * 0.3);
-  const w = ctx.measureText(text).width + padX * 2;
-  const h = size + padX;
-
-  ctx.fillStyle = 'rgba(8, 12, 20, 0.62)';
-  ctx.beginPath();
-  ctx.roundRect(x, y - h / 2, w, h, Math.max(2, size * 0.25));
-  ctx.fill();
-
+  ctx.lineJoin = 'round';
+  ctx.lineWidth = Math.max(2, size * 0.32);
+  ctx.strokeStyle = 'rgba(6, 10, 18, 0.85)';
+  ctx.strokeText(text, x, y);
   ctx.fillStyle = color;
-  ctx.fillText(text, x + padX, y + 0.5);
+  ctx.fillText(text, x, y);
 }
 
 function drawSkeleton(
@@ -212,13 +225,13 @@ function drawSkeleton(
     const b = pts[spec.b];
     if (!a || !v || !b) continue;
     if (Math.min(a.visibility, v.visibility, b.visibility) < QUALITY_THRESHOLD) continue;
-    const side = LEFT_POINTS.has(spec.v) ? 'L' : 'R';
+    const left = LEFT_POINTS.has(spec.v);
     angleLabel(
       ctx,
-      `${side} ${angleBetween(a, v, b)}°`,
-      px(v.x) + r * 1.6,
-      py(v.y) - r * 1.6,
-      spec.color,
+      `${left ? 'L' : 'R'} ${angleBetween(a, v, b)}°`,
+      px(v.x),
+      py(v.y),
+      SIDE_COLOR[left ? 'left' : 'right'],
       scale
     );
   }
@@ -236,12 +249,13 @@ function drawSkeleton(
       const hx = (lh.x + rh.x) / 2;
       const hy = (lh.y + rh.y) / 2;
       const tilt = Math.round(Math.atan2(sx - hx, hy - sy) * (180 / Math.PI));
+      /* 몸통은 좌우가 없다 — 앱의 포인트색(하늘)과도 겹치지 않게 호박색을 쓴다 */
       angleLabel(
         ctx,
         `${tilt}°`,
-        px((sx + hx) / 2) + r * 1.6,
+        px((sx + hx) / 2),
         py((sy + hy) / 2),
-        '#f87171',
+        'rgba(251, 191, 36, 0.95)',
         scale
       );
     }
