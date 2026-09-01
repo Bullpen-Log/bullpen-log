@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from 'react';
 import Link from 'next/link';
-import { ChevronRight, Film } from 'lucide-react';
+import { ChevronDown, ChevronRight, Film } from 'lucide-react';
 import { REST_SESSION_TYPE, SESSION_TYPES } from '@/lib/session-type';
 import type { Log } from './pitch-log-client';
 
@@ -26,9 +26,10 @@ function spokenDate(key: string) {
   return `${m}월 ${d}일 (${WEEKDAYS[new Date(y, m - 1, d).getDay()]})`;
 }
 
-/** 한 해가 넘어가면 연도를 한 번 적어 준다 */
-function yearOf(key: string) {
-  return key.slice(0, 4);
+/** 2026-08-31 → 2026년 8월 */
+function spokenMonth(month: string) {
+  const [y, m] = month.split('-').map(Number);
+  return `${y}년 ${m}월`;
 }
 
 type Filter = 'all' | 'video' | 'hard' | string;
@@ -42,12 +43,13 @@ export function LogList({ logs }: { logs: Log[] }) {
   /* 최근 것부터. 쉰 날도 남긴다 — 언제 쉬었는지도 기록이다. */
   const sorted = useMemo(
     () => [...logs].sort((a, b) => b.date.localeCompare(a.date)),
-    [logs]
+    [logs],
   );
 
   const counts = useMemo(() => {
     const byType = new Map<string, number>();
-    for (const l of logs) byType.set(l.sessionType, (byType.get(l.sessionType) ?? 0) + 1);
+    for (const l of logs)
+      byType.set(l.sessionType, (byType.get(l.sessionType) ?? 0) + 1);
     return {
       all: logs.length,
       video: logs.filter((l) => l.videoPaths.length > 0).length,
@@ -57,25 +59,44 @@ export function LogList({ logs }: { logs: Log[] }) {
   }, [logs]);
 
   /*
-   * 걸러낸 목록에 '여기서 해가 바뀐다'를 미리 붙여 둔다.
+   * 달별로 묶는다.
    *
-   * 앞줄과 견주기만 하고 바깥 값은 안 고친다. 그리는 도중에 값을 고치면
-   * 리액트가 그 순서를 보장하지 않는다.
+   * 몇 해 쓴 기록을 한 번에 쫙 펴면 무엇을 보고 있는지 알 수가 없다. 달 단위가
+   * 사람이 기억하는 단위이기도 하다 — "지난달에 몇 번 던졌더라".
    */
-  const matched = useMemo(() => {
+  const months = useMemo(() => {
     const rows = sorted.filter((l) => {
       if (filter === 'all') return true;
       if (filter === 'video') return l.videoPaths.length > 0;
       if (filter === 'hard') return l.intensity >= HARD_INTENSITY;
       return l.sessionType === filter;
     });
-    return rows.map((log, i) => {
-      const key = log.date.slice(0, 10);
-      const year = yearOf(key);
-      const before = i > 0 ? yearOf(rows[i - 1].date.slice(0, 10)) : null;
-      return { log, key, year, newYear: year !== before };
-    });
+    const map = new Map<string, Log[]>();
+    for (const l of rows) {
+      const m = l.date.slice(0, 7);
+      map.set(m, [...(map.get(m) ?? []), l]);
+    }
+    return [...map.entries()].map(([month, items]) => ({ month, items }));
   }, [sorted, filter]);
+
+  /*
+   * 무엇을 펼쳐 둘 것인가.
+   *
+   * 아무것도 안 골랐으면 가장 최근 달 하나만 편다. 거르기를 고른 뒤에는 걸린
+   * 달을 다 편다 — '영상 있는 날'을 골랐는데 전부 접혀 있으면 아무것도 못 찾은
+   * 것처럼 보인다.
+   */
+  const openByDefault = useMemo(
+    () =>
+      new Set(
+        filter === 'all'
+          ? months.slice(0, 1).map((g) => g.month)
+          : months.map((g) => g.month),
+      ),
+    [months, filter],
+  );
+  const [toggled, setToggled] = useState<Record<string, boolean>>({});
+  const isOpen = (month: string) => toggled[month] ?? openByDefault.has(month);
 
   const chips: { key: Filter; label: string; count: number }[] = [
     { key: 'all', label: '전체', count: counts.all },
@@ -126,64 +147,95 @@ export function LogList({ logs }: { logs: Log[] }) {
         ))}
       </div>
 
-      <ul className="overflow-hidden rounded-2xl border border-line bg-surface">
-        {matched.map(({ log, key, year, newYear }, i) => {
-          const resting = log.sessionType === REST_SESSION_TYPE;
-
+      <div className="overflow-hidden rounded-2xl border border-line bg-surface">
+        {months.map((group, gi) => {
+          const open = isOpen(group.month);
           return (
-            <li key={log.id}>
-              {newYear && (
-                <p className="border-t border-line bg-surface-2 px-5 py-1.5 text-[11px] font-semibold text-muted first:border-t-0">
-                  {year}년
-                </p>
-              )}
-              <Link
-                href={`/pitch-log/${key}`}
-                className={`flex items-center gap-3 px-5 py-3.5 transition-colors hover:bg-surface-2/60 ${
-                  i > 0 && !newYear ? 'border-t border-line' : ''
-                }`}
+            <section
+              key={group.month}
+              className={gi > 0 ? 'border-t border-line' : ''}
+            >
+              <button
+                type="button"
+                onClick={() =>
+                  setToggled((prev) => ({ ...prev, [group.month]: !open }))
+                }
+                aria-expanded={open}
+                className="flex w-full items-center gap-2 bg-surface-2 px-5 py-2.5 text-left transition-colors hover:bg-surface-2/70"
               >
-                <span className="min-w-0 flex-1">
-                  <span className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
-                    <span className="text-[13px] font-semibold text-ink">
-                      {spokenDate(key)}
-                    </span>
-                    <span className="text-xs text-muted">
-                      {resting ? (
-                        '쉬는 날'
-                      ) : (
-                        <>
-                          {log.sessionType} {log.pitchCount}구 · 강도{' '}
-                          {log.intensity}
-                          {log.maxVelocity != null &&
-                            ` · 최고 ${log.maxVelocity}km/h`}
-                        </>
-                      )}
-                    </span>
-                    {log.videoPaths.length > 0 && (
-                      <span className="inline-flex items-center gap-0.5 text-[11px] text-sky-strong">
-                        <Film aria-hidden className="h-3 w-3" />
-                        {log.videoPaths.length}
-                      </span>
-                    )}
-                  </span>
-                  {log.memo && (
-                    <span className="mt-0.5 block truncate text-xs text-muted/70">
-                      {log.memo}
-                    </span>
-                  )}
-                </span>
-                <ChevronRight
+                <ChevronDown
                   aria-hidden
-                  className="h-4 w-4 shrink-0 text-line-strong"
+                  className={`h-3.5 w-3.5 shrink-0 text-muted transition-transform ${
+                    open ? '' : '-rotate-90'
+                  }`}
                 />
-              </Link>
-            </li>
+                <span className="text-[13px] font-semibold text-ink">
+                  {spokenMonth(group.month)}
+                </span>
+                <span className="text-display text-sm leading-none text-muted">
+                  {group.items.length}
+                </span>
+              </button>
+
+              {open && (
+                <ul>
+                  {group.items.map((log, i) => {
+                    const key = log.date.slice(0, 10);
+                    const resting = log.sessionType === REST_SESSION_TYPE;
+                    return (
+                      <li key={log.id}>
+                        <Link
+                          href={`/pitch-log/${key}`}
+                          className={`flex items-center gap-3 px-5 py-3.5 transition-colors hover:bg-surface-2/60 ${
+                            i > 0 ? 'border-t border-line' : ''
+                          }`}
+                        >
+                          <span className="min-w-0 flex-1">
+                            <span className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+                              <span className="text-[13px] font-semibold text-ink">
+                                {spokenDate(key)}
+                              </span>
+                              <span className="text-xs text-muted">
+                                {resting ? (
+                                  '쉬는 날'
+                                ) : (
+                                  <>
+                                    {log.sessionType} {log.pitchCount}구 · 강도{' '}
+                                    {log.intensity}
+                                    {log.maxVelocity != null &&
+                                      ` · 최고 ${log.maxVelocity}km/h`}
+                                  </>
+                                )}
+                              </span>
+                              {log.videoPaths.length > 0 && (
+                                <span className="inline-flex items-center gap-0.5 text-[11px] text-sky-strong">
+                                  <Film aria-hidden className="h-3 w-3" />
+                                  {log.videoPaths.length}
+                                </span>
+                              )}
+                            </span>
+                            {log.memo && (
+                              <span className="mt-0.5 block truncate text-xs text-muted/70">
+                                {log.memo}
+                              </span>
+                            )}
+                          </span>
+                          <ChevronRight
+                            aria-hidden
+                            className="h-4 w-4 shrink-0 text-line-strong"
+                          />
+                        </Link>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+            </section>
           );
         })}
-      </ul>
+      </div>
 
-      {matched.length === 0 && (
+      {months.length === 0 && (
         <p className="rounded-2xl border border-dashed border-line px-4 py-8 text-center text-sm text-muted">
           고른 조건에 맞는 기록이 없습니다.
         </p>
