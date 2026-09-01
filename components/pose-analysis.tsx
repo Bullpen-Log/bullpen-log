@@ -49,12 +49,114 @@ const EVENT_AS: Record<EventKey, string> = {
  */
 const MAX_DRAW_GAP_SECONDS = 0.3;
 
+/*
+ * 좌우를 색으로 가른다.
+ *
+ * 한 가지 색으로 그리면 옆에서 찍은 영상에서 두 팔과 두 다리가 겹쳐 보여
+ * 어느 쪽이 던지는 팔인지 알 수가 없다.
+ */
+const SIDE_COLOR = {
+  left: 'rgba(56, 189, 248, 0.95)',
+  right: 'rgba(251, 146, 60, 0.95)',
+  center: 'rgba(226, 232, 240, 0.9)',
+} as const;
+
+const LEFT_POINTS = new Set<number>([
+  LM.leftShoulder, LM.leftElbow, LM.leftWrist,
+  LM.leftHip, LM.leftKnee, LM.leftAnkle,
+]);
+const RIGHT_POINTS = new Set<number>([
+  LM.rightShoulder, LM.rightElbow, LM.rightWrist,
+  LM.rightHip, LM.rightKnee, LM.rightAnkle,
+]);
+
+function sideOf(a: number, b?: number): keyof typeof SIDE_COLOR {
+  const left = LEFT_POINTS.has(a) && (b == null || LEFT_POINTS.has(b));
+  const right = RIGHT_POINTS.has(a) && (b == null || RIGHT_POINTS.has(b));
+  return left ? 'left' : right ? 'right' : 'center';
+}
+
+/**
+ * 관절 옆에 띄우는 각도.
+ *
+ * 부위마다 색을 달리해 어느 숫자가 무엇인지 색만 보고 알게 한다. 몸통
+ * 기울기(수직 대비)만 좌우가 없어 이름표를 안 붙인다.
+ */
+type AngleSpec = {
+  /** 각을 재는 세 점 — 가운데가 꼭짓점 */
+  a: number;
+  v: number;
+  b: number;
+  color: string;
+};
+
+const ANGLE_SPECS: AngleSpec[] = [
+  /* 팔꿈치 — 어깨·팔꿈치·손목 */
+  { a: LM.leftShoulder, v: LM.leftElbow, b: LM.leftWrist, color: '#f472b6' },
+  { a: LM.rightShoulder, v: LM.rightElbow, b: LM.rightWrist, color: '#f472b6' },
+  /* 어깨 — 팔꿈치·어깨·골반 */
+  { a: LM.leftElbow, v: LM.leftShoulder, b: LM.leftHip, color: '#fb923c' },
+  { a: LM.rightElbow, v: LM.rightShoulder, b: LM.rightHip, color: '#fb923c' },
+  /* 고관절 — 어깨·골반·무릎 */
+  { a: LM.leftShoulder, v: LM.leftHip, b: LM.leftKnee, color: '#4ade80' },
+  { a: LM.rightShoulder, v: LM.rightHip, b: LM.rightKnee, color: '#4ade80' },
+  /* 무릎 — 골반·무릎·발목 */
+  { a: LM.leftHip, v: LM.leftKnee, b: LM.leftAnkle, color: '#facc15' },
+  { a: LM.rightHip, v: LM.rightKnee, b: LM.rightAnkle, color: '#facc15' },
+];
+
+/** 세 점이 이루는 각(도). 가운데가 꼭짓점이다. */
+function angleBetween(
+  a: { x: number; y: number },
+  v: { x: number; y: number },
+  b: { x: number; y: number }
+): number {
+  const a1 = Math.atan2(a.y - v.y, a.x - v.x);
+  const a2 = Math.atan2(b.y - v.y, b.x - v.x);
+  let deg = Math.abs((a1 - a2) * (180 / Math.PI));
+  if (deg > 180) deg = 360 - deg;
+  return Math.round(deg);
+}
+
+/**
+ * 아주 작게 그린다.
+ *
+ * 관절 열 곳에 숫자가 붙으므로 크면 폼이 안 보인다. 대신 어두운 판을 깔아
+ * 밝은 배경(흙·잔디) 위에서도 읽히게 한다.
+ */
+function angleLabel(
+  ctx: CanvasRenderingContext2D,
+  text: string,
+  x: number,
+  y: number,
+  color: string,
+  scale: number
+) {
+  const size = Math.max(8, Math.round(9 * scale));
+  ctx.font = `600 ${size}px system-ui, sans-serif`;
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'middle';
+
+  const padX = Math.max(2, size * 0.3);
+  const w = ctx.measureText(text).width + padX * 2;
+  const h = size + padX;
+
+  ctx.fillStyle = 'rgba(8, 12, 20, 0.62)';
+  ctx.beginPath();
+  ctx.roundRect(x, y - h / 2, w, h, Math.max(2, size * 0.25));
+  ctx.fill();
+
+  ctx.fillStyle = color;
+  ctx.fillText(text, x + padX, y + 0.5);
+}
+
 function drawSkeleton(
   ctx: CanvasRenderingContext2D,
   track: PoseTrack,
   t: number,
   canvasW: number,
-  canvasH: number
+  canvasH: number,
+  showAngles: boolean
 ) {
   const frame = frameAt(track, t);
   if (!frame) return;
@@ -74,7 +176,7 @@ function drawSkeleton(
     const b = pts[end];
     if (!a || !b) continue;
     const ok = Math.min(a.visibility, b.visibility) >= QUALITY_THRESHOLD;
-    ctx.strokeStyle = ok ? 'rgba(94, 234, 212, 0.9)' : 'rgba(252, 165, 165, 0.5)';
+    ctx.strokeStyle = ok ? SIDE_COLOR[sideOf(start, end)] : 'rgba(252, 165, 165, 0.5)';
     ctx.beginPath();
     ctx.moveTo(px(a.x), py(a.y));
     ctx.lineTo(px(b.x), py(b.y));
@@ -88,11 +190,61 @@ function drawSkeleton(
     const p = pts[i];
     ctx.fillStyle =
       p.visibility >= QUALITY_THRESHOLD
-        ? 'rgba(227, 203, 149, 0.95)'
+        ? SIDE_COLOR[sideOf(i)]
         : 'rgba(252, 165, 165, 0.6)';
     ctx.beginPath();
     ctx.arc(px(p.x), py(p.y), r, 0, Math.PI * 2);
     ctx.fill();
+  }
+
+  if (!showAngles) return;
+
+  /*
+   * 각도.
+   *
+   * 인식이 흐린 관절은 숫자를 내지 않는다. 값이 크게 튀는데 화면에는 그럴듯한
+   * 숫자로 보여, 없는 것보다 나쁘다.
+   */
+  const scale = canvasW / 640;
+  for (const spec of ANGLE_SPECS) {
+    const a = pts[spec.a];
+    const v = pts[spec.v];
+    const b = pts[spec.b];
+    if (!a || !v || !b) continue;
+    if (Math.min(a.visibility, v.visibility, b.visibility) < QUALITY_THRESHOLD) continue;
+    const side = LEFT_POINTS.has(spec.v) ? 'L' : 'R';
+    angleLabel(
+      ctx,
+      `${side} ${angleBetween(a, v, b)}°`,
+      px(v.x) + r * 1.6,
+      py(v.y) - r * 1.6,
+      spec.color,
+      scale
+    );
+  }
+
+  /* 몸통 기울기 — 어깨 가운데와 골반 가운데를 잇는 선이 수직에서 얼마나 벗어났나 */
+  const ls = pts[LM.leftShoulder];
+  const rs = pts[LM.rightShoulder];
+  const lh = pts[LM.leftHip];
+  const rh = pts[LM.rightHip];
+  if (ls && rs && lh && rh) {
+    const vis = Math.min(ls.visibility, rs.visibility, lh.visibility, rh.visibility);
+    if (vis >= QUALITY_THRESHOLD) {
+      const sx = (ls.x + rs.x) / 2;
+      const sy = (ls.y + rs.y) / 2;
+      const hx = (lh.x + rh.x) / 2;
+      const hy = (lh.y + rh.y) / 2;
+      const tilt = Math.round(Math.atan2(sx - hx, hy - sy) * (180 / Math.PI));
+      angleLabel(
+        ctx,
+        `${tilt}°`,
+        px((sx + hx) / 2) + r * 1.6,
+        py((sy + hy) / 2),
+        '#f87171',
+        scale
+      );
+    }
   }
 }
 
@@ -194,6 +346,13 @@ export function PoseAnalysis({
 
   const videoRef = useRef<VideoWithFrameCallback>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  /*
+   * 각도를 켜고 끈다.
+   *
+   * 관절 열 곳에 숫자가 붙으므로, 폼 자체를 볼 때는 끄는 편이 낫다. 기본은
+   * 켬이다 — 있는 줄 모르면 안 쓰게 된다.
+   */
+  const [showAngles, setShowAngles] = useState(true);
   const abortRef = useRef<AbortController | null>(null);
 
   const router = useRouter();
@@ -323,8 +482,8 @@ export function PoseAnalysis({
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
     ctx.clearRect(0, 0, w, h);
-    drawSkeleton(ctx, track, video.currentTime, w, h);
-  }, [track]);
+    drawSkeleton(ctx, track, video.currentTime, w, h, showAngles);
+  }, [track, showAngles]);
 
   useEffect(() => {
     if (phase !== 'ready') return;
@@ -435,6 +594,25 @@ export function PoseAnalysis({
           ref={canvasRef}
           className="pointer-events-none absolute inset-0 h-full w-full"
         />
+
+        {/*
+          각도 켜고 끄기.
+
+          영상 위에 둔다 — 숫자를 끄고 싶어지는 순간은 영상을 보고 있을 때다.
+          아래 단추 줄까지 내려가서 찾게 하면 안 쓴다.
+        */}
+        <button
+          type="button"
+          onClick={() => setShowAngles((v) => !v)}
+          aria-pressed={showAngles}
+          className={`absolute top-2 right-2 rounded-lg px-2.5 py-1.5 text-[11px] font-semibold shadow-lg transition-colors ${
+            showAngles
+              ? 'bg-sky text-white'
+              : 'bg-shade/70 text-white/70 hover:text-white'
+          }`}
+        >
+          각도 {showAngles ? '켬' : '끔'}
+        </button>
 
         <button
           type="button"
