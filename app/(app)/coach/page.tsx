@@ -26,6 +26,8 @@ import { AiReportCard, type StoredReport } from './ai-report-card';
 import { ReportClient } from './report-client';
 import { StatsOverview } from './overview';
 import { CoachTabs, readCoachView } from './tabs';
+import { recentReports } from '@/lib/report/history';
+import { PastReports } from './past-reports';
 import { trainingReview, REVIEW_WEEKS } from '@/lib/report/training-review';
 import { TrainingReviewCards } from './training-review';
 
@@ -95,6 +97,15 @@ export default async function ReportPage({
     : logs.length;
   const readiness = reportReadiness(newRecords, latestReport != null);
 
+  /* 지난 리포트 목록 — 리포트 칸을 볼 때만 읽는다 */
+  const past =
+    view === 'report'
+      ? await recentReports(
+          user.id,
+          latestReport ? latestReport.asOf.toISOString().slice(0, 10) : null
+        )
+      : [];
+
   // Json 컬럼은 타입이 없으므로 저장할 때의 모양대로 되돌린다.
   const report: StoredReport | null = latestReport
     ? {
@@ -152,11 +163,15 @@ export default async function ReportPage({
       )}
 
       {view === 'report' && (
-        <AiReportCard
-          report={report}
-          readiness={readiness}
-          aiReady={isAiConfigured()}
-        />
+        <>
+          <AiReportCard
+            report={report}
+            readiness={readiness}
+            aiReady={isAiConfigured()}
+          />
+          {/* 지난 리포트는 최근 셋만 — 목록이 아니라 '요즘 뭐라고 했더라'를 보는 곳이다 */}
+          <PastReports reports={past} />
+        </>
       )}
       {view === 'pitch' && <ReportClient logs={serialized} />}
 

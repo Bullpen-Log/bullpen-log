@@ -128,6 +128,155 @@ function Section({
   );
 }
 
+/**
+ * 리포트 한 편의 본문.
+ *
+ * 오늘 리포트 카드와 지난 리포트 페이지가 같은 것을 그린다. 두 벌로 두면
+ * 한쪽만 고쳐져 같은 리포트가 화면마다 달라 보인다.
+ */
+export function ReportBody({ report }: { report: StoredReport }) {
+  const [showBasis, setShowBasis] = useState(false);
+  const plan = report.plan;
+
+  return (
+    <div className="space-y-5">
+      {/* 통증 등으로 계획을 내지 않은 경우 */}
+      {report?.halted && (
+        <div className="rounded-xl border border-danger-line bg-danger-bg p-5">
+          <p className="flex items-center gap-2 text-sm font-bold text-danger">
+            <AlertTriangle className="h-4 w-4" />
+            투구 계획을 제공하지 않았습니다
+          </p>
+          <p className="mt-2 text-sm leading-relaxed text-danger/80">
+            {report.haltReason}
+          </p>
+        </div>
+      )}
+
+      {/* 정상 리포트 */}
+      {report && !report.halted && report.body && plan && (
+        <>
+          <p className="text-lg font-bold leading-snug text-ink">
+            {report.body.headline}
+          </p>
+
+          {/*
+            해석은 접는다. 한 줄 요약(headline)이 위에 있고, 오늘 무엇을
+            할지는 아래 계획에 있다. 왜 그런지가 궁금할 때만 열면 된다.
+          */}
+          <Section title="지금 상태 해석">
+            <p className="whitespace-pre-wrap text-sm leading-relaxed text-ink/80">
+              {report.body.assessment}
+            </p>
+          </Section>
+
+          {/*
+            코드가 계산한 오늘 안내 — 리포트의 근거.
+
+            예전에는 오늘·내일·모레 사흘치를 그렸다. 다음 경기가 언제인지도
+            모르는 사람에게 모레 계획은 지어낸 이야기였다.
+          */}
+          {plan && (
+            <div className="space-y-2">
+              <p className="text-[11px] font-medium tracking-normal text-muted">
+                오늘 안내
+              </p>
+              <DayRow day={plan.today} />
+            </div>
+          )}
+
+          {plan?.youthNote && (
+            <p className="rounded-xl border border-warn-line bg-warn-bg px-4 py-3 text-xs leading-relaxed text-warn">
+              {plan.youthNote}
+            </p>
+          )}
+
+          {/* 실행 항목 */}
+          <div className="space-y-3">
+            <p className="text-[11px] font-medium tracking-normal text-muted">
+              실행 항목
+            </p>
+            {/*
+              제목은 늘 보이고 이유만 접는다. 무엇을 할지는 한눈에 들어와야
+              하고, 왜 그런지는 물음이 생겼을 때 열면 된다.
+            */}
+            {report.body.actions.map((action, i) => (
+              <details
+                key={i}
+                className="group rounded-xl border border-line bg-surface-2 px-4 py-3"
+              >
+                <summary className="flex cursor-pointer list-none items-start gap-2">
+                  <ChevronDown className="mt-0.5 h-4 w-4 shrink-0 text-muted transition-transform group-open:rotate-180" />
+                  <span className="text-sm font-semibold text-ink">
+                    {action.title}
+                  </span>
+                </summary>
+                <p className="mt-2 pl-6 text-sm leading-relaxed text-muted">
+                  {action.detail}
+                </p>
+              </details>
+            ))}
+          </div>
+
+          {/* 지켜볼 점 — 오늘 당장 할 일은 아니라 접어 둔다 */}
+          {report.body.watchouts.length > 0 && (
+            <Section
+              title="지켜볼 점"
+              hint={`${report.body.watchouts.length}가지`}
+            >
+              <ul className="space-y-1.5">
+                {report.body.watchouts.map((w, i) => (
+                  <li key={i} className="flex gap-2 text-sm leading-relaxed text-muted">
+                    <Minus className="mt-1.5 h-3 w-3 shrink-0 text-sky/60" />
+                    <span>{w}</span>
+                  </li>
+                ))}
+              </ul>
+            </Section>
+          )}
+        </>
+      )}
+
+      {/* 계획이 나온 근거 — 언제든 펼쳐서 검산할 수 있게 한다 */}
+      {plan && plan.basis.length > 0 && (
+        <div className="border-t border-line pt-4">
+          <button
+            type="button"
+            onClick={() => setShowBasis((v) => !v)}
+            aria-expanded={showBasis}
+            className="flex items-center gap-1.5 text-[11px] text-muted transition-colors hover:text-sky"
+          >
+            <ChevronDown
+              className={`h-3.5 w-3.5 transition-transform ${showBasis ? 'rotate-180' : ''}`}
+            />
+            이 계획이 나온 근거
+          </button>
+
+          {showBasis && (
+            <ul className="mt-3 space-y-1.5">
+              {plan.basis.map((b, i) => (
+                <li
+                  key={i}
+                  className="flex gap-2 text-[11px] leading-relaxed text-muted"
+                >
+                  <span className="text-line-strong">·</span>
+                  <span>{b}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
+
+      <p className="text-[11px] leading-relaxed text-muted/60">
+        수치와 계획은 기록에서 규칙으로 계산한 값이고, 문장은 그 수치를 설명한
+        것입니다. 훈련량 관리를 돕는 참고 자료이며 의학적 진단이 아닙니다.
+        통증이 있으면 수치와 관계없이 전문의와 상담하세요.
+      </p>
+    </div>
+  );
+}
+
 export function AiReportCard({
   report,
   readiness,
@@ -142,9 +291,7 @@ export function AiReportCard({
     generateAiReport,
     undefined
   );
-  const [showBasis, setShowBasis] = useState(false);
 
-  const plan = report?.plan;
 
   return (
     <section className="overflow-hidden rounded-2xl border border-line bg-surface">
@@ -221,139 +368,7 @@ export function AiReportCard({
           </p>
         )}
 
-        {/* 통증 등으로 계획을 내지 않은 경우 */}
-        {report?.halted && (
-          <div className="rounded-xl border border-danger-line bg-danger-bg p-5">
-            <p className="flex items-center gap-2 text-sm font-bold text-danger">
-              <AlertTriangle className="h-4 w-4" />
-              투구 계획을 제공하지 않았습니다
-            </p>
-            <p className="mt-2 text-sm leading-relaxed text-danger/80">
-              {report.haltReason}
-            </p>
-          </div>
-        )}
-
-        {/* 정상 리포트 */}
-        {report && !report.halted && report.body && plan && (
-          <>
-            <p className="text-lg font-bold leading-snug text-ink">
-              {report.body.headline}
-            </p>
-
-            {/*
-              해석은 접는다. 한 줄 요약(headline)이 위에 있고, 오늘 무엇을
-              할지는 아래 계획에 있다. 왜 그런지가 궁금할 때만 열면 된다.
-            */}
-            <Section title="지금 상태 해석">
-              <p className="whitespace-pre-wrap text-sm leading-relaxed text-ink/80">
-                {report.body.assessment}
-              </p>
-            </Section>
-
-            {/*
-              코드가 계산한 오늘 안내 — 리포트의 근거.
-
-              예전에는 오늘·내일·모레 사흘치를 그렸다. 다음 경기가 언제인지도
-              모르는 사람에게 모레 계획은 지어낸 이야기였다.
-            */}
-            {plan && (
-              <div className="space-y-2">
-                <p className="text-[11px] font-medium tracking-normal text-muted">
-                  오늘 안내
-                </p>
-                <DayRow day={plan.today} />
-              </div>
-            )}
-
-            {plan?.youthNote && (
-              <p className="rounded-xl border border-warn-line bg-warn-bg px-4 py-3 text-xs leading-relaxed text-warn">
-                {plan.youthNote}
-              </p>
-            )}
-
-            {/* 실행 항목 */}
-            <div className="space-y-3">
-              <p className="text-[11px] font-medium tracking-normal text-muted">
-                실행 항목
-              </p>
-              {/*
-                제목은 늘 보이고 이유만 접는다. 무엇을 할지는 한눈에 들어와야
-                하고, 왜 그런지는 물음이 생겼을 때 열면 된다.
-              */}
-              {report.body.actions.map((action, i) => (
-                <details
-                  key={i}
-                  className="group rounded-xl border border-line bg-surface-2 px-4 py-3"
-                >
-                  <summary className="flex cursor-pointer list-none items-start gap-2">
-                    <ChevronDown className="mt-0.5 h-4 w-4 shrink-0 text-muted transition-transform group-open:rotate-180" />
-                    <span className="text-sm font-semibold text-ink">
-                      {action.title}
-                    </span>
-                  </summary>
-                  <p className="mt-2 pl-6 text-sm leading-relaxed text-muted">
-                    {action.detail}
-                  </p>
-                </details>
-              ))}
-            </div>
-
-            {/* 지켜볼 점 — 오늘 당장 할 일은 아니라 접어 둔다 */}
-            {report.body.watchouts.length > 0 && (
-              <Section
-                title="지켜볼 점"
-                hint={`${report.body.watchouts.length}가지`}
-              >
-                <ul className="space-y-1.5">
-                  {report.body.watchouts.map((w, i) => (
-                    <li key={i} className="flex gap-2 text-sm leading-relaxed text-muted">
-                      <Minus className="mt-1.5 h-3 w-3 shrink-0 text-sky/60" />
-                      <span>{w}</span>
-                    </li>
-                  ))}
-                </ul>
-              </Section>
-            )}
-          </>
-        )}
-
-        {/* 계획이 나온 근거 — 언제든 펼쳐서 검산할 수 있게 한다 */}
-        {plan && plan.basis.length > 0 && (
-          <div className="border-t border-line pt-4">
-            <button
-              type="button"
-              onClick={() => setShowBasis((v) => !v)}
-              aria-expanded={showBasis}
-              className="flex items-center gap-1.5 text-[11px] text-muted transition-colors hover:text-sky"
-            >
-              <ChevronDown
-                className={`h-3.5 w-3.5 transition-transform ${showBasis ? 'rotate-180' : ''}`}
-              />
-              이 계획이 나온 근거
-            </button>
-
-            {showBasis && (
-              <ul className="mt-3 space-y-1.5">
-                {plan.basis.map((b, i) => (
-                  <li
-                    key={i}
-                    className="flex gap-2 text-[11px] leading-relaxed text-muted"
-                  >
-                    <span className="text-line-strong">·</span>
-                    <span>{b}</span>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
-        )}
-
-        <p className="text-[11px] leading-relaxed text-muted/60">
-          수치와 계획은 기록에서 규칙으로 계산한 값이고, 문장은 그 수치를 설명한
-          것입니다. 훈련량 관리를 돕는 참고 자료이며 의학적 진단이 아닙니다.
-          통증이 있으면 수치와 관계없이 전문의와 상담하세요.
-        </p>
+        {report && <ReportBody report={report} />}
       </div>
     </section>
   );
