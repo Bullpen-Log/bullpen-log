@@ -600,12 +600,15 @@ export function PoseAnalysis({
 
           영상 위에 둔다 — 숫자를 끄고 싶어지는 순간은 영상을 보고 있을 때다.
           아래 단추 줄까지 내려가서 찾게 하면 안 쓴다.
+
+          왼쪽 위다. 오른쪽에 두었더니 인식 신뢰도 표시와 겹쳐 둘 다 안 읽혔다.
+          아래 왼쪽은 재생 단추가 쓰고 있다.
         */}
         <button
           type="button"
           onClick={() => setShowAngles((v) => !v)}
           aria-pressed={showAngles}
-          className={`absolute top-2 right-2 rounded-lg px-2.5 py-1.5 text-[11px] font-semibold shadow-lg transition-colors ${
+          className={`absolute top-2 left-2 rounded-lg px-2.5 py-1.5 text-[11px] font-semibold shadow-lg transition-colors ${
             showAngles
               ? 'bg-sky text-white'
               : 'bg-shade/70 text-white/70 hover:text-white'
