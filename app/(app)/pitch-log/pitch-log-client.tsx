@@ -71,6 +71,14 @@ export function PitchLogClient({
   /* 갤러리에서 두 개를 골라 들어오면 그 둘로 비교 화면을 연다 */
   const [preset, setPreset] = useState<{ a: string; b: string } | null>(null);
   const [error, setError] = useState<string>();
+  /*
+   * 2분할 비교는 두 걸음이다 — 고르고, 견준다.
+   *
+   * 예전에는 단추를 누르면 곧장 비교 화면이 열렸고, 거기서 가장 예전 것과 가장
+   * 최근 것이 멋대로 짝지어져 있었다. 대개는 그 둘이 아니라서 들어가자마자
+   * 목록을 두 번 열어 다시 골라야 했다. 이제 단추는 영상 칸으로 데려가고,
+   * 거기서 썸네일을 보며 둘을 고른 뒤에 견주는 화면으로 넘어간다.
+   */
   const [comparing, setComparing] = useState(false);
   /*
    * 이미 받아 온 달들. 처음 받아 온 범위(loadedFrom 이후)는 통째로 있는 것으로
@@ -224,7 +232,7 @@ export function PitchLogClient({
               onClick={() => setComparing(false)}
               className="rounded-lg border border-line-strong px-3 py-1.5 text-xs font-semibold text-ink transition-colors hover:border-sky hover:text-sky"
             >
-              달력으로 돌아가기
+              영상 고르기로
             </button>
           }
         />
@@ -243,14 +251,17 @@ export function PitchLogClient({
             ? '날짜를 누르면 그날 화면으로 넘어갑니다. 기록이 없는 날도 눌러서 남길 수 있습니다.'
             : view === 'list'
               ? '최근 기록부터 봅니다. 위에서 걸러 영상 있는 날이나 경기 날만 볼 수 있습니다.'
-              : '올린 투구 영상을 달별로 모아 봅니다. 두 개를 고르면 바로 나란히 견줄 수 있습니다.'
+              : '올린 투구 영상을 달별로 모아 봅니다. 두 개를 고르면 아래에서 바로 나란히 견줄 수 있습니다.'
         }
         action={
-          // 2분할 비교는 영상이 두 개 이상 있어야 뜻이 있다.
-          clips.length >= 2 ? (
+          /*
+            2분할 비교는 영상이 두 개 이상 있어야 뜻이 있다.
+            영상 칸에 이미 고르는 자리가 있으므로 거기서는 안 낸다.
+          */
+          clips.length >= 2 && view !== 'gallery' ? (
             <button
               type="button"
-              onClick={() => setComparing(true)}
+              onClick={() => setView('gallery')}
               className="rounded-lg border border-line-strong px-3 py-1.5 text-xs font-semibold text-ink transition-colors hover:border-sky hover:text-sky"
             >
               2분할 비교

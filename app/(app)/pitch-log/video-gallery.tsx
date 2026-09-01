@@ -78,7 +78,7 @@ export function VideoGallery({
     () =>
       logs
         .filter(
-          (l) => l.videoPaths.length > 0 && l.sessionType !== REST_SESSION_TYPE
+          (l) => l.videoPaths.length > 0 && l.sessionType !== REST_SESSION_TYPE,
         )
         .flatMap((log) =>
           log.videoPaths.map((path, i) => ({
@@ -97,14 +97,15 @@ export function VideoGallery({
             pitchCount: log.pitchCount,
             intensity: log.intensity,
             maxVelocity: log.maxVelocity,
-          }))
+          })),
         ),
-    [logs]
+    [logs],
   );
 
   const counts = useMemo(() => {
     const byType = new Map<string, number>();
-    for (const c of clips) byType.set(c.sessionType, (byType.get(c.sessionType) ?? 0) + 1);
+    for (const c of clips)
+      byType.set(c.sessionType, (byType.get(c.sessionType) ?? 0) + 1);
     return byType;
   }, [clips]);
 
@@ -119,14 +120,17 @@ export function VideoGallery({
 
   /* 달별로 묶는다 — 정렬을 골랐어도 달 안에서만 순서가 바뀐다 */
   const months = useMemo(() => {
-    const rows = clips.filter((c) => filter === 'all' || c.sessionType === filter);
+    const rows = clips.filter(
+      (c) => filter === 'all' || c.sessionType === filter,
+    );
     const map = new Map<string, Clip[]>();
     for (const c of rows) {
       const m = c.date.slice(0, 7);
       map.set(m, [...(map.get(m) ?? []), c]);
     }
     const cmp = (a: Clip, b: Clip) => {
-      if (sort === 'velocity') return (b.maxVelocity ?? -1) - (a.maxVelocity ?? -1);
+      if (sort === 'velocity')
+        return (b.maxVelocity ?? -1) - (a.maxVelocity ?? -1);
       if (sort === 'intensity') return b.intensity - a.intensity;
       return b.date.localeCompare(a.date);
     };
@@ -137,7 +141,7 @@ export function VideoGallery({
 
   const openByDefault = useMemo(
     () => new Set(months.slice(0, 1).map((g) => g.month)),
-    [months]
+    [months],
   );
   const isOpen = (month: string) => toggled[month] ?? openByDefault.has(month);
 
@@ -148,7 +152,7 @@ export function VideoGallery({
         .filter((g) => isOpen(g.month))
         .flatMap((g) => g.items.map((c) => c.path)),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [months, toggled, openByDefault]
+    [months, toggled, openByDefault],
   );
   const { urls } = usePlaybackUrls(visiblePaths);
 
@@ -177,10 +181,11 @@ export function VideoGallery({
   }
 
   return (
-    <div className="space-y-3 pb-24">
+    <div className={clips.length >= 2 ? 'space-y-3 pb-24' : 'space-y-3'}>
       <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
         <p className="text-sm font-bold text-ink">
-          투구 영상 <span className="text-display text-base">{clips.length}</span>개
+          투구 영상{' '}
+          <span className="text-display text-base">{clips.length}</span>개
         </p>
         <span className="ml-auto flex flex-wrap gap-1.5">
           {SORTS.map((s) => (
@@ -235,7 +240,9 @@ export function VideoGallery({
           >
             <button
               type="button"
-              onClick={() => setToggled((prev) => ({ ...prev, [group.month]: !open }))}
+              onClick={() =>
+                setToggled((prev) => ({ ...prev, [group.month]: !open }))
+              }
               aria-expanded={open}
               className="flex w-full items-center gap-2 px-5 py-3 text-left transition-colors hover:bg-surface-2"
             >
@@ -262,7 +269,9 @@ export function VideoGallery({
                     <li key={clip.id}>
                       <div
                         className={`overflow-hidden rounded-xl border transition-colors ${
-                          slot >= 0 ? 'border-sky ring-1 ring-sky' : 'border-line'
+                          slot >= 0
+                            ? 'border-sky ring-1 ring-sky'
+                            : 'border-line'
                         }`}
                       >
                         <button
@@ -285,7 +294,10 @@ export function VideoGallery({
                             />
                           ) : (
                             <span className="flex aspect-video w-full items-center justify-center bg-surface-2">
-                              <Film aria-hidden className="h-6 w-6 text-line-strong" />
+                              <Film
+                                aria-hidden
+                                className="h-6 w-6 text-line-strong"
+                              />
                             </span>
                           )}
 
@@ -306,7 +318,9 @@ export function VideoGallery({
                               {clip.label !== '영상' && ` · ${clip.label}`}
                             </span>
                           </p>
-                          <p className="text-[11px] text-muted">{clip.summary}</p>
+                          <p className="text-[11px] text-muted">
+                            {clip.summary}
+                          </p>
                           <Link
                             href={`/pitch-log/${clip.date}`}
                             className="inline-block text-[11px] font-medium text-sky transition-colors hover:text-sky-strong"
@@ -324,48 +338,60 @@ export function VideoGallery({
         );
       })}
 
-      {/* 고른 두 개 — 아래에 붙여 둔다. 위로 올라가 확인하지 않아도 되게. */}
-      <div className="fixed inset-x-0 bottom-16 z-30 px-4 sm:bottom-4">
-        <div className="mx-auto flex max-w-3xl flex-wrap items-center gap-2 rounded-2xl border border-line-strong bg-surface px-4 py-3 shadow-2xl">
-          {[0, 1].map((i) => {
-            const p = picked[i];
-            return (
-              <span
-                key={i}
-                className={`inline-flex min-w-0 items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs ${
-                  p ? 'border-sky bg-sky-tint text-sky-strong' : 'border-dashed border-line text-muted'
-                }`}
-              >
-                <span className="font-bold">{i === 0 ? 'A' : 'B'}</span>
-                <span className="min-w-0 truncate">
-                  {p ? spokenDate(p.date) : '비어 있음'}
+      {/*
+        고른 두 개 — 아래에 붙여 둔다. 위로 올라가 확인하지 않아도 되게.
+        영상이 하나뿐이면 견줄 것이 없으므로 아예 안 낸다.
+      */}
+      {clips.length >= 2 && (
+        <div className="fixed inset-x-0 bottom-16 z-30 px-4 sm:bottom-4">
+          <div className="mx-auto flex max-w-3xl flex-wrap items-center gap-2 rounded-2xl border border-line-strong bg-surface px-4 py-3 shadow-2xl">
+            {[0, 1].map((i) => {
+              const p = picked[i];
+              return (
+                <span
+                  key={i}
+                  className={`inline-flex min-w-0 items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs ${
+                    p
+                      ? 'border-sky bg-sky-tint text-sky-strong'
+                      : 'border-dashed border-line text-muted'
+                  }`}
+                >
+                  <span className="font-bold">{i === 0 ? 'A' : 'B'}</span>
+                  <span className="min-w-0 truncate">
+                    {p ? spokenDate(p.date) : '비어 있음'}
+                  </span>
+                  {p && (
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setPicked((prev) =>
+                          prev.map((x, j) => (j === i ? null : x)),
+                        )
+                      }
+                      aria-label={`${i === 0 ? 'A' : 'B'}면 비우기`}
+                      className="shrink-0 rounded p-0.5 transition-colors hover:text-danger"
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  )}
                 </span>
-                {p && (
-                  <button
-                    type="button"
-                    onClick={() => setPicked((prev) => prev.map((x, j) => (j === i ? null : x)))}
-                    aria-label={`${i === 0 ? 'A' : 'B'}면 비우기`}
-                    className="shrink-0 rounded p-0.5 transition-colors hover:text-danger"
-                  >
-                    <X className="h-3 w-3" />
-                  </button>
-                )}
-              </span>
-            );
-          })}
+              );
+            })}
 
-          <button
-            type="button"
-            disabled={!ready}
-            onClick={() => {
-              if (picked[0] && picked[1]) onCompare(picked[0].id, picked[1].id);
-            }}
-            className="ml-auto rounded-lg bg-sky px-3.5 py-2 text-xs font-semibold text-white transition-colors hover:bg-sky-strong disabled:cursor-not-allowed disabled:bg-line-strong"
-          >
-            {ready ? '비교하기' : '두 개를 고르세요'}
-          </button>
+            <button
+              type="button"
+              disabled={!ready}
+              onClick={() => {
+                if (picked[0] && picked[1])
+                  onCompare(picked[0].id, picked[1].id);
+              }}
+              className="ml-auto rounded-lg bg-sky px-3.5 py-2 text-xs font-semibold text-white transition-colors hover:bg-sky-strong disabled:cursor-not-allowed disabled:bg-line-strong"
+            >
+              {ready ? '비교하기' : '두 개를 고르세요'}
+            </button>
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }
