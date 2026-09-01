@@ -57,6 +57,16 @@ function DayRow({ day }: { day: DayPlan }) {
         {day.dateKey.slice(5)}
       </span>
 
+      {/*
+        회복 투구는 던지는 날이지만 전력으로 던지는 날이 아니다. 숫자만 보면
+        평소 계획과 구별이 안 되므로 표를 하나 붙인다.
+      */}
+      {day.recovery && (
+        <span className="shrink-0 rounded bg-sky-tint px-1.5 py-0.5 text-[10px] font-semibold text-sky-strong">
+          회복
+        </span>
+      )}
+
       {day.throwing ? (
         <span className="flex items-baseline gap-1.5">
           <Sun className="h-3.5 w-3.5 self-center text-sky" />

@@ -65,28 +65,74 @@ export function requiredRestDays(pitches: number) {
 }
 
 /**
- * 마지막 등판에서 아직 남은 휴식일.
+ * 한 등판이 요구하는 휴식일.
  *
- * 0 이면 다 쉬었다는 뜻이고, 1 이상이면 아직 등판 여파 안에 있다는 뜻이다.
- * 던진 기록이 없으면 0 이다.
+ * 강도는 선수가 직접 매기는 값이라 낮게 적으면 휴식일이 줄어든다. 그리고
+ * 계수의 근거가 있는 구간은 강도 5~10뿐이다. 그래서 양 자체로 거는 바닥선을
+ * 하나 둔다 — 아무리 가볍게 던졌어도 하루에 이만큼을 던졌으면 하루는 쉰다.
+ */
+function restFor(pitches: number, adjusted: number): number {
+  return Math.max(
+    requiredRestDays(Math.round(adjusted)),
+    pitches >= HIGH_VOLUME_PITCHES ? HIGH_VOLUME_MIN_REST : 0
+  );
+}
+
+/** 아직 여파가 남은 등판 */
+export type PendingOuting = {
+  /** 전력 등판까지 남은 날 수 */
+  left: number;
+  /** 그 등판으로부터 며칠 지났는가 */
+  elapsed: number;
+  pitches: number;
+};
+
+/**
+ * 아직 여파가 남은 등판 중 가장 오래 쉬어야 하는 것.
+ *
+ * 마지막 등판 하나만 보면 안 된다. 100구 경기 이틀 뒤 가벼운 캐치볼 25구가
+ * '마지막 등판'이 되면 전력 환산 18구라 필요한 휴식이 0일이 되고, 경기의
+ * 4일 창이 통째로 사라진다. 회복 투구를 성실히 한 사람일수록 안전장치가
+ * 꺼지는 셈이었다.
+ *
+ * @param offset 오늘로부터 며칠 뒤를 볼 것인가 (0=오늘, 1=내일)
+ */
+export function pendingOuting(
+  patterns: ReportFacts['patterns'],
+  offset = 0
+): PendingOuting | null {
+  /* 옛 기록에는 목록이 없다. 그때는 마지막 등판 하나로 본다. */
+  const outings = patterns.recentOutings ?? [
+    {
+      daysAgo: patterns.restDays ?? 99,
+      pitches: patterns.lastOutingPitches ?? 0,
+      adjusted: patterns.lastOutingAdjusted ?? patterns.lastOutingPitches ?? 0,
+    },
+  ];
+
+  let worst: PendingOuting | null = null;
+  for (const o of outings) {
+    const elapsed = o.daysAgo + offset;
+    const left = restFor(o.pitches, o.adjusted) - elapsed;
+    if (left > 0 && (worst == null || left > worst.left)) {
+      worst = { left, elapsed, pitches: o.pitches };
+    }
+  }
+  return worst;
+}
+
+/**
+ * 아직 남은 휴식일. 0 이면 전력으로 던져도 된다는 뜻이다.
  *
  * 투구 계획과 훈련 구성이 같은 값을 봐야 해서 여기 둔다. 각자 계산하면
  * 언젠가 어긋난다 — 투구는 "오늘은 쉬세요"라는데 훈련은 하체 스트렝스를
  * 내주는 식이다.
  */
-export function remainingRestDays(patterns: ReportFacts['patterns']): number {
-  const lastOuting = patterns.lastOutingPitches ?? 0;
-  const lastAdjusted = Math.round(patterns.lastOutingAdjusted ?? lastOuting);
-  /*
-   * 강도는 선수가 직접 매기는 값이라 낮게 적으면 휴식일이 줄어든다. 그리고
-   * 계수의 근거가 있는 구간은 강도 5~10뿐이다. 그래서 양 자체로 거는 바닥선을
-   * 하나 둔다 — 아무리 가볍게 던졌어도 하루에 이만큼을 던졌으면 하루는 쉰다.
-   */
-  const needRest = Math.max(
-    requiredRestDays(lastAdjusted),
-    lastOuting >= HIGH_VOLUME_PITCHES ? HIGH_VOLUME_MIN_REST : 0
-  );
-  return Math.max(0, needRest - (patterns.restDays ?? 99));
+export function remainingRestDays(
+  patterns: ReportFacts['patterns'],
+  offset = 0
+): number {
+  return pendingOuting(patterns, offset)?.left ?? 0;
 }
 
 /** 부하 구간별 조절 계수 — 평소 투구수에 곱한다. */
@@ -124,6 +170,8 @@ export type DayPlan = {
   /** 오늘 / 내일 */
   label: string;
   throwing: boolean;
+  /** 큰 등판의 여파 안에서 가볍게 던지는 날인가 */
+  recovery?: boolean;
   /**
    * 던지는 날의 권장 범위. 쉬는 날이면 전부 null.
    *
@@ -151,6 +199,36 @@ export const RANGE_FLOOR = 0.7;
 
 /** 강도 범위의 폭 */
 export const INTENSITY_SPAN = 2;
+
+/**
+ * 회복 기간에도 가볍게는 던진다.
+ *
+ * 휴식일 표(Pitch Smart)는 전력 등판과 전력 등판 사이의 간격이지, 그사이에
+ * 아무것도 던지지 말라는 표가 아니다. 실제 복귀 프로그램은 등판 다음 날부터
+ * 가벼운 캐치볼을 넣는다 — 나흘을 통째로 멈춰 두는 것이 오히려 회복을 늦추고,
+ * 무엇보다 선수가 그 말을 안 듣는다. 안 들을 안내를 내면 기록도 같이 끊긴다.
+ *
+ * 등판 바로 다음 날만 완전히 쉰다. 어깨가 가장 부은 날이다.
+ */
+export const RECOVERY_FULL_REST_DAYS = 1;
+
+/**
+ * 회복 며칠째에 평소의 몇 퍼센트까지 던지는가. 마지막 값이 그 뒤로 계속 쓰인다.
+ */
+export const RECOVERY_VOLUME = [0.5, 0.7] as const;
+
+/** 회복 투구의 강도 상한. 날이 갈수록 한 칸 올린다. */
+export const RECOVERY_INTENSITY = [5, 6] as const;
+
+/**
+ * 회복 투구 강도의 바닥.
+ *
+ * 평소 계획은 4 아래로 내려가지 않는다(환산 계수의 근거가 없는 구간이라).
+ * 회복 투구는 '가벼운 캐치볼'이 정확히 그 구간이라 3까지 연다. 근거가 없는
+ * 구간의 계수는 보수적으로(높게) 잡아 두었으므로, 그렇게 던져도 부하는
+ * 실제보다 많이 세어진다 — 안전한 방향으로 틀린다.
+ */
+export const RECOVERY_MIN_INTENSITY = 3;
 
 /**
  * 강도 아래끝의 바닥.
@@ -255,6 +333,7 @@ function restDay(dateKey: string, label: string, reason: string): DayPlan {
     dateKey,
     label,
     throwing: false,
+    recovery: false,
     minPitches: null,
     maxPitches: null,
     minIntensity: null,
@@ -360,10 +439,7 @@ export function buildPitchPlan(facts: ReportFacts): PitchPlan {
   const lastOuting = patterns.lastOutingPitches ?? 0;
   const lastAdjusted = Math.round(patterns.lastOutingAdjusted ?? lastOuting);
 
-  const needRest = Math.max(
-    requiredRestDays(lastAdjusted),
-    lastOuting >= HIGH_VOLUME_PITCHES ? HIGH_VOLUME_MIN_REST : 0
-  );
+  const needRest = restFor(lastOuting, lastAdjusted);
   const restedSoFar = patterns.restDays ?? 99;
 
   if (needRest > 0 && patterns.lastThrowDate) {
@@ -373,7 +449,7 @@ export function buildPitchPlan(facts: ReportFacts): PitchPlan {
         ? `${lastOuting}구`
         : `${lastOuting}구(전력 환산 ${lastAdjusted}구)`;
     basis.push(
-      `마지막 등판 ${amount} → 휴식 ${needRest}일 필요 (경과 ${restedSoFar}일)`
+      `마지막 등판 ${amount} → 전력 등판까지 ${needRest}일 (경과 ${restedSoFar}일). 그사이에도 가볍게는 던집니다`
     );
   }
 
@@ -456,13 +532,47 @@ export function buildPitchPlan(facts: ReportFacts): PitchPlan {
    * 내일을 낮춰 두면, 오늘 쉬고 내일 던지려는 사람에게 근거 없이 적은 숫자를
    * 주게 된다.
    */
-  const dayFor = (dateKey: string, label: string, rested: number): DayPlan => {
+  const dayFor = (dateKey: string, label: string, offset: number): DayPlan => {
     if (needsPainCheck) {
       return restDay(dateKey, label, '메모의 통증 표현 확인 필요');
     }
-    if (needRest - rested > 0) {
-      return restDay(dateKey, label, `마지막 등판(${lastOuting}구) 회복 중`);
+
+    /*
+     * 아직 큰 등판의 여파 안이면 가볍게 던진다.
+     *
+     * 등판 바로 다음 날만 완전히 쉰다. 그 뒤로는 평소의 절반에서 시작해 조금씩
+     * 올린다 — 나흘을 통째로 멈추는 것보다 이쪽이 실제 복귀 프로그램에 가깝고,
+     * 무엇보다 선수가 지킬 수 있는 안내다. 안 지킬 안내를 내면 기록도 같이
+     * 끊긴다.
+     */
+    const pending = pendingOuting(patterns, offset);
+    if (pending) {
+      if (pending.elapsed <= RECOVERY_FULL_REST_DAYS) {
+        return restDay(
+          dateKey,
+          label,
+          `${pending.pitches}구 등판 다음 날 — 오늘은 완전히 쉽니다`
+        );
+      }
+      const step = Math.min(
+        pending.elapsed - RECOVERY_FULL_REST_DAYS - 1,
+        RECOVERY_VOLUME.length - 1
+      );
+      const light = pitchRange(Math.round(target * RECOVERY_VOLUME[step]));
+      const ceiling = Math.min(RECOVERY_INTENSITY[step], adj.maxIntensity);
+      return {
+        dateKey,
+        label,
+        throwing: true,
+        recovery: true,
+        minPitches: light.min,
+        maxPitches: light.max,
+        minIntensity: Math.max(RECOVERY_MIN_INTENSITY, ceiling - INTENSITY_SPAN),
+        maxIntensity: ceiling,
+        reason: `${pending.pitches}구 등판 회복 중(${pending.elapsed}일째) — 가볍게 던지며 풉니다`,
+      };
     }
+
     const pitches = pitchRange(target);
     return {
       dateKey,
@@ -487,8 +597,8 @@ export function buildPitchPlan(facts: ReportFacts): PitchPlan {
     recovering,
     needsPainCheck,
     threwToday,
-    today: threwToday ? null : dayFor(facts.asOf, TODAY_LABEL, restedSoFar),
-    tomorrow: dayFor(nextDayKey(facts.asOf), TOMORROW_LABEL, restedSoFar + 1),
+    today: threwToday ? null : dayFor(facts.asOf, TODAY_LABEL, 0),
+    tomorrow: dayFor(nextDayKey(facts.asOf), TOMORROW_LABEL, 1),
     basis,
     youthNote,
   };

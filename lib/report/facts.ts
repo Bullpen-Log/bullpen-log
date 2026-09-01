@@ -112,6 +112,15 @@ export type ReportFacts = {
     restDays: number | null;
     /** 던진 날 기준 하루 평균 투구수 (최근 4주). 계획의 기준선이 된다 */
     baselinePitches: number | null;
+    /**
+     * 최근에 던진 날들. 가까운 것부터.
+     *
+     * 마지막 등판 하나만 봐서는 여파를 놓친다. 100구 경기 이틀 뒤에 가벼운
+     * 캐치볼을 25구 하면 그것이 '마지막 등판'이 되는데, 전력 환산 18구라
+     * 필요한 휴식이 0일로 계산되어 경기의 4일 창이 통째로 사라진다. 회복 투구를
+     * 성실히 한 사람일수록 안전장치가 꺼지는 셈이었다.
+     */
+    recentOutings: { daysAgo: number; pitches: number; adjusted: number }[];
   };
   condition: {
     today: CheckinLike | null;
@@ -134,6 +143,14 @@ function changeRate(current: number, previous: number): number | null {
   if (previous <= 0) return null;
   return ((current - previous) / previous) * 100;
 }
+
+/**
+ * 등판의 여파를 며칠까지 기억하는가.
+ *
+ * 휴식일 표의 최댓값이 4일이라 이레면 넉넉하다. 더 길게 들고 있어도 쓰이지
+ * 않고, 짧으면 큰 등판이 목록에서 빠져 창이 사라진다.
+ */
+const OUTING_MEMORY_DAYS = 7;
 
 function daysBetween(fromKey: string, toKey: string) {
   const [fy, fm, fd] = fromKey.split('-').map(Number);
@@ -226,6 +243,15 @@ export function buildFacts({
         : null,
       restDays: lastThrowDate ? daysBetween(lastThrowDate, asOf) : null,
       baselinePitches: month.activeDays ? Math.round(month.pitchesPerActiveDay) : null,
+      recentOutings: [...byDay.entries()]
+        .filter(([, d]) => d.pitchCount > 0)
+        .map(([key, d]) => ({
+          daysAgo: daysBetween(key, asOf),
+          pitches: d.pitchCount,
+          adjusted: d.adjustedPitches,
+        }))
+        .filter((o) => o.daysAgo >= 0 && o.daysAgo <= OUTING_MEMORY_DAYS)
+        .sort((a, b) => a.daysAgo - b.daysAgo),
     },
     condition: {
       today: todayCheckin,

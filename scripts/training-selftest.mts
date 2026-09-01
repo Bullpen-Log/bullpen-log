@@ -33,6 +33,7 @@ import {
 import {
   buildPitchPlan,
   intensityRangeText,
+  pendingOuting,
   pitchRangeText,
   readPitchPlan,
   requiredRestDays,
@@ -1033,6 +1034,109 @@ console.log('\n[리포트 주기] 하루에 한 번인가');
     '멈췄어도 오늘 만든 것은 만든 것으로 센다',
     halted.madeToday,
     String(halted.madeToday)
+  );
+}
+
+console.log('\n[등판 회복] 쉬는 동안에도 가볍게 던지게 하는가');
+{
+  /*
+   * 휴식일 표(Pitch Smart)는 전력 등판 사이의 간격이지 "아무것도 던지지 마라"가
+   * 아니다. 나흘을 통째로 멈추라고 하면 선수는 그 말을 안 듣고, 안 들은 만큼
+   * 기록도 같이 끊긴다.
+   */
+  const facts = (outings: { daysAgo: number; pitches: number; adjusted: number }[]) =>
+    ({
+      asOf: '2026-09-01',
+      profile: { nickname: '테스트', age: 21, heightCm: 180, trainingLevel: null },
+      volume: {
+        current: { totalPitches: 200, maxDailyPitches: 100, days: 3, adjusted: 190 },
+        previous: { totalPitches: 180, maxDailyPitches: 60, days: 3, adjusted: 160 },
+        changePercent: 11,
+      },
+      load: { ratio: 1.0, zone: 'optimal', acute: 30, chronic: 30, days: 28 },
+      patterns: {
+        fatigueWindows: 0,
+        longestStreak: 1,
+        missingDays: 0,
+        lastThrowDate: '2026-08-30',
+        lastOutingPitches: outings[0].pitches,
+        lastOutingAdjusted: outings[0].adjusted,
+        restDays: outings[0].daysAgo,
+        baselinePitches: 54,
+        recentOutings: outings,
+      },
+      condition: {
+        today: null,
+        painToday: false,
+        painRecently: false,
+        painWordsInMemo: [],
+        avgCondition: 7,
+        poorSleepDays: 0,
+        checkinDays: 5,
+      },
+      memos: [],
+    }) as unknown as Parameters<typeof buildPitchPlan>[0];
+
+  /** 100구 경기를 daysAgo 일 전에 던졌다 */
+  const game = (daysAgo: number) => [{ daysAgo, pitches: 100, adjusted: 100 }];
+
+  const nextDay = buildPitchPlan(facts(game(1))).today!;
+  check('등판 바로 다음 날은 완전히 쉰다', !nextDay.throwing, nextDay.reason);
+
+  const second = buildPitchPlan(facts(game(2))).today!;
+  check(
+    '이틀째부터는 가볍게 던진다',
+    second.throwing && second.recovery === true,
+    pitchRangeText(second) + ' · ' + intensityRangeText(second)
+  );
+
+  const third = buildPitchPlan(facts(game(3))).today!;
+  check(
+    '사흘째는 이틀째보다 더 던진다',
+    third.maxPitches! > second.maxPitches! &&
+      third.maxIntensity! > second.maxIntensity!,
+    pitchRangeText(third) + ' · ' + intensityRangeText(third)
+  );
+
+  const full = buildPitchPlan(facts(game(4))).today!;
+  check(
+    '창이 끝나면 정상 계획으로 돌아온다',
+    full.throwing && !full.recovery && full.maxPitches! > third.maxPitches!,
+    pitchRangeText(full) + ' · ' + intensityRangeText(full)
+  );
+
+  check(
+    '회복 투구는 평소 계획보다 적고 가볍다',
+    second.maxPitches! < full.maxPitches! && second.maxIntensity! < full.maxIntensity!,
+    `회복 ${pitchRangeText(second)} < 평소 ${pitchRangeText(full)}`
+  );
+
+  /*
+   * 가벼운 캐치볼이 큰 등판의 창을 지우면 안 된다.
+   *
+   * 마지막 등판 하나만 보던 때에는, 100구 경기 이틀 뒤 캐치볼 25구(전력 환산
+   * 18구)가 '마지막 등판'이 되어 필요한 휴식이 0일로 떨어졌다. 회복 투구를
+   * 성실히 한 사람일수록 안전장치가 꺼졌다.
+   */
+  const afterCatch = [
+    { daysAgo: 1, pitches: 25, adjusted: 18 },
+    { daysAgo: 3, pitches: 100, adjusted: 100 },
+  ];
+  const kept = pendingOuting(facts(afterCatch).patterns, 0);
+  check(
+    '가벼운 캐치볼이 100구 등판의 창을 지우지 않는다',
+    kept != null && kept.pitches === 100 && kept.left === 1,
+    kept ? `${kept.pitches}구 기준, ${kept.left}일 남음` : '창이 사라졌다'
+  );
+
+  const keptPlan = buildPitchPlan(facts(afterCatch)).today!;
+  check('그날도 회복 투구로 낸다', keptPlan.recovery === true, keptPlan.reason);
+
+  /* 창이 없으면 아무것도 안 걸린다 */
+  check(
+    '여파가 없으면 걸리는 등판이 없다',
+    pendingOuting(facts([{ daysAgo: 5, pitches: 30, adjusted: 25 }]).patterns) == null,
+    '없음'
   );
 }
 

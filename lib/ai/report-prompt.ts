@@ -58,6 +58,9 @@ export const SYSTEM_PROMPT = `당신은 야구 투수의 훈련 부하를 관리
    범위 안 어디쯤이 좋을지는 그날 컨디션과 부하로 설명해도 됩니다.
 2-2. 계획에 오늘이 없으면(이미 던진 날) 오늘 몇 구를 던지라고 쓰지 마세요.
    이미 벌어진 일입니다. 내일 이야기를 하세요.
+2-3. '회복 투구'로 표시된 날은 큰 등판의 여파 안에서 가볍게 던지는 날입니다.
+   전력으로 던지는 날이 아니라고 밝히세요. 그렇다고 "쉬세요"라고 쓰지도
+   마세요 — 가볍게 던지며 푸는 것이 계획입니다.
 3. 계획이 투구량을 줄이라고 하면 늘리거나 유지하라고 쓰지 마세요. 그 반대도 마찬가지입니다.
 4. 진단하지 마세요. 부상명·질환명을 추측하거나 언급하지 않습니다.
 5. 통증이 언급되면 훈련 조언 대신 휴식과 전문의 상담을 안내하세요.
@@ -84,9 +87,9 @@ export const SYSTEM_PROMPT = `당신은 야구 투수의 훈련 부하를 관리
 /** 계획 한 줄 — 던지는 날은 범위로, 쉬는 날은 까닭만. */
 function planLine(day: DayPlan): string {
   const head = `- ${day.label}(${day.dateKey})`;
-  return day.throwing
-    ? `${head}: 투구 가능, ${pitchRangeText(day)}, ${intensityRangeText(day)} — ${day.reason}`
-    : `${head}: 휴식 — ${day.reason}`;
+  if (!day.throwing) return `${head}: 휴식 — ${day.reason}`;
+  const kind = day.recovery ? '회복 투구' : '투구 가능';
+  return `${head}: ${kind}, ${pitchRangeText(day)}, ${intensityRangeText(day)} — ${day.reason}`;
 }
 
 /** AI에게 넘길 자료를 사람이 읽을 수 있는 형태로 정리한다. */
