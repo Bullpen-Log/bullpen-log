@@ -1,8 +1,8 @@
-import type { Metadata } from "next";
-import { Bebas_Neue } from "next/font/google";
-import Script from "next/script";
-import { THEME_INIT_SCRIPT } from "@/lib/theme";
-import "./globals.css";
+import type { Metadata } from 'next';
+import { Bebas_Neue } from 'next/font/google';
+import Script from 'next/script';
+import { THEME_INIT_SCRIPT } from '@/lib/theme';
+import './globals.css';
 
 /**
  * 숫자 전용 서체.
@@ -12,15 +12,15 @@ import "./globals.css";
  * 제목은 본문과 같은 서체로 나왔다.
  */
 const bebas = Bebas_Neue({
-  variable: "--font-bebas",
-  subsets: ["latin"],
-  weight: "400",
+  variable: '--font-bebas',
+  subsets: ['latin'],
+  weight: '400',
 });
 
 export const metadata: Metadata = {
-  title: "Bullpen Log — 투수를 위한 트레이닝 & 기록 플랫폼",
+  title: 'Bullpen Log — 투수를 위한 트레이닝 & 기록 플랫폼',
   description:
-    "투수 전용 운동 가이드, 투구 메커니즘 분석, 날짜별 투구 기록 관리와 스포츠 과학 자료실을 한 곳에서.",
+    '투수 전용 운동 가이드, 투구 메커니즘 분석, 날짜별 투구 기록 관리와 스포츠 과학 자료실을 한 곳에서.',
 };
 
 export default function RootLayout({
@@ -31,11 +31,7 @@ export default function RootLayout({
   return (
     // data-theme 은 아래 스크립트가 브라우저에서 붙인다. 서버가 그린 것과
     // 달라지는 게 정상이므로 그 경고만 끈다.
-    <html
-      lang="ko"
-      className={`${bebas.variable} h-full`}
-      suppressHydrationWarning
-    >
+    <html lang="ko" className={`${bebas.variable} h-full`} suppressHydrationWarning>
       <head>
         {/*
          * Pretendard — 본문과 제목을 함께 맡는다.

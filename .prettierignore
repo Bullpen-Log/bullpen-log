@@ -1,0 +1,14 @@
+# 우리가 쓴 것이 아닌 것들
+.next
+node_modules
+public
+prisma/migrations
+package-lock.json
+
+# 손으로 줄을 맞춰 둔 문서. prettier 가 표와 줄바꿈을 흐트러뜨린다.
+*.md
+docs
+
+# 운동 목록·설명을 담아 둔 자료 파일. 코드가 아니라 데이터라 손대지 않는다.
+scripts/lists
+scripts/details-*.json

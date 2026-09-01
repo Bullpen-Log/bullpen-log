@@ -16,7 +16,9 @@ import { PrismaPg } from '@prisma/adapter-pg';
 
 const listPath = process.argv[2];
 if (!listPath) {
-  console.error('사용법: node --env-file=.env scripts/analyze-channel-list.mjs <목록.json>');
+  console.error(
+    '사용법: node --env-file=.env scripts/analyze-channel-list.mjs <목록.json>'
+  );
   process.exit(1);
 }
 const rows = JSON.parse(readFileSync(listPath, 'utf8'));
@@ -84,12 +86,30 @@ const OUTSIDE = [
 /* ─────────────── 3) 갈래 어림 ─────────────── */
 
 const CATEGORY = [
-  [/\bpull ?up\b|\bchin ?up\b|\brow\b|\bpulldown\b|\bpull ?apart\b|\bface pull\b|\bpress\b|\bpush ?up\b|\bfly\b|\bcurl\b|\btricep\b|\bshrug\b|\blateral raise\b|\bdip\b/i, '상체 스트렝스'],
-  [/\bsquat\b|\blunge\b|\bdeadlift\b|\brdl\b|\bhinge\b|\bhip thrust\b|\bglute bridge\b|\bstep ?up\b|\bcalf\b|\bleg curl\b|\bleg extension\b|\bsplit squat\b/i, '하체 스트렝스'],
-  [/\bjump\b|\bhop\b|\bbound\b|\bthrow\b|\bslam\b|\bexplosive\b|\bpower\b|\bplyo\b|\bsprint\b/i, '파워'],
-  [/\bplank\b|\bcore\b|\bab\b|\bdead ?bug\b|\bpallof\b|\bcarry\b|\bcrawl\b|\banti-?rotation\b|\bhollow\b/i, '코어'],
-  [/\bexternal rotation\b|\binternal rotation\b|\bcuff\b|\by raise\b|\bt raise\b|\bw raise\b|\bscap\b|\bprone y\b|\bprone t\b/i, '암케어'],
-  [/\bstretch\b|\bmobility\b|\bmobilization\b|\b90\/90\b|\bcars\b|\bopener\b|\bbreathing\b|\bactivation\b/i, '모빌리티'],
+  [
+    /\bpull ?up\b|\bchin ?up\b|\brow\b|\bpulldown\b|\bpull ?apart\b|\bface pull\b|\bpress\b|\bpush ?up\b|\bfly\b|\bcurl\b|\btricep\b|\bshrug\b|\blateral raise\b|\bdip\b/i,
+    '상체 스트렝스',
+  ],
+  [
+    /\bsquat\b|\blunge\b|\bdeadlift\b|\brdl\b|\bhinge\b|\bhip thrust\b|\bglute bridge\b|\bstep ?up\b|\bcalf\b|\bleg curl\b|\bleg extension\b|\bsplit squat\b/i,
+    '하체 스트렝스',
+  ],
+  [
+    /\bjump\b|\bhop\b|\bbound\b|\bthrow\b|\bslam\b|\bexplosive\b|\bpower\b|\bplyo\b|\bsprint\b/i,
+    '파워',
+  ],
+  [
+    /\bplank\b|\bcore\b|\bab\b|\bdead ?bug\b|\bpallof\b|\bcarry\b|\bcrawl\b|\banti-?rotation\b|\bhollow\b/i,
+    '코어',
+  ],
+  [
+    /\bexternal rotation\b|\binternal rotation\b|\bcuff\b|\by raise\b|\bt raise\b|\bw raise\b|\bscap\b|\bprone y\b|\bprone t\b/i,
+    '암케어',
+  ],
+  [
+    /\bstretch\b|\bmobility\b|\bmobilization\b|\b90\/90\b|\bcars\b|\bopener\b|\bbreathing\b|\bactivation\b/i,
+    '모빌리티',
+  ],
 ];
 
 /* ─────────────── 세기 ─────────────── */
@@ -109,7 +129,10 @@ const outsideCount = new Map();
 
 for (const r of rows) {
   const a = analyze(r.title);
-  if (a.notExercise) { buckets.강의묶음.push(r.title); continue; }
+  if (a.notExercise) {
+    buckets.강의묶음.push(r.title);
+    continue;
+  }
   if (a.outside.length) {
     buckets.장비밖.push(`${r.title}  [${a.outside.join('·')}]`);
     for (const o of a.outside) outsideCount.set(o, (outsideCount.get(o) ?? 0) + 1);
@@ -118,7 +141,7 @@ for (const r of rows) {
   buckets.쓸수있음.push({ ...r, ...a });
   const c = a.cat ?? '(갈래 불명)';
   byCat.set(c, (byCat.get(c) ?? 0) + 1);
-  for (const e of (a.equip.length ? a.equip : ['맨몸'])) {
+  for (const e of a.equip.length ? a.equip : ['맨몸']) {
     byEquip.set(e, (byEquip.get(e) ?? 0) + 1);
   }
 }
@@ -152,7 +175,9 @@ const mine = await prisma.exerciseVideo.findMany({ select: { title: true } });
 await prisma.$disconnect();
 
 console.log(`\n── 우리 라이브러리 ${mine.length}개와 견주기 ──`);
-console.log('  (한글/영어라 제목으로 바로 못 견줍니다. 실제 중복은 등록 전에 한 건씩 봐야 합니다)');
+console.log(
+  '  (한글/영어라 제목으로 바로 못 견줍니다. 실제 중복은 등록 전에 한 건씩 봐야 합니다)'
+);
 
 console.log('\n── 상체 스트렝스로 잡힌 것 40개 미리보기 ──');
 const upper = buckets.쓸수있음.filter((r) => r.cat === '상체 스트렝스');

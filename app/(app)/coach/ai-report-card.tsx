@@ -2,18 +2,9 @@
 
 import { useActionState, useState } from 'react';
 import { useFormStatus } from 'react-dom';
-import {
-  AlertTriangle,
-  ChevronDown,
-  Minus,
-  Moon,
-  Sparkles,
-  Sun,
-} from 'lucide-react';
+import { AlertTriangle, ChevronDown, Minus, Moon, Sparkles, Sun } from 'lucide-react';
 import { generateAiReport, type AiReportState } from '@/app/actions/ai-report';
-import {
-  type ReportReadiness,
-} from '@/lib/report/cadence';
+import { type ReportReadiness } from '@/lib/report/cadence';
 import type { AiReportBody } from '@/lib/ai/report-prompt';
 import {
   intensityRangeText,
@@ -61,9 +52,7 @@ function DayRow({ day }: { day: DayPlan }) {
           : 'border-sky-500/30 bg-sky-500/[0.06]'
       }`}
     >
-      <span className="w-12 shrink-0 text-sm font-bold text-ink">
-        {day.label}
-      </span>
+      <span className="w-12 shrink-0 text-sm font-bold text-ink">{day.label}</span>
       <span className="shrink-0 text-[11px] tabular-nums text-muted/70">
         {day.dateKey.slice(5)}
       </span>
@@ -209,9 +198,7 @@ export function ReportBody({ report }: { report: StoredReport }) {
               >
                 <summary className="flex cursor-pointer list-none items-start gap-2">
                   <ChevronDown className="mt-0.5 h-4 w-4 shrink-0 text-muted transition-transform group-open:rotate-180" />
-                  <span className="text-sm font-semibold text-ink">
-                    {action.title}
-                  </span>
+                  <span className="text-sm font-semibold text-ink">{action.title}</span>
                 </summary>
                 <p className="mt-2 pl-6 text-sm leading-relaxed text-muted">
                   {action.detail}
@@ -222,10 +209,7 @@ export function ReportBody({ report }: { report: StoredReport }) {
 
           {/* 지켜볼 점 — 오늘 당장 할 일은 아니라 접어 둔다 */}
           {report.body.watchouts.length > 0 && (
-            <Section
-              title="지켜볼 점"
-              hint={`${report.body.watchouts.length}가지`}
-            >
+            <Section title="지켜볼 점" hint={`${report.body.watchouts.length}가지`}>
               <ul className="space-y-1.5">
                 {report.body.watchouts.map((w, i) => (
                   <li key={i} className="flex gap-2 text-sm leading-relaxed text-muted">
@@ -271,9 +255,9 @@ export function ReportBody({ report }: { report: StoredReport }) {
       )}
 
       <p className="text-[11px] leading-relaxed text-muted/60">
-        수치와 계획은 기록에서 규칙으로 계산한 값이고, 문장은 그 수치를 설명한
-        것입니다. 훈련량 관리를 돕는 참고 자료이며 의학적 진단이 아닙니다.
-        통증이 있으면 수치와 관계없이 전문의와 상담하세요.
+        수치와 계획은 기록에서 규칙으로 계산한 값이고, 문장은 그 수치를 설명한 것입니다.
+        훈련량 관리를 돕는 참고 자료이며 의학적 진단이 아닙니다. 통증이 있으면 수치와
+        관계없이 전문의와 상담하세요.
       </p>
     </div>
   );
@@ -293,7 +277,6 @@ export function AiReportCard({
     generateAiReport,
     undefined
   );
-
 
   return (
     <section className="overflow-hidden rounded-2xl border border-line bg-surface">

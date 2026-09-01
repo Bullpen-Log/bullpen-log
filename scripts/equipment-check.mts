@@ -25,10 +25,29 @@ const PROFILES: { label: string; owned: string[] }[] = [
   { label: '안 고름(전부 허용)', owned: [] },
   { label: '맨몸만', owned: ['맨몸'] },
   { label: '맨몸+밴드', owned: ['맨몸', '밴드'] },
-  { label: '집 (밴드·덤벨·폼롤러)', owned: ['맨몸', '밴드', '덤벨', '폼롤러', '마사지볼'] },
+  {
+    label: '집 (밴드·덤벨·폼롤러)',
+    owned: ['맨몸', '밴드', '덤벨', '폼롤러', '마사지볼'],
+  },
   {
     label: '헬스장',
-    owned: ['맨몸', '밴드', '덤벨', '바벨', '원판', '케틀벨', '벤치', '박스', '케이블', '머신', '짐볼', '메디신볼', '폼롤러', '마사지볼', 'TRX'],
+    owned: [
+      '맨몸',
+      '밴드',
+      '덤벨',
+      '바벨',
+      '원판',
+      '케틀벨',
+      '벤치',
+      '박스',
+      '케이블',
+      '머신',
+      '짐볼',
+      '메디신볼',
+      '폼롤러',
+      '마사지볼',
+      'TRX',
+    ],
   },
 ];
 
@@ -48,7 +67,9 @@ let failed = 0;
 
 for (const { label, owned } of PROFILES) {
   const { pool, excludedCount, bestAddition } = filterByEquipment(library, owned);
-  console.log(`\n■ ${label} — 할 수 있는 운동 ${pool.length}개 (뺀 것 ${excludedCount}개)`);
+  console.log(
+    `\n■ ${label} — 할 수 있는 운동 ${pool.length}개 (뺀 것 ${excludedCount}개)`
+  );
   if (bestAddition) {
     console.log(`   → ${bestAddition.name} 하나면 ${bestAddition.unlocks}개 더`);
   }

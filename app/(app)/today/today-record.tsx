@@ -152,10 +152,8 @@ export function TodayRecord({
         <div className="space-y-2.5">
           <p className="text-sm leading-relaxed text-muted">
             아직 오늘 기록이 없습니다.{' '}
-            <span className="text-ink">
-              남기지 않으면 안 던진 날로 봅니다.
-            </span>{' '}
-            나중에 언제든 고칠 수 있습니다.
+            <span className="text-ink">남기지 않으면 안 던진 날로 봅니다.</span> 나중에
+            언제든 고칠 수 있습니다.
           </p>
           <div className="flex flex-wrap gap-2">
             <button

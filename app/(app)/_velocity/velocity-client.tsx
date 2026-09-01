@@ -55,8 +55,14 @@ export function VelocityClient() {
         <p className="text-sm font-bold text-ink">이렇게 찍어야 측정됩니다</p>
         <ul className="space-y-1.5 text-sm leading-relaxed text-muted">
           <li>· 삼각대나 고정된 곳에 폰을 거치하세요 (손으로 들면 측정 불가)</li>
-          <li>· <strong className="text-ink">투수 바로 뒤 1m 이내</strong>에 두고, 던지는 방향을 향하게 하세요</li>
-          <li>· 공을 놓는 지점이 <strong className="text-ink">화면 한가운데</strong> 오도록 높이를 맞추세요</li>
+          <li>
+            · <strong className="text-ink">투수 바로 뒤 1m 이내</strong>에 두고, 던지는
+            방향을 향하게 하세요
+          </li>
+          <li>
+            · 공을 놓는 지점이 <strong className="text-ink">화면 한가운데</strong>{' '}
+            오도록 높이를 맞추세요
+          </li>
           <li>· 공이 네트·포수에 닿을 때까지 녹화를 이어가세요</li>
           <li>
             · <strong className="text-ink">반드시 슬로모션</strong>으로, 화질은{' '}
@@ -69,7 +75,8 @@ export function VelocityClient() {
           장면 사이에 끝나버려, 날아가는 모습이 아예 안 담깁니다.
         </p>
         <p className="rounded-lg border border-line bg-surface-2 px-4 py-3 text-[13px] leading-relaxed text-muted">
-          조건을 못 지킨 영상은 <strong className="text-ink">숫자를 내지 않고 이유를 알려드립니다.</strong>{' '}
+          조건을 못 지킨 영상은{' '}
+          <strong className="text-ink">숫자를 내지 않고 이유를 알려드립니다.</strong>{' '}
           틀린 구속이 기록에 남는 것보다 낫기 때문입니다.
         </p>
       </Card>
@@ -126,8 +133,8 @@ export function VelocityClient() {
           <p className="text-sm leading-relaxed text-warn">{result.measure.fix}</p>
           <p className="border-t border-warn-line pt-2 text-xs text-warn/80">
             {result.sourceSize.width}×{result.sourceSize.height}
-            {result.fps != null && ` · 초당 ${Math.round(result.fps)}장`} · 살펴본 프레임{' '}
-            {result.frameCount}개 · 공을 이어붙인 프레임 {result.track.length}개
+            {result.fps != null && ` · 초당 ${Math.round(result.fps)}장`} · 살펴본
+            프레임 {result.frameCount}개 · 공을 이어붙인 프레임 {result.track.length}개
             {result.shakePx > 0 && ` · 흔들림 ${result.shakePx}`}
           </p>
         </Card>
@@ -144,14 +151,17 @@ export function VelocityClient() {
             <span className="text-sm text-muted">± {result.measure.errorKmh}</span>
           </div>
 
-          <p className={`text-sm font-medium ${CONFIDENCE_LABEL[result.measure.confidence].tone}`}>
+          <p
+            className={`text-sm font-medium ${CONFIDENCE_LABEL[result.measure.confidence].tone}`}
+          >
             {CONFIDENCE_LABEL[result.measure.confidence].text}
           </p>
 
           <div className="rounded-lg border border-line bg-surface-2 px-4 py-3 text-[13px] leading-relaxed text-muted">
-            이 값은 공이 날아간 구간의 <strong className="text-ink">평균 속도</strong>입니다.
-            공은 날아가며 느려지므로, 레이더건이 재는 릴리스 직후 속도보다 몇 km/h 낮게
-            나옵니다. 같은 방식으로 계속 재면 변화를 비교하는 데는 문제가 없습니다.
+            이 값은 공이 날아간 구간의 <strong className="text-ink">평균 속도</strong>
+            입니다. 공은 날아가며 느려지므로, 레이더건이 재는 릴리스 직후 속도보다 몇
+            km/h 낮게 나옵니다. 같은 방식으로 계속 재면 변화를 비교하는 데는 문제가
+            없습니다.
           </div>
 
           <details className="rounded-2xl border border-line px-4 py-3">
@@ -164,12 +174,14 @@ export function VelocityClient() {
               <li>— 공이 날아간 구간 {result.measure.detail.travelM}m</li>
               <li>— 걸린 시간 {result.measure.detail.durationSec}초</li>
               <li>— 궤적이 직선에 맞은 정도 {result.measure.detail.fitQuality}</li>
-              <li>— 살펴본 프레임 {result.frameCount}개 · 흔들림 {result.shakePx}</li>
+              <li>
+                — 살펴본 프레임 {result.frameCount}개 · 흔들림 {result.shakePx}
+              </li>
             </ul>
             <p className="mt-3 border-t border-line pt-3 text-xs leading-relaxed text-muted">
-              야구공 지름이 7.3cm로 정해져 있어, 화면에 몇 픽셀로 찍혔는지 재면 카메라에서
-              얼마나 떨어져 있는지 알 수 있습니다. 프레임마다 그 거리를 재고 시간으로 나눠
-              속도를 냅니다. 그래서 거리를 따로 입력하지 않아도 됩니다.
+              야구공 지름이 7.3cm로 정해져 있어, 화면에 몇 픽셀로 찍혔는지 재면
+              카메라에서 얼마나 떨어져 있는지 알 수 있습니다. 프레임마다 그 거리를 재고
+              시간으로 나눠 속도를 냅니다. 그래서 거리를 따로 입력하지 않아도 됩니다.
             </p>
           </details>
         </Card>

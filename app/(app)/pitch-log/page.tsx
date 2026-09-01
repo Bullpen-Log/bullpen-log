@@ -41,7 +41,7 @@ export default async function PitchLogPage({
    * 만들어 봤더니 7월 26일 기록이 달력에서 사라졌다.
    */
   const initialFrom = new Date(
-    Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - INITIAL_MONTHS, 1),
+    Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - INITIAL_MONTHS, 1)
   );
 
   const logs = await prisma.pitchLog.findMany({

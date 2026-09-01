@@ -3,10 +3,7 @@ import { prisma } from '@/lib/prisma';
 import { requireUser } from '@/lib/dal';
 import { gatherFactsAndPlan } from '@/lib/report/gather';
 import { toDateKey } from '@/lib/pitch-stats';
-import {
-  intensityRangeText,
-  pitchRangeText,
-} from '@/lib/report/plan';
+import { intensityRangeText, pitchRangeText } from '@/lib/report/plan';
 import type { PlanNoteData } from '@/components/plan-note';
 import type { PitchMetric } from '@/lib/pose/measure';
 import type { SavedAnalysisView } from '@/lib/pose/saved';
@@ -89,10 +86,7 @@ export default async function PitchLogDayPage({
         }
       : null;
 
-  const toView = (
-    a: (typeof analyses)[number],
-    onDate: string
-  ): SavedAnalysisView => ({
+  const toView = (a: (typeof analyses)[number], onDate: string): SavedAnalysisView => ({
     videoPath: a.videoPath,
     date: onDate,
     throwingSide: a.throwingSide as 'left' | 'right',

@@ -259,11 +259,15 @@ function drawShape(
     case 'tilt': {
       const a = px(shape.a);
       const b = px(shape.b);
-      stroke(ctx, () => {
-        ctx.beginPath();
-        ctx.moveTo(a.x, a.y);
-        ctx.lineTo(b.x, b.y);
-      }, shape.color);
+      stroke(
+        ctx,
+        () => {
+          ctx.beginPath();
+          ctx.moveTo(a.x, a.y);
+          ctx.lineTo(b.x, b.y);
+        },
+        shape.color
+      );
 
       // 기울기를 재는 기준이 되는 수직선을 옅게 함께 보여준다.
       const top = a.y <= b.y ? a : b;
@@ -303,12 +307,16 @@ function drawShape(
       const v = px(shape.v);
       const b = px(shape.b);
 
-      stroke(ctx, () => {
-        ctx.beginPath();
-        ctx.moveTo(a.x, a.y);
-        ctx.lineTo(v.x, v.y);
-        ctx.lineTo(b.x, b.y);
-      }, shape.color);
+      stroke(
+        ctx,
+        () => {
+          ctx.beginPath();
+          ctx.moveTo(a.x, a.y);
+          ctx.lineTo(v.x, v.y);
+          ctx.lineTo(b.x, b.y);
+        },
+        shape.color
+      );
 
       const r = Math.min(
         30,
@@ -346,17 +354,21 @@ function drawShape(
     }
     case 'marker': {
       const p = px(shape.p);
-      stroke(ctx, () => {
-        ctx.beginPath();
-        ctx.moveTo(p.x - 11, p.y);
-        ctx.lineTo(p.x - 4, p.y);
-        ctx.moveTo(p.x + 4, p.y);
-        ctx.lineTo(p.x + 11, p.y);
-        ctx.moveTo(p.x, p.y - 11);
-        ctx.lineTo(p.x, p.y - 4);
-        ctx.moveTo(p.x, p.y + 4);
-        ctx.lineTo(p.x, p.y + 11);
-      }, shape.color);
+      stroke(
+        ctx,
+        () => {
+          ctx.beginPath();
+          ctx.moveTo(p.x - 11, p.y);
+          ctx.lineTo(p.x - 4, p.y);
+          ctx.moveTo(p.x + 4, p.y);
+          ctx.lineTo(p.x + 11, p.y);
+          ctx.moveTo(p.x, p.y - 11);
+          ctx.lineTo(p.x, p.y - 4);
+          ctx.moveTo(p.x, p.y + 4);
+          ctx.lineTo(p.x, p.y + 11);
+        },
+        shape.color
+      );
       ctx.save();
       ctx.strokeStyle = shape.color;
       ctx.lineWidth = 1.5;
@@ -429,11 +441,7 @@ export function VideoCanvas({
 
     // 각도 만드는 중에 찍은 점 표시
     for (const p of anglePts) {
-      handle(
-        ctx,
-        { x: box.ox + p.x * box.dw, y: box.oy + p.y * box.dh },
-        color
-      );
+      handle(ctx, { x: box.ox + p.x * box.dw, y: box.oy + p.y * box.dh }, color);
     }
   }, [shapes, draft, anglePts, color, videoRef]);
 
@@ -574,9 +582,7 @@ export function DrawingToolbar({
                 : 'text-muted hover:bg-surface-2 hover:text-ink'
             }`}
           >
-            <t.Icon
-              className={`h-3.5 w-3.5 ${t.kind === 'tilt' ? 'rotate-90' : ''}`}
-            />
+            <t.Icon className={`h-3.5 w-3.5 ${t.kind === 'tilt' ? 'rotate-90' : ''}`} />
             {!compact && <span className="hidden md:inline">{t.label}</span>}
           </button>
         ))}

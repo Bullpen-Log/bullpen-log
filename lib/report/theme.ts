@@ -1,8 +1,4 @@
-import {
-  intensityLevel,
-  minutesForSets,
-  type Prescription,
-} from '@/lib/exercise-meta';
+import { intensityLevel, minutesForSets, type Prescription } from '@/lib/exercise-meta';
 import type { ReportFacts } from '@/lib/report/facts';
 import { remainingRestDays, type PitchPlan } from '@/lib/report/plan';
 import { findGoal, type GoalMix } from '@/lib/report/personalize';
@@ -200,7 +196,11 @@ function outingStrain(facts: ReportFacts): {
 /** '오늘 82구를 던지셨습니다' / '어제 82구를 던지셨습니다' */
 function outingPhrase(strain: { pitches: number; daysAgo: number }): string {
   const when =
-    strain.daysAgo === 0 ? '오늘' : strain.daysAgo === 1 ? '어제' : `${strain.daysAgo}일 전`;
+    strain.daysAgo === 0
+      ? '오늘'
+      : strain.daysAgo === 1
+        ? '어제'
+        : `${strain.daysAgo}일 전`;
   return `${when} ${strain.pitches}구를 던지셨습니다`;
 }
 
@@ -745,7 +745,8 @@ function isWarmup(ex: ThemedExercise): boolean {
 export function slotOf(ex: ThemedExercise, specs: SlotSpec[]): SlotKey {
   if (isWarmup(ex) && specs.some((s) => s.slot === 'warmup')) return 'warmup';
   for (const spec of specs) {
-    if (spec.slot !== 'warmup' && spec.categories.includes(ex.category)) return spec.slot;
+    if (spec.slot !== 'warmup' && spec.categories.includes(ex.category))
+      return spec.slot;
   }
   // 맞는 구간이 없으면 본운동에, 본운동이 없는 테마라면 첫 구간에 둔다.
   return (specs.find((s) => s.slot === 'main') ?? specs[0]).slot;
@@ -855,7 +856,8 @@ function orderCandidates<T extends ThemedExercise>(
    */
   const seedOf = (ex: T) => (rotationSeed ? mix(ex.id, rotationSeed) : 0);
   const byAge = (a: T, b: T) =>
-    (sessionsAgo.get(b.id) ?? 0) - (sessionsAgo.get(a.id) ?? 0) || seedOf(a) - seedOf(b);
+    (sessionsAgo.get(b.id) ?? 0) - (sessionsAgo.get(a.id) ?? 0) ||
+    seedOf(a) - seedOf(b);
 
   due.sort(byAge);
   early.sort(byAge);
@@ -1239,7 +1241,9 @@ export function pickForTheme<T extends ThemedExercise>({
         if (chosen.length >= spec.maxCount) break;
       }
       if (chosen.length > 0) {
-        notes.push(`${spec.categories.join('·')} 운동이 부족해 ${label}을 다른 운동으로 채웠습니다.`);
+        notes.push(
+          `${spec.categories.join('·')} 운동이 부족해 ${label}을 다른 운동으로 채웠습니다.`
+        );
       }
     }
   }
@@ -1270,7 +1274,8 @@ export function pickForTheme<T extends ThemedExercise>({
     );
   const mainPicks = mainSpec ? (bySlot.get(mainSpec.slot) ?? []) : [];
   if (mainSpec && mainPicks.length > 0) {
-    const pool = mainSpec.slot === 'main' ? mainPool : (topUpPool.get(mainSpec.slot) ?? []);
+    const pool =
+      mainSpec.slot === 'main' ? mainPool : (topUpPool.get(mainSpec.slot) ?? []);
     const usedPatterns = new Set(
       mainPicks
         .filter((ex) => ex.category !== '파워')

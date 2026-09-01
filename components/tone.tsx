@@ -63,13 +63,7 @@ export const TONE: Record<
   },
 };
 
-export function StatusChip({
-  tone,
-  children,
-}: {
-  tone: Tone;
-  children: ReactNode;
-}) {
+export function StatusChip({ tone, children }: { tone: Tone; children: ReactNode }) {
   return (
     <span
       className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium ${TONE[tone].chip}`}

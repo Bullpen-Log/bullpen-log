@@ -103,10 +103,7 @@ export function MetaFilter({
 }
 
 /** 고른 조건에 맞는지 검사한다. 아무것도 안 골랐으면 통과. */
-export function matchesFilter(
-  value: FilterState,
-  fields: Record<string, string[]>
-) {
+export function matchesFilter(value: FilterState, fields: Record<string, string[]>) {
   return Object.entries(value).every(([key, chosen]) => {
     if (chosen.length === 0) return true;
     const owned = fields[key] ?? [];

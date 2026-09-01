@@ -72,9 +72,7 @@ export default async function TrainingDayPage({
       {/* 그날 어땠는지 먼저 — 목록보다 이쪽을 다시 읽으러 온다 */}
       {detail.intensity != null && (
         <div className="rounded-2xl border border-sky-soft/40 bg-sky/[0.04] px-5 py-4">
-          <p className="text-sm font-bold text-ink">
-            운동 강도 {detail.intensity}/10
-          </p>
+          <p className="text-sm font-bold text-ink">운동 강도 {detail.intensity}/10</p>
           {detail.memo ? (
             <p className="mt-2 whitespace-pre-wrap text-sm leading-relaxed text-ink/90">
               {detail.memo}

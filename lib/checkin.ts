@@ -95,10 +95,7 @@ export function pickWorkoutKind(value: unknown): WorkoutKind | null {
  * 여기서 걸러도 안전과는 무관하다 — 선호는 순서만 바꾸지, 위험한 운동을
  * 통과시키지 않는다.
  */
-export function normalizePreferredParts(
-  raw: string[],
-  available: string[]
-): string[] {
+export function normalizePreferredParts(raw: string[], available: string[]): string[] {
   const allowed = new Set(available);
   const seen = new Set<string>();
   const out: string[] = [];
@@ -188,10 +185,7 @@ export function validateCheckin(
  * 서버가 UTC로 돌아도 기준은 한국 날짜다. 예전에는 서버 UTC 날짜로 쟀는데,
  * 한국 시간 새벽에 체크인하면 '내일'로 판정돼 거절되는 일이 있었다.
  */
-export function validateCheckinDate(
-  dateKey: string,
-  now = new Date()
-): boolean {
+export function validateCheckinDate(dateKey: string, now = new Date()): boolean {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(dateKey)) return false;
   const [y, m, d] = dateKey.split('-').map(Number);
   const candidate = Date.UTC(y, m - 1, d);

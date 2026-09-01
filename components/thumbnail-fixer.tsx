@@ -18,7 +18,9 @@ export function ThumbnailFixer({
 }: {
   itemId: string;
   videoPath: string;
-  onSave: (formData: FormData) => Promise<{ error?: string; success?: string } | undefined>;
+  onSave: (
+    formData: FormData
+  ) => Promise<{ error?: string; success?: string } | undefined>;
 }) {
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string>();
@@ -105,11 +107,7 @@ export function ThumbnailFixer({
       </button>
 
       {message && (
-        <p
-          className={`text-xs leading-relaxed ${
-            failed ? 'text-danger' : 'text-ok'
-          }`}
-        >
+        <p className={`text-xs leading-relaxed ${failed ? 'text-danger' : 'text-ok'}`}>
           {message}
         </p>
       )}

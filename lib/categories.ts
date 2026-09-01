@@ -6,13 +6,7 @@
  * 가라앉는다.
  */
 export type CategoryTone =
-  | 'lower'
-  | 'upper'
-  | 'mobility'
-  | 'power'
-  | 'core'
-  | 'armcare'
-  | 'recovery';
+  'lower' | 'upper' | 'mobility' | 'power' | 'core' | 'armcare' | 'recovery';
 
 /** 트레이닝 하위 카테고리 — 이 순서대로 페이지에 노출된다. */
 export const TRAINING_CATEGORIES = [

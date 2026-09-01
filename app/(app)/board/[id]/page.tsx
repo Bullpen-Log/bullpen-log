@@ -25,7 +25,10 @@ export default async function ArticleDetailPage({
   const { id } = await params;
   const user = await requireUser();
 
-  const exists = await prisma.article.findUnique({ where: { id }, select: { id: true } });
+  const exists = await prisma.article.findUnique({
+    where: { id },
+    select: { id: true },
+  });
   if (!exists) notFound();
 
   // 조회수를 올리면서 갱신된 글을 함께 가져온다.

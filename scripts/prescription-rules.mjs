@@ -30,7 +30,8 @@ import { isCompound } from '../lib/exercise-meta.ts';
  */
 
 /** 이름에 이 낱말이 들어가면 시간으로 버티는 운동이다. */
-const HOLD_NAME = /버티기|홀드|ISO|아이소메트릭|플랭크|데드행|월 싯|스트레치|포즈|롤링|디스트랙션/;
+const HOLD_NAME =
+  /버티기|홀드|ISO|아이소메트릭|플랭크|데드행|월 싯|스트레치|포즈|롤링|디스트랙션/;
 
 /** 몸을 굴려 푸는 이완 도구 — 모빌리티·회복에서만 버티기로 본다. */
 const ROLLING_NAME = /폼롤러|마사지볼|LAX/;
@@ -56,7 +57,10 @@ export function isHold(title, description, category) {
   if (HOLD_YES.has(title)) return true;
   if (HOLD_NO.has(title)) return false;
   if (HOLD_NAME.test(title)) return true;
-  if (ROLLING_NAME.test(title) && (category === '모빌리티' || category === '회복 및 보강')) {
+  if (
+    ROLLING_NAME.test(title) &&
+    (category === '모빌리티' || category === '회복 및 보강')
+  ) {
     return true;
   }
   return HOLD_PHRASE.test(description);
@@ -92,9 +96,25 @@ const BOTH_SIDES_NAME =
  * 띄어쓰기로 끊은 낱말과 통째로 맞을 때만 인정한다.
  */
 const ONE_SIDE_MOVE = new Set([
-  '외회전', '내회전', '회전', '컬', '익스텐션', '푸쉬다운', '푸시다운',
-  '레이즈', '캐리', '찹', '리프트', '로우', '프레스', '스로우', '디스트랙션',
-  '풀다운', '펌프', 'CAR', 'CARs',
+  '외회전',
+  '내회전',
+  '회전',
+  '컬',
+  '익스텐션',
+  '푸쉬다운',
+  '푸시다운',
+  '레이즈',
+  '캐리',
+  '찹',
+  '리프트',
+  '로우',
+  '프레스',
+  '스로우',
+  '디스트랙션',
+  '풀다운',
+  '펌프',
+  'CAR',
+  'CARs',
 ]);
 
 /** 암케어 중 두 손으로 함께 하는 것 — 나머지는 모두 한 팔씩 한다. */
@@ -233,7 +253,9 @@ export function isPerSide(title, description, category) {
   const words = title.split(/[\s()·,]+/).filter(Boolean);
   if (words.some((w) => ONE_SIDE_MOVE.has(w))) return true;
 
-  return /반대쪽도|반대쪽을 합니다|좌우를 같은|반대편도|한 발로 서|한 손으로/.test(description);
+  return /반대쪽도|반대쪽을 합니다|좌우를 같은|반대편도|한 발로 서|한 손으로/.test(
+    description
+  );
 }
 
 /* ──────────────────────── 횟수·시간·휴식 ──────────────────────── */

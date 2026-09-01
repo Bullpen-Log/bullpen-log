@@ -61,9 +61,7 @@ function changeRate(current: number, previous: number) {
 function daysSince(dateKey: string, todayKey: string) {
   const [fy, fm, fd] = dateKey.split('-').map(Number);
   const [ty, tm, td] = todayKey.split('-').map(Number);
-  return Math.floor(
-    (Date.UTC(ty, tm - 1, td) - Date.UTC(fy, fm - 1, fd)) / 86_400_000
-  );
+  return Math.floor((Date.UTC(ty, tm - 1, td) - Date.UTC(fy, fm - 1, fd)) / 86_400_000);
 }
 
 export type OverviewLog = {
@@ -136,9 +134,7 @@ export function StatsOverview({
    * (45일 기준)과 여기가 미세하게 다른 숫자를 보여준다. 같은 이름의 값이
    * 화면마다 다르면 어느 쪽을 믿어야 할지 알 수 없다.
    */
-  const acwrFrom = toDateKey(
-    new Date(today.getTime() - LOOKBACK_DAYS * 86400000)
-  );
+  const acwrFrom = toDateKey(new Date(today.getTime() - LOOKBACK_DAYS * 86400000));
   const acwrByDay = groupByDay(
     logs.filter((l) => toDateKey(new Date(l.date)) >= acwrFrom)
   );
@@ -193,7 +189,13 @@ export function StatsOverview({
   const missingDays = countMissingDays(byDay, last28);
 
   const restTone: Tone =
-    restDays == null ? 'neutral' : restDays === 0 ? 'warn' : restDays >= 7 ? 'info' : 'good';
+    restDays == null
+      ? 'neutral'
+      : restDays === 0
+        ? 'warn'
+        : restDays >= 7
+          ? 'info'
+          : 'good';
 
   /*
    * 부하 지수 둘. 합치지 않고 나란히 둔다 —
@@ -249,131 +251,133 @@ export function StatsOverview({
 
       {/* ── 투구 ────────────────────────────────────────────── */}
       {view === 'pitch' && (
-      <>
-      <LoadPanel
-        which="pitching"
-        view={pitchingView}
-        missingDays={missingDays}
-        missingWarningAt={MISSING_DAYS_WARNING}
-        throwStreak={streak}
-      />
+        <>
+          <LoadPanel
+            which="pitching"
+            view={pitchingView}
+            missingDays={missingDays}
+            missingWarningAt={MISSING_DAYS_WARNING}
+            throwStreak={streak}
+          />
 
-      {/* 셋이라 두 칸으로 두면 남는 칸이 회색 덩이로 보인다 */}
-      <section className="grid gap-px overflow-hidden rounded-2xl border border-line bg-line sm:grid-cols-3">
-        <StatCard
-          label="이번 주 투구"
-          value={current.totalPitches}
-          unit="구"
-          tone={
-            current.totalPitches > previous.totalPitches * 1.3 ? 'warn' : 'neutral'
-          }
-          footer={
-            <Delta
-              percent={changeRate(current.totalPitches, previous.totalPitches)}
-              invert
+          {/* 셋이라 두 칸으로 두면 남는 칸이 회색 덩이로 보인다 */}
+          <section className="grid gap-px overflow-hidden rounded-2xl border border-line bg-line sm:grid-cols-3">
+            <StatCard
+              label="이번 주 투구"
+              value={current.totalPitches}
+              unit="구"
+              tone={
+                current.totalPitches > previous.totalPitches * 1.3 ? 'warn' : 'neutral'
+              }
+              footer={
+                <Delta
+                  percent={changeRate(current.totalPitches, previous.totalPitches)}
+                  invert
+                />
+              }
             />
-          }
-        />
-        <StatCard
-          label="마지막 투구"
-          value={restDays == null ? '—' : restDays === 0 ? '오늘' : restDays}
-          unit={restDays == null || restDays === 0 ? '' : '일 전'}
-          tone={restTone}
-          footer={
-            /*
+            <StatCard
+              label="마지막 투구"
+              value={restDays == null ? '—' : restDays === 0 ? '오늘' : restDays}
+              unit={restDays == null || restDays === 0 ? '' : '일 전'}
+              tone={restTone}
+              footer={
+                /*
               이틀 연속 높은 강도로 던진 것이 연투 일수보다 먼저다.
               사흘 가볍게 던진 것보다 이틀 세게 던진 쪽이 팔에 남는다.
             */
-            fatigue.length > 0 ? (
-              <span className={`text-xs ${TONE.warn.text}`}>
-                이틀 연속 과부하 {fatigue.length}회
-              </span>
-            ) : streak >= 3 ? (
-              <span className={`text-xs ${TONE.warn.text}`}>
-                최장 {streak}일 연투
-              </span>
-            ) : lastThrowKey ? (
-              <span className="text-xs text-muted">
-                최근 4주 최장 연투 {streak}일
-              </span>
-            ) : (
-              <span className="text-xs text-muted/60">기록 없음</span>
-            )
-          }
-        />
-        {/*
+                fatigue.length > 0 ? (
+                  <span className={`text-xs ${TONE.warn.text}`}>
+                    이틀 연속 과부하 {fatigue.length}회
+                  </span>
+                ) : streak >= 3 ? (
+                  <span className={`text-xs ${TONE.warn.text}`}>
+                    최장 {streak}일 연투
+                  </span>
+                ) : lastThrowKey ? (
+                  <span className="text-xs text-muted">
+                    최근 4주 최장 연투 {streak}일
+                  </span>
+                ) : (
+                  <span className="text-xs text-muted/60">기록 없음</span>
+                )
+              }
+            />
+            {/*
           구속은 크게 두지 않는다. 스피드건이 없어 못 적는 사용자가 대부분이라,
           큰 자리를 주면 대다수 화면에 빈칸이 크게 남는다. 적은 사람에게는
           여기서 개인 최고를 보여주고, 추이는 아래 그래프에서 본다.
         */}
-        <StatCard
-          label="개인 최고 구속"
-          value={bestVelocity?.value ?? '—'}
-          unit={bestVelocity ? 'km/h' : ''}
-          footer={
-            bestVelocity ? (
-              <span className="text-xs text-muted">
-                {user.targetVelocity
-                  ? `목표 ${user.targetVelocity} km/h`
-                  : `${formatShortDate(bestVelocity.date)} 기록`}
-              </span>
-            ) : (
-              <span className="text-xs text-muted/60">스피드건이 없으면 비워두세요</span>
-            )
-          }
-        />
-      </section>
+            <StatCard
+              label="개인 최고 구속"
+              value={bestVelocity?.value ?? '—'}
+              unit={bestVelocity ? 'km/h' : ''}
+              footer={
+                bestVelocity ? (
+                  <span className="text-xs text-muted">
+                    {user.targetVelocity
+                      ? `목표 ${user.targetVelocity} km/h`
+                      : `${formatShortDate(bestVelocity.date)} 기록`}
+                  </span>
+                ) : (
+                  <span className="text-xs text-muted/60">
+                    스피드건이 없으면 비워두세요
+                  </span>
+                )
+              }
+            />
+          </section>
 
-      {/* 지표가 어떻게 나오는 숫자인지 — 안 적어두면 그냥 믿거나 그냥 무시한다 */}
-      <MetricHelp
-        twoDayLimit={TWO_DAY_INTENSITY_LIMIT}
-        show={['이번 주 투구', '마지막 투구', '개인 최고 구속']}
-      />
+          {/* 지표가 어떻게 나오는 숫자인지 — 안 적어두면 그냥 믿거나 그냥 무시한다 */}
+          <MetricHelp
+            twoDayLimit={TWO_DAY_INTENSITY_LIMIT}
+            show={['이번 주 투구', '마지막 투구', '개인 최고 구속']}
+          />
 
-      {/* ── 최근 28일 추이 ──────────────────────────────────── */}
-      <div className="min-w-0 rounded-2xl border border-line bg-surface p-5 sm:p-6">
-        <div className="mb-5 min-w-0">
-          <h2 className="text-base font-bold text-ink">최근 28일 추이</h2>
-          {/*
+          {/* ── 최근 28일 추이 ──────────────────────────────────── */}
+          <div className="min-w-0 rounded-2xl border border-line bg-surface p-5 sm:p-6">
+            <div className="mb-5 min-w-0">
+              <h2 className="text-base font-bold text-ink">최근 28일 추이</h2>
+              {/*
             무엇을 하며 지냈는지 한 줄로 먼저 보여준다. 그래프는 얼마나
             던졌는지는 알려주지만 무엇을 했는지는 알려주지 않는다.
           */}
-          {sessionCounts.length > 0 ? (
-            <p className="mt-1 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-xs text-muted">
-              {sessionCounts.map((t, i) => (
-                <span key={t.name} className="whitespace-nowrap">
-                  {i > 0 && <span className="mr-1.5 text-line-strong">·</span>}
-                  <span className="text-ink">{t.name}</span>{' '}
-                  {t.pitches > 0 ? `${t.count}회 (${t.pitches}구)` : `${t.count}일`}
-                </span>
-              ))}
-            </p>
-          ) : (
-            <p className="mt-1 text-xs leading-relaxed text-muted">
-              보고 싶은 항목을 골라보세요.
-            </p>
-          )}
-        </div>
-        <TrendChart points={chartPoints} />
-      </div>
+              {sessionCounts.length > 0 ? (
+                <p className="mt-1 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-xs text-muted">
+                  {sessionCounts.map((t, i) => (
+                    <span key={t.name} className="whitespace-nowrap">
+                      {i > 0 && <span className="mr-1.5 text-line-strong">·</span>}
+                      <span className="text-ink">{t.name}</span>{' '}
+                      {t.pitches > 0 ? `${t.count}회 (${t.pitches}구)` : `${t.count}일`}
+                    </span>
+                  ))}
+                </p>
+              ) : (
+                <p className="mt-1 text-xs leading-relaxed text-muted">
+                  보고 싶은 항목을 골라보세요.
+                </p>
+              )}
+            </div>
+            <TrendChart points={chartPoints} />
+          </div>
 
-      {/* ── 생년월일 안내 ───────────────────────────────────── */}
-      {!user.birthDate && (
-        <Link
-          href="/profile"
-          className="flex items-center gap-4 rounded-2xl border border-sky-soft/60 bg-sky/5 px-5 py-4 transition-colors hover:border-sky"
-        >
-          <UserCog className="h-5 w-5 shrink-0 text-sky" />
-          <span className="min-w-0 flex-1 text-sm leading-relaxed text-ink/90">
-            생년월일이 아직 등록되지 않았습니다. 나이에 맞는 안전한 투구수를
-            계산하려면 필요합니다.
-          </span>
-          <span className="shrink-0 text-xs font-medium tracking-normal text-sky">
-            입력 →
-          </span>
-        </Link>
-      )}
-      </>
+          {/* ── 생년월일 안내 ───────────────────────────────────── */}
+          {!user.birthDate && (
+            <Link
+              href="/profile"
+              className="flex items-center gap-4 rounded-2xl border border-sky-soft/60 bg-sky/5 px-5 py-4 transition-colors hover:border-sky"
+            >
+              <UserCog className="h-5 w-5 shrink-0 text-sky" />
+              <span className="min-w-0 flex-1 text-sm leading-relaxed text-ink/90">
+                생년월일이 아직 등록되지 않았습니다. 나이에 맞는 안전한 투구수를
+                계산하려면 필요합니다.
+              </span>
+              <span className="shrink-0 text-xs font-medium tracking-normal text-sky">
+                입력 →
+              </span>
+            </Link>
+          )}
+        </>
       )}
 
       {/* ── 트레이닝 ────────────────────────────────────────── */}
@@ -385,7 +389,6 @@ export function StatsOverview({
         같은 숫자를 두 번 보여주게 된다.
       */}
       {view === 'training' && <LoadPanel which="training" view={trainingView} />}
-
     </div>
   );
 }

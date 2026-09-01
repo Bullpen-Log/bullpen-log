@@ -684,7 +684,8 @@ for (const [title, detail] of Object.entries(DETAILS)) {
 }
 
 console.log(`채울 대상 ${targets.length}개`);
-if (alreadyFilled.length) console.log(`이미 채워져 있어 건너뜀: ${alreadyFilled.join(', ')}`);
+if (alreadyFilled.length)
+  console.log(`이미 채워져 있어 건너뜀: ${alreadyFilled.join(', ')}`);
 if (notFound.length) console.log(`⚠ DB에 없는 이름: ${notFound.join(', ')}`);
 
 const stillEmpty = rows.filter((r) => !r.detailsFilledAt && !DETAILS[r.title]);

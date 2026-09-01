@@ -63,7 +63,10 @@ for (const fps of [30, 60, 240]) {
         lens,
         stability: { maxBackgroundShiftPx: 1 },
       });
-      if (!result.ok) { rejected++; continue; }
+      if (!result.ok) {
+        rejected++;
+        continue;
+      }
       diffs.push(Math.abs(result.kmh - sim.trueAverageKmh));
     }
     if (diffs.length === 0) {
@@ -90,30 +93,56 @@ console.log('\n════ 3. 잘못된 촬영을 거부하는가 (가장 중�
     lens,
     stability: { maxBackgroundShiftPx: 25 },
   });
-  check('흔들리는 촬영 → 거부', !r.ok && r.code === 'CAMERA_SHAKE', !r.ok ? r.message : '통과돼버림');
+  check(
+    '흔들리는 촬영 → 거부',
+    !r.ok && r.code === 'CAMERA_SHAKE',
+    !r.ok ? r.message : '통과돼버림'
+  );
 }
 
 // 너무 멀리서 찍음
 {
   const sim = simulatePitch({ kmh: 130, lens, fps: 60, releaseDistanceM: 6 });
-  const r = measureVelocity({ observations: sim.observations, lens, stability: { maxBackgroundShiftPx: 1 } });
-  check('투수에게서 6m 뒤 → 거부', !r.ok && r.code === 'TOO_FAR', !r.ok ? r.message : '통과돼버림');
+  const r = measureVelocity({
+    observations: sim.observations,
+    lens,
+    stability: { maxBackgroundShiftPx: 1 },
+  });
+  check(
+    '투수에게서 6m 뒤 → 거부',
+    !r.ok && r.code === 'TOO_FAR',
+    !r.ok ? r.message : '통과돼버림'
+  );
 }
 
 // 릴리스가 화면 구석
 {
   const sim = simulatePitch({
-    kmh: 130, lens, fps: 60,
+    kmh: 130,
+    lens,
+    fps: 60,
     releaseOffsetPx: { x: 700, y: 400 },
   });
-  const r = measureVelocity({ observations: sim.observations, lens, stability: { maxBackgroundShiftPx: 1 } });
-  check('릴리스가 화면 구석 → 거부', !r.ok && r.code === 'RELEASE_NOT_CENTERED', !r.ok ? r.message : '통과돼버림');
+  const r = measureVelocity({
+    observations: sim.observations,
+    lens,
+    stability: { maxBackgroundShiftPx: 1 },
+  });
+  check(
+    '릴리스가 화면 구석 → 거부',
+    !r.ok && r.code === 'RELEASE_NOT_CENTERED',
+    !r.ok ? r.message : '통과돼버림'
+  );
 }
 
 // 공이 조금만 날아가고 녹화가 끊김
 {
   const sim = simulatePitch({ kmh: 130, lens, fps: 60, travelM: 1.5 });
-  const r = measureVelocity({ observations: sim.observations, lens, stability: { maxBackgroundShiftPx: 1 } });
+  const r = measureVelocity({
+    observations: sim.observations,
+    lens,
+    stability: { maxBackgroundShiftPx: 1 },
+  });
   check('녹화가 일찍 끊김 → 거부', !r.ok, !r.ok ? r.code : '통과돼버림');
 }
 
@@ -125,7 +154,11 @@ console.log('\n════ 3. 잘못된 촬영을 거부하는가 (가장 중�
     lens,
     stability: { maxBackgroundShiftPx: 1 },
   });
-  check('공을 3프레임만 잡음 → 거부', !r.ok && r.code === 'NOT_ENOUGH_FRAMES', !r.ok ? r.message : '통과돼버림');
+  check(
+    '공을 3프레임만 잡음 → 거부',
+    !r.ok && r.code === 'NOT_ENOUGH_FRAMES',
+    !r.ok ? r.message : '통과돼버림'
+  );
 }
 
 // 공이 아닌 것을 따라감 (지름이 널뛰기)
@@ -134,25 +167,47 @@ console.log('\n════ 3. 잘못된 촬영을 거부하는가 (가장 중�
   const broken: BallObservation[] = sim.observations.map((o, i) =>
     i === 5 ? { ...o, diameterPx: o.diameterPx * 2.2 } : o
   );
-  const r = measureVelocity({ observations: broken, lens, stability: { maxBackgroundShiftPx: 1 } });
-  check('공이 아닌 것을 잡음 → 거부', !r.ok && r.code === 'UNSTABLE_TRACK', !r.ok ? r.message : '통과돼버림');
+  const r = measureVelocity({
+    observations: broken,
+    lens,
+    stability: { maxBackgroundShiftPx: 1 },
+  });
+  check(
+    '공이 아닌 것을 잡음 → 거부',
+    !r.ok && r.code === 'UNSTABLE_TRACK',
+    !r.ok ? r.message : '통과돼버림'
+  );
 }
 
 // 렌즈 정보 없음
 {
   const sim = simulatePitch({ kmh: 130, lens, fps: 60 });
   const r = measureVelocity({ observations: sim.observations, lens: null });
-  check('렌즈 정보 없음 → 거부', !r.ok && r.code === 'LENS_UNKNOWN', !r.ok ? r.message : '통과돼버림');
+  check(
+    '렌즈 정보 없음 → 거부',
+    !r.ok && r.code === 'LENS_UNKNOWN',
+    !r.ok ? r.message : '통과돼버림'
+  );
 }
 
 console.log('\n════ 4. 공기저항이 있을 때 (실제와 가장 비슷) ════\n');
 {
   const sim = simulatePitch({ kmh: 140, lens, fps: 240, dragPerSec: 0.35 });
-  const r = measureVelocity({ observations: sim.observations, lens, stability: { maxBackgroundShiftPx: 1 } });
+  const r = measureVelocity({
+    observations: sim.observations,
+    lens,
+    stability: { maxBackgroundShiftPx: 1 },
+  });
   if (r.ok) {
     console.log(`  릴리스 140km/h로 던졌을 때 → 측정 ${r.kmh}km/h (구간 평균)`);
-    console.log(`  차이 ${(140 - r.kmh).toFixed(1)}km/h — 레이더건 값과의 이 차이는 보정 단계에서 다룬다.`);
-    check('공기저항 있어도 측정됨', true, `신뢰도 ${r.confidence} · 오차범위 ±${r.errorKmh}`);
+    console.log(
+      `  차이 ${(140 - r.kmh).toFixed(1)}km/h — 레이더건 값과의 이 차이는 보정 단계에서 다룬다.`
+    );
+    check(
+      '공기저항 있어도 측정됨',
+      true,
+      `신뢰도 ${r.confidence} · 오차범위 ±${r.errorKmh}`
+    );
   } else {
     check('공기저항 있어도 측정됨', false, r.code);
   }

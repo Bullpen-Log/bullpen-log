@@ -2,7 +2,14 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Activity, ChevronLeft, ChevronRight, Loader2, Play, Pause } from 'lucide-react';
+import {
+  Activity,
+  ChevronLeft,
+  ChevronRight,
+  Loader2,
+  Play,
+  Pause,
+} from 'lucide-react';
 import { extractPoseTrack, frameAt } from '@/lib/pose/extract';
 import { detectPitchEvents } from '@/lib/pose/detect';
 import {
@@ -66,12 +73,20 @@ const SIDE_COLOR = {
 } as const;
 
 const LEFT_POINTS = new Set<number>([
-  LM.leftShoulder, LM.leftElbow, LM.leftWrist,
-  LM.leftHip, LM.leftKnee, LM.leftAnkle,
+  LM.leftShoulder,
+  LM.leftElbow,
+  LM.leftWrist,
+  LM.leftHip,
+  LM.leftKnee,
+  LM.leftAnkle,
 ]);
 const RIGHT_POINTS = new Set<number>([
-  LM.rightShoulder, LM.rightElbow, LM.rightWrist,
-  LM.rightHip, LM.rightKnee, LM.rightAnkle,
+  LM.rightShoulder,
+  LM.rightElbow,
+  LM.rightWrist,
+  LM.rightHip,
+  LM.rightKnee,
+  LM.rightAnkle,
 ]);
 
 function sideOf(a: number, b?: number): keyof typeof SIDE_COLOR {
@@ -173,7 +188,8 @@ function drawSkeleton(
 ) {
   const frame = frameAt(track, t);
   if (!frame) return;
-  if (Math.abs(frame.t - t) > Math.max(MAX_DRAW_GAP_SECONDS, track.sampleStep * 3)) return;
+  if (Math.abs(frame.t - t) > Math.max(MAX_DRAW_GAP_SECONDS, track.sampleStep * 3))
+    return;
 
   const box = getContentBox(canvasW, canvasH, track.videoWidth, track.videoHeight);
   const px = (x: number) => box.ox + x * box.dw;
@@ -224,7 +240,8 @@ function drawSkeleton(
     const v = pts[spec.v];
     const b = pts[spec.b];
     if (!a || !v || !b) continue;
-    if (Math.min(a.visibility, v.visibility, b.visibility) < QUALITY_THRESHOLD) continue;
+    if (Math.min(a.visibility, v.visibility, b.visibility) < QUALITY_THRESHOLD)
+      continue;
     const left = LEFT_POINTS.has(spec.v);
     angleLabel(
       ctx,
@@ -343,9 +360,9 @@ export function PoseAnalysis({
   saved?: SavedAnalysisView | null;
   previous?: SavedAnalysisView | null;
 }) {
-  const [phase, setPhase] = useState<'idle' | 'loading' | 'analyzing' | 'ready' | 'error'>(
-    'idle'
-  );
+  const [phase, setPhase] = useState<
+    'idle' | 'loading' | 'analyzing' | 'ready' | 'error'
+  >('idle');
   const [progress, setProgress] = useState(0);
   const [error, setError] = useState<string>();
   const [track, setTrack] = useState<PoseTrack | null>(null);
@@ -370,7 +387,9 @@ export function PoseAnalysis({
   const abortRef = useRef<AbortController | null>(null);
 
   const router = useRouter();
-  const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
+  const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved' | 'error'>(
+    'idle'
+  );
   const [saveError, setSaveError] = useState<string>();
 
   const events = useMemo(
@@ -687,7 +706,8 @@ export function PoseAnalysis({
             const t = effectiveTime(key);
             const auto = events?.[key];
             const overridden = overrides[key] != null;
-            const blurry = !overridden && auto != null && auto.confidence < QUALITY_THRESHOLD;
+            const blurry =
+              !overridden && auto != null && auto.confidence < QUALITY_THRESHOLD;
             return (
               <button
                 key={key}
@@ -702,8 +722,7 @@ export function PoseAnalysis({
                     : 'border-line text-muted hover:border-sky-soft hover:text-ink'
                 }`}
               >
-                {EVENT_LABELS[key]}{' '}
-                {t != null ? `${t.toFixed(2)}초` : '감지 못함'}
+                {EVENT_LABELS[key]} {t != null ? `${t.toFixed(2)}초` : '감지 못함'}
                 {blurry && '?'}
                 {overridden && ' ✎'}
               </button>
@@ -785,33 +804,33 @@ export function PoseAnalysis({
           </p>
         ) : events && !events.kneeUp && !events.footPlant && !events.release ? (
           <p className="text-[11px] leading-relaxed text-warn">
-            투구 동작을 찾지 못했습니다. 팔을 휘두르는 장면이 화면 안에 다 들어와
-            있는지 확인해주세요. 구간을 누른 뒤 ◀ ▶로 프레임을 맞추고 직접
-            지정하면 수치는 똑같이 계산됩니다.
+            투구 동작을 찾지 못했습니다. 팔을 휘두르는 장면이 화면 안에 다 들어와 있는지
+            확인해주세요. 구간을 누른 뒤 ◀ ▶로 프레임을 맞추고 직접 지정하면 수치는
+            똑같이 계산됩니다.
           </p>
         ) : (
           <p className="text-[11px] leading-relaxed text-muted/60">
-            구간을 누르면 그 순간으로 이동합니다. 위치가 틀리면 ◀ ▶로 맞춘 뒤
-            지정을 누르세요. ?는 그 순간 관절 인식이 흐렸다는 표시입니다.
+            구간을 누르면 그 순간으로 이동합니다. 위치가 틀리면 ◀ ▶로 맞춘 뒤 지정을
+            누르세요. ?는 그 순간 관절 인식이 흐렸다는 표시입니다.
           </p>
         )}
       </div>
 
       {events && !events.sideViewOk && (
         <p className="rounded-lg border border-warn-line bg-warn-bg px-3 py-2 text-[11px] leading-relaxed text-warn">
-          투구 방향의 앞이나 뒤에서 찍힌 영상이라 자동 분석을 하지 않았습니다.
-          이 각도에서는 몸이 화면 안쪽으로 움직여 거리와 각도를 잴 수 없어,
-          숫자를 내면 전부 틀린 값이 됩니다. 위 촬영 가이드대로 1루 또는 3루
-          쪽에서 옆모습으로 찍어주세요. 스켈레톤은 그대로 보실 수 있습니다.
+          투구 방향의 앞이나 뒤에서 찍힌 영상이라 자동 분석을 하지 않았습니다. 이
+          각도에서는 몸이 화면 안쪽으로 움직여 거리와 각도를 잴 수 없어, 숫자를 내면
+          전부 틀린 값이 됩니다. 위 촬영 가이드대로 1루 또는 3루 쪽에서 옆모습으로
+          찍어주세요. 스켈레톤은 그대로 보실 수 있습니다.
         </p>
       )}
 
       {badCameraAngle && (
         <p className="rounded-lg border border-warn-line bg-warn-bg px-3 py-2 text-[11px] leading-relaxed text-warn">
-          스트라이드가 신장의 {strideMetric?.value}%로 측정됐습니다 — 옆(90도)이
-          아닌 각도에서 찍힌 영상 같습니다. 이런 영상은 거리·각도 수치가 실제보다
-          작게 나오고 좌/우투 인식도 뒤집힐 수 있습니다. 위 촬영 가이드대로 옆에서
-          다시 찍으면 정확해집니다.
+          스트라이드가 신장의 {strideMetric?.value}%로 측정됐습니다 — 옆(90도)이 아닌
+          각도에서 찍힌 영상 같습니다. 이런 영상은 거리·각도 수치가 실제보다 작게 나오고
+          좌/우투 인식도 뒤집힐 수 있습니다. 위 촬영 가이드대로 옆에서 다시 찍으면
+          정확해집니다.
         </p>
       )}
 
@@ -820,37 +839,41 @@ export function PoseAnalysis({
         <div className="space-y-1.5">
           <MetricsGrid metrics={metrics} />
           <p className="text-[11px] leading-relaxed text-muted/60">
-            90도 측면 촬영 기준의 근사값입니다. 절대값보다는 같은 조건으로 찍은
-            지난 영상과의 변화를 보세요. 구간을 수동 지정하면 수치도 다시 계산됩니다.
+            90도 측면 촬영 기준의 근사값입니다. 절대값보다는 같은 조건으로 찍은 지난
+            영상과의 변화를 보세요. 구간을 수동 지정하면 수치도 다시 계산됩니다.
           </p>
 
           {previous && <DeltaBlock current={metrics} previous={previous} />}
 
           {/* 저장 — 측면·인식 상태가 좋은 분석만. 다음에 재분석 없이 보고 비교에 쓴다. */}
-          {pitchLogId && videoPath && events?.sideViewOk && track && track.coverage >= 0.8 && (
-            <div className="flex flex-wrap items-center gap-2 pt-1">
-              <button
-                type="button"
-                onClick={handleSave}
-                disabled={saveState === 'saving' || saveState === 'saved'}
-                className="rounded-lg border border-sky-soft bg-sky/10 px-3 py-2 text-xs font-medium text-sky transition-colors enabled:hover:border-sky disabled:opacity-60"
-              >
-                {saveState === 'saving'
-                  ? '저장 중…'
-                  : saveState === 'saved'
-                    ? '저장됨 ✓'
-                    : saved
-                      ? '분석 다시 저장'
-                      : '이 분석 저장'}
-              </button>
-              <span className="text-[11px] text-muted/60">
-                저장하면 다음에 재분석 없이 바로 보이고, 이후 세션과 자동 비교됩니다.
-              </span>
-              {saveState === 'error' && saveError && (
-                <span className="text-[11px] text-danger">{saveError}</span>
-              )}
-            </div>
-          )}
+          {pitchLogId &&
+            videoPath &&
+            events?.sideViewOk &&
+            track &&
+            track.coverage >= 0.8 && (
+              <div className="flex flex-wrap items-center gap-2 pt-1">
+                <button
+                  type="button"
+                  onClick={handleSave}
+                  disabled={saveState === 'saving' || saveState === 'saved'}
+                  className="rounded-lg border border-sky-soft bg-sky/10 px-3 py-2 text-xs font-medium text-sky transition-colors enabled:hover:border-sky disabled:opacity-60"
+                >
+                  {saveState === 'saving'
+                    ? '저장 중…'
+                    : saveState === 'saved'
+                      ? '저장됨 ✓'
+                      : saved
+                        ? '분석 다시 저장'
+                        : '이 분석 저장'}
+                </button>
+                <span className="text-[11px] text-muted/60">
+                  저장하면 다음에 재분석 없이 바로 보이고, 이후 세션과 자동 비교됩니다.
+                </span>
+                {saveState === 'error' && saveError && (
+                  <span className="text-[11px] text-danger">{saveError}</span>
+                )}
+              </div>
+            )}
         </div>
       )}
 

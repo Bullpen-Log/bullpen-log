@@ -70,7 +70,9 @@ export function DayExercises({
             <>
               <span
                 className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-md border transition-colors ${
-                  ex.done ? 'border-sky bg-sky text-white' : 'border-line-strong bg-surface'
+                  ex.done
+                    ? 'border-sky bg-sky text-white'
+                    : 'border-line-strong bg-surface'
                 }`}
                 aria-hidden
               >
@@ -91,7 +93,9 @@ export function DayExercises({
                   {ex.done ? (
                     <>
                       {amount && (
-                        <span className="font-semibold text-sky-strong">{amount} · </span>
+                        <span className="font-semibold text-sky-strong">
+                          {amount} ·{' '}
+                        </span>
                       )}
                       {!amount && '마친 것으로 표시함 · '}
                       {ex.planned && `계획 ${ex.planned}`}

@@ -286,9 +286,21 @@ export function fitSpeed(points: BallPoint3D[]): SpeedFit | null {
   const minZ = Math.min(...sorted.map((p) => p.z));
   const weights = sorted.map((p) => (minZ / p.z) ** 4);
 
-  const fx = fitAxis(ts, sorted.map((p) => p.x), weights);
-  const fy = fitAxis(ts, sorted.map((p) => p.y), weights);
-  const fz = fitAxis(ts, sorted.map((p) => p.z), weights);
+  const fx = fitAxis(
+    ts,
+    sorted.map((p) => p.x),
+    weights
+  );
+  const fy = fitAxis(
+    ts,
+    sorted.map((p) => p.y),
+    weights
+  );
+  const fz = fitAxis(
+    ts,
+    sorted.map((p) => p.z),
+    weights
+  );
 
   const speedMps = Math.hypot(fx.slope, fy.slope, fz.slope);
 

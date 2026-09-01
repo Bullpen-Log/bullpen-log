@@ -69,7 +69,8 @@ export default function PrivacyPage() {
         <Items>
           <Item>계정을 만들고 로그인 상태를 유지하는 데</Item>
           <Item>
-            투구 부하 지수와 운동 부하 지수를 계산하고, 안전한 투구수·휴식일을 제안하는 데
+            투구 부하 지수와 운동 부하 지수를 계산하고, 안전한 투구수·휴식일을 제안하는
+            데
           </Item>
           <Item>오늘 할 운동을 고르고, 리포트를 만드는 데</Item>
           <Item>영상을 저장하고 본인에게만 보여주는 데</Item>
@@ -136,8 +137,14 @@ export default function PrivacyPage() {
             모두 삭제됩니다.
           </Item>
           <Item>
-            그 밖의 요청은 <a href="mailto:bullpenlog.com@gmail.com" className="font-medium text-sky underline underline-offset-2">bullpenlog.com@gmail.com</a>로 보내주시면 처리하고
-            알려드립니다.
+            그 밖의 요청은{' '}
+            <a
+              href="mailto:bullpenlog.com@gmail.com"
+              className="font-medium text-sky underline underline-offset-2"
+            >
+              bullpenlog.com@gmail.com
+            </a>
+            로 보내주시면 처리하고 알려드립니다.
           </Item>
         </Items>
       </Article>
@@ -154,7 +161,8 @@ export default function PrivacyPage() {
             쿠키에 담습니다.
           </Item>
           <Item>
-            기록을 읽고 고치는 모든 자리에서 &lsquo;본인 것인가&rsquo;를 먼저 확인합니다.
+            기록을 읽고 고치는 모든 자리에서 &lsquo;본인 것인가&rsquo;를 먼저
+            확인합니다.
           </Item>
         </Items>
       </Article>
@@ -172,11 +180,17 @@ export default function PrivacyPage() {
             개인정보 보호책임자: <Blank>[이름]</Blank>
           </Item>
           <Item>
-            연락처: <a href="mailto:bullpenlog.com@gmail.com" className="font-medium text-sky underline underline-offset-2">bullpenlog.com@gmail.com</a>
+            연락처:{' '}
+            <a
+              href="mailto:bullpenlog.com@gmail.com"
+              className="font-medium text-sky underline underline-offset-2"
+            >
+              bullpenlog.com@gmail.com
+            </a>
           </Item>
           <Item>
-            개인정보 침해로 신고·상담이 필요하시면 개인정보침해신고센터(118),
-            대검찰청 사이버수사과(1301), 경찰청 사이버수사국(182)에 문의하실 수 있습니다.
+            개인정보 침해로 신고·상담이 필요하시면 개인정보침해신고센터(118), 대검찰청
+            사이버수사과(1301), 경찰청 사이버수사국(182)에 문의하실 수 있습니다.
           </Item>
         </Items>
       </Article>

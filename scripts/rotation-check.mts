@@ -205,12 +205,7 @@ function orderOldWay(
     .map((v) => v.ex);
 }
 
-function run(
-  days: number,
-  regular: boolean,
-  oldWay = false,
-  startYear = 2026
-): Result {
+function run(days: number, regular: boolean, oldWay = false, startYear = 2026): Result {
   const day = dayIn(startYear);
   /** 운동 → 마지막으로 한 세션 번호 (1부터) */
   const lastSession = new Map<string, number>();
@@ -363,17 +358,13 @@ function average(runs: readonly Result[]): Result {
     drought: mean((r) => r.drought),
     droughtWorst: Math.max(...runs.map((r) => r.droughtWorst)),
     lowerDays: Math.round(mean((r) => r.lowerDays)),
-    meanSessionGap: gaps.length
-      ? gaps.reduce((a, b) => a + b, 0) / gaps.length
-      : null,
+    meanSessionGap: gaps.length ? gaps.reduce((a, b) => a + b, 0) / gaps.length : null,
   };
 }
 
 /** 해마다 시작 연도를 바꿔 YEARS 해를 돌린 평균 */
 const runYears = (regular: boolean, oldWay: boolean) =>
-  average(
-    Array.from({ length: YEARS }, (_, i) => run(365, regular, oldWay, 2020 + i))
-  );
+  average(Array.from({ length: YEARS }, (_, i) => run(365, regular, oldWay, 2020 + i)));
 
 const pct = (v: number) => `${Math.round(v * 100)}%`;
 let failed = false;
@@ -385,9 +376,7 @@ for (const [label, regular] of [
   const before = runYears(regular, true);
   const now = runYears(regular, false);
   console.log('');
-  console.log(
-    `■ ${label} — 1년에 실제 운동 ${now.sessions}회 · ${YEARS}해 평균`
-  );
+  console.log(`■ ${label} — 1년에 실제 운동 ${now.sessions}회 · ${YEARS}해 평균`);
   console.log('');
   console.log('                                     예전 규칙      지금');
   console.log('  ' + '─'.repeat(52));
@@ -430,7 +419,9 @@ for (const [label, regular] of [
     failed = true;
   }
   if (now.reuse > MAX_YEARLY_REUSE) {
-    console.log(`  ✗ 같은 운동을 1년에 ${now.reuse.toFixed(1)}번 만납니다 (${MAX_YEARLY_REUSE}번까지) — 라이브러리가 굳고 있습니다.`);
+    console.log(
+      `  ✗ 같은 운동을 1년에 ${now.reuse.toFixed(1)}번 만납니다 (${MAX_YEARLY_REUSE}번까지) — 라이브러리가 굳고 있습니다.`
+    );
     failed = true;
   }
   if (now.hingeShare < MIN_HINGE_SHARE) {

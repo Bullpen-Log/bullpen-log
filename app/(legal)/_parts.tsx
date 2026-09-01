@@ -55,9 +55,7 @@ export function Article({
 
 /** 번호 매긴 항. 법 문서의 ①②③ 자리다. */
 export function Items({ children }: { children: ReactNode }) {
-  return (
-    <ol className="ml-1 space-y-2 [counter-reset:item]">{children}</ol>
-  );
+  return <ol className="ml-1 space-y-2 [counter-reset:item]">{children}</ol>;
 }
 
 export function Item({ children }: { children: ReactNode }) {
@@ -69,13 +67,7 @@ export function Item({ children }: { children: ReactNode }) {
 }
 
 /** 표 — 개인정보 항목처럼 무엇을 왜 얼마나 두는지 나란히 볼 것에 쓴다. */
-export function DataTable({
-  head,
-  rows,
-}: {
-  head: string[];
-  rows: ReactNode[][];
-}) {
+export function DataTable({ head, rows }: { head: string[]; rows: ReactNode[][] }) {
   return (
     <div className="my-3 overflow-x-auto rounded-xl border border-line">
       <table className="w-full min-w-[34rem] border-collapse text-left text-sm">

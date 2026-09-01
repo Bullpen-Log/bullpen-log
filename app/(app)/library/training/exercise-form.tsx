@@ -100,9 +100,9 @@ export function ExerciseForm({
    */
   const before = state?.values;
   const pick = (name: string, fallback?: string | null) =>
-    before ? kept(before, name) ?? '' : fallback ?? undefined;
+    before ? (kept(before, name) ?? '') : (fallback ?? undefined);
   const pickAll = (name: string, fallback?: string[]) =>
-    before ? keptAll(before, name) ?? [] : fallback;
+    before ? (keptAll(before, name) ?? []) : fallback;
 
   return (
     <form key={formKey} action={formAction} className="space-y-5">
@@ -231,9 +231,7 @@ export function ExerciseForm({
         정확한 시간 배분을 원하면 채워두는 편이 좋다.
       */}
       <div className="space-y-4 border-t border-sky-soft/30 pt-5">
-        <p className="text-xs font-medium tracking-normal text-muted">
-          수행 방법
-        </p>
+        <p className="text-xs font-medium tracking-normal text-muted">수행 방법</p>
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
           <Field label="세트">
             <Input

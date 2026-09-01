@@ -141,11 +141,7 @@ function MetricRow({
   );
 }
 
-export function ReportClient({
-  logs,
-}: {
-  logs: Log[];
-}) {
+export function ReportClient({ logs }: { logs: Log[] }) {
   const [days, setDays] = useState<7 | 30>(7);
 
   const chart = useChartTheme();
@@ -159,10 +155,7 @@ export function ReportClient({
     () => countSessionTypes(logs, currentKeys),
     [logs, currentKeys]
   );
-  const previous = useMemo(
-    () => summarize(byDay, previousKeys),
-    [byDay, previousKeys]
-  );
+  const previous = useMemo(() => summarize(byDay, previousKeys), [byDay, previousKeys]);
 
   const fatigueWindows = useMemo(
     () => findFatigueWindows(byDay, currentKeys),
@@ -199,10 +192,7 @@ export function ReportClient({
 
   /* ------------------------------- 메모 ------------------------------- */
 
-  const memoLogs = useMemo(
-    () => logs.filter((l) => l.memo?.trim()).reverse(),
-    [logs]
-  );
+  const memoLogs = useMemo(() => logs.filter((l) => l.memo?.trim()).reverse(), [logs]);
   const memoDates = useMemo(
     () => [...new Set(memoLogs.map((l) => l.date.slice(0, 10)))],
     [memoLogs]
@@ -340,247 +330,247 @@ export function ReportClient({
       </summary>
 
       {open && (
-      <div className="mt-6 space-y-6">
-      {/* 기간 선택 */}
-      <div className="flex flex-wrap items-center gap-3">
-        <div className="flex gap-1 rounded-xl border border-line bg-surface p-1">
-          {PERIODS.map((p) => (
-            <button
-              key={p.key}
-              type="button"
-              onClick={() => setDays(p.key)}
-              className={`rounded-lg px-5 py-2.5 text-sm font-medium transition-colors ${
-                days === p.key ? 'bg-sky text-white' : 'text-muted hover:text-ink'
-              }`}
-            >
-              {p.label}
-            </button>
-          ))}
-        </div>
-        <span className="text-xs tabular-nums text-muted">{rangeLabel}</span>
-      </div>
+        <div className="mt-6 space-y-6">
+          {/* 기간 선택 */}
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="flex gap-1 rounded-xl border border-line bg-surface p-1">
+              {PERIODS.map((p) => (
+                <button
+                  key={p.key}
+                  type="button"
+                  onClick={() => setDays(p.key)}
+                  className={`rounded-lg px-5 py-2.5 text-sm font-medium transition-colors ${
+                    days === p.key ? 'bg-sky text-white' : 'text-muted hover:text-ink'
+                  }`}
+                >
+                  {p.label}
+                </button>
+              ))}
+            </div>
+            <span className="text-xs tabular-nums text-muted">{rangeLabel}</span>
+          </div>
 
-      {/* 요약 지표 — 직전 동일 기간과 비교 */}
-      <div className="grid gap-5 lg:grid-cols-2">
-        <Card>
-          <h2 className="text-sm font-bold text-ink">투구량</h2>
-          <p className="mb-2 mt-1 text-xs text-muted">직전 {days}일과 비교</p>
-          <MetricRow
-            label="총 투구수"
-            value={current.totalPitches}
-            unit="구"
-            delta={current.totalPitches - previous.totalPitches}
-            deltaUnit="구"
-            invert
-          />
-          <MetricRow
-            label="던진 날"
-            value={current.activeDays}
-            unit="일"
-            delta={current.activeDays - previous.activeDays}
-            deltaUnit="일"
-          />
-          <MetricRow
-            label="던진 날 평균"
-            value={current.pitchesPerActiveDay.toFixed(0)}
-            unit="구"
-            delta={current.pitchesPerActiveDay - previous.pitchesPerActiveDay}
-            deltaUnit="구"
-            invert
-          />
-          <MetricRow label="하루 최다" value={current.maxDailyPitches} unit="구" />
+          {/* 요약 지표 — 직전 동일 기간과 비교 */}
+          <div className="grid gap-5 lg:grid-cols-2">
+            <Card>
+              <h2 className="text-sm font-bold text-ink">투구량</h2>
+              <p className="mb-2 mt-1 text-xs text-muted">직전 {days}일과 비교</p>
+              <MetricRow
+                label="총 투구수"
+                value={current.totalPitches}
+                unit="구"
+                delta={current.totalPitches - previous.totalPitches}
+                deltaUnit="구"
+                invert
+              />
+              <MetricRow
+                label="던진 날"
+                value={current.activeDays}
+                unit="일"
+                delta={current.activeDays - previous.activeDays}
+                deltaUnit="일"
+              />
+              <MetricRow
+                label="던진 날 평균"
+                value={current.pitchesPerActiveDay.toFixed(0)}
+                unit="구"
+                delta={current.pitchesPerActiveDay - previous.pitchesPerActiveDay}
+                deltaUnit="구"
+                invert
+              />
+              <MetricRow label="하루 최다" value={current.maxDailyPitches} unit="구" />
 
-          {/*
+              {/*
             무엇을 하며 지냈는지. 총 투구수만으로는 같은 800구라도 경기 위주였는지
             불펜 위주였는지 알 수 없는데, 몸에 남는 것은 그쪽이 더 다르다.
           */}
-          {sessionCounts.length > 0 && (
-            <div className="mt-3 flex flex-wrap gap-x-1.5 gap-y-1 border-t border-line pt-3 text-xs text-muted">
-              {sessionCounts.map((t, i) => (
-                <span key={t.name} className="whitespace-nowrap">
-                  {i > 0 && <span className="mr-1.5 text-line-strong">·</span>}
-                  <span className="text-ink">{t.name}</span>{' '}
-                  {t.pitches > 0 ? `${t.count}회 (${t.pitches}구)` : `${t.count}일`}
-                </span>
-              ))}
-            </div>
-          )}
+              {sessionCounts.length > 0 && (
+                <div className="mt-3 flex flex-wrap gap-x-1.5 gap-y-1 border-t border-line pt-3 text-xs text-muted">
+                  {sessionCounts.map((t, i) => (
+                    <span key={t.name} className="whitespace-nowrap">
+                      {i > 0 && <span className="mr-1.5 text-line-strong">·</span>}
+                      <span className="text-ink">{t.name}</span>{' '}
+                      {t.pitches > 0 ? `${t.count}회 (${t.pitches}구)` : `${t.count}일`}
+                    </span>
+                  ))}
+                </div>
+              )}
 
-          {/*
+              {/*
             부하가 어디에서 왔는지.
 
             투구수 비중과는 다르다 — 캐치볼 100구와 경기 100구는 같은 100구지만
             몸에 남는 것이 다르고, 부하(투구수 × 강도)는 그 차이를 담고 있다.
           */}
-          {loadNow.length > 1 && (
-            <div className="mt-3 space-y-2 border-t border-line pt-3">
-              <p className="text-xs text-muted">부하가 어디에서 왔나</p>
-              <div className="flex h-2 overflow-hidden rounded-full bg-surface-2">
-                {loadNow.map((t) => (
-                  <div
-                    key={t.name}
-                    className={LOAD_BAR_COLOR[t.name] ?? 'bg-line-strong'}
-                    style={{ width: `${t.share * 100}%` }}
-                    title={`${t.name} ${Math.round(t.share * 100)}%`}
-                  />
-                ))}
+              {loadNow.length > 1 && (
+                <div className="mt-3 space-y-2 border-t border-line pt-3">
+                  <p className="text-xs text-muted">부하가 어디에서 왔나</p>
+                  <div className="flex h-2 overflow-hidden rounded-full bg-surface-2">
+                    {loadNow.map((t) => (
+                      <div
+                        key={t.name}
+                        className={LOAD_BAR_COLOR[t.name] ?? 'bg-line-strong'}
+                        style={{ width: `${t.share * 100}%` }}
+                        title={`${t.name} ${Math.round(t.share * 100)}%`}
+                      />
+                    ))}
+                  </div>
+                  <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted">
+                    {loadNow.map((t) => (
+                      <span key={t.name} className="inline-flex items-center gap-1.5">
+                        <span
+                          className={`h-2 w-2 rounded-full ${LOAD_BAR_COLOR[t.name] ?? 'bg-line-strong'}`}
+                        />
+                        {t.name} {Math.round(t.share * 100)}%
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </Card>
+
+            <Card>
+              <h2 className="text-sm font-bold text-ink">투구 강도</h2>
+              <p className="mb-2 mt-1 text-xs text-muted">1~10 자가 평가 기준</p>
+              <MetricRow
+                label="평균 강도"
+                value={current.avgIntensity.toFixed(1)}
+                unit="/ 10"
+                delta={current.avgIntensity - previous.avgIntensity}
+                invert
+              />
+              <MetricRow label="최고 강도" value={current.peakIntensity} unit="/ 10" />
+              <MetricRow
+                label={`이틀 합산 ${TWO_DAY_INTENSITY_LIMIT} 초과`}
+                value={fatigueWindows.length}
+                unit="회"
+              />
+              <MetricRow label="최장 연투" value={streak} unit="일" />
+            </Card>
+          </div>
+
+          {/* 코멘트 */}
+          {findings.length > 0 && (
+            <section className="space-y-3">
+              <h2 className="text-lg font-bold text-ink">코멘트</h2>
+              <div className="grid gap-3 lg:grid-cols-2">
+                {findings.map((f) => {
+                  const style = TONE_STYLES[f.tone];
+                  const Icon = style.Icon;
+                  return (
+                    <div
+                      key={f.title}
+                      className={`flex gap-3 rounded-xl border p-4 ${style.box}`}
+                    >
+                      <Icon className={`mt-0.5 h-4 w-4 shrink-0 ${style.icon}`} />
+                      <div className="min-w-0">
+                        <p className="text-sm font-semibold text-ink">{f.title}</p>
+                        <p className="mt-1 text-xs leading-relaxed text-muted">
+                          {f.detail}
+                        </p>
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
-              <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted">
-                {loadNow.map((t) => (
-                  <span key={t.name} className="inline-flex items-center gap-1.5">
+
+              {fatigueWindows.length > 0 && (
+                <div className="flex flex-wrap items-center gap-2 rounded-xl border border-line bg-surface p-4">
+                  <span className="text-xs text-muted">해당 구간</span>
+                  {fatigueWindows.slice(0, 10).map((w) => (
                     <span
-                      className={`h-2 w-2 rounded-full ${LOAD_BAR_COLOR[t.name] ?? 'bg-line-strong'}`}
-                    />
-                    {t.name} {Math.round(t.share * 100)}%
-                  </span>
-                ))}
+                      key={`${w.firstDay}-${w.secondDay}`}
+                      className="rounded-lg border border-warn-line bg-warn-bg px-2.5 py-1 text-[11px] tabular-nums text-warn"
+                    >
+                      {formatShortDate(w.firstDay)}→{formatShortDate(w.secondDay)} 합{' '}
+                      {w.total}
+                    </span>
+                  ))}
+                </div>
+              )}
+            </section>
+          )}
+
+          {/* 그래프 */}
+          <section className="space-y-5">
+            <h2 className="text-lg font-bold text-ink">추이</h2>
+
+            <Card className="space-y-4">
+              <div>
+                <h3 className="font-bold text-ink">투구량 &amp; 강도</h3>
+                <p className="mt-1 text-sm text-muted">
+                  막대는 그날 던진 개수, 선은 체감 강도입니다.
+                </p>
               </div>
+              <div className="h-[280px]">
+                <Chart type="bar" data={volumeData} options={volumeOptions} />
+              </div>
+            </Card>
+          </section>
+
+          {/* 메모 모아보기 */}
+          <section className="space-y-4">
+            <div className="flex items-baseline justify-between">
+              <h2 className="text-lg font-bold text-ink">기록 메모</h2>
+              <span className="text-xs text-muted">
+                메모 남긴 날 {memoDates.length}일
+              </span>
             </div>
-          )}
-        </Card>
 
-        <Card>
-          <h2 className="text-sm font-bold text-ink">투구 강도</h2>
-          <p className="mb-2 mt-1 text-xs text-muted">1~10 자가 평가 기준</p>
-          <MetricRow
-            label="평균 강도"
-            value={current.avgIntensity.toFixed(1)}
-            unit="/ 10"
-            delta={current.avgIntensity - previous.avgIntensity}
-            invert
-          />
-          <MetricRow label="최고 강도" value={current.peakIntensity} unit="/ 10" />
-          <MetricRow
-            label={`이틀 합산 ${TWO_DAY_INTENSITY_LIMIT} 초과`}
-            value={fatigueWindows.length}
-            unit="회"
-          />
-          <MetricRow label="최장 연투" value={streak} unit="일" />
-        </Card>
-
-      </div>
-
-      {/* 코멘트 */}
-      {findings.length > 0 && (
-        <section className="space-y-3">
-          <h2 className="text-lg font-bold text-ink">코멘트</h2>
-          <div className="grid gap-3 lg:grid-cols-2">
-            {findings.map((f) => {
-              const style = TONE_STYLES[f.tone];
-              const Icon = style.Icon;
-              return (
-                <div
-                  key={f.title}
-                  className={`flex gap-3 rounded-xl border p-4 ${style.box}`}
-                >
-                  <Icon className={`mt-0.5 h-4 w-4 shrink-0 ${style.icon}`} />
-                  <div className="min-w-0">
-                    <p className="text-sm font-semibold text-ink">{f.title}</p>
-                    <p className="mt-1 text-xs leading-relaxed text-muted">
-                      {f.detail}
-                    </p>
-                  </div>
+            {memoDates.length === 0 ? (
+              <EmptyState
+                title="남긴 메모가 없습니다"
+                description="투구 기록의 '특이사항 · 느낀점'에 적은 내용이 이곳에 모입니다."
+              />
+            ) : (
+              <Card className="space-y-4">
+                {/* 날짜 선택 — 최근 날짜가 앞에 온다 */}
+                <div className="-mx-5 flex gap-2 overflow-x-auto px-5 pb-1 sm:-mx-6 sm:px-6">
+                  {memoDates.map((d) => (
+                    <button
+                      key={d}
+                      type="button"
+                      onClick={() => setPickedMemoDate(d)}
+                      className={`shrink-0 rounded-lg border px-3 py-2 text-xs tabular-nums transition-colors ${
+                        d === activeMemoDate
+                          ? 'border-sky bg-sky/10 text-sky'
+                          : 'border-line text-muted hover:border-line-strong hover:text-ink'
+                      }`}
+                    >
+                      {formatShortDate(d)}
+                    </button>
+                  ))}
                 </div>
-              );
-            })}
-          </div>
 
-          {fatigueWindows.length > 0 && (
-            <div className="flex flex-wrap items-center gap-2 rounded-xl border border-line bg-surface p-4">
-              <span className="text-xs text-muted">해당 구간</span>
-              {fatigueWindows.slice(0, 10).map((w) => (
-                <span
-                  key={`${w.firstDay}-${w.secondDay}`}
-                  className="rounded-lg border border-warn-line bg-warn-bg px-2.5 py-1 text-[11px] tabular-nums text-warn"
-                >
-                  {formatShortDate(w.firstDay)}→{formatShortDate(w.secondDay)} 합{' '}
-                  {w.total}
-                </span>
-              ))}
-            </div>
-          )}
-        </section>
-      )}
-
-      {/* 그래프 */}
-      <section className="space-y-5">
-        <h2 className="text-lg font-bold text-ink">추이</h2>
-
-        <Card className="space-y-4">
-          <div>
-            <h3 className="font-bold text-ink">투구량 &amp; 강도</h3>
-            <p className="mt-1 text-sm text-muted">
-              막대는 그날 던진 개수, 선은 체감 강도입니다.
-            </p>
-          </div>
-          <div className="h-[280px]">
-            <Chart type="bar" data={volumeData} options={volumeOptions} />
-          </div>
-        </Card>
-
-      </section>
-
-      {/* 메모 모아보기 */}
-      <section className="space-y-4">
-        <div className="flex items-baseline justify-between">
-          <h2 className="text-lg font-bold text-ink">기록 메모</h2>
-          <span className="text-xs text-muted">메모 남긴 날 {memoDates.length}일</span>
+                {/* 선택한 날짜의 메모 */}
+                <div className="space-y-3 border-t border-line pt-4">
+                  {activeMemos.map((log) => (
+                    <div
+                      key={log.id}
+                      className="rounded-xl border border-line bg-surface-2 p-4"
+                    >
+                      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] tabular-nums text-muted">
+                        <span className="text-ink">{log.date.slice(0, 10)}</span>
+                        <span>{log.pitchCount}구</span>
+                        <span>강도 {log.intensity}/10</span>
+                        {log.maxVelocity != null && (
+                          <span>최고 {log.maxVelocity}km/h</span>
+                        )}
+                        {log.avgVelocity != null && (
+                          <span>평균 {log.avgVelocity}km/h</span>
+                        )}
+                      </div>
+                      <p className="mt-3 flex gap-2 whitespace-pre-wrap text-sm leading-relaxed text-ink/90">
+                        <NotebookPen className="mt-0.5 h-4 w-4 shrink-0 text-sky" />
+                        {log.memo}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              </Card>
+            )}
+          </section>
         </div>
-
-        {memoDates.length === 0 ? (
-          <EmptyState
-            title="남긴 메모가 없습니다"
-            description="투구 기록의 '특이사항 · 느낀점'에 적은 내용이 이곳에 모입니다."
-          />
-        ) : (
-          <Card className="space-y-4">
-            {/* 날짜 선택 — 최근 날짜가 앞에 온다 */}
-            <div className="-mx-5 flex gap-2 overflow-x-auto px-5 pb-1 sm:-mx-6 sm:px-6">
-              {memoDates.map((d) => (
-                <button
-                  key={d}
-                  type="button"
-                  onClick={() => setPickedMemoDate(d)}
-                  className={`shrink-0 rounded-lg border px-3 py-2 text-xs tabular-nums transition-colors ${
-                    d === activeMemoDate
-                      ? 'border-sky bg-sky/10 text-sky'
-                      : 'border-line text-muted hover:border-line-strong hover:text-ink'
-                  }`}
-                >
-                  {formatShortDate(d)}
-                </button>
-              ))}
-            </div>
-
-            {/* 선택한 날짜의 메모 */}
-            <div className="space-y-3 border-t border-line pt-4">
-              {activeMemos.map((log) => (
-                <div
-                  key={log.id}
-                  className="rounded-xl border border-line bg-surface-2 p-4"
-                >
-                  <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] tabular-nums text-muted">
-                    <span className="text-ink">{log.date.slice(0, 10)}</span>
-                    <span>{log.pitchCount}구</span>
-                    <span>강도 {log.intensity}/10</span>
-                    {log.maxVelocity != null && (
-                      <span>최고 {log.maxVelocity}km/h</span>
-                    )}
-                    {log.avgVelocity != null && (
-                      <span>평균 {log.avgVelocity}km/h</span>
-                    )}
-                  </div>
-                  <p className="mt-3 flex gap-2 whitespace-pre-wrap text-sm leading-relaxed text-ink/90">
-                    <NotebookPen className="mt-0.5 h-4 w-4 shrink-0 text-sky" />
-                    {log.memo}
-                  </p>
-                </div>
-              ))}
-            </div>
-          </Card>
-        )}
-      </section>
-      </div>
       )}
     </details>
   );

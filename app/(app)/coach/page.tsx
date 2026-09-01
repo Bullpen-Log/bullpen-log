@@ -33,7 +33,8 @@ import { TrainingReviewCards } from './training-review';
 
 /** 칸마다 머리말을 바꾼다 — 무엇을 보는 화면인지 한 줄로 말해준다 */
 const VIEW_TEXT = {
-  pitch: '얼마나 던졌고 어떻게 달라지고 있는지 봅니다. 아래로 내려가면 기간별 기록이 이어집니다.',
+  pitch:
+    '얼마나 던졌고 어떻게 달라지고 있는지 봅니다. 아래로 내려가면 기간별 기록이 이어집니다.',
   training: '무엇을 얼마나 했는지, 빠진 부위는 없는지 봅니다.',
   report: '그동안의 기록을 읽고 정리한 코멘트입니다.',
 } as const;
@@ -92,7 +93,7 @@ export default async function ReportPage({
           asOf: latestReport.asOf.toISOString().slice(0, 10),
           halted: latestReport.halted,
         }
-      : null,
+      : null
   );
 
   /* 지난 리포트 목록 — 리포트 칸을 볼 때만 읽는다 */
@@ -118,11 +119,7 @@ export default async function ReportPage({
 
   return (
     <div className="space-y-8">
-      <PageHeading
-        eyebrow="Analysis"
-        title="분석"
-        description={VIEW_TEXT[view]}
-      />
+      <PageHeading eyebrow="Analysis" title="분석" description={VIEW_TEXT[view]} />
 
       {/*
         예전에는 홈(대시보드)에 있던 것들이다. 홈은 입력(체크인)과 출력(부하·추이)이
@@ -175,8 +172,8 @@ export default async function ReportPage({
 
       {/* 어느 칸에서든 맨 아래에 남긴다 — 부하 지수는 세 칸 모두에 보인다 */}
       <p className="pb-2 text-center text-[11px] leading-relaxed text-muted/60">
-        부하 지수는 훈련량 관리를 돕는 참고 지표입니다. 통증이 있다면 수치와
-        관계없이 전문의와 상담하세요.
+        부하 지수는 훈련량 관리를 돕는 참고 지표입니다. 통증이 있다면 수치와 관계없이
+        전문의와 상담하세요.
       </p>
     </div>
   );

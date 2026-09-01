@@ -27,7 +27,10 @@ const THEMES: ThemeKey[] = ['lower', 'upper', 'assist', 'recovery'];
 const TOLERANCE = 0.15;
 
 /** 며칠치를 만들어 볼 것인가. 날마다 순서가 달라 소요 시간도 달라진다. */
-const SEEDS = Array.from({ length: 14 }, (_, i) => `2026-08-${String(i + 1).padStart(2, '0')}`);
+const SEEDS = Array.from(
+  { length: 14 },
+  (_, i) => `2026-08-${String(i + 1).padStart(2, '0')}`
+);
 
 const prisma = new PrismaClient({
   adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL }),
@@ -41,7 +44,9 @@ await prisma.$disconnect();
 
 const missing = library.filter((ex) => ex.sets == null);
 if (missing.length) {
-  console.log(`⚠ 세트·횟수가 비어 있는 운동 ${missing.length}개 — 그것들은 종류로 어림합니다.\n`);
+  console.log(
+    `⚠ 세트·횟수가 비어 있는 운동 ${missing.length}개 — 그것들은 종류로 어림합니다.\n`
+  );
 }
 
 /*
@@ -81,7 +86,9 @@ for (const theme of THEMES) {
       })
     );
     const worst = runs.reduce((a, b) =>
-      Math.abs(a.estimatedMinutes - minutes) >= Math.abs(b.estimatedMinutes - minutes) ? a : b
+      Math.abs(a.estimatedMinutes - minutes) >= Math.abs(b.estimatedMinutes - minutes)
+        ? a
+        : b
     );
     const { picks, estimatedMinutes, notes } = worst;
 

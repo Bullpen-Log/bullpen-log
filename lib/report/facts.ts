@@ -138,9 +138,7 @@ function changeRate(current: number, previous: number): number | null {
 function daysBetween(fromKey: string, toKey: string) {
   const [fy, fm, fd] = fromKey.split('-').map(Number);
   const [ty, tm, td] = toKey.split('-').map(Number);
-  return Math.round(
-    (Date.UTC(ty, tm - 1, td) - Date.UTC(fy, fm - 1, fd)) / 86_400_000
-  );
+  return Math.round((Date.UTC(ty, tm - 1, td) - Date.UTC(fy, fm - 1, fd)) / 86_400_000);
 }
 
 export function buildFacts({
@@ -227,9 +225,7 @@ export function buildFacts({
         ? (byDay.get(lastThrowDate)?.adjustedPitches ?? null)
         : null,
       restDays: lastThrowDate ? daysBetween(lastThrowDate, asOf) : null,
-      baselinePitches: month.activeDays
-        ? Math.round(month.pitchesPerActiveDay)
-        : null,
+      baselinePitches: month.activeDays ? Math.round(month.pitchesPerActiveDay) : null,
     },
     condition: {
       today: todayCheckin,

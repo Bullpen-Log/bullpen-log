@@ -8,11 +8,7 @@ import { BaseballMark } from '@/components/logo';
  * 앱 안(app 그룹)에 두지 않는다. 가입하기 전에 읽어야 하는 글이라 로그인이
  * 필요하면 안 되고, 옆에 메뉴가 붙어 있으면 앱 화면처럼 보인다.
  */
-export default function LegalLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+export default function LegalLayout({ children }: { children: React.ReactNode }) {
   return (
     <div className="min-h-full bg-page">
       <header className="border-b border-line bg-surface">

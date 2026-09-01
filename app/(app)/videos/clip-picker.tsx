@@ -36,9 +36,7 @@ export function ClipPicker({
   const filtered = useMemo(() => {
     const q = query.trim();
     if (!q) return ordered;
-    return ordered.filter(
-      (c) => c.date.includes(q) || shortDate(c.date).includes(q)
-    );
+    return ordered.filter((c) => c.date.includes(q) || shortDate(c.date).includes(q));
   }, [ordered, query]);
 
   // 월별로 묶어서 스크롤할 때 위치를 가늠할 수 있게 한다.

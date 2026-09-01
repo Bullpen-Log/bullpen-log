@@ -44,7 +44,9 @@ await prisma.$disconnect();
 let failed = 0;
 
 /** 구간별 소요 시간(분)을 재서 한 줄로 만든다 */
-function shapeOf(picks: { exercise: { category: string; intensity: string }; slot: SlotKey }[]) {
+function shapeOf(
+  picks: { exercise: { category: string; intensity: string }; slot: SlotKey }[]
+) {
   const mins = new Map<SlotKey, number>();
   const count = new Map<SlotKey, number>();
   for (const p of picks) {
@@ -52,7 +54,9 @@ function shapeOf(picks: { exercise: { category: string; intensity: string }; slo
     count.set(p.slot, (count.get(p.slot) ?? 0) + 1);
   }
   return SLOT_ORDER.filter((s) => count.has(s))
-    .map((s) => `${SLOT_LABELS[s].label} ${count.get(s)}개/${Math.round(mins.get(s)!)}분`)
+    .map(
+      (s) => `${SLOT_LABELS[s].label} ${count.get(s)}개/${Math.round(mins.get(s)!)}분`
+    )
     .join(' · ');
 }
 
@@ -75,7 +79,9 @@ for (const goal of TRAINING_GOALS) {
 console.log(`\n■ 경력별로 할 수 있는 운동\n`);
 for (const level of TRAINING_LEVELS) {
   const { pool, excludedCount } = filterByLevel(library, level.name);
-  console.log(`  ${level.name.padEnd(4)} ${String(pool.length).padStart(3)}개 (뺀 것 ${excludedCount}개) — ${level.desc}`);
+  console.log(
+    `  ${level.name.padEnd(4)} ${String(pool.length).padStart(3)}개 (뺀 것 ${excludedCount}개) — ${level.desc}`
+  );
 }
 
 console.log(`\n■ 가장 빠듯한 경우 — 경력별 × 장비별 (하체 데이 ${MINUTES}분)\n`);
@@ -112,7 +118,9 @@ for (const level of TRAINING_LEVELS) {
     if (missing.length > 0) failed++;
     console.log(
       `  ${missing.length ? '❌' : '  '} ${level.name.padEnd(4)} ${eq.label.padEnd(10)} 후보 ${String(leveled.pool.length).padStart(3)}개 → ${String(estimatedMinutes).padStart(2)}분 · ${picks.length}개` +
-        (missing.length ? `  빈 구간: ${missing.map((m) => SLOT_LABELS[m].label).join(',')}` : '')
+        (missing.length
+          ? `  빈 구간: ${missing.map((m) => SLOT_LABELS[m].label).join(',')}`
+          : '')
     );
   }
 }

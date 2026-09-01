@@ -184,9 +184,7 @@ export function CheckinForm({
     setPartEdits(null);
   }
 
-  const today = todayKey
-    ? recent.find((c) => c.date === todayKey) ?? null
-    : null;
+  const today = todayKey ? (recent.find((c) => c.date === todayKey) ?? null) : null;
   const painToday = today ? hasPain(today) : false;
 
   /*
@@ -197,8 +195,8 @@ export function CheckinForm({
   const pick = (name: string, fallback: string | number | undefined) =>
     before ? kept(before, name) : fallback === undefined ? undefined : String(fallback);
   const pickedParts = before
-    ? keptAll(before, 'preferredParts') ?? []
-    : today?.preferredParts ?? [];
+    ? (keptAll(before, 'preferredParts') ?? [])
+    : (today?.preferredParts ?? []);
   /** 고른 운동 종류. '' 는 추천대로 — 안 고른 것과 같은 뜻이다. */
   const pickedWorkout = before
     ? (kept(before, 'preferredWorkout') ?? '')
@@ -298,9 +296,9 @@ export function CheckinForm({
 
               {painToday && (
                 <p className="mt-4 rounded-xl border border-danger-line bg-danger-bg px-4 py-3 text-xs leading-relaxed text-danger">
-                  통증이 있는 날은 던지거나 무리한 운동을 하지 마세요. 통증이
-                  이어지면 전문의 진료를 받아보는 것이 좋습니다. 통증이 있는
-                  동안에는 운동 추천도 제공하지 않습니다.
+                  통증이 있는 날은 던지거나 무리한 운동을 하지 마세요. 통증이 이어지면
+                  전문의 진료를 받아보는 것이 좋습니다. 통증이 있는 동안에는 운동 추천도
+                  제공하지 않습니다.
                 </p>
               )}
             </>
@@ -315,15 +313,15 @@ export function CheckinForm({
               )}
 
               {/*
-                * 몸 상태는 접어 둔다.
-                *
-                * 다섯 부위가 저마다 세 칸이라 화면의 대부분을 먹는데, 다섯 개
-                * 모두 이미 '정상'이 기본값이라 대개 손댈 일이 없다. 매일 지나쳐
-                * 스크롤해야 하는 것이 실제 부담이었다.
-                *
-                * 접혀 있어도 값은 그대로 폼에 들어간다 — 라디오를 숨기기만 하고
-                * 지우지 않는다. 불편한 곳이 있는 날에는 저절로 펴진다.
-                */}
+               * 몸 상태는 접어 둔다.
+               *
+               * 다섯 부위가 저마다 세 칸이라 화면의 대부분을 먹는데, 다섯 개
+               * 모두 이미 '정상'이 기본값이라 대개 손댈 일이 없다. 매일 지나쳐
+               * 스크롤해야 하는 것이 실제 부담이었다.
+               *
+               * 접혀 있어도 값은 그대로 폼에 들어간다 — 라디오를 숨기기만 하고
+               * 지우지 않는다. 불편한 곳이 있는 날에는 저절로 펴진다.
+               */}
               <div className="rounded-xl border border-line bg-surface-2/50 px-3 py-2.5">
                 <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
                   <span className="text-xs font-medium text-muted">몸 상태</span>
@@ -362,7 +360,9 @@ export function CheckinForm({
                           name={part.key}
                           value={v}
                           required
-                          defaultChecked={pick(part.key, today?.[part.key] ?? '정상') === v}
+                          defaultChecked={
+                            pick(part.key, today?.[part.key] ?? '정상') === v
+                          }
                           className={feelingChipClass(v)}
                           onPick={(v) =>
                             setPartEdits((prev) => ({
@@ -420,14 +420,14 @@ export function CheckinForm({
               </Row>
 
               {/*
-                * 오늘 하고 싶은 운동 종류.
-                *
-                * 부위보다 앞에 둔다. "오늘 하체"보다 "오늘 파워"가 몸에 걸리는
-                * 부담을 더 크게 가르기 때문이다.
-                *
-                * '추천대로'는 빈 값으로 보낸다. '고르지 않음'을 값으로 저장하면
-                * 나중에 목록을 고칠 때 그게 무엇이었는지 다시 따져야 한다.
-                */}
+               * 오늘 하고 싶은 운동 종류.
+               *
+               * 부위보다 앞에 둔다. "오늘 하체"보다 "오늘 파워"가 몸에 걸리는
+               * 부담을 더 크게 가르기 때문이다.
+               *
+               * '추천대로'는 빈 값으로 보낸다. '고르지 않음'을 값으로 저장하면
+               * 나중에 목록을 고칠 때 그게 무엇이었는지 다시 따져야 한다.
+               */}
               <Row label="오늘 하고 싶은 운동">
                 <ChipRadio
                   name="preferredWorkout"
@@ -452,10 +452,10 @@ export function CheckinForm({
               </Row>
 
               {/*
-                * 오늘 하고 싶은 부위. 안 골라도 되고, 골라도 안전 규칙을
-                * 뚫지는 않는다 — 통과한 후보 중 순서만 앞당긴다.
-                * 목록은 라이브러리에 실제로 있는 부위에서 뽑아 넘어온다.
-                */}
+               * 오늘 하고 싶은 부위. 안 골라도 되고, 골라도 안전 규칙을
+               * 뚫지는 않는다 — 통과한 후보 중 순서만 앞당긴다.
+               * 목록은 라이브러리에 실제로 있는 부위에서 뽑아 넘어온다.
+               */}
               {parts.length > 0 && (
                 <Row label="오늘 하고 싶은 부위">
                   {parts.map((part) => (

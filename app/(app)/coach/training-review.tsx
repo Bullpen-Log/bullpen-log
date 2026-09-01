@@ -92,9 +92,7 @@ function PartTrend({ weeks }: { weeks: ReviewWeek[] }) {
       <table className="w-full min-w-[22rem] border-collapse text-sm">
         <thead>
           <tr>
-            <th className="pb-2 text-left text-[11px] font-medium text-muted">
-              부위
-            </th>
+            <th className="pb-2 text-left text-[11px] font-medium text-muted">부위</th>
             {ordered.map((w) => (
               <th
                 key={w.ago}
@@ -184,10 +182,10 @@ export function TrainingReviewCards({
 
         {/* 어떻게 나온 숫자인지 — 안 적어두면 그냥 믿거나 그냥 무시한다 */}
         <p className="mt-3 text-[11px] leading-relaxed text-muted/70">
-          날 수는 운동을 하나라도 마쳤다고 표시한 날입니다. 시간은 운동마다
-          정해진 세트당 시간(수행 + 세트 사이 휴식)에 실제로 한 세트를 곱해 더한
-          값이고, 강도는 그 주에 적은 값의 평균입니다. 부하 지수는 시간이 아니라
-          세트로 세므로 이 시간과는 다른 숫자입니다.
+          날 수는 운동을 하나라도 마쳤다고 표시한 날입니다. 시간은 운동마다 정해진
+          세트당 시간(수행 + 세트 사이 휴식)에 실제로 한 세트를 곱해 더한 값이고, 강도는
+          그 주에 적은 값의 평균입니다. 부하 지수는 시간이 아니라 세트로 세므로 이
+          시간과는 다른 숫자입니다.
         </p>
       </section>
 
@@ -205,9 +203,8 @@ export function TrainingReviewCards({
             </div>
             <p className="mt-3 text-[11px] leading-relaxed text-muted/70">
               {weekCount}주 내내 비어 있는 줄은 붉게 표시합니다. 지수는 &ldquo;지금
-              많은가&rdquo;를 말하고 이 표는 &ldquo;무엇을 안 했나&rdquo;를
-              말합니다 — 하체만 하고 암케어를 건너뛴 주와 골고루 한 주는 지수가
-              같습니다.
+              많은가&rdquo;를 말하고 이 표는 &ldquo;무엇을 안 했나&rdquo;를 말합니다 —
+              하체만 하고 암케어를 건너뛴 주와 골고루 한 주는 지수가 같습니다.
             </p>
           </>
         ) : (
@@ -216,7 +213,6 @@ export function TrainingReviewCards({
           </p>
         )}
       </section>
-
     </>
   );
 }

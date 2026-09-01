@@ -218,9 +218,7 @@ export const TRAINING_GOALS = [
 
 export type TrainingGoal = (typeof TRAINING_GOALS)[number];
 
-export const TRAINING_GOAL_NAMES: readonly string[] = TRAINING_GOALS.map(
-  (g) => g.name
-);
+export const TRAINING_GOAL_NAMES: readonly string[] = TRAINING_GOALS.map((g) => g.name);
 
 /** 아직 안 고른 사람은 '균형 잡힌 관리'로 본다. */
 export function findGoal(name: string | null): TrainingGoal {
@@ -273,8 +271,7 @@ export function readTrainingGoal(
   fallback: string | null
 ): string | null {
   return (
-    pickOne(String(formData.get('trainingGoal') ?? ''), TRAINING_GOAL_NAMES) ??
-    fallback
+    pickOne(String(formData.get('trainingGoal') ?? ''), TRAINING_GOAL_NAMES) ?? fallback
   );
 }
 

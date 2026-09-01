@@ -116,8 +116,15 @@ export async function setExerciseDone(
           completed: true,
           setsDone: positiveNumber(amount?.sets, AMOUNT_LIMITS.sets),
           repsDone: positiveNumber(amount?.reps, AMOUNT_LIMITS.reps),
-          holdSecondsDone: positiveNumber(amount?.holdSeconds, AMOUNT_LIMITS.holdSeconds),
-          weightKg: positiveNumber(amount?.weightKg, AMOUNT_LIMITS.weightKg, WEIGHT_PRECISION),
+          holdSecondsDone: positiveNumber(
+            amount?.holdSeconds,
+            AMOUNT_LIMITS.holdSeconds
+          ),
+          weightKg: positiveNumber(
+            amount?.weightKg,
+            AMOUNT_LIMITS.weightKg,
+            WEIGHT_PRECISION
+          ),
         };
 
     /*

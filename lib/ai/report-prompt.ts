@@ -239,9 +239,7 @@ export function buildUserPrompt(
     for (const memo of facts.memos) lines.push(`- ${memo.date}: ${memo.text}`);
   }
 
-  lines.push(
-    `\n# 확정된 투구 계획 (규칙으로 계산됨 — 이 수치를 그대로 써야 합니다)`
-  );
+  lines.push(`\n# 확정된 투구 계획 (규칙으로 계산됨 — 이 수치를 그대로 써야 합니다)`);
   /*
    * 오늘 이미 던졌으면 오늘 줄이 아예 없다. 없는 줄을 두고 "오늘은 이미
    * 던졌습니다"라고 적어 주면, 그것도 하나의 수치처럼 읽혀 오늘 이야기를
@@ -268,7 +266,9 @@ export function buildUserPrompt(
       lines.push(`- 선수의 훈련 목표: ${training.goal}`);
     }
     if (training.preferredParts.length > 0) {
-      lines.push(`- 선수가 오늘 하고 싶다고 고른 부위: ${training.preferredParts.join(', ')}`);
+      lines.push(
+        `- 선수가 오늘 하고 싶다고 고른 부위: ${training.preferredParts.join(', ')}`
+      );
     }
     /*
      * 시간을 함께 넘긴다. 이걸 안 주면 AI가 "가볍게 30분이면 됩니다" 같은
@@ -314,10 +314,7 @@ export function buildUserPrompt(
  */
 export function checkTrainingMentions(
   body: AiReportBody,
-  {
-    pickedTitles,
-    allTitles,
-  }: { pickedTitles: string[]; allTitles: string[] }
+  { pickedTitles, allTitles }: { pickedTitles: string[]; allTitles: string[] }
 ): { ok: true } | { ok: false; offending: string[] } {
   const text = [body.training.focus, body.training.why].join('\n');
 

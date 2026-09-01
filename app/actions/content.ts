@@ -4,10 +4,7 @@ import { revalidatePath } from 'next/cache';
 import { prisma } from '@/lib/prisma';
 import { getCurrentUser } from '@/lib/dal';
 import { deleteVideos, isLibraryPath } from '@/lib/storage';
-import {
-  MECHANICS_CATEGORY_NAMES,
-  TRAINING_CATEGORY_NAMES,
-} from '@/lib/categories';
+import { MECHANICS_CATEGORY_NAMES, TRAINING_CATEGORY_NAMES } from '@/lib/categories';
 import {
   BODY_PARTS,
   DIFFICULTY_NAMES,
@@ -21,11 +18,13 @@ import {
 } from '@/lib/exercise-meta';
 import { withInput, type FormValues } from '@/lib/form-values';
 
-export type ActionState = {
-  error?: string;
-  success?: string;
-  values?: FormValues;
-} | undefined;
+export type ActionState =
+  | {
+      error?: string;
+      success?: string;
+      values?: FormValues;
+    }
+  | undefined;
 
 async function assertAdmin() {
   const user = await getCurrentUser();
@@ -167,7 +166,9 @@ export async function deleteExercise(formData: FormData) {
 
   // 기록을 지우면 저장소의 영상 파일도 함께 정리한다.
   const removed = await prisma.exerciseVideo.delete({ where: { id } });
-  await deleteVideos([removed.videoPath, removed.thumbPath].filter((p): p is string => !!p));
+  await deleteVideos(
+    [removed.videoPath, removed.thumbPath].filter((p): p is string => !!p)
+  );
   revalidatePath('/library/training');
 }
 
@@ -312,10 +313,7 @@ async function tryCreateGuide(formData: FormData): Promise<ActionState> {
     return { error: '교정 포인트를 하나 이상 선택해주세요.' };
   }
 
-  const equipment = pickMany(
-    formData.getAll('equipment').map(String),
-    DRILL_EQUIPMENT
-  );
+  const equipment = pickMany(formData.getAll('equipment').map(String), DRILL_EQUIPMENT);
 
   await prisma.mechanicsGuide.create({
     data: {
@@ -340,7 +338,9 @@ export async function deleteGuide(formData: FormData) {
   if (!id) return;
 
   const removed = await prisma.mechanicsGuide.delete({ where: { id } });
-  await deleteVideos([removed.videoPath, removed.thumbPath].filter((p): p is string => !!p));
+  await deleteVideos(
+    [removed.videoPath, removed.thumbPath].filter((p): p is string => !!p)
+  );
   revalidatePath('/library/mechanics');
 }
 
@@ -356,7 +356,9 @@ async function tryUpdateGuide(formData: FormData): Promise<ActionState> {
   if (!(await assertAdmin())) return { error: '관리자만 수정할 수 있습니다.' };
 
   const id = String(formData.get('id') ?? '');
-  const existing = id ? await prisma.mechanicsGuide.findUnique({ where: { id } }) : null;
+  const existing = id
+    ? await prisma.mechanicsGuide.findUnique({ where: { id } })
+    : null;
   if (!existing) return { error: '대상을 찾을 수 없습니다.' };
 
   const title = String(formData.get('title') ?? '').trim();
@@ -397,10 +399,7 @@ async function tryUpdateGuide(formData: FormData): Promise<ActionState> {
     return { error: '교정 포인트를 하나 이상 선택해주세요.' };
   }
 
-  const equipment = pickMany(
-    formData.getAll('equipment').map(String),
-    DRILL_EQUIPMENT
-  );
+  const equipment = pickMany(formData.getAll('equipment').map(String), DRILL_EQUIPMENT);
 
   await prisma.mechanicsGuide.update({
     where: { id },
@@ -466,7 +465,9 @@ export async function setGuideThumbnail(
     return { error: '미리보기 이미지를 만들지 못했습니다.' };
   }
 
-  const existing = id ? await prisma.mechanicsGuide.findUnique({ where: { id } }) : null;
+  const existing = id
+    ? await prisma.mechanicsGuide.findUnique({ where: { id } })
+    : null;
   if (!existing) return { error: '대상을 찾을 수 없습니다.' };
 
   await prisma.mechanicsGuide.update({ where: { id }, data: { thumbPath } });

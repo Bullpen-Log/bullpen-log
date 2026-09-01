@@ -100,10 +100,7 @@ export function DeleteUser({
   nickname: string;
   disabled: boolean;
 }) {
-  const [, formAction] = useActionState<AdminState, FormData>(
-    deleteUser,
-    undefined
-  );
+  const [, formAction] = useActionState<AdminState, FormData>(deleteUser, undefined);
 
   if (disabled) return null;
 

@@ -60,11 +60,7 @@ import {
   SLOT_ORDER,
   type ThemeKey,
 } from '../lib/report/theme.ts';
-import {
-  BODY_PARTS,
-  intensityLevel,
-  usesWeight,
-} from '../lib/exercise-meta.ts';
+import { BODY_PARTS, intensityLevel, usesWeight } from '../lib/exercise-meta.ts';
 import {
   exerciseMinutes,
   intensityFactor,
@@ -85,11 +81,7 @@ import {
   estimateTrainingDailyLoad,
   validateBaseline,
 } from '../lib/baseline.ts';
-import {
-  buildDailyPlan,
-  isHalted,
-  readDailyPlan,
-} from '../lib/report/daily-plan.ts';
+import { buildDailyPlan, isHalted, readDailyPlan } from '../lib/report/daily-plan.ts';
 
 let passed = 0;
 let failed = 0;
@@ -301,8 +293,16 @@ console.log('\n[안전] 몸이 안 좋은 날 무거운 운동이 섞이지 않�
     person: { condition: 8, pitches: spike, baselineDailyLoad: 20 },
   });
   const tooHard = picked.candidates.filter((e) => intensityLevel(e.intensity) > 2);
-  check('부하가 위험 구간으로 계산됨', facts.load.zone === 'danger', String(facts.load.zone));
-  check('부하 위험 구간 → 회복 수준까지만', tooHard.length === 0, `강도 3 이상 ${tooHard.length}개`);
+  check(
+    '부하가 위험 구간으로 계산됨',
+    facts.load.zone === 'danger',
+    String(facts.load.zone)
+  );
+  check(
+    '부하 위험 구간 → 회복 수준까지만',
+    tooHard.length === 0,
+    `강도 3 이상 ${tooHard.length}개`
+  );
 }
 {
   /*
@@ -335,7 +335,11 @@ console.log('\n[안전] 몸이 안 좋은 날 무거운 운동이 섞이지 않�
     (e) => e.difficulty === '상급' || e.difficulty === '중급'
   );
   check('경력 입문 → 최대 강도 제외', maxed.length === 0);
-  check('경력 입문 → 초급 난이도만', hard.length === 0, `후보 ${picked.candidates.length}개`);
+  check(
+    '경력 입문 → 초급 난이도만',
+    hard.length === 0,
+    `후보 ${picked.candidates.length}개`
+  );
 }
 
 console.log('\n[장비] 못 하는 운동이 나오지 않는가');
@@ -377,10 +381,10 @@ console.log('\n[운동 부하] 무거운 운동과 가벼운 운동이 갈리는
     if (!ex) throw new Error(`시험용 운동을 못 찾음: ${title}`);
     return ex;
   };
-  const dead = find('데드리프트');       // 다관절 · 매우 높음
+  const dead = find('데드리프트'); // 다관절 · 매우 높음
   const military = find('밀리터리 프레스'); // 다관절 · 높음
   const lateral = find('사이드 레터럴 레이즈'); // 단관절 · 중간
-  const stretch = find('피전 포즈');       // 모빌리티 · 매우 낮음
+  const stretch = find('피전 포즈'); // 모빌리티 · 매우 낮음
   /*
    * 이 시험이 이번 개편의 이유다.
    *
@@ -483,7 +487,10 @@ console.log('\n[운동 부하] 무거운 운동과 가벼운 운동이 갈리는
    * 예전 방식으로는 3.8배였다 — 스트레칭 다섯 개가 데드리프트 두 개에 가까웠다.
    */
   const heavy = trainingDayLoad(
-    [{ ...dead, setsDone: 3 }, { ...find('바벨 스쿼트'), setsDone: 3 }],
+    [
+      { ...dead, setsDone: 3 },
+      { ...find('바벨 스쿼트'), setsDone: 3 },
+    ],
     8
   );
   const recovery = trainingDayLoad(
@@ -615,10 +622,7 @@ console.log('\n[무게] 적으면 더 정확해지고, 안 적어도 돌아가�
     weightFactor(120, 100) === 1.2,
     '120kg / 평소 100kg = 1.2'
   );
-  check(
-    '평소보다 가벼우면 배수가 1보다 작다',
-    weightFactor(80, 100) === 0.8
-  );
+  check('평소보다 가벼우면 배수가 1보다 작다', weightFactor(80, 100) === 0.8);
   check(
     '오타는 지수를 뒤집지 못한다',
     weightFactor(1000, 100) <= 1.6 && weightFactor(1, 100) >= 0.6,
@@ -714,8 +718,7 @@ console.log('\n[부위별 볼륨] 무엇을 하고 무엇을 안 했는지 보�
   };
   const get = (rows: PartVolumeInput[], key: string) =>
     buildPartVolume(rows, TODAY).byPart.find((p) => p.key === key)!;
-  const armCare = (rows: PartVolumeInput[]) =>
-    buildPartVolume(rows, TODAY).armCare;
+  const armCare = (rows: PartVolumeInput[]) => buildPartVolume(rows, TODAY).armCare;
 
   check(
     '라이브러리의 모든 부위가 어느 묶음에는 들어간다',
@@ -970,10 +973,11 @@ console.log('\n[가입 문진] 받은 답이 실제로 쓰이는가');
     (sum, x) => sum + (x.exercise.sets ?? 3) * setFactor(x.exercise),
     0
   );
-  const guessPerWeek = estimateTrainingDailyLoad({
-    baselineWorkoutFreq: '주 3~4회',
-    dailyWorkoutMinutes: 60,
-  })! * 7;
+  const guessPerWeek =
+    estimateTrainingDailyLoad({
+      baselineWorkoutFreq: '주 3~4회',
+      dailyWorkoutMinutes: 60,
+    })! * 7;
   const guessPerSession = guessPerWeek / 3.5;
   check(
     '문진 추정치가 실제 60분 일정과 맞는다',
@@ -1078,8 +1082,7 @@ console.log('\n[투구 계획] 오늘과 내일을 범위로 내는가');
   );
   check(
     '투구수가 범위로 나온다',
-    plan.today!.minPitches != null &&
-      plan.today!.minPitches < plan.today!.maxPitches!,
+    plan.today!.minPitches != null && plan.today!.minPitches < plan.today!.maxPitches!,
     pitchRangeText(plan.today!)
   );
   check(
@@ -1113,7 +1116,11 @@ console.log('\n[투구 계획] 오늘과 내일을 범위로 내는가');
     threw.today == null && threw.threwToday,
     `today=${threw.today} threwToday=${threw.threwToday}`
   );
-  check('오늘 던졌어도 내일은 낸다', threw.tomorrow != null, String(threw.tomorrow?.label));
+  check(
+    '오늘 던졌어도 내일은 낸다',
+    threw.tomorrow != null,
+    String(threw.tomorrow?.label)
+  );
   check(
     '70구 던진 다음 날은 아직 쉰다',
     threw.tomorrow?.throwing === false,
@@ -1155,7 +1162,7 @@ console.log('\n[투구 계획] 오늘과 내일을 범위로 내는가');
    */
   check(
     '프롬프트가 사실 나열을 막는다',
-    SYSTEM_PROMPT.includes('사실을 나열하고 끝내지 마세요'),
+    SYSTEM_PROMPT.includes('사실을 나열하고 끝내지 마세요')
   );
   check(
     '프롬프트에 나쁜 예와 좋은 예가 함께 있다',
@@ -1213,7 +1220,11 @@ console.log('\n[오늘 하고 싶은 운동] 고른 대로 가되, 몸 상태는
     person: { condition: 8, pain: true, wants: '파워' },
     override: true,
   });
-  check('통증이 있으면 밀고 나갈 수 없다', forced.theme.key === 'recovery', forced.theme.label);
+  check(
+    '통증이 있으면 밀고 나갈 수 없다',
+    forced.theme.key === 'recovery',
+    forced.theme.label
+  );
   check('통증이 있으면 처방 자체가 멈춘다', forced.picked.halted);
 }
 {
@@ -1294,7 +1305,11 @@ console.log('\n[목표] 고른 목표가 실제로 배분을 바꾸는가');
     return themed.estimatedMinutes;
   });
   const worst = Math.max(...totals.map((t) => Math.abs(t - 60) / 60));
-  check('목표를 바꿔도 전체 시간은 60분 근처', worst <= 0.15, `${totals.join(' / ')}분`);
+  check(
+    '목표를 바꿔도 전체 시간은 60분 근처',
+    worst <= 0.15,
+    `${totals.join(' / ')}분`
+  );
 }
 
 console.log('\n[완료 표시] 체크한 운동이 사라지지 않는가');
@@ -1429,7 +1444,11 @@ console.log('\n[전력 환산] 휴식일이 강도를 반영하는가');
    *   60% 노력 → 79%                      (Wolf 2025, n=19)
    */
   check('강도 5 계수는 논문값 0.75', stressFactor(5) === 0.75);
-  check('강도 6 계수는 논문값에 맞춘 0.80', stressFactor(6) === 0.8, `${stressFactor(6)}`);
+  check(
+    '강도 6 계수는 논문값에 맞춘 0.80',
+    stressFactor(6) === 0.8,
+    `${stressFactor(6)}`
+  );
   check('강도 10은 전력', stressFactor(10) === 1);
   check(
     '강도가 낮아질수록 계수도 낮아진다',
@@ -1445,9 +1464,15 @@ console.log('\n[전력 환산] 휴식일이 강도를 반영하는가');
 
   // 경기는 강도를 낮게 적어도 전력으로 본다 — 던질 양도 강도도 못 정한다.
   check('경기는 강도와 무관하게 전력', stressFactor(3, '경기') === 1);
-  check('불펜은 강도를 반영', stressFactor(3, '불펜') === 0.6, `${stressFactor(3, '불펜')}`);
+  check(
+    '불펜은 강도를 반영',
+    stressFactor(3, '불펜') === 0.6,
+    `${stressFactor(3, '불펜')}`
+  );
 
-  const restFor = (logs: { sessionType: string; pitchCount: number; intensity: number }[]) => {
+  const restFor = (
+    logs: { sessionType: string; pitchCount: number; intensity: number }[]
+  ) => {
     const day = groupByDay(
       logs.map((l) => ({
         date: '2026-06-10',
@@ -1469,7 +1494,11 @@ console.log('\n[전력 환산] 휴식일이 강도를 반영하는가');
 
   // 경기는 지금까지와 같아야 한다. 휴식일 표가 원래 경기 기준이다.
   const game = restFor([{ sessionType: '경기', pitchCount: 80, intensity: 9 }]);
-  check('경기 80구 → 휴식 4일 (기존과 같음)', game.rest === 4, `환산 ${game.adjusted}구`);
+  check(
+    '경기 80구 → 휴식 4일 (기존과 같음)',
+    game.rest === 4,
+    `환산 ${game.adjusted}구`
+  );
 
   // 문제였던 경우. 캐치볼 80구에 4일을 쉬라고 하고 있었다.
   const catchPlay = restFor([{ sessionType: '캐치볼', pitchCount: 80, intensity: 2 }]);
@@ -1522,8 +1551,15 @@ console.log('\n[투구 종류] 무엇을 하며 지냈는지 세는가');
   const find = (name: string) => counted.find((t) => t.name === name);
 
   check('종류별로 센다', counted.length === 4, counted.map((t) => t.name).join(','));
-  check('기간 밖 기록은 빼고 센다', find('경기')?.pitches === 80, `경기 ${find('경기')?.pitches}구`);
-  check('같은 날 두 종류를 따로 센다', find('불펜')?.count === 1 && find('캐치볼')?.count === 1);
+  check(
+    '기간 밖 기록은 빼고 센다',
+    find('경기')?.pitches === 80,
+    `경기 ${find('경기')?.pitches}구`
+  );
+  check(
+    '같은 날 두 종류를 따로 센다',
+    find('불펜')?.count === 1 && find('캐치볼')?.count === 1
+  );
   check('한 번도 없는 종류는 안 나온다', find('라이브') === undefined);
 
   // 쉰 날은 '몇 번'이 아니라 '며칠'이다.
@@ -1538,7 +1574,12 @@ console.log('\n[종류별 부하] 무엇 때문에 힘든지 나뉘는가');
 {
   const week = ['2026-06-08', '2026-06-09', '2026-06-10'];
   const prevWeek = ['2026-06-05', '2026-06-06', '2026-06-07'];
-  const log = (date: string, sessionType: string, pitchCount: number, intensity: number) => ({
+  const log = (
+    date: string,
+    sessionType: string,
+    pitchCount: number,
+    intensity: number
+  ) => ({
     date,
     sessionType,
     pitchCount,
@@ -1775,10 +1816,15 @@ console.log('\n[프로필 저장] 폼에서 온 값을 제대로 걸러내는가
   const form = new FormData();
   form.set('trainingLevel', '중급');
   form.set('trainingGoal', '파워 향상');
-  for (const v of ['밴드', '덤벨', '바벨', '없는장비']) form.append('ownedEquipment', v);
+  for (const v of ['밴드', '덤벨', '바벨', '없는장비'])
+    form.append('ownedEquipment', v);
 
   const saved = readTrainingProfile(form);
-  check('경력을 그대로 저장', saved.trainingLevel === '중급', String(saved.trainingLevel));
+  check(
+    '경력을 그대로 저장',
+    saved.trainingLevel === '중급',
+    String(saved.trainingLevel)
+  );
   /*
    * 목표는 프로필이 아니라 일정 폼에서 온다. 여기서 함께 저장하면, 경력만
    * 고치러 열었다가 저장하는 순간 지난번 목표가 통째로 지워진다.

@@ -17,7 +17,10 @@ export async function POST(req: Request) {
   }
 
   if (!isStorageConfigured()) {
-    return NextResponse.json({ error: '영상 저장소가 설정되지 않았습니다' }, { status: 503 });
+    return NextResponse.json(
+      { error: '영상 저장소가 설정되지 않았습니다' },
+      { status: 503 }
+    );
   }
 
   try {
@@ -57,6 +60,9 @@ export async function POST(req: Request) {
     return NextResponse.json({ urls: await createPlaybackUrls(allowed) });
   } catch (error) {
     console.error('[POST /api/pitch-log/video-url]', error);
-    return NextResponse.json({ error: '재생 주소를 만들지 못했습니다' }, { status: 500 });
+    return NextResponse.json(
+      { error: '재생 주소를 만들지 못했습니다' },
+      { status: 500 }
+    );
   }
 }

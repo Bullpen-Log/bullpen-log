@@ -46,9 +46,7 @@ function waitFor(
   });
 }
 
-export async function captureThumbnail(
-  source: File | string
-): Promise<Blob | null> {
+export async function captureThumbnail(source: File | string): Promise<Blob | null> {
   const isFile = typeof source !== 'string';
   const objectUrl = isFile ? URL.createObjectURL(source) : null;
   const video = document.createElement('video');

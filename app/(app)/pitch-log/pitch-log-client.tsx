@@ -5,11 +5,7 @@ import { useRouter } from 'next/navigation';
 import { Card, FormError, PageHeading } from '@/components/ui';
 import { toDateKey } from '@/lib/pitch-stats';
 import { REST_SESSION_TYPE } from '@/lib/session-type';
-import {
-  LegendSwatch,
-  MonthCalendar,
-  type DayMark,
-} from '@/components/month-calendar';
+import { LegendSwatch, MonthCalendar, type DayMark } from '@/components/month-calendar';
 import { LogList } from './log-list';
 
 export type Log = {
@@ -84,9 +80,7 @@ export function PitchLogClient({
 
   // 넘어온 날짜가 지난달이면 달력도 그 달을 펴야 한다.
   const [month, setMonth] = useState(() => {
-    const [y, m] = (initialDate ?? toDateKey(new Date()))
-      .split('-')
-      .map(Number);
+    const [y, m] = (initialDate ?? toDateKey(new Date())).split('-').map(Number);
     return new Date(y, m - 1, 1);
   });
 
@@ -102,7 +96,7 @@ export function PitchLogClient({
     (date: string) => {
       router.push(`/pitch-log/${date}`);
     },
-    [router],
+    [router]
   );
 
   /** 달력이 보고 있는 달 (YYYY-MM) */
@@ -132,9 +126,7 @@ export function PitchLogClient({
         if (cancelled) return;
         // 다시 넘어오면 한 번 더 받아볼 수 있게 표시를 지운다.
         loadedMonths.current.delete(monthKey);
-        setError(
-          '그 달 기록을 불러오지 못했습니다. 잠시 후 다시 시도해주세요.',
-        );
+        setError('그 달 기록을 불러오지 못했습니다. 잠시 후 다시 시도해주세요.');
       })
       .finally(() => {
         if (!cancelled) setLoadingMonth(false);
@@ -258,15 +250,9 @@ export function PitchLogClient({
             marks={marks}
           >
             <span>강도</span>
-            <LegendSwatch className="h-3 w-5 rounded bg-sky/15">
-              낮음
-            </LegendSwatch>
-            <LegendSwatch className="h-3 w-5 rounded bg-sky/40">
-              보통
-            </LegendSwatch>
-            <LegendSwatch className="h-3 w-5 rounded bg-sky/70">
-              높음
-            </LegendSwatch>
+            <LegendSwatch className="h-3 w-5 rounded bg-sky/15">낮음</LegendSwatch>
+            <LegendSwatch className="h-3 w-5 rounded bg-sky/40">보통</LegendSwatch>
+            <LegendSwatch className="h-3 w-5 rounded bg-sky/70">높음</LegendSwatch>
             <LegendSwatch className="h-3 w-5 rounded border border-dashed border-line-strong">
               쉬는 날
             </LegendSwatch>

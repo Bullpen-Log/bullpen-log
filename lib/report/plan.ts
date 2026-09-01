@@ -56,8 +56,7 @@ export const YOUTH_AGE_THRESHOLD = 15;
 export function dailyPitchCap(age: number | null) {
   if (age == null) return UNKNOWN_AGE_DAILY_MAX;
   return (
-    AGE_PITCH_LIMITS.find((r) => age <= r.throughAge)?.dailyMax ??
-    UNKNOWN_AGE_DAILY_MAX
+    AGE_PITCH_LIMITS.find((r) => age <= r.throughAge)?.dailyMax ?? UNKNOWN_AGE_DAILY_MAX
   );
 }
 
@@ -171,7 +170,10 @@ export const MIN_MEANINGFUL_INTENSITY = 4;
 export function pitchRange(target: number): { min: number; max: number } {
   // 열다섯 구도 안 되는 양은 5구 단위로 다듬으면 범위가 뭉개진다.
   if (target < 15) {
-    return { min: Math.min(Math.max(1, Math.round(target * RANGE_FLOOR)), target), max: target };
+    return {
+      min: Math.min(Math.max(1, Math.round(target * RANGE_FLOOR)), target),
+      max: target,
+    };
   }
   const max = Math.floor(target / 5) * 5;
   const min = Math.max(5, Math.round((target * RANGE_FLOOR) / 5) * 5);
@@ -370,7 +372,9 @@ export function buildPitchPlan(facts: ReportFacts): PitchPlan {
       lastAdjusted === lastOuting
         ? `${lastOuting}구`
         : `${lastOuting}구(전력 환산 ${lastAdjusted}구)`;
-    basis.push(`마지막 등판 ${amount} → 휴식 ${needRest}일 필요 (경과 ${restedSoFar}일)`);
+    basis.push(
+      `마지막 등판 ${amount} → 휴식 ${needRest}일 필요 (경과 ${restedSoFar}일)`
+    );
   }
 
   // 3) 부하 구간에 따른 조절 계수
@@ -468,7 +472,7 @@ export function buildPitchPlan(facts: ReportFacts): PitchPlan {
       maxPitches: pitches.max,
       minIntensity: Math.max(
         MIN_MEANINGFUL_INTENSITY,
-        adj.maxIntensity - INTENSITY_SPAN,
+        adj.maxIntensity - INTENSITY_SPAN
       ),
       maxIntensity: adj.maxIntensity,
       reason: adj.label,

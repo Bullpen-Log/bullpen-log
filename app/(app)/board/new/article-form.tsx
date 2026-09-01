@@ -25,7 +25,10 @@ export function ArticleForm() {
   const before = state?.values;
 
   return (
-    <form action={formAction} className="space-y-6 rounded-2xl border border-line bg-surface p-8">
+    <form
+      action={formAction}
+      className="space-y-6 rounded-2xl border border-line bg-surface p-8"
+    >
       <FormError>{state?.error}</FormError>
 
       <Field label="제목">

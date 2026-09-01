@@ -39,7 +39,10 @@ export async function POST(req: Request) {
 
     const size = Number(fileSize);
     if (!Number.isFinite(size) || size <= 0) {
-      return NextResponse.json({ error: '파일 크기를 확인할 수 없습니다' }, { status: 400 });
+      return NextResponse.json(
+        { error: '파일 크기를 확인할 수 없습니다' },
+        { status: 400 }
+      );
     }
 
     if (size > MAX_VIDEO_BYTES) {

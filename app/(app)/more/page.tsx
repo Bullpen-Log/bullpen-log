@@ -66,7 +66,9 @@ export default async function MorePage() {
           <div className="space-y-2.5">
             {group.items.map((item) => {
               const Icon = NAV_ICONS[item.icon];
-              const tone = item.tone ? TONE_CLASS[item.tone] : 'bg-surface-2 text-muted';
+              const tone = item.tone
+                ? TONE_CLASS[item.tone]
+                : 'bg-surface-2 text-muted';
               return (
                 <Link
                   key={item.href}

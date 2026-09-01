@@ -161,9 +161,7 @@ export async function trainingDay(
    *
    * 완료한 것 뒤에 붙인다. 한 일이 먼저 보이고, 빠뜨린 것이 그 아래 남는다.
    */
-  const plannedIds = readPlanExerciseIds(setup?.plan).filter(
-    (id) => !doneIds.has(id)
-  );
+  const plannedIds = readPlanExerciseIds(setup?.plan).filter((id) => !doneIds.has(id));
   const missed = plannedIds.length
     ? await prisma.exerciseVideo.findMany({
         where: { id: { in: plannedIds } },

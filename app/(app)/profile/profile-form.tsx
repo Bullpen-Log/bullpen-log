@@ -69,7 +69,7 @@ export function ProfileForm({
    */
   const before = state?.values;
   const pick = (name: string, fallback: string | number | null) =>
-    before ? kept(before, name) ?? '' : fallback == null ? '' : String(fallback);
+    before ? (kept(before, name) ?? '') : fallback == null ? '' : String(fallback);
 
   return (
     <form action={formAction} className="space-y-5">
@@ -174,8 +174,8 @@ export function ProfileForm({
         <p className="text-sm font-semibold text-ink">
           평소 얼마나 던지시나요?
           <span className="mt-1 block text-xs font-normal text-muted">
-            이 답으로 부하 지수를 기록 첫날부터 계산합니다. 상황이 바뀌면 언제든
-            고칠 수 있습니다.
+            이 답으로 부하 지수를 기록 첫날부터 계산합니다. 상황이 바뀌면 언제든 고칠 수
+            있습니다.
           </span>
         </p>
         <RadioGroup

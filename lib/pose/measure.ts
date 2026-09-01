@@ -1,4 +1,9 @@
-import { LM, QUALITY_THRESHOLD, type PoseFrame, type PoseTrack } from '@/lib/pose/types';
+import {
+  LM,
+  QUALITY_THRESHOLD,
+  type PoseFrame,
+  type PoseTrack,
+} from '@/lib/pose/types';
 import { frameAt } from '@/lib/pose/extract';
 
 /**
@@ -113,12 +118,28 @@ export function measurePitchMetrics(
   ) {
     const t = times[phase];
     if (t == null) {
-      metrics.push({ key, label, phase, value: null, display: null, reason: '구간 없음', confidence: 0 });
+      metrics.push({
+        key,
+        label,
+        phase,
+        value: null,
+        display: null,
+        reason: '구간 없음',
+        confidence: 0,
+      });
       return;
     }
     const frame = frameAt(track, t);
     if (!frame) {
-      metrics.push({ key, label, phase, value: null, display: null, reason: '구간 없음', confidence: 0 });
+      metrics.push({
+        key,
+        label,
+        phase,
+        value: null,
+        display: null,
+        reason: '구간 없음',
+        confidence: 0,
+      });
       return;
     }
     const pts: Px[] = [];
@@ -126,7 +147,15 @@ export function measurePitchMetrics(
     for (const { idx, minVis } of joints) {
       const p = px(frame, idx, w, h);
       if (!p || p.v < minVis) {
-        metrics.push({ key, label, phase, value: null, display: null, reason: '인식 흐림', confidence: p?.v ?? 0 });
+        metrics.push({
+          key,
+          label,
+          phase,
+          value: null,
+          display: null,
+          reason: '인식 흐림',
+          confidence: p?.v ?? 0,
+        });
         return;
       }
       confidence = Math.min(confidence, p.v);
@@ -134,7 +163,15 @@ export function measurePitchMetrics(
     }
     const result = compute(pts, frame);
     if (!result) {
-      metrics.push({ key, label, phase, value: null, display: null, reason: '기준 없음', confidence });
+      metrics.push({
+        key,
+        label,
+        phase,
+        value: null,
+        display: null,
+        reason: '기준 없음',
+        confidence,
+      });
       return;
     }
     metrics.push({ key, label, phase, ...result, confidence });
@@ -197,7 +234,10 @@ export function measurePitchMetrics(
         if (up === 0 && forward === 0) return null;
         const deg = (Math.atan2(forward, up) * 180) / Math.PI;
         const label2 = deg >= 0 ? '앞으로' : '뒤로';
-        return { value: Math.round(deg), display: `${label2} ${Math.abs(Math.round(deg))}°` };
+        return {
+          value: Math.round(deg),
+          display: `${label2} ${Math.abs(Math.round(deg))}°`,
+        };
       }
     );
   trunkTilt('footPlant', 'plantTrunk', '몸통 기울기');

@@ -12,11 +12,7 @@ import { LibraryVideo } from '@/components/library-video';
 import { LibraryTile } from '@/components/exercise-tile';
 import { DrillBadges } from '@/components/meta-badges';
 import { ThumbnailFixer } from '@/components/thumbnail-fixer';
-import {
-  MetaFilter,
-  matchesFilter,
-  type FilterState,
-} from '@/components/meta-filter';
+import { MetaFilter, matchesFilter, type FilterState } from '@/components/meta-filter';
 import { Button, Card, EmptyState } from '@/components/ui';
 import { ConfirmDeleteForm } from '@/components/confirm-delete';
 import { GuideForm, type GuideDraft } from './guide-form';

@@ -44,7 +44,11 @@ export async function POST(req: Request) {
     const expectedPrefix = isThumb ? 'image/' : 'video/';
     if (typeof fileType !== 'string' || !fileType.startsWith(expectedPrefix)) {
       return NextResponse.json(
-        { error: isThumb ? '이미지 파일만 올릴 수 있습니다' : '영상 파일만 올릴 수 있습니다' },
+        {
+          error: isThumb
+            ? '이미지 파일만 올릴 수 있습니다'
+            : '영상 파일만 올릴 수 있습니다',
+        },
         { status: 400 }
       );
     }
@@ -62,11 +66,11 @@ export async function POST(req: Request) {
       const mb = Math.round(limit / 1024 / 1024);
       return NextResponse.json(
         {
-        error: (() => {
-          const kind = isThumb ? '이미지' : '영상';
-          return `${withJosa(kind, '은/는')} ${mb}MB 이하만 올릴 수 있습니다`;
-        })(),
-      },
+          error: (() => {
+            const kind = isThumb ? '이미지' : '영상';
+            return `${withJosa(kind, '은/는')} ${mb}MB 이하만 올릴 수 있습니다`;
+          })(),
+        },
         { status: 400 }
       );
     }

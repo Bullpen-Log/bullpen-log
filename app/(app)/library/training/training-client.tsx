@@ -23,11 +23,7 @@ import { LibraryVideo } from '@/components/library-video';
 import { LibraryTile } from '@/components/exercise-tile';
 import { ExerciseBadges } from '@/components/meta-badges';
 import { ThumbnailFixer } from '@/components/thumbnail-fixer';
-import {
-  MetaFilter,
-  matchesFilter,
-  type FilterState,
-} from '@/components/meta-filter';
+import { MetaFilter, matchesFilter, type FilterState } from '@/components/meta-filter';
 import { Button, Card, EmptyState } from '@/components/ui';
 import { ConfirmDeleteForm } from '@/components/confirm-delete';
 import { ExerciseForm, type ExerciseDraft } from './exercise-form';
@@ -162,7 +158,9 @@ function ExerciseDetail({
                   <button
                     type="submit"
                     aria-label={
-                      item.hiddenAt ? `${item.title} 다시 보이기` : `${item.title} 숨기기`
+                      item.hiddenAt
+                        ? `${item.title} 다시 보이기`
+                        : `${item.title} 숨기기`
                     }
                     title={
                       item.hiddenAt
@@ -191,13 +189,15 @@ function ExerciseDetail({
                       </p>
                       {item.usedCount > 0 ? (
                         <p className="text-warn">
-                          회원들이 이 운동을 한 기록{' '}
-                          <strong>{item.usedCount}건</strong>이 함께 지워집니다. 지나간
-                          운동 부하 지수도 그만큼 다시 계산됩니다 — 본인은 아무것도 안
-                          했는데 어제와 다른 숫자를 보게 됩니다.
+                          회원들이 이 운동을 한 기록 <strong>{item.usedCount}건</strong>
+                          이 함께 지워집니다. 지나간 운동 부하 지수도 그만큼 다시
+                          계산됩니다 — 본인은 아무것도 안 했는데 어제와 다른 숫자를 보게
+                          됩니다.
                         </p>
                       ) : (
-                        <p className="text-muted">아직 아무도 이 운동을 하지 않았습니다.</p>
+                        <p className="text-muted">
+                          아직 아무도 이 운동을 하지 않았습니다.
+                        </p>
                       )}
                       <p className="text-muted">
                         되돌릴 수 없습니다. 새 일정에만 안 나오게 하려면 옆의{' '}
@@ -271,13 +271,7 @@ function ExerciseDetail({
  * 목록은 작은 카드로 촘촘히 깔고, 고른 하나만 그 자리에서 넓게 펼친다.
  * 영상이 수십 개여도 스크롤이 길어지지 않는다.
  */
-function ExerciseGrid({
-  items,
-  isAdmin,
-}: {
-  items: ExerciseItem[];
-  isAdmin: boolean;
-}) {
+function ExerciseGrid({ items, isAdmin }: { items: ExerciseItem[]; isAdmin: boolean }) {
   const [openId, setOpenId] = useState<string | null>(null);
 
   return (
@@ -351,7 +345,10 @@ export function TrainingClient({
     [exercises]
   );
 
-  const ownCount = useMemo(() => exercises.filter((ex) => ex.source === 'OWN').length, [exercises]);
+  const ownCount = useMemo(
+    () => exercises.filter((ex) => ex.source === 'OWN').length,
+    [exercises]
+  );
   const referenceCount = exercises.length - ownCount;
 
   const filtering =

@@ -66,7 +66,11 @@ export type Blob = {
 };
 
 /** 픽셀 배열에서 밝기만 뽑는다. 색은 조명에 따라 흔들려 밝기가 더 안정적이다. */
-export function toLuma(pixels: Uint8ClampedArray, width: number, height: number): Float32Array {
+export function toLuma(
+  pixels: Uint8ClampedArray,
+  width: number,
+  height: number
+): Float32Array {
   const luma = new Float32Array(width * height);
   for (let i = 0; i < luma.length; i++) {
     luma[i] =
@@ -155,10 +159,22 @@ export function findMovedBlobs(
       if (y > maxY) maxY = y;
 
       // 상하좌우 이웃만 본다. 대각선까지 이으면 서로 다른 것이 붙는다.
-      if (x > 0 && moved[idx - 1] && !visited[idx - 1]) { visited[idx - 1] = 1; stack.push(idx - 1); }
-      if (x < width - 1 && moved[idx + 1] && !visited[idx + 1]) { visited[idx + 1] = 1; stack.push(idx + 1); }
-      if (y > 0 && moved[idx - width] && !visited[idx - width]) { visited[idx - width] = 1; stack.push(idx - width); }
-      if (y < height - 1 && moved[idx + width] && !visited[idx + width]) { visited[idx + width] = 1; stack.push(idx + width); }
+      if (x > 0 && moved[idx - 1] && !visited[idx - 1]) {
+        visited[idx - 1] = 1;
+        stack.push(idx - 1);
+      }
+      if (x < width - 1 && moved[idx + 1] && !visited[idx + 1]) {
+        visited[idx + 1] = 1;
+        stack.push(idx + 1);
+      }
+      if (y > 0 && moved[idx - width] && !visited[idx - width]) {
+        visited[idx - width] = 1;
+        stack.push(idx - width);
+      }
+      if (y < height - 1 && moved[idx + width] && !visited[idx + width]) {
+        visited[idx + width] = 1;
+        stack.push(idx + width);
+      }
     }
 
     if (count < MIN_BLOB_PIXELS || count > MAX_BLOB_PIXELS) continue;
@@ -169,7 +185,13 @@ export function findMovedBlobs(
     if (aspect < MIN_ASPECT || aspect > MAX_ASPECT) continue;
     if (count / (w * h) < MIN_FILL_RATIO) continue;
 
-    blobs.push({ cx: sumX / count, cy: sumY / count, width: w, height: h, pixels: count });
+    blobs.push({
+      cx: sumX / count,
+      cy: sumY / count,
+      width: w,
+      height: h,
+      pixels: count,
+    });
     if (blobs.length > MAX_CANDIDATES_PER_FRAME) break;
   }
 
@@ -277,7 +299,8 @@ export function trackBall(
            * 크기 차이를 함께 보는 이유는, 공 근처를 지나는 다른 움직임(장갑 등)에
            * 궤적을 빼앗기지 않기 위해서다.
            */
-          const sizeChange = Math.abs(d - last.diameterPx) / Math.max(1, last.diameterPx);
+          const sizeChange =
+            Math.abs(d - last.diameterPx) / Math.max(1, last.diameterPx);
           const score = step / maxStepPx + sizeChange;
           if (score < pickedScore) {
             pickedScore = score;

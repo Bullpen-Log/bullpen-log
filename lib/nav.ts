@@ -55,8 +55,7 @@ export type NavItem = {
    * 라이브러리 카테고리와 같은 색 토큰(--color-cat-*)을 그대로 쓴다.
    * 같은 앱 안에서 색 체계를 두 벌 만들 이유가 없다.
    */
-  tone?:
-    'lower' | 'upper' | 'mobility' | 'power' | 'core' | 'armcare' | 'recovery';
+  tone?: 'lower' | 'upper' | 'mobility' | 'power' | 'core' | 'armcare' | 'recovery';
   /** 관리자에게만 보이는 항목 */
   adminOnly?: boolean;
 };

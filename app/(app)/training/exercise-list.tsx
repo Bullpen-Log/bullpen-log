@@ -138,7 +138,10 @@ export function ExerciseChecklist({
      */
     const weight = field === 'doneWeightKg';
     const cleaned = weight
-      ? value.replace(/[^0-9.]/g, '').replace(/(\..*)\./g, '$1').slice(0, 5)
+      ? value
+          .replace(/[^0-9.]/g, '')
+          .replace(/(\..*)\./g, '$1')
+          .slice(0, 5)
       : value.replace(/[^0-9]/g, '').slice(0, 3);
     /*
      * 넘치는 값은 여기서 최댓값으로 깎는다.
@@ -183,10 +186,7 @@ export function ExerciseChecklist({
    * 칸에 직접 칠 때는 손을 뗄 때(blur) 저장하지만, 단추로 바꾼 것은 손을 뗄
    * 일이 없다. 눌러 놓고 화면을 닫으면 그대로 사라졌다 — 실제로 그랬다.
    */
-  const changeAndSave = (
-    id: string,
-    change: (ex: TodayExercise) => TodayExercise
-  ) => {
+  const changeAndSave = (id: string, change: (ex: TodayExercise) => TodayExercise) => {
     /*
      * 바뀐 값을 먼저 만들고, 그것으로 화면과 서버를 둘 다 고친다.
      *
@@ -390,9 +390,9 @@ export function ExerciseChecklist({
         */}
         {doneCount === 0 && items.length > 0 && (
           <p className="mt-3 text-[11px] leading-relaxed text-muted">
-            마친 운동은 눌러서 표시해주세요. 이 표시로 <b>운동 부하</b>를 재고,
-            다음 일정에서 <b>같은 부위가 겹치지 않게</b> 고릅니다 — 표시가 없으면
-            앱은 안 한 것으로 봅니다.
+            마친 운동은 눌러서 표시해주세요. 이 표시로 <b>운동 부하</b>를 재고, 다음
+            일정에서 <b>같은 부위가 겹치지 않게</b> 고릅니다 — 표시가 없으면 앱은 안 한
+            것으로 봅니다.
           </p>
         )}
       </div>
@@ -626,183 +626,188 @@ function ExerciseList({
                 ex.done ? 'border-sky bg-sky-tint' : 'border-line bg-surface'
               }`}
             >
-            <button
-              type="button"
-              onClick={() => onToggle(ex.id)}
-              aria-pressed={ex.done}
-              className={`flex w-full items-start gap-3 rounded-2xl px-4 py-4 text-left transition-colors ${
-                ex.done ? '' : 'hover:bg-surface-2'
-              }`}
-            >
-              <span
-                aria-hidden
-                className={`mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full border-2 transition-colors ${
-                  ex.done ? 'border-sky bg-sky text-white' : 'border-line-strong'
+              <button
+                type="button"
+                onClick={() => onToggle(ex.id)}
+                aria-pressed={ex.done}
+                className={`flex w-full items-start gap-3 rounded-2xl px-4 py-4 text-left transition-colors ${
+                  ex.done ? '' : 'hover:bg-surface-2'
                 }`}
               >
-                {ex.done && <Check className="h-3.5 w-3.5" strokeWidth={3} />}
-              </span>
-
-              <span className="min-w-0 flex-1 space-y-1.5">
-                <span className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
-                  <span
-                    className={`text-[15px] font-bold tracking-[-0.01em] break-keep ${
-                      ex.done ? 'text-sky-strong' : 'text-ink'
-                    }`}
-                  >
-                    {ex.title}
-                  </span>
-                  <CategoryBadge name={ex.category} />
-                  {/* 출처 표시. 상자를 씌우면 카테고리 배지와 같은 무게가 되어 글자만 남긴다. */}
-                  {ex.isReference && (
-                    <span className="text-[10px] font-medium text-muted">참고 영상</span>
-                  )}
-                  {ex.manual && (
-                    <span className="text-[10px] font-medium text-muted">직접 넣음</span>
-                  )}
+                <span
+                  aria-hidden
+                  className={`mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full border-2 transition-colors ${
+                    ex.done ? 'border-sky bg-sky text-white' : 'border-line-strong'
+                  }`}
+                >
+                  {ex.done && <Check className="h-3.5 w-3.5" strokeWidth={3} />}
                 </span>
-                {ex.prescription && (
-                  <span
-                    className={`block text-xs font-semibold ${
-                      ex.done ? 'text-sky-strong' : 'text-muted'
-                    }`}
-                  >
-                    {ex.prescription}
+
+                <span className="min-w-0 flex-1 space-y-1.5">
+                  <span className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
+                    <span
+                      className={`text-[15px] font-bold tracking-[-0.01em] break-keep ${
+                        ex.done ? 'text-sky-strong' : 'text-ink'
+                      }`}
+                    >
+                      {ex.title}
+                    </span>
+                    <CategoryBadge name={ex.category} />
+                    {/* 출처 표시. 상자를 씌우면 카테고리 배지와 같은 무게가 되어 글자만 남긴다. */}
+                    {ex.isReference && (
+                      <span className="text-[10px] font-medium text-muted">
+                        참고 영상
+                      </span>
+                    )}
+                    {ex.manual && (
+                      <span className="text-[10px] font-medium text-muted">
+                        직접 넣음
+                      </span>
+                    )}
                   </span>
-                )}
-                <ExerciseBadges
-                  bodyParts={ex.bodyParts}
-                  intensity={ex.intensity}
-                  difficulty={ex.difficulty}
-                  equipment={ex.equipment}
-                />
-                {/*
+                  {ex.prescription && (
+                    <span
+                      className={`block text-xs font-semibold ${
+                        ex.done ? 'text-sky-strong' : 'text-muted'
+                      }`}
+                    >
+                      {ex.prescription}
+                    </span>
+                  )}
+                  <ExerciseBadges
+                    bodyParts={ex.bodyParts}
+                    intensity={ex.intensity}
+                    difficulty={ex.difficulty}
+                    equipment={ex.equipment}
+                  />
+                  {/*
                   직접 넣었는데 오늘 몸 상태에는 무리인 운동. 빼지 않고
                   알리기만 한다 — 넣은 것은 본인이다.
                 */}
-                {ex.unsafe && (
-                  <span className="flex items-start gap-1.5 text-[11px] leading-relaxed text-warn">
-                    <AlertTriangle className="mt-0.5 h-3 w-3 shrink-0" />
-                    오늘 몸 상태에는 권하지 않는 운동입니다
-                  </span>
+                  {ex.unsafe && (
+                    <span className="flex items-start gap-1.5 text-[11px] leading-relaxed text-warn">
+                      <AlertTriangle className="mt-0.5 h-3 w-3 shrink-0" />
+                      오늘 몸 상태에는 권하지 않는 운동입니다
+                    </span>
+                  )}
+                </span>
+
+                {ex.thumbUrl && (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={ex.thumbUrl}
+                    alt=""
+                    className="hidden h-16 w-24 shrink-0 rounded-xl object-cover ring-1 ring-line sm:block"
+                  />
                 )}
-              </span>
+              </button>
 
-              {ex.thumbUrl && (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={ex.thumbUrl}
-                  alt=""
-                  className="hidden h-16 w-24 shrink-0 rounded-xl object-cover ring-1 ring-line sm:block"
-                />
-              )}
-            </button>
+              <PastRecord title={ex.title} past={ex.past} />
 
-            <PastRecord title={ex.title} past={ex.past} />
-
-            {/*
+              {/*
               실제로 한 만큼.
 
               완료 단추 안에 넣을 수는 없다(단추 안의 입력칸은 누를 수가 없다).
               같은 테두리 안에 아래 줄로 붙여 한 덩어리로 보이게 한다.
             */}
-            {ex.done && (
-              <div className="space-y-2 border-t border-sky-soft/50 px-4 py-2.5">
-                <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
-                  <span className="text-xs font-medium text-sky-strong">실제로 한 것</span>
-                  <AmountInput
-                    value={ex.doneSets}
-                    unit="세트"
-                    label={`${ex.title} 실제로 한 세트 수`}
-                    onChange={(v) => onAmountChange(ex.id, 'doneSets', v)}
-                    onBlur={() => onAmountBlur(ex.id)}
-                  />
-                  {/*
+              {ex.done && (
+                <div className="space-y-2 border-t border-sky-soft/50 px-4 py-2.5">
+                  <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+                    <span className="text-xs font-medium text-sky-strong">
+                      실제로 한 것
+                    </span>
+                    <AmountInput
+                      value={ex.doneSets}
+                      unit="세트"
+                      label={`${ex.title} 실제로 한 세트 수`}
+                      onChange={(v) => onAmountChange(ex.id, 'doneSets', v)}
+                      onBlur={() => onAmountBlur(ex.id)}
+                    />
+                    {/*
                     세트마다 무게가 다른 사람이 대부분이라(40 → 50 → 60),
                     횟수와 무게는 '가장 무거웠던 세트' 기준으로 적게 한다.
                     그 뜻을 줄에 적어 두었더니 칸 사이를 갈라놓아 어느 칸에
                     무엇을 넣는지가 되레 헷갈렸다. 설명은 빼고 칸만 둔다 —
                     무엇을 세는지는 aria-label 에 남아 있다.
                   */}
-                  {ex.isHold ? (
-                    <AmountInput
-                      value={ex.doneHoldSeconds}
-                      unit="초"
-                      label={`${ex.title} 세트당 실제로 버틴 시간(초)`}
-                      onChange={(v) => onAmountChange(ex.id, 'doneHoldSeconds', v)}
-                      onBlur={() => onAmountBlur(ex.id)}
-                    />
-                  ) : (
-                    <AmountInput
-                      value={ex.doneReps}
-                      unit="회"
-                      label={
-                        ex.usesWeight
-                          ? `${ex.title} 가장 무거웠던 세트의 횟수`
-                          : `${ex.title} 세트당 실제로 한 횟수`
-                      }
-                      onChange={(v) => onAmountChange(ex.id, 'doneReps', v)}
-                      onBlur={() => onAmountBlur(ex.id)}
-                    />
-                  )}
-                  {ex.usesWeight && (
-                    <span className="inline-flex items-center gap-1">
-                      <NudgeButton
-                        label={`${ex.title} 무게 ${WEIGHT_STEP}kg 내리기`}
-                        onClick={() => onWeightNudge(ex.id, -1)}
-                      >
-                        −
-                      </NudgeButton>
+                    {ex.isHold ? (
                       <AmountInput
-                        value={ex.doneWeightKg}
-                        unit="kg"
-                        wide
-                        required={needsMore}
-                        label={`${ex.title} 가장 무거웠던 세트의 무게(kg)`}
-                        onChange={(v) => onAmountChange(ex.id, 'doneWeightKg', v)}
+                        value={ex.doneHoldSeconds}
+                        unit="초"
+                        label={`${ex.title} 세트당 실제로 버틴 시간(초)`}
+                        onChange={(v) => onAmountChange(ex.id, 'doneHoldSeconds', v)}
                         onBlur={() => onAmountBlur(ex.id)}
                       />
-                      <NudgeButton
-                        label={`${ex.title} 무게 ${WEIGHT_STEP}kg 올리기`}
-                        onClick={() => onWeightNudge(ex.id, 1)}
-                      >
-                        +
-                      </NudgeButton>
-                    </span>
-                  )}
-                </div>
+                    ) : (
+                      <AmountInput
+                        value={ex.doneReps}
+                        unit="회"
+                        label={
+                          ex.usesWeight
+                            ? `${ex.title} 가장 무거웠던 세트의 횟수`
+                            : `${ex.title} 세트당 실제로 한 횟수`
+                        }
+                        onChange={(v) => onAmountChange(ex.id, 'doneReps', v)}
+                        onBlur={() => onAmountBlur(ex.id)}
+                      />
+                    )}
+                    {ex.usesWeight && (
+                      <span className="inline-flex items-center gap-1">
+                        <NudgeButton
+                          label={`${ex.title} 무게 ${WEIGHT_STEP}kg 내리기`}
+                          onClick={() => onWeightNudge(ex.id, -1)}
+                        >
+                          −
+                        </NudgeButton>
+                        <AmountInput
+                          value={ex.doneWeightKg}
+                          unit="kg"
+                          wide
+                          required={needsMore}
+                          label={`${ex.title} 가장 무거웠던 세트의 무게(kg)`}
+                          onChange={(v) => onAmountChange(ex.id, 'doneWeightKg', v)}
+                          onBlur={() => onAmountBlur(ex.id)}
+                        />
+                        <NudgeButton
+                          label={`${ex.title} 무게 ${WEIGHT_STEP}kg 올리기`}
+                          onClick={() => onWeightNudge(ex.id, 1)}
+                        >
+                          +
+                        </NudgeButton>
+                      </span>
+                    )}
+                  </div>
 
-                {/*
+                  {/*
                   무게가 있어야 기록이 되는 운동인데 아직 비어 있다.
 
                   말없이 안 보내면 저장된 줄 안다. 무엇이 모자란지, 적으면
                   어떻게 되는지를 그 자리에서 밝힌다.
                 */}
-                {needsMore && (
-                  <p className="flex items-start gap-1.5 text-[11px] leading-relaxed text-danger">
-                    <AlertTriangle aria-hidden className="mt-0.5 h-3 w-3 shrink-0" />
-                    무게를 적어야 기록으로 남습니다. 지금은 아직 저장되지
-                    않았습니다.
-                  </p>
-                )}
+                  {needsMore && (
+                    <p className="flex items-start gap-1.5 text-[11px] leading-relaxed text-danger">
+                      <AlertTriangle aria-hidden className="mt-0.5 h-3 w-3 shrink-0" />
+                      무게를 적어야 기록으로 남습니다. 지금은 아직 저장되지 않았습니다.
+                    </p>
+                  )}
 
-                {/*
+                  {/*
                   지난번 값을 그대로 가져오는 단추.
                   미리 채워 두는 것과 다르다 — 숫자가 단추에 적혀 있어 무엇을
                   넣는지 보고 누른다. 이미 뭔가 적었으면 내지 않는다.
                 */}
-                {lastText && !anyAmount && (
-                  <button
-                    type="button"
-                    onClick={() => onFillFromLast(ex.id)}
-                    className="inline-flex items-center gap-1.5 rounded-lg border border-sky-soft/70 bg-surface px-2.5 py-1 text-[11px] text-sky-strong transition-colors hover:border-sky hover:bg-sky/5"
-                  >
-                    <RotateCcw aria-hidden className="h-3 w-3" />
-                    지난번 그대로 · {lastText}
-                  </button>
-                )}
-              </div>
-            )}
+                  {lastText && !anyAmount && (
+                    <button
+                      type="button"
+                      onClick={() => onFillFromLast(ex.id)}
+                      className="inline-flex items-center gap-1.5 rounded-lg border border-sky-soft/70 bg-surface px-2.5 py-1 text-[11px] text-sky-strong transition-colors hover:border-sky hover:bg-sky/5"
+                    >
+                      <RotateCcw aria-hidden className="h-3 w-3" />
+                      지난번 그대로 · {lastText}
+                    </button>
+                  )}
+                </div>
+              )}
             </div>
 
             {/*

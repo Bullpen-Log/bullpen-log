@@ -48,11 +48,19 @@ export const BODY_PARTS = [
  * 그냥 통과해버린다. 숫자로 비교하면 그런 구멍이 생기지 않는다.
  */
 export const INTENSITY_LEVELS = [
-  { level: 1, name: '매우 낮음', desc: '스트레칭·가동성. 통증만 없다면 매일 해도 되는 수준' },
+  {
+    level: 1,
+    name: '매우 낮음',
+    desc: '스트레칭·가동성. 통증만 없다면 매일 해도 되는 수준',
+  },
   { level: 2, name: '낮음', desc: '회복·이완 수준. 많이 던진 날에도 할 수 있음' },
   { level: 3, name: '중간', desc: '평소 훈련일에 하는 수준' },
   { level: 4, name: '높음', desc: '무게를 다루는 근력 운동. 다음 날 뻐근함이 남음' },
-  { level: 5, name: '매우 높음', desc: '최대 근력·전력 점프. 며칠 회복이 필요하고 등판 전후에는 피함' },
+  {
+    level: 5,
+    name: '매우 높음',
+    desc: '최대 근력·전력 점프. 며칠 회복이 필요하고 등판 전후에는 피함',
+  },
 ] as const;
 
 /** 이름 → 단계 숫자. 목록에 없는 값은 가장 위험한 쪽으로 본다. */
@@ -329,7 +337,8 @@ export function formatPrescription(p: Partial<Prescription>): string | null {
   if (amount == null) return null;
 
   const side = p.perSide ? ' (좌우 각각)' : '';
-  const rest = p.restSeconds != null ? ` · 세트 사이 ${formatSeconds(p.restSeconds)} 휴식` : '';
+  const rest =
+    p.restSeconds != null ? ` · 세트 사이 ${formatSeconds(p.restSeconds)} 휴식` : '';
   return `${p.sets}세트 × ${amount}${side}${rest}`;
 }
 

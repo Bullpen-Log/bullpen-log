@@ -9,11 +9,13 @@ import { validateTargetVelocity } from '@/lib/velocity';
 import { WORKOUT_MINUTES_CHOICES } from '@/lib/report/theme';
 import { withInput, type FormValues } from '@/lib/form-values';
 
-export type ProfileState = {
-  error?: string;
-  success?: string;
-  values?: FormValues;
-} | undefined;
+export type ProfileState =
+  | {
+      error?: string;
+      success?: string;
+      values?: FormValues;
+    }
+  | undefined;
 
 /** 내 신체 정보(생년월일·키)와 닉네임을 수정한다. */
 export async function updateProfile(

@@ -57,11 +57,7 @@ export function PageHeading({
   );
 }
 
-export function Card({
-  className,
-  children,
-  ...props
-}: ComponentProps<'div'>) {
+export function Card({ className, children, ...props }: ComponentProps<'div'>) {
   return (
     <div
       className={cn(

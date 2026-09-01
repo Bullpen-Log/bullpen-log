@@ -65,10 +65,7 @@ export function DayClient({
   const future = isFutureDateKey(date);
   const logs = initialLogs;
 
-  const videoPaths = useMemo(
-    () => logs.flatMap((l) => l.videoPaths),
-    [logs]
-  );
+  const videoPaths = useMemo(() => logs.flatMap((l) => l.videoPaths), [logs]);
   const {
     urls: playbackUrls,
     loading: urlsLoading,
@@ -174,9 +171,7 @@ export function DayClient({
           >
             <div>
               <h2 className="font-bold text-ink">기록 수정</h2>
-              <p className="mt-1 text-sm text-muted">
-                영상도 함께 바꿀 수 있습니다
-              </p>
+              <p className="mt-1 text-sm text-muted">영상도 함께 바꿀 수 있습니다</p>
             </div>
             <EntryForm
               date={date}

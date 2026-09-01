@@ -1,10 +1,6 @@
 'use client';
 
-import {
-  CORE_LANDMARKS,
-  type PoseFrame,
-  type PoseTrack,
-} from '@/lib/pose/types';
+import { CORE_LANDMARKS, type PoseFrame, type PoseTrack } from '@/lib/pose/types';
 
 /**
  * 브라우저에서 영상을 프레임 단위로 훑으며 관절 좌표를 뽑는다.
@@ -68,11 +64,14 @@ function loadFileset() {
  */
 async function createLandmarker(delegate: 'GPU' | 'CPU') {
   const { vision, fileset } = await loadFileset();
-  const landmarker: Landmarker = await vision.PoseLandmarker.createFromOptions(fileset, {
-    baseOptions: { modelAssetPath: MODEL_URL, delegate },
-    runningMode: 'VIDEO',
-    numPoses: 1,
-  });
+  const landmarker: Landmarker = await vision.PoseLandmarker.createFromOptions(
+    fileset,
+    {
+      baseOptions: { modelAssetPath: MODEL_URL, delegate },
+      runningMode: 'VIDEO',
+      numPoses: 1,
+    }
+  );
   return {
     landmarker,
     connections: vision.PoseLandmarker.POSE_CONNECTIONS.map((c) => ({
@@ -85,7 +84,9 @@ async function createLandmarker(delegate: 'GPU' | 'CPU') {
 /** 화면에 실제로 표시된 프레임을 알려주는 브라우저 기능 */
 type FrameMetadata = { mediaTime: number };
 type VideoWithFrameCallback = HTMLVideoElement & {
-  requestVideoFrameCallback?: (cb: (now: number, metadata: FrameMetadata) => void) => number;
+  requestVideoFrameCallback?: (
+    cb: (now: number, metadata: FrameMetadata) => void
+  ) => number;
 };
 
 /**
@@ -414,13 +415,23 @@ export async function extractPoseTrack(
             onProgress,
             signal
           )
-        : await scanBySeek(engine.landmarker, video, duration, step, onProgress, signal);
+        : await scanBySeek(
+            engine.landmarker,
+            video,
+            duration,
+            step,
+            onProgress,
+            signal
+          );
     } finally {
       engine.landmarker.close();
     }
 
     // 재생이 막혔거나(자동재생 차단) 결과가 부실하면 seek로 한 번 더 시도한다.
-    if (canPlaybackScan && (scan.frames.length === 0 || scan.coverage < RETRY_COVERAGE)) {
+    if (
+      canPlaybackScan &&
+      (scan.frames.length === 0 || scan.coverage < RETRY_COVERAGE)
+    ) {
       const retryEngine = await createLandmarker(usedGpu ? 'GPU' : 'CPU');
       try {
         const retry = await scanBySeek(
@@ -432,7 +443,8 @@ export async function extractPoseTrack(
           signal
         );
         const stale =
-          retry.frames.length > 0 && retry.identical / retry.frames.length > STALE_FRAME_RATIO;
+          retry.frames.length > 0 &&
+          retry.identical / retry.frames.length > STALE_FRAME_RATIO;
         if (!stale && distinct(retry) > distinct(scan)) scan = retry;
       } finally {
         retryEngine.landmarker.close();
@@ -490,7 +502,9 @@ export async function extractPoseTrack(
     // 우리가 만든 한국어 안내문은 그대로 올려보낸다.
     if (err instanceof Error && /[가-힣]/.test(err.message)) throw err;
     // 그 외(MediaPipe 내부 오류 등)는 사람이 읽을 안내로 바꾼다.
-    throw new Error('분석 도구에 문제가 생겨 중단됐습니다. 한 번 더 눌러 다시 시도해주세요.');
+    throw new Error(
+      '분석 도구에 문제가 생겨 중단됐습니다. 한 번 더 눌러 다시 시도해주세요.'
+    );
   } finally {
     video.src = '';
   }

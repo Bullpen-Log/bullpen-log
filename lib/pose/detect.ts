@@ -93,7 +93,11 @@ function smooth(values: (number | null)[], win = 5): (number | null)[] {
   return values.map((_, i) => {
     let sum = 0;
     let n = 0;
-    for (let j = Math.max(0, i - half); j <= Math.min(values.length - 1, i + half); j++) {
+    for (
+      let j = Math.max(0, i - half);
+      j <= Math.min(values.length - 1, i + half);
+      j++
+    ) {
       const v = values[j];
       if (v != null) {
         sum += v;

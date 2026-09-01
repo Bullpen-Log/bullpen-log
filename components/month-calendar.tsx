@@ -93,7 +93,9 @@ export function MonthCalendar({
             type="button"
             aria-label="이전 달"
             onClick={() =>
-              onMonthChange((prev) => new Date(prev.getFullYear(), prev.getMonth() - 1, 1))
+              onMonthChange(
+                (prev) => new Date(prev.getFullYear(), prev.getMonth() - 1, 1)
+              )
             }
             className="rounded-lg border border-line p-2 text-muted transition-colors hover:border-sky hover:text-sky"
           >
@@ -103,7 +105,9 @@ export function MonthCalendar({
             type="button"
             aria-label="다음 달"
             onClick={() =>
-              onMonthChange((prev) => new Date(prev.getFullYear(), prev.getMonth() + 1, 1))
+              onMonthChange(
+                (prev) => new Date(prev.getFullYear(), prev.getMonth() + 1, 1)
+              )
             }
             className="rounded-lg border border-line p-2 text-muted transition-colors hover:border-sky hover:text-sky"
           >

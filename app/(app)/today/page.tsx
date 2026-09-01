@@ -2,10 +2,7 @@ import { ClipboardList, Dumbbell, Settings2, Target } from 'lucide-react';
 import { prisma } from '@/lib/prisma';
 import { requireUser } from '@/lib/dal';
 import { gatherFactsAndPlan } from '@/lib/report/gather';
-import {
-  intensityRangeText,
-  pitchRangeText,
-} from '@/lib/report/plan';
+import { intensityRangeText, pitchRangeText } from '@/lib/report/plan';
 import { loadTodayCore } from '@/lib/report/today-data';
 import { DEFAULT_WORKOUT_MINUTES } from '@/lib/report/theme';
 import { availableParts } from '@/lib/report/today-pick';
@@ -178,8 +175,7 @@ export default async function HomePage() {
    * 목표는 여기 세지 않는다. 일정을 만들 때 그날그날 고르는 값이라 설정에
    * 남아 있지 않아도 '아직 안 한 것'이 아니다.
    */
-  const settingsSet =
-    user.trainingLevel != null && user.ownedEquipment.length > 0;
+  const settingsSet = user.trainingLevel != null && user.ownedEquipment.length > 0;
 
   /*
    * 서버가 보는 '오늘'로 오늘 체크인을 찾는다.
@@ -319,7 +315,10 @@ export default async function HomePage() {
     return {
       key,
       value,
-      title: value > 0 ? `${formatShortDate(key)} 컨디션 ${value}/10` : `${formatShortDate(key)} 체크인 없음`,
+      title:
+        value > 0
+          ? `${formatShortDate(key)} 컨디션 ${value}/10`
+          : `${formatShortDate(key)} 체크인 없음`,
     };
   });
 
@@ -362,8 +361,8 @@ export default async function HomePage() {
             두고 운동은 회복·가동성 수준만 골랐습니다.
           </p>
           <p className="text-sm leading-relaxed text-warn">
-            통증이 있다면 던지지 말고 전문의와 상담하세요. 통증이 아니라면 오늘
-            체크인을 남겨주시면 바로 평소 계획으로 돌아갑니다.
+            통증이 있다면 던지지 말고 전문의와 상담하세요. 통증이 아니라면 오늘 체크인을
+            남겨주시면 바로 평소 계획으로 돌아갑니다.
           </p>
         </Card>
       )}
@@ -390,12 +389,10 @@ export default async function HomePage() {
       */}
       {!core.hasLogs && (
         <div className="rounded-2xl border border-sky-soft/60 bg-sky-tint px-5 py-4">
-          <p className="text-sm font-bold text-sky-strong">
-            여기부터 시작하세요
-          </p>
+          <p className="text-sm font-bold text-sky-strong">여기부터 시작하세요</p>
           <p className="mt-1.5 text-sm leading-relaxed text-ink/80">
-            <strong className="text-ink">오늘 투구</strong>를 먼저 남겨주세요. 던진
-            양을 알아야 부하를 재고 무리가 안 되는 운동을 고를 수 있습니다. 오늘 안
+            <strong className="text-ink">오늘 투구</strong>를 먼저 남겨주세요. 던진 양을
+            알아야 부하를 재고 무리가 안 되는 운동을 고를 수 있습니다. 오늘 안
             던지셨다면 <strong className="text-ink">‘오늘 안 던졌어요’</strong>를
             눌러주시면 됩니다.
           </p>
@@ -410,13 +407,13 @@ export default async function HomePage() {
         일이 먼저다.
       */}
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_18rem] lg:items-start">
-      {/*
+        {/*
         오늘 할 넷.
 
         순서는 하루의 순서다 — 몸 상태를 먼저 남기고(체크인), 던진 것을 남기고,
         그 둘을 근거로 운동 일정을 만든다. 설정은 어쩌다 한 번이라 끝에 둔다.
       */}
-      {/*
+        {/*
         sm:auto-rows-fr — 넓은 화면에서 네 상자를 같은 높이로 맞춘다.
 
         내용에 맡겨두면 윗줄 274px, 아랫줄 211px 처럼 들쭉날쭉해진다. 높이를
@@ -425,234 +422,236 @@ export default async function HomePage() {
         폰에서는 걸지 않는다. 한 줄에 하나씩 놓이는데 높이를 맞추면 두 줄짜리
         상자가 제일 긴 상자만큼 늘어나, 스크롤만 길어진다.
       */}
-      <div className="space-y-3">
-        {/*
+        <div className="space-y-3">
+          {/*
           제목을 세워 두 덩이를 가른다.
 
           예전에는 상자 일곱 개가 그냥 이어져 있었다. 앞의 넷은 오늘 해야 하는
           것이고 뒤의 셋은 지나간 것을 보는 자리인데, 경계가 없으니 아래로
           내려가다 어디서 성격이 바뀌는지 알 수 없었다.
         */}
-        <h2 className="text-heading px-1 text-xl text-ink">오늘 할 일</h2>
+          <h2 className="text-heading px-1 text-xl text-ink">오늘 할 일</h2>
 
-      <div className="grid gap-4 sm:auto-rows-fr sm:grid-cols-2">
-        <HomeTile
-          tone="mobility"
-          icon={<ClipboardList className="h-4 w-4" />}
-          title="오늘 체크인"
-          state={checkinTile.state}
-          badge={checkinTile.badge}
-          lines={checkinTile.lines}
-          extra={<MiniBars bars={conditionBars} label="최근 7일 컨디션" max={10} />}
-          action={checkinToday ? '보기 · 고치기' : '체크인하기'}
-          modalTitle="오늘 컨디션 체크인"
-          modalDescription="30초면 됩니다. 리포트와 운동 추천의 기준이 됩니다."
-        >
-          <CheckinForm recent={checkinData} parts={libraryParts} />
-        </HomeTile>
+          <div className="grid gap-4 sm:auto-rows-fr sm:grid-cols-2">
+            <HomeTile
+              tone="mobility"
+              icon={<ClipboardList className="h-4 w-4" />}
+              title="오늘 체크인"
+              state={checkinTile.state}
+              badge={checkinTile.badge}
+              lines={checkinTile.lines}
+              extra={<MiniBars bars={conditionBars} label="최근 7일 컨디션" max={10} />}
+              action={checkinToday ? '보기 · 고치기' : '체크인하기'}
+              modalTitle="오늘 컨디션 체크인"
+              modalDescription="30초면 됩니다. 리포트와 운동 추천의 기준이 됩니다."
+            >
+              <CheckinForm recent={checkinData} parts={libraryParts} />
+            </HomeTile>
 
-        <HomeTile
-          tone="core"
-          icon={<Target className="h-4 w-4" />}
-          title="오늘 투구"
-          state={pitchTile.state}
-          badge={pitchTile.badge}
-          lines={pitchTile.lines}
-          action={todayLog ? '보기 · 고치기' : '기록하기'}
-          extra={<MiniBars bars={weekBars} label="최근 7일 투구수" />}
-          modalTitle="오늘 투구 기록"
-          modalDescription="계획과 나란히 두어 지켰는지 바로 보이게 합니다."
-        >
-          <div className="space-y-3">
-            {/*
+            <HomeTile
+              tone="core"
+              icon={<Target className="h-4 w-4" />}
+              title="오늘 투구"
+              state={pitchTile.state}
+              badge={pitchTile.badge}
+              lines={pitchTile.lines}
+              action={todayLog ? '보기 · 고치기' : '기록하기'}
+              extra={<MiniBars bars={weekBars} label="최근 7일 투구수" />}
+              modalTitle="오늘 투구 기록"
+              modalDescription="계획과 나란히 두어 지켰는지 바로 보이게 합니다."
+            >
+              <div className="space-y-3">
+                {/*
               계획은 오늘 기록을 넣기 전 기준으로 보여준다.
 
               넣고 나면 '휴식'으로 바뀌는데(이미 던졌으니 더 쉬라는 뜻이다),
               바로 아래 "45구 기록" 옆에 "오늘 계획: 휴식"이 있으면 서로 어긋나
               보인다. 아침에 본 계획을 그대로 두고, 넘겼으면 아래에서 알린다.
             */}
-            {showPlannedToday && (
-              <PlanNote
-                plan={{
-                  throwing: plannedToday.throwing,
-                  pitches: pitchRangeText(plannedToday),
-                  intensity: intensityRangeText(plannedToday),
-                  reason: plannedToday.reason,
-                }}
-              />
-            )}
-            <TodayRecord
-              date={core.todayKey}
-              log={todayLog}
-              analyzedPaths={analyzedPaths.map((a) => a.videoPath)}
-              plan={
-                showPlannedToday
-                  ? {
+                {showPlannedToday && (
+                  <PlanNote
+                    plan={{
                       throwing: plannedToday.throwing,
-                      maxPitches: plannedToday.maxPitches,
-                      maxIntensity: plannedToday.maxIntensity,
-                    }
-                  : null
-              }
-            />
-          </div>
-        </HomeTile>
+                      pitches: pitchRangeText(plannedToday),
+                      intensity: intensityRangeText(plannedToday),
+                      reason: plannedToday.reason,
+                    }}
+                  />
+                )}
+                <TodayRecord
+                  date={core.todayKey}
+                  log={todayLog}
+                  analyzedPaths={analyzedPaths.map((a) => a.videoPath)}
+                  plan={
+                    showPlannedToday
+                      ? {
+                          throwing: plannedToday.throwing,
+                          maxPitches: plannedToday.maxPitches,
+                          maxIntensity: plannedToday.maxIntensity,
+                        }
+                      : null
+                  }
+                />
+              </div>
+            </HomeTile>
 
-        {/*
+            {/*
           일정을 이미 만든 날에는 창을 거치지 않고 바로 트레이닝으로 보낸다.
           그날 할 일은 '운동하기'인데, 창을 한 번 지나 다시 누르게 할 이유가 없다.
           다시 만드는 것은 트레이닝 화면에서 할 수 있다.
         */}
-        {savedPlan ? (
-          <HomeTileLink
-            href="/training"
-            tone="power"
-          icon={<Dumbbell className="h-4 w-4" />}
-            title="운동 일정"
-            state={planTile.state}
-            badge={planTile.badge}
-            lines={planTile.lines}
-            extra={
-              /* 얼마나 했는지 — 숫자만 있으면 남은 양이 잘 안 와닿는다 */
-              <span className="mt-3 block">
-                <span className="block h-2 overflow-hidden rounded-full bg-surface-2">
-                  <span
-                    className="block h-full rounded-full bg-sky/60"
-                    style={{
-                      width: `${
-                        exerciseTotal > 0 ? (exerciseDone / exerciseTotal) * 100 : 0
-                      }%`,
-                    }}
-                  />
-                </span>
-                <span className="mt-1.5 block text-[10px] text-muted/70">
-                  {exerciseDone}/{exerciseTotal} 완료
-                </span>
-              </span>
-            }
-            action="트레이닝에서 운동하기"
-          />
-        ) : (
-          <HomeTile
-            icon={<Dumbbell className="h-4 w-4" />}
-            title="운동 일정"
-            state={planTile.state}
-            badge={planTile.badge}
-            lines={planTile.lines}
-            action={picked.halted || !core.hasLogs ? '자세히 보기' : '일정 만들기'}
-            modalTitle="오늘 운동 일정 만들기"
-            modalDescription="만든 일정은 오늘 하루 그대로 남고, 내일이 되면 다시 만들 수 있습니다."
-          >
-            {picked.halted ? (
-              <div className="space-y-2">
-                <p className="text-sm font-bold text-warn">
-                  오늘은 운동을 처방하지 않았습니다
-                </p>
-                <p className="text-sm leading-relaxed text-warn">
-                  {picked.haltReason ??
-                    '통증 신호가 있어 훈련 조언을 만들지 않았습니다.'}{' '}
-                  통증이 있는 날은 쉬는 것이 가장 좋은 훈련입니다. 통증이 아니라면
-                  오늘 체크인에서 상태를 고쳐주세요.
-                </p>
-              </div>
-            ) : !core.hasLogs ? (
-              <div className="space-y-2">
-                <p className="text-sm font-bold text-ink">
-                  투구 기록이 있어야 운동을 고를 수 있습니다
-                </p>
-                <p className="text-sm leading-relaxed text-muted">
-                  최근 투구량과 몸 상태를 봐야 오늘 무리가 안 되는 운동을 고를 수
-                  있습니다. ‘오늘 투구’에 먼저 남겨주세요. 안 던진 날이라면 그것도
-                  한 번 눌러 남기면 됩니다.
-                </p>
-              </div>
+            {savedPlan ? (
+              <HomeTileLink
+                href="/training"
+                tone="power"
+                icon={<Dumbbell className="h-4 w-4" />}
+                title="운동 일정"
+                state={planTile.state}
+                badge={planTile.badge}
+                lines={planTile.lines}
+                extra={
+                  /* 얼마나 했는지 — 숫자만 있으면 남은 양이 잘 안 와닿는다 */
+                  <span className="mt-3 block">
+                    <span className="block h-2 overflow-hidden rounded-full bg-surface-2">
+                      <span
+                        className="block h-full rounded-full bg-sky/60"
+                        style={{
+                          width: `${
+                            exerciseTotal > 0 ? (exerciseDone / exerciseTotal) * 100 : 0
+                          }%`,
+                        }}
+                      />
+                    </span>
+                    <span className="mt-1.5 block text-[10px] text-muted/70">
+                      {exerciseDone}/{exerciseTotal} 완료
+                    </span>
+                  </span>
+                }
+                action="트레이닝에서 운동하기"
+              />
             ) : (
-              planFormEl
-            )}
-          </HomeTile>
-        )}
-
-        <HomeTile
-          tone="recovery"
-          icon={<Settings2 className="h-4 w-4" />}
-          title="트레이닝 설정"
-          state={settingsSet ? 'done' : 'todo'}
-          badge={settingsSet ? '완료' : '아직'}
-          lines={
-            settingsSet
-              ? [
-                  `경력 ${user.trainingLevel}`,
-                  `가진 장비 ${user.ownedEquipment.length}개`,
-                  '한 번 정해두면 그대로 갑니다.',
-                ]
-              : [
-                  `경력 ${user.trainingLevel ?? '미설정'}`,
-                  user.ownedEquipment.length > 0
-                    ? `가진 장비 ${user.ownedEquipment.length}개`
-                    : '가진 장비 미설정',
-                  '정해두면 경력에 맞고 실제로 할 수 있는 운동만 골라드립니다.',
-                ]
-          }
-          extra={
-            /*
-             * 가진 장비를 이름으로 보여준다. '8개'만 적어두면 무엇을 가졌다고
-             * 해뒀는지 창을 열어야 알 수 있는데, 운동이 이상하게 골라졌을 때
-             * 제일 먼저 의심하는 것이 여기다.
-             */
-            user.ownedEquipment.length > 0 ? (
-              <span className="mt-3 flex flex-wrap gap-1">
-                {user.ownedEquipment.slice(0, 8).map((eq) => (
-                  <span
-                    key={eq}
-                    className="rounded-md border border-line bg-surface-2 px-1.5 py-0.5 text-[10px] text-muted"
-                  >
-                    {eq}
-                  </span>
-                ))}
-                {user.ownedEquipment.length > 8 && (
-                  <span className="px-1 py-0.5 text-[10px] text-muted/70">
-                    외 {user.ownedEquipment.length - 8}개
-                  </span>
+              <HomeTile
+                icon={<Dumbbell className="h-4 w-4" />}
+                title="운동 일정"
+                state={planTile.state}
+                badge={planTile.badge}
+                lines={planTile.lines}
+                action={picked.halted || !core.hasLogs ? '자세히 보기' : '일정 만들기'}
+                modalTitle="오늘 운동 일정 만들기"
+                modalDescription="만든 일정은 오늘 하루 그대로 남고, 내일이 되면 다시 만들 수 있습니다."
+              >
+                {picked.halted ? (
+                  <div className="space-y-2">
+                    <p className="text-sm font-bold text-warn">
+                      오늘은 운동을 처방하지 않았습니다
+                    </p>
+                    <p className="text-sm leading-relaxed text-warn">
+                      {picked.haltReason ??
+                        '통증 신호가 있어 훈련 조언을 만들지 않았습니다.'}{' '}
+                      통증이 있는 날은 쉬는 것이 가장 좋은 훈련입니다. 통증이 아니라면
+                      오늘 체크인에서 상태를 고쳐주세요.
+                    </p>
+                  </div>
+                ) : !core.hasLogs ? (
+                  <div className="space-y-2">
+                    <p className="text-sm font-bold text-ink">
+                      투구 기록이 있어야 운동을 고를 수 있습니다
+                    </p>
+                    <p className="text-sm leading-relaxed text-muted">
+                      최근 투구량과 몸 상태를 봐야 오늘 무리가 안 되는 운동을 고를 수
+                      있습니다. ‘오늘 투구’에 먼저 남겨주세요. 안 던진 날이라면 그것도
+                      한 번 눌러 남기면 됩니다.
+                    </p>
+                  </div>
+                ) : (
+                  planFormEl
                 )}
-              </span>
-            ) : undefined
-          }
-          action={settingsSet ? '고치기' : '설정하기'}
-          modalTitle="트레이닝 설정"
-          modalDescription="어쩌다 한 번 고치는 것들입니다. 오늘 쓸 장비는 일정을 만들 때 따로 고릅니다."
-        >
-          <TrainingSettingsForm
-            trainingLevel={user.trainingLevel}
-            ownedEquipment={user.ownedEquipment}
-            returnTo="/today"
-          />
-        </HomeTile>
-      </div>
-      </div>
+              </HomeTile>
+            )}
 
-      <div className="space-y-3">
-        <h2 className="text-heading px-1 text-xl text-ink">돌아보기</h2>
-        <SummaryPanel
-        pitching={{
-          ratio: facts.load.ratio,
-          zone: facts.load.zone,
-          waiting: core.hasLogs ? '기록을 쌓는 중' : '기록하면 나옵니다',
-        }}
-        training={{
-          ratio: training.ratio,
-          zone: training.zone,
-          waiting:
-            training.historyDays > 0 ? '기록을 쌓는 중' : '운동을 체크하면 나옵니다',
-        }}
-        week={{
-          pitches: facts.volume.current.totalPitches,
-          throwDays: facts.volume.current.activeDays,
-          workoutDays: training.recentDays,
-          workoutMinutes: training.recentMinutes,
-        }}
-        recent={summaryRecent}
-        />
-      </div>
+            <HomeTile
+              tone="recovery"
+              icon={<Settings2 className="h-4 w-4" />}
+              title="트레이닝 설정"
+              state={settingsSet ? 'done' : 'todo'}
+              badge={settingsSet ? '완료' : '아직'}
+              lines={
+                settingsSet
+                  ? [
+                      `경력 ${user.trainingLevel}`,
+                      `가진 장비 ${user.ownedEquipment.length}개`,
+                      '한 번 정해두면 그대로 갑니다.',
+                    ]
+                  : [
+                      `경력 ${user.trainingLevel ?? '미설정'}`,
+                      user.ownedEquipment.length > 0
+                        ? `가진 장비 ${user.ownedEquipment.length}개`
+                        : '가진 장비 미설정',
+                      '정해두면 경력에 맞고 실제로 할 수 있는 운동만 골라드립니다.',
+                    ]
+              }
+              extra={
+                /*
+                 * 가진 장비를 이름으로 보여준다. '8개'만 적어두면 무엇을 가졌다고
+                 * 해뒀는지 창을 열어야 알 수 있는데, 운동이 이상하게 골라졌을 때
+                 * 제일 먼저 의심하는 것이 여기다.
+                 */
+                user.ownedEquipment.length > 0 ? (
+                  <span className="mt-3 flex flex-wrap gap-1">
+                    {user.ownedEquipment.slice(0, 8).map((eq) => (
+                      <span
+                        key={eq}
+                        className="rounded-md border border-line bg-surface-2 px-1.5 py-0.5 text-[10px] text-muted"
+                      >
+                        {eq}
+                      </span>
+                    ))}
+                    {user.ownedEquipment.length > 8 && (
+                      <span className="px-1 py-0.5 text-[10px] text-muted/70">
+                        외 {user.ownedEquipment.length - 8}개
+                      </span>
+                    )}
+                  </span>
+                ) : undefined
+              }
+              action={settingsSet ? '고치기' : '설정하기'}
+              modalTitle="트레이닝 설정"
+              modalDescription="어쩌다 한 번 고치는 것들입니다. 오늘 쓸 장비는 일정을 만들 때 따로 고릅니다."
+            >
+              <TrainingSettingsForm
+                trainingLevel={user.trainingLevel}
+                ownedEquipment={user.ownedEquipment}
+                returnTo="/today"
+              />
+            </HomeTile>
+          </div>
+        </div>
+
+        <div className="space-y-3">
+          <h2 className="text-heading px-1 text-xl text-ink">돌아보기</h2>
+          <SummaryPanel
+            pitching={{
+              ratio: facts.load.ratio,
+              zone: facts.load.zone,
+              waiting: core.hasLogs ? '기록을 쌓는 중' : '기록하면 나옵니다',
+            }}
+            training={{
+              ratio: training.ratio,
+              zone: training.zone,
+              waiting:
+                training.historyDays > 0
+                  ? '기록을 쌓는 중'
+                  : '운동을 체크하면 나옵니다',
+            }}
+            week={{
+              pitches: facts.volume.current.totalPitches,
+              throwDays: facts.volume.current.activeDays,
+              workoutDays: training.recentDays,
+              workoutMinutes: training.recentMinutes,
+            }}
+            recent={summaryRecent}
+          />
+        </div>
       </div>
     </div>
   );

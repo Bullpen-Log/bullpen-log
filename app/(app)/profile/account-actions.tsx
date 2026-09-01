@@ -2,11 +2,7 @@
 
 import { useActionState, useState } from 'react';
 import { KeyRound, UserMinus } from 'lucide-react';
-import {
-  changePassword,
-  deleteAccount,
-  type AccountState,
-} from '@/app/actions/auth';
+import { changePassword, deleteAccount, type AccountState } from '@/app/actions/auth';
 import { Button, Field, FormError, Input } from '@/components/ui';
 import { Modal } from '@/components/modal';
 
@@ -150,13 +146,18 @@ function LeaveForm() {
       <div className="space-y-2 rounded-xl border border-danger-line bg-danger-bg px-4 py-3.5 text-sm leading-relaxed text-danger">
         <p className="font-bold">되돌릴 수 없습니다.</p>
         <p>
-          투구 기록과 올려둔 영상, 컨디션 체크인, 운동 기록, 남긴 글이 모두
-          지워집니다. 같은 이메일로 다시 가입해도 예전 기록은 돌아오지 않습니다.
+          투구 기록과 올려둔 영상, 컨디션 체크인, 운동 기록, 남긴 글이 모두 지워집니다.
+          같은 이메일로 다시 가입해도 예전 기록은 돌아오지 않습니다.
         </p>
       </div>
 
       <Field label="비밀번호">
-        <Input name="password" type="password" autoComplete="current-password" required />
+        <Input
+          name="password"
+          type="password"
+          autoComplete="current-password"
+          required
+        />
       </Field>
 
       <Field label="확인" hint="아래 칸에 탈퇴 두 글자를 그대로 적어주세요.">

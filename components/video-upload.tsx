@@ -267,9 +267,7 @@ export function VideoUpload({
                     asking === v.path ? `${v.name} 정말 빼기` : `${v.name} 빼기`
                   }
                   className={`rounded p-1 transition-colors ${
-                    asking === v.path
-                      ? 'text-danger'
-                      : 'text-muted hover:text-red-600'
+                    asking === v.path ? 'text-danger' : 'text-muted hover:text-red-600'
                   }`}
                 >
                   <X className="h-3.5 w-3.5" />

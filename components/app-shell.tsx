@@ -35,9 +35,7 @@ export function Sidebar({
         className="flex h-16 shrink-0 items-center gap-2.5 border-b border-line px-5"
       >
         <BaseballMark className="h-9 w-9" />
-        <span className="text-display text-lg leading-none text-ink">
-          BULLPEN LOG
-        </span>
+        <span className="text-display text-lg leading-none text-ink">BULLPEN LOG</span>
       </Link>
 
       <nav className="flex-1 space-y-6 overflow-y-auto px-3 py-5">
@@ -96,13 +94,7 @@ export function Sidebar({
 }
 
 /** 이름 첫 글자를 딴 동그란 아바타 */
-function Avatar({
-  nickname,
-  size = 'md',
-}: {
-  nickname: string;
-  size?: 'md' | 'lg';
-}) {
+function Avatar({ nickname, size = 'md' }: { nickname: string; size?: 'md' | 'lg' }) {
   return (
     <span
       aria-hidden
@@ -150,11 +142,7 @@ export function MobileTabs({ tabs }: { tabs: NavItem[] }) {
                 active ? 'font-semibold text-sky' : 'text-muted'
               }`}
             >
-              <Icon
-                aria-hidden
-                className="h-5 w-5"
-                strokeWidth={active ? 2.4 : 1.9}
-              />
+              <Icon aria-hidden className="h-5 w-5" strokeWidth={active ? 2.4 : 1.9} />
               {tab.short ?? tab.label}
             </Link>
           );

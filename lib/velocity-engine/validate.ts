@@ -111,7 +111,6 @@ export const CONTINUITY_GAP_SEC = 1 / 30;
 /** 프레임 간격을 모를 때 쓰는 값(초). 30fps 기준. */
 const FALLBACK_FRAME_GAP_SEC = 1 / 30;
 
-
 /**
  * 촬영 중 카메라가 움직여도 되는 정도(픽셀).
  * 삼각대에 고정했다면 배경은 거의 그대로다. 손으로 들면 이 값을 넘는다.
@@ -246,7 +245,12 @@ export type CameraStability = {
  * 초점거리를 모르면 거리를 계산할 수 없고, 그러면 구속도 낼 수 없다.
  */
 export function checkLens(lens: CameraLens | null): Rejection | null {
-  if (!lens || !(lens.focalPx > 0) || !(lens.frameWidth > 0) || !(lens.frameHeight > 0)) {
+  if (
+    !lens ||
+    !(lens.focalPx > 0) ||
+    !(lens.frameWidth > 0) ||
+    !(lens.frameHeight > 0)
+  ) {
     return reject('LENS_UNKNOWN');
   }
   return null;
@@ -263,10 +267,7 @@ export function checkFraming({
   lens: CameraLens;
   stability?: CameraStability;
 }): Rejection | null {
-  if (
-    stability &&
-    stability.maxBackgroundShiftPx > MAX_CAMERA_SHAKE_PX
-  ) {
+  if (stability && stability.maxBackgroundShiftPx > MAX_CAMERA_SHAKE_PX) {
     return reject('CAMERA_SHAKE');
   }
 

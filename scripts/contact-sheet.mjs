@@ -65,7 +65,9 @@ for (let s = 0; s < sheets; s++) {
     const y = row * (CELL_H + LABEL_H);
 
     if (buf) {
-      const img = await sharp(buf).resize(CELL_W, CELL_H, { fit: 'contain', background: '#000' }).toBuffer();
+      const img = await sharp(buf)
+        .resize(CELL_W, CELL_H, { fit: 'contain', background: '#000' })
+        .toBuffer();
       composites.push({ input: img, top: y, left: x });
     }
     composites.push({

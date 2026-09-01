@@ -24,8 +24,13 @@ import { focalPxFromFov, BALL_DIAMETER_M } from '../lib/velocity-engine/geometry
 let passed = 0;
 let failed = 0;
 function check(name: string, ok: boolean, detail = '') {
-  if (ok) { passed++; console.log(`  ✅ ${name}${detail ? ' — ' + detail : ''}`); }
-  else { failed++; console.log(`  ❌ ${name}${detail ? ' — ' + detail : ''}`); }
+  if (ok) {
+    passed++;
+    console.log(`  ✅ ${name}${detail ? ' — ' + detail : ''}`);
+  } else {
+    failed++;
+    console.log(`  ❌ ${name}${detail ? ' — ' + detail : ''}`);
+  }
 }
 
 const W = 640;
@@ -48,7 +53,13 @@ function makeBackground(): Uint8ClampedArray {
 }
 
 /** 프레임에 밝은 원을 그린다 */
-function drawCircle(px: Uint8ClampedArray, cx: number, cy: number, diameter: number, brightness = 235) {
+function drawCircle(
+  px: Uint8ClampedArray,
+  cx: number,
+  cy: number,
+  diameter: number,
+  brightness = 235
+) {
   const r = diameter / 2;
   const x0 = Math.max(0, Math.floor(cx - r));
   const x1 = Math.min(W - 1, Math.ceil(cx + r));
@@ -58,18 +69,29 @@ function drawCircle(px: Uint8ClampedArray, cx: number, cy: number, diameter: num
     for (let x = x0; x <= x1; x++) {
       if ((x - cx) ** 2 + (y - cy) ** 2 <= r * r) {
         const i = (y * W + x) * 4;
-        px[i] = brightness; px[i + 1] = brightness; px[i + 2] = brightness;
+        px[i] = brightness;
+        px[i + 1] = brightness;
+        px[i + 2] = brightness;
       }
     }
   }
 }
 
 /** 팔처럼 길쭉한 밝은 막대 */
-function drawBar(px: Uint8ClampedArray, cx: number, cy: number, w: number, h: number, brightness = 220) {
+function drawBar(
+  px: Uint8ClampedArray,
+  cx: number,
+  cy: number,
+  w: number,
+  h: number,
+  brightness = 220
+) {
   for (let y = Math.max(0, cy - h / 2); y <= Math.min(H - 1, cy + h / 2); y++) {
     for (let x = Math.max(0, cx - w / 2); x <= Math.min(W - 1, cx + w / 2); x++) {
       const i = (Math.round(y) * W + Math.round(x)) * 4;
-      px[i] = brightness; px[i + 1] = brightness; px[i + 2] = brightness;
+      px[i] = brightness;
+      px[i + 1] = brightness;
+      px[i + 2] = brightness;
     }
   }
 }
@@ -81,11 +103,20 @@ console.log('\n════ 1. 움직인 공을 찾아내는가 ════\n')
   const f2 = new Uint8ClampedArray(bg);
   drawCircle(f2, 320, 180, 40);
   const blobs = findMovedBlobs(toLuma(f1, W, H), toLuma(f2, W, H), W, H);
-  check('가만있던 배경에 공이 나타남', blobs.length === 1,
-    blobs.length ? `중심 (${blobs[0].cx.toFixed(0)}, ${blobs[0].cy.toFixed(0)}) 지름 ${blobDiameter(blobs[0]).toFixed(1)}px` : '못 찾음');
+  check(
+    '가만있던 배경에 공이 나타남',
+    blobs.length === 1,
+    blobs.length
+      ? `중심 (${blobs[0].cx.toFixed(0)}, ${blobs[0].cy.toFixed(0)}) 지름 ${blobDiameter(blobs[0]).toFixed(1)}px`
+      : '못 찾음'
+  );
   if (blobs.length === 1) {
     const d = blobDiameter(blobs[0]);
-    check('지름을 맞게 재는가', Math.abs(d - 40) < 3, `측정 ${d.toFixed(1)}px / 실제 40px`);
+    check(
+      '지름을 맞게 재는가',
+      Math.abs(d - 40) < 3,
+      `측정 ${d.toFixed(1)}px / 실제 40px`
+    );
     check('중심을 맞게 잡는가', Math.hypot(blobs[0].cx - 320, blobs[0].cy - 180) < 2);
   }
 }
@@ -95,7 +126,7 @@ console.log('\n════ 2. 공이 아닌 것을 걸러내는가 ════
   const bg = makeBackground();
   const f1 = new Uint8ClampedArray(bg);
   const f2 = new Uint8ClampedArray(bg);
-  drawBar(f2, 150, 200, 12, 90);   // 팔처럼 세로로 긴 것
+  drawBar(f2, 150, 200, 12, 90); // 팔처럼 세로로 긴 것
   const blobs = findMovedBlobs(toLuma(f1, W, H), toLuma(f2, W, H), W, H);
   check('길쭉한 것(팔)은 후보에서 뺌', blobs.length === 0, `후보 ${blobs.length}개`);
 }
@@ -103,7 +134,7 @@ console.log('\n════ 2. 공이 아닌 것을 걸러내는가 ════
   const bg = makeBackground();
   const f1 = new Uint8ClampedArray(bg);
   const f2 = new Uint8ClampedArray(bg);
-  drawCircle(f2, 100, 100, 3);     // 먼지처럼 아주 작은 것
+  drawCircle(f2, 100, 100, 3); // 먼지처럼 아주 작은 것
   const blobs = findMovedBlobs(toLuma(f1, W, H), toLuma(f2, W, H), W, H);
   check('너무 작은 것은 후보에서 뺌', blobs.length === 0, `후보 ${blobs.length}개`);
 }
@@ -116,7 +147,7 @@ console.log('\n════ 3. 여러 개가 움직여도 공을 따라가는가
 
   for (let i = 0; i < 14; i++) {
     const curr = makeBackground();
-    const d = 60 / (1 + i * 0.42);          // 멀어지며 작아짐
+    const d = 60 / (1 + i * 0.42); // 멀어지며 작아짐
     drawCircle(curr, 320 + i * 1.2, 180 + i * 0.6, d);
     // 방해물 — 크기가 그대로인 동그란 것이 구석에서 이동
     drawCircle(curr, 80 + i * 6, 300, 22);
@@ -133,8 +164,11 @@ console.log('\n════ 3. 여러 개가 움직여도 공을 따라가는가
   check('공 궤적을 이어붙임', track.length >= 10, `${track.length}프레임 추적`);
   if (track.length > 3) {
     const startsCenter = Math.hypot(track[0].x - 320, track[0].y - 180) < 30;
-    check('중앙에서 시작한 것을 골랐는가', startsCenter,
-      `시작 (${track[0].x.toFixed(0)}, ${track[0].y.toFixed(0)})`);
+    check(
+      '중앙에서 시작한 것을 골랐는가',
+      startsCenter,
+      `시작 (${track[0].x.toFixed(0)}, ${track[0].y.toFixed(0)})`
+    );
     let shrinking = true;
     for (let i = 1; i < track.length; i++) {
       if (track[i].diameterPx > track[i - 1].diameterPx * 1.1) shrinking = false;
@@ -154,7 +188,7 @@ console.log('\n════ 3-1. 가만히 있는 밝은 점을 공으로 착각
   const lumas: Float32Array[] = [];
   for (let i = 0; i < 40; i++) {
     const curr = makeBackground();
-    drawCircle(curr, 300, 200, 12);   // 크기·위치 그대로인 점 (조명 등)
+    drawCircle(curr, 300, 200, 12); // 크기·위치 그대로인 점 (조명 등)
     lumas.push(toLuma(curr, W, H));
   }
   const background = buildBackground(lumas);
@@ -163,8 +197,11 @@ console.log('\n════ 3-1. 가만히 있는 밝은 점을 공으로 착각
     blobs: findMovedBlobs(background, luma, W, H),
   }));
   const track = trackBall(frames, { frameWidth: W, frameHeight: H });
-  check('작아지지 않는 것은 공으로 뽑지 않음', track.length === 0,
-    track.length ? `${track.length}프레임을 공으로 착각함` : '궤적 없음');
+  check(
+    '작아지지 않는 것은 공으로 뽑지 않음',
+    track.length === 0,
+    track.length ? `${track.length}프레임을 공으로 착각함` : '궤적 없음'
+  );
 }
 
 console.log('\n════ 4. 감지부터 구속까지 한 번에 ════\n');
@@ -202,7 +239,10 @@ console.log('\n════ 4. 감지부터 구속까지 한 번에 ════
 
   const track = trackBall(frames, { frameWidth: W, frameHeight: H });
   const scaled = track.map((o) => ({
-    t: o.t, x: o.x / scale, y: o.y / scale, diameterPx: o.diameterPx / scale,
+    t: o.t,
+    x: o.x / scale,
+    y: o.y / scale,
+    diameterPx: o.diameterPx / scale,
   }));
   const result = measureVelocity({
     observations: scaled,
@@ -212,10 +252,17 @@ console.log('\n════ 4. 감지부터 구속까지 한 번에 ════
 
   if (result.ok) {
     const diff = Math.abs(result.kmh - kmh);
-    check('그린 대로 구속이 나오는가', diff < 8,
-      `측정 ${result.kmh}km/h / 실제 ${kmh}km/h (차이 ${diff.toFixed(1)}) · ${result.detail.frames}프레임 · 신뢰도 ${result.confidence}`);
+    check(
+      '그린 대로 구속이 나오는가',
+      diff < 8,
+      `측정 ${result.kmh}km/h / 실제 ${kmh}km/h (차이 ${diff.toFixed(1)}) · ${result.detail.frames}프레임 · 신뢰도 ${result.confidence}`
+    );
   } else {
-    check('그린 대로 구속이 나오는가', false, `거부됨: ${result.code} (${result.message})`);
+    check(
+      '그린 대로 구속이 나오는가',
+      false,
+      `거부됨: ${result.code} (${result.message})`
+    );
   }
 }
 

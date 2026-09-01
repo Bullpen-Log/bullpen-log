@@ -103,7 +103,7 @@ function walkVideos(node, out) {
   }
   if (node.shortsLockupViewModel?.entityId) {
     const r = node.shortsLockupViewModel;
-    const id = (r.onTap?.innertubeCommand?.reelWatchEndpoint?.videoId) ?? null;
+    const id = r.onTap?.innertubeCommand?.reelWatchEndpoint?.videoId ?? null;
     const title = r.overlayMetadata?.primaryText?.content ?? '';
     if (id && title) out.set(id, title);
   }
@@ -129,7 +129,11 @@ function findContinuation(node) {
   return null;
 }
 
-export async function listChannelVideos(handle, tab = 'videos', { log = console.log } = {}) {
+export async function listChannelVideos(
+  handle,
+  tab = 'videos',
+  { log = console.log } = {}
+) {
   const url = `https://www.youtube.com/${handle}/${tab}`;
   const first = await fetch(url, { headers: HEADERS });
   if (!first.ok) throw new Error(`채널 페이지를 못 읽었습니다 (${first.status})`);
@@ -137,9 +141,11 @@ export async function listChannelVideos(handle, tab = 'videos', { log = console.
 
   const apiKey = html.match(/"INNERTUBE_API_KEY":"([\w-]+)"/)?.[1];
   const clientVersion =
-    html.match(/"INNERTUBE_CONTEXT_CLIENT_VERSION":"([\d.]+)"/)?.[1] ?? '2.20240101.00.00';
+    html.match(/"INNERTUBE_CONTEXT_CLIENT_VERSION":"([\d.]+)"/)?.[1] ??
+    '2.20240101.00.00';
 
-  const initial = extractJson(html, 'var ytInitialData =') ?? extractJson(html, 'ytInitialData');
+  const initial =
+    extractJson(html, 'var ytInitialData =') ?? extractJson(html, 'ytInitialData');
   if (!initial) throw new Error('채널 목록을 못 읽었습니다 (ytInitialData 없음)');
 
   const found = new Map();
@@ -191,7 +197,9 @@ const { pathToFileURL } = await import('node:url');
 if (import.meta.url === pathToFileURL(process.argv[1]).href) {
   const [handle, tab = 'videos', outPath] = process.argv.slice(2);
   if (!handle) {
-    console.error('사용법: node scripts/youtube-channel-list.mjs @핸들 [videos|shorts] [저장.json]');
+    console.error(
+      '사용법: node scripts/youtube-channel-list.mjs @핸들 [videos|shorts] [저장.json]'
+    );
     process.exit(1);
   }
   const found = await listChannelVideos(handle, tab);

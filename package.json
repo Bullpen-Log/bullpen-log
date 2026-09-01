@@ -7,6 +7,8 @@
     "build": "prisma generate && prisma migrate deploy && next build",
     "start": "next start",
     "lint": "eslint",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
     "backup": "node --env-file=.env scripts/backup.mjs",
     "restore": "node --env-file=.env scripts/restore.mjs",
     "training:test": "node --env-file=.env --import ./scripts/alias-register.mjs scripts/training-selftest.mts",

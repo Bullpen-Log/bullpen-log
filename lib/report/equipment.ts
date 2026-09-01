@@ -39,7 +39,10 @@ export function equipmentForToday(
   if (owned.length === 0) return []; // 가진 장비를 아직 안 골랐으면 아무것도 안 거른다
   if (!availableToday || availableToday.length === 0) return owned;
   const has = new Set(owned);
-  return [ALWAYS_OWNED, ...availableToday.filter((name) => name !== ALWAYS_OWNED && has.has(name))];
+  return [
+    ALWAYS_OWNED,
+    ...availableToday.filter((name) => name !== ALWAYS_OWNED && has.has(name)),
+  ];
 }
 
 type WithEquipment = { equipment: string[] };

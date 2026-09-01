@@ -6,11 +6,7 @@ import { VideoUpload, type UploadedVideo } from '@/components/video-upload';
 import { usePlaybackUrls } from '@/components/use-playback-urls';
 import { FilmingGuide } from '@/components/filming-guide';
 import { IntensityGuide } from '@/components/intensity-guide';
-import {
-  DEFAULT_SESSION_TYPE,
-  SESSION_TYPES,
-  isRestSession,
-} from '@/lib/session-type';
+import { DEFAULT_SESSION_TYPE, SESSION_TYPES, isRestSession } from '@/lib/session-type';
 
 /**
  * 하루치 투구를 남기는 입력 폼. 새로 남길 때와 고칠 때 모두 쓴다.
@@ -139,7 +135,9 @@ export function EntryForm({
 
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
-        throw new Error(data.error ?? (editing ? '수정에 실패했습니다.' : '저장에 실패했습니다.'));
+        throw new Error(
+          data.error ?? (editing ? '수정에 실패했습니다.' : '저장에 실패했습니다.')
+        );
       }
 
       // 수정은 폼을 비우지 않는다. 저장하면 폼 자체가 닫히기 때문이다.
@@ -195,46 +193,46 @@ export function EntryForm({
         안 던졌는데 "투구수를 입력하세요"라고 하면 남길 수가 없다.
       */}
       {!resting && (
-      <>
-      <div className="grid gap-5 sm:grid-cols-2">
-        <Field label="투구수">
-          {/* 상한은 오타를 잡는 자리다. 서버에서 같은 선으로 한 번 더 본다. */}
-          <Input
-            type="number"
-            min="1"
-            max="500"
-            value={form.pitchCount}
-            onChange={(e) => setForm({ ...form, pitchCount: e.target.value })}
-            placeholder="45"
-            required
-          />
-        </Field>
-        <Field label={`투구 강도 — ${form.intensity} / 10`}>
-          <input
-            type="range"
-            min="1"
-            max="10"
-            value={form.intensity}
-            onChange={(e) => setForm({ ...form, intensity: e.target.value })}
-            /* 채워진 길이를 CSS 로 넘긴다 — .range 안에서 트랙을 여기서 끊는다 */
-            style={
-              {
-                '--range-pct': `${((Number(form.intensity) - 1) / 9) * 100}%`,
-              } as React.CSSProperties
-            }
-            className="range mt-3"
-          />
-          {/*
+        <>
+          <div className="grid gap-5 sm:grid-cols-2">
+            <Field label="투구수">
+              {/* 상한은 오타를 잡는 자리다. 서버에서 같은 선으로 한 번 더 본다. */}
+              <Input
+                type="number"
+                min="1"
+                max="500"
+                value={form.pitchCount}
+                onChange={(e) => setForm({ ...form, pitchCount: e.target.value })}
+                placeholder="45"
+                required
+              />
+            </Field>
+            <Field label={`투구 강도 — ${form.intensity} / 10`}>
+              <input
+                type="range"
+                min="1"
+                max="10"
+                value={form.intensity}
+                onChange={(e) => setForm({ ...form, intensity: e.target.value })}
+                /* 채워진 길이를 CSS 로 넘긴다 — .range 안에서 트랙을 여기서 끊는다 */
+                style={
+                  {
+                    '--range-pct': `${((Number(form.intensity) - 1) / 9) * 100}%`,
+                  } as React.CSSProperties
+                }
+                className="range mt-3"
+              />
+              {/*
             강도는 부하 지수와 필요한 휴식일을 정하는 값이라, 감으로 찍으면
             그 뒤 계산이 전부 흔들린다. 고르는 자리 바로 옆에 기준을 둔다.
           */}
-          <div className="mt-3">
-            <IntensityGuide />
+              <div className="mt-3">
+                <IntensityGuide />
+              </div>
+            </Field>
           </div>
-        </Field>
-      </div>
 
-      {/*
+          {/*
         구속은 둘 다 선택 항목이다.
 
         예전에는 최고 구속이 필수였는데, 스피드건이 없는 선수는 그것 때문에
@@ -242,31 +240,31 @@ export function EntryForm({
         않으니 앱이 통째로 멈추는 셈이었다. 부하는 투구수 × 강도로 내므로
         구속이 없어도 계산은 그대로 된다.
       */}
-      <div className="grid gap-5 sm:grid-cols-2">
-        <Field label="최고 구속 (km/h)" hint="스피드건이 없으면 비워두세요.">
-          <Input
-            type="number"
-            step="0.1"
-            min="30"
-            max="200"
-            value={form.maxVelocity}
-            onChange={(e) => setForm({ ...form, maxVelocity: e.target.value })}
-            placeholder="138"
-          />
-        </Field>
-        <Field label="평균 구속 (km/h)" hint="비워두셔도 됩니다.">
-          <Input
-            type="number"
-            step="0.1"
-            min="30"
-            max="200"
-            value={form.avgVelocity}
-            onChange={(e) => setForm({ ...form, avgVelocity: e.target.value })}
-            placeholder="132"
-          />
-        </Field>
-      </div>
-      </>
+          <div className="grid gap-5 sm:grid-cols-2">
+            <Field label="최고 구속 (km/h)" hint="스피드건이 없으면 비워두세요.">
+              <Input
+                type="number"
+                step="0.1"
+                min="30"
+                max="200"
+                value={form.maxVelocity}
+                onChange={(e) => setForm({ ...form, maxVelocity: e.target.value })}
+                placeholder="138"
+              />
+            </Field>
+            <Field label="평균 구속 (km/h)" hint="비워두셔도 됩니다.">
+              <Input
+                type="number"
+                step="0.1"
+                min="30"
+                max="200"
+                value={form.avgVelocity}
+                onChange={(e) => setForm({ ...form, avgVelocity: e.target.value })}
+                placeholder="132"
+              />
+            </Field>
+          </div>
+        </>
       )}
 
       {/*
@@ -316,11 +314,7 @@ export function EntryForm({
 
       <div className="flex flex-wrap items-center gap-3">
         <Button type="submit" disabled={saving} className="w-full sm:w-auto">
-          {saving
-            ? '저장 중…'
-            : editing
-              ? '수정 저장'
-              : `${date} 기록 저장`}
+          {saving ? '저장 중…' : editing ? '수정 저장' : `${date} 기록 저장`}
         </Button>
         {editing && onCancel && (
           <button

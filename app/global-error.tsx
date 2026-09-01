@@ -19,8 +19,20 @@ import { DEFAULT_THEME, THEME_STORAGE_KEY } from '@/lib/theme';
  * 색이 조금 어긋나도 이 화면이 뜨는 것이 먼저다.
  */
 
-const LIGHT = { bg: '#f4f7fb', surface: '#ffffff', ink: '#0f172a', muted: '#64748b', line: '#e2e8f0' };
-const DARK = { bg: '#0b1220', surface: '#141d2b', ink: '#e8eef7', muted: '#94a3b8', line: '#1e293b' };
+const LIGHT = {
+  bg: '#f4f7fb',
+  surface: '#ffffff',
+  ink: '#0f172a',
+  muted: '#64748b',
+  line: '#e2e8f0',
+};
+const DARK = {
+  bg: '#0b1220',
+  surface: '#141d2b',
+  ink: '#e8eef7',
+  muted: '#94a3b8',
+  line: '#1e293b',
+};
 
 /**
  * 고른 테마를 첫 페인트 전에 칠한다.
@@ -76,8 +88,8 @@ export default function GlobalError({
                 color: 'var(--muted)',
               }}
             >
-              잠깐 문제가 생겼습니다. 다시 시도해보시고, 계속 같은 화면이 나오면
-              조금 뒤에 열어주세요. 기록은 그대로 남아 있습니다.
+              잠깐 문제가 생겼습니다. 다시 시도해보시고, 계속 같은 화면이 나오면 조금
+              뒤에 열어주세요. 기록은 그대로 남아 있습니다.
             </p>
             <div
               style={{

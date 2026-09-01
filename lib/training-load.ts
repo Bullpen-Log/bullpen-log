@@ -241,8 +241,10 @@ export function trainingDayLoad(
 export const TRAINING_ADVICE: Record<AcwrZone, string> = {
   low: '최근 운동량이 평소보다 적습니다. 회복 중이라면 정상이며, 다시 올릴 때는 한 번에 늘리지 말고 조금씩 올리세요.',
   optimal: '평소 쌓아온 양에 맞는 운동량입니다. 지금 흐름을 유지해도 좋습니다.',
-  caution: '최근 운동량이 평소보다 빠르게 올랐습니다. 이번 주는 세트 수나 강도를 조금 낮추는 편이 안전합니다.',
-  danger: '평소 감당하던 양을 크게 넘었습니다. 무게를 다루는 운동을 줄이고 회복에 시간을 주세요. 던지는 날이 겹치면 특히 조심하세요.',
+  caution:
+    '최근 운동량이 평소보다 빠르게 올랐습니다. 이번 주는 세트 수나 강도를 조금 낮추는 편이 안전합니다.',
+  danger:
+    '평소 감당하던 양을 크게 넘었습니다. 무게를 다루는 운동을 줄이고 회복에 시간을 주세요. 던지는 날이 겹치면 특히 조심하세요.',
 };
 
 /**
@@ -355,9 +357,7 @@ export function buildTrainingLoad(
     byDay.set(key, list);
   }
 
-  const intensityByDay = new Map(
-    notes.map((n) => [toDateKey(n.date), n.intensity])
-  );
+  const intensityByDay = new Map(notes.map((n) => [toDateKey(n.date), n.intensity]));
 
   /*
    * 운동을 하나도 체크 안 했는데 강도만 적은 날이 있다. 그런 날은 시간이 0이라

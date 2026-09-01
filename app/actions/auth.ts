@@ -24,7 +24,9 @@ export async function signup(_prev: AuthState, formData: FormData): Promise<Auth
 }
 
 async function trySignup(formData: FormData): Promise<AuthState> {
-  const email = String(formData.get('email') ?? '').trim().toLowerCase();
+  const email = String(formData.get('email') ?? '')
+    .trim()
+    .toLowerCase();
   const nickname = String(formData.get('nickname') ?? '').trim();
   const password = String(formData.get('password') ?? '');
   const passwordConfirm = String(formData.get('passwordConfirm') ?? '');
@@ -103,7 +105,9 @@ export async function login(_prev: AuthState, formData: FormData): Promise<AuthS
 }
 
 async function tryLogin(formData: FormData): Promise<AuthState> {
-  const email = String(formData.get('email') ?? '').trim().toLowerCase();
+  const email = String(formData.get('email') ?? '')
+    .trim()
+    .toLowerCase();
   const password = String(formData.get('password') ?? '');
 
   if (!email || !password) {

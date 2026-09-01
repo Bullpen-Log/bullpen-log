@@ -33,9 +33,9 @@ export default function TermsPage() {
 
       <Article no={1} title="목적">
         <p>
-          이 약관은 Bullpen Log(이하 &lsquo;회사&rsquo;)가 제공하는
-          서비스(이하 &lsquo;서비스&rsquo;)를 이용하는 데 필요한 회사와 회원 사이의
-          권리·의무와 책임을 정하는 것을 목적으로 합니다.
+          이 약관은 Bullpen Log(이하 &lsquo;회사&rsquo;)가 제공하는 서비스(이하
+          &lsquo;서비스&rsquo;)를 이용하는 데 필요한 회사와 회원 사이의 권리·의무와
+          책임을 정하는 것을 목적으로 합니다.
         </p>
       </Article>
 
@@ -58,9 +58,7 @@ export default function TermsPage() {
 
       <Article no={3} title="약관의 효력과 변경">
         <Items>
-          <Item>
-            이 약관은 서비스 화면에 게시하여 효력이 생깁니다.
-          </Item>
+          <Item>이 약관은 서비스 화면에 게시하여 효력이 생깁니다.</Item>
           <Item>
             회사는 필요한 경우 약관을 변경할 수 있으며, 변경할 때에는 시행일 7일
             전(회원에게 불리한 변경은 30일 전)부터 서비스 화면에 알립니다.
@@ -78,12 +76,17 @@ export default function TermsPage() {
             가입은 이메일과 비밀번호, 그리고 안전한 투구량을 계산하는 데 필요한 정보를
             입력하고 이 약관과 개인정보 처리방침에 동의하면 완료됩니다.
           </Item>
+          <Item>만 14세 미만은 법정대리인의 동의 없이 가입할 수 없습니다.</Item>
           <Item>
-            만 14세 미만은 법정대리인의 동의 없이 가입할 수 없습니다.
-          </Item>
-          <Item>
-            계정은 본인만 사용해야 하며, 비밀번호 관리 책임은 회원에게 있습니다.
-            계정이 도용된 것으로 보이면 즉시 <a href="mailto:bullpenlog.com@gmail.com" className="font-medium text-sky underline underline-offset-2">bullpenlog.com@gmail.com</a>로 알려주세요.
+            계정은 본인만 사용해야 하며, 비밀번호 관리 책임은 회원에게 있습니다. 계정이
+            도용된 것으로 보이면 즉시{' '}
+            <a
+              href="mailto:bullpenlog.com@gmail.com"
+              className="font-medium text-sky underline underline-offset-2"
+            >
+              bullpenlog.com@gmail.com
+            </a>
+            로 알려주세요.
           </Item>
         </Items>
       </Article>
@@ -114,7 +117,9 @@ export default function TermsPage() {
             다르고, 서비스는 회원을 직접 진찰하지 않습니다.
           </p>
           <p className="mt-1.5">
-            <strong>통증이 있으면 수치와 관계없이 던지지 마시고 전문의와 상담하세요.</strong>
+            <strong>
+              통증이 있으면 수치와 관계없이 던지지 마시고 전문의와 상담하세요.
+            </strong>
           </p>
         </div>
         <Items>
@@ -132,9 +137,7 @@ export default function TermsPage() {
 
       <Article no={7} title="회원의 기록과 저작권">
         <Items>
-          <Item>
-            회원이 남긴 기록과 영상의 저작권은 회원에게 있습니다.
-          </Item>
+          <Item>회원이 남긴 기록과 영상의 저작권은 회원에게 있습니다.</Item>
           <Item>
             회사는 서비스를 제공하는 데 필요한 범위(저장, 표시, 부하 계산, 리포트 생성)
             안에서만 회원의 기록을 이용합니다.
@@ -219,11 +222,18 @@ export default function TermsPage() {
       <Article no={12} title="분쟁 해결">
         <Items>
           <Item>
-            서비스 이용과 관련한 문의는 <a href="mailto:bullpenlog.com@gmail.com" className="font-medium text-sky underline underline-offset-2">bullpenlog.com@gmail.com</a>로 보내주세요.
+            서비스 이용과 관련한 문의는{' '}
+            <a
+              href="mailto:bullpenlog.com@gmail.com"
+              className="font-medium text-sky underline underline-offset-2"
+            >
+              bullpenlog.com@gmail.com
+            </a>
+            로 보내주세요.
           </Item>
           <Item>
-            회사와 회원 사이에 분쟁이 생기면 서로 성실히 협의해 해결합니다. 협의가
-            안 되면 「민사소송법」에 따른 관할 법원에 소를 제기할 수 있습니다.
+            회사와 회원 사이에 분쟁이 생기면 서로 성실히 협의해 해결합니다. 협의가 안
+            되면 「민사소송법」에 따른 관할 법원에 소를 제기할 수 있습니다.
           </Item>
         </Items>
       </Article>

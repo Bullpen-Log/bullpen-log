@@ -245,7 +245,10 @@ export function countSessionTypes(
   dateKeys: string[]
 ): SessionTypeCount[] {
   const within = new Set(dateKeys);
-  const byType = new Map<string, { count: number; pitches: number; days: Set<string> }>();
+  const byType = new Map<
+    string,
+    { count: number; pitches: number; days: Set<string> }
+  >();
 
   for (const log of logs) {
     const key = log.date.slice(0, 10);
@@ -441,10 +444,7 @@ export function summarize(
 }
 
 /** 쉬는 날 없이 연달아 던진 최장 일수 */
-export function longestThrowStreak(
-  byDay: Map<string, DayTotals>,
-  dateKeys: string[]
-) {
+export function longestThrowStreak(byDay: Map<string, DayTotals>, dateKeys: string[]) {
   let longest = 0;
   let run = 0;
   for (const key of dateKeys) {
@@ -653,7 +653,8 @@ export const ACWR_ZONES: Record<
     range: '0.8 미만',
     tone: 'info',
     meaning: '평소보다 적게 던지고 있습니다.',
-    advice: '최근 부하가 평소보다 적습니다. 회복 중이라면 정상이며, 복귀할 때는 한 번에 늘리지 말고 조금씩 올리세요.',
+    advice:
+      '최근 부하가 평소보다 적습니다. 회복 중이라면 정상이며, 복귀할 때는 한 번에 늘리지 말고 조금씩 올리세요.',
   },
   optimal: {
     short: '적정',
@@ -669,7 +670,8 @@ export const ACWR_ZONES: Record<
     range: '1.3 ~ 1.5',
     tone: 'warn',
     meaning: '평소보다 빠르게 늘고 있습니다.',
-    advice: '최근 부하가 평소보다 빠르게 올랐습니다. 이번 주는 투구수나 강도를 조금 낮추는 편이 안전합니다.',
+    advice:
+      '최근 부하가 평소보다 빠르게 올랐습니다. 이번 주는 투구수나 강도를 조금 낮추는 편이 안전합니다.',
   },
   danger: {
     short: '위험',
@@ -677,7 +679,8 @@ export const ACWR_ZONES: Record<
     range: '1.5 초과',
     tone: 'bad',
     meaning: '평소 감당하던 양을 크게 넘었습니다.',
-    advice: '평소 감당하던 양을 크게 넘었습니다. 투구량을 확실히 줄이고 회복에 시간을 주세요.',
+    advice:
+      '평소 감당하던 양을 크게 넘었습니다. 투구량을 확실히 줄이고 회복에 시간을 주세요.',
   },
 };
 
@@ -701,9 +704,7 @@ export function dailyLoad(day: DayTotals) {
 }
 
 /** 날짜별 투구 기록을 부하 지수 계산기가 받는 모양으로 바꾼다. */
-export function pitchLoadByDay(
-  byDay: Map<string, DayTotals>
-): Map<string, number> {
+export function pitchLoadByDay(byDay: Map<string, DayTotals>): Map<string, number> {
   return new Map([...byDay].map(([key, day]) => [key, dailyLoad(day)]));
 }
 
@@ -866,9 +867,7 @@ export function acwrTrend(
      * 그날까지의 부하만 넣어 그날 기준으로 낸다. 뒤 날짜를 함께 넣으면
      * "그때 화면에 뜬 값"이 아니라 지금 와서 다시 센 값이 된다.
      */
-    const upTo = new Map(
-      [...dailyLoads].filter(([key]) => key <= dateKey)
-    );
+    const upTo = new Map([...dailyLoads].filter(([key]) => key <= dateKey));
     const at = new Date(`${dateKey}T12:00:00.000Z`);
     return { dateKey, ratio: computeAcwr(upTo, at, opts).ratio };
   });

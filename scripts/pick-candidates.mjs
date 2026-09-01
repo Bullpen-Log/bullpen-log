@@ -23,7 +23,10 @@ const rows = JSON.parse(readFileSync(inPath, 'utf8'));
 const REJECT = [
   // 운동이 아니다 — 강의·설명·평가
   [/\b(tutorial|breakdown|explained|guide|tips?|why|how to|what is|vs\.?)\b/i, '강의'],
-  [/\b(test|testing|assess(ing|ment)?|screening|diagnostics?|demo)\b/i, '평가·시연 설명'],
+  [
+    /\b(test|testing|assess(ing|ment)?|screening|diagnostics?|demo)\b/i,
+    '평가·시연 설명',
+  ],
   [/\b(workout|program|routine|circuit|complex|series|protocol)\b/i, '묶음'],
   [/\b(podcast|interview|q&a|webinar|seminar|announcement)\b/i, '기타'],
   [/mountain dog diet|jrfs hands on|smr\b/i, '기타'],
@@ -32,22 +35,34 @@ const REJECT = [
   [/\bsuperset\b|\bcombo\b|\s\+\s/i, '두 운동이 한 영상에'],
 
   // 방법을 보여주는 영상이지 운동 자체가 아니다
-  [/\bdrop set\b|\binterval\b|\b\d+ rep set\b|\bpartials?\b|\bfinisher\b|\bwarm-?up\b/i, '방법 영상'],
+  [
+    /\bdrop set\b|\binterval\b|\b\d+ rep set\b|\bpartials?\b|\bfinisher\b|\bwarm-?up\b/i,
+    '방법 영상',
+  ],
   [/\bpoor form\b/i, '잘못된 자세 예시'],
 
   // 우리 17가지 밖 장비
   [/\btrap bar\b|\bhex bar\b/i, '트랩바'],
   [/\bsafety (squat )?bar\b|\bssb\b/i, '세이프티바'],
   [/\bez ?bar\b/i, 'EZ바'],
-  [/\bfat (grip|bar)\b|\bcambered bar\b|\bneutral bar\b|\bmulti ?grip bar\b|\bstraight bar\b/i, '특수 바'],
+  [
+    /\bfat (grip|bar)\b|\bcambered bar\b|\bneutral bar\b|\bmulti ?grip bar\b|\bstraight bar\b/i,
+    '특수 바',
+  ],
   [/\bhammer strength\b|\bmachine\b|\bcage\b|\bsmith\b/i, '전용 머신'],
   [/\bbfr\b|\bblood flow\b/i, 'BFR 밴드'],
-  [/\bchain(s)?\b|\bsled\b|\bprowler\b|\bslider|\bvalslide|\bbattle rope|\bghd\b|\bglute ham\b|\breverse hyper\b|\bjammer\b|\bmace\b|\bclubbell\b|\bab wheel\b|\bvest\b|\bring\b|\bpin(s)?\b|\bearthquake|\bbamboo|\brope\b/i, '기타 특수 장비'],
+  [
+    /\bchain(s)?\b|\bsled\b|\bprowler\b|\bslider|\bvalslide|\bbattle rope|\bghd\b|\bglute ham\b|\breverse hyper\b|\bjammer\b|\bmace\b|\bclubbell\b|\bab wheel\b|\bvest\b|\bring\b|\bpin(s)?\b|\bearthquake|\bbamboo|\brope\b/i,
+    '기타 특수 장비',
+  ],
   [/\bphysio-?ball\b|\bswiss ball\b/i, '짐볼(있지만 흔치 않음)'],
 
   // 이름만 컬이지 상체가 아니다
   [/\b(hamstring|leg|prone|lying|seated|heel slide).{0,12}curl\b/i, '햄스트링 컬'],
-  [/\bcurl\b(?!.*\b(biceps?|hammer|dumbbell|band|zottman|preacher|reverse|supinated|incline|cross body|single arm)\b)/i, '이두 컬 아님'],
+  [
+    /\bcurl\b(?!.*\b(biceps?|hammer|dumbbell|band|zottman|preacher|reverse|supinated|incline|cross body|single arm)\b)/i,
+    '이두 컬 아님',
+  ],
 
   // 코어지 상체가 아니다
   [/\bpallof\b/i, '팔로프(코어)'],
@@ -64,7 +79,10 @@ const REJECT = [
  */
 const BUCKETS = [
   ['암케어 · 이두', /\bcurl\b/i],
-  ['암케어 · 삼두', /\btricep|\bskull ?crusher|\bpushdown|\bkickback|\boverhead extension/i],
+  [
+    '암케어 · 삼두',
+    /\btricep|\bskull ?crusher|\bpushdown|\bkickback|\boverhead extension/i,
+  ],
   ['암케어 · 어깨 측면', /\blateral raise\b|\bscaption\b/i],
   ['암케어 · 어깨 후면', /\brear delt\b|\bface pull\b|\breverse fly\b/i],
   ['상체 · 딥', /\bdip\b/i],
@@ -137,7 +155,8 @@ for (const [name] of BUCKETS) {
   const list = picked.get(name) ?? [];
   total += list.length;
   console.log(`\n[${name}]  ${list.length}개`);
-  for (const r of list) console.log(`  ${r.videoId}  ${(r.equip.join('·')).padEnd(12)} ${r.title}`);
+  for (const r of list)
+    console.log(`  ${r.videoId}  ${r.equip.join('·').padEnd(12)} ${r.title}`);
 }
 console.log(`\n합계 ${total}개`);
 

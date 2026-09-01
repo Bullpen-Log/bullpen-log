@@ -34,7 +34,10 @@ function dayKey(offset) {
 const at = (key) => new Date(`${key}T00:00:00.000Z`);
 
 if (mode === 'drop') {
-  const u = await prisma.user.findUnique({ where: { email: EMAIL }, select: { id: true } });
+  const u = await prisma.user.findUnique({
+    where: { email: EMAIL },
+    select: { id: true },
+  });
   if (!u) {
     console.log('임시 계정이 없습니다.');
   } else {
@@ -46,7 +49,10 @@ if (mode === 'drop') {
 }
 
 // 이미 있으면 지우고 새로 만든다 — 돌릴 때마다 같은 상태가 되게.
-const old = await prisma.user.findUnique({ where: { email: EMAIL }, select: { id: true } });
+const old = await prisma.user.findUnique({
+  where: { email: EMAIL },
+  select: { id: true },
+});
 if (old) await prisma.user.delete({ where: { id: old.id } });
 
 const user = await prisma.user.create({
@@ -111,7 +117,13 @@ for (let i = 55; i >= 0; i--) {
       memo: i === 5 ? '5회부터 팔이 무거워짐' : null,
     });
   } else if (w === 3 || w === 6) {
-    logs.push({ date: at(key), sessionType: '캐치볼', pitchCount: 40, intensity: 3, memo: null });
+    logs.push({
+      date: at(key),
+      sessionType: '캐치볼',
+      pitchCount: 40,
+      intensity: 3,
+      memo: null,
+    });
   } else if (w === 0) {
     logs.push({
       date: at(key),
@@ -123,7 +135,13 @@ for (let i = 55; i >= 0; i--) {
       memo: null,
     });
   } else {
-    logs.push({ date: at(key), sessionType: '휴식', pitchCount: 0, intensity: 0, memo: null });
+    logs.push({
+      date: at(key),
+      sessionType: '휴식',
+      pitchCount: 0,
+      intensity: 0,
+      memo: null,
+    });
   }
 }
 await prisma.pitchLog.createMany({

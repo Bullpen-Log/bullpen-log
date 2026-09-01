@@ -73,7 +73,11 @@ export type AnalyzeResult = {
   shakePx: number;
 };
 
-function waitForEvent(el: HTMLVideoElement, event: string, ms: number): Promise<boolean> {
+function waitForEvent(
+  el: HTMLVideoElement,
+  event: string,
+  ms: number
+): Promise<boolean> {
   return new Promise((resolve) => {
     let done = false;
     const finish = (ok: boolean) => {
@@ -253,7 +257,9 @@ export async function analyzeVideo(options: AnalyzeOptions): Promise<AnalyzeResu
     const samples: Float32Array[] = [];
     const inWindow = Math.min(7, lumas.length);
     for (let i = 0; i < inWindow; i++) {
-      samples.push(lumas[Math.floor((i * (lumas.length - 1)) / Math.max(1, inWindow - 1))]);
+      samples.push(
+        lumas[Math.floor((i * (lumas.length - 1)) / Math.max(1, inWindow - 1))]
+      );
     }
 
     for (const t of [0, video.duration * 0.5, Math.max(0, video.duration - 0.05)]) {

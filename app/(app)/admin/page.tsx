@@ -92,7 +92,10 @@ export default async function AdminPage() {
             const lastLog = u.pitchLogs[0]?.date;
 
             return (
-              <Card key={u.id} className="flex flex-col gap-4 sm:flex-row sm:items-center">
+              <Card
+                key={u.id}
+                className="flex flex-col gap-4 sm:flex-row sm:items-center"
+              >
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-2">
                     <span className="font-bold text-ink">{u.nickname}</span>
@@ -119,8 +122,8 @@ export default async function AdminPage() {
                     가입 {formatDate(u.createdAt)}
                     <span className="mx-2 text-line-strong">·</span>
                     기록 {u._count.pitchLogs}건
-                    <span className="mx-2 text-line-strong">·</span>
-                    글 {u._count.articles}개
+                    <span className="mx-2 text-line-strong">·</span>글{' '}
+                    {u._count.articles}개
                     {lastLog && (
                       <>
                         <span className="mx-2 text-line-strong">·</span>

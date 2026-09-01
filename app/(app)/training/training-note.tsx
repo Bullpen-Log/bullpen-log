@@ -102,7 +102,9 @@ export function TrainingNote({
           step={1}
           value={value}
           onChange={(e) => setValue(Number(e.target.value))}
-          style={{ '--range-pct': `${((value - 1) / 9) * 100}%` } as React.CSSProperties}
+          style={
+            { '--range-pct': `${((value - 1) / 9) * 100}%` } as React.CSSProperties
+          }
           className="range"
         />
         <div className="flex justify-between text-[11px] text-muted">

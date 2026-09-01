@@ -173,8 +173,8 @@ export function AuthForm({ today }: { today: string }) {
             </div>
 
             <p className="text-xs leading-relaxed text-muted/70">
-              생년월일은 나이에 맞는 안전한 투구수를 계산하는 데 쓰입니다.
-              키는 나중에 입력해도 됩니다.
+              생년월일은 나이에 맞는 안전한 투구수를 계산하는 데 쓰입니다. 키는 나중에
+              입력해도 됩니다.
             </p>
 
             <ChipRow
@@ -245,14 +245,17 @@ export function AuthForm({ today }: { today: string }) {
                 selected={kept(before, 'competitionLevel')}
               />
               <p className="text-xs leading-relaxed text-muted/70">
-                안 고르셔도 됩니다. 훈련 내용을 바꾸는 값이 아니라, 나중에 비슷한
-                또래와 견줘 보여드리려고 여쭙습니다.
+                안 고르셔도 됩니다. 훈련 내용을 바꾸는 값이 아니라, 나중에 비슷한 또래와
+                견줘 보여드리려고 여쭙습니다.
               </p>
             </div>
           </>
         )}
 
-        <Field label="비밀번호" hint={mode === 'signup' ? '8자 이상 입력해주세요.' : undefined}>
+        <Field
+          label="비밀번호"
+          hint={mode === 'signup' ? '8자 이상 입력해주세요.' : undefined}
+        >
           <Input
             name="password"
             type="password"

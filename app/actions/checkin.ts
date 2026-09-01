@@ -12,11 +12,13 @@ import {
 import { availableParts } from '@/lib/report/today-pick';
 import { withInput, type FormValues } from '@/lib/form-values';
 
-export type CheckinState = {
-  error?: string;
-  success?: string;
-  values?: FormValues;
-} | undefined;
+export type CheckinState =
+  | {
+      error?: string;
+      success?: string;
+      values?: FormValues;
+    }
+  | undefined;
 
 /** 오늘의 몸상태 체크인을 저장한다. 이미 있으면 덮어쓴다. */
 export async function saveCheckin(

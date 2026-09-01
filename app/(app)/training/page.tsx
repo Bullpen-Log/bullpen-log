@@ -159,9 +159,7 @@ export default async function TrainingPage({
    * 일정을 다시 만든 뒤에도 아까 체크한 운동이 목록에 남아야 하기 때문이다.
    * 사라지면 잘못 누른 체크를 풀 수가 없다.
    */
-  const needed = [
-    ...new Set([...shownPicks.map((p) => p.exerciseId), ...doneIds]),
-  ];
+  const needed = [...new Set([...shownPicks.map((p) => p.exerciseId), ...doneIds])];
   const detailed = needed.length
     ? await prisma.exerciseVideo.findMany({ where: { id: { in: needed } } })
     : [];
@@ -174,20 +172,20 @@ export default async function TrainingPage({
       unsafe: p.unsafe,
       ex: byId.get(p.exerciseId),
     }))
-    .filter(
-      (p): p is typeof p & { ex: NonNullable<(typeof p)['ex']> } => p.ex != null
-    );
+    .filter((p): p is typeof p & { ex: NonNullable<(typeof p)['ex']> } => p.ex != null);
 
   const [thumbUrls, pastAmounts] = await Promise.all([
-    createPlaybackUrls(
-      full.map((p) => p.ex.thumbPath).filter((p): p is string => !!p)
-    ),
+    createPlaybackUrls(full.map((p) => p.ex.thumbPath).filter((p): p is string => !!p)),
     /*
      * 이 운동을 지난번에 얼마나 했는가.
      *
      * 오늘 그릴 운동만 묻는다. 400개를 다 물으면 볼 일 없는 것까지 읽게 된다.
      */
-    recentAmounts(user.id, full.map((p) => p.ex.id), today),
+    recentAmounts(
+      user.id,
+      full.map((p) => p.ex.id),
+      today
+    ),
   ]);
 
   const exercises: TodayExercise[] = full.map(({ slot, manual, unsafe, ex }) => ({
@@ -228,8 +226,7 @@ export default async function TrainingPage({
     // 적어 둔 값이 있으면 그대로 보여준다. 없으면 빈칸 — 미리 채우지 않는다.
     doneSets: core.doneAmounts.get(ex.id)?.setsDone?.toString() ?? '',
     doneReps: core.doneAmounts.get(ex.id)?.repsDone?.toString() ?? '',
-    doneHoldSeconds:
-      core.doneAmounts.get(ex.id)?.holdSecondsDone?.toString() ?? '',
+    doneHoldSeconds: core.doneAmounts.get(ex.id)?.holdSecondsDone?.toString() ?? '',
     doneWeightKg: core.doneAmounts.get(ex.id)?.weightKg?.toString() ?? '',
     /* 맨몸·밴드 운동에는 무게 칸을 내지 않는다 — 적을 값이 없다. */
     usesWeight: usesWeight(ex.equipment),
@@ -364,9 +361,9 @@ export default async function TrainingPage({
           <div className="space-y-1">
             <p className="text-lg font-bold text-ink">오늘 운동 일정을 만들어보세요</p>
             <p className="text-sm leading-relaxed text-muted">
-              최근 투구량{core.hasCheckinToday ? ' · 오늘 몸 상태' : ''} · 오늘 목표에 맞춰 오늘 할
-              운동을 골라드립니다. 만든 일정은 오늘 하루 그대로 남고, 내일이 되면
-              다시 만들 수 있습니다.
+              최근 투구량{core.hasCheckinToday ? ' · 오늘 몸 상태' : ''} · 오늘 목표에
+              맞춰 오늘 할 운동을 골라드립니다. 만든 일정은 오늘 하루 그대로 남고,
+              내일이 되면 다시 만들 수 있습니다.
             </p>
           </div>
           {planForm(false, savedMinutes)}
@@ -404,9 +401,14 @@ export default async function TrainingPage({
                   운동을 빼도 "약 50분"이 그대로 남으면 안 된다. 홈도 같은
                   값을 쓴다(lib/report/today-data.ts).
                 */}
-                <span className="text-display text-base text-ink">{exercises.length}</span>
+                <span className="text-display text-base text-ink">
+                  {exercises.length}
+                </span>
                 종목 · 약{' '}
-                <span className="text-display text-base text-ink">{core.shownMinutes}</span>분
+                <span className="text-display text-base text-ink">
+                  {core.shownMinutes}
+                </span>
+                분
               </p>
             </div>
             <p className="text-sm leading-relaxed break-keep text-muted">
@@ -527,7 +529,9 @@ export default async function TrainingPage({
             <ul className="mt-3 space-y-1.5">
               {[
                 savedPlan.theme.reason,
-                ...(savedPlan.goal ? [`목표 '${savedPlan.goal}'에 맞춰 시간을 배분`] : []),
+                ...(savedPlan.goal
+                  ? [`목표 '${savedPlan.goal}'에 맞춰 시간을 배분`]
+                  : []),
                 ...(savedPlan.levelExcludedCount > 0
                   ? [
                       `웨이트 경력 ${user.trainingLevel} → 아직 이른 운동 ${savedPlan.levelExcludedCount}개 제외`,
@@ -536,13 +540,19 @@ export default async function TrainingPage({
                 ...savedPlan.basis,
                 ...savedPlan.notes,
               ].map((line) => (
-                <li key={line} className="flex gap-2 text-[13px] leading-relaxed text-muted">
-                  <span aria-hidden className="text-sky">—</span>
+                <li
+                  key={line}
+                  className="flex gap-2 text-[13px] leading-relaxed text-muted"
+                >
+                  <span aria-hidden className="text-sky">
+                    —
+                  </span>
                   {line}
                 </li>
               ))}
             </ul>
-            {(savedPlan.excluded.length > 0 || savedPlan.equipment.excludedCount > 0) && (
+            {(savedPlan.excluded.length > 0 ||
+              savedPlan.equipment.excludedCount > 0) && (
               <p className="mt-3 border-t border-line pt-3 text-xs leading-relaxed text-muted">
                 제외:{' '}
                 {[

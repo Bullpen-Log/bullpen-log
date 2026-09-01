@@ -82,10 +82,7 @@ export function AddExercise({
     [library]
   );
 
-  const inPlan = useMemo(
-    () => new Set([...inPlanIds, ...added]),
-    [inPlanIds, added]
-  );
+  const inPlan = useMemo(() => new Set([...inPlanIds, ...added]), [inPlanIds, added]);
   const safe = useMemo(() => new Set(safeIds), [safeIds]);
   const owned = useMemo(() => new Set(ownedEquipment), [ownedEquipment]);
 

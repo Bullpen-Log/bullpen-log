@@ -43,7 +43,7 @@ export function LogList({ logs }: { logs: Log[] }) {
   /* 최근 것부터. 쉰 날도 남긴다 — 언제 쉬었는지도 기록이다. */
   const sorted = useMemo(
     () => [...logs].sort((a, b) => b.date.localeCompare(a.date)),
-    [logs],
+    [logs]
   );
 
   const counts = useMemo(() => {
@@ -91,9 +91,9 @@ export function LogList({ logs }: { logs: Log[] }) {
       new Set(
         filter === 'all'
           ? months.slice(0, 1).map((g) => g.month)
-          : months.map((g) => g.month),
+          : months.map((g) => g.month)
       ),
-    [months, filter],
+    [months, filter]
   );
   const [toggled, setToggled] = useState<Record<string, boolean>>({});
   const isOpen = (month: string) => toggled[month] ?? openByDefault.has(month);
@@ -151,10 +151,7 @@ export function LogList({ logs }: { logs: Log[] }) {
         {months.map((group, gi) => {
           const open = isOpen(group.month);
           return (
-            <section
-              key={group.month}
-              className={gi > 0 ? 'border-t border-line' : ''}
-            >
+            <section key={group.month} className={gi > 0 ? 'border-t border-line' : ''}>
               <button
                 type="button"
                 onClick={() =>

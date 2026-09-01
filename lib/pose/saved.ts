@@ -55,7 +55,10 @@ function isMetric(v: unknown): boolean {
     m.label.length <= 40 &&
     typeof m.phase === 'string' &&
     ['kneeUp', 'footPlant', 'release'].includes(m.phase) &&
-    (m.value === null || (typeof m.value === 'number' && Number.isFinite(m.value) && Math.abs(m.value) <= 1000)) &&
+    (m.value === null ||
+      (typeof m.value === 'number' &&
+        Number.isFinite(m.value) &&
+        Math.abs(m.value) <= 1000)) &&
     (m.display === null || (typeof m.display === 'string' && m.display.length <= 60)) &&
     typeof m.confidence === 'number'
   );
@@ -67,18 +70,34 @@ export function validateSavedAnalysis(
   if (typeof raw !== 'object' || raw === null) return { error: '잘못된 요청입니다.' };
   const r = raw as Record<string, unknown>;
 
-  if (typeof r.pitchLogId !== 'string' || !r.pitchLogId) return { error: '기록 정보가 없습니다.' };
-  if (typeof r.videoPath !== 'string' || !r.videoPath) return { error: '영상 정보가 없습니다.' };
+  if (typeof r.pitchLogId !== 'string' || !r.pitchLogId)
+    return { error: '기록 정보가 없습니다.' };
+  if (typeof r.videoPath !== 'string' || !r.videoPath)
+    return { error: '영상 정보가 없습니다.' };
   if (!isSide(r.throwingSide) || !isSide(r.wristSide) || !isSide(r.leadSide))
     return { error: '분석 값이 올바르지 않습니다.' };
-  if (r.direction !== 1 && r.direction !== -1) return { error: '분석 값이 올바르지 않습니다.' };
-  if (!isRatio(r.quality) || !isRatio(r.coverage)) return { error: '분석 값이 올바르지 않습니다.' };
+  if (r.direction !== 1 && r.direction !== -1)
+    return { error: '분석 값이 올바르지 않습니다.' };
+  if (!isRatio(r.quality) || !isRatio(r.coverage))
+    return { error: '분석 값이 올바르지 않습니다.' };
 
-  for (const k of ['kneeUpT', 'footPlantT', 'releaseT', 'kneeUpManualT', 'footPlantManualT', 'releaseManualT']) {
+  for (const k of [
+    'kneeUpT',
+    'footPlantT',
+    'releaseT',
+    'kneeUpManualT',
+    'footPlantManualT',
+    'releaseManualT',
+  ]) {
     if (!isTimeOrNull(r[k] ?? null)) return { error: '구간 값이 올바르지 않습니다.' };
   }
 
-  if (!Array.isArray(r.metrics) || r.metrics.length === 0 || r.metrics.length > 12 || !r.metrics.every(isMetric))
+  if (
+    !Array.isArray(r.metrics) ||
+    r.metrics.length === 0 ||
+    r.metrics.length > 12 ||
+    !r.metrics.every(isMetric)
+  )
     return { error: '지표 값이 올바르지 않습니다.' };
 
   return {

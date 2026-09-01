@@ -28,7 +28,9 @@ export function resolve(specifier, context, next) {
 
   const base = path.join(root, specifier.slice(2));
   // 앱에서는 확장자를 안 적으므로 여기서 붙여 본다.
-  const found = [base, `${base}.ts`, `${base}.tsx`, path.join(base, 'index.ts')].find(isFile);
+  const found = [base, `${base}.ts`, `${base}.tsx`, path.join(base, 'index.ts')].find(
+    isFile
+  );
   if (!found) {
     throw new Error(`'${specifier}' 에 해당하는 파일을 찾지 못했습니다.`);
   }

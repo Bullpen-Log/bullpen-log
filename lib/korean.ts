@@ -109,8 +109,7 @@ export function josa(word: string, pair: JosaPair): string {
   // 'ㄹ' 받침은 '으로'가 아니라 '로'를 쓴다 — 케이블로, 덤벨로
   if (pair === '으로/로' && batchim) {
     const last = word.trim().slice(-1).charCodeAt(0);
-    const isRieul =
-      last >= 0xac00 && last <= 0xd7a3 && (last - 0xac00) % 28 === 8;
+    const isRieul = last >= 0xac00 && last <= 0xd7a3 && (last - 0xac00) % 28 === 8;
     if (isRieul) return withoutBatchim;
   }
 

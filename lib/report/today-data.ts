@@ -178,9 +178,7 @@ export async function loadTodayCore(user: UserForToday, today: Date) {
   const doneAmounts = new Map(doneLogs.map((d) => [d.exerciseId, d]));
   const safeIds = new Set(picked.candidates.map((ex) => ex.id));
   const planned = (savedPlan?.picks ?? [])
-    .filter(
-      (p) => safeIds.has(p.exerciseId) || doneIds.has(p.exerciseId) || p.manual
-    )
+    .filter((p) => safeIds.has(p.exerciseId) || doneIds.has(p.exerciseId) || p.manual)
     .map((p) => ({
       ...p,
       /** 지금 몸 상태 기준으로는 권하지 않는 운동인가 */
@@ -260,4 +258,3 @@ export async function loadTodayCore(user: UserForToday, today: Date) {
      */
   };
 }
-

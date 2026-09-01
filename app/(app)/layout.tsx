@@ -2,11 +2,7 @@ import { requireUser } from '@/lib/dal';
 import { MOBILE_TABS, visibleGroups } from '@/lib/nav';
 import { MobileTabs, MobileTopBar, Sidebar } from '@/components/app-shell';
 
-export default async function AppLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+export default async function AppLayout({ children }: { children: React.ReactNode }) {
   // 이 레이아웃 아래의 모든 페이지는 로그인이 필요하다.
   const user = await requireUser();
   const isAdmin = user.role === 'ADMIN';

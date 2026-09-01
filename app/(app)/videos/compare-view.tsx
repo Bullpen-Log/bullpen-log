@@ -149,7 +149,9 @@ function ComparePane({
       {/* 측정 중에는 화면별로 되돌리기·지우기를 둔다. */}
       {drawing && (
         <div className="flex items-center gap-1.5 border-t border-line px-2 py-1.5">
-          <span className="text-[10px] text-muted">{side}면 측정 {shapes.length}</span>
+          <span className="text-[10px] text-muted">
+            {side}면 측정 {shapes.length}
+          </span>
           <button
             type="button"
             onClick={() => onShapes((prev) => prev.slice(0, -1))}
@@ -376,9 +378,7 @@ export function CompareView({
       {expanded && (
         <div className="flex shrink-0 items-center gap-3 px-1">
           <span className="text-sm text-ink">2분할 비교</span>
-          <span className="hidden text-[11px] text-muted sm:inline">
-            Esc 키로 닫기
-          </span>
+          <span className="hidden text-[11px] text-muted sm:inline">Esc 키로 닫기</span>
           <button
             type="button"
             onClick={() => setExpanded(false)}
@@ -572,11 +572,10 @@ export function CompareView({
       >
         <summary className="cursor-pointer font-medium text-ink">쓰는 법</summary>
         <p className="mt-2 leading-relaxed">
-          각 화면의 <strong className="text-ink">◀ ▶</strong>로 두 영상을 같은
-          동작(예: 앞발 착지 순간)에 맞춘 뒤{' '}
-          <strong className="text-ink">기준점</strong>을 누르세요. 그다음 아래 공용
-          버튼으로 함께 넘기면 같은 시점끼리 비교됩니다. 폰을 가로로 눕히면 더 크게
-          볼 수 있습니다.
+          각 화면의 <strong className="text-ink">◀ ▶</strong>로 두 영상을 같은 동작(예:
+          앞발 착지 순간)에 맞춘 뒤 <strong className="text-ink">기준점</strong>을
+          누르세요. 그다음 아래 공용 버튼으로 함께 넘기면 같은 시점끼리 비교됩니다. 폰을
+          가로로 눕히면 더 크게 볼 수 있습니다.
         </p>
       </details>
     </div>

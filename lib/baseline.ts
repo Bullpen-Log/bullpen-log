@@ -81,8 +81,9 @@ export const COMPETITION_LEVELS = [
   '사회인·동호회',
 ] as const;
 
-export const BASELINE_WORKOUT_FREQ_NAMES: readonly string[] =
-  BASELINE_WORKOUT_FREQ.map((o) => o.name);
+export const BASELINE_WORKOUT_FREQ_NAMES: readonly string[] = BASELINE_WORKOUT_FREQ.map(
+  (o) => o.name
+);
 
 export const BASELINE_FREQ_NAMES: readonly string[] = BASELINE_FREQ.map((o) => o.name);
 export const BASELINE_VOLUME_NAMES: readonly string[] = BASELINE_VOLUME.map(

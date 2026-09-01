@@ -60,7 +60,9 @@ function checkEntry(body: Record<string, unknown>): { error: string } | CheckedE
       return { error: '투구수와 강도를 올바르게 입력해주세요' };
     }
     if (pitchCount < 1) {
-      return { error: '투구수는 1개 이상이어야 합니다. 안 던진 날은 종류에서 휴식을 고르세요' };
+      return {
+        error: '투구수는 1개 이상이어야 합니다. 안 던진 날은 종류에서 휴식을 고르세요',
+      };
     }
     if (pitchCount > MAX_PITCH_COUNT) {
       return {
@@ -162,7 +164,10 @@ export async function GET(req: Request) {
 
   const month = new URL(req.url).searchParams.get('month');
   if (month != null && !/^\d{4}-\d{2}$/.test(month)) {
-    return NextResponse.json({ error: '달은 2026-08 형식이어야 합니다' }, { status: 400 });
+    return NextResponse.json(
+      { error: '달은 2026-08 형식이어야 합니다' },
+      { status: 400 }
+    );
   }
 
   try {

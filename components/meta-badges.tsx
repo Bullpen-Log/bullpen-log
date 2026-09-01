@@ -78,7 +78,11 @@ export function DrillBadges({
   return (
     <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
       {focusPoints.map((point) => (
-        <span key={point} className={`${chip} bg-sky/10 text-sky-strong`} title="교정 포인트">
+        <span
+          key={point}
+          className={`${chip} bg-sky/10 text-sky-strong`}
+          title="교정 포인트"
+        >
           <Target aria-hidden className="h-3 w-3" />
           {point}
         </span>

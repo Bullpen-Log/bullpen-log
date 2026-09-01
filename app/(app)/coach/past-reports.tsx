@@ -48,10 +48,7 @@ export function PastReports({ reports }: { reports: ReportSummary[] }) {
                   )}
                 </span>
               </span>
-              <ChevronRight
-                aria-hidden
-                className="h-4 w-4 shrink-0 text-line-strong"
-              />
+              <ChevronRight aria-hidden className="h-4 w-4 shrink-0 text-line-strong" />
             </Link>
           </li>
         ))}

@@ -1,5 +1,5 @@
-import "dotenv/config";
-import { defineConfig } from "prisma/config";
+import 'dotenv/config';
+import { defineConfig } from 'prisma/config';
 
 /**
  * 마이그레이션은 커넥션 풀러(6543)로는 동작하지 않으므로
@@ -10,11 +10,11 @@ const url = process.env.DIRECT_URL ?? process.env.DATABASE_URL;
 
 if (!url) {
   throw new Error(
-    "DIRECT_URL 또는 DATABASE_URL 환경변수가 필요합니다. .env 파일이나 배포 환경의 환경변수 설정을 확인하세요."
+    'DIRECT_URL 또는 DATABASE_URL 환경변수가 필요합니다. .env 파일이나 배포 환경의 환경변수 설정을 확인하세요.'
   );
 }
 
 export default defineConfig({
-  schema: "prisma/schema.prisma",
+  schema: 'prisma/schema.prisma',
   datasource: { url },
 });

@@ -24,9 +24,7 @@ export function FallbackTitle({ children }: { children: ReactNode }) {
 }
 
 export function FallbackText({ children }: { children: ReactNode }) {
-  return (
-    <p className="mt-3 text-sm leading-relaxed text-muted">{children}</p>
-  );
+  return <p className="mt-3 text-sm leading-relaxed text-muted">{children}</p>;
 }
 
 export function FallbackActions({ children }: { children: ReactNode }) {
@@ -82,9 +80,6 @@ export function FallbackButton({
  */
 export function Skeleton({ className = '' }: { className?: string }) {
   return (
-    <div
-      aria-hidden
-      className={`animate-pulse rounded-xl bg-surface-2 ${className}`}
-    />
+    <div aria-hidden className={`animate-pulse rounded-xl bg-surface-2 ${className}`} />
   );
 }

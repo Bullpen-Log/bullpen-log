@@ -27,13 +27,7 @@ import {
 
 const SPEEDS = [0.25, 0.5, 1] as const;
 
-export function PitchVideoPlayer({
-  src,
-  label,
-}: {
-  src: string;
-  label: string;
-}) {
+export function PitchVideoPlayer({ src, label }: { src: string; label: string }) {
   const videoRef = useRef<VideoWithFrameCallback>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const { frameDurationRef, fps } = useFrameDuration(videoRef);
@@ -146,9 +140,7 @@ export function PitchVideoPlayer({
       {expanded && (
         <div className="flex shrink-0 items-center gap-3 border-b border-line px-3 py-2.5">
           <span className="min-w-0 flex-1 truncate text-sm text-ink">{label}</span>
-          <span className="hidden text-[11px] text-muted sm:inline">
-            Esc 키로 닫기
-          </span>
+          <span className="hidden text-[11px] text-muted sm:inline">Esc 키로 닫기</span>
           <button
             type="button"
             onClick={() => setExpanded(false)}

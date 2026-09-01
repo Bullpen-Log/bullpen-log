@@ -10,11 +10,7 @@ import {
   Sun,
 } from 'lucide-react';
 import { ACWR_ZONES, ACWR_ZONE_ORDER, type AcwrZone } from '@/lib/pitch-stats';
-import {
-  intensityRangeText,
-  pitchRangeText,
-  type PitchPlan,
-} from '@/lib/report/plan';
+import { intensityRangeText, pitchRangeText, type PitchPlan } from '@/lib/report/plan';
 
 /*
  * 상태 색과 칩은 components/tone.tsx 로 옮겼다. 홈에서도 부하 상태를 보여주게
@@ -78,9 +74,7 @@ export function StatCard({
           tone === 'neutral' ? 'bg-transparent' : TONE[tone].bar
         }`}
       />
-      <p className="text-[11px] font-medium tracking-normal text-muted">
-        {label}
-      </p>
+      <p className="text-[11px] font-medium tracking-normal text-muted">{label}</p>
       <p className="mt-3 flex items-baseline gap-1.5">
         <span className="text-display text-3xl leading-none text-ink tabular-nums sm:text-4xl">
           {value}
@@ -199,9 +193,7 @@ export function WeekStrip({ bars }: { bars: WeekBar[] }) {
 
   return (
     <div>
-      <p className="text-[10px] tracking-normal text-muted">
-        일별 투구수
-      </p>
+      <p className="text-[10px] tracking-normal text-muted">일별 투구수</p>
       <div className="mt-3 flex h-20 items-end gap-1.5">
         {bars.map((bar) => (
           <div key={bar.label} className="flex h-full flex-1 flex-col justify-end">
@@ -273,19 +265,17 @@ export function LoadIndexHelp({
               </p>
             ) : (
               <p>
-                운동 부하{' '}
-                <span className="text-ink">= 세트 수 × 운동 계수 × 강도</span>
+                운동 부하 <span className="text-ink">= 세트 수 × 운동 계수 × 강도</span>
                 <span className="ml-1 text-muted/60">
                   (계수는 데드리프트 한 세트를 1로 놓은 값)
                 </span>
               </p>
             )}
             <p>
-              부하 지수{' '}
-              <span className="text-ink">
-                = 최근 부하 ÷ 평소 부하
+              부하 지수 <span className="text-ink">= 최근 부하 ÷ 평소 부하</span>
+              <span className="ml-1 text-muted/60">
+                (최근일수록 크게 반영되는 평균)
               </span>
-              <span className="ml-1 text-muted/60">(최근일수록 크게 반영되는 평균)</span>
             </p>
             <p className="text-muted/70">
               {pitching
@@ -307,8 +297,8 @@ export function LoadIndexHelp({
           <p className="mt-1.5">
             몸은 평소 하던 양에 맞춰 적응해 있습니다. 그래서 절대적인 양보다
             <span className="text-ink"> 평소보다 얼마나 늘었는지</span>가 부상 위험과 더
-            가깝습니다. 같은 100구라도 평소 100구를 던지던 사람과 30구를 던지던
-            사람에게 오는 부담이 다릅니다.
+            가깝습니다. 같은 100구라도 평소 100구를 던지던 사람과 30구를 던지던 사람에게
+            오는 부담이 다릅니다.
           </p>
         </div>
 
@@ -331,15 +321,15 @@ export function LoadIndexHelp({
                   <span className="min-w-0">
                     <span
                       className={
-                        active ? `font-semibold ${TONE[ZONE_TONE[zone]].text}` : 'text-ink'
+                        active
+                          ? `font-semibold ${TONE[ZONE_TONE[zone]].text}`
+                          : 'text-ink'
                       }
                     >
                       {z.short}
                     </span>
                     <span className="ml-1.5 tabular-nums text-muted/60">{z.range}</span>
-                    {active && (
-                      <span className="ml-1.5 text-muted/60">← 지금</span>
-                    )}
+                    {active && <span className="ml-1.5 text-muted/60">← 지금</span>}
                     <span className="block">{z.meaning}</span>
                   </span>
                 </li>
@@ -355,15 +345,15 @@ export function LoadIndexHelp({
         <div>
           <p className="font-semibold text-ink">운동 계수가 뭔가요</p>
           <p className="mt-1.5">
-            운동 한 세트가 몸에 얼마나 요구하는지입니다. 동원하는 근육량과 그
-            운동에 붙은 강도로 정합니다 — 데드리프트 한 세트가 1이고, 사이드
-            레터럴 레이즈는 0.3, 스트레칭은 0.04입니다.
+            운동 한 세트가 몸에 얼마나 요구하는지입니다. 동원하는 근육량과 그 운동에
+            붙은 강도로 정합니다 — 데드리프트 한 세트가 1이고, 사이드 레터럴 레이즈는
+            0.3, 스트레칭은 0.04입니다.
           </p>
           <p className="mt-1.5">
             처음에는 시간으로 셌는데 그러면 부하의 80%가{' '}
-            <span className="text-ink">세트 사이 쉬는 시간</span>에서 나왔고,
-            휴식이 같다는 이유로 데드리프트와 밀리터리 프레스가 같은 값이
-            됐습니다. 세트로 세면 그 문제가 없습니다.
+            <span className="text-ink">세트 사이 쉬는 시간</span>에서 나왔고, 휴식이
+            같다는 이유로 데드리프트와 밀리터리 프레스가 같은 값이 됐습니다. 세트로 세면
+            그 문제가 없습니다.
           </p>
         </div>
 
@@ -371,11 +361,11 @@ export function LoadIndexHelp({
           <p className="font-semibold text-ink">왜 하나로 안 합치나요</p>
           <p className="mt-1.5">
             투구는 <span className="text-ink">투구수</span>로, 운동은{' '}
-            <span className="text-ink">시간</span>으로 셉니다. 단위가 달라 그대로
-            더할 수 없고, 합치려면 &ldquo;공 하나에 몇 초&rdquo;를 정해야 하는데 그
-            값을 아직 재본 적이 없습니다. 재보지 않은 숫자로 섞으면 나온 값이 무엇을
-            뜻하는지 설명할 수 없게 됩니다. 지수는 &lsquo;평소 대비 몇 배&rsquo;라
-            단위가 없으니, 둘을 나란히 두고 읽으시면 됩니다.
+            <span className="text-ink">시간</span>으로 셉니다. 단위가 달라 그대로 더할
+            수 없고, 합치려면 &ldquo;공 하나에 몇 초&rdquo;를 정해야 하는데 그 값을 아직
+            재본 적이 없습니다. 재보지 않은 숫자로 섞으면 나온 값이 무엇을 뜻하는지
+            설명할 수 없게 됩니다. 지수는 &lsquo;평소 대비 몇 배&rsquo;라 단위가 없으니,
+            둘을 나란히 두고 읽으시면 됩니다.
           </p>
         </div>
 
@@ -484,9 +474,7 @@ export function TodayPlanLine({ plan }: { plan: PitchPlan }) {
           : 'border-sky-500/30 bg-sky-500/[0.06] hover:border-sky-500/60'
       }`}
     >
-      <span className="text-[11px] font-medium tracking-normal text-muted">
-        오늘
-      </span>
+      <span className="text-[11px] font-medium tracking-normal text-muted">오늘</span>
 
       {today.throwing ? (
         <span className="flex items-baseline gap-1.5">

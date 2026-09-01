@@ -29,9 +29,17 @@ const prisma = new PrismaClient({
 
 const rows = await prisma.exerciseVideo.findMany({
   select: {
-    id: true, title: true, category: true, intensity: true, description: true,
+    id: true,
+    title: true,
+    category: true,
+    intensity: true,
+    description: true,
     bodyParts: true,
-    sets: true, reps: true, holdSeconds: true, restSeconds: true, perSide: true,
+    sets: true,
+    reps: true,
+    holdSeconds: true,
+    restSeconds: true,
+    perSide: true,
   },
 });
 
@@ -53,7 +61,10 @@ const updates = [];
 let skipped = 0;
 
 for (const e of rows) {
-  if (e.sets != null && !force) { skipped++; continue; }
+  if (e.sets != null && !force) {
+    skipped++;
+    continue;
+  }
 
   const level = intensityLevel(e.intensity);
   const hold = isHold(e.title, e.description, e.category);
@@ -77,7 +88,7 @@ console.log(`채울 것 ${updates.length}개 / 이미 있어 건너뜀 ${skipped
 
 const byCat = {};
 for (const u of updates) {
-  (byCat[u.category] ??= { n: 0, hold: 0, side: 0, min: 0 });
+  byCat[u.category] ??= { n: 0, hold: 0, side: 0, min: 0 };
   byCat[u.category].n++;
   if (u.data.holdSeconds) byCat[u.category].hold++;
   if (u.data.perSide) byCat[u.category].side++;
@@ -91,7 +102,14 @@ for (const [k, v] of Object.entries(byCat).sort()) {
 }
 
 console.log('\n예시:');
-for (const t of ['데드리프트', '박스 점프', '튜빙 외회전 0도', '월 싯', '피전 포즈', '데드버그']) {
+for (const t of [
+  '데드리프트',
+  '박스 점프',
+  '튜빙 외회전 0도',
+  '월 싯',
+  '피전 포즈',
+  '데드버그',
+]) {
   const u = updates.find((x) => x.title === t);
   if (!u) continue;
   const d = u.data;

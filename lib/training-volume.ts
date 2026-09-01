@@ -109,13 +109,9 @@ export const ARM_CARE_CATEGORY = '암케어';
  * 세트를 안 적은 운동은 계획 세트로 센다 — 부하 계산과 같은 규칙이다.
  * 체크했다는 것은 했다는 뜻이고, 0으로 두면 실제로 한 운동이 사라진다.
  */
-export function buildPartVolume(
-  rows: VolumeRow[],
-  today = new Date()
-): VolumeSummary {
+export function buildPartVolume(rows: VolumeRow[], today = new Date()): VolumeSummary {
   const todayKey = toDateKey(today);
-  const dayBefore = (n: number) =>
-    toDateKey(new Date(today.getTime() - n * 86400000));
+  const dayBefore = (n: number) => toDateKey(new Date(today.getTime() - n * 86400000));
   const weekStart = dayBefore(6);
   const prevStart = dayBefore(13);
   const prevEnd = dayBefore(7);

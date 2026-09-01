@@ -59,9 +59,7 @@ export function IntensityGuide() {
         className="flex w-full items-center gap-2 px-3 py-2.5 text-left"
       >
         <Info className="h-3.5 w-3.5 shrink-0 text-sky" />
-        <span className="flex-1 text-xs text-muted">
-          강도를 어떻게 정하나요?
-        </span>
+        <span className="flex-1 text-xs text-muted">강도를 어떻게 정하나요?</span>
         <ChevronDown
           className={`h-3.5 w-3.5 shrink-0 text-muted transition-transform ${open ? 'rotate-180' : ''}`}
         />
@@ -76,7 +74,9 @@ export function IntensityGuide() {
                   {l.range}
                 </span>
                 <span className="min-w-0 flex-1">
-                  <span className="block text-xs font-semibold text-ink">{l.label}</span>
+                  <span className="block text-xs font-semibold text-ink">
+                    {l.label}
+                  </span>
                   <span className="mt-0.5 block text-[11px] leading-relaxed text-muted">
                     {l.detail}
                   </span>
@@ -90,9 +90,9 @@ export function IntensityGuide() {
             "살살 던졌다"고 낮춰 적으면 덜 쉬라는 답이 돌아온다.
           */}
           <p className="rounded-lg border border-warn-line bg-warn-bg px-3 py-2 text-[11px] leading-relaxed text-warn">
-            <strong>느낌보다 팔에 가는 부담은 큽니다.</strong> 연구에 따르면 절반
-            힘으로 던져도 구속은 최고의 80%가 나오고, 팔꿈치에 걸리는 힘은 75%나
-            됩니다. 가볍게 느껴져도 실제로 던진 만큼 적어주세요.
+            <strong>느낌보다 팔에 가는 부담은 큽니다.</strong> 연구에 따르면 절반 힘으로
+            던져도 구속은 최고의 80%가 나오고, 팔꿈치에 걸리는 힘은 75%나 됩니다. 가볍게
+            느껴져도 실제로 던진 만큼 적어주세요.
           </p>
         </div>
       )}

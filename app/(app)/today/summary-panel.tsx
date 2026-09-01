@@ -108,7 +108,10 @@ export function SummaryPanel({
             <dd className="text-ink">
               {week.pitches > 0 ? (
                 <>
-                  <span className="text-display text-xl leading-none">{week.pitches}</span>구
+                  <span className="text-display text-xl leading-none">
+                    {week.pitches}
+                  </span>
+                  구
                   <span className="ml-1.5 text-xs text-muted">
                     {week.throwDays}일 던짐
                   </span>

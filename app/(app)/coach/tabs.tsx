@@ -77,9 +77,7 @@ export function CoachTabs({ current }: { current: CoachView }) {
               >
                 {label}
               </span>
-              <span className="mt-0.5 block text-xs break-keep text-muted">
-                {desc}
-              </span>
+              <span className="mt-0.5 block text-xs break-keep text-muted">{desc}</span>
             </span>
           </Link>
         );

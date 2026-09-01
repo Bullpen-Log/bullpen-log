@@ -47,9 +47,9 @@ export function VideosClient({ logs }: { logs: VideoLog[] }) {
           ]
             .filter(Boolean)
             .join(' · '),
-        })),
+        }))
       ),
-    [logs],
+    [logs]
   );
 
   if (comparing) {

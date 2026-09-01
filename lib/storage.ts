@@ -44,7 +44,12 @@ export function isStorageConfigured() {
  * 서버를 거치지 않으므로 큰 파일도 업로드할 수 있다.
  */
 export async function createUploadTarget(userId: string, fileName: string) {
-  const ext = fileName.split('.').pop()?.toLowerCase().replace(/[^a-z0-9]/g, '') || 'mp4';
+  const ext =
+    fileName
+      .split('.')
+      .pop()
+      ?.toLowerCase()
+      .replace(/[^a-z0-9]/g, '') || 'mp4';
   // 사용자별 폴더로 나눠 저장한다.
   const path = `${userId}/${crypto.randomUUID()}.${ext}`;
 
@@ -116,7 +121,11 @@ export async function createLibraryUploadTarget(
 ) {
   const fallback = kind === 'thumbnail' ? 'jpg' : 'mp4';
   const ext =
-    fileName.split('.').pop()?.toLowerCase().replace(/[^a-z0-9]/g, '') || fallback;
+    fileName
+      .split('.')
+      .pop()
+      ?.toLowerCase()
+      .replace(/[^a-z0-9]/g, '') || fallback;
   const path = `${LIBRARY_PREFIX}/${crypto.randomUUID()}.${ext}`;
 
   const { data, error } = await getClient()

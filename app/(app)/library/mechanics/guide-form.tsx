@@ -75,9 +75,9 @@ export function GuideForm({
    */
   const before = state?.values;
   const pick = (name: string, fallback?: string | number | null) =>
-    before ? kept(before, name) ?? '' : fallback ?? undefined;
+    before ? (kept(before, name) ?? '') : (fallback ?? undefined);
   const pickAll = (name: string, fallback?: string[]) =>
-    before ? keptAll(before, name) ?? [] : fallback;
+    before ? (keptAll(before, name) ?? []) : fallback;
 
   return (
     <form key={formKey} action={formAction} className="space-y-5">

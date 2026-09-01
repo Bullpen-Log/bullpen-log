@@ -93,9 +93,7 @@ export function VideoGallery({
   const clips = useMemo<Clip[]>(
     () =>
       logs
-        .filter(
-          (l) => l.videoPaths.length > 0 && l.sessionType !== REST_SESSION_TYPE,
-        )
+        .filter((l) => l.videoPaths.length > 0 && l.sessionType !== REST_SESSION_TYPE)
         .flatMap((log) =>
           log.videoPaths.map((path, i) => ({
             id: `${log.id}-${i}`,
@@ -113,9 +111,9 @@ export function VideoGallery({
             pitchCount: log.pitchCount,
             intensity: log.intensity,
             maxVelocity: log.maxVelocity,
-          })),
+          }))
         ),
-    [logs],
+    [logs]
   );
 
   const counts = useMemo(() => {
@@ -136,17 +134,14 @@ export function VideoGallery({
 
   /* 달별로 묶는다 — 정렬을 골랐어도 달 안에서만 순서가 바뀐다 */
   const months = useMemo(() => {
-    const rows = clips.filter(
-      (c) => filter === 'all' || c.sessionType === filter,
-    );
+    const rows = clips.filter((c) => filter === 'all' || c.sessionType === filter);
     const map = new Map<string, Clip[]>();
     for (const c of rows) {
       const m = c.date.slice(0, 7);
       map.set(m, [...(map.get(m) ?? []), c]);
     }
     const cmp = (a: Clip, b: Clip) => {
-      if (sort === 'velocity')
-        return (b.maxVelocity ?? -1) - (a.maxVelocity ?? -1);
+      if (sort === 'velocity') return (b.maxVelocity ?? -1) - (a.maxVelocity ?? -1);
       if (sort === 'intensity') return b.intensity - a.intensity;
       return b.date.localeCompare(a.date);
     };
@@ -157,18 +152,16 @@ export function VideoGallery({
 
   const openByDefault = useMemo(
     () => new Set(months.slice(0, 1).map((g) => g.month)),
-    [months],
+    [months]
   );
   const isOpen = (month: string) => toggled[month] ?? openByDefault.has(month);
 
   /* 펼친 달의 영상만 주소를 받는다 */
   const visiblePaths = useMemo(
     () =>
-      months
-        .filter((g) => isOpen(g.month))
-        .flatMap((g) => g.items.map((c) => c.path)),
+      months.filter((g) => isOpen(g.month)).flatMap((g) => g.items.map((c) => c.path)),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [months, toggled, openByDefault],
+    [months, toggled, openByDefault]
   );
   const { urls } = usePlaybackUrls(visiblePaths);
 
@@ -200,8 +193,7 @@ export function VideoGallery({
     <div className={selecting ? 'space-y-3 pb-24' : 'space-y-3'}>
       <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
         <p className="text-sm font-bold text-ink">
-          투구 영상{' '}
-          <span className="text-display text-base">{clips.length}</span>개
+          투구 영상 <span className="text-display text-base">{clips.length}</span>개
         </p>
         {clips.length >= 2 && (
           <button
@@ -273,9 +265,7 @@ export function VideoGallery({
           >
             <button
               type="button"
-              onClick={() =>
-                setToggled((prev) => ({ ...prev, [group.month]: !open }))
-              }
+              onClick={() => setToggled((prev) => ({ ...prev, [group.month]: !open }))}
               aria-expanded={open}
               className="flex w-full items-center gap-2 px-5 py-3 text-left transition-colors hover:bg-surface-2"
             >
@@ -316,10 +306,7 @@ export function VideoGallery({
                         />
                       ) : (
                         <span className="flex aspect-video w-full items-center justify-center bg-surface-2">
-                          <Film
-                            aria-hidden
-                            className="h-6 w-6 text-line-strong"
-                          />
+                          <Film aria-hidden className="h-6 w-6 text-line-strong" />
                         </span>
                       )}
 
@@ -366,10 +353,7 @@ export function VideoGallery({
                           {body}
                         </button>
                       ) : (
-                        <Link
-                          href={`/pitch-log/${clip.date}`}
-                          className={shell}
-                        >
+                        <Link href={`/pitch-log/${clip.date}`} className={shell}>
                           {body}
                         </Link>
                       )}
@@ -408,9 +392,7 @@ export function VideoGallery({
                     <button
                       type="button"
                       onClick={() =>
-                        setPicked((prev) =>
-                          prev.map((x, j) => (j === i ? null : x)),
-                        )
+                        setPicked((prev) => prev.map((x, j) => (j === i ? null : x)))
                       }
                       aria-label={`${i === 0 ? 'A' : 'B'}면 비우기`}
                       className="shrink-0 rounded p-0.5 transition-colors hover:text-danger"
@@ -426,8 +408,7 @@ export function VideoGallery({
               type="button"
               disabled={!ready}
               onClick={() => {
-                if (picked[0] && picked[1])
-                  onCompare(picked[0].id, picked[1].id);
+                if (picked[0] && picked[1]) onCompare(picked[0].id, picked[1].id);
               }}
               className="ml-auto rounded-lg bg-sky px-3.5 py-2 text-xs font-semibold text-white transition-colors hover:bg-sky-strong disabled:cursor-not-allowed disabled:bg-line-strong"
             >

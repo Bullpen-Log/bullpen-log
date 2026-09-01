@@ -33,7 +33,13 @@ import {
  * 마찬가지였다. 목표는 날마다 달라지는 것이므로 만들 때 함께 고른다.
  */
 
-function SubmitButton({ label, busy = '만드는 중…' }: { label: string; busy?: string }) {
+function SubmitButton({
+  label,
+  busy = '만드는 중…',
+}: {
+  label: string;
+  busy?: string;
+}) {
   const { pending } = useFormStatus();
   return (
     <button
@@ -134,9 +140,8 @@ export function PlanForm({
             {clash.kind} 운동을 하고 싶다고 하셨는데, {clash.reason}.
           </p>
           <p className="text-[13px] leading-relaxed text-warn">
-            그래서 기본은 {clash.fallbackLabel} 위주로 만들어 드립니다. 몸이
-            괜찮다고 느끼시면 원하신 대로 만들어 드릴 수도 있습니다 — 정하는 것은
-            본인입니다.
+            그래서 기본은 {clash.fallbackLabel} 위주로 만들어 드립니다. 몸이 괜찮다고
+            느끼시면 원하신 대로 만들어 드릴 수도 있습니다 — 정하는 것은 본인입니다.
           </p>
           <label className="flex items-start gap-2.5 text-[13px] font-medium leading-relaxed text-warn">
             <input
@@ -209,7 +214,9 @@ export function PlanForm({
       </label>
 
       <div className="flex flex-wrap items-center gap-3">
-        <SubmitButton label={generated ? '이 조건으로 다시 만들기' : '오늘 운동 일정 만들기'} />
+        <SubmitButton
+          label={generated ? '이 조건으로 다시 만들기' : '오늘 운동 일정 만들기'}
+        />
         {generated && (
           <button
             type="button"

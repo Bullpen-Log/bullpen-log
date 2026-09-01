@@ -101,9 +101,7 @@ export function DayRecord({
                 </Badge>
                 <Badge>{log.pitchCount}구</Badge>
                 <Badge>강도 {log.intensity}/10</Badge>
-                {log.avgVelocity != null && (
-                  <Badge>평균 {log.avgVelocity} km/h</Badge>
-                )}
+                {log.avgVelocity != null && <Badge>평균 {log.avgVelocity} km/h</Badge>}
               </>
             )}
           </div>
@@ -130,7 +128,8 @@ export function DayRecord({
               <div className="space-y-2">
                 <p>
                   <strong className="text-ink">
-                    {spokenDate(date)} · {rested ? '쉬는 날' : `${log.sessionType} ${log.pitchCount}구`}
+                    {spokenDate(date)} ·{' '}
+                    {rested ? '쉬는 날' : `${log.sessionType} ${log.pitchCount}구`}
                   </strong>
                 </p>
                 {log.videoPaths.length > 0 && (
@@ -220,7 +219,6 @@ export function DayRecord({
           <VideoOff className="h-4 w-4" />이 기록에는 영상이 없습니다
         </p>
       )}
-
     </Card>
   );
 }

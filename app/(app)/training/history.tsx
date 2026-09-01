@@ -3,11 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Card } from '@/components/ui';
-import {
-  LegendSwatch,
-  MonthCalendar,
-  type DayMark,
-} from '@/components/month-calendar';
+import { LegendSwatch, MonthCalendar, type DayMark } from '@/components/month-calendar';
 import type { TrainingDaySummary } from '@/lib/report/training-history';
 
 /**
@@ -57,7 +53,6 @@ export function TrainingHistory({
     };
   }
 
-
   return (
     <>
       <Card>
@@ -80,7 +75,6 @@ export function TrainingHistory({
           </LegendSwatch>
         </MonthCalendar>
       </Card>
-
     </>
   );
 }

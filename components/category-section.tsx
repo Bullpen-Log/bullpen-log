@@ -60,7 +60,11 @@ export function CategorySection({
                 onClick={() => setFormOpen((v) => !v)}
                 className="inline-flex items-center gap-1.5 rounded-lg border border-sky-soft/60 bg-sky/[0.06] px-3 py-2 text-xs font-medium text-sky transition-colors hover:bg-sky/15"
               >
-                {formOpen ? <X className="h-3.5 w-3.5" /> : <Plus className="h-3.5 w-3.5" />}
+                {formOpen ? (
+                  <X className="h-3.5 w-3.5" />
+                ) : (
+                  <Plus className="h-3.5 w-3.5" />
+                )}
                 {formOpen ? '닫기' : '영상 추가'}
               </button>
 

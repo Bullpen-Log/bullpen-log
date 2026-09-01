@@ -29,7 +29,9 @@ const isDrill = process.argv.includes('--drill');
 const apply = process.argv.includes('--yes');
 
 if (!listPath || !detailPath || !category) {
-  console.error('사용법: node --env-file=.env scripts/seed-reference-exercises.mjs <목록.json> <설명.json> <카테고리> [--drill] [--yes]');
+  console.error(
+    '사용법: node --env-file=.env scripts/seed-reference-exercises.mjs <목록.json> <설명.json> <카테고리> [--drill] [--yes]'
+  );
   process.exit(1);
 }
 
@@ -50,10 +52,19 @@ const skipped = [];
 const missing = [];
 
 for (const r of rows) {
-  if (existing.has(r.title)) { skipped.push(r.title); continue; }
+  if (existing.has(r.title)) {
+    skipped.push(r.title);
+    continue;
+  }
   const d = details[r.title];
-  if (!d) { missing.push(r.title); continue; }
-  if (!r.videoId) { missing.push(`${r.title} (영상 ID 없음)`); continue; }
+  if (!d) {
+    missing.push(r.title);
+    continue;
+  }
+  if (!r.videoId) {
+    missing.push(`${r.title} (영상 ID 없음)`);
+    continue;
+  }
 
   const common = {
     title: r.title,
@@ -102,11 +113,17 @@ if (toCreate.length > 0) {
     }
     if (i < toCreate.length - 1) await new Promise((r) => setTimeout(r, 250));
   }
-  const portrait = toCreate.filter((t) => t.aspectRatio != null && t.aspectRatio < 0.95);
+  const portrait = toCreate.filter(
+    (t) => t.aspectRatio != null && t.aspectRatio < 0.95
+  );
   const unknown = toCreate.filter((t) => t.aspectRatio == null);
-  console.log(`  세로 ${portrait.length}편 · 가로 ${toCreate.length - portrait.length - unknown.length}편 · 못 읽음 ${unknown.length}편`);
+  console.log(
+    `  세로 ${portrait.length}편 · 가로 ${toCreate.length - portrait.length - unknown.length}편 · 못 읽음 ${unknown.length}편`
+  );
   if (blocked.length) {
-    console.log(`  ⚠ 다른 사이트에서 재생이 막힌 영상 ${blocked.length}편 — 등록해도 화면에서 안 틀어집니다:`);
+    console.log(
+      `  ⚠ 다른 사이트에서 재생이 막힌 영상 ${blocked.length}편 — 등록해도 화면에서 안 틀어집니다:`
+    );
     for (const t of blocked) console.log(`     - ${t}`);
   }
 }
