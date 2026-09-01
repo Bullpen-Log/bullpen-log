@@ -10,9 +10,7 @@ import {
   MonthCalendar,
   type DayMark,
 } from '@/components/month-calendar';
-import { CompareView, type ClipOption } from './compare-view';
 import { LogList } from './log-list';
-import { VideoGallery } from './video-gallery';
 
 export type Log = {
   id: string;
@@ -25,7 +23,6 @@ export type Log = {
   memo: string | null;
   videoPaths: string[];
 };
-
 
 /**
  * 투구 일지 — 달력 하나.
@@ -41,8 +38,9 @@ export type Log = {
  * 굴려야 했고 그날 적어둔 글은 맨 아래에 묻혔다. 창은 잠깐 확인하고 닫는
  * 그릇이지 되짚어 읽는 그릇이 아니다.
  *
- * 2분할 비교는 날짜 하나에 매인 것이 아니라(여러 날의 영상을 견준다) 여기
- * 남는다 — 화면을 통째로 바꾸는 방식 그대로다.
+ * 영상과 2분할 비교는 '투구 영상'(/videos)으로 나갔다. 날짜 하나에 매인 것이
+ * 아니라 여러 날을 가로질러 보는 것이라, 날짜를 고르는 이 화면의 탭으로
+ * 두기에는 결이 달랐다.
  */
 export function PitchLogClient({
   initialLogs,
@@ -67,21 +65,8 @@ export function PitchLogClient({
    * 다른 화면에서 날짜를 지정해 들어오면 달력으로 연다 — 그 날짜를 짚어
    * 보여주려고 온 것이기 때문이다.
    */
-  const [view, setView] = useState<'calendar' | 'list' | 'gallery'>('calendar');
-  /* 갤러리에서 두 개를 골라 들어오면 그 둘로 비교 화면을 연다 */
-  const [preset, setPreset] = useState<{ a: string; b: string } | null>(null);
-  /* 영상 칸에서 비교할 둘을 고르는 중인가 */
-  const [selecting, setSelecting] = useState(false);
+  const [view, setView] = useState<'calendar' | 'list'>('calendar');
   const [error, setError] = useState<string>();
-  /*
-   * 2분할 비교는 두 걸음이다 — 고르고, 견준다.
-   *
-   * 예전에는 단추를 누르면 곧장 비교 화면이 열렸고, 거기서 가장 예전 것과 가장
-   * 최근 것이 멋대로 짝지어져 있었다. 대개는 그 둘이 아니라서 들어가자마자
-   * 목록을 두 번 열어 다시 골라야 했다. 이제 단추는 영상 칸으로 데려가고,
-   * 거기서 썸네일을 보며 둘을 고른 뒤에 견주는 화면으로 넘어간다.
-   */
-  const [comparing, setComparing] = useState(false);
   /*
    * 이미 받아 온 달들. 처음 받아 온 범위(loadedFrom 이후)는 통째로 있는 것으로
    * 친다. 같은 달을 두 번 받지 않으려고 둔다.
@@ -99,7 +84,9 @@ export function PitchLogClient({
 
   // 넘어온 날짜가 지난달이면 달력도 그 달을 펴야 한다.
   const [month, setMonth] = useState(() => {
-    const [y, m] = (initialDate ?? toDateKey(new Date())).split('-').map(Number);
+    const [y, m] = (initialDate ?? toDateKey(new Date()))
+      .split('-')
+      .map(Number);
     return new Date(y, m - 1, 1);
   });
 
@@ -115,7 +102,7 @@ export function PitchLogClient({
     (date: string) => {
       router.push(`/pitch-log/${date}`);
     },
-    [router]
+    [router],
   );
 
   /** 달력이 보고 있는 달 (YYYY-MM) */
@@ -145,7 +132,9 @@ export function PitchLogClient({
         if (cancelled) return;
         // 다시 넘어오면 한 번 더 받아볼 수 있게 표시를 지운다.
         loadedMonths.current.delete(monthKey);
-        setError('그 달 기록을 불러오지 못했습니다. 잠시 후 다시 시도해주세요.');
+        setError(
+          '그 달 기록을 불러오지 못했습니다. 잠시 후 다시 시도해주세요.',
+        );
       })
       .finally(() => {
         if (!cancelled) setLoadingMonth(false);
@@ -156,7 +145,6 @@ export function PitchLogClient({
     };
   }, [monthKey, loadedFrom]);
 
-
   /**
    * 달력에 칠할 것.
    *
@@ -164,10 +152,20 @@ export function PitchLogClient({
    * 구별이 안 된다. 쉬는 날은 색을 채우지 않고 점선으로 표시한다(intensity null).
    */
   const marks = useMemo(() => {
-    type Acc = { pitches: number; intensity: number; video: boolean; rested: boolean };
+    type Acc = {
+      pitches: number;
+      intensity: number;
+      video: boolean;
+      rested: boolean;
+    };
     const byDay = logs.reduce<Record<string, Acc>>((acc, log) => {
       const key = log.date.slice(0, 10);
-      const prev = acc[key] ?? { pitches: 0, intensity: 0, video: false, rested: true };
+      const prev = acc[key] ?? {
+        pitches: 0,
+        intensity: 0,
+        video: false,
+        rested: true,
+      };
       acc[key] = {
         pitches: prev.pitches + log.pitchCount,
         intensity: Math.max(prev.intensity, log.intensity),
@@ -184,7 +182,10 @@ export function PitchLogClient({
         intensity: d.rested ? null : d.intensity,
         label: d.rested ? '휴식' : `${d.pitches}구`,
         dot: d.video,
-        spoken: [d.rested ? '쉬는 날로 남김' : `${d.pitches}구`, d.video ? '영상 있음' : null]
+        spoken: [
+          d.rested ? '쉬는 날로 남김' : `${d.pitches}구`,
+          d.video ? '영상 있음' : null,
+        ]
           .filter(Boolean)
           .join(', '),
       };
@@ -194,55 +195,6 @@ export function PitchLogClient({
 
   /* ---------------------------- 영상 ---------------------------- */
 
-  const withVideo = useMemo(
-    () => logs.filter((l) => l.videoPaths.length > 0),
-    [logs]
-  );
-
-
-  /** 비교 화면에서 고를 수 있는 영상 목록 (오래된 순) */
-  const clips = useMemo<ClipOption[]>(
-    () =>
-      withVideo.flatMap((log) =>
-        log.videoPaths.map((path, i) => ({
-          id: `${log.id}-${i}`,
-          date: log.date.slice(0, 10),
-          path,
-          label: log.videoPaths.length > 1 ? `영상 ${i + 1}` : '영상',
-          summary: [
-            log.maxVelocity != null ? `${log.maxVelocity}km/h` : null,
-            `${log.pitchCount}구`,
-            `강도 ${log.intensity}/10`,
-          ]
-            .filter(Boolean)
-            .join(' · '),
-        }))
-      ),
-    [withVideo]
-  );
-
-  if (comparing) {
-    return (
-      <div className="space-y-6">
-        <PageHeading
-          eyebrow="Pitch Log"
-          title="2분할 비교"
-          description="서로 다른 날의 투구 영상을 나란히 놓고 봅니다."
-          action={
-            <button
-              type="button"
-              onClick={() => setComparing(false)}
-              className="rounded-lg border border-line-strong px-3 py-1.5 text-xs font-semibold text-ink transition-colors hover:border-sky hover:text-sky"
-            >
-              영상 고르기로
-            </button>
-          }
-        />
-        <CompareView clips={clips} initialA={preset?.a} initialB={preset?.b} />
-      </div>
-    );
-  }
-
   return (
     <div className="space-y-6">
       <PageHeading
@@ -251,27 +203,7 @@ export function PitchLogClient({
         description={
           view === 'calendar'
             ? '날짜를 누르면 그날 화면으로 넘어갑니다. 기록이 없는 날도 눌러서 남길 수 있습니다.'
-            : view === 'list'
-              ? '최근 기록부터 봅니다. 위에서 걸러 영상 있는 날이나 경기 날만 볼 수 있습니다.'
-              : '올린 투구 영상을 달별로 모아 봅니다. 두 개를 고르면 아래에서 바로 나란히 견줄 수 있습니다.'
-        }
-        action={
-          /*
-            2분할 비교는 영상이 두 개 이상 있어야 뜻이 있다.
-            영상 칸에 이미 고르는 자리가 있으므로 거기서는 안 낸다.
-          */
-          clips.length >= 2 && view !== 'gallery' ? (
-            <button
-              type="button"
-              onClick={() => {
-                setView('gallery');
-                setSelecting(true);
-              }}
-              className="rounded-lg border border-line-strong px-3 py-1.5 text-xs font-semibold text-ink transition-colors hover:border-sky hover:text-sky"
-            >
-              2분할 비교
-            </button>
-          ) : undefined
+            : '최근 기록부터 봅니다. 위에서 걸러 영상 있는 날이나 경기 날만 볼 수 있습니다.'
         }
       />
 
@@ -289,7 +221,6 @@ export function PitchLogClient({
           [
             ['calendar', '달력'],
             ['list', '목록'],
-            ['gallery', '영상'],
           ] as const
         ).map(([key, label]) => (
           <button
@@ -298,9 +229,7 @@ export function PitchLogClient({
             onClick={() => setView(key)}
             aria-pressed={view === key}
             className={`px-4 py-2 text-xs font-semibold transition-colors ${
-              view === key
-                ? 'bg-sky text-white'
-                : 'text-muted hover:text-ink'
+              view === key ? 'bg-sky text-white' : 'text-muted hover:text-ink'
             }`}
           >
             {label}
@@ -310,48 +239,42 @@ export function PitchLogClient({
 
       {view === 'list' && <LogList logs={logs} />}
 
-      {view === 'gallery' && (
-        <VideoGallery
-          logs={logs}
-          selecting={selecting}
-          onSelectingChange={setSelecting}
-          onCompare={(a, b) => {
-            setPreset({ a, b });
-            setComparing(true);
-          }}
-        />
-      )}
-
       {view === 'calendar' && (
-      <Card className="relative">
-        {/* 옛날 달을 받아 오는 동안. 달력이 빈 채로 있으면 기록이 없는 줄 안다. */}
-        {loadingMonth && (
-          <p
-            aria-live="polite"
-            className="absolute right-5 top-5 rounded-lg border border-line bg-surface-2 px-2.5 py-1 text-[11px] text-muted"
+        <Card className="relative">
+          {/* 옛날 달을 받아 오는 동안. 달력이 빈 채로 있으면 기록이 없는 줄 안다. */}
+          {loadingMonth && (
+            <p
+              aria-live="polite"
+              className="absolute right-5 top-5 rounded-lg border border-line bg-surface-2 px-2.5 py-1 text-[11px] text-muted"
+            >
+              지난 기록 불러오는 중…
+            </p>
+          )}
+          <MonthCalendar
+            month={month}
+            onMonthChange={setMonth}
+            selected={selectedDate}
+            onSelect={openDay}
+            marks={marks}
           >
-            지난 기록 불러오는 중…
-          </p>
-        )}
-        <MonthCalendar
-          month={month}
-          onMonthChange={setMonth}
-          selected={selectedDate}
-          onSelect={openDay}
-          marks={marks}
-        >
-          <span>강도</span>
-          <LegendSwatch className="h-3 w-5 rounded bg-sky/15">낮음</LegendSwatch>
-          <LegendSwatch className="h-3 w-5 rounded bg-sky/40">보통</LegendSwatch>
-          <LegendSwatch className="h-3 w-5 rounded bg-sky/70">높음</LegendSwatch>
-          <LegendSwatch className="h-3 w-5 rounded border border-dashed border-line-strong">
-            쉬는 날
-          </LegendSwatch>
-          <LegendSwatch className="h-1.5 w-1.5 rounded-full bg-sky-strong">
-            영상
-          </LegendSwatch>
-        </MonthCalendar>
-      </Card>
+            <span>강도</span>
+            <LegendSwatch className="h-3 w-5 rounded bg-sky/15">
+              낮음
+            </LegendSwatch>
+            <LegendSwatch className="h-3 w-5 rounded bg-sky/40">
+              보통
+            </LegendSwatch>
+            <LegendSwatch className="h-3 w-5 rounded bg-sky/70">
+              높음
+            </LegendSwatch>
+            <LegendSwatch className="h-3 w-5 rounded border border-dashed border-line-strong">
+              쉬는 날
+            </LegendSwatch>
+            <LegendSwatch className="h-1.5 w-1.5 rounded-full bg-sky-strong">
+              영상
+            </LegendSwatch>
+          </MonthCalendar>
+        </Card>
       )}
     </div>
   );

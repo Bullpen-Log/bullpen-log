@@ -6,14 +6,14 @@ import { ChevronDown, Film, X } from 'lucide-react';
 import { usePlaybackUrls } from '@/components/use-playback-urls';
 import { REST_SESSION_TYPE, SESSION_TYPES } from '@/lib/session-type';
 import type { ClipOption } from './compare-view';
-import type { Log } from './pitch-log-client';
+import type { VideoLog } from './videos-client';
 
 /**
- * 투구 영상을 모아 보는 곳.
+ * 투구 영상을 달별로 모아 보는 곳.
  *
- * 달력은 '그 날짜'를 알 때, 목록은 기록 전체를 훑을 때 쓴다. 그런데 폼을
- * 견주려 할 때는 '영상이 있는 날'만 보고 싶다 — 달력에서는 작은 점을, 목록
- * 에서는 필름 표시를 눈으로 뒤져야 했다.
+ * 투구 일지의 달력은 '그 날짜'를 알 때, 목록은 기록 전체를 훑을 때 쓴다.
+ * 그런데 폼을 견주려 할 때는 '영상이 있는 날'만 보고 싶다 — 달력에서는 작은
+ * 점을, 목록에서는 필름 표시를 눈으로 뒤져야 했다.
  *
  * ■ 썸네일을 따로 만들지 않는다
  *
@@ -73,7 +73,7 @@ export function VideoGallery({
   onSelectingChange,
   onCompare,
 }: {
-  logs: Log[];
+  logs: VideoLog[];
   /**
    * 비교할 둘을 고르는 중인가.
    *

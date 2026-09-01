@@ -41,19 +41,16 @@ export default async function PitchLogPage({
    * 만들어 봤더니 7월 26일 기록이 달력에서 사라졌다.
    */
   const initialFrom = new Date(
-    Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - INITIAL_MONTHS, 1)
+    Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - INITIAL_MONTHS, 1),
   );
 
   const logs = await prisma.pitchLog.findMany({
-    where: {
-      userId: user.id,
-      /*
-       * 영상이 붙은 기록은 기간과 상관없이 다 읽는다. 2분할 비교가 예전 폼과
-       * 지금을 견주는 기능이라, 오래된 영상이 목록에서 빠지면 뜻이 없어진다.
-       * 영상은 한 기록에 최대 2개고 올리는 사람이 많지 않아 건수가 작다.
-       */
-      OR: [{ date: { gte: initialFrom } }, { NOT: { videoPaths: { isEmpty: true } } }],
-    },
+    /*
+     * 열세 달치만. 한때는 '영상이 붙은 기록'을 기간과 상관없이 덧붙여 읽었는데,
+     * 2분할 비교가 이 화면에 있어서였다. 비교는 '투구 영상'으로 나갔고 그쪽이
+     * 영상을 전부 읽는다.
+     */
+    where: { userId: user.id, date: { gte: initialFrom } },
     orderBy: { date: 'asc' },
   });
 

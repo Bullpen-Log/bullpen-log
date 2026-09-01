@@ -51,22 +51,22 @@ export function Sidebar({
             {group.items.map((item) => {
               const Icon = NAV_ICONS[item.icon];
               return (
-              <Link
-                key={item.href}
-                href={item.href}
-                className={`flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm transition-colors ${
-                  isActive(item.href)
-                    ? 'bg-sky text-white font-semibold'
-                    : 'text-ink hover:bg-surface-2'
-                }`}
-              >
-                <Icon
-                  aria-hidden
-                  className="h-[1.125rem] w-[1.125rem] shrink-0"
-                  strokeWidth={isActive(item.href) ? 2.4 : 1.9}
-                />
-                {item.label}
-              </Link>
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  className={`flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm transition-colors ${
+                    isActive(item.href)
+                      ? 'bg-sky text-white font-semibold'
+                      : 'text-ink hover:bg-surface-2'
+                  }`}
+                >
+                  <Icon
+                    aria-hidden
+                    className="h-[1.125rem] w-[1.125rem] shrink-0"
+                    strokeWidth={isActive(item.href) ? 2.4 : 1.9}
+                  />
+                  {item.label}
+                </Link>
               );
             })}
           </div>
@@ -155,7 +155,7 @@ export function MobileTabs({ tabs }: { tabs: NavItem[] }) {
                 className="h-5 w-5"
                 strokeWidth={active ? 2.4 : 1.9}
               />
-              {tab.label}
+              {tab.short ?? tab.label}
             </Link>
           );
         })}

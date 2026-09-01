@@ -41,12 +41,22 @@ export type NavItem = {
    */
   desc?: string;
   /**
+   * 휴대폰 아래 탭에서 쓸 짧은 이름. 없으면 label 을 그대로 쓴다.
+   *
+   * 탭이 여섯 개가 되면서 칸이 좁아졌다. 무엇보다 '투구 일지'와 '투구 영상'이
+   * 나란히 붙으니 앞 두 글자가 같아서 눈에 잘 안 갈렸다. 좁은 곳에서는 서로
+   * 다른 쪽('일지'·'영상')만 남긴다. 사이드바처럼 자리가 넉넉한 곳은 전체
+   * 이름을 그대로 쓴다.
+   */
+  short?: string;
+  /**
    * 아이콘 배경색. 목록에서 항목을 눈으로 가르는 데 쓴다.
    *
    * 라이브러리 카테고리와 같은 색 토큰(--color-cat-*)을 그대로 쓴다.
    * 같은 앱 안에서 색 체계를 두 벌 만들 이유가 없다.
    */
-  tone?: 'lower' | 'upper' | 'mobility' | 'power' | 'core' | 'armcare' | 'recovery';
+  tone?:
+    'lower' | 'upper' | 'mobility' | 'power' | 'core' | 'armcare' | 'recovery';
   /** 관리자에게만 보이는 항목 */
   adminOnly?: boolean;
 };
@@ -74,8 +84,13 @@ export type NavGroup = {
  * 주소는 예전 것을 그대로 쓴다(/today = 홈). 주소는 사용자에게 거의 안 보이는데
  * 스무 군데를 고치면 어딘가 하나는 놓치게 된다.
  *
- * '투구 일지'는 기록·영상·폼 분석·느낀점을 날짜 하나로 묶은 화면이다.
+ * '투구 일지'는 그날의 기록·폼 분석·느낀점을 날짜 하나로 묶은 화면이다.
  * 예전에는 '투구기록'과 '영상분석' 둘로 나뉘어 있었다.
+ *
+ * 영상은 다시 '투구 영상'으로 갈라 두었다. 나머지는 날짜를 알고 찾아가는
+ * 것인데 영상만은 여러 날을 가로질러 본다 — 예전 폼과 지금을 견주는 일이
+ * 그렇다. 무엇보다 이 앱에서 영상은 곁다리가 아니라 폼을 고치는 근거라,
+ * 다른 화면의 탭 안에 숨겨 둘 것이 아니었다.
  *
  * 이름에 'AI'를 붙이지 않는다. 두 가지 이유가 있다.
  *
@@ -94,6 +109,9 @@ export const NAV_GROUPS: NavGroup[] = [
   },
   {
     items: [{ href: '/pitch-log', label: '투구 일지', icon: 'calendar' }],
+  },
+  {
+    items: [{ href: '/videos', label: '투구 영상', icon: 'film' }],
   },
   {
     items: [{ href: '/training', label: '트레이닝', icon: 'dumbbell' }],
@@ -155,7 +173,8 @@ export const NAV_GROUPS: NavGroup[] = [
  */
 export const MOBILE_TABS: NavItem[] = [
   { href: '/today', label: '홈', icon: 'home' },
-  { href: '/pitch-log', label: '투구 일지', icon: 'calendar' },
+  { href: '/pitch-log', label: '투구 일지', short: '일지', icon: 'calendar' },
+  { href: '/videos', label: '투구 영상', short: '영상', icon: 'film' },
   { href: '/training', label: '트레이닝', icon: 'dumbbell' },
   { href: '/coach', label: '분석', icon: 'chart' },
   { href: '/more', label: '더보기', icon: 'menu' },
