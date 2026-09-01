@@ -11,6 +11,7 @@ import {
   type DayMark,
 } from '@/components/month-calendar';
 import { CompareView, type ClipOption } from './compare-view';
+import { LogList } from './log-list';
 
 export type Log = {
   id: string;
@@ -59,6 +60,13 @@ export function PitchLogClient({
   loadedFrom: string;
 }) {
   const [logs, setLogs] = useState<Log[]>(initialLogs);
+  /*
+   * 달력으로 볼지 목록으로 볼지.
+   *
+   * 다른 화면에서 날짜를 지정해 들어오면 달력으로 연다 — 그 날짜를 짚어
+   * 보여주려고 온 것이기 때문이다.
+   */
+  const [view, setView] = useState<'calendar' | 'list'>('calendar');
   const [error, setError] = useState<string>();
   const [comparing, setComparing] = useState(false);
   /*
@@ -227,7 +235,11 @@ export function PitchLogClient({
       <PageHeading
         eyebrow="Pitch Log"
         title="투구 일지"
-        description="날짜를 누르면 그날 화면으로 넘어갑니다. 기록이 없는 날도 눌러서 남길 수 있습니다."
+        description={
+          view === 'calendar'
+            ? '날짜를 누르면 그날 화면으로 넘어갑니다. 기록이 없는 날도 눌러서 남길 수 있습니다.'
+            : '최근 기록부터 봅니다. 위에서 걸러 영상 있는 날이나 경기 날만 볼 수 있습니다.'
+        }
         action={
           // 2분할 비교는 영상이 두 개 이상 있어야 뜻이 있다.
           clips.length >= 2 ? (
@@ -244,6 +256,39 @@ export function PitchLogClient({
 
       <FormError>{error}</FormError>
 
+      {/*
+        달력과 목록.
+
+        달력은 '그 날짜'를 알 때, 목록은 '요즘 뭐 했더라'를 볼 때 쓴다. 둘은
+        같은 기록을 다르게 보는 것이라 한 화면에 같이 두지 않고 오가게 한다 —
+        트레이닝의 '오늘 | 기록'과 같은 방식이다.
+      */}
+      <nav className="inline-flex overflow-hidden rounded-xl border border-line-strong bg-surface">
+        {(
+          [
+            ['calendar', '달력'],
+            ['list', '목록'],
+          ] as const
+        ).map(([key, label]) => (
+          <button
+            key={key}
+            type="button"
+            onClick={() => setView(key)}
+            aria-pressed={view === key}
+            className={`px-4 py-2 text-xs font-semibold transition-colors ${
+              view === key
+                ? 'bg-sky text-white'
+                : 'text-muted hover:text-ink'
+            }`}
+          >
+            {label}
+          </button>
+        ))}
+      </nav>
+
+      {view === 'list' && <LogList logs={logs} />}
+
+      {view === 'calendar' && (
       <Card className="relative">
         {/* 옛날 달을 받아 오는 동안. 달력이 빈 채로 있으면 기록이 없는 줄 안다. */}
         {loadingMonth && (
@@ -273,7 +318,7 @@ export function PitchLogClient({
           </LegendSwatch>
         </MonthCalendar>
       </Card>
-
+      )}
     </div>
   );
 }
