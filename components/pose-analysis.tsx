@@ -14,6 +14,8 @@ import { compareMetrics, type SavedAnalysisView } from '@/lib/pose/saved';
 import { savePoseAnalysis } from '@/app/actions/pose-analysis';
 import { LM, QUALITY_THRESHOLD, type PoseTrack } from '@/lib/pose/types';
 import { getContentBox } from '@/components/video-canvas';
+import { RotationChart } from '@/components/rotation-chart';
+import { rotationSeries } from '@/lib/pose/rotation';
 import type { VideoWithFrameCallback } from '@/components/use-frame-duration';
 
 /**
@@ -381,6 +383,9 @@ export function PoseAnalysis({
   const effectiveTime = (key: EventKey): number | null =>
     overrides[key] ?? events?.[key]?.t ?? null;
 
+  /* 골반·어깨 회전 곡선 — 구간 보정과 무관하므로 트랙만 있으면 된다 */
+  const rotation = useMemo(() => (track ? rotationSeries(track) : null), [track]);
+
   // 지표 — 수동 보정된 구간 기준으로 다시 계산된다.
   // 좌/우투 표기(throwingSide)가 아니라 실제로 감지된 팔(wristSide)로 잰다.
   const metrics = useMemo(() => {
@@ -677,6 +682,46 @@ export function PoseAnalysis({
           >
             다시 분석하기
           </button>
+        </div>
+      )}
+
+      {/*
+        골반과 어깨가 언제 열리는가.
+
+        구간 단추 바로 위에 둔다 — 곡선에서 이상한 자리를 보면 그 순간으로
+        옮겨 영상을 확인하게 되고, 그때 쓰는 것이 아래 구간 단추다.
+      */}
+      {rotation && rotation.points.length >= 2 && (
+        <div className="space-y-2 rounded-xl border border-line bg-surface p-3">
+          <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+            <h4 className="text-xs font-bold text-ink">골반이 먼저 도는가</h4>
+            {rotation.peak && (
+              <p className="text-[11px] text-muted">
+                가장 벌어진 순간 약{' '}
+                <span className="font-semibold text-ink">
+                  {Math.abs(Math.round(rotation.peak.separation))}°
+                </span>
+              </p>
+            )}
+          </div>
+
+          <RotationChart
+            series={rotation}
+            now={now}
+            events={EVENT_ORDER.map((key) => ({
+              key,
+              label: EVENT_LABELS[key],
+              t: effectiveTime(key),
+            }))}
+            onSeek={seekTo}
+          />
+
+          <p className="text-[11px] leading-relaxed text-muted/70">
+            골반선이 어깨선보다 <b>먼저</b> 올라가면 아래에서 위로 힘이 간
+            것입니다. 둘이 붙어서 함께 올라가면 몸통을 비틀어 모은 힘 없이
+            팔로만 던진 것입니다. 깊이는 카메라 한 대로 어림한 값이라 각도의
+            절대값보다 <b>순서와 모양</b>, 그리고 지난 영상과의 차이를 보세요.
+          </p>
         </div>
       )}
 
