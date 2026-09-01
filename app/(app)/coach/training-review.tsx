@@ -70,12 +70,24 @@ function WeekRow({ week, busiest }: { week: ReviewWeek; busiest: number }) {
 /* ───────────────────────────── 부위 추이 ───────────────────────────── */
 
 /**
- * 부위별 세트를 주마다 나란히.
+ * 부위별 세트를 막대 하나로.
  *
  * 이번 주 것만 있을 때는 "암케어 4세트"가 많은 건지 적은 건지 알 수 없었다.
- * 옆에 지난 3주가 있으면 늘 그만큼 했는지, 이번 주만 빠졌는지가 보인다.
- * 0인 칸을 흐리게 두지 않고 눈에 띄게 남기는 것이 요점이다.
+ * 4주를 나란히 두면 늘 그만큼 했는지, 이번 주만 빠졌는지가 보인다.
+ *
+ * 한동안 6줄 × 4열 숫자 표였다. 그런데 이 칸이 말하려는 것은 "무엇을 안 했나"인데
+ * 숫자를 스물넉 칸 늘어놓으면 눈이 그것을 못 잡는다. 하체 19 · 코어 9 · 등 9 ·
+ * 가슴 6 · 팔 7 · 암케어 6 이 하체 편중이라는 사실이 표에서는 안 읽혔다.
+ *
+ * 막대 하나로 줄인다. 길이가 4주 합계라 부위 사이의 균형이 그대로 보이고, 색의
+ * 진하기가 주라서 언제 했는지도 같이 보인다. 옅은 쪽이 오래된 주다.
+ *
+ * 색을 네 가지 이름(sky-soft·sky·sky-strong…)으로 나누지 않고 한 색의 투명도로
+ * 만든다. 어두운 화면에서는 그 이름들의 밝기 순서가 뒤집혀서, 3주 전이 이번 주보다
+ * 밝아진다. 투명도는 양쪽에서 똑같이 '옅다 → 진하다'로 읽힌다.
  */
+const WEEK_SHADE = ['bg-sky/25', 'bg-sky/45', 'bg-sky/70', 'bg-sky'] as const;
+
 function PartTrend({ weeks }: { weeks: ReviewWeek[] }) {
   /* 오래된 주가 왼쪽 — 왼쪽에서 오른쪽으로 읽는 것이 시간 순이다 */
   const ordered = [...weeks].reverse();
@@ -87,58 +99,78 @@ function PartTrend({ weeks }: { weeks: ReviewWeek[] }) {
   const setsOf = (week: ReviewWeek, key: VolumeGroupKey | 'armCare') =>
     key === 'armCare' ? week.armCare : (week.parts[key] ?? 0);
 
+  const weekLabelOf = (ago: number) => (ago === 0 ? '이번 주' : `${ago}주 전`);
+
+  /* 가장 많이 한 부위가 막대를 가득 채운다 — 부위끼리 견주는 것이 요점이다 */
+  const totals = rows.map((r) => ordered.reduce((sum, w) => sum + setsOf(w, r.key), 0));
+  const busiest = Math.max(...totals, 1);
+
   return (
-    <div className="-mx-5 overflow-x-auto px-5 sm:-mx-6 sm:px-6">
-      <table className="w-full min-w-[22rem] border-collapse text-sm">
-        <thead>
-          <tr>
-            <th className="pb-2 text-left text-[11px] font-medium text-muted">부위</th>
-            {ordered.map((w) => (
-              <th
-                key={w.ago}
-                className={`pb-2 text-right text-[11px] font-medium ${
-                  w.ago === 0 ? 'text-sky' : 'text-muted'
+    <div className="space-y-3">
+      {/* 어느 진하기가 어느 주인지 */}
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+        {ordered.map((w, i) => (
+          <span
+            key={w.ago}
+            className="inline-flex items-center gap-1 text-[10px] text-muted"
+          >
+            <span className={`h-2 w-3 rounded-sm ${WEEK_SHADE[i]}`} />
+            {weekLabelOf(w.ago)}
+          </span>
+        ))}
+      </div>
+
+      <ul className="space-y-2.5">
+        {rows.map((row, ri) => {
+          const values = ordered.map((w) => setsOf(w, row.key));
+          const total = totals[ri];
+          /* 4주 내내 하나도 안 한 부위는 그 사실이 곧 알림이다 */
+          const untouched = total === 0;
+          const breakdown = ordered
+            .map((w, i) => `${weekLabelOf(w.ago)} ${values[i]}세트`)
+            .join(', ');
+
+          return (
+            <li key={row.key}>
+              <div className="flex flex-wrap items-baseline gap-x-2">
+                <span className="text-[13px] font-semibold text-ink">{row.label}</span>
+                <span className="text-[11px] text-muted/70">{row.hint}</span>
+                <span
+                  className={`ml-auto text-display text-sm leading-none tabular-nums ${
+                    untouched ? 'text-warn' : 'text-ink'
+                  }`}
+                >
+                  {total}
+                </span>
+              </div>
+
+              {/*
+                막대 하나에 네 주를 이어 붙인다. 칸을 나눠 그리지 않는 것은
+                합계 길이가 부위 사이의 균형이기 때문이다 — 나누면 그 길이가
+                끊겨서 안 보인다.
+              */}
+              <div
+                title={breakdown}
+                aria-label={`${row.label} 4주 합계 ${total}세트 — ${breakdown}`}
+                className={`mt-1.5 flex h-2.5 overflow-hidden rounded-full ${
+                  untouched ? 'border border-dashed border-warn-line' : 'bg-surface-2'
                 }`}
               >
-                {w.ago === 0 ? '이번 주' : `${w.ago}주 전`}
-              </th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((row) => {
-            const values = ordered.map((w) => setsOf(w, row.key));
-            /* 4주 내내 하나도 안 한 부위는 그 사실이 곧 알림이다 */
-            const untouched = values.every((v) => v === 0);
-            return (
-              <tr key={row.key} className="border-t border-line">
-                <td className="py-2.5 pr-3">
-                  <span className="block text-[13px] font-semibold text-ink">
-                    {row.label}
-                  </span>
-                  <span className="block text-[11px] text-muted/70">{row.hint}</span>
-                </td>
-                {values.map((sets, i) => (
-                  <td
-                    key={ordered[i].ago}
-                    className={`py-2.5 text-right tabular-nums ${
-                      sets === 0
-                        ? untouched
-                          ? 'text-warn'
-                          : 'text-line-strong'
-                        : ordered[i].ago === 0
-                          ? 'font-bold text-ink'
-                          : 'text-muted'
-                    }`}
-                  >
-                    {sets === 0 ? '—' : sets}
-                  </td>
-                ))}
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
+                {values.map(
+                  (sets, i) =>
+                    sets > 0 && (
+                      <span
+                        key={ordered[i].ago}
+                        className={WEEK_SHADE[i]}
+                        style={{ width: `${(sets / busiest) * 100}%` }}
+                      />
+                    )
+                )}
+              </div>
+            </li>
+          );
+        })}
+      </ul>
     </div>
   );
 }
