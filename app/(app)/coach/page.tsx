@@ -84,18 +84,11 @@ export default async function ReportPage({
     date: log.date.toISOString(),
   }));
 
-  /*
-   * 마지막 리포트 이후 새로 쌓인 투구 기록 수.
-   *
-   * 기록한 날짜(date)가 아니라 남긴 시각(createdAt)으로 센다. 지난 날짜를
-   * 뒤늦게 채워 넣어도 '새로 알게 된 것'은 늘어난 셈이라 세는 것이 맞다.
-   */
-  const newRecords = latestReport
-    ? await prisma.pitchLog.count({
-        where: { userId: user.id, createdAt: { gt: latestReport.createdAt } },
-      })
-    : logs.length;
-  const readiness = reportReadiness(newRecords, latestReport != null);
+  /* 하루에 한 번 — 오늘 몫을 이미 만들었는지만 본다 */
+  const readiness = reportReadiness(
+    toDateKey(today),
+    latestReport ? latestReport.asOf.toISOString().slice(0, 10) : null,
+  );
 
   /* 지난 리포트 목록 — 리포트 칸을 볼 때만 읽는다 */
   const past =

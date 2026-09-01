@@ -59,7 +59,7 @@ export async function generateAiReport(): Promise<AiReportState> {
   }
 
   /*
-   * 리포트는 투구 기록 다섯 번마다 만든다.
+   * 리포트는 하루에 한 번이다.
    *
    * 화면에서도 단추를 감추지만 여기서 한 번 더 본다 — 화면을 거치지 않고
    * 들어올 수 있고, 부르면 AI 비용이 실제로 나간다.
@@ -67,14 +67,12 @@ export async function generateAiReport(): Promise<AiReportState> {
   const latest = await prisma.aiReport.findFirst({
     where: { userId: user.id },
     orderBy: { asOf: 'desc' },
-    select: { createdAt: true },
+    select: { asOf: true },
   });
-  const newRecords = latest
-    ? await prisma.pitchLog.count({
-        where: { userId: user.id, createdAt: { gt: latest.createdAt } },
-      })
-    : logs.length;
-  const readiness = reportReadiness(newRecords, latest != null);
+  const readiness = reportReadiness(
+    asOfKey,
+    latest ? latest.asOf.toISOString().slice(0, 10) : null
+  );
   if (!readiness.ready) {
     return { error: readiness.message };
   }

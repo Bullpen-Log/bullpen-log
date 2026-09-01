@@ -32,6 +32,9 @@ import {
 } from '../lib/pitch-stats.ts';
 import {
   buildPitchPlan,
+  intensityRangeText,
+  pitchRangeText,
+  readPitchPlan,
   requiredRestDays,
   HIGH_VOLUME_PITCHES,
   HIGH_VOLUME_MIN_REST,
@@ -72,10 +75,7 @@ import {
 import { computeAcwr, zoneOf } from '../lib/pitch-stats.ts';
 import { buildTrainingLoad } from '../lib/training-load.ts';
 import { buildPartVolume, VOLUME_GROUPS } from '../lib/training-volume.ts';
-import {
-  REPORT_EVERY_PITCH_LOGS,
-  reportReadiness,
-} from '../lib/report/cadence.ts';
+import { reportReadiness } from '../lib/report/cadence.ts';
 import { SYSTEM_PROMPT } from '../lib/ai/report-prompt.ts';
 import {
   BASELINE_WORKOUT_FREQ_NAMES,
@@ -982,45 +982,147 @@ console.log('\n[가입 문진] 받은 답이 실제로 쓰이는가');
   );
 }
 
-console.log('\n[리포트 주기] 기록이 쌓여야 만들어지는가');
+console.log('\n[리포트 주기] 하루에 한 번인가');
 {
   /*
-   * 날짜가 아니라 기록 수로 연다. 하루 사이에는 달라지는 것이 거의 없어,
-   * 어제 리포트와 오늘 리포트가 거의 같은 말을 했다(만들 때마다 돈도 나간다).
+   * 날짜로 연다. 리포트가 오늘·내일 몇 구까지 던져도 되는지를 내는데, 그것은
+   * 날마다 달라진다 — 사흘 전 숫자를 오늘 보고 있으면 안 보느니만 못하다.
+   * 대신 하루 한 번으로 잠근다. 부를 때마다 AI 비용이 실제로 나간다.
    */
-  const none = reportReadiness(0, false);
-  check('첫 리포트 — 기록이 없으면 못 만든다', !none.ready, none.message);
+  const first = reportReadiness('2026-09-01', null);
+  check('하나도 없으면 만들 수 있다', first.ready, first.message);
 
-  const almost = reportReadiness(REPORT_EVERY_PITCH_LOGS - 1, false);
+  const madeToday = reportReadiness('2026-09-01', '2026-09-01');
   check(
-    `첫 리포트 — ${REPORT_EVERY_PITCH_LOGS - 1}개면 아직`,
-    !almost.ready && almost.remaining === 1,
-    almost.message
-  );
-
-  const first = reportReadiness(REPORT_EVERY_PITCH_LOGS, false);
-  check(
-    `첫 리포트 — ${REPORT_EVERY_PITCH_LOGS}개면 만들 수 있다`,
-    first.ready,
-    first.message
-  );
-
-  /* 문턱 바로 앞 — 하나만 더 있으면 되는 자리. 문턱이 바뀌어도 따라간다. */
-  const short = REPORT_EVERY_PITCH_LOGS - 1;
-  const after = reportReadiness(short, true);
-  check(
-    `만든 뒤 ${short}개 쌓임 — 아직`,
-    !after.ready && after.remaining === 1,
-    after.message
+    '오늘 몫을 이미 만들었으면 못 만든다',
+    !madeToday.ready && madeToday.madeToday,
+    madeToday.message
   );
   check(
-    '기다리는 동안에도 몇 개 남았는지 말한다',
-    after.message.includes('1번 더'),
-    after.message
+    '언제 다시 되는지 말한다',
+    madeToday.message.includes('내일'),
+    madeToday.message
   );
 
-  const again = reportReadiness(REPORT_EVERY_PITCH_LOGS + 2, true);
-  check('만든 뒤 문턱을 넘게 쌓임 — 다시 만들 수 있다', again.ready, again.message);
+  const yesterday = reportReadiness('2026-09-01', '2026-08-31');
+  check('어제 만들었으면 오늘 다시 만들 수 있다', yesterday.ready, yesterday.message);
+
+  /* 달이 넘어가도 문자열 비교라 그대로 갈린다 */
+  const acrossMonth = reportReadiness('2026-09-01', '2026-09-01');
+  check('같은 날은 언제나 막힌다', !acrossMonth.ready, acrossMonth.message);
+}
+
+console.log('\n[투구 계획] 오늘과 내일을 범위로 내는가');
+{
+  const base = {
+    asOf: '2026-09-01',
+    profile: { nickname: '테스트', age: 20, heightCm: 180, trainingLevel: null },
+    volume: {
+      current: { totalPitches: 200, maxDailyPitches: 60, days: 3, adjusted: 180 },
+      previous: { totalPitches: 180, maxDailyPitches: 55, days: 3, adjusted: 160 },
+      changePercent: 11,
+    },
+    load: { ratio: 1.0, zone: 'optimal', acute: 30, chronic: 30, days: 28 },
+    patterns: {
+      fatigueWindows: 0,
+      longestStreak: 1,
+      missingDays: 0,
+      lastThrowDate: '2026-08-28',
+      lastOutingPitches: 20,
+      lastOutingAdjusted: 20,
+      restDays: 4,
+      baselinePitches: 60,
+    },
+    condition: {
+      today: null,
+      painToday: false,
+      painRecently: false,
+      painWordsInMemo: [],
+      avgCondition: 7,
+      poorSleepDays: 0,
+      checkinDays: 5,
+    },
+    memos: [],
+  } as unknown as Parameters<typeof buildPitchPlan>[0];
+
+  const plan = buildPitchPlan(base);
+  check(
+    '안 던진 날 — 오늘과 내일 둘 다 낸다',
+    plan.today != null && plan.tomorrow != null && !plan.threwToday,
+    `today=${plan.today?.label} tomorrow=${plan.tomorrow?.label}`
+  );
+  check(
+    '내일은 하루 뒤 날짜다',
+    plan.tomorrow?.dateKey === '2026-09-02',
+    String(plan.tomorrow?.dateKey)
+  );
+  check(
+    '투구수가 범위로 나온다',
+    plan.today!.minPitches != null &&
+      plan.today!.minPitches < plan.today!.maxPitches!,
+    pitchRangeText(plan.today!)
+  );
+  check(
+    '강도도 범위로 나온다',
+    plan.today!.minIntensity != null &&
+      plan.today!.minIntensity < plan.today!.maxIntensity!,
+    intensityRangeText(plan.today!)
+  );
+  check(
+    '범위 아래끝이 상한보다 낮고 0보다 크다',
+    plan.today!.minPitches! > 0 && plan.today!.minPitches! < plan.today!.maxPitches!,
+    pitchRangeText(plan.today!)
+  );
+
+  /*
+   * 오늘 던진 기록이 있으면 오늘 몫은 없다. 이미 벌어진 일에 몇 구를 던지라고
+   * 하는 것은 조언이 아니다.
+   */
+  const threw = buildPitchPlan({
+    ...base,
+    patterns: {
+      ...base.patterns,
+      lastThrowDate: '2026-09-01',
+      lastOutingPitches: 70,
+      lastOutingAdjusted: 70,
+      restDays: 0,
+    },
+  });
+  check(
+    '오늘 던졌으면 오늘 몫은 안 낸다',
+    threw.today == null && threw.threwToday,
+    `today=${threw.today} threwToday=${threw.threwToday}`
+  );
+  check('오늘 던졌어도 내일은 낸다', threw.tomorrow != null, String(threw.tomorrow?.label));
+  check(
+    '70구 던진 다음 날은 아직 쉰다',
+    threw.tomorrow?.throwing === false,
+    String(threw.tomorrow?.reason)
+  );
+
+  /* 옛 리포트 — 범위도 내일도 없이 저장된 것 */
+  const old = readPitchPlan({
+    halted: false,
+    haltReason: null,
+    recovering: false,
+    needsPainCheck: false,
+    today: {
+      dateKey: '2026-08-01',
+      label: '오늘',
+      throwing: true,
+      maxPitches: 60,
+      maxIntensity: 8,
+      reason: '평소 수준',
+    },
+    basis: [],
+    youthNote: null,
+  });
+  check('옛 리포트도 읽힌다', old != null, String(old?.today?.maxPitches));
+  check(
+    '범위가 없으면 상한 하나로 읽는다',
+    pitchRangeText(old!.today!) === '60구 이하',
+    pitchRangeText(old!.today!)
+  );
 }
 
 {

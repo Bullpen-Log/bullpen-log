@@ -11,9 +11,10 @@
  */
 export type PlanNoteData = {
   throwing: boolean;
-  /** 쉬는 날로 잡힌 계획에는 없다(null). */
-  maxPitches: number | null;
-  maxIntensity: number | null;
+  /** '40~60구'. 쉬는 날로 잡힌 계획에는 빈 문자열이다. */
+  pitches: string;
+  /** '강도 6~8' */
+  intensity: string;
   /** 왜 이 계획인지 한 줄 */
   reason: string;
 };
@@ -23,9 +24,7 @@ export function PlanNote({ plan }: { plan: PlanNoteData }) {
     <div className="rounded-xl border border-line bg-surface-2 px-4 py-3">
       <p className="text-xs font-medium tracking-normal text-sky">오늘 계획</p>
       <p className="mt-1 text-sm font-semibold text-ink">
-        {plan.throwing
-          ? `${plan.maxPitches}구 이하 · 강도 ${plan.maxIntensity} 이하`
-          : '휴식'}
+        {plan.throwing ? `${plan.pitches} · ${plan.intensity}` : '휴식'}
       </p>
       <p className="mt-0.5 text-xs leading-relaxed text-muted">{plan.reason}</p>
     </div>

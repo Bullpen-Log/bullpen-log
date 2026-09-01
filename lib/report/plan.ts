@@ -122,14 +122,77 @@ const RECOVERY_ADJUSTMENT = {
 
 export type DayPlan = {
   dateKey: string;
-  /** 오늘 / 내일 / 모레 */
+  /** 오늘 / 내일 */
   label: string;
   throwing: boolean;
-  /** 던지는 날의 권장 상한. 쉬는 날이면 null */
+  /**
+   * 던지는 날의 권장 범위. 쉬는 날이면 전부 null.
+   *
+   * min 은 옛 리포트에 없다(상한 하나만 냈다). 화면은 pitchRangeText 로 읽어
+   * 없으면 '60구 이하'로 낸다.
+   */
+  minPitches: number | null;
   maxPitches: number | null;
+  minIntensity: number | null;
   maxIntensity: number | null;
   reason: string;
 };
+
+/**
+ * 상한 하나가 아니라 범위로 낸다.
+ *
+ * '60구 이하'는 한꺼번에 두 가지를 말한다 — 60을 넘기지 말라는 것과, 오늘은
+ * 그 언저리가 알맞다는 것. 그런데 읽는 쪽에 남는 것은 상한뿐이라 20구를 던져도
+ * 지킨 것이고 60구를 던져도 지킨 것이 된다. 어느 쪽이 오늘 몸에 맞는 양인지는
+ * 알려주지 못한다.
+ *
+ * 아래끝을 함께 낸다. 상한의 70% — 그보다 적으면 그날 던진 뜻이 옅어지는 선이다.
+ */
+export const RANGE_FLOOR = 0.7;
+
+/** 강도 범위의 폭 */
+export const INTENSITY_SPAN = 2;
+
+/**
+ * 강도 아래끝의 바닥.
+ *
+ * 4 이하 구간은 전력 환산 계수를 뒷받침하는 근거가 없다(lib/pitch-stats.ts).
+ * 근거가 없는 구간을 권장 범위의 끝으로 쓰지 않는다.
+ */
+export const MIN_MEANINGFUL_INTENSITY = 4;
+
+/**
+ * 권장 투구수 범위.
+ *
+ * 5구 단위로 다듬는다. 62구 같은 값은 계산이 그렇게 나왔을 뿐인데 지켜야 할
+ * 정밀한 숫자처럼 읽힌다. 상한은 안전선이라 늘 내리고(올리지 않는다), 아래끝은
+ * 안전선이 아니라 가까운 쪽으로 맞춘다.
+ */
+export function pitchRange(target: number): { min: number; max: number } {
+  // 열다섯 구도 안 되는 양은 5구 단위로 다듬으면 범위가 뭉개진다.
+  if (target < 15) {
+    return { min: Math.min(Math.max(1, Math.round(target * RANGE_FLOOR)), target), max: target };
+  }
+  const max = Math.floor(target / 5) * 5;
+  const min = Math.max(5, Math.round((target * RANGE_FLOOR) / 5) * 5);
+  return { min: Math.min(min, max), max };
+}
+
+/** '40~60구'. 범위가 없는 옛 리포트는 '60구 이하'로 읽는다. */
+export function pitchRangeText(day: DayPlan): string {
+  if (day.maxPitches == null) return '';
+  return day.minPitches != null && day.minPitches < day.maxPitches
+    ? `${day.minPitches}~${day.maxPitches}구`
+    : `${day.maxPitches}구 이하`;
+}
+
+/** '강도 6~8' */
+export function intensityRangeText(day: DayPlan): string {
+  if (day.maxIntensity == null) return '';
+  return day.minIntensity != null && day.minIntensity < day.maxIntensity
+    ? `강도 ${day.minIntensity}~${day.maxIntensity}`
+    : `강도 ${day.maxIntensity} 이하`;
+}
 
 export type PitchPlan = {
   /** 통증이 있으면 계획 대신 휴식·진료 안내만 낸다 */
@@ -146,18 +209,28 @@ export type PitchPlan = {
    */
   needsPainCheck: boolean;
   /**
-   * 오늘 하루의 안내.
+   * 오늘 하루의 안내. 오늘 이미 던진 기록이 있으면 null 이다.
    *
-   * 예전에는 오늘·내일·모레 사흘치를 그렸다. 그런데 주 사용자는 사회인·동호회
-   * 선수라 다음 경기가 언제인지도 모르고, 몇 구 던질지는 경기 상황이 정한다 —
-   * 강판당하면 20구, 완투하면 100구다. 모레 계획은 지킬 수 있는 것이 아니라
-   * 지어낸 이야기에 가까웠다.
+   * 한때는 오늘·내일·모레 사흘치를 그렸다. 주 사용자가 사회인·동호회 선수라
+   * 다음 경기가 언제인지도 모르고 몇 구 던질지는 경기가 정하는데(강판당하면
+   * 20구, 완투하면 100구), 모레 계획은 지킬 수 있는 것이 아니라 지어낸 이야기에
+   * 가까웠다. 그래서 오늘 하나로 줄였다.
    *
-   * 오늘 하나만 남긴다. 이것도 "몇 구 던져라"가 아니라 "여기까지"라는 상한이고,
-   * 쉬는 날이면 숫자 없이 쉬라고만 한다. 미리 정하는 것이 아니라 이미 던진
-   * 것에 대한 답이다.
+   * 이제 내일까지 둘이다. 리포트를 하루 한 번 만들 수 있게 되면서, 아침에
+   * 만들면 오늘을 보고 저녁에 던지고 나서 만들면 내일을 보게 됐다. 모레와
+   * 달리 내일은 지어낸 이야기가 아니다 — 오늘 무엇을 했는지가 그대로 정한다.
    */
-  today: DayPlan;
+  today: DayPlan | null;
+  /** 내일의 안내. 계획을 멈춘 경우에만 null 이다. */
+  tomorrow: DayPlan | null;
+  /**
+   * 오늘 이미 던진 기록이 있는가.
+   *
+   * 있으면 오늘 몫은 내지 않는다 — 이미 벌어진 일에 "오늘 40~60구"라고 하는
+   * 것은 조언이 아니다. 없으면 안 던진 것으로 본다. 계획대로 던졌다면 기록을
+   * 남겼을 것이기 때문이다.
+   */
+  threwToday: boolean;
   /** 어떤 규칙이 적용됐는지 — 화면에 근거로 그대로 보여준다 */
   basis: string[];
   /** 성장기 회원에게 덧붙일 주의 */
@@ -172,17 +245,26 @@ export type PitchPlan = {
  * 사실 자체는 근거에 그대로 남긴다.
  */
 const TODAY_LABEL = '오늘';
+const TOMORROW_LABEL = '내일';
 
-/** 오늘은 쉬는 날. 이유만 다르고 모양은 늘 같다. */
-function restDay(asOf: string, reason: string): DayPlan {
+/** 쉬는 날. 이유만 다르고 모양은 늘 같다. */
+function restDay(dateKey: string, label: string, reason: string): DayPlan {
   return {
-    dateKey: asOf,
-    label: TODAY_LABEL,
+    dateKey,
+    label,
     throwing: false,
+    minPitches: null,
     maxPitches: null,
+    minIntensity: null,
     maxIntensity: null,
     reason,
   };
+}
+
+/** YYYY-MM-DD 의 다음 날 */
+function nextDayKey(key: string): string {
+  const [y, m, d] = key.split('-').map(Number);
+  return new Date(Date.UTC(y, m - 1, d + 1)).toISOString().slice(0, 10);
 }
 
 export function buildPitchPlan(facts: ReportFacts): PitchPlan {
@@ -211,7 +293,9 @@ export function buildPitchPlan(facts: ReportFacts): PitchPlan {
       halted: true,
       haltReason:
         '오늘 체크인에 통증이 기록되어 있습니다. 통증이 있는 동안에는 투구 계획을 제공하지 않습니다. 통증이 이어지면 전문의 진료를 받아보세요. 통증이 가라앉았다면 오늘 체크인을 다시 저장해주세요.',
-      today: restDay(facts.asOf, '통증 기록'),
+      today: restDay(facts.asOf, TODAY_LABEL, '통증 기록'),
+      tomorrow: null,
+      threwToday: false,
       recovering: false,
       needsPainCheck: false,
       basis: ['오늘 체크인 통증 → 계획 중단'],
@@ -225,7 +309,9 @@ export function buildPitchPlan(facts: ReportFacts): PitchPlan {
       halted: true,
       haltReason:
         '최근 체크인에 통증이 기록되어 있습니다. 지금 어떤 상태인지 알 수 없어 계획을 내지 않았습니다. 오늘 체크인을 남겨주시면 상태에 맞춰 다시 계획을 만듭니다. 통증이 이어지면 전문의 진료를 받아보세요.',
-      today: restDay(facts.asOf, '통증 확인 필요'),
+      today: restDay(facts.asOf, TODAY_LABEL, '통증 확인 필요'),
+      tomorrow: null,
+      threwToday: false,
       recovering: false,
       needsPainCheck: false,
       basis: ['최근 통증 기록 + 오늘 체크인 없음 → 계획 중단'],
@@ -277,7 +363,6 @@ export function buildPitchPlan(facts: ReportFacts): PitchPlan {
     lastOuting >= HIGH_VOLUME_PITCHES ? HIGH_VOLUME_MIN_REST : 0
   );
   const restedSoFar = patterns.restDays ?? 99;
-  const remainingRest = remainingRestDays(patterns);
 
   if (needRest > 0 && patterns.lastThrowDate) {
     // 환산값이 실제 투구수와 다르면 둘 다 보여준다. 안 그러면 숫자가 어디서 왔는지 모른다.
@@ -358,25 +443,48 @@ export function buildPitchPlan(facts: ReportFacts): PitchPlan {
    * 남긴다 — longestStreak 는 최근 4주의 최장 연투라, 그것만으로 오늘을
    * 쉬라고 하면 넉 주 전 일로 오늘을 막는 셈이 된다.
    */
-  const today: DayPlan = needsPainCheck
-    ? restDay(facts.asOf, '메모의 통증 표현 확인 필요')
-    : remainingRest > 0
-      ? restDay(facts.asOf, `마지막 등판(${lastOuting}구) 회복 중`)
-      : {
-          dateKey: facts.asOf,
-          label: TODAY_LABEL,
-          throwing: true,
-          maxPitches: target,
-          maxIntensity: adj.maxIntensity,
-          reason: adj.label,
-        };
+  /*
+   * 하루를 만드는 틀. 오늘과 내일은 다른 것이 다 같고 '얼마나 쉬었는가'만
+   * 다르다 — 내일은 하루 더 쉰 셈이다.
+   *
+   * "오늘 계획대로 던졌다면 내일은" 같은 가정은 두지 않는다. 계획대로 던졌다면
+   * 기록을 남겼을 것이고, 기록이 없다는 것은 안 던졌다는 뜻이다. 가정으로
+   * 내일을 낮춰 두면, 오늘 쉬고 내일 던지려는 사람에게 근거 없이 적은 숫자를
+   * 주게 된다.
+   */
+  const dayFor = (dateKey: string, label: string, rested: number): DayPlan => {
+    if (needsPainCheck) {
+      return restDay(dateKey, label, '메모의 통증 표현 확인 필요');
+    }
+    if (needRest - rested > 0) {
+      return restDay(dateKey, label, `마지막 등판(${lastOuting}구) 회복 중`);
+    }
+    const pitches = pitchRange(target);
+    return {
+      dateKey,
+      label,
+      throwing: true,
+      minPitches: pitches.min,
+      maxPitches: pitches.max,
+      minIntensity: Math.max(
+        MIN_MEANINGFUL_INTENSITY,
+        adj.maxIntensity - INTENSITY_SPAN,
+      ),
+      maxIntensity: adj.maxIntensity,
+      reason: adj.label,
+    };
+  };
+
+  const threwToday = patterns.lastThrowDate === facts.asOf;
 
   return {
     halted: false,
     haltReason: null,
     recovering,
     needsPainCheck,
-    today,
+    threwToday,
+    today: threwToday ? null : dayFor(facts.asOf, TODAY_LABEL, restedSoFar),
+    tomorrow: dayFor(nextDayKey(facts.asOf), TOMORROW_LABEL, restedSoFar + 1),
     basis,
     youthNote,
   };
@@ -389,14 +497,18 @@ export function buildPitchPlan(facts: ReportFacts): PitchPlan {
  * 때에 저장된 것은 today 가 없고 days 배열이 있다. 그대로 읽으면 화면이
  * 터지므로 여기서 옛 모양을 오늘 하나로 옮겨 준다.
  *
+ * 내일과 범위가 없던 때의 것도 그대로 읽힌다. 없는 값은 null 로 채우고,
+ * 화면은 pitchRangeText 로 읽어 범위가 없으면 '60구 이하'로 낸다.
+ *
  * 모양을 알 수 없으면 null 이다 — 억지로 읽으려 하면 값이 비어 곳곳에서
  * 터진다. 다시 만들라고 하는 편이 낫다.
  */
 export function readPitchPlan(value: unknown): PitchPlan | null {
   if (!value || typeof value !== 'object') return null;
   const plan = value as Partial<PitchPlan> & { days?: DayPlan[] };
-  if (plan.today) return plan as PitchPlan;
+  const filled = { tomorrow: null, threwToday: false, ...plan };
+  if (filled.today || filled.tomorrow) return filled as PitchPlan;
   const first = plan.days?.[0];
   if (!first) return null;
-  return { ...(plan as PitchPlan), today: first };
+  return { ...filled, today: first } as PitchPlan;
 }

@@ -3,6 +3,10 @@ import { prisma } from '@/lib/prisma';
 import { requireUser } from '@/lib/dal';
 import { gatherFactsAndPlan } from '@/lib/report/gather';
 import { toDateKey } from '@/lib/pitch-stats';
+import {
+  intensityRangeText,
+  pitchRangeText,
+} from '@/lib/report/plan';
 import type { PlanNoteData } from '@/components/plan-note';
 import type { PitchMetric } from '@/lib/pose/measure';
 import type { SavedAnalysisView } from '@/lib/pose/saved';
@@ -79,8 +83,8 @@ export default async function PitchLogDayPage({
     date === todayKey && todayPlanDay && !plan.halted
       ? {
           throwing: todayPlanDay.throwing,
-          maxPitches: todayPlanDay.maxPitches,
-          maxIntensity: todayPlanDay.maxIntensity,
+          pitches: pitchRangeText(todayPlanDay),
+          intensity: intensityRangeText(todayPlanDay),
           reason: todayPlanDay.reason,
         }
       : null;

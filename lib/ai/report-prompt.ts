@@ -1,7 +1,12 @@
 import { z } from 'zod';
 import { ACWR_ZONES } from '@/lib/pitch-stats';
 import type { ReportFacts } from '@/lib/report/facts';
-import type { PitchPlan } from '@/lib/report/plan';
+import {
+  intensityRangeText,
+  pitchRangeText,
+  type DayPlan,
+  type PitchPlan,
+} from '@/lib/report/plan';
 import { summarizeParts } from '@/lib/checkin';
 
 /**
@@ -48,6 +53,11 @@ export const SYSTEM_PROMPT = `당신은 야구 투수의 훈련 부하를 관리
 반드시 지킬 것:
 1. 투구수·강도·일수는 이미 계획에 정해져 있습니다. 계획과 다른 수치를 제안하지 마세요.
 2. 계획에 없는 새로운 숫자를 만들어내지 마세요. 주어진 수치만 인용할 수 있습니다.
+2-1. 투구수와 강도는 범위로 주어집니다('40~60구', '강도 6~8'). 범위 그대로 쓰세요.
+   한쪽 끝만 골라 '60구'라고 쓰거나, 범위 안의 다른 숫자('50구')를 만들지 마세요.
+   범위 안 어디쯤이 좋을지는 그날 컨디션과 부하로 설명해도 됩니다.
+2-2. 계획에 오늘이 없으면(이미 던진 날) 오늘 몇 구를 던지라고 쓰지 마세요.
+   이미 벌어진 일입니다. 내일 이야기를 하세요.
 3. 계획이 투구량을 줄이라고 하면 늘리거나 유지하라고 쓰지 마세요. 그 반대도 마찬가지입니다.
 4. 진단하지 마세요. 부상명·질환명을 추측하거나 언급하지 않습니다.
 5. 통증이 언급되면 훈련 조언 대신 휴식과 전문의 상담을 안내하세요.
@@ -70,6 +80,14 @@ export const SYSTEM_PROMPT = `당신은 야구 투수의 훈련 부하를 관리
 - 존댓말, 담백하고 단정하게. 과장하거나 몰아붙이지 않습니다.
 - 선수를 격려하되 근거 없는 칭찬은 하지 않습니다.
 - 각 문장은 받은 수치에 근거해야 합니다.`;
+
+/** 계획 한 줄 — 던지는 날은 범위로, 쉬는 날은 까닭만. */
+function planLine(day: DayPlan): string {
+  const head = `- ${day.label}(${day.dateKey})`;
+  return day.throwing
+    ? `${head}: 투구 가능, ${pitchRangeText(day)}, ${intensityRangeText(day)} — ${day.reason}`
+    : `${head}: 휴식 — ${day.reason}`;
+}
 
 /** AI에게 넘길 자료를 사람이 읽을 수 있는 형태로 정리한다. */
 /**
@@ -224,11 +242,19 @@ export function buildUserPrompt(
   lines.push(
     `\n# 확정된 투구 계획 (규칙으로 계산됨 — 이 수치를 그대로 써야 합니다)`
   );
-  lines.push(
-    plan.today.throwing
-      ? `- 오늘(${plan.today.dateKey}): 투구 가능, 최대 ${plan.today.maxPitches}구, 강도 ${plan.today.maxIntensity} 이하 — ${plan.today.reason}`
-      : `- 오늘(${plan.today.dateKey}): 휴식 — ${plan.today.reason}`
-  );
+  /*
+   * 오늘 이미 던졌으면 오늘 줄이 아예 없다. 없는 줄을 두고 "오늘은 이미
+   * 던졌습니다"라고 적어 주면, 그것도 하나의 수치처럼 읽혀 오늘 이야기를
+   * 다시 시작한다. 사실만 한 줄 남기고 계획은 내일 것만 준다.
+   */
+  if (plan.threwToday) {
+    lines.push(
+      `- 오늘(${facts.asOf})은 이미 던진 기록이 있습니다. 오늘 몫의 계획은 없습니다.`
+    );
+  }
+  for (const day of [plan.today, plan.tomorrow]) {
+    if (day) lines.push(planLine(day));
+  }
   lines.push(`\n## 이 계획이 나온 근거`);
   for (const b of plan.basis) lines.push(`- ${b}`);
   if (plan.youthNote) lines.push(`- ${plan.youthNote}`);
@@ -323,7 +349,10 @@ export function checkPitchCounts(
   plan: PitchPlan
 ): { ok: true } | { ok: false; offending: number[] } {
   const allowed = new Set<number>();
-  if (plan.today.maxPitches != null) allowed.add(plan.today.maxPitches);
+  for (const day of [plan.today, plan.tomorrow]) {
+    if (day?.minPitches != null) allowed.add(day.minPitches);
+    if (day?.maxPitches != null) allowed.add(day.maxPitches);
+  }
   allowed.add(facts.volume.current.totalPitches);
   allowed.add(facts.volume.previous.totalPitches);
   allowed.add(facts.volume.current.maxDailyPitches);

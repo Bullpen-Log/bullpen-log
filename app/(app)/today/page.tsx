@@ -2,6 +2,10 @@ import { ClipboardList, Dumbbell, Settings2, Target } from 'lucide-react';
 import { prisma } from '@/lib/prisma';
 import { requireUser } from '@/lib/dal';
 import { gatherFactsAndPlan } from '@/lib/report/gather';
+import {
+  intensityRangeText,
+  pitchRangeText,
+} from '@/lib/report/plan';
 import { loadTodayCore } from '@/lib/report/today-data';
 import { DEFAULT_WORKOUT_MINUTES } from '@/lib/report/theme';
 import { availableParts } from '@/lib/report/today-pick';
@@ -220,7 +224,7 @@ export default async function HomePage() {
     lines: [
       showPlannedToday
         ? plannedToday.throwing
-          ? `계획 ${plannedToday.maxPitches}구 이하 · 강도 ${plannedToday.maxIntensity} 이하`
+          ? `계획 ${pitchRangeText(plannedToday)} · ${intensityRangeText(plannedToday)}`
           : '계획 휴식'
         : '계획을 낼 만큼 기록이 쌓이지 않았습니다',
       todayLog
@@ -467,7 +471,16 @@ export default async function HomePage() {
               바로 아래 "45구 기록" 옆에 "오늘 계획: 휴식"이 있으면 서로 어긋나
               보인다. 아침에 본 계획을 그대로 두고, 넘겼으면 아래에서 알린다.
             */}
-            {showPlannedToday && <PlanNote plan={plannedToday} />}
+            {showPlannedToday && (
+              <PlanNote
+                plan={{
+                  throwing: plannedToday.throwing,
+                  pitches: pitchRangeText(plannedToday),
+                  intensity: intensityRangeText(plannedToday),
+                  reason: plannedToday.reason,
+                }}
+              />
+            )}
             <TodayRecord
               date={core.todayKey}
               log={todayLog}

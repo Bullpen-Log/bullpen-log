@@ -10,7 +10,11 @@ import {
   Sun,
 } from 'lucide-react';
 import { ACWR_ZONES, ACWR_ZONE_ORDER, type AcwrZone } from '@/lib/pitch-stats';
-import type { PitchPlan } from '@/lib/report/plan';
+import {
+  intensityRangeText,
+  pitchRangeText,
+  type PitchPlan,
+} from '@/lib/report/plan';
 
 /*
  * 상태 색과 칩은 components/tone.tsx 로 옮겼다. 홈에서도 부하 상태를 보여주게
@@ -488,13 +492,10 @@ export function TodayPlanLine({ plan }: { plan: PitchPlan }) {
         <span className="flex items-baseline gap-1.5">
           <Sun className="h-4 w-4 self-center text-sky" />
           <span className="text-display text-2xl leading-none text-sky tabular-nums">
-            {today.maxPitches}
+            {pitchRangeText(today)}
           </span>
-          <span className="text-sm text-muted">구 이하</span>
           <span className="mx-1 text-line-strong">·</span>
-          <span className="text-sm text-muted">
-            강도 <span className="text-ink">{today.maxIntensity}</span> 이하
-          </span>
+          <span className="text-sm text-muted">{intensityRangeText(today)}</span>
         </span>
       ) : (
         <span className="flex items-center gap-2 text-base font-bold text-sky-strong">

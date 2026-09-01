@@ -1,49 +1,45 @@
 /**
- * 리포트를 언제 만들 수 있는가.
+ * 리포트를 언제 만들 수 있는가 — 하루에 한 번.
  *
- * 예전에는 하루에 한 번이었다. 그런데 하루 사이에 달라지는 것이 거의 없어서,
- * 어제 리포트와 오늘 리포트가 거의 같은 말을 했다. 같은 말을 다시 읽게 하면
- * 읽는 습관이 사라진다(만들 때마다 AI 비용도 든다).
+ * 한동안은 날짜가 아니라 투구 기록 수로 셌다(세 번 쌓이면 한 번). 하루 사이에
+ * 달라지는 것이 거의 없어 어제와 오늘이 같은 말을 하는 것이 싫어서였다.
  *
- * 그래서 날짜가 아니라 기록 수로 센다. 투구 기록이 세 번 더 쌓이면 그때
- * 새로 만든다 — 그쯤이면 부하도 패턴도 실제로 달라져 있다.
+ * 그런데 리포트가 하는 말이 바뀌었다. 예전에는 '요즘 어떻게 던지고 있는가'를
+ * 돌아보는 글이라 며칠에 한 번이면 충분했지만, 지금은 오늘과 내일 몇 구까지
+ * 던져도 되는지를 낸다. 그것은 날마다 달라진다 — 어제 60구를 던졌으면 오늘은
+ * 쉬어야 하고, 오늘 쉬었으면 내일은 던질 수 있다. 사흘 전 숫자를 오늘 보고
+ * 있으면 안 보느니만 못하다.
  *
- * 처음에는 다섯이었다. 주 2~3회 던지는 사람에게는 두 주가 걸려, 만들 수 있게
- * 될 때쯤에는 그사이 무슨 일이 있었는지 기억이 흐려졌다. 셋이면 한 주에 한
- * 번쯤이라 읽는 습관이 붙는다.
+ * 그래서 날짜로 되돌린다. 대신 하루 한 번으로 잠근다 — 부를 때마다 AI 비용이
+ * 실제로 나가고, 같은 날 두 번 만들어도 근거가 되는 기록이 그대로다.
  */
-
-/** 리포트를 새로 만들려면 필요한 새 투구 기록 수 */
-export const REPORT_EVERY_PITCH_LOGS = 3;
 
 export type ReportReadiness = {
   /** 지금 만들 수 있는가 */
   ready: boolean;
-  /** 마지막 리포트 이후 쌓인 투구 기록 수 */
-  newRecords: number;
-  /** 몇 개 더 있어야 하는가 */
-  remaining: number;
+  /** 오늘 몫을 이미 만들었는가 */
+  madeToday: boolean;
   /** 화면에 그대로 쓰는 한 줄 */
   message: string;
 };
 
+/**
+ * @param todayKey 오늘 (YYYY-MM-DD)
+ * @param lastReportAsOf 마지막 리포트의 기준일 (YYYY-MM-DD). 하나도 없으면 null
+ */
 export function reportReadiness(
-  newRecords: number,
-  hasReport: boolean
+  todayKey: string,
+  lastReportAsOf: string | null
 ): ReportReadiness {
-  const remaining = Math.max(0, REPORT_EVERY_PITCH_LOGS - newRecords);
-  const ready = remaining === 0;
+  const madeToday = lastReportAsOf === todayKey;
 
   return {
-    ready,
-    newRecords,
-    remaining,
-    message: ready
-      ? hasReport
-        ? `투구 기록이 ${newRecords}번 쌓였습니다. 새로 만들 수 있습니다.`
-        : `투구 기록이 ${newRecords}번 쌓였습니다. 첫 리포트를 만들 수 있습니다.`
-      : hasReport
-        ? `리포트를 만든 뒤 투구 기록이 ${newRecords}번 쌓였습니다. ${remaining}번 더 기록하면 새로 만들 수 있습니다.`
-        : `투구 기록 ${REPORT_EVERY_PITCH_LOGS}번이 모이면 첫 리포트를 만들 수 있습니다. ${remaining}번 남았습니다.`,
+    ready: !madeToday,
+    madeToday,
+    message: madeToday
+      ? '오늘 리포트를 이미 만들었습니다. 내일 다시 만들 수 있습니다.'
+      : lastReportAsOf
+        ? '오늘 리포트를 만들 수 있습니다.'
+        : '첫 리포트를 만들 수 있습니다.',
   };
 }

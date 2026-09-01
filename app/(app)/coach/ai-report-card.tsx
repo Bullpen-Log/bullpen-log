@@ -12,11 +12,15 @@ import {
 } from 'lucide-react';
 import { generateAiReport, type AiReportState } from '@/app/actions/ai-report';
 import {
-  REPORT_EVERY_PITCH_LOGS,
   type ReportReadiness,
 } from '@/lib/report/cadence';
 import type { AiReportBody } from '@/lib/ai/report-prompt';
-import type { PitchPlan } from '@/lib/report/plan';
+import {
+  intensityRangeText,
+  pitchRangeText,
+  type DayPlan,
+  type PitchPlan,
+} from '@/lib/report/plan';
 
 export type StoredReport = {
   asOf: string;
@@ -48,7 +52,7 @@ function GenerateButton({ label }: { label: string }) {
 }
 
 /** 하루치 계획 한 줄 */
-function DayRow({ day }: { day: PitchPlan['today'] }) {
+function DayRow({ day }: { day: DayPlan }) {
   return (
     <div
       className={`flex flex-wrap items-center gap-x-3 gap-y-1 rounded-xl border px-4 py-3 ${
@@ -68,13 +72,10 @@ function DayRow({ day }: { day: PitchPlan['today'] }) {
         <span className="flex items-baseline gap-1.5">
           <Sun className="h-3.5 w-3.5 self-center text-sky" />
           <span className="text-display text-xl leading-none text-sky tabular-nums">
-            {day.maxPitches}
+            {pitchRangeText(day)}
           </span>
-          <span className="text-xs text-muted">구 이하</span>
           <span className="mx-1 text-line-strong">·</span>
-          <span className="text-xs text-muted">
-            강도 <span className="text-ink">{day.maxIntensity}</span> 이하
-          </span>
+          <span className="text-xs text-muted">{intensityRangeText(day)}</span>
         </span>
       ) : (
         <span className="flex items-center gap-1.5 text-sm font-medium text-sky-strong">
@@ -171,17 +172,18 @@ export function ReportBody({ report }: { report: StoredReport }) {
           </Section>
 
           {/*
-            코드가 계산한 오늘 안내 — 리포트의 근거.
+            코드가 계산한 안내 — 리포트의 근거.
 
-            예전에는 오늘·내일·모레 사흘치를 그렸다. 다음 경기가 언제인지도
-            모르는 사람에게 모레 계획은 지어낸 이야기였다.
+            오늘 이미 던졌으면 오늘 줄이 없다. 이미 벌어진 일에 몇 구를 던지라고
+            하는 것은 조언이 아니다. 그때는 내일 하나만 남는다.
           */}
-          {plan && (
+          {plan && (plan.today || plan.tomorrow) && (
             <div className="space-y-2">
               <p className="text-[11px] font-medium tracking-normal text-muted">
-                오늘 안내
+                {plan.threwToday ? '내일 안내' : '오늘·내일 안내'}
               </p>
-              <DayRow day={plan.today} />
+              {plan.today && <DayRow day={plan.today} />}
+              {plan.tomorrow && <DayRow day={plan.tomorrow} />}
             </div>
           )}
 
@@ -342,17 +344,9 @@ export function AiReportCard({
           단추만 없으면 고장 난 것으로 보인다.
         */}
         {aiReady && !readiness.ready && (
-          <div className="rounded-xl border border-dashed border-line px-4 py-6 text-center">
-            <p className="text-sm leading-relaxed text-muted">{readiness.message}</p>
-            <div className="mx-auto mt-3 h-1.5 max-w-56 overflow-hidden rounded-full bg-surface-2">
-              <div
-                className="h-full rounded-full bg-sky/60"
-                style={{
-                  width: `${(readiness.newRecords / REPORT_EVERY_PITCH_LOGS) * 100}%`,
-                }}
-              />
-            </div>
-          </div>
+          <p className="rounded-xl border border-dashed border-line px-4 py-6 text-center text-sm leading-relaxed text-muted">
+            {readiness.message}
+          </p>
         )}
 
         {aiReady && readiness.ready && !report && (
@@ -361,7 +355,7 @@ export function AiReportCard({
           </p>
         )}
 
-        {/* 이미 만든 리포트가 있는데 새 기록이 쌓인 경우 */}
+        {/* 어제까지의 리포트가 있고, 오늘 몫은 아직 안 만든 경우 */}
         {aiReady && readiness.ready && report && (
           <p className="rounded-lg border border-sky-soft/60 bg-sky-tint px-4 py-2.5 text-xs leading-relaxed text-sky-strong">
             {readiness.message}
