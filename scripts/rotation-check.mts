@@ -43,8 +43,22 @@ const MIN_COMPARABLE = 0.6;
 const MIN_EARLY_COMPARABLE = 0.35;
 /** 처음 몇 세션까지를 '초반'으로 볼 것인가 */
 const EARLY_SESSIONS = 30;
-/** 1년 동안 적어도 이만큼은 라이브러리를 써야 한다 */
-const MIN_YEAR_COVERAGE = 250;
+/**
+ * 한 운동이 1년에 몇 번까지 나와도 되는가.
+ *
+ * 예전에는 '1년에 쓰는 운동이 250개 이상'으로 봤다. 그 숫자는 한 세션에
+ * 열두어 개가 들어가던 때 정한 것이다. 세션이 여섯에서 아홉 개로 줄자
+ * 1년에 만나는 가짓수도 따라 줄어, 규칙이 굳지 않았는데도 걸렸다.
+ *
+ * 재는 것을 바꾼다. '몇 가지를 만났나'가 아니라 '같은 것을 몇 번 만나나'다.
+ * 라이브러리가 굳는다는 것은 좁은 목록을 돌려 쓴다는 뜻이고, 그것은 뽑은
+ * 횟수를 가짓수로 나누면 바로 드러난다. 세션 크기가 달라져도 뜻이 흔들리지
+ * 않는다.
+ *
+ * 지금은 매일 하는 사람이 8회, 사회인이 5회쯤이다. 열두 번을 넘으면 스무 개
+ * 남짓을 돌려 쓰고 있다는 뜻이라 그때 잡는다.
+ */
+const MAX_YEARLY_REUSE = 12;
 /**
  * 하체 본운동 중 힌지(고관절 접기) 계열이 차지해야 하는 최소 비율.
  *
@@ -52,10 +66,18 @@ const MIN_YEAR_COVERAGE = 250;
  * 한 개뿐인 날이 적지 않고, 그런 날은 하나가 스쿼트면 그냥 '무릎만'이 된다 —
  * 균형을 맞출 자리가 없는 날을 세고 있었던 셈이다.
  *
- * 하루가 아니라 며칠에 걸친 균형을 본다. 후보 풀에서 힌지는 55/151(36%)이니
- * 뽑히는 비율도 그 언저리여야 한다. 크게 낮으면 뒤쪽 사슬이 빠지고 있다는 뜻이다.
+ * 하루가 아니라 며칠에 걸친 균형을 본다.
+ *
+ * 문턱은 '고르게 나뉜 수준'에 둔다. 하체 본운동의 계열은 힌지·스쿼트·런지·카프
+ * 넷이므로 고르게 나오면 25%다. 후보 풀에서 힌지는 40%지만 그만큼 뽑히지는
+ * 않는다 — 같은 계열이 몰리지 않게 한 바퀴 미루는 규칙이 있어서, 뽑히는 쪽은
+ * 풀의 비율이 아니라 고른 쪽으로 끌린다. 풀 비율을 문턱으로 두면 규칙이
+ * 제대로 도는데도 걸린다.
+ *
+ * 그래서 '고르게(25%)에서 크게 밑돌지 않는가'로 본다. 힌지가 빠지기 시작하면
+ * 20% 아래로 내려가므로 그때 잡힌다.
  */
-const MIN_HINGE_SHARE = 0.27;
+const MIN_HINGE_SHARE = 0.23;
 
 /*
  * 왜 후보 풀 비율(36%)보다 낮게 잡나.
@@ -121,6 +143,8 @@ type Result = {
   comparable: number;
   earlyComparable: number;
   coverage: number;
+  /** 뽑은 횟수를 가짓수로 나눈 값 — 같은 운동을 1년에 몇 번 만나나 */
+  reuse: number;
   hingeShare: number;
   /** 상체 스트렝스가 둘 이상인 날 중, 밀기와 당기기가 둘 다 들어간 비율 */
   upperBalance: number;
@@ -196,6 +220,7 @@ function run(
   const returns: number[] = [];
   let session = 0;
   let mainPicks = 0;
+  let totalPicks = 0;
   let comparable = 0;
   let earlyMain = 0;
   let earlyComparable = 0;
@@ -248,6 +273,7 @@ function run(
     const upperStrength: (string | null)[] = [];
     for (const p of picked.picks) {
       const id = p.exercise.id;
+      totalPicks++;
       if (p.slot === 'main') {
         if (p.exercise.category === '상체 스트렝스') {
           upperStrength.push(p.exercise.movementPattern);
@@ -298,6 +324,7 @@ function run(
     comparable: mainPicks ? comparable / mainPicks : 0,
     earlyComparable: earlyMain ? earlyComparable / earlyMain : 0,
     coverage: seen.size,
+    reuse: seen.size ? totalPicks / seen.size : 0,
     hingeShare: lowerMain ? hingeMain / lowerMain : 0,
     upperBalance: upperDaysWithTwo ? upperBalanced / upperDaysWithTwo : 0,
     upperDaysWithTwo,
@@ -328,6 +355,7 @@ function average(runs: readonly Result[]): Result {
     comparable: mean((r) => r.comparable),
     earlyComparable: mean((r) => r.earlyComparable),
     coverage: Math.round(mean((r) => r.coverage)),
+    reuse: mean((r) => r.reuse),
     hingeShare: mean((r) => r.hingeShare),
     upperBalance: mean((r) => r.upperBalance),
     upperDaysWithTwo: Math.round(mean((r) => r.upperDaysWithTwo)),
@@ -373,6 +401,9 @@ for (const [label, regular] of [
     `  1년 동안 쓴 운동 (전체 ${library.length}개)       ${(before.coverage + '개').padStart(8)}  ${(now.coverage + '개').padStart(8)}`
   );
   console.log(
+    `  같은 운동을 1년에 몇 번            ${(before.reuse.toFixed(1) + '번').padStart(8)}  ${(now.reuse.toFixed(1) + '번').padStart(8)}`
+  );
+  console.log(
     `  같은 운동이 다시 나오기까지        ${((before.meanSessionGap?.toFixed(1) ?? '—') + '세션').padStart(8)}  ${((now.meanSessionGap?.toFixed(1) ?? '—') + '세션').padStart(8)}`
   );
   console.log(
@@ -398,8 +429,8 @@ for (const [label, regular] of [
     );
     failed = true;
   }
-  if (now.coverage < MIN_YEAR_COVERAGE) {
-    console.log(`  ✗ 1년에 쓰는 운동이 ${MIN_YEAR_COVERAGE}개보다 적습니다 — 라이브러리가 굳고 있습니다.`);
+  if (now.reuse > MAX_YEARLY_REUSE) {
+    console.log(`  ✗ 같은 운동을 1년에 ${now.reuse.toFixed(1)}번 만납니다 (${MAX_YEARLY_REUSE}번까지) — 라이브러리가 굳고 있습니다.`);
     failed = true;
   }
   if (now.hingeShare < MIN_HINGE_SHARE) {

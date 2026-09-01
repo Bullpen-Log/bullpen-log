@@ -24,6 +24,7 @@ import {
   pickForTheme,
   SLOT_LABELS,
   SLOT_ORDER,
+  compositionFor,
   type SlotKey,
 } from '../lib/report/theme.ts';
 
@@ -94,9 +95,20 @@ for (const level of TRAINING_LEVELS) {
       doneIds: new Set<string>(),
       goal: '파워 향상',
     });
-    // 구간이 통째로 비면 문제로 본다.
+    /*
+     * 구간이 통째로 비면 문제로 본다.
+     *
+     * 있는 구간만 본다. 예전에는 다섯 구간을 모두 기대했는데, 웨이트 날이
+     * 워밍업·본운동·암케어 셋으로 줄면서 있지도 않은 코어·보강을 '비었다'고
+     * 잡았다. 검사는 그 날이 실제로 쓰는 구성을 기준으로 봐야 한다.
+     */
+    const wanted = compositionFor(
+      'lower',
+      '파워 향상',
+      effectiveMinutes('lower', MINUTES)
+    ).map((spec) => spec.slot);
     const slots = new Set(picks.map((p) => p.slot));
-    const missing = SLOT_ORDER.filter((s) => !slots.has(s));
+    const missing = wanted.filter((s) => !slots.has(s));
     if (missing.length > 0) failed++;
     console.log(
       `  ${missing.length ? '❌' : '  '} ${level.name.padEnd(4)} ${eq.label.padEnd(10)} 후보 ${String(leveled.pool.length).padStart(3)}개 → ${String(estimatedMinutes).padStart(2)}분 · ${picks.length}개` +

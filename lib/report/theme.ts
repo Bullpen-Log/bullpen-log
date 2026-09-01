@@ -77,14 +77,25 @@ export const RECOVERY_MAX_MINUTES = 40;
 /**
  * 종목을 바꾸는 데 드는 시간(분).
  *
- * 세트 사이 휴식만 세고 있었다. 자리를 옮기고, 덤벨을 찾고, 무게를 갈고, 다음
- * 것이 무엇인지 보는 시간이 통째로 빠져 있었다. 그래서 "59분"이라고 계산한
- * 60분 세션에 종목이 열넷 들어갔고, 실제로 하면 한 시간 반 가까이 걸렸다.
+ * 세트 사이 휴식만 세고 있었다. 자리를 옮기고, 장비를 챙기고, 무게를 갈고,
+ * 다음 것이 무엇인지 보는 시간이 통째로 빠져 있었다. 그래서 "59분"이라고
+ * 계산한 60분 세션에 종목이 열넷 들어갔고, 실제로 하면 한 시간 반이 걸렸다.
  *
- * 종목당 1분으로 잡는다. 넉넉하지는 않지만, 이것만 넣어도 한 시간에 열넷이
- * 들어가는 일은 없어진다. 계산이 현실보다 짧으면 시간을 지킬 수가 없다.
+ * 무게를 드는 운동은 더 든다. 봉을 끼우고 원판을 갈고, 무엇보다 본세트 전에
+ * 가벼운 무게로 두어 세트를 먼저 한다 — 앱이 그 준비 세트를 따로 세지 않으므로
+ * 여기서 함께 먹는다.
  */
-export const TRANSITION_MINUTES = 1;
+const HEAVY_CATEGORIES = ['상체 스트렝스', '하체 스트렝스', '파워'];
+/** 무게를 드는 운동 */
+export const HEAVY_TRANSITION_MINUTES = 4;
+/** 나머지 — 매트를 옮기고 밴드를 바꾸는 정도 */
+export const TRANSITION_MINUTES = 3;
+
+function transitionFor(category: string): number {
+  return HEAVY_CATEGORIES.includes(category)
+    ? HEAVY_TRANSITION_MINUTES
+    : TRANSITION_MINUTES;
+}
 
 /**
  * 운동 하나에 걸리는 대략의 시간(분).
@@ -104,7 +115,7 @@ export function estimateMinutes(
   sets?: number
 ): number {
   const measured = minutesForSets(ex, sets);
-  if (measured != null) return measured + TRANSITION_MINUTES;
+  if (measured != null) return measured + transitionFor(ex.category);
 
   const level = intensityLevel(ex.intensity);
   /*
@@ -461,44 +472,73 @@ type SlotSpec = {
  * 부하가 좋은 날에만 안전 필터를 통과하므로 자연스럽게 좋은 날에만 나온다.
  * 영상이 더 채워지면 전용 테마로 승격하면 된다.
  */
+/*
+ * 하체날·상체날은 세 구간만 쓴다 — 워밍업 · 본운동 · 암케어.
+ *
+ * 예전에는 코어와 보강까지 다섯 구간을 다 채웠다. 그러니 한 시간에 아홉
+ * 종목이 되고, 정작 무게를 드는 운동은 셋뿐이었다. 한 시간에 종목 아홉을
+ * 3세트씩 하는 사람은 없다.
+ *
+ * 하는 일 기준으로 자른다. 웨이트 하는 날은 무게를 들고, 어깨는 매일 챙긴다.
+ * 코어와 고관절 보강은 보조 데이와 회복 데이가 맡는다 — 투구가 많아 무게를
+ * 못 드는 날에 할 일이 그쪽이다.
+ *
+ * 빠진 몫(코어 0.12 + 보강 0.08)은 본운동과 암케어로 갔다.
+ */
+/**
+ * '부상 방지'를 고른 날의 구성.
+ *
+ * 무게를 드는 운동과 파워를 통째로 뺀다. 몸을 지키려고 고른 날인데 스쿼트와
+ * 점프가 나오면 목표와 반대다. 예전에는 본운동을 0.7배로 줄이기만 했는데,
+ * 줄인 것도 결국 무게를 드는 운동이었다.
+ *
+ * 남는 것은 몸 풀기 · 코어 · 고관절 보강 · 어깨 관리다. 하체날이든 상체날이든
+ * 같다 — 이 날은 부위를 나눠 하는 날이 아니다.
+ */
+const PREVENTION_COMPOSITION: SlotSpec[] = [
+  { slot: 'warmup', share: 0.15, categories: ['모빌리티'], maxCount: 3 },
+  { slot: 'core', share: 0.25, categories: ['코어'], maxCount: 4 },
+  { slot: 'prehab', share: 0.3, categories: ['회복 및 보강'], maxCount: 5 },
+  { slot: 'armcare', share: 0.3, categories: ['암케어'], maxCount: 5 },
+];
+
+/** 이 목표를 고르면 구성 자체가 달라진다 */
+const PREVENTION_GOAL = '부상 방지';
+
 const COMPOSITIONS: Record<ThemeKey, SlotSpec[]> = {
   lower: [
-    { slot: 'warmup', share: 0.15, categories: ['모빌리티'], maxCount: 4 },
+    { slot: 'warmup', share: 0.1, categories: ['모빌리티'], maxCount: 2 },
     {
       slot: 'main',
-      share: 0.45,
+      share: 0.7,
       categories: ['하체 스트렝스', '파워'],
       /* 하체날의 파워는 뛰고 미는 계열만 */
       powerPatterns: ['스쿼트', '런지', '힌지'],
       maxCount: 8,
     },
-    { slot: 'core', share: 0.15, categories: ['코어'], maxCount: 4 },
-    { slot: 'prehab', share: 0.1, categories: ['회복 및 보강'], maxCount: 3 },
-    { slot: 'armcare', share: 0.15, categories: ['암케어'], maxCount: 4 },
+    { slot: 'armcare', share: 0.2, categories: ['암케어'], maxCount: 3 },
   ],
   upper: [
-    { slot: 'warmup', share: 0.15, categories: ['모빌리티'], maxCount: 4 },
+    { slot: 'warmup', share: 0.1, categories: ['모빌리티'], maxCount: 2 },
     {
       slot: 'main',
-      share: 0.45,
+      share: 0.7,
       categories: ['상체 스트렝스', '파워'],
       /* 상체날의 파워는 던지는 계열만 — 스쿼트·런지 점프는 하체날 몫이다 */
       powerPatterns: ['밀기', '당기기', '회전'],
       maxCount: 8,
     },
-    { slot: 'core', share: 0.15, categories: ['코어'], maxCount: 4 },
-    { slot: 'prehab', share: 0.1, categories: ['회복 및 보강'], maxCount: 3 },
-    { slot: 'armcare', share: 0.15, categories: ['암케어'], maxCount: 4 },
+    { slot: 'armcare', share: 0.2, categories: ['암케어'], maxCount: 3 },
   ],
   /*
    * 보조 데이는 개수 상한을 넉넉히 둔다. 코어·암케어는 하나에 4분 안팎이라,
    * 90분을 부탁하면 상한에 먼저 걸려 74분밖에 안 나왔다.
    */
   assist: [
-    { slot: 'warmup', share: 0.15, categories: ['모빌리티'], maxCount: 5 },
-    { slot: 'main', share: 0.35, categories: ['코어'], maxCount: 9 },
-    { slot: 'prehab', share: 0.15, categories: ['회복 및 보강'], maxCount: 5 },
-    { slot: 'armcare', share: 0.35, categories: ['암케어'], maxCount: 6 },
+    { slot: 'warmup', share: 0.15, categories: ['모빌리티'], maxCount: 3 },
+    { slot: 'main', share: 0.35, categories: ['코어'], maxCount: 12 },
+    { slot: 'prehab', share: 0.15, categories: ['회복 및 보강'], maxCount: 2 },
+    { slot: 'armcare', share: 0.35, categories: ['암케어'], maxCount: 4 },
   ],
   /*
    * 회복 데이도 상한을 넉넉히 둔다.
@@ -508,10 +548,10 @@ const COMPOSITIONS: Record<ThemeKey, SlotSpec[]> = {
    * 안 나왔다. 회복 운동은 하나에 1~4분이라 개수가 있어야 시간이 찬다.
    */
   recovery: [
-    { slot: 'warmup', share: 0.25, categories: ['모빌리티'], maxCount: 5 },
-    { slot: 'core', share: 0.15, categories: ['코어'], maxCount: 4 },
-    { slot: 'prehab', share: 0.3, categories: ['회복 및 보강'], maxCount: 6 },
-    { slot: 'armcare', share: 0.3, categories: ['암케어'], maxCount: 8 },
+    { slot: 'warmup', share: 0.25, categories: ['모빌리티'], maxCount: 3 },
+    { slot: 'core', share: 0.12, categories: ['코어'], maxCount: 2 },
+    { slot: 'prehab', share: 0.3, categories: ['회복 및 보강'], maxCount: 4 },
+    { slot: 'armcare', share: 0.3, categories: ['암케어'], maxCount: 5 },
   ],
 };
 
@@ -548,7 +588,16 @@ export function compositionFor(
   goalName: string | null,
   minutes?: number
 ): SlotSpec[] {
-  let base: readonly SlotSpec[] = COMPOSITIONS[theme];
+  /*
+   * 부상 방지를 고르면 웨이트 날의 구성을 통째로 바꾼다.
+   *
+   * 보조 데이와 회복 데이는 그대로 둔다 — 이미 무게를 안 드는 구성이고,
+   * 그 날들은 투구량이 정한 것이라 목표가 뒤집을 자리가 아니다.
+   */
+  let base: readonly SlotSpec[] =
+    goalName === PREVENTION_GOAL && (theme === 'lower' || theme === 'upper')
+      ? PREVENTION_COMPOSITION
+      : COMPOSITIONS[theme];
 
   /*
    * 짧은 날은 구간을 줄인다. 남는 구간이 없어지지 않게 최소 둘은 지킨다.
@@ -856,6 +905,8 @@ export function pickForTheme<T extends ThemedExercise>({
   const bySlot = new Map<SlotKey, T[]>(specs.map((s) => [s.slot, []]));
   /* 본운동 후보를 순서까지 정한 채로 들고 있는다 — 남는 시간을 여기서 더 쓴다 */
   let mainPool: T[] = [];
+  /* 본운동이 없는 날(부상 방지·회복)에 남는 시간을 쓸 후보 */
+  const topUpPool = new Map<SlotKey, T[]>();
   /** 여기까지 고른 것의 총 소요(분). 구간을 넘나들며 쌓인다. */
   let totalUsed = 0;
 
@@ -924,6 +975,7 @@ export function pickForTheme<T extends ThemedExercise>({
     }
 
     if (spec.slot === 'main') mainPool = pool;
+    else topUpPool.set(spec.slot, pool);
 
     /*
      * 배분된 시간이 찰 때까지 넣는다.
@@ -1108,10 +1160,22 @@ export function pickForTheme<T extends ThemedExercise>({
    * 스트레칭을 하나 더 하는 것이 아니다. 본운동 상한과 계열 겹침은 그대로
    * 지킨다 — 여기서만 규칙을 풀면 어느 날 밀기만 넷이 나온다.
    */
-  const mainSpec = specs.find((sp) => sp.slot === 'main');
-  const mainPicks = mainSpec ? (bySlot.get('main') ?? []) : [];
+  /*
+   * 어디로 보낼 것인가.
+   *
+   * 본운동이 있으면 거기다. 부상 방지·회복 날에는 본운동이 없어서, 그냥
+   * 본운동만 찾으면 남는 시간이 통째로 버려졌다 — 45분을 부탁했는데 38분치만
+   * 나왔다. 그때는 몫이 가장 큰 구간(대개 보강)으로 보낸다.
+   */
+  const mainSpec =
+    specs.find((sp) => sp.slot === 'main') ??
+    specs.reduce<SlotSpec | undefined>(
+      (best, sp) => (best == null || sp.share > best.share ? sp : best),
+      undefined
+    );
+  const mainPicks = mainSpec ? (bySlot.get(mainSpec.slot) ?? []) : [];
   if (mainSpec && mainPicks.length > 0) {
-    const pool = mainPool;
+    const pool = mainSpec.slot === 'main' ? mainPool : (topUpPool.get(mainSpec.slot) ?? []);
     const usedPatterns = new Set(
       mainPicks
         .filter((ex) => ex.category !== '파워')
