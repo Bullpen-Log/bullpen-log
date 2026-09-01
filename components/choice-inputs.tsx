@@ -71,6 +71,7 @@ export function RadioGroup({
   required,
   /** 수정할 때 미리 고를 값 */
   selected,
+  onChange,
   compact = false,
 }: {
   name: string;
@@ -80,6 +81,13 @@ export function RadioGroup({
   options: readonly { name: string; desc?: string }[];
   required?: boolean;
   selected?: string | null;
+  /**
+   * 고른 것이 바뀔 때 알린다.
+   *
+   * 폼은 그대로 서버로 보내는 방식이라 대개 필요 없다. 다른 칸이 이 값에 따라
+   * 달라질 때만 쓴다 — 훈련 목표를 바꾸면 고를 수 있는 운동 시간이 달라진다.
+   */
+  onChange?: (value: string) => void;
   /**
    * 짧은 항목을 한 줄에 여러 개 늘어놓는다.
    *
@@ -100,6 +108,7 @@ export function RadioGroup({
               value={option.name}
               required={required}
               defaultChecked={selected === option.name}
+              onChange={onChange ? () => onChange(option.name) : undefined}
               className="peer sr-only"
             />
             <span

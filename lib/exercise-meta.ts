@@ -266,6 +266,14 @@ export function isCompound(bodyParts: readonly string[]): boolean {
  */
 export function secondsPerRep(category: string, intensityLevel: number): number {
   if (category === '파워') return 6;
+  /*
+   * 보강은 천천히 조절하는 것이 내용이다.
+   *
+   * 고관절 외회전 한 번, 몬스터 워크 한 걸음을 3초에 끝내는 사람은 없다.
+   * 밴드에 맞서 버티며 가는 것이 이 운동의 전부인데, 빠르게 세면 그 시간이
+   * 통째로 빠진다 — 한 세션에 보강이 네댓 개씩 들어가던 이유다.
+   */
+  if (category === '회복 및 보강') return 5;
   if (intensityLevel >= 4) return 4; // 무거운 것은 천천히
   return 3;
 }

@@ -28,28 +28,46 @@ import { findGoal, type GoalMix } from '@/lib/report/personalize';
 /* ------------------------------- 운동 시간 ------------------------------- */
 
 /**
- * 고를 수 있는 하루 운동 시간(분).
+ * 고를 수 있는 하루 운동 시간(분) — 목표마다 다르다.
  *
- * 120분은 실제로 채워지는 시간이 조금 모자란다 — 하체·상체는 101분쯤, 보조
- * 데이는 97분쯤이다. 워밍업·보강·암케어가 개수 상한에 먼저 차서, 늘어난 시간
- * 몫을 다 쓰지 못하기 때문이다.
+ * 무게를 드는 세 목표는 60분부터다. 본운동 하나가 12~15분이라(3세트에 휴식
+ * 3분, 준비 세트까지) 그보다 짧으면 무게 운동이 둘도 안 들어간다. 위로는
+ * 120분까지 — 그 이상은 채울 것이 없다.
  *
- * 상한을 올리거나 긴 시간의 배분을 다시 나누면 채울 수 있지만, 그러면 2시간
- * 훈련에 워밍업이 여덟 개가 되거나 짧은 시간대의 구성까지 함께 바뀐다.
- * 지금은 고를 수 있게만 두고, 실제로 나오는 시간이 조금 짧은 것은 그대로 둔다.
+ * 부상 방지는 40분부터 90분까지다. 몸을 지키려고 잡은 날이라 짧게 끝낼 수
+ * 있어야 하고, 두 시간은 이 날의 뜻이 아니다. 실제로 120분을 잡아보니
+ * 코어·보강·암케어가 개수 상한에 먼저 차서 101분치밖에 안 나왔다.
  */
-export const WORKOUT_MINUTES_CHOICES = [45, 60, 90, 120] as const;
+/** 이 목표만 구성도 시간 선택지도 다르다 */
+export const PREVENTION_GOAL = '부상 방지';
+
+const WEIGHT_MINUTES = [60, 90, 120] as const;
+const PREVENTION_MINUTES = [40, 60, 90] as const;
+
+/** 목표가 정해지지 않은 자리(내 정보의 기본 시간)에서 쓰는 목록 */
+export const WORKOUT_MINUTES_CHOICES = WEIGHT_MINUTES;
+
+/** 이 목표로 고를 수 있는 시간 */
+export function minutesChoicesFor(goalName: string | null): readonly number[] {
+  return goalName === PREVENTION_GOAL ? PREVENTION_MINUTES : WEIGHT_MINUTES;
+}
 
 /**
  * 저장돼 있던 시간을 지금 고를 수 있는 값으로 맞춘다.
  *
- * 예전에는 15분·20분·30분도 고를 수 있었다. 그때 고른 값이 그대로 남아 있으면
+ * 예전에는 15분·30분·45분도 고를 수 있었다. 그때 고른 값이 그대로 남아 있으면
  * 라디오에서 짝이 없어 아무것도 안 골라진 채로 뜬다 — 화면만 보면 시간을
  * 고르지 않은 것처럼 보인다. 짧은 쪽은 올려서, 긴 쪽은 내려서 가장 가까운
  * 값을 짚어준다.
+ *
+ * 목표를 주면 그 목표가 고를 수 있는 값 안에서 고른다. 부상 방지로 바꿨는데
+ * 120분이 남아 있으면 90분으로 내려온다.
  */
-export function nearestMinutesChoice(minutes: number): number {
-  const choices = WORKOUT_MINUTES_CHOICES as readonly number[];
+export function nearestMinutesChoice(
+  minutes: number,
+  goalName: string | null = null
+): number {
+  const choices = minutesChoicesFor(goalName);
   if (choices.includes(minutes)) return minutes;
   return choices.reduce((best, m) =>
     Math.abs(m - minutes) < Math.abs(best - minutes) ? m : best
@@ -57,7 +75,7 @@ export function nearestMinutesChoice(minutes: number): number {
 }
 
 /** 프로필에서 아직 고르지 않은 사용자의 기본값 */
-export const DEFAULT_WORKOUT_MINUTES = 45;
+export const DEFAULT_WORKOUT_MINUTES = 60;
 
 /**
  * 회복 데이에 쓸 시간의 비율과 상한.

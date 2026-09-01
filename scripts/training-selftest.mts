@@ -187,7 +187,7 @@ function planFor({
   owned = [] as string[],
   level = null as string | null,
   goal = null as string | null,
-  minutes = 45,
+  minutes = 60,
   doneIds = new Set<string>(),
   override = false,
 }) {
@@ -887,17 +887,17 @@ console.log('\n[가입 문진] 받은 답이 실제로 쓰이는가');
    */
   const none = estimateTrainingDailyLoad({
     baselineWorkoutFreq: null,
-    dailyWorkoutMinutes: 45,
+    dailyWorkoutMinutes: 60,
   });
   check('안 답하면 추정하지 않는다', none === null, '그러면 28일이 쌓여야 나온다');
 
   const light = estimateTrainingDailyLoad({
     baselineWorkoutFreq: '주 1~2회',
-    dailyWorkoutMinutes: 45,
+    dailyWorkoutMinutes: 60,
   });
   const heavy = estimateTrainingDailyLoad({
     baselineWorkoutFreq: '주 5회 이상',
-    dailyWorkoutMinutes: 45,
+    dailyWorkoutMinutes: 60,
   });
   check(
     '많이 하는 사람의 기준선이 더 높다',
@@ -931,7 +931,7 @@ console.log('\n[가입 문진] 받은 답이 실제로 쓰이는가');
   const dead = find('데드리프트');
   const seed = estimateTrainingDailyLoad({
     baselineWorkoutFreq: '주 3~4회',
-    dailyWorkoutMinutes: 45,
+    dailyWorkoutMinutes: 60,
   });
   const fresh = buildTrainingLoad(
     [{ date: new Date(TODAY.getTime() - 86400000), setsDone: 3, exercise: dead }],
@@ -962,7 +962,7 @@ console.log('\n[가입 문진] 받은 답이 실제로 쓰이는가');
   const themed = pickForTheme({
     candidates: library,
     theme: 'lower',
-    minutes: 45,
+    minutes: 60,
     doneIds: new Set<string>(),
     goal: null,
   });
@@ -972,11 +972,11 @@ console.log('\n[가입 문진] 받은 답이 실제로 쓰이는가');
   );
   const guessPerWeek = estimateTrainingDailyLoad({
     baselineWorkoutFreq: '주 3~4회',
-    dailyWorkoutMinutes: 45,
+    dailyWorkoutMinutes: 60,
   })! * 7;
   const guessPerSession = guessPerWeek / 3.5;
   check(
-    '문진 추정치가 실제 45분 일정과 맞는다',
+    '문진 추정치가 실제 60분 일정과 맞는다',
     Math.abs(realSets - guessPerSession) / realSets < 0.3,
     `실제 ${realSets.toFixed(1)} vs 추정 ${guessPerSession.toFixed(1)} 환산 세트`
   );
@@ -1125,7 +1125,7 @@ console.log('\n[목표] 고른 목표가 실제로 배분을 바꾸는가');
     ['prehab', '부상 방지', '보강'],
   ] as [string, string, string][]) {
     const budget = (g: string) =>
-      (compositionFor('lower', g).find((sp) => sp.slot === slot)?.share ?? 0) * 45;
+      (compositionFor('lower', g).find((sp) => sp.slot === slot)?.share ?? 0) * 60;
     check(
       `${goal} → ${label} 배분이 늘어남`,
       budget(goal) > budget('균형 잡힌 관리'),
@@ -1134,14 +1134,14 @@ console.log('\n[목표] 고른 목표가 실제로 배분을 바꾸는가');
   }
 
   /*
-   * 배분이 실제 구성으로 이어지는지도 본다. 다만 45분에서는 안 된다 —
+   * 배분이 실제 구성으로 이어지는지도 본다. 다만 60분에서는 안 된다 —
    * 무거운 운동 하나가 11분이라, 본운동 배분이 20분에서 24분으로 늘어도
    * 2개에서 3개로 넘어가지 못한다(3개면 33분이 필요하다).
    *
-   * 줄이는 쪽(부상 방지)은 45분에서도 갈린다. 늘리는 쪽은 90분부터 갈린다.
+   * 줄이는 쪽(부상 방지)은 60분에서도 갈린다. 늘리는 쪽은 90분부터 갈린다.
    */
   check(
-    '부상 방지 → 45분에서도 본운동이 줄어든다',
+    '부상 방지 → 60분에서도 본운동이 줄어든다',
     minutesOf('부상 방지', 'main') < minutesOf('균형 잡힌 관리', 'main'),
     `${minutesOf('균형 잡힌 관리', 'main').toFixed(1)}분 → ${minutesOf('부상 방지', 'main').toFixed(1)}분`
   );
@@ -1160,13 +1160,13 @@ console.log('\n[목표] 고른 목표가 실제로 배분을 바꾸는가');
   }
 }
 {
-  // 목표를 바꿨다고 전체 시간이 달라지면 "45분"이 거짓말이 된다.
+  // 목표를 바꿨다고 전체 시간이 달라지면 "60분"이 거짓말이 된다.
   const totals = TRAINING_GOALS.map((g) => {
     const { themed } = planFor({ person: { condition: 8 }, goal: g.name });
     return themed.estimatedMinutes;
   });
-  const worst = Math.max(...totals.map((t) => Math.abs(t - 45) / 45));
-  check('목표를 바꿔도 전체 시간은 45분 근처', worst <= 0.15, `${totals.join(' / ')}분`);
+  const worst = Math.max(...totals.map((t) => Math.abs(t - 60) / 60));
+  check('목표를 바꿔도 전체 시간은 60분 근처', worst <= 0.15, `${totals.join(' / ')}분`);
 }
 
 console.log('\n[완료 표시] 체크한 운동이 사라지지 않는가');
@@ -1204,7 +1204,7 @@ console.log('\n[완료 표시] 체크한 운동이 사라지지 않는가');
       const { picks } = pickForTheme({
         candidates: library,
         theme: t,
-        minutes: 45,
+        minutes: 60,
         doneIds: new Set([ex.id]),
       });
       if (!picks.some((p) => p.exercise.id === ex.id)) lost++;

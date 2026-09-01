@@ -33,7 +33,7 @@ const PROFILES: { label: string; owned: string[] }[] = [
 ];
 
 const THEMES: ThemeKey[] = ['lower', 'upper', 'assist', 'recovery'];
-const MINUTES = 45;
+const MINUTES = 60;
 
 const prisma = new PrismaClient({
   adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL }),

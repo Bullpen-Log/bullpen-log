@@ -22,7 +22,8 @@ import {
 } from '@/lib/report/gather';
 import {
   DEFAULT_WORKOUT_MINUTES,
-  WORKOUT_MINUTES_CHOICES,
+  minutesChoicesFor,
+  nearestMinutesChoice,
 } from '@/lib/report/theme';
 
 /**
@@ -156,12 +157,21 @@ export async function generateTodayPlan(formData: FormData) {
    */
   const trainingGoal = readTrainingGoal(formData, user.trainingGoal);
 
+  /*
+   * 고를 수 있는 시간은 목표마다 다르다.
+   *
+   * 무게를 드는 세 목표는 60·90·120분, 부상 방지는 40·60·90분이다. 화면에서도
+   * 목표에 맞춰 바꿔 주지만, 폼은 누구나 고쳐 보낼 수 있으므로 여기서 한 번 더
+   * 본다. 맞지 않으면 저장해 둔 기본 시간을 그 목표 안에서 가장 가까운 값으로
+   * 짚는다 — 부상 방지에 120분이 저장돼 있으면 90분이 된다.
+   */
   const rawMinutes = Number.parseInt(String(formData.get('minutes') ?? ''), 10);
-  const requestedMinutes = (WORKOUT_MINUTES_CHOICES as readonly number[]).includes(
-    rawMinutes
-  )
+  const requestedMinutes = minutesChoicesFor(trainingGoal).includes(rawMinutes)
     ? rawMinutes
-    : (user.dailyWorkoutMinutes ?? DEFAULT_WORKOUT_MINUTES);
+    : nearestMinutesChoice(
+        user.dailyWorkoutMinutes ?? DEFAULT_WORKOUT_MINUTES,
+        trainingGoal
+      );
 
   const today = new Date();
   const { facts, plan } = await gatherFactsAndPlan(user, today);

@@ -212,4 +212,4 @@ export function estimateTrainingDailyLoad(answers: {
  * 그대로 가져오면 이 파일이 화면 쪽 모듈에 얽히므로 숫자만 적어 둔다.
  * 한쪽을 바꾸면 다른 쪽도 바꿔야 한다 — 자가 시험이 둘이 같은지 본다.
  */
-export const DEFAULT_SESSION_MINUTES = 45;
+export const DEFAULT_SESSION_MINUTES = 60;

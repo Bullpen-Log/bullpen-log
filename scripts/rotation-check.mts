@@ -253,14 +253,14 @@ function run(
       ? pickForTheme({
           candidates: orderOldWay(today, lastDay, recentIds),
           theme,
-          minutes: 45,
+          minutes: 60,
           doneIds: new Set<string>(),
           goal: '균형 잡힌 관리',
         })
       : pickForTheme({
           candidates: library,
           theme,
-          minutes: 45,
+          minutes: 60,
           doneIds: new Set<string>(),
           recentIds,
           sessionsAgo,

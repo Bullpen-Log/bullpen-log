@@ -1,5 +1,5 @@
 /**
- * "45분을 골랐는데 정말 45분치가 나오는가" 를 확인한다.
+ * "60분을 골랐는데 정말 60분치가 나오는가" 를 확인한다.
  *
  *   npm run theme:check
  *
@@ -11,8 +11,9 @@
  */
 import { PrismaClient } from '@prisma/client';
 import { PrismaPg } from '@prisma/adapter-pg';
+import { TRAINING_GOAL_NAMES } from '@/lib/report/personalize';
 import {
-  WORKOUT_MINUTES_CHOICES,
+  minutesChoicesFor,
   effectiveMinutes,
   estimateMinutes,
   pickForTheme,
@@ -43,11 +44,22 @@ if (missing.length) {
   console.log(`⚠ 세트·횟수가 비어 있는 운동 ${missing.length}개 — 그것들은 종류로 어림합니다.\n`);
 }
 
+/*
+ * 목표마다 고를 수 있는 시간이 다르다.
+ *
+ * 무게를 드는 세 목표는 60·90·120분, 부상 방지는 40·60·90분이다. 목록 하나로만
+ * 돌면 부상 방지의 40분이 한 번도 안 시험된다 — 실제로 고를 수 있는 조합만
+ * 골라 돈다.
+ */
+const GOAL_RUNS = TRAINING_GOAL_NAMES.flatMap((goal) =>
+  minutesChoicesFor(goal).map((requested) => ({ goal, requested }))
+);
+
 let failed = 0;
 
 for (const theme of THEMES) {
   console.log(`\n■ ${theme}`);
-  for (const requested of WORKOUT_MINUTES_CHOICES) {
+  for (const { goal, requested } of GOAL_RUNS) {
     const minutes = effectiveMinutes(theme, requested);
 
     /*
@@ -65,6 +77,7 @@ for (const theme of THEMES) {
         minutes,
         doneIds: new Set<string>(),
         rotationSeed: seed,
+        goal,
       })
     );
     const worst = runs.reduce((a, b) =>
@@ -85,7 +98,7 @@ for (const theme of THEMES) {
     const cap = requested !== minutes ? ` (회복이라 ${minutes}분으로 줄임)` : '';
     const range = `${Math.min(...runs.map((r) => r.estimatedMinutes))}~${Math.max(...runs.map((r) => r.estimatedMinutes))}분`;
     console.log(
-      `  ${ok ? '✅' : '❌'} ${String(requested).padStart(2)}분 요청${cap} → ${SEEDS.length}일 중 ${range}` +
+      `  ${ok ? '✅' : '❌'} ${goal.padEnd(8)} ${String(requested).padStart(3)}분 요청${cap} → ${SEEDS.length}일 중 ${range}` +
         `, 가장 나쁜 날 ${estimatedMinutes}분 · 운동 ${picks.length}개  [${shape}]`
     );
     for (const n of notes) console.log(`     · ${n}`);

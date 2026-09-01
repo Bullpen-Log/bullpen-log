@@ -28,7 +28,7 @@ import {
   type SlotKey,
 } from '../lib/report/theme.ts';
 
-const MINUTES = 45;
+const MINUTES = 60;
 /** 실제 소요가 고른 시간의 몇 %까지 벗어나도 괜찮다고 볼 것인가 */
 const TOLERANCE = 0.15;
 

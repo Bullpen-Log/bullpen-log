@@ -12,8 +12,9 @@ import {
   saveTrainingSettings,
 } from '@/app/actions/training-setup';
 import {
+  minutesChoicesFor,
   nearestMinutesChoice,
-  WORKOUT_MINUTES_CHOICES,
+  PREVENTION_GOAL,
 } from '@/lib/report/theme';
 
 /**
@@ -94,6 +95,18 @@ export function PlanForm({
    */
   const [open, setOpen] = useState(!generated);
 
+  /*
+   * 목표에 따라 고를 수 있는 시간이 다르다.
+   *
+   * 무게를 드는 세 목표는 60·90·120분, 부상 방지는 40·60·90분이다. 목표를
+   * 바꾸면 시간 칸도 바로 바뀌어야 한다 — 부상 방지로 옮겼는데 120분이 그대로
+   * 남아 있으면 고를 수 없는 조합이 화면에 남는다. 그럴 때는 가장 가까운
+   * 값으로 내려 짚는다(120 → 90).
+   */
+  const [pickedGoal, setPickedGoal] = useState(goal ?? TRAINING_GOALS[0].name);
+  const minuteChoices = minutesChoicesFor(pickedGoal);
+  const pickedMinutes = nearestMinutesChoice(minutes, pickedGoal);
+
   const choices = owned.filter((name) => name !== '맨몸');
   // 안 골랐으면 가진 것을 다 쓸 수 있다는 뜻이라, 전부 켜서 보여준다.
   const equipmentSelected = availableToday ?? owned;
@@ -137,28 +150,42 @@ export function PlanForm({
         </div>
       )}
 
-      <RadioGroup
-        name="minutes"
-        label="오늘 운동 시간"
-        options={WORKOUT_MINUTES_CHOICES.map((m) => ({
-          name: `${m}분`,
-          desc: m === nearestMinutesChoice(defaultMinutes) ? '기본값' : undefined,
-        }))}
-        selected={`${nearestMinutesChoice(minutes)}분`}
-        compact
-      />
-
       {/*
-        목표를 여기서 고른다. 설정에 두었을 때는 한 번 정한 것이 계속 따라와
-        매일 같은 쪽으로만 쏠렸다. 지난번에 고른 것을 미리 짚어 두되, 만들 때마다
-        눈에 보이므로 바꾸고 싶은 날에는 바로 바꿀 수 있다.
+        목표를 먼저 고른다. 시간 선택지가 목표에 따라 달라지므로 순서가 이쪽이다.
+
+        설정에 두었을 때는 한 번 정한 것이 계속 따라와 매일 같은 쪽으로만
+        쏠렸다. 지난번에 고른 것을 미리 짚어 두되, 만들 때마다 눈에 보이므로
+        바꾸고 싶은 날에는 바로 바꿀 수 있다.
       */}
       <RadioGroup
+        key="goal"
         name="trainingGoal"
         label="오늘 훈련 목표"
         hint="같은 시간을 어디에 더 쓸지 정합니다. 몸 상태가 안 좋은 날에는 목표와 상관없이 회복이 먼저입니다."
         options={TRAINING_GOALS.map((g) => ({ name: g.name, desc: g.desc }))}
-        selected={goal ?? TRAINING_GOALS[0].name}
+        selected={pickedGoal}
+        onChange={setPickedGoal}
+      />
+
+      <RadioGroup
+        /* 목표가 바뀌면 고른 값도 새로 짚어야 하므로 통째로 다시 그린다 */
+        key={`minutes-${pickedGoal}`}
+        name="minutes"
+        label="오늘 운동 시간"
+        hint={
+          pickedGoal === PREVENTION_GOAL
+            ? '몸을 지키는 날이라 짧게 끝낼 수 있습니다. 두 시간은 이 날의 뜻이 아닙니다.'
+            : undefined
+        }
+        options={minuteChoices.map((m) => ({
+          name: `${m}분`,
+          desc:
+            m === nearestMinutesChoice(defaultMinutes, pickedGoal)
+              ? '기본값'
+              : undefined,
+        }))}
+        selected={`${pickedMinutes}분`}
+        compact
       />
 
       {choices.length > 0 && (
