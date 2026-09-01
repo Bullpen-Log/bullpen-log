@@ -12,34 +12,50 @@
  *
  * 그래서 날짜로 되돌린다. 대신 하루 한 번으로 잠근다 — 부를 때마다 AI 비용이
  * 실제로 나가고, 같은 날 두 번 만들어도 근거가 되는 기록이 그대로다.
+ *
+ * 다만 통증으로 멈춘 리포트는 하루를 쓰지 않는다. 멈춘 리포트에는 AI를 아예
+ * 부르지 않아 비용이 들지 않고, 멈춤 안내가 "통증이 가라앉았다면 오늘 체크인을
+ * 다시 저장해주세요"라고 말한다 — 다시 만들 수 없으면 그 안내가 거짓말이 된다.
+ * 아침에 아팠다가 저녁에 나은 사람이 하루를 통째로 잃을 이유가 없다.
  */
 
 export type ReportReadiness = {
   /** 지금 만들 수 있는가 */
   ready: boolean;
-  /** 오늘 몫을 이미 만들었는가 */
+  /** 오늘 몫을 이미 만들었는가 (멈춘 리포트도 만든 것으로 센다) */
   madeToday: boolean;
   /** 화면에 그대로 쓰는 한 줄 */
   message: string;
 };
 
+/** 마지막 리포트. 하나도 없으면 null */
+export type LastReport = {
+  /** 기준일 (YYYY-MM-DD) */
+  asOf: string;
+  /** 통증으로 계획을 내지 않은 리포트인가 */
+  halted: boolean;
+};
+
 /**
  * @param todayKey 오늘 (YYYY-MM-DD)
- * @param lastReportAsOf 마지막 리포트의 기준일 (YYYY-MM-DD). 하나도 없으면 null
  */
 export function reportReadiness(
   todayKey: string,
-  lastReportAsOf: string | null
+  last: LastReport | null
 ): ReportReadiness {
-  const madeToday = lastReportAsOf === todayKey;
+  const madeToday = last?.asOf === todayKey;
+  /* 멈춘 리포트는 하루를 쓰지 않는다 — AI를 안 불러 비용도 안 든다 */
+  const spent = madeToday && !last!.halted;
 
   return {
-    ready: !madeToday,
+    ready: !spent,
     madeToday,
-    message: madeToday
+    message: spent
       ? '오늘 리포트를 이미 만들었습니다. 내일 다시 만들 수 있습니다.'
-      : lastReportAsOf
-        ? '오늘 리포트를 만들 수 있습니다.'
-        : '첫 리포트를 만들 수 있습니다.',
+      : madeToday
+        ? '통증으로 계획을 멈춘 리포트입니다. 상태가 달라졌으면 오늘 체크인을 다시 저장하고 새로 만들 수 있습니다.'
+        : last
+          ? '오늘 리포트를 만들 수 있습니다.'
+          : '첫 리포트를 만들 수 있습니다.',
   };
 }

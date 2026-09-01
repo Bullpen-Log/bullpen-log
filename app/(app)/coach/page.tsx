@@ -87,7 +87,12 @@ export default async function ReportPage({
   /* 하루에 한 번 — 오늘 몫을 이미 만들었는지만 본다 */
   const readiness = reportReadiness(
     toDateKey(today),
-    latestReport ? latestReport.asOf.toISOString().slice(0, 10) : null,
+    latestReport
+      ? {
+          asOf: latestReport.asOf.toISOString().slice(0, 10),
+          halted: latestReport.halted,
+        }
+      : null,
   );
 
   /* 지난 리포트 목록 — 리포트 칸을 볼 때만 읽는다 */

@@ -989,10 +989,12 @@ console.log('\n[리포트 주기] 하루에 한 번인가');
    * 날마다 달라진다 — 사흘 전 숫자를 오늘 보고 있으면 안 보느니만 못하다.
    * 대신 하루 한 번으로 잠근다. 부를 때마다 AI 비용이 실제로 나간다.
    */
+  const done = (asOf: string) => ({ asOf, halted: false });
+
   const first = reportReadiness('2026-09-01', null);
   check('하나도 없으면 만들 수 있다', first.ready, first.message);
 
-  const madeToday = reportReadiness('2026-09-01', '2026-09-01');
+  const madeToday = reportReadiness('2026-09-01', done('2026-09-01'));
   check(
     '오늘 몫을 이미 만들었으면 못 만든다',
     !madeToday.ready && madeToday.madeToday,
@@ -1004,12 +1006,30 @@ console.log('\n[리포트 주기] 하루에 한 번인가');
     madeToday.message
   );
 
-  const yesterday = reportReadiness('2026-09-01', '2026-08-31');
+  const yesterday = reportReadiness('2026-09-01', done('2026-08-31'));
   check('어제 만들었으면 오늘 다시 만들 수 있다', yesterday.ready, yesterday.message);
 
-  /* 달이 넘어가도 문자열 비교라 그대로 갈린다 */
-  const acrossMonth = reportReadiness('2026-09-01', '2026-09-01');
-  check('같은 날은 언제나 막힌다', !acrossMonth.ready, acrossMonth.message);
+  /*
+   * 통증으로 멈춘 리포트는 하루를 쓰지 않는다.
+   *
+   * 멈춘 리포트에는 AI를 안 불러 비용이 없고, 멈춤 안내가 "체크인을 다시
+   * 저장해주세요"라고 말한다 — 다시 못 만들면 그 안내가 거짓말이 된다.
+   */
+  const halted = reportReadiness('2026-09-01', {
+    asOf: '2026-09-01',
+    halted: true,
+  });
+  check('멈춘 리포트는 하루를 안 쓴다', halted.ready, halted.message);
+  check(
+    '멈춘 뒤에는 무엇을 하면 되는지 말한다',
+    halted.message.includes('체크인'),
+    halted.message
+  );
+  check(
+    '멈췄어도 오늘 만든 것은 만든 것으로 센다',
+    halted.madeToday,
+    String(halted.madeToday)
+  );
 }
 
 console.log('\n[투구 계획] 오늘과 내일을 범위로 내는가');

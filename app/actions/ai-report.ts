@@ -67,11 +67,13 @@ export async function generateAiReport(): Promise<AiReportState> {
   const latest = await prisma.aiReport.findFirst({
     where: { userId: user.id },
     orderBy: { asOf: 'desc' },
-    select: { asOf: true },
+    select: { asOf: true, halted: true },
   });
   const readiness = reportReadiness(
     asOfKey,
-    latest ? latest.asOf.toISOString().slice(0, 10) : null
+    latest
+      ? { asOf: latest.asOf.toISOString().slice(0, 10), halted: latest.halted }
+      : null
   );
   if (!readiness.ready) {
     return { error: readiness.message };
