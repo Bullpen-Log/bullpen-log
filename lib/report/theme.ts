@@ -472,38 +472,90 @@ type SlotSpec = {
  * 부하가 좋은 날에만 안전 필터를 통과하므로 자연스럽게 좋은 날에만 나온다.
  * 영상이 더 채워지면 전용 테마로 승격하면 된다.
  */
-/*
- * 하체날·상체날은 세 구간만 쓴다 — 워밍업 · 본운동 · 암케어.
- *
- * 예전에는 코어와 보강까지 다섯 구간을 다 채웠다. 그러니 한 시간에 아홉
- * 종목이 되고, 정작 무게를 드는 운동은 셋뿐이었다. 한 시간에 종목 아홉을
- * 3세트씩 하는 사람은 없다.
- *
- * 하는 일 기준으로 자른다. 웨이트 하는 날은 무게를 들고, 어깨는 매일 챙긴다.
- * 코어와 고관절 보강은 보조 데이와 회복 데이가 맡는다 — 투구가 많아 무게를
- * 못 드는 날에 할 일이 그쪽이다.
- *
- * 빠진 몫(코어 0.12 + 보강 0.08)은 본운동과 암케어로 갔다.
- */
 /**
- * '부상 방지'를 고른 날의 구성.
+ * 목표마다 웨이트 날의 구성이 다르다.
  *
- * 무게를 드는 운동과 파워를 통째로 뺀다. 몸을 지키려고 고른 날인데 스쿼트와
- * 점프가 나오면 목표와 반대다. 예전에는 본운동을 0.7배로 줄이기만 했는데,
- * 줄인 것도 결국 무게를 드는 운동이었다.
+ * 예전에는 하체날·상체날이 언제나 다섯 구간(워밍업·본운동·코어·보강·암케어)
+ * 이었다. 그러니 한 시간에 종목이 열넷 되고 정작 무게를 드는 운동은 둘뿐이었다.
+ * 한 시간에 열넷을 3세트씩 하는 사람은 없다.
  *
- * 남는 것은 몸 풀기 · 코어 · 고관절 보강 · 어깨 관리다. 하체날이든 상체날이든
- * 같다 — 이 날은 부위를 나눠 하는 날이 아니다.
+ * 목표가 무엇을 하러 온 날인지 정하므로, 구간도 목표가 정하게 한다.
+ *
+ *   근력 향상      워밍업 · 본운동 · 암케어
+ *                 무게를 드는 데 시간을 몰아준다. 곁가지가 없다.
+ *   파워 향상      워밍업 · 본운동 · 코어 · 암케어
+ *                 폭발력은 하체에서 코어를 지나 팔로 간다. 코어 없이
+ *                 파워만 하면 힘이 새는 자리를 그대로 두는 셈이다.
+ *   균형 잡힌 관리  워밍업 · 본운동 · 코어 · 보강 · 암케어
+ *                 이름이 '고르게'다. 다섯 구간을 다 쓰되 하나씩만 둔다.
+ *   부상 방지      워밍업 · 코어 · 보강 · 암케어
+ *                 무게와 파워를 통째로 뺀다. 몸을 지키려고 고른 날인데
+ *                 스쿼트와 점프가 나오면 목표와 반대다.
+ *
+ * 어깨 관리(암케어)는 어느 목표에도 있다. 투수에게 그것만은 매일이다.
  */
-const PREVENTION_COMPOSITION: SlotSpec[] = [
-  { slot: 'warmup', share: 0.15, categories: ['모빌리티'], maxCount: 3 },
-  { slot: 'core', share: 0.25, categories: ['코어'], maxCount: 4 },
-  { slot: 'prehab', share: 0.3, categories: ['회복 및 보강'], maxCount: 5 },
-  { slot: 'armcare', share: 0.3, categories: ['암케어'], maxCount: 5 },
-];
+type GoalShape = {
+  warmup: { share: number; maxCount: number };
+  /** 무게·파워를 하는 구간. 없으면 그 목표는 무게를 안 든다. */
+  main?: { share: number; maxCount: number };
+  core?: { share: number; maxCount: number };
+  prehab?: { share: number; maxCount: number };
+  armcare: { share: number; maxCount: number };
+};
 
-/** 이 목표를 고르면 구성 자체가 달라진다 */
-const PREVENTION_GOAL = '부상 방지';
+const GOAL_SHAPES: Record<string, GoalShape> = {
+  '근력 향상': {
+    warmup: { share: 0.1, maxCount: 2 },
+    main: { share: 0.7, maxCount: 8 },
+    armcare: { share: 0.2, maxCount: 3 },
+  },
+  '파워 향상': {
+    warmup: { share: 0.1, maxCount: 2 },
+    main: { share: 0.62, maxCount: 8 },
+    core: { share: 0.13, maxCount: 2 },
+    armcare: { share: 0.15, maxCount: 2 },
+  },
+  '균형 잡힌 관리': {
+    warmup: { share: 0.1, maxCount: 2 },
+    /*
+     * 본운동을 0.52까지 낮춰 보았더니 60분에 둘밖에 안 들어갔다. 하체날에
+     * 둘이면 힌지가 빠지는 날이 이어져(마른 날 5.1) 뒤쪽 사슬이 통째로
+     * 놀았다. 코어·보강을 하나씩 두면서도 본운동 셋은 되게 잡는다.
+     */
+    main: { share: 0.58, maxCount: 6 },
+    core: { share: 0.1, maxCount: 1 },
+    prehab: { share: 0.08, maxCount: 1 },
+    armcare: { share: 0.14, maxCount: 2 },
+  },
+  '부상 방지': {
+    warmup: { share: 0.15, maxCount: 3 },
+    core: { share: 0.25, maxCount: 4 },
+    prehab: { share: 0.3, maxCount: 5 },
+    armcare: { share: 0.3, maxCount: 5 },
+  },
+};
+
+/**
+ * 목표가 정한 모양에 그 날의 본운동 카테고리를 끼워 구성을 만든다.
+ *
+ * 본운동에 무엇이 들어가는지(하체 스트렝스인지 상체 스트렝스인지, 파워는 어느
+ * 계열까지인지)는 목표가 아니라 그날의 테마가 정한다. 모양과 내용을 따로 두면
+ * 목표를 하나 더 만들 때 카테고리를 다시 적을 일이 없다.
+ */
+function shapeToSpecs(shape: GoalShape, mainSpec: SlotSpec): SlotSpec[] {
+  const specs: SlotSpec[] = [
+    { slot: 'warmup', ...shape.warmup, categories: ['모빌리티'] },
+  ];
+  if (shape.main) {
+    specs.push({ ...mainSpec, share: shape.main.share, maxCount: shape.main.maxCount });
+  }
+  if (shape.core) specs.push({ slot: 'core', ...shape.core, categories: ['코어'] });
+  if (shape.prehab) {
+    specs.push({ slot: 'prehab', ...shape.prehab, categories: ['회복 및 보강'] });
+  }
+  specs.push({ slot: 'armcare', ...shape.armcare, categories: ['암케어'] });
+  return specs;
+}
 
 const COMPOSITIONS: Record<ThemeKey, SlotSpec[]> = {
   lower: [
@@ -594,9 +646,17 @@ export function compositionFor(
    * 보조 데이와 회복 데이는 그대로 둔다 — 이미 무게를 안 드는 구성이고,
    * 그 날들은 투구량이 정한 것이라 목표가 뒤집을 자리가 아니다.
    */
+  /*
+   * 웨이트 날은 목표가 구성을 정한다.
+   *
+   * 보조 데이와 회복 데이는 그대로 둔다 — 이미 무게를 안 드는 구성이고,
+   * 그 날들은 투구량이 정한 것이라 목표가 뒤집을 자리가 아니다.
+   */
+  const shape = goalName == null ? undefined : GOAL_SHAPES[goalName];
+  const mainSpec = COMPOSITIONS[theme].find((sp) => sp.slot === 'main');
   let base: readonly SlotSpec[] =
-    goalName === PREVENTION_GOAL && (theme === 'lower' || theme === 'upper')
-      ? PREVENTION_COMPOSITION
+    shape && mainSpec && (theme === 'lower' || theme === 'upper')
+      ? shapeToSpecs(shape, mainSpec)
       : COMPOSITIONS[theme];
 
   /*
