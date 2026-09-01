@@ -1,20 +1,6 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { Chart } from 'react-chartjs-2';
-import {
-  BarController,
-  BarElement,
-  CategoryScale,
-  Chart as ChartJS,
-  Filler,
-  Legend,
-  LinearScale,
-  LineController,
-  LineElement,
-  PointElement,
-  Tooltip,
-} from 'chart.js';
 import {
   ArrowDown,
   ArrowUp,
@@ -26,7 +12,6 @@ import {
   TriangleAlert,
 } from 'lucide-react';
 import { Card, EmptyState } from '@/components/ui';
-import { useChartTheme } from '@/lib/chart-theme';
 import {
   TWO_DAY_INTENSITY_LIMIT,
   buildDateRange,
@@ -55,21 +40,6 @@ const LOAD_BAR_COLOR: Record<string, string> = {
   불펜: 'bg-sky-soft',
   캐치볼: 'bg-line-strong',
 };
-
-// 범용 <Chart>는 전용 컴포넌트와 달리 컨트롤러를 자동 등록하지 않는다.
-// 막대+선을 섞어 쓰므로 두 컨트롤러를 직접 등록해야 한다.
-ChartJS.register(
-  BarController,
-  LineController,
-  CategoryScale,
-  LinearScale,
-  BarElement,
-  PointElement,
-  LineElement,
-  Filler,
-  Tooltip,
-  Legend
-);
 
 const PERIODS = [
   { key: 7, label: '최근 7일' },
@@ -144,7 +114,6 @@ function MetricRow({
 export function ReportClient({ logs }: { logs: Log[] }) {
   const [days, setDays] = useState<7 | 30>(7);
 
-  const chart = useChartTheme();
   const byDay = useMemo(() => groupByDay(logs), [logs]);
 
   const currentKeys = useMemo(() => buildDateRange(days), [days]);
@@ -205,75 +174,9 @@ export function ReportClient({ logs }: { logs: Log[] }) {
     [memoLogs, activeMemoDate]
   );
 
-  /* ------------------------------ 그래프 ------------------------------ */
-
-  const volumeData = useMemo(
-    () => ({
-      labels: currentKeys.map(formatShortDate),
-      datasets: [
-        {
-          type: 'bar' as const,
-          label: '투구수',
-          data: currentKeys.map((k) => byDay.get(k)?.pitchCount ?? 0),
-          backgroundColor: `${chart.accent}3d`,
-          borderColor: `${chart.accent}80`,
-          borderWidth: 1,
-          borderRadius: 3,
-          yAxisID: 'y',
-          order: 2,
-        },
-        {
-          type: 'line' as const,
-          label: '투구 강도',
-          data: currentKeys.map((k) => byDay.get(k)?.intensity ?? 0),
-          borderColor: chart.accentStrong,
-          backgroundColor: chart.accentStrong,
-          tension: 0.35,
-          pointRadius: days === 7 ? 4 : 2,
-          yAxisID: 'y1',
-          order: 1,
-        },
-      ],
-    }),
-    [byDay, currentKeys, days, chart]
-  );
-
-  const baseOptions = {
-    responsive: true,
-    maintainAspectRatio: false,
-    interaction: { mode: 'index' as const, intersect: false },
-    plugins: {
-      legend: {
-        labels: { color: chart.tick, usePointStyle: true, boxWidth: 8, padding: 16 },
-      },
-    },
-  };
-
-  const volumeOptions = {
-    ...baseOptions,
-    scales: {
-      x: { ticks: { color: chart.tick }, grid: { color: chart.grid } },
-      y: {
-        position: 'left' as const,
-        beginAtZero: true,
-        title: { display: true, text: '투구수', color: chart.tick },
-        ticks: { color: chart.tick },
-        grid: { color: chart.grid },
-      },
-      y1: {
-        position: 'right' as const,
-        beginAtZero: true,
-        suggestedMax: 10,
-        title: { display: true, text: '강도', color: chart.accentStrong },
-        ticks: { color: chart.accentStrong, stepSize: 2 },
-        grid: { drawOnChartArea: false },
-      },
-    },
-  };
-
   const periodLabel = `최근 ${days}일`;
 
-  /** 펼쳐져 있는가. 안쪽을 그릴지 정한다(그래프 크기 때문에). */
+  /** 펼쳐져 있는가. 안쪽을 그릴지 정한다. */
   const [open, setOpen] = useState(false);
   const rangeLabel = `${formatShortDate(currentKeys[0])} – ${formatShortDate(
     currentKeys.at(-1) as string
@@ -302,11 +205,8 @@ export function ReportClient({ logs }: { logs: Log[] }) {
     <details
       className="group rounded-2xl border border-line bg-surface px-5 py-4 sm:px-6"
       /*
-       * 열릴 때까지 안쪽을 그리지 않는다.
-       *
-       * 안에 그래프가 있는데, 접힌 <details> 안에서는 담는 상자의 크기가 0이다.
-       * Chart.js 는 상자 크기에 맞춰 그리므로 그때 그리면 찌그러진 채로 나온다.
-       * 열린 뒤에 붙여야 처음부터 제 크기로 그려진다.
+       * 열릴 때까지 안쪽을 그리지 않는다. 기간별 수치·코멘트·메모가 다 들어
+       * 있어 덩이가 큰데, 접혀 있는 동안에는 아무도 보지 않는다.
        */
       onToggle={(e) => setOpen(e.currentTarget.open)}
     >
@@ -490,23 +390,6 @@ export function ReportClient({ logs }: { logs: Log[] }) {
               )}
             </section>
           )}
-
-          {/* 그래프 */}
-          <section className="space-y-5">
-            <h2 className="text-lg font-bold text-ink">추이</h2>
-
-            <Card className="space-y-4">
-              <div>
-                <h3 className="font-bold text-ink">투구량 &amp; 강도</h3>
-                <p className="mt-1 text-sm text-muted">
-                  막대는 그날 던진 개수, 선은 체감 강도입니다.
-                </p>
-              </div>
-              <div className="h-[280px]">
-                <Chart type="bar" data={volumeData} options={volumeOptions} />
-              </div>
-            </Card>
-          </section>
 
           {/* 메모 모아보기 */}
           <section className="space-y-4">
