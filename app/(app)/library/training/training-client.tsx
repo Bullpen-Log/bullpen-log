@@ -1,13 +1,14 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { Eye, EyeOff, Pencil, Star, Trash2, X } from 'lucide-react';
+import { Eye, EyeOff, Pencil, Search, Star, Trash2, X } from 'lucide-react';
 import {
   deleteExercise,
   setExerciseThumbnail,
   toggleExerciseHidden,
 } from '@/app/actions/content';
 import { toggleExerciseFavorite } from '@/app/actions/favorite';
+import { matchesSearch } from '@/lib/korean';
 import { FavoriteButton } from '@/components/favorite-button';
 import { TRAINING_CATEGORIES } from '@/lib/categories';
 import {
@@ -323,15 +324,26 @@ export function TrainingClient({
   const [sourceView, setSourceView] = useState<'ALL' | 'OWN' | 'REFERENCE'>('ALL');
   /** 별을 달아 둔 것만 볼지. 촬영 여부와 겹쳐 쓸 수 있게 따로 둔다. */
   const [onlyFavorites, setOnlyFavorites] = useState(false);
+  /*
+   * 이름으로 찾기.
+   *
+   * 434개를 부위·강도·장비로만 좁히려니, 이름을 아는 운동 하나를 찾는 데도
+   * 조건을 몇 번씩 골라야 했다. 일정에 운동을 더할 때 쓰는 창에는 이미 있는
+   * 것이라, 여기도 같은 자리에 같은 모양으로 둔다.
+   *
+   * 띄어쓰기는 무시한다 — '덤벨프레스'로 쳐도 '덤벨 프레스'가 나온다.
+   */
+  const [query, setQuery] = useState('');
 
   const visible = useMemo(
     () =>
       exercises.filter(
         (ex) =>
           (sourceView === 'ALL' || ex.source === sourceView) &&
-          (!onlyFavorites || ex.favorite)
+          (!onlyFavorites || ex.favorite) &&
+          (matchesSearch(ex.title, query) || matchesSearch(ex.category, query))
       ),
-    [exercises, sourceView, onlyFavorites]
+    [exercises, sourceView, onlyFavorites, query]
   );
 
   const favoriteCount = useMemo(
@@ -342,7 +354,10 @@ export function TrainingClient({
   const ownCount = useMemo(() => exercises.filter((ex) => ex.source === 'OWN').length, [exercises]);
   const referenceCount = exercises.length - ownCount;
 
-  const filtering = Object.values(filter).some((v) => v.length > 0) || onlyFavorites;
+  const filtering =
+    Object.values(filter).some((v) => v.length > 0) ||
+    onlyFavorites ||
+    query.trim() !== '';
 
   const matched = useMemo(
     () =>
@@ -368,6 +383,29 @@ export function TrainingClient({
 
   return (
     <div className="space-y-6">
+      {/* 이름으로 찾기 — 조건 고르기보다 위에 둔다. 이름을 알면 이쪽이 빠르다. */}
+      <label className="flex items-center gap-2 rounded-2xl border border-line bg-surface px-4 py-3">
+        <Search aria-hidden className="h-4 w-4 shrink-0 text-muted" />
+        <input
+          type="search"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder="운동 이름으로 찾기"
+          aria-label="운동 이름으로 찾기"
+          className="min-w-0 flex-1 bg-transparent text-sm text-ink outline-none placeholder:text-muted"
+        />
+        {query && (
+          <button
+            type="button"
+            onClick={() => setQuery('')}
+            aria-label="찾기 지우기"
+            className="shrink-0 rounded p-1 text-muted transition-colors hover:text-ink"
+          >
+            <X className="h-3.5 w-3.5" />
+          </button>
+        )}
+      </label>
+
       {/*
         즐겨찾기만 보기.
         일정을 고칠 때 445개를 다시 훑지 않아도 되게 하려고 둔다.
