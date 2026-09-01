@@ -999,22 +999,28 @@ console.log('\n[리포트 주기] 기록이 쌓여야 만들어지는가');
   );
 
   const first = reportReadiness(REPORT_EVERY_PITCH_LOGS, false);
-  check('첫 리포트 — 다섯 개면 만들 수 있다', first.ready, first.message);
-
-  const after = reportReadiness(2, true);
   check(
-    '만든 뒤 두 개 쌓임 — 아직',
-    !after.ready && after.remaining === 3,
+    `첫 리포트 — ${REPORT_EVERY_PITCH_LOGS}개면 만들 수 있다`,
+    first.ready,
+    first.message
+  );
+
+  /* 문턱 바로 앞 — 하나만 더 있으면 되는 자리. 문턱이 바뀌어도 따라간다. */
+  const short = REPORT_EVERY_PITCH_LOGS - 1;
+  const after = reportReadiness(short, true);
+  check(
+    `만든 뒤 ${short}개 쌓임 — 아직`,
+    !after.ready && after.remaining === 1,
     after.message
   );
   check(
     '기다리는 동안에도 몇 개 남았는지 말한다',
-    after.message.includes('3번 더'),
+    after.message.includes('1번 더'),
     after.message
   );
 
-  const again = reportReadiness(7, true);
-  check('만든 뒤 다섯 개 넘게 쌓임 — 다시 만들 수 있다', again.ready, again.message);
+  const again = reportReadiness(REPORT_EVERY_PITCH_LOGS + 2, true);
+  check('만든 뒤 문턱을 넘게 쌓임 — 다시 만들 수 있다', again.ready, again.message);
 }
 
 {
