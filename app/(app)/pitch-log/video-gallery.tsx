@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from 'react';
 import Link from 'next/link';
-import { ChevronDown, Film, Play, X } from 'lucide-react';
+import { ChevronDown, Film, X } from 'lucide-react';
 import { usePlaybackUrls } from '@/components/use-playback-urls';
 import { REST_SESSION_TYPE, SESSION_TYPES } from '@/lib/session-type';
 import type { ClipOption } from './compare-view';
@@ -23,6 +23,12 @@ import type { Log } from './pitch-log-client';
  *
  * 펼친 달의 영상만 주소를 받아 온다. 몇 해 쓰면 영상이 삼백 개가 넘는데 열
  * 때마다 전부 발급하면 그만큼 기다린다.
+ *
+ * ■ 카드를 누르면 그날 기록으로 간다
+ *
+ * 그 자리에서 틀어도 봤지만, 영상만 덩그러니 나오지 그날 몇 구를 어떤 강도로
+ * 던졌는지는 안 보인다. 영상을 볼 때 알고 싶은 건 대개 그 둘을 같이 놓은
+ * 것이고, 그날 기록에는 자세 분석까지 붙어 있다.
  *
  * ■ 두 개를 골라 견준다
  *
@@ -71,8 +77,8 @@ export function VideoGallery({
   /**
    * 비교할 둘을 고르는 중인가.
    *
-   * 평소에는 눌러서 그 영상을 본다. 고르기까지 겸하게 했더니 영상 하나를
-   * 확인할 방법이 없어졌다 — 누르면 골라지기만 했다.
+   * 평소에는 눌러서 그날 기록으로 들어간다. 고르기까지 겸하게 했더니 기록을
+   * 여는 방법이 없어졌다 — 누르면 골라지기만 했다.
    */
   selecting: boolean;
   onSelectingChange: (v: boolean) => void;
@@ -82,8 +88,6 @@ export function VideoGallery({
   const [filter, setFilter] = useState<string>('all');
   const [sort, setSort] = useState<Sort>('recent');
   const [picked, setPicked] = useState<(Clip | null)[]>([null, null]);
-  /** 지금 재생 중인 영상. 한 번에 하나만 튼다. */
-  const [playingId, setPlayingId] = useState<string | null>(null);
   const [toggled, setToggled] = useState<Record<string, boolean>>({});
 
   const clips = useMemo<Clip[]>(
@@ -205,7 +209,6 @@ export function VideoGallery({
             onClick={() => {
               onSelectingChange(!selecting);
               setPicked([null, null]);
-              setPlayingId(null);
             }}
             className={`rounded-lg border px-3 py-1.5 text-xs font-semibold transition-colors ${
               selecting
@@ -295,103 +298,81 @@ export function VideoGallery({
                 {group.items.map((clip) => {
                   const slot = slotOf(clip.id);
                   const url = urls[clip.path];
-                  const playing = playingId === clip.id && url != null;
+
+                  /* 썸네일과 설명 — 링크에도 단추에도 같은 속이 들어간다 */
+                  const body = (
+                    <>
+                      {url ? (
+                        /*
+                          영상의 한 프레임을 그대로 쓴다. preload="metadata" 라
+                          머리 부분만 받으므로 목록이 무거워지지 않는다.
+                        */
+                        <video
+                          src={`${url}#t=0.5`}
+                          preload="metadata"
+                          muted
+                          playsInline
+                          className="aspect-video w-full bg-shade object-contain"
+                        />
+                      ) : (
+                        <span className="flex aspect-video w-full items-center justify-center bg-surface-2">
+                          <Film
+                            aria-hidden
+                            className="h-6 w-6 text-line-strong"
+                          />
+                        </span>
+                      )}
+
+                      {selecting && slot >= 0 && (
+                        <span className="absolute top-2 right-2 flex h-6 w-6 items-center justify-center rounded-full bg-sky text-[11px] font-bold text-white shadow">
+                          {slot === 0 ? 'A' : 'B'}
+                        </span>
+                      )}
+
+                      <span className="block space-y-1 px-3 py-2.5 text-left">
+                        <span className="flex flex-wrap items-baseline gap-x-1.5">
+                          <span className="text-[13px] font-semibold text-ink">
+                            {spokenDate(clip.date)}
+                          </span>
+                          <span className="text-[11px] text-muted">
+                            {clip.sessionType}
+                            {clip.label !== '영상' && ` · ${clip.label}`}
+                          </span>
+                        </span>
+                        <span className="block text-[11px] text-muted">
+                          {clip.summary}
+                        </span>
+                      </span>
+                    </>
+                  );
+
+                  const shell = `relative block overflow-hidden rounded-xl border transition-colors ${
+                    selecting && slot >= 0
+                      ? 'border-sky ring-1 ring-sky'
+                      : 'border-line hover:border-sky-soft'
+                  }`;
+
                   return (
                     <li key={clip.id}>
-                      <div
-                        className={`overflow-hidden rounded-xl border transition-colors ${
-                          selecting && slot >= 0
-                            ? 'border-sky ring-1 ring-sky'
-                            : 'border-line'
-                        }`}
-                      >
-                        {playing ? (
-                          /* 눌러서 튼 영상 — 조작 막대를 붙여 그 자리에서 본다 */
-                          <video
-                            src={url}
-                            controls
-                            autoPlay
-                            playsInline
-                            onEnded={() => setPlayingId(null)}
-                            className="aspect-video w-full bg-shade object-contain"
-                          />
-                        ) : (
-                          <button
-                            type="button"
-                            onClick={() =>
-                              selecting ? pick(clip) : setPlayingId(clip.id)
-                            }
-                            aria-pressed={selecting ? slot >= 0 : undefined}
-                            aria-label={`${spokenDate(clip.date)} 영상 ${
-                              selecting ? '고르기' : '재생'
-                            }`}
-                            disabled={!url}
-                            className="group relative block w-full"
-                          >
-                            {url ? (
-                              /*
-                                영상의 한 프레임을 그대로 쓴다.
-                                preload="metadata" 라 머리 부분만 받으므로
-                                목록이 무거워지지 않는다.
-                              */
-                              <video
-                                src={`${url}#t=0.5`}
-                                preload="metadata"
-                                muted
-                                playsInline
-                                className="aspect-video w-full bg-shade object-contain"
-                              />
-                            ) : (
-                              <span className="flex aspect-video w-full items-center justify-center bg-surface-2">
-                                <Film
-                                  aria-hidden
-                                  className="h-6 w-6 text-line-strong"
-                                />
-                              </span>
-                            )}
-
-                            {/* 평소에는 재생 표시, 고르는 중에는 A/B */}
-                            {selecting
-                              ? slot >= 0 && (
-                                  <span className="absolute top-2 right-2 flex h-6 w-6 items-center justify-center rounded-full bg-sky text-[11px] font-bold text-white shadow">
-                                    {slot === 0 ? 'A' : 'B'}
-                                  </span>
-                                )
-                              : url && (
-                                  <span className="absolute inset-0 flex items-center justify-center">
-                                    <span className="flex h-10 w-10 items-center justify-center rounded-full bg-shade/60 text-white transition-colors group-hover:bg-sky">
-                                      <Play
-                                        aria-hidden
-                                        className="ml-0.5 h-4 w-4"
-                                        fill="currentColor"
-                                      />
-                                    </span>
-                                  </span>
-                                )}
-                          </button>
-                        )}
-
-                        <div className="space-y-1 px-3 py-2.5">
-                          <p className="flex flex-wrap items-baseline gap-x-1.5">
-                            <span className="text-[13px] font-semibold text-ink">
-                              {spokenDate(clip.date)}
-                            </span>
-                            <span className="text-[11px] text-muted">
-                              {clip.sessionType}
-                              {clip.label !== '영상' && ` · ${clip.label}`}
-                            </span>
-                          </p>
-                          <p className="text-[11px] text-muted">
-                            {clip.summary}
-                          </p>
-                          <Link
-                            href={`/pitch-log/${clip.date}`}
-                            className="inline-block text-[11px] font-medium text-sky transition-colors hover:text-sky-strong"
-                          >
-                            그날 기록 보기 →
-                          </Link>
-                        </div>
-                      </div>
+                      {selecting ? (
+                        <button
+                          type="button"
+                          onClick={() => pick(clip)}
+                          aria-pressed={slot >= 0}
+                          aria-label={`${spokenDate(clip.date)} 영상 고르기`}
+                          disabled={!url}
+                          className={`w-full ${shell}`}
+                        >
+                          {body}
+                        </button>
+                      ) : (
+                        <Link
+                          href={`/pitch-log/${clip.date}`}
+                          className={shell}
+                        >
+                          {body}
+                        </Link>
+                      )}
                     </li>
                   );
                 })}
