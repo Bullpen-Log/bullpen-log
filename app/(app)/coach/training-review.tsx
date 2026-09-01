@@ -1,19 +1,18 @@
-import { VOLUME_GROUPS, type VolumeGroupKey } from '@/lib/training-volume';
-import type { ReviewWeek, TrainingReview } from '@/lib/report/training-review';
+import type {
+  ReviewDay,
+  ReviewWeek,
+  TrainingReview,
+} from '@/lib/report/training-review';
 
 /**
- * 트레이닝 돌아보기 — 주별 흐름 · 부위 추이.
+ * 트레이닝 돌아보기 — 주별 흐름 · 투구와 운동.
  *
- * 두 카드가 한 가지씩 답한다.
+ * 분석의 트레이닝 칸이 보는 것은 둘이다.
  *
- *   요즘 꾸준한가          주별 흐름
- *   빠뜨린 부위가 있나      부위 추이
- *
- * 둘 다 4주를 가로로 편다. '이번 주'만 보면 이번 주가 원래 그런 주인지 요즘
- * 계속 그런지 알 수가 없다.
+ *   얼마나 했나            주별 흐름
+ *   던진 만큼 챙겼나        투구와 운동
  */
 
-/** 막대를 꽉 채우는 기준 — 주 5일이면 충분히 한 주다 */
 const FULL_DAYS = 5;
 
 /** 2026-08-31 → 8/31 */
@@ -67,110 +66,157 @@ function WeekRow({ week, busiest }: { week: ReviewWeek; busiest: number }) {
   );
 }
 
-/* ───────────────────────────── 부위 추이 ───────────────────────────── */
+/* ──────────────────────────── 투구와 운동 ──────────────────────────── */
 
 /**
- * 부위별 세트를 막대 하나로.
+ * 던진 날 옆에 운동한 날을 겹쳐 놓는다.
  *
- * 이번 주 것만 있을 때는 "암케어 4세트"가 많은 건지 적은 건지 알 수 없었다.
- * 4주를 나란히 두면 늘 그만큼 했는지, 이번 주만 빠졌는지가 보인다.
+ * 한동안 이 자리가 '부위별 세트 추이'였다. 그런데 이 앱을 쓰는 사람은 투구를
+ * 먼저 적고 운동은 나중에 적는다 — 넉 달치를 세어 보니 던진 날은 스물셋인데
+ * 운동을 마쳤다고 누른 날은 셋이었다. 그 상태에서 부위별 세트는 무엇을 그려도
+ * 빈 표였고, 빈 표는 아무 말도 안 한다.
  *
- * 한동안 6줄 × 4열 숫자 표였다. 그런데 이 칸이 말하려는 것은 "무엇을 안 했나"인데
- * 숫자를 스물넉 칸 늘어놓으면 눈이 그것을 못 잡는다. 하체 19 · 코어 9 · 등 9 ·
- * 가슴 6 · 팔 7 · 암케어 6 이 하체 편중이라는 사실이 표에서는 안 읽혔다.
+ * 같은 빈칸이라도 던진 날 옆에 놓으면 그 자체로 할 말이 된다 — "열세 번 던지는
+ * 동안 암케어를 한 번도 안 했다". 세트 표가 절대 할 수 없던 말이고, 투구와
+ * 운동을 한곳에 적는 이 앱만 할 수 있는 말이다.
  *
- * 막대 하나로 줄인다. 길이가 4주 합계라 부위 사이의 균형이 그대로 보이고, 색의
- * 진하기가 주라서 언제 했는지도 같이 보인다. 옅은 쪽이 오래된 주다.
- *
- * 색을 네 가지 이름(sky-soft·sky·sky-strong…)으로 나누지 않고 한 색의 투명도로
- * 만든다. 어두운 화면에서는 그 이름들의 밝기 순서가 뒤집혀서, 3주 전이 이번 주보다
- * 밝아진다. 투명도는 양쪽에서 똑같이 '옅다 → 진하다'로 읽힌다.
+ * 암케어를 따로 한 줄 뺀다. 운동 안에 섞어 두면 '운동은 했으니 됐다'로 읽히는데,
+ * 던지는 사람에게 어깨·팔꿈치 관리는 다른 운동으로 대신할 수 있는 것이 아니다.
  */
-const WEEK_SHADE = ['bg-sky/25', 'bg-sky/45', 'bg-sky/70', 'bg-sky'] as const;
 
-function PartTrend({ weeks }: { weeks: ReviewWeek[] }) {
-  /* 오래된 주가 왼쪽 — 왼쪽에서 오른쪽으로 읽는 것이 시간 순이다 */
-  const ordered = [...weeks].reverse();
-  const rows: { key: VolumeGroupKey | 'armCare'; label: string; hint: string }[] = [
-    ...VOLUME_GROUPS.map((g) => ({ key: g.key, label: g.label, hint: g.hint })),
-    { key: 'armCare' as const, label: '암케어', hint: '어깨·팔꿈치 관리' },
+/** 던진 날이 이만큼 되는데 암케어가 하나도 없으면 짚어 준다 */
+const ARM_CARE_ALERT_DAYS = 3;
+
+/** 한 줄 — 스물여덟 칸을 주마다 끊어 놓는다 */
+function DayStrip({
+  label,
+  weeks,
+  isOn,
+  describe,
+}: {
+  label: string;
+  weeks: ReviewDay[][];
+  isOn: (day: ReviewDay) => boolean;
+  describe: (day: ReviewDay) => string;
+}) {
+  return (
+    <div className="flex items-center gap-2">
+      <span className="w-11 shrink-0 text-[11px] font-semibold text-ink">{label}</span>
+      {weeks.map((week, i) => (
+        <span key={i} className="flex flex-1 gap-0.5">
+          {week.map((day) => (
+            <span
+              key={day.date}
+              title={`${day.date} — ${describe(day)}`}
+              className={`h-4 flex-1 rounded-sm ${
+                isOn(day) ? 'bg-sky' : 'bg-surface-2'
+              }`}
+            />
+          ))}
+        </span>
+      ))}
+    </div>
+  );
+}
+
+function PitchTraining({
+  review,
+  weeks: weekCount,
+}: {
+  review: TrainingReview;
+  weeks: number;
+}) {
+  const { days, totals } = review;
+
+  /* 주 단위로 끊는다 — 스물여덟 칸을 한 줄로 늘어놓으면 어디가 어느 주인지 모른다 */
+  const weeks = Array.from({ length: weekCount }, (_, i) =>
+    days.slice(i * 7, i * 7 + 7)
+  );
+
+  /*
+   * 던진 날이 어느 정도 있는데 암케어가 하나도 없을 때만 짚는다.
+   *
+   * 던진 적이 없으면 안 챙긴 것이 아니라 챙길 일이 없었던 것이다. 그때까지
+   * 붉게 두면 경고가 늘 켜져 있게 되고, 늘 켜진 경고는 아무 뜻이 없다.
+   */
+  const armCareMissing =
+    totals.pitchedDays >= ARM_CARE_ALERT_DAYS && totals.armCareDays === 0;
+
+  const counts: { label: string; value: number; alert?: boolean }[] = [
+    { label: '던진 날', value: totals.pitchedDays },
+    { label: '운동한 날', value: totals.trainedDays },
+    { label: '암케어 한 날', value: totals.armCareDays, alert: armCareMissing },
   ];
 
-  const setsOf = (week: ReviewWeek, key: VolumeGroupKey | 'armCare') =>
-    key === 'armCare' ? week.armCare : (week.parts[key] ?? 0);
-
-  const weekLabelOf = (ago: number) => (ago === 0 ? '이번 주' : `${ago}주 전`);
-
-  /* 가장 많이 한 부위가 막대를 가득 채운다 — 부위끼리 견주는 것이 요점이다 */
-  const totals = rows.map((r) => ordered.reduce((sum, w) => sum + setsOf(w, r.key), 0));
-  const busiest = Math.max(...totals, 1);
-
   return (
-    <div className="space-y-3">
-      {/* 어느 진하기가 어느 주인지 */}
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-        {ordered.map((w, i) => (
-          <span
-            key={w.ago}
-            className="inline-flex items-center gap-1 text-[10px] text-muted"
+    <div className="space-y-4">
+      {/* 숫자 셋 — 격자를 보기 전에 요점을 먼저 말한다 */}
+      <div className="grid grid-cols-3 gap-2">
+        {counts.map((c) => (
+          <div
+            key={c.label}
+            className={`rounded-xl border px-3 py-2.5 ${
+              c.alert ? 'border-warn-line bg-warn-bg' : 'border-line bg-surface-2'
+            }`}
           >
-            <span className={`h-2 w-3 rounded-sm ${WEEK_SHADE[i]}`} />
-            {weekLabelOf(w.ago)}
-          </span>
+            <p className="text-[11px] text-muted">{c.label}</p>
+            <p
+              className={`text-display mt-0.5 text-xl leading-none tabular-nums ${
+                c.alert ? 'text-warn' : 'text-ink'
+              }`}
+            >
+              {c.value}
+              <span className="ml-0.5 text-xs font-normal text-muted">일</span>
+            </p>
+          </div>
         ))}
       </div>
 
-      <ul className="space-y-2.5">
-        {rows.map((row, ri) => {
-          const values = ordered.map((w) => setsOf(w, row.key));
-          const total = totals[ri];
-          /* 4주 내내 하나도 안 한 부위는 그 사실이 곧 알림이다 */
-          const untouched = total === 0;
-          const breakdown = ordered
-            .map((w, i) => `${weekLabelOf(w.ago)} ${values[i]}세트`)
-            .join(', ');
+      {armCareMissing && (
+        <p className="rounded-xl border border-warn-line bg-warn-bg px-4 py-3 text-xs leading-relaxed text-warn">
+          최근 {weekCount}주 동안 {totals.pitchedDays}일 던졌는데 암케어 기록이
+          없습니다. 암케어는 던진 뒤 어깨와 팔꿈치를 관리하는 운동입니다.
+        </p>
+      )}
 
-          return (
-            <li key={row.key}>
-              <div className="flex flex-wrap items-baseline gap-x-2">
-                <span className="text-[13px] font-semibold text-ink">{row.label}</span>
-                <span className="text-[11px] text-muted/70">{row.hint}</span>
-                <span
-                  className={`ml-auto text-display text-sm leading-none tabular-nums ${
-                    untouched ? 'text-warn' : 'text-ink'
-                  }`}
-                >
-                  {total}
-                </span>
-              </div>
-
-              {/*
-                막대 하나에 네 주를 이어 붙인다. 칸을 나눠 그리지 않는 것은
-                합계 길이가 부위 사이의 균형이기 때문이다 — 나누면 그 길이가
-                끊겨서 안 보인다.
-              */}
-              <div
-                title={breakdown}
-                aria-label={`${row.label} 4주 합계 ${total}세트 — ${breakdown}`}
-                className={`mt-1.5 flex h-2.5 overflow-hidden rounded-full ${
-                  untouched ? 'border border-dashed border-warn-line' : 'bg-surface-2'
+      {/* 격자 — 언제 던지고 언제 챙겼는지 */}
+      <div className="space-y-1.5">
+        <div className="flex items-center gap-2">
+          <span className="w-11 shrink-0" />
+          {weeks.map((_, i) => {
+            const ago = weekCount - 1 - i;
+            return (
+              <span
+                key={i}
+                className={`flex-1 text-center text-[10px] ${
+                  ago === 0 ? 'text-sky' : 'text-muted'
                 }`}
               >
-                {values.map(
-                  (sets, i) =>
-                    sets > 0 && (
-                      <span
-                        key={ordered[i].ago}
-                        className={WEEK_SHADE[i]}
-                        style={{ width: `${(sets / busiest) * 100}%` }}
-                      />
-                    )
-                )}
-              </div>
-            </li>
-          );
-        })}
-      </ul>
+                {ago === 0 ? '이번 주' : `${ago}주 전`}
+              </span>
+            );
+          })}
+        </div>
+
+        <DayStrip
+          label="투구"
+          weeks={weeks}
+          isOn={(d) => d.pitches > 0}
+          describe={(d) => (d.pitches > 0 ? `${d.pitches}구` : '안 던짐')}
+        />
+        <DayStrip
+          label="운동"
+          weeks={weeks}
+          isOn={(d) => d.trained}
+          describe={(d) => (d.trained ? '운동함' : '운동 안 함')}
+        />
+        <DayStrip
+          label="암케어"
+          weeks={weeks}
+          isOn={(d) => d.armCare}
+          describe={(d) => (d.armCare ? '암케어함' : '암케어 안 함')}
+        />
+      </div>
     </div>
   );
 }
@@ -221,29 +267,23 @@ export function TrainingReviewCards({
         </p>
       </section>
 
-      {/* ── 부위 추이 ─────────────────────────────────────── */}
+      {/* ── 투구와 운동 ───────────────────────────────────── */}
       <section className="rounded-2xl border border-line bg-surface px-5 py-5 sm:px-6">
         <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
-          <h2 className="text-base font-bold text-ink">부위별 세트 추이</h2>
-          <p className="text-xs text-muted">주마다 몇 세트씩 했는지</p>
+          <h2 className="text-base font-bold text-ink">투구와 운동</h2>
+          <p className="text-xs text-muted">던진 날과 챙긴 날을 나란히</p>
         </div>
 
-        {anyTraining ? (
-          <>
-            <div className="mt-4">
-              <PartTrend weeks={weeks} />
-            </div>
-            <p className="mt-3 text-[11px] leading-relaxed text-muted/70">
-              {weekCount}주 내내 비어 있는 줄은 붉게 표시합니다. 지수는 &ldquo;지금
-              많은가&rdquo;를 말하고 이 표는 &ldquo;무엇을 안 했나&rdquo;를 말합니다 —
-              하체만 하고 암케어를 건너뛴 주와 골고루 한 주는 지수가 같습니다.
-            </p>
-          </>
-        ) : (
-          <p className="mt-4 rounded-xl border border-dashed border-line px-4 py-8 text-center text-sm leading-relaxed text-muted">
-            아직 쌓인 세트가 없습니다.
-          </p>
-        )}
+        <div className="mt-4">
+          <PitchTraining review={review} weeks={weekCount} />
+        </div>
+
+        <p className="mt-3 text-[11px] leading-relaxed text-muted/70">
+          칸 하나가 하루입니다. 짚으면 그날 몇 구를 던졌는지 나옵니다. 운동은
+          &lsquo;마침&rsquo;을 누른 날만 셉니다 — 했는데 안 눌렀으면 빈칸으로 남습니다.
+          암케어를 따로 뺀 것은 던지는 사람에게 어깨·팔꿈치 관리가 다른 운동으로
+          대신되지 않기 때문입니다.
+        </p>
       </section>
     </>
   );
