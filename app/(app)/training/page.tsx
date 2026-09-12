@@ -9,7 +9,7 @@ import { formatPrescription, needsWeight, usesWeight } from '@/lib/exercise-meta
 import { loadTodayCore } from '@/lib/report/today-data';
 import { recentAmounts } from '@/lib/report/exercise-recent';
 import { MIN_CANDIDATES } from '@/lib/report/prescription';
-import { DEFAULT_WORKOUT_MINUTES } from '@/lib/report/theme';
+import { DEFAULT_WORKOUT_MINUTES, WARMUP_WEIGHT } from '@/lib/report/theme';
 import { Card, EmptyState, PageHeading } from '@/components/ui';
 import { PlanForm } from '@/components/training-forms';
 import type { AiReportBody } from '@/lib/ai/report-prompt';
@@ -170,6 +170,8 @@ export default async function TrainingPage({
       slot: p.slot,
       manual: p.manual === true,
       unsafe: p.unsafe,
+      /* 워밍업으로 줄여 둔 세트. 없으면 운동에 적힌 처방 그대로다 */
+      sets: p.sets ?? null,
       ex: byId.get(p.exerciseId),
     }))
     .filter((p): p is typeof p & { ex: NonNullable<(typeof p)['ex']> } => p.ex != null);
@@ -188,7 +190,7 @@ export default async function TrainingPage({
     ),
   ]);
 
-  const exercises: TodayExercise[] = full.map(({ slot, manual, unsafe, ex }) => ({
+  const exercises: TodayExercise[] = full.map(({ slot, manual, unsafe, sets, ex }) => ({
     favorite: favExercises.has(ex.id),
     id: ex.id,
     title: ex.title,
@@ -198,8 +200,16 @@ export default async function TrainingPage({
     intensity: ex.intensity,
     difficulty: ex.difficulty,
     equipment: ex.equipment,
-    // 아직 세트·횟수를 안 채운 운동은 null 이라 화면에 아무것도 안 나온다.
-    prescription: formatPrescription(ex),
+    /*
+     * 아직 세트·횟수를 안 채운 운동은 null 이라 화면에 아무것도 안 나온다.
+     *
+     * 워밍업으로 고른 웨이트는 줄인 세트와 짧은 휴식으로 보여준다. 본운동
+     * 처방을 그대로 보여주면 '3세트에 세트 사이 2분'이 되는데, 그건 워밍업이
+     * 아니라 본운동이다.
+     */
+    prescription: formatPrescription(
+      sets != null ? { ...ex, sets, restSeconds: WARMUP_WEIGHT.restSeconds } : ex
+    ),
     /*
      * 아직 촬영하지 않은 운동은 유튜브 참고 영상의 미리보기를 그대로 쓴다.
      * 우리 저장소에 담아 둔 것이 없어 발급받을 주소도 없다.

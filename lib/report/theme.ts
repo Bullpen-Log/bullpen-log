@@ -580,6 +580,18 @@ type GoalShape = {
 };
 
 /**
+ * 워밍업으로 쓰는 웨이트의 처방.
+ *
+ * 같은 운동이라도 워밍업으로 할 때는 본운동처럼 하지 않는다. 막대 RDL 을
+ * 3세트에 세트 사이 2분씩 쉬면 12분인데, 그건 워밍업이 아니라 본운동이다.
+ *
+ * 한 세트씩 짧게 쉬며 두 동작을 훑는 편이, 한 동작을 세 세트 하는 것보다
+ * 워밍업이 하는 일에 맞는다 — 무게를 쌓는 것이 아니라 오늘 쓸 관절을 한 번씩
+ * 지나가는 것이 목적이다.
+ */
+export const WARMUP_WEIGHT = { sets: 1, restSeconds: 30 } as const;
+
+/**
  * 가벼운 웨이트 워밍업에 쓸 강도.
  *
  * '매우 낮음'은 스트레칭 수준이라 웨이트에는 거의 안 붙어 있고, '중간'부터는
@@ -827,7 +839,28 @@ export type ThemedExercise = {
   movementPattern?: string | null;
 } & Partial<Prescription>;
 
-export type ThemedPick<T> = { exercise: T; slot: SlotKey };
+export type ThemedPick<T> = {
+  exercise: T;
+  slot: SlotKey;
+  /** 워밍업으로 할 때 줄인 세트 수. 그대로 하는 운동에는 없다. */
+  sets?: number;
+};
+
+/**
+ * 이 운동을 워밍업으로 할 때 걸리는 시간(분).
+ *
+ * 종목을 바꾸는 시간도 가벼운 쪽으로 센다. 스트렝스에 4분을 주는 것은 원판을
+ * 갈아 끼우는 시간까지 보기 때문인데, 워밍업은 빈 막대나 밴드라 그만큼 걸리지
+ * 않는다.
+ */
+function warmupMinutes(ex: ThemedExercise): number {
+  const measured = minutesForSets({
+    ...ex,
+    sets: WARMUP_WEIGHT.sets,
+    restSeconds: WARMUP_WEIGHT.restSeconds,
+  });
+  return (measured ?? 1) + TRANSITION_MINUTES;
+}
 
 /** 워밍업 구간에 들어갈 수 있는가 — 모빌리티이거나 스트레칭 수준 강도 */
 function isWarmup(ex: ThemedExercise): boolean {
@@ -1155,6 +1188,18 @@ export function pickForTheme<T extends ThemedExercise>({
     }
 
     /*
+     * 이 구간에서 이 운동이 걸리는 시간.
+     *
+     * 가벼운 웨이트로 데우는 워밍업은 줄인 세트로 센다. 본운동 처방(3세트에
+     * 세트 사이 2분)으로 세면 하나에 12분이라 워밍업이 하나밖에 안 들어간다.
+     * 되돌아간 모빌리티는 예전 계산 그대로다.
+     */
+    const costOf = (ex: T) =>
+      spec.slot === 'warmup' && spec.intensities && !isWarmup(ex)
+        ? warmupMinutes(ex)
+        : estimateMinutes(ex);
+
+    /*
      * 본운동 안의 순서를 정한다. 목표를 먼저 반영하고, 그 위에 오늘 고른
      * 부위를 얹는다. 둘 다 나누기만 하고 순서를 뒤섞지 않으므로(안정 분할),
      * 오늘 고른 부위 안에서도 목표에 맞는 것이 앞에 남는다.
@@ -1208,7 +1253,7 @@ export function pickForTheme<T extends ThemedExercise>({
      * 자리를 못 찾으면 다음 운동을 계속 본다(멈추지 않는다). 긴 운동이 안
      * 들어갈 때 짧은 운동으로 남은 시간을 채울 수 있어서다.
      */
-    let used = chosen.reduce((sum, ex) => sum + estimateMinutes(ex), 0);
+    let used = chosen.reduce((sum, ex) => sum + costOf(ex), 0);
     totalUsed += used;
     /*
      * 구간에 배분된 시간과 하루 전체, 둘 다 봐야 한다. 구간만 보면 다섯이
@@ -1302,7 +1347,7 @@ export function pickForTheme<T extends ThemedExercise>({
     const remaining = pool.filter((ex) => !taken.has(ex.id));
     while (chosen.length < spec.maxCount) {
       const free = (ex: T) => !taken.has(ex.id);
-      const canTake = (ex: T) => free(ex) && fits(estimateMinutes(ex)) && mixAllows(ex);
+      const canTake = (ex: T) => free(ex) && fits(costOf(ex)) && mixAllows(ex);
       /*
        * 시간 안에 드는 것 중에서 계열이 안 겹치는 것 → 시간 안에 드는 것 →
        * (구간이 비었을 때만) 시간을 넘겨서라도 하나.
@@ -1321,8 +1366,7 @@ export function pickForTheme<T extends ThemedExercise>({
         remaining
           .filter(pick)
           .reduce<T | undefined>(
-            (best, ex) =>
-              best == null || estimateMinutes(ex) < estimateMinutes(best) ? ex : best,
+            (best, ex) => (best == null || costOf(ex) < costOf(best) ? ex : best),
             undefined
           );
 
@@ -1350,7 +1394,7 @@ export function pickForTheme<T extends ThemedExercise>({
       if (next == null) break;
       chosen.push(next);
       taken.add(next.id);
-      const spent = estimateMinutes(next);
+      const spent = costOf(next);
       used += spent;
       totalUsed += spent;
       if (next.movementPattern && countsForPattern(next)) {
@@ -1440,11 +1484,28 @@ export function pickForTheme<T extends ThemedExercise>({
 
   const picks: ThemedPick<T>[] = [];
   for (const slot of SLOT_ORDER) {
-    for (const ex of bySlot.get(slot) ?? []) picks.push({ exercise: ex, slot });
+    for (const ex of bySlot.get(slot) ?? []) {
+      /*
+       * 워밍업으로 고른 웨이트는 줄인 세트를 함께 남긴다. 화면이 '1세트 × 10회'
+       * 로 보여주고, 마쳤다고 누를 때도 그 값이 기본이 된다 — 남기지 않으면
+       * 화면은 3세트라 하고 시간 계산만 1세트로 하는 셈이 된다.
+       */
+      const warmupWeight = slot === 'warmup' && !isWarmup(ex);
+      picks.push({
+        exercise: ex,
+        slot,
+        ...(warmupWeight ? { sets: WARMUP_WEIGHT.sets } : {}),
+      });
+    }
   }
 
   const estimatedMinutes = Math.round(
-    picks.reduce((sum, p) => sum + estimateMinutes(p.exercise), 0)
+    picks.reduce(
+      (sum, p) =>
+        sum +
+        (p.sets != null ? warmupMinutes(p.exercise) : estimateMinutes(p.exercise)),
+      0
+    )
   );
 
   return { picks, estimatedMinutes, notes };

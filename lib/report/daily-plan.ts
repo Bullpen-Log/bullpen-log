@@ -63,7 +63,18 @@ export type DailyPlan = {
    * 이유는 안전 재확인 때문이다 — 우리가 고른 것은 몸 상태가 나빠지면 빼지만,
    * 사용자가 일부러 넣은 것은 남기고 표시만 한다. 최종 선택은 본인 몫이다.
    */
-  picks: { exerciseId: string; slot: SlotKey; manual?: boolean }[];
+  picks: {
+    exerciseId: string;
+    slot: SlotKey;
+    manual?: boolean;
+    /**
+     * 워밍업으로 할 때 줄인 세트 수. 그대로 하는 운동에는 없다.
+     *
+     * 남기지 않으면 화면은 처방된 3세트를 그대로 말하는데 시간 계산만 줄인
+     * 세트로 하는 셈이 된다 — 적어 준 시간과 실제로 걸리는 시간이 어긋난다.
+     */
+    sets?: number;
+  }[];
   /** 무엇을 보고 이렇게 골랐는지 */
   basis: string[];
   notes: string[];
@@ -213,7 +224,11 @@ export function buildDailyPlan<T extends ExerciseLike>({
     requestedMinutes,
     minutes,
     estimatedMinutes: themed.estimatedMinutes,
-    picks: themed.picks.map((p) => ({ exerciseId: p.exercise.id, slot: p.slot })),
+    picks: themed.picks.map((p) => ({
+      exerciseId: p.exercise.id,
+      slot: p.slot,
+      ...(p.sets != null ? { sets: p.sets } : {}),
+    })),
     basis: picked.basis,
     notes: themed.notes,
     excluded: picked.excluded,

@@ -206,6 +206,8 @@ export async function loadTodayCore(user: UserForToday, today: Date) {
         slot: ex && savedPlan ? slotForTheme(ex, savedPlan.theme.key) : 'main',
         manual: true,
         unsafe: !safeIds.has(exerciseId),
+        /* 사용자가 직접 더한 것은 처방 그대로 한다 — 줄일 세트가 없다 */
+        sets: undefined as number | undefined,
       };
     })
     .filter((p) => library.some((e) => e.id === p.exerciseId));
@@ -216,7 +218,8 @@ export async function loadTodayCore(user: UserForToday, today: Date) {
   const shownMinutes = Math.round(
     shownPicks.reduce((sum, p) => {
       const ex = byId.get(p.exerciseId);
-      return ex ? sum + estimateMinutes(ex) : sum;
+      /* 워밍업으로 줄여 둔 세트가 있으면 그 세트로 센다 */
+      return ex ? sum + estimateMinutes(ex, p.sets ?? undefined) : sum;
     }, 0)
   );
 

@@ -55,13 +55,14 @@ import {
 } from '../lib/report/personalize.ts';
 import {
   DEFAULT_WORKOUT_MINUTES,
+  SLOT_ORDER,
+  WARMUP_WEIGHT,
   WORKOUT_MINUTES_CHOICES,
   compositionFor,
   decideTheme,
   effectiveMinutes,
   estimateMinutes,
   pickForTheme,
-  SLOT_ORDER,
   type ThemeKey,
 } from '../lib/report/theme.ts';
 import { BODY_PARTS, intensityLevel, usesWeight } from '../lib/exercise-meta.ts';
@@ -2182,6 +2183,43 @@ console.log('\n[워밍업] 무게 드는 날은 가벼운 웨이트로 데우는
       warm.map((p) => p.exercise.title).join(', ')
     );
   }
+
+  /*
+   * 워밍업으로 할 때는 세트를 줄인다.
+   *
+   * 막대 RDL 을 처방대로 3세트에 세트 사이 2분씩 쉬면 12분인데, 그건 워밍업이
+   * 아니라 본운동이다. 줄이지 않으면 워밍업이 하나밖에 안 들어가, 모빌리티를
+   * 쓰던 때보다 오히려 적어진다.
+   */
+  for (const m of [90, 120]) {
+    const warm = pickForTheme({
+      candidates: library,
+      theme: 'lower',
+      minutes: effectiveMinutes('lower', m),
+      doneIds: new Set<string>(),
+      rotationSeed: TODAY.toISOString().slice(0, 10),
+      goal: '근력 향상',
+    }).picks.filter((p) => p.slot === 'warmup');
+    check(
+      `${m}분이면 워밍업이 둘 들어간다`,
+      warm.length === 2,
+      warm.map((p) => `${p.exercise.title}(${p.sets}세트)`).join(', ')
+    );
+  }
+  check(
+    '워밍업 웨이트에는 줄인 세트가 함께 남는다',
+    warmupOf('근력 향상', 'lower').every(
+      (p) => p.sets === WARMUP_WEIGHT.sets && p.sets < (p.exercise.sets ?? 99)
+    ),
+    warmupOf('근력 향상', 'lower')
+      .map((p) => `${p.exercise.sets}세트 → ${p.sets}세트`)
+      .join(', ')
+  );
+  check(
+    '모빌리티 워밍업에는 줄인 세트가 없다',
+    warmupOf('부상 방지', 'lower').every((p) => p.sets === undefined),
+    '없음'
+  );
 
   /*
    * 상체 '강도 낮음' 여덟 개는 하나만 빼고 전부 밴드가 있어야 한다. 맨몸만
