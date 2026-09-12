@@ -2140,6 +2140,63 @@ console.log('\n[목표 안의 부위] 상체를 밀기·당기기로 가르는�
   );
 }
 
+console.log('\n[워밍업] 무게 드는 날은 가벼운 웨이트로 데우는가');
+{
+  /*
+   * 스트레칭만 하고 곧바로 스쿼트에 들어가는 것보다, 같은 동작을 빈 막대나
+   * 밴드로 먼저 훑는 편이 그날 할 운동을 실제로 준비시킨다. 몸을 아끼는
+   * 날(부상 방지)과 고르게 가는 날(균형)은 그대로 모빌리티다.
+   */
+  const warmupOf = (goal: string, theme: 'lower' | 'upper', cands = library) =>
+    pickForTheme({
+      candidates: cands,
+      theme,
+      minutes: effectiveMinutes(theme, 60),
+      doneIds: new Set<string>(),
+      rotationSeed: TODAY.toISOString().slice(0, 10),
+      goal,
+    }).picks.filter((p) => p.slot === 'warmup');
+
+  for (const goal of ['근력 향상', '파워 향상']) {
+    for (const [theme, want] of [
+      ['lower', '하체 스트렝스'],
+      ['upper', '상체 스트렝스'],
+    ] as const) {
+      const warm = warmupOf(goal, theme);
+      check(
+        `${goal} ${theme === 'lower' ? '하체' : '상체'}날 — 워밍업이 가벼운 웨이트다`,
+        warm.length > 0 &&
+          warm.every(
+            (p) => p.exercise.category === want && p.exercise.intensity === '낮음'
+          ),
+        warm.map((p) => `${p.exercise.title}(${p.exercise.intensity})`).join(', ')
+      );
+    }
+  }
+
+  for (const goal of ['균형 잡힌 관리', '부상 방지']) {
+    const warm = warmupOf(goal, 'lower');
+    check(
+      `${goal}은 예전처럼 모빌리티다`,
+      warm.length > 0 && warm.every((p) => p.exercise.category === '모빌리티'),
+      warm.map((p) => p.exercise.title).join(', ')
+    );
+  }
+
+  /*
+   * 상체 '강도 낮음' 여덟 개는 하나만 빼고 전부 밴드가 있어야 한다. 맨몸만
+   * 가진 사람은 후보가 0인데, 그대로 두면 워밍업 없이 곧바로 무거운 운동으로
+   * 들어간다.
+   */
+  const bare = library.filter((ex) => ex.equipment.every((e) => e === '맨몸'));
+  const fallback = warmupOf('근력 향상', 'upper', bare);
+  check(
+    '가벼운 웨이트가 없으면 모빌리티로 되돌아간다',
+    fallback.length > 0 && fallback.every((p) => p.exercise.category === '모빌리티'),
+    fallback.map((p) => p.exercise.title).join(', ') || '워밍업이 비었다'
+  );
+}
+
 console.log('\n[가장 빠듯한 경우] 그래도 훈련이 나오는가');
 {
   let empty = 0;

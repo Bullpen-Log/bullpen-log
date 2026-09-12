@@ -512,6 +512,13 @@ type SlotSpec = {
    */
   powerPatterns?: readonly string[];
   /**
+   * 이 구간에 들어올 수 있는 강도 이름.
+   *
+   * 지금은 워밍업에만 쓴다. 이 값이 있으면 워밍업이 '모빌리티거나 아주 가벼운
+   * 것'이라는 예전 규칙 대신, 적어 둔 카테고리와 강도로만 채워진다.
+   */
+  intensities?: readonly string[];
+  /**
    * 이 구간에 들어올 수 있는 스트렝스의 동작 계열.
    *
    * 목표에서 '상체 밀기'처럼 좁혔을 때만 채워진다. powerPatterns 와 나란한
@@ -553,7 +560,18 @@ type SlotSpec = {
  * 어깨 관리(암케어)는 어느 목표에도 있다. 투수에게 그것만은 매일이다.
  */
 type GoalShape = {
-  warmup: { share: number; maxCount: number };
+  /**
+   * 워밍업.
+   *
+   * weight 가 켜져 있으면 모빌리티 대신 그날 부위의 '강도 낮음' 웨이트로
+   * 채운다 — 막대 RDL, 밴드 풀 어파트, 인클라인 푸쉬업 같은 것들이다.
+   *
+   * 무게를 드는 날에는 이쪽이 맞다. 스트레칭만 하고 곧바로 스쿼트에 들어가는
+   * 것보다, 같은 동작을 빈 막대나 밴드로 먼저 훑는 편이 그날 할 운동을 실제로
+   * 준비시킨다. 몸을 아끼는 날(부상 방지)과 고르게 가는 날(균형)은 그대로
+   * 모빌리티다.
+   */
+  warmup: { share: number; maxCount: number; weight?: boolean };
   /** 무게·파워를 하는 구간. 없으면 그 목표는 무게를 안 든다. */
   main?: { share: number; maxCount: number };
   core?: { share: number; maxCount: number };
@@ -561,14 +579,22 @@ type GoalShape = {
   armcare: { share: number; maxCount: number };
 };
 
+/**
+ * 가벼운 웨이트 워밍업에 쓸 강도.
+ *
+ * '매우 낮음'은 스트레칭 수준이라 웨이트에는 거의 안 붙어 있고, '중간'부터는
+ * 이미 본운동이다. 그 사이 한 칸만 쓴다.
+ */
+const WARMUP_WEIGHT_INTENSITY = '낮음';
+
 const GOAL_SHAPES: Record<string, GoalShape> = {
   '근력 향상': {
-    warmup: { share: 0.1, maxCount: 2 },
+    warmup: { share: 0.1, maxCount: 2, weight: true },
     main: { share: 0.7, maxCount: 8 },
     armcare: { share: 0.2, maxCount: 3 },
   },
   '파워 향상': {
-    warmup: { share: 0.1, maxCount: 2 },
+    warmup: { share: 0.1, maxCount: 2, weight: true },
     main: { share: 0.62, maxCount: 8 },
     core: { share: 0.13, maxCount: 2 },
     armcare: { share: 0.15, maxCount: 2 },
@@ -601,9 +627,29 @@ const GOAL_SHAPES: Record<string, GoalShape> = {
  * 목표를 하나 더 만들 때 카테고리를 다시 적을 일이 없다.
  */
 function shapeToSpecs(shape: GoalShape, mainSpec: SlotSpec): SlotSpec[] {
-  const specs: SlotSpec[] = [
-    { slot: 'warmup', ...shape.warmup, categories: ['모빌리티'] },
-  ];
+  /*
+   * 가벼운 웨이트 워밍업은 그날 할 부위를 그대로 따라간다. 하체 데이면 하체
+   * 스트렝스, 상체 데이면 상체 스트렝스 — 이제 할 곳을 데우는 것이 요점이라
+   * 딴 부위를 데워 봐야 뜻이 없다.
+   */
+  const strengthCategory = mainSpec.categories.find((c) => c.endsWith('스트렝스'));
+  const warmup: SlotSpec =
+    shape.warmup.weight && strengthCategory
+      ? {
+          slot: 'warmup',
+          share: shape.warmup.share,
+          maxCount: shape.warmup.maxCount,
+          categories: [strengthCategory],
+          intensities: [WARMUP_WEIGHT_INTENSITY],
+        }
+      : {
+          slot: 'warmup',
+          share: shape.warmup.share,
+          maxCount: shape.warmup.maxCount,
+          categories: ['모빌리티'],
+        };
+
+  const specs: SlotSpec[] = [warmup];
   if (shape.main) {
     specs.push({ ...mainSpec, share: shape.main.share, maxCount: shape.main.maxCount });
   }
@@ -1065,7 +1111,16 @@ export function pickForTheme<T extends ThemedExercise>({
     const budget = minutes * spec.share;
 
     let pool = ordered.filter((ex) => {
-      if (spec.slot === 'warmup') return isWarmup(ex);
+      if (spec.slot === 'warmup') {
+        /* 가벼운 웨이트로 데우는 날 — 적어 둔 부위와 강도로만 채운다 */
+        if (spec.intensities) {
+          return (
+            spec.categories.includes(ex.category) &&
+            spec.intensities.includes(ex.intensity)
+          );
+        }
+        return isWarmup(ex);
+      }
       if (isWarmup(ex) || !spec.categories.includes(ex.category)) return false;
       /* 파워는 이 구간에 맞는 계열만 — 상체날에 스쿼트 점프가 들어오지 않게 */
       if (
@@ -1087,6 +1142,17 @@ export function pickForTheme<T extends ThemedExercise>({
       }
       return true;
     });
+
+    /*
+     * 가벼운 웨이트가 하나도 없으면 예전처럼 모빌리티로 푼다.
+     *
+     * 상체 '강도 낮음' 여덟 개는 하나만 빼고 전부 밴드가 있어야 한다 — 맨몸만
+     * 가진 사람에게는 후보가 0이다. 그대로 두면 워밍업 없이 곧바로 무거운
+     * 운동으로 들어간다.
+     */
+    if (spec.slot === 'warmup' && spec.intensities && pool.length === 0) {
+      pool = ordered.filter(isWarmup);
+    }
 
     /*
      * 본운동 안의 순서를 정한다. 목표를 먼저 반영하고, 그 위에 오늘 고른
