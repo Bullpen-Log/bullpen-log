@@ -5,7 +5,12 @@ import { useFormStatus } from 'react-dom';
 import { RefreshCw } from 'lucide-react';
 import { CheckboxGroup, RadioGroup } from '@/components/choice-inputs';
 import { SELECTABLE_EQUIPMENT } from '@/lib/report/equipment';
-import { TRAINING_GOALS, TRAINING_LEVELS } from '@/lib/report/personalize';
+import {
+  TRAINING_GOALS,
+  TRAINING_LEVELS,
+  focusesFor,
+  validFocus,
+} from '@/lib/report/personalize';
 import {
   generateTodayPlan,
   saveOwnedEquipment,
@@ -68,6 +73,7 @@ export function PlanForm({
   minutes,
   defaultMinutes,
   goal,
+  focus,
   generated,
   returnTo,
   clash = null,
@@ -82,6 +88,8 @@ export function PlanForm({
   defaultMinutes: number;
   /** 지난번에 고른 훈련 목표. 한 번도 안 골랐으면 null */
   goal: string | null;
+  /** 지난번에 좁힌 부위. 안 좁혔으면 null — 그때는 앱이 정한다 */
+  focus: string | null;
   /** 오늘 일정을 이미 만들었는가 */
   generated: boolean;
   /** 만들고 나서 돌아올 화면. 홈과 트레이닝 두 곳에서 쓴다. */
@@ -112,6 +120,16 @@ export function PlanForm({
   const [pickedGoal, setPickedGoal] = useState(goal ?? TRAINING_GOALS[0].name);
   const minuteChoices = minutesChoicesFor(pickedGoal);
   const pickedMinutes = nearestMinutesChoice(minutes, pickedGoal);
+
+  /*
+   * 목표 안에서 부위를 좁힐 수 있는 날인가.
+   *
+   * 근력 향상과 파워 향상만 나눈다. 균형 잡힌 관리와 부상 방지는 '고르게'가
+   * 그 목표의 뜻이라 한쪽으로 좁히면 이름과 어긋난다.
+   */
+  const focusChoices = focusesFor(pickedGoal);
+  /* 목표를 바꾸면 안 맞는 부위는 저절로 빈다 — 근력의 '당기기'가 파워에 남지 않게 */
+  const pickedFocus = validFocus(pickedGoal, focus) ?? '';
 
   const choices = owned.filter((name) => name !== '맨몸');
   // 안 골랐으면 가진 것을 다 쓸 수 있다는 뜻이라, 전부 켜서 보여준다.
@@ -171,6 +189,29 @@ export function PlanForm({
         selected={pickedGoal}
         onChange={setPickedGoal}
       />
+
+      {/*
+        부위 좁히기 — 고를 수 있는 목표에서만 낸다.
+
+        기본값이 '앱이 정함'이다. 상체·하체를 번갈아 도는 규칙이 대개 옳고,
+        그것을 끄는 것은 "오늘은 당기기만"처럼 뜻이 분명할 때뿐이다. 기본을
+        비워 두면 지금까지 쓰던 사람은 아무것도 달라지지 않는다.
+      */}
+      {focusChoices.length > 0 && (
+        <RadioGroup
+          /* 목표가 바뀌면 선택지가 통째로 달라지므로 다시 그린다 */
+          key={`focus-${pickedGoal}`}
+          name="trainingFocus"
+          label="오늘 할 부위"
+          hint="비워 두면 최근에 한 것을 보고 상체·하체를 번갈아 골라드립니다. 몸 상태가 안 좋은 날에는 부위와 상관없이 회복이 먼저입니다."
+          options={[
+            { name: '앱이 정함', desc: '최근에 안 한 쪽부터', value: '' },
+            ...focusChoices.map((f) => ({ name: f.label, value: f.key })),
+          ]}
+          selected={pickedFocus}
+          compact
+        />
+      )}
 
       <RadioGroup
         /* 목표가 바뀌면 고른 값도 새로 짚어야 하므로 통째로 다시 그린다 */

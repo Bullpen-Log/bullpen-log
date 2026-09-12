@@ -333,6 +333,7 @@ export default async function HomePage() {
       minutes={savedMinutes}
       defaultMinutes={savedMinutes}
       goal={user.trainingGoal}
+      focus={user.trainingFocus}
       generated={false}
       returnTo="/today"
       clash={core.workoutClash}

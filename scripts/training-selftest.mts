@@ -43,12 +43,15 @@ import {
 import { selectCandidates } from '../lib/report/prescription.ts';
 import { equipmentForToday, filterByEquipment } from '../lib/report/equipment.ts';
 import {
+  GOAL_FOCUSES,
   TRAINING_GOALS,
   TRAINING_LEVELS,
   filterByLevel,
+  focusesFor,
   readOwnedEquipment,
   readTrainingGoal,
   readTrainingProfile,
+  validFocus,
 } from '../lib/report/personalize.ts';
 import {
   DEFAULT_WORKOUT_MINUTES,
@@ -2016,6 +2019,124 @@ console.log('\n[오늘의 목표] 일정을 만들 때마다 고르는가');
   check(
     '목록에 없는 목표는 버린다',
     readTrainingGoal(badGoal, '근력 향상') === '근력 향상'
+  );
+}
+
+console.log('\n[목표 안의 부위] 상체를 밀기·당기기로 가르는가');
+{
+  /*
+   * 상체·하체는 앱이 번갈아 정해 왔다. 그 자동은 대개 옳지만 "오늘은 당기기만"
+   * 같은 뜻이 분명한 날에는 방해가 된다. 좁히고 싶을 때만 쓰는 값이라, 안
+   * 좁힌 날은 예전과 한 글자도 달라지면 안 된다.
+   */
+  check(
+    '고르게 하는 목표는 부위를 못 좁힌다',
+    focusesFor('균형 잡힌 관리').length === 0 && focusesFor('부상 방지').length === 0,
+    '균형·부상 방지 모두 선택지 없음'
+  );
+  check(
+    '근력은 셋으로 갈린다',
+    focusesFor('근력 향상')
+      .map((f) => f.label)
+      .join(' · ') === '하체 · 상체 밀기 · 상체 당기기',
+    focusesFor('근력 향상')
+      .map((f) => f.label)
+      .join(' · ')
+  );
+  check(
+    '파워는 둘로 갈린다',
+    focusesFor('파워 향상')
+      .map((f) => f.label)
+      .join(' · ') === '하체 · 상체',
+    focusesFor('파워 향상')
+      .map((f) => f.label)
+      .join(' · ')
+  );
+
+  /*
+   * 목표를 바꾸면 안 맞는 부위는 버린다. 근력에서 '상체 당기기'를 골라 두고
+   * 파워로 옮기면 파워에는 없는 값이라, 남겨 두면 고른 적 없는 쪽으로 일정이
+   * 나간다.
+   */
+  check(
+    '목표에 없는 부위는 버린다',
+    validFocus('파워 향상', 'upperPull') == null &&
+      validFocus('근력 향상', 'upperPull') === 'upperPull',
+    '파워에서는 버리고 근력에서는 남긴다'
+  );
+  check('모르는 값도 버린다', validFocus('근력 향상', '아무거나') == null, '없음');
+
+  /* 좁힌 계열만 본운동에 남는가 */
+  const mainOf = (goal: string, focus: string) => {
+    const f = GOAL_FOCUSES.find((x) => x.key === focus)!;
+    return pickForTheme({
+      candidates: library,
+      theme: f.theme,
+      minutes: effectiveMinutes(f.theme, 60),
+      doneIds: new Set<string>(),
+      rotationSeed: TODAY.toISOString().slice(0, 10),
+      goal,
+      focus: f.key,
+    }).picks.filter((p) => p.slot === 'main');
+  };
+
+  for (const [focus, want] of [
+    ['upperPush', '밀기'],
+    ['upperPull', '당기기'],
+  ] as const) {
+    const main = mainOf('근력 향상', focus);
+    const off = main.filter(
+      (p) =>
+        p.exercise.category.endsWith('스트렝스') &&
+        p.exercise.movementPattern != null &&
+        p.exercise.movementPattern !== want
+    );
+    check(
+      `상체 ${want}만 고르면 본운동이 ${want}뿐이다`,
+      main.length > 0 && off.length === 0,
+      `${main.length}개 중 딴 계열 ${off.length}개`
+    );
+  }
+
+  check(
+    '하체를 고르면 하체 스트렝스가 나온다',
+    mainOf('근력 향상', 'lower').some((p) => p.exercise.category === '하체 스트렝스'),
+    '나옴'
+  );
+
+  /*
+   * 파워 상체는 후보가 여덟 개뿐이고 전부 밴드·메디신볼·바벨이 있어야 한다.
+   * 그래도 본운동이 비지는 않아야 한다 — 자리가 남으면 상체 스트렝스가 채운다.
+   */
+  const upperPower = mainOf('파워 향상', 'upper');
+  check(
+    '파워 상체도 본운동이 비지 않는다',
+    upperPower.length > 0,
+    upperPower.map((p) => p.exercise.title).join(', ')
+  );
+
+  /*
+   * 안 좁힌 날은 예전 그대로. 이것이 깨지면 지금까지 쓰던 사람의 일정이
+   * 소리 없이 달라진다.
+   */
+  const before = compositionFor('upper', '근력 향상', 60);
+  const after = compositionFor('upper', '근력 향상', 60, null);
+  check(
+    '부위를 안 고르면 구성이 예전과 같다',
+    JSON.stringify(before) === JSON.stringify(after),
+    '동일'
+  );
+  check(
+    '부위를 안 고르면 본운동에 계열 제한이 없다',
+    before.find((sp) => sp.slot === 'main')?.strengthPatterns === undefined,
+    '제한 없음'
+  );
+  check(
+    '부위를 고르면 그 계열만 걸린다',
+    compositionFor('upper', '근력 향상', 60, 'upperPush').find(
+      (sp) => sp.slot === 'main'
+    )?.strengthPatterns?.[0] === '밀기',
+    '밀기'
   );
 }
 

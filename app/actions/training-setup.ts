@@ -10,6 +10,7 @@ import { pickMany } from '@/lib/exercise-meta';
 import { ALWAYS_OWNED, SELECTABLE_EQUIPMENT } from '@/lib/report/equipment';
 import {
   readOwnedEquipment,
+  readTrainingFocus,
   readTrainingGoal,
   readTrainingProfile,
 } from '@/lib/report/personalize';
@@ -158,6 +159,15 @@ export async function generateTodayPlan(formData: FormData) {
   const trainingGoal = readTrainingGoal(formData, user.trainingGoal);
 
   /*
+   * 목표 안에서 좁힌 부위.
+   *
+   * 목표에 없는 값은 readTrainingFocus 가 비워서 준다. 지난번 값으로
+   * 되돌리지 않는다 — 목표를 바꿨는데 옛 부위가 되살아나면, 고른 적 없는
+   * 쪽으로 일정이 나온다.
+   */
+  const trainingFocus = readTrainingFocus(formData, trainingGoal);
+
+  /*
    * 고를 수 있는 시간은 목표마다 다르다.
    *
    * 무게를 드는 세 목표는 60·90·120분, 부상 방지는 40·60·90분이다. 화면에서도
@@ -215,6 +225,7 @@ export async function generateTodayPlan(formData: FormData) {
     availableToday: availableEquipment.length > 0 ? availableEquipment : null,
     requestedMinutes,
     trainingGoal,
+    trainingFocus,
     recentIds,
     sessionsAgo,
     rotationSeed,
@@ -269,10 +280,10 @@ export async function generateTodayPlan(formData: FormData) {
    * 것이 짚여 있어야 매번 처음부터 고르지 않는다. 저장해 둔 값은 기본값일
    * 뿐이고, 그날 고른 것이 일정 안에 함께 저장된다.
    */
-  if (trainingGoal !== user.trainingGoal) {
+  if (trainingGoal !== user.trainingGoal || trainingFocus !== user.trainingFocus) {
     await prisma.user.update({
       where: { id: user.id },
-      data: { trainingGoal },
+      data: { trainingGoal, trainingFocus },
     });
   }
 

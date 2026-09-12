@@ -1,5 +1,5 @@
 import { equipmentForToday, filterByEquipment } from '@/lib/report/equipment';
-import { filterByLevel, findGoal } from '@/lib/report/personalize';
+import { filterByLevel, findGoal, validFocus } from '@/lib/report/personalize';
 import { selectCandidates, type ExerciseLike } from '@/lib/report/prescription';
 import {
   decideTheme,
@@ -34,6 +34,13 @@ export type DailyPlan = {
   version: 1;
   theme: { key: ThemeKey; label: string; reason: string };
   goal: string | null;
+  /**
+   * 목표 안에서 좁힌 부위. 안 좁혔으면 null 이고, 그때는 앱이 번갈아 정했다.
+   *
+   * 옛 기록에는 이 칸이 없다. 없으면 안 좁힌 것으로 읽으면 되므로 version 은
+   * 올리지 않는다 — 올리면 이미 만들어 둔 오늘 일정이 통째로 안 읽힌다.
+   */
+  focus?: string | null;
   /** 오늘 체크인에서 고른 운동 종류 — 파워 / 웨이트 / 회복. 안 골랐으면 null */
   preferredWorkout?: string | null;
   /**
@@ -97,6 +104,7 @@ export function buildDailyPlan<T extends ExerciseLike>({
   availableToday,
   requestedMinutes,
   trainingGoal = null,
+  trainingFocus = null,
   recentIds,
   sessionsAgo,
   rotationSeed,
@@ -119,6 +127,13 @@ export function buildDailyPlan<T extends ExerciseLike>({
    * 목표는 날마다 달라지는 것이라 그날 고른 값을 받는다. 안 주면 균형이다.
    */
   trainingGoal?: string | null;
+  /**
+   * 목표 안에서 오늘 좁힌 부위. 목표와 같은 자리에서 그날그날 온다.
+   *
+   * 목표에 없는 값이면 무시한다(validFocus). 근력에서 '상체 당기기'를 골라
+   * 두고 파워로 바꾼 채 넘어오는 일이 있다.
+   */
+  trainingFocus?: string | null;
   /** 최근 며칠 안에 한 운동 — 빼지는 않고 뒤로 미룬다 */
   recentIds: Set<string>;
   /** 운동별로 몇 세션 전에 했는가. 오래 안 한 것부터 내보내는 데 쓴다. */
@@ -158,6 +173,8 @@ export function buildDailyPlan<T extends ExerciseLike>({
    * 폼에서 넘어온다 — 오늘 하루만의 결정이라 저장해 두지 않는다.
    */
   const preferredWorkout = facts.condition.today?.preferredWorkout ?? null;
+  /* 목표에 없는 부위는 여기서 걸러 둔다 — 아래로는 유효한 값만 흐른다 */
+  const focus = validFocus(trainingGoal, trainingFocus);
   const theme = decideTheme({
     facts,
     plan,
@@ -165,6 +182,7 @@ export function buildDailyPlan<T extends ExerciseLike>({
     lastUpperKey,
     preferredWorkout,
     override,
+    focus,
   });
   const minutes = effectiveMinutes(theme.key, requestedMinutes);
   const goal = findGoal(trainingGoal);
@@ -181,12 +199,14 @@ export function buildDailyPlan<T extends ExerciseLike>({
     preferredParts: facts.condition.today?.preferredParts ?? [],
     preferredWorkout,
     goal: goal.name,
+    focus,
   });
 
   return {
     version: 1,
     theme: { key: theme.key, label: theme.label, reason: theme.reason },
     goal: goal.name,
+    focus,
     preferredWorkout,
     /** 몸 상태 경고를 넘기고 만든 날인가. 화면이 그 사실을 그대로 말한다. */
     overrode: override && workoutConflict({ facts, preferredWorkout }) != null,

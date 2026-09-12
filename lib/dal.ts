@@ -32,6 +32,7 @@ export const getCurrentUser = cache(async () => {
       ownedEquipment: true,
       trainingLevel: true,
       trainingGoal: true,
+      trainingFocus: true,
     },
   });
 

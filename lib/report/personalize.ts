@@ -143,6 +143,59 @@ export function filterByLevel<T extends WithDifficulty>(
  *
  * 둘 다 본운동에만 걸린다. 워밍업·코어·보강·암케어는 파워가 애초에 안 들어간다.
  */
+/**
+ * 목표 안에서 오늘 어느 부위를 할지.
+ *
+ * 상체·하체는 앱이 최근 완료 기록을 보고 번갈아 골라 왔다. 그 자동은 대개
+ * 옳지만, "오늘은 당기기만 하고 싶다"는 사람에게는 방해가 된다. 좁히고 싶을
+ * 때만 쓰는 값이라 비어 있는 것이 기본이고, 그때는 예전 그대로 앱이 정한다.
+ *
+ *   theme    이 부위가 어느 날에 해당하는가
+ *   pattern  상체 스트렝스를 이 동작 계열로만 좁힌다. null 이면 안 좁힌다.
+ *
+ * 밀기·당기기를 가를 수 있는 것은 상체뿐이다. 하체 스트렝스도 계열
+ * (스쿼트·힌지·런지·카프)이 있지만 넷이라 고르게 하면 선택지가 너무 잘게
+ * 쪼개진다 — 하체는 하나로 둔다.
+ */
+export const GOAL_FOCUSES = [
+  {
+    key: 'lower',
+    label: '하체',
+    dayLabel: '하체 스트렝스 데이',
+    theme: 'lower',
+    pattern: null,
+  },
+  {
+    key: 'upper',
+    label: '상체',
+    dayLabel: '상체 스트렝스 데이',
+    theme: 'upper',
+    pattern: null,
+  },
+  {
+    key: 'upperPush',
+    label: '상체 밀기',
+    dayLabel: '상체 밀기 데이',
+    theme: 'upper',
+    pattern: '밀기',
+  },
+  {
+    key: 'upperPull',
+    label: '상체 당기기',
+    dayLabel: '상체 당기기 데이',
+    theme: 'upper',
+    pattern: '당기기',
+  },
+] as const;
+
+export type GoalFocus = (typeof GOAL_FOCUSES)[number];
+export type GoalFocusKey = GoalFocus['key'];
+
+export function findFocus(key: string | null | undefined): GoalFocus | null {
+  if (!key) return null;
+  return GOAL_FOCUSES.find((f) => f.key === key) ?? null;
+}
+
 export type GoalMix = {
   maxPower?: number;
   /** 파워를 적어도 이만큼은 넣는다. 자리가 모자라면 들어가는 만큼만. */
@@ -158,6 +211,13 @@ export const TRAINING_GOALS = [
     prefer: [] as string[],
     /* 파워도 넣되 하나까지 — '고르게'가 파워 위주가 되면 안 된다 */
     mix: { maxPower: 1 },
+    /*
+     * 부위를 못 좁힌다.
+     *
+     * '고르게'가 이 목표의 뜻인데 한 부위로 좁히면 이름과 어긋난다. 한쪽만
+     * 하고 싶은 날은 근력 향상이나 파워 향상을 고르면 된다.
+     */
+    focuses: [] as readonly GoalFocusKey[],
   },
   {
     /*
@@ -184,6 +244,14 @@ export const TRAINING_GOALS = [
      * 때문이다 — 근력이 받쳐주지 않으면 파워도 결국 안 는다.
      */
     mix: { minPower: 2, minStrength: 1 },
+    /*
+     * 상체 파워는 여덟 개뿐이고 전부 밴드·메디신볼·바벨이 있어야 한다
+     * (맨몸만 가진 사람에게는 0개). 그래도 고를 수 있게 두는 것은, 장비가
+     * 있는 사람에게는 제대로 돌아가고 없는 사람은 후보가 비면 다른 것으로
+     * 채워지기 때문이다. 밀기·당기기로 더 쪼개지는 않는다 — 여덟 개를 다시
+     * 나누면 며칠 만에 같은 운동이 돌아온다.
+     */
+    focuses: ['lower', 'upper'] as readonly GoalFocusKey[],
   },
   {
     name: '부상 방지',
@@ -198,6 +266,8 @@ export const TRAINING_GOALS = [
      * 몸을 아끼자고 고른 목표에서 착지·던지기가 나오는 것도 앞뒤가 안 맞는다.
      */
     mix: { maxPower: 0 },
+    /* 몸을 아끼는 날이라 부위를 좁히지 않는다 — 고르게 하는 것이 이 목표다 */
+    focuses: [] as readonly GoalFocusKey[],
   },
   {
     name: '근력 향상',
@@ -213,6 +283,11 @@ export const TRAINING_GOALS = [
      * 채우기 때문이다.
      */
     mix: { maxPower: 0 },
+    /*
+     * 상체를 밀기와 당기기로 가른다. 각각 24개와 27개라 좁혀도 넉넉하고,
+     * 이 목표는 파워를 아예 안 넣으므로 본운동이 통째로 그 계열이 된다.
+     */
+    focuses: ['upperPush', 'upperPull', 'lower'] as readonly GoalFocusKey[],
   },
 ] as const;
 
@@ -223,6 +298,26 @@ export const TRAINING_GOAL_NAMES: readonly string[] = TRAINING_GOALS.map((g) => 
 /** 아직 안 고른 사람은 '균형 잡힌 관리'로 본다. */
 export function findGoal(name: string | null): TrainingGoal {
   return TRAINING_GOALS.find((g) => g.name === name) ?? TRAINING_GOALS[0];
+}
+
+/** 이 목표에서 고를 수 있는 부위. 없으면 빈 배열이다. */
+export function focusesFor(goalName: string | null): GoalFocus[] {
+  const keys = findGoal(goalName).focuses;
+  return GOAL_FOCUSES.filter((f) => (keys as readonly string[]).includes(f.key));
+}
+
+/**
+ * 고른 부위가 그 목표에 있는 것인지 확인한다.
+ *
+ * 목표를 바꾸면 안 맞는 부위가 남는다 — 근력에서 '상체 당기기'를 골라 두고
+ * 파워로 바꾸면 파워에는 없는 값이다. 그때는 조용히 비워 앱이 정하게 한다.
+ */
+export function validFocus(
+  goalName: string | null,
+  key: string | null | undefined
+): GoalFocusKey | null {
+  if (!key) return null;
+  return focusesFor(goalName).some((f) => f.key === key) ? (key as GoalFocusKey) : null;
 }
 
 /* 난이도 이름이 실제 목록과 어긋나면 조용히 아무 일도 안 하므로 여기서 막는다. */
@@ -273,6 +368,20 @@ export function readTrainingGoal(
   return (
     pickOne(String(formData.get('trainingGoal') ?? ''), TRAINING_GOAL_NAMES) ?? fallback
   );
+}
+
+/**
+ * 폼에서 고른 부위를 읽는다.
+ *
+ * 목표에 없는 부위는 버린다 — 근력에서 '상체 당기기'를 골라 두고 파워로
+ * 바꾸면 그 값은 파워에 없다. 지난번 값으로 되돌리지 않고 아예 비운다.
+ * 목표가 바뀌었는데 옛 부위가 되살아나면, 고른 적 없는 쪽으로 일정이 나온다.
+ */
+export function readTrainingFocus(
+  formData: FormData,
+  goalName: string | null
+): GoalFocusKey | null {
+  return validFocus(goalName, String(formData.get('trainingFocus') ?? ''));
 }
 
 /**

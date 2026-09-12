@@ -272,6 +272,7 @@ export default async function TrainingPage({
       minutes={minutes}
       defaultMinutes={savedMinutes}
       goal={user.trainingGoal}
+      focus={user.trainingFocus}
       generated={generated}
       returnTo="/training"
       clash={core.workoutClash}

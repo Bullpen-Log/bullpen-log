@@ -75,8 +75,14 @@ export function RadioGroup({
   name: string;
   label: string;
   hint?: string;
-  /** desc가 있으면 항목 아래에 설명이 붙는다. */
-  options: readonly { name: string; desc?: string }[];
+  /**
+   * desc가 있으면 항목 아래에 설명이 붙는다.
+   *
+   * value 는 서버로 보낼 값이다. 없으면 name 을 그대로 보낸다 — 대개 보이는
+   * 글자가 곧 값이라 그걸로 충분하고, 둘이 달라야 할 때만 적는다('앱이 정함'을
+   * 빈 값으로 보내는 자리처럼).
+   */
+  options: readonly { name: string; desc?: string; value?: string }[];
   required?: boolean;
   selected?: string | null;
   /**
@@ -103,10 +109,12 @@ export function RadioGroup({
             <input
               type="radio"
               name={name}
-              value={option.name}
+              value={option.value ?? option.name}
               required={required}
-              defaultChecked={selected === option.name}
-              onChange={onChange ? () => onChange(option.name) : undefined}
+              defaultChecked={(option.value ?? option.name) === selected}
+              onChange={
+                onChange ? () => onChange(option.value ?? option.name) : undefined
+              }
               className="peer sr-only"
             />
             <span

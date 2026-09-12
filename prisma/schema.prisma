@@ -60,6 +60,15 @@ model User {
   /// 훈련 목표. 구간별 시간 배분을 바꾼다. 비어 있으면 '균형 잡힌 관리'로 본다.
   /// 이름은 lib/report/personalize.ts의 TRAINING_GOALS 안에서만 쓴다.
   trainingGoal      String?
+  /// 목표 안에서 오늘 어느 부위를 할지. 비어 있으면 앱이 번갈아 정한다.
+  ///
+  /// 목표(trainingGoal)는 '같은 시간을 어디에 더 쓸까'를 정하고, 상체·하체는
+  /// 앱이 최근 기록을 보고 번갈아 골라 왔다. 그런데 "오늘은 당기기만 하고
+  /// 싶다"는 사람에게는 그 자동이 방해가 된다. 좁히고 싶을 때만 쓰는 값이라
+  /// 비어 있는 것이 기본이고, 그때는 예전처럼 앱이 정한다.
+  ///
+  /// 값은 lib/report/personalize.ts의 GOAL_FOCUSES 안에서만 쓴다.
+  trainingFocus     String?
   /// 가지고 있는 운동 장비. AI 트레이닝에서 할 수 없는 운동을 빼는 데 쓴다.
   /// 비어 있으면 아직 안 골랐다는 뜻이라 아무것도 빼지 않는다.
   /// 이름은 lib/exercise-meta.ts의 EXERCISE_EQUIPMENT 안에서만 쓴다.

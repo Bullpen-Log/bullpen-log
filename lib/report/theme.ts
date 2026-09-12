@@ -1,7 +1,12 @@
 import { intensityLevel, minutesForSets, type Prescription } from '@/lib/exercise-meta';
 import type { ReportFacts } from '@/lib/report/facts';
 import { remainingRestDays, type PitchPlan } from '@/lib/report/plan';
-import { findGoal, type GoalMix } from '@/lib/report/personalize';
+import {
+  findFocus,
+  findGoal,
+  type GoalFocusKey,
+  type GoalMix,
+} from '@/lib/report/personalize';
 
 /**
  * 오늘의 훈련 테마와, 운동 시간에 맞춘 구성.
@@ -257,6 +262,7 @@ export function decideTheme({
   lastUpperKey,
   preferredWorkout = null,
   override = false,
+  focus = null,
 }: {
   facts: ReportFacts;
   plan: PitchPlan;
@@ -273,6 +279,14 @@ export function decideTheme({
    * 권하는지 말하고, 그래도 하겠다면 하게 한다. 통증만은 예외다.
    */
   override?: boolean;
+  /**
+   * 오늘 목표에서 좁힌 부위. 없으면 앱이 번갈아 정한다.
+   *
+   * 몸 상태로 갈리는 분기(통증·회복 데이·보조 데이)보다 뒤에 본다. 상체
+   * 밀기를 고른 날에도 컨디션이 3/10이면 회복이 먼저다 — 부위를 고른 것은
+   * '웨이트를 한다면 어디를'이지 '무슨 일이 있어도 웨이트를'이 아니다.
+   */
+  focus?: GoalFocusKey | null;
 }): SessionTheme {
   /*
    * 1) 통증은 고를 수 있는 것이 아니다. 무엇을 골랐든, 밀고 나가겠다고 해도
@@ -379,6 +393,23 @@ export function decideTheme({
     : '';
 
   /*
+   * 2-1) 오늘 목표에서 부위를 좁혔으면 그대로 간다.
+   *
+   * 번갈아 가기보다 먼저다. 사용자가 직접 고른 것이라 앱의 순서가 그것을
+   * 덮으면 고른 뜻이 없어진다. 위의 몸 상태 분기는 이미 지나온 뒤라, 아픈
+   * 날까지 이 값이 밀고 들어오지는 않는다.
+   */
+  const chosen = findFocus(focus);
+  if (chosen) {
+    return {
+      key: chosen.theme,
+      label: chosen.dayLabel,
+      reason:
+        todayNote + `오늘 목표에서 '${chosen.label}'를 고르셨습니다.` + forcedNote,
+    };
+  }
+
+  /*
    * 3) 몸이 괜찮은 날은 하체와 상체를 번갈아 간다.
    *
    * 완료 기록에서 마지막으로 한 날을 찾아 더 오래된 쪽을 고른다.
@@ -480,6 +511,15 @@ type SlotSpec = {
    * 계열이 비어 있는 파워는 지나간다. 막아버리면 영영 안 나온다.
    */
   powerPatterns?: readonly string[];
+  /**
+   * 이 구간에 들어올 수 있는 스트렝스의 동작 계열.
+   *
+   * 목표에서 '상체 밀기'처럼 좁혔을 때만 채워진다. powerPatterns 와 나란한
+   * 장치이되 거는 대상이 다르다 — 저쪽은 파워, 이쪽은 스트렝스다.
+   *
+   * 계열이 안 적힌 운동은 지나간다. 막아버리면 영영 안 나온다.
+   */
+  strengthPatterns?: readonly string[];
 };
 
 /*
@@ -656,7 +696,8 @@ const SHORT_SESSION_MINUTES = 32;
 export function compositionFor(
   theme: ThemeKey,
   goalName: string | null,
-  minutes?: number
+  minutes?: number,
+  focus?: GoalFocusKey | null
 ): SlotSpec[] {
   /*
    * 부상 방지를 고르면 웨이트 날의 구성을 통째로 바꾼다.
@@ -696,7 +737,22 @@ export function compositionFor(
   }));
   const total = weighted.reduce((sum, w) => sum + w.share, 0);
 
-  return weighted.map(({ spec, share }) => ({ ...spec, share: share / total }));
+  const specs = weighted.map(({ spec, share }) => ({
+    ...spec,
+    share: share / total,
+  }));
+
+  /*
+   * 목표에서 '상체 밀기'처럼 좁혔으면 본운동의 스트렝스를 그 계열로만 둔다.
+   *
+   * 카테고리를 갈아치우지 않고 계열만 얹는다 — 상체 데이의 본운동은
+   * '상체 스트렝스 + 파워' 한 자리라, 카테고리를 바꾸면 파워가 통째로 빠진다.
+   */
+  const pattern = findFocus(focus)?.pattern;
+  if (!pattern) return specs;
+  return specs.map((sp) =>
+    sp.slot === 'main' ? { ...sp, strengthPatterns: [pattern] } : sp
+  );
 }
 
 /**
@@ -910,6 +966,7 @@ export function pickForTheme<T extends ThemedExercise>({
   preferredParts = [],
   preferredWorkout = null,
   goal = null,
+  focus = null,
 }: {
   candidates: T[];
   theme: ThemeKey;
@@ -948,8 +1005,10 @@ export function pickForTheme<T extends ThemedExercise>({
   preferredWorkout?: string | null;
   /** 훈련 목표 — 구간별 시간 배분과 본운동 순서를 바꾼다 */
   goal?: string | null;
+  /** 목표 안에서 좁힌 부위 — 본운동의 스트렝스를 한 계열로 줄인다 */
+  focus?: GoalFocusKey | null;
 }): { picks: ThemedPick<T>[]; estimatedMinutes: number; notes: string[] } {
-  const specs = compositionFor(theme, goal, minutes);
+  const specs = compositionFor(theme, goal, minutes, focus);
   const goalPrefer: readonly string[] = findGoal(goal).prefer;
   /*
    * 목표가 정한 본운동의 섞임. 회복 데이에는 본운동이 없어 쓰이지 않는다.
@@ -1014,6 +1073,15 @@ export function pickForTheme<T extends ThemedExercise>({
         spec.powerPatterns &&
         ex.movementPattern != null &&
         !spec.powerPatterns.includes(ex.movementPattern)
+      ) {
+        return false;
+      }
+      /* 목표에서 '상체 밀기'처럼 좁힌 날은 스트렝스도 그 계열만 */
+      if (
+        ex.category.endsWith('스트렝스') &&
+        spec.strengthPatterns &&
+        ex.movementPattern != null &&
+        !spec.strengthPatterns.includes(ex.movementPattern)
       ) {
         return false;
       }
