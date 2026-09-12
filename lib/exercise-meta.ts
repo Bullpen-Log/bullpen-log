@@ -337,14 +337,8 @@ export function formatPrescription(p: Partial<Prescription>): string | null {
   if (amount == null) return null;
 
   const side = p.perSide ? ' (좌우 각각)' : '';
-  /*
-   * 한 세트만 하는 날에는 휴식을 안 적는다. 세트가 하나면 '세트 사이'가 없다 —
-   * 워밍업으로 세트를 줄여 줄 때 '1세트 × 10회 · 세트 사이 30초 휴식'이 나왔다.
-   */
   const rest =
-    p.restSeconds != null && (p.sets ?? 0) > 1
-      ? ` · 세트 사이 ${formatSeconds(p.restSeconds)} 휴식`
-      : '';
+    p.restSeconds != null ? ` · 세트 사이 ${formatSeconds(p.restSeconds)} 휴식` : '';
   return `${p.sets}세트 × ${amount}${side}${rest}`;
 }
 

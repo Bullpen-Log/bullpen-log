@@ -56,7 +56,7 @@ import {
 import {
   DEFAULT_WORKOUT_MINUTES,
   SLOT_ORDER,
-  WARMUP_WEIGHT,
+  WARMUP_MINUTES,
   WORKOUT_MINUTES_CHOICES,
   compositionFor,
   decideTheme,
@@ -2175,12 +2175,20 @@ console.log('\n[워밍업] 무게 드는 날은 가벼운 웨이트로 데우는
     }
   }
 
+  /*
+   * 고르게 가는 날과 몸을 아끼는 날은 예전 규칙 그대로다 — 모빌리티거나
+   * 스트레칭 수준 강도(암케어의 '매우 낮음'이 여기 들어온다).
+   */
   for (const goal of ['균형 잡힌 관리', '부상 방지']) {
     const warm = warmupOf(goal, 'lower');
     check(
-      `${goal}은 예전처럼 모빌리티다`,
-      warm.length > 0 && warm.every((p) => p.exercise.category === '모빌리티'),
-      warm.map((p) => p.exercise.title).join(', ')
+      `${goal}은 예전처럼 모빌리티·스트레칭 수준이다`,
+      warm.length > 0 &&
+        warm.every(
+          (p) =>
+            p.exercise.category === '모빌리티' || p.exercise.intensity === '매우 낮음'
+        ),
+      warm.map((p) => `${p.exercise.title}(${p.exercise.category})`).join(', ')
     );
   }
 
@@ -2191,34 +2199,31 @@ console.log('\n[워밍업] 무게 드는 날은 가벼운 웨이트로 데우는
    * 아니라 본운동이다. 줄이지 않으면 워밍업이 하나밖에 안 들어가, 모빌리티를
    * 쓰던 때보다 오히려 적어진다.
    */
-  for (const m of [90, 120]) {
-    const warm = pickForTheme({
-      candidates: library,
-      theme: 'lower',
-      minutes: effectiveMinutes('lower', m),
-      doneIds: new Set<string>(),
-      rotationSeed: TODAY.toISOString().slice(0, 10),
-      goal: '근력 향상',
-    }).picks.filter((p) => p.slot === 'warmup');
-    check(
-      `${m}분이면 워밍업이 둘 들어간다`,
-      warm.length === 2,
-      warm.map((p) => `${p.exercise.title}(${p.sets}세트)`).join(', ')
-    );
+  for (const m of [60, 90, 120]) {
+    for (const goal of ['근력 향상', '파워 향상']) {
+      const warm = pickForTheme({
+        candidates: library,
+        theme: 'lower',
+        minutes: effectiveMinutes('lower', m),
+        doneIds: new Set<string>(),
+        rotationSeed: TODAY.toISOString().slice(0, 10),
+        goal,
+      }).picks.filter((p) => p.slot === 'warmup');
+      check(
+        `${goal} ${m}분 — 워밍업은 언제나 둘이다`,
+        warm.length === 2,
+        warm.map((p) => p.exercise.title).join(', ')
+      );
+    }
   }
+  /*
+   * 워밍업은 처방과 상관없이 짧게 센다. 처방대로 세면 막대 RDL 하나가 12분이라
+   * 워밍업이 하나밖에 안 들어간다.
+   */
   check(
-    '워밍업 웨이트에는 줄인 세트가 함께 남는다',
-    warmupOf('근력 향상', 'lower').every(
-      (p) => p.sets === WARMUP_WEIGHT.sets && p.sets < (p.exercise.sets ?? 99)
-    ),
-    warmupOf('근력 향상', 'lower')
-      .map((p) => `${p.exercise.sets}세트 → ${p.sets}세트`)
-      .join(', ')
-  );
-  check(
-    '모빌리티 워밍업에는 줄인 세트가 없다',
-    warmupOf('부상 방지', 'lower').every((p) => p.sets === undefined),
-    '없음'
+    '워밍업은 시간을 짧게 하나로 잡는다',
+    WARMUP_MINUTES <= 3,
+    `하나에 ${WARMUP_MINUTES}분`
   );
 
   /*

@@ -580,16 +580,14 @@ type GoalShape = {
 };
 
 /**
- * 워밍업으로 쓰는 웨이트의 처방.
+ * 가벼운 웨이트 워밍업 하나에 잡아 두는 시간(분).
  *
- * 같은 운동이라도 워밍업으로 할 때는 본운동처럼 하지 않는다. 막대 RDL 을
- * 3세트에 세트 사이 2분씩 쉬면 12분인데, 그건 워밍업이 아니라 본운동이다.
- *
- * 한 세트씩 짧게 쉬며 두 동작을 훑는 편이, 한 동작을 세 세트 하는 것보다
- * 워밍업이 하는 일에 맞는다 — 무게를 쌓는 것이 아니라 오늘 쓸 관절을 한 번씩
- * 지나가는 것이 목적이다.
+ * 처방대로 세지 않는다. 막대 RDL 을 3세트에 세트 사이 2분씩 쉬면 12분인데,
+ * 그건 워밍업이 아니라 본운동이다. 워밍업은 세트를 세며 하는 것이 아니라
+ * 오늘 쓸 관절을 한 번씩 지나가는 것이라, 화면에도 세트·횟수를 안 적고
+ * 시간도 넉넉히 짧게 하나로 잡는다.
  */
-export const WARMUP_WEIGHT = { sets: 1, restSeconds: 30 } as const;
+export const WARMUP_MINUTES = 2;
 
 /**
  * 가벼운 웨이트 워밍업에 쓸 강도.
@@ -839,27 +837,20 @@ export type ThemedExercise = {
   movementPattern?: string | null;
 } & Partial<Prescription>;
 
-export type ThemedPick<T> = {
-  exercise: T;
-  slot: SlotKey;
-  /** 워밍업으로 할 때 줄인 세트 수. 그대로 하는 운동에는 없다. */
-  sets?: number;
-};
+export type ThemedPick<T> = { exercise: T; slot: SlotKey };
 
 /**
- * 이 운동을 워밍업으로 할 때 걸리는 시간(분).
+ * 가벼운 웨이트로 데우는 워밍업인가.
  *
- * 종목을 바꾸는 시간도 가벼운 쪽으로 센다. 스트렝스에 4분을 주는 것은 원판을
- * 갈아 끼우는 시간까지 보기 때문인데, 워밍업은 빈 막대나 밴드라 그만큼 걸리지
- * 않는다.
+ * 시간을 어떻게 셀지가 여기서 갈린다. 스트렝스가 워밍업 자리에 오는 것은
+ * 목표가 그렇게 시켰을 때(근력 향상·파워 향상)뿐이라, 카테고리만 봐도 가려진다.
+ *
+ * '모빌리티가 아닌 것'으로 잡으면 안 된다. 회복 데이와 부상 방지 날의 워밍업
+ * 자리에는 '매우 낮음' 암케어도 들어오는데, 그것까지 짧게 세면 40분을 부탁한
+ * 회복 데이가 30분밖에 안 나왔다.
  */
-function warmupMinutes(ex: ThemedExercise): number {
-  const measured = minutesForSets({
-    ...ex,
-    sets: WARMUP_WEIGHT.sets,
-    restSeconds: WARMUP_WEIGHT.restSeconds,
-  });
-  return (measured ?? 1) + TRANSITION_MINUTES;
+export function isWarmupWeight(slot: SlotKey, category: string): boolean {
+  return slot === 'warmup' && category.endsWith('스트렝스');
 }
 
 /** 워밍업 구간에 들어갈 수 있는가 — 모빌리티이거나 스트레칭 수준 강도 */
@@ -1190,14 +1181,12 @@ export function pickForTheme<T extends ThemedExercise>({
     /*
      * 이 구간에서 이 운동이 걸리는 시간.
      *
-     * 가벼운 웨이트로 데우는 워밍업은 줄인 세트로 센다. 본운동 처방(3세트에
-     * 세트 사이 2분)으로 세면 하나에 12분이라 워밍업이 하나밖에 안 들어간다.
-     * 되돌아간 모빌리티는 예전 계산 그대로다.
+     * 가벼운 웨이트 워밍업은 처방과 상관없이 짧게 센다. 본운동 처방(3세트에
+     * 세트 사이 2분)으로 세면 막대 RDL 하나가 12분이라 워밍업이 하나밖에 안
+     * 들어간다.
      */
     const costOf = (ex: T) =>
-      spec.slot === 'warmup' && spec.intensities && !isWarmup(ex)
-        ? warmupMinutes(ex)
-        : estimateMinutes(ex);
+      isWarmupWeight(spec.slot, ex.category) ? WARMUP_MINUTES : estimateMinutes(ex);
 
     /*
      * 본운동 안의 순서를 정한다. 목표를 먼저 반영하고, 그 위에 오늘 고른
@@ -1484,26 +1473,16 @@ export function pickForTheme<T extends ThemedExercise>({
 
   const picks: ThemedPick<T>[] = [];
   for (const slot of SLOT_ORDER) {
-    for (const ex of bySlot.get(slot) ?? []) {
-      /*
-       * 워밍업으로 고른 웨이트는 줄인 세트를 함께 남긴다. 화면이 '1세트 × 10회'
-       * 로 보여주고, 마쳤다고 누를 때도 그 값이 기본이 된다 — 남기지 않으면
-       * 화면은 3세트라 하고 시간 계산만 1세트로 하는 셈이 된다.
-       */
-      const warmupWeight = slot === 'warmup' && !isWarmup(ex);
-      picks.push({
-        exercise: ex,
-        slot,
-        ...(warmupWeight ? { sets: WARMUP_WEIGHT.sets } : {}),
-      });
-    }
+    for (const ex of bySlot.get(slot) ?? []) picks.push({ exercise: ex, slot });
   }
 
   const estimatedMinutes = Math.round(
     picks.reduce(
       (sum, p) =>
         sum +
-        (p.sets != null ? warmupMinutes(p.exercise) : estimateMinutes(p.exercise)),
+        (isWarmupWeight(p.slot, p.exercise.category)
+          ? WARMUP_MINUTES
+          : estimateMinutes(p.exercise)),
       0
     )
   );
