@@ -74,6 +74,7 @@ export function PlanForm({
   defaultMinutes,
   goal,
   focus,
+  suggestedSide,
   generated,
   returnTo,
   clash = null,
@@ -88,8 +89,10 @@ export function PlanForm({
   defaultMinutes: number;
   /** 지난번에 고른 훈련 목표. 한 번도 안 골랐으면 null */
   goal: string | null;
-  /** 지난번에 좁힌 부위. 안 좁혔으면 null — 그때는 앱이 정한다 */
+  /** 지난번에 좁힌 부위. 한 번도 안 골랐으면 null */
   focus: string | null;
+  /** 오늘 앱이 고를 쪽. 아직 부위를 고른 적 없는 사람에게 이것을 짚어 준다 */
+  suggestedSide: 'lower' | 'upper';
   /** 오늘 일정을 이미 만들었는가 */
   generated: boolean;
   /** 만들고 나서 돌아올 화면. 홈과 트레이닝 두 곳에서 쓴다. */
@@ -128,8 +131,14 @@ export function PlanForm({
    * 그 목표의 뜻이라 한쪽으로 좁히면 이름과 어긋난다.
    */
   const focusChoices = focusesFor(pickedGoal);
-  /* 목표를 바꾸면 안 맞는 부위는 저절로 빈다 — 근력의 '당기기'가 파워에 남지 않게 */
-  const pickedFocus = validFocus(pickedGoal, focus) ?? '';
+  /*
+   * 무엇을 짚어 둘 것인가.
+   *
+   * 지난번에 고른 것이 있으면 그것. 없으면 오늘 앱이 갈 차례를 짚는다 —
+   * 아무거나 짚어 두면 상체·하체를 번갈아 가던 규칙이 통째로 사라진다.
+   * 목표에 없는 값은 validFocus 가 걸러 준다(근력의 '당기기'가 파워에 남지 않게).
+   */
+  const pickedFocus = validFocus(pickedGoal, focus) ?? suggestedSide;
 
   const choices = owned.filter((name) => name !== '맨몸');
   // 안 골랐으면 가진 것을 다 쓸 수 있다는 뜻이라, 전부 켜서 보여준다.
@@ -203,11 +212,21 @@ export function PlanForm({
           key={`focus-${pickedGoal}`}
           name="trainingFocus"
           label="오늘 할 부위"
-          hint="비워 두면 최근에 한 것을 보고 상체·하체를 번갈아 골라드립니다. 몸 상태가 안 좋은 날에는 부위와 상관없이 회복이 먼저입니다."
-          options={[
-            { name: '앱이 정함', desc: '최근에 안 한 쪽부터', value: '' },
-            ...focusChoices.map((f) => ({ name: f.label, value: f.key })),
-          ]}
+          hint="최근에 한 것을 보고 오늘 차례를 미리 짚어 두었습니다. 몸 상태가 안 좋은 날에는 부위와 상관없이 회복이 먼저입니다."
+          options={focusChoices.map((f) => ({
+            name: f.label,
+            value: f.key,
+            /*
+             * 오늘 차례인 쪽을 밝힌다. '앱이 정함'을 없앤 자리를 이것이 대신
+             * 한다 — 어느 쪽이 번갈아 가기에 맞는지 알아야 그냥 넘길 수 있다.
+             */
+            desc:
+              f.key === suggestedSide
+                ? f.desc
+                  ? `${f.desc} · 오늘 차례`
+                  : '오늘 차례'
+                : f.desc,
+          }))}
           selected={pickedFocus}
           compact
         />

@@ -161,6 +161,7 @@ export const GOAL_FOCUSES = [
   {
     key: 'lower',
     label: '하체',
+    desc: undefined,
     dayLabel: '하체 스트렝스 데이',
     theme: 'lower',
     pattern: null,
@@ -168,6 +169,8 @@ export const GOAL_FOCUSES = [
   {
     key: 'upper',
     label: '상체',
+    /* 밀기·당기기를 가르는 선택지 옆에 서므로 무엇이 다른지 밝힌다 */
+    desc: '밀기 + 당기기',
     dayLabel: '상체 스트렝스 데이',
     theme: 'upper',
     pattern: null,
@@ -175,6 +178,7 @@ export const GOAL_FOCUSES = [
   {
     key: 'upperPush',
     label: '상체 밀기',
+    desc: undefined,
     dayLabel: '상체 밀기 데이',
     theme: 'upper',
     pattern: '밀기',
@@ -182,6 +186,7 @@ export const GOAL_FOCUSES = [
   {
     key: 'upperPull',
     label: '상체 당기기',
+    desc: undefined,
     dayLabel: '상체 당기기 데이',
     theme: 'upper',
     pattern: '당기기',
@@ -286,8 +291,11 @@ export const TRAINING_GOALS = [
     /*
      * 상체를 밀기와 당기기로 가른다. 각각 24개와 27개라 좁혀도 넉넉하고,
      * 이 목표는 파워를 아예 안 넣으므로 본운동이 통째로 그 계열이 된다.
+     *
+     * 가르지 않은 '상체'도 남긴다. 밀기와 당기기를 한 날에 같이 하는 것이
+     * 흔한 방식이고, 주 2회 하는 사람에게는 그렇게 묶어야 상체가 한 바퀴 돈다.
      */
-    focuses: ['upperPush', 'upperPull', 'lower'] as readonly GoalFocusKey[],
+    focuses: ['lower', 'upper', 'upperPush', 'upperPull'] as readonly GoalFocusKey[],
   },
 ] as const;
 

@@ -1,13 +1,14 @@
 import 'server-only';
 import { prisma } from '@/lib/prisma';
 import { toDateKey } from '@/lib/pitch-stats';
-import { gatherFactsAndPlan } from '@/lib/report/gather';
+import { gatherFactsAndPlan, lastStrengthDates } from '@/lib/report/gather';
 import { selectCandidates } from '@/lib/report/prescription';
 import { equipmentForToday, filterByEquipment } from '@/lib/report/equipment';
 import { filterByLevel } from '@/lib/report/personalize';
 import { readDailyPlan } from '@/lib/report/daily-plan';
 import {
   estimateMinutes,
+  nextStrengthSide,
   slotForTheme,
   workoutConflict,
   type ThemeKey,
@@ -52,7 +53,7 @@ export async function loadTodayCore(user: UserForToday, today: Date) {
 
   const { facts, plan, hasLogs } = await gatherFactsAndPlan(user, today);
 
-  const [library, doneLogs, todaySetup] = await Promise.all([
+  const [library, doneLogs, todaySetup, strengthDates] = await Promise.all([
     /*
      * 거르는 데 필요한 항목만 가져온다.
      *
@@ -101,6 +102,13 @@ export async function loadTodayCore(user: UserForToday, today: Date) {
       where: { userId_date: { userId: user.id, date: midnight } },
       select: { availableEquipment: true, plan: true, generatedAt: true },
     }),
+    /*
+     * 마지막으로 하체·상체를 한 날.
+     *
+     * 일정을 만들기 전에 '오늘 할 부위'를 미리 짚어 주는 데 쓴다. 앱이 고를
+     * 쪽과 화면이 짚어 주는 쪽이 같아야 하므로 같은 값을 본다.
+     */
+    lastStrengthDates(user.id, today),
   ]);
 
   /*
@@ -223,6 +231,13 @@ export async function loadTodayCore(user: UserForToday, today: Date) {
   return {
     todayKey,
     midnight,
+    /**
+     * 오늘 앱이 고를 부위 — 'lower' 또는 'upper'.
+     *
+     * 일정 만들기 폼이 이것을 미리 짚어 둔다. 부위를 처음 고르는 사람에게
+     * 아무거나 짚어 주면 번갈아 가기가 통째로 사라진다.
+     */
+    suggestedSide: nextStrengthSide(strengthDates.lower, strengthDates.upper, todayKey),
     facts,
     plan,
     hasLogs,
