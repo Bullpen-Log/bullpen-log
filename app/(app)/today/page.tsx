@@ -334,7 +334,6 @@ export default async function HomePage() {
       defaultMinutes={savedMinutes}
       goal={user.trainingGoal}
       focus={user.trainingFocus}
-      suggestedSide={core.suggestedSide}
       generated={false}
       returnTo="/today"
       clash={core.workoutClash}

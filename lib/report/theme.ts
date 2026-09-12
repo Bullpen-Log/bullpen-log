@@ -255,31 +255,6 @@ export function workoutConflict({
   return null;
 }
 
-/**
- * 오늘 어느 쪽 차례인가 — 하체와 상체를 번갈아 간다.
- *
- * 완료 기록에서 마지막으로 한 날을 찾아 더 오래된 쪽을 고른다. 완료 표시를
- * 안 하는 사용자는 기록이 늘 비어 있으므로, 날짜로 번갈아 도는 예비 규칙을 둔다.
- *
- * 따로 떼어 둔 것은 화면도 이 값을 쓰기 때문이다. 일정을 만들기 전에 '오늘 할
- * 부위'를 미리 짚어 주려면 앱이 고를 쪽을 화면이 알아야 한다. 두 군데서 각자
- * 계산하면 짚어 준 것과 실제로 나오는 것이 언젠가 어긋난다.
- */
-export function nextStrengthSide(
-  lastLowerKey: string | null,
-  lastUpperKey: string | null,
-  asOf: string
-): 'lower' | 'upper' {
-  if (lastLowerKey == null && lastUpperKey == null) {
-    const [, m, d] = asOf.split('-').map(Number);
-    return (m + d) % 2 === 0 ? 'lower' : 'upper';
-  }
-  if (lastLowerKey == null || (lastUpperKey != null && lastLowerKey < lastUpperKey)) {
-    return 'lower';
-  }
-  return 'upper';
-}
-
 export function decideTheme({
   facts,
   plan,
@@ -441,20 +416,36 @@ export function decideTheme({
    * 완료 표시를 안 하는 사용자는 기록이 늘 비어 있으므로,
    * 날짜로 번갈아 도는 예비 규칙을 둔다.
    */
-  const side = nextStrengthSide(lastLowerKey, lastUpperKey, facts.asOf);
-  const fresh = lastLowerKey == null && lastUpperKey == null;
-
-  if (side === 'lower') {
+  if (lastLowerKey == null && lastUpperKey == null) {
+    const [, m, d] = facts.asOf.split('-').map(Number);
+    const lower = (m + d) % 2 === 0;
+    return lower
+      ? {
+          key: 'lower',
+          label: '하체 스트렝스 데이',
+          reason:
+            todayNote +
+            '부하가 적정 범위입니다. 투구의 힘은 하체에서 나옵니다.' +
+            forcedNote,
+        }
+      : {
+          key: 'upper',
+          label: '상체 스트렝스 데이',
+          reason:
+            todayNote +
+            '부하가 적정 범위라 상체 근력을 훈련하기 좋은 날입니다.' +
+            forcedNote,
+        };
+  }
+  if (lastLowerKey == null || (lastUpperKey != null && lastLowerKey < lastUpperKey)) {
     return {
       key: 'lower',
       label: '하체 스트렝스 데이',
       reason:
         todayNote +
-        (fresh
-          ? '부하가 적정 범위입니다. 투구의 힘은 하체에서 나옵니다.'
-          : lastUpperKey != null
-            ? '최근에 상체를 했으니 오늘은 하체 차례입니다.'
-            : '최근 하체 기록이 없어 하체부터 시작합니다.') +
+        (lastUpperKey != null
+          ? '최근에 상체를 했으니 오늘은 하체 차례입니다.'
+          : '최근 하체 기록이 없어 하체부터 시작합니다.') +
         forcedNote,
     };
   }
@@ -463,11 +454,9 @@ export function decideTheme({
     label: '상체 스트렝스 데이',
     reason:
       todayNote +
-      (fresh
-        ? '부하가 적정 범위라 상체 근력을 훈련하기 좋은 날입니다.'
-        : lastLowerKey != null
-          ? '최근에 하체를 했으니 오늘은 상체 차례입니다.'
-          : '최근 상체 기록이 없어 상체부터 시작합니다.') +
+      (lastLowerKey != null
+        ? '최근에 하체를 했으니 오늘은 상체 차례입니다.'
+        : '최근 상체 기록이 없어 상체부터 시작합니다.') +
       forcedNote,
   };
 }
