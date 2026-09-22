@@ -1,7 +1,5 @@
 import Link from 'next/link';
-import { redirect } from 'next/navigation';
 import { toDateKey } from '@/lib/pitch-stats';
-import { getCurrentUser } from '@/lib/dal';
 import { AuthForm } from './auth-form';
 import { BaseballMark } from '@/components/logo';
 
@@ -18,21 +16,24 @@ const HIGHLIGHTS = [
 ];
 
 /*
- * 이미 로그인한 사람은 오늘 화면으로 보낸다.
+ * 이 화면은 쿠키를 읽지 않는다. 미리 만들어 두고 CDN 에서 바로 내보내기
+ * 위해서다.
  *
- * 예전에는 proxy.ts 가 모든 요청을 가로채 이 판단을 했다. 그런데 Next 16
- * 부터 proxy 는 Node 런타임에서 돌아 요청마다 서버 함수를 한 번 더 깨운다
- * (node_modules/next/dist/docs/.../proxy.md:223 — 런타임을 바꿀 수도 없다).
- * 실제로 재보니 어느 주소든 90ms 가 얹혔다. 약관처럼 로그인과 무관한
- * 화면까지 그 값을 물고 있었다.
+ * 예전에는 proxy.ts 가 여기 오는 요청을 가로채, 이미 로그인한 사람이면
+ * 오늘 화면으로 되돌려보냈다. 그 proxy 를 걷어내면서 그 판단을 잠깐 이
+ * 화면으로 옮겼는데, 쿠키를 읽는 순간 이 화면이 '미리 만들 수 없는 화면'이
+ * 되어 요청마다 서버를 깨우게 됐다. 배포본에서 재보니 61ms 로 끝날 일이
+ * 258ms 가 됐다.
  *
- * 그래서 판단을 필요한 자리로 옮겼다. 로그인이 필요한 화면을 막는 일은
- * app/(app)/layout.tsx 의 requireUser() 가 이미 하고 있었다 — 같은 문을
- * 두 번 잠그고 있었던 셈이다.
+ * 되돌려보내는 것은 편의일 뿐이고, 로그인 화면은 로그아웃한 뒤나 처음
+ * 들어올 때 반드시 거치는 자리다. 그래서 편의를 버리고 속도를 택했다.
+ * 이미 로그인한 사람이 이 주소로 들어오면 로그인 폼이 그대로 보인다 —
+ * 다시 로그인하면 평소처럼 동작한다.
+ *
+ * 둘 다 가지려면 cacheComponents(부분 캐싱)를 켜서 껍데기는 미리 만들고
+ * 판단만 따로 떼어내야 하는데, 레이아웃까지 함께 손봐야 하는 별도의 일이다.
  */
-export default async function LoginPage() {
-  if (await getCurrentUser()) redirect('/today');
-
+export default function LoginPage() {
   return (
     <main className="bg-spotlight flex min-h-screen flex-col items-center justify-center px-6 py-16">
       <Link href="/" className="group mb-10 flex items-center gap-3">
