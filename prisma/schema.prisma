@@ -80,6 +80,7 @@ model User {
   drillLogs         UserDrillLog[]
   pitchLogs         PitchLog[]
   userExerciseLogs  UserExerciseLog[]
+  workoutSessions   TrainingSession[]
   articles          Article[]
   checkins          DailyCheckin[]
   aiReports         AiReport[]
@@ -425,6 +426,7 @@ model ExerciseVideo {
   userLogs         UserExerciseLog[]
   favorites        UserExerciseFavorite[]
   warmupItems      WarmupRoutineItem[]
+  workoutSets      UserExerciseSet[]
 }
 
 model UserExerciseLog {
@@ -542,6 +544,119 @@ model WarmupRoutineItem {
 
   @@id([routineId, exerciseId])
   @@index([routineId])
+  @@index([exerciseId])
+}
+
+/**
+ * 운동 한 판.
+ *
+ * 트레이닝 화면에서 [운동 시작]을 누르면 줄이 하나 생기고, [운동 종료]로
+ * 닫힌다. 하루에 하나다 — 오후에 다시 들어오면 아침에 열어 둔 것을 이어서
+ * 연다. 체감 강도를 하루 한 번만 남기는 구조(DailyTrainingNote)와 맞추기
+ * 위해서다.
+ */
+model TrainingSession {
+  id     String   @id @default(uuid())
+  userId String
+  /// 서버가 정한 날짜. 세트가 이 값을 베껴 써서 자정을 넘겨도 안 갈린다.
+  date   DateTime @db.Date
+
+  /// lower · upper · assist · recovery
+  themeKey String
+
+  /**
+   * 시작할 때 찍어 둔 오늘의 운동 목록.
+   *
+   * 얼려 두지 않으면 운동 중에 목록이 바뀐다. 실제로 바뀌는 길이 넷 있다 —
+   * 홈에서 컨디션을 고치면 안전 재검사가 다시 돌고, 통증을 입력하면 목록이
+   * 통째로 사라지고, 다른 탭에서 '일정 다시 만들기'를 누르면 같은 날 줄을
+   * 덮어쓰고, 목록에서 운동을 빼면 그날 기록까지 지워진다.
+   *
+   * 스쿼트 3세트 중에 화면에서 스쿼트가 사라지는 일을 막는다. 통증만은
+   * 예외로 세션 중에도 반영해 "오늘은 여기까지"를 띄운다.
+   */
+  plan Json
+
+  /// ACTIVE · FINISHED · ABANDONED
+  status String @default("ACTIVE")
+
+  /// 세션을 연 시각. 워밍업을 포함한다.
+  startedAt DateTime @default(now())
+  /**
+   * 본운동에 들어간 시각.
+   *
+   * 워밍업 창에서 [본운동 시작] 또는 [건너뛰기]를 누르는 순간 찍는다.
+   * 종료 요약의 '운동 시간'은 이 시각부터 센다 — 워밍업은 시간 계산에
+   * 넣지 않기 때문이다. 워밍업이 없는 날(회복 데이)에는 startedAt 과 같다.
+   */
+  mainStartedAt DateTime?
+  endedAt       DateTime?
+
+  /// DONE · SKIPPED · null(워밍업이 없는 날)
+  warmupOutcome String?
+  /**
+   * 체크한 워밍업 운동.
+   *
+   * UserExerciseLog 에 줄을 만들지 않는다. 줄이 생기면 운동 부하·부위별 세트
+   * 수·'최근에 한 운동'·달력의 개수까지 다섯 군데가 오염된다. 여기에 이름만
+   * 남기고, 이 칸을 읽는 계산 파일은 하나도 없다.
+   */
+  warmupDoneIds String[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  sets UserExerciseSet[]
+
+  @@unique([userId, date])
+  @@index([userId])
+}
+
+/**
+ * 세트 한 줄.
+ *
+ * 한 세트를 마칠 때마다 줄이 하나 생긴다. 지금까지 쓰던 UserExerciseLog 는
+ * 그대로 두고, 서버가 이 줄들에서 다시 계산해 채우는 '요약'으로 쓴다 —
+ * 부하·부위별 세트 수·달력을 읽는 기존 코드가 전부 그대로 돈다.
+ *
+ * setNo 를 두고 (세션, 운동, 번호)를 유일하게 묶는다. 신호가 끊겼다 다시
+ * 보내도 같은 줄을 덮어쓸 뿐 두 번 쌓이지 않는다. 지우면 번호에 구멍이
+ * 남지만, 화면에는 순서대로 '1세트·2세트'로 다시 매겨 보여준다.
+ */
+model UserExerciseSet {
+  id         String @id @default(uuid())
+  sessionId  String
+  /// 세션에서 베껴 온다. 이 사람의 기록만 모아 읽을 때 쓴다.
+  userId     String
+  exerciseId String
+  /// 세션에서 베껴 온다. 자정을 넘겨도 세션 날짜 그대로다.
+  date       DateTime @db.Date
+
+  /// 1부터. 화면의 '1세트'와 같은 숫자로 시작하되, 지우면 구멍이 생긴다.
+  setNo Int
+
+  /// 실제로 든 무게(kg). 맨몸이면 없다. 0.5kg 자리까지 남긴다.
+  weightKg    Float?
+  /// 실제로 한 횟수. 시간형 운동이면 없다.
+  reps        Int?
+  /// 실제로 버틴 시간(초). 횟수형 운동이면 없다.
+  holdSeconds Int?
+
+  /**
+   * 이 세트를 마친 시각.
+   *
+   * 휴식 시계가 이 값에서 지금까지를 센다. 흘러가는 숫자를 들고 있지 않고
+   * 시각 하나만 두므로, 화면이 꺼졌다 켜져도 쉰 시간이 정확하다.
+   */
+  recordedAt DateTime @default(now())
+
+  session  TrainingSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  exercise ExerciseVideo   @relation(fields: [exerciseId], references: [id], onDelete: Cascade)
+
+  @@unique([sessionId, exerciseId, setNo])
+  @@index([sessionId])
+  @@index([userId, date])
   @@index([exerciseId])
 }
 

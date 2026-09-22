@@ -165,7 +165,17 @@ export async function setExerciseDone(
  */
 export async function saveTrainingNote(
   intensity: unknown,
-  memo: unknown
+  memo: unknown,
+  /**
+   * 어느 날의 강도인가. 안 주면 오늘.
+   *
+   * 운동 세션이 이 값을 넘긴다. 세션은 시작할 때 날짜를 얼려 두고 세트도 그
+   * 날짜로 남기는데, 강도만 '지금 날짜'로 넣으면 자정을 넘긴 운동에서 세트는
+   * 어제, 강도는 오늘로 갈린다. 부하 계산은 둘을 날짜로 짝지으므로
+   * (lib/training-load.ts), 그러면 실제로 운동한 날의 강도가 비어 '추정'으로
+   * 빠진다.
+   */
+  dateKey?: string
 ): Promise<{ ok: true } | { error: string }> {
   const user = await requireUser();
 
@@ -173,7 +183,8 @@ export async function saveTrainingNote(
   if (value == null) return { error: '운동 강도를 1~10 중에서 골라주세요.' };
 
   const text = typeof memo === 'string' ? memo.trim().slice(0, 1000) : '';
-  const date = new Date(`${toDateKey(new Date())}T00:00:00.000Z`);
+  const key = dateKey ?? toDateKey(new Date());
+  const date = new Date(`${key}T00:00:00.000Z`);
 
   await prisma.dailyTrainingNote.upsert({
     where: { userId_date: { userId: user.id, date } },
