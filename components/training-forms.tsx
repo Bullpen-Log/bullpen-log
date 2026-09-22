@@ -140,8 +140,16 @@ export function PlanForm({
   const pickedFocus = validFocus(pickedGoal, focus) ?? '';
 
   const choices = owned.filter((name) => name !== '맨몸');
-  // 안 골랐으면 가진 것을 다 쓸 수 있다는 뜻이라, 전부 켜서 보여준다.
-  const equipmentSelected = availableToday ?? owned;
+  /*
+   * 미리 켜 두지 않는다.
+   *
+   * 예전에는 가진 것을 전부 켜 놓고 시작했다. 그러면 헬스장에 안 가는 날에도
+   * 그대로 만들기를 누르게 되고, 앱은 바벨이 있다고 보고 일정을 짠다. 무엇을
+   * 쓸 수 있는지는 날마다 다르고, 그것은 앱이 아니라 사람이 안다.
+   *
+   * 이미 오늘 고른 적이 있으면(다시 만들기) 그 선택은 그대로 살려 둔다.
+   */
+  const equipmentSelected = availableToday ?? [];
 
   if (generated && !open) {
     return (
@@ -247,7 +255,7 @@ export function PlanForm({
         <CheckboxGroup
           name="availableEquipment"
           label="오늘 쓸 수 있는 장비"
-          hint="헬스장에 안 가는 날처럼 오늘 못 쓰는 것이 있으면 꺼주세요. 맨몸 운동은 항상 나옵니다."
+          hint="오늘 실제로 쓸 수 있는 것만 켜주세요. 아무것도 안 켜면 맨몸 운동만 나옵니다."
           options={choices}
           selected={equipmentSelected}
         />

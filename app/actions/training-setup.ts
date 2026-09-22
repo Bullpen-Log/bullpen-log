@@ -147,10 +147,17 @@ export async function generateTodayPlan(formData: FormData) {
     SELECTABLE_EQUIPMENT
   ).filter((name) => owned.has(name));
   /*
-   * 하나도 안 고르면 빈 목록으로 둔다. 그러면 '아직 안 고른 날'과 같은 뜻이
-   * 되어 가진 것을 다 쓴다. 실수로 다 껐을 때 맨몸 운동만 나오는 것보다 낫다.
+   * 고른 그대로 지킨다. 하나도 안 고른 것은 '맨몸만'이라는 뜻이다.
+   *
+   * 예전에는 하나도 안 고르면 빈 목록으로 두었고, 빈 목록은 '아직 안 고른 날'
+   * 과 같은 뜻이라 가진 것을 전부 쓰는 쪽으로 갔다. 그래서 헬스장에 안 가는
+   * 날이라 체크를 전부 끄고 만들어도 바벨 운동이 그대로 나왔다 — 끄는 행동에
+   * 아무 효과가 없었다.
+   *
+   * 맨몸은 언제나 들어간다. 장비가 없다고 할 수 있는 운동까지 없어지는 것은
+   * 아니다.
    */
-  const availableEquipment = chosen.length > 0 ? [ALWAYS_OWNED, ...chosen] : [];
+  const availableEquipment = [ALWAYS_OWNED, ...chosen];
 
   /*
    * 오늘의 훈련 목표. 목록에 없는 이름이 오면 버리고 지난번 값으로 돌아간다 —
@@ -220,7 +227,8 @@ export async function generateTodayPlan(formData: FormData) {
     facts,
     plan,
     library,
-    availableToday: availableEquipment.length > 0 ? availableEquipment : null,
+    /* 폼을 거쳤으면 최소한 맨몸은 들어 있다. 빈 목록이 될 일이 없다. */
+    availableToday: availableEquipment,
     requestedMinutes,
     trainingGoal,
     trainingFocus,
