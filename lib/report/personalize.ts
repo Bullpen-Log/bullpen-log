@@ -212,7 +212,7 @@ export const TRAINING_GOALS = [
   {
     name: '균형 잡힌 관리',
     desc: '근력 위주에 파워를 하나씩 · 어깨 관리까지 고르게',
-    weights: { warmup: 1, main: 1, core: 1, prehab: 1, armcare: 1 },
+    weights: { mobility: 1, main: 1, core: 1, prehab: 1, armcare: 1 },
     prefer: [] as string[],
     /* 파워도 넣되 하나까지 — '고르게'가 파워 위주가 되면 안 된다 */
     mix: { maxPower: 1 },
@@ -235,7 +235,7 @@ export const TRAINING_GOALS = [
      */
     name: '파워 향상',
     desc: '빠르게 힘을 내는 훈련과 하체에 시간을 더 씁니다',
-    weights: { warmup: 1, main: 1.15, core: 0.9, prehab: 0.8, armcare: 0.8 },
+    weights: { mobility: 1, main: 1.15, core: 0.9, prehab: 0.8, armcare: 0.8 },
     prefer: ['파워'],
     /*
      * 파워를 먼저 둘 채우고, 무게 드는 운동을 하나 남긴다.
@@ -261,7 +261,7 @@ export const TRAINING_GOALS = [
   {
     name: '부상 방지',
     desc: '어깨·팔꿈치 관리와 보강 위주 — 점프·던지기는 빼고',
-    weights: { warmup: 1.3, main: 0.7, core: 1, prehab: 1.7, armcare: 1.6 },
+    weights: { mobility: 1.3, main: 0.7, core: 1, prehab: 1.7, armcare: 1.6 },
     prefer: [],
     /*
      * 파워를 아예 안 넣는다.
@@ -277,7 +277,7 @@ export const TRAINING_GOALS = [
   {
     name: '근력 향상',
     desc: '무게를 다루는 운동으로만 채웁니다 — 점프·던지기는 빼고',
-    weights: { warmup: 0.85, main: 1.2, core: 0.9, prehab: 0.8, armcare: 0.85 },
+    weights: { mobility: 0.85, main: 1.2, core: 0.9, prehab: 0.8, armcare: 0.85 },
     prefer: ['하체 스트렝스', '상체 스트렝스'],
     /*
      * 파워를 아예 안 넣는다.

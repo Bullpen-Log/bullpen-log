@@ -56,7 +56,6 @@ import {
 import {
   DEFAULT_WORKOUT_MINUTES,
   SLOT_ORDER,
-  WARMUP_MINUTES,
   WORKOUT_MINUTES_CHOICES,
   compositionFor,
   decideTheme,
@@ -2141,103 +2140,101 @@ console.log('\n[목표 안의 부위] 상체를 밀기·당기기로 가르는�
   );
 }
 
-console.log('\n[워밍업] 무게 드는 날은 가벼운 웨이트로 데우는가');
+console.log('\n[워밍업] 일정에 워밍업을 안 넣는가');
 {
   /*
-   * 스트레칭만 하고 곧바로 스쿼트에 들어가는 것보다, 같은 동작을 빈 막대나
-   * 밴드로 먼저 훑는 편이 그날 할 운동을 실제로 준비시킨다. 몸을 아끼는
-   * 날(부상 방지)과 고르게 가는 날(균형)은 그대로 모빌리티다.
+   * 워밍업은 이제 일정을 만들 때 뽑지 않는다. 고정 루틴으로 따로 두고, 본운동
+   * 시간에도 넣지 않는다. 그래서 여기서 보는 것은 '잘 뽑혔는가'가 아니라
+   * '안 뽑혔는가'다.
+   *
+   * 예외가 하나 있다 — 회복 데이의 가동성. 그 날에는 가동성이 준비 운동이
+   * 아니라 그날의 운동 자체라 남겨 두었고, 기록도 평소대로 남는다.
    */
-  const warmupOf = (goal: string, theme: 'lower' | 'upper', cands = library) =>
+  const picksOf = (theme: ThemeKey, goal: string | null, m = 60, cands = library) =>
     pickForTheme({
       candidates: cands,
       theme,
-      minutes: effectiveMinutes(theme, 60),
+      minutes: effectiveMinutes(theme, m),
       doneIds: new Set<string>(),
       rotationSeed: TODAY.toISOString().slice(0, 10),
       goal,
-    }).picks.filter((p) => p.slot === 'warmup');
+    }).picks;
 
-  for (const goal of ['근력 향상', '파워 향상']) {
-    for (const [theme, want] of [
-      ['lower', '하체 스트렝스'],
-      ['upper', '상체 스트렝스'],
-    ] as const) {
-      const warm = warmupOf(goal, theme);
-      check(
-        `${goal} ${theme === 'lower' ? '하체' : '상체'}날 — 워밍업이 가벼운 웨이트다`,
-        warm.length > 0 &&
-          warm.every(
-            (p) => p.exercise.category === want && p.exercise.intensity === '낮음'
-          ),
-        warm.map((p) => `${p.exercise.title}(${p.exercise.intensity})`).join(', ')
-      );
+  /* 1) 무게 드는 날·보조 날에는 모빌리티가 한 개도 없어야 한다 */
+  const GOAL_NAMES = TRAINING_GOALS.map((g) => g.name);
+  for (const theme of ['lower', 'upper', 'assist'] as const) {
+    for (const goal of GOAL_NAMES) {
+      for (const m of [60, 90, 120]) {
+        const mob = picksOf(theme, goal, m).filter(
+          (p) => p.exercise.category === '모빌리티'
+        );
+        check(
+          `${theme} ${goal} ${m}분 — 모빌리티가 안 들어간다`,
+          mob.length === 0,
+          mob.map((x) => x.exercise.title).join(', ')
+        );
+      }
     }
   }
 
-  /*
-   * 고르게 가는 날과 몸을 아끼는 날은 예전 규칙 그대로다 — 모빌리티거나
-   * 스트레칭 수준 강도(암케어의 '매우 낮음'이 여기 들어온다).
-   */
-  for (const goal of ['균형 잡힌 관리', '부상 방지']) {
-    const warm = warmupOf(goal, 'lower');
+  /* 2) 'warmup' 이라는 구간 자체가 없어야 한다 */
+  for (const theme of ['lower', 'upper', 'assist', 'recovery'] as const) {
+    const slots = new Set(picksOf(theme, '균형 잡힌 관리').map((p) => p.slot));
     check(
-      `${goal}은 예전처럼 모빌리티·스트레칭 수준이다`,
-      warm.length > 0 &&
-        warm.every(
-          (p) =>
-            p.exercise.category === '모빌리티' || p.exercise.intensity === '매우 낮음'
-        ),
-      warm.map((p) => `${p.exercise.title}(${p.exercise.category})`).join(', ')
+      `${theme} — 워밍업 구간이 없다`,
+      !slots.has('warmup' as never),
+      [...slots].join(', ')
+    );
+  }
+
+  /* 3) 회복 데이에는 가동성이 남아 있고, 그것이 그날의 몫이다 */
+  {
+    const picks = picksOf('recovery', null, 60);
+    const mob = picks.filter((p) => p.slot === 'mobility');
+    check(
+      '회복 데이 — 가동성이 남아 있다',
+      mob.length > 0 && mob.every((p) => p.exercise.category === '모빌리티'),
+      mob.map((x) => x.exercise.title).join(', ') || '비었다'
     );
   }
 
   /*
-   * 워밍업으로 할 때는 세트를 줄인다.
+   * 4) '매우 낮음' 암케어와 회복 운동이 이제 뽑힌다.
    *
-   * 막대 RDL 을 처방대로 3세트에 세트 사이 2분씩 쉬면 12분인데, 그건 워밍업이
-   * 아니라 본운동이다. 줄이지 않으면 워밍업이 하나밖에 안 들어가, 모빌리티를
-   * 쓰던 때보다 오히려 적어진다.
+   * 예전에는 이것들이 워밍업 구간으로만 들어갈 수 있었다. 워밍업을 없애면서
+   * 거르개를 같이 걷어내지 않으면, 넷이 어느 구간에도 못 들어가 영영 안 나온다.
    */
-  for (const m of [60, 90, 120]) {
-    for (const goal of ['근력 향상', '파워 향상']) {
-      const warm = pickForTheme({
-        candidates: library,
-        theme: 'lower',
-        minutes: effectiveMinutes('lower', m),
-        doneIds: new Set<string>(),
-        rotationSeed: TODAY.toISOString().slice(0, 10),
-        goal,
-      }).picks.filter((p) => p.slot === 'warmup');
-      check(
-        `${goal} ${m}분 — 워밍업은 언제나 둘이다`,
-        warm.length === 2,
-        warm.map((p) => p.exercise.title).join(', ')
-      );
-    }
+  {
+    const veryLow = library.filter(
+      (ex) => ex.intensity === '매우 낮음' && ex.category !== '모빌리티'
+    );
+    const reachable = veryLow.filter((ex) => {
+      const theme: ThemeKey = ex.category === '암케어' ? 'lower' : 'assist';
+      const specs = compositionFor(theme, '균형 잡힌 관리');
+      return specs.some((sp) => sp.categories.includes(ex.category));
+    });
+    check(
+      `'매우 낮음' 암케어·회복 ${veryLow.length}개가 갈 구간이 있다`,
+      veryLow.length > 0 && reachable.length === veryLow.length,
+      `${reachable.length}/${veryLow.length}`
+    );
   }
-  /*
-   * 워밍업은 처방과 상관없이 짧게 센다. 처방대로 세면 막대 RDL 하나가 12분이라
-   * 워밍업이 하나밖에 안 들어간다.
-   */
-  check(
-    '워밍업은 시간을 짧게 하나로 잡는다',
-    WARMUP_MINUTES <= 3,
-    `하나에 ${WARMUP_MINUTES}분`
-  );
 
   /*
-   * 상체 '강도 낮음' 여덟 개는 하나만 빼고 전부 밴드가 있어야 한다. 맨몸만
-   * 가진 사람은 후보가 0인데, 그대로 두면 워밍업 없이 곧바로 무거운 운동으로
-   * 들어간다.
+   * 5) 맨몸만 가진 사람도 일정이 빈약해지지 않는다.
+   *
+   * 예전에는 워밍업이 '강도 낮음 웨이트'라 맨몸만 가진 사람에게는 후보가 0이
+   * 되는 자리가 있었다. 지금은 그 자리가 없으니 그냥 비지 않는지만 본다.
    */
-  const bare = library.filter((ex) => ex.equipment.every((e) => e === '맨몸'));
-  const fallback = warmupOf('근력 향상', 'upper', bare);
-  check(
-    '가벼운 웨이트가 없으면 모빌리티로 되돌아간다',
-    fallback.length > 0 && fallback.every((p) => p.exercise.category === '모빌리티'),
-    fallback.map((p) => p.exercise.title).join(', ') || '워밍업이 비었다'
-  );
+  {
+    const bare = library.filter((ex) => ex.equipment.every((e) => e === '맨몸'));
+    const picks = picksOf('lower', '근력 향상', 60, bare);
+    check(
+      '맨몸만 가진 사람도 하체날 일정이 나온다',
+      picks.length > 0,
+      `${picks.length}개`
+    );
+  }
 }
 
 console.log('\n[가장 빠듯한 경우] 그래도 훈련이 나오는가');

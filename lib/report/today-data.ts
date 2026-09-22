@@ -9,9 +9,7 @@ import { readDailyPlan } from '@/lib/report/daily-plan';
 import { visibleExercises } from '@/lib/library-cache';
 import {
   estimateMinutes,
-  isWarmupWeight,
   slotForTheme,
-  WARMUP_MINUTES,
   workoutConflict,
   type ThemeKey,
 } from '@/lib/report/theme';
@@ -209,11 +207,7 @@ export async function loadTodayCore(user: UserForToday, today: Date) {
     shownPicks.reduce((sum, p) => {
       const ex = byId.get(p.exerciseId);
       if (!ex) return sum;
-      /* 가벼운 웨이트 워밍업은 처방과 상관없이 짧게 센다 */
-      return (
-        sum +
-        (isWarmupWeight(p.slot, ex.category) ? WARMUP_MINUTES : estimateMinutes(ex))
-      );
+      return sum + estimateMinutes(ex);
     }, 0)
   );
 

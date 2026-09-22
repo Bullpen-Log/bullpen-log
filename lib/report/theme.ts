@@ -463,10 +463,20 @@ export function decideTheme({
 
 /* ------------------------------ 시간 배분과 구성 ----------------------------- */
 
-export type SlotKey = 'warmup' | 'main' | 'core' | 'prehab' | 'armcare';
+/*
+ * 하루를 채우는 구간들.
+ *
+ * 예전에는 맨 앞에 'warmup' 이 있었다. 이제 워밍업은 일정을 만들 때 뽑지
+ * 않는다 — 고정 루틴으로 따로 두고, 본운동 시간에도 넣지 않는다.
+ *
+ * 'mobility' 는 그 자리를 물려받은 것이 아니라 다른 것이다. 회복 데이에만
+ * 있고, 그 날에는 가동성이 준비 운동이 아니라 그날의 운동 자체다. 그래서
+ * 기록도 평소대로 남는다.
+ */
+export type SlotKey = 'mobility' | 'main' | 'core' | 'prehab' | 'armcare';
 
 export const SLOT_LABELS: Record<SlotKey, { label: string; hint: string }> = {
-  warmup: { label: '워밍업', hint: '가볍게 몸을 열고 시작하세요' },
+  mobility: { label: '가동성', hint: '천천히 관절을 열어주세요' },
   main: { label: '본운동', hint: '오늘 테마의 핵심입니다' },
   core: { label: '코어', hint: '몸통을 단단하게' },
   /*
@@ -482,7 +492,7 @@ export const SLOT_LABELS: Record<SlotKey, { label: string; hint: string }> = {
 };
 
 /** 화면·구성에서 쓰는 구간 순서 */
-export const SLOT_ORDER: SlotKey[] = ['warmup', 'main', 'core', 'prehab', 'armcare'];
+export const SLOT_ORDER: SlotKey[] = ['mobility', 'main', 'core', 'prehab', 'armcare'];
 
 type SlotSpec = {
   slot: SlotKey;
@@ -511,13 +521,6 @@ type SlotSpec = {
    * 계열이 비어 있는 파워는 지나간다. 막아버리면 영영 안 나온다.
    */
   powerPatterns?: readonly string[];
-  /**
-   * 이 구간에 들어올 수 있는 강도 이름.
-   *
-   * 지금은 워밍업에만 쓴다. 이 값이 있으면 워밍업이 '모빌리티거나 아주 가벼운
-   * 것'이라는 예전 규칙 대신, 적어 둔 카테고리와 강도로만 채워진다.
-   */
-  intensities?: readonly string[];
   /**
    * 이 구간에 들어올 수 있는 스트렝스의 동작 계열.
    *
@@ -560,18 +563,6 @@ type SlotSpec = {
  * 어깨 관리(암케어)는 어느 목표에도 있다. 투수에게 그것만은 매일이다.
  */
 type GoalShape = {
-  /**
-   * 워밍업.
-   *
-   * weight 가 켜져 있으면 모빌리티 대신 그날 부위의 '강도 낮음' 웨이트로
-   * 채운다 — 막대 RDL, 밴드 풀 어파트, 인클라인 푸쉬업 같은 것들이다.
-   *
-   * 무게를 드는 날에는 이쪽이 맞다. 스트레칭만 하고 곧바로 스쿼트에 들어가는
-   * 것보다, 같은 동작을 빈 막대나 밴드로 먼저 훑는 편이 그날 할 운동을 실제로
-   * 준비시킨다. 몸을 아끼는 날(부상 방지)과 고르게 가는 날(균형)은 그대로
-   * 모빌리티다.
-   */
-  warmup: { share: number; maxCount: number; weight?: boolean };
   /** 무게·파워를 하는 구간. 없으면 그 목표는 무게를 안 든다. */
   main?: { share: number; maxCount: number };
   core?: { share: number; maxCount: number };
@@ -579,50 +570,36 @@ type GoalShape = {
   armcare: { share: number; maxCount: number };
 };
 
-/**
- * 가벼운 웨이트 워밍업 하나에 잡아 두는 시간(분).
- *
- * 처방대로 세지 않는다. 막대 RDL 을 3세트에 세트 사이 2분씩 쉬면 12분인데,
- * 그건 워밍업이 아니라 본운동이다. 워밍업은 세트를 세며 하는 것이 아니라
- * 오늘 쓸 관절을 한 번씩 지나가는 것이라, 화면에도 세트·횟수를 안 적고
- * 시간도 넉넉히 짧게 하나로 잡는다.
- */
-export const WARMUP_MINUTES = 2;
-
-/**
- * 가벼운 웨이트 워밍업에 쓸 강도.
- *
- * '매우 낮음'은 스트레칭 수준이라 웨이트에는 거의 안 붙어 있고, '중간'부터는
- * 이미 본운동이다. 그 사이 한 칸만 쓴다.
- */
-const WARMUP_WEIGHT_INTENSITY = '낮음';
-
 const GOAL_SHAPES: Record<string, GoalShape> = {
   '근력 향상': {
-    warmup: { share: 0.1, maxCount: 2, weight: true },
     main: { share: 0.7, maxCount: 8 },
     armcare: { share: 0.2, maxCount: 3 },
   },
   '파워 향상': {
-    warmup: { share: 0.1, maxCount: 2, weight: true },
     main: { share: 0.62, maxCount: 8 },
     core: { share: 0.13, maxCount: 2 },
     armcare: { share: 0.15, maxCount: 2 },
   },
   '균형 잡힌 관리': {
-    warmup: { share: 0.1, maxCount: 2 },
     /*
      * 본운동을 0.52까지 낮춰 보았더니 60분에 둘밖에 안 들어갔다. 하체날에
      * 둘이면 힌지가 빠지는 날이 이어져(마른 날 5.1) 뒤쪽 사슬이 통째로
      * 놀았다. 코어·보강을 하나씩 두면서도 본운동 셋은 되게 잡는다.
      */
-    main: { share: 0.58, maxCount: 6 },
-    core: { share: 0.1, maxCount: 1 },
-    prehab: { share: 0.08, maxCount: 1 },
+    main: { share: 0.58, maxCount: 7 },
+    /*
+     * 코어·보강 상한을 하나에서 둘로 올린다.
+     *
+     * 워밍업을 없애면서 120분에 98분치밖에 안 나왔다 — 워밍업 둘이 채우던
+     * 12분을 메울 자리가 없었다. 본운동만 더 넣으면 '고르게'라는 이름과
+     * 어긋나므로, 코어와 보강을 하나씩 더 넣을 수 있게 한다. 짧은 날에는
+     * 몫이 작아 어차피 하나밖에 안 들어간다.
+     */
+    core: { share: 0.1, maxCount: 2 },
+    prehab: { share: 0.08, maxCount: 2 },
     armcare: { share: 0.14, maxCount: 2 },
   },
   '부상 방지': {
-    warmup: { share: 0.15, maxCount: 3 },
     core: { share: 0.25, maxCount: 4 },
     prehab: { share: 0.3, maxCount: 5 },
     armcare: { share: 0.3, maxCount: 5 },
@@ -637,29 +614,7 @@ const GOAL_SHAPES: Record<string, GoalShape> = {
  * 목표를 하나 더 만들 때 카테고리를 다시 적을 일이 없다.
  */
 function shapeToSpecs(shape: GoalShape, mainSpec: SlotSpec): SlotSpec[] {
-  /*
-   * 가벼운 웨이트 워밍업은 그날 할 부위를 그대로 따라간다. 하체 데이면 하체
-   * 스트렝스, 상체 데이면 상체 스트렝스 — 이제 할 곳을 데우는 것이 요점이라
-   * 딴 부위를 데워 봐야 뜻이 없다.
-   */
-  const strengthCategory = mainSpec.categories.find((c) => c.endsWith('스트렝스'));
-  const warmup: SlotSpec =
-    shape.warmup.weight && strengthCategory
-      ? {
-          slot: 'warmup',
-          share: shape.warmup.share,
-          maxCount: shape.warmup.maxCount,
-          categories: [strengthCategory],
-          intensities: [WARMUP_WEIGHT_INTENSITY],
-        }
-      : {
-          slot: 'warmup',
-          share: shape.warmup.share,
-          maxCount: shape.warmup.maxCount,
-          categories: ['모빌리티'],
-        };
-
-  const specs: SlotSpec[] = [warmup];
+  const specs: SlotSpec[] = [];
   if (shape.main) {
     specs.push({ ...mainSpec, share: shape.main.share, maxCount: shape.main.maxCount });
   }
@@ -673,7 +628,6 @@ function shapeToSpecs(shape: GoalShape, mainSpec: SlotSpec): SlotSpec[] {
 
 const COMPOSITIONS: Record<ThemeKey, SlotSpec[]> = {
   lower: [
-    { slot: 'warmup', share: 0.1, categories: ['모빌리티'], maxCount: 2 },
     {
       slot: 'main',
       share: 0.7,
@@ -685,7 +639,6 @@ const COMPOSITIONS: Record<ThemeKey, SlotSpec[]> = {
     { slot: 'armcare', share: 0.2, categories: ['암케어'], maxCount: 3 },
   ],
   upper: [
-    { slot: 'warmup', share: 0.1, categories: ['모빌리티'], maxCount: 2 },
     {
       slot: 'main',
       share: 0.7,
@@ -701,7 +654,6 @@ const COMPOSITIONS: Record<ThemeKey, SlotSpec[]> = {
    * 90분을 부탁하면 상한에 먼저 걸려 74분밖에 안 나왔다.
    */
   assist: [
-    { slot: 'warmup', share: 0.15, categories: ['모빌리티'], maxCount: 3 },
     { slot: 'main', share: 0.35, categories: ['코어'], maxCount: 12 },
     { slot: 'prehab', share: 0.15, categories: ['회복 및 보강'], maxCount: 2 },
     { slot: 'armcare', share: 0.35, categories: ['암케어'], maxCount: 4 },
@@ -714,7 +666,15 @@ const COMPOSITIONS: Record<ThemeKey, SlotSpec[]> = {
    * 안 나왔다. 회복 운동은 하나에 1~4분이라 개수가 있어야 시간이 찬다.
    */
   recovery: [
-    { slot: 'warmup', share: 0.25, categories: ['모빌리티'], maxCount: 3 },
+    /*
+     * 회복 데이의 가동성은 준비 운동이 아니라 그날의 운동이다.
+     *
+     * 다른 날에서는 워밍업을 아예 안 뽑지만, 이 날만은 남긴다. 투수의 회복
+     * 데이에서 가동성을 빼면 그날의 4분의 1이 사라지고 남는 것은 보강과
+     * 암케어뿐이다. 그래서 여기서는 구간 이름도 '가동성'이고, 한 것도 평소
+     * 처럼 기록에 남는다.
+     */
+    { slot: 'mobility', share: 0.25, categories: ['모빌리티'], maxCount: 3 },
     { slot: 'core', share: 0.12, categories: ['코어'], maxCount: 2 },
     { slot: 'prehab', share: 0.3, categories: ['회복 및 보강'], maxCount: 4 },
     { slot: 'armcare', share: 0.3, categories: ['암케어'], maxCount: 5 },
@@ -724,8 +684,8 @@ const COMPOSITIONS: Record<ThemeKey, SlotSpec[]> = {
 /**
  * 짧은 날에 먼저 빼는 구간.
  *
- * 워밍업·본운동·암케어는 남긴다. 몸을 열지 않고 시작하거나 어깨를 안 챙기고
- * 끝내는 것은 시간이 없다고 해서 할 일이 아니고, 본운동은 그날의 목적이다.
+ * 본운동·암케어·가동성은 남긴다. 어깨를 안 챙기고 끝내는 것은 시간이 없다고
+ * 해서 할 일이 아니고, 본운동은 그날의 목적이다.
  */
 const OPTIONAL_SLOTS: SlotKey[] = ['core', 'prehab'];
 
@@ -840,25 +800,6 @@ export type ThemedExercise = {
 export type ThemedPick<T> = { exercise: T; slot: SlotKey };
 
 /**
- * 가벼운 웨이트로 데우는 워밍업인가.
- *
- * 시간을 어떻게 셀지가 여기서 갈린다. 스트렝스가 워밍업 자리에 오는 것은
- * 목표가 그렇게 시켰을 때(근력 향상·파워 향상)뿐이라, 카테고리만 봐도 가려진다.
- *
- * '모빌리티가 아닌 것'으로 잡으면 안 된다. 회복 데이와 부상 방지 날의 워밍업
- * 자리에는 '매우 낮음' 암케어도 들어오는데, 그것까지 짧게 세면 40분을 부탁한
- * 회복 데이가 30분밖에 안 나왔다.
- */
-export function isWarmupWeight(slot: SlotKey, category: string): boolean {
-  return slot === 'warmup' && category.endsWith('스트렝스');
-}
-
-/** 워밍업 구간에 들어갈 수 있는가 — 모빌리티이거나 스트레칭 수준 강도 */
-function isWarmup(ex: ThemedExercise): boolean {
-  return ex.category === '모빌리티' || intensityLevel(ex.intensity) <= 1;
-}
-
-/**
  * 완료된 운동을 어느 구간에 되돌려 놓을지 정한다.
  *
  * 반드시 이 테마에 실제로 있는 구간을 돌려줘야 한다. 없는 구간 이름을 주면
@@ -869,10 +810,8 @@ function isWarmup(ex: ThemedExercise): boolean {
  * 방금 체크한 운동이 사라졌다.
  */
 export function slotOf(ex: ThemedExercise, specs: SlotSpec[]): SlotKey {
-  if (isWarmup(ex) && specs.some((s) => s.slot === 'warmup')) return 'warmup';
   for (const spec of specs) {
-    if (spec.slot !== 'warmup' && spec.categories.includes(ex.category))
-      return spec.slot;
+    if (spec.categories.includes(ex.category)) return spec.slot;
   }
   // 맞는 구간이 없으면 본운동에, 본운동이 없는 테마라면 첫 구간에 둔다.
   return (specs.find((s) => s.slot === 'main') ?? specs[0]).slot;
@@ -1135,17 +1074,15 @@ export function pickForTheme<T extends ThemedExercise>({
     const budget = minutes * spec.share;
 
     let pool = ordered.filter((ex) => {
-      if (spec.slot === 'warmup') {
-        /* 가벼운 웨이트로 데우는 날 — 적어 둔 부위와 강도로만 채운다 */
-        if (spec.intensities) {
-          return (
-            spec.categories.includes(ex.category) &&
-            spec.intensities.includes(ex.intensity)
-          );
-        }
-        return isWarmup(ex);
-      }
-      if (isWarmup(ex) || !spec.categories.includes(ex.category)) return false;
+      /*
+       * 카테고리만 본다.
+       *
+       * 예전에는 여기서 '모빌리티이거나 매우 낮음'인 운동을 통째로 걸렀다.
+       * 워밍업 구간이 그것들을 따로 받아 갔기 때문이다. 워밍업을 안 뽑게 된
+       * 지금 그 거르개를 그대로 두면, '매우 낮음' 암케어 셋과 회복 운동 하나가
+       * 어느 구간에도 못 들어가 영영 안 나온다.
+       */
+      if (!spec.categories.includes(ex.category)) return false;
       /* 파워는 이 구간에 맞는 계열만 — 상체날에 스쿼트 점프가 들어오지 않게 */
       if (
         ex.category === '파워' &&
@@ -1168,25 +1105,13 @@ export function pickForTheme<T extends ThemedExercise>({
     });
 
     /*
-     * 가벼운 웨이트가 하나도 없으면 예전처럼 모빌리티로 푼다.
-     *
-     * 상체 '강도 낮음' 여덟 개는 하나만 빼고 전부 밴드가 있어야 한다 — 맨몸만
-     * 가진 사람에게는 후보가 0이다. 그대로 두면 워밍업 없이 곧바로 무거운
-     * 운동으로 들어간다.
-     */
-    if (spec.slot === 'warmup' && spec.intensities && pool.length === 0) {
-      pool = ordered.filter(isWarmup);
-    }
-
-    /*
      * 이 구간에서 이 운동이 걸리는 시간.
      *
      * 가벼운 웨이트 워밍업은 처방과 상관없이 짧게 센다. 본운동 처방(3세트에
      * 세트 사이 2분)으로 세면 막대 RDL 하나가 12분이라 워밍업이 하나밖에 안
      * 들어간다.
      */
-    const costOf = (ex: T) =>
-      isWarmupWeight(spec.slot, ex.category) ? WARMUP_MINUTES : estimateMinutes(ex);
+    const costOf = (ex: T) => estimateMinutes(ex);
 
     /*
      * 본운동 안의 순서를 정한다. 목표를 먼저 반영하고, 그 위에 오늘 고른
@@ -1398,7 +1323,8 @@ export function pickForTheme<T extends ThemedExercise>({
     if (chosen.length === 0 && spec.slot === 'main') {
       const label = SLOT_LABELS[spec.slot].label;
       for (const ex of ordered) {
-        if (taken.has(ex.id) || isWarmup(ex)) continue;
+        /* 가동성은 회복 데이의 몫이라 본운동 빈자리를 메우는 데 쓰지 않는다 */
+        if (taken.has(ex.id) || ex.category === '모빌리티') continue;
         const cost = estimateMinutes(ex);
         if (!fits(cost)) continue;
         chosen.push(ex);
@@ -1477,14 +1403,7 @@ export function pickForTheme<T extends ThemedExercise>({
   }
 
   const estimatedMinutes = Math.round(
-    picks.reduce(
-      (sum, p) =>
-        sum +
-        (isWarmupWeight(p.slot, p.exercise.category)
-          ? WARMUP_MINUTES
-          : estimateMinutes(p.exercise)),
-      0
-    )
+    picks.reduce((sum, p) => sum + estimateMinutes(p.exercise), 0)
   );
 
   return { picks, estimatedMinutes, notes };
