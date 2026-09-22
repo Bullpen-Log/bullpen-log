@@ -52,10 +52,15 @@ export function Sidebar({
                 <Link
                   key={item.href}
                   href={item.href}
-                  className={`flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm transition-colors ${
+                  /*
+                   * duration-75 는 강조가 옮겨가는 속도다. 기본값(150ms)으로는
+                   * 누른 메뉴에 색이 천천히 번져서, 이미 옮겨갔는데도 아직
+                   * 안 옮겨간 것처럼 보인다. 주소는 재보니 20ms 만에 바뀐다.
+                   */
+                  className={`flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm transition-colors duration-75 ${
                     isActive(item.href)
                       ? 'bg-sky text-white font-semibold'
-                      : 'text-ink hover:bg-surface-2'
+                      : 'text-ink hover:bg-surface-2 active:bg-surface-2'
                   }`}
                 >
                   <Icon
@@ -77,7 +82,7 @@ export function Sidebar({
 
       <Link
         href="/profile"
-        className="flex shrink-0 items-center gap-3 border-t border-line px-4 py-4 transition-colors hover:bg-surface-2"
+        className="flex shrink-0 items-center gap-3 border-t border-line px-4 py-4 transition-colors duration-75 hover:bg-surface-2 active:bg-surface-2"
       >
         <Avatar nickname={nickname} />
         <span className="min-w-0">
@@ -138,8 +143,13 @@ export function MobileTabs({ tabs }: { tabs: NavItem[] }) {
             <Link
               key={tab.href}
               href={tab.href}
-              className={`flex flex-1 flex-col items-center gap-0.5 py-2 text-[11px] transition-colors ${
-                active ? 'font-semibold text-sky' : 'text-muted'
+              /*
+               * 휴대폰에서 가장 많이 눌리는 자리다. 눌렀을 때 살짝 작아지고
+               * 색이 바뀌게 해서, 화면이 바뀌기 전에 먼저 대답하게 한다.
+               * 움직임을 줄여 쓰는 사람에게는 크기 변화 없이 색만 바뀐다.
+               */
+              className={`flex flex-1 flex-col items-center gap-0.5 py-2 text-[11px] transition-[color,transform] duration-75 motion-safe:active:scale-90 ${
+                active ? 'font-semibold text-sky' : 'text-muted active:text-sky'
               }`}
             >
               <Icon aria-hidden className="h-5 w-5" strokeWidth={active ? 2.4 : 1.9} />

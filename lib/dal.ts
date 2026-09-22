@@ -47,9 +47,9 @@ export async function requireUser() {
      * 토큰은 멀쩡한데 회원이 없는 경우가 있다 — 관리자가 계정을 삭제했는데
      * 그 사람 브라우저에 로그인 쿠키가 남아 있을 때.
      *
-     * 이때 그냥 /login 으로 보내면 프록시가 토큰만 보고 다시 /dashboard 로
-     * 돌려보내 무한 리다이렉트가 된다. 페이지를 그리는 중에는 쿠키를 지울
-     * 수 없으므로, 쿠키를 지워주는 경로를 한 번 거쳐서 나간다.
+     * 이때 쿠키를 그대로 둔 채 /login 으로 보내면, 로그인 화면이 토큰만 보고
+     * 다시 /today 로 돌려보내 무한 리다이렉트가 된다. 페이지를 그리는 중에는
+     * 쿠키를 지울 수 없으므로, 쿠키를 지워주는 경로를 한 번 거쳐서 나간다.
      */
     const session = await getSession();
     redirect(session ? '/api/session/clear' : '/login');

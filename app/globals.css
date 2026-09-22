@@ -129,6 +129,30 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
+/*
+ * 손가락으로 눌렀을 때 티가 나게 한다.
+ *
+ * 세어 보니 마우스를 올렸을 때의 표시(hover)는 265군데인데, 눌렀을 때의
+ * 표시(active)는 한 군데도 없었다. 휴대폰에는 '올리기'가 없으니 눌러도
+ * 아무 일이 없는 것처럼 보인다.
+ *
+ * 재보니 누른 뒤 실제 내용이 도착하기까지 0.3초가 걸린다. 그동안 아무
+ * 대답이 없으면 그 0.3초가 훨씬 길게 느껴진다 — 사용자가 말한 '한 템포'의
+ * 절반은 이 침묵이었다.
+ *
+ * 기본 회색 대신 앱의 하늘색으로 바꾼다. 이 표시는 브라우저가 직접 그리므로
+ * 자바스크립트가 끼어들 틈 없이 누르는 즉시 나타난다. (iOS 는 :active 가
+ * 잘 안 걸릴 때가 있어서, 이쪽이 더 확실하다.)
+ */
+a,
+button,
+[role='button'],
+summary,
+label {
+  -webkit-tap-highlight-color: rgba(14, 165, 233, 0.18);
+  -webkit-tap-highlight-color: color-mix(in srgb, var(--color-sky) 18%, transparent);
+}
+
 /* 히어로 영역에 까는 하늘색 그라데이션 */
 .bg-spotlight {
   background-image:
