@@ -1,3 +1,4 @@
+import { Suspense } from 'react';
 import { ClipboardList, Dumbbell, Settings2, Target } from 'lucide-react';
 import { prisma } from '@/lib/prisma';
 import { requireUser } from '@/lib/dal';
@@ -10,6 +11,7 @@ import { CHECKIN_PARTS, hasPain, pickCheckinParts } from '@/lib/checkin';
 import { formatShortDate, shiftDateKey } from '@/lib/pitch-stats';
 import { REST_SESSION_TYPE } from '@/lib/session-type';
 import { Card, PageHeading } from '@/components/ui';
+import { Skeleton } from '@/components/fallback';
 import { PlanNote } from '@/components/plan-note';
 import { CheckinForm, type CheckinData } from '@/components/checkin-form';
 import { PlanForm, TrainingSettingsForm } from '@/components/training-forms';
@@ -38,8 +40,59 @@ function now() {
   return new Date();
 }
 
+/**
+ * 기다리는 동안 자리를 잡아 두는 모양.
+ *
+ * 화면과 같은 틀을 쓴다 — 왼쪽에 상자 넷, 오른쪽에 요약 칸. 예전에는 모든
+ * 화면이 같은 회색 덩어리 하나를 썼는데, 내용이 도착할 때 크게 튀었다.
+ */
+function TodaySkeleton() {
+  return (
+    <div
+      aria-busy="true"
+      className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_18rem] lg:items-start"
+    >
+      <span className="sr-only">오늘 기록을 불러오는 중입니다</span>
+      <div className="grid gap-4 sm:auto-rows-fr sm:grid-cols-2">
+        <Skeleton className="h-44" />
+        <Skeleton className="h-44" />
+        <Skeleton className="h-44" />
+        <Skeleton className="h-44" />
+      </div>
+      <Skeleton className="h-72 rounded-2xl" />
+    </div>
+  );
+}
+
+/**
+ * 제목은 곧바로, 나머지는 뒤따라.
+ *
+ * 예전에는 이 함수가 13번의 DB 조회를 모두 기다린 뒤에야 무언가를 내보냈다.
+ * 재보니 누른 뒤 340ms 동안 회색 덩어리만 보였다(로컬 기준, 배포본은 여기에
+ * 네트워크가 더 붙는다). 그 사이 화면에 진짜인 것은 하나도 없었다.
+ *
+ * 이름은 레이아웃이 이미 읽어 둔 것이라(lib/dal.ts 의 cache) 이 await 는
+ * DB 를 안 간다. 그래서 제목은 기다릴 것 없이 바로 나간다.
+ */
 export default async function HomePage() {
   const user = await requireUser();
+
+  return (
+    <div className="space-y-6">
+      <PageHeading
+        eyebrow="Home"
+        title={`${user.nickname}님, 오늘도 던져볼까요`}
+        description="오늘 몸 상태와 던진 것을 남겨주세요. 운동은 트레이닝에서 합니다."
+      />
+      <Suspense fallback={<TodaySkeleton />}>
+        <TodayBody user={user} />
+      </Suspense>
+    </div>
+  );
+}
+
+/** 자료가 다 모여야 그릴 수 있는 부분 */
+async function TodayBody({ user }: { user: Awaited<ReturnType<typeof requireUser>> }) {
   const today = now();
   const savedMinutes = user.dailyWorkoutMinutes ?? DEFAULT_WORKOUT_MINUTES;
 
@@ -341,13 +394,7 @@ export default async function HomePage() {
   );
 
   return (
-    <div className="space-y-6">
-      <PageHeading
-        eyebrow="Home"
-        title={`${user.nickname}님, 오늘도 던져볼까요`}
-        description="오늘 몸 상태와 던진 것을 남겨주세요. 운동은 트레이닝에서 합니다."
-      />
-
+    <>
       {/*
         최근 메모에 통증 같은 표현이 있었던 경우.
         상자 안에 넣기에는 긴 이야기라, 상자 위에 그대로 둔다.
@@ -654,6 +701,6 @@ export default async function HomePage() {
           />
         </div>
       </div>
-    </div>
+    </>
   );
 }

@@ -1,3 +1,4 @@
+import { Suspense } from 'react';
 import { prisma } from '@/lib/prisma';
 import { requireUser } from '@/lib/dal';
 import { trainingLoad } from '@/lib/report/training-acwr';
@@ -22,6 +23,7 @@ import { isAiConfigured } from '@/lib/ai/client';
 import type { AiReportBody } from '@/lib/ai/report-prompt';
 import { readPitchPlan } from '@/lib/report/plan';
 import { PageHeading } from '@/components/ui';
+import { Skeleton } from '@/components/fallback';
 import { AiReportCard, type StoredReport } from './ai-report-card';
 import { ReportClient } from './report-client';
 import { StatsOverview } from './overview';
@@ -39,6 +41,36 @@ const VIEW_TEXT = {
   report: '그동안의 기록을 읽고 정리한 코멘트입니다.',
 } as const;
 
+/**
+ * 기다리는 동안 자리를 잡아 두는 모양.
+ *
+ * 화면과 같은 틀을 쓴다 — 부하 지수 둘, 칸 고르는 줄, 그 아래 큰 판.
+ * 예전에는 모든 화면이 같은 회색 덩어리 하나를 썼는데, 내용이 도착할 때
+ * 크게 튀었다.
+ */
+function CoachSkeleton() {
+  return (
+    <div aria-busy="true" className="space-y-8">
+      <span className="sr-only">분석 자료를 불러오는 중입니다</span>
+      <div className="grid gap-4 sm:grid-cols-2">
+        <Skeleton className="h-32" />
+        <Skeleton className="h-32" />
+      </div>
+      <Skeleton className="h-10 max-w-sm rounded-xl" />
+      <Skeleton className="h-72 rounded-2xl" />
+    </div>
+  );
+}
+
+/**
+ * 제목은 곧바로, 나머지는 뒤따라.
+ *
+ * 예전에는 이 함수가 다섯 번의 조회를 모두 기다린 뒤에야 무언가를 내보냈다.
+ * 재보니 누른 뒤 350ms 동안 회색 덩어리만 보였다(로컬 기준).
+ *
+ * 제목에 필요한 것은 이름도 아니고 어느 칸을 보는지뿐이라, 주소만 읽으면
+ * 바로 그릴 수 있다. 회원 정보도 레이아웃이 이미 읽어 캐시에 있다.
+ */
 export default async function ReportPage({
   searchParams,
 }: {
@@ -47,6 +79,24 @@ export default async function ReportPage({
   const user = await requireUser();
   const view = readCoachView((await searchParams).view);
 
+  return (
+    <div className="space-y-8">
+      <PageHeading eyebrow="Analysis" title="분석" description={VIEW_TEXT[view]} />
+      <Suspense fallback={<CoachSkeleton />}>
+        <CoachBody user={user} view={view} />
+      </Suspense>
+    </div>
+  );
+}
+
+/** 자료가 다 모여야 그릴 수 있는 부분 */
+async function CoachBody({
+  user,
+  view,
+}: {
+  user: Awaited<ReturnType<typeof requireUser>>;
+  view: ReturnType<typeof readCoachView>;
+}) {
   const today = new Date();
   const since = new Date(today);
   since.setDate(since.getDate() - PAGE_LOOKBACK_DAYS);
@@ -118,9 +168,7 @@ export default async function ReportPage({
     : null;
 
   return (
-    <div className="space-y-8">
-      <PageHeading eyebrow="Analysis" title="분석" description={VIEW_TEXT[view]} />
-
+    <>
       {/*
         예전에는 홈(대시보드)에 있던 것들이다. 홈은 입력(체크인)과 출력(부하·추이)이
         섞여 있었고, 정작 매일 해야 하는 기록은 다른 화면에 있었다. 하는 일 기준으로
@@ -175,6 +223,6 @@ export default async function ReportPage({
         부하 지수는 훈련량 관리를 돕는 참고 지표입니다. 통증이 있다면 수치와 관계없이
         전문의와 상담하세요.
       </p>
-    </div>
+    </>
   );
 }
