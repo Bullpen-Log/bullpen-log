@@ -11,6 +11,7 @@ import {
 } from '@/lib/checkin';
 import { availableParts } from '@/lib/report/today-pick';
 import { withInput, type FormValues } from '@/lib/form-values';
+import { visibleExercises } from '@/lib/library-cache';
 
 export type CheckinState =
   | {
@@ -48,10 +49,8 @@ async function trySaveCheckin(formData: FormData): Promise<CheckinState> {
    * 화면이 보여준 목록과 저장할 때 인정하는 목록이 같아야 하고,
    * 운동을 새로 올리면 코드를 고치지 않아도 따라온다.
    */
-  const library = await prisma.exerciseVideo.findMany({
-    where: { hiddenAt: null }, // 숨긴 운동은 새 일정에 안 나온다
-    select: { id: true, bodyParts: true },
-  });
+  /* 누가 보든 같은 목록이라 캐시에서 꺼낸다 (lib/library-cache.ts) */
+  const library = await visibleExercises();
 
   const checked = validateCheckin(
     {

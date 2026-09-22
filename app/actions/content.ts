@@ -17,6 +17,7 @@ import {
   type Prescription,
 } from '@/lib/exercise-meta';
 import { withInput, type FormValues } from '@/lib/form-values';
+import { clearLibraryCache } from '@/lib/library-cache';
 
 export type ActionState =
   | {
@@ -130,6 +131,8 @@ async function tryCreateExercise(formData: FormData): Promise<ActionState> {
     },
   });
 
+  /* 목록을 캐시해 두었으므로 고친 뒤에는 비워야 화면에 반영된다 */
+  clearLibraryCache();
   revalidatePath('/library/training');
   return { success: '운동 영상이 등록되었습니다.' };
 }
@@ -156,6 +159,7 @@ export async function toggleExerciseHidden(formData: FormData) {
     where: { id },
     data: { hiddenAt: target.hiddenAt ? null : new Date() },
   });
+  clearLibraryCache();
   revalidatePath('/library/training');
 }
 
@@ -169,6 +173,7 @@ export async function deleteExercise(formData: FormData) {
   await deleteVideos(
     [removed.videoPath, removed.thumbPath].filter((p): p is string => !!p)
   );
+  clearLibraryCache();
   revalidatePath('/library/training');
 }
 
@@ -266,6 +271,7 @@ async function tryUpdateExercise(formData: FormData): Promise<ActionState> {
     );
   }
 
+  clearLibraryCache();
   revalidatePath('/library/training');
   return { success: '수정했습니다.' };
 }
@@ -328,6 +334,7 @@ async function tryCreateGuide(formData: FormData): Promise<ActionState> {
     },
   });
 
+  clearLibraryCache();
   revalidatePath('/library/mechanics');
   return { success: '가이드가 등록되었습니다.' };
 }
@@ -341,6 +348,7 @@ export async function deleteGuide(formData: FormData) {
   await deleteVideos(
     [removed.videoPath, removed.thumbPath].filter((p): p is string => !!p)
   );
+  clearLibraryCache();
   revalidatePath('/library/mechanics');
 }
 
@@ -423,6 +431,7 @@ async function tryUpdateGuide(formData: FormData): Promise<ActionState> {
     );
   }
 
+  clearLibraryCache();
   revalidatePath('/library/mechanics');
   return { success: '수정했습니다.' };
 }
@@ -449,6 +458,7 @@ export async function setExerciseThumbnail(
   await prisma.exerciseVideo.update({ where: { id }, data: { thumbPath } });
   if (existing.thumbPath) await deleteVideos([existing.thumbPath]);
 
+  clearLibraryCache();
   revalidatePath('/library/training');
   return { success: '미리보기 이미지를 만들었습니다.' };
 }
@@ -473,6 +483,7 @@ export async function setGuideThumbnail(
   await prisma.mechanicsGuide.update({ where: { id }, data: { thumbPath } });
   if (existing.thumbPath) await deleteVideos([existing.thumbPath]);
 
+  clearLibraryCache();
   revalidatePath('/library/mechanics');
   return { success: '미리보기 이미지를 만들었습니다.' };
 }

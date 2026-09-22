@@ -4,14 +4,14 @@ import { favoriteDrillIds } from '@/lib/favorites';
 import { createPlaybackUrls } from '@/lib/storage';
 import { referenceThumbUrl } from '@/lib/reference-video';
 import { MechanicsClient, type GuideItem } from './mechanics-client';
+import { allGuides } from '@/lib/library-cache';
 
 export default async function MechanicsPage() {
   const user = await requireUser();
 
   const [guides, favoriteIds] = await Promise.all([
-    prisma.mechanicsGuide.findMany({
-      orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }],
-    }),
+    /* 누가 보든 같은 목록이라 캐시에서 꺼낸다 (lib/library-cache.ts) */
+    allGuides(),
     favoriteDrillIds(user.id),
   ]);
 

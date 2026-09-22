@@ -17,6 +17,7 @@ import { buildPitchPlan } from '@/lib/report/plan';
 import { readDailyPlan } from '@/lib/report/daily-plan';
 import { formatPrescription } from '@/lib/exercise-meta';
 import { pickCheckinParts } from '@/lib/checkin';
+import { visibleExercises } from '@/lib/library-cache';
 
 export type AiReportState = { error?: string; success?: string } | undefined;
 
@@ -159,10 +160,8 @@ export async function generateAiReport(): Promise<AiReportState> {
   });
   const dailyPlan = readDailyPlan(todaySetup?.plan);
 
-  const library = await prisma.exerciseVideo.findMany({
-    where: { hiddenAt: null }, // 숨긴 운동은 새 일정에 안 나온다
-    orderBy: { createdAt: 'asc' },
-  });
+  /* 누가 보든 같은 목록이라 캐시에서 꺼낸다 (lib/library-cache.ts) */
+  const library = await visibleExercises();
   const byId = new Map(library.map((ex) => [ex.id, ex]));
 
   const training =

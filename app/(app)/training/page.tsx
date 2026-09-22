@@ -20,6 +20,7 @@ import { TrainingHistory } from './history';
 import { josa } from '@/lib/korean';
 import { TrainingSettingsButton } from './settings-button';
 import { trainingSummaries } from '@/lib/report/training-history';
+import { exercisesByIds } from '@/lib/library-cache';
 
 /**
  * 트레이닝 — 오늘 할 운동.
@@ -160,9 +161,7 @@ export default async function TrainingPage({
    * 사라지면 잘못 누른 체크를 풀 수가 없다.
    */
   const needed = [...new Set([...shownPicks.map((p) => p.exerciseId), ...doneIds])];
-  const detailed = needed.length
-    ? await prisma.exerciseVideo.findMany({ where: { id: { in: needed } } })
-    : [];
+  const detailed = needed.length ? await exercisesByIds(needed) : [];
   const byId = new Map(detailed.map((ex) => [ex.id, ex]));
 
   const full = shownPicks

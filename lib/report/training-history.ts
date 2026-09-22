@@ -2,6 +2,7 @@ import 'server-only';
 import { prisma } from '@/lib/prisma';
 import { shiftDateKey, toDateKey } from '@/lib/pitch-stats';
 import { formatPrescription } from '@/lib/exercise-meta';
+import { exercisesByIds } from '@/lib/library-cache';
 
 /**
  * 지난 운동 기록을 날짜별로 읽는다.
@@ -162,21 +163,8 @@ export async function trainingDay(
    * 완료한 것 뒤에 붙인다. 한 일이 먼저 보이고, 빠뜨린 것이 그 아래 남는다.
    */
   const plannedIds = readPlanExerciseIds(setup?.plan).filter((id) => !doneIds.has(id));
-  const missed = plannedIds.length
-    ? await prisma.exerciseVideo.findMany({
-        where: { id: { in: plannedIds } },
-        select: {
-          id: true,
-          title: true,
-          category: true,
-          sets: true,
-          reps: true,
-          holdSeconds: true,
-          restSeconds: true,
-          perSide: true,
-        },
-      })
-    : [];
+  /* 이미 들고 있는 목록에서 고른다 — 몇 개 찾자고 DB 를 한 번 더 묻지 않는다 */
+  const missed = await exercisesByIds(plannedIds);
 
   const todayKey = toDateKey(new Date());
 

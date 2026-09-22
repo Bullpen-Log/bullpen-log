@@ -15,6 +15,7 @@ import {
   readTrainingProfile,
 } from '@/lib/report/personalize';
 import { buildDailyPlan, isHalted } from '@/lib/report/daily-plan';
+import { visibleExercises } from '@/lib/library-cache';
 import {
   gatherFactsAndPlan,
   lastStrengthDates,
@@ -186,11 +187,8 @@ export async function generateTodayPlan(formData: FormData) {
   const today = new Date();
   const { facts, plan } = await gatherFactsAndPlan(user, today);
   const [library, recentIds, sessionsAgo, strengthDates] = await Promise.all([
-    prisma.exerciseVideo.findMany({
-      // 숨긴 운동은 새 일정에 안 나온다
-      where: { hiddenAt: null },
-      orderBy: { createdAt: 'asc' },
-    }),
+    /* 누가 보든 같은 목록이라 캐시에서 꺼낸다 (lib/library-cache.ts) */
+    visibleExercises(),
     recentExerciseIds(user.id, today),
     /*
      * 운동별로 몇 세션 전에 했는가. 오래 안 한 것부터 내보내려고 함께 읽는다.

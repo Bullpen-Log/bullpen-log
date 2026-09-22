@@ -6,6 +6,7 @@ import { selectCandidates } from '@/lib/report/prescription';
 import { equipmentForToday, filterByEquipment } from '@/lib/report/equipment';
 import { filterByLevel } from '@/lib/report/personalize';
 import { readDailyPlan } from '@/lib/report/daily-plan';
+import { visibleExercises } from '@/lib/library-cache';
 import {
   estimateMinutes,
   isWarmupWeight,
@@ -66,24 +67,13 @@ export async function loadTodayCore(user: UserForToday, today: Date) {
      * 고르게 하면서 "몇 세트 몇 회짜리인지"를 안 보여주면 고를 수가 없다.
      * 숫자 다섯 개라 짐이 되지 않는다.
      */
-    prisma.exerciseVideo.findMany({
-      where: { hiddenAt: null }, // 숨긴 운동은 새 일정에 안 나온다
-      orderBy: { createdAt: 'asc' },
-      select: {
-        id: true,
-        title: true,
-        category: true,
-        bodyParts: true,
-        intensity: true,
-        difficulty: true,
-        equipment: true,
-        sets: true,
-        reps: true,
-        holdSeconds: true,
-        restSeconds: true,
-        perSide: true,
-      },
-    }),
+    /*
+      누가 보든 같은 목록이라 캐시에서 꺼낸다 (lib/library-cache.ts).
+
+      예전에는 여기서 405개를 통째로 다시 읽었다. 홈과 트레이닝이 화면을
+      열 때마다 거치는 자리라 가장 자주 불리는 조회였다.
+    */
+    visibleExercises(),
     prisma.userExerciseLog.findMany({
       where: { userId: user.id, date: midnight, completed: true },
       select: {

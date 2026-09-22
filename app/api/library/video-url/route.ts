@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getCurrentUser } from '@/lib/dal';
 import { createPlaybackUrls, isLibraryPath } from '@/lib/storage';
+import { libraryVideoPaths } from '@/lib/library-cache';
 
 /** 한 번에 받아갈 수 있는 영상 수. */
 const MAX_PATHS = 20;
@@ -38,22 +39,8 @@ export async function POST(req: Request) {
     );
     if (requested.length === 0) return NextResponse.json({ urls: {} });
 
-    // 2) 실제로 등록된 영상인지 DB에서 다시 확인한다.
-    const [exercises, guides] = await Promise.all([
-      prisma.exerciseVideo.findMany({
-        where: { videoPath: { in: requested } },
-        select: { videoPath: true },
-      }),
-      prisma.mechanicsGuide.findMany({
-        where: { videoPath: { in: requested } },
-        select: { videoPath: true },
-      }),
-    ]);
-
-    const registered = new Set([
-      ...exercises.map((e) => e.videoPath),
-      ...guides.map((g) => g.videoPath),
-    ]);
+    // 2) 실제로 등록된 영상인지 다시 확인한다. 목록은 캐시에서 온다.
+    const registered = await libraryVideoPaths(requested);
     const allowed = requested.filter((p) => registered.has(p));
     if (allowed.length === 0) return NextResponse.json({ urls: {} });
 
