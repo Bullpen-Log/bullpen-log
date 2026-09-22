@@ -18,6 +18,56 @@ export const MAX_VIDEO_BYTES = 50 * 1024 * 1024; // 50MB
 /** 재생용 임시 주소의 유효 시간(초). */
 const PLAYBACK_TTL_SECONDS = 60 * 60;
 
+/**
+ * 한 번 만든 주소를 이만큼(밀리초) 돌려쓴다.
+ *
+ * 서명 수명의 절반으로 둔다. 이 기간이 끝나 새로 발급하더라도 방금 나간
+ * 주소는 최소 30분 더 살아 있다 — 영상을 보는 도중에 주소가 죽지 않는다.
+ */
+const URL_REUSE_MS = (PLAYBACK_TTL_SECONDS / 2) * 1000;
+
+/** 들고 있을 주소의 최대 개수. 운동·드릴 미리보기를 다 담고도 남는다. */
+const URL_CACHE_MAX = 2000;
+
+/**
+ * 한 번 만든 주소를 잠시 들고 있는다.
+ *
+ * 서명 주소는 만들 때마다 토큰이 달라진다. 주소가 달라지면 브라우저는 같은
+ * 그림이어도 받아둔 것을 못 쓰고 처음부터 다시 받는다. 운동 목록에는
+ * 미리보기가 145장 있고 한 장이 64KB 라, 화면을 열 때마다 9MB 가 통째로
+ * 다시 내려왔다.
+ *
+ * 응답에 Expires 가 한 시간 뒤로 붙어 오는 것은 확인했다. 그러니 주소만
+ * 같게 해 주면 브라우저가 알아서 캐시한다.
+ *
+ * 서버가 잠들면 이 기억도 사라진다. 그래도 손해는 없다 — 그때는 예전처럼
+ * 새로 만들 뿐이다.
+ */
+const urlCache = new Map<string, { url: string; expiresAt: number }>();
+
+/** 만료된 것을 버린다. 그래도 넘치면 오래된 것부터 버린다. */
+function pruneUrlCache(now: number) {
+  for (const [path, item] of urlCache) {
+    if (item.expiresAt <= now) urlCache.delete(path);
+  }
+  while (urlCache.size > URL_CACHE_MAX) {
+    const oldest = urlCache.keys().next().value;
+    if (oldest === undefined) break;
+    urlCache.delete(oldest);
+  }
+}
+
+/**
+ * 들고 있던 주소를 전부 버린다. 영상이나 미리보기를 바꾼 뒤에 부른다.
+ *
+ * 안 부르면, 같은 자리에 새 그림을 올려도 주소가 그대로라 브라우저가
+ * 받아둔 옛 그림을 계속 보여준다. lib/library-cache.ts 의 clearLibraryCache
+ * 가 함께 부른다 — 고치는 자리가 아홉 군데라 한 곳에 모아 둔다.
+ */
+export function clearPlaybackUrlCache() {
+  urlCache.clear();
+}
+
 function getClient() {
   const url = process.env.SUPABASE_URL;
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -73,22 +123,39 @@ export async function createPlaybackUrls(
 ): Promise<Record<string, string>> {
   if (paths.length === 0) return {};
 
+  const now = Date.now();
+  const result: Record<string, string> = {};
+
+  /* 이미 만들어 둔 것은 그대로 쓴다 — 주소가 같아야 브라우저가 캐시한다 */
+  const missing: string[] = [];
+  for (const path of paths) {
+    const kept = urlCache.get(path);
+    if (kept && kept.expiresAt > now) result[path] = kept.url;
+    else missing.push(path);
+  }
+
+  if (missing.length === 0) return result;
+
   const { data, error } = await getClient()
     .storage.from(VIDEO_BUCKET)
-    .createSignedUrls(paths, PLAYBACK_TTL_SECONDS);
+    .createSignedUrls(missing, PLAYBACK_TTL_SECONDS);
 
   if (error || !data) {
     console.error('[storage] 재생 주소 일괄 생성 실패', error);
-    return {};
+    /* 만들어 둔 것이라도 돌려준다. 전부 실패로 만들 이유가 없다. */
+    return result;
   }
 
-  const result: Record<string, string> = {};
+  const expiresAt = now + URL_REUSE_MS;
   for (const item of data) {
     // 개별 항목이 실패해도 나머지는 살린다.
     if (item.path && item.signedUrl && !item.error) {
       result[item.path] = item.signedUrl;
+      urlCache.set(item.path, { url: item.signedUrl, expiresAt });
     }
   }
+
+  pruneUrlCache(now);
   return result;
 }
 

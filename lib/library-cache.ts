@@ -2,6 +2,7 @@ import 'server-only';
 import { unstable_cache, updateTag } from 'next/cache';
 import type { ExerciseVideo, MechanicsGuide } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
+import { clearPlaybackUrlCache } from '@/lib/storage';
 
 /**
  * 운동·드릴 목록을 한 번만 읽어 두고 돌려쓴다.
@@ -123,4 +124,13 @@ export async function libraryVideoPaths(paths: string[]): Promise<Set<string>> {
  */
 export function clearLibraryCache() {
   updateTag(LIBRARY_TAG);
+
+  /*
+   * 영상 주소도 함께 버린다.
+   *
+   * 미리보기 주소를 잠시 돌려쓰고 있어서(lib/storage.ts), 안 버리면 같은
+   * 자리에 새 그림을 올려도 주소가 그대로다. 브라우저는 받아둔 옛 그림을
+   * 계속 보여준다 — 고쳤는데 안 바뀐 것처럼 보인다.
+   */
+  clearPlaybackUrlCache();
 }
