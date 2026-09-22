@@ -80,7 +80,6 @@ model User {
   drillLogs         UserDrillLog[]
   pitchLogs         PitchLog[]
   userExerciseLogs  UserExerciseLog[]
-  routines          Routine[]
   articles          Article[]
   checkins          DailyCheckin[]
   aiReports         AiReport[]
@@ -424,7 +423,6 @@ model ExerciseVideo {
   hiddenAt         DateTime?
   createdAt        DateTime          @default(now())
   userLogs         UserExerciseLog[]
-  routineExercises RoutineExercise[]
   favorites        UserExerciseFavorite[]
 }
 
@@ -489,37 +487,6 @@ model DailyTrainingNote {
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId, date])
-}
-
-/**
- * 아직 화면이 없는 표.
- *
- * 운동을 "화요일 하체 루틴"처럼 묶는 기능을 하려다 표만 만들어 둔 상태다.
- * 지금은 어디에서도 읽거나 쓰지 않는다 — 찾아봐도 화면이 없으니 헤매지 말 것.
- *
- * 한때 "메뉴 개편 5단계에서 채울 예정"이라고 적어 두었는데, 5단계는 저장해 둔
- * 루틴이 아니라 그날 일정을 직접 고치는 쪽으로 갔다(app/actions/plan-edit.ts).
- * 그래서 이 표는 여전히 쓰이지 않는다. 쓸 곳이 정해지면 그때 채우고,
- * 아니면 지운다.
- */
-model Routine {
-  id               String            @id @default(uuid())
-  userId           String
-  name             String
-  createdAt        DateTime          @default(now())
-
-  user             User              @relation(fields: [userId], references: [id], onDelete: Cascade)
-  routineExercises RoutineExercise[]
-}
-
-model RoutineExercise {
-  routineId  String
-  exerciseId String
-
-  routine    Routine       @relation(fields: [routineId], references: [id], onDelete: Cascade)
-  exercise   ExerciseVideo @relation(fields: [exerciseId], references: [id], onDelete: Cascade)
-
-  @@id([routineId, exerciseId])
 }
 
 model Article {
