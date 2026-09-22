@@ -10,6 +10,16 @@ export type CategoryTone =
 
 /** 트레이닝 하위 카테고리 — 이 순서대로 페이지에 노출된다. */
 export const TRAINING_CATEGORIES = [
+  /*
+   * 워밍업은 하루 일정에 뽑히지 않는다.
+   *
+   * 어느 테마의 구성(lib/report/theme.ts 의 COMPOSITIONS)에도 이 이름이 없어서
+   * 저절로 빠진다. 따로 막는 코드가 없는 것은 실수가 아니라 이 구조 때문이다.
+   *
+   * 워밍업은 고정 루틴 넷(하체·상체 밀기·상체 당기기·전신)에 담아 두고,
+   * 운동을 시작할 때 그날 목적에 맞는 것과 전신 것을 보여준다.
+   */
+  { name: '워밍업', tone: 'mobility' },
   { name: '하체 스트렝스', tone: 'lower' },
   { name: '상체 스트렝스', tone: 'upper' },
   { name: '모빌리티', tone: 'mobility' },

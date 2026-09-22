@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Activity, BookOpen } from 'lucide-react';
+import { Activity, BookOpen, Flame } from 'lucide-react';
 
 const TABS = [
   {
@@ -17,13 +17,19 @@ const TABS = [
     desc: '투구 동작 교정 드릴',
     icon: BookOpen,
   },
+  {
+    href: '/library/warmup',
+    label: '워밍업 루틴',
+    desc: '본운동 전에 하는 고정 묶음',
+    icon: Flame,
+  },
 ] as const;
 
 export function LibraryTabs() {
   const pathname = usePathname();
 
   return (
-    <nav className="grid gap-px overflow-hidden rounded-2xl border border-line bg-line sm:grid-cols-2">
+    <nav className="grid gap-px overflow-hidden rounded-2xl border border-line bg-line sm:grid-cols-3">
       {TABS.map(({ href, label, desc, icon: Icon }) => {
         const active = pathname.startsWith(href);
         return (
