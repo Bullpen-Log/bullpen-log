@@ -103,7 +103,7 @@ export default async function HomePage() {
      * 운동 부하는 분석 화면과 같은 계산기를 쓴다 — 같은 이름의 값이 화면마다
      * 다르면 안 된다.
      */
-    trainingLoad(user.id, today),
+    trainingLoad(user, today),
     /*
      * 최근 기록 몇 건 — 요약 칸에 "마지막으로 뭘 했나"로 쓴다.
      *

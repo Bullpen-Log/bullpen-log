@@ -1,4 +1,5 @@
 import 'server-only';
+import { cache } from 'react';
 import { prisma } from '@/lib/prisma';
 import { ageFromBirthDate } from '@/lib/profile';
 import { estimateDailyLoad } from '@/lib/baseline';
@@ -10,6 +11,34 @@ import { shiftDateKey, toDateKey } from '@/lib/pitch-stats';
 
 /** 부하 계산에 필요한 기간. 4주 만성 부하에 여유를 둔다. */
 export const LOOKBACK_DAYS = 45;
+
+/**
+ * 최근 45일치 투구 기록과 체크인. 한 요청 안에서는 한 번만 읽는다.
+ *
+ * 홈 화면이 이 자료를 두 번 필요로 한다 — 오늘 던진 것까지 넣고 낸 계획과,
+ * 빼고 낸 계획. 두 계획은 메모리에서 거르기만 다를 뿐 재료가 같은데,
+ * 예전에는 똑같은 조회가 정말 두 번 나갔다 (pg_stat_statements 로 확인).
+ *
+ * 날짜를 Date 가 아니라 문자열로 받는 것은 cache() 때문이다. cache 는 인자가
+ * 같은지를 값이 아니라 '같은 자리인지'로 따지는데, new Date() 는 부를 때마다
+ * 새 자리라 매번 다른 것으로 본다. 문자열은 값이 같으면 같은 것으로 본다.
+ *
+ * 화면을 조각내 따로 그리기 시작하면 이 자리가 더 중요해진다 — 조각마다
+ * 제 자료를 부르는데, 그때마다 DB 를 가면 쪼갠 만큼 느려진다.
+ */
+const recentRecords = cache(async (userId: string, sinceIso: string) => {
+  const since = new Date(sinceIso);
+  return Promise.all([
+    prisma.pitchLog.findMany({
+      where: { userId, date: { gte: since } },
+      orderBy: { date: 'asc' },
+    }),
+    prisma.dailyCheckin.findMany({
+      where: { userId, date: { gte: since } },
+      orderBy: { date: 'desc' },
+    }),
+  ]);
+});
 
 type UserForFacts = {
   id: string;
@@ -46,16 +75,7 @@ export async function gatherFactsAndPlan(
   const since = new Date(today);
   since.setDate(since.getDate() - LOOKBACK_DAYS);
 
-  const [logs, checkins] = await Promise.all([
-    prisma.pitchLog.findMany({
-      where: { userId: user.id, date: { gte: since } },
-      orderBy: { date: 'asc' },
-    }),
-    prisma.dailyCheckin.findMany({
-      where: { userId: user.id, date: { gte: since } },
-      orderBy: { date: 'desc' },
-    }),
-  ]);
+  const [logs, checkins] = await recentRecords(user.id, since.toISOString());
 
   const todayKey = toDateKey(today);
   const usedLogs = options?.excludeToday

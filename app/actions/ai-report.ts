@@ -198,7 +198,7 @@ export async function generateAiReport(): Promise<AiReportState> {
    * 투구만 보면 몸에 걸린 부담의 절반만 보는 셈이다. 다만 두 부하는 단위가
    * 달라 합치지 않는다 — 프롬프트에서도 합치지 말라고 못 박아 두었다.
    */
-  const workoutLoad = await trainingLoad(user.id, today);
+  const workoutLoad = await trainingLoad(user, today);
   const workoutZone = workoutLoad.zone ? ACWR_ZONES[workoutLoad.zone] : null;
 
   const result = await generateReportBody(

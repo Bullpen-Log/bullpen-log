@@ -23,19 +23,30 @@ export type { TrainingLoad };
 /** 부하 계산에 필요한 기간. 4주 만성 부하에 여유를 둔다. */
 const LOOKBACK_DAYS = 45;
 
+/**
+ * 이 함수가 실제로 들여다보는 회원 항목만 적는다.
+ *
+ * 예전에는 id 만 받고 나머지를 DB 에서 다시 읽었다. 그런데 부르는 쪽은
+ * 하나같이 바로 위에서 requireUser() 로 회원을 받아 든 참이었고, 그 안에
+ * 이 두 값이 이미 들어 있었다 (lib/dal.ts). 화면마다 쓸데없는 왕복이
+ * 한 번씩 더 생기고 있었다.
+ */
+type UserForTrainingLoad = {
+  id: string;
+  baselineWorkoutFreq: string | null;
+  dailyWorkoutMinutes: number | null;
+};
+
 /** 화면·리포트가 부르는 입구. 읽어서 buildTrainingLoad 에 넘긴다. */
 export async function trainingLoad(
-  userId: string,
+  user: UserForTrainingLoad,
   today = new Date()
 ): Promise<TrainingLoad> {
+  const userId = user.id;
   const since = new Date(today);
   since.setDate(since.getDate() - LOOKBACK_DAYS);
 
-  const [user, logs, notes] = await Promise.all([
-    prisma.user.findUnique({
-      where: { id: userId },
-      select: { baselineWorkoutFreq: true, dailyWorkoutMinutes: true },
-    }),
+  const [logs, notes] = await Promise.all([
     prisma.userExerciseLog.findMany({
       where: { userId, completed: true, date: { gte: since } },
       select: {
@@ -67,12 +78,10 @@ export async function trainingLoad(
    * 가입 문진으로 평소 운동량을 추정해 첫날부터 지수를 낸다.
    * 안 답했으면 null 이고, 그때는 28일이 쌓여야 나온다.
    */
-  const seed = user
-    ? estimateTrainingDailyLoad({
-        baselineWorkoutFreq: user.baselineWorkoutFreq,
-        dailyWorkoutMinutes: user.dailyWorkoutMinutes,
-      })
-    : null;
+  const seed = estimateTrainingDailyLoad({
+    baselineWorkoutFreq: user.baselineWorkoutFreq,
+    dailyWorkoutMinutes: user.dailyWorkoutMinutes,
+  });
 
   return buildTrainingLoad(logs, notes, today, seed);
 }

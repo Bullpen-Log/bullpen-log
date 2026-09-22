@@ -17,7 +17,7 @@ import {
   type Prescription,
 } from '@/lib/exercise-meta';
 import { withInput, type FormValues } from '@/lib/form-values';
-import { clearLibraryCache } from '@/lib/library-cache';
+import { clearLibraryCache, exercisesByIds } from '@/lib/library-cache';
 
 export type ActionState =
   | {
@@ -144,6 +144,26 @@ async function tryCreateExercise(formData: FormData): Promise<ActionState> {
  * 사라지고, 지나간 운동 부하까지 소급해서 바뀐다. 숨기면 새 일정에는 안 나오고
  * 지난 기록은 그대로 남는다.
  */
+/**
+ * 운동 설명 한 건. 펼친 카드가 열릴 때만 부른다.
+ *
+ * 목록 화면이 405개의 설명을 통째로 싣고 있었다 — 재보니 231KB 였고, 그
+ * 화면이 내려보내는 전체(360KB)의 3분의 2였다. 그런데 접힌 카드는 설명을
+ * 아예 안 보여준다. 펼쳤을 때만, 그것도 한 번에 하나만 쓴다.
+ *
+ * 서버 쪽은 공짜다. 목록이 이미 캐시에 통째로 올라와 있어(lib/library-cache.ts)
+ * DB 를 가지 않는다. 드는 값은 왕복 한 번뿐이다.
+ *
+ * 못 가져왔으면 null 을 준다. 설명이 정말 비어 있는 운동과 구별해야 한다 —
+ * 부르는 쪽이 이 둘을 섞으면, 아직 안 온 것을 '비어 있다'로 보고 저장해
+ * 멀쩡한 설명을 지울 수 있다.
+ */
+export async function exerciseDescription(id: string): Promise<string | null> {
+  if (!(await getCurrentUser())) return null;
+  const [ex] = await exercisesByIds([id]);
+  return ex ? ex.description : null;
+}
+
 export async function toggleExerciseHidden(formData: FormData) {
   if (!(await assertAdmin())) return;
   const id = String(formData.get('id') ?? '');

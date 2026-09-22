@@ -61,7 +61,7 @@ export default async function ReportPage({
       orderBy: { asOf: 'desc' },
     }),
     /* 운동 부하. 투구와 합치지 않고 나란히 보여준다. */
-    trainingLoad(user.id, today),
+    trainingLoad(user, today),
     /*
      * 개인 최고 구속 — 이것만 전체 기간이 필요하다.
      *

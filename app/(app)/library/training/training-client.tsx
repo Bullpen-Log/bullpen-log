@@ -1,9 +1,10 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Eye, EyeOff, Pencil, Search, Star, Trash2, X } from 'lucide-react';
 import {
   deleteExercise,
+  exerciseDescription,
   setExerciseThumbnail,
   toggleExerciseHidden,
 } from '@/app/actions/content';
@@ -32,7 +33,6 @@ export type ExerciseItem = {
   id: string;
   title: string;
   category: string;
-  description: string;
   bodyParts: string[];
   intensity: string;
   difficulty: string | null;
@@ -72,12 +72,34 @@ function ExerciseDetail({
 }) {
   const [editing, setEditing] = useState(false);
 
-  if (editing) {
+  /*
+   * 설명은 펼칠 때 따로 받아온다. 목록에 405개를 다 싣고 있었는데 재보니
+   * 231KB 였고, 접힌 카드는 설명을 보여주지도 않는다.
+   *
+   * null 은 '아직 안 왔다'는 뜻이고, 빈 문자열은 '설명이 없는 운동'이다.
+   * 이 둘을 섞으면 안 된다 — 수정 폼이 아직 안 온 것을 빈 것으로 보고
+   * 저장하면 멀쩡한 설명이 지워진다. 그래서 오기 전에는 수정을 못 연다.
+   */
+  const [description, setDescription] = useState<string | null>(null);
+
+  useEffect(() => {
+    let alive = true;
+    setDescription(null);
+    exerciseDescription(item.id).then((text) => {
+      if (alive) setDescription(text);
+    });
+    return () => {
+      alive = false;
+    };
+  }, [item.id]);
+
+  /* 설명이 아직 없으면 수정 화면으로 넘어가지 않는다 (위 주석 참고) */
+  if (editing && description !== null) {
     const draft: ExerciseDraft = {
       id: item.id,
       title: item.title,
       category: item.category,
-      description: item.description,
+      description,
       bodyParts: item.bodyParts,
       intensity: item.intensity,
       difficulty: item.difficulty,
@@ -143,8 +165,10 @@ function ExerciseDetail({
                 <button
                   type="button"
                   onClick={() => setEditing(true)}
+                  /* 설명이 도착하기 전에 열면 저장할 때 설명이 지워진다 */
+                  disabled={description === null}
                   aria-label={`${item.title} 수정`}
-                  className="rounded-lg p-2 text-muted transition-colors hover:bg-surface-2 hover:text-sky"
+                  className="rounded-lg p-2 text-muted transition-colors hover:bg-surface-2 hover:text-sky disabled:opacity-40"
                 >
                   <Pencil className="h-4 w-4" />
                 </button>
@@ -234,7 +258,7 @@ function ExerciseDetail({
         )}
 
         <p className="whitespace-pre-wrap text-sm leading-relaxed text-muted">
-          {item.description}
+          {description ?? <span className="opacity-50">설명을 불러오는 중…</span>}
         </p>
 
         {/* 업로드할 때 캡처가 실패한 영상은 여기서 이미지만 다시 만들 수 있다. */}
