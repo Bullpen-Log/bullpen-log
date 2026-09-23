@@ -122,25 +122,31 @@ function clockText(seconds: number) {
 const PAD_KEYS = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '.', '0'] as const;
 
 function NumberPad({
-  value,
   onChange,
   allowDecimal,
 }: {
-  value: string;
-  onChange: (next: string) => void;
+  /**
+   * 지금 값을 받아 다음 값을 돌려주는 꼴로 넘긴다.
+   *
+   * 값을 그대로 받아 쓰면 빠르게 두 번 누를 때 한 자리를 잃는다 — 두 번째
+   * 누름이 아직 반영되지 않은 옛 값을 보기 때문이다. '60'을 치려다 '0'이
+   * 된다. 헬스장에서 숫자를 후딱 치는 자리라 실제로 일어난다.
+   */
+  onChange: (update: (prev: string) => string) => void;
   allowDecimal: boolean;
 }) {
   const press = (key: string) => {
-    if (key === '.') {
-      if (!allowDecimal || value.includes('.')) return;
-      onChange((value === '' ? '0' : value) + '.');
-      return;
-    }
-    /* 소수점 아래 한 자리까지. 0.5kg 자리를 담으면 충분하다. */
-    const dot = value.indexOf('.');
-    if (dot >= 0 && value.length - dot > 1) return;
-    if (value.replace('.', '').length >= 5) return;
-    onChange(value === '0' ? key : value + key);
+    onChange((prev) => {
+      if (key === '.') {
+        if (!allowDecimal || prev.includes('.')) return prev;
+        return (prev === '' ? '0' : prev) + '.';
+      }
+      /* 소수점 아래 한 자리까지. 0.5kg 자리를 담으면 충분하다. */
+      const dot = prev.indexOf('.');
+      if (dot >= 0 && prev.length - dot > 1) return prev;
+      if (prev.replace('.', '').length >= 5) return prev;
+      return prev === '0' ? key : prev + key;
+    });
   };
 
   return (
@@ -158,7 +164,7 @@ function NumberPad({
       ))}
       <button
         type="button"
-        onClick={() => onChange(value.slice(0, -1))}
+        onClick={() => onChange((prev) => prev.slice(0, -1))}
         aria-label="한 글자 지우기"
         className="flex h-12 items-center justify-center rounded-xl border border-line-strong bg-surface text-muted transition-colors active:bg-surface-2 motion-safe:active:scale-95"
       >
@@ -174,10 +180,13 @@ export function SessionClient({
   themeLabel,
   exercises,
   initialSets,
+  openedAt,
 }: {
   themeLabel: string;
   exercises: RunExercise[];
   initialSets: RunSet[];
+  /** 이 판을 연 시각. 휴식 시계는 이 뒤에 남긴 세트만 센다. */
+  openedAt: string;
 }) {
   const router = useRouter();
   const [sets, setSets] = useState<RunSet[]>(initialSets);
@@ -226,11 +235,18 @@ export function SessionClient({
     [sets, ex.id]
   );
 
-  /* 마지막으로 남긴 세트 — 운동과 상관없이 하나. 쉰 시간은 그때부터다. */
+  /*
+   * 마지막으로 남긴 세트 — 운동과 상관없이 하나. 쉰 시간은 그때부터다.
+   *
+   * 이 판을 연 뒤에 남긴 것만 본다. 한 번 종료한 판을 다시 열면 아까 남긴
+   * 세트가 그대로 있는데, 그것부터 세면 '47분째 쉬는 중'이 떠서 종료가 안
+   * 된 것처럼 보인다.
+   */
   const lastAt = useMemo(() => {
-    if (sets.length === 0) return null;
-    return sets.reduce((a, b) => (a.recordedAt > b.recordedAt ? a : b)).recordedAt;
-  }, [sets]);
+    const mine = sets.filter((s) => s.recordedAt >= openedAt);
+    if (mine.length === 0) return null;
+    return mine.reduce((a, b) => (a.recordedAt > b.recordedAt ? a : b)).recordedAt;
+  }, [sets, openedAt]);
   const rest = useRestClock(lastAt);
 
   const doneCount = useMemo(() => new Set(sets.map((s) => s.exerciseId)).size, [sets]);
@@ -358,7 +374,6 @@ export function SessionClient({
   };
 
   const countLabel = ex.isHold ? '초' : '회';
-  const active = field === 'weight' ? weight : count;
 
   /** 숫자를 누르면 그 칸을 고르고 자판을 연다 */
   const openPad = (which: 'weight' | 'count') => {
@@ -599,16 +614,27 @@ export function SessionClient({
         {pad && (
           <div className="space-y-1.5 rounded-xl bg-surface-2 p-2">
             <NumberPad
-              value={active}
               onChange={field === 'weight' ? setWeight : setCount}
               allowDecimal={field === 'weight'}
             />
+            {/*
+              다 넣었으면 누른다.
+
+              숫자만 있으면 다 넣고 나서 무엇을 눌러야 할지 알 수 없다. 무게를
+              넣는 중이면 다음 칸으로 넘기고, 횟수까지 넣었으면 자판을 접는다 —
+              한 번 누를 것을 두 번 누르게 하지 않는다.
+            */}
             <button
               type="button"
-              onClick={() => setPad(false)}
-              className="w-full rounded-lg py-1.5 text-[11px] font-semibold text-muted transition-colors active:text-ink"
+              onClick={() => {
+                if (field === 'weight') setField('count');
+                else setPad(false);
+              }}
+              className="h-12 w-full rounded-xl border border-sky bg-sky/10 text-sm font-bold text-sky transition-transform motion-safe:active:scale-[0.98]"
             >
-              자판 접기
+              {field === 'weight'
+                ? `다음 · ${ex.isHold ? '버틴 시간' : '횟수'} →`
+                : '확인'}
             </button>
           </div>
         )}

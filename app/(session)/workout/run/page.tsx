@@ -94,6 +94,15 @@ export default async function RunPage() {
       themeLabel={plan.themeLabel}
       exercises={exercises}
       initialSets={saved}
+      /*
+       * 이 판을 연 시각.
+       *
+       * 휴식 시계는 이 시각 뒤에 남긴 세트만 센다. 한 번 종료한 판을 다시
+       * 열면 이 값이 새로 찍히므로, 아까 남긴 세트부터 계속 세지 않는다.
+       * 그러지 않으면 종료하고 다시 들어왔을 때 '47분째 쉬는 중'이 떠서
+       * 종료가 안 된 것처럼 보인다.
+       */
+      openedAt={(session.mainStartedAt ?? session.startedAt).toISOString()}
     />
   );
 }
