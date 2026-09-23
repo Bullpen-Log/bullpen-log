@@ -27,6 +27,15 @@ export const TRAINING_CATEGORIES = [
   { name: '코어', tone: 'core' },
   { name: '암케어', tone: 'armcare' },
   { name: '회복 및 보강', tone: 'recovery' },
+  /*
+   * 가벼운 유산소 — 실내 자전거·걷기 같은 것. 회복날 맨 앞에만 뽑힌다
+   * (lib/report/theme.ts 의 회복날 구성). 영상이 올라오기 전까지는 비어 있고,
+   * 그동안 회복날은 이 구간 없이 짜인다.
+   *
+   * 처방은 '1세트 × 600초'처럼 시간으로 적는다. 화면에는 '10분'으로 나가고,
+   * 운동 중에는 분으로 받는다.
+   */
+  { name: '유산소', tone: 'recovery' },
 ] as const satisfies readonly { name: string; tone: CategoryTone }[];
 
 /** 투구 메커니즘 하위 카테고리 */

@@ -33,7 +33,12 @@ import {
 import { ExerciseSheet } from './exercise-sheet';
 import { FinishSheet } from './finish-sheet';
 import { drainOutbox, outbox } from '@/lib/workout/outbox';
-import { AMOUNT_LIMITS, WEIGHT_STEP, type DoneAmount } from '@/lib/exercise-meta';
+import {
+  AMOUNT_LIMITS,
+  WEIGHT_STEP,
+  formatSeconds,
+  type DoneAmount,
+} from '@/lib/exercise-meta';
 import type { SlotKey } from '@/lib/report/theme';
 
 /**
@@ -79,6 +84,13 @@ export type RunExercise = {
   perSide: boolean;
   needsWeight: boolean;
   isHold: boolean;
+  /**
+   * 시간을 분으로 받는가 (유산소).
+   *
+   * 자전거 10분을 '600초'로 치게 하면 헷갈리고 느리다. 받는 것은 분이지만
+   * 저장은 다른 시간형 운동처럼 초로 한다 — 요약·부하 계산이 초를 읽는다.
+   */
+  inMinutes: boolean;
   equipment: string[];
   /** 운동 중에 자세를 확인하는 데 쓴다 */
   description: string;
@@ -302,6 +314,8 @@ export function SessionClient({
   const topRef = useRef<HTMLDivElement>(null);
 
   const ex = list[at];
+  /* 시간형 운동의 칸 이름 — 유산소는 '운동 시간', 버티기는 '버틴 시간' */
+  const timeLabel = ex.inMinutes ? '운동 시간' : '버틴 시간';
   const mine = useMemo(
     () => sets.filter((s) => s.exerciseId === ex.id).sort((a, b) => a.setNo - b.setNo),
     [sets, ex.id]
@@ -436,7 +450,7 @@ export function SessionClient({
       return;
     }
     if (c == null || c <= 0) {
-      setError(ex.isHold ? '버틴 시간을 적어주세요.' : '횟수를 적어주세요.');
+      setError(ex.isHold ? `${timeLabel}을 적어주세요.` : '횟수를 적어주세요.');
       setField('count');
       return;
     }
@@ -458,7 +472,7 @@ export function SessionClient({
       setNo,
       weightKg: w,
       reps: ex.isHold ? null : c,
-      holdSeconds: ex.isHold ? c : null,
+      holdSeconds: ex.isHold ? (ex.inMinutes ? c * 60 : c) : null,
       recordedAt: new Date().toISOString(),
     });
 
@@ -505,7 +519,9 @@ export function SessionClient({
   const fillLast = () => {
     if (!ex.last) return;
     if (ex.last.weightKg != null) setWeight(String(ex.last.weightKg));
-    const n = ex.isHold ? ex.last.holdSecondsDone : ex.last.repsDone;
+    const raw = ex.isHold ? ex.last.holdSecondsDone : ex.last.repsDone;
+    /* 지난번 것도 초로 남아 있다 — 분으로 받는 운동이면 분으로 바꿔 담는다 */
+    const n = raw != null && ex.inMinutes ? Math.round(raw / 60) : raw;
     if (n != null) setCount(String(n));
     setError(null);
   };
@@ -522,14 +538,19 @@ export function SessionClient({
       const next = Math.max(0, (Number(weight) || 0) + delta * WEIGHT_STEP);
       setWeight(next === 0 ? '' : String(Number(next.toFixed(1))));
     } else {
-      const limit = ex.isHold ? AMOUNT_LIMITS.holdSeconds : AMOUNT_LIMITS.reps;
-      const step = ex.isHold ? 5 : 1;
+      const limit = ex.isHold
+        ? ex.inMinutes
+          ? AMOUNT_LIMITS.holdSeconds / 60
+          : AMOUNT_LIMITS.holdSeconds
+        : AMOUNT_LIMITS.reps;
+      /* 버티기는 5초씩, 분으로 받는 유산소와 횟수는 하나씩 */
+      const step = ex.isHold && !ex.inMinutes ? 5 : 1;
       const next = Math.min(limit, Math.max(0, (Number(count) || 0) + delta * step));
       setCount(next === 0 ? '' : String(next));
     }
   };
 
-  const countLabel = ex.isHold ? '초' : '회';
+  const countLabel = ex.inMinutes ? '분' : ex.isHold ? '초' : '회';
 
   /** 숫자를 누르면 그 칸을 고르고 자판을 연다 */
   const openPad = (which: 'weight' | 'count') => {
@@ -667,7 +688,9 @@ export function SessionClient({
           <p className="mt-0.5 text-xs text-muted/80">
             지난번 {ex.last.weightKg != null && `${ex.last.weightKg}kg × `}
             {ex.isHold
-              ? `${ex.last.holdSecondsDone ?? '?'}초`
+              ? ex.last.holdSecondsDone != null
+                ? formatSeconds(ex.last.holdSecondsDone)
+                : '?'
               : `${ex.last.repsDone ?? '?'}회`}{' '}
             ({ex.last.date.slice(5).replace('-', '월 ')}일)
           </p>
@@ -688,7 +711,7 @@ export function SessionClient({
                 <span className="w-10 shrink-0 text-xs text-muted">{i + 1}세트</span>
                 <span className="flex-1 text-sm tabular-nums text-ink">
                   {s.weightKg != null && `${s.weightKg}kg × `}
-                  {s.holdSeconds != null ? `${s.holdSeconds}초` : `${s.reps}회`}
+                  {s.holdSeconds != null ? formatSeconds(s.holdSeconds) : `${s.reps}회`}
                 </span>
                 {s.pending && (
                   <span
@@ -755,7 +778,7 @@ export function SessionClient({
           },
           {
             key: 'count' as const,
-            label: ex.isHold ? '버틴 시간' : '횟수',
+            label: ex.isHold ? timeLabel : '횟수',
             value: count,
             unit: countLabel,
           },
@@ -824,7 +847,7 @@ export function SessionClient({
               className="h-12 w-full rounded-xl border border-sky bg-sky/10 text-sm font-bold text-sky transition-transform motion-safe:active:scale-[0.98]"
             >
               {field === 'weight'
-                ? `다음 · ${ex.isHold ? '버틴 시간' : '횟수'} →`
+                ? `다음 · ${ex.isHold ? timeLabel : '횟수'} →`
                 : '확인'}
             </button>
           </div>

@@ -80,6 +80,8 @@ export default async function RunPage() {
       perSide: e.perSide,
       needsWeight: e.needsWeight,
       isHold: e.isHold,
+      /* 유산소는 분으로 받는다 — 10분을 '600초'로 치게 하지 않는다 */
+      inMinutes: e.category === '유산소',
       equipment: e.equipment,
       /* 운동 중에 자세를 확인할 수 있게 — 설명과 영상 */
       description: d?.description ?? '',

@@ -326,8 +326,18 @@ export function minutesForSets(
  * "3세트 × 10회 (좌우 각각) · 휴식 45초" 처럼 한 줄로 만든다.
  * 세트나 횟수가 비어 있으면 null 을 준다.
  */
-export function formatPrescription(p: Partial<Prescription>): string | null {
+export function formatPrescription(
+  p: Partial<Prescription> & { category?: string }
+): string | null {
   if (p.sets == null) return null;
+  /*
+   * 유산소는 '버티기'가 아니라 그냥 시간이다. 한 번에 이어서 하므로 1세트면
+   * 세트도 적지 않는다 — '1세트 × 10분 버티기'가 아니라 '10분'.
+   */
+  if (p.category === '유산소' && p.holdSeconds != null) {
+    const time = formatSeconds(p.holdSeconds);
+    return p.sets > 1 ? `${p.sets}세트 × ${time}` : time;
+  }
   const amount =
     p.holdSeconds != null
       ? `${formatSeconds(p.holdSeconds)} 버티기`
@@ -402,7 +412,11 @@ export function pickOne(
 export const AMOUNT_LIMITS = {
   sets: 30,
   reps: 200,
-  holdSeconds: 600,
+  /*
+   * 30분. 버티기는 길어야 몇 분이지만, 유산소(자전거·걷기)가 같은 칸에 시간을
+   * 적는다 — 회복날 유산소는 10~15분이다.
+   */
+  holdSeconds: 1800,
   /** 사람이 드는 무게의 위쪽 끝. 세계기록도 여기 안에 들어온다. */
   weightKg: 500,
 } as const;
@@ -445,7 +459,8 @@ export function formatAmount(a: DoneAmount): string | null {
   const parts: string[] = [];
   if (a.setsDone != null) parts.push(`${a.setsDone}세트`);
   if (a.repsDone != null) parts.push(`${a.repsDone}회`);
-  if (a.holdSecondsDone != null) parts.push(`${a.holdSecondsDone}초`);
+  /* '600초'가 아니라 '10분' — 유산소가 같은 칸을 쓴다 */
+  if (a.holdSecondsDone != null) parts.push(formatSeconds(a.holdSecondsDone));
   const amount = parts.join(' × ');
   const weight = a.weightKg != null ? formatKg(a.weightKg) : null;
   if (!amount && !weight) return null;

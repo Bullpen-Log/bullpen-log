@@ -1,3 +1,5 @@
+import { formatSeconds } from '@/lib/exercise-meta';
+
 /**
  * 세트들을 운동별 요약 한 줄로 접는다.
  *
@@ -90,7 +92,7 @@ export function summarizeSets(rows: readonly SetRow[]): ExerciseSummary[] {
 export function formatSummary(s: ExerciseSummary): string {
   const parts: string[] = [`${s.setsDone}세트`];
   if (s.repsDone != null) parts.push(`${s.repsDone}회`);
-  if (s.holdSecondsDone != null) parts.push(`${s.holdSecondsDone}초`);
+  if (s.holdSecondsDone != null) parts.push(formatSeconds(s.holdSecondsDone));
   if (s.weightKg != null) parts.push(`${s.weightKg}kg`);
   return parts.join(' · ');
 }

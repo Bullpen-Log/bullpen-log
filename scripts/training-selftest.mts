@@ -2259,5 +2259,98 @@ console.log('\n[가장 빠듯한 경우] 그래도 훈련이 나오는가');
   );
 }
 
+console.log('\n[회복날] 가벼운 것만 · 팔 중심 · 유산소는 있을 때만 맨 앞에');
+{
+  /*
+   * 2026-09-23 회복날을 다시 짰다 (lib/report/theme.ts 의 회복날 구성).
+   * 실제로 뽑아 보니 덤벨 스쿼트·덤벨 트라이셉스 익스텐션 같은 '중간' 운동이
+   * 섞였고, 던진 다음 날 가장 챙길 암케어는 한두 개뿐이었다.
+   */
+  const HEAVY = ['덤벨', '바벨', '케틀벨', '원판', '케이블'];
+  const isHeavy = (e: { intensity: string; equipment: string[] }) =>
+    intensityLevel(e.intensity) > intensityLevel('낮음') ||
+    e.equipment.some((q) => HEAVY.includes(q));
+
+  let days = 0;
+  let heavy = 0;
+  const thinArm: string[] = [];
+  for (const minutes of [45, 60, 90]) {
+    const { theme, themed } = planFor({ person: { condition: 3 }, minutes });
+    if (theme.key !== 'recovery') continue;
+    days++;
+    heavy += themed.picks.filter(({ exercise }) => isHeavy(exercise)).length;
+    const count = (slot: string) => themed.picks.filter((p) => p.slot === slot).length;
+    const arm = count('armcare');
+    if (arm < 2 || ['mobility', 'prehab', 'core'].some((s) => count(s) > arm)) {
+      thinArm.push(`${minutes}분 요청 → 암케어 ${arm}개`);
+    }
+  }
+  check(
+    '회복날 → 무게 드는 장비·중간 이상 강도 없음',
+    days === 3 && heavy === 0,
+    `${days}일 중 섞인 것 ${heavy}개`
+  );
+  check(
+    '회복날 → 암케어가 둘 이상이고 가장 많다',
+    thinArm.length === 0,
+    thinArm.join(', ')
+  );
+
+  /* 유산소는 영상이 올라오기 전까지 없다 — 그동안은 그 칸 없이 짠다 */
+  const cardioInLibrary = library.some((e) => e.category === '유산소');
+  const { themed: today } = planFor({ person: { condition: 3 }, minutes: 60 });
+  const cardioNow = today.picks.filter((p) => p.slot === 'cardio');
+  check(
+    cardioInLibrary
+      ? '유산소 영상이 있으면 → 회복날 맨 앞에 하나'
+      : '유산소 영상이 없으면 → 유산소 칸 없이 짬',
+    cardioInLibrary
+      ? cardioNow.length === 1 && today.picks[0]?.slot === 'cardio'
+      : cardioNow.length === 0
+  );
+
+  /* 영상이 올라온 뒤를 흉내 낸다 — 가벼운 것 둘과 '중간' 하나를 메모리에만 더한다 */
+  const fake = (id: string, intensity: string) => ({
+    ...library[0],
+    id,
+    title: id,
+    category: '유산소',
+    intensity,
+    equipment: ['맨몸'],
+    bodyParts: ['하체'],
+    movementPattern: null,
+    sets: 1,
+    reps: null,
+    holdSeconds: 600,
+    restSeconds: null,
+    perSide: false,
+  });
+  const minutes = effectiveMinutes('recovery', 60);
+  const later = pickForTheme({
+    candidates: [
+      ...library,
+      fake('인터벌', '중간'),
+      fake('자전거', '낮음'),
+      fake('걷기', '매우 낮음'),
+    ],
+    theme: 'recovery',
+    minutes,
+    doneIds: new Set<string>(),
+  });
+  const cardio = later.picks.filter((p) => p.slot === 'cardio');
+  check(
+    '유산소가 올라오면 → 맨 앞에 딱 하나, 중간 강도는 빼고',
+    cardio.length === 1 &&
+      later.picks[0]?.slot === 'cardio' &&
+      cardio[0].exercise.intensity !== '중간',
+    cardio.map((p) => p.exercise.title).join(', ')
+  );
+  check(
+    '유산소가 들어가도 → 시간은 ±15% 안',
+    Math.abs(later.estimatedMinutes - minutes) <= minutes * 0.15,
+    `${minutes}분 → ${later.estimatedMinutes}분`
+  );
+}
+
 console.log(`\n${passed}개 통과, ${failed}개 실패`);
 process.exit(failed === 0 ? 0 : 1);

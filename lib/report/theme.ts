@@ -473,9 +473,10 @@ export function decideTheme({
  * 있고, 그 날에는 가동성이 준비 운동이 아니라 그날의 운동 자체다. 그래서
  * 기록도 평소대로 남는다.
  */
-export type SlotKey = 'mobility' | 'main' | 'core' | 'prehab' | 'armcare';
+export type SlotKey = 'cardio' | 'mobility' | 'main' | 'core' | 'prehab' | 'armcare';
 
 export const SLOT_LABELS: Record<SlotKey, { label: string; hint: string }> = {
+  cardio: { label: '가벼운 유산소', hint: '숨이 조금 찰 만큼만, 몸에 피를 돌린다' },
   mobility: { label: '가동성', hint: '천천히 관절을 열어주세요' },
   main: { label: '본운동', hint: '오늘 테마의 핵심입니다' },
   core: { label: '코어', hint: '몸통을 단단하게' },
@@ -492,12 +493,33 @@ export const SLOT_LABELS: Record<SlotKey, { label: string; hint: string }> = {
 };
 
 /** 화면·구성에서 쓰는 구간 순서 */
-export const SLOT_ORDER: SlotKey[] = ['mobility', 'main', 'core', 'prehab', 'armcare'];
+/*
+ * 유산소가 맨 앞이다. 회복날에 자전거·걷기로 몸을 데운 뒤 가동성과 암케어를
+ * 하는 것이 순서다 — 굳은 채로 관절부터 여는 것보다 낫다.
+ */
+export const SLOT_ORDER: SlotKey[] = [
+  'cardio',
+  'mobility',
+  'main',
+  'core',
+  'prehab',
+  'armcare',
+];
 
 type SlotSpec = {
   slot: SlotKey;
   /** 전체 시간에서 이 구간이 차지하는 비율 */
   share: number;
+  /**
+   * 자리가 남을 때만 넣는 곁가지 구간인가.
+   *
+   * 구간은 원래 시간이 모자라도 하나는 억지로 넣는다 — 본운동이 비는 날이
+   * 없게 하려는 규칙이다. 그런데 회복날은 구간이 다섯이고 유산소 하나가 10분
+   * 이라, 30분짜리 날에 구간마다 하나씩만 넣어도 38분이 됐다. 곁가지(보강·
+   * 코어)는 시간이 남을 때만 넣고, 모자라면 건너뛴다. 남는 시간은 몫이 가장
+   * 큰 구간(회복날에는 암케어)으로 간다.
+   */
+  optional?: boolean;
   /** 이 구간을 채우는 카테고리 (워밍업은 별도 규칙) */
   categories: string[];
   /**
@@ -674,12 +696,84 @@ const COMPOSITIONS: Record<ThemeKey, SlotSpec[]> = {
      * 암케어뿐이다. 그래서 여기서는 구간 이름도 '가동성'이고, 한 것도 평소
      * 처럼 기록에 남는다.
      */
-    { slot: 'mobility', share: 0.25, categories: ['모빌리티'], maxCount: 3 },
-    { slot: 'core', share: 0.12, categories: ['코어'], maxCount: 2 },
-    { slot: 'prehab', share: 0.3, categories: ['회복 및 보강'], maxCount: 4 },
-    { slot: 'armcare', share: 0.3, categories: ['암케어'], maxCount: 5 },
+    /*
+     * 2026-09-23 다시 짰다 (사용자분과 정한 C안).
+     *
+     * 실제로 뽑아 보니 두 가지가 걸렸다. 덤벨 발목 안정성 스쿼트·덤벨 라잉
+     * 트라이셉스 익스텐션처럼 무게를 드는 '중간' 운동이 섞여 나왔고(가벼운 것만
+     * 받는 거르개는 pickForTheme 의 isRecoveryLight), 90구를 던진 다음 날
+     * 가장 챙길 팔이 한두 개뿐이었다.
+     *
+     * 그래서 팔 중심으로 나누고(가동성 30 · 암케어 45 · 보강 15 · 코어 10),
+     * 맨 앞에 가벼운 유산소를 25% 둔다 — 나머지는 그 비율 그대로 75% 안에서
+     * 나눈다. 유산소 영상이 아직 없는 동안에는 그 구간이 통째로 빠지고
+     * (dropEmptySlots) 앞의 비율이 그대로 살아난다.
+     *
+     * ■ 적힌 차례가 곧 채우는 차례다
+     *
+     * 구간은 여기 적힌 차례대로 채우고, 하루 전체 시간 한도는 앞에서부터 쓴다.
+     * 처음에 화면 순서대로(유산소 → 가동성 → … → 암케어) 적었더니 앞 구간들이
+     * 조금씩 넘겨 쓴 끝에 암케어가 한 개밖에 못 들어가는 날이 나왔다 — 가장
+     * 챙길 곳이 가장 굶었다. 그래서 중요한 순서로 적는다. 화면에 보이는 순서는
+     * SLOT_ORDER 가 따로 정하므로 이 차례와 상관없다.
+     */
+    { slot: 'armcare', share: 0.75 * 0.45, categories: ['암케어'], maxCount: 6 },
+    { slot: 'cardio', share: 0.25, categories: ['유산소'], maxCount: 1 },
+    { slot: 'mobility', share: 0.75 * 0.3, categories: ['모빌리티'], maxCount: 3 },
+    {
+      slot: 'prehab',
+      share: 0.75 * 0.15,
+      categories: ['회복 및 보강'],
+      maxCount: 2,
+      optional: true,
+    },
+    {
+      slot: 'core',
+      share: 0.75 * 0.1,
+      categories: ['코어'],
+      maxCount: 2,
+      optional: true,
+    },
   ],
 };
+
+/**
+ * 회복날에 내보내도 되는 운동인가 — 낮음 이하 강도, 무게를 드는 장비 없이.
+ *
+ * 회복날은 몸을 쉬게 하려고 잡은 날이다. 강도가 '중간'이면 평소 훈련일 수준이고
+ * (lib/exercise-meta.ts 의 INTENSITY_LEVELS), 덤벨·바벨·케틀벨·원판·케이블은
+ * 그 자체로 무게를 싣는다. 90구를 던진 다음 날 팔꿈치에 덤벨을 드는 운동이
+ * 나오는 일을 막는다.
+ *
+ * 새로 고르는 것에만 쓴다. 오늘 이미 마친 운동이나 직접 더한 운동은 빼지
+ * 않는다 — 한 것은 사실이고, 넣은 것은 본인이다.
+ */
+const RECOVERY_HEAVY_EQUIPMENT = ['덤벨', '바벨', '케틀벨', '원판', '케이블'];
+function isRecoveryLight(ex: ThemedExercise): boolean {
+  return (
+    intensityLevel(ex.intensity) <= intensityLevel('낮음') &&
+    !(ex.equipment ?? []).some((q) => RECOVERY_HEAVY_EQUIPMENT.includes(q))
+  );
+}
+
+/**
+ * 후보가 하나도 없는 구간은 빼고 나머지 비율을 다시 나눈다.
+ *
+ * 유산소는 영상이 올라오기 전까지 비어 있다. 그대로 두면 그 몫(25%)은 남는
+ * 시간으로 떠돌다 한 구간에 몰린다. 빼고 나누면 나머지가 원래 비율대로 그
+ * 시간을 나눠 갖고, 영상이 올라오는 날부터는 저절로 들어온다.
+ */
+function dropEmptySlots<T extends ThemedExercise>(
+  specs: SlotSpec[],
+  pool: T[]
+): SlotSpec[] {
+  const kept = specs.filter((sp) =>
+    pool.some((ex) => sp.categories.includes(ex.category))
+  );
+  if (kept.length === specs.length || kept.length === 0) return specs;
+  const total = kept.reduce((sum, sp) => sum + sp.share, 0);
+  return kept.map((sp) => ({ ...sp, share: sp.share / total }));
+}
 
 /**
  * 짧은 날에 먼저 빼는 구간.
@@ -749,7 +843,13 @@ export function compositionFor(
   const goal = theme === 'recovery' ? null : findGoal(goalName);
   const weighted = base.map((spec) => ({
     spec,
-    share: spec.share * (goal ? goal.weights[spec.slot] : 1),
+    /*
+     * 목표별 곱은 웨이트 날의 구간에만 있다. 유산소는 회복날에만 있고 회복날은
+     * 목표를 안 보므로 곱할 값이 없다 — 없으면 1이다.
+     */
+    share:
+      spec.share *
+      (goal ? ((goal.weights as Partial<Record<SlotKey, number>>)[spec.slot] ?? 1) : 1),
   }));
   const total = weighted.reduce((sum, w) => sum + w.share, 0);
 
@@ -795,6 +895,8 @@ export type ThemedExercise = {
    * 스트레칭이나 종아리처럼 이 축으로 가를 것이 없는 운동이 많다.
    */
   movementPattern?: string | null;
+  /** 쓰는 장비. 회복날에 무게를 드는 장비를 거르는 데 쓴다 (isRecoveryLight). */
+  equipment?: string[];
 } & Partial<Prescription>;
 
 export type ThemedPick<T> = { exercise: T; slot: SlotKey };
@@ -813,8 +915,16 @@ export function slotOf(ex: ThemedExercise, specs: SlotSpec[]): SlotKey {
   for (const spec of specs) {
     if (spec.categories.includes(ex.category)) return spec.slot;
   }
-  // 맞는 구간이 없으면 본운동에, 본운동이 없는 테마라면 첫 구간에 둔다.
-  return (specs.find((s) => s.slot === 'main') ?? specs[0]).slot;
+  /*
+   * 맞는 구간이 없으면 본운동에, 본운동이 없는 테마라면 첫 구간에 둔다.
+   * 단 유산소 칸에는 넣지 않는다 — 회복날에 직접 더한 스쿼트가 '가벼운
+   * 유산소' 아래에 들어가면 순서가 뜻을 잃는다.
+   */
+  return (
+    specs.find((s) => s.slot === 'main') ??
+    specs.find((s) => s.slot !== 'cardio') ??
+    specs[0]
+  ).slot;
 }
 
 /**
@@ -1017,7 +1127,12 @@ export function pickForTheme<T extends ThemedExercise>({
   /** 목표 안에서 좁힌 부위 — 본운동의 스트렝스를 한 계열로 줄인다 */
   focus?: GoalFocusKey | null;
 }): { picks: ThemedPick<T>[]; estimatedMinutes: number; notes: string[] } {
-  const specs = compositionFor(theme, goal, minutes, focus);
+  /* 회복날에는 가벼운 것만 새로 고른다 (isRecoveryLight) */
+  const eligible = (ex: T) => theme !== 'recovery' || isRecoveryLight(ex);
+  const specs = dropEmptySlots(
+    compositionFor(theme, goal, minutes, focus),
+    candidates.filter(eligible)
+  );
   const goalPrefer: readonly string[] = findGoal(goal).prefer;
   /*
    * 목표가 정한 본운동의 섞임. 회복 데이에는 본운동이 없어 쓰이지 않는다.
@@ -1083,6 +1198,7 @@ export function pickForTheme<T extends ThemedExercise>({
        * 어느 구간에도 못 들어가 영영 안 나온다.
        */
       if (!spec.categories.includes(ex.category)) return false;
+      if (!eligible(ex)) return false;
       /* 파워는 이 구간에 맞는 계열만 — 상체날에 스쿼트 점프가 들어오지 않게 */
       if (
         ex.category === '파워' &&
@@ -1300,7 +1416,8 @@ export function pickForTheme<T extends ThemedExercise>({
           : undefined) ??
         remaining.find((ex) => canTake(ex) && !clashes(ex)) ??
         remaining.find(canTake) ??
-        (chosen.length === 0
+        /* 빈 구간은 하나라도 억지로 넣는다 — 곁가지 구간만 빼고 (SlotSpec.optional) */
+        (chosen.length === 0 && !spec.optional
           ? (cheapest((ex) => free(ex) && mixAllows(ex) && !clashes(ex)) ??
             cheapest((ex) => free(ex) && mixAllows(ex)) ??
             cheapest(free))

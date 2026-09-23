@@ -13,6 +13,7 @@ import { CheckboxGroup, RadioGroup } from '@/components/choice-inputs';
 import { kept, keptAll } from '@/lib/form-values';
 import { VideoUpload, type UploadedVideo } from '@/components/video-upload';
 import {
+  AMOUNT_LIMITS,
   BODY_PARTS,
   DIFFICULTY_LEVELS,
   EXERCISE_EQUIPMENT,
@@ -65,6 +66,11 @@ export function ExerciseForm({
   onDone?: () => void;
 }) {
   const editing = Boolean(initial);
+  /*
+   * 유산소는 같은 칸에 '운동 시간'을 적는다. 버티기가 아니므로 이름을 바꾸고,
+   * 분으로 셈해 적게 예를 든다 — 초로 받는 칸이라 10분이면 600이다.
+   */
+  const cardio = category === '유산소';
   const [state, formAction] = useActionState<ActionState, FormData>(
     editing ? updateExercise : createExercise,
     undefined
@@ -255,14 +261,14 @@ export function ExerciseForm({
               defaultValue={pick('reps', num(initial?.reps))}
             />
           </Field>
-          <Field label="버티는 시간(초)">
+          <Field label={cardio ? '운동 시간(초) — 10분이면 600' : '버티는 시간(초)'}>
             <Input
               name="holdSeconds"
               type="number"
               min={1}
-              max={600}
+              max={AMOUNT_LIMITS.holdSeconds}
               inputMode="numeric"
-              placeholder="30"
+              placeholder={cardio ? '600' : '30'}
               defaultValue={pick('holdSeconds', num(initial?.holdSeconds))}
             />
           </Field>

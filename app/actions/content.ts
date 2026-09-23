@@ -6,6 +6,7 @@ import { getCurrentUser } from '@/lib/dal';
 import { deleteVideos, isLibraryPath } from '@/lib/storage';
 import { MECHANICS_CATEGORY_NAMES, TRAINING_CATEGORY_NAMES } from '@/lib/categories';
 import {
+  AMOUNT_LIMITS,
   BODY_PARTS,
   DIFFICULTY_NAMES,
   DRILL_EQUIPMENT,
@@ -53,7 +54,8 @@ function readNumber(formData: FormData, name: string, min: number, max: number) 
  * 횟수와 버티는 시간을 둘 다 적으면 버티는 시간을 쓴다(시간형 운동으로 본다).
  */
 function readPrescription(formData: FormData): Prescription {
-  const holdSeconds = readNumber(formData, 'holdSeconds', 1, 600);
+  /* 상한은 운동 기록과 같은 값 — 유산소 30분까지 (lib/exercise-meta.ts) */
+  const holdSeconds = readNumber(formData, 'holdSeconds', 1, AMOUNT_LIMITS.holdSeconds);
   return {
     sets: readNumber(formData, 'sets', 1, 10),
     reps: holdSeconds != null ? null : readNumber(formData, 'reps', 1, 100),
