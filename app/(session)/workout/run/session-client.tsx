@@ -183,12 +183,15 @@ export function SessionClient({
   exercises,
   initialSets,
   openedAt,
+  priorSeconds,
 }: {
   themeLabel: string;
   exercises: RunExercise[];
   initialSets: RunSet[];
   /** 이 판을 연 시각. 휴식 시계는 이 뒤에 남긴 세트만 센다. */
   openedAt: string;
+  /** 다시 연 판이면 앞서 마친 구간들의 운동 시간(초). 처음이면 0. */
+  priorSeconds: number;
 }) {
   const router = useRouter();
   const [sets, setSets] = useState<RunSet[]>(initialSets);
@@ -707,6 +710,7 @@ export function SessionClient({
           exercises={list}
           sets={sets}
           startedAt={openedAt}
+          priorSeconds={priorSeconds}
           busy={ending}
           error={finishError}
           onClose={() => {

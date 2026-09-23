@@ -313,6 +313,16 @@ export async function finishWorkout(input: {
 
   const summaries = summarizeSets(rows);
 
+  /* 본운동을 시작한 뒤로 흐른 시간. 워밍업은 안 들어간다. */
+  const endedAt = new Date();
+  const segmentSeconds = Math.max(
+    0,
+    Math.floor(
+      (endedAt.getTime() - (session.mainStartedAt ?? session.startedAt).getTime()) /
+        1000
+    )
+  );
+
   await prisma.$transaction([
     ...summaries.map((s) =>
       prisma.userExerciseLog.upsert({
@@ -344,7 +354,15 @@ export async function finishWorkout(input: {
     ),
     prisma.trainingSession.update({
       where: { id: session.id },
-      data: { status: 'FINISHED', endedAt: new Date() },
+      data: {
+        status: 'FINISHED',
+        endedAt,
+        /*
+         * 이 구간의 운동 시간을 더한다. 다시 열어 이어 한 판이면 앞 구간에
+         * 쌓이고, 처음 마치는 판이면 0 에 더해진다 (스키마의 activeSeconds).
+         */
+        activeSeconds: { increment: segmentSeconds },
+      },
     }),
   ]);
 

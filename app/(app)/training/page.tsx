@@ -8,6 +8,9 @@ import { referenceThumbUrl } from '@/lib/reference-video';
 import { formatPrescription } from '@/lib/exercise-meta';
 import { loadTodayCore } from '@/lib/report/today-data';
 import { StartWorkout } from './start-workout';
+import { DoneCard, DoneFold, type DoneLine } from './done-card';
+import { readFrozenPlan } from '@/lib/workout/session-plan';
+import { formatSummary, summarizeSets, totalVolumeKg } from '@/lib/workout/summarize';
 import { recentAmounts } from '@/lib/report/exercise-recent';
 import { MIN_CANDIDATES } from '@/lib/report/prescription';
 import { DEFAULT_WORKOUT_MINUTES } from '@/lib/report/theme';
@@ -131,7 +134,7 @@ export default async function TrainingPage({
    * 여기서 AI를 새로 부르지는 않는다 — 저장된 것을 읽을 뿐이라 화면을 열
    * 때마다 돈이 나가지 않는다.
    */
-  const [todayReport, trainingNote, favExercises, openSession] = await Promise.all([
+  const [todayReport, trainingNote, favExercises, todaySession] = await Promise.all([
     prisma.aiReport.findUnique({
       where: { userId_asOf: { userId: user.id, asOf: core.midnight } },
       select: { halted: true, body: true },
@@ -143,12 +146,20 @@ export default async function TrainingPage({
     }),
     /* 별을 달아 둔 것 — 목록에 표시하고, 고르는 창에서 위로 올린다 */
     favoriteExerciseIds(user.id),
-    /* 오늘 열어 둔 운동 판이 있는가. 있으면 단추가 '이어서 하기'가 된다. */
-    prisma.trainingSession.findFirst({
-      where: { userId: user.id, date: core.midnight, status: 'ACTIVE' },
-      select: { id: true },
+    /*
+     * 오늘의 운동 판. 진행 중이면 단추가 '이어서 하기'가 되고, 마쳤으면 단추
+     * 자리에 완료 카드가 선다.
+     *
+     * 예전에는 진행 중인 판만 찾았다. 그래서 마친 판은 없는 것과 같아, 운동을
+     * 마치고 돌아와도 처음처럼 [운동 시작]이 떠 있었다.
+     */
+    prisma.trainingSession.findUnique({
+      where: { userId_date: { userId: user.id, date: core.midnight } },
+      select: { id: true, status: true, plan: true, activeSeconds: true },
     }),
   ]);
+  const resume = todaySession?.status === 'ACTIVE';
+  const finished = todaySession?.status === 'FINISHED';
 
   /*
    * 리포트를 만든 뒤에 통증을 입력했다면 처방이 멈춘다.
@@ -179,7 +190,7 @@ export default async function TrainingPage({
     }))
     .filter((p): p is typeof p & { ex: NonNullable<(typeof p)['ex']> } => p.ex != null);
 
-  const [thumbUrls, pastAmounts] = await Promise.all([
+  const [thumbUrls, pastAmounts, doneSets] = await Promise.all([
     createPlaybackUrls(full.map((p) => p.ex.thumbPath).filter((p): p is string => !!p)),
     /*
      * 이 운동을 지난번에 얼마나 했는가.
@@ -191,7 +202,43 @@ export default async function TrainingPage({
       full.map((p) => p.ex.id),
       today
     ),
+    /* 마친 날의 완료 카드에 쓸 세트 — 마치지 않은 날은 읽지 않는다 */
+    finished && todaySession
+      ? prisma.userExerciseSet.findMany({
+          where: { sessionId: todaySession.id },
+          select: { exerciseId: true, weightKg: true, reps: true, holdSeconds: true },
+        })
+      : Promise.resolve([]),
   ]);
+
+  /*
+   * 완료 카드에 쓸 것. 종료 요약과 같은 함수로 접는다 — 방금 본 요약과
+   * 여기 숫자가 다르면 어느 쪽을 믿을지 모른다.
+   *
+   * 줄은 운동할 때 찍어 둔 목록의 순서대로다. 오늘 일정은 그 뒤에 다시
+   * 만들었을 수도 있으니, 이름도 거기서 가져온다.
+   */
+  const done = (() => {
+    if (!finished || !todaySession) return null;
+    const frozen = readFrozenPlan(todaySession.plan)?.exercises ?? [];
+    const order = new Map(frozen.map((e, i) => [e.id, i]));
+    const titleOf = new Map(frozen.map((e) => [e.id, e.title]));
+    const lines: DoneLine[] = summarizeSets(doneSets)
+      .sort(
+        (a, b) => (order.get(a.exerciseId) ?? 999) - (order.get(b.exerciseId) ?? 999)
+      )
+      .map((sum) => ({
+        id: sum.exerciseId,
+        title: titleOf.get(sum.exerciseId) ?? '목록에서 뺀 운동',
+        text: formatSummary(sum),
+      }));
+    return {
+      minutes: Math.round(todaySession.activeSeconds / 60),
+      sets: doneSets.length,
+      volumeKg: totalVolumeKg(doneSets),
+      lines,
+    };
+  })();
 
   const exercises: TodayExercise[] = full.map(({ slot, manual, unsafe, ex }) => ({
     favorite: favExercises.has(ex.id),
@@ -318,8 +365,18 @@ export default async function TrainingPage({
         없다. 목록 위에 두는 것은, 스크롤을 내려 운동을 훑기 전에 먼저 눈에
         들어와야 하기 때문이다.
       */}
-      {!picked.halted && shownPicks.length > 0 && (
-        <StartWorkout resume={openSession != null} />
+      {done ? (
+        /*
+          마친 날에는 오늘 한 것이 맨 위다. 통증을 입력해 목록이 멈춘 뒤에도
+          카드는 낸다 — 운동을 한 것은 사실이다. 다시 열기만 막는다.
+        */
+        <DoneCard
+          {...done}
+          intensity={trainingNote?.intensity ?? null}
+          canResume={!picked.halted && shownPicks.length > 0}
+        />
+      ) : (
+        !picked.halted && shownPicks.length > 0 && <StartWorkout resume={resume} />
       )}
 
       {/* 왜 오늘 이런 구성인지 — 고르는 건 코드, 설명은 AI가 한다 */}
@@ -479,18 +536,20 @@ export default async function TrainingPage({
             </p>
           )}
 
-          <ExerciseChecklist exercises={exercises}>
-            {/*
-              만들어 준 목록을 그대로 하는 사람은 없다. 빼는 것은 목록에서
-              바로, 더하는 것은 여기서 찾아서.
-            */}
-            <AddExercise
-              library={pickable}
-              inPlanIds={savedPlan.picks.map((p) => p.exerciseId)}
-              safeIds={picked.candidates.map((ex) => ex.id)}
-              ownedEquipment={user.ownedEquipment}
-            />
-          </ExerciseChecklist>
+          <DoneFold folded={done != null} count={exercises.length}>
+            <ExerciseChecklist exercises={exercises}>
+              {/*
+                만들어 준 목록을 그대로 하는 사람은 없다. 빼는 것은 목록에서
+                바로, 더하는 것은 여기서 찾아서.
+              */}
+              <AddExercise
+                library={pickable}
+                inPlanIds={savedPlan.picks.map((p) => p.exerciseId)}
+                safeIds={picked.candidates.map((ex) => ex.id)}
+                ownedEquipment={user.ownedEquipment}
+              />
+            </ExerciseChecklist>
+          </DoneFold>
 
           {/*
             오늘 운동이 어땠는지 — 하루에 하나.

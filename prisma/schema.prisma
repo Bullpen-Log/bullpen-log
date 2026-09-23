@@ -592,6 +592,17 @@ model TrainingSession {
   mainStartedAt DateTime?
   endedAt       DateTime?
 
+  /**
+   * 마친 구간들의 운동 시간(초)을 더한 값.
+   *
+   * 판은 [운동 더 하기]로 다시 열 수 있다. 다시 열면 mainStartedAt 을 새로
+   * 찍는데(휴식 시계가 아까 남긴 세트부터 세지 않게), 그러면 마친 뒤
+   * endedAt − mainStartedAt 은 마지막 구간만 남는다. 아침 45분 + 저녁 10분이
+   * '10분'이 된다. 그래서 마칠 때마다 그 구간을 여기에 더해 둔다.
+   * 워밍업은 들어가지 않는다 — mainStartedAt 부터 세기 때문이다.
+   */
+  activeSeconds Int @default(0)
+
   /// DONE · SKIPPED · null(워밍업이 없는 날)
   warmupOutcome String?
   /**

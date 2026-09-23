@@ -111,6 +111,8 @@ export default async function RunPage() {
        * 종료가 안 된 것처럼 보인다.
        */
       openedAt={session.mainStartedAt.toISOString()}
+      /* 다시 연 판이면 앞서 마친 구간의 시간. 종료 요약이 여기에 더해 보여준다. */
+      priorSeconds={session.activeSeconds}
     />
   );
 }

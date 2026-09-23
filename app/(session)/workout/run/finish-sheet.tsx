@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { Check, X } from 'lucide-react';
-import { summarizeSets, totalVolumeKg } from '@/lib/workout/summarize';
+import { formatSummary, summarizeSets, totalVolumeKg } from '@/lib/workout/summarize';
 import { IntensityGuide } from '@/components/intensity-guide';
 import type { RunExercise, RunSet } from './session-client';
 
@@ -25,6 +25,7 @@ export function FinishSheet({
   exercises,
   sets,
   startedAt,
+  priorSeconds,
   onFinish,
   onClose,
   busy,
@@ -34,6 +35,8 @@ export function FinishSheet({
   sets: RunSet[];
   /** 본운동을 시작한 시각. 워밍업에 쓴 시간은 여기 안 들어간다. */
   startedAt: string;
+  /** 다시 연 판이면 앞서 마친 구간들의 시간(초). 운동 시간에 더한다. */
+  priorSeconds: number;
   onFinish: (intensity: number | null, memo: string) => void;
   onClose: () => void;
   busy: boolean;
@@ -54,7 +57,10 @@ export function FinishSheet({
 
   /* 이 화면을 연 시각으로 못박는다 — 고르는 동안 숫자가 올라가면 산만하다 */
   const [openedAt] = useState(() => Date.now());
-  const minutes = Math.max(0, Math.round((openedAt - Date.parse(startedAt)) / 60000));
+  const minutes = Math.max(
+    0,
+    Math.round((priorSeconds * 1000 + (openedAt - Date.parse(startedAt))) / 60000)
+  );
 
   const summaries = summarizeSets(sets);
   const volume = totalVolumeKg(sets);
@@ -67,14 +73,6 @@ export function FinishSheet({
   });
   /* 목록에서 뺀 뒤에도 기록이 남은 운동이 있으면 빠뜨리지 않는다 */
   const orphans = summaries.filter((s) => !byId.has(s.exerciseId));
-
-  const amountText = (s: (typeof summaries)[number]) => {
-    const parts: string[] = [`${s.setsDone}세트`];
-    if (s.repsDone != null) parts.push(`${s.repsDone}회`);
-    if (s.holdSecondsDone != null) parts.push(`${s.holdSecondsDone}초`);
-    if (s.weightKg != null) parts.push(`${s.weightKg}kg`);
-    return parts.join(' · ');
-  };
 
   return (
     <div className="fixed inset-0 z-50 flex flex-col justify-end">
@@ -144,7 +142,7 @@ export function FinishSheet({
                     {ex.title}
                   </span>
                   <span className="shrink-0 text-xs tabular-nums text-muted">
-                    {amountText(s)}
+                    {formatSummary(s)}
                   </span>
                 </li>
               ))}
@@ -157,7 +155,7 @@ export function FinishSheet({
                     목록에서 뺀 운동
                   </span>
                   <span className="shrink-0 text-xs tabular-nums text-muted">
-                    {amountText(s)}
+                    {formatSummary(s)}
                   </span>
                 </li>
               ))}

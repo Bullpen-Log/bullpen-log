@@ -82,18 +82,35 @@ export function summarizeSets(rows: readonly SetRow[]): ExerciseSummary[] {
 }
 
 /**
+ * 운동별 요약 한 줄 — '4세트 · 10회 · 25kg'.
+ *
+ * 종료 요약과 트레이닝 화면의 완료 카드가 같은 줄을 보여준다. 둘이 따로
+ * 만들면 한쪽만 '25kg'이고 다른 쪽은 '25 kg'가 되는 식으로 어긋난다.
+ */
+export function formatSummary(s: ExerciseSummary): string {
+  const parts: string[] = [`${s.setsDone}세트`];
+  if (s.repsDone != null) parts.push(`${s.repsDone}회`);
+  if (s.holdSecondsDone != null) parts.push(`${s.holdSecondsDone}초`);
+  if (s.weightKg != null) parts.push(`${s.weightKg}kg`);
+  return parts.join(' · ');
+}
+
+/**
  * 오늘 든 무게를 다 더한 값(kg).
  *
  * 무게 × 횟수를 세트마다 더한다. 맨몸 운동과 버티기는 들어가지 않는다 —
- * 무게가 없으니 더할 것이 없다. 이 숫자는 종료 요약에만 쓰고 부하 계산에는
- * 쓰지 않는다.
+ * 무게가 없으니 더할 것이 없다. 이 숫자는 종료 요약과 완료 카드에만 쓰고
+ * 부하 계산에는 쓰지 않는다.
+ *
+ * 소수 한 자리까지 둔다. 처음에는 정수로 반올림했는데, 2.5kg 한 번을 들면
+ * 아래 줄에는 '2.5kg'이라 적어 놓고 위에는 '3kg'이 떴다. 원판이 0.5kg
+ * 단위라 합도 늘 0.5 의 배수이고, 한 자리면 넉넉하다. (0.1 + 0.2 같은
+ * 자리 오차도 여기서 걷힌다.)
  */
 export function totalVolumeKg(rows: readonly SetRow[]): number {
-  return Math.round(
-    rows.reduce(
-      (sum, r) =>
-        sum + (r.weightKg != null && r.reps != null ? r.weightKg * r.reps : 0),
-      0
-    )
+  const sum = rows.reduce(
+    (acc, r) => acc + (r.weightKg != null && r.reps != null ? r.weightKg * r.reps : 0),
+    0
   );
+  return Math.round(sum * 10) / 10;
 }
