@@ -1,4 +1,4 @@
-import type { Metadata } from 'next';
+import type { Metadata, Viewport } from 'next';
 import { Bebas_Neue } from 'next/font/google';
 import Script from 'next/script';
 import { THEME_INIT_SCRIPT } from '@/lib/theme';
@@ -21,6 +21,32 @@ export const metadata: Metadata = {
   title: 'Bullpen Log — 투수를 위한 트레이닝 & 기록 플랫폼',
   description:
     '투수 전용 운동 가이드, 투구 메커니즘 분석, 날짜별 투구 기록 관리와 스포츠 과학 자료실을 한 곳에서.',
+  /*
+   * 아이폰 홈 화면에 앱으로 추가했을 때의 이름과 상태바 (app/manifest.ts 와 함께).
+   *
+   * 상태바는 기본형(불투명)이다. 투명형(black-translucent)은 화면을 상태바
+   * 밑까지 끌어올리는데, 앱 틀(components/app-shell.tsx)은 위쪽 노치 여백을
+   * 따로 비우지 않아 제목이 시계·배터리 밑으로 들어간다. 운동 화면은 여백을
+   * 스스로 비우지만(app/(session)), 앱 전체는 아니다.
+   */
+  appleWebApp: { title: 'Bullpen Log', statusBarStyle: 'default' },
+};
+
+/*
+ * 주소창·상태바 색을 화면 바탕색에 맞춘다 (app/globals.css 의 --color-page).
+ * 앱으로 열었을 때 위쪽 띠가 파랗거나 하얗게 따로 놀지 않게 한다.
+ *
+ * 폰의 밝기 설정을 따른다. 앱 안에서 테마를 따로 바꿨으면 띠만 폰 설정대로
+ * 남는다 — 이 태그는 폰 설정밖에 읽지 못한다.
+ *
+ * 운동 화면은 자기 viewport(노치까지 쓰기 등)를 따로 내는데, Next.js 가 칸별로
+ * 합치므로 이 색은 거기서도 그대로 산다.
+ */
+export const viewport: Viewport = {
+  themeColor: [
+    { media: '(prefers-color-scheme: light)', color: '#f4f7fb' },
+    { media: '(prefers-color-scheme: dark)', color: '#0b1220' },
+  ],
 };
 
 export default function RootLayout({
