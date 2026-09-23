@@ -4,8 +4,7 @@ import { revalidatePath } from 'next/cache';
 import { prisma } from '@/lib/prisma';
 import { requireUser } from '@/lib/dal';
 import { shiftDateKey, toDateKey } from '@/lib/pitch-stats';
-import { AMOUNT_LIMITS, WEIGHT_PRECISION, needsWeight } from '@/lib/exercise-meta';
-import { withJosa } from '@/lib/korean';
+import { summarizeSets } from '@/lib/workout/summarize';
 
 /**
  * 며칠 전 것까지 고칠 수 있는가.
@@ -15,12 +14,7 @@ import { withJosa } from '@/lib/korean';
  */
 const BACKFILL_DAYS = 7;
 
-/**
- * 0보다 큰 수만 받는다. 빈칸이나 이상한 값은 '안 적음'으로 본다.
- *
- * step 은 값을 어디에 맞춰 자를지다. 세트·횟수는 1(정수), 무게는 0.5 —
- * 원판이 2.5kg 단위로 늘어나므로 62.5 를 담아야 한다.
- */
+/** 0보다 큰 수만 받는다. 빈칸이나 이상한 값은 '안 적음'으로 본다. */
 function positiveNumber(value: unknown, max: number, step = 1): number | null {
   const n =
     typeof value === 'number'
@@ -35,40 +29,27 @@ function positiveNumber(value: unknown, max: number, step = 1): number | null {
   return clean >= step && clean <= max ? clean : null;
 }
 
-/*
- * 범위는 lib/exercise-meta.ts 에 있다. 화면도 같은 값을 봐야 한다 —
- * 화면이 더 큰 값을 받아주면 여기서 조용히 버려지고, 사용자는 저장된 줄 안다.
- */
-
 /**
- * 오늘 그 운동을 했는지 표시하고, 실제로 한 만큼을 남긴다.
+ * 그 운동을 했는지 표시한다. '했다/안 했다'만이다.
+ *
+ * 세트·횟수·무게는 여기서 안 받는다. 실시간 운동(/workout/run)에서 세트를
+ * 남길 때마다 들어가고, 운동을 마치면 그 값이 이 줄에 그대로 쓰인다
+ * (app/actions/workout.ts 의 finishWorkout). 이 표시는 앱 없이 한 운동이나
+ * 체크를 깜빡한 날을 나중에 채우는 자리다 — 그때 몇 kg 들었는지를 지금 적게
+ * 하면 그 숫자를 믿을 수가 없으니 아예 묻지 않는다.
  *
  * 날짜는 서버에서 정한다 — 기기 시계를 믿으면 어제 칸에 오늘 기록이
  * 들어가거나 같은 운동이 두 번 저장될 수 있다.
- *
- * 세트·횟수는 안 적어도 된다. 적으면 운동 부하 계산에 실제 값이 쓰이고,
- * 안 적으면 '한 것은 맞지만 얼마나 했는지는 모름'으로 남는다. 계획값을 미리
- * 채워 주지 않는 것과 같은 이유다 — 안 한 것을 한 것처럼 세면 안 된다.
  */
 export async function setExerciseDone(
   exerciseId: string,
   done: boolean,
-  amount?: {
-    sets?: unknown;
-    reps?: unknown;
-    holdSeconds?: unknown;
-    weightKg?: unknown;
-  },
   /**
    * 어느 날 것인가 (YYYY-MM-DD). 안 주면 오늘.
    *
    * 지난 날짜를 받는 이유는 하나다 — 운동은 했는데 체크를 깜빡하는 일이
    * 흔하고, 그러면 그 기록이 영영 안 들어간다. 부하 지수도 낮게 나오고,
    * '오래 안 한 것부터' 고르는 규칙도 그 운동을 안 한 것으로 본다.
-   *
-   * 다만 수치(세트·횟수·무게)는 오늘 것만 받는다. 사흘 전에 몇 kg 들었는지를
-   * 지금 적으면 그 숫자를 믿을 수가 없다. 지난 날짜는 '했다/안 했다'만 남기고,
-   * 부하는 계획 세트로 셈한다(그리고 추정으로 표시된다).
    */
   dateKey?: string
 ): Promise<{ ok: true } | { error: string }> {
@@ -80,7 +61,7 @@ export async function setExerciseDone(
 
   const exercise = await prisma.exerciseVideo.findUnique({
     where: { id: exerciseId },
-    select: { id: true, title: true, equipment: true },
+    select: { id: true },
   });
   if (!exercise) return { error: '운동을 찾을 수 없습니다.' };
 
@@ -97,54 +78,46 @@ export async function setExerciseDone(
       error: `${BACKFILL_DAYS}일이 지난 기록은 고칠 수 없습니다. 그쯤이면 무엇을 했는지 정확히 기억하기 어렵습니다.`,
     };
   }
-  const past = target !== todayKey;
-
   const date = new Date(`${target}T00:00:00.000Z`);
   const key = { userId: user.id, exerciseId, date };
 
   if (done) {
-    /* 지난 날짜는 수치를 안 받는다 — 위 dateKey 설명 참고. */
-    const value = past
-      ? {
-          completed: true,
-          setsDone: null,
-          repsDone: null,
-          holdSecondsDone: null,
-          weightKg: null,
-        }
-      : {
-          completed: true,
-          setsDone: positiveNumber(amount?.sets, AMOUNT_LIMITS.sets),
-          repsDone: positiveNumber(amount?.reps, AMOUNT_LIMITS.reps),
-          holdSecondsDone: positiveNumber(
-            amount?.holdSeconds,
-            AMOUNT_LIMITS.holdSeconds
-          ),
-          weightKg: positiveNumber(
-            amount?.weightKg,
-            AMOUNT_LIMITS.weightKg,
-            WEIGHT_PRECISION
-          ),
-        };
-
     /*
-     * 바벨·덤벨은 무게를 안 적으면 완료로 남기지 않는다.
+     * 숫자는 그날 실시간 운동에서 남긴 세트에서 다시 셈한다.
      *
-     * 몇 kg 을 들었는지가 곧 그날의 운동이라, 안 적힌 기록으로는 늘었는지
-     * 줄었는지 아무 말도 할 수 없다. 화면에서도 막지만 여기서 한 번 더 본다.
+     * 체크를 끄면 줄이 통째로 지워진다(아래). 운동을 마친 뒤 체크를 잘못 눌러
+     * 껐다 켜면, 줄이 빈 채로 다시 생겨 그날 남긴 세트·횟수·무게가 기록에서
+     * 사라졌다. 세트 줄(UserExerciseSet)은 체크와 상관없이 남아 있으므로
+     * 거기서 운동을 마칠 때와 같은 함수로 다시 접는다 — 세트가 진실이고,
+     * 요약은 거기서 계산한다 (lib/workout/summarize.ts).
      *
-     * 지난 날짜(past)는 수치를 아예 안 받으므로 이 규칙에서 빠진다. 그때 몇 kg
-     * 들었는지를 지금 적게 하면 그 숫자를 믿을 수가 없다.
+     * 세트가 없으면(앱 없이 한 운동) '했다'만 남기고, 이미 있는 숫자는
+     * 건드리지 않는다.
      */
-    if (!past && needsWeight(exercise.equipment) && value.weightKg == null) {
-      return {
-        error: `${withJosa(exercise.title, '은/는')} 무게를 적어야 완료로 남길 수 있습니다.`,
-      };
-    }
+    const session = await prisma.trainingSession.findUnique({
+      where: { userId_date: { userId: user.id, date } },
+      select: { id: true },
+    });
+    const rows = session
+      ? await prisma.userExerciseSet.findMany({
+          where: { sessionId: session.id, exerciseId },
+          select: { exerciseId: true, weightKg: true, reps: true, holdSeconds: true },
+        })
+      : [];
+    const [summary] = summarizeSets(rows);
+    const amounts = summary
+      ? {
+          setsDone: summary.setsDone,
+          repsDone: summary.repsDone,
+          holdSecondsDone: summary.holdSecondsDone,
+          weightKg: summary.weightKg,
+        }
+      : {};
+
     await prisma.userExerciseLog.upsert({
       where: { userId_exerciseId_date: key },
-      create: { ...key, ...value },
-      update: value,
+      create: { ...key, completed: true, ...amounts },
+      update: { completed: true, ...amounts },
     });
   } else {
     // 취소는 흔적을 남기지 않는다 — "안 했다"와 "표시를 지웠다"를 구분할 필요가 없다.

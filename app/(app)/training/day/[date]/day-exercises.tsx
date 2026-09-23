@@ -36,7 +36,7 @@ export function DayExercises({
     );
     setError(undefined);
     startTransition(async () => {
-      const res = await setExerciseDone(exerciseId, next, undefined, date);
+      const res = await setExerciseDone(exerciseId, next, date);
       if ('error' in res) {
         setExercises((prev) =>
           prev.map((e) => (e.id === exerciseId ? { ...e, done: !next } : e))

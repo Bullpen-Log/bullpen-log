@@ -5,7 +5,7 @@ import { prisma } from '@/lib/prisma';
 import { requireUser } from '@/lib/dal';
 import { createPlaybackUrls } from '@/lib/storage';
 import { referenceThumbUrl } from '@/lib/reference-video';
-import { formatPrescription, needsWeight, usesWeight } from '@/lib/exercise-meta';
+import { formatPrescription } from '@/lib/exercise-meta';
 import { loadTodayCore } from '@/lib/report/today-data';
 import { StartWorkout } from './start-workout';
 import { recentAmounts } from '@/lib/report/exercise-recent';
@@ -241,14 +241,6 @@ export default async function TrainingPage({
      * "몇 회 했나요"를 물으면 답할 수가 없다.
      */
     isHold: ex.holdSeconds != null,
-    // 적어 둔 값이 있으면 그대로 보여준다. 없으면 빈칸 — 미리 채우지 않는다.
-    doneSets: core.doneAmounts.get(ex.id)?.setsDone?.toString() ?? '',
-    doneReps: core.doneAmounts.get(ex.id)?.repsDone?.toString() ?? '',
-    doneHoldSeconds: core.doneAmounts.get(ex.id)?.holdSecondsDone?.toString() ?? '',
-    doneWeightKg: core.doneAmounts.get(ex.id)?.weightKg?.toString() ?? '',
-    /* 맨몸·밴드 운동에는 무게 칸을 내지 않는다 — 적을 값이 없다. */
-    usesWeight: usesWeight(ex.equipment),
-    needsWeight: needsWeight(ex.equipment),
     /*
      * 지난번에 얼마나 했는지. 처음 하는 운동이면 빈 목록이라 아무것도 안 나온다.
      */
