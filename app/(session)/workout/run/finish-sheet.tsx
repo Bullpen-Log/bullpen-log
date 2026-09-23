@@ -42,8 +42,8 @@ export function FinishSheet({
   /*
    * 강도는 미리 고르지 않되, 안 고르면 못 마친다.
    *
-   * 두 가지가 같이 간다. 5 를 띄워 두면 그대로 두고 넘기는데 이 숫자로 부하
-   * 지수와 필요한 휴식일이 정해지므로, 아무것도 안 골라 둔 채로 연다.
+   * 두 가지가 같이 간다. 5 를 띄워 두면 그대로 두고 넘기는데 이 숫자가 운동
+   * 부하 지수에 곱해지므로, 아무것도 안 골라 둔 채로 연다.
    * 그리고 비워 둔 채로 마치지는 못하게 한다 — 이 앱에서 가장 중요한 입력값
    * 하나이고, 이 자리를 지나면 아무도 다시 안 적는다.
    *
@@ -171,8 +171,8 @@ export function FinishSheet({
               <span className="ml-1.5 text-[11px] font-semibold text-sky">필수</span>
             </p>
             <p className="mt-0.5 text-xs leading-relaxed text-muted">
-              투구와 함께 몸에 걸린 부담을 보는 데 씁니다. 이 숫자로 부하 지수와 필요한
-              휴식일이 정해집니다.
+              오늘 운동 전체가 얼마나 힘들었는지 고르세요. 이 숫자로 운동 부하 지수를
+              계산합니다.
             </p>
 
             {/*
@@ -200,12 +200,12 @@ export function FinishSheet({
             </div>
             <div className="mt-1 flex justify-between text-[11px] text-muted">
               <span>1 아주 가벼움</span>
-              <span>10 전력</span>
+              <span>10 최대</span>
             </div>
 
             {/* 감으로 찍으면 그 뒤 계산이 전부 흔들린다 — 고르는 자리 바로 밑에 기준을 둔다 */}
             <div className="mt-2">
-              <IntensityGuide />
+              <IntensityGuide kind="training" />
             </div>
 
             <label className="mt-3 block space-y-1.5">

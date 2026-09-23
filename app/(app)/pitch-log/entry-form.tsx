@@ -227,7 +227,7 @@ export function EntryForm({
             그 뒤 계산이 전부 흔들린다. 고르는 자리 바로 옆에 기준을 둔다.
           */}
               <div className="mt-3">
-                <IntensityGuide />
+                <IntensityGuide kind="pitch" />
               </div>
             </Field>
           </div>

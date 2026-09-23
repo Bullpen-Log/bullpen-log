@@ -109,14 +109,14 @@ export function TrainingNote({
         />
         <div className="flex justify-between text-[11px] text-muted">
           <span>1 아주 가벼움</span>
-          <span>10 전력</span>
+          <span>10 최대</span>
         </div>
         {/*
           강도는 감으로 찍으면 그 뒤 계산이 전부 흔들린다.
           고르는 자리 바로 밑에 기준을 둔다 — 투구 기록과 같은 자리다.
         */}
         <div className="pt-1">
-          <IntensityGuide />
+          <IntensityGuide kind="training" />
         </div>
       </div>
 
