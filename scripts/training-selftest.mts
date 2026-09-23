@@ -86,6 +86,22 @@ import {
   validateBaseline,
 } from '../lib/baseline.ts';
 import { buildDailyPlan, isHalted, readDailyPlan } from '../lib/report/daily-plan.ts';
+import {
+  BALANCED_GOAL,
+  canReuse,
+  checkinStamp,
+  decideAutoFence,
+  type AutoRecord,
+  type WorkoutSignals,
+} from '../lib/report/auto-setup.ts';
+import {
+  acceptAnswer,
+  autoSetupSchema,
+  buildAutoPrompt,
+  type AutoAnswer,
+  type AutoPromptInput,
+} from '../lib/ai/auto-setup-prompt.ts';
+import { PREVENTION_GOAL } from '../lib/report/theme.ts';
 
 let passed = 0;
 let failed = 0;
@@ -2349,6 +2365,412 @@ console.log('\n[회복날] 가벼운 것만 · 팔 중심 · 유산소는 있을
     '유산소가 들어가도 → 시간은 ±15% 안',
     Math.abs(later.estimatedMinutes - minutes) <= minutes * 0.15,
     `${minutes}분 → ${later.estimatedMinutes}분`
+  );
+}
+
+console.log('\n[AI 맞춤] 규칙이 울타리를 치고, 그 밖의 답은 받지 않는가');
+{
+  /*
+   * AI 맞춤은 두 겹이다 — 규칙이 몸을 지키는 선을 긋고(decideAutoFence),
+   * AI는 그 안에서만 고른다(acceptAnswer 가 밖의 답을 버린다). AI를 실제로
+   * 부르지는 않는다. 부르는 것은 돈이 들고 답이 매번 달라, 여기서는 'AI가
+   * 이렇게 답했다면'을 지어내 검사를 밟아 본다.
+   */
+  const ALL_TITLES = library.map((ex) => ex.title);
+
+  /** 운동 쪽 신호 — 평소 한 주를 기본으로, 바꿀 것만 준다 */
+  const signals = (over: Partial<WorkoutSignals> = {}): WorkoutSignals => ({
+    zone: 'optimal',
+    ratio: 1.02,
+    recentDays: 3,
+    recentMinutes: 150,
+    historyDays: 40,
+    daysNeeded: 0,
+    volume: {
+      byPart: VOLUME_GROUPS.map((g) => ({
+        key: g.key,
+        label: g.label,
+        hint: g.hint,
+        sets: 6,
+        previous: 6,
+      })),
+      armCare: { sets: 4, previous: 4 },
+    },
+    ...over,
+  });
+
+  /** 체크인을 여러 날 남긴 사람 — 수면이 이어서 부족한 경우를 만들려고 */
+  const factsWith = ({
+    condition = 8,
+    sleep = '보통',
+    poorSleepPast = 0,
+    wants = null as string | null,
+    lowerBody = '정상',
+    pitches = [40, 0, 35, 0, 40, 0, 30],
+  }) =>
+    buildFacts({
+      nickname: '시험',
+      age: 22,
+      heightCm: 180,
+      trainingLevel: null,
+      baselineDailyLoad: 100,
+      today: TODAY,
+      logs: pitches.map<PitchLogLike>((count, i) => ({
+        date: dayBefore(i + 1),
+        pitchCount: count,
+        intensity: 7,
+        maxVelocity: 130,
+        avgVelocity: 120,
+      })),
+      checkins: [
+        {
+          date: dayBefore(0).slice(0, 10),
+          condition,
+          sleep,
+          shoulder: '정상',
+          elbow: '정상',
+          wrist: '정상',
+          lowerBack: '정상',
+          lowerBody,
+          preferredParts: [],
+          preferredWorkout: wants,
+        },
+        ...Array.from({ length: poorSleepPast }, (_, i) => ({
+          date: dayBefore(i + 1).slice(0, 10),
+          condition: 7,
+          sleep: '부족',
+          shoulder: '정상',
+          elbow: '정상',
+          wrist: '정상',
+          lowerBack: '정상',
+          lowerBody: '정상',
+          preferredParts: [],
+          preferredWorkout: null,
+        })),
+      ] satisfies CheckinLike[],
+      memos: [],
+    });
+
+  const fenceFor = (
+    facts: ReturnType<typeof buildFacts>,
+    workout = signals(),
+    defaultMinutes = 60
+  ) =>
+    decideAutoFence({
+      facts,
+      plan: buildPitchPlan(facts),
+      workout,
+      defaultMinutes,
+      lastLowerKey: null,
+      lastUpperKey: null,
+    });
+
+  /* ── 규칙 울타리 ── */
+  const plain = fenceFor(factsWith({}));
+  check('평소 날은 근력 날', plain.strengthDay, plain.day.label);
+  check(
+    '평소 날 → 목표는 AI가 넷 중에서 고른다',
+    plain.fixedGoal == null && plain.goals.length === 4
+  );
+  check(
+    '시간은 기본 시간을 넘지 않는다 (60분)',
+    Object.values(plain.minutes).every((ms) => ms.length > 0 && Math.max(...ms) <= 60),
+    JSON.stringify(plain.minutes)
+  );
+  check('신호가 없으면 초안은 균형 잡힌 관리', plain.draft.goal === BALANCED_GOAL);
+
+  const armGap = fenceFor(
+    factsWith({}),
+    signals({ volume: { ...signals().volume, armCare: { sets: 0, previous: 3 } } })
+  );
+  check(
+    '운동은 했는데 암케어가 0세트 → 초안은 부상 방지',
+    armGap.draft.goal === PREVENTION_GOAL,
+    armGap.draft.reason
+  );
+  const newcomer = fenceFor(
+    factsWith({}),
+    signals({
+      recentDays: 0,
+      volume: { ...signals().volume, armCare: { sets: 0, previous: 0 } },
+    })
+  );
+  check(
+    '기록이 없는 사람은 암케어 0세트여도 균형으로 시작',
+    newcomer.draft.goal === BALANCED_GOAL &&
+      newcomer.draft.reason.includes('기록이 아직 적어'),
+    newcomer.draft.reason
+  );
+
+  const loaded = fenceFor(factsWith({}), signals({ zone: 'caution', ratio: 1.41 }));
+  check(
+    '운동 부하 주의 → 부상 방지로 고정',
+    loaded.fixedGoal === PREVENTION_GOAL && loaded.goals.length === 1
+  );
+  check(
+    '운동 부하 주의 → 시간 한 단계 줄임 (60 → 40)',
+    JSON.stringify(loaded.minutes[PREVENTION_GOAL]) === '[40]',
+    JSON.stringify(loaded.minutes)
+  );
+  const loadedLong = fenceFor(
+    factsWith({}),
+    signals({ zone: 'danger', ratio: 1.7 }),
+    120
+  );
+  check(
+    '기본 120분 + 부하 위험 → 부상 방지 90에서 한 단계 줄여 60까지',
+    JSON.stringify(loadedLong.minutes[PREVENTION_GOAL]) === '[40,60]',
+    JSON.stringify(loadedLong.minutes)
+  );
+
+  const tired = fenceFor(factsWith({ sleep: '부족', poorSleepPast: 2 }));
+  check(
+    '오늘 포함 잠 부족 3일 → 부상 방지, 시간 줄임',
+    tired.fixedGoal === PREVENTION_GOAL &&
+      JSON.stringify(tired.minutes[PREVENTION_GOAL]) === '[40]',
+    tired.rules.join(' / ')
+  );
+  const oneNight = fenceFor(factsWith({ sleep: '부족' }));
+  check('오늘 하루 못 잔 것만으로는 고정하지 않는다', oneNight.fixedGoal == null);
+
+  const power = fenceFor(factsWith({ wants: '파워' }));
+  check(
+    '체크인에서 파워 (몸 상태 괜찮음) → 파워 향상으로 고정',
+    power.fixedGoal === '파워 향상' && power.clash == null
+  );
+  const weight = fenceFor(factsWith({ wants: '웨이트' }));
+  check('체크인에서 웨이트 → 근력 향상으로 고정', weight.fixedGoal === '근력 향상');
+
+  /* 어제 90구 + 파워 — 몸 상태에 맞춰 가고, 이유에 그 이야기가 있어야 한다 */
+  const clashed = fenceFor(
+    factsWith({ wants: '파워', pitches: [90, 0, 0, 0, 0, 0, 0] })
+  );
+  check(
+    '파워를 골랐지만 어제 90구 → 회복날, 부상 방지로 고정',
+    !clashed.strengthDay && clashed.fixedGoal === PREVENTION_GOAL,
+    clashed.day.label
+  );
+  check(
+    '부딪힌 날 → 초안 이유가 그 이야기로 시작',
+    clashed.clash != null && clashed.draft.reason.startsWith('파워 운동을 하고 싶다고'),
+    clashed.draft.reason
+  );
+  check(
+    '부딪힌 날 → 부위는 고르지 않는다',
+    Object.values(clashed.focuses).every((f) => f.length === 0)
+  );
+
+  const low = fenceFor(
+    factsWith({ condition: 3 }),
+    signals({ zone: 'caution', ratio: 1.4 })
+  );
+  check(
+    '회복날에는 시간을 두 번 줄이지 않는다 (회복날이 이미 줄임)',
+    low.day.key === 'recovery' &&
+      JSON.stringify(low.minutes[PREVENTION_GOAL]) === '[40,60]',
+    JSON.stringify(low.minutes)
+  );
+
+  const sore = fenceFor(factsWith({ lowerBody: '뻐근' }));
+  check(
+    '하체가 뻐근하면 → 하체로 좁힐 수 없다',
+    Object.values(sore.focuses).every((f) => !f.includes('lower')),
+    JSON.stringify(sore.focuses)
+  );
+
+  /* 통증인 날은 AI를 부르지 않는다 — 그 조건이 plan.halted 다 (training-setup.ts) */
+  const pain = factsFor({ condition: 7, pain: true });
+  check(
+    '통증 체크인 → 계획이 멈춘다 (AI를 안 부르는 조건)',
+    buildPitchPlan(pain).halted
+  );
+
+  /* ── 다시 만들기 ── */
+  const today = factsWith({}).condition.today!;
+  const stamp = checkinStamp(today);
+  const prev: AutoRecord = {
+    ...plain.draft,
+    by: 'ai',
+    rules: [],
+    checkin: stamp,
+  };
+  check('체크인이 그대로면 → AI에게 다시 묻지 않는다', canReuse(prev, plain, stamp));
+  check(
+    '체크인을 고치면 → 다시 묻는다',
+    !canReuse(prev, plain, checkinStamp({ ...today, condition: 5 }))
+  );
+  check(
+    '규칙 초안으로 만든 날은 → 다시 만들 때 AI에게 묻는다',
+    !canReuse({ ...prev, by: 'rules' }, plain, stamp)
+  );
+  check(
+    '울타리가 바뀌어 그 목표가 안 되면 → 다시 묻는다',
+    !canReuse({ ...prev, goal: '파워 향상' }, loaded, stamp)
+  );
+
+  /* ── AI 답 검사 ── */
+  const facts = factsWith({});
+  const input: AutoPromptInput = {
+    facts,
+    plan: buildPitchPlan(facts),
+    workout: signals(),
+    fence: plain,
+    recentDays: [],
+    lastLowerKey: null,
+    lastUpperKey: null,
+  };
+  const good: AutoAnswer = {
+    goal: '근력 향상',
+    minutes: 60,
+    focus: 'auto',
+    caution: [],
+    painSuspected: false,
+    reason: `어제 40구를 던졌지만 몸 상태가 좋아 근력에 씁니다. 60분이면 충분합니다.`,
+  };
+  const ok = acceptAnswer(good, input, ALL_TITLES);
+  check('울타리 안의 답 → 받는다', ok.ok, ok.ok ? ok.decision.goal : ok.reason);
+  check('focus auto → 앱이 번갈아 정함(null)', ok.ok && ok.decision.focus === null);
+
+  const reject = (label: string, answer: AutoAnswer) => {
+    const r = acceptAnswer(answer, input, ALL_TITLES);
+    check(label, !r.ok, r.ok ? '받아버림' : r.reason);
+  };
+  reject('고를 수 없는 시간(90분) → 버린다', { ...good, minutes: 90 });
+  reject('균형 잡힌 관리에 부위를 좁힘 → 버린다', {
+    ...good,
+    goal: BALANCED_GOAL,
+    focus: 'lower',
+  });
+  reject('자료에 없는 투구수 → 버린다', {
+    ...good,
+    reason: '어제 95구를 던지셨습니다.',
+  });
+  reject('자료에 없는 시간 → 버린다', { ...good, reason: '오늘은 75분만 하세요.' });
+  reject('운동 종목 이름을 씀 → 버린다', {
+    ...good,
+    reason: '오늘은 데드리프트 위주로 갑니다.',
+  });
+  reject('이유가 너무 김 → 버린다', { ...good, reason: '가'.repeat(400) });
+  reject('조심할 부위를 오늘 할 부위로 → 버린다', {
+    ...good,
+    focus: 'lower',
+    caution: [{ part: 'lowerBody', why: '무릎 불편' }],
+  });
+
+  const many = acceptAnswer(
+    {
+      ...good,
+      caution: [
+        { part: 'lowerBody', why: '무릎' },
+        { part: 'lowerBody', why: '무릎 또' },
+        { part: 'shoulder', why: '어깨' },
+        { part: 'elbow', why: '팔꿈치' },
+        { part: 'wrist', why: '손목' },
+      ],
+    },
+    input,
+    ALL_TITLES
+  );
+  check(
+    '조심할 부위는 같은 것 한 번, 셋까지',
+    many.ok && many.decision.caution.length === 3,
+    many.ok ? many.decision.caution.map((c) => c.part).join(',') : many.reason
+  );
+
+  const clashInput: AutoPromptInput = { ...input, fence: clashed };
+  const quiet = acceptAnswer(
+    {
+      ...good,
+      goal: PREVENTION_GOAL,
+      minutes: clashed.minutes[PREVENTION_GOAL][0],
+      reason: '오늘은 가볍게 몸을 풉니다.',
+    },
+    clashInput,
+    ALL_TITLES
+  );
+  check(
+    '부딪힌 날 이유에 그 이야기를 빠뜨리면 → 규칙이 앞에 붙인다',
+    quiet.ok && quiet.decision.reason.startsWith('파워 운동을 하고 싶다고'),
+    quiet.ok ? quiet.decision.reason : quiet.reason
+  );
+
+  /* 답의 모양 — 목록 밖의 목표는 모양 검사에서부터 떨어진다 */
+  const schema = autoSetupSchema(loaded);
+  check(
+    '모양 검사: 울타리 안 → 통과',
+    schema.safeParse({ ...good, goal: PREVENTION_GOAL, minutes: 40 }).success
+  );
+  check('모양 검사: 울타리 밖 목표 → 떨어짐', !schema.safeParse(good).success);
+
+  /* 프롬프트에 규칙과 초안이 들어가는가 */
+  const prompt = buildAutoPrompt({ ...input, fence: loaded });
+  check(
+    '프롬프트에 규칙이 정한 것과 초안이 들어간다',
+    prompt.includes('# 규칙이 정한 것') &&
+      prompt.includes(loaded.rules[0]) &&
+      prompt.includes('# 규칙 초안'),
+    `${prompt.length}자`
+  );
+
+  /*
+   * 메모에서 찾은 조심할 부위가 실제로 무거운 운동을 빼는가.
+   *
+   * 후보 단계에서 본다. 완성된 일정으로 보면 그날 순서에 따라 원래부터 가벼운
+   * 것만 뽑힐 수 있어, 빠졌는지 원래 없었는지 가를 수 없다.
+   */
+  const LOWER_PARTS = ['고관절', '햄스트링·둔근', '전신'];
+  const heavyLower = <T extends { intensity: string; bodyParts: string[] }>(
+    list: T[]
+  ) =>
+    list.filter(
+      (ex) =>
+        intensityLevel(ex.intensity) > 3 &&
+        ex.bodyParts.some((b) => LOWER_PARTS.includes(b))
+    );
+  const knee = [{ part: 'lowerBody' as const, why: '스쿼트 때 무릎 불편' }];
+  const loose = selectCandidates({ facts, plan: buildPitchPlan(facts), library });
+  const careful = selectCandidates({
+    facts,
+    plan: buildPitchPlan(facts),
+    library,
+    caution: knee,
+  });
+  check(
+    '(기준) 조심할 곳이 없으면 무거운 하체 운동이 후보에 있다',
+    heavyLower(loose.candidates).length > 0,
+    `${heavyLower(loose.candidates).length}개`
+  );
+  check(
+    '메모 속 하체 불편 → 무거운 하체 운동이 후보에서 빠진다',
+    heavyLower(careful.candidates).length === 0,
+    heavyLower(careful.candidates)
+      .map((ex) => ex.title)
+      .join(', ')
+  );
+  check(
+    '가벼운 하체 운동은 남는다',
+    careful.candidates.some(
+      (ex) =>
+        intensityLevel(ex.intensity) <= 3 &&
+        ex.bodyParts.some((b) => LOWER_PARTS.includes(b))
+    )
+  );
+  const withCaution = buildDailyPlan({
+    user: { ownedEquipment: [], trainingLevel: null },
+    facts,
+    plan: buildPitchPlan(facts),
+    library,
+    availableToday: null,
+    requestedMinutes: 60,
+    recentIds: new Set<string>(),
+    lastLowerKey: null,
+    lastUpperKey: null,
+    caution: knee,
+  });
+  check(
+    '메모에서 뺀 까닭이 일정 근거에 남는다',
+    !isHalted(withCaution) &&
+      withCaution.basis.some((b) => b.startsWith('메모에서 하체 불편'))
   );
 }
 

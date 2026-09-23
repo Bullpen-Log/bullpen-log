@@ -9,6 +9,7 @@ import { formatPrescription } from '@/lib/exercise-meta';
 import { loadTodayCore } from '@/lib/report/today-data';
 import { StartWorkout } from './start-workout';
 import { DoneCard, DoneFold, type DoneLine } from './done-card';
+import { AutoNote } from './auto-note';
 import { readFrozenPlan } from '@/lib/workout/session-plan';
 import { formatSummary, summarizeSets, totalVolumeKg } from '@/lib/workout/summarize';
 import { recentAmounts } from '@/lib/report/exercise-recent';
@@ -331,8 +332,11 @@ export default async function TrainingPage({
       goal={user.trainingGoal}
       focus={user.trainingFocus}
       generated={generated}
+      checkedIn={core.hasCheckinToday}
       returnTo="/training"
       clash={core.workoutClash}
+      /* 오늘 직접 골라 만들었으면 다시 만들 때도 그쪽으로 연다 */
+      startMode={savedPlan && !savedPlan.auto ? 'manual' : 'auto'}
     />
   );
 
@@ -351,9 +355,11 @@ export default async function TrainingPage({
             ? '오늘은 쉬는 것이 훈련입니다.'
             : savedPlan == null
               ? '오늘 할 운동을 만들어 드립니다. 하루에 한 번 만들고, 내일이 되면 새로 만듭니다.'
-              : core.hasCheckinToday
-                ? '최근 투구량 · 오늘 몸 상태 · 고르신 목표에 맞춰 고른 운동입니다. 마친 것은 눌러서 표시해주세요.'
-                : '최근 투구량과 고르신 목표에 맞춰 고른 운동입니다. 마친 것은 눌러서 표시해주세요.'
+              : savedPlan.auto
+                ? '오늘 체크인 · 최근 투구 · 운동 기록을 보고 목표와 시간을 정해 고른 운동입니다. 마친 것은 눌러서 표시해주세요.'
+                : core.hasCheckinToday
+                  ? '최근 투구량 · 오늘 몸 상태 · 고르신 목표에 맞춰 고른 운동입니다. 마친 것은 눌러서 표시해주세요.'
+                  : '최근 투구량과 고르신 목표에 맞춰 고른 운동입니다. 마친 것은 눌러서 표시해주세요.'
         }
       />
 
@@ -492,9 +498,12 @@ export default async function TrainingPage({
             <p className="text-sm leading-relaxed break-keep text-muted">
               {savedPlan.theme.reason}
             </p>
+            {/* AI 맞춤이 정한 목표·시간과 그 이유 */}
+            {savedPlan.auto && <AutoNote auto={savedPlan.auto} />}
             {savedPlan.minutes < savedPlan.requestedMinutes && (
               <p className="text-xs text-warn">
-                {savedPlan.requestedMinutes}분을 고르셨지만 회복 데이라{' '}
+                {savedPlan.requestedMinutes}분
+                {savedPlan.auto ? '으로 잡았지만' : '을 고르셨지만'} 회복 데이라{' '}
                 {savedPlan.minutes}분으로 줄였습니다
               </p>
             )}
@@ -609,8 +618,14 @@ export default async function TrainingPage({
             <ul className="mt-3 space-y-1.5">
               {[
                 savedPlan.theme.reason,
+                /* AI 맞춤 — 규칙이 정해 AI가 바꿀 수 없던 것 */
+                ...(savedPlan.auto?.rules ?? []),
                 ...(savedPlan.goal
-                  ? [`목표 '${savedPlan.goal}'에 맞춰 시간을 배분`]
+                  ? [
+                      savedPlan.auto
+                        ? `${savedPlan.auto.by === 'ai' ? 'AI가' : '규칙 초안이'} 정한 목표 '${savedPlan.goal}'에 맞춰 시간을 배분`
+                        : `목표 '${savedPlan.goal}'에 맞춰 시간을 배분`,
+                    ]
                   : []),
                 ...(savedPlan.levelExcludedCount > 0
                   ? [

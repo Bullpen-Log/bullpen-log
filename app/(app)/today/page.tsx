@@ -316,16 +316,21 @@ async function TodayBody({ user }: { user: Awaited<ReturnType<typeof requireUser
                 '투구 기록이 있어야 운동을 고를 수 있습니다.',
                 '최근 투구량을 봐야 오늘 무리가 안 되는 운동을 고를 수 있습니다.',
               ]
-            : [
-                '아직 만들지 않았습니다.',
-                /*
-                  고르는 데 쓰는 것을 다 적는다. 투구량과 몸 상태만 적어 두었는데
-                  실제로는 그날 고른 목표(균형·파워·부상 방지·근력)도 함께 본다.
-                  체크인 전이면 '오늘 몸 상태'는 저절로 빠진다 — 아직 모르는 것을
-                  봤다고 할 수는 없다.
-                */
-                `최근 투구량${core.hasCheckinToday ? ' · 오늘 몸 상태' : ''} · 오늘 목표에 맞춰 골라드립니다.`,
-              ],
+            : !core.hasCheckinToday
+              ? [
+                  '아직 만들지 않았습니다.',
+                  /* 체크인이 있어야 만든다 (components/training-forms.tsx 의 PlanForm) */
+                  '오늘 체크인을 먼저 남기면 만들 수 있습니다.',
+                ]
+              : [
+                  '아직 만들지 않았습니다.',
+                  /*
+                    고르는 데 쓰는 것을 다 적는다. 투구량과 몸 상태만 적어 두었는데
+                    실제로는 그날 고른 목표(균형·파워·부상 방지·근력)도 함께 본다.
+                    체크인 전에는 이 줄까지 오지 않는다 — 위에서 체크인부터 하라고 한다.
+                  */
+                  '최근 투구량 · 오늘 몸 상태 · 오늘 목표에 맞춰 골라드립니다.',
+                ],
       };
 
   const summaryRecent: RecentLog[] = recentLogs.map((l) => ({
@@ -388,6 +393,7 @@ async function TodayBody({ user }: { user: Awaited<ReturnType<typeof requireUser
       goal={user.trainingGoal}
       focus={user.trainingFocus}
       generated={false}
+      checkedIn={core.hasCheckinToday}
       returnTo="/today"
       clash={core.workoutClash}
     />
