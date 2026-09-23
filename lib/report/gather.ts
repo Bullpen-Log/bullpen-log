@@ -8,6 +8,8 @@ import { buildPitchPlan } from '@/lib/report/plan';
 import { pickCheckinParts } from '@/lib/checkin';
 import { RECENT_DAYS } from '@/lib/report/today-pick';
 import { shiftDateKey, toDateKey } from '@/lib/pitch-stats';
+import { readDailyPlan } from '@/lib/report/daily-plan';
+import type { RecentTrainingDay } from '@/lib/ai/auto-setup-prompt';
 
 /** 부하 계산에 필요한 기간. 4주 만성 부하에 여유를 둔다. */
 export const LOOKBACK_DAYS = 45;
@@ -200,6 +202,52 @@ export async function exerciseSessionsAgo(
     ago.set(l.exerciseId, order.get(toDateKey(l.date))!);
   }
   return ago;
+}
+
+/** AI 맞춤이 읽는 최근 운동 기간(일) */
+const RECENT_TRAINING_DAYS = 7;
+
+/**
+ * 최근 며칠 운동한 날 — 그날의 테마·목표와 체감 강도·느낀점.
+ *
+ * AI 맞춤이 읽는다(lib/ai/auto-setup-prompt.ts). 부하 지수는 '얼마나'만 말하고,
+ * "어제 하체를 했고 9/10으로 힘들었고 무릎이 불편했다"는 여기서만 보인다.
+ *
+ * 운동을 마치며 강도를 남긴 날만 센다 — 일정만 만들고 안 한 날은 뺀다. 오늘은
+ * 넣지 않는다. 오늘 일정을 만드는 중이다.
+ */
+export async function recentTrainingDays(
+  userId: string,
+  today: Date
+): Promise<RecentTrainingDay[]> {
+  const todayKey = toDateKey(today);
+  const range = {
+    gte: new Date(`${shiftDateKey(todayKey, -RECENT_TRAINING_DAYS)}T00:00:00.000Z`),
+    lt: new Date(`${todayKey}T00:00:00.000Z`),
+  };
+  const [notes, setups] = await Promise.all([
+    prisma.dailyTrainingNote.findMany({
+      where: { userId, date: range },
+      select: { date: true, intensity: true, memo: true },
+      orderBy: { date: 'desc' },
+    }),
+    prisma.dailyTrainingSetup.findMany({
+      where: { userId, date: range },
+      select: { date: true, plan: true },
+    }),
+  ]);
+  const planOf = new Map(setups.map((s) => [toDateKey(s.date), readDailyPlan(s.plan)]));
+  return notes.map((n) => {
+    const key = toDateKey(n.date);
+    const saved = planOf.get(key);
+    return {
+      date: key,
+      label: saved?.theme.label ?? null,
+      goal: saved?.goal ?? null,
+      intensity: n.intensity,
+      memo: n.memo,
+    };
+  });
 }
 
 /** 하체·상체를 번갈아 돌리기 위해 살펴보는 기간(일) */

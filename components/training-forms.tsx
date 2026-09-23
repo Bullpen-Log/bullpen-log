@@ -1,8 +1,9 @@
 'use client';
 
 import { useState } from 'react';
+import Link from 'next/link';
 import { useFormStatus } from 'react-dom';
-import { RefreshCw } from 'lucide-react';
+import { RefreshCw, Sparkles } from 'lucide-react';
 import { CheckboxGroup, RadioGroup } from '@/components/choice-inputs';
 import { SELECTABLE_EQUIPMENT } from '@/lib/report/equipment';
 import {
@@ -75,8 +76,10 @@ export function PlanForm({
   goal,
   focus,
   generated,
+  checkedIn,
   returnTo,
   clash = null,
+  startMode = 'auto',
 }: {
   /** 가지고 있는 장비 (맨몸 포함) */
   owned: string[];
@@ -92,6 +95,13 @@ export function PlanForm({
   focus: string | null;
   /** 오늘 일정을 이미 만들었는가 */
   generated: boolean;
+  /**
+   * 오늘 체크인을 남겼는가. 안 남겼으면 폼 대신 '체크인 먼저'를 낸다.
+   *
+   * 일정은 오늘 몸 상태를 보고 짠다. 체크인이 없으면 통증이 있어도 멈추지
+   * 못하므로 만들지 않는다 (2026-09-23 사용자분과 정함). 서버도 같은 것을 본다.
+   */
+  checkedIn: boolean;
   /** 만들고 나서 돌아올 화면. 홈과 트레이닝 두 곳에서 쓴다. */
   returnTo: '/today' | '/training';
   /**
@@ -102,12 +112,26 @@ export function PlanForm({
    * 이 값이 들어오지 않는다.)
    */
   clash?: { kind: string; reason: string; fallbackLabel: string } | null;
+  /**
+   * 처음 펼칠 방식. 오늘 직접 골라 만들었으면 다시 만들 때도 그쪽으로 연다.
+   * 아직 안 만든 날은 AI 맞춤이 먼저다 — 장비만 고르면 되는 간편한 쪽이다.
+   */
+  startMode?: 'auto' | 'manual';
 }) {
   /*
    * 이미 만든 날에는 접어 둔다. 다 만들어 놓고도 만들기 폼이 계속 펼쳐져 있으면
    * 무엇을 더 해야 하는 화면처럼 보인다.
    */
   const [open, setOpen] = useState(!generated);
+
+  /*
+   * AI 맞춤 / 직접 고르기.
+   *
+   * AI 맞춤은 장비만 고른다. 목표·시간·부위는 앱이 오늘 체크인·투구·운동
+   * 기록을 보고 정한다(app/actions/training-setup.ts 의 decideAutoSetup).
+   * 직접 고르기는 예전 그대로다 — 둘 다 남겨 두기로 했다(사용자분과 정함).
+   */
+  const [mode, setMode] = useState<'auto' | 'manual'>(startMode);
 
   /*
    * 목표에 따라 고를 수 있는 시간이 다르다.
@@ -164,127 +188,233 @@ export function PlanForm({
     );
   }
 
+  if (!checkedIn) {
+    return (
+      <div className="space-y-2 rounded-xl border border-line bg-surface-2 px-4 py-3">
+        <p className="text-sm font-bold text-ink">오늘 체크인을 먼저 남겨주세요</p>
+        <p className="text-[13px] leading-relaxed text-muted">
+          운동 일정은 오늘 몸 상태를 보고 짭니다. 체크인이 없으면 통증이나 뻐근한 곳을
+          모른 채 짜게 됩니다. 30초면 됩니다.
+        </p>
+        {/*
+          홈에서는 체크인 상자가 같은 화면에 있다. 이 창을 닫으면 바로 보이는
+          자리라 주소 대신 위치를 말한다.
+        */}
+        {returnTo === '/training' ? (
+          <Link
+            href="/today"
+            className="inline-block rounded-xl bg-sky px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-sky-strong"
+          >
+            홈에서 체크인하기
+          </Link>
+        ) : (
+          <p className="text-[13px] font-medium leading-relaxed text-ink">
+            이 창을 닫고 첫 번째 상자 ‘오늘 체크인’에서 남길 수 있습니다.
+          </p>
+        )}
+      </div>
+    );
+  }
+
+  /* 오늘 쓸 수 있는 장비 — 두 방식 모두 사람이 고른다. 앱은 모르는 일이다. */
+  const equipmentField =
+    choices.length > 0 ? (
+      <CheckboxGroup
+        name="availableEquipment"
+        label="오늘 쓸 수 있는 장비"
+        hint="오늘 실제로 쓸 수 있는 것만 켜주세요. 아무것도 안 켜면 맨몸 운동만 나옵니다."
+        options={choices}
+        selected={equipmentSelected}
+      />
+    ) : null;
+
+  const cancel = generated && (
+    <button
+      type="button"
+      onClick={() => setOpen(false)}
+      className="text-xs text-muted transition-colors hover:text-ink"
+    >
+      취소
+    </button>
+  );
+
   return (
     <form action={generateTodayPlan} className="space-y-4">
       <input type="hidden" name="returnTo" value={returnTo} />
+      <input type="hidden" name="mode" value={mode} />
 
-      {clash && (
-        <div className="space-y-2 rounded-xl border border-warn-line bg-warn-bg px-4 py-3">
-          <p className="text-sm font-bold text-warn">
-            {clash.kind} 운동을 하고 싶다고 하셨는데, {clash.reason}.
+      {/*
+        방식 고르기. 폼 안의 단추라 type="button" 으로 둔다 — 안 그러면 누르는
+        순간 일정이 만들어진다.
+      */}
+      <div
+        role="group"
+        aria-label="만드는 방식"
+        className="flex gap-1 rounded-xl border border-line bg-surface p-1"
+      >
+        {(
+          [
+            { key: 'auto', label: 'AI 맞춤' },
+            { key: 'manual', label: '직접 고르기' },
+          ] as const
+        ).map((m) => (
+          <button
+            key={m.key}
+            type="button"
+            aria-pressed={mode === m.key}
+            onClick={() => setMode(m.key)}
+            className={`flex flex-1 items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
+              mode === m.key ? 'bg-sky text-white' : 'text-muted hover:text-ink'
+            }`}
+          >
+            {m.key === 'auto' && <Sparkles className="h-3.5 w-3.5" />}
+            {m.label}
+          </button>
+        ))}
+      </div>
+
+      {mode === 'auto' ? (
+        <>
+          <p className="text-[13px] leading-relaxed text-muted">
+            오늘 체크인 · 최근 투구 · 운동 기록 · 남긴 메모를 보고 AI가 목표와 시간을
+            정합니다. 장비만 골라주세요.
           </p>
-          <p className="text-[13px] leading-relaxed text-warn">
-            그래서 기본은 {clash.fallbackLabel} 위주로 만들어 드립니다. 몸이 괜찮다고
-            느끼시면 원하신 대로 만들어 드릴 수도 있습니다 — 정하는 것은 본인입니다.
-          </p>
-          <label className="flex items-start gap-2.5 text-[13px] font-medium leading-relaxed text-warn">
+
+          {/*
+            체크인에서 고른 운동이 몸 상태와 부딪히는 날.
+
+            AI 맞춤은 몸 상태에 맞춰 가고 이유를 말한다(사용자분과 정함). 경고를
+            넘기는 체크는 여기 두지 않는다 — 그건 직접 고르기에서 한다.
+          */}
+          {clash && (
+            <div className="space-y-1 rounded-xl border border-warn-line bg-warn-bg px-4 py-3">
+              <p className="text-sm font-bold text-warn">
+                {clash.kind} 운동을 하고 싶다고 하셨는데, {clash.reason}.
+              </p>
+              <p className="text-[13px] leading-relaxed text-warn">
+                AI 맞춤은 몸 상태에 맞춰 {clash.fallbackLabel} 위주로 만들고, 그 이유를
+                함께 알려드립니다. 그래도 {clash.kind} 운동을 하고 싶으시면 ‘직접
+                고르기’에서 만들 수 있습니다.
+              </p>
+            </div>
+          )}
+
+          {equipmentField}
+
+          <div className="flex flex-wrap items-center gap-3">
+            <SubmitButton
+              label={generated ? 'AI 맞춤으로 다시 만들기' : 'AI 맞춤으로 만들기'}
+              busy="AI가 오늘 몸 상태를 보고 있습니다…"
+            />
+            {cancel}
+          </div>
+        </>
+      ) : (
+        <>
+          {clash && (
+            <div className="space-y-2 rounded-xl border border-warn-line bg-warn-bg px-4 py-3">
+              <p className="text-sm font-bold text-warn">
+                {clash.kind} 운동을 하고 싶다고 하셨는데, {clash.reason}.
+              </p>
+              <p className="text-[13px] leading-relaxed text-warn">
+                그래서 기본은 {clash.fallbackLabel} 위주로 만들어 드립니다. 몸이
+                괜찮다고 느끼시면 원하신 대로 만들어 드릴 수도 있습니다 — 정하는 것은
+                본인입니다.
+              </p>
+              <label className="flex items-start gap-2.5 text-[13px] font-medium leading-relaxed text-warn">
+                <input
+                  type="checkbox"
+                  name="overrideCondition"
+                  value="on"
+                  className="mt-0.5 h-4 w-4 shrink-0 rounded border-warn-line accent-sky"
+                />
+                알겠습니다. 그래도 {clash.kind} 운동으로 만들어주세요
+              </label>
+            </div>
+          )}
+
+          {/*
+            목표를 먼저 고른다. 시간 선택지가 목표에 따라 달라지므로 순서가 이쪽이다.
+
+            설정에 두었을 때는 한 번 정한 것이 계속 따라와 매일 같은 쪽으로만
+            쏠렸다. 지난번에 고른 것을 미리 짚어 두되, 만들 때마다 눈에 보이므로
+            바꾸고 싶은 날에는 바로 바꿀 수 있다.
+          */}
+          <RadioGroup
+            key="goal"
+            name="trainingGoal"
+            label="오늘 훈련 목표"
+            hint="같은 시간을 어디에 더 쓸지 정합니다. 몸 상태가 안 좋은 날에는 목표와 상관없이 회복이 먼저입니다."
+            options={TRAINING_GOALS.map((g) => ({ name: g.name, desc: g.desc }))}
+            selected={pickedGoal}
+            onChange={setPickedGoal}
+          />
+
+          {/*
+            부위 좁히기 — 고를 수 있는 목표에서만 낸다.
+
+            기본값이 '앱이 정함'이다. 상체·하체를 번갈아 도는 규칙이 대개 옳고,
+            그것을 끄는 것은 "오늘은 당기기만"처럼 뜻이 분명할 때뿐이다. 기본을
+            비워 두면 지금까지 쓰던 사람은 아무것도 달라지지 않는다.
+          */}
+          {focusChoices.length > 0 && (
+            <RadioGroup
+              /* 목표가 바뀌면 선택지가 통째로 달라지므로 다시 그린다 */
+              key={`focus-${pickedGoal}`}
+              name="trainingFocus"
+              label="오늘 할 부위"
+              hint="안 고르면 최근에 한 것을 보고 상체·하체를 번갈아 골라드립니다. 몸 상태가 안 좋은 날에는 부위와 상관없이 회복이 먼저입니다."
+              options={focusChoices.map((f) => ({
+                name: f.label,
+                value: f.key,
+                desc: f.desc,
+              }))}
+              selected={pickedFocus}
+              compact
+            />
+          )}
+
+          <RadioGroup
+            /* 목표가 바뀌면 고른 값도 새로 짚어야 하므로 통째로 다시 그린다 */
+            key={`minutes-${pickedGoal}`}
+            name="minutes"
+            label="오늘 운동 시간"
+            hint={
+              pickedGoal === PREVENTION_GOAL
+                ? '몸을 지키는 날이라 짧게 끝낼 수 있습니다. 두 시간은 이 날의 뜻이 아닙니다.'
+                : undefined
+            }
+            options={minuteChoices.map((m) => ({
+              name: `${m}분`,
+              desc:
+                m === nearestMinutesChoice(defaultMinutes, pickedGoal)
+                  ? '기본값'
+                  : undefined,
+            }))}
+            selected={`${pickedMinutes}분`}
+            compact
+          />
+
+          {equipmentField}
+
+          <label className="flex items-center gap-2.5 text-xs text-muted">
             <input
               type="checkbox"
-              name="overrideCondition"
+              name="saveDefaults"
               value="on"
-              className="mt-0.5 h-4 w-4 shrink-0 rounded border-warn-line accent-sky"
+              className="h-4 w-4 rounded border-line-strong accent-sky"
             />
-            알겠습니다. 그래도 {clash.kind} 운동으로 만들어주세요
+            이 시간과 목표를 앞으로도 기본으로 쓰기
           </label>
-        </div>
+
+          <div className="flex flex-wrap items-center gap-3">
+            <SubmitButton
+              label={generated ? '이 조건으로 다시 만들기' : '오늘 운동 일정 만들기'}
+            />
+            {cancel}
+          </div>
+        </>
       )}
-
-      {/*
-        목표를 먼저 고른다. 시간 선택지가 목표에 따라 달라지므로 순서가 이쪽이다.
-
-        설정에 두었을 때는 한 번 정한 것이 계속 따라와 매일 같은 쪽으로만
-        쏠렸다. 지난번에 고른 것을 미리 짚어 두되, 만들 때마다 눈에 보이므로
-        바꾸고 싶은 날에는 바로 바꿀 수 있다.
-      */}
-      <RadioGroup
-        key="goal"
-        name="trainingGoal"
-        label="오늘 훈련 목표"
-        hint="같은 시간을 어디에 더 쓸지 정합니다. 몸 상태가 안 좋은 날에는 목표와 상관없이 회복이 먼저입니다."
-        options={TRAINING_GOALS.map((g) => ({ name: g.name, desc: g.desc }))}
-        selected={pickedGoal}
-        onChange={setPickedGoal}
-      />
-
-      {/*
-        부위 좁히기 — 고를 수 있는 목표에서만 낸다.
-
-        기본값이 '앱이 정함'이다. 상체·하체를 번갈아 도는 규칙이 대개 옳고,
-        그것을 끄는 것은 "오늘은 당기기만"처럼 뜻이 분명할 때뿐이다. 기본을
-        비워 두면 지금까지 쓰던 사람은 아무것도 달라지지 않는다.
-      */}
-      {focusChoices.length > 0 && (
-        <RadioGroup
-          /* 목표가 바뀌면 선택지가 통째로 달라지므로 다시 그린다 */
-          key={`focus-${pickedGoal}`}
-          name="trainingFocus"
-          label="오늘 할 부위"
-          hint="안 고르면 최근에 한 것을 보고 상체·하체를 번갈아 골라드립니다. 몸 상태가 안 좋은 날에는 부위와 상관없이 회복이 먼저입니다."
-          options={focusChoices.map((f) => ({
-            name: f.label,
-            value: f.key,
-            desc: f.desc,
-          }))}
-          selected={pickedFocus}
-          compact
-        />
-      )}
-
-      <RadioGroup
-        /* 목표가 바뀌면 고른 값도 새로 짚어야 하므로 통째로 다시 그린다 */
-        key={`minutes-${pickedGoal}`}
-        name="minutes"
-        label="오늘 운동 시간"
-        hint={
-          pickedGoal === PREVENTION_GOAL
-            ? '몸을 지키는 날이라 짧게 끝낼 수 있습니다. 두 시간은 이 날의 뜻이 아닙니다.'
-            : undefined
-        }
-        options={minuteChoices.map((m) => ({
-          name: `${m}분`,
-          desc:
-            m === nearestMinutesChoice(defaultMinutes, pickedGoal)
-              ? '기본값'
-              : undefined,
-        }))}
-        selected={`${pickedMinutes}분`}
-        compact
-      />
-
-      {choices.length > 0 && (
-        <CheckboxGroup
-          name="availableEquipment"
-          label="오늘 쓸 수 있는 장비"
-          hint="오늘 실제로 쓸 수 있는 것만 켜주세요. 아무것도 안 켜면 맨몸 운동만 나옵니다."
-          options={choices}
-          selected={equipmentSelected}
-        />
-      )}
-
-      <label className="flex items-center gap-2.5 text-xs text-muted">
-        <input
-          type="checkbox"
-          name="saveDefaults"
-          value="on"
-          className="h-4 w-4 rounded border-line-strong accent-sky"
-        />
-        이 시간과 목표를 앞으로도 기본으로 쓰기
-      </label>
-
-      <div className="flex flex-wrap items-center gap-3">
-        <SubmitButton
-          label={generated ? '이 조건으로 다시 만들기' : '오늘 운동 일정 만들기'}
-        />
-        {generated && (
-          <button
-            type="button"
-            onClick={() => setOpen(false)}
-            className="text-xs text-muted transition-colors hover:text-ink"
-          >
-            취소
-          </button>
-        )}
-      </div>
     </form>
   );
 }

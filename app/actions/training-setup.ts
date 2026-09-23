@@ -14,19 +14,37 @@ import {
   readTrainingGoal,
   readTrainingProfile,
 } from '@/lib/report/personalize';
-import { buildDailyPlan, isHalted } from '@/lib/report/daily-plan';
+import {
+  buildDailyPlan,
+  isHalted,
+  readDailyPlan,
+  type DailyPlan,
+} from '@/lib/report/daily-plan';
 import { visibleExercises } from '@/lib/library-cache';
 import {
   gatherFactsAndPlan,
   lastStrengthDates,
   exerciseSessionsAgo,
   recentExerciseIds,
+  recentTrainingDays,
 } from '@/lib/report/gather';
 import {
   DEFAULT_WORKOUT_MINUTES,
   minutesChoicesFor,
   nearestMinutesChoice,
 } from '@/lib/report/theme';
+import {
+  AI_CALLS_PER_DAY,
+  canReuse,
+  checkinStamp,
+  decideAutoFence,
+  type AutoCaution,
+  type AutoRecord,
+} from '@/lib/report/auto-setup';
+import { askAutoSetup } from '@/lib/ai/auto-setup';
+import { trainingLoad } from '@/lib/report/training-acwr';
+import type { ReportFacts } from '@/lib/report/facts';
+import type { PitchPlan } from '@/lib/report/plan';
 
 /**
  * 트레이닝 화면의 설정과 일정 만들기.
@@ -160,6 +178,15 @@ export async function generateTodayPlan(formData: FormData) {
   const availableEquipment = [ALWAYS_OWNED, ...chosen];
 
   /*
+   * AI 맞춤인가, 직접 고르기인가.
+   *
+   * AI 맞춤이면 아래의 목표·부위·시간은 폼에서 읽지 않고 앱이 정한다
+   * (decideAutoSetup). 장비는 두 방식 모두 사람이 고른다 — 오늘 무엇을 쓸 수
+   * 있는지는 앱이 알 수 없다.
+   */
+  const auto = formData.get('mode') === 'auto';
+
+  /*
    * 오늘의 훈련 목표. 목록에 없는 이름이 오면 버리고 지난번 값으로 돌아간다 —
    * 폼은 누구나 고쳐 보낼 수 있고, 목록 밖 이름이 오면 어떤 배분 규칙에도
    * 걸리지 않는 상태가 된다.
@@ -193,7 +220,17 @@ export async function generateTodayPlan(formData: FormData) {
 
   const today = new Date();
   const { facts, plan } = await gatherFactsAndPlan(user, today);
-  const [library, recentIds, sessionsAgo, strengthDates] = await Promise.all([
+
+  /*
+   * 오늘 체크인을 남긴 날에만 만든다 (2026-09-23 사용자분과 정함).
+   *
+   * 일정은 오늘 몸 상태를 보고 짠다. 체크인이 없으면 뻐근한 곳도 컨디션도
+   * 모른 채 짜게 되고, 무엇보다 오늘 통증이 있어도 멈추지 못한다. 화면도 폼
+   * 대신 '체크인 먼저'를 내지만, 폼은 누구나 보낼 수 있어 여기서 한 번 더 막는다.
+   */
+  if (!facts.condition.today) redirect(returnPath(formData));
+
+  const [library, recentIds, sessionsAgo, strengthDates, before] = await Promise.all([
     /* 누가 보든 같은 목록이라 캐시에서 꺼낸다 (lib/library-cache.ts) */
     visibleExercises(),
     recentExerciseIds(user.id, today),
@@ -203,6 +240,11 @@ export async function generateTodayPlan(formData: FormData) {
      */
     exerciseSessionsAgo(user.id, today),
     lastStrengthDates(user.id, today),
+    /* 지금 저장돼 있는 오늘 일정 — 순서 씨앗과 AI 맞춤의 '다시 만들기'에 쓴다 */
+    prisma.dailyTrainingSetup.findUnique({
+      where: { userId_date: { userId: user.id, date: dateOnly(today) } },
+      select: { plan: true },
+    }),
   ]);
 
   /*
@@ -215,12 +257,48 @@ export async function generateTodayPlan(formData: FormData) {
    * 다른 것이 나오고, 만들고 나면 그것이 저장되므로 다음에 또 눌러도 계속
    * 달라진다. 아직 아무것도 없으면 날짜만으로 간다.
    */
-  const before = await prisma.dailyTrainingSetup.findUnique({
-    where: { userId_date: { userId: user.id, date: dateOnly(today) } },
-    select: { plan: true },
-  });
   const previousIds = readPlanExerciseIds(before?.plan);
   const rotationSeed = [toDateKey(today), ...previousIds].join('|');
+  const previous = readDailyPlan(before?.plan);
+
+  /*
+   * AI 맞춤이면 여기서 목표·시간·부위를 정한다.
+   *
+   * 통증인 날은 묻지 않는다. 어차피 일정을 만들지 않고(buildDailyPlan 이
+   * 멈춘다), 묻는 순간 AI 비용만 나간다.
+   */
+  const made =
+    auto && !plan.halted
+      ? await decideAutoSetup({
+          user,
+          facts,
+          plan,
+          today,
+          strengthDates,
+          previous,
+          titles: library.map((ex) => ex.title),
+        })
+      : null;
+  const choice: {
+    goal: string | null;
+    focus: string | null;
+    minutes: number;
+    caution: AutoCaution[];
+  } = made
+    ? {
+        goal: made.record.goal,
+        focus: made.record.focus,
+        minutes: made.record.minutes,
+        caution: made.record.caution,
+      }
+    : {
+        goal: trainingGoal,
+        focus: trainingFocus,
+        minutes: requestedMinutes,
+        caution: [],
+      };
+  /* 방식을 오가도 하루 횟수는 이어서 센다 (DailyPlan.aiCalls) */
+  const aiCalls = (previous?.aiCalls ?? 0) + (made?.called ? 1 : 0);
 
   const built = buildDailyPlan({
     user,
@@ -229,9 +307,10 @@ export async function generateTodayPlan(formData: FormData) {
     library,
     /* 폼을 거쳤으면 최소한 맨몸은 들어 있다. 빈 목록이 될 일이 없다. */
     availableToday: availableEquipment,
-    requestedMinutes,
-    trainingGoal,
-    trainingFocus,
+    requestedMinutes: choice.minutes,
+    trainingGoal: choice.goal,
+    trainingFocus: choice.focus,
+    caution: choice.caution,
     recentIds,
     sessionsAgo,
     rotationSeed,
@@ -242,8 +321,11 @@ export async function generateTodayPlan(formData: FormData) {
      *
      * 오늘 하루만의 결정이라 저장하지 않는다. 내일 또 같은 상황이면 경고를
      * 다시 보여주고 다시 고르게 하는 편이 맞다.
+     *
+     * AI 맞춤에는 없다. 그쪽은 몸 상태에 맞춰 가고 이유를 말한다 — 그래도
+     * 원하는 대로 하고 싶으면 직접 고르기에서 넘기면 된다.
      */
-    override: formData.get('overrideCondition') === 'on',
+    override: !auto && formData.get('overrideCondition') === 'on',
   });
 
   const date = dateOnly(today);
@@ -256,9 +338,12 @@ export async function generateTodayPlan(formData: FormData) {
       create: { userId: user.id, date, availableEquipment },
     });
   } else {
+    const withAuto: DailyPlan = made
+      ? { ...built, auto: made.record, aiCalls }
+      : { ...built, aiCalls };
     const saved = {
       availableEquipment,
-      plan: built as unknown as Prisma.InputJsonValue,
+      plan: withAuto as unknown as Prisma.InputJsonValue,
       generatedAt: new Date(),
     };
     await prisma.dailyTrainingSetup.upsert({
@@ -274,7 +359,7 @@ export async function generateTodayPlan(formData: FormData) {
    * 굳히지 않아도 목표는 다음에 열 때 미리 짚어져 있다 — 아래에서 늘 저장하기
    * 때문이다. 여기 체크는 '시간'을 굳히는 뜻이다.
    */
-  if (formData.get('saveDefaults') === 'on') {
+  if (!auto && formData.get('saveDefaults') === 'on') {
     await prisma.user.update({
       where: { id: user.id },
       data: { dailyWorkoutMinutes: requestedMinutes },
@@ -286,7 +371,14 @@ export async function generateTodayPlan(formData: FormData) {
    * 것이 짚여 있어야 매번 처음부터 고르지 않는다. 저장해 둔 값은 기본값일
    * 뿐이고, 그날 고른 것이 일정 안에 함께 저장된다.
    */
-  if (trainingGoal !== user.trainingGoal || trainingFocus !== user.trainingFocus) {
+  /*
+   * AI 맞춤이 정한 목표는 남기지 않는다 (사용자분과 정함). 고른 적 없는 목표가
+   * 다음 '직접 고르기'에 짚여 있으면 헷갈린다.
+   */
+  if (
+    !auto &&
+    (trainingGoal !== user.trainingGoal || trainingFocus !== user.trainingFocus)
+  ) {
     await prisma.user.update({
       where: { id: user.id },
       data: { trainingGoal, trainingFocus },
@@ -297,4 +389,113 @@ export async function generateTodayPlan(formData: FormData) {
   revalidatePath('/today');
   revalidatePath('/training');
   redirect(back);
+}
+
+/**
+ * AI 맞춤 — 오늘 방향(목표·시간·부위)을 정한다.
+ *
+ * 규칙이 먼저 울타리를 치고(lib/report/auto-setup.ts), 그 안에서 AI가 고른다
+ * (lib/ai/auto-setup.ts). AI가 없거나, 늦거나, 틀리면 규칙 초안으로 간다 —
+ * 일정은 AI가 없어도 늘 나온다.
+ */
+async function decideAutoSetup({
+  user,
+  facts,
+  plan,
+  today,
+  strengthDates,
+  previous,
+  titles,
+}: {
+  user: {
+    id: string;
+    baselineWorkoutFreq: string | null;
+    dailyWorkoutMinutes: number | null;
+  };
+  facts: ReportFacts;
+  plan: PitchPlan;
+  today: Date;
+  strengthDates: { lower: string | null; upper: string | null };
+  previous: DailyPlan | null;
+  titles: string[];
+}): Promise<{ record: AutoRecord; called: boolean }> {
+  const [workout, recentDays] = await Promise.all([
+    trainingLoad(user, today),
+    recentTrainingDays(user.id, today),
+  ]);
+  const fence = decideAutoFence({
+    facts,
+    plan,
+    workout,
+    defaultMinutes: user.dailyWorkoutMinutes ?? DEFAULT_WORKOUT_MINUTES,
+    lastLowerKey: strengthDates.lower,
+    lastUpperKey: strengthDates.upper,
+  });
+  /* 체크인은 generateTodayPlan 이 먼저 확인했다 — 없으면 여기까지 오지 않는다 */
+  const stamp = facts.condition.today ? checkinStamp(facts.condition.today) : '';
+  const shared = { rules: fence.rules, checkin: stamp };
+
+  /*
+   * '다시 만들기' — 체크인이 그대로면 오늘 방향은 두고 종목만 새로 뽑는다.
+   * 순서 씨앗이 바뀌므로 목록은 달라지고, AI 비용은 안 든다.
+   */
+  const prevAuto = previous?.auto;
+  if (canReuse(prevAuto, fence, stamp)) {
+    return { record: { ...prevAuto, ...shared }, called: false };
+  }
+
+  const byRules = (fallback: string, detail?: string): AutoRecord => ({
+    ...fence.draft,
+    by: 'rules',
+    fallback,
+    ...(detail ? { fallbackDetail: detail } : {}),
+    ...shared,
+  });
+
+  if ((previous?.aiCalls ?? 0) >= AI_CALLS_PER_DAY) {
+    return {
+      record: byRules(
+        `오늘 AI 판단을 ${AI_CALLS_PER_DAY}번 받아서, 이번에는 규칙대로 정했습니다.`
+      ),
+      called: false,
+    };
+  }
+
+  const asked = await askAutoSetup(
+    {
+      facts,
+      plan,
+      workout,
+      fence,
+      recentDays,
+      lastLowerKey: strengthDates.lower,
+      lastUpperKey: strengthDates.upper,
+    },
+    titles
+  );
+
+  /* 불렀다면 성공이든 실패든 쓴 토큰을 남긴다 — 비용을 따라가려고 */
+  const cost = {
+    ...(asked.model ? { model: asked.model } : {}),
+    ...(asked.usage
+      ? { inputTokens: asked.usage.input, outputTokens: asked.usage.output }
+      : {}),
+    ...(asked.ms != null ? { ms: asked.ms } : {}),
+  };
+
+  if (!asked.ok) {
+    return {
+      record: {
+        ...byRules(
+          asked.called
+            ? 'AI 답을 받지 못해 규칙대로 정했습니다.'
+            : 'AI가 아직 연결되지 않아 규칙대로 정했습니다.',
+          asked.reason
+        ),
+        ...cost,
+      },
+      called: asked.called,
+    };
+  }
+  return { record: { ...asked.decision, by: 'ai', ...shared, ...cost }, called: true };
 }

@@ -97,10 +97,16 @@ export function selectCandidates<T extends ExerciseLike>({
   facts,
   plan,
   library,
+  caution = [],
 }: {
   facts: ReportFacts;
   plan: PitchPlan;
   library: T[];
+  /**
+   * 메모에서 찾은 조심할 부위 (AI 맞춤 — lib/report/auto-setup.ts).
+   * 체크인의 '뻐근'과 똑같이 다룬다. 조심을 더하기만 하고 빼지는 못한다.
+   */
+  caution?: { part: CheckinPartKey; why: string }[];
 }): PrescriptionCandidates<T> {
   // 1) 통증이면 운동 처방을 아예 하지 않는다. 투구 계획과 같은 기준이다.
   if (plan.halted) {
@@ -216,6 +222,26 @@ export function selectCandidates<T extends ExerciseLike>({
     basis.push(`${label} 뻐근함 → ${parts.join('·')} 부위 고강도 제외`);
     drop(
       `${label} 뻐근함`,
+      (ex) =>
+        intensityLevel(ex.intensity) <= INTENSITY_CAP.MODERATE ||
+        !ex.bodyParts.some((p) => parts.includes(p))
+    );
+  }
+
+  /*
+   * 5-1) 메모에서 찾은 조심할 부위도 같은 방식으로 뺀다.
+   *
+   * "스쿼트 때 무릎이 불편했다"고 적어 두고 체크인은 '정상'으로 넘기는 일이
+   * 흔하다. 메모를 읽는 것은 AI지만, 무엇을 빼는지는 여기 규칙이 정한다.
+   * 체크인에서 이미 뻐근이라고 한 부위는 위에서 걸렀으므로 건너뛴다.
+   */
+  for (const { part, why } of caution) {
+    if (today?.[part] === '뻐근') continue;
+    const label = CHECKIN_PARTS.find((p) => p.key === part)?.label ?? part;
+    const parts: readonly string[] = RELATED_PARTS[part];
+    basis.push(`메모에서 ${label} 불편(${why}) → ${parts.join('·')} 부위 고강도 제외`);
+    drop(
+      `메모 속 ${label} 불편`,
       (ex) =>
         intensityLevel(ex.intensity) <= INTENSITY_CAP.MODERATE ||
         !ex.bodyParts.some((p) => parts.includes(p))
