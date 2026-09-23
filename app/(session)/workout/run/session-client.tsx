@@ -190,6 +190,18 @@ export function SessionClient({
   const [list, setList] = useState<RunExercise[]>(exercises);
   const [at, setAt] = useState(0);
   const [sheet, setSheet] = useState(false);
+  /*
+   * 숫자판은 누를 때만 올린다.
+   *
+   * 처음에는 늘 펴 두었는데, 화면 아래 절반을 자판이 차지해 정작 보아야 할
+   * 것(방금 남긴 세트, 쉰 시간)이 밀려났다. 한 세트에 숫자를 넣는 것은 한
+   * 번뿐이고 나머지 시간에는 보기만 한다.
+   *
+   * 폰 기본 키보드를 쓰지 않는 이유는, 열렸을 때 오히려 더 많이 가리고(화면
+   * 40~50%) iOS 에서 키보드가 올라온 채로 아래 단추를 누르면 첫 번째 탭이
+   * 키보드 닫기로 먹히는 일이 있어서다.
+   */
+  const [pad, setPad] = useState(false);
   const [listError, setListError] = useState<string | null>(null);
   const [weight, setWeight] = useState('');
   const [count, setCount] = useState('');
@@ -236,6 +248,7 @@ export function SessionClient({
     setWeight('');
     setCount('');
     setField(from[i].needsWeight ? 'weight' : 'count');
+    setPad(false);
     setError(null);
     topRef.current?.scrollTo({ top: 0 });
   };
@@ -305,6 +318,8 @@ export function SessionClient({
        */
       setCount('');
       setField('count');
+      /* 남기고 나면 접는다 — 쉬는 동안에는 시계와 기록이 보여야 한다 */
+      setPad(false);
     });
   };
 
@@ -323,8 +338,15 @@ export function SessionClient({
     setError(null);
   };
 
-  const bump = (delta: number) => {
-    if (field === 'weight') {
+  /*
+   * 어느 칸을 움직일지 인자로 받는다.
+   *
+   * 예전에는 field 상태를 읽었다. 그런데 ± 를 누를 때 setField 로 칸을 먼저
+   * 고르고 곧바로 이것을 불렀는데, setField 는 바로 반영되지 않아 여기서는
+   * 아직 옛 칸이 보였다. 무게 + 를 눌렀더니 횟수가 올라갔다.
+   */
+  const bump = (which: 'weight' | 'count', delta: number) => {
+    if (which === 'weight') {
       const next = Math.max(0, (Number(weight) || 0) + delta * WEIGHT_STEP);
       setWeight(next === 0 ? '' : String(Number(next.toFixed(1))));
     } else {
@@ -337,6 +359,12 @@ export function SessionClient({
 
   const countLabel = ex.isHold ? '초' : '회';
   const active = field === 'weight' ? weight : count;
+
+  /** 숫자를 누르면 그 칸을 고르고 자판을 연다 */
+  const openPad = (which: 'weight' | 'count') => {
+    setField(which);
+    setPad(true);
+  };
 
   return (
     <>
@@ -508,71 +536,84 @@ export function SessionClient({
           덤벨을 들고 하거나 조끼를 입고 하는 일이 흔하고, 그때 적을 자리가
           아예 없었다. 꼭 적어야 하는 것은 바벨·덤벨뿐이고 나머지는 비워
           두어도 된다.
-        */}
-        <div className="flex gap-2">
-          <button
-            type="button"
-            onClick={() => setField('weight')}
-            className={`flex-1 rounded-xl border px-3 py-2 text-left transition-colors ${
-              field === 'weight'
-                ? 'border-sky bg-sky/5'
-                : 'border-line-strong bg-surface-2'
-            }`}
-          >
-            <span className="block text-[10px] text-muted">
-              무게{!ex.needsWeight && ' (없으면 비워두세요)'}
-            </span>
-            <span className="block text-lg font-semibold tabular-nums text-ink">
-              {weight === '' ? '—' : weight}
-              <span className="ml-1 text-xs font-normal text-muted">kg</span>
-            </span>
-          </button>
-          <button
-            type="button"
-            onClick={() => setField('count')}
-            className={`flex-1 rounded-xl border px-3 py-2 text-left transition-colors ${
-              field === 'count'
-                ? 'border-sky bg-sky/5'
-                : 'border-line-strong bg-surface-2'
-            }`}
-          >
-            <span className="block text-[10px] text-muted">
-              {ex.isHold ? '버틴 시간' : '횟수'}
-            </span>
-            <span className="block text-lg font-semibold tabular-nums text-ink">
-              {count === '' ? '—' : count}
-              <span className="ml-1 text-xs font-normal text-muted">{countLabel}</span>
-            </span>
-          </button>
-        </div>
 
-        <div className="flex items-center gap-1.5">
-          <button
-            type="button"
-            onClick={() => bump(-1)}
-            aria-label="줄이기"
-            className="h-11 w-14 shrink-0 rounded-xl border border-line-strong text-lg text-ink transition-colors active:bg-surface-2 motion-safe:active:scale-95"
-          >
-            −
-          </button>
-          <div className="flex-1">
+          ± 는 늘 보인다. 지난 세트에서 2.5kg 만 올리는 것처럼 흔한 경우는
+          자판을 열 것도 없다.
+        */}
+        {[
+          {
+            key: 'weight' as const,
+            label: `무게${!ex.needsWeight ? ' (없으면 비워두세요)' : ''}`,
+            value: weight,
+            unit: 'kg',
+          },
+          {
+            key: 'count' as const,
+            label: ex.isHold ? '버틴 시간' : '횟수',
+            value: count,
+            unit: countLabel,
+          },
+        ].map((f) => (
+          <div key={f.key} className="flex items-center gap-1.5">
+            <button
+              type="button"
+              onClick={() => {
+                setField(f.key);
+                bump(f.key, -1);
+              }}
+              aria-label={`${f.label} 줄이기`}
+              className="h-14 w-14 shrink-0 rounded-xl border border-line-strong text-xl text-ink transition-colors active:bg-surface-2 motion-safe:active:scale-95"
+            >
+              −
+            </button>
+            <button
+              type="button"
+              onClick={() => openPad(f.key)}
+              className={`flex h-14 flex-1 items-center justify-between rounded-xl border px-3 transition-colors ${
+                pad && field === f.key
+                  ? 'border-sky bg-sky/5'
+                  : 'border-line-strong bg-surface-2'
+              }`}
+            >
+              <span className="text-[11px] text-muted">{f.label}</span>
+              <span className="text-xl font-semibold tabular-nums text-ink">
+                {f.value === '' ? '—' : f.value}
+                <span className="ml-1 text-xs font-normal text-muted">{f.unit}</span>
+              </span>
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setField(f.key);
+                bump(f.key, 1);
+              }}
+              aria-label={`${f.label} 늘리기`}
+              className="h-14 w-14 shrink-0 rounded-xl border border-line-strong text-xl text-ink transition-colors active:bg-surface-2 motion-safe:active:scale-95"
+            >
+              +
+            </button>
+          </div>
+        ))}
+
+        {/* 자판은 숫자를 누를 때만. 접으면 그만큼 위쪽이 넓어진다. */}
+        {pad && (
+          <div className="space-y-1.5 rounded-xl bg-surface-2 p-2">
             <NumberPad
               value={active}
               onChange={field === 'weight' ? setWeight : setCount}
               allowDecimal={field === 'weight'}
             />
+            <button
+              type="button"
+              onClick={() => setPad(false)}
+              className="w-full rounded-lg py-1.5 text-[11px] font-semibold text-muted transition-colors active:text-ink"
+            >
+              자판 접기
+            </button>
           </div>
-          <button
-            type="button"
-            onClick={() => bump(1)}
-            aria-label="늘리기"
-            className="h-11 w-14 shrink-0 rounded-xl border border-line-strong text-lg text-ink transition-colors active:bg-surface-2 motion-safe:active:scale-95"
-          >
-            +
-          </button>
-        </div>
+        )}
 
-        {ex.last && (
+        {ex.last && !pad && (
           <button
             type="button"
             onClick={fillLast}
@@ -592,26 +633,29 @@ export function SessionClient({
           {saving ? '남기는 중' : `세트 완료 (${mine.length + 1}세트째)`}
         </button>
 
-        <div className="flex gap-2">
-          <button
-            type="button"
-            onClick={() => goTo(at - 1)}
-            disabled={at === 0}
-            className="flex flex-1 items-center justify-center gap-1 rounded-xl border border-line-strong py-2.5 text-xs font-semibold text-ink transition-colors disabled:opacity-30 motion-safe:active:scale-[0.98]"
-          >
-            <ChevronLeft className="h-4 w-4" />
-            이전 운동
-          </button>
-          <button
-            type="button"
-            onClick={() => goTo(at + 1)}
-            disabled={at === list.length - 1}
-            className="flex flex-1 items-center justify-center gap-1 rounded-xl border border-line-strong py-2.5 text-xs font-semibold text-ink transition-colors disabled:opacity-30 motion-safe:active:scale-[0.98]"
-          >
-            다음 운동
-            <ChevronRight className="h-4 w-4" />
-          </button>
-        </div>
+        {/* 자판이 열려 있으면 운동 이동은 감춘다 — 지금 할 일은 숫자 넣기다 */}
+        {!pad && (
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => goTo(at - 1)}
+              disabled={at === 0}
+              className="flex flex-1 items-center justify-center gap-1 rounded-xl border border-line-strong py-2.5 text-xs font-semibold text-ink transition-colors disabled:opacity-30 motion-safe:active:scale-[0.98]"
+            >
+              <ChevronLeft className="h-4 w-4" />
+              이전 운동
+            </button>
+            <button
+              type="button"
+              onClick={() => goTo(at + 1)}
+              disabled={at === list.length - 1}
+              className="flex flex-1 items-center justify-center gap-1 rounded-xl border border-line-strong py-2.5 text-xs font-semibold text-ink transition-colors disabled:opacity-30 motion-safe:active:scale-[0.98]"
+            >
+              다음 운동
+              <ChevronRight className="h-4 w-4" />
+            </button>
+          </div>
+        )}
       </div>
 
       {sheet && (
