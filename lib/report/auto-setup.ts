@@ -13,6 +13,7 @@ import {
   PREVENTION_GOAL,
   decideTheme,
   effectiveMinutes,
+  preventionDay,
   minutesChoicesFor,
   nearestMinutesChoice,
   workoutConflict,
@@ -332,7 +333,11 @@ export function decideAutoFence({
   const draftMinutes = Math.max(...minutes[draftGoal]);
 
   return {
-    day,
+    /*
+     * 부상 방지로 정해진 근력 날은 부상 방지 데이다(preventionDay). AI에게도
+     * 그 이름으로 알려야 "오늘은 하체 위주로" 같은 말을 안 한다.
+     */
+    day: fixedGoal === PREVENTION_GOAL ? preventionDay(day, facts) : day,
     strengthDay,
     fixedGoal,
     goals,

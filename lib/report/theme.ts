@@ -255,6 +255,51 @@ export function workoutConflict({
   return null;
 }
 
+/**
+ * 오늘 던진 날이면 이유 맨 앞에 붙이는 말. 안 던졌으면 빈 문자열.
+ *
+ * 운동을 고를 때 투구량은 실제로 보고 있다 — 부하가 높으면 무게를 다루는
+ * 운동이 후보에서 빠진다. 그런데 화면에 적히는 이유는 '상체 다음은 하체'
+ * 하나뿐이라, 60구를 던지고 온 사람에게 웨이트를 시키는 것처럼 보였다.
+ * 감안했다는 사실이 안 보이면 감안하지 않은 것과 같다.
+ */
+function threwTodayNote(facts: ReportFacts): string {
+  const threwToday =
+    facts.patterns.restDays === 0 && (facts.patterns.lastOutingPitches ?? 0) > 0;
+  return threwToday
+    ? `오늘 ${facts.patterns.lastOutingPitches}구를 던지셨습니다. 그 부담을 빼고 골랐습니다. `
+    : '';
+}
+
+/** 근력 날에 목표를 부상 방지로 잡은 날의 이름 */
+export const PREVENTION_DAY_LABEL = '부상 방지 데이';
+
+/**
+ * 근력 날인데 목표가 부상 방지면, 그날은 부상 방지 데이다.
+ *
+ * 부상 방지는 무게 드는 구간을 통째로 뺀다(GOAL_SHAPES — 코어·보강·암케어만).
+ * 그런데 이름은 번갈아 정한 '하체 스트렝스 데이'가 그대로 남아, 목록에는 하체
+ * 근력 운동이 하나도 없는데 제목만 하체였다. 직접 고르기에서 부상 방지를 골라도
+ * 그랬고, AI 맞춤을 만들면서 드러났다(2026-09-23 — 잠 부족·운동 부하·암케어
+ * 공백이면 AI 맞춤이 부상 방지로 가서 더 자주 보인다).
+ *
+ * 이름과 이유만 바꾸고 key 는 그대로 둔다. 번갈아 가는 차례는 실제로 한 근력
+ * 운동으로 세므로(lib/report/gather.ts 의 lastStrengthDates) 오늘 못 한 쪽이
+ * 다음 근력 날로 그대로 넘어가고, 직접 더한 운동의 자리(slotForTheme)도 지금처럼
+ * 정해진다. 회복날·보조날은 원래 무게를 안 드는 날이라 그대로다.
+ */
+export function preventionDay(theme: SessionTheme, facts: ReportFacts): SessionTheme {
+  if (theme.key !== 'lower' && theme.key !== 'upper') return theme;
+  const part = theme.key === 'lower' ? '하체' : '상체';
+  return {
+    key: theme.key,
+    label: PREVENTION_DAY_LABEL,
+    reason:
+      threwTodayNote(facts) +
+      `목표가 부상 방지라 무게 드는 운동 대신 코어·보강·암케어로 채웠습니다. ${part} 근력은 다음 근력 날로 넘어갑니다.`,
+  };
+}
+
 export function decideTheme({
   facts,
   plan,
@@ -378,19 +423,7 @@ export function decideTheme({
     ? ` ${conflict.reason}만, 그래도 하겠다고 하셔서 그대로 만들었습니다. 무리가 오면 바로 멈추세요.`
     : '';
 
-  /*
-   * 오늘 던진 날이면 그 이야기를 먼저 한다.
-   *
-   * 운동을 고를 때 투구량은 실제로 보고 있다 — 부하가 높으면 무게를 다루는
-   * 운동이 후보에서 빠진다. 그런데 화면에 적히는 이유는 '상체 다음은 하체'
-   * 하나뿐이라, 60구를 던지고 온 사람에게 웨이트를 시키는 것처럼 보였다.
-   * 감안했다는 사실이 안 보이면 감안하지 않은 것과 같다.
-   */
-  const threwToday =
-    facts.patterns.restDays === 0 && (facts.patterns.lastOutingPitches ?? 0) > 0;
-  const todayNote = threwToday
-    ? `오늘 ${facts.patterns.lastOutingPitches}구를 던지셨습니다. 그 부담을 빼고 골랐습니다. `
-    : '';
+  const todayNote = threwTodayNote(facts);
 
   /*
    * 2-1) 오늘 목표에서 부위를 좁혔으면 그대로 간다.

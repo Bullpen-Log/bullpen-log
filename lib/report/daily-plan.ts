@@ -2,10 +2,12 @@ import { equipmentForToday, filterByEquipment } from '@/lib/report/equipment';
 import { filterByLevel, findGoal, validFocus } from '@/lib/report/personalize';
 import { selectCandidates, type ExerciseLike } from '@/lib/report/prescription';
 import {
+  PREVENTION_GOAL,
   decideTheme,
   workoutConflict,
   effectiveMinutes,
   pickForTheme,
+  preventionDay,
   type SlotKey,
   type ThemeKey,
 } from '@/lib/report/theme';
@@ -204,6 +206,12 @@ export function buildDailyPlan<T extends ExerciseLike>({
   });
   const minutes = effectiveMinutes(theme.key, requestedMinutes);
   const goal = findGoal(trainingGoal);
+  /*
+   * 근력 날인데 목표가 부상 방지면 이름과 이유를 목록에 맞춘다 — 무게 드는
+   * 운동이 하나도 없는데 '하체 스트렝스 데이'라고 적혀 있으면 안 된다.
+   */
+  const shownTheme =
+    goal.name === PREVENTION_GOAL ? preventionDay(theme, facts) : theme;
 
   const themed = pickForTheme({
     candidates: picked.candidates,
@@ -222,7 +230,7 @@ export function buildDailyPlan<T extends ExerciseLike>({
 
   return {
     version: 1,
-    theme: { key: theme.key, label: theme.label, reason: theme.reason },
+    theme: { key: shownTheme.key, label: shownTheme.label, reason: shownTheme.reason },
     goal: goal.name,
     focus,
     preferredWorkout,

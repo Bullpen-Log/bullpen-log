@@ -101,7 +101,7 @@ import {
   type AutoAnswer,
   type AutoPromptInput,
 } from '../lib/ai/auto-setup-prompt.ts';
-import { PREVENTION_GOAL } from '../lib/report/theme.ts';
+import { PREVENTION_DAY_LABEL, PREVENTION_GOAL } from '../lib/report/theme.ts';
 
 let passed = 0;
 let failed = 0;
@@ -2516,6 +2516,12 @@ console.log('\n[AI 맞춤] 규칙이 울타리를 치고, 그 밖의 답은 받�
     JSON.stringify(loaded.minutes[PREVENTION_GOAL]) === '[40]',
     JSON.stringify(loaded.minutes)
   );
+  check(
+    '부상 방지로 정해진 근력 날 → AI에게도 부상 방지 데이로 알린다',
+    loaded.day.label === PREVENTION_DAY_LABEL &&
+      plain.day.label !== PREVENTION_DAY_LABEL,
+    `${loaded.day.label} / 평소 ${plain.day.label}`
+  );
   const loadedLong = fenceFor(
     factsWith({}),
     signals({ zone: 'danger', ratio: 1.7 }),
@@ -2716,6 +2722,11 @@ console.log('\n[AI 맞춤] 규칙이 울타리를 치고, 그 밖의 답은 받�
     `${prompt.length}자`
   );
 
+  check(
+    '근력 날에 AI가 부상 방지를 고를 수 있으면 → 그날 이름이 바뀐다고 알려 준다',
+    buildAutoPrompt(input).includes(PREVENTION_DAY_LABEL)
+  );
+
   /*
    * 메모에서 찾은 조심할 부위가 실제로 무거운 운동을 빼는가.
    *
@@ -2775,6 +2786,65 @@ console.log('\n[AI 맞춤] 규칙이 울타리를 치고, 그 밖의 답은 받�
     '메모에서 뺀 까닭이 일정 근거에 남는다',
     !isHalted(withCaution) &&
       withCaution.basis.some((b) => b.startsWith('메모에서 하체 불편'))
+  );
+}
+
+console.log('\n[부상 방지 데이] 무게 드는 운동이 없는 날은 이름도 그렇게');
+{
+  /*
+   * 부상 방지는 무게 드는 구간을 통째로 뺀다. 그런데 이름은 번갈아 정한
+   * '하체 스트렝스 데이'가 그대로 남아, 목록에 하체 근력 운동이 하나도 없는데
+   * 제목만 하체였다(2026-09-23 고침).
+   */
+  const make = (goal: string, person: Person = { condition: 8 }) => {
+    const facts = factsFor(person);
+    return buildDailyPlan({
+      user: { ownedEquipment: [], trainingLevel: null },
+      facts,
+      plan: buildPitchPlan(facts),
+      library,
+      availableToday: null,
+      requestedMinutes: 60,
+      trainingGoal: goal,
+      recentIds: new Set<string>(),
+      lastLowerKey: null,
+      lastUpperKey: null,
+    });
+  };
+
+  const prevention = make(PREVENTION_GOAL);
+  check(
+    '근력 날 + 부상 방지 → 부상 방지 데이',
+    !isHalted(prevention) && prevention.theme.label === PREVENTION_DAY_LABEL,
+    isHalted(prevention) ? '멈춤' : prevention.theme.label
+  );
+  check(
+    '부상 방지 데이에는 무게 드는 본운동 구간이 없다',
+    !isHalted(prevention) && prevention.picks.every((p) => p.slot !== 'main'),
+    isHalted(prevention)
+      ? ''
+      : [...new Set(prevention.picks.map((p) => p.slot))].join(', ')
+  );
+  check(
+    '차례는 그대로 — 오늘 못 한 근력은 다음 근력 날로',
+    !isHalted(prevention) &&
+      (prevention.theme.key === 'lower' || prevention.theme.key === 'upper') &&
+      prevention.theme.reason.includes('다음 근력 날'),
+    isHalted(prevention) ? '' : prevention.theme.reason
+  );
+
+  const strength = make('근력 향상');
+  check(
+    '다른 목표는 이름 그대로',
+    !isHalted(strength) && strength.theme.label.endsWith('스트렝스 데이'),
+    isHalted(strength) ? '' : strength.theme.label
+  );
+
+  const recovery = make(PREVENTION_GOAL, { condition: 3 });
+  check(
+    '회복날은 부상 방지를 골라도 회복 데이 그대로',
+    !isHalted(recovery) && recovery.theme.label === '회복·재생 데이',
+    isHalted(recovery) ? '' : recovery.theme.label
   );
 }
 

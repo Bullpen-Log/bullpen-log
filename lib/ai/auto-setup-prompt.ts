@@ -21,7 +21,11 @@ import {
 } from '@/lib/report/plan';
 import type { ReportFacts } from '@/lib/report/facts';
 import { extractPitchCounts } from '@/lib/ai/report-prompt';
-import { effectiveMinutes } from '@/lib/report/theme';
+import {
+  PREVENTION_DAY_LABEL,
+  PREVENTION_GOAL,
+  effectiveMinutes,
+} from '@/lib/report/theme';
 
 /**
  * AI 맞춤 — AI에게 주는 설명과 자료, 받은 답을 검사하는 규칙.
@@ -281,7 +285,17 @@ export function buildAutoPrompt(input: AutoPromptInput): string {
   lines.push(`- goal:`);
   for (const goal of fence.goals) {
     const desc = TRAINING_GOALS.find((g) => g.name === goal)?.desc;
-    lines.push(`  - ${goal}${desc ? ` — ${desc}` : ''}`);
+    /*
+     * 근력 날에 부상 방지를 고르면 그날은 부상 방지 데이가 된다(preventionDay).
+     * 미리 알려야 이유에 "하체 위주로" 같은 말을 쓰지 않는다.
+     */
+    const note =
+      fence.strengthDay &&
+      goal === PREVENTION_GOAL &&
+      fence.day.label !== PREVENTION_DAY_LABEL
+        ? ` (고르면 오늘은 '${PREVENTION_DAY_LABEL}'가 되어 무게 드는 운동 없이 코어·보강·암케어로 채웁니다)`
+        : '';
+    lines.push(`  - ${goal}${desc ? ` — ${desc}` : ''}${note}`);
   }
   lines.push(`- minutes (goal 마다 다릅니다):`);
   for (const goal of fence.goals) {
