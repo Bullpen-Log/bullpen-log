@@ -1,6 +1,8 @@
 'use client';
 
 import { useMemo, useState } from 'react';
+import { formatSpeed } from '@/lib/units';
+import { useSpeedUnit } from '@/components/use-units';
 import Link from 'next/link';
 import { ChevronDown, ChevronRight, Film } from 'lucide-react';
 import { REST_SESSION_TYPE, SESSION_TYPES } from '@/lib/session-type';
@@ -38,6 +40,8 @@ type Filter = 'all' | 'video' | 'hard' | string;
 const HARD_INTENSITY = 8;
 
 export function LogList({ logs }: { logs: Log[] }) {
+  /* 구속을 보여줄 단위. 저장은 늘 km/h 다(lib/units.ts). */
+  const speedUnit = useSpeedUnit();
   const [filter, setFilter] = useState<Filter>('all');
 
   /* 최근 것부터. 쉰 날도 남긴다 — 언제 쉬었는지도 기록이다. */
@@ -200,7 +204,7 @@ export function LogList({ logs }: { logs: Log[] }) {
                                     {log.sessionType} {log.pitchCount}구 · 강도{' '}
                                     {log.intensity}
                                     {log.maxVelocity != null &&
-                                      ` · 최고 ${log.maxVelocity}km/h`}
+                                      ` · 최고 ${formatSpeed(log.maxVelocity, speedUnit)}`}
                                   </>
                                 )}
                               </span>

@@ -33,6 +33,13 @@ const nextConfig: NextConfig = {
        * 정확히 '/pitch-log' 만 걸러내므로 그쪽은 건드리지 않는다.
        */
       { source: '/pitch-log', destination: '/today', permanent: false },
+      /*
+       * 설정과 내 정보는 화면이 아니라 창이 되었다(components/app-shell.tsx).
+       * 주소는 북마크와 예전 링크에 남아 있으므로 홈으로 보낸다 — 거기서
+       * 오른쪽 위 톱니와 내 사진으로 연다.
+       */
+      { source: '/settings', destination: '/today', permanent: false },
+      { source: '/profile', destination: '/today', permanent: false },
       { source: '/report', destination: '/coach', permanent: false },
       /*
        * /training 은 예전에 /library/training(운동 영상)으로 보내던 자리였다.

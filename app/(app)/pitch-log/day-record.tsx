@@ -1,6 +1,8 @@
 'use client';
 
 import { useState } from 'react';
+import { formatSpeed } from '@/lib/units';
+import { useSpeedUnit } from '@/components/use-units';
 import { Activity, ChevronDown, Pencil, Trash2, VideoOff } from 'lucide-react';
 import { Badge, Card } from '@/components/ui';
 import { PitchVideoPlayer } from '@/components/pitch-video-player';
@@ -55,6 +57,8 @@ export function DayRecord({
   onEdit: (log: Log) => void;
   onDelete: (id: string) => void;
 }) {
+  /* 구속을 보여줄 단위. 저장은 늘 km/h 다(lib/units.ts). */
+  const speedUnit = useSpeedUnit();
   /*
    * 안 던진 날로 남긴 기록.
    *
@@ -101,7 +105,7 @@ export function DayRecord({
                 </Badge>
                 <Badge>{log.pitchCount}구</Badge>
                 <Badge>강도 {log.intensity}/10</Badge>
-                {log.avgVelocity != null && <Badge>평균 {log.avgVelocity} km/h</Badge>}
+                {log.avgVelocity != null && <Badge>평균 {formatSpeed(log.avgVelocity, speedUnit)}</Badge>}
               </>
             )}
           </div>

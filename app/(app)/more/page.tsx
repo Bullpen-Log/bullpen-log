@@ -32,21 +32,26 @@ export default async function MorePage() {
 
   return (
     <div className="space-y-6">
-      {/* 프로필 헤더 */}
-      <Link
-        href="/profile"
-        className="bg-hero flex items-center gap-4 rounded-2xl px-5 py-5 text-white"
-      >
+      {/*
+        프로필 머리.
+
+        예전에는 눌러서 내 정보 화면으로 가는 링크였다. 그 화면이 창으로 바뀌어
+        갈 곳이 없어졌으므로 누르는 자리가 아니다. 내 정보와 설정은 위쪽 바에
+        늘 있는 두 버튼으로 연다 — 여기 또 두면 같은 것을 여는 길이 둘이 된다.
+      */}
+      <div className="bg-hero flex items-center gap-4 rounded-2xl px-5 py-5 text-white">
         <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-white/25 text-xl font-bold text-white">
           {user.nickname.slice(0, 1)}
         </span>
         <span className="min-w-0">
           <span className="block truncate text-lg font-bold">{user.nickname}</span>
           <span className="block text-sm text-white/80">
-            {user.role === 'ADMIN' ? '관리자' : '내 정보 보기'}
+            {user.role === 'ADMIN'
+              ? '관리자 · 위쪽 내 사진에서 정보를 고칩니다'
+              : '위쪽 내 사진에서 정보를 고칩니다'}
           </span>
         </span>
-      </Link>
+      </div>
 
       {/*
         한 줄에 하나씩 세로로 늘어놓는다.

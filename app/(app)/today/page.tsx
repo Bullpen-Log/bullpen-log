@@ -16,6 +16,7 @@ import { PlanNote } from '@/components/plan-note';
 import { CheckinForm, type CheckinData } from '@/components/checkin-form';
 import { PlanForm, TrainingSettingsForm } from '@/components/training-forms';
 import { trainingLoad } from '@/lib/report/training-acwr';
+import { trainingSummaries } from '@/lib/report/training-history';
 import { HomeTile, HomeTileLink, MiniBars, type TileState } from './home-tile';
 import { SummaryPanel, type RecentLog } from './summary-panel';
 import { TodayRecord } from './today-record';
@@ -49,10 +50,7 @@ function now() {
  */
 function TodaySkeleton() {
   return (
-    <div
-      aria-busy="true"
-      className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_18rem] lg:items-start"
-    >
+    <div aria-busy="true" className="space-y-6">
       <span className="sr-only">오늘 기록을 불러오는 중입니다</span>
       <div className="grid gap-4 sm:auto-rows-fr sm:grid-cols-2">
         <Skeleton className="h-44" />
@@ -60,7 +58,12 @@ function TodaySkeleton() {
         <Skeleton className="h-44" />
         <Skeleton className="h-44" />
       </div>
-      <Skeleton className="h-72 rounded-2xl" />
+      {/* 요약 칸이 아래로 내려오면서 기다리는 모양도 가로 세 칸이 됐다 */}
+      <div className="grid gap-4 lg:grid-cols-3">
+        <Skeleton className="h-40 rounded-2xl" />
+        <Skeleton className="h-40 rounded-2xl" />
+        <Skeleton className="h-40 rounded-2xl" />
+      </div>
     </div>
   );
 }
@@ -154,10 +157,24 @@ async function PitchLogSection({
     Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - INITIAL_MONTHS, 1)
   );
 
-  const logs = await prisma.pitchLog.findMany({
-    where: { userId: user.id, date: { gte: initialFrom } },
-    orderBy: { date: 'asc' },
-  });
+  /*
+   * 운동 요약을 함께 읽는다.
+   *
+   * 날짜를 누르면 달력 밑에 그날 요약이 뜨는데, 투구만 있고 운동이 없으면
+   * 반쪽이다. 하루에 한 줄(개수·강도·메모 여부)뿐이라 groupBy 두 번이면 되고,
+   * 트레이닝 화면이 쓰는 것과 같은 함수다 — 같은 날의 숫자가 화면마다 다르면
+   * 안 된다.
+   *
+   * 눌렀을 때 그때그때 받아 오는 방법도 있었지만, 날짜를 옮길 때마다 기다리게
+   * 된다. 달력은 이 칸 저 칸 눌러보며 훑는 물건이라 그 기다림이 계속 쌓인다.
+   */
+  const [logs, training] = await Promise.all([
+    prisma.pitchLog.findMany({
+      where: { userId: user.id, date: { gte: initialFrom } },
+      orderBy: { date: 'asc' },
+    }),
+    trainingSummaries(user.id),
+  ]);
 
   /*
    * 그날의 수치·영상·폼 분석은 여기서 안 읽는다. 날짜를 누르면
@@ -175,6 +192,7 @@ async function PitchLogSection({
       initialLogs={initialLogs}
       initialDate={initialDate}
       loadedFrom={initialFrom.toISOString().slice(0, 7)}
+      trainingByDay={training}
     />
   );
 }
@@ -548,7 +566,7 @@ async function TodayBody({ user }: { user: Awaited<ReturnType<typeof requireUser
         빈다. 좁은 화면에서는 요약이 상자 아래로 내려간다 — 폰에서는 오늘 할
         일이 먼저다.
       */}
-      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_18rem] lg:items-start">
+      <div className="space-y-6">
         {/*
         오늘 할 넷.
 

@@ -103,7 +103,15 @@ export function PlanForm({
    */
   checkedIn: boolean;
   /** 만들고 나서 돌아올 화면. 홈과 트레이닝 두 곳에서 쓴다. */
-  returnTo: '/today' | '/training';
+  /**
+   * 저장하고 나서 돌아올 화면.
+   *
+   * 여기서 좁히지 않는다. 설정이 창으로 열리면서 '지금 보던 화면'이 값이
+   * 되는데, 그 목록을 화면 쪽과 서버 쪽 두 군데에 적어 두면 어긋난다.
+   * 실제로 어디까지 허용할지는 app/actions/training-setup.ts 의 목록이
+   * 정하고, 목록에 없으면 홈으로 떨어진다.
+   */
+  returnTo: string;
   /**
    * 오늘 고른 운동 종류가 몸 상태와 부딪힐 때만 들어온다.
    *
@@ -440,7 +448,15 @@ export function TrainingSettingsForm({
   trainingLevel: string | null;
   ownedEquipment: string[];
   /** 저장하고 나서 돌아올 화면 */
-  returnTo: '/today' | '/training';
+  /**
+   * 저장하고 나서 돌아올 화면.
+   *
+   * 여기서 좁히지 않는다. 설정이 창으로 열리면서 '지금 보던 화면'이 값이
+   * 되는데, 그 목록을 화면 쪽과 서버 쪽 두 군데에 적어 두면 어긋난다.
+   * 실제로 어디까지 허용할지는 app/actions/training-setup.ts 의 목록이
+   * 정하고, 목록에 없으면 홈으로 떨어진다.
+   */
+  returnTo: string;
 }) {
   /*
    * 한 번도 안 고른 사람에게는 장비를 전부 켜서 보여준다.

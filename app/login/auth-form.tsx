@@ -1,11 +1,12 @@
 'use client';
 
 import Link from 'next/link';
-import { useActionState, useState } from 'react';
+import { useActionState, useEffect, useRef, useState } from 'react';
 import { useFormStatus } from 'react-dom';
 import { login, signup, type AuthState } from '@/app/actions/auth';
 import { Button, Field, FormError, Input } from '@/components/ui';
 import { kept } from '@/lib/form-values';
+import { readLoginPrefs, saveLoginPrefs } from '@/lib/login-prefs';
 import { MAX_HEIGHT_CM, MIN_HEIGHT_CM } from '@/lib/profile';
 import {
   BASELINE_FREQ_NAMES,
@@ -73,6 +74,42 @@ function SubmitButton({ label }: { label: string }) {
   );
 }
 
+/**
+ * 체크박스 한 줄.
+ *
+ * name 을 준 것만 서버로 간다 — '아이디 기억하기'는 이 기기에서만 쓰는 값이라
+ * 서버가 알 필요가 없고, 보내봐야 쓰이지 않는다.
+ *
+ * 처음 값은 화면에 붙은 뒤 바깥에서 ref 로 채운다. defaultChecked 로 켜 두면
+ * 저장된 값이 꺼짐일 때 잠깐 켜진 채로 보였다가 꺼진다.
+ */
+function CheckLine({
+  ref,
+  name,
+  label,
+  title,
+  onChange,
+}: {
+  ref: React.RefObject<HTMLInputElement | null>;
+  name?: string;
+  label: string;
+  title: string;
+  onChange: (checked: boolean) => void;
+}) {
+  return (
+    <label className="inline-flex cursor-pointer items-center gap-2" title={title}>
+      <input
+        ref={ref}
+        type="checkbox"
+        name={name}
+        onChange={(e) => onChange(e.target.checked)}
+        className="h-4 w-4 shrink-0 cursor-pointer accent-sky"
+      />
+      <span className="text-xs text-muted select-none">{label}</span>
+    </label>
+  );
+}
+
 /** today는 생년월일에서 미래 날짜를 못 고르게 막는 데 쓴다. */
 export function AuthForm({ today }: { today: string }) {
   const [mode, setMode] = useState<'login' | 'signup'>('login');
@@ -85,6 +122,36 @@ export function AuthForm({ today }: { today: string }) {
    * 비밀번호는 서버가 돌려주지 않으므로 다시 입력해야 한다.
    */
   const before = state?.values;
+
+  /*
+   * 아이디 기억하기 · 자동 로그인.
+   *
+   * 둘 다 이 기기에만 두는 값이라 localStorage 에 담는다(lib/login-prefs.ts).
+   * 서버에 저장하면 로그인하기 전에는 읽을 수가 없는데, 정작 필요한 순간이
+   * 바로 그때다.
+   *
+   * 값을 상태로 들고 있지 않고 화면에 붙은 뒤 칸에 직접 써넣는다. 서버는
+   * 저장된 값을 모르므로 처음부터 채워 그리면 서버가 그린 것과 달라졌다는
+   * 경고가 나고, 상태로 옮기면 그리자마자 다시 그리게 된다.
+   */
+  const emailRef = useRef<HTMLInputElement>(null);
+  const rememberRef = useRef<HTMLInputElement>(null);
+  const stayRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    const saved = readLoginPrefs();
+    if (stayRef.current) stayRef.current.checked = saved.stayLoggedIn;
+    if (rememberRef.current) rememberRef.current.checked = saved.email != null;
+    /* 실패해서 되돌아온 값이 있으면 그쪽이 먼저다 — 방금 친 것이 더 맞다 */
+    if (saved.email && emailRef.current && !emailRef.current.value) {
+      emailRef.current.value = saved.email;
+    }
+  }, []);
+
+  /** 기억해 두기로 했으면 지금 칸에 있는 값을 저장한다. */
+  function rememberNow(on: boolean) {
+    saveLoginPrefs({ email: on ? (emailRef.current?.value ?? '') : null });
+  }
 
   return (
     <div className="w-full max-w-md">
@@ -124,10 +191,14 @@ export function AuthForm({ today }: { today: string }) {
 
         <Field label="이메일">
           <Input
+            ref={emailRef}
             name="email"
             type="email"
             autoComplete="email"
             defaultValue={kept(before, 'email')}
+            onBlur={() => {
+              if (rememberRef.current?.checked) rememberNow(true);
+            }}
             placeholder="pitcher@example.com"
             required
           />
@@ -264,6 +335,30 @@ export function AuthForm({ today }: { today: string }) {
             required
           />
         </Field>
+
+        {/*
+          로그인에만 둔다.
+
+          가입은 방금 계정을 만든 자리라 어차피 로그인 상태로 시작하고,
+          아이디도 방금 친 것을 그대로 기억한다. 물어볼 것이 없다.
+        */}
+        {mode === 'login' && (
+          <div className="flex flex-wrap items-center gap-x-5 gap-y-2">
+            <CheckLine
+              ref={stayRef}
+              name="stayLoggedIn"
+              label="자동 로그인"
+              title="브라우저를 닫아도 30일 동안 로그인이 유지됩니다. 공용 컴퓨터에서는 꺼주세요."
+              onChange={(on) => saveLoginPrefs({ stayLoggedIn: on })}
+            />
+            <CheckLine
+              ref={rememberRef}
+              label="아이디 기억하기"
+              title="다음에 올 때 이메일 칸을 채워 둡니다. 비밀번호는 저장하지 않습니다."
+              onChange={rememberNow}
+            />
+          </div>
+        )}
 
         {mode === 'signup' && (
           <Field label="비밀번호 확인">

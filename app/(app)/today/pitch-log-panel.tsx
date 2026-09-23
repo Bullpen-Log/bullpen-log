@@ -1,13 +1,14 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useRouter } from 'next/navigation';
 import { Card, FormError } from '@/components/ui';
 import { toDateKey } from '@/lib/pitch-stats';
 import { REST_SESSION_TYPE } from '@/lib/session-type';
 import { LegendSwatch, MonthCalendar, type DayMark } from '@/components/month-calendar';
 import { LogList } from '@/app/(app)/pitch-log/log-list';
 import type { Log } from '@/app/(app)/pitch-log/types';
+import type { TrainingDaySummary } from '@/lib/report/training-history';
+import { DaySummary } from './day-summary';
 
 /**
  * 투구 일지 — 홈의 가운데 자리.
@@ -28,6 +29,7 @@ export function PitchLogPanel({
   initialLogs,
   initialDate,
   loadedFrom,
+  trainingByDay,
 }: {
   initialLogs: Log[];
   /** 다른 화면에서 날짜를 지정해 들어온 경우. 그 칸을 짚어 둔다. */
@@ -39,11 +41,12 @@ export function PitchLogPanel({
    * 몇 년 쓴 사람에게는 열 때마다 천 건이 넘어온다.
    */
   loadedFrom: string;
+  /** 날짜별 운동 요약 (YYYY-MM-DD). 고른 날 밑에 함께 보여준다. */
+  trainingByDay: Record<string, TrainingDaySummary>;
 }) {
   const [logs, setLogs] = useState<Log[]>(initialLogs);
   const [view, setView] = useState<'calendar' | 'list'>('calendar');
   const [error, setError] = useState<string>();
-  const router = useRouter();
 
   /*
    * 이미 받아 온 달들. 같은 달을 두 번 받지 않으려고 둔다. 처음 받아 온
@@ -53,10 +56,12 @@ export function PitchLogPanel({
   const [loadingMonth, setLoadingMonth] = useState(false);
 
   /*
-   * 달력에서 짚어 둔 날. 어느 칸이 눌린 것으로 보일지에만 쓴다 —
-   * 그날 기록은 /pitch-log/<날짜> 로 넘어가서 본다.
+   * 달력에서 고른 날.
+   *
+   * 예전에는 이것이 주소에서 온 값 하나뿐이었다(누르면 바로 넘어갔으니까).
+   * 이제는 누른 칸을 여기 담아 두고 달력 밑에 그날 요약을 편다.
    */
-  const selectedDate = initialDate;
+  const [selectedDate, setSelectedDate] = useState<string | null>(initialDate);
 
   // 넘어온 날짜가 지난달이면 달력도 그 달을 펴야 한다.
   const [month, setMonth] = useState(() => {
@@ -65,19 +70,18 @@ export function PitchLogPanel({
   });
 
   /*
-   * 날짜를 누르면 그날 페이지로 간다.
+   * 날짜를 누르면 밑에 그날 요약을 편다.
    *
-   * 예전에는 작은 창을 열었다. 그 안에 수치·느낀점·영상·폼 분석·수정 폼이 전부
-   * 들어가니 영상 하나만 있어도 창 안에서 몇 판을 굴려야 했고, 정작 그날 적어둔
-   * 글은 맨 아래에 묻혔다. 창은 잠깐 확인하고 닫는 그릇인데 지난 기록을 되짚는
-   * 일은 그렇지 않다.
+   * 예전에는 곧바로 그날 화면으로 넘어갔다. 그런데 달력은 이 칸 저 칸 눌러보며
+   * 훑는 물건이라, 뭐가 있었는지 잠깐 보려던 것뿐인데 매번 화면이 통째로 바뀌고
+   * 다시 뒤로 와야 했다. 며칠을 견주려면 그 왕복을 반복한다.
+   *
+   * 자세히 보는 길은 요약 안의 '자세히'로 남겨 둔다. 이미 고른 칸을 다시 누르면
+   * 접는다 — 같은 것을 누르면 닫히는 것이 여닫이의 기본이다.
    */
-  const openDay = useCallback(
-    (date: string) => {
-      router.push(`/pitch-log/${date}`);
-    },
-    [router]
-  );
+  const openDay = useCallback((date: string) => {
+    setSelectedDate((prev) => (prev === date ? null : date));
+  }, []);
 
   /** 달력이 보고 있는 달 (YYYY-MM) */
   const monthKey = `${month.getFullYear()}-${String(month.getMonth() + 1).padStart(2, '0')}`;
@@ -165,6 +169,17 @@ export function PitchLogPanel({
     return out;
   }, [logs]);
 
+  /*
+   * 고른 날의 투구 기록.
+   *
+   * 달력이 이미 열세 달치를 들고 있어서 DB 를 다시 묻지 않는다. 하루에 여러 번
+   * 던진 날이 있으므로 하나만 찾지 않고 전부 모은다.
+   */
+  const selectedLogs = useMemo(
+    () => (selectedDate ? logs.filter((l) => l.date.slice(0, 10) === selectedDate) : []),
+    [logs, selectedDate]
+  );
+
   return (
     <div className="space-y-3">
       {/*
@@ -238,6 +253,19 @@ export function PitchLogPanel({
             </LegendSwatch>
           </MonthCalendar>
         </Card>
+      )}
+
+      {/*
+        고른 날 요약은 달력 바로 밑에 둔다. 위에 두면 달력이 아래로 밀려 내려가,
+        칸을 누를 때마다 방금 누른 자리가 화면 밖으로 나간다.
+      */}
+      {view === 'calendar' && selectedDate && (
+        <DaySummary
+          date={selectedDate}
+          logs={selectedLogs}
+          training={trainingByDay[selectedDate]}
+          onClose={() => setSelectedDate(null)}
+        />
       )}
     </div>
   );

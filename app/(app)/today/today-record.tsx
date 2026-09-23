@@ -1,6 +1,8 @@
 'use client';
 
 import { useState, useTransition } from 'react';
+import { formatSpeed } from '@/lib/units';
+import { useSpeedUnit } from '@/components/use-units';
 import { useRouter } from 'next/navigation';
 import { Check, Pencil } from 'lucide-react';
 import { EntryForm, type EntryDraft } from '@/app/(app)/pitch-log/entry-form';
@@ -57,6 +59,8 @@ export function TodayRecord({
   /** 오늘의 투구 계획. 계획을 안 낸 날은 null */
   plan: TodayPitchPlan | null;
 }) {
+  /* 구속을 보여줄 단위. 저장은 늘 km/h 다(lib/units.ts). */
+  const speedUnit = useSpeedUnit();
   const router = useRouter();
   const [mode, setMode] = useState<'view' | 'new' | 'edit'>('view');
   const [error, setError] = useState<string>();
@@ -136,7 +140,7 @@ export function TodayRecord({
           {!resting && (
             <span className="text-sm text-muted">
               {log.sessionType} · {log.pitchCount}구 · 강도 {log.intensity}
-              {log.maxVelocity != null && ` · 최고 ${log.maxVelocity}km/h`}
+              {log.maxVelocity != null && ` · 최고 ${formatSpeed(log.maxVelocity, speedUnit)}`}
             </span>
           )}
           <button

@@ -18,9 +18,13 @@ export const getCurrentUser = cache(async () => {
       id: true,
       email: true,
       nickname: true,
+      /* 막대와 상단 바의 아바타에 쓴다. 이름 옆에 늘 붙는 값이라 함께 읽는다. */
+      avatarPath: true,
       role: true,
       birthDate: true,
       heightCm: true,
+      weightKg: true,
+      wingspanCm: true,
       targetVelocity: true,
       baselineFreq: true,
       baselineVolume: true,

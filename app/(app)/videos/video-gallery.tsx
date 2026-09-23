@@ -1,6 +1,8 @@
 'use client';
 
 import { useMemo, useState } from 'react';
+import { formatSpeed } from '@/lib/units';
+import { useSpeedUnit } from '@/components/use-units';
 import Link from 'next/link';
 import { ChevronDown, Film, X } from 'lucide-react';
 import { usePlaybackUrls } from '@/components/use-playback-urls';
@@ -85,6 +87,8 @@ export function VideoGallery({
   /** 두 개를 고르고 '비교하기'를 눌렀을 때 */
   onCompare: (aId: string, bId: string) => void;
 }) {
+  /* 구속을 보여줄 단위. 저장은 늘 km/h 다(lib/units.ts). */
+  const speedUnit = useSpeedUnit();
   const [filter, setFilter] = useState<string>('all');
   const [sort, setSort] = useState<Sort>('recent');
   const [picked, setPicked] = useState<(Clip | null)[]>([null, null]);
@@ -101,7 +105,7 @@ export function VideoGallery({
             path,
             label: log.videoPaths.length > 1 ? `영상 ${i + 1}` : '영상',
             summary: [
-              log.maxVelocity != null ? `${log.maxVelocity}km/h` : null,
+              log.maxVelocity != null ? formatSpeed(log.maxVelocity, speedUnit) : null,
               `${log.pitchCount}구`,
               `강도 ${log.intensity}/10`,
             ]
@@ -113,7 +117,8 @@ export function VideoGallery({
             maxVelocity: log.maxVelocity,
           }))
         ),
-    [logs]
+    /* 단위를 바꾸면 요약 글도 다시 만들어야 한다 — 빼면 목록만 km/h 로 남는다 */
+    [logs, speedUnit]
   );
 
   const counts = useMemo(() => {

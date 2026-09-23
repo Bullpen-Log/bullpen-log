@@ -1,0 +1,3 @@
+-- AlterTable
+ALTER TABLE "User" ADD COLUMN     "weightKg" DOUBLE PRECISION,
+ADD COLUMN     "wingspanCm" DOUBLE PRECISION;

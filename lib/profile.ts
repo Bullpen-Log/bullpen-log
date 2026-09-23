@@ -8,6 +8,45 @@ import { toDateKey } from '@/lib/pitch-stats';
 export const MIN_HEIGHT_CM = 100;
 export const MAX_HEIGHT_CM = 250;
 
+/**
+ * 몸무게(kg)와 윙스팬(cm)의 허용 범위.
+ *
+ * 넉넉하게 잡는다. 여기서 막으려는 것은 '73'을 몸무게 칸이 아니라 키 칸에
+ * 적는 것 같은 실수이지 남다른 체격이 아니다 — 초등학생부터 성인까지 한 앱을
+ * 쓴다.
+ *
+ * 윙스팬은 보통 키와 비슷하거나 조금 길다. 그래도 키와 같은 범위로 두지 않고
+ * 위를 조금 넓혔다 — 팔이 긴 투수는 키보다 10cm 넘게 길기도 하다.
+ */
+export const MIN_WEIGHT_KG = 20;
+export const MAX_WEIGHT_KG = 200;
+export const MIN_WINGSPAN_CM = 100;
+export const MAX_WINGSPAN_CM = 260;
+
+/**
+ * 비워둘 수 있는 숫자 칸 하나를 확인한다.
+ *
+ * 빈 칸은 '지운다'는 뜻이라 null 로 통과시킨다. 값이 있으면 숫자인지와 범위를
+ * 본다 — 몸무게와 윙스팬이 같은 모양이라 한 곳에 모은다.
+ */
+export function checkOptionalNumber(
+  raw: string,
+  { label, min, max, unit }: { label: string; min: number; max: number; unit: string }
+): { value: number | null } | { error: string } {
+  const text = raw.trim();
+  if (text === '') return { value: null };
+
+  const parsed = Number(text);
+  if (!Number.isFinite(parsed)) {
+    return { error: `${label}은(는) 숫자로 입력해주세요.` };
+  }
+  if (parsed < min || parsed > max) {
+    return { error: `${label}은(는) ${min}~${max}${unit} 사이로 입력해주세요.` };
+  }
+  /* 소수 한 자리까지만 남긴다. 저장 단위는 언제나 kg·cm 다. */
+  return { value: Number(parsed.toFixed(1)) };
+}
+
 /** 이 범위를 벗어난 생년월일은 잘못 입력한 것으로 본다. */
 export const MIN_AGE = 5;
 export const MAX_AGE = 100;

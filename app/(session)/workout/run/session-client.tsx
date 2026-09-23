@@ -34,6 +34,15 @@ import { ExerciseSheet } from './exercise-sheet';
 import { FinishSheet } from './finish-sheet';
 import { drainOutbox, outbox } from '@/lib/workout/outbox';
 import {
+  formatWeight,
+  fromWeight,
+  readWeightUnit,
+  round1,
+  serverWeightUnit,
+  subscribeUnits,
+  toWeight,
+} from '@/lib/units';
+import {
   AMOUNT_LIMITS,
   WEIGHT_STEP,
   formatSeconds,
@@ -296,6 +305,13 @@ export function SessionClient({
    */
   const [pad, setPad] = useState(false);
   const [listError, setListError] = useState<string | null>(null);
+  /*
+   * 무게를 어떤 단위로 보여줄지. 저장은 언제나 kg 이다(lib/units.ts).
+   *
+   * 여기서만 바꾸면 되는 이유: 화면이 들고 있는 weight 는 '사람이 적은 값'이고,
+   * 서버로 나갈 때 한 번만 kg 으로 바꾼다. 중간에 섞이면 세트마다 단위가 달라진다.
+   */
+  const wUnit = useSyncExternalStore(subscribeUnits, readWeightUnit, serverWeightUnit);
   const [weight, setWeight] = useState('');
   const [count, setCount] = useState('');
   const [field, setField] = useState<'weight' | 'count'>(
@@ -441,7 +457,8 @@ export function SessionClient({
 
   const save = () => {
     setError(null);
-    const w = weight === '' ? null : Number(weight);
+    /* 사람이 적은 값은 고른 단위다. 저장은 kg 으로 되돌려 넣는다. */
+    const w = weight === '' ? null : round1(fromWeight(Number(weight), wUnit));
     const c = count === '' ? null : Number(count);
 
     if (ex.needsWeight && (w == null || w <= 0)) {
@@ -518,7 +535,8 @@ export function SessionClient({
 
   const fillLast = () => {
     if (!ex.last) return;
-    if (ex.last.weightKg != null) setWeight(String(ex.last.weightKg));
+    if (ex.last.weightKg != null)
+      setWeight(String(round1(toWeight(ex.last.weightKg, wUnit))));
     const raw = ex.isHold ? ex.last.holdSecondsDone : ex.last.repsDone;
     /* 지난번 것도 초로 남아 있다 — 분으로 받는 운동이면 분으로 바꿔 담는다 */
     const n = raw != null && ex.inMinutes ? Math.round(raw / 60) : raw;
@@ -535,7 +553,12 @@ export function SessionClient({
    */
   const bump = (which: 'weight' | 'count', delta: number) => {
     if (which === 'weight') {
-      const next = Math.max(0, (Number(weight) || 0) + delta * WEIGHT_STEP);
+      /*
+       * 한 번에 움직이는 폭도 단위를 따른다. kg 은 2.5, lb 는 5 다 —
+       * 원판이 그렇게 생겼다. lb 에서 2.5씩 올리면 있지도 않은 무게가 된다.
+       */
+      const step = wUnit === 'lb' ? 5 : WEIGHT_STEP;
+      const next = Math.max(0, (Number(weight) || 0) + delta * step);
       setWeight(next === 0 ? '' : String(Number(next.toFixed(1))));
     } else {
       const limit = ex.isHold
@@ -686,7 +709,7 @@ export function SessionClient({
 
         {ex.last && (
           <p className="mt-0.5 text-xs text-muted/80">
-            지난번 {ex.last.weightKg != null && `${ex.last.weightKg}kg × `}
+            지난번 {ex.last.weightKg != null && `${formatWeight(ex.last.weightKg, wUnit)} × `}
             {ex.isHold
               ? ex.last.holdSecondsDone != null
                 ? formatSeconds(ex.last.holdSecondsDone)
@@ -710,7 +733,7 @@ export function SessionClient({
               >
                 <span className="w-10 shrink-0 text-xs text-muted">{i + 1}세트</span>
                 <span className="flex-1 text-sm tabular-nums text-ink">
-                  {s.weightKg != null && `${s.weightKg}kg × `}
+                  {s.weightKg != null && `${formatWeight(s.weightKg, wUnit)} × `}
                   {s.holdSeconds != null ? formatSeconds(s.holdSeconds) : `${s.reps}회`}
                 </span>
                 {s.pending && (
@@ -774,7 +797,7 @@ export function SessionClient({
             key: 'weight' as const,
             label: `무게${!ex.needsWeight ? ' (없으면 비워두세요)' : ''}`,
             value: weight,
-            unit: 'kg',
+            unit: wUnit,
           },
           {
             key: 'count' as const,

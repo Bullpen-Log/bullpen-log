@@ -62,8 +62,14 @@ export const BASELINE_WORKOUT_FREQ = [
  */
 const EQUIVALENT_SETS_PER_MINUTE = 0.17;
 
-/** 던지는 손. 폼 분석에서 어느 팔을 보는지 정한다. */
-export const THROWING_HANDS = ['우투', '좌투'] as const;
+/**
+ * 던지는 손. 폼 분석에서 어느 팔을 보는지 정한다.
+ *
+ * '양투'는 둘 다 던지는 선수다. 드물지만 있고, 없으면 그런 선수는 둘 중
+ * 하나를 거짓으로 골라야 한다. 폼 분석은 한 번에 한 팔만 보므로 영상마다
+ * 어느 쪽인지 따로 정해야 하는데, 그 화면은 아직 이 값을 쓰지 않는다.
+ */
+export const THROWING_HANDS = ['우투', '좌투', '양투'] as const;
 
 /**
  * 어디서 야구를 하는지.

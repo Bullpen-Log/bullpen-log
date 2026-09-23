@@ -1,7 +1,7 @@
 'use client';
 
 import { useSyncExternalStore } from 'react';
-import { Moon, Sun } from 'lucide-react';
+import { Moon, MoonStar, Sun, type LucideIcon } from 'lucide-react';
 import {
   applyTheme,
   getServerTheme,
@@ -19,6 +19,18 @@ import {
  * 기본값을 쓰고, 붙고 난 뒤 진짜 값으로 바꿔 그려준다. 이렇게 해야
  * 서버가 그린 것과 브라우저가 그린 것이 어긋났다는 경고가 나지 않는다.
  */
+/*
+ * 테마마다 붙는 그림.
+ *
+ * 다크와 네이비는 둘 다 어두운 화면이라 달을 쓰되, 네이비는 별을 얹어
+ * 가른다. 이름만으로도 알 수 있지만 좁은 자리에서는 글자가 먼저 줄어든다.
+ */
+const THEME_ICONS: Record<ThemeChoice, LucideIcon> = {
+  light: Sun,
+  dark: Moon,
+  navy: MoonStar,
+};
+
 export function ThemeToggle({ className = '' }: { className?: string }) {
   const current = useSyncExternalStore(subscribeTheme, readTheme, getServerTheme);
 
@@ -34,6 +46,7 @@ export function ThemeToggle({ className = '' }: { className?: string }) {
     >
       {THEME_CHOICES.map((option) => {
         const selected = current === option.value;
+        const Icon = THEME_ICONS[option.value];
         return (
           <button
             key={option.value}
@@ -48,11 +61,7 @@ export function ThemeToggle({ className = '' }: { className?: string }) {
                 : 'text-muted hover:bg-surface hover:text-ink'
             }`}
           >
-            {option.value === 'light' ? (
-              <Sun aria-hidden className="h-3.5 w-3.5" />
-            ) : (
-              <Moon aria-hidden className="h-3.5 w-3.5" />
-            )}
+            <Icon aria-hidden className="h-3.5 w-3.5 shrink-0" />
             {option.label}
           </button>
         );

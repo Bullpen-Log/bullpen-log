@@ -76,7 +76,15 @@ export function SummaryPanel({
   recent: RecentLog[];
 }) {
   return (
-    <aside className="space-y-4">
+    /*
+     * 예전에는 화면 오른쪽에 세로로 붙어 있었다(18rem). 그런데 그만큼 본문
+     * 칸이 좁아지면서, 정작 매일 보는 상자들의 한가운데가 화면 한가운데에서
+     * 왼쪽으로 156px 밀렸다. 이제 상자들 밑에 가로로 눕는다.
+     *
+     * 넓은 화면에서는 세 칸이 나란히 선다. 한 줄에 하나씩 쌓으면 같은 내용이
+     * 세 배로 길어져서, 아래로 훑어야 할 것이 늘어난다.
+     */
+    <aside className="grid gap-4 lg:grid-cols-3 lg:items-start">
       {/* ── 지금 몸 상태 ─────────────────────────────── */}
       <section className="rounded-2xl border border-line bg-surface px-5 py-4">
         <div className="flex items-baseline justify-between gap-2">

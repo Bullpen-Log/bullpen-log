@@ -3,11 +3,19 @@
 import { revalidatePath } from 'next/cache';
 import { prisma } from '@/lib/prisma';
 import { getCurrentUser } from '@/lib/dal';
-import { validateProfile } from '@/lib/profile';
+import {
+  checkOptionalNumber,
+  MAX_WEIGHT_KG,
+  MAX_WINGSPAN_CM,
+  MIN_WEIGHT_KG,
+  MIN_WINGSPAN_CM,
+  validateProfile,
+} from '@/lib/profile';
 import { validateBaseline } from '@/lib/baseline';
 import { validateTargetVelocity } from '@/lib/velocity';
 import { WORKOUT_MINUTES_CHOICES } from '@/lib/report/theme';
 import { withInput, type FormValues } from '@/lib/form-values';
+import { deleteVideos, isOwnedBy } from '@/lib/storage';
 
 export type ProfileState =
   | {
@@ -59,6 +67,29 @@ async function tryUpdateProfile(formData: FormData): Promise<ProfileState> {
     baselineValue = baseline.value;
   }
 
+  /*
+   * 몸무게와 윙스팬 — 둘 다 비워둘 수 있다.
+   *
+   * 화면이 파운드·인치로 보여주더라도 여기로는 언제나 kg·cm 가 온다(숨겨 둔
+   * 칸이 바꿔 보낸다). 단위가 섞여 들어오면 나중에 어느 줄이 파운드인지
+   * 알 수 없다.
+   */
+  const weight = checkOptionalNumber(String(formData.get('weightKg') ?? ''), {
+    label: '몸무게',
+    min: MIN_WEIGHT_KG,
+    max: MAX_WEIGHT_KG,
+    unit: 'kg',
+  });
+  if ('error' in weight) return weight;
+
+  const wingspan = checkOptionalNumber(String(formData.get('wingspanCm') ?? ''), {
+    label: '윙스팬',
+    min: MIN_WINGSPAN_CM,
+    max: MAX_WINGSPAN_CM,
+    unit: 'cm',
+  });
+  if ('error' in wingspan) return wingspan;
+
   // 목표 구속 — 비워두면 목표를 지운다.
   const target = validateTargetVelocity(String(formData.get('targetVelocity') ?? ''));
   if ('error' in target) return target;
@@ -82,6 +113,8 @@ async function tryUpdateProfile(formData: FormData): Promise<ProfileState> {
     data: {
       nickname,
       ...checked.value,
+      weightKg: weight.value,
+      wingspanCm: wingspan.value,
       ...baselineValue,
       ...minutesValue,
       targetVelocity: target.value,
@@ -97,4 +130,42 @@ async function tryUpdateProfile(formData: FormData): Promise<ProfileState> {
   revalidatePath('/', 'layout');
 
   return { success: '저장했습니다.' };
+}
+
+/**
+ * 프로필 사진을 바꾸거나 지운다.
+ *
+ * 파일은 이미 브라우저가 저장소에 올린 뒤다(app/api/profile/avatar-url).
+ * 여기서는 '어느 파일이 내 사진인가'만 적는다.
+ *
+ * 경로를 그대로 믿지 않는다. 폼에서 오는 값이라 남의 폴더를 가리켜 보낼 수
+ * 있는데, 그러면 남의 사진을 자기 프로필로 걸 수 있다. 본인 폴더인지 여기서
+ * 확인한다(isOwnedBy).
+ *
+ * 쓰던 사진은 새것이 자리를 잡은 뒤에 지운다. 먼저 지우면 저장이 실패했을 때
+ * 사진만 사라진다.
+ */
+export async function saveAvatar(path: string | null): Promise<ProfileState> {
+  const user = await getCurrentUser();
+  if (!user) return { error: '로그인이 필요합니다.' };
+
+  if (path != null && !isOwnedBy(path, user.id)) {
+    return { error: '올린 사진을 찾지 못했습니다. 다시 시도해주세요.' };
+  }
+
+  const before = user.avatarPath;
+  if (before === path) return { success: '저장했습니다.' };
+
+  await prisma.user.update({
+    where: { id: user.id },
+    data: { avatarPath: path },
+  });
+
+  /* 쓰지 않게 된 파일은 저장소에서도 치운다 — 안 지우면 바꿀 때마다 쌓인다 */
+  if (before) await deleteVideos([before]);
+
+  // 막대와 상단 바의 아바타가 바로 바뀌게 한다.
+  revalidatePath('/', 'layout');
+
+  return { success: path ? '사진을 바꿨습니다.' : '사진을 지웠습니다.' };
 }

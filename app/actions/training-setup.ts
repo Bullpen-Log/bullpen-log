@@ -72,7 +72,20 @@ function dateOnly(today: Date) {
  * 폼이 보내온 값을 그대로 redirect 에 넘기지는 않는다. 주소를 마음대로 넣을 수
  * 있으면 남의 사이트로 보내는 링크를 만들 수 있다. 아는 곳만 허용한다.
  */
-const RETURN_TO = ['/today', '/training'] as const;
+const RETURN_TO = [
+  '/today',
+  '/training',
+  /*
+   * 설정이 창으로도 열리면서, 저장한 뒤 돌아갈 곳이 '설정 화면'이 아니라
+   * '그때 보고 있던 화면'이 됐다. 창은 어느 화면 위에서나 열리므로 그 화면들을
+   * 여기 적어 둔다. 목록에 없는 값이 오면 아래에서 홈으로 떨어뜨린다 —
+   * 적어 둔 곳 말고는 못 가게 하려고 두는 목록이다.
+   */
+  '/coach',
+  '/videos',
+  '/board',
+  '/more',
+] as const;
 
 function returnPath(formData: FormData): (typeof RETURN_TO)[number] {
   const asked = String(formData.get('returnTo') ?? '');

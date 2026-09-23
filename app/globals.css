@@ -74,21 +74,18 @@
 }
 
 /*
- * 다크 모드 — 토큰 값만 갈아끼운다.
+ * 어두운 테마 — 토큰 값만 갈아끼운다.
  * 화면 코드는 bg-surface / text-ink 처럼 뜻으로 색을 쓰고 있어서
  * 여기만 바꾸면 전 화면이 따라온다.
  *
  * data-theme 은 첫 페인트 전에 app/layout.tsx 의 인라인 스크립트가 붙인다.
+ *
+ * 두 벌이다. '다크'는 검정, '네이비'는 남색. 글자색·상태색처럼 두 테마가
+ * 같이 쓰는 값은 아래에 한 번만 적고, 바탕과 선만 각자 덮어쓴다.
  */
-:root[data-theme='dark'] {
+:root[data-theme='dark'],
+:root[data-theme='navy'] {
   color-scheme: dark;
-
-  --color-page: #0b1220;
-  --color-surface: #141d2b;
-  --color-surface-2: #1e293b;
-
-  --color-line: #2a3648;
-  --color-line-strong: #44556e;
 
   /* 버튼 배경으로 쓰이므로 흰 글자와의 대비를 라이트와 같게 유지한다 */
   --color-sky: #0ea5e9;
@@ -119,14 +116,124 @@
   --color-cat-recovery: #6ee7b7;
 }
 
+/*
+ * 다크 — 진짜 검정.
+ *
+ * 바탕을 순수한 #000 으로 둔다. OLED 화면은 이때 화소를 아예 꺼서, 어두운
+ * 방에서 눈부심이 확실히 줄고 전력도 덜 쓴다. 남색으로는 그렇게 되지 않는다.
+ *
+ * 카드(surface)는 검정보다 한 단계 밝게 둔다. 바탕과 카드가 똑같이 검으면
+ * 어디까지가 카드인지 선으로만 알 수 있어서, 화면이 평평한 종이처럼 보인다.
+ *
+ * 색조가 없는 회색을 쓴다(#0d0d0d, #1a1a1a). 여기에 파란 기가 섞이면
+ * 네이비와 구별이 안 되고, 두 테마를 나눈 이유가 사라진다.
+ */
+:root[data-theme='dark'] {
+  --color-page: #000000;
+  --color-surface: #0d0d0d;
+  --color-surface-2: #1a1a1a;
+
+  --color-line: #262626;
+  --color-line-strong: #404040;
+
+  /* 검은 바탕에서는 파란 기 도는 흰색이 뜬다. 중립 회색 쪽으로 맞춘다. */
+  --color-ink: #ededed;
+  --color-muted: #a1a1aa;
+
+  /* 강조 바탕도 색을 빼고 어둡게 — 검정 위에서 남색 블록만 떠 보이지 않게 */
+  --color-sky-soft: #1c5372;
+  --color-sky-tint: #0a1f2b;
+}
+
+/*
+ * 네이비 — 원래 '다크'였던 남색.
+ *
+ * 이름만 옮겼을 뿐 색은 그대로다. 이 화면으로 쓰던 사람이 다크를 골랐다가
+ * 검은 화면을 보고 놀랄 수는 있어도, 찾으면 예전 그대로가 여기 있다.
+ */
+:root[data-theme='navy'] {
+  --color-page: #0b1220;
+  --color-surface: #141d2b;
+  --color-surface-2: #1e293b;
+
+  --color-line: #2a3648;
+  --color-line-strong: #44556e;
+}
+
 html {
   color-scheme: light;
+
+  /* 좌우 스크롤 막기 — 까닭은 아래 body 에 적어 두었다. 둘 다 있어야 걸린다. */
+  overflow-x: clip;
+}
+
+/**
+ * 테마를 바꾸는 동안만 색이 건너간다.
+ *
+ * 토큰만 갈아끼우면 화면 전체가 한 프레임에 뒤집힌다. 밝은 화면에서 검은
+ * 화면으로 갈 때 특히 눈이 놀라는데, 바뀌는 면적이 화면 전부라서 그렇다.
+ * 0.26초에 걸쳐 건너가게 하면 눈이 따라갈 수 있다.
+ *
+ * 늘 켜 두지 않는 이유: 모든 요소에 색 전환을 걸면 버튼에 마우스를 올릴 때도
+ * 그만큼 늦게 반응해서 앱 전체가 굼떠진다. 표시는 lib/theme.ts 가 테마를
+ * 바꾸는 순간에만 붙였다 뗀다.
+ *
+ * !important 를 쓰는 것은 힘겨루기다. 곳곳에 transition-colors(150ms)가
+ * 걸려 있어서, 그냥 적으면 요소마다 제 시간대로 움직여 화면이 우글거린다.
+ * 이 짧은 순간만은 전부 같은 속도로 건너가야 한 덩어리로 보인다.
+ *
+ * 글자색(color)은 일부러 뺐다. 글자는 면이 아니라 획이라 중간 색이 흐릿하게
+ * 비치는 구간이 생기고, 그게 잔상처럼 보인다. 바탕이 건너가는 동안 글자는
+ * 즉시 바뀌는 편이 오히려 또렷하다.
+ */
+html[data-theme-switching],
+html[data-theme-switching] *,
+html[data-theme-switching] *::before,
+html[data-theme-switching] *::after {
+  transition-property: background-color, border-color, outline-color, box-shadow,
+    fill, stroke !important;
+  transition-duration: 260ms !important;
+  transition-timing-function: ease !important;
+  transition-delay: 0s !important;
+}
+
+/*
+ * 움직임을 줄여 쓰는 사람에게는 즉시 바꾼다.
+ *
+ * 색이 건너가는 것도 움직임이다. 화면 전체가 0.26초 동안 변하는 것은
+ * 그 설정을 켠 사람이 피하고 싶어 하는 종류의 변화다.
+ */
+@media (prefers-reduced-motion: reduce) {
+  html[data-theme-switching],
+  html[data-theme-switching] *,
+  html[data-theme-switching] *::before,
+  html[data-theme-switching] *::after {
+    transition-duration: 0s !important;
+  }
 }
 
 body {
   background-color: var(--color-page);
   color: var(--color-ink);
   -webkit-font-smoothing: antialiased;
+
+  /*
+   * 좌우 스크롤을 막는다.
+   *
+   * 화면 아래 가로 막대는 누를 일이 없다. 본문은 가운데 폭에 맞춰 두었으니
+   * 옆으로 갈 곳이 애초에 없고, 어딘가 한 군데가 몇 픽셀 삐져나오면 그것
+   * 때문에 막대가 생겨 화면이 흔들린다.
+   *
+   * html 과 body 둘 다에 적는다. 하나만 적으면 안 걸린다 — 재 보니 html 에만
+   * 적었을 때도, body 에만 적었을 때도 그대로 600px 가 밀렸고, 둘 다 적었을
+   * 때만 0px 로 막혔다. 넘침이 어디로 넘어가는지(overflow propagation) 때문인데,
+   * 한쪽만 막으면 나머지 한쪽이 뷰포트로 넘겨 준다.
+   *
+   * hidden 이 아니라 clip 이다. hidden 을 주면 여기가 스크롤 상자가 되어
+   * position: sticky 가 붙은 것들이 따라 붙지 않는다. clip 은 넘치는 것만
+   * 자르고 스크롤 상자를 만들지 않는다.
+   */
+  overflow-x: clip;
 }
 
 /*
@@ -352,18 +459,21 @@ input[type='date']::-webkit-calendar-picker-indicator {
  * 반투명한 배경(bg-surface/95)이 두 겹으로 깔리면 색이 진해져서, 잠깐이지만
  * 탭바가 다른 색으로 번쩍인다.
  */
-::view-transition-group(shell-sidebar),
+::view-transition-group(shell-logo),
+::view-transition-group(shell-topnav),
 ::view-transition-group(shell-topbar),
 ::view-transition-group(shell-tabbar) {
   animation: none;
   z-index: 100;
 }
-::view-transition-old(shell-sidebar),
+::view-transition-old(shell-logo),
+::view-transition-old(shell-topnav),
 ::view-transition-old(shell-topbar),
 ::view-transition-old(shell-tabbar) {
   display: none;
 }
-::view-transition-new(shell-sidebar),
+::view-transition-new(shell-logo),
+::view-transition-new(shell-topnav),
 ::view-transition-new(shell-topbar),
 ::view-transition-new(shell-tabbar) {
   animation: none;
@@ -420,6 +530,113 @@ input[type='date']::-webkit-calendar-picker-indicator {
   animation-timing-function: cubic-bezier(0.32, 0.72, 0, 1);
 }
 
+/*
+ * 설정 톱니가 한 바퀴 도는 것.
+ *
+ * 화면이 갈리는 시간(나가기 120ms + 들어오기 200ms)과 얼추 맞춰 520ms 로 둔다.
+ * 톱니만 먼저 멈추면 화면은 아직 바뀌는 중인데 버튼은 다 끝난 것처럼 보인다.
+ *
+ * 처음에 빠르고 끝에서 느려지는 곡선을 쓴다. 톱니는 손으로 돌리는 물건이라,
+ * 일정한 속도로 돌면 기계가 도는 것처럼 보이고 눌렀다는 느낌이 덜하다.
+ */
+@utility animate-cog {
+  animation: cog-spin 520ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/**
+ * 막대를 감추고 굴리기만 남긴다.
+ *
+ * 창(<dialog>) 안처럼 이미 테두리가 있는 곳에 쓴다. 그런 자리에 막대가 또
+ * 서면 테두리가 두 줄로 보이고, 내용이 막대 폭만큼 밀려 가운데가 어긋난다.
+ *
+ * 굴리는 일 자체는 그대로다 — 휠·손가락·키보드(PageDown, 화살표)가 평소처럼
+ * 듣는다. 다만 '얼마나 남았는지' 알려주는 표시가 사라지므로, 화면 전체처럼
+ * 길게 굴러가는 곳에는 쓰지 않는다.
+ */
+@utility no-scrollbar {
+  scrollbar-width: none;
+
+  &::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+/* 새로 온 것이 조용히 나타난다 — 프로필 사진처럼 자리가 이미 잡혀 있는 곳에 쓴다 */
+@utility animate-fade-in {
+  animation: fade-in 220ms ease-out;
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+    scale: 0.96;
+  }
+  to {
+    opacity: 1;
+    scale: 1;
+  }
+}
+
+/*
+ * 목록이 다시 늘어설 때 한 줄씩 올라온다.
+ *
+ * 순서나 종류를 바꾸면 줄이 통째로 뒤바뀌는데, 그냥 갈아끼우면 무엇이 어떻게
+ * 바뀐 건지 눈이 못 따라간다. 위에서부터 차례로 들어오면 '다시 정렬됐다'가
+ * 저절로 읽힌다.
+ *
+ * 밀리는 시간은 줄마다 --row 로 준다. 열째 줄부터는 더 밀지 않는다 — 200줄이
+ * 각자 기다리면 끝줄은 몇 초 뒤에나 나타난다.
+ *
+ * 쓰는 쪽에서 motion-safe: 를 붙인다. 움직임을 줄인 사람에게는 아예 안 걸린다.
+ */
+@utility animate-row-in {
+  animation: row-in 260ms ease-out backwards;
+  animation-delay: calc(min(var(--row, 0), 9) * 28ms);
+}
+
+@keyframes row-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/*
+ * 네모 하나가 제자리에서 반 바퀴.
+ *
+ * 한 바퀴가 아니라 반 바퀴다. 네모는 90도만 돌아도 처음과 같아 보여서, 한
+ * 바퀴를 돌리면 같은 모양을 두 번 지나며 헛도는 느낌이 난다. 반 바퀴면
+ * 도는 동안에만 기울어 보이고 끝은 깔끔하게 맞는다.
+ *
+ * --sq 로 차례를 받아 조금씩 늦게 시작한다.
+ */
+@utility animate-square-spin {
+  animation: square-spin 420ms cubic-bezier(0.22, 1, 0.36, 1) backwards;
+  animation-delay: calc(var(--sq, 0) * 45ms);
+}
+
+@keyframes square-spin {
+  from {
+    rotate: 0deg;
+  }
+  to {
+    rotate: 180deg;
+  }
+}
+
+@keyframes cog-spin {
+  from {
+    rotate: 0deg;
+  }
+  to {
+    rotate: 360deg;
+  }
+}
+
 @keyframes page-fade {
   from {
     opacity: 0;
@@ -473,6 +690,84 @@ dialog[open] {
   dialog[open] {
     opacity: 0;
     transform: translateY(8px) scale(0.98);
+  }
+}
+
+/*
+ * 누른 자리에서 날아와 가운데에 앉는 창 — 설정과 내 정보.
+ *
+ * 창은 늘 화면 한가운데에 선다. 다만 처음 한순간만 누른 버튼 자리에 작게
+ * 놓였다가, 커지면서 가운데로 온다. 그래서 어느 버튼을 눌러 뜬 것인지 눈으로
+ * 이어지면서도, 읽을 때는 화면 한복판에 있다.
+ *
+ * 출발점(--pop-x, --pop-y)은 버튼 자리를 재서 열리는 순간에 적어 넣는다
+ * (components/modal.tsx). 못 재면 0 이 되어 제자리에서 떠오른다.
+ *
+ * 0.18 배로 시작한다. 아이콘만 한 크기다 — 그보다 크면 '버튼에서 나왔다'가
+ * 아니라 '가운데서 조금 부풀었다'로 보인다.
+ *
+ * 들어오는 시간을 조금 늘렸다(220ms). 가운데까지 오는 거리가 있어서, 제자리에서
+ * 떠오르는 창과 같은 시간을 주면 쫓기듯 빠르다.
+ */
+dialog[data-pop] {
+  transform: translate(var(--pop-x, 0), var(--pop-y, 0)) scale(0.18);
+  transition:
+    opacity 130ms ease-in,
+    transform 130ms ease-in,
+    overlay 130ms ease-in allow-discrete,
+    display 130ms ease-in allow-discrete;
+}
+dialog[data-pop][open] {
+  transform: translate(0, 0) scale(1);
+  transition:
+    opacity 180ms ease-out,
+    transform 220ms cubic-bezier(0.22, 1, 0.36, 1),
+    overlay 220ms ease-out allow-discrete,
+    display 220ms ease-out allow-discrete;
+}
+@starting-style {
+  dialog[data-pop][open] {
+    opacity: 0;
+    transform: translate(var(--pop-x, 0), var(--pop-y, 0)) scale(0.18);
+  }
+}
+
+/*
+ * 오른쪽에서 밀려 나오는 판 — PC 의 '더보기' 메뉴.
+ *
+ * 가운데 뜨는 창과 같은 <dialog> 지만 들고 나는 방향이 다르다. 가운데 창은
+ * 제자리에서 살짝 떠오르면 되지만, 화면 가장자리에 붙는 판이 위아래로
+ * 움직이면 어디서 왔는지 알 수 없다. 붙어 있는 쪽에서 나와야 한다.
+ *
+ * 브라우저가 <dialog> 에 기본으로 주는 여백과 크기 제한을 먼저 지운다.
+ * 그대로 두면 가운데로 끌려가고 높이도 화면에 못 미친다.
+ */
+dialog[data-drawer] {
+  margin: 0 0 0 auto;
+  max-width: none;
+  max-height: none;
+  height: 100dvh;
+  border-radius: 0;
+  /*
+   * 화면 바깥 오른쪽에서 통째로 밀려 들어온다.
+   *
+   * 전에는 1.75rem 만 움직였다. 그 정도로는 '살짝 나타났다'로 읽히지
+   * '오른쪽에서 나왔다'로는 안 읽힌다. 제 폭만큼(100%) 밀어 두면 어디에서
+   * 오는 물건인지가 움직임만으로 분명해진다.
+   *
+   * 폭이 얼마든 100% 면 정확히 화면 밖에 선다 — 픽셀을 적어 두면 좁은
+   * 화면에서 덜 나가거나 넘어간다.
+   */
+  transform: translateX(100%);
+}
+dialog[data-drawer][open] {
+  transform: translateX(0);
+}
+@starting-style {
+  dialog[data-drawer][open] {
+    /* 미끄러지는 것만 보이면 된다. 투명도까지 겹치면 흐릿하게 번져 보인다. */
+    opacity: 1;
+    transform: translateX(100%);
   }
 }
 

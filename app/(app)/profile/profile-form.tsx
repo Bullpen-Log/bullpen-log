@@ -2,12 +2,36 @@
 
 import Link from 'next/link';
 
-import { useActionState } from 'react';
+import { useActionState, useState, useSyncExternalStore } from 'react';
 import { useFormStatus } from 'react-dom';
 import { updateProfile, type ProfileState } from '@/app/actions/profile';
 import { Button, Field, FormError, Input } from '@/components/ui';
 import { kept } from '@/lib/form-values';
-import { MAX_HEIGHT_CM, MIN_HEIGHT_CM } from '@/lib/profile';
+import {
+  fromLength,
+  fromSpeed,
+  fromWeight,
+  readLengthUnit,
+  readSpeedUnit,
+  readWeightUnit,
+  round1,
+  serverLengthUnit,
+  serverSpeedUnit,
+  serverWeightUnit,
+  speedLabel,
+  subscribeUnits,
+  toLength,
+  toSpeed,
+  toWeight,
+} from '@/lib/units';
+import {
+  MAX_HEIGHT_CM,
+  MAX_WEIGHT_KG,
+  MAX_WINGSPAN_CM,
+  MIN_HEIGHT_CM,
+  MIN_WEIGHT_KG,
+  MIN_WINGSPAN_CM,
+} from '@/lib/profile';
 import { TARGET_VELOCITY_MAX, TARGET_VELOCITY_MIN } from '@/lib/velocity';
 import { RadioGroup } from '@/components/choice-inputs';
 import {
@@ -33,10 +57,137 @@ function SubmitButton() {
   );
 }
 
+/**
+ * 몸 치수 한 칸 — 고른 단위로 보여주고, 저장은 늘 기본 단위로 한다.
+ *
+ * 눈에 보이는 칸은 고른 단위(inch·lb)이고, 서버로는 숨겨 둔 칸이 언제나
+ * cm·kg 을 보낸다. DB 에 단위가 섞이면 나중에 어느 줄이 인치인지 알 수 없게
+ * 되고, 영상에서 잰 길이와 견줄 때도 매번 물어봐야 한다.
+ *
+ * 단위를 바꾸면 적어 둔 값도 같이 환산해 보여준다. 숫자를 그대로 두고 단위만
+ * 바꾸면 180cm 가 180inch(4.6m)가 되어 버린다.
+ *
+ * 키·몸무게·윙스팬이 하는 일이 같아 한 부품으로 둔다. 다른 것은 어느 단위를
+ * 따르는지와 범위뿐이다.
+ */
+function BodyField({
+  name,
+  label,
+  hint,
+  base,
+  kind,
+  min,
+  max,
+  placeholder,
+}: {
+  /** 서버로 보낼 칸 이름 — 값은 언제나 cm 또는 kg */
+  name: string;
+  label: string;
+  hint?: string;
+  /** 저장된 값 (cm 또는 kg) */
+  base: string;
+  /** 어느 단위를 따르는가 */
+  kind: 'length' | 'weight';
+  /** 저장 단위 기준 범위 */
+  min: number;
+  max: number;
+  /** 기본 단위일 때 보여줄 예시 */
+  placeholder: string;
+}) {
+  const lengthUnit = useSyncExternalStore(
+    subscribeUnits,
+    readLengthUnit,
+    serverLengthUnit
+  );
+  const weightUnit = useSyncExternalStore(
+    subscribeUnits,
+    readWeightUnit,
+    serverWeightUnit
+  );
+  const [stored, setStored] = useState(base);
+
+  const isLength = kind === 'length';
+  const unit = isLength ? lengthUnit : weightUnit;
+  const swapped = isLength ? lengthUnit === 'in' : weightUnit === 'lb';
+  const to = (n: number) => (isLength ? toLength(n, lengthUnit) : toWeight(n, weightUnit));
+  const from = (n: number) =>
+    isLength ? fromLength(n, lengthUnit) : fromWeight(n, weightUnit);
+
+  const shown = stored === '' ? '' : String(round1(to(Number(stored))));
+
+  return (
+    <Field label={`${label} (${unit === 'in' ? 'inch' : unit})`} hint={hint}>
+      <Input
+        type="number"
+        inputMode="decimal"
+        value={shown}
+        onChange={(e) => {
+          const v = e.target.value;
+          setStored(v === '' ? '' : String(round1(from(Number(v)))));
+        }}
+        min={round1(to(min))}
+        max={round1(to(max))}
+        step={0.5}
+        placeholder={swapped ? String(Math.round(to(Number(placeholder)))) : placeholder}
+      />
+      {/* 서버로 가는 값은 언제나 cm · kg */}
+      <input type="hidden" name={name} value={stored} />
+    </Field>
+  );
+}
+
+/**
+ * 목표 구속 — 고른 단위로 보여주고 저장은 늘 km/h 로 한다.
+ *
+ * 몸 치수와 따로 둔 이유는 단위가 다르기 때문이다(길이도 무게도 아니다).
+ *
+ * 소수 한 자리를 남긴다. 단위를 바꾸면 딱 떨어지던 값이 소수가 되는데, 정수로
+ * 반올림하면 되돌렸을 때 적은 적 없는 숫자가 된다 — 145km/h 가 90mph 를 거쳐
+ * 144.8km/h 로 돌아온다.
+ */
+function TargetVelocityField({ base }: { base: string }) {
+  const unit = useSyncExternalStore(subscribeUnits, readSpeedUnit, serverSpeedUnit);
+  const [kmh, setKmh] = useState(base);
+
+  const shown = kmh === '' ? '' : String(round1(toSpeed(Number(kmh), unit)));
+
+  return (
+    <Field
+      label={`목표 구속 (${speedLabel(unit)})`}
+      hint="선택 입력. 비워두면 목표를 지웁니다."
+    >
+      <Input
+        type="number"
+        inputMode="decimal"
+        value={shown}
+        onChange={(e) => {
+          const v = e.target.value;
+          /*
+           * 담아 두는 값은 정수 km/h 다. 이 칸은 Int 로 저장되고 서버도 정수만
+           * 받는다(lib/velocity.ts) — 소수를 그대로 보내면 저장이 막힌다.
+           *
+           * 보여줄 때만 소수를 남긴다. mph 로 보면 90.1 처럼 떨어지지 않는 것이
+           * 정상이고, 그것을 반올림해 버리면 목표가 슬금슬금 달라진다.
+           */
+          setKmh(v === '' ? '' : String(Math.round(fromSpeed(Number(v), unit))));
+        }}
+        min={round1(toSpeed(TARGET_VELOCITY_MIN, unit))}
+        max={round1(toSpeed(TARGET_VELOCITY_MAX, unit))}
+        step={0.1}
+        placeholder={unit === 'mph' ? '87' : '140'}
+      />
+      {/* 서버로 가는 값은 언제나 km/h */}
+      <input type="hidden" name="targetVelocity" value={kmh} />
+    </Field>
+  );
+}
+
 export function ProfileForm({
   nickname,
   birthDate,
   heightCm,
+  weightKg,
+  wingspanCm,
   targetVelocity,
   dailyWorkoutMinutes,
   baseline,
@@ -46,6 +197,8 @@ export function ProfileForm({
   nickname: string;
   birthDate: string;
   heightCm: number | null;
+  weightKg: number | null;
+  wingspanCm: number | null;
   targetVelocity: number | null;
   dailyWorkoutMinutes: number | null;
   baseline: {
@@ -81,61 +234,69 @@ export function ProfileForm({
         </p>
       )}
 
-      <Field label="닉네임">
-        <Input
-          name="nickname"
-          type="text"
-          defaultValue={pick('nickname', nickname)}
-          autoComplete="nickname"
-          minLength={2}
-          required
-        />
-      </Field>
+      {/*
+        네 칸을 두 줄로 눕힌다.
 
-      <Field
-        label="생년월일"
-        hint="나이에 따라 안전한 투구수 한도가 달라져 투구량 조언에 사용됩니다."
-      >
-        <Input
-          name="birthDate"
-          type="date"
-          defaultValue={pick('birthDate', birthDate)}
-          max={today}
-          required
-        />
-      </Field>
+        예전에는 한 줄에 하나씩 세로로 쌓여 있었다. 닉네임 칸이 화면 폭을 다
+        쓰는데 정작 들어가는 것은 두세 글자고, 키와 목표 구속도 세 자리 숫자가
+        전부였다. 창으로 옮기면서 그 빈 폭이 그대로 스크롤 길이가 됐다.
+      */}
+      <div className="grid gap-x-4 gap-y-4 sm:grid-cols-2">
+        <Field label="닉네임">
+          <Input
+            name="nickname"
+            type="text"
+            defaultValue={pick('nickname', nickname)}
+            autoComplete="nickname"
+            minLength={2}
+            required
+          />
+        </Field>
 
-      <Field
-        label="키 (cm)"
-        hint="선택 입력입니다. 영상에서 잰 보폭 등을 몸 크기 기준으로 비교할 때 쓰입니다."
-      >
-        <Input
+        <Field label="생년월일" hint="나이에 따라 안전한 투구수 한도가 달라집니다.">
+          <Input
+            name="birthDate"
+            type="date"
+            defaultValue={pick('birthDate', birthDate)}
+            max={today}
+            required
+          />
+        </Field>
+
+        <BodyField
           name="heightCm"
-          type="number"
-          inputMode="numeric"
-          defaultValue={pick('heightCm', heightCm)}
+          label="키"
+          hint="영상에서 잰 보폭을 몸 크기로 견줄 때 씁니다."
+          base={pick('heightCm', heightCm)}
+          kind="length"
           min={MIN_HEIGHT_CM}
           max={MAX_HEIGHT_CM}
-          step={1}
           placeholder="180"
         />
-      </Field>
 
-      <Field
-        label="목표 최고 구속 (km/h)"
-        hint="선택 입력입니다. 지금 구속과의 격차를 홈 화면에서 보여드립니다. 비워두면 목표를 지웁니다."
-      >
-        <Input
-          name="targetVelocity"
-          type="number"
-          inputMode="numeric"
-          defaultValue={pick('targetVelocity', targetVelocity)}
-          min={TARGET_VELOCITY_MIN}
-          max={TARGET_VELOCITY_MAX}
-          step={1}
-          placeholder="140"
+        <BodyField
+          name="weightKg"
+          label="몸무게"
+          base={pick('weightKg', weightKg)}
+          kind="weight"
+          min={MIN_WEIGHT_KG}
+          max={MAX_WEIGHT_KG}
+          placeholder="75"
         />
-      </Field>
+
+        <BodyField
+          name="wingspanCm"
+          label="윙스팬"
+          hint="양팔을 벌린 길이. 보통 키와 비슷하거나 조금 깁니다."
+          base={pick('wingspanCm', wingspanCm)}
+          kind="length"
+          min={MIN_WINGSPAN_CM}
+          max={MAX_WINGSPAN_CM}
+          placeholder="185"
+        />
+
+        <TargetVelocityField base={pick('targetVelocity', targetVelocity)} />
+      </div>
 
       {/* 하루 운동 시간 — 트레이닝 화면이 이 시간에 맞춰 종목 수를 정한다. */}
       <RadioGroup

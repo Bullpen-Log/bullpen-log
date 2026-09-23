@@ -1,12 +1,21 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useSyncExternalStore } from 'react';
 import { Button, Field, Input, Textarea } from '@/components/ui';
 import { VideoUpload, type UploadedVideo } from '@/components/video-upload';
 import { usePlaybackUrls } from '@/components/use-playback-urls';
 import { FilmingGuide } from '@/components/filming-guide';
 import { IntensityGuide } from '@/components/intensity-guide';
 import { DEFAULT_SESSION_TYPE, SESSION_TYPES, isRestSession } from '@/lib/session-type';
+import {
+  fromSpeed,
+  readSpeedUnit,
+  round1,
+  serverSpeedUnit,
+  speedLabel,
+  subscribeUnits,
+  toSpeed,
+} from '@/lib/units';
 
 /**
  * 하루치 투구를 남기는 입력 폼. 새로 남길 때와 고칠 때 모두 쓴다.
@@ -40,6 +49,56 @@ export type EntryDraft = {
 /** 저장소 경로에서 사람이 읽을 이름만 떼어낸다 */
 function fileNameOf(path: string) {
   return path.split('/').pop() || path;
+}
+
+/** 구속 칸이 쓰는 범위. 저장 단위(km/h) 기준이다. */
+const SPEED_MIN_KMH = 30;
+const SPEED_MAX_KMH = 200;
+
+/**
+ * 구속 한 칸 — 고른 단위로 보여주고, 들고 있는 값은 늘 km/h 다.
+ *
+ * 부모(form)가 담는 값을 바꾸지 않는 것이 중요하다. 저장도 부하 계산도 km/h
+ * 기준이라, 화면에서 mph 로 보인다고 그 숫자가 그대로 올라가면 145 가 234 가
+ * 된다.
+ *
+ * 소수 한 자리를 그대로 둔다. 예전부터 138.5 처럼 적을 수 있었고, 스피드건에
+ * 따라 소수를 읽어 주는 것도 있다.
+ */
+function SpeedInput({
+  label,
+  hint,
+  kmh,
+  onKmh,
+  sample,
+}: {
+  label: string;
+  hint: string;
+  /** 지금 값 (km/h 문자열) */
+  kmh: string;
+  onKmh: (kmh: string) => void;
+  /** km/h 기준 예시 숫자 — 다른 단위면 환산해 보여준다 */
+  sample: number;
+}) {
+  const unit = useSyncExternalStore(subscribeUnits, readSpeedUnit, serverSpeedUnit);
+  const shown = kmh === '' ? '' : String(round1(toSpeed(Number(kmh), unit)));
+
+  return (
+    <Field label={`${label} (${speedLabel(unit)})`} hint={hint}>
+      <Input
+        type="number"
+        step="0.1"
+        min={round1(toSpeed(SPEED_MIN_KMH, unit))}
+        max={round1(toSpeed(SPEED_MAX_KMH, unit))}
+        value={shown}
+        onChange={(e) => {
+          const v = e.target.value;
+          onKmh(v === '' ? '' : String(round1(fromSpeed(Number(v), unit))));
+        }}
+        placeholder={String(Math.round(toSpeed(sample, unit)))}
+      />
+    </Field>
+  );
 }
 
 export function EntryForm({
@@ -241,28 +300,20 @@ export function EntryForm({
         구속이 없어도 계산은 그대로 된다.
       */}
           <div className="grid gap-5 sm:grid-cols-2">
-            <Field label="최고 구속 (km/h)" hint="스피드건이 없으면 비워두세요.">
-              <Input
-                type="number"
-                step="0.1"
-                min="30"
-                max="200"
-                value={form.maxVelocity}
-                onChange={(e) => setForm({ ...form, maxVelocity: e.target.value })}
-                placeholder="138"
-              />
-            </Field>
-            <Field label="평균 구속 (km/h)" hint="비워두셔도 됩니다.">
-              <Input
-                type="number"
-                step="0.1"
-                min="30"
-                max="200"
-                value={form.avgVelocity}
-                onChange={(e) => setForm({ ...form, avgVelocity: e.target.value })}
-                placeholder="132"
-              />
-            </Field>
+            <SpeedInput
+              label="최고 구속"
+              hint="스피드건이 없으면 비워두세요."
+              kmh={form.maxVelocity}
+              onKmh={(v) => setForm({ ...form, maxVelocity: v })}
+              sample={138}
+            />
+            <SpeedInput
+              label="평균 구속"
+              hint="비워두셔도 됩니다."
+              kmh={form.avgVelocity}
+              onKmh={(v) => setForm({ ...form, avgVelocity: v })}
+              sample={132}
+            />
           </div>
         </>
       )}

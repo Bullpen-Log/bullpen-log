@@ -1,24 +1,82 @@
 import { ViewTransition } from 'react';
 import { requireUser } from '@/lib/dal';
-import { MOBILE_TABS, visibleGroups } from '@/lib/nav';
-import { MobileTabs, MobileTopBar, Sidebar } from '@/components/app-shell';
+import { toDateInputValue } from '@/lib/profile';
+import { toDateKey } from '@/lib/pitch-stats';
+import { createAvatarUrl } from '@/lib/storage';
+import { MOBILE_TABS, quickTabs, visibleGroups } from '@/lib/nav';
+import { AppNav, MobileTabs } from '@/components/app-shell';
+
+/** 렌더 중에 현재 시각을 직접 읽지 않도록 함수로 감싼다. */
+function todayKey() {
+  return toDateKey(new Date());
+}
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   // 이 레이아웃 아래의 모든 페이지는 로그인이 필요하다.
   const user = await requireUser();
   const isAdmin = user.role === 'ADMIN';
+  /*
+   * 프로필 사진은 비공개 저장소에 있어 볼 때마다 임시 주소를 만든다.
+   *
+   * 아바타가 막대와 상단 바에 늘 있으므로 레이아웃에서 한 번만 만들어 내려
+   * 보낸다. 주소는 만들어 둔 것을 돌려쓰므로(lib/storage.ts) 화면을 옮길
+   * 때마다 저장소에 묻지 않는다.
+   */
+  const avatarUrl = await createAvatarUrl(user.avatarPath);
 
   return (
     <div className="min-h-screen">
-      <Sidebar
+      <AppNav
         groups={visibleGroups(isAdmin)}
+        quick={quickTabs()}
         nickname={user.nickname}
+        avatarUrl={avatarUrl}
         isAdmin={isAdmin}
+        /*
+         * 막대 아래 '내 정보' 창에서 고칠 값들.
+         *
+         * 이 레이아웃은 어차피 사용자를 읽고 있으므로(requireUser) 조회가
+         * 늘지 않는다. 창을 열 때 받아 오게 하면 누르고 나서 잠깐 빈 창을 본다.
+         */
+        profile={{
+          email: user.email,
+          nickname: user.nickname,
+          birthDate: user.birthDate ? toDateInputValue(user.birthDate) : '',
+          heightCm: user.heightCm,
+          weightKg: user.weightKg,
+          wingspanCm: user.wingspanCm,
+          targetVelocity: user.targetVelocity,
+          dailyWorkoutMinutes: user.dailyWorkoutMinutes,
+          baseline: {
+            baselineFreq: user.baselineFreq,
+            baselineVolume: user.baselineVolume,
+            baselineIntensity: user.baselineIntensity,
+            baselineWorkoutFreq: user.baselineWorkoutFreq,
+            throwingHand: user.throwingHand,
+            competitionLevel: user.competitionLevel,
+          },
+          isAdmin,
+        }}
+        /* '설정' 창에서 고칠 값들. 여기서 이미 읽은 사용자라 조회가 늘지 않는다. */
+        settings={{
+          trainingLevel: user.trainingLevel,
+          ownedEquipment: user.ownedEquipment,
+        }}
+        today={todayKey()}
       />
-      <MobileTopBar nickname={user.nickname} />
 
-      {/* 사이드바(PC) 폭과 하단 탭바(모바일) 높이만큼 비워둔다. */}
-      <div className="lg:pl-60">
+      {/*
+        위쪽만 비운다.
+
+        메뉴가 세로 막대였을 때는 그 폭만큼 좌우를 같이 비워야 본문이 화면
+        한가운데에 놓였다. 이제 로고와 메뉴가 둘 다 위쪽 한 줄에 있으므로,
+        좌우는 아무것도 차지하지 않는다 — 비우면 오히려 본문이 좁아진다.
+        본문은 저 스스로 가운데 정렬(mx-auto)이라 그대로 화면 한가운데다.
+
+        위쪽 4rem 은 그 줄의 자리다. 로고와 아이콘은 고정이라 자리를 차지하지
+        않으므로, 여기서 비워주지 않으면 첫 줄이 그 밑으로 들어간다.
+      */}
+      <div className="lg:pt-16">
         <main className="mx-auto w-full max-w-5xl px-4 py-6 pb-24 sm:px-6 sm:py-8 lg:pb-12">
           {/*
            * 탭을 옮길 때 본문만 부드럽게 바뀐다.

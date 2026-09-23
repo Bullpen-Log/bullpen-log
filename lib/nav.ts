@@ -16,6 +16,8 @@ export type NavIconName =
   | 'book'
   | 'user'
   | 'settings'
+  /* 관리자 — 설정(톱니)과 헷갈리지 않게 방패를 쓴다 */
+  | 'shield'
   | 'menu';
 
 export type NavItem = {
@@ -144,19 +146,12 @@ export const NAV_GROUPS: NavGroup[] = [
     ],
   },
   {
-    title: '설정',
+    title: '관리',
     items: [
-      {
-        href: '/profile',
-        label: '내 정보',
-        icon: 'user',
-        desc: '신체 정보 · 평소 문진 · 기본 운동 시간',
-        tone: 'recovery',
-      },
       {
         href: '/admin',
         label: '관리자',
-        icon: 'settings',
+        icon: 'shield',
         desc: '회원과 영상 관리',
         tone: 'armcare',
         adminOnly: true,
@@ -176,6 +171,17 @@ export const MOBILE_TABS: NavItem[] = [
   { href: '/coach', label: '분석', icon: 'chart' },
   { href: '/more', label: '더보기', icon: 'menu' },
 ];
+
+/**
+ * PC 오른쪽 간편 이동 막대에 둘 항목.
+ *
+ * 휴대폰 하단 탭과 같은 목록을 쓴다 — 자주 가는 곳은 기기가 달라도 같다.
+ * 다만 '더보기'는 뺀다. 휴대폰에서는 그것이 화면 하나(/more)지만 PC 에서는
+ * 전체 메뉴를 그 자리에서 펴는 버튼이라, 링크로 두면 엉뚱한 곳으로 간다.
+ */
+export function quickTabs(): NavItem[] {
+  return MOBILE_TABS.filter((t) => t.href !== '/more');
+}
 
 /** 관리자가 아니면 관리자 전용 항목을 걸러낸다. */
 export function visibleGroups(isAdmin: boolean): NavGroup[] {

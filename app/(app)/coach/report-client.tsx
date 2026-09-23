@@ -1,6 +1,8 @@
 'use client';
 
 import { useMemo, useState } from 'react';
+import { formatSpeed } from '@/lib/units';
+import { useSpeedUnit } from '@/components/use-units';
 import {
   ArrowDown,
   ArrowUp,
@@ -112,6 +114,8 @@ function MetricRow({
 }
 
 export function ReportClient({ logs }: { logs: Log[] }) {
+  /* 구속을 보여줄 단위. 저장은 늘 km/h 다(lib/units.ts). */
+  const speedUnit = useSpeedUnit();
   const [days, setDays] = useState<7 | 30>(7);
 
   const byDay = useMemo(() => groupByDay(logs), [logs]);
@@ -437,10 +441,10 @@ export function ReportClient({ logs }: { logs: Log[] }) {
                         <span>{log.pitchCount}구</span>
                         <span>강도 {log.intensity}/10</span>
                         {log.maxVelocity != null && (
-                          <span>최고 {log.maxVelocity}km/h</span>
+                          <span>최고 {formatSpeed(log.maxVelocity, speedUnit)}</span>
                         )}
                         {log.avgVelocity != null && (
-                          <span>평균 {log.avgVelocity}km/h</span>
+                          <span>평균 {formatSpeed(log.avgVelocity, speedUnit)}</span>
                         )}
                       </div>
                       <p className="mt-3 flex gap-2 whitespace-pre-wrap text-sm leading-relaxed text-ink/90">

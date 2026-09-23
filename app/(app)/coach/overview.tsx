@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
-import Link from 'next/link';
 import { UserCog } from 'lucide-react';
+import { Speed } from '@/components/speed';
 import { estimateDailyLoad } from '@/lib/baseline';
 import { LOOKBACK_DAYS } from '@/lib/report/gather';
 import {
@@ -310,14 +310,23 @@ export function StatsOverview({
         */}
             <StatCard
               label="개인 최고 구속"
-              value={bestVelocity?.value ?? '—'}
-              unit={bestVelocity ? 'km/h' : ''}
+              /*
+               * 숫자와 단위를 한 조각으로 넘긴다. 단위는 브라우저에만 있는
+               * 값이라 서버가 그리는 이 화면은 알 수 없어서, 그 한 조각만
+               * 화면 쪽 부품(Speed)에 맡긴다.
+               */
+              value={bestVelocity ? <Speed kmh={bestVelocity.value} /> : '—'}
+              unit=""
               footer={
                 bestVelocity ? (
                   <span className="text-xs text-muted">
-                    {user.targetVelocity
-                      ? `목표 ${user.targetVelocity} km/h`
-                      : `${formatShortDate(bestVelocity.date)} 기록`}
+                    {user.targetVelocity ? (
+                      <>
+                        목표 <Speed kmh={user.targetVelocity} />
+                      </>
+                    ) : (
+                      `${formatShortDate(bestVelocity.date)} 기록`
+                    )}
                   </span>
                 ) : (
                   <span className="text-xs text-muted/60">
@@ -363,19 +372,20 @@ export function StatsOverview({
 
           {/* ── 생년월일 안내 ───────────────────────────────────── */}
           {!user.birthDate && (
-            <Link
-              href="/profile"
-              className="flex items-center gap-4 rounded-2xl border border-sky-soft/60 bg-sky/5 px-5 py-4 transition-colors hover:border-sky"
-            >
+            /*
+              예전에는 눌러서 내 정보 화면으로 가는 링크였다. 그 화면이 창으로
+              바뀌면서 갈 곳이 없어졌으므로, 어디서 고치는지만 알려준다.
+            */
+            <div className="flex items-center gap-4 rounded-2xl border border-sky-soft/60 bg-sky/5 px-5 py-4">
               <UserCog className="h-5 w-5 shrink-0 text-sky" />
               <span className="min-w-0 flex-1 text-sm leading-relaxed text-ink/90">
                 생년월일이 아직 등록되지 않았습니다. 나이에 맞는 안전한 투구수를
                 계산하려면 필요합니다.
               </span>
-              <span className="shrink-0 text-xs font-medium tracking-normal text-sky">
-                입력 →
+              <span className="shrink-0 text-xs font-medium tracking-normal break-keep text-sky">
+                위쪽 내 사진에서 입력
               </span>
-            </Link>
+            </div>
           )}
         </>
       )}

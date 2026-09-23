@@ -124,7 +124,19 @@ async function tryLogin(formData: FormData): Promise<AuthState> {
     return { error: '이메일 또는 비밀번호가 올바르지 않습니다.' };
   }
 
-  await createSession({ userId: user.id, role: user.role });
+  /*
+   * '자동 로그인'을 켜고 왔는가.
+   *
+   * 체크박스는 켰을 때만 값이 실려 온다. 안 켰으면 아예 없으므로, 값이
+   * 있는지만 본다 — 'on'인지 'true'인지는 브라우저마다 다를 수 있다.
+   *
+   * 폼에서 오는 값이라 믿고 쓰지 않는다. 여기서 정해지는 것은 기한 하나이고
+   * 그 기한은 서명된 표 안에 박혀서 나가므로, 켰다고 적어 보낸다고 해서
+   * 남의 계정이 열리거나 기한이 더 늘어나지는 않는다.
+   */
+  const stayLoggedIn = formData.get('stayLoggedIn') != null;
+
+  await createSession({ userId: user.id, role: user.role }, stayLoggedIn);
   redirect('/today');
 }
 

@@ -7,6 +7,7 @@ import {
   House,
   Menu,
   Settings,
+  Shield,
   Target,
   User,
   type LucideIcon,
@@ -30,5 +31,6 @@ export const NAV_ICONS: Record<NavIconName, LucideIcon> = {
   book: BookOpen,
   user: User,
   settings: Settings,
+  shield: Shield,
   menu: Menu,
 };

@@ -897,7 +897,11 @@ console.log('\n[가입 문진] 받은 답이 실제로 쓰이는가');
     '화면에 쓰는 목록이 비어 있지 않다',
     BASELINE_WORKOUT_FREQ_NAMES.length > 0 &&
       COMPETITION_LEVELS.length > 0 &&
-      THROWING_HANDS.length === 2
+      /*
+       * 개수를 박아 두지 않는다. '비어 있지 않다'를 보는 자리인데 2 로 고정해
+       * 두었더니, 양투를 더하는 정당한 변경에서 이 점검이 걸렸다.
+       */
+      THROWING_HANDS.length > 0
   );
 }
 

@@ -15,6 +15,27 @@ export const LIBRARY_PREFIX = 'library';
 /** 업로드 가능한 최대 용량. 버킷 설정과 같은 값을 유지해야 한다. */
 export const MAX_VIDEO_BYTES = 50 * 1024 * 1024; // 50MB
 
+/**
+ * 프로필 사진의 최대 용량.
+ *
+ * 5MB 면 요즘 폰으로 찍은 사진 한 장이 그대로 들어간다. 화면에는 작게 나오지만
+ * 여기서 줄이자고 브라우저에서 다시 그리면 회전 정보가 날아가 사진이 눕는
+ * 기기가 있다. 원본을 그대로 받고 보여줄 때 잘라 쓴다.
+ */
+export const MAX_AVATAR_BYTES = 5 * 1024 * 1024; // 5MB
+
+/**
+ * 프로필 사진 이름 앞에 붙이는 말.
+ *
+ * 사용자 폴더(`{userId}/`) 안에 투구 영상과 나란히 들어간다. 버킷을 새로 만들지
+ * 않는 이유는 이미 있는 것이 비공개이고 소유권 확인(isOwnedBy)이 그대로 걸리기
+ * 때문이다. 새 버킷은 Supabase 화면에서 사람이 만들어야 하는데, 실수로 공개로
+ * 만들면 남의 사진이 주소만 알면 다 보인다.
+ *
+ * 말을 붙여 두면 나중에 영상만 세거나 지울 때 사진을 가려낼 수 있다.
+ */
+const AVATAR_PREFIX = 'avatar-';
+
 /** 재생용 임시 주소의 유효 시간(초). */
 const PLAYBACK_TTL_SECONDS = 60 * 60;
 
@@ -173,6 +194,40 @@ export async function deleteVideos(paths: string[]) {
 /** 해당 경로가 그 사용자의 폴더인지 확인한다. */
 export function isOwnedBy(path: string, userId: string) {
   return path.startsWith(`${userId}/`);
+}
+
+/** 브라우저가 프로필 사진을 직접 올릴 임시 주소를 만든다. */
+export async function createAvatarUploadTarget(userId: string, fileType: string) {
+  /*
+   * 확장자는 파일 이름이 아니라 종류에서 뽑는다.
+   *
+   * 이름은 사용자가 정하는 값이라 '사진.exe' 같은 것도 올 수 있다. 종류는
+   * 브라우저가 붙이는 값이고, 서버가 이미 image/* 인지 확인한 뒤에 넘어온다.
+   */
+  const ext = fileType.split('/')[1]?.replace(/[^a-z0-9]/g, '').slice(0, 5) || 'jpg';
+  const path = `${userId}/${AVATAR_PREFIX}${crypto.randomUUID()}.${ext}`;
+
+  const { data, error } = await getClient()
+    .storage.from(VIDEO_BUCKET)
+    .createSignedUploadUrl(path);
+
+  if (error || !data) {
+    throw new Error(error?.message ?? '업로드 주소를 만들지 못했습니다.');
+  }
+
+  return { path: data.path, signedUrl: data.signedUrl, token: data.token };
+}
+
+/**
+ * 프로필 사진을 볼 수 있는 임시 주소.
+ *
+ * 영상과 같은 발급기를 쓰므로 만들어 둔 주소를 그대로 돌려쓴다 — 화면마다
+ * 새로 만들면 사진 한 장 때문에 이동할 때마다 저장소에 묻게 된다.
+ */
+export async function createAvatarUrl(path: string | null | undefined) {
+  if (!path) return null;
+  const urls = await createPlaybackUrls([path]);
+  return urls[path] ?? null;
 }
 
 /** 미리보기 이미지의 최대 용량. 캡처한 한 장면이라 넉넉한 값이다. */
