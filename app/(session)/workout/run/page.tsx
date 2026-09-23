@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation';
 import { prisma } from '@/lib/prisma';
 import { requireUser } from '@/lib/dal';
 import { createPlaybackUrls } from '@/lib/storage';
+import { exercisesByIds } from '@/lib/library-cache';
 import { recentAmounts } from '@/lib/report/exercise-recent';
 import { readFrozenPlan } from '@/lib/workout/session-plan';
 import { SessionClient, type RunExercise, type RunSet } from './session-client';
@@ -23,6 +24,16 @@ export default async function RunPage() {
 
   const plan = readFrozenPlan(session.plan);
   if (!plan || plan.exercises.length === 0) redirect('/training');
+
+  /*
+   * 설명과 영상은 찍어 둔 목록에 담지 않고 여기서 따로 읽는다.
+   *
+   * 얼려 두는 것은 '무엇을 할지'이지 '그 운동이 무엇인지'가 아니다. 설명은
+   * 길어서 찍어 두면 세션 줄이 무거워지고, 영상 주소는 한 시간이면 죽는다.
+   * 목록은 캐시에 통째로 올라와 있어(lib/library-cache.ts) DB 를 가지 않는다.
+   */
+  const details = await exercisesByIds(plan.exercises.map((e) => e.id));
+  const byId = new Map(details.map((d) => [d.id, d]));
 
   const [sets, thumbUrls, past] = await Promise.all([
     prisma.userExerciseSet.findMany({
@@ -49,21 +60,29 @@ export default async function RunPage() {
     ),
   ]);
 
-  const exercises: RunExercise[] = plan.exercises.map((e) => ({
-    id: e.id,
-    title: e.title,
-    category: e.category,
-    slot: e.slot,
-    prescription: e.prescription,
-    plannedSets: e.plannedSets,
-    perSide: e.perSide,
-    needsWeight: e.needsWeight,
-    isHold: e.isHold,
-    equipment: e.equipment,
-    thumbUrl: e.thumbPath ? (thumbUrls[e.thumbPath] ?? null) : null,
-    /* 가장 최근 한 번만. 여러 개를 보여주면 무엇을 따라갈지 흐려진다. */
-    last: past.get(e.id)?.[0] ?? null,
-  }));
+  const exercises: RunExercise[] = plan.exercises.map((e) => {
+    const d = byId.get(e.id);
+    return {
+      id: e.id,
+      title: e.title,
+      category: e.category,
+      slot: e.slot,
+      prescription: e.prescription,
+      plannedSets: e.plannedSets,
+      perSide: e.perSide,
+      needsWeight: e.needsWeight,
+      isHold: e.isHold,
+      equipment: e.equipment,
+      /* 운동 중에 자세를 확인할 수 있게 — 설명과 영상 */
+      description: d?.description ?? '',
+      videoPath: d?.videoPath ?? null,
+      referenceVideoId: d?.referenceVideoId ?? null,
+      aspectRatio: d?.aspectRatio ?? null,
+      thumbUrl: e.thumbPath ? (thumbUrls[e.thumbPath] ?? null) : null,
+      /* 가장 최근 한 번만. 여러 개를 보여주면 무엇을 따라갈지 흐려진다. */
+      last: past.get(e.id)?.[0] ?? null,
+    };
+  });
 
   const saved: RunSet[] = sets.map((s) => ({
     ...s,

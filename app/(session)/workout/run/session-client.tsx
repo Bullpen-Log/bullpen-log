@@ -2,7 +2,16 @@
 
 import { useEffect, useMemo, useRef, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
-import { Check, ChevronLeft, ChevronRight, Delete, Trash2, X } from 'lucide-react';
+import {
+  Check,
+  ChevronLeft,
+  ChevronRight,
+  Delete,
+  Info,
+  Trash2,
+  X,
+} from 'lucide-react';
+import { LibraryVideo } from '@/components/library-video';
 import { deleteSet, finishWorkout, logSet, type SavedSet } from '@/app/actions/workout';
 import { AMOUNT_LIMITS, WEIGHT_STEP, type DoneAmount } from '@/lib/exercise-meta';
 import type { SlotKey } from '@/lib/report/theme';
@@ -48,6 +57,11 @@ export type RunExercise = {
   needsWeight: boolean;
   isHold: boolean;
   equipment: string[];
+  /** 운동 중에 자세를 확인하는 데 쓴다 */
+  description: string;
+  videoPath: string | null;
+  referenceVideoId: string | null;
+  aspectRatio: number | null;
   thumbUrl: string | null;
   last: (DoneAmount & { date: string }) | null;
 };
@@ -166,6 +180,13 @@ export function SessionClient({
     exercises[0].needsWeight ? 'weight' : 'count'
   );
   const [error, setError] = useState<string | null>(null);
+  /*
+   * 자세 설명을 펼쳐 둘지.
+   *
+   * 운동을 옮겨도 그대로 둔다. 한 번 펼친 사람은 다음 운동에서도 보고 싶어
+   * 하는 것이 자연스럽다 — 운동마다 다시 누르게 하면 결국 안 보게 된다.
+   */
+  const [showForm, setShowForm] = useState(false);
   const [saving, startSaving] = useTransition();
   const [ending, startEnding] = useTransition();
   const topRef = useRef<HTMLDivElement>(null);
@@ -319,6 +340,45 @@ export function SessionClient({
             {ex.perSide && ' (좌우 각각)'}
           </p>
         )}
+        {/*
+          자세 보기.
+
+          헬스장에서 처음 하는 운동이면 이름만 봐서는 무엇을 하라는 것인지
+          알 수 없다. 접어 두는 것은 화면을 세트 기록에 쓰기 위해서이고,
+          한 번 펼치면 다음 운동에서도 펼친 채로 둔다.
+        */}
+        {(ex.description || ex.videoPath || ex.referenceVideoId) && (
+          <div className="mt-3">
+            <button
+              type="button"
+              onClick={() => setShowForm((v) => !v)}
+              className="flex w-full items-center justify-center gap-1.5 rounded-xl border border-line-strong py-2 text-xs font-semibold text-ink transition-colors active:bg-surface-2"
+            >
+              <Info className="h-3.5 w-3.5" />
+              {showForm ? '자세 설명 접기' : '자세·영상 보기'}
+            </button>
+
+            {showForm && (
+              <div className="mt-2 space-y-3 rounded-xl border border-line bg-surface p-3">
+                {(ex.videoPath || ex.referenceVideoId) && (
+                  <LibraryVideo
+                    path={ex.videoPath}
+                    referenceVideoId={ex.referenceVideoId}
+                    title={ex.title}
+                    thumbUrl={ex.thumbUrl}
+                    aspectRatio={ex.aspectRatio}
+                  />
+                )}
+                {ex.description && (
+                  <p className="whitespace-pre-wrap text-sm leading-relaxed text-ink/85">
+                    {ex.description}
+                  </p>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+
         {ex.last && (
           <p className="mt-0.5 text-xs text-muted/80">
             지난번 {ex.last.weightKg != null && `${ex.last.weightKg}kg × `}
@@ -382,24 +442,32 @@ export function SessionClient({
           </p>
         )}
 
+        {/*
+          무게칸은 언제나 낸다.
+
+          예전에는 바벨·덤벨 운동에만 냈다. 그런데 맨몸으로 적어 둔 운동도
+          덤벨을 들고 하거나 조끼를 입고 하는 일이 흔하고, 그때 적을 자리가
+          아예 없었다. 꼭 적어야 하는 것은 바벨·덤벨뿐이고 나머지는 비워
+          두어도 된다.
+        */}
         <div className="flex gap-2">
-          {ex.needsWeight || weight !== '' ? (
-            <button
-              type="button"
-              onClick={() => setField('weight')}
-              className={`flex-1 rounded-xl border px-3 py-2 text-left transition-colors ${
-                field === 'weight'
-                  ? 'border-sky bg-sky/5'
-                  : 'border-line-strong bg-surface-2'
-              }`}
-            >
-              <span className="block text-[10px] text-muted">무게</span>
-              <span className="block text-lg font-semibold tabular-nums text-ink">
-                {weight === '' ? '—' : weight}
-                <span className="ml-1 text-xs font-normal text-muted">kg</span>
-              </span>
-            </button>
-          ) : null}
+          <button
+            type="button"
+            onClick={() => setField('weight')}
+            className={`flex-1 rounded-xl border px-3 py-2 text-left transition-colors ${
+              field === 'weight'
+                ? 'border-sky bg-sky/5'
+                : 'border-line-strong bg-surface-2'
+            }`}
+          >
+            <span className="block text-[10px] text-muted">
+              무게{!ex.needsWeight && ' (없으면 비워두세요)'}
+            </span>
+            <span className="block text-lg font-semibold tabular-nums text-ink">
+              {weight === '' ? '—' : weight}
+              <span className="ml-1 text-xs font-normal text-muted">kg</span>
+            </span>
+          </button>
           <button
             type="button"
             onClick={() => setField('count')}
