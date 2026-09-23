@@ -1,11 +1,20 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState, useTransition } from 'react';
-import { useRouter } from 'next/navigation';
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useSyncExternalStore,
+  useTransition,
+} from 'react';
+import { unstable_rethrow, useRouter } from 'next/navigation';
 import {
   Check,
   ChevronLeft,
   ChevronRight,
+  CloudOff,
   Delete,
   Info,
   ListOrdered,
@@ -23,6 +32,7 @@ import {
 } from '@/app/actions/workout';
 import { ExerciseSheet } from './exercise-sheet';
 import { FinishSheet } from './finish-sheet';
+import { drainOutbox, outbox } from '@/lib/workout/outbox';
 import { AMOUNT_LIMITS, WEIGHT_STEP, type DoneAmount } from '@/lib/exercise-meta';
 import type { SlotKey } from '@/lib/report/theme';
 
@@ -55,6 +65,9 @@ import type { SlotKey } from '@/lib/report/theme';
  */
 
 export type RunSet = SavedSet;
+
+/** 화면에 그리는 세트. 폰에만 있고 아직 못 보낸 것은 pending 이 붙는다. */
+type ShownSet = RunSet & { pending?: boolean };
 
 export type RunExercise = {
   id: string;
@@ -179,12 +192,15 @@ function NumberPad({
 /* ----------------------------- 본체 ----------------------------- */
 
 export function SessionClient({
+  sessionId,
   themeLabel,
   exercises,
   initialSets,
   openedAt,
   priorSeconds,
 }: {
+  /** 이 판의 번호. 폰에 담아 두는 세트가 다른 판으로 새지 않게 붙여 둔다. */
+  sessionId: string;
   themeLabel: string;
   exercises: RunExercise[];
   initialSets: RunSet[];
@@ -194,7 +210,41 @@ export function SessionClient({
   priorSeconds: number;
 }) {
   const router = useRouter();
-  const [sets, setSets] = useState<RunSet[]>(initialSets);
+  /* 서버에 저장이 끝난 세트. 서버가 돌려준 것만 넣는다. */
+  const [saved, setSaved] = useState<RunSet[]>(initialSets);
+  /*
+   * 폰에만 있고 아직 못 보낸 세트 (lib/workout/outbox.ts).
+   *
+   * 화면에는 둘을 합쳐 보여준다. 신호가 없어도 방금 남긴 세트가 바로 보이고,
+   * 휴식 시계도 누른 그 순간부터 흐른다 — 헬스장에서 신호를 기다리게 할 수는
+   * 없다.
+   */
+  const allPending = useSyncExternalStore(
+    outbox.subscribe,
+    outbox.snapshot,
+    outbox.serverSnapshot
+  );
+  const pending = useMemo(
+    () => allPending.filter((p) => p.sessionId === sessionId),
+    [allPending, sessionId]
+  );
+  const sets = useMemo<ShownSet[]>(() => {
+    const done = new Set(saved.map((x) => `${x.exerciseId}#${x.setNo}`));
+    const waiting = pending
+      .filter((p) => !done.has(`${p.exerciseId}#${p.setNo}`))
+      .map((p) => ({
+        setNo: p.setNo,
+        exerciseId: p.exerciseId,
+        weightKg: p.weightKg,
+        reps: p.reps,
+        holdSeconds: p.holdSeconds,
+        recordedAt: p.recordedAt,
+        pending: true,
+      }));
+    return [...saved, ...waiting];
+  }, [saved, pending]);
+  /** 마지막으로 보내려다 신호가 없어 멈췄는가 — 알림 문구가 달라진다 */
+  const [offline, setOffline] = useState(false);
   /*
    * 목록을 상태로 들고 있는다.
    *
@@ -274,6 +324,51 @@ export function SessionClient({
   const doneCount = useMemo(() => new Set(sets.map((s) => s.exerciseId)).size, [sets]);
 
   /*
+   * 폰에 담아 둔 세트를 누른 순서대로 하나씩 보낸다.
+   *
+   * 한 번에 한 줄만 돈다. 보내는 사이에 새 세트가 담기면 끝나기 전에 이어서
+   * 보낸다 — 한 번 보낼 때마다 저장소를 새로 읽기 때문이다.
+   *
+   * 서버가 거절한 것(이미 마친 판, 잘못된 값)은 다시 보내도 안 되므로 빼고
+   * 알린다. 신호가 없어 못 보낸 것은 그대로 두고 멈춘다 — 다음 기회에 보낸다.
+   */
+  const flush = useCallback(async () => {
+    const outcome = await drainOutbox(
+      sessionId,
+      logSet,
+      (_sent, res) => {
+        if ('error' in res) setError(res.error);
+        else setSaved(res.sets);
+      },
+      /* 화면 이동 같은 Next.js 자체 신호는 잡지 않고 그대로 넘긴다 */
+      unstable_rethrow
+    );
+    if (outcome === 'offline') setOffline(true);
+    else if (outcome === 'done') setOffline(false);
+  }, [sessionId]);
+
+  /*
+   * 다시 보내는 때: 신호가 돌아왔을 때, 앱으로 돌아왔을 때, 그리고 15초마다.
+   * 화면을 처음 열 때도 한 번 — 지난번에 못 보낸 것이 폰에 남아 있을 수 있다.
+   * 담긴 것이 없으면 저장소만 한 번 보고 끝나므로 헛되이 서버를 부르지 않는다.
+   */
+  useEffect(() => {
+    const kick = () => void flush();
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') kick();
+    };
+    window.addEventListener('online', kick);
+    document.addEventListener('visibilitychange', onVisible);
+    const timer = window.setInterval(kick, 15_000);
+    kick();
+    return () => {
+      window.removeEventListener('online', kick);
+      document.removeEventListener('visibilitychange', onVisible);
+      window.clearInterval(timer);
+    };
+  }, [flush]);
+
+  /*
    * 운동을 옮기면 입력칸을 비우고 위로 올린다.
    *
    * 효과로 하지 않는다. 옮기는 일은 아래 단추를 누를 때만 일어나므로 그
@@ -301,7 +396,16 @@ export function SessionClient({
   const applyOrder = (ids: string[]) => {
     setListError(null);
     startSaving(async () => {
-      const res = await reorderSession(ids);
+      let res: Awaited<ReturnType<typeof reorderSession>>;
+      try {
+        res = await reorderSession(ids);
+      } catch (err) {
+        unstable_rethrow(err);
+        setListError(
+          '신호가 없어 순서를 바꾸지 못했습니다. 신호가 잡히면 다시 해 주세요.'
+        );
+        return;
+      }
       if ('error' in res) {
         setListError(res.error);
         return;
@@ -337,34 +441,64 @@ export function SessionClient({
       return;
     }
 
-    startSaving(async () => {
-      const res = await logSet({
-        exerciseId: ex.id,
-        weightKg: w,
-        reps: ex.isHold ? null : c,
-        holdSeconds: ex.isHold ? c : null,
-      });
-      if ('error' in res) {
-        setError(res.error);
-        return;
-      }
-      setSets(res.sets);
-      /*
-       * 무게는 남기고 횟수만 비운다. 다음 세트도 대개 같은 무게이고, 무게는
-       * 숫자판을 다시 열어 넣기가 가장 번거롭다. 미리 채우는 것이 아니라
-       * 방금 본인이 넣은 값을 그대로 두는 것이다.
-       */
-      setCount('');
-      setField('count');
-      /* 남기고 나면 접는다 — 쉬는 동안에는 시계와 기록이 보여야 한다 */
-      setPad(false);
+    /*
+     * 번호는 여기서 정한다. 폰에만 있는 세트까지 세어야 번호가 안 겹치고,
+     * 번호를 함께 보내야 다시 보내도 한 줄로 남는다.
+     */
+    const setNo = mine.reduce((m, x) => Math.max(m, x.setNo), 0) + 1;
+    if (setNo > AMOUNT_LIMITS.sets) {
+      setError('세트가 너무 많습니다.');
+      return;
+    }
+
+    /* 폰에 먼저 담는다 — 신호가 없어도 여기서 끝나고, 보내기는 뒤에서 한다 */
+    outbox.add({
+      sessionId,
+      exerciseId: ex.id,
+      setNo,
+      weightKg: w,
+      reps: ex.isHold ? null : c,
+      holdSeconds: ex.isHold ? c : null,
+      recordedAt: new Date().toISOString(),
     });
+
+    /*
+     * 무게는 남기고 횟수만 비운다. 다음 세트도 대개 같은 무게이고, 무게는
+     * 숫자판을 다시 열어 넣기가 가장 번거롭다. 미리 채우는 것이 아니라
+     * 방금 본인이 넣은 값을 그대로 두는 것이다.
+     */
+    setCount('');
+    setField('count');
+    /* 남기고 나면 접는다 — 쉬는 동안에는 시계와 기록이 보여야 한다 */
+    setPad(false);
+    void flush();
   };
 
-  const drop = (setNo: number) => {
+  const drop = (target: ShownSet) => {
+    setError(null);
+    /*
+     * 아직 못 보낸 세트는 폰에서만 빼면 된다. (막 보내지던 참이었다면 서버에
+     * 남아 다시 나타날 수 있다 — 그때는 한 번 더 지우면 된다.)
+     */
+    if (target.pending) {
+      outbox.remove({ sessionId, exerciseId: target.exerciseId, setNo: target.setNo });
+      return;
+    }
     startSaving(async () => {
-      const res = await deleteSet({ exerciseId: ex.id, setNo });
-      if (!('error' in res)) setSets(res.sets);
+      try {
+        const res = await deleteSet({
+          sessionId,
+          exerciseId: target.exerciseId,
+          setNo: target.setNo,
+        });
+        if ('error' in res) setError(res.error);
+        else setSaved(res.sets);
+      } catch (err) {
+        unstable_rethrow(err);
+        setError(
+          '신호가 없어 지금은 지울 수 없습니다. 신호가 잡히면 다시 눌러 주세요.'
+        );
+      }
     });
   };
 
@@ -446,6 +580,8 @@ export function SessionClient({
           onClick={() => {
             setFinishError(null);
             setFinish(true);
+            /* 못 보낸 세트가 있으면 지금 한 번 더 보내 본다 */
+            void flush();
           }}
           disabled={ending}
           className="shrink-0 rounded-lg border border-line-strong px-2.5 py-1.5 text-xs font-semibold text-ink transition-colors hover:border-sky hover:text-sky disabled:opacity-50"
@@ -453,6 +589,31 @@ export function SessionClient({
           {ending ? '정리 중' : '운동 종료'}
         </button>
       </header>
+
+      {/*
+        못 보낸 세트가 있을 때만 뜬다.
+
+        말없이 폰에 쌓아 두면, 나중에 기록이 비어 보일 때 왜인지 알 수 없다.
+        신호가 없다는 것과 세트는 안전하다는 것을 같이 말한다.
+      */}
+      {pending.length > 0 && (
+        <div
+          role="status"
+          className={`flex shrink-0 items-center gap-2 px-4 py-2 text-xs leading-relaxed ${
+            offline ? 'bg-warn-bg text-warn' : 'bg-surface-2 text-muted'
+          }`}
+        >
+          <CloudOff aria-hidden className="h-3.5 w-3.5 shrink-0" />
+          {offline ? (
+            <span>
+              <b>신호가 없습니다.</b> 세트 {pending.length}개를 폰에 저장해 두었고,
+              신호가 잡히면 저절로 보냅니다.
+            </span>
+          ) : (
+            <span>세트 {pending.length}개 보내는 중…</span>
+          )}
+        </div>
+      )}
 
       <div ref={topRef} className="flex-1 overflow-y-auto px-4 py-4">
         <p className="text-xs text-muted">{ex.category}</p>
@@ -529,9 +690,18 @@ export function SessionClient({
                   {s.weightKg != null && `${s.weightKg}kg × `}
                   {s.holdSeconds != null ? `${s.holdSeconds}초` : `${s.reps}회`}
                 </span>
+                {s.pending && (
+                  <span
+                    title="아직 서버에 보내지 못했습니다. 신호가 잡히면 저절로 보냅니다."
+                    className="inline-flex shrink-0 items-center gap-1 text-[10px] font-medium text-warn"
+                  >
+                    <CloudOff aria-hidden className="h-3 w-3" />
+                    대기
+                  </span>
+                )}
                 <button
                   type="button"
-                  onClick={() => drop(s.setNo)}
+                  onClick={() => drop(s)}
                   aria-label={`${i + 1}세트 지우기`}
                   className="rounded-md p-1.5 text-muted transition-colors hover:text-warn"
                 >
@@ -670,14 +840,17 @@ export function SessionClient({
           </button>
         )}
 
+        {/*
+          서버를 기다리지 않는다 — 폰에 담는 순간 끝난다. 예전에는 보내는 동안
+          '남기는 중'으로 꺼져 있어, 신호가 약한 곳에서는 몇 초씩 눌리지 않았다.
+        */}
         <button
           type="button"
           onClick={save}
-          disabled={saving}
-          className="h-[72px] w-full rounded-2xl bg-sky text-base font-bold text-white transition-transform disabled:opacity-60 motion-safe:active:scale-[0.98]"
+          className="h-[72px] w-full rounded-2xl bg-sky text-base font-bold text-white transition-transform motion-safe:active:scale-[0.98]"
         >
           <Check className="mr-1.5 inline h-5 w-5" />
-          {saving ? '남기는 중' : `세트 완료 (${mine.length + 1}세트째)`}
+          {`세트 완료 (${mine.length + 1}세트째)`}
         </button>
 
         {/* 자판이 열려 있으면 운동 이동은 감춘다 — 지금 할 일은 숫자 넣기다 */}
@@ -711,6 +884,7 @@ export function SessionClient({
           sets={sets}
           startedAt={openedAt}
           priorSeconds={priorSeconds}
+          pendingCount={pending.length}
           busy={ending}
           error={finishError}
           onClose={() => {
@@ -720,9 +894,16 @@ export function SessionClient({
           onFinish={(intensity, memo) => {
             setFinishError(null);
             startEnding(async () => {
-              /* 성공하면 서버가 트레이닝으로 보낸다 — 돌아오면 실패한 것이다 */
-              const res = await finishWorkout({ intensity, memo });
-              if (res && 'error' in res) setFinishError(res.error);
+              try {
+                /* 성공하면 서버가 트레이닝으로 보낸다 — 돌아오면 실패한 것이다 */
+                const res = await finishWorkout({ intensity, memo });
+                if (res && 'error' in res) setFinishError(res.error);
+              } catch (err) {
+                unstable_rethrow(err);
+                setFinishError(
+                  '신호가 약해 마치지 못했습니다. 신호가 잡히면 다시 눌러 주세요.'
+                );
+              }
             });
           }}
         />

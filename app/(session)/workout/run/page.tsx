@@ -99,6 +99,7 @@ export default async function RunPage() {
 
   return (
     <SessionClient
+      sessionId={session.id}
       themeLabel={plan.themeLabel}
       exercises={exercises}
       initialSets={saved}

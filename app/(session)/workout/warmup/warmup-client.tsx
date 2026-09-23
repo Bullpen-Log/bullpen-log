@@ -4,6 +4,7 @@ import { useState, useTransition } from 'react';
 import { Check, ChevronRight, Info } from 'lucide-react';
 import { LibraryVideo } from '@/components/library-video';
 import { useWakeLock } from '@/components/use-wake-lock';
+import { unstable_rethrow } from 'next/navigation';
 import { finishWarmup } from '@/app/actions/workout';
 
 export type WarmupItem = {
@@ -65,9 +66,15 @@ export function WarmupClient({
   const go = (skipped: boolean) => {
     setError(null);
     startSaving(async () => {
-      const res = await finishWarmup({ skipped, doneIds: [...done] });
-      /* 성공하면 서버가 본운동으로 보낸다 — 여기로 돌아오면 실패한 것이다 */
-      if (res && 'error' in res) setError(res.error);
+      try {
+        const res = await finishWarmup({ skipped, doneIds: [...done] });
+        /* 성공하면 서버가 본운동으로 보낸다 — 여기로 돌아오면 실패한 것이다 */
+        if (res && 'error' in res) setError(res.error);
+      } catch (err) {
+        /* 화면 이동 같은 Next.js 자체 신호는 잡지 않고 그대로 넘긴다 */
+        unstable_rethrow(err);
+        setError('신호가 약해 넘어가지 못했습니다. 신호가 잡히면 다시 눌러 주세요.');
+      }
     });
   };
 

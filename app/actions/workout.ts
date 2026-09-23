@@ -11,6 +11,7 @@ import { toDateKey } from '@/lib/pitch-stats';
 import { AMOUNT_LIMITS, WEIGHT_PRECISION } from '@/lib/exercise-meta';
 import { freezePlan, readFrozenPlan } from '@/lib/workout/session-plan';
 import { summarizeSets } from '@/lib/workout/summarize';
+import { clampRecordedAt } from '@/lib/workout/set-time';
 import { saveTrainingNote } from '@/app/actions/exercise-log';
 
 /**
@@ -152,12 +153,28 @@ export async function finishWarmup(input: {
 /* ------------------------------ 세트 ------------------------------ */
 
 export type SetInput = {
+  /**
+   * 어느 판의 세트인가.
+   *
+   * 신호가 없어 폰에 담아 둔 세트는 한참 뒤에 보내질 수 있다 (lib/workout/
+   * outbox.ts). 그사이 판이 바뀌었으면 엉뚱한 판에 붙으면 안 되므로, 담을 때의
+   * 판을 함께 보낸다. 안 주면 지금 열려 있는 판이다.
+   */
+  sessionId?: string;
   exerciseId: string;
-  /** 없으면 그 운동의 다음 번호로 붙인다 */
+  /**
+   * 세트 번호. 화면이 정해서 보낸다.
+   *
+   * 번호를 주면 (판, 운동, 번호)로 덮어쓰므로, 응답을 못 받아 같은 세트를
+   * 다시 보내도 한 줄로 남는다. 안 주면 그 운동의 다음 번호로 붙는데, 그러면
+   * 다시 보낼 때마다 한 줄씩 늘어난다.
+   */
   setNo?: number;
   weightKg?: number | null;
   reps?: number | null;
   holdSeconds?: number | null;
+  /** 누른 순간(ISO). 늦게 보내도 이 시각으로 남긴다. 없으면 받은 시각. */
+  recordedAt?: string;
 };
 
 export type SavedSet = {
@@ -192,6 +209,20 @@ async function activeSession(userId: string) {
   });
 }
 
+/**
+ * 세트를 붙일 판.
+ *
+ * 화면이 판 번호를 주면 그 판이 이 사람 것이고 아직 열려 있을 때만 쓴다.
+ * 이미 마친 판에 세트를 더하면 요약(운동기록)과 세트가 어긋나므로 받지 않는다.
+ */
+async function sessionForSet(userId: string, sessionId: unknown) {
+  if (typeof sessionId !== 'string' || !sessionId) return activeSession(userId);
+  const s = await prisma.trainingSession.findFirst({
+    where: { id: sessionId, userId },
+  });
+  return s?.status === 'ACTIVE' ? s : null;
+}
+
 async function setsOf(sessionId: string): Promise<SavedSet[]> {
   const rows = await prisma.userExerciseSet.findMany({
     where: { sessionId },
@@ -216,8 +247,8 @@ async function setsOf(sessionId: string): Promise<SavedSet[]> {
  */
 export async function logSet(input: SetInput): Promise<SetResult> {
   const user = await requireUser();
-  const session = await activeSession(user.id);
-  if (!session) return { error: '열려 있는 운동이 없습니다.' };
+  const session = await sessionForSet(user.id, input.sessionId);
+  if (!session) return { error: '이미 마친 운동이라 이 세트는 저장하지 못했습니다.' };
 
   const plan = readFrozenPlan(session.plan);
   const ex = plan?.exercises.find((e) => e.id === input.exerciseId);
@@ -244,6 +275,8 @@ export async function logSet(input: SetInput): Promise<SetResult> {
     if (setNo > AMOUNT_LIMITS.sets) return { error: '세트가 너무 많습니다.' };
   }
 
+  const at = clampRecordedAt(input.recordedAt, session.startedAt);
+
   await prisma.userExerciseSet.upsert({
     where: {
       sessionId_exerciseId_setNo: { sessionId: session.id, exerciseId: ex.id, setNo },
@@ -258,9 +291,9 @@ export async function logSet(input: SetInput): Promise<SetResult> {
       weightKg: w,
       reps,
       holdSeconds: hold,
-      recordedAt: new Date(),
+      recordedAt: at,
     },
-    update: { weightKg: w, reps, holdSeconds: hold, recordedAt: new Date() },
+    update: { weightKg: w, reps, holdSeconds: hold, recordedAt: at },
   });
 
   /* 일부러 revalidatePath 를 안 부른다 (맨 위 설명 참고) */
@@ -269,12 +302,13 @@ export async function logSet(input: SetInput): Promise<SetResult> {
 
 /** 잘못 적은 세트를 지운다. 번호는 다시 매기지 않는다 — 화면에서 순서대로 센다. */
 export async function deleteSet(input: {
+  sessionId?: string;
   exerciseId: string;
   setNo: number;
 }): Promise<SetResult> {
   const user = await requireUser();
-  const session = await activeSession(user.id);
-  if (!session) return { error: '열려 있는 운동이 없습니다.' };
+  const session = await sessionForSet(user.id, input.sessionId);
+  if (!session) return { error: '이미 마친 운동이라 지울 수 없습니다.' };
 
   await prisma.userExerciseSet.deleteMany({
     where: {

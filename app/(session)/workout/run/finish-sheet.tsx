@@ -26,6 +26,7 @@ export function FinishSheet({
   sets,
   startedAt,
   priorSeconds,
+  pendingCount,
   onFinish,
   onClose,
   busy,
@@ -37,6 +38,14 @@ export function FinishSheet({
   startedAt: string;
   /** 다시 연 판이면 앞서 마친 구간들의 시간(초). 운동 시간에 더한다. */
   priorSeconds: number;
+  /**
+   * 폰에만 있고 아직 서버에 못 보낸 세트 수.
+   *
+   * 마치면 서버가 저장된 세트로 요약을 만든다. 못 보낸 것이 남은 채로 마치면
+   * 그 세트는 요약에서 빠지고, 이 판은 닫혀 다시 받지도 않는다. 그래서 다
+   * 보내질 때까지 마치기를 막는다.
+   */
+  pendingCount: number;
   onFinish: (intensity: number | null, memo: string) => void;
   onClose: () => void;
   busy: boolean;
@@ -235,15 +244,24 @@ export function FinishSheet({
             말없이 꺼 두면 고장 난 줄 안다. 무엇을 하면 켜지는지가 단추 바로
             위에 있어야 한다.
           */}
-          {intensity == null && (
-            <p className="text-center text-[11px] text-muted">
-              오늘 강도를 고르면 마칠 수 있습니다.
+          {pendingCount > 0 ? (
+            <p className="text-center text-[11px] leading-relaxed text-warn">
+              아직 못 보낸 세트가 {pendingCount}개 있습니다. 신호가 잡혀 저절로 보내지면
+              마칠 수 있습니다.
             </p>
+          ) : (
+            intensity == null && (
+              <p className="text-center text-[11px] text-muted">
+                오늘 강도를 고르면 마칠 수 있습니다.
+              </p>
+            )
           )}
           <button
             type="button"
-            onClick={() => intensity != null && onFinish(intensity, memo)}
-            disabled={busy || intensity == null}
+            onClick={() =>
+              intensity != null && pendingCount === 0 && onFinish(intensity, memo)
+            }
+            disabled={busy || intensity == null || pendingCount > 0}
             className="flex h-[72px] w-full items-center justify-center gap-1.5 rounded-2xl bg-sky text-base font-bold text-white transition-transform disabled:opacity-40 motion-safe:active:scale-[0.98]"
           >
             <Check className="h-5 w-5" />

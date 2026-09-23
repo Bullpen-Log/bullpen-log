@@ -15,6 +15,7 @@
     "personalize:check": "node --env-file=.env --import ./scripts/alias-register.mjs scripts/personalize-check.mts",
     "equipment:check": "node --env-file=.env --import ./scripts/alias-register.mjs scripts/equipment-check.mts",
     "theme:check": "node --env-file=.env --import ./scripts/alias-register.mjs scripts/theme-time-check.mts",
+    "outbox:test": "node scripts/outbox-selftest.mts",
     "velocity:test": "node scripts/velocity-selftest.mts",
     "velocity:detect-test": "node scripts/velocity-detect-test.mts",
     "rotation:check": "node --env-file=.env --import ./scripts/alias-register.mjs scripts/rotation-check.mts"
