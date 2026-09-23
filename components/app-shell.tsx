@@ -29,7 +29,17 @@ export function Sidebar({
   const isActive = useIsActive();
 
   return (
-    <aside className="fixed inset-y-0 left-0 z-40 hidden w-60 flex-col border-r border-line bg-surface lg:flex">
+    <aside
+      /*
+       * 화면이 바뀌어도 사이드바는 가만히 있는다.
+       *
+       * 이름을 달아 두면 전환에서 본문과 따로 다뤄진다(app/globals.css 의
+       * ::view-transition-group). 이름이 없으면 사이드바까지 본문과 한 장에
+       * 같이 찍혀서 틀 전체가 함께 깜빡인다.
+       */
+      style={{ viewTransitionName: 'shell-sidebar' }}
+      className="fixed inset-y-0 left-0 z-40 hidden w-60 flex-col border-r border-line bg-surface lg:flex"
+    >
       <Link
         href="/today"
         className="flex h-16 shrink-0 items-center gap-2.5 border-b border-line px-5"
@@ -48,6 +58,7 @@ export function Sidebar({
             )}
             {group.items.map((item) => {
               const Icon = NAV_ICONS[item.icon];
+              const active = isActive(item.href);
               return (
                 <Link
                   key={item.href}
@@ -56,9 +67,19 @@ export function Sidebar({
                    * duration-75 는 강조가 옮겨가는 속도다. 기본값(150ms)으로는
                    * 누른 메뉴에 색이 천천히 번져서, 이미 옮겨갔는데도 아직
                    * 안 옮겨간 것처럼 보인다. 주소는 재보니 20ms 만에 바뀐다.
+                   *
+                   * 파란 알약을 따로 떼어내 메뉴 사이를 미끄러지게 해 봤는데
+                   * 되돌렸다. 이름표를 단 요소는 전환 중에 딴 층으로 빠져 위에
+                   * 그려지는데, 알약은 글자만 한 불투명한 면이라 지나가는 자리의
+                   * 글자를 덮었다. 그보다 나쁜 것은 도착 전의 메뉴였다 — 흰 글자만
+                   * 먼저 자리에 놓이고 배경이 아직 안 와서, 흰 바탕에 흰 글자가
+                   * 되어 0.2초쯤 글자가 사라졌다.
+                   *
+                   * 하단 탭의 막대는 같은 방식이어도 괜찮다. 2px 짜리 선이라
+                   * 덮을 글자가 없다.
                    */
                   className={`flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm transition-colors duration-75 ${
-                    isActive(item.href)
+                    active
                       ? 'bg-sky text-white font-semibold'
                       : 'text-ink hover:bg-surface-2 active:bg-surface-2'
                   }`}
@@ -66,7 +87,7 @@ export function Sidebar({
                   <Icon
                     aria-hidden
                     className="h-[1.125rem] w-[1.125rem] shrink-0"
-                    strokeWidth={isActive(item.href) ? 2.4 : 1.9}
+                    strokeWidth={active ? 2.4 : 1.9}
                   />
                   {item.label}
                 </Link>
@@ -115,7 +136,11 @@ function Avatar({ nickname, size = 'md' }: { nickname: string; size?: 'md' | 'lg
 /** 모바일 상단 바 — 로고와 내 정보만 둔다 (메뉴는 아래 탭에 있다) */
 export function MobileTopBar({ nickname }: { nickname: string }) {
   return (
-    <header className="sticky top-0 z-40 flex h-14 items-center gap-3 border-b border-line bg-surface/95 px-4 backdrop-blur-xl lg:hidden">
+    <header
+      /* 사이드바와 같은 이유로 전환에서 뺀다. */
+      style={{ viewTransitionName: 'shell-topbar' }}
+      className="sticky top-0 z-40 flex h-14 items-center gap-3 border-b border-line bg-surface/95 px-4 backdrop-blur-xl lg:hidden"
+    >
       <Link href="/today" className="flex items-center gap-2">
         <BaseballMark className="h-8 w-8" />
         <span className="text-display text-base leading-none text-ink">
@@ -134,7 +159,11 @@ export function MobileTabs({ tabs }: { tabs: NavItem[] }) {
   const isActive = useIsActive();
 
   return (
-    <nav className="fixed inset-x-0 bottom-0 z-50 border-t border-line bg-surface/95 pb-[env(safe-area-inset-bottom)] backdrop-blur-xl lg:hidden">
+    <nav
+      /* 본문이 바뀌는 동안 탭바는 움직이지 않는다. */
+      style={{ viewTransitionName: 'shell-tabbar' }}
+      className="fixed inset-x-0 bottom-0 z-50 border-t border-line bg-surface/95 pb-[env(safe-area-inset-bottom)] backdrop-blur-xl lg:hidden"
+    >
       <div className="flex">
         {tabs.map((tab) => {
           const active = isActive(tab.href);
@@ -148,10 +177,27 @@ export function MobileTabs({ tabs }: { tabs: NavItem[] }) {
                * 색이 바뀌게 해서, 화면이 바뀌기 전에 먼저 대답하게 한다.
                * 움직임을 줄여 쓰는 사람에게는 크기 변화 없이 색만 바뀐다.
                */
-              className={`flex flex-1 flex-col items-center gap-0.5 py-2 text-[11px] transition-[color,transform] duration-75 motion-safe:active:scale-90 ${
+              className={`relative flex flex-1 flex-col items-center gap-0.5 py-2 text-[11px] transition-[color,transform] duration-75 motion-safe:active:scale-90 ${
                 active ? 'font-semibold text-sky' : 'text-muted active:text-sky'
               }`}
             >
+              {/*
+               * 지금 어느 탭인지 알려주는 짧은 막대.
+               *
+               * 화면에 한 번에 하나만 있고 이름이 같아서, 탭을 옮기면 브라우저가
+               * 사라졌다 나타나는 대신 옛 자리에서 새 자리로 미끄러뜨린다.
+               * 색만 바뀌던 때보다 '옮겨갔다'는 것이 훨씬 분명해진다.
+               *
+               * 색은 이미 글자와 아이콘이 알려주므로 이 막대는 장식이다.
+               * 읽어 줄 필요가 없어 aria-hidden 을 단다.
+               */}
+              {active && (
+                <span
+                  aria-hidden
+                  style={{ viewTransitionName: 'tab-indicator' }}
+                  className="absolute inset-x-4 top-0 h-0.5 rounded-full bg-sky"
+                />
+              )}
               <Icon aria-hidden className="h-5 w-5" strokeWidth={active ? 2.4 : 1.9} />
               {tab.short ?? tab.label}
             </Link>

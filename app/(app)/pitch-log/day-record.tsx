@@ -8,7 +8,7 @@ import { PoseAnalysis } from '@/components/pose-analysis';
 import { REST_SESSION_TYPE } from '@/lib/session-type';
 import { ConfirmDelete } from '@/components/confirm-delete';
 import type { SavedAnalysisView } from '@/lib/pose/saved';
-import type { Log } from './pitch-log-client';
+import type { Log } from './types';
 
 /**
  * 기록 한 건을 통째로 보여준다 — 수치, 느낀점, 영상, 폼 분석.

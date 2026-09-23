@@ -4,7 +4,7 @@ import { useMemo, useState } from 'react';
 import Link from 'next/link';
 import { ChevronDown, ChevronRight, Film } from 'lucide-react';
 import { REST_SESSION_TYPE, SESSION_TYPES } from '@/lib/session-type';
-import type { Log } from './pitch-log-client';
+import type { Log } from './types';
 
 /**
  * 투구 기록을 최근 것부터 쭉 내려보는 목록.

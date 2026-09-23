@@ -19,6 +19,7 @@ import { trainingLoad } from '@/lib/report/training-acwr';
 import { HomeTile, HomeTileLink, MiniBars, type TileState } from './home-tile';
 import { SummaryPanel, type RecentLog } from './summary-panel';
 import { TodayRecord } from './today-record';
+import { PitchLogPanel } from './pitch-log-panel';
 
 /**
  * 홈 — 오늘 남길 것.
@@ -74,8 +75,14 @@ function TodaySkeleton() {
  * 이름은 레이아웃이 이미 읽어 둔 것이라(lib/dal.ts 의 cache) 이 await 는
  * DB 를 안 간다. 그래서 제목은 기다릴 것 없이 바로 나간다.
  */
-export default async function HomePage() {
+export default async function HomePage({
+  searchParams,
+}: {
+  searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
+}) {
   const user = await requireUser();
+  // 그날 화면에서 '달력으로 돌아가기'로 들어오면 그 날짜를 짚어 둔다.
+  const initialDate = readDateParam((await searchParams).date);
 
   return (
     <div className="space-y-6">
@@ -84,10 +91,91 @@ export default async function HomePage() {
         title={`${user.nickname}님, 오늘도 던져볼까요`}
         description="오늘 몸 상태와 던진 것을 남겨주세요. 운동은 트레이닝에서 합니다."
       />
+
+      {/*
+        달력이 맨 앞이다.
+
+        예전에는 '투구 일지'라는 탭이 따로 있었고 홈에는 오늘 것만 있었다.
+        그런데 매일 하는 일은 결국 하나인데 두 화면에 갈라져 있어서, 하루를
+        마치려면 오가야 했다. 달력을 여기로 올리고 탭을 없앴다.
+
+        아래의 '오늘 할 일'과 Suspense 를 따로 두는 이유: 달력은 기록 한 번만
+        읽으면 그려지지만 아래는 조회를 열세 번 한다. 한 울타리에 두면 달력이
+        다 준비되고도 아래를 기다리느라 같이 회색으로 남는다.
+      */}
+      <Suspense fallback={<Skeleton className="h-[26rem] rounded-2xl" />}>
+        <PitchLogSection user={user} initialDate={initialDate} />
+      </Suspense>
+
       <Suspense fallback={<TodaySkeleton />}>
         <TodayBody user={user} />
       </Suspense>
     </div>
+  );
+}
+
+/** 처음에 읽어 올 개월 수. 이보다 옛날 달은 넘길 때 그 달만 받아 온다. */
+const INITIAL_MONTHS = 13;
+
+/** ?date=2026-08-04 처럼 넘어온 값만 받는다. 형식이 아니면 무시하고 오늘로 연다. */
+function readDateParam(raw: string | string[] | undefined): string | null {
+  const value = Array.isArray(raw) ? raw[0] : raw;
+  return value && /^\d{4}-\d{2}-\d{2}$/.test(value) ? value : null;
+}
+
+/**
+ * 달력에 칠할 기록을 읽어 온다.
+ *
+ * 예전에는 가입 이래 모든 기록을 한 번에 읽었다. 지금은 수십 건이라 순식간이지만,
+ * 매일 남기는 선수라면 3년에 천 건이 넘는다. 달력은 한 번에 한 달만 보여주므로
+ * 그만큼만 있으면 된다.
+ *
+ * 그렇다고 한 달만 읽으면 달을 넘길 때마다 화면이 비었다 채워진다. 열세 달을
+ * 읽어 두면 이번 시즌과 작년 같은 시기까지는 넘겨도 끊기지 않고, 그보다 옛날로
+ * 가면 그때 그 달만 받아 온다(/api/pitch-log).
+ */
+async function PitchLogSection({
+  user,
+  initialDate,
+}: {
+  user: Awaited<ReturnType<typeof requireUser>>;
+  initialDate: string | null;
+}) {
+  const now = new Date();
+
+  /*
+   * 달의 1일로 맞춘다.
+   *
+   * 그냥 13개월을 빼면 시작점이 달 중간이 된다. 그러면 그 달은 절반만 읽히는데
+   * 화면은 '읽은 달'로 세므로, 그 달 앞쪽 기록이 조용히 빠진다. 실제로 그렇게
+   * 만들어 봤더니 7월 26일 기록이 달력에서 사라졌다.
+   */
+  const initialFrom = new Date(
+    Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - INITIAL_MONTHS, 1)
+  );
+
+  const logs = await prisma.pitchLog.findMany({
+    where: { userId: user.id, date: { gte: initialFrom } },
+    orderBy: { date: 'asc' },
+  });
+
+  /*
+   * 그날의 수치·영상·폼 분석은 여기서 안 읽는다. 날짜를 누르면
+   * /pitch-log/<날짜> 가 그날 것만 따로 읽는다 — 달력은 어느 날 얼마나
+   * 던졌는지만 칠하면 된다.
+   */
+  // Date 객체는 클라이언트로 그대로 넘길 수 없어 문자열로 바꿔 전달한다.
+  const initialLogs = logs.map((log) => ({
+    ...log,
+    date: log.date.toISOString(),
+  }));
+
+  return (
+    <PitchLogPanel
+      initialLogs={initialLogs}
+      initialDate={initialDate}
+      loadedFrom={initialFrom.toISOString().slice(0, 7)}
+    />
   );
 }
 

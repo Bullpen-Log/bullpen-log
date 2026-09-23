@@ -11,7 +11,7 @@ import { PlanNote, type PlanNoteData } from '@/components/plan-note';
 import type { SavedAnalysisView } from '@/lib/pose/saved';
 import { EntryForm } from '../entry-form';
 import { DayRecord } from '../day-record';
-import type { Log } from '../pitch-log-client';
+import type { Log } from '../types';
 
 const WEEKDAYS = ['일', '월', '화', '수', '목', '금', '토'];
 
@@ -131,7 +131,7 @@ export function DayClient({
         뒤로가기를 찾기 전에 눈에 보여야 한다. 그 달로 돌아간다.
       */}
       <Link
-        href={`/pitch-log?date=${date}`}
+        href={`/today?date=${date}`}
         className="inline-flex items-center gap-1.5 text-sm font-medium text-muted transition-colors hover:text-sky"
       >
         <ArrowLeft className="h-4 w-4" />

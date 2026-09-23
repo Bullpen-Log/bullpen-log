@@ -26,7 +26,7 @@ import {
   summarize,
   type ReportFinding,
 } from '@/lib/pitch-stats';
-import type { Log } from '@/app/(app)/pitch-log/pitch-log-client';
+import type { Log } from '@/app/(app)/pitch-log/types';
 
 /**
  * 부하 막대의 종류별 색.

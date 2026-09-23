@@ -2,43 +2,29 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Card, FormError, PageHeading } from '@/components/ui';
+import { Card, FormError } from '@/components/ui';
 import { toDateKey } from '@/lib/pitch-stats';
 import { REST_SESSION_TYPE } from '@/lib/session-type';
 import { LegendSwatch, MonthCalendar, type DayMark } from '@/components/month-calendar';
-import { LogList } from './log-list';
-
-export type Log = {
-  id: string;
-  date: string;
-  sessionType: string;
-  pitchCount: number;
-  intensity: number;
-  maxVelocity: number | null;
-  avgVelocity: number | null;
-  memo: string | null;
-  videoPaths: string[];
-};
+import { LogList } from '@/app/(app)/pitch-log/log-list';
+import type { Log } from '@/app/(app)/pitch-log/types';
 
 /**
- * 투구 일지 — 달력 하나.
+ * 투구 일지 — 홈의 가운데 자리.
  *
- * 예전에는 달력이 왼쪽 사이드바로 좁게 눌려 있고, 오른쪽에 그날 기록과 입력
- * 폼이 늘 펼쳐져 있었다. 달력은 작아서 언제 던졌는지 한눈에 안 들어오고,
- * 오른쪽은 아무 날짜나 눌러도 뭔가 잔뜩 나와서 화면이 늘 꽉 차 있었다.
+ * 예전에는 따로 '투구 일지' 탭이 있었다. 그런데 이 앱에서 매일 하는 일은
+ * 결국 '오늘 던진 것을 남기고, 요즘 어떻게 던졌는지 본다'는 하나인데
+ * 그것이 홈과 투구 일지로 갈라져 있었다. 홈에는 오늘 것만, 일지에는 지난
+ * 것만 있어서 하루를 마치려면 두 화면을 오갔다.
  *
- * 이제 달력만 크게 둔다. 날짜를 누르면 /pitch-log/<날짜> 로 넘어가고,
- * 기록·영상·폼 분석·수정·삭제는 전부 거기 있다.
+ * 달력을 홈 맨 앞으로 올린다. 열면 이번 달이 한눈에 보이고, 날짜를 누르면
+ * /pitch-log/<날짜> 로 넘어간다. 그날의 수치·영상·폼 분석·수정은 전부 거기 있다.
  *
- * 한때 그것을 작은 창으로 띄웠는데, 영상 하나만 있어도 창 안에서 몇 판을
- * 굴려야 했고 그날 적어둔 글은 맨 아래에 묻혔다. 창은 잠깐 확인하고 닫는
- * 그릇이지 되짚어 읽는 그릇이 아니다.
- *
- * 영상과 2분할 비교는 '투구 영상'(/videos)으로 나갔다. 날짜 하나에 매인 것이
- * 아니라 여러 날을 가로질러 보는 것이라, 날짜를 고르는 이 화면의 탭으로
- * 두기에는 결이 달랐다.
+ * 달력과 목록을 한 화면에 같이 두지 않고 오가게 하는 것은 그대로 뒀다.
+ * 달력은 '그 날짜'를 알 때, 목록은 '요즘 뭐 했더라'를 볼 때 쓴다 — 같은 기록을
+ * 다르게 보는 것이라 나란히 둘 이유가 없다.
  */
-export function PitchLogClient({
+export function PitchLogPanel({
   initialLogs,
   initialDate,
   loadedFrom,
@@ -55,20 +41,14 @@ export function PitchLogClient({
   loadedFrom: string;
 }) {
   const [logs, setLogs] = useState<Log[]>(initialLogs);
-  /*
-   * 달력으로 볼지 목록으로 볼지.
-   *
-   * 다른 화면에서 날짜를 지정해 들어오면 달력으로 연다 — 그 날짜를 짚어
-   * 보여주려고 온 것이기 때문이다.
-   */
   const [view, setView] = useState<'calendar' | 'list'>('calendar');
   const [error, setError] = useState<string>();
-  /*
-   * 이미 받아 온 달들. 처음 받아 온 범위(loadedFrom 이후)는 통째로 있는 것으로
-   * 친다. 같은 달을 두 번 받지 않으려고 둔다.
-   */
   const router = useRouter();
 
+  /*
+   * 이미 받아 온 달들. 같은 달을 두 번 받지 않으려고 둔다. 처음 받아 온
+   * 범위(loadedFrom 이후)는 통째로 있는 것으로 친다.
+   */
   const loadedMonths = useRef(new Set<string>());
   const [loadingMonth, setLoadingMonth] = useState(false);
 
@@ -185,49 +165,46 @@ export function PitchLogClient({
     return out;
   }, [logs]);
 
-  /* ---------------------------- 영상 ---------------------------- */
-
   return (
-    <div className="space-y-6">
-      <PageHeading
-        eyebrow="Pitch Log"
-        title="투구 일지"
-        description={
-          view === 'calendar'
-            ? '날짜를 누르면 그날 화면으로 넘어갑니다. 기록이 없는 날도 눌러서 남길 수 있습니다.'
-            : '최근 기록부터 봅니다. 위에서 걸러 영상 있는 날이나 경기 날만 볼 수 있습니다.'
-        }
-      />
+    <div className="space-y-3">
+      {/*
+        제목과 보기 전환을 한 줄에 둔다.
+
+        홈의 다른 덩이('오늘 할 일'·'돌아보기')와 같은 제목 모양을 쓴다. 이
+        화면만 다른 크기로 쓰면 홈 안에 남의 화면을 끼워 넣은 것처럼 보인다.
+      */}
+      <div className="flex flex-wrap items-center justify-between gap-2 px-1">
+        <h2 className="text-heading text-xl text-ink">투구 일지</h2>
+
+        <nav className="inline-flex overflow-hidden rounded-xl border border-line-strong bg-surface">
+          {(
+            [
+              ['calendar', '달력'],
+              ['list', '목록'],
+            ] as const
+          ).map(([key, label]) => (
+            <button
+              key={key}
+              type="button"
+              onClick={() => setView(key)}
+              aria-pressed={view === key}
+              className={`px-4 py-2 text-xs font-semibold transition-colors ${
+                view === key ? 'bg-sky text-white' : 'text-muted hover:text-ink'
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+        </nav>
+      </div>
+
+      <p className="px-1 text-xs leading-relaxed text-muted">
+        {view === 'calendar'
+          ? '날짜를 누르면 그날 화면으로 넘어갑니다. 기록이 없는 날도 눌러서 남길 수 있습니다.'
+          : '최근 기록부터 봅니다. 위에서 걸러 영상 있는 날이나 경기 날만 볼 수 있습니다.'}
+      </p>
 
       <FormError>{error}</FormError>
-
-      {/*
-        달력과 목록.
-
-        달력은 '그 날짜'를 알 때, 목록은 '요즘 뭐 했더라'를 볼 때 쓴다. 둘은
-        같은 기록을 다르게 보는 것이라 한 화면에 같이 두지 않고 오가게 한다 —
-        트레이닝의 '오늘 | 기록'과 같은 방식이다.
-      */}
-      <nav className="inline-flex overflow-hidden rounded-xl border border-line-strong bg-surface">
-        {(
-          [
-            ['calendar', '달력'],
-            ['list', '목록'],
-          ] as const
-        ).map(([key, label]) => (
-          <button
-            key={key}
-            type="button"
-            onClick={() => setView(key)}
-            aria-pressed={view === key}
-            className={`px-4 py-2 text-xs font-semibold transition-colors ${
-              view === key ? 'bg-sky text-white' : 'text-muted hover:text-ink'
-            }`}
-          >
-            {label}
-          </button>
-        ))}
-      </nav>
 
       {view === 'list' && <LogList logs={logs} />}
 

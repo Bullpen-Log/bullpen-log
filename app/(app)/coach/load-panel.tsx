@@ -319,7 +319,7 @@ export function LoadPanel({
           <p className="border-t border-warn-line bg-warn-bg px-6 py-3 text-[11px] leading-relaxed text-warn sm:px-8">
             최근 {CHRONIC_WINDOW_DAYS}일 중 <strong>{missingDays}일</strong>은 투구
             기록이 없어 안 던진 날로 계산했습니다. 실제로 던진 날이 있으면{' '}
-            <Link href="/pitch-log" className="underline">
+            <Link href="/today" className="underline">
               투구 일지
             </Link>
             에서 추가해주세요. 지수가 실제보다 낮게 나오고 있을 수 있습니다.

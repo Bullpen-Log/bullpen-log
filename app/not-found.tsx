@@ -30,7 +30,7 @@ export default function NotFound() {
         <FallbackLink href="/today" primary>
           홈으로
         </FallbackLink>
-        <FallbackLink href="/pitch-log">투구 일지</FallbackLink>
+        <FallbackLink href="/videos">투구 영상</FallbackLink>
       </FallbackActions>
     </FallbackShell>
   );

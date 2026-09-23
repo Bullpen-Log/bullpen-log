@@ -155,7 +155,7 @@ export default async function AdminPage() {
           {[
             { label: '트레이닝 영상', value: totalVideos, href: '/library/training' },
             { label: '자료실 게시글', value: totalArticles, href: '/board' },
-            { label: '투구 기록', value: totalLogs, href: '/pitch-log' },
+            { label: '투구 기록', value: totalLogs, href: '/today' },
           ].map((c) => (
             <div key={c.label} className="bg-surface px-5 py-5">
               <p className="text-xs tracking-normal text-muted">{c.label}</p>
