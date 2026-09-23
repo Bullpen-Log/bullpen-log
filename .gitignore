@@ -43,3 +43,9 @@ next-env.d.ts
 
 # 개인 촬영 계획 (로컬 전용)
 촬영-리스트/
+
+# 작업하다 만든 임시 파일·기록 — 실수로 올라가지 않게
+# (예전에 .tok.tmp · .lowcond.tmp.mjs · .dev.log 가 올라가 있었다)
+*.tmp
+*.tmp.*
+*.log

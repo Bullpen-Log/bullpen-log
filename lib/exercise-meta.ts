@@ -407,8 +407,6 @@ export const AMOUNT_LIMITS = {
   weightKg: 500,
 } as const;
 
-export type AmountField = keyof typeof AMOUNT_LIMITS;
-
 /**
  * 무게를 올리고 내리는 단위(kg).
  *

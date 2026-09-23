@@ -126,12 +126,13 @@ npm run backup   # DB 전체를 ~/bullpen-log-backups 에 JSON 으로 받아둔�
 | 경로 | 무엇 |
 |---|---|
 | `app/(app)/` | 로그인한 사람이 보는 화면들 (대시보드, 투구기록, 오늘운동, AI코치…) |
+| `app/(session)/` | 운동하는 동안만 쓰는 전용 화면 (워밍업 · 실시간 운동). 메뉴·탭바 없이 화면을 꽉 채운다 |
 | `app/actions/` | 서버 액션 — 폼 제출을 받아 DB에 쓴다 |
 | `lib/report/` | **부하 계산, 투구 계획, 운동 처방.** 앱의 두뇌. 숫자는 전부 여기서 나온다 |
 | `lib/pose/` | 영상 → 관절 추출(`extract`) → 구간 감지(`detect`) → 지표 측정(`measure`) |
 | `lib/ai/` | AI에게 넘길 프롬프트와 응답 검증 |
+| `lib/workout/` | 운동 한 판(세션) — 시작할 때 목록 얼려 두기, 세트 요약, 워밍업 루틴 고르기 |
 | `prisma/schema.prisma` | DB 구조 |
-| `proxy.ts` | 미들웨어 (이 Next.js 버전에서는 `middleware.ts`가 아니다) |
 
 값을 바꿀 때 **한 곳만 고치면 나머지가 따라오게** 만들어 둔 배열들이 있다. 이런 건 그 배열만 고치면 된다.
 
@@ -143,25 +144,31 @@ npm run backup   # DB 전체를 ~/bullpen-log-backups 에 JSON 으로 받아둔�
 
 ## 같이 작업할 때
 
-**`main`에 바로 올리지 않는다.** 각자 브랜치를 만들어 작업하고 Pull Request로 합친다.
-같은 파일을 동시에 고쳐도 충돌을 미리 볼 수 있다.
+지금은 둘 다 **`main`에 바로 올린다.** 아직 실제 사용자가 없어서 브랜치와 Pull Request 를
+거치지 않고 간단하게 간다. 나누는 기준은 영역이다 — 트레이닝 / 투구일지·기록·인터페이스.
+
+**`main`에 올리면 곧바로 실제 사이트(bullpen-log.vercel.app)에 배포된다.** 그래서
+
+- **시작하기 전에 항상 최신을 받는다.** 상대가 올린 것 위에서 시작해야 부딪히는 일이 적다.
+- **올리기 전에 `npm run lint` 와 `npx tsc --noEmit` 을 돌린다.** 빌드가 깨진 채로 올라가면 그 뒤로
+  상대가 올리는 것까지 배포가 멈춘다.
+- **작게, 자주 올린다.** 이미 있는 화면을 깨뜨린 채로 올리지는 않는다.
+- **DB 를 건드릴 때는 `AGENTS.md` 의 규칙을 따른다.** `prisma migrate dev` 금지, 구조 변경은
+  한 명씩 · 미리 말하고 · 백업부터.
 
 ```bash
-git switch -c 기능이름       # 브랜치 만들며 이동
-# ... 작업 ...
+# 시작할 때
+git pull
+
+# 끝날 때
 git add -A
 git commit -m "무엇을 왜 바꿨는지"
-git push -u origin 기능이름
+git pull     # 그사이 상대가 올린 것을 먼저 받는다
+git push
 ```
 
-그다음 GitHub에서 Pull Request를 열고, 상대가 한 번 보고 합친다.
-
-작업을 시작하기 전에는 항상 최신을 받아온다:
-
-```bash
-git switch main
-git pull
-```
+`git pull` 에서 충돌(conflict)이 나면, 둘이 같은 파일의 같은 곳을 고친 것이다. 억지로 덮어쓰지
+말고 상대와 먼저 이야기한다.
 
 ### 커밋 메시지
 

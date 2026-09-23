@@ -1,16 +1,6 @@
 import type { ReactNode } from 'react';
-import Link from 'next/link';
-import {
-  AlertTriangle,
-  ArrowDownRight,
-  ArrowUpRight,
-  ChevronDown,
-  Minus,
-  Moon,
-  Sun,
-} from 'lucide-react';
+import { ArrowDownRight, ArrowUpRight, ChevronDown, Minus } from 'lucide-react';
 import { ACWR_ZONES, ACWR_ZONE_ORDER, type AcwrZone } from '@/lib/pitch-stats';
-import { intensityRangeText, pitchRangeText, type PitchPlan } from '@/lib/report/plan';
 
 /*
  * 상태 색과 칩은 components/tone.tsx 로 옮겼다. 홈에서도 부하 상태를 보여주게
@@ -178,45 +168,6 @@ export function ZoneGauge({
             }}
           >
             {value}
-          </span>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-export type WeekBar = { label: string; pitches: number };
-
-/** 최근 7일 투구수를 한눈에 보는 작은 막대. 던지지 않은 날은 바닥선으로 남긴다. */
-export function WeekStrip({ bars }: { bars: WeekBar[] }) {
-  const peak = Math.max(...bars.map((b) => b.pitches), 1);
-
-  return (
-    <div>
-      <p className="text-[10px] tracking-normal text-muted">일별 투구수</p>
-      <div className="mt-3 flex h-20 items-end gap-1.5">
-        {bars.map((bar) => (
-          <div key={bar.label} className="flex h-full flex-1 flex-col justify-end">
-            {/* 막대가 너무 뚱뚱해 보이지 않도록 폭에 상한을 둔다. */}
-            {bar.pitches > 0 ? (
-              <span
-                className="mx-auto w-full max-w-[34px] rounded-t-sm bg-sky/55"
-                style={{ height: `${Math.max(8, (bar.pitches / peak) * 100)}%` }}
-                title={`${bar.label} ${bar.pitches}구`}
-              />
-            ) : (
-              <span className="mx-auto h-px w-full max-w-[34px] bg-line-strong" />
-            )}
-          </div>
-        ))}
-      </div>
-      <div className="mt-2 flex gap-1.5">
-        {bars.map((bar) => (
-          <span
-            key={bar.label}
-            className="flex-1 text-center text-[10px] tabular-nums text-muted/70"
-          >
-            {bar.label}
           </span>
         ))}
       </div>
@@ -434,69 +385,5 @@ export function MetricHelp({
         ))}
       </dl>
     </details>
-  );
-}
-
-/**
- * 오늘 뭘 하면 되는지 한 줄.
- * 리포트 화면과 같은 계산(buildPitchPlan)을 쓰므로 두 화면이 어긋나지 않는다.
- */
-export function TodayPlanLine({ plan }: { plan: PitchPlan }) {
-  // 통증 신호가 있으면 계획 대신 휴식 안내만 낸다.
-  if (plan.halted) {
-    return (
-      <Link
-        href="/coach"
-        className="flex items-start gap-3 rounded-2xl border border-danger-line bg-danger-bg px-5 py-4 transition-colors hover:border-danger"
-      >
-        <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-danger" />
-        <span className="min-w-0 flex-1">
-          <span className="block text-sm font-bold text-danger">
-            오늘은 던지지 마세요
-          </span>
-          <span className="mt-1 block text-xs leading-relaxed text-danger/80">
-            {plan.haltReason}
-          </span>
-        </span>
-      </Link>
-    );
-  }
-
-  const today = plan.today;
-  if (!today) return null;
-
-  return (
-    <Link
-      href="/coach"
-      className={`flex flex-wrap items-center gap-x-4 gap-y-2 rounded-2xl border px-5 py-4 transition-colors ${
-        today.throwing
-          ? 'border-line bg-surface hover:border-sky'
-          : 'border-sky-500/30 bg-sky-500/[0.06] hover:border-sky-500/60'
-      }`}
-    >
-      <span className="text-[11px] font-medium tracking-normal text-muted">오늘</span>
-
-      {today.throwing ? (
-        <span className="flex items-baseline gap-1.5">
-          <Sun className="h-4 w-4 self-center text-sky" />
-          <span className="text-display text-2xl leading-none text-sky tabular-nums">
-            {pitchRangeText(today)}
-          </span>
-          <span className="mx-1 text-line-strong">·</span>
-          <span className="text-sm text-muted">{intensityRangeText(today)}</span>
-        </span>
-      ) : (
-        <span className="flex items-center gap-2 text-base font-bold text-sky-strong">
-          <Moon className="h-4 w-4" />
-          휴식
-        </span>
-      )}
-
-      <span className="text-xs text-muted">{today.reason}</span>
-
-      <span className="ml-auto shrink-0 text-[11px] font-medium tracking-normal text-muted">
-        리포트 →
-      </span>
-    </Link>
   );
 }
