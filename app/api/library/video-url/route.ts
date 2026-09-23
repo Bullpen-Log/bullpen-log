@@ -1,5 +1,4 @@
 import { NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
 import { getCurrentUser } from '@/lib/dal';
 import { createPlaybackUrls, isLibraryPath } from '@/lib/storage';
 import { libraryVideoPaths } from '@/lib/library-cache';

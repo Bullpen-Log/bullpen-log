@@ -82,9 +82,14 @@ function ExerciseDetail({
    */
   const [description, setDescription] = useState<string | null>(null);
 
+  /*
+   * 다른 카드를 펼치면 이 조각이 통째로 다시 만들어진다 — 감싸는 div 에
+   * key={item.id} 가 붙어 있어서다. 그래서 여기서 description 을 비울 필요가
+   * 없다. 비우는 줄을 두었더니 린트가 잡았다: 효과 안에서 곧바로 상태를
+   * 바꾸면 그릴 때마다 연쇄로 다시 그린다.
+   */
   useEffect(() => {
     let alive = true;
-    setDescription(null);
     exerciseDescription(item.id).then((text) => {
       if (alive) setDescription(text);
     });

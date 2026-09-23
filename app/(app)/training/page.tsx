@@ -7,6 +7,7 @@ import { createPlaybackUrls } from '@/lib/storage';
 import { referenceThumbUrl } from '@/lib/reference-video';
 import { formatPrescription, needsWeight, usesWeight } from '@/lib/exercise-meta';
 import { loadTodayCore } from '@/lib/report/today-data';
+import { StartWorkout } from './start-workout';
 import { recentAmounts } from '@/lib/report/exercise-recent';
 import { MIN_CANDIDATES } from '@/lib/report/prescription';
 import { DEFAULT_WORKOUT_MINUTES } from '@/lib/report/theme';
@@ -130,7 +131,7 @@ export default async function TrainingPage({
    * 여기서 AI를 새로 부르지는 않는다 — 저장된 것을 읽을 뿐이라 화면을 열
    * 때마다 돈이 나가지 않는다.
    */
-  const [todayReport, trainingNote, favExercises] = await Promise.all([
+  const [todayReport, trainingNote, favExercises, openSession] = await Promise.all([
     prisma.aiReport.findUnique({
       where: { userId_asOf: { userId: user.id, asOf: core.midnight } },
       select: { halted: true, body: true },
@@ -142,6 +143,11 @@ export default async function TrainingPage({
     }),
     /* 별을 달아 둔 것 — 목록에 표시하고, 고르는 창에서 위로 올린다 */
     favoriteExerciseIds(user.id),
+    /* 오늘 열어 둔 운동 판이 있는가. 있으면 단추가 '이어서 하기'가 된다. */
+    prisma.trainingSession.findFirst({
+      where: { userId: user.id, date: core.midnight, status: 'ACTIVE' },
+      select: { id: true },
+    }),
   ]);
 
   /*
@@ -313,6 +319,16 @@ export default async function TrainingPage({
       />
 
       <ViewTabs current="today" settings={user} />
+
+      {/*
+        운동 시작.
+        목록이 있는 날에만 낸다 — 통증인 날과 아직 안 만든 날에는 시작할 것이
+        없다. 목록 위에 두는 것은, 스크롤을 내려 운동을 훑기 전에 먼저 눈에
+        들어와야 하기 때문이다.
+      */}
+      {!picked.halted && shownPicks.length > 0 && (
+        <StartWorkout resume={openSession != null} />
+      )}
 
       {/* 왜 오늘 이런 구성인지 — 고르는 건 코드, 설명은 AI가 한다 */}
       {aiTraining && (

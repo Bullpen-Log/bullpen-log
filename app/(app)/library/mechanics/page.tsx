@@ -1,4 +1,3 @@
-import { prisma } from '@/lib/prisma';
 import { requireUser } from '@/lib/dal';
 import { favoriteDrillIds } from '@/lib/favorites';
 import { createPlaybackUrls } from '@/lib/storage';
