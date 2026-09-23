@@ -22,6 +22,7 @@ import {
   type SavedSet,
 } from '@/app/actions/workout';
 import { ExerciseSheet } from './exercise-sheet';
+import { FinishSheet } from './finish-sheet';
 import { AMOUNT_LIMITS, WEIGHT_STEP, type DoneAmount } from '@/lib/exercise-meta';
 import type { SlotKey } from '@/lib/report/theme';
 
@@ -209,6 +210,14 @@ export function SessionClient({
   useWakeLock();
 
   const [sheet, setSheet] = useState(false);
+  /*
+   * 종료 요약.
+   *
+   * [운동 종료]가 곧장 끝내지 않는다. 한 시간을 쓰고 나서 남는 것이 체크
+   * 표시뿐이면 그 한 시간이 숫자로 안 남고, 체감 강도를 받을 자리도 사라진다.
+   */
+  const [finish, setFinish] = useState(false);
+  const [finishError, setFinishError] = useState<string | null>(null);
   /*
    * 숫자판은 누를 때만 올린다.
    *
@@ -431,11 +440,10 @@ export function SessionClient({
         </button>
         <button
           type="button"
-          onClick={() =>
-            startEnding(async () => {
-              await finishWorkout({});
-            })
-          }
+          onClick={() => {
+            setFinishError(null);
+            setFinish(true);
+          }}
           disabled={ending}
           className="shrink-0 rounded-lg border border-line-strong px-2.5 py-1.5 text-xs font-semibold text-ink transition-colors hover:border-sky hover:text-sky disabled:opacity-50"
         >
@@ -693,6 +701,28 @@ export function SessionClient({
           </div>
         )}
       </div>
+
+      {finish && (
+        <FinishSheet
+          exercises={list}
+          sets={sets}
+          startedAt={openedAt}
+          busy={ending}
+          error={finishError}
+          onClose={() => {
+            setFinish(false);
+            setFinishError(null);
+          }}
+          onFinish={(intensity, memo) => {
+            setFinishError(null);
+            startEnding(async () => {
+              /* 성공하면 서버가 트레이닝으로 보낸다 — 돌아오면 실패한 것이다 */
+              const res = await finishWorkout({ intensity, memo });
+              if (res && 'error' in res) setFinishError(res.error);
+            });
+          }}
+        />
+      )}
 
       {sheet && (
         <ExerciseSheet
