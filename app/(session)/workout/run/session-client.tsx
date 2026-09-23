@@ -13,6 +13,7 @@ import {
   X,
 } from 'lucide-react';
 import { LibraryVideo } from '@/components/library-video';
+import { useWakeLock } from '@/components/use-wake-lock';
 import {
   deleteSet,
   finishWorkout,
@@ -198,6 +199,15 @@ export function SessionClient({
    */
   const [list, setList] = useState<RunExercise[]>(exercises);
   const [at, setAt] = useState(0);
+  /*
+   * 운동하는 동안 화면을 켜 둔다.
+   *
+   * 세트 사이에 1~3분을 쉬는데 폰은 30초면 잠긴다. 한 세트마다 폰을 깨워
+   * 잠금을 풀어야 하고, 무엇보다 휴식 시계가 30초마다 사라지면 띄운 뜻이
+   * 없다. 이 화면을 나가면 저절로 풀린다 (components/use-wake-lock.ts).
+   */
+  useWakeLock();
+
   const [sheet, setSheet] = useState(false);
   /*
    * 숫자판은 누를 때만 올린다.
