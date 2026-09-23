@@ -19,7 +19,9 @@
     "outbox:test": "node scripts/outbox-selftest.mts",
     "velocity:test": "node scripts/velocity-selftest.mts",
     "velocity:detect-test": "node scripts/velocity-detect-test.mts",
-    "rotation:check": "node --env-file=.env --import ./scripts/alias-register.mjs scripts/rotation-check.mts"
+    "rotation:check": "node --env-file=.env --import ./scripts/alias-register.mjs scripts/rotation-check.mts",
+    "patch:sync": "node scripts/sync-patch-notes.mjs",
+    "prepare": "git config core.hooksPath .githooks || true"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.115.0",

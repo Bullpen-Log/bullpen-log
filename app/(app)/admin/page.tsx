@@ -1,3 +1,5 @@
+import Link from 'next/link';
+import { ChevronRight, ScrollText } from 'lucide-react';
 import { prisma } from '@/lib/prisma';
 import { requireAdmin } from '@/lib/dal';
 import { Badge, Card, PageHeading } from '@/components/ui';
@@ -164,6 +166,28 @@ export default async function AdminPage() {
           ))}
         </div>
       </section>
+
+      {/*
+        패치노트로 가는 문.
+
+        콘텐츠 현황 바로 밑에 둔다 — 위 숫자가 '지금 무엇이 있나'이고 이쪽은
+        '이 프로그램이 어떻게 여기까지 왔나'라서 이어 읽힌다.
+      */}
+      <Link
+        href="/admin/patch-notes"
+        className="flex items-center gap-4 rounded-2xl border border-line bg-surface px-5 py-4 transition-colors duration-75 hover:border-sky-soft hover:bg-surface-2"
+      >
+        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-line-strong text-muted">
+          <ScrollText aria-hidden className="h-4 w-4" />
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block text-sm font-bold text-ink">패치노트</span>
+          <span className="mt-0.5 block text-xs leading-relaxed text-muted">
+            프로그램을 누가 언제 어떻게 고쳤는지 날마다 쌓입니다.
+          </span>
+        </span>
+        <ChevronRight aria-hidden className="h-4 w-4 shrink-0 text-muted" />
+      </Link>
 
       <p className="rounded-xl border border-line bg-surface px-5 py-4 text-xs leading-relaxed text-muted">
         본인 계정은 실수로 잠기는 것을 막기 위해 권한 변경과 삭제가 막혀 있습니다.
