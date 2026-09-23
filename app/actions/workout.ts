@@ -2,6 +2,7 @@
 
 import { revalidatePath } from 'next/cache';
 import { redirect, RedirectType } from 'next/navigation';
+import { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 import { requireUser } from '@/lib/dal';
 import { exercisesByIds } from '@/lib/library-cache';
@@ -301,4 +302,61 @@ export async function finishWorkout(input: {
   revalidatePath('/training');
   revalidatePath('/dashboard');
   redirect('/training', RedirectType.replace);
+}
+
+/* ---------------------------- 목록 고치기 ---------------------------- */
+
+/**
+ * 운동하는 도중에 오늘 순서를 바꾸거나 뺀다.
+ *
+ * 받은 순서 그대로 다시 쓰고, 목록에 없는 것은 오늘 안 하는 것으로 본다.
+ * 헬스장에서는 기구가 차 있어서 순서를 바꾸는 일이 잦고, 그때마다 화면을
+ * 나가 일정을 고치고 다시 들어오게 할 수는 없다.
+ *
+ * 고치는 것은 세션뿐이다. 트레이닝 화면의 일정은 그대로 둔다 — 세션은
+ * '오늘 실제로 하는 순서'이고 일정은 '처방받은 것'이라 성격이 다르다.
+ * 뺀 운동은 기록이 안 남으므로 저절로 '안 함'이 된다.
+ */
+export async function reorderSession(
+  exerciseIds: string[]
+): Promise<{ ids: string[] } | { error: string }> {
+  const user = await requireUser();
+  const session = await activeSession(user.id);
+  if (!session) return { error: '열려 있는 운동이 없습니다.' };
+
+  const plan = readFrozenPlan(session.plan);
+  if (!plan) return { error: '오늘 목록을 읽지 못했습니다.' };
+
+  /* 중복은 버리고, 목록에 실제로 있는 것만 남긴다 */
+  const want = exerciseIds.filter((id, i) => exerciseIds.indexOf(id) === i);
+  const byId = new Map(plan.exercises.map((e) => [e.id, e]));
+  const next = want.flatMap((id) => {
+    const found = byId.get(id);
+    return found ? [found] : [];
+  });
+
+  if (next.length === 0) return { error: '운동을 모두 뺄 수는 없습니다.' };
+
+  /*
+   * 이미 세트를 남긴 운동은 못 뺀다.
+   *
+   * 빼면 기록이 붕 뜬다 — 목록에는 없는데 세트는 남아 있고, 종료할 때
+   * 그것까지 요약으로 접힌다. 지우려면 세트를 먼저 지우게 한다.
+   */
+  const dropped = plan.exercises.filter((e) => !want.includes(e.id)).map((e) => e.id);
+  if (dropped.length > 0) {
+    const has = await prisma.userExerciseSet.findFirst({
+      where: { sessionId: session.id, exerciseId: { in: dropped } },
+      select: { exerciseId: true },
+    });
+    if (has) return { error: '이미 기록을 남긴 운동은 뺄 수 없습니다.' };
+  }
+
+  await prisma.trainingSession.update({
+    where: { id: session.id },
+    data: { plan: { ...plan, exercises: next } as unknown as Prisma.InputJsonValue },
+  });
+
+  /* 화면은 이미 운동 정보를 들고 있다. 순서만 돌려주면 된다. */
+  return { ids: next.map((e) => e.id) };
 }

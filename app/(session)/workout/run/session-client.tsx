@@ -8,11 +8,19 @@ import {
   ChevronRight,
   Delete,
   Info,
+  ListOrdered,
   Trash2,
   X,
 } from 'lucide-react';
 import { LibraryVideo } from '@/components/library-video';
-import { deleteSet, finishWorkout, logSet, type SavedSet } from '@/app/actions/workout';
+import {
+  deleteSet,
+  finishWorkout,
+  logSet,
+  reorderSession,
+  type SavedSet,
+} from '@/app/actions/workout';
+import { ExerciseSheet } from './exercise-sheet';
 import { AMOUNT_LIMITS, WEIGHT_STEP, type DoneAmount } from '@/lib/exercise-meta';
 import type { SlotKey } from '@/lib/report/theme';
 
@@ -173,7 +181,16 @@ export function SessionClient({
 }) {
   const router = useRouter();
   const [sets, setSets] = useState<RunSet[]>(initialSets);
+  /*
+   * 목록을 상태로 들고 있는다.
+   *
+   * 세션 중에 순서를 바꾸거나 뺄 수 있기 때문이다. 서버가 다시 그리지 않으므로
+   * (세트 저장이 화면을 안 건드린다) 처음 받은 것에서 출발해 여기서만 고친다.
+   */
+  const [list, setList] = useState<RunExercise[]>(exercises);
   const [at, setAt] = useState(0);
+  const [sheet, setSheet] = useState(false);
+  const [listError, setListError] = useState<string | null>(null);
   const [weight, setWeight] = useState('');
   const [count, setCount] = useState('');
   const [field, setField] = useState<'weight' | 'count'>(
@@ -191,7 +208,7 @@ export function SessionClient({
   const [ending, startEnding] = useTransition();
   const topRef = useRef<HTMLDivElement>(null);
 
-  const ex = exercises[at];
+  const ex = list[at];
   const mine = useMemo(
     () => sets.filter((s) => s.exerciseId === ex.id).sort((a, b) => a.setNo - b.setNo),
     [sets, ex.id]
@@ -213,14 +230,44 @@ export function SessionClient({
    * 자리에서 하면 되고, 효과 안에서 곧바로 상태를 바꾸면 그릴 때마다 연쇄로
    * 다시 그린다.
    */
-  const goTo = (next: number) => {
-    const i = Math.min(exercises.length - 1, Math.max(0, next));
+  const goTo = (next: number, from: RunExercise[] = list) => {
+    const i = Math.min(from.length - 1, Math.max(0, next));
     setAt(i);
     setWeight('');
     setCount('');
-    setField(exercises[i].needsWeight ? 'weight' : 'count');
+    setField(from[i].needsWeight ? 'weight' : 'count');
     setError(null);
     topRef.current?.scrollTo({ top: 0 });
+  };
+
+  /**
+   * 목록 순서를 바꾸거나 뺀다.
+   *
+   * 지금 보고 있던 운동은 자리가 바뀌어도 그대로 따라간다. 뺀 것이 지금 보던
+   * 것이면 그 자리에 올라온 운동으로 넘어간다 — 목록 맨 앞으로 튕기면 어디까지
+   * 했는지 다시 찾아야 한다.
+   */
+  const applyOrder = (ids: string[]) => {
+    setListError(null);
+    startSaving(async () => {
+      const res = await reorderSession(ids);
+      if ('error' in res) {
+        setListError(res.error);
+        return;
+      }
+      const byId = new Map(list.map((e) => [e.id, e]));
+      const next = res.ids.flatMap((id) => {
+        const found = byId.get(id);
+        return found ? [found] : [];
+      });
+      if (next.length === 0) return;
+
+      const currentId = ex.id;
+      const found = next.findIndex((e) => e.id === currentId);
+      setList(next);
+      if (found >= 0) setAt(found);
+      else goTo(Math.min(at, next.length - 1), next);
+    });
   };
 
   const save = () => {
@@ -303,20 +350,32 @@ export function SessionClient({
         >
           <X className="h-5 w-5" />
         </button>
-        <div className="min-w-0 flex-1">
+        {/*
+          진행 막대를 누르면 오늘 목록이 열린다.
+
+          [이전]·[다음]만 있으면 여섯 번째 운동에 가는 데 다섯 번을 눌러야 하고,
+          무엇이 남았는지도 알 수 없다.
+        */}
+        <button
+          type="button"
+          onClick={() => setSheet(true)}
+          aria-label="오늘 운동 목록 열기"
+          className="min-w-0 flex-1 text-left"
+        >
           <p className="truncate text-xs text-muted">{themeLabel}</p>
           <div className="mt-1 flex items-center gap-2">
+            <ListOrdered className="h-3.5 w-3.5 shrink-0 text-muted" />
             <span className="h-1 flex-1 overflow-hidden rounded-full bg-surface-2">
               <span
                 className="block h-full bg-sky transition-[width] duration-200"
-                style={{ width: `${((at + 1) / exercises.length) * 100}%` }}
+                style={{ width: `${((at + 1) / list.length) * 100}%` }}
               />
             </span>
             <span className="shrink-0 text-[11px] tabular-nums text-muted">
-              {at + 1}/{exercises.length}
+              {at + 1}/{list.length}
             </span>
           </div>
-        </div>
+        </button>
         <button
           type="button"
           onClick={() =>
@@ -430,7 +489,7 @@ export function SessionClient({
         )}
 
         <p className="mt-4 text-center text-[11px] text-muted/70">
-          오늘 {doneCount}/{exercises.length}개 운동에 기록을 남겼습니다
+          오늘 {doneCount}/{list.length}개 운동에 기록을 남겼습니다
         </p>
       </div>
 
@@ -546,7 +605,7 @@ export function SessionClient({
           <button
             type="button"
             onClick={() => goTo(at + 1)}
-            disabled={at === exercises.length - 1}
+            disabled={at === list.length - 1}
             className="flex flex-1 items-center justify-center gap-1 rounded-xl border border-line-strong py-2.5 text-xs font-semibold text-ink transition-colors disabled:opacity-30 motion-safe:active:scale-[0.98]"
           >
             다음 운동
@@ -554,6 +613,25 @@ export function SessionClient({
           </button>
         </div>
       </div>
+
+      {sheet && (
+        <ExerciseSheet
+          exercises={list}
+          sets={sets}
+          at={at}
+          busy={saving}
+          error={listError}
+          onJump={(i) => {
+            goTo(i);
+            setSheet(false);
+          }}
+          onApply={applyOrder}
+          onClose={() => {
+            setSheet(false);
+            setListError(null);
+          }}
+        />
+      )}
     </>
   );
 }
