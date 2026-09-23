@@ -22,6 +22,14 @@ export default async function RunPage() {
   });
   if (!session) redirect('/training');
 
+  /*
+   * 워밍업 창을 아직 안 지났다.
+   *
+   * mainStartedAt 은 그 창을 나갈 때 찍힌다. 비어 있다는 것은 [운동 시작]만
+   * 누르고 주소를 직접 쳐서 들어왔다는 뜻이라, 창으로 돌려보낸다.
+   */
+  if (!session.mainStartedAt) redirect('/workout/warmup');
+
   const plan = readFrozenPlan(session.plan);
   if (!plan || plan.exercises.length === 0) redirect('/training');
 
@@ -102,7 +110,7 @@ export default async function RunPage() {
        * 그러지 않으면 종료하고 다시 들어왔을 때 '47분째 쉬는 중'이 떠서
        * 종료가 안 된 것처럼 보인다.
        */
-      openedAt={(session.mainStartedAt ?? session.startedAt).toISOString()}
+      openedAt={session.mainStartedAt.toISOString()}
     />
   );
 }

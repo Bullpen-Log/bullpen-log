@@ -67,6 +67,26 @@ export async function startWorkout() {
 
   if (plan.exercises.length === 0) redirect('/training');
 
+  /*
+   * 워밍업 창을 건너뛰는 두 경우.
+   *
+   * 하나는 회복 데이다 — 그날 목록 자체가 가볍게 푸는 운동들이라, 그 앞에 또
+   * 푸는 순서를 두면 할 일이 두 배가 된다 (lib/workout/warmup-kind.ts).
+   *
+   * 둘은 오늘 이미 한 번 지난 판을 다시 여는 경우다. 아침에 마치고 저녁에
+   * 다시 들어왔다고 워밍업을 또 시킬 일은 아니다.
+   */
+  const noWarmup = plan.themeKey === 'recovery' || open?.warmupOutcome != null;
+
+  /*
+   * 다시 여는 판도 시각을 새로 찍는다.
+   *
+   * 휴식 시계가 이 값을 기준으로 '이 뒤에 남긴 세트'만 세기 때문이다
+   * (app/(session)/workout/run/page.tsx). 아침 값을 그대로 두면 저녁에 들어와
+   * '9시간째 쉬는 중'이 뜬다.
+   */
+  const mainStartedAt = noWarmup ? new Date() : null;
+
   await prisma.trainingSession.upsert({
     where: { userId_date: { userId: user.id, date: core.midnight } },
     create: {
@@ -75,11 +95,7 @@ export async function startWorkout() {
       themeKey: plan.themeKey,
       plan,
       status: 'ACTIVE',
-      /*
-       * 워밍업 창이 아직 없다. 지금은 본운동으로 곧장 들어가므로 시작 시각과
-       * 같다. 워밍업 창을 붙이면 거기서 [본운동 시작]을 누를 때 찍는다.
-       */
-      mainStartedAt: new Date(),
+      mainStartedAt,
     },
     update: {
       /* 한 번 닫은 판을 다시 열 때 — 목록을 새로 찍고 상태를 되돌린다 */
@@ -87,11 +103,50 @@ export async function startWorkout() {
       plan,
       status: 'ACTIVE',
       endedAt: null,
-      mainStartedAt: new Date(),
+      mainStartedAt,
     },
   });
 
-  redirect('/workout/run');
+  redirect(mainStartedAt ? '/workout/run' : '/workout/warmup');
+}
+
+/* ----------------------------- 워밍업 ----------------------------- */
+
+/**
+ * 워밍업 창을 나간다. 여기서부터 본운동 시간이다.
+ *
+ * 체크한 것은 이름만 남기고 UserExerciseLog 에는 줄을 만들지 않는다. 줄이
+ * 생기면 운동 부하·부위별 세트 수·'최근에 한 운동'·달력의 개수까지 오염된다
+ * (prisma/schema.prisma 의 warmupDoneIds 주석).
+ *
+ * 건너뛰어도 체크한 것은 그대로 담는다. 셋 중 둘만 하고 넘어가는 날이 있고,
+ * 그날을 '아무것도 안 함'으로 적어 두면 사실과 다르다.
+ */
+export async function finishWarmup(input: {
+  skipped: boolean;
+  doneIds: string[];
+}): Promise<{ error: string } | never> {
+  const user = await requireUser();
+  const session = await activeSession(user.id);
+  if (!session) redirect('/training');
+
+  /* 이미 지난 창이다. 두 번 누르거나 뒤로가기로 들어와도 시각을 덮지 않는다. */
+  if (session.mainStartedAt) redirect('/workout/run', RedirectType.replace);
+
+  const doneIds = Array.isArray(input.doneIds)
+    ? [...new Set(input.doneIds.filter((v) => typeof v === 'string' && v))].slice(0, 50)
+    : [];
+
+  await prisma.trainingSession.update({
+    where: { id: session.id },
+    data: {
+      mainStartedAt: new Date(),
+      warmupOutcome: input.skipped ? 'SKIPPED' : 'DONE',
+      warmupDoneIds: doneIds,
+    },
+  });
+
+  redirect('/workout/run', RedirectType.replace);
 }
 
 /* ------------------------------ 세트 ------------------------------ */
