@@ -5,6 +5,7 @@ import { useActionState, useEffect, useRef, useState } from 'react';
 import { useFormStatus } from 'react-dom';
 import { login, signup, type AuthState } from '@/app/actions/auth';
 import { Button, Field, FormError, Input } from '@/components/ui';
+import { Segmented } from '@/components/segmented';
 import { kept } from '@/lib/form-values';
 import { readLoginPrefs, saveLoginPrefs } from '@/lib/login-prefs';
 import { MAX_HEIGHT_CM, MIN_HEIGHT_CM } from '@/lib/profile';
@@ -16,6 +17,11 @@ import {
   COMPETITION_LEVELS,
   THROWING_HANDS,
 } from '@/lib/baseline';
+
+const AUTH_MODES = [
+  { value: 'login', label: '로그인' },
+  { value: 'signup', label: '회원가입' },
+] as const;
 
 /** 가입 문진용 한 줄 칩 라디오 */
 function ChipRow({
@@ -155,21 +161,18 @@ export function AuthForm({ today }: { today: string }) {
 
   return (
     <div className="w-full max-w-md">
-      {/* 로그인 / 회원가입 전환 탭 */}
-      <div className="mb-8 grid grid-cols-2 gap-1 rounded-xl border border-line bg-surface p-1">
-        {(['login', 'signup'] as const).map((m) => (
-          <button
-            key={m}
-            type="button"
-            onClick={() => setMode(m)}
-            className={`rounded-lg px-4 py-2.5 text-sm font-medium transition-colors ${
-              mode === m ? 'bg-sky text-white' : 'text-muted hover:text-ink'
-            }`}
-          >
-            {m === 'login' ? '로그인' : '회원가입'}
-          </button>
-        ))}
-      </div>
+      {/* 로그인 / 회원가입 전환 탭 — 고른 쪽 밑의 알약이 미끄러진다(앱 안의 고르개들과 같은 것) */}
+      <Segmented
+        role="tablist"
+        label="로그인 또는 회원가입"
+        value={mode}
+        onChange={setMode}
+        options={AUTH_MODES}
+        size="md"
+        tone="raised"
+        className="mb-8"
+        itemClassName="px-4 py-2.5"
+      />
 
       <form
         key={mode}

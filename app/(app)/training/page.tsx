@@ -24,6 +24,7 @@ import { TrainingNote } from './training-note';
 import { TrainingHistory } from './history';
 import { josa } from '@/lib/korean';
 import { TrainingSettingsButton } from './settings-button';
+import { TrainingViewSwitch } from './view-switch';
 import { trainingSummaries } from '@/lib/report/training-history';
 import { exercisesByIds } from '@/lib/library-cache';
 
@@ -45,19 +46,7 @@ function now() {
 }
 
 /**
- * 오늘 할 것과 지난 기록을 오가는 두 칸.
- *
- * 주소로 나눈다(?view=history). 화면 안에서 접었다 폈다 하면 오늘 것과 지난
- * 것을 둘 다 그려서 내려보내야 하는데, 지난 기록은 달력이라 짐이 따로 있다.
- * 주소로 나누면 보는 쪽만 그린다.
- */
-const VIEWS = [
-  { key: 'today', label: '오늘', href: '/training' },
-  { key: 'history', label: '기록', href: '/training?view=history' },
-] as const;
-
-/**
- * 탭 줄.
+ * 탭 줄 — [오늘 | 기록] 고르개(view-switch.tsx)와 트레이닝 설정.
  *
  * 오른쪽 끝에 트레이닝 설정을 붙인다. 홈에도 같은 것이 있지만, 설정을 고치고
  * 싶어지는 순간은 대개 여기다 — 운동 목록을 보다가 "이건 장비가 없어서 못
@@ -78,19 +67,7 @@ function ViewTabs({
 }) {
   return (
     <div className="flex flex-wrap items-center gap-3">
-      <div className="flex gap-1 rounded-xl border border-line bg-surface p-1">
-        {VIEWS.map((v) => (
-          <Link
-            key={v.key}
-            href={v.href}
-            className={`rounded-lg px-6 py-2 text-center text-sm font-medium transition-colors ${
-              current === v.key ? 'bg-sky text-white' : 'text-muted hover:text-ink'
-            }`}
-          >
-            {v.label}
-          </Link>
-        ))}
-      </div>
+      <TrainingViewSwitch current={current} />
       <div className="ml-auto">
         <TrainingSettingsButton
           trainingLevel={settings.trainingLevel}

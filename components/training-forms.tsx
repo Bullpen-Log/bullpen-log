@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useFormStatus } from 'react-dom';
 import { RefreshCw, Sparkles } from 'lucide-react';
 import { CheckboxGroup, RadioGroup } from '@/components/choice-inputs';
+import { Segmented } from '@/components/segmented';
 import { SELECTABLE_EQUIPMENT } from '@/lib/report/equipment';
 import {
   TRAINING_GOALS,
@@ -38,6 +39,12 @@ import {
  * 모든 날이 파워 위주가 된다 — 오늘은 어깨가 뻐근해서 관리에 쓰고 싶은 날도
  * 마찬가지였다. 목표는 날마다 달라지는 것이므로 만들 때 함께 고른다.
  */
+
+/** 일정을 만드는 두 방식 */
+const PLAN_MODES = [
+  { value: 'auto', label: 'AI 맞춤', icon: Sparkles },
+  { value: 'manual', label: '직접 고르기' },
+] as const;
 
 function SubmitButton({
   label,
@@ -256,34 +263,18 @@ export function PlanForm({
       <input type="hidden" name="mode" value={mode} />
 
       {/*
-        방식 고르기. 폼 안의 단추라 type="button" 으로 둔다 — 안 그러면 누르는
-        순간 일정이 만들어진다.
+        방식 고르기 — 고른 쪽 밑의 알약이 미끄러진다(다른 고르개들과 같은 것).
+        고르개의 칸은 type="button" 이라 폼 안에서 눌러도 일정이 만들어지지 않는다.
       */}
-      <div
-        role="group"
-        aria-label="만드는 방식"
-        className="flex gap-1 rounded-xl border border-line bg-surface p-1"
-      >
-        {(
-          [
-            { key: 'auto', label: 'AI 맞춤' },
-            { key: 'manual', label: '직접 고르기' },
-          ] as const
-        ).map((m) => (
-          <button
-            key={m.key}
-            type="button"
-            aria-pressed={mode === m.key}
-            onClick={() => setMode(m.key)}
-            className={`flex flex-1 items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
-              mode === m.key ? 'bg-sky text-white' : 'text-muted hover:text-ink'
-            }`}
-          >
-            {m.key === 'auto' && <Sparkles className="h-3.5 w-3.5" />}
-            {m.label}
-          </button>
-        ))}
-      </div>
+      <Segmented
+        label="만드는 방식"
+        value={mode}
+        onChange={setMode}
+        options={PLAN_MODES}
+        size="md"
+        tone="raised"
+        itemClassName="px-3 py-2"
+      />
 
       {mode === 'auto' ? (
         <>

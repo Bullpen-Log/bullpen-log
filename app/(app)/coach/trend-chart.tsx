@@ -15,6 +15,7 @@ import {
 } from 'chart.js';
 import { Chart } from 'react-chartjs-2';
 import { useChartTheme } from '@/lib/chart-theme';
+import { Segmented } from '@/components/segmented';
 
 // 일반 <Chart>는 컨트롤러를 자동 등록하지 않으므로 직접 등록한다.
 ChartJS.register(
@@ -90,6 +91,12 @@ const METRICS = [
 
 type MetricKey = (typeof METRICS)[number]['key'];
 
+/*
+ * 고르개에는 이름만 넘긴다. 설명(hint)은 줄 아래에 늘 보이고 있어서 마우스를
+ * 올렸을 때 또 뜨면 같은 글이 두 번 보인다.
+ */
+const METRIC_OPTIONS = METRICS.map((m) => ({ value: m.key, label: m.label }));
+
 function valuesFor(points: TrendPoint[], metric: MetricKey): (number | null)[] {
   switch (metric) {
     case 'pitches':
@@ -115,31 +122,16 @@ export function TrendChart({ points }: { points: TrendPoint[] }) {
 
   return (
     <div className="space-y-4">
-      <div
+      {/* 모바일에서는 네 칸이 한 줄을 나눠 갖고(flex-1), 넓은 화면에서는 글자 폭대로 선다. */}
+      <Segmented
         role="tablist"
-        aria-label="그래프에서 볼 항목"
-        className="flex flex-wrap gap-1 rounded-xl border border-line bg-surface-2 p-1"
-      >
-        {METRICS.map((m) => {
-          const selected = m.key === metric;
-          return (
-            <button
-              key={m.key}
-              type="button"
-              role="tab"
-              aria-selected={selected}
-              onClick={() => setMetric(m.key)}
-              className={`flex-1 rounded-lg px-3 py-2 text-xs font-medium whitespace-nowrap transition-colors sm:flex-none sm:px-4 ${
-                selected
-                  ? 'bg-sky text-white'
-                  : 'text-muted hover:bg-surface hover:text-ink'
-              }`}
-            >
-              {m.label}
-            </button>
-          );
-        })}
-      </div>
+        layout="flow"
+        label="그래프에서 볼 항목"
+        value={metric}
+        onChange={setMetric}
+        options={METRIC_OPTIONS}
+        itemClassName="flex-1 px-3 py-2 sm:flex-none sm:px-4"
+      />
 
       <p className="text-xs leading-relaxed text-muted">{active.hint}</p>
 

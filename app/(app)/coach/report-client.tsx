@@ -14,6 +14,7 @@ import {
   TriangleAlert,
 } from 'lucide-react';
 import { Card, EmptyState } from '@/components/ui';
+import { Segmented } from '@/components/segmented';
 import {
   TWO_DAY_INTENSITY_LIMIT,
   buildDateRange,
@@ -47,6 +48,9 @@ const PERIODS = [
   { key: 7, label: '최근 7일' },
   { key: 30, label: '최근 30일' },
 ] as const;
+
+/* 고르개는 글자 값을 받는다 — 날 수를 글자로 옮겨 둔다 */
+const PERIOD_OPTIONS = PERIODS.map((p) => ({ value: String(p.key), label: p.label }));
 
 const TONE_STYLES: Record<
   ReportFinding['tone'],
@@ -235,22 +239,18 @@ export function ReportClient({ logs }: { logs: Log[] }) {
 
       {open && (
         <div className="mt-6 space-y-6">
-          {/* 기간 선택 */}
+          {/* 기간 선택 — 고른 쪽 밑의 알약이 미끄러진다(다른 고르개들과 같은 것) */}
           <div className="flex flex-wrap items-center gap-3">
-            <div className="flex gap-1 rounded-xl border border-line bg-surface p-1">
-              {PERIODS.map((p) => (
-                <button
-                  key={p.key}
-                  type="button"
-                  onClick={() => setDays(p.key)}
-                  className={`rounded-lg px-5 py-2.5 text-sm font-medium transition-colors ${
-                    days === p.key ? 'bg-sky text-white' : 'text-muted hover:text-ink'
-                  }`}
-                >
-                  {p.label}
-                </button>
-              ))}
-            </div>
+            <Segmented
+              label="돌아볼 기간"
+              value={String(days)}
+              onChange={(v) => setDays(v === '30' ? 30 : 7)}
+              options={PERIOD_OPTIONS}
+              layout="flow"
+              size="md"
+              tone="raised"
+              itemClassName="px-5 py-2.5"
+            />
             <span className="text-xs tabular-nums text-muted">{rangeLabel}</span>
           </div>
 

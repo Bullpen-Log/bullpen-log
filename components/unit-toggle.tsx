@@ -15,10 +15,8 @@ import {
   SPEED_UNITS,
   subscribeUnits,
   WEIGHT_UNITS,
-  type LengthUnit,
-  type SpeedUnit,
-  type WeightUnit,
 } from '@/lib/units';
+import { Segmented } from '@/components/segmented';
 
 /**
  * 길이와 무게를 어떤 단위로 볼지 고르는 두 줄.
@@ -42,27 +40,27 @@ export function UnitToggle() {
         hint="키 · 윙스팬"
         options={LENGTH_UNITS}
         current={length}
-        onPick={(v) => applyLengthUnit(v as LengthUnit)}
+        onPick={applyLengthUnit}
       />
       <Row
         label="무게"
         hint="몸무게 · 운동에서 든 무게"
         options={WEIGHT_UNITS}
         current={weight}
-        onPick={(v) => applyWeightUnit(v as WeightUnit)}
+        onPick={applyWeightUnit}
       />
       <Row
         label="구속"
         hint="투구 기록과 목표 구속"
         options={SPEED_UNITS}
         current={speed}
-        onPick={(v) => applySpeedUnit(v as SpeedUnit)}
+        onPick={applySpeedUnit}
       />
     </div>
   );
 }
 
-function Row({
+function Row<V extends string>({
   label,
   hint,
   options,
@@ -71,9 +69,9 @@ function Row({
 }: {
   label: string;
   hint: string;
-  options: readonly { value: string; label: string; hint: string }[];
-  current: string;
-  onPick: (value: string) => void;
+  options: readonly { value: V; label: string; hint: string }[];
+  current: V;
+  onPick: (value: V) => void;
 }) {
   return (
     <div className="flex items-center justify-between gap-3">
@@ -88,33 +86,19 @@ function Row({
         예전에는 글자 길이가 폭을 정했다(px-3). 'cm'은 두 글자, 'km/h'는 네
         글자라 줄마다 칸이 다른 크기로 서고, 오른쪽 끝도 들쭉날쭉했다.
 
-        폭을 못 박고(w-36) 두 칸으로 나누면(grid-cols-2) 어떤 글자가 와도 같은
+        폭을 못 박고(w-36) 두 칸으로 나누면(grid) 어떤 글자가 와도 같은
         크기가 된다. 가장 긴 'km/h'가 들어가고도 남는 폭으로 잡았다.
       */}
-      <div
+      <Segmented
         role="radiogroup"
-        aria-label={`${label} 단위`}
-        className="grid w-36 shrink-0 grid-cols-2 gap-1 rounded-xl border border-line bg-surface-2 p-1"
-      >
-        {options.map((option) => {
-          const selected = current === option.value;
-          return (
-            <button
-              key={option.value}
-              type="button"
-              role="radio"
-              aria-checked={selected}
-              title={option.hint}
-              onClick={() => onPick(option.value)}
-              className={`rounded-lg px-1 py-1.5 text-center text-xs font-medium transition-colors ${
-                selected ? 'bg-sky text-white' : 'text-muted hover:bg-surface hover:text-ink'
-              }`}
-            >
-              {option.label}
-            </button>
-          );
-        })}
-      </div>
+        layout="grid"
+        label={`${label} 단위`}
+        value={current}
+        onChange={onPick}
+        options={options}
+        className="w-36 shrink-0"
+        itemClassName="px-1 py-1.5"
+      />
     </div>
   );
 }
