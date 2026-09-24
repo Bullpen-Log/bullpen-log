@@ -53,7 +53,6 @@ export function PitchLogPanel({
    * 범위(loadedFrom 이후)는 통째로 있는 것으로 친다.
    */
   const loadedMonths = useRef(new Set<string>());
-  const [loadingMonth, setLoadingMonth] = useState(false);
 
   /*
    * 달력에서 고른 날.
@@ -95,7 +94,6 @@ export function PitchLogPanel({
     loadedMonths.current.add(monthKey);
     let cancelled = false;
 
-    setLoadingMonth(true);
     fetch(`/api/pitch-log?month=${monthKey}`)
       .then((res) => (res.ok ? res.json() : Promise.reject(new Error())))
       .then((older: Log[]) => {
@@ -111,9 +109,6 @@ export function PitchLogPanel({
         // 다시 넘어오면 한 번 더 받아볼 수 있게 표시를 지운다.
         loadedMonths.current.delete(monthKey);
         setError('그 달 기록을 불러오지 못했습니다. 잠시 후 다시 시도해주세요.');
-      })
-      .finally(() => {
-        if (!cancelled) setLoadingMonth(false);
       });
 
     return () => {
@@ -183,18 +178,18 @@ export function PitchLogPanel({
   return (
     <div className="space-y-3">
       {/*
-        제목과 보기 전환을 한 줄에 둔다.
+        제목을 없앴다. 예전에는 '투구 일지'라는 이름과 그 밑에 설명 글이 있었는데,
+        이 덩이가 이미 홈의 맨 앞이라 스스로 무엇인지 보여준다 — 이름표가 없어도
+        달력이 뜬 순간 무엇을 하는 곳인지 알 수 있다.
 
-        홈의 다른 덩이('오늘 할 일'·'돌아보기')와 같은 제목 모양을 쓴다. 이
-        화면만 다른 크기로 쓰면 홈 안에 남의 화면을 끼워 넣은 것처럼 보인다.
+        보기 전환만 남긴다. 오른쪽 끝에 붙여, 있던 자리(카드 위 오른쪽)를 그대로
+        지킨다.
       */}
-      <div className="flex flex-wrap items-center justify-between gap-2 px-1">
-        <h2 className="text-heading text-xl text-ink">투구 일지</h2>
-
+      <div className="flex justify-end px-1">
         <nav className="inline-flex overflow-hidden rounded-xl border border-line-strong bg-surface">
           {(
             [
-              ['calendar', '달력'],
+              ['calendar', '캘린더'],
               ['list', '목록'],
             ] as const
           ).map(([key, label]) => (
@@ -213,27 +208,17 @@ export function PitchLogPanel({
         </nav>
       </div>
 
-      <p className="px-1 text-xs leading-relaxed text-muted">
-        {view === 'calendar'
-          ? '날짜를 누르면 그날 화면으로 넘어갑니다. 기록이 없는 날도 눌러서 남길 수 있습니다.'
-          : '최근 기록부터 봅니다. 위에서 걸러 영상 있는 날이나 경기 날만 볼 수 있습니다.'}
-      </p>
-
       <FormError>{error}</FormError>
 
       {view === 'list' && <LogList logs={logs} />}
 
+      {/*
+        옛날 달을 받아 오는 동안 '지난 기록 불러오는 중…'을 띄웠었는데 뺐다.
+        달을 넘길 때마다 모서리에 글이 떴다 사라지니 캘린더가 넘어가는 움직임을
+        가렸다. 기록은 받아지는 대로 칸에 채워진다.
+      */}
       {view === 'calendar' && (
-        <Card className="relative">
-          {/* 옛날 달을 받아 오는 동안. 달력이 빈 채로 있으면 기록이 없는 줄 안다. */}
-          {loadingMonth && (
-            <p
-              aria-live="polite"
-              className="absolute right-5 top-5 rounded-lg border border-line bg-surface-2 px-2.5 py-1 text-[11px] text-muted"
-            >
-              지난 기록 불러오는 중…
-            </p>
-          )}
+        <Card>
           <MonthCalendar
             month={month}
             onMonthChange={setMonth}
