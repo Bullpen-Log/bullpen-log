@@ -187,7 +187,8 @@ export async function GET(req: Request) {
             }
           : {}),
       },
-      orderBy: { date: 'asc' },
+      /* 같은 날은 남긴 차례로 — 홈 캘린더가 처음 읽을 때와 같은 차례여야 한다 */
+      orderBy: [{ date: 'asc' }, { createdAt: 'asc' }],
     });
     return NextResponse.json(logs);
   } catch (error) {

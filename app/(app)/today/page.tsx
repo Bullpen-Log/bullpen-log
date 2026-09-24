@@ -21,7 +21,7 @@ import { PlanNote } from '@/components/plan-note';
 import { CheckinForm, type CheckinData } from '@/components/checkin-form';
 import { PlanForm, TrainingSettingsForm } from '@/components/training-forms';
 import { trainingLoad } from '@/lib/report/training-acwr';
-import { trainingSummaries } from '@/lib/report/training-history';
+import { planSummaries, trainingSummaries } from '@/lib/report/training-history';
 import { HomeTile, HomeTileLink, MiniBars, type TileState } from './home-tile';
 import { SummaryPanel, type RecentLog } from './summary-panel';
 import { TodayRecord } from './today-record';
@@ -172,13 +172,24 @@ async function PitchLogSection({
    *
    * 눌렀을 때 그때그때 받아 오는 방법도 있었지만, 날짜를 옮길 때마다 기다리게
    * 된다. 달력은 이 칸 저 칸 눌러보며 훑는 물건이라 그 기다림이 계속 쌓인다.
+   *
+   * 그날 만든 운동 일정의 테마도 같은 까닭으로 함께 읽는다(하루 한 줄로 줄여서).
+   *
+   * 영상 탭에서 고른 그날의 대표 영상도 읽는다 — 요약에서 그 영상을 튼다. 같은 날
+   * 기록은 남긴 차례로 둔다(createdAt). 대표를 안 고른 날은 그날 처음 올린 영상을
+   * 보여주는데, 차례가 없으면 열 때마다 바뀔 수 있다.
    */
-  const [logs, training] = await Promise.all([
+  const [logs, training, plans, featured] = await Promise.all([
     prisma.pitchLog.findMany({
       where: { userId: user.id, date: { gte: initialFrom } },
-      orderBy: { date: 'asc' },
+      orderBy: [{ date: 'asc' }, { createdAt: 'asc' }],
     }),
     trainingSummaries(user.id),
+    planSummaries(user.id),
+    prisma.dailyFeaturedVideo.findMany({
+      where: { userId: user.id, date: { gte: initialFrom } },
+      select: { date: true, videoPath: true },
+    }),
   ]);
 
   /*
@@ -198,6 +209,10 @@ async function PitchLogSection({
       initialDate={initialDate}
       loadedFrom={initialFrom.toISOString().slice(0, 7)}
       trainingByDay={training}
+      planByDay={plans}
+      featuredByDay={Object.fromEntries(
+        featured.map((f) => [toDateKey(f.date), f.videoPath])
+      )}
     />
   );
 }

@@ -24,7 +24,17 @@ export type VideoLog = {
  * 있었다. 대개는 그 둘이 아니라서 들어가자마자 목록을 두 번 열어 다시 골라야
  * 했다. 이제 갤러리에서 썸네일을 보며 둘을 고른 뒤에 넘어간다.
  */
-export function VideosClient({ logs }: { logs: VideoLog[] }) {
+export function VideosClient({
+  logs,
+  featured,
+  initialMonth,
+}: {
+  logs: VideoLog[];
+  /** 날짜(YYYY-MM-DD)별로 고른 대표 영상. 안 고른 날은 없다. */
+  featured: Record<string, string>;
+  /** 처음에 펴 둘 달(YYYY-MM). 없으면 가장 최근 달 */
+  initialMonth: string | null;
+}) {
   const [comparing, setComparing] = useState(false);
   /* 갤러리에서 고른 둘. 비교 화면이 이 둘로 열린다. */
   const [preset, setPreset] = useState<{ a: string; b: string } | null>(null);
@@ -83,6 +93,8 @@ export function VideosClient({ logs }: { logs: VideoLog[] }) {
       />
       <VideoGallery
         logs={logs}
+        featured={featured}
+        initialMonth={initialMonth}
         selecting={selecting}
         onSelectingChange={setSelecting}
         onCompare={(a, b) => {

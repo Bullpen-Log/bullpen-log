@@ -5,10 +5,17 @@ import { Card, FormError } from '@/components/ui';
 import { toDateKey } from '@/lib/pitch-stats';
 import { REST_SESSION_TYPE } from '@/lib/session-type';
 import { LegendSwatch, MonthCalendar, type DayMark } from '@/components/month-calendar';
+import { Segmented } from '@/components/segmented';
 import { LogList } from '@/app/(app)/pitch-log/log-list';
 import type { Log } from '@/app/(app)/pitch-log/types';
-import type { TrainingDaySummary } from '@/lib/report/training-history';
+import type { PlanDaySummary, TrainingDaySummary } from '@/lib/report/training-history';
 import { DaySummary } from './day-summary';
+
+/** [캘린더 | 목록] — 같은 기록을 다르게 보는 두 방식 */
+const VIEW_OPTIONS = [
+  { value: 'calendar', label: '캘린더' },
+  { value: 'list', label: '목록' },
+] as const;
 
 /**
  * 투구 일지 — 홈의 가운데 자리.
@@ -30,6 +37,8 @@ export function PitchLogPanel({
   initialDate,
   loadedFrom,
   trainingByDay,
+  planByDay,
+  featuredByDay,
 }: {
   initialLogs: Log[];
   /** 다른 화면에서 날짜를 지정해 들어온 경우. 그 칸을 짚어 둔다. */
@@ -43,6 +52,10 @@ export function PitchLogPanel({
   loadedFrom: string;
   /** 날짜별 운동 요약 (YYYY-MM-DD). 고른 날 밑에 함께 보여준다. */
   trainingByDay: Record<string, TrainingDaySummary>;
+  /** 날짜별로 만들어 둔 운동 일정 — 테마와 대충 무엇을 하는 날인지 */
+  planByDay: Record<string, PlanDaySummary>;
+  /** 영상 탭에서 고른 날짜별 대표 영상(저장소 경로). 안 고른 날은 없다. */
+  featuredByDay: Record<string, string>;
 }) {
   const [logs, setLogs] = useState<Log[]>(initialLogs);
   const [view, setView] = useState<'calendar' | 'list'>('calendar');
@@ -184,28 +197,20 @@ export function PitchLogPanel({
 
         보기 전환만 남긴다. 오른쪽 끝에 붙여, 있던 자리(카드 위 오른쪽)를 그대로
         지킨다.
+
+        설정 창의 단위 고르개와 같은 것을 쓴다 — 고른 쪽 밑의 하늘색 알약이 옆으로
+        미끄러진다. 예전에는 버튼 색만 켜고 꺼서, 같은 모양의 상자인데 여기만
+        움직임이 달랐다.
       */}
       <div className="flex justify-end px-1">
-        <nav className="inline-flex overflow-hidden rounded-xl border border-line-strong bg-surface">
-          {(
-            [
-              ['calendar', '캘린더'],
-              ['list', '목록'],
-            ] as const
-          ).map(([key, label]) => (
-            <button
-              key={key}
-              type="button"
-              onClick={() => setView(key)}
-              aria-pressed={view === key}
-              className={`px-4 py-2 text-xs font-semibold transition-colors ${
-                view === key ? 'bg-sky text-white' : 'text-muted hover:text-ink'
-              }`}
-            >
-              {label}
-            </button>
-          ))}
-        </nav>
+        <Segmented
+          label="기록 보기 방식"
+          value={view}
+          onChange={setView}
+          options={VIEW_OPTIONS}
+          tone="raised"
+          itemClassName="px-4 py-1.5"
+        />
       </div>
 
       <FormError>{error}</FormError>
@@ -249,6 +254,8 @@ export function PitchLogPanel({
           date={selectedDate}
           logs={selectedLogs}
           training={trainingByDay[selectedDate]}
+          plan={planByDay[selectedDate]}
+          featuredVideo={featuredByDay[selectedDate]}
           onClose={() => setSelectedDate(null)}
         />
       )}

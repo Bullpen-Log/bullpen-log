@@ -95,6 +95,7 @@ model User {
   aiReports         AiReport[]
   trainingSetups    DailyTrainingSetup[]
   trainingNotes     DailyTrainingNote[]
+  featuredVideos    DailyFeaturedVideo[]
 }
 
 /**
@@ -359,6 +360,27 @@ model PoseAnalysis {
   pitchLog PitchLog @relation(fields: [pitchLogId], references: [id], onDelete: Cascade)
 
   @@index([userId])
+}
+
+/// 영상 탭에서 고른 그날의 대표 투구 영상. 홈 캘린더에서 날짜를 누르면 이 영상을 띄운다.
+///
+/// 하루에 하나다. 영상은 기록(PitchLog.videoPaths)에 붙어 있고 한 기록에 두 개까지,
+/// 하루에 기록이 여럿일 수도 있어서 '그날의 하나'를 기록 쪽에 둘 자리가 없다.
+///
+/// 고르지 않은 날은 이 줄이 없다 — 그때는 그날 처음 올린 영상을 보여준다. 고른 영상을
+/// 나중에 기록에서 빼도 이 줄은 남지만 쓰이지 않는다. 보여줄 때 그날 영상에 아직
+/// 있는지 확인한다.
+model DailyFeaturedVideo {
+  id        String   @id @default(uuid())
+  userId    String
+  date      DateTime @db.Date
+  /// PitchLog.videoPaths 가운데 하나 (저장소 경로)
+  videoPath String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, date])
 }
 
 model ExerciseVideo {

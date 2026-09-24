@@ -3,6 +3,8 @@ import { prisma } from '@/lib/prisma';
 import { shiftDateKey, toDateKey } from '@/lib/pitch-stats';
 import { formatPrescription } from '@/lib/exercise-meta';
 import { exercisesByIds } from '@/lib/library-cache';
+import { readDailyPlan } from '@/lib/report/daily-plan';
+import { SLOT_LABELS, SLOT_ORDER } from '@/lib/report/theme';
 
 /**
  * 지난 운동 기록을 날짜별로 읽는다.
@@ -34,13 +36,18 @@ export type TrainingDaySummary = {
  */
 const SUMMARY_MONTHS = 13;
 
+/** 요약을 읽기 시작하는 날 — 열세 달 전 그달 1일(UTC) */
+function summarySince() {
+  const now = new Date();
+  return new Date(
+    Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - SUMMARY_MONTHS, 1)
+  );
+}
+
 export async function trainingSummaries(
   userId: string
 ): Promise<Record<string, TrainingDaySummary>> {
-  const now = new Date();
-  const since = new Date(
-    Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - SUMMARY_MONTHS, 1)
-  );
+  const since = summarySince();
 
   const [byDay, notes] = await Promise.all([
     prisma.userExerciseLog.groupBy({
@@ -77,6 +84,70 @@ export async function trainingSummaries(
   }
   return out;
 }
+
+/**
+ * 그날 만들어 둔 운동 일정의 요약 — 캘린더에서 날짜를 누르면 뜨는 자리에 쓴다.
+ *
+ * 운동 하나하나가 아니라 그날의 테마와, 대충 어떤 종류를 하는 날인지만 둔다.
+ * 캘린더는 이 날 저 날 눌러보며 훑는 자리라 '하체 스트렝스 데이 — 가동성 ·
+ * 본운동 · 코어'면 충분하고, 목록은 '자세히'에서 본다.
+ */
+export type PlanDaySummary = {
+  /** 테마 이름 — '하체 스트렝스 데이' */
+  theme: string;
+  /** 무엇을 하는 날인지 — 들어 있는 구간 이름(가동성 · 본운동 · 코어 · 암케어) */
+  parts: string[];
+  /** 종목 수 */
+  count: number;
+  /** 대략 걸리는 시간(분) — 만들 때 셈해 둔 값 */
+  minutes: number;
+};
+
+/**
+ * 날짜별 운동 일정 요약. 키는 YYYY-MM-DD. 기간은 운동 요약과 같다(열세 달).
+ *
+ * 일정(plan)은 만든 날 그대로 남아 있는 것을 읽는다(DailyTrainingSetup.plan).
+ * 모양이 옛것이거나 비어 있는 날은 없는 것으로 친다 — 억지로 읽으면 캘린더가
+ * 빈 테마 이름을 띄운다.
+ *
+ * 구간 이름으로 줄이는 것은 서버에서 한다. 일정 한 장에는 근거·안내 글까지 들어
+ * 있어서, 통째로 내려보내면 캘린더가 쓰지도 않을 글을 열세 달치 받는다.
+ */
+export async function planSummaries(
+  userId: string
+): Promise<Record<string, PlanDaySummary>> {
+  const rows = await prisma.dailyTrainingSetup.findMany({
+    where: { userId, date: { gte: summarySince() } },
+    select: { date: true, plan: true },
+  });
+
+  const out: Record<string, PlanDaySummary> = {};
+  for (const row of rows) {
+    const plan = readDailyPlan(row.plan);
+    if (!plan || plan.picks.length === 0) continue;
+    const slots = new Set<string>(plan.picks.map((p) => p.slot));
+    out[toDateKey(row.date)] = {
+      theme: plan.theme.label,
+      parts: [
+        ...LEGACY_SLOTS.filter((s) => slots.has(s.key)).map((s) => s.label),
+        ...SLOT_ORDER.filter((s) => slots.has(s)).map((s) => SLOT_LABELS[s].label),
+      ],
+      count: plan.picks.length,
+      minutes: plan.estimatedMinutes,
+    };
+  }
+  return out;
+}
+
+/*
+ * 지금은 없어진 구간 — 예전에 만든 일정에만 남아 있다.
+ *
+ * 워밍업은 예전에 일정의 맨 앞 구간이었다. 지금은 일정을 만들 때 뽑지 않고 고정
+ * 루틴으로 따로 둔다(lib/report/theme.ts 의 구간 설명). 그 전에 만든 날의 일정에는
+ * 아직 'warmup' 이 들어 있어서, 지금 구간 목록으로만 읽으면 그날 한 워밍업이 요약에서
+ * 조용히 빠진다. 맨 앞에 둔다 — 그날도 먼저 했다.
+ */
+const LEGACY_SLOTS = [{ key: 'warmup', label: '워밍업' }];
 
 export type TrainingDayDetail = {
   date: string;

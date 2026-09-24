@@ -1,12 +1,13 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, useTransition } from 'react';
 import { formatSpeed } from '@/lib/units';
 import { useSpeedUnit } from '@/components/use-units';
 import Link from 'next/link';
-import { ChevronDown, Film, X } from 'lucide-react';
+import { ChevronDown, Film, Star, X } from 'lucide-react';
 import { usePlaybackUrls } from '@/components/use-playback-urls';
 import { REST_SESSION_TYPE, SESSION_TYPES } from '@/lib/session-type';
+import { setFeaturedVideo } from '@/app/actions/featured-video';
 import type { ClipOption } from './compare-view';
 import type { VideoLog } from './videos-client';
 
@@ -37,6 +38,12 @@ import type { VideoLog } from './videos-client';
  * 아래에 A·B 두 자리를 두고, 카드를 누르면 빈 자리에 들어간다. 어느 것이 A고
  * B인지 눈에 보이고, 바꾸려면 ✕ 하나면 된다. 체크만 두면 "지금 뭐가 골라져
  * 있지"를 위로 올라가 확인해야 한다.
+ *
+ * ■ 영상이 여럿인 날은 대표를 고른다
+ *
+ * 홈 캘린더에서 날짜를 누르면 그날 영상 하나를 그 자리에서 틀어 준다. 무엇을 띄울지는
+ * 여기서 정한다 — 카드 왼쪽 위의 '대표로'. 안 고른 날은 그날 처음 올린 영상이 대표다.
+ * 영상이 하나뿐인 날은 고를 것이 없어서 단추를 두지 않는다.
  */
 
 const WEEKDAYS = ['일', '월', '화', '수', '목', '금', '토'];
@@ -71,11 +78,17 @@ type Clip = ClipOption & {
 
 export function VideoGallery({
   logs,
+  featured,
+  initialMonth,
   selecting,
   onSelectingChange,
   onCompare,
 }: {
   logs: VideoLog[];
+  /** 날짜별로 고른 대표 영상. 안 고른 날은 없다 — 그날 처음 올린 영상이 대표다. */
+  featured: Record<string, string>;
+  /** 처음에 펴 둘 달(YYYY-MM) — 캘린더의 '대표 바꾸기'로 들어온 경우 */
+  initialMonth: string | null;
   /**
    * 비교할 둘을 고르는 중인가.
    *
@@ -155,11 +168,77 @@ export function VideoGallery({
       .map(([month, items]) => ({ month, items: [...items].sort(cmp) }));
   }, [clips, filter, sort]);
 
-  const openByDefault = useMemo(
-    () => new Set(months.slice(0, 1).map((g) => g.month)),
-    [months]
-  );
+  /* 처음엔 가장 최근 달만 편다. 캘린더에서 날짜를 골라 들어왔으면 그 날짜의 달을 편다. */
+  const openByDefault = useMemo(() => {
+    const wanted =
+      initialMonth && months.some((g) => g.month === initialMonth)
+        ? initialMonth
+        : months[0]?.month;
+    return new Set(wanted ? [wanted] : []);
+  }, [months, initialMonth]);
   const isOpen = (month: string) => toggled[month] ?? openByDefault.has(month);
+
+  /* 캘린더에서 들어왔으면 그 달까지 내려 준다 — 펴 두기만 하면 아래에 있어 안 보인다 */
+  useEffect(() => {
+    if (!initialMonth) return;
+    document
+      .getElementById(`month-${initialMonth}`)
+      ?.scrollIntoView({ block: 'start', behavior: 'smooth' });
+  }, [initialMonth]);
+
+  /*
+   * 날짜별 영상 — 남긴 차례대로(서버가 그 차례로 준다). 대표를 안 고른 날은 이 첫
+   * 영상이 대표다. 홈 캘린더도 같은 차례로 셈하므로 둘이 같은 영상을 가리킨다.
+   */
+  const dayPaths = useMemo(() => {
+    const map = new Map<string, string[]>();
+    for (const log of logs) {
+      const key = log.date.slice(0, 10);
+      map.set(key, [...(map.get(key) ?? []), ...log.videoPaths]);
+    }
+    return map;
+  }, [logs]);
+
+  /*
+   * 여기서 방금 고른 대표. 누르는 즉시 바뀐 것으로 보이고, 저장은 뒤따른다.
+   * 저장이 안 되면 되돌리고 까닭을 띄운다.
+   */
+  const [chosen, setChosen] = useState<Record<string, string>>({});
+  const [featureError, setFeatureError] = useState<string | null>(null);
+  const [, startSaving] = useTransition();
+
+  const featuredOf = (date: string) => {
+    const paths = dayPaths.get(date) ?? [];
+    const pick = chosen[date] ?? featured[date];
+    return pick && paths.includes(pick) ? pick : paths[0];
+  };
+
+  const feature = (clip: Clip) => {
+    if (featuredOf(clip.date) === clip.path) return;
+    const before = chosen[clip.date];
+    const undo = () =>
+      setChosen((c) => {
+        const next = { ...c };
+        if (before === undefined) delete next[clip.date];
+        else next[clip.date] = before;
+        return next;
+      });
+
+    setFeatureError(null);
+    setChosen((c) => ({ ...c, [clip.date]: clip.path }));
+    startSaving(async () => {
+      try {
+        const res = await setFeaturedVideo(clip.date, clip.path);
+        if ('error' in res) {
+          undo();
+          setFeatureError(res.error);
+        }
+      } catch {
+        undo();
+        setFeatureError('대표 영상을 저장하지 못했습니다. 잠시 후 다시 시도해주세요.');
+      }
+    });
+  };
 
   /* 펼친 달의 영상만 주소를 받는다 */
   const visiblePaths = useMemo(
@@ -261,12 +340,23 @@ export function VideoGallery({
         ))}
       </div>
 
+      {featureError && (
+        <p
+          role="alert"
+          className="rounded-lg border border-danger-line bg-danger-bg px-3 py-2 text-xs text-danger"
+        >
+          {featureError}
+        </p>
+      )}
+
       {months.map((group) => {
         const open = isOpen(group.month);
         return (
           <section
             key={group.month}
-            className="overflow-hidden rounded-2xl border border-line bg-surface"
+            id={`month-${group.month}`}
+            /* 위에 붙은 상단 바에 가리지 않게 내려와 멈춘다 */
+            className="scroll-mt-20 overflow-hidden rounded-2xl border border-line bg-surface"
           >
             <button
               type="button"
@@ -344,8 +434,47 @@ export function VideoGallery({
                       : 'border-line hover:border-sky-soft'
                   }`;
 
+                  /*
+                   * 대표 고르기 — 영상이 여럿인 날만. 비교할 둘을 고르는 동안에는
+                   * 감춘다(카드를 누르는 뜻이 둘로 갈리면 헷갈린다).
+                   *
+                   * 카드(링크) 안에 넣지 않고 옆에 겹쳐 둔다. 링크 안에 단추를 넣으면
+                   * 누를 때 둘 다 반응하고, 화면 낭독기도 어느 쪽인지 헷갈린다.
+                   */
+                  const choosable =
+                    !selecting && (dayPaths.get(clip.date)?.length ?? 0) > 1;
+                  const isFeatured = featuredOf(clip.date) === clip.path;
+
                   return (
-                    <li key={clip.id}>
+                    <li key={clip.id} className="relative">
+                      {choosable && (
+                        <button
+                          type="button"
+                          onClick={() => feature(clip)}
+                          aria-pressed={isFeatured}
+                          aria-label={
+                            isFeatured
+                              ? `${spokenDate(clip.date)} 대표 영상 — 캘린더에 이 영상이 뜹니다`
+                              : `${spokenDate(clip.date)} 대표 영상으로 고르기`
+                          }
+                          title={
+                            isFeatured
+                              ? '캘린더에서 이 날을 누르면 이 영상이 뜹니다'
+                              : '이 날의 대표 영상으로 고르기'
+                          }
+                          className={`absolute left-2 top-2 z-10 inline-flex items-center gap-1 rounded-full px-2 py-1 text-[11px] font-semibold shadow transition-colors ${
+                            isFeatured
+                              ? 'bg-sky text-white'
+                              : 'bg-shade/60 text-white/90 hover:bg-shade/80 hover:text-white'
+                          }`}
+                        >
+                          <Star
+                            aria-hidden
+                            className={`h-3 w-3 ${isFeatured ? 'fill-current' : ''}`}
+                          />
+                          {isFeatured ? '대표' : '대표로'}
+                        </button>
+                      )}
                       {selecting ? (
                         <button
                           type="button"
