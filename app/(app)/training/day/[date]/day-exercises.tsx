@@ -5,6 +5,7 @@ import { Check } from 'lucide-react';
 import { setExerciseDone } from '@/app/actions/exercise-log';
 import { CategoryBadge } from '@/components/category-badge';
 import { formatAmount } from '@/lib/exercise-meta';
+import { useWeightUnit } from '@/components/use-units';
 import type { TrainingDayDetail } from '@/lib/report/training-history';
 
 /**
@@ -27,6 +28,8 @@ export function DayExercises({
   const [exercises, setExercises] = useState(detail.exercises);
   const [error, setError] = useState<string>();
   const [, startTransition] = useTransition();
+  /* 무게는 고른 단위로(설정 → 단위). 기록은 kg 그대로다. */
+  const unit = useWeightUnit();
 
   /* 켜고 끄면 화면을 먼저 바꾸고 저장한다. 실패하면 되돌리며 이유를 알린다. */
   const toggleDone = (exerciseId: string, next: boolean) => {
@@ -65,7 +68,7 @@ export function DayExercises({
 
       <ul className="space-y-2">
         {exercises.map((ex) => {
-          const amount = formatAmount(ex);
+          const amount = formatAmount(ex, unit);
           const row = (
             <>
               <span

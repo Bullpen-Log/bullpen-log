@@ -11,7 +11,7 @@ import { StartWorkout } from './start-workout';
 import { DoneCard, DoneFold, type DoneLine } from './done-card';
 import { AutoNote } from './auto-note';
 import { readFrozenPlan } from '@/lib/workout/session-plan';
-import { formatSummary, summarizeSets, totalVolumeKg } from '@/lib/workout/summarize';
+import { summarizeSets, totalVolumeKg } from '@/lib/workout/summarize';
 import { recentAmounts } from '@/lib/report/exercise-recent';
 import { MIN_CANDIDATES } from '@/lib/report/prescription';
 import { DEFAULT_WORKOUT_MINUTES } from '@/lib/report/theme';
@@ -231,7 +231,7 @@ export default async function TrainingPage({
       .map((sum) => ({
         id: sum.exerciseId,
         title: titleOf.get(sum.exerciseId) ?? '목록에서 뺀 운동',
-        text: formatSummary(sum),
+        summary: sum,
       }));
     return {
       minutes: Math.round(todaySession.activeSeconds / 60),

@@ -1,4 +1,5 @@
 import { formatSeconds } from '@/lib/exercise-meta';
+import { formatWeight, round1, toWeight, type WeightUnit } from '@/lib/units';
 
 /**
  * 세트들을 운동별 요약 한 줄로 접는다.
@@ -88,12 +89,16 @@ export function summarizeSets(rows: readonly SetRow[]): ExerciseSummary[] {
  *
  * 종료 요약과 트레이닝 화면의 완료 카드가 같은 줄을 보여준다. 둘이 따로
  * 만들면 한쪽만 '25kg'이고 다른 쪽은 '25 kg'가 되는 식으로 어긋난다.
+ *
+ * 무게는 고른 단위(kg·lb)로 적는다. 단위는 브라우저에만 있어서 화면 쪽이
+ * 넘겨준다(components/use-units.ts). 안 넘기면 kg 이다.
  */
-export function formatSummary(s: ExerciseSummary): string {
+export function formatSummary(s: ExerciseSummary, unit: WeightUnit = 'kg'): string {
   const parts: string[] = [`${s.setsDone}세트`];
   if (s.repsDone != null) parts.push(`${s.repsDone}회`);
   if (s.holdSecondsDone != null) parts.push(formatSeconds(s.holdSecondsDone));
-  if (s.weightKg != null) parts.push(`${s.weightKg}kg`);
+  const weight = formatWeight(s.weightKg, unit);
+  if (weight) parts.push(weight);
   return parts.join(' · ');
 }
 
@@ -115,4 +120,13 @@ export function totalVolumeKg(rows: readonly SetRow[]): number {
     0
   );
   return Math.round(sum * 10) / 10;
+}
+
+/**
+ * 총 볼륨을 고른 단위로 — 숫자만. 소수 한 자리까지, .0 은 뗀다.
+ *
+ * 종료 요약과 완료 카드가 '총 볼륨' 칸에 쓴다. 단위 글자는 칸이 따로 붙인다.
+ */
+export function volumeIn(kg: number, unit: WeightUnit): number {
+  return round1(toWeight(kg, unit));
 }

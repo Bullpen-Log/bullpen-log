@@ -64,7 +64,15 @@ import {
   pickForTheme,
   type ThemeKey,
 } from '../lib/report/theme.ts';
-import { BODY_PARTS, intensityLevel, usesWeight } from '../lib/exercise-meta.ts';
+import {
+  BODY_PARTS,
+  formatAmount,
+  intensityLevel,
+  storedKg,
+  usesWeight,
+} from '../lib/exercise-meta.ts';
+import { formatWeight, fromWeight } from '../lib/units.ts';
+import { formatSummary, volumeIn } from '../lib/workout/summarize.ts';
 import {
   exerciseMinutes,
   intensityFactor,
@@ -2846,6 +2854,65 @@ console.log('\n[부상 방지 데이] 무게 드는 운동이 없는 날은 이�
     !isHalted(recovery) && recovery.theme.label === '회복·재생 데이',
     isHalted(recovery) ? '' : recovery.theme.label
   );
+}
+
+console.log('\n[무게 단위] lb 로 적어도 되돌렸을 때 적은 그대로 나오는가');
+{
+  /*
+   * 저장은 늘 kg 이고 보여줄 때만 고른 단위로 바꾼다(lib/units.ts). 그런데
+   * 저장할 때 kg 을 너무 거칠게 다듬으면 되돌린 값이 달라진다 — 0.5kg 자리로
+   * 맞추던 때는 135lb 가 134.5lb 로, 소수 한 자리로 자르던 화면은 134.9lb 로
+   * 나왔다. 화면(세트를 남길 때)과 서버가 같은 storedKg 를 쓴다.
+   */
+  const lbMisses: string[] = [];
+  for (let lb = 2.5; lb <= 700; lb += 2.5) {
+    const shown = formatWeight(storedKg(fromWeight(lb, 'lb')), 'lb');
+    if (shown !== `${lb}lb`) lbMisses.push(`${lb}→${shown}`);
+  }
+  check(
+    'lb 로 적은 무게 2.5~700lb(2.5 간격) → 되돌려도 그대로',
+    lbMisses.length === 0,
+    lbMisses.length === 0 ? '280개 모두 같음' : lbMisses.slice(0, 5).join(', ')
+  );
+
+  const kgMisses: string[] = [];
+  for (let kg = 2.5; kg <= 300; kg += 2.5) {
+    if (storedKg(kg) !== kg || formatWeight(kg, 'kg') !== `${kg}kg`)
+      kgMisses.push(String(kg));
+  }
+  check(
+    'kg 로 적은 무게는 예전과 똑같이 저장·표시',
+    kgMisses.length === 0,
+    kgMisses.slice(0, 5).join(', ')
+  );
+
+  const bench = storedKg(fromWeight(135, 'lb'));
+  check(
+    '지난번 줄 — lb 를 고르면 lb 로 적는다',
+    formatAmount(
+      { setsDone: 3, repsDone: 5, holdSecondsDone: null, weightKg: bench },
+      'lb'
+    ) === '3세트 × 5회 · 135lb'
+  );
+  check(
+    '지난번 줄 — 단위를 안 넘기면 kg (예전과 같음)',
+    formatAmount({ setsDone: 3, repsDone: 10, holdSecondsDone: null, weightKg: 60 }) ===
+      '3세트 × 10회 · 60kg'
+  );
+  check(
+    '종료 요약·완료 카드 줄 — lb 로 적는다',
+    formatSummary(
+      {
+        exerciseId: 'x',
+        setsDone: 4,
+        repsDone: 5,
+        holdSecondsDone: null,
+        weightKg: bench,
+      },
+      'lb'
+    ) === '4세트 · 5회 · 135lb'
+  );
+  check('총 볼륨 — lb 로 바꿔 소수 한 자리', volumeIn(100, 'lb') === 220.5);
 }
 
 console.log(`\n${passed}개 통과, ${failed}개 실패`);

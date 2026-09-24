@@ -1,11 +1,18 @@
+'use client';
+
 import { ChevronDown, CircleCheck } from 'lucide-react';
 import { startWorkout } from '@/app/actions/workout';
+import { useWeightUnit } from '@/components/use-units';
+import { formatSummary, volumeIn, type ExerciseSummary } from '@/lib/workout/summarize';
 
 export type DoneLine = {
   id: string;
   title: string;
-  /** '4세트 · 10회 · 25kg' — lib/workout/summarize.ts 의 formatSummary */
-  text: string;
+  /**
+   * 그 운동의 요약. 글자로 만들어 넘기지 않고 숫자로 넘긴다 — 무게를 고른
+   * 단위(kg·lb)로 적어야 하는데, 단위는 브라우저에만 있어서 서버가 모른다.
+   */
+  summary: ExerciseSummary;
 };
 
 /**
@@ -22,6 +29,9 @@ export type DoneLine = {
  *
  * [운동 더 하기]는 작게 남긴다. 저녁에 코어를 더 하는 식으로 같은 판을 다시
  * 열 수 있다. 다시 열면 워밍업은 건너뛰고, 운동 시간은 앞 구간에 더해진다.
+ *
+ * 화면 쪽 부품이다. 무게를 고른 단위로 적으려면 브라우저에 있는 설정을 읽어야
+ * 해서다(components/use-units.ts).
  */
 export function DoneCard({
   minutes,
@@ -40,6 +50,7 @@ export function DoneCard({
   /** 통증을 입력한 날처럼 목록이 멈춘 날에는 다시 열 수 없다 */
   canResume: boolean;
 }) {
+  const unit = useWeightUnit();
   return (
     <section className="space-y-3 rounded-2xl border border-sky bg-sky-tint px-4 py-4">
       <div className="flex items-center justify-between gap-3">
@@ -61,8 +72,9 @@ export function DoneCard({
           { label: '총 세트', value: `${sets}`, unit: '세트' },
           {
             label: '총 볼륨',
-            value: volumeKg > 0 ? volumeKg.toLocaleString('ko-KR') : '—',
-            unit: volumeKg > 0 ? 'kg' : '',
+            value:
+              volumeKg > 0 ? volumeIn(volumeKg, unit).toLocaleString('ko-KR') : '—',
+            unit: volumeKg > 0 ? unit : '',
           },
         ].map((n) => (
           <div key={n.label} className="rounded-xl bg-surface px-2 py-2.5 text-center">
@@ -82,7 +94,9 @@ export function DoneCard({
               <span className="min-w-0 flex-1 truncate text-[13px] font-semibold text-ink">
                 {l.title}
               </span>
-              <span className="shrink-0 text-xs tabular-nums text-muted">{l.text}</span>
+              <span className="shrink-0 text-xs tabular-nums text-muted">
+                {formatSummary(l.summary, unit)}
+              </span>
             </li>
           ))}
         </ul>

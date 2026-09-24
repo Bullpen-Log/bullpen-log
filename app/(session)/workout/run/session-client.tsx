@@ -46,6 +46,7 @@ import {
   AMOUNT_LIMITS,
   WEIGHT_STEP,
   formatSeconds,
+  storedKg,
   type DoneAmount,
 } from '@/lib/exercise-meta';
 import type { SlotKey } from '@/lib/report/theme';
@@ -457,8 +458,13 @@ export function SessionClient({
 
   const save = () => {
     setError(null);
-    /* 사람이 적은 값은 고른 단위다. 저장은 kg 으로 되돌려 넣는다. */
-    const w = weight === '' ? null : round1(fromWeight(Number(weight), wUnit));
+    /*
+     * 사람이 적은 값은 고른 단위다. 저장은 kg 으로 되돌려 넣는다.
+     *
+     * 소수 둘째 자리까지 남긴다(storedKg). 첫째 자리로 자르면 135lb 가
+     * 61.2kg 이 되고, 되돌리면 134.9lb 가 된다 — 적은 적 없는 숫자다.
+     */
+    const w = weight === '' ? null : storedKg(fromWeight(Number(weight), wUnit));
     const c = count === '' ? null : Number(count);
 
     if (ex.needsWeight && (w == null || w <= 0)) {
@@ -709,7 +715,8 @@ export function SessionClient({
 
         {ex.last && (
           <p className="mt-0.5 text-xs text-muted/80">
-            지난번 {ex.last.weightKg != null && `${formatWeight(ex.last.weightKg, wUnit)} × `}
+            지난번{' '}
+            {ex.last.weightKg != null && `${formatWeight(ex.last.weightKg, wUnit)} × `}
             {ex.isHold
               ? ex.last.holdSecondsDone != null
                 ? formatSeconds(ex.last.holdSecondsDone)

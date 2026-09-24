@@ -1,3 +1,5 @@
+import { formatWeight, type WeightUnit } from '@/lib/units';
+
 /**
  * 운동·드릴에 붙이는 분류 항목.
  *
@@ -429,12 +431,19 @@ export const AMOUNT_LIMITS = {
  */
 export const WEIGHT_STEP = 2.5;
 
-/** 저장은 0.5kg 자리까지. 2.5 간격을 담으려면 이만큼은 필요하다. */
-export const WEIGHT_PRECISION = 0.5;
-
-/** 60 은 '60kg', 62.5 는 '62.5kg' — 없는 소수점을 붙이지 않는다. */
-export function formatKg(kg: number): string {
-  return `${Number.isInteger(kg) ? kg : kg.toFixed(1)}kg`;
+/**
+ * 저장할 무게로 다듬는다 — kg, 소수 둘째 자리까지.
+ *
+ * 예전에는 0.5kg 자리로 맞췄다(원판이 2.5kg 간격이라). 그런데 무게를 lb 로도
+ * 적을 수 있게 되면서(lib/units.ts) 135lb(61.235kg)가 61kg 으로 저장됐고,
+ * 다시 lb 로 보여주면 134.5lb 가 됐다 — 적은 적 없는 숫자다. 둘째 자리까지
+ * 두면 lb 로 적은 값(소수 한 자리까지)이 되돌렸을 때 그대로 나온다.
+ *
+ * 화면(세트를 남길 때)과 서버(받아서 저장할 때)가 같은 함수를 쓴다. 한쪽만
+ * 거칠게 다듬으면 그쪽이 이긴다.
+ */
+export function storedKg(kg: number): number {
+  return Number(kg.toFixed(2));
 }
 
 /** 실제로 한 만큼. 안 적은 칸은 null 이다. */
@@ -454,15 +463,18 @@ export type DoneAmount = {
  *
  * 기록 화면과 트레이닝 화면이 같은 것을 보여줘야 해서 여기 둔다. 양쪽에
  * 따로 두면 한쪽만 고치고 다른 쪽을 잊는다.
+ *
+ * 무게는 고른 단위(kg·lb)로 적는다. 단위는 브라우저에만 있어서 화면 쪽이
+ * 넘겨준다(components/use-units.ts). 안 넘기면 kg 이다.
  */
-export function formatAmount(a: DoneAmount): string | null {
+export function formatAmount(a: DoneAmount, unit: WeightUnit = 'kg'): string | null {
   const parts: string[] = [];
   if (a.setsDone != null) parts.push(`${a.setsDone}세트`);
   if (a.repsDone != null) parts.push(`${a.repsDone}회`);
   /* '600초'가 아니라 '10분' — 유산소가 같은 칸을 쓴다 */
   if (a.holdSecondsDone != null) parts.push(formatSeconds(a.holdSecondsDone));
   const amount = parts.join(' × ');
-  const weight = a.weightKg != null ? formatKg(a.weightKg) : null;
+  const weight = formatWeight(a.weightKg, unit);
   if (!amount && !weight) return null;
   return [amount, weight].filter(Boolean).join(' · ');
 }

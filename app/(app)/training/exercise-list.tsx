@@ -6,6 +6,7 @@ import { setExerciseDone } from '@/app/actions/exercise-log';
 import { removeFromTodayPlan } from '@/app/actions/plan-edit';
 import { SLOT_LABELS, SLOT_ORDER, type SlotKey } from '@/lib/report/theme';
 import { formatAmount } from '@/lib/exercise-meta';
+import { useWeightUnit } from '@/components/use-units';
 import type { PastAmount } from '@/lib/report/exercise-recent';
 import { ExerciseBadges } from '@/components/meta-badges';
 import { CategoryBadge } from '@/components/category-badge';
@@ -210,9 +211,11 @@ function shortDate(key: string): string {
  */
 function PastRecord({ title, past }: { title: string; past: PastAmount[] }) {
   const [open, setOpen] = useState(false);
+  /* 무게는 고른 단위로(설정 → 단위). 기록은 kg 그대로다. */
+  const unit = useWeightUnit();
 
   const last = past[0];
-  const text = last ? formatAmount(last) : null;
+  const text = last ? formatAmount(last, unit) : null;
   // 숫자가 하나도 안 적힌 기록은 서버에서 이미 걸러 오지만, 여기서도 막아 둔다.
   if (!last || !text) return null;
 
@@ -259,7 +262,7 @@ function PastRecord({ title, past }: { title: string; past: PastAmount[] }) {
       {open && (
         <ul className="space-y-1 px-4 pb-2.5 pl-[2.1rem] text-xs">
           {past.slice(1).map((p) => {
-            const t = formatAmount(p);
+            const t = formatAmount(p, unit);
             if (!t) return null;
             return (
               <li key={p.date} className="flex gap-2">

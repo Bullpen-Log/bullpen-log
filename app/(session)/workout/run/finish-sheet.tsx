@@ -2,7 +2,13 @@
 
 import { useState } from 'react';
 import { Check, X } from 'lucide-react';
-import { formatSummary, summarizeSets, totalVolumeKg } from '@/lib/workout/summarize';
+import {
+  formatSummary,
+  summarizeSets,
+  totalVolumeKg,
+  volumeIn,
+} from '@/lib/workout/summarize';
+import { useWeightUnit } from '@/components/use-units';
 import { IntensityGuide } from '@/components/intensity-guide';
 import type { RunExercise, RunSet } from './session-client';
 
@@ -73,6 +79,8 @@ export function FinishSheet({
 
   const summaries = summarizeSets(sets);
   const volume = totalVolumeKg(sets);
+  /* 무게는 고른 단위로 보여준다(설정 → 단위). 저장은 kg 그대로다. */
+  const unit = useWeightUnit();
   const byId = new Map(exercises.map((e) => [e.id, e]));
 
   /* 목록 순서대로 — 한 것 먼저, 안 한 것은 아예 안 낸다 */
@@ -113,8 +121,9 @@ export function FinishSheet({
               { label: '총 세트', value: `${sets.length}`, unit: '세트' },
               {
                 label: '총 볼륨',
-                value: volume > 0 ? volume.toLocaleString('ko-KR') : '—',
-                unit: volume > 0 ? 'kg' : '',
+                value:
+                  volume > 0 ? volumeIn(volume, unit).toLocaleString('ko-KR') : '—',
+                unit: volume > 0 ? unit : '',
               },
             ].map((n) => (
               <div
@@ -151,7 +160,7 @@ export function FinishSheet({
                     {ex.title}
                   </span>
                   <span className="shrink-0 text-xs tabular-nums text-muted">
-                    {formatSummary(s)}
+                    {formatSummary(s, unit)}
                   </span>
                 </li>
               ))}
@@ -164,7 +173,7 @@ export function FinishSheet({
                     목록에서 뺀 운동
                   </span>
                   <span className="shrink-0 text-xs tabular-nums text-muted">
-                    {formatSummary(s)}
+                    {formatSummary(s, unit)}
                   </span>
                 </li>
               ))}

@@ -8,7 +8,7 @@ import { requireUser } from '@/lib/dal';
 import { exercisesByIds } from '@/lib/library-cache';
 import { loadTodayCore } from '@/lib/report/today-data';
 import { toDateKey } from '@/lib/pitch-stats';
-import { AMOUNT_LIMITS, WEIGHT_PRECISION } from '@/lib/exercise-meta';
+import { AMOUNT_LIMITS, storedKg } from '@/lib/exercise-meta';
 import { freezePlan, readFrozenPlan } from '@/lib/workout/session-plan';
 import { summarizeSets } from '@/lib/workout/summarize';
 import { clampRecordedAt } from '@/lib/workout/set-time';
@@ -195,11 +195,16 @@ function whole(value: unknown, limit: number): number | null {
   return n >= 1 && n <= limit ? n : null;
 }
 
-/** 무게는 0.5kg 자리까지. 0 이하면 '안 적음'으로 본다. */
+/**
+ * 무게는 kg 소수 둘째 자리까지(storedKg). 0 이하면 '안 적음'으로 본다.
+ *
+ * 0.5kg 자리로 맞추던 때가 있었다. lb 로 적은 값이 그 반올림에 걸려
+ * 되돌렸을 때 다른 숫자가 됐다(135lb → 134.5lb).
+ */
 function weight(value: unknown): number | null {
   if (typeof value !== 'number' || !Number.isFinite(value)) return null;
-  const n = Math.round(value / WEIGHT_PRECISION) * WEIGHT_PRECISION;
-  return n > 0 && n <= AMOUNT_LIMITS.weightKg ? Number(n.toFixed(1)) : null;
+  const n = storedKg(value);
+  return n > 0 && n <= AMOUNT_LIMITS.weightKg ? n : null;
 }
 
 async function activeSession(userId: string) {
