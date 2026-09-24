@@ -1,8 +1,9 @@
 /**
  * 앱 내비게이션 구성.
  *
- * PC는 왼쪽 사이드바에 그룹으로, 모바일은 아래 탭 5개 + "더보기" 화면으로
- * 같은 목록을 나눠 보여준다. 한 곳에서 정의해 두 화면이 어긋나지 않게 한다.
+ * PC는 오른쪽 위 막대와 옆에서 나오는 사이드바로, 모바일은 아래 탭 5개로
+ * 같은 목록을 나눠 보여준다. 모바일의 "더보기"도 PC 와 같은 사이드바를 연다.
+ * 한 곳에서 정의해 두 화면이 어긋나지 않게 한다.
  */
 
 /** 쓸 수 있는 아이콘 이름. 그림은 components/nav-icons.tsx 에 있다. */
@@ -164,23 +165,32 @@ export const NAV_GROUPS: NavGroup[] = [
  * 모바일 하단 탭 — 매일 쓰는 것 + 더보기.
  * 라이브러리와 자료실은 매일 열지 않으므로 '더보기'로 보낸다.
  */
+/**
+ * 하단 탭의 '더보기' 자리.
+ *
+ * 링크처럼 생겼지만 화면으로 넘어가지 않는다 — 누르면 PC 와 같은 사이드바가
+ * 옆에서 나온다(components/app-shell.tsx 의 MobileTabs). 목록에서 이 자리를
+ * 알아보는 표시로만 쓴다.
+ */
+export const MORE_HREF = '/more';
+
 export const MOBILE_TABS: NavItem[] = [
   { href: '/today', label: '홈', icon: 'home' },
   { href: '/videos', label: '투구 영상', short: '영상', icon: 'film' },
   { href: '/training', label: '트레이닝', icon: 'dumbbell' },
   { href: '/coach', label: '분석', icon: 'chart' },
-  { href: '/more', label: '더보기', icon: 'menu' },
+  { href: MORE_HREF, label: '더보기', icon: 'menu' },
 ];
 
 /**
  * PC 오른쪽 간편 이동 막대에 둘 항목.
  *
  * 휴대폰 하단 탭과 같은 목록을 쓴다 — 자주 가는 곳은 기기가 달라도 같다.
- * 다만 '더보기'는 뺀다. 휴대폰에서는 그것이 화면 하나(/more)지만 PC 에서는
- * 전체 메뉴를 그 자리에서 펴는 버튼이라, 링크로 두면 엉뚱한 곳으로 간다.
+ * 다만 '더보기'는 뺀다. PC 막대에는 사이드바를 여는 네모 버튼이 따로 있어서,
+ * 여기 또 두면 같은 버튼이 두 개가 된다.
  */
 export function quickTabs(): NavItem[] {
-  return MOBILE_TABS.filter((t) => t.href !== '/more');
+  return MOBILE_TABS.filter((t) => t.href !== MORE_HREF);
 }
 
 /** 관리자가 아니면 관리자 전용 항목을 걸러낸다. */
@@ -192,8 +202,11 @@ export function visibleGroups(isAdmin: boolean): NavGroup[] {
 }
 
 /**
- * 모바일 "더보기" 화면용 목록.
- * 하단 탭에 이미 있는 항목은 빼서 같은 화면에 두 번 나오지 않게 한다.
+ * /more 화면용 목록.
+ *
+ * 하단 "더보기"는 이제 사이드바를 열어서 이 화면으로 오는 길은 없다. 주소를
+ * 저장해 둔 사람을 위해 화면만 남겨 둔다. 하단 탭에 이미 있는 항목은 빼서
+ * 같은 화면에 두 번 나오지 않게 한다.
  */
 export function moreGroups(isAdmin: boolean): NavGroup[] {
   const inTabs = new Set(MOBILE_TABS.map((t) => t.href));

@@ -44,3 +44,9 @@ DB 구조는 이렇게만 바꾼다.
 - 훅은 무슨 일이 있어도 `push` 를 막지 않는다. 못 맞췄으면 나중에 `npm run patch:sync` 로 다시 맞추면 된다. 처음부터 전부 다시 읽으려면 `npm run patch:sync -- --all`.
 - 훅은 `npm install` 할 때 저절로 연결된다(`package.json` 의 `prepare`). 안 걸렸으면 `git config core.hooksPath .githooks`.
 - 상세 화면의 **메모**만 사람이 적는 칸이다. 다시 맞춰도 메모는 지워지지 않는다. 받은 뒤에 할 일(예: `npx prisma generate`)을 여기 적어 두면 상대방이 본다.
+
+## 5. 서버 위치는 서울(icn1)
+
+`vercel.json` 의 `"regions": ["icn1"]` 은 지우지 않는다. DB(Supabase)가 서울(ap-northeast-2)에 있어서, 화면을 만드는 서버도 서울에 있어야 한다. Vercel 의 기본값은 미국 워싱턴(iad1)인데, 그러면 화면 하나를 만들 때마다 미국 서버가 서울 DB 를 태평양 건너 여러 번 오가서(한 번에 약 0.2초) 탭 하나 옮기는 데 1초 가까이 걸렸다. 같은 화면을 서버가 DB 가까이 있을 때 재 보면 0.06초면 된다.
+
+지역이 맞는지는 응답 머리의 `x-vercel-id` 로 본다 — `icn1::icn1::…` 이면 서울, `icn1::iad1::…` 이면 미국에서 돌고 있다.
