@@ -5,6 +5,8 @@ import { prisma } from '@/lib/prisma';
 import { getCurrentUser } from '@/lib/dal';
 import {
   CHECKIN_PARTS,
+  parseCheckinDetail,
+  pickCheckinParts,
   pickWorkoutKind,
   validateCheckin,
   validateCheckinDate,
@@ -17,6 +19,8 @@ export type CheckinState =
   | {
       error?: string;
       success?: string;
+      /** 저장한 날짜(YYYY-MM-DD). 체크인 관문이 이것을 보고 닫힌다. */
+      savedDate?: string;
       values?: FormValues;
     }
   | undefined;
@@ -67,24 +71,45 @@ async function trySaveCheckin(formData: FormData): Promise<CheckinState> {
 
   const date = new Date(`${dateKey}T00:00:00.000Z`);
 
-  /*
-   * 운동 종류는 검사에 넣지 않고 여기서 거른다. 목록에 없는 값이 오면
-   * 안 고른 것으로 보면 되지, 저장 전체를 막을 일이 아니다.
-   */
-  const value = {
-    ...checked.value,
-    preferredWorkout: pickWorkoutKind(formData.get('preferredWorkout')),
+  /* 간편 체크인이 받는 것 — 몸 상태·컨디션·수면. 늘 저장한다. */
+  const quick = {
+    ...pickCheckinParts(checked.value),
+    condition: checked.value.condition,
+    sleep: checked.value.sleep,
   };
+
+  /*
+   * 상세 쪽(운동 선호 · 상세 기록)은 폼이 담아 보냈을 때만(detail=1) 바꾼다.
+   *
+   * 간편 체크인에는 그 칸들이 아예 없다. 그때도 값을 쓰면, 아침에 상세로 적어
+   * 둔 몸무게·메모가 저녁에 간편으로 고치는 순간 빈 값으로 덮인다.
+   */
+  let detail = {};
+  if (formData.get('detail') === '1') {
+    const parsed = parseCheckinDetail((name) => String(formData.get(name) ?? ''));
+    if ('error' in parsed) return parsed;
+    detail = {
+      ...parsed.value,
+      preferredParts: checked.value.preferredParts,
+      /*
+       * 운동 종류는 검사에 넣지 않고 여기서 거른다. 목록에 없는 값이 오면
+       * 안 고른 것으로 보면 되지, 저장 전체를 막을 일이 아니다.
+       */
+      preferredWorkout: pickWorkoutKind(formData.get('preferredWorkout')),
+    };
+  }
 
   await prisma.dailyCheckin.upsert({
     where: { userId_date: { userId: user.id, date } },
-    update: value,
-    create: { userId: user.id, date, ...value },
+    update: { ...quick, ...detail },
+    create: { userId: user.id, date, preferredParts: [], ...quick, ...detail },
   });
 
   revalidatePath('/dashboard');
   // 통증·뻐근함은 오늘의 운동 후보를 바꾼다.
   revalidatePath('/today');
   revalidatePath('/training');
-  return { success: '오늘 체크인을 저장했습니다.' };
+  /* 체크인 관문은 모든 화면의 틀(레이아웃)에 있다. 거기도 오늘 체크인을 알아야 한다. */
+  revalidatePath('/', 'layout');
+  return { success: '오늘 체크인을 저장했습니다.', savedDate: dateKey };
 }

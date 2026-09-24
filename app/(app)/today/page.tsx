@@ -7,8 +7,13 @@ import { intensityRangeText, pitchRangeText } from '@/lib/report/plan';
 import { loadTodayCore } from '@/lib/report/today-data';
 import { DEFAULT_WORKOUT_MINUTES } from '@/lib/report/theme';
 import { availableParts } from '@/lib/report/today-pick';
-import { CHECKIN_PARTS, hasPain, pickCheckinParts } from '@/lib/checkin';
-import { formatShortDate, shiftDateKey } from '@/lib/pitch-stats';
+import {
+  CHECKIN_PARTS,
+  hasPain,
+  pickCheckinDetail,
+  pickCheckinParts,
+} from '@/lib/checkin';
+import { formatShortDate, shiftDateKey, toDateKey } from '@/lib/pitch-stats';
 import { REST_SESSION_TYPE } from '@/lib/session-type';
 import { Card, PageHeading } from '@/components/ui';
 import { Skeleton } from '@/components/fallback';
@@ -202,8 +207,15 @@ async function TodayBody({ user }: { user: Awaited<ReturnType<typeof requireUser
   const today = now();
   const savedMinutes = user.dailyWorkoutMinutes ?? DEFAULT_WORKOUT_MINUTES;
 
-  const core = await loadTodayCore(user, today);
-  const { facts, plan, savedPlan, picked, shownPicks, doneIds } = core;
+  /*
+   * 오늘 0시(UTC 날짜). loadTodayCore 도 같은 식으로 만든다.
+   *
+   * 여기서 먼저 만들어 두는 까닭은 아래 조회들을 loadTodayCore 와 한꺼번에
+   * 돌리기 위해서다. 예전에는 loadTodayCore 가 끝나야 그 안의 midnight 을 받아
+   * 나머지 일곱 조회를 시작했다 — DB 를 한 번 더 왕복한 뒤에야 시작하는 셈이라,
+   * 서버가 DB 와 멀리 있을 때(미국 서버 ↔ 서울 DB) 그 한 번이 0.2초씩이었다.
+   */
+  const midnight = new Date(`${toDateKey(today)}T00:00:00.000Z`);
 
   /*
    * "오늘 계획대로 던졌나"를 견주기 위한, 오늘 기록을 빼고 낸 계획.
@@ -213,6 +225,7 @@ async function TodayBody({ user }: { user: Awaited<ReturnType<typeof requireUser
    * 본 계획인 양 견주면 "오늘은 쉬는 게 계획이었습니다"라는 엉뚱한 말이 나온다.
    */
   const [
+    core,
     { plan: planBeforeToday },
     todayLog,
     recentCheckins,
@@ -221,13 +234,14 @@ async function TodayBody({ user }: { user: Awaited<ReturnType<typeof requireUser
     weekLogs,
     analyzedPaths,
   ] = await Promise.all([
+    loadTodayCore(user, today),
     gatherFactsAndPlan(user, today, { excludeToday: true }),
     /*
      * 오늘 남긴 투구 기록. 지난 날짜는 투구 일지에서 다루므로 오늘 것만 본다.
      * 하루에 여러 번 던진 날은 첫 기록을 보여주고, 나머지는 일지에서 본다.
      */
     prisma.pitchLog.findFirst({
-      where: { userId: user.id, date: core.midnight },
+      where: { userId: user.id, date: midnight },
       orderBy: { createdAt: 'asc' },
       select: {
         id: true,
@@ -251,7 +265,7 @@ async function TodayBody({ user }: { user: Awaited<ReturnType<typeof requireUser
     prisma.dailyCheckin.findMany({
       where: {
         userId: user.id,
-        date: { gte: new Date(core.midnight.getTime() - 10 * 86400000) },
+        date: { gte: new Date(midnight.getTime() - 10 * 86400000) },
       },
       orderBy: { date: 'desc' },
       take: 10,
@@ -285,7 +299,7 @@ async function TodayBody({ user }: { user: Awaited<ReturnType<typeof requireUser
     prisma.pitchLog.findMany({
       where: {
         userId: user.id,
-        date: { gte: new Date(core.midnight.getTime() - 6 * 86400000) },
+        date: { gte: new Date(midnight.getTime() - 6 * 86400000) },
       },
       select: { date: true, pitchCount: true },
     }),
@@ -296,10 +310,11 @@ async function TodayBody({ user }: { user: Awaited<ReturnType<typeof requireUser
      * 이 값이 없으면 그 말을 못 하고, 사용자는 모른 채 분석을 잃는다.
      */
     prisma.poseAnalysis.findMany({
-      where: { userId: user.id, pitchLog: { date: core.midnight } },
+      where: { userId: user.id, pitchLog: { date: midnight } },
       select: { videoPath: true },
     }),
   ]);
+  const { facts, plan, savedPlan, picked, shownPicks, doneIds } = core;
 
   // 체크인 창이 쓰는 모양으로 바꾼다.
   const checkinData: CheckinData[] = recentCheckins.map((c) => ({
@@ -309,6 +324,7 @@ async function TodayBody({ user }: { user: Awaited<ReturnType<typeof requireUser
     sleep: c.sleep,
     preferredParts: c.preferredParts,
     preferredWorkout: c.preferredWorkout,
+    ...pickCheckinDetail(c),
   }));
   /*
    * 체크인에서 '오늘 하고 싶은 부위'로 고를 수 있는 목록.

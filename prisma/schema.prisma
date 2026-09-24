@@ -177,9 +177,39 @@ model DailyCheckin {
   /// 부위와 같은 성격이다 — 순서를 바꾸고 테마를 고르는 데 쓰되, 통증이 있는
   /// 날에는 무엇을 골랐든 회복으로 간다.
   preferredWorkout String?
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
-  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  /// ── 상세 체크인 ──────────────────────────────────────────────
+  /// 전부 고르지 않아도 된다(비어 있으면 안 적은 것). 간편 체크인은 위의 몸 상태·
+  /// 컨디션·수면만 받고, 여기는 더 적고 싶은 날에만 채운다.
+  /// 1~5 척도는 모두 '클수록 그 느낌이 강하다'로 읽는다(피로 5 = 몹시 피곤).
+  /// 기분만 반대로 클수록 좋다 — 화면에 말로 적어 두어 헷갈리지 않게 한다.
+
+  /// 잔 시간(시간). 0.5 단위.
+  sleepHours   Float?
+  /// 전신 피로 1~5
+  fatigue      Int?
+  /// 전신 근육통 1~5
+  soreness     Int?
+  /// 던지는 팔의 피로 1~5 — 투수에게 따로 떼어 볼 만한 값이다
+  armFatigue   Int?
+  /// 스트레스 1~5
+  stress       Int?
+  /// 기분 1(나쁨)~5(좋음)
+  mood         Int?
+  /// 오늘 잰 몸무게. 저장은 늘 kg
+  bodyWeightKg Float?
+  /// 아침 안정시 심박수(bpm)
+  restingHr    Int?
+  /// 물을 얼마나 마셨나: 충분 / 보통 / 부족
+  hydration    String?
+  /// 끼니를 얼마나 챙겼나: 잘 먹음 / 보통 / 부족
+  nutrition    String?
+  /// 그날 남기고 싶은 말
+  note         String? @db.Text
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId, date])
 }

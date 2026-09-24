@@ -4,11 +4,27 @@ import { toDateInputValue } from '@/lib/profile';
 import { toDateKey } from '@/lib/pitch-stats';
 import { createAvatarUrl } from '@/lib/storage';
 import { MOBILE_TABS, quickTabs, visibleGroups } from '@/lib/nav';
-import { AppNav, MobileTabs } from '@/components/app-shell';
+import { AppNav } from '@/components/app-shell';
+import { CheckinGate } from '@/components/checkin-gate';
+import type { CheckinData } from '@/components/checkin-form';
+import { prisma } from '@/lib/prisma';
+import { pickCheckinDetail, pickCheckinParts } from '@/lib/checkin';
+import { visibleExercises } from '@/lib/library-cache';
+import { availableParts } from '@/lib/report/today-pick';
 
 /** 렌더 중에 현재 시각을 직접 읽지 않도록 함수로 감싼다. */
 function todayKey() {
   return toDateKey(new Date());
+}
+
+/**
+ * 체크인 관문이 볼 최근 체크인의 시작 — 사흘 전.
+ *
+ * 서버(UTC)가 보는 오늘과 사용자(한국)가 보는 오늘이 하루 어긋날 수 있어 넉넉히
+ * 가져온다. 어느 날이 '오늘'인지는 화면이 사용자 시계로 정한다.
+ */
+function checkinWindowStart() {
+  return new Date(Date.now() - 3 * 86_400_000);
 }
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
@@ -22,13 +38,34 @@ export default async function AppLayout({ children }: { children: React.ReactNod
    * 보낸다. 주소는 만들어 둔 것을 돌려쓰므로(lib/storage.ts) 화면을 옮길
    * 때마다 저장소에 묻지 않는다.
    */
-  const avatarUrl = await createAvatarUrl(user.avatarPath);
+  /*
+   * 체크인 관문에 줄 것 — 최근 체크인과, 상세 체크인에서 고를 운동 부위.
+   * 운동 목록은 누가 보든 같아서 캐시에서 꺼낸다(lib/library-cache.ts).
+   */
+  const [avatarUrl, recentCheckins, library] = await Promise.all([
+    createAvatarUrl(user.avatarPath),
+    prisma.dailyCheckin.findMany({
+      where: { userId: user.id, date: { gte: checkinWindowStart() } },
+      orderBy: { date: 'desc' },
+    }),
+    visibleExercises(),
+  ]);
+  const gateCheckins: CheckinData[] = recentCheckins.map((c) => ({
+    date: c.date.toISOString().slice(0, 10),
+    ...pickCheckinParts(c),
+    condition: c.condition,
+    sleep: c.sleep,
+    preferredParts: c.preferredParts,
+    preferredWorkout: c.preferredWorkout,
+    ...pickCheckinDetail(c),
+  }));
 
   return (
     <div className="min-h-screen">
       <AppNav
         groups={visibleGroups(isAdmin)}
         quick={quickTabs()}
+        tabs={MOBILE_TABS}
         nickname={user.nickname}
         avatarUrl={avatarUrl}
         isAdmin={isAdmin}
@@ -63,6 +100,16 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           ownedEquipment: user.ownedEquipment,
         }}
         today={todayKey()}
+      />
+
+      {/*
+        체크인 관문 — 그날 체크인을 안 했으면 어느 화면으로 들어오든 먼저 뜬다.
+        화면 맨 위 칸(top layer)에 뜨는 창이라 여기 두어도 모든 것 위에 선다.
+      */}
+      <CheckinGate
+        checkedDays={gateCheckins.map((c) => c.date)}
+        recent={gateCheckins}
+        parts={availableParts(library)}
       />
 
       {/*
@@ -102,8 +149,6 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           </ViewTransition>
         </main>
       </div>
-
-      <MobileTabs tabs={MOBILE_TABS} />
     </div>
   );
 }
