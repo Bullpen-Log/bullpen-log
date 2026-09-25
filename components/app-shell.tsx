@@ -16,7 +16,7 @@ import { X } from 'lucide-react';
 import { NAV_ICONS } from '@/components/nav-icons';
 import { usePathname } from 'next/navigation';
 import type { NavGroup, NavItem } from '@/lib/nav';
-import { MORE_HREF } from '@/lib/nav';
+import { DESK_MEDIA, MORE_HREF } from '@/lib/nav';
 import { BaseballMark } from '@/components/logo';
 import { Modal } from '@/components/modal';
 import { ProfilePanel, type ProfileData } from '@/components/profile-panel';
@@ -313,12 +313,16 @@ export function AppNav({
   };
 
   /*
-   * 연출을 돌 수 있는가 — 넓은 화면, 움직임을 줄이지 않았고, 브라우저가 View
-   * Transition 을 안다. 아니면 연출 없이 곧장 옮긴다(도크는 제자리에서 떠오르고,
-   * 판은 옆에서 밀려 나온다).
+   * 연출을 돌 수 있는가 — PC 틀이 보이는 화면(1024px 이상이거나, 마우스로 쓰는
+   * 576px 이상), 움직임을 줄이지 않았고, 브라우저가 View Transition 을 안다. 아니면
+   * 연출 없이 곧장 옮긴다(도크는 제자리에서 떠오르고, 판은 옆에서 밀려 나온다).
+   *
+   * 조건은 CSS 의 desk: 와 같은 DESK_MEDIA 로 잰다. 막대가 보이는데 연출이 안 돌면
+   * 화면을 반으로 나눈 PC 창에서만 아이콘이 날아오지 않고 판도 그냥 밀려 나와, 넓은
+   * 창과 다르게 열린다.
    */
   const canChoreo = () =>
-    window.matchMedia('(min-width: 1024px)').matches &&
+    window.matchMedia(DESK_MEDIA).matches &&
     !window.matchMedia('(prefers-reduced-motion: reduce)').matches &&
     typeof document.startViewTransition === 'function';
 
@@ -738,7 +742,7 @@ export function AppNav({
       {/*
         로고 — 왼쪽 위.
 
-        본문 위쪽 여백(lg:pt-16)이 이 높이만큼 비워져 있어 글과 겹치지 않는다.
+        본문 위쪽 여백(desk:pt-16)이 이 높이만큼 비워져 있어 글과 겹치지 않는다.
       */}
       <Link
         href="/today"
@@ -748,7 +752,7 @@ export function AppNav({
          * 어두워진다.
          */
         style={{ viewTransitionName: choreo ? 'none' : 'shell-logo' }}
-        className="fixed left-6 top-5 z-40 hidden items-center gap-2 lg:flex"
+        className="fixed left-6 top-5 z-40 hidden items-center gap-2 desk:flex"
       >
         <BaseballMark className="h-8 w-8" />
         <span className="text-display text-base leading-none text-ink">
@@ -770,7 +774,7 @@ export function AppNav({
       <nav
         ref={navRef}
         aria-label="간편 이동"
-        className="fixed right-4 top-3 z-40 hidden items-center lg:flex"
+        className="fixed right-4 top-3 z-40 hidden items-center desk:flex"
       >
         {/*
           살짝 비치는 알약.
@@ -1314,7 +1318,7 @@ function DockGrid({
       onPointerEnter={onPointerEnter}
       onPointerDown={onPointerDown}
       /* right 는 격자 한가운데까지의 거리라, 제 폭의 절반만큼 오른쪽으로 밀어 가운데를 맞춘다 */
-      className="fixed z-40 hidden translate-x-1/2 rounded-2xl border border-line/70 bg-surface/70 p-1.5 shadow-lg backdrop-blur-xl lg:block"
+      className="fixed z-40 hidden translate-x-1/2 rounded-2xl border border-line/70 bg-surface/70 p-1.5 shadow-lg backdrop-blur-xl desk:block"
     >
       <nav
         ref={containerRef}
@@ -1525,7 +1529,7 @@ function DetailMenu({
        * 비치면 밝은 테마의 바탕이 흰색보다 한 단계 어두워져, 11px 짜리 muted 글자의
        * 대비가 4.4:1 로 기준(4.5:1) 밑으로 내려갔다. 잉크 65% 는 5.5:1 쯤이다.
        */
-      className="h-full w-64 border-l border-line/80 bg-surface/92 p-0 text-ink shadow-2xl backdrop:bg-shade/50 lg:backdrop-blur-xl"
+      className="h-full w-64 border-l border-line/80 bg-surface/92 p-0 text-ink shadow-2xl backdrop:bg-shade/50 desk:backdrop-blur-xl"
     >
       <div className="flex h-full flex-col">
         <div className="flex h-12 shrink-0 items-center justify-between border-b border-line px-4">
@@ -1685,7 +1689,8 @@ function Avatar({
 /**
  * 모바일 상단 바 — 로고와, 설정·내 정보를 여는 두 버튼.
  *
- * 좁은 화면에는 오른쪽 위 아이콘 줄이 없다. 그렇다고 설정과 내 정보를 갈 곳
+ * 휴대폰 틀(desk 가 아닌 화면 — 손가락으로 쓰는 1024px 밑이거나, 576px 밑)에는
+ * 오른쪽 위 아이콘 줄이 없다. 그렇다고 설정과 내 정보를 갈 곳
  * 없이 두면 안 되므로, PC 의 그 두 버튼을 여기로 옮겨 놓는다. 누르면 같은
  * 창이 뜬다 — 기기가 달라도 하는 일과 보이는 것이 같아야 한다.
  */
@@ -1722,7 +1727,7 @@ function MobileTopBar({
        * 열 때마다 바가 깜빡였다. 하단 탭도 같은 이유로 뺐다.
        */
       style={{ viewTransitionName: 'shell-topbar' }}
-      className="sticky top-0 z-40 flex h-14 items-center gap-2 border-b border-line bg-surface px-4 lg:hidden"
+      className="sticky top-0 z-40 flex h-14 items-center gap-2 border-b border-line bg-surface px-4 desk:hidden"
     >
       <Link href="/today" className="flex items-center gap-2">
         <BaseballMark className="h-8 w-8" />
@@ -1819,7 +1824,7 @@ function MobileTabs({
     <nav
       /* 본문이 바뀌는 동안 탭바는 움직이지 않는다. */
       style={{ viewTransitionName: 'shell-tabbar' }}
-      className="fixed inset-x-0 bottom-0 z-50 border-t border-line bg-surface pb-[env(safe-area-inset-bottom)] lg:hidden"
+      className="fixed inset-x-0 bottom-0 z-50 border-t border-line bg-surface pb-[env(safe-area-inset-bottom)] desk:hidden"
     >
       <div className="flex">
         {tabs.map((tab) => {

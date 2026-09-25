@@ -504,13 +504,14 @@ export function VideoGallery({
         고른 두 개 — 아래에 붙여 둔다. 위로 올라가 확인하지 않아도 되게.
         고르는 중에만 낸다 — 평소에는 영상을 보는 화면이다.
 
-        하단 탭바 위(bottom-16)에 둔다. 탭바는 넓은 화면(lg, 1024px)에서야 사라지므로
-        바닥에 붙이는 것도 거기서부터다. 예전에는 sm(640px)부터 붙여서, 아이폰 가로·
-        아이패드 세로(640~1023px)에서 이 막대가 탭바 밑에 깔렸다 — [비교하기]가 거의
-        안 보이고, 누르면 그 아래 탭이 눌려 화면이 바뀌며 고른 것이 사라졌다.
+        하단 탭바 위(bottom-16)에 둔다. 탭바는 PC 틀(desk — 1024px 이상, 또는 마우스로
+        보는 640px 이상)에서만 사라지므로 바닥에 붙이는 것도 거기서부터다. 폭만 보고
+        sm(640px)부터 붙였더니 아이폰 가로·아이패드 세로(손가락, 640~1023px)에서 이 막대가
+        탭바 밑에 깔렸다 — [비교하기]가 거의 안 보이고, 누르면 그 아래 탭이 눌려 화면이
+        바뀌며 고른 것이 사라졌다.
       */}
       {selecting && (
-        <div className="fixed inset-x-0 bottom-16 z-30 px-4 lg:bottom-4">
+        <div className="fixed inset-x-0 bottom-16 z-30 px-4 desk:bottom-4">
           <div className="mx-auto flex max-w-3xl flex-wrap items-center gap-2 rounded-2xl border border-line-strong bg-surface px-4 py-3 shadow-2xl">
             {[0, 1].map((i) => {
               const p = picked[i];

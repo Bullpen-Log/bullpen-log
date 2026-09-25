@@ -184,6 +184,22 @@ export const NAV_GROUPS: NavGroup[] = [
  */
 export const MORE_HREF = '/more';
 
+/**
+ * PC 틀(오른쪽 위 아이콘 줄 · 도크 · 판의 연출)을 쓰는 화면 — 1024px 이상이거나, 마우스로
+ * 쓰는(hover · 가는 포인터) 576px 이상. PC 창을 화면 반으로 나눠도 PC 틀 그대로다.
+ *
+ * 576px 인 까닭: 윈도우 배율 150% 노트북(1920 → 1280 CSS px)에서 창을 반으로 나누면
+ * 640px 에 조금 못 미친다. 휴대폰은 세로 430px 안팎이라 한참 밑이다. 로고와 오른쪽
+ * 아이콘 줄은 520px 쯤까지 겹치지 않는다.
+ *
+ * app/globals.css 의 @custom-variant desk 와 글자 하나 다르지 않은 조건이다. CSS 는
+ * desk: 로 틀을 보이고 숨기고, JS(matchMedia)는 이것으로 연출을 돌지 정한다. 둘이
+ * 어긋나면 좁힌 PC 창에서 막대는 보이는데 연출이 안 돌거나 그 반대가 된다.
+ * px 가 아니라 rem 으로 적는 것도 CSS 와 같게 하려는 것이다.
+ */
+export const DESK_MEDIA =
+  '(min-width: 64rem), (min-width: 36rem) and (hover: hover) and (pointer: fine)';
+
 export const MOBILE_TABS: NavItem[] = [
   { href: '/today', label: '홈', icon: 'home' },
   { href: '/videos', label: '투구 영상', short: '영상', icon: 'film' },

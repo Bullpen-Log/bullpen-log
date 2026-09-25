@@ -123,8 +123,8 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         위쪽 4rem 은 그 줄의 자리다. 로고와 아이콘은 고정이라 자리를 차지하지
         않으므로, 여기서 비워주지 않으면 첫 줄이 그 밑으로 들어간다.
       */}
-      <div className="lg:pt-16">
-        <main className="mx-auto w-full max-w-5xl px-4 py-6 pb-24 sm:px-6 sm:py-8 lg:pb-12">
+      <div className="desk:pt-16">
+        <main className="mx-auto w-full max-w-5xl px-4 py-6 pb-24 sm:px-6 sm:pt-8 desk:pb-12">
           {/*
            * 탭을 옮길 때 본문만 부드럽게 바뀐다.
            *

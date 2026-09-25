@@ -25,6 +25,37 @@ Claude 로 작업을 시작하면 저절로 읽힌다. 규칙은 `AGENTS.md` 6�
    `DailyNutrition`)가 생겼다(`prisma/migrations/20260925084500_add_nutrition`). DB 에는 이미
    적용했으니 `migrate deploy` 는 할 것 없다. 표를 더하기만 했고 기존 표는 그대로다.
 2. 개발 서버를 다시 켠다. 안 뜨면 `.next` 폴더를 지우고 다시 켠다.
+3. `npx prisma generate` 를 한 번 더 — 영양 탭에서 물 기록을 빼며 스키마에서
+   `DailyNutrition.waterMl` · `NutritionProfile.waterGoalMl` 을 뺐다(05306a2).
+
+### DB 에만 있고 저장소에는 없는 것 — 확인 부탁
+
+물 칸을 지우려고 `migrate diff` 를 돌렸더니, 물 칸 말고도 이 둘을 지우자고 나왔다.
+저장소 이력 어디에도 없는 이름이라 김민 쪽에서 DB 에 먼저 넣은 것으로 보고 **건드리지
+않았다**(물 마이그레이션에는 물 칸 둘만 넣었다).
+
+- 표 `DailyArmcare`
+- 칸 `ExerciseVideo.targetMuscles`
+
+김민 쪽 작업이면 스키마와 마이그레이션을 올려 주면 된다. 그 전에는 누가 `migrate diff`
+를 돌리든 이 둘을 지우는 SQL 이 끼어 나오니, 적용 전에 SQL 을 꼭 읽어야 한다.
+
+### PC 틀이 화면을 반으로 나눠도 그대로다 (사용자 요청)
+
+김민 쪽 파일이라 적는다 — `components/app-shell.tsx` · `app/globals.css` · `lib/nav.ts` ·
+`app/(app)/layout.tsx`.
+
+- PC 창을 화면 반으로 줄이면(1024px 밑) 오른쪽 위 아이콘 줄이 사라지고 휴대폰의 위 막대·
+  아래 탭이 나왔다. 이제 **1024px 이상이거나, 마우스로 쓰는 576px 이상**이면 PC 틀이다.
+  손가락으로 쓰는 휴대폰·태블릿은 1024px 밑에서 예전처럼 휴대폰 틀이다.
+- Tailwind 변형 `desk:` 를 새로 두었다(`app/globals.css` 맨 위 `@custom-variant desk`).
+  틀을 보이고 숨기던 `lg:hidden` · `hidden lg:flex` · `lg:block` · `lg:pt-16` · `lg:pb-12` ·
+  영상 비교 막대의 `lg:bottom-4` 를 `desk:` 로 바꿨다. **틀에 딸린 것을 새로 만들 때는
+  `lg:` 대신 `desk:` 를 쓴다.** 쪽 배치(칸 나란히 놓기 같은 것)는 그대로 `lg:` 다.
+- JS 쪽 같은 조건은 `lib/nav.ts` 의 `DESK_MEDIA` — 도크·판 연출을 돌지 정하는 `canChoreo`
+  가 이것을 쓴다. CSS 와 글자 하나 다르지 않아야 한다(둘을 늘 같이 고친다).
+- 변형은 반드시 블록 꼴로 적어야 한다. 한 줄 꼴 `(@media a, b)` 는 Tailwind 가 쉼표 뒤를
+  선택자로 읽어 1024px 쪽만 걸린다.
 
 ### 분석 탭을 홈으로 옮겼다 (사용자 요청)
 

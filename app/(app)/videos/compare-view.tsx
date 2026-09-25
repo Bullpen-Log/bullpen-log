@@ -454,13 +454,14 @@ export function CompareView({
 
       {/*
         공용 조작부 — 스크롤해도 항상 손이 닿도록 아래에 붙여둔다.
-        모바일 하단 탭(약 3.25rem) 위에 오도록 위치를 잡는다.
+        모바일 하단 탭(약 3.25rem) 위에 오도록 위치를 잡는다. 탭이 없는 PC 틀(desk —
+        app/globals.css)에서는 바닥 가까이(bottom-4) 붙인다.
       */}
       <div
         className={`z-30 rounded-xl border border-sky-soft/50 bg-shade/95 p-2 backdrop-blur-xl sm:p-3 ${
           expanded
             ? 'shrink-0'
-            : 'sticky bottom-[calc(3rem_+_env(safe-area-inset-bottom))] lg:bottom-4'
+            : 'sticky bottom-[calc(3rem_+_env(safe-area-inset-bottom))] desk:bottom-4'
         }`}
       >
         <div className="flex flex-wrap items-center gap-x-1.5 gap-y-2 sm:gap-x-3">

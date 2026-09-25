@@ -1,5 +1,23 @@
 @import 'tailwindcss';
 
+/*
+ * desk — PC 의 틀(왼쪽 위 로고 · 오른쪽 위 아이콘 줄 · 도크 · 판의 연출)을 쓰는 화면.
+ *
+ * 예전에는 lg(1024px)에서 갈랐다. PC 창을 화면 반으로 줄이면(700~1000px) 오른쪽 위
+ * 아이콘이 사라지고 휴대폰의 위 막대·아래 탭이 나왔다. 이제 넓거나(1024px~), 마우스로
+ * 쓰는 576px 이상 화면이면 PC 틀이다(까닭은 lib/nav.ts 의 DESK_MEDIA). 손가락으로 쓰는
+ * 휴대폰·태블릿은 1024px 밑에서 그대로 휴대폰 틀이다.
+ *
+ * 한 줄로 줄여 쓰는 꼴 `(@media a, b)` 로 적으면 안 된다. Tailwind 가 괄호 안을 쉼표로
+ * 갈라 둘째 조건을 선택자로 읽어서 1024px 쪽만 걸린다. 블록 꼴로 적는다.
+ * JS 에서 같은 조건은 lib/nav.ts 의 DESK_MEDIA — 둘을 늘 같이 고친다.
+ */
+@custom-variant desk {
+  @media (min-width: 64rem), (min-width: 36rem) and (hover: hover) and (pointer: fine) {
+    @slot;
+  }
+}
+
 @theme {
   /* 밝고 캐주얼한 팔레트 — 흰색 바탕에 하늘색 포인트 */
 
