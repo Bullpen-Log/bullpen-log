@@ -102,11 +102,13 @@ import {
   type ArmcareAreaKey,
 } from '../lib/armcare/anatomy.ts';
 import {
+  armcareBlock,
   buildArmcareRoutine,
   decideArmcare,
   readArmcareRoutine,
   type ArmcareKind,
 } from '../lib/armcare/routine.ts';
+import { ARMCARE_METHODS, methodOf } from '../lib/armcare/methods.ts';
 import { reportReadiness } from '../lib/report/cadence.ts';
 import { SYSTEM_PROMPT } from '../lib/ai/report-prompt.ts';
 import {
@@ -3697,6 +3699,39 @@ console.log('\n[암케어] 부위·근육 · 오늘의 루틴 · 부하');
     '부위마다 운동이 하나 이상 있다',
     emptyAreas.length === 0,
     emptyAreas.map((a) => a.label).join(', ')
+  );
+  const noteless = ARMCARE_AREAS.filter((a) => a.notes.length === 0);
+  check(
+    '부위마다 알아 두기가 한 줄 이상 있다',
+    noteless.length === 0,
+    noteless.map((a) => a.label).join(', ')
+  );
+
+  /* 1-1) 훈련 방식 — 이름으로 가리고, 화면에 적은 말이 참인가 */
+  const emptyMethods = ARMCARE_METHODS.filter(
+    (m) => !armcareLib.some((ex) => methodOf(ex.title).key === m.key)
+  );
+  check(
+    '훈련 방식마다 운동이 하나 이상 있다',
+    emptyMethods.length === 0,
+    emptyMethods.map((m) => m.label).join(', ')
+  );
+  check(
+    '방식 표시가 없는 이름은 기본 보강이다',
+    methodOf('밴드 외회전').key === 'basic' &&
+      methodOf('사이드라잉 외회전 리바운드').key === 'rebound'
+  );
+  const eccentricInRoutine = armcareLib
+    .filter((ex) => methodOf(ex.title).key === 'eccentric')
+    .filter(
+      (ex) =>
+        armcareBlock(ex, 'strength', null) == null ||
+        armcareBlock(ex, 'recovery', null) == null
+    );
+  check(
+    "과부하 내리기는 오늘의 암케어에 저절로 안 들어간다 (화면에 그렇게 적었다)",
+    eccentricInRoutine.length === 0,
+    eccentricInRoutine.map((ex) => ex.title).join(', ')
   );
 
   /* 2) 근육 이름 거르기 — 맨 앞이 주 근육이라 적힌 차례를 지켜야 한다 */

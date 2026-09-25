@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { Segmented } from '@/components/segmented';
 
 /**
- * 암케어 안의 두 칸 — [오늘의 암케어 | 부위별 보강].
+ * 암케어 안의 세 칸 — [오늘의 암케어 | 부위별 보강 | 훈련 방식].
  *
  * 트레이닝의 [오늘 | 기록 | 암케어]처럼 주소로 나눈다(?view=armcare&tab=guide).
  * 부위별 보강은 암케어 운동을 다 늘어놓는 화면이라, 오늘 루틴만 보러 온 사람에게
@@ -14,6 +14,7 @@ import { Segmented } from '@/components/segmented';
 const TABS = [
   { value: 'today', label: '오늘의 암케어', href: '/training?view=armcare' },
   { value: 'guide', label: '부위별 보강', href: '/training?view=armcare&tab=guide' },
+  { value: 'methods', label: '훈련 방식', href: '/training?view=armcare&tab=methods' },
 ] as const;
 
 export type ArmcareTab = (typeof TABS)[number]['value'];
@@ -39,7 +40,7 @@ export function ArmcareTabs({ current }: { current: ArmcareTab }) {
       options={TABS}
       tone="raised"
       settleKey={current}
-      itemClassName="px-4 py-2"
+      itemClassName="px-1.5 py-2 sm:px-4"
     />
   );
 }

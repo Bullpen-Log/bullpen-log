@@ -158,6 +158,20 @@ function AreaCard({
           </div>
 
           <div className="space-y-2">
+            <h3 className="text-xs font-semibold text-muted">알아 두기</h3>
+            <ul className="space-y-1.5">
+              {area.notes.map((note) => (
+                <li
+                  key={note}
+                  className="text-[13px] leading-relaxed break-keep text-ink/80"
+                >
+                  {note}
+                </li>
+              ))}
+            </ul>
+          </div>
+
+          <div className="space-y-2">
             <h3 className="text-xs font-semibold text-muted">운동</h3>
             {count === 0 ? (
               <p className="text-[13px] text-muted">
@@ -182,15 +196,17 @@ function AreaCard({
   );
 }
 
-function GuideExercise({
+/** 운동 한 줄 — 훈련 방식 화면(armcare-methods.tsx)도 같은 모양으로 늘어놓는다 */
+export function GuideExercise({
   exercise: ex,
   highlight,
-  secondary,
+  secondary = false,
 }: {
   exercise: ArmcareExerciseView;
-  highlight: string[];
+  /** 진하게 칠할 근육. 안 주면 맨 앞(주 근육)만 */
+  highlight?: string[];
   /** 이 부위를 주로 키우는 운동이 아니라 함께 쓰는 운동인가 */
-  secondary: boolean;
+  secondary?: boolean;
 }) {
   return (
     <li className="overflow-hidden rounded-xl border border-line bg-surface">

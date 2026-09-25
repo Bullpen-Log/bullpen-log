@@ -10,6 +10,7 @@ import { armcareBlock } from '@/lib/armcare/routine';
 import { Card } from '@/components/ui';
 import { ArmcareToday, type ArmcareTodayItem } from './armcare-today';
 import { ArmcareGuide } from './armcare-guide';
+import { ArmcareMethods } from './armcare-methods';
 import type { ArmcareExerciseView } from './armcare-media';
 import type { ArmcareTab } from './armcare-tabs';
 import { TrainingCheckin } from './training-checkin';
@@ -17,11 +18,12 @@ import { TrainingCheckin } from './training-checkin';
 type LibraryExercise = Awaited<ReturnType<typeof visibleExercises>>[number];
 
 /**
- * 트레이닝의 암케어 칸 — 서버에서 자료를 모아 두 화면 중 하나를 그린다.
+ * 트레이닝의 암케어 칸 — 서버에서 자료를 모아 세 화면 중 하나를 그린다.
  *
  * 2026-09-25 사용자분과 정했다: 하단 탭을 늘리지 않고 트레이닝 안에 둔다.
  * 트레이닝의 [오늘 | 기록 | 암케어] 중 셋째 칸이고, 안에서 다시 [오늘의 암케어 |
- * 부위별 보강]으로 나뉜다(armcare-tabs.tsx).
+ * 부위별 보강 | 훈련 방식]으로 나뉜다(armcare-tabs.tsx). 훈련 방식은 2026-09-26 에
+ * 더했다.
  */
 export async function ArmcareSection({
   user,
@@ -32,11 +34,16 @@ export async function ArmcareSection({
   tab: ArmcareTab;
   today: Date;
 }) {
-  if (tab === 'guide') {
+  if (tab === 'guide' || tab === 'methods') {
     const all = (await visibleExercises()).filter(
       (ex) => ex.category === ARMCARE_CATEGORY
     );
-    return <ArmcareGuide exercises={await toViews(all)} />;
+    const views = await toViews(all);
+    return tab === 'guide' ? (
+      <ArmcareGuide exercises={views} />
+    ) : (
+      <ArmcareMethods exercises={views} />
+    );
   }
 
   const data = await loadArmcareToday(user, today);

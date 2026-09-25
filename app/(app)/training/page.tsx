@@ -110,21 +110,22 @@ export default async function TrainingPage({
    * (lib/armcare/today.ts).
    */
   if (view === 'armcare') {
-    const tab: ArmcareTab = params.tab === 'guide' ? 'guide' : 'today';
+    const tab: ArmcareTab =
+      params.tab === 'guide' || params.tab === 'methods' ? params.tab : 'today';
     return (
       <div className="space-y-6">
         <PageHeading
           eyebrow="Training"
           title="암케어"
-          description="어깨와 팔꿈치를 따로 챙기는 곳입니다. 오늘 몸 상태에 맞춘 루틴을 하고, 부위마다 무엇을 키우는지 봅니다."
+          description="어깨와 팔꿈치를 따로 챙기는 곳입니다. 오늘 몸 상태에 맞춘 루틴을 하고, 부위마다 무엇을 키우는지와 어떤 방식으로 올라가는지 봅니다."
         />
         <ViewTabs
           current="armcare"
           settings={user}
           returnTo={
-            tab === 'guide'
-              ? '/training?view=armcare&tab=guide'
-              : '/training?view=armcare'
+            tab === 'today'
+              ? '/training?view=armcare'
+              : `/training?view=armcare&tab=${tab}`
           }
         />
         <ArmcareTabs current={tab} />
