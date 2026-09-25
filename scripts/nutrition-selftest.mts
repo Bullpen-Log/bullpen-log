@@ -15,7 +15,13 @@ import {
 } from '../lib/nutrition/targets.ts';
 import { kcalFor, pitchingBurn, trainingBurn } from '../lib/nutrition/burn.ts';
 import { choseong, matchScore } from '../lib/nutrition/hangul.ts';
-import { BASIC_FOODS, rankFoods, searchBasicFoods } from '../lib/nutrition/foods.ts';
+import {
+  BASIC_FOODS,
+  FOOD_CATEGORIES,
+  FOODS_BY_CATEGORY,
+  rankFoods,
+  searchBasicFoods,
+} from '../lib/nutrition/foods.ts';
 import { itemsOf, toFood } from '../lib/nutrition/mfds-parse.ts';
 import { isNutritionDate } from '../lib/nutrition/days.ts';
 import { amountText, scaleMacros } from '../lib/nutrition/meta.ts';
@@ -154,6 +160,24 @@ console.log('\n■ 음식 찾기');
     '같은 정도로 맞으면 내 음식이 먼저',
     rankFoods([{ ...mineFood, name: '닭가슴살' }, ...BASIC_FOODS], '닭가슴살')[0]
       ?.id === 'm1'
+  );
+
+  const orphan = BASIC_FOODS.filter(
+    (f) => !(FOOD_CATEGORIES as readonly string[]).includes(f.note ?? '')
+  ).map((f) => f.name);
+  check(
+    '모든 음식이 분류 안에 있다(전체 음식 탭에서 빠지지 않는다)',
+    orphan.length === 0,
+    orphan.join(', ')
+  );
+  const inCategories = [...FOODS_BY_CATEGORY.values()].reduce(
+    (n, list) => n + list.length,
+    0
+  );
+  check(
+    '분류별로 묶어도 한 가지도 빠지거나 겹치지 않는다',
+    inCategories === BASIC_FOODS.length,
+    `${inCategories} / ${BASIC_FOODS.length}`
   );
 
   const ids = BASIC_FOODS.map((f) => f.id);

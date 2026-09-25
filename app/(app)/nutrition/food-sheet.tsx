@@ -17,9 +17,12 @@ import { Modal } from '@/components/modal';
 import { Segmented } from '@/components/segmented';
 import {
   BASIC_FOODS,
+  FOOD_CATEGORIES,
+  FOODS_BY_CATEGORY,
   STARTER_FOOD_IDS,
   basicFood,
   rankFoods,
+  type FoodCategory,
 } from '@/lib/nutrition/foods';
 import {
   AMOUNT_MAX,
@@ -62,7 +65,15 @@ import { EASE, toFoodInput, type Origin } from './shared';
  * 누르게 하면 번거롭다. 아래에 담은 것을 모아 보여 주고 '다 했어요'로 닫는다.
  */
 
-type Tab = 'recent' | 'mine' | 'popular';
+/*
+ * 최근 · 내 음식 · 전체 음식.
+ *
+ * '전체 음식'은 앱에 든 음식을 분류별로 모두 보여 준다. 이름이 떠오르지 않을 때
+ * 검색창 대신 눈으로 훑어 고른다 — 반찬 칸을 열어 오늘 먹은 것을 찾는 식이다.
+ * 처음 쓰는 사람(최근 기록이 없음)은 '최근' 자리에 자주 먹는 것을 대신 보여 준다.
+ */
+type Tab = 'recent' | 'mine' | 'all';
+type Category = 'all' | FoodCategory;
 type View = { kind: 'list' } | { kind: 'pick'; food: Food } | { kind: 'custom' };
 
 const favKey = (f: Food) => `${f.source}:${f.id}`;
@@ -94,7 +105,8 @@ export function FoodSheet({
 }) {
   const label = mealLabel(meal);
   const [query, setQuery] = useState('');
-  const [tab, setTab] = useState<Tab>(recent.length > 0 ? 'recent' : 'popular');
+  const [tab, setTab] = useState<Tab>(recent.length > 0 ? 'recent' : 'all');
+  const [category, setCategory] = useState<Category>('all');
   const [view, setView] = useState<View>({ kind: 'list' });
   const [added, setAdded] = useState<string[]>([]);
   const [favs, setFavs] = useState(() => new Set(favorites));
@@ -335,14 +347,23 @@ export function FoodSheet({
                 options={[
                   { value: 'recent', label: '최근' },
                   { value: 'mine', label: '내 음식' },
-                  { value: 'popular', label: '자주 먹는' },
+                  { value: 'all', label: '전체 음식' },
                 ]}
               />
 
               <div role="tabpanel">
                 {tab === 'recent' &&
                   (recent.length === 0 ? (
-                    <Empty text="아직 기록이 없어요. 위에서 찾거나 '자주 먹는'에서 골라 보세요." />
+                    <div className="space-y-1">
+                      <p className="px-1 pb-1 text-xs text-muted">
+                        아직 기록이 없어요. 선수들이 자주 먹는 것부터 골라 보세요.
+                      </p>
+                      <FoodList
+                        foods={starters}
+                        onPick={(food) => setView({ kind: 'pick', food })}
+                        onQuick={(food) => add(food, 1)}
+                      />
+                    </div>
                   ) : (
                     <FoodList
                       foods={recent}
@@ -361,9 +382,10 @@ export function FoodSheet({
                       onRemove={removeMine}
                     />
                   ))}
-                {tab === 'popular' && (
-                  <FoodList
-                    foods={starters}
+                {tab === 'all' && (
+                  <AllFoods
+                    category={category}
+                    onCategory={setCategory}
                     onPick={(food) => setView({ kind: 'pick', food })}
                     onQuick={(food) => add(food, 1)}
                   />
@@ -406,6 +428,60 @@ export function FoodSheet({
 
 /* ─────────────────────────── 목록 ─────────────────────────── */
 
+/**
+ * 전체 음식 — 위에 분류 고르개, 밑에 음식.
+ *
+ * '전체'를 고르면 분류마다 제목을 달아 모두 늘어놓고, 분류를 고르면 그것만
+ * 남긴다. 고르개는 앱의 다른 고르개와 같은 부품이라 고른 표시가 옆으로
+ * 미끄러진다.
+ */
+function AllFoods({
+  category,
+  onCategory,
+  onPick,
+  onQuick,
+}: {
+  category: Category;
+  onCategory: (c: Category) => void;
+  onPick: (food: Food) => void;
+  onQuick: (food: Food) => void;
+}) {
+  const shown = category === 'all' ? FOOD_CATEGORIES : [category];
+  return (
+    <div className="space-y-4">
+      <Segmented
+        label="음식 분류"
+        role="tablist"
+        layout="flow"
+        value={category}
+        onChange={onCategory}
+        itemClassName="px-2.5 py-1.5"
+        options={[
+          { value: 'all', label: '전체' },
+          ...FOOD_CATEGORIES.map((c) => ({ value: c, label: c })),
+        ]}
+      />
+      {/* 분류를 바꿀 때마다 목록을 새로 그려, 줄이 위에서부터 다시 들어온다 */}
+      <div key={category} className="space-y-4">
+        {shown.map((c) => {
+          const foods = FOODS_BY_CATEGORY.get(c) ?? [];
+          return (
+            <section key={c} aria-label={c} className="space-y-1">
+              {category === 'all' && (
+                <h3 className="flex items-baseline gap-1.5 px-1 text-xs font-semibold text-ink">
+                  {c}
+                  <span className="font-normal text-muted">{foods.length}</span>
+                </h3>
+              )}
+              <FoodList foods={foods} onPick={onPick} onQuick={onQuick} hideNote />
+            </section>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 function Empty({ text }: { text: string }) {
   return (
     <p className="px-1 py-6 text-center text-sm leading-relaxed text-muted">{text}</p>
@@ -417,11 +493,14 @@ function FoodList({
   onPick,
   onQuick,
   onRemove,
+  hideNote = false,
 }: {
   foods: Food[];
   onPick: (food: Food) => void;
   onQuick: (food: Food) => void;
   onRemove?: (food: Food) => void;
+  /** 분류별로 볼 때는 줄마다 분류를 또 적지 않는다 */
+  hideNote?: boolean;
 }) {
   return (
     <ul className="-mx-2">
@@ -433,6 +512,7 @@ function FoodList({
           onPick={() => onPick(f)}
           onQuick={() => onQuick(f)}
           onRemove={onRemove ? () => onRemove(f) : undefined}
+          hideNote={hideNote}
         />
       ))}
     </ul>
@@ -445,12 +525,14 @@ function FoodRow({
   onPick,
   onQuick,
   onRemove,
+  hideNote,
 }: {
   food: Food;
   index: number;
   onPick: () => void;
   onQuick: () => void;
   onRemove?: () => void;
+  hideNote: boolean;
 }) {
   /* 지우기는 두 번 눌러야 한다 — 직접 만든 음식은 되살릴 길이 없다 */
   const [confirm, setConfirm] = useState(false);
@@ -472,7 +554,7 @@ function FoodRow({
           </span>
           <span className="block truncate text-xs text-muted">
             {food.servingLabel}
-            {food.note ? ` · ${food.note}` : ''}
+            {food.note && !hideNote ? ` · ${food.note}` : ''}
           </span>
         </span>
         <span className="shrink-0 text-sm tabular-nums text-ink">

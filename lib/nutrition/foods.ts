@@ -467,6 +467,32 @@ export function basicFood(id: string) {
 }
 
 /**
+ * 분류 — 음식 담기 창의 '전체 음식'에서 이 차례로 늘어선다.
+ *
+ * 한 끼를 차리는 차례를 따랐다. 밥과 국·찌개로 시작해 반찬·고기로 채우고,
+ * 과일·음료·간식은 끼니 사이에 먹는 것이라 뒤에 둔다. 분식·면은 그 자체로
+ * 한 끼라 밥 바로 뒤에 둔다.
+ */
+export const FOOD_CATEGORIES = [
+  '밥',
+  '분식',
+  '면·빵',
+  '국·찌개',
+  '반찬',
+  '고기·생선',
+  '과일·채소',
+  '우유·음료',
+  '간식·보충',
+] as const;
+
+export type FoodCategory = (typeof FOOD_CATEGORIES)[number];
+
+/** 분류별로 묶은 기본 목록. 목록 안의 차례는 ROWS 에 적은 차례 그대로다. */
+export const FOODS_BY_CATEGORY = new Map<FoodCategory, Food[]>(
+  FOOD_CATEGORIES.map((c) => [c, BASIC_FOODS.filter((f) => f.note === c)])
+);
+
+/**
  * 처음 쓰는 사람에게 먼저 보여 줄 것 — 최근 기록이 없을 때 빈 목록 대신.
  * 선수들이 가장 자주 적는 것들이다.
  */
