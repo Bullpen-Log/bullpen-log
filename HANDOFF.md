@@ -44,6 +44,11 @@ Claude 로 작업을 시작하면 저절로 읽힌다. 규칙은 `AGENTS.md` 6�
   뜨던 것. 돌려주는 모양(`urls`·`loading`·`ready`)은 그대로다.
 - `app/(app)/videos/video-gallery.tsx` (4611991) — 2분할 비교 막대 `sm:bottom-4` →
   `lg:bottom-4`. 폭 640~1023px(아이폰 가로·아이패드 세로)에서 하단 탭바 밑에 깔렸다.
+- `app/login/auth-form.tsx` (6ac350a) — 가입 문진 '평소 웨이트는 얼마나 하시나요?' 칸의
+  '웨이트 횟수' 아래에 '웨이트 트레이닝 경력'(입문·초급·중급·상급, 필수)을 더했다. 트레이닝
+  설정의 경력 칸과 같은 목록(`TRAINING_LEVELS`)·같은 부품(`RadioGroup`)이다. 서버
+  (`app/actions/auth.ts`)가 목록 값인지 확인해 `User.trainingLevel` 에 저장한다. DB 변경
+  없음. 그 칸 소제목을 '2문항'으로 고치고 `break-keep` 을 붙였다(낱말 중간에서 끊겨서).
 
 ### 알아 두면 좋은 것 (김민 쪽 변경)
 
