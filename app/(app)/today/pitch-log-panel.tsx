@@ -9,7 +9,16 @@ import { Segmented } from '@/components/segmented';
 import { LogList } from '@/app/(app)/pitch-log/log-list';
 import type { Log } from '@/app/(app)/pitch-log/types';
 import type { PlanDaySummary, TrainingDaySummary } from '@/lib/report/training-history';
-import { DaySummary, type CheckinDay, type NutritionDay } from './day-summary';
+import type { DayDetail } from '@/lib/day-detail';
+import {
+  DaySummary,
+  firstFocus,
+  type CheckinDay,
+  type DayFacts,
+  type DayFocus,
+  type NutritionDay,
+} from './day-summary';
+import { DayDetailBlock } from './day-detail';
 
 /** [캘린더 | 목록] — 같은 기록을 다르게 보는 두 방식 */
 const VIEW_OPTIONS = [
@@ -25,18 +34,20 @@ const VIEW_OPTIONS = [
  * 그것이 홈과 투구 일지로 갈라져 있었다. 홈에는 오늘 것만, 일지에는 지난
  * 것만 있어서 하루를 마치려면 두 화면을 오갔다.
  *
- * 달력을 홈 맨 앞으로 올린다. 열면 이번 달이 한눈에 보이고, 날짜를 누르면
- * /pitch-log/<날짜> 로 넘어간다. 그날의 수치·영상·폼 분석·수정은 전부 거기 있다.
+ * 달력을 홈 맨 앞으로 올린다. 열면 이번 달이 한눈에 보인다. 그날의 수치·영상·
+ * 폼 분석·수정은 전부 /pitch-log/<날짜> 에 있다.
  *
  * 달력과 목록을 한 화면에 같이 두지 않고 오가게 하는 것은 그대로 뒀다.
  * 달력은 '그 날짜'를 알 때, 목록은 '요즘 뭐 했더라'를 볼 때 쓴다 — 같은 기록을
  * 다르게 보는 것이라 나란히 둘 이유가 없다.
  *
  * 날짜를 누르면 그날 칸이 달력 오른쪽에서 폭을 넓히며 들어오고, 달력은 그만큼
- * 좁아진다(좁은 화면에서는 달력 밑에서 펴진다). 아무 날도 안 골랐을 때는 달력이 제
- * 폭을 다 쓴다 — 칸을 늘 띄워 두었더니 달력이 너무 작아졌다. 그날 칸에서 투구·
- * 트레이닝·영양·영상·분석으로 그 날짜 그대로 넘어간다 — 달력이 앱 전체로 들어가는
- * 문이 된다.
+ * 좁아지며 위아래로도 줄어든다(좁은 화면에서는 달력 밑에서 펴진다). 아무 날도 안
+ * 골랐을 때는 달력이 제 크기를 다 쓴다 — 칸을 늘 띄워 두었더니 달력이 너무 작아졌다.
+ *
+ * 그날 칸은 요약이다 — 줄마다 그날의 숫자를 보여 준다. 줄을 누르면 달력 밑에 그 줄의
+ * 조금 더 자세한 요약이 펴지고, 그 칸 위쪽에서 투구·트레이닝·영양·영상·분석 탭으로
+ * 그 날짜 그대로 넘어간다 — 달력이 앱 전체로 들어가는 문이 된다.
  */
 export function PitchLogPanel({
   today,
@@ -117,6 +128,38 @@ export function PitchLogPanel({
   const panelRef = useRef<HTMLDivElement>(null);
 
   /*
+   * 캘린더 밑 칸에 펴 둔 줄(투구·트레이닝·영양…). 날짜를 새로 열 때는 그날 남긴 것
+   * 가운데 가장 앞 줄로, 열린 채 다른 날로 옮길 때는 보던 줄 그대로 둔다 — 영양을
+   * 보다가 옆 날을 누르면 그날 영양이 보여야 며칠을 견줄 수 있다.
+   */
+  const [focus, setFocus] = useState<DayFocus>('pitch');
+
+  /*
+   * 밑 칸에 쓸 그날 요약(트레이닝·영양·컨디션·분석). 날짜를 고를 때 그날 것만 받아
+   * 날짜별로 들고 있는다 — 같은 날을 다시 눌러도 다시 받지 않는다.
+   */
+  const [details, setDetails] = useState<Record<string, DayDetail>>({});
+  const [failed, setFailed] = useState<Record<string, boolean>>({});
+  useEffect(() => {
+    if (!selectedDate || details[selectedDate] || failed[selectedDate]) return;
+    const date = selectedDate;
+    let cancelled = false;
+    fetch(`/api/day-detail?date=${date}`)
+      .then((res) =>
+        res.ok ? res.json() : Promise.reject(new Error(String(res.status)))
+      )
+      .then((detail: DayDetail) => {
+        if (!cancelled) setDetails((prev) => ({ ...prev, [date]: detail }));
+      })
+      .catch(() => {
+        if (!cancelled) setFailed((prev) => ({ ...prev, [date]: true }));
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedDate, details, failed]);
+
+  /*
    * 좁은 화면에서는 그날 칸이 달력 밑에서 펴진다. 달력이 화면을 거의 채우고 있어서,
    * 펴진 칸이 화면 밖이면 거기까지만 살짝 굴려 보여 준다(이미 보이면 가만히 둔다).
    */
@@ -138,18 +181,58 @@ export function PitchLogPanel({
     return new Date(y, m - 1, 1);
   });
 
+  /** 한 날에 대해 캘린더가 이미 들고 있는 한 줄 요약들 */
+  const factsOf = useCallback(
+    (date: string): DayFacts => ({
+      logs: logs.filter((l) => l.date.slice(0, 10) === date),
+      training: trainingByDay[date],
+      plan: planByDay[date],
+      nutrition: nutritionByDay[date],
+      checkin: checkinByDay[date],
+      hasReport: reportDays.includes(date),
+    }),
+    [logs, trainingByDay, planByDay, nutritionByDay, checkinByDay, reportDays]
+  );
+
   /*
    * 날짜를 누르면 옆 칸이 그날로 열린다(이미 열려 있으면 그날로 바뀐다).
    *
    * 예전에는 곧바로 그날 화면으로 넘어갔다. 그런데 달력은 이 칸 저 칸 눌러보며
    * 훑는 물건이라, 뭐가 있었는지 잠깐 보려던 것뿐인데 매번 화면이 통째로 바뀌고
-   * 다시 뒤로 와야 했다. 넘어가는 길은 그날 칸의 줄들이 맡는다.
+   * 다시 뒤로 와야 했다. 넘어가는 길은 밑 칸 위쪽의 링크가 맡는다.
    *
    * 고른 칸을 다시 누르면 닫는다 — 같은 것을 누르면 닫히는 것이 여닫이의 기본이다.
-   * 칸이 빠지면 달력이 다시 제 폭으로 넓어진다.
+   * 칸이 빠지면 달력이 다시 제 폭과 높이로 돌아간다.
    */
-  const openDay = useCallback((date: string) => {
-    setSelectedDate((prev) => (prev === date ? null : date));
+  const openDay = useCallback(
+    (date: string) => {
+      if (selectedDate === date) {
+        setSelectedDate(null);
+        return;
+      }
+      /* 닫혀 있다가 열 때만 줄을 새로 고른다 */
+      if (selectedDate === null) setFocus(firstFocus(factsOf(date)));
+      /* 받아 오다 실패한 날은 다시 누르면 다시 받는다 */
+      setFailed((prev) => (prev[date] ? { ...prev, [date]: false } : prev));
+      setSelectedDate(date);
+    },
+    [selectedDate, factsOf]
+  );
+
+  /*
+   * 그날 칸의 줄을 누르면 밑 칸이 그 줄로 바뀐다.
+   *
+   * 좁은 화면에서는 밑 칸이 그날 칸 밑, 화면 밖에 있기 쉽다. 눌렀는데 아무것도
+   * 바뀌지 않은 것처럼 보이지 않게, 밑 칸의 머리가 안 보이면 거기까지 굴려 준다.
+   */
+  const detailRef = useRef<HTMLDivElement>(null);
+  const pickFocus = useCallback((next: DayFocus) => {
+    setFocus(next);
+    if (window.matchMedia('(min-width: 1024px)').matches) return;
+    const el = detailRef.current;
+    if (!el || el.getBoundingClientRect().top < window.innerHeight - 96) return;
+    const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    el.scrollIntoView({ behavior: reduce ? 'auto' : 'smooth', block: 'start' });
   }, []);
 
   /** 달력이 보고 있는 달 (YYYY-MM) */
@@ -235,15 +318,12 @@ export function PitchLogPanel({
   }, [logs]);
 
   /*
-   * 고른 날의 투구 기록.
+   * 고른 날에 대해 이미 아는 것 — 옆 칸과 밑 칸이 같이 쓴다.
    *
-   * 달력이 이미 열세 달치를 들고 있어서 DB 를 다시 묻지 않는다. 하루에 여러 번
-   * 던진 날이 있으므로 하나만 찾지 않고 전부 모은다.
+   * 투구 기록은 달력이 이미 열세 달치를 들고 있어서 DB 를 다시 묻지 않는다. 하루에
+   * 여러 번 던진 날이 있으므로 하나만 찾지 않고 전부 모은다(factsOf).
    */
-  const selectedLogs = useMemo(
-    () => logs.filter((l) => l.date.slice(0, 10) === shownDate),
-    [logs, shownDate]
-  );
+  const shownFacts = useMemo(() => factsOf(shownDate), [factsOf, shownDate]);
 
   return (
     <div className="space-y-3">
@@ -280,68 +360,102 @@ export function PitchLogPanel({
         가렸다. 기록은 받아지는 대로 칸에 채워진다.
       */}
       {view === 'calendar' && (
-        <div className="flex flex-col lg:flex-row lg:items-start">
-          <Card className="min-w-0 lg:flex-1">
-            <MonthCalendar
-              month={month}
-              onMonthChange={setMonth}
-              selected={selectedDate}
-              onSelect={openDay}
-              marks={marks}
+        <div>
+          <div className="flex flex-col lg:flex-row lg:items-start">
+            <Card className="min-w-0 lg:flex-1">
+              {/*
+                날짜를 고르면 칸 높이도 줄어든다(compact) — 옆 칸이 폭을, 밑 칸이
+                높이를 가져가며 캘린더가 자리를 내준다.
+              */}
+              <MonthCalendar
+                month={month}
+                onMonthChange={setMonth}
+                selected={selectedDate}
+                onSelect={openDay}
+                marks={marks}
+                compact={panelOpen}
+              >
+                <span>강도</span>
+                <LegendSwatch className="h-3 w-5 rounded bg-sky/15">낮음</LegendSwatch>
+                <LegendSwatch className="h-3 w-5 rounded bg-sky/40">보통</LegendSwatch>
+                <LegendSwatch className="h-3 w-5 rounded bg-sky/70">높음</LegendSwatch>
+                <LegendSwatch className="h-3 w-5 rounded border border-dashed border-line-strong">
+                  쉬는 날
+                </LegendSwatch>
+                <LegendSwatch className="h-1.5 w-1.5 rounded-full bg-sky-strong">
+                  영상
+                </LegendSwatch>
+              </MonthCalendar>
+            </Card>
+
+            {/*
+              그날 칸.
+
+              넓은 화면: 오른쪽에서 폭이 0 → 32rem 으로 넓어지며 들어온다. 달력은 남는
+              폭을 쓰므로(flex-1) 칸이 넓어지는 만큼 같이 좁아진다 — 칸이 달력을 밀고
+              들어오는 것으로 보인다. 칸 안의 글은 처음부터 제 폭(32rem)으로 그려 두고
+              바깥 틀만 넓어지게 해서, 들어오는 동안 글이 접혔다 펴지며 흔들리지 않는다.
+
+              좁은 화면: 달력 밑에서 높이가 펴진다(grid-rows 0fr → 1fr). 위에 두면
+              달력이 아래로 밀려 내려가, 방금 누른 칸이 화면 밖으로 나간다.
+            */}
+            <div
+              ref={panelRef}
+              aria-hidden={!panelOpen}
+              inert={!panelOpen}
+              className={`grid overflow-hidden transition-[grid-template-rows,width,margin,opacity] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] lg:block lg:shrink-0 ${
+                panelOpen
+                  ? 'mt-4 grid-rows-[1fr] opacity-100 lg:ml-4 lg:mt-0 lg:w-[32rem]'
+                  : 'mt-0 grid-rows-[0fr] opacity-0 lg:ml-0 lg:w-0'
+              }`}
             >
-              <span>강도</span>
-              <LegendSwatch className="h-3 w-5 rounded bg-sky/15">낮음</LegendSwatch>
-              <LegendSwatch className="h-3 w-5 rounded bg-sky/40">보통</LegendSwatch>
-              <LegendSwatch className="h-3 w-5 rounded bg-sky/70">높음</LegendSwatch>
-              <LegendSwatch className="h-3 w-5 rounded border border-dashed border-line-strong">
-                쉬는 날
-              </LegendSwatch>
-              <LegendSwatch className="h-1.5 w-1.5 rounded-full bg-sky-strong">
-                영상
-              </LegendSwatch>
-            </MonthCalendar>
-          </Card>
+              <div className="min-h-0 lg:w-[32rem]">
+                <div
+                  className={`transition-transform duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] ${
+                    panelOpen ? 'translate-x-0' : 'lg:translate-x-8'
+                  }`}
+                >
+                  <DaySummary
+                    date={shownDate}
+                    today={today}
+                    facts={shownFacts}
+                    focus={focus}
+                    onFocus={pickFocus}
+                    onClose={() => setSelectedDate(null)}
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
 
           {/*
-            그날 칸.
+            밑 칸 — 오른쪽에서 누른 줄을 조금 더 자세히. 캘린더와 옆 칸 밑에서 높이가
+            펴지며 나타나고(grid-rows 0fr → 1fr), 닫을 때는 거꾸로 접힌다.
 
-            넓은 화면: 오른쪽에서 폭이 0 → 32rem 으로 넓어지며 들어온다. 달력은 남는
-            폭을 쓰므로(flex-1) 칸이 넓어지는 만큼 같이 좁아진다 — 칸이 달력을 밀고
-            들어오는 것으로 보인다. 칸 안의 글은 처음부터 제 폭(32rem)으로 그려 두고
-            바깥 틀만 넓어지게 해서, 들어오는 동안 글이 접혔다 펴지며 흔들리지 않는다.
-
-            좁은 화면: 달력 밑에서 높이가 펴진다(grid-rows 0fr → 1fr). 위에 두면
-            달력이 아래로 밀려 내려가, 방금 누른 칸이 화면 밖으로 나간다.
+            scroll-mt-20: 좁은 화면에서 여기까지 굴릴 때 위쪽 고정 막대(h-14)에 머리가
+            가리지 않게.
           */}
           <div
-            ref={panelRef}
+            ref={detailRef}
             aria-hidden={!panelOpen}
             inert={!panelOpen}
-            className={`grid overflow-hidden transition-[grid-template-rows,width,margin,opacity] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] lg:block lg:shrink-0 ${
+            className={`grid scroll-mt-20 transition-[grid-template-rows,opacity,margin] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] ${
               panelOpen
-                ? 'mt-4 grid-rows-[1fr] opacity-100 lg:ml-4 lg:mt-0 lg:w-[32rem]'
-                : 'mt-0 grid-rows-[0fr] opacity-0 lg:ml-0 lg:w-0'
+                ? 'mt-4 grid-rows-[1fr] opacity-100'
+                : 'mt-0 grid-rows-[0fr] opacity-0'
             }`}
           >
-            <div className="min-h-0 lg:w-[32rem]">
-              <div
-                className={`transition-transform duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] ${
-                  panelOpen ? 'translate-x-0' : 'lg:translate-x-8'
-                }`}
-              >
-                <DaySummary
-                  date={shownDate}
-                  today={today}
-                  logs={selectedLogs}
-                  training={trainingByDay[shownDate]}
-                  plan={planByDay[shownDate]}
-                  featuredVideo={featuredByDay[shownDate]}
-                  nutrition={nutritionByDay[shownDate]}
-                  checkin={checkinByDay[shownDate]}
-                  hasReport={reportDays.includes(shownDate)}
-                  onClose={() => setSelectedDate(null)}
-                />
-              </div>
+            <div className="min-h-0 overflow-hidden">
+              <DayDetailBlock
+                date={shownDate}
+                today={today}
+                focus={focus}
+                facts={shownFacts}
+                featuredVideo={featuredByDay[shownDate]}
+                detail={details[shownDate] ?? null}
+                failed={failed[shownDate] ?? false}
+                onRetry={() => setFailed((prev) => ({ ...prev, [shownDate]: false }))}
+              />
             </div>
           </div>
         </div>

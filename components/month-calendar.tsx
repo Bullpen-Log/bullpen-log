@@ -50,6 +50,7 @@ export function MonthCalendar({
   selected,
   onSelect,
   marks,
+  compact = false,
   children,
 }: {
   month: Date;
@@ -69,6 +70,11 @@ export function MonthCalendar({
   onSelect: (dateKey: string) => void;
   /** 날짜(YYYY-MM-DD)마다 무엇을 칠할지 */
   marks: Record<string, DayMark>;
+  /**
+   * 칸의 높이를 줄인다. 홈에서 날짜를 골라 옆과 밑에 그날 칸이 펴질 때 쓴다 —
+   * 캘린더가 자리를 내주며 위아래로도 줄어든다(칸 높이가 부드럽게 바뀐다).
+   */
+  compact?: boolean;
   /** 달력 아래 범례 */
   children?: ReactNode;
 }) {
@@ -171,7 +177,7 @@ export function MonthCalendar({
     return () => stage.removeEventListener('transitionend', done);
   }, [monthTime]);
 
-  const grid = { marks, selected, onSelect, todayKey };
+  const grid = { marks, selected, onSelect, todayKey, compact };
 
   return (
     <div className="space-y-4">
@@ -297,12 +303,14 @@ function DayGrid({
   selected,
   onSelect,
   todayKey,
+  compact,
 }: {
   month: Date;
   marks: Record<string, DayMark>;
   selected: string | null;
   onSelect: (dateKey: string) => void;
   todayKey: string;
+  compact: boolean;
 }) {
   const year = month.getFullYear();
   const monthIndex = month.getMonth();
@@ -348,7 +356,9 @@ function DayGrid({
                   : `${monthIndex + 1}월 ${day}일${isToday ? ', 오늘' : ''}, 기록 없음`
             }
             aria-pressed={isSelected}
-            className={`relative flex min-h-[3.25rem] flex-col items-center justify-center gap-0.5 rounded-lg border text-sm transition-colors sm:min-h-[4.5rem] ${
+            className={`relative flex flex-col items-center justify-center gap-0.5 rounded-lg border text-sm transition-[color,background-color,border-color,min-height] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] ${
+              compact ? 'min-h-[2.75rem] sm:min-h-[3.25rem]' : 'min-h-[3.25rem] sm:min-h-[4.5rem]'
+            } ${
               isFuture
                 ? 'cursor-default border-transparent bg-transparent text-muted/35'
                 : isSelected

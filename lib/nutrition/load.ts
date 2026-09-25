@@ -94,7 +94,7 @@ const WEIGHT_DAYS = 30;
 const RECENT_DAYS = 30;
 const RECENT_MAX = 24;
 
-function toProfile(
+export function toProfile(
   row: {
     sex: string | null;
     goal: string;
