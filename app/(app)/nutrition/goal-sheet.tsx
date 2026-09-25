@@ -9,7 +9,6 @@ import {
   PROTEIN_CHOICES,
   SEXES,
   kcalText,
-  litersText,
   type ActivityKey,
   type GoalKey,
   type Sex,
@@ -32,17 +31,6 @@ import type { Origin } from './shared';
  * 하루 칼로리를 직접 정할 수도 있다(팀 영양사가 정해 준 숫자가 있는 선수).
  * 그래도 운동한 날에는 쓴 만큼 더해진다.
  */
-
-const WATER_CHOICES = [
-  { value: 'auto', label: '자동' },
-  { value: '2000', label: '2L' },
-  { value: '2500', label: '2.5L' },
-  { value: '3000', label: '3L' },
-  { value: '3500', label: '3.5L' },
-  { value: '4000', label: '4L' },
-] as const;
-
-type WaterChoice = (typeof WATER_CHOICES)[number]['value'];
 
 /*
  * 고르는 칸의 크기 — 높이 44px(손가락 끝 하나), 글자도 한 단계 크게.
@@ -76,17 +64,12 @@ export function GoalSheet({
   const [kcal, setKcal] = useState(
     profile.kcalTarget ? String(profile.kcalTarget) : ''
   );
-  const [water, setWater] = useState<WaterChoice>(() => {
-    const hit = WATER_CHOICES.find((w) => w.value === String(profile.waterGoalMl));
-    return hit ? hit.value : 'auto';
-  });
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
   const kcalNum = Number(kcal);
   const kcalTarget =
     manual && kcal.trim() !== '' && Number.isFinite(kcalNum) ? kcalNum : null;
-  const waterGoalMl = water === 'auto' ? null : Number(water);
 
   const draft: ProfileSettings = {
     sex,
@@ -94,7 +77,6 @@ export function GoalSheet({
     activity,
     proteinPerKg: protein,
     kcalTarget,
-    waterGoalMl,
   };
   const preview = computeTargets(draft, body, 0);
   const auto = computeTargets({ ...draft, kcalTarget: null }, body, 0);
@@ -183,18 +165,6 @@ export function GoalSheet({
           />
         </Row>
 
-        <Row label="물">
-          <Segmented
-            label="물 목표"
-            layout="flow"
-            size="md"
-            itemClassName="min-h-11 px-4"
-            value={water}
-            onChange={setWater}
-            options={WATER_CHOICES}
-          />
-        </Row>
-
         <div className="space-y-2">
           {/*
             줄 전체가 스위치다. 예전에는 16px 체크 상자 하나라 손가락으로 맞히기
@@ -245,7 +215,7 @@ export function GoalSheet({
             <Stat label="지방" value={`${preview.fat}g`} />
           </dl>
           <p className="text-xs leading-relaxed text-muted">
-            기초대사량 {kcalText(preview.bmr)}kcal · 물 {litersText(preview.waterMl)}L
+            기초대사량 {kcalText(preview.bmr)}kcal
             <br />
             계산에 쓴 몸: {bodyLine}
             {assumed.some((a) => a !== 'sex') && ' — 내 정보에서 채우면 더 정확해져요.'}

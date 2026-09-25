@@ -80,10 +80,6 @@ export const PROTEIN_CHOICES = [1.6, 1.8, 2.0, 2.2] as const;
 export const PROTEIN_MIN = 1.2;
 export const PROTEIN_MAX = 2.5;
 
-/** 물 한 잔 */
-export const WATER_CUP_ML = 250;
-export const WATER_MAX_ML = 8000;
-
 /**
  * 먹은 양(인분). 버튼으로는 ¼ 인분씩 오르내리지만, 그램으로 적으면 더 잘게
  * 나뉜다(1인분 200g 에 20g → 0.1 인분). 그래서 바닥을 0.05 로 둔다.
@@ -190,12 +186,6 @@ export function amountText(amount: number) {
   const frac: Record<number, string> = { 0.25: '¼', 0.5: '½', 0.75: '¾' };
   if (frac[amount]) return `${frac[amount]}인분`;
   return `${Number.isInteger(amount) ? amount : amount.toFixed(2).replace(/0$/, '')}인분`;
-}
-
-/** 물의 양 — 0 · 1.25 · 2.5 · 3 (L). 끝의 0 은 떼되, 0 자체는 남긴다. */
-export function litersText(ml: number) {
-  const l = Math.round(ml / 10) / 100;
-  return Number.isInteger(l) ? String(l) : l.toFixed(2).replace(/0$/, '');
 }
 
 /** 칼로리 숫자 — 1,234 */

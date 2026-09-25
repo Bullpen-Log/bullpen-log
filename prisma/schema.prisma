@@ -833,8 +833,6 @@ model NutritionProfile {
   proteinPerKg Float    @default(1.8)
   /// 직접 정한 하루 칼로리(운동 전). 있으면 계산값 대신 쓴다.
   kcalTarget   Int?
-  /// 하루 물 목표(ml). 비어 있으면 체중으로 계산한다.
-  waterGoalMl  Int?
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
   user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -899,16 +897,18 @@ model UserFood {
   @@index([userId])
 }
 
-/// 하루의 물과 체중.
+/// 하루의 체중 — 영양 탭에서 적는다.
 ///
 /// 체중은 상세 체크인에도 적을 수 있다(DailyCheckin.bodyWeightKg). 영양 탭은
 /// 이 줄을 먼저 보고, 없으면 그날 체크인의 값을 쓴다. 체크인 줄은 어깨·컨디션
 /// 같은 필수 칸이 있어서 체중만 따로 넣을 수 없다.
+///
+/// 물 기록(waterMl)과 물 목표(NutritionProfile.waterGoalMl)는 영양 탭에서 물을 빼며
+/// 지웠다(2026-09-25).
 model DailyNutrition {
   id        String   @id @default(uuid())
   userId    String
   date      DateTime @db.Date
-  waterMl   Int      @default(0)
   weightKg  Float?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

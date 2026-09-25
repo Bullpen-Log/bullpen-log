@@ -24,7 +24,7 @@ import {
 } from '../lib/nutrition/foods.ts';
 import { itemsOf, toFood } from '../lib/nutrition/mfds-parse.ts';
 import { isNutritionDate } from '../lib/nutrition/days.ts';
-import { amountText, litersText, scaleMacros } from '../lib/nutrition/meta.ts';
+import { amountText, scaleMacros } from '../lib/nutrition/meta.ts';
 
 let passed = 0;
 let failed = 0;
@@ -59,7 +59,6 @@ console.log('\n■ 목표 계산');
     Math.abs(t.carbs * 4 + t.protein * 4 + t.fat * 9 - t.kcal) <= 4,
     `${t.carbs}g`
   );
-  check('물 = 체중 × 35ml, 250 단위', t.waterMl === 2750, `${t.waterMl}ml`);
   check('짐작한 것 없음', t.assumed.length === 0);
 
   const worked = computeTargets(profile, body, 300);
@@ -71,7 +70,6 @@ console.log('\n■ 목표 계산');
     '더 먹을 몫은 탄수화물로 간다',
     worked.carbs > t.carbs && worked.protein === t.protein
   );
-  check('운동한 날 물 +500', worked.waterMl === 3250, `${worked.waterMl}ml`);
 
   const gain = computeTargets({ ...profile, goal: 'gain' }, body, 0);
   const lose = computeTargets({ ...profile, goal: 'lose' }, body, 0);
@@ -274,13 +272,6 @@ console.log('\n■ 날짜와 양');
   check('½인분', amountText(0.5) === '½인분');
   check('1.5인분', amountText(1.5) === '1.5인분');
   check('0.1인분(그램으로 적은 것)', amountText(0.1) === '0.1인분');
-  check(
-    '물 — 0L · 2.5L · 3L · 2.75L (0 을 지우지 않는다)',
-    litersText(0) === '0' &&
-      litersText(2500) === '2.5' &&
-      litersText(3000) === '3' &&
-      litersText(2750) === '2.75'
-  );
   const m = scaleMacros({ kcal: 100, carbs: null, protein: 10, fat: null }, 1.5);
   check(
     '모르는 영양소는 0 으로 더한다',

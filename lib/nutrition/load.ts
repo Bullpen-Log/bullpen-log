@@ -54,7 +54,6 @@ export type NutritionDay = {
   targets: Targets;
   burnItems: BurnItem[];
   entries: MealEntryView[];
-  waterMl: number;
   /** 그날 적은 체중과 어디서 왔나 */
   weightKg: number | null;
   weightFrom: 'nutrition' | 'checkin' | null;
@@ -108,7 +107,6 @@ export function toProfile(
     activity: string;
     proteinPerKg: number;
     kcalTarget: number | null;
-    waterGoalMl: number | null;
   } | null
 ): ProfileSettings {
   if (!row) return DEFAULT_PROFILE;
@@ -118,7 +116,6 @@ export function toProfile(
     activity: isActivityKey(row.activity) ? row.activity : DEFAULT_PROFILE.activity,
     proteinPerKg: row.proteinPerKg,
     kcalTarget: row.kcalTarget,
-    waterGoalMl: row.waterGoalMl,
   };
 }
 
@@ -159,7 +156,7 @@ export async function loadNutritionDay(
     }),
     prisma.dailyNutrition.findMany({
       where: { userId, date: { gte: dbDate(weightStart), lte: dbDate(date) } },
-      select: { date: true, waterMl: true, weightKg: true },
+      select: { date: true, weightKg: true },
     }),
     prisma.dailyCheckin.findMany({
       where: {
@@ -342,8 +339,6 @@ export async function loadNutritionDay(
     note: f.source === 'mfds' ? '식약처' : f.source === 'basic' ? '기본' : undefined,
   }));
 
-  const day = dailyRows.find((d) => keyOfDbDate(d.date) === date);
-
   return {
     date,
     profile,
@@ -351,7 +346,6 @@ export async function loadNutritionDay(
     targets,
     burnItems,
     entries,
-    waterMl: day?.waterMl ?? 0,
     weightKg: today?.kg ?? null,
     weightFrom: today?.from ?? null,
     week,

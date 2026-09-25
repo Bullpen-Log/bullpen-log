@@ -1,14 +1,13 @@
 import {
   ACTIVITIES,
   GOALS,
-  WATER_CUP_ML,
   type ActivityKey,
   type GoalKey,
   type Sex,
 } from '@/lib/nutrition/meta';
 
 /**
- * 하루 목표 — 칼로리, 탄수화물·단백질·지방, 물.
+ * 하루 목표 — 칼로리, 탄수화물·단백질·지방.
  *
  * 저장하지 않고 볼 때마다 계산한다. 체중이 바뀌면 목표도 따라 바뀌어야 하고,
  * 운동한 날은 쓴 만큼 더 먹어야 하기 때문이다.
@@ -31,7 +30,6 @@ export type ProfileSettings = {
   proteinPerKg: number;
   /** 직접 정한 운동 전 하루 칼로리 */
   kcalTarget: number | null;
-  waterGoalMl: number | null;
 };
 
 export const DEFAULT_PROFILE: ProfileSettings = {
@@ -40,7 +38,6 @@ export const DEFAULT_PROFILE: ProfileSettings = {
   activity: 'mid',
   proteinPerKg: 1.8,
   kcalTarget: null,
-  waterGoalMl: null,
 };
 
 export type Body = {
@@ -71,7 +68,6 @@ export type Targets = {
   protein: number;
   fat: number;
   carbs: number;
-  waterMl: number;
   /** 계산에 쓴 체중 */
   weightKg: number;
   assumed: Assumed[];
@@ -105,7 +101,6 @@ export function basalKcal(
 }
 
 const round10 = (n: number) => Math.round(n / 10) * 10;
-const roundTo = (n: number, step: number) => Math.round(n / step) * step;
 
 export function computeTargets(
   profile: ProfileSettings,
@@ -131,13 +126,6 @@ export function computeTargets(
   const fat = Math.round(Math.max((kcal * 0.25) / 9, 0.8 * weightKg));
   const carbs = Math.max(0, Math.round((kcal - protein * 4 - fat * 9) / 4));
 
-  /*
-   * 물: 체중 1kg 당 35ml, 운동한 날은 500ml 더. 한 잔(250ml) 단위로 맞춰
-   * 화면의 잔 수와 딱 떨어지게 한다.
-   */
-  const waterMl =
-    profile.waterGoalMl ?? roundTo(weightKg * 35 + (burn > 0 ? 500 : 0), WATER_CUP_ML);
-
   return {
     bmr,
     base,
@@ -146,7 +134,6 @@ export function computeTargets(
     protein,
     fat,
     carbs,
-    waterMl,
     weightKg,
     assumed,
     manual,

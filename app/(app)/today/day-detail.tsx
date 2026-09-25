@@ -7,7 +7,6 @@ import { formatSpeed } from '@/lib/units';
 import { useSpeedUnit } from '@/components/use-units';
 import { usePlaybackUrls } from '@/components/use-playback-urls';
 import { REST_SESSION_TYPE } from '@/lib/session-type';
-import { litersText } from '@/lib/nutrition/meta';
 import type { Log } from '@/app/(app)/pitch-log/types';
 import type { PlanDaySummary } from '@/lib/report/training-history';
 import type { DayDetail } from '@/lib/day-detail';
@@ -373,7 +372,7 @@ const MACROS = [
 ] as const;
 
 function NutritionDetail({ n }: { n: DayDetail['nutrition'] }) {
-  if (n.meals.length === 0 && n.waterMl === 0) {
+  if (n.meals.length === 0) {
     return <Empty>이 날 먹은 것을 아직 안 적었어요.</Empty>;
   }
   const pct = (v: number, of: number) =>
@@ -382,18 +381,13 @@ function NutritionDetail({ n }: { n: DayDetail['nutrition'] }) {
   return (
     <div className="space-y-4">
       <div className="space-y-2">
-        <p className="flex items-baseline justify-between gap-2 text-sm">
-          <span>
-            <b className="text-lg font-bold tabular-nums text-ink">
-              {n.kcal.toLocaleString('ko-KR')}
-            </b>
-            <span className="text-muted">
-              {' '}
-              / {n.target.kcal.toLocaleString('ko-KR')}kcal
-            </span>
-          </span>
-          <span className="text-xs text-muted">
-            물 {litersText(n.waterMl)} / {litersText(n.target.waterMl)}L
+        <p className="text-sm">
+          <b className="text-lg font-bold tabular-nums text-ink">
+            {n.kcal.toLocaleString('ko-KR')}
+          </b>
+          <span className="text-muted">
+            {' '}
+            / {n.target.kcal.toLocaleString('ko-KR')}kcal
           </span>
         </p>
         <div className="h-2 overflow-hidden rounded-full bg-surface-2">

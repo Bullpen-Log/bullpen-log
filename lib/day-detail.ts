@@ -32,9 +32,7 @@ export type DayDetail = {
       carbs: number;
       protein: number;
       fat: number;
-      waterMl: number;
     };
-    waterMl: number;
     /** 끼니별 — 먹은 것이 있는 끼니만 */
     meals: {
       meal: MealKey;
@@ -165,9 +163,7 @@ export async function loadDayDetail(user: UserBody, date: string): Promise<DayDe
         carbs: targets.carbs,
         protein: targets.protein,
         fat: targets.fat,
-        waterMl: targets.waterMl,
       },
-      waterMl: daily?.waterMl ?? 0,
       meals: MEALS.map((m) => byMeal.get(m.key))
         .filter((m): m is NonNullable<typeof m> => m != null)
         .map((m) => ({ ...m, kcal: Math.round(m.kcal) })),

@@ -12,7 +12,6 @@ import {
   MACRO_MAX,
   PROTEIN_MAX,
   PROTEIN_MIN,
-  WATER_MAX_ML,
   isActivityKey,
   isGoalKey,
   isMealKey,
@@ -177,26 +176,6 @@ export async function deleteMealEntry(id: string): Promise<NutritionResult> {
   return { ok: true };
 }
 
-/** 물 — 잔 수를 누를 때마다 전체 양을 통째로 보낸다(더하기가 아니라 덮어쓰기) */
-export async function setWater(
-  date: string,
-  waterMl: number
-): Promise<NutritionResult> {
-  const user = await getCurrentUser();
-  if (!user) return NEED_LOGIN;
-  if (!isNutritionDate(date)) return BAD_DATE;
-  if (!isNum(waterMl)) return { ok: false, error: '물의 양이 올바르지 않습니다.' };
-  const ml = Math.min(WATER_MAX_ML, Math.max(0, Math.round(waterMl)));
-
-  await prisma.dailyNutrition.upsert({
-    where: { userId_date: { userId: user.id, date: dbDate(date) } },
-    update: { waterMl: ml },
-    create: { userId: user.id, date: dbDate(date), waterMl: ml },
-  });
-  revalidatePath(PATH);
-  return { ok: true };
-}
-
 /** 체중(kg). null 이면 그날 적은 것을 지운다. */
 export async function setWeight(
   date: string,
@@ -296,7 +275,6 @@ export type ProfileInput = {
   activity: string;
   proteinPerKg: number;
   kcalTarget: number | null;
-  waterGoalMl: number | null;
 };
 
 export async function saveNutritionProfile(
@@ -331,17 +309,6 @@ export async function saveNutritionProfile(
     }
     kcalTarget = Math.round(input.kcalTarget);
   }
-  let waterGoalMl: number | null = null;
-  if (input.waterGoalMl !== null) {
-    if (
-      !isNum(input.waterGoalMl) ||
-      input.waterGoalMl < 500 ||
-      input.waterGoalMl > WATER_MAX_ML
-    ) {
-      return { ok: false, error: '물 목표는 500~8,000ml 사이로 적어 주세요.' };
-    }
-    waterGoalMl = Math.round(input.waterGoalMl);
-  }
 
   const data = {
     sex,
@@ -349,7 +316,6 @@ export async function saveNutritionProfile(
     activity: input.activity,
     proteinPerKg: Math.round(input.proteinPerKg * 10) / 10,
     kcalTarget,
-    waterGoalMl,
   };
   await prisma.nutritionProfile.upsert({
     where: { userId: user.id },

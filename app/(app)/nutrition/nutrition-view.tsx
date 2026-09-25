@@ -17,7 +17,6 @@ import {
   ChevronRight,
   ChevronsLeft,
   ChevronsRight,
-  Droplet,
   Minus,
   Plus,
   Settings2,
@@ -33,12 +32,9 @@ import { NUTRITION_BACK_DAYS } from '@/lib/nutrition/days';
 import {
   AMOUNT_MAX,
   MEALS,
-  WATER_CUP_ML,
-  WATER_MAX_ML,
   amountText,
   entryMacros,
   kcalText,
-  litersText,
   mealLabel,
   sumMacros,
   type Food,
@@ -50,7 +46,6 @@ import type { DaySummary, NutritionDay } from '@/lib/nutrition/load';
 import {
   addMealEntries,
   deleteMealEntry,
-  setWater,
   setWeight,
   updateMealAmount,
   type NutritionResult,
@@ -67,7 +62,7 @@ import { EASE, originOf, toFoodInput, type Origin } from './shared';
  * 그 밑에 끼니 넷을 둔다. 끼니를 누르면 음식 찾는 창이 뜬다 — 인아웃을 써 본
  * 사람들이 가장 좋다고 꼽은 것이 '끼니별 큰 버튼 넷, 깊이 들어가지 않는 기록'이었다.
  *
- * 누르면 바로 바뀐다. 음식을 담거나 물 한 잔을 채우면 화면을 먼저 바꾸고 저장은
+ * 누르면 바로 바뀐다. 음식을 담거나 양을 고치면 화면을 먼저 바꾸고 저장은
  * 뒤에서 한다(useOptimistic). 저장이 실패하면 원래대로 돌아가고 까닭을 띄운다.
  */
 
@@ -102,10 +97,6 @@ export function NutritionView({ day, today }: { day: NutritionDay; today: string
   useArrowKeys(day.date, today);
   const [, startTransition] = useTransition();
   const [entries, applyEntries] = useOptimistic(day.entries, reduceEntries);
-  const [water, applyWater] = useOptimistic(
-    day.waterMl,
-    (_: number, next: number) => next
-  );
   const [error, setError] = useState<string | null>(null);
   /*
    * 창은 닫아도 곧바로 치우지 않는다(open 만 끈다). 치워 버리면 닫히는 움직임 없이
@@ -180,15 +171,6 @@ export function NutritionView({ day, today }: { day: NutritionDay; today: string
     startTransition(async () => {
       applyEntries({ type: 'delete', id });
       report(await deleteMealEntry(id));
-    });
-  }
-
-  function changeWater(ml: number) {
-    const next = Math.min(WATER_MAX_ML, Math.max(0, ml));
-    setError(null);
-    startTransition(async () => {
-      applyWater(next);
-      report(await setWater(day.date, next));
     });
   }
 
@@ -276,7 +258,6 @@ export function NutritionView({ day, today }: { day: NutritionDay; today: string
 
         <div className="space-y-5">
           <BurnCard day={day} />
-          <WaterCard water={water} goal={t.waterMl} onChange={changeWater} />
           <WeightCard day={day} />
           <Card className="space-y-3">
             <div className="flex items-baseline justify-between gap-2">
@@ -1024,84 +1005,6 @@ function BurnCard({ day }: { day: NutritionDay }) {
           ))}
         </ul>
       )}
-    </Card>
-  );
-}
-
-/* ─────────────────────────── 물 ─────────────────────────── */
-
-function WaterCard({
-  water,
-  goal,
-  onChange,
-}: {
-  water: number;
-  goal: number;
-  onChange: (ml: number) => void;
-}) {
-  const cups = Math.min(16, Math.max(4, Math.ceil(goal / WATER_CUP_ML)));
-  const filled = Math.floor(water / WATER_CUP_ML);
-  const liters = litersText;
-
-  return (
-    <Card className="space-y-3">
-      <div className="flex items-baseline justify-between gap-2">
-        <h2 className="text-sm font-bold text-ink">물</h2>
-        <p className="text-sm tabular-nums text-muted">
-          <b className="font-semibold text-ink">{liters(water)}L</b> / {liters(goal)}L
-        </p>
-      </div>
-      <div
-        className="flex flex-wrap gap-1.5"
-        role="group"
-        aria-label="마신 물(한 잔 250ml)"
-      >
-        {Array.from({ length: cups }, (_, i) => {
-          const full = i < filled;
-          return (
-            <button
-              key={i}
-              type="button"
-              aria-label={`${i + 1}잔${full ? ' — 마심' : ''}`}
-              aria-pressed={full}
-              /* 채워진 마지막 잔을 다시 누르면 한 잔 뺀다 */
-              onClick={() =>
-                onChange(i + 1 === filled ? i * WATER_CUP_ML : (i + 1) * WATER_CUP_ML)
-              }
-              className={`flex h-9 w-8 items-center justify-center rounded-lg border transition-[background-color,border-color,color,transform] duration-200 motion-safe:active:scale-90 ${
-                full
-                  ? 'border-sky bg-sky text-white'
-                  : 'border-line bg-surface-2 text-line-strong hover:border-sky hover:text-sky'
-              }`}
-              style={{ transitionDelay: full ? `${Math.min(i, 8) * 12}ms` : '0ms' }}
-            >
-              <Droplet
-                aria-hidden
-                className="h-4 w-4"
-                fill={full ? 'currentColor' : 'none'}
-              />
-            </button>
-          );
-        })}
-      </div>
-      <div className="flex items-center gap-2">
-        <button
-          type="button"
-          onClick={() => onChange(water - WATER_CUP_ML)}
-          disabled={water <= 0}
-          className="flex h-9 flex-1 items-center justify-center gap-1 rounded-xl border border-line text-sm text-muted transition-colors hover:border-line-strong hover:text-ink disabled:opacity-40"
-        >
-          <Minus aria-hidden className="h-4 w-4" /> 한 잔
-        </button>
-        <button
-          type="button"
-          onClick={() => onChange(water + WATER_CUP_ML)}
-          disabled={water >= WATER_MAX_ML}
-          className="flex h-9 flex-1 items-center justify-center gap-1 rounded-xl bg-sky text-sm font-semibold text-white transition-colors hover:bg-sky-strong disabled:opacity-40"
-        >
-          <Plus aria-hidden className="h-4 w-4" /> 한 잔(250ml)
-        </button>
-      </div>
     </Card>
   );
 }
