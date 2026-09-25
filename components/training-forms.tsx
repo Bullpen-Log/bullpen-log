@@ -5,6 +5,7 @@ import { useFormStatus } from 'react-dom';
 import { RefreshCw, Sparkles } from 'lucide-react';
 import { CheckboxGroup, RadioGroup } from '@/components/choice-inputs';
 import { Segmented } from '@/components/segmented';
+import { OpenCheckinButton } from '@/components/notice-bell';
 import { SELECTABLE_EQUIPMENT } from '@/lib/report/equipment';
 import {
   TRAINING_GOALS,
@@ -144,7 +145,7 @@ export function PlanForm({
    * 체크인이 없을 때 '체크인 먼저' 안에 놓을 것 — 그 자리에서 체크인 창을 여는 단추.
    *
    * 트레이닝 화면이 넘긴다. 이 폼은 체크인 창을 모른다 — 창에 들어갈 재료(부위
-   * 목록)는 화면 쪽이 들고 있다. 안 넘기면(홈) 체크인 상자가 있는 자리를 말로 알린다.
+   * 목록)는 화면 쪽이 들고 있다. 안 넘기면 알림(종)의 체크인 창을 여는 단추를 둔다.
    */
   checkinAction?: React.ReactNode;
 }) {
@@ -244,16 +245,14 @@ export function PlanForm({
           (app/(app)/training/training-checkin.tsx). 예전에는 홈으로 보내서, 홈에서
           체크인하고 다시 돌아와 만들기를 눌러야 했다.
 
-          홈에서는 이 폼 자체가 창 안에 있고, 체크인 상자가 같은 화면에 있다. 이 창을
-          닫으면 바로 보이는 자리라 위치를 말한다. '첫 번째 상자'라고 하지 않는다 —
-          홈 맨 위에 투구 달력이 올라오면서(2026-09-24) 첫 번째로 보이는 것이
-          체크인이 아니게 됐다. 상자가 든 묶음 이름('오늘 할 일')으로 가리키면 순서가
-          바뀌어도 맞는다.
+          단추를 안 넘긴 곳에서는 그 자리에서 체크인 창을 여는 단추를 둔다. 예전에는
+          홈의 '오늘 할 일' 상자로 가라고 말했는데, 그 상자가 오른쪽 위 알림(종)으로
+          옮겨 가면서 말할 자리가 없어졌다 — 창은 어디서나 같은 것이 뜬다.
         */}
         {checkinAction ?? (
-          <p className="text-[13px] font-medium leading-relaxed text-ink">
-            이 창을 닫고 ‘오늘 할 일’의 ‘오늘 체크인’에서 남길 수 있습니다.
-          </p>
+          <OpenCheckinButton className="min-h-10 rounded-xl bg-sky px-4 text-sm font-semibold text-white transition-colors hover:bg-sky-strong">
+            오늘 체크인하기
+          </OpenCheckinButton>
         )}
       </div>
     );

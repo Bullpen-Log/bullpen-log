@@ -1,4 +1,3 @@
-import Link from 'next/link';
 import { createPlaybackUrls } from '@/lib/storage';
 import { referenceThumbUrl } from '@/lib/reference-video';
 import { formatPrescription } from '@/lib/exercise-meta';
@@ -8,6 +7,7 @@ import { ARMCARE_CATEGORY } from '@/lib/armcare/anatomy';
 import { loadArmcareToday, type UserForArmcare } from '@/lib/armcare/today';
 import { armcareBlock } from '@/lib/armcare/routine';
 import { Card } from '@/components/ui';
+import { OpenCheckinButton } from '@/components/notice-bell';
 import { ArmcareToday, type ArmcareTodayItem } from './armcare-today';
 import { ArmcareGuide } from './armcare-guide';
 import { ArmcareMethods } from './armcare-methods';
@@ -79,9 +79,9 @@ export async function ArmcareSection({
         </p>
         <p className="text-sm leading-relaxed break-keep text-warn">
           통증이 아니었다면{' '}
-          <Link href="/today" className="font-semibold underline">
-            홈의 오늘 체크인
-          </Link>
+          <OpenCheckinButton className="font-semibold underline">
+            오늘 체크인
+          </OpenCheckinButton>
           에서 상태를 고쳐주세요.
         </p>
       </Card>

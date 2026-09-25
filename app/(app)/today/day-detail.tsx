@@ -6,6 +6,7 @@ import { ArrowRight, Check, Circle, Film, StickyNote } from 'lucide-react';
 import { formatSpeed } from '@/lib/units';
 import { useSpeedUnit } from '@/components/use-units';
 import { usePlaybackUrls } from '@/components/use-playback-urls';
+import { OpenCheckinButton } from '@/components/notice-bell';
 import { REST_SESSION_TYPE } from '@/lib/session-type';
 import type { Log } from '@/app/(app)/pitch-log/types';
 import type { PlanDaySummary } from '@/lib/report/training-history';
@@ -68,7 +69,7 @@ function tabLink(
         label: opts.empty ? '영상 탭으로' : '영상 탭에서 보기',
       };
     case 'checkin':
-      /* 체크인은 따로 탭이 없다 — 오늘 것은 홈 위쪽 체크인 상자에서 고친다 */
+      /* 체크인은 따로 탭이 없다 — 오늘 것은 오른쪽 위 알림(종)의 체크인 창에서 고친다 */
       return null;
   }
 }
@@ -461,7 +462,14 @@ function CheckinDetail({ c, isToday }: { c: DayDetail['checkin']; isToday: boole
     return (
       <Empty>
         이 날 체크인이 없어요.
-        {isToday && ' 홈 위쪽 체크인 상자에서 남길 수 있어요.'}
+        {isToday && (
+          <>
+            {' '}
+            <OpenCheckinButton className="font-semibold text-sky underline">
+              지금 체크인하기
+            </OpenCheckinButton>
+          </>
+        )}
       </Empty>
     );
   }

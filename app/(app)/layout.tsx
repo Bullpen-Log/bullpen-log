@@ -43,13 +43,22 @@ export default async function AppLayout({ children }: { children: React.ReactNod
    * 체크인 관문에 줄 것 — 최근 체크인과, 상세 체크인에서 고를 운동 부위.
    * 운동 목록은 누가 보든 같아서 캐시에서 꺼낸다(lib/library-cache.ts).
    */
-  const [avatarUrl, recentCheckins, library] = await Promise.all([
+  /*
+   * 오른쪽 위 알림(종)에 줄 것 — 최근 며칠 동안 투구를 남긴 날. 날짜만 읽는다.
+   * 같은 날 여러 번 남겼어도 한 줄이면 된다(distinct). 체크인은 위 목록을 같이 쓴다.
+   */
+  const [avatarUrl, recentCheckins, library, recentPitchDays] = await Promise.all([
     createAvatarUrl(user.avatarPath),
     prisma.dailyCheckin.findMany({
       where: { userId: user.id, date: { gte: checkinWindowStart() } },
       orderBy: { date: 'desc' },
     }),
     visibleExercises(),
+    prisma.pitchLog.findMany({
+      where: { userId: user.id, date: { gte: checkinWindowStart() } },
+      select: { date: true },
+      distinct: ['date'],
+    }),
   ]);
   const gateCheckins: CheckinData[] = recentCheckins.map((c) => ({
     date: c.date.toISOString().slice(0, 10),
@@ -102,6 +111,18 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           ownedEquipment: user.ownedEquipment,
         }}
         today={todayKey()}
+        /*
+         * 알림(종) — 오늘 체크인·투구 기록을 했나. '오늘'은 화면이 사용자 시계로 정하므로
+         * 여기서는 최근 며칠의 목록만 준다(자정을 넘겨도 서버를 다시 부르지 않고 맞다).
+         * 체크인을 저장하면 레이아웃을 새로 그리고(app/actions/checkin.ts), 투구를 남기면
+         * 화면이 router.refresh 로 새로 받는다 — 둘 다 이 목록이 곧바로 새로워진다.
+         */
+        todo={{
+          checkinDays: gateCheckins.map((c) => c.date),
+          pitchDays: recentPitchDays.map((p) => p.date.toISOString().slice(0, 10)),
+          recentCheckins: gateCheckins,
+          parts: availableParts(library),
+        }}
       />
 
       {/*

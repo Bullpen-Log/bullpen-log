@@ -3,6 +3,7 @@
 import {
   useEffect,
   useEffectEvent,
+  useId,
   useLayoutEffect,
   useRef,
   useState,
@@ -21,6 +22,14 @@ import { BaseballMark } from '@/components/logo';
 import { Modal } from '@/components/modal';
 import { ProfilePanel, type ProfileData } from '@/components/profile-panel';
 import { SettingsPanel, type SettingsData } from '@/components/settings-panel';
+import { CheckinForm, type CheckinData } from '@/components/checkin-form';
+import {
+  NoticeBellButton,
+  NoticePanel,
+  OPEN_CHECKIN_EVENT,
+  type NoticeState,
+} from '@/components/notice-bell';
+import { useTodayKey } from '@/components/use-today-key';
 import {
   isPlainClick,
   thumbStyle,
@@ -43,11 +52,13 @@ function useIsActive() {
  * 지나가는 커서(40px 짜리 격자를 0.05초 남짓에 지난다)에는 걸리지 않는 길이다.
  * 지나가다 걸리면 가려던 아이콘이 눈앞에서 도크로 날아가 버린다.
  *
- * 떠날 때는 0.22초를 기다린다. 격자에서 그 밑의 도크로 커서를 옮기는 동안 잠깐
- * 둘 다에서 벗어나는데, 그 틈에 닫히면 도크에 닿을 수가 없다.
+ * 떠날 때는 0.14초를 기다린다. 격자에서 그 밑의 도크로 커서를 옮기는 동안 잠깐
+ * 둘 다에서 벗어나는데(6px 틈), 그 틈에 닫히면 도크에 닿을 수가 없다. 예전에는
+ * 0.22초였는데 닫는 것이 굼뜨다는 말을 들었다(2026-09-26) — 틈을 지나는 데는
+ * 0.1초면 넉넉하다. 닫는 연출 자체도 빨라졌다(globals.css 의 dock-bar).
  */
 const DOCK_OPEN_MS = 100;
-const DOCK_CLOSE_MS = 220;
+const DOCK_CLOSE_MS = 140;
 
 /**
  * 격자·도크 위에 커서를 이만큼 두면 판(이름까지 있는 전체 메뉴)이 저절로 열린다.
@@ -109,8 +120,11 @@ function growStyle(name: string, order: number): CSSProperties {
  */
 const REST_THUMB = { viewTransitionName: 'nav-thumb' } as CSSProperties;
 
-/** 격자 단추를 못 잰 경우의 도크 자리 — 지금 막대 크기로 셈한 값 */
-const DOCK_FALLBACK: Anchor = { top: 66, right: 120 };
+/**
+ * 격자 단추를 못 잰 경우의 도크 자리 — 지금 막대 크기로 셈한 값.
+ * 격자 오른쪽에 종(32px)이 들어서며 격자 한가운데가 오른쪽 끝에서 34px 멀어졌다.
+ */
+const DOCK_FALLBACK: Anchor = { top: 66, right: 154 };
 
 /**
  * 점(x, y)이 요소의 네모 안에 있는가.
@@ -161,6 +175,7 @@ export function AppNav({
   profile,
   settings,
   today,
+  todo,
 }: {
   /** 도크와 판에 펼칠 전체 목록 */
   groups: NavGroup[];
@@ -182,6 +197,17 @@ export function AppNav({
   settings: SettingsData;
   /** 오늘 날짜(YYYY-MM-DD) — 생년월일에서 앞날을 못 고르게 막는 데 쓴다 */
   today: string;
+  /**
+   * 알림(종)에 쓸 것 — 최근 며칠 동안 체크인한 날·투구를 남긴 날(YYYY-MM-DD), 그리고
+   * 종에서 여는 체크인 창이 오늘 것을 채울 최근 체크인과 고를 수 있는 운동 부위.
+   * 체크인 관문에 주는 것과 같은 재료라 레이아웃이 더 묻지 않는다.
+   */
+  todo: {
+    checkinDays: string[];
+    pitchDays: string[];
+    recentCheckins: CheckinData[];
+    parts: string[];
+  };
 }) {
   const isActive = useIsActive();
   const pathname = usePathname();
@@ -204,6 +230,9 @@ export function AppNav({
   const [anchor, setAnchor] = useState<Anchor | null>(null);
   const [profileOpen, setProfileOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  /* 알림(종)의 작은 창, 그리고 거기서 여는 오늘 체크인 창 */
+  const [bellOpen, setBellOpen] = useState(false);
+  const [checkinOpen, setCheckinOpen] = useState(false);
 
   /*
    * 지금 있는 자리와, 돌고 있는 연출, 그 연출이 끝나면 가야 할 곳.
@@ -279,6 +308,8 @@ export function AppNav({
     place.current = to;
     setOpen(to === 'sheet');
     setDock(to === 'dock');
+    /* 메뉴가 막대를 떠나면 알림 창은 닫는다 — 도크·판이 그 자리를 덮는다 */
+    if (to !== 'bar') setBellOpen(false);
   };
 
   /*
@@ -335,6 +366,8 @@ export function AppNav({
     flushSync(() => {
       setChoreo(kind);
       if (to === 'dock') setAnchor(measureAnchor());
+      /* 알림 창은 옛 모습이 찍히기 전에 닫는다 — 찍히면 연출 내내 막대에 매달려 있다 */
+      if (to !== 'bar') setBellOpen(false);
     });
 
     const vt = document.startViewTransition(() => {
@@ -617,7 +650,7 @@ export function AppNav({
    * 본다(useEffectEvent). 값이 바뀔 때마다 다시 걸면 창을 열고 닫을 때마다
    * 리스너가 갈린다.
    */
-  const modalOpen = settingsOpen || profileOpen;
+  const modalOpen = settingsOpen || profileOpen || checkinOpen;
   const onOutside = useEffectEvent((e: PointerEvent) => {
     if (modalOpen) return;
     const t = e.target as Node;
@@ -737,6 +770,113 @@ export function AppNav({
     show(true);
   };
 
+  /* ── 알림(종) — 오늘 아직 안 한 것 ─────────────────────────────── */
+
+  /*
+   * 오늘이 무슨 날인지는 브라우저가 정한다(1분마다·앱을 다시 볼 때마다). 레이아웃은
+   * 최근 며칠의 '한 날' 목록만 준다 — 밤새 켜 둔 탭도 자정이 지나면 서버를 부르지 않고
+   * 새날의 할 일을 켠다. 처음 그릴 때는 서버의 오늘로 그려 점이 뒤늦게 튀지 않는다.
+   */
+  const day = useTodayKey(today);
+  /* 이 화면에서 방금 한 것 — 서버가 새 목록을 주기 전에도 점이 바로 꺼지게 */
+  const [checkedHere, setCheckedHere] = useState<string | null>(null);
+  const [restedHere, setRestedHere] = useState<string | null>(null);
+  const notice: NoticeState = {
+    day,
+    checkinDone: todo.checkinDays.includes(day) || checkedHere === day,
+    pitchDone: todo.pitchDays.includes(day) || restedHere === day,
+  };
+
+  const bellPcRef = useRef<HTMLButtonElement>(null);
+  const bellPhoneRef = useRef<HTMLButtonElement>(null);
+  /* 종과 그 밑의 창을 함께 감싼 자리 — PC·휴대폰 한 벌씩(하나는 늘 숨어 있다) */
+  const bellPcBox = useRef<HTMLDivElement>(null);
+  const bellPhoneBox = useRef<HTMLElement>(null);
+  const bellPanelId = useId();
+
+  /* 화면을 옮기면 닫는다 — 그리는 도중에 앞 주소와 견준다(위 pickedOn 과 같은 방법) */
+  const [bellFor, setBellFor] = useState(pathname);
+  if (bellFor !== pathname) {
+    setBellFor(pathname);
+    setBellOpen(false);
+  }
+
+  const toggleBell = () => {
+    /* 도크가 떠 있으면 거둔다 — 도크가 종 밑을 덮는 자리라 둘이 겹친다 */
+    if (running.current || place.current === 'dock' || queued.current === 'dock') {
+      clearTimers();
+      drop();
+    }
+    setBellOpen((v) => !v);
+  };
+
+  /* 보이는 쪽 종으로 초점을 돌린다 — 창을 Esc 로 닫았을 때 초점이 문서 밖으로 떨어지지 않게 */
+  const focusBell = () => {
+    const visible = [bellPcRef.current, bellPhoneRef.current].find(
+      (b) => b && b.offsetParent !== null
+    );
+    visible?.focus({ preventScroll: true });
+  };
+
+  /*
+   * 창 바깥을 누르거나 Esc 를 누르면 닫는다.
+   *
+   * 종이 PC·휴대폰에 한 벌씩 있어서 리스너를 여기 하나만 건다. 종마다 걸면 숨은 쪽
+   * 종의 리스너가 '내 바깥을 눌렀다'며 보이는 쪽 창을 닫아 버린다.
+   */
+  const onBellOutside = useEffectEvent((e: PointerEvent) => {
+    const t = e.target as Node;
+    if (bellPcBox.current?.contains(t) || bellPhoneBox.current?.contains(t)) return;
+    setBellOpen(false);
+  });
+  const onBellEscape = useEffectEvent((e: KeyboardEvent) => {
+    if (e.key !== 'Escape') return;
+    setBellOpen(false);
+    focusBell();
+  });
+  useEffect(() => {
+    if (!bellOpen) return;
+    const down = (e: PointerEvent) => onBellOutside(e);
+    const key = (e: KeyboardEvent) => onBellEscape(e);
+    document.addEventListener('pointerdown', down);
+    document.addEventListener('keydown', key);
+    return () => {
+      document.removeEventListener('pointerdown', down);
+      document.removeEventListener('keydown', key);
+    };
+  }, [bellOpen]);
+
+  /* 창에서 '체크인하기' — 창을 닫고 체크인 창을 누른 단추에서 띄운다 */
+  const openCheckin = (el: HTMLElement | null) => {
+    setBellOpen(false);
+    openFrom(el, setCheckinOpen);
+  };
+
+  /*
+   * 다른 화면의 '오늘 체크인 고치기'(OpenCheckinButton)도 이 창을 연다 — 창은 여기
+   * 하나라 신호로 받는다. 리스너는 한 번만 걸고 그 안에서 최신 값을 본다.
+   */
+  const onOpenCheckinSignal = useEffectEvent((e: Event) => {
+    const el = (e as CustomEvent<HTMLElement | null>).detail ?? null;
+    openCheckin(el);
+  });
+  useEffect(() => {
+    const handler = (e: Event) => onOpenCheckinSignal(e);
+    window.addEventListener(OPEN_CHECKIN_EVENT, handler);
+    return () => window.removeEventListener(OPEN_CHECKIN_EVENT, handler);
+  }, []);
+
+  const noticePanel = (className: string) => (
+    <NoticePanel
+      id={bellPanelId}
+      state={notice}
+      onCheckin={openCheckin}
+      onRested={setRestedHere}
+      onNavigate={() => setBellOpen(false)}
+      className={className}
+    />
+  );
+
   return (
     <>
       {/*
@@ -817,7 +957,7 @@ export function AppNav({
           />
 
           {/*
-            격자·톱니·내 정보. 알약이 줄고 펴는 동안 제자리를 지키도록, 도크와
+            격자·종·톱니·내 정보. 알약이 줄고 펴는 동안 제자리를 지키도록, 도크와
             오가는 연출에서는 따로 이름표를 단다(nav-tail).
           */}
           <div
@@ -831,6 +971,22 @@ export function AppNav({
               onOpen={openSheet}
               onPointerEnter={enterZone}
             />
+
+            {/*
+              알림(종) — 메뉴의 식구가 아니라 설정 왼쪽에 조금 작게 따로 선다.
+              이름표를 따로 달지 않는다. 막대 조각(nav-tail)에 실려 제자리를 지키고,
+              판이 열릴 때는 막대와 같이 어두워진다(globals.css 의 연출 설명).
+            */}
+            <div ref={bellPcBox} className="relative mx-0.5">
+              <NoticeBellButton
+                state={notice}
+                open={bellOpen}
+                onToggle={toggleBell}
+                buttonRef={bellPcRef}
+                panelId={bellPanelId}
+              />
+              {bellOpen && noticePanel('absolute right-0 top-full mt-3 w-72')}
+            </div>
 
             <SettingsCog
               open={settingsOpen}
@@ -884,7 +1040,51 @@ export function AppNav({
         onSettings={(el) => openFrom(el, setSettingsOpen)}
         profileOpen={profileOpen}
         onProfile={(el) => openFrom(el, setProfileOpen)}
+        headerRef={bellPhoneBox}
+        bell={
+          <NoticeBellButton
+            state={notice}
+            open={bellOpen}
+            onToggle={toggleBell}
+            buttonRef={bellPhoneRef}
+            panelId={bellPanelId}
+            touch
+          />
+        }
+        /*
+          휴대폰에서는 종이 아니라 위 막대에 붙여 오른쪽 끝에 맞춘다. 종에 붙이면 그 오른쪽의
+          톱니·사진만큼 밀려, 좁은 폰에서 창의 왼쪽이 화면 밖으로 나간다.
+        */
+        panel={
+          bellOpen
+            ? noticePanel('absolute right-4 top-full mt-2 w-[min(20rem,calc(100vw-2rem))]')
+            : null
+        }
       />
+
+      {/*
+        오늘 체크인 — 알림(종)에서 연다. 홈의 체크인 상자가 하던 일을 여기서 한다:
+        안 했으면 하고, 했으면 고친다(잘못 누른 '통증' 하나가 오늘 운동을 막는다).
+        창이 열릴 때만 폼을 그린다 — 열 때마다 오늘 것을 새로 채운다.
+      */}
+      <Modal
+        open={checkinOpen}
+        onClose={() => setCheckinOpen(false)}
+        title="오늘 컨디션 체크인"
+        description="몸 상태를 남기면 오늘 운동과 리포트가 여기에 맞춰집니다."
+        origin={popFrom}
+      >
+        {checkinOpen && (
+          <CheckinForm
+            recent={todo.recentCheckins}
+            parts={todo.parts}
+            onSaved={(d) => {
+              setCheckedHere(d);
+              setCheckinOpen(false);
+            }}
+          />
+        )}
+      </Modal>
 
       <Modal
         open={settingsOpen}
@@ -1656,13 +1856,11 @@ function DetailMenu({
 function Avatar({
   nickname,
   avatarUrl,
-  size = 'md',
 }: {
   nickname: string;
   avatarUrl?: string | null;
-  size?: 'md' | 'lg';
 }) {
-  const box = size === 'lg' ? 'h-14 w-14 text-xl' : 'h-9 w-9 text-sm';
+  const box = 'h-9 w-9 text-sm';
 
   if (avatarUrl) {
     return (
@@ -1687,11 +1885,11 @@ function Avatar({
 }
 
 /**
- * 모바일 상단 바 — 로고와, 설정·내 정보를 여는 두 버튼.
+ * 모바일 상단 바 — 로고와, 알림(종)·설정·내 정보.
  *
  * 휴대폰 틀(desk 가 아닌 화면 — 손가락으로 쓰는 1024px 밑이거나, 576px 밑)에는
  * 오른쪽 위 아이콘 줄이 없다. 그렇다고 설정과 내 정보를 갈 곳
- * 없이 두면 안 되므로, PC 의 그 두 버튼을 여기로 옮겨 놓는다. 누르면 같은
+ * 없이 두면 안 되므로, PC 의 그 버튼들을 여기로 옮겨 놓는다. 누르면 같은
  * 창이 뜬다 — 기기가 달라도 하는 일과 보이는 것이 같아야 한다.
  */
 function MobileTopBar({
@@ -1701,6 +1899,9 @@ function MobileTopBar({
   onSettings,
   profileOpen,
   onProfile,
+  headerRef,
+  bell,
+  panel,
 }: {
   nickname: string;
   avatarUrl: string | null;
@@ -1708,6 +1909,12 @@ function MobileTopBar({
   onSettings: (el: HTMLElement) => void;
   profileOpen: boolean;
   onProfile: (el: HTMLElement) => void;
+  /** 알림 창의 '바깥'을 가릴 때 쓴다 — 종과 창이 모두 이 막대 안에 있다 */
+  headerRef: RefObject<HTMLElement | null>;
+  /** 알림(종) 단추 */
+  bell: React.ReactNode;
+  /** 알림 창. 닫혀 있으면 null */
+  panel: React.ReactNode;
 }) {
   const Cog = NAV_ICONS.settings;
   /*
@@ -1726,6 +1933,7 @@ function MobileTopBar({
        * 계산하다 깜빡인다. 설정·내 정보 창이 바로 이 바에서 튀어나오므로 창을
        * 열 때마다 바가 깜빡였다. 하단 탭도 같은 이유로 뺐다.
        */
+      ref={headerRef}
       style={{ viewTransitionName: 'shell-topbar' }}
       className="sticky top-0 z-40 flex h-14 items-center gap-2 border-b border-line bg-surface px-4 desk:hidden"
     >
@@ -1736,6 +1944,9 @@ function MobileTopBar({
         </span>
       </Link>
 
+      {/* 종은 설정 왼쪽 — PC 막대와 같은 차례 */}
+      <div className="ml-auto">{bell}</div>
+
       <button
         type="button"
         onClick={(e) => {
@@ -1745,7 +1956,7 @@ function MobileTopBar({
         aria-haspopup="dialog"
         aria-expanded={settingsOpen}
         aria-label="설정"
-        className="ml-auto flex h-9 w-9 items-center justify-center rounded-full text-muted transition-colors duration-75 active:bg-surface-2 active:text-ink"
+        className="flex h-9 w-9 items-center justify-center rounded-full text-muted transition-colors duration-75 active:bg-surface-2 active:text-ink"
       >
         <Cog
           aria-hidden
@@ -1765,6 +1976,8 @@ function MobileTopBar({
       >
         <Avatar nickname={nickname} avatarUrl={avatarUrl} />
       </button>
+
+      {panel}
     </header>
   );
 }

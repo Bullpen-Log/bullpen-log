@@ -1,6 +1,7 @@
 import { Sparkles } from 'lucide-react';
 import { cautionLabel, type AutoRecord } from '@/lib/report/auto-setup';
 import { GOAL_FOCUSES } from '@/lib/report/personalize';
+import { OpenCheckinButton } from '@/components/notice-bell';
 
 /**
  * AI 맞춤이 무엇을 정했고 왜인지 — 오늘 일정 카드 안에 둔다.
@@ -37,8 +38,11 @@ export function AutoNote({ auto }: { auto: AutoRecord }) {
       */}
       {auto.painSuspected && (
         <p className="rounded-lg border border-warn-line bg-warn-bg px-3 py-2 text-xs leading-relaxed text-warn">
-          메모에 통증으로 보이는 말이 있습니다. 통증이라면 홈의 오늘 체크인에서
-          ‘통증’으로 고쳐주세요. 그러면 오늘 운동을 멈추고 쉬는 쪽으로 바꿉니다.
+          메모에 통증으로 보이는 말이 있습니다. 통증이라면{' '}
+          <OpenCheckinButton className="font-semibold underline">
+            오늘 체크인
+          </OpenCheckinButton>
+          에서 ‘통증’으로 고쳐주세요. 그러면 오늘 운동을 멈추고 쉬는 쪽으로 바꿉니다.
         </p>
       )}
       {auto.by === 'rules' && auto.fallback && (

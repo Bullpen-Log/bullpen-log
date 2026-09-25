@@ -9,7 +9,7 @@ import {
 } from 'react';
 import { CheckCircle2 } from 'lucide-react';
 import { CheckinForm, type CheckinData } from '@/components/checkin-form';
-import { toDateKey } from '@/lib/pitch-stats';
+import { useTodayKey } from '@/components/use-today-key';
 
 /**
  * 체크인 관문 — 그날 체크인을 안 했으면 앱에 들어오자마자 먼저 뜬다.
@@ -25,26 +25,13 @@ import { toDateKey } from '@/lib/pitch-stats';
  *   이번 접속 = 이 탭(앱)이 열려 있는 동안. sessionStorage 에 적어 두므로 새로 고침은
  *   같은 접속으로 치고, 탭을 닫았다 다시 열거나 앱을 새로 켜면 새 접속이다.
  *
- * 홈의 체크인 상자는 그대로 있다. 거기서 언제든 고치거나 상세를 더 적는다.
+ * 건너뛰어도 체크인은 아직 안 한 것이다. 오른쪽 위 알림(종)에 남아 있고, 거기서
+ * 언제든 하거나 고치고 상세를 더 적는다(components/notice-bell.tsx).
  *
  * 모든 화면의 틀((app)/layout.tsx)에 들어 있어서, 어느 화면으로 들어오든 뜬다.
  */
 
 const SKIP_KEY = 'bullpen-checkin-skip';
-
-/*
- * 오늘 날짜. 앱을 다시 볼 때(다른 앱에 갔다 오거나 자정을 넘긴 뒤)마다 새로 본다 —
- * 밤새 켜 둔 앱을 아침에 다시 보면 새날의 체크인을 물어야 한다.
- */
-function subscribeDay(onChange: () => void) {
-  document.addEventListener('visibilitychange', onChange);
-  const timer = window.setInterval(onChange, 60_000);
-  return () => {
-    document.removeEventListener('visibilitychange', onChange);
-    window.clearInterval(timer);
-  };
-}
-const readDay = () => toDateKey(new Date());
 
 /* 건너뛴 날 — 이번 접속 동안만 기억한다 */
 const skipListeners = new Set<() => void>();
@@ -92,8 +79,11 @@ export function CheckinGate({
   /** 상세 체크인에서 고를 수 있는 운동 부위 */
   parts: string[];
 }) {
-  /* 서버에서는 null — 사용자의 날짜를 알기 전에는 아무것도 띄우지 않는다 */
-  const today = useSyncExternalStore(subscribeDay, readDay, () => null);
+  /*
+   * 오늘 날짜 — 앱을 다시 볼 때(다른 앱에 갔다 오거나 자정을 넘긴 뒤)마다 새로 본다.
+   * 서버에서는 null: 사용자의 날짜를 알기 전에는 아무것도 띄우지 않는다.
+   */
+  const today = useTodayKey(null);
   const skippedDay = useSyncExternalStore(subscribeSkip, readSkip, () => null);
 
   /* 이 화면에서 방금 한 일 — 서버가 새 목록을 주기 전에도 바로 닫히게 */
@@ -171,8 +161,8 @@ export function CheckinGate({
             <CheckCircle2 aria-hidden className="h-10 w-10 text-ok" />
             <p className="text-base font-bold text-ink">체크인 완료</p>
             <p className="text-xs text-muted">
-              오늘 기록에 맞춰 준비할게요. 홈의 체크인 상자에서 언제든 더 적을 수
-              있어요.
+              오늘 기록에 맞춰 준비할게요. 오른쪽 위 알림(종)에서 언제든 고치거나 더
+              적을 수 있어요.
             </p>
           </div>
         ) : (

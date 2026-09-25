@@ -329,15 +329,6 @@ label {
     );
 }
 
-/* 카드 위 이미지에 얹는 어두운 오버레이 (영상·썸네일은 어두운 편이 잘 보인다) */
-.overlay-fade {
-  background-image: linear-gradient(
-    to top,
-    rgba(15, 23, 42, 0.9) 10%,
-    rgba(15, 23, 42, 0.3) 60%,
-    rgba(15, 23, 42, 0.05) 100%
-  );
-}
 
 .text-display {
   font-family: var(--font-display);
@@ -1012,12 +1003,12 @@ dialog[data-drawer][open]::backdrop {
  *   nav-dock    도크 상자.
  *   nav-sheet   판. 한쪽 모습에만 있다 — 다른 무엇에서 커지지 않고 오른쪽 밖에서
  *               들어오고 나간다.
- *   nav-fly-N   아이콘. N 은 전체 메뉴에서의 차례(홈 0 · 영상 1 · … · 관리자 8).
+ *   nav-fly-N   아이콘. N 은 전체 메뉴에서의 차례(홈 0 · 영상 1 · … · 관리자 7).
  *               옛·새 모습에 다 있으면 날아가고(딱지 nav-fly), 한쪽에만 있으면 그
  *               자리에서 돋아나거나 잦아든다(딱지 nav-pop).
  *   nav-thumb   '지금 여기' 동그라미. 도크와 오갈 때는 제 아이콘과 같은 딱지를 달아
  *               아이콘과 같이 날아간다.
- *   d0 … d8     차례 딱지. 얼마나 늦게 출발할지를 --fly-base + N × --fly-step 으로
+ *   d0 … d7     차례 딱지. 얼마나 늦게 출발할지를 --fly-base + N × --fly-step 으로
  *               센다. 연출마다 그 둘을 바꿔 순서를 뒤집는다(돌아올 때는 step 이 음수).
  *
  * 간격을 20~35ms 로 둔 까닭: 더 좁히면 아홉이 한 덩이로 뭉쳐 '한 번에' 날아가
@@ -1037,10 +1028,16 @@ html[data-nav-choreo='bar-dock'] {
   --fly-step: 25ms;
   --fly-dur: 240ms;
 }
+/*
+ * 닫을 때는 여는 것보다 훨씬 빠르게(2026-09-26 사용자 요청 — 사라지는 게 너무 느렸다).
+ * 움직임은 같고 시간만 줄였다: 예전에는 아이콘이 다 돌아오기까지 0.34초, 커서가
+ * 떠난 뒤 기다림(DOCK_CLOSE_MS)까지 더하면 0.56초가 걸렸다. 이제 0.2초 안에 끝난다 —
+ * 그래도 넷이 차례로 제자리로 돌아가는 것은 보인다.
+ */
 html[data-nav-choreo='dock-bar'] {
-  --fly-base: 140ms;
-  --fly-step: -20ms;
-  --fly-dur: 200ms;
+  --fly-base: 60ms;
+  --fly-step: -8ms;
+  --fly-dur: 140ms;
 }
 /*
  * 판으로 갈 때는 판과 아이콘이 같이 출발한다. 판이 들어오는 0.28초 안에 아이콘도
@@ -1150,10 +1147,15 @@ html[data-nav-choreo]::view-transition-image-pair(nav-pill) {
   visibility: hidden;
 }
 
-/* 격자·톱니·내 정보 — 제자리를 지킨다. 격자의 켜진 색만 옅게 건너간다. */
+/* 격자·종·톱니·내 정보 — 제자리를 지킨다. 격자의 켜진 색만 옅게 건너간다. */
 html[data-nav-choreo]::view-transition-group(nav-tail) {
   z-index: 2;
   animation-duration: 200ms;
+}
+/* 닫을 때는 알약도 빨리 편다 — 아이콘이 돌아오는 시간(위 dock-bar)과 맞춘다 */
+html[data-nav-choreo='dock-bar']::view-transition-group(nav-pill),
+html[data-nav-choreo='dock-bar']::view-transition-group(nav-tail) {
+  animation-duration: 130ms;
 }
 
 /*
@@ -1172,7 +1174,7 @@ html[data-nav-choreo='bar-dock']::view-transition-new(nav-dock) {
 }
 html[data-nav-choreo='dock-bar']::view-transition-old(nav-dock) {
   transform-origin: top center;
-  animation: dock-out 180ms cubic-bezier(0.4, 0, 1, 1) 90ms both;
+  animation: dock-out 110ms cubic-bezier(0.4, 0, 1, 1) 40ms both;
 }
 /*
  * 도크가 판이 될 때 — 아이콘은 모두 판으로 날아가고, 빈 상자는 제자리에서 곧장
@@ -1266,6 +1268,10 @@ html[data-nav-choreo]::view-transition-new(.nav-pop) {
 html[data-nav-choreo]::view-transition-old(.nav-pop) {
   animation: nav-pop-out 160ms ease-in both;
 }
+/* 도크가 닫힐 때 잦아드는 것도 빨리 — 시간만 줄인다(차례 딱지의 늦춤은 아래 dN 이 준다) */
+html[data-nav-choreo='dock-bar']::view-transition-old(.nav-pop) {
+  animation-duration: 100ms;
+}
 @keyframes nav-pop-in {
   from {
     opacity: 0;
@@ -1305,9 +1311,6 @@ html[data-nav-choreo]::view-transition-new(.nav-grow.g2) {
 }
 html[data-nav-choreo]::view-transition-new(.nav-grow.g3) {
   animation-delay: 230ms;
-}
-html[data-nav-choreo]::view-transition-new(.nav-grow.g4) {
-  animation-delay: 260ms;
 }
 @keyframes nav-grow-in {
   from {
@@ -1358,11 +1361,6 @@ html[data-nav-choreo]::view-transition-group(.d7),
 html[data-nav-choreo]::view-transition-old(.d7),
 html[data-nav-choreo]::view-transition-new(.d7) {
   animation-delay: calc(var(--fly-base) + 7 * var(--fly-step));
-}
-html[data-nav-choreo]::view-transition-group(.d8),
-html[data-nav-choreo]::view-transition-old(.d8),
-html[data-nav-choreo]::view-transition-new(.d8) {
-  animation-delay: calc(var(--fly-base) + 8 * var(--fly-step));
 }
 
 /*

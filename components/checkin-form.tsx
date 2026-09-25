@@ -341,8 +341,8 @@ function detailLines(d: CheckinData, weightUnit: 'kg' | 'lb'): [string, string][
 /**
  * 오늘 컨디션 체크인.
  *
- * 두 곳에서 쓴다 — 홈의 체크인 상자를 눌러 뜨는 창, 그리고 그날 첫 접속 때 뜨는
- * 체크인 관문(components/checkin-gate.tsx). 그래서 자기 껍데기(테두리·제목)를
+ * 두 곳에서 쓴다 — 오른쪽 위 알림(종)에서 여는 창(components/app-shell.tsx), 그리고
+ * 그날 첫 접속 때 뜨는 체크인 관문(components/checkin-gate.tsx). 그래서 자기 껍데기(테두리·제목)를
  * 만들지 않는다 — 감싸는 쪽이 이미 가지고 있어서 겹친다.
  *
  * 간편과 상세 두 가지로 받는다. 간편은 몸 상태·컨디션·수면만 — 매일 쓰는 것이라

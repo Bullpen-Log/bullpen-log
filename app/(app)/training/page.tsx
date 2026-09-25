@@ -29,6 +29,7 @@ import { ArmcareTabs, type ArmcareTab } from './armcare-tabs';
 import { ArmcareSection } from './armcare-section';
 import { ARMCARE_KIND_TEXT, readArmcareRoutine } from '@/lib/armcare/routine';
 import { TrainingCheckin } from './training-checkin';
+import { OpenCheckinButton } from '@/components/notice-bell';
 import { availableParts } from '@/lib/report/today-pick';
 import { trainingSummaries } from '@/lib/report/training-history';
 import { exercisesByIds } from '@/lib/library-cache';
@@ -460,9 +461,9 @@ export default async function TrainingPage({
           </p>
           <p className="text-sm leading-relaxed text-warn">
             통증이 아니었다면{' '}
-            <Link href="/today" className="font-semibold underline">
-              홈의 오늘 체크인
-            </Link>
+            <OpenCheckinButton className="font-semibold underline">
+              오늘 체크인
+            </OpenCheckinButton>
             에서 상태를 고쳐주세요. 만들어 둔 일정이 있으면 그대로 다시 나옵니다.
           </p>
         </Card>
@@ -471,11 +472,12 @@ export default async function TrainingPage({
           title="투구 기록이 있어야 운동을 고를 수 있습니다"
           description="최근 투구량과 몸 상태를 봐야 오늘 무리가 안 되는 운동을 고를 수 있습니다."
           action={
+            /* 홈의 투구 상자가 알림(종)으로 옮겨 가서, 그날 투구 화면으로 바로 보낸다 */
             <Link
-              href="/today"
+              href={`/pitch-log/${core.todayKey}`}
               className="rounded-xl bg-sky px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-sky-strong"
             >
-              홈에서 투구 기록하기
+              오늘 투구 기록하기
             </Link>
           }
         />
