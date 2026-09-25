@@ -32,10 +32,11 @@ const VIEW_OPTIONS = [
  * 달력은 '그 날짜'를 알 때, 목록은 '요즘 뭐 했더라'를 볼 때 쓴다 — 같은 기록을
  * 다르게 보는 것이라 나란히 둘 이유가 없다.
  *
- * 달력은 작게, 그 오른쪽에 고른 날을 둔다(좁은 화면에서는 밑에). 그날 칸에서 투구·
+ * 날짜를 누르면 그날 칸이 달력 오른쪽에서 폭을 넓히며 들어오고, 달력은 그만큼
+ * 좁아진다(좁은 화면에서는 달력 밑에서 펴진다). 아무 날도 안 골랐을 때는 달력이 제
+ * 폭을 다 쓴다 — 칸을 늘 띄워 두었더니 달력이 너무 작아졌다. 그날 칸에서 투구·
  * 트레이닝·영양·영상·분석으로 그 날짜 그대로 넘어간다 — 달력이 앱 전체로 들어가는
- * 문이 된다. 예전에는 달력이 화면 폭을 다 차지하고 요약이 그 밑에 펴져, 날짜를
- * 누를 때마다 요약을 보러 한참 내려가야 했다.
+ * 문이 된다.
  */
 export function PitchLogPanel({
   today,
@@ -49,7 +50,7 @@ export function PitchLogPanel({
   checkinByDay,
   reportDays,
 }: {
-  /** 서비스 기준 오늘(YYYY-MM-DD). 처음에 고른 날이 된다. */
+  /** 서비스 기준 오늘(YYYY-MM-DD) — 그날 칸이 '오늘'·'어제'를 가르는 데 쓴다 */
   today: string;
   initialLogs: Log[];
   /** 다른 화면에서 날짜를 지정해 들어온 경우. 그 칸을 짚어 둔다. */
@@ -105,11 +106,31 @@ export function PitchLogPanel({
    * 예전에는 이것이 주소에서 온 값 하나뿐이었다(누르면 바로 넘어갔으니까).
    * 이제는 누른 칸을 여기 담아 두고 달력 밑에 그날 요약을 편다.
    */
+  const [selectedDate, setSelectedDate] = useState<string | null>(initialDate);
   /*
-   * 처음에는 오늘을 골라 둔다 — 그날 칸이 달력 옆에 늘 떠 있어야, 홈에 들어오자마자
-   * 오늘 무엇이 남았고 어디로 갈지가 보인다.
+   * 그날 칸이 보여 주는 날. 닫는 동안(칸이 좁아지며 빠지는 0.3초)에도 칸이 비지
+   * 않게 마지막으로 고른 날을 들고 있는다 — 그리는 동안 맞추는 방식(이펙트 없이).
    */
-  const [selectedDate, setSelectedDate] = useState<string>(initialDate ?? today);
+  const [shownDate, setShownDate] = useState(initialDate ?? today);
+  if (selectedDate && selectedDate !== shownDate) setShownDate(selectedDate);
+  const panelOpen = selectedDate != null;
+  const panelRef = useRef<HTMLDivElement>(null);
+
+  /*
+   * 좁은 화면에서는 그날 칸이 달력 밑에서 펴진다. 달력이 화면을 거의 채우고 있어서,
+   * 펴진 칸이 화면 밖이면 거기까지만 살짝 굴려 보여 준다(이미 보이면 가만히 둔다).
+   */
+  useEffect(() => {
+    if (!selectedDate || window.matchMedia('(min-width: 1024px)').matches) return;
+    const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const timer = window.setTimeout(() => {
+      const el = panelRef.current;
+      if (el && el.getBoundingClientRect().bottom > window.innerHeight) {
+        el.scrollIntoView({ behavior: reduce ? 'auto' : 'smooth', block: 'nearest' });
+      }
+    }, 320);
+    return () => window.clearTimeout(timer);
+  }, [selectedDate]);
 
   // 넘어온 날짜가 지난달이면 달력도 그 달을 펴야 한다.
   const [month, setMonth] = useState(() => {
@@ -118,17 +139,17 @@ export function PitchLogPanel({
   });
 
   /*
-   * 날짜를 누르면 옆 칸이 그날로 바뀐다.
+   * 날짜를 누르면 옆 칸이 그날로 열린다(이미 열려 있으면 그날로 바뀐다).
    *
    * 예전에는 곧바로 그날 화면으로 넘어갔다. 그런데 달력은 이 칸 저 칸 눌러보며
    * 훑는 물건이라, 뭐가 있었는지 잠깐 보려던 것뿐인데 매번 화면이 통째로 바뀌고
    * 다시 뒤로 와야 했다. 넘어가는 길은 그날 칸의 줄들이 맡는다.
    *
-   * 예전에는 고른 칸을 다시 누르면 요약을 접었는데, 이제 그날 칸은 늘 떠 있는
-   * 자리라 접지 않는다.
+   * 고른 칸을 다시 누르면 닫는다 — 같은 것을 누르면 닫히는 것이 여닫이의 기본이다.
+   * 칸이 빠지면 달력이 다시 제 폭으로 넓어진다.
    */
   const openDay = useCallback((date: string) => {
-    setSelectedDate(date);
+    setSelectedDate((prev) => (prev === date ? null : date));
   }, []);
 
   /** 달력이 보고 있는 달 (YYYY-MM) */
@@ -220,8 +241,8 @@ export function PitchLogPanel({
    * 던진 날이 있으므로 하나만 찾지 않고 전부 모은다.
    */
   const selectedLogs = useMemo(
-    () => logs.filter((l) => l.date.slice(0, 10) === selectedDate),
-    [logs, selectedDate]
+    () => logs.filter((l) => l.date.slice(0, 10) === shownDate),
+    [logs, shownDate]
   );
 
   return (
@@ -259,8 +280,8 @@ export function PitchLogPanel({
         가렸다. 기록은 받아지는 대로 칸에 채워진다.
       */}
       {view === 'calendar' && (
-        <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,24rem)_minmax(0,1fr)]">
-          <Card>
+        <div className="flex flex-col lg:flex-row lg:items-start">
+          <Card className="min-w-0 lg:flex-1">
             <MonthCalendar
               month={month}
               onMonthChange={setMonth}
@@ -282,20 +303,47 @@ export function PitchLogPanel({
           </Card>
 
           {/*
-          그날 칸 — 넓은 화면에서는 달력 오른쪽, 좁으면 달력 바로 밑. 위에 두면 달력이
-          아래로 밀려 내려가, 칸을 누를 때마다 방금 누른 자리가 화면 밖으로 나간다.
-        */}
-          <DaySummary
-            date={selectedDate}
-            today={today}
-            logs={selectedLogs}
-            training={trainingByDay[selectedDate]}
-            plan={planByDay[selectedDate]}
-            featuredVideo={featuredByDay[selectedDate]}
-            nutrition={nutritionByDay[selectedDate]}
-            checkin={checkinByDay[selectedDate]}
-            hasReport={reportDays.includes(selectedDate)}
-          />
+            그날 칸.
+
+            넓은 화면: 오른쪽에서 폭이 0 → 32rem 으로 넓어지며 들어온다. 달력은 남는
+            폭을 쓰므로(flex-1) 칸이 넓어지는 만큼 같이 좁아진다 — 칸이 달력을 밀고
+            들어오는 것으로 보인다. 칸 안의 글은 처음부터 제 폭(32rem)으로 그려 두고
+            바깥 틀만 넓어지게 해서, 들어오는 동안 글이 접혔다 펴지며 흔들리지 않는다.
+
+            좁은 화면: 달력 밑에서 높이가 펴진다(grid-rows 0fr → 1fr). 위에 두면
+            달력이 아래로 밀려 내려가, 방금 누른 칸이 화면 밖으로 나간다.
+          */}
+          <div
+            ref={panelRef}
+            aria-hidden={!panelOpen}
+            inert={!panelOpen}
+            className={`grid overflow-hidden transition-[grid-template-rows,width,margin,opacity] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] lg:block lg:shrink-0 ${
+              panelOpen
+                ? 'mt-4 grid-rows-[1fr] opacity-100 lg:ml-4 lg:mt-0 lg:w-[32rem]'
+                : 'mt-0 grid-rows-[0fr] opacity-0 lg:ml-0 lg:w-0'
+            }`}
+          >
+            <div className="min-h-0 lg:w-[32rem]">
+              <div
+                className={`transition-transform duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] ${
+                  panelOpen ? 'translate-x-0' : 'lg:translate-x-8'
+                }`}
+              >
+                <DaySummary
+                  date={shownDate}
+                  today={today}
+                  logs={selectedLogs}
+                  training={trainingByDay[shownDate]}
+                  plan={planByDay[shownDate]}
+                  featuredVideo={featuredByDay[shownDate]}
+                  nutrition={nutritionByDay[shownDate]}
+                  checkin={checkinByDay[shownDate]}
+                  hasReport={reportDays.includes(shownDate)}
+                  onClose={() => setSelectedDate(null)}
+                />
+              </div>
+            </div>
+          </div>
         </div>
       )}
     </div>

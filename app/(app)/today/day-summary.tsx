@@ -7,6 +7,7 @@ import { useSpeedUnit } from '@/components/use-units';
 import {
   ChartColumn,
   ChevronRight,
+  X,
   Dumbbell,
   Film,
   HeartPulse,
@@ -44,6 +45,7 @@ export function DaySummary({
   nutrition,
   checkin,
   hasReport,
+  onClose,
 }: {
   /** YYYY-MM-DD */
   date: string;
@@ -64,6 +66,8 @@ export function DaySummary({
   checkin: CheckinDay | undefined;
   /** 그날 만든 AI 리포트가 있나 */
   hasReport: boolean;
+  /** 칸을 닫는다 — 달력이 다시 제 폭으로 넓어진다 */
+  onClose: () => void;
 }) {
   /* 구속을 보여줄 단위. 저장은 늘 km/h 다(lib/units.ts). */
   const speedUnit = useSpeedUnit();
@@ -185,7 +189,15 @@ export function DaySummary({
     >
       {/* 날짜를 바꿀 때마다 새로 그려, 줄이 위에서부터 다시 들어온다 */}
       <div key={date}>
-        <header className="px-5 pb-3 pt-4">
+        <header className="relative px-5 pb-3 pt-4">
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="그날 칸 닫기"
+            className="absolute right-3 top-3 rounded-lg p-1.5 text-muted transition-colors hover:bg-surface-2 hover:text-ink"
+          >
+            <X aria-hidden className="h-4 w-4" />
+          </button>
           <p className="text-xs font-semibold text-sky">
             {isToday ? '오늘' : agoText(date, today)}
           </p>
