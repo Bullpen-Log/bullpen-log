@@ -17,8 +17,13 @@ Claude 로 작업을 시작하면 저절로 읽힌다. 규칙은 `AGENTS.md` 6�
 
 1. `npm install` — Next.js 가 16.2.12 → 16.3.6 으로 바뀌었다. 치명 등급 보안 구멍 두 개를
    막는 업그레이드다(d6522ff).
-2. 개발 서버를 다시 켠다. 안 뜨면 `.next` 폴더를 지우고 다시 켠다.
-3. `next.config.ts` 의 `experimental.viewTransition` 을 뺐다. 16.3 부터는 설정 없이 기본으로
+2. `npx prisma generate` — 새 표 `UserExerciseNote`(운동별 내 메모)가 생겼다(baa306c,
+   `prisma/migrations/20260925064629_add_user_exercise_note`). DB 에는 이미 적용해 두었으니
+   `migrate deploy` 는 할 것 없다. 안 하면 개발 서버에서 운동 화면·라이브러리가
+   `prisma.userExerciseNote` 를 몰라 오류가 난다. 표를 더하기만 했고 기존 표는 그대로라
+   금윤호 쪽 코드에는 영향이 없다.
+3. 개발 서버를 다시 켠다. 안 뜨면 `.next` 폴더를 지우고 다시 켠다.
+4. `next.config.ts` 의 `experimental.viewTransition` 을 뺐다. 16.3 부터는 설정 없이 기본으로
    켜지고, 남겨 두면 모르는 설정이라며 빌드(타입 검사)가 멈춘다. 다시 넣지 말 것 — 화면 전환
    애니메이션은 그대로 돈다.
 
@@ -55,3 +60,5 @@ Claude 로 작업을 시작하면 저절로 읽힌다. 규칙은 `AGENTS.md` 6�
 - 종료를 안 누르고 떠난 운동 판은 이제 자동으로 닫힌다 — 상태 `ABANDONED`, 그날 세트는
   운동 기록으로 접힌다(11626bd, `lib/workout/stale.ts` · `lib/workout/close-stale.ts`).
 - 운동 화면 틀의 높이를 화면 높이에 고정했다(409b17d, `app/(session)/layout.tsx`).
+- 운동 중에 완료한 세트를 고칠 수 있고, 운동마다 '내 메모'를 하나씩 남긴다(baa306c). 메모는
+  운동 화면의 운동 이름 아래와 라이브러리 운동 상세에 보인다. 읽기는 `lib/exercise-notes.ts`.
