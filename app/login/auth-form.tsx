@@ -6,6 +6,7 @@ import { useFormStatus } from 'react-dom';
 import { login, signup, type AuthState } from '@/app/actions/auth';
 import { Button, Field, FormError, Input } from '@/components/ui';
 import { Segmented } from '@/components/segmented';
+import { RadioGroup } from '@/components/choice-inputs';
 import { kept } from '@/lib/form-values';
 import { readLoginPrefs, saveLoginPrefs } from '@/lib/login-prefs';
 import { MAX_HEIGHT_CM, MIN_HEIGHT_CM } from '@/lib/profile';
@@ -17,6 +18,7 @@ import {
   COMPETITION_LEVELS,
   THROWING_HANDS,
 } from '@/lib/baseline';
+import { TRAINING_LEVELS } from '@/lib/report/personalize';
 
 const AUTH_MODES = [
   { value: 'login', label: '로그인' },
@@ -289,12 +291,19 @@ export function AuthForm({ today }: { today: string }) {
             {/*
               웨이트 빈도. 투구와 같은 이유로 받는다 — 이게 없으면 운동 부하
               지수만 28일을 기다려야 해서 앞뒤가 안 맞는다.
+
+              웨이트 경력. 트레이닝이 경력에 비해 이른 운동을 빼는 기준이다
+              (lib/report/personalize.ts). 예전에는 가입한 뒤 트레이닝 설정에서
+              따로 골라야 했는데, 안 고른 사람은 아무것도 빼지 않아서 웨이트를
+              처음 하는 사람도 첫날부터 상급 운동을 받았다. 트레이닝 설정의
+              경력 칸과 같은 값·같은 설명이라, 가입하고 나면 거기에 그대로 보인다.
             */}
             <div className="space-y-4 border-t border-line pt-5">
               <p className="text-sm font-semibold text-ink">
                 평소 웨이트는 얼마나 하시나요?
-                <span className="mt-1 block text-xs font-normal text-muted">
-                  운동 부하도 첫날부터 보여드리기 위한 1문항입니다.
+                <span className="mt-1 block text-xs font-normal break-keep text-muted">
+                  운동 부하도 첫날부터 보여드리고, 경력에 맞는 운동을 골라드리기 위한
+                  2문항입니다.
                 </span>
               </p>
               <ChipRow
@@ -302,6 +311,15 @@ export function AuthForm({ today }: { today: string }) {
                 name="baselineWorkoutFreq"
                 options={BASELINE_WORKOUT_FREQ_NAMES}
                 selected={kept(before, 'baselineWorkoutFreq')}
+              />
+              <RadioGroup
+                label="웨이트 트레이닝 경력"
+                hint="가입한 뒤에도 트레이닝 설정에서 바꿀 수 있습니다."
+                name="trainingLevel"
+                options={TRAINING_LEVELS}
+                required
+                compact
+                selected={kept(before, 'trainingLevel')}
               />
             </div>
 

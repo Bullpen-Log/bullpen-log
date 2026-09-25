@@ -8,6 +8,7 @@ import { deleteVideos } from '@/lib/storage';
 import { createSession, deleteSession } from '@/lib/session';
 import { validateProfile } from '@/lib/profile';
 import { validateBaseline } from '@/lib/baseline';
+import { readTrainingProfile } from '@/lib/report/personalize';
 import { withInput, type FormValues } from '@/lib/form-values';
 
 export type AuthState = { error?: string; values?: FormValues } | undefined;
@@ -76,6 +77,18 @@ async function trySignup(formData: FormData): Promise<AuthState> {
   });
   if ('error' in baseline) return baseline;
 
+  /*
+   * 웨이트 트레이닝 경력 — 트레이닝이 경력에 비해 이른 운동을 빼는 기준.
+   *
+   * 트레이닝 설정에서 저장할 때와 같은 함수로 거른다(목록 밖의 값은 null).
+   * 설정에서는 비워 둘 수 있지만 가입할 때는 꼭 고르게 한다 — 안 고른
+   * 사람은 아무것도 빼지 않아서, 웨이트를 처음 하는 사람도 상급 운동을 받는다.
+   */
+  const { trainingLevel } = readTrainingProfile(formData);
+  if (!trainingLevel) {
+    return { error: '웨이트 트레이닝 경력을 선택해주세요.' };
+  }
+
   const existing = await prisma.user.findUnique({ where: { email } });
   if (existing) {
     return { error: '이미 가입된 이메일입니다.' };
@@ -92,6 +105,7 @@ async function trySignup(formData: FormData): Promise<AuthState> {
       role,
       ...profile.value,
       ...baseline.value,
+      trainingLevel,
     },
     select: { id: true, role: true },
   });
