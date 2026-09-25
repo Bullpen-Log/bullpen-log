@@ -9,7 +9,7 @@ import { Segmented } from '@/components/segmented';
 import { LogList } from '@/app/(app)/pitch-log/log-list';
 import type { Log } from '@/app/(app)/pitch-log/types';
 import type { PlanDaySummary, TrainingDaySummary } from '@/lib/report/training-history';
-import { DaySummary } from './day-summary';
+import { DaySummary, type CheckinDay, type NutritionDay } from './day-summary';
 
 /** [캘린더 | 목록] — 같은 기록을 다르게 보는 두 방식 */
 const VIEW_OPTIONS = [
@@ -31,15 +31,26 @@ const VIEW_OPTIONS = [
  * 달력과 목록을 한 화면에 같이 두지 않고 오가게 하는 것은 그대로 뒀다.
  * 달력은 '그 날짜'를 알 때, 목록은 '요즘 뭐 했더라'를 볼 때 쓴다 — 같은 기록을
  * 다르게 보는 것이라 나란히 둘 이유가 없다.
+ *
+ * 달력은 작게, 그 오른쪽에 고른 날을 둔다(좁은 화면에서는 밑에). 그날 칸에서 투구·
+ * 트레이닝·영양·영상·분석으로 그 날짜 그대로 넘어간다 — 달력이 앱 전체로 들어가는
+ * 문이 된다. 예전에는 달력이 화면 폭을 다 차지하고 요약이 그 밑에 펴져, 날짜를
+ * 누를 때마다 요약을 보러 한참 내려가야 했다.
  */
 export function PitchLogPanel({
+  today,
   initialLogs,
   initialDate,
   loadedFrom,
   trainingByDay,
   planByDay,
   featuredByDay,
+  nutritionByDay,
+  checkinByDay,
+  reportDays,
 }: {
+  /** 서비스 기준 오늘(YYYY-MM-DD). 처음에 고른 날이 된다. */
+  today: string;
   initialLogs: Log[];
   /** 다른 화면에서 날짜를 지정해 들어온 경우. 그 칸을 짚어 둔다. */
   initialDate: string | null;
@@ -56,6 +67,12 @@ export function PitchLogPanel({
   planByDay: Record<string, PlanDaySummary>;
   /** 영상 탭에서 고른 날짜별 대표 영상(저장소 경로). 안 고른 날은 없다. */
   featuredByDay: Record<string, string>;
+  /** 날짜별로 먹은 칼로리·단백질 합 */
+  nutritionByDay: Record<string, NutritionDay>;
+  /** 날짜별 체크인 — 컨디션과 통증 여부 */
+  checkinByDay: Record<string, CheckinDay>;
+  /** AI 리포트가 있는 날들 */
+  reportDays: string[];
 }) {
   /*
    * 처음 범위(loadedFrom)보다 옛날 달에서 따로 받아 온 기록만 들고 있는다.
@@ -88,7 +105,11 @@ export function PitchLogPanel({
    * 예전에는 이것이 주소에서 온 값 하나뿐이었다(누르면 바로 넘어갔으니까).
    * 이제는 누른 칸을 여기 담아 두고 달력 밑에 그날 요약을 편다.
    */
-  const [selectedDate, setSelectedDate] = useState<string | null>(initialDate);
+  /*
+   * 처음에는 오늘을 골라 둔다 — 그날 칸이 달력 옆에 늘 떠 있어야, 홈에 들어오자마자
+   * 오늘 무엇이 남았고 어디로 갈지가 보인다.
+   */
+  const [selectedDate, setSelectedDate] = useState<string>(initialDate ?? today);
 
   // 넘어온 날짜가 지난달이면 달력도 그 달을 펴야 한다.
   const [month, setMonth] = useState(() => {
@@ -97,17 +118,17 @@ export function PitchLogPanel({
   });
 
   /*
-   * 날짜를 누르면 밑에 그날 요약을 편다.
+   * 날짜를 누르면 옆 칸이 그날로 바뀐다.
    *
    * 예전에는 곧바로 그날 화면으로 넘어갔다. 그런데 달력은 이 칸 저 칸 눌러보며
    * 훑는 물건이라, 뭐가 있었는지 잠깐 보려던 것뿐인데 매번 화면이 통째로 바뀌고
-   * 다시 뒤로 와야 했다. 며칠을 견주려면 그 왕복을 반복한다.
+   * 다시 뒤로 와야 했다. 넘어가는 길은 그날 칸의 줄들이 맡는다.
    *
-   * 자세히 보는 길은 요약 안의 '자세히'로 남겨 둔다. 이미 고른 칸을 다시 누르면
-   * 접는다 — 같은 것을 누르면 닫히는 것이 여닫이의 기본이다.
+   * 예전에는 고른 칸을 다시 누르면 요약을 접었는데, 이제 그날 칸은 늘 떠 있는
+   * 자리라 접지 않는다.
    */
   const openDay = useCallback((date: string) => {
-    setSelectedDate((prev) => (prev === date ? null : date));
+    setSelectedDate(date);
   }, []);
 
   /** 달력이 보고 있는 달 (YYYY-MM) */
@@ -199,7 +220,7 @@ export function PitchLogPanel({
    * 던진 날이 있으므로 하나만 찾지 않고 전부 모은다.
    */
   const selectedLogs = useMemo(
-    () => (selectedDate ? logs.filter((l) => l.date.slice(0, 10) === selectedDate) : []),
+    () => logs.filter((l) => l.date.slice(0, 10) === selectedDate),
     [logs, selectedDate]
   );
 
@@ -238,41 +259,44 @@ export function PitchLogPanel({
         가렸다. 기록은 받아지는 대로 칸에 채워진다.
       */}
       {view === 'calendar' && (
-        <Card>
-          <MonthCalendar
-            month={month}
-            onMonthChange={setMonth}
-            selected={selectedDate}
-            onSelect={openDay}
-            marks={marks}
-          >
-            <span>강도</span>
-            <LegendSwatch className="h-3 w-5 rounded bg-sky/15">낮음</LegendSwatch>
-            <LegendSwatch className="h-3 w-5 rounded bg-sky/40">보통</LegendSwatch>
-            <LegendSwatch className="h-3 w-5 rounded bg-sky/70">높음</LegendSwatch>
-            <LegendSwatch className="h-3 w-5 rounded border border-dashed border-line-strong">
-              쉬는 날
-            </LegendSwatch>
-            <LegendSwatch className="h-1.5 w-1.5 rounded-full bg-sky-strong">
-              영상
-            </LegendSwatch>
-          </MonthCalendar>
-        </Card>
-      )}
+        <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,24rem)_minmax(0,1fr)]">
+          <Card>
+            <MonthCalendar
+              month={month}
+              onMonthChange={setMonth}
+              selected={selectedDate}
+              onSelect={openDay}
+              marks={marks}
+            >
+              <span>강도</span>
+              <LegendSwatch className="h-3 w-5 rounded bg-sky/15">낮음</LegendSwatch>
+              <LegendSwatch className="h-3 w-5 rounded bg-sky/40">보통</LegendSwatch>
+              <LegendSwatch className="h-3 w-5 rounded bg-sky/70">높음</LegendSwatch>
+              <LegendSwatch className="h-3 w-5 rounded border border-dashed border-line-strong">
+                쉬는 날
+              </LegendSwatch>
+              <LegendSwatch className="h-1.5 w-1.5 rounded-full bg-sky-strong">
+                영상
+              </LegendSwatch>
+            </MonthCalendar>
+          </Card>
 
-      {/*
-        고른 날 요약은 달력 바로 밑에 둔다. 위에 두면 달력이 아래로 밀려 내려가,
-        칸을 누를 때마다 방금 누른 자리가 화면 밖으로 나간다.
-      */}
-      {view === 'calendar' && selectedDate && (
-        <DaySummary
-          date={selectedDate}
-          logs={selectedLogs}
-          training={trainingByDay[selectedDate]}
-          plan={planByDay[selectedDate]}
-          featuredVideo={featuredByDay[selectedDate]}
-          onClose={() => setSelectedDate(null)}
-        />
+          {/*
+          그날 칸 — 넓은 화면에서는 달력 오른쪽, 좁으면 달력 바로 밑. 위에 두면 달력이
+          아래로 밀려 내려가, 칸을 누를 때마다 방금 누른 자리가 화면 밖으로 나간다.
+        */}
+          <DaySummary
+            date={selectedDate}
+            today={today}
+            logs={selectedLogs}
+            training={trainingByDay[selectedDate]}
+            plan={planByDay[selectedDate]}
+            featuredVideo={featuredByDay[selectedDate]}
+            nutrition={nutritionByDay[selectedDate]}
+            checkin={checkinByDay[selectedDate]}
+            hasReport={reportDays.includes(selectedDate)}
+          />
+        </div>
       )}
     </div>
   );
