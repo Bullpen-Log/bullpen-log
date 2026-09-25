@@ -156,6 +156,31 @@ export function PitchLogPanel({
    */
   const [details, setDetails] = useState<Record<string, DayDetail>>({});
   const [failed, setFailed] = useState<Record<string, boolean>>({});
+
+  /*
+   * 체크인이 바뀐 날은 들고 있던 요약을 버리고 다시 받는다.
+   *
+   * 이 칸의 '지금 체크인하기'를 눌러 알림(종)의 체크인 창에서 저장하면, 서버가 새
+   * 체크인 목록(checkinByDay)을 보내 준다. 그런데 요약은 날짜마다 한 번만 받아 두어서
+   * 바로 위 줄은 '7/10'인데 이 칸은 여전히 '체크인이 없어요'라고 했다. 목록이 새로
+   * 오면(그리는 도중에 앞 값과 견주는 방법) 달라진 날만 골라 버린다 — 다른 날 요약은
+   * 그대로 두어 괜히 다시 받느라 깜빡이지 않게.
+   */
+  const [seenCheckins, setSeenCheckins] = useState(checkinByDay);
+  if (seenCheckins !== checkinByDay) {
+    setSeenCheckins(checkinByDay);
+    const changed = new Set(
+      [...Object.keys(seenCheckins), ...Object.keys(checkinByDay)].filter(
+        (d) => JSON.stringify(seenCheckins[d]) !== JSON.stringify(checkinByDay[d])
+      )
+    );
+    if (changed.size > 0) {
+      setDetails((prev) =>
+        Object.fromEntries(Object.entries(prev).filter(([d]) => !changed.has(d)))
+      );
+    }
+  }
+
   useEffect(() => {
     if (!selectedDate || details[selectedDate] || failed[selectedDate]) return;
     const date = selectedDate;

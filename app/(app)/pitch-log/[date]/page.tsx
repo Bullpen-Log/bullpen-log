@@ -105,12 +105,27 @@ export default async function PitchLogDayPage({
     updatedAt: a.updatedAt.toISOString(),
   });
 
+  /*
+   * 오늘 계획의 상한 — 남긴 기록이 계획을 넘었는지 견준다. 계획 글(todayPlan)과 같은
+   * 조건일 때만 준다. 예전에는 홈의 '오늘 투구' 상자가 견줬는데, 그 상자가 알림(종)으로
+   * 옮겨 가면서 오늘 투구는 이 화면에서 남긴다.
+   */
+  const todayLimits =
+    date === todayKey && todayPlanDay && !plan.halted
+      ? {
+          throwing: todayPlanDay.throwing,
+          maxPitches: todayPlanDay.maxPitches,
+          maxIntensity: todayPlanDay.maxIntensity,
+        }
+      : null;
+
   return (
     <DayClient
       date={date}
       todayKey={todayKey}
       heightCm={user.heightCm}
       todayPlan={todayPlan}
+      todayLimits={todayLimits}
       initialLogs={logs.map((log) => ({ ...log, date: log.date.toISOString() }))}
       saved={analyses.map((a) => toView(a, date))}
       earlier={earlier.map((a) =>

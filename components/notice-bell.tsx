@@ -1,10 +1,8 @@
 'use client';
 
-import { useState, useTransition, type RefObject } from 'react';
+import { useRef, useState, type RefObject } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
 import { Bell, CheckCircle2, ChevronRight, ClipboardList, Target } from 'lucide-react';
-import { REST_SESSION_TYPE } from '@/lib/session-type';
 
 /**
  * 오른쪽 위 알림(종) — 오늘 아직 안 한 것을 알려 준다.
@@ -101,7 +99,8 @@ export function NoticeBellButton({
       onClick={onToggle}
       aria-haspopup="dialog"
       aria-expanded={open}
-      aria-controls={panelId}
+      /* 창이 열려 있을 때만 가리킨다 — 닫혀 있으면 그 이름의 창이 없다 */
+      aria-controls={open ? panelId : undefined}
       aria-label={count > 0 ? `알림 — 오늘 할 일 ${count}개` : '알림'}
       className={`relative flex h-8 w-8 items-center justify-center rounded-full transition-colors duration-75 ${
         open ? 'bg-sky/15 text-sky' : idle
@@ -132,7 +131,9 @@ export function NoticePanel({
   id,
   state,
   onCheckin,
-  onRested,
+  onRest,
+  resting,
+  restError,
   onNavigate,
   className,
 }: {
@@ -140,46 +141,48 @@ export function NoticePanel({
   state: NoticeState;
   /** 체크인 창을 연다 — 누른 단추에서 창이 튀어나오게 그 단추를 준다 */
   onCheckin: (el: HTMLElement) => void;
-  /** '오늘 안 던졌어요'를 남겼다 — 서버가 새 목록을 주기 전에도 점이 꺼지게 */
-  onRested: (day: string) => void;
+  /**
+   * '오늘 안 던졌어요'를 남긴다 — 남기는 일은 창 바깥(app-shell)이 쥔다. 창을 닫았다
+   * 열거나 PC·휴대폰 틀이 바뀌어도 '남기는 중'을 잊지 않게. 남겼으면 true.
+   */
+  onRest: () => Promise<boolean>;
+  resting: boolean;
+  restError?: string;
   /** 다른 화면으로 간다 — 창을 닫는다 */
   onNavigate: () => void;
   /** 자리(PC·휴대폰마다 다르다) */
   className: string;
 }) {
-  const router = useRouter();
-  const [error, setError] = useState<string>();
-  const [saving, startSaving] = useTransition();
   const { day, checkinDone, pitchDone } = state;
   const allDone = checkinDone && pitchDone;
+  const root = useRef<HTMLDivElement>(null);
+  /* 남긴 뒤 화면 읽기 프로그램에 알리는 말 */
+  const [said, setSaid] = useState('');
 
   /** 안 던진 날을 한 번에 남긴다 — 홈의 투구 상자에 있던 단추를 그대로 옮겼다 */
-  const markRested = () => {
-    setError(undefined);
-    startSaving(async () => {
-      const res = await fetch('/api/pitch-log', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ date: day, sessionType: REST_SESSION_TYPE, videoPaths: [] }),
-      });
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        setError(data.error ?? '저장하지 못했어요. 다시 눌러 주세요.');
-        return;
-      }
-      onRested(day);
-      /* 종에 넘겨주는 목록(레이아웃)과 보고 있던 화면을 새로 받는다 */
-      router.refresh();
-    });
+  const rest = async () => {
+    setSaid('');
+    if (!(await onRest())) return;
+    setSaid('오늘은 안 던진 날로 남겼어요.');
+    /*
+     * 누른 단추는 곧 사라진다(할 일이 줄어서). 초점이 문서 맨 위로 떨어지지 않게
+     * 창으로 옮긴다 — 키보드로 쓰던 사람이 그 자리에서 이어 간다.
+     */
+    root.current?.focus({ preventScroll: true });
   };
 
   return (
     <div
+      ref={root}
       id={id}
       role="dialog"
       aria-label="오늘 할 일"
-      className={`motion-safe:animate-fade-in z-50 origin-top-right rounded-2xl border border-line bg-surface p-3 text-ink shadow-lg ${className}`}
+      tabIndex={-1}
+      className={`motion-safe:animate-fade-in z-50 origin-top-right rounded-2xl border border-line bg-surface p-3 text-ink shadow-lg outline-none ${className}`}
     >
+      <p role="status" className="sr-only">
+        {said}
+      </p>
       <p className="px-1 text-[11px] font-semibold text-ink/65">{spokenDay(day)} · 오늘 할 일</p>
 
       {allDone ? (
@@ -232,16 +235,16 @@ export function NoticePanel({
                 </Link>
                 <button
                   type="button"
-                  onClick={markRested}
-                  disabled={saving}
+                  onClick={rest}
+                  disabled={resting}
                   className="inline-flex min-h-9 items-center rounded-lg border border-line-strong px-3 text-xs font-medium text-ink transition-colors hover:bg-surface-2 disabled:opacity-50"
                 >
-                  {saving ? '남기는 중…' : '오늘 안 던졌어요'}
+                  {resting ? '남기는 중…' : '오늘 안 던졌어요'}
                 </button>
               </div>
-              {error && (
+              {restError && (
                 <p role="alert" className="mt-2 text-xs text-danger">
-                  {error}
+                  {restError}
                 </p>
               )}
             </li>

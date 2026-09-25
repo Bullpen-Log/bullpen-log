@@ -15,7 +15,8 @@ import { flushSync } from 'react-dom';
 import Link, { useLinkStatus } from 'next/link';
 import { X } from 'lucide-react';
 import { NAV_ICONS } from '@/components/nav-icons';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
+import { REST_SESSION_TYPE } from '@/lib/session-type';
 import type { NavGroup, NavItem } from '@/lib/nav';
 import { DESK_MEDIA, MORE_HREF } from '@/lib/nav';
 import { BaseballMark } from '@/components/logo';
@@ -233,6 +234,10 @@ export function AppNav({
   /* 알림(종)의 작은 창, 그리고 거기서 여는 오늘 체크인 창 */
   const [bellOpen, setBellOpen] = useState(false);
   const [checkinOpen, setCheckinOpen] = useState(false);
+  /* 종 단추 — PC 막대와 휴대폰 위 막대에 한 벌씩 */
+  const bellPcRef = useRef<HTMLButtonElement>(null);
+  const bellPhoneRef = useRef<HTMLButtonElement>(null);
+  const router = useRouter();
 
   /*
    * 지금 있는 자리와, 돌고 있는 연출, 그 연출이 끝나면 가야 할 곳.
@@ -381,6 +386,31 @@ export function AppNav({
       });
     });
     running.current = vt;
+    /*
+     * 연출 중에는 크롬이 무엇을 눌러도 <html> 로 준다. 도크가 펼쳐지거나 접히는 짧은
+     * 사이에 종·톱니·사진을 누르면 아무 일도 없어 한 번 더 눌러야 했다. 누른 자리에
+     * 있는 막대의 단추·링크(열려 있으면 알림 창 안의 것까지)를 찾아 대신 누른다.
+     *
+     * 격자는 커서를 지켜보는 중(watch)이면 거기서 대신 누르므로 뺀다 — 둘 다 누르면
+     * 판이 열렸다 곧장 닫힌다. 도크의 아이콘도 거기서 누른다.
+     *
+     * 판이 열리는 중에는 넘기지 않는다 — 그때 막대는 판의 어두운 바탕 밑이라, 그 자리를
+     * 누른 것은 막대의 단추가 아니라 바탕이다.
+     */
+    const forward = new AbortController();
+    document.addEventListener(
+      'click',
+      (e) => {
+        if (to === 'sheet') return;
+        if (e.target !== document.documentElement || !isPlainClick(e)) return;
+        const hit = [...(navRef.current?.querySelectorAll<HTMLElement>('button, a') ?? [])]
+          .filter((el) => !(watcher.current && el === gridRef.current))
+          .find((el) => within(el, e.clientX, e.clientY));
+        hit?.click();
+      },
+      { capture: true, signal: forward.signal }
+    );
+    vt.finished.finally(() => forward.abort());
     /*
      * 연출이 건너뛰어졌다 — 창이 가려져 있었거나 다른 전환이 끼어들었다. 이미
      * 옮겨 가 있으니, 도착한 것이 제 힘으로라도 나타나게 되돌린다(도크는
@@ -760,6 +790,11 @@ export function AppNav({
   const [popFrom, setPopFrom] = useState<{ x: number; y: number } | null>(null);
 
   const openFrom = (el: HTMLElement | null, show: (on: boolean) => void) => {
+    /*
+     * 알림 창은 닫는다 — 그 위로 다른 창이 뜬다. 휴대폰에서는 톱니·사진이 알림 창과 같은
+     * 위 막대 안이라 '바깥 누름'으로 안 닫혀, 설정 창 밑에 알림 창이 깔려 있었다.
+     */
+    setBellOpen(false);
     /* 도크가 떠 있거나 연출이 도는 중이면 곧장 거둔다 — 창이 뜨는 움직임이 가려진다 */
     if (running.current || place.current === 'dock' || queued.current === 'dock') {
       clearTimers();
@@ -778,21 +813,36 @@ export function AppNav({
    * 새날의 할 일을 켠다. 처음 그릴 때는 서버의 오늘로 그려 점이 뒤늦게 튀지 않는다.
    */
   const day = useTodayKey(today);
-  /* 이 화면에서 방금 한 것 — 서버가 새 목록을 주기 전에도 점이 바로 꺼지게 */
-  const [checkedHere, setCheckedHere] = useState<string | null>(null);
-  const [restedHere, setRestedHere] = useState<string | null>(null);
+  /*
+   * 이 화면에서 방금 한 것 — 서버가 새 목록을 주기 전에도 점이 바로 꺼지게.
+   *
+   * 그때 받아 있던 서버 목록(basis)과 함께 적어 두고, 그 목록이 그대로일 때만 믿는다.
+   * 새 목록이 오면 서버를 믿는다 — 예전에는 한 번 켜면 끝까지 남아서, '오늘 안
+   * 던졌어요'를 누른 뒤 그 기록을 지워도 종은 '알림이 없어요'라고 했다.
+   */
+  const [checkedHere, setCheckedHere] = useState<{ day: string; basis: string[] } | null>(
+    null
+  );
+  const [restedHere, setRestedHere] = useState<{ day: string; basis: string[] } | null>(
+    null
+  );
   const notice: NoticeState = {
     day,
-    checkinDone: todo.checkinDays.includes(day) || checkedHere === day,
-    pitchDone: todo.pitchDays.includes(day) || restedHere === day,
+    checkinDone:
+      todo.checkinDays.includes(day) ||
+      (checkedHere?.day === day && checkedHere.basis === todo.checkinDays),
+    pitchDone:
+      todo.pitchDays.includes(day) ||
+      (restedHere?.day === day && restedHere.basis === todo.pitchDays),
   };
 
-  const bellPcRef = useRef<HTMLButtonElement>(null);
-  const bellPhoneRef = useRef<HTMLButtonElement>(null);
   /* 종과 그 밑의 창을 함께 감싼 자리 — PC·휴대폰 한 벌씩(하나는 늘 숨어 있다) */
   const bellPcBox = useRef<HTMLDivElement>(null);
   const bellPhoneBox = useRef<HTMLElement>(null);
+  /* 창은 PC·휴대폰에 한 벌씩이라 이름(id)도 따로 둔다 — 같은 이름이 둘이면 휴대폰의 종이 숨은 PC 창을 가리킨다 */
   const bellPanelId = useId();
+  const panelPcId = `${bellPanelId}-pc`;
+  const panelPhoneId = `${bellPanelId}-phone`;
 
   /* 화면을 옮기면 닫는다 — 그리는 도중에 앞 주소와 견준다(위 pickedOn 과 같은 방법) */
   const [bellFor, setBellFor] = useState(pathname);
@@ -807,7 +857,14 @@ export function AppNav({
       clearTimers();
       drop();
     }
-    setBellOpen((v) => !v);
+    const opening = !bellOpen;
+    setBellOpen(opening);
+    /*
+     * 열 때 새로 받는다. 틀(레이아웃)은 화면을 옮겨도 다시 그리지 않아서, 다른 기기에서
+     * 남긴 기록을 모른 채 '아직 없어요'를 띄우고 '오늘 안 던졌어요'까지 누르게 할 수
+     * 있다. 새로 받는 동안에도 창은 열린 채로 있고, 새 목록이 오면 바뀐다.
+     */
+    if (opening) router.refresh();
   };
 
   /* 보이는 쪽 종으로 초점을 돌린다 — 창을 Esc 로 닫았을 때 초점이 문서 밖으로 떨어지지 않게 */
@@ -823,10 +880,22 @@ export function AppNav({
    *
    * 종이 PC·휴대폰에 한 벌씩 있어서 리스너를 여기 하나만 건다. 종마다 걸면 숨은 쪽
    * 종의 리스너가 '내 바깥을 눌렀다'며 보이는 쪽 창을 닫아 버린다.
+   *
+   * 화면이 바뀌는 연출 중에는 크롬이 무엇을 눌러도 <html> 로 준다 — 그때는 자리로
+   * 종·창 안인지 가린다(within). 안 그러면 창 안의 단추를 누르는 순간 창이 닫힌다.
    */
   const onBellOutside = useEffectEvent((e: PointerEvent) => {
     const t = e.target as Node;
     if (bellPcBox.current?.contains(t) || bellPhoneBox.current?.contains(t)) return;
+    if (t === document.documentElement) {
+      const spots = [
+        bellPcRef.current,
+        bellPhoneRef.current,
+        document.getElementById(panelPcId),
+        document.getElementById(panelPhoneId),
+      ];
+      if (spots.some((el) => within(el, e.clientX, e.clientY))) return;
+    }
     setBellOpen(false);
   });
   const onBellEscape = useEffectEvent((e: KeyboardEvent) => {
@@ -846,14 +915,11 @@ export function AppNav({
     };
   }, [bellOpen]);
 
-  /* 창에서 '체크인하기' — 창을 닫고 체크인 창을 누른 단추에서 띄운다 */
-  const openCheckin = (el: HTMLElement | null) => {
-    setBellOpen(false);
-    openFrom(el, setCheckinOpen);
-  };
+  /* 창에서 '체크인하기' — 체크인 창을 누른 단추에서 띄운다(알림 창은 openFrom 이 닫는다) */
+  const openCheckin = (el: HTMLElement | null) => openFrom(el, setCheckinOpen);
 
   /*
-   * 다른 화면의 '오늘 체크인 고치기'(OpenCheckinButton)도 이 창을 연다 — 창은 여기
+   * 다른 화면의 '오늘 체크인'(OpenCheckinButton)도 이 창을 연다 — 창은 여기
    * 하나라 신호로 받는다. 리스너는 한 번만 걸고 그 안에서 최신 값을 본다.
    */
   const onOpenCheckinSignal = useEffectEvent((e: Event) => {
@@ -866,12 +932,61 @@ export function AppNav({
     return () => window.removeEventListener(OPEN_CHECKIN_EVENT, handler);
   }, []);
 
-  const noticePanel = (className: string) => (
+  /*
+   * '오늘 안 던졌어요' — 여기 하나에서 남긴다.
+   *
+   * 창 안에서 하면 창을 닫았다 다시 열거나 PC·휴대폰 틀이 바뀔 때 '남기는 중'을 잊어,
+   * 느린 폰에서 두 번 눌러 쉬는 날 기록이 둘 생길 수 있었다(서버는 같은 날 기록을 여럿
+   * 받는다). 저장 중인지는 ref 로도 막는다 — 한 번 그리기 전에 두 번 눌리는 것까지.
+   */
+  const [restSaving, setRestSaving] = useState(false);
+  const [restError, setRestError] = useState<string>();
+  const restBusy = useRef(false);
+  const markRested = async (): Promise<boolean> => {
+    if (restBusy.current) return false;
+    restBusy.current = true;
+    setRestSaving(true);
+    setRestError(undefined);
+    const basis = todo.pitchDays;
+    try {
+      const res = await fetch('/api/pitch-log', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ date: day, sessionType: REST_SESSION_TYPE, videoPaths: [] }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        setRestError(data.error ?? '저장하지 못했어요. 다시 눌러 주세요.');
+        return false;
+      }
+      setRestedHere({ day, basis });
+      /* 종에 넘겨주는 목록(레이아웃)과 보고 있던 화면을 새로 받는다 */
+      router.refresh();
+      return true;
+    } catch {
+      setRestError('인터넷 연결을 확인한 뒤 다시 눌러 주세요.');
+      return false;
+    } finally {
+      restBusy.current = false;
+      setRestSaving(false);
+    }
+  };
+
+  const noticePanel = (id: string, className: string) => (
     <NoticePanel
-      id={bellPanelId}
+      id={id}
       state={notice}
-      onCheckin={openCheckin}
-      onRested={setRestedHere}
+      /*
+       * 초점을 먼저 종으로 옮긴다 — 창이 닫히며 누른 단추가 사라지기 전에. 그래야
+       * 체크인 창이 닫힐 때 초점이 종으로 돌아온다(문서 맨 위로 떨어지지 않는다).
+       */
+      onCheckin={(el) => {
+        focusBell();
+        openCheckin(el);
+      }}
+      onRest={markRested}
+      resting={restSaving}
+      restError={restError}
       onNavigate={() => setBellOpen(false)}
       className={className}
     />
@@ -983,9 +1098,13 @@ export function AppNav({
                 open={bellOpen}
                 onToggle={toggleBell}
                 buttonRef={bellPcRef}
-                panelId={bellPanelId}
+                panelId={panelPcId}
               />
-              {bellOpen && noticePanel('absolute right-0 top-full mt-3 w-72')}
+              {bellOpen &&
+                noticePanel(
+                  panelPcId,
+                  'absolute right-0 top-full mt-3 w-72 max-h-[calc(100dvh-5rem)] overflow-y-auto overscroll-contain'
+                )}
             </div>
 
             <SettingsCog
@@ -1047,19 +1166,26 @@ export function AppNav({
             open={bellOpen}
             onToggle={toggleBell}
             buttonRef={bellPhoneRef}
-            panelId={bellPanelId}
+            panelId={panelPhoneId}
             touch
           />
         }
         /*
           휴대폰에서는 종이 아니라 위 막대에 붙여 오른쪽 끝에 맞춘다. 종에 붙이면 그 오른쪽의
           톱니·사진만큼 밀려, 좁은 폰에서 창의 왼쪽이 화면 밖으로 나간다.
+
+          높이를 막는다 — 가로로 눕힌 폰은 화면이 낮아서, 창 아래쪽 단추가 하단 탭(z-50)
+          밑에 깔리거나 화면 밖으로 나갔다. 막대(56px)·틈·하단 탭만큼 빼고 넘치면 창 안에서 굴린다.
         */
         panel={
           bellOpen
-            ? noticePanel('absolute right-4 top-full mt-2 w-[min(20rem,calc(100vw-2rem))]')
+            ? noticePanel(
+                panelPhoneId,
+                'absolute right-4 top-full mt-2 w-[min(20rem,calc(100vw-2rem))] max-h-[calc(100dvh-8.5rem)] overflow-y-auto overscroll-contain'
+              )
             : null
         }
+        onHome={() => setBellOpen(false)}
       />
 
       {/*
@@ -1079,7 +1205,8 @@ export function AppNav({
             recent={todo.recentCheckins}
             parts={todo.parts}
             onSaved={(d) => {
-              setCheckedHere(d);
+              /* 지금 받아 둔 목록을 기준으로 적어 둔다 — 새 목록이 오면 그것을 믿는다 */
+              setCheckedHere({ day: d, basis: todo.checkinDays });
               setCheckinOpen(false);
             }}
           />
@@ -1902,6 +2029,7 @@ function MobileTopBar({
   headerRef,
   bell,
   panel,
+  onHome,
 }: {
   nickname: string;
   avatarUrl: string | null;
@@ -1915,6 +2043,8 @@ function MobileTopBar({
   bell: React.ReactNode;
   /** 알림 창. 닫혀 있으면 null */
   panel: React.ReactNode;
+  /** 로고를 눌러 홈으로 간다 — 알림 창을 닫는다(홈에 있으면 주소가 안 바뀌어 저절로 안 닫힌다) */
+  onHome: () => void;
 }) {
   const Cog = NAV_ICONS.settings;
   /*
@@ -1937,7 +2067,7 @@ function MobileTopBar({
       style={{ viewTransitionName: 'shell-topbar' }}
       className="sticky top-0 z-40 flex h-14 items-center gap-2 border-b border-line bg-surface px-4 desk:hidden"
     >
-      <Link href="/today" className="flex items-center gap-2">
+      <Link href="/today" onClick={onHome} className="flex items-center gap-2">
         <BaseballMark className="h-8 w-8" />
         <span className="text-display text-base leading-none text-ink">
           BULLPEN LOG
@@ -1946,6 +2076,11 @@ function MobileTopBar({
 
       {/* 종은 설정 왼쪽 — PC 막대와 같은 차례 */}
       <div className="ml-auto">{bell}</div>
+      {/*
+        창은 종 바로 뒤에 둔다 — 키보드로 종을 열면 Tab 한 번에 창 안으로 들어간다.
+        맨 끝에 두면 톱니·사진을 먼저 거쳐야 했다. 자리는 막대에 붙여 잡는다(absolute).
+      */}
+      {panel}
 
       <button
         type="button"
@@ -1976,8 +2111,6 @@ function MobileTopBar({
       >
         <Avatar nickname={nickname} avatarUrl={avatarUrl} />
       </button>
-
-      {panel}
     </header>
   );
 }

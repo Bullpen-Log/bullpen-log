@@ -7,6 +7,7 @@ import { ArrowLeft, Plus } from 'lucide-react';
 import { FormError } from '@/components/ui';
 import { usePlaybackUrls } from '@/components/use-playback-urls';
 import { isFutureDateKey } from '@/lib/pitch-stats';
+import { REST_SESSION_TYPE } from '@/lib/session-type';
 import { PlanNote, type PlanNoteData } from '@/components/plan-note';
 import type { SavedAnalysisView } from '@/lib/pose/saved';
 import { EntryForm } from '../entry-form';
@@ -41,6 +42,7 @@ export function DayClient({
   todayKey,
   heightCm,
   todayPlan,
+  todayLimits,
   initialLogs,
   saved,
   earlier,
@@ -50,6 +52,12 @@ export function DayClient({
   heightCm: number | null;
   /** 오늘 날짜일 때만 들어온다 */
   todayPlan: PlanNoteData | null;
+  /** 오늘 계획의 상한 — 남긴 기록이 넘었는지 견준다. 오늘 날짜일 때만 들어온다 */
+  todayLimits: {
+    throwing: boolean;
+    maxPitches: number | null;
+    maxIntensity: number | null;
+  } | null;
   initialLogs: Log[];
   /** 이 날 기록에 저장해 둔 폼 분석 */
   saved: SavedAnalysisView[];
@@ -64,6 +72,30 @@ export function DayClient({
 
   const future = isFutureDateKey(date);
   const logs = initialLogs;
+
+  /*
+   * 계획을 넘겼는지 본다 — 오늘 남긴 기록을 모두 합쳐서(쉰 날 표시는 빼고).
+   *
+   * 계획만 세워주고 지켰는지 아무도 안 보면 그 계획은 장식이다. 저장을 막지는
+   * 않는다 — 이미 던진 것을 못 적게 하면 기록이 사라질 뿐이다. 예전에는 홈의 '오늘
+   * 투구' 상자가 견줬는데 그 상자가 알림(종)으로 옮겨 가서 여기서 견준다.
+   */
+  const thrown = logs.filter((l) => l.sessionType !== REST_SESSION_TYPE);
+  const overText = (() => {
+    if (!todayLimits || thrown.length === 0) return null;
+    if (!todayLimits.throwing) return '오늘은 쉬는 것이 계획이었습니다.';
+    const total = thrown.reduce((sum, l) => sum + l.pitchCount, 0);
+    const topIntensity = Math.max(...thrown.map((l) => l.intensity));
+    const parts = [
+      todayLimits.maxPitches != null && total > todayLimits.maxPitches
+        ? `계획보다 ${total - todayLimits.maxPitches}구 많습니다`
+        : null,
+      todayLimits.maxIntensity != null && topIntensity > todayLimits.maxIntensity
+        ? `계획 강도(${todayLimits.maxIntensity})를 넘었습니다`
+        : null,
+    ].filter(Boolean);
+    return parts.length ? `${parts.join(' · ')}.` : null;
+  })();
 
   const videoPaths = useMemo(() => logs.flatMap((l) => l.videoPaths), [logs]);
   const {
@@ -162,6 +194,14 @@ export function DayClient({
       )}
 
       {date === todayKey && todayPlan && <PlanNote plan={todayPlan} />}
+
+      {/* 계획을 넘겼으면 알린다. 막지는 않고 알리기만 한다. */}
+      {overText && (
+        <p className="rounded-lg border border-warn-line bg-warn-bg px-3 py-2 text-xs leading-relaxed text-warn">
+          {overText} 내일 계획에 반영됩니다. 어깨나 팔꿈치가 무거우면 체크인에
+          남겨주세요.
+        </p>
+      )}
 
       {logs.map((log) =>
         editingId === log.id ? (
