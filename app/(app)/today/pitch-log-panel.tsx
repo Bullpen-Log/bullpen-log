@@ -1,6 +1,14 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from 'react';
+import { Sparkles } from 'lucide-react';
 import { Card, FormError } from '@/components/ui';
 import { toDateKey } from '@/lib/pitch-stats';
 import { REST_SESSION_TYPE } from '@/lib/session-type';
@@ -19,6 +27,8 @@ import {
   type NutritionDay,
 } from './day-summary';
 import { DayDetailBlock } from './day-detail';
+import { AnalysisBlock } from './analysis-block';
+import type { AnalysisTab } from './analysis-tabs';
 
 /** [캘린더 | 목록] — 같은 기록을 다르게 보는 두 방식 */
 const VIEW_OPTIONS = [
@@ -60,6 +70,8 @@ export function PitchLogPanel({
   nutritionByDay,
   checkinByDay,
   reportDays,
+  analysisSlot,
+  initialAnalysisTab,
 }: {
   /** 서비스 기준 오늘(YYYY-MM-DD) — 그날 칸이 '오늘'·'어제'를 가르는 데 쓴다 */
   today: string;
@@ -83,8 +95,12 @@ export function PitchLogPanel({
   nutritionByDay: Record<string, NutritionDay>;
   /** 날짜별 체크인 — 컨디션과 통증 여부 */
   checkinByDay: Record<string, CheckinDay>;
-  /** AI 리포트가 있는 날들 */
+  /** AI 리포트가 있는 날들 — 캘린더 칸 왼쪽 위에 반짝이를 붙인다 */
   reportDays: string[];
+  /** 오늘의 리포트 — 서버가 함께 그려 보낸다(밑의 분석 칸이 오늘·리포트일 때 쓴다) */
+  analysisSlot: ReactNode;
+  /** 분석 칸이 처음 펼 칸 — ?analysis= 로 들어온 경우 */
+  initialAnalysisTab: AnalysisTab;
 }) {
   /*
    * 처음 범위(loadedFrom)보다 옛날 달에서 따로 받아 온 기록만 들고 있는다.
@@ -189,9 +205,8 @@ export function PitchLogPanel({
       plan: planByDay[date],
       nutrition: nutritionByDay[date],
       checkin: checkinByDay[date],
-      hasReport: reportDays.includes(date),
     }),
-    [logs, trainingByDay, planByDay, nutritionByDay, checkinByDay, reportDays]
+    [logs, trainingByDay, planByDay, nutritionByDay, checkinByDay]
   );
 
   /*
@@ -217,6 +232,35 @@ export function PitchLogPanel({
       setSelectedDate(date);
     },
     [selectedDate, factsOf]
+  );
+
+  /*
+   * 밑의 분석 칸에서 날짜로 건너뛸 때('가장 가까운 이전 리포트', 지난 리포트 목록).
+   *
+   * 캘린더가 그날을 고른다 — 분석 칸은 고른 날을 따르므로 함께 그날로 바뀐다. 다른 달이면
+   * 달도 넘긴다. 이미 고른 날이어도 닫지 않는다(누른 것이 날짜 칸이 아니다). 목록으로
+   * 보고 있었으면 캘린더로 돌린다 — 고른 날이 보여야 한다.
+   */
+  const jumpTo = useCallback(
+    (date: string) => {
+      const [y, m] = date.split('-').map(Number);
+      setMonth((prev) =>
+        prev.getFullYear() === y && prev.getMonth() === m - 1
+          ? prev
+          : new Date(y, m - 1, 1)
+      );
+      setView('calendar');
+      if (selectedDate === date) return;
+      if (selectedDate === null) setFocus(firstFocus(factsOf(date)));
+      setSelectedDate(date);
+    },
+    [selectedDate, factsOf]
+  );
+
+  /* 리포트가 있는 날 — 캘린더 칸 왼쪽 위의 반짝이(화면 낭독기는 이 말을 덧붙여 읽는다) */
+  const reportFlags = useMemo(
+    () => Object.fromEntries(reportDays.map((d) => [d, '분석 리포트 있음'])),
+    [reportDays]
   );
 
   /*
@@ -374,6 +418,7 @@ export function PitchLogPanel({
                 onSelect={openDay}
                 marks={marks}
                 compact={panelOpen}
+                flags={reportFlags}
               >
                 <span>강도</span>
                 <LegendSwatch className="h-3 w-5 rounded bg-sky/15">낮음</LegendSwatch>
@@ -385,6 +430,10 @@ export function PitchLogPanel({
                 <LegendSwatch className="h-1.5 w-1.5 rounded-full bg-sky-strong">
                   영상
                 </LegendSwatch>
+                <span className="flex items-center gap-1.5">
+                  <Sparkles aria-hidden className="h-3 w-3 text-cat-core" />
+                  분석
+                </span>
               </MonthCalendar>
             </Card>
 
@@ -460,6 +509,18 @@ export function PitchLogPanel({
           </div>
         </div>
       )}
+
+      {/*
+        분석 칸 — 늘 떠 있다(예전의 분석 탭). 고른 날을 따라 그날 분석으로 바뀌고,
+        아무 날도 안 골랐으면 오늘이다. 목록으로 보고 있을 때도 남는다.
+      */}
+      <AnalysisBlock
+        date={selectedDate ?? today}
+        today={today}
+        initialTab={initialAnalysisTab}
+        todayReport={analysisSlot}
+        onJump={jumpTo}
+      />
     </div>
   );
 }

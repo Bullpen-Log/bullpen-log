@@ -20,9 +20,10 @@ import { dayHas, spokenDay, type DayFacts, type DayFocus } from './day-summary';
  * 분석 도구, 세트 고치기, 음식 담기)은 각 탭에 있다. 그래서 칸 위쪽에 늘 그 탭으로
  * 가는 길을 둔다 — 그 날짜를 그대로 들고 간다.
  *
- * 투구·영상은 캘린더가 이미 들고 있는 기록으로 바로 그린다. 트레이닝·영양·컨디션·
- * 분석은 날짜를 고를 때 그날 것만 받아 온다(/api/day-detail) — 받는 동안 자리를 잡아
- * 둔다.
+ * 투구·영상은 캘린더가 이미 들고 있는 기록으로 바로 그린다. 트레이닝·영양·컨디션은
+ * 날짜를 고를 때 그날 것만 받아 온다(/api/day-detail) — 받는 동안 자리를 잡아 둔다.
+ *
+ * 분석은 여기 없다 — 이 밑의 분석 칸이 늘 떠 있고 고른 날을 따라 바뀐다.
  */
 
 const TITLES: Record<DayFocus, string> = {
@@ -31,7 +32,6 @@ const TITLES: Record<DayFocus, string> = {
   nutrition: '영양',
   checkin: '컨디션',
   video: '영상',
-  coach: '분석',
 };
 
 /** 각 탭으로 가는 길 — 그날 남긴 것이 없으면 '남기러 가는' 말로 */
@@ -39,7 +39,7 @@ function tabLink(
   focus: DayFocus,
   date: string,
   today: string,
-  opts: { empty: boolean; hasReport: boolean }
+  opts: { empty: boolean }
 ): { href: string; label: string } | null {
   const isToday = date === today;
   switch (focus) {
@@ -68,10 +68,6 @@ function tabLink(
         href: `/videos?date=${date}`,
         label: opts.empty ? '영상 탭으로' : '영상 탭에서 보기',
       };
-    case 'coach':
-      return opts.hasReport
-        ? { href: `/coach/report/${date}`, label: '리포트 전체 보기' }
-        : { href: '/coach', label: '분석 탭으로' };
     case 'checkin':
       /* 체크인은 따로 탭이 없다 — 오늘 것은 홈 위쪽 체크인 상자에서 고친다 */
       return null;
@@ -91,7 +87,7 @@ export function DayDetailBlock({
   date: string;
   today: string;
   focus: DayFocus;
-  /** 그날에 대해 캘린더가 이미 아는 것(투구 기록 · 일정 · 리포트가 있나) */
+  /** 그날에 대해 캘린더가 이미 아는 것(투구 기록 · 일정) */
   facts: DayFacts;
   featuredVideo: string | null | undefined;
   /** 받아 온 그날 요약. 아직이면 null */
@@ -101,12 +97,9 @@ export function DayDetailBlock({
   /** 받아 오지 못한 날을 다시 받는다 */
   onRetry: () => void;
 }) {
-  const { logs, plan, hasReport } = facts;
+  const { logs, plan } = facts;
   const needsDetail =
-    focus === 'training' ||
-    focus === 'nutrition' ||
-    focus === 'checkin' ||
-    focus === 'coach';
+    focus === 'training' || focus === 'nutrition' || focus === 'checkin';
   const videos = logs.flatMap((l) => l.videoPaths);
   /*
    * 남긴 것이 있나는 오른쪽 요약과 같은 기준(dayHas)으로 본다. 받아 온 내용으로 보면
@@ -114,7 +107,7 @@ export function DayDetailBlock({
    * 인데 밑 칸 링크는 '기록하러 가기'인 식으로 둘이 어긋난다.
    */
   const empty = !dayHas(facts)[focus];
-  const link = tabLink(focus, date, today, { empty, hasReport });
+  const link = tabLink(focus, date, today, { empty });
 
   return (
     <section
@@ -156,7 +149,6 @@ export function DayDetailBlock({
         {focus === 'checkin' && detail && (
           <CheckinDetail c={detail.checkin} isToday={date === today} />
         )}
-        {focus === 'coach' && detail && <CoachDetail r={detail.report} />}
       </div>
     </section>
   );
@@ -577,45 +569,5 @@ function DayVideo({ path, label }: { path: string; label: string }) {
       </div>
       <figcaption className="text-xs text-muted">{label}</figcaption>
     </figure>
-  );
-}
-
-/* ─────────────────────────── 분석 ─────────────────────────── */
-
-function CoachDetail({ r }: { r: DayDetail['report'] }) {
-  if (!r) {
-    return (
-      <Empty>
-        이 날 만든 AI 리포트가 없어요. 분석 탭에서 요즘 흐름을 볼 수 있어요.
-      </Empty>
-    );
-  }
-  return (
-    <div className="space-y-3">
-      <p className="text-base font-bold break-keep text-ink">{r.headline}</p>
-      {r.assessment && (
-        <p className="line-clamp-4 text-[13px] leading-relaxed break-keep text-ink/80">
-          {r.assessment}
-        </p>
-      )}
-      {r.actions.length > 0 && (
-        <div>
-          <p className="text-[11px] font-semibold text-muted">할 것</p>
-          <ul className="mt-1 space-y-1">
-            {r.actions.slice(0, 3).map((a) => (
-              <li key={a} className="flex gap-2 text-[13px] break-keep text-ink">
-                <Check aria-hidden className="mt-0.5 h-3.5 w-3.5 shrink-0 text-sky" />
-                {a}
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
-      {r.watchouts.length > 0 && (
-        <p className="text-xs break-keep text-warn">
-          지켜볼 점: {r.watchouts.slice(0, 2).join(' · ')}
-        </p>
-      )}
-    </div>
   );
 }

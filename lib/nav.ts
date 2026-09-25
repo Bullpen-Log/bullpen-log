@@ -1,7 +1,7 @@
 /**
  * 앱 내비게이션 구성.
  *
- * PC는 오른쪽 위 막대와 옆에서 나오는 사이드바로, 모바일은 아래 탭 6개로
+ * PC는 오른쪽 위 막대와 옆에서 나오는 사이드바로, 모바일은 아래 탭 5개로
  * 같은 목록을 나눠 보여준다. 모바일의 "더보기"도 PC 와 같은 사이드바를 연다.
  * 한 곳에서 정의해 두 화면이 어긋나지 않게 한다.
  */
@@ -73,7 +73,11 @@ export type NavGroup = {
 /**
  * 큰 카테고리로 나눈다.
  *
- *   홈 · 투구 영상 · 트레이닝 · 영양 · 분석 · 라이브러리 · 자료실 · 설정
+ *   홈 · 투구 영상 · 트레이닝 · 영양 · 라이브러리 · 자료실 · 설정
+ *
+ * '분석'은 홈으로 들어갔다. 분석은 결국 '그날 어땠나'를 보는 일인데 날짜는 홈 캘린더가
+ * 쥐고 있어서, 캘린더 밑에 늘 떠 있는 분석 칸이 고른 날의 분석을 보여 준다. 예전 주소
+ * (/coach)는 그 칸으로 넘겨 준다.
  *
  * 홈과 트레이닝은 '남기는 것'과 '하는 것'으로 갈랐다. 홈에서 체크인과 투구
  * 기록을 남기고 운동 일정을 만들면, 실제 운동은 트레이닝에서 한다. 예전에는
@@ -125,9 +129,6 @@ export const NAV_GROUPS: NavGroup[] = [
    */
   {
     items: [{ href: '/nutrition', label: '영양', icon: 'utensils' }],
-  },
-  {
-    items: [{ href: '/coach', label: '분석', icon: 'chart' }],
   },
   {
     title: '라이브러리',
@@ -188,7 +189,6 @@ export const MOBILE_TABS: NavItem[] = [
   { href: '/videos', label: '투구 영상', short: '영상', icon: 'film' },
   { href: '/training', label: '트레이닝', icon: 'dumbbell' },
   { href: '/nutrition', label: '영양', icon: 'utensils' },
-  { href: '/coach', label: '분석', icon: 'chart' },
   { href: MORE_HREF, label: '더보기', icon: 'menu' },
 ];
 

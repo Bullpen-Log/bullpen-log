@@ -52,12 +52,6 @@ export type DayDetail = {
     details: { label: string; value: string }[];
     note: string | null;
   };
-  report: null | {
-    headline: string;
-    assessment: string;
-    actions: string[];
-    watchouts: string[];
-  };
 };
 
 type UserBody = {
@@ -67,34 +61,11 @@ type UserBody = {
   weightKg: number | null;
 };
 
-/** AI 리포트 본문에서 요약에 쓸 것만 조심해서 꺼낸다(모양이 바뀌었을 수도 있다) */
-function readReport(body: unknown): DayDetail['report'] {
-  const b = body as {
-    headline?: unknown;
-    assessment?: unknown;
-    actions?: unknown;
-    watchouts?: unknown;
-  } | null;
-  if (!b || typeof b.headline !== 'string') return null;
-  return {
-    headline: b.headline,
-    assessment: typeof b.assessment === 'string' ? b.assessment : '',
-    actions: Array.isArray(b.actions)
-      ? b.actions
-          .map((a) =>
-            a && typeof a === 'object' && 'title' in a ? String(a.title) : ''
-          )
-          .filter(Boolean)
-      : [],
-    watchouts: Array.isArray(b.watchouts) ? b.watchouts.map(String) : [],
-  };
-}
-
 export async function loadDayDetail(user: UserBody, date: string): Promise<DayDetail> {
   const day = dbDate(date);
   const where = { userId: user.id, date: day };
 
-  const [training, meals, daily, profileRow, checkin, report, sessions, pitches] =
+  const [training, meals, daily, profileRow, checkin, sessions, pitches] =
     await Promise.all([
       trainingDay(user.id, date),
       prisma.mealEntry.findMany({ where, orderBy: { createdAt: 'asc' } }),
@@ -104,10 +75,6 @@ export async function loadDayDetail(user: UserBody, date: string): Promise<DayDe
       prisma.nutritionProfile.findUnique({ where: { userId: user.id } }),
       prisma.dailyCheckin.findUnique({
         where: { userId_date: { userId: user.id, date: day } },
-      }),
-      prisma.aiReport.findUnique({
-        where: { userId_asOf: { userId: user.id, asOf: day } },
-        select: { body: true },
       }),
       prisma.trainingSession.findMany({ where, select: { activeSeconds: true } }),
       prisma.pitchLog.findMany({
@@ -206,6 +173,5 @@ export async function loadDayDetail(user: UserBody, date: string): Promise<DayDe
         .map((m) => ({ ...m, kcal: Math.round(m.kcal) })),
     },
     checkin: checkinOut,
-    report: report ? readReport(report.body) : null,
   };
 }

@@ -4,7 +4,6 @@ import type { CSSProperties, ReactNode } from 'react';
 import { formatSpeed } from '@/lib/units';
 import { useSpeedUnit } from '@/components/use-units';
 import {
-  ChartColumn,
   ChevronDown,
   Dumbbell,
   Film,
@@ -22,9 +21,13 @@ export type NutritionDay = { kcal: number; protein: number };
 /** 그날 체크인 — 컨디션(1~10)과 통증이 있었나 */
 export type CheckinDay = { condition: number; pain: boolean };
 
-/** 그날 칸의 줄 — 누르면 캘린더 밑에 그 줄의 자세한 요약이 펴진다 */
-export type DayFocus =
-  'pitch' | 'training' | 'nutrition' | 'checkin' | 'video' | 'coach';
+/**
+ * 그날 칸의 줄 — 누르면 캘린더 밑에 그 줄의 자세한 요약이 펴진다.
+ *
+ * '분석' 줄은 없앴다. 분석은 캘린더 밑의 분석 칸이 늘 보여 주고, 고른 날을 따라
+ * 그날 분석으로 바뀐다(analysis-block.tsx) — 여기에도 두면 같은 것이 두 번 나온다.
+ */
+export type DayFocus = 'pitch' | 'training' | 'nutrition' | 'checkin' | 'video';
 
 /** 한 날에 대해 미리 알고 있는 것(캘린더와 함께 읽어 둔 한 줄 요약들) */
 export type DayFacts = {
@@ -33,17 +36,9 @@ export type DayFacts = {
   plan: PlanDaySummary | undefined;
   nutrition: NutritionDay | undefined;
   checkin: CheckinDay | undefined;
-  hasReport: boolean;
 };
 
-const ORDER: DayFocus[] = [
-  'pitch',
-  'training',
-  'nutrition',
-  'checkin',
-  'video',
-  'coach',
-];
+const ORDER: DayFocus[] = ['pitch', 'training', 'nutrition', 'checkin', 'video'];
 
 /** 줄마다 남긴 것이 있나 */
 export function dayHas(f: DayFacts): Record<DayFocus, boolean> {
@@ -55,7 +50,6 @@ export function dayHas(f: DayFacts): Record<DayFocus, boolean> {
     nutrition: Boolean(f.nutrition && f.nutrition.kcal > 0),
     checkin: f.checkin != null,
     video: f.logs.some((l) => l.videoPaths.length > 0),
-    coach: f.hasReport,
   };
 }
 
@@ -120,7 +114,7 @@ export function DaySummary({
 }) {
   /* 구속을 보여줄 단위. 저장은 늘 km/h 다(lib/units.ts). */
   const speedUnit = useSpeedUnit();
-  const { logs, training, plan, nutrition, checkin, hasReport } = facts;
+  const { logs, training, plan, nutrition, checkin } = facts;
 
   /*
    * 하루에 여러 건이면 합쳐서 본다.
@@ -200,12 +194,6 @@ export function DaySummary({
       icon: <Film className="h-4 w-4" />,
       label: '영상',
       value: videos > 0 ? `${videos}개` : null,
-    },
-    {
-      key: 'coach',
-      icon: <ChartColumn className="h-4 w-4" />,
-      label: '분석',
-      value: hasReport ? 'AI 리포트' : null,
     },
   ];
 

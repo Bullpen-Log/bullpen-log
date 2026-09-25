@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
-import { ChevronDown, ChevronLeft, ChevronRight } from 'lucide-react';
+import { ChevronDown, ChevronLeft, ChevronRight, Sparkles } from 'lucide-react';
 import { dateKeyOf, toDateKey } from '@/lib/pitch-stats';
 
 /**
@@ -64,6 +64,7 @@ export function MonthCalendar({
   renderDay,
   size = 'normal',
   emptySpoken = '기록 없음',
+  flags,
   children,
 }: {
   month: Date;
@@ -97,6 +98,11 @@ export function MonthCalendar({
   size?: 'normal' | 'large';
   /** 칠할 것이 없는 날을 화면 낭독기가 읽는 말 — 영상 캘린더는 '영상 없음' */
   emptySpoken?: string;
+  /**
+   * 왼쪽 위 작은 반짝이 — 칠한 것과 따로 붙는 표시(날짜 → 화면 낭독기가 덧붙여 읽을 말).
+   * 홈은 분석 리포트가 있는 날에 붙인다. 투구를 안 한 날에도 붙는다.
+   */
+  flags?: Record<string, string>;
   /** 달력 아래 범례 */
   children?: ReactNode;
 }) {
@@ -208,6 +214,7 @@ export function MonthCalendar({
     renderDay,
     size,
     emptySpoken,
+    flags,
   };
 
   return (
@@ -338,6 +345,7 @@ function DayGrid({
   renderDay,
   size,
   emptySpoken,
+  flags,
 }: {
   month: Date;
   marks: Record<string, DayMark>;
@@ -348,6 +356,7 @@ function DayGrid({
   renderDay?: (cell: DayCell) => ReactNode;
   size: 'normal' | 'large';
   emptySpoken: string;
+  flags?: Record<string, string>;
 }) {
   const year = month.getFullYear();
   const monthIndex = month.getMonth();
@@ -378,11 +387,14 @@ function DayGrid({
          * 누르고 나서 알려주는 것과 보면 아는 것은 다르다.
          */
         const isFuture = key > todayKey;
-        const label = isFuture
-          ? `${monthIndex + 1}월 ${day}일, 아직 오지 않은 날`
-          : mark
-            ? `${monthIndex + 1}월 ${day}일, ${mark.spoken}`
-            : `${monthIndex + 1}월 ${day}일${isToday ? ', 오늘' : ''}, ${emptySpoken}`;
+        const flag = isFuture ? undefined : flags?.[key];
+        const label =
+          (isFuture
+            ? `${monthIndex + 1}월 ${day}일, 아직 오지 않은 날`
+            : mark
+              ? `${monthIndex + 1}월 ${day}일, ${mark.spoken}`
+              : `${monthIndex + 1}월 ${day}일${isToday ? ', 오늘' : ''}, ${emptySpoken}`) +
+          (flag ? `, ${flag}` : '');
 
         /* 칸 속을 부르는 쪽이 그린다(영상 캘린더). 테두리와 고른 표시만 여기서 준다. */
         if (renderDay) {
@@ -458,6 +470,15 @@ function DayGrid({
                 aria-hidden
                 className="absolute right-1 top-1 h-1.5 w-1.5 rounded-full bg-sky-strong ring-1 ring-surface"
               />
+            )}
+            {/* 흰 바탕을 깔아 둔다 — 진한 칸(강도 높음) 위에서도 보이게 */}
+            {flag && (
+              <span
+                aria-hidden
+                className="absolute left-1 top-1 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-surface/90 shadow-sm"
+              >
+                <Sparkles className="h-2.5 w-2.5 text-cat-core" />
+              </span>
             )}
           </button>
         );

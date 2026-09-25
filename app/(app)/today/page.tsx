@@ -26,6 +26,9 @@ import { HomeTile, HomeTileLink, MiniBars, type TileState } from './home-tile';
 import { SummaryPanel, type RecentLog } from './summary-panel';
 import { TodayRecord } from './today-record';
 import { PitchLogPanel } from './pitch-log-panel';
+import { AnalysisSkeleton } from './analysis-block';
+import { AnalysisView } from './analysis-view';
+import { readAnalysisTab, type AnalysisTab } from './analysis-tabs';
 
 /**
  * 홈 — 오늘 남길 것.
@@ -89,8 +92,11 @@ export default async function HomePage({
   searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
 }) {
   const user = await requireUser();
+  const params = await searchParams;
   // 그날 화면에서 '달력으로 돌아가기'로 들어오면 그 날짜를 짚어 둔다.
-  const initialDate = readDateParam((await searchParams).date);
+  const initialDate = readDateParam(params.date);
+  // 예전 분석 탭 주소(/coach?view=…)로 들어오면 분석 칸의 그 칸을 편다
+  const analysisTab = readAnalysisTab(params.analysis);
 
   return (
     <div className="space-y-6">
@@ -112,7 +118,11 @@ export default async function HomePage({
         다 준비되고도 아래를 기다리느라 같이 회색으로 남는다.
       */}
       <Suspense fallback={<Skeleton className="h-[26rem] rounded-2xl" />}>
-        <PitchLogSection user={user} initialDate={initialDate} />
+        <PitchLogSection
+          user={user}
+          initialDate={initialDate}
+          analysisTab={analysisTab}
+        />
       </Suspense>
 
       <Suspense fallback={<TodaySkeleton />}>
@@ -145,9 +155,11 @@ function readDateParam(raw: string | string[] | undefined): string | null {
 async function PitchLogSection({
   user,
   initialDate,
+  analysisTab,
 }: {
   user: Awaited<ReturnType<typeof requireUser>>;
   initialDate: string | null;
+  analysisTab: AnalysisTab;
 }) {
   const now = new Date();
 
@@ -184,38 +196,40 @@ async function PitchLogSection({
    * 날짜를 누를 때마다 받아 오면 칸을 옮길 때마다 기다리므로 여기서 같이 읽는다.
    * 모두 하루 한 줄로 줄여서 넘긴다(영양은 칼로리·단백질 합, 체크인은 컨디션·통증).
    */
-  const [logs, training, plans, featured, meals, checkins, reports] = await Promise.all([
-    prisma.pitchLog.findMany({
-      where: { userId: user.id, date: { gte: initialFrom } },
-      orderBy: [{ date: 'asc' }, { createdAt: 'asc' }],
-    }),
-    trainingSummaries(user.id),
-    planSummaries(user.id),
-    prisma.dailyFeaturedVideo.findMany({
-      where: { userId: user.id, date: { gte: initialFrom } },
-      select: { date: true, videoPath: true },
-    }),
-    prisma.mealEntry.findMany({
-      where: { userId: user.id, date: { gte: initialFrom } },
-      select: { date: true, kcal: true, protein: true, amount: true },
-    }),
-    prisma.dailyCheckin.findMany({
-      where: { userId: user.id, date: { gte: initialFrom } },
-      select: {
-        date: true,
-        condition: true,
-        shoulder: true,
-        elbow: true,
-        wrist: true,
-        lowerBack: true,
-        lowerBody: true,
-      },
-    }),
-    prisma.aiReport.findMany({
-      where: { userId: user.id, asOf: { gte: initialFrom } },
-      select: { asOf: true },
-    }),
-  ]);
+  const [logs, training, plans, featured, meals, checkins, reports] = await Promise.all(
+    [
+      prisma.pitchLog.findMany({
+        where: { userId: user.id, date: { gte: initialFrom } },
+        orderBy: [{ date: 'asc' }, { createdAt: 'asc' }],
+      }),
+      trainingSummaries(user.id),
+      planSummaries(user.id),
+      prisma.dailyFeaturedVideo.findMany({
+        where: { userId: user.id, date: { gte: initialFrom } },
+        select: { date: true, videoPath: true },
+      }),
+      prisma.mealEntry.findMany({
+        where: { userId: user.id, date: { gte: initialFrom } },
+        select: { date: true, kcal: true, protein: true, amount: true },
+      }),
+      prisma.dailyCheckin.findMany({
+        where: { userId: user.id, date: { gte: initialFrom } },
+        select: {
+          date: true,
+          condition: true,
+          shoulder: true,
+          elbow: true,
+          wrist: true,
+          lowerBack: true,
+          lowerBody: true,
+        },
+      }),
+      prisma.aiReport.findMany({
+        where: { userId: user.id, asOf: { gte: initialFrom } },
+        select: { asOf: true },
+      }),
+    ]
+  );
 
   const nutritionByDay: Record<string, { kcal: number; protein: number }> = {};
   for (const m of meals) {
@@ -259,6 +273,22 @@ async function PitchLogSection({
         ])
       )}
       reportDays={reports.map((r) => toDateKey(r.asOf))}
+      /*
+        오늘의 리포트 — 캘린더 밑 분석 칸이 처음 보여 주는 것. 따로 기다리게 둔다
+        (Suspense): 캘린더는 이것을 기다리지 않고 먼저 그려진다. 리포트를 만들면
+        서버가 홈을 새로 그리며 이것도 새것으로 온다.
+      */
+      analysisSlot={
+        <Suspense fallback={<AnalysisSkeleton />}>
+          <AnalysisView
+            user={user}
+            date={toDateKey(now)}
+            today={toDateKey(now)}
+            tab="report"
+          />
+        </Suspense>
+      }
+      initialAnalysisTab={analysisTab}
     />
   );
 }

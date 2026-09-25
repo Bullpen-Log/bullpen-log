@@ -1,5 +1,4 @@
-import Link from 'next/link';
-import { ArrowRight } from 'lucide-react';
+import { ArrowUp } from 'lucide-react';
 import { ACWR_ZONES, formatShortDate, type AcwrZone } from '@/lib/pitch-stats';
 import { REST_SESSION_TYPE } from '@/lib/session-type';
 import { TONE } from '@/components/tone';
@@ -12,7 +11,7 @@ import { TONE } from '@/components/tone';
  *
  * 빈 곳을 아무거나로 메우지는 않는다. 여기 있는 셋은 홈에서 볼 값어치가 있는
  * 것들이다 — 지금 몸이 어떤 상태인지, 이번 주에 얼마나 했는지, 최근에 뭘 했는지.
- * 자세한 것은 분석과 투구 일지가 맡고, 여기서는 한 줄씩만 보여주고 넘긴다.
+ * 자세한 것은 위쪽 분석 칸과 투구 일지가 맡고, 여기서는 한 줄씩만 보여주고 넘긴다.
  *
  * 좁은 화면에서는 상자 넷 아래로 내려간다. 폰에서는 오늘 할 일이 먼저다.
  */
@@ -89,13 +88,14 @@ export function SummaryPanel({
       <section className="rounded-2xl border border-line bg-surface px-5 py-4">
         <div className="flex items-baseline justify-between gap-2">
           <h2 className="text-heading text-sm text-ink">지금 부하</h2>
-          <Link
-            href="/coach"
+          {/* 분석 탭이 홈으로 들어와, 같은 화면 위쪽의 분석 칸으로 올려 준다 */}
+          <a
+            href="#analysis"
             className="inline-flex items-center gap-0.5 text-xs font-medium text-sky transition-colors hover:text-sky-strong"
           >
             분석
-            <ArrowRight className="h-3 w-3" />
-          </Link>
+            <ArrowUp aria-hidden className="h-3 w-3" />
+          </a>
         </div>
         <p className="mt-1 text-[11px] leading-relaxed text-muted/70">
           평소보다 얼마나 많은지
