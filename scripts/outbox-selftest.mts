@@ -64,7 +64,16 @@ function check(name: string, ok: boolean, detail = '') {
   if (!ok) bad++;
   console.log(`${ok ? '  통과' : '  실패'}  ${name}${detail ? `  (${detail})` : ''}`);
 }
-const at = (min: number) => new Date(Date.UTC(2026, 8, 23, 9, min)).toISOString();
+/*
+ * 세트를 누른 시각. 지금으로부터 세 시간 전을 0분으로 센다.
+ *
+ * 날짜를 박아 두지 않는다. 폰은 7일이 지난 것을 버리므로(⑨), 예전처럼
+ * 9월 23일로 박아 두면 그 주가 지난 뒤에 돌릴 때 '앱을 껐다 켜니 세트가
+ * 사라졌다'로 엉뚱하게 실패한다. 한 번 돌리는 동안에는 기준이 바뀌지 않아
+ * 누른 순서와 시각 비교는 그대로다.
+ */
+const BASE = Date.now() - 3 * 60 * 60 * 1000;
+const at = (min: number) => new Date(BASE + min * 60_000).toISOString();
 const set = (exerciseId: string, setNo: number, min: number, sessionId = 'S1') => ({
   sessionId,
   exerciseId,
