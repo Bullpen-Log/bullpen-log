@@ -4,6 +4,7 @@ import { requireUser } from '@/lib/dal';
 import { createPlaybackUrls } from '@/lib/storage';
 import { exercisesByIds } from '@/lib/library-cache';
 import { recentAmounts } from '@/lib/report/exercise-recent';
+import { exerciseNotes } from '@/lib/exercise-notes';
 import { readFrozenPlan } from '@/lib/workout/session-plan';
 import { closeAbandonedSessions } from '@/lib/workout/close-stale';
 import { SessionClient, type RunExercise, type RunSet } from './session-client';
@@ -53,7 +54,7 @@ export default async function RunPage() {
   const details = await exercisesByIds(plan.exercises.map((e) => e.id));
   const byId = new Map(details.map((d) => [d.id, d]));
 
-  const [sets, thumbUrls, past] = await Promise.all([
+  const [sets, thumbUrls, past, notes] = await Promise.all([
     prisma.userExerciseSet.findMany({
       where: { sessionId: session.id },
       orderBy: [{ exerciseId: 'asc' }, { setNo: 'asc' }],
@@ -75,6 +76,11 @@ export default async function RunPage() {
       user.id,
       plan.exercises.map((e) => e.id),
       session.date
+    ),
+    /* 운동마다 남겨 둔 내 메모 — 오늘 목록에 든 것만 */
+    exerciseNotes(
+      user.id,
+      plan.exercises.map((e) => e.id)
     ),
   ]);
 
@@ -101,6 +107,7 @@ export default async function RunPage() {
       thumbUrl: e.thumbPath ? (thumbUrls[e.thumbPath] ?? null) : null,
       /* 가장 최근 한 번만. 여러 개를 보여주면 무엇을 따라갈지 흐려진다. */
       last: past.get(e.id)?.[0] ?? null,
+      note: notes.get(e.id) ?? null,
     };
   });
 

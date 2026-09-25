@@ -128,6 +128,39 @@ export const outbox = {
   },
 };
 
+/** 화면에 그리는 세트 한 줄. 폰에만 있고 아직 못 보낸 것은 pending 이 붙는다. */
+export type ShownSet = Omit<PendingSet, 'sessionId'> & { pending?: boolean };
+
+/**
+ * 서버에 저장된 세트 위에 폰에만 있는 세트를 겹쳐, 화면에 그릴 목록을 만든다.
+ * pending 은 이 판의 것만 넘긴다.
+ *
+ * 같은 세트(운동·번호)가 양쪽에 다 있으면 폰 쪽이 이긴다. 저장된 세트를
+ * 고치면 고친 값이 같은 번호로 먼저 폰에 담기는데, 서버 값이 이기면 신호가
+ * 없는 동안 고친 것이 화면에 안 보인다 — 고쳤는지조차 알 수 없다. 보내고
+ * 나면 두 값이 같아지고 폰 쪽은 빠지므로, 앞세워도 달라지는 것이 없다.
+ */
+export function withPending(
+  saved: readonly Omit<PendingSet, 'sessionId'>[],
+  pending: readonly PendingSet[]
+): ShownSet[] {
+  const key = (s: { exerciseId: string; setNo: number }) =>
+    `${s.exerciseId}#${s.setNo}`;
+  const waiting = new Set(pending.map(key));
+  return [
+    ...saved.filter((s) => !waiting.has(key(s))),
+    ...pending.map((p) => ({
+      setNo: p.setNo,
+      exerciseId: p.exerciseId,
+      weightKg: p.weightKg,
+      reps: p.reps,
+      holdSeconds: p.holdSeconds,
+      recordedAt: p.recordedAt,
+      pending: true,
+    })),
+  ];
+}
+
 /*
  * 한 번에 한 줄만 보낸다. 화면이 여러 까닭(새 세트, 신호 복구, 15초 주기)으로
  * 동시에 불러도, 이미 보내는 중이면 그 줄이 새로 담긴 것까지 이어서 보낸다.

@@ -2,6 +2,7 @@ import { prisma } from '@/lib/prisma';
 import { requireUser } from '@/lib/dal';
 import { allExercises } from '@/lib/library-cache';
 import { favoriteExerciseIds } from '@/lib/favorites';
+import { exerciseNotes } from '@/lib/exercise-notes';
 import { createPlaybackUrls } from '@/lib/storage';
 import { referenceThumbUrl } from '@/lib/reference-video';
 import { TrainingClient, type ExerciseItem } from './training-client';
@@ -45,7 +46,14 @@ export default async function TrainingPage() {
     for (const row of counted) usedCounts.set(row.exerciseId, row._count._all);
   }
 
-  const favoriteIds = await favoriteExerciseIds(user.id);
+  /*
+   * 별과 내 메모는 사람마다 다르다 — 캐시에 넣지 않고 여기서 읽는다.
+   * 메모는 운동 중에 쓴 것이다(app/(session)/workout/run/exercise-note.tsx).
+   */
+  const [favoriteIds, notes] = await Promise.all([
+    favoriteExerciseIds(user.id),
+    exerciseNotes(user.id),
+  ]);
 
   // 미리보기 이미지 주소는 한 번의 요청으로 모아서 받는다.
   const thumbUrls = await createPlaybackUrls(
@@ -54,6 +62,7 @@ export default async function TrainingPage() {
 
   const items: ExerciseItem[] = exercises.map((ex) => ({
     favorite: favoriteIds.has(ex.id),
+    note: notes.get(ex.id) ?? null,
     id: ex.id,
     title: ex.title,
     category: ex.category,

@@ -209,5 +209,94 @@ check(
   iso(clampRecordedAt(undefined, opened, now)) === iso(now)
 );
 
+console.log('\n⑪ 완료한 세트 고치기 — 같은 번호·같은 시각으로 다시 담는다');
+/*
+ * 운동 화면(session-client.tsx)이 세트를 고칠 때 하는 그대로다. 시각은 지금
+ * 기준으로 잡는다 — 7일이 지난 것은 폰이 버리므로(⑨), 날짜를 박아 두면 그
+ * 날이 지나서 돌릴 때 엉뚱하게 실패한다.
+ */
+disk.clear();
+m = await boot();
+const ago = (min: number) => new Date(Date.now() - min * 60_000).toISOString();
+const doneAt = ago(30);
+const dead = (setNo: number, weightKg: number, reps: number, recordedAt: string) => ({
+  sessionId: 'S1',
+  exerciseId: '데드',
+  setNo,
+  weightKg,
+  reps,
+  holdSeconds: null,
+  recordedAt,
+});
+/* 화면이 들고 있는 '저장된 세트' — 서버 줄을 그대로 옮겨 담는다 */
+const savedDead = () =>
+  [...server.entries()]
+    .filter(([k]) => k.startsWith('S1|데드|'))
+    .map(([k, v]) => ({
+      exerciseId: '데드',
+      setNo: Number(k.split('|')[2]),
+      weightKg: v.weightKg,
+      reps: v.reps,
+      holdSeconds: null,
+      recordedAt: v.recordedAt,
+    }));
+const shownDead = () =>
+  m
+    .withPending(
+      savedDead(),
+      m.outbox.snapshot().filter((p) => p.sessionId === 'S1')
+    )
+    .filter((s) => s.exerciseId === '데드');
+
+signal = true;
+m.outbox.add(dead(1, 60, 8, doneAt));
+await m.drainOutbox('S1', logSet, handle);
+check('처음 남긴 세트: 60kg × 8회', server.get('S1|데드|1')?.weightKg === 60);
+
+signal = false;
+m.outbox.add(dead(1, 65, 6, doneAt));
+let row = shownDead().filter((s) => s.setNo === 1);
+check(
+  '신호가 없어도 고친 값이 바로 보임',
+  row.length === 1 && row[0].weightKg === 65 && row[0].reps === 6,
+  JSON.stringify(row)
+);
+check('같은 세트가 두 줄로 안 보임', row.length === 1, String(row.length));
+check('고친 줄에 대기 표시', row[0]?.pending === true);
+
+m.outbox.add(dead(2, 65, 6, ago(25)));
+check(
+  '새로 남긴 세트는 저장된 것 뒤에 대기로 붙음',
+  shownDead().some((s) => s.setNo === 2 && s.pending === true)
+);
+/* 운동 화면의 지우기와 같다 — 아직 서버에 없던 세트는 폰에서 빼면 끝 */
+m.outbox.remove({ sessionId: 'S1', exerciseId: '데드', setNo: 2 });
+check('보내기 전에 지운 세트는 안 보임', !shownDead().some((s) => s.setNo === 2));
+
+signal = true;
+r = await m.drainOutbox('S1', logSet, handle);
+check("신호가 돌아오면 'done'", r === 'done', r);
+const fixed = server.get('S1|데드|1');
+check('서버의 그 줄이 고친 값으로 바뀜', fixed?.weightKg === 65 && fixed?.reps === 6);
+check('마친 시각은 처음 그대로', fixed?.recordedAt === doneAt, fixed?.recordedAt);
+check('줄이 늘지 않음 — 덮어씀', savedDead().length === 1, String(savedDead().length));
+check(
+  '다 보내면 대기 표시가 사라짐',
+  shownDead().every((s) => !s.pending)
+);
+
+/* 고친 값을 보내기 전에 그 세트를 지우면 — 폰의 고친 값부터 빼야 되살아나지 않는다 */
+signal = false;
+m.outbox.add(dead(1, 70, 5, doneAt));
+m.outbox.remove({ sessionId: 'S1', exerciseId: '데드', setNo: 1 });
+row = shownDead().filter((s) => s.setNo === 1);
+check(
+  '폰의 고친 값을 빼면 서버 값이 다시 보임',
+  row.length === 1 && row[0].weightKg === 65 && !row[0].pending,
+  JSON.stringify(row)
+);
+check('다시 보낼 것이 남지 않음', m.outbox.snapshot().length === 0);
+signal = true;
+
 console.log(bad === 0 ? '\n전부 통과' : `\n${bad}개 실패`);
 process.exit(bad === 0 ? 0 : 1);

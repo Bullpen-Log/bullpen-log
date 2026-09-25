@@ -478,3 +478,35 @@ export function formatAmount(a: DoneAmount, unit: WeightUnit = 'kg'): string | n
   if (!amount && !weight) return null;
   return [amount, weight].filter(Boolean).join(' · ');
 }
+
+/* ------------------------------- 운동별 메모 ------------------------------- */
+
+/**
+ * 운동별 메모에 담을 수 있는 글자 수.
+ *
+ * 운동 화면에서 운동 이름 바로 아래에 늘 펼쳐 두는 글이라 짧아야 한다 —
+ * "그립 한 칸 넓게, 벤치 등받이 3칸" 이면 충분하다. 길어지면 정작 봐야 할
+ * 세트 기록이 아래로 밀린다. 그날의 긴 소감은 운동을 마칠 때 남기는
+ * 느낀점(1000자)이 받는다.
+ *
+ * 화면(입력칸)과 서버(저장할 때)가 같은 값을 본다.
+ */
+export const EXERCISE_NOTE_MAX = 300;
+
+/**
+ * 저장할 메모로 다듬는다. 남는 글이 없으면 빈 문자열 — 서버는 그때 메모를 지운다.
+ *
+ * - 줄바꿈을 \n 하나로 맞춘다. \r\n 으로 보내는 기기가 있다.
+ * - 빈 줄은 한 줄까지만 남긴다. 화면에서 큰 구멍이 된다.
+ * - 앞뒤 공백을 걷는다. 폰 자판은 끝에 줄바꿈이 잘 붙는다.
+ * - EXERCISE_NOTE_MAX 에서 자른다. 화면이 이미 막지만 요청은 고쳐 보낼 수
+ *   있다. 글자 단위로 자른다 — 이모지를 반으로 가르지 않게.
+ */
+export function cleanExerciseNote(value: unknown): string {
+  if (typeof value !== 'string') return '';
+  const text = value
+    .replace(/\r\n?/g, '\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+  return Array.from(text).slice(0, EXERCISE_NOTE_MAX).join('').trim();
+}

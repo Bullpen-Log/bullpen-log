@@ -66,6 +66,8 @@ import {
 } from '../lib/report/theme.ts';
 import {
   BODY_PARTS,
+  EXERCISE_NOTE_MAX,
+  cleanExerciseNote,
   formatAmount,
   intensityLevel,
   storedKg,
@@ -2974,7 +2976,10 @@ console.log('\n[떠난 운동 판] 종료를 안 누른 판을 가려내고, 끝
   };
   const todaySet = kst('2026-09-25T07:40');
   const tonight = kst('2026-09-25T21:00');
-  check('오늘 판은 13시간 비워도 떠난 판 아님', !isAbandoned(todayMorning, todaySet, tonight));
+  check(
+    '오늘 판은 13시간 비워도 떠난 판 아님',
+    !isAbandoned(todayMorning, todaySet, tonight)
+  );
   const end3 = sessionEnd(todayMorning, todaySet, tonight);
   check(
     '아침 판의 종료를 저녁에 누르면 끝은 마지막 세트 — 그 사이는 운동 시간이 아니다(35분)',
@@ -2986,7 +2991,11 @@ console.log('\n[떠난 운동 판] 종료를 안 누른 판을 가려내고, 끝
   check(
     '마지막으로 무언가 한 뒤 2시간 59분 → 아직 아님, 3시간 → 떠난 판',
     STALE_AFTER_MS === 3 * H &&
-      !isAbandoned(lateNight, recentSet, new Date(recentSet.getTime() + STALE_AFTER_MS - 60_000)) &&
+      !isAbandoned(
+        lateNight,
+        recentSet,
+        new Date(recentSet.getTime() + STALE_AFTER_MS - 60_000)
+      ) &&
       isAbandoned(lateNight, recentSet, new Date(recentSet.getTime() + STALE_AFTER_MS))
   );
   check(
@@ -3019,7 +3028,10 @@ console.log('\n[떠난 운동 판] 종료를 안 누른 판을 가려내고, 끝
     mainStartedAt: null,
   };
   check('워밍업만 열고 떠난 판도 떠난 판', isAbandoned(warmupOnly, null, morning));
-  check('그 판의 운동 시간은 0', sessionEnd(warmupOnly, null, morning).segmentSeconds === 0);
+  check(
+    '그 판의 운동 시간은 0',
+    sessionEnd(warmupOnly, null, morning).segmentSeconds === 0
+  );
 
   // 7) 세트를 받을 때의 규칙(logSet) — 기준 시각은 그 세트를 남긴 시각이다
   check(
@@ -3029,6 +3041,44 @@ console.log('\n[떠난 운동 판] 종료를 안 누른 판을 가려내고, 끝
   check(
     '켜 둔 화면에서 아침(08:00)에 남긴 세트 → 어제 판을 닫고 새로 열게 한다',
     isAbandoned(evening, lastSet, kst('2026-09-25T08:00'))
+  );
+}
+
+console.log('\n[운동별 메모] 저장하기 전에 다듬는 규칙');
+{
+  /*
+   * 서버가 저장하기 직전에 거치는 함수다(app/actions/exercise-note.ts).
+   * 남는 글이 없으면 빈 문자열 — 서버는 그때 메모를 지운다.
+   */
+  check(
+    '앞뒤 공백·줄바꿈을 걷는다',
+    cleanExerciseNote('  그립 넓게 \n\n') === '그립 넓게'
+  );
+  check('공백만 있으면 빈 메모 — 지우기가 된다', cleanExerciseNote(' \n\t ') === '');
+  check(
+    '글이 아닌 값은 빈 메모',
+    cleanExerciseNote(undefined) === '' && cleanExerciseNote(42) === ''
+  );
+  check(
+    '\\r\\n 줄바꿈을 \\n 으로 맞춘다',
+    cleanExerciseNote('그립\r\n등받이 3칸') === '그립\n등받이 3칸'
+  );
+  check(
+    '빈 줄은 한 줄까지만',
+    cleanExerciseNote('그립\n\n\n\n등받이') === '그립\n\n등받이'
+  );
+  const long = cleanExerciseNote('가'.repeat(EXERCISE_NOTE_MAX + 50));
+  check(
+    `${EXERCISE_NOTE_MAX}자에서 자른다`,
+    Array.from(long).length === EXERCISE_NOTE_MAX,
+    String(Array.from(long).length)
+  );
+  /* 이모지는 두 칸짜리라, 칸 단위로 자르면 반쪽 글자가 남는다 */
+  const emoji = cleanExerciseNote('💪'.repeat(EXERCISE_NOTE_MAX + 1));
+  check(
+    '이모지를 반으로 가르지 않는다',
+    Array.from(emoji).length === EXERCISE_NOTE_MAX &&
+      Array.from(emoji).every((c) => c === '💪')
   );
 }
 

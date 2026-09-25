@@ -85,6 +85,7 @@ model User {
   createdAt           DateTime  @default(now())
 
   exerciseFavorites UserExerciseFavorite[]
+  exerciseNotes     UserExerciseNote[]
   drillFavorites    UserDrillFavorite[]
   drillLogs         UserDrillLog[]
   pitchLogs         PitchLog[]
@@ -286,6 +287,36 @@ model UserExerciseFavorite {
 }
 
 /**
+ * 운동별 내 메모 — 운동 하나에 하나.
+ *
+ * "그립은 한 칸 넓게", "벤치 등받이 3칸" 처럼 그 운동을 할 때마다 떠올려야
+ * 하는 것을 적어 둔다. 운동 중에 쓰고 고치며, 다음에 그 운동을 할 때 운동
+ * 이름 아래에 미리 떠 있고, 라이브러리의 그 운동 상세에도 보인다.
+ *
+ * 날짜별로 쌓지 않는다. 날마다 남기는 느낀점은 DailyTrainingNote 가 따로
+ * 있고, 이쪽은 '그 운동에 대한 메모'라 고치면 덮어쓴다. 비우고 저장하면
+ * 줄을 지운다 — 빈 메모를 남겨 두지 않는다.
+ */
+model UserExerciseNote {
+  userId     String
+  exerciseId String
+  /// 메모 내용. 앞뒤 공백을 걷고 저장한다(lib/exercise-meta.ts 의 cleanExerciseNote).
+  body       String   @db.Text
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  user     User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  exercise ExerciseVideo @relation(fields: [exerciseId], references: [id], onDelete: Cascade)
+
+  @@id([userId, exerciseId])
+  /*
+   * 운동을 지울 때 딸린 메모를 찾는 자리. 외래 키 없이 Prisma 가 대신 지우므로
+   * (relationMode = "prisma") 이 칸으로 찾는 길을 따로 깔아 둔다.
+   */
+  @@index([exerciseId])
+}
+
+/**
  * 즐겨찾기 — 투구 드릴. 운동 쪽과 같은 뜻이고, 드릴 고르는 창에서 쓴다.
  */
 model UserDrillFavorite {
@@ -473,6 +504,7 @@ model ExerciseVideo {
   createdAt        DateTime               @default(now())
   userLogs         UserExerciseLog[]
   favorites        UserExerciseFavorite[]
+  notes            UserExerciseNote[]
   warmupItems      WarmupRoutineItem[]
   workoutSets      UserExerciseSet[]
 }

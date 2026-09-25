@@ -1,7 +1,16 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { Eye, EyeOff, Pencil, Search, Star, Trash2, X } from 'lucide-react';
+import {
+  Eye,
+  EyeOff,
+  NotebookPen,
+  Pencil,
+  Search,
+  Star,
+  Trash2,
+  X,
+} from 'lucide-react';
 import {
   deleteExercise,
   exerciseDescription,
@@ -52,6 +61,8 @@ export type ExerciseItem = {
   aspectRatio: number | null;
   /** 이 사람이 별을 달아 뒀는가 */
   favorite: boolean;
+  /** 이 사람이 운동 중에 이 운동에 남긴 메모(운동마다 하나). 없으면 null */
+  note: string | null;
 } & Prescription;
 
 const FILTER_GROUPS = [
@@ -265,6 +276,21 @@ function ExerciseDetail({
         <p className="whitespace-pre-wrap text-sm leading-relaxed text-muted">
           {description ?? <span className="opacity-50">설명을 불러오는 중…</span>}
         </p>
+
+        {/*
+          내 메모 — 운동 중에 이 운동에 남긴 것(운동마다 하나). 쓰고 고치는
+          곳은 운동 화면의 운동 이름 아래다(app/(session)/workout/run/exercise-note.tsx).
+        */}
+        {item.note && (
+          <div className="rounded-xl border border-line bg-surface-2 px-3.5 py-3">
+            <p className="flex items-center gap-1.5 text-[11px] font-semibold text-muted">
+              <NotebookPen aria-hidden className="h-3.5 w-3.5" />내 메모
+            </p>
+            <p className="mt-1 whitespace-pre-wrap break-keep text-sm leading-relaxed text-ink">
+              {item.note}
+            </p>
+          </div>
+        )}
 
         {/* 업로드할 때 캡처가 실패한 영상은 여기서 이미지만 다시 만들 수 있다. */}
         {isAdmin && !item.thumbUrl && item.videoPath && (
