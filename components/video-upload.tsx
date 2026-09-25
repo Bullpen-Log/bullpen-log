@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Film, Loader2, Upload, X } from 'lucide-react';
 import { captureThumbnail } from '@/lib/capture-thumbnail';
 
@@ -79,11 +79,19 @@ export function VideoUpload({
   endpoint = '/api/pitch-log/upload-url',
   /** 목록에서 재생 전에 보여줄 이미지를 함께 만들지 여부 */
   withThumbnail = false,
+  onUploadingChange,
 }: {
   videos: UploadedVideo[];
   onChange: (next: UploadedVideo[]) => void;
   max?: number;
   disabled?: boolean;
+  /**
+   * 올리는 중인지 바깥에 알린다. 감싸는 폼이 그동안 저장을 막는 데 쓴다.
+   *
+   * 올리는 중에 저장하면 그 영상은 아직 목록에 없어서 영상 없이 저장됐다.
+   * 사용자는 모르고, 올라간 파일은 주인 없이 저장소에 남았다.
+   */
+  onUploadingChange?: (uploading: boolean) => void;
   /**
    * 이 영상을 빼기 전에 알려줄 말. 비워 두면 바로 뺀다.
    *
@@ -100,6 +108,22 @@ export function VideoUpload({
   const [error, setError] = useState<string>();
   /** 한 번 눌러 물어본 영상. 같은 것을 또 누르면 그때 뺀다. */
   const [asking, setAsking] = useState<string | null>(null);
+
+  /*
+   * 지금 목록. 올리기가 끝났을 때 여기에 더한다.
+   *
+   * 올리기를 시작할 때의 목록(videos)에 더하면, 올리는 동안 사용자가 뺀 영상이
+   * 끝나는 순간 되살아났다. 끝날 때의 목록을 봐야 한다.
+   */
+  const latestVideos = useRef(videos);
+  useEffect(() => {
+    latestVideos.current = videos;
+  }, [videos]);
+
+  const setBusy = (value: boolean) => {
+    setUploading(value);
+    onUploadingChange?.(value);
+  };
 
   const handlePick = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -124,7 +148,7 @@ export function VideoUpload({
       return;
     }
 
-    setUploading(true);
+    setBusy(true);
     setProgress(0);
 
     try {
@@ -149,13 +173,13 @@ export function VideoUpload({
       }
 
       onChange([
-        ...videos,
+        ...latestVideos.current,
         { path, name: file.name, previewUrl: URL.createObjectURL(file), thumbPath },
       ]);
     } catch (err) {
       setError(err instanceof Error ? err.message : '업로드에 실패했습니다.');
     } finally {
-      setUploading(false);
+      setBusy(false);
       setProgress(0);
     }
   };

@@ -136,6 +136,14 @@ export function EntryForm({
     (initial?.videoPaths ?? []).map((path) => ({ path, name: fileNameOf(path) }))
   );
   const [saving, setSaving] = useState(false);
+  /*
+   * 영상을 올리는 중인가. 그동안은 저장을 막는다.
+   *
+   * 올리는 영상은 다 올라가야 목록(videos)에 들어간다. 그 전에 저장하면 기록은
+   * 영상 없이 저장되고 사용자는 모른다 — "올리는 중 35%"일 때 누른 저장이 그랬다.
+   * 올라간 파일은 붙을 곳 없이 저장소에 남았다.
+   */
+  const [uploading, setUploading] = useState(false);
 
   /*
    * 이미 올려둔 영상의 재생 주소를 받아온다.
@@ -173,6 +181,8 @@ export function EntryForm({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    /* 단추는 막혀 있지만 Enter 로도 제출된다 */
+    if (uploading) return;
     setSaving(true);
     onError(undefined);
 
@@ -345,6 +355,7 @@ export function EntryForm({
               max={2}
               disabled={resting}
               confirmRemove={removeNote}
+              onUploadingChange={setUploading}
             />
           </div>
         </Field>
@@ -364,8 +375,14 @@ export function EntryForm({
       </Field>
 
       <div className="flex flex-wrap items-center gap-3">
-        <Button type="submit" disabled={saving} className="w-full sm:w-auto">
-          {saving ? '저장 중…' : editing ? '수정 저장' : `${date} 기록 저장`}
+        <Button type="submit" disabled={saving || uploading} className="w-full sm:w-auto">
+          {saving
+            ? '저장 중…'
+            : uploading
+              ? '영상 올리는 중… 끝나면 저장할 수 있어요'
+              : editing
+                ? '수정 저장'
+                : `${date} 기록 저장`}
         </Button>
         {editing && onCancel && (
           <button
