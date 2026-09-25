@@ -141,7 +141,8 @@ export function filterByLevel<T extends WithDifficulty>(
  *   maxPower     본운동에 파워를 이만큼까지만. 0 이면 아예 안 넣는다.
  *   minStrength  스트렝스를 적어도 이만큼은 넣는다.
  *
- * 둘 다 본운동에만 걸린다. 워밍업·코어·보강·암케어는 파워가 애초에 안 들어간다.
+ * 둘 다 본운동에만 걸린다. 다른 구간(가동성·코어·보강·유산소)에는 파워가 애초에
+ * 안 들어간다.
  */
 /**
  * 목표 안에서 오늘 어느 부위를 할지.
@@ -223,7 +224,7 @@ export const TRAINING_GOALS = [
   {
     name: '근력 향상',
     desc: '무게 드는 운동 위주에 코어를 조금 — 점프·던지기는 빼고',
-    weights: { mobility: 0.85, main: 1.2, core: 0.9, prehab: 0.8, armcare: 0.85 },
+    weights: { mobility: 0.85, main: 1.2, core: 0.9, prehab: 0.8 },
     prefer: ['하체 스트렝스', '상체 스트렝스'],
     /*
      * 파워를 아예 안 넣는다.
@@ -254,7 +255,7 @@ export const TRAINING_GOALS = [
      */
     name: '파워 향상',
     desc: '빠르게 힘을 내는 훈련과 하체에 시간을 더 씁니다',
-    weights: { mobility: 1, main: 1.15, core: 0.9, prehab: 0.8, armcare: 0.8 },
+    weights: { mobility: 1, main: 1.15, core: 0.9, prehab: 0.8 },
     prefer: ['파워'],
     /*
      * 파워를 먼저 둘 채우고, 무게 드는 운동을 하나 남긴다.
@@ -284,10 +285,13 @@ export const TRAINING_GOALS = [
      * (lib/report/theme.ts 의 GOAL_SHAPES), 뛰기·인터벌로 채우는 체력 날은 아니다.
      * 그렇게 읽히지 않게 무엇을 하는 날인지 적되, 영상이 올라오기 전에도 참이도록
      * '위주로'라고 쓴다.
+     *
+     * 어깨 관리는 이제 이 목표의 몫이 아니다 — 암케어는 모든 일정에서 빠져
+     * 트레이닝의 암케어 화면에서 따로 한다(2026-09-25). 그 자리에 가동성이 들어왔다.
      */
     name: '컨디셔닝',
-    desc: '코어·보강·어깨 관리 위주로 몸을 다지는 날 — 무게·점프·던지기는 빼고',
-    weights: { mobility: 1.3, main: 0.7, core: 1, prehab: 1.7, armcare: 1.6 },
+    desc: '가동성·코어·보강 위주로 몸을 다지는 날 — 무게·점프·던지기는 빼고',
+    weights: { mobility: 1.3, main: 0.7, core: 1, prehab: 1.7 },
     prefer: [],
     /*
      * 파워를 아예 안 넣는다.

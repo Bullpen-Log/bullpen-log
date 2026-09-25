@@ -1,4 +1,5 @@
 import { intensityLevel, minutesForSets, type Prescription } from '@/lib/exercise-meta';
+import { withJosa } from '@/lib/korean';
 import type { ReportFacts } from '@/lib/report/facts';
 import { remainingRestDays, type PitchPlan } from '@/lib/report/plan';
 import {
@@ -32,13 +33,16 @@ import {
 /**
  * 고를 수 있는 하루 운동 시간(분) — 목표마다 다르다.
  *
- * 무게를 드는 두 목표(근력 향상·파워 향상)는 60분부터다. 본운동 하나가 12~15분이라(3세트에 휴식
- * 3분, 준비 세트까지) 그보다 짧으면 무게 운동이 둘도 안 들어간다. 위로는
- * 120분까지 — 그 이상은 채울 것이 없다.
+ * 무게를 드는 두 목표(근력 향상·파워 향상)는 45·60·75·90분, 컨디셔닝은
+ * 45·60·75분이다(2026-09-25 사용자분과 정함). 15분 간격이라 오늘 쓸 수 있는
+ * 시간에 가깝게 고를 수 있다.
  *
- * 컨디셔닝은 40분부터 90분까지다. 몸을 지키려고 잡은 날이라 짧게 끝낼 수
- * 있어야 하고, 두 시간은 이 날의 뜻이 아니다. 실제로 120분을 잡아보니
- * 코어·보강·암케어가 개수 상한에 먼저 차서 101분치밖에 안 나왔다.
+ * 예전에는 60·90·120분과 40·60·90분이었다. 그때는 일정마다 암케어가 몫을
+ * 떼어 가서, 45분이면 무게 운동이 둘도 안 들어갔다. 암케어를 일정에서 빼
+ * 따로 하게 한 뒤로는(트레이닝의 암케어 화면) 45분에도 본운동이 둘은 들어간다.
+ * 두 시간은 채울 것이 없어 뺐다.
+ *
+ * 컨디셔닝은 75분까지다. 몸을 다지는 날이라 길게 끄는 것이 이 날의 뜻이 아니다.
  */
 /**
  * 이 목표만 구성도 시간 선택지도 다르다.
@@ -49,8 +53,8 @@ import {
  */
 export const CONDITIONING_GOAL = '컨디셔닝';
 
-const WEIGHT_MINUTES = [60, 90, 120] as const;
-const CONDITIONING_MINUTES = [40, 60, 90] as const;
+const WEIGHT_MINUTES = [45, 60, 75, 90] as const;
+const CONDITIONING_MINUTES = [45, 60, 75] as const;
 
 /** 목표가 정해지지 않은 자리(내 정보의 기본 시간)에서 쓰는 목록 */
 export const WORKOUT_MINUTES_CHOICES = WEIGHT_MINUTES;
@@ -63,13 +67,13 @@ export function minutesChoicesFor(goalName: string | null): readonly number[] {
 /**
  * 저장돼 있던 시간을 지금 고를 수 있는 값으로 맞춘다.
  *
- * 예전에는 15분·30분·45분도 고를 수 있었다. 그때 고른 값이 그대로 남아 있으면
+ * 예전 선택지(15·30분, 120분, 컨디셔닝의 40분)로 고른 값이 그대로 남아 있으면
  * 라디오에서 짝이 없어 아무것도 안 골라진 채로 뜬다 — 화면만 보면 시간을
  * 고르지 않은 것처럼 보인다. 짧은 쪽은 올려서, 긴 쪽은 내려서 가장 가까운
  * 값을 짚어준다.
  *
  * 목표를 주면 그 목표가 고를 수 있는 값 안에서 고른다. 컨디셔닝으로 바꿨는데
- * 120분이 남아 있으면 90분으로 내려온다.
+ * 90분이 남아 있으면 75분으로 내려온다.
  */
 export function nearestMinutesChoice(
   minutes: number,
@@ -189,7 +193,7 @@ const LOW_CONDITION_THRESHOLD = 4;
  * 어긋난다 — 투구는 쉬라는데 훈련은 데드리프트를 내주는 식이다.
  *
  *   2일 이상 남음  큰 등판 직후 — 회복만
- *   1일 남음       코어·암케어까지
+ *   1일 남음       코어·보강까지 (보조·코어 데이)
  *   0일            평소대로
  */
 function outingStrain(facts: ReportFacts): {
@@ -284,7 +288,7 @@ export const CONDITIONING_DAY_LABEL = '컨디셔닝 데이';
 /**
  * 근력 날인데 목표가 컨디셔닝이면, 그날은 컨디셔닝 데이다.
  *
- * 컨디셔닝은 무게 드는 구간을 통째로 뺀다(GOAL_SHAPES — 코어·보강·암케어, 유산소
+ * 컨디셔닝은 무게 드는 구간을 통째로 뺀다(GOAL_SHAPES — 가동성·코어·보강, 유산소
  * 영상이 있으면 유산소 하나).
  * 그런데 이름은 번갈아 정한 '하체 스트렝스 데이'가 그대로 남아, 목록에는 하체
  * 근력 운동이 하나도 없는데 제목만 하체였다. 직접 고르기에서 컨디셔닝을 골라도
@@ -299,18 +303,26 @@ export const CONDITIONING_DAY_LABEL = '컨디셔닝 데이';
 export function conditioningDay(
   theme: SessionTheme,
   facts: ReportFacts,
-  /** 실제로 유산소가 뽑혔는가 — 이유에 넣을지. 영상이 없는 동안에는 안 뽑힌다 */
-  withCardio = false
+  /**
+   * 실제로 뽑힌 구간. 이유에는 이것만 적는다 — 유산소는 영상이 있는 날에만
+   * 들어간다. 안 주면(아직 고르기 전인 AI 맞춤의 울타리) 이 목표의 기본 구간을
+   * 적는다 — 유산소는 들어갈지 모르니 뺀다.
+   */
+  slots?: readonly SlotKey[]
 ): SessionTheme {
   if (theme.key !== 'lower' && theme.key !== 'upper') return theme;
   const part = theme.key === 'lower' ? '하체' : '상체';
-  const filled = withCardio ? '코어·보강·유산소·암케어' : '코어·보강·암케어';
+  const shape = GOAL_SHAPES[CONDITIONING_GOAL];
+  const shown = SLOT_ORDER.filter((s) =>
+    slots ? s !== 'main' && slots.includes(s) : s !== 'cardio' && s in shape
+  );
+  const filled = shown.map((s) => SLOT_LABELS[s].label).join('·');
   return {
     key: theme.key,
     label: CONDITIONING_DAY_LABEL,
     reason:
       threwTodayNote(facts) +
-      `목표가 컨디셔닝이라 무게 드는 운동 대신 ${filled}로 채웠습니다. ${part} 근력은 다음 근력 날로 넘어갑니다.`,
+      `목표가 컨디셔닝이라 무게 드는 운동 대신 ${withJosa(filled, '으로/로')} 채웠습니다. ${part} 근력은 다음 근력 날로 넘어갑니다.`,
   };
 }
 
@@ -420,14 +432,14 @@ export function decideTheme({
       return {
         key: 'assist',
         label: '보조·코어 데이',
-        reason: '투구 부하가 주의 구간이라 무게 대신 코어와 암케어에 집중합니다.',
+        reason: '투구 부하가 주의 구간이라 무게 대신 코어와 보강에 집중합니다.',
       };
     }
     if (strain.level === 1) {
       return {
         key: 'assist',
         label: '보조·코어 데이',
-        reason: `${outingPhrase(strain)}. 하체는 빼고 코어와 어깨 관리 위주로 잡았습니다.`,
+        reason: `${outingPhrase(strain)}. 무게는 빼고 코어와 보강 위주로 잡았습니다.`,
       };
     }
   }
@@ -541,12 +553,17 @@ export const SLOT_LABELS: Record<SlotKey, { label: string; hint: string }> = {
    * 정작 그 운동을 안 쓰면 이름만 있는 목표가 된다.
    */
   prehab: { label: '보강', hint: '고관절·내전근처럼 약해지기 쉬운 곳' },
+  /*
+   * 암케어는 이제 어느 날의 구성에도 없다 — 트레이닝의 암케어 화면에서 따로
+   * 한다(2026-09-25). 칸은 남긴다. 그 전에 만든 일정과, 목록에서 직접 더한
+   * 암케어를 보여줄 자리다(slotForTheme).
+   */
   armcare: { label: '암케어', hint: '어깨·팔꿈치 관리로 마무리' },
 };
 
 /** 화면·구성에서 쓰는 구간 순서 */
 /*
- * 유산소가 맨 앞이다. 회복날에 자전거·걷기로 몸을 데운 뒤 가동성과 암케어를
+ * 유산소가 맨 앞이다. 회복날에 자전거·걷기로 몸을 데운 뒤 가동성과 보강을
  * 하는 것이 순서다 — 굳은 채로 관절부터 여는 것보다 낫다.
  */
 export const SLOT_ORDER: SlotKey[] = [
@@ -567,9 +584,9 @@ type SlotSpec = {
    *
    * 구간은 원래 시간이 모자라도 하나는 억지로 넣는다 — 본운동이 비는 날이
    * 없게 하려는 규칙이다. 그런데 회복날은 구간이 다섯이고 유산소 하나가 10분
-   * 이라, 30분짜리 날에 구간마다 하나씩만 넣어도 38분이 됐다. 곁가지(보강·
-   * 코어, 컨디셔닝 날의 유산소)는 시간이 남을 때만 넣고, 모자라면 건너뛴다.
-   * 남는 시간은 몫이 가장 큰 구간(회복날에는 암케어)으로 간다.
+   * 이라, 30분짜리 날에 구간마다 하나씩만 넣어도 38분이 됐다. 곁가지(컨디셔닝
+   * 날의 유산소)는 시간이 남을 때만 넣고, 모자라면 건너뛴다. 남는 시간은 몫이
+   * 가장 큰 구간(본운동, 없으면 회복날의 가동성처럼 몫이 가장 큰 구간)으로 간다.
    */
   optional?: boolean;
   /** 이 구간을 채우는 카테고리 (워밍업은 별도 규칙) */
@@ -623,13 +640,13 @@ type SlotSpec = {
  *
  * 목표가 무엇을 하러 온 날인지 정하므로, 구간도 목표가 정하게 한다.
  *
- *   근력 향상      워밍업 · 본운동 · 코어 · 암케어
+ *   근력 향상      본운동 · 코어
  *                 무게를 드는 데 시간을 몰아준다. 코어는 하나둘만 —
  *                 기본 목표라 예전 '균형 잡힌 관리'가 하던 몫을 넘겨받았다.
- *   파워 향상      워밍업 · 본운동 · 코어 · 암케어
+ *   파워 향상      본운동 · 코어
  *                 폭발력은 하체에서 코어를 지나 팔로 간다. 코어 없이
  *                 파워만 하면 힘이 새는 자리를 그대로 두는 셈이다.
- *   컨디셔닝      워밍업 · 코어 · 보강 · 유산소 · 암케어
+ *   컨디셔닝      가동성 · 코어 · 보강 · 유산소
  *                 무게와 파워를 통째로 뺀다. 몸을 다지러 고른 날인데
  *                 스쿼트와 점프가 나오면 목표와 반대다. 유산소는 하나 —
  *                 영상이 아직 없으면 그 칸은 빠진다(dropEmptySlots).
@@ -637,33 +654,43 @@ type SlotSpec = {
  * 2026-09-25 '균형 잡힌 관리'를 없앴다. 다섯 구간을 하나씩 다 쓰는 목표였는데,
  * 근력 향상과 거의 같은 날이 나와 고를 까닭이 흐렸다.
  *
- * 어깨 관리(암케어)는 어느 목표에도 있다. 투수에게 그것만은 매일이다.
+ * 같은 날 암케어도 모든 일정에서 뺐다(사용자분과 정함). 투수에게 어깨 관리는
+ * 매일인데, 일정의 한 구간으로 두니 운동을 안 하는 날에는 못 하고, 하는 날에는
+ * 무게 운동의 몫을 떼어 갔다. 이제 트레이닝의 암케어 화면에서 그날 몸 상태에
+ * 맞춰 따로 짠다(lib/armcare).
  */
 type GoalShape = {
   /** 무게·파워를 하는 구간. 없으면 그 목표는 무게를 안 든다. */
   main?: { share: number; maxCount: number };
+  /** 가동성 — 컨디셔닝만 쓴다 */
+  mobility?: { share: number; maxCount: number };
   core?: { share: number; maxCount: number };
   prehab?: { share: number; maxCount: number };
   /** 유산소 — 컨디셔닝만 쓴다 */
   cardio?: { share: number; maxCount: number };
-  armcare: { share: number; maxCount: number };
 };
 
 const GOAL_SHAPES: Record<string, GoalShape> = {
   '근력 향상': {
     main: { share: 0.7, maxCount: 8 },
-    /* 예전 균형 잡힌 관리의 코어 몫 그대로 — 짧은 날(32분 아래)에는 빠진다 */
+    /* 예전 균형 잡힌 관리의 코어 몫 그대로 */
     core: { share: 0.1, maxCount: 2 },
-    armcare: { share: 0.2, maxCount: 3 },
   },
   '파워 향상': {
     main: { share: 0.62, maxCount: 8 },
     core: { share: 0.13, maxCount: 2 },
-    armcare: { share: 0.15, maxCount: 2 },
   },
   컨디셔닝: {
-    core: { share: 0.25, maxCount: 4 },
-    prehab: { share: 0.3, maxCount: 5 },
+    /*
+     * 가동성은 암케어가 빠진 자리에 들어왔다(2026-09-25). 몸을 다지는 날에 관절을
+     * 여는 일이 빠지면 코어와 보강만 남는다.
+     *
+     * 개수 상한(코어 6 · 보강 7)은 75분이 차도록 잡았다. 암케어가 빠지기 전의
+     * 4 · 5로는 75분을 부탁해도 60분 남짓에서 멈췄다.
+     */
+    mobility: { share: 0.2, maxCount: 4 },
+    core: { share: 0.25, maxCount: 6 },
+    prehab: { share: 0.3, maxCount: 7 },
     /*
      * 유산소 하나 — 10~15분짜리 자전거·걷기·가벼운 달리기·로잉 같은 것.
      *
@@ -673,11 +700,11 @@ const GOAL_SHAPES: Record<string, GoalShape> = {
      *
      * 몫(0.34)은 60분에 10분짜리 하나(추정 14분)가 들어갈 만큼이다. 처음에 0.2로
      * 두었더니 목표별 곱을 지나 60분에 8분 남짓만 남아, 한 개도 안 맞는데 '빈
-     * 구간은 억지로 하나' 규칙으로 들어가며 암케어 몫을 깎았다. 그래서 곁가지로
-     * 두고(shapeToSpecs 의 optional) 맨 뒤에 채운다 — 짧은 날에 안 맞으면 뺀다.
+     * 구간은 억지로 하나' 규칙으로 들어가며 그때 있던 암케어 몫을 깎았다. 그래서
+     * 곁가지로 두고(shapeToSpecs 의 optional) 맨 뒤에 채운다 — 짧은 날에 안 맞으면
+     * 뺀다.
      */
     cardio: { share: 0.34, maxCount: 1 },
-    armcare: { share: 0.3, maxCount: 5 },
   },
 };
 
@@ -697,10 +724,12 @@ function shapeToSpecs(shape: GoalShape, mainSpec: SlotSpec): SlotSpec[] {
   if (shape.prehab) {
     specs.push({ slot: 'prehab', ...shape.prehab, categories: ['회복 및 보강'] });
   }
-  specs.push({ slot: 'armcare', ...shape.armcare, categories: ['암케어'] });
+  if (shape.mobility) {
+    specs.push({ slot: 'mobility', ...shape.mobility, categories: ['모빌리티'] });
+  }
   /*
    * 유산소는 맨 뒤에, 곁가지로 채운다. 채우는 차례가 곧 시간을 쓰는 차례라, 앞에
-   * 두면 넘친 몫이 암케어에서 빠진다. 화면에 보이는 차례는 SLOT_ORDER 가 따로
+   * 두면 넘친 몫이 다른 구간에서 빠진다. 화면에 보이는 차례는 SLOT_ORDER 가 따로
    * 정한다(유산소가 맨 앞).
    */
   if (shape.cardio) {
@@ -724,7 +753,6 @@ const COMPOSITIONS: Record<ThemeKey, SlotSpec[]> = {
       powerPatterns: ['스쿼트', '런지', '힌지'],
       maxCount: 8,
     },
-    { slot: 'armcare', share: 0.2, categories: ['암케어'], maxCount: 3 },
   ],
   upper: [
     {
@@ -735,16 +763,21 @@ const COMPOSITIONS: Record<ThemeKey, SlotSpec[]> = {
       powerPatterns: ['밀기', '당기기', '회전'],
       maxCount: 8,
     },
-    { slot: 'armcare', share: 0.2, categories: ['암케어'], maxCount: 3 },
   ],
   /*
-   * 보조 데이는 개수 상한을 넉넉히 둔다. 코어·암케어는 하나에 4분 안팎이라,
-   * 90분을 부탁하면 상한에 먼저 걸려 74분밖에 안 나왔다.
+   * 보조 데이 — 무게 대신 코어와 보강.
+   *
+   * 예전에는 코어와 암케어가 반씩이었다. 암케어를 일정에서 뺀 뒤(2026-09-25)
+   * 그 몫을 보강과 가동성이 나눠 받는다. 코어만 남기면 90분에 코어가 열 개 넘게
+   * 나온다 — 하루에 할 코어가 아니다.
+   *
+   * 개수 상한은 넉넉히 둔다. 하나에 4~7분이라, 상한이 빠듯하면 90분을 부탁해도
+   * 상한에 먼저 걸려 시간이 덜 찬다.
    */
   assist: [
-    { slot: 'main', share: 0.35, categories: ['코어'], maxCount: 12 },
-    { slot: 'prehab', share: 0.15, categories: ['회복 및 보강'], maxCount: 2 },
-    { slot: 'armcare', share: 0.35, categories: ['암케어'], maxCount: 4 },
+    { slot: 'main', share: 0.45, categories: ['코어'], maxCount: 6 },
+    { slot: 'prehab', share: 0.35, categories: ['회복 및 보강'], maxCount: 5 },
+    { slot: 'mobility', share: 0.2, categories: ['모빌리티'], maxCount: 4 },
   ],
   /*
    * 회복 데이도 상한을 넉넉히 둔다.
@@ -775,31 +808,23 @@ const COMPOSITIONS: Record<ThemeKey, SlotSpec[]> = {
      * 나눈다. 유산소 영상이 아직 없는 동안에는 그 구간이 통째로 빠지고
      * (dropEmptySlots) 앞의 비율이 그대로 살아난다.
      *
+     * 2026-09-25 다시 짰다. 암케어는 모든 일정에서 빠져 트레이닝의 암케어
+     * 화면으로 갔다 — 던진 다음 날은 그 화면이 회복 루틴을 짜 준다. 회복날은
+     * 아주 가볍게만: 가동성 · 가벼운 유산소 · 가벼운 보강(사용자분과 정함).
+     * 코어도 뺐다. 몸을 쉬게 하려고 잡은 날이다.
+     *
      * ■ 적힌 차례가 곧 채우는 차례다
      *
      * 구간은 여기 적힌 차례대로 채우고, 하루 전체 시간 한도는 앞에서부터 쓴다.
-     * 처음에 화면 순서대로(유산소 → 가동성 → … → 암케어) 적었더니 앞 구간들이
-     * 조금씩 넘겨 쓴 끝에 암케어가 한 개밖에 못 들어가는 날이 나왔다 — 가장
-     * 챙길 곳이 가장 굶었다. 그래서 중요한 순서로 적는다. 화면에 보이는 순서는
-     * SLOT_ORDER 가 따로 정하므로 이 차례와 상관없다.
+     * 처음에 화면 순서대로(유산소 → 가동성 → …) 적었더니 앞 구간들이 조금씩
+     * 넘겨 쓴 끝에 가장 챙길 구간이 한 개밖에 못 들어가는 날이 나왔다. 그래서
+     * 중요한 순서로 적는다 — 이 날의 몸통인 가동성이 맨 앞이고, 남는 시간도
+     * 몫이 가장 큰 가동성으로 간다. 화면에 보이는 순서는 SLOT_ORDER 가 따로
+     * 정하므로 이 차례와 상관없다.
      */
-    { slot: 'armcare', share: 0.75 * 0.45, categories: ['암케어'], maxCount: 6 },
+    { slot: 'mobility', share: 0.45, categories: ['모빌리티'], maxCount: 8 },
     { slot: 'cardio', share: 0.25, categories: ['유산소'], maxCount: 1 },
-    { slot: 'mobility', share: 0.75 * 0.3, categories: ['모빌리티'], maxCount: 3 },
-    {
-      slot: 'prehab',
-      share: 0.75 * 0.15,
-      categories: ['회복 및 보강'],
-      maxCount: 2,
-      optional: true,
-    },
-    {
-      slot: 'core',
-      share: 0.75 * 0.1,
-      categories: ['코어'],
-      maxCount: 2,
-      optional: true,
-    },
+    { slot: 'prehab', share: 0.3, categories: ['회복 및 보강'], maxCount: 4 },
   ],
 };
 
@@ -842,23 +867,6 @@ function dropEmptySlots<T extends ThemedExercise>(
 }
 
 /**
- * 짧은 날에 먼저 빼는 구간.
- *
- * 본운동·암케어·가동성은 남긴다. 어깨를 안 챙기고 끝내는 것은 시간이 없다고
- * 해서 할 일이 아니고, 본운동은 그날의 목적이다.
- */
-const OPTIONAL_SLOTS: SlotKey[] = ['core', 'prehab'];
-
-/**
- * 이 시간 아래로는 구간을 줄인다.
- *
- * 구간마다 적어도 하나는 들어가야 하는데, 다섯 구간이면 그것만으로 30분을
- * 넘는다. 실제로 30분을 부탁하면 35분이 나왔다. 시간이 짧은 날에 다섯 블록을
- * 다 넣는 트레이너는 없다 — 몸 풀고, 오늘 할 것 하고, 어깨 챙기고 끝낸다.
- */
-const SHORT_SESSION_MINUTES = 32;
-
-/**
  * 훈련 목표를 반영한 시간 배분을 만든다.
  *
  * 목표마다 구간에 곱하는 값이 있고(personalize.ts의 weights), 곱한 뒤 합이
@@ -866,45 +874,29 @@ const SHORT_SESSION_MINUTES = 32;
  * 시간이 늘거나 줄어든다 — "45분"이라고 해놓고 52분치를 주게 된다.
  *
  * 회복 데이는 목표를 반영하지 않는다. 몸을 지키려고 잡은 날인데 '파워 향상'을
- * 골랐다고 파워 비중을 올리면 회복 데이의 뜻이 없어진다. 다만 짧은 날에
- * 구간을 줄이는 것은 회복 데이에도 똑같이 한다.
+ * 골랐다고 파워 비중을 올리면 회복 데이의 뜻이 없어진다.
+ *
+ * 예전에는 32분 아래의 짧은 날에 코어·보강을 먼저 뺐다. 가장 짧은 선택지가
+ * 45분이 되고 일정에 구간이 둘셋만 남으면서 그 규칙이 걸릴 일이 없어져 지웠다.
  */
 export function compositionFor(
   theme: ThemeKey,
   goalName: string | null,
-  minutes?: number,
   focus?: GoalFocusKey | null
 ): SlotSpec[] {
   /*
-   * 컨디셔닝을 고르면 웨이트 날의 구성을 통째로 바꾼다.
-   *
-   * 보조 데이와 회복 데이는 그대로 둔다 — 이미 무게를 안 드는 구성이고,
-   * 그 날들은 투구량이 정한 것이라 목표가 뒤집을 자리가 아니다.
-   */
-  /*
-   * 웨이트 날은 목표가 구성을 정한다.
+   * 웨이트 날은 목표가 구성을 정한다. 컨디셔닝을 고르면 웨이트 날의 구성을
+   * 통째로 바꾼다.
    *
    * 보조 데이와 회복 데이는 그대로 둔다 — 이미 무게를 안 드는 구성이고,
    * 그 날들은 투구량이 정한 것이라 목표가 뒤집을 자리가 아니다.
    */
   const shape = goalName == null ? undefined : GOAL_SHAPES[goalName];
   const mainSpec = COMPOSITIONS[theme].find((sp) => sp.slot === 'main');
-  let base: readonly SlotSpec[] =
+  const base: readonly SlotSpec[] =
     shape && mainSpec && (theme === 'lower' || theme === 'upper')
       ? shapeToSpecs(shape, mainSpec)
       : COMPOSITIONS[theme];
-
-  /*
-   * 짧은 날은 구간을 줄인다. 남는 구간이 없어지지 않게 최소 둘은 지킨다.
-   *
-   * 회복 데이는 줄이지 않는다. 코어와 보강이 곁가지가 아니라 그날의 내용이고,
-   * 회복 운동은 하나에 3~4분이라 다 넣어도 시간이 안 넘친다. 실제로 빼봤더니
-   * 30분을 부탁했는데 19분치밖에 안 나왔다.
-   */
-  if (theme !== 'recovery' && minutes != null && minutes < SHORT_SESSION_MINUTES) {
-    const kept = base.filter((spec) => !OPTIONAL_SLOTS.includes(spec.slot));
-    if (kept.length >= 2) base = kept;
-  }
 
   const goal = theme === 'recovery' ? null : findGoal(goalName);
   const weighted = base.map((spec) => ({
@@ -941,7 +933,8 @@ export function compositionFor(
  * 테마를 반영해 실제로 쓸 시간을 정한다. 회복 데이는 길게 잡아도 줄인다.
  *
  * 5분 단위로 내림한다. "31분으로 줄였습니다"는 계산기가 뱉은 값처럼 보이고,
- * 사람이 시계를 보며 운동하는 단위도 아니다. 45·60·90분은 각각 30·40·40분이 된다.
+ * 사람이 시계를 보며 운동하는 단위도 아니다. 45·60·75·90분은 각각 30·40·40·40분이
+ * 된다.
  */
 export function effectiveMinutes(theme: ThemeKey, requested: number): number {
   if (theme !== 'recovery') return requested;
@@ -1001,6 +994,12 @@ export function slotOf(ex: ThemedExercise, specs: SlotSpec[]): SlotKey {
  * 목표는 구간의 시간 배분을 정하는 값이라 여기서는 보지 않는다 — 자리만 정한다.
  */
 export function slotForTheme(ex: ThemedExercise, theme: ThemeKey): SlotKey {
+  /*
+   * 암케어는 어느 날의 구성에도 없다(암케어 화면에서 따로 한다). 그래도 목록에서
+   * 직접 더할 수는 있어서, 그때는 제 이름의 칸에 둔다 — 하체날 본운동 아래에 밴드
+   * 외회전이 끼면 순서가 뜻을 잃는다.
+   */
+  if (ex.category === '암케어') return 'armcare';
   return slotOf(ex, COMPOSITIONS[theme]);
 }
 
@@ -1138,7 +1137,7 @@ function mix(id: string, seed: string): number {
 /**
  * 테마와 시간에 맞춰 오늘의 운동을 고른다.
  *
- * 반환 순서는 화면 순서와 같다: 워밍업 → 본운동 → 코어 → 보강 → 암케어.
+ * 반환 순서는 화면 순서와 같다(SLOT_ORDER): 유산소 → 가동성 → 본운동 → 코어 → 보강.
  */
 export function pickForTheme<T extends ThemedExercise>({
   candidates,
@@ -1202,7 +1201,7 @@ export function pickForTheme<T extends ThemedExercise>({
   /* 회복날에는 가벼운 것만 새로 고른다 (isRecoveryLight) */
   const eligible = (ex: T) => theme !== 'recovery' || isRecoveryLight(ex);
   const specs = dropEmptySlots(
-    compositionFor(theme, goalName, minutes, focus),
+    compositionFor(theme, goalName, focus),
     candidates.filter(eligible)
   );
   const goalPrefer: readonly string[] = findGoal(goalName).prefer;
@@ -1266,8 +1265,8 @@ export function pickForTheme<T extends ThemedExercise>({
        *
        * 예전에는 여기서 '모빌리티이거나 매우 낮음'인 운동을 통째로 걸렀다.
        * 워밍업 구간이 그것들을 따로 받아 갔기 때문이다. 워밍업을 안 뽑게 된
-       * 지금 그 거르개를 그대로 두면, '매우 낮음' 암케어 셋과 회복 운동 하나가
-       * 어느 구간에도 못 들어가 영영 안 나온다.
+       * 지금 그 거르개를 그대로 두면, '매우 낮음' 회복 운동이 어느 구간에도
+       * 못 들어가 영영 안 나온다.
        */
       if (!spec.categories.includes(ex.category)) return false;
       if (!eligible(ex)) return false;
@@ -1512,7 +1511,7 @@ export function pickForTheme<T extends ThemedExercise>({
     if (chosen.length === 0 && spec.slot === 'main') {
       const label = SLOT_LABELS[spec.slot].label;
       for (const ex of ordered) {
-        /* 가동성은 회복 데이의 몫이라 본운동 빈자리를 메우는 데 쓰지 않는다 */
+        /* 가동성은 그 자체로 한 구간이라(회복·컨디셔닝·보조) 본운동 빈자리를 메우는 데 쓰지 않는다 */
         if (taken.has(ex.id) || ex.category === '모빌리티') continue;
         const cost = estimateMinutes(ex);
         if (!fits(cost)) continue;
@@ -1546,7 +1545,8 @@ export function pickForTheme<T extends ThemedExercise>({
    *
    * 본운동이 있으면 거기다. 컨디셔닝·회복 날에는 본운동이 없어서, 그냥
    * 본운동만 찾으면 남는 시간이 통째로 버려졌다 — 45분을 부탁했는데 38분치만
-   * 나왔다. 그때는 몫이 가장 큰 구간(대개 보강)으로 보낸다.
+   * 나왔다. 그때는 몫이 가장 큰 구간(컨디셔닝은 대개 보강, 회복날은 가동성)으로
+   * 보낸다.
    */
   const mainSpec =
     specs.find((sp) => sp.slot === 'main') ??

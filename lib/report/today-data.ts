@@ -30,7 +30,7 @@ import {
 /** 부딪혔을 때 대신 주는 것을 사람 말로. 화면 문구에 그대로 들어간다. */
 const FALLBACK_LABEL: Record<ThemeKey, string> = {
   recovery: '회복·가동성',
-  assist: '코어·암케어',
+  assist: '코어·보강',
   lower: '하체 스트렝스',
   upper: '상체 스트렝스',
 };
@@ -187,20 +187,28 @@ export async function loadTodayCore(user: UserForToday, today: Date) {
    *
    * 위 filter 는 저장된 목록 '안에서만' 걸러서 이 경우를 못 잡는다. 빠진 것을
    * 여기서 도로 넣는다. 슬롯은 그 운동이 어느 자리에 어울리는지로 다시 정한다.
+   *
+   * 암케어는 도로 넣지 않는다. 암케어는 트레이닝의 암케어 화면에서 따로 하고,
+   * 거기서 한 체크도 같은 운동 기록에 남는다. 그것까지 넣으면 암케어 화면에서 한
+   * 밴드 운동이 오늘 운동 목록에 '직접 넣음'으로 끼고, [운동 시작]을 누르면 운동
+   * 세션에까지 얼어붙는다. 일정에 직접 더한 암케어는 이미 목록 안(planned)이라
+   * 여기서 빠지지 않는다.
    */
   const inPlan = new Set(planned.map((p) => p.exerciseId));
   const strays = [...doneIds]
     .filter((id) => !inPlan.has(id))
-    .map((exerciseId) => {
+    .flatMap((exerciseId) => {
       const ex = library.find((e) => e.id === exerciseId);
-      return {
-        exerciseId,
-        slot: ex && savedPlan ? slotForTheme(ex, savedPlan.theme.key) : 'main',
-        manual: true,
-        unsafe: !safeIds.has(exerciseId),
-      };
-    })
-    .filter((p) => library.some((e) => e.id === p.exerciseId));
+      if (!ex || ex.category === '암케어') return [];
+      return [
+        {
+          exerciseId,
+          slot: savedPlan ? slotForTheme(ex, savedPlan.theme.key) : ('main' as const),
+          manual: true,
+          unsafe: !safeIds.has(exerciseId),
+        },
+      ];
+    });
 
   const shownPicks = [...planned, ...strays];
 

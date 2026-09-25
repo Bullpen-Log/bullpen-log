@@ -240,7 +240,7 @@ export function buildDailyPlan<T extends ExerciseLike>({
       ? conditioningDay(
           theme,
           facts,
-          themed.picks.some((p) => p.slot === 'cardio')
+          themed.picks.map((p) => p.slot)
         )
       : theme;
 
