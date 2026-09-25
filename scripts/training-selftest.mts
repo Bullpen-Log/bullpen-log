@@ -126,6 +126,7 @@ import {
   swapMode,
 } from '../lib/workout/swap.ts';
 import { buildExerciseHistory, estimate1RM } from '../lib/workout/history.ts';
+import { REST_CLOCK_LIMIT_SECONDS, restSeconds } from '../lib/workout/rest.ts';
 
 let passed = 0;
 let failed = 0;
@@ -3383,6 +3384,23 @@ console.log('\n[운동별 기록] 세트와 요약을 합쳐 최고 기록·흐�
     '기록이 없으면 빈 기록',
     none.days.length === 0 && none.bestWeight === null && none.total === 0
   );
+}
+
+console.log('\n[휴식 시계] 10분이 넘으면 거두는가');
+{
+  const set = Date.parse('2026-09-25T10:00:00.000Z');
+  const at = (sec: number) => set + sec * 1000;
+  const last = new Date(set).toISOString();
+  check('세트를 안 남겼으면 시계 없음', restSeconds(null, at(30)) === null);
+  check('방금 남긴 세트 → 0초부터', restSeconds(last, at(0)) === 0);
+  check('9분 59초까지는 보인다', restSeconds(last, at(599)) === 599);
+  check(
+    `${REST_CLOCK_LIMIT_SECONDS / 60}분이 되면 거둔다`,
+    restSeconds(last, at(REST_CLOCK_LIMIT_SECONDS)) === null
+  );
+  check('한 시간이 지나도 다시 나오지 않는다', restSeconds(last, at(3600)) === null);
+  check('폰 시계가 빨라 세트가 미래로 찍혀도 0초', restSeconds(last, at(-5)) === 0);
+  check('읽을 수 없는 시각이면 시계 없음', restSeconds('아무거나', at(10)) === null);
 }
 
 console.log(`\n${passed}개 통과, ${failed}개 실패`);

@@ -43,6 +43,7 @@ import { FinishSheet } from './finish-sheet';
 import { SwapSheet } from './swap-sheet';
 import { drainOutbox, outbox, withPending, type ShownSet } from '@/lib/workout/outbox';
 import { placeExercise } from '@/lib/workout/swap';
+import { REST_CLOCK_LIMIT_SECONDS, restSeconds } from '@/lib/workout/rest';
 import {
   formatWeight,
   fromWeight,
@@ -102,7 +103,8 @@ export type { RunExercise };
  * 마지막 세트로부터 흐른 시간.
  *
  * 정해 둔 시간에서 거꾸로 내려가지 않는다. 얼마나 쉬었는지를 보는 것이
- * 요점이고 상한도 없다. 그래서 '끝'이 없고, 알릴 일도 없다.
+ * 요점이라 '끝'이 없고, 알릴 일도 없다. 다만 10분이 넘으면 시계를 거둔다 —
+ * [운동 종료]를 안 누르고 떠난 판에서 끝없이 올라가지 않게(lib/workout/rest.ts).
  *
  * 흘러가는 숫자를 들고 있지 않고 '마지막 세트 시각' 하나만 둔다. 화면이
  * 꺼졌다 켜져도, 앱을 나갔다 들어와도 쉰 시간이 정확하다.
@@ -112,13 +114,19 @@ function useRestClock(since: string | null) {
 
   useEffect(() => {
     if (!since) return;
+    const start = Date.parse(since);
     /*
      * 여기서 곧바로 setNow 를 부르지 않는다 — 효과 안에서 바로 상태를 바꾸면
      * 그릴 때마다 연쇄로 다시 그린다(린트가 잡는다). 부를 필요도 없다.
      * 새 세트를 남긴 직후에는 now 가 since 보다 앞서 있어 아래 뺄셈이 음수가
      * 되고, Math.max 가 0 으로 잘라 곧바로 0:00 이 보인다.
      */
-    const id = setInterval(() => setNow(Date.now()), 1000);
+    const id = setInterval(() => {
+      const t = Date.now();
+      setNow(t);
+      /* 10분이 넘어 시계를 거뒀으면 더 셀 것이 없다 — 1초마다 다시 그리지 않게 멈춘다 */
+      if (t - start >= REST_CLOCK_LIMIT_SECONDS * 1000) clearInterval(id);
+    }, 1000);
     /* 화면을 다시 켜면 곧바로 맞춘다 — 꺼진 동안 타이머가 멈췄을 수 있다 */
     const wake = () => setNow(Date.now());
     document.addEventListener('visibilitychange', wake);
@@ -128,9 +136,8 @@ function useRestClock(since: string | null) {
     };
   }, [since]);
 
-  if (!since) return null;
-  const seconds = Math.max(0, Math.floor((now - new Date(since).getTime()) / 1000));
-  return seconds;
+  /* 10분이 넘으면 null — 화면에서 시계가 사라진다 */
+  return restSeconds(since, now);
 }
 
 function clockText(seconds: number) {
