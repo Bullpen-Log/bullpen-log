@@ -814,6 +814,22 @@ dialog {
 }
 
 /*
+ * 닫힌 창은 자리를 차지하지 않는다.
+ *
+ * 브라우저는 닫힌 <dialog> 를 display:none 으로 숨기지만, 그것은 가장 약한 규칙이라
+ * 클래스 하나에 밀린다. 창에 붙은 flex(components/modal.tsx · checkin-gate.tsx)가
+ * 그것을 덮어써서, 닫힌 창이 사라지지 않고 위의 opacity:0 으로 투명해진 채 제자리에
+ * 남아 있었다. 눈에는 안 보여도 누름은 받는다 — 트레이닝 화면에서는 '트레이닝 설정'
+ * 옆에 닫혀 있던 설정 창이 바로 밑의 [운동 시작]을 덮어, 눌러도 아무 일이 없었다.
+ *
+ * 여기 규칙은 @layer 밖에 있어 Tailwind 클래스보다 힘이 세다. 닫는 움직임은 그대로다
+ * — 위 transition 의 display allow-discrete 가 움직임이 끝난 뒤에 none 으로 넘긴다.
+ */
+dialog:not([open]) {
+  display: none;
+}
+
+/*
  * 여는 움직임은 transition 이 아니라 animation 이 맡는다.
  *
  * 예전에는 @starting-style(열리기 직전의 모습)과 display 전환을 짝지어 열었다.
