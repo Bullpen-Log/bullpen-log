@@ -302,15 +302,6 @@ export function PlanForm({
             </div>
           )}
 
-          {equipmentField}
-
-          <div className="flex flex-wrap items-center gap-3">
-            <SubmitButton
-              label={generated ? 'AI 맞춤으로 다시 만들기' : 'AI 맞춤으로 만들기'}
-              busy="AI가 오늘 몸 상태를 보고 있습니다…"
-            />
-            {cancel}
-          </div>
         </>
       ) : (
         <>
@@ -398,26 +389,44 @@ export function PlanForm({
             compact
           />
 
-          {equipmentField}
-
-          <label className="flex items-center gap-2.5 text-xs text-muted">
-            <input
-              type="checkbox"
-              name="saveDefaults"
-              value="on"
-              className="h-4 w-4 rounded border-line-strong accent-sky"
-            />
-            이 시간과 목표를 앞으로도 기본으로 쓰기
-          </label>
-
-          <div className="flex flex-wrap items-center gap-3">
-            <SubmitButton
-              label={generated ? '이 조건으로 다시 만들기' : '오늘 운동 일정 만들기'}
-            />
-            {cancel}
-          </div>
         </>
       )}
+
+      {/*
+        오늘 쓸 수 있는 장비 — 두 방식이 같은 자리에서 함께 쓴다.
+
+        예전에는 방식마다 따로 그려서, 방식을 바꾸면 이 칸이 새로 만들어지며 골라
+        둔 장비가 지워졌다. AI 맞춤에서 덤벨·밴드를 켜고 직접 고르기로 넘어가면
+        다시 꺼져 있었다. 방식에 따라 바뀌는 칸들 뒤 한자리에 두면 방식을 오가도
+        그대로 남는다.
+      */}
+      {equipmentField}
+
+      {mode === 'manual' && (
+        <label className="flex items-center gap-2.5 text-xs text-muted">
+          <input
+            type="checkbox"
+            name="saveDefaults"
+            value="on"
+            className="h-4 w-4 rounded border-line-strong accent-sky"
+          />
+          이 시간과 목표를 앞으로도 기본으로 쓰기
+        </label>
+      )}
+
+      <div className="flex flex-wrap items-center gap-3">
+        {mode === 'auto' ? (
+          <SubmitButton
+            label={generated ? 'AI 맞춤으로 다시 만들기' : 'AI 맞춤으로 만들기'}
+            busy="AI가 오늘 몸 상태를 보고 있습니다…"
+          />
+        ) : (
+          <SubmitButton
+            label={generated ? '이 조건으로 다시 만들기' : '오늘 운동 일정 만들기'}
+          />
+        )}
+        {cancel}
+      </div>
     </form>
   );
 }
