@@ -11,6 +11,7 @@ import {
   type EntrySource,
   type Food,
   type MealEntryView,
+  type RankedFood,
 } from '@/lib/nutrition/meta';
 import {
   DEFAULT_PROFILE,
@@ -26,6 +27,7 @@ import {
   type BurnItem,
 } from '@/lib/nutrition/burn';
 import { mfdsEnabled } from '@/lib/nutrition/mfds';
+import { popularFoods } from '@/lib/nutrition/popular';
 
 /**
  * 영양 탭 한 화면에 필요한 것을 한 번에 읽는다.
@@ -56,8 +58,13 @@ export type NutritionDay = {
   /** 그날 적은 체중과 어디서 왔나 */
   weightKg: number | null;
   weightFrom: 'nutrition' | 'checkin' | null;
-  /** 고른 날까지 7일 */
+  /** 고른 날까지 7일 — 아래 '최근 7일' 그래프 */
   week: DaySummary[];
+  /**
+   * 고른 날이 든 한 주(일~토) — 위쪽 날짜 띠. 달력처럼 일요일부터라, 이 주 안에서
+   * 날짜를 옮겨도 띠가 흔들리지 않는다. 앞날도 칸은 있다(누를 수는 없다).
+   */
+  strip: DaySummary[];
   /** 고른 날까지 30일의 체중 */
   weights: WeightPoint[];
   /** 최근 먹은 것 — 같은 음식은 한 번만 */
@@ -71,6 +78,8 @@ export type NutritionDay = {
   body: { weightKg: number | null; heightCm: number | null; age: number | null };
   /** 식약처 검색을 쓸 수 있나(인증키가 있나) */
   mfds: boolean;
+  /** 모든 사람이 가장 많이 담은 20가지 — '전체 음식 → 인기' */
+  popular: RankedFood[];
 };
 
 type UserBody = {
@@ -117,6 +126,11 @@ export async function loadNutritionDay(
   const weekStart = shiftDateKey(date, -(WEEK_DAYS - 1));
   const weightStart = shiftDateKey(date, -(WEIGHT_DAYS - 1));
   const recentStart = shiftDateKey(date, -RECENT_DAYS);
+  /* 날짜 띠(일~토)와 7일 그래프를 한 번에 읽도록 둘을 덮는 범위 */
+  const stripStart = shiftDateKey(date, -new Date(`${date}T00:00:00.000Z`).getUTCDay());
+  const stripEnd = shiftDateKey(stripStart, 6);
+  const rangeStart = weekStart < stripStart ? weekStart : stripStart;
+  const rangeEnd = date > stripEnd ? date : stripEnd;
   const userId = user.id;
 
   const [
@@ -128,10 +142,11 @@ export async function loadNutritionDay(
     pitches,
     recentRows,
     foodRows,
+    popular,
   ] = await Promise.all([
     prisma.nutritionProfile.findUnique({ where: { userId } }),
     prisma.mealEntry.findMany({
-      where: { userId, date: { gte: dbDate(weekStart), lte: dbDate(date) } },
+      where: { userId, date: { gte: dbDate(rangeStart), lte: dbDate(rangeEnd) } },
       orderBy: { createdAt: 'asc' },
     }),
     prisma.dailyNutrition.findMany({
@@ -147,11 +162,11 @@ export async function loadNutritionDay(
       select: { date: true, bodyWeightKg: true },
     }),
     prisma.trainingSession.findMany({
-      where: { userId, date: { gte: dbDate(weekStart), lte: dbDate(date) } },
+      where: { userId, date: { gte: dbDate(rangeStart), lte: dbDate(rangeEnd) } },
       select: { date: true, activeSeconds: true },
     }),
     prisma.pitchLog.findMany({
-      where: { userId, date: { gte: dbDate(weekStart), lte: dbDate(date) } },
+      where: { userId, date: { gte: dbDate(rangeStart), lte: dbDate(rangeEnd) } },
       select: { date: true, sessionType: true, pitchCount: true, intensity: true },
     }),
     prisma.mealEntry.findMany({
@@ -175,6 +190,7 @@ export async function loadNutritionDay(
       orderBy: { updatedAt: 'desc' },
       take: 100,
     }),
+    popularFoods(),
   ]);
 
   const profile = toProfile(profileRow);
@@ -244,10 +260,8 @@ export async function loadNutritionDay(
     .filter((e) => keyOfDbDate(e.date) === prevDay)
     .map(toView);
 
-  /* ── 7일 요약 ── */
-  const week: DaySummary[] = [];
-  for (let i = 0; i < WEEK_DAYS; i++) {
-    const day = shiftDateKey(weekStart, i);
+  /* ── 날마다 요약 — 7일 그래프와 날짜 띠가 같이 쓴다 ── */
+  const summarize = (day: string): DaySummary => {
     const eaten = weekEntries
       .filter((e) => keyOfDbDate(e.date) === day)
       .map((e) => scaleMacros(e, e.amount));
@@ -256,13 +270,19 @@ export async function loadNutritionDay(
       { ...body, age: ageOn(user.birthDate, day) },
       totalBurn(burnByDay.get(day) ?? [])
     );
-    week.push({
+    return {
       date: day,
       kcal: Math.round(eaten.reduce((s, m) => s + m.kcal, 0)),
       protein: Math.round(eaten.reduce((s, m) => s + m.protein, 0)),
       target: dayTargets.kcal,
-    });
-  }
+    };
+  };
+  const week = Array.from({ length: WEEK_DAYS }, (_, i) =>
+    summarize(shiftDateKey(weekStart, i))
+  );
+  const strip = Array.from({ length: 7 }, (_, i) =>
+    summarize(shiftDateKey(stripStart, i))
+  );
 
   /* ── 최근 먹은 것 — 같은 음식은 가장 최근 한 번만 ── */
   const seen = new Set<string>();
@@ -312,6 +332,7 @@ export async function loadNutritionDay(
     weightKg: today?.kg ?? null,
     weightFrom: today?.from ?? null,
     week,
+    strip,
     weights,
     recent,
     mine,
@@ -321,5 +342,6 @@ export async function loadNutritionDay(
     yesterday,
     body,
     mfds: mfdsEnabled(),
+    popular,
   };
 }

@@ -128,6 +128,9 @@ export type Food = {
   note?: string;
 };
 
+/** 인기 순위에 든 음식 — 몇 위인지, 몇 번·몇 명이 담았는지 */
+export type RankedFood = Food & { rank: number; picks: number; people: number };
+
 export type Macros = { kcal: number; carbs: number; protein: number; fat: number };
 
 export const ZERO: Macros = { kcal: 0, carbs: 0, protein: 0, fat: 0 };
@@ -187,6 +190,12 @@ export function amountText(amount: number) {
   const frac: Record<number, string> = { 0.25: '¼', 0.5: '½', 0.75: '¾' };
   if (frac[amount]) return `${frac[amount]}인분`;
   return `${Number.isInteger(amount) ? amount : amount.toFixed(2).replace(/0$/, '')}인분`;
+}
+
+/** 물의 양 — 0 · 1.25 · 2.5 · 3 (L). 끝의 0 은 떼되, 0 자체는 남긴다. */
+export function litersText(ml: number) {
+  const l = Math.round(ml / 10) / 100;
+  return Number.isInteger(l) ? String(l) : l.toFixed(2).replace(/0$/, '');
 }
 
 /** 칼로리 숫자 — 1,234 */

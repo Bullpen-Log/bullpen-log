@@ -24,7 +24,7 @@ import {
 } from '../lib/nutrition/foods.ts';
 import { itemsOf, toFood } from '../lib/nutrition/mfds-parse.ts';
 import { isNutritionDate } from '../lib/nutrition/days.ts';
-import { amountText, scaleMacros } from '../lib/nutrition/meta.ts';
+import { amountText, litersText, scaleMacros } from '../lib/nutrition/meta.ts';
 
 let passed = 0;
 let failed = 0;
@@ -274,6 +274,13 @@ console.log('\n■ 날짜와 양');
   check('½인분', amountText(0.5) === '½인분');
   check('1.5인분', amountText(1.5) === '1.5인분');
   check('0.1인분(그램으로 적은 것)', amountText(0.1) === '0.1인분');
+  check(
+    '물 — 0L · 2.5L · 3L · 2.75L (0 을 지우지 않는다)',
+    litersText(0) === '0' &&
+      litersText(2500) === '2.5' &&
+      litersText(3000) === '3' &&
+      litersText(2750) === '2.75'
+  );
   const m = scaleMacros({ kcal: 100, carbs: null, protein: 10, fat: null }, 1.5);
   check(
     '모르는 영양소는 0 으로 더한다',

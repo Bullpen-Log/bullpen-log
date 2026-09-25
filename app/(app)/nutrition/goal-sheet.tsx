@@ -9,6 +9,7 @@ import {
   PROTEIN_CHOICES,
   SEXES,
   kcalText,
+  litersText,
   type ActivityKey,
   type GoalKey,
   type Sex,
@@ -216,8 +217,7 @@ export function GoalSheet({
             <Stat label="지방" value={`${preview.fat}g`} />
           </dl>
           <p className="text-xs leading-relaxed text-muted">
-            기초대사량 {kcalText(preview.bmr)}kcal · 물{' '}
-            {(preview.waterMl / 1000).toFixed(2).replace(/0$/, '')}L
+            기초대사량 {kcalText(preview.bmr)}kcal · 물 {litersText(preview.waterMl)}L
             <br />
             계산에 쓴 몸: {bodyLine}
             {assumed.some((a) => a !== 'sex') && ' — 내 정보에서 채우면 더 정확해져요.'}

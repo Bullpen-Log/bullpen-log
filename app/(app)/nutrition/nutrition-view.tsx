@@ -1,16 +1,22 @@
 'use client';
 
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import {
+  useEffect,
   useOptimistic,
+  useRef,
   useState,
   useTransition,
   type CSSProperties,
   type MouseEvent,
 } from 'react';
 import {
+  CalendarDays,
   ChevronLeft,
   ChevronRight,
+  ChevronsLeft,
+  ChevronsRight,
   Droplet,
   Minus,
   Plus,
@@ -22,6 +28,7 @@ import { Card } from '@/components/ui';
 import { useWeightUnit } from '@/components/use-units';
 import { fromWeight, toWeight } from '@/lib/units';
 import { shiftDateKey } from '@/lib/pitch-stats';
+import { NUTRITION_BACK_DAYS } from '@/lib/nutrition/days';
 import {
   AMOUNT_MAX,
   MEALS,
@@ -30,6 +37,7 @@ import {
   amountText,
   entryMacros,
   kcalText,
+  litersText,
   mealLabel,
   sumMacros,
   type Food,
@@ -37,7 +45,7 @@ import {
   type MealEntryView,
   type MealKey,
 } from '@/lib/nutrition/meta';
-import type { NutritionDay } from '@/lib/nutrition/load';
+import type { DaySummary, NutritionDay } from '@/lib/nutrition/load';
 import {
   addMealEntries,
   deleteMealEntry,
@@ -90,6 +98,7 @@ export function dayTitle(date: string) {
 }
 
 export function NutritionView({ day, today }: { day: NutritionDay; today: string }) {
+  useArrowKeys(day.date, today);
   const [, startTransition] = useTransition();
   const [entries, applyEntries] = useOptimistic(day.entries, reduceEntries);
   const [water, applyWater] = useOptimistic(
@@ -199,6 +208,8 @@ export function NutritionView({ day, today }: { day: NutritionDay; today: string
         </button>
       </header>
 
+      <WeekStrip strip={day.strip} date={day.date} today={today} />
+
       {error && (
         <div
           role="alert"
@@ -288,6 +299,7 @@ export function NutritionView({ day, today }: { day: NutritionDay; today: string
           favorites={day.favorites}
           yesterday={day.yesterday.filter((e) => e.meal === sheet.meal)}
           mfds={day.mfds}
+          popular={day.popular}
           onAdd={(items) => addFoods(sheet.meal, items)}
         />
       )}
@@ -309,23 +321,118 @@ export function NutritionView({ day, today }: { day: NutritionDay; today: string
 
 /* ─────────────────────────── 날짜 ─────────────────────────── */
 
+/*
+ * 날짜를 옮기는 길은 넷이다 — 멀리 갈수록 쓰는 길이 다르다.
+ *
+ *   하루      제목 옆 화살표 · PC 는 키보드 ← →
+ *   이번 주   날짜 띠의 칸을 누른다
+ *   몇 주     띠 양끝의 겹화살표, 휴대폰은 띠를 옆으로 민다
+ *   먼 날     날짜 제목을 누르면 달력이 뜬다(브라우저의 날짜 고르개)
+ *
+ * 예전에는 화살표 하나라, 지난달 것을 보려면 서른 번을 눌러야 했다.
+ */
+
+const hrefOf = (d: string, today: string) =>
+  d === today ? '/nutrition' : `/nutrition?date=${d}`;
+const oldest = (today: string) => shiftDateKey(today, -NUTRITION_BACK_DAYS);
+
+/** PC 에서 ← → 로 하루씩. 글을 적는 중이거나 창이 떠 있으면 가만히 둔다. */
+function useArrowKeys(date: string, today: string) {
+  const router = useRouter();
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (e.defaultPrevented || e.altKey || e.ctrlKey || e.metaKey || e.shiftKey)
+        return;
+      if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+      const target = e.target as HTMLElement | null;
+      /* 고르개(Segmented)는 화살표로 칸을 옮기므로 거기서 누른 것도 둔다 */
+      if (
+        target?.closest(
+          'input, textarea, select, [contenteditable="true"], [role="tablist"], [role="radiogroup"]'
+        )
+      )
+        return;
+      if (document.querySelector('dialog[open]')) return;
+      const next = shiftDateKey(date, e.key === 'ArrowLeft' ? -1 : 1);
+      if (next > today || next < oldest(today)) return;
+      e.preventDefault();
+      router.push(hrefOf(next, today), { scroll: false });
+    }
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [date, today, router]);
+}
+
 function DateNav({ date, today }: { date: string; today: string }) {
+  const router = useRouter();
+  const picker = useRef<HTMLInputElement>(null);
   const prev = shiftDateKey(date, -1);
   const next = shiftDateKey(date, 1);
-  const href = (d: string) => (d === today ? '/nutrition' : `/nutrition?date=${d}`);
   const arrow =
     'flex h-9 w-9 items-center justify-center rounded-lg text-muted transition-colors hover:bg-surface-2 hover:text-ink';
 
+  /* 브라우저의 날짜 고르개를 띄운다. 못 띄우는 브라우저는 칸에 초점을 준다. */
+  function openPicker() {
+    const el = picker.current;
+    if (!el) return;
+    try {
+      el.showPicker();
+    } catch {
+      el.focus();
+    }
+  }
+
   return (
     <nav aria-label="날짜" className="flex items-center gap-1">
-      <Link href={href(prev)} scroll={false} aria-label="전날" className={arrow}>
-        <ChevronLeft aria-hidden className="h-5 w-5" />
-      </Link>
-      <p className="min-w-[7.5rem] text-center text-sm font-semibold text-ink tabular-nums sm:min-w-[8.5rem]">
-        {dayTitle(date)}
-      </p>
+      {prev >= oldest(today) ? (
+        <Link
+          href={hrefOf(prev, today)}
+          scroll={false}
+          aria-label="전날"
+          className={arrow}
+        >
+          <ChevronLeft aria-hidden className="h-5 w-5" />
+        </Link>
+      ) : (
+        <span aria-hidden className={`${arrow} opacity-30`}>
+          <ChevronLeft className="h-5 w-5" />
+        </span>
+      )}
+      <span className="relative">
+        <button
+          type="button"
+          onClick={openPicker}
+          aria-label={`${dayTitle(date)} — 다른 날짜 고르기`}
+          className="inline-flex min-w-[7.5rem] items-center justify-center gap-1.5 rounded-lg px-2 py-1.5 text-sm font-semibold text-ink tabular-nums transition-colors hover:bg-surface-2 sm:min-w-[8.5rem]"
+        >
+          <CalendarDays aria-hidden className="h-4 w-4 text-muted" />
+          {dayTitle(date)}
+        </button>
+        {/* 보이지 않는 날짜 칸 — 고르개가 이 자리에 붙어 뜬다 */}
+        <input
+          ref={picker}
+          type="date"
+          value={date}
+          min={oldest(today)}
+          max={today}
+          tabIndex={-1}
+          aria-hidden
+          onChange={(e) => {
+            const v = e.target.value;
+            if (v && v !== date && v <= today && v >= oldest(today)) {
+              router.push(hrefOf(v, today), { scroll: false });
+            }
+          }}
+          className="pointer-events-none absolute inset-0 h-full w-full opacity-0"
+        />
+      </span>
       {date < today ? (
-        <Link href={href(next)} scroll={false} aria-label="다음날" className={arrow}>
+        <Link
+          href={hrefOf(next, today)}
+          scroll={false}
+          aria-label="다음날"
+          className={arrow}
+        >
           <ChevronRight aria-hidden className="h-5 w-5" />
         </Link>
       ) : (
@@ -343,6 +450,171 @@ function DateNav({ date, today }: { date: string; today: string }) {
         </Link>
       )}
     </nav>
+  );
+}
+
+const WEEKDAY_SHORT = ['일', '월', '화', '수', '목', '금', '토'];
+
+/**
+ * 날짜 띠 — 고른 날이 든 한 주(일~토).
+ *
+ * 칸마다 그날 먹은 양이 목표의 얼마인지 가는 막대로 보여 준다. 어느 날을 비웠는지가
+ * 한눈에 보여, 빠뜨린 날로 곧장 간다. 휴대폰은 띠를 옆으로 밀면 한 주씩 넘어간다.
+ */
+function WeekStrip({
+  strip,
+  date,
+  today,
+}: {
+  strip: DaySummary[];
+  date: string;
+  today: string;
+}) {
+  const router = useRouter();
+  const start = useRef<{ x: number; y: number } | null>(null);
+  const swiped = useRef(false);
+
+  const back = shiftDateKey(date, -7);
+  const prevWeek = back >= oldest(today) ? back : null;
+  /* 다음 주가 아직 안 왔으면 오늘로 — 오늘이 이 띠에 없을 때만 */
+  const ahead = shiftDateKey(date, 7);
+  const nextWeek =
+    ahead <= today ? ahead : strip.some((d) => d.date === today) ? null : today;
+
+  const go = (d: string | null) => {
+    if (d) router.push(hrefOf(d, today), { scroll: false });
+  };
+  const edge =
+    'flex w-8 shrink-0 items-center justify-center rounded-lg text-muted transition-colors hover:bg-surface-2 hover:text-ink';
+
+  return (
+    <div
+      className="flex touch-pan-y items-stretch gap-1 sm:max-w-xl"
+      onPointerDown={(e) => {
+        swiped.current = false;
+        start.current =
+          e.pointerType === 'mouse' ? null : { x: e.clientX, y: e.clientY };
+      }}
+      onPointerUp={(e) => {
+        const s = start.current;
+        start.current = null;
+        if (!s) return;
+        const dx = e.clientX - s.x;
+        if (Math.abs(dx) > 50 && Math.abs(e.clientY - s.y) < 40) {
+          swiped.current = true;
+          go(dx > 0 ? prevWeek : nextWeek);
+        }
+      }}
+      /* 밀었을 때는 손가락이 떨어진 칸이 눌린 것으로 치지 않는다 */
+      onClickCapture={(e) => {
+        if (swiped.current) {
+          e.preventDefault();
+          e.stopPropagation();
+          swiped.current = false;
+        }
+      }}
+    >
+      {prevWeek ? (
+        <Link
+          href={hrefOf(prevWeek, today)}
+          scroll={false}
+          aria-label="한 주 전"
+          className={edge}
+        >
+          <ChevronsLeft aria-hidden className="h-4 w-4" />
+        </Link>
+      ) : (
+        <span aria-hidden className={`${edge} opacity-30`}>
+          <ChevronsLeft className="h-4 w-4" />
+        </span>
+      )}
+
+      <ol className="grid flex-1 grid-cols-7 gap-1">
+        {strip.map((d) => {
+          const future = d.date > today;
+          const selected = d.date === date;
+          const isToday = d.date === today;
+          const pct = d.target > 0 ? Math.min(100, (d.kcal / d.target) * 100) : 0;
+          const over = d.kcal > d.target;
+          const dayNo = Number(d.date.slice(8));
+          const weekday =
+            WEEKDAY_SHORT[new Date(`${d.date}T00:00:00.000Z`).getUTCDay()];
+          const face = (
+            <>
+              <span
+                className={`text-[11px] ${selected ? 'text-white/80' : 'text-muted'}`}
+              >
+                {weekday}
+              </span>
+              <span
+                className={`text-sm font-semibold tabular-nums ${
+                  selected ? 'text-white' : isToday ? 'text-sky' : 'text-ink'
+                }`}
+              >
+                {dayNo}
+              </span>
+              <span
+                aria-hidden
+                className={`mt-1 h-1 w-6 overflow-hidden rounded-full ${
+                  selected ? 'bg-white/30' : 'bg-line'
+                }`}
+              >
+                <span
+                  className={`block h-full rounded-full transition-[width] duration-500 ${EASE} ${
+                    selected ? 'bg-white' : over ? 'bg-warn' : 'bg-sky'
+                  }`}
+                  style={{ width: `${pct}%` }}
+                />
+              </span>
+            </>
+          );
+          const cell =
+            'flex flex-col items-center rounded-xl py-1.5 transition-[background-color,transform] duration-200 motion-safe:active:scale-95';
+          return (
+            <li key={d.date}>
+              {future ? (
+                <span aria-disabled className={`${cell} opacity-35`}>
+                  {face}
+                </span>
+              ) : (
+                <Link
+                  href={hrefOf(d.date, today)}
+                  scroll={false}
+                  aria-current={selected ? 'date' : undefined}
+                  aria-label={`${dayTitle(d.date)} — ${
+                    d.kcal > 0 ? `${kcalText(d.kcal)}kcal 먹음` : '기록 없음'
+                  }`}
+                  className={`${cell} ${
+                    selected
+                      ? 'bg-sky shadow-sm'
+                      : isToday
+                        ? 'ring-1 ring-sky/40 hover:bg-surface-2'
+                        : 'hover:bg-surface-2'
+                  }`}
+                >
+                  {face}
+                </Link>
+              )}
+            </li>
+          );
+        })}
+      </ol>
+
+      {nextWeek ? (
+        <Link
+          href={hrefOf(nextWeek, today)}
+          scroll={false}
+          aria-label={nextWeek === today ? '오늘로' : '한 주 뒤'}
+          className={edge}
+        >
+          <ChevronsRight aria-hidden className="h-4 w-4" />
+        </Link>
+      ) : (
+        <span aria-hidden className={`${edge} opacity-30`}>
+          <ChevronsRight className="h-4 w-4" />
+        </span>
+      )}
+    </div>
   );
 }
 
@@ -719,8 +991,7 @@ function WaterCard({
 }) {
   const cups = Math.min(16, Math.max(4, Math.ceil(goal / WATER_CUP_ML)));
   const filled = Math.floor(water / WATER_CUP_ML);
-  const liters = (ml: number) =>
-    (ml / 1000).toFixed(ml % 1000 === 0 ? 0 : 2).replace(/0$/, '');
+  const liters = litersText;
 
   return (
     <Card className="space-y-3">

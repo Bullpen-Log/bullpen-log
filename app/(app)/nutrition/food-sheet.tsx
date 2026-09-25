@@ -41,6 +41,7 @@ import {
   type Food,
   type MealEntryView,
   type MealKey,
+  type RankedFood,
 } from '@/lib/nutrition/meta';
 import {
   deleteUserFood,
@@ -73,7 +74,7 @@ import { EASE, toFoodInput, type Origin } from './shared';
  * 처음 쓰는 사람(최근 기록이 없음)은 '최근' 자리에 자주 먹는 것을 대신 보여 준다.
  */
 type Tab = 'recent' | 'mine' | 'all';
-type Category = 'all' | FoodCategory;
+type Category = 'popular' | 'all' | FoodCategory;
 type View = { kind: 'list' } | { kind: 'pick'; food: Food } | { kind: 'custom' };
 
 const favKey = (f: Food) => `${f.source}:${f.id}`;
@@ -90,6 +91,7 @@ export function FoodSheet({
   favorites,
   yesterday,
   mfds,
+  popular,
   onAdd,
 }: {
   open: boolean;
@@ -101,12 +103,17 @@ export function FoodSheet({
   favorites: string[];
   yesterday: MealEntryView[];
   mfds: boolean;
+  /** 모든 사람이 가장 많이 담은 음식 — 순위대로 */
+  popular: RankedFood[];
   onAdd: (items: { food: Food; amount: number }[]) => Promise<NutritionResult>;
 }) {
   const label = mealLabel(meal);
   const [query, setQuery] = useState('');
   const [tab, setTab] = useState<Tab>(recent.length > 0 ? 'recent' : 'all');
-  const [category, setCategory] = useState<Category>('all');
+  /* 모인 순위가 있으면 인기부터 — 무엇을 먹을지 모를 때 남들이 먹는 것이 가장 빠른 답이다 */
+  const [category, setCategory] = useState<Category>(
+    popular.length > 0 ? 'popular' : 'all'
+  );
   const [view, setView] = useState<View>({ kind: 'list' });
   const [added, setAdded] = useState<string[]>([]);
   const [favs, setFavs] = useState(() => new Set(favorites));
@@ -384,6 +391,7 @@ export function FoodSheet({
                   ))}
                 {tab === 'all' && (
                   <AllFoods
+                    popular={popular}
                     category={category}
                     onCategory={setCategory}
                     onPick={(food) => setView({ kind: 'pick', food })}
@@ -436,17 +444,20 @@ export function FoodSheet({
  * 미끄러진다.
  */
 function AllFoods({
+  popular,
   category,
   onCategory,
   onPick,
   onQuick,
 }: {
+  popular: RankedFood[];
   category: Category;
   onCategory: (c: Category) => void;
   onPick: (food: Food) => void;
   onQuick: (food: Food) => void;
 }) {
-  const shown = category === 'all' ? FOOD_CATEGORIES : [category];
+  const shown =
+    category === 'popular' ? [] : category === 'all' ? FOOD_CATEGORIES : [category];
   return (
     <div className="space-y-4">
       <Segmented
@@ -457,12 +468,24 @@ function AllFoods({
         onChange={onCategory}
         itemClassName="px-2.5 py-1.5"
         options={[
+          { value: 'popular', label: '인기' },
           { value: 'all', label: '전체' },
           ...FOOD_CATEGORIES.map((c) => ({ value: c, label: c })),
         ]}
       />
       {/* 분류를 바꿀 때마다 목록을 새로 그려, 줄이 위에서부터 다시 들어온다 */}
       <div key={category} className="space-y-4">
+        {category === 'popular' &&
+          (popular.length === 0 ? (
+            <Empty text="아직 모인 기록이 적어요. 사람들이 음식을 담기 시작하면 여기에 순위가 생겨요." />
+          ) : (
+            <section aria-label="인기" className="space-y-1">
+              <h3 className="px-1 text-xs text-muted">
+                이 앱을 쓰는 사람들이 가장 많이 담은 {popular.length}가지
+              </h3>
+              <FoodList foods={popular} onPick={onPick} onQuick={onQuick} hideNote />
+            </section>
+          ))}
         {shown.map((c) => {
           const foods = FOODS_BY_CATEGORY.get(c) ?? [];
           return (
@@ -534,6 +557,8 @@ function FoodRow({
   onRemove?: () => void;
   hideNote: boolean;
 }) {
+  /* 인기 순위에서 온 음식이면 순위와 횟수가 붙어 있다 */
+  const ranked = 'rank' in food ? (food as RankedFood) : null;
   /* 지우기는 두 번 눌러야 한다 — 직접 만든 음식은 되살릴 길이 없다 */
   const [confirm, setConfirm] = useState(false);
   const [flash, setFlash] = useState(0);
@@ -548,13 +573,27 @@ function FoodRow({
         onClick={onPick}
         className="flex min-w-0 flex-1 items-center gap-3 rounded-xl px-2 py-2.5 text-left transition-colors hover:bg-surface-2"
       >
+        {ranked && (
+          /* 1~3위는 하늘색으로 — 순위표에서 눈이 가장 먼저 가는 자리 */
+          <span
+            className={`w-5 shrink-0 text-center text-sm font-bold tabular-nums ${
+              ranked.rank <= 3 ? 'text-sky' : 'text-muted'
+            }`}
+          >
+            {ranked.rank}
+          </span>
+        )}
         <span className="min-w-0 flex-1">
           <span className="block truncate text-sm font-medium text-ink">
             {food.name}
           </span>
           <span className="block truncate text-xs text-muted">
             {food.servingLabel}
-            {food.note && !hideNote ? ` · ${food.note}` : ''}
+            {ranked
+              ? ` · ${ranked.people}명이 ${ranked.picks}번 담음`
+              : food.note && !hideNote
+                ? ` · ${food.note}`
+                : ''}
           </span>
         </span>
         <span className="shrink-0 text-sm tabular-nums text-ink">
