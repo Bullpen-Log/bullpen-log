@@ -1,7 +1,7 @@
 import 'server-only';
 import { prisma } from '@/lib/prisma';
 import { shiftDateKey } from '@/lib/pitch-stats';
-import { dbDate, keyOfDbDate } from '@/lib/nutrition/days';
+import { NUTRITION_BACK_DAYS, dbDate, keyOfDbDate } from '@/lib/nutrition/days';
 import {
   isActivityKey,
   isGoalKey,
@@ -80,6 +80,13 @@ export type NutritionDay = {
   mfds: boolean;
   /** 모든 사람이 가장 많이 담은 20가지 — '전체 음식 → 인기' */
   popular: RankedFood[];
+  /**
+   * 날짜 고르개(작은 달력)의 점 — 날짜별로 먹은 칼로리. 적은 날만 들어 있다.
+   *
+   * 고를 수 있는 한 해 전체를 한 번에 읽는다. 달력은 달을 넘겨 가며 훑는 물건이라,
+   * 넘길 때마다 묻게 하면 넘길 때마다 점이 늦게 찍힌다. 하루 한 숫자라 작다.
+   */
+  calendar: Record<string, number>;
 };
 
 type UserBody = {
@@ -143,6 +150,7 @@ export async function loadNutritionDay(
     recentRows,
     foodRows,
     popular,
+    calendarRows,
   ] = await Promise.all([
     prisma.nutritionProfile.findUnique({ where: { userId } }),
     prisma.mealEntry.findMany({
@@ -191,7 +199,22 @@ export async function loadNutritionDay(
       take: 100,
     }),
     popularFoods(),
+    /* 고른 날에서 한 해 앞까지 — 앞날에는 적을 수 없어 끝은 두지 않는다 */
+    prisma.mealEntry.findMany({
+      where: {
+        userId,
+        date: { gte: dbDate(shiftDateKey(date, -NUTRITION_BACK_DAYS)) },
+      },
+      select: { date: true, kcal: true, amount: true },
+    }),
   ]);
+
+  const calendar: Record<string, number> = {};
+  for (const row of calendarRows) {
+    const key = keyOfDbDate(row.date);
+    calendar[key] = (calendar[key] ?? 0) + row.kcal * row.amount;
+  }
+  for (const key of Object.keys(calendar)) calendar[key] = Math.round(calendar[key]);
 
   const profile = toProfile(profileRow);
 
@@ -343,5 +366,6 @@ export async function loadNutritionDay(
     body,
     mfds: mfdsEnabled(),
     popular,
+    calendar,
   };
 }

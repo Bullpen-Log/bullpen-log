@@ -25,6 +25,7 @@ import {
   X,
 } from 'lucide-react';
 import { Card } from '@/components/ui';
+import { MiniCalendar } from '@/components/mini-calendar';
 import { useWeightUnit } from '@/components/use-units';
 import { fromWeight, toWeight } from '@/lib/units';
 import { shiftDateKey } from '@/lib/pitch-stats';
@@ -196,7 +197,7 @@ export function NutritionView({ day, today }: { day: NutritionDay; today: string
       {/* 휴대폰에서도 한 줄에 들어가게 — 목표 단추는 좁으면 그림만 남긴다 */}
       <header className="flex flex-wrap items-center gap-x-3 gap-y-2 sm:gap-x-4">
         <h1 className="text-heading text-2xl text-ink">영양</h1>
-        <DateNav date={day.date} today={today} />
+        <DateNav date={day.date} today={today} calendar={day.calendar} />
         <button
           type="button"
           onClick={openGoal}
@@ -289,7 +290,8 @@ export function NutritionView({ day, today }: { day: NutritionDay; today: string
 
       {sheet && (
         <FoodSheet
-          key={sheet.n}
+          /* 두 창은 형제라 이름이 겹치면 안 된다 — 숫자만 쓰면 둘 다 1 일 때 부딪힌다 */
+          key={`food-${sheet.n}`}
           open={sheet.open}
           meal={sheet.meal}
           origin={sheet.origin}
@@ -306,7 +308,7 @@ export function NutritionView({ day, today }: { day: NutritionDay; today: string
 
       {goal && (
         <GoalSheet
-          key={goal.n}
+          key={`goal-${goal.n}`}
           open={goal.open}
           origin={goal.origin}
           onClose={() => setGoal((g) => g && { ...g, open: false })}
@@ -327,7 +329,7 @@ export function NutritionView({ day, today }: { day: NutritionDay; today: string
  *   하루      제목 옆 화살표 · PC 는 키보드 ← →
  *   이번 주   날짜 띠의 칸을 누른다
  *   몇 주     띠 양끝의 겹화살표, 휴대폰은 띠를 옆으로 민다
- *   먼 날     날짜 제목을 누르면 달력이 뜬다(브라우저의 날짜 고르개)
+ *   먼 날     날짜 제목을 누르면 작은 달력이 뜬다 — 적은 날에 점이 찍혀 있다
  *
  * 예전에는 화살표 하나라, 지난달 것을 보려면 서른 번을 눌러야 했다.
  */
@@ -352,7 +354,7 @@ function useArrowKeys(date: string, today: string) {
         )
       )
         return;
-      if (document.querySelector('dialog[open]')) return;
+      if (document.querySelector('dialog[open], [data-mini-calendar]')) return;
       const next = shiftDateKey(date, e.key === 'ArrowLeft' ? -1 : 1);
       if (next > today || next < oldest(today)) return;
       e.preventDefault();
@@ -363,24 +365,58 @@ function useArrowKeys(date: string, today: string) {
   }, [date, today, router]);
 }
 
-function DateNav({ date, today }: { date: string; today: string }) {
+function DateNav({
+  date,
+  today,
+  calendar,
+}: {
+  date: string;
+  today: string;
+  /** 날짜별로 먹은 칼로리 — 작은 달력이 적은 날에 점을 찍는다 */
+  calendar: Record<string, number>;
+}) {
   const router = useRouter();
-  const picker = useRef<HTMLInputElement>(null);
   const prev = shiftDateKey(date, -1);
   const next = shiftDateKey(date, 1);
   const arrow =
     'flex h-9 w-9 items-center justify-center rounded-lg text-muted transition-colors hover:bg-surface-2 hover:text-ink';
 
-  /* 브라우저의 날짜 고르개를 띄운다. 못 띄우는 브라우저는 칸에 초점을 준다. */
-  function openPicker() {
-    const el = picker.current;
-    if (!el) return;
-    try {
-      el.showPicker();
-    } catch {
-      el.focus();
-    }
-  }
+  /*
+   * 작은 달력 판.
+   *
+   * 예전에는 브라우저의 날짜 고르개를 띄웠다(기기마다 모양이 다르고 기록이 안 보였다).
+   * 이제 앱의 달력을 제자리에 편다 — 창(dialog)이 아니라 제목 밑에 붙는 작은 판이라,
+   * 무엇을 고르던 중인지 가려지지 않는다. 바깥을 누르거나 Esc 면 닫힌다.
+   *
+   * 닫을 때도 빠르게(0.12초) 옅어진다. 들어올 때보다 짧게 — 나가는 것이 오래 남으면
+   * 다음에 누를 것을 가린다.
+   */
+  const [picker, setPicker] = useState<'closed' | 'open' | 'closing'>('closed');
+  const box = useRef<HTMLSpanElement>(null);
+  const close = () => setPicker((p) => (p === 'open' ? 'closing' : p));
+
+  useEffect(() => {
+    if (picker !== 'open') return;
+    const shut = () => setPicker((p) => (p === 'open' ? 'closing' : p));
+    const onDown = (e: PointerEvent) => {
+      if (box.current && !box.current.contains(e.target as Node)) shut();
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') shut();
+    };
+    document.addEventListener('pointerdown', onDown);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('pointerdown', onDown);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [picker]);
+
+  useEffect(() => {
+    if (picker !== 'closing') return;
+    const timer = window.setTimeout(() => setPicker('closed'), 120);
+    return () => window.clearTimeout(timer);
+  }, [picker]);
 
   return (
     <nav aria-label="날짜" className="flex items-center gap-1">
@@ -398,33 +434,47 @@ function DateNav({ date, today }: { date: string; today: string }) {
           <ChevronLeft className="h-5 w-5" />
         </span>
       )}
-      <span className="relative">
+      <span ref={box} className="relative">
         <button
           type="button"
-          onClick={openPicker}
+          onClick={() => (picker === 'open' ? close() : setPicker('open'))}
+          aria-expanded={picker === 'open'}
+          aria-haspopup="dialog"
           aria-label={`${dayTitle(date)} — 다른 날짜 고르기`}
-          className="inline-flex min-w-[7.5rem] items-center justify-center gap-1.5 rounded-lg px-2 py-1.5 text-sm font-semibold text-ink tabular-nums transition-colors hover:bg-surface-2 sm:min-w-[8.5rem]"
+          className={`inline-flex min-w-[7.5rem] items-center justify-center gap-1.5 rounded-lg px-2 py-1.5 text-sm font-semibold text-ink tabular-nums transition-colors sm:min-w-[8.5rem] ${
+            picker === 'open' ? 'bg-surface-2' : 'hover:bg-surface-2'
+          }`}
         >
-          <CalendarDays aria-hidden className="h-4 w-4 text-muted" />
+          <CalendarDays
+            aria-hidden
+            className={`h-4 w-4 transition-colors ${picker === 'open' ? 'text-sky' : 'text-muted'}`}
+          />
           {dayTitle(date)}
         </button>
-        {/* 보이지 않는 날짜 칸 — 고르개가 이 자리에 붙어 뜬다 */}
-        <input
-          ref={picker}
-          type="date"
-          value={date}
-          min={oldest(today)}
-          max={today}
-          tabIndex={-1}
-          aria-hidden
-          onChange={(e) => {
-            const v = e.target.value;
-            if (v && v !== date && v <= today && v >= oldest(today)) {
-              router.push(hrefOf(v, today), { scroll: false });
-            }
-          }}
-          className="pointer-events-none absolute inset-0 h-full w-full opacity-0"
-        />
+        {picker !== 'closed' && (
+          <div
+            role="dialog"
+            aria-label="날짜 고르기"
+            data-mini-calendar
+            className={`absolute left-1/2 top-full z-30 mt-2 w-[18.5rem] -translate-x-1/2 origin-top rounded-2xl border border-line bg-surface p-3 shadow-lg ${
+              picker === 'closing'
+                ? 'pointer-events-none motion-safe:animate-[month-fade-out_120ms_ease-in_both]'
+                : 'motion-safe:animate-fade-in'
+            }`}
+          >
+            <MiniCalendar
+              value={date}
+              today={today}
+              min={oldest(today)}
+              max={today}
+              marked={(d) => (calendar[d] ?? 0) > 0}
+              onPick={(d) => {
+                close();
+                if (d !== date) router.push(hrefOf(d, today), { scroll: false });
+              }}
+            />
+          </div>
+        )}
       </span>
       {date < today ? (
         <Link

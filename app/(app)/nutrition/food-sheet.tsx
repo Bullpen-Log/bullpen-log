@@ -1,8 +1,16 @@
 'use client';
 
-import { useEffect, useMemo, useState, useTransition, type CSSProperties } from 'react';
 import {
-  ArrowLeft,
+  createContext,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useTransition,
+  type CSSProperties,
+} from 'react';
+import {
   Check,
   History,
   Minus,
@@ -15,6 +23,7 @@ import {
 } from 'lucide-react';
 import { Modal } from '@/components/modal';
 import { Segmented } from '@/components/segmented';
+import { Expand } from '@/components/expand';
 import {
   BASIC_FOODS,
   FOOD_CATEGORIES,
@@ -60,10 +69,22 @@ import { EASE, toFoodInput, type Origin } from './shared';
  *      않는다. 식약처 검색만 잠깐 멈췄다가(0.28초) 묻는다.
  *   2. 초성으로도 찾는다('ㄷㄱㅅㅅ' → 닭가슴살).
  *   3. 최근에 먹은 것은 줄 옆의 + 한 번으로 1인분을 담는다. 양을 바꾸고 싶을 때만
- *      줄을 눌러 들어간다.
+ *      줄을 눌러 편다.
  *
  * 담아도 창을 닫지 않는다. 한 끼는 보통 여러 가지라, 담을 때마다 끼니 단추를 다시
  * 누르게 하면 번거롭다. 아래에 담은 것을 모아 보여 주고 '다 했어요'로 닫는다.
+ *
+ * ■ 목록은 늘 그 자리에 있다
+ *
+ * 예전에는 줄을 누르면 목록을 치우고 양 고르는 화면으로 바꿔 끼웠다. 담고 나면
+ * 목록을 다시 그렸는데, 그때마다 줄이 위에서부터 다시 들어오고(깜빡임) 굴려 둔
+ * 자리도 맨 위로 돌아가서, 다음 음식을 찾으려면 처음부터 다시 내려가야 했다.
+ * 이제 양 고르기와 직접 입력은 누른 줄 밑에서 펴지고 담으면 접힌다. 목록은 한 번도
+ * 다시 그려지지 않는다.
+ *
+ * 같은 까닭으로 '최근'과 '인기' 목록은 창을 연 때의 것으로 둔다. 담을 때마다 서버가
+ * 새 목록을 보내 주는데, 그대로 따르면 방금 담은 것이 맨 위로 올라가며 줄이 한 칸씩
+ * 밀린다.
  */
 
 /*
@@ -75,11 +96,38 @@ import { EASE, toFoodInput, type Origin } from './shared';
  */
 type Tab = 'recent' | 'mine' | 'all';
 type Category = 'popular' | 'all' | FoodCategory;
-type View = { kind: 'list' } | { kind: 'pick'; food: Food } | { kind: 'custom' };
 
 const favKey = (f: Food) => `${f.source}:${f.id}`;
+/* 줄 하나를 가리키는 이름 — 직접 입력한 음식은 id 가 없어 이름으로 */
+const rowKey = (f: Food) => `${f.source}:${f.id ?? f.name}`;
 const canFavorite = (f: Food) =>
   (f.source === 'basic' || f.source === 'mfds') && !!f.id;
+/* 직접 입력 칸을 가리키는 이름 — 펴 둔 줄은 한 번에 하나라 줄 이름과 같은 자리를 쓴다 */
+const CUSTOM_KEY = 'custom';
+
+/**
+ * 창 안의 줄들이 함께 쓰는 것.
+ *
+ * 줄은 여러 목록(최근·내 음식·분류·검색 결과) 안에 있어서, 펴 둔 줄과 담기를 목록마다
+ * 내려 주면 모든 목록이 그 값을 들고 다녀야 한다. 한곳에 두고 줄이 직접 꺼내 쓴다.
+ */
+type SheetState = {
+  meal: MealKey;
+  /** 펴 둔 줄. 한 번에 하나다 — 다른 줄을 펴면 먼저 것은 접힌다 */
+  openKey: string | null;
+  toggle: (key: string) => void;
+  add: (food: Food, amount: number) => void;
+  isFavorite: (food: Food) => boolean;
+  toggleFavorite: (food: Food) => void;
+};
+
+const SheetContext = createContext<SheetState | null>(null);
+
+function useSheet() {
+  const sheet = useContext(SheetContext);
+  if (!sheet) throw new Error('음식 줄은 담기 창 안에서만 쓴다');
+  return sheet;
+}
 
 export function FoodSheet({
   open,
@@ -108,13 +156,16 @@ export function FoodSheet({
   onAdd: (items: { food: Food; amount: number }[]) => Promise<NutritionResult>;
 }) {
   const label = mealLabel(meal);
+  /* 창을 연 때의 목록 — 담는 동안 순서가 바뀌어 줄이 밀리지 않게(위 설명) */
+  const [recentList] = useState(recent);
+  const [popularList] = useState(popular);
   const [query, setQuery] = useState('');
-  const [tab, setTab] = useState<Tab>(recent.length > 0 ? 'recent' : 'all');
+  const [tab, setTab] = useState<Tab>(recentList.length > 0 ? 'recent' : 'all');
   /* 모인 순위가 있으면 인기부터 — 무엇을 먹을지 모를 때 남들이 먹는 것이 가장 빠른 답이다 */
   const [category, setCategory] = useState<Category>(
-    popular.length > 0 ? 'popular' : 'all'
+    popularList.length > 0 ? 'popular' : 'all'
   );
-  const [view, setView] = useState<View>({ kind: 'list' });
+  const [openKey, setOpenKey] = useState<string | null>(null);
   const [added, setAdded] = useState<string[]>([]);
   const [favs, setFavs] = useState(() => new Set(favorites));
   const [gone, setGone] = useState<Set<string>>(() => new Set());
@@ -174,9 +225,10 @@ export function FoodSheet({
     });
   }
 
+  /* 담으면 펴 둔 줄을 접는다. 목록은 그대로 두어, 바로 다음 음식을 고른다 */
   function add(food: Food, amount: number) {
     track(`${food.name} ${amountText(amount)}`, onAdd([{ food, amount }]));
-    setView({ kind: 'list' });
+    setOpenKey(null);
   }
 
   function addYesterday() {
@@ -241,38 +293,29 @@ export function FoodSheet({
     });
   }
 
+  function addCustom(food: Food, save: boolean) {
+    add(food, 1);
+    if (!save) return;
+    startTransition(async () => {
+      const res = await saveUserFood(toFoodInput({ ...food, source: 'mine' }));
+      if (!res.ok) setError(res.error);
+    });
+  }
+
+  const sheet: SheetState = {
+    meal,
+    openKey,
+    toggle: (key) => setOpenKey((k) => (k === key ? null : key)),
+    add,
+    isFavorite: (food) => favs.has(favKey(food)),
+    toggleFavorite,
+  };
+
   const yesterdayTotal = sumMacros(yesterday.map(entryMacros));
 
   return (
     <Modal open={open} onClose={onClose} title={`${label} 담기`} origin={origin}>
-      {view.kind === 'pick' ? (
-        <PickFood
-          key={favKey(view.food)}
-          food={view.food}
-          meal={meal}
-          favorite={favs.has(favKey(view.food))}
-          onFavorite={() => toggleFavorite(view.food)}
-          onBack={() => setView({ kind: 'list' })}
-          onAdd={(amount) => add(view.food, amount)}
-        />
-      ) : view.kind === 'custom' ? (
-        <CustomFood
-          meal={meal}
-          initialName={q}
-          onBack={() => setView({ kind: 'list' })}
-          onAdd={(food, save) => {
-            add(food, 1);
-            if (save) {
-              startTransition(async () => {
-                const res = await saveUserFood(
-                  toFoodInput({ ...food, source: 'mine' })
-                );
-                if (!res.ok) setError(res.error);
-              });
-            }
-          }}
-        />
-      ) : (
+      <SheetContext value={sheet}>
         <div className="space-y-4">
           {/* 찾는 칸은 목록을 굴려도 위에 붙어 있다 */}
           <div className="sticky -top-5 z-10 -mx-5 -mt-5 bg-surface px-5 pb-3 pt-5">
@@ -285,7 +328,11 @@ export function FoodSheet({
               <input
                 type="search"
                 value={query}
-                onChange={(e) => setQuery(e.target.value)}
+                onChange={(e) => {
+                  setQuery(e.target.value);
+                  /* 찾는 말이 바뀌면 목록이 바뀌므로 펴 둔 줄도 접는다 */
+                  setOpenKey(null);
+                }}
                 placeholder="음식 이름 — 초성도 돼요 (ㄷㄱㅅㅅ)"
                 enterKeyHint="search"
                 className="w-full rounded-xl border border-line bg-surface-2 py-3 pl-10 pr-10 text-sm text-ink placeholder:text-muted/60 transition-colors focus:border-sky focus:outline-none"
@@ -293,7 +340,10 @@ export function FoodSheet({
               {query && (
                 <button
                   type="button"
-                  onClick={() => setQuery('')}
+                  onClick={() => {
+                    setQuery('');
+                    setOpenKey(null);
+                  }}
                   aria-label="지우기"
                   className="absolute right-2 top-1/2 -translate-y-1/2 rounded-lg p-1.5 text-muted hover:text-ink"
                 >
@@ -306,7 +356,7 @@ export function FoodSheet({
           {error && (
             <p
               role="alert"
-              className="rounded-lg bg-danger-bg px-3 py-2 text-xs text-danger"
+              className="motion-safe:animate-fade-in rounded-lg bg-danger-bg px-3 py-2 text-xs text-danger"
             >
               {error}
             </p>
@@ -319,9 +369,7 @@ export function FoodSheet({
               remote={remoteFoods}
               remoteLoading={remoteLoading}
               mfds={mfds}
-              onPick={(food) => setView({ kind: 'pick', food })}
-              onQuick={(food) => add(food, 1)}
-              onCustom={() => setView({ kind: 'custom' })}
+              onCustom={addCustom}
             />
           ) : (
             <>
@@ -350,7 +398,10 @@ export function FoodSheet({
                 label="음식 고르는 곳"
                 role="tablist"
                 value={tab}
-                onChange={setTab}
+                onChange={(next) => {
+                  setTab(next);
+                  setOpenKey(null);
+                }}
                 options={[
                   { value: 'recent', label: '최근' },
                   { value: 'mine', label: '내 음식' },
@@ -360,61 +411,46 @@ export function FoodSheet({
 
               <div role="tabpanel">
                 {tab === 'recent' &&
-                  (recent.length === 0 ? (
+                  (recentList.length === 0 ? (
                     <div className="space-y-1">
                       <p className="px-1 pb-1 text-xs text-muted">
                         아직 기록이 없어요. 선수들이 자주 먹는 것부터 골라 보세요.
                       </p>
-                      <FoodList
-                        foods={starters}
-                        onPick={(food) => setView({ kind: 'pick', food })}
-                        onQuick={(food) => add(food, 1)}
-                      />
+                      <FoodList foods={starters} />
                     </div>
                   ) : (
-                    <FoodList
-                      foods={recent}
-                      onPick={(food) => setView({ kind: 'pick', food })}
-                      onQuick={(food) => add(food, 1)}
-                    />
+                    <FoodList foods={recentList} />
                   ))}
                 {tab === 'mine' &&
                   (myFoods.length === 0 ? (
-                    <Empty text="자주 먹는 것은 음식 화면의 ★ 로 여기에 모아 두세요. 직접 만든 음식도 여기에 들어와요." />
+                    <Empty text="자주 먹는 것은 음식을 펴서 ★ 로 여기에 모아 두세요. 직접 만든 음식도 여기에 들어와요." />
                   ) : (
-                    <FoodList
-                      foods={myFoods}
-                      onPick={(food) => setView({ kind: 'pick', food })}
-                      onQuick={(food) => add(food, 1)}
-                      onRemove={removeMine}
-                    />
+                    <FoodList foods={myFoods} onRemove={removeMine} />
                   ))}
                 {tab === 'all' && (
                   <AllFoods
-                    popular={popular}
+                    popular={popularList}
                     category={category}
-                    onCategory={setCategory}
-                    onPick={(food) => setView({ kind: 'pick', food })}
-                    onQuick={(food) => add(food, 1)}
+                    onCategory={(next) => {
+                      setCategory(next);
+                      setOpenKey(null);
+                    }}
                   />
                 )}
               </div>
 
-              <button
-                type="button"
-                onClick={() => setView({ kind: 'custom' })}
-                className="flex w-full items-center justify-center gap-2 rounded-xl border border-dashed border-line-strong py-3 text-sm text-muted transition-colors hover:border-sky hover:text-sky"
-              >
-                <PencilLine aria-hidden className="h-4 w-4" />
-                목록에 없으면 직접 입력
-              </button>
+              <CustomEntry q="" onAdd={addCustom} />
             </>
           )}
 
           {added.length > 0 && (
-            <div className="motion-safe:animate-fade-in sticky -bottom-5 -mx-5 -mb-5 flex items-center gap-3 border-t border-line bg-surface px-5 py-3">
+            <div className="motion-safe:animate-fade-in sticky -bottom-5 z-10 -mx-5 -mb-5 flex items-center gap-3 border-t border-line bg-surface px-5 py-3">
               <Check aria-hidden className="h-4 w-4 shrink-0 text-ok" />
-              <p className="min-w-0 flex-1 truncate text-sm text-ink">
+              {/* 담을 때마다 글이 바뀌며 살짝 떠오른다 — 눌린 것이 들어갔는지 눈으로 확인 */}
+              <p
+                key={added.length}
+                className="motion-safe:animate-fade-in min-w-0 flex-1 truncate text-sm text-ink"
+              >
                 {added.length === 1
                   ? `${added[0]} 담았어요`
                   : `${added.length}번 담았어요 — ${added.at(-1)}`}
@@ -429,7 +465,7 @@ export function FoodSheet({
             </div>
           )}
         </div>
-      )}
+      </SheetContext>
     </Modal>
   );
 }
@@ -447,14 +483,10 @@ function AllFoods({
   popular,
   category,
   onCategory,
-  onPick,
-  onQuick,
 }: {
   popular: RankedFood[];
   category: Category;
   onCategory: (c: Category) => void;
-  onPick: (food: Food) => void;
-  onQuick: (food: Food) => void;
 }) {
   const shown =
     category === 'popular' ? [] : category === 'all' ? FOOD_CATEGORIES : [category];
@@ -483,7 +515,7 @@ function AllFoods({
               <h3 className="px-1 text-xs text-muted">
                 이 앱을 쓰는 사람들이 가장 많이 담은 {popular.length}가지
               </h3>
-              <FoodList foods={popular} onPick={onPick} onQuick={onQuick} hideNote />
+              <FoodList foods={popular} hideNote />
             </section>
           ))}
         {shown.map((c) => {
@@ -496,7 +528,7 @@ function AllFoods({
                   <span className="font-normal text-muted">{foods.length}</span>
                 </h3>
               )}
-              <FoodList foods={foods} onPick={onPick} onQuick={onQuick} hideNote />
+              <FoodList foods={foods} hideNote />
             </section>
           );
         })}
@@ -513,14 +545,10 @@ function Empty({ text }: { text: string }) {
 
 function FoodList({
   foods,
-  onPick,
-  onQuick,
   onRemove,
   hideNote = false,
 }: {
   foods: Food[];
-  onPick: (food: Food) => void;
-  onQuick: (food: Food) => void;
   onRemove?: (food: Food) => void;
   /** 분류별로 볼 때는 줄마다 분류를 또 적지 않는다 */
   hideNote?: boolean;
@@ -529,11 +557,9 @@ function FoodList({
     <ul className="-mx-2">
       {foods.map((f, i) => (
         <FoodRow
-          key={`${f.source}:${f.id ?? f.name}`}
+          key={rowKey(f)}
           food={f}
           index={i}
-          onPick={() => onPick(f)}
-          onQuick={() => onQuick(f)}
           onRemove={onRemove ? () => onRemove(f) : undefined}
           hideNote={hideNote}
         />
@@ -542,106 +568,181 @@ function FoodList({
   );
 }
 
+/**
+ * 음식 한 줄.
+ *
+ * 누르면 그 밑에서 양 고르기가 펴진다. 오른쪽 + 는 펴지 않고 1인분을 바로 담는다.
+ * 어느 쪽으로 담든 + 자리에 체크가 한 번 떴다 사라진다 — 눌린 것이 들어갔는지 눈으로
+ * 확인한다.
+ */
 function FoodRow({
   food,
   index,
-  onPick,
-  onQuick,
   onRemove,
   hideNote,
 }: {
   food: Food;
   index: number;
-  onPick: () => void;
-  onQuick: () => void;
   onRemove?: () => void;
   hideNote: boolean;
 }) {
+  const { openKey, toggle, add } = useSheet();
+  const key = rowKey(food);
+  const open = openKey === key;
   /* 인기 순위에서 온 음식이면 순위와 횟수가 붙어 있다 */
   const ranked = 'rank' in food ? (food as RankedFood) : null;
   /* 지우기는 두 번 눌러야 한다 — 직접 만든 음식은 되살릴 길이 없다 */
   const [confirm, setConfirm] = useState(false);
   const [flash, setFlash] = useState(0);
+  const panel = useRef<HTMLDivElement>(null);
+
+  /*
+   * 편 칸이 창 아래로 잘리면 거기까지만 굴려 보여 준다(이미 보이면 가만히 둔다).
+   * 다 펴진 뒤에 잰다 — 펴지는 도중에는 높이가 아직 모자라다.
+   */
+  useEffect(() => {
+    if (!open) return;
+    const timer = window.setTimeout(() => {
+      const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      panel.current?.scrollIntoView({
+        block: 'nearest',
+        behavior: reduce ? 'auto' : 'smooth',
+      });
+    }, 320);
+    return () => window.clearTimeout(timer);
+  }, [open]);
+
+  const put = (amount: number) => {
+    add(food, amount);
+    setFlash((n) => n + 1);
+  };
 
   return (
     <li
-      className="motion-safe:animate-row-in flex items-center gap-1"
+      className="motion-safe:animate-row-in"
       style={{ '--row': index } as CSSProperties}
     >
-      <button
-        type="button"
-        onClick={onPick}
-        className="flex min-w-0 flex-1 items-center gap-3 rounded-xl px-2 py-2.5 text-left transition-colors hover:bg-surface-2"
-      >
-        {ranked && (
-          /* 1~3위는 하늘색으로 — 순위표에서 눈이 가장 먼저 가는 자리 */
-          <span
-            className={`w-5 shrink-0 text-center text-sm font-bold tabular-nums ${
-              ranked.rank <= 3 ? 'text-sky' : 'text-muted'
-            }`}
-          >
-            {ranked.rank}
+      <div className="flex items-center gap-1">
+        <button
+          type="button"
+          onClick={() => toggle(key)}
+          aria-expanded={open}
+          className={`flex min-w-0 flex-1 items-center gap-3 rounded-xl px-2 py-2.5 text-left transition-colors ${
+            open ? 'bg-surface-2' : 'hover:bg-surface-2'
+          }`}
+        >
+          {ranked && (
+            /* 1~3위는 하늘색으로 — 순위표에서 눈이 가장 먼저 가는 자리 */
+            <span
+              className={`w-5 shrink-0 text-center text-sm font-bold tabular-nums ${
+                ranked.rank <= 3 ? 'text-sky' : 'text-muted'
+              }`}
+            >
+              {ranked.rank}
+            </span>
+          )}
+          <span className="min-w-0 flex-1">
+            <span className="block truncate text-sm font-medium text-ink">
+              {food.name}
+            </span>
+            <span className="block truncate text-xs text-muted">
+              {food.servingLabel}
+              {ranked
+                ? ` · ${ranked.people}명이 ${ranked.picks}번 담음`
+                : food.note && !hideNote
+                  ? ` · ${food.note}`
+                  : ''}
+            </span>
           </span>
-        )}
-        <span className="min-w-0 flex-1">
-          <span className="block truncate text-sm font-medium text-ink">
-            {food.name}
+          <span className="shrink-0 text-sm tabular-nums text-ink">
+            {kcalText(food.kcal)}
+            <span className="ml-0.5 text-xs text-muted">kcal</span>
           </span>
-          <span className="block truncate text-xs text-muted">
-            {food.servingLabel}
-            {ranked
-              ? ` · ${ranked.people}명이 ${ranked.picks}번 담음`
-              : food.note && !hideNote
-                ? ` · ${food.note}`
-                : ''}
-          </span>
-        </span>
-        <span className="shrink-0 text-sm tabular-nums text-ink">
-          {kcalText(food.kcal)}
-          <span className="ml-0.5 text-xs text-muted">kcal</span>
-        </span>
-      </button>
-      {onRemove &&
-        (confirm ? (
-          <button
-            type="button"
-            onClick={onRemove}
-            onBlur={() => setConfirm(false)}
-            className="shrink-0 rounded-lg bg-danger-bg px-2.5 py-2 text-xs font-semibold text-danger"
-          >
-            지우기
-          </button>
-        ) : (
-          <button
-            type="button"
-            onClick={() => setConfirm(true)}
-            aria-label={`${food.name} 내 음식에서 지우기`}
-            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-muted transition-colors hover:bg-danger-bg hover:text-danger"
-          >
-            <Trash2 aria-hidden className="h-4 w-4" />
-          </button>
-        ))}
-      <button
-        type="button"
-        onClick={() => {
-          onQuick();
-          setFlash((n) => n + 1);
-        }}
-        aria-label={`${food.name} 1인분 담기`}
-        className="relative flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-sky transition-[background-color,transform] duration-150 hover:bg-sky-tint motion-safe:active:scale-90"
-      >
-        {/* 담을 때마다 체크가 한 번 떴다 사라진다 — 눌렸는지 눈으로 확인 */}
-        {flash > 0 ? (
-          <Check
-            key={flash}
-            aria-hidden
-            className="motion-safe:animate-fade-in h-4 w-4 text-ok"
-          />
-        ) : (
-          <Plus aria-hidden className="h-4 w-4" />
-        )}
-      </button>
+        </button>
+        {onRemove &&
+          (confirm ? (
+            <button
+              type="button"
+              onClick={onRemove}
+              onBlur={() => setConfirm(false)}
+              className="shrink-0 rounded-lg bg-danger-bg px-2.5 py-2 text-xs font-semibold text-danger"
+            >
+              지우기
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setConfirm(true)}
+              aria-label={`${food.name} 내 음식에서 지우기`}
+              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-muted transition-colors hover:bg-danger-bg hover:text-danger"
+            >
+              <Trash2 aria-hidden className="h-4 w-4" />
+            </button>
+          ))}
+        <button
+          type="button"
+          onClick={() => put(1)}
+          aria-label={`${food.name} 1인분 담기`}
+          className="relative flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-sky transition-[background-color,transform] duration-150 hover:bg-sky-tint motion-safe:active:scale-90"
+        >
+          {flash > 0 ? (
+            <Check
+              key={flash}
+              aria-hidden
+              className="motion-safe:animate-fade-in h-4 w-4 text-ok"
+            />
+          ) : (
+            <Plus aria-hidden className="h-4 w-4" />
+          )}
+        </button>
+      </div>
+
+      <Expand open={open}>
+        {/* scroll-mb: 아래에 붙은 '담았어요' 줄에 담기 단추가 가리지 않게 */}
+        <div ref={panel} className="scroll-mb-20 px-2 pb-2 pt-1">
+          <PickFood food={food} onAdd={put} />
+        </div>
+      </Expand>
     </li>
+  );
+}
+
+/**
+ * 목록에 없으면 직접 입력 — 단추를 누르면 그 밑에서 적는 칸이 펴진다.
+ *
+ * 찾던 말이 있으면 그것을 이름 칸에 미리 넣어 둔다('엄마표 제육' 을 찾다 없으면 그대로
+ * 적는다).
+ */
+function CustomEntry({
+  q,
+  onAdd,
+}: {
+  q: string;
+  onAdd: (food: Food, save: boolean) => void;
+}) {
+  const { meal, openKey, toggle } = useSheet();
+  const open = openKey === CUSTOM_KEY;
+  return (
+    <div>
+      <button
+        type="button"
+        onClick={() => toggle(CUSTOM_KEY)}
+        aria-expanded={open}
+        className={`flex w-full items-center justify-center gap-2 rounded-xl border border-dashed py-3 text-sm transition-colors ${
+          open
+            ? 'border-sky text-sky'
+            : 'border-line-strong text-muted hover:border-sky hover:text-sky'
+        }`}
+      >
+        <PencilLine aria-hidden className="h-4 w-4" />
+        {q ? `‘${q}’ 직접 입력` : '목록에 없으면 직접 입력'}
+      </button>
+      <Expand open={open}>
+        <div className="scroll-mb-20 pt-3">
+          <CustomFood meal={meal} initialName={q} onAdd={onAdd} />
+        </div>
+      </Expand>
+    </div>
   );
 }
 
@@ -651,8 +752,6 @@ function SearchResults({
   remote,
   remoteLoading,
   mfds,
-  onPick,
-  onQuick,
   onCustom,
 }: {
   q: string;
@@ -660,14 +759,12 @@ function SearchResults({
   remote: Food[];
   remoteLoading: boolean;
   mfds: boolean;
-  onPick: (food: Food) => void;
-  onQuick: (food: Food) => void;
-  onCustom: () => void;
+  onCustom: (food: Food, save: boolean) => void;
 }) {
   const nothing = local.length === 0 && remote.length === 0 && !remoteLoading;
   return (
     <div className="space-y-4">
-      {local.length > 0 && <FoodList foods={local} onPick={onPick} onQuick={onQuick} />}
+      {local.length > 0 && <FoodList foods={local} />}
 
       {mfds && (remoteLoading || remote.length > 0) && (
         <section className="space-y-1">
@@ -681,7 +778,7 @@ function SearchResults({
               ))}
             </div>
           ) : (
-            <FoodList foods={remote} onPick={onPick} onQuick={onQuick} />
+            <FoodList foods={remote} />
           )}
         </section>
       )}
@@ -692,13 +789,8 @@ function SearchResults({
         </p>
       )}
 
-      <button
-        type="button"
-        onClick={onCustom}
-        className="flex w-full items-center justify-center gap-2 rounded-xl border border-dashed border-line-strong py-3 text-sm text-muted transition-colors hover:border-sky hover:text-sky"
-      >
-        <PencilLine aria-hidden className="h-4 w-4" />‘{q}’ 직접 입력
-      </button>
+      {/* 찾는 말이 바뀌면 이름 칸도 그 말로 새로 시작한다 */}
+      <CustomEntry key={q} q={q} onAdd={onCustom} />
 
       <p className="px-1 text-[11px] leading-relaxed text-muted/80">
         {mfds
@@ -721,21 +813,15 @@ function stepAmount(amount: number, dir: 1 | -1) {
 
 const round20 = (n: number) => Math.round(n * 20) / 20;
 
-function PickFood({
-  food,
-  meal,
-  favorite,
-  onFavorite,
-  onBack,
-  onAdd,
-}: {
-  food: Food;
-  meal: MealKey;
-  favorite: boolean;
-  onFavorite: () => void;
-  onBack: () => void;
-  onAdd: (amount: number) => void;
-}) {
+/**
+ * 누른 줄 밑에서 펴지는 양 고르기.
+ *
+ * 이름은 바로 위 줄에 있어서 다시 적지 않는다. 1인분이 얼마인지·어디 자료인지와
+ * 내 음식 단추를 한 줄에 두고, 그 밑에 양과 담기를 둔다.
+ */
+function PickFood({ food, onAdd }: { food: Food; onAdd: (amount: number) => void }) {
+  const { meal, isFavorite, toggleFavorite } = useSheet();
+  const favorite = isFavorite(food);
   const [amount, setAmount] = useState(1);
   const [grams, setGrams] = useState(
     food.servingGrams ? gramText(food.servingGrams) : ''
@@ -759,31 +845,19 @@ function PickFood({
   }
 
   return (
-    <div className="motion-safe:animate-fade-in space-y-5">
-      <button
-        type="button"
-        onClick={onBack}
-        className="-ml-1 inline-flex items-center gap-1 rounded-lg px-1 py-1 text-sm text-muted transition-colors hover:text-ink"
-      >
-        <ArrowLeft aria-hidden className="h-4 w-4" />
-        목록
-      </button>
-
-      <div className="flex items-start gap-3">
-        <div className="min-w-0 flex-1">
-          <h3 className="text-lg font-bold text-ink">{food.name}</h3>
-          <p className="text-xs text-muted">
-            1인분 {food.servingLabel} · {SOURCE_LABEL[food.source]}
-            {food.note ? ` · ${food.note}` : ''}
-          </p>
-        </div>
+    <div className="space-y-3 rounded-xl border border-line bg-surface-2/60 p-3">
+      <div className="flex items-center gap-2">
+        <p className="min-w-0 flex-1 text-xs text-muted">
+          1인분 {food.servingLabel} · {SOURCE_LABEL[food.source]}
+          {food.note ? ` · ${food.note}` : ''}
+        </p>
         {canFavorite(food) && (
           <button
             type="button"
-            onClick={onFavorite}
+            onClick={() => toggleFavorite(food)}
             aria-pressed={favorite}
             className={`inline-flex shrink-0 items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-medium transition-colors ${
-              favorite ? 'bg-warn-bg text-warn' : 'text-muted hover:bg-surface-2'
+              favorite ? 'bg-warn-bg text-warn' : 'text-muted hover:bg-surface'
             }`}
           >
             <Star
@@ -796,61 +870,61 @@ function PickFood({
         )}
       </div>
 
-      <div className="space-y-3">
-        <div className="flex items-center gap-3">
-          <div className="flex items-center rounded-xl border border-line bg-surface-2">
-            <button
-              type="button"
-              onClick={() => setBoth(stepAmount(amount, -1))}
-              aria-label="줄이기"
-              className="flex h-11 w-11 items-center justify-center rounded-l-xl text-muted transition-colors hover:text-ink"
-            >
-              <Minus aria-hidden className="h-4 w-4" />
-            </button>
-            <span className="min-w-[5rem] text-center text-base font-semibold tabular-nums text-ink">
-              {amountText(amount)}
-            </span>
-            <button
-              type="button"
-              onClick={() => setBoth(stepAmount(amount, 1))}
-              aria-label="늘리기"
-              className="flex h-11 w-11 items-center justify-center rounded-r-xl text-muted transition-colors hover:text-ink"
-            >
-              <Plus aria-hidden className="h-4 w-4" />
-            </button>
-          </div>
-          {food.servingGrams !== null && (
-            <label className="flex items-center gap-1.5 text-sm text-muted">
-              <span className="sr-only">그램</span>
-              <input
-                inputMode="decimal"
-                value={grams}
-                onChange={(e) => typeGrams(e.target.value)}
-                className="w-20 rounded-xl border border-line bg-surface-2 px-3 py-2.5 text-right text-sm tabular-nums text-ink transition-colors focus:border-sky focus:outline-none"
-              />
-              g
-            </label>
-          )}
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="flex items-center rounded-xl border border-line bg-surface">
+          <button
+            type="button"
+            onClick={() => setBoth(stepAmount(amount, -1))}
+            aria-label="줄이기"
+            className="flex h-11 w-11 items-center justify-center rounded-l-xl text-muted transition-colors hover:text-ink"
+          >
+            <Minus aria-hidden className="h-4 w-4" />
+          </button>
+          <span className="min-w-[4.5rem] text-center text-base font-semibold tabular-nums text-ink">
+            {amountText(amount)}
+          </span>
+          <button
+            type="button"
+            onClick={() => setBoth(stepAmount(amount, 1))}
+            aria-label="늘리기"
+            className="flex h-11 w-11 items-center justify-center rounded-r-xl text-muted transition-colors hover:text-ink"
+          >
+            <Plus aria-hidden className="h-4 w-4" />
+          </button>
         </div>
-        <div className="flex flex-wrap gap-1.5">
-          {QUICK.map((a) => (
-            <button
-              key={a}
-              type="button"
-              onClick={() => setBoth(a)}
-              className={`rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${
-                amount === a
-                  ? 'bg-sky-tint text-sky'
-                  : 'bg-surface-2 text-muted hover:text-ink'
-              }`}
-            >
-              {amountText(a)}
-            </button>
-          ))}
-        </div>
+        {food.servingGrams !== null && (
+          <label className="flex items-center gap-1.5 text-sm text-muted">
+            <span className="sr-only">그램</span>
+            <input
+              inputMode="decimal"
+              value={grams}
+              onChange={(e) => typeGrams(e.target.value)}
+              className="w-20 rounded-xl border border-line bg-surface px-3 py-2.5 text-right text-sm tabular-nums text-ink transition-colors focus:border-sky focus:outline-none"
+            />
+            g
+          </label>
+        )}
       </div>
 
-      <dl className="grid grid-cols-4 gap-2 rounded-xl bg-surface-2 p-3 text-center tabular-nums">
+      <div className="flex flex-wrap gap-1.5">
+        {QUICK.map((a) => (
+          <button
+            key={a}
+            type="button"
+            onClick={() => setBoth(a)}
+            aria-pressed={amount === a}
+            className={`rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${
+              amount === a
+                ? 'bg-sky-tint text-sky'
+                : 'bg-surface text-muted hover:text-ink'
+            }`}
+          >
+            {amountText(a)}
+          </button>
+        ))}
+      </div>
+
+      <dl className="grid grid-cols-4 gap-2 rounded-xl bg-surface p-2.5 text-center tabular-nums">
         <div>
           <dt className="text-[11px] text-muted">칼로리</dt>
           <dd className="text-base font-bold text-ink">{kcalText(got.kcal)}</dd>
@@ -885,12 +959,10 @@ function PickFood({
 function CustomFood({
   meal,
   initialName,
-  onBack,
   onAdd,
 }: {
   meal: MealKey;
   initialName: string;
-  onBack: () => void;
   onAdd: (food: Food, save: boolean) => void;
 }) {
   const [name, setName] = useState(initialName);
@@ -945,17 +1017,8 @@ function CustomFood({
         e.preventDefault();
         submit();
       }}
-      className="motion-safe:animate-fade-in space-y-4"
+      className="space-y-4 rounded-xl border border-line p-3"
     >
-      <button
-        type="button"
-        onClick={onBack}
-        className="-ml-1 inline-flex items-center gap-1 rounded-lg px-1 py-1 text-sm text-muted transition-colors hover:text-ink"
-      >
-        <ArrowLeft aria-hidden className="h-4 w-4" />
-        목록
-      </button>
-
       <div className="grid gap-3 sm:grid-cols-[1fr_9rem]">
         <label className="space-y-1.5">
           <span className="text-xs font-medium text-muted">음식 이름</span>
@@ -1001,12 +1064,12 @@ function CustomFood({
         ))}
       </div>
 
-      <label className="flex items-center gap-2 text-sm text-ink">
+      <label className="flex min-h-11 cursor-pointer items-center gap-2.5 text-sm text-ink">
         <input
           type="checkbox"
           checked={save}
           onChange={(e) => setSave(e.target.checked)}
-          className="h-4 w-4 accent-sky"
+          className="h-5 w-5 accent-sky"
         />
         내 음식에 저장해 다음에도 쓰기
       </label>

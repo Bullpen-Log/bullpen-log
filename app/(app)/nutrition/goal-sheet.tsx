@@ -44,6 +44,15 @@ const WATER_CHOICES = [
 
 type WaterChoice = (typeof WATER_CHOICES)[number]['value'];
 
+/*
+ * 고르는 칸의 크기 — 높이 44px(손가락 끝 하나), 글자도 한 단계 크게.
+ *
+ * 예전에는 설정 창과 같은 촘촘한 칸(글자 12px, 높이 28px 안팎)이었다. 여기는 한
+ * 번 정하면 한참 안 여는 곳이라 촘촘할 까닭이 없고, 운동 끝에 땀 난 손으로 누르면
+ * 옆 칸이 눌렸다.
+ */
+const BIG = 'min-h-11 px-2';
+
 export function GoalSheet({
   open,
   origin,
@@ -124,6 +133,8 @@ export function GoalSheet({
         <Row label="목표" hint={hint(GOALS, goal)}>
           <Segmented
             label="목표"
+            size="md"
+            itemClassName={BIG}
             value={goal}
             onChange={setGoal}
             options={GOALS.map((g) => ({ value: g.key, label: g.label }))}
@@ -133,6 +144,8 @@ export function GoalSheet({
         <Row label="운동 말고 평소 움직임" hint={hint(ACTIVITIES, activity)}>
           <Segmented
             label="평소 움직임"
+            size="md"
+            itemClassName={BIG}
             value={activity}
             onChange={setActivity}
             options={ACTIVITIES.map((a) => ({ value: a.key, label: a.label }))}
@@ -145,6 +158,8 @@ export function GoalSheet({
         >
           <Segmented
             label="성별"
+            size="md"
+            itemClassName={BIG}
             value={sex ?? ''}
             onChange={(v) => setSex(v as Sex)}
             options={SEXES.map((s) => ({ value: s.key, label: s.label }))}
@@ -157,6 +172,8 @@ export function GoalSheet({
         >
           <Segmented
             label="단백질"
+            size="md"
+            itemClassName={BIG}
             value={String(protein)}
             onChange={(v) => setProtein(Number(v))}
             options={PROTEIN_CHOICES.map((p) => ({
@@ -170,6 +187,8 @@ export function GoalSheet({
           <Segmented
             label="물 목표"
             layout="flow"
+            size="md"
+            itemClassName="min-h-11 px-4"
             value={water}
             onChange={setWater}
             options={WATER_CHOICES}
@@ -177,14 +196,23 @@ export function GoalSheet({
         </Row>
 
         <div className="space-y-2">
-          <label className="flex items-center gap-2 text-sm text-ink">
+          {/*
+            줄 전체가 스위치다. 예전에는 16px 체크 상자 하나라 손가락으로 맞히기
+            어려웠다 — 글자를 눌러도 켜지지만 그걸 아는 사람이 드물다.
+          */}
+          <label className="flex min-h-12 cursor-pointer items-center gap-3 rounded-xl border border-line bg-surface-2 px-4 py-3 text-sm text-ink transition-colors hover:border-sky-soft">
+            <span className="min-w-0 flex-1">하루 칼로리를 직접 정하기</span>
             <input
               type="checkbox"
+              role="switch"
               checked={manual}
               onChange={(e) => setManual(e.target.checked)}
-              className="h-4 w-4 accent-sky"
+              className="peer sr-only"
             />
-            하루 칼로리를 직접 정하기
+            <span
+              aria-hidden
+              className="relative h-7 w-12 shrink-0 rounded-full bg-line-strong transition-colors duration-200 peer-checked:bg-sky peer-focus-visible:ring-2 peer-focus-visible:ring-sky peer-focus-visible:ring-offset-2 peer-focus-visible:ring-offset-surface after:absolute after:left-1 after:top-1 after:h-5 after:w-5 after:rounded-full after:bg-white after:shadow after:transition-transform after:duration-200 after:ease-[cubic-bezier(0.22,1,0.36,1)] peer-checked:after:translate-x-5"
+            />
           </label>
           <div
             className={`grid transition-[grid-template-rows] duration-200 ease-out ${
@@ -192,13 +220,13 @@ export function GoalSheet({
             }`}
           >
             <div className="min-h-0 overflow-hidden" inert={!manual}>
-              <label className="flex items-center gap-2 pt-1 text-sm text-muted">
+              <label className="flex flex-wrap items-center gap-2 pt-2 text-sm text-muted">
                 <input
                   inputMode="numeric"
                   value={kcal}
                   onChange={(e) => setKcal(e.target.value.replace(/[^\d]/g, ''))}
                   placeholder={String(auto.base)}
-                  className="w-28 rounded-xl border border-line bg-surface-2 px-3 py-2.5 text-right text-sm tabular-nums text-ink transition-colors focus:border-sky focus:outline-none"
+                  className="h-12 w-32 rounded-xl border border-line bg-surface-2 px-3 text-right text-base tabular-nums text-ink transition-colors focus:border-sky focus:outline-none"
                 />
                 kcal (운동 전) — 계산으로는 {kcalText(auto.base)}
               </label>
@@ -237,7 +265,7 @@ export function GoalSheet({
           type="button"
           onClick={save}
           disabled={pending}
-          className="w-full rounded-xl bg-sky py-3 text-sm font-semibold text-white transition-[background-color,opacity] hover:bg-sky-strong disabled:opacity-60"
+          className="min-h-12 w-full rounded-xl bg-sky py-3.5 text-base font-semibold text-white transition-[background-color,opacity] hover:bg-sky-strong disabled:opacity-60"
         >
           {pending ? '저장 중…' : '저장'}
         </button>
