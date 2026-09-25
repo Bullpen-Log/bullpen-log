@@ -80,7 +80,16 @@ export function VideoUpload({
   /** 목록에서 재생 전에 보여줄 이미지를 함께 만들지 여부 */
   withThumbnail = false,
   onUploadingChange,
+  onUploaded,
 }: {
+  /**
+   * 한 개를 다 올렸을 때 — 저장소 경로와 올린 파일을 넘긴다.
+   *
+   * 투구 기록 폼이 여기서 그 영상의 미리보기(영상 캘린더의 썸네일)를 뜬다. 손에 든
+   * 파일에서 바로 뜨니 나중에 영상을 다시 받을 일이 없다. 기다리지 않는다 — 실패해도
+   * 캘린더를 열 때 다시 뜬다.
+   */
+  onUploaded?: (path: string, file: File) => void;
   videos: UploadedVideo[];
   onChange: (next: UploadedVideo[]) => void;
   max?: number;
@@ -153,6 +162,7 @@ export function VideoUpload({
 
     try {
       const path = await uploadToStorage(file, endpoint, setProgress);
+      onUploaded?.(path, file);
 
       // 재생 전에 보여줄 이미지. 실패해도 등록은 그대로 진행한다.
       let thumbPath: string | undefined;

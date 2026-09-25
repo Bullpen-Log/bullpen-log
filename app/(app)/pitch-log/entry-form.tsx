@@ -6,6 +6,7 @@ import { VideoUpload, type UploadedVideo } from '@/components/video-upload';
 import { usePlaybackUrls } from '@/components/use-playback-urls';
 import { FilmingGuide } from '@/components/filming-guide';
 import { IntensityGuide } from '@/components/intensity-guide';
+import { makePitchThumb } from '@/lib/pitch-thumbs';
 import { DEFAULT_SESSION_TYPE, SESSION_TYPES, isRestSession } from '@/lib/session-type';
 import {
   fromSpeed,
@@ -356,6 +357,8 @@ export function EntryForm({
               disabled={resting}
               confirmRemove={removeNote}
               onUploadingChange={setUploading}
+              /* 영상 캘린더의 썸네일 — 손에 든 파일에서 바로 뜬다(기다리지 않는다) */
+              onUploaded={(path, file) => void makePitchThumb(path, file)}
             />
           </div>
         </Field>

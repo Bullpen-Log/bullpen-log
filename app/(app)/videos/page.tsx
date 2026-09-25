@@ -19,8 +19,11 @@ export default async function VideosPage({
   searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
 }) {
   const user = await requireUser();
+  const params = await searchParams;
   /* 캘린더의 '대표 바꾸기'로 들어오면 그 날짜의 달을 펴 둔다(?month=2026-08) */
-  const month = readMonthParam((await searchParams).month);
+  const month = readMonthParam(params.month);
+  /* 홈에서 그날 영상으로 들어오면 영상 캘린더가 그날을 열어 둔다(?date=2026-08-30) */
+  const date = readDateParam(params.date);
 
   /*
    * 영상이 붙은 기록만, 기간을 자르지 않고 전부 읽는다.
@@ -62,9 +65,16 @@ export default async function VideosPage({
       featured={Object.fromEntries(
         featured.map((f) => [toDateKey(f.date), f.videoPath])
       )}
-      initialMonth={month}
+      initialMonth={month ?? (date ? date.slice(0, 7) : null)}
+      initialDate={date}
     />
   );
+}
+
+/** ?date=2026-08-30 처럼 넘어온 값만 받는다 */
+function readDateParam(raw: string | string[] | undefined): string | null {
+  const value = Array.isArray(raw) ? raw[0] : raw;
+  return value && /^\d{4}-\d{2}-\d{2}$/.test(value) ? value : null;
 }
 
 /** ?month=2026-08 처럼 넘어온 값만 받는다. 형식이 아니면 무시하고 가장 최근 달을 편다. */

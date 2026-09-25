@@ -34,6 +34,16 @@ export type DayMark = {
   spoken: string;
 };
 
+/** 칸을 직접 그릴 때 넘겨받는 것 — renderDay */
+export type DayCell = {
+  /** YYYY-MM-DD */
+  key: string;
+  day: number;
+  isToday: boolean;
+  isSelected: boolean;
+  isFuture: boolean;
+};
+
 /** 강도에 따라 칸 배경 진하기를 다르게 준다. */
 function intensityClass(intensity: number) {
   if (intensity >= 8) return 'bg-sky/70 text-white';
@@ -51,6 +61,9 @@ export function MonthCalendar({
   onSelect,
   marks,
   compact = false,
+  renderDay,
+  size = 'normal',
+  emptySpoken = '기록 없음',
   children,
 }: {
   month: Date;
@@ -75,6 +88,15 @@ export function MonthCalendar({
    * 캘린더가 자리를 내주며 위아래로도 줄어든다(칸 높이가 부드럽게 바뀐다).
    */
   compact?: boolean;
+  /**
+   * 칸 속을 직접 그린다. 주면 강도로 칠하지 않고 이것을 그린다 — 영상 캘린더가 칸마다
+   * 그날 영상의 한 장면을 채운다. 화면 낭독기가 읽을 말은 그대로 marks 의 spoken 이다.
+   */
+  renderDay?: (cell: DayCell) => ReactNode;
+  /** 칸 크기. large 는 한 장면을 담을 만큼 큰 칸(영상 캘린더) */
+  size?: 'normal' | 'large';
+  /** 칠할 것이 없는 날을 화면 낭독기가 읽는 말 — 영상 캘린더는 '영상 없음' */
+  emptySpoken?: string;
   /** 달력 아래 범례 */
   children?: ReactNode;
 }) {
@@ -177,7 +199,16 @@ export function MonthCalendar({
     return () => stage.removeEventListener('transitionend', done);
   }, [monthTime]);
 
-  const grid = { marks, selected, onSelect, todayKey, compact };
+  const grid = {
+    marks,
+    selected,
+    onSelect,
+    todayKey,
+    compact,
+    renderDay,
+    size,
+    emptySpoken,
+  };
 
   return (
     <div className="space-y-4">
@@ -304,6 +335,9 @@ function DayGrid({
   onSelect,
   todayKey,
   compact,
+  renderDay,
+  size,
+  emptySpoken,
 }: {
   month: Date;
   marks: Record<string, DayMark>;
@@ -311,6 +345,9 @@ function DayGrid({
   onSelect: (dateKey: string) => void;
   todayKey: string;
   compact: boolean;
+  renderDay?: (cell: DayCell) => ReactNode;
+  size: 'normal' | 'large';
+  emptySpoken: string;
 }) {
   const year = month.getFullYear();
   const monthIndex = month.getMonth();
@@ -341,6 +378,38 @@ function DayGrid({
          * 누르고 나서 알려주는 것과 보면 아는 것은 다르다.
          */
         const isFuture = key > todayKey;
+        const label = isFuture
+          ? `${monthIndex + 1}월 ${day}일, 아직 오지 않은 날`
+          : mark
+            ? `${monthIndex + 1}월 ${day}일, ${mark.spoken}`
+            : `${monthIndex + 1}월 ${day}일${isToday ? ', 오늘' : ''}, ${emptySpoken}`;
+
+        /* 칸 속을 부르는 쪽이 그린다(영상 캘린더). 테두리와 고른 표시만 여기서 준다. */
+        if (renderDay) {
+          return (
+            <button
+              key={key}
+              type="button"
+              disabled={isFuture}
+              onClick={() => onSelect(key)}
+              aria-label={label}
+              aria-pressed={isSelected}
+              className={`group relative overflow-hidden rounded-lg border transition-[border-color,box-shadow] duration-200 ${
+                size === 'large'
+                  ? 'h-[4.75rem] sm:h-28 lg:h-32'
+                  : 'min-h-[3.25rem] sm:min-h-[4.5rem]'
+              } ${
+                isFuture
+                  ? 'cursor-default border-transparent'
+                  : isSelected
+                    ? 'border-sky ring-2 ring-sky'
+                    : 'border-line hover:border-line-strong'
+              }`}
+            >
+              {renderDay({ key, day, isToday, isSelected, isFuture })}
+            </button>
+          );
+        }
 
         return (
           <button
@@ -348,16 +417,12 @@ function DayGrid({
             type="button"
             disabled={isFuture}
             onClick={() => onSelect(key)}
-            aria-label={
-              isFuture
-                ? `${monthIndex + 1}월 ${day}일, 아직 오지 않은 날`
-                : mark
-                  ? `${monthIndex + 1}월 ${day}일, ${mark.spoken}`
-                  : `${monthIndex + 1}월 ${day}일${isToday ? ', 오늘' : ''}, 기록 없음`
-            }
+            aria-label={label}
             aria-pressed={isSelected}
             className={`relative flex flex-col items-center justify-center gap-0.5 rounded-lg border text-sm transition-[color,background-color,border-color,min-height] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] ${
-              compact ? 'min-h-[2.75rem] sm:min-h-[3.25rem]' : 'min-h-[3.25rem] sm:min-h-[4.5rem]'
+              compact
+                ? 'min-h-[2.75rem] sm:min-h-[3.25rem]'
+                : 'min-h-[3.25rem] sm:min-h-[4.5rem]'
             } ${
               isFuture
                 ? 'cursor-default border-transparent bg-transparent text-muted/35'

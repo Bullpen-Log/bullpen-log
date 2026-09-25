@@ -63,7 +63,11 @@ function tabLink(
         label: opts.empty ? '식단 기록하러 가기' : '영양 탭에서 자세히',
       };
     case 'video':
-      return { href: `/videos?month=${date.slice(0, 7)}`, label: '영상 탭에서 보기' };
+      /* 영상 캘린더가 그날을 열어 둔 채로 시작한다 */
+      return {
+        href: `/videos?date=${date}`,
+        label: opts.empty ? '영상 탭으로' : '영상 탭에서 보기',
+      };
     case 'coach':
       return opts.hasReport
         ? { href: `/coach/report/${date}`, label: '리포트 전체 보기' }

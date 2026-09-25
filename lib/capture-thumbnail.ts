@@ -46,7 +46,14 @@ function waitFor(
   });
 }
 
-export async function captureThumbnail(source: File | string): Promise<Blob | null> {
+/**
+ * @param at 뽑을 장면(초). 비우면 앞쪽 조금 뒤(15%, 최대 2초)에서 뽑는다 — 첫 프레임은
+ *   검은 화면인 경우가 많다. 영상 캘린더에서 '이 장면을 썸네일로'를 누르면 그 자리를 준다.
+ */
+export async function captureThumbnail(
+  source: File | string,
+  at?: number
+): Promise<Blob | null> {
   const isFile = typeof source !== 'string';
   const objectUrl = isFile ? URL.createObjectURL(source) : null;
   const video = document.createElement('video');
@@ -65,8 +72,12 @@ export async function captureThumbnail(source: File | string): Promise<Blob | nu
     if (!videoWidth || !videoHeight) return null;
 
     // 조금 뒤 장면으로 옮긴다. 실패하면 첫 프레임을 그대로 쓴다.
+    // 장면을 골라 넘겼으면(at) 그 자리로 — 끝을 넘지 않게 살짝 앞에서 멈춘다.
     const duration = Number.isFinite(video.duration) ? video.duration : 0;
-    const target = Math.min(MAX_SEEK_SECONDS, duration * SEEK_RATIO);
+    const target =
+      at != null
+        ? Math.max(0, Math.min(at, duration > 0 ? duration - 0.05 : at))
+        : Math.min(MAX_SEEK_SECONDS, duration * SEEK_RATIO);
     if (target > 0) {
       const seeked = waitFor(video, 'seeked', SEEK_TIMEOUT_MS);
       video.currentTime = target;

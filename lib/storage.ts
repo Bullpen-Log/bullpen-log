@@ -180,11 +180,14 @@ export async function createPlaybackUrls(
   return result;
 }
 
-/** 기록을 지울 때 저장된 파일도 함께 정리한다. */
+/** 기록을 지울 때 저장된 파일도 함께 정리한다. 투구 영상이면 그 미리보기도 함께. */
 export async function deleteVideos(paths: string[]) {
   if (paths.length === 0) return;
 
-  const { error } = await getClient().storage.from(VIDEO_BUCKET).remove(paths);
+  const thumbs = paths.map(pitchThumbPath).filter((p): p is string => p !== null);
+  const { error } = await getClient()
+    .storage.from(VIDEO_BUCKET)
+    .remove([...paths, ...thumbs]);
   if (error) {
     // 파일 삭제가 실패해도 기록 삭제 자체는 막지 않는다.
     console.error('[storage] 영상 삭제 실패', paths, error);
@@ -194,6 +197,65 @@ export async function deleteVideos(paths: string[]) {
 /** 해당 경로가 그 사용자의 폴더인지 확인한다. */
 export function isOwnedBy(path: string, userId: string) {
   return path.startsWith(`${userId}/`);
+}
+
+/**
+ * 투구 영상 미리보기 이름 앞에 붙이는 말. 사진(avatar-)처럼 사용자 폴더 안에서
+ * 영상과 가려낼 수 있게 한다.
+ */
+const THUMB_PREFIX = 'thumb-';
+
+/**
+ * 투구 영상의 미리보기 이미지 경로 — 영상 이름에서 정해진다.
+ *
+ *   `{userId}/{uuid}.mp4` → `{userId}/thumb-{uuid}.jpg`
+ *
+ * DB 에 따로 적지 않는다. 영상 경로만 알면 미리보기 자리를 알 수 있어서, 표를 새로
+ * 만들거나 기록마다 칸을 늘리지 않아도 된다. 있는지는 주소를 만들어 보면 안다 —
+ * 없는 파일은 저장소가 주소를 안 내준다(createPlaybackUrls 가 조용히 뺀다).
+ *
+ * 같은 자리에 덮어써서 바꾼다. 사용자가 다른 장면을 고르면 새 그림이 옛 그림을
+ * 밀어낸다.
+ *
+ * 투구 영상이 아니면(라이브러리·사진·미리보기 자신) null.
+ */
+export function pitchThumbPath(videoPath: string): string | null {
+  if (videoPath.includes('..')) return null;
+  const match = /^([^/]+)\/([^/]+?)(\.[a-z0-9]+)?$/i.exec(videoPath);
+  if (!match) return null;
+  const [, folder, base] = match;
+  if (
+    folder === LIBRARY_PREFIX ||
+    base.startsWith(AVATAR_PREFIX) ||
+    base.startsWith(THUMB_PREFIX)
+  ) {
+    return null;
+  }
+  return `${folder}/${THUMB_PREFIX}${base}.jpg`;
+}
+
+/**
+ * 투구 영상 미리보기를 올릴 임시 주소. 같은 자리에 덮어쓴다(upsert).
+ *
+ * 들고 있던 옛 주소는 버린다 — 주소가 그대로면 브라우저가 받아 둔 옛 그림을 계속
+ * 보여준다.
+ */
+export async function createPitchThumbUploadTarget(thumbPath: string) {
+  const { data, error } = await getClient()
+    .storage.from(VIDEO_BUCKET)
+    .createSignedUploadUrl(thumbPath, { upsert: true });
+
+  if (error || !data) {
+    throw new Error(error?.message ?? '업로드 주소를 만들지 못했습니다.');
+  }
+
+  urlCache.delete(thumbPath);
+  return { path: data.path, signedUrl: data.signedUrl };
+}
+
+/** 들고 있던 주소 몇 개만 버린다 — 방금 새로 올린 미리보기처럼, 새 주소가 필요할 때 */
+export function forgetPlaybackUrls(paths: string[]) {
+  for (const path of paths) urlCache.delete(path);
 }
 
 /** 브라우저가 프로필 사진을 직접 올릴 임시 주소를 만든다. */
