@@ -13,6 +13,7 @@
     "restore": "node --env-file=.env scripts/restore.mjs",
     "icons": "node scripts/make-icons.mjs",
     "training:test": "node --env-file=.env --import ./scripts/alias-register.mjs scripts/training-selftest.mts",
+    "nutrition:test": "node --import ./scripts/alias-register.mjs scripts/nutrition-selftest.mts",
     "personalize:check": "node --env-file=.env --import ./scripts/alias-register.mjs scripts/personalize-check.mts",
     "equipment:check": "node --env-file=.env --import ./scripts/alias-register.mjs scripts/equipment-check.mts",
     "theme:check": "node --env-file=.env --import ./scripts/alias-register.mjs scripts/theme-time-check.mts",

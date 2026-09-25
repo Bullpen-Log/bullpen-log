@@ -179,7 +179,12 @@ async function PitchLogSection({
    * 기록은 남긴 차례로 둔다(createdAt). 대표를 안 고른 날은 그날 처음 올린 영상을
    * 보여주는데, 차례가 없으면 열 때마다 바뀔 수 있다.
    */
-  const [logs, training, plans, featured] = await Promise.all([
+  /*
+   * 달력 옆 '그날' 칸이 투구·운동 말고도 영양·컨디션·리포트까지 한 번에 보여 준다.
+   * 날짜를 누를 때마다 받아 오면 칸을 옮길 때마다 기다리므로 여기서 같이 읽는다.
+   * 모두 하루 한 줄로 줄여서 넘긴다(영양은 칼로리·단백질 합, 체크인은 컨디션·통증).
+   */
+  const [logs, training, plans, featured, meals, checkins, reports] = await Promise.all([
     prisma.pitchLog.findMany({
       where: { userId: user.id, date: { gte: initialFrom } },
       orderBy: [{ date: 'asc' }, { createdAt: 'asc' }],
@@ -190,7 +195,39 @@ async function PitchLogSection({
       where: { userId: user.id, date: { gte: initialFrom } },
       select: { date: true, videoPath: true },
     }),
+    prisma.mealEntry.findMany({
+      where: { userId: user.id, date: { gte: initialFrom } },
+      select: { date: true, kcal: true, protein: true, amount: true },
+    }),
+    prisma.dailyCheckin.findMany({
+      where: { userId: user.id, date: { gte: initialFrom } },
+      select: {
+        date: true,
+        condition: true,
+        shoulder: true,
+        elbow: true,
+        wrist: true,
+        lowerBack: true,
+        lowerBody: true,
+      },
+    }),
+    prisma.aiReport.findMany({
+      where: { userId: user.id, asOf: { gte: initialFrom } },
+      select: { asOf: true },
+    }),
   ]);
+
+  const nutritionByDay: Record<string, { kcal: number; protein: number }> = {};
+  for (const m of meals) {
+    const key = toDateKey(m.date);
+    const day = (nutritionByDay[key] ??= { kcal: 0, protein: 0 });
+    day.kcal += m.kcal * m.amount;
+    day.protein += (m.protein ?? 0) * m.amount;
+  }
+  for (const day of Object.values(nutritionByDay)) {
+    day.kcal = Math.round(day.kcal);
+    day.protein = Math.round(day.protein);
+  }
 
   /*
    * 그날의 수치·영상·폼 분석은 여기서 안 읽는다. 날짜를 누르면
@@ -205,6 +242,7 @@ async function PitchLogSection({
 
   return (
     <PitchLogPanel
+      today={toDateKey(now)}
       initialLogs={initialLogs}
       initialDate={initialDate}
       loadedFrom={initialFrom.toISOString().slice(0, 7)}
@@ -213,6 +251,14 @@ async function PitchLogSection({
       featuredByDay={Object.fromEntries(
         featured.map((f) => [toDateKey(f.date), f.videoPath])
       )}
+      nutritionByDay={nutritionByDay}
+      checkinByDay={Object.fromEntries(
+        checkins.map((c) => [
+          toDateKey(c.date),
+          { condition: c.condition, pain: hasPain(pickCheckinParts(c)) },
+        ])
+      )}
+      reportDays={reports.map((r) => toDateKey(r.asOf))}
     />
   );
 }

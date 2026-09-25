@@ -89,6 +89,18 @@ function flyStyle(name: string, index: number, kind: FlyKind): CSSProperties {
 }
 
 /**
+ * 판에만 자리가 있는 아이콘(라이브러리·자료실·관리자)의 이름표 — 날아오지 않고
+ * 판의 제자리에서 돋아난다. 차례 딱지(gN)는 그것들끼리의 순서라, 날아오는
+ * 넷(dN)과 따로 센다 — 판이 거의 다 들어온 뒤에 하나씩 돋게 하려고.
+ */
+function growStyle(name: string, order: number): CSSProperties {
+  return {
+    viewTransitionName: name,
+    viewTransitionClass: `nav-grow g${order}`,
+  } as CSSProperties;
+}
+
+/**
  * 연출이 없을 때 '지금 여기' 동그라미의 이름표.
  *
  * 화면을 옮기는 전환이 이 동그라미를 옛 칸에서 새 칸으로 직접 옮기게 한다.
@@ -660,20 +672,26 @@ export function AppNav({
   /* 막대가 한쪽 끝인 연출에서 막대 쪽을 그리는 중 — 막대의 넷이 날아간다 */
   const barFlies = choreo != null && at === 'bar';
   /*
-   * 판에서 날아가는 아이콘 — 도크에서 판이 될 때는 도크의 아이콘 전부가 판의 제
-   * 줄로 날아와 앉고, 판과 막대가 오갈 때는 막대에 자리가 있는 넷만 오간다.
-   * 나머지는 판에 실린 채 함께 밀려 들어오고 나간다 — 갈 곳이 없는데 따로 떠
-   * 있으면 판은 나가는데 아이콘만 남아 흩어진다.
+   * 판에서 날아가는 아이콘 — 막대에 자리가 있는 것(자주 가는 곳)만 날아온다.
+   * 도크에서 판이 될 때도 같다.
+   *
+   * 예전에는 도크에서 판이 될 때 도크의 아이콘 아홉이 전부 판으로 날아와 앉았다.
+   * 한꺼번에 아홉이 날면 어지럽다는 말을 들었다. 이제 나머지(라이브러리·자료실·
+   * 관리자)는 판이 거의 다 들어온 뒤 판의 제자리에서 돋아난다(growStyle).
+   *
+   * 판이 닫힐 때는 돋아났던 것들이 판에 실린 채 함께 밀려 나간다 — 갈 곳이 없는데
+   * 따로 떠 있으면 판은 나가는데 아이콘만 남아 흩어진다.
    */
-  const sheetIcons: 'none' | 'quick' | 'all' =
-    choreo == null || at !== 'sheet'
-      ? 'none'
-      : choreo === 'dock-sheet'
-        ? 'all'
-        : 'quick';
-  /* 도크에서 날아가는 아이콘 — 막대와 오갈 때는 넷만 날고 나머지는 돋아난다 */
-  const dockIcons: 'none' | 'hover' | 'all' =
-    choreo == null ? 'none' : choreo === 'dock-sheet' ? 'all' : 'hover';
+  const sheetIcons: 'none' | 'quick' =
+    choreo == null || at !== 'sheet' ? 'none' : 'quick';
+  const sheetGrows =
+    at === 'sheet' && (choreo === 'dock-sheet' || choreo === 'bar-sheet');
+  /*
+   * 도크에서 날아가는 아이콘 — 막대와 오갈 때는 넷만 날고 나머지는 돋아난다.
+   * 판이 될 때는 넷만 날고, 나머지는 이름표 없이 도크 상자와 함께 옅어진다.
+   */
+  const dockIcons: 'none' | 'hover' | 'quick' =
+    choreo == null ? 'none' : choreo === 'dock-sheet' ? 'quick' : 'hover';
   /*
    * '지금 여기' 동그라미 — 도크와 오갈 때는 제 아이콘과 같은 딱지를 달고 같이
    * 날아간다(막대에 없는 곳이면 같이 돋아난다). 판과 오갈 때는 이름표 없이 판의
@@ -903,6 +921,7 @@ export function AppNav({
         onProfile={(el) => openFrom(el, setProfileOpen)}
         flyIndex={flyIndex}
         flyNames={sheetIcons}
+        grows={sheetGrows}
         quickHrefs={quickHrefs}
         built={sheetBuilt}
         quiet={choreo === 'sheet-bar'}
@@ -1268,8 +1287,11 @@ function DockGrid({
   onPointerEnter: (e: ReactPointerEvent) => void;
   onPointerDown: (e: ReactPointerEvent) => void;
   name: 'shell-dock' | 'nav-dock';
-  /** 연출에서 아이콘에 다는 이름표 — 막대와 오갈 때(hover)는 넷만 날고 나머지는 돋아난다 */
-  icons: 'none' | 'hover' | 'all';
+  /**
+   * 연출에서 아이콘에 다는 이름표 — 막대와 오갈 때(hover)는 넷만 날고 나머지는
+   * 돋아난다. 판이 될 때(quick)는 넷만 날고 나머지는 이름표 없이 상자와 함께 옅어진다.
+   */
+  icons: 'none' | 'hover' | 'quick';
   quickHrefs: string[];
   flyIndex: (href: string) => number;
   thumbName?: CSSProperties;
@@ -1313,8 +1335,9 @@ function DockGrid({
           const Icon = NAV_ICONS[item.icon];
           const lit = item.href === activeHref;
           const i = flyIndex(item.href);
-          const kind: FlyKind =
-            icons === 'hover' && !quickHrefs.includes(item.href) ? 'pop' : 'fly';
+          const quick = quickHrefs.includes(item.href);
+          const kind: FlyKind = icons === 'hover' && !quick ? 'pop' : 'fly';
+          const named = icons === 'hover' || (icons === 'quick' && quick);
           return (
             <Link
               key={item.href}
@@ -1333,7 +1356,7 @@ function DockGrid({
                 aria-hidden
                 className="h-5 w-5"
                 strokeWidth={lit ? 2.4 : 1.9}
-                style={icons !== 'none' ? flyStyle(`nav-fly-${i}`, i, kind) : undefined}
+                style={named ? flyStyle(`nav-fly-${i}`, i, kind) : undefined}
               />
               <Tip>{item.label}</Tip>
             </Link>
@@ -1403,6 +1426,7 @@ function DetailMenu({
   onProfile,
   flyIndex,
   flyNames,
+  grows,
   quickHrefs,
   built,
   quiet,
@@ -1423,8 +1447,10 @@ function DetailMenu({
   onProfile: (el: HTMLElement) => void;
   /** 아이콘의 이름표 번호 — 도크·막대와 같은 번호를 쓴다 */
   flyIndex: (href: string) => number;
-  /** 연출에서 어느 아이콘에 이름표를 다는가: 전부 · 막대의 넷만 · 없음(연출 아님) */
-  flyNames: 'none' | 'quick' | 'all';
+  /** 연출에서 날아오는 아이콘에 이름표를 다는가: 막대의 넷만 · 없음(연출 아님) */
+  flyNames: 'none' | 'quick';
+  /** 판이 열리는 연출 — 막대에 없는 아이콘이 판의 제자리에서 돋아난다 */
+  grows: boolean;
   quickHrefs: string[];
   /** 연출로 열렸다 — 판의 여는 애니메이션을 끈다(연출이 대신했다) */
   built: boolean;
@@ -1432,6 +1458,14 @@ function DetailMenu({
   quiet: boolean;
 }) {
   const ref = useRef<HTMLDialogElement>(null);
+
+  /* 돋아나는 차례 — 막대에 없는 것들만 위에서부터 센다 */
+  const growOrder = new Map(
+    groups
+      .flatMap((g) => g.items)
+      .filter((item) => !quickHrefs.includes(item.href))
+      .map((item, k) => [item.href, k])
+  );
 
   /*
    * showModal() 은 DOM 을 직접 건드리는 일이라 effect 에서 부른다.
@@ -1530,9 +1564,9 @@ function DetailMenu({
                 const Icon = NAV_ICONS[item.icon];
                 const active = isActive(item.href);
                 const i = flyIndex(item.href);
-                const fly =
-                  flyNames === 'all' ||
-                  (flyNames === 'quick' && quickHrefs.includes(item.href));
+                const quick = quickHrefs.includes(item.href);
+                const fly = flyNames === 'quick' && quick;
+                const grow = grows && !quick;
                 return (
                   <Link
                     key={item.href}
@@ -1549,7 +1583,13 @@ function DetailMenu({
                       aria-hidden
                       className="mt-0.5 h-4 w-4 shrink-0"
                       strokeWidth={active ? 2.4 : 1.9}
-                      style={fly ? flyStyle(`nav-fly-${i}`, i, 'fly') : undefined}
+                      style={
+                        fly
+                          ? flyStyle(`nav-fly-${i}`, i, 'fly')
+                          : grow
+                            ? growStyle(`nav-grow-${i}`, growOrder.get(item.href) ?? 0)
+                            : undefined
+                      }
                     />
                     <span className="min-w-0">
                       <span

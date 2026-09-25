@@ -11,69 +11,46 @@ Claude 로 작업을 시작하면 저절로 읽힌다. 규칙은 `AGENTS.md` 6�
 
 ---
 
-## 금윤호에게 — 2026-09-25 · 김민(Claude)
+## 김민에게 — 2026-09-25 · 금윤호(Claude)
 
-### 부탁 — 영양 기록 마이그레이션을 올려 주세요
+### 부탁하신 것
 
-`DailyNutrition` 표(`20260925084500_add_nutrition`)가 DB 에는 적용돼 있는데 저장소에는
-아직 없다. 그 사이 김민 쪽에서 DB 구조를 바꾸면 `migrate diff` 가 이 표를 지우는 SQL
-(`DROP TABLE "DailyNutrition"`)까지 만든다. 김민 쪽은 그 줄을 빼고 적용하겠지만, 코드가
-올라오면 이런 위험이 없어진다.
+- 영양 기록 마이그레이션(`20260925084500_add_nutrition`)을 올렸다. 이제 저장소의
+  `schema.prisma` 에 영양 표 4개가 있어서, `migrate diff` 가 그 표들을 지우는 SQL 을
+  만들지 않는다.
 
 ### 받은 뒤 할 일
 
-1. `npm install` — Next.js 가 16.2.12 → 16.3.6 으로 바뀌었다. 치명 등급 보안 구멍 두 개를
-   막는 업그레이드다(d6522ff).
-2. `npx prisma generate` — 새 표 `UserExerciseNote`(운동별 내 메모)가 생겼다(baa306c,
-   `prisma/migrations/20260925064629_add_user_exercise_note`). DB 에는 이미 적용해 두었으니
-   `migrate deploy` 는 할 것 없다. 안 하면 개발 서버에서 운동 화면·라이브러리가
-   `prisma.userExerciseNote` 를 몰라 오류가 난다. 표를 더하기만 했고 기존 표는 그대로라
-   금윤호 쪽 코드에는 영향이 없다.
-3. 개발 서버를 다시 켠다. 안 뜨면 `.next` 폴더를 지우고 다시 켠다.
-4. `next.config.ts` 의 `experimental.viewTransition` 을 뺐다. 16.3 부터는 설정 없이 기본으로
-   켜지고, 남겨 두면 모르는 설정이라며 빌드(타입 검사)가 멈춘다. 다시 넣지 말 것 — 화면 전환
-   애니메이션은 그대로 돈다.
+1. `npx prisma generate` — 영양 탭의 새 표 4개(`NutritionProfile`·`MealEntry`·`UserFood`·
+   `DailyNutrition`)가 생겼다(`prisma/migrations/20260925084500_add_nutrition`). DB 에는 이미
+   적용했으니 `migrate deploy` 는 할 것 없다. 표를 더하기만 했고 기존 표는 그대로다.
+2. 개발 서버를 다시 켠다. 안 뜨면 `.next` 폴더를 지우고 다시 켠다.
 
-### 금윤호 쪽 파일을 고친 것
+### 김민 쪽 파일을 고친 것
 
 무엇을 왜 고쳤는지는 각 커밋 메시지(= 패치노트)에 자세히 있다.
 
-- `app/globals.css` (5701777) — `dialog:not([open]) { display: none; }` 를 더했다. 창에 붙은
-  `flex` 클래스가 닫힌 창을 숨기는 브라우저 기본값을 덮어써서, 닫힌 창이 투명한 채 제자리에
-  남아 밑의 단추를 가로챘다(트레이닝의 [운동 시작]이 안 눌렸다). 앞으로 `flex` 를 단 창을
-  새로 만들어도 이 규칙이 닫힌 창을 숨겨 준다. 여닫는 움직임은 그대로다.
-- `app/(app)/profile/account-actions.tsx` (7dd51f7) — '내 정보' 창 계정 칸 맨 위에
-  [로그아웃]. 하단 '더보기'가 사이드바를 열게 되면서 로그아웃 단추가 있던 /more 로 가는
-  길이 없어져, 앱 안에서 로그아웃할 곳이 없었다.
-- `app/(app)/today/pitch-log-panel.tsx` (b9c6c8f) — 서버가 준 `initialLogs` 를 state 로
-  복사하지 않는다. 옛 달에서 따로 받은 기록만 state 에 두고 합친다. 홈에서 저장한 투구가
-  바로 위 캘린더에 안 뜨던 것(새로고침해야 보였다).
-- `components/video-upload.tsx` · `app/(app)/pitch-log/entry-form.tsx` (d81df19) — 영상을
-  올리는 중에는 저장을 막는다(`onUploadingChange`). 올리기가 끝나면 끝날 때의 목록에 더한다
-  — 시작할 때의 목록에 더했더니 올리는 동안 뺀 영상이 되살아났다.
-- `components/use-playback-urls.ts` (d81df19) — 재생 주소를 10개씩 나눠 묻고(API 한도),
-  실패하면 다시 묻고, 늦게 온 결과도 합친다. 한 달에 영상이 11개를 넘으면 썸네일이 전부 안
-  뜨던 것. 돌려주는 모양(`urls`·`loading`·`ready`)은 그대로다.
-- `app/(app)/videos/video-gallery.tsx` (4611991) — 2분할 비교 막대 `sm:bottom-4` →
-  `lg:bottom-4`. 폭 640~1023px(아이폰 가로·아이패드 세로)에서 하단 탭바 밑에 깔렸다.
-- `app/login/auth-form.tsx` (6ac350a) — 가입 문진 '평소 웨이트는 얼마나 하시나요?' 칸의
-  '웨이트 횟수' 아래에 '웨이트 트레이닝 경력'(입문·초급·중급·상급, 필수)을 더했다. 트레이닝
-  설정의 경력 칸과 같은 목록(`TRAINING_LEVELS`)·같은 부품(`RadioGroup`)이다. 서버
-  (`app/actions/auth.ts`)가 목록 값인지 확인해 `User.trainingLevel` 에 저장한다. DB 변경
-  없음. 그 칸 소제목을 '2문항'으로 고치고 `break-keep` 을 붙였다(낱말 중간에서 끊겨서).
-- `app/(app)/today/page.tsx` (7767105 · 4abb79b) — 홈의 일정 만들기 폼(`PlanForm`)에
-  `preferredWorkout={core.preferredWorkout}` 를 넘긴다. 목표를 처음 고르는 사람이 체크인에서
-  '파워'를 골랐으면 폼이 파워 향상을 짚어 두게 하려는 것이다. 나머지는 목표 이름 주석 한 줄.
+- `components/month-calendar.tsx` (42a0287) — `compact` 속성을 더했다. 켜면 칸 높이가
+  0.3초 동안 줄어든다(72 → 52px, 휴대폰 52 → 44px). 기본은 꺼져 있어 다른 곳은 그대로다.
+- `components/app-shell.tsx` (971aef4) — 큰 메뉴를 열 때 라이브러리·자료실·관리자처럼
+  자주 쓰지 않는 아이콘은 날아오지 않고 제자리에서 돋아난다(`nav-grow`, 움직임은
+  `app/globals.css`).
+- `lib/nav.ts` · `components/nav-icons.tsx` (c38383b) — 영양 탭과 그 그림(`utensils`).
 
-### 알아 두면 좋은 것 (김민 쪽 변경)
+### 알아 두면 좋은 것
 
-- 종료를 안 누르고 떠난 운동 판은 이제 자동으로 닫힌다 — 상태 `ABANDONED`, 그날 세트는
-  운동 기록으로 접힌다(11626bd, `lib/workout/stale.ts` · `lib/workout/close-stale.ts`).
-- 운동 화면 틀의 높이를 화면 높이에 고정했다(409b17d, `app/(session)/layout.tsx`).
-- 운동 중에 완료한 세트를 고칠 수 있고, 운동마다 '내 메모'를 하나씩 남긴다(baa306c). 메모는
-  운동 화면의 운동 이름 아래와 라이브러리 운동 상세에 보인다. 읽기는 `lib/exercise-notes.ts`.
-- 훈련 목표가 셋이 됐다 — 근력 향상(기본) · 파워 향상 · 컨디셔닝. '부상 방지'는 '컨디셔닝'으로
-  이름을 바꿨고(7767105), '균형 잡힌 관리'는 없앴다(4abb79b). DB 의 `User.trainingGoal` 이
-  '균형 잡힌 관리'였던 1명은 '근력 향상'으로 옮겼다(구조 변경 아님). 목표 이름을 코드에 직접
-  적어 쓸 일이 있으면 `lib/report/personalize.ts` 의 `TRAINING_GOALS` 를 본다.
-- 운동 카테고리 '유산소' 영상은 이제 컨디셔닝 날에도 하나 들어간다(4abb79b).
+- 새 탭 **영양**(`/nutrition`)을 트레이닝과 분석 사이에 넣었다. 휴대폰 하단 탭이 6칸이 됐다
+  (`lib/nav.ts`). 메뉴 연출의 차례 딱지 `d8` 을 `app/globals.css` 에 더했다.
+- 영양 탭의 '운동으로 쓴 칼로리'는 `TrainingSession.activeSeconds` 와 `PitchLog`(투구 수·
+  강도)를 읽어서 셈한다(`lib/nutrition/burn.ts`). 이 칸들의 뜻을 바꾸게 되면 알려 달라.
+- 식약처 음식 검색은 환경변수 `FOOD_API_KEY` 가 있어야 켜진다(`.env.example` 참고). 없어도
+  탭은 기본 목록·내 음식·직접 입력으로 돈다.
+- 계산이 맞는지는 `npm run nutrition:test` 로 본다.
+- 홈 캘린더: 날짜를 누르면 캘린더가 옆·위아래로 줄고, 오른쪽에 그날 요약, 밑에 누른 줄의
+  조금 더 자세한 요약이 펴진다(`app/(app)/today/day-summary.tsx` · `day-detail.tsx`). 밑 칸은
+  `/api/day-detail`(`lib/day-detail.ts`)로 그날 것을 읽는데, 김민 쪽 것을 이렇게 쓴다 —
+  모양을 바꾸게 되면 알려 달라.
+  - `lib/report/training-history.ts` 의 `trainingDay()` · `PlanDaySummary`
+  - `lib/checkin.ts` 의 `CHECKIN_PARTS` · `DETAIL_SCALES` · `pickCheckinParts`
+  - AI 리포트 본문의 `headline` · `assessment` · `actions[].title` · `watchouts`
+    (모양이 달라도 깨지지 않게 조심해서 읽는다)
