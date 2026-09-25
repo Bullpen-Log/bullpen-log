@@ -13,6 +13,13 @@ Claude 로 작업을 시작하면 저절로 읽힌다. 규칙은 `AGENTS.md` 6�
 
 ## 금윤호에게 — 2026-09-25 · 김민(Claude)
 
+### 부탁 — 영양 기록 마이그레이션을 올려 주세요
+
+`DailyNutrition` 표(`20260925084500_add_nutrition`)가 DB 에는 적용돼 있는데 저장소에는
+아직 없다. 그 사이 김민 쪽에서 DB 구조를 바꾸면 `migrate diff` 가 이 표를 지우는 SQL
+(`DROP TABLE "DailyNutrition"`)까지 만든다. 김민 쪽은 그 줄을 빼고 적용하겠지만, 코드가
+올라오면 이런 위험이 없어진다.
+
 ### 받은 뒤 할 일
 
 1. `npm install` — Next.js 가 16.2.12 → 16.3.6 으로 바뀌었다. 치명 등급 보안 구멍 두 개를
@@ -54,6 +61,9 @@ Claude 로 작업을 시작하면 저절로 읽힌다. 규칙은 `AGENTS.md` 6�
   설정의 경력 칸과 같은 목록(`TRAINING_LEVELS`)·같은 부품(`RadioGroup`)이다. 서버
   (`app/actions/auth.ts`)가 목록 값인지 확인해 `User.trainingLevel` 에 저장한다. DB 변경
   없음. 그 칸 소제목을 '2문항'으로 고치고 `break-keep` 을 붙였다(낱말 중간에서 끊겨서).
+- `app/(app)/today/page.tsx` (7767105 · 4abb79b) — 홈의 일정 만들기 폼(`PlanForm`)에
+  `preferredWorkout={core.preferredWorkout}` 를 넘긴다. 목표를 처음 고르는 사람이 체크인에서
+  '파워'를 골랐으면 폼이 파워 향상을 짚어 두게 하려는 것이다. 나머지는 목표 이름 주석 한 줄.
 
 ### 알아 두면 좋은 것 (김민 쪽 변경)
 
@@ -62,3 +72,8 @@ Claude 로 작업을 시작하면 저절로 읽힌다. 규칙은 `AGENTS.md` 6�
 - 운동 화면 틀의 높이를 화면 높이에 고정했다(409b17d, `app/(session)/layout.tsx`).
 - 운동 중에 완료한 세트를 고칠 수 있고, 운동마다 '내 메모'를 하나씩 남긴다(baa306c). 메모는
   운동 화면의 운동 이름 아래와 라이브러리 운동 상세에 보인다. 읽기는 `lib/exercise-notes.ts`.
+- 훈련 목표가 셋이 됐다 — 근력 향상(기본) · 파워 향상 · 컨디셔닝. '부상 방지'는 '컨디셔닝'으로
+  이름을 바꿨고(7767105), '균형 잡힌 관리'는 없앴다(4abb79b). DB 의 `User.trainingGoal` 이
+  '균형 잡힌 관리'였던 1명은 '근력 향상'으로 옮겼다(구조 변경 아님). 목표 이름을 코드에 직접
+  적어 쓸 일이 있으면 `lib/report/personalize.ts` 의 `TRAINING_GOALS` 를 본다.
+- 운동 카테고리 '유산소' 영상은 이제 컨디셔닝 날에도 하나 들어간다(4abb79b).
