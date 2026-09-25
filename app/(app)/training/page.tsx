@@ -314,6 +314,7 @@ export default async function TrainingPage({
       checkedIn={core.hasCheckinToday}
       returnTo="/training"
       clash={core.workoutClash}
+      preferredWorkout={core.preferredWorkout}
       /* 오늘 직접 골라 만들었으면 다시 만들 때도 그쪽으로 연다 */
       startMode={savedPlan && !savedPlan.auto ? 'manual' : 'auto'}
       /*

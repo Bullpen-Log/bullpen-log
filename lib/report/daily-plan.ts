@@ -1,13 +1,18 @@
 import { equipmentForToday, filterByEquipment } from '@/lib/report/equipment';
-import { filterByLevel, findGoal, validFocus } from '@/lib/report/personalize';
+import {
+  filterByLevel,
+  findGoal,
+  goalForUnchosen,
+  validFocus,
+} from '@/lib/report/personalize';
 import { selectCandidates, type ExerciseLike } from '@/lib/report/prescription';
 import {
-  PREVENTION_GOAL,
+  CONDITIONING_GOAL,
   decideTheme,
   workoutConflict,
   effectiveMinutes,
   pickForTheme,
-  preventionDay,
+  conditioningDay,
   type SlotKey,
   type ThemeKey,
 } from '@/lib/report/theme';
@@ -142,7 +147,8 @@ export function buildDailyPlan<T extends ExerciseLike>({
    *
    * 예전에는 user.trainingGoal 을 읽었다. 설정에 한 번 저장해 두는 값이라,
    * '파워 향상'으로 정해둔 사람은 그 뒤 모든 날이 파워 위주가 됐다.
-   * 목표는 날마다 달라지는 것이라 그날 고른 값을 받는다. 안 주면 균형이다.
+   * 목표는 날마다 달라지는 것이라 그날 고른 값을 받는다. 안 주면 오늘 고른 운동
+   * 종류를 따른다(goalForUnchosen — 파워면 파워 향상, 그 밖에는 근력 향상).
    */
   trainingGoal?: string | null;
   /**
@@ -193,8 +199,10 @@ export function buildDailyPlan<T extends ExerciseLike>({
    * 폼에서 넘어온다 — 오늘 하루만의 결정이라 저장해 두지 않는다.
    */
   const preferredWorkout = facts.condition.today?.preferredWorkout ?? null;
+  /* 목표를 안 고른 날은 오늘 고른 운동 종류를 따른다(goalForUnchosen) */
+  const goalName = trainingGoal ?? goalForUnchosen(preferredWorkout);
   /* 목표에 없는 부위는 여기서 걸러 둔다 — 아래로는 유효한 값만 흐른다 */
-  const focus = validFocus(trainingGoal, trainingFocus);
+  const focus = validFocus(goalName, trainingFocus);
   const theme = decideTheme({
     facts,
     plan,
@@ -205,13 +213,7 @@ export function buildDailyPlan<T extends ExerciseLike>({
     focus,
   });
   const minutes = effectiveMinutes(theme.key, requestedMinutes);
-  const goal = findGoal(trainingGoal);
-  /*
-   * 근력 날인데 목표가 부상 방지면 이름과 이유를 목록에 맞춘다 — 무게 드는
-   * 운동이 하나도 없는데 '하체 스트렝스 데이'라고 적혀 있으면 안 된다.
-   */
-  const shownTheme =
-    goal.name === PREVENTION_GOAL ? preventionDay(theme, facts) : theme;
+  const goal = findGoal(goalName);
 
   const themed = pickForTheme({
     candidates: picked.candidates,
@@ -227,6 +229,20 @@ export function buildDailyPlan<T extends ExerciseLike>({
     goal: goal.name,
     focus,
   });
+
+  /*
+   * 근력 날인데 목표가 컨디셔닝이면 이름과 이유를 목록에 맞춘다 — 무게 드는
+   * 운동이 하나도 없는데 '하체 스트렝스 데이'라고 적혀 있으면 안 된다. 이유는
+   * 실제로 뽑힌 구간으로 적는다 — 유산소는 영상이 있는 날에만 들어간다.
+   */
+  const shownTheme =
+    goal.name === CONDITIONING_GOAL
+      ? conditioningDay(
+          theme,
+          facts,
+          themed.picks.some((p) => p.slot === 'cardio')
+        )
+      : theme;
 
   return {
     version: 1,

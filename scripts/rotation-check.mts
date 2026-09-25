@@ -283,7 +283,7 @@ function run(days: number, regular: boolean, oldWay = false, startYear = 2026): 
           theme,
           minutes: 60,
           doneIds: new Set<string>(),
-          goal: '균형 잡힌 관리',
+          goal: '근력 향상',
         })
       : pickForTheme({
           candidates: library,
@@ -293,7 +293,7 @@ function run(days: number, regular: boolean, oldWay = false, startYear = 2026): 
           recentIds,
           sessionsAgo,
           rotationSeed: today,
-          goal: '균형 잡힌 관리',
+          goal: '근력 향상',
         });
 
     const mainPatterns: (string | null)[] = [];

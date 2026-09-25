@@ -43,6 +43,7 @@ import { FinishSheet } from './finish-sheet';
 import { SwapSheet } from './swap-sheet';
 import { drainOutbox, outbox, withPending, type ShownSet } from '@/lib/workout/outbox';
 import { placeExercise } from '@/lib/workout/swap';
+import { REST_CLOCK_LIMIT_SECONDS, restSeconds } from '@/lib/workout/rest';
 import {
   formatWeight,
   fromWeight,
@@ -102,7 +103,8 @@ export type { RunExercise };
  * 마지막 세트로부터 흐른 시간.
  *
  * 정해 둔 시간에서 거꾸로 내려가지 않는다. 얼마나 쉬었는지를 보는 것이
- * 요점이고 상한도 없다. 그래서 '끝'이 없고, 알릴 일도 없다.
+ * 요점이라 '끝'이 없고, 알릴 일도 없다. 다만 10분이 넘으면 시계를 거둔다 —
+ * [운동 종료]를 안 누르고 떠난 판에서 끝없이 올라가지 않게(lib/workout/rest.ts).
  *
  * 흘러가는 숫자를 들고 있지 않고 '마지막 세트 시각' 하나만 둔다. 화면이
  * 꺼졌다 켜져도, 앱을 나갔다 들어와도 쉰 시간이 정확하다.
@@ -112,13 +114,19 @@ function useRestClock(since: string | null) {
 
   useEffect(() => {
     if (!since) return;
+    const start = Date.parse(since);
     /*
      * 여기서 곧바로 setNow 를 부르지 않는다 — 효과 안에서 바로 상태를 바꾸면
      * 그릴 때마다 연쇄로 다시 그린다(린트가 잡는다). 부를 필요도 없다.
      * 새 세트를 남긴 직후에는 now 가 since 보다 앞서 있어 아래 뺄셈이 음수가
      * 되고, Math.max 가 0 으로 잘라 곧바로 0:00 이 보인다.
      */
-    const id = setInterval(() => setNow(Date.now()), 1000);
+    const id = setInterval(() => {
+      const t = Date.now();
+      setNow(t);
+      /* 10분이 넘어 시계를 거뒀으면 더 셀 것이 없다 — 1초마다 다시 그리지 않게 멈춘다 */
+      if (t - start >= REST_CLOCK_LIMIT_SECONDS * 1000) clearInterval(id);
+    }, 1000);
     /* 화면을 다시 켜면 곧바로 맞춘다 — 꺼진 동안 타이머가 멈췄을 수 있다 */
     const wake = () => setNow(Date.now());
     document.addEventListener('visibilitychange', wake);
@@ -128,9 +136,8 @@ function useRestClock(since: string | null) {
     };
   }, [since]);
 
-  if (!since) return null;
-  const seconds = Math.max(0, Math.floor((now - new Date(since).getTime()) / 1000));
-  return seconds;
+  /* 10분이 넘으면 null — 화면에서 시계가 사라진다 */
+  return restSeconds(since, now);
 }
 
 function clockText(seconds: number) {
@@ -266,14 +273,6 @@ export function SessionClient({
   const [starring, startStarring] = useTransition();
   /* 운동 교체 창 (swap-sheet.tsx) */
   const [swap, setSwap] = useState(false);
-  /*
-   * 운동하는 동안 화면을 켜 둔다.
-   *
-   * 세트 사이에 1~3분을 쉬는데 폰은 30초면 잠긴다. 한 세트마다 폰을 깨워
-   * 잠금을 풀어야 하고, 무엇보다 휴식 시계가 30초마다 사라지면 띄운 뜻이
-   * 없다. 이 화면을 나가면 저절로 풀린다 (components/use-wake-lock.ts).
-   */
-  useWakeLock();
 
   const [sheet, setSheet] = useState(false);
   /*
@@ -367,7 +366,25 @@ export function SessionClient({
     if (mine.length === 0) return null;
     return mine.reduce((a, b) => (a.recordedAt > b.recordedAt ? a : b)).recordedAt;
   }, [sets, openedAt]);
-  const rest = useRestClock(lastAt);
+  /*
+   * 마지막으로 운동한 때부터 흐른 시간 — 세트를 남겼으면 그 시각부터, 아직이면
+   * 판을 연 시각부터. 10분이 넘으면 null 이다(lib/workout/rest.ts).
+   */
+  const idle = useRestClock(lastAt ?? openedAt);
+  /* 쉬는 시계는 세트를 남긴 뒤에만 — 판을 열자마자 '쉬는 중'이 뜨면 이상하다 */
+  const rest = lastAt ? idle : null;
+  /*
+   * 운동하는 동안 화면을 켜 둔다.
+   *
+   * 세트 사이에 1~3분을 쉬는데 폰은 30초면 잠긴다. 한 세트마다 폰을 깨워
+   * 잠금을 풀어야 하고, 무엇보다 휴식 시계가 30초마다 사라지면 띄운 뜻이
+   * 없다. 이 화면을 나가면 저절로 풀린다 (components/use-wake-lock.ts).
+   *
+   * 10분 넘게 아무 세트도 없으면 놓는다 — 휴식 시계를 거두는 때와 같다.
+   * [운동 종료]를 안 누르고 화면을 켜 둔 채 떠나면 배터리가 끝까지 닳았다.
+   * 놓은 뒤에는 폰이 원래대로 잠기고, 다음 세트를 남기면 다시 잡는다.
+   */
+  useWakeLock(idle != null);
 
   const doneCount = useMemo(() => new Set(sets.map((s) => s.exerciseId)).size, [sets]);
 

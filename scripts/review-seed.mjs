@@ -76,7 +76,7 @@ const user = await prisma.user.create({
     baselineWorkoutFreq: '주 3~4회',
     dailyWorkoutMinutes: 45,
     trainingLevel: '중급',
-    trainingGoal: '균형 잡힌 관리',
+    trainingGoal: '근력 향상',
     ownedEquipment: ['맨몸', '덤벨', '밴드', '메디신볼', '폼롤러'],
   },
 });
