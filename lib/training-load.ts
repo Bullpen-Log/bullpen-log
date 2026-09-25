@@ -6,7 +6,11 @@ import {
   acwrTrend,
   type AcwrTrendPoint,
 } from '@/lib/pitch-stats';
-import { buildPartVolume, type VolumeSummary } from '@/lib/training-volume';
+import {
+  ARM_CARE_CATEGORY,
+  buildPartVolume,
+  type VolumeSummary,
+} from '@/lib/training-volume';
 import {
   intensityLevel,
   isCompound,
@@ -345,6 +349,16 @@ export function buildTrainingLoad(
 
   const byDay = new Map<string, LoggedExercise[]>();
   for (const log of logs) {
+    /*
+     * 암케어는 부하에 넣지 않는다 — 세트 수(아래 volume.armCare)로만 센다.
+     *
+     * 2026-09-25 암케어가 운동 일정에서 빠져 매일 따로 하는 루틴이 됐다(트레이닝의
+     * 암케어 화면). 가벼운 밴드 운동 대여섯 개를 매일 부하로 세면, 주 1~2회 웨이트
+     * 하는 사람의 한 주 부하가 두 배 가까이 부풀어 지수가 '주의'로 넘어가고, AI
+     * 맞춤이 그날 운동 시간을 줄였다. 암케어만 한 날을 '운동한 날'로 세지 않는 것도
+     * 같은 까닭이다.
+     */
+    if (log.exercise.category === ARM_CARE_CATEGORY) continue;
     const key = toDateKey(log.date);
     const list = byDay.get(key) ?? [];
     list.push({

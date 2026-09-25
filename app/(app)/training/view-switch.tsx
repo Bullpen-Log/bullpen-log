@@ -5,15 +5,19 @@ import { useRouter } from 'next/navigation';
 import { Segmented } from '@/components/segmented';
 
 /**
- * 오늘 할 것과 지난 기록을 오가는 두 칸.
+ * 오늘 할 것, 지난 기록, 암케어를 오가는 세 칸.
  *
  * 주소로 나눈다(?view=history). 화면 안에서 접었다 폈다 하면 오늘 것과 지난
  * 것을 둘 다 그려서 내려보내야 하는데, 지난 기록은 달력이라 짐이 따로 있다.
  * 주소로 나누면 보는 쪽만 그린다.
+ *
+ * 암케어는 2026-09-25 에 더했다. 운동 일정에서 빠져 따로 하는 곳이 됐는데,
+ * 하단 탭을 늘리지 않고 트레이닝 안에 두기로 했다(사용자분과 정함).
  */
 const VIEWS = [
   { value: 'today', label: '오늘', href: '/training' },
   { value: 'history', label: '기록', href: '/training?view=history' },
+  { value: 'armcare', label: '암케어', href: '/training?view=armcare' },
 ] as const;
 
 export type TrainingView = (typeof VIEWS)[number]['value'];
@@ -52,7 +56,12 @@ export function TrainingViewSwitch({ current }: { current: TrainingView }) {
       size="md"
       /* 새 화면이 붙는 순간 알약이 제자리에 있게 — 화면 전환이 그 모습을 찍는다 */
       settleKey={current}
-      itemClassName="px-6 py-2"
+      /*
+       * 칸이 셋이라 휴대폰에서는 좁힌다 — 설정 단추와 한 줄에 들어가게. px-4 로는
+       * 한 줄이 359px 이라 375px 폰(쓸 수 있는 폭 343px)에서 설정 단추가 밑으로
+       * 내려갔다. px-2.5 면 323px 로 360px 폰까지 들어간다.
+       */
+      itemClassName="px-2.5 py-2 sm:px-6"
     />
   );
 }

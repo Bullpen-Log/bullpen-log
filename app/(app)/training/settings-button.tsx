@@ -19,9 +19,15 @@ import { TrainingSettingsForm } from '@/components/training-forms';
 export function TrainingSettingsButton({
   trainingLevel,
   ownedEquipment,
+  returnTo = '/training',
 }: {
   trainingLevel: string | null;
   ownedEquipment: string[];
+  /**
+   * 저장한 뒤 돌아올 곳 — 지금 보고 있는 칸(기록·암케어). 받을 수 있는 값은
+   * app/actions/training-setup.ts 의 RETURN_TO 목록이 정한다.
+   */
+  returnTo?: string;
 }) {
   const [open, setOpen] = useState(false);
 
@@ -45,7 +51,7 @@ export function TrainingSettingsButton({
         <TrainingSettingsForm
           trainingLevel={trainingLevel}
           ownedEquipment={ownedEquipment}
-          returnTo="/training"
+          returnTo={returnTo}
         />
       </Modal>
     </>

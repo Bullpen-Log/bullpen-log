@@ -135,6 +135,20 @@ export function buildPartVolume(rows: VolumeRow[], today = new Date()): VolumeSu
     if (sets <= 0) continue;
 
     /*
+     * 암케어는 암케어로만 센다 — 부위 묶음(등·견갑, 가슴·어깨 …)에는 넣지 않는다.
+     *
+     * 2026-09-25 부터 암케어는 운동 일정과 따로 매일 하는 루틴이라, 운동 부하와
+     * '운동한 날'에서 뺐다(lib/training-load.ts). 부위 묶음에만 남겨 두었더니, 한 주
+     * 내내 암케어만 한 사람을 AI 맞춤에 "최근 7일 운동 기록 없음"이라 하면서 같은
+     * 자료에 등·견갑 42세트·가슴·어깨 40세트를 함께 보냈다.
+     */
+    if (row.exercise.category === ARM_CARE_CATEGORY) {
+      if (bucket === now) armNow += sets;
+      else armBefore += sets;
+      continue;
+    }
+
+    /*
      * 한 운동이 같은 묶음에 두 부위로 걸리는 경우가 있다(가슴+어깨+삼두는
      * 모두 '가슴·어깨'). 그때 세 번 세면 안 되므로 묶음을 먼저 추린다.
      */
@@ -143,11 +157,6 @@ export function buildPartVolume(rows: VolumeRow[], today = new Date()): VolumeSu
       for (const g of GROUP_OF.get(part) ?? []) groups.add(g);
     }
     for (const g of groups) bucket.set(g, (bucket.get(g) ?? 0) + sets);
-
-    if (row.exercise.category === ARM_CARE_CATEGORY) {
-      if (bucket === now) armNow += sets;
-      else armBefore += sets;
-    }
   }
 
   return {

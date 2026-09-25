@@ -19,6 +19,7 @@ import {
 } from '@/lib/exercise-meta';
 import { withInput, type FormValues } from '@/lib/form-values';
 import { clearLibraryCache, exercisesByIds } from '@/lib/library-cache';
+import { ARMCARE_CATEGORY, cleanTargetMuscles } from '@/lib/armcare/anatomy';
 
 export type ActionState =
   | {
@@ -76,6 +77,21 @@ export async function createExercise(
   return withInput(await tryCreateExercise(formData), formData);
 }
 
+/**
+ * 암케어 운동이 키우는 근육. 암케어가 아니면 아무것도 쓰지 않는다.
+ *
+ * 폼은 암케어일 때만 고르개를 그린다(exercise-form.tsx). 다른 카테고리에서 이 칸을
+ * 비운 채로 쓰면, 스크립트로 채워 둔 값을 다른 운동을 고칠 때마다 지우게 된다 —
+ * 그래서 칸을 아예 건드리지 않는다. 차례는 폼이 보낸 그대로(맨 앞이 주 근육).
+ */
+function readTargetMuscles(
+  formData: FormData,
+  category: string
+): { targetMuscles?: string[] } {
+  if (category !== ARMCARE_CATEGORY) return {};
+  return { targetMuscles: cleanTargetMuscles(formData.getAll('targetMuscles')) };
+}
+
 async function tryCreateExercise(formData: FormData): Promise<ActionState> {
   if (!(await assertAdmin())) return { error: '관리자만 등록할 수 있습니다.' };
 
@@ -129,6 +145,7 @@ async function tryCreateExercise(formData: FormData): Promise<ActionState> {
       intensity,
       difficulty,
       equipment,
+      ...readTargetMuscles(formData, category),
       ...readPrescription(formData),
     },
   });
@@ -273,6 +290,7 @@ async function tryUpdateExercise(formData: FormData): Promise<ActionState> {
       intensity,
       difficulty,
       equipment,
+      ...readTargetMuscles(formData, category),
       ...readPrescription(formData),
       /*
        * 직접 찍은 영상을 올렸으면 참고 영상에서 벗어난다.

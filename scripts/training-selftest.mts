@@ -85,7 +85,28 @@ import {
 } from '../lib/training-load.ts';
 import { computeAcwr, zoneOf } from '../lib/pitch-stats.ts';
 import { buildTrainingLoad } from '../lib/training-load.ts';
-import { buildPartVolume, VOLUME_GROUPS } from '../lib/training-volume.ts';
+import {
+  ARM_CARE_CATEGORY,
+  buildPartVolume,
+  VOLUME_GROUPS,
+} from '../lib/training-volume.ts';
+import { readFileSync } from 'node:fs';
+import {
+  ARMCARE_AREAS,
+  ARMCARE_CATEGORY,
+  ARMCARE_MUSCLE_NAMES,
+  areasOf,
+  cleanTargetMuscles,
+  helpsLine,
+  primaryArea,
+  type ArmcareAreaKey,
+} from '../lib/armcare/anatomy.ts';
+import {
+  buildArmcareRoutine,
+  decideArmcare,
+  readArmcareRoutine,
+  type ArmcareKind,
+} from '../lib/armcare/routine.ts';
 import { reportReadiness } from '../lib/report/cadence.ts';
 import { SYSTEM_PROMPT } from '../lib/ai/report-prompt.ts';
 import {
@@ -3626,6 +3647,412 @@ console.log('\n[휴식 시계] 10분이 넘으면 거두는가');
   check('한 시간이 지나도 다시 나오지 않는다', restSeconds(last, at(3600)) === null);
   check('폰 시계가 빨라 세트가 미래로 찍혀도 0초', restSeconds(last, at(-5)) === 0);
   check('읽을 수 없는 시각이면 시계 없음', restSeconds('아무거나', at(10)) === null);
+}
+
+console.log('\n[암케어] 부위·근육 · 오늘의 루틴 · 부하');
+{
+  /*
+   * 근육은 scripts/armcare-muscles.json 에서 겹쳐 쓴다. DB 에 아직 안 넣었어도
+   * (fill-armcare-muscles.mts --save 전) 루틴 규칙을 시험할 수 있어야 한다.
+   */
+  const tags: { id: string; title: string; muscles: string[] }[] = JSON.parse(
+    readFileSync(new URL('./armcare-muscles.json', import.meta.url), 'utf8')
+  );
+  const tagOf = new Map(tags.map((t) => [t.id, t.muscles]));
+  const armcareLib = library
+    .filter((ex) => ex.category === ARMCARE_CATEGORY)
+    .map((ex) => ({
+      ...ex,
+      targetMuscles: tagOf.get(ex.id) ?? ex.targetMuscles ?? [],
+    }));
+  const exOf = new Map(armcareLib.map((ex) => [ex.id, ex]));
+  const titleOf = (id: string) => exOf.get(id)?.title ?? id;
+
+  /* 1) 이름이 서로 맞는가 */
+  check(
+    '암케어 카테고리 이름이 부하 쪽과 같다',
+    ARMCARE_CATEGORY === ARM_CARE_CATEGORY
+  );
+  const unknown = tags.flatMap((t) =>
+    t.muscles
+      .filter((m) => !ARMCARE_MUSCLE_NAMES.includes(m))
+      .map((m) => `${t.title}:${m}`)
+  );
+  check(
+    '근육 초안의 이름이 모두 목록 안에 있다',
+    unknown.length === 0,
+    unknown.join(', ')
+  );
+  const untagged = armcareLib.filter((ex) => ex.targetMuscles.length === 0);
+  check(
+    '보이는 암케어 운동마다 근육이 적혀 있다',
+    untagged.length === 0,
+    untagged.map((e) => e.title).join(', ') || `${armcareLib.length}개`
+  );
+  const emptyAreas = ARMCARE_AREAS.filter(
+    (a) =>
+      !armcareLib.some((ex) => areasOf(ex.targetMuscles).some((x) => x.key === a.key))
+  );
+  check(
+    '부위마다 운동이 하나 이상 있다',
+    emptyAreas.length === 0,
+    emptyAreas.map((a) => a.label).join(', ')
+  );
+
+  /* 2) 근육 이름 거르기 — 맨 앞이 주 근육이라 적힌 차례를 지켜야 한다 */
+  check(
+    '근육 거르기: 모르는 것은 버리고, 겹치면 앞의 것만, 차례는 그대로',
+    JSON.stringify(
+      cleanTargetMuscles(['중부 승모근', '없는 근육', '후면 삼각근', '중부 승모근', 3])
+    ) === JSON.stringify(['중부 승모근', '후면 삼각근'])
+  );
+  check(
+    '주 부위는 맨 앞 근육의 부위 (T 레이즈 → 견갑)',
+    primaryArea(['중부 승모근', '후면 삼각근'])?.key === 'scapula'
+  );
+  check(
+    '운동 한 줄 — 주 근육이 도울 수 있는 부상만',
+    helpsLine(['극하근', '소원근']) === '극하근 · 소원근 → 회전근개 손상 예방에 도움',
+    String(helpsLine(['극하근', '소원근']))
+  );
+  check(
+    '푸시다운·해머컬에는 예방 효과를 붙이지 않는다 (근육 이름만)',
+    helpsLine(['삼두근']) === '삼두근' &&
+      helpsLine(['완요골근', '이두근']) === '완요골근 · 이두근',
+    `${helpsLine(['삼두근'])} / ${helpsLine(['완요골근', '이두근'])}`
+  );
+  const claims = tags
+    .map((t) => ({ title: t.title, line: helpsLine(t.muscles) ?? '' }))
+    .filter(
+      (c) =>
+        c.line.includes('예방') &&
+        ['삼두근', '이두근', '완요골근'].includes(
+          c.line.split(' · ')[0].split(' → ')[0]
+        )
+    );
+  check(
+    '팔 근력 운동 어디에도 예방 주장이 없다',
+    claims.length === 0,
+    claims.map((c) => `${c.title}: ${c.line}`).join(', ')
+  );
+
+  /* 3) 오늘 어떤 루틴인가 */
+  const rested = [0, 0, 0, 0, 0, 0, 0];
+  const decide = (person: Person, armFatigue: number | null = null) => {
+    const f = factsFor(person);
+    return decideArmcare({ facts: f, plan: buildPitchPlan(f), armFatigue });
+  };
+  const pain = decide({ condition: 7, pain: true });
+  check(
+    '통증 → 쉬기 (운동 일정이 멈추는 것과 같은 말)',
+    pain.kind === 'rest' && pain.reason.includes('전문의'),
+    pain.reason
+  );
+  const yday = decide({ condition: 8, pitches: [85, 0, 0, 0, 0, 0, 0] });
+  check(
+    '어제 85구 → 회복',
+    yday.kind === 'recovery' && yday.reason.includes('어제 85구'),
+    yday.reason
+  );
+  /* 쉬는 까닭은 쉬게 만든 등판이다 — 그 뒤에 한 가벼운 캐치볼이 아니라 */
+  const owed = decide({ condition: 8, pitches: [0, 10, 120, 0, 0, 0, 0] });
+  check(
+    '사흘 전 120구 뒤 이틀 전 캐치볼 10개 → 회복, 까닭은 120구',
+    owed.kind === 'recovery' &&
+      owed.reason.includes('120구') &&
+      !owed.reason.includes('10구 ·'),
+    owed.reason
+  );
+  const calm = decide({ condition: 8, pitches: rested });
+  check('일주일 넘게 안 던짐 → 강화', calm.kind === 'strength', calm.reason);
+  const threeDays = decide({ condition: 8, pitches: [0, 0, 40, 0, 0, 0, 0] });
+  check(
+    '사흘 전 40구 → 강화',
+    threeDays.kind === 'strength' && threeDays.reason.includes('3일 전'),
+    threeDays.reason
+  );
+  const tiredArm = decide({ condition: 8, pitches: rested }, 4);
+  check(
+    "팔 피로 '많이' → 회복",
+    tiredArm.kind === 'recovery' && tiredArm.reason.includes('팔 피로'),
+    tiredArm.reason
+  );
+  check(
+    "팔 피로 '보통'은 넘긴다 → 강화",
+    decide({ condition: 8, pitches: rested }, 3).kind === 'strength'
+  );
+  const low = decide({ condition: 3, pitches: rested });
+  check(
+    '컨디션 3/10 → 회복',
+    low.kind === 'recovery' && low.reason.includes('컨디션 3/10'),
+    low.reason
+  );
+  check(
+    '체크인에서 회복을 고름 → 회복',
+    decide({ condition: 8, pitches: rested, wants: '회복' }).kind === 'recovery'
+  );
+
+  /* 4) 루틴 짜기 */
+  const factsCalm = factsFor({ condition: 8, pitches: rested });
+  const build = (
+    kind: ArmcareKind,
+    over: Partial<Parameters<typeof buildArmcareRoutine>[0]> = {}
+  ) =>
+    buildArmcareRoutine({
+      decision: { kind, reason: '시험' },
+      candidates: armcareLib,
+      facts: factsCalm,
+      seed: '2026-06-15',
+      ...over,
+    });
+  const SIX: ArmcareAreaKey[] = [
+    'shoulder-back',
+    'scapula',
+    'elbow-inner',
+    'shoulder-front',
+    'shoulder-top',
+    'elbow-outer',
+  ];
+
+  const strength = build('strength');
+  const hit = new Set(strength.items.map((it) => it.area));
+  check(
+    '강화 — 여섯 부위(어깨 뒤·앞·위, 견갑, 팔꿈치 안·밖)를 하나씩은 채운다',
+    SIX.every((a) => hit.has(a)),
+    strength.items.map((it) => `${it.area}:${titleOf(it.exerciseId)}`).join(' / ')
+  );
+  check(
+    '강화 — 약 20분 (15~22분)',
+    strength.estimatedMinutes >= 15 && strength.estimatedMinutes <= 22,
+    `${strength.items.length}개 · ${strength.estimatedMinutes}분`
+  );
+  check(
+    '강화 — 2세트씩',
+    strength.items.every((it) => it.sets === 2)
+  );
+  /* 완요골근이 주 근육인 운동은 해머컬 계열이다 — 함께 뺀다 */
+  const armStrength = [...strength.items, ...build('recovery').items].filter((it) =>
+    ['이두근', '삼두근', '완요골근'].includes(exOf.get(it.exerciseId)!.targetMuscles[0])
+  );
+  check(
+    '루틴에 컬·푸시다운 같은 팔 근력 운동은 넣지 않는다',
+    armStrength.length === 0,
+    armStrength.map((it) => titleOf(it.exerciseId)).join(', ')
+  );
+  check(
+    '강화 — 같은 운동이 두 번 안 나온다',
+    new Set(strength.items.map((it) => it.exerciseId)).size === strength.items.length
+  );
+
+  const recovery = build('recovery');
+  const heavyIn = recovery.items.filter((it) => {
+    const ex = exOf.get(it.exerciseId)!;
+    return (
+      intensityLevel(ex.intensity) > intensityLevel('낮음') ||
+      ex.equipment.some((q) => ['덤벨', '바벨', '케틀벨', '원판', '케이블'].includes(q))
+    );
+  });
+  check(
+    '회복 — 낮음 이하 강도 · 무게 싣는 장비 없음',
+    heavyIn.length === 0,
+    heavyIn.map((it) => titleOf(it.exerciseId)).join(', ')
+  );
+  check(
+    '회복 — 1세트씩, 셋 이상, 10분 안쪽',
+    recovery.items.every((it) => it.sets === 1) &&
+      recovery.items.length >= 3 &&
+      recovery.estimatedMinutes <= 11,
+    `${recovery.items.length}개 · ${recovery.estimatedMinutes}분 · ` +
+      recovery.items.map((it) => titleOf(it.exerciseId)).join(' / ')
+  );
+
+  /* 뻐근한 곳 — 그 부위는 가볍게, 까닭을 적는다 */
+  const stiffFacts = (part: 'shoulder' | 'elbow') => {
+    const f = factsFor({ condition: 8, pitches: rested });
+    f.condition.today = { ...f.condition.today!, [part]: '뻐근' };
+    return f;
+  };
+  /*
+   * 여러 날(씨앗)로 돌려 본다. 한 번만 보면 우연히 '낮음'만 뽑힌 날에 통과한다 —
+   * 검토에서 60일 중 14일에 견갑 자리로 '중간'이 들어온 것을 잡았다.
+   */
+  const touchesShoulder = (id: string) =>
+    areasOf(exOf.get(id)!.targetMuscles).some((a) => a.joint === '어깨');
+  const shoulderLeaks: string[] = [];
+  let shoulderNoted = true;
+  for (let d = 1; d <= 30; d++) {
+    const r = build('strength', {
+      facts: stiffFacts('shoulder'),
+      seed: `2026-06-${String(d).padStart(2, '0')}`,
+    });
+    if (!r.notes.some((n) => n.includes('어깨'))) shoulderNoted = false;
+    for (const it of r.items) {
+      const ex = exOf.get(it.exerciseId)!;
+      if (
+        touchesShoulder(it.exerciseId) &&
+        intensityLevel(ex.intensity) > intensityLevel('낮음')
+      ) {
+        shoulderLeaks.push(`${d}일:${ex.title}`);
+      }
+    }
+  }
+  check(
+    '어깨가 뻐근 → 어깨(견갑 포함)를 쓰는 운동은 30일 내내 낮음 이하, 까닭을 적는다',
+    shoulderLeaks.length === 0 && shoulderNoted,
+    shoulderLeaks.join(', ')
+  );
+  const elbowStiff = build('strength', { facts: stiffFacts('elbow') });
+  const elbowItems = elbowStiff.items.filter((it) =>
+    ['elbow-inner', 'elbow-outer'].includes(it.area)
+  );
+  check(
+    '팔꿈치가 뻐근 → 전완 운동은 하나만',
+    elbowItems.length <= 1 && elbowStiff.notes.some((n) => n.includes('팔꿈치')),
+    `${elbowItems.length}개`
+  );
+
+  /* 같은 날은 같은 루틴 · 다시 만들면 바뀜 · 체크한 것은 남음 · 오래 안 한 것부터 */
+  check(
+    '같은 날 같은 씨앗 → 같은 루틴 (새로고침에 안 바뀐다)',
+    JSON.stringify(build('strength').items) === JSON.stringify(strength.items)
+  );
+  const doneOne = strength.items[0].exerciseId;
+  const remade = build('strength', {
+    seed: `2026-06-15:${strength.items.map((it) => it.exerciseId).join(',')}`,
+    doneToday: new Set([doneOne]),
+  });
+  check(
+    '다시 만들기 → 목록이 바뀐다',
+    JSON.stringify(remade.items) !== JSON.stringify(strength.items)
+  );
+  check(
+    '다시 만들어도 오늘 체크한 것은 남는다',
+    remade.items.some((it) => it.exerciseId === doneOne),
+    titleOf(doneOne)
+  );
+  const doneInner = strength.items.find((it) => it.area === 'elbow-inner')!.exerciseId;
+  const regear = build('strength', {
+    candidates: armcareLib.filter((ex) => ex.id !== doneInner),
+    known: armcareLib,
+    doneToday: new Set([doneInner]),
+  });
+  check(
+    '장비를 바꿔 다시 만들어도 오늘 체크한 것은 남는다',
+    regear.items.some((it) => it.exerciseId === doneInner),
+    titleOf(doneInner)
+  );
+  const firstBack = strength.items.find(
+    (it) => it.area === 'shoulder-back'
+  )!.exerciseId;
+  const rotated = build('strength', { lastDone: new Map([[firstBack, '2026-06-14']]) });
+  const nextBack = rotated.items.find((it) => it.area === 'shoulder-back')?.exerciseId;
+  check(
+    '어제 한 것은 뒤로 — 어깨 후방에 다른 운동이 나온다',
+    nextBack != null && nextBack !== firstBack,
+    `${titleOf(firstBack)} → ${nextBack ? titleOf(nextBack) : '없음'}`
+  );
+
+  const bandsOnly = filterByEquipment(armcareLib, ['맨몸', '밴드']).pool;
+  const band = build('strength', { candidates: bandsOnly });
+  check(
+    '맨몸·밴드만 가져도 강화 루틴이 나온다',
+    band.items.length >= 5,
+    `${band.items.length}개 · ${band.estimatedMinutes}분`
+  );
+  check(
+    "빈 부위의 조사가 맞다 — '어깨 상부는' ('은' 아님)",
+    band.notes.some((n) => n.includes('어깨 상부는')) &&
+      !band.notes.some((n) => n.includes('상부은')),
+    band.notes.join(' / ')
+  );
+  const dumbbellRecovery = build('recovery', {
+    candidates: filterByEquipment(armcareLib, ['맨몸', '덤벨']).pool,
+  });
+  check(
+    '덤벨을 가진 사람의 회복날 — 장비 탓이 아니라 회복날 규칙이라고 말한다',
+    dumbbellRecovery.notes.some((n) => n.startsWith('회복날에는')) &&
+      !dumbbellRecovery.notes.some((n) => n.startsWith('가진 장비로')),
+    dumbbellRecovery.notes.join(' / ')
+  );
+  check(
+    '루틴은 어깨에서 팔꿈치 차례로 보여 준다 (부위별 보강과 같은 차례)',
+    strength.items.every(
+      (it, i, all) =>
+        i === 0 ||
+        ARMCARE_AREAS.findIndex((a) => a.key === all[i - 1].area) <=
+          ARMCARE_AREAS.findIndex((a) => a.key === it.area)
+    ),
+    strength.items.map((it) => it.area).join(' → ')
+  );
+
+  check(
+    '저장한 루틴을 그대로 읽는다',
+    readArmcareRoutine(JSON.parse(JSON.stringify(strength)))?.items.length ===
+      strength.items.length
+  );
+  check(
+    '모양이 다른 옛 기록은 없는 것으로 본다',
+    readArmcareRoutine({ version: 2, items: [] }) === null
+  );
+
+  /* 5) 부하 — 암케어는 세트 수로만 센다 (lib/training-load.ts) */
+  const armOne = armcareLib[0];
+  const back = (n: number) => new Date(TODAY.getTime() - n * 86400000);
+  const armOnly = buildTrainingLoad(
+    [
+      { date: back(1), setsDone: null, exercise: armOne },
+      { date: back(2), setsDone: null, exercise: armOne },
+    ],
+    [],
+    TODAY
+  );
+  check(
+    '암케어만 한 날은 운동한 날·부하에 안 들어간다',
+    armOnly.recentDays === 0 && armOnly.recentMinutes === 0,
+    `운동한 날 ${armOnly.recentDays}일 · ${armOnly.recentMinutes}분`
+  );
+  check(
+    '그래도 암케어 세트는 센다',
+    armOnly.volume.armCare.sets > 0,
+    `암케어 ${armOnly.volume.armCare.sets}세트`
+  );
+  check(
+    '암케어는 부위 묶음(등·견갑 등)에 안 들어간다 — AI에게 모순된 숫자를 안 준다',
+    armOnly.volume.byPart.every((p) => p.sets === 0),
+    armOnly.volume.byPart.map((p) => `${p.label} ${p.sets}`).join(' · ')
+  );
+
+  /* 6) 일정 쪽 — 본운동 빈자리에도 암케어가 안 들어가고, 쉬게 만든 등판을 말한다 */
+  const kettlebellOnly = filterByEquipment(library, ['케틀벨']).pool;
+  const fallbackLeaks = [45, 90].flatMap((m) =>
+    pickForTheme({
+      candidates: kettlebellOnly,
+      theme: 'upper',
+      minutes: m,
+      doneIds: new Set<string>(),
+      goal: '근력 향상',
+      focus: 'upperPull',
+    })
+      .picks.filter((p) => p.exercise.category === '암케어')
+      .map((p) => `${m}분:${p.exercise.title}`)
+  );
+  check(
+    '본운동 빈자리를 채울 때도 암케어는 안 쓴다 (케틀벨만 · 상체 당기기)',
+    fallbackLeaks.length === 0,
+    fallbackLeaks.join(', ')
+  );
+  const afterCatch = factsFor({ condition: 8, pitches: [0, 20, 90, 0, 0, 0, 0] });
+  const assistDay = decideTheme({
+    facts: afterCatch,
+    plan: buildPitchPlan(afterCatch),
+    lastLowerKey: null,
+    lastUpperKey: null,
+  });
+  check(
+    '사흘 전 90구 뒤 이틀 전 캐치볼 20개 → 일정의 까닭도 90구 (암케어와 같은 말)',
+    assistDay.reason.includes('90구') && !assistDay.reason.includes('20구'),
+    `${assistDay.label} — ${assistDay.reason}`
+  );
 }
 
 console.log(`\n${passed}개 통과, ${failed}개 실패`);

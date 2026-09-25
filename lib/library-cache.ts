@@ -65,7 +65,15 @@ export const allExercises = unstable_cache(
       detailsFilledAt: iso(r.detailsFilledAt),
     }));
   },
-  ['library:exercises'],
+  /*
+   * 운동 표에 칸을 더하면 이 이름을 바꾼다(:v2 — 2026-09-25 targetMuscles).
+   *
+   * 캐시는 시간으로 비워지지 않고, 배포해도 남는다 — 이름(과 함수 모양)이 같으면
+   * 새 칸이 없는 옛 줄이 계속 나온다. 그대로 두면 암케어의 부위별 보강이 텅 비고
+   * 오늘의 암케어가 루틴을 못 짠다. 관리자가 운동을 하나 저장해야(clearLibraryCache)
+   * 풀리는데, 그것을 기다릴 일이 아니다.
+   */
+  ['library:exercises:v2'],
   { tags: [LIBRARY_TAG] }
 );
 

@@ -1,7 +1,7 @@
 import { intensityLevel, minutesForSets, type Prescription } from '@/lib/exercise-meta';
 import { withJosa } from '@/lib/korean';
 import type { ReportFacts } from '@/lib/report/facts';
-import { remainingRestDays, type PitchPlan } from '@/lib/report/plan';
+import { pendingOuting, type PitchPlan } from '@/lib/report/plan';
 import {
   findFocus,
   findGoal,
@@ -189,7 +189,7 @@ const LOW_CONDITION_THRESHOLD = 4;
  * 스트렝스 데이가 그대로 나왔다.
  *
  * 남은 휴식일로 센다. 투구 계획이 "오늘은 쉬세요"라고 말하는 그 값과 같은
- * 것을 본다(lib/report/plan.ts 의 remainingRestDays). 각자 계산하면 언젠가
+ * 것을 본다(lib/report/plan.ts 의 pendingOuting). 각자 계산하면 언젠가
  * 어긋난다 — 투구는 쉬라는데 훈련은 데드리프트를 내주는 식이다.
  *
  *   2일 이상 남음  큰 등판 직후 — 회복만
@@ -201,11 +201,17 @@ function outingStrain(facts: ReportFacts): {
   pitches: number;
   daysAgo: number;
 } {
-  const remaining = remainingRestDays(facts.patterns);
+  /*
+   * 까닭에는 쉬게 만든 그 등판을 적는다. 마지막 투구를 적었더니, 사흘 전 90구 뒤
+   * 이틀 전에 캐치볼 20개를 한 날 '2일 전 20구를 던지셨습니다'가 됐다 — 쉬는 까닭은
+   * 90구다. 오늘의 암케어도 같은 등판을 말한다(lib/armcare/routine.ts).
+   */
+  const owed = pendingOuting(facts.patterns);
+  const remaining = owed?.left ?? 0;
   return {
     level: remaining >= 2 ? 2 : remaining >= 1 ? 1 : 0,
-    pitches: facts.patterns.lastOutingPitches ?? 0,
-    daysAgo: facts.patterns.restDays ?? 0,
+    pitches: owed?.pitches ?? facts.patterns.lastOutingPitches ?? 0,
+    daysAgo: owed?.elapsed ?? facts.patterns.restDays ?? 0,
   };
 }
 
@@ -1512,7 +1518,18 @@ export function pickForTheme<T extends ThemedExercise>({
       const label = SLOT_LABELS[spec.slot].label;
       for (const ex of ordered) {
         /* 가동성은 그 자체로 한 구간이라(회복·컨디셔닝·보조) 본운동 빈자리를 메우는 데 쓰지 않는다 */
-        if (taken.has(ex.id) || ex.category === '모빌리티') continue;
+        /*
+         * 암케어도 쓰지 않는다 — 어느 일정에도 암케어를 넣지 않기로 했다(암케어 화면에서
+         * 따로 한다). 빼지 않았더니 케틀벨만 가진 사람의 '상체 당기기' 날에 본운동
+         * 빈자리로 쿼드 T 같은 암케어가 들어왔다.
+         */
+        if (
+          taken.has(ex.id) ||
+          ex.category === '모빌리티' ||
+          ex.category === '암케어'
+        ) {
+          continue;
+        }
         const cost = estimateMinutes(ex);
         if (!fits(cost)) continue;
         chosen.push(ex);

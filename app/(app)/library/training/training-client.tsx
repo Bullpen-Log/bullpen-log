@@ -38,6 +38,7 @@ import { MetaFilter, matchesFilter, type FilterState } from '@/components/meta-f
 import { Button, Card, EmptyState } from '@/components/ui';
 import { ConfirmDeleteForm } from '@/components/confirm-delete';
 import { ExerciseForm, type ExerciseDraft } from './exercise-form';
+import { MuscleRow } from '@/components/muscle-chips';
 
 export type ExerciseItem = {
   id: string;
@@ -47,6 +48,8 @@ export type ExerciseItem = {
   intensity: string;
   difficulty: string | null;
   equipment: string[];
+  /** 키우는 근육 — 암케어 운동에만 있다. 맨 앞이 가장 크게 쓰는 근육. */
+  targetMuscles: string[];
   /** 우리 저장소에 올린 영상 경로. 참고 영상이면 없다. */
   videoPath: string | null;
   /** OWN(직접 촬영) / REFERENCE(아직 촬영 전, 유튜브 참고 영상) */
@@ -121,6 +124,7 @@ function ExerciseDetail({
       intensity: item.intensity,
       difficulty: item.difficulty,
       equipment: item.equipment,
+      targetMuscles: item.targetMuscles,
       isReference: item.source === 'REFERENCE',
       sets: item.sets,
       reps: item.reps,
@@ -269,6 +273,9 @@ function ExerciseDetail({
           difficulty={item.difficulty}
           equipment={item.equipment}
         />
+
+        {/* 암케어 운동이 키우는 근육 — 부위별 보강과 같은 말로 */}
+        <MuscleRow muscles={item.targetMuscles} />
 
         {formatPrescription(item) && (
           <p className="text-sm font-semibold text-ink">{formatPrescription(item)}</p>
