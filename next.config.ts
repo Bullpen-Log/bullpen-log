@@ -2,17 +2,16 @@ import type { NextConfig } from 'next';
 
 const nextConfig: NextConfig = {
   /*
-   * 화면 전환 애니메이션(app/globals.css 의 ::view-transition-* 규칙).
+   * 화면 전환 애니메이션(app/globals.css 의 ::view-transition-* 규칙)은 켜는
+   * 스위치가 따로 없다.
    *
-   * 리액트의 <ViewTransition> 을 라우트 이동에 물려주는 스위치다. 이 줄이
-   * 없으면 컴포넌트는 그려지지만 이동할 때 아무 일도 일어나지 않는다.
+   * 16.2 까지는 experimental.viewTransition 으로 리액트의 <ViewTransition> 을
+   * 라우트 이동에 물려주었는데, 16.3 부터 App Router 가 설정 없이 기본으로 해 준다.
+   * 그 키를 남겨 두면 모르는 설정이라며 빌드(타입 검사)가 멈춘다.
+   * (node_modules/next/dist/docs/01-app/02-guides/view-transitions.md)
    *
-   * experimental 이지만 리액트 쪽 기능이고, 브라우저가 못 받아주면 애니메이션만
-   * 건너뛰고 화면은 그대로 바뀐다 — 못 켜는 기기에서 화면이 깨지지 않는다.
+   * 브라우저가 못 받아주면 애니메이션만 건너뛰고 화면은 그대로 바뀐다.
    */
-  experimental: {
-    viewTransition: true,
-  },
   images: {
     remotePatterns: [
       // 유튜브 영상 썸네일
