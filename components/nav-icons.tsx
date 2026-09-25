@@ -10,6 +10,7 @@ import {
   Shield,
   Target,
   User,
+  Utensils,
   type LucideIcon,
 } from 'lucide-react';
 import type { NavIconName } from '@/lib/nav';
@@ -27,6 +28,7 @@ export const NAV_ICONS: Record<NavIconName, LucideIcon> = {
   dumbbell: Dumbbell,
   chart: ChartColumn,
   film: Film,
+  utensils: Utensils,
   target: Target,
   book: BookOpen,
   user: User,

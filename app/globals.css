@@ -994,15 +994,15 @@ dialog[data-drawer][open]::backdrop {
  *   nav-dock    도크 상자.
  *   nav-sheet   판. 한쪽 모습에만 있다 — 다른 무엇에서 커지지 않고 오른쪽 밖에서
  *               들어오고 나간다.
- *   nav-fly-N   아이콘. N 은 전체 메뉴에서의 차례(홈 0 · 영상 1 · … · 관리자 7).
+ *   nav-fly-N   아이콘. N 은 전체 메뉴에서의 차례(홈 0 · 영상 1 · … · 관리자 8).
  *               옛·새 모습에 다 있으면 날아가고(딱지 nav-fly), 한쪽에만 있으면 그
  *               자리에서 돋아나거나 잦아든다(딱지 nav-pop).
  *   nav-thumb   '지금 여기' 동그라미. 도크와 오갈 때는 제 아이콘과 같은 딱지를 달아
  *               아이콘과 같이 날아간다.
- *   d0 … d7     차례 딱지. 얼마나 늦게 출발할지를 --fly-base + N × --fly-step 으로
+ *   d0 … d8     차례 딱지. 얼마나 늦게 출발할지를 --fly-base + N × --fly-step 으로
  *               센다. 연출마다 그 둘을 바꿔 순서를 뒤집는다(돌아올 때는 step 이 음수).
  *
- * 간격을 20~35ms 로 둔 까닭: 더 좁히면 여덟이 한 덩이로 뭉쳐 '한 번에' 날아가
+ * 간격을 20~35ms 로 둔 까닭: 더 좁히면 아홉이 한 덩이로 뭉쳐 '한 번에' 날아가
  * 난잡하고, 더 벌리면 마지막 것이 한참 늦게 와서 굼뜨다. 하나하나가 따로 보이면서
  * 전체는 0.4초 안팎에 끝나는 간격이다.
  *
@@ -1026,7 +1026,7 @@ html[data-nav-choreo='dock-bar'] {
 }
 /*
  * 판으로 갈 때는 판과 아이콘이 같이 출발한다. 판이 들어오는 0.28초 안에 아이콘도
- * 제 줄에 거의 다 앉도록, 여덟 개가 날 때(dock-sheet)는 간격을 좁혔다.
+ * 제 줄에 거의 다 앉도록, 아홉 개가 날 때(dock-sheet)는 간격을 좁혔다.
  */
 html[data-nav-choreo='dock-sheet'] {
   --fly-base: 0ms;
@@ -1303,6 +1303,11 @@ html[data-nav-choreo]::view-transition-group(.d7),
 html[data-nav-choreo]::view-transition-old(.d7),
 html[data-nav-choreo]::view-transition-new(.d7) {
   animation-delay: calc(var(--fly-base) + 7 * var(--fly-step));
+}
+html[data-nav-choreo]::view-transition-group(.d8),
+html[data-nav-choreo]::view-transition-old(.d8),
+html[data-nav-choreo]::view-transition-new(.d8) {
+  animation-delay: calc(var(--fly-base) + 8 * var(--fly-step));
 }
 
 /*
