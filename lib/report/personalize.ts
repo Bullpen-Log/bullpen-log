@@ -259,8 +259,13 @@ export const TRAINING_GOALS = [
     focuses: ['lower', 'upper'] as readonly GoalFocusKey[],
   },
   {
-    name: '부상 방지',
-    desc: '어깨·팔꿈치 관리와 보강 위주 — 점프·던지기는 빼고',
+    /*
+     * 예전 이름은 '부상 방지'(2026-09-25 바꿨다). 몸 상태를 다지는 날이지 부상을
+     * 막아 준다는 약속이 아니라서다. '컨디셔닝'이 뛰기·인터벌 같은 체력 운동으로
+     * 읽히지 않게 설명에 무엇을 하는 날인지 적는다.
+     */
+    name: '컨디셔닝',
+    desc: '코어·보강·어깨 관리로 몸을 다지는 날 — 무게·점프·던지기는 빼고',
     weights: { mobility: 1.3, main: 0.7, core: 1, prehab: 1.7, armcare: 1.6 },
     prefer: [],
     /*

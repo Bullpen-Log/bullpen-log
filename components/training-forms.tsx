@@ -20,7 +20,7 @@ import {
 import {
   minutesChoicesFor,
   nearestMinutesChoice,
-  PREVENTION_GOAL,
+  CONDITIONING_GOAL,
 } from '@/lib/report/theme';
 
 /**
@@ -158,8 +158,8 @@ export function PlanForm({
   /*
    * 목표에 따라 고를 수 있는 시간이 다르다.
    *
-   * 무게를 드는 세 목표는 60·90·120분, 부상 방지는 40·60·90분이다. 목표를
-   * 바꾸면 시간 칸도 바로 바뀌어야 한다 — 부상 방지로 옮겼는데 120분이 그대로
+   * 무게를 드는 세 목표는 60·90·120분, 컨디셔닝은 40·60·90분이다. 목표를
+   * 바꾸면 시간 칸도 바로 바뀌어야 한다 — 컨디셔닝으로 옮겼는데 120분이 그대로
    * 남아 있으면 고를 수 없는 조합이 화면에 남는다. 그럴 때는 가장 가까운
    * 값으로 내려 짚는다(120 → 90).
    */
@@ -170,7 +170,7 @@ export function PlanForm({
   /*
    * 목표 안에서 부위를 좁힐 수 있는 날인가.
    *
-   * 근력 향상과 파워 향상만 나눈다. 균형 잡힌 관리와 부상 방지는 '고르게'가
+   * 근력 향상과 파워 향상만 나눈다. 균형 잡힌 관리와 컨디셔닝은 '고르게'가
    * 그 목표의 뜻이라 한쪽으로 좁히면 이름과 어긋난다.
    */
   const focusChoices = focusesFor(pickedGoal);
@@ -379,7 +379,7 @@ export function PlanForm({
             name="minutes"
             label="오늘 운동 시간"
             hint={
-              pickedGoal === PREVENTION_GOAL
+              pickedGoal === CONDITIONING_GOAL
                 ? '몸을 지키는 날이라 짧게 끝낼 수 있습니다. 두 시간은 이 날의 뜻이 아닙니다.'
                 : undefined
             }

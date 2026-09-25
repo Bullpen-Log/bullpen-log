@@ -35,22 +35,28 @@ import {
  * 3분, 준비 세트까지) 그보다 짧으면 무게 운동이 둘도 안 들어간다. 위로는
  * 120분까지 — 그 이상은 채울 것이 없다.
  *
- * 부상 방지는 40분부터 90분까지다. 몸을 지키려고 잡은 날이라 짧게 끝낼 수
+ * 컨디셔닝은 40분부터 90분까지다. 몸을 지키려고 잡은 날이라 짧게 끝낼 수
  * 있어야 하고, 두 시간은 이 날의 뜻이 아니다. 실제로 120분을 잡아보니
  * 코어·보강·암케어가 개수 상한에 먼저 차서 101분치밖에 안 나왔다.
  */
-/** 이 목표만 구성도 시간 선택지도 다르다 */
-export const PREVENTION_GOAL = '부상 방지';
+/**
+ * 이 목표만 구성도 시간 선택지도 다르다.
+ *
+ * 예전 이름은 '부상 방지'였다(2026-09-25 바꿈 — 까닭은 personalize.ts 의 목표 설명).
+ * 코드 이름(CONDITIONING_* · conditioningDay)도 함께 바꿨다. 저장된 값에는 이
+ * 이름을 쓴 곳이 없었다 — 회원 설정도, 만들어 둔 일정도 0건이었다.
+ */
+export const CONDITIONING_GOAL = '컨디셔닝';
 
 const WEIGHT_MINUTES = [60, 90, 120] as const;
-const PREVENTION_MINUTES = [40, 60, 90] as const;
+const CONDITIONING_MINUTES = [40, 60, 90] as const;
 
 /** 목표가 정해지지 않은 자리(내 정보의 기본 시간)에서 쓰는 목록 */
 export const WORKOUT_MINUTES_CHOICES = WEIGHT_MINUTES;
 
 /** 이 목표로 고를 수 있는 시간 */
 export function minutesChoicesFor(goalName: string | null): readonly number[] {
-  return goalName === PREVENTION_GOAL ? PREVENTION_MINUTES : WEIGHT_MINUTES;
+  return goalName === CONDITIONING_GOAL ? CONDITIONING_MINUTES : WEIGHT_MINUTES;
 }
 
 /**
@@ -61,7 +67,7 @@ export function minutesChoicesFor(goalName: string | null): readonly number[] {
  * 고르지 않은 것처럼 보인다. 짧은 쪽은 올려서, 긴 쪽은 내려서 가장 가까운
  * 값을 짚어준다.
  *
- * 목표를 주면 그 목표가 고를 수 있는 값 안에서 고른다. 부상 방지로 바꿨는데
+ * 목표를 주면 그 목표가 고를 수 있는 값 안에서 고른다. 컨디셔닝으로 바꿨는데
  * 120분이 남아 있으면 90분으로 내려온다.
  */
 export function nearestMinutesChoice(
@@ -271,32 +277,32 @@ function threwTodayNote(facts: ReportFacts): string {
     : '';
 }
 
-/** 근력 날에 목표를 부상 방지로 잡은 날의 이름 */
-export const PREVENTION_DAY_LABEL = '부상 방지 데이';
+/** 근력 날에 목표를 컨디셔닝으로 잡은 날의 이름 */
+export const CONDITIONING_DAY_LABEL = '컨디셔닝 데이';
 
 /**
- * 근력 날인데 목표가 부상 방지면, 그날은 부상 방지 데이다.
+ * 근력 날인데 목표가 컨디셔닝이면, 그날은 컨디셔닝 데이다.
  *
- * 부상 방지는 무게 드는 구간을 통째로 뺀다(GOAL_SHAPES — 코어·보강·암케어만).
+ * 컨디셔닝은 무게 드는 구간을 통째로 뺀다(GOAL_SHAPES — 코어·보강·암케어만).
  * 그런데 이름은 번갈아 정한 '하체 스트렝스 데이'가 그대로 남아, 목록에는 하체
- * 근력 운동이 하나도 없는데 제목만 하체였다. 직접 고르기에서 부상 방지를 골라도
+ * 근력 운동이 하나도 없는데 제목만 하체였다. 직접 고르기에서 컨디셔닝을 골라도
  * 그랬고, AI 맞춤을 만들면서 드러났다(2026-09-23 — 잠 부족·운동 부하·암케어
- * 공백이면 AI 맞춤이 부상 방지로 가서 더 자주 보인다).
+ * 공백이면 AI 맞춤이 컨디셔닝으로 가서 더 자주 보인다).
  *
  * 이름과 이유만 바꾸고 key 는 그대로 둔다. 번갈아 가는 차례는 실제로 한 근력
  * 운동으로 세므로(lib/report/gather.ts 의 lastStrengthDates) 오늘 못 한 쪽이
  * 다음 근력 날로 그대로 넘어가고, 직접 더한 운동의 자리(slotForTheme)도 지금처럼
  * 정해진다. 회복날·보조날은 원래 무게를 안 드는 날이라 그대로다.
  */
-export function preventionDay(theme: SessionTheme, facts: ReportFacts): SessionTheme {
+export function conditioningDay(theme: SessionTheme, facts: ReportFacts): SessionTheme {
   if (theme.key !== 'lower' && theme.key !== 'upper') return theme;
   const part = theme.key === 'lower' ? '하체' : '상체';
   return {
     key: theme.key,
-    label: PREVENTION_DAY_LABEL,
+    label: CONDITIONING_DAY_LABEL,
     reason:
       threwTodayNote(facts) +
-      `목표가 부상 방지라 무게 드는 운동 대신 코어·보강·암케어로 채웠습니다. ${part} 근력은 다음 근력 날로 넘어갑니다.`,
+      `목표가 컨디셔닝이라 무게 드는 운동 대신 코어·보강·암케어로 채웠습니다. ${part} 근력은 다음 근력 날로 넘어갑니다.`,
   };
 }
 
@@ -518,8 +524,8 @@ export const SLOT_LABELS: Record<SlotKey, { label: string; hint: string }> = {
    *
    * 이 구간이 없던 때는 '회복 및 보강' 39개 중 31개가 어느 구간에도 못 들어가
    * 한 번도 나오지 않았다. 고관절·내전근 보강은 투수의 부상 방지에서 가장
-   * 중요한 축인데, 목표에 '부상 방지'를 두고 정작 그 운동을 안 쓰면
-   * 이름만 있는 목표가 된다.
+   * 중요한 축인데, 몸을 다지는 목표('컨디셔닝', 예전 이름 '부상 방지')를 두고
+   * 정작 그 운동을 안 쓰면 이름만 있는 목표가 된다.
    */
   prehab: { label: '보강', hint: '고관절·내전근처럼 약해지기 쉬운 곳' },
   armcare: { label: '암케어', hint: '어깨·팔꿈치 관리로 마무리' },
@@ -611,7 +617,7 @@ type SlotSpec = {
  *                 파워만 하면 힘이 새는 자리를 그대로 두는 셈이다.
  *   균형 잡힌 관리  워밍업 · 본운동 · 코어 · 보강 · 암케어
  *                 이름이 '고르게'다. 다섯 구간을 다 쓰되 하나씩만 둔다.
- *   부상 방지      워밍업 · 코어 · 보강 · 암케어
+ *   컨디셔닝      워밍업 · 코어 · 보강 · 암케어
  *                 무게와 파워를 통째로 뺀다. 몸을 지키려고 고른 날인데
  *                 스쿼트와 점프가 나오면 목표와 반대다.
  *
@@ -654,7 +660,7 @@ const GOAL_SHAPES: Record<string, GoalShape> = {
     prehab: { share: 0.08, maxCount: 2 },
     armcare: { share: 0.14, maxCount: 2 },
   },
-  '부상 방지': {
+  컨디셔닝: {
     core: { share: 0.25, maxCount: 4 },
     prehab: { share: 0.3, maxCount: 5 },
     armcare: { share: 0.3, maxCount: 5 },
@@ -843,7 +849,7 @@ export function compositionFor(
   focus?: GoalFocusKey | null
 ): SlotSpec[] {
   /*
-   * 부상 방지를 고르면 웨이트 날의 구성을 통째로 바꾼다.
+   * 컨디셔닝을 고르면 웨이트 날의 구성을 통째로 바꾼다.
    *
    * 보조 데이와 회복 데이는 그대로 둔다 — 이미 무게를 안 드는 구성이고,
    * 그 날들은 투구량이 정한 것이라 목표가 뒤집을 자리가 아니다.
@@ -1201,7 +1207,7 @@ export function pickForTheme<T extends ThemedExercise>({
   const bySlot = new Map<SlotKey, T[]>(specs.map((s) => [s.slot, []]));
   /* 본운동 후보를 순서까지 정한 채로 들고 있는다 — 남는 시간을 여기서 더 쓴다 */
   let mainPool: T[] = [];
-  /* 본운동이 없는 날(부상 방지·회복)에 남는 시간을 쓸 후보 */
+  /* 본운동이 없는 날(컨디셔닝·회복)에 남는 시간을 쓸 후보 */
   const topUpPool = new Map<SlotKey, T[]>();
   /** 여기까지 고른 것의 총 소요(분). 구간을 넘나들며 쌓인다. */
   let totalUsed = 0;
@@ -1505,7 +1511,7 @@ export function pickForTheme<T extends ThemedExercise>({
   /*
    * 어디로 보낼 것인가.
    *
-   * 본운동이 있으면 거기다. 부상 방지·회복 날에는 본운동이 없어서, 그냥
+   * 본운동이 있으면 거기다. 컨디셔닝·회복 날에는 본운동이 없어서, 그냥
    * 본운동만 찾으면 남는 시간이 통째로 버려졌다 — 45분을 부탁했는데 38분치만
    * 나왔다. 그때는 몫이 가장 큰 구간(대개 보강)으로 보낸다.
    */

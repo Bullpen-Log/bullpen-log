@@ -10,10 +10,10 @@ import {
   type GoalFocusKey,
 } from '@/lib/report/personalize';
 import {
-  PREVENTION_GOAL,
+  CONDITIONING_GOAL,
   decideTheme,
   effectiveMinutes,
-  preventionDay,
+  conditioningDay,
   minutesChoicesFor,
   nearestMinutesChoice,
   workoutConflict,
@@ -48,7 +48,7 @@ const STRENGTH_GOAL = '근력 향상';
  * 목표 이름이 목록과 어긋나면 규칙이 조용히 아무 일도 안 한다. 여기서 막는다.
  * (TRAINING_GOALS 의 이름을 바꾸면 이 파일도 같이 봐야 한다는 뜻이다.)
  */
-for (const name of [BALANCED_GOAL, POWER_GOAL, STRENGTH_GOAL, PREVENTION_GOAL]) {
+for (const name of [BALANCED_GOAL, POWER_GOAL, STRENGTH_GOAL, CONDITIONING_GOAL]) {
   if (!TRAINING_GOAL_NAMES.includes(name)) {
     throw new Error(`훈련 목표 목록에 없는 이름: ${name}`);
   }
@@ -67,7 +67,7 @@ export const SLEEP_DEBT_DAYS = 3;
  * 암케어 공백을 따질 만큼 운동해 온 사람인가 — 최근 7일에 운동한 날.
  *
  * 기록이 없는 사람은 암케어도 당연히 0세트다. 그걸 '암케어를 건너뛰었다'로
- * 읽으면 처음 쓰는 사람은 전부 부상 방지로 시작한다. 운동은 했는데 암케어만
+ * 읽으면 처음 쓰는 사람은 전부 컨디셔닝으로 시작한다. 운동은 했는데 암케어만
  * 안 한 사람에게만 건다.
  */
 export const ARMCARE_GAP_MIN_DAYS = 2;
@@ -265,10 +265,10 @@ export function decideAutoFence({
     /*
      * 회복날·보조날은 목표가 구성을 거의 못 바꾼다(compositionFor 가 웨이트
      * 날에만 목표 모양을 쓴다). 그런 날 "목표: 근력 향상"이라고 적혀 있으면
-     * 회복날 목록과 어긋나 보인다. 몸을 아끼는 날이라 부상 방지로 둔다.
+     * 회복날 목록과 어긋나 보인다. 몸을 아끼는 날이라 컨디셔닝으로 둔다.
      */
-    fixedGoal = PREVENTION_GOAL;
-    rules.push(`오늘은 ${day.label} → 목표는 ${PREVENTION_GOAL}`);
+    fixedGoal = CONDITIONING_GOAL;
+    rules.push(`오늘은 ${day.label} → 목표는 ${CONDITIONING_GOAL}`);
   }
   if (clash) {
     rules.push(
@@ -277,10 +277,12 @@ export function decideAutoFence({
   }
 
   if (loadHigh || sleepDebt) {
-    fixedGoal = PREVENTION_GOAL;
+    fixedGoal = CONDITIONING_GOAL;
     /* 회복날은 이미 시간을 줄인다(effectiveMinutes). 두 번 줄이지 않는다. */
     shorten = day.key !== 'recovery';
-    const tail = shorten ? `${PREVENTION_GOAL}, 시간 한 단계 줄임` : PREVENTION_GOAL;
+    const tail = shorten
+      ? `${CONDITIONING_GOAL}, 시간 한 단계 줄임`
+      : CONDITIONING_GOAL;
     if (loadHigh && workout.zone) {
       const zone = ACWR_ZONES[workout.zone];
       const ratio = workout.ratio != null ? ` ${workout.ratio.toFixed(2)}` : '';
@@ -329,15 +331,15 @@ export function decideAutoFence({
   /* 규칙 초안 */
   const armcareGap =
     workout.recentDays >= ARMCARE_GAP_MIN_DAYS && workout.volume.armCare.sets === 0;
-  const draftGoal = fixedGoal ?? (armcareGap ? PREVENTION_GOAL : BALANCED_GOAL);
+  const draftGoal = fixedGoal ?? (armcareGap ? CONDITIONING_GOAL : BALANCED_GOAL);
   const draftMinutes = Math.max(...minutes[draftGoal]);
 
   return {
     /*
-     * 부상 방지로 정해진 근력 날은 부상 방지 데이다(preventionDay). AI에게도
+     * 컨디셔닝으로 정해진 근력 날은 컨디셔닝 데이다(conditioningDay). AI에게도
      * 그 이름으로 알려야 "오늘은 하체 위주로" 같은 말을 안 한다.
      */
-    day: fixedGoal === PREVENTION_GOAL ? preventionDay(day, facts) : day,
+    day: fixedGoal === CONDITIONING_GOAL ? conditioningDay(day, facts) : day,
     strengthDay,
     fixedGoal,
     goals,

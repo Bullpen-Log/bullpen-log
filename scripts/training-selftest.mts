@@ -111,7 +111,7 @@ import {
   type AutoAnswer,
   type AutoPromptInput,
 } from '../lib/ai/auto-setup-prompt.ts';
-import { PREVENTION_DAY_LABEL, PREVENTION_GOAL } from '../lib/report/theme.ts';
+import { CONDITIONING_DAY_LABEL, CONDITIONING_GOAL } from '../lib/report/theme.ts';
 import {
   STALE_AFTER_MS,
   isAbandoned,
@@ -1411,9 +1411,9 @@ console.log('\n[목표] 고른 목표가 실제로 배분을 바꾸는가');
    * 배분(시간 예산)이 달라지는지 먼저 본다. 이게 목표 기능의 알맹이다.
    */
   for (const [slot, goal, label] of [
-    ['armcare', '부상 방지', '암케어'],
+    ['armcare', '컨디셔닝', '암케어'],
     ['main', '근력 향상', '본운동'],
-    ['prehab', '부상 방지', '보강'],
+    ['prehab', '컨디셔닝', '보강'],
   ] as [string, string, string][]) {
     const budget = (g: string) =>
       (compositionFor('lower', g).find((sp) => sp.slot === slot)?.share ?? 0) * 60;
@@ -1429,12 +1429,12 @@ console.log('\n[목표] 고른 목표가 실제로 배분을 바꾸는가');
    * 무거운 운동 하나가 11분이라, 본운동 배분이 20분에서 24분으로 늘어도
    * 2개에서 3개로 넘어가지 못한다(3개면 33분이 필요하다).
    *
-   * 줄이는 쪽(부상 방지)은 60분에서도 갈린다. 늘리는 쪽은 90분부터 갈린다.
+   * 줄이는 쪽(컨디셔닝)은 60분에서도 갈린다. 늘리는 쪽은 90분부터 갈린다.
    */
   check(
-    '부상 방지 → 60분에서도 본운동이 줄어든다',
-    minutesOf('부상 방지', 'main') < minutesOf('균형 잡힌 관리', 'main'),
-    `${minutesOf('균형 잡힌 관리', 'main').toFixed(1)}분 → ${minutesOf('부상 방지', 'main').toFixed(1)}분`
+    '컨디셔닝 → 60분에서도 본운동이 줄어든다',
+    minutesOf('컨디셔닝', 'main') < minutesOf('균형 잡힌 관리', 'main'),
+    `${minutesOf('균형 잡힌 관리', 'main').toFixed(1)}분 → ${minutesOf('컨디셔닝', 'main').toFixed(1)}분`
   );
   {
     const at90 = (goal: string) => {
@@ -2042,7 +2042,7 @@ console.log('\n[오늘의 목표] 일정을 만들 때마다 고르는가');
   withGoal.set('trainingGoal', '파워 향상');
   check(
     '고른 목표를 그대로 쓴다',
-    readTrainingGoal(withGoal, '부상 방지') === '파워 향상'
+    readTrainingGoal(withGoal, '컨디셔닝') === '파워 향상'
   );
 
   /*
@@ -2051,7 +2051,7 @@ console.log('\n[오늘의 목표] 일정을 만들 때마다 고르는가');
    */
   check(
     '안 고르면 지난번 목표로 간다',
-    readTrainingGoal(new FormData(), '부상 방지') === '부상 방지'
+    readTrainingGoal(new FormData(), '컨디셔닝') === '컨디셔닝'
   );
   check('지난번도 없으면 비운다', readTrainingGoal(new FormData(), null) === null);
 
@@ -2076,8 +2076,8 @@ console.log('\n[목표 안의 부위] 상체를 밀기·당기기로 가르는�
    */
   check(
     '고르게 하는 목표는 부위를 못 좁힌다',
-    focusesFor('균형 잡힌 관리').length === 0 && focusesFor('부상 방지').length === 0,
-    '균형·부상 방지 모두 선택지 없음'
+    focusesFor('균형 잡힌 관리').length === 0 && focusesFor('컨디셔닝').length === 0,
+    '균형·컨디셔닝 모두 선택지 없음'
   );
   check(
     '근력은 넷으로 갈린다 — 상체를 통째로 하는 것도 고를 수 있다',
@@ -2513,8 +2513,8 @@ console.log('\n[AI 맞춤] 규칙이 울타리를 치고, 그 밖의 답은 받�
     signals({ volume: { ...signals().volume, armCare: { sets: 0, previous: 3 } } })
   );
   check(
-    '운동은 했는데 암케어가 0세트 → 초안은 부상 방지',
-    armGap.draft.goal === PREVENTION_GOAL,
+    '운동은 했는데 암케어가 0세트 → 초안은 컨디셔닝',
+    armGap.draft.goal === CONDITIONING_GOAL,
     armGap.draft.reason
   );
   const newcomer = fenceFor(
@@ -2533,18 +2533,18 @@ console.log('\n[AI 맞춤] 규칙이 울타리를 치고, 그 밖의 답은 받�
 
   const loaded = fenceFor(factsWith({}), signals({ zone: 'caution', ratio: 1.41 }));
   check(
-    '운동 부하 주의 → 부상 방지로 고정',
-    loaded.fixedGoal === PREVENTION_GOAL && loaded.goals.length === 1
+    '운동 부하 주의 → 컨디셔닝으로 고정',
+    loaded.fixedGoal === CONDITIONING_GOAL && loaded.goals.length === 1
   );
   check(
     '운동 부하 주의 → 시간 한 단계 줄임 (60 → 40)',
-    JSON.stringify(loaded.minutes[PREVENTION_GOAL]) === '[40]',
+    JSON.stringify(loaded.minutes[CONDITIONING_GOAL]) === '[40]',
     JSON.stringify(loaded.minutes)
   );
   check(
-    '부상 방지로 정해진 근력 날 → AI에게도 부상 방지 데이로 알린다',
-    loaded.day.label === PREVENTION_DAY_LABEL &&
-      plain.day.label !== PREVENTION_DAY_LABEL,
+    '컨디셔닝으로 정해진 근력 날 → AI에게도 컨디셔닝 데이로 알린다',
+    loaded.day.label === CONDITIONING_DAY_LABEL &&
+      plain.day.label !== CONDITIONING_DAY_LABEL,
     `${loaded.day.label} / 평소 ${plain.day.label}`
   );
   const loadedLong = fenceFor(
@@ -2553,16 +2553,16 @@ console.log('\n[AI 맞춤] 규칙이 울타리를 치고, 그 밖의 답은 받�
     120
   );
   check(
-    '기본 120분 + 부하 위험 → 부상 방지 90에서 한 단계 줄여 60까지',
-    JSON.stringify(loadedLong.minutes[PREVENTION_GOAL]) === '[40,60]',
+    '기본 120분 + 부하 위험 → 컨디셔닝 90에서 한 단계 줄여 60까지',
+    JSON.stringify(loadedLong.minutes[CONDITIONING_GOAL]) === '[40,60]',
     JSON.stringify(loadedLong.minutes)
   );
 
   const tired = fenceFor(factsWith({ sleep: '부족', poorSleepPast: 2 }));
   check(
-    '오늘 포함 잠 부족 3일 → 부상 방지, 시간 줄임',
-    tired.fixedGoal === PREVENTION_GOAL &&
-      JSON.stringify(tired.minutes[PREVENTION_GOAL]) === '[40]',
+    '오늘 포함 잠 부족 3일 → 컨디셔닝, 시간 줄임',
+    tired.fixedGoal === CONDITIONING_GOAL &&
+      JSON.stringify(tired.minutes[CONDITIONING_GOAL]) === '[40]',
     tired.rules.join(' / ')
   );
   const oneNight = fenceFor(factsWith({ sleep: '부족' }));
@@ -2581,8 +2581,8 @@ console.log('\n[AI 맞춤] 규칙이 울타리를 치고, 그 밖의 답은 받�
     factsWith({ wants: '파워', pitches: [90, 0, 0, 0, 0, 0, 0] })
   );
   check(
-    '파워를 골랐지만 어제 90구 → 회복날, 부상 방지로 고정',
-    !clashed.strengthDay && clashed.fixedGoal === PREVENTION_GOAL,
+    '파워를 골랐지만 어제 90구 → 회복날, 컨디셔닝으로 고정',
+    !clashed.strengthDay && clashed.fixedGoal === CONDITIONING_GOAL,
     clashed.day.label
   );
   check(
@@ -2602,7 +2602,7 @@ console.log('\n[AI 맞춤] 규칙이 울타리를 치고, 그 밖의 답은 받�
   check(
     '회복날에는 시간을 두 번 줄이지 않는다 (회복날이 이미 줄임)',
     low.day.key === 'recovery' &&
-      JSON.stringify(low.minutes[PREVENTION_GOAL]) === '[40,60]',
+      JSON.stringify(low.minutes[CONDITIONING_GOAL]) === '[40,60]',
     JSON.stringify(low.minutes)
   );
 
@@ -2716,8 +2716,8 @@ console.log('\n[AI 맞춤] 규칙이 울타리를 치고, 그 밖의 답은 받�
   const quiet = acceptAnswer(
     {
       ...good,
-      goal: PREVENTION_GOAL,
-      minutes: clashed.minutes[PREVENTION_GOAL][0],
+      goal: CONDITIONING_GOAL,
+      minutes: clashed.minutes[CONDITIONING_GOAL][0],
       reason: '오늘은 가볍게 몸을 풉니다.',
     },
     clashInput,
@@ -2733,7 +2733,7 @@ console.log('\n[AI 맞춤] 규칙이 울타리를 치고, 그 밖의 답은 받�
   const schema = autoSetupSchema(loaded);
   check(
     '모양 검사: 울타리 안 → 통과',
-    schema.safeParse({ ...good, goal: PREVENTION_GOAL, minutes: 40 }).success
+    schema.safeParse({ ...good, goal: CONDITIONING_GOAL, minutes: 40 }).success
   );
   check('모양 검사: 울타리 밖 목표 → 떨어짐', !schema.safeParse(good).success);
 
@@ -2748,8 +2748,8 @@ console.log('\n[AI 맞춤] 규칙이 울타리를 치고, 그 밖의 답은 받�
   );
 
   check(
-    '근력 날에 AI가 부상 방지를 고를 수 있으면 → 그날 이름이 바뀐다고 알려 준다',
-    buildAutoPrompt(input).includes(PREVENTION_DAY_LABEL)
+    '근력 날에 AI가 컨디셔닝을 고를 수 있으면 → 그날 이름이 바뀐다고 알려 준다',
+    buildAutoPrompt(input).includes(CONDITIONING_DAY_LABEL)
   );
 
   /*
@@ -2814,10 +2814,10 @@ console.log('\n[AI 맞춤] 규칙이 울타리를 치고, 그 밖의 답은 받�
   );
 }
 
-console.log('\n[부상 방지 데이] 무게 드는 운동이 없는 날은 이름도 그렇게');
+console.log('\n[컨디셔닝 데이] 무게 드는 운동이 없는 날은 이름도 그렇게');
 {
   /*
-   * 부상 방지는 무게 드는 구간을 통째로 뺀다. 그런데 이름은 번갈아 정한
+   * 컨디셔닝은 무게 드는 구간을 통째로 뺀다. 그런데 이름은 번갈아 정한
    * '하체 스트렝스 데이'가 그대로 남아, 목록에 하체 근력 운동이 하나도 없는데
    * 제목만 하체였다(2026-09-23 고침).
    */
@@ -2837,25 +2837,25 @@ console.log('\n[부상 방지 데이] 무게 드는 운동이 없는 날은 이�
     });
   };
 
-  const prevention = make(PREVENTION_GOAL);
+  const conditioning = make(CONDITIONING_GOAL);
   check(
-    '근력 날 + 부상 방지 → 부상 방지 데이',
-    !isHalted(prevention) && prevention.theme.label === PREVENTION_DAY_LABEL,
-    isHalted(prevention) ? '멈춤' : prevention.theme.label
+    '근력 날 + 컨디셔닝 → 컨디셔닝 데이',
+    !isHalted(conditioning) && conditioning.theme.label === CONDITIONING_DAY_LABEL,
+    isHalted(conditioning) ? '멈춤' : conditioning.theme.label
   );
   check(
-    '부상 방지 데이에는 무게 드는 본운동 구간이 없다',
-    !isHalted(prevention) && prevention.picks.every((p) => p.slot !== 'main'),
-    isHalted(prevention)
+    '컨디셔닝 데이에는 무게 드는 본운동 구간이 없다',
+    !isHalted(conditioning) && conditioning.picks.every((p) => p.slot !== 'main'),
+    isHalted(conditioning)
       ? ''
-      : [...new Set(prevention.picks.map((p) => p.slot))].join(', ')
+      : [...new Set(conditioning.picks.map((p) => p.slot))].join(', ')
   );
   check(
     '차례는 그대로 — 오늘 못 한 근력은 다음 근력 날로',
-    !isHalted(prevention) &&
-      (prevention.theme.key === 'lower' || prevention.theme.key === 'upper') &&
-      prevention.theme.reason.includes('다음 근력 날'),
-    isHalted(prevention) ? '' : prevention.theme.reason
+    !isHalted(conditioning) &&
+      (conditioning.theme.key === 'lower' || conditioning.theme.key === 'upper') &&
+      conditioning.theme.reason.includes('다음 근력 날'),
+    isHalted(conditioning) ? '' : conditioning.theme.reason
   );
 
   const strength = make('근력 향상');
@@ -2865,9 +2865,9 @@ console.log('\n[부상 방지 데이] 무게 드는 운동이 없는 날은 이�
     isHalted(strength) ? '' : strength.theme.label
   );
 
-  const recovery = make(PREVENTION_GOAL, { condition: 3 });
+  const recovery = make(CONDITIONING_GOAL, { condition: 3 });
   check(
-    '회복날은 부상 방지를 골라도 회복 데이 그대로',
+    '회복날은 컨디셔닝을 골라도 회복 데이 그대로',
     !isHalted(recovery) && recovery.theme.label === '회복·재생 데이',
     isHalted(recovery) ? '' : recovery.theme.label
   );

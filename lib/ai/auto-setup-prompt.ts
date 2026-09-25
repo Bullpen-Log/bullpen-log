@@ -22,8 +22,8 @@ import {
 import type { ReportFacts } from '@/lib/report/facts';
 import { extractPitchCounts } from '@/lib/ai/report-prompt';
 import {
-  PREVENTION_DAY_LABEL,
-  PREVENTION_GOAL,
+  CONDITIONING_DAY_LABEL,
+  CONDITIONING_GOAL,
   effectiveMinutes,
 } from '@/lib/report/theme';
 
@@ -286,14 +286,14 @@ export function buildAutoPrompt(input: AutoPromptInput): string {
   for (const goal of fence.goals) {
     const desc = TRAINING_GOALS.find((g) => g.name === goal)?.desc;
     /*
-     * 근력 날에 부상 방지를 고르면 그날은 부상 방지 데이가 된다(preventionDay).
+     * 근력 날에 컨디셔닝을 고르면 그날은 컨디셔닝 데이가 된다(conditioningDay).
      * 미리 알려야 이유에 "하체 위주로" 같은 말을 쓰지 않는다.
      */
     const note =
       fence.strengthDay &&
-      goal === PREVENTION_GOAL &&
-      fence.day.label !== PREVENTION_DAY_LABEL
-        ? ` (고르면 오늘은 '${PREVENTION_DAY_LABEL}'가 되어 무게 드는 운동 없이 코어·보강·암케어로 채웁니다)`
+      goal === CONDITIONING_GOAL &&
+      fence.day.label !== CONDITIONING_DAY_LABEL
+        ? ` (고르면 오늘은 '${CONDITIONING_DAY_LABEL}'가 되어 무게 드는 운동 없이 코어·보강·암케어로 채웁니다)`
         : '';
     lines.push(`  - ${goal}${desc ? ` — ${desc}` : ''}${note}`);
   }
