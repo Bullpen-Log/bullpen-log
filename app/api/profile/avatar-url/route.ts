@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getCurrentUser } from '@/lib/dal';
 import {
+  AVATAR_TYPES,
   MAX_AVATAR_BYTES,
   createAvatarUploadTarget,
   isStorageConfigured,
@@ -31,9 +32,9 @@ export async function POST(req: Request) {
   try {
     const { fileSize, fileType } = await req.json();
 
-    if (typeof fileType !== 'string' || !fileType.startsWith('image/')) {
+    if (typeof fileType !== 'string' || !AVATAR_TYPES.includes(fileType)) {
       return NextResponse.json(
-        { error: '사진 파일만 올릴 수 있습니다' },
+        { error: '사진은 JPG·PNG·WebP·GIF 만 올릴 수 있습니다' },
         { status: 400 }
       );
     }

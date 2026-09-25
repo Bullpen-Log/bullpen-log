@@ -31,6 +31,10 @@ model User {
   role                Role      @default(USER)
   /// 생년월일. 나이에 따라 안전한 투구수 한도가 달라져 투구량 조언에 필요하다.
   birthDate           DateTime? @db.Date
+  /// 성별 'M' | 'F'. 가입할 때 받고 내 정보에서 고친다. 영양 목표의 기초대사량 계산에 쓴다.
+  /// 비어 있으면(이 칸이 생기기 전에 가입한 계정) 영양은 남녀 식의 가운데 값으로 셈한다.
+  /// 값은 lib/profile.ts 의 SEXES 안에서만 쓴다.
+  sex                 String?
   /// 키(cm). 영상에서 잰 길이를 몸 크기로 나눠 비교할 때 쓴다.
   heightCm            Int?
   /// 몸무게(kg). 소수 한 자리까지 적을 수 있어 Float 으로 둔다.
@@ -857,7 +861,10 @@ model PatchNote {
 model NutritionProfile {
   id           String   @id @default(uuid())
   userId       String   @unique
-  /// 'M' | 'F'. 기초대사량 계산에만 쓴다. 비어 있으면 둘의 가운데 값으로 셈한다.
+  /// 더는 읽지도 쓰지도 않는다 — 성별은 계정(User.sex)으로 옮겼다(2026-09-26).
+  /// 옛 배포가 아직 이 칸을 읽을 수 있어 바로 지우지 않는다. 새 코드가 배포된 뒤
+  /// 따로 지운다(물 칸을 뺀 것과 같은 두 단계). 스키마에서 먼저 빼면 다음
+  /// migrate diff 가 DROP COLUMN 을 만들어 버리니, 지울 때까지 여기 둔다.
   sex          String?
   /// 'gain' 증량 · 'maintain' 유지 · 'lose' 감량
   goal         String   @default("maintain")

@@ -1,11 +1,12 @@
 import { ViewTransition } from 'react';
 import { requireUser } from '@/lib/dal';
-import { toDateInputValue } from '@/lib/profile';
+import { isSex, toDateInputValue } from '@/lib/profile';
 import { toDateKey } from '@/lib/pitch-stats';
 import { createAvatarUrl } from '@/lib/storage';
 import { MOBILE_TABS, quickTabs, visibleGroups } from '@/lib/nav';
 import { AppNav } from '@/components/app-shell';
 import { CheckinGate } from '@/components/checkin-gate';
+import { RefreshOnReturn } from '@/components/refresh-on-return';
 import type { CheckinData } from '@/components/checkin-form';
 import { prisma } from '@/lib/prisma';
 import { pickCheckinDetail, pickCheckinParts } from '@/lib/checkin';
@@ -79,6 +80,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           email: user.email,
           nickname: user.nickname,
           birthDate: user.birthDate ? toDateInputValue(user.birthDate) : '',
+          sex: isSex(user.sex) ? user.sex : null,
           heightCm: user.heightCm,
           weightKg: user.weightKg,
           wingspanCm: user.wingspanCm,
@@ -111,6 +113,9 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         recent={gateCheckins}
         parts={availableParts(library)}
       />
+
+      {/* 오래 비워 둔 탭으로 돌아오면 새로 받는다 — 다른 기기에서 바꾼 사진·정보가 보이게 */}
+      <RefreshOnReturn />
 
       {/*
         위쪽만 비운다.

@@ -1,12 +1,15 @@
 import { AvatarPicker } from '@/app/(app)/profile/avatar-picker';
 import { ProfileForm } from '@/app/(app)/profile/profile-form';
 import { AccountActions } from '@/app/(app)/profile/account-actions';
+import type { Sex } from '@/lib/profile';
 
 export type ProfileData = {
   email: string;
   nickname: string;
   /** YYYY-MM-DD. 아직 안 적었으면 빈 문자열 */
   birthDate: string;
+  /** 'M' | 'F'. 이 칸이 생기기 전에 가입했으면 null */
+  sex: Sex | null;
   heightCm: number | null;
   weightKg: number | null;
   wingspanCm: number | null;
@@ -56,6 +59,7 @@ export function ProfilePanel({
         <ProfileForm
           nickname={data.nickname}
           birthDate={data.birthDate}
+          sex={data.sex}
           heightCm={data.heightCm}
           weightKg={data.weightKg}
           wingspanCm={data.wingspanCm}

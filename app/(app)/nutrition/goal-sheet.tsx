@@ -11,7 +11,6 @@ import {
   kcalText,
   type ActivityKey,
   type GoalKey,
-  type Sex,
 } from '@/lib/nutrition/meta';
 import {
   computeTargets,
@@ -56,7 +55,6 @@ export function GoalSheet({
   body: Body;
   assumed: Assumed[];
 }) {
-  const [sex, setSex] = useState<Sex | null>(profile.sex);
   const [goal, setGoal] = useState<GoalKey>(profile.goal);
   const [activity, setActivity] = useState<ActivityKey>(profile.activity);
   const [protein, setProtein] = useState(profile.proteinPerKg);
@@ -72,7 +70,6 @@ export function GoalSheet({
     manual && kcal.trim() !== '' && Number.isFinite(kcalNum) ? kcalNum : null;
 
   const draft: ProfileSettings = {
-    sex,
     goal,
     activity,
     proteinPerKg: protein,
@@ -101,6 +98,7 @@ export function GoalSheet({
     `${Math.round(preview.weightKg * 10) / 10}kg${assumed.includes('weight') ? '(짐작)' : ''}`,
     body.heightCm ? `${body.heightCm}cm` : '키 178cm(짐작)',
     body.age ? `${body.age}세` : '20세(짐작)',
+    body.sex ? SEXES.find((s) => s.key === body.sex)?.label : '성별 모름(남녀 가운데 값)',
   ].join(' · ');
 
   return (
@@ -134,20 +132,10 @@ export function GoalSheet({
           />
         </Row>
 
-        <Row
-          label="성별"
-          hint={sex ? undefined : '고르지 않으면 남녀 식의 가운데 값으로 셈해요.'}
-        >
-          <Segmented
-            label="성별"
-            size="md"
-            itemClassName={BIG}
-            value={sex ?? ''}
-            onChange={(v) => setSex(v as Sex)}
-            options={SEXES.map((s) => ({ value: s.key, label: s.label }))}
-          />
-        </Row>
-
+        {/*
+          성별은 여기서 고르지 않는다 — 계정에 있다(가입할 때 고르고 내 정보에서
+          바꾼다). 아래 '계산에 쓴 몸' 줄에 무엇으로 셈했는지만 보여 준다.
+        */}
         <Row
           label="단백질 (체중 1kg 당)"
           hint="선수에게 권하는 범위는 1.6~2.2g 이에요. 감량 중이면 높게 잡으세요."
@@ -218,7 +206,9 @@ export function GoalSheet({
             기초대사량 {kcalText(preview.bmr)}kcal
             <br />
             계산에 쓴 몸: {bodyLine}
-            {assumed.some((a) => a !== 'sex') && ' — 내 정보에서 채우면 더 정확해져요.'}
+            {assumed.length > 0 && ' — 내 정보에서 채우면 더 정확해져요.'}
+            <br />
+            성별·키·몸무게·생년월일은 내 정보(오른쪽 위 내 사진)에서 바꿔요.
           </p>
         </section>
 

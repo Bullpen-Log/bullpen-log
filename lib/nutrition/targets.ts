@@ -23,8 +23,11 @@ import {
  *             저절로 늘어난다 — 던지는 날 먹어야 할 것이 바로 탄수화물이다.
  */
 
+/*
+ * 성별은 여기 없다 — 몸에 대한 사실이라 키·나이처럼 계정에서 오고(User.sex),
+ * 아래 Body 에 실려 온다. 한동안 영양 목표 창에서 따로 골랐다.
+ */
 export type ProfileSettings = {
-  sex: Sex | null;
   goal: GoalKey;
   activity: ActivityKey;
   proteinPerKg: number;
@@ -33,7 +36,6 @@ export type ProfileSettings = {
 };
 
 export const DEFAULT_PROFILE: ProfileSettings = {
-  sex: null,
   goal: 'maintain',
   activity: 'mid',
   proteinPerKg: 1.8,
@@ -44,6 +46,8 @@ export type Body = {
   weightKg: number | null;
   heightCm: number | null;
   age: number | null;
+  /** 계정의 성별(내 정보). 이 칸이 생기기 전에 가입했으면 null */
+  sex: Sex | null;
 };
 
 /**
@@ -111,9 +115,9 @@ export function computeTargets(
   const weightKg = body.weightKg ?? (assumed.push('weight'), FALLBACK.weightKg);
   const heightCm = body.heightCm ?? (assumed.push('height'), FALLBACK.heightCm);
   const age = body.age ?? (assumed.push('age'), FALLBACK.age);
-  if (!profile.sex) assumed.push('sex');
+  if (!body.sex) assumed.push('sex');
 
-  const bmr = Math.round(basalKcal(weightKg, heightCm, age, profile.sex));
+  const bmr = Math.round(basalKcal(weightKg, heightCm, age, body.sex));
   const activity = ACTIVITIES.find((a) => a.key === profile.activity) ?? ACTIVITIES[1];
   const goal = GOALS.find((g) => g.key === profile.goal) ?? GOALS[1];
 

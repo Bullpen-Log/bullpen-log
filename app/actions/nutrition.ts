@@ -269,8 +269,15 @@ export async function unfavoriteFood(
   return { ok: true };
 }
 
+/*
+ * 성별은 여기서 고르지 않는다 — 계정(User.sex)에 있고 내 정보에서 고친다.
+ * NutritionProfile.sex 칸은 더 쓰지 않는다(나중에 지운다).
+ *
+ * 다만 배포 전에 열어 둔 영양 화면은 아직 성별 칸을 보낸다(legacySex). 계정의
+ * 성별이 비어 있을 때만 그 값으로 채운다 — 버리면 고른 것이 사라지고, 비어 있지
+ * 않은데 덮으면 내 정보에서 새로 고른 것을 옛 화면의 값이 되돌린다.
+ */
 export type ProfileInput = {
-  sex: string | null;
   goal: string;
   activity: string;
   proteinPerKg: number;
@@ -283,8 +290,6 @@ export async function saveNutritionProfile(
   const user = await getCurrentUser();
   if (!user) return NEED_LOGIN;
 
-  const sex = input.sex === null ? null : isSex(input.sex) ? input.sex : undefined;
-  if (sex === undefined) return { ok: false, error: '성별을 다시 골라 주세요.' };
   if (!isGoalKey(input.goal)) return { ok: false, error: '목표를 다시 골라 주세요.' };
   if (!isActivityKey(input.activity))
     return { ok: false, error: '평소 움직임을 다시 골라 주세요.' };
@@ -311,7 +316,6 @@ export async function saveNutritionProfile(
   }
 
   const data = {
-    sex,
     goal: input.goal,
     activity: input.activity,
     proteinPerKg: Math.round(input.proteinPerKg * 10) / 10,
@@ -322,6 +326,14 @@ export async function saveNutritionProfile(
     update: data,
     create: { userId: user.id, ...data },
   });
+
+  const legacySex = (input as { sex?: unknown }).sex;
+  if (user.sex === null && isSex(legacySex)) {
+    await prisma.user.update({ where: { id: user.id }, data: { sex: legacySex } });
+    /* 내 정보 창의 성별도 따라 바뀌게(그 값은 레이아웃이 내려보낸다) */
+    revalidatePath('/', 'layout');
+  }
+
   revalidatePath(PATH);
   return { ok: true };
 }

@@ -17,6 +17,7 @@ import {
   DEFAULT_PROFILE,
   ageOn,
   computeTargets,
+  type Body,
   type ProfileSettings,
   type Targets,
 } from '@/lib/nutrition/targets';
@@ -74,7 +75,7 @@ export type NutritionDay = {
   /** 전날 먹은 것 — '어제와 같이' 담기에 쓴다 */
   yesterday: MealEntryView[];
   /** 목표 계산에 쓴 몸 정보 — 목표 설정 창이 미리 계산해 보여 준다 */
-  body: { weightKg: number | null; heightCm: number | null; age: number | null };
+  body: Body;
   /** 식약처 검색을 쓸 수 있나(인증키가 있나) */
   mfds: boolean;
   /** 모든 사람이 가장 많이 담은 20가지 — '전체 음식 → 인기' */
@@ -91,6 +92,8 @@ export type NutritionDay = {
 type UserBody = {
   id: string;
   birthDate: Date | null;
+  /** 계정의 성별 'M' | 'F' — 내 정보에서 고친다 */
+  sex: string | null;
   heightCm: number | null;
   weightKg: number | null;
 };
@@ -100,9 +103,12 @@ const WEIGHT_DAYS = 30;
 const RECENT_DAYS = 30;
 const RECENT_MAX = 24;
 
+/*
+ * 성별은 여기서 읽지 않는다. 영양 목표 줄(NutritionProfile)에도 sex 칸이 남아 있지만
+ * 더는 쓰지 않는다 — 성별은 계정(User.sex)에 있고 몸 정보(Body)로 따라온다.
+ */
 export function toProfile(
   row: {
-    sex: string | null;
     goal: string;
     activity: string;
     proteinPerKg: number;
@@ -111,7 +117,6 @@ export function toProfile(
 ): ProfileSettings {
   if (!row) return DEFAULT_PROFILE;
   return {
-    sex: isSex(row.sex) ? row.sex : null,
     goal: isGoalKey(row.goal) ? row.goal : DEFAULT_PROFILE.goal,
     activity: isActivityKey(row.activity) ? row.activity : DEFAULT_PROFILE.activity,
     proteinPerKg: row.proteinPerKg,
@@ -251,10 +256,11 @@ export async function loadNutritionDay(
     );
   }
 
-  const body = {
+  const body: Body = {
     weightKg: bodyKg,
     heightCm: user.heightCm,
     age: ageOn(user.birthDate, date),
+    sex: isSex(user.sex) ? user.sex : null,
   };
   const burnItems = burnByDay.get(date) ?? [];
   const targets = computeTargets(profile, body, totalBurn(burnItems));

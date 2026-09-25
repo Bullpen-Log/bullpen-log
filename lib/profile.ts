@@ -47,6 +47,29 @@ export function checkOptionalNumber(
   return { value: Number(parsed.toFixed(1)) };
 }
 
+/**
+ * 성별 — 계정에 딸린 값(User.sex). 가입할 때 고르고 내 정보에서 바꾼다.
+ *
+ * 영양 목표의 기초대사량 식(남녀 상수가 다르다)에 쓴다. 처음에는 영양 목표 창에서
+ * 따로 골랐는데, 몸에 대한 사실이라 키·생년월일처럼 계정에 두는 편이 맞다 —
+ * 영양 탭에서 한 번, 다른 곳에서 또 한 번 묻게 되면 둘이 어긋난다.
+ *
+ * 가입 화면과 내 정보는 클라이언트 컴포넌트라, DB 를 모르는 이 파일에 둔다.
+ */
+export const SEXES = [
+  { key: 'M', label: '남' },
+  { key: 'F', label: '여' },
+] as const;
+
+export type Sex = (typeof SEXES)[number]['key'];
+
+export function isSex(v: unknown): v is Sex {
+  return v === 'M' || v === 'F';
+}
+
+/** 폼의 라디오 단추용 — 보이는 글자('남')와 보내는 값('M')이 다르다 */
+export const SEX_OPTIONS = SEXES.map((s) => ({ name: s.label, value: s.key }));
+
 /** 이 범위를 벗어난 생년월일은 잘못 입력한 것으로 본다. */
 export const MIN_AGE = 5;
 export const MAX_AGE = 100;

@@ -9,7 +9,7 @@ import { Segmented } from '@/components/segmented';
 import { RadioGroup } from '@/components/choice-inputs';
 import { kept } from '@/lib/form-values';
 import { readLoginPrefs, saveLoginPrefs } from '@/lib/login-prefs';
-import { MAX_HEIGHT_CM, MIN_HEIGHT_CM } from '@/lib/profile';
+import { MAX_HEIGHT_CM, MIN_HEIGHT_CM, SEX_OPTIONS } from '@/lib/profile';
 import {
   BASELINE_FREQ_NAMES,
   BASELINE_INTENSITY_NAMES,
@@ -248,9 +248,24 @@ export function AuthForm({ today }: { today: string }) {
               </Field>
             </div>
 
+            {/*
+              성별 — 영양 목표(기초대사량)를 계산하는 기준이라 가입할 때 받는다.
+              예전에는 영양 탭의 목표 창에서 따로 골랐다. 몸에 대한 사실이라 계정에
+              두고, 바꾸는 것도 내 정보 한 곳에서만 한다.
+            */}
+            <RadioGroup
+              label="성별"
+              name="sex"
+              options={SEX_OPTIONS}
+              required
+              compact
+              selected={kept(before, 'sex')}
+            />
+
             <p className="text-xs leading-relaxed text-muted/70">
-              생년월일은 나이에 맞는 안전한 투구수를 계산하는 데 쓰입니다. 키는 나중에
-              입력해도 됩니다.
+              생년월일은 나이에 맞는 안전한 투구수를, 성별은 영양 목표를 계산하는 데
+              쓰입니다. 키는 나중에 입력해도 되고, 모두 가입한 뒤 내 정보에서 바꿀 수
+              있습니다.
             </p>
 
             <ChipRow

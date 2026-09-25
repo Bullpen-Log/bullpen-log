@@ -39,8 +39,9 @@ function check(name: string, ok: boolean, detail = '') {
   }
 }
 
-const body = { weightKg: 80, heightCm: 180, age: 20 };
-const profile: ProfileSettings = { ...DEFAULT_PROFILE, sex: 'M' };
+/* 성별은 계정(User.sex)에서 몸 정보로 실려 온다 — 목표 설정(profile)에는 없다 */
+const body = { weightKg: 80, heightCm: 180, age: 20, sex: 'M' as const };
+const profile: ProfileSettings = { ...DEFAULT_PROFILE };
 
 console.log('\n■ 목표 계산');
 {
@@ -60,6 +61,13 @@ console.log('\n■ 목표 계산');
     `${t.carbs}g`
   );
   check('짐작한 것 없음', t.assumed.length === 0);
+
+  const female = computeTargets(profile, { ...body, sex: 'F' }, 0);
+  check(
+    '성별은 몸 정보(계정)에서 온다 — 여자면 기초대사량이 166 낮다',
+    t.bmr - female.bmr === 166,
+    `${t.bmr} → ${female.bmr}`
+  );
 
   const worked = computeTargets(profile, body, 300);
   check(
@@ -82,7 +90,7 @@ console.log('\n■ 목표 계산');
 
   const blank = computeTargets(
     DEFAULT_PROFILE,
-    { weightKg: null, heightCm: null, age: null },
+    { weightKg: null, heightCm: null, age: null, sex: null },
     0
   );
   check(

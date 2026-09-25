@@ -18,11 +18,22 @@ export const MAX_VIDEO_BYTES = 50 * 1024 * 1024; // 50MB
 /**
  * 프로필 사진의 최대 용량.
  *
- * 5MB 면 요즘 폰으로 찍은 사진 한 장이 그대로 들어간다. 화면에는 작게 나오지만
- * 여기서 줄이자고 브라우저에서 다시 그리면 회전 정보가 날아가 사진이 눕는
- * 기기가 있다. 원본을 그대로 받고 보여줄 때 잘라 쓴다.
+ * 브라우저가 올리기 전에 짧은 변 480px 짜리 JPG 로 줄여 보낸다(lib/shrink-image.ts).
+ * 그러면 한 장이 수십~수백 KB 라 이 값에 닿을 일이 없다. 줄이지 않고 곧장 이
+ * 주소를 부르는 경우(옛 화면이 떠 있는 탭 같은)를 막는 울타리로만 남긴다.
+ *
+ * 예전에는 원본을 그대로 받았다. 큰 폰 사진이 여기서 막혀 '사진을 바꿔도 안
+ * 바뀐다'가 됐고, HEIC 사진은 올라가도 PC 에서 보이지 않았다.
  */
 export const MAX_AVATAR_BYTES = 5 * 1024 * 1024; // 5MB
+
+/**
+ * 프로필 사진으로 받는 종류. 어느 브라우저에서나 그려지는 것만 둔다.
+ *
+ * HEIC 는 PC 크롬·엣지가 못 그리고, SVG 는 그림이 아니라 글(스크립트를 품을 수
+ * 있다)이라 뺐다. 지금 화면은 늘 JPG 로 바꿔 보낸다.
+ */
+export const AVATAR_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
 
 /**
  * 프로필 사진 이름 앞에 붙이는 말.
@@ -200,6 +211,20 @@ export function isOwnedBy(path: string, userId: string) {
 }
 
 /**
+ * 그 사용자의 프로필 사진 자리인가 — `{userId}/avatar-….ext` 만.
+ *
+ * 사진을 바꿀 때 쓰던 사진 파일을 지운다. 폴더만 보면 자기 투구 영상 경로를
+ * 사진으로 걸 수 있고, 그러면 다음에 사진을 바꿀 때 그 영상이 지워진다.
+ */
+export function isOwnAvatarPath(path: string, userId: string) {
+  return (
+    path.startsWith(`${userId}/${AVATAR_PREFIX}`) &&
+    !path.includes('..') &&
+    !path.slice(userId.length + 1).includes('/')
+  );
+}
+
+/**
  * 투구 영상 미리보기 이름 앞에 붙이는 말. 사진(avatar-)처럼 사용자 폴더 안에서
  * 영상과 가려낼 수 있게 한다.
  */
@@ -264,7 +289,7 @@ export async function createAvatarUploadTarget(userId: string, fileType: string)
    * 확장자는 파일 이름이 아니라 종류에서 뽑는다.
    *
    * 이름은 사용자가 정하는 값이라 '사진.exe' 같은 것도 올 수 있다. 종류는
-   * 브라우저가 붙이는 값이고, 서버가 이미 image/* 인지 확인한 뒤에 넘어온다.
+   * 브라우저가 붙이는 값이고, 서버가 이미 AVATAR_TYPES 안인지 확인한 뒤에 넘어온다.
    */
   const ext = fileType.split('/')[1]?.replace(/[^a-z0-9]/g, '').slice(0, 5) || 'jpg';
   const path = `${userId}/${AVATAR_PREFIX}${crypto.randomUUID()}.${ext}`;

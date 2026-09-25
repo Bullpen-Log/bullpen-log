@@ -31,6 +31,7 @@ import {
   MIN_HEIGHT_CM,
   MIN_WEIGHT_KG,
   MIN_WINGSPAN_CM,
+  SEX_OPTIONS,
 } from '@/lib/profile';
 import { TARGET_VELOCITY_MAX, TARGET_VELOCITY_MIN } from '@/lib/velocity';
 import { RadioGroup } from '@/components/choice-inputs';
@@ -185,6 +186,7 @@ function TargetVelocityField({ base }: { base: string }) {
 export function ProfileForm({
   nickname,
   birthDate,
+  sex,
   heightCm,
   weightKg,
   wingspanCm,
@@ -196,6 +198,8 @@ export function ProfileForm({
 }: {
   nickname: string;
   birthDate: string;
+  /** 'M' | 'F'. 이 칸이 생기기 전에 가입했으면 비어 있다 */
+  sex: string | null;
   heightCm: number | null;
   weightKg: number | null;
   wingspanCm: number | null;
@@ -297,6 +301,20 @@ export function ProfileForm({
 
         <TargetVelocityField base={pick('targetVelocity', targetVelocity)} />
       </div>
+
+      {/*
+        성별 — 가입할 때 고른 값. 영양 목표(기초대사량)가 이 값으로 셈한다.
+        이 칸이 생기기 전에 가입한 계정은 비어 있다. 꼭 고르게 하지는 않는다 —
+        닉네임 하나 고치려다 막히면 안 된다. 안 고르면 지금 값을 그대로 둔다.
+      */}
+      <RadioGroup
+        name="sex"
+        label="성별"
+        hint="영양 목표(기초대사량)를 계산하는 데 씁니다."
+        options={SEX_OPTIONS}
+        selected={pick('sex', sex)}
+        compact
+      />
 
       {/* 하루 운동 시간 — 트레이닝 화면이 이 시간에 맞춰 종목 수를 정한다. */}
       <RadioGroup

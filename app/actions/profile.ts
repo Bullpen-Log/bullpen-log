@@ -9,13 +9,14 @@ import {
   MAX_WINGSPAN_CM,
   MIN_WEIGHT_KG,
   MIN_WINGSPAN_CM,
+  isSex,
   validateProfile,
 } from '@/lib/profile';
 import { validateBaseline } from '@/lib/baseline';
 import { validateTargetVelocity } from '@/lib/velocity';
 import { WORKOUT_MINUTES_CHOICES } from '@/lib/report/theme';
 import { withInput, type FormValues } from '@/lib/form-values';
-import { deleteVideos, isOwnedBy } from '@/lib/storage';
+import { deleteVideos, forgetPlaybackUrls, isOwnAvatarPath } from '@/lib/storage';
 
 export type ProfileState =
   | {
@@ -95,6 +96,19 @@ async function tryUpdateProfile(formData: FormData): Promise<ProfileState> {
   if ('error' in target) return target;
 
   /*
+   * 성별 — 영양 목표의 기초대사량 계산에 쓴다.
+   *
+   * 안 고르고 저장하면 지금 값을 그대로 둔다. 이 칸이 생기기 전에 가입한 계정은
+   * 비어 있어서, 여기서 꼭 고르라고 하면 닉네임 하나 고치려다 막힌다.
+   */
+  const rawSex = String(formData.get('sex') ?? '').trim();
+  let sexValue = {};
+  if (rawSex !== '') {
+    if (!isSex(rawSex)) return { error: '성별을 다시 골라주세요.' };
+    sexValue = { sex: rawSex };
+  }
+
+  /*
    * 하루 운동 시간 — "45분" 형태로 오므로 숫자만 꺼내 허용 목록과 대조한다.
    * 안 고르고 저장하면(기존 화면 등) 지금 값을 그대로 둔다.
    */
@@ -113,6 +127,7 @@ async function tryUpdateProfile(formData: FormData): Promise<ProfileState> {
     data: {
       nickname,
       ...checked.value,
+      ...sexValue,
       weightKg: weight.value,
       wingspanCm: wingspan.value,
       ...baselineValue,
@@ -126,7 +141,7 @@ async function tryUpdateProfile(formData: FormData): Promise<ProfileState> {
     },
   });
 
-  // 헤더의 닉네임과 대시보드 안내 문구가 바로 반영되게 한다.
+  // 헤더의 닉네임과 대시보드 안내 문구가 바로 반영되게 한다(성별이 바뀌면 영양 목표도).
   revalidatePath('/', 'layout');
 
   return { success: '저장했습니다.' };
@@ -139,8 +154,9 @@ async function tryUpdateProfile(formData: FormData): Promise<ProfileState> {
  * 여기서는 '어느 파일이 내 사진인가'만 적는다.
  *
  * 경로를 그대로 믿지 않는다. 폼에서 오는 값이라 남의 폴더를 가리켜 보낼 수
- * 있는데, 그러면 남의 사진을 자기 프로필로 걸 수 있다. 본인 폴더인지 여기서
- * 확인한다(isOwnedBy).
+ * 있는데, 그러면 남의 사진을 자기 프로필로 걸 수 있다. 본인 사진 자리인지 여기서
+ * 확인한다(isOwnAvatarPath) — 본인 폴더인지만 보면 자기 투구 영상을 사진으로 걸
+ * 수 있고, 다음에 사진을 바꿀 때 그 영상이 '쓰던 사진'으로 지워진다.
  *
  * 쓰던 사진은 새것이 자리를 잡은 뒤에 지운다. 먼저 지우면 저장이 실패했을 때
  * 사진만 사라진다.
@@ -149,20 +165,35 @@ export async function saveAvatar(path: string | null): Promise<ProfileState> {
   const user = await getCurrentUser();
   if (!user) return { error: '로그인이 필요합니다.' };
 
-  if (path != null && !isOwnedBy(path, user.id)) {
+  if (path != null && !isOwnAvatarPath(path, user.id)) {
     return { error: '올린 사진을 찾지 못했습니다. 다시 시도해주세요.' };
   }
 
   const before = user.avatarPath;
-  if (before === path) return { success: '저장했습니다.' };
+  if (before === path) {
+    /*
+     * 바꿀 것은 없지만 화면은 새로 보낸다. 다른 기기에서 이미 바꾼(지운) 사진을 이
+     * 탭이 옛것으로 들고 있으면, 여기서 새로 그려야 막대의 사진까지 맞춰진다.
+     */
+    revalidatePath('/', 'layout');
+    return { success: '저장했습니다.' };
+  }
 
   await prisma.user.update({
     where: { id: user.id },
     data: { avatarPath: path },
   });
 
-  /* 쓰지 않게 된 파일은 저장소에서도 치운다 — 안 지우면 바꿀 때마다 쌓인다 */
-  if (before) await deleteVideos([before]);
+  /*
+   * 쓰지 않게 된 파일은 저장소에서도 치운다 — 안 지우면 바꿀 때마다 쌓인다.
+   *
+   * 사진 자리일 때만 지운다. 예전(검사가 폴더만 보던 때)에 다른 파일이 사진으로
+   * 걸렸을 수 있다. 들고 있던 옛 주소도 버린다.
+   */
+  if (before) {
+    forgetPlaybackUrls([before]);
+    if (isOwnAvatarPath(before, user.id)) await deleteVideos([before]);
+  }
 
   // 막대와 상단 바의 아바타가 바로 바뀌게 한다.
   revalidatePath('/', 'layout');

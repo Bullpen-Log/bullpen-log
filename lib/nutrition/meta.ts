@@ -64,16 +64,8 @@ export function isActivityKey(v: unknown): v is ActivityKey {
   return typeof v === 'string' && ACTIVITIES.some((a) => a.key === v);
 }
 
-export const SEXES = [
-  { key: 'M', label: '남' },
-  { key: 'F', label: '여' },
-] as const;
-
-export type Sex = (typeof SEXES)[number]['key'];
-
-export function isSex(v: unknown): v is Sex {
-  return v === 'M' || v === 'F';
-}
+/* 성별은 계정에 딸린 값이라 lib/profile.ts 에 있다. 영양 쪽에서도 같은 것을 쓴다. */
+export { SEXES, isSex, type Sex } from '@/lib/profile';
 
 /** 체중 1kg 당 단백질(g). 선수에게 권하는 범위가 1.6~2.2 다. */
 export const PROTEIN_CHOICES = [1.6, 1.8, 2.0, 2.2] as const;

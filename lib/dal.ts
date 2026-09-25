@@ -22,6 +22,8 @@ export const getCurrentUser = cache(async () => {
       avatarPath: true,
       role: true,
       birthDate: true,
+      /* 내 정보에서 고치고, 영양 목표의 기초대사량 계산이 읽는다 */
+      sex: true,
       heightCm: true,
       weightKg: true,
       wingspanCm: true,

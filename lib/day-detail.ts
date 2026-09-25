@@ -3,7 +3,7 @@ import { prisma } from '@/lib/prisma';
 import { trainingDay, type TrainingDayDetail } from '@/lib/report/training-history';
 import { CHECKIN_PARTS, DETAIL_SCALES, pickCheckinParts } from '@/lib/checkin';
 import { dbDate } from '@/lib/nutrition/days';
-import { MEALS, amountText, isMealKey, type MealKey } from '@/lib/nutrition/meta';
+import { MEALS, amountText, isMealKey, isSex, type MealKey } from '@/lib/nutrition/meta';
 import { ageOn, computeTargets } from '@/lib/nutrition/targets';
 import { pitchingBurn, totalBurn, trainingBurn } from '@/lib/nutrition/burn';
 import { toProfile } from '@/lib/nutrition/load';
@@ -55,6 +55,8 @@ export type DayDetail = {
 type UserBody = {
   id: string;
   birthDate: Date | null;
+  /** 계정의 성별 'M' | 'F' — 영양 탭과 같은 목표가 나오려면 같이 넘겨야 한다 */
+  sex: string | null;
   heightCm: number | null;
   weightKg: number | null;
 };
@@ -94,7 +96,12 @@ export async function loadDayDetail(user: UserBody, date: string): Promise<DayDe
   );
   const targets = computeTargets(
     toProfile(profileRow),
-    { weightKg, heightCm: user.heightCm, age: ageOn(user.birthDate, date) },
+    {
+      weightKg,
+      heightCm: user.heightCm,
+      age: ageOn(user.birthDate, date),
+      sex: isSex(user.sex) ? user.sex : null,
+    },
     burn
   );
 

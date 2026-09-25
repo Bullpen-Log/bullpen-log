@@ -6,7 +6,7 @@ import { prisma } from '@/lib/prisma';
 import { getCurrentUser } from '@/lib/dal';
 import { deleteVideos } from '@/lib/storage';
 import { createSession, deleteSession } from '@/lib/session';
-import { validateProfile } from '@/lib/profile';
+import { isSex, validateProfile, type Sex } from '@/lib/profile';
 import { validateBaseline } from '@/lib/baseline';
 import { readTrainingProfile } from '@/lib/report/personalize';
 import { withInput, type FormValues } from '@/lib/form-values';
@@ -66,6 +66,26 @@ async function trySignup(formData: FormData): Promise<AuthState> {
   );
   if ('error' in profile) return profile;
 
+  /*
+   * 성별 — 영양 목표의 기초대사량 계산에 쓴다(남녀 상수가 다르다).
+   *
+   * 가입할 때 꼭 고르게 한다(화면의 단추가 required). 단추 한 번이라 가입이
+   * 무거워지지 않고, 안 고른 계정은 남녀 식의 가운데 값으로 셈해서 목표가 하루
+   * 100kcal 넘게 어긋난다. 나중에 내 정보에서 바꿀 수 있다.
+   *
+   * 칸이 아예 안 왔으면 막지 않고 비워 둔 채로 만든다. 성별 칸이 생기기 전에 열어
+   * 둔 가입 화면이다 — 거기에는 고를 곳이 없어서, 막으면 긴 문진을 다 적고도 가입을
+   * 못 한다. 비어 있는 성별은 영양 탭과 내 정보가 채우라고 알린다.
+   */
+  let sex: Sex | null = null;
+  if (formData.has('sex')) {
+    const picked = String(formData.get('sex') ?? '').trim();
+    if (!isSex(picked)) {
+      return { error: '성별을 선택해주세요.' };
+    }
+    sex = picked;
+  }
+
   // 평소 투구량 문진 — 부하 지수를 첫날부터 내기 위한 추정 기준선.
   const baseline = validateBaseline({
     baselineFreq: String(formData.get('baselineFreq') ?? ''),
@@ -104,6 +124,7 @@ async function trySignup(formData: FormData): Promise<AuthState> {
       password: await bcrypt.hash(password, 10),
       role,
       ...profile.value,
+      sex,
       ...baseline.value,
       trainingLevel,
     },

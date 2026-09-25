@@ -755,9 +755,14 @@ function SummaryCard({ eaten, day }: { eaten: Macros; day: NutritionDay }) {
         })}
       </dl>
 
-      {day.hasProfile && t.assumed.some((a) => a !== 'sex') && (
+      {/*
+        비어서 짐작으로 셈한 것 — 성별도 이제 알린다. 성별은 예전에 목표 창에서
+        골랐지만 지금은 내 정보에 있어서, 여기서 말하지 않으면 모르고 지나간다.
+      */}
+      {day.hasProfile && t.assumed.length > 0 && (
         <p className="text-xs text-muted">
-          내 정보에 {assumedText(t.assumed)}을 넣으면 목표가 더 정확해져요.
+          내 정보에 {withObjectParticle(assumedText(t.assumed))} 넣으면 목표가 더
+          정확해져요.
         </p>
       )}
     </Card>
@@ -771,10 +776,14 @@ function assumedText(assumed: NutritionDay['targets']['assumed']) {
     age: '생년월일',
     sex: '성별',
   } as const;
-  return assumed
-    .filter((a) => a !== 'sex')
-    .map((a) => names[a])
-    .join('·');
+  return assumed.map((a) => names[a]).join('·');
+}
+
+/** '성별을' · '키를' — 마지막 글자에 받침이 있으면 '을', 없으면 '를' */
+function withObjectParticle(word: string) {
+  const code = word.charCodeAt(word.length - 1) - 0xac00;
+  const hasFinal = code >= 0 && code <= 11171 && code % 28 !== 0;
+  return `${word}${hasFinal ? '을' : '를'}`;
 }
 
 /* ─────────────────────────── 끼니 ─────────────────────────── */
