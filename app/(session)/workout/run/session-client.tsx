@@ -273,14 +273,6 @@ export function SessionClient({
   const [starring, startStarring] = useTransition();
   /* 운동 교체 창 (swap-sheet.tsx) */
   const [swap, setSwap] = useState(false);
-  /*
-   * 운동하는 동안 화면을 켜 둔다.
-   *
-   * 세트 사이에 1~3분을 쉬는데 폰은 30초면 잠긴다. 한 세트마다 폰을 깨워
-   * 잠금을 풀어야 하고, 무엇보다 휴식 시계가 30초마다 사라지면 띄운 뜻이
-   * 없다. 이 화면을 나가면 저절로 풀린다 (components/use-wake-lock.ts).
-   */
-  useWakeLock();
 
   const [sheet, setSheet] = useState(false);
   /*
@@ -374,7 +366,25 @@ export function SessionClient({
     if (mine.length === 0) return null;
     return mine.reduce((a, b) => (a.recordedAt > b.recordedAt ? a : b)).recordedAt;
   }, [sets, openedAt]);
-  const rest = useRestClock(lastAt);
+  /*
+   * 마지막으로 운동한 때부터 흐른 시간 — 세트를 남겼으면 그 시각부터, 아직이면
+   * 판을 연 시각부터. 10분이 넘으면 null 이다(lib/workout/rest.ts).
+   */
+  const idle = useRestClock(lastAt ?? openedAt);
+  /* 쉬는 시계는 세트를 남긴 뒤에만 — 판을 열자마자 '쉬는 중'이 뜨면 이상하다 */
+  const rest = lastAt ? idle : null;
+  /*
+   * 운동하는 동안 화면을 켜 둔다.
+   *
+   * 세트 사이에 1~3분을 쉬는데 폰은 30초면 잠긴다. 한 세트마다 폰을 깨워
+   * 잠금을 풀어야 하고, 무엇보다 휴식 시계가 30초마다 사라지면 띄운 뜻이
+   * 없다. 이 화면을 나가면 저절로 풀린다 (components/use-wake-lock.ts).
+   *
+   * 10분 넘게 아무 세트도 없으면 놓는다 — 휴식 시계를 거두는 때와 같다.
+   * [운동 종료]를 안 누르고 화면을 켜 둔 채 떠나면 배터리가 끝까지 닳았다.
+   * 놓은 뒤에는 폰이 원래대로 잠기고, 다음 세트를 남기면 다시 잡는다.
+   */
+  useWakeLock(idle != null);
 
   const doneCount = useMemo(() => new Set(sets.map((s) => s.exerciseId)).size, [sets]);
 
