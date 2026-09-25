@@ -429,7 +429,7 @@ export function SessionClient({
     startSaving(async () => {
       let res: Awaited<ReturnType<typeof reorderSession>>;
       try {
-        res = await reorderSession(ids);
+        res = await reorderSession(ids, sessionId);
       } catch (err) {
         unstable_rethrow(err);
         setListError(
@@ -949,7 +949,8 @@ export function SessionClient({
             startEnding(async () => {
               try {
                 /* 성공하면 서버가 트레이닝으로 보낸다 — 돌아오면 실패한 것이다 */
-                const res = await finishWorkout({ intensity, memo });
+                /* 이 화면의 판을 콕 집어 닫는다 — 다른 날 열린 판을 닫지 않게 */
+                const res = await finishWorkout({ sessionId, intensity, memo });
                 if (res && 'error' in res) setFinishError(res.error);
               } catch (err) {
                 unstable_rethrow(err);

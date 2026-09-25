@@ -5,6 +5,7 @@ import { createPlaybackUrls } from '@/lib/storage';
 import { exercisesByIds } from '@/lib/library-cache';
 import { recentAmounts } from '@/lib/report/exercise-recent';
 import { readFrozenPlan } from '@/lib/workout/session-plan';
+import { closeAbandonedSessions } from '@/lib/workout/close-stale';
 import { SessionClient, type RunExercise, type RunSet } from './session-client';
 
 /**
@@ -15,6 +16,15 @@ import { SessionClient, type RunExercise, type RunSet } from './session-client';
  */
 export default async function RunPage() {
   const user = await requireUser();
+
+  /*
+   * 종료를 안 누르고 떠난 지난 판은 먼저 닫는다(lib/workout/close-stale.ts).
+   *
+   * 홈 화면에 추가한 앱은 마지막으로 보던 이 화면으로 다시 켜지기도 한다. 그때
+   * 어젯밤 판을 그대로 열면 오늘 세트가 어제 날짜에 붙는다. 닫고 나서 열린 판이
+   * 없으면 트레이닝으로 돌아가 오늘 판을 새로 연다.
+   */
+  await closeAbandonedSessions(user.id);
 
   const session = await prisma.trainingSession.findFirst({
     where: { userId: user.id, status: 'ACTIVE' },

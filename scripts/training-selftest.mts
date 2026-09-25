@@ -110,6 +110,12 @@ import {
   type AutoPromptInput,
 } from '../lib/ai/auto-setup-prompt.ts';
 import { PREVENTION_DAY_LABEL, PREVENTION_GOAL } from '../lib/report/theme.ts';
+import {
+  STALE_AFTER_MS,
+  isAbandoned,
+  lastActivity,
+  sessionEnd,
+} from '../lib/workout/stale.ts';
 
 let passed = 0;
 let failed = 0;
@@ -2913,6 +2919,117 @@ console.log('\n[무게 단위] lb 로 적어도 되돌렸을 때 적은 그대�
     ) === '4세트 · 5회 · 135lb'
   );
   check('총 볼륨 — lb 로 바꿔 소수 한 자리', volumeIn(100, 'lb') === 220.5);
+}
+
+console.log('\n[떠난 운동 판] 종료를 안 누른 판을 가려내고, 끝 시각을 바르게 잡는가');
+{
+  /*
+   * 한국 시간으로 적는다(+09:00). 판 날짜는 DB 처럼 UTC 자정이다 — 9/24 판은
+   * 2026-09-24T00:00Z.
+   */
+  const kst = (s: string) => new Date(`${s}:00+09:00`);
+  const day = (d: string) => new Date(`${d}T00:00:00.000Z`);
+  const H = 60 * 60 * 1000;
+
+  // 1) 어제 저녁에 하다가 종료를 안 누르고 떠남 → 오늘 아침에는 떠난 판
+  const evening = {
+    date: day('2026-09-24'),
+    startedAt: kst('2026-09-24T20:00'),
+    mainStartedAt: kst('2026-09-24T20:05'),
+  };
+  const lastSet = kst('2026-09-24T20:50');
+  const morning = kst('2026-09-25T08:00');
+  check('어제 저녁 판, 다음 날 아침 → 떠난 판', isAbandoned(evening, lastSet, morning));
+  const end1 = sessionEnd(evening, lastSet, morning);
+  check(
+    '떠난 판의 끝은 마지막 세트, 운동 시간은 본운동 시작부터 거기까지(45분)',
+    end1.endedAt.getTime() === lastSet.getTime() && end1.segmentSeconds === 45 * 60,
+    `${end1.segmentSeconds}초`
+  );
+
+  // 2) 23:30 에 시작해 자정을 넘겨 하는 중 → 날짜는 어제여도 아직 운동 중
+  const lateNight = {
+    date: day('2026-09-24'),
+    startedAt: kst('2026-09-24T23:25'),
+    mainStartedAt: kst('2026-09-24T23:30'),
+  };
+  const recentSet = kst('2026-09-25T00:35');
+  const halfPast = kst('2026-09-25T00:40');
+  check(
+    '자정을 넘겨 하는 판(마지막 세트 5분 전) → 떠난 판 아님',
+    !isAbandoned(lateNight, recentSet, halfPast)
+  );
+  const end2 = sessionEnd(lateNight, recentSet, halfPast);
+  check(
+    '그 판을 지금 마치면 끝은 지금, 운동 시간 70분',
+    end2.endedAt.getTime() === halfPast.getTime() && end2.segmentSeconds === 70 * 60,
+    `${end2.segmentSeconds}초`
+  );
+
+  // 3) 오늘 판은 아무리 오래 비워도 떠난 판이 아니다 — 오늘 다시 들어와 이어 한다
+  const todayMorning = {
+    date: day('2026-09-25'),
+    startedAt: kst('2026-09-25T07:00'),
+    mainStartedAt: kst('2026-09-25T07:05'),
+  };
+  const todaySet = kst('2026-09-25T07:40');
+  const tonight = kst('2026-09-25T21:00');
+  check('오늘 판은 13시간 비워도 떠난 판 아님', !isAbandoned(todayMorning, todaySet, tonight));
+  const end3 = sessionEnd(todayMorning, todaySet, tonight);
+  check(
+    '아침 판의 종료를 저녁에 누르면 끝은 마지막 세트 — 그 사이는 운동 시간이 아니다(35분)',
+    end3.endedAt.getTime() === todaySet.getTime() && end3.segmentSeconds === 35 * 60,
+    `${end3.segmentSeconds}초`
+  );
+
+  // 4) 딱 3시간 경계 — 날짜가 이미 지난 판(자정 넘어 00:35 가 마지막)으로 잰다
+  check(
+    '마지막으로 무언가 한 뒤 2시간 59분 → 아직 아님, 3시간 → 떠난 판',
+    STALE_AFTER_MS === 3 * H &&
+      !isAbandoned(lateNight, recentSet, new Date(recentSet.getTime() + STALE_AFTER_MS - 60_000)) &&
+      isAbandoned(lateNight, recentSet, new Date(recentSet.getTime() + STALE_AFTER_MS))
+  );
+  check(
+    '날짜가 안 지났으면 3시간이 넘어도 떠난 판 아님(어제 20:50 → 23:50)',
+    !isAbandoned(evening, lastSet, new Date(lastSet.getTime() + STALE_AFTER_MS))
+  );
+
+  // 5) 다시 연 판 — 앞 구간 세트보다 다시 연 시각이 늦다
+  const reopened = {
+    date: day('2026-09-24'),
+    startedAt: kst('2026-09-24T07:00'),
+    mainStartedAt: kst('2026-09-24T19:00'), // 저녁에 [운동 더 하기]
+  };
+  const morningSet = kst('2026-09-24T07:40');
+  check(
+    '다시 연 판의 마지막 활동은 다시 연 시각',
+    lastActivity(reopened, morningSet).getTime() === reopened.mainStartedAt.getTime()
+  );
+  const end5 = sessionEnd(reopened, morningSet, morning);
+  check(
+    '다시 열고 아무것도 안 한 채 떠남 → 이번 구간 운동 시간 0',
+    end5.segmentSeconds === 0,
+    `${end5.segmentSeconds}초`
+  );
+
+  // 6) 세트도 본운동도 없이 떠난 판(워밍업 창에서 나감)
+  const warmupOnly = {
+    date: day('2026-09-24'),
+    startedAt: kst('2026-09-24T18:00'),
+    mainStartedAt: null,
+  };
+  check('워밍업만 열고 떠난 판도 떠난 판', isAbandoned(warmupOnly, null, morning));
+  check('그 판의 운동 시간은 0', sessionEnd(warmupOnly, null, morning).segmentSeconds === 0);
+
+  // 7) 세트를 받을 때의 규칙(logSet) — 기준 시각은 그 세트를 남긴 시각이다
+  check(
+    '신호가 없어 어젯밤(21:10) 폰에 담아 둔 세트가 아침에 늦게 오면 → 어제 판에 받는다',
+    !isAbandoned(evening, lastSet, kst('2026-09-24T21:10'))
+  );
+  check(
+    '켜 둔 화면에서 아침(08:00)에 남긴 세트 → 어제 판을 닫고 새로 열게 한다',
+    isAbandoned(evening, lastSet, kst('2026-09-25T08:00'))
+  );
 }
 
 console.log(`\n${passed}개 통과, ${failed}개 실패`);

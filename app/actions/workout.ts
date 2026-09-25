@@ -10,8 +10,9 @@ import { loadTodayCore } from '@/lib/report/today-data';
 import { toDateKey } from '@/lib/pitch-stats';
 import { AMOUNT_LIMITS, storedKg } from '@/lib/exercise-meta';
 import { freezePlan, readFrozenPlan } from '@/lib/workout/session-plan';
-import { summarizeSets } from '@/lib/workout/summarize';
 import { clampRecordedAt } from '@/lib/workout/set-time';
+import { dayStart, isAbandoned, sessionEnd } from '@/lib/workout/stale';
+import { closeAbandoned, lastSetAt, summaryWrites } from '@/lib/workout/close-stale';
 import { saveTrainingNote } from '@/app/actions/exercise-log';
 
 /**
@@ -282,6 +283,28 @@ export async function logSet(input: SetInput): Promise<SetResult> {
 
   const at = clampRecordedAt(input.recordedAt, session.startedAt);
 
+  /*
+   * 어젯밤 판에 오늘 세트가 붙지 않게 한다.
+   *
+   * 운동 화면을 켜 둔 채 두었다가 다음 날 그 화면에서 세트를 남기면, 그 세트가
+   * 어제 날짜의 판에 들어갔다. 판의 날짜가 지났고, 이 세트가 그 판에서 마지막으로
+   * 무언가 한 뒤 3시간도 더 지나 남긴 것이면 그 판은 떠난 판이다(lib/workout/
+   * stale.ts). 닫고 — 앞서 남긴 세트는 기록으로 접힌다 — 오늘 판을 새로 열게 한다.
+   *
+   * 신호가 없어 폰에 담아 두었다가 늦게 보내는 세트는 남긴 시각(at)이 그 판의
+   * 시간 안이라 그대로 받는다. 자정을 넘겨 이어 하는 판도 마찬가지다.
+   */
+  if (session.date.getTime() < dayStart(new Date()).getTime()) {
+    const last = await lastSetAt(session.id);
+    if (isAbandoned(session, last, at)) {
+      await closeAbandoned(user.id, session, last, new Date());
+      return {
+        error:
+          '지난번 운동은 종료를 누르지 않은 채 남아 있어서 닫아 두었습니다. 오늘 운동은 트레이닝에서 새로 시작해 주세요.',
+      };
+    }
+  }
+
   await prisma.userExerciseSet.upsert({
     where: {
       sessionId_exerciseId_setNo: { sessionId: session.id, exerciseId: ex.id, setNo },
@@ -338,59 +361,37 @@ export async function deleteSet(input: {
  * '했다'로 남길 수는 없다.
  */
 export async function finishWorkout(input: {
+  /**
+   * 마칠 판. 운동 화면이 들고 있는 판 번호를 보낸다.
+   *
+   * 예전에는 '가장 최근에 열린 판'을 닫았다. 어제 종료를 안 누른 판이 남아 있는
+   * 채로, 오늘 판을 마친 응답이 끊겨 한 번 더 누르면 — 오늘 판은 이미 닫혔으니 —
+   * 어제 판이 닫히고 오늘 고른 강도·느낀점이 어제 날짜에 덮였다. 판을 콕 집으면
+   * 그럴 일이 없다. 안 주면(옛 화면) 예전처럼 열린 판을 찾는다.
+   */
+  sessionId?: string;
   intensity?: number | null;
   memo?: string | null;
 }): Promise<{ error: string } | never> {
   const user = await requireUser();
-  const session = await activeSession(user.id);
+  const session = await sessionForSet(user.id, input.sessionId);
   if (!session) redirect('/training');
 
-  const rows = await prisma.userExerciseSet.findMany({
-    where: { sessionId: session.id },
-    select: { exerciseId: true, weightKg: true, reps: true, holdSeconds: true },
-  });
-
-  const summaries = summarizeSets(rows);
-
-  /* 본운동을 시작한 뒤로 흐른 시간. 워밍업은 안 들어간다. */
-  const endedAt = new Date();
-  const segmentSeconds = Math.max(
-    0,
-    Math.floor(
-      (endedAt.getTime() - (session.mainStartedAt ?? session.startedAt).getTime()) /
-        1000
-    )
+  /*
+   * 본운동을 시작한 뒤로 흐른 시간. 워밍업은 안 들어간다.
+   *
+   * 마지막 세트 뒤로 3시간 넘게 지나서 누른 종료면, 그 마지막 세트가 끝이다
+   * (lib/workout/stale.ts 의 sessionEnd). 아침 판의 종료를 저녁에야 눌렀다고
+   * 그 사이가 운동 시간이 되지는 않는다.
+   */
+  const { endedAt, segmentSeconds } = sessionEnd(
+    session,
+    await lastSetAt(session.id),
+    new Date()
   );
 
   await prisma.$transaction([
-    ...summaries.map((s) =>
-      prisma.userExerciseLog.upsert({
-        where: {
-          userId_exerciseId_date: {
-            userId: user.id,
-            exerciseId: s.exerciseId,
-            date: session.date,
-          },
-        },
-        create: {
-          userId: user.id,
-          exerciseId: s.exerciseId,
-          date: session.date,
-          completed: true,
-          setsDone: s.setsDone,
-          repsDone: s.repsDone,
-          holdSecondsDone: s.holdSecondsDone,
-          weightKg: s.weightKg,
-        },
-        update: {
-          completed: true,
-          setsDone: s.setsDone,
-          repsDone: s.repsDone,
-          holdSecondsDone: s.holdSecondsDone,
-          weightKg: s.weightKg,
-        },
-      })
-    ),
+    ...(await summaryWrites(user.id, session)),
     prisma.trainingSession.update({
       where: { id: session.id },
       data: {
@@ -430,10 +431,12 @@ export async function finishWorkout(input: {
  * 뺀 운동은 기록이 안 남으므로 저절로 '안 함'이 된다.
  */
 export async function reorderSession(
-  exerciseIds: string[]
+  exerciseIds: string[],
+  /** 고칠 판 — 운동 화면이 들고 있는 판 번호. 안 주면 열려 있는 판(finishWorkout 과 같은 까닭) */
+  sessionId?: string
 ): Promise<{ ids: string[] } | { error: string }> {
   const user = await requireUser();
-  const session = await activeSession(user.id);
+  const session = await sessionForSet(user.id, sessionId);
   if (!session) return { error: '열려 있는 운동이 없습니다.' };
 
   const plan = readFrozenPlan(session.plan);

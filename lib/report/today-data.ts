@@ -7,6 +7,7 @@ import { equipmentForToday, filterByEquipment } from '@/lib/report/equipment';
 import { filterByLevel } from '@/lib/report/personalize';
 import { readDailyPlan } from '@/lib/report/daily-plan';
 import { visibleExercises } from '@/lib/library-cache';
+import { closeAbandonedSessions } from '@/lib/workout/close-stale';
 import {
   estimateMinutes,
   slotForTheme,
@@ -50,6 +51,15 @@ export type UserForToday = {
 export async function loadTodayCore(user: UserForToday, today: Date) {
   const todayKey = toDateKey(today);
   const midnight = new Date(`${todayKey}T00:00:00.000Z`);
+
+  /*
+   * 종료를 안 누르고 떠난 지난 판을 먼저 닫는다(lib/workout/close-stale.ts).
+   *
+   * 그래야 그 판의 세트가 운동 기록으로 접혀, 아래에서 셈하는 운동 부하와 홈·
+   * 트레이닝 화면에 어제 한 것이 들어간다. 홈·트레이닝·[운동 시작]이 모두 여기를
+   * 지난다. 지난 날짜의 열린 판이 없으면 조회 한 번으로 끝난다.
+   */
+  await closeAbandonedSessions(user.id, today);
 
   const { facts, plan, hasLogs } = await gatherFactsAndPlan(user, today);
 
