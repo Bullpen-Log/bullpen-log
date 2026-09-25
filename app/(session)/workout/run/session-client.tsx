@@ -11,6 +11,7 @@ import {
 } from 'react';
 import { unstable_rethrow, useRouter } from 'next/navigation';
 import {
+  ArrowLeftRight,
   Check,
   ChevronLeft,
   ChevronRight,
@@ -19,6 +20,8 @@ import {
   Info,
   ListOrdered,
   Pencil,
+  Plus,
+  Star,
   Trash2,
   X,
 } from 'lucide-react';
@@ -31,10 +34,13 @@ import {
   reorderSession,
   type SavedSet,
 } from '@/app/actions/workout';
+import { setExerciseFavorite } from '@/app/actions/favorite';
 import { ExerciseNote } from './exercise-note';
 import { ExerciseSheet } from './exercise-sheet';
 import { FinishSheet } from './finish-sheet';
+import { SwapSheet } from './swap-sheet';
 import { drainOutbox, outbox, withPending, type ShownSet } from '@/lib/workout/outbox';
+import { placeExercise } from '@/lib/workout/swap';
 import {
   formatWeight,
   fromWeight,
@@ -49,9 +55,8 @@ import {
   WEIGHT_STEP,
   formatSeconds,
   storedKg,
-  type DoneAmount,
 } from '@/lib/exercise-meta';
-import type { SlotKey } from '@/lib/report/theme';
+import type { RunExercise } from '@/lib/workout/run-exercises';
 
 /**
  * 운동하는 동안의 화면.
@@ -83,34 +88,11 @@ import type { SlotKey } from '@/lib/report/theme';
 
 export type RunSet = SavedSet;
 
-export type RunExercise = {
-  id: string;
-  title: string;
-  category: string;
-  slot: SlotKey;
-  prescription: string | null;
-  plannedSets: number | null;
-  perSide: boolean;
-  needsWeight: boolean;
-  isHold: boolean;
-  /**
-   * 시간을 분으로 받는가 (유산소).
-   *
-   * 자전거 10분을 '600초'로 치게 하면 헷갈리고 느리다. 받는 것은 분이지만
-   * 저장은 다른 시간형 운동처럼 초로 한다 — 요약·부하 계산이 초를 읽는다.
-   */
-  inMinutes: boolean;
-  equipment: string[];
-  /** 운동 중에 자세를 확인하는 데 쓴다 */
-  description: string;
-  videoPath: string | null;
-  referenceVideoId: string | null;
-  aspectRatio: number | null;
-  thumbUrl: string | null;
-  last: (DoneAmount & { date: string }) | null;
-  /** 이 운동에 남겨 둔 내 메모(운동마다 하나). 없으면 null */
-  note: string | null;
-};
+/*
+ * 운동 하나의 모양은 서버와 같이 쓴다 — 운동 화면을 열 때와 운동 중에 바꿔
+ * 넣은 운동을 돌려받을 때 같은 곳에서 만든다(lib/workout/run-exercises.ts).
+ */
+export type { RunExercise };
 
 /* ----------------------------- 휴식 시계 ----------------------------- */
 
@@ -272,6 +254,16 @@ export function SessionClient({
   const [notes, setNotes] = useState<Record<string, string>>(() =>
     Object.fromEntries(exercises.flatMap((e) => (e.note ? [[e.id, e.note]] : [])))
   );
+  /*
+   * 별을 달아 둔 운동. 라이브러리의 별과 같은 표다 — 여기서 달면 라이브러리와
+   * 트레이닝의 '운동 추가' 창에도 달려 있다.
+   */
+  const [favorites, setFavorites] = useState<ReadonlySet<string>>(
+    () => new Set(exercises.filter((e) => e.favorite).map((e) => e.id))
+  );
+  const [starring, startStarring] = useTransition();
+  /* 운동 교체 창 (swap-sheet.tsx) */
+  const [swap, setSwap] = useState(false);
   /*
    * 운동하는 동안 화면을 켜 둔다.
    *
@@ -474,6 +466,59 @@ export function SessionClient({
       setList(next);
       if (found >= 0) setAt(found);
       else goTo(Math.min(at, next.length - 1), next);
+    });
+  };
+
+  /**
+   * 교체 창에서 운동을 넣었다.
+   *
+   * 서버가 이미 찍어 둔 목록을 고쳤으므로, 화면 목록도 같은 규칙으로 고친다
+   * (lib/workout/swap.ts 의 placeExercise). 바꿨으면 그 자리에서, 더했으면 더한
+   * 운동으로 넘어간다 — 지금 하려던 것이 그것이다.
+   */
+  const applySwap = (added: RunExercise, mode: 'replace' | 'add') => {
+    setSwap(false);
+    const next = placeExercise(list, ex.id, added, mode);
+    if (!next) return;
+    setList(next);
+    const note = added.note;
+    if (note) setNotes((prev) => ({ ...prev, [added.id]: note }));
+    if (added.favorite) setFavorites((prev) => new Set(prev).add(added.id));
+    goTo(mode === 'replace' ? at : at + 1, next);
+  };
+
+  /**
+   * ★ — 이 운동을 즐겨찾기에 담거나 뺀다.
+   *
+   * 누르는 즉시 바꿔 보이고 뒤에서 저장한다. 원하는 상태('담아라/빼라')를 보내므로
+   * 신호가 약해 다시 눌러도 어긋나지 않는다(setExerciseFavorite). 못 했으면 되돌린다.
+   */
+  const toggleStar = () => {
+    const id = ex.id;
+    const on = !favorites.has(id);
+    const mark = (value: boolean) =>
+      setFavorites((prev) => {
+        const next = new Set(prev);
+        if (value) next.add(id);
+        else next.delete(id);
+        return next;
+      });
+    setError(null);
+    mark(on);
+    startStarring(async () => {
+      try {
+        const res = await setExerciseFavorite(id, on);
+        if ('error' in res) {
+          mark(!on);
+          setError(res.error);
+        }
+      } catch (err) {
+        unstable_rethrow(err);
+        mark(!on);
+        setError(
+          '신호가 없어 즐겨찾기를 바꾸지 못했습니다. 신호가 잡히면 다시 눌러 주세요.'
+        );
+      }
     });
   };
 
@@ -731,7 +776,43 @@ export function SessionClient({
 
       <div ref={topRef} className="flex-1 overflow-y-auto px-4 py-4">
         <p className="text-xs text-muted">{ex.category}</p>
-        <h1 className="mt-0.5 text-xl font-bold leading-snug text-ink">{ex.title}</h1>
+        {/*
+          이름 옆에 ★(즐겨찾기)와 [교체].
+
+          기구가 차 있거나 해 보니 오늘은 아닌 운동을 그 자리에서 바꾼다.
+          세트를 남긴 운동이면 [추가]가 된다 — 하던 운동은 두고 바로 뒤에 더한다.
+        */}
+        <div className="mt-0.5 flex items-start gap-1">
+          <h1 className="min-w-0 flex-1 text-xl font-bold leading-snug text-ink">
+            {ex.title}
+          </h1>
+          <button
+            type="button"
+            onClick={toggleStar}
+            disabled={starring}
+            aria-pressed={favorites.has(ex.id)}
+            aria-label={favorites.has(ex.id) ? '즐겨찾기에서 빼기' : '즐겨찾기에 담기'}
+            className="shrink-0 rounded-lg p-1.5 transition-colors disabled:opacity-60"
+          >
+            <Star
+              className={`h-5 w-5 ${favorites.has(ex.id) ? 'text-warn' : 'text-muted'}`}
+              fill={favorites.has(ex.id) ? 'currentColor' : 'none'}
+              strokeWidth={1.8}
+            />
+          </button>
+          <button
+            type="button"
+            onClick={() => setSwap(true)}
+            className="mt-0.5 inline-flex shrink-0 items-center gap-1 rounded-lg border border-line-strong px-2.5 py-1.5 text-xs font-semibold text-ink transition-colors active:bg-surface-2"
+          >
+            {mine.length > 0 ? (
+              <Plus aria-hidden className="h-3.5 w-3.5" />
+            ) : (
+              <ArrowLeftRight aria-hidden className="h-3.5 w-3.5" />
+            )}
+            {mine.length > 0 ? '추가' : '교체'}
+          </button>
+        </div>
         {ex.prescription && (
           <p className="mt-1 text-sm text-muted">
             {ex.prescription}
@@ -1103,6 +1184,18 @@ export function SessionClient({
               }
             });
           }}
+        />
+      )}
+
+      {swap && (
+        <SwapSheet
+          sessionId={sessionId}
+          current={ex}
+          /* 폰에만 있는 세트까지 센다 — 서버는 아직 모르는 세트다 */
+          mode={mine.length > 0 ? 'add' : 'replace'}
+          inPlanIds={list.map((e) => e.id)}
+          onDone={applySwap}
+          onClose={() => setSwap(false)}
         />
       )}
 

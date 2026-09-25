@@ -5,11 +5,22 @@ import { redirect, RedirectType } from 'next/navigation';
 import { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 import { requireUser } from '@/lib/dal';
-import { exercisesByIds } from '@/lib/library-cache';
+import { exercisesByIds, type CachedExercise } from '@/lib/library-cache';
 import { loadTodayCore } from '@/lib/report/today-data';
+import { selectCandidates } from '@/lib/report/prescription';
+import { slotForTheme } from '@/lib/report/theme';
+import { recentExerciseIds } from '@/lib/report/exercise-recent';
+import { favoriteExerciseIds } from '@/lib/favorites';
 import { toDateKey } from '@/lib/pitch-stats';
-import { AMOUNT_LIMITS, storedKg } from '@/lib/exercise-meta';
-import { freezePlan, readFrozenPlan } from '@/lib/workout/session-plan';
+import { AMOUNT_LIMITS, formatPrescription, storedKg } from '@/lib/exercise-meta';
+import { freezeExercise, freezePlan, readFrozenPlan } from '@/lib/workout/session-plan';
+import { runExercises, type RunExercise } from '@/lib/workout/run-exercises';
+import {
+  placeExercise,
+  similarExercises,
+  swapMode,
+  type SwapMode,
+} from '@/lib/workout/swap';
 import { clampRecordedAt } from '@/lib/workout/set-time';
 import { dayStart, isAbandoned, sessionEnd } from '@/lib/workout/stale';
 import { closeAbandoned, lastSetAt, summaryWrites } from '@/lib/workout/close-stale';
@@ -474,4 +485,187 @@ export async function reorderSession(
 
   /* 화면은 이미 운동 정보를 들고 있다. 순서만 돌려주면 된다. */
   return { ids: next.map((e) => e.id) };
+}
+
+/* ---------------------------- 운동 바꾸기 ---------------------------- */
+
+/**
+ * 교체 창에 늘어놓는 운동 한 줄 — 추천·즐겨찾기·최근·찾기가 같이 쓴다.
+ *
+ * 창에 그리는 것만 싣는다. 찾기용으로 400개 넘게 한꺼번에 보내는 모양이라,
+ * 약한 신호에서 창이 늦게 뜨지 않게 가볍게 둔다.
+ */
+export type SwapPick = {
+  id: string;
+  title: string;
+  category: string;
+  equipment: string[];
+  /** '3세트 × 10회 · 세트 사이 2분 휴식'. 안 채운 운동은 null */
+  prescription: string | null;
+};
+
+export type SwapChoices = {
+  /** 통증 등으로 오늘은 운동을 더하거나 바꿀 수 없으면 그 까닭 */
+  halted: string | null;
+  /** 비슷한 운동 — 오늘 장비·경력·몸 상태를 모두 통과한 것만, 이유 한 줄과 함께 */
+  similar: { id: string; reason: string }[];
+  /** 오늘 몸 상태로는 넣을 수 없는 운동 (찾기·즐겨찾기·최근에서 막아 둔다) */
+  blockedIds: string[];
+  favoriteIds: string[];
+  /** 최근에 한 운동, 가장 최근 것부터 */
+  recentIds: string[];
+  /**
+   * 찾기에 쓰는 전체 목록. 누가 보든 같고 400개가 넘어, 화면이 처음 한 번만
+   * 달라고 한다(withLibrary). 나머지는 창을 열 때마다 새로 받는다 — 그사이
+   * 체크인을 고쳤을 수 있다.
+   */
+  library: SwapPick[] | null;
+};
+
+const toSwapPick = (ex: CachedExercise): SwapPick => ({
+  id: ex.id,
+  title: ex.title,
+  category: ex.category,
+  equipment: ex.equipment,
+  prescription: formatPrescription(ex),
+});
+
+const HALTED_MESSAGE = '오늘은 통증 신호가 있어 운동을 더하거나 바꿀 수 없습니다.';
+
+/**
+ * 운동 화면의 [교체] 창에 늘어놓을 것.
+ *
+ * 추천은 오늘 장비로 할 수 있고, 경력에 맞고, 오늘 몸 상태로 해도 되는 것 중에
+ * 고른다 — 일정을 만들 때와 같은 거르기(lib/report/today-data.ts)를 지난
+ * 후보에서 비슷한 것을 찾는다(lib/workout/swap.ts).
+ *
+ * 찾기·즐겨찾기·최근에서는 본인이 고르는 것이라 장비와 경력은 따지지 않는다.
+ * 몸 상태만은 막는다 — 뻐근하다고 한 어깨에 무거운 프레스를 넣게 두지 않는다.
+ * 넣을 때 서버가 한 번 더 본다(changeSessionExercise).
+ */
+export async function swapChoices(input: {
+  sessionId?: string;
+  exerciseId: string;
+  withLibrary: boolean;
+}): Promise<SwapChoices | { error: string }> {
+  const user = await requireUser();
+  const session = await sessionForSet(user.id, input.sessionId);
+  if (!session) return { error: '이미 마친 운동이라 바꿀 수 없습니다.' };
+
+  const plan = readFrozenPlan(session.plan);
+  const target = plan?.exercises.find((e) => e.id === input.exerciseId);
+  if (!plan || !target) return { error: '오늘 목록에 없는 운동입니다.' };
+
+  const now = new Date();
+  const [core, favorites, recentIds] = await Promise.all([
+    loadTodayCore(user, now),
+    favoriteExerciseIds(user.id),
+    recentExerciseIds(user.id, now),
+  ]);
+
+  /* 몸 상태만 본 목록 — 장비·경력으로 거르기 전의 전체에 안전 규칙만 댄다 */
+  const safety = selectCandidates({
+    facts: core.facts,
+    plan: core.plan,
+    library: core.library,
+  });
+  const safeIds = new Set(safety.candidates.map((ex) => ex.id));
+
+  /* 동작 계열은 찍어 둔 목록에 없어서 라이브러리에서 읽는다(숨긴 운동이면 없음) */
+  const pattern =
+    core.library.find((ex) => ex.id === target.id)?.movementPattern ?? null;
+  const similar = safety.halted
+    ? []
+    : similarExercises(
+        {
+          id: target.id,
+          category: target.category,
+          bodyParts: target.bodyParts,
+          equipment: target.equipment,
+          intensity: target.intensity,
+          movementPattern: pattern,
+        },
+        core.picked.candidates,
+        new Set(plan.exercises.map((e) => e.id))
+      );
+
+  return {
+    halted: safety.halted ? (safety.haltReason ?? HALTED_MESSAGE) : null,
+    similar: similar.map((s) => ({ id: s.exercise.id, reason: s.reason })),
+    blockedIds: core.library.filter((ex) => !safeIds.has(ex.id)).map((ex) => ex.id),
+    favoriteIds: [...favorites],
+    recentIds,
+    library: input.withLibrary ? core.library.map(toSwapPick) : null,
+  };
+}
+
+/**
+ * 운동 중에 운동을 바꾸거나 더한다.
+ *
+ * 세트를 남긴 운동은 바꾸지 않고 바로 뒤에 더한다(lib/workout/swap.ts 의
+ * swapMode). 화면이 '바꾸기'를 보냈어도 서버에 세트가 있으면 더한다 — 돌려주는
+ * mode 가 실제로 한 일이다.
+ *
+ * 고치는 것은 세션뿐이다. 트레이닝 화면의 일정은 그대로 둔다 — 순서 바꾸기
+ * (reorderSession)와 같은 까닭이다.
+ */
+export async function changeSessionExercise(input: {
+  sessionId?: string;
+  fromId: string;
+  toId: string;
+  mode: SwapMode;
+}): Promise<{ exercise: RunExercise; mode: SwapMode } | { error: string }> {
+  const user = await requireUser();
+  const session = await sessionForSet(user.id, input.sessionId);
+  if (!session) return { error: '이미 마친 운동이라 바꿀 수 없습니다.' };
+
+  const plan = readFrozenPlan(session.plan);
+  if (!plan) return { error: '오늘 목록을 읽지 못했습니다.' };
+  const from = plan.exercises.find((e) => e.id === input.fromId);
+  if (!from) return { error: '오늘 목록에 없는 운동입니다.' };
+  if (plan.exercises.some((e) => e.id === input.toId)) {
+    return { error: '이미 오늘 목록에 있는 운동입니다.' };
+  }
+
+  const core = await loadTodayCore(user, new Date());
+  /* 숨긴 운동은 새로 넣지 않는다 — 라이브러리에서 안 보이는 운동이다 */
+  const to = core.library.find((ex) => ex.id === input.toId);
+  if (!to) return { error: '운동을 찾을 수 없습니다.' };
+
+  /* 몸 상태는 서버가 다시 본다 — 창을 연 뒤에 체크인을 고쳤을 수 있다 */
+  const safety = selectCandidates({
+    facts: core.facts,
+    plan: core.plan,
+    library: [to],
+  });
+  if (safety.halted) return { error: HALTED_MESSAGE };
+  if (safety.candidates.length === 0) {
+    return { error: '오늘 몸 상태에는 권하지 않는 운동이라 넣지 않았습니다.' };
+  }
+
+  const hasSets = await prisma.userExerciseSet.findFirst({
+    where: { sessionId: session.id, exerciseId: from.id },
+    select: { id: true },
+  });
+  const mode = swapMode(input.mode === 'add' ? 'add' : 'replace', hasSets != null);
+
+  /*
+   * 바꿀 때는 그 자리(구간)를 이어받는다. 더할 때는 그 운동이 오늘 날에
+   * 어울리는 구간을 따른다 — 트레이닝의 '운동 추가'와 같다(slotForTheme).
+   */
+  const entry = freezeExercise(
+    to,
+    mode === 'replace' ? from.slot : slotForTheme(to, plan.themeKey)
+  );
+  const next = placeExercise(plan.exercises, from.id, entry, mode);
+  if (!next) return { error: '운동을 넣지 못했습니다. 목록을 다시 열어 주세요.' };
+
+  await prisma.trainingSession.update({
+    where: { id: session.id },
+    data: { plan: { ...plan, exercises: next } as unknown as Prisma.InputJsonValue },
+  });
+
+  /* 화면이 바로 그릴 수 있게 — 설명·영상·지난번 기록·메모·별까지 붙여 준다 */
+  const [exercise] = await runExercises(user.id, [entry], session.date);
+  return { exercise, mode };
 }

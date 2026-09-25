@@ -1,13 +1,10 @@
 import { redirect } from 'next/navigation';
 import { prisma } from '@/lib/prisma';
 import { requireUser } from '@/lib/dal';
-import { createPlaybackUrls } from '@/lib/storage';
-import { exercisesByIds } from '@/lib/library-cache';
-import { recentAmounts } from '@/lib/report/exercise-recent';
-import { exerciseNotes } from '@/lib/exercise-notes';
 import { readFrozenPlan } from '@/lib/workout/session-plan';
 import { closeAbandonedSessions } from '@/lib/workout/close-stale';
-import { SessionClient, type RunExercise, type RunSet } from './session-client';
+import { runExercises } from '@/lib/workout/run-exercises';
+import { SessionClient, type RunSet } from './session-client';
 
 /**
  * 본운동 화면.
@@ -44,17 +41,7 @@ export default async function RunPage() {
   const plan = readFrozenPlan(session.plan);
   if (!plan || plan.exercises.length === 0) redirect('/training');
 
-  /*
-   * 설명과 영상은 찍어 둔 목록에 담지 않고 여기서 따로 읽는다.
-   *
-   * 얼려 두는 것은 '무엇을 할지'이지 '그 운동이 무엇인지'가 아니다. 설명은
-   * 길어서 찍어 두면 세션 줄이 무거워지고, 영상 주소는 한 시간이면 죽는다.
-   * 목록은 캐시에 통째로 올라와 있어(lib/library-cache.ts) DB 를 가지 않는다.
-   */
-  const details = await exercisesByIds(plan.exercises.map((e) => e.id));
-  const byId = new Map(details.map((d) => [d.id, d]));
-
-  const [sets, thumbUrls, past, notes] = await Promise.all([
+  const [sets, exercises] = await Promise.all([
     prisma.userExerciseSet.findMany({
       where: { sessionId: session.id },
       orderBy: [{ exerciseId: 'asc' }, { setNo: 'asc' }],
@@ -67,49 +54,12 @@ export default async function RunPage() {
         recordedAt: true,
       },
     }),
-    /* 서명 주소는 한 시간이면 죽는다. 찍어 두지 않고 그릴 때마다 발급한다. */
-    createPlaybackUrls(
-      plan.exercises.map((e) => e.thumbPath).filter((p): p is string => !!p)
-    ),
-    /* '지난번 60kg × 8회' — 오늘 그릴 운동만 묻는다 */
-    recentAmounts(
-      user.id,
-      plan.exercises.map((e) => e.id),
-      session.date
-    ),
-    /* 운동마다 남겨 둔 내 메모 — 오늘 목록에 든 것만 */
-    exerciseNotes(
-      user.id,
-      plan.exercises.map((e) => e.id)
-    ),
+    /*
+     * 찍어 둔 목록에 설명·영상·지난번 기록·내 메모·별을 붙인다. 운동 중에
+     * 바꿔 넣은 운동도 같은 곳에서 만든다(lib/workout/run-exercises.ts).
+     */
+    runExercises(user.id, plan.exercises, session.date),
   ]);
-
-  const exercises: RunExercise[] = plan.exercises.map((e) => {
-    const d = byId.get(e.id);
-    return {
-      id: e.id,
-      title: e.title,
-      category: e.category,
-      slot: e.slot,
-      prescription: e.prescription,
-      plannedSets: e.plannedSets,
-      perSide: e.perSide,
-      needsWeight: e.needsWeight,
-      isHold: e.isHold,
-      /* 유산소는 분으로 받는다 — 10분을 '600초'로 치게 하지 않는다 */
-      inMinutes: e.category === '유산소',
-      equipment: e.equipment,
-      /* 운동 중에 자세를 확인할 수 있게 — 설명과 영상 */
-      description: d?.description ?? '',
-      videoPath: d?.videoPath ?? null,
-      referenceVideoId: d?.referenceVideoId ?? null,
-      aspectRatio: d?.aspectRatio ?? null,
-      thumbUrl: e.thumbPath ? (thumbUrls[e.thumbPath] ?? null) : null,
-      /* 가장 최근 한 번만. 여러 개를 보여주면 무엇을 따라갈지 흐려진다. */
-      last: past.get(e.id)?.[0] ?? null,
-      note: notes.get(e.id) ?? null,
-    };
-  });
 
   const saved: RunSet[] = sets.map((s) => ({
     ...s,

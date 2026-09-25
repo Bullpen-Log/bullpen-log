@@ -89,3 +89,40 @@ export async function recentAmounts(
 
   return result;
 }
+
+/**
+ * 최근에 한 운동 — 가장 최근 것부터, 한 번씩만.
+ *
+ * 운동 중에 운동을 바꿀 때 '늘 하던 것'을 바로 집게 한다(운동 화면의 교체 창).
+ * 400개를 찾아 넘기는 것보다, 지난주에 한 것을 다시 고르는 일이 훨씬 잦다.
+ *
+ * 오늘 것은 뺀다. 오늘 한 것은 이미 오늘 목록에 있다.
+ */
+export async function recentExerciseIds(
+  userId: string,
+  today: Date,
+  limit = 12
+): Promise<string[]> {
+  const midnight = new Date(`${toDateKey(today)}T00:00:00.000Z`);
+  const from = new Date(midnight);
+  /* 두 달이면 '요즘 하는 운동'으로 충분하다 */
+  from.setUTCDate(from.getUTCDate() - 60);
+
+  const logs = await prisma.userExerciseLog.findMany({
+    where: { userId, completed: true, date: { gte: from, lt: midnight } },
+    orderBy: { date: 'desc' },
+    select: { exerciseId: true },
+    /* 하루에 열 개 남짓이라, 이만큼이면 서로 다른 운동을 limit 개 넘게 모은다 */
+    take: 300,
+  });
+
+  const ids: string[] = [];
+  const seen = new Set<string>();
+  for (const { exerciseId } of logs) {
+    if (seen.has(exerciseId)) continue;
+    seen.add(exerciseId);
+    ids.push(exerciseId);
+    if (ids.length >= limit) break;
+  }
+  return ids;
+}

@@ -60,6 +60,34 @@ type SourceExercise = {
 };
 
 /**
+ * 운동 하나를 세션이 쓸 모양으로 찍는다.
+ *
+ * 시작할 때 목록 전체를 찍는 freezePlan 과, 운동 중에 바꾸거나 더하는 운동
+ * (app/actions/workout.ts 의 changeSessionExercise)이 같이 쓴다. 둘이 따로
+ * 찍으면 바꿔 넣은 운동만 처방 줄이나 무게 필수 여부가 다르게 나온다.
+ */
+export function freezeExercise(ex: SourceExercise, slot: SlotKey): FrozenExercise {
+  return {
+    id: ex.id,
+    title: ex.title,
+    category: ex.category,
+    slot,
+    prescription: formatPrescription(ex),
+    plannedSets: ex.sets,
+    plannedReps: ex.reps,
+    plannedHoldSeconds: ex.holdSeconds,
+    perSide: ex.perSide,
+    needsWeight: needsWeight(ex.equipment),
+    /* 버티기 초가 적혀 있고 횟수가 없으면 시간형이다 */
+    isHold: ex.holdSeconds != null && ex.reps == null,
+    equipment: ex.equipment,
+    bodyParts: ex.bodyParts,
+    intensity: ex.intensity,
+    thumbPath: ex.thumbPath,
+  };
+}
+
+/**
  * 오늘 목록을 세션이 쓸 모양으로 찍는다.
  *
  * 구간 순서(SLOT_ORDER)로 다시 줄을 세운다. 직접 더한 운동은 배열 맨 뒤에
@@ -77,24 +105,7 @@ export function freezePlan(
     .map((p) => ({ slot: p.slot, ex: byId.get(p.exerciseId) }))
     .filter((p): p is { slot: SlotKey; ex: SourceExercise } => p.ex != null)
     .sort((a, b) => (order.get(a.slot) ?? 99) - (order.get(b.slot) ?? 99))
-    .map(({ slot, ex }) => ({
-      id: ex.id,
-      title: ex.title,
-      category: ex.category,
-      slot,
-      prescription: formatPrescription(ex),
-      plannedSets: ex.sets,
-      plannedReps: ex.reps,
-      plannedHoldSeconds: ex.holdSeconds,
-      perSide: ex.perSide,
-      needsWeight: needsWeight(ex.equipment),
-      /* 버티기 초가 적혀 있고 횟수가 없으면 시간형이다 */
-      isHold: ex.holdSeconds != null && ex.reps == null,
-      equipment: ex.equipment,
-      bodyParts: ex.bodyParts,
-      intensity: ex.intensity,
-      thumbPath: ex.thumbPath,
-    }));
+    .map(({ slot, ex }) => freezeExercise(ex, slot));
 
   return { themeKey, themeLabel, exercises };
 }

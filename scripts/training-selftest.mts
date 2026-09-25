@@ -118,6 +118,13 @@ import {
   lastActivity,
   sessionEnd,
 } from '../lib/workout/stale.ts';
+import {
+  SIMILAR_LIMIT,
+  equipmentLabel,
+  placeExercise,
+  similarExercises,
+  swapMode,
+} from '../lib/workout/swap.ts';
 
 let passed = 0;
 let failed = 0;
@@ -3080,6 +3087,153 @@ console.log('\n[운동별 메모] 저장하기 전에 다듬는 규칙');
     Array.from(emoji).length === EXERCISE_NOTE_MAX &&
       Array.from(emoji).every((c) => c === '💪')
   );
+}
+
+console.log('\n[운동 교체] 비슷한 운동을 고르고, 바꾸거나 더하는가');
+{
+  /*
+   * 실제 라이브러리로 본다. 힌지 계열 하체 스트렝스 하나를 바꿀 운동으로 삼는다.
+   * 운동 화면의 교체 창이 서버(swapChoices)에서 받는 추천과 같은 계산이다.
+   */
+  const target = library.find(
+    (ex) => ex.category === '하체 스트렝스' && ex.movementPattern === '힌지'
+  );
+  check('시험할 힌지 운동이 라이브러리에 있다', target != null);
+  if (target) {
+    const got = similarExercises(target, library, new Set());
+    check(
+      `추천은 ${SIMILAR_LIMIT}개까지`,
+      got.length > 0 && got.length <= SIMILAR_LIMIT,
+      String(got.length)
+    );
+    check(
+      '바꿀 운동 자신은 안 나온다',
+      got.every((s) => s.exercise.id !== target.id)
+    );
+    check(
+      '같은 분류만 — 하체 스트렝스 대신 박스 점프를 권하지 않는다',
+      got.every((s) => s.exercise.category === target.category),
+      got.map((s) => s.exercise.category).join(',')
+    );
+    check(
+      '동작 계열이 같거나 부위가 하나라도 겹친다',
+      got.every(
+        (s) =>
+          s.exercise.movementPattern === target.movementPattern ||
+          s.exercise.bodyParts.some((p) => target.bodyParts.includes(p))
+      )
+    );
+    const hinges = library.filter(
+      (ex) =>
+        ex.id !== target.id &&
+        ex.category === target.category &&
+        ex.movementPattern === '힌지'
+    );
+    check(
+      '같은 계열이 있으면 가장 앞에 온다',
+      hinges.length === 0 || got[0].exercise.movementPattern === '힌지',
+      got[0]?.exercise.title
+    );
+    check(
+      '같은 계열이면 이유가 "같은 힌지"로 시작한다',
+      got
+        .filter((s) => s.exercise.movementPattern === '힌지')
+        .every((s) => s.reason.startsWith('같은 힌지')),
+      got.map((s) => s.reason).join(' / ')
+    );
+    check(
+      '이유 줄에 장비가 들어간다',
+      got.every((s) => s.reason.includes(equipmentLabel(s.exercise.equipment)))
+    );
+
+    /* 이미 오늘 목록에 있는 운동은 빼고 다음 것으로 채운다 */
+    const first = got[0].exercise.id;
+    const again = similarExercises(target, library, new Set([first]));
+    check(
+      '오늘 목록에 있는 운동은 추천하지 않는다',
+      again.every((s) => s.exercise.id !== first)
+    );
+
+    /* 거른 후보(오늘 장비·경력·몸 상태를 통과한 것)만 넘기면 그 안에서만 고른다 */
+    const pool = library.filter((ex) => ex.equipment.every((e) => e === '맨몸'));
+    const bodyweight = similarExercises(target, pool, new Set());
+    check(
+      '넘겨준 후보 밖에서는 고르지 않는다',
+      bodyweight.every((s) => pool.includes(s.exercise))
+    );
+  }
+
+  /* 점수가 같으면 후보 순서 — 오늘 하고 싶다고 고른 부위가 앞에 와 있다 */
+  const base = {
+    category: '하체 스트렝스',
+    bodyParts: ['햄스트링·둔근'],
+    equipment: ['덤벨'],
+    intensity: '중간',
+    movementPattern: '힌지',
+  };
+  const synthetic = [
+    { ...base, id: 'b' },
+    { ...base, id: 'a' },
+    { ...base, id: 'heavy', intensity: '높음' },
+    { ...base, id: 'other', category: '코어' },
+    { ...base, id: 'unrelated', bodyParts: ['가슴'], movementPattern: '밀기' },
+  ];
+  const ranked = similarExercises({ ...base, id: 'target' }, synthetic, new Set());
+  check(
+    '점수가 같으면 넘겨준 순서대로',
+    ranked.map((s) => s.exercise.id).join(',') === 'b,a,heavy',
+    ranked.map((s) => s.exercise.id).join(',')
+  );
+  check(
+    '강도가 다르면 이유에 적는다',
+    ranked.find((s) => s.exercise.id === 'heavy')?.reason.endsWith('더 무거움') ===
+      true,
+    ranked.find((s) => s.exercise.id === 'heavy')?.reason
+  );
+  check(
+    '이유 한 줄 모양',
+    ranked[0].reason === '같은 힌지 · 햄스트링·둔근 · 덤벨',
+    ranked[0].reason
+  );
+  check(
+    '맨몸은 다른 장비가 없을 때만 적는다',
+    equipmentLabel(['맨몸']) === '맨몸' &&
+      equipmentLabel([]) === '맨몸' &&
+      equipmentLabel(['맨몸', '덤벨']) === '덤벨'
+  );
+
+  /* 세트를 남긴 운동은 바꾸지 않고 더한다 */
+  check('세트가 없으면 바꾼다', swapMode('replace', false) === 'replace');
+  check(
+    '서버에 세트가 있으면 화면이 바꾸자고 해도 더한다',
+    swapMode('replace', true) === 'add'
+  );
+  check('화면이 더하자고 하면 더한다', swapMode('add', false) === 'add');
+
+  const list = [{ id: 'x' }, { id: 'y' }, { id: 'z' }];
+  const ids = (l: { id: string }[] | null) =>
+    l ? l.map((e) => e.id).join(',') : 'null';
+  check(
+    '바꾸면 그 자리에',
+    ids(placeExercise(list, 'y', { id: 'n' }, 'replace')) === 'x,n,z'
+  );
+  check(
+    '더하면 바로 뒤에',
+    ids(placeExercise(list, 'y', { id: 'n' }, 'add')) === 'x,y,n,z'
+  );
+  check(
+    '맨 끝 운동 뒤에도 더한다',
+    ids(placeExercise(list, 'z', { id: 'n' }, 'add')) === 'x,y,z,n'
+  );
+  check(
+    '이미 목록에 있는 운동은 넣지 않는다 — 같은 운동이 두 줄이면 세트를 가를 수 없다',
+    placeExercise(list, 'y', { id: 'x' }, 'add') === null
+  );
+  check(
+    '목록에 없는 운동을 바꿀 수는 없다',
+    placeExercise(list, 'q', { id: 'n' }, 'replace') === null
+  );
+  check('원래 목록은 그대로 둔다', ids(list) === 'x,y,z');
 }
 
 console.log(`\n${passed}개 통과, ${failed}개 실패`);

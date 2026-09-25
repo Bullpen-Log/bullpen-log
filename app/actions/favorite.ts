@@ -47,6 +47,47 @@ export async function toggleExerciseFavorite(exerciseId: string): Promise<Result
   return { favorite: !existing };
 }
 
+/**
+ * 별을 켜거나 끈다 — 운동 화면의 ★ 에서 쓴다.
+ *
+ * 누를 때마다 뒤집는 toggle 과 달리 '켜라 / 꺼라'를 받는다. 운동 화면은 신호가
+ * 약한 곳에서 쓰는데, 응답만 못 받고 한 번 더 누르면 toggle 은 두 번 뒤집혀
+ * 화면과 어긋난다. 원하는 상태를 보내면 몇 번을 보내도 같다.
+ *
+ * 라이브러리의 별과 같은 표라 한쪽에서 달면 다른 쪽에도 달려 있다. 운동
+ * 화면에서 부르면 그 화면은 다시 그려지지 않고, 라이브러리·트레이닝은 다음에
+ * 열 때 새로 그린다(revalidatePath 는 지금 보는 주소일 때만 곧바로 다시 그린다).
+ */
+export async function setExerciseFavorite(
+  exerciseId: string,
+  favorite: boolean
+): Promise<Result> {
+  const user = await requireUser();
+  if (!exerciseId) return { error: '운동을 찾을 수 없습니다.' };
+
+  if (favorite) {
+    /* 숨긴 운동에는 달지 않는다 — toggleExerciseFavorite 와 같은 까닭 */
+    const exercise = await prisma.exerciseVideo.findFirst({
+      where: { id: exerciseId, hiddenAt: null },
+      select: { id: true },
+    });
+    if (!exercise) return { error: '운동을 찾을 수 없습니다.' };
+    await prisma.userExerciseFavorite.upsert({
+      where: { userId_exerciseId: { userId: user.id, exerciseId } },
+      create: { userId: user.id, exerciseId },
+      update: {},
+    });
+  } else {
+    await prisma.userExerciseFavorite.deleteMany({
+      where: { userId: user.id, exerciseId },
+    });
+  }
+
+  revalidatePath('/library/training');
+  revalidatePath('/training');
+  return { favorite };
+}
+
 export async function toggleDrillFavorite(guideId: string): Promise<Result> {
   const user = await requireUser();
   if (!guideId) return { error: '드릴을 찾을 수 없습니다.' };
