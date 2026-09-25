@@ -6,6 +6,7 @@ import { selectCandidates } from '@/lib/report/prescription';
 import { equipmentForToday, filterByEquipment } from '@/lib/report/equipment';
 import { filterByLevel } from '@/lib/report/personalize';
 import { readDailyPlan } from '@/lib/report/daily-plan';
+import { readArmcareRoutine } from '@/lib/armcare/routine';
 import { visibleExercises } from '@/lib/library-cache';
 import { closeAbandonedSessions } from '@/lib/workout/close-stale';
 import {
@@ -30,7 +31,7 @@ import {
 /** 부딪혔을 때 대신 주는 것을 사람 말로. 화면 문구에 그대로 들어간다. */
 const FALLBACK_LABEL: Record<ThemeKey, string> = {
   recovery: '회복·가동성',
-  assist: '코어·암케어',
+  assist: '코어·보강',
   lower: '하체 스트렝스',
   upper: '상체 스트렝스',
 };
@@ -63,7 +64,7 @@ export async function loadTodayCore(user: UserForToday, today: Date) {
 
   const { facts, plan, hasLogs } = await gatherFactsAndPlan(user, today);
 
-  const [library, doneLogs, todaySetup] = await Promise.all([
+  const [library, doneLogs, todaySetup, armcareToday] = await Promise.all([
     /*
      * 거르는 데 필요한 항목만 가져온다.
      *
@@ -94,6 +95,11 @@ export async function loadTodayCore(user: UserForToday, today: Date) {
     prisma.dailyTrainingSetup.findUnique({
       where: { userId_date: { userId: user.id, date: midnight } },
       select: { availableEquipment: true, plan: true, generatedAt: true },
+    }),
+    /* 오늘의 암케어 — 거기서 한 체크는 아래 strays 에서 뺀다 */
+    prisma.dailyArmcare.findUnique({
+      where: { userId_date: { userId: user.id, date: midnight } },
+      select: { plan: true },
     }),
   ]);
 
@@ -187,20 +193,38 @@ export async function loadTodayCore(user: UserForToday, today: Date) {
    *
    * 위 filter 는 저장된 목록 '안에서만' 걸러서 이 경우를 못 잡는다. 빠진 것을
    * 여기서 도로 넣는다. 슬롯은 그 운동이 어느 자리에 어울리는지로 다시 정한다.
+   *
+   * 오늘의 암케어 루틴에 든 운동은 도로 넣지 않는다. 암케어는 트레이닝의 암케어
+   * 화면에서 따로 하고, 거기서 한 체크도 같은 운동 기록에 남는다. 그것까지 넣으면
+   * 암케어 화면에서 한 밴드 운동이 오늘 운동 목록에 '직접 넣음'으로 끼고, [운동
+   * 시작]을 누르면 운동 세션에까지 얼어붙는다.
+   *
+   * 루틴에 없는 암케어는 도로 넣는다 — 운동 목록에 직접 더해 체크한 것이다. 처음에
+   * 암케어를 통째로 뺐더니, 일정을 '다시 만들기'하면 그 체크가 목록에서 사라져
+   * 풀 수도 없었다(이 규칙이 처음 막으려던 바로 그 일이다). 자리는 암케어 칸이다.
    */
+  const armcareIds = new Set(
+    readArmcareRoutine(armcareToday?.plan)?.items.map((it) => it.exerciseId) ?? []
+  );
   const inPlan = new Set(planned.map((p) => p.exerciseId));
   const strays = [...doneIds]
     .filter((id) => !inPlan.has(id))
-    .map((exerciseId) => {
+    .flatMap((exerciseId) => {
       const ex = library.find((e) => e.id === exerciseId);
-      return {
-        exerciseId,
-        slot: ex && savedPlan ? slotForTheme(ex, savedPlan.theme.key) : 'main',
-        manual: true,
-        unsafe: !safeIds.has(exerciseId),
-      };
-    })
-    .filter((p) => library.some((e) => e.id === p.exerciseId));
+      if (!ex || (ex.category === '암케어' && armcareIds.has(exerciseId))) return [];
+      return [
+        {
+          exerciseId,
+          slot: savedPlan
+            ? slotForTheme(ex, savedPlan.theme.key)
+            : ex.category === '암케어'
+              ? ('armcare' as const)
+              : ('main' as const),
+          manual: true,
+          unsafe: !safeIds.has(exerciseId),
+        },
+      ];
+    });
 
   const shownPicks = [...planned, ...strays];
 

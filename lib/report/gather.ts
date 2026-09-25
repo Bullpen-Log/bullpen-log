@@ -180,6 +180,12 @@ export async function exerciseSessionsAgo(
         gte: new Date(`${shiftDateKey(todayKey, -HISTORY_DAYS)}T00:00:00.000Z`),
         lte: new Date(`${todayKey}T00:00:00.000Z`),
       },
+      /*
+       * 암케어는 뺀다. 2026-09-25 부터 암케어는 운동 일정과 따로 매일 하는 루틴이라,
+       * 넣으면 밴드 몇 개만 한 날도 '세션'이 되어 본운동이 돌아오는 차례(여섯 세션)가
+       * 날로 치면 훨씬 빨리 온다. 암케어 운동은 일정에 안 나오니 셀 까닭도 없다.
+       */
+      exercise: { category: { not: '암케어' } },
     },
     select: { exerciseId: true, date: true },
     orderBy: { date: 'desc' },

@@ -19,7 +19,14 @@ import { CheckinForm } from '@/components/checkin-form';
  * 폼에 지난 체크인을 넘기지 않는다(recent=[]). 폼은 그 목록에서 '오늘 것'만 찾아
  * 채우는데, 이 단추는 오늘 체크인이 없을 때만 뜨기 때문이다.
  */
-export function TrainingCheckin({ parts }: { parts: string[] }) {
+export function TrainingCheckin({
+  parts,
+  description = '30초면 됩니다. 남기면 바로 오늘 운동 일정을 만들 수 있습니다.',
+}: {
+  parts: string[];
+  /** 창 위의 한 줄 — 암케어 화면은 '오늘의 암케어를 만들 수 있습니다'로 바꾼다 */
+  description?: string;
+}) {
   const [open, setOpen] = useState(false);
 
   return (
@@ -36,7 +43,7 @@ export function TrainingCheckin({ parts }: { parts: string[] }) {
         open={open}
         onClose={() => setOpen(false)}
         title="오늘 컨디션 체크인"
-        description="30초면 됩니다. 남기면 바로 오늘 운동 일정을 만들 수 있습니다."
+        description={description}
       >
         {/* 열릴 때만 그린다 — 닫았다 다시 열면 새 폼으로 시작한다 */}
         {open && <CheckinForm recent={[]} parts={parts} onSaved={() => setOpen(false)} />}

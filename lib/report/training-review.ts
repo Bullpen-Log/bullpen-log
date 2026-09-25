@@ -154,6 +154,15 @@ export async function trainingReview(
     const key = toDateKey(log.date);
     const week = weekOf(key);
     if (!week) continue;
+    /*
+     * 암케어는 '암케어 한 날'로만 센다. 2026-09-25 부터 암케어를 운동 일정과 따로
+     * 매일 하게 되면서, 밴드 몇 개만 한 날까지 '운동한 날'과 운동 수·시간에 넣으면
+     * 한 주 내내 운동한 것으로 보인다(lib/training-load.ts 와 같은 규칙).
+     */
+    if (log.exercise.category === ARM_CARE_CATEGORY) {
+      markOf(key).armCare = true;
+      continue;
+    }
     const bucket = buckets.get(week.ago)!;
 
     bucket.days.add(key);
@@ -163,9 +172,7 @@ export async function trainingReview(
       setsDone: log.setsDone,
     } as LoggedExercise);
 
-    const mark = markOf(key);
-    mark.trained = true;
-    if (log.exercise.category === ARM_CARE_CATEGORY) mark.armCare = true;
+    markOf(key).trained = true;
   }
 
   /* 강도는 하루에 하나라 따로 모은다 — 운동 수만큼 세면 안 된다 */

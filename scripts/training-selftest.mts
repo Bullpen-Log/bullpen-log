@@ -85,7 +85,28 @@ import {
 } from '../lib/training-load.ts';
 import { computeAcwr, zoneOf } from '../lib/pitch-stats.ts';
 import { buildTrainingLoad } from '../lib/training-load.ts';
-import { buildPartVolume, VOLUME_GROUPS } from '../lib/training-volume.ts';
+import {
+  ARM_CARE_CATEGORY,
+  buildPartVolume,
+  VOLUME_GROUPS,
+} from '../lib/training-volume.ts';
+import { readFileSync } from 'node:fs';
+import {
+  ARMCARE_AREAS,
+  ARMCARE_CATEGORY,
+  ARMCARE_MUSCLE_NAMES,
+  areasOf,
+  cleanTargetMuscles,
+  helpsLine,
+  primaryArea,
+  type ArmcareAreaKey,
+} from '../lib/armcare/anatomy.ts';
+import {
+  buildArmcareRoutine,
+  decideArmcare,
+  readArmcareRoutine,
+  type ArmcareKind,
+} from '../lib/armcare/routine.ts';
 import { reportReadiness } from '../lib/report/cadence.ts';
 import { SYSTEM_PROMPT } from '../lib/ai/report-prompt.ts';
 import {
@@ -112,7 +133,11 @@ import {
   type AutoAnswer,
   type AutoPromptInput,
 } from '../lib/ai/auto-setup-prompt.ts';
-import { CONDITIONING_DAY_LABEL, CONDITIONING_GOAL } from '../lib/report/theme.ts';
+import {
+  CONDITIONING_DAY_LABEL,
+  CONDITIONING_GOAL,
+  minutesChoicesFor,
+} from '../lib/report/theme.ts';
 import {
   STALE_AFTER_MS,
   isAbandoned,
@@ -406,15 +431,21 @@ for (const owned of [['맨몸'], ['맨몸', '밴드'], ['맨몸', '밴드', '덤
 }
 
 console.log('\n[시간] 고른 시간에 맞는가');
-for (const minutes of WORKOUT_MINUTES_CHOICES) {
-  const { themed, theme } = planFor({ person: { condition: 8 }, minutes });
-  const target = effectiveMinutes(theme.key, minutes);
-  const gap = Math.abs(themed.estimatedMinutes - target) / target;
-  check(
-    `${minutes}분 요청 → ${themed.estimatedMinutes}분`,
-    gap <= 0.15,
-    `${theme.label}, 오차 ${Math.round(gap * 100)}%`
-  );
+/*
+ * 목표마다 고를 수 있는 시간이 다르다(근력·파워 45·60·75·90, 컨디셔닝 45·60·75).
+ * 예전에는 목표 없이 WORKOUT_MINUTES_CHOICES 만 돌려 컨디셔닝을 한 번도 안 봤다.
+ */
+for (const goal of TRAINING_GOALS.map((g) => g.name)) {
+  for (const minutes of minutesChoicesFor(goal)) {
+    const { themed, theme } = planFor({ person: { condition: 8 }, goal, minutes });
+    const target = effectiveMinutes(theme.key, minutes);
+    const gap = Math.abs(themed.estimatedMinutes - target) / target;
+    check(
+      `${goal} ${minutes}분 요청 → ${themed.estimatedMinutes}분`,
+      gap <= 0.15,
+      `${theme.label}, 오차 ${Math.round(gap * 100)}%`
+    );
+  }
 }
 
 console.log('\n[운동 부하] 무거운 운동과 가벼운 운동이 갈리는가');
@@ -1004,6 +1035,12 @@ console.log('\n[가입 문진] 받은 답이 실제로 쓰이는가');
     DEFAULT_SESSION_MINUTES === DEFAULT_WORKOUT_MINUTES,
     `${DEFAULT_SESSION_MINUTES}분`
   );
+  check(
+    '기본 운동 시간은 어느 목표에서도 고를 수 있는 값이다',
+    WORKOUT_MINUTES_CHOICES.includes(DEFAULT_WORKOUT_MINUTES as never) &&
+      minutesChoicesFor(CONDITIONING_GOAL).includes(DEFAULT_WORKOUT_MINUTES),
+    `${DEFAULT_WORKOUT_MINUTES}분`
+  );
 
   /*
    * 문진 추정치가 실제 일정과 맞는가.
@@ -1415,8 +1452,13 @@ console.log('\n[목표] 고른 목표가 실제로 배분을 바꾸는가');
    * 예전에는 '균형 잡힌 관리'를 기준으로 견줬다. 그 목표를 없앤 뒤로는 남은
    * 목표끼리 견준다 — 목표가 배분을 바꾼다는 알맹이는 같다.
    */
+  /*
+   * 예전 첫 줄은 '컨디셔닝이 근력 향상보다 암케어가 많다'였다. 암케어가 모든
+   * 일정에서 빠진 뒤로(2026-09-25) 그 자리를 가동성과 코어가 잇는다.
+   */
   for (const [slot, goal, base, label] of [
-    ['armcare', '컨디셔닝', '근력 향상', '암케어'],
+    ['mobility', '컨디셔닝', '근력 향상', '가동성'],
+    ['core', '컨디셔닝', '근력 향상', '코어'],
     ['main', '근력 향상', '파워 향상', '본운동'],
     ['prehab', '컨디셔닝', '근력 향상', '보강'],
     ['core', '파워 향상', '근력 향상', '코어'],
@@ -1443,7 +1485,7 @@ console.log('\n[목표] 고른 목표가 실제로 배분을 바꾸는가');
      * 근력 향상은 기본 목표라 예전 균형 잡힌 관리의 코어 몫을 넘겨받았다.
      * 60분에 코어가 하나는 들어가되, 본운동 몫이 가장 커야 한다.
      */
-    const specs = compositionFor('lower', '근력 향상', 60);
+    const specs = compositionFor('lower', '근력 향상');
     const share = (slot: string) => specs.find((sp) => sp.slot === slot)?.share ?? 0;
     check(
       '근력 향상 — 코어 칸이 있고, 본운동이 가장 크다',
@@ -1513,9 +1555,10 @@ console.log('\n[목표] 고른 목표가 실제로 배분을 바꾸는가');
     /*
      * 유산소 칸은 맨 뒤에, 곁가지로 채운다(theme.ts 의 shapeToSpecs). 앞에 두고
      * 꼭 채우는 칸으로 두었더니, 몫이 자전거 하나(14분)보다 작아 '빈 구간은
-     * 억지로 하나' 규칙으로 들어가며 시간을 넘기고 암케어 몫을 깎았다.
+     * 억지로 하나' 규칙으로 들어가며 시간을 넘기고 그때 있던 암케어 몫을 깎았다.
+     * 지금은 보강이 가장 큰 몫이라 그쪽을 본다.
      */
-    const specs = compositionFor('lower', '컨디셔닝', 60);
+    const specs = compositionFor('lower', '컨디셔닝');
     check(
       '컨디셔닝 — 유산소 칸은 맨 뒤이고 곁가지다',
       specs.at(-1)?.slot === 'cardio' && specs.at(-1)?.optional === true,
@@ -1535,16 +1578,17 @@ console.log('\n[목표] 고른 목표가 실제로 배분을 바꾸는가');
       Math.abs(bike60.estimatedMinutes - 60) <= 60 * 0.15,
       `${bike60.estimatedMinutes}분`
     );
-    const armcareCount = (picks: { slot: string }[]) =>
-      picks.filter((p) => p.slot === 'armcare').length;
-    const plain40 = at(40);
-    const bike40 = at(40, [...library, bike]);
+    const prehabCount = (picks: { slot: string }[]) =>
+      picks.filter((p) => p.slot === 'prehab').length;
+    const shortest = Math.min(...minutesChoicesFor(CONDITIONING_GOAL));
+    const plainShort = at(shortest);
+    const bikeShort = at(shortest, [...library, bike]);
     check(
-      '컨디셔닝 40분 — 유산소가 안 맞으면 빠지고, 암케어를 깎지 않는다',
-      armcareCount(bike40.picks) >= armcareCount(plain40.picks) &&
-        Math.abs(bike40.estimatedMinutes - 40) <= 40 * 0.15,
-      `암케어 ${armcareCount(plain40.picks)} → ${armcareCount(bike40.picks)}개 · ` +
-        `${bike40.estimatedMinutes}분 · 유산소 ${bike40.picks.filter((p) => p.slot === 'cardio').length}개`
+      `컨디셔닝 ${shortest}분 — 유산소가 안 맞으면 빠지고, 보강을 깎지 않는다`,
+      prehabCount(bikeShort.picks) >= prehabCount(plainShort.picks) &&
+        Math.abs(bikeShort.estimatedMinutes - shortest) <= shortest * 0.15,
+      `보강 ${prehabCount(plainShort.picks)} → ${prehabCount(bikeShort.picks)}개 · ` +
+        `${bikeShort.estimatedMinutes}분 · 유산소 ${bikeShort.picks.filter((p) => p.slot === 'cardio').length}개`
     );
   }
 
@@ -2307,8 +2351,8 @@ console.log('\n[목표 안의 부위] 상체를 밀기·당기기로 가르는�
    * 안 좁힌 날은 예전 그대로. 이것이 깨지면 지금까지 쓰던 사람의 일정이
    * 소리 없이 달라진다.
    */
-  const before = compositionFor('upper', '근력 향상', 60);
-  const after = compositionFor('upper', '근력 향상', 60, null);
+  const before = compositionFor('upper', '근력 향상');
+  const after = compositionFor('upper', '근력 향상', null);
   check(
     '부위를 안 고르면 구성이 예전과 같다',
     JSON.stringify(before) === JSON.stringify(after),
@@ -2321,9 +2365,8 @@ console.log('\n[목표 안의 부위] 상체를 밀기·당기기로 가르는�
   );
   check(
     '부위를 고르면 그 계열만 걸린다',
-    compositionFor('upper', '근력 향상', 60, 'upperPush').find(
-      (sp) => sp.slot === 'main'
-    )?.strengthPatterns?.[0] === '밀기',
+    compositionFor('upper', '근력 향상', 'upperPush').find((sp) => sp.slot === 'main')
+      ?.strengthPatterns?.[0] === '밀기',
     '밀기'
   );
 }
@@ -2348,18 +2391,27 @@ console.log('\n[워밍업] 일정에 워밍업을 안 넣는가');
       goal,
     }).picks;
 
-  /* 1) 무게 드는 날·보조 날에는 모빌리티가 한 개도 없어야 한다 */
+  /*
+   * 1) 무게 드는 날에는 모빌리티가 한 개도 없어야 한다.
+   *
+   * 컨디셔닝과 보조 날은 다르다 — 암케어가 빠진 자리에 가동성이 한 구간으로
+   * 들어왔다(2026-09-25). 그날에는 준비 운동이 아니라 그날의 운동이라, 모빌리티가
+   * 가동성 구간에만 있는지를 본다(본운동 빈자리를 메우는 데 쓰이면 안 된다).
+   */
   const GOAL_NAMES = TRAINING_GOALS.map((g) => g.name);
   for (const theme of ['lower', 'upper', 'assist'] as const) {
     for (const goal of GOAL_NAMES) {
-      for (const m of [60, 90, 120]) {
+      const mobilityDay = theme === 'assist' || goal === CONDITIONING_GOAL;
+      for (const m of minutesChoicesFor(goal)) {
         const mob = picksOf(theme, goal, m).filter(
           (p) => p.exercise.category === '모빌리티'
         );
         check(
-          `${theme} ${goal} ${m}분 — 모빌리티가 안 들어간다`,
-          mob.length === 0,
-          mob.map((x) => x.exercise.title).join(', ')
+          mobilityDay
+            ? `${theme} ${goal} ${m}분 — 모빌리티는 가동성 구간에만`
+            : `${theme} ${goal} ${m}분 — 모빌리티가 안 들어간다`,
+          mobilityDay ? mob.every((p) => p.slot === 'mobility') : mob.length === 0,
+          mob.map((x) => `${x.slot}:${x.exercise.title}`).join(', ')
         );
       }
     }
@@ -2387,29 +2439,60 @@ console.log('\n[워밍업] 일정에 워밍업을 안 넣는가');
   }
 
   /*
-   * 4) '매우 낮음' 암케어와 회복 운동이 이제 뽑힌다.
+   * 4) '매우 낮음' 회복·보강 운동이 이제 뽑힌다.
    *
    * 예전에는 이것들이 워밍업 구간으로만 들어갈 수 있었다. 워밍업을 없애면서
-   * 거르개를 같이 걷어내지 않으면, 넷이 어느 구간에도 못 들어가 영영 안 나온다.
+   * 거르개를 같이 걷어내지 않으면, 어느 구간에도 못 들어가 영영 안 나온다.
+   * 암케어는 뺀다 — 일정이 아니라 암케어 화면에서 쓴다(아래 5번).
    */
   {
     const veryLow = library.filter(
-      (ex) => ex.intensity === '매우 낮음' && ex.category !== '모빌리티'
+      (ex) =>
+        ex.intensity === '매우 낮음' &&
+        ex.category !== '모빌리티' &&
+        ex.category !== '암케어'
     );
-    const reachable = veryLow.filter((ex) => {
-      const theme: ThemeKey = ex.category === '암케어' ? 'lower' : 'assist';
-      const specs = compositionFor(theme, DEFAULT_GOAL);
-      return specs.some((sp) => sp.categories.includes(ex.category));
-    });
+    const reachable = veryLow.filter((ex) =>
+      compositionFor('assist', DEFAULT_GOAL).some((sp) =>
+        sp.categories.includes(ex.category)
+      )
+    );
     check(
-      `'매우 낮음' 암케어·회복 ${veryLow.length}개가 갈 구간이 있다`,
-      veryLow.length > 0 && reachable.length === veryLow.length,
+      `'매우 낮음' 회복·보강 ${veryLow.length}개가 갈 구간이 있다`,
+      reachable.length === veryLow.length,
       `${reachable.length}/${veryLow.length}`
     );
   }
 
   /*
-   * 5) 맨몸만 가진 사람도 일정이 빈약해지지 않는다.
+   * 5) 어느 날에도 암케어 구간이 없다.
+   *
+   * 암케어는 트레이닝의 암케어 화면에서 그날 몸 상태에 맞춰 따로 한다
+   * (2026-09-25 사용자분과 정함). 일정에 다시 끼면 같은 날 두 곳에서 따로 논다.
+   */
+  {
+    const leaks: string[] = [];
+    for (const theme of ['lower', 'upper', 'assist', 'recovery'] as const) {
+      for (const goal of [null, ...GOAL_NAMES]) {
+        const specs = compositionFor(theme, goal);
+        if (
+          specs.some((sp) => sp.slot === 'armcare' || sp.categories.includes('암케어'))
+        ) {
+          leaks.push(`${theme}/${goal ?? '목표 없음'}`);
+        }
+        for (const m of minutesChoicesFor(goal)) {
+          const armcare = picksOf(theme, goal, m).filter(
+            (p) => p.exercise.category === '암케어'
+          );
+          if (armcare.length > 0) leaks.push(`${theme}/${goal ?? '목표 없음'}/${m}분`);
+        }
+      }
+    }
+    check('어느 날에도 암케어 구간이 없다', leaks.length === 0, leaks.join(', '));
+  }
+
+  /*
+   * 6) 맨몸만 가진 사람도 일정이 빈약해지지 않는다.
    *
    * 예전에는 워밍업이 '강도 낮음 웨이트'라 맨몸만 가진 사람에게는 후보가 0이
    * 되는 자리가 있었다. 지금은 그 자리가 없으니 그냥 비지 않는지만 본다.
@@ -2428,6 +2511,7 @@ console.log('\n[워밍업] 일정에 워밍업을 안 넣는가');
 console.log('\n[가장 빠듯한 경우] 그래도 훈련이 나오는가');
 {
   let empty = 0;
+  const shortestMinutes = Math.min(...WORKOUT_MINUTES_CHOICES);
   for (const level of TRAINING_LEVELS) {
     for (const goal of TRAINING_GOALS) {
       const { themed } = planFor({
@@ -2435,24 +2519,27 @@ console.log('\n[가장 빠듯한 경우] 그래도 훈련이 나오는가');
         owned: ['맨몸'],
         level: level.name,
         goal: goal.name,
-        minutes: 30,
+        minutes: shortestMinutes,
       });
       if (themed.picks.length === 0) empty++;
     }
   }
   check(
-    `맨몸만 · 30분 · 경력 ${TRAINING_LEVELS.length}가지 × 목표 ${TRAINING_GOALS.length}가지`,
+    `맨몸만 · ${shortestMinutes}분 · 경력 ${TRAINING_LEVELS.length}가지 × 목표 ${TRAINING_GOALS.length}가지`,
     empty === 0,
     `빈 훈련 ${empty}개`
   );
 }
 
-console.log('\n[회복날] 가벼운 것만 · 팔 중심 · 유산소는 있을 때만 맨 앞에');
+console.log('\n[회복날] 가벼운 것만 · 가동성 중심 · 유산소는 있을 때만 맨 앞에');
 {
   /*
    * 2026-09-23 회복날을 다시 짰다 (lib/report/theme.ts 의 회복날 구성).
    * 실제로 뽑아 보니 덤벨 스쿼트·덤벨 트라이셉스 익스텐션 같은 '중간' 운동이
    * 섞였고, 던진 다음 날 가장 챙길 암케어는 한두 개뿐이었다.
+   *
+   * 2026-09-25 암케어와 코어를 뺐다. 암케어는 암케어 화면이 따로 챙기고
+   * (던진 다음 날은 회복 루틴), 회복날은 가동성·가벼운 보강·가벼운 유산소로만.
    */
   const HEAVY = ['덤벨', '바벨', '케틀벨', '원판', '케이블'];
   const isHeavy = (e: { intensity: string; equipment: string[] }) =>
@@ -2461,27 +2548,32 @@ console.log('\n[회복날] 가벼운 것만 · 팔 중심 · 유산소는 있을
 
   let days = 0;
   let heavy = 0;
-  const thinArm: string[] = [];
-  for (const minutes of [45, 60, 90]) {
+  const thin: string[] = [];
+  for (const minutes of WORKOUT_MINUTES_CHOICES) {
     const { theme, themed } = planFor({ person: { condition: 3 }, minutes });
     if (theme.key !== 'recovery') continue;
     days++;
     heavy += themed.picks.filter(({ exercise }) => isHeavy(exercise)).length;
     const count = (slot: string) => themed.picks.filter((p) => p.slot === slot).length;
-    const arm = count('armcare');
-    if (arm < 2 || ['mobility', 'prehab', 'core'].some((s) => count(s) > arm)) {
-      thinArm.push(`${minutes}분 요청 → 암케어 ${arm}개`);
+    const mobility = count('mobility');
+    const leftovers = themed.picks.filter(
+      (p) => p.exercise.category === '암케어' || p.slot === 'core' || p.slot === 'main'
+    );
+    if (mobility < 2 || count('prehab') > mobility || leftovers.length > 0) {
+      thin.push(
+        `${minutes}분 요청 → 가동성 ${mobility} · 보강 ${count('prehab')} · 그 밖 ${leftovers.length}`
+      );
     }
   }
   check(
     '회복날 → 무게 드는 장비·중간 이상 강도 없음',
-    days === 3 && heavy === 0,
+    days === WORKOUT_MINUTES_CHOICES.length && heavy === 0,
     `${days}일 중 섞인 것 ${heavy}개`
   );
   check(
-    '회복날 → 암케어가 둘 이상이고 가장 많다',
-    thinArm.length === 0,
-    thinArm.join(', ')
+    '회복날 → 가동성이 둘 이상이고 가장 많다 · 암케어·코어 없음',
+    thin.length === 0,
+    thin.join(', ')
   );
 
   /* 유산소는 영상이 올라오기 전까지 없다 — 그동안은 그 칸 없이 짠다 */
@@ -2651,13 +2743,18 @@ console.log('\n[AI 맞춤] 규칙이 울타리를 치고, 그 밖의 답은 받�
   );
   check('신호가 없으면 초안은 기본 목표(근력 향상)', plain.draft.goal === DEFAULT_GOAL);
 
+  /*
+   * 예전에는 운동은 했는데 암케어가 0세트면 초안을 컨디셔닝으로 잡았다. 암케어가
+   * 모든 일정에서 빠진 뒤로는 그 규칙이 모두를 컨디셔닝으로 보내는 셈이라 지웠다
+   * (2026-09-25). 암케어는 암케어 화면이 따로 챙긴다.
+   */
   const armGap = fenceFor(
     factsWith({}),
     signals({ volume: { ...signals().volume, armCare: { sets: 0, previous: 3 } } })
   );
   check(
-    '운동은 했는데 암케어가 0세트 → 초안은 컨디셔닝',
-    armGap.draft.goal === CONDITIONING_GOAL,
+    '암케어가 0세트여도 초안은 기본 목표 (암케어는 따로 챙긴다)',
+    armGap.draft.goal === DEFAULT_GOAL && !armGap.draft.reason.includes('암케어'),
     armGap.draft.reason
   );
   const newcomer = fenceFor(
@@ -2668,7 +2765,7 @@ console.log('\n[AI 맞춤] 규칙이 울타리를 치고, 그 밖의 답은 받�
     })
   );
   check(
-    '기록이 없는 사람은 암케어 0세트여도 기본 목표로 시작',
+    '기록이 없는 사람은 기본 목표로 시작',
     newcomer.draft.goal === DEFAULT_GOAL &&
       newcomer.draft.reason.includes('기록이 아직 적어'),
     newcomer.draft.reason
@@ -2680,8 +2777,8 @@ console.log('\n[AI 맞춤] 규칙이 울타리를 치고, 그 밖의 답은 받�
     loaded.fixedGoal === CONDITIONING_GOAL && loaded.goals.length === 1
   );
   check(
-    '운동 부하 주의 → 시간 한 단계 줄임 (60 → 40)',
-    JSON.stringify(loaded.minutes[CONDITIONING_GOAL]) === '[40]',
+    '운동 부하 주의 → 시간 한 단계 줄임 (60 → 45)',
+    JSON.stringify(loaded.minutes[CONDITIONING_GOAL]) === '[45]',
     JSON.stringify(loaded.minutes)
   );
   check(
@@ -2693,11 +2790,11 @@ console.log('\n[AI 맞춤] 규칙이 울타리를 치고, 그 밖의 답은 받�
   const loadedLong = fenceFor(
     factsWith({}),
     signals({ zone: 'danger', ratio: 1.7 }),
-    120
+    90
   );
   check(
-    '기본 120분 + 부하 위험 → 컨디셔닝 90에서 한 단계 줄여 60까지',
-    JSON.stringify(loadedLong.minutes[CONDITIONING_GOAL]) === '[40,60]',
+    '기본 90분 + 부하 위험 → 컨디셔닝 75에서 한 단계 줄여 60까지',
+    JSON.stringify(loadedLong.minutes[CONDITIONING_GOAL]) === '[45,60]',
     JSON.stringify(loadedLong.minutes)
   );
 
@@ -2705,7 +2802,7 @@ console.log('\n[AI 맞춤] 규칙이 울타리를 치고, 그 밖의 답은 받�
   check(
     '오늘 포함 잠 부족 3일 → 컨디셔닝, 시간 줄임',
     tired.fixedGoal === CONDITIONING_GOAL &&
-      JSON.stringify(tired.minutes[CONDITIONING_GOAL]) === '[40]',
+      JSON.stringify(tired.minutes[CONDITIONING_GOAL]) === '[45]',
     tired.rules.join(' / ')
   );
   const oneNight = fenceFor(factsWith({ sleep: '부족' }));
@@ -2745,7 +2842,7 @@ console.log('\n[AI 맞춤] 규칙이 울타리를 치고, 그 밖의 답은 받�
   check(
     '회복날에는 시간을 두 번 줄이지 않는다 (회복날이 이미 줄임)',
     low.day.key === 'recovery' &&
-      JSON.stringify(low.minutes[CONDITIONING_GOAL]) === '[40,60]',
+      JSON.stringify(low.minutes[CONDITIONING_GOAL]) === '[45,60]',
     JSON.stringify(low.minutes)
   );
 
@@ -2824,7 +2921,8 @@ console.log('\n[AI 맞춤] 규칙이 울타리를 치고, 그 밖의 답은 받�
     ...good,
     reason: '어제 95구를 던지셨습니다.',
   });
-  reject('자료에 없는 시간 → 버린다', { ...good, reason: '오늘은 75분만 하세요.' });
+  /* 한 번도 선택지에 없던 값 — 75분은 이제 고를 수 있는 시간이라 쓰지 않는다 */
+  reject('자료에 없는 시간 → 버린다', { ...good, reason: '오늘은 50분만 하세요.' });
   reject('운동 종목 이름을 씀 → 버린다', {
     ...good,
     reason: '오늘은 데드리프트 위주로 갑니다.',
@@ -2877,7 +2975,11 @@ console.log('\n[AI 맞춤] 규칙이 울타리를 치고, 그 밖의 답은 받�
   const schema = autoSetupSchema(loaded);
   check(
     '모양 검사: 울타리 안 → 통과',
-    schema.safeParse({ ...good, goal: CONDITIONING_GOAL, minutes: 40 }).success
+    schema.safeParse({
+      ...good,
+      goal: CONDITIONING_GOAL,
+      minutes: loaded.minutes[CONDITIONING_GOAL][0],
+    }).success
   );
   check('모양 검사: 울타리 밖 목표 → 떨어짐', !schema.safeParse(good).success);
 
@@ -3545,6 +3647,412 @@ console.log('\n[휴식 시계] 10분이 넘으면 거두는가');
   check('한 시간이 지나도 다시 나오지 않는다', restSeconds(last, at(3600)) === null);
   check('폰 시계가 빨라 세트가 미래로 찍혀도 0초', restSeconds(last, at(-5)) === 0);
   check('읽을 수 없는 시각이면 시계 없음', restSeconds('아무거나', at(10)) === null);
+}
+
+console.log('\n[암케어] 부위·근육 · 오늘의 루틴 · 부하');
+{
+  /*
+   * 근육은 scripts/armcare-muscles.json 에서 겹쳐 쓴다. DB 에 아직 안 넣었어도
+   * (fill-armcare-muscles.mts --save 전) 루틴 규칙을 시험할 수 있어야 한다.
+   */
+  const tags: { id: string; title: string; muscles: string[] }[] = JSON.parse(
+    readFileSync(new URL('./armcare-muscles.json', import.meta.url), 'utf8')
+  );
+  const tagOf = new Map(tags.map((t) => [t.id, t.muscles]));
+  const armcareLib = library
+    .filter((ex) => ex.category === ARMCARE_CATEGORY)
+    .map((ex) => ({
+      ...ex,
+      targetMuscles: tagOf.get(ex.id) ?? ex.targetMuscles ?? [],
+    }));
+  const exOf = new Map(armcareLib.map((ex) => [ex.id, ex]));
+  const titleOf = (id: string) => exOf.get(id)?.title ?? id;
+
+  /* 1) 이름이 서로 맞는가 */
+  check(
+    '암케어 카테고리 이름이 부하 쪽과 같다',
+    ARMCARE_CATEGORY === ARM_CARE_CATEGORY
+  );
+  const unknown = tags.flatMap((t) =>
+    t.muscles
+      .filter((m) => !ARMCARE_MUSCLE_NAMES.includes(m))
+      .map((m) => `${t.title}:${m}`)
+  );
+  check(
+    '근육 초안의 이름이 모두 목록 안에 있다',
+    unknown.length === 0,
+    unknown.join(', ')
+  );
+  const untagged = armcareLib.filter((ex) => ex.targetMuscles.length === 0);
+  check(
+    '보이는 암케어 운동마다 근육이 적혀 있다',
+    untagged.length === 0,
+    untagged.map((e) => e.title).join(', ') || `${armcareLib.length}개`
+  );
+  const emptyAreas = ARMCARE_AREAS.filter(
+    (a) =>
+      !armcareLib.some((ex) => areasOf(ex.targetMuscles).some((x) => x.key === a.key))
+  );
+  check(
+    '부위마다 운동이 하나 이상 있다',
+    emptyAreas.length === 0,
+    emptyAreas.map((a) => a.label).join(', ')
+  );
+
+  /* 2) 근육 이름 거르기 — 맨 앞이 주 근육이라 적힌 차례를 지켜야 한다 */
+  check(
+    '근육 거르기: 모르는 것은 버리고, 겹치면 앞의 것만, 차례는 그대로',
+    JSON.stringify(
+      cleanTargetMuscles(['중부 승모근', '없는 근육', '후면 삼각근', '중부 승모근', 3])
+    ) === JSON.stringify(['중부 승모근', '후면 삼각근'])
+  );
+  check(
+    '주 부위는 맨 앞 근육의 부위 (T 레이즈 → 견갑)',
+    primaryArea(['중부 승모근', '후면 삼각근'])?.key === 'scapula'
+  );
+  check(
+    '운동 한 줄 — 주 근육이 도울 수 있는 부상만',
+    helpsLine(['극하근', '소원근']) === '극하근 · 소원근 → 회전근개 손상 예방에 도움',
+    String(helpsLine(['극하근', '소원근']))
+  );
+  check(
+    '푸시다운·해머컬에는 예방 효과를 붙이지 않는다 (근육 이름만)',
+    helpsLine(['삼두근']) === '삼두근' &&
+      helpsLine(['완요골근', '이두근']) === '완요골근 · 이두근',
+    `${helpsLine(['삼두근'])} / ${helpsLine(['완요골근', '이두근'])}`
+  );
+  const claims = tags
+    .map((t) => ({ title: t.title, line: helpsLine(t.muscles) ?? '' }))
+    .filter(
+      (c) =>
+        c.line.includes('예방') &&
+        ['삼두근', '이두근', '완요골근'].includes(
+          c.line.split(' · ')[0].split(' → ')[0]
+        )
+    );
+  check(
+    '팔 근력 운동 어디에도 예방 주장이 없다',
+    claims.length === 0,
+    claims.map((c) => `${c.title}: ${c.line}`).join(', ')
+  );
+
+  /* 3) 오늘 어떤 루틴인가 */
+  const rested = [0, 0, 0, 0, 0, 0, 0];
+  const decide = (person: Person, armFatigue: number | null = null) => {
+    const f = factsFor(person);
+    return decideArmcare({ facts: f, plan: buildPitchPlan(f), armFatigue });
+  };
+  const pain = decide({ condition: 7, pain: true });
+  check(
+    '통증 → 쉬기 (운동 일정이 멈추는 것과 같은 말)',
+    pain.kind === 'rest' && pain.reason.includes('전문의'),
+    pain.reason
+  );
+  const yday = decide({ condition: 8, pitches: [85, 0, 0, 0, 0, 0, 0] });
+  check(
+    '어제 85구 → 회복',
+    yday.kind === 'recovery' && yday.reason.includes('어제 85구'),
+    yday.reason
+  );
+  /* 쉬는 까닭은 쉬게 만든 등판이다 — 그 뒤에 한 가벼운 캐치볼이 아니라 */
+  const owed = decide({ condition: 8, pitches: [0, 10, 120, 0, 0, 0, 0] });
+  check(
+    '사흘 전 120구 뒤 이틀 전 캐치볼 10개 → 회복, 까닭은 120구',
+    owed.kind === 'recovery' &&
+      owed.reason.includes('120구') &&
+      !owed.reason.includes('10구 ·'),
+    owed.reason
+  );
+  const calm = decide({ condition: 8, pitches: rested });
+  check('일주일 넘게 안 던짐 → 강화', calm.kind === 'strength', calm.reason);
+  const threeDays = decide({ condition: 8, pitches: [0, 0, 40, 0, 0, 0, 0] });
+  check(
+    '사흘 전 40구 → 강화',
+    threeDays.kind === 'strength' && threeDays.reason.includes('3일 전'),
+    threeDays.reason
+  );
+  const tiredArm = decide({ condition: 8, pitches: rested }, 4);
+  check(
+    "팔 피로 '많이' → 회복",
+    tiredArm.kind === 'recovery' && tiredArm.reason.includes('팔 피로'),
+    tiredArm.reason
+  );
+  check(
+    "팔 피로 '보통'은 넘긴다 → 강화",
+    decide({ condition: 8, pitches: rested }, 3).kind === 'strength'
+  );
+  const low = decide({ condition: 3, pitches: rested });
+  check(
+    '컨디션 3/10 → 회복',
+    low.kind === 'recovery' && low.reason.includes('컨디션 3/10'),
+    low.reason
+  );
+  check(
+    '체크인에서 회복을 고름 → 회복',
+    decide({ condition: 8, pitches: rested, wants: '회복' }).kind === 'recovery'
+  );
+
+  /* 4) 루틴 짜기 */
+  const factsCalm = factsFor({ condition: 8, pitches: rested });
+  const build = (
+    kind: ArmcareKind,
+    over: Partial<Parameters<typeof buildArmcareRoutine>[0]> = {}
+  ) =>
+    buildArmcareRoutine({
+      decision: { kind, reason: '시험' },
+      candidates: armcareLib,
+      facts: factsCalm,
+      seed: '2026-06-15',
+      ...over,
+    });
+  const SIX: ArmcareAreaKey[] = [
+    'shoulder-back',
+    'scapula',
+    'elbow-inner',
+    'shoulder-front',
+    'shoulder-top',
+    'elbow-outer',
+  ];
+
+  const strength = build('strength');
+  const hit = new Set(strength.items.map((it) => it.area));
+  check(
+    '강화 — 여섯 부위(어깨 뒤·앞·위, 견갑, 팔꿈치 안·밖)를 하나씩은 채운다',
+    SIX.every((a) => hit.has(a)),
+    strength.items.map((it) => `${it.area}:${titleOf(it.exerciseId)}`).join(' / ')
+  );
+  check(
+    '강화 — 약 20분 (15~22분)',
+    strength.estimatedMinutes >= 15 && strength.estimatedMinutes <= 22,
+    `${strength.items.length}개 · ${strength.estimatedMinutes}분`
+  );
+  check(
+    '강화 — 2세트씩',
+    strength.items.every((it) => it.sets === 2)
+  );
+  /* 완요골근이 주 근육인 운동은 해머컬 계열이다 — 함께 뺀다 */
+  const armStrength = [...strength.items, ...build('recovery').items].filter((it) =>
+    ['이두근', '삼두근', '완요골근'].includes(exOf.get(it.exerciseId)!.targetMuscles[0])
+  );
+  check(
+    '루틴에 컬·푸시다운 같은 팔 근력 운동은 넣지 않는다',
+    armStrength.length === 0,
+    armStrength.map((it) => titleOf(it.exerciseId)).join(', ')
+  );
+  check(
+    '강화 — 같은 운동이 두 번 안 나온다',
+    new Set(strength.items.map((it) => it.exerciseId)).size === strength.items.length
+  );
+
+  const recovery = build('recovery');
+  const heavyIn = recovery.items.filter((it) => {
+    const ex = exOf.get(it.exerciseId)!;
+    return (
+      intensityLevel(ex.intensity) > intensityLevel('낮음') ||
+      ex.equipment.some((q) => ['덤벨', '바벨', '케틀벨', '원판', '케이블'].includes(q))
+    );
+  });
+  check(
+    '회복 — 낮음 이하 강도 · 무게 싣는 장비 없음',
+    heavyIn.length === 0,
+    heavyIn.map((it) => titleOf(it.exerciseId)).join(', ')
+  );
+  check(
+    '회복 — 1세트씩, 셋 이상, 10분 안쪽',
+    recovery.items.every((it) => it.sets === 1) &&
+      recovery.items.length >= 3 &&
+      recovery.estimatedMinutes <= 11,
+    `${recovery.items.length}개 · ${recovery.estimatedMinutes}분 · ` +
+      recovery.items.map((it) => titleOf(it.exerciseId)).join(' / ')
+  );
+
+  /* 뻐근한 곳 — 그 부위는 가볍게, 까닭을 적는다 */
+  const stiffFacts = (part: 'shoulder' | 'elbow') => {
+    const f = factsFor({ condition: 8, pitches: rested });
+    f.condition.today = { ...f.condition.today!, [part]: '뻐근' };
+    return f;
+  };
+  /*
+   * 여러 날(씨앗)로 돌려 본다. 한 번만 보면 우연히 '낮음'만 뽑힌 날에 통과한다 —
+   * 검토에서 60일 중 14일에 견갑 자리로 '중간'이 들어온 것을 잡았다.
+   */
+  const touchesShoulder = (id: string) =>
+    areasOf(exOf.get(id)!.targetMuscles).some((a) => a.joint === '어깨');
+  const shoulderLeaks: string[] = [];
+  let shoulderNoted = true;
+  for (let d = 1; d <= 30; d++) {
+    const r = build('strength', {
+      facts: stiffFacts('shoulder'),
+      seed: `2026-06-${String(d).padStart(2, '0')}`,
+    });
+    if (!r.notes.some((n) => n.includes('어깨'))) shoulderNoted = false;
+    for (const it of r.items) {
+      const ex = exOf.get(it.exerciseId)!;
+      if (
+        touchesShoulder(it.exerciseId) &&
+        intensityLevel(ex.intensity) > intensityLevel('낮음')
+      ) {
+        shoulderLeaks.push(`${d}일:${ex.title}`);
+      }
+    }
+  }
+  check(
+    '어깨가 뻐근 → 어깨(견갑 포함)를 쓰는 운동은 30일 내내 낮음 이하, 까닭을 적는다',
+    shoulderLeaks.length === 0 && shoulderNoted,
+    shoulderLeaks.join(', ')
+  );
+  const elbowStiff = build('strength', { facts: stiffFacts('elbow') });
+  const elbowItems = elbowStiff.items.filter((it) =>
+    ['elbow-inner', 'elbow-outer'].includes(it.area)
+  );
+  check(
+    '팔꿈치가 뻐근 → 전완 운동은 하나만',
+    elbowItems.length <= 1 && elbowStiff.notes.some((n) => n.includes('팔꿈치')),
+    `${elbowItems.length}개`
+  );
+
+  /* 같은 날은 같은 루틴 · 다시 만들면 바뀜 · 체크한 것은 남음 · 오래 안 한 것부터 */
+  check(
+    '같은 날 같은 씨앗 → 같은 루틴 (새로고침에 안 바뀐다)',
+    JSON.stringify(build('strength').items) === JSON.stringify(strength.items)
+  );
+  const doneOne = strength.items[0].exerciseId;
+  const remade = build('strength', {
+    seed: `2026-06-15:${strength.items.map((it) => it.exerciseId).join(',')}`,
+    doneToday: new Set([doneOne]),
+  });
+  check(
+    '다시 만들기 → 목록이 바뀐다',
+    JSON.stringify(remade.items) !== JSON.stringify(strength.items)
+  );
+  check(
+    '다시 만들어도 오늘 체크한 것은 남는다',
+    remade.items.some((it) => it.exerciseId === doneOne),
+    titleOf(doneOne)
+  );
+  const doneInner = strength.items.find((it) => it.area === 'elbow-inner')!.exerciseId;
+  const regear = build('strength', {
+    candidates: armcareLib.filter((ex) => ex.id !== doneInner),
+    known: armcareLib,
+    doneToday: new Set([doneInner]),
+  });
+  check(
+    '장비를 바꿔 다시 만들어도 오늘 체크한 것은 남는다',
+    regear.items.some((it) => it.exerciseId === doneInner),
+    titleOf(doneInner)
+  );
+  const firstBack = strength.items.find(
+    (it) => it.area === 'shoulder-back'
+  )!.exerciseId;
+  const rotated = build('strength', { lastDone: new Map([[firstBack, '2026-06-14']]) });
+  const nextBack = rotated.items.find((it) => it.area === 'shoulder-back')?.exerciseId;
+  check(
+    '어제 한 것은 뒤로 — 어깨 후방에 다른 운동이 나온다',
+    nextBack != null && nextBack !== firstBack,
+    `${titleOf(firstBack)} → ${nextBack ? titleOf(nextBack) : '없음'}`
+  );
+
+  const bandsOnly = filterByEquipment(armcareLib, ['맨몸', '밴드']).pool;
+  const band = build('strength', { candidates: bandsOnly });
+  check(
+    '맨몸·밴드만 가져도 강화 루틴이 나온다',
+    band.items.length >= 5,
+    `${band.items.length}개 · ${band.estimatedMinutes}분`
+  );
+  check(
+    "빈 부위의 조사가 맞다 — '어깨 상부는' ('은' 아님)",
+    band.notes.some((n) => n.includes('어깨 상부는')) &&
+      !band.notes.some((n) => n.includes('상부은')),
+    band.notes.join(' / ')
+  );
+  const dumbbellRecovery = build('recovery', {
+    candidates: filterByEquipment(armcareLib, ['맨몸', '덤벨']).pool,
+  });
+  check(
+    '덤벨을 가진 사람의 회복날 — 장비 탓이 아니라 회복날 규칙이라고 말한다',
+    dumbbellRecovery.notes.some((n) => n.startsWith('회복날에는')) &&
+      !dumbbellRecovery.notes.some((n) => n.startsWith('가진 장비로')),
+    dumbbellRecovery.notes.join(' / ')
+  );
+  check(
+    '루틴은 어깨에서 팔꿈치 차례로 보여 준다 (부위별 보강과 같은 차례)',
+    strength.items.every(
+      (it, i, all) =>
+        i === 0 ||
+        ARMCARE_AREAS.findIndex((a) => a.key === all[i - 1].area) <=
+          ARMCARE_AREAS.findIndex((a) => a.key === it.area)
+    ),
+    strength.items.map((it) => it.area).join(' → ')
+  );
+
+  check(
+    '저장한 루틴을 그대로 읽는다',
+    readArmcareRoutine(JSON.parse(JSON.stringify(strength)))?.items.length ===
+      strength.items.length
+  );
+  check(
+    '모양이 다른 옛 기록은 없는 것으로 본다',
+    readArmcareRoutine({ version: 2, items: [] }) === null
+  );
+
+  /* 5) 부하 — 암케어는 세트 수로만 센다 (lib/training-load.ts) */
+  const armOne = armcareLib[0];
+  const back = (n: number) => new Date(TODAY.getTime() - n * 86400000);
+  const armOnly = buildTrainingLoad(
+    [
+      { date: back(1), setsDone: null, exercise: armOne },
+      { date: back(2), setsDone: null, exercise: armOne },
+    ],
+    [],
+    TODAY
+  );
+  check(
+    '암케어만 한 날은 운동한 날·부하에 안 들어간다',
+    armOnly.recentDays === 0 && armOnly.recentMinutes === 0,
+    `운동한 날 ${armOnly.recentDays}일 · ${armOnly.recentMinutes}분`
+  );
+  check(
+    '그래도 암케어 세트는 센다',
+    armOnly.volume.armCare.sets > 0,
+    `암케어 ${armOnly.volume.armCare.sets}세트`
+  );
+  check(
+    '암케어는 부위 묶음(등·견갑 등)에 안 들어간다 — AI에게 모순된 숫자를 안 준다',
+    armOnly.volume.byPart.every((p) => p.sets === 0),
+    armOnly.volume.byPart.map((p) => `${p.label} ${p.sets}`).join(' · ')
+  );
+
+  /* 6) 일정 쪽 — 본운동 빈자리에도 암케어가 안 들어가고, 쉬게 만든 등판을 말한다 */
+  const kettlebellOnly = filterByEquipment(library, ['케틀벨']).pool;
+  const fallbackLeaks = [45, 90].flatMap((m) =>
+    pickForTheme({
+      candidates: kettlebellOnly,
+      theme: 'upper',
+      minutes: m,
+      doneIds: new Set<string>(),
+      goal: '근력 향상',
+      focus: 'upperPull',
+    })
+      .picks.filter((p) => p.exercise.category === '암케어')
+      .map((p) => `${m}분:${p.exercise.title}`)
+  );
+  check(
+    '본운동 빈자리를 채울 때도 암케어는 안 쓴다 (케틀벨만 · 상체 당기기)',
+    fallbackLeaks.length === 0,
+    fallbackLeaks.join(', ')
+  );
+  const afterCatch = factsFor({ condition: 8, pitches: [0, 20, 90, 0, 0, 0, 0] });
+  const assistDay = decideTheme({
+    facts: afterCatch,
+    plan: buildPitchPlan(afterCatch),
+    lastLowerKey: null,
+    lastUpperKey: null,
+  });
+  check(
+    '사흘 전 90구 뒤 이틀 전 캐치볼 20개 → 일정의 까닭도 90구 (암케어와 같은 말)',
+    assistDay.reason.includes('90구') && !assistDay.reason.includes('20구'),
+    `${assistDay.label} — ${assistDay.reason}`
+  );
 }
 
 console.log(`\n${passed}개 통과, ${failed}개 실패`);

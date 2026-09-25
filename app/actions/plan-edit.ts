@@ -7,6 +7,7 @@ import { getCurrentUser } from '@/lib/dal';
 import { toDateKey } from '@/lib/pitch-stats';
 import { readDailyPlan } from '@/lib/report/daily-plan';
 import { slotForTheme } from '@/lib/report/theme';
+import { readArmcareRoutine } from '@/lib/armcare/routine';
 
 /**
  * 오늘 일정에서 운동을 빼고 더한다.
@@ -65,9 +66,23 @@ export async function removeFromTodayPlan(exerciseId: string): Promise<Result> {
     return { error: '오늘 목록에 없는 운동입니다.' };
   }
 
-  await prisma.userExerciseLog.deleteMany({
-    where: { userId: user.id, date, exerciseId },
+  /*
+   * 같은 운동이 오늘의 암케어에도 있으면 체크는 남긴다. 운동 기록은 운동·날짜마다
+   * 한 줄이라 두 화면이 같은 줄을 쓴다 — 여기서 지우면 암케어에서 한 체크까지
+   * 사라진다. 일정에서 뺀 것은 일정의 일이다.
+   */
+  const armcare = await prisma.dailyArmcare.findUnique({
+    where: { userId_date: { userId: user.id, date } },
+    select: { plan: true },
   });
+  const inArmcare = readArmcareRoutine(armcare?.plan)?.items.some(
+    (it) => it.exerciseId === exerciseId
+  );
+  if (!inArmcare) {
+    await prisma.userExerciseLog.deleteMany({
+      where: { userId: user.id, date, exerciseId },
+    });
+  }
   await savePicks(user.id, date, plan, picks);
   return { ok: true };
 }

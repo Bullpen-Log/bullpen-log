@@ -10,6 +10,8 @@ import {
 } from '@/app/actions/content';
 import { Button, Field, FormError, Input, Textarea } from '@/components/ui';
 import { CheckboxGroup, RadioGroup } from '@/components/choice-inputs';
+import { MusclePicker } from '@/components/muscle-picker';
+import { ARMCARE_CATEGORY } from '@/lib/armcare/anatomy';
 import { kept, keptAll } from '@/lib/form-values';
 import { VideoUpload, type UploadedVideo } from '@/components/video-upload';
 import {
@@ -31,6 +33,8 @@ export type ExerciseDraft = {
   intensity: string;
   difficulty: string | null;
   equipment: string[];
+  /** 키우는 근육 — 암케어만. 맨 앞이 가장 크게 쓰는 근육 */
+  targetMuscles?: string[];
   /**
    * 아직 촬영 전(유튜브 참고 영상)인가.
    *
@@ -71,6 +75,7 @@ export function ExerciseForm({
    * 분으로 셈해 적게 예를 든다 — 초로 받는 칸이라 10분이면 600이다.
    */
   const cardio = category === '유산소';
+  const armcare = category === ARMCARE_CATEGORY;
   const [state, formAction] = useActionState<ActionState, FormData>(
     editing ? updateExercise : createExercise,
     undefined
@@ -229,6 +234,13 @@ export function ExerciseForm({
           options={EXERCISE_EQUIPMENT}
           selected={pickAll('equipment', initial?.equipment)}
         />
+
+        {/*
+          암케어만 근육을 적는다. 부위별 보강이 이 값으로 부위에 나눠 담고, 오늘의
+          암케어가 부위를 고르게 채운다(lib/armcare). 다른 카테고리에서는 칸 자체를
+          안 그린다 — 서버도 암케어일 때만 이 값을 저장한다.
+        */}
+        {armcare && <MusclePicker initial={initial?.targetMuscles ?? []} />}
       </div>
 
       {/*

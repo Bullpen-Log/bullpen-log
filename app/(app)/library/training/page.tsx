@@ -70,6 +70,8 @@ export default async function TrainingPage() {
     intensity: ex.intensity,
     difficulty: ex.difficulty,
     equipment: ex.equipment,
+    /* 마이그레이션 전에 캐시에 담긴 줄에는 이 칸이 없을 수 있다(lib/library-cache.ts) */
+    targetMuscles: ex.targetMuscles ?? [],
     videoPath: ex.videoPath,
     source: ex.source,
     referenceVideoId: ex.referenceVideoId,

@@ -76,6 +76,14 @@ const RETURN_TO = [
   '/today',
   '/training',
   /*
+   * 트레이닝의 [기록]·[암케어] 칸에서 트레이닝 설정을 열고 저장하면 그 칸으로
+   * 돌아온다. 주소를 풀어 따지지 않고 통째로 적는다 — 그래야 남의 곳으로 보내는
+   * 길이 생기지 않는다.
+   */
+  '/training?view=history',
+  '/training?view=armcare',
+  '/training?view=armcare&tab=guide',
+  /*
    * 설정이 창으로도 열리면서, 저장한 뒤 돌아갈 곳이 '설정 화면'이 아니라
    * '그때 보고 있던 화면'이 됐다. 창은 어느 화면 위에서나 열리므로 그 화면들을
    * 여기 적어 둔다. 목록에 없는 값이 오면 아래에서 홈으로 떨어뜨린다 —
@@ -218,10 +226,10 @@ export async function generateTodayPlan(formData: FormData) {
   /*
    * 고를 수 있는 시간은 목표마다 다르다.
    *
-   * 무게를 드는 두 목표는 60·90·120분, 컨디셔닝은 40·60·90분이다. 화면에서도
+   * 무게를 드는 두 목표는 45·60·75·90분, 컨디셔닝은 45·60·75분이다. 화면에서도
    * 목표에 맞춰 바꿔 주지만, 폼은 누구나 고쳐 보낼 수 있으므로 여기서 한 번 더
    * 본다. 맞지 않으면 저장해 둔 기본 시간을 그 목표 안에서 가장 가까운 값으로
-   * 짚는다 — 컨디셔닝에 120분이 저장돼 있으면 90분이 된다.
+   * 짚는다 — 컨디셔닝에 90분이 저장돼 있으면 75분이 된다.
    */
   const rawMinutes = Number.parseInt(String(formData.get('minutes') ?? ''), 10);
   const requestedMinutes = minutesChoicesFor(trainingGoal).includes(rawMinutes)

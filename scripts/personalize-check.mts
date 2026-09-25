@@ -104,15 +104,11 @@ for (const level of TRAINING_LEVELS) {
     /*
      * 구간이 통째로 비면 문제로 본다.
      *
-     * 있는 구간만 본다. 예전에는 다섯 구간을 모두 기대했는데, 웨이트 날이
-     * 워밍업·본운동·암케어 셋으로 줄면서 있지도 않은 코어·보강을 '비었다'고
-     * 잡았다. 검사는 그 날이 실제로 쓰는 구성을 기준으로 봐야 한다.
+     * 있는 구간만 본다. 예전에는 다섯 구간을 모두 기대했는데, 웨이트 날의
+     * 구간이 목표마다 달라지면서(파워 향상은 본운동·코어) 있지도 않은 구간을
+     * '비었다'고 잡았다. 검사는 그 날이 실제로 쓰는 구성을 기준으로 봐야 한다.
      */
-    const wanted = compositionFor(
-      'lower',
-      '파워 향상',
-      effectiveMinutes('lower', MINUTES)
-    ).map((spec) => spec.slot);
+    const wanted = compositionFor('lower', '파워 향상').map((spec) => spec.slot);
     const slots = new Set(picks.map((p) => p.slot));
     const missing = wanted.filter((s) => !slots.has(s));
     if (missing.length > 0) failed++;

@@ -109,7 +109,7 @@ export const AUTO_SYSTEM_PROMPT = `당신은 야구 투수의 웨이트 트레�
      하체의 무거운 운동은 뺍니다."
    - 숫자는 자료에 있는 것만 씁니다. 새 숫자를 만들지 마세요.
    - 운동 종목 이름을 쓰지 마세요(아직 고르지 않았습니다). 메모를 인용할 때도 종목
-     이름은 빼고 부위로만 말하세요. 부위와 운동 종류(근력·파워·암케어 등)로 말합니다.
+     이름은 빼고 부위로만 말하세요. 부위와 운동 종류(근력·파워·코어·보강 등)로 말합니다.
    - 진단하지 마세요. 부상명·질환명을 말하지 않습니다.
    - 자기를 'AI'라고 부르지 마세요.
 9. 투구 부하와 운동 부하는 단위가 달라 하나로 합치지 않습니다. 각각이 평소보다
@@ -248,9 +248,7 @@ export function buildAutoPrompt(input: AutoPromptInput): string {
   const parts = workout.volume.byPart
     .map((p) => `${p.label} ${p.sets}/${p.previous}`)
     .join(' · ');
-  lines.push(
-    `- 부위별 세트 (최근 7일/그 전 7일): ${parts} · 암케어 ${workout.volume.armCare.sets}/${workout.volume.armCare.previous}`
-  );
+  lines.push(`- 부위별 세트 (최근 7일/그 전 7일): ${parts}`);
   lines.push(
     `- 최근 2주 근력 운동을 한 마지막 날: 하체 ${input.lastLowerKey ?? '없음'} · 상체 ${input.lastUpperKey ?? '없음'}`
   );
@@ -293,7 +291,7 @@ export function buildAutoPrompt(input: AutoPromptInput): string {
       fence.strengthDay &&
       goal === CONDITIONING_GOAL &&
       fence.day.label !== CONDITIONING_DAY_LABEL
-        ? ` (고르면 오늘은 '${CONDITIONING_DAY_LABEL}'가 되어 무게 드는 운동 없이 코어·보강·암케어 위주로 채웁니다 — 유산소 영상이 있으면 유산소도 하나)`
+        ? ` (고르면 오늘은 '${CONDITIONING_DAY_LABEL}'가 되어 무게 드는 운동 없이 가동성·코어·보강 위주로 채웁니다 — 유산소 영상이 있으면 유산소도 하나)`
         : '';
     lines.push(`  - ${goal}${desc ? ` — ${desc}` : ''}${note}`);
   }

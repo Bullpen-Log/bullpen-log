@@ -68,15 +68,6 @@ for (const name of [DEFAULT_GOAL, POWER_GOAL, STRENGTH_GOAL, CONDITIONING_GOAL])
  */
 export const SLEEP_DEBT_DAYS = 3;
 
-/**
- * 암케어 공백을 따질 만큼 운동해 온 사람인가 — 최근 7일에 운동한 날.
- *
- * 기록이 없는 사람은 암케어도 당연히 0세트다. 그걸 '암케어를 건너뛰었다'로
- * 읽으면 처음 쓰는 사람은 전부 컨디셔닝으로 시작한다. 운동은 했는데 암케어만
- * 안 한 사람에게만 건다.
- */
-export const ARMCARE_GAP_MIN_DAYS = 2;
-
 /** 하루에 AI를 부르는 상한. 체크인을 고칠 때마다 다시 묻지만 끝없이는 아니다. */
 export const AI_CALLS_PER_DAY = 5;
 
@@ -313,7 +304,7 @@ export function decideAutoFence({
    * 시간은 기본 시간을 넘지 않는다 — 줄이는 것만 고를 수 있다.
    *
    * 기본 시간은 그 사람이 운동에 쓸 수 있는 시간이다. 앱이 몸 상태를 보고
-   * 120분을 권해도 그 사람에게 60분밖에 없으면 소용이 없다.
+   * 90분을 권해도 그 사람에게 60분밖에 없으면 소용이 없다.
    */
   const minutes: Record<string, number[]> = {};
   for (const goal of goals) {
@@ -333,10 +324,14 @@ export function decideAutoFence({
       : [];
   }
 
-  /* 규칙 초안 */
-  const armcareGap =
-    workout.recentDays >= ARMCARE_GAP_MIN_DAYS && workout.volume.armCare.sets === 0;
-  const draftGoal = fixedGoal ?? (armcareGap ? CONDITIONING_GOAL : DEFAULT_GOAL);
+  /*
+   * 규칙 초안.
+   *
+   * 예전에는 최근 7일에 암케어가 0세트면 컨디셔닝으로 잡았다 — 그 목표에 암케어
+   * 몫이 가장 컸다. 암케어가 모든 일정에서 빠진 뒤로(2026-09-25) 그 규칙은 아무도
+   * 암케어를 못 하게 하는 셈이라 지웠다. 암케어는 암케어 화면이 따로 챙긴다.
+   */
+  const draftGoal = fixedGoal ?? DEFAULT_GOAL;
   const draftMinutes = Math.max(...minutes[draftGoal]);
 
   return {
@@ -367,7 +362,6 @@ export function decideAutoFence({
         sleepDebt,
         shorten,
         preferred,
-        armcareGap,
         hasHistory: workout.recentDays > 0,
         /* 회복날은 고른 시간보다 짧게 한다 — 이유에는 실제로 할 시간을 적는다 */
         actualMinutes: effectiveMinutes(day.key, draftMinutes),
@@ -391,7 +385,6 @@ function draftReason({
   sleepDebt,
   shorten,
   preferred,
-  armcareGap,
   hasHistory,
   actualMinutes,
 }: {
@@ -403,7 +396,6 @@ function draftReason({
   sleepDebt: boolean;
   shorten: boolean;
   preferred: string | null;
-  armcareGap: boolean;
   hasHistory: boolean;
   actualMinutes: number;
 }): string {
@@ -430,9 +422,6 @@ function draftReason({
   }
   if (preferred === '파워' || preferred === '웨이트') {
     return `체크인에서 ${preferred} 운동을 고르셔서 목표를 ${withJosa(goal, '으로/로')} 잡았습니다. ${time}`;
-  }
-  if (armcareGap) {
-    return `최근 7일 동안 암케어를 한 세트도 안 하셔서, 오늘은 ${withJosa(goal, '으로/로')} 어깨와 팔부터 챙깁니다. ${time}`;
   }
   if (!hasHistory) {
     return `운동 기록이 아직 적어 ${withJosa(goal, '으로/로')} 시작합니다. 기록이 쌓이면 더 맞춰 드립니다. ${time}`;
