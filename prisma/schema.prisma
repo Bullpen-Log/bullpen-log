@@ -66,7 +66,7 @@ model User {
   /// 비어 있으면 아직 안 골랐다는 뜻이라 아무것도 빼지 않는다.
   /// 이름은 lib/report/personalize.ts의 TRAINING_LEVELS 안에서만 쓴다.
   trainingLevel       String?
-  /// 훈련 목표. 구간별 시간 배분을 바꾼다. 비어 있으면 '균형 잡힌 관리'로 본다.
+  /// 훈련 목표. 구간별 시간 배분을 바꾼다. 비어 있으면 기본 목표 '근력 향상'으로 본다.
   /// 이름은 lib/report/personalize.ts의 TRAINING_GOALS 안에서만 쓴다.
   trainingGoal        String?
   /// 목표 안에서 오늘 어느 부위를 할지. 비어 있으면 앱이 번갈아 정한다.

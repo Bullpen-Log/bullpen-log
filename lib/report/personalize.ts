@@ -208,21 +208,40 @@ export type GoalMix = {
   minStrength?: number;
 };
 
+/**
+ * 아무 목표도 안 고른 사람이 받는 목표.
+ *
+ * 예전에는 '균형 잡힌 관리'가 기본이었다. 2026-09-25 목표를 셋(근력 향상 · 파워
+ * 향상 · 컨디셔닝)으로 줄이면서 그 목표를 없앴고, 기본은 근력 향상이 됐다 —
+ * 투수 웨이트의 바탕이 근력이다. 균형 잡힌 관리가 하던 몫(코어 조금)은 근력
+ * 향상이 넘겨받았다(lib/report/theme.ts 의 GOAL_SHAPES).
+ */
+export const DEFAULT_GOAL_NAME = '근력 향상';
+
+/** 화면에 늘어놓는 차례 그대로다 — 기본인 근력 향상이 맨 앞이다. */
 export const TRAINING_GOALS = [
   {
-    name: '균형 잡힌 관리',
-    desc: '근력 위주에 파워를 하나씩 · 어깨 관리까지 고르게',
-    weights: { mobility: 1, main: 1, core: 1, prehab: 1, armcare: 1 },
-    prefer: [] as string[],
-    /* 파워도 넣되 하나까지 — '고르게'가 파워 위주가 되면 안 된다 */
-    mix: { maxPower: 1 },
+    name: '근력 향상',
+    desc: '무게 드는 운동 위주에 코어를 조금 — 점프·던지기는 빼고',
+    weights: { mobility: 0.85, main: 1.2, core: 0.9, prehab: 0.8, armcare: 0.85 },
+    prefer: ['하체 스트렝스', '상체 스트렝스'],
     /*
-     * 부위를 못 좁힌다.
+     * 파워를 아예 안 넣는다.
      *
-     * '고르게'가 이 목표의 뜻인데 한 부위로 좁히면 이름과 어긋난다. 한쪽만
-     * 하고 싶은 날은 근력 향상이나 파워 향상을 고르면 된다.
+     * '근력 향상'이라 적어놓고 점프가 나오면 이름이 약속한 것과 다르다.
+     * 앞으로 당기기(prefer)만으로는 못 막았다 — 60분 상체날 60일 중 42일에
+     * 파워가 끼어들었다. 시간이 늘면 스트렝스를 다 뽑고 남은 자리를 파워가
+     * 채우기 때문이다.
      */
-    focuses: [] as readonly GoalFocusKey[],
+    mix: { maxPower: 0 },
+    /*
+     * 상체를 밀기와 당기기로 가른다. 각각 24개와 27개라 좁혀도 넉넉하고,
+     * 이 목표는 파워를 아예 안 넣으므로 본운동이 통째로 그 계열이 된다.
+     *
+     * 가르지 않은 '상체'도 남긴다. 밀기와 당기기를 한 날에 같이 하는 것이
+     * 흔한 방식이고, 주 2회 하는 사람에게는 그렇게 묶어야 상체가 한 바퀴 돈다.
+     */
+    focuses: ['lower', 'upper', 'upperPush', 'upperPull'] as readonly GoalFocusKey[],
   },
   {
     /*
@@ -261,11 +280,13 @@ export const TRAINING_GOALS = [
   {
     /*
      * 예전 이름은 '부상 방지'(2026-09-25 바꿨다). 몸 상태를 다지는 날이지 부상을
-     * 막아 준다는 약속이 아니라서다. '컨디셔닝'이 뛰기·인터벌 같은 체력 운동으로
-     * 읽히지 않게 설명에 무엇을 하는 날인지 적는다.
+     * 막아 준다는 약속이 아니라서다. 유산소 영상이 있으면 유산소 하나가 들어가지만
+     * (lib/report/theme.ts 의 GOAL_SHAPES), 뛰기·인터벌로 채우는 체력 날은 아니다.
+     * 그렇게 읽히지 않게 무엇을 하는 날인지 적되, 영상이 올라오기 전에도 참이도록
+     * '위주로'라고 쓴다.
      */
     name: '컨디셔닝',
-    desc: '코어·보강·어깨 관리로 몸을 다지는 날 — 무게·점프·던지기는 빼고',
+    desc: '코어·보강·어깨 관리 위주로 몸을 다지는 날 — 무게·점프·던지기는 빼고',
     weights: { mobility: 1.3, main: 0.7, core: 1, prehab: 1.7, armcare: 1.6 },
     prefer: [],
     /*
@@ -279,38 +300,38 @@ export const TRAINING_GOALS = [
     /* 몸을 아끼는 날이라 부위를 좁히지 않는다 — 고르게 하는 것이 이 목표다 */
     focuses: [] as readonly GoalFocusKey[],
   },
-  {
-    name: '근력 향상',
-    desc: '무게를 다루는 운동으로만 채웁니다 — 점프·던지기는 빼고',
-    weights: { mobility: 0.85, main: 1.2, core: 0.9, prehab: 0.8, armcare: 0.85 },
-    prefer: ['하체 스트렝스', '상체 스트렝스'],
-    /*
-     * 파워를 아예 안 넣는다.
-     *
-     * '근력 향상'이라 적어놓고 점프가 나오면 이름이 약속한 것과 다르다.
-     * 앞으로 당기기(prefer)만으로는 못 막았다 — 60분 상체날 60일 중 42일에
-     * 파워가 끼어들었다. 시간이 늘면 스트렝스를 다 뽑고 남은 자리를 파워가
-     * 채우기 때문이다.
-     */
-    mix: { maxPower: 0 },
-    /*
-     * 상체를 밀기와 당기기로 가른다. 각각 24개와 27개라 좁혀도 넉넉하고,
-     * 이 목표는 파워를 아예 안 넣으므로 본운동이 통째로 그 계열이 된다.
-     *
-     * 가르지 않은 '상체'도 남긴다. 밀기와 당기기를 한 날에 같이 하는 것이
-     * 흔한 방식이고, 주 2회 하는 사람에게는 그렇게 묶어야 상체가 한 바퀴 돈다.
-     */
-    focuses: ['lower', 'upper', 'upperPush', 'upperPull'] as readonly GoalFocusKey[],
-  },
 ] as const;
 
 export type TrainingGoal = (typeof TRAINING_GOALS)[number];
 
 export const TRAINING_GOAL_NAMES: readonly string[] = TRAINING_GOALS.map((g) => g.name);
 
-/** 아직 안 고른 사람은 '균형 잡힌 관리'로 본다. */
+/* 기본 목표가 목록에 없으면 아래 findGoal 이 엉뚱한 목표로 떨어진다. 여기서 막는다. */
+if (!TRAINING_GOAL_NAMES.includes(DEFAULT_GOAL_NAME)) {
+  throw new Error(`기본 목표가 훈련 목표 목록에 없다: ${DEFAULT_GOAL_NAME}`);
+}
+
+/**
+ * 목표를 안 고른 날의 목표 — 체크인에서 '파워'를 고른 사람은 파워 향상, 나머지는
+ * 기본 목표(근력 향상).
+ *
+ * 예전 기본이던 균형 잡힌 관리는 파워를 하나 넣어 주었다. 근력 향상은 파워를 아예
+ * 안 넣으므로(mix.maxPower 0) 그대로 두면 파워를 하고 싶다고 한 날에 파워가 하나도
+ * 안 나온다. AI 맞춤도 같은 규칙으로 목표를 정한다(lib/report/auto-setup.ts).
+ */
+export function goalForUnchosen(preferredWorkout: string | null): string {
+  return preferredWorkout === '파워' ? '파워 향상' : DEFAULT_GOAL_NAME;
+}
+
+/**
+ * 이름으로 목표를 찾는다. 아직 안 고른 사람이나 목록에 없는 이름(예전 목표
+ * '균형 잡힌 관리'가 남은 옛 일정 등)은 기본 목표(근력 향상)로 본다.
+ */
 export function findGoal(name: string | null): TrainingGoal {
-  return TRAINING_GOALS.find((g) => g.name === name) ?? TRAINING_GOALS[0];
+  return (
+    TRAINING_GOALS.find((g) => g.name === name) ??
+    TRAINING_GOALS.find((g) => g.name === DEFAULT_GOAL_NAME)!
+  );
 }
 
 /** 이 목표에서 고를 수 있는 부위. 없으면 빈 배열이다. */
@@ -368,7 +389,7 @@ export function readTrainingProfile(formData: FormData) {
  * 일정을 만드는 폼에서 온 오늘의 훈련 목표.
  *
  * 목록에 없는 이름이면 지난번에 고른 것으로 돌아간다. 아무것도 없으면 null 이고,
- * 그때는 균형 잡힌 관리로 본다(findGoal).
+ * 그때는 기본 목표인 근력 향상으로 본다(findGoal).
  *
  * 목표는 설정이 아니라 여기서 온다. 설정에 두었을 때는 한 번 '파워 향상'으로
  * 정해둔 사람의 모든 날이 파워 위주가 됐다 — 오늘은 어깨 관리에 쓰고 싶은

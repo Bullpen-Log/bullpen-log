@@ -8,8 +8,10 @@ import { Segmented } from '@/components/segmented';
 import { SELECTABLE_EQUIPMENT } from '@/lib/report/equipment';
 import {
   TRAINING_GOALS,
+  TRAINING_GOAL_NAMES,
   TRAINING_LEVELS,
   focusesFor,
+  goalForUnchosen,
   validFocus,
 } from '@/lib/report/personalize';
 import {
@@ -85,6 +87,7 @@ export function PlanForm({
   checkedIn,
   returnTo,
   clash = null,
+  preferredWorkout = null,
   startMode = 'auto',
   checkinAction,
 }: {
@@ -128,6 +131,11 @@ export function PlanForm({
    */
   clash?: { kind: string; reason: string; fallbackLabel: string } | null;
   /**
+   * 오늘 체크인에서 고른 운동 종류(파워·웨이트·회복). 목표를 한 번도 안 고른
+   * 사람의 첫 목표를 정하는 데 쓴다 — 파워를 골랐으면 파워 향상(goalForUnchosen).
+   */
+  preferredWorkout?: string | null;
+  /**
    * 처음 펼칠 방식. 오늘 직접 골라 만들었으면 다시 만들 때도 그쪽으로 연다.
    * 아직 안 만든 날은 AI 맞춤이 먼저다 — 장비만 고르면 되는 간편한 쪽이다.
    */
@@ -158,20 +166,31 @@ export function PlanForm({
   /*
    * 목표에 따라 고를 수 있는 시간이 다르다.
    *
-   * 무게를 드는 세 목표는 60·90·120분, 컨디셔닝은 40·60·90분이다. 목표를
+   * 무게를 드는 두 목표는 60·90·120분, 컨디셔닝은 40·60·90분이다. 목표를
    * 바꾸면 시간 칸도 바로 바뀌어야 한다 — 컨디셔닝으로 옮겼는데 120분이 그대로
    * 남아 있으면 고를 수 없는 조합이 화면에 남는다. 그럴 때는 가장 가까운
    * 값으로 내려 짚는다(120 → 90).
    */
-  const [pickedGoal, setPickedGoal] = useState(goal ?? TRAINING_GOALS[0].name);
+  /*
+   * 지난번에 고른 목표를 짚어 둔다. 없거나 지금 목록에 없는 이름(없앤 '균형 잡힌
+   * 관리' 등)이면 오늘 체크인을 따른다 — 파워를 골랐으면 파워 향상, 아니면 근력
+   * 향상(goalForUnchosen). 그냥 기본 목표를 짚으면 파워를 하고 싶다고 한 첫날에
+   * 근력 향상(파워 0개)으로 만들어졌다 — 폼은 늘 목표를 보내서, 서버의 같은
+   * 규칙(daily-plan)까지 가지 않는다.
+   */
+  const [pickedGoal, setPickedGoal] = useState<string>(() =>
+    goal && TRAINING_GOAL_NAMES.includes(goal)
+      ? goal
+      : goalForUnchosen(preferredWorkout)
+  );
   const minuteChoices = minutesChoicesFor(pickedGoal);
   const pickedMinutes = nearestMinutesChoice(minutes, pickedGoal);
 
   /*
    * 목표 안에서 부위를 좁힐 수 있는 날인가.
    *
-   * 근력 향상과 파워 향상만 나눈다. 균형 잡힌 관리와 컨디셔닝은 '고르게'가
-   * 그 목표의 뜻이라 한쪽으로 좁히면 이름과 어긋난다.
+   * 근력 향상과 파워 향상만 나눈다. 컨디셔닝은 '고르게'가 그 목표의 뜻이라
+   * 한쪽으로 좁히면 이름과 어긋난다.
    */
   const focusChoices = focusesFor(pickedGoal);
   /*

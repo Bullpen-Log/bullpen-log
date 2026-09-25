@@ -4,7 +4,7 @@ import { CHECKIN_PARTS, type CheckinPartKey } from '@/lib/checkin';
 import { ACWR_ZONES } from '@/lib/pitch-stats';
 import { withJosa } from '@/lib/korean';
 import {
-  TRAINING_GOALS,
+  DEFAULT_GOAL_NAME,
   TRAINING_GOAL_NAMES,
   focusesFor,
   type GoalFocusKey,
@@ -40,15 +40,20 @@ import type { TrainingLoad } from '@/lib/training-load';
  * 하다 — 그래서 AI가 없어도 일정은 늘 나온다.
  */
 
-export const BALANCED_GOAL = TRAINING_GOALS[0].name;
+/**
+ * 신호가 없는 날의 목표 — 목표를 안 고른 사람이 받는 기본 목표(근력 향상)와 같다.
+ * 예전에는 '균형 잡힌 관리'였는데 그 목표를 없앴다(lib/report/personalize.ts).
+ */
+export const DEFAULT_GOAL = DEFAULT_GOAL_NAME;
 const POWER_GOAL = '파워 향상';
 const STRENGTH_GOAL = '근력 향상';
 
 /*
  * 목표 이름이 목록과 어긋나면 규칙이 조용히 아무 일도 안 한다. 여기서 막는다.
  * (TRAINING_GOALS 의 이름을 바꾸면 이 파일도 같이 봐야 한다는 뜻이다.)
+ * DEFAULT_GOAL 은 지금 STRENGTH_GOAL 과 같은 이름이다 — 뜻이 달라 따로 둔다.
  */
-for (const name of [BALANCED_GOAL, POWER_GOAL, STRENGTH_GOAL, CONDITIONING_GOAL]) {
+for (const name of [DEFAULT_GOAL, POWER_GOAL, STRENGTH_GOAL, CONDITIONING_GOAL]) {
   if (!TRAINING_GOAL_NAMES.includes(name)) {
     throw new Error(`훈련 목표 목록에 없는 이름: ${name}`);
   }
@@ -331,7 +336,7 @@ export function decideAutoFence({
   /* 규칙 초안 */
   const armcareGap =
     workout.recentDays >= ARMCARE_GAP_MIN_DAYS && workout.volume.armCare.sets === 0;
-  const draftGoal = fixedGoal ?? (armcareGap ? CONDITIONING_GOAL : BALANCED_GOAL);
+  const draftGoal = fixedGoal ?? (armcareGap ? CONDITIONING_GOAL : DEFAULT_GOAL);
   const draftMinutes = Math.max(...minutes[draftGoal]);
 
   return {
@@ -432,7 +437,7 @@ function draftReason({
   if (!hasHistory) {
     return `운동 기록이 아직 적어 ${withJosa(goal, '으로/로')} 시작합니다. 기록이 쌓이면 더 맞춰 드립니다. ${time}`;
   }
-  return `한쪽으로 기울일 신호가 없어 ${withJosa(goal, '으로/로')} 잡았습니다. ${time}`;
+  return `특별히 바꿀 신호가 없어 기본 목표인 ${withJosa(goal, '으로/로')} 잡았습니다. ${time}`;
 }
 
 /**

@@ -463,7 +463,7 @@ async function TodayBody({ user }: { user: Awaited<ReturnType<typeof requireUser
                   '아직 만들지 않았습니다.',
                   /*
                     고르는 데 쓰는 것을 다 적는다. 투구량과 몸 상태만 적어 두었는데
-                    실제로는 그날 고른 목표(균형·파워·컨디셔닝·근력)도 함께 본다.
+                    실제로는 그날 고른 목표(근력·파워·컨디셔닝)도 함께 본다.
                     체크인 전에는 이 줄까지 오지 않는다 — 위에서 체크인부터 하라고 한다.
                   */
                   '최근 투구량 · 오늘 몸 상태 · 오늘 목표에 맞춰 골라드립니다.',
@@ -533,6 +533,7 @@ async function TodayBody({ user }: { user: Awaited<ReturnType<typeof requireUser
       checkedIn={core.hasCheckinToday}
       returnTo="/today"
       clash={core.workoutClash}
+      preferredWorkout={core.preferredWorkout}
     />
   );
 

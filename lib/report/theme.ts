@@ -4,6 +4,7 @@ import { remainingRestDays, type PitchPlan } from '@/lib/report/plan';
 import {
   findFocus,
   findGoal,
+  goalForUnchosen,
   type GoalFocusKey,
   type GoalMix,
 } from '@/lib/report/personalize';
@@ -31,7 +32,7 @@ import {
 /**
  * 고를 수 있는 하루 운동 시간(분) — 목표마다 다르다.
  *
- * 무게를 드는 세 목표는 60분부터다. 본운동 하나가 12~15분이라(3세트에 휴식
+ * 무게를 드는 두 목표(근력 향상·파워 향상)는 60분부터다. 본운동 하나가 12~15분이라(3세트에 휴식
  * 3분, 준비 세트까지) 그보다 짧으면 무게 운동이 둘도 안 들어간다. 위로는
  * 120분까지 — 그 이상은 채울 것이 없다.
  *
@@ -283,7 +284,8 @@ export const CONDITIONING_DAY_LABEL = '컨디셔닝 데이';
 /**
  * 근력 날인데 목표가 컨디셔닝이면, 그날은 컨디셔닝 데이다.
  *
- * 컨디셔닝은 무게 드는 구간을 통째로 뺀다(GOAL_SHAPES — 코어·보강·암케어만).
+ * 컨디셔닝은 무게 드는 구간을 통째로 뺀다(GOAL_SHAPES — 코어·보강·암케어, 유산소
+ * 영상이 있으면 유산소 하나).
  * 그런데 이름은 번갈아 정한 '하체 스트렝스 데이'가 그대로 남아, 목록에는 하체
  * 근력 운동이 하나도 없는데 제목만 하체였다. 직접 고르기에서 컨디셔닝을 골라도
  * 그랬고, AI 맞춤을 만들면서 드러났다(2026-09-23 — 잠 부족·운동 부하·암케어
@@ -294,15 +296,21 @@ export const CONDITIONING_DAY_LABEL = '컨디셔닝 데이';
  * 다음 근력 날로 그대로 넘어가고, 직접 더한 운동의 자리(slotForTheme)도 지금처럼
  * 정해진다. 회복날·보조날은 원래 무게를 안 드는 날이라 그대로다.
  */
-export function conditioningDay(theme: SessionTheme, facts: ReportFacts): SessionTheme {
+export function conditioningDay(
+  theme: SessionTheme,
+  facts: ReportFacts,
+  /** 실제로 유산소가 뽑혔는가 — 이유에 넣을지. 영상이 없는 동안에는 안 뽑힌다 */
+  withCardio = false
+): SessionTheme {
   if (theme.key !== 'lower' && theme.key !== 'upper') return theme;
   const part = theme.key === 'lower' ? '하체' : '상체';
+  const filled = withCardio ? '코어·보강·유산소·암케어' : '코어·보강·암케어';
   return {
     key: theme.key,
     label: CONDITIONING_DAY_LABEL,
     reason:
       threwTodayNote(facts) +
-      `목표가 컨디셔닝이라 무게 드는 운동 대신 코어·보강·암케어로 채웠습니다. ${part} 근력은 다음 근력 날로 넘어갑니다.`,
+      `목표가 컨디셔닝이라 무게 드는 운동 대신 ${filled}로 채웠습니다. ${part} 근력은 다음 근력 날로 넘어갑니다.`,
   };
 }
 
@@ -515,7 +523,12 @@ export function decideTheme({
 export type SlotKey = 'cardio' | 'mobility' | 'main' | 'core' | 'prehab' | 'armcare';
 
 export const SLOT_LABELS: Record<SlotKey, { label: string; hint: string }> = {
-  cardio: { label: '가벼운 유산소', hint: '숨이 조금 찰 만큼만, 몸에 피를 돌린다' },
+  /*
+   * 회복날(맨 앞, 가볍게)과 컨디셔닝 날(심폐) 둘 다 쓰는 칸이라 '가벼운'을 뺐다.
+   * 안내는 어느 날이든 같은 줄이 보이므로(exercise-list.tsx) 두 날의 세기를 함께
+   * 적는다 — '숨이 찰 만큼'만 적으면 큰 경기 다음 날 회복날에도 그렇게 읽힌다.
+   */
+  cardio: { label: '유산소', hint: '회복날은 가볍게, 컨디셔닝 날은 숨이 찰 만큼' },
   mobility: { label: '가동성', hint: '천천히 관절을 열어주세요' },
   main: { label: '본운동', hint: '오늘 테마의 핵심입니다' },
   core: { label: '코어', hint: '몸통을 단단하게' },
@@ -555,8 +568,8 @@ type SlotSpec = {
    * 구간은 원래 시간이 모자라도 하나는 억지로 넣는다 — 본운동이 비는 날이
    * 없게 하려는 규칙이다. 그런데 회복날은 구간이 다섯이고 유산소 하나가 10분
    * 이라, 30분짜리 날에 구간마다 하나씩만 넣어도 38분이 됐다. 곁가지(보강·
-   * 코어)는 시간이 남을 때만 넣고, 모자라면 건너뛴다. 남는 시간은 몫이 가장
-   * 큰 구간(회복날에는 암케어)으로 간다.
+   * 코어, 컨디셔닝 날의 유산소)는 시간이 남을 때만 넣고, 모자라면 건너뛴다.
+   * 남는 시간은 몫이 가장 큰 구간(회복날에는 암케어)으로 간다.
    */
   optional?: boolean;
   /** 이 구간을 채우는 카테고리 (워밍업은 별도 규칙) */
@@ -610,16 +623,19 @@ type SlotSpec = {
  *
  * 목표가 무엇을 하러 온 날인지 정하므로, 구간도 목표가 정하게 한다.
  *
- *   근력 향상      워밍업 · 본운동 · 암케어
- *                 무게를 드는 데 시간을 몰아준다. 곁가지가 없다.
+ *   근력 향상      워밍업 · 본운동 · 코어 · 암케어
+ *                 무게를 드는 데 시간을 몰아준다. 코어는 하나둘만 —
+ *                 기본 목표라 예전 '균형 잡힌 관리'가 하던 몫을 넘겨받았다.
  *   파워 향상      워밍업 · 본운동 · 코어 · 암케어
  *                 폭발력은 하체에서 코어를 지나 팔로 간다. 코어 없이
  *                 파워만 하면 힘이 새는 자리를 그대로 두는 셈이다.
- *   균형 잡힌 관리  워밍업 · 본운동 · 코어 · 보강 · 암케어
- *                 이름이 '고르게'다. 다섯 구간을 다 쓰되 하나씩만 둔다.
- *   컨디셔닝      워밍업 · 코어 · 보강 · 암케어
- *                 무게와 파워를 통째로 뺀다. 몸을 지키려고 고른 날인데
- *                 스쿼트와 점프가 나오면 목표와 반대다.
+ *   컨디셔닝      워밍업 · 코어 · 보강 · 유산소 · 암케어
+ *                 무게와 파워를 통째로 뺀다. 몸을 다지러 고른 날인데
+ *                 스쿼트와 점프가 나오면 목표와 반대다. 유산소는 하나 —
+ *                 영상이 아직 없으면 그 칸은 빠진다(dropEmptySlots).
+ *
+ * 2026-09-25 '균형 잡힌 관리'를 없앴다. 다섯 구간을 하나씩 다 쓰는 목표였는데,
+ * 근력 향상과 거의 같은 날이 나와 고를 까닭이 흐렸다.
  *
  * 어깨 관리(암케어)는 어느 목표에도 있다. 투수에게 그것만은 매일이다.
  */
@@ -628,12 +644,16 @@ type GoalShape = {
   main?: { share: number; maxCount: number };
   core?: { share: number; maxCount: number };
   prehab?: { share: number; maxCount: number };
+  /** 유산소 — 컨디셔닝만 쓴다 */
+  cardio?: { share: number; maxCount: number };
   armcare: { share: number; maxCount: number };
 };
 
 const GOAL_SHAPES: Record<string, GoalShape> = {
   '근력 향상': {
     main: { share: 0.7, maxCount: 8 },
+    /* 예전 균형 잡힌 관리의 코어 몫 그대로 — 짧은 날(32분 아래)에는 빠진다 */
+    core: { share: 0.1, maxCount: 2 },
     armcare: { share: 0.2, maxCount: 3 },
   },
   '파워 향상': {
@@ -641,28 +661,22 @@ const GOAL_SHAPES: Record<string, GoalShape> = {
     core: { share: 0.13, maxCount: 2 },
     armcare: { share: 0.15, maxCount: 2 },
   },
-  '균형 잡힌 관리': {
-    /*
-     * 본운동을 0.52까지 낮춰 보았더니 60분에 둘밖에 안 들어갔다. 하체날에
-     * 둘이면 힌지가 빠지는 날이 이어져(마른 날 5.1) 뒤쪽 사슬이 통째로
-     * 놀았다. 코어·보강을 하나씩 두면서도 본운동 셋은 되게 잡는다.
-     */
-    main: { share: 0.58, maxCount: 7 },
-    /*
-     * 코어·보강 상한을 하나에서 둘로 올린다.
-     *
-     * 워밍업을 없애면서 120분에 98분치밖에 안 나왔다 — 워밍업 둘이 채우던
-     * 12분을 메울 자리가 없었다. 본운동만 더 넣으면 '고르게'라는 이름과
-     * 어긋나므로, 코어와 보강을 하나씩 더 넣을 수 있게 한다. 짧은 날에는
-     * 몫이 작아 어차피 하나밖에 안 들어간다.
-     */
-    core: { share: 0.1, maxCount: 2 },
-    prehab: { share: 0.08, maxCount: 2 },
-    armcare: { share: 0.14, maxCount: 2 },
-  },
   컨디셔닝: {
     core: { share: 0.25, maxCount: 4 },
     prehab: { share: 0.3, maxCount: 5 },
+    /*
+     * 유산소 하나 — 10~15분짜리 자전거·걷기·가벼운 달리기·로잉 같은 것.
+     *
+     * 몸을 다지는 날에 심폐를 빼면 '컨디셔닝'이라는 이름이 반쪽이다. 하나로
+     * 묶는 것은 유산소 둘을 이어 하는 사람이 없어서다. 영상이 아직 없는
+     * 동안에는 이 칸이 빠지고 나머지가 그 몫을 나눠 쓴다(dropEmptySlots).
+     *
+     * 몫(0.34)은 60분에 10분짜리 하나(추정 14분)가 들어갈 만큼이다. 처음에 0.2로
+     * 두었더니 목표별 곱을 지나 60분에 8분 남짓만 남아, 한 개도 안 맞는데 '빈
+     * 구간은 억지로 하나' 규칙으로 들어가며 암케어 몫을 깎았다. 그래서 곁가지로
+     * 두고(shapeToSpecs 의 optional) 맨 뒤에 채운다 — 짧은 날에 안 맞으면 뺀다.
+     */
+    cardio: { share: 0.34, maxCount: 1 },
     armcare: { share: 0.3, maxCount: 5 },
   },
 };
@@ -684,6 +698,19 @@ function shapeToSpecs(shape: GoalShape, mainSpec: SlotSpec): SlotSpec[] {
     specs.push({ slot: 'prehab', ...shape.prehab, categories: ['회복 및 보강'] });
   }
   specs.push({ slot: 'armcare', ...shape.armcare, categories: ['암케어'] });
+  /*
+   * 유산소는 맨 뒤에, 곁가지로 채운다. 채우는 차례가 곧 시간을 쓰는 차례라, 앞에
+   * 두면 넘친 몫이 암케어에서 빠진다. 화면에 보이는 차례는 SLOT_ORDER 가 따로
+   * 정한다(유산소가 맨 앞).
+   */
+  if (shape.cardio) {
+    specs.push({
+      slot: 'cardio',
+      ...shape.cardio,
+      categories: ['유산소'],
+      optional: true,
+    });
+  }
   return specs;
 }
 
@@ -883,8 +910,8 @@ export function compositionFor(
   const weighted = base.map((spec) => ({
     spec,
     /*
-     * 목표별 곱은 웨이트 날의 구간에만 있다. 유산소는 회복날에만 있고 회복날은
-     * 목표를 안 보므로 곱할 값이 없다 — 없으면 1이다.
+     * 목표별 곱은 웨이트 날의 구간에만 있다. 유산소처럼 곱을 안 적어 둔 구간
+     * (회복날·컨디셔닝의 유산소)은 1이다 — 회복날은 목표를 아예 안 본다.
      */
     share:
       spec.share *
@@ -956,8 +983,8 @@ export function slotOf(ex: ThemedExercise, specs: SlotSpec[]): SlotKey {
   }
   /*
    * 맞는 구간이 없으면 본운동에, 본운동이 없는 테마라면 첫 구간에 둔다.
-   * 단 유산소 칸에는 넣지 않는다 — 회복날에 직접 더한 스쿼트가 '가벼운
-   * 유산소' 아래에 들어가면 순서가 뜻을 잃는다.
+   * 단 유산소 칸에는 넣지 않는다 — 회복날에 직접 더한 스쿼트가 '유산소'
+   * 아래에 들어가면 순서가 뜻을 잃는다.
    */
   return (
     specs.find((s) => s.slot === 'main') ??
@@ -1166,17 +1193,23 @@ export function pickForTheme<T extends ThemedExercise>({
   /** 목표 안에서 좁힌 부위 — 본운동의 스트렝스를 한 계열로 줄인다 */
   focus?: GoalFocusKey | null;
 }): { picks: ThemedPick<T>[]; estimatedMinutes: number; notes: string[] } {
+  /*
+   * 목표를 안 준 날은 오늘 고른 운동 종류를 따른다 — 일정 만들기와 같은 규칙이다
+   * (lib/report/personalize.ts 의 goalForUnchosen). 파워를 골랐으면 파워 향상,
+   * 아니면 기본 목표(근력 향상).
+   */
+  const goalName = goal ?? goalForUnchosen(preferredWorkout);
   /* 회복날에는 가벼운 것만 새로 고른다 (isRecoveryLight) */
   const eligible = (ex: T) => theme !== 'recovery' || isRecoveryLight(ex);
   const specs = dropEmptySlots(
-    compositionFor(theme, goal, minutes, focus),
+    compositionFor(theme, goalName, minutes, focus),
     candidates.filter(eligible)
   );
-  const goalPrefer: readonly string[] = findGoal(goal).prefer;
+  const goalPrefer: readonly string[] = findGoal(goalName).prefer;
   /*
    * 목표가 정한 본운동의 섞임. 회복 데이에는 본운동이 없어 쓰이지 않는다.
    */
-  const goalMix: GoalMix = theme === 'recovery' ? {} : findGoal(goal).mix;
+  const goalMix: GoalMix = theme === 'recovery' ? {} : findGoal(goalName).mix;
   const notes: string[] = [];
 
   /*

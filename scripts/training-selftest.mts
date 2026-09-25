@@ -45,6 +45,7 @@ import { equipmentForToday, filterByEquipment } from '../lib/report/equipment.ts
 import {
   GOAL_FOCUSES,
   TRAINING_GOALS,
+  goalForUnchosen,
   TRAINING_LEVELS,
   filterByLevel,
   focusesFor,
@@ -97,7 +98,7 @@ import {
 } from '../lib/baseline.ts';
 import { buildDailyPlan, isHalted, readDailyPlan } from '../lib/report/daily-plan.ts';
 import {
-  BALANCED_GOAL,
+  DEFAULT_GOAL,
   canReuse,
   checkinStamp,
   decideAutoFence,
@@ -1410,17 +1411,140 @@ console.log('\n[목표] 고른 목표가 실제로 배분을 바꾸는가');
   /*
    * 배분(시간 예산)이 달라지는지 먼저 본다. 이게 목표 기능의 알맹이다.
    */
-  for (const [slot, goal, label] of [
-    ['armcare', '컨디셔닝', '암케어'],
-    ['main', '근력 향상', '본운동'],
-    ['prehab', '컨디셔닝', '보강'],
-  ] as [string, string, string][]) {
+  /*
+   * 예전에는 '균형 잡힌 관리'를 기준으로 견줬다. 그 목표를 없앤 뒤로는 남은
+   * 목표끼리 견준다 — 목표가 배분을 바꾼다는 알맹이는 같다.
+   */
+  for (const [slot, goal, base, label] of [
+    ['armcare', '컨디셔닝', '근력 향상', '암케어'],
+    ['main', '근력 향상', '파워 향상', '본운동'],
+    ['prehab', '컨디셔닝', '근력 향상', '보강'],
+    ['core', '파워 향상', '근력 향상', '코어'],
+  ] as [string, string, string, string][]) {
     const budget = (g: string) =>
       (compositionFor('lower', g).find((sp) => sp.slot === slot)?.share ?? 0) * 60;
     check(
-      `${goal} → ${label} 배분이 늘어남`,
-      budget(goal) > budget('균형 잡힌 관리'),
-      `${budget('균형 잡힌 관리').toFixed(1)}분 → ${budget(goal).toFixed(1)}분`
+      `${goal} → ${base}보다 ${label} 배분이 많음`,
+      budget(goal) > budget(base),
+      `${base} ${budget(base).toFixed(1)}분 → ${goal} ${budget(goal).toFixed(1)}분`
+    );
+  }
+  /* 하체날 60분을 이 후보들로 뽑는다(안전 거르기 없이 — 구성만 본다) */
+  const lower60 = (goal: string, candidates = library) =>
+    pickForTheme({
+      candidates,
+      theme: 'lower',
+      minutes: 60,
+      doneIds: new Set<string>(),
+      goal,
+    }).picks;
+  {
+    /*
+     * 근력 향상은 기본 목표라 예전 균형 잡힌 관리의 코어 몫을 넘겨받았다.
+     * 60분에 코어가 하나는 들어가되, 본운동 몫이 가장 커야 한다.
+     */
+    const specs = compositionFor('lower', '근력 향상', 60);
+    const share = (slot: string) => specs.find((sp) => sp.slot === slot)?.share ?? 0;
+    check(
+      '근력 향상 — 코어 칸이 있고, 본운동이 가장 크다',
+      share('core') > 0 && specs.every((sp) => share('main') >= sp.share),
+      specs.map((sp) => `${sp.slot} ${(sp.share * 60).toFixed(1)}분`).join(' · ')
+    );
+    const picks = lower60('근력 향상');
+    check(
+      '근력 향상 60분 — 코어가 하나 이상 뽑힌다',
+      picks.some((p) => p.slot === 'core'),
+      [...new Set(picks.map((p) => p.slot))].join(', ')
+    );
+  }
+  {
+    /*
+     * 컨디셔닝의 유산소 칸. 아직 유산소 영상이 없으면 그 칸은 빠지고 시간은
+     * 나머지가 나눠 갖는다(dropEmptySlots). 영상을 하나 넣으면 바로 들어온다.
+     */
+    check(
+      '컨디셔닝 — 구성에 유산소 칸이 있다',
+      compositionFor('lower', '컨디셔닝').some(
+        (sp) => sp.slot === 'cardio' && sp.categories.includes('유산소')
+      )
+    );
+    const hasCardio = library.some((ex) => ex.category === '유산소');
+    const without = lower60('컨디셔닝');
+    check(
+      hasCardio
+        ? '컨디셔닝 60분 — 유산소가 하나 뽑힌다'
+        : '컨디셔닝 60분 — 유산소 영상이 없으면 그 칸 없이 짜인다',
+      hasCardio
+        ? without.filter((p) => p.slot === 'cardio').length === 1
+        : without.every((p) => p.slot !== 'cardio') && without.length > 0,
+      [...new Set(without.map((p) => p.slot))].join(', ')
+    );
+    const bike = {
+      ...library.find((ex) => ex.category === '코어')!,
+      id: 'test-cardio-bike',
+      title: '시험용 실내 자전거',
+      category: '유산소',
+      bodyParts: ['전신'],
+      intensity: '중간',
+      difficulty: '초급',
+      equipment: ['맨몸'],
+      movementPattern: null,
+      sets: 1,
+      reps: null,
+      holdSeconds: 600,
+      restSeconds: null,
+      perSide: false,
+    };
+    const withBike = lower60('컨디셔닝', [...library, bike]);
+    check(
+      '유산소 영상을 하나 넣으면 컨디셔닝에 바로 들어온다',
+      withBike
+        .filter((p) => p.slot === 'cardio')
+        .map((p) => p.exercise.id)
+        .join() === 'test-cardio-bike',
+      withBike.map((p) => `${p.slot}:${p.exercise.title}`).join(' / ')
+    );
+    const strengthWithBike = lower60('근력 향상', [...library, bike]);
+    check(
+      '근력 향상에는 유산소가 안 들어간다',
+      strengthWithBike.every((p) => p.slot !== 'cardio')
+    );
+
+    /*
+     * 유산소 칸은 맨 뒤에, 곁가지로 채운다(theme.ts 의 shapeToSpecs). 앞에 두고
+     * 꼭 채우는 칸으로 두었더니, 몫이 자전거 하나(14분)보다 작아 '빈 구간은
+     * 억지로 하나' 규칙으로 들어가며 시간을 넘기고 암케어 몫을 깎았다.
+     */
+    const specs = compositionFor('lower', '컨디셔닝', 60);
+    check(
+      '컨디셔닝 — 유산소 칸은 맨 뒤이고 곁가지다',
+      specs.at(-1)?.slot === 'cardio' && specs.at(-1)?.optional === true,
+      specs.map((sp) => `${sp.slot}${sp.optional ? '(곁가지)' : ''}`).join(' → ')
+    );
+    const at = (minutes: number, candidates = library) =>
+      pickForTheme({
+        candidates,
+        theme: 'lower',
+        minutes,
+        doneIds: new Set<string>(),
+        goal: '컨디셔닝',
+      });
+    const bike60 = at(60, [...library, bike]);
+    check(
+      '컨디셔닝 60분 + 유산소 — 고른 시간에서 크게 안 벗어난다(±15%)',
+      Math.abs(bike60.estimatedMinutes - 60) <= 60 * 0.15,
+      `${bike60.estimatedMinutes}분`
+    );
+    const armcareCount = (picks: { slot: string }[]) =>
+      picks.filter((p) => p.slot === 'armcare').length;
+    const plain40 = at(40);
+    const bike40 = at(40, [...library, bike]);
+    check(
+      '컨디셔닝 40분 — 유산소가 안 맞으면 빠지고, 암케어를 깎지 않는다',
+      armcareCount(bike40.picks) >= armcareCount(plain40.picks) &&
+        Math.abs(bike40.estimatedMinutes - 40) <= 40 * 0.15,
+      `암케어 ${armcareCount(plain40.picks)} → ${armcareCount(bike40.picks)}개 · ` +
+        `${bike40.estimatedMinutes}분 · 유산소 ${bike40.picks.filter((p) => p.slot === 'cardio').length}개`
     );
   }
 
@@ -1433,20 +1557,39 @@ console.log('\n[목표] 고른 목표가 실제로 배분을 바꾸는가');
    */
   check(
     '컨디셔닝 → 60분에서도 본운동이 줄어든다',
-    minutesOf('컨디셔닝', 'main') < minutesOf('균형 잡힌 관리', 'main'),
-    `${minutesOf('균형 잡힌 관리', 'main').toFixed(1)}분 → ${minutesOf('컨디셔닝', 'main').toFixed(1)}분`
+    minutesOf('컨디셔닝', 'main') < minutesOf('근력 향상', 'main'),
+    `근력 향상 ${minutesOf('근력 향상', 'main').toFixed(1)}분 → 컨디셔닝 ${minutesOf('컨디셔닝', 'main').toFixed(1)}분`
   );
   {
-    const at90 = (goal: string) => {
-      const { themed } = planFor({ person: { condition: 8 }, goal, minutes: 90 });
-      return themed.picks
-        .filter((x) => x.slot === 'main')
-        .reduce((sum, x) => sum + estimateMinutes(x.exercise), 0);
-    };
+    /*
+     * 90분처럼 긴 날에도 근력 향상의 본운동은 스트렝스로만 찬다. 시간이 남으면
+     * 파워가 그 자리를 채우던 때가 있었다(personalize.ts 의 mix.maxPower).
+     * 예전에는 여기서 '균형 잡힌 관리보다 본운동이 길다'를 봤는데, 그 목표를
+     * 없앤 뒤로는 이 목표를 가르는 성질을 직접 본다.
+     */
+    const { themed } = planFor({
+      person: { condition: 8 },
+      goal: '근력 향상',
+      minutes: 90,
+    });
+    const main = themed.picks.filter((x) => x.slot === 'main');
     check(
-      '근력 향상 → 90분에서는 본운동이 늘어난다',
-      at90('근력 향상') > at90('균형 잡힌 관리'),
-      `${at90('균형 잡힌 관리').toFixed(1)}분 → ${at90('근력 향상').toFixed(1)}분`
+      '근력 향상 90분 — 본운동이 파워 없이 스트렝스로만 찬다',
+      main.length >= 3 && main.every((x) => x.exercise.category !== '파워'),
+      main.map((x) => x.exercise.category).join(', ')
+    );
+  }
+  {
+    /*
+     * 목표를 안 고른 날(null)은 오늘 고른 운동 종류를 따른다 — 파워를 골랐으면
+     * 파워 향상, 아니면 기본 목표(근력 향상). 예전 기본(균형 잡힌 관리)은 파워를
+     * 하나 넣어 주었는데, 근력 향상은 파워를 안 넣어서 그대로면 파워가 사라진다.
+     */
+    check(
+      '목표를 안 고른 날 — 파워를 골랐으면 파워 향상, 아니면 근력 향상',
+      goalForUnchosen('파워') === '파워 향상' &&
+        goalForUnchosen('웨이트') === DEFAULT_GOAL &&
+        goalForUnchosen(null) === DEFAULT_GOAL
     );
   }
 }
@@ -2046,7 +2189,7 @@ console.log('\n[오늘의 목표] 일정을 만들 때마다 고르는가');
   );
 
   /*
-   * 안 고르고 만들면 지난번에 고른 것으로 간다. 매번 균형으로 되돌리면
+   * 안 고르고 만들면 지난번에 고른 것으로 간다. 매번 기본 목표로 되돌리면
    * 파워 위주로 몇 주 가려는 사람이 날마다 다시 골라야 한다.
    */
   check(
@@ -2076,8 +2219,8 @@ console.log('\n[목표 안의 부위] 상체를 밀기·당기기로 가르는�
    */
   check(
     '고르게 하는 목표는 부위를 못 좁힌다',
-    focusesFor('균형 잡힌 관리').length === 0 && focusesFor('컨디셔닝').length === 0,
-    '균형·컨디셔닝 모두 선택지 없음'
+    focusesFor('컨디셔닝').length === 0,
+    '컨디셔닝 선택지 없음'
   );
   check(
     '근력은 넷으로 갈린다 — 상체를 통째로 하는 것도 고를 수 있다',
@@ -2224,7 +2367,7 @@ console.log('\n[워밍업] 일정에 워밍업을 안 넣는가');
 
   /* 2) 'warmup' 이라는 구간 자체가 없어야 한다 */
   for (const theme of ['lower', 'upper', 'assist', 'recovery'] as const) {
-    const slots = new Set(picksOf(theme, '균형 잡힌 관리').map((p) => p.slot));
+    const slots = new Set(picksOf(theme, DEFAULT_GOAL).map((p) => p.slot));
     check(
       `${theme} — 워밍업 구간이 없다`,
       !slots.has('warmup' as never),
@@ -2255,7 +2398,7 @@ console.log('\n[워밍업] 일정에 워밍업을 안 넣는가');
     );
     const reachable = veryLow.filter((ex) => {
       const theme: ThemeKey = ex.category === '암케어' ? 'lower' : 'assist';
-      const specs = compositionFor(theme, '균형 잡힌 관리');
+      const specs = compositionFor(theme, DEFAULT_GOAL);
       return specs.some((sp) => sp.categories.includes(ex.category));
     });
     check(
@@ -2498,15 +2641,15 @@ console.log('\n[AI 맞춤] 규칙이 울타리를 치고, 그 밖의 답은 받�
   const plain = fenceFor(factsWith({}));
   check('평소 날은 근력 날', plain.strengthDay, plain.day.label);
   check(
-    '평소 날 → 목표는 AI가 넷 중에서 고른다',
-    plain.fixedGoal == null && plain.goals.length === 4
+    '평소 날 → 목표는 AI가 셋 중에서 고른다',
+    plain.fixedGoal == null && plain.goals.length === 3
   );
   check(
     '시간은 기본 시간을 넘지 않는다 (60분)',
     Object.values(plain.minutes).every((ms) => ms.length > 0 && Math.max(...ms) <= 60),
     JSON.stringify(plain.minutes)
   );
-  check('신호가 없으면 초안은 균형 잡힌 관리', plain.draft.goal === BALANCED_GOAL);
+  check('신호가 없으면 초안은 기본 목표(근력 향상)', plain.draft.goal === DEFAULT_GOAL);
 
   const armGap = fenceFor(
     factsWith({}),
@@ -2525,8 +2668,8 @@ console.log('\n[AI 맞춤] 규칙이 울타리를 치고, 그 밖의 답은 받�
     })
   );
   check(
-    '기록이 없는 사람은 암케어 0세트여도 균형으로 시작',
-    newcomer.draft.goal === BALANCED_GOAL &&
+    '기록이 없는 사람은 암케어 0세트여도 기본 목표로 시작',
+    newcomer.draft.goal === DEFAULT_GOAL &&
       newcomer.draft.reason.includes('기록이 아직 적어'),
     newcomer.draft.reason
   );
@@ -2671,11 +2814,12 @@ console.log('\n[AI 맞춤] 규칙이 울타리를 치고, 그 밖의 답은 받�
     check(label, !r.ok, r.ok ? '받아버림' : r.reason);
   };
   reject('고를 수 없는 시간(90분) → 버린다', { ...good, minutes: 90 });
-  reject('균형 잡힌 관리에 부위를 좁힘 → 버린다', {
+  reject('컨디셔닝에 부위를 좁힘 → 버린다', {
     ...good,
-    goal: BALANCED_GOAL,
+    goal: CONDITIONING_GOAL,
     focus: 'lower',
   });
+  reject('없앤 목표(균형 잡힌 관리) → 버린다', { ...good, goal: '균형 잡힌 관리' });
   reject('자료에 없는 투구수 → 버린다', {
     ...good,
     reason: '어제 95구를 던지셨습니다.',

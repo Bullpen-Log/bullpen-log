@@ -293,7 +293,7 @@ export function buildAutoPrompt(input: AutoPromptInput): string {
       fence.strengthDay &&
       goal === CONDITIONING_GOAL &&
       fence.day.label !== CONDITIONING_DAY_LABEL
-        ? ` (고르면 오늘은 '${CONDITIONING_DAY_LABEL}'가 되어 무게 드는 운동 없이 코어·보강·암케어로 채웁니다)`
+        ? ` (고르면 오늘은 '${CONDITIONING_DAY_LABEL}'가 되어 무게 드는 운동 없이 코어·보강·암케어 위주로 채웁니다 — 유산소 영상이 있으면 유산소도 하나)`
         : '';
     lines.push(`  - ${goal}${desc ? ` — ${desc}` : ''}${note}`);
   }
