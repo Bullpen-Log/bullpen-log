@@ -198,12 +198,17 @@ export function DaySummary({
   ];
 
   return (
+    /*
+     * 넓은 화면에서는 옆 캘린더와 위아래 끝을 맞춘다(lg:h-full). 캘린더가 더 길면 줄들이
+     * 남는 높이를 고루 나눠 가진다(flex-1) — 칸 밑에 빈자리가 남아 둘의 바닥선이
+     * 어긋나 보이던 것.
+     */
     <section
       aria-label={`${spokenDay(date)} 요약`}
-      className="overflow-hidden rounded-2xl border border-line bg-surface"
+      className="flex flex-col overflow-hidden rounded-2xl border border-line bg-surface lg:h-full"
     >
       {/* 날짜를 바꿀 때마다 새로 그려, 줄이 위에서부터 다시 들어온다 */}
-      <div key={date}>
+      <div key={date} className="flex flex-1 flex-col">
         <header className="relative px-5 pb-3 pt-4">
           <p className="text-xs font-semibold text-sky">{agoText(date, today)}</p>
           <h3 className="text-heading mt-0.5 text-lg text-ink">{spokenDay(date)}</h3>
@@ -217,7 +222,7 @@ export function DaySummary({
           </button>
         </header>
 
-        <ul className="divide-y divide-line border-t border-line">
+        <ul className="flex flex-1 flex-col divide-y divide-line border-t border-line">
           {rows.map((row, i) => (
             <SummaryRow
               key={row.key}
@@ -264,7 +269,7 @@ function SummaryRow({
   const done = row.value != null;
   return (
     <li
-      className="motion-safe:animate-row-in"
+      className="flex flex-1 motion-safe:animate-row-in"
       style={{ '--row': index } as CSSProperties}
     >
       <button
@@ -272,7 +277,7 @@ function SummaryRow({
         onClick={onSelect}
         aria-pressed={selected}
         aria-label={`${row.label} — ${row.value ?? '기록 없음'}${row.sub ? `, ${row.sub}` : ''}`}
-        className={`group flex w-full items-center gap-3 px-5 py-2.5 text-left transition-colors duration-200 ${
+        className={`group flex w-full flex-1 items-center gap-3 px-5 py-2.5 text-left transition-colors duration-200 ${
           selected ? 'bg-sky-tint/70' : 'hover:bg-surface-2'
         }`}
       >

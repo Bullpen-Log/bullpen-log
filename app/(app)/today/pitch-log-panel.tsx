@@ -405,7 +405,11 @@ export function PitchLogPanel({
       */}
       {view === 'calendar' && (
         <div>
-          <div className="flex flex-col lg:flex-row lg:items-start">
+          {/*
+            lg:items-stretch — 캘린더와 옆 그날 칸의 위아래 끝을 맞춘다. 캘린더가 줄어들면
+            (compact) 그날 칸도 함께 줄어든다.
+          */}
+          <div className="flex flex-col lg:flex-row lg:items-stretch">
             <Card className="min-w-0 lg:flex-1">
               {/*
                 날짜를 고르면 칸 높이도 줄어든다(compact) — 옆 칸이 폭을, 밑 칸이
@@ -458,9 +462,9 @@ export function PitchLogPanel({
                   : 'mt-0 grid-rows-[0fr] opacity-0 lg:ml-0 lg:w-0'
               }`}
             >
-              <div className="min-h-0 lg:w-[32rem]">
+              <div className="min-h-0 lg:h-full lg:w-[32rem]">
                 <div
-                  className={`transition-transform duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] ${
+                  className={`transition-transform duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] lg:h-full ${
                     panelOpen ? 'translate-x-0' : 'lg:translate-x-8'
                   }`}
                 >
