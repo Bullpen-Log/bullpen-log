@@ -25,6 +25,8 @@ import { TrainingHistory } from './history';
 import { josa } from '@/lib/korean';
 import { TrainingSettingsButton } from './settings-button';
 import { TrainingViewSwitch } from './view-switch';
+import { TrainingCheckin } from './training-checkin';
+import { availableParts } from '@/lib/report/today-pick';
 import { trainingSummaries } from '@/lib/report/training-history';
 import { exercisesByIds } from '@/lib/library-cache';
 
@@ -314,6 +316,15 @@ export default async function TrainingPage({
       clash={core.workoutClash}
       /* 오늘 직접 골라 만들었으면 다시 만들 때도 그쪽으로 연다 */
       startMode={savedPlan && !savedPlan.auto ? 'manual' : 'auto'}
+      /*
+       * 체크인이 없으면 이 자리에서 체크인 창을 연다 — 홈으로 보내지 않는다.
+       * 상세 체크인의 '하고 싶은 부위'는 라이브러리에 실제로 있는 부위만 고른다(홈과 같다).
+       */
+      checkinAction={
+        core.hasCheckinToday ? undefined : (
+          <TrainingCheckin parts={availableParts(core.library)} />
+        )
+      }
     />
   );
 

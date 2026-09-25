@@ -1,7 +1,6 @@
 'use client';
 
 import { useState } from 'react';
-import Link from 'next/link';
 import { useFormStatus } from 'react-dom';
 import { RefreshCw, Sparkles } from 'lucide-react';
 import { CheckboxGroup, RadioGroup } from '@/components/choice-inputs';
@@ -87,6 +86,7 @@ export function PlanForm({
   returnTo,
   clash = null,
   startMode = 'auto',
+  checkinAction,
 }: {
   /** 가지고 있는 장비 (맨몸 포함) */
   owned: string[];
@@ -132,6 +132,13 @@ export function PlanForm({
    * 아직 안 만든 날은 AI 맞춤이 먼저다 — 장비만 고르면 되는 간편한 쪽이다.
    */
   startMode?: 'auto' | 'manual';
+  /**
+   * 체크인이 없을 때 '체크인 먼저' 안에 놓을 것 — 그 자리에서 체크인 창을 여는 단추.
+   *
+   * 트레이닝 화면이 넘긴다. 이 폼은 체크인 창을 모른다 — 창에 들어갈 재료(부위
+   * 목록)는 화면 쪽이 들고 있다. 안 넘기면(홈) 체크인 상자가 있는 자리를 말로 알린다.
+   */
+  checkinAction?: React.ReactNode;
 }) {
   /*
    * 이미 만든 날에는 접어 둔다. 다 만들어 놓고도 만들기 폼이 계속 펼쳐져 있으면
@@ -212,21 +219,19 @@ export function PlanForm({
           모른 채 짜게 됩니다. 30초면 됩니다.
         </p>
         {/*
-          홈에서는 체크인 상자가 같은 화면에 있다. 이 창을 닫으면 바로 보이는
-          자리라 주소 대신 위치를 말한다.
+          체크인할 길.
 
-          '첫 번째 상자'라고 하지 않는다. 홈 맨 위에 투구 달력이 올라오면서
-          (2026-09-24) 첫 번째로 보이는 것이 체크인이 아니게 됐다. 상자가 든
-          묶음 이름('오늘 할 일')으로 가리키면 순서가 바뀌어도 맞는다.
+          트레이닝 화면은 그 자리에서 체크인 창을 여는 단추를 넘겨준다
+          (app/(app)/training/training-checkin.tsx). 예전에는 홈으로 보내서, 홈에서
+          체크인하고 다시 돌아와 만들기를 눌러야 했다.
+
+          홈에서는 이 폼 자체가 창 안에 있고, 체크인 상자가 같은 화면에 있다. 이 창을
+          닫으면 바로 보이는 자리라 위치를 말한다. '첫 번째 상자'라고 하지 않는다 —
+          홈 맨 위에 투구 달력이 올라오면서(2026-09-24) 첫 번째로 보이는 것이
+          체크인이 아니게 됐다. 상자가 든 묶음 이름('오늘 할 일')으로 가리키면 순서가
+          바뀌어도 맞는다.
         */}
-        {returnTo === '/training' ? (
-          <Link
-            href="/today"
-            className="inline-block rounded-xl bg-sky px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-sky-strong"
-          >
-            홈에서 체크인하기
-          </Link>
-        ) : (
+        {checkinAction ?? (
           <p className="text-[13px] font-medium leading-relaxed text-ink">
             이 창을 닫고 ‘오늘 할 일’의 ‘오늘 체크인’에서 남길 수 있습니다.
           </p>
