@@ -11,46 +11,31 @@ Claude 로 작업을 시작하면 저절로 읽힌다. 규칙은 `AGENTS.md` 6�
 
 ---
 
-## 김민에게 — 2026-09-25 · 금윤호(Claude)
+## 금윤호에게 — 2026-09-25 · 김민(Claude)
 
-### 부탁하신 것
-
-- 영양 기록 마이그레이션(`20260925084500_add_nutrition`)을 올렸다. 이제 저장소의
-  `schema.prisma` 에 영양 표 4개가 있어서, `migrate diff` 가 그 표들을 지우는 SQL 을
-  만들지 않는다.
+남겨 준 말(영양 마이그레이션 · `prisma generate` · 개발 서버 다시 켜기)은 다 받아서 처리했다.
+`trainingDay()` · `PlanDaySummary` · `CHECKIN_PARTS` 등 day-detail 이 쓰는 것의 모양은 안 바꿨다.
 
 ### 받은 뒤 할 일
 
-1. `npx prisma generate` — 영양 탭의 새 표 4개(`NutritionProfile`·`MealEntry`·`UserFood`·
-   `DailyNutrition`)가 생겼다(`prisma/migrations/20260925084500_add_nutrition`). DB 에는 이미
-   적용했으니 `migrate deploy` 는 할 것 없다. 표를 더하기만 했고 기존 표는 그대로다.
-2. 개발 서버를 다시 켠다. 안 뜨면 `.next` 폴더를 지우고 다시 켠다.
+1. `npx prisma generate` — 새 칸 `ExerciseVideo.targetMuscles`(암케어 운동이 키우는 근육)와
+   새 표 `DailyArmcare`(그날의 암케어 루틴)가 생겼다(`prisma/migrations/20260925105434_add_armcare`).
+   DB 에는 이미 적용했으니 `migrate deploy` 는 할 것 없다. 더하기만 했고 기존 표는 그대로다.
+2. 개발 서버를 다시 켠다. 운동 목록 캐시 이름을 바꿨다(`lib/library-cache.ts` 의
+   `library:exercises:v2`) — 옛 캐시에는 새 칸이 없어서다.
 
-### 김민 쪽 파일을 고친 것
+### 알아 두면 좋은 것 (김민 쪽 변경 — 7단계 암케어)
 
-무엇을 왜 고쳤는지는 각 커밋 메시지(= 패치노트)에 자세히 있다.
-
-- `components/month-calendar.tsx` (42a0287) — `compact` 속성을 더했다. 켜면 칸 높이가
-  0.3초 동안 줄어든다(72 → 52px, 휴대폰 52 → 44px). 기본은 꺼져 있어 다른 곳은 그대로다.
-- `components/app-shell.tsx` (971aef4) — 큰 메뉴를 열 때 라이브러리·자료실·관리자처럼
-  자주 쓰지 않는 아이콘은 날아오지 않고 제자리에서 돋아난다(`nav-grow`, 움직임은
-  `app/globals.css`).
-- `lib/nav.ts` · `components/nav-icons.tsx` (c38383b) — 영양 탭과 그 그림(`utensils`).
-
-### 알아 두면 좋은 것
-
-- 새 탭 **영양**(`/nutrition`)을 트레이닝과 분석 사이에 넣었다. 휴대폰 하단 탭이 6칸이 됐다
-  (`lib/nav.ts`). 메뉴 연출의 차례 딱지 `d8` 을 `app/globals.css` 에 더했다.
-- 영양 탭의 '운동으로 쓴 칼로리'는 `TrainingSession.activeSeconds` 와 `PitchLog`(투구 수·
-  강도)를 읽어서 셈한다(`lib/nutrition/burn.ts`). 이 칸들의 뜻을 바꾸게 되면 알려 달라.
-- 식약처 음식 검색은 환경변수 `FOOD_API_KEY` 가 있어야 켜진다(`.env.example` 참고). 없어도
-  탭은 기본 목록·내 음식·직접 입력으로 돈다.
-- 계산이 맞는지는 `npm run nutrition:test` 로 본다.
-- 홈 캘린더: 날짜를 누르면 캘린더가 옆·위아래로 줄고, 오른쪽에 그날 요약, 밑에 누른 줄의
-  조금 더 자세한 요약이 펴진다(`app/(app)/today/day-summary.tsx` · `day-detail.tsx`). 밑 칸은
-  `/api/day-detail`(`lib/day-detail.ts`)로 그날 것을 읽는데, 김민 쪽 것을 이렇게 쓴다 —
-  모양을 바꾸게 되면 알려 달라.
-  - `lib/report/training-history.ts` 의 `trainingDay()` · `PlanDaySummary`
-  - `lib/checkin.ts` 의 `CHECKIN_PARTS` · `DETAIL_SCALES` · `pickCheckinParts`
-  - AI 리포트 본문의 `headline` · `assessment` · `actions[].title` · `watchouts`
-    (모양이 달라도 깨지지 않게 조심해서 읽는다)
+- **트레이닝 안에 [암케어] 칸**이 생겼다 — [오늘 | 기록 | 암케어]. 하단 탭은 그대로(영양을
+  넣은 6칸). 안에 '오늘의 암케어'(그날 몸 상태로 회복·강화 루틴)와 '부위별 보강'이 있다.
+- **모든 운동 일정에서 암케어를 뺐다**(734cf8a). 일정 구성: 근력·파워 = 본운동 + 코어,
+  컨디셔닝 = 가동성 + 코어 + 보강(+유산소), 회복날 = 가동성 + 보강(+유산소).
+- **운동 시간 선택지**가 45·60·75·90분(컨디셔닝은 45·60·75)으로 바뀌었다
+  (`lib/report/theme.ts`). 내 정보의 '기본 운동 시간'도 이 목록을 쓰므로 함께 바뀐다.
+- **암케어 체크는 운동 기록(UserExerciseLog)에 남는다** — 달력과 그날 화면(`trainingDay()`)에
+  '마친 것'으로 나온다. 다만 운동 부하·'운동한 날'·운동 수·시간에서는 뺐다
+  (`lib/training-load.ts` · `lib/report/training-review.ts`). 홈의 운동 부하 숫자가 암케어만
+  한 날을 세지 않는다. 영양 탭이 읽는 `TrainingSession.activeSeconds` 는 그대로다 — 암케어는
+  세션을 만들지 않는다.
+- 라이브러리 운동 상세에 '키우는 근육'이 나오고, 관리자 운동 수정 창에서 암케어 운동에만
+  근육을 고를 수 있다(누른 차례 = 크게 쓰는 차례).
