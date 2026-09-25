@@ -1,4 +1,3 @@
-import type { ReactNode } from 'react';
 import { UserCog } from 'lucide-react';
 import { Speed } from '@/components/speed';
 import { estimateDailyLoad } from '@/lib/baseline';
@@ -91,10 +90,9 @@ export function StatsOverview({
   today,
   totalRecords,
   view,
-  tabs,
 }: {
   /**
-   * 최근 기록. 화면이 쓰는 만큼만 온다(coach/page.tsx 의 PAGE_LOOKBACK_DAYS).
+   * 최근 기록. 화면이 쓰는 만큼만 온다(today/analysis-view.tsx 의 LOOKBACK_DAYS).
    * 전체 기간이 필요한 개인 최고 구속은 따로 받는다.
    */
   logs: OverviewLog[];
@@ -108,13 +106,6 @@ export function StatsOverview({
   totalRecords: number;
   /** 어느 칸을 보고 있는가 */
   view: CoachView;
-  /**
-   * 칸을 고르는 줄.
-   *
-   * 부하 지수 바로 아래, 나머지 위에 놓여야 해서 여기서 그린다. 무엇을 그릴지는
-   * 이 파일이 정할 일이 아니므로 받아서 끼운다.
-   */
-  tabs: ReactNode;
 }) {
   const todayKey = toDateKey(today);
   const byDay = groupByDay(logs);
@@ -247,8 +238,6 @@ export function StatsOverview({
 
   return (
     <div className="space-y-6">
-      {tabs}
-
       {/* ── 투구 ────────────────────────────────────────────── */}
       {view === 'pitch' && (
         <>

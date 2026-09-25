@@ -18,8 +18,6 @@ const SESSION_COOKIE = 'session';
 const PERSISTENT_DAYS = 30;
 const SESSION_ONLY_TOKEN_AGE = '1d';
 
-export type { SessionPayload };
-
 /**
  * 로그인 표를 만들어 쿠키에 담는다.
  *

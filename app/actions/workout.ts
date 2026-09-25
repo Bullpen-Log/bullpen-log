@@ -31,7 +31,7 @@ import { saveTrainingNote } from '@/app/actions/exercise-log';
  *
  * ■ 세트를 저장할 때 revalidatePath 를 부르지 않는다
  *
- * 지금 체크 한 번이 /today·/training·/dashboard 세 개를 다시 그린다
+ * 지금 체크 한 번이 /today·/training 두 개를 다시 그린다
  * (app/actions/exercise-log.ts). 세트마다 그러면 세트 열 개에 서른 번 다시
  * 그린다. 그보다 나쁜 것은, 서버가 다시 그릴 때마다 화면이 서버 값을 받아
  * 입력 중이던 숫자를 덮어쓸 수 있다는 것이다.
@@ -424,7 +424,6 @@ export async function finishWorkout(input: {
 
   revalidatePath('/today');
   revalidatePath('/training');
-  revalidatePath('/dashboard');
   redirect('/training', RedirectType.replace);
 }
 

@@ -121,20 +121,6 @@ export function pendingOuting(
   return worst;
 }
 
-/**
- * 아직 남은 휴식일. 0 이면 전력으로 던져도 된다는 뜻이다.
- *
- * 투구 계획과 훈련 구성이 같은 값을 봐야 해서 여기 둔다. 각자 계산하면
- * 언젠가 어긋난다 — 투구는 "오늘은 쉬세요"라는데 훈련은 하체 스트렝스를
- * 내주는 식이다.
- */
-export function remainingRestDays(
-  patterns: ReportFacts['patterns'],
-  offset = 0
-): number {
-  return pendingOuting(patterns, offset)?.left ?? 0;
-}
-
 /** 부하 구간별 조절 계수 — 평소 투구수에 곱한다. */
 const ZONE_ADJUSTMENT: Record<
   string,

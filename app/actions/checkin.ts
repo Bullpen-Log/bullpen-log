@@ -105,7 +105,6 @@ async function trySaveCheckin(formData: FormData): Promise<CheckinState> {
     create: { userId: user.id, date, preferredParts: [], ...quick, ...detail },
   });
 
-  revalidatePath('/dashboard');
   // 통증·뻐근함은 오늘의 운동 후보를 바꾼다.
   revalidatePath('/today');
   revalidatePath('/training');

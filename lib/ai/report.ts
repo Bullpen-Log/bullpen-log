@@ -14,8 +14,6 @@ import {
 import type { ReportFacts } from '@/lib/report/facts';
 import type { PitchPlan } from '@/lib/report/plan';
 
-export type { AiReportBody };
-
 export type GenerateResult =
   | { ok: true; body: AiReportBody; usage: { input: number; output: number } }
   | { ok: false; reason: string };

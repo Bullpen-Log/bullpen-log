@@ -258,7 +258,6 @@ async function LoadView({
     <div className="space-y-6">
       <StatsOverview
         view={tab}
-        tabs={null}
         bestVelocity={
           best?.maxVelocity != null
             ? { value: best.maxVelocity, date: toDateKey(best.date) }

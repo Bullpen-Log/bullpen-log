@@ -3,8 +3,6 @@ import { prisma } from '@/lib/prisma';
 import { buildTrainingLoad, type TrainingLoad } from '@/lib/training-load';
 import { estimateTrainingDailyLoad } from '@/lib/baseline';
 
-export type { TrainingLoad };
-
 /**
  * 운동 부하 지수.
  *

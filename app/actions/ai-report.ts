@@ -141,7 +141,6 @@ export async function generateAiReport(): Promise<AiReportState> {
         model: AI_MODEL,
       },
     });
-    revalidatePath('/coach');
     // 예전 훈련 설명이 화면에 남아 있으면 안 된다.
     revalidatePath('/today');
     return { success: '통증 신호가 있어 휴식 안내를 저장했습니다.' };
@@ -244,7 +243,6 @@ export async function generateAiReport(): Promise<AiReportState> {
     },
   });
 
-  revalidatePath('/coach');
   revalidatePath('/today');
   return { success: '리포트를 만들었습니다.' };
 }

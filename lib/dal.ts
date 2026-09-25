@@ -66,6 +66,6 @@ export async function requireUser() {
 /** 관리자 전용 동작에서 사용. */
 export async function requireAdmin() {
   const user = await requireUser();
-  if (user.role !== 'ADMIN') redirect('/dashboard');
+  if (user.role !== 'ADMIN') redirect('/today');
   return user;
 }

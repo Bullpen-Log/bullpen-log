@@ -9,15 +9,12 @@
 /** 쓸 수 있는 아이콘 이름. 그림은 components/nav-icons.tsx 에 있다. */
 export type NavIconName =
   | 'home'
-  | 'calendar'
   | 'dumbbell'
-  | 'chart'
   | 'film'
   /* 영양 — 숟가락·포크. 끼니를 적는 곳이라는 것이 한눈에 보인다 */
   | 'utensils'
   | 'target'
   | 'book'
-  | 'user'
   | 'settings'
   /* 관리자 — 설정(톱니)과 헷갈리지 않게 방패를 쓴다 */
   | 'shield'

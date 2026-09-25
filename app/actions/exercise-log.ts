@@ -126,7 +126,6 @@ export async function setExerciseDone(
 
   revalidatePath('/today');
   revalidatePath('/training');
-  revalidatePath('/dashboard');
   return { ok: true };
 }
 
