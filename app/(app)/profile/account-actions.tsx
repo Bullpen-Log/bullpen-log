@@ -1,21 +1,47 @@
 'use client';
 
 import { useActionState, useState } from 'react';
-import { KeyRound, UserMinus } from 'lucide-react';
-import { changePassword, deleteAccount, type AccountState } from '@/app/actions/auth';
+import { useFormStatus } from 'react-dom';
+import { KeyRound, LogOut, UserMinus } from 'lucide-react';
+import {
+  changePassword,
+  deleteAccount,
+  logout,
+  type AccountState,
+} from '@/app/actions/auth';
 import { Button, Field, FormError, Input } from '@/components/ui';
 import { Modal } from '@/components/modal';
 
 /**
- * 계정을 다루는 두 가지 — 비밀번호 바꾸기와 탈퇴.
+ * 계정을 다루는 세 가지 — 로그아웃, 비밀번호 바꾸기, 탈퇴.
  *
- * 지금까지 계정에 할 수 있는 일은 로그아웃뿐이었다. 비밀번호를 바꿀 수도,
- * 그만둘 수도 없었다. 아는 사람만 쓰는 동안에는 티가 안 났지만, 모르는 사람을
- * 받는 순간 둘 다 없으면 안 되는 것들이다.
+ * 비밀번호를 바꾸거나 그만두는 것은 아는 사람만 쓰는 동안에는 티가 안 났지만,
+ * 모르는 사람을 받는 순간 없으면 안 되는 것들이다.
  *
- * 창으로 연다. 매일 쓰는 것이 아닌데 폼을 펴 두면 '내 정보'가 계정 설정 화면처럼
- * 보인다. 여기서 매일 볼 것은 키와 목표 구속이지 비밀번호가 아니다.
+ * 로그아웃도 여기 둔다. 예전에는 '더보기' 화면(/more) 맨 아래에만 있었는데,
+ * 하단 '더보기'가 그 화면 대신 사이드바를 열게 되면서 앱 안에서 그 화면으로 가는
+ * 길이 없어졌다 — 한동안 어디서도 로그아웃할 수 없었다. '내 정보'는 휴대폰 상단
+ * 사진과 PC 오른쪽 위 사진 어디서든 열리므로 여기면 늘 닿는다.
+ *
+ * 비밀번호·탈퇴는 창으로 연다. 매일 쓰는 것이 아닌데 폼을 펴 두면 '내 정보'가
+ * 계정 설정 화면처럼 보인다. 여기서 매일 볼 것은 키와 목표 구속이지 비밀번호가
+ * 아니다. 로그아웃은 되돌릴 것이 없어 바로 한다.
  */
+
+/** 누른 뒤 서버가 로그인 화면으로 보낼 때까지 한 번 더 못 누르게 한다 */
+function LogoutButton() {
+  const { pending } = useFormStatus();
+  return (
+    <button
+      type="submit"
+      disabled={pending}
+      className="flex w-full items-center justify-center gap-2 rounded-xl border border-line px-4 py-2.5 text-sm text-muted transition-colors hover:border-line-strong hover:text-ink disabled:opacity-60"
+    >
+      <LogOut className="h-4 w-4" />
+      {pending ? '로그아웃하는 중…' : '로그아웃'}
+    </button>
+  );
+}
 
 export function AccountActions() {
   const [pwOpen, setPwOpen] = useState(false);
@@ -28,6 +54,10 @@ export function AccountActions() {
 
   return (
     <div className="space-y-2 border-t border-line pt-4">
+      <form action={logout}>
+        <LogoutButton />
+      </form>
+
       <button
         type="button"
         onClick={() => {
