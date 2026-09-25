@@ -29,6 +29,7 @@ import {
   type Prescription,
 } from '@/lib/exercise-meta';
 import { CategorySection } from '@/components/category-section';
+import { ExerciseHistoryPanel } from '@/components/exercise-history';
 import { LibraryVideo } from '@/components/library-video';
 import { LibraryTile } from '@/components/exercise-tile';
 import { ExerciseBadges } from '@/components/meta-badges';
@@ -317,6 +318,16 @@ function ExerciseDetail({
           label={item.title}
           onToggle={() => toggleExerciseFavorite(item.id)}
         />
+
+        {/*
+          내 기록 — 이 운동을 언제 얼마나 했는지와 흐름. 운동 화면의 [내 기록]과
+          같은 것이다(components/exercise-history.tsx). 펼칠 때 받아 온다.
+          메모는 바로 위에 있으므로 여기서는 다시 싣지 않는다.
+        */}
+        <div className="border-t border-line pt-4">
+          <p className="mb-3 text-sm font-bold text-ink">내 기록</p>
+          <ExerciseHistoryPanel exerciseId={item.id} />
+        </div>
       </div>
     </Card>
   );

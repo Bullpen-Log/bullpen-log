@@ -125,6 +125,7 @@ import {
   similarExercises,
   swapMode,
 } from '../lib/workout/swap.ts';
+import { buildExerciseHistory, estimate1RM } from '../lib/workout/history.ts';
 
 let passed = 0;
 let failed = 0;
@@ -3234,6 +3235,154 @@ console.log('\n[운동 교체] 비슷한 운동을 고르고, 바꾸거나 더�
     placeExercise(list, 'q', { id: 'n' }, 'replace') === null
   );
   check('원래 목록은 그대로 둔다', ids(list) === 'x,y,z');
+}
+
+console.log('\n[운동별 기록] 세트와 요약을 합쳐 최고 기록·흐름을 내는가');
+{
+  /* 추정 1RM — Epley: 무게 × (1 + 횟수/30). 1회면 그 무게, 12회를 넘으면 안 낸다 */
+  check('1회면 그 무게가 곧 1RM', estimate1RM(100, 1) === 100);
+  check(
+    '100kg × 10회 → 133.3kg',
+    estimate1RM(100, 10) === 133.3,
+    String(estimate1RM(100, 10))
+  );
+  check('13회부터는 어림하지 않는다', estimate1RM(100, 13) === null);
+  check(
+    '무게나 횟수가 없으면 안 낸다',
+    estimate1RM(0, 5) === null && estimate1RM(60, 0) === null
+  );
+
+  const sets = [
+    /* 9/24 — 운동 화면에서 세트별로 */
+    { date: '2026-09-24', setNo: 2, weightKg: 65, reps: 5, holdSeconds: null },
+    { date: '2026-09-24', setNo: 1, weightKg: 65, reps: 5, holdSeconds: null },
+    /* 9/20 — 무게를 올리며 세 세트 */
+    { date: '2026-09-20', setNo: 1, weightKg: 60, reps: 8, holdSeconds: null },
+    { date: '2026-09-20', setNo: 2, weightKg: 62.5, reps: 8, holdSeconds: null },
+    { date: '2026-09-20', setNo: 3, weightKg: 62.5, reps: 7, holdSeconds: null },
+  ];
+  const logs = [
+    /* 9/24 — 마칠 때 세트에서 접힌 요약. 세트가 있으니 이 줄은 안 쓴다 */
+    {
+      date: '2026-09-24',
+      setsDone: 2,
+      repsDone: 5,
+      holdSecondsDone: null,
+      weightKg: 65,
+    },
+    /* 9/10 — 체크로만 남긴 날 */
+    {
+      date: '2026-09-10',
+      setsDone: 3,
+      repsDone: 8,
+      holdSecondsDone: null,
+      weightKg: 57.5,
+    },
+    /* 8/20 — 5주 전. 최근 4주에는 안 든다 */
+    {
+      date: '2026-08-20',
+      setsDone: null,
+      repsDone: null,
+      holdSecondsDone: null,
+      weightKg: null,
+    },
+  ];
+  const h = buildExerciseHistory(sets, logs, '2026-09-25');
+
+  check('무게 운동으로 본다', h.kind === 'weight', h.kind);
+  check(
+    '최근 것부터, 하루에 한 줄',
+    h.days.map((d) => d.date).join(',') ===
+      '2026-09-24,2026-09-20,2026-09-10,2026-08-20',
+    h.days.map((d) => d.date).join(',')
+  );
+  const d24 = h.days[0];
+  const d20 = h.days[1];
+  const d10 = h.days[2];
+  check(
+    '세트가 있는 날은 세트를 순서대로 쓴다',
+    d24.sets?.length === 2 && d20.sets?.[1].weightKg === 62.5
+  );
+  check(
+    '볼륨은 무게 × 횟수의 합',
+    d20.volume === 60 * 8 + 62.5 * 8 + 62.5 * 7,
+    String(d20.volume)
+  );
+  check('세트에서 센 볼륨은 어림이 아니다', !d20.approx && !d24.approx);
+  check(
+    '세트에서 요약을 다시 접는다 — 가장 무거운 무게·가장 자주 한 횟수',
+    d20.weightKg === 62.5 && d20.repsDone === 8 && d20.setsDone === 3
+  );
+  check(
+    '요약만 있는 날은 세트 × 횟수 × 무게로 어림한다',
+    d10.sets === null && d10.volume === 3 * 8 * 57.5 && d10.approx,
+    String(d10.volume)
+  );
+  check(
+    '숫자를 안 적은 날은 볼륨을 안 낸다',
+    h.days[3].volume === null && !h.days[3].approx
+  );
+  check(
+    '그날의 추정 1RM 은 가장 좋은 세트로',
+    d20.e1rm === estimate1RM(62.5, 8),
+    String(d20.e1rm)
+  );
+  check(
+    '최고 무게는 처음 든 날로',
+    h.bestWeight?.kg === 65 && h.bestWeight.date === '2026-09-24',
+    JSON.stringify(h.bestWeight)
+  );
+  check(
+    '최고 세트는 추정 1RM 으로 가른다 — 65kg × 5 보다 62.5kg × 8',
+    h.bestSet?.weightKg === 62.5 &&
+      h.bestSet.reps === 8 &&
+      h.bestSet.date === '2026-09-20',
+    JSON.stringify(h.bestSet)
+  );
+  check(
+    '모두 4번, 최근 4주 3번',
+    h.total === 4 && h.last28 === 3,
+    `${h.total} / ${h.last28}`
+  );
+
+  /* 맨몸 운동 — 무게가 한 번도 없으면 횟수로 잰다 */
+  const pushups = buildExerciseHistory(
+    [
+      { date: '2026-09-22', setNo: 1, weightKg: null, reps: 15, holdSeconds: null },
+      { date: '2026-09-22', setNo: 2, weightKg: null, reps: 12, holdSeconds: null },
+    ],
+    [],
+    '2026-09-25'
+  );
+  check(
+    '맨몸은 횟수로 — 볼륨은 횟수 합, 1RM 은 없음',
+    pushups.kind === 'reps' &&
+      pushups.days[0].volume === 27 &&
+      pushups.days[0].e1rm === null
+  );
+  check('한 세트 최다 횟수', pushups.bestReps?.reps === 15);
+
+  /* 버티기 — 시간만 있으면 시간으로 잰다 */
+  const plank = buildExerciseHistory(
+    [
+      { date: '2026-09-21', setNo: 1, weightKg: null, reps: null, holdSeconds: 45 },
+      { date: '2026-09-21', setNo: 2, weightKg: null, reps: null, holdSeconds: 60 },
+    ],
+    [],
+    '2026-09-25'
+  );
+  check(
+    '버티기는 시간으로 — 가장 오래 60초, 볼륨은 초의 합',
+    plank.kind === 'hold' &&
+      plank.bestHold?.seconds === 60 &&
+      plank.days[0].volume === 105
+  );
+
+  const none = buildExerciseHistory([], [], '2026-09-25');
+  check(
+    '기록이 없으면 빈 기록',
+    none.days.length === 0 && none.bestWeight === null && none.total === 0
+  );
 }
 
 console.log(`\n${passed}개 통과, ${failed}개 실패`);

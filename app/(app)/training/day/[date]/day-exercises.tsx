@@ -1,9 +1,11 @@
 'use client';
 
 import { useState, useTransition } from 'react';
-import { Check } from 'lucide-react';
+import { ChartLine, Check } from 'lucide-react';
 import { setExerciseDone } from '@/app/actions/exercise-log';
 import { CategoryBadge } from '@/components/category-badge';
+import { ExerciseHistoryPanel } from '@/components/exercise-history';
+import { Modal } from '@/components/modal';
 import { formatAmount } from '@/lib/exercise-meta';
 import { useWeightUnit } from '@/components/use-units';
 import type { TrainingDayDetail } from '@/lib/report/training-history';
@@ -27,6 +29,10 @@ export function DayExercises({
 }) {
   const [exercises, setExercises] = useState(detail.exercises);
   const [error, setError] = useState<string>();
+  /* 기록 창에 띄운 운동 */
+  const [historyOf, setHistoryOf] = useState<{ id: string; title: string } | null>(
+    null
+  );
   const [, startTransition] = useTransition();
   /* 무게는 고른 단위로(설정 → 단위). 기록은 kg 그대로다. */
   const unit = useWeightUnit();
@@ -112,21 +118,34 @@ export function DayExercises({
           );
 
           return (
-            <li key={ex.id}>
+            <li key={ex.id} className="relative">
               {detail.editable ? (
                 <button
                   type="button"
                   onClick={() => toggleDone(ex.id, !ex.done)}
                   aria-pressed={ex.done}
-                  className="flex w-full items-start gap-3 rounded-2xl border border-line bg-surface px-4 py-4 text-left transition-colors hover:border-sky-soft"
+                  className="flex w-full items-start gap-3 rounded-2xl border border-line bg-surface py-4 pr-14 pl-4 text-left transition-colors hover:border-sky-soft"
                 >
                   {row}
                 </button>
               ) : (
-                <div className="flex items-start gap-3 rounded-2xl border border-line bg-surface px-4 py-4">
+                <div className="flex items-start gap-3 rounded-2xl border border-line bg-surface py-4 pr-14 pl-4">
                   {row}
                 </div>
               )}
+              {/*
+                이 운동의 기록 — 줄을 누르면 완료 표시가 바뀌므로 따로 단추를 둔다.
+                줄 안에 넣지 않고 위에 겹쳐 둔다(단추 안에 단추를 둘 수 없다).
+              */}
+              <button
+                type="button"
+                onClick={() => setHistoryOf({ id: ex.id, title: ex.title })}
+                aria-label={`${ex.title} 기록 보기`}
+                title="이 운동의 기록 보기"
+                className="absolute top-3 right-3 rounded-lg p-2 text-muted transition-colors hover:bg-surface-2 hover:text-sky"
+              >
+                <ChartLine className="h-4 w-4" />
+              </button>
             </li>
           );
         })}
@@ -140,9 +159,20 @@ export function DayExercises({
         <p className="px-1 text-[11px] leading-relaxed text-muted/70">
           {detail.editable
             ? '눌러서 켜고 끌 수 있습니다. 세트·횟수·무게는 오늘 것만 적을 수 있습니다 — 지난 날의 숫자는 정확히 기억하기 어렵습니다.'
-            : '일주일이 지난 기록은 고칠 수 없습니다.'}
+            : '일주일이 지난 기록은 고칠 수 없습니다.'}{' '}
+          오른쪽 그래프 단추로 그 운동의 지난 기록을 볼 수 있습니다.
         </p>
       )}
+
+      {/* 운동 하나의 기록과 흐름 — 운동 화면·라이브러리의 '내 기록'과 같은 것 */}
+      <Modal
+        open={historyOf != null}
+        onClose={() => setHistoryOf(null)}
+        title={historyOf?.title ?? '운동 기록'}
+        description="이 운동의 지난 기록과 흐름입니다."
+      >
+        {historyOf && <ExerciseHistoryPanel exerciseId={historyOf.id} showNote />}
+      </Modal>
     </div>
   );
 }

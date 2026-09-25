@@ -12,6 +12,7 @@ import {
 import { unstable_rethrow, useRouter } from 'next/navigation';
 import {
   ArrowLeftRight,
+  ChartLine,
   Check,
   ChevronLeft,
   ChevronRight,
@@ -26,6 +27,7 @@ import {
   X,
 } from 'lucide-react';
 import { LibraryVideo } from '@/components/library-video';
+import { ExerciseHistoryPanel } from '@/components/exercise-history';
 import { useWakeLock } from '@/components/use-wake-lock';
 import {
   deleteSet,
@@ -335,11 +337,15 @@ export function SessionClient({
    * 하는 것이 자연스럽다 — 운동마다 다시 누르게 하면 결국 안 보게 된다.
    */
   const [showForm, setShowForm] = useState(false);
+  /* 내 기록을 펼쳐 둘지 — 자세 설명과 같은 까닭으로 운동을 옮겨도 그대로 둔다 */
+  const [showHistory, setShowHistory] = useState(false);
   const [saving, startSaving] = useTransition();
   const [ending, startEnding] = useTransition();
   const topRef = useRef<HTMLDivElement>(null);
 
   const ex = list[at];
+  /* 자세 설명이나 영상이 있는 운동인가 — 없으면 [내 기록]이 한 줄을 다 쓴다 */
+  const hasForm = Boolean(ex.description || ex.videoPath || ex.referenceVideoId);
   /* 시간형 운동의 칸 이름 — 유산소는 '운동 시간', 버티기는 '버틴 시간' */
   const timeLabel = ex.inMinutes ? '운동 시간' : '버틴 시간';
   const mine = useMemo(
@@ -836,41 +842,64 @@ export function SessionClient({
           }
         />
         {/*
-          자세 보기.
+          자세 보기 · 내 기록.
 
           헬스장에서 처음 하는 운동이면 이름만 봐서는 무엇을 하라는 것인지
           알 수 없다. 접어 두는 것은 화면을 세트 기록에 쓰기 위해서이고,
           한 번 펼치면 다음 운동에서도 펼친 채로 둔다.
+
+          내 기록은 이 운동의 지난 기록과 흐름이다 — 오늘 무게를 올릴지 정할 때
+          본다. 지금 하는 판은 빼고 보여준다(components/exercise-history.tsx).
         */}
-        {(ex.description || ex.videoPath || ex.referenceVideoId) && (
-          <div className="mt-3">
+        <div className={`mt-3 grid gap-2 ${hasForm ? 'grid-cols-2' : 'grid-cols-1'}`}>
+          {hasForm && (
             <button
               type="button"
               onClick={() => setShowForm((v) => !v)}
-              className="flex w-full items-center justify-center gap-1.5 rounded-xl border border-line-strong py-2 text-xs font-semibold text-ink transition-colors active:bg-surface-2"
+              aria-expanded={showForm}
+              className="flex items-center justify-center gap-1.5 rounded-xl border border-line-strong py-2 text-xs font-semibold text-ink transition-colors active:bg-surface-2"
             >
               <Info className="h-3.5 w-3.5" />
               {showForm ? '자세 설명 접기' : '자세·영상 보기'}
             </button>
+          )}
+          <button
+            type="button"
+            onClick={() => setShowHistory((v) => !v)}
+            aria-expanded={showHistory}
+            className="flex items-center justify-center gap-1.5 rounded-xl border border-line-strong py-2 text-xs font-semibold text-ink transition-colors active:bg-surface-2"
+          >
+            <ChartLine className="h-3.5 w-3.5" />
+            {showHistory ? '내 기록 접기' : '내 기록'}
+          </button>
+        </div>
 
-            {showForm && (
-              <div className="mt-2 space-y-3 rounded-xl border border-line bg-surface p-3">
-                {(ex.videoPath || ex.referenceVideoId) && (
-                  <LibraryVideo
-                    path={ex.videoPath}
-                    referenceVideoId={ex.referenceVideoId}
-                    title={ex.title}
-                    thumbUrl={ex.thumbUrl}
-                    aspectRatio={ex.aspectRatio}
-                  />
-                )}
-                {ex.description && (
-                  <p className="whitespace-pre-wrap text-sm leading-relaxed text-ink/85">
-                    {ex.description}
-                  </p>
-                )}
-              </div>
+        {showForm && hasForm && (
+          <div className="mt-2 space-y-3 rounded-xl border border-line bg-surface p-3">
+            {(ex.videoPath || ex.referenceVideoId) && (
+              <LibraryVideo
+                path={ex.videoPath}
+                referenceVideoId={ex.referenceVideoId}
+                title={ex.title}
+                thumbUrl={ex.thumbUrl}
+                aspectRatio={ex.aspectRatio}
+              />
             )}
+            {ex.description && (
+              <p className="whitespace-pre-wrap text-sm leading-relaxed text-ink/85">
+                {ex.description}
+              </p>
+            )}
+          </div>
+        )}
+
+        {showHistory && (
+          <div className="mt-2 rounded-xl border border-line bg-surface p-3">
+            <ExerciseHistoryPanel
+              exerciseId={ex.id}
+              excludeSessionId={sessionId}
+              compact
+            />
           </div>
         )}
 
