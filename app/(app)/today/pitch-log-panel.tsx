@@ -57,7 +57,22 @@ export function PitchLogPanel({
   /** 영상 탭에서 고른 날짜별 대표 영상(저장소 경로). 안 고른 날은 없다. */
   featuredByDay: Record<string, string>;
 }) {
-  const [logs, setLogs] = useState<Log[]>(initialLogs);
+  /*
+   * 처음 범위(loadedFrom)보다 옛날 달에서 따로 받아 온 기록만 들고 있는다.
+   *
+   * 예전에는 서버가 준 initialLogs 를 통째로 state 에 복사해 썼다. state 는 처음
+   * 한 번만 채워지므로, 홈의 '오늘 투구'에서 저장한 뒤 router.refresh() 로 서버가
+   * 새 initialLogs 를 보내 줘도 달력은 옛 값을 그렸다 — 저장했는데 오늘 칸이 비어
+   * 있고, 눌러 보면 "이 날 남긴 기록이 없습니다"가 떴다. 새로고침해야 보였다.
+   *
+   * 그래서 서버가 주는 것은 그릴 때마다 그대로 쓰고, 따로 받은 옛 달만 여기 모아
+   * 둘을 합친다(아래 logs).
+   */
+  const [olderLogs, setOlderLogs] = useState<Log[]>([]);
+  const logs = useMemo(() => {
+    const seen = new Set(initialLogs.map((l) => l.id));
+    return [...initialLogs, ...olderLogs.filter((l) => !seen.has(l.id))];
+  }, [initialLogs, olderLogs]);
   const [view, setView] = useState<'calendar' | 'list'>('calendar');
   const [error, setError] = useState<string>();
 
@@ -112,7 +127,7 @@ export function PitchLogPanel({
       .then((older: Log[]) => {
         if (cancelled) return;
         // 이미 가진 것과 겹칠 수 있어(영상 있는 기록) id 로 합친다.
-        setLogs((prev) => {
+        setOlderLogs((prev) => {
           const seen = new Set(prev.map((l) => l.id));
           return [...prev, ...older.filter((l) => !seen.has(l.id))];
         });
