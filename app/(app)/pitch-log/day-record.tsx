@@ -70,110 +70,127 @@ export function DayRecord({
   /** 어느 영상의 폼 분석을 펴 두었는가. 한 번에 하나만 편다. */
   const [openPose, setOpenPose] = useState<string | null>(null);
 
+  /*
+   * 넓은 화면에서 영상이 있으면 두 칸 — 왼쪽에 수치와 느낀점, 오른쪽에 영상과 폼 분석.
+   * 한 줄로 쌓으면 폭 가득 커진 영상(16:9) 하나가 500px 넘게 차지해, 수치를 보고 영상을
+   * 보려면 굴려야 했다. 나란히 두면 한 화면에 다 들어온다.
+   */
+  const split = log.videoPaths.length > 0;
+
   return (
-    <Card className="space-y-5">
-      {/* 그날의 수치 */}
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          {/*
+    <Card
+      className={
+        split
+          ? 'space-y-5 lg:grid lg:grid-cols-[minmax(0,0.85fr)_minmax(0,1.15fr)] lg:items-start lg:gap-6 lg:space-y-0'
+          : 'space-y-5'
+      }
+    >
+      <div className="space-y-5">
+        {/* 그날의 수치 */}
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            {/*
             구속을 안 적은 기록도 있다(스피드건이 없는 경우). 그때는 빈칸을
             내지 말고 투구수를 대신 크게 보여준다 — 그날 한 일이 없어 보이면
             기록을 남길 마음이 안 든다.
           */}
-          <p className="text-display text-2xl leading-none text-sky">
-            {rested ? (
-              <span className="text-muted">쉬는 날</span>
-            ) : log.maxVelocity != null ? (
-              <>
-                {log.maxVelocity}
-                <span className="ml-1 text-sm text-muted">km/h 최고</span>
-              </>
-            ) : (
-              <>
-                {log.pitchCount}
-                <span className="ml-1 text-sm text-muted">구</span>
-              </>
-            )}
-          </p>
-          <div className="mt-3 flex flex-wrap gap-1.5">
-            {rested ? (
-              <Badge>던지지 않았습니다</Badge>
-            ) : (
-              <>
-                <Badge className="border-sky-soft/60 font-semibold text-sky-strong">
-                  {log.sessionType}
-                </Badge>
-                <Badge>{log.pitchCount}구</Badge>
-                <Badge>강도 {log.intensity}/10</Badge>
-                {log.avgVelocity != null && <Badge>평균 {formatSpeed(log.avgVelocity, speedUnit)}</Badge>}
-              </>
-            )}
+            <p className="text-display text-2xl leading-none text-sky">
+              {rested ? (
+                <span className="text-muted">쉬는 날</span>
+              ) : log.maxVelocity != null ? (
+                <>
+                  {log.maxVelocity}
+                  <span className="ml-1 text-sm text-muted">km/h 최고</span>
+                </>
+              ) : (
+                <>
+                  {log.pitchCount}
+                  <span className="ml-1 text-sm text-muted">구</span>
+                </>
+              )}
+            </p>
+            <div className="mt-3 flex flex-wrap gap-1.5">
+              {rested ? (
+                <Badge>던지지 않았습니다</Badge>
+              ) : (
+                <>
+                  <Badge className="border-sky-soft/60 font-semibold text-sky-strong">
+                    {log.sessionType}
+                  </Badge>
+                  <Badge>{log.pitchCount}구</Badge>
+                  <Badge>강도 {log.intensity}/10</Badge>
+                  {log.avgVelocity != null && (
+                    <Badge>평균 {formatSpeed(log.avgVelocity, speedUnit)}</Badge>
+                  )}
+                </>
+              )}
+            </div>
           </div>
-        </div>
-        <div className="flex shrink-0 items-center gap-1">
-          <button
-            type="button"
-            onClick={() => onEdit(log)}
-            aria-label="기록 수정"
-            className="rounded-lg p-2 text-muted transition-colors hover:bg-surface-2 hover:text-sky"
-          >
-            <Pencil className="h-4 w-4" />
-          </button>
-          {/*
+          <div className="flex shrink-0 items-center gap-1">
+            <button
+              type="button"
+              onClick={() => onEdit(log)}
+              aria-label="기록 수정"
+              className="rounded-lg p-2 text-muted transition-colors hover:bg-surface-2 hover:text-sky"
+            >
+              <Pencil className="h-4 w-4" />
+            </button>
+            {/*
             휴지통이 연필 바로 옆이라 잘못 누르기 쉽다. 게다가 기록만이 아니라
             올려둔 영상까지 저장소에서 영구히 사라진다. 무엇이 없어지는지
             이름을 대고 한 번 묻는다.
           */}
-          <ConfirmDelete
-            onConfirm={() => onDelete(log.id)}
-            ariaLabel="기록 삭제"
-            title="이 기록을 지울까요?"
-            detail={
-              <div className="space-y-2">
-                <p>
-                  <strong className="text-ink">
-                    {spokenDate(date)} ·{' '}
-                    {rested ? '쉬는 날' : `${log.sessionType} ${log.pitchCount}구`}
-                  </strong>
-                </p>
-                {log.videoPaths.length > 0 && (
-                  <p className="text-warn">
-                    올려둔 영상 {log.videoPaths.length}개와 그 영상의 폼 분석도 함께
-                    지워집니다.
+            <ConfirmDelete
+              onConfirm={() => onDelete(log.id)}
+              ariaLabel="기록 삭제"
+              title="이 기록을 지울까요?"
+              detail={
+                <div className="space-y-2">
+                  <p>
+                    <strong className="text-ink">
+                      {spokenDate(date)} ·{' '}
+                      {rested ? '쉬는 날' : `${log.sessionType} ${log.pitchCount}구`}
+                    </strong>
                   </p>
-                )}
-                <p className="text-muted">
-                  되돌릴 수 없습니다. 수치만 고치실 거라면 옆의 연필을 눌러주세요.
-                </p>
-              </div>
-            }
-            className="rounded-lg p-2 text-muted transition-colors hover:bg-danger-bg hover:text-danger"
-          >
-            <Trash2 className="h-4 w-4" />
-          </ConfirmDelete>
+                  {log.videoPaths.length > 0 && (
+                    <p className="text-warn">
+                      올려둔 영상 {log.videoPaths.length}개와 그 영상의 폼 분석도 함께
+                      지워집니다.
+                    </p>
+                  )}
+                  <p className="text-muted">
+                    되돌릴 수 없습니다. 수치만 고치실 거라면 옆의 연필을 눌러주세요.
+                  </p>
+                </div>
+              }
+              className="rounded-lg p-2 text-muted transition-colors hover:bg-danger-bg hover:text-danger"
+            >
+              <Trash2 className="h-4 w-4" />
+            </ConfirmDelete>
+          </div>
         </div>
-      </div>
 
-      {/*
+        {/*
         그날의 느낀점 — 영상보다 위에 둔다.
 
         지난 기록을 다시 열어 보는 이유는 대개 "그날 뭐라고 적어놨더라"이지
         영상을 다시 보려는 것이 아니다. 그런데 영상과 폼 분석이 사이에 있어
         화면을 세 판쯤 내려야 닿았다.
       */}
-      <div
-        className={`rounded-xl border p-4 ${
-          log.memo ? 'border-sky-soft/40 bg-sky/[0.04]' : 'border-line bg-surface-2'
-        }`}
-      >
-        <p className="text-xs font-medium tracking-normal text-sky">그날의 느낀점</p>
-        {log.memo ? (
-          <p className="mt-2 whitespace-pre-wrap text-sm leading-relaxed text-ink/90">
-            {log.memo}
-          </p>
-        ) : (
-          <p className="mt-2 text-sm text-muted">남긴 메모가 없습니다.</p>
-        )}
+        <div
+          className={`rounded-xl border p-4 ${
+            log.memo ? 'border-sky-soft/40 bg-sky/[0.04]' : 'border-line bg-surface-2'
+          }`}
+        >
+          <p className="text-xs font-medium tracking-normal text-sky">그날의 느낀점</p>
+          {log.memo ? (
+            <p className="mt-2 whitespace-pre-wrap text-sm leading-relaxed text-ink/90">
+              {log.memo}
+            </p>
+          ) : (
+            <p className="mt-2 text-sm text-muted">남긴 메모가 없습니다.</p>
+          )}
+        </div>
       </div>
 
       {/* 영상과 폼 분석 */}

@@ -412,7 +412,7 @@ export function VideoGallery({
             </button>
 
             {open && (
-              <ul className="grid gap-3 border-t border-line p-4 sm:grid-cols-2 lg:grid-cols-3">
+              <ul className="grid gap-3 border-t border-line p-4 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
                 {group.items.map((clip) => {
                   const slot = slotOf(clip.id);
                   const url = clip.path ? urls[clip.path] : undefined;

@@ -33,8 +33,11 @@ export function Modal({
    *
    * 'wide' 는 영상과 폼 분석처럼 좁으면 못 보는 것을 담을 때 쓴다. 기본 너비에
    * 영상을 넣으면 재생 화면이 손바닥만 해져서 볼 이유가 없어진다.
+   *
+   * 'page' 는 한 화면만 한 창 — 투구 기록 팝업처럼 페이지를 통째로 띄울 때. 폭과 높이를
+   * 화면만큼 써서(높이 94%) 안의 내용을 두 칸으로 나눠 놓고 굴리지 않고 보게 한다.
    */
-  size?: 'default' | 'wide';
+  size?: 'default' | 'wide' | 'page';
   /**
    * 이 창을 연 버튼의 한가운데 (화면 기준 px).
    *
@@ -160,10 +163,12 @@ export function Modal({
        * 창에 높이를 걸고(max-h) 넘치는 것을 자른 뒤(overflow-clip), 세로로
        * 쌓아 머리글은 고정하고 본문만 남은 높이를 채우게 한다.
        */
-      className={`m-auto flex max-h-[min(85dvh,48rem)] flex-col overflow-clip ${
-        size === 'wide'
-          ? 'w-[min(62rem,calc(100vw-1.5rem))]'
-          : 'w-[min(38rem,calc(100vw-1.5rem))]'
+      className={`m-auto flex flex-col overflow-clip ${
+        size === 'page'
+          ? 'max-h-[94dvh] w-[min(76rem,calc(100vw-1.5rem))]'
+          : size === 'wide'
+            ? 'max-h-[min(85dvh,48rem)] w-[min(62rem,calc(100vw-1.5rem))]'
+            : 'max-h-[min(85dvh,48rem)] w-[min(38rem,calc(100vw-1.5rem))]'
       } rounded-2xl border border-line bg-surface p-0 text-ink shadow-2xl backdrop:bg-black/50`}
     >
       <div className="flex shrink-0 items-start gap-3 border-b border-line px-5 py-4">

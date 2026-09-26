@@ -408,8 +408,8 @@ function DayGrid({
               aria-pressed={isSelected}
               className={`group relative overflow-hidden rounded-lg border transition-[border-color,box-shadow] duration-200 ${
                 size === 'large'
-                  ? 'h-[4.75rem] sm:h-28 lg:h-32'
-                  : 'min-h-[3.25rem] sm:min-h-[4.5rem]'
+                  ? 'h-[4.25rem] sm:h-20'
+                  : 'min-h-[3.25rem] sm:min-h-[4rem]'
               } ${
                 isFuture
                   ? 'cursor-default border-transparent'
@@ -433,8 +433,8 @@ function DayGrid({
             aria-pressed={isSelected}
             className={`relative flex flex-col items-center justify-center gap-0.5 rounded-lg border text-sm transition-[color,background-color,border-color,min-height] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] ${
               compact
-                ? 'min-h-[2.75rem] sm:min-h-[3.25rem]'
-                : 'min-h-[3.25rem] sm:min-h-[4.5rem]'
+                ? 'min-h-[2.75rem] sm:min-h-[3rem]'
+                : 'min-h-[3.25rem] sm:min-h-[4rem]'
             } ${
               isFuture
                 ? 'cursor-default border-transparent bg-transparent text-muted/35'

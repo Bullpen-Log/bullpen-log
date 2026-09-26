@@ -395,51 +395,67 @@ export function VideoCalendar({
         </p>
       )}
 
-      <Card>
-        <MonthCalendar
-          month={month}
-          onMonthChange={setMonth}
-          selected={selected}
-          onSelect={open}
-          marks={marks}
-          renderDay={renderDay}
-          size="large"
-          emptySpoken="기록 없음"
-        >
-          <span>
-            이 달 투구 <b className="font-semibold text-ink">{monthStats.pitchDays}</b>
-            일 · 영상 <b className="font-semibold text-ink">{monthStats.videos}</b>개
-          </span>
-          <span className="text-line-strong">·</span>
-          <span>
-            칸의 그림은 그날 대표 영상의 한 장면 — 날짜를 눌러 보다가 바꿀 수 있어요
-          </span>
-        </MonthCalendar>
-      </Card>
+      {/*
+        큰 화면(xl)에서는 캘린더와 그날 칸을 나란히 둔다. 예전에는 늘 캘린더 밑에서 펴져,
+        날짜를 누를 때마다 캘린더를 지나 한참 내려가야 그날 영상이 보였다. 좁은 화면은
+        그대로 밑에서 펴진다.
+      */}
+      <div className="grid gap-4 xl:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)] xl:items-start">
+        <Card>
+          <MonthCalendar
+            month={month}
+            onMonthChange={setMonth}
+            selected={selected}
+            onSelect={open}
+            marks={marks}
+            renderDay={renderDay}
+            size="large"
+            emptySpoken="기록 없음"
+          >
+            <span>
+              이 달 투구{' '}
+              <b className="font-semibold text-ink">{monthStats.pitchDays}</b>일 · 영상{' '}
+              <b className="font-semibold text-ink">{monthStats.videos}</b>개
+            </span>
+            <span className="text-line-strong">·</span>
+            <span>
+              칸의 그림은 그날 대표 영상의 한 장면 — 날짜를 눌러 보다가 바꿀 수 있어요
+            </span>
+          </MonthCalendar>
+        </Card>
 
-      <div ref={panelRef} className="scroll-mt-20">
-        <Expand open={selected != null}>
-          {shown && (
-            <DayPanel
-              key={shown}
-              date={shown}
-              day={shownDay}
-              rep={repOf(shown)}
-              thumbs={thumbs}
-              failed={failed}
-              onFeature={(path) => feature(shown, path)}
-              onThumb={(path, url) => {
-                setThumbs((prev) => ({ ...prev, [path]: url }));
-                setFailed((prev) => {
-                  if (!prev.has(path)) return prev;
-                  const next = new Set(prev);
-                  next.delete(path);
-                  return next;
-                });
-              }}
-            />
+        <div ref={panelRef} className="scroll-mt-20">
+          {/* 나란히 둘 때 아무 날도 안 골랐으면 오른쪽이 비지 않게 — 무엇이 여기 뜨는지 */}
+          {selected == null && (
+            <p className="hidden rounded-2xl border border-dashed border-line px-6 py-16 text-center text-sm leading-relaxed text-muted xl:block">
+              날짜를 누르면 그날 남긴 투구와
+              <br />
+              영상이 여기에 펴져요.
+            </p>
           )}
-        </Expand>
+          <Expand open={selected != null}>
+            {shown && (
+              <DayPanel
+                key={shown}
+                date={shown}
+                day={shownDay}
+                rep={repOf(shown)}
+                thumbs={thumbs}
+                failed={failed}
+                onFeature={(path) => feature(shown, path)}
+                onThumb={(path, url) => {
+                  setThumbs((prev) => ({ ...prev, [path]: url }));
+                  setFailed((prev) => {
+                    if (!prev.has(path)) return prev;
+                    const next = new Set(prev);
+                    next.delete(path);
+                    return next;
+                  });
+                }}
+              />
+            )}
+          </Expand>
+        </div>
       </div>
     </div>
   );
@@ -635,7 +651,9 @@ function DayPanel({
       ) : (
         <div
           className={`grid gap-4 p-4 sm:p-5 ${
-            day.paths.length > 1 ? 'lg:grid-cols-[minmax(0,1fr)_14rem]' : ''
+            day.paths.length > 1
+              ? 'lg:grid-cols-[minmax(0,1fr)_14rem] xl:grid-cols-1'
+              : ''
           }`}
         >
           <div className="min-w-0 space-y-3">
@@ -711,7 +729,7 @@ function DayPanel({
           </div>
 
           {day.paths.length > 1 && (
-            <ul className="grid grid-cols-2 content-start gap-2 lg:grid-cols-1">
+            <ul className="grid grid-cols-2 content-start gap-2 lg:grid-cols-1 xl:grid-cols-3">
               {day.paths.map((path, i) => {
                 const on = path === playing;
                 return (

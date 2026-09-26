@@ -163,9 +163,14 @@ export default async function AppLayout({
 
         위쪽 4rem 은 그 줄의 자리다. 로고와 아이콘은 고정이라 자리를 차지하지
         않으므로, 여기서 비워주지 않으면 첫 줄이 그 밑으로 들어간다.
+
+        본문 폭은 화면이 클수록 넓힌다(1024 → 1152 → 1280px). 예전에는 어느 모니터에서나
+        1024px 에 묶여 큰 모니터의 양옆이 비었고, 모든 것이 세로로만 쌓여 스크롤이 길었다.
+        넓어진 자리에는 캘린더 옆 그날 칸처럼 나란히 놓는 배치가 들어선다. 더 넓히지는 않는다
+        — 글줄이 너무 길어지면 읽기 어렵다.
       */}
       <div className="desk:pt-16">
-        <main className="mx-auto w-full max-w-5xl px-4 py-6 pb-24 sm:px-6 sm:pt-8 desk:pb-12">
+        <main className="mx-auto w-full max-w-5xl px-4 py-6 pb-24 sm:px-6 sm:pt-6 xl:max-w-6xl 2xl:max-w-7xl desk:pb-12">
           {/*
            * 탭을 옮길 때 본문만 부드럽게 바뀐다.
            *

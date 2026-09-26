@@ -20,7 +20,7 @@ import { pageBeforePopup } from '@/lib/last-page';
  * 브라우저 뒤로) 한 칸 뒤로 가서 보던 화면이 그대로 남는다 — 홈에서 열었으면 홈, 투구
  * 기록 탭에서 열었으면 그 탭이다.
  *
- * 창은 넓게 둔다(wide, 62rem). 한때 작은 창에 영상 · 폼 분석 · 고치기가 다 들어가 창
+ * 창은 화면만큼 크게 둔다(page — 폭 76rem, 높이 94%). 한때 작은 창에 영상 · 폼 분석 · 고치기가 다 들어가 창
  * 안에서만 굴러가다 페이지로 옮긴 적이 있다. 넓은 창이면 영상이 제 크기로 보이고, 긴
  * 것은 창 안에서 굴러간다.
  */
@@ -89,7 +89,7 @@ function DayModalWindow({ title, children }: { title: string; children: ReactNod
 
   return (
     <DayModalContext value={{ origin, close }}>
-      <Modal open={open} onClose={close} title={title} size="wide">
+      <Modal open={open} onClose={close} title={title} size="page">
         {children}
       </Modal>
     </DayModalContext>
