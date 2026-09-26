@@ -548,8 +548,11 @@ export function PitchLogPanel({
         아무 날도 안 골랐으면 오늘이다. 목록으로 보고 있을 때도 남는다.
 
         넓은 화면(xl)에서는 반으로 줄이고 옆에 '기록 추이' 그래프를 둔다. 분석은 '그날'을,
-        그래프는 '요즘'을 본다 — 둘을 나란히 두면 하루와 흐름을 한 번에 견준다. 분석이
-        길어도 그래프는 화면 위쪽에 붙어 따라온다(sticky). 좁으면 분석 밑에 그래프.
+        그래프는 '요즘'을 본다 — 둘을 나란히 두면 하루와 흐름을 한 번에 견준다. 좁으면
+        분석 밑에 그래프.
+
+        그래프는 제자리에 둔다. 한때 화면 위쪽에 붙어 따라오게(sticky) 했더니, 스크롤을
+        내렸다 올릴 때 그래프가 같이 미끄러져 내려와 고장 난 것처럼 보였다.
       */}
       <div className="grid items-start gap-x-6 xl:grid-cols-2">
         <AnalysisBlock
@@ -559,17 +562,15 @@ export function PitchLogPanel({
           todayReport={analysisSlot}
           onJump={jumpTo}
         />
-        <div className="xl:sticky xl:top-16">
-          <HomeTrends
-            today={today}
-            logs={logs}
-            trainingByDay={trainingByDay}
-            nutritionByDay={nutritionByDay}
-            checkinByDay={checkinByDay}
-            weightByDay={weightByDay}
-            onJump={jumpTo}
-          />
-        </div>
+        <HomeTrends
+          today={today}
+          logs={logs}
+          trainingByDay={trainingByDay}
+          nutritionByDay={nutritionByDay}
+          checkinByDay={checkinByDay}
+          weightByDay={weightByDay}
+          onJump={jumpTo}
+        />
       </div>
     </div>
   );
