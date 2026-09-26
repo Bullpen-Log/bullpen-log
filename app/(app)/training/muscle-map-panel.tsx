@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, type ReactNode } from 'react';
-import { ArrowDown } from 'lucide-react';
+import { ArrowDown, ChevronRight } from 'lucide-react';
 import {
   ARMCARE_AREAS,
   ARMCARE_MUSCLES,
@@ -10,9 +10,10 @@ import {
   muscleInfo,
   type ArmcareAreaKey,
 } from '@/lib/armcare/anatomy';
-import { MUSCLE_MODEL, careLevel } from '@/lib/armcare/muscle-map';
+import { careLevel } from '@/lib/armcare/muscle-map';
 import { MuscleMap3D, type MapSelection, type MapStatus } from './muscle-map-3d';
 import { AddToRoutine } from './add-to-routine';
+import { INFO_PILL, InfoButton } from './armcare-info';
 import type { ArmcareExerciseView } from './armcare-media';
 
 /** 내 기록 색칠에서 부위 단추의 모양 */
@@ -25,8 +26,9 @@ const CARE_CHIP = {
 /**
  * 부위별 보강 맨 위의 3D 근육 지도 — 캔버스와 부위 단추, 고른 것의 설명.
  *
- * 2026-09-26 시험판을 사용자분이 보고 앱에 넣었다. 부위를 고르면 역할·근육·흔한 부상,
- * 근육까지 고르면 하는 일·붙는 곳·이루는 근육·키우는 운동이 캔버스 바로 밑에 나온다.
+ * 2026-09-26 시험판을 사용자분이 보고 앱에 넣었다. 부위를 고르면 근육·흔한 부상,
+ * 근육까지 고르면 하는 일 한 줄과 키우는 운동 사진이 캔버스 바로 밑에 나온다. 자세한
+ * 설명(던질 때·왜 중요한가·붙는 곳 등)은 '자세히 보기' 창으로 연다(armcare-info.tsx).
  * 캔버스와 설명을 붙여 두는 것은, 아래 목록까지 내려가면 3D 가 화면 밖으로 나가 무엇이
  * 켜졌는지 안 보이기 때문이다. 부위의 운동을 다 보려면 아래 목록을 연다(onShowArea).
  *
@@ -190,14 +192,21 @@ export function MuscleMapPanel({
           />
         ) : (
           <>
-            <p className="flex items-center gap-2 text-[15px] font-bold text-ink">
+            <div className="flex items-center gap-2">
               <span
                 aria-hidden
-                className="h-2.5 w-2.5 rounded-full"
+                className="h-2.5 w-2.5 shrink-0 rounded-full"
                 style={{ backgroundColor: area.color }}
               />
-              {area.label}
-            </p>
+              <b className="min-w-0 flex-1 text-[15px] text-ink">{area.label}</b>
+              <InfoButton
+                target={{ kind: 'area', key: area.key }}
+                className={INFO_PILL}
+              >
+                자세히 보기
+                <ChevronRight aria-hidden className="h-3.5 w-3.5" />
+              </InfoButton>
+            </div>
             <div className="flex flex-wrap gap-1.5">
               {ARMCARE_MUSCLES.filter((m) => m.area === area.key).map((m) => (
                 <button
@@ -297,9 +306,6 @@ function MuscleDetail({
   onShowArea: () => void;
 }) {
   const info = muscleInfo(muscle);
-  const parts = MUSCLE_MODEL[muscle]?.parts ?? {};
-  const partNames = [...new Set(Object.values(parts))];
-  const here = part ? parts[part] : null;
   /* 주로 키우는 운동 먼저, 함께 쓰는 운동 뒤에 — 사진 줄로 */
   const primary = exercises.filter((ex) => ex.targetMuscles[0] === muscle);
   const other = exercises.filter(
@@ -320,14 +326,25 @@ function MuscleDetail({
         <span className="text-muted">›</span>
         <b className="text-ink">{muscle}</b>
       </p>
-      {info && (
-        <p className="text-[13px] font-semibold break-keep text-ink">{info.does}</p>
-      )}
-
       {/*
-        운동은 글 목록이 아니라 사진 줄로 — 무엇을 하는 운동인지 사진이 더 빨리 보인다.
-        글로 된 설명(붙는 곳 · 이루는 근육 · 예방)은 '자세히' 안에 둔다(2026-09-26).
+        한 줄(하는 일) 옆에 '자세히 보기' — 누르면 어떤 근육인지·던질 때·왜 중요한가·키우는
+        법·붙는 곳이 창으로 뜬다(armcare-info.tsx). 2026-09-26 사용자분: "극하근을 누르면
+        '팔을 바깥으로 돌림, 감속'이라고만 나오는데, 누르면 자세히 볼 수 있게".
       */}
+      <div className="flex items-start gap-2">
+        <p className="min-w-0 flex-1 pt-1 text-[13px] font-semibold break-keep text-ink">
+          {info?.does}
+        </p>
+        <InfoButton
+          target={{ kind: 'muscle', name: muscle, part }}
+          className={INFO_PILL}
+        >
+          자세히 보기
+          <ChevronRight aria-hidden className="h-3.5 w-3.5" />
+        </InfoButton>
+      </div>
+
+      {/* 운동은 글 목록이 아니라 사진 줄로 — 무엇을 하는 운동인지 사진이 더 빨리 보인다 */}
       {shown.length > 0 ? (
         <ul className="-mx-1 flex snap-x gap-2 overflow-x-auto px-1 pb-1">
           {shown.map((ex) => (
@@ -354,39 +371,6 @@ function MuscleDetail({
         <p className="text-[13px] text-muted">이 근육을 쓰는 운동이 아직 없어요.</p>
       )}
 
-      <details className="group rounded-xl bg-surface-2 px-3.5 py-2.5">
-        <summary className="cursor-pointer list-none text-xs font-semibold text-muted">
-          자세히 <span className="group-open:hidden">▾</span>
-          <span className="hidden group-open:inline">▴</span>
-        </summary>
-        <dl className="mt-2 grid grid-cols-[5.5em_1fr] gap-x-3 gap-y-1.5 text-[13px] leading-relaxed">
-          {info && (
-            <>
-              <dt className="font-semibold text-sky-strong">붙는 곳</dt>
-              <dd className="break-keep text-muted">{info.at}</dd>
-            </>
-          )}
-          {partNames.length > 1 && (
-            <>
-              <dt className="font-semibold text-sky-strong">이루는 근육</dt>
-              <dd className="break-keep text-muted">
-                {partNames.map((p, i) => (
-                  <span key={p}>
-                    {i > 0 && ' · '}
-                    {p === here ? (
-                      <b className="rounded bg-sky-tint px-1 text-ink">{p}</b>
-                    ) : (
-                      p
-                    )}
-                  </span>
-                ))}
-              </dd>
-            </>
-          )}
-          <dt className="font-semibold text-sky-strong">예방에 도움</dt>
-          <dd className="break-keep text-muted">{info?.helps ?? '—'}</dd>
-        </dl>
-      </details>
       <ShowAreaButton label={areaLabel} onClick={onShowArea} />
     </>
   );

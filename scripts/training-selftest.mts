@@ -111,6 +111,7 @@ import {
   type ArmcareKind,
 } from '../lib/armcare/routine.ts';
 import { ARMCARE_METHODS, methodOf } from '../lib/armcare/methods.ts';
+import { AREA_DETAILS, MUSCLE_DETAILS } from '../lib/armcare/details.ts';
 import {
   MY_ROUTINE_MAX_ITEMS,
   clampRoutineSets,
@@ -3794,7 +3795,7 @@ console.log('\n[암케어] 부위·근육 · 오늘의 루틴 · 부하');
   /* 2026-09-26 사용자분 — 방식은 섞어서 하는 것이지 올라가는 단계가 아니다 */
   const stepWords = ARMCARE_METHODS.filter((m) =>
     /단계|다음 칸|한 칸|올라가|내려가/.test(
-      [m.short, m.what, m.why, m.load, m.stop, m.caution ?? ''].join(' ')
+      [m.short, m.what, m.why, m.dose, m.load, m.stop, m.caution ?? ''].join(' ')
     )
   );
   check(
@@ -3802,20 +3803,63 @@ console.log('\n[암케어] 부위·근육 · 오늘의 루틴 · 부하');
     stepWords.length === 0,
     stepWords.map((m) => m.label).join(', ')
   );
-  /* 닫힌 카드는 한 줄 요약과 부담 점만 — 글이 길어지면 다시 읽지 않고 넘긴다 */
+  /* 닫힌 카드는 한 줄 요약만 — 글이 길어지면 다시 읽지 않고 넘긴다 */
   const longShort = ARMCARE_METHODS.filter((m) => !m.short || m.short.length > 30);
   check(
     '방식마다 한 줄 요약이 있고 한 줄에 들어간다',
     longShort.length === 0,
     longShort.map((m) => `${m.label} ${m.short.length}자`).join(', ')
   );
-  const burdens = ARMCARE_METHODS.map((m) => m.burden);
+  /* 펼치면 자세히 — 세트·횟수까지 모두 적혀 있다(2026-09-26 사용자분) */
+  const thinMethods = ARMCARE_METHODS.filter(
+    (m) => ![m.what, m.why, m.dose, m.load, m.stop].every((s) => s.trim().length > 0)
+  );
   check(
-    '부담 점은 1~5 이고 과부하 내리기가 가장 크다 (맞춤 루틴에서 빼는 까닭)',
-    burdens.every((b) => b >= 1 && b <= 5) &&
-      ARMCARE_METHODS.find((m) => m.key === 'eccentric')?.burden ===
-        Math.max(...burdens),
-    burdens.join(',')
+    '훈련 방식마다 하는 법·왜·세트·무게·멈출 때가 다 있다',
+    thinMethods.length === 0,
+    thinMethods.map((m) => m.label).join(', ')
+  );
+
+  /* 1-1-1) 자세히 보기 — 부위·근육마다 창에 나갈 글이 있다(lib/armcare/details.ts) */
+  const thinAreas = ARMCARE_AREAS.filter((a) => {
+    const d = AREA_DETAILS[a.key];
+    return !d || !d.role || !d.why || !d.train || d.signs.length === 0;
+  });
+  check(
+    '부위마다 자세히 보기 글이 있다 (하는 일 · 왜 · 신호 · 키우는 법)',
+    thinAreas.length === 0,
+    thinAreas.map((a) => a.label).join(', ')
+  );
+  const thinMuscles = ARMCARE_MUSCLE_NAMES.filter((name) => {
+    const d = (
+      MUSCLE_DETAILS as Record<
+        string,
+        (typeof MUSCLE_DETAILS)[keyof typeof MUSCLE_DETAILS]
+      >
+    )[name];
+    return !d || !d.what || !d.pitching || !d.why || !d.train;
+  });
+  check(
+    '근육마다 자세히 보기 글이 있다 (어떤 근육 · 던질 때 · 왜 · 키우는 법)',
+    thinMuscles.length === 0,
+    thinMuscles.join(', ')
+  );
+  /* 부상을 막는다고 약속하지 않는다 — anatomy.ts 의 규칙('예방에 도움'까지만) */
+  const promise = /(부상|손상|통증)을 (막|예방)|예방합니다|예방해 줍니다|예방할 수 있/;
+  const promising = [
+    ...Object.entries(AREA_DETAILS).map(([k, d]) => [
+      k,
+      [d.role, d.why, d.train, ...d.signs].join(' '),
+    ]),
+    ...Object.entries(MUSCLE_DETAILS).map(([k, d]) => [
+      k,
+      [d.what, d.pitching, d.why, d.train].join(' '),
+    ]),
+  ].filter(([, text]) => promise.test(text));
+  check(
+    '자세히 보기 글이 부상을 막는다고 약속하지 않는다',
+    promising.length === 0,
+    promising.map(([k]) => k).join(', ')
   );
   /* 부위 색 — 부위 단추·카드·근육 칩의 점이 같은 색으로 부위를 가린다 */
   const areaColors = ARMCARE_AREAS.map((a) => a.color);

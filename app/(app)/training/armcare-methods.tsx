@@ -96,7 +96,6 @@ function MethodCard({
             <span className="text-xs text-muted">운동 {exercises.length}개</span>
           </span>
           <span className="block text-[13px] break-keep text-muted">{m.short}</span>
-          <Burden level={m.burden} />
         </span>
         <ChevronDown
           aria-hidden
@@ -108,15 +107,21 @@ function MethodCard({
 
       {open && (
         <div className="space-y-4 border-t border-line px-4 py-4">
-          <dl className="grid grid-cols-[4.5em_1fr] gap-x-3 gap-y-1.5 text-[13px] leading-relaxed break-keep">
+          {/*
+            펼치면 자세히 — 겉(닫힌 카드)은 한 줄 요약만, 펼친 뒤에는 충분히 읽을 수 있게
+            (2026-09-26 사용자분: 겉은 단순하게, 누르면 자세히).
+          */}
+          <dl className="grid grid-cols-[5em_1fr] gap-x-3 gap-y-2.5 text-[13px] leading-relaxed break-keep">
             <dt className="font-semibold text-sky-strong">하는 법</dt>
-            <dd className="text-ink/80">{m.what}</dd>
+            <dd className="text-ink/85">{m.what}</dd>
             <dt className="font-semibold text-sky-strong">왜</dt>
-            <dd className="text-ink/80">{m.why}</dd>
+            <dd className="text-ink/85">{m.why}</dd>
+            <dt className="font-semibold text-sky-strong">세트·횟수</dt>
+            <dd className="text-ink/85">{m.dose}</dd>
             <dt className="font-semibold text-sky-strong">무게</dt>
-            <dd className="text-ink/80">{m.load}</dd>
+            <dd className="text-ink/85">{m.load}</dd>
             <dt className="font-semibold text-sky-strong">멈출 때</dt>
-            <dd className="text-ink/80">{m.stop}</dd>
+            <dd className="text-ink/85">{m.stop}</dd>
           </dl>
 
           {m.caution && (
@@ -151,27 +156,5 @@ function MethodCard({
         </div>
       )}
     </li>
-  );
-}
-
-/** 부담 1~5 — 점으로. 글을 안 읽어도 무거운 방식인지 보인다 */
-function Burden({ level }: { level: number }) {
-  return (
-    <span
-      className="flex items-center gap-1.5 text-[11px] text-muted"
-      aria-label={`부담 5 중 ${level}`}
-    >
-      부담
-      <span aria-hidden className="flex gap-0.5">
-        {[1, 2, 3, 4, 5].map((i) => (
-          <span
-            key={i}
-            className={`h-1.5 w-1.5 rounded-full ${
-              i <= level ? (level >= 5 ? 'bg-warn' : 'bg-sky') : 'bg-line-strong'
-            }`}
-          />
-        ))}
-      </span>
-    </span>
   );
 }

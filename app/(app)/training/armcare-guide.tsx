@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { ChevronDown, Lightbulb } from 'lucide-react';
+import { ChevronDown, ChevronRight } from 'lucide-react';
 import { ExerciseBadges } from '@/components/meta-badges';
 import {
   ARMCARE_AREAS,
@@ -15,6 +15,7 @@ import { MuscleChips } from '@/components/muscle-chips';
 import { ExerciseMedia, type ArmcareExerciseView } from './armcare-media';
 import { AddToRoutine, MyRoutinesProvider, type RoutineChoice } from './add-to-routine';
 import { MuscleMapPanel, selectionFor } from './muscle-map-panel';
+import { ArmcareInfoProvider, INFO_PILL, InfoButton } from './armcare-info';
 
 /**
  * 부위별 보강 — 부위 → 흔한 부상 → 키울 근육 → 운동.
@@ -32,6 +33,9 @@ import { MuscleMapPanel, selectionFor } from './muscle-map-panel';
  *
  * 맨 위에는 3D 근육 지도가 선다(2026-09-26, muscle-map-panel.tsx). 지도에서 고른
  * 부위의 운동을 모두 보려고 하면 아래의 그 부위 카드를 열고 그 자리로 내려간다.
+ *
+ * 화면에는 이름·칩만 두고, 부위와 근육의 자세한 설명은 '자세히 보기' 창에 둔다
+ * (armcare-info.tsx — 2026-09-26 사용자분: 겉은 단순하게, 누르면 자세히).
  */
 export function ArmcareGuide({
   exercises,
@@ -68,47 +72,49 @@ export function ArmcareGuide({
 
   return (
     <MyRoutinesProvider routines={routines}>
-      <div className="space-y-6">
-        <p className="text-sm break-keep text-muted">
-          근육을 누르거나 부위를 펼쳐 보세요.
-        </p>
-
-        <MuscleMapPanel
-          side={map.side}
-          bothHands={map.bothHands}
-          counts={map.counts}
-          exercises={exercises}
-          initial={selectionFor(map.focusMuscle)}
-          onShowArea={showArea}
-        />
-
-        {joints.map((joint) => (
-          <section key={joint} className="space-y-2.5">
-            <h2 className="px-1 text-heading text-lg text-ink">{joint}</h2>
-            <ul className="space-y-2.5">
-              {ARMCARE_AREAS.filter((a) => a.joint === joint).map((area) => (
-                <AreaCard
-                  key={area.key}
-                  area={area}
-                  exercises={exercisesFor(area, exercises)}
-                  open={open === area.key}
-                  onToggle={() => setOpen(open === area.key ? null : area.key)}
-                />
-              ))}
-            </ul>
-          </section>
-        ))}
-
-        <p className="px-1 text-xs break-keep text-muted">
-          운동이 부상을 막아 준다는 보장은 없어요 — 아프면 쉬고 진료를 받으세요.
-        </p>
-
-        {untagged > 0 && (
-          <p className="px-1 text-xs leading-relaxed text-muted">
-            근육을 아직 적지 않은 암케어 운동 {untagged}개는 여기 나오지 않습니다.
+      <ArmcareInfoProvider>
+        <div className="space-y-6">
+          <p className="text-sm break-keep text-muted">
+            근육을 누르거나 부위를 펼쳐 보세요.
           </p>
-        )}
-      </div>
+
+          <MuscleMapPanel
+            side={map.side}
+            bothHands={map.bothHands}
+            counts={map.counts}
+            exercises={exercises}
+            initial={selectionFor(map.focusMuscle)}
+            onShowArea={showArea}
+          />
+
+          {joints.map((joint) => (
+            <section key={joint} className="space-y-2.5">
+              <h2 className="px-1 text-heading text-lg text-ink">{joint}</h2>
+              <ul className="space-y-2.5">
+                {ARMCARE_AREAS.filter((a) => a.joint === joint).map((area) => (
+                  <AreaCard
+                    key={area.key}
+                    area={area}
+                    exercises={exercisesFor(area, exercises)}
+                    open={open === area.key}
+                    onToggle={() => setOpen(open === area.key ? null : area.key)}
+                  />
+                ))}
+              </ul>
+            </section>
+          ))}
+
+          <p className="px-1 text-xs break-keep text-muted">
+            운동이 부상을 막아 준다는 보장은 없어요 — 아프면 쉬고 진료를 받으세요.
+          </p>
+
+          {untagged > 0 && (
+            <p className="px-1 text-xs leading-relaxed text-muted">
+              근육을 아직 적지 않은 암케어 운동 {untagged}개는 여기 나오지 않습니다.
+            </p>
+          )}
+        </div>
+      </ArmcareInfoProvider>
     </MyRoutinesProvider>
   );
 }
@@ -136,8 +142,7 @@ function AreaCard({
   open: boolean;
   onToggle: () => void;
 }) {
-  const muscles = ARMCARE_MUSCLES.filter((m) => m.area === area.key);
-  const names = muscles.map((m) => m.name);
+  const names = ARMCARE_MUSCLES.filter((m) => m.area === area.key).map((m) => m.name);
   const count = exercises.primary.length + exercises.secondary.length;
 
   return (
@@ -176,8 +181,9 @@ function AreaCard({
       {open && (
         <div className="space-y-4 border-t border-line px-4 py-4">
           {/*
-            부상과 근육은 이름만 칩으로 — 설명 문단은 '자세히' 안에 둔다. 펼치자마자 글이
-            몇 문단씩 나오면 읽지 않고 닫는다(2026-09-26 사용자분).
+            부상과 근육은 이름만 칩으로 — 설명은 '자세히 보기' 창에 둔다. 펼치자마자 글이
+            몇 문단씩 나오면 읽지 않고 닫는다(2026-09-26 사용자분). 근육 칩을 누르면 그
+            근육을 자세히 본다.
           */}
           <div className="flex flex-wrap gap-1.5">
             {area.injuries.map((injury) => (
@@ -189,37 +195,21 @@ function AreaCard({
               </span>
             ))}
           </div>
-          <MuscleChips muscles={names} highlight={names} />
-
-          <details className="group rounded-xl bg-surface-2 px-3.5 py-2.5">
-            <summary className="cursor-pointer list-none text-xs font-semibold text-muted">
-              자세히 <span className="group-open:hidden">▾</span>
-              <span className="hidden group-open:inline">▴</span>
-            </summary>
-            <dl className="mt-2.5 space-y-2.5 text-[13px] leading-relaxed break-keep">
-              {area.injuries.map((injury) => (
-                <div key={injury.name}>
-                  <dt className="font-semibold text-ink">{injury.name}</dt>
-                  <dd className="text-muted">{injury.desc}</dd>
-                </div>
-              ))}
-              {muscles.map((m) => (
-                <div key={m.name}>
-                  <dt className="font-semibold text-sky-strong">{m.name}</dt>
-                  <dd className="text-muted">{m.does}</dd>
-                </div>
-              ))}
-              {area.notes.map((note) => (
-                <p key={note} className="flex gap-1.5 text-ink/80">
-                  <Lightbulb
-                    aria-hidden
-                    className="mt-1 h-3.5 w-3.5 shrink-0 text-sky-strong"
-                  />
-                  {note}
-                </p>
-              ))}
-            </dl>
-          </details>
+          <div className="flex flex-wrap gap-1.5">
+            {names.map((name) => (
+              <InfoButton
+                key={name}
+                target={{ kind: 'muscle', name }}
+                className="rounded-full bg-sky-tint px-2.5 py-1 text-xs font-semibold text-sky-strong transition-colors hover:bg-sky hover:text-white"
+              >
+                {name} ›
+              </InfoButton>
+            ))}
+          </div>
+          <InfoButton target={{ kind: 'area', key: area.key }} className={INFO_PILL}>
+            {area.label} 자세히 보기
+            <ChevronRight aria-hidden className="h-3.5 w-3.5" />
+          </InfoButton>
 
           <div className="space-y-2">
             <h3 className="text-xs font-semibold text-muted">운동</h3>
