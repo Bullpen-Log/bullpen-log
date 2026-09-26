@@ -135,7 +135,7 @@ const REST_THUMB = { viewTransitionName: 'nav-thumb' } as CSSProperties;
  * 격자 단추를 못 잰 경우의 도크 자리 — 지금 막대 크기로 셈한 값.
  * 격자 오른쪽에 종(32px)이 들어서며 격자 한가운데가 오른쪽 끝에서 34px 멀어졌다.
  */
-const DOCK_FALLBACK: Anchor = { top: 66, right: 154 };
+const DOCK_FALLBACK: Anchor = { top: 74, right: 158 };
 
 /**
  * 점(x, y)이 요소의 네모 안에 있는가.
@@ -1025,7 +1025,7 @@ export function AppNav({
          * 어두워진다.
          */
         style={{ viewTransitionName: choreo ? 'none' : 'shell-logo' }}
-        className="fixed left-6 top-5 z-40 hidden items-center gap-2 desk:flex"
+        className="fixed left-6 top-6 z-40 hidden items-center gap-2 desk:flex"
       >
         <BaseballMark className="h-8 w-8" />
         <span className="text-display text-base leading-none text-ink">
@@ -1325,8 +1325,8 @@ function QuickBar({
       instant: routeDriven,
       settleKey: pathname,
     });
-  /* 펼친 폭 — 아이콘(40px)과 그 뒤 틈(2px)마다 42px, 선 1px 과 그 양옆 여백(6 + 8px) */
-  const full = quick.length * 42 + 15;
+  /* 펼친 폭 — 아이콘(48px)과 그 뒤 틈(2px)마다 50px, 선 1px 과 그 양옆 여백(6 + 8px) */
+  const full = quick.length * 50 + 15;
 
   return (
     <div
@@ -1361,7 +1361,7 @@ function QuickBar({
           />
         );
       })}
-      <span aria-hidden className="ml-1.5 mr-2 h-6 w-px shrink-0 bg-line" />
+      <span aria-hidden className="ml-1.5 mr-2 h-7 w-px shrink-0 bg-line" />
     </div>
   );
 }
@@ -1418,11 +1418,11 @@ function MenuSquares({
       aria-haspopup="dialog"
       aria-expanded={expanded}
       aria-label="메뉴"
-      className={`flex h-10 w-10 items-center justify-center rounded-full transition-colors duration-75 ${
+      className={`flex h-12 w-12 items-center justify-center rounded-full transition-colors duration-75 ${
         lit ? 'bg-sky/15 text-sky' : 'text-muted hover:bg-ink/6 hover:text-ink'
       }`}
     >
-      <Squares spinning={spinning} onDone={() => setSpinning(false)} />
+      <Squares size="lg" spinning={spinning} onDone={() => setSpinning(false)} />
     </button>
   );
 }
@@ -1437,7 +1437,16 @@ function MenuSquares({
  * 도는 것을 끝내는 일은 마지막 네모의 onAnimationEnd 가 맡는다(onDone).
  * 넷 다 걸면 첫째가 끝나는 순간 나머지가 도는 중에 꺼진다.
  */
-function Squares({ spinning, onDone }: { spinning: boolean; onDone: () => void }) {
+function Squares({
+  spinning,
+  onDone,
+  size = 'md',
+}: {
+  spinning: boolean;
+  onDone: () => void;
+  /** lg — PC 막대의 메뉴 단추(아이콘 24px 줄). md — 휴대폰 하단 탭(20px 줄) */
+  size?: 'md' | 'lg';
+}) {
   /* 왼위 → 오른위 → 왼아래 → 오른아래. 글 읽는 차례와 같게 돈다. */
   const corners = [
     'left-0 top-0',
@@ -1447,13 +1456,18 @@ function Squares({ spinning, onDone }: { spinning: boolean; onDone: () => void }
   ];
 
   return (
-    <span aria-hidden className="relative block h-[1.15rem] w-[1.15rem]">
+    <span
+      aria-hidden
+      className={`relative block ${size === 'lg' ? 'h-[1.4rem] w-[1.4rem]' : 'h-[1.15rem] w-[1.15rem]'}`}
+    >
       {corners.map((at, i) => (
         <span
           key={at}
-          className={`absolute h-[0.45rem] w-[0.45rem] rounded-[2px] border-[1.9px] border-current ${at} ${
-            spinning ? 'motion-safe:animate-square-spin' : ''
-          }`}
+          className={`absolute rounded-[2px] border-current ${
+            size === 'lg'
+              ? 'h-[0.56rem] w-[0.56rem] border-[2.1px]'
+              : 'h-[0.45rem] w-[0.45rem] border-[1.9px]'
+          } ${at} ${spinning ? 'motion-safe:animate-square-spin' : ''}`}
           style={{ '--sq': i } as CSSProperties}
           onAnimationEnd={i === 3 ? onDone : undefined}
         />
@@ -1522,6 +1536,10 @@ function SettingsCog({
  *
  * 올렸을 때의 배경은 반투명한 잉크색이다. 알약이 비치는 바탕이라, 불투명한
  * surface-2 를 얹으면 밝은 테마에서 알약과 거의 같은 색이 되어 안 보였다.
+ *
+ * 크기는 48px(그림 24px) — 오른쪽의 알림 · 설정 · 내 정보(32~40px)보다 크다. 옮겨 다니는
+ * 단추라 가장 자주 누르는데, 40px 일 때는 작아서 옆 단추를 잘못 누르곤 했다. 격자(메뉴)와
+ * 도크의 아이콘도 같은 크기로 맞춰, 막대에서 도크로 날아갈 때 크기가 튀지 않는다.
  */
 function TopIcon({
   item,
@@ -1565,7 +1583,7 @@ function TopIcon({
       onClick={(e) => {
         if (isPlainClick(e)) onPick();
       }}
-      className={`relative flex h-10 w-10 shrink-0 items-center justify-center rounded-full ${
+      className={`relative flex h-12 w-12 shrink-0 items-center justify-center rounded-full ${
         hidden
           ? 'opacity-0 [transition:none]'
           : instant
@@ -1575,8 +1593,8 @@ function TopIcon({
     >
       <Icon
         aria-hidden
-        className="relative h-5 w-5"
-        strokeWidth={lit ? 2.4 : 1.9}
+        className="relative h-6 w-6"
+        strokeWidth={lit ? 2.3 : 1.8}
         style={flyName}
       />
     </Link>
@@ -1694,14 +1712,14 @@ function DockGrid({
               onClick={(e) => {
                 if (isPlainClick(e)) onPick(item.href);
               }}
-              className={`group relative flex h-10 w-10 items-center justify-center rounded-full transition-colors duration-75 ${
+              className={`group relative flex h-12 w-12 items-center justify-center rounded-full transition-colors duration-75 ${
                 lit ? 'text-sky' : 'text-muted hover:bg-ink/6 hover:text-ink'
               }`}
             >
               <Icon
                 aria-hidden
-                className="h-5 w-5"
-                strokeWidth={lit ? 2.4 : 1.9}
+                className="h-6 w-6"
+                strokeWidth={lit ? 2.3 : 1.8}
                 style={named ? flyStyle(`nav-fly-${i}`, i, kind) : undefined}
               />
               <Tip>{item.label}</Tip>
