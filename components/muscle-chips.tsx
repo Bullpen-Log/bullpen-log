@@ -104,13 +104,20 @@ export function MuscleChips({
  *
  * 근육을 안 적은 운동(암케어가 아닌 것 대부분)에는 아무것도 안 그린다.
  */
-export function MuscleRow({ muscles }: { muscles: string[] }) {
+export function MuscleRow({
+  muscles,
+  onPick,
+}: {
+  muscles: string[];
+  /** 주면 칩을 누를 수 있다 — 라이브러리는 누르면 그 근육의 3D 그림·설명 창 */
+  onPick?: (muscle: string, e: MouseEvent<HTMLButtonElement>) => void;
+}) {
   if (muscles.length === 0) return null;
   const line = helpsLine(muscles);
   return (
     <div className="space-y-1.5">
       <p className="text-xs font-semibold text-muted">키우는 근육</p>
-      <MuscleChips muscles={muscles} />
+      <MuscleChips muscles={muscles} onPick={onPick} />
       {line && <p className="text-xs leading-relaxed break-keep text-muted">{line}</p>}
     </div>
   );

@@ -302,24 +302,32 @@ function ExerciseList({
                 ex.done ? 'border-sky bg-sky-tint' : 'border-line bg-surface'
               }`}
             >
-              <button
-                type="button"
-                onClick={() => onToggle(ex.id)}
-                aria-pressed={ex.done}
-                className={`flex w-full items-start gap-3 rounded-2xl px-4 py-4 text-left transition-colors ${
-                  ex.done ? '' : 'hover:bg-surface-2'
-                }`}
-              >
+              {/*
+                줄 어디를 눌러도 체크된다 — 체크 단추를 줄 전체에 깔고(absolute) 글과 사진은
+                누름을 그 단추로 흘려보낸다(pointer-events-none). 부위 칩만 따로 눌려 전신 3D 를
+                띄운다(2026-09-26 사용자분, components/body-parts.tsx). 단추 안에 단추를 넣을 수
+                없어 이렇게 겹친다 — 암케어 체크 목록(armcare-today.tsx)과 같다.
+              */}
+              <div className="relative flex w-full items-start gap-3 rounded-2xl px-4 py-4">
+                <button
+                  type="button"
+                  onClick={() => onToggle(ex.id)}
+                  aria-pressed={ex.done}
+                  aria-label={`${ex.title} ${ex.done ? '체크 풀기' : '체크'}`}
+                  className={`absolute inset-0 rounded-2xl transition-colors ${
+                    ex.done ? '' : 'hover:bg-surface-2'
+                  }`}
+                />
                 <span
                   aria-hidden
-                  className={`mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full border-2 transition-colors ${
+                  className={`pointer-events-none relative mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full border-2 transition-colors ${
                     ex.done ? 'border-sky bg-sky text-white' : 'border-line-strong'
                   }`}
                 >
                   {ex.done && <Check className="h-3.5 w-3.5" strokeWidth={3} />}
                 </span>
 
-                <span className="min-w-0 flex-1 space-y-1.5">
+                <span className="pointer-events-none relative min-w-0 flex-1 space-y-1.5">
                   <span className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
                     <span
                       className={`text-[15px] font-bold tracking-[-0.01em] break-keep ${
@@ -350,12 +358,14 @@ function ExerciseList({
                       {ex.prescription}
                     </span>
                   )}
-                  <ExerciseBadges
-                    bodyParts={ex.bodyParts}
-                    intensity={ex.intensity}
-                    difficulty={ex.difficulty}
-                    equipment={ex.equipment}
-                  />
+                  <span className="block [&_button]:pointer-events-auto">
+                    <ExerciseBadges
+                      bodyParts={ex.bodyParts}
+                      intensity={ex.intensity}
+                      difficulty={ex.difficulty}
+                      equipment={ex.equipment}
+                    />
+                  </span>
                   {/*
                   직접 넣었는데 오늘 몸 상태에는 무리인 운동. 빼지 않고
                   알리기만 한다 — 넣은 것은 본인이다.
@@ -373,10 +383,10 @@ function ExerciseList({
                   <img
                     src={ex.thumbUrl}
                     alt=""
-                    className="hidden h-16 w-24 shrink-0 rounded-xl object-cover ring-1 ring-line sm:block"
+                    className="pointer-events-none relative hidden h-16 w-24 shrink-0 rounded-xl object-cover ring-1 ring-line sm:block"
                   />
                 )}
-              </button>
+              </div>
 
               <PastRecord title={ex.title} past={ex.past} />
             </div>

@@ -1,9 +1,9 @@
-BULLPEN LOG — 3D MUSCLE MAP MODEL (armcare-upper.glb)
+BULLPEN LOG — 3D MUSCLE MAP MODELS (armcare-upper.glb, body-full.glb)
 
-This model file is Adapted Material licensed under the Creative Commons
+These model files are Adapted Material licensed under the Creative Commons
 Attribution-ShareAlike 4.0 International license:
 https://creativecommons.org/licenses/by-sa/4.0/
-Only this model file is CC BY-SA; the rest of Bullpen Log is licensed separately.
+Only these model files are CC BY-SA; the rest of Bullpen Log is licensed separately.
 
 CREDITS (wording requested by the licensors)
 
@@ -27,10 +27,17 @@ SOURCE
 
 CHANGES MADE (scripts/build-arm-model.mjs)
 
+  armcare-upper.glb
   - Kept only the upper-body muscles (shoulder, arms, forearms, back, chest,
     neck, core), the skeleton and the head/hands context mesh. Removed leg
     muscles and connective tissue.
   - Removed triangles below elbow height inside the torso band (pelvis, legs).
+
+  body-full.glb (--full)
+  - Kept all muscles, the skeleton and the head/hands/feet context mesh.
+    Removed connective tissue. Nothing is cut away.
+
+  Both
   - Removed unused vertices, quantized normals to 8-bit (KHR_mesh_quantization)
     and removed materials. Muscle IDs and labels (glTF node extras) are kept.
   - The geometry has not been reviewed by an anatomy specialist.

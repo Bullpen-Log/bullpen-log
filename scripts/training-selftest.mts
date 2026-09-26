@@ -112,6 +112,7 @@ import {
 } from '../lib/armcare/routine.ts';
 import { ARMCARE_METHODS, methodOf } from '../lib/armcare/methods.ts';
 import { AREA_DETAILS, MUSCLE_DETAILS } from '../lib/armcare/details.ts';
+import { BODY_PART_MAP } from '../lib/body-map.ts';
 import {
   MY_ROUTINE_MAX_ITEMS,
   clampRoutineSets,
@@ -3966,6 +3967,47 @@ console.log('\n[암케어] 부위·근육 · 오늘의 루틴 · 부하');
   check(
     '부위마다 카메라가 갈 방향이 있다',
     ARMCARE_AREAS.every((a) => AREA_VIEW[a.key] != null)
+  );
+
+  /*
+   * 1-4) 전신 3D — 다른 운동의 부위 태그를 누르면 뜬다(components/body-parts.tsx,
+   * 2026-09-26 사용자분: 모든 운동 영상에). 태그마다 켤 근육이 모델 파일에 있어야 한다.
+   */
+  const bodyGlb = readFileSync(
+    new URL('../public/models/body-full.glb', import.meta.url)
+  );
+  const bodyJson = JSON.parse(
+    bodyGlb.subarray(20, 20 + bodyGlb.readUInt32LE(12)).toString('utf8')
+  ) as { nodes: { extras?: { key?: string } }[] };
+  const bodyKeys = new Set(bodyJson.nodes.map((n) => n.extras?.key).filter(Boolean));
+  const unmappedParts = BODY_PARTS.filter(
+    (p) => !BODY_PART_MAP[p] || BODY_PART_MAP[p].keys.length === 0
+  );
+  check(
+    '부위 태그마다 전신 3D 에서 켤 근육이 있다',
+    unmappedParts.length === 0,
+    unmappedParts.join(', ')
+  );
+  const strayKeys = Object.entries(BODY_PART_MAP).flatMap(([part, m]) =>
+    m.keys.filter((k) => !bodyKeys.has(k)).map((k) => `${part}:${k}`)
+  );
+  check(
+    '부위 태그의 근육이 모두 전신 모델 파일에 있다 (안 켜지는 칸이 없다)',
+    strayKeys.length === 0,
+    strayKeys.join(', ')
+  );
+  check(
+    '전신 3D 모델이 가볍다 — 2.5MB 아래',
+    bodyGlb.length < 2.5 * 1024 * 1024,
+    `${Math.round(bodyGlb.length / 1024)} KB`
+  );
+  const bodyPromise = Object.entries(BODY_PART_MAP).filter(([, m]) =>
+    /(부상|손상|통증)을 (막|예방)|예방합니다|예방해 줍니다|예방할 수 있/.test(m.about)
+  );
+  check(
+    '부위 설명이 부상을 막는다고 약속하지 않는다',
+    bodyPromise.length === 0,
+    bodyPromise.map(([p]) => p).join(', ')
   );
   check(
     '던지는 팔 — 좌투만 왼팔, 우투·양투·모름은 오른팔',
