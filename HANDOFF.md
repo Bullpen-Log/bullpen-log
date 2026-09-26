@@ -23,7 +23,8 @@ Claude 로 작업을 시작하면 저절로 읽힌다. 규칙은 `AGENTS.md` 6�
    적용했다. `User` 에 관계 칸 `myArmcareRoutines` 한 줄이 늘었다(DB 칸은 아니다).
    금윤호가 다음에 구조를 바꿀 때(`NutritionProfile.sex` 지우기 등)는 이것을 받은 뒤에
    `migrate diff` 를 만든다 — 안 받은 채로 만들면 diff 가 이 표를 `DROP TABLE` 한다.
-2. 개발 서버를 다시 켠다. 운동 목록 캐시 이름을 `library:exercises:v4` 로 바꿨다
+2. `npm install` — 3D 근육 지도에 `three` 를 더했다(아래).
+3. 개발 서버를 다시 켠다. 운동 목록 캐시 이름을 `library:exercises:v4` 로 바꿨다
    (`lib/library-cache.ts`) — 스크립트로 운동 30개의 근육을 고쳐서, 이름을 바꿔야 보인다.
 
 ### 알아 두면 좋은 것
@@ -33,6 +34,17 @@ Claude 로 작업을 시작하면 저절로 읽힌다. 규칙은 `AGENTS.md` 6�
 - 그 근육을 쓰는 암케어 운동 30개의 '키우는 근육'을 DB 에 저장했다
   (`scripts/retag-armcare-muscles.mts` · `scripts/armcare-retag-2026-09-26.json`). DB 구조는
   그대로다. 저장 전에 백업했다.
+
+### 부위별 보강에 3D 근육 지도 (사용자 요청)
+
+- 새 패키지 `three`(0.186.1)와 개발용 `@types/three` — **`npm install` 을 한 번 한다.**
+  three 는 3D 근육 지도(`app/(app)/training/muscle-map-3d.tsx`)가 뜰 때만 불러온다
+  (`import()`), 다른 화면에는 실리지 않는다.
+- 모델 `public/models/armcare-upper.glb`(약 1.3MB, CC BY-SA 4.0 — 출처와 바꾼 점은 같은
+  폴더의 `ATTRIBUTION.txt`). 만드는 스크립트는 `scripts/build-arm-model.mjs`(도구 설치 없이
+  glTF 를 직접 다룬다, 원본은 저장소에 없다 — 주소와 SHA-256 이 스크립트에 있다).
+- 근육 → 모델 조각 표는 `lib/armcare/muscle-map.ts`. 근육마다 **붙는 곳**(`at`)을
+  `lib/armcare/anatomy.ts` 에 더했다. 던지는 손이 좌투면 왼팔을 켠다.
 
 ### 암케어 '루틴' 칸 — 맞춤 루틴 + 내 루틴 (사용자 요청)
 

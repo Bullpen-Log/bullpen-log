@@ -116,6 +116,12 @@ import {
   readRoutineItems,
 } from '../lib/armcare/my-routines.ts';
 import { readTrainingPart } from '../lib/training-part.ts';
+import {
+  AREA_VIEW,
+  MUSCLE_MODEL,
+  careLevel,
+  throwingSide,
+} from '../lib/armcare/muscle-map.ts';
 import { reportReadiness } from '../lib/report/cadence.ts';
 import { SYSTEM_PROMPT } from '../lib/ai/report-prompt.ts';
 import {
@@ -3798,6 +3804,55 @@ console.log('\n[암케어] 부위·근육 · 오늘의 루틴 · 부하');
         .map((it) => `${it.exerciseId}${it.sets}`)
         .join(',') === 'a2,b4'
   );
+  /* 1-3) 3D 근육 지도 — 근육 목록 · 모델 파일 · 부위가 서로 맞는가 */
+  const glb = readFileSync(new URL('../public/models/armcare-upper.glb', import.meta.url));
+  const glbJson = JSON.parse(glb.subarray(20, 20 + glb.readUInt32LE(12)).toString('utf8')) as {
+    nodes: { extras?: { key?: string; side?: string } }[];
+  };
+  const inModel = new Set(
+    glbJson.nodes.map((n) => `${n.extras?.side}:${n.extras?.key}`)
+  );
+  const noModel = ARMCARE_MUSCLE_NAMES.filter(
+    (m) => Object.keys(MUSCLE_MODEL[m]?.parts ?? {}).length === 0
+  );
+  check('근육마다 3D 모델 조각이 하나 이상 이어져 있다', noModel.length === 0, noModel.join(', '));
+  const missingParts = Object.values(MUSCLE_MODEL).flatMap((m) =>
+    Object.keys(m.parts).flatMap((key) =>
+      ['right', 'left'].filter((side) => !inModel.has(`${side}:${key}`)).map((side) => `${side}:${key}`)
+    )
+  );
+  check(
+    '이어 둔 조각이 모델 파일에 양쪽 팔 모두 있다 (왼손 투수도 켜진다)',
+    missingParts.length === 0,
+    missingParts.join(', ')
+  );
+  check(
+    '3D 모델이 가볍다 — 1.5MB 아래',
+    glb.length < 1.5 * 1024 * 1024,
+    `${Math.round(glb.length / 1024)} KB`
+  );
+  check(
+    '부위마다 카메라가 갈 방향이 있다',
+    ARMCARE_AREAS.every((a) => AREA_VIEW[a.key] != null)
+  );
+  check(
+    '던지는 팔 — 좌투만 왼팔, 우투·양투·모름은 오른팔',
+    throwingSide('좌투') === 'left' &&
+      throwingSide('우투') === 'right' &&
+      throwingSide('양투') === 'right' &&
+      throwingSide(null) === 'right'
+  );
+  check(
+    '내 기록 색칠 — 2주에 0~1번은 챙길 곳, 2~4번 보통, 5번부터 잘 챙김',
+    careLevel(0) === 'low' &&
+      careLevel(1) === 'low' &&
+      careLevel(2) === 'mid' &&
+      careLevel(4) === 'mid' &&
+      careLevel(5) === 'good'
+  );
+  const noAt = ARMCARE_MUSCLE_NAMES.filter((m) => !muscleInfo(m)?.at);
+  check('근육마다 붙는 곳이 적혀 있다', noAt.length === 0, noAt.join(', '));
+
   check(
     '트레이닝 칸 — 주소·쿠키에서 두 칸만 받는다 (예전 기록 칸 값은 버림)',
     readTrainingPart('today') === 'today' &&

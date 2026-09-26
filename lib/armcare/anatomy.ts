@@ -216,6 +216,7 @@ export const ARMCARE_AREAS: readonly ArmcareArea[] = [
  * 부위 차례대로 늘어놓는다. 관리자 화면의 고르개도 이 차례로 그린다.
  *
  *   does   그 근육이 하는 일 한 줄 — 부위별 보강 화면에 그대로 나간다
+ *   at     붙는 곳(시작 → 끝) — 3D 근육 지도에서 근육을 고르면 나온다(2026-09-26)
  *   helps  그 근육을 키우면 예방에 도움이 된다고 말할 수 있는 부상. 없으면 null
  *
  * helps 는 부위의 흔한 부상과 따로 둔다. 처음에는 부위의 첫 부상을 그대로 붙였더니
@@ -238,124 +239,168 @@ export const ARMCARE_MUSCLES = [
     name: '극하근',
     area: 'shoulder-back',
     does: '팔을 바깥으로 돌림 · 감속',
+    at: '날개뼈 뒤쪽 아래의 넓은 면 → 위팔뼈 머리 뒤쪽',
     helps: '회전근개 손상',
   },
   {
     name: '소원근',
     area: 'shoulder-back',
     does: '팔을 바깥으로 돌림 · 감속',
+    at: '날개뼈 바깥쪽 가장자리 → 위팔뼈 머리 뒤쪽 아래',
     helps: '회전근개 손상',
   },
   {
     name: '후면 삼각근',
     area: 'shoulder-back',
     does: '팔을 뒤로 당김 · 감속을 거듦',
+    at: '날개뼈 가시(견갑극) → 위팔뼈 바깥쪽 가운데',
     helps: null,
   },
   {
     name: '광배근',
     area: 'shoulder-back',
     does: '팔을 안으로 돌리며 끌어내림 · 감속을 거듦',
+    at: '등 아래·허리 척추와 골반 위 → 위팔뼈 앞쪽 위',
     helps: null,
   },
   {
     name: '대원근',
     area: 'shoulder-back',
     does: '광배근과 함께 팔을 안으로 돌리고 끌어내림',
+    at: '날개뼈 아래 모서리 → 위팔뼈 앞쪽 위',
     helps: null,
   },
   {
     name: '견갑하근',
     area: 'shoulder-front',
     does: '팔을 안으로 돌림 · 어깨 앞을 막음',
+    at: '날개뼈 앞면(갈비뼈 쪽) → 위팔뼈 머리 앞쪽',
     helps: '앞쪽 어깨 불안정',
   },
   {
     name: '극상근',
     area: 'shoulder-top',
     does: '팔을 들기 시작함 · 위팔뼈를 붙잡음',
+    at: '날개뼈 가시 위쪽 오목한 곳 → 위팔뼈 머리 꼭대기',
     helps: '극상근 힘줄염',
   },
-  { name: '중간 삼각근', area: 'shoulder-top', does: '팔을 옆으로 들어 올림', helps: null },
+  {
+    name: '중간 삼각근',
+    area: 'shoulder-top',
+    does: '팔을 옆으로 들어 올림',
+    at: '어깨 끝 뼈(견봉) → 위팔뼈 바깥쪽 가운데',
+    helps: null,
+  },
   {
     name: '전거근',
     area: 'scapula',
     does: '날개뼈를 갈비뼈에 붙이고 위로 돌림',
+    at: '옆구리 위쪽 갈비뼈 여러 개 → 날개뼈 안쪽 가장자리(앞면)',
     helps: '견갑 운동 이상',
   },
   {
     name: '중부 승모근',
     area: 'scapula',
     does: '날개뼈를 등 가운데로 모음',
+    at: '등 위쪽 척추 → 어깨 끝 뼈와 날개뼈 가시',
     helps: '견갑 운동 이상',
   },
   {
     name: '하부 승모근',
     area: 'scapula',
     does: '날개뼈를 아래로 당기며 위로 돌림',
+    at: '등 가운데 척추 → 날개뼈 가시 안쪽 끝',
     helps: '견갑 운동 이상',
   },
   {
     name: '능형근',
     area: 'scapula',
     does: '날개뼈를 모으고 감속 때 버팀',
+    at: '목 아래~등 위쪽 척추 → 날개뼈 안쪽 가장자리',
     helps: '견갑 운동 이상',
   },
   {
     name: '손목 굴곡근',
     area: 'elbow-inner',
     does: '손목·손가락을 굽힘 · 팔꿈치 안쪽을 받침',
+    at: '팔꿈치 안쪽 뼈(내측 상과) → 손목·손바닥 쪽 뼈',
     helps: '내측 측부인대(UCL) 손상',
   },
   {
     name: '얕은 손가락 굴곡근',
     area: 'elbow-inner',
     does: '손가락을 굽혀 쥠 · 팔꿈치 안쪽을 받침',
+    at: '팔꿈치 안쪽 뼈(내측 상과)와 아래팔 뼈 → 검지~새끼 가운데 마디',
     helps: '내측 측부인대(UCL) 손상',
   },
   {
     name: '깊은 손가락 굴곡근',
     area: 'elbow-inner',
     does: '손가락 끝까지 굽혀 쥠 · 악력',
+    at: '아래팔 안쪽 뼈(척골) 앞면 → 검지~새끼 끝마디',
     helps: null,
   },
   {
     name: '원회내근',
     area: 'elbow-inner',
     does: '아래팔을 안으로 돌림',
+    at: '팔꿈치 안쪽 뼈(내측 상과) → 아래팔 바깥쪽 뼈(요골) 가운데',
     helps: '내측 측부인대(UCL) 손상',
   },
-  { name: '손목 신전근', area: 'elbow-outer', does: '손목을 젖힘', helps: '외측 상과염' },
-  { name: '회외근', area: 'elbow-outer', does: '아래팔을 바깥으로 돌림', helps: null },
+  {
+    name: '손목 신전근',
+    area: 'elbow-outer',
+    does: '손목을 젖힘',
+    at: '팔꿈치 바깥쪽 뼈(외측 상과) → 손등 쪽 뼈',
+    helps: '외측 상과염',
+  },
+  {
+    name: '회외근',
+    area: 'elbow-outer',
+    does: '아래팔을 바깥으로 돌림',
+    at: '팔꿈치 바깥쪽 뼈 → 아래팔 바깥쪽 뼈(요골) 위쪽',
+    helps: null,
+  },
   {
     name: '완요골근',
     area: 'elbow-outer',
     does: '엄지를 위로 한 채 팔꿈치를 굽힘',
+    at: '위팔뼈 바깥쪽 아래 → 손목 엄지 쪽(요골 끝)',
     helps: null,
   },
-  { name: '삼두근', area: 'elbow-back', does: '팔꿈치를 폄', helps: null },
+  {
+    name: '삼두근',
+    area: 'elbow-back',
+    does: '팔꿈치를 폄',
+    at: '날개뼈 · 위팔뼈 뒤쪽 → 팔꿈치 끝 뼈(주두)',
+    helps: null,
+  },
   {
     name: '주근',
     area: 'elbow-back',
     does: '팔꿈치 펴기를 도움 · 팔꿈치 뒤 바깥을 잡아 줌',
+    at: '팔꿈치 바깥쪽 뼈(외측 상과) → 팔꿈치 끝 뼈 바깥쪽',
     helps: null,
   },
   {
     name: '이두근',
     area: 'elbow-front',
     does: '팔꿈치를 굽힘 · 펴지는 팔꿈치를 감속',
+    at: '날개뼈 두 곳 → 아래팔 바깥쪽 뼈(요골) 위쪽',
     helps: null,
   },
   {
     name: '상완근',
     area: 'elbow-front',
     does: '팔꿈치를 굽힘 · 펴지는 팔꿈치를 감속',
+    at: '위팔뼈 앞쪽 아래 절반 → 아래팔 안쪽 뼈(척골) 위쪽',
     helps: null,
   },
 ] as const satisfies readonly {
   name: string;
   area: ArmcareAreaKey;
   does: string;
+  at: string;
   helps: string | null;
 }[];
 

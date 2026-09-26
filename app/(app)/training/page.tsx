@@ -140,7 +140,12 @@ export default async function TrainingPage({
           }
         />
         <ArmcareTabs current={tab} />
-        <ArmcareSection user={user} tab={tab} today={today} />
+        <ArmcareSection
+          user={user}
+          tab={tab}
+          today={today}
+          focusMuscle={typeof params.muscle === 'string' ? params.muscle : null}
+        />
       </div>
     );
   }

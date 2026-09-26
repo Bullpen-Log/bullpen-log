@@ -334,7 +334,14 @@ export function Checklist({
                       />
                     )}
                   </button>
-                  <ExerciseMedia exercise={ex} />
+                  <ExerciseMedia
+                    exercise={ex}
+                    muscleHref={
+                      ex.targetMuscles[0]
+                        ? `/training?view=armcare&tab=guide&muscle=${encodeURIComponent(ex.targetMuscles[0])}`
+                        : undefined
+                    }
+                  />
                 </li>
               ))}
             </ul>

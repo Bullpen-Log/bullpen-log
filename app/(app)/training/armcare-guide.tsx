@@ -8,11 +8,13 @@ import {
   ARMCARE_MUSCLES,
   areaOfMuscle,
   type ArmcareArea,
+  type ArmcareAreaKey,
   type ArmcareJoint,
 } from '@/lib/armcare/anatomy';
 import { MuscleChips } from '@/components/muscle-chips';
 import { ExerciseMedia, type ArmcareExerciseView } from './armcare-media';
 import { AddToRoutine, MyRoutinesProvider, type RoutineChoice } from './add-to-routine';
+import { MuscleMapPanel, selectionFor } from './muscle-map-panel';
 
 /**
  * 부위별 보강 — 부위 → 흔한 부상 → 키울 근육 → 운동.
@@ -27,16 +29,39 @@ import { AddToRoutine, MyRoutinesProvider, type RoutineChoice } from './add-to-r
  *
  * 한 운동이 여러 부위에 나온다(외회전 90도는 어깨 후방과 견갑). 그 부위를 주로
  * 키우는 운동을 앞에, 함께 쓰는 운동을 뒤에 둔다.
+ *
+ * 맨 위에는 3D 근육 지도가 선다(2026-09-26, muscle-map-panel.tsx). 지도에서 고른
+ * 부위의 운동을 모두 보려고 하면 아래의 그 부위 카드를 열고 그 자리로 내려간다.
  */
 export function ArmcareGuide({
   exercises,
   routines,
+  map,
 }: {
   exercises: ArmcareExerciseView[];
   /** 내 루틴 — 운동마다 '담기'로 넣을 곳 (add-to-routine.tsx) */
   routines: RoutineChoice[];
+  /** 3D 근육 지도에 넘기는 것 */
+  map: {
+    side: 'right' | 'left';
+    bothHands: boolean;
+    counts: Record<ArmcareAreaKey, number>;
+    /** 루틴의 '근육 위치'로 들어왔으면 그 근육 */
+    focusMuscle: string | null;
+  };
 }) {
   const [open, setOpen] = useState<string | null>(null);
+
+  /* 지도에서 '이 부위 운동 모두 보기' — 그 카드를 열고 그 자리로 내려간다 */
+  const showArea = (key: ArmcareAreaKey) => {
+    setOpen(key);
+    requestAnimationFrame(() => {
+      const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      document
+        .getElementById(`area-${key}`)
+        ?.scrollIntoView({ block: 'start', behavior: reduce ? 'auto' : 'smooth' });
+    });
+  };
   const untagged = exercises.filter((ex) => ex.targetMuscles.length === 0).length;
 
   const joints: ArmcareJoint[] = ['어깨', '팔꿈치'];
@@ -45,10 +70,20 @@ export function ArmcareGuide({
     <MyRoutinesProvider routines={routines}>
       <div className="space-y-6">
         <p className="text-sm leading-relaxed break-keep text-muted">
-          투수가 가장 많이 다치는 곳은 어깨와 팔꿈치입니다. 부위를 누르면 던질 때 그
-          부위가 하는 일, 흔한 부상, 키울 근육과 운동이 나옵니다. 운동이 부상을 막아
-          준다는 보장은 없습니다 — 아프면 쉬고 전문의 진료를 받아보세요.
+          투수가 가장 많이 다치는 곳은 어깨와 팔꿈치입니다. 3D 지도에서 근육을 누르거나
+          아래 부위를 펼치면 던질 때 그 부위가 하는 일, 흔한 부상, 키울 근육과 운동이
+          나옵니다. 운동이 부상을 막아 준다는 보장은 없습니다 — 아프면 쉬고 전문의
+          진료를 받아보세요.
         </p>
+
+        <MuscleMapPanel
+          side={map.side}
+          bothHands={map.bothHands}
+          counts={map.counts}
+          exercises={exercises}
+          initial={selectionFor(map.focusMuscle)}
+          onShowArea={showArea}
+        />
 
         {joints.map((joint) => (
           <section key={joint} className="space-y-2.5">
@@ -106,7 +141,8 @@ function AreaCard({
 
   return (
     <li
-      className={`overflow-hidden rounded-2xl border transition-colors ${
+      id={`area-${area.key}`}
+      className={`scroll-mt-20 overflow-hidden rounded-2xl border transition-colors ${
         open ? 'border-sky-soft bg-surface' : 'border-line bg-surface'
       }`}
     >

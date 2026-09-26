@@ -1,7 +1,8 @@
 'use client';
 
 import { useState, useTransition } from 'react';
-import { Info } from 'lucide-react';
+import Link from 'next/link';
+import { Info, Scan } from 'lucide-react';
 import { LibraryVideo } from '@/components/library-video';
 import { exerciseDescription } from '@/app/actions/content';
 
@@ -34,7 +35,17 @@ export type ArmcareExerciseView = {
  * 영상은 누르기 전에는 받지 않는다(LibraryVideo). 펼친 동안에만 심는다 — 접은 뒤에도
  * 재생기가 남아 있으면 소리 없이 계속 돈다.
  */
-export function ExerciseMedia({ exercise }: { exercise: ArmcareExerciseView }) {
+export function ExerciseMedia({
+  exercise,
+  muscleHref,
+}: {
+  exercise: ArmcareExerciseView;
+  /**
+   * 3D 근육 지도에서 이 운동의 주 근육을 켜 보는 길. 루틴의 체크 목록에서만 준다 —
+   * 부위별 보강에서는 지도가 바로 위에 있다.
+   */
+  muscleHref?: string;
+}) {
   const [open, setOpen] = useState(false);
   const [description, setDescription] = useState<string | null>();
   const [loading, startLoading] = useTransition();
@@ -51,16 +62,28 @@ export function ExerciseMedia({ exercise }: { exercise: ArmcareExerciseView }) {
 
   return (
     <div className="border-t border-line/70">
-      <button
-        type="button"
-        onClick={toggle}
-        aria-expanded={open}
-        aria-label={`${exercise.title} 자세·영상 ${open ? '접기' : '보기'}`}
-        className="flex w-full items-center justify-center gap-1.5 py-2 text-[11px] font-semibold text-muted transition-colors hover:text-sky"
-      >
-        <Info aria-hidden className="h-3.5 w-3.5" />
-        {open ? '접기' : '자세·영상 보기'}
-      </button>
+      <div className="flex">
+        <button
+          type="button"
+          onClick={toggle}
+          aria-expanded={open}
+          aria-label={`${exercise.title} 자세·영상 ${open ? '접기' : '보기'}`}
+          className="flex flex-1 items-center justify-center gap-1.5 py-2 text-[11px] font-semibold text-muted transition-colors hover:text-sky"
+        >
+          <Info aria-hidden className="h-3.5 w-3.5" />
+          {open ? '접기' : '자세·영상 보기'}
+        </button>
+        {muscleHref && (
+          <Link
+            href={muscleHref}
+            aria-label={`${exercise.title} 근육 위치 보기`}
+            className="flex flex-1 items-center justify-center gap-1.5 border-l border-line/70 py-2 text-[11px] font-semibold text-muted transition-colors hover:text-sky"
+          >
+            <Scan aria-hidden className="h-3.5 w-3.5" />
+            근육 위치
+          </Link>
+        )}
+      </div>
       {open && (
         <div className="space-y-3 px-4 pb-4">
           {(exercise.videoPath || exercise.referenceVideoId) && (

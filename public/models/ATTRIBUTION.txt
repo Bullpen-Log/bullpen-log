@@ -1,0 +1,36 @@
+BULLPEN LOG — 3D MUSCLE MAP MODEL (armcare-upper.glb)
+
+This model file is Adapted Material licensed under the Creative Commons
+Attribution-ShareAlike 4.0 International license:
+https://creativecommons.org/licenses/by-sa/4.0/
+Only this model file is CC BY-SA; the rest of Bullpen Log is licensed separately.
+
+CREDITS (wording requested by the licensors)
+
+  "Z-Anatomy - The libre 3D atlas of anatomy - CC-BY-SA 4.0"
+  https://github.com/Z-Anatomy/Models-of-human-anatomy
+
+  "BodyParts3D - The Database Center for Life Science - CC-BY-SA 2.1 Japan"
+  https://creativecommons.org/licenses/by-sa/2.1/jp/
+
+  "BodyParts3D, (c) The Database Center for Life Science licensed under
+  CC Attribution 4.0 International"
+  https://dbarchive.biosciencedbc.jp/en/bodyparts3d/download.html
+
+  Mobile muscle atlas adaptation: Fit Mit With anatomy atlas (CC BY-SA 4.0)
+  https://github.com/slfresh/fitmitwith-anatomy-atlas
+
+SOURCE
+
+  https://github.com/slfresh/fitmitwith-anatomy-atlas/blob/4120ee68b6604b8f2f69105d6de6166fad4734c4/models/full-body-male-mobile.glb
+  SHA-256 d80bebc4045069b660ca8e7afe599d76d15ccc7d96410b3727c600ef01d24e54
+
+CHANGES MADE (scripts/build-arm-model.mjs)
+
+  - Kept only the upper-body muscles (shoulder, arms, forearms, back, chest,
+    neck, core), the skeleton and the head/hands context mesh. Removed leg
+    muscles and connective tissue.
+  - Removed triangles below elbow height inside the torso band (pelvis, legs).
+  - Removed unused vertices, quantized normals to 8-bit (KHR_mesh_quantization)
+    and removed materials. Muscle IDs and labels (glTF node extras) are kept.
+  - The geometry has not been reviewed by an anatomy specialist.
