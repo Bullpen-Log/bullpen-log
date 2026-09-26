@@ -219,7 +219,11 @@ export function MonthCalendar({
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
+      {/*
+        제목 줄 밑에도 선을 긋는다 — 맨 아래 범례 위의 선과 같은 굵기 · 같은 간격이다.
+        위아래 두 선이 날짜 칸을 감싸서, 제목 · 칸 · 범례가 한 덩이로 읽힌다.
+      */}
+      <div className="flex items-center justify-between border-b border-line pb-4">
         <MonthJump
           month={month}
           dir={direction}
@@ -487,8 +491,11 @@ function DayGrid({
   );
 }
 
+/** 제목의 '년 · 월' — 숫자(Bebas) 옆에 붙는 본문 서체의 작은 글자 */
+const UNIT_CLASS = 'ml-0.5 font-sans text-[15px] font-bold tracking-normal';
+
 /**
- * '2026. 09' 를 누르면 펼쳐지는 빠른 이동.
+ * '2026년 9월'을 누르면 펼쳐지는 빠른 이동.
  *
  * 화살표만 있을 때는 1년 전으로 가려면 열두 번을 눌러야 했다. 해를 고르고
  * 달을 누르면 한 번에 간다. 날짜 칸은 그대로 캘린더에서 누른다 — 날짜까지 여기서
@@ -583,13 +590,20 @@ function MonthJump({
 
           완전히 사라졌다 나타나지는 않는다(0.35 에서 시작). 글자 몇 개가
           깜빡이면 움직임이 아니라 떨림으로 읽힌다.
+
+          '2026년 9월'로 적는다. 숫자 서체(Bebas)에는 한글이 없어서 '년 · 월'은 본문
+          서체로 작게 붙인다 — 그대로 두면 기기 글꼴(맑은 고딕 등)로 떨어져 기기마다
+          모양이 달라진다. 숫자는 크게, 단위는 작게 두어 눈이 숫자부터 읽는다.
         */}
         <span
           key={`${currentYear}-${currentMonth}`}
           style={{ '--dir': dir } as React.CSSProperties}
-          className={`inline-block ${dir === 0 ? '' : 'motion-safe:animate-month-title'}`}
+          className={`inline-flex items-baseline ${dir === 0 ? '' : 'motion-safe:animate-month-title'}`}
         >
-          {currentYear}. {String(currentMonth + 1).padStart(2, '0')}
+          {currentYear}
+          <span className={UNIT_CLASS}>년</span>
+          <span className="ml-2">{currentMonth + 1}</span>
+          <span className={UNIT_CLASS}>월</span>
         </span>
       </button>
 
