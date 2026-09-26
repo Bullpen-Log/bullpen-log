@@ -15,7 +15,12 @@ import { MuscleChips } from '@/components/muscle-chips';
 import { ExerciseMedia, type ArmcareExerciseView } from './armcare-media';
 import { AddToRoutine, MyRoutinesProvider, type RoutineChoice } from './add-to-routine';
 import { MuscleMapPanel, selectionFor } from './muscle-map-panel';
-import { ArmcareInfoProvider, INFO_PILL, InfoButton } from './armcare-info';
+import {
+  ArmcareInfoProvider,
+  INFO_PILL,
+  InfoButton,
+  useArmcareInfo,
+} from './armcare-info';
 
 /**
  * 부위별 보강 — 부위 → 흔한 부상 → 키울 근육 → 운동.
@@ -72,7 +77,7 @@ export function ArmcareGuide({
 
   return (
     <MyRoutinesProvider routines={routines}>
-      <ArmcareInfoProvider>
+      <ArmcareInfoProvider side={map.side}>
         <div className="space-y-6">
           <p className="text-sm break-keep text-muted">
             근육을 누르거나 부위를 펼쳐 보세요.
@@ -248,6 +253,8 @@ function GuideExercise({
   /** 이 부위를 주로 키우는 운동이 아니라 함께 쓰는 운동인가 */
   secondary?: boolean;
 }) {
+  /* 근육 칩을 누르면 그 근육의 3D 그림과 설명 창 */
+  const info = useArmcareInfo();
   return (
     <li className="overflow-hidden rounded-xl border border-line bg-surface">
       <div className="flex items-start gap-3 px-4 py-3">
@@ -267,7 +274,12 @@ function GuideExercise({
               {ex.prescription}
             </span>
           )}
-          <MuscleChips muscles={ex.targetMuscles} highlight={highlight} max={2} />
+          <MuscleChips
+            muscles={ex.targetMuscles}
+            highlight={highlight}
+            max={2}
+            onPick={info ? (m, e) => info({ kind: 'muscle', name: m }, e) : undefined}
+          />
           <ExerciseBadges
             bodyParts={[]}
             intensity={ex.intensity}

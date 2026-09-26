@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useTransition } from 'react';
+import { useState, useTransition, type MouseEvent } from 'react';
 import Link from 'next/link';
 import { Info, Scan } from 'lucide-react';
 import { LibraryVideo } from '@/components/library-video';
@@ -39,6 +39,7 @@ export type ArmcareExerciseView = {
 export function ExerciseMedia({
   exercise,
   muscleHref,
+  onMuscle,
 }: {
   exercise: ArmcareExerciseView;
   /**
@@ -46,6 +47,11 @@ export function ExerciseMedia({
    * 부위별 보강에서는 지도가 바로 위에 있다.
    */
   muscleHref?: string;
+  /**
+   * '근육 위치'를 그 자리 창으로 — 주면 muscleHref 로 옮겨 가지 않고 이것을 부른다
+   * (3D 그림과 설명 창, armcare-info.tsx). 2026-09-26 사용자분: 간편하게.
+   */
+  onMuscle?: (e: MouseEvent<HTMLButtonElement>) => void;
 }) {
   const [open, setOpen] = useState(false);
   const [description, setDescription] = useState<string | null>();
@@ -74,15 +80,27 @@ export function ExerciseMedia({
           <Info aria-hidden className="h-3.5 w-3.5" />
           {open ? '접기' : '자세·영상 보기'}
         </button>
-        {muscleHref && (
-          <Link
-            href={muscleHref}
+        {onMuscle ? (
+          <button
+            type="button"
+            onClick={onMuscle}
             aria-label={`${exercise.title} 근육 위치 보기`}
             className="flex flex-1 items-center justify-center gap-1.5 border-l border-line/70 py-2.5 text-xs font-semibold text-muted transition-colors hover:text-sky"
           >
             <Scan aria-hidden className="h-3.5 w-3.5" />
             근육 위치
-          </Link>
+          </button>
+        ) : (
+          muscleHref && (
+            <Link
+              href={muscleHref}
+              aria-label={`${exercise.title} 근육 위치 보기`}
+              className="flex flex-1 items-center justify-center gap-1.5 border-l border-line/70 py-2.5 text-xs font-semibold text-muted transition-colors hover:text-sky"
+            >
+              <Scan aria-hidden className="h-3.5 w-3.5" />
+              근육 위치
+            </Link>
+          )
         )}
       </div>
       {open && (

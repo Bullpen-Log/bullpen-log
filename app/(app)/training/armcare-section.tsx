@@ -18,6 +18,7 @@ import { Card } from '@/components/ui';
 import { OpenCheckinButton } from '@/components/notice-bell';
 import { ArmcareToday, WeekDots, type ArmcareTodayItem } from './armcare-today';
 import { ArmcareGuide } from './armcare-guide';
+import { ArmcareInfoProvider } from './armcare-info';
 import { MyRoutines, type MyRoutineView } from './my-routines';
 import type { ArmcareTab } from './armcare-tabs';
 import { toArmcareViews } from './armcare-views';
@@ -215,20 +216,23 @@ export async function ArmcareSection({
     })
   );
 
+  /* 운동의 근육 칩을 누르면 뜨는 3D 그림·설명 창(armcare-info.tsx) — 던지는 팔로 */
   return (
-    <div className="space-y-10">
-      <section className="space-y-3">
-        <SectionHead title="맞춤 루틴" desc="몸 상태에 맞춰 앱이 짜 줘요" />
-        {custom}
-      </section>
+    <ArmcareInfoProvider side={throwingSide(user.throwingHand)}>
+      <div className="space-y-10">
+        <section className="space-y-3">
+          <SectionHead title="맞춤 루틴" desc="몸 상태에 맞춰 앱이 짜 줘요" />
+          {custom}
+        </section>
 
-      <section className="space-y-3">
-        <SectionHead title="내 루틴" desc="내가 골라 둔 운동 · 언제든" />
-        <MyRoutines routines={routines} painToday={data.decision.kind === 'rest'} />
-      </section>
+        <section className="space-y-3">
+          <SectionHead title="내 루틴" desc="내가 골라 둔 운동 · 언제든" />
+          <MyRoutines routines={routines} painToday={data.decision.kind === 'rest'} />
+        </section>
 
-      <WeekDots week={data.week} />
-    </div>
+        <WeekDots week={data.week} />
+      </div>
+    </ArmcareInfoProvider>
   );
 }
 

@@ -15,6 +15,8 @@ import {
 } from '@/lib/armcare/my-routines';
 import { toArmcareViews } from '../../armcare-views';
 import { RoutineBuilder, type BuilderExercise } from './routine-builder';
+import { ArmcareInfoProvider } from '../../armcare-info';
+import { throwingSide } from '@/lib/armcare/muscle-map';
 
 /**
  * 내 루틴 만들기 · 고치기 — /training/routine/new, /training/routine/<id>.
@@ -95,14 +97,17 @@ export default async function RoutinePage({
         </p>
       </div>
 
-      <RoutineBuilder
-        id={routine?.id ?? null}
-        initialName={routine?.name ?? ''}
-        initialItems={initialItems}
-        exercises={exercises}
-        full={isNew && mine.length >= MY_ROUTINE_MAX}
-        droppedHidden={routine ? routine.items.length - initialItems.length : 0}
-      />
+      {/* 근육 칩을 누르면 그 근육의 3D 그림·설명 창(armcare-info.tsx) */}
+      <ArmcareInfoProvider side={throwingSide(user.throwingHand)}>
+        <RoutineBuilder
+          id={routine?.id ?? null}
+          initialName={routine?.name ?? ''}
+          initialItems={initialItems}
+          exercises={exercises}
+          full={isNew && mine.length >= MY_ROUTINE_MAX}
+          droppedHidden={routine ? routine.items.length - initialItems.length : 0}
+        />
+      </ArmcareInfoProvider>
     </div>
   );
 }

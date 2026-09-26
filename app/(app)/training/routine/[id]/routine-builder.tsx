@@ -28,6 +28,7 @@ import {
 } from '@/lib/armcare/my-routines';
 import { deleteMyArmcareRoutine, saveMyArmcareRoutine } from '@/app/actions/armcare';
 import { ExerciseMedia, type ArmcareExerciseView } from '../../armcare-media';
+import { useArmcareInfo } from '../../armcare-info';
 
 /** 고르는 목록의 운동 하나 — 서버(page.tsx)가 만들어 넘긴다 */
 export type BuilderExercise = {
@@ -76,6 +77,8 @@ export function RoutineBuilder({
   const [query, setQuery] = useState('');
   const [error, setError] = useState<string>();
   const [saving, startSaving] = useTransition();
+  /* 근육 칩을 누르면 그 근육의 3D 그림·설명 창(armcare-info.tsx) */
+  const info = useArmcareInfo();
 
   const byId = useMemo(
     () => new Map(exercises.map((e) => [e.view.id, e])),
@@ -353,7 +356,15 @@ export function RoutineBuilder({
                           {e.view.prescription}
                         </span>
                       )}
-                      <MuscleChips muscles={e.view.targetMuscles} max={2} />
+                      <MuscleChips
+                        muscles={e.view.targetMuscles}
+                        max={2}
+                        onPick={
+                          info
+                            ? (m, ev) => info({ kind: 'muscle', name: m }, ev)
+                            : undefined
+                        }
+                      />
                       <ExerciseBadges
                         bodyParts={[]}
                         intensity={e.view.intensity}

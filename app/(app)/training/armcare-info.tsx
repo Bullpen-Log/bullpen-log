@@ -5,6 +5,7 @@ import {
   useCallback,
   useContext,
   useEffect,
+  useMemo,
   useRef,
   useState,
   type MouseEvent,
@@ -22,6 +23,7 @@ import {
 } from '@/lib/armcare/anatomy';
 import { AREA_DETAILS, MUSCLE_DETAILS } from '@/lib/armcare/details';
 import { MUSCLE_MODEL } from '@/lib/armcare/muscle-map';
+import { MuscleMap3D, type MapSelection, type MapStatus } from './muscle-map-3d';
 
 /** 무엇을 자세히 볼까 — 부위 하나, 또는 근육 하나(3D 에서 누른 조각이 있으면 그것도) */
 export type InfoTarget =
@@ -41,8 +43,21 @@ const InfoContext = createContext<Show | null>(null);
  *
  * 창은 하나만 둔다. 부위 창의 근육을 누르면 같은 창이 그 근육으로 바뀌고, 근육 창의
  * '‹ 부위'로 돌아온다 — 창 위에 창을 겹치지 않는다.
+ *
+ * 창 맨 위에는 3D 그림이 선다 — 그 근육(부위)만 하늘색으로 켜진다. 운동마다 붙은 근육
+ * 칩을 누르면 이 창이 뜬다(components/muscle-chips.tsx 의 onPick). 2026-09-26 사용자분:
+ * "불펜로그의 가장 큰 장점은 간편함 — 운동마다 근육이 글로만 적혀 있는데, 누르면 그
+ * 부위의 그래픽이 보이게". 그래서 부위별 보강 화면으로 옮겨 가지 않고 그 자리에서 뜬다.
+ * 3D 는 창이 떠 있는 동안만 만든다 — 닫으면 치운다(muscle-map-3d.tsx 의 release).
  */
-export function ArmcareInfoProvider({ children }: { children: ReactNode }) {
+export function ArmcareInfoProvider({
+  side = 'right',
+  children,
+}: {
+  /** 던지는 팔 — 3D 에서 켤 팔. 양투는 오른팔로 연다 */
+  side?: 'right' | 'left';
+  children: ReactNode;
+}) {
   const [view, setView] = useState<InfoTarget | null>(null);
   const [origin, setOrigin] = useState<{ x: number; y: number } | null>(null);
 
@@ -65,6 +80,20 @@ export function ArmcareInfoProvider({ children }: { children: ReactNode }) {
         description={head.description}
         origin={origin}
       >
+        {/* 3D 는 부위 ↔ 근육으로 바뀌어도 그대로 두고 켜진 것만 바꾼다 — 다시 만들지 않게 */}
+        {view && (
+          <InfoGraphic
+            view={view}
+            side={side}
+            onPick={(next) => {
+              if (next.muscle) {
+                setView({ kind: 'muscle', name: next.muscle, part: next.part });
+              } else if (next.area) {
+                setView({ kind: 'area', key: next.area });
+              }
+            }}
+          />
+        )}
         {view?.kind === 'area' && (
           <AreaInfo
             key={`area-${view.key}`}
@@ -83,6 +112,16 @@ export function ArmcareInfoProvider({ children }: { children: ReactNode }) {
       </Modal>
     </InfoContext.Provider>
   );
+}
+
+/**
+ * 자세히 보기 창을 여는 함수 — ArmcareInfoProvider 밖이면 null.
+ *
+ * 근육 칩이 쓴다: 창이 있는 화면(암케어)에서만 칩을 누를 수 있게 하고, 없는
+ * 화면(라이브러리)에서는 글자 칩으로 둔다.
+ */
+export function useArmcareInfo() {
+  return useContext(InfoContext);
 }
 
 /** 누르면 자세히 보기 창을 여는 단추 — ArmcareInfoProvider 안에서만 쓴다 */
@@ -123,6 +162,41 @@ function headingOf(view: InfoTarget): { title: string; description?: string } {
     title: view.name,
     description: area && info ? `${area.label} · ${info.does}` : undefined,
   };
+}
+
+/**
+ * 창 맨 위의 3D 그림 — 고른 근육(부위)만 켠다. 그림 속 다른 근육을 누르면 그 근육으로
+ * 창이 바뀐다. 3D 를 못 그리는 기기에서는 자리만 접는다.
+ */
+function InfoGraphic({
+  view,
+  side,
+  onPick,
+}: {
+  view: InfoTarget;
+  side: 'right' | 'left';
+  onPick: (next: MapSelection) => void;
+}) {
+  const [status, setStatus] = useState<MapStatus>('loading');
+  const area = view.kind === 'area' ? view.key : (areaOfMuscle(view.name)?.key ?? null);
+  const muscle = view.kind === 'muscle' ? view.name : null;
+  const part = view.kind === 'muscle' ? (view.part ?? null) : null;
+  const selection = useMemo<MapSelection>(
+    () => ({ area, muscle, part }),
+    [area, muscle, part]
+  );
+  if (status === 'unavailable') return null;
+  return (
+    <div className="mb-5 h-[min(36vh,280px)] min-h-[220px] overflow-hidden rounded-2xl border border-line bg-gradient-to-b from-surface to-surface-2">
+      <MuscleMap3D
+        side={side}
+        selection={selection}
+        counts={null}
+        onPick={onPick}
+        onStatus={setStatus}
+      />
+    </div>
+  );
 }
 
 /* 창 안에서 부위 ↔ 근육으로 바꾸면 맨 위부터 보이게 — 굴러가는 곳은 창의 본문이다 */

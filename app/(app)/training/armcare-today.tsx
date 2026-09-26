@@ -10,6 +10,7 @@ import { findArmcareArea, type ArmcareAreaKey } from '@/lib/armcare/anatomy';
 import { ARMCARE_KIND_TEXT, type ArmcareKind } from '@/lib/armcare/routine';
 import { MuscleChips } from '@/components/muscle-chips';
 import { ExerciseMedia, type ArmcareExerciseView } from './armcare-media';
+import { useArmcareInfo } from './armcare-info';
 
 export type ArmcareTodayItem = {
   area: ArmcareAreaKey;
@@ -232,6 +233,8 @@ export function Checklist({
   const [items, setItems] = useState(initial);
   const [error, setError] = useState<string>();
   const [, startTransition] = useTransition();
+  /* 근육 칩 · 근육 위치를 누르면 그 근육의 3D 그림과 설명 창(armcare-info.tsx) */
+  const info = useArmcareInfo();
 
   /* 부모가 새 목록을 주면(다시 만들기) 그것을 따른다 */
   const [seen, setSeen] = useState(initial);
@@ -333,17 +336,25 @@ export function Checklist({
                     done ? 'border-sky bg-sky-tint' : 'border-line bg-surface'
                   }`}
                 >
-                  <button
-                    type="button"
-                    onClick={() => toggle(ex.id)}
-                    aria-pressed={done}
-                    className={`flex w-full items-start gap-3 px-4 py-4 text-left transition-colors ${
-                      done ? '' : 'hover:bg-surface-2'
-                    }`}
-                  >
+                  {/*
+                    줄 어디를 눌러도 체크된다 — 체크 단추를 줄 전체에 깔고(absolute) 글과
+                    사진은 누름을 그 단추로 흘려보낸다(pointer-events-none). 근육 칩만 따로
+                    눌려 그 근육의 3D 그림을 띄운다(2026-09-26 사용자분). 단추 안에 단추를
+                    넣을 수는 없어서 이렇게 겹쳐 둔다.
+                  */}
+                  <div className="relative flex items-start gap-3 px-4 py-4">
+                    <button
+                      type="button"
+                      onClick={() => toggle(ex.id)}
+                      aria-pressed={done}
+                      aria-label={`${ex.title} ${done ? '체크 풀기' : '체크'}`}
+                      className={`absolute inset-0 transition-colors ${
+                        done ? '' : 'hover:bg-surface-2'
+                      }`}
+                    />
                     <span
                       aria-hidden
-                      className={`mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full border-2 transition-colors ${
+                      className={`pointer-events-none relative mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full border-2 transition-colors ${
                         done ? 'border-sky bg-sky text-white' : 'border-line-strong'
                       }`}
                     >
@@ -351,7 +362,7 @@ export function Checklist({
                         <Check className="finish-pop h-3.5 w-3.5" strokeWidth={3} />
                       )}
                     </span>
-                    <span className="min-w-0 flex-1 space-y-1.5">
+                    <span className="pointer-events-none relative min-w-0 flex-1 space-y-1.5">
                       <span className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
                         <span
                           className={`text-[15px] font-bold tracking-[-0.01em] break-keep ${
@@ -375,7 +386,17 @@ export function Checklist({
                           {ex.prescription}
                         </span>
                       )}
-                      <MuscleChips muscles={ex.targetMuscles} max={2} />
+                      <span className="block [&_button]:pointer-events-auto">
+                        <MuscleChips
+                          muscles={ex.targetMuscles}
+                          max={2}
+                          onPick={
+                            info
+                              ? (m, e) => info({ kind: 'muscle', name: m }, e)
+                              : undefined
+                          }
+                        />
+                      </span>
                       <ExerciseBadges
                         bodyParts={[]}
                         intensity={ex.intensity}
@@ -397,15 +418,20 @@ export function Checklist({
                       <img
                         src={ex.thumbUrl}
                         alt=""
-                        className="h-14 w-20 shrink-0 rounded-xl object-cover ring-1 ring-line sm:h-16 sm:w-24"
+                        className="pointer-events-none relative h-14 w-20 shrink-0 rounded-xl object-cover ring-1 ring-line sm:h-16 sm:w-24"
                       />
                     )}
-                  </button>
+                  </div>
                   <ExerciseMedia
                     exercise={ex}
                     muscleHref={
                       ex.targetMuscles[0]
                         ? `/training?view=armcare&tab=guide&muscle=${encodeURIComponent(ex.targetMuscles[0])}`
+                        : undefined
+                    }
+                    onMuscle={
+                      info && ex.targetMuscles[0]
+                        ? (e) => info({ kind: 'muscle', name: ex.targetMuscles[0] }, e)
                         : undefined
                     }
                   />
