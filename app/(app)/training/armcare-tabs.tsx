@@ -5,7 +5,11 @@ import { useRouter } from 'next/navigation';
 import { Segmented } from '@/components/segmented';
 
 /**
- * 암케어 안의 세 칸 — [루틴 | 부위별 보강 | 훈련 방식].
+ * 암케어 안의 두 칸 — [루틴 | 부위별 보강].
+ *
+ * '훈련 방식' 칸도 있었는데 2026-09-26 사용자분이 없앴다 — 방식 설명은 그 방식을 쓰는
+ * 운동의 '자세·영상 보기' 안에 붙인다(armcare-media.tsx 의 MethodNote). 예전 주소
+ * ?tab=methods 는 루틴 칸으로 연다(page.tsx).
  *
  * 첫 칸은 2026-09-26 '오늘의 암케어'에서 '루틴'으로 바꿨다. 앱이 짜 주는 맞춤 루틴과
  * 내가 골라 만든 내 루틴이 함께 선다.
@@ -17,7 +21,6 @@ import { Segmented } from '@/components/segmented';
 const TABS = [
   { value: 'today', label: '루틴', href: '/training?view=armcare' },
   { value: 'guide', label: '부위별 보강', href: '/training?view=armcare&tab=guide' },
-  { value: 'methods', label: '훈련 방식', href: '/training?view=armcare&tab=methods' },
 ] as const;
 
 export type ArmcareTab = (typeof TABS)[number]['value'];

@@ -3,12 +3,13 @@ import { createPlaybackUrls } from '@/lib/storage';
 import { referenceThumbUrl } from '@/lib/reference-video';
 import { formatPrescription } from '@/lib/exercise-meta';
 import type { CachedExercise } from '@/lib/library-cache';
+import { methodOf } from '@/lib/armcare/methods';
 import type { ArmcareExerciseView } from './armcare-media';
 
 /**
  * 라이브러리 줄을 암케어 화면에 그릴 모양으로.
  *
- * 맞춤 루틴 · 내 루틴 · 부위별 보강 · 훈련 방식 · 내 루틴 만들기가 모두 쓴다.
+ * 맞춤 루틴 · 내 루틴 · 부위별 보강 · 내 루틴 만들기 · 루틴 따라하기가 모두 쓴다.
  *
  * 미리보기는 한 번에 몰아서 받는다(lib/storage.ts 가 잠시 돌려 쓴다). 참고 영상은
  * 유튜브 미리보기를 그대로 쓴다 — 우리 저장소에 담긴 것이 없어 받을 주소도 없다.
@@ -39,5 +40,6 @@ export async function toArmcareViews(
     referenceVideoId: ex.referenceVideoId,
     aspectRatio: ex.aspectRatio,
     isReference: ex.source === 'REFERENCE',
+    method: methodOf(ex.title)?.key ?? null,
   }));
 }

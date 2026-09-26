@@ -82,7 +82,6 @@ const RETURN_TO = [
    */
   '/training?view=armcare',
   '/training?view=armcare&tab=guide',
-  '/training?view=armcare&tab=methods',
   /*
    * 설정이 창으로도 열리면서, 저장한 뒤 돌아갈 곳이 '설정 화면'이 아니라
    * '그때 보고 있던 화면'이 됐다. 창은 어느 화면 위에서나 열리므로 그 화면들을

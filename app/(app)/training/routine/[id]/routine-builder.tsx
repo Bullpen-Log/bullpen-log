@@ -16,7 +16,7 @@ import { ExerciseBadges } from '@/components/meta-badges';
 import { MuscleChips } from '@/components/muscle-chips';
 import { ConfirmDelete } from '@/components/confirm-delete';
 import { ARMCARE_AREAS, type ArmcareAreaKey } from '@/lib/armcare/anatomy';
-import { ARMCARE_METHODS, type ArmcareMethodKey } from '@/lib/armcare/methods';
+import { methodByKey } from '@/lib/armcare/methods';
 import {
   MY_ROUTINE_MAX,
   MY_ROUTINE_MAX_ITEMS,
@@ -36,7 +36,6 @@ export type BuilderExercise = {
   defaultSets: number;
   /** 주로 키우는 부위 — 고르는 목록을 부위로 거를 때 */
   area: ArmcareAreaKey | null;
-  method: ArmcareMethodKey;
   /** 1~5세트를 할 때 걸리는 분 (lib/armcare/routine.ts 의 armcareMinutes) */
   minutes: number[];
   /** 세트를 뺀 처방 — '10회 (좌우 각각) · 세트 사이 45초 휴식' */
@@ -328,7 +327,6 @@ export function RoutineBuilder({
           <ul className="space-y-2">
             {shown.map((e) => {
               const inside = picked.has(e.view.id);
-              const method = ARMCARE_METHODS.find((m) => m.key === e.method)!;
               return (
                 <li
                   key={e.view.id}
@@ -342,9 +340,9 @@ export function RoutineBuilder({
                         <span className="text-sm font-bold break-keep text-ink">
                           {e.view.title}
                         </span>
-                        {e.method !== 'basic' && (
+                        {e.view.method && (
                           <span className="text-[10px] font-semibold text-sky-strong">
-                            {method.label}
+                            {methodByKey(e.view.method).label}
                           </span>
                         )}
                       </span>
@@ -353,6 +351,7 @@ export function RoutineBuilder({
                           {e.view.prescription}
                         </span>
                       )}
+                      {/* 근육 칩을 누르면 그 근육의 3D 그림·설명 창(armcare-info.tsx) */}
                       <MuscleChips muscles={e.view.targetMuscles} max={2} />
                       <ExerciseBadges
                         bodyParts={[]}

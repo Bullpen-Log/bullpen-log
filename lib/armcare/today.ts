@@ -4,9 +4,14 @@ import { shiftDateKey, toDateKey } from '@/lib/pitch-stats';
 import { gatherFactsAndPlan } from '@/lib/report/gather';
 import { filterByEquipment } from '@/lib/report/equipment';
 import { filterByLevel } from '@/lib/report/personalize';
-import { visibleExercises } from '@/lib/library-cache';
+import { visibleExercises, type CachedExercise } from '@/lib/library-cache';
 import { ARMCARE_CATEGORY } from '@/lib/armcare/anatomy';
-import { decideArmcare, readArmcareRoutine } from '@/lib/armcare/routine';
+import {
+  armcareBlock,
+  bodyStateBlock,
+  decideArmcare,
+  readArmcareRoutine,
+} from '@/lib/armcare/routine';
 
 /**
  * 오늘의 암케어 화면과 '만들기'가 함께 읽는 자료.
@@ -113,4 +118,30 @@ export async function loadArmcareToday(user: UserForArmcare, today: Date) {
     doneToday,
     week,
   };
+}
+
+export type ArmcareTodayData = Awaited<ReturnType<typeof loadArmcareToday>>;
+
+/**
+ * 지금 몸 상태로 보면 권하지 않는 운동인가 — 루틴 목록(app/(app)/training/armcare-section.tsx)
+ * 과 따라하기(app/(session)/armcare/play)가 같은 규칙을 쓴다. 예전에는 목록에만 있어서,
+ * 목록에는 '권하지 않는 운동'이 붙는데 따라하기는 말없이 그 운동을 시켰다(2026-09-26 검토).
+ *
+ * 체크인이 없으면 몸 상태를 모르니 표시하지 않는다. 통증인 날은 운동마다 달지 않고
+ * 위에 한 번 알린다.
+ *   맞춤 루틴  만들 때와 같은 규칙(armcareBlock) — 만든 뒤 몸 상태가 바뀐 것을 잡는다
+ *   내 루틴    몸 상태 몫만(bodyStateBlock) — 팔 근력 운동도 보고, 맞춤 루틴의 강도
+ *              한도('높음'을 안 넣는 것)는 몸 상태가 아니라 보지 않는다
+ */
+export function notAdvised(
+  data: ArmcareTodayData,
+  ex: CachedExercise,
+  forMine: boolean
+): boolean {
+  if (!data.hasCheckinToday || data.decision.kind === 'rest') return false;
+  const candidate = { ...ex, targetMuscles: ex.targetMuscles ?? [] };
+  const today = data.facts.condition.today;
+  return forMine
+    ? bodyStateBlock(candidate, data.decision.kind, today) != null
+    : armcareBlock(candidate, data.decision.kind, today) != null;
 }

@@ -1,8 +1,15 @@
 /**
- * 암케어 3D 근육 지도에 쓰는 모델을 만든다 — 전신 근육 모델에서 상체만 남기고 가볍게.
+ * 3D 근육 모델을 만든다 — 전신 근육 모델에서 가볍게.
  *
  *   node scripts/build-arm-model.mjs <원본 full-body-male-mobile.glb 경로>
- *     → public/models/armcare-upper.glb, public/models/ATTRIBUTION.txt
+ *     → public/models/armcare-upper.glb  (암케어 3D 근육 지도 — 상체만)
+ *   node scripts/build-arm-model.mjs <원본 경로> --full
+ *     → public/models/body-full.glb      (운동의 부위 태그를 누르면 뜨는 전신 그림)
+ *   둘 다 public/models/ATTRIBUTION.txt 를 다시 쓴다(두 파일을 함께 적는다).
+ *
+ * 전신 모델은 2026-09-26 사용자분이 "암케어 말고 다른 운동 영상에도" 근육 그림을 붙여 달라고
+ * 해서 더했다. 원본은 같은 파일이라 새로 받지 않았다. 전신은 아래 1·2 를 하지 않는다 —
+ * 다리까지 모든 근육을 남긴다.
  *
  * 원본은 Fit Mit With 해부 모델(Z-Anatomy / BodyParts3D, CC BY-SA 4.0)이다 —
  * https://github.com/slfresh/fitmitwith-anatomy-atlas 의 models/full-body-male-mobile.glb
@@ -42,10 +49,13 @@ const UPPER = new Set([
 /** 근육이 아닌 것 중 남기는 것 (원본 이름 앞부분) */
 const SUPPORT = ['skeleton', 'head_hands_feet'];
 
-const src = process.argv[2];
+const args = process.argv.slice(2);
+/** 전신 — 다리까지 모든 근육을 남기고 자르지 않는다 */
+const FULL = args.includes('--full');
+const src = args.find((a) => !a.startsWith('--'));
 if (!src) {
   console.log(
-    '사용법: node scripts/build-arm-model.mjs <full-body-male-mobile.glb 경로>'
+    '사용법: node scripts/build-arm-model.mjs <full-body-male-mobile.glb 경로> [--full]'
   );
   process.exit(1);
 }
@@ -115,7 +125,8 @@ const bandFrom = forearmR.max[0] + 0.015;
 const bandTo = forearmL.min[0] - 0.015;
 const floorY = Math.min(forearmR.min[1], forearmL.min[1]) - 0.3;
 
-const cut = (x, y) => y < floorY || (y < waistY && x > bandFrom && x < bandTo);
+const cut = (x, y) =>
+  !FULL && (y < floorY || (y < waistY && x > bandFrom && x < bandTo));
 
 /* ── 남길 것 고르고 다듬기 ──────────────────────────────────────────── */
 const kept = [];
@@ -123,7 +134,7 @@ let droppedTris = 0;
 for (const n of nodes) {
   const isMuscle = n.extras?.muscleId != null;
   const keep = isMuscle
-    ? UPPER.has(n.extras.region)
+    ? FULL || UPPER.has(n.extras.region)
     : SUPPORT.some((s) => n.name.startsWith(s));
   if (!keep) continue;
 
@@ -237,7 +248,10 @@ const out = {
   extensionsRequired: ['KHR_mesh_quantization'],
   scene: 0,
   scenes: [
-    { name: 'Bullpen Log armcare upper body', nodes: outNodes.map((_, i) => i) },
+    {
+      name: FULL ? 'Bullpen Log full body' : 'Bullpen Log armcare upper body',
+      nodes: outNodes.map((_, i) => i),
+    },
   ],
   nodes: outNodes,
   meshes,
@@ -263,16 +277,16 @@ const glb = Buffer.concat([header, jsonHead, json, binHead, binChunk]);
 
 const dir = new URL('../public/models/', import.meta.url);
 mkdirSync(dir, { recursive: true });
-writeFileSync(new URL('armcare-upper.glb', dir), glb);
+writeFileSync(new URL(FULL ? 'body-full.glb' : 'armcare-upper.glb', dir), glb);
 
 writeFileSync(
   new URL('ATTRIBUTION.txt', dir),
-  `BULLPEN LOG — 3D MUSCLE MAP MODEL (armcare-upper.glb)
+  `BULLPEN LOG — 3D MUSCLE MAP MODELS (armcare-upper.glb, body-full.glb)
 
-This model file is Adapted Material licensed under the Creative Commons
+These model files are Adapted Material licensed under the Creative Commons
 Attribution-ShareAlike 4.0 International license:
 https://creativecommons.org/licenses/by-sa/4.0/
-Only this model file is CC BY-SA; the rest of Bullpen Log is licensed separately.
+Only these model files are CC BY-SA; the rest of Bullpen Log is licensed separately.
 
 CREDITS (wording requested by the licensors)
 
@@ -296,10 +310,17 @@ SOURCE
 
 CHANGES MADE (scripts/build-arm-model.mjs)
 
+  armcare-upper.glb
   - Kept only the upper-body muscles (shoulder, arms, forearms, back, chest,
     neck, core), the skeleton and the head/hands context mesh. Removed leg
     muscles and connective tissue.
   - Removed triangles below elbow height inside the torso band (pelvis, legs).
+
+  body-full.glb (--full)
+  - Kept all muscles, the skeleton and the head/hands/feet context mesh.
+    Removed connective tissue. Nothing is cut away.
+
+  Both
   - Removed unused vertices, quantized normals to 8-bit (KHR_mesh_quantization)
     and removed materials. Muscle IDs and labels (glTF node extras) are kept.
   - The geometry has not been reviewed by an anatomy specialist.

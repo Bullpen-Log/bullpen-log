@@ -1,4 +1,7 @@
+'use client';
+
 import { Dumbbell, Flame, Target } from 'lucide-react';
+import { isBodyPart, useBodyParts } from '@/components/body-parts-context';
 
 /**
  * 운동 한 줄에 붙는 부가 정보.
@@ -43,8 +46,18 @@ export function ExerciseBadges({
   difficulty: string | null;
   equipment: string[];
 }) {
+  /*
+   * 부위는 누를 수 있다 — 누르면 전신 3D 에서 그 부위가 켜진다(components/body-parts.tsx,
+   * 2026-09-26 사용자분). 부위 창이 있는 화면에서만 칩으로 그리고, 없으면 예전처럼 흐린 글자.
+   */
+  const open = useBodyParts();
+  const tappable = open ? bodyParts.filter(isBodyPart) : [];
   // 난이도 · 부위 · 장비를 한 줄로 잇는다. 빈 값은 가운뎃점이 겹치지 않게 걸러낸다.
-  const rest = [difficulty, ...bodyParts, ...equipment].filter(Boolean);
+  const rest = [
+    difficulty,
+    ...bodyParts.filter((p) => !open || !isBodyPart(p)),
+    ...equipment,
+  ].filter(Boolean);
 
   return (
     <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
@@ -55,6 +68,22 @@ export function ExerciseBadges({
         <Flame aria-hidden className="h-3 w-3" />
         강도 {intensity}
       </span>
+
+      {open &&
+        tappable.map((part) => (
+          <button
+            key={part}
+            type="button"
+            onClick={(e) => open(bodyParts, part, e)}
+            aria-label={`${part} — 3D 로 보기`}
+            className="inline-flex min-h-6 items-center gap-0.5 rounded-full bg-surface-2 px-2 py-0.5 text-[11px] font-medium text-ink/80 ring-sky transition-shadow hover:ring-1"
+          >
+            {part}
+            <span aria-hidden className="opacity-60">
+              ›
+            </span>
+          </button>
+        ))}
 
       {rest.length > 0 && (
         <span className="text-[11px] leading-none text-muted">{rest.join(' · ')}</span>

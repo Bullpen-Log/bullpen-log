@@ -95,6 +95,7 @@ import {
   ARMCARE_AREAS,
   ARMCARE_CATEGORY,
   ARMCARE_MUSCLE_NAMES,
+  areaOfMuscle,
   areasOf,
   cleanTargetMuscles,
   helpsLine,
@@ -111,6 +112,9 @@ import {
   type ArmcareKind,
 } from '../lib/armcare/routine.ts';
 import { ARMCARE_METHODS, methodOf } from '../lib/armcare/methods.ts';
+import { visibleChips } from '../lib/armcare/chips.ts';
+import { AREA_DETAILS, MUSCLE_DETAILS } from '../lib/armcare/details.ts';
+import { BODY_PART_MAP } from '../lib/body-map.ts';
 import {
   MY_ROUTINE_MAX_ITEMS,
   clampRoutineSets,
@@ -3767,7 +3771,7 @@ console.log('\n[암케어] 부위·근육 · 오늘의 루틴 · 부하');
 
   /* 1-1) 훈련 방식 — 이름으로 가리고, 화면에 적은 말이 참인가 */
   const emptyMethods = ARMCARE_METHODS.filter(
-    (m) => !armcareLib.some((ex) => methodOf(ex.title).key === m.key)
+    (m) => !armcareLib.some((ex) => methodOf(ex.title)?.key === m.key)
   );
   check(
     '훈련 방식마다 운동이 하나 이상 있다',
@@ -3775,12 +3779,12 @@ console.log('\n[암케어] 부위·근육 · 오늘의 루틴 · 부하');
     emptyMethods.map((m) => m.label).join(', ')
   );
   check(
-    '방식 표시가 없는 이름은 기본 보강이다',
-    methodOf('밴드 외회전').key === 'basic' &&
-      methodOf('사이드라잉 외회전 리바운드').key === 'rebound'
+    '방식 표시가 없는 이름은 기본 보강이다 (방식 없음)',
+    methodOf('밴드 외회전') === null &&
+      methodOf('사이드라잉 외회전 리바운드')?.key === 'rebound'
   );
   const eccentricInRoutine = armcareLib
-    .filter((ex) => methodOf(ex.title).key === 'eccentric')
+    .filter((ex) => methodOf(ex.title)?.key === 'eccentric')
     .filter(
       (ex) =>
         armcareBlock(ex, 'strength', null) == null ||
@@ -3794,7 +3798,7 @@ console.log('\n[암케어] 부위·근육 · 오늘의 루틴 · 부하');
   /* 2026-09-26 사용자분 — 방식은 섞어서 하는 것이지 올라가는 단계가 아니다 */
   const stepWords = ARMCARE_METHODS.filter((m) =>
     /단계|다음 칸|한 칸|올라가|내려가/.test(
-      [m.short, m.what, m.why, m.load, m.stop, m.caution ?? ''].join(' ')
+      [m.cue, m.what, m.why, m.load, m.stop, m.caution ?? ''].join(' ')
     )
   );
   check(
@@ -3802,20 +3806,113 @@ console.log('\n[암케어] 부위·근육 · 오늘의 루틴 · 부하');
     stepWords.length === 0,
     stepWords.map((m) => m.label).join(', ')
   );
-  /* 닫힌 카드는 한 줄 요약과 부담 점만 — 글이 길어지면 다시 읽지 않고 넘긴다 */
-  const longShort = ARMCARE_METHODS.filter((m) => !m.short || m.short.length > 30);
-  check(
-    '방식마다 한 줄 요약이 있고 한 줄에 들어간다',
-    longShort.length === 0,
-    longShort.map((m) => `${m.label} ${m.short.length}자`).join(', ')
+  /*
+   * 방식 설명은 그 방식을 쓰는 운동의 '자세·영상 보기' 안에 붙는다(armcare-media.tsx 의
+   * MethodNote — 2026-09-26 사용자분이 '훈련 방식' 칸을 없애며 정했다). 제목 줄의 한마디
+   * (cue)는 숫자 없이 짧게 — 세트·횟수는 운동마다 따로 있다.
+   */
+  const badCue = ARMCARE_METHODS.filter(
+    (m) => !m.cue || m.cue.length > 20 || /\d+\s*(회|세트)/.test(m.cue)
   );
-  const burdens = ARMCARE_METHODS.map((m) => m.burden);
   check(
-    '부담 점은 1~5 이고 과부하 내리기가 가장 크다 (맞춤 루틴에서 빼는 까닭)',
-    burdens.every((b) => b >= 1 && b <= 5) &&
-      ARMCARE_METHODS.find((m) => m.key === 'eccentric')?.burden ===
-        Math.max(...burdens),
-    burdens.join(',')
+    '방식마다 한마디(cue)가 있고, 짧고, 세트·횟수를 적지 않는다',
+    badCue.length === 0,
+    badCue.map((m) => `${m.label} '${m.cue}'`).join(', ')
+  );
+  const thinMethods = ARMCARE_METHODS.filter(
+    (m) => ![m.what, m.why, m.load, m.stop].every((s) => s.trim().length > 0)
+  );
+  check(
+    '훈련 방식마다 하는 법·왜·무게·멈출 때가 다 있다',
+    thinMethods.length === 0,
+    thinMethods.map((m) => m.label).join(', ')
+  );
+  check(
+    '방식 설명은 방식이 붙은 운동에만 — 기본 보강은 붙지 않는다',
+    methodOf('튜빙 외회전 0도') === null &&
+      methodOf('사이드라잉 외회전 리바운드')?.key === 'rebound' &&
+      armcareLib.some((ex) => methodOf(ex.title) != null)
+  );
+  /*
+   * 방식 글은 설명이 붙는 넷만 둔다 — 기본 보강의 글은 어디에도 나오지 않아 지웠다
+   * (2026-09-26 검토). 이름 표시(titleMarker)가 서로 겹치면 한 운동이 두 방식이 된다.
+   */
+  const markers = ARMCARE_METHODS.map((m) => m.titleMarker);
+  const overlapping = markers.filter((a, i) =>
+    markers.some((b, j) => i !== j && (a.includes(b) || b.includes(a)))
+  );
+  check(
+    '방식마다 이름 표시가 있고 서로 겹치지 않는다',
+    markers.every((m) => m.trim().length > 0) && overlapping.length === 0,
+    overlapping.join(', ')
+  );
+
+  /*
+   * 1-1-0) 부위 카드의 운동 줄 — 근육 칩은 둘만 보이는데(max 2), 그 운동이 이 부위 카드에
+   * 든 까닭인 근육이 '+N' 뒤로 숨으면 안 된다(2026-09-26 검토: 89개 중 31개가 그랬다).
+   * app/(app)/training/armcare-guide.tsx 의 exercisesFor · GuideExercise 와 같은 셈.
+   */
+  const hiddenReason: string[] = [];
+  for (const area of ARMCARE_AREAS) {
+    const own = ARMCARE_MUSCLE_NAMES.filter((m) => areaOfMuscle(m)?.key === area.key);
+    for (const ex of armcareLib) {
+      if (!ex.targetMuscles.some((m) => areaOfMuscle(m)?.key === area.key)) continue;
+      const shown = visibleChips(ex.targetMuscles, own, 2);
+      if (!shown.some((m) => own.includes(m))) hiddenReason.push(`${area.label}: ${ex.title}`);
+    }
+  }
+  check(
+    '부위 카드의 운동 줄에 그 부위 근육 칩이 하나는 보인다',
+    hiddenReason.length === 0,
+    hiddenReason.slice(0, 5).join(', ')
+  );
+  check(
+    '근육 칩은 자를 때도 원래 차례(크게 쓰는 차례)를 지킨다',
+    visibleChips(['a', 'b', 'c'], ['c'], 2).join() === 'a,c' &&
+      visibleChips(['a', 'b'], undefined, 2).join() === 'a,b' &&
+      visibleChips(['a', 'b', 'c'], undefined, 2).join() === 'a,b'
+  );
+
+  /* 1-1-1) 자세히 보기 — 부위·근육마다 창에 나갈 글이 있다(lib/armcare/details.ts) */
+  const thinAreas = ARMCARE_AREAS.filter((a) => {
+    const d = AREA_DETAILS[a.key];
+    return !d || !d.role || !d.why || !d.train || d.signs.length === 0;
+  });
+  check(
+    '부위마다 자세히 보기 글이 있다 (하는 일 · 왜 · 신호 · 키우는 법)',
+    thinAreas.length === 0,
+    thinAreas.map((a) => a.label).join(', ')
+  );
+  const thinMuscles = ARMCARE_MUSCLE_NAMES.filter((name) => {
+    const d = (
+      MUSCLE_DETAILS as Record<
+        string,
+        (typeof MUSCLE_DETAILS)[keyof typeof MUSCLE_DETAILS]
+      >
+    )[name];
+    return !d || !d.what || !d.pitching || !d.why || !d.train;
+  });
+  check(
+    '근육마다 자세히 보기 글이 있다 (어떤 근육 · 던질 때 · 왜 · 키우는 법)',
+    thinMuscles.length === 0,
+    thinMuscles.join(', ')
+  );
+  /* 부상을 막는다고 약속하지 않는다 — anatomy.ts 의 규칙('예방에 도움'까지만) */
+  const promise = /(부상|손상|통증)을 (막|예방)|예방합니다|예방해 줍니다|예방할 수 있/;
+  const promising = [
+    ...Object.entries(AREA_DETAILS).map(([k, d]) => [
+      k,
+      [d.role, d.why, d.train, ...d.signs].join(' '),
+    ]),
+    ...Object.entries(MUSCLE_DETAILS).map(([k, d]) => [
+      k,
+      [d.what, d.pitching, d.why, d.train].join(' '),
+    ]),
+  ].filter(([, text]) => promise.test(text));
+  check(
+    '자세히 보기 글이 부상을 막는다고 약속하지 않는다',
+    promising.length === 0,
+    promising.map(([k]) => k).join(', ')
   );
   /* 부위 색 — 부위 단추·카드·근육 칩의 점이 같은 색으로 부위를 가린다 */
   const areaColors = ARMCARE_AREAS.map((a) => a.color);
@@ -3911,6 +4008,47 @@ console.log('\n[암케어] 부위·근육 · 오늘의 루틴 · 부하');
   check(
     '부위마다 카메라가 갈 방향이 있다',
     ARMCARE_AREAS.every((a) => AREA_VIEW[a.key] != null)
+  );
+
+  /*
+   * 1-4) 전신 3D — 다른 운동의 부위 태그를 누르면 뜬다(components/body-parts.tsx,
+   * 2026-09-26 사용자분: 모든 운동 영상에). 태그마다 켤 근육이 모델 파일에 있어야 한다.
+   */
+  const bodyGlb = readFileSync(
+    new URL('../public/models/body-full.glb', import.meta.url)
+  );
+  const bodyJson = JSON.parse(
+    bodyGlb.subarray(20, 20 + bodyGlb.readUInt32LE(12)).toString('utf8')
+  ) as { nodes: { extras?: { key?: string } }[] };
+  const bodyKeys = new Set(bodyJson.nodes.map((n) => n.extras?.key).filter(Boolean));
+  const unmappedParts = BODY_PARTS.filter(
+    (p) => !BODY_PART_MAP[p] || BODY_PART_MAP[p].keys.length === 0
+  );
+  check(
+    '부위 태그마다 전신 3D 에서 켤 근육이 있다',
+    unmappedParts.length === 0,
+    unmappedParts.join(', ')
+  );
+  const strayKeys = Object.entries(BODY_PART_MAP).flatMap(([part, m]) =>
+    m.keys.filter((k) => !bodyKeys.has(k)).map((k) => `${part}:${k}`)
+  );
+  check(
+    '부위 태그의 근육이 모두 전신 모델 파일에 있다 (안 켜지는 칸이 없다)',
+    strayKeys.length === 0,
+    strayKeys.join(', ')
+  );
+  check(
+    '전신 3D 모델이 가볍다 — 2.5MB 아래',
+    bodyGlb.length < 2.5 * 1024 * 1024,
+    `${Math.round(bodyGlb.length / 1024)} KB`
+  );
+  const bodyPromise = Object.entries(BODY_PART_MAP).filter(([, m]) =>
+    /(부상|손상|통증)을 (막|예방)|예방합니다|예방해 줍니다|예방할 수 있/.test(m.about)
+  );
+  check(
+    '부위 설명이 부상을 막는다고 약속하지 않는다',
+    bodyPromise.length === 0,
+    bodyPromise.map(([p]) => p).join(', ')
   );
   check(
     '던지는 팔 — 좌투만 왼팔, 우투·양투·모름은 오른팔',

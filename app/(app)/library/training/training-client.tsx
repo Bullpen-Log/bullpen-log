@@ -274,7 +274,10 @@ function ExerciseDetail({
           equipment={item.equipment}
         />
 
-        {/* 암케어 운동이 키우는 근육 — 부위별 보강과 같은 말로 */}
+        {/*
+          암케어 운동이 키우는 근육 — 부위별 보강과 같은 말로. 누르면 3D 그림·설명 창
+          (page.tsx 의 ArmcareInfoProvider, app/(app)/training/armcare-info.tsx)
+        */}
         <MuscleRow muscles={item.targetMuscles} />
 
         {formatPrescription(item) && (

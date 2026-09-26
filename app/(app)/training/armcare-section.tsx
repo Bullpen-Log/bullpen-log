@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
 import { prisma } from '@/lib/prisma';
 import { shiftDateKey, toDateKey } from '@/lib/pitch-stats';
-import { visibleExercises, type CachedExercise } from '@/lib/library-cache';
+import { visibleExercises } from '@/lib/library-cache';
 import { availableParts } from '@/lib/report/today-pick';
 import {
   ARMCARE_AREAS,
@@ -11,25 +11,25 @@ import {
   type ArmcareAreaKey,
 } from '@/lib/armcare/anatomy';
 import { throwingSide } from '@/lib/armcare/muscle-map';
-import { loadArmcareToday, type UserForArmcare } from '@/lib/armcare/today';
-import { armcareBlock, armcareMinutes, bodyStateBlock } from '@/lib/armcare/routine';
+import { loadArmcareToday, notAdvised, type UserForArmcare } from '@/lib/armcare/today';
+import { armcareMinutes } from '@/lib/armcare/routine';
 import { loadMyRoutines } from '@/lib/armcare/my-routines-store';
 import { Card } from '@/components/ui';
 import { OpenCheckinButton } from '@/components/notice-bell';
 import { ArmcareToday, WeekDots, type ArmcareTodayItem } from './armcare-today';
 import { ArmcareGuide } from './armcare-guide';
-import { ArmcareMethods } from './armcare-methods';
+import { ArmcareInfoProvider } from './armcare-info';
 import { MyRoutines, type MyRoutineView } from './my-routines';
 import type { ArmcareTab } from './armcare-tabs';
 import { toArmcareViews } from './armcare-views';
 import { TrainingCheckin } from './training-checkin';
 
 /**
- * 트레이닝의 암케어 칸 — 서버에서 자료를 모아 세 화면 중 하나를 그린다.
+ * 트레이닝의 암케어 칸 — 서버에서 자료를 모아 두 화면 중 하나를 그린다.
  *
  * 2026-09-25 사용자분과 정했다: 하단 탭을 늘리지 않고 트레이닝 안에 둔다.
- * 트레이닝의 [트레이닝 | 암케어] 중 둘째 칸이고, 안에서 다시 [루틴 | 부위별 보강 |
- * 훈련 방식]으로 나뉜다(armcare-tabs.tsx).
+ * 트레이닝의 [트레이닝 | 암케어] 중 둘째 칸이고, 안에서 다시 [루틴 | 부위별 보강]으로
+ * 나뉜다(armcare-tabs.tsx).
  *
  * 루틴 칸에는 둘이 선다(2026-09-26 사용자분 요청) — 앱이 오늘 몸 상태를 보고 짜 주는
  * **맞춤 루틴**과, 사용자가 필요한 운동만 골라 만들어 둔 **내 루틴**. 암케어는 운동
@@ -47,11 +47,11 @@ export async function ArmcareSection({
   /** 루틴의 '근육 위치'로 들어오면 3D 근육 지도가 이 근육을 켠 채로 시작한다 */
   focusMuscle?: string | null;
 }) {
-  if (tab === 'guide' || tab === 'methods') {
+  if (tab === 'guide') {
     const [library, mine, counts] = await Promise.all([
       visibleExercises(),
       loadMyRoutines(user.id),
-      tab === 'guide' ? careCounts(user.id, today) : null,
+      careCounts(user.id, today),
     ]);
     const views = await toArmcareViews(
       library.filter((ex) => ex.category === ARMCARE_CATEGORY)
@@ -61,19 +61,17 @@ export async function ArmcareSection({
       name: r.name,
       exerciseIds: r.items.map((it) => it.exerciseId),
     }));
-    return tab === 'guide' ? (
+    return (
       <ArmcareGuide
         exercises={views}
         routines={routines}
         map={{
           side: throwingSide(user.throwingHand),
           bothHands: user.throwingHand === '양투',
-          counts: counts!,
+          counts,
           focusMuscle,
         }}
       />
-    ) : (
-      <ArmcareMethods exercises={views} routines={routines} />
     );
   }
 
@@ -83,24 +81,6 @@ export async function ArmcareSection({
     loadMyRoutines(user.id),
   ]);
   const byId = new Map(library.map((ex) => [ex.id, ex]));
-
-  /*
-   * 지금 몸 상태로 보면 권하지 않는 운동인가.
-   *
-   * 체크인이 없으면 몸 상태를 모르니 표시하지 않는다. 통증인 날은 운동마다 달지 않고
-   * 위에 한 번 알린다.
-   *   맞춤 루틴  만들 때와 같은 규칙(armcareBlock) — 만든 뒤 몸 상태가 바뀐 것을 잡는다
-   *   내 루틴    몸 상태 몫만(bodyStateBlock) — 팔 근력 운동도 보고, 맞춤 루틴의 강도
-   *              한도('높음'을 안 넣는 것)는 몸 상태가 아니라 보지 않는다
-   */
-  const notAdvised = (ex: CachedExercise, forMine: boolean) => {
-    if (!data.hasCheckinToday || data.decision.kind === 'rest') return false;
-    const candidate = { ...ex, targetMuscles: ex.targetMuscles ?? [] };
-    const today = data.facts.condition.today;
-    return forMine
-      ? bodyStateBlock(candidate, data.decision.kind, today) != null
-      : armcareBlock(candidate, data.decision.kind, today) != null;
-  };
 
   /* ── 맞춤 루틴 ── */
   let custom: ReactNode;
@@ -154,12 +134,13 @@ export async function ArmcareSection({
           area: it.area,
           exercise: views[i],
           done,
-          unsafe: !done && notAdvised(byId.get(it.exerciseId)!, false),
+          unsafe: !done && notAdvised(data, byId.get(it.exerciseId)!, false),
         };
       });
     }
     custom = (
       <ArmcareToday
+        dateKey={data.todayKey}
         decision={data.decision}
         routine={
           data.routine
@@ -193,7 +174,7 @@ export async function ArmcareSection({
           area: primaryArea(ex.targetMuscles ?? [])?.key ?? 'shoulder-back',
           exercise: views[i],
           done,
-          unsafe: !done && notAdvised(ex, true),
+          unsafe: !done && notAdvised(data, ex, true),
         };
       });
       const minutes = usable.reduce(
@@ -218,20 +199,27 @@ export async function ArmcareSection({
     })
   );
 
+  /* 운동의 근육 칩을 누르면 뜨는 3D 그림·설명 창(armcare-info.tsx) — 던지는 팔로 */
   return (
-    <div className="space-y-10">
-      <section className="space-y-3">
-        <SectionHead title="맞춤 루틴" desc="몸 상태에 맞춰 앱이 짜 줘요" />
-        {custom}
-      </section>
+    <ArmcareInfoProvider side={throwingSide(user.throwingHand)}>
+      <div className="space-y-10">
+        <section className="space-y-3">
+          <SectionHead title="맞춤 루틴" desc="몸 상태에 맞춰 앱이 짜 줘요" />
+          {custom}
+        </section>
 
-      <section className="space-y-3">
-        <SectionHead title="내 루틴" desc="내가 골라 둔 운동 · 언제든" />
-        <MyRoutines routines={routines} painToday={data.decision.kind === 'rest'} />
-      </section>
+        <section className="space-y-3">
+          <SectionHead title="내 루틴" desc="내가 골라 둔 운동 · 언제든" />
+          <MyRoutines
+            routines={routines}
+            painToday={data.decision.kind === 'rest'}
+            dateKey={data.todayKey}
+          />
+        </section>
 
-      <WeekDots week={data.week} />
-    </div>
+        <WeekDots week={data.week} />
+      </div>
+    </ArmcareInfoProvider>
   );
 }
 

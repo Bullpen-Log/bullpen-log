@@ -1,7 +1,61 @@
 'use client';
 
-import { useEffect, useLayoutEffect, useRef, type ReactNode } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type ReactNode,
+} from 'react';
 import { X } from 'lucide-react';
+
+/** 창이 날아올 자리 — Modal 의 origin */
+export type ModalOrigin = { x: number; y: number };
+
+/** 누른 단추의 한가운데(화면 기준 px) — 못 재면 null(창이 제자리에서 떠오른다) */
+export function modalOrigin(e?: { currentTarget: Element } | null): ModalOrigin | null {
+  const r = e?.currentTarget.getBoundingClientRect();
+  return r ? { x: r.left + r.width / 2, y: r.top + r.height / 2 } : null;
+}
+
+/**
+ * 닫은 뒤에도 내용을 붙들어 두는 시간(ms).
+ *
+ * 창은 닫힐 때 0.12~0.13초에 걸쳐 줄어들며 사라진다(app/globals.css 의 dialog ·
+ * dialog[data-pop]). 그동안 내용을 비우면 빈 창이 제목도 없이 줄어들어 한 번 번쩍인다.
+ * 넉넉히 잡아 움직임이 끝난 뒤에 비운다.
+ */
+const CLOSE_MS = 200;
+
+/**
+ * 한 창에 무엇을 띄울지 — 내용, 열림, 날아올 자리를 함께 다룬다.
+ *
+ * 닫아도 내용은 닫히는 움직임이 끝날 때까지 남긴다(CLOSE_MS). 그 뒤에 비우므로 창 안의
+ * 무거운 것(3D 등)은 닫힌 창에 오래 남지 않는다. 비우기 전에 다시 열면 그대로 이어 쓴다.
+ */
+export function useModalState<T>() {
+  const [content, setContent] = useState<T | null>(null);
+  const [open, setOpen] = useState(false);
+  const [origin, setOrigin] = useState<ModalOrigin | null>(null);
+
+  useEffect(() => {
+    if (open) return;
+    const id = setTimeout(() => setContent(null), CLOSE_MS);
+    return () => clearTimeout(id);
+  }, [open]);
+
+  /** 연다 — e 를 주면 그 단추 자리에서 날아온다 */
+  const show = useCallback((next: T, e?: { currentTarget: Element } | null) => {
+    setOrigin(modalOrigin(e));
+    setContent(next);
+    setOpen(true);
+  }, []);
+  const close = useCallback(() => setOpen(false), []);
+
+  /** 열린 창의 내용만 바꾼다(창 안에서 다른 것으로 옮겨 갈 때) */
+  return { content, open, origin, show, close, setContent };
+}
 
 /**
  * 가운데에 뜨는 작은 창.

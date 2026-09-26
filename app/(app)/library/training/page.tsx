@@ -6,6 +6,9 @@ import { exerciseNotes } from '@/lib/exercise-notes';
 import { createPlaybackUrls } from '@/lib/storage';
 import { referenceThumbUrl } from '@/lib/reference-video';
 import { TrainingClient, type ExerciseItem } from './training-client';
+import { BodyPartsProvider } from '@/components/body-parts';
+import { throwingSide } from '@/lib/armcare/muscle-map';
+import { ArmcareInfoProvider } from '@/app/(app)/training/armcare-info';
 
 export default async function TrainingPage() {
   const user = await requireUser();
@@ -97,5 +100,15 @@ export default async function TrainingPage() {
   }));
 
   // 제목과 탭은 라이브러리 레이아웃이 그린다.
-  return <TrainingClient exercises={items} isAdmin={isAdmin} />;
+  /*
+   * 부위 태그를 누르면 전신 3D(components/body-parts.tsx), 암케어 운동의 근육 칩을 누르면
+   * 그 근육의 3D 그림·설명(armcare-info.tsx) — 2026-09-26 사용자분: 모든 운동 영상에.
+   */
+  return (
+    <BodyPartsProvider>
+      <ArmcareInfoProvider side={throwingSide(user.throwingHand)}>
+        <TrainingClient exercises={items} isAdmin={isAdmin} />
+      </ArmcareInfoProvider>
+    </BodyPartsProvider>
+  );
 }
