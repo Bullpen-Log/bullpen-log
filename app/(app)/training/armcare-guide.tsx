@@ -148,7 +148,7 @@ function AreaCard({
             <ul className="space-y-1">
               {muscles.map((m) => (
                 <li key={m.name} className="flex gap-2 text-[13px] break-keep">
-                  <span className="w-20 shrink-0 font-semibold text-sky-strong">
+                  <span className="w-28 shrink-0 font-semibold break-keep text-sky-strong">
                     {m.name}
                   </span>
                   <span className="text-muted">{m.does}</span>

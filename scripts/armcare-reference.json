@@ -172,7 +172,8 @@
    "팔꿈치"
   ],
   "targetMuscles": [
-   "삼두근"
+   "삼두근",
+   "주근"
   ],
   "intensity": "낮음",
   "difficulty": "초급",
@@ -196,7 +197,8 @@
   ],
   "targetMuscles": [
    "이두근",
-   "완요골근"
+   "완요골근",
+   "상완근"
   ],
   "intensity": "낮음",
   "difficulty": "초급",
@@ -219,7 +221,8 @@
   ],
   "targetMuscles": [
    "이두근",
-   "완요골근"
+   "완요골근",
+   "상완근"
   ],
   "intensity": "낮음",
   "difficulty": "초급",
@@ -536,7 +539,8 @@
   ],
   "targetMuscles": [
    "이두근",
-   "완요골근"
+   "완요골근",
+   "상완근"
   ],
   "intensity": "중간",
   "difficulty": "중급",
@@ -650,7 +654,8 @@
    "팔꿈치"
   ],
   "targetMuscles": [
-   "손목 굴곡근"
+   "손목 굴곡근",
+   "얕은 손가락 굴곡근"
   ],
   "intensity": "높음",
   "difficulty": "상급",
@@ -695,7 +700,8 @@
   ],
   "targetMuscles": [
    "이두근",
-   "완요골근"
+   "완요골근",
+   "상완근"
   ],
   "intensity": "높음",
   "difficulty": "중급",

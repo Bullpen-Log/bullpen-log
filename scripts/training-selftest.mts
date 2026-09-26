@@ -98,6 +98,7 @@ import {
   areasOf,
   cleanTargetMuscles,
   helpsLine,
+  muscleInfo,
   primaryArea,
   type ArmcareAreaKey,
 } from '../lib/armcare/anatomy.ts';
@@ -3700,6 +3701,24 @@ console.log('\n[암케어] 부위·근육 · 오늘의 루틴 · 부하');
     emptyAreas.length === 0,
     emptyAreas.map((a) => a.label).join(', ')
   );
+  /* 2026-09-26 부상 예방 기준으로 다시 검토해 더한 근육 여섯 */
+  const added = ['광배근', '대원근', '얕은 손가락 굴곡근', '깊은 손가락 굴곡근', '주근', '상완근'];
+  const unused = added.filter(
+    (m) => !ARMCARE_MUSCLE_NAMES.includes(m) || !armcareLib.some((ex) => ex.targetMuscles.includes(m))
+  );
+  check('더한 근육 여섯이 목록에 있고, 운동이 하나 이상 있다', unused.length === 0, unused.join(', '));
+  const claimsFor = (m: string) => muscleInfo(m)?.helps ?? null;
+  check(
+    '예방 주장은 근거 있는 얕은 손가락 굴곡근에만 — 광배근·대원근·깊은 손가락 굴곡근·주근·상완근은 이름만',
+    claimsFor('얕은 손가락 굴곡근') === '내측 측부인대(UCL) 손상' &&
+      ['광배근', '대원근', '깊은 손가락 굴곡근', '주근', '상완근'].every((m) => claimsFor(m) === null)
+  );
+  const brachialisFirst = armcareBlock(
+    { ...armcareLib[0], targetMuscles: ['상완근', '이두근'], intensity: '낮음', equipment: ['밴드'] },
+    'strength',
+    null
+  );
+  check('상완근이 앞인 컬도 팔 근력 운동이라 루틴에 안 들어간다', brachialisFirst === 'arm-strength', String(brachialisFirst));
   const noteless = ARMCARE_AREAS.filter((a) => a.notes.length === 0);
   check(
     '부위마다 알아 두기가 한 줄 이상 있다',

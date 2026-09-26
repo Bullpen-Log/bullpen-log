@@ -235,7 +235,7 @@ const HEAVY_EQUIPMENT = ['덤벨', '바벨', '케틀벨', '원판', '케이블']
  * '팔꿈치 외측' 자리(완요골근의 부위)로 들어왔다 — 그 자리는 손목 젖히기·아래팔
  * 돌리기의 몫이다. 부위별 보강에서는 그대로 보인다.
  */
-const ARM_STRENGTH_MUSCLES = ['이두근', '삼두근', '완요골근'];
+const ARM_STRENGTH_MUSCLES = ['이두근', '삼두근', '완요골근', '상완근'];
 
 const SHOULDER_AREAS: readonly ArmcareAreaKey[] = [
   'shoulder-back',
