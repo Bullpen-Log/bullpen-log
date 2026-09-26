@@ -6,6 +6,7 @@ import {
   ARMCARE_MUSCLES,
   areaOfMuscle,
   findArmcareArea,
+  helpsLine,
   muscleInfo,
   type ArmcareAreaKey,
   type ArmcareMuscle,
@@ -14,6 +15,7 @@ import { AREA_DETAILS, MUSCLE_DETAILS } from '@/lib/armcare/details';
 import { MUSCLE_MODEL } from '@/lib/armcare/muscle-map';
 import type { InfoTarget } from '@/components/armcare-info-context';
 import { ModelCredit } from '@/components/model-credit';
+import { Segmented } from '@/components/segmented';
 import { MuscleMap3D, type MapSelection, type MapStatus } from './muscle-map-3d';
 
 /**
@@ -33,58 +35,137 @@ export function ArmcareInfoBody({
   /** 창 안에서 다른 부위·근육으로 옮겨 간다 */
   onChange: (next: InfoTarget) => void;
 }) {
+  /* 운동의 근육 칸에서 고른 근육 — 없으면 운동의 근육 모두 */
+  const current = view.kind === 'exercise' ? (view.current ?? null) : null;
+  const shown: InfoTarget =
+    view.kind === 'exercise' && current
+      ? { kind: 'muscle', name: current.name, part: current.part }
+      : view;
+
+  const pick = (next: MapSelection) => {
+    if (view.kind === 'exercise') {
+      /* 운동의 근육을 누르면 그 근육 칸으로, 밖을 누르면 한 칸 물러나 모두로 */
+      const hit = next.muscle && view.muscles.includes(next.muscle) ? next.muscle : null;
+      onChange({ ...view, current: hit ? { name: hit, part: next.part } : null });
+    } else if (next.muscle) {
+      onChange({ kind: 'muscle', name: next.muscle, part: next.part });
+    } else if (next.area) {
+      onChange({ kind: 'area', key: next.area });
+    }
+  };
+
+  /*
+   * 자리를 못박아 둔다(칸 · 3D · 본문). 3D 는 부위 ↔ 근육 ↔ 운동으로 바뀌어도 그대로 두고
+   * 켜진 것만 바꾼다 — 다시 만들지 않게.
+   */
   return (
     <>
-      {/* 3D 는 부위 ↔ 근육으로 바뀌어도 그대로 두고 켜진 것만 바꾼다 — 다시 만들지 않게 */}
+      {view.kind === 'exercise' ? (
+        <ExerciseTabs
+          muscles={view.muscles}
+          value={current?.name ?? 'all'}
+          onChange={(v) =>
+            onChange({ ...view, current: v === 'all' ? null : { name: v, part: null } })
+          }
+        />
+      ) : null}
       <InfoGraphic
-        view={view}
+        area={
+          shown.kind === 'area'
+            ? shown.key
+            : shown.kind === 'muscle'
+              ? (areaOfMuscle(shown.name)?.key ?? null)
+              : null
+        }
+        muscle={shown.kind === 'muscle' ? shown.name : null}
+        part={shown.kind === 'muscle' ? (shown.part ?? null) : null}
+        muscles={shown.kind === 'exercise' ? shown.muscles : null}
         side={side}
-        onPick={(next) => {
-          if (next.muscle) onChange({ kind: 'muscle', name: next.muscle, part: next.part });
-          else if (next.area) onChange({ kind: 'area', key: next.area });
-        }}
+        onPick={pick}
       />
-      {view.kind === 'area' ? (
+      {shown.kind === 'area' ? (
         <AreaInfo
-          key={`area-${view.key}`}
-          areaKey={view.key}
+          key={`area-${shown.key}`}
+          areaKey={shown.key}
           onMuscle={(name) => onChange({ kind: 'muscle', name })}
         />
-      ) : (
+      ) : shown.kind === 'muscle' ? (
         <MuscleInfo
-          key={`muscle-${view.name}`}
-          name={view.name}
-          part={view.part ?? null}
+          key={`muscle-${shown.name}`}
+          name={shown.name}
+          part={shown.part ?? null}
           onArea={(key) => onChange({ kind: 'area', key })}
+        />
+      ) : (
+        <ExerciseMuscles
+          key={`exercise-${shown.title}`}
+          muscles={shown.muscles}
+          onMuscle={(name) => onChange({ ...shown, current: { name, part: null } })}
         />
       )}
     </>
   );
 }
 
+/** 운동의 근육 칸 — '모두'와 근육마다 */
+function ExerciseTabs({
+  muscles,
+  value,
+  onChange,
+}: {
+  muscles: readonly string[];
+  value: string;
+  onChange: (value: string) => void;
+}) {
+  const options = useMemo(
+    () => [
+      { value: 'all', label: '모두' },
+      ...muscles.map((m) => ({ value: m, label: m })),
+    ],
+    [muscles]
+  );
+  return (
+    <Segmented
+      label="근육 고르기"
+      value={value}
+      onChange={onChange}
+      options={options}
+      layout="flow"
+      className="mb-3"
+      itemClassName="px-3 py-1"
+    />
+  );
+}
+
 /**
- * 창 맨 위의 3D 그림 — 고른 근육(부위)만 켠다. 그림 속 다른 근육을 누르면 그 근육으로
- * 창이 바뀐다. 3D 를 못 그리는 기기에서는 자리만 접는다.
+ * 창 맨 위의 3D 그림 — 고른 근육(부위)만 켠다. 운동의 근육을 모두 볼 때는 그 근육들을
+ * 한꺼번에 켠다. 그림 속 근육을 누르면 그 근육으로 창이 바뀐다. 3D 를 못 그리는
+ * 기기에서는 자리만 접는다.
  *
  * 모델 출처를 바로 밑에 적는다 — 3D 가 보이는 곳마다 밝히는 조건의 공개 모델이다
  * (components/model-credit.tsx).
  */
 function InfoGraphic({
-  view,
+  area,
+  muscle,
+  part,
+  muscles,
   side,
   onPick,
 }: {
-  view: InfoTarget;
+  area: ArmcareAreaKey | null;
+  muscle: string | null;
+  part: string | null;
+  muscles: readonly string[] | null;
   side: 'right' | 'left';
   onPick: (next: MapSelection) => void;
 }) {
   const [status, setStatus] = useState<MapStatus>('loading');
-  const area = view.kind === 'area' ? view.key : (areaOfMuscle(view.name)?.key ?? null);
-  const muscle = view.kind === 'muscle' ? view.name : null;
-  const part = view.kind === 'muscle' ? (view.part ?? null) : null;
+  /* 그릴 때마다 새 목록이 생기지 않게 글자로 들고 있다가 되돌린다 */
+  const many = muscles?.join('|') ?? '';
   const selection = useMemo<MapSelection>(
-    () => ({ area, muscle, part }),
-    [area, muscle, part]
+    () => ({ area, muscle, part, muscles: many ? many.split('|') : undefined }),
+    [area, muscle, part, many]
   );
   if (status === 'unavailable') return null;
   return (
@@ -138,6 +219,57 @@ function Disclaimer() {
   );
 }
 
+/** 근육 목록 — 이름과 하는 일 한 줄, 누르면 그 근육을 자세히 */
+function MuscleList({
+  muscles,
+  onMuscle,
+}: {
+  muscles: readonly string[];
+  onMuscle: (name: string) => void;
+}) {
+  return (
+    <ul className="divide-y divide-line overflow-hidden rounded-xl border border-line">
+      {muscles.map((name) => (
+        <li key={name}>
+          <button
+            type="button"
+            onClick={() => onMuscle(name)}
+            className="flex w-full items-center gap-3 px-3.5 py-2.5 text-left transition-colors hover:bg-surface-2"
+          >
+            <span className="min-w-0 flex-1">
+              <b className="block text-[14px] font-semibold text-ink">{name}</b>
+              <span className="block text-xs text-muted">{muscleInfo(name)?.does}</span>
+            </span>
+            <ChevronRight aria-hidden className="h-4 w-4 shrink-0 text-muted" />
+          </button>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+/**
+ * 운동이 쓰는 근육 모두 — 루틴의 '근육 위치'. 위 3D 에 한꺼번에 켜 두고, 크게 쓰는
+ * 차례로 늘어놓는다. 누르면(또는 창 위 칸이나 3D 에서 고르면) 그 근육을 자세히 본다.
+ */
+function ExerciseMuscles({
+  muscles,
+  onMuscle,
+}: {
+  muscles: readonly string[];
+  onMuscle: (name: string) => void;
+}) {
+  const ref = useScrollTop();
+  const line = helpsLine([...muscles]);
+  return (
+    <div ref={ref} className="space-y-4 text-[14px] leading-relaxed break-keep text-ink/85">
+      <MuscleList muscles={muscles} onMuscle={onMuscle} />
+      {line && <p className="text-xs text-muted">{line}</p>}
+      <Disclaimer />
+    </div>
+  );
+}
+
 function AreaInfo({
   areaKey,
   onMuscle,
@@ -173,23 +305,7 @@ function AreaInfo({
         </ul>
       </Section>
       <Section title="이 부위의 근육">
-        <ul className="divide-y divide-line overflow-hidden rounded-xl border border-line">
-          {muscles.map((m) => (
-            <li key={m.name}>
-              <button
-                type="button"
-                onClick={() => onMuscle(m.name)}
-                className="flex w-full items-center gap-3 px-3.5 py-2.5 text-left transition-colors hover:bg-surface-2"
-              >
-                <span className="min-w-0 flex-1">
-                  <b className="block text-[14px] font-semibold text-ink">{m.name}</b>
-                  <span className="block text-xs text-muted">{m.does}</span>
-                </span>
-                <ChevronRight aria-hidden className="h-4 w-4 shrink-0 text-muted" />
-              </button>
-            </li>
-          ))}
-        </ul>
+        <MuscleList muscles={muscles.map((m) => m.name)} onMuscle={onMuscle} />
       </Section>
       {area.notes.length > 0 && (
         <Section title="알아 두기">

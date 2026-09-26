@@ -102,7 +102,7 @@ export function ExerciseMedia({
 }: {
   exercise: ArmcareExerciseView;
   /**
-   * 옆에 '근육 위치' 단추 — 누르면 이 운동의 주 근육이 3D 그림·설명 창으로 뜬다
+   * 옆에 '근육 위치' 단추 — 누르면 이 운동이 쓰는 근육 모두가 3D 그림·설명 창으로 뜬다
    * (armcare-info.tsx, 2026-09-26 사용자분: 간편하게). 루틴의 체크 목록에서만 켠다 —
    * 부위별 보강에서는 3D 지도가 바로 위에 있다. 창이 없는 화면이면 안 그린다.
    */
@@ -135,7 +135,23 @@ export function ExerciseMedia({
         {showMuscleButton && info && primary && (
           <button
             type="button"
-            onClick={(e) => info({ kind: 'muscle', name: primary }, e)}
+            /*
+             * 운동이 쓰는 근육을 모두 켠다. 예전에는 맨 앞 근육 하나만 열어, 케이블 외회전
+             * 0도(극하근 · 소원근)를 눌러도 극하근만 나왔다(2026-09-26 사용자분). 근육이
+             * 하나뿐이면 그 근육을 바로 연다.
+             */
+            onClick={(e) =>
+              info(
+                exercise.targetMuscles.length > 1
+                  ? {
+                      kind: 'exercise',
+                      title: exercise.title,
+                      muscles: exercise.targetMuscles,
+                    }
+                  : { kind: 'muscle', name: primary },
+                e
+              )
+            }
             aria-label={`${exercise.title} 근육 위치 보기`}
             className="flex flex-1 items-center justify-center gap-1.5 border-l border-line/70 py-2.5 text-xs font-semibold text-muted transition-colors hover:text-sky"
           >

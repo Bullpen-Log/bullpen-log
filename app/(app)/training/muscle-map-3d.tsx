@@ -12,6 +12,11 @@ export type MapSelection = {
   area: ArmcareAreaKey | null;
   muscle: string | null;
   part: string | null;
+  /**
+   * 근육 여럿을 한꺼번에 켠다 — 운동 하나가 쓰는 근육 모두(루틴의 '근육 위치',
+   * armcare-info-body.tsx). 부위가 달라도 된다. 있으면 area · muscle 보다 앞선다.
+   */
+  muscles?: readonly string[];
 };
 
 export type MapStatus = StageStatus;
@@ -63,7 +68,8 @@ type Engine = {
  *
  * 누르기: 처음 누르면 그 부위, 같은 부위를 한 번 더 누르면 그 근육. 부위를 고르면 그
  * 부위만 또렷하게 남고 나머지는 비쳐 보여 속 근육(견갑하근 등)도 보인다. 근육을 고르면
- * 그 근육만 색이 남는다 — 같은 부위의 다른 근육도 색을 뺀다.
+ * 그 근육만 색이 남는다 — 같은 부위의 다른 근육도 색을 뺀다. 운동 하나가 쓰는 근육을
+ * 한꺼번에 켤 수도 있다(selection.muscles) — 그때는 켜진 근육만 눌린다.
  *
  * WebGL 이 안 되는 기기에서는 아무것도 그리지 않고 'unavailable' 을 알린다. 부모가
  * 3D 자리를 접고 목록으로 보여 준다.
@@ -179,23 +185,32 @@ export function MuscleMap3D({
 
       /* ── 카메라 ── */
       const frame = (s: MapSelection, arm: 'right' | 'left') => {
+        const many = s.muscles?.length ? s.muscles : null;
         const box = new THREE.Box3();
         for (const e of entries) {
           const name = muscleOf(e, arm);
           if (!name) continue;
-          const hit = s.muscle
-            ? name === s.muscle
-            : s.area
-              ? areaOfMuscle(name)?.key === s.area
-              : ['shoulder', 'arms', 'forearms'].includes(
-                  String(e.mesh.userData.region)
-                );
+          const hit = many
+            ? many.includes(name)
+            : s.muscle
+              ? name === s.muscle
+              : s.area
+                ? areaOfMuscle(name)?.key === s.area
+                : ['shoulder', 'arms', 'forearms'].includes(
+                    String(e.mesh.userData.region)
+                  );
           if (hit) box.expandByObject(e.mesh);
         }
         const center = box.getCenter(new THREE.Vector3());
         const radius = box.getSize(new THREE.Vector3()).length() / 2;
-        const pad = s.muscle ? 1.9 : s.area ? 1.7 : 0.82;
-        return { center, dist: Math.max(stage.fit(radius, pad), s.area ? 0.35 : 0.5) };
+        const close = !!(many || s.area);
+        const pad = s.muscle && !many ? 1.9 : close ? 1.7 : 0.82;
+        return { center, dist: Math.max(stage.fit(radius, pad), close ? 0.35 : 0.5) };
+      };
+      /* 볼 쪽 — 부위의 쪽. 여럿을 켰으면 맨 앞(가장 크게 쓰는) 근육의 부위 쪽 */
+      const viewOf = (s: MapSelection): MapView => {
+        const area = s.muscles?.length ? areaOfMuscle(s.muscles[0])?.key : s.area;
+        return area ? AREA_VIEW[area] : 'front';
       };
       const dirOf = (view: MapView, arm: 'right' | 'left') => {
         const [x, y, z] = VIEWS[view];
@@ -207,29 +222,32 @@ export function MuscleMap3D({
       const black = new THREE.Color('#000000');
       let lastKey = '';
       const apply: Engine['apply'] = (s, arm, animate) => {
+        const many = s.muscles?.length ? s.muscles : null;
         for (const e of entries) {
           const name = muscleOf(e, arm);
           const area = name ? areaOfMuscle(name)?.key : undefined;
           let color: string = e.bone ? COLOR.bone : name ? COLOR.target : COLOR.context;
           const inArea = !!s.area && area === s.area;
-          const on = inArea && (!s.muscle || name === s.muscle);
+          const on = many
+            ? !!name && many.includes(name)
+            : inArea && (!s.muscle || name === s.muscle);
           if (on) color = COLOR.pick;
           /*
-           * 근육 하나를 골랐으면 그 근육만 색을 남기고 나머지는 모두 색을 뺀다. 같은
+           * 근육을 골랐으면 고른 근육만 색을 남기고 나머지는 모두 색을 뺀다. 같은
            * 부위의 다른 근육을 옅은 하늘색으로 남겼더니 고른 근육과 섞여 어디까지가
-           * 그 근육인지 보기 어려웠다(2026-09-26 사용자분).
+           * 그 근육인지 보기 어려웠다(2026-09-26 사용자분). 여럿을 켤 때도 같다.
            */
-          if (s.muscle && !on && name) color = COLOR.context;
+          if ((s.muscle || many) && !on && name) color = COLOR.context;
           target.set(color);
           e.material.color.copy(target);
           e.material.emissive.copy(on ? target : black);
           e.material.emissiveIntensity = on
-            ? s.muscle && e.key === s.part
+            ? s.muscle && !many && e.key === s.part
               ? 0.42
               : 0.18
             : 0;
           /* 고른 것이 있으면 나머지를 비춰 보이게 — 속 근육도 보인다 */
-          const faded = !!s.area && !on;
+          const faded = (!!s.area || !!many) && !on;
           e.material.transparent = faded;
           e.material.opacity = faded ? (e.bone ? 0.35 : name ? 0.12 : 0.06) : 1;
           e.material.depthWrite = !faded;
@@ -237,16 +255,11 @@ export function MuscleMap3D({
         }
         stage.invalidate();
         /* 고른 것이 바뀌었을 때만 카메라를 옮긴다 — 색만 바꿀 때 시점이 튀지 않게 */
-        const key = `${arm}|${s.area}|${s.muscle}`;
+        const key = `${arm}|${s.area}|${s.muscle}|${s.muscles?.join(',') ?? ''}`;
         if (key !== lastKey) {
           lastKey = key;
           const { center, dist } = frame(s, arm);
-          stage.moveTo(
-            center,
-            dirOf(s.area ? AREA_VIEW[s.area] : 'front', arm),
-            dist,
-            animate
-          );
+          stage.moveTo(center, dirOf(viewOf(s), arm), dist, animate);
         }
       };
       const look: Engine['look'] = (view) => {
@@ -284,6 +297,12 @@ export function MuscleMap3D({
           if (e && name && area) found.push({ key: e.key, name, area });
         }
 
+        if (s.muscles?.length) {
+          /* 여럿을 켜 둔 채 — 켜진 근육을 누르면 그 근육. 흐린 근육은 가로채지 않는다 */
+          const lit = found.find((f) => s.muscles!.includes(f.name));
+          if (lit) onPick({ area: lit.area, muscle: lit.name, part: lit.key });
+          return;
+        }
         if (s.muscle) {
           /* 근육을 골라 둔 채 — 그 근육을 누르면 그대로(누른 갈래만 바뀐다) */
           const same = found.find((f) => f.name === s.muscle);

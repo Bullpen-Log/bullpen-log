@@ -104,6 +104,9 @@ export const INFO_PILL =
   'inline-flex shrink-0 items-center gap-0.5 rounded-full border border-sky-soft bg-sky-tint px-3 py-1.5 text-xs font-semibold text-sky-strong transition-colors hover:bg-sky hover:text-white';
 
 function headingOf(view: InfoTarget): { title: string; description?: string } {
+  if (view.kind === 'exercise') {
+    return { title: view.title, description: `근육 ${view.muscles.length}개` };
+  }
   if (view.kind === 'area') {
     const area = findArmcareArea(view.key);
     const n = ARMCARE_MUSCLES.filter((m) => m.area === view.key).length;

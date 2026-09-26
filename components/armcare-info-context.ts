@@ -3,10 +3,23 @@
 import { createContext, useContext } from 'react';
 import type { ArmcareAreaKey } from '@/lib/armcare/anatomy';
 
-/** 무엇을 자세히 볼까 — 부위 하나, 또는 근육 하나(3D 에서 누른 조각이 있으면 그것도) */
+/**
+ * 무엇을 자세히 볼까 — 부위 하나, 근육 하나(3D 에서 누른 조각이 있으면 그것도), 또는
+ * 운동 하나가 쓰는 근육 모두.
+ *
+ * exercise 는 루틴의 '근육 위치'가 연다. 예전에는 맨 앞 근육 하나만 열어서, 케이블 외회전
+ * 0도(극하근 · 소원근)를 눌러도 극하근만 나왔다(2026-09-26 사용자분). current 는 창 위의
+ * '모두 · 근육' 칸에서 고른 근육이다 — 없으면 모두.
+ */
 export type InfoTarget =
   | { kind: 'area'; key: ArmcareAreaKey }
-  | { kind: 'muscle'; name: string; part?: string | null };
+  | { kind: 'muscle'; name: string; part?: string | null }
+  | {
+      kind: 'exercise';
+      title: string;
+      muscles: readonly string[];
+      current?: { name: string; part: string | null } | null;
+    };
 
 /** 창을 연다 — e 를 주면 그 단추 자리에서 날아온다(components/modal.tsx 의 origin) */
 export type ShowArmcareInfo = (
