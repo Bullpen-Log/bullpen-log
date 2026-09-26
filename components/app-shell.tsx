@@ -1444,7 +1444,7 @@ function Squares({
 }: {
   spinning: boolean;
   onDone: () => void;
-  /** lg — PC 막대의 메뉴 단추(아이콘 24px 줄). md — 휴대폰 하단 탭(20px 줄) */
+  /** lg — PC 막대의 메뉴 단추(1.4rem, 옆 아이콘보다 조금 크게). md — 휴대폰 하단 탭 */
   size?: 'md' | 'lg';
 }) {
   /* 왼위 → 오른위 → 왼아래 → 오른아래. 글 읽는 차례와 같게 돈다. */
@@ -1537,9 +1537,11 @@ function SettingsCog({
  * 올렸을 때의 배경은 반투명한 잉크색이다. 알약이 비치는 바탕이라, 불투명한
  * surface-2 를 얹으면 밝은 테마에서 알약과 거의 같은 색이 되어 안 보였다.
  *
- * 크기는 48px(그림 24px) — 오른쪽의 알림 · 설정 · 내 정보(32~40px)보다 크다. 옮겨 다니는
- * 단추라 가장 자주 누르는데, 40px 일 때는 작아서 옆 단추를 잘못 누르곤 했다. 격자(메뉴)와
- * 도크의 아이콘도 같은 크기로 맞춰, 막대에서 도크로 날아갈 때 크기가 튀지 않는다.
+ * 누르는 칸은 48px — 오른쪽의 알림 · 설정 · 내 정보(32~40px)보다 크다. 옮겨 다니는 단추라
+ * 가장 자주 누르는데, 40px 일 때는 작아서 옆 단추를 잘못 누르곤 했다. 그림은 22px 로 원래
+ * (20px)보다 조금만 키웠다 — 24px 로 칸과 같이 키우니 그림이 막대에서 너무 도드라졌다.
+ * 도크의 아이콘도 같은 크기로 맞춰, 막대에서 도크로 날아갈 때 크기가 튀지 않는다. 메뉴(격자)
+ * 그림만은 1.4rem 으로 조금 더 크게 둔다 — 줄의 맨 끝에서 '전부 보기'를 맡는 단추라 눈에 띄게.
  */
 function TopIcon({
   item,
@@ -1593,8 +1595,8 @@ function TopIcon({
     >
       <Icon
         aria-hidden
-        className="relative h-6 w-6"
-        strokeWidth={lit ? 2.3 : 1.8}
+        className="relative h-[1.375rem] w-[1.375rem]"
+        strokeWidth={lit ? 2.4 : 1.9}
         style={flyName}
       />
     </Link>
@@ -1718,8 +1720,8 @@ function DockGrid({
             >
               <Icon
                 aria-hidden
-                className="h-6 w-6"
-                strokeWidth={lit ? 2.3 : 1.8}
+                className="h-[1.375rem] w-[1.375rem]"
+                strokeWidth={lit ? 2.4 : 1.9}
                 style={named ? flyStyle(`nav-fly-${i}`, i, kind) : undefined}
               />
               <Tip>{item.label}</Tip>
