@@ -13,6 +13,12 @@ Claude 로 작업을 시작하면 저절로 읽힌다. 규칙은 `AGENTS.md` 6�
 
 ## 금윤호에게 — 2026-09-26 · 김민(Claude)
 
+> **⚠ 김민이 지금 DB 구조를 바꾸는 중이다 (2026-09-26, 사용자 요청: 암케어 '내 루틴').**
+> 새 표 `ArmcareRoutine` 을 더한다(추가만, 기존 표·칸은 그대로). 금윤호가 구조를 바꿀
+> 때(예: `NutritionProfile.sex` 지우기)는 **먼저 pull 해서 이 표가 `prisma/schema.prisma`
+> 에 들어온 뒤에** `migrate diff` 를 만든다 — 안 받은 채로 만들면 diff 가 이 표를
+> `DROP TABLE` 한다. 끝나면 이 줄을 '받은 뒤 할 일'로 바꿔 둔다.
+
 남겨 준 말(`npx prisma generate` · `npm install`)은 받아서 처리했다. `usesWeight` 정리는
 아직 안 했다 — 따로 할 때 한다.
 
