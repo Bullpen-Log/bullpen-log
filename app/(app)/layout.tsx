@@ -12,6 +12,7 @@ import { prisma } from '@/lib/prisma';
 import { pickCheckinDetail, pickCheckinParts } from '@/lib/checkin';
 import { visibleExercises } from '@/lib/library-cache';
 import { availableParts } from '@/lib/report/today-pick';
+import { QUIET_REFRESH } from '@/lib/transition-types';
 
 /** 렌더 중에 현재 시각을 직접 읽지 않도록 함수로 감싼다. */
 function todayKey() {
@@ -169,8 +170,19 @@ export default async function AppLayout({ children }: { children: React.ReactNod
            * '관계없는 것'으로 걸러진다. 실제로 그렇게 두었더니 리액트가
            * startViewTransition 을 아예 부르지 않아 아무 일도 일어나지 않았다.
            * 세어 보니 default 를 뺀 쪽만 한 번 불렸다.
+           *
+           * 거꾸로 자료만 새로 받는 전환(router.refresh)에는 표시를 붙여 여기서 뺀다
+           * (update 의 QUIET_REFRESH → none, lib/quiet-refresh.ts). 같은 화면에서 새로
+           * 받을 뿐인데 본문 전체가 페이드해, 알림(종)을 누를 때마다 깜빡였다. 표시가
+           * 없는 전환(탭 이동)은 default 로 예전처럼 페이드한다.
            */}
-          <ViewTransition name="app-main" share="page" enter="page" exit="page">
+          <ViewTransition
+            name="app-main"
+            share="page"
+            enter="page"
+            exit="page"
+            update={{ [QUIET_REFRESH]: 'none', default: 'auto' }}
+          >
             {children}
           </ViewTransition>
         </main>

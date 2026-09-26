@@ -3,6 +3,7 @@
 import { useCallback, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { quietRefresh } from '@/lib/quiet-refresh';
 import { ArrowLeft, Plus } from 'lucide-react';
 import { FormError } from '@/components/ui';
 import { usePlaybackUrls } from '@/components/use-playback-urls';
@@ -34,7 +35,7 @@ function spokenMonth(key: string) {
  * 창이 아니라 페이지다. 창에 넣었을 때는 그 안에서만 굴러가느라 영상 하나에
  * 화면이 잠겼는데, 페이지가 되니 그냥 아래로 읽어 내려가면 된다.
  *
- * 저장·삭제 뒤에는 router.refresh() 로 서버에서 다시 읽는다. 화면에서만 지우고
+ * 저장·삭제 뒤에는 서버에서 다시 읽는다(quietRefresh — 본문이 깜빡이지 않게). 화면에서만 지우고
  * 넘어가면 새로고침했을 때 지운 것이 되살아난 것처럼 보인다.
  */
 export function DayClient({
@@ -136,7 +137,7 @@ export function DayClient({
     setEditingId(null);
     setFormOpen(false);
     setError(undefined);
-    router.refresh();
+    quietRefresh(router);
   }, [router]);
 
   const handleDelete = useCallback(
@@ -151,7 +152,7 @@ export function DayClient({
         return;
       }
       if (editingId === id) setEditingId(null);
-      router.refresh();
+      quietRefresh(router);
     },
     [router, editingId]
   );
