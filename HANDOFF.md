@@ -32,3 +32,6 @@ Claude 로 작업을 시작하면 저절로 읽힌다. 규칙은 `AGENTS.md` 6�
 - 홈 분석 칸이 `@container` 다 — `app/(app)/coach/overview.tsx` · `parts.tsx` · `report-client.tsx`
   의 칸 나누기가 화면 폭 대신 칸 폭(`@md` · `@xl`)을 본다. 분석 칸이 넓은 화면에서 그래프 옆에
   반쪽으로 서기 때문이다.
+- `CLAUDE.md` 에 `@docs/claude/geum-yunho.md` 를 더했다 — 금윤호의 Claude 설정(데스크톱 · 노트북이 같이
+  보려고). 첫머리에 '금윤호일 때만 따른다'고 적어 두어 네 Claude 는 무시한다. 원하면 같은 식으로
+  `docs/claude/kim-min.md` 를 만들어 불러오면 된다.
