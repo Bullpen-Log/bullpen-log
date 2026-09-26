@@ -18,9 +18,18 @@ export const MUSCLE_MODEL: Record<string, { parts: Record<string, string> }> = {
   광배근: { parts: { latissimus_dorsi: '광배근' } },
   대원근: { parts: { teres_major: '대원근' } },
   견갑하근: { parts: { subscapularis: '견갑하근' } },
+  '전면 삼각근': { parts: { deltoid_anterior: '전면 삼각근' } },
+  대흉근: {
+    parts: {
+      pectoralis_major_clavicular: '쇄골 갈래',
+      pectoralis_major_sternocostal: '복장갈비 갈래',
+      pectoralis_major_abdominal: '배 갈래',
+    },
+  },
   극상근: { parts: { supraspinatus: '극상근' } },
   '중간 삼각근': { parts: { deltoid_lateral: '중간 삼각근' } },
   전거근: { parts: { serratus_anterior: '전거근' } },
+  '상부 승모근': { parts: { trapezius_upper: '상부 승모근' } },
   '중부 승모근': { parts: { trapezius_middle: '중부 승모근' } },
   '하부 승모근': { parts: { trapezius_lower: '하부 승모근' } },
   능형근: { parts: { rhomboid_major: '대능형근', rhomboid_minor: '소능형근' } },
@@ -51,6 +60,14 @@ export const MUSCLE_MODEL: Record<string, { parts: Record<string, string> }> = {
       extensor_carpi_radialis_brevis: '단요측 수근신근',
       humeral_head_of_extensor_carpi_ulnaris: '척측 수근신근',
       ulnar_head_of_extensor_carpi_ulnaris: '척측 수근신근',
+    },
+  },
+  /* 손가락을 펴는 근육 셋 — 아래팔 등 쪽 한가운데에 회색 띠로 남던 자리 */
+  '손가락 신전근': {
+    parts: {
+      extensor_digitorum: '총지신근',
+      extensor_digiti_minimi: '소지신근',
+      extensor_indicis: '시지신근',
     },
   },
   회외근: { parts: { supinator: '회외근' } },

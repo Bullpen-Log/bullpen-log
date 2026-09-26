@@ -1,13 +1,18 @@
 /**
  * 암케어 운동의 '키우는 근육'을 목록대로 고친다.
  *
- *   node --env-file=.env --import ./scripts/alias-register.mjs scripts/retag-armcare-muscles.mts
+ *   node --env-file=.env --import ./scripts/alias-register.mjs scripts/retag-armcare-muscles.mts [바꿀 목록.json]
  *     (무엇이 바뀌는지 보기만 — 끝에 --yes 를 붙이면 실제로 저장)
  *
- * 값은 scripts/armcare-retag-2026-09-26.json 에 있다 — 운동 이름, 옛 근육(from), 새
- * 근육(to). 2026-09-26 사용자분 요청으로 부상 예방 기준을 다시 검토해 근육 여섯을
- * 더했고(lib/armcare/anatomy.ts), 그 근육을 쓰는 운동에 이름을 보탰다. 더하기만 하고,
- * 주 근육(맨 앞)은 데드행만 바뀐다 — 매달리기는 손목이 아니라 손가락으로 쥔다.
+ * 값은 JSON 파일에 있다 — 운동 이름, 옛 근육(from), 새 근육(to). 파일을 안 주면 첫 목록
+ * (scripts/armcare-retag-2026-09-26.json)을 쓴다. 지난 목록은 지우지 않고 기록으로 둔다.
+ *
+ *   armcare-retag-2026-09-26.json   사용자분 요청으로 부상 예방 기준을 다시 검토해 근육
+ *        여섯을 더하고(lib/armcare/anatomy.ts) 그 근육을 쓰는 운동에 이름을 보탰다. 더하기만
+ *        하고, 주 근육(맨 앞)은 데드행만 바뀐다 — 매달리기는 손목이 아니라 손가락으로 쥔다.
+ *   armcare-retag-2026-09-26b.json  같은 날 3D 에서 회색으로 남던 근육 넷(전면 삼각근·대흉근·
+ *        상부 승모근·손가락 신전근)을 더하고 그 근육을 쓰는 운동에 보탰다. 목록에 없어 다른
+ *        근육으로 대신 적었던 셋(프론트 레이즈 둘 · 크로스바디 인)만 주 근육이 바뀐다.
  *
  * 지금 DB 값이 from 과 같을 때만 바꾼다. 그 사이 관리자 화면에서 손으로 고친 운동은
  * 덮어쓰지 않고 건너뛴다. 두 번 돌려도 이미 바뀐 것은 건너뛴다.
@@ -23,9 +28,10 @@ import { ARMCARE_CATEGORY, ARMCARE_MUSCLE_NAMES } from '../lib/armcare/anatomy.t
 type Change = { title: string; from: string[]; to: string[] };
 
 const apply = process.argv.includes('--yes');
-const changes: Change[] = JSON.parse(
-  readFileSync(new URL('./armcare-retag-2026-09-26.json', import.meta.url), 'utf8')
-);
+const file =
+  process.argv.slice(2).find((a) => a.endsWith('.json')) ??
+  new URL('./armcare-retag-2026-09-26.json', import.meta.url);
+const changes: Change[] = JSON.parse(readFileSync(file, 'utf8'));
 
 const unknown = changes.flatMap((c) =>
   c.to.filter((m) => !ARMCARE_MUSCLE_NAMES.includes(m)).map((m) => `${c.title}: ${m}`)

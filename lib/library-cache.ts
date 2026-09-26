@@ -68,14 +68,16 @@ export const allExercises = unstable_cache(
   /*
    * 운동 표에 칸을 더하거나 스크립트로 운동을 넣으면 이 이름을 바꾼다(:v2 — 2026-09-25
    * targetMuscles, :v3 — 2026-09-26 암케어 참고 영상 33개, scripts/add-armcare-reference.mts,
-   * :v4 — 같은 날 암케어 운동 30개의 근육, scripts/retag-armcare-muscles.mts).
+   * :v4 — 같은 날 암케어 운동 30개의 근육, scripts/retag-armcare-muscles.mts,
+   * :v5 — 같은 날 근육 넷(전면 삼각근·대흉근·상부 승모근·손가락 신전근)을 붙이고 암케어
+   * 참고 영상 넷을 더함, 같은 두 스크립트).
    *
    * 캐시는 시간으로 비워지지 않고, 배포해도 남는다 — 이름(과 함수 모양)이 같으면
    * 새 칸이 없는 옛 줄이 계속 나온다. 그대로 두면 암케어의 부위별 보강이 텅 비고
    * 오늘의 암케어가 루틴을 못 짠다. 관리자가 운동을 하나 저장해야(clearLibraryCache)
    * 풀리는데, 그것을 기다릴 일이 아니다.
    */
-  ['library:exercises:v4'],
+  ['library:exercises:v5'],
   { tags: [LIBRARY_TAG] }
 );
 

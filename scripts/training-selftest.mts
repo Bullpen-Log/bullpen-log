@@ -3742,6 +3742,26 @@ console.log('\n[암케어] 부위·근육 · 오늘의 루틴 · 부하');
         (m) => claimsFor(m) === null
       )
   );
+  /*
+   * 같은 날 넷을 더 더했다 — 3D 에서 회색으로 남아 빠진 것처럼 보이던 어깨 앞(전면 삼각근·
+   * 대흉근) · 목 쪽 어깨 위(상부 승모근) · 아래팔 등(손가락 신전근). 근육 칸이 비지 않게
+   * 넷 다 주로 키우는 운동이 하나 이상 있어야 하고, 넷 다 예방 주장은 하지 않는다.
+   */
+  const addedFour = ['전면 삼각근', '대흉근', '상부 승모근', '손가락 신전근'];
+  const noPrimary = addedFour.filter(
+    (m) =>
+      !ARMCARE_MUSCLE_NAMES.includes(m) ||
+      !armcareLib.some((ex) => ex.targetMuscles[0] === m)
+  );
+  check(
+    '더한 근육 넷이 목록에 있고, 주로 키우는 운동이 하나 이상 있다',
+    noPrimary.length === 0,
+    noPrimary.join(', ')
+  );
+  check(
+    '더한 넷도 예방 주장은 하지 않는다 (이름만)',
+    addedFour.every((m) => claimsFor(m) === null)
+  );
   const brachialisFirst = armcareBlock(
     {
       ...armcareLib[0],
@@ -3994,6 +4014,28 @@ console.log('\n[암케어] 부위·근육 · 오늘의 루틴 · 부하');
     '이어 둔 조각이 모델 파일에 양쪽 팔 모두 있다 (왼손 투수도 켜진다)',
     missingParts.length === 0,
     missingParts.join(', ')
+  );
+  /*
+   * 겉에 보이는 팔·어깨 근육이 회색으로 남지 않는다. 목록에 없는 근육은 색을 칠하지 않아
+   * 빠진 것처럼 보였다(2026-09-26 사용자분) — 어깨 앞, 목 쪽 어깨 위, 아래팔 등 한가운데.
+   * 엄지 쪽 작은 근육처럼 부상 예방과 거리가 먼 것은 일부러 회색으로 둔다.
+   */
+  const mappedKeys = new Set(
+    Object.values(MUSCLE_MODEL).flatMap((m) => Object.keys(m.parts))
+  );
+  const stillGray = [
+    'deltoid_anterior',
+    'pectoralis_major_clavicular',
+    'pectoralis_major_sternocostal',
+    'pectoralis_major_abdominal',
+    'trapezius_upper',
+    'extensor_digitorum',
+    'extensor_digiti_minimi',
+  ].filter((k) => !mappedKeys.has(k));
+  check(
+    '어깨 앞 · 목 쪽 어깨 위 · 아래팔 등의 겉근육이 3D 에서 칠해진다',
+    stillGray.length === 0,
+    stillGray.join(', ')
   );
   check(
     '3D 모델이 가볍다 — 1.5MB 아래',
@@ -4272,6 +4314,28 @@ console.log('\n[암케어] 부위·근육 · 오늘의 루틴 · 부하');
   check(
     '강화 — 같은 운동이 두 번 안 나온다',
     new Set(strength.items.map((it) => it.exerciseId)).size === strength.items.length
+  );
+  /*
+   * 어깨 전방 자리는 외회전과 짝을 이루는 내회전 자리다. 전면 삼각근·대흉근을 더한 뒤로
+   * 프론트 레이즈·크로스바디 인도 '어깨 전방' 운동이 됐는데, 이 자리에 들어오면 그날
+   * 루틴에서 내회전이 빠진다(lib/armcare/routine.ts 의 SLOT_MUSCLES). 여러 날로 돌려 본다.
+   */
+  const frontLeaks = new Set<string>();
+  for (let d = 1; d <= 30; d++) {
+    for (const kind of ['strength', 'recovery'] as const) {
+      const r = build(kind, { seed: `2026-06-${String(d).padStart(2, '0')}` });
+      for (const it of r.items) {
+        if (it.area !== 'shoulder-front') continue;
+        if (exOf.get(it.exerciseId)!.targetMuscles[0] !== '견갑하근') {
+          frontLeaks.add(`${kind}:${titleOf(it.exerciseId)}`);
+        }
+      }
+    }
+  }
+  check(
+    '루틴의 어깨 전방 자리에는 내회전(견갑하근) 운동만 들어간다',
+    frontLeaks.size === 0,
+    [...frontLeaks].join(', ')
   );
 
   const recovery = build('recovery');

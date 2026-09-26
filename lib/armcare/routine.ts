@@ -197,6 +197,18 @@ const SLOTS: Record<ArmcareKind, readonly ArmcareAreaKey[]> = {
 };
 
 /**
+ * 자리의 뜻에 맞는 주 근육 — 어깨 전방 자리는 외회전과 짝을 이루는 내회전(견갑하근) 자리다.
+ *
+ * 2026-09-26 어깨 앞의 전면 삼각근·대흉근을 근육 목록에 더하면서, 프론트 레이즈·크로스바디
+ * 인처럼 그 둘이 주 근육인 운동도 '어깨 전방' 운동이 됐다. 그대로 두면 이 자리에 프론트
+ * 레이즈가 들어와 그날 루틴에서 내회전이 빠진다. 그 운동들은 부위별 보강과 내 루틴에서
+ * 그대로 쓴다.
+ */
+const SLOT_MUSCLES: Partial<Record<ArmcareAreaKey, readonly string[]>> = {
+  'shoulder-front': ['견갑하근'],
+};
+
+/**
  * 앞에서 몇 자리가 필수인가 — 필수 자리는 시간을 조금 넘겨서라도 채운다.
  *
  * 처음에는 모든 자리를 같은 시간 한도로 봤다. 그랬더니 좌우를 번갈아 하는 운동
@@ -447,7 +459,13 @@ export function buildArmcareRoutine({
     /* 팔꿈치가 뻐근하면 전완은 하나만 */
     if (stiffElbow && ELBOW_AREAS.includes(area) && elbowCount >= 1) continue;
 
-    const inArea = candidates.filter((ex) => !taken.has(ex.id) && areaOf(ex) === area);
+    const slotMuscles = SLOT_MUSCLES[area];
+    const inArea = candidates.filter(
+      (ex) =>
+        !taken.has(ex.id) &&
+        areaOf(ex) === area &&
+        (!slotMuscles || slotMuscles.includes(ex.targetMuscles[0] ?? ''))
+    );
     const pool = inArea.filter(allowed).sort(order(area));
     if (pool.length === 0) {
       (inArea.length === 0 ? noGear : byRule).add(area);
