@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { ChevronDown } from 'lucide-react';
+import { ChevronDown, Lightbulb } from 'lucide-react';
 import { ExerciseBadges } from '@/components/meta-badges';
 import {
   ARMCARE_AREAS,
@@ -69,11 +69,8 @@ export function ArmcareGuide({
   return (
     <MyRoutinesProvider routines={routines}>
       <div className="space-y-6">
-        <p className="text-sm leading-relaxed break-keep text-muted">
-          투수가 가장 많이 다치는 곳은 어깨와 팔꿈치입니다. 3D 지도에서 근육을 누르거나
-          아래 부위를 펼치면 던질 때 그 부위가 하는 일, 흔한 부상, 키울 근육과 운동이
-          나옵니다. 운동이 부상을 막아 준다는 보장은 없습니다 — 아프면 쉬고 전문의
-          진료를 받아보세요.
+        <p className="text-sm break-keep text-muted">
+          근육을 누르거나 부위를 펼쳐 보세요.
         </p>
 
         <MuscleMapPanel
@@ -101,6 +98,10 @@ export function ArmcareGuide({
             </ul>
           </section>
         ))}
+
+        <p className="px-1 text-xs break-keep text-muted">
+          운동이 부상을 막아 준다는 보장은 없어요 — 아프면 쉬고 진료를 받으세요.
+        </p>
 
         {untagged > 0 && (
           <p className="px-1 text-xs leading-relaxed text-muted">
@@ -150,23 +151,23 @@ function AreaCard({
         type="button"
         onClick={onToggle}
         aria-expanded={open}
-        className="flex w-full items-start gap-3 px-4 py-4 text-left transition-colors hover:bg-surface-2"
+        className="flex w-full items-center gap-3 px-4 py-4 text-left transition-colors hover:bg-surface-2"
       >
-        <span className="min-w-0 flex-1 space-y-1">
-          <span className="flex flex-wrap items-baseline gap-x-2">
-            <span className="text-[15px] font-bold text-ink">{area.label}</span>
-            <span className="text-xs text-muted">운동 {count}개</span>
+        {/* 제목 밑 설명 한 줄(던질 때 하는 일)은 뺐다 — 2026-09-26 사용자분 */}
+        <span className="flex min-w-0 flex-1 flex-wrap items-baseline gap-x-2">
+          <span className="flex items-center gap-2 text-[15px] font-bold text-ink">
+            <span
+              aria-hidden
+              className="h-2.5 w-2.5 rounded-full"
+              style={{ backgroundColor: area.color }}
+            />
+            {area.label}
           </span>
-          <span className="block text-[13px] leading-relaxed break-keep text-muted">
-            {area.role}
-          </span>
-          <span className="block text-xs break-keep text-ink/70">
-            흔한 부상: {area.injuries.map((i) => i.name).join(' · ')}
-          </span>
+          <span className="text-xs text-muted">운동 {count}개</span>
         </span>
         <ChevronDown
           aria-hidden
-          className={`mt-1 h-4 w-4 shrink-0 text-muted transition-transform ${
+          className={`h-4 w-4 shrink-0 text-muted transition-transform ${
             open ? 'rotate-180' : ''
           }`}
         />
@@ -174,48 +175,51 @@ function AreaCard({
 
       {open && (
         <div className="space-y-4 border-t border-line px-4 py-4">
-          <div className="space-y-2">
-            <h3 className="text-xs font-semibold text-muted">흔한 부상</h3>
-            <ul className="space-y-1.5">
+          {/*
+            부상과 근육은 이름만 칩으로 — 설명 문단은 '자세히' 안에 둔다. 펼치자마자 글이
+            몇 문단씩 나오면 읽지 않고 닫는다(2026-09-26 사용자분).
+          */}
+          <div className="flex flex-wrap gap-1.5">
+            {area.injuries.map((injury) => (
+              <span
+                key={injury.name}
+                className="rounded-full border border-warn-line bg-warn-bg px-2.5 py-0.5 text-xs font-semibold text-warn"
+              >
+                {injury.name}
+              </span>
+            ))}
+          </div>
+          <MuscleChips muscles={names} highlight={names} />
+
+          <details className="group rounded-xl bg-surface-2 px-3.5 py-2.5">
+            <summary className="cursor-pointer list-none text-xs font-semibold text-muted">
+              자세히 <span className="group-open:hidden">▾</span>
+              <span className="hidden group-open:inline">▴</span>
+            </summary>
+            <dl className="mt-2.5 space-y-2.5 text-[13px] leading-relaxed break-keep">
               {area.injuries.map((injury) => (
-                <li
-                  key={injury.name}
-                  className="text-[13px] leading-relaxed break-keep"
-                >
-                  <span className="font-semibold text-ink">{injury.name}</span>
-                  <span className="text-muted"> — {injury.desc}</span>
-                </li>
+                <div key={injury.name}>
+                  <dt className="font-semibold text-ink">{injury.name}</dt>
+                  <dd className="text-muted">{injury.desc}</dd>
+                </div>
               ))}
-            </ul>
-          </div>
-
-          <div className="space-y-2">
-            <h3 className="text-xs font-semibold text-muted">키울 근육</h3>
-            <ul className="space-y-1">
               {muscles.map((m) => (
-                <li key={m.name} className="flex gap-2 text-[13px] break-keep">
-                  <span className="w-28 shrink-0 font-semibold break-keep text-sky-strong">
-                    {m.name}
-                  </span>
-                  <span className="text-muted">{m.does}</span>
-                </li>
+                <div key={m.name}>
+                  <dt className="font-semibold text-sky-strong">{m.name}</dt>
+                  <dd className="text-muted">{m.does}</dd>
+                </div>
               ))}
-            </ul>
-          </div>
-
-          <div className="space-y-2">
-            <h3 className="text-xs font-semibold text-muted">알아 두기</h3>
-            <ul className="space-y-1.5">
               {area.notes.map((note) => (
-                <li
-                  key={note}
-                  className="text-[13px] leading-relaxed break-keep text-ink/80"
-                >
+                <p key={note} className="flex gap-1.5 text-ink/80">
+                  <Lightbulb
+                    aria-hidden
+                    className="mt-1 h-3.5 w-3.5 shrink-0 text-sky-strong"
+                  />
                   {note}
-                </li>
+                </p>
               ))}
-            </ul>
-          </div>
+            </dl>
+          </details>
 
           <div className="space-y-2">
             <h3 className="text-xs font-semibold text-muted">운동</h3>
@@ -273,7 +277,7 @@ export function GuideExercise({
               {ex.prescription}
             </span>
           )}
-          <MuscleChips muscles={ex.targetMuscles} highlight={highlight} />
+          <MuscleChips muscles={ex.targetMuscles} highlight={highlight} max={2} />
           <ExerciseBadges
             bodyParts={[]}
             intensity={ex.intensity}

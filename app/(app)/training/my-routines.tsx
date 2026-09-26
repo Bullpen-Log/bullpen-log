@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { ChevronDown, Pencil, Plus } from 'lucide-react';
+import { ChevronDown, Pencil, Play, Plus } from 'lucide-react';
 import { MY_ROUTINE_MAX } from '@/lib/armcare/my-routines';
 import { Checklist, type ArmcareTodayItem } from './armcare-today';
 
@@ -40,18 +40,15 @@ export function MyRoutines({
     <div className="space-y-3">
       {painToday && routines.length > 0 && (
         <p className="rounded-lg border border-warn-line bg-warn-bg px-4 py-3 text-[13px] leading-relaxed break-keep text-warn">
-          오늘 통증을 남기셨습니다. 오늘은 쉬는 것을 권합니다 — 하더라도 아프지 않은
-          범위에서만 하세요.
+          오늘 통증을 남기셨어요 — 쉬는 걸 권해요.
         </p>
       )}
 
       {routines.length === 0 ? (
         <div className="space-y-3 rounded-2xl border border-dashed border-line-strong bg-surface px-5 py-5">
           <p className="text-sm font-bold text-ink">아직 만든 루틴이 없습니다</p>
-          <p className="text-[13px] leading-relaxed break-keep text-muted">
-            투구 전, 집에서처럼 자주 하는 운동만 골라 이름을 붙여 두세요. 부위별
-            보강이나 훈련 방식에서 운동마다 <b className="text-ink">담기</b>를 눌러도
-            됩니다.
+          <p className="text-[13px] break-keep text-muted">
+            자주 하는 운동만 골라 이름을 붙여 두세요.
           </p>
           <NewRoutineLink />
         </div>
@@ -140,6 +137,15 @@ function RoutineCard({
             className={`h-4 w-4 shrink-0 text-muted transition-transform ${open ? 'rotate-180' : ''}`}
           />
         </button>
+        {all > 0 && (
+          <Link
+            href={`/armcare/play/${r.id}`}
+            aria-label={`${r.name} 따라하기`}
+            className="flex w-12 shrink-0 items-center justify-center border-l border-line text-sky transition-colors hover:bg-sky-tint"
+          >
+            <Play aria-hidden className="h-4 w-4" />
+          </Link>
+        )}
         <Link
           href={`/training/routine/${r.id}`}
           aria-label={`${r.name} 고치기`}
@@ -156,7 +162,7 @@ function RoutineCard({
               담긴 운동이 모두 라이브러리에서 숨겨졌습니다. 고치기에서 다시 담아 주세요.
             </p>
           ) : (
-            <Checklist items={r.items} grouped={false} doneLabel="루틴 끝 👏" />
+            <Checklist items={r.items} grouped={false} doneLabel="루틴 끝" />
           )}
           {r.hidden > 0 && (
             <p className="px-1 text-xs text-muted">

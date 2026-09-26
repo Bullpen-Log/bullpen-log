@@ -68,7 +68,7 @@ export function ExerciseMedia({
           onClick={toggle}
           aria-expanded={open}
           aria-label={`${exercise.title} 자세·영상 ${open ? '접기' : '보기'}`}
-          className="flex flex-1 items-center justify-center gap-1.5 py-2 text-[11px] font-semibold text-muted transition-colors hover:text-sky"
+          className="flex flex-1 items-center justify-center gap-1.5 py-2.5 text-xs font-semibold text-muted transition-colors hover:text-sky"
         >
           <Info aria-hidden className="h-3.5 w-3.5" />
           {open ? '접기' : '자세·영상 보기'}
@@ -77,7 +77,7 @@ export function ExerciseMedia({
           <Link
             href={muscleHref}
             aria-label={`${exercise.title} 근육 위치 보기`}
-            className="flex flex-1 items-center justify-center gap-1.5 border-l border-line/70 py-2 text-[11px] font-semibold text-muted transition-colors hover:text-sky"
+            className="flex flex-1 items-center justify-center gap-1.5 border-l border-line/70 py-2.5 text-xs font-semibold text-muted transition-colors hover:text-sky"
           >
             <Scan aria-hidden className="h-3.5 w-3.5" />
             근육 위치

@@ -28,11 +28,19 @@ export const MY_ROUTINE_NAME_MAX = 20;
 export const MY_ROUTINE_SETS_MIN = 1;
 export const MY_ROUTINE_SETS_MAX = 5;
 
-const clampSets = (n: unknown) =>
+/** 세트를 1~5 로 — 숫자가 아니면 2세트 */
+export const clampRoutineSets = (n: unknown) =>
   Math.min(
     MY_ROUTINE_SETS_MAX,
     Math.max(MY_ROUTINE_SETS_MIN, Math.round(Number.isFinite(n) ? (n as number) : 2))
   );
+
+const ROUTINE_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** 루틴 id 모양인가(uuid) — 주소와 서버 동작이 같은 검사를 쓴다 */
+export function isRoutineId(id: unknown): id is string {
+  return typeof id === 'string' && ROUTINE_ID.test(id);
+}
 
 /**
  * DB 에서 읽은 items — 모양이 어긋난 줄은 버린다.
@@ -49,7 +57,7 @@ export function readRoutineItems(raw: unknown): MyRoutineItem[] {
     const { exerciseId, sets } = row as { exerciseId?: unknown; sets?: unknown };
     if (typeof exerciseId !== 'string' || !exerciseId || seen.has(exerciseId)) continue;
     seen.add(exerciseId);
-    items.push({ exerciseId, sets: clampSets(sets) });
+    items.push({ exerciseId, sets: clampRoutineSets(sets) });
   }
   return items;
 }

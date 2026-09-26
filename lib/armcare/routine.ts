@@ -246,9 +246,7 @@ const ELBOW_AREAS: readonly ArmcareAreaKey[] = ['elbow-inner', 'elbow-outer'];
 
 /** armcareBlock 이 보는 오늘 체크인의 부위 상태 */
 type TodayParts =
-  | { shoulder?: string; elbow?: string; wrist?: string }
-  | null
-  | undefined;
+  { shoulder?: string; elbow?: string; wrist?: string } | null | undefined;
 
 /**
  * 이 운동을 오늘 루틴에 넣으면 안 되는 까닭 — 넣어도 되면 null.
@@ -274,18 +272,45 @@ export function armcareBlock(
 ): 'not-armcare' | 'arm-strength' | 'intensity' | 'heavy' | 'stiff' | null {
   if (ex.category !== ARMCARE_CATEGORY) return 'not-armcare';
   if (ARM_STRENGTH_MUSCLES.includes(ex.targetMuscles[0] ?? '')) return 'arm-strength';
+  /* 강화날에도 '높음'은 넣지 않는다 — 몸 상태가 아니라 맞춤 루틴이 정한 한도다 */
+  if (kind !== 'recovery' && intensityLevel(ex.intensity) > intensityLevel('중간')) {
+    return 'intensity';
+  }
+  return bodyStateBlock(ex, kind, today);
+}
+
+/**
+ * 지금 몸 상태로 보면 무리인 까닭 — 괜찮으면 null.
+ *
+ * armcareBlock 에서 '몸 상태' 몫만 떼어 낸 것이다. 내 루틴(사용자가 직접 고른 운동)에
+ * 표시를 달 때 쓴다(2026-09-26 검토). armcareBlock 을 그대로 쓰면 두 가지가 틀렸다 —
+ *   · 팔 근력 운동(컬 등)은 'arm-strength'에서 먼저 끝나, 90구 다음 날 무거운 덤벨 컬에도
+ *     표시가 안 붙었다.
+ *   · 강화날의 '높음' 한도(맞춤 루틴이 정한 것)가 몸 상태처럼 읽혀, 과부하 내리기를 담아 둔
+ *     사람에게 아무 일 없는 날에도 매일 '권하지 않는 운동'이 붙었다.
+ *
+ *   intensity  회복날에 '낮음'을 넘는 운동
+ *   heavy      회복날에 덤벨·케이블처럼 무게를 싣는 장비
+ *   stiff      뻐근한 관절을 쓰는, '낮음'을 넘는 운동
+ */
+export function bodyStateBlock(
+  ex: Pick<ArmcareCandidate, 'intensity' | 'equipment' | 'targetMuscles'>,
+  kind: ArmcareKind,
+  today: TodayParts
+): 'intensity' | 'heavy' | 'stiff' | null {
   const level = intensityLevel(ex.intensity);
   const light = intensityLevel('낮음');
   if (kind === 'recovery') {
     if (level > light) return 'intensity';
     if (ex.equipment.some((q) => HEAVY_EQUIPMENT.includes(q))) return 'heavy';
-  } else if (level > intensityLevel('중간')) {
-    return 'intensity';
   }
   if (level > light) {
     const joints = areasOf(ex.targetMuscles).map((a) => a.joint);
     if (today?.shoulder === '뻐근' && joints.includes('어깨')) return 'stiff';
-    if ((today?.elbow === '뻐근' || today?.wrist === '뻐근') && joints.includes('팔꿈치')) {
+    if (
+      (today?.elbow === '뻐근' || today?.wrist === '뻐근') &&
+      joints.includes('팔꿈치')
+    ) {
       return 'stiff';
     }
   }
@@ -441,7 +466,9 @@ export function buildArmcareRoutine({
   }
 
   if (stiffShoulder) {
-    notes.push('어깨가 뻐근해서 어깨를 쓰는 운동은 가벼운 것과 버티기 위주로 골랐습니다.');
+    notes.push(
+      '어깨가 뻐근해서 어깨를 쓰는 운동은 가벼운 것과 버티기 위주로 골랐습니다.'
+    );
   }
   if (stiffElbow) {
     notes.push('팔꿈치·손목이 뻐근해서 전완 운동은 가벼운 것 하나만 넣었습니다.');
@@ -472,7 +499,8 @@ export function buildArmcareRoutine({
    * 라 부위마다 자리가 하나씩이다. 채우는 차례(SLOTS)로 늘어놓았더니 어깨 사이에
    * 팔꿈치가 끼었고, 팔꿈치 후방·전방이 같은 자리가 되어 제목이 두 번 나왔다.
    */
-  const areaRank = (key: ArmcareAreaKey) => ARMCARE_AREAS.findIndex((a) => a.key === key);
+  const areaRank = (key: ArmcareAreaKey) =>
+    ARMCARE_AREAS.findIndex((a) => a.key === key);
   items.sort((a, b) => areaRank(a.area) - areaRank(b.area));
 
   return {

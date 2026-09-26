@@ -725,7 +725,7 @@ export function SessionClient({
       <header className="flex shrink-0 items-center gap-3 border-b border-line bg-surface px-3 py-2.5 pt-[max(0.625rem,env(safe-area-inset-top))]">
         <button
           type="button"
-          onClick={() => router.push('/training?view=today')}
+          onClick={() => router.push('/training')}
           aria-label="나가기"
           className="rounded-lg p-1.5 text-muted transition-colors hover:text-ink"
         >

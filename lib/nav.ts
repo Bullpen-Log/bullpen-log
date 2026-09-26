@@ -6,6 +6,8 @@
  * 한 곳에서 정의해 두 화면이 어긋나지 않게 한다.
  */
 
+import { TRAINING_LAST_HREF } from '@/lib/training-part';
+
 /** 쓸 수 있는 아이콘 이름. 그림은 components/nav-icons.tsx 에 있다. */
 export type NavIconName =
   | 'home'
@@ -118,7 +120,8 @@ export const NAV_GROUPS: NavGroup[] = [
     items: [{ href: '/videos', label: '투구 영상', icon: 'film' }],
   },
   {
-    items: [{ href: '/training', label: '트레이닝', icon: 'dumbbell' }],
+    /* 마지막으로 본 칸(트레이닝 · 암케어)을 연다 — lib/training-part.ts */
+    items: [{ href: TRAINING_LAST_HREF, label: '트레이닝', icon: 'dumbbell' }],
   },
   /*
    * 영양은 트레이닝 바로 뒤에 둔다. 몸을 만드는 두 바퀴라 나란히 있어야 하고,
@@ -200,7 +203,7 @@ export const DESK_MEDIA =
 export const MOBILE_TABS: NavItem[] = [
   { href: '/today', label: '홈', icon: 'home' },
   { href: '/videos', label: '투구 영상', short: '영상', icon: 'film' },
-  { href: '/training', label: '트레이닝', icon: 'dumbbell' },
+  { href: TRAINING_LAST_HREF, label: '트레이닝', icon: 'dumbbell' },
   { href: '/nutrition', label: '영양', icon: 'utensils' },
   { href: MORE_HREF, label: '더보기', icon: 'menu' },
 ];

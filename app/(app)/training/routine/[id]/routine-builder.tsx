@@ -92,9 +92,12 @@ export function RoutineBuilder({
 
   const shown = exercises.filter((e) => {
     if (filter !== 'all' && e.area !== filter) return false;
-    const q = query.trim();
+    /* 'trx', 'gg' 처럼 소문자로 찾아도 나오게 */
+    const q = query.trim().toLowerCase();
     return (
-      !q || e.view.title.includes(q) || e.view.targetMuscles.some((m) => m.includes(q))
+      !q ||
+      e.view.title.toLowerCase().includes(q) ||
+      e.view.targetMuscles.some((m) => m.includes(q))
     );
   });
 
@@ -350,7 +353,7 @@ export function RoutineBuilder({
                           {e.view.prescription}
                         </span>
                       )}
-                      <MuscleChips muscles={e.view.targetMuscles} />
+                      <MuscleChips muscles={e.view.targetMuscles} max={2} />
                       <ExerciseBadges
                         bodyParts={[]}
                         intensity={e.view.intensity}

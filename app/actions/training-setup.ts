@@ -80,7 +80,6 @@ const RETURN_TO = [
    * 돌아온다. 주소를 풀어 따지지 않고 통째로 적는다 — 그래야 남의 곳으로 보내는
    * 길이 생기지 않는다.
    */
-  '/training?view=today',
   '/training?view=armcare',
   '/training?view=armcare&tab=guide',
   '/training?view=armcare&tab=methods',

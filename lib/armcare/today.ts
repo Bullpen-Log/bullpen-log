@@ -86,11 +86,12 @@ export async function loadArmcareToday(user: UserForArmcare, today: Date) {
   const doneToday = new Set(
     logs.filter((log) => toDateKey(log.date) === todayKey).map((log) => log.exerciseId)
   );
-  /* 최근 7일(오늘 포함) 중 암케어를 한 날 */
-  const weekAgo = shiftDateKey(todayKey, -6);
-  const recentDays = new Set(
-    logs.map((log) => toDateKey(log.date)).filter((key) => key >= weekAgo)
-  ).size;
+  /* 최근 7일(오늘 포함) — 날마다 암케어를 했는가. 루틴 칸 맨 아래 점 7개가 된다 */
+  const doneDates = new Set(logs.map((log) => toDateKey(log.date)));
+  const week = Array.from({ length: 7 }, (_, i) => {
+    const key = shiftDateKey(todayKey, i - 6);
+    return { key, done: doneDates.has(key) };
+  });
 
   return {
     todayKey,
@@ -110,6 +111,6 @@ export async function loadArmcareToday(user: UserForArmcare, today: Date) {
     bestAddition: usable.bestAddition,
     lastDone,
     doneToday,
-    recentDays,
+    week,
   };
 }

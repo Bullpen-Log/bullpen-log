@@ -19,7 +19,7 @@ export default function RestPage() {
         통증이 이어지면 수치와 관계없이 전문의와 상담하세요.
       </p>
       <Link
-        href="/training?view=today"
+        href="/training"
         className="mt-8 rounded-xl border border-line-strong px-5 py-3 text-sm font-semibold text-ink transition-colors hover:border-sky hover:text-sky"
       >
         트레이닝으로 돌아가기

@@ -12,11 +12,11 @@ import {
 } from '@/lib/armcare/anatomy';
 import { throwingSide } from '@/lib/armcare/muscle-map';
 import { loadArmcareToday, type UserForArmcare } from '@/lib/armcare/today';
-import { armcareBlock, armcareMinutes } from '@/lib/armcare/routine';
+import { armcareBlock, armcareMinutes, bodyStateBlock } from '@/lib/armcare/routine';
 import { loadMyRoutines } from '@/lib/armcare/my-routines-store';
 import { Card } from '@/components/ui';
 import { OpenCheckinButton } from '@/components/notice-bell';
-import { ArmcareToday, RecentLine, type ArmcareTodayItem } from './armcare-today';
+import { ArmcareToday, WeekDots, type ArmcareTodayItem } from './armcare-today';
 import { ArmcareGuide } from './armcare-guide';
 import { ArmcareMethods } from './armcare-methods';
 import { MyRoutines, type MyRoutineView } from './my-routines';
@@ -85,22 +85,21 @@ export async function ArmcareSection({
   const byId = new Map(library.map((ex) => [ex.id, ex]));
 
   /*
-   * 지금 몸 상태로 보면 권하지 않는 운동인가 — 맞춤 루틴을 짤 때와 같은 규칙.
+   * 지금 몸 상태로 보면 권하지 않는 운동인가.
    *
    * 체크인이 없으면 몸 상태를 모르니 표시하지 않는다. 통증인 날은 운동마다 달지 않고
-   * 위에 한 번 알린다. 팔 근력 운동(컬·푸시다운)은 맞춤 루틴에 안 넣을 뿐 위험해서가
-   * 아니라, 내 루틴에서는 표시하지 않는다.
+   * 위에 한 번 알린다.
+   *   맞춤 루틴  만들 때와 같은 규칙(armcareBlock) — 만든 뒤 몸 상태가 바뀐 것을 잡는다
+   *   내 루틴    몸 상태 몫만(bodyStateBlock) — 팔 근력 운동도 보고, 맞춤 루틴의 강도
+   *              한도('높음'을 안 넣는 것)는 몸 상태가 아니라 보지 않는다
    */
   const notAdvised = (ex: CachedExercise, forMine: boolean) => {
     if (!data.hasCheckinToday || data.decision.kind === 'rest') return false;
-    const why = armcareBlock(
-      { ...ex, targetMuscles: ex.targetMuscles ?? [] },
-      data.decision.kind,
-      data.facts.condition.today
-    );
+    const candidate = { ...ex, targetMuscles: ex.targetMuscles ?? [] };
+    const today = data.facts.condition.today;
     return forMine
-      ? why === 'intensity' || why === 'heavy' || why === 'stiff'
-      : why != null;
+      ? bodyStateBlock(candidate, data.decision.kind, today) != null
+      : armcareBlock(candidate, data.decision.kind, today) != null;
   };
 
   /* ── 맞춤 루틴 ── */
@@ -113,13 +112,9 @@ export async function ArmcareSection({
     custom = (
       <Card className="space-y-3">
         <p className="text-base font-bold text-ink">오늘 체크인을 먼저 남겨주세요</p>
-        <p className="text-sm leading-relaxed break-keep text-muted">
-          맞춤 루틴은 던진 날인지, 팔이 얼마나 피곤한지, 어깨·팔꿈치가 뻐근한지를 보고
-          회복 루틴과 강화 루틴 중에 고릅니다.
-        </p>
         <TrainingCheckin
           parts={availableParts(library)}
-          description="30초면 됩니다. 남기면 바로 맞춤 루틴을 만들 수 있습니다."
+          description="30초면 돼요. 몸 상태를 보고 루틴을 짜 드려요."
         />
       </Card>
     );
@@ -131,13 +126,9 @@ export async function ArmcareSection({
         <p className="text-sm leading-relaxed break-keep text-warn">
           {data.decision.reason}
         </p>
-        <p className="text-sm leading-relaxed break-keep text-warn">
-          통증이 아니었다면{' '}
-          <OpenCheckinButton className="font-semibold underline">
-            오늘 체크인
-          </OpenCheckinButton>
-          에서 상태를 고쳐주세요.
-        </p>
+        <OpenCheckinButton className="text-sm font-semibold text-warn underline">
+          통증이 아니면 체크인 고치기
+        </OpenCheckinButton>
       </Card>
     );
   } else {
@@ -230,22 +221,16 @@ export async function ArmcareSection({
   return (
     <div className="space-y-10">
       <section className="space-y-3">
-        <SectionHead
-          title="맞춤 루틴"
-          desc="오늘 투구량·팔 피로·통증을 보고 앱이 짜 줍니다. 하루에 하나."
-        />
+        <SectionHead title="맞춤 루틴" desc="몸 상태에 맞춰 앱이 짜 줘요" />
         {custom}
       </section>
 
       <section className="space-y-3">
-        <SectionHead
-          title="내 루틴"
-          desc="필요한 운동만 골라 이름을 붙여 두고, 언제든 여기서 체크하며 하세요."
-        />
+        <SectionHead title="내 루틴" desc="내가 골라 둔 운동 · 언제든" />
         <MyRoutines routines={routines} painToday={data.decision.kind === 'rest'} />
       </section>
 
-      <RecentLine days={data.recentDays} />
+      <WeekDots week={data.week} />
     </div>
   );
 }

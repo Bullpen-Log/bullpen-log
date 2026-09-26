@@ -1,7 +1,8 @@
 'use client';
 
 import { useState, useTransition } from 'react';
-import { AlertTriangle, Check, RefreshCw } from 'lucide-react';
+import Link from 'next/link';
+import { AlertTriangle, Check, Play, RefreshCw } from 'lucide-react';
 import { setExerciseDone } from '@/app/actions/exercise-log';
 import { makeArmcareRoutine } from '@/app/actions/armcare';
 import { ExerciseBadges } from '@/components/meta-badges';
@@ -67,9 +68,6 @@ export function ArmcareToday({
           <p className="text-sm font-semibold break-keep text-sky-strong">
             {decision.reason}
           </p>
-          <p className="text-sm leading-relaxed break-keep text-muted">
-            {suggested.desc}
-          </p>
           <button
             type="button"
             onClick={make}
@@ -113,20 +111,38 @@ export function ArmcareToday({
         <p className="text-sm font-semibold break-keep text-sky-strong">
           {routine.reason}
         </p>
-        {routine.notes.map((note) => (
-          <p key={note} className="text-xs leading-relaxed break-keep text-muted">
-            {note}
-          </p>
-        ))}
+        {/* 빠진 부위 같은 안내는 접어 둔다 — 늘 보일 만큼 급하지 않다 */}
+        {routine.notes.length > 0 && (
+          <details className="group text-xs text-muted">
+            <summary className="cursor-pointer list-none font-semibold">
+              안내 {routine.notes.length}개 <span className="group-open:hidden">▾</span>
+            </summary>
+            <ul className="mt-1.5 space-y-1">
+              {routine.notes.map((note) => (
+                <li key={note} className="leading-relaxed break-keep">
+                  {note}
+                </li>
+              ))}
+            </ul>
+          </details>
+        )}
         {(kindChanged || unsafeCount > 0) && (
           <p className="rounded-lg border border-warn-line bg-warn-bg px-3 py-2 text-xs leading-relaxed break-keep text-warn">
             {kindChanged
-              ? `만든 뒤에 몸 상태가 바뀌었습니다. 지금은 ${suggested.label}을 권합니다 — ${decision.reason}.`
-              : `만든 뒤에 몸 상태가 바뀌어, 지금은 권하지 않는 운동이 ${unsafeCount}개 있습니다(아래에 표시).`}{' '}
-            다시 만들면 바뀝니다(체크한 것은 남습니다).
+              ? `몸 상태가 바뀌었어요 — 지금은 ${suggested.label}이 맞아요.`
+              : `몸 상태가 바뀌어 무리인 운동이 ${unsafeCount}개 있어요.`}{' '}
+            다시 만들어도 체크한 것은 남아요.
           </p>
         )}
         <div className="flex flex-wrap items-center gap-3 border-t border-sky-soft/30 pt-3">
+          {/* 한 운동씩 크게 따라 하기 — 목록을 읽지 않아도 된다 (armcare/play) */}
+          <Link
+            href="/armcare/play/today"
+            className="inline-flex items-center gap-1.5 rounded-lg bg-sky px-3.5 py-2 text-sm font-semibold text-white transition-colors hover:bg-sky-strong"
+          >
+            <Play aria-hidden className="h-4 w-4" />
+            따라하기
+          </Link>
           <button
             type="button"
             onClick={make}
@@ -145,19 +161,55 @@ export function ArmcareToday({
   );
 }
 
+const WEEKDAYS = ['일', '월', '화', '수', '목', '금', '토'];
+
 /**
- * 최근 7일에 암케어를 한 날 — 매일 하는 것이 목표라 날 수로 말한다.
+ * 이번 주 암케어 — 최근 7일(오늘 포함)을 점 7개로.
  *
- * 맞춤 루틴이든 내 루틴이든 암케어 운동을 하나라도 체크한 날을 센다. 그래서 칸 맨
- * 아래에 둔다(armcare-section.tsx).
+ * 예전에는 '최근 7일 중 암케어를 한 날 N일'이라는 글 한 줄이었다. 매일 하는 것이
+ * 목표라, 빈 날이 어디인지 눈으로 보이는 편이 낫다(2026-09-26, 글 대신 그림).
+ * 맞춤 루틴이든 내 루틴이든 암케어 운동을 하나라도 체크한 날을 칠한다.
  */
-export function RecentLine({ days }: { days: number }) {
+export function WeekDots({ week }: { week: { key: string; done: boolean }[] }) {
+  const days = week.filter((d) => d.done).length;
   return (
-    <p className="px-1 text-xs text-muted">
-      최근 7일 중 암케어를 한 날{' '}
-      <span className="font-semibold text-ink">{days}일</span>
-      {days === 0 ? ' — 오늘부터 시작해 보세요.' : ''}
-    </p>
+    <div className="rounded-2xl border border-line bg-surface px-4 py-3.5">
+      <p className="flex items-baseline justify-between text-sm">
+        <span className="font-semibold text-ink">이번 주 암케어</span>
+        <span className="text-muted">
+          <b className="text-display text-base text-ink tabular-nums">{days}</b>/7일
+        </span>
+      </p>
+      <ol
+        className="mt-3 grid grid-cols-7 gap-1 text-center"
+        aria-label={`최근 7일 중 ${days}일`}
+      >
+        {week.map((d, i) => {
+          const [y, m, dd] = d.key.split('-').map(Number);
+          const isToday = i === week.length - 1;
+          return (
+            <li key={d.key} className="space-y-1">
+              <span
+                className={`mx-auto grid h-7 w-7 place-items-center rounded-full text-[11px] font-bold ${
+                  d.done
+                    ? 'bg-sky text-white'
+                    : isToday
+                      ? 'border-2 border-dashed border-sky-soft text-muted'
+                      : 'bg-surface-2 text-muted'
+                }`}
+              >
+                {d.done ? '✓' : ''}
+              </span>
+              <span
+                className={`block text-[11px] ${isToday ? 'font-bold text-ink' : 'text-muted'}`}
+              >
+                {isToday ? '오늘' : WEEKDAYS[new Date(y, m - 1, dd).getDay()]}
+              </span>
+            </li>
+          );
+        })}
+      </ol>
+    </div>
   );
 }
 
@@ -170,7 +222,7 @@ export function RecentLine({ days }: { days: number }) {
 export function Checklist({
   items: initial,
   grouped = true,
-  doneLabel = '오늘 암케어 끝 👏',
+  doneLabel = '오늘 암케어 끝',
 }: {
   items: ArmcareTodayItem[];
   grouped?: boolean;
@@ -192,6 +244,10 @@ export function Checklist({
     const target = items.find((it) => it.exercise.id === id);
     if (!target) return;
     const next = !target.done;
+    /* 체크할 때 짧게 떨려 손에 '됐다'가 느껴지게 — 풀 때는 조용히 */
+    if (next && typeof navigator !== 'undefined' && 'vibrate' in navigator) {
+      navigator.vibrate(12);
+    }
     setItems((prev) =>
       prev.map((it) => (it.exercise.id === id ? { ...it, done: next } : it))
     );
@@ -230,7 +286,10 @@ export function Checklist({
             <span className="text-muted">/{items.length}</span> 완료
           </p>
           {allDone && (
-            <span className="text-sm font-semibold text-sky">{doneLabel}</span>
+            <span className="finish-pop inline-flex items-center gap-1 rounded-full bg-sky px-2.5 py-1 text-xs font-bold text-white">
+              <Check aria-hidden className="h-3.5 w-3.5" strokeWidth={3} />
+              {doneLabel}
+            </span>
           )}
         </div>
         <div className="mt-3 h-2 overflow-hidden rounded-full bg-surface-2">
@@ -256,8 +315,14 @@ export function Checklist({
           >
             {area && (
               <div className="flex flex-wrap items-baseline gap-x-2 px-1">
-                <h2 className="text-heading text-[15px] text-ink">{area.label}</h2>
-                <span className="text-xs break-keep text-muted">{area.role}</span>
+                <h2 className="flex items-center gap-2 text-heading text-[15px] text-ink">
+                  <span
+                    aria-hidden
+                    className="h-2.5 w-2.5 rounded-full"
+                    style={{ backgroundColor: area.color }}
+                  />
+                  {area.label}
+                </h2>
               </div>
             )}
             <ul className="space-y-2.5">
@@ -282,7 +347,9 @@ export function Checklist({
                         done ? 'border-sky bg-sky text-white' : 'border-line-strong'
                       }`}
                     >
-                      {done && <Check className="h-3.5 w-3.5" strokeWidth={3} />}
+                      {done && (
+                        <Check className="finish-pop h-3.5 w-3.5" strokeWidth={3} />
+                      )}
                     </span>
                     <span className="min-w-0 flex-1 space-y-1.5">
                       <span className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
@@ -308,7 +375,7 @@ export function Checklist({
                           {ex.prescription}
                         </span>
                       )}
-                      <MuscleChips muscles={ex.targetMuscles} />
+                      <MuscleChips muscles={ex.targetMuscles} max={2} />
                       <ExerciseBadges
                         bodyParts={[]}
                         intensity={ex.intensity}
@@ -330,7 +397,7 @@ export function Checklist({
                       <img
                         src={ex.thumbUrl}
                         alt=""
-                        className="hidden h-16 w-24 shrink-0 rounded-xl object-cover ring-1 ring-line sm:block"
+                        className="h-14 w-20 shrink-0 rounded-xl object-cover ring-1 ring-line sm:h-16 sm:w-24"
                       />
                     )}
                   </button>

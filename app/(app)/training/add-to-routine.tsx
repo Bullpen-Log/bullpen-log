@@ -87,7 +87,7 @@ export function AddToRoutine({
           setOpen(true);
         }}
         aria-label={`${title} 내 루틴에 담기`}
-        className="inline-flex items-center gap-1 rounded-full border border-line px-2 py-0.5 text-[11px] font-semibold text-muted transition-colors hover:border-sky hover:text-sky"
+        className="inline-flex min-h-7 items-center gap-1 rounded-full border border-line px-2.5 py-1 text-xs font-semibold text-muted transition-colors hover:border-sky hover:text-sky"
       >
         <Plus aria-hidden className="h-3 w-3" />
         담기

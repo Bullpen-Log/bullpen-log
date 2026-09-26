@@ -63,12 +63,12 @@ export async function startWorkout() {
 
   if (core.shownPicks.length === 0) {
     /* 만들어 둔 일정이 없다. 먼저 만들게 되돌려 보낸다. */
-    redirect('/training?view=today');
+    redirect('/training');
   }
 
   /* 테마는 만들어 둔 일정에 적혀 있다 (lib/report/daily-plan.ts 의 DailyPlan) */
   const theme = core.savedPlan?.theme;
-  if (!theme) redirect('/training?view=today');
+  if (!theme) redirect('/training');
 
   const details = await exercisesByIds(core.shownPicks.map((p) => p.exerciseId));
   const plan = freezePlan(
@@ -78,7 +78,7 @@ export async function startWorkout() {
     new Map(details.map((ex) => [ex.id, ex]))
   );
 
-  if (plan.exercises.length === 0) redirect('/training?view=today');
+  if (plan.exercises.length === 0) redirect('/training');
 
   /*
    * 워밍업 창을 건너뛰는 두 경우.
@@ -141,7 +141,7 @@ export async function finishWarmup(input: {
 }): Promise<{ error: string } | never> {
   const user = await requireUser();
   const session = await activeSession(user.id);
-  if (!session) redirect('/training?view=today');
+  if (!session) redirect('/training');
 
   /* 이미 지난 창이다. 두 번 누르거나 뒤로가기로 들어와도 시각을 덮지 않는다. */
   if (session.mainStartedAt) redirect('/workout/run', RedirectType.replace);
@@ -386,7 +386,7 @@ export async function finishWorkout(input: {
 }): Promise<{ error: string } | never> {
   const user = await requireUser();
   const session = await sessionForSet(user.id, input.sessionId);
-  if (!session) redirect('/training?view=today');
+  if (!session) redirect('/training');
 
   /*
    * 본운동을 시작한 뒤로 흐른 시간. 워밍업은 안 들어간다.
@@ -424,7 +424,7 @@ export async function finishWorkout(input: {
 
   revalidatePath('/today');
   revalidatePath('/training');
-  redirect('/training?view=today', RedirectType.replace);
+  redirect('/training', RedirectType.replace);
 }
 
 /* ---------------------------- 목록 고치기 ---------------------------- */

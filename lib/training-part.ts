@@ -7,12 +7,17 @@
  * 매번 칸을 바꾸지 않게. 예전의 [기록] 칸은 뺐다 — 지난 운동은 홈 캘린더에서 날짜를
  * 누르면 그날 화면(/training/day/<날짜>)으로 간다.
  *
- *   /training               마지막으로 본 칸 (쿠키, 없으면 트레이닝)
- *   /training?view=today    트레이닝 칸 — 운동을 마치고 돌아오는 곳처럼 '운동'을 뜻하는 길
+ *   /training               트레이닝 칸 — 늘 운동이다
  *   /training?view=armcare  암케어 칸
+ *   /training?view=last     마지막으로 본 칸 (쿠키, 없으면 트레이닝) — 아래 탭·메뉴만 쓴다
+ *
+ * 처음에는 그냥 /training 이 마지막 칸을 열게 했다. 그랬더니 운동을 뜻하는 길(운동 판을
+ * 마치고 돌아오기, 홈 캘린더의 오늘 운동 …)마다 ?view=today 를 붙여야 했고, 앞으로 누가
+ * redirect('/training') 을 새로 쓰면 암케어를 마지막으로 본 사람은 말없이 암케어로 갔다
+ * (2026-09-26 검토). 그래서 '마지막 칸'을 메뉴의 길 하나로 좁혔다.
  *
  * 쿠키를 적는 것은 화면 쪽(view-switch.tsx)이다 — 서버 화면은 쿠키를 쓸 수 없다. 읽는
- * 것은 서버(page.tsx)다. 주소에 칸이 적혀 있으면 그것이 먼저다.
+ * 것은 서버(page.tsx)다.
  *
  * 이름을 'use client' 파일이 아니라 여기 둔다. 그런 파일에서 내보낸 값을 서버에서
  * 읽으면 진짜 값이 아니라 화면 쪽을 가리키는 표만 온다.
@@ -22,11 +27,14 @@ export type TrainingPart = 'today' | 'armcare';
 
 export const TRAINING_PART_COOKIE = 'bl-training-part';
 
-/** 칸마다 가는 길 — 칸이 적혀 있어 쿠키와 상관없이 그 칸이 열린다 */
+/** 칸마다 가는 길 */
 export const TRAINING_PART_HREF: Record<TrainingPart, string> = {
-  today: '/training?view=today',
+  today: '/training',
   armcare: '/training?view=armcare',
 };
+
+/** 아래 탭·메뉴의 '트레이닝' — 마지막으로 본 칸 (lib/nav.ts) */
+export const TRAINING_LAST_HREF = '/training?view=last';
 
 /** 주소나 쿠키에서 온 값 — 두 칸이 아니면 null */
 export function readTrainingPart(

@@ -109,11 +109,16 @@ export default async function TrainingPage({
   const params = await searchParams;
   /* 예전 [기록] 칸의 주소 — 지난 기록은 이제 홈 캘린더에 있다 */
   if (params.view === 'history') redirect('/today');
-  /* 주소에 칸이 적혀 있으면 그 칸, 아니면 마지막으로 본 칸, 처음이면 트레이닝 */
+  /*
+   * 적힌 칸, 아니면 트레이닝. 아래 탭·메뉴(?view=last)만 마지막으로 본 칸을 연다 —
+   * 그냥 /training 은 늘 운동이다(lib/training-part.ts).
+   */
   const view: TrainingView =
-    readTrainingPart(typeof params.view === 'string' ? params.view : null) ??
-    readTrainingPart((await cookies()).get(TRAINING_PART_COOKIE)?.value) ??
-    'today';
+    params.view === 'last'
+      ? (readTrainingPart((await cookies()).get(TRAINING_PART_COOKIE)?.value) ??
+        'today')
+      : (readTrainingPart(typeof params.view === 'string' ? params.view : null) ??
+        'today');
 
   /*
    * 암케어 — 운동 일정과 따로, 그날 몸 상태에 맞춘 루틴과 부위별 보강.
@@ -125,11 +130,7 @@ export default async function TrainingPage({
       params.tab === 'guide' || params.tab === 'methods' ? params.tab : 'today';
     return (
       <div className="space-y-6">
-        <PageHeading
-          eyebrow="Training"
-          title="암케어"
-          description="어깨와 팔꿈치를 따로 챙기는 곳입니다. 몸 상태에 맞춘 맞춤 루틴을 받거나, 필요한 운동만 골라 내 루틴을 만들어 언제든 하세요."
-        />
+        <PageHeading eyebrow="Training" title="암케어" />
         <ViewTabs
           current="armcare"
           settings={user}
@@ -375,26 +376,7 @@ export default async function TrainingPage({
 
   return (
     <div className="space-y-6">
-      <PageHeading
-        eyebrow="Training"
-        title="트레이닝"
-        description={
-          /*
-            통증인 날에는 목록이 아예 안 나온다. 그런데도 "고른 운동입니다. 마친
-            것은 눌러서 표시해주세요"가 그대로 남아 있어, 아래에서는 처방을 안
-            했다고 하면서 위에서는 마친 것을 표시하라고 했다.
-          */
-          picked.halted
-            ? '오늘은 쉬는 것이 훈련입니다.'
-            : savedPlan == null
-              ? '오늘 할 운동을 만들어 드립니다. 하루에 한 번 만들고, 내일이 되면 새로 만듭니다.'
-              : savedPlan.auto
-                ? '오늘 체크인 · 최근 투구 · 운동 기록을 보고 목표와 시간을 정해 고른 운동입니다. 마친 것은 눌러서 표시해주세요.'
-                : core.hasCheckinToday
-                  ? '최근 투구량 · 오늘 몸 상태 · 고르신 목표에 맞춰 고른 운동입니다. 마친 것은 눌러서 표시해주세요.'
-                  : '최근 투구량과 고르신 목표에 맞춰 고른 운동입니다. 마친 것은 눌러서 표시해주세요.'
-        }
-      />
+      <PageHeading eyebrow="Training" title="트레이닝" />
 
       <ViewTabs current="today" settings={user} returnTo={TRAINING_PART_HREF.today} />
 
@@ -419,17 +401,28 @@ export default async function TrainingPage({
       )}
 
       {/* 왜 오늘 이런 구성인지 — 고르는 건 코드, 설명은 AI가 한다 */}
+      {/*
+        AI 설명은 한 줄(무엇에 집중하는 날인지)만 보이고, 까닭은 접는다 — 화면에 글이
+        많으면 읽지 않고 넘긴다(2026-09-26 사용자분).
+      */}
       {aiTraining && (
-        <Card className="space-y-2 border-sky-soft/60 bg-sky-tint">
-          <p className="flex items-center gap-1.5 text-[11px] font-medium tracking-normal text-sky-strong">
-            <Sparkles className="h-3.5 w-3.5" />
-            오늘의 훈련
+        <details className="group rounded-2xl border border-sky-soft/60 bg-sky-tint px-5 py-4">
+          <summary className="flex cursor-pointer list-none items-start gap-2">
+            <Sparkles
+              aria-hidden
+              className="mt-1 h-3.5 w-3.5 shrink-0 text-sky-strong"
+            />
+            <span className="min-w-0 flex-1 text-[15px] font-bold leading-snug break-keep text-ink">
+              {aiTraining.focus}
+            </span>
+            <span className="shrink-0 text-xs font-semibold text-sky-strong group-open:hidden">
+              왜?
+            </span>
+          </summary>
+          <p className="mt-2 text-sm leading-relaxed break-keep text-ink/80">
+            {aiTraining.why}
           </p>
-          <p className="text-base font-bold leading-snug text-ink">
-            {aiTraining.focus}
-          </p>
-          <p className="text-sm leading-relaxed text-ink/80">{aiTraining.why}</p>
-        </Card>
+        </details>
       )}
 
       {picked.halted ? (
@@ -445,18 +438,14 @@ export default async function TrainingPage({
           <p className="text-sm leading-relaxed text-warn">
             {picked.haltReason ?? '통증 신호가 있어 훈련 조언을 만들지 않았습니다.'}
           </p>
-          <p className="text-sm leading-relaxed text-warn">
-            통증이 아니었다면{' '}
-            <OpenCheckinButton className="font-semibold underline">
-              오늘 체크인
-            </OpenCheckinButton>
-            에서 상태를 고쳐주세요. 만들어 둔 일정이 있으면 그대로 다시 나옵니다.
-          </p>
+          <OpenCheckinButton className="text-sm font-semibold text-warn underline">
+            통증이 아니면 체크인 고치기
+          </OpenCheckinButton>
         </Card>
       ) : !core.hasLogs ? (
         <EmptyState
           title="투구 기록이 있어야 운동을 고를 수 있습니다"
-          description="최근 투구량과 몸 상태를 봐야 오늘 무리가 안 되는 운동을 고를 수 있습니다."
+          description="투구량을 봐야 무리 없는 운동을 고를 수 있어요."
           action={
             /* 홈의 투구 상자가 알림(종)으로 옮겨 가서, 그날 투구 화면으로 바로 보낸다 */
             <Link
@@ -478,11 +467,7 @@ export default async function TrainingPage({
         <Card className="space-y-4">
           <div className="space-y-1">
             <p className="text-lg font-bold text-ink">오늘 운동 일정을 만들어보세요</p>
-            <p className="text-sm leading-relaxed text-muted">
-              최근 투구량{core.hasCheckinToday ? ' · 오늘 몸 상태' : ''} · 오늘 목표에
-              맞춰 오늘 할 운동을 골라드립니다. 만든 일정은 오늘 하루 그대로 남고,
-              내일이 되면 다시 만들 수 있습니다.
-            </p>
+            <p className="text-sm text-muted">투구량과 몸 상태에 맞춰 골라 드려요.</p>
           </div>
           {planForm(false, savedMinutes)}
         </Card>
@@ -491,11 +476,10 @@ export default async function TrainingPage({
           <p className="text-sm font-bold text-ink">
             만들어 둔 일정에 남은 운동이 없습니다
           </p>
-          <p className="text-sm leading-relaxed text-muted">
+          <p className="text-sm text-muted">
             {droppedForSafety > 0
-              ? '일정을 만든 뒤 몸 상태가 바뀌어, 오늘 하기에 무리인 운동이 모두 빠졌습니다.'
-              : '오늘 상태에서 안전하게 할 수 있는 운동이 라이브러리에 아직 없습니다.'}{' '}
-            아래에서 다시 만들어보세요.
+              ? '몸 상태가 바뀌어 무리인 운동이 모두 빠졌어요.'
+              : '지금 할 수 있는 운동이 아직 없어요.'}
           </p>
           {planForm(false, savedPlan.requestedMinutes)}
         </Card>
@@ -536,9 +520,7 @@ export default async function TrainingPage({
             {savedPlan.auto && <AutoNote auto={savedPlan.auto} />}
             {savedPlan.minutes < savedPlan.requestedMinutes && (
               <p className="text-xs text-warn">
-                {savedPlan.requestedMinutes}분
-                {savedPlan.auto ? '으로 잡았지만' : '을 고르셨지만'} 회복 데이라{' '}
-                {savedPlan.minutes}분으로 줄였습니다
+                회복 데이라 {savedPlan.requestedMinutes}분 → {savedPlan.minutes}분
               </p>
             )}
 
@@ -547,9 +529,8 @@ export default async function TrainingPage({
               말없이 줄어들면 앱이 잘못된 것으로 보인다.
             */}
             {droppedForSafety > 0 && (
-              <p className="rounded-lg border border-warn-line bg-warn-bg px-3 py-2 text-xs leading-relaxed text-warn">
-                일정을 만든 뒤 몸 상태가 바뀌어, 오늘 하기에 무리인 운동{' '}
-                {droppedForSafety}개를 뺐습니다.
+              <p className="rounded-lg border border-warn-line bg-warn-bg px-3 py-2 text-xs text-warn">
+                몸 상태가 바뀌어 무리인 운동 {droppedForSafety}개를 뺐어요.
               </p>
             )}
 
@@ -572,10 +553,9 @@ export default async function TrainingPage({
             처음 쓰는 사람이기 때문이다. 운동 열여섯 개 밑에 있으면 닿지 않는다.
           */}
           {user.ownedEquipment.length === 0 && (
-            <p className="rounded-lg border border-warn-line bg-warn-bg px-4 py-3 text-[13px] leading-relaxed text-warn">
-              가진 장비를 아직 안 고르셔서 <b>전부 있다고 보고</b> 골랐습니다. 없는
-              장비가 섞여 있으면 위의 <b>트레이닝 설정</b>에서 정해주세요 — 그다음부터는
-              실제로 할 수 있는 운동만 나옵니다.
+            <p className="rounded-lg border border-warn-line bg-warn-bg px-4 py-3 text-[13px] text-warn">
+              장비를 안 골라 <b>전부 있다고 보고</b> 골랐어요 — 위 <b>트레이닝 설정</b>
+              에서 고르세요.
             </p>
           )}
 
@@ -607,10 +587,9 @@ export default async function TrainingPage({
 
           {/* 후보가 빠듯하면 숨기지 않고 알린다. */}
           {picked.tooFew && (
-            <p className="rounded-lg border border-warn-line bg-warn-bg px-4 py-3 text-[13px] leading-relaxed text-warn">
-              오늘 조건을 통과한 운동이 {picked.candidates.length}개뿐입니다(권장{' '}
-              {MIN_CANDIDATES}개 이상). 낮은 강도 운동이 더 채워지면 더 알맞게 고를 수
-              있습니다.
+            <p className="rounded-lg border border-warn-line bg-warn-bg px-4 py-3 text-[13px] text-warn">
+              오늘 조건에 맞는 운동이 {picked.candidates.length}개뿐이에요(권장{' '}
+              {MIN_CANDIDATES}개 이상).
             </p>
           )}
 
@@ -622,9 +601,7 @@ export default async function TrainingPage({
             사람에게 "덤벨이 있으면"이라고 하면 틀린 말이 된다.
           */}
           {savedPlan.equipment.bestAddition && (
-            <p className="rounded-lg border border-line bg-surface px-4 py-3 text-[13px] leading-relaxed text-muted">
-              {savedPlan.equipment.narrowed ? '오늘 쓸 수 있는' : '가진'} 장비로 할 수
-              없는 운동 {savedPlan.equipment.excludedCount}개를 뺐습니다.{' '}
+            <p className="rounded-lg border border-line bg-surface px-4 py-3 text-[13px] text-muted">
               <span className="font-semibold text-ink">
                 {savedPlan.equipment.bestAddition.name}
               </span>
@@ -633,8 +610,8 @@ export default async function TrainingPage({
                 화면에 나왔다 — 받침이 없는 이름에는 '가'가 붙어야 한다.
               */}
               {savedPlan.equipment.narrowed
-                ? `${josa(savedPlan.equipment.bestAddition.name, '을/를')} 쓸 수 있는 날이면 ${savedPlan.equipment.bestAddition.unlocks}개를 더 할 수 있습니다.`
-                : `${josa(savedPlan.equipment.bestAddition.name, '이/가')} 있으면 ${savedPlan.equipment.bestAddition.unlocks}개를 더 할 수 있습니다.`}
+                ? `${josa(savedPlan.equipment.bestAddition.name, '을/를')} 쓸 수 있으면 운동 ${savedPlan.equipment.bestAddition.unlocks}개가 더 나와요.`
+                : `${josa(savedPlan.equipment.bestAddition.name, '이/가')} 있으면 운동 ${savedPlan.equipment.bestAddition.unlocks}개가 더 나와요.`}
             </p>
           )}
 

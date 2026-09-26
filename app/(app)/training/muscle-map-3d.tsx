@@ -21,12 +21,17 @@ export type MapStatus = 'loading' | 'ready' | 'unavailable' | 'error';
 
 const MODEL_URL = '/models/armcare-upper.glb';
 
-/* 색 — 몸은 회색 점토, 암케어 근육은 붉은 근육색, 고른 것은 앱의 하늘색 */
+/*
+ * 색 — 몸은 회색 점토, 암케어 근육은 붉은 근육색, 고른 것은 앱의 하늘색.
+ *
+ * 부위 색(lib/armcare/anatomy.ts 의 color)으로 근육을 칠해 본 적이 있다. 여덟 색이
+ * 한꺼번에 들어가니 고른 근육이 구별되지 않아 이 색으로 되돌렸다(2026-09-26 사용자분).
+ * 부위 색은 3D 아래의 단추·카드·근육 칩의 점에만 쓴다.
+ */
 const COLOR = {
   context: '#c9d1da',
   target: '#d9776a',
   pick: '#0ea5e9',
-  sibling: '#7dd3fc',
   bone: '#ece4d4',
   low: '#f59e0b',
   mid: '#8fd3c4',
@@ -68,10 +73,16 @@ type Engine = {
  * 들고 있다.
  *
  * 누르기: 처음 누르면 그 부위, 같은 부위를 한 번 더 누르면 그 근육. 부위를 고르면 그
- * 부위만 또렷하게 남고 나머지는 비쳐 보여 속 근육(견갑하근 등)도 보인다.
+ * 부위만 또렷하게 남고 나머지는 비쳐 보여 속 근육(견갑하근 등)도 보인다. 근육을 고르면
+ * 그 근육만 색이 남는다 — 같은 부위의 다른 근육도 색을 뺀다.
  *
- * 화면 밖으로 스크롤되면 그리기를 멈춘다 — 부위별 보강은 목록이 길어, 안 보이는
- * 캔버스를 계속 그리면 폰 배터리만 닳는다.
+ * 그릴 일이 있을 때만 그린다 — 돌리거나 카메라가 움직이거나 색이 바뀔 때. 가만히
+ * 설명을 읽는 동안에는 GPU 를 쉬게 한다. 화면 밖으로 스크롤되면 그 확인조차 멈춘다
+ * (2026-09-26 검토: 예전에는 보이는 동안 초당 60번 늘 그려 폰 배터리를 닳게 했다).
+ *
+ * 폰에서 위아래로 쓸면 화면이 내려간다(touch-action: pan-y). 3D 가 화면의 절반을
+ * 차지해서, 쓸 때마다 모델만 돌면 아래 목록으로 내려갈 수가 없었다. 좌우로 끌면 돌고,
+ * 두 손가락으로 벌리면 커진다.
  *
  * WebGL 이 안 되는 기기에서는 아무것도 그리지 않고 'unavailable' 을 알린다. 부모가
  * 3D 자리를 접고 목록으로 보여 준다.
@@ -138,6 +149,8 @@ export function MuscleMap3D({
       renderer.domElement.style.height = '100%';
       renderer.domElement.setAttribute('aria-label', '3D 근육 지도');
       el.prepend(renderer.domElement);
+      /* 다시 그릴 일이 있는가 — 있을 때만 그린다(아래 tick) */
+      let dirty = true;
 
       const scene = new THREE.Scene();
       const pmrem = new THREE.PMREMGenerator(renderer);
@@ -169,18 +182,40 @@ export function MuscleMap3D({
       controls.rotateSpeed = 0.8;
       controls.minDistance = 0.25;
       controls.maxDistance = 3.5;
+      controls.addEventListener('change', () => {
+        dirty = true;
+      });
+      /*
+       * OrbitControls 는 손가락 스크롤을 모두 막는다(touch-action: none). 위아래는 화면
+       * 스크롤에 돌려준다 — 브라우저가 세로로 쓸기 시작한 것을 스크롤로 가져가면 컨트롤에
+       * pointercancel 이 가서 돌기를 멈춘다.
+       */
+      renderer.domElement.style.touchAction = 'pan-y';
+
+      /*
+       * GPU 자원 돌려주기 — 끝날 때만이 아니라 불러오다 실패하거나 그 사이 화면을 떠났을
+       * 때도 부른다. 컨텍스트까지 놓아야 부위별 보강을 여러 번 오가도 브라우저가 'WebGL
+       * 컨텍스트가 너무 많다'며 옛것을 끊지 않는다.
+       */
+      const release = () => {
+        controls.dispose();
+        envMap.dispose();
+        pmrem.dispose();
+        renderer.dispose();
+        renderer.forceContextLoss();
+        renderer.domElement.remove();
+      };
 
       let gltf: Awaited<ReturnType<InstanceType<typeof GLTFLoader>['loadAsync']>>;
       try {
         gltf = await new GLTFLoader().loadAsync(MODEL_URL);
       } catch {
-        renderer.dispose();
-        renderer.domElement.remove();
+        release();
         report('error');
         return;
       }
       if (disposed) {
-        renderer.dispose();
+        release();
         return;
       }
 
@@ -290,6 +325,7 @@ export function MuscleMap3D({
           controls.target.copy(center);
           camera.position.copy(toPos);
           controls.update();
+          dirty = true;
           return;
         }
         tween = {
@@ -313,9 +349,13 @@ export function MuscleMap3D({
           if (counts && area) color = COLOR[careLevel(counts[area] ?? 0)];
           const inArea = !!s.area && area === s.area;
           const on = inArea && (!s.muscle || name === s.muscle);
-          const sibling = inArea && !on;
           if (!counts && on) color = COLOR.pick;
-          if (!counts && sibling) color = COLOR.sibling;
+          /*
+           * 근육 하나를 골랐으면 그 근육만 색을 남기고 나머지는 모두 색을 뺀다. 같은
+           * 부위의 다른 근육을 옅은 하늘색으로 남겼더니 고른 근육과 섞여 어디까지가
+           * 그 근육인지 보기 어려웠다(2026-09-26 사용자분). 내 기록 색칠에서도 같다.
+           */
+          if (s.muscle && !on && name) color = COLOR.context;
           target.set(color);
           e.material.color.copy(target);
           e.material.emissive.copy(on ? target : black);
@@ -327,18 +367,11 @@ export function MuscleMap3D({
           /* 고른 것이 있으면 나머지를 비춰 보이게 — 속 근육도 보인다 */
           const faded = !!s.area && !on;
           e.material.transparent = faded;
-          e.material.opacity = faded
-            ? sibling
-              ? 0.4
-              : e.bone
-                ? 0.35
-                : name
-                  ? 0.12
-                  : 0.06
-            : 1;
+          e.material.opacity = faded ? (e.bone ? 0.35 : name ? 0.12 : 0.06) : 1;
           e.material.depthWrite = !faded;
           e.material.needsUpdate = true;
         }
+        dirty = true;
         /* 고른 것이 바뀌었을 때만 카메라를 옮긴다 — 색만 바꿀 때 시점이 튀지 않게 */
         const key = `${arm}|${s.area}|${s.muscle}`;
         if (key !== lastKey) {
@@ -378,20 +411,37 @@ export function MuscleMap3D({
           false
         );
         const { selection: s, side: arm, onPick } = latest.current;
+        /* 맞은 차례대로, 암케어 근육만 */
+        const found: { key: string | null; name: string; area: ArmcareAreaKey }[] = [];
         for (const h of hits) {
           const e = entries.find((x) => x.mesh === h.object);
           const name = e ? muscleOf(e, arm) : null;
           const area = name ? areaOfMuscle(name)?.key : null;
-          if (!name || !area) continue;
-          /* 처음 누르면 부위, 같은 부위를 한 번 더 누르면 그 근육 */
-          onPick(
-            area === s.area
-              ? { area, muscle: name, part: e!.key }
-              : { area, muscle: null, part: null }
-          );
-          return;
+          if (e && name && area) found.push({ key: e.key, name, area });
         }
-        if (hits.length === 0) onPick({ area: null, muscle: null, part: null });
+        /*
+         * 처음 누르면 부위, 같은 부위를 한 번 더 누르면 그 근육.
+         *
+         * 부위를 골라 둔 채면 켜진 부위의 근육을 먼저 찾는다. 앞에 비쳐 보이는 다른
+         * 부위 근육(흐리게 남은 삼각근 등)이 먼저 맞아도 건너뛴다 — 그러지 않으면 어깨
+         * 전방을 골라 켜진 견갑하근을 눌렀는데 삼각근이 가로채 다른 부위로 넘어갔다
+         * (2026-09-26 검토).
+         */
+        /*
+         * 근육을 골라 둔 채면 그 근육을 가장 먼저 찾는다. 나머지는 색을 빼 거의 안
+         * 보이는데, 그 앞을 지나는 같은 부위 근육(뒤에서 본 후면 삼각근 등)이 먼저
+         * 맞으면 보이지도 않는 근육으로 넘어가 버린다(2026-09-26).
+         */
+        const inArea =
+          (s.muscle ? found.find((f) => f.name === s.muscle) : undefined) ??
+          (s.area ? found.find((f) => f.area === s.area) : undefined);
+        if (inArea) {
+          onPick({ area: inArea.area, muscle: inArea.name, part: inArea.key });
+        } else if (found[0]) {
+          onPick({ area: found[0].area, muscle: null, part: null });
+        } else if (hits.length === 0) {
+          onPick({ area: null, muscle: null, part: null });
+        }
       };
       renderer.domElement.addEventListener('pointerdown', onDown);
       renderer.domElement.addEventListener('pointerup', onUp);
@@ -404,6 +454,7 @@ export function MuscleMap3D({
         renderer.setSize(w, h, false);
         camera.aspect = w / h;
         camera.updateProjectionMatrix();
+        dirty = true;
       };
       const sizer = new ResizeObserver(resize);
       sizer.observe(el);
@@ -429,11 +480,16 @@ export function MuscleMap3D({
             .copy(controls.target)
             .add(new THREE.Vector3().setFromSpherical(s));
           if (tween.t >= 1) tween = null;
+          dirty = true;
         }
-        controls.update();
+        /* 손을 뗀 뒤에도 잠시 미끄러진다(damping) — 움직였으면 true */
+        if (controls.update()) dirty = true;
+        if (!dirty) return;
+        dirty = false;
         renderer.render(scene, camera);
       };
       const seen = new IntersectionObserver(([entry]) => {
+        dirty = true;
         renderer.setAnimationLoop(entry?.isIntersecting ? tick : null);
       });
       seen.observe(el);
@@ -450,15 +506,11 @@ export function MuscleMap3D({
         renderer.setAnimationLoop(null);
         renderer.domElement.removeEventListener('pointerdown', onDown);
         renderer.domElement.removeEventListener('pointerup', onUp);
-        controls.dispose();
         for (const e of entries) {
           e.mesh.geometry.dispose();
           e.material.dispose();
         }
-        envMap.dispose();
-        pmrem.dispose();
-        renderer.dispose();
-        renderer.domElement.remove();
+        release();
       };
     })().catch(() => report('error'));
 
@@ -474,7 +526,7 @@ export function MuscleMap3D({
   }, [selection, counts, side, status]);
 
   return (
-    <div ref={holder} className="relative h-full w-full touch-none">
+    <div ref={holder} className="relative h-full w-full">
       {status === 'ready' && (
         <div className="absolute top-2.5 right-2.5 grid gap-1.5">
           {(
@@ -497,9 +549,13 @@ export function MuscleMap3D({
         </div>
       )}
       {status === 'loading' && (
-        <p className="absolute inset-0 grid place-items-center text-sm text-muted">
-          3D 근육 지도를 불러오는 중…
-        </p>
+        <div className="absolute inset-0 grid place-items-center">
+          <span
+            aria-hidden
+            className="absolute inset-6 rounded-3xl bg-surface-2/80 motion-safe:animate-pulse"
+          />
+          <p className="relative text-sm text-muted">3D 근육 지도를 불러오는 중…</p>
+        </div>
       )}
       {status === 'error' && (
         <p className="absolute inset-0 grid place-items-center px-6 text-center text-sm break-keep text-muted">
@@ -508,7 +564,7 @@ export function MuscleMap3D({
       )}
       {status === 'ready' && (
         <p className="pointer-events-none absolute bottom-2.5 left-2.5 rounded-full bg-surface/85 px-2.5 py-1 text-[11px] text-muted">
-          끌어서 돌리기 · 근육 누르기
+          좌우로 끌어 돌리기 · 근육 누르기
         </p>
       )}
     </div>
