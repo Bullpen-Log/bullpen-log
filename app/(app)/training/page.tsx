@@ -1,5 +1,7 @@
 import { favoriteExerciseIds } from '@/lib/favorites';
 import Link from 'next/link';
+import { cookies } from 'next/headers';
+import { redirect } from 'next/navigation';
 import { Sparkles } from 'lucide-react';
 import { prisma } from '@/lib/prisma';
 import { requireUser } from '@/lib/dal';
@@ -21,21 +23,28 @@ import type { AiReportBody } from '@/lib/ai/report-prompt';
 import { ExerciseChecklist, type TodayExercise } from './exercise-list';
 import { AddExercise, type PickableExercise } from './add-exercise';
 import { TrainingNote } from './training-note';
-import { TrainingHistory } from './history';
 import { josa } from '@/lib/korean';
 import { TrainingSettingsButton } from './settings-button';
 import { TrainingViewSwitch, type TrainingView } from './view-switch';
 import { ArmcareTabs, type ArmcareTab } from './armcare-tabs';
 import { ArmcareSection } from './armcare-section';
-import { ARMCARE_KIND_TEXT, readArmcareRoutine } from '@/lib/armcare/routine';
 import { TrainingCheckin } from './training-checkin';
 import { OpenCheckinButton } from '@/components/notice-bell';
 import { availableParts } from '@/lib/report/today-pick';
-import { trainingSummaries } from '@/lib/report/training-history';
 import { exercisesByIds } from '@/lib/library-cache';
+import {
+  TRAINING_PART_COOKIE,
+  TRAINING_PART_HREF,
+  readTrainingPart,
+} from '@/lib/training-part';
 
 /**
- * 트레이닝 — 오늘 할 운동.
+ * 트레이닝 — 오늘 할 운동과 암케어, 두 칸.
+ *
+ * 2026-09-26 [오늘 | 기록 | 암케어]에서 [트레이닝 | 암케어]로 바꿨다. 둘은 서로
+ * 독립이다 — 암케어는 운동 일정에 붙여 하는 것이 아니라 언제든 따로 한다(사용자분과
+ * 정함). 그래서 트레이닝 칸에 암케어로 이끄는 카드를 두지 않고, 아래 탭으로 들어오면
+ * 마지막으로 보던 칸을 연다(lib/training-part.ts). 지난 기록은 홈 캘린더에서 본다.
  *
  * 홈에서 갈라져 나온 화면이다. 예전에는 체크인·투구 기록·운동 목록이 한 화면에
  * 다 있어서, 운동 하나를 체크하려고 스크롤을 한참 내려야 했다.
@@ -52,7 +61,7 @@ function now() {
 }
 
 /**
- * 탭 줄 — [오늘 | 기록 | 암케어] 고르개(view-switch.tsx)와 트레이닝 설정.
+ * 탭 줄 — [트레이닝 | 암케어] 고르개(view-switch.tsx)와 트레이닝 설정.
  *
  * 오른쪽 끝에 트레이닝 설정을 붙인다. 홈에도 같은 것이 있지만, 설정을 고치고
  * 싶어지는 순간은 대개 여기다 — 운동 목록을 보다가 "이건 장비가 없어서 못
@@ -64,7 +73,7 @@ function now() {
 function ViewTabs({
   current,
   settings,
-  returnTo = '/training',
+  returnTo,
 }: {
   current: TrainingView;
   settings: {
@@ -72,7 +81,7 @@ function ViewTabs({
     ownedEquipment: string[];
   };
   /** 설정을 저장한 뒤 돌아올 곳 — 지금 보는 칸 */
-  returnTo?: string;
+  returnTo: string;
 }) {
   return (
     <div className="flex flex-wrap items-center gap-3">
@@ -98,12 +107,13 @@ export default async function TrainingPage({
   const savedMinutes = user.dailyWorkoutMinutes ?? DEFAULT_WORKOUT_MINUTES;
 
   const params = await searchParams;
+  /* 예전 [기록] 칸의 주소 — 지난 기록은 이제 홈 캘린더에 있다 */
+  if (params.view === 'history') redirect('/today');
+  /* 주소에 칸이 적혀 있으면 그 칸, 아니면 마지막으로 본 칸, 처음이면 트레이닝 */
   const view: TrainingView =
-    params.view === 'history'
-      ? 'history'
-      : params.view === 'armcare'
-        ? 'armcare'
-        : 'today';
+    readTrainingPart(typeof params.view === 'string' ? params.view : null) ??
+    readTrainingPart((await cookies()).get(TRAINING_PART_COOKIE)?.value) ??
+    'today';
 
   /*
    * 암케어 — 운동 일정과 따로, 그날 몸 상태에 맞춘 루틴과 부위별 보강.
@@ -135,21 +145,6 @@ export default async function TrainingPage({
     );
   }
 
-  if (view === 'history') {
-    const summaries = await trainingSummaries(user.id);
-    return (
-      <div className="space-y-6">
-        <PageHeading
-          eyebrow="Training"
-          title="운동 기록"
-          description="날짜를 누르면 그날 화면으로 넘어갑니다. 체크를 깜빡한 날은 지난 일주일 안이면 여기서 채울 수 있습니다."
-        />
-        <ViewTabs current="history" settings={user} returnTo="/training?view=history" />
-        <TrainingHistory summaries={summaries} />
-      </div>
-    );
-  }
-
   const core = await loadTodayCore(user, today);
   const { savedPlan, picked, doneIds, shownPicks, droppedForSafety } = core;
 
@@ -158,7 +153,7 @@ export default async function TrainingPage({
    * 여기서 AI를 새로 부르지는 않는다 — 저장된 것을 읽을 뿐이라 화면을 열
    * 때마다 돈이 나가지 않는다.
    */
-  const [todayReport, trainingNote, favExercises, todaySession, armcareToday] =
+  const [todayReport, trainingNote, favExercises, todaySession] =
     await Promise.all([
       prisma.aiReport.findUnique({
         where: { userId_asOf: { userId: user.id, asOf: core.midnight } },
@@ -182,20 +177,7 @@ export default async function TrainingPage({
         where: { userId_date: { userId: user.id, date: core.midnight } },
         select: { id: true, status: true, plan: true, activeSeconds: true },
       }),
-      /* 오늘의 암케어 — 맨 아래 안내 카드에 몇 개 했는지 적는다 */
-      prisma.dailyArmcare.findUnique({
-        where: { userId_date: { userId: user.id, date: core.midnight } },
-        select: { plan: true },
-      }),
     ]);
-  /*
-   * 오늘의 암케어 — 숨긴 운동은 뺀다. 암케어 화면도 그렇게 보여 줘서, 빼지 않으면
-   * 그쪽은 '5/5'인데 여기는 '5/6'에서 멈춘다.
-   */
-  const visibleIds = new Set(core.library.map((ex) => ex.id));
-  const armcareRoutine = readArmcareRoutine(armcareToday?.plan);
-  const armcareItems =
-    armcareRoutine?.items.filter((it) => visibleIds.has(it.exerciseId)) ?? [];
   const resume = todaySession?.status === 'ACTIVE';
   const finished = todaySession?.status === 'FINISHED';
 
@@ -410,7 +392,7 @@ export default async function TrainingPage({
         }
       />
 
-      <ViewTabs current="today" settings={user} />
+      <ViewTabs current="today" settings={user} returnTo={TRAINING_PART_HREF.today} />
 
       {/*
         운동 시작.
@@ -715,39 +697,6 @@ export default async function TrainingPage({
         </>
       )}
 
-      {/*
-        암케어로 가는 길.
-
-        암케어는 운동 일정에서 빠져 [암케어] 칸에서 따로 한다(2026-09-25). 일정만
-        보고 돌아가면 어깨 관리를 잊기 쉬워, 맨 아래에 오늘 한 만큼과 함께 둔다.
-        통증인 날에는 내지 않는다 — 그날은 암케어도 쉰다.
-      */}
-      {!picked.halted && (
-        <Link
-          href="/training?view=armcare"
-          className="flex items-center justify-between gap-3 rounded-2xl border border-line bg-surface px-5 py-4 transition-colors hover:border-sky"
-        >
-          <span className="min-w-0 space-y-0.5">
-            <span className="block text-sm font-bold text-ink">
-              오늘의 암케어
-              {armcareRoutine && (
-                <span className="font-medium text-muted">
-                  {' '}
-                  · {ARMCARE_KIND_TEXT[armcareRoutine.kind].label}
-                </span>
-              )}
-            </span>
-            <span className="block text-xs break-keep text-muted">
-              {armcareRoutine
-                ? `${armcareItems.filter((it) => doneIds.has(it.exerciseId)).length}/${armcareItems.length} 완료`
-                : '아직 안 만들었습니다 — 오늘 몸 상태에 맞춰 회복·강화 루틴을 짜 드립니다.'}
-            </span>
-          </span>
-          <span aria-hidden className="shrink-0 text-sm font-semibold text-sky">
-            암케어로 →
-          </span>
-        </Link>
-      )}
     </div>
   );
 }

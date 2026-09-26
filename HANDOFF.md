@@ -28,3 +28,14 @@ Claude 로 작업을 시작하면 저절로 읽힌다. 규칙은 `AGENTS.md` 6�
 - 그 근육을 쓰는 암케어 운동 30개의 '키우는 근육'을 DB 에 저장했다
   (`scripts/retag-armcare-muscles.mts` · `scripts/armcare-retag-2026-09-26.json`). DB 구조는
   그대로다. 저장 전에 백업했다.
+
+### 트레이닝 탭을 [트레이닝 | 암케어] 두 칸으로 바꿨다 (사용자 요청)
+
+- [기록] 칸을 없앴다 — 지난 운동은 홈 캘린더가 맡는다(날짜 → 트레이닝 줄 → 그날 화면).
+  예전 주소 `/training?view=history` 는 `/today` 로 넘긴다.
+- `/training` 은 이제 **마지막으로 본 칸**을 연다(쿠키, `lib/training-part.ts`). 암케어는
+  운동과 상관없이 언제든 따로 하는 곳이라서다. '운동'을 뜻하는 길은 칸을 적어 보낸다 —
+  `/training?view=today`.
+- 금윤호 쪽 파일을 고친 것: `app/(app)/today/day-detail.tsx` 한 줄 — 홈 캘린더에서 오늘
+  운동으로 가는 길을 `/training` → `/training?view=today`. 앞으로 트레이닝 칸으로 보내는
+  링크를 새로 만들면 이 주소를 쓴다. 아래 탭(`lib/nav.ts`)의 `/training` 은 그대로 둔다.

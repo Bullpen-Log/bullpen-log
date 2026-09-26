@@ -76,11 +76,11 @@ const RETURN_TO = [
   '/today',
   '/training',
   /*
-   * 트레이닝의 [기록]·[암케어] 칸에서 트레이닝 설정을 열고 저장하면 그 칸으로
+   * 트레이닝의 [트레이닝]·[암케어] 칸에서 트레이닝 설정을 열고 저장하면 그 칸으로
    * 돌아온다. 주소를 풀어 따지지 않고 통째로 적는다 — 그래야 남의 곳으로 보내는
    * 길이 생기지 않는다.
    */
-  '/training?view=history',
+  '/training?view=today',
   '/training?view=armcare',
   '/training?view=armcare&tab=guide',
   '/training?view=armcare&tab=methods',

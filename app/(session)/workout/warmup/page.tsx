@@ -39,13 +39,13 @@ export default async function WarmupPage() {
     where: { userId: user.id, status: 'ACTIVE' },
     orderBy: { date: 'desc' },
   });
-  if (!session) redirect('/training');
+  if (!session) redirect('/training?view=today');
 
   /* 이미 지난 창이다. 뒤로가기로 들어와도 본운동으로 돌려보낸다. */
   if (session.mainStartedAt) redirect('/workout/run');
 
   const plan = readFrozenPlan(session.plan);
-  if (!plan || plan.exercises.length === 0) redirect('/training');
+  if (!plan || plan.exercises.length === 0) redirect('/training?view=today');
 
   /*
    * 오늘 목적을 정하려면 본운동의 동작 계열이 필요한데, 찍어 둔 목록에는

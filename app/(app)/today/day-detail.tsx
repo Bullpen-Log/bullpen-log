@@ -50,7 +50,7 @@ function tabLink(
       };
     case 'training':
       return {
-        href: isToday ? '/training' : `/training/day/${date}`,
+        href: isToday ? '/training?view=today' : `/training/day/${date}`,
         label: opts.empty
           ? isToday
             ? '오늘 운동하러 가기'

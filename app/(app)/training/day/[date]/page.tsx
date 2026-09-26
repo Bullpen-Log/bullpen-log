@@ -53,11 +53,11 @@ export default async function TrainingDayPage({
   return (
     <div className="space-y-6">
       <Link
-        href="/training?view=history"
+        href={`/today?date=${date}`}
         className="inline-flex items-center gap-1.5 text-sm font-medium text-muted transition-colors hover:text-sky"
       >
         <ArrowLeft className="h-4 w-4" />
-        {spokenMonth(date)} 운동 기록
+        {spokenMonth(date)} 달력
       </Link>
 
       <div className="border-b border-line pb-6">
@@ -89,8 +89,8 @@ export default async function TrainingDayPage({
           {date === todayKey && (
             <>
               <br />
-              <Link href="/training" className="font-semibold text-sky underline">
-                오늘 탭
+              <Link href="/training?view=today" className="font-semibold text-sky underline">
+                트레이닝
               </Link>
               에서 남길 수 있습니다.
             </>
