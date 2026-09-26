@@ -12,7 +12,7 @@ import { prisma } from '@/lib/prisma';
 import { pickCheckinDetail, pickCheckinParts } from '@/lib/checkin';
 import { visibleExercises } from '@/lib/library-cache';
 import { availableParts } from '@/lib/report/today-pick';
-import { QUIET_REFRESH } from '@/lib/transition-types';
+import { OPEN_POPUP, QUIET_REFRESH } from '@/lib/transition-types';
 
 /** 렌더 중에 현재 시각을 직접 읽지 않도록 함수로 감싼다. */
 function todayKey() {
@@ -200,7 +200,7 @@ export default async function AppLayout({
             share="page"
             enter="page"
             exit="page"
-            update={{ [QUIET_REFRESH]: 'none', default: 'auto' }}
+            update={{ [QUIET_REFRESH]: 'none', [OPEN_POPUP]: 'none', default: 'auto' }}
           >
             {children}
           </ViewTransition>

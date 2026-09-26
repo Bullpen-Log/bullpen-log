@@ -3,6 +3,7 @@
 import { useRef, useState, type RefObject } from 'react';
 import Link from 'next/link';
 import { Bell, CheckCircle2, ChevronRight, ClipboardList, Target } from 'lucide-react';
+import { OPEN_POPUP_TYPES } from '@/lib/transition-types';
 
 /**
  * 오른쪽 위 알림(종) — 오늘 아직 안 한 것을 알려 준다.
@@ -227,6 +228,7 @@ export function NoticePanel({
               <div className="mt-2.5 flex flex-wrap gap-1.5">
                 <Link
                   href={`/pitch-log/${day}`}
+                  transitionTypes={OPEN_POPUP_TYPES}
                   onClick={onNavigate}
                   className="inline-flex min-h-9 items-center gap-1 rounded-lg bg-sky px-3 text-xs font-semibold text-white transition-colors hover:bg-sky-strong"
                 >
@@ -270,6 +272,7 @@ export function NoticePanel({
           {pitchDone && (
             <Link
               href={`/pitch-log/${day}`}
+              transitionTypes={OPEN_POPUP_TYPES}
               onClick={onNavigate}
               className="rounded-lg px-2 py-1.5 text-xs font-medium text-muted transition-colors hover:bg-ink/6 hover:text-ink"
             >

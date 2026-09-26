@@ -14,5 +14,10 @@ export default async function PitchDayModalPage({
   const { date } = await params;
   const data = await loadPitchDay(date);
   if (!data) notFound();
-  return <DayClient {...data} />;
+  /* 불러오는 자리(loading.tsx)에서 바뀔 때 뚝 갈리지 않고 살짝 떠오른다 */
+  return (
+    <div className="motion-safe:animate-fade-in">
+      <DayClient {...data} />
+    </div>
+  );
 }

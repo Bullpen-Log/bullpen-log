@@ -8,6 +8,7 @@ import { Segmented } from '@/components/segmented';
 import { CompareView, type ClipOption } from './compare-view';
 import { VideoGallery } from './video-gallery';
 import { VideoCalendar } from './video-calendar';
+import { OPEN_POPUP_TYPES } from '@/lib/transition-types';
 
 /**
  * 투구 기록 한 건 — 캘린더 · 목록에 필요한 만큼만. 평균 구속 · 자세 분석 같은 것은 그날
@@ -119,7 +120,11 @@ export function VideosClient({
         title="투구 기록"
         action={
           /* 기록을 남기는 곳은 날짜 화면이다 — 이 탭에서 곧장 오늘로 */
-          <ButtonLink href={`/pitch-log/${todayKey}`} className="gap-1.5">
+          <ButtonLink
+            href={`/pitch-log/${todayKey}`}
+            transitionTypes={OPEN_POPUP_TYPES}
+            className="gap-1.5"
+          >
             <Plus aria-hidden className="h-4 w-4" />
             오늘 기록 남기기
           </ButtonLink>

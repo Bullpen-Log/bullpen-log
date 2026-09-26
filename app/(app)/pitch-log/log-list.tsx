@@ -7,6 +7,7 @@ import Link from 'next/link';
 import { ChevronDown, ChevronRight, Film } from 'lucide-react';
 import { REST_SESSION_TYPE, SESSION_TYPES } from '@/lib/session-type';
 import type { Log } from './types';
+import { OPEN_POPUP_TYPES } from '@/lib/transition-types';
 
 /**
  * 투구 기록을 최근 것부터 쭉 내려보는 목록.
@@ -187,6 +188,7 @@ export function LogList({ logs }: { logs: Log[] }) {
                       <li key={log.id}>
                         <Link
                           href={`/pitch-log/${key}`}
+                          transitionTypes={OPEN_POPUP_TYPES}
                           className={`flex items-center gap-3 px-5 py-3.5 transition-colors hover:bg-surface-2/60 ${
                             i > 0 ? 'border-t border-line' : ''
                           }`}

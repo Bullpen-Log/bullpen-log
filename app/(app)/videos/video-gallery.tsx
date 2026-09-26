@@ -11,6 +11,7 @@ import { REST_SESSION_TYPE, SESSION_TYPES } from '@/lib/session-type';
 import { setFeaturedVideo } from '@/app/actions/featured-video';
 import type { ClipOption } from './compare-view';
 import type { VideoLog } from './videos-client';
+import { OPEN_POPUP_TYPES } from '@/lib/transition-types';
 
 /**
  * 투구 기록을 달별로 모아 보는 곳 — 영상이 있는 기록은 영상 한 장면과 함께.
@@ -548,7 +549,11 @@ export function VideoGallery({
                           {body}
                         </button>
                       ) : (
-                        <Link href={`/pitch-log/${clip.date}`} className={shell}>
+                        <Link
+                          href={`/pitch-log/${clip.date}`}
+                          transitionTypes={OPEN_POPUP_TYPES}
+                          className={shell}
+                        >
                           {body}
                         </Link>
                       )}

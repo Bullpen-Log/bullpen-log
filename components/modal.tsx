@@ -1,6 +1,6 @@
 'use client';
 
-import { useLayoutEffect, useRef, type ReactNode } from 'react';
+import { useEffect, useLayoutEffect, useRef, type ReactNode } from 'react';
 import { X } from 'lucide-react';
 
 /**
@@ -108,6 +108,54 @@ export function Modal({
     if (!open && el.open) el.close();
   }, [open, origin]);
 
+  /*
+   * 'page' 창은 안의 높이가 바뀌면 그 사이를 부드럽게 잇는다.
+   *
+   * 투구 기록 팝업은 창이 먼저 뜨고 내용이 뒤따라 온다(불러오는 자리 → 실제 내용). 둘의
+   * 높이가 달라서, 내용이 오는 순간 창이 뚝 커지고 가운데로 다시 서느라 위로 튀었다(재
+   * 보니 430 → 674px). 폼을 열고 닫을 때도 같다. 높이가 바뀐 순간 옛 높이에서 새 높이로
+   * 늘여 주면 창이 위아래로 고르게 벌어진다.
+   *
+   * 재는 것은 창이 아니라 안쪽 내용이다. 창 높이는 움직이는 동안 매 순간 바뀌어서, 창을
+   * 재면 제 움직임을 다시 잡아 끝없이 돈다. 크기 알림(ResizeObserver)은 그리기 직전에
+   * 오므로 새 높이가 한 번도 보이지 않은 채 옛 높이에서 출발한다.
+   */
+  const contentRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const el = ref.current;
+    const content = contentRef.current;
+    if (!el || !content || !open || size !== 'page') return;
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+
+    /*
+     * 높이는 offsetHeight 로 잰다. getBoundingClientRect 는 여는 움직임의 축소(scale
+     * 0.98)까지 셈에 넣어, 막 뜬 창을 실제보다 작게 읽는다.
+     */
+    let shown = el.offsetHeight;
+    let running: Animation | null = null;
+    const observer = new ResizeObserver(() => {
+      /* 늘어나는 도중에 또 바뀌면 지금 보이는 높이에서 이어 간다 */
+      const from = running ? el.offsetHeight : shown;
+      running?.cancel();
+      const to = el.offsetHeight;
+      shown = to;
+      if (Math.abs(to - from) < 2) return;
+      const move = el.animate([{ height: `${from}px` }, { height: `${to}px` }], {
+        duration: 240,
+        easing: 'cubic-bezier(0.2, 0, 0, 1)',
+      });
+      running = move;
+      move.onfinish = () => {
+        if (running === move) running = null;
+      };
+    });
+    observer.observe(content);
+    return () => {
+      observer.disconnect();
+      running?.cancel();
+    };
+  }, [open, size]);
+
   return (
     <dialog
       ref={ref}
@@ -212,7 +260,8 @@ export function Modal({
         휠·손가락·키보드 모두 평소와 같다.
       */}
       <div className="no-scrollbar relative min-h-0 flex-auto overflow-y-auto px-5 py-5">
-        {children}
+        {/* 내용의 제 높이를 재는 자리(위 'page' 창의 높이 잇기) */}
+        <div ref={contentRef}>{children}</div>
       </div>
     </dialog>
   );
