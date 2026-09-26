@@ -125,7 +125,7 @@ export function validateBaseline(raw: {
   baselineWorkoutFreq: string;
   throwingHand: string;
   competitionLevel: string;
-}): { error: string } | { value: BaselineAnswers } {
+}): { error: string; field: keyof BaselineAnswers } | { value: BaselineAnswers } {
   const baselineFreq = raw.baselineFreq.trim();
   const baselineVolume = raw.baselineVolume.trim();
   const baselineIntensity = raw.baselineIntensity.trim();
@@ -134,25 +134,28 @@ export function validateBaseline(raw: {
   const competitionLevel = raw.competitionLevel.trim();
 
   if (!BASELINE_FREQ_NAMES.includes(baselineFreq)) {
-    return { error: '평소 던지는 횟수를 선택해주세요.' };
+    return { error: '평소 던지는 횟수를 선택해주세요.', field: 'baselineFreq' };
   }
   if (!BASELINE_VOLUME_NAMES.includes(baselineVolume)) {
-    return { error: '한 번에 던지는 양을 선택해주세요.' };
+    return { error: '한 번에 던지는 양을 선택해주세요.', field: 'baselineVolume' };
   }
   if (!BASELINE_INTENSITY_NAMES.includes(baselineIntensity)) {
-    return { error: '평소 던지는 강도를 선택해주세요.' };
+    return { error: '평소 던지는 강도를 선택해주세요.', field: 'baselineIntensity' };
   }
   if (!BASELINE_WORKOUT_FREQ_NAMES.includes(baselineWorkoutFreq)) {
-    return { error: '평소 웨이트 횟수를 선택해주세요.' };
+    return { error: '평소 웨이트 횟수를 선택해주세요.', field: 'baselineWorkoutFreq' };
   }
   if (!(THROWING_HANDS as readonly string[]).includes(throwingHand)) {
-    return { error: '던지는 손을 선택해주세요.' };
+    return { error: '던지는 손을 선택해주세요.', field: 'throwingHand' };
   }
   if (
     competitionLevel !== '' &&
     !(COMPETITION_LEVELS as readonly string[]).includes(competitionLevel)
   ) {
-    return { error: '어디서 야구를 하시는지 다시 선택해주세요.' };
+    return {
+      error: '어디서 야구를 하시는지 다시 선택해주세요.',
+      field: 'competitionLevel',
+    };
   }
 
   return {

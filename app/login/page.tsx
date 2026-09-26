@@ -1,19 +1,10 @@
-import Link from 'next/link';
 import { toDateKey } from '@/lib/pitch-stats';
 import { AuthForm } from './auth-form';
-import { BaseballMark } from '@/components/logo';
 
 /** 렌더 중에 현재 시각을 직접 읽지 않도록 함수로 감싼다. */
 function todayKey() {
   return toDateKey(new Date());
 }
-
-const HIGHLIGHTS = [
-  { title: '투구 일지', desc: '투구수·강도·구속과 그날의 영상' },
-  { title: '영상 분석', desc: '과거 폼을 느낀점과 함께 되돌아보기' },
-  { title: '리포트', desc: '기간별 기록 정리와 코멘트' },
-  { title: '트레이닝', desc: '몸 상태에 맞춰 고른 오늘의 운동' },
-];
 
 /*
  * 이 화면은 쿠키를 읽지 않는다. 미리 만들어 두고 CDN 에서 바로 내보내기
@@ -32,27 +23,15 @@ const HIGHLIGHTS = [
  *
  * 둘 다 가지려면 cacheComponents(부분 캐싱)를 켜서 껍데기는 미리 만들고
  * 판단만 따로 떼어내야 하는데, 레이아웃까지 함께 손봐야 하는 별도의 일이다.
+ *
+ * 화면은 넓은 카드 한 장이다(auth-form.tsx). 예전에는 카드 밑에 앱 소개(투구 일지 ·
+ * 영상 분석 · 리포트 · 트레이닝) 네 칸이 있었는데, 로그인하러 온 사람에게는 읽을
+ * 까닭이 없어 뺐다. 로고는 카드 안 왼쪽 위로 옮겼다.
  */
 export default function LoginPage() {
   return (
-    <main className="bg-spotlight flex min-h-screen flex-col items-center justify-center px-6 py-16">
-      <Link href="/" className="group mb-10 flex items-center gap-3">
-        <BaseballMark className="h-12 w-12" />
-        <span className="text-display text-3xl leading-none text-ink transition-colors group-hover:text-sky">
-          BULLPEN LOG
-        </span>
-      </Link>
-
+    <main className="bg-spotlight flex min-h-dvh items-center justify-center px-5 py-4 short:py-3 max-md:items-stretch sm:px-8 sm:py-6 md:py-10 md:short:py-4">
       <AuthForm today={todayKey()} />
-
-      <div className="mt-12 grid w-full max-w-md grid-cols-2 gap-x-6 gap-y-5 border-t border-line pt-8">
-        {HIGHLIGHTS.map((item) => (
-          <div key={item.title}>
-            <p className="text-xs font-medium tracking-normal text-sky">{item.title}</p>
-            <p className="mt-1.5 text-xs leading-relaxed text-muted">{item.desc}</p>
-          </div>
-        ))}
-      </div>
     </main>
   );
 }

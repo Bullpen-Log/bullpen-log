@@ -11,9 +11,35 @@ import { validateBaseline } from '@/lib/baseline';
 import { readTrainingProfile } from '@/lib/report/personalize';
 import { withInput, type FormValues } from '@/lib/form-values';
 
-export type AuthState = { error?: string; values?: FormValues } | undefined;
+/**
+ * field — 문제가 난 칸의 name. 가입은 여러 단계로 나뉘어 있어서(app/login/auth-form.tsx)
+ * 마지막에 서버가 막으면 그 칸이 있는 단계로 되돌아가야 한다. 오류 글만으로는 어느
+ * 단계인지 알 수 없다.
+ */
+export type AuthState =
+  { error?: string; field?: string; values?: FormValues } | undefined;
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+/**
+ * 가입 첫 단계에서 이메일을 미리 본다 — 형식이 맞는지, 이미 가입된 것은 아닌지.
+ *
+ * 가입은 기본 정보 → 비밀번호 → 약관 → 문진으로 나뉘어 있다. 이것이 없으면 이미 가입한
+ * 이메일을 넣은 사람은 문진까지 다 고르고 마지막에야 막혀 처음으로 돌아간다. 이미 가입된
+ * 이메일이라는 것은 가입을 끝까지 눌러도 알려 주는 것이라, 미리 알려 준다고 새로 드러나는
+ * 것은 없다. 계정을 만들지는 않는다 — 만드는 것은 마지막의 signup 이다.
+ */
+export async function checkSignupEmail(raw: string): Promise<{ error?: string }> {
+  const email = raw.trim().toLowerCase();
+  if (!email) return { error: '이메일을 입력해주세요.' };
+  if (!EMAIL_RE.test(email)) return { error: '올바른 이메일 형식이 아닙니다.' };
+  const existing = await prisma.user.findUnique({
+    where: { email },
+    select: { id: true },
+  });
+  if (existing) return { error: '이미 가입된 이메일입니다. 로그인해 주세요.' };
+  return {};
+}
 
 /**
  * 가입 실패로 끝나면 입력한 값을 함께 돌려준다.
@@ -32,20 +58,23 @@ async function trySignup(formData: FormData): Promise<AuthState> {
   const password = String(formData.get('password') ?? '');
   const passwordConfirm = String(formData.get('passwordConfirm') ?? '');
 
-  if (!email || !nickname || !password) {
-    return { error: '모든 항목을 입력해주세요.' };
-  }
+  if (!email) return { error: '이메일을 입력해주세요.', field: 'email' };
+  if (!nickname) return { error: '닉네임을 입력해주세요.', field: 'nickname' };
+  if (!password) return { error: '비밀번호를 입력해주세요.', field: 'password' };
   if (!EMAIL_RE.test(email)) {
-    return { error: '올바른 이메일 형식이 아닙니다.' };
+    return { error: '올바른 이메일 형식이 아닙니다.', field: 'email' };
   }
   if (nickname.length < 2) {
-    return { error: '닉네임은 2자 이상이어야 합니다.' };
+    return { error: '닉네임은 2자 이상이어야 합니다.', field: 'nickname' };
   }
   if (password.length < 8) {
-    return { error: '비밀번호는 8자 이상이어야 합니다.' };
+    return { error: '비밀번호는 8자 이상이어야 합니다.', field: 'password' };
+  }
+  if (!passwordConfirm) {
+    return { error: '비밀번호를 한 번 더 입력해주세요.', field: 'passwordConfirm' };
   }
   if (password !== passwordConfirm) {
-    return { error: '비밀번호가 일치하지 않습니다.' };
+    return { error: '비밀번호가 일치하지 않습니다.', field: 'passwordConfirm' };
   }
 
   /*
@@ -55,7 +84,10 @@ async function trySignup(formData: FormData): Promise<AuthState> {
    * 들어올 수 있고, 동의 없이 만들어진 계정은 나중에 되돌릴 방법이 없다.
    */
   if (formData.get('agreeTerms') !== 'on' || formData.get('agreePrivacy') !== 'on') {
-    return { error: '이용약관과 개인정보 처리방침에 동의해주세요.' };
+    return {
+      error: '이용약관과 개인정보 처리방침에 동의해주세요.',
+      field: 'agreeTerms',
+    };
   }
 
   // 나이는 안전한 투구수 한도를 정하는 기준이라 가입할 때 함께 받는다.
@@ -81,7 +113,7 @@ async function trySignup(formData: FormData): Promise<AuthState> {
   if (formData.has('sex')) {
     const picked = String(formData.get('sex') ?? '').trim();
     if (!isSex(picked)) {
-      return { error: '성별을 선택해주세요.' };
+      return { error: '성별을 선택해주세요.', field: 'sex' };
     }
     sex = picked;
   }
@@ -106,12 +138,12 @@ async function trySignup(formData: FormData): Promise<AuthState> {
    */
   const { trainingLevel } = readTrainingProfile(formData);
   if (!trainingLevel) {
-    return { error: '웨이트 트레이닝 경력을 선택해주세요.' };
+    return { error: '웨이트 트레이닝 경력을 선택해주세요.', field: 'trainingLevel' };
   }
 
   const existing = await prisma.user.findUnique({ where: { email } });
   if (existing) {
-    return { error: '이미 가입된 이메일입니다.' };
+    return { error: '이미 가입된 이메일입니다.', field: 'email' };
   }
 
   const adminEmail = process.env.ADMIN_EMAIL?.trim().toLowerCase();
