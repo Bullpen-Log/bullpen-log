@@ -102,11 +102,21 @@ function InfoGraphic({
   );
 }
 
-/* 창 안에서 부위 ↔ 근육으로 바꾸면 맨 위부터 보이게 — 굴러가는 곳은 창의 본문이다 */
+/*
+ * 창 안에서 부위 ↔ 근육으로 바꾸면 맨 위부터 보이게 — 굴러가는 곳은 창의 본문 칸이다.
+ *
+ * 바로 위 칸이 굴러가는 칸이라고 보지 않고 위로 올라가며 찾는다. 창이 본문을 한 겹 더
+ * 감싸게 바뀌면서(components/modal.tsx, 창 높이를 부드럽게 바꾸려고) 바로 위 칸은 더 이상
+ * 굴러가지 않는다.
+ */
 function useScrollTop() {
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
-    ref.current?.parentElement?.scrollTo({ top: 0 });
+    let el = ref.current?.parentElement ?? null;
+    while (el && !/(auto|scroll)/.test(getComputedStyle(el).overflowY)) {
+      el = el.parentElement;
+    }
+    el?.scrollTo({ top: 0 });
   }, []);
   return ref;
 }
