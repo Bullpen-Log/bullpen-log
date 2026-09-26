@@ -1,15 +1,24 @@
 'use client';
 
 import {
+  useEffect,
   useId,
   useLayoutEffect,
   useMemo,
   useRef,
   useState,
+  useSyncExternalStore,
   type PointerEvent,
   type RefObject,
 } from 'react';
-import { ArrowDownRight, ArrowUpRight, ChartColumn, Minus } from 'lucide-react';
+import {
+  ArrowDownRight,
+  ArrowUpRight,
+  CalendarDays,
+  ChartColumn,
+  Minus,
+} from 'lucide-react';
+import { MiniCalendar } from '@/components/mini-calendar';
 import { Segmented } from '@/components/segmented';
 import { useSpeedUnit, useWeightUnit } from '@/components/use-units';
 import { round1, speedLabel, toSpeed, toWeight } from '@/lib/units';
@@ -31,7 +40,7 @@ import { spokenDay, type CheckinDay, type NutritionDay } from './day-summary';
  *   - 세로 눈금 세 줄과 숫자, 가로 날짜 눈금 — 막대 높이를 어림이 아니라 값으로 읽는다.
  *   - 점선의 평균 — 요즘 값이 평소보다 높은지 낮은지.
  *   - 가장 최근 칸은 진하게(막대) 또는 크게 찍고 값을 붙인다(선).
- *   - 마우스를 올리면 그날(그 주) 값이 말풍선으로 뜨고, 4주에서 누르면 캘린더가 그날을
+ *   - 마우스를 올리면 그날(그 주) 값이 말풍선으로 뜨고, 날짜별일 때 누르면 캘린더가 그날을
  *     고른다 — 그날 칸과 분석이 함께 그날로 바뀐다. 휴대폰은 눌러서 값만 본다.
  *
  * 새로 묻지 않는다. 홈 캘린더가 칸을 칠하려고 이미 들고 있는 날짜별 요약(투구 기록 ·
@@ -42,26 +51,124 @@ import { spokenDay, type CheckinDay, type NutritionDay } from './day-summary';
 const PERIODS = [
   { value: '4w', label: '4주' },
   { value: '12w', label: '12주' },
+  { value: 'custom', label: '기간 설정' },
 ] as const;
 type Period = (typeof PERIODS)[number]['value'];
-const PERIOD_DAYS: Record<Period, number> = { '4w': 28, '12w': 84 };
 
-/** 그래프의 한 칸 — 4주는 하루, 12주는 한 주(일곱 날) */
+/** 그래프가 보여 줄 기간(YYYY-MM-DD, 양 끝 포함) */
+type Range = { from: string; to: string };
+
+/** 그래프의 한 칸 — 하루, 또는 한 주(일곱 날) */
 type Slot = { days: string[]; start: string; end: string };
 
-/** end 로 끝나는 기간의 칸들 */
-function slotsFor(period: Period, end: string): Slot[] {
-  if (period === '4w') {
-    return Array.from({ length: 28 }, (_, i) => {
-      const day = shiftDateKey(end, i - 27);
-      return { days: [day], start: day, end: day };
-    });
+/** 두 날 사이가 며칠인가 (b − a) */
+function daysBetween(a: string, b: string) {
+  return Math.round(
+    (Date.parse(`${b}T00:00:00Z`) - Date.parse(`${a}T00:00:00Z`)) / 86_400_000
+  );
+}
+
+/** 그 기간의 모든 날 */
+function daysOf({ from, to }: Range) {
+  return Array.from({ length: daysBetween(from, to) + 1 }, (_, i) =>
+    shiftDateKey(from, i)
+  );
+}
+
+/**
+ * 기간을 그래프 칸으로 나눈다 — 45일까지는 하루씩, 그보다 길면 한 주씩.
+ *
+ * 한 주는 끝날에서 거꾸로 이레씩 묶는다(마지막 칸이 '이번 주'가 되게). 맨 앞 칸은 기간
+ * 시작보다 앞선 날을 빼서 이레가 안 될 수 있다. 하루씩으로 석 달을 그리면 막대가 90개라
+ * 한 칸이 실처럼 가늘어진다.
+ */
+function slotsOf(range: Range): { slots: Slot[]; daily: boolean } {
+  const span = daysBetween(range.from, range.to) + 1;
+  if (span <= 45) {
+    return {
+      daily: true,
+      slots: daysOf(range).map((d) => ({ days: [d], start: d, end: d })),
+    };
   }
-  return Array.from({ length: 12 }, (_, i) => {
-    const last = shiftDateKey(end, -(11 - i) * 7);
-    const days = Array.from({ length: 7 }, (_, k) => shiftDateKey(last, k - 6));
-    return { days, start: days[0], end: last };
-  });
+  const weeks = Math.ceil(span / 7);
+  return {
+    daily: false,
+    slots: Array.from({ length: weeks }, (_, i) => {
+      const end = shiftDateKey(range.to, -(weeks - 1 - i) * 7);
+      const days = Array.from({ length: 7 }, (_, k) => shiftDateKey(end, k - 6)).filter(
+        (d) => d >= range.from
+      );
+      return { days, start: days[0], end };
+    }),
+  };
+}
+
+/*
+ * 고른 기간을 이 기기에 적어 둔다 — 홈을 다시 열어도 그 기간으로.
+ *
+ * 브라우저 저장소를 화면 바깥의 가게로 보고 읽는다(useSyncExternalStore). 저장소를 쓸 수
+ * 없는 곳(사생활 보호 창 등)에서도 기간은 바뀌어야 하므로 값은 늘 여기(memo)에도 들고,
+ * 저장소에는 되는 만큼만 적는다. 다른 탭에서 바꾸면(storage 알림) 따라 바뀐다.
+ */
+const RANGE_KEY = 'bullpen-trends-range';
+const listeners = new Set<() => void>();
+let memo: string | null | undefined;
+
+function readSaved(): string | null {
+  if (memo === undefined) {
+    try {
+      memo = localStorage.getItem(RANGE_KEY);
+    } catch {
+      memo = null;
+    }
+  }
+  return memo;
+}
+
+function writeSaved(value: { period: Period } & Range) {
+  memo = JSON.stringify(value);
+  try {
+    localStorage.setItem(RANGE_KEY, memo);
+  } catch {
+    /* 적을 수 없으면 이 창에서만 쓴다 */
+  }
+  listeners.forEach((l) => l());
+}
+
+function subscribeSaved(onChange: () => void) {
+  const onStorage = (e: StorageEvent) => {
+    if (e.key !== RANGE_KEY) return;
+    memo = e.newValue;
+    onChange();
+  };
+  listeners.add(onChange);
+  window.addEventListener('storage', onStorage);
+  return () => {
+    listeners.delete(onChange);
+    window.removeEventListener('storage', onStorage);
+  };
+}
+
+/** 적어 둔 글에서 기간을 꺼낸다 — 없거나 틀리면 최근 4주 */
+function readRange(
+  saved: string | null,
+  earliest: string,
+  today: string
+): { period: Period; custom: Range } {
+  const fallback: Range = { from: shiftDateKey(today, -27), to: today };
+  try {
+    const s = JSON.parse(saved ?? 'null') as
+      ({ period?: string } & Partial<Range>) | null;
+    if (!s) return { period: '4w', custom: fallback };
+    const period = PERIODS.some((p) => p.value === s.period)
+      ? (s.period as Period)
+      : '4w';
+    const ok =
+      !!s.from && !!s.to && s.from >= earliest && s.from <= s.to && s.to <= today;
+    return { period, custom: ok ? { from: s.from!, to: s.to! } : fallback };
+  } catch {
+    return { period: '4w', custom: fallback };
+  }
 }
 
 type MetricKey = 'pitches' | 'velocity' | 'condition' | 'weight' | 'kcal' | 'training';
@@ -175,6 +282,13 @@ function noteOf(key: MetricKey, got: number[]) {
   }
 }
 
+/** '이전 4주와' · '앞 83일과' — 마지막 글자에 받침이 있으면 '과', 없으면 '와' */
+function withAnd(word: string) {
+  const code = word.charCodeAt(word.length - 1) - 0xac00;
+  const hasFinal = code >= 0 && code <= 11171 && code % 28 !== 0;
+  return `${word}${hasFinal ? '과' : '와'}`;
+}
+
 /** 9/3 */
 function shortDate(key: string) {
   return `${Number(key.slice(5, 7))}/${Number(key.slice(8, 10))}`;
@@ -182,6 +296,7 @@ function shortDate(key: string) {
 
 export function HomeTrends({
   today,
+  earliest,
   logs,
   trainingByDay,
   nutritionByDay,
@@ -190,6 +305,8 @@ export function HomeTrends({
   onJump,
 }: {
   today: string;
+  /** 홈이 받아 온 기록의 가장 이른 날 — 이보다 앞은 고를 수 없다(열세 달 전 그달 1일) */
+  earliest: string;
   logs: Log[];
   trainingByDay: Record<string, TrainingDaySummary>;
   nutritionByDay: Record<string, NutritionDay>;
@@ -199,9 +316,19 @@ export function HomeTrends({
   /** 캘린더가 그날을 고른다 */
   onJump: (date: string) => void;
 }) {
-  const [period, setPeriod] = useState<Period>('4w');
   const speedUnit = useSpeedUnit();
   const weightUnit = useWeightUnit();
+
+  /*
+   * 고른 기간 — 이 기기에 적어 둔 것(없으면 최근 4주). 서버는 이 값을 모르므로 처음 그림은
+   * 4주이고, 화면이 뜬 뒤 적어 둔 기간으로 바뀐다. 받아 온 기록 밖이거나 앞뒤가 뒤집힌
+   * 기간은 버린다.
+   */
+  const saved = useSyncExternalStore(subscribeSaved, readSaved, () => null);
+  const { period, custom } = useMemo(
+    () => readRange(saved, earliest, today),
+    [saved, earliest, today]
+  );
 
   /* 날짜 → 값. 기록이 없는 날은 null(0 과 다르다 — '쉰 날'과 '안 적은 날'은 다르다) */
   const valueOf = useMemo(() => {
@@ -232,12 +359,34 @@ export function HomeTrends({
     };
   }, [logs, checkinByDay, weightByDay, nutritionByDay, trainingByDay]);
 
-  /* 이번 기간의 칸들과, 견줄 바로 앞 기간(같은 길이) */
-  const slots = useMemo(() => slotsFor(period, today), [period, today]);
-  const before = useMemo(
-    () => slotsFor(period, shiftDateKey(today, -PERIOD_DAYS[period])),
-    [period, today]
+  /* 기록이 하나라도 있는 날 — 기간 고르는 작은 달력에 점을 찍는다 */
+  const hasRecord = (day: string) => METRICS.some((m) => valueOf(m.key, day) != null);
+
+  /* 보여 줄 기간 — 4주 · 12주는 오늘로 끝나고, '기간 설정'은 고른 대로 */
+  const range: Range =
+    period === '4w'
+      ? { from: shiftDateKey(today, -27), to: today }
+      : period === '12w'
+        ? { from: shiftDateKey(today, -83), to: today }
+        : custom;
+  const span = daysBetween(range.from, range.to) + 1;
+  const { slots, daily } = useMemo(
+    () => slotsOf({ from: range.from, to: range.to }),
+    [range.from, range.to]
   );
+  const days = useMemo(
+    () => daysOf({ from: range.from, to: range.to }),
+    [range.from, range.to]
+  );
+
+  /*
+   * 견줄 바로 앞 기간(같은 길이). 홈이 받아 온 기록보다 앞으로 넘어가면 견주지 않는다 —
+   * 반쪽만 읽은 기간과 견주면 '늘었다'가 거짓이 된다.
+   */
+  const before = useMemo(() => {
+    const from = shiftDateKey(range.from, -span);
+    return from < earliest ? null : daysOf({ from, to: shiftDateKey(range.from, -1) });
+  }, [range.from, span, earliest]);
 
   /** 값을 화면 글자로 — 단위는 고른 것(km/h · mph, kg · lb)을 따른다 */
   const format = (key: MetricKey, v: number): [string, string] => {
@@ -257,7 +406,11 @@ export function HomeTrends({
     }
   };
 
-  const periodName = period === '4w' ? '4주' : '12주';
+  const periodName = period === '4w' ? '4주' : period === '12w' ? '12주' : `${span}일`;
+  const endsToday = range.to === today;
+
+  const pickPeriod = (next: Period) => writeSaved({ period: next, ...custom });
+  const pickRange = (next: Range) => writeSaved({ period: 'custom', ...next });
 
   return (
     /*
@@ -279,20 +432,66 @@ export function HomeTrends({
             그래프
           </h2>
           <p className="mt-1 text-sm text-muted">
-            <b className="font-semibold text-ink">최근 {periodName}</b>
-            {period === '4w' ? ' · 날짜별' : ' · 주별'}
-            <span className="hidden @md:inline"> · 이전 {periodName}와 비교</span>
+            <b className="font-semibold text-ink">
+              {period === 'custom' ? '고른 기간' : `최근 ${periodName}`}
+            </b>
+            {daily ? ' · 날짜별' : ' · 주별'}
+            {before && (
+              <span className="hidden @md:inline">
+                {' '}
+                ·{' '}
+                {withAnd(
+                  period === 'custom' ? `앞 ${periodName}` : `이전 ${periodName}`
+                )}{' '}
+                비교
+              </span>
+            )}
           </p>
         </div>
         <Segmented
           label="기간"
           value={period}
-          onChange={setPeriod}
+          onChange={pickPeriod}
           options={PERIODS}
           tone="raised"
-          itemClassName="px-4 py-1.5"
+          itemClassName="px-3.5 py-1.5"
         />
       </div>
+
+      {/*
+        기간 설정 — 시작과 끝을 작은 달력에서 고른다. 기록이 있는 날에는 점이 찍혀 있다.
+        45일까지는 날짜별, 그보다 길면 주별로 그린다.
+      */}
+      {period === 'custom' && (
+        <div className="motion-safe:animate-fade-in flex flex-wrap items-center gap-2">
+          <RangeEnd
+            label="시작"
+            value={custom.from}
+            min={earliest}
+            max={custom.to}
+            today={today}
+            marked={hasRecord}
+            align="left"
+            onPick={(from) => pickRange({ ...custom, from })}
+          />
+          <span aria-hidden className="text-sm text-muted">
+            ~
+          </span>
+          <RangeEnd
+            label="끝"
+            value={custom.to}
+            min={custom.from}
+            max={today}
+            today={today}
+            marked={hasRecord}
+            align="right"
+            onPick={(to) => pickRange({ ...custom, to })}
+          />
+          <span className="text-xs tabular-nums text-muted">
+            {span}일 · {daily ? '날짜별' : '주별'}
+          </span>
+        </div>
+      )}
 
       {/*
         여섯 장은 한 상자 안에 — 칸 사이 선은 1px 틈에 깔린 바탕색이다(gap-px + bg-line).
@@ -302,17 +501,19 @@ export function HomeTrends({
         기간을 바꾸면 새로 그린다(key) — 막대가 다시 솟고 선이 다시 그어진다.
       */}
       <div
-        key={period}
+        key={`${range.from}~${range.to}`}
         className="grid min-h-0 flex-1 auto-rows-fr grid-cols-2 gap-px overflow-hidden rounded-2xl border border-line bg-line @3xl:grid-cols-3"
       >
         {METRICS.map((m) => {
-          const days = slots.flatMap((s) => s.days.map((d) => valueOf(m.key, d)));
-          const got = days.filter((v): v is number => v != null);
-          const now = combine(days, m.total);
-          const then = combine(
-            before.flatMap((s) => s.days.map((d) => valueOf(m.key, d))),
-            m.total
-          );
+          const values = days.map((d) => valueOf(m.key, d));
+          const got = values.filter((v): v is number => v != null);
+          const now = combine(values, m.total);
+          const then = before
+            ? combine(
+                before.map((d) => valueOf(m.key, d)),
+                m.total
+              )
+            : null;
           const fmt = (v: number) => format(m.key, v);
           return (
             <TrendCell
@@ -332,13 +533,105 @@ export function HomeTrends({
               change={changeOf(m.change, now, then, fmt, periodName)}
               format={fmt}
               fixedDomain={m.key === 'condition' ? CONDITION_DOMAIN : null}
-              daily={period === '4w'}
+              daily={daily}
+              endsToday={endsToday}
               onJump={onJump}
             />
           );
         })}
       </div>
     </section>
+  );
+}
+
+/**
+ * 기간의 한쪽 끝(시작 · 끝) — 누르면 밑에 작은 달력이 펴진다.
+ *
+ * 창(dialog)이 아니라 제자리에 붙는 작은 판이다(영양 탭의 날짜 고르개와 같은 모양). 바깥을
+ * 누르거나 Esc 면 닫힌다. 끝 쪽 판은 오른쪽에 맞춰 편다 — 휴대폰에서 화면 밖으로 나가지
+ * 않게.
+ */
+function RangeEnd({
+  label,
+  value,
+  min,
+  max,
+  today,
+  marked,
+  align,
+  onPick,
+}: {
+  label: string;
+  value: string;
+  min: string;
+  max: string;
+  today: string;
+  marked: (day: string) => boolean;
+  align: 'left' | 'right';
+  onPick: (day: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const box = useRef<HTMLSpanElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const onDown = (e: globalThis.PointerEvent) => {
+      if (box.current && !box.current.contains(e.target as Node)) setOpen(false);
+    };
+    const onKey = (e: globalThis.KeyboardEvent) => {
+      if (e.key === 'Escape') setOpen(false);
+    };
+    document.addEventListener('pointerdown', onDown);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('pointerdown', onDown);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [open]);
+
+  return (
+    <span ref={box} className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        aria-expanded={open}
+        aria-haspopup="dialog"
+        aria-label={`${label} ${spokenDay(value)} — 다른 날 고르기`}
+        className={`inline-flex min-h-9 items-center gap-1.5 rounded-lg border px-3 text-sm font-semibold tabular-nums text-ink transition-colors ${
+          open
+            ? 'border-sky bg-sky-tint'
+            : 'border-line-strong bg-surface hover:border-sky'
+        }`}
+      >
+        <CalendarDays
+          aria-hidden
+          className={`h-4 w-4 ${open ? 'text-sky' : 'text-muted'}`}
+        />
+        <span className="text-xs font-medium text-muted">{label}</span>
+        {spokenDay(value)}
+      </button>
+      {open && (
+        <div
+          role="dialog"
+          aria-label={`${label} 고르기`}
+          className={`motion-safe:animate-fade-in absolute top-full z-30 mt-2 w-[18.5rem] rounded-2xl border border-line bg-surface p-3 shadow-lg ${
+            align === 'left' ? 'left-0 origin-top-left' : 'right-0 origin-top-right'
+          }`}
+        >
+          <MiniCalendar
+            value={value}
+            today={today}
+            min={min}
+            max={max}
+            marked={marked}
+            onPick={(day) => {
+              setOpen(false);
+              if (day !== value) onPick(day);
+            }}
+          />
+        </div>
+      )}
+    </span>
   );
 }
 
@@ -385,6 +678,7 @@ function TrendCell({
   format,
   fixedDomain,
   daily,
+  endsToday,
   onJump,
 }: {
   label: string;
@@ -398,6 +692,8 @@ function TrendCell({
   format: (v: number) => [string, string];
   fixedDomain: Domain | null;
   daily: boolean;
+  /** 기간이 오늘로 끝나나 — 마지막 눈금을 '오늘' · '이번 주'로 적는다 */
+  endsToday: boolean;
   onJump: (date: string) => void;
 }) {
   const Arrow =
@@ -435,6 +731,7 @@ function TrendCell({
         format={format}
         fixedDomain={fixedDomain}
         daily={daily}
+        endsToday={endsToday}
         onJump={onJump}
       />
     </div>
@@ -564,6 +861,7 @@ function Chart({
   format,
   fixedDomain,
   daily,
+  endsToday,
   onJump,
 }: {
   kind: 'bar' | 'line';
@@ -574,6 +872,7 @@ function Chart({
   format: (v: number) => [string, string];
   fixedDomain: Domain | null;
   daily: boolean;
+  endsToday: boolean;
   onJump: (date: string) => void;
 }) {
   const box = useRef<HTMLDivElement>(null);
@@ -611,10 +910,30 @@ function Chart({
   const avg = got.length > 1 ? got.reduce((a, b) => a + b, 0) / got.length : null;
   const last = n - 1;
 
-  /* 가로 눈금 — 4주는 한 주마다, 12주는 넉 주마다. 좁으면 처음과 끝만. */
-  const xTicks = w < 190 ? [0, last] : daily ? [0, 7, 14, 21, last] : [0, 4, 8, last];
+  /*
+   * 가로 눈금 — 처음 · 4분의 1 · 가운데 · 4분의 3 · 끝(4주면 대략 한 주마다). 좁으면 처음과
+   * 끝만. 기간이 오늘로 끝나면 끝 눈금은 '오늘' · '이번 주'.
+   */
+  const xTicks =
+    w < 190 || n < 5
+      ? [...new Set([0, last])]
+      : [
+          ...new Set([
+            0,
+            Math.round(last / 4),
+            Math.round(last / 2),
+            Math.round((last * 3) / 4),
+            last,
+          ]),
+        ];
   const xText = (i: number) =>
-    i === last ? (daily ? '오늘' : '이번 주') : shortDate(slots[i].start);
+    i === last
+      ? endsToday
+        ? daily
+          ? '오늘'
+          : '이번 주'
+        : shortDate(slots[i].end)
+      : shortDate(slots[i].start);
 
   const pick = (e: PointerEvent<HTMLDivElement>) => {
     const r = e.currentTarget.getBoundingClientRect();

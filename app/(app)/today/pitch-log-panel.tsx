@@ -568,6 +568,7 @@ export function PitchLogPanel({
         />
         <HomeTrends
           today={today}
+          earliest={`${loadedFrom}-01`}
           logs={logs}
           trainingByDay={trainingByDay}
           nutritionByDay={nutritionByDay}
