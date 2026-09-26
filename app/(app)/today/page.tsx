@@ -58,8 +58,8 @@ function TodaySkeleton() {
  * 재보니 누른 뒤 340ms 동안 회색 덩어리만 보였다(로컬 기준, 배포본은 여기에
  * 네트워크가 더 붙는다). 그 사이 화면에 진짜인 것은 하나도 없었다.
  *
- * 이름은 레이아웃이 이미 읽어 둔 것이라(lib/dal.ts 의 cache) 이 await 는
- * DB 를 안 간다. 그래서 제목은 기다릴 것 없이 바로 나간다.
+ * 사용자는 레이아웃이 이미 읽어 둔 것이라(lib/dal.ts 의 cache) 이 await 는
+ * DB 를 안 간다. 그래서 제목과 달력 · 돌아보기의 자리는 기다릴 것 없이 바로 나간다.
  */
 export default async function HomePage({
   searchParams,
@@ -75,11 +75,14 @@ export default async function HomePage({
 
   return (
     <div className="space-y-6">
-      <PageHeading
-        eyebrow="Home"
-        title={`${user.nickname}님, 오늘도 던져볼까요`}
-        description="오늘 남길 것은 오른쪽 위 알림(종)이 알려 드려요. 운동은 트레이닝에서 합니다."
-      />
+      {/*
+        제목 — 다른 탭과 같은 모양(영어 이름표 + 한국어 제목).
+
+        예전에는 제목이 '○○님, 오늘도 던져볼까요'였고 밑에 안내 한 줄이 더 있었다.
+        매일 여는 화면에서 같은 인사를 읽을 까닭이 없어 인사와 안내는 뺐다. 제목은
+        loading.tsx 도 똑같이 그려, 불러오는 동안과 다 온 뒤에 자리가 바뀌지 않는다.
+      */}
+      <PageHeading eyebrow="Home" title="홈" />
 
       {/*
         달력이 맨 앞이다.

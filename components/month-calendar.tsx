@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
-import { ChevronDown, ChevronLeft, ChevronRight, Sparkles } from 'lucide-react';
+import { ChartLine, ChevronDown, ChevronLeft, ChevronRight } from 'lucide-react';
 import { dateKeyOf, toDateKey } from '@/lib/pitch-stats';
 
 /**
@@ -99,7 +99,7 @@ export function MonthCalendar({
   /** 칠할 것이 없는 날을 화면 낭독기가 읽는 말 — 영상 캘린더는 '영상 없음' */
   emptySpoken?: string;
   /**
-   * 왼쪽 위 작은 반짝이 — 칠한 것과 따로 붙는 표시(날짜 → 화면 낭독기가 덧붙여 읽을 말).
+   * 왼쪽 위 작은 그래프 표시 — 칠한 것과 따로 붙는 표시(날짜 → 화면 낭독기가 덧붙여 읽을 말).
    * 홈은 분석 리포트가 있는 날에 붙인다. 투구를 안 한 날에도 붙는다.
    */
   flags?: Record<string, string>;
@@ -477,7 +477,7 @@ function DayGrid({
                 aria-hidden
                 className="absolute left-1 top-1 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-surface/90 shadow-sm"
               >
-                <Sparkles className="h-2.5 w-2.5 text-cat-core" />
+                <ChartLine className="h-2.5 w-2.5 text-cat-core" />
               </span>
             )}
           </button>

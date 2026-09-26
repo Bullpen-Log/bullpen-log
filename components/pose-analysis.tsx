@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { quietRefresh } from '@/lib/quiet-refresh';
 import {
   Activity,
   ChevronLeft,
@@ -488,7 +489,7 @@ export function PoseAnalysis({
           setSaveError(res.error);
         } else {
           setSaveState('saved');
-          router.refresh();
+          quietRefresh(router);
         }
       })
       .catch(() => {

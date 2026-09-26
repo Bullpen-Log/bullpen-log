@@ -2,6 +2,7 @@
 
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import { quietRefresh } from '@/lib/quiet-refresh';
 
 /** 이만큼 넘게 다른 창에 가 있다 돌아오면 화면을 새로 받는다 */
 const STALE_AFTER_MS = 5 * 60 * 1000;
@@ -32,7 +33,7 @@ export function RefreshOnReturn() {
         return;
       }
       if (hiddenAt !== null && Date.now() - hiddenAt >= STALE_AFTER_MS) {
-        router.refresh();
+        quietRefresh(router);
       }
       hiddenAt = null;
     };

@@ -16,6 +16,7 @@ import Link, { useLinkStatus } from 'next/link';
 import { X } from 'lucide-react';
 import { NAV_ICONS } from '@/components/nav-icons';
 import { usePathname, useRouter } from 'next/navigation';
+import { quietRefresh } from '@/lib/quiet-refresh';
 import { REST_SESSION_TYPE } from '@/lib/session-type';
 import type { NavGroup, NavItem } from '@/lib/nav';
 import { DESK_MEDIA, MORE_HREF } from '@/lib/nav';
@@ -867,8 +868,11 @@ export function AppNav({
      * 열 때 새로 받는다. 틀(레이아웃)은 화면을 옮겨도 다시 그리지 않아서, 다른 기기에서
      * 남긴 기록을 모른 채 '아직 없어요'를 띄우고 '오늘 안 던졌어요'까지 누르게 할 수
      * 있다. 새로 받는 동안에도 창은 열린 채로 있고, 새 목록이 오면 바뀐다.
+     *
+     * 조용히 받는다(quietRefresh) — 그냥 router.refresh 로 받으면 본문 전체가 페이드해
+     * 종을 누를 때마다 화면이 깜빡였다.
      */
-    if (opening) router.refresh();
+    if (opening) quietRefresh(router);
   };
 
   /* 보이는 쪽 종으로 초점을 돌린다 — 창을 Esc 로 닫았을 때 초점이 문서 밖으로 떨어지지 않게 */
@@ -965,7 +969,7 @@ export function AppNav({
       }
       setRestedHere({ day, basis });
       /* 종에 넘겨주는 목록(레이아웃)과 보고 있던 화면을 새로 받는다 */
-      router.refresh();
+      quietRefresh(router);
       return true;
     } catch {
       setRestError('인터넷 연결을 확인한 뒤 다시 눌러 주세요.');
