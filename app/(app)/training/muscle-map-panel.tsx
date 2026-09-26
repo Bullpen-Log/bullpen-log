@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, type ReactNode } from 'react';
+import { useState } from 'react';
 import { ArrowDown, ChevronRight } from 'lucide-react';
 import {
   ARMCARE_AREAS,
@@ -10,7 +10,6 @@ import {
   muscleInfo,
   type ArmcareAreaKey,
 } from '@/lib/armcare/anatomy';
-import { careLevel } from '@/lib/armcare/muscle-map';
 import { ModelCredit } from '@/components/model-credit';
 import { Segmented } from '@/components/segmented';
 import { MuscleMap3D, type MapSelection, type MapStatus } from './muscle-map-3d';
@@ -18,22 +17,10 @@ import { AddToRoutine } from './add-to-routine';
 import { INFO_PILL, InfoButton } from './armcare-info';
 import type { ArmcareExerciseView } from './armcare-media';
 
-const VIEW_OPTIONS = [
-  { value: 'parts', label: '부위 보기' },
-  { value: 'log', label: '내 기록 색칠' },
-] as const;
-
 const SIDE_OPTIONS = [
   { value: 'right', label: '오른팔' },
   { value: 'left', label: '왼팔' },
 ] as const;
-
-/** 내 기록 색칠에서 부위 단추의 모양 */
-const CARE_CHIP = {
-  low: 'border-warn-line bg-warn-bg text-warn',
-  mid: 'border-line bg-surface text-ink',
-  good: 'border-line bg-surface text-ink',
-} as const;
 
 /**
  * 부위별 보강 맨 위의 3D 근육 지도 — 캔버스와 부위 단추, 고른 것의 설명.
@@ -45,12 +32,15 @@ const CARE_CHIP = {
  * 켜졌는지 안 보이기 때문이다. 부위의 운동을 다 보려면 아래 목록을 연다(onShowArea).
  *
  * 3D 를 못 그리는 기기에서는 캔버스 자리만 접는다 — 부위 단추와 설명은 그대로 쓴다.
+ *
+ * 최근 2주에 부위마다 몇 번 챙겼는지 칠해 보는 '내 기록 색칠'도 있었는데, 2026-09-26
+ * 사용자분이 없앴다(이름이 어색하고, 맞춤 루틴에 일부러 안 넣는 팔꿈치 후방·전방이 늘
+ * '챙길 곳'으로 떴다).
  */
 export function MuscleMapPanel({
   side,
   onSide,
   bothHands,
-  counts,
   exercises,
   initial,
   onShowArea,
@@ -63,8 +53,6 @@ export function MuscleMapPanel({
   onSide: (side: 'right' | 'left') => void;
   /** 양투 — 좌우를 고를 수 있게 한다 */
   bothHands: boolean;
-  /** 부위별 최근 2주 암케어 체크 수 */
-  counts: Record<ArmcareAreaKey, number>;
   exercises: ArmcareExerciseView[];
   /** 루틴의 '근육 위치'로 들어오면 그 근육이 켜진 채로 시작한다 */
   initial: MapSelection;
@@ -72,7 +60,6 @@ export function MuscleMapPanel({
   onShowArea: (area: ArmcareAreaKey) => void;
 }) {
   const [selection, setSelection] = useState<MapSelection>(initial);
-  const [log, setLog] = useState(false);
   const [status, setStatus] = useState<MapStatus>('loading');
 
   const area = findArmcareArea(selection.area);
@@ -85,24 +72,14 @@ export function MuscleMapPanel({
           <MuscleMap3D
             side={side}
             selection={selection}
-            counts={log ? counts : null}
             onPick={pick}
             onStatus={setStatus}
           />
         </div>
       )}
 
-      <div className="flex flex-wrap items-center gap-2">
-        <Segmented
-          label="보기"
-          value={log ? 'log' : 'parts'}
-          onChange={(v) => setLog(v === 'log')}
-          options={VIEW_OPTIONS}
-          layout="flow"
-          tone="raised"
-          itemClassName="px-3 py-1.5"
-        />
-        {bothHands && (
+      {bothHands && (
+        <div className="flex">
           <Segmented
             label="던지는 팔"
             value={side}
@@ -112,13 +89,12 @@ export function MuscleMapPanel({
             tone="raised"
             itemClassName="px-3 py-1.5"
           />
-        )}
-      </div>
+        </div>
+      )}
 
       <div className="flex flex-wrap gap-1.5" role="group" aria-label="부위 고르기">
         {ARMCARE_AREAS.map((a) => {
           const on = selection.area === a.key;
-          const level = careLevel(counts[a.key] ?? 0);
           return (
             <button
               key={a.key}
@@ -134,9 +110,7 @@ export function MuscleMapPanel({
               className={`rounded-full border px-3 py-1 text-xs font-semibold transition-colors ${
                 on
                   ? 'border-sky bg-sky-tint text-sky-strong'
-                  : log
-                    ? CARE_CHIP[level]
-                    : 'border-line bg-surface text-ink hover:border-sky'
+                  : 'border-line bg-surface text-ink hover:border-sky'
               }`}
             >
               <span
@@ -145,7 +119,6 @@ export function MuscleMapPanel({
                 style={{ backgroundColor: a.color }}
               />
               {a.label}
-              {log && level === 'low' && ' · 챙길 곳'}
             </button>
           );
         })}
@@ -153,20 +126,9 @@ export function MuscleMapPanel({
 
       <div className="space-y-2.5 rounded-2xl border border-line bg-surface px-4 py-4">
         {!area ? (
-          <>
-            <p className="text-[13px] break-keep text-muted">
-              {log
-                ? '최근 2주에 챙긴 횟수예요 — 노란 곳이 적게 챙긴 부위.'
-                : `암케어 근육 ${ARMCARE_MUSCLES.length}개 · 누르면 부위, 한 번 더 누르면 근육`}
-            </p>
-            {log && (
-              <p className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted">
-                <Legend color="bg-[#f59e0b]">0~1번 · 챙길 곳</Legend>
-                <Legend color="bg-[#8fd3c4]">2~4번</Legend>
-                <Legend color="bg-[#2f9e8f]">5번 이상</Legend>
-              </p>
-            )}
-          </>
+          <p className="text-[13px] break-keep text-muted">
+            암케어 근육 {ARMCARE_MUSCLES.length}개 · 누르면 부위, 한 번 더 누르면 근육
+          </p>
         ) : selection.muscle ? (
           <MuscleDetail
             areaLabel={area.label}
@@ -215,17 +177,6 @@ export function MuscleMapPanel({
                 </span>
               ))}
             </div>
-            {log && (
-              <p
-                className={`text-xs font-semibold ${
-                  careLevel(counts[area.key] ?? 0) === 'low'
-                    ? 'text-warn'
-                    : 'text-sky-strong'
-                }`}
-              >
-                최근 2주 {counts[area.key] ?? 0}번 챙김
-              </p>
-            )}
             <ShowAreaButton label={area.label} onClick={() => onShowArea(area.key)} />
           </>
         )}
@@ -233,15 +184,6 @@ export function MuscleMapPanel({
 
       <ModelCredit className="px-1" />
     </section>
-  );
-}
-
-function Legend({ color, children }: { color: string; children: ReactNode }) {
-  return (
-    <span className="inline-flex items-center gap-1.5">
-      <span aria-hidden className={`h-2.5 w-2.5 rounded-full ${color}`} />
-      {children}
-    </span>
   );
 }
 

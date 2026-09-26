@@ -49,7 +49,6 @@ export function ArmcareGuide({
   map: {
     side: 'right' | 'left';
     bothHands: boolean;
-    counts: Record<ArmcareAreaKey, number>;
     /** 루틴의 '근육 위치'로 들어왔으면 그 근육 */
     focusMuscle: string | null;
   };
@@ -87,7 +86,6 @@ export function ArmcareGuide({
             side={side}
             onSide={setSide}
             bothHands={map.bothHands}
-            counts={map.counts}
             exercises={exercises}
             initial={selectionFor(map.focusMuscle)}
             onShowArea={showArea}

@@ -98,13 +98,3 @@ export const AREA_VIEW: Record<ArmcareAreaKey, MapView> = {
 export function throwingSide(hand: string | null | undefined): 'right' | 'left' {
   return hand === '좌투' ? 'left' : 'right';
 }
-
-/**
- * 최근 2주에 그 부위를 몇 번 챙겼는가 → 색. 내 기록 색칠에 쓴다.
- *
- * 매일 하는 가벼운 운동이라 날로 세지 않고 체크 수로 센다. 0~1번이면 챙길 곳이다 —
- * 2주에 한 번은 거의 안 한 것과 같다.
- */
-export function careLevel(count: number): 'low' | 'mid' | 'good' {
-  return count <= 1 ? 'low' : count <= 4 ? 'mid' : 'good';
-}

@@ -93,7 +93,6 @@ function InfoGraphic({
         <MuscleMap3D
           side={side}
           selection={selection}
-          counts={null}
           onPick={onPick}
           onStatus={setStatus}
         />

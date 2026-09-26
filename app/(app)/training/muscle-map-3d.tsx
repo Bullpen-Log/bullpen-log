@@ -3,12 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import type * as Three from 'three';
 import { areaOfMuscle, type ArmcareAreaKey } from '@/lib/armcare/anatomy';
-import {
-  AREA_VIEW,
-  MODEL_KEY_TO_MUSCLE,
-  careLevel,
-  type MapView,
-} from '@/lib/armcare/muscle-map';
+import { AREA_VIEW, MODEL_KEY_TO_MUSCLE, type MapView } from '@/lib/armcare/muscle-map';
 import { createStage, hasWebGL, type StageStatus } from '@/components/three-stage';
 import { StageOverlay } from '@/components/stage-overlay';
 
@@ -35,9 +30,6 @@ const COLOR = {
   target: '#d9776a',
   pick: '#0ea5e9',
   bone: '#ece4d4',
-  low: '#f59e0b',
-  mid: '#8fd3c4',
-  good: '#2f9e8f',
 } as const;
 
 /* 보는 방향 — 모델은 앞이 +Z, 사람의 왼쪽이 +X. 오른팔 기준으로 적고 왼팔이면 X 를 뒤집는다 */
@@ -58,12 +50,7 @@ type Entry = {
 };
 
 type Engine = {
-  apply: (
-    selection: MapSelection,
-    counts: Partial<Record<ArmcareAreaKey, number>> | null,
-    side: 'right' | 'left',
-    animate: boolean
-  ) => void;
+  apply: (selection: MapSelection, side: 'right' | 'left', animate: boolean) => void;
   look: (view: MapView) => void;
 };
 
@@ -84,14 +71,11 @@ type Engine = {
 export function MuscleMap3D({
   side,
   selection,
-  counts,
   onPick,
   onStatus,
 }: {
   side: 'right' | 'left';
   selection: MapSelection;
-  /** 내 기록 색칠 — 부위별 최근 2주 체크 수. null 이면 부위 보기 */
-  counts: Partial<Record<ArmcareAreaKey, number>> | null;
   onPick: (next: MapSelection) => void;
   onStatus: (status: MapStatus) => void;
 }) {
@@ -100,9 +84,9 @@ export function MuscleMap3D({
   const [status, setStatus] = useState<MapStatus>('loading');
 
   /* 콜백과 지금 값은 ref 로 든다 — 캔버스는 한 번만 만들고, 누를 때 최신 값을 본다 */
-  const latest = useRef({ selection, counts, side, onPick, onStatus });
+  const latest = useRef({ selection, side, onPick, onStatus });
   useEffect(() => {
-    latest.current = { selection, counts, side, onPick, onStatus };
+    latest.current = { selection, side, onPick, onStatus };
   });
 
   useEffect(() => {
@@ -222,19 +206,18 @@ export function MuscleMap3D({
       const target = new THREE.Color();
       const black = new THREE.Color('#000000');
       let lastKey = '';
-      const apply: Engine['apply'] = (s, counts, arm, animate) => {
+      const apply: Engine['apply'] = (s, arm, animate) => {
         for (const e of entries) {
           const name = muscleOf(e, arm);
           const area = name ? areaOfMuscle(name)?.key : undefined;
           let color: string = e.bone ? COLOR.bone : name ? COLOR.target : COLOR.context;
-          if (counts && area) color = COLOR[careLevel(counts[area] ?? 0)];
           const inArea = !!s.area && area === s.area;
           const on = inArea && (!s.muscle || name === s.muscle);
-          if (!counts && on) color = COLOR.pick;
+          if (on) color = COLOR.pick;
           /*
            * 근육 하나를 골랐으면 그 근육만 색을 남기고 나머지는 모두 색을 뺀다. 같은
            * 부위의 다른 근육을 옅은 하늘색으로 남겼더니 고른 근육과 섞여 어디까지가
-           * 그 근육인지 보기 어려웠다(2026-09-26 사용자분). 내 기록 색칠에서도 같다.
+           * 그 근육인지 보기 어려웠다(2026-09-26 사용자분).
            */
           if (s.muscle && !on && name) color = COLOR.context;
           target.set(color);
@@ -340,7 +323,7 @@ export function MuscleMap3D({
 
       engine.current = { apply, look };
       const now = latest.current;
-      apply(now.selection, now.counts, now.side, false);
+      apply(now.selection, now.side, false);
       report('ready');
 
       cleanup = () => {
@@ -358,10 +341,10 @@ export function MuscleMap3D({
     };
   }, []);
 
-  /* 고른 것 · 색칠 · 팔이 바뀌면 칠을 다시 한다 */
+  /* 고른 것 · 팔이 바뀌면 칠을 다시 한다 */
   useEffect(() => {
-    engine.current?.apply(selection, counts, side, true);
-  }, [selection, counts, side, status]);
+    engine.current?.apply(selection, side, true);
+  }, [selection, side, status]);
 
   return (
     <div ref={holder} className="relative h-full w-full">

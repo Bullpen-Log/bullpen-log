@@ -1,15 +1,7 @@
 import type { ReactNode } from 'react';
-import { prisma } from '@/lib/prisma';
-import { shiftDateKey, toDateKey } from '@/lib/pitch-stats';
 import { visibleExercises } from '@/lib/library-cache';
 import { availableParts } from '@/lib/report/today-pick';
-import {
-  ARMCARE_AREAS,
-  ARMCARE_CATEGORY,
-  areasOf,
-  primaryArea,
-  type ArmcareAreaKey,
-} from '@/lib/armcare/anatomy';
+import { ARMCARE_CATEGORY, primaryArea } from '@/lib/armcare/anatomy';
 import { throwingSide } from '@/lib/armcare/muscle-map';
 import { loadArmcareToday, notAdvised, type UserForArmcare } from '@/lib/armcare/today';
 import { armcareMinutes } from '@/lib/armcare/routine';
@@ -48,10 +40,9 @@ export async function ArmcareSection({
   focusMuscle?: string | null;
 }) {
   if (tab === 'guide') {
-    const [library, mine, counts] = await Promise.all([
+    const [library, mine] = await Promise.all([
       visibleExercises(),
       loadMyRoutines(user.id),
-      careCounts(user.id, today),
     ]);
     const views = await toArmcareViews(
       library.filter((ex) => ex.category === ARMCARE_CATEGORY)
@@ -68,7 +59,6 @@ export async function ArmcareSection({
         map={{
           side: throwingSide(user.throwingHand),
           bothHands: user.throwingHand === '양투',
-          counts,
           focusMuscle,
         }}
       />
@@ -230,46 +220,4 @@ function SectionHead({ title, desc }: { title: string; desc: string }) {
       <p className="text-xs leading-relaxed break-keep text-muted">{desc}</p>
     </div>
   );
-}
-
-/** 3D 근육 지도의 '내 기록 색칠'이 보는 기간 — 오늘 포함 2주 */
-const CARE_DAYS = 14;
-
-/**
- * 부위마다 최근 2주에 암케어 운동을 몇 번 체크했는가.
- *
- * 맞춤 루틴이든 내 루틴이든 체크는 운동 기록 하나에 남는다. 운동 하나가 여러 부위를
- * 쓰면(외회전 90도는 어깨 후방과 견갑) 그 부위마다 한 번씩 센다. 날로 세지 않는 것은
- * 매일 하는 가벼운 운동이라 '며칠 했나'보다 '몇 번 챙겼나'가 부위 사이의 차이를 더
- * 잘 보여 주기 때문이다.
- */
-async function careCounts(
-  userId: string,
-  today: Date
-): Promise<Record<ArmcareAreaKey, number>> {
-  const todayKey = toDateKey(today);
-  const [logs, library] = await Promise.all([
-    prisma.userExerciseLog.findMany({
-      where: {
-        userId,
-        completed: true,
-        date: {
-          gte: new Date(`${shiftDateKey(todayKey, -(CARE_DAYS - 1))}T00:00:00.000Z`),
-          lte: new Date(`${todayKey}T00:00:00.000Z`),
-        },
-        exercise: { category: ARMCARE_CATEGORY },
-      },
-      select: { exerciseId: true },
-    }),
-    visibleExercises(),
-  ]);
-  const muscles = new Map(library.map((ex) => [ex.id, ex.targetMuscles ?? []]));
-  const counts = Object.fromEntries(ARMCARE_AREAS.map((a) => [a.key, 0])) as Record<
-    ArmcareAreaKey,
-    number
-  >;
-  for (const log of logs) {
-    for (const area of areasOf(muscles.get(log.exerciseId) ?? [])) counts[area.key]++;
-  }
-  return counts;
 }

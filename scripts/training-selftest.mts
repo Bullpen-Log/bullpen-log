@@ -123,12 +123,7 @@ import {
   readRoutineItems,
 } from '../lib/armcare/my-routines.ts';
 import { readTrainingPart } from '../lib/training-part.ts';
-import {
-  AREA_VIEW,
-  MUSCLE_MODEL,
-  careLevel,
-  throwingSide,
-} from '../lib/armcare/muscle-map.ts';
+import { AREA_VIEW, MUSCLE_MODEL, throwingSide } from '../lib/armcare/muscle-map.ts';
 import { reportReadiness } from '../lib/report/cadence.ts';
 import { SYSTEM_PROMPT } from '../lib/ai/report-prompt.ts';
 import {
@@ -4056,14 +4051,6 @@ console.log('\n[암케어] 부위·근육 · 오늘의 루틴 · 부하');
       throwingSide('우투') === 'right' &&
       throwingSide('양투') === 'right' &&
       throwingSide(null) === 'right'
-  );
-  check(
-    '내 기록 색칠 — 2주에 0~1번은 챙길 곳, 2~4번 보통, 5번부터 잘 챙김',
-    careLevel(0) === 'low' &&
-      careLevel(1) === 'low' &&
-      careLevel(2) === 'mid' &&
-      careLevel(4) === 'mid' &&
-      careLevel(5) === 'good'
   );
   const noAt = ARMCARE_MUSCLE_NAMES.filter((m) => !muscleInfo(m)?.at);
   check('근육마다 붙는 곳이 적혀 있다', noAt.length === 0, noAt.join(', '));
