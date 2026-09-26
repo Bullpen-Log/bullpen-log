@@ -3817,7 +3817,7 @@ console.log('\n[암케어] 부위·근육 · 오늘의 루틴 · 부하');
         Math.max(...burdens),
     burdens.join(',')
   );
-  /* 부위 색 — 3D 근육·부위 단추·근육 칩이 같은 색으로 부위를 가린다 */
+  /* 부위 색 — 부위 단추·카드·근육 칩의 점이 같은 색으로 부위를 가린다 */
   const areaColors = ARMCARE_AREAS.map((a) => a.color);
   check(
     '부위마다 색이 있고 서로 다르다',

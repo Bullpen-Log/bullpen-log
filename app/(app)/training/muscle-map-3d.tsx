@@ -22,11 +22,17 @@ export type MapStatus = 'loading' | 'ready' | 'unavailable' | 'error';
 const MODEL_URL = '/models/armcare-upper.glb';
 
 /*
- * 색 — 몸은 회색 점토, 암케어 근육은 그 부위의 색(lib/armcare/anatomy.ts 의 color).
- * 부위 단추·카드·근육 칩과 같은 색이라, 3D 에서 본 색으로 아래 목록을 찾는다(2026-09-26).
+ * 색 — 몸은 회색 점토, 암케어 근육은 붉은 근육색, 고른 것은 앱의 하늘색.
+ *
+ * 부위 색(lib/armcare/anatomy.ts 의 color)으로 근육을 칠해 본 적이 있다. 여덟 색이
+ * 한꺼번에 들어가니 고른 근육이 구별되지 않아 이 색으로 되돌렸다(2026-09-26 사용자분).
+ * 부위 색은 3D 아래의 단추·카드·근육 칩의 점에만 쓴다.
  */
 const COLOR = {
   context: '#c9d1da',
+  target: '#d9776a',
+  pick: '#0ea5e9',
+  sibling: '#7dd3fc',
   bone: '#ece4d4',
   low: '#f59e0b',
   mid: '#8fd3c4',
@@ -334,38 +340,32 @@ export function MuscleMap3D({
       /* ── 칠하기 ── */
       const target = new THREE.Color();
       const black = new THREE.Color('#000000');
-      const white = new THREE.Color('#ffffff');
       let lastKey = '';
       const apply: Engine['apply'] = (s, counts, arm, animate) => {
         for (const e of entries) {
           const name = muscleOf(e, arm);
-          const areaInfo = name ? areaOfMuscle(name) : null;
-          const area = areaInfo?.key;
-          let color: string = e.bone
-            ? COLOR.bone
-            : areaInfo
-              ? areaInfo.color
-              : COLOR.context;
+          const area = name ? areaOfMuscle(name)?.key : undefined;
+          let color: string = e.bone ? COLOR.bone : name ? COLOR.target : COLOR.context;
           if (counts && area) color = COLOR[careLevel(counts[area] ?? 0)];
           const inArea = !!s.area && area === s.area;
           const on = inArea && (!s.muscle || name === s.muscle);
           const sibling = inArea && !on;
+          if (!counts && on) color = COLOR.pick;
+          if (!counts && sibling) color = COLOR.sibling;
           target.set(color);
-          /* 같은 부위의 다른 근육은 옅게 — 고른 근육이 도드라지게 */
-          if (sibling) target.lerp(white, 0.45);
           e.material.color.copy(target);
           e.material.emissive.copy(on ? target : black);
           e.material.emissiveIntensity = on
             ? s.muscle && e.key === s.part
               ? 0.42
-              : 0.22
+              : 0.18
             : 0;
           /* 고른 것이 있으면 나머지를 비춰 보이게 — 속 근육도 보인다 */
           const faded = !!s.area && !on;
           e.material.transparent = faded;
           e.material.opacity = faded
             ? sibling
-              ? 0.45
+              ? 0.4
               : e.bone
                 ? 0.35
                 : name
