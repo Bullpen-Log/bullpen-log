@@ -103,7 +103,21 @@ export function CheckinGate({
   useLayoutEffect(() => {
     const el = ref.current;
     if (!el) return;
-    if (open && !el.open) el.showModal();
+    if (open && !el.open) {
+      el.showModal();
+      /*
+       * 첫 초점은 창 자체에 둔다.
+       *
+       * 창을 열면 브라우저가 안의 첫 '누를 수 있는 것'에 초점을 준다. 여기서는 그것이
+       * 굴러가는 본문 칸이었는데, 이 창은 화면을 열자마자(아직 아무것도 누르기 전에)
+       * 뜨니 브라우저가 키보드로 옮긴 초점으로 보고 본문 둘레에 흰 테두리를 그렸다.
+       * 무엇이든 누르면 사라졌지만 처음부터 떠 있으면 고장 난 것처럼 보인다.
+       *
+       * 창에 초점을 두면 테두리가 없다(outline-none). 키보드로 쓰는 사람은 Tab 한 번에
+       * 첫 칸으로 들어간다.
+       */
+      el.focus({ preventScroll: true });
+    }
     if (!open && el.open) el.close();
   }, [open]);
 
@@ -125,6 +139,8 @@ export function CheckinGate({
       ref={ref}
       data-gate
       aria-labelledby="checkin-gate-title"
+      /* 열릴 때 창 자체가 초점을 받는다(위 useLayoutEffect) — 그러려면 초점을 받을 수 있어야 한다 */
+      tabIndex={-1}
       /*
        * Esc 로는 닫지 않는다. 체크인을 하든 건너뛰든 둘 중 하나를 고르게 한다.
        * 그래도 브라우저가 끝내 닫아 버리면(Esc 를 거듭 누르면 크롬은 닫는다)
@@ -134,7 +150,7 @@ export function CheckinGate({
       onClose={() => {
         if (needed) skip();
       }}
-      className="m-auto flex max-h-[min(92dvh,56rem)] w-[min(40rem,calc(100vw-1.5rem))] flex-col overflow-clip rounded-2xl border border-line bg-surface p-0 text-ink shadow-2xl backdrop:bg-shade/60"
+      className="m-auto flex max-h-[min(92dvh,56rem)] w-[min(40rem,calc(100vw-1.5rem))] flex-col overflow-clip rounded-2xl border border-line bg-surface p-0 text-ink shadow-2xl outline-none backdrop:bg-shade/60"
     >
       <div className="shrink-0 border-b border-line px-5 py-4">
         {today && (
