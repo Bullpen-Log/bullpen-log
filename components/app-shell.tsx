@@ -80,6 +80,14 @@ const DOCK_CLOSE_MS = 140;
 const DOCK_HOVER_MS = 5000;
 
 /**
+ * 도크로 가는 연출을 빨리 감는 배속 — 도크가 다 모이기 전에 판을 열 때.
+ *
+ * 막대 → 도크는 아이콘이 차례로 출발해 0.4초 남짓 걸린다. 4배면 남은 것이 0.1초 안에
+ * 끝나, 누르고 나서 판이 늦게 온다는 느낌 없이 도크를 거쳐 판으로 이어진다.
+ */
+const HURRY_RATE = 4;
+
+/**
  * 메뉴가 놓이는 세 자리.
  *
  *   bar    오른쪽 위 한 줄. 평소.
@@ -262,6 +270,8 @@ export function AppNav({
    */
   const place = useRef<Place>('bar');
   const running = useRef<ViewTransition | null>(null);
+  /* 돌고 있는 연출이 어디서 어디로 가는 것인가 */
+  const runningKind = useRef<Choreo | null>(null);
   const queued = useRef<Place | null>(null);
 
   const navRef = useRef<HTMLElement>(null);
@@ -401,6 +411,7 @@ export function AppNav({
       });
     });
     running.current = vt;
+    runningKind.current = kind;
     /*
      * 연출 중에는 크롬이 무엇을 눌러도 <html> 로 준다. 도크가 펼쳐지거나 접히는 짧은
      * 사이에 종·톱니·사진을 누르면 아무 일도 없어 한 번 더 눌러야 했다. 누른 자리에
@@ -443,6 +454,7 @@ export function AppNav({
     vt.finished.finally(() => {
       if (running.current !== vt) return;
       running.current = null;
+      runningKind.current = null;
       root.removeAttribute('data-nav-choreo');
       setChoreo(null);
       if (to === 'bar') setSheetBuilt(false);
@@ -460,9 +472,32 @@ export function AppNav({
   const halt = () => {
     const vt = running.current;
     running.current = null;
+    runningKind.current = null;
     queued.current = null;
     vt?.skipTransition();
     document.documentElement.removeAttribute('data-nav-choreo');
+  };
+
+  /*
+   * 돌고 있는 연출을 빨리 감는다 — 끊지 않는다.
+   *
+   * 도크가 모이는 중에 격자를 누르면 예전에는 그 연출을 그 자리에서 끊고(halt) 판으로
+   * 갔다. 끊는 순간 날아가던 아이콘이 도크 자리로 툭 옮겨 앉았다가 거기서 다시 판으로
+   * 날아가, 커서를 대고 기다렸다 누를 때와 달리 부자연스러웠다. 이제 남은 움직임을
+   * HURRY_RATE 배로 감아 도크에 마저 앉히고, 끝나는 대로 판으로 잇는다(queued).
+   *
+   * 연출의 움직임은 전부 ::view-transition 가상 요소의 CSS 애니메이션이라 문서에서
+   * 찾아 배속만 바꾼다(지금 자리에서 이어서 빨라진다 — 튀지 않는다). 막 시작해 아직
+   * 움직임이 만들어지기 전이면 만들어지는 대로(ready) 바꾼다.
+   */
+  const hurry = () => {
+    const speed = () =>
+      document.getAnimations().forEach((a) => {
+        const pseudo = (a.effect as KeyframeEffect | null)?.pseudoElement ?? '';
+        if (pseudo.startsWith('::view-transition')) a.updatePlaybackRate(HURRY_RATE);
+      });
+    speed();
+    running.current?.ready.then(speed, () => {});
   };
 
   /*
@@ -472,15 +507,30 @@ export function AppNav({
    * 도중에 끊고 새로 시작하면 날아가던 아이콘이 사라졌다가 엉뚱한 데서 다시
    * 나타난다. 줄을 세워 두면 늘 커서가 있는 쪽으로 맞춰진다.
    *
-   * 판은 기다리지 않는다(now). 격자를 누른 것은 분명히 판을 보겠다는 뜻이라,
-   * 도크가 아직 모이는 중이어도 그 연출을 거두고 곧장 판을 오른쪽에서 내민다.
-   * 예전에는 도크가 다 모인 뒤에야 판으로 이어져서, 누르고도 한참 작은 상자만
-   * 보였다.
+   * 판은 기다리지 않는다(now). 격자를 누른 것은 분명히 판을 보겠다는 뜻이다. 예전에는
+   * 도크가 다 모인 뒤에야 판으로 이어져서 누르고도 한참 작은 상자만 보였고, 그다음에는
+   * 모이던 연출을 끊고 곧장 판으로 갔는데 끊는 순간 아이콘이 툭 튀었다. 이제 모이던
+   * 연출을 빨리 감아(hurry) 마저 모이게 하고 곧바로 판으로 잇는다.
+   *
+   * 막대에서 판으로 갈 때도 도크를 거친다(빨리 감아서). 도크가 뜨기 전에 누르든, 다
+   * 뜬 뒤에 누르든 아이콘이 같은 길(막대 → 격자 밑 → 판)로 가야 한 가지 움직임으로
+   * 읽힌다. 막대에서 판으로 곧장 날리면 알약이 줄어드는 것과 판이 들어오는 것이 한꺼번에
+   * 겹쳐 흐릿하게 섞였다.
    */
   const go = (to: Place, now = false) => {
     if (running.current) {
       if (!now) {
         queued.current = to;
+        return;
+      }
+      /* 이미 판으로 가는 중이면 그대로 둔다 */
+      if (runningKind.current?.endsWith('-sheet')) {
+        queued.current = null;
+        return;
+      }
+      if (to === 'sheet' && canChoreo()) {
+        queued.current = 'sheet';
+        hurry();
         return;
       }
       halt();
@@ -493,6 +543,12 @@ export function AppNav({
       setDockBuilt(false);
       setSheetBuilt(false);
       land(to);
+      return;
+    }
+    if (from === 'bar' && to === 'sheet') {
+      queued.current = 'sheet';
+      run('bar-dock');
+      hurry();
       return;
     }
     /* 판에서는 막대로만 돌아간다 — X 는 '다 닫는다'라서 작은 상자가 남으면 안 된다 */
