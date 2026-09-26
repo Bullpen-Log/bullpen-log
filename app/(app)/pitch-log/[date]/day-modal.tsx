@@ -4,12 +4,14 @@ import {
   createContext,
   useCallback,
   useContext,
+  useEffect,
   useRef,
   useState,
   type ReactNode,
 } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { Modal } from '@/components/modal';
+import { announcePopupOpened } from '@/components/link-pending';
 import { pageBeforePopup } from '@/lib/last-page';
 
 /**
@@ -79,6 +81,11 @@ function DayModalWindow({ title, children }: { title: string; children: ReactNod
   const leaving = useRef(false);
   /* 이 창을 띄우기 전의 화면 — 처음 뜰 때 한 번 읽어 둔다 */
   const [origin] = useState(pageBeforePopup);
+
+  /* 떴다고 알린다 — 누른 링크의 도는 표시가 멈춘다(components/link-pending.tsx) */
+  useEffect(() => {
+    announcePopupOpened();
+  }, []);
 
   const close = useCallback(() => {
     if (leaving.current) return;

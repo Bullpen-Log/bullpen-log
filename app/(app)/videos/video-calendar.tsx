@@ -26,6 +26,7 @@ import {
 import { setFeaturedVideo } from '@/app/actions/featured-video';
 import type { VideoLog } from './videos-client';
 import { OPEN_POPUP_TYPES } from '@/lib/transition-types';
+import { LinkPending } from '@/components/link-pending';
 
 /**
  * 투구 기록 캘린더 — 투구한 날과 그날 영상을 찾고 보는 달력.
@@ -548,7 +549,10 @@ function DayPanel({
           transitionTypes={OPEN_POPUP_TYPES}
           className="mt-2 inline-flex items-center gap-1 rounded-lg px-2 py-1 text-sm font-semibold text-sky-strong transition-colors hover:bg-sky-tint"
         >
-          <Plus aria-hidden className="h-3.5 w-3.5" />이 날 투구 남기기
+          <LinkPending className="h-3.5 w-3.5">
+            <Plus aria-hidden className="h-3.5 w-3.5" />
+          </LinkPending>
+          이 날 투구 남기기
         </Link>
       </section>
     );
@@ -600,10 +604,12 @@ function DayPanel({
           {day.paths.length > 0
             ? '기록 고치기 · 자세 분석'
             : '기록 고치기 · 영상 올리기'}
-          <ArrowRight
-            aria-hidden
-            className="h-3.5 w-3.5 transition-transform duration-150 group-hover:translate-x-0.5"
-          />
+          <LinkPending className="h-3.5 w-3.5">
+            <ArrowRight
+              aria-hidden
+              className="h-3.5 w-3.5 transition-transform duration-150 group-hover:translate-x-0.5"
+            />
+          </LinkPending>
         </Link>
       </header>
 

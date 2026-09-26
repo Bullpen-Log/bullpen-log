@@ -4,6 +4,7 @@ import { useRef, useState, type RefObject } from 'react';
 import Link from 'next/link';
 import { Bell, CheckCircle2, ChevronRight, ClipboardList, Target } from 'lucide-react';
 import { OPEN_POPUP_TYPES } from '@/lib/transition-types';
+import { LinkPending } from '@/components/link-pending';
 
 /**
  * 오른쪽 위 알림(종) — 오늘 아직 안 한 것을 알려 준다.
@@ -233,7 +234,9 @@ export function NoticePanel({
                   className="inline-flex min-h-9 items-center gap-1 rounded-lg bg-sky px-3 text-xs font-semibold text-white transition-colors hover:bg-sky-strong"
                 >
                   기록하기
-                  <ChevronRight aria-hidden className="h-3.5 w-3.5" />
+                  <LinkPending className="h-3.5 w-3.5">
+                    <ChevronRight aria-hidden className="h-3.5 w-3.5" />
+                  </LinkPending>
                 </Link>
                 <button
                   type="button"

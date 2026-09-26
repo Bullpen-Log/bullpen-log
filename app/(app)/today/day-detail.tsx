@@ -13,6 +13,7 @@ import type { PlanDaySummary } from '@/lib/report/training-history';
 import type { DayDetail } from '@/lib/day-detail';
 import { dayHas, spokenDay, type DayFacts, type DayFocus } from './day-summary';
 import { OPEN_POPUP_TYPES } from '@/lib/transition-types';
+import { LinkPending } from '@/components/link-pending';
 
 /**
  * 캘린더 밑 칸 — 옆 요약에서 누른 아이콘을 조금 더 자세히.
@@ -127,10 +128,12 @@ export function DayDetailBlock({
             className="group inline-flex items-center gap-1 rounded-lg px-2 py-1 text-sm font-semibold text-sky transition-colors hover:bg-sky-tint hover:text-sky-strong"
           >
             {link.label}
-            <ArrowRight
-              aria-hidden
-              className="h-3.5 w-3.5 transition-transform duration-150 group-hover:translate-x-0.5"
-            />
+            <LinkPending className="h-3.5 w-3.5">
+              <ArrowRight
+                aria-hidden
+                className="h-3.5 w-3.5 transition-transform duration-150 group-hover:translate-x-0.5"
+              />
+            </LinkPending>
           </Link>
         )}
       </header>

@@ -9,6 +9,7 @@ import { CompareView, type ClipOption } from './compare-view';
 import { VideoGallery } from './video-gallery';
 import { VideoCalendar } from './video-calendar';
 import { OPEN_POPUP_TYPES } from '@/lib/transition-types';
+import { LinkPending } from '@/components/link-pending';
 
 /**
  * 투구 기록 한 건 — 캘린더 · 목록에 필요한 만큼만. 평균 구속 · 자세 분석 같은 것은 그날
@@ -125,7 +126,9 @@ export function VideosClient({
             transitionTypes={OPEN_POPUP_TYPES}
             className="gap-1.5"
           >
-            <Plus aria-hidden className="h-4 w-4" />
+            <LinkPending>
+              <Plus aria-hidden className="h-4 w-4" />
+            </LinkPending>
             오늘 기록 남기기
           </ButtonLink>
         }
