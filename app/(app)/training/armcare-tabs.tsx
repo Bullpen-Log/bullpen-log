@@ -5,14 +5,17 @@ import { useRouter } from 'next/navigation';
 import { Segmented } from '@/components/segmented';
 
 /**
- * 암케어 안의 세 칸 — [오늘의 암케어 | 부위별 보강 | 훈련 방식].
+ * 암케어 안의 세 칸 — [루틴 | 부위별 보강 | 훈련 방식].
+ *
+ * 첫 칸은 2026-09-26 '오늘의 암케어'에서 '루틴'으로 바꿨다. 앱이 짜 주는 맞춤 루틴과
+ * 내가 골라 만든 내 루틴이 함께 선다.
  *
  * 트레이닝의 [트레이닝 | 암케어]처럼 주소로 나눈다(?view=armcare&tab=guide).
  * 부위별 보강은 암케어 운동을 다 늘어놓는 화면이라, 오늘 루틴만 보러 온 사람에게
  * 그 짐까지 내려보낼 까닭이 없다. 움직임도 트레이닝 고르개와 같다(view-switch.tsx).
  */
 const TABS = [
-  { value: 'today', label: '오늘의 암케어', href: '/training?view=armcare' },
+  { value: 'today', label: '루틴', href: '/training?view=armcare' },
   { value: 'guide', label: '부위별 보강', href: '/training?view=armcare&tab=guide' },
   { value: 'methods', label: '훈련 방식', href: '/training?view=armcare&tab=methods' },
 ] as const;

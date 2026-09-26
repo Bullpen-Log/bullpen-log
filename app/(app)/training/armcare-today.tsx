@@ -19,7 +19,11 @@ export type ArmcareTodayItem = {
 };
 
 /**
- * 오늘의 암케어 — 권하는 루틴, 만들기, 체크.
+ * 맞춤 루틴 — 오늘 몸 상태로 권하는 루틴, 만들기, 체크.
+ *
+ * 2026-09-26 이름을 '오늘의 암케어'에서 '맞춤 루틴'으로 바꿨다. 사용자가 직접 골라
+ * 만드는 '내 루틴'(my-routines.tsx)이 같은 칸에 함께 서면서, 앱이 짜 준 것과 내가
+ * 짠 것을 이름으로 가르기 위해서다.
  *
  * 체크만 한다. 세트·횟수를 적는 실시간 기록은 없다(사용자분과 정함). 체크는
  * 트레이닝 목록과 같은 운동 기록에 남아 달력과 운동별 기록에 보인다
@@ -28,7 +32,6 @@ export type ArmcareTodayItem = {
 export function ArmcareToday({
   decision,
   routine,
-  recentDays,
 }: {
   /** 지금 몸 상태로 권하는 루틴과 그 까닭 */
   decision: { kind: ArmcareKind; reason: string };
@@ -40,8 +43,6 @@ export function ArmcareToday({
     estimatedMinutes: number;
     items: ArmcareTodayItem[];
   } | null;
-  /** 최근 7일(오늘 포함) 중 암케어를 한 날 */
-  recentDays: number;
 }) {
   const [making, startMaking] = useTransition();
   const [error, setError] = useState<string>();
@@ -75,11 +76,10 @@ export function ArmcareToday({
             disabled={making}
             className="rounded-xl bg-sky px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-sky-strong disabled:opacity-60"
           >
-            {making ? '만드는 중…' : '오늘의 암케어 만들기'}
+            {making ? '만드는 중…' : '맞춤 루틴 만들기'}
           </button>
           {error && <p className="text-sm text-danger">{error}</p>}
         </section>
-        <RecentLine days={recentDays} />
       </div>
     );
   }
@@ -98,7 +98,7 @@ export function ArmcareToday({
     <div className="space-y-3">
       <section className="space-y-3 rounded-2xl border border-sky-soft/40 bg-gradient-to-br from-sky/[0.07] via-surface to-surface p-5 sm:p-6">
         <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
-          <p className="text-heading text-xl text-ink">오늘의 암케어 · {label}</p>
+          <p className="text-heading text-xl text-ink">오늘의 {label}</p>
           <p className="text-sm text-muted">
             <span className="text-display text-base text-ink">
               {routine.items.length}
@@ -141,13 +141,17 @@ export function ArmcareToday({
       </section>
 
       <Checklist items={routine.items} />
-      <RecentLine days={recentDays} />
     </div>
   );
 }
 
-/** 최근 7일에 암케어를 한 날 — 매일 하는 것이 목표라 날 수로 말한다 */
-function RecentLine({ days }: { days: number }) {
+/**
+ * 최근 7일에 암케어를 한 날 — 매일 하는 것이 목표라 날 수로 말한다.
+ *
+ * 맞춤 루틴이든 내 루틴이든 암케어 운동을 하나라도 체크한 날을 센다. 그래서 칸 맨
+ * 아래에 둔다(armcare-section.tsx).
+ */
+export function RecentLine({ days }: { days: number }) {
   return (
     <p className="px-1 text-xs text-muted">
       최근 7일 중 암케어를 한 날{' '}
@@ -157,7 +161,22 @@ function RecentLine({ days }: { days: number }) {
   );
 }
 
-function Checklist({ items: initial }: { items: ArmcareTodayItem[] }) {
+/**
+ * 체크 목록 — 맞춤 루틴과 내 루틴이 함께 쓴다.
+ *
+ * 맞춤 루틴은 부위 차례로 담겨 와서 부위별로 묶어 보여 준다. 내 루틴은 사람이 정한
+ * 차례가 곧 하는 차례라 묶지 않는다(grouped={false}).
+ */
+export function Checklist({
+  items: initial,
+  grouped = true,
+  doneLabel = '오늘 암케어 끝 👏',
+}: {
+  items: ArmcareTodayItem[];
+  grouped?: boolean;
+  /** 다 체크했을 때 붙는 말 */
+  doneLabel?: string;
+}) {
   const [items, setItems] = useState(initial);
   const [error, setError] = useState<string>();
   const [, startTransition] = useTransition();
@@ -191,11 +210,14 @@ function Checklist({ items: initial }: { items: ArmcareTodayItem[] }) {
   const doneCount = items.filter((it) => it.done).length;
   const allDone = items.length > 0 && doneCount === items.length;
 
-  /* 부위별로 묶는다 — 루틴이 이미 부위 차례로 담겨 온다 */
-  const groups: { area: ArmcareAreaKey; items: ArmcareTodayItem[] }[] = [];
+  /* 부위별로 묶는다 — 맞춤 루틴은 이미 부위 차례로 담겨 온다. 안 묶으면 한 덩이 */
+  const groups: { area: ArmcareAreaKey | null; items: ArmcareTodayItem[] }[] = [];
   for (const it of items) {
     const last = groups.at(-1);
-    if (last && last.area === it.area) last.items.push(it);
+    if (!grouped) {
+      if (last) last.items.push(it);
+      else groups.push({ area: null, items: [it] });
+    } else if (last && last.area === it.area) last.items.push(it);
     else groups.push({ area: it.area, items: [it] });
   }
 
@@ -208,7 +230,7 @@ function Checklist({ items: initial }: { items: ArmcareTodayItem[] }) {
             <span className="text-muted">/{items.length}</span> 완료
           </p>
           {allDone && (
-            <span className="text-sm font-semibold text-sky">오늘 암케어 끝 👏</span>
+            <span className="text-sm font-semibold text-sky">{doneLabel}</span>
           )}
         </div>
         <div className="mt-3 h-2 overflow-hidden rounded-full bg-surface-2">
@@ -229,13 +251,15 @@ function Checklist({ items: initial }: { items: ArmcareTodayItem[] }) {
         const area = findArmcareArea(group.area);
         return (
           <section
-            key={`${group.area}-${group.items[0].exercise.id}`}
+            key={`${group.area ?? 'all'}-${group.items[0].exercise.id}`}
             className="space-y-2.5"
           >
-            <div className="flex flex-wrap items-baseline gap-x-2 px-1">
-              <h2 className="text-heading text-[15px] text-ink">{area?.label}</h2>
-              <span className="text-xs break-keep text-muted">{area?.role}</span>
-            </div>
+            {area && (
+              <div className="flex flex-wrap items-baseline gap-x-2 px-1">
+                <h2 className="text-heading text-[15px] text-ink">{area.label}</h2>
+                <span className="text-xs break-keep text-muted">{area.role}</span>
+              </div>
+            )}
             <ul className="space-y-2.5">
               {group.items.map(({ exercise: ex, done, unsafe }) => (
                 <li
@@ -293,7 +317,10 @@ function Checklist({ items: initial }: { items: ArmcareTodayItem[] }) {
                       />
                       {unsafe && !done && (
                         <span className="flex items-start gap-1.5 text-[11px] leading-relaxed text-warn">
-                          <AlertTriangle aria-hidden className="mt-0.5 h-3 w-3 shrink-0" />
+                          <AlertTriangle
+                            aria-hidden
+                            className="mt-0.5 h-3 w-3 shrink-0"
+                          />
                           지금 몸 상태에는 권하지 않는 운동입니다
                         </span>
                       )}

@@ -12,6 +12,7 @@ import {
 } from '@/lib/armcare/anatomy';
 import { MuscleChips } from '@/components/muscle-chips';
 import { ExerciseMedia, type ArmcareExerciseView } from './armcare-media';
+import { AddToRoutine, MyRoutinesProvider, type RoutineChoice } from './add-to-routine';
 
 /**
  * 부위별 보강 — 부위 → 흔한 부상 → 키울 근육 → 운동.
@@ -27,43 +28,52 @@ import { ExerciseMedia, type ArmcareExerciseView } from './armcare-media';
  * 한 운동이 여러 부위에 나온다(외회전 90도는 어깨 후방과 견갑). 그 부위를 주로
  * 키우는 운동을 앞에, 함께 쓰는 운동을 뒤에 둔다.
  */
-export function ArmcareGuide({ exercises }: { exercises: ArmcareExerciseView[] }) {
+export function ArmcareGuide({
+  exercises,
+  routines,
+}: {
+  exercises: ArmcareExerciseView[];
+  /** 내 루틴 — 운동마다 '담기'로 넣을 곳 (add-to-routine.tsx) */
+  routines: RoutineChoice[];
+}) {
   const [open, setOpen] = useState<string | null>(null);
   const untagged = exercises.filter((ex) => ex.targetMuscles.length === 0).length;
 
   const joints: ArmcareJoint[] = ['어깨', '팔꿈치'];
 
   return (
-    <div className="space-y-6">
-      <p className="text-sm leading-relaxed break-keep text-muted">
-        투수가 가장 많이 다치는 곳은 어깨와 팔꿈치입니다. 부위를 누르면 던질 때 그
-        부위가 하는 일, 흔한 부상, 키울 근육과 운동이 나옵니다. 운동이 부상을 막아
-        준다는 보장은 없습니다 — 아프면 쉬고 전문의 진료를 받아보세요.
-      </p>
-
-      {joints.map((joint) => (
-        <section key={joint} className="space-y-2.5">
-          <h2 className="px-1 text-heading text-lg text-ink">{joint}</h2>
-          <ul className="space-y-2.5">
-            {ARMCARE_AREAS.filter((a) => a.joint === joint).map((area) => (
-              <AreaCard
-                key={area.key}
-                area={area}
-                exercises={exercisesFor(area, exercises)}
-                open={open === area.key}
-                onToggle={() => setOpen(open === area.key ? null : area.key)}
-              />
-            ))}
-          </ul>
-        </section>
-      ))}
-
-      {untagged > 0 && (
-        <p className="px-1 text-xs leading-relaxed text-muted">
-          근육을 아직 적지 않은 암케어 운동 {untagged}개는 여기 나오지 않습니다.
+    <MyRoutinesProvider routines={routines}>
+      <div className="space-y-6">
+        <p className="text-sm leading-relaxed break-keep text-muted">
+          투수가 가장 많이 다치는 곳은 어깨와 팔꿈치입니다. 부위를 누르면 던질 때 그
+          부위가 하는 일, 흔한 부상, 키울 근육과 운동이 나옵니다. 운동이 부상을 막아
+          준다는 보장은 없습니다 — 아프면 쉬고 전문의 진료를 받아보세요.
         </p>
-      )}
-    </div>
+
+        {joints.map((joint) => (
+          <section key={joint} className="space-y-2.5">
+            <h2 className="px-1 text-heading text-lg text-ink">{joint}</h2>
+            <ul className="space-y-2.5">
+              {ARMCARE_AREAS.filter((a) => a.joint === joint).map((area) => (
+                <AreaCard
+                  key={area.key}
+                  area={area}
+                  exercises={exercisesFor(area, exercises)}
+                  open={open === area.key}
+                  onToggle={() => setOpen(open === area.key ? null : area.key)}
+                />
+              ))}
+            </ul>
+          </section>
+        ))}
+
+        {untagged > 0 && (
+          <p className="px-1 text-xs leading-relaxed text-muted">
+            근육을 아직 적지 않은 암케어 운동 {untagged}개는 여기 나오지 않습니다.
+          </p>
+        )}
+      </div>
+    </MyRoutinesProvider>
   );
 }
 
@@ -220,6 +230,7 @@ export function GuideExercise({
             {ex.isReference && (
               <span className="text-[10px] font-medium text-muted">참고 영상</span>
             )}
+            <AddToRoutine exerciseId={ex.id} title={ex.title} />
           </span>
           {ex.prescription && (
             <span className="block text-xs font-semibold text-muted">

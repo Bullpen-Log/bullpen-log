@@ -13,18 +13,17 @@ Claude 로 작업을 시작하면 저절로 읽힌다. 규칙은 `AGENTS.md` 6�
 
 ## 금윤호에게 — 2026-09-26 · 김민(Claude)
 
-> **⚠ 김민이 지금 DB 구조를 바꾸는 중이다 (2026-09-26, 사용자 요청: 암케어 '내 루틴').**
-> 새 표 `ArmcareRoutine` 을 더한다(추가만, 기존 표·칸은 그대로). 금윤호가 구조를 바꿀
-> 때(예: `NutritionProfile.sex` 지우기)는 **먼저 pull 해서 이 표가 `prisma/schema.prisma`
-> 에 들어온 뒤에** `migrate diff` 를 만든다 — 안 받은 채로 만들면 diff 가 이 표를
-> `DROP TABLE` 한다. 끝나면 이 줄을 '받은 뒤 할 일'로 바꿔 둔다.
-
 남겨 준 말(`npx prisma generate` · `npm install`)은 받아서 처리했다. `usesWeight` 정리는
 아직 안 했다 — 따로 할 때 한다.
 
 ### 받은 뒤 할 일
 
-1. 개발 서버를 다시 켠다. 운동 목록 캐시 이름을 `library:exercises:v4` 로 바꿨다
+1. **`npx prisma generate`** — 새 표 `UserArmcareRoutine`(내 암케어 루틴)을 더했다
+   (`prisma/migrations/20260926043412_add_user_armcare_routine`, 추가만). DB 에는 이미
+   적용했다. `User` 에 관계 칸 `myArmcareRoutines` 한 줄이 늘었다(DB 칸은 아니다).
+   금윤호가 다음에 구조를 바꿀 때(`NutritionProfile.sex` 지우기 등)는 이것을 받은 뒤에
+   `migrate diff` 를 만든다 — 안 받은 채로 만들면 diff 가 이 표를 `DROP TABLE` 한다.
+2. 개발 서버를 다시 켠다. 운동 목록 캐시 이름을 `library:exercises:v4` 로 바꿨다
    (`lib/library-cache.ts`) — 스크립트로 운동 30개의 근육을 고쳐서, 이름을 바꿔야 보인다.
 
 ### 알아 두면 좋은 것
@@ -34,6 +33,15 @@ Claude 로 작업을 시작하면 저절로 읽힌다. 규칙은 `AGENTS.md` 6�
 - 그 근육을 쓰는 암케어 운동 30개의 '키우는 근육'을 DB 에 저장했다
   (`scripts/retag-armcare-muscles.mts` · `scripts/armcare-retag-2026-09-26.json`). DB 구조는
   그대로다. 저장 전에 백업했다.
+
+### 암케어 '루틴' 칸 — 맞춤 루틴 + 내 루틴 (사용자 요청)
+
+- '오늘의 암케어'를 **맞춤 루틴**으로 이름을 바꾸고, 그 아래에 **내 루틴**을 더했다 —
+  사용자가 암케어 운동을 직접 골라 이름을 붙여 두고 언제든 체크하며 하는 루틴(10개까지,
+  한 루틴 15개까지). 만들기·고치기 화면은 `/training/routine/new`, `/training/routine/<id>`.
+- 체크는 맞춤 루틴과 같은 `UserExerciseLog`(setExerciseDone)에 남는다. 암케어 카테고리만
+  담을 수 있어서 부하·운동한 날 계산에서 빠지는 규칙은 그대로다.
+- 부위별 보강·훈련 방식의 운동마다 **담기** 단추(`app/(app)/training/add-to-routine.tsx`).
 
 ### 트레이닝 탭을 [트레이닝 | 암케어] 두 칸으로 바꿨다 (사용자 요청)
 

@@ -128,7 +128,7 @@ export default async function TrainingPage({
         <PageHeading
           eyebrow="Training"
           title="암케어"
-          description="어깨와 팔꿈치를 따로 챙기는 곳입니다. 오늘 몸 상태에 맞춘 루틴을 하고, 부위마다 무엇을 키우는지와 어떤 방식으로 올라가는지 봅니다."
+          description="어깨와 팔꿈치를 따로 챙기는 곳입니다. 몸 상태에 맞춘 맞춤 루틴을 받거나, 필요한 운동만 골라 내 루틴을 만들어 언제든 하세요."
         />
         <ViewTabs
           current="armcare"
@@ -153,31 +153,30 @@ export default async function TrainingPage({
    * 여기서 AI를 새로 부르지는 않는다 — 저장된 것을 읽을 뿐이라 화면을 열
    * 때마다 돈이 나가지 않는다.
    */
-  const [todayReport, trainingNote, favExercises, todaySession] =
-    await Promise.all([
-      prisma.aiReport.findUnique({
-        where: { userId_asOf: { userId: user.id, asOf: core.midnight } },
-        select: { halted: true, body: true },
-      }),
-      /* 오늘 운동이 어땠는지 — 하루에 하나. 목록 아래에 적는다. */
-      prisma.dailyTrainingNote.findUnique({
-        where: { userId_date: { userId: user.id, date: core.midnight } },
-        select: { intensity: true, memo: true },
-      }),
-      /* 별을 달아 둔 것 — 목록에 표시하고, 고르는 창에서 위로 올린다 */
-      favoriteExerciseIds(user.id),
-      /*
-       * 오늘의 운동 판. 진행 중이면 단추가 '이어서 하기'가 되고, 마쳤으면 단추
-       * 자리에 완료 카드가 선다.
-       *
-       * 예전에는 진행 중인 판만 찾았다. 그래서 마친 판은 없는 것과 같아, 운동을
-       * 마치고 돌아와도 처음처럼 [운동 시작]이 떠 있었다.
-       */
-      prisma.trainingSession.findUnique({
-        where: { userId_date: { userId: user.id, date: core.midnight } },
-        select: { id: true, status: true, plan: true, activeSeconds: true },
-      }),
-    ]);
+  const [todayReport, trainingNote, favExercises, todaySession] = await Promise.all([
+    prisma.aiReport.findUnique({
+      where: { userId_asOf: { userId: user.id, asOf: core.midnight } },
+      select: { halted: true, body: true },
+    }),
+    /* 오늘 운동이 어땠는지 — 하루에 하나. 목록 아래에 적는다. */
+    prisma.dailyTrainingNote.findUnique({
+      where: { userId_date: { userId: user.id, date: core.midnight } },
+      select: { intensity: true, memo: true },
+    }),
+    /* 별을 달아 둔 것 — 목록에 표시하고, 고르는 창에서 위로 올린다 */
+    favoriteExerciseIds(user.id),
+    /*
+     * 오늘의 운동 판. 진행 중이면 단추가 '이어서 하기'가 되고, 마쳤으면 단추
+     * 자리에 완료 카드가 선다.
+     *
+     * 예전에는 진행 중인 판만 찾았다. 그래서 마친 판은 없는 것과 같아, 운동을
+     * 마치고 돌아와도 처음처럼 [운동 시작]이 떠 있었다.
+     */
+    prisma.trainingSession.findUnique({
+      where: { userId_date: { userId: user.id, date: core.midnight } },
+      select: { id: true, status: true, plan: true, activeSeconds: true },
+    }),
+  ]);
   const resume = todaySession?.status === 'ACTIVE';
   const finished = todaySession?.status === 'FINISHED';
 
@@ -696,7 +695,6 @@ export default async function TrainingPage({
           </details>
         </>
       )}
-
     </div>
   );
 }

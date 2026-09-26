@@ -29,6 +29,8 @@ export const TRAINING_PART_HREF: Record<TrainingPart, string> = {
 };
 
 /** 주소나 쿠키에서 온 값 — 두 칸이 아니면 null */
-export function readTrainingPart(value: string | null | undefined): TrainingPart | null {
+export function readTrainingPart(
+  value: string | null | undefined
+): TrainingPart | null {
   return value === 'today' || value === 'armcare' ? value : null;
 }

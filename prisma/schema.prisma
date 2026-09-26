@@ -100,6 +100,7 @@ model User {
   aiReports         AiReport[]
   trainingSetups    DailyTrainingSetup[]
   armcareRoutines   DailyArmcare[]
+  myArmcareRoutines UserArmcareRoutine[]
   trainingNotes     DailyTrainingNote[]
   featuredVideos    DailyFeaturedVideo[]
   nutritionProfile  NutritionProfile?
@@ -189,6 +190,30 @@ model DailyArmcare {
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId, date])
+}
+
+/**
+ * 내 암케어 루틴 — 사용자가 운동을 직접 골라 이름을 붙여 둔 루틴 (2026-09-26).
+ *
+ * 맞춤 루틴(DailyArmcare)은 앱이 그날 몸 상태를 보고 하루 하나를 짜 준다. 이것은
+ * 사람이 짠다 — "투구 전", "집에서"처럼 여러 개를 두고 언제든 연다. 암케어는 운동
+ * 일정과 상관없이 언제든 따로 한다는 기준에서 나왔다(사용자분과 정함).
+ *
+ * 날짜에 매이지 않는다. 체크는 여기 두지 않고 운동 기록(UserExerciseLog)에 남는다 —
+ * 맞춤 루틴과 같다. 그래서 같은 운동을 두 루틴에서 해도 오늘 한 번 한 것이다.
+ *
+ * items 모양: [{ exerciseId, sets }] — 적힌 차례대로 한다(lib/armcare/my-routines.ts).
+ */
+model UserArmcareRoutine {
+  id        String   @id @default(uuid())
+  userId    String
+  name      String
+  items     Json
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
 }
 
 model DailyCheckin {

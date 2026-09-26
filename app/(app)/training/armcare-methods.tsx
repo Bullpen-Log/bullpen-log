@@ -12,6 +12,7 @@ import {
 } from '@/lib/armcare/methods';
 import type { ArmcareExerciseView } from './armcare-media';
 import { GuideExercise } from './armcare-guide';
+import { MyRoutinesProvider, type RoutineChoice } from './add-to-routine';
 
 /**
  * 훈련 방식 — 같은 근육을 어떻게 힘 쓰며 키우는가, 그리고 어느 차례로 올라가는가.
@@ -23,7 +24,14 @@ import { GuideExercise } from './armcare-guide';
  * 부위별 보강과 같은 움직임이다 — 방식을 누르면 그 자리에서 펼치고, 한 번에 하나만.
  * 계단의 칸을 눌러도 그 방식이 펼쳐진다.
  */
-export function ArmcareMethods({ exercises }: { exercises: ArmcareExerciseView[] }) {
+export function ArmcareMethods({
+  exercises,
+  routines,
+}: {
+  exercises: ArmcareExerciseView[];
+  /** 내 루틴 — 운동마다 '담기'로 넣을 곳 (add-to-routine.tsx) */
+  routines: RoutineChoice[];
+}) {
   const [open, setOpen] = useState<ArmcareMethodKey | null>(null);
 
   const byMethod = new Map<ArmcareMethodKey, ArmcareExerciseView[]>(
@@ -43,38 +51,40 @@ export function ArmcareMethods({ exercises }: { exercises: ArmcareExerciseView[]
   };
 
   return (
-    <div className="space-y-6">
-      <p className="text-sm leading-relaxed break-keep text-muted">
-        같은 근육이라도 힘을 쓰는 방식에 따라 몸이 익히는 것이 다릅니다. 아래 다섯
-        가지는 부담이 적은 것부터 큰 것 차례입니다. 한 칸씩 올라가세요.
-      </p>
+    <MyRoutinesProvider routines={routines}>
+      <div className="space-y-6">
+        <p className="text-sm leading-relaxed break-keep text-muted">
+          같은 근육이라도 힘을 쓰는 방식에 따라 몸이 익히는 것이 다릅니다. 아래 다섯
+          가지는 부담이 적은 것부터 큰 것 차례입니다. 한 칸씩 올라가세요.
+        </p>
 
-      <section className="space-y-3">
-        <h2 className="px-1 text-heading text-lg text-ink">단계 올리기</h2>
-        <Stairs onPick={openFromStair} current={open} />
-        <dl className="space-y-2 rounded-2xl border border-line bg-surface px-4 py-3.5">
-          <Rule term="올라갈 때" text={ARMCARE_LEVEL_RULES.up} />
-          <Rule term="내려갈 때" text={ARMCARE_LEVEL_RULES.down} />
-          <Rule term="올라가도" text={ARMCARE_LEVEL_RULES.keep} />
-        </dl>
-      </section>
+        <section className="space-y-3">
+          <h2 className="px-1 text-heading text-lg text-ink">단계 올리기</h2>
+          <Stairs onPick={openFromStair} current={open} />
+          <dl className="space-y-2 rounded-2xl border border-line bg-surface px-4 py-3.5">
+            <Rule term="올라갈 때" text={ARMCARE_LEVEL_RULES.up} />
+            <Rule term="내려갈 때" text={ARMCARE_LEVEL_RULES.down} />
+            <Rule term="올라가도" text={ARMCARE_LEVEL_RULES.keep} />
+          </dl>
+        </section>
 
-      <section className="space-y-2.5">
-        <h2 className="px-1 text-heading text-lg text-ink">방식별로 보기</h2>
-        <ul className="space-y-2.5">
-          {ARMCARE_METHODS.map((m, i) => (
-            <MethodCard
-              key={m.key}
-              method={m}
-              step={i + 1}
-              exercises={byMethod.get(m.key)!}
-              open={open === m.key}
-              onToggle={() => setOpen(open === m.key ? null : m.key)}
-            />
-          ))}
-        </ul>
-      </section>
-    </div>
+        <section className="space-y-2.5">
+          <h2 className="px-1 text-heading text-lg text-ink">방식별로 보기</h2>
+          <ul className="space-y-2.5">
+            {ARMCARE_METHODS.map((m, i) => (
+              <MethodCard
+                key={m.key}
+                method={m}
+                step={i + 1}
+                exercises={byMethod.get(m.key)!}
+                open={open === m.key}
+                onToggle={() => setOpen(open === m.key ? null : m.key)}
+              />
+            ))}
+          </ul>
+        </section>
+      </div>
+    </MyRoutinesProvider>
   );
 }
 

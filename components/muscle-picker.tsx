@@ -33,7 +33,7 @@ export function MusclePicker({
       <legend className="text-sm font-semibold text-ink">키우는 근육 (암케어)</legend>
       <p className="text-xs leading-relaxed break-keep text-muted">
         가장 크게 쓰는 근육부터 차례로 누르세요. 1번 근육의 부위가 이 운동의 주 부위가
-        되어, 부위별 보강과 오늘의 암케어가 그 자리에 넣습니다.
+        되어, 부위별 보강과 맞춤 루틴이 그 자리에 넣습니다.
       </p>
       {picked.map((m) => (
         <input key={m} type="hidden" name={name} value={m} />

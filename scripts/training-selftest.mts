@@ -110,6 +110,12 @@ import {
   type ArmcareKind,
 } from '../lib/armcare/routine.ts';
 import { ARMCARE_METHODS, methodOf } from '../lib/armcare/methods.ts';
+import {
+  MY_ROUTINE_MAX_ITEMS,
+  normalizeRoutineInput,
+  readRoutineItems,
+} from '../lib/armcare/my-routines.ts';
+import { readTrainingPart } from '../lib/training-part.ts';
 import { reportReadiness } from '../lib/report/cadence.ts';
 import { SYSTEM_PROMPT } from '../lib/ai/report-prompt.ts';
 import {
@@ -3748,9 +3754,56 @@ console.log('\n[암케어] 부위·근육 · 오늘의 루틴 · 부하');
         armcareBlock(ex, 'recovery', null) == null
     );
   check(
-    "과부하 내리기는 오늘의 암케어에 저절로 안 들어간다 (화면에 그렇게 적었다)",
+    "과부하 내리기는 맞춤 루틴에 저절로 안 들어간다 (화면에 그렇게 적었다)",
     eccentricInRoutine.length === 0,
     eccentricInRoutine.map((ex) => ex.title).join(', ')
+  );
+
+  /* 1-2) 내 루틴 — 저장하는 쪽과 만들기 화면이 같은 규칙을 쓴다 */
+  const tidy = normalizeRoutineInput({
+    name: '  투구   전  ',
+    items: [
+      { exerciseId: 'a', sets: 0 },
+      { exerciseId: 'a', sets: 3 },
+      { exerciseId: 'b', sets: 9 },
+      { exerciseId: 'c', sets: Number.NaN },
+      { nope: true },
+      'x',
+    ],
+  });
+  check(
+    '내 루틴 — 이름 공백을 다듬고, 같은 운동은 한 번, 세트는 1~5 (모양이 틀린 줄은 버림)',
+    tidy.ok &&
+      tidy.name === '투구 전' &&
+      tidy.items.map((it) => `${it.exerciseId}${it.sets}`).join(',') === 'a1,b5,c2',
+    JSON.stringify(tidy)
+  );
+  const tooMany = normalizeRoutineInput({
+    name: '많이',
+    items: Array.from({ length: MY_ROUTINE_MAX_ITEMS + 1 }, (_, i) => ({
+      exerciseId: `e${i}`,
+      sets: 2,
+    })),
+  });
+  const noName = normalizeRoutineInput({ name: '   ', items: [{ exerciseId: 'a', sets: 2 }] });
+  const empty = normalizeRoutineInput({ name: '빈 루틴', items: [] });
+  check(
+    `내 루틴 — 이름 없음 · 운동 없음 · ${MY_ROUTINE_MAX_ITEMS}개 넘음은 저장하지 않는다`,
+    !tooMany.ok && !noName.ok && !empty.ok
+  );
+  check(
+    'DB 에 이상한 모양이 들어 있어도 루틴은 열린다(읽을 수 있는 줄만)',
+    readRoutineItems(null).length === 0 &&
+      readRoutineItems([{ exerciseId: 'a', sets: '2' }, { exerciseId: 'b', sets: 4 }])
+        .map((it) => `${it.exerciseId}${it.sets}`)
+        .join(',') === 'a2,b4'
+  );
+  check(
+    '트레이닝 칸 — 주소·쿠키에서 두 칸만 받는다 (예전 기록 칸 값은 버림)',
+    readTrainingPart('today') === 'today' &&
+      readTrainingPart('armcare') === 'armcare' &&
+      readTrainingPart('history') === null &&
+      readTrainingPart(undefined) === null
   );
 
   /* 2) 근육 이름 거르기 — 맨 앞이 주 근육이라 적힌 차례를 지켜야 한다 */

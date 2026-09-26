@@ -13,7 +13,8 @@
  * 암케어 운동은 모두 기본 보강이다.
  */
 
-export type ArmcareMethodKey = 'basic' | 'press' | 'rebound' | 'drop-catch' | 'eccentric';
+export type ArmcareMethodKey =
+  'basic' | 'press' | 'rebound' | 'drop-catch' | 'eccentric';
 
 export type ArmcareMethod = {
   key: ArmcareMethodKey;
@@ -91,7 +92,7 @@ export const ARMCARE_METHODS: readonly ArmcareMethod[] = [
     dose: '3세트, 5회. 한 번 내리는 데 3~5초.',
     stop: '내리는 속도를 조절하지 못하면 무게를 줄입니다. 다음 날 근육통이 심하면 그 부위는 며칠 쉽니다.',
     caution:
-      '다섯 가지 중 부담이 가장 큽니다. 반대 손이나 보조자가 늘 받아 줄 수 있게 하고, 몸이 가벼운 날에만 합니다. 그래서 오늘의 암케어는 이 방식을 저절로 넣지 않습니다.',
+      '다섯 가지 중 부담이 가장 큽니다. 반대 손이나 보조자가 늘 받아 줄 수 있게 하고, 몸이 가벼운 날에만 합니다. 그래서 맞춤 루틴은 이 방식을 저절로 넣지 않습니다(내 루틴에는 직접 담을 수 있습니다).',
   },
 ];
 
