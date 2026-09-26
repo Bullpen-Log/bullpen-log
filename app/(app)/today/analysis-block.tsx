@@ -8,7 +8,7 @@ import {
   useTransition,
   type ReactNode,
 } from 'react';
-import { Loader2, RotateCcw, Sparkles } from 'lucide-react';
+import { ChartLine, Loader2, RotateCcw } from 'lucide-react';
 import { Segmented } from '@/components/segmented';
 import { Skeleton } from '@/components/fallback';
 import { analysisFor } from '@/app/actions/analysis';
@@ -23,7 +23,7 @@ import type { AnalysisTab } from './analysis-tabs';
  * 뒤져야 했고, 그보다 옛날 것은 볼 길이 없었다.
  *
  * 이제 분석은 홈 캘린더를 따른다. 아무 날도 안 고르면 오늘, 날짜를 누르면 그날 분석이다.
- * 리포트가 있는 날은 캘린더 칸 왼쪽 위에 반짝이가 붙어 있어 지난 분석을 달력에서 찾는다.
+ * 리포트가 있는 날은 캘린더 칸 왼쪽 위에 그래프 표시가 붙어 있어 지난 분석을 달력에서 찾는다.
  *
  * 세 칸은 분석 탭의 것을 그대로 옮겼다 — 리포트(그날 쓴 코멘트와 투구 계획), 투구(부하
  * 지수·28일 추이·기간별 기록), 트레이닝(운동 부하·4주 돌아보기). 투구·트레이닝은 고른 날
@@ -166,7 +166,7 @@ export function AnalysisBlock({
               id="analysis-title"
               className="text-heading flex items-center gap-2 text-xl text-ink"
             >
-              <Sparkles aria-hidden className="h-5 w-5 text-cat-core" />
+              <ChartLine aria-hidden className="h-5 w-5 text-cat-core" />
               분석
             </h2>
             <p className="mt-1 text-sm text-muted">

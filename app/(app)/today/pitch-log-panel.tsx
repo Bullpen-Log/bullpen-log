@@ -8,7 +8,7 @@ import {
   useState,
   type ReactNode,
 } from 'react';
-import { Sparkles } from 'lucide-react';
+import { ChartLine } from 'lucide-react';
 import { Card, FormError } from '@/components/ui';
 import { toDateKey } from '@/lib/pitch-stats';
 import { REST_SESSION_TYPE } from '@/lib/session-type';
@@ -95,7 +95,7 @@ export function PitchLogPanel({
   nutritionByDay: Record<string, NutritionDay>;
   /** 날짜별 체크인 — 컨디션과 통증 여부 */
   checkinByDay: Record<string, CheckinDay>;
-  /** AI 리포트가 있는 날들 — 캘린더 칸 왼쪽 위에 반짝이를 붙인다 */
+  /** AI 리포트가 있는 날들 — 캘린더 칸 왼쪽 위에 그래프 표시를 붙인다 */
   reportDays: string[];
   /** 오늘의 리포트 — 서버가 함께 그려 보낸다(밑의 분석 칸이 오늘·리포트일 때 쓴다) */
   analysisSlot: ReactNode;
@@ -282,7 +282,7 @@ export function PitchLogPanel({
     [selectedDate, factsOf]
   );
 
-  /* 리포트가 있는 날 — 캘린더 칸 왼쪽 위의 반짝이(화면 낭독기는 이 말을 덧붙여 읽는다) */
+  /* 리포트가 있는 날 — 캘린더 칸 왼쪽 위의 그래프 표시(화면 낭독기는 이 말을 덧붙여 읽는다) */
   const reportFlags = useMemo(
     () => Object.fromEntries(reportDays.map((d) => [d, '분석 리포트 있음'])),
     [reportDays]
@@ -460,7 +460,7 @@ export function PitchLogPanel({
                   영상
                 </LegendSwatch>
                 <span className="flex items-center gap-1.5">
-                  <Sparkles aria-hidden className="h-3 w-3 text-cat-core" />
+                  <ChartLine aria-hidden className="h-3 w-3 text-cat-core" />
                   분석
                 </span>
               </MonthCalendar>
