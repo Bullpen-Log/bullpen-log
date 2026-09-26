@@ -155,10 +155,15 @@ export function AnalysisBlock({
 
   return (
     <JumpContext value={onJump}>
+      {/*
+        @container — 안의 칸 나누기(부하 · 투구량 카드, 코멘트 등)가 화면 폭이 아니라 이
+        칸의 폭을 본다. 넓은 화면에서는 이 칸이 '기록 추이' 옆에서 반으로 줄어, 화면 폭만
+        보면 반쪽에 두 칸을 욱여넣었다.
+      */}
       <section
         id="analysis"
         aria-labelledby="analysis-title"
-        className="scroll-mt-20 space-y-4 pt-6"
+        className="@container scroll-mt-20 space-y-4 pt-6"
       >
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div className="min-w-0">

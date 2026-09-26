@@ -174,8 +174,8 @@ async function PitchLogSection({
    * 날짜를 누를 때마다 받아 오면 칸을 옮길 때마다 기다리므로 여기서 같이 읽는다.
    * 모두 하루 한 줄로 줄여서 넘긴다(영양은 칼로리·단백질 합, 체크인은 컨디션·통증).
    */
-  const [logs, training, plans, featured, meals, checkins, reports] = await Promise.all(
-    [
+  const [logs, training, plans, featured, meals, checkins, reports, dailyWeights] =
+    await Promise.all([
       prisma.pitchLog.findMany({
         where: { userId: user.id, date: { gte: initialFrom } },
         orderBy: [{ date: 'asc' }, { createdAt: 'asc' }],
@@ -200,14 +200,29 @@ async function PitchLogSection({
           wrist: true,
           lowerBack: true,
           lowerBody: true,
+          /* 밑의 '기록 추이' 체중 그래프 */
+          bodyWeightKg: true,
         },
       }),
       prisma.aiReport.findMany({
         where: { userId: user.id, asOf: { gte: initialFrom } },
         select: { asOf: true },
       }),
-    ]
-  );
+      /* 영양 탭에 적은 체중 — '기록 추이'의 체중 그래프 */
+      prisma.dailyNutrition.findMany({
+        where: { userId: user.id, date: { gte: initialFrom }, weightKg: { not: null } },
+        select: { date: true, weightKg: true },
+      }),
+    ]);
+
+  /* 체중 — 체크인에 적은 것 위에 영양 탭에 적은 것을 덮는다(영양 탭과 같은 차례) */
+  const weightByDay: Record<string, number> = {};
+  for (const c of checkins) {
+    if (c.bodyWeightKg != null) weightByDay[toDateKey(c.date)] = c.bodyWeightKg;
+  }
+  for (const d of dailyWeights) {
+    if (d.weightKg != null) weightByDay[toDateKey(d.date)] = d.weightKg;
+  }
 
   const nutritionByDay: Record<string, { kcal: number; protein: number }> = {};
   for (const m of meals) {
@@ -251,6 +266,7 @@ async function PitchLogSection({
         ])
       )}
       reportDays={reports.map((r) => toDateKey(r.asOf))}
+      weightByDay={weightByDay}
       /*
         오늘의 리포트 — 캘린더 밑 분석 칸이 처음 보여 주는 것. 따로 기다리게 둔다
         (Suspense): 캘린더는 이것을 기다리지 않고 먼저 그려진다. 리포트를 만들면

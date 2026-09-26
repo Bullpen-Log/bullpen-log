@@ -817,6 +817,22 @@ input[type='date']::-webkit-calendar-picker-indicator {
   }
 }
 
+/*
+ * 홈 '기록 추이'(app/(app)/today/home-trends.tsx) — 막대는 밑에서 솟고(한 칸씩 조금씩
+ * 늦게), 선은 왼쪽에서 오른쪽으로 그어진다. 여섯 그래프가 같은 순간에 같은 곡선으로
+ * 움직여 하나의 등장으로 읽힌다. 기간(4주 · 12주)을 바꿀 때도 다시 돈다.
+ */
+@keyframes trend-rise {
+  from {
+    transform: scaleY(0);
+  }
+}
+@keyframes trend-reveal {
+  from {
+    clip-path: inset(0 100% 0 0);
+  }
+}
+
 
 @keyframes cog-spin {
   from {
