@@ -1215,7 +1215,6 @@ export function AppNav({
         open={checkinOpen}
         onClose={() => setCheckinOpen(false)}
         title="오늘 컨디션 체크인"
-        description="몸 상태를 남기면 오늘 운동과 리포트가 여기에 맞춰집니다."
         origin={popFrom}
       >
         {checkinOpen && (
@@ -1235,7 +1234,6 @@ export function AppNav({
         open={settingsOpen}
         onClose={() => setSettingsOpen(false)}
         title="설정"
-        description="어쩌다 한 번 고치는 것들입니다."
         origin={popFrom}
       >
         <SettingsPanel data={settings} returnTo={here} />
@@ -1245,7 +1243,6 @@ export function AppNav({
         open={profileOpen}
         onClose={() => setProfileOpen(false)}
         title="내 정보"
-        description="사진과 몸 정보, 계정까지 여기서 다 고칩니다."
         origin={popFrom}
       >
         <ProfilePanel data={profile} avatarUrl={avatarUrl} today={today} />
@@ -1874,7 +1871,7 @@ function DetailMenu({
        * 비치면 밝은 테마의 바탕이 흰색보다 한 단계 어두워져, 11px 짜리 muted 글자의
        * 대비가 4.4:1 로 기준(4.5:1) 밑으로 내려갔다. 잉크 65% 는 5.5:1 쯤이다.
        */
-      className="h-full w-64 border-l border-line/80 bg-surface/92 p-0 text-ink shadow-2xl backdrop:bg-shade/50 desk:backdrop-blur-xl"
+      className="h-full w-72 border-l border-line/80 bg-surface/92 p-0 text-ink shadow-2xl backdrop:bg-shade/50 desk:backdrop-blur-xl"
     >
       <div className="flex h-full flex-col">
         <div className="flex h-12 shrink-0 items-center justify-between border-b border-line px-4">
@@ -1883,9 +1880,9 @@ function DetailMenu({
             type="button"
             onClick={onClose}
             aria-label="닫기"
-            className="rounded-lg p-1.5 text-muted transition-colors hover:bg-ink/6 hover:text-ink"
+            className="rounded-lg p-2 text-muted transition-colors hover:bg-ink/6 hover:text-ink"
           >
-            <X className="h-4 w-4" />
+            <X className="h-5 w-5" />
           </button>
         </div>
 
@@ -1900,12 +1897,12 @@ function DetailMenu({
                */
               className={
                 group.title
-                  ? 'mt-2.5 space-y-0.5 border-t border-line/70 pt-2.5'
-                  : 'space-y-0.5'
+                  ? 'mt-3 space-y-1 border-t border-line/70 pt-3'
+                  : 'space-y-1'
               }
             >
               {group.title && (
-                <p className="px-2.5 pb-1 text-[11px] font-semibold tracking-normal text-ink/65">
+                <p className="px-3 pb-1 text-xs font-semibold tracking-normal text-ink/65">
                   {group.title}
                 </p>
               )}
@@ -1922,7 +1919,10 @@ function DetailMenu({
                     href={item.href}
                     aria-current={active ? 'page' : undefined}
                     onClick={onNavigate}
-                    className={`flex items-start gap-2.5 rounded-lg px-2.5 py-1.5 transition-colors duration-75 ${
+                    /*
+                      누르는 칸은 44px 이상 — 예전에는 32px 남짓이라 옆 항목을 잘못 누르곤 했다.
+                    */
+                    className={`flex min-h-11 items-center gap-3 rounded-xl px-3 py-2 transition-colors duration-75 ${
                       active
                         ? 'bg-sky text-white'
                         : 'text-ink hover:bg-ink/6 active:bg-ink/6'
@@ -1930,7 +1930,7 @@ function DetailMenu({
                   >
                     <Icon
                       aria-hidden
-                      className="mt-0.5 h-4 w-4 shrink-0"
+                      className="h-5 w-5 shrink-0"
                       strokeWidth={active ? 2.4 : 1.9}
                       style={
                         fly
@@ -1940,22 +1940,10 @@ function DetailMenu({
                             : undefined
                       }
                     />
-                    <span className="min-w-0">
-                      <span
-                        className={`block text-[13px] leading-5 ${active ? 'font-semibold' : 'font-medium'}`}
-                      >
-                        {item.label}
-                      </span>
-                      {/* 골라져 있을 때는 흰 글자 위라 설명을 조금 눕혀 둔다 */}
-                      {item.desc && (
-                        <span
-                          className={`block text-[11px] leading-4 break-keep ${
-                            active ? 'text-white/75' : 'text-ink/65'
-                          }`}
-                        >
-                          {item.desc}
-                        </span>
-                      )}
+                    <span
+                      className={`min-w-0 text-[15px] leading-5 ${active ? 'font-semibold' : 'font-medium'}`}
+                    >
+                      {item.label}
                     </span>
                   </Link>
                 );

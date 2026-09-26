@@ -97,7 +97,6 @@ export function VideosClient({
         <PageHeading
           eyebrow="Pitch log"
           title="2분할 비교"
-          description="서로 다른 날의 투구 영상을 나란히 놓고 봅니다."
           action={
             <button
               type="button"
@@ -118,11 +117,6 @@ export function VideosClient({
       <PageHeading
         eyebrow="Pitch log"
         title="투구 기록"
-        description={
-          view === 'calendar'
-            ? '날짜를 누르면 그날 기록과 영상을 봅니다. 영상이 있는 날은 칸에 그날 대표 영상의 한 장면이 보입니다.'
-            : '남긴 투구를 달별로 모아 봅니다. 카드를 누르면 그날 기록으로 갑니다.'
-        }
         action={
           /* 기록을 남기는 곳은 날짜 화면이다 — 이 탭에서 곧장 오늘로 */
           <ButtonLink href={`/pitch-log/${todayKey}`} className="gap-1.5">

@@ -417,10 +417,6 @@ export function VideoCalendar({
               <b className="font-semibold text-ink">{monthStats.pitchDays}</b>일 · 영상{' '}
               <b className="font-semibold text-ink">{monthStats.videos}</b>개
             </span>
-            <span className="text-line-strong">·</span>
-            <span>
-              칸의 그림은 그날 대표 영상의 한 장면 — 날짜를 눌러 보다가 바꿀 수 있어요
-            </span>
           </MonthCalendar>
         </Card>
 

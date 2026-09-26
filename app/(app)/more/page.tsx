@@ -45,20 +45,18 @@ export default async function MorePage() {
         </span>
         <span className="min-w-0">
           <span className="block truncate text-lg font-bold">{user.nickname}</span>
-          <span className="block text-sm text-white/80">
-            {user.role === 'ADMIN'
-              ? '관리자 · 위쪽 내 사진에서 정보를 고칩니다'
-              : '위쪽 내 사진에서 정보를 고칩니다'}
-          </span>
+          {user.role === 'ADMIN' && (
+            <span className="block text-sm text-white/80">관리자</span>
+          )}
         </span>
       </div>
 
       {/*
         한 줄에 하나씩 세로로 늘어놓는다.
 
-        예전에는 두 칸 격자였다. 이름만 들어가니 두 개씩 놓을 수 있었는데,
-        '자료실'이 무엇을 모아둔 곳인지 눌러 봐야 알았다. 설명을 한 줄 붙이려면
-        가로가 필요하고, 그러면 한 줄에 하나가 맞다.
+        예전에는 두 칸 격자였다. 한 줄에 하나씩 두면 누르는 칸이 넓어 손가락으로
+        잘못 누를 일이 없다. 항목 밑의 한 줄 설명('부위 · 강도 · 장비로 찾는 운동'
+        같은 것)은 이름을 되풀이할 뿐이라 뺐다.
 
         아이콘 색은 라이브러리 카테고리와 같은 토큰을 쓴다. 색이 다르면 목록을
         훑을 때 글자를 읽기 전에 어느 항목인지 알아본다.
@@ -90,11 +88,6 @@ export default async function MorePage() {
                     <span className="block text-[15px] font-bold tracking-[-0.01em] text-ink">
                       {item.label}
                     </span>
-                    {item.desc && (
-                      <span className="mt-0.5 block text-[13px] leading-snug break-keep text-muted">
-                        {item.desc}
-                      </span>
-                    )}
                   </span>
                   <ChevronRight
                     aria-hidden

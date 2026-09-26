@@ -31,7 +31,6 @@ export default async function BoardPage() {
       <PageHeading
         eyebrow="Library"
         title="자료실"
-        description="투구 역학과 트레이닝에 관한 자료를 모아둔 곳입니다."
         action={
           canWrite ? <ButtonLink href="/board/new">글쓰기</ButtonLink> : undefined
         }

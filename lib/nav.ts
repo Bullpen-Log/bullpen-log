@@ -40,13 +40,6 @@ export type NavItem = {
    */
   icon: NavIconName;
   /**
-   * 한 줄 설명. '더보기' 목록에서 이름 아래에 붙는다.
-   *
-   * 이름만 있으면 '자료실'이 무엇을 모아둔 곳인지, '투구 드릴'이 무엇을
-   * 하는 것인지 눌러 봐야 안다. 사이드바처럼 자리가 좁은 곳에서는 안 쓴다.
-   */
-  desc?: string;
-  /**
    * 휴대폰 아래 탭에서 쓸 짧은 이름. 없으면 label 을 그대로 쓴다.
    *
    * 탭 칸이 좁아 긴 이름은 줄바꿈되거나 잘린다. 좁은 곳에서는 뜻이 갈리는
@@ -116,6 +109,10 @@ export type NavGroup = {
  *
  * 라이브러리 쪽은 내용 그대로 '운동 영상'·'투구 드릴'로 부른다.
  */
+/*
+ * 메뉴 항목에는 설명을 붙이지 않는다. 예전에는 '운동 영상' 밑에 '부위 · 강도 · 장비로
+ * 찾는 운동' 같은 한 줄이 있었는데, 이름으로 충분한 것을 되풀이해 메뉴만 길어졌다.
+ */
 export const NAV_GROUPS: NavGroup[] = [
   {
     items: [{ href: '/today', label: '홈', icon: 'home' }],
@@ -141,21 +138,18 @@ export const NAV_GROUPS: NavGroup[] = [
         href: '/library/training',
         label: '운동 영상',
         icon: 'film',
-        desc: '부위·강도·장비로 찾는 운동',
         tone: 'power',
       },
       {
         href: '/library/mechanics',
         label: '투구 드릴',
         icon: 'target',
-        desc: '설명을 보고 직접 고르는 드릴',
         tone: 'mobility',
       },
       {
         href: '/board',
         label: '자료실',
         icon: 'book',
-        desc: '투구 역학과 트레이닝 자료',
         tone: 'upper',
       },
     ],
@@ -167,7 +161,6 @@ export const NAV_GROUPS: NavGroup[] = [
         href: '/admin',
         label: '관리자',
         icon: 'shield',
-        desc: '회원과 영상 관리',
         tone: 'armcare',
         adminOnly: true,
       },

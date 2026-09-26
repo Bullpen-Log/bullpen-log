@@ -179,10 +179,6 @@ export function AnalysisBlock({
                   ? '오늘'
                   : `${spokenDay(date)} · ${agoText(date, today)}`}
               </b>
-              <span className="text-muted">
-                {' '}
-                — 캘린더에서 날짜를 누르면 그날 분석으로 바뀌어요
-              </span>
             </p>
           </div>
           <Segmented

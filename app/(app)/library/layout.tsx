@@ -10,11 +10,7 @@ import { LibraryTabs } from './tabs';
 export default function LibraryLayout({ children }: { children: ReactNode }) {
   return (
     <div className="space-y-8">
-      <PageHeading
-        eyebrow="Library"
-        title="라이브러리"
-        description="투수에게 필요한 운동과 드릴을 모아둔 곳입니다. 조건으로 걸러서 필요한 것만 찾아볼 수 있습니다."
-      />
+      <PageHeading eyebrow="Library" title="라이브러리" />
       <LibraryTabs />
       {children}
     </div>

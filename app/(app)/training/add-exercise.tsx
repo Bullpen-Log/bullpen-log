@@ -142,13 +142,7 @@ export function AddExercise({
         운동 추가
       </button>
 
-      <Modal
-        open={open}
-        onClose={() => setOpen(false)}
-        title="운동 추가"
-        description="부위·강도·장비로 찾아서 오늘 목록에 넣습니다. 넣은 운동은 목록에서 다시 뺄 수 있습니다."
-        size="wide"
-      >
+      <Modal open={open} onClose={() => setOpen(false)} title="운동 추가" size="wide">
         <div className="space-y-4">
           {error && (
             <p className="rounded-lg border border-danger-line bg-danger-bg px-4 py-3 text-sm text-danger">

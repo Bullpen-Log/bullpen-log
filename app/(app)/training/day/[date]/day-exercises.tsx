@@ -169,7 +169,6 @@ export function DayExercises({
         open={historyOf != null}
         onClose={() => setHistoryOf(null)}
         title={historyOf?.title ?? '운동 기록'}
-        description="이 운동의 지난 기록과 흐름입니다."
       >
         {historyOf && <ExerciseHistoryPanel exerciseId={historyOf.id} showNote />}
       </Modal>
