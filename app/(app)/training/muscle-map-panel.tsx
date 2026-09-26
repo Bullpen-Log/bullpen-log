@@ -198,7 +198,6 @@ export function MuscleMapPanel({
               />
               {area.label}
             </p>
-            <p className="text-[13px] break-keep text-muted">{area.role}</p>
             <div className="flex flex-wrap gap-1.5">
               {ARMCARE_MUSCLES.filter((m) => m.area === area.key).map((m) => (
                 <button

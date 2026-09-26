@@ -44,8 +44,6 @@ export type ArmcareArea = {
    * 화면에 글이 많으면 읽지 않고 포기한다). 어깨는 차가운 색, 팔꿈치는 따뜻한 색.
    */
   color: string;
-  /** 던질 때 이 부위가 하는 일 — 폰 화면 한 줄에 들어가게 짧게(2026-09-26) */
-  role: string;
   /** 이 부위에 흔한 부상. 앞의 것이 더 흔하거나 더 크다. */
   injuries: readonly { name: string; desc: string }[];
   /**
@@ -65,7 +63,6 @@ export const ARMCARE_AREAS: readonly ArmcareArea[] = [
     joint: '어깨',
     label: '어깨 후방',
     color: '#3b82f6',
-    role: '공을 놓은 뒤 뻗는 팔을 멈춰 세워요(감속)',
     injuries: [
       {
         name: '회전근개 손상',
@@ -90,7 +87,6 @@ export const ARMCARE_AREAS: readonly ArmcareArea[] = [
     joint: '어깨',
     label: '어깨 전방',
     color: '#8b5cf6',
-    role: '팔을 안으로 돌려 공을 뿌리고 어깨 앞을 막아요',
     injuries: [
       {
         name: '앞쪽 어깨 불안정',
@@ -111,7 +107,6 @@ export const ARMCARE_AREAS: readonly ArmcareArea[] = [
     joint: '어깨',
     label: '어깨 상부',
     color: '#06b6d4',
-    role: '팔을 들 때 위팔뼈를 관절 가운데 붙잡아요',
     injuries: [
       {
         name: '극상근 힘줄염',
@@ -131,7 +126,6 @@ export const ARMCARE_AREAS: readonly ArmcareArea[] = [
     joint: '어깨',
     label: '견갑',
     color: '#10b981',
-    role: '날개뼈를 붙이고 돌려 어깨의 바탕을 만들어요',
     injuries: [
       {
         name: '견갑 운동 이상',
@@ -148,7 +142,6 @@ export const ARMCARE_AREAS: readonly ArmcareArea[] = [
     joint: '팔꿈치',
     label: '팔꿈치 내측',
     color: '#f97316',
-    role: '팔꿈치 안쪽이 벌어지는 힘을 인대와 함께 버텨요',
     injuries: [
       {
         name: '내측 측부인대(UCL) 손상',
@@ -173,7 +166,6 @@ export const ARMCARE_AREAS: readonly ArmcareArea[] = [
     joint: '팔꿈치',
     label: '팔꿈치 외측',
     color: '#eab308',
-    role: '손목을 젖히고 아래팔을 바깥으로 돌려요',
     injuries: [
       {
         name: '외측 상과염',
@@ -193,7 +185,6 @@ export const ARMCARE_AREAS: readonly ArmcareArea[] = [
     joint: '팔꿈치',
     label: '팔꿈치 후방',
     color: '#ec4899',
-    role: '팔꿈치를 펴 공을 뿌리는 마지막 힘을 보태요',
     injuries: [
       {
         name: '후방 충돌',
@@ -213,7 +204,6 @@ export const ARMCARE_AREAS: readonly ArmcareArea[] = [
     joint: '팔꿈치',
     label: '팔꿈치 전방',
     color: '#ef4444',
-    role: '공을 놓은 뒤 펴지는 팔꿈치를 멈춰 세워요(감속)',
     injuries: [
       {
         name: '이두근 힘줄염',
