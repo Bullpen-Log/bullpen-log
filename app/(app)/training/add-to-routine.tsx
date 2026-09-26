@@ -14,7 +14,7 @@ import { addToMyArmcareRoutine } from '@/app/actions/armcare';
 import { MY_ROUTINE_MAX, MY_ROUTINE_MAX_ITEMS } from '@/lib/armcare/my-routines';
 
 /**
- * 부위별 보강 · 훈련 방식에서 운동을 내 루틴에 담는 단추.
+ * 부위별 보강(운동 목록 · 3D 근육 지도)에서 운동을 내 루틴에 담는 단추.
  *
  * 운동을 고르는 곳은 운동을 설명하는 곳과 같아야 한다 — "이 근육을 키우는 운동이구나"
  * 하고 읽은 그 자리에서 담는다. 루틴을 만드는 화면(routine/[id])에도 고르는 목록이

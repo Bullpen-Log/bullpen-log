@@ -126,8 +126,8 @@ export default async function TrainingPage({
    * (lib/armcare/today.ts).
    */
   if (view === 'armcare') {
-    const tab: ArmcareTab =
-      params.tab === 'guide' || params.tab === 'methods' ? params.tab : 'today';
+    /* 없앤 '훈련 방식' 칸(?tab=methods)으로 들어오면 루틴 칸을 연다 */
+    const tab: ArmcareTab = params.tab === 'guide' ? 'guide' : 'today';
     return (
       <div className="space-y-6">
         <PageHeading eyebrow="Training" title="암케어" />

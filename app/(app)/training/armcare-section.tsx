@@ -18,18 +18,17 @@ import { Card } from '@/components/ui';
 import { OpenCheckinButton } from '@/components/notice-bell';
 import { ArmcareToday, WeekDots, type ArmcareTodayItem } from './armcare-today';
 import { ArmcareGuide } from './armcare-guide';
-import { ArmcareMethods } from './armcare-methods';
 import { MyRoutines, type MyRoutineView } from './my-routines';
 import type { ArmcareTab } from './armcare-tabs';
 import { toArmcareViews } from './armcare-views';
 import { TrainingCheckin } from './training-checkin';
 
 /**
- * 트레이닝의 암케어 칸 — 서버에서 자료를 모아 세 화면 중 하나를 그린다.
+ * 트레이닝의 암케어 칸 — 서버에서 자료를 모아 두 화면 중 하나를 그린다.
  *
  * 2026-09-25 사용자분과 정했다: 하단 탭을 늘리지 않고 트레이닝 안에 둔다.
- * 트레이닝의 [트레이닝 | 암케어] 중 둘째 칸이고, 안에서 다시 [루틴 | 부위별 보강 |
- * 훈련 방식]으로 나뉜다(armcare-tabs.tsx).
+ * 트레이닝의 [트레이닝 | 암케어] 중 둘째 칸이고, 안에서 다시 [루틴 | 부위별 보강]으로
+ * 나뉜다(armcare-tabs.tsx).
  *
  * 루틴 칸에는 둘이 선다(2026-09-26 사용자분 요청) — 앱이 오늘 몸 상태를 보고 짜 주는
  * **맞춤 루틴**과, 사용자가 필요한 운동만 골라 만들어 둔 **내 루틴**. 암케어는 운동
@@ -47,11 +46,11 @@ export async function ArmcareSection({
   /** 루틴의 '근육 위치'로 들어오면 3D 근육 지도가 이 근육을 켠 채로 시작한다 */
   focusMuscle?: string | null;
 }) {
-  if (tab === 'guide' || tab === 'methods') {
+  if (tab === 'guide') {
     const [library, mine, counts] = await Promise.all([
       visibleExercises(),
       loadMyRoutines(user.id),
-      tab === 'guide' ? careCounts(user.id, today) : null,
+      careCounts(user.id, today),
     ]);
     const views = await toArmcareViews(
       library.filter((ex) => ex.category === ARMCARE_CATEGORY)
@@ -61,19 +60,17 @@ export async function ArmcareSection({
       name: r.name,
       exerciseIds: r.items.map((it) => it.exerciseId),
     }));
-    return tab === 'guide' ? (
+    return (
       <ArmcareGuide
         exercises={views}
         routines={routines}
         map={{
           side: throwingSide(user.throwingHand),
           bothHands: user.throwingHand === '양투',
-          counts: counts!,
+          counts,
           focusMuscle,
         }}
       />
-    ) : (
-      <ArmcareMethods exercises={views} routines={routines} />
     );
   }
 

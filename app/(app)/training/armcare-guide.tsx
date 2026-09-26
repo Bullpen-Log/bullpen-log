@@ -236,8 +236,8 @@ function AreaCard({
   );
 }
 
-/** 운동 한 줄 — 훈련 방식 화면(armcare-methods.tsx)도 같은 모양으로 늘어놓는다 */
-export function GuideExercise({
+/** 운동 한 줄 — 담기 · 키우는 근육 · 자세·영상(방식이 붙은 운동은 방식 설명도) */
+function GuideExercise({
   exercise: ex,
   highlight,
   secondary = false,

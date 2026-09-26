@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { Info, Scan } from 'lucide-react';
 import { LibraryVideo } from '@/components/library-video';
 import { exerciseDescription } from '@/app/actions/content';
+import { methodOf } from '@/lib/armcare/methods';
 
 /** 암케어 화면이 운동 하나를 그리는 데 쓰는 것 — 서버가 만들어 넘긴다 */
 export type ArmcareExerciseView = {
@@ -104,7 +105,42 @@ export function ExerciseMedia({
           ) : description === null ? (
             <p className="text-xs text-muted">설명을 불러오지 못했습니다.</p>
           ) : null}
+          <MethodNote title={exercise.title} />
         </div>
+      )}
+    </div>
+  );
+}
+
+/**
+ * 이 운동의 훈련 방식 — 리바운드·드롭 캐치처럼 이름에 방식이 붙은 운동에만 붙인다.
+ *
+ * 2026-09-26 사용자분이 암케어의 '훈련 방식' 칸을 없애며 정했다: "각 운동 설명에 필요하면
+ * 적어 놓는 형태로". 그래서 기본 보강 운동에는 아무것도 붙이지 않는다. 글은
+ * lib/armcare/methods.ts. 루틴 따라하기의 '자세 설명'도 같은 것을 쓴다.
+ */
+export function MethodNote({ title }: { title: string }) {
+  const m = methodOf(title);
+  if (m.key === 'basic') return null;
+  return (
+    <div className="space-y-2 rounded-xl border border-sky-soft/60 bg-sky-tint/50 px-3.5 py-3">
+      <p className="text-[13px] font-bold break-keep text-sky-strong">
+        {m.label} 방식 <span className="font-medium text-muted">· {m.cue}</span>
+      </p>
+      <dl className="grid grid-cols-[4.5em_1fr] gap-x-3 gap-y-1.5 text-[13px] leading-relaxed break-keep">
+        <dt className="font-semibold text-sky-strong">하는 법</dt>
+        <dd className="text-ink/85">{m.what}</dd>
+        <dt className="font-semibold text-sky-strong">왜</dt>
+        <dd className="text-ink/85">{m.why}</dd>
+        <dt className="font-semibold text-sky-strong">무게</dt>
+        <dd className="text-ink/85">{m.load}</dd>
+        <dt className="font-semibold text-sky-strong">멈출 때</dt>
+        <dd className="text-ink/85">{m.stop}</dd>
+      </dl>
+      {m.caution && (
+        <p className="rounded-lg border border-warn-line bg-warn-bg px-3 py-2 text-xs leading-relaxed break-keep text-warn">
+          {m.caution}
+        </p>
       )}
     </div>
   );

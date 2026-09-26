@@ -3795,7 +3795,7 @@ console.log('\n[암케어] 부위·근육 · 오늘의 루틴 · 부하');
   /* 2026-09-26 사용자분 — 방식은 섞어서 하는 것이지 올라가는 단계가 아니다 */
   const stepWords = ARMCARE_METHODS.filter((m) =>
     /단계|다음 칸|한 칸|올라가|내려가/.test(
-      [m.short, m.what, m.why, m.dose, m.load, m.stop, m.caution ?? ''].join(' ')
+      [m.cue, m.what, m.why, m.load, m.stop, m.caution ?? ''].join(' ')
     )
   );
   check(
@@ -3803,21 +3803,32 @@ console.log('\n[암케어] 부위·근육 · 오늘의 루틴 · 부하');
     stepWords.length === 0,
     stepWords.map((m) => m.label).join(', ')
   );
-  /* 닫힌 카드는 한 줄 요약만 — 글이 길어지면 다시 읽지 않고 넘긴다 */
-  const longShort = ARMCARE_METHODS.filter((m) => !m.short || m.short.length > 30);
-  check(
-    '방식마다 한 줄 요약이 있고 한 줄에 들어간다',
-    longShort.length === 0,
-    longShort.map((m) => `${m.label} ${m.short.length}자`).join(', ')
+  /*
+   * 방식 설명은 그 방식을 쓰는 운동의 '자세·영상 보기' 안에 붙는다(armcare-media.tsx 의
+   * MethodNote — 2026-09-26 사용자분이 '훈련 방식' 칸을 없애며 정했다). 제목 줄의 한마디
+   * (cue)는 숫자 없이 짧게 — 세트·횟수는 운동마다 따로 있다.
+   */
+  const badCue = ARMCARE_METHODS.filter(
+    (m) => !m.cue || m.cue.length > 20 || /\d+\s*(회|세트)/.test(m.cue)
   );
-  /* 펼치면 자세히 — 세트·횟수까지 모두 적혀 있다(2026-09-26 사용자분) */
+  check(
+    '방식마다 한마디(cue)가 있고, 짧고, 세트·횟수를 적지 않는다',
+    badCue.length === 0,
+    badCue.map((m) => `${m.label} '${m.cue}'`).join(', ')
+  );
   const thinMethods = ARMCARE_METHODS.filter(
-    (m) => ![m.what, m.why, m.dose, m.load, m.stop].every((s) => s.trim().length > 0)
+    (m) => ![m.what, m.why, m.load, m.stop].every((s) => s.trim().length > 0)
   );
   check(
-    '훈련 방식마다 하는 법·왜·세트·무게·멈출 때가 다 있다',
+    '훈련 방식마다 하는 법·왜·무게·멈출 때가 다 있다',
     thinMethods.length === 0,
     thinMethods.map((m) => m.label).join(', ')
+  );
+  check(
+    '방식 설명은 방식이 붙은 운동에만 — 기본 보강은 붙지 않는다',
+    methodOf('튜빙 외회전 0도').key === 'basic' &&
+      methodOf('사이드라잉 외회전 리바운드').key === 'rebound' &&
+      armcareLib.some((ex) => methodOf(ex.title).key !== 'basic')
   );
 
   /* 1-1-1) 자세히 보기 — 부위·근육마다 창에 나갈 글이 있다(lib/armcare/details.ts) */

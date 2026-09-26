@@ -14,7 +14,10 @@ import { LibraryVideo } from '@/components/library-video';
 import { useWakeLock } from '@/components/use-wake-lock';
 import { setExerciseDone } from '@/app/actions/exercise-log';
 import { exerciseDescription } from '@/app/actions/content';
-import type { ArmcareExerciseView } from '@/app/(app)/training/armcare-media';
+import {
+  MethodNote,
+  type ArmcareExerciseView,
+} from '@/app/(app)/training/armcare-media';
 
 /** 따라 할 운동 하나 — 서버(page.tsx)가 만들어 넘긴다 */
 export type PlayerItem = {
@@ -329,7 +332,7 @@ export function ArmcarePlayer({
             <SetDots total={it.sets} done={doneSets} />
           </div>
 
-          <HowTo exerciseId={ex.id} />
+          <HowTo exerciseId={ex.id} title={ex.title} />
           {error && <p className="text-sm text-danger">{error}</p>}
         </div>
       </div>
@@ -496,8 +499,11 @@ function SetDots({ total, done }: { total: number; done: number }) {
   );
 }
 
-/** 자세 설명 — 눌러야 받아 온다(글이 길어 처음부터 펼치지 않는다) */
-function HowTo({ exerciseId }: { exerciseId: string }) {
+/**
+ * 자세 설명 — 눌러야 받아 온다(글이 길어 처음부터 펼치지 않는다). 리바운드처럼 방식이
+ * 붙은 운동이면 그 방식의 설명도 함께(MethodNote).
+ */
+function HowTo({ exerciseId, title }: { exerciseId: string; title: string }) {
   const [text, setText] = useState<{ id: string; body: string | null } | null>(null);
   const [loading, startLoading] = useTransition();
   const shown = text?.id === exerciseId ? text : null;
@@ -518,6 +524,9 @@ function HowTo({ exerciseId }: { exerciseId: string }) {
       <p className="mt-2 text-sm leading-relaxed whitespace-pre-wrap break-keep text-ink/85">
         {loading ? '불러오는 중…' : (shown?.body ?? '')}
       </p>
+      <div className="mt-3">
+        <MethodNote title={title} />
+      </div>
     </details>
   );
 }
