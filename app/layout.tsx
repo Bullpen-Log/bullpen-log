@@ -1,6 +1,5 @@
 import type { Metadata, Viewport } from 'next';
 import { Bebas_Neue } from 'next/font/google';
-import Script from 'next/script';
 import { THEME_INIT_SCRIPT } from '@/lib/theme';
 import './globals.css';
 
@@ -60,6 +59,20 @@ export default function RootLayout({
     <html lang="ko" className={`${bebas.variable} h-full`} suppressHydrationWarning>
       <head>
         {/*
+         * 첫 페인트 전에 테마를 칠해 밝은 화면이 번쩍이지 않게 한다 — <head> 맨 앞.
+         *
+         * 예전에는 next/script(beforeInteractive)로 넣었다. 그런데 App Router 에서 그것은
+         * 코드를 줄 세워 두기만 하고(self.__next_s.push), 실제로는 Next 의 스크립트가 받아진
+         * 뒤에야 돌린다. 재 보니 HTML 을 다 읽은 뒤(DOMContentLoaded)에도 테마가 없었고
+         * 그다음에야 어두워졌다 — 다크 모드를 쓰면 들어올 때마다 흰 화면이 한 번 번쩍였고,
+         * 처음 접속한 날은 그 순간 체크인 창이 같이 떠서 창이 깜빡이는 것처럼 보였다.
+         *
+         * 평범한 <script> 는 HTML 을 읽는 그 자리에서 곧바로 돈다. 이 레이아웃은 서버
+         * 컴포넌트이고 화면에서 다시 만들어지지 않으므로(붙기만 한다) 리액트가 스크립트를
+         * 새로 그릴 때 내는 경고도 나지 않는다.
+         */}
+        <script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
+        {/*
          * Pretendard — 본문과 제목을 함께 맡는다.
          *
          * 한글 글꼴은 통째로 받으면 2MB가 넘는다. 글자 조각을 92개로 나눠 두고
@@ -72,18 +85,7 @@ export default function RootLayout({
          */}
         <link rel="stylesheet" href="/fonts/pretendard/pretendard.css" />
       </head>
-      <body className="min-h-full font-sans">
-        {/*
-         * 첫 페인트 전에 테마를 칠해 밝은 화면이 번쩍이지 않게 한다.
-         * 평범한 <script>를 컴포넌트 안에 두면 리액트가 경고를 내므로
-         * next/script 로 넣는다. beforeInteractive 는 처음 내려가는 HTML에
-         * 그대로 박히고 다른 코드보다 먼저 실행된다.
-         */}
-        <Script id="theme-init" strategy="beforeInteractive">
-          {THEME_INIT_SCRIPT}
-        </Script>
-        {children}
-      </body>
+      <body className="min-h-full font-sans">{children}</body>
     </html>
   );
 }

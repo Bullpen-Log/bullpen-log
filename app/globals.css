@@ -1458,6 +1458,29 @@ dialog[data-gate][open]::backdrop {
   }
 }
 
+/*
+ * 관문이 떠 있는 동안에는 아무것도 화면 전환 층으로 빼지 않는다.
+ *
+ * 홈은 여러 조각으로 나뉘어 도착하는데(Suspense), 리액트는 조각을 드러낼 때마다 화면
+ * 전환(document.startViewTransition)을 건다. 전환 중에는 이름 붙은 것들 — 본문
+ * (app-main)과 틀(shell-*) — 이 창보다도 위의 층에 따로 그려진다. 그래서 처음 들어와
+ * 관문이 뜨는 사이 두세 번, 어둡게 가린 본문과 상단바가 창 위로 환하게 올라왔다
+ * 가라앉았다. 그것이 깜빡임이었다.
+ *
+ * 이름을 모두 지우면 전환은 화면 전체(root) 하나만 찍고, root 는 옛 모습을 숨기고 새
+ * 모습을 그대로 두므로(위 ::view-transition-old/new(root)) 눈에는 아무 일도 없다.
+ * 리액트와 틀이 이름을 style 속성으로 직접 달기 때문에 !important 로 누른다.
+ *
+ * data-gate-up 은 관문이 열기 직전에 달고, 닫혀 가라앉는 움직임까지 끝난 뒤에 뗀다
+ * (components/checkin-gate.tsx 의 GATE_UP). [open] 만 보면 저장하고 닫히는 순간 막이
+ * 풀려, 가라앉는 창 위로 같은 깜빡임이 났다.
+ */
+html[data-gate-up] *,
+html[data-gate-up] *::before,
+html[data-gate-up] *::after {
+  view-transition-name: none !important;
+}
+
 /* ── 움직임을 줄여 쓰는 사람에게는 전부 끈다 ─────────────────── */
 
 /*
