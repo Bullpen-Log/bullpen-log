@@ -55,7 +55,7 @@ const VIEW_OPTIONS = [
  * 좁아지며 위아래로도 줄어든다(좁은 화면에서는 달력 밑에서 펴진다). 아무 날도 안
  * 골랐을 때는 달력이 제 크기를 다 쓴다 — 칸을 늘 띄워 두었더니 달력이 너무 작아졌다.
  *
- * 그날 칸은 요약이다 — 줄마다 그날의 숫자를 보여 준다. 줄을 누르면 달력 밑에 그 줄의
+ * 그날 칸은 요약이다 — 앱 아이콘처럼 남긴 것만 색이 든다. 아이콘을 누르면 달력 밑에 그것의
  * 조금 더 자세한 요약이 펴지고, 그 칸 위쪽에서 투구·트레이닝·영양·영상·분석 탭으로
  * 그 날짜 그대로 넘어간다 — 달력이 앱 전체로 들어가는 문이 된다.
  */
@@ -144,7 +144,7 @@ export function PitchLogPanel({
   const panelRef = useRef<HTMLDivElement>(null);
 
   /*
-   * 캘린더 밑 칸에 펴 둔 줄(투구·트레이닝·영양…). 날짜를 새로 열 때는 그날 남긴 것
+   * 캘린더 밑 칸에 펴 둔 아이콘(투구·트레이닝·영양…). 날짜를 새로 열 때는 그날 남긴 것
    * 가운데 가장 앞 줄로, 열린 채 다른 날로 옮길 때는 보던 줄 그대로 둔다 — 영양을
    * 보다가 옆 날을 누르면 그날 영양이 보여야 며칠을 견줄 수 있다.
    */
@@ -289,7 +289,7 @@ export function PitchLogPanel({
   );
 
   /*
-   * 그날 칸의 줄을 누르면 밑 칸이 그 줄로 바뀐다.
+   * 그날 칸의 아이콘을 누르면 밑 칸이 그것으로 바뀐다.
    *
    * 좁은 화면에서는 밑 칸이 그날 칸 밑, 화면 밖에 있기 쉽다. 눌렀는데 아무것도
    * 바뀌지 않은 것처럼 보이지 않게, 밑 칸의 머리가 안 보이면 거기까지 굴려 준다.
@@ -469,9 +469,9 @@ export function PitchLogPanel({
             {/*
               그날 칸.
 
-              넓은 화면: 오른쪽에서 폭이 0 → 32rem 으로 넓어지며 들어온다. 달력은 남는
+              넓은 화면: 오른쪽에서 폭이 0 → 20rem 으로 넓어지며 들어온다. 달력은 남는
               폭을 쓰므로(flex-1) 칸이 넓어지는 만큼 같이 좁아진다 — 칸이 달력을 밀고
-              들어오는 것으로 보인다. 칸 안의 글은 처음부터 제 폭(32rem)으로 그려 두고
+              들어오는 것으로 보인다. 칸 안의 글은 처음부터 제 폭(20rem)으로 그려 두고
               바깥 틀만 넓어지게 해서, 들어오는 동안 글이 접혔다 펴지며 흔들리지 않는다.
 
               좁은 화면: 달력 밑에서 높이가 펴진다(grid-rows 0fr → 1fr). 위에 두면
@@ -483,11 +483,11 @@ export function PitchLogPanel({
               inert={!panelOpen}
               className={`grid overflow-hidden transition-[grid-template-rows,width,margin,opacity] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] lg:block lg:shrink-0 ${
                 panelOpen
-                  ? 'mt-4 grid-rows-[1fr] opacity-100 lg:ml-4 lg:mt-0 lg:w-[32rem]'
+                  ? 'mt-4 grid-rows-[1fr] opacity-100 lg:ml-4 lg:mt-0 lg:w-[20rem]'
                   : 'mt-0 grid-rows-[0fr] opacity-0 lg:ml-0 lg:w-0'
               }`}
             >
-              <div className="min-h-0 lg:h-full lg:w-[32rem]">
+              <div className="min-h-0 lg:h-full lg:w-[20rem]">
                 <div
                   className={`transition-transform duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] lg:h-full ${
                     panelOpen ? 'translate-x-0' : 'lg:translate-x-8'
@@ -507,7 +507,7 @@ export function PitchLogPanel({
           </div>
 
           {/*
-            밑 칸 — 오른쪽에서 누른 줄을 조금 더 자세히. 캘린더와 옆 칸 밑에서 높이가
+            밑 칸 — 옆에서 누른 아이콘을 조금 더 자세히. 캘린더와 옆 칸 밑에서 높이가
             펴지며 나타나고(grid-rows 0fr → 1fr), 닫을 때는 거꾸로 접힌다.
 
             scroll-mt-20: 좁은 화면에서 여기까지 굴릴 때 위쪽 고정 막대(h-14)에 머리가

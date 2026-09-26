@@ -14,7 +14,7 @@ import type { DayDetail } from '@/lib/day-detail';
 import { dayHas, spokenDay, type DayFacts, type DayFocus } from './day-summary';
 
 /**
- * 캘린더 밑 칸 — 오른쪽 요약에서 누른 줄을 조금 더 자세히.
+ * 캘린더 밑 칸 — 옆 요약에서 누른 아이콘을 조금 더 자세히.
  *
  * 여기도 요약이다. 그날 무엇을 했는지 한 번 더 펴 보는 자리이고, 진짜 자세한 것(영상
  * 분석 도구, 세트 고치기, 음식 담기)은 각 탭에 있다. 그래서 칸 위쪽에 늘 그 탭으로
@@ -103,8 +103,8 @@ export function DayDetailBlock({
   const videos = logs.flatMap((l) => l.videoPaths);
   /*
    * 남긴 것이 있나는 오른쪽 요약과 같은 기준(dayHas)으로 본다. 받아 온 내용으로 보면
-   * 받는 동안이나 못 받았을 때 '기록하러 가기'로 잘못 적히고, 요약 줄은 '2,950kcal'
-   * 인데 밑 칸 링크는 '기록하러 가기'인 식으로 둘이 어긋난다.
+   * 받는 동안이나 못 받았을 때 '기록하러 가기'로 잘못 적히고, 요약 아이콘은 칠해졌는데
+   * 밑 칸 링크는 '기록하러 가기'인 식으로 둘이 어긋난다.
    */
   const empty = !dayHas(facts)[focus];
   const link = tabLink(focus, date, today, { empty });
@@ -265,7 +265,7 @@ function PitchDetail({ logs }: { logs: Log[] }) {
             {l.videoPaths.length > 0 && (
               <p className="mt-2 inline-flex items-center gap-1 text-xs text-muted">
                 <Film aria-hidden className="h-3.5 w-3.5" />
-                영상 {l.videoPaths.length}개 — 영상 줄에서 바로 봐요
+                영상 {l.videoPaths.length}개 — 영상 아이콘을 누르면 바로 봐요
               </p>
             )}
           </li>
