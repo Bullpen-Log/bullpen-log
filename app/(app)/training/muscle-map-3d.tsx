@@ -32,7 +32,6 @@ const COLOR = {
   context: '#c9d1da',
   target: '#d9776a',
   pick: '#0ea5e9',
-  sibling: '#7dd3fc',
   bone: '#ece4d4',
   low: '#f59e0b',
   mid: '#8fd3c4',
@@ -74,7 +73,8 @@ type Engine = {
  * 들고 있다.
  *
  * 누르기: 처음 누르면 그 부위, 같은 부위를 한 번 더 누르면 그 근육. 부위를 고르면 그
- * 부위만 또렷하게 남고 나머지는 비쳐 보여 속 근육(견갑하근 등)도 보인다.
+ * 부위만 또렷하게 남고 나머지는 비쳐 보여 속 근육(견갑하근 등)도 보인다. 근육을 고르면
+ * 그 근육만 색이 남는다 — 같은 부위의 다른 근육도 색을 뺀다.
  *
  * 그릴 일이 있을 때만 그린다 — 돌리거나 카메라가 움직이거나 색이 바뀔 때. 가만히
  * 설명을 읽는 동안에는 GPU 를 쉬게 한다. 화면 밖으로 스크롤되면 그 확인조차 멈춘다
@@ -349,9 +349,13 @@ export function MuscleMap3D({
           if (counts && area) color = COLOR[careLevel(counts[area] ?? 0)];
           const inArea = !!s.area && area === s.area;
           const on = inArea && (!s.muscle || name === s.muscle);
-          const sibling = inArea && !on;
           if (!counts && on) color = COLOR.pick;
-          if (!counts && sibling) color = COLOR.sibling;
+          /*
+           * 근육 하나를 골랐으면 그 근육만 색을 남기고 나머지는 모두 색을 뺀다. 같은
+           * 부위의 다른 근육을 옅은 하늘색으로 남겼더니 고른 근육과 섞여 어디까지가
+           * 그 근육인지 보기 어려웠다(2026-09-26 사용자분). 내 기록 색칠에서도 같다.
+           */
+          if (s.muscle && !on && name) color = COLOR.context;
           target.set(color);
           e.material.color.copy(target);
           e.material.emissive.copy(on ? target : black);
@@ -363,15 +367,7 @@ export function MuscleMap3D({
           /* 고른 것이 있으면 나머지를 비춰 보이게 — 속 근육도 보인다 */
           const faded = !!s.area && !on;
           e.material.transparent = faded;
-          e.material.opacity = faded
-            ? sibling
-              ? 0.4
-              : e.bone
-                ? 0.35
-                : name
-                  ? 0.12
-                  : 0.06
-            : 1;
+          e.material.opacity = faded ? (e.bone ? 0.35 : name ? 0.12 : 0.06) : 1;
           e.material.depthWrite = !faded;
           e.material.needsUpdate = true;
         }
@@ -431,7 +427,14 @@ export function MuscleMap3D({
          * 전방을 골라 켜진 견갑하근을 눌렀는데 삼각근이 가로채 다른 부위로 넘어갔다
          * (2026-09-26 검토).
          */
-        const inArea = s.area ? found.find((f) => f.area === s.area) : undefined;
+        /*
+         * 근육을 골라 둔 채면 그 근육을 가장 먼저 찾는다. 나머지는 색을 빼 거의 안
+         * 보이는데, 그 앞을 지나는 같은 부위 근육(뒤에서 본 후면 삼각근 등)이 먼저
+         * 맞으면 보이지도 않는 근육으로 넘어가 버린다(2026-09-26).
+         */
+        const inArea =
+          (s.muscle ? found.find((f) => f.name === s.muscle) : undefined) ??
+          (s.area ? found.find((f) => f.area === s.area) : undefined);
         if (inArea) {
           onPick({ area: inArea.area, muscle: inArea.name, part: inArea.key });
         } else if (found[0]) {
