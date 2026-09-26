@@ -12,7 +12,7 @@ import {
 } from '@/lib/armcare/anatomy';
 import { throwingSide } from '@/lib/armcare/muscle-map';
 import { loadArmcareToday, type UserForArmcare } from '@/lib/armcare/today';
-import { armcareBlock, armcareMinutes } from '@/lib/armcare/routine';
+import { armcareBlock, armcareMinutes, bodyStateBlock } from '@/lib/armcare/routine';
 import { loadMyRoutines } from '@/lib/armcare/my-routines-store';
 import { Card } from '@/components/ui';
 import { OpenCheckinButton } from '@/components/notice-bell';
@@ -85,22 +85,21 @@ export async function ArmcareSection({
   const byId = new Map(library.map((ex) => [ex.id, ex]));
 
   /*
-   * 지금 몸 상태로 보면 권하지 않는 운동인가 — 맞춤 루틴을 짤 때와 같은 규칙.
+   * 지금 몸 상태로 보면 권하지 않는 운동인가.
    *
    * 체크인이 없으면 몸 상태를 모르니 표시하지 않는다. 통증인 날은 운동마다 달지 않고
-   * 위에 한 번 알린다. 팔 근력 운동(컬·푸시다운)은 맞춤 루틴에 안 넣을 뿐 위험해서가
-   * 아니라, 내 루틴에서는 표시하지 않는다.
+   * 위에 한 번 알린다.
+   *   맞춤 루틴  만들 때와 같은 규칙(armcareBlock) — 만든 뒤 몸 상태가 바뀐 것을 잡는다
+   *   내 루틴    몸 상태 몫만(bodyStateBlock) — 팔 근력 운동도 보고, 맞춤 루틴의 강도
+   *              한도('높음'을 안 넣는 것)는 몸 상태가 아니라 보지 않는다
    */
   const notAdvised = (ex: CachedExercise, forMine: boolean) => {
     if (!data.hasCheckinToday || data.decision.kind === 'rest') return false;
-    const why = armcareBlock(
-      { ...ex, targetMuscles: ex.targetMuscles ?? [] },
-      data.decision.kind,
-      data.facts.condition.today
-    );
+    const candidate = { ...ex, targetMuscles: ex.targetMuscles ?? [] };
+    const today = data.facts.condition.today;
     return forMine
-      ? why === 'intensity' || why === 'heavy' || why === 'stiff'
-      : why != null;
+      ? bodyStateBlock(candidate, data.decision.kind, today) != null
+      : armcareBlock(candidate, data.decision.kind, today) != null;
   };
 
   /* ── 맞춤 루틴 ── */

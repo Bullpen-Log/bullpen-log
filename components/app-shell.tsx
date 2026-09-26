@@ -43,7 +43,11 @@ import {
  */
 function useIsActive() {
   const pathname = usePathname();
-  return (href: string) => pathname === href || pathname.startsWith(`${href}/`);
+  /* 메뉴 주소에 ?칸이 붙을 수 있다(트레이닝 — lib/training-part.ts) — 경로만 본다 */
+  return (href: string) => {
+    const path = href.split('?')[0];
+    return pathname === path || pathname.startsWith(`${path}/`);
+  };
 }
 
 /*

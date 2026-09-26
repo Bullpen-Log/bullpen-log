@@ -59,9 +59,13 @@ Claude 로 작업을 시작하면 저절로 읽힌다. 규칙은 `AGENTS.md` 6�
 
 - [기록] 칸을 없앴다 — 지난 운동은 홈 캘린더가 맡는다(날짜 → 트레이닝 줄 → 그날 화면).
   예전 주소 `/training?view=history` 는 `/today` 로 넘긴다.
-- `/training` 은 이제 **마지막으로 본 칸**을 연다(쿠키, `lib/training-part.ts`). 암케어는
-  운동과 상관없이 언제든 따로 하는 곳이라서다. '운동'을 뜻하는 길은 칸을 적어 보낸다 —
-  `/training?view=today`.
-- 금윤호 쪽 파일을 고친 것: `app/(app)/today/day-detail.tsx` 한 줄 — 홈 캘린더에서 오늘
-  운동으로 가는 길을 `/training` → `/training?view=today`. 앞으로 트레이닝 칸으로 보내는
-  링크를 새로 만들면 이 주소를 쓴다. 아래 탭(`lib/nav.ts`)의 `/training` 은 그대로 둔다.
+- 메뉴(아래 탭 · 사이드바)의 '트레이닝'은 **마지막으로 본 칸**을 연다 —
+  `/training?view=last`(쿠키, `lib/training-part.ts`). 암케어는 운동과 상관없이 언제든 따로
+  하는 곳이라서다. 그냥 `/training` 은 늘 운동 칸이다 — 트레이닝으로 보내는 링크는 지금처럼
+  `/training` 을 쓰면 된다. (처음에는 `/training` 자체가 마지막 칸을 열게 했다가, 운동으로
+  보내는 길마다 `?view=today` 를 붙여야 해서 검토 뒤 이렇게 바꿨다. 홈 캘린더의 링크도 원래
+  `/training` 으로 되돌렸다.)
+- 금윤호 쪽 파일을 고친 것:
+  - `lib/nav.ts` — '트레이닝' 두 곳의 href 를 `TRAINING_LAST_HREF`(`/training?view=last`)로.
+  - `components/app-shell.tsx` 의 `useIsActive` — 메뉴 주소에 `?` 가 붙어도 경로만 보고
+    지금 탭을 켠다(`href.split('?')[0]`).

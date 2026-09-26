@@ -28,7 +28,7 @@ export default async function RunPage() {
     where: { userId: user.id, status: 'ACTIVE' },
     orderBy: { date: 'desc' },
   });
-  if (!session) redirect('/training?view=today');
+  if (!session) redirect('/training');
 
   /*
    * 워밍업 창을 아직 안 지났다.
@@ -39,7 +39,7 @@ export default async function RunPage() {
   if (!session.mainStartedAt) redirect('/workout/warmup');
 
   const plan = readFrozenPlan(session.plan);
-  if (!plan || plan.exercises.length === 0) redirect('/training?view=today');
+  if (!plan || plan.exercises.length === 0) redirect('/training');
 
   const [sets, exercises] = await Promise.all([
     prisma.userExerciseSet.findMany({

@@ -10,16 +10,11 @@ import { methodOf } from '@/lib/armcare/methods';
 import { loadMyRoutine, loadMyRoutines } from '@/lib/armcare/my-routines-store';
 import {
   MY_ROUTINE_MAX,
-  MY_ROUTINE_SETS_MAX,
-  MY_ROUTINE_SETS_MIN,
+  clampRoutineSets,
+  isRoutineId,
 } from '@/lib/armcare/my-routines';
 import { toArmcareViews } from '../../armcare-views';
 import { RoutineBuilder, type BuilderExercise } from './routine-builder';
-
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
-const clampSets = (n: number) =>
-  Math.min(MY_ROUTINE_SETS_MAX, Math.max(MY_ROUTINE_SETS_MIN, Math.round(n)));
 
 /**
  * 내 루틴 만들기 · 고치기 — /training/routine/new, /training/routine/<id>.
@@ -43,7 +38,7 @@ export default async function RoutinePage({
   const { add } = await searchParams;
 
   const isNew = id === 'new';
-  const routine = !isNew && UUID.test(id) ? await loadMyRoutine(user.id, id) : null;
+  const routine = !isNew && isRoutineId(id) ? await loadMyRoutine(user.id, id) : null;
   if (!isNew && !routine) notFound();
 
   const [library, mine] = await Promise.all([
@@ -58,7 +53,7 @@ export default async function RoutinePage({
     const one = formatPrescription({ ...ex, sets: 1 });
     return {
       view: views[i],
-      defaultSets: clampSets(ex.sets ?? 2),
+      defaultSets: clampRoutineSets(ex.sets ?? 2),
       area: primaryArea(muscles)?.key ?? null,
       method: methodOf(ex.title).key,
       minutes: [1, 2, 3, 4, 5].map((s) =>

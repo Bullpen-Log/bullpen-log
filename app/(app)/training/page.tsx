@@ -109,11 +109,16 @@ export default async function TrainingPage({
   const params = await searchParams;
   /* 예전 [기록] 칸의 주소 — 지난 기록은 이제 홈 캘린더에 있다 */
   if (params.view === 'history') redirect('/today');
-  /* 주소에 칸이 적혀 있으면 그 칸, 아니면 마지막으로 본 칸, 처음이면 트레이닝 */
+  /*
+   * 적힌 칸, 아니면 트레이닝. 아래 탭·메뉴(?view=last)만 마지막으로 본 칸을 연다 —
+   * 그냥 /training 은 늘 운동이다(lib/training-part.ts).
+   */
   const view: TrainingView =
-    readTrainingPart(typeof params.view === 'string' ? params.view : null) ??
-    readTrainingPart((await cookies()).get(TRAINING_PART_COOKIE)?.value) ??
-    'today';
+    params.view === 'last'
+      ? (readTrainingPart((await cookies()).get(TRAINING_PART_COOKIE)?.value) ??
+        'today')
+      : (readTrainingPart(typeof params.view === 'string' ? params.view : null) ??
+        'today');
 
   /*
    * 암케어 — 운동 일정과 따로, 그날 몸 상태에 맞춘 루틴과 부위별 보강.

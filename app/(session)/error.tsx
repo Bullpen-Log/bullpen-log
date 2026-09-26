@@ -43,7 +43,7 @@ export default function SessionError({
         <FallbackButton onClick={() => unstable_retry()} primary>
           다시 시도
         </FallbackButton>
-        <FallbackLink href="/training?view=today">트레이닝으로</FallbackLink>
+        <FallbackLink href="/training">트레이닝으로</FallbackLink>
       </FallbackActions>
       {error.digest && (
         <p className="mt-6 text-[11px] text-muted/60">오류 번호 {error.digest}</p>

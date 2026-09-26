@@ -104,6 +104,7 @@ import {
 } from '../lib/armcare/anatomy.ts';
 import {
   armcareBlock,
+  bodyStateBlock,
   buildArmcareRoutine,
   decideArmcare,
   readArmcareRoutine,
@@ -112,6 +113,8 @@ import {
 import { ARMCARE_METHODS, methodOf } from '../lib/armcare/methods.ts';
 import {
   MY_ROUTINE_MAX_ITEMS,
+  clampRoutineSets,
+  isRoutineId,
   normalizeRoutineInput,
   readRoutineItems,
 } from '../lib/armcare/my-routines.ts';
@@ -3714,23 +3717,47 @@ console.log('\n[암케어] 부위·근육 · 오늘의 루틴 · 부하');
     emptyAreas.map((a) => a.label).join(', ')
   );
   /* 2026-09-26 부상 예방 기준으로 다시 검토해 더한 근육 여섯 */
-  const added = ['광배근', '대원근', '얕은 손가락 굴곡근', '깊은 손가락 굴곡근', '주근', '상완근'];
+  const added = [
+    '광배근',
+    '대원근',
+    '얕은 손가락 굴곡근',
+    '깊은 손가락 굴곡근',
+    '주근',
+    '상완근',
+  ];
   const unused = added.filter(
-    (m) => !ARMCARE_MUSCLE_NAMES.includes(m) || !armcareLib.some((ex) => ex.targetMuscles.includes(m))
+    (m) =>
+      !ARMCARE_MUSCLE_NAMES.includes(m) ||
+      !armcareLib.some((ex) => ex.targetMuscles.includes(m))
   );
-  check('더한 근육 여섯이 목록에 있고, 운동이 하나 이상 있다', unused.length === 0, unused.join(', '));
+  check(
+    '더한 근육 여섯이 목록에 있고, 운동이 하나 이상 있다',
+    unused.length === 0,
+    unused.join(', ')
+  );
   const claimsFor = (m: string) => muscleInfo(m)?.helps ?? null;
   check(
     '예방 주장은 근거 있는 얕은 손가락 굴곡근에만 — 광배근·대원근·깊은 손가락 굴곡근·주근·상완근은 이름만',
     claimsFor('얕은 손가락 굴곡근') === '내측 측부인대(UCL) 손상' &&
-      ['광배근', '대원근', '깊은 손가락 굴곡근', '주근', '상완근'].every((m) => claimsFor(m) === null)
+      ['광배근', '대원근', '깊은 손가락 굴곡근', '주근', '상완근'].every(
+        (m) => claimsFor(m) === null
+      )
   );
   const brachialisFirst = armcareBlock(
-    { ...armcareLib[0], targetMuscles: ['상완근', '이두근'], intensity: '낮음', equipment: ['밴드'] },
+    {
+      ...armcareLib[0],
+      targetMuscles: ['상완근', '이두근'],
+      intensity: '낮음',
+      equipment: ['밴드'],
+    },
     'strength',
     null
   );
-  check('상완근이 앞인 컬도 팔 근력 운동이라 루틴에 안 들어간다', brachialisFirst === 'arm-strength', String(brachialisFirst));
+  check(
+    '상완근이 앞인 컬도 팔 근력 운동이라 루틴에 안 들어간다',
+    brachialisFirst === 'arm-strength',
+    String(brachialisFirst)
+  );
   const noteless = ARMCARE_AREAS.filter((a) => a.notes.length === 0);
   check(
     '부위마다 알아 두기가 한 줄 이상 있다',
@@ -3760,7 +3787,7 @@ console.log('\n[암케어] 부위·근육 · 오늘의 루틴 · 부하');
         armcareBlock(ex, 'recovery', null) == null
     );
   check(
-    "과부하 내리기는 맞춤 루틴에 저절로 안 들어간다 (화면에 그렇게 적었다)",
+    '과부하 내리기는 맞춤 루틴에 저절로 안 들어간다 (화면에 그렇게 적었다)',
     eccentricInRoutine.length === 0,
     eccentricInRoutine.map((ex) => ex.title).join(', ')
   );
@@ -3791,7 +3818,10 @@ console.log('\n[암케어] 부위·근육 · 오늘의 루틴 · 부하');
       sets: 2,
     })),
   });
-  const noName = normalizeRoutineInput({ name: '   ', items: [{ exerciseId: 'a', sets: 2 }] });
+  const noName = normalizeRoutineInput({
+    name: '   ',
+    items: [{ exerciseId: 'a', sets: 2 }],
+  });
   const empty = normalizeRoutineInput({ name: '빈 루틴', items: [] });
   check(
     `내 루틴 — 이름 없음 · 운동 없음 · ${MY_ROUTINE_MAX_ITEMS}개 넘음은 저장하지 않는다`,
@@ -3800,13 +3830,20 @@ console.log('\n[암케어] 부위·근육 · 오늘의 루틴 · 부하');
   check(
     'DB 에 이상한 모양이 들어 있어도 루틴은 열린다(읽을 수 있는 줄만)',
     readRoutineItems(null).length === 0 &&
-      readRoutineItems([{ exerciseId: 'a', sets: '2' }, { exerciseId: 'b', sets: 4 }])
+      readRoutineItems([
+        { exerciseId: 'a', sets: '2' },
+        { exerciseId: 'b', sets: 4 },
+      ])
         .map((it) => `${it.exerciseId}${it.sets}`)
         .join(',') === 'a2,b4'
   );
   /* 1-3) 3D 근육 지도 — 근육 목록 · 모델 파일 · 부위가 서로 맞는가 */
-  const glb = readFileSync(new URL('../public/models/armcare-upper.glb', import.meta.url));
-  const glbJson = JSON.parse(glb.subarray(20, 20 + glb.readUInt32LE(12)).toString('utf8')) as {
+  const glb = readFileSync(
+    new URL('../public/models/armcare-upper.glb', import.meta.url)
+  );
+  const glbJson = JSON.parse(
+    glb.subarray(20, 20 + glb.readUInt32LE(12)).toString('utf8')
+  ) as {
     nodes: { extras?: { key?: string; side?: string } }[];
   };
   const inModel = new Set(
@@ -3815,10 +3852,16 @@ console.log('\n[암케어] 부위·근육 · 오늘의 루틴 · 부하');
   const noModel = ARMCARE_MUSCLE_NAMES.filter(
     (m) => Object.keys(MUSCLE_MODEL[m]?.parts ?? {}).length === 0
   );
-  check('근육마다 3D 모델 조각이 하나 이상 이어져 있다', noModel.length === 0, noModel.join(', '));
+  check(
+    '근육마다 3D 모델 조각이 하나 이상 이어져 있다',
+    noModel.length === 0,
+    noModel.join(', ')
+  );
   const missingParts = Object.values(MUSCLE_MODEL).flatMap((m) =>
     Object.keys(m.parts).flatMap((key) =>
-      ['right', 'left'].filter((side) => !inModel.has(`${side}:${key}`)).map((side) => `${side}:${key}`)
+      ['right', 'left']
+        .filter((side) => !inModel.has(`${side}:${key}`))
+        .map((side) => `${side}:${key}`)
     )
   );
   check(
@@ -3852,6 +3895,72 @@ console.log('\n[암케어] 부위·근육 · 오늘의 루틴 · 부하');
   );
   const noAt = ARMCARE_MUSCLE_NAMES.filter((m) => !muscleInfo(m)?.at);
   check('근육마다 붙는 곳이 적혀 있다', noAt.length === 0, noAt.join(', '));
+
+  /* 1-4) 내 루틴의 '권하지 않음' 표시 — 몸 상태 몫만 본다 (2026-09-26 검토) */
+  const heavyCurl = {
+    intensity: '높음',
+    equipment: ['덤벨'],
+    targetMuscles: ['이두근', '완요골근', '상완근'],
+  };
+  const eccentric = {
+    intensity: '높음',
+    equipment: ['덤벨'],
+    targetMuscles: ['원회내근', '손목 굴곡근'],
+  };
+  check(
+    '내 루틴 — 회복날(많이 던진 다음 날) 무거운 덤벨 컬에는 표시가 붙는다',
+    bodyStateBlock(heavyCurl, 'recovery', null) != null,
+    String(bodyStateBlock(heavyCurl, 'recovery', null))
+  );
+  check(
+    '내 루틴 — 아무 일 없는 강화날에는 과부하 내리기에 표시가 없다',
+    bodyStateBlock(eccentric, 'strength', null) === null,
+    String(bodyStateBlock(eccentric, 'strength', null))
+  );
+  check(
+    '내 루틴 — 팔꿈치가 뻐근한 날에는 과부하 내리기에 표시가 붙는다',
+    bodyStateBlock(eccentric, 'strength', { elbow: '뻐근' }) === 'stiff'
+  );
+  check(
+    '맞춤 루틴 규칙은 그대로 — 강화날에도 높음은 넣지 않고, 컬은 넣지 않는다',
+    armcareBlock(
+      {
+        ...eccentric,
+        id: 'x',
+        category: '암케어',
+        sets: 3,
+        reps: 5,
+        holdSeconds: null,
+        restSeconds: 60,
+        perSide: false,
+      },
+      'strength',
+      null
+    ) === 'intensity' &&
+      armcareBlock(
+        {
+          ...heavyCurl,
+          id: 'y',
+          category: '암케어',
+          sets: 3,
+          reps: 5,
+          holdSeconds: null,
+          restSeconds: 60,
+          perSide: false,
+        },
+        'recovery',
+        null
+      ) === 'arm-strength'
+  );
+  check(
+    '루틴 id 는 uuid 모양만 · 세트는 1~5',
+    isRoutineId('3f2c1b1e-8a3d-4a51-9b0e-0c7d2d9a1b22') &&
+      !isRoutineId('new') &&
+      !isRoutineId(42) &&
+      clampRoutineSets(0) === 1 &&
+      clampRoutineSets(9) === 5 &&
+      clampRoutineSets('x') === 2
+  );
 
   check(
     '트레이닝 칸 — 주소·쿠키에서 두 칸만 받는다 (예전 기록 칸 값은 버림)',

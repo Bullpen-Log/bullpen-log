@@ -15,10 +15,11 @@ import { MuscleMap3D, type MapSelection, type MapStatus } from './muscle-map-3d'
 import { AddToRoutine } from './add-to-routine';
 import type { ArmcareExerciseView } from './armcare-media';
 
-const CARE_TEXT = {
-  low: { label: '챙길 곳', chip: 'border-warn-line bg-warn-bg text-warn' },
-  mid: { label: '보통', chip: 'border-line bg-surface text-ink' },
-  good: { label: '잘 챙김', chip: 'border-line bg-surface text-ink' },
+/** 내 기록 색칠에서 부위 단추의 모양 */
+const CARE_CHIP = {
+  low: 'border-warn-line bg-warn-bg text-warn',
+  mid: 'border-line bg-surface text-ink',
+  good: 'border-line bg-surface text-ink',
 } as const;
 
 /**
@@ -62,7 +63,7 @@ export function MuscleMapPanel({
   return (
     <section className="space-y-3" aria-label="3D 근육 지도">
       {status !== 'unavailable' && (
-        <div className="h-[min(58vh,480px)] min-h-[340px] overflow-hidden rounded-3xl border border-line bg-gradient-to-b from-surface to-surface-2">
+        <div className="h-[min(52vh,460px)] min-h-[320px] overflow-hidden rounded-3xl border border-line bg-gradient-to-b from-surface to-surface-2">
           <MuscleMap3D
             side={side}
             selection={selection}
@@ -146,7 +147,7 @@ export function MuscleMapPanel({
                 on
                   ? 'border-sky bg-sky-tint text-sky-strong'
                   : log
-                    ? CARE_TEXT[level].chip
+                    ? CARE_CHIP[level]
                     : 'border-line bg-surface text-ink hover:border-sky'
               }`}
             >

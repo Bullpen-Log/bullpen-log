@@ -10,10 +10,11 @@ import { ARMCARE_CATEGORY } from '@/lib/armcare/anatomy';
 import { visibleExercises } from '@/lib/library-cache';
 import {
   MY_ROUTINE_MAX,
+  isRoutineId,
   normalizeRoutineInput,
+  readRoutineItems,
   type MyRoutineItem,
 } from '@/lib/armcare/my-routines';
-import { loadMyRoutine } from '@/lib/armcare/my-routines-store';
 
 /**
  * 오늘의 암케어를 만든다 — 처음 만들 때와 '다시 만들기'가 같은 동작이다.
@@ -70,8 +71,6 @@ export async function makeArmcareRoutine(): Promise<{ ok: true } | { error: stri
 
 /* ── 내 루틴 ─────────────────────────────────────────────────────────── */
 
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
 /** 담을 수 있는 운동 — 보이는 암케어 운동. 숨긴 것과 다른 카테고리는 못 담는다 */
 async function armcareIds(): Promise<Map<string, { sets: number | null }>> {
   const all = await visibleExercises();
@@ -109,7 +108,7 @@ export async function saveMyArmcareRoutine(input: {
   const items = clean.items as unknown as Prisma.InputJsonValue;
 
   if (input.id) {
-    if (!UUID.test(input.id)) return { error: '잘못된 요청입니다.' };
+    if (!isRoutineId(input.id)) return { error: '잘못된 요청입니다.' };
     const res = await prisma.userArmcareRoutine.updateMany({
       where: { id: input.id, userId: user.id },
       data: { name: clean.name, items },
@@ -119,16 +118,34 @@ export async function saveMyArmcareRoutine(input: {
     return { ok: true, id: input.id };
   }
 
-  const count = await prisma.userArmcareRoutine.count({ where: { userId: user.id } });
-  if (count >= MY_ROUTINE_MAX) {
+  /*
+   * 세고 만들기를 한 트랜잭션(직렬화)으로 — 두 창에서 동시에 만들면 둘 다 9개를 세고
+   * 11개가 됐다(2026-09-26 검토). 겹치면 DB 가 한쪽을 되돌리고, 다시 눌러 달라고 한다.
+   */
+  let created: { id: string } | null;
+  try {
+    created = await prisma.$transaction(
+      async (tx) => {
+        const count = await tx.userArmcareRoutine.count({ where: { userId: user.id } });
+        if (count >= MY_ROUTINE_MAX) return null;
+        return tx.userArmcareRoutine.create({
+          data: { userId: user.id, name: clean.name, items },
+          select: { id: true },
+        });
+      },
+      { isolationLevel: Prisma.TransactionIsolationLevel.Serializable }
+    );
+  } catch (e) {
+    if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2034') {
+      return { error: '다른 곳에서 동시에 루틴을 만들고 있습니다. 다시 눌러 주세요.' };
+    }
+    throw e;
+  }
+  if (!created) {
     return {
       error: `내 루틴은 ${MY_ROUTINE_MAX}개까지 둘 수 있습니다. 안 쓰는 루틴을 지우고 만들어 주세요.`,
     };
   }
-  const created = await prisma.userArmcareRoutine.create({
-    data: { userId: user.id, name: clean.name, items },
-    select: { id: true },
-  });
   revalidatePath('/training', 'layout');
   return { ok: true, id: created.id };
 }
@@ -138,7 +155,7 @@ export async function deleteMyArmcareRoutine(
   id: string
 ): Promise<{ ok: true } | { error: string }> {
   const user = await requireUser();
-  if (typeof id !== 'string' || !UUID.test(id)) return { error: '잘못된 요청입니다.' };
+  if (!isRoutineId(id)) return { error: '잘못된 요청입니다.' };
   const res = await prisma.userArmcareRoutine.deleteMany({
     where: { id, userId: user.id },
   });
@@ -158,28 +175,45 @@ export async function addToMyArmcareRoutine(
   exerciseId: string
 ): Promise<{ ok: true; added: boolean } | { error: string }> {
   const user = await requireUser();
-  if (typeof routineId !== 'string' || !UUID.test(routineId)) {
-    return { error: '잘못된 요청입니다.' };
-  }
+  if (!isRoutineId(routineId)) return { error: '잘못된 요청입니다.' };
   const known = await armcareIds();
   const exercise = known.get(exerciseId);
   if (!exercise) return { error: '담을 수 없는 운동입니다.' };
 
-  const routine = await loadMyRoutine(user.id, routineId);
-  if (!routine) return { error: '루틴을 찾을 수 없습니다.' };
-  if (routine.items.some((it) => it.exerciseId === exerciseId)) {
-    return { ok: true, added: false };
-  }
-  const next = normalizeRoutineInput({
-    name: routine.name,
-    items: [...routine.items, { exerciseId, sets: exercise.sets ?? 2 }],
-  });
-  if (!next.ok) return { error: next.error };
+  /*
+   * 읽은 때와 쓰는 때 사이에 누가 고쳤으면 다시 읽고 다시 더한다(updatedAt 으로 본다).
+   * 그러지 않으면 담기를 빠르게 두 번 누를 때 둘 다 같은 목록을 읽어, 뒤에 쓴 쪽이 앞의
+   * 것을 덮어 운동 하나가 말없이 사라졌다(2026-09-26 검토).
+   */
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const row = await prisma.userArmcareRoutine.findFirst({
+      where: { id: routineId, userId: user.id },
+      select: { name: true, items: true, updatedAt: true },
+    });
+    if (!row) return { error: '루틴을 찾을 수 없습니다.' };
+    const items = readRoutineItems(row.items);
+    if (items.some((it) => it.exerciseId === exerciseId)) {
+      return { ok: true, added: false };
+    }
+    const next = normalizeRoutineInput({
+      name: row.name,
+      items: [...items, { exerciseId, sets: exercise.sets ?? 2 }],
+    });
+    if (!next.ok) return { error: next.error };
 
-  await prisma.userArmcareRoutine.update({
-    where: { id: routine.id },
-    data: { items: next.items as unknown as Prisma.InputJsonValue },
-  });
-  revalidatePath('/training', 'layout');
-  return { ok: true, added: true };
+    const res = await prisma.userArmcareRoutine.updateMany({
+      where: { id: routineId, userId: user.id, updatedAt: row.updatedAt },
+      data: {
+        items: next.items as unknown as Prisma.InputJsonValue,
+        updatedAt: new Date(),
+      },
+    });
+    if (res.count === 1) {
+      revalidatePath('/training', 'layout');
+      return { ok: true, added: true };
+    }
+  }
+  return {
+    error: '이 루틴이 다른 곳에서 고쳐지는 중입니다. 잠시 뒤 다시 담아 주세요.',
+  };
 }
