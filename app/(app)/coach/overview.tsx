@@ -250,7 +250,7 @@ export function StatsOverview({
           />
 
           {/* 셋이라 두 칸으로 두면 남는 칸이 회색 덩이로 보인다 */}
-          <section className="grid gap-px overflow-hidden rounded-2xl border border-line bg-line sm:grid-cols-3">
+          <section className="grid gap-px overflow-hidden rounded-2xl border border-line bg-line @md:grid-cols-3">
             <StatCard
               label="이번 주 투구"
               value={current.totalPitches}

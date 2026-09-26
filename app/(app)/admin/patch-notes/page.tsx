@@ -53,11 +53,7 @@ export default async function PatchNotesPage() {
 
   return (
     <div className="space-y-6">
-      <PageHeading
-        eyebrow="Patch notes"
-        title="패치노트"
-        description="프로그램을 고친 기록입니다. 한 장이 '누가 · 어느 날'이고, 그날 한 일이 모두 담겨 있습니다. 올릴 때마다 깃 기록에서 저절로 채워집니다."
-      />
+      <PageHeading eyebrow="Patch notes" title="패치노트" />
       <PatchNoteList rows={rows} />
     </div>
   );

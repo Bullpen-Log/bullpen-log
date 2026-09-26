@@ -32,7 +32,7 @@ export function WeekChart({
 
   return (
     <div className="space-y-2">
-      <div className="flex h-28 items-end gap-1.5">
+      <div className="flex h-20 items-end gap-1.5">
         {week.map((d) => {
           const sel = d.date === selected;
           const over = d.kcal > d.target;

@@ -1,10 +1,11 @@
 'use client';
 
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useMemo, useState, type ReactNode } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { quietRefresh } from '@/lib/quiet-refresh';
-import { ArrowLeft, Plus } from 'lucide-react';
+import { ArrowLeft, House, Plus, type LucideIcon } from 'lucide-react';
+import { Baseball } from '@/components/baseball-icon';
 import { FormError } from '@/components/ui';
 import { usePlaybackUrls } from '@/components/use-playback-urls';
 import { isFutureDateKey } from '@/lib/pitch-stats';
@@ -14,6 +15,7 @@ import type { SavedAnalysisView } from '@/lib/pose/saved';
 import { EntryForm } from '../entry-form';
 import { DayRecord } from '../day-record';
 import type { Log } from '../types';
+import { useDayModal } from './day-modal';
 
 const WEEKDAYS = ['일', '월', '화', '수', '목', '금', '토'];
 
@@ -23,17 +25,56 @@ function spokenDate(key: string) {
   return `${m}월 ${d}일 (${WEEKDAYS[new Date(y, m - 1, d).getDay()]})`;
 }
 
-/** 2026-08-28 → 2026년 8월 */
-function spokenMonth(key: string) {
-  const [y, m] = key.split('-').map(Number);
-  return `${y}년 ${m}월`;
+/**
+ * 돌아갈 곳 하나 — '홈 달력' 또는 '투구 기록'.
+ *
+ * 팝업 안이고 그 화면에서 팝업을 열었으면(from 이 같으면) 새로 옮겨 가지 않고 창만
+ * 닫는다 — 보던 달 · 고른 날이 그대로 남는다. 그 쪽에는 ← 를 붙여 '돌아가기'임을 보인다.
+ * 아니면 그 화면으로 옮겨 가며 이 날을 펴 둔다(?date=).
+ */
+function BackLink({
+  href,
+  from,
+  icon: Icon,
+  children,
+}: {
+  href: string;
+  /** 이 링크가 가리키는 화면의 경로 — 팝업을 연 화면과 견준다 */
+  from: string;
+  icon: LucideIcon;
+  children: ReactNode;
+}) {
+  const modal = useDayModal();
+  const back = modal != null && modal.origin === from;
+  return (
+    <Link
+      href={href}
+      onClick={(e) => {
+        if (!back) return;
+        e.preventDefault();
+        modal.close();
+      }}
+      className={`inline-flex min-h-9 items-center gap-1.5 rounded-lg border px-3 text-sm font-medium transition-colors ${
+        back
+          ? 'border-sky-soft bg-sky-tint text-sky-strong hover:bg-sky-tint/70'
+          : 'border-line text-muted hover:border-sky-soft hover:text-ink'
+      }`}
+    >
+      {back ? (
+        <ArrowLeft aria-hidden className="h-4 w-4" />
+      ) : (
+        <Icon aria-hidden className="h-4 w-4" />
+      )}
+      {children}
+    </Link>
+  );
 }
 
 /**
  * 하루치 투구 기록 화면.
  *
- * 창이 아니라 페이지다. 창에 넣었을 때는 그 안에서만 굴러가느라 영상 하나에
- * 화면이 잠겼는데, 페이지가 되니 그냥 아래로 읽어 내려가면 된다.
+ * 앱 안에서 날짜를 누르면 보던 화면 위의 넓은 팝업으로 뜨고(day-modal.tsx), 주소로 곧장
+ * 들어오면 한 페이지로 뜬다. 둘 다 이 화면이다 — 팝업 안이면 날짜 제목은 창 머리가 맡는다.
  *
  * 저장·삭제 뒤에는 서버에서 다시 읽는다(quietRefresh — 본문이 깜빡이지 않게). 화면에서만 지우고
  * 넘어가면 새로고침했을 때 지운 것이 되살아난 것처럼 보인다.
@@ -66,6 +107,7 @@ export function DayClient({
   earlier: SavedAnalysisView[];
 }) {
   const router = useRouter();
+  const modal = useDayModal();
   const [error, setError] = useState<string>();
   const [editingId, setEditingId] = useState<string | null>(null);
   /* 기록이 없는 날은 폼이 처음부터 열려 있다 — 그러려고 들어온 것이다. */
@@ -160,22 +202,26 @@ export function DayClient({
   return (
     <div className="space-y-6">
       {/*
-        돌아갈 곳을 맨 위에 둔다. 달력에서 들어온 사람이 대부분이라, 브라우저
-        뒤로가기를 찾기 전에 눈에 보여야 한다. 그 달로 돌아간다.
+        돌아갈 곳을 맨 위에 둔다 — 홈 달력과 투구 기록 둘 다. 예전에는 홈 달력 하나라,
+        투구 기록 탭에서 들어온 사람도 홈으로 떨어졌다. 팝업이면 연 화면 쪽이 '돌아가기'다.
       */}
-      <Link
-        href={`/today?date=${date}`}
-        className="inline-flex items-center gap-1.5 text-sm font-medium text-muted transition-colors hover:text-sky"
-      >
-        <ArrowLeft className="h-4 w-4" />
-        {spokenMonth(date)} 달력
-      </Link>
+      <nav aria-label="돌아갈 곳" className="flex flex-wrap items-center gap-2">
+        <BackLink href={`/today?date=${date}`} from="/today" icon={House}>
+          홈 달력
+        </BackLink>
+        <BackLink href={`/videos?date=${date}`} from="/videos" icon={Baseball}>
+          투구 기록
+        </BackLink>
+      </nav>
 
-      <div className="border-b border-line pb-6">
-        <h1 className="text-heading text-[1.75rem] leading-[1.15] text-ink sm:text-[2.25rem]">
-          {spokenDate(date)}
-        </h1>
-        <p className="mt-2 text-sm text-muted">
+      <div className={modal ? '' : 'border-b border-line pb-6'}>
+        {/* 팝업이면 날짜는 창 머리가 보여 준다 — 두 번 적지 않는다 */}
+        {!modal && (
+          <h1 className="text-heading text-[1.75rem] leading-[1.15] text-ink sm:text-[2.25rem]">
+            {spokenDate(date)}
+          </h1>
+        )}
+        <p className={`text-sm text-muted ${modal ? '' : 'mt-2'}`}>
           {future
             ? '아직 오지 않은 날입니다'
             : logs.length > 0

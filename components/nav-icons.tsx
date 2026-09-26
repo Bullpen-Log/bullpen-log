@@ -11,6 +11,7 @@ import {
   type LucideIcon,
 } from 'lucide-react';
 import type { NavIconName } from '@/lib/nav';
+import { Baseball } from '@/components/baseball-icon';
 
 /**
  * 메뉴 아이콘 이름 → 그림.
@@ -21,6 +22,7 @@ import type { NavIconName } from '@/lib/nav';
  */
 export const NAV_ICONS: Record<NavIconName, LucideIcon> = {
   home: House,
+  baseball: Baseball,
   dumbbell: Dumbbell,
   film: Film,
   utensils: Utensils,

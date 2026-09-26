@@ -23,7 +23,6 @@ import {
   Trash2,
   X,
 } from 'lucide-react';
-import { Card } from '@/components/ui';
 import { MiniCalendar } from '@/components/mini-calendar';
 import { useWeightUnit } from '@/components/use-units';
 import { fromWeight, toWeight } from '@/lib/units';
@@ -86,6 +85,14 @@ function reduceEntries(list: MealEntryView[], a: EntryAction): MealEntryView[] {
 }
 
 const WEEKDAYS = ['일', '월', '화', '수', '목', '금', '토'];
+
+/*
+ * 영양 탭의 상자 — 공용 Card 보다 안쪽 여백이 작다(p-4 · 넓으면 p-5). 상자가 여럿 붙는
+ * 화면이라 여백만으로도 한 화면을 넘겼다. Card 에 p-4 를 덧대면 어느 쪽이 이길지가 CSS
+ * 순서에 달려 있어 따로 적는다.
+ */
+const PANEL =
+  'rounded-2xl border border-line bg-surface p-4 shadow-[0_1px_0_0_rgba(255,255,255,0.03)_inset] sm:p-5';
 
 /** '9월 25일 (목)' */
 export function dayTitle(date: string) {
@@ -175,11 +182,23 @@ export function NutritionView({ day, today }: { day: NutritionDay; today: string
   }
 
   return (
-    <div className="space-y-5">
-      {/* 휴대폰에서도 한 줄에 들어가게 — 목표 단추는 좁으면 그림만 남긴다 */}
-      <header className="flex flex-wrap items-center gap-x-3 gap-y-2 sm:gap-x-4">
+    <div className="space-y-4">
+      {/*
+        제목 · 날짜 · 날짜 띠 · 목표를 한 줄에.
+
+        휴대폰에서는 제목 · 날짜 · 목표가 한 줄이고(목표 단추는 그림만), 날짜 띠는 맨 뒤로
+        보내 밑줄을 통째로 쓴다(order-last). 넓은 화면(lg)에서는 띠가 제자리로 돌아와 같은
+        줄에 선다 — 예전에는 띠가 따로 한 줄(57px + 간격)을 차지해 오른쪽 절반이 비었다.
+      */}
+      <header className="flex flex-wrap items-center gap-x-3 gap-y-3 sm:gap-x-4">
         <h1 className="text-heading text-2xl text-ink">영양</h1>
         <DateNav date={day.date} today={today} calendar={day.calendar} />
+        <WeekStrip
+          strip={day.strip}
+          date={day.date}
+          today={today}
+          className="order-last w-full sm:max-w-xl lg:order-none lg:w-auto lg:flex-1"
+        />
         <button
           type="button"
           onClick={openGoal}
@@ -190,8 +209,6 @@ export function NutritionView({ day, today }: { day: NutritionDay; today: string
           <span className="hidden sm:inline">목표</span>
         </button>
       </header>
-
-      <WeekStrip strip={day.strip} date={day.date} today={today} />
 
       {error && (
         <div
@@ -228,44 +245,48 @@ export function NutritionView({ day, today }: { day: NutritionDay; today: string
         </div>
       )}
 
-      <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,1fr)_22rem]">
-        <div className="space-y-5">
+      <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,1fr)_22rem]">
+        <div className="space-y-4">
           <SummaryCard eaten={eaten} day={day} />
 
-          {/* 끼니 넷은 한 상자 안에 줄로 — 상자의 안쪽 여백은 줄마다 준다 */}
-          <div className="rounded-2xl border border-line bg-surface shadow-[0_1px_0_0_rgba(255,255,255,0.03)_inset]">
-            <ul className="divide-y divide-line">
-              {MEALS.map((m) => (
-                <MealSection
-                  key={m.key}
-                  meal={m.key}
-                  entries={entries.filter((e) => e.meal === m.key)}
-                  onOpen={(e) =>
-                    setSheet({
-                      meal: m.key,
-                      origin: originOf(e),
-                      n: (sheet?.n ?? 0) + 1,
-                      open: true,
-                    })
-                  }
-                  onAmount={changeAmount}
-                  onRemove={removeEntry}
-                />
-              ))}
-            </ul>
-          </div>
+          {/*
+            끼니 넷 — 넓으면 두 칸씩(2×2), 좁으면 한 줄에 하나.
+
+            예전에는 한 줄에 하나씩 길게 쌓아, 음식을 둘씩만 적어도 끼니 칸이 667px 로
+            화면의 대부분을 먹었다. 줄 사이의 선은 칸 사이 1px 틈에 깔린 바탕색이다
+            (gap-px + bg-line) — 칸마다 테두리를 그리면 맞닿는 곳이 두 겹이 된다.
+          */}
+          <ul className="grid gap-px overflow-hidden rounded-2xl border border-line bg-line shadow-[0_1px_0_0_rgba(255,255,255,0.03)_inset] sm:grid-cols-2">
+            {MEALS.map((m) => (
+              <MealSection
+                key={m.key}
+                meal={m.key}
+                entries={entries.filter((e) => e.meal === m.key)}
+                onOpen={(e) =>
+                  setSheet({
+                    meal: m.key,
+                    origin: originOf(e),
+                    n: (sheet?.n ?? 0) + 1,
+                    open: true,
+                  })
+                }
+                onAmount={changeAmount}
+                onRemove={removeEntry}
+              />
+            ))}
+          </ul>
         </div>
 
-        <div className="space-y-5">
+        <div className="space-y-4">
           <BurnCard day={day} />
           <WeightCard day={day} />
-          <Card className="space-y-3">
+          <section className={`${PANEL} space-y-3`}>
             <div className="flex items-baseline justify-between gap-2">
               <h2 className="text-sm font-bold text-ink">최근 7일</h2>
               <p className="text-xs text-muted">막대 = 먹은 칼로리 · 선 = 그날 목표</p>
             </div>
             <WeekChart week={day.week} selected={day.date} />
-          </Card>
+          </section>
         </div>
       </div>
 
@@ -496,10 +517,13 @@ function WeekStrip({
   strip,
   date,
   today,
+  className = '',
 }: {
   strip: DaySummary[];
   date: string;
   today: string;
+  /** 놓일 자리(머리 줄 안에서의 순서 · 폭) */
+  className?: string;
 }) {
   const router = useRouter();
   const start = useRef<{ x: number; y: number } | null>(null);
@@ -520,7 +544,7 @@ function WeekStrip({
 
   return (
     <div
-      className="flex touch-pan-y items-stretch gap-1 sm:max-w-xl"
+      className={`flex touch-pan-y items-stretch gap-1 ${className}`}
       onPointerDown={(e) => {
         swiped.current = false;
         start.current =
@@ -664,55 +688,31 @@ function SummaryCard({ eaten, day }: { eaten: Macros; day: NutritionDay }) {
   const pct = (n: number) => `${Math.min(100, (Math.max(0, n) / max) * 100)}%`;
   const over = left < 0;
 
+  /*
+   * 남은 양 · 게이지 · 탄단지를 촘촘히 쌓는다(예전 218px → 줄여서).
+   *
+   * '먹은 것 · 목표' 줄은 큰 숫자와 같은 줄 오른쪽으로 올렸다 — 게이지 밑에 따로 한 줄을
+   * 차지하던 것이다. 좁으면 숫자 밑으로 내려간다(flex-wrap).
+   */
   return (
-    <Card className="space-y-5">
-      <div>
-        <p className="text-sm text-muted">
-          {over ? '목표보다' : '오늘 더 먹을 수 있는 양'}
-        </p>
-        <p
-          className={`mt-0.5 text-3xl font-bold tabular-nums transition-colors ${
-            over ? 'text-warn' : 'text-ink'
-          }`}
-        >
-          {kcalText(Math.abs(left))}
-          <span className="ml-1 text-base font-semibold">
-            kcal{over ? ' 더 먹었어요' : ''}
-          </span>
-        </p>
-      </div>
-
-      <div className="space-y-2">
-        <div
-          role="img"
-          aria-label={`목표 ${kcalText(t.kcal)}kcal 가운데 ${kcalText(eaten.kcal)}kcal 먹음`}
-          className="relative h-3.5 overflow-hidden rounded-full bg-surface-2"
-        >
-          {/* 운동으로 늘어난 몫 — 옅은 초록으로 깔아 둔다 */}
-          {t.burn > 0 && (
-            <div
-              className={`absolute inset-y-0 bg-cat-recovery/25 transition-[left,width] duration-500 ${EASE}`}
-              style={{
-                left: pct(t.base),
-                width: `calc(${pct(t.kcal)} - ${pct(t.base)})`,
-              }}
-            />
-          )}
-          <div
-            className={`absolute inset-y-0 left-0 rounded-full transition-[width,background-color] duration-500 ${EASE} ${
-              over ? 'bg-warn' : 'bg-sky'
+    <section className={`${PANEL} space-y-3`}>
+      <div className="flex flex-wrap items-end justify-between gap-x-4 gap-y-1">
+        <div>
+          <p className="text-xs text-muted">
+            {over ? '목표보다' : '오늘 더 먹을 수 있는 양'}
+          </p>
+          <p
+            className={`text-[1.75rem] font-bold leading-tight tabular-nums transition-colors ${
+              over ? 'text-warn' : 'text-ink'
             }`}
-            style={{ width: pct(eaten.kcal) }}
-          />
-          {over && (
-            <div
-              aria-hidden
-              className="absolute inset-y-0 w-0.5 bg-surface"
-              style={{ left: pct(t.kcal) }}
-            />
-          )}
+          >
+            {kcalText(Math.abs(left))}
+            <span className="ml-1 text-sm font-semibold">
+              kcal{over ? ' 더 먹었어요' : ''}
+            </span>
+          </p>
         </div>
-        <p className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted tabular-nums">
+        <p className="flex flex-wrap gap-x-3 gap-y-1 pb-1 text-xs text-muted tabular-nums">
           <span>
             먹은 것 <b className="font-semibold text-ink">{kcalText(eaten.kcal)}</b>
           </span>
@@ -729,13 +729,47 @@ function SummaryCard({ eaten, day }: { eaten: Macros; day: NutritionDay }) {
         </p>
       </div>
 
-      <dl className="grid gap-3 sm:grid-cols-3">
+      <div
+        role="img"
+        aria-label={`목표 ${kcalText(t.kcal)}kcal 가운데 ${kcalText(eaten.kcal)}kcal 먹음`}
+        className="relative h-3 overflow-hidden rounded-full bg-surface-2"
+      >
+        {/* 운동으로 늘어난 몫 — 옅은 초록으로 깔아 둔다 */}
+        {t.burn > 0 && (
+          <div
+            className={`absolute inset-y-0 bg-cat-recovery/25 transition-[left,width] duration-500 ${EASE}`}
+            style={{
+              left: pct(t.base),
+              width: `calc(${pct(t.kcal)} - ${pct(t.base)})`,
+            }}
+          />
+        )}
+        <div
+          className={`absolute inset-y-0 left-0 rounded-full transition-[width,background-color] duration-500 ${EASE} ${
+            over ? 'bg-warn' : 'bg-sky'
+          }`}
+          style={{ width: pct(eaten.kcal) }}
+        />
+        {over && (
+          <div
+            aria-hidden
+            className="absolute inset-y-0 w-0.5 bg-surface"
+            style={{ left: pct(t.kcal) }}
+          />
+        )}
+      </div>
+
+      {/*
+        탄단지는 휴대폰에서도 세 칸 나란히 — 이름 밑에 숫자를 둔다. 예전에는 좁으면 한 줄에
+        하나씩 세 줄로 쌓였다. 넓으면 이름과 숫자가 한 줄이다.
+      */}
+      <dl className="grid grid-cols-3 gap-3 sm:gap-4">
         {MACROS.map((m) => {
           const got = eaten[m.key];
           const goal = t[m.key];
           return (
             <div key={m.key} className="space-y-1.5">
-              <div className="flex items-baseline justify-between gap-2">
+              <div className="flex flex-col sm:flex-row sm:items-baseline sm:justify-between sm:gap-2">
                 <dt className="text-xs text-muted">{m.label}</dt>
                 <dd className="text-xs tabular-nums text-muted">
                   <b className="text-sm font-semibold text-ink">{Math.round(got)}</b> /{' '}
@@ -765,7 +799,7 @@ function SummaryCard({ eaten, day }: { eaten: Macros; day: NutritionDay }) {
           정확해져요.
         </p>
       )}
-    </Card>
+    </section>
   );
 }
 
@@ -804,12 +838,19 @@ function MealSection({
   const total = sumMacros(entries.map(entryMacros));
   const label = mealLabel(meal);
 
+  /*
+   * 끼니 한 칸. 머리 줄(이름 · 합계 · 담기) 밑에 음식이 한 줄씩.
+   *
+   * 칸이 두 개씩 나란해서 한 줄의 높이는 옆 칸과 같아진다. 비어 있는 끼니의 '기록하기'는
+   * 남는 높이를 채워(flex-1) 옆 칸이 길어도 빈 자리가 생기지 않고, 누르는 자리가 넓어진다.
+   * 누르는 것들은 줄여도 40px 밑으로 내리지 않는다 — 손가락으로 누르는 화면이다.
+   */
   return (
-    <li className="px-5 py-4 sm:px-6">
-      <div className="flex items-center gap-3">
-        <h2 className="text-base font-bold text-ink">{label}</h2>
+    <li className="flex flex-col gap-1.5 bg-surface px-4 py-3 sm:px-5">
+      <div className="flex min-h-9 items-center gap-2">
+        <h2 className="shrink-0 text-[15px] font-bold text-ink">{label}</h2>
         {entries.length > 0 && (
-          <p className="text-sm tabular-nums text-muted">
+          <p className="min-w-0 truncate text-xs tabular-nums text-muted">
             {kcalText(total.kcal)}kcal · 단백질 {Math.round(total.protein)}g
           </p>
         )}
@@ -817,7 +858,7 @@ function MealSection({
           <button
             type="button"
             onClick={onOpen}
-            className="ml-auto inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-sm font-medium text-sky transition-colors hover:bg-sky-tint"
+            className="-mr-2 ml-auto inline-flex h-9 shrink-0 items-center gap-1 rounded-lg px-2.5 text-sm font-medium text-sky transition-colors hover:bg-sky-tint"
           >
             <Plus aria-hidden className="h-4 w-4" />
             담기
@@ -829,13 +870,13 @@ function MealSection({
         <button
           type="button"
           onClick={onOpen}
-          className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl border border-dashed border-line-strong py-4 text-sm font-medium text-muted transition-[color,border-color,background-color,transform] duration-150 hover:border-sky hover:bg-sky-tint/50 hover:text-sky motion-safe:active:scale-[0.99]"
+          className="flex min-h-10 w-full flex-1 items-center justify-center gap-1.5 rounded-xl border border-dashed border-line-strong text-sm font-medium text-muted transition-[color,border-color,background-color,transform] duration-150 hover:border-sky hover:bg-sky-tint/50 hover:text-sky motion-safe:active:scale-[0.99]"
         >
           <Plus aria-hidden className="h-4 w-4" />
           {label} 기록하기
         </button>
       ) : (
-        <ul className="mt-2 space-y-1">
+        <ul>
           {entries.map((e, i) => (
             <EntryRow
               key={e.id}
@@ -890,11 +931,15 @@ function EntryRow({
         onClick={toggle}
         disabled={saving}
         aria-expanded={open}
-        className="-mx-2 flex w-[calc(100%+1rem)] items-center gap-3 rounded-xl px-2 py-2 text-left transition-colors hover:bg-surface-2 disabled:cursor-default disabled:hover:bg-transparent"
+        className="-mx-2 flex min-h-10 w-[calc(100%+1rem)] items-center gap-3 rounded-xl px-2 py-1.5 text-left transition-colors hover:bg-surface-2 disabled:cursor-default disabled:hover:bg-transparent"
       >
-        <span className="min-w-0 flex-1">
-          <span className="block truncate text-sm text-ink">{entry.name}</span>
-          <span className="block truncate text-xs text-muted">
+        {/*
+          이름과 양을 한 줄에 — 예전에는 양을 밑줄로 따로 적어 음식 하나가 52px 였다.
+          칸이 좁으면 뒤쪽(양)부터 말줄임표로 잘린다.
+        */}
+        <span className="min-w-0 flex-1 truncate text-sm text-ink">
+          {entry.name}
+          <span className="ml-1.5 text-xs text-muted">
             {amountText(entry.amount)}
             {entry.servingLabel ? ` · ${entry.servingLabel}` : ''}
           </span>
@@ -916,7 +961,7 @@ function EntryRow({
         }`}
       >
         <div className="min-h-0 overflow-hidden" inert={!open}>
-          <div className="flex flex-wrap items-center gap-2 pb-3 pt-1">
+          <div className="flex flex-wrap items-center gap-2 pb-2 pt-1">
             <div className="flex items-center rounded-xl border border-line bg-surface-2">
               <button
                 type="button"
@@ -988,15 +1033,14 @@ function EntryRow({
 function BurnCard({ day }: { day: NutritionDay }) {
   const items = day.burnItems;
   return (
-    <Card className="space-y-3">
+    <section className={`${PANEL} space-y-3`}>
       <div className="flex items-baseline justify-between gap-2">
         <h2 className="text-sm font-bold text-ink">운동으로 쓴 칼로리</h2>
         <p className="text-xs text-muted">기록에서 대략 셈</p>
       </div>
       {items.length === 0 ? (
-        <p className="text-sm leading-relaxed text-muted">
-          이날 트레이닝·투구 기록이 없어요. 기록하면 여기 저절로 더해지고, 그만큼 먹을
-          양도 늘어나요.
+        <p className="text-xs leading-relaxed text-muted">
+          이날 트레이닝·투구 기록이 없어요. 기록하면 먹을 양이 그만큼 늘어요.
         </p>
       ) : (
         <ul className="space-y-1.5">
@@ -1014,7 +1058,7 @@ function BurnCard({ day }: { day: NutritionDay }) {
           ))}
         </ul>
       )}
-    </Card>
+    </section>
   );
 }
 
@@ -1053,7 +1097,7 @@ function WeightCard({ day }: { day: NutritionDay }) {
   }
 
   return (
-    <Card className="space-y-3">
+    <section className={`${PANEL} space-y-3`}>
       <div className="flex items-baseline justify-between gap-2">
         <h2 className="text-sm font-bold text-ink">체중</h2>
         {day.weightFrom === 'checkin' && (
@@ -1096,6 +1140,6 @@ function WeightCard({ day }: { day: NutritionDay }) {
         </p>
       )}
       <WeightTrend weights={day.weights} unit={unit} />
-    </Card>
+    </section>
   );
 }

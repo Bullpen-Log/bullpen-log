@@ -3,16 +3,9 @@
 import type { CSSProperties } from 'react';
 import { formatSpeed } from '@/lib/units';
 import { useSpeedUnit } from '@/components/use-units';
-import {
-  Dumbbell,
-  Film,
-  HeartPulse,
-  Target,
-  Utensils,
-  X,
-  type LucideIcon,
-} from 'lucide-react';
+import { Dumbbell, Film, HeartPulse, Utensils, X, type LucideIcon } from 'lucide-react';
 import { REST_SESSION_TYPE } from '@/lib/session-type';
+import { Baseball } from '@/components/baseball-icon';
 import type { Log } from '@/app/(app)/pitch-log/types';
 import type { PlanDaySummary, TrainingDaySummary } from '@/lib/report/training-history';
 
@@ -138,7 +131,7 @@ export function DaySummary({
   const rows: Row[] = [
     {
       key: 'pitch',
-      icon: Target,
+      icon: Baseball,
       tone: TONES.pitch,
       label: '투구',
       value: rested

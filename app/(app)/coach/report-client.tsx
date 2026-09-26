@@ -255,7 +255,7 @@ export function ReportClient({ logs }: { logs: Log[] }) {
           </div>
 
           {/* 요약 지표 — 직전 동일 기간과 비교 */}
-          <div className="grid gap-5 lg:grid-cols-2">
+          <div className="grid gap-5 @xl:grid-cols-2">
             <Card>
               <h2 className="text-sm font-bold text-ink">투구량</h2>
               <p className="mb-2 mt-1 text-xs text-muted">직전 {days}일과 비교</p>
@@ -357,7 +357,7 @@ export function ReportClient({ logs }: { logs: Log[] }) {
           {findings.length > 0 && (
             <section className="space-y-3">
               <h2 className="text-lg font-bold text-ink">코멘트</h2>
-              <div className="grid gap-3 lg:grid-cols-2">
+              <div className="grid gap-3 @xl:grid-cols-2">
                 {findings.map((f) => {
                   const style = TONE_STYLES[f.tone];
                   const Icon = style.Icon;

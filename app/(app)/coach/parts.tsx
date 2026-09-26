@@ -376,7 +376,7 @@ export function MetricHelp({
           : '이 숫자들은 어떻게 나오나요?'}
       </summary>
 
-      <dl className="mt-4 grid gap-4 sm:grid-cols-2">
+      <dl className="mt-4 grid gap-4 @md:grid-cols-2">
         {shown.map((item) => (
           <div key={item.title}>
             <dt className="text-xs font-semibold text-ink">{item.title}</dt>

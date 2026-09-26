@@ -12,6 +12,8 @@ import type { Log } from '@/app/(app)/pitch-log/types';
 import type { PlanDaySummary } from '@/lib/report/training-history';
 import type { DayDetail } from '@/lib/day-detail';
 import { dayHas, spokenDay, type DayFacts, type DayFocus } from './day-summary';
+import { OPEN_POPUP_TYPES } from '@/lib/transition-types';
+import { LinkPending } from '@/components/link-pending';
 
 /**
  * 캘린더 밑 칸 — 옆 요약에서 누른 아이콘을 조금 더 자세히.
@@ -66,7 +68,7 @@ function tabLink(
       /* 영상 캘린더가 그날을 열어 둔 채로 시작한다 */
       return {
         href: `/videos?date=${date}`,
-        label: opts.empty ? '영상 탭으로' : '영상 탭에서 보기',
+        label: opts.empty ? '투구 기록으로' : '투구 기록에서 보기',
       };
     case 'checkin':
       /* 체크인은 따로 탭이 없다 — 오늘 것은 오른쪽 위 알림(종)의 체크인 창에서 고친다 */
@@ -122,13 +124,16 @@ export function DayDetailBlock({
         {link && (
           <Link
             href={link.href}
+            transitionTypes={focus === 'pitch' ? OPEN_POPUP_TYPES : undefined}
             className="group inline-flex items-center gap-1 rounded-lg px-2 py-1 text-sm font-semibold text-sky transition-colors hover:bg-sky-tint hover:text-sky-strong"
           >
             {link.label}
-            <ArrowRight
-              aria-hidden
-              className="h-3.5 w-3.5 transition-transform duration-150 group-hover:translate-x-0.5"
-            />
+            <LinkPending className="h-3.5 w-3.5">
+              <ArrowRight
+                aria-hidden
+                className="h-3.5 w-3.5 transition-transform duration-150 group-hover:translate-x-0.5"
+              />
+            </LinkPending>
           </Link>
         )}
       </header>
@@ -508,7 +513,7 @@ function CheckinDetail({ c, isToday }: { c: DayDetail['checkin']; isToday: boole
 
 /* ─────────────────────────── 영상 ─────────────────────────── */
 
-/** 두 개까지 그 자리에서 튼다. 더 있으면 영상 탭에서. */
+/** 두 개까지 그 자리에서 튼다. 더 있으면 투구 기록 탭에서. */
 function VideoDetail({
   videos,
   featured,
@@ -536,7 +541,7 @@ function VideoDetail({
       </div>
       {videos.length > shown.length && (
         <p className="text-xs text-muted">
-          외 {videos.length - shown.length}개는 영상 탭에서 볼 수 있어요.
+          외 {videos.length - shown.length}개는 투구 기록에서 볼 수 있어요.
         </p>
       )}
     </div>

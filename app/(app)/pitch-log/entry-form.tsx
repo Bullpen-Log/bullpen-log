@@ -232,77 +232,83 @@ export function EntryForm({
 
   return (
     <form onSubmit={handleSubmit} className="space-y-5">
-      <Field
-        label="투구 종류"
-        hint={SESSION_TYPES.find((t) => t.name === form.sessionType)?.hint}
-      >
-        <div className="mt-1 flex flex-wrap gap-2">
-          {SESSION_TYPES.map((t) => {
-            const active = form.sessionType === t.name;
-            return (
-              <button
-                key={t.name}
-                type="button"
-                onClick={() => setForm({ ...form, sessionType: t.name })}
-                aria-pressed={active}
-                className={`rounded-xl border px-4 py-2 text-sm transition-colors ${
-                  active
-                    ? 'border-sky bg-sky/10 font-semibold text-sky-strong'
-                    : 'border-line bg-surface-2 text-muted hover:border-sky-soft hover:text-ink'
-                }`}
-              >
-                {t.name}
-              </button>
-            );
-          })}
-        </div>
-      </Field>
-
       {/*
+        넓은 화면에서는 두 칸 — 왼쪽에 종류 · 투구수 · 강도 · 구속, 오른쪽에 영상 · 메모.
+        한 줄로 쌓으면 팝업 안에서도 저장 단추까지 한참 굴려야 했다. 휴대폰은 그대로 한 줄.
+      */}
+      <div className="space-y-5 lg:grid lg:grid-cols-2 lg:items-start lg:gap-x-8 lg:space-y-0">
+        <div className="space-y-5">
+          <Field
+            label="투구 종류"
+            hint={SESSION_TYPES.find((t) => t.name === form.sessionType)?.hint}
+          >
+            <div className="mt-1 flex flex-wrap gap-2">
+              {SESSION_TYPES.map((t) => {
+                const active = form.sessionType === t.name;
+                return (
+                  <button
+                    key={t.name}
+                    type="button"
+                    onClick={() => setForm({ ...form, sessionType: t.name })}
+                    aria-pressed={active}
+                    className={`rounded-xl border px-4 py-2 text-sm transition-colors ${
+                      active
+                        ? 'border-sky bg-sky/10 font-semibold text-sky-strong'
+                        : 'border-line bg-surface-2 text-muted hover:border-sky-soft hover:text-ink'
+                    }`}
+                  >
+                    {t.name}
+                  </button>
+                );
+              })}
+            </div>
+          </Field>
+
+          {/*
         쉰 날에는 투구수·강도·구속 칸을 감춘다.
         안 던졌는데 "투구수를 입력하세요"라고 하면 남길 수가 없다.
       */}
-      {!resting && (
-        <>
-          <div className="grid gap-5 sm:grid-cols-2">
-            <Field label="투구수">
-              {/* 상한은 오타를 잡는 자리다. 서버에서 같은 선으로 한 번 더 본다. */}
-              <Input
-                type="number"
-                min="1"
-                max="500"
-                value={form.pitchCount}
-                onChange={(e) => setForm({ ...form, pitchCount: e.target.value })}
-                placeholder="45"
-                required
-              />
-            </Field>
-            <Field label={`투구 강도 — ${form.intensity} / 10`}>
-              <input
-                type="range"
-                min="1"
-                max="10"
-                value={form.intensity}
-                onChange={(e) => setForm({ ...form, intensity: e.target.value })}
-                /* 채워진 길이를 CSS 로 넘긴다 — .range 안에서 트랙을 여기서 끊는다 */
-                style={
-                  {
-                    '--range-pct': `${((Number(form.intensity) - 1) / 9) * 100}%`,
-                  } as React.CSSProperties
-                }
-                className="range mt-3"
-              />
-              {/*
+          {!resting && (
+            <>
+              <div className="grid gap-5 sm:grid-cols-2">
+                <Field label="투구수">
+                  {/* 상한은 오타를 잡는 자리다. 서버에서 같은 선으로 한 번 더 본다. */}
+                  <Input
+                    type="number"
+                    min="1"
+                    max="500"
+                    value={form.pitchCount}
+                    onChange={(e) => setForm({ ...form, pitchCount: e.target.value })}
+                    placeholder="45"
+                    required
+                  />
+                </Field>
+                <Field label={`투구 강도 — ${form.intensity} / 10`}>
+                  <input
+                    type="range"
+                    min="1"
+                    max="10"
+                    value={form.intensity}
+                    onChange={(e) => setForm({ ...form, intensity: e.target.value })}
+                    /* 채워진 길이를 CSS 로 넘긴다 — .range 안에서 트랙을 여기서 끊는다 */
+                    style={
+                      {
+                        '--range-pct': `${((Number(form.intensity) - 1) / 9) * 100}%`,
+                      } as React.CSSProperties
+                    }
+                    className="range mt-3"
+                  />
+                  {/*
             강도는 부하 지수와 필요한 휴식일을 정하는 값이라, 감으로 찍으면
             그 뒤 계산이 전부 흔들린다. 고르는 자리 바로 옆에 기준을 둔다.
           */}
-              <div className="mt-3">
-                <IntensityGuide kind="pitch" />
+                  <div className="mt-3">
+                    <IntensityGuide kind="pitch" />
+                  </div>
+                </Field>
               </div>
-            </Field>
-          </div>
 
-          {/*
+              {/*
         구속은 둘 다 선택 항목이다.
 
         예전에는 최고 구속이 필수였는데, 스피드건이 없는 선수는 그것 때문에
@@ -310,26 +316,28 @@ export function EntryForm({
         않으니 앱이 통째로 멈추는 셈이었다. 부하는 투구수 × 강도로 내므로
         구속이 없어도 계산은 그대로 된다.
       */}
-          <div className="grid gap-5 sm:grid-cols-2">
-            <SpeedInput
-              label="최고 구속"
-              hint="스피드건이 없으면 비워두세요."
-              kmh={form.maxVelocity}
-              onKmh={(v) => setForm({ ...form, maxVelocity: v })}
-              sample={138}
-            />
-            <SpeedInput
-              label="평균 구속"
-              hint="비워두셔도 됩니다."
-              kmh={form.avgVelocity}
-              onKmh={(v) => setForm({ ...form, avgVelocity: v })}
-              sample={132}
-            />
-          </div>
-        </>
-      )}
+              <div className="grid gap-5 sm:grid-cols-2">
+                <SpeedInput
+                  label="최고 구속"
+                  hint="스피드건이 없으면 비워두세요."
+                  kmh={form.maxVelocity}
+                  onKmh={(v) => setForm({ ...form, maxVelocity: v })}
+                  sample={138}
+                />
+                <SpeedInput
+                  label="평균 구속"
+                  hint="비워두셔도 됩니다."
+                  kmh={form.avgVelocity}
+                  onKmh={(v) => setForm({ ...form, avgVelocity: v })}
+                  sample={132}
+                />
+              </div>
+            </>
+          )}
+        </div>
 
-      {/*
+        <div className="space-y-5">
+          {/*
         고칠 때도 영상을 바꿀 수 있다.
 
         예전에는 새로 남길 때만 열어두었다 — 영상을 빼면 거기 붙은 폼 분석이
@@ -338,47 +346,53 @@ export function EntryForm({
 
         쉰 날에도 이미 붙어 있는 영상은 보여준다. 안 보이면 뺄 수가 없다.
       */}
-      {(!resting || videos.length > 0) && (
-        <Field
-          label="투구 영상"
-          hint={
-            resting
-              ? '쉰 날에는 새로 올릴 수 없습니다. 이미 붙어 있는 영상은 뺄 수 있습니다.'
-              : '폰이나 컴퓨터에 있는 영상을 바로 올릴 수 있습니다.'
-          }
-        >
-          <div className="space-y-3">
-            {/* 올리기 전에 촬영 조건을 한 번 보고 가도록 바로 위에 둔다. */}
-            {!resting && <FilmingGuide />}
-            <VideoUpload
-              videos={shownVideos}
-              onChange={setVideos}
-              max={2}
-              disabled={resting}
-              confirmRemove={removeNote}
-              onUploadingChange={setUploading}
-              /* 영상 캘린더의 썸네일 — 손에 든 파일에서 바로 뜬다(기다리지 않는다) */
-              onUploaded={(path, file) => void makePitchThumb(path, file)}
-            />
-          </div>
-        </Field>
-      )}
+          {(!resting || videos.length > 0) && (
+            <Field
+              label="투구 영상"
+              hint={
+                resting
+                  ? '쉰 날에는 새로 올릴 수 없습니다. 이미 붙어 있는 영상은 뺄 수 있습니다.'
+                  : '폰이나 컴퓨터에 있는 영상을 바로 올릴 수 있습니다.'
+              }
+            >
+              <div className="space-y-3">
+                {/* 올리기 전에 촬영 조건을 한 번 보고 가도록 바로 위에 둔다. */}
+                {!resting && <FilmingGuide />}
+                <VideoUpload
+                  videos={shownVideos}
+                  onChange={setVideos}
+                  max={2}
+                  disabled={resting}
+                  confirmRemove={removeNote}
+                  onUploadingChange={setUploading}
+                  /* 영상 캘린더의 썸네일 — 손에 든 파일에서 바로 뜬다(기다리지 않는다) */
+                  onUploaded={(path, file) => void makePitchThumb(path, file)}
+                />
+              </div>
+            </Field>
+          )}
 
-      <Field label={resting ? '메모' : '특이사항 · 느낀점'}>
-        <Textarea
-          rows={4}
-          value={form.memo}
-          onChange={(e) => setForm({ ...form, memo: e.target.value })}
-          placeholder={
-            resting
-              ? '어깨가 뻐근해서 쉼'
-              : '릴리즈 포인트가 일정했고 5회부터 팔이 무거워짐'
-          }
-        />
-      </Field>
+          <Field label={resting ? '메모' : '특이사항 · 느낀점'}>
+            <Textarea
+              rows={4}
+              value={form.memo}
+              onChange={(e) => setForm({ ...form, memo: e.target.value })}
+              placeholder={
+                resting
+                  ? '어깨가 뻐근해서 쉼'
+                  : '릴리즈 포인트가 일정했고 5회부터 팔이 무거워짐'
+              }
+            />
+          </Field>
+        </div>
+      </div>
 
       <div className="flex flex-wrap items-center gap-3">
-        <Button type="submit" disabled={saving || uploading} className="w-full sm:w-auto">
+        <Button
+          type="submit"
+          disabled={saving || uploading}
+          className="w-full sm:w-auto"
+        >
           {saving
             ? '저장 중…'
             : uploading

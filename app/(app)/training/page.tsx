@@ -38,6 +38,7 @@ import {
   TRAINING_PART_HREF,
   readTrainingPart,
 } from '@/lib/training-part';
+import { OPEN_POPUP_TYPES } from '@/lib/transition-types';
 
 /**
  * 트레이닝 — 오늘 할 운동과 암케어, 두 칸.
@@ -453,6 +454,7 @@ export default async function TrainingPage({
               /* 홈의 투구 상자가 알림(종)으로 옮겨 가서, 그날 투구 화면으로 바로 보낸다 */
               <Link
                 href={`/pitch-log/${core.todayKey}`}
+                transitionTypes={OPEN_POPUP_TYPES}
                 className="rounded-xl bg-sky px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-sky-strong"
               >
                 오늘 투구 기록하기

@@ -11,6 +11,8 @@ import { TRAINING_LAST_HREF } from '@/lib/training-part';
 /** 쓸 수 있는 아이콘 이름. 그림은 components/nav-icons.tsx 에 있다. */
 export type NavIconName =
   | 'home'
+  /* 투구 기록 — 야구공(components/baseball-icon.tsx) */
+  | 'baseball'
   | 'dumbbell'
   | 'film'
   /* 영양 — 숟가락·포크. 끼니를 적는 곳이라는 것이 한눈에 보인다 */
@@ -37,13 +39,6 @@ export type NavItem = {
    * 이름을 그림으로 바꾸는 일은 components/nav-icons.tsx 가 한다.
    */
   icon: NavIconName;
-  /**
-   * 한 줄 설명. '더보기' 목록에서 이름 아래에 붙는다.
-   *
-   * 이름만 있으면 '자료실'이 무엇을 모아둔 곳인지, '투구 드릴'이 무엇을
-   * 하는 것인지 눌러 봐야 안다. 사이드바처럼 자리가 좁은 곳에서는 안 쓴다.
-   */
-  desc?: string;
   /**
    * 휴대폰 아래 탭에서 쓸 짧은 이름. 없으면 label 을 그대로 쓴다.
    *
@@ -72,7 +67,7 @@ export type NavGroup = {
 /**
  * 큰 카테고리로 나눈다.
  *
- *   홈 · 투구 영상 · 트레이닝 · 영양 · 라이브러리 · 자료실 · 설정
+ *   홈 · 투구 기록 · 트레이닝 · 영양 · 라이브러리 · 자료실 · 설정
  *
  * '분석'은 홈으로 들어갔다. 분석은 결국 '그날 어땠나'를 보는 일인데 날짜는 홈 캘린더가
  * 쥐고 있어서, 캘린더 밑에 늘 떠 있는 분석 칸이 고른 날의 분석을 보여 준다. 예전 주소
@@ -96,10 +91,12 @@ export type NavGroup = {
  * 날짜 하나를 파고드는 화면(/pitch-log/<날짜>)은 그대로 있고, 홈 달력에서
  * 날짜를 누르면 거기로 간다.
  *
- * 영상은 '투구 영상'으로 갈라 두었다. 나머지는 날짜를 알고 찾아가는
- * 것인데 영상만은 여러 날을 가로질러 본다 — 예전 폼과 지금을 견주는 일이
- * 그렇다. 무엇보다 이 앱에서 영상은 곁다리가 아니라 폼을 고치는 근거라,
- * 다른 화면의 탭 안에 숨겨 둘 것이 아니었다.
+ * '투구 기록'은 투구 영상과 투구 기록을 한 탭에 합친 것이다(주소는 예전 그대로
+ * /videos). 한동안 영상만 '투구 영상' 탭으로 갈라 두었는데, 영상을 볼 때 알고 싶은
+ * 것은 결국 그날 몇 구를 어떤 강도로 던졌는가이고, 기록을 볼 때도 그날 영상이 곁에
+ * 있어야 했다 — 둘이 두 화면에 나뉘어 오갔다. 이제 한 캘린더에 투구한 날이 모두
+ * 나오고 영상이 있는 날은 그 장면이 칸을 채운다. 날짜 하나를 파고드는 화면
+ * (/pitch-log/<날짜>)도 이 탭에 속한다(NAV_ALSO).
  *
  * 이름에 'AI'를 붙이지 않는다. 두 가지 이유가 있다.
  *
@@ -112,12 +109,16 @@ export type NavGroup = {
  *
  * 라이브러리 쪽은 내용 그대로 '운동 영상'·'투구 드릴'로 부른다.
  */
+/*
+ * 메뉴 항목에는 설명을 붙이지 않는다. 예전에는 '운동 영상' 밑에 '부위 · 강도 · 장비로
+ * 찾는 운동' 같은 한 줄이 있었는데, 이름으로 충분한 것을 되풀이해 메뉴만 길어졌다.
+ */
 export const NAV_GROUPS: NavGroup[] = [
   {
     items: [{ href: '/today', label: '홈', icon: 'home' }],
   },
   {
-    items: [{ href: '/videos', label: '투구 영상', icon: 'film' }],
+    items: [{ href: '/videos', label: '투구 기록', icon: 'baseball' }],
   },
   {
     /* 마지막으로 본 칸(트레이닝 · 암케어)을 연다 — lib/training-part.ts */
@@ -137,21 +138,18 @@ export const NAV_GROUPS: NavGroup[] = [
         href: '/library/training',
         label: '운동 영상',
         icon: 'film',
-        desc: '부위·강도·장비로 찾는 운동',
         tone: 'power',
       },
       {
         href: '/library/mechanics',
         label: '투구 드릴',
         icon: 'target',
-        desc: '설명을 보고 직접 고르는 드릴',
         tone: 'mobility',
       },
       {
         href: '/board',
         label: '자료실',
         icon: 'book',
-        desc: '투구 역학과 트레이닝 자료',
         tone: 'upper',
       },
     ],
@@ -163,7 +161,6 @@ export const NAV_GROUPS: NavGroup[] = [
         href: '/admin',
         label: '관리자',
         icon: 'shield',
-        desc: '회원과 영상 관리',
         tone: 'armcare',
         adminOnly: true,
       },
@@ -200,9 +197,19 @@ export const MORE_HREF = '/more';
 export const DESK_MEDIA =
   '(min-width: 64rem), (min-width: 36rem) and (hover: hover) and (pointer: fine)';
 
+/**
+ * 메뉴 주소 말고도 그 탭에 속하는 주소 — 거기 있을 때도 그 탭에 불이 들어온다.
+ *
+ * 투구 기록 탭(/videos)은 날짜 하나를 파고드는 화면(/pitch-log/<날짜>)까지 맡는다.
+ * 캘린더에서 날짜를 눌러 들어가도 지금 어느 탭에 있는지 메뉴가 알려 준다.
+ */
+export const NAV_ALSO: Record<string, readonly string[]> = {
+  '/videos': ['/pitch-log'],
+};
+
 export const MOBILE_TABS: NavItem[] = [
   { href: '/today', label: '홈', icon: 'home' },
-  { href: '/videos', label: '투구 영상', short: '영상', icon: 'film' },
+  { href: '/videos', label: '투구 기록', short: '기록', icon: 'baseball' },
   { href: TRAINING_LAST_HREF, label: '트레이닝', icon: 'dumbbell' },
   { href: '/nutrition', label: '영양', icon: 'utensils' },
   { href: MORE_HREF, label: '더보기', icon: 'menu' },

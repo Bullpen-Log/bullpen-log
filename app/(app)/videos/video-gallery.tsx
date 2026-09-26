@@ -6,17 +6,19 @@ import { useSpeedUnit } from '@/components/use-units';
 import Link from 'next/link';
 import { ChevronDown, Film, Star, X } from 'lucide-react';
 import { usePlaybackUrls } from '@/components/use-playback-urls';
+import { intensityClass } from '@/components/month-calendar';
 import { REST_SESSION_TYPE, SESSION_TYPES } from '@/lib/session-type';
 import { setFeaturedVideo } from '@/app/actions/featured-video';
 import type { ClipOption } from './compare-view';
 import type { VideoLog } from './videos-client';
+import { OPEN_POPUP_TYPES } from '@/lib/transition-types';
 
 /**
- * 투구 영상을 달별로 모아 보는 곳.
+ * 투구 기록을 달별로 모아 보는 곳 — 영상이 있는 기록은 영상 한 장면과 함께.
  *
- * 투구 일지의 달력은 '그 날짜'를 알 때, 목록은 기록 전체를 훑을 때 쓴다.
- * 그런데 폼을 견주려 할 때는 '영상이 있는 날'만 보고 싶다 — 달력에서는 작은
- * 점을, 목록에서는 필름 표시를 눈으로 뒤져야 했다.
+ * 영상 카드는 영상 하나에 한 장이다(한 기록에 영상이 둘이면 두 장). 영상 없이 남긴
+ * 기록과 쉬는 날도 한 장씩 나온다 — 그림 자리에 투구수와 강도를 크게 적는다. 예전
+ * '투구 영상' 탭은 영상이 붙은 기록만 보여 줘서, 영상 없이 남긴 날은 이 목록에 없었다.
  *
  * ■ 썸네일을 따로 만들지 않는다
  *
@@ -68,12 +70,19 @@ const SORTS: { key: Sort; label: string }[] = [
   { key: 'intensity', label: '강도 높은순' },
 ];
 
-/** 갤러리에서 쓰는 영상 한 개 */
-type Clip = ClipOption & {
+/**
+ * 목록의 카드 한 장 — 영상 하나, 또는 영상이 없는 기록 하나.
+ * path 가 없으면 영상 없는 기록이다(2분할 비교로 고를 수 없다).
+ */
+type Clip = Omit<ClipOption, 'path'> & {
+  /** 이 카드의 기록 — 영상이 둘인 기록은 카드가 두 장이라, 기록을 셀 때는 이것으로 센다 */
+  logId: string;
+  path: string | null;
   sessionType: string;
   pitchCount: number;
   intensity: number;
   maxVelocity: number | null;
+  rest: boolean;
 };
 
 export function VideoGallery({
@@ -109,41 +118,58 @@ export function VideoGallery({
 
   const clips = useMemo<Clip[]>(
     () =>
-      logs
-        .filter((l) => l.videoPaths.length > 0 && l.sessionType !== REST_SESSION_TYPE)
-        .flatMap((log) =>
-          log.videoPaths.map((path, i) => ({
-            id: `${log.id}-${i}`,
-            date: log.date.slice(0, 10),
-            path,
-            label: log.videoPaths.length > 1 ? `영상 ${i + 1}` : '영상',
-            summary: [
-              log.maxVelocity != null ? formatSpeed(log.maxVelocity, speedUnit) : null,
-              `${log.pitchCount}구`,
-              `강도 ${log.intensity}/10`,
-            ]
-              .filter(Boolean)
-              .join(' · '),
-            sessionType: log.sessionType,
-            pitchCount: log.pitchCount,
-            intensity: log.intensity,
-            maxVelocity: log.maxVelocity,
-          }))
-        ),
+      logs.flatMap((log): Clip[] => {
+        const rest = log.sessionType === REST_SESSION_TYPE;
+        const base = {
+          logId: log.id,
+          date: log.date.slice(0, 10),
+          summary: rest
+            ? '쉬는 날로 남김'
+            : [
+                log.maxVelocity != null
+                  ? formatSpeed(log.maxVelocity, speedUnit)
+                  : null,
+                `${log.pitchCount}구`,
+                `강도 ${log.intensity}/10`,
+              ]
+                .filter(Boolean)
+                .join(' · '),
+          sessionType: log.sessionType,
+          pitchCount: log.pitchCount,
+          intensity: log.intensity,
+          maxVelocity: log.maxVelocity,
+          rest,
+        };
+        /* 영상이 없거나 쉬는 날이면 기록 한 장 — 쉬는 날 기록의 영상은 세지 않는다 */
+        if (rest || log.videoPaths.length === 0) {
+          return [{ ...base, id: log.id, path: null, label: '기록' }];
+        }
+        return log.videoPaths.map((path, i) => ({
+          ...base,
+          id: `${log.id}-${i}`,
+          path,
+          label: log.videoPaths.length > 1 ? `영상 ${i + 1}` : '영상',
+        }));
+      }),
     /* 단위를 바꾸면 요약 글도 다시 만들어야 한다 — 빼면 목록만 km/h 로 남는다 */
     [logs, speedUnit]
   );
+  /* 영상이 있는 카드 — 2분할 비교는 이것만 고른다 */
+  const videoCount = useMemo(() => clips.filter((c) => c.path).length, [clips]);
+  /* 기록 수(카드 수가 아니라) — 영상이 둘인 기록도 한 건 */
+  const recordCount = logs.length;
 
+  /* 종류별 기록 수 — 카드 수가 아니라 기록 수(위의 '투구 기록 N건'과 같게) */
   const counts = useMemo(() => {
-    const byType = new Map<string, number>();
+    const byType = new Map<string, Set<string>>();
     for (const c of clips)
-      byType.set(c.sessionType, (byType.get(c.sessionType) ?? 0) + 1);
-    return byType;
+      byType.set(c.sessionType, (byType.get(c.sessionType) ?? new Set()).add(c.logId));
+    return new Map([...byType].map(([type, ids]) => [type, ids.size]));
   }, [clips]);
 
   const chips = [
-    { key: 'all', label: '전체', count: clips.length },
-    ...SESSION_TYPES.filter((t) => t.name !== REST_SESSION_TYPE).map((t) => ({
+    { key: 'all', label: '전체', count: recordCount },
+    ...SESSION_TYPES.map((t) => ({
       key: t.name,
       label: t.name,
       count: counts.get(t.name) ?? 0,
@@ -214,7 +240,8 @@ export function VideoGallery({
   };
 
   const feature = (clip: Clip) => {
-    if (featuredOf(clip.date) === clip.path) return;
+    if (!clip.path || featuredOf(clip.date) === clip.path) return;
+    const path = clip.path;
     const before = chosen[clip.date];
     const undo = () =>
       setChosen((c) => {
@@ -225,10 +252,10 @@ export function VideoGallery({
       });
 
     setFeatureError(null);
-    setChosen((c) => ({ ...c, [clip.date]: clip.path }));
+    setChosen((c) => ({ ...c, [clip.date]: path }));
     startSaving(async () => {
       try {
-        const res = await setFeaturedVideo(clip.date, clip.path);
+        const res = await setFeaturedVideo(clip.date, path);
         if ('error' in res) {
           undo();
           setFeatureError(res.error);
@@ -243,13 +270,16 @@ export function VideoGallery({
   /* 펼친 달의 영상만 주소를 받는다 */
   const visiblePaths = useMemo(
     () =>
-      months.filter((g) => isOpen(g.month)).flatMap((g) => g.items.map((c) => c.path)),
+      months
+        .filter((g) => isOpen(g.month))
+        .flatMap((g) => g.items.flatMap((c) => (c.path ? [c.path] : []))),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [months, toggled, openByDefault]
   );
   const { urls } = usePlaybackUrls(visiblePaths);
 
   const pick = (clip: Clip) => {
+    if (!clip.path) return;
     setPicked((prev) => {
       /* 이미 골라 둔 것을 다시 누르면 뺀다 */
       const at = prev.findIndex((p) => p?.id === clip.id);
@@ -266,9 +296,10 @@ export function VideoGallery({
   if (clips.length === 0) {
     return (
       <p className="rounded-2xl border border-dashed border-line px-4 py-10 text-center text-sm leading-relaxed text-muted">
-        아직 올린 투구 영상이 없습니다.
+        아직 남긴 투구 기록이 없습니다.
         <br />
-        날짜를 눌러 기록을 남길 때 영상을 함께 올릴 수 있습니다.
+        위의 &apos;오늘 기록 남기기&apos;로 시작하세요. 영상도 그때 함께 올릴 수
+        있습니다.
       </p>
     );
   }
@@ -277,9 +308,12 @@ export function VideoGallery({
     <div className={selecting ? 'space-y-3 pb-24' : 'space-y-3'}>
       <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
         <p className="text-sm font-bold text-ink">
-          투구 영상 <span className="text-display text-base">{clips.length}</span>개
+          투구 기록 <span className="text-display text-base">{recordCount}</span>건
+          <span className="font-normal text-muted">
+            {' · '}영상 <span className="text-display text-base">{videoCount}</span>개
+          </span>
         </p>
-        {clips.length >= 2 && (
+        {videoCount >= 2 && (
           <button
             type="button"
             onClick={() => {
@@ -379,15 +413,36 @@ export function VideoGallery({
             </button>
 
             {open && (
-              <ul className="grid gap-3 border-t border-line p-4 sm:grid-cols-2 lg:grid-cols-3">
+              <ul className="grid gap-3 border-t border-line p-4 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
                 {group.items.map((clip) => {
                   const slot = slotOf(clip.id);
-                  const url = urls[clip.path];
+                  const url = clip.path ? urls[clip.path] : undefined;
 
                   /* 썸네일과 설명 — 링크에도 단추에도 같은 속이 들어간다 */
                   const body = (
                     <>
-                      {url ? (
+                      {!clip.path ? (
+                        /*
+                          영상 없이 남긴 기록 — 그림 자리에 투구수와 강도를 크게. 칸의 색은
+                          캘린더와 같은 강도 색이고, 쉬는 날은 점선이다.
+                        */
+                        <span
+                          className={`flex aspect-video w-full flex-col items-center justify-center gap-1 ${
+                            clip.rest
+                              ? 'border-b border-dashed border-line-strong bg-surface-2 text-muted'
+                              : intensityClass(clip.intensity)
+                          }`}
+                        >
+                          <span className="text-display text-3xl leading-none">
+                            {clip.rest ? '휴식' : `${clip.pitchCount}구`}
+                          </span>
+                          {!clip.rest && (
+                            <span className="text-[11px] font-medium opacity-80">
+                              강도 {clip.intensity} · 영상 없음
+                            </span>
+                          )}
+                        </span>
+                      ) : url ? (
                         /*
                           영상의 한 프레임을 그대로 쓴다. preload="metadata" 라
                           머리 부분만 받으므로 목록이 무거워지지 않는다.
@@ -418,7 +473,7 @@ export function VideoGallery({
                           </span>
                           <span className="text-[11px] text-muted">
                             {clip.sessionType}
-                            {clip.label !== '영상' && ` · ${clip.label}`}
+                            {clip.path && clip.label !== '영상' && ` · ${clip.label}`}
                           </span>
                         </span>
                         <span className="block text-[11px] text-muted">
@@ -442,7 +497,9 @@ export function VideoGallery({
                    * 누를 때 둘 다 반응하고, 화면 낭독기도 어느 쪽인지 헷갈린다.
                    */
                   const choosable =
-                    !selecting && (dayPaths.get(clip.date)?.length ?? 0) > 1;
+                    !selecting &&
+                    clip.path != null &&
+                    (dayPaths.get(clip.date)?.length ?? 0) > 1;
                   const isFeatured = featuredOf(clip.date) === clip.path;
 
                   return (
@@ -475,7 +532,12 @@ export function VideoGallery({
                           {isFeatured ? '대표' : '대표로'}
                         </button>
                       )}
-                      {selecting ? (
+                      {selecting && !clip.path ? (
+                        /* 영상이 없는 기록은 견줄 수 없다 — 고르는 동안에는 흐리게 둔다 */
+                        <div aria-disabled className={`opacity-40 ${shell}`}>
+                          {body}
+                        </div>
+                      ) : selecting ? (
                         <button
                           type="button"
                           onClick={() => pick(clip)}
@@ -487,7 +549,11 @@ export function VideoGallery({
                           {body}
                         </button>
                       ) : (
-                        <Link href={`/pitch-log/${clip.date}`} className={shell}>
+                        <Link
+                          href={`/pitch-log/${clip.date}`}
+                          transitionTypes={OPEN_POPUP_TYPES}
+                          className={shell}
+                        >
                           {body}
                         </Link>
                       )}

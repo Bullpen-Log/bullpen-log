@@ -87,8 +87,11 @@ export function Modal({
    *
    * 'wide' 는 영상과 폼 분석처럼 좁으면 못 보는 것을 담을 때 쓴다. 기본 너비에
    * 영상을 넣으면 재생 화면이 손바닥만 해져서 볼 이유가 없어진다.
+   *
+   * 'page' 는 한 화면만 한 창 — 투구 기록 팝업처럼 페이지를 통째로 띄울 때. 폭과 높이를
+   * 화면만큼 써서(높이 94%) 안의 내용을 두 칸으로 나눠 놓고 굴리지 않고 보게 한다.
    */
-  size?: 'default' | 'wide';
+  size?: 'default' | 'wide' | 'page';
   /**
    * 이 창을 연 버튼의 한가운데 (화면 기준 px).
    *
@@ -159,6 +162,54 @@ export function Modal({
     if (!open && el.open) el.close();
   }, [open, origin]);
 
+  /*
+   * 'page' 창은 안의 높이가 바뀌면 그 사이를 부드럽게 잇는다.
+   *
+   * 투구 기록 팝업 안에서 폼을 열고 닫거나 기록이 늘고 줄면 창 높이가 바뀐다. 창은 늘
+   * 가운데에 서므로, 그대로 두면 뚝 커지며 위로 튀었다(예전에 불러오는 자리 → 실제 내용일
+   * 때 재 보니 430 → 674px). 높이가 바뀐 순간 옛 높이에서 새 높이로 늘여 주면 창이
+   * 위아래로 고르게 벌어진다.
+   *
+   * 재는 것은 창이 아니라 안쪽 내용이다. 창 높이는 움직이는 동안 매 순간 바뀌어서, 창을
+   * 재면 제 움직임을 다시 잡아 끝없이 돈다. 크기 알림(ResizeObserver)은 그리기 직전에
+   * 오므로 새 높이가 한 번도 보이지 않은 채 옛 높이에서 출발한다.
+   */
+  const contentRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const el = ref.current;
+    const content = contentRef.current;
+    if (!el || !content || !open || size !== 'page') return;
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+
+    /*
+     * 높이는 offsetHeight 로 잰다. getBoundingClientRect 는 여는 움직임의 축소(scale
+     * 0.98)까지 셈에 넣어, 막 뜬 창을 실제보다 작게 읽는다.
+     */
+    let shown = el.offsetHeight;
+    let running: Animation | null = null;
+    const observer = new ResizeObserver(() => {
+      /* 늘어나는 도중에 또 바뀌면 지금 보이는 높이에서 이어 간다 */
+      const from = running ? el.offsetHeight : shown;
+      running?.cancel();
+      const to = el.offsetHeight;
+      shown = to;
+      if (Math.abs(to - from) < 2) return;
+      const move = el.animate([{ height: `${from}px` }, { height: `${to}px` }], {
+        duration: 240,
+        easing: 'cubic-bezier(0.2, 0, 0, 1)',
+      });
+      running = move;
+      move.onfinish = () => {
+        if (running === move) running = null;
+      };
+    });
+    observer.observe(content);
+    return () => {
+      observer.disconnect();
+      running?.cancel();
+    };
+  }, [open, size]);
+
   return (
     <dialog
       ref={ref}
@@ -214,10 +265,12 @@ export function Modal({
        * 창에 높이를 걸고(max-h) 넘치는 것을 자른 뒤(overflow-clip), 세로로
        * 쌓아 머리글은 고정하고 본문만 남은 높이를 채우게 한다.
        */
-      className={`m-auto flex max-h-[min(85dvh,48rem)] flex-col overflow-clip ${
-        size === 'wide'
-          ? 'w-[min(62rem,calc(100vw-1.5rem))]'
-          : 'w-[min(38rem,calc(100vw-1.5rem))]'
+      className={`m-auto flex flex-col overflow-clip ${
+        size === 'page'
+          ? 'max-h-[94dvh] w-[min(76rem,calc(100vw-1.5rem))]'
+          : size === 'wide'
+            ? 'max-h-[min(85dvh,48rem)] w-[min(62rem,calc(100vw-1.5rem))]'
+            : 'max-h-[min(85dvh,48rem)] w-[min(38rem,calc(100vw-1.5rem))]'
       } rounded-2xl border border-line bg-surface p-0 text-ink shadow-2xl backdrop:bg-black/50`}
     >
       <div className="flex shrink-0 items-start gap-3 border-b border-line px-5 py-4">
@@ -261,7 +314,8 @@ export function Modal({
         휠·손가락·키보드 모두 평소와 같다.
       */}
       <div className="no-scrollbar relative min-h-0 flex-auto overflow-y-auto px-5 py-5">
-        {children}
+        {/* 내용의 제 높이를 재는 자리(위 'page' 창의 높이 잇기) */}
+        <div ref={contentRef}>{children}</div>
       </div>
     </dialog>
   );

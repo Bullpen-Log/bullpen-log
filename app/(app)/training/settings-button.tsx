@@ -42,12 +42,7 @@ export function TrainingSettingsButton({
         트레이닝 설정
       </button>
 
-      <Modal
-        open={open}
-        onClose={() => setOpen(false)}
-        title="트레이닝 설정"
-        description="어쩌다 한 번 고치는 것들입니다. 오늘 쓸 장비는 일정을 만들 때 따로 고릅니다."
-      >
+      <Modal open={open} onClose={() => setOpen(false)} title="트레이닝 설정">
         <TrainingSettingsForm
           trainingLevel={trainingLevel}
           ownedEquipment={ownedEquipment}

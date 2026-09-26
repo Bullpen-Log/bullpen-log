@@ -17,9 +17,10 @@ import { X } from 'lucide-react';
 import { NAV_ICONS } from '@/components/nav-icons';
 import { usePathname, useRouter } from 'next/navigation';
 import { quietRefresh } from '@/lib/quiet-refresh';
+import { rememberPage } from '@/lib/last-page';
 import { REST_SESSION_TYPE } from '@/lib/session-type';
 import type { NavGroup, NavItem } from '@/lib/nav';
-import { DESK_MEDIA, MORE_HREF } from '@/lib/nav';
+import { DESK_MEDIA, MORE_HREF, NAV_ALSO } from '@/lib/nav';
 import { BaseballMark } from '@/components/logo';
 import { Modal } from '@/components/modal';
 import { ProfilePanel, type ProfileData } from '@/components/profile-panel';
@@ -44,10 +45,14 @@ import {
  */
 function useIsActive() {
   const pathname = usePathname();
-  /* 메뉴 주소에 ?칸이 붙을 수 있다(트레이닝 — lib/training-part.ts) — 경로만 본다 */
+  const under = (path: string) => pathname === path || pathname.startsWith(`${path}/`);
+  /*
+   * 메뉴 주소에 ?칸이 붙을 수 있다(트레이닝 — lib/training-part.ts) — 경로만 본다.
+   * 그 탭에 속하는 다른 주소도 본다(투구 기록 ← 날짜 화면, lib/nav.ts 의 NAV_ALSO).
+   */
   return (href: string) => {
     const path = href.split('?')[0];
-    return pathname === path || pathname.startsWith(`${path}/`);
+    return under(path) || (NAV_ALSO[path] ?? []).some(under);
   };
 }
 
@@ -73,6 +78,14 @@ const DOCK_CLOSE_MS = 140;
  * 훑어보는 도중에 열려 버리고, 그보다 길면 기다리다 그냥 누른다.
  */
 const DOCK_HOVER_MS = 5000;
+
+/**
+ * 도크로 가는 연출을 빨리 감는 배속 — 도크가 다 모이기 전에 판을 열 때.
+ *
+ * 막대 → 도크는 아이콘이 차례로 출발해 0.4초 남짓 걸린다. 4배면 남은 것이 0.1초 안에
+ * 끝나, 누르고 나서 판이 늦게 온다는 느낌 없이 도크를 거쳐 판으로 이어진다.
+ */
+const HURRY_RATE = 4;
 
 /**
  * 메뉴가 놓이는 세 자리.
@@ -130,7 +143,7 @@ const REST_THUMB = { viewTransitionName: 'nav-thumb' } as CSSProperties;
  * 격자 단추를 못 잰 경우의 도크 자리 — 지금 막대 크기로 셈한 값.
  * 격자 오른쪽에 종(32px)이 들어서며 격자 한가운데가 오른쪽 끝에서 34px 멀어졌다.
  */
-const DOCK_FALLBACK: Anchor = { top: 66, right: 154 };
+const DOCK_FALLBACK: Anchor = { top: 74, right: 158 };
 
 /**
  * 점(x, y)이 요소의 네모 안에 있는가.
@@ -218,6 +231,11 @@ export function AppNav({
   const isActive = useIsActive();
   const pathname = usePathname();
 
+  /* 팝업(날짜 화면)이 뜨기 전의 화면을 적어 둔다 — 팝업의 '돌아가기'가 쓴다(lib/last-page.ts) */
+  useEffect(() => {
+    rememberPage(pathname);
+  }, [pathname]);
+
   /*
    * 판·도크가 떠 있는가. 둘이 한꺼번에 뜨는 일은 없다(land 가 같이 정한다).
    *
@@ -252,6 +270,8 @@ export function AppNav({
    */
   const place = useRef<Place>('bar');
   const running = useRef<ViewTransition | null>(null);
+  /* 돌고 있는 연출이 어디서 어디로 가는 것인가 */
+  const runningKind = useRef<Choreo | null>(null);
   const queued = useRef<Place | null>(null);
 
   const navRef = useRef<HTMLElement>(null);
@@ -391,6 +411,7 @@ export function AppNav({
       });
     });
     running.current = vt;
+    runningKind.current = kind;
     /*
      * 연출 중에는 크롬이 무엇을 눌러도 <html> 로 준다. 도크가 펼쳐지거나 접히는 짧은
      * 사이에 종·톱니·사진을 누르면 아무 일도 없어 한 번 더 눌러야 했다. 누른 자리에
@@ -433,6 +454,7 @@ export function AppNav({
     vt.finished.finally(() => {
       if (running.current !== vt) return;
       running.current = null;
+      runningKind.current = null;
       root.removeAttribute('data-nav-choreo');
       setChoreo(null);
       if (to === 'bar') setSheetBuilt(false);
@@ -450,9 +472,32 @@ export function AppNav({
   const halt = () => {
     const vt = running.current;
     running.current = null;
+    runningKind.current = null;
     queued.current = null;
     vt?.skipTransition();
     document.documentElement.removeAttribute('data-nav-choreo');
+  };
+
+  /*
+   * 돌고 있는 연출을 빨리 감는다 — 끊지 않는다.
+   *
+   * 도크가 모이는 중에 격자를 누르면 예전에는 그 연출을 그 자리에서 끊고(halt) 판으로
+   * 갔다. 끊는 순간 날아가던 아이콘이 도크 자리로 툭 옮겨 앉았다가 거기서 다시 판으로
+   * 날아가, 커서를 대고 기다렸다 누를 때와 달리 부자연스러웠다. 이제 남은 움직임을
+   * HURRY_RATE 배로 감아 도크에 마저 앉히고, 끝나는 대로 판으로 잇는다(queued).
+   *
+   * 연출의 움직임은 전부 ::view-transition 가상 요소의 CSS 애니메이션이라 문서에서
+   * 찾아 배속만 바꾼다(지금 자리에서 이어서 빨라진다 — 튀지 않는다). 막 시작해 아직
+   * 움직임이 만들어지기 전이면 만들어지는 대로(ready) 바꾼다.
+   */
+  const hurry = () => {
+    const speed = () =>
+      document.getAnimations().forEach((a) => {
+        const pseudo = (a.effect as KeyframeEffect | null)?.pseudoElement ?? '';
+        if (pseudo.startsWith('::view-transition')) a.updatePlaybackRate(HURRY_RATE);
+      });
+    speed();
+    running.current?.ready.then(speed, () => {});
   };
 
   /*
@@ -462,15 +507,30 @@ export function AppNav({
    * 도중에 끊고 새로 시작하면 날아가던 아이콘이 사라졌다가 엉뚱한 데서 다시
    * 나타난다. 줄을 세워 두면 늘 커서가 있는 쪽으로 맞춰진다.
    *
-   * 판은 기다리지 않는다(now). 격자를 누른 것은 분명히 판을 보겠다는 뜻이라,
-   * 도크가 아직 모이는 중이어도 그 연출을 거두고 곧장 판을 오른쪽에서 내민다.
-   * 예전에는 도크가 다 모인 뒤에야 판으로 이어져서, 누르고도 한참 작은 상자만
-   * 보였다.
+   * 판은 기다리지 않는다(now). 격자를 누른 것은 분명히 판을 보겠다는 뜻이다. 예전에는
+   * 도크가 다 모인 뒤에야 판으로 이어져서 누르고도 한참 작은 상자만 보였고, 그다음에는
+   * 모이던 연출을 끊고 곧장 판으로 갔는데 끊는 순간 아이콘이 툭 튀었다. 이제 모이던
+   * 연출을 빨리 감아(hurry) 마저 모이게 하고 곧바로 판으로 잇는다.
+   *
+   * 막대에서 판으로 갈 때도 도크를 거친다(빨리 감아서). 도크가 뜨기 전에 누르든, 다
+   * 뜬 뒤에 누르든 아이콘이 같은 길(막대 → 격자 밑 → 판)로 가야 한 가지 움직임으로
+   * 읽힌다. 막대에서 판으로 곧장 날리면 알약이 줄어드는 것과 판이 들어오는 것이 한꺼번에
+   * 겹쳐 흐릿하게 섞였다.
    */
   const go = (to: Place, now = false) => {
     if (running.current) {
       if (!now) {
         queued.current = to;
+        return;
+      }
+      /* 이미 판으로 가는 중이면 그대로 둔다 */
+      if (runningKind.current?.endsWith('-sheet')) {
+        queued.current = null;
+        return;
+      }
+      if (to === 'sheet' && canChoreo()) {
+        queued.current = 'sheet';
+        hurry();
         return;
       }
       halt();
@@ -483,6 +543,12 @@ export function AppNav({
       setDockBuilt(false);
       setSheetBuilt(false);
       land(to);
+      return;
+    }
+    if (from === 'bar' && to === 'sheet') {
+      queued.current = 'sheet';
+      run('bar-dock');
+      hurry();
       return;
     }
     /* 판에서는 막대로만 돌아간다 — X 는 '다 닫는다'라서 작은 상자가 남으면 안 된다 */
@@ -1015,7 +1081,7 @@ export function AppNav({
          * 어두워진다.
          */
         style={{ viewTransitionName: choreo ? 'none' : 'shell-logo' }}
-        className="fixed left-6 top-5 z-40 hidden items-center gap-2 desk:flex"
+        className="fixed left-6 top-6 z-40 hidden items-center gap-2 desk:flex"
       >
         <BaseballMark className="h-8 w-8" />
         <span className="text-display text-base leading-none text-ink">
@@ -1205,7 +1271,6 @@ export function AppNav({
         open={checkinOpen}
         onClose={() => setCheckinOpen(false)}
         title="오늘 컨디션 체크인"
-        description="몸 상태를 남기면 오늘 운동과 리포트가 여기에 맞춰집니다."
         origin={popFrom}
       >
         {checkinOpen && (
@@ -1225,7 +1290,6 @@ export function AppNav({
         open={settingsOpen}
         onClose={() => setSettingsOpen(false)}
         title="설정"
-        description="어쩌다 한 번 고치는 것들입니다."
         origin={popFrom}
       >
         <SettingsPanel data={settings} returnTo={here} />
@@ -1235,7 +1299,6 @@ export function AppNav({
         open={profileOpen}
         onClose={() => setProfileOpen(false)}
         title="내 정보"
-        description="사진과 몸 정보, 계정까지 여기서 다 고칩니다."
         origin={popFrom}
       >
         <ProfilePanel data={profile} avatarUrl={avatarUrl} today={today} />
@@ -1318,8 +1381,8 @@ function QuickBar({
       instant: routeDriven,
       settleKey: pathname,
     });
-  /* 펼친 폭 — 아이콘(40px)과 그 뒤 틈(2px)마다 42px, 선 1px 과 그 양옆 여백(6 + 8px) */
-  const full = quick.length * 42 + 15;
+  /* 펼친 폭 — 아이콘(48px)과 그 뒤 틈(2px)마다 50px, 선 1px 과 그 양옆 여백(6 + 8px) */
+  const full = quick.length * 50 + 15;
 
   return (
     <div
@@ -1354,7 +1417,7 @@ function QuickBar({
           />
         );
       })}
-      <span aria-hidden className="ml-1.5 mr-2 h-6 w-px shrink-0 bg-line" />
+      <span aria-hidden className="ml-1.5 mr-2 h-7 w-px shrink-0 bg-line" />
     </div>
   );
 }
@@ -1411,11 +1474,11 @@ function MenuSquares({
       aria-haspopup="dialog"
       aria-expanded={expanded}
       aria-label="메뉴"
-      className={`flex h-10 w-10 items-center justify-center rounded-full transition-colors duration-75 ${
+      className={`flex h-12 w-12 items-center justify-center rounded-full transition-colors duration-75 ${
         lit ? 'bg-sky/15 text-sky' : 'text-muted hover:bg-ink/6 hover:text-ink'
       }`}
     >
-      <Squares spinning={spinning} onDone={() => setSpinning(false)} />
+      <Squares size="lg" spinning={spinning} onDone={() => setSpinning(false)} />
     </button>
   );
 }
@@ -1430,7 +1493,16 @@ function MenuSquares({
  * 도는 것을 끝내는 일은 마지막 네모의 onAnimationEnd 가 맡는다(onDone).
  * 넷 다 걸면 첫째가 끝나는 순간 나머지가 도는 중에 꺼진다.
  */
-function Squares({ spinning, onDone }: { spinning: boolean; onDone: () => void }) {
+function Squares({
+  spinning,
+  onDone,
+  size = 'md',
+}: {
+  spinning: boolean;
+  onDone: () => void;
+  /** lg — PC 막대의 메뉴 단추(1.4rem, 옆 아이콘보다 조금 크게). md — 휴대폰 하단 탭 */
+  size?: 'md' | 'lg';
+}) {
   /* 왼위 → 오른위 → 왼아래 → 오른아래. 글 읽는 차례와 같게 돈다. */
   const corners = [
     'left-0 top-0',
@@ -1440,13 +1512,18 @@ function Squares({ spinning, onDone }: { spinning: boolean; onDone: () => void }
   ];
 
   return (
-    <span aria-hidden className="relative block h-[1.15rem] w-[1.15rem]">
+    <span
+      aria-hidden
+      className={`relative block ${size === 'lg' ? 'h-[1.4rem] w-[1.4rem]' : 'h-[1.15rem] w-[1.15rem]'}`}
+    >
       {corners.map((at, i) => (
         <span
           key={at}
-          className={`absolute h-[0.45rem] w-[0.45rem] rounded-[2px] border-[1.9px] border-current ${at} ${
-            spinning ? 'motion-safe:animate-square-spin' : ''
-          }`}
+          className={`absolute rounded-[2px] border-current ${
+            size === 'lg'
+              ? 'h-[0.56rem] w-[0.56rem] border-[2.1px]'
+              : 'h-[0.45rem] w-[0.45rem] border-[1.9px]'
+          } ${at} ${spinning ? 'motion-safe:animate-square-spin' : ''}`}
           style={{ '--sq': i } as CSSProperties}
           onAnimationEnd={i === 3 ? onDone : undefined}
         />
@@ -1515,6 +1592,12 @@ function SettingsCog({
  *
  * 올렸을 때의 배경은 반투명한 잉크색이다. 알약이 비치는 바탕이라, 불투명한
  * surface-2 를 얹으면 밝은 테마에서 알약과 거의 같은 색이 되어 안 보였다.
+ *
+ * 누르는 칸은 48px — 오른쪽의 알림 · 설정 · 내 정보(32~40px)보다 크다. 옮겨 다니는 단추라
+ * 가장 자주 누르는데, 40px 일 때는 작아서 옆 단추를 잘못 누르곤 했다. 그림은 22px 로 원래
+ * (20px)보다 조금만 키웠다 — 24px 로 칸과 같이 키우니 그림이 막대에서 너무 도드라졌다.
+ * 도크의 아이콘도 같은 크기로 맞춰, 막대에서 도크로 날아갈 때 크기가 튀지 않는다. 메뉴(격자)
+ * 그림만은 1.4rem 으로 조금 더 크게 둔다 — 줄의 맨 끝에서 '전부 보기'를 맡는 단추라 눈에 띄게.
  */
 function TopIcon({
   item,
@@ -1558,7 +1641,7 @@ function TopIcon({
       onClick={(e) => {
         if (isPlainClick(e)) onPick();
       }}
-      className={`relative flex h-10 w-10 shrink-0 items-center justify-center rounded-full ${
+      className={`relative flex h-12 w-12 shrink-0 items-center justify-center rounded-full ${
         hidden
           ? 'opacity-0 [transition:none]'
           : instant
@@ -1568,7 +1651,7 @@ function TopIcon({
     >
       <Icon
         aria-hidden
-        className="relative h-5 w-5"
+        className="relative h-[1.375rem] w-[1.375rem]"
         strokeWidth={lit ? 2.4 : 1.9}
         style={flyName}
       />
@@ -1687,13 +1770,13 @@ function DockGrid({
               onClick={(e) => {
                 if (isPlainClick(e)) onPick(item.href);
               }}
-              className={`group relative flex h-10 w-10 items-center justify-center rounded-full transition-colors duration-75 ${
+              className={`group relative flex h-12 w-12 items-center justify-center rounded-full transition-colors duration-75 ${
                 lit ? 'text-sky' : 'text-muted hover:bg-ink/6 hover:text-ink'
               }`}
             >
               <Icon
                 aria-hidden
-                className="h-5 w-5"
+                className="h-[1.375rem] w-[1.375rem]"
                 strokeWidth={lit ? 2.4 : 1.9}
                 style={named ? flyStyle(`nav-fly-${i}`, i, kind) : undefined}
               />
@@ -1864,7 +1947,7 @@ function DetailMenu({
        * 비치면 밝은 테마의 바탕이 흰색보다 한 단계 어두워져, 11px 짜리 muted 글자의
        * 대비가 4.4:1 로 기준(4.5:1) 밑으로 내려갔다. 잉크 65% 는 5.5:1 쯤이다.
        */
-      className="h-full w-64 border-l border-line/80 bg-surface/92 p-0 text-ink shadow-2xl backdrop:bg-shade/50 desk:backdrop-blur-xl"
+      className="h-full w-72 border-l border-line/80 bg-surface/92 p-0 text-ink shadow-2xl backdrop:bg-shade/50 desk:backdrop-blur-xl"
     >
       <div className="flex h-full flex-col">
         <div className="flex h-12 shrink-0 items-center justify-between border-b border-line px-4">
@@ -1873,9 +1956,9 @@ function DetailMenu({
             type="button"
             onClick={onClose}
             aria-label="닫기"
-            className="rounded-lg p-1.5 text-muted transition-colors hover:bg-ink/6 hover:text-ink"
+            className="rounded-lg p-2 text-muted transition-colors hover:bg-ink/6 hover:text-ink"
           >
-            <X className="h-4 w-4" />
+            <X className="h-5 w-5" />
           </button>
         </div>
 
@@ -1890,12 +1973,12 @@ function DetailMenu({
                */
               className={
                 group.title
-                  ? 'mt-2.5 space-y-0.5 border-t border-line/70 pt-2.5'
-                  : 'space-y-0.5'
+                  ? 'mt-3 space-y-1 border-t border-line/70 pt-3'
+                  : 'space-y-1'
               }
             >
               {group.title && (
-                <p className="px-2.5 pb-1 text-[11px] font-semibold tracking-normal text-ink/65">
+                <p className="px-3 pb-1 text-xs font-semibold tracking-normal text-ink/65">
                   {group.title}
                 </p>
               )}
@@ -1912,7 +1995,10 @@ function DetailMenu({
                     href={item.href}
                     aria-current={active ? 'page' : undefined}
                     onClick={onNavigate}
-                    className={`flex items-start gap-2.5 rounded-lg px-2.5 py-1.5 transition-colors duration-75 ${
+                    /*
+                      누르는 칸은 44px 이상 — 예전에는 32px 남짓이라 옆 항목을 잘못 누르곤 했다.
+                    */
+                    className={`flex min-h-11 items-center gap-3 rounded-xl px-3 py-2 transition-colors duration-75 ${
                       active
                         ? 'bg-sky text-white'
                         : 'text-ink hover:bg-ink/6 active:bg-ink/6'
@@ -1920,7 +2006,7 @@ function DetailMenu({
                   >
                     <Icon
                       aria-hidden
-                      className="mt-0.5 h-4 w-4 shrink-0"
+                      className="h-5 w-5 shrink-0"
                       strokeWidth={active ? 2.4 : 1.9}
                       style={
                         fly
@@ -1930,22 +2016,10 @@ function DetailMenu({
                             : undefined
                       }
                     />
-                    <span className="min-w-0">
-                      <span
-                        className={`block text-[13px] leading-5 ${active ? 'font-semibold' : 'font-medium'}`}
-                      >
-                        {item.label}
-                      </span>
-                      {/* 골라져 있을 때는 흰 글자 위라 설명을 조금 눕혀 둔다 */}
-                      {item.desc && (
-                        <span
-                          className={`block text-[11px] leading-4 break-keep ${
-                            active ? 'text-white/75' : 'text-ink/65'
-                          }`}
-                        >
-                          {item.desc}
-                        </span>
-                      )}
+                    <span
+                      className={`min-w-0 text-[15px] leading-5 ${active ? 'font-semibold' : 'font-medium'}`}
+                    >
+                      {item.label}
                     </span>
                   </Link>
                 );

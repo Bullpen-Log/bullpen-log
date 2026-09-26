@@ -62,11 +62,7 @@ export default async function AdminPage() {
 
   return (
     <div className="space-y-10">
-      <PageHeading
-        eyebrow="Admin"
-        title="관리자"
-        description="가입한 회원과 사이트 활동 현황입니다. 회원에게 관리자 권한을 주거나 계정을 삭제할 수 있습니다."
-      />
+      <PageHeading eyebrow="Admin" title="관리자" />
 
       {/* 요약 */}
       <div className="grid grid-cols-2 gap-px overflow-hidden rounded-2xl border border-line bg-line lg:grid-cols-4">

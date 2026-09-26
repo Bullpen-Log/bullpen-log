@@ -40,10 +40,14 @@ export function PageHeading({
   action?: ReactNode;
 }) {
   return (
-    <div className="flex flex-col gap-6 border-b border-line pb-8 sm:flex-row sm:items-end sm:justify-between">
-      <div className="space-y-3">
+    /*
+     * 제목 묶음은 한 화면의 머리일 뿐이라 낮게 둔다. 예전에는 글자 2.5rem · 밑 여백 2rem 으로
+     * 150px 가까이 차지해, 화면마다 본문이 그만큼 밑으로 밀려 스크롤이 늘었다.
+     */
+    <div className="flex flex-col gap-4 border-b border-line pb-5 sm:flex-row sm:items-end sm:justify-between">
+      <div className="space-y-2">
         {eyebrow && <Eyebrow>{eyebrow}</Eyebrow>}
-        <h1 className="text-heading text-[1.75rem] leading-[1.15] text-ink sm:text-[2.5rem]">
+        <h1 className="text-heading text-[1.625rem] leading-[1.15] text-ink sm:text-[2rem]">
           {title}
         </h1>
         {description && (

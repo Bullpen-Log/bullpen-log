@@ -1,13 +1,20 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { PageHeading } from '@/components/ui';
+import { Plus } from 'lucide-react';
+import { ButtonLink, PageHeading } from '@/components/ui';
+import { useTodayKey } from '@/components/use-today-key';
 import { Segmented } from '@/components/segmented';
 import { CompareView, type ClipOption } from './compare-view';
 import { VideoGallery } from './video-gallery';
 import { VideoCalendar } from './video-calendar';
+import { OPEN_POPUP_TYPES } from '@/lib/transition-types';
+import { LinkPending } from '@/components/link-pending';
 
-/** 갤러리에 필요한 만큼만. 느낀점·평균 구속 같은 것은 그날 기록에서 본다. */
+/**
+ * 투구 기록 한 건 — 캘린더 · 목록에 필요한 만큼만. 평균 구속 · 자세 분석 같은 것은 그날
+ * 기록 화면(/pitch-log/<날짜>)에서 본다. 영상이 없는 기록도 온다(videoPaths 가 빈 배열).
+ */
 export type VideoLog = {
   id: string;
   date: string;
@@ -15,14 +22,16 @@ export type VideoLog = {
   pitchCount: number;
   intensity: number;
   maxVelocity: number | null;
+  memo: string | null;
   videoPaths: string[];
 };
 
 /**
- * [캘린더 | 목록] — 같은 영상을 다르게 찾는 두 방식.
+ * [캘린더 | 목록] — 같은 기록을 다르게 찾는 두 방식.
  *
- * 캘린더는 '그날'을 알 때 — 칸마다 그날 영상의 한 장면이 있어 짚어서 바로 튼다.
- * 목록은 여러 날을 가로질러 훑을 때 — 구속·강도로 줄 세우고, 두 개를 골라 견준다.
+ * 캘린더는 '그날'을 알 때 — 투구한 날이 칠해지고, 영상이 있는 날은 그날 영상의 한
+ * 장면이 칸을 채운다. 날짜를 누르면 그날 기록과 영상이 밑에 펴진다.
+ * 목록은 여러 날을 가로질러 훑을 때 — 구속·강도로 줄 세우고, 영상 두 개를 골라 견준다.
  * 홈의 [캘린더 | 목록]과 같은 고르개를 쓴다.
  */
 const VIEW_OPTIONS = [
@@ -43,6 +52,7 @@ export function VideosClient({
   featured,
   initialMonth,
   initialDate,
+  today,
 }: {
   logs: VideoLog[];
   /** 날짜(YYYY-MM-DD)별로 고른 대표 영상. 안 고른 날은 없다. */
@@ -51,7 +61,10 @@ export function VideosClient({
   initialMonth: string | null;
   /** 처음에 열어 둘 날(YYYY-MM-DD) — 홈에서 그날 영상으로 들어온 경우 */
   initialDate: string | null;
+  /** 서버가 본 오늘 — 화면이 뜬 뒤에는 브라우저의 오늘로 맞춘다(자정을 넘겨 켜 둔 탭) */
+  today: string;
 }) {
+  const todayKey = useTodayKey(today);
   const [view, setView] = useState<'calendar' | 'list'>('calendar');
   const [comparing, setComparing] = useState(false);
   /* 목록에서 고른 둘. 비교 화면이 이 둘로 열린다. */
@@ -84,16 +97,15 @@ export function VideosClient({
     return (
       <div className="space-y-6">
         <PageHeading
-          eyebrow="Video"
+          eyebrow="Pitch log"
           title="2분할 비교"
-          description="서로 다른 날의 투구 영상을 나란히 놓고 봅니다."
           action={
             <button
               type="button"
               onClick={() => setComparing(false)}
               className="rounded-lg border border-line-strong px-3 py-1.5 text-xs font-semibold text-ink transition-colors hover:border-sky hover:text-sky"
             >
-              영상 목록으로
+              투구 기록으로
             </button>
           }
         />
@@ -105,12 +117,20 @@ export function VideosClient({
   return (
     <div className="space-y-6">
       <PageHeading
-        eyebrow="Video"
-        title="투구 영상"
-        description={
-          view === 'calendar'
-            ? '날짜를 누르면 그날 영상을 바로 봅니다. 칸의 그림은 그날 대표 영상의 한 장면입니다.'
-            : '올린 투구 영상을 달별로 모아 봅니다. 카드를 누르면 그날 기록으로 갑니다.'
+        eyebrow="Pitch log"
+        title="투구 기록"
+        action={
+          /* 기록을 남기는 곳은 날짜 화면이다 — 이 탭에서 곧장 오늘로 */
+          <ButtonLink
+            href={`/pitch-log/${todayKey}`}
+            transitionTypes={OPEN_POPUP_TYPES}
+            className="gap-1.5"
+          >
+            <LinkPending>
+              <Plus aria-hidden className="h-4 w-4" />
+            </LinkPending>
+            오늘 기록 남기기
+          </ButtonLink>
         }
       />
 
@@ -131,7 +151,7 @@ export function VideosClient({
           <span />
         )}
         <Segmented
-          label="영상 보기 방식"
+          label="기록 보기 방식"
           value={view}
           onChange={(next) => {
             setView(next);

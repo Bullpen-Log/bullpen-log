@@ -12,7 +12,7 @@ import { prisma } from '@/lib/prisma';
 import { pickCheckinDetail, pickCheckinParts } from '@/lib/checkin';
 import { visibleExercises } from '@/lib/library-cache';
 import { availableParts } from '@/lib/report/today-pick';
-import { QUIET_REFRESH } from '@/lib/transition-types';
+import { OPEN_POPUP, QUIET_REFRESH } from '@/lib/transition-types';
 
 /** 렌더 중에 현재 시각을 직접 읽지 않도록 함수로 감싼다. */
 function todayKey() {
@@ -29,7 +29,14 @@ function checkinWindowStart() {
   return new Date(Date.now() - 3 * 86_400_000);
 }
 
-export default async function AppLayout({ children }: { children: React.ReactNode }) {
+export default async function AppLayout({
+  children,
+  modal,
+}: {
+  children: React.ReactNode;
+  /** 팝업 자리 — 앱 안에서 날짜 화면으로 가면 여기에 투구 기록 팝업이 뜬다(@modal) */
+  modal: React.ReactNode;
+}) {
   // 이 레이아웃 아래의 모든 페이지는 로그인이 필요하다.
   const user = await requireUser();
   const isAdmin = user.role === 'ADMIN';
@@ -140,6 +147,13 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       <RefreshOnReturn />
 
       {/*
+        팝업 자리. 본문(children) 밖에 둔다 — 팝업이 떠도 밑의 화면은 그대로 남고, 본문의
+        화면 전환(app-main)에도 끼지 않는다. 창은 맨 위 칸(top layer)에 뜨므로 자리는 어디든
+        상관없다.
+      */}
+      {modal}
+
+      {/*
         위쪽만 비운다.
 
         메뉴가 세로 막대였을 때는 그 폭만큼 좌우를 같이 비워야 본문이 화면
@@ -149,9 +163,14 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
         위쪽 4rem 은 그 줄의 자리다. 로고와 아이콘은 고정이라 자리를 차지하지
         않으므로, 여기서 비워주지 않으면 첫 줄이 그 밑으로 들어간다.
+
+        본문 폭은 화면이 클수록 넓힌다(1024 → 1152 → 1280px). 예전에는 어느 모니터에서나
+        1024px 에 묶여 큰 모니터의 양옆이 비었고, 모든 것이 세로로만 쌓여 스크롤이 길었다.
+        넓어진 자리에는 캘린더 옆 그날 칸처럼 나란히 놓는 배치가 들어선다. 더 넓히지는 않는다
+        — 글줄이 너무 길어지면 읽기 어렵다.
       */}
       <div className="desk:pt-16">
-        <main className="mx-auto w-full max-w-5xl px-4 py-6 pb-24 sm:px-6 sm:pt-8 desk:pb-12">
+        <main className="mx-auto w-full max-w-5xl px-4 py-6 pb-24 sm:px-6 sm:pt-6 xl:max-w-6xl 2xl:max-w-7xl desk:pb-12">
           {/*
            * 탭을 옮길 때 본문만 부드럽게 바뀐다.
            *
@@ -181,7 +200,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
             share="page"
             enter="page"
             exit="page"
-            update={{ [QUIET_REFRESH]: 'none', default: 'auto' }}
+            update={{ [QUIET_REFRESH]: 'none', [OPEN_POPUP]: 'none', default: 'auto' }}
           >
             {children}
           </ViewTransition>
