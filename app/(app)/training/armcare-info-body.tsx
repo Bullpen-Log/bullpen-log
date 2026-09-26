@@ -95,6 +95,11 @@ export function ArmcareInfoBody({
           name={shown.name}
           part={shown.part ?? null}
           onArea={(key) => onChange({ kind: 'area', key })}
+          back={
+            view.kind === 'exercise'
+              ? { label: view.title, onBack: () => onChange({ ...view, current: null }) }
+              : undefined
+          }
         />
       ) : (
         <ExerciseMuscles
@@ -341,10 +346,17 @@ function MuscleInfo({
   name,
   part,
   onArea,
+  back,
 }: {
   name: string;
   part: string | null;
   onArea: (key: ArmcareAreaKey) => void;
+  /**
+   * 들어온 화면으로 돌아가는 길 — 운동의 근육 목록에서 들어왔으면 그 운동으로. 없으면 이
+   * 근육의 부위로 간다. 운동에서 들어왔는데 뒤로 가기가 부위('견갑 자세히')로 가서, 보던
+   * 운동으로 돌아갈 수 없었다(2026-09-26 사용자분).
+   */
+  back?: { label: string; onBack: () => void };
 }) {
   const ref = useScrollTop();
   const info = muscleInfo(name);
@@ -362,11 +374,11 @@ function MuscleInfo({
     >
       <button
         type="button"
-        onClick={() => onArea(area.key)}
+        onClick={back ? back.onBack : () => onArea(area.key)}
         className="-mt-1 inline-flex items-center gap-0.5 text-xs font-semibold text-sky-strong"
       >
         <ChevronLeft aria-hidden className="h-3.5 w-3.5" />
-        {area.label} 자세히
+        {back ? back.label : `${area.label} 자세히`}
       </button>
       <Section title="어떤 근육인가요">
         <p>{d.what}</p>
