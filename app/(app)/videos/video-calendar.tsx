@@ -2,8 +2,13 @@
 
 import Link from 'next/link';
 import { useEffect, useMemo, useRef, useState, useTransition } from 'react';
-import { ArrowRight, Camera, Check, Film, Loader2, Star } from 'lucide-react';
-import { MonthCalendar, type DayCell, type DayMark } from '@/components/month-calendar';
+import { ArrowRight, Camera, Check, Film, Loader2, Plus, Star } from 'lucide-react';
+import {
+  MonthCalendar,
+  intensityClass,
+  type DayCell,
+  type DayMark,
+} from '@/components/month-calendar';
 import { Card } from '@/components/ui';
 import { Expand } from '@/components/expand';
 import { usePlaybackUrls } from '@/components/use-playback-urls';
@@ -22,11 +27,12 @@ import { setFeaturedVideo } from '@/app/actions/featured-video';
 import type { VideoLog } from './videos-client';
 
 /**
- * 투구 영상 캘린더 — 영상을 찾고 보는 달력.
+ * 투구 기록 캘린더 — 투구한 날과 그날 영상을 찾고 보는 달력.
  *
- * 영상은 '그날'로 기억한다. 목록에서 카드를 훑으며 찾는 것보다, 달력에서 그날을 짚는
- * 것이 빠르다. 그래서 칸을 크게 두고 칸마다 그날 영상의 한 장면을 채웠다 — 칸만 보고도
- * 어느 날 무엇을 찍었는지 알아본다.
+ * 투구도 영상도 '그날'로 기억한다. 목록에서 카드를 훑으며 찾는 것보다, 달력에서 그날을
+ * 짚는 것이 빠르다. 그래서 칸을 크게 두었다. 영상이 있는 날은 칸마다 그날 영상의 한
+ * 장면을 채우고 투구수를 얹는다 — 칸만 보고도 어느 날 무엇을 찍었는지 알아본다. 영상이
+ * 없는 날은 홈 캘린더와 같이 강도로 칠하고(intensityClass) 투구수를 적는다. 쉬는 날은 점선.
  *
  * ■ 칸의 그림(썸네일)
  *
@@ -40,8 +46,9 @@ import type { VideoLog } from './videos-client';
  *
  * ■ 날짜를 누르면
  *
- * 달력 밑에서 그날 칸이 펴지고 대표 영상이 그 자리에서 재생된다. 영상이 여럿인 날은
- * 옆에 작은 그림으로 늘어놓아 바꿔 본다. 자세 분석·구간 보정은 그날 기록 화면에 있다.
+ * 달력 밑에서 그날 칸이 펴진다 — 그날 남긴 투구(종류 · 투구수 · 강도 · 구속 · 메모)와,
+ * 영상이 있으면 대표 영상이 그 자리에서 재생된다. 영상이 여럿인 날은 옆에 작은 그림으로
+ * 늘어놓아 바꿔 본다. 남기기 · 고치기 · 자세 분석은 그날 기록 화면(/pitch-log/<날짜>)에 있다.
  */
 
 const WEEKDAYS = ['일', '월', '화', '수', '목', '금', '토'];
@@ -54,9 +61,15 @@ function spokenDate(key: string) {
 
 type Day = {
   key: string;
-  /** 그날 영상 — 남긴 차례대로 */
+  /** 그날 영상 — 남긴 차례대로. 영상 없이 남긴 날은 빈 배열 */
   paths: string[];
   logs: VideoLog[];
+  /** 그날 던진 공 수(쉬는 날 기록은 빼고) */
+  pitches: number;
+  /** 그날 가장 높은 강도 — 칸의 색 */
+  intensity: number;
+  /** 쉬는 날로만 남긴 날 */
+  rest: boolean;
 };
 
 /** 칸의 그림 상태 — 주소 / 없음(뜨는 중) / 물어보는 중(undefined) */
@@ -76,16 +89,29 @@ export function VideoCalendar({
   /** 처음에 열어 둘 날(YYYY-MM-DD) — 홈에서 '영상 탭에서 보기'로 들어온 경우 */
   initialDate: string | null;
 }) {
-  /* 날짜별 영상. 쉬는 날로 남긴 기록은 뺀다(영상이 붙을 일이 없지만 혹시 몰라). */
+  /*
+   * 날짜별 기록 — 영상이 없는 날도. 쉬는 날로 남긴 기록의 영상은 세지 않는다(붙을 일이
+   * 없지만 혹시 몰라).
+   */
   const days = useMemo(() => {
     const map = new Map<string, Day>();
     for (const log of logs) {
-      if (log.sessionType === REST_SESSION_TYPE || log.videoPaths.length === 0)
-        continue;
       const key = log.date.slice(0, 10);
-      const day = map.get(key) ?? { key, paths: [], logs: [] };
-      day.paths.push(...log.videoPaths);
+      const day = map.get(key) ?? {
+        key,
+        paths: [],
+        logs: [],
+        pitches: 0,
+        intensity: 0,
+        rest: true,
+      };
       day.logs.push(log);
+      if (log.sessionType !== REST_SESSION_TYPE) {
+        day.rest = false;
+        day.pitches += log.pitchCount;
+        day.intensity = Math.max(day.intensity, log.intensity);
+        day.paths.push(...log.videoPaths);
+      }
       map.set(key, day);
     }
     return map;
@@ -101,7 +127,7 @@ export function VideoCalendar({
 
   const repOf = (key: string) => {
     const day = days.get(key);
-    if (!day) return null;
+    if (!day || day.paths.length === 0) return null;
     const pick = chosen[key] ?? featured[key];
     return pick && day.paths.includes(pick) ? pick : day.paths[0];
   };
@@ -132,7 +158,7 @@ export function VideoCalendar({
     });
   };
 
-  /* 처음 펼 달 — 들어온 날짜 → 들어온 달 → 가장 최근에 영상을 올린 달 → 이번 달 */
+  /* 처음 펼 달 — 들어온 날짜 → 들어온 달 → 가장 최근에 기록을 남긴 달 → 이번 달 */
   const [month, setMonth] = useState(() => {
     const latest = [...days.keys()].sort().at(-1);
     const from =
@@ -167,6 +193,7 @@ export function VideoCalendar({
     for (const key of [...days.keys()].sort()) {
       if (!key.startsWith(monthKey)) continue;
       const day = days.get(key)!;
+      if (day.paths.length === 0) continue;
       const pick = chosen[key] ?? featured[key];
       reps.push(pick && day.paths.includes(pick) ? pick : day.paths[0]);
     }
@@ -229,19 +256,24 @@ export function VideoCalendar({
       out[key] = {
         intensity: null,
         label: '',
-        spoken: `영상 ${day.paths.length}개, ${kinds}`,
+        spoken: day.rest
+          ? '쉬는 날'
+          : `${kinds} ${day.pitches}구, 강도 ${day.intensity}${
+              day.paths.length > 0 ? `, 영상 ${day.paths.length}개` : ''
+            }`,
       };
     }
     return out;
   }, [days]);
 
-  const monthCount = useMemo(
-    () =>
-      [...days.values()]
-        .filter((d) => d.key.startsWith(monthKey))
-        .reduce((n, d) => n + d.paths.length, 0),
-    [days, monthKey]
-  );
+  /* 이 달에 던진 날 · 올린 영상 — 달력 밑에 적는다 */
+  const monthStats = useMemo(() => {
+    const inMonth = [...days.values()].filter((d) => d.key.startsWith(monthKey));
+    return {
+      pitchDays: inMonth.filter((d) => !d.rest).length,
+      videos: inMonth.reduce((n, d) => n + d.paths.length, 0),
+    };
+  }, [days, monthKey]);
 
   /* 날짜를 누르면 밑 칸이 그날로 — 고른 날을 다시 누르면 닫는다 */
   const panelRef = useRef<HTMLDivElement>(null);
@@ -288,14 +320,47 @@ export function VideoCalendar({
         </>
       );
     }
+    /* 영상 없이 남긴 날 — 홈 캘린더처럼 강도로 칠하고 투구수를 적는다. 쉬는 날은 점선. */
+    if (day.paths.length === 0) {
+      return (
+        <>
+          <span
+            aria-hidden
+            className={`absolute inset-0 ${
+              day.rest
+                ? 'm-1 rounded-md border border-dashed border-line-strong bg-surface-2'
+                : intensityClass(day.intensity)
+            }`}
+          />
+          <span
+            className={`absolute left-1.5 top-1 text-xs font-medium ${
+              !day.rest && day.intensity >= 8 ? 'text-white' : 'text-ink'
+            } ${cell.isToday ? 'font-bold underline underline-offset-2' : ''}`}
+          >
+            {cell.day}
+          </span>
+          <span
+            className={`absolute inset-x-0 bottom-1.5 truncate px-1 text-center text-[11px] font-semibold leading-none sm:bottom-2 sm:text-xs ${
+              day.rest ? 'text-muted' : day.intensity >= 8 ? 'text-white' : 'text-ink'
+            }`}
+          >
+            {day.rest ? '휴식' : `${day.pitches}구`}
+          </span>
+        </>
+      );
+    }
     const rep = repOf(cell.key)!;
     return (
       <>
         <Thumb url={thumbs[rep]} failed={failed.has(rep)} zoom />
-        {/* 날짜 숫자가 밝은 장면 위에서도 읽히게 위쪽만 살짝 어둡게 */}
+        {/* 날짜와 투구수가 밝은 장면 위에서도 읽히게 위아래만 살짝 어둡게 */}
         <span
           aria-hidden
           className="pointer-events-none absolute inset-x-0 top-0 h-9 bg-gradient-to-b from-black/55 to-transparent"
+        />
+        <span
+          aria-hidden
+          className="pointer-events-none absolute inset-x-0 bottom-0 h-8 bg-gradient-to-t from-black/60 to-transparent"
         />
         <span
           className={`absolute left-1.5 top-1 text-xs font-bold text-white drop-shadow ${
@@ -303,6 +368,9 @@ export function VideoCalendar({
           }`}
         >
           {cell.day}
+        </span>
+        <span className="absolute bottom-1 left-1.5 text-[11px] font-semibold leading-none text-white drop-shadow sm:text-xs">
+          {day.pitches}구
         </span>
         {day.paths.length > 1 && (
           <span className="absolute bottom-1 right-1 inline-flex items-center gap-0.5 rounded-md bg-black/60 px-1 py-0.5 text-[10px] font-semibold leading-none text-white">
@@ -336,10 +404,11 @@ export function VideoCalendar({
           marks={marks}
           renderDay={renderDay}
           size="large"
-          emptySpoken="영상 없음"
+          emptySpoken="기록 없음"
         >
           <span>
-            이 달 영상 <b className="font-semibold text-ink">{monthCount}</b>개
+            이 달 투구 <b className="font-semibold text-ink">{monthStats.pitchDays}</b>
+            일 · 영상 <b className="font-semibold text-ink">{monthStats.videos}</b>개
           </span>
           <span className="text-line-strong">·</span>
           <span>
@@ -423,7 +492,11 @@ function Thumb({
 }
 
 /**
- * 고른 날 — 대표 영상을 그 자리에서 재생한다.
+ * 고른 날 — 그날 남긴 투구, 그리고 영상이 있으면 대표 영상을 그 자리에서 재생한다.
+ *
+ * 위에 그날 기록(종류 · 투구수 · 강도 · 최고 구속 · 메모)을 한 줄씩 적는다. 영상을 볼 때
+ * 알고 싶은 것이 대개 그 숫자라서 영상 위에 둔다. 남기기 · 고치기 · 자세 분석은 그날
+ * 기록 화면에서 한다 — 머리의 링크로 간다.
  *
  * 영상이 여럿이면 옆에 작은 그림으로 늘어놓아 바꿔 본다. 보다가 멈춘 장면을 칸의
  * 그림으로 쓸 수 있다('이 장면을 썸네일로'). 대표가 아닌 영상에서 누르면 그 영상이
@@ -452,24 +525,26 @@ function DayPanel({
   const player = useRef<HTMLVideoElement>(null);
   const [status, setStatus] = useState<'idle' | 'saving' | 'saved' | 'failed'>('idle');
 
-  if (!day || !playing) {
+  /* 아무것도 남기지 않은 날 — 그날 기록 화면으로 가서 남긴다 */
+  if (!day) {
     return (
       <section className="motion-safe:animate-fade-in rounded-2xl border border-dashed border-line px-5 py-8 text-center">
-        <p className="text-sm text-muted">{spokenDate(date)}에는 올린 영상이 없어요.</p>
+        <p className="text-sm text-muted">{spokenDate(date)}에는 남긴 투구가 없어요.</p>
         <Link
           href={`/pitch-log/${date}`}
-          className="mt-2 inline-flex items-center gap-1 rounded-lg px-2 py-1 text-sm font-semibold text-sky transition-colors hover:bg-sky-tint"
+          className="mt-2 inline-flex items-center gap-1 rounded-lg px-2 py-1 text-sm font-semibold text-sky-strong transition-colors hover:bg-sky-tint"
         >
-          그날 기록에서 영상 올리기
-          <ArrowRight aria-hidden className="h-3.5 w-3.5" />
+          <Plus aria-hidden className="h-3.5 w-3.5" />이 날 투구 남기기
         </Link>
       </section>
     );
   }
 
-  const url = urls[playing];
-  const log = day.logs.find((l) => l.videoPaths.includes(playing));
-  const index = day.paths.indexOf(playing);
+  const url = playing ? urls[playing] : undefined;
+  const log = playing
+    ? day.logs.find((l) => l.videoPaths.includes(playing))
+    : undefined;
+  const index = playing ? day.paths.indexOf(playing) : -1;
 
   async function takeThisScene() {
     const video = player.current;
@@ -498,13 +573,18 @@ function DayPanel({
       <header className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 border-b border-line px-5 py-3">
         <h3 className="text-sm font-bold text-ink">
           {spokenDate(date)}
-          <span className="font-normal text-muted"> · 영상 {day.paths.length}개</span>
+          <span className="font-normal text-muted">
+            {day.rest ? ' · 쉬는 날' : ` · ${day.pitches}구`}
+            {day.paths.length > 0 && ` · 영상 ${day.paths.length}개`}
+          </span>
         </h3>
         <Link
           href={`/pitch-log/${date}`}
-          className="group inline-flex items-center gap-1 rounded-lg px-2 py-1 text-sm font-semibold text-sky transition-colors hover:bg-sky-tint hover:text-sky-strong"
+          className="group inline-flex items-center gap-1 rounded-lg px-2 py-1 text-sm font-semibold text-sky-strong transition-colors hover:bg-sky-tint"
         >
-          그날 기록에서 자세 분석
+          {day.paths.length > 0
+            ? '기록 고치기 · 자세 분석'
+            : '기록 고치기 · 영상 올리기'}
           <ArrowRight
             aria-hidden
             className="h-3.5 w-3.5 transition-transform duration-150 group-hover:translate-x-0.5"
@@ -512,129 +592,170 @@ function DayPanel({
         </Link>
       </header>
 
-      <div
-        className={`grid gap-4 p-4 sm:p-5 ${
-          day.paths.length > 1 ? 'lg:grid-cols-[minmax(0,1fr)_14rem]' : ''
-        }`}
-      >
-        <div className="min-w-0 space-y-3">
-          <div className="overflow-hidden rounded-xl bg-shade">
-            {url ? (
-              /*
-                crossOrigin — 멈춘 장면을 그대로 뜨려면(frameOf) 다른 주소의 영상이라도
-                캔버스에 그릴 수 있어야 한다. 저장소는 그것을 허락한다.
-              */
-              <video
-                key={url}
-                ref={player}
-                src={url}
-                crossOrigin="anonymous"
-                controls
-                playsInline
-                preload="metadata"
-                onPlay={() => setStatus('idle')}
-                className="motion-safe:animate-fade-in block aspect-video max-h-[65vh] w-full object-contain"
-              />
+      {/* 그날 남긴 투구 — 한 건에 한 줄 */}
+      <ul className="divide-y divide-line border-b border-line">
+        {day.logs.map((l, i) => (
+          <li
+            key={l.id}
+            className="motion-safe:animate-row-in flex flex-wrap items-baseline gap-x-3 gap-y-1 px-5 py-2.5"
+            style={{ '--row': i } as React.CSSProperties}
+          >
+            <span className="rounded-md bg-surface-2 px-1.5 py-0.5 text-[11px] font-semibold text-muted">
+              {l.sessionType}
+            </span>
+            {l.sessionType === REST_SESSION_TYPE ? (
+              <span className="text-sm text-muted">쉬는 날로 남김</span>
             ) : (
-              <div className="flex aspect-video w-full items-center justify-center text-xs text-white/60">
-                영상을 불러오는 중…
-              </div>
+              <span className="text-sm text-ink">
+                <b className="font-semibold">{l.pitchCount}구</b>
+                <span className="text-muted"> · 강도 {l.intensity}</span>
+                {l.maxVelocity != null && (
+                  <span className="text-muted">
+                    {' '}
+                    · 최고 {formatSpeed(l.maxVelocity, speedUnit) ?? '—'}
+                  </span>
+                )}
+              </span>
             )}
-          </div>
+            {l.memo && (
+              <p className="basis-full line-clamp-2 text-xs leading-relaxed text-muted">
+                {l.memo}
+              </p>
+            )}
+          </li>
+        ))}
+      </ul>
 
-          <div className="flex flex-wrap items-center gap-2">
-            <button
-              type="button"
-              onClick={takeThisScene}
-              disabled={!url || status === 'saving'}
-              className="inline-flex min-h-10 items-center gap-1.5 rounded-xl border border-line-strong bg-surface px-3 text-sm font-medium text-ink transition-colors hover:border-sky hover:text-sky disabled:cursor-wait disabled:opacity-60"
-            >
-              {status === 'saving' ? (
-                <Loader2 aria-hidden className="h-4 w-4 animate-spin" />
+      {!playing || day.paths.length === 0 ? (
+        !day.rest && (
+          <p className="px-5 py-4 text-xs text-muted">
+            이 날은 올린 영상이 없어요. 기록을 고칠 때 영상을 함께 올릴 수 있어요.
+          </p>
+        )
+      ) : (
+        <div
+          className={`grid gap-4 p-4 sm:p-5 ${
+            day.paths.length > 1 ? 'lg:grid-cols-[minmax(0,1fr)_14rem]' : ''
+          }`}
+        >
+          <div className="min-w-0 space-y-3">
+            <div className="overflow-hidden rounded-xl bg-shade">
+              {url ? (
+                /*
+                  crossOrigin — 멈춘 장면을 그대로 뜨려면(frameOf) 다른 주소의 영상이라도
+                  캔버스에 그릴 수 있어야 한다. 저장소는 그것을 허락한다.
+                */
+                <video
+                  key={url}
+                  ref={player}
+                  src={url}
+                  crossOrigin="anonymous"
+                  controls
+                  playsInline
+                  preload="metadata"
+                  onPlay={() => setStatus('idle')}
+                  className="motion-safe:animate-fade-in block aspect-video max-h-[65vh] w-full object-contain"
+                />
               ) : (
-                <Camera aria-hidden className="h-4 w-4" />
+                <div className="flex aspect-video w-full items-center justify-center text-xs text-white/60">
+                  영상을 불러오는 중…
+                </div>
               )}
-              이 장면을 썸네일로
-            </button>
-            {day.paths.length > 1 && playing !== rep && (
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2">
               <button
                 type="button"
-                onClick={() => onFeature(playing)}
-                className="inline-flex min-h-10 items-center gap-1.5 rounded-xl border border-line-strong bg-surface px-3 text-sm font-medium text-ink transition-colors hover:border-sky hover:text-sky"
+                onClick={takeThisScene}
+                disabled={!url || status === 'saving'}
+                className="inline-flex min-h-10 items-center gap-1.5 rounded-xl border border-line-strong bg-surface px-3 text-sm font-medium text-ink transition-colors hover:border-sky hover:text-sky disabled:cursor-wait disabled:opacity-60"
               >
-                <Star aria-hidden className="h-4 w-4" />이 영상을 대표로
+                {status === 'saving' ? (
+                  <Loader2 aria-hidden className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Camera aria-hidden className="h-4 w-4" />
+                )}
+                이 장면을 썸네일로
               </button>
+              {day.paths.length > 1 && playing !== rep && (
+                <button
+                  type="button"
+                  onClick={() => onFeature(playing)}
+                  className="inline-flex min-h-10 items-center gap-1.5 rounded-xl border border-line-strong bg-surface px-3 text-sm font-medium text-ink transition-colors hover:border-sky hover:text-sky"
+                >
+                  <Star aria-hidden className="h-4 w-4" />이 영상을 대표로
+                </button>
+              )}
+              <span aria-live="polite" className="text-xs">
+                {status === 'saved' && (
+                  <span className="motion-safe:animate-fade-in inline-flex items-center gap-1 text-ok">
+                    <Check aria-hidden className="h-3.5 w-3.5" />
+                    칸의 그림을 이 장면으로 바꿨어요
+                  </span>
+                )}
+                {status === 'failed' && (
+                  <span className="motion-safe:animate-fade-in text-danger">
+                    이 브라우저에서 장면을 뜨지 못했어요. 다른 브라우저에서 해 보세요.
+                  </span>
+                )}
+              </span>
+            </div>
+
+            {/* 한 날에 기록이 여럿이면 지금 영상이 어느 기록의 것인지 */}
+            {log && day.logs.length > 1 && (
+              <p className="text-xs text-muted">
+                {day.paths.length > 1 && `영상 ${index + 1} · `}
+                {log.sessionType} · {log.pitchCount}구 · 강도 {log.intensity}
+              </p>
             )}
-            <span aria-live="polite" className="text-xs">
-              {status === 'saved' && (
-                <span className="motion-safe:animate-fade-in inline-flex items-center gap-1 text-ok">
-                  <Check aria-hidden className="h-3.5 w-3.5" />
-                  칸의 그림을 이 장면으로 바꿨어요
-                </span>
-              )}
-              {status === 'failed' && (
-                <span className="motion-safe:animate-fade-in text-danger">
-                  이 브라우저에서 장면을 뜨지 못했어요. 다른 브라우저에서 해 보세요.
-                </span>
-              )}
-            </span>
           </div>
 
-          {log && (
-            <p className="text-xs text-muted">
-              {day.paths.length > 1 && `영상 ${index + 1} · `}
-              {log.sessionType} · {log.pitchCount}구 · 강도 {log.intensity}
-              {log.maxVelocity != null &&
-                ` · 최고 ${formatSpeed(log.maxVelocity, speedUnit) ?? '—'}`}
-            </p>
+          {day.paths.length > 1 && (
+            <ul className="grid grid-cols-2 content-start gap-2 lg:grid-cols-1">
+              {day.paths.map((path, i) => {
+                const on = path === playing;
+                return (
+                  <li
+                    key={path}
+                    className="motion-safe:animate-row-in"
+                    style={{ '--row': i } as React.CSSProperties}
+                  >
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setPlaying(path);
+                        setStatus('idle');
+                      }}
+                      aria-pressed={on}
+                      aria-label={`영상 ${i + 1}${path === rep ? ', 대표' : ''}`}
+                      className={`group block w-full overflow-hidden rounded-lg border text-left transition-colors ${
+                        on
+                          ? 'border-sky ring-1 ring-sky'
+                          : 'border-line hover:border-line-strong'
+                      }`}
+                    >
+                      <span className="relative block aspect-video bg-surface-2">
+                        <Thumb url={thumbs[path]} failed={failed.has(path)} zoom />
+                      </span>
+                      <span className="flex items-center justify-between gap-1 px-2 py-1.5 text-xs">
+                        <span className={on ? 'font-semibold text-ink' : 'text-muted'}>
+                          영상 {i + 1}
+                        </span>
+                        {path === rep && (
+                          <span className="inline-flex items-center gap-0.5 font-semibold text-sky-strong">
+                            <Star aria-hidden className="h-3 w-3 fill-current" />
+                            대표
+                          </span>
+                        )}
+                      </span>
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
           )}
         </div>
-
-        {day.paths.length > 1 && (
-          <ul className="grid grid-cols-2 content-start gap-2 lg:grid-cols-1">
-            {day.paths.map((path, i) => {
-              const on = path === playing;
-              return (
-                <li
-                  key={path}
-                  className="motion-safe:animate-row-in"
-                  style={{ '--row': i } as React.CSSProperties}
-                >
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setPlaying(path);
-                      setStatus('idle');
-                    }}
-                    aria-pressed={on}
-                    aria-label={`영상 ${i + 1}${path === rep ? ', 대표' : ''}`}
-                    className={`group block w-full overflow-hidden rounded-lg border text-left transition-colors ${
-                      on
-                        ? 'border-sky ring-1 ring-sky'
-                        : 'border-line hover:border-line-strong'
-                    }`}
-                  >
-                    <span className="relative block aspect-video bg-surface-2">
-                      <Thumb url={thumbs[path]} failed={failed.has(path)} zoom />
-                    </span>
-                    <span className="flex items-center justify-between gap-1 px-2 py-1.5 text-xs">
-                      <span className={on ? 'font-semibold text-ink' : 'text-muted'}>
-                        영상 {i + 1}
-                      </span>
-                      {path === rep && (
-                        <span className="inline-flex items-center gap-0.5 font-semibold text-sky">
-                          <Star aria-hidden className="h-3 w-3 fill-current" />
-                          대표
-                        </span>
-                      )}
-                    </span>
-                  </button>
-                </li>
-              );
-            })}
-          </ul>
-        )}
-      </div>
+      )}
     </section>
   );
 }

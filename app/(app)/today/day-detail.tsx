@@ -66,7 +66,7 @@ function tabLink(
       /* 영상 캘린더가 그날을 열어 둔 채로 시작한다 */
       return {
         href: `/videos?date=${date}`,
-        label: opts.empty ? '영상 탭으로' : '영상 탭에서 보기',
+        label: opts.empty ? '투구 기록으로' : '투구 기록에서 보기',
       };
     case 'checkin':
       /* 체크인은 따로 탭이 없다 — 오늘 것은 오른쪽 위 알림(종)의 체크인 창에서 고친다 */
@@ -508,7 +508,7 @@ function CheckinDetail({ c, isToday }: { c: DayDetail['checkin']; isToday: boole
 
 /* ─────────────────────────── 영상 ─────────────────────────── */
 
-/** 두 개까지 그 자리에서 튼다. 더 있으면 영상 탭에서. */
+/** 두 개까지 그 자리에서 튼다. 더 있으면 투구 기록 탭에서. */
 function VideoDetail({
   videos,
   featured,
@@ -536,7 +536,7 @@ function VideoDetail({
       </div>
       {videos.length > shown.length && (
         <p className="text-xs text-muted">
-          외 {videos.length - shown.length}개는 영상 탭에서 볼 수 있어요.
+          외 {videos.length - shown.length}개는 투구 기록에서 볼 수 있어요.
         </p>
       )}
     </div>

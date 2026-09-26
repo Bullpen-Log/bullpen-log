@@ -19,7 +19,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import { quietRefresh } from '@/lib/quiet-refresh';
 import { REST_SESSION_TYPE } from '@/lib/session-type';
 import type { NavGroup, NavItem } from '@/lib/nav';
-import { DESK_MEDIA, MORE_HREF } from '@/lib/nav';
+import { DESK_MEDIA, MORE_HREF, NAV_ALSO } from '@/lib/nav';
 import { BaseballMark } from '@/components/logo';
 import { Modal } from '@/components/modal';
 import { ProfilePanel, type ProfileData } from '@/components/profile-panel';
@@ -44,10 +44,14 @@ import {
  */
 function useIsActive() {
   const pathname = usePathname();
-  /* 메뉴 주소에 ?칸이 붙을 수 있다(트레이닝 — lib/training-part.ts) — 경로만 본다 */
+  const under = (path: string) => pathname === path || pathname.startsWith(`${path}/`);
+  /*
+   * 메뉴 주소에 ?칸이 붙을 수 있다(트레이닝 — lib/training-part.ts) — 경로만 본다.
+   * 그 탭에 속하는 다른 주소도 본다(투구 기록 ← 날짜 화면, lib/nav.ts 의 NAV_ALSO).
+   */
   return (href: string) => {
     const path = href.split('?')[0];
-    return pathname === path || pathname.startsWith(`${path}/`);
+    return under(path) || (NAV_ALSO[path] ?? []).some(under);
   };
 }
 

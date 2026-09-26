@@ -4,11 +4,12 @@ import { toDateKey } from '@/lib/pitch-stats';
 import { VideosClient } from './videos-client';
 
 /**
- * 투구 영상 — 올린 영상을 모아 보고, 두 개를 골라 견주는 곳.
+ * 투구 기록 — 남긴 투구와 그날 영상을 한곳에서 보고, 영상 둘을 골라 견주는 곳.
  *
- * 한동안 투구 일지 안의 탭 하나였다. 그런데 이 앱에서 영상은 곁다리가 아니라
- * 폼을 고치는 근거다 — 날짜를 아는 기록보다 오히려 더 자주 열게 된다. 탭 안에
- * 두면 투구 일지를 거쳐야 닿고, 무엇보다 밖에서 보이지 않는다.
+ * 한동안 영상만 모은 '투구 영상' 탭이었다. 그런데 영상을 볼 때 알고 싶은 것은 그날
+ * 몇 구를 어떤 강도로 던졌는가였고, 기록을 볼 때도 그날 영상이 곁에 있어야 했다.
+ * 이제 영상이 없는 날의 기록까지 한 캘린더 · 한 목록에 나온다. 기록을 남기고 고치는
+ * 것은 날짜 화면(/pitch-log/<날짜>)이 맡고, 메뉴에서는 그 화면도 이 탭에 속한다.
  *
  * 영상이 여럿인 날은 여기서 그날의 대표를 고른다. 홈 캘린더에서 날짜를 누르면 그
  * 영상이 뜬다.
@@ -26,16 +27,17 @@ export default async function VideosPage({
   const date = readDateParam(params.date);
 
   /*
-   * 영상이 붙은 기록만, 기간을 자르지 않고 전부 읽는다.
+   * 기록을 기간을 자르지 않고 전부 읽는다 — 영상이 없는 날도.
    *
-   * 투구 일지는 열세 달만 읽는다 — 달력은 한 번에 한 달만 보여주니 그만큼이면
+   * 홈 캘린더는 열세 달만 읽는다 — 달력은 한 번에 한 달만 보여주니 그만큼이면
    * 되고, 몇 해 쓴 사람의 천 건을 매번 넘길 이유가 없다. 여기는 반대다.
-   * 2분할 비교는 예전 폼과 지금을 견주는 것이라 몇 해 전 영상이야말로 필요하다.
-   * 영상은 한 기록에 최대 두 개고 올리는 사람이 많지 않아 다 읽어도 작다.
+   * 2분할 비교는 예전 폼과 지금을 견주는 것이라 몇 해 전 영상이야말로 필요하고,
+   * 목록은 기록 전체를 훑는 자리다. 한 줄이 숫자 몇 개와 짧은 메모라, 매일 3년을
+   * 남겨도 천 줄 남짓이다.
    */
   const [logs, featured] = await Promise.all([
     prisma.pitchLog.findMany({
-      where: { userId: user.id, NOT: { videoPaths: { isEmpty: true } } },
+      where: { userId: user.id },
       /*
        * 오래된 순 — 비교 화면의 영상 고르개가 이 순서로 늘어놓는다. 같은 날은 남긴
        * 차례로 — 대표를 안 고른 날은 그날 처음 올린 영상이 대표라, 홈 캘린더와 같은
@@ -49,6 +51,7 @@ export default async function VideosPage({
         pitchCount: true,
         intensity: true,
         maxVelocity: true,
+        memo: true,
         videoPaths: true,
       },
     }),
@@ -67,8 +70,14 @@ export default async function VideosPage({
       )}
       initialMonth={month ?? (date ? date.slice(0, 7) : null)}
       initialDate={date}
+      today={toDateKey(now())}
     />
   );
+}
+
+/** 렌더 중에 현재 시각을 직접 읽지 않도록 함수로 감싼다. */
+function now() {
+  return new Date();
 }
 
 /** ?date=2026-08-30 처럼 넘어온 값만 받는다 */

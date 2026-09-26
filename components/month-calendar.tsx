@@ -44,8 +44,8 @@ export type DayCell = {
   isFuture: boolean;
 };
 
-/** 강도에 따라 칸 배경 진하기를 다르게 준다. */
-function intensityClass(intensity: number) {
+/** 강도에 따라 칸 배경 진하기를 다르게 준다. 투구 기록 캘린더(app/(app)/videos)도 같은 색을 쓴다. */
+export function intensityClass(intensity: number) {
   if (intensity >= 8) return 'bg-sky/70 text-white';
   if (intensity >= 5) return 'bg-sky/40 text-ink';
   return 'bg-sky/15 text-ink';
