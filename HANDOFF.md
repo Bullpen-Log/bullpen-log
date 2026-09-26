@@ -69,3 +69,14 @@ Claude 로 작업을 시작하면 저절로 읽힌다. 규칙은 `AGENTS.md` 6�
   - `lib/nav.ts` — '트레이닝' 두 곳의 href 를 `TRAINING_LAST_HREF`(`/training?view=last`)로.
   - `components/app-shell.tsx` 의 `useIsActive` — 메뉴 주소에 `?` 가 붙어도 경로만 보고
     지금 탭을 켠다(`href.split('?')[0]`).
+
+### 암케어 화면 다듬기 — 글 줄이기 · 따라하기 · 색 (사용자 요청)
+
+받은 뒤 할 일은 없다(DB·패키지 그대로). 같이 쓰는 파일을 고친 것만 적는다.
+
+- `app/globals.css` 맨 끝에 `.finish-pop`(`@keyframes armcare-pop`, 체크가 톡 튀어나오는
+  움직임)을 더했다. 움직임 줄이기를 켠 사람에게는 움직이지 않는다.
+- `components/muscle-chips.tsx` — 칩마다 그 근육이 속한 부위의 색 점, 그리고 `max`(넘치면
+  `+N`) 옵션. 라이브러리 운동 상세의 '키우는 근육'(`MuscleRow`)에도 색 점이 보인다.
+- 새 화면 `/armcare/play/today` · `/armcare/play/<내 루틴 id>`(루틴 따라하기)는 운동 판과
+  같은 `(session)` 틀을 쓴다 — 메뉴 없는 전체 화면이다.

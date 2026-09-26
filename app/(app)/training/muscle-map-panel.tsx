@@ -151,6 +151,11 @@ export function MuscleMapPanel({
                     : 'border-line bg-surface text-ink hover:border-sky'
               }`}
             >
+              <span
+                aria-hidden
+                className="mr-1.5 inline-block h-2 w-2 rounded-full align-middle"
+                style={{ backgroundColor: a.color }}
+              />
               {a.label}
               {log && level === 'low' && ' · 챙길 곳'}
             </button>
@@ -161,11 +166,10 @@ export function MuscleMapPanel({
       <div className="space-y-2.5 rounded-2xl border border-line bg-surface px-4 py-4">
         {!area ? (
           <>
-            <p className="text-[15px] font-bold text-ink">던지는 팔의 암케어 근육</p>
-            <p className="text-[13px] leading-relaxed break-keep text-muted">
+            <p className="text-[13px] break-keep text-muted">
               {log
-                ? '최근 2주 동안 암케어로 체크한 운동을 부위마다 셌습니다. 노란 곳이 적게 챙긴 부위입니다(0~1번).'
-                : `붉은색이 암케어로 키우는 근육 ${ARMCARE_MUSCLES.length}개입니다. 근육을 누르거나 위의 부위를 고르면 그 부위만 또렷하게 남고, 한 번 더 누르면 그 근육을 자세히 봅니다.`}
+                ? '최근 2주에 챙긴 횟수예요 — 노란 곳이 적게 챙긴 부위.'
+                : `암케어 근육 ${ARMCARE_MUSCLES.length}개 · 누르면 부위, 한 번 더 누르면 근육`}
             </p>
             {log && (
               <p className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted">
@@ -186,10 +190,15 @@ export function MuscleMapPanel({
           />
         ) : (
           <>
-            <p className="text-[15px] font-bold text-ink">{area.label}</p>
-            <p className="text-[13px] leading-relaxed break-keep text-muted">
-              {area.role}
+            <p className="flex items-center gap-2 text-[15px] font-bold text-ink">
+              <span
+                aria-hidden
+                className="h-2.5 w-2.5 rounded-full"
+                style={{ backgroundColor: area.color }}
+              />
+              {area.label}
             </p>
+            <p className="text-[13px] break-keep text-muted">{area.role}</p>
             <div className="flex flex-wrap gap-1.5">
               {ARMCARE_MUSCLES.filter((m) => m.area === area.key).map((m) => (
                 <button
@@ -202,9 +211,16 @@ export function MuscleMapPanel({
                 </button>
               ))}
             </div>
-            <p className="text-xs break-keep text-muted">
-              흔한 부상: {area.injuries.map((i) => i.name).join(' · ')}
-            </p>
+            <div className="flex flex-wrap gap-1.5">
+              {area.injuries.map((i) => (
+                <span
+                  key={i.name}
+                  className="rounded-full border border-warn-line bg-warn-bg px-2.5 py-0.5 text-xs font-semibold text-warn"
+                >
+                  {i.name}
+                </span>
+              ))}
+            </div>
             {log && (
               <p
                 className={`text-xs font-semibold ${
@@ -214,8 +230,6 @@ export function MuscleMapPanel({
                 }`}
               >
                 최근 2주 {counts[area.key] ?? 0}번 챙김
-                {careLevel(counts[area.key] ?? 0) === 'low' &&
-                  ' — 이번 주에 먼저 챙겨 보세요'}
               </p>
             )}
             <ShowAreaButton label={area.label} onClick={() => onShowArea(area.key)} />
@@ -223,8 +237,8 @@ export function MuscleMapPanel({
         )}
       </div>
 
-      <p className="px-1 text-[11px] leading-relaxed break-keep text-muted">
-        3D 모델: Z-Anatomy · BodyParts3D (Fit Mit With 판) —{' '}
+      <p className="px-1 text-[11px] text-muted">
+        3D: Z-Anatomy · BodyParts3D ·{' '}
         <a
           href="https://creativecommons.org/licenses/by-sa/4.0/deed.ko"
           target="_blank"
@@ -232,16 +246,15 @@ export function MuscleMapPanel({
           className="underline underline-offset-2"
         >
           CC BY-SA 4.0
-        </a>
-        . 상체만 남겨 줄이고 색을 입혔습니다(
+        </a>{' '}
+        ·{' '}
         <a
           href="/models/ATTRIBUTION.txt"
           target="_blank"
           className="underline underline-offset-2"
         >
-          출처와 바꾼 점
+          출처
         </a>
-        ).
       </p>
     </section>
   );
@@ -288,11 +301,12 @@ function MuscleDetail({
   const parts = MUSCLE_MODEL[muscle]?.parts ?? {};
   const partNames = [...new Set(Object.values(parts))];
   const here = part ? parts[part] : null;
+  /* 주로 키우는 운동 먼저, 함께 쓰는 운동 뒤에 — 사진 줄로 */
   const primary = exercises.filter((ex) => ex.targetMuscles[0] === muscle);
   const other = exercises.filter(
     (ex) => ex.targetMuscles[0] !== muscle && ex.targetMuscles.includes(muscle)
   );
-  const shown = primary.slice(0, 5);
+  const shown = [...primary, ...other].slice(0, 8);
 
   return (
     <>
@@ -310,66 +324,71 @@ function MuscleDetail({
       {info && (
         <p className="text-[13px] font-semibold break-keep text-ink">{info.does}</p>
       )}
-      <dl className="grid grid-cols-[5.5em_1fr] gap-x-3 gap-y-1.5 text-[13px] leading-relaxed">
-        {info && (
-          <>
-            <dt className="font-semibold text-sky-strong">붙는 곳</dt>
-            <dd className="break-keep text-muted">{info.at}</dd>
-          </>
-        )}
-        {partNames.length > 1 && (
-          <>
-            <dt className="font-semibold text-sky-strong">이루는 근육</dt>
-            <dd className="break-keep text-muted">
-              {partNames.map((p, i) => (
-                <span key={p}>
-                  {i > 0 && ' · '}
-                  {p === here ? (
-                    <b className="rounded bg-sky-tint px-1 text-ink">{p}</b>
-                  ) : (
-                    p
-                  )}
-                </span>
-              ))}
-            </dd>
-          </>
-        )}
-        <dt className="font-semibold text-sky-strong">예방에 도움</dt>
-        <dd className="break-keep text-muted">
-          {info?.helps ?? '— 근거가 분명한 부상이 없어 적지 않습니다'}
-        </dd>
-      </dl>
-      <div className="space-y-1.5 border-t border-line pt-2.5">
-        <p className="text-xs font-semibold text-muted">
-          이 근육을 주로 키우는 운동 {primary.length}개
-          {other.length > 0 && ` · 함께 쓰는 운동 ${other.length}개`}
-        </p>
-        {shown.length > 0 ? (
-          <ul className="space-y-1.5">
-            {shown.map((ex) => (
-              <li
-                key={ex.id}
-                className="flex items-center justify-between gap-2 text-[13px]"
-              >
-                <span className="min-w-0 break-keep text-ink">
-                  {ex.title}
-                  {ex.prescription && (
-                    <span className="block text-[11px] text-muted">
-                      {ex.prescription}
-                    </span>
-                  )}
-                </span>
-                <AddToRoutine exerciseId={ex.id} title={ex.title} />
-              </li>
-            ))}
-          </ul>
-        ) : (
-          <p className="text-[13px] text-muted">
-            주로 키우는 운동은 아직 없습니다 — 함께 쓰는 운동으로 챙겨 주세요.
-          </p>
-        )}
-        <ShowAreaButton label={areaLabel} onClick={onShowArea} />
-      </div>
+
+      {/*
+        운동은 글 목록이 아니라 사진 줄로 — 무엇을 하는 운동인지 사진이 더 빨리 보인다.
+        글로 된 설명(붙는 곳 · 이루는 근육 · 예방)은 '자세히' 안에 둔다(2026-09-26).
+      */}
+      {shown.length > 0 ? (
+        <ul className="-mx-1 flex snap-x gap-2 overflow-x-auto px-1 pb-1">
+          {shown.map((ex) => (
+            <li key={ex.id} className="w-28 shrink-0 snap-start space-y-1">
+              {ex.thumbUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={ex.thumbUrl}
+                  alt=""
+                  loading="lazy"
+                  className="aspect-video w-full rounded-lg object-cover ring-1 ring-line"
+                />
+              ) : (
+                <span className="block aspect-video w-full rounded-lg bg-surface-2 ring-1 ring-line" />
+              )}
+              <span className="line-clamp-2 block text-xs leading-snug font-semibold break-keep text-ink">
+                {ex.title}
+              </span>
+              <AddToRoutine exerciseId={ex.id} title={ex.title} />
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="text-[13px] text-muted">이 근육을 쓰는 운동이 아직 없어요.</p>
+      )}
+
+      <details className="group rounded-xl bg-surface-2 px-3.5 py-2.5">
+        <summary className="cursor-pointer list-none text-xs font-semibold text-muted">
+          자세히 <span className="group-open:hidden">▾</span>
+          <span className="hidden group-open:inline">▴</span>
+        </summary>
+        <dl className="mt-2 grid grid-cols-[5.5em_1fr] gap-x-3 gap-y-1.5 text-[13px] leading-relaxed">
+          {info && (
+            <>
+              <dt className="font-semibold text-sky-strong">붙는 곳</dt>
+              <dd className="break-keep text-muted">{info.at}</dd>
+            </>
+          )}
+          {partNames.length > 1 && (
+            <>
+              <dt className="font-semibold text-sky-strong">이루는 근육</dt>
+              <dd className="break-keep text-muted">
+                {partNames.map((p, i) => (
+                  <span key={p}>
+                    {i > 0 && ' · '}
+                    {p === here ? (
+                      <b className="rounded bg-sky-tint px-1 text-ink">{p}</b>
+                    ) : (
+                      p
+                    )}
+                  </span>
+                ))}
+              </dd>
+            </>
+          )}
+          <dt className="font-semibold text-sky-strong">예방에 도움</dt>
+          <dd className="break-keep text-muted">{info?.helps ?? '—'}</dd>
+        </dl>
+      </details>
+      <ShowAreaButton label={areaLabel} onClick={onShowArea} />
     </>
   );
 }

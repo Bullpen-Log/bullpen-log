@@ -36,7 +36,14 @@ export type ArmcareArea = {
   joint: ArmcareJoint;
   /** 화면 이름 — '어깨 후방' */
   label: string;
-  /** 던질 때 이 부위가 하는 일 — 한 줄 */
+  /**
+   * 부위의 색 — 3D 근육 지도 · 부위 단추 · 부위 카드 · 근육 칩이 같은 색을 쓴다.
+   *
+   * 글을 읽지 않아도 색만 보고 어디 운동인지 알게 하려는 것이다(2026-09-26 사용자분:
+   * 화면에 글이 많으면 읽지 않고 포기한다). 어깨는 차가운 색, 팔꿈치는 따뜻한 색.
+   */
+  color: string;
+  /** 던질 때 이 부위가 하는 일 — 폰 화면 한 줄에 들어가게 짧게(2026-09-26) */
   role: string;
   /** 이 부위에 흔한 부상. 앞의 것이 더 흔하거나 더 크다. */
   injuries: readonly { name: string; desc: string }[];
@@ -56,7 +63,8 @@ export const ARMCARE_AREAS: readonly ArmcareArea[] = [
     key: 'shoulder-back',
     joint: '어깨',
     label: '어깨 후방',
-    role: '공을 놓은 뒤 앞으로 뻗어 나가는 팔을 붙잡아 멈춰 세웁니다(감속).',
+    color: '#3b82f6',
+    role: '공을 놓은 뒤 뻗는 팔을 멈춰 세워요(감속)',
     injuries: [
       {
         name: '회전근개 손상',
@@ -80,7 +88,8 @@ export const ARMCARE_AREAS: readonly ArmcareArea[] = [
     key: 'shoulder-front',
     joint: '어깨',
     label: '어깨 전방',
-    role: '팔을 안으로 돌려 공을 앞으로 뿌리고, 팔이 뒤로 젖혀질 때 어깨 앞을 막아 줍니다.',
+    color: '#8b5cf6',
+    role: '팔을 안으로 돌려 공을 뿌리고 어깨 앞을 막아요',
     injuries: [
       {
         name: '앞쪽 어깨 불안정',
@@ -100,7 +109,8 @@ export const ARMCARE_AREAS: readonly ArmcareArea[] = [
     key: 'shoulder-top',
     joint: '어깨',
     label: '어깨 상부',
-    role: '팔을 들어 올릴 때 위팔뼈를 관절 가운데에 붙잡아 둡니다.',
+    color: '#06b6d4',
+    role: '팔을 들 때 위팔뼈를 관절 가운데 붙잡아요',
     injuries: [
       {
         name: '극상근 힘줄염',
@@ -119,7 +129,8 @@ export const ARMCARE_AREAS: readonly ArmcareArea[] = [
     key: 'scapula',
     joint: '어깨',
     label: '견갑',
-    role: '날개뼈를 갈비뼈에 붙이고 팔을 따라 돌려, 어깨가 움직일 바탕을 만듭니다.',
+    color: '#10b981',
+    role: '날개뼈를 붙이고 돌려 어깨의 바탕을 만들어요',
     injuries: [
       {
         name: '견갑 운동 이상',
@@ -135,7 +146,8 @@ export const ARMCARE_AREAS: readonly ArmcareArea[] = [
     key: 'elbow-inner',
     joint: '팔꿈치',
     label: '팔꿈치 내측',
-    role: '공을 던질 때 팔꿈치 안쪽이 벌어지려는 힘을 인대와 함께 버팁니다.',
+    color: '#f97316',
+    role: '팔꿈치 안쪽이 벌어지는 힘을 인대와 함께 버텨요',
     injuries: [
       {
         name: '내측 측부인대(UCL) 손상',
@@ -159,7 +171,8 @@ export const ARMCARE_AREAS: readonly ArmcareArea[] = [
     key: 'elbow-outer',
     joint: '팔꿈치',
     label: '팔꿈치 외측',
-    role: '손목을 젖히고 아래팔을 바깥으로 돌립니다. 안쪽 근육과 짝을 이뤄 손목과 팔꿈치를 고르게 잡아 줍니다.',
+    color: '#eab308',
+    role: '손목을 젖히고 아래팔을 바깥으로 돌려요',
     injuries: [
       {
         name: '외측 상과염',
@@ -178,7 +191,8 @@ export const ARMCARE_AREAS: readonly ArmcareArea[] = [
     key: 'elbow-back',
     joint: '팔꿈치',
     label: '팔꿈치 후방',
-    role: '팔꿈치를 펴서 공을 앞으로 뿌리는 마지막 힘을 보탭니다.',
+    color: '#ec4899',
+    role: '팔꿈치를 펴 공을 뿌리는 마지막 힘을 보태요',
     injuries: [
       {
         name: '후방 충돌',
@@ -197,7 +211,8 @@ export const ARMCARE_AREAS: readonly ArmcareArea[] = [
     key: 'elbow-front',
     joint: '팔꿈치',
     label: '팔꿈치 전방',
-    role: '공을 놓은 뒤 팔꿈치가 끝까지 펴지는 것을 붙잡아 멈춰 세웁니다(감속).',
+    color: '#ef4444',
+    role: '공을 놓은 뒤 펴지는 팔꿈치를 멈춰 세워요(감속)',
     injuries: [
       {
         name: '이두근 힘줄염',

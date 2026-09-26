@@ -1,4 +1,4 @@
-import { helpsLine, muscleInfo } from '@/lib/armcare/anatomy';
+import { areaOfMuscle, helpsLine, muscleInfo } from '@/lib/armcare/anatomy';
 
 /**
  * 근육 이름 칩 — 암케어 운동이 키우는 근육.
@@ -12,28 +12,53 @@ import { helpsLine, muscleInfo } from '@/lib/armcare/anatomy';
 export function MuscleChips({
   muscles,
   highlight,
+  max,
 }: {
   muscles: string[];
   /** 이 근육들을 진하게 — 부위별 보강에서 그 부위의 근육을 짚는다. 안 주면 맨 앞만. */
   highlight?: readonly string[];
+  /**
+   * 이만큼만 보이고 나머지는 '+N' — 운동 줄처럼 좁은 곳에서 칩이 두세 줄로 늘어지지
+   * 않게(2026-09-26, 화면의 글 줄이기).
+   */
+  max?: number;
 }) {
   if (muscles.length === 0) return null;
+  const shown = max != null && muscles.length > max ? muscles.slice(0, max) : muscles;
+  const rest = muscles.length - shown.length;
   return (
     <span className="flex flex-wrap gap-1">
-      {muscles.map((m, i) => {
+      {shown.map((m, i) => {
         const strong = highlight ? highlight.includes(m) : i === 0;
+        /* 근육이 속한 부위의 색 점 — 색만 봐도 어디 근육인지 (lib/armcare/anatomy.ts) */
+        const color = areaOfMuscle(m)?.color;
         return (
           <span
             key={m}
             title={muscleInfo(m)?.does}
-            className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${
+            className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium ${
               strong ? 'bg-sky-tint text-sky-strong' : 'bg-surface-2 text-muted'
             }`}
           >
+            {color && (
+              <span
+                aria-hidden
+                className="h-1.5 w-1.5 rounded-full"
+                style={{ backgroundColor: color }}
+              />
+            )}
             {m}
           </span>
         );
       })}
+      {rest > 0 && (
+        <span
+          title={muscles.slice(shown.length).join(' · ')}
+          className="rounded-full bg-surface-2 px-2 py-0.5 text-[11px] font-medium text-muted"
+        >
+          +{rest}
+        </span>
+      )}
     </span>
   );
 }

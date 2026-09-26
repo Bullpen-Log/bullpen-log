@@ -90,9 +90,8 @@ export default async function RoutinePage({
         <h1 className="text-heading text-[1.75rem] leading-[1.15] text-ink sm:text-[2.25rem]">
           {isNew ? '새 루틴 만들기' : '루틴 고치기'}
         </h1>
-        <p className="text-sm leading-relaxed break-keep text-muted">
-          필요한 운동만 골라 담고 세트와 차례를 정하세요. 만든 루틴은 암케어의 루틴
-          칸에서 언제든 열어 체크하며 합니다.
+        <p className="text-sm break-keep text-muted">
+          운동을 담고 세트와 차례를 정하세요.
         </p>
       </div>
 

@@ -3791,6 +3791,40 @@ console.log('\n[암케어] 부위·근육 · 오늘의 루틴 · 부하');
     eccentricInRoutine.length === 0,
     eccentricInRoutine.map((ex) => ex.title).join(', ')
   );
+  /* 2026-09-26 사용자분 — 방식은 섞어서 하는 것이지 올라가는 단계가 아니다 */
+  const stepWords = ARMCARE_METHODS.filter((m) =>
+    /단계|다음 칸|한 칸|올라가|내려가/.test(
+      [m.short, m.what, m.why, m.load, m.stop, m.caution ?? ''].join(' ')
+    )
+  );
+  check(
+    '훈련 방식 글에 단계를 오르내리라는 말이 없다',
+    stepWords.length === 0,
+    stepWords.map((m) => m.label).join(', ')
+  );
+  /* 닫힌 카드는 한 줄 요약과 부담 점만 — 글이 길어지면 다시 읽지 않고 넘긴다 */
+  const longShort = ARMCARE_METHODS.filter((m) => !m.short || m.short.length > 30);
+  check(
+    '방식마다 한 줄 요약이 있고 한 줄에 들어간다',
+    longShort.length === 0,
+    longShort.map((m) => `${m.label} ${m.short.length}자`).join(', ')
+  );
+  const burdens = ARMCARE_METHODS.map((m) => m.burden);
+  check(
+    '부담 점은 1~5 이고 과부하 내리기가 가장 크다 (맞춤 루틴에서 빼는 까닭)',
+    burdens.every((b) => b >= 1 && b <= 5) &&
+      ARMCARE_METHODS.find((m) => m.key === 'eccentric')?.burden ===
+        Math.max(...burdens),
+    burdens.join(',')
+  );
+  /* 부위 색 — 3D 근육·부위 단추·근육 칩이 같은 색으로 부위를 가린다 */
+  const areaColors = ARMCARE_AREAS.map((a) => a.color);
+  check(
+    '부위마다 색이 있고 서로 다르다',
+    areaColors.every((c) => /^#[0-9a-f]{6}$/i.test(c)) &&
+      new Set(areaColors.map((c) => c.toLowerCase())).size === areaColors.length,
+    areaColors.join(', ')
+  );
 
   /* 1-2) 내 루틴 — 저장하는 쪽과 만들기 화면이 같은 규칙을 쓴다 */
   const tidy = normalizeRoutineInput({

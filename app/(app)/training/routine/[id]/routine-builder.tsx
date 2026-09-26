@@ -353,7 +353,7 @@ export function RoutineBuilder({
                           {e.view.prescription}
                         </span>
                       )}
-                      <MuscleChips muscles={e.view.targetMuscles} />
+                      <MuscleChips muscles={e.view.targetMuscles} max={2} />
                       <ExerciseBadges
                         bodyParts={[]}
                         intensity={e.view.intensity}

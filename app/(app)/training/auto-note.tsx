@@ -16,33 +16,40 @@ export function AutoNote({ auto }: { auto: AutoRecord }) {
   const focus = GOAL_FOCUSES.find((f) => f.key === auto.focus)?.label;
   return (
     <div className="space-y-2 rounded-xl border border-sky-soft/60 bg-sky-tint px-4 py-3">
-      <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs font-medium">
-        <span className="flex items-center gap-1 text-sky-strong">
-          <Sparkles className="h-3.5 w-3.5" />
-          {auto.by === 'ai' ? 'AI 맞춤' : 'AI 맞춤 · 규칙대로'}
-        </span>
-        <span className="text-ink/70">
-          목표 {auto.goal} · {auto.minutes}분{focus ? ` · ${focus}` : ''}
-        </span>
-      </p>
-      <p className="text-sm leading-relaxed break-keep text-ink/85">{auto.reason}</p>
-      {auto.caution.length > 0 && (
-        <p className="text-xs leading-relaxed break-keep text-muted">
-          메모를 보고 조심한 곳:{' '}
-          {auto.caution.map((c) => `${cautionLabel(c.part)}(${c.why})`).join(' · ')}
+      {/* 무엇으로 정했는지 한 줄 — 까닭은 눌러야 편다(글이 길면 안 읽는다) */}
+      <details className="group">
+        <summary className="flex cursor-pointer list-none flex-wrap items-center gap-x-2 gap-y-1 text-xs font-medium">
+          <span className="flex items-center gap-1 text-sky-strong">
+            <Sparkles className="h-3.5 w-3.5" />
+            {auto.by === 'ai' ? 'AI 맞춤' : 'AI 맞춤 · 규칙대로'}
+          </span>
+          <span className="text-ink/70">
+            목표 {auto.goal} · {auto.minutes}분{focus ? ` · ${focus}` : ''}
+          </span>
+          <span className="ml-auto font-semibold text-sky-strong group-open:hidden">
+            왜?
+          </span>
+        </summary>
+        <p className="mt-2 text-sm leading-relaxed break-keep text-ink/85">
+          {auto.reason}
         </p>
-      )}
+        {auto.caution.length > 0 && (
+          <p className="mt-1.5 text-xs leading-relaxed break-keep text-muted">
+            메모를 보고 조심한 곳:{' '}
+            {auto.caution.map((c) => `${cautionLabel(c.part)}(${c.why})`).join(' · ')}
+          </p>
+        )}
+      </details>
       {/*
         통증 판정은 AI에게 맡기지 않는다. AI는 의심만 알리고, 멈추는 것은
         체크인의 '통증'이 한다 — 그래야 같은 입력에 늘 같은 결과가 나온다.
       */}
       {auto.painSuspected && (
         <p className="rounded-lg border border-warn-line bg-warn-bg px-3 py-2 text-xs leading-relaxed text-warn">
-          메모에 통증으로 보이는 말이 있습니다. 통증이라면{' '}
+          메모에 통증 같은 말이 있어요.{' '}
           <OpenCheckinButton className="font-semibold underline">
-            오늘 체크인
+            통증이면 체크인 고치기
           </OpenCheckinButton>
-          에서 ‘통증’으로 고쳐주세요. 그러면 오늘 운동을 멈추고 쉬는 쪽으로 바꿉니다.
         </p>
       )}
       {auto.by === 'rules' && auto.fallback && (
