@@ -17,6 +17,7 @@ import { X } from 'lucide-react';
 import { NAV_ICONS } from '@/components/nav-icons';
 import { usePathname, useRouter } from 'next/navigation';
 import { quietRefresh } from '@/lib/quiet-refresh';
+import { rememberPage } from '@/lib/last-page';
 import { REST_SESSION_TYPE } from '@/lib/session-type';
 import type { NavGroup, NavItem } from '@/lib/nav';
 import { DESK_MEDIA, MORE_HREF, NAV_ALSO } from '@/lib/nav';
@@ -221,6 +222,11 @@ export function AppNav({
 }) {
   const isActive = useIsActive();
   const pathname = usePathname();
+
+  /* 팝업(날짜 화면)이 뜨기 전의 화면을 적어 둔다 — 팝업의 '돌아가기'가 쓴다(lib/last-page.ts) */
+  useEffect(() => {
+    rememberPage(pathname);
+  }, [pathname]);
 
   /*
    * 판·도크가 떠 있는가. 둘이 한꺼번에 뜨는 일은 없다(land 가 같이 정한다).

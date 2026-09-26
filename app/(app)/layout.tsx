@@ -29,7 +29,14 @@ function checkinWindowStart() {
   return new Date(Date.now() - 3 * 86_400_000);
 }
 
-export default async function AppLayout({ children }: { children: React.ReactNode }) {
+export default async function AppLayout({
+  children,
+  modal,
+}: {
+  children: React.ReactNode;
+  /** 팝업 자리 — 앱 안에서 날짜 화면으로 가면 여기에 투구 기록 팝업이 뜬다(@modal) */
+  modal: React.ReactNode;
+}) {
   // 이 레이아웃 아래의 모든 페이지는 로그인이 필요하다.
   const user = await requireUser();
   const isAdmin = user.role === 'ADMIN';
@@ -138,6 +145,13 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
       {/* 오래 비워 둔 탭으로 돌아오면 새로 받는다 — 다른 기기에서 바꾼 사진·정보가 보이게 */}
       <RefreshOnReturn />
+
+      {/*
+        팝업 자리. 본문(children) 밖에 둔다 — 팝업이 떠도 밑의 화면은 그대로 남고, 본문의
+        화면 전환(app-main)에도 끼지 않는다. 창은 맨 위 칸(top layer)에 뜨므로 자리는 어디든
+        상관없다.
+      */}
+      {modal}
 
       {/*
         위쪽만 비운다.
