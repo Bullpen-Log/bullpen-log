@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import {
   useActionState,
+  useCallback,
   useEffect,
   useLayoutEffect,
   useRef,
@@ -10,8 +11,9 @@ import {
   type KeyboardEvent,
   type ReactNode,
 } from 'react';
-import { useFormStatus } from 'react-dom';
-import { CircleAlert } from 'lucide-react';
+import { createPortal, useFormStatus } from 'react-dom';
+import { CalendarDays, CircleAlert } from 'lucide-react';
+import { MiniCalendar } from '@/components/mini-calendar';
 import { checkSignupEmail, login, signup, type AuthState } from '@/app/actions/auth';
 import { Button, Field, FormError, Input } from '@/components/ui';
 import { BaseballMark } from '@/components/logo';
@@ -622,6 +624,136 @@ function AgreeLine({
   );
 }
 
+/**
+ * 생년월일 칸 — 앱의 작은 달력(components/mini-calendar.tsx)으로 고른다.
+ *
+ * 예전에는 브라우저의 날짜 칸이었다. 기기마다 모양이 달랐고(아이폰은 굴리는 바퀴, 크롬은
+ * 회색 표) 앱의 다른 달력과 따로 놀았다. 이제 영양 탭의 날짜 고르개와 같은 달력이 칸
+ * 바로 밑(자리가 모자라면 위)에 뜬다. 몇십 년 전으로 가야 해서 연 · 월은 곧장 고른다.
+ * 고를 수 있는 날은 서버와 같은 선이다 — 만 5세 ~ 100세(lib/profile.ts).
+ *
+ * 달력은 카드 밖(body)에 띄운다. 카드가 둥근 모서리를 지키려고 넘치는 것을 자르고 있어서,
+ * 카드 안에 두면 달력 아래쪽이 잘렸다.
+ *
+ * 값은 숨은 칸(name="birthDate")에 들어가 다른 칸과 함께 보내진다.
+ */
+function BirthDateField({
+  value,
+  onChange,
+  today,
+  invalid,
+}: {
+  value: string;
+  onChange: (next: string) => void;
+  today: string;
+  invalid: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  const [style, setStyle] = useState<React.CSSProperties>({});
+  const buttonRef = useRef<HTMLButtonElement>(null);
+  const popRef = useRef<HTMLDivElement>(null);
+
+  const year = Number(today.slice(0, 4));
+  const monthDay = today.slice(4);
+  const min = `${year - MAX_AGE}${monthDay}`;
+  const max = `${year - MIN_AGE}${monthDay}`;
+
+  /* 칸 바로 밑에 — 밑에 자리가 모자라고 위가 더 넓으면 위에. 화면 밖으로는 안 나가게. */
+  const place = useCallback(() => {
+    const r = buttonRef.current?.getBoundingClientRect();
+    if (!r) return;
+    const width = 296;
+    /* 달력의 높이(여섯 줄 + 머리) — 재 보니 335px 안팎이다 */
+    const height = 340;
+    const left = Math.max(8, Math.min(r.left, window.innerWidth - width - 8));
+    const vh = window.innerHeight;
+    if (vh - r.bottom >= height + 8) {
+      setStyle({ left, width, top: r.bottom + 6 });
+    } else if (r.top >= height + 8) {
+      setStyle({ left, width, bottom: vh - r.top + 6 });
+    } else {
+      /* 위아래 어느 쪽에도 다 안 들어가는 작은 화면 — 칸을 덮더라도 화면 안에 다 보이게 */
+      setStyle({ left, width, top: Math.max(8, vh - height - 8) });
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!open) return;
+    const onDown = (e: PointerEvent) => {
+      const t = e.target as Node;
+      if (popRef.current?.contains(t) || buttonRef.current?.contains(t)) return;
+      setOpen(false);
+    };
+    const onKey = (e: globalThis.KeyboardEvent) => {
+      if (e.key !== 'Escape') return;
+      setOpen(false);
+      buttonRef.current?.focus();
+    };
+    document.addEventListener('pointerdown', onDown);
+    document.addEventListener('keydown', onKey);
+    window.addEventListener('resize', place);
+    return () => {
+      document.removeEventListener('pointerdown', onDown);
+      document.removeEventListener('keydown', onKey);
+      window.removeEventListener('resize', place);
+    };
+  }, [open, place]);
+
+  const [y, m, d] = value ? value.split('-').map(Number) : [];
+
+  return (
+    <>
+      <input type="hidden" name="birthDate" value={value} />
+      <button
+        ref={buttonRef}
+        id="birthDate-button"
+        type="button"
+        onClick={() => {
+          if (!open) place();
+          setOpen((o) => !o);
+        }}
+        aria-haspopup="dialog"
+        aria-expanded={open}
+        {...invalidProps(invalid)}
+        className={`flex w-full items-center justify-between gap-2 rounded-xl border bg-surface-2 px-4 py-3.5 text-left text-[15px] transition-colors focus:border-sky focus:outline-none ${
+          invalid ? 'border-danger' : open ? 'border-sky' : 'border-line'
+        }`}
+      >
+        <span className={value ? 'text-ink' : 'text-muted/60'}>
+          {value ? `${y}년 ${m}월 ${d}일` : '날짜 고르기'}
+        </span>
+        <CalendarDays aria-hidden className="h-4 w-4 shrink-0 text-muted" />
+      </button>
+      {open &&
+        createPortal(
+          <div
+            ref={popRef}
+            role="dialog"
+            aria-label="생년월일 고르기"
+            style={style}
+            className="motion-safe:animate-fade-in fixed z-50 rounded-2xl border border-line bg-surface p-3 shadow-2xl"
+          >
+            <MiniCalendar
+              value={value}
+              today={today}
+              min={min}
+              max={max}
+              viewFrom={`${year - 15}-01-01`}
+              pickYear
+              marked={() => false}
+              onPick={(key) => {
+                onChange(key);
+                setOpen(false);
+                buttonRef.current?.focus();
+              }}
+            />
+          </div>,
+          document.body
+        )}
+    </>
+  );
+}
+
 /** 이 칸에서 Enter 를 누르면 '다음 칸'으로 가는가 — 글을 치는 칸만 */
 function isTextLike(el: Element): el is HTMLInputElement {
   return (
@@ -664,6 +796,8 @@ function SignupWizard({
   const [showPassword, setShowPassword] = useState(false);
   const [agreeTerms, setAgreeTerms] = useState(false);
   const [agreePrivacy, setAgreePrivacy] = useState(false);
+  /* 생년월일 — 달력으로 고른다(BirthDateField). 비밀번호처럼 되돌려도 남게 상태로 쥔다. */
+  const [birthDate, setBirthDate] = useState('');
 
   function show(p: Problem) {
     setProblem((prev) => ({ ...p, seq: (prev?.seq ?? 0) + 1 }));
@@ -702,6 +836,11 @@ function SignupWizard({
       target instanceof RadioNodeList
         ? (Array.from(target).find((r) => (r as HTMLInputElement).checked) ?? target[0])
         : target;
+    /* 숨은 칸(생년월일)이면 그 칸을 여는 단추로 */
+    if (el instanceof HTMLInputElement && el.type === 'hidden') {
+      document.getElementById(`${el.name}-button`)?.focus({ preventScroll: true });
+      return;
+    }
     if (el instanceof HTMLElement) el.focus({ preventScroll: true });
   }
 
@@ -895,14 +1034,11 @@ function SignupWizard({
               </Field>
               {/* 나이는 안전한 투구수 한도를 정하는 기준이라 가입할 때 받는다 */}
               <Field label="생년월일">
-                <Input
-                  name="birthDate"
-                  type="date"
-                  required
-                  defaultValue={kept(before, 'birthDate')}
-                  max={today}
-                  className={inputLarge}
-                  {...invalidProps(invalid('birthDate'))}
+                <BirthDateField
+                  value={birthDate}
+                  onChange={setBirthDate}
+                  today={today}
+                  invalid={invalid('birthDate')}
                 />
               </Field>
             </div>
