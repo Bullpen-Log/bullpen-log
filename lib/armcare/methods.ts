@@ -1,12 +1,13 @@
 /**
  * 암케어 운동의 훈련 방식 — 같은 근육이라도 어떻게 힘을 쓰느냐로 나눈다.
  *
- * 2026-09-26 사용자분이 고른 다섯 가지다. 올라가는 차례가 아니다 — 함께 섞어 해도
- * 된다(같은 날 사용자분이 '단계 올리기'를 뺐다).
+ * 2026-09-26 사용자분이 고른 다섯 가지 가운데, 기본 보강(끝까지 천천히)을 뺀 넷이다.
+ * 올라가는 차례가 아니다 — 함께 섞어 해도 된다(같은 날 사용자분이 '단계 올리기'를 뺐다).
  *
  * 처음에는 암케어 안에 '훈련 방식' 칸을 따로 두었다. 같은 날 사용자분이 그 칸을 없앴다
  * — 방식 설명은 그 방식을 쓰는 운동의 '자세·영상 보기' 안에, 필요할 때만 붙인다
- * (app/(app)/training/armcare-media.tsx 의 MethodNote). 기본 보강에는 붙이지 않는다.
+ * (app/(app)/training/armcare-media.tsx 의 MethodNote). 그래서 기본 보강은 설명이 없다
+ * — 따로 적을 것이 없는 보통 운동이라, 그 글은 어디에도 나오지 않아 지웠다.
  *
  * 한 보강운동 안내서를 읽고 무엇이 있는지 참고했지만, 글은 모두 일반 운동 지식으로
  * 새로 썼다. 남이 쓴 글을 옮기지 않는다 — 세트·횟수도 우리 라이브러리에 이미 적어
@@ -14,18 +15,17 @@
  *
  * 운동이 어느 방식인지는 이름으로 가린다. 방식을 따로 적는 칸을 DB 에 두지 않았다 —
  * 이름에 '리바운드'처럼 방식이 드러나게 짓기로 했고(같은 스크립트), 그렇지 않은
- * 암케어 운동은 모두 기본 보강이다.
+ * 암케어 운동은 모두 기본 보강이다(methodOf 가 null).
  */
 
-export type ArmcareMethodKey =
-  'basic' | 'press' | 'rebound' | 'drop-catch' | 'eccentric';
+export type ArmcareMethodKey = 'press' | 'rebound' | 'drop-catch' | 'eccentric';
 
 export type ArmcareMethod = {
   key: ArmcareMethodKey;
   /** 화면 이름 */
   label: string;
-  /** 운동 이름에 이 말이 들어가면 이 방식이다. 기본 보강은 비워 둔다(나머지 전부). */
-  titleMarker: string | null;
+  /** 운동 이름에 이 말이 들어가면 이 방식이다 */
+  titleMarker: string;
   /**
    * 무엇을 하는 방식인지 한마디 — 방식 설명의 제목 줄에 붙는다('리바운드 방식 ·
    * 떨어뜨렸다 바로 붙잡기').
@@ -48,17 +48,6 @@ export type ArmcareMethod = {
 
 /** 가벼운 것부터 적는다. 올라가는 차례는 아니다(섞어 해도 된다) */
 export const ARMCARE_METHODS: readonly ArmcareMethod[] = [
-  {
-    key: 'basic',
-    label: '기본 보강',
-    titleMarker: null,
-    cue: '끝까지 천천히',
-    what: '관절이 움직이는 범위를 처음부터 끝까지, 가벼운 무게로 천천히 씁니다. 밴드·가벼운 덤벨로 하는 외회전, Y·T 레이즈, 리스트 컬 같은 운동이 여기에 듭니다.',
-    why: '몸은 아프거나 아플 것 같은 동작에서는 스스로 힘과 빠르기를 줄입니다. 그래서 모든 자세에서 아프지 않게 움직일 수 있어야 빠르고 무거운 방식도 제대로 됩니다. 그 바탕을 만드는 방식이라, 다른 방식을 할 때도 늘 곁들입니다.',
-    load: '마지막 두세 번이 조금 버거운 정도. 끝까지 자세가 무너지지 않는 무게면 됩니다.',
-    stop: '어느 각도에서 아프거나 걸리면 무게를 빼고 맨몸으로 그 범위를 가볍게, 자주 움직여 봅니다. 불편했던 범위는 아주 조금씩 넓혀 갑니다. 힘이 빠져 자세가 흐트러지면 거기서 세트를 끝냅니다 — 지칠 때까지 짜내는 운동이 아닙니다.',
-    caution: null,
-  },
   {
     key: 'press',
     label: '등척성 밀기',
@@ -106,10 +95,16 @@ export const ARMCARE_METHODS: readonly ArmcareMethod[] = [
   },
 ];
 
-/** 운동 이름으로 방식을 가린다. 어느 표시도 없으면 기본 보강이다. */
-export function methodOf(title: string): ArmcareMethod {
-  return (
-    ARMCARE_METHODS.find((m) => m.titleMarker && title.includes(m.titleMarker)) ??
-    ARMCARE_METHODS[0]
-  );
+/**
+ * 운동 이름으로 방식을 가린다. 어느 표시도 없으면 기본 보강이라 null.
+ *
+ * 서버에서 한 번 가려 화면에 넘긴다(app/(app)/training/armcare-views.ts 의 method).
+ */
+export function methodOf(title: string): ArmcareMethod | null {
+  return ARMCARE_METHODS.find((m) => title.includes(m.titleMarker)) ?? null;
+}
+
+/** 방식 이름표로 찾는다 — 화면이 넘겨받은 method 로 설명을 붙일 때 */
+export function methodByKey(key: ArmcareMethodKey): ArmcareMethod {
+  return ARMCARE_METHODS.find((m) => m.key === key)!;
 }

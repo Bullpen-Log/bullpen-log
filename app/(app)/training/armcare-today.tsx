@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from 'react';
 import Link from 'next/link';
-import { AlertTriangle, Check, Play, RefreshCw } from 'lucide-react';
+import { Check, Play, RefreshCw } from 'lucide-react';
 import { setExerciseDone } from '@/app/actions/exercise-log';
 import { makeArmcareRoutine } from '@/app/actions/armcare';
 import { ExerciseBadges } from '@/components/meta-badges';
@@ -10,7 +10,7 @@ import { findArmcareArea, type ArmcareAreaKey } from '@/lib/armcare/anatomy';
 import { ARMCARE_KIND_TEXT, type ArmcareKind } from '@/lib/armcare/routine';
 import { MuscleChips } from '@/components/muscle-chips';
 import { ExerciseMedia, type ArmcareExerciseView } from './armcare-media';
-import { useArmcareInfo } from './armcare-info';
+import { CheckRow } from './check-row';
 
 export type ArmcareTodayItem = {
   area: ArmcareAreaKey;
@@ -32,9 +32,12 @@ export type ArmcareTodayItem = {
  * (app/actions/exercise-log.ts 의 setExerciseDone).
  */
 export function ArmcareToday({
+  dateKey,
   decision,
   routine,
 }: {
+  /** 이 화면이 보여 주는 날(YYYY-MM-DD) — 체크와 따라하기가 이 날에 남긴다 */
+  dateKey: string;
   /** 지금 몸 상태로 권하는 루틴과 그 까닭 */
   decision: { kind: ArmcareKind; reason: string };
   /** 오늘 만들어 둔 루틴. 없으면 아직 안 만든 날 */
@@ -127,10 +130,14 @@ export function ArmcareToday({
             </ul>
           </details>
         )}
+        {/*
+          종류가 바뀌었으면 왜 바뀌었는지(지금의 까닭)도 붙인다 — 위 줄의 까닭은 만들 때의
+          것이라, 그것만 보면 왜 다시 만들라는지 알 수 없다.
+        */}
         {(kindChanged || unsafeCount > 0) && (
           <p className="rounded-lg border border-warn-line bg-warn-bg px-3 py-2 text-xs leading-relaxed break-keep text-warn">
             {kindChanged
-              ? `몸 상태가 바뀌었어요 — 지금은 ${suggested.label}이 맞아요.`
+              ? `몸 상태가 바뀌었어요 — ${decision.reason}.`
               : `몸 상태가 바뀌어 무리인 운동이 ${unsafeCount}개 있어요.`}{' '}
             다시 만들어도 체크한 것은 남아요.
           </p>
@@ -138,7 +145,7 @@ export function ArmcareToday({
         <div className="flex flex-wrap items-center gap-3 border-t border-sky-soft/30 pt-3">
           {/* 한 운동씩 크게 따라 하기 — 목록을 읽지 않아도 된다 (armcare/play) */}
           <Link
-            href="/armcare/play/today"
+            href={`/armcare/play/today?d=${dateKey}`}
             className="inline-flex items-center gap-1.5 rounded-lg bg-sky px-3.5 py-2 text-sm font-semibold text-white transition-colors hover:bg-sky-strong"
           >
             <Play aria-hidden className="h-4 w-4" />
@@ -157,7 +164,7 @@ export function ArmcareToday({
         </div>
       </section>
 
-      <Checklist items={routine.items} />
+      <Checklist items={routine.items} dateKey={dateKey} />
     </div>
   );
 }
@@ -222,10 +229,16 @@ export function WeekDots({ week }: { week: { key: string; done: boolean }[] }) {
  */
 export function Checklist({
   items: initial,
+  dateKey,
   grouped = true,
   doneLabel = '오늘 암케어 끝',
 }: {
   items: ArmcareTodayItem[];
+  /**
+   * 이 목록의 날(YYYY-MM-DD). 체크를 이 날에 남긴다 — 밤 11시 59분에 연 목록을 자정
+   * 넘어 체크해도 목록이 보여 주던 날에 들어가게.
+   */
+  dateKey: string;
   grouped?: boolean;
   /** 다 체크했을 때 붙는 말 */
   doneLabel?: string;
@@ -233,8 +246,6 @@ export function Checklist({
   const [items, setItems] = useState(initial);
   const [error, setError] = useState<string>();
   const [, startTransition] = useTransition();
-  /* 근육 칩 · 근육 위치를 누르면 그 근육의 3D 그림과 설명 창(armcare-info.tsx) */
-  const info = useArmcareInfo();
 
   /* 부모가 새 목록을 주면(다시 만들기) 그것을 따른다 */
   const [seen, setSeen] = useState(initial);
@@ -255,13 +266,19 @@ export function Checklist({
       prev.map((it) => (it.exercise.id === id ? { ...it, done: next } : it))
     );
     setError(undefined);
+    const undo = (message: string) => {
+      setItems((prev) =>
+        prev.map((it) => (it.exercise.id === id ? { ...it, done: !next } : it))
+      );
+      setError(message);
+    };
     startTransition(async () => {
-      const res = await setExerciseDone(id, next);
-      if ('error' in res) {
-        setItems((prev) =>
-          prev.map((it) => (it.exercise.id === id ? { ...it, done: !next } : it))
-        );
-        setError(res.error);
+      /* 신호가 끊겨 못 보냈으면 되돌리고 알린다 — 오류가 화면 전체로 번지지 않게 */
+      try {
+        const res = await setExerciseDone(id, next, dateKey);
+        if ('error' in res) undo(res.error);
+      } catch {
+        undo('저장하지 못했어요. 인터넷 연결을 확인하고 다시 눌러 주세요.');
       }
     });
   };
@@ -336,105 +353,34 @@ export function Checklist({
                     done ? 'border-sky bg-sky-tint' : 'border-line bg-surface'
                   }`}
                 >
-                  {/*
-                    줄 어디를 눌러도 체크된다 — 체크 단추를 줄 전체에 깔고(absolute) 글과
-                    사진은 누름을 그 단추로 흘려보낸다(pointer-events-none). 근육 칩만 따로
-                    눌려 그 근육의 3D 그림을 띄운다(2026-09-26 사용자분). 단추 안에 단추를
-                    넣을 수는 없어서 이렇게 겹쳐 둔다.
-                  */}
-                  <div className="relative flex items-start gap-3 px-4 py-4">
-                    <button
-                      type="button"
-                      onClick={() => toggle(ex.id)}
-                      aria-pressed={done}
-                      aria-label={`${ex.title} ${done ? '체크 풀기' : '체크'}`}
-                      className={`absolute inset-0 transition-colors ${
-                        done ? '' : 'hover:bg-surface-2'
-                      }`}
+                  {/* 근육 칩만 따로 눌려 그 근육의 3D 그림을 띄운다(2026-09-26 사용자분) */}
+                  <CheckRow
+                    done={done}
+                    onToggle={() => toggle(ex.id)}
+                    title={ex.title}
+                    badges={
+                      ex.isReference && (
+                        <span className="text-[10px] font-medium text-muted">
+                          참고 영상
+                        </span>
+                      )
+                    }
+                    prescription={ex.prescription}
+                    warning={
+                      unsafe && !done ? '지금 몸 상태에는 권하지 않는 운동입니다' : null
+                    }
+                    thumbUrl={ex.thumbUrl}
+                    thumbClassName="h-14 w-20 sm:h-16 sm:w-24"
+                  >
+                    <MuscleChips muscles={ex.targetMuscles} max={2} />
+                    <ExerciseBadges
+                      bodyParts={[]}
+                      intensity={ex.intensity}
+                      difficulty={ex.difficulty}
+                      equipment={ex.equipment}
                     />
-                    <span
-                      aria-hidden
-                      className={`pointer-events-none relative mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full border-2 transition-colors ${
-                        done ? 'border-sky bg-sky text-white' : 'border-line-strong'
-                      }`}
-                    >
-                      {done && (
-                        <Check className="finish-pop h-3.5 w-3.5" strokeWidth={3} />
-                      )}
-                    </span>
-                    <span className="pointer-events-none relative min-w-0 flex-1 space-y-1.5">
-                      <span className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
-                        <span
-                          className={`text-[15px] font-bold tracking-[-0.01em] break-keep ${
-                            done ? 'text-sky-strong' : 'text-ink'
-                          }`}
-                        >
-                          {ex.title}
-                        </span>
-                        {ex.isReference && (
-                          <span className="text-[10px] font-medium text-muted">
-                            참고 영상
-                          </span>
-                        )}
-                      </span>
-                      {ex.prescription && (
-                        <span
-                          className={`block text-xs font-semibold ${
-                            done ? 'text-sky-strong' : 'text-muted'
-                          }`}
-                        >
-                          {ex.prescription}
-                        </span>
-                      )}
-                      <span className="block [&_button]:pointer-events-auto">
-                        <MuscleChips
-                          muscles={ex.targetMuscles}
-                          max={2}
-                          onPick={
-                            info
-                              ? (m, e) => info({ kind: 'muscle', name: m }, e)
-                              : undefined
-                          }
-                        />
-                      </span>
-                      <ExerciseBadges
-                        bodyParts={[]}
-                        intensity={ex.intensity}
-                        difficulty={ex.difficulty}
-                        equipment={ex.equipment}
-                      />
-                      {unsafe && !done && (
-                        <span className="flex items-start gap-1.5 text-[11px] leading-relaxed text-warn">
-                          <AlertTriangle
-                            aria-hidden
-                            className="mt-0.5 h-3 w-3 shrink-0"
-                          />
-                          지금 몸 상태에는 권하지 않는 운동입니다
-                        </span>
-                      )}
-                    </span>
-                    {ex.thumbUrl && (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img
-                        src={ex.thumbUrl}
-                        alt=""
-                        className="pointer-events-none relative h-14 w-20 shrink-0 rounded-xl object-cover ring-1 ring-line sm:h-16 sm:w-24"
-                      />
-                    )}
-                  </div>
-                  <ExerciseMedia
-                    exercise={ex}
-                    muscleHref={
-                      ex.targetMuscles[0]
-                        ? `/training?view=armcare&tab=guide&muscle=${encodeURIComponent(ex.targetMuscles[0])}`
-                        : undefined
-                    }
-                    onMuscle={
-                      info && ex.targetMuscles[0]
-                        ? (e) => info({ kind: 'muscle', name: ex.targetMuscles[0] }, e)
-                        : undefined
-                    }
-                  />
+                  </CheckRow>
+                  <ExerciseMedia exercise={ex} showMuscleButton />
                 </li>
               ))}
             </ul>

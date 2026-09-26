@@ -39,7 +39,6 @@ import { Button, Card, EmptyState } from '@/components/ui';
 import { ConfirmDeleteForm } from '@/components/confirm-delete';
 import { ExerciseForm, type ExerciseDraft } from './exercise-form';
 import { MuscleRow } from '@/components/muscle-chips';
-import { useArmcareInfo } from '@/app/(app)/training/armcare-info';
 
 export type ExerciseItem = {
   id: string;
@@ -87,8 +86,6 @@ function ExerciseDetail({
   onClose: () => void;
 }) {
   const [editing, setEditing] = useState(false);
-  /* 암케어 근육 칩을 누르면 3D 그림·설명 창(app/(app)/training/armcare-info.tsx) */
-  const info = useArmcareInfo();
 
   /*
    * 설명은 펼칠 때 따로 받아온다. 목록에 405개를 다 싣고 있었는데 재보니
@@ -277,11 +274,11 @@ function ExerciseDetail({
           equipment={item.equipment}
         />
 
-        {/* 암케어 운동이 키우는 근육 — 부위별 보강과 같은 말로. 누르면 3D 그림·설명 창 */}
-        <MuscleRow
-          muscles={item.targetMuscles}
-          onPick={info ? (m, e) => info({ kind: 'muscle', name: m }, e) : undefined}
-        />
+        {/*
+          암케어 운동이 키우는 근육 — 부위별 보강과 같은 말로. 누르면 3D 그림·설명 창
+          (page.tsx 의 ArmcareInfoProvider, app/(app)/training/armcare-info.tsx)
+        */}
+        <MuscleRow muscles={item.targetMuscles} />
 
         {formatPrescription(item) && (
           <p className="text-sm font-semibold text-ink">{formatPrescription(item)}</p>

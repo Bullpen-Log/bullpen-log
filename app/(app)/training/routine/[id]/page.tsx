@@ -6,7 +6,6 @@ import { visibleExercises } from '@/lib/library-cache';
 import { formatPrescription } from '@/lib/exercise-meta';
 import { ARMCARE_CATEGORY, primaryArea } from '@/lib/armcare/anatomy';
 import { armcareMinutes } from '@/lib/armcare/routine';
-import { methodOf } from '@/lib/armcare/methods';
 import { loadMyRoutine, loadMyRoutines } from '@/lib/armcare/my-routines-store';
 import {
   MY_ROUTINE_MAX,
@@ -57,7 +56,6 @@ export default async function RoutinePage({
       view: views[i],
       defaultSets: clampRoutineSets(ex.sets ?? 2),
       area: primaryArea(muscles)?.key ?? null,
-      method: methodOf(ex.title).key,
       minutes: [1, 2, 3, 4, 5].map((s) =>
         armcareMinutes({ ...ex, targetMuscles: muscles }, s)
       ),

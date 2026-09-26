@@ -1,8 +1,7 @@
 'use client';
 
 import { Dumbbell, Flame, Target } from 'lucide-react';
-import { useBodyParts } from '@/components/body-parts';
-import { isMappedBodyPart } from '@/lib/body-map';
+import { isBodyPart, useBodyParts } from '@/components/body-parts-context';
 
 /**
  * 운동 한 줄에 붙는 부가 정보.
@@ -52,11 +51,11 @@ export function ExerciseBadges({
    * 2026-09-26 사용자분). 부위 창이 있는 화면에서만 칩으로 그리고, 없으면 예전처럼 흐린 글자.
    */
   const open = useBodyParts();
-  const tappable: string[] = open ? bodyParts.filter(isMappedBodyPart) : [];
+  const tappable = open ? bodyParts.filter(isBodyPart) : [];
   // 난이도 · 부위 · 장비를 한 줄로 잇는다. 빈 값은 가운뎃점이 겹치지 않게 걸러낸다.
   const rest = [
     difficulty,
-    ...bodyParts.filter((p) => !tappable.includes(p)),
+    ...bodyParts.filter((p) => !open || !isBodyPart(p)),
     ...equipment,
   ].filter(Boolean);
 

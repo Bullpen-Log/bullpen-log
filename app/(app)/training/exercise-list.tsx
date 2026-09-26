@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useTransition } from 'react';
-import { AlertTriangle, Check, ChevronDown, History, X } from 'lucide-react';
+import { ChevronDown, History, X } from 'lucide-react';
 import { setExerciseDone } from '@/app/actions/exercise-log';
 import { removeFromTodayPlan } from '@/app/actions/plan-edit';
 import { SLOT_LABELS, SLOT_ORDER, type SlotKey } from '@/lib/report/theme';
@@ -12,6 +12,7 @@ import { ExerciseBadges } from '@/components/meta-badges';
 import { CategoryBadge } from '@/components/category-badge';
 import { FavoriteButton } from '@/components/favorite-button';
 import { toggleExerciseFavorite } from '@/app/actions/favorite';
+import { CheckRow } from './check-row';
 
 export type TodayExercise = {
   id: string;
@@ -53,6 +54,8 @@ export type TodayExercise = {
   past: PastAmount[];
 };
 
+const OFFLINE = '저장하지 못했어요. 인터넷 연결을 확인하고 다시 눌러 주세요.';
+
 /**
  * 오늘 할 운동 목록. 누르면 바로 완료로 표시된다.
  *
@@ -85,10 +88,16 @@ export function ExerciseChecklist({
     setItems((prev) => prev.filter((e) => e.id !== id));
     setError(undefined);
     startTransition(async () => {
-      const res = await removeFromTodayPlan(id);
-      if ('error' in res) {
+      /* 신호가 끊겨 못 보냈으면 되돌리고 알린다 — 오류가 화면 전체로 번지지 않게 */
+      try {
+        const res = await removeFromTodayPlan(id);
+        if ('error' in res) {
+          setItems(before);
+          setError(res.error);
+        }
+      } catch {
         setItems(before);
-        setError(res.error);
+        setError(OFFLINE);
       }
     });
   };
@@ -114,11 +123,16 @@ export function ExerciseChecklist({
     setItems((prev) => prev.map((e) => (e.id === id ? { ...e, done: next } : e)));
     setError(undefined);
 
+    const undo = (message: string) => {
+      setItems((prev) => prev.map((e) => (e.id === id ? { ...e, done: !next } : e)));
+      setError(message);
+    };
     startTransition(async () => {
-      const res = await setExerciseDone(id, next);
-      if ('error' in res) {
-        setItems((prev) => prev.map((e) => (e.id === id ? { ...e, done: !next } : e)));
-        setError(res.error);
+      try {
+        const res = await setExerciseDone(id, next);
+        if ('error' in res) undo(res.error);
+      } catch {
+        undo(OFFLINE);
       }
     });
   };
@@ -303,39 +317,19 @@ function ExerciseList({
               }`}
             >
               {/*
-                줄 어디를 눌러도 체크된다 — 체크 단추를 줄 전체에 깔고(absolute) 글과 사진은
-                누름을 그 단추로 흘려보낸다(pointer-events-none). 부위 칩만 따로 눌려 전신 3D 를
-                띄운다(2026-09-26 사용자분, components/body-parts.tsx). 단추 안에 단추를 넣을 수
-                없어 이렇게 겹친다 — 암케어 체크 목록(armcare-today.tsx)과 같다.
-              */}
-              <div className="relative flex w-full items-start gap-3 rounded-2xl px-4 py-4">
-                <button
-                  type="button"
-                  onClick={() => onToggle(ex.id)}
-                  aria-pressed={ex.done}
-                  aria-label={`${ex.title} ${ex.done ? '체크 풀기' : '체크'}`}
-                  className={`absolute inset-0 rounded-2xl transition-colors ${
-                    ex.done ? '' : 'hover:bg-surface-2'
-                  }`}
-                />
-                <span
-                  aria-hidden
-                  className={`pointer-events-none relative mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full border-2 transition-colors ${
-                    ex.done ? 'border-sky bg-sky text-white' : 'border-line-strong'
-                  }`}
-                >
-                  {ex.done && <Check className="h-3.5 w-3.5" strokeWidth={3} />}
-                </span>
+                줄 어디를 눌러도 체크된다(check-row.tsx). 부위 칩만 따로 눌려 전신 3D 를
+                띄운다(2026-09-26 사용자분, components/body-parts.tsx).
 
-                <span className="pointer-events-none relative min-w-0 flex-1 space-y-1.5">
-                  <span className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
-                    <span
-                      className={`text-[15px] font-bold tracking-[-0.01em] break-keep ${
-                        ex.done ? 'text-sky-strong' : 'text-ink'
-                      }`}
-                    >
-                      {ex.title}
-                    </span>
+                경고는 직접 넣었는데 오늘 몸 상태에는 무리인 운동에 붙는다. 빼지 않고
+                알리기만 한다 — 넣은 것은 본인이다.
+              */}
+              <CheckRow
+                done={ex.done}
+                onToggle={() => onToggle(ex.id)}
+                title={ex.title}
+                className="w-full rounded-2xl"
+                badges={
+                  <>
                     <CategoryBadge name={ex.category} />
                     {/* 출처 표시. 상자를 씌우면 카테고리 배지와 같은 무게가 되어 글자만 남긴다. */}
                     {ex.isReference && (
@@ -348,45 +342,20 @@ function ExerciseList({
                         직접 넣음
                       </span>
                     )}
-                  </span>
-                  {ex.prescription && (
-                    <span
-                      className={`block text-xs font-semibold ${
-                        ex.done ? 'text-sky-strong' : 'text-muted'
-                      }`}
-                    >
-                      {ex.prescription}
-                    </span>
-                  )}
-                  <span className="block [&_button]:pointer-events-auto">
-                    <ExerciseBadges
-                      bodyParts={ex.bodyParts}
-                      intensity={ex.intensity}
-                      difficulty={ex.difficulty}
-                      equipment={ex.equipment}
-                    />
-                  </span>
-                  {/*
-                  직접 넣었는데 오늘 몸 상태에는 무리인 운동. 빼지 않고
-                  알리기만 한다 — 넣은 것은 본인이다.
-                */}
-                  {ex.unsafe && (
-                    <span className="flex items-start gap-1.5 text-[11px] leading-relaxed text-warn">
-                      <AlertTriangle className="mt-0.5 h-3 w-3 shrink-0" />
-                      오늘 몸 상태에는 권하지 않는 운동입니다
-                    </span>
-                  )}
-                </span>
-
-                {ex.thumbUrl && (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    src={ex.thumbUrl}
-                    alt=""
-                    className="pointer-events-none relative hidden h-16 w-24 shrink-0 rounded-xl object-cover ring-1 ring-line sm:block"
-                  />
-                )}
-              </div>
+                  </>
+                }
+                prescription={ex.prescription}
+                warning={ex.unsafe ? '오늘 몸 상태에는 권하지 않는 운동입니다' : null}
+                thumbUrl={ex.thumbUrl}
+                thumbClassName="hidden h-16 w-24 sm:block"
+              >
+                <ExerciseBadges
+                  bodyParts={ex.bodyParts}
+                  intensity={ex.intensity}
+                  difficulty={ex.difficulty}
+                  equipment={ex.equipment}
+                />
+              </CheckRow>
 
               <PastRecord title={ex.title} past={ex.past} />
             </div>

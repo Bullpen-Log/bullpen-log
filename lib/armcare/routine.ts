@@ -525,14 +525,13 @@ export function readArmcareRoutine(value: unknown): ArmcareRoutine | null {
   return routine as ArmcareRoutine;
 }
 
-/** 루틴 종류의 이름과 한 줄 설명 — 화면과 사용설명서가 같은 말을 쓴다 */
-export const ARMCARE_KIND_TEXT: Record<ArmcareKind, { label: string; desc: string }> = {
-  recovery: {
-    label: '회복 루틴',
-    desc: '가벼운 밴드·버티기·견갑 운동을 1세트씩 — 피가 돌 만큼만 합니다.',
-  },
-  strength: {
-    label: '강화 루틴',
-    desc: '어깨 뒤·앞·위, 견갑, 팔꿈치 안·밖을 고르게 2세트씩 합니다.',
-  },
+/**
+ * 루틴 종류의 이름 — 화면(맞춤 루틴 · 따라하기)이 같은 말을 쓴다.
+ *
+ * 한 줄 설명(desc)도 있었는데 어느 화면에도 나오지 않아 뺐다(2026-09-26 검토). 왜 그
+ * 루틴인지는 그날의 까닭(decision.reason)이 말한다.
+ */
+export const ARMCARE_KIND_TEXT: Record<ArmcareKind, { label: string }> = {
+  recovery: { label: '회복 루틴' },
+  strength: { label: '강화 루틴' },
 };

@@ -3,6 +3,7 @@ import { createPlaybackUrls } from '@/lib/storage';
 import { referenceThumbUrl } from '@/lib/reference-video';
 import { formatPrescription } from '@/lib/exercise-meta';
 import type { CachedExercise } from '@/lib/library-cache';
+import { methodOf } from '@/lib/armcare/methods';
 import type { ArmcareExerciseView } from './armcare-media';
 
 /**
@@ -39,5 +40,6 @@ export async function toArmcareViews(
     referenceVideoId: ex.referenceVideoId,
     aspectRatio: ex.aspectRatio,
     isReference: ex.source === 'REFERENCE',
+    method: methodOf(ex.title)?.key ?? null,
   }));
 }

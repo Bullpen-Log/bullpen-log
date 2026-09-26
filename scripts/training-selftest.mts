@@ -95,6 +95,7 @@ import {
   ARMCARE_AREAS,
   ARMCARE_CATEGORY,
   ARMCARE_MUSCLE_NAMES,
+  areaOfMuscle,
   areasOf,
   cleanTargetMuscles,
   helpsLine,
@@ -111,6 +112,7 @@ import {
   type ArmcareKind,
 } from '../lib/armcare/routine.ts';
 import { ARMCARE_METHODS, methodOf } from '../lib/armcare/methods.ts';
+import { visibleChips } from '../lib/armcare/chips.ts';
 import { AREA_DETAILS, MUSCLE_DETAILS } from '../lib/armcare/details.ts';
 import { BODY_PART_MAP } from '../lib/body-map.ts';
 import {
@@ -3769,7 +3771,7 @@ console.log('\n[암케어] 부위·근육 · 오늘의 루틴 · 부하');
 
   /* 1-1) 훈련 방식 — 이름으로 가리고, 화면에 적은 말이 참인가 */
   const emptyMethods = ARMCARE_METHODS.filter(
-    (m) => !armcareLib.some((ex) => methodOf(ex.title).key === m.key)
+    (m) => !armcareLib.some((ex) => methodOf(ex.title)?.key === m.key)
   );
   check(
     '훈련 방식마다 운동이 하나 이상 있다',
@@ -3777,12 +3779,12 @@ console.log('\n[암케어] 부위·근육 · 오늘의 루틴 · 부하');
     emptyMethods.map((m) => m.label).join(', ')
   );
   check(
-    '방식 표시가 없는 이름은 기본 보강이다',
-    methodOf('밴드 외회전').key === 'basic' &&
-      methodOf('사이드라잉 외회전 리바운드').key === 'rebound'
+    '방식 표시가 없는 이름은 기본 보강이다 (방식 없음)',
+    methodOf('밴드 외회전') === null &&
+      methodOf('사이드라잉 외회전 리바운드')?.key === 'rebound'
   );
   const eccentricInRoutine = armcareLib
-    .filter((ex) => methodOf(ex.title).key === 'eccentric')
+    .filter((ex) => methodOf(ex.title)?.key === 'eccentric')
     .filter(
       (ex) =>
         armcareBlock(ex, 'strength', null) == null ||
@@ -3827,9 +3829,48 @@ console.log('\n[암케어] 부위·근육 · 오늘의 루틴 · 부하');
   );
   check(
     '방식 설명은 방식이 붙은 운동에만 — 기본 보강은 붙지 않는다',
-    methodOf('튜빙 외회전 0도').key === 'basic' &&
-      methodOf('사이드라잉 외회전 리바운드').key === 'rebound' &&
-      armcareLib.some((ex) => methodOf(ex.title).key !== 'basic')
+    methodOf('튜빙 외회전 0도') === null &&
+      methodOf('사이드라잉 외회전 리바운드')?.key === 'rebound' &&
+      armcareLib.some((ex) => methodOf(ex.title) != null)
+  );
+  /*
+   * 방식 글은 설명이 붙는 넷만 둔다 — 기본 보강의 글은 어디에도 나오지 않아 지웠다
+   * (2026-09-26 검토). 이름 표시(titleMarker)가 서로 겹치면 한 운동이 두 방식이 된다.
+   */
+  const markers = ARMCARE_METHODS.map((m) => m.titleMarker);
+  const overlapping = markers.filter((a, i) =>
+    markers.some((b, j) => i !== j && (a.includes(b) || b.includes(a)))
+  );
+  check(
+    '방식마다 이름 표시가 있고 서로 겹치지 않는다',
+    markers.every((m) => m.trim().length > 0) && overlapping.length === 0,
+    overlapping.join(', ')
+  );
+
+  /*
+   * 1-1-0) 부위 카드의 운동 줄 — 근육 칩은 둘만 보이는데(max 2), 그 운동이 이 부위 카드에
+   * 든 까닭인 근육이 '+N' 뒤로 숨으면 안 된다(2026-09-26 검토: 89개 중 31개가 그랬다).
+   * app/(app)/training/armcare-guide.tsx 의 exercisesFor · GuideExercise 와 같은 셈.
+   */
+  const hiddenReason: string[] = [];
+  for (const area of ARMCARE_AREAS) {
+    const own = ARMCARE_MUSCLE_NAMES.filter((m) => areaOfMuscle(m)?.key === area.key);
+    for (const ex of armcareLib) {
+      if (!ex.targetMuscles.some((m) => areaOfMuscle(m)?.key === area.key)) continue;
+      const shown = visibleChips(ex.targetMuscles, own, 2);
+      if (!shown.some((m) => own.includes(m))) hiddenReason.push(`${area.label}: ${ex.title}`);
+    }
+  }
+  check(
+    '부위 카드의 운동 줄에 그 부위 근육 칩이 하나는 보인다',
+    hiddenReason.length === 0,
+    hiddenReason.slice(0, 5).join(', ')
+  );
+  check(
+    '근육 칩은 자를 때도 원래 차례(크게 쓰는 차례)를 지킨다',
+    visibleChips(['a', 'b', 'c'], ['c'], 2).join() === 'a,c' &&
+      visibleChips(['a', 'b'], undefined, 2).join() === 'a,b' &&
+      visibleChips(['a', 'b', 'c'], undefined, 2).join() === 'a,b'
   );
 
   /* 1-1-1) 자세히 보기 — 부위·근육마다 창에 나갈 글이 있다(lib/armcare/details.ts) */

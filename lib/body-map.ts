@@ -11,8 +11,9 @@ import type { BodyPart } from '@/lib/exercise-meta';
  * 없는 이름을 적으면 그 칸만 안 켜진다(자체 시험이 모델과 맞춰 본다).
  *
  * 태그가 거칠다는 한계가 있다 — 예를 들어 '대퇴사두(허벅지 앞)' 태그가 없어서, 스쿼트처럼
- * 고관절·햄스트링·둔근으로 적힌 운동은 허벅지 앞이 안 켜진다. 운동마다 근육을 정확히
- * 적는 일은 따로 하기로 했다(같은 날, 암케어의 targetMuscles 처럼).
+ * 고관절·햄스트링·둔근으로 적힌 운동은 허벅지 앞에서 대퇴직근(고관절을 지나는 한 갈래라
+ * '고관절'에 든다)만 켜지고 나머지 광근 셋은 안 켜진다. 운동마다 근육을 정확히 적는 일은
+ * 따로 하기로 했다(같은 날, 암케어의 targetMuscles 처럼).
  *
  * 글(about)은 일반 해부학·투구 지식으로 새로 썼다. 부상을 막는다고 약속하지 않는다.
  */
@@ -264,8 +265,3 @@ export const BODY_PART_MAP: Record<BodyPart, BodyPartMap> = {
       '하체에서 만든 힘을 몸통을 거쳐 팔까지 잇는 운동입니다 — 투구와 같은 흐름입니다.',
   },
 };
-
-/** 알려진 부위 태그인가 — 목록 밖 이름(옛 데이터)은 누를 수 없는 글자로 둔다 */
-export function isMappedBodyPart(part: string): part is BodyPart {
-  return Object.hasOwn(BODY_PART_MAP, part);
-}

@@ -29,10 +29,13 @@ export type MyRoutineView = {
 export function MyRoutines({
   routines,
   painToday,
+  dateKey,
 }: {
   routines: MyRoutineView[];
   /** 오늘 체크인에 통증을 남겼는가 */
   painToday: boolean;
+  /** 이 화면이 보여 주는 날(YYYY-MM-DD) — 체크와 따라하기가 이 날에 남긴다 */
+  dateKey: string;
 }) {
   const [open, setOpen] = useState<string | null>(null);
 
@@ -59,6 +62,7 @@ export function MyRoutines({
               <RoutineCard
                 key={r.id}
                 routine={r}
+                dateKey={dateKey}
                 open={open === r.id}
                 onToggle={() => setOpen(open === r.id ? null : r.id)}
               />
@@ -90,10 +94,12 @@ function NewRoutineLink() {
 
 function RoutineCard({
   routine: r,
+  dateKey,
   open,
   onToggle,
 }: {
   routine: MyRoutineView;
+  dateKey: string;
   open: boolean;
   onToggle: () => void;
 }) {
@@ -139,7 +145,7 @@ function RoutineCard({
         </button>
         {all > 0 && (
           <Link
-            href={`/armcare/play/${r.id}`}
+            href={`/armcare/play/${r.id}?d=${dateKey}`}
             aria-label={`${r.name} 따라하기`}
             className="flex w-12 shrink-0 items-center justify-center border-l border-line text-sky transition-colors hover:bg-sky-tint"
           >
@@ -162,7 +168,12 @@ function RoutineCard({
               담긴 운동이 모두 라이브러리에서 숨겨졌습니다. 고치기에서 다시 담아 주세요.
             </p>
           ) : (
-            <Checklist items={r.items} grouped={false} doneLabel="루틴 끝" />
+            <Checklist
+              items={r.items}
+              dateKey={dateKey}
+              grouped={false}
+              doneLabel="루틴 끝"
+            />
           )}
           {r.hidden > 0 && (
             <p className="px-1 text-xs text-muted">
