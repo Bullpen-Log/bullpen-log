@@ -107,6 +107,11 @@
   활용신청 상태를 보게 한다. 사용자가 "키 넣었어"라고 하면 로그인 상태로 `/api/nutrition/search?q=쌀밥` 응답의
   칸 번호(AMT_NUM1 kcal · 3 단백질 · 4 지방 · 6 탄수화물)가 맞는지 보고, 틀리면 `lib/nutrition/mfds-parse.ts` 를 고친다.
   Vercel 환경변수에도 넣었는지 묻는다.
+- **구속 측정 시제품(2026-09-27).** `/velocity`(app/(session)/velocity) — 카메라로 던짐을 알아채 잰다
+  (`lib/velocity-engine/live-capture.ts` → `analyze-frames.ts`). 앱(UA 에 `BullpenLogApp`) 또는 관리자만.
+  웹 카메라는 60fps 밑이라 엔진이 거부하므로 웹에서는 흐름만 본다. 사용자가 앱으로 만들어 스피드건과 견주며
+  고칠 점을 말하기로 했다 — 보정 짝은 지금 localStorage(`lib/velocity-calibration.ts`), 쓸 만해지면 DB 표로.
+  다음에 손댈 후보: 던짐 감지 문턱값(live-capture.ts 상단 상수), 화각 기본값, 네이티브 고속 촬영 연결.
 - **사용자 답 대기** — 약관 · 개인정보 처리방침의 빈칸: 시행일 `2026년 0월 0일`(`app/(legal)/terms` · `privacy`),
   개인정보 보호책임자 `[이름]`(privacy). 그리고 `/more` 화면을 홈으로 넘기고 지울지.
 - **`NutritionProfile.sex` 칸 지우기(금윤호 몫).** 성별은 `User.sex` 로 옮겼고 이 칸은 안 쓴다. 지우는 마이그레이션은

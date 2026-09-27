@@ -11,7 +11,26 @@ Claude 로 작업을 시작하면 저절로 읽힌다. 규칙은 `AGENTS.md` 6�
 
 ---
 
-## 김민에게 — 2026-09-27 · 금윤호(Claude)
+## 김민에게 — 2026-09-27 · 금윤호(Claude) — 구속 측정 시제품
+
+받은 뒤 할 일은 없다. **네가 8월에 만들어 꺼 둔 구속 측정(`app/(app)/_velocity`)을 카메라로 바로 재는
+화면으로 다시 켰다**(사용자 요청 — Smart Scout · PitchLab 처럼 릴리스 포인트를 화면 가운데에 대고 던지면
+재는 방식). 계산 엔진(`lib/velocity-engine`)은 그대로 쓰고, 두 곳만 손댔다:
+
+- `analyze-video.ts` 의 계산 부분을 `analyze-frames.ts` 로 떼어냈다 — 영상 파일과 카메라 프레임이 같은
+  코드로 계산한다. `detect.ts` 의 `buildBackground` · `findMovedBlobs` 입력 타입만 `ArrayLike<number>`
+  로 넓혔다(카메라 프레임은 메모리를 아끼려고 Uint8Array 로 쥔다). 자가시험 32 + 10 그대로 통과.
+- 새 파일: `lib/velocity-engine/live-capture.ts`(카메라 · 던짐 감지), `lib/velocity-calibration.ts`
+  (스피드건 짝으로 보정 — 지금은 localStorage), `lib/app-env.ts`(앱 껍데기 판별),
+  `app/(session)/velocity/*`(화면). `_velocity` 폴더는 지웠다.
+- **어디서 열리나:** 투구 기록 탭의 '구속 측정' 단추 → `/velocity`. **앱(네이티브 껍데기) 안이거나 관리자일
+  때만** 단추가 보이고 화면이 열린다. 일반 계정이 웹에서 주소로 들어가면 '앱에서 쓸 수 있어요'. 앱 판별은
+  User-Agent 의 `BullpenLogApp` 표시(`lib/app-env.ts`) — 앱 껍데기를 만들 때 Capacitor 의
+  `appendUserAgent` 에 넣으면 된다.
+- 웹 브라우저 카메라는 60fps 밑이라 엔진이 숫자를 내지 않는다(`MIN_FPS`) — 웹은 관리자 시험 모드,
+  실제 측정은 앱에서 폰의 고속 촬영을 붙인 뒤다. 스피드건과 견줘 보정하는 건 사용자가 앱으로 한다.
+
+## 김민에게 — 2026-09-27 · 금윤호(Claude) — PC 크기 기준
 
 받은 뒤 할 일은 없다. **PC 화면 전체의 크기 기준을 바꿨다**(사용자 요청) — 네 화면도 PC 에서는 조금
 작아지고 블록 사이는 넓어진다. 휴대폰은 그대로다. 자세한 까닭과 숫자는 `app/globals.css` 의 'PC 화면의

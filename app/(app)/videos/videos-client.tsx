@@ -1,7 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { Plus } from 'lucide-react';
+import { Gauge, Plus } from 'lucide-react';
 import { ButtonLink, PageHeading } from '@/components/ui';
 import { useTodayKey } from '@/components/use-today-key';
 import { Segmented } from '@/components/segmented';
@@ -53,6 +53,7 @@ export function VideosClient({
   initialMonth,
   initialDate,
   today,
+  canMeasure,
 }: {
   logs: VideoLog[];
   /** 날짜(YYYY-MM-DD)별로 고른 대표 영상. 안 고른 날은 없다. */
@@ -63,6 +64,8 @@ export function VideosClient({
   initialDate: string | null;
   /** 서버가 본 오늘 — 화면이 뜬 뒤에는 브라우저의 오늘로 맞춘다(자정을 넘겨 켜 둔 탭) */
   today: string;
+  /** 카메라 구속 측정 단추를 보일까 — 앱 안이거나 관리자일 때만(app/(app)/videos/page.tsx) */
+  canMeasure: boolean;
 }) {
   const todayKey = useTodayKey(today);
   const [view, setView] = useState<'calendar' | 'list'>('calendar');
@@ -160,6 +163,16 @@ export function VideosClient({
             <div className="hidden items-center gap-2 desk-low:flex">
               {viewControls}
             </div>
+            {/*
+              카메라로 구속 재기 — 폰 화면 하나짜리 기능이라 따로 연다(/velocity). 앱 안이거나
+              관리자일 때만 보인다. 일반 계정이 웹에서 주소로 들어가도 '앱에서 쓸 수 있어요'만 본다.
+            */}
+            {canMeasure && (
+              <ButtonLink href="/velocity" variant="secondary" className="gap-1.5">
+                <Gauge aria-hidden className="h-4 w-4" />
+                구속 측정
+              </ButtonLink>
+            )}
             {/* 기록을 남기는 곳은 날짜 화면이다 — 이 탭에서 곧장 오늘로 */}
             <ButtonLink
               href={`/pitch-log/${todayKey}`}
