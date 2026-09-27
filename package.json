@@ -21,6 +21,7 @@
     "velocity:test": "node scripts/velocity-selftest.mts",
     "velocity:detect-test": "node scripts/velocity-detect-test.mts",
     "velocity:accuracy": "node scripts/velocity-accuracy.mts",
+    "velocity:review": "node --env-file=.env scripts/velocity-review.mts",
     "rotation:check": "node --env-file=.env --import ./scripts/alias-register.mjs scripts/rotation-check.mts",
     "patch:sync": "node scripts/sync-patch-notes.mjs",
     "prepare": "git config core.hooksPath .githooks || true"

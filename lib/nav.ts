@@ -22,6 +22,8 @@ export type NavIconName =
   | 'settings'
   /* 관리자 — 설정(톱니)과 헷갈리지 않게 방패를 쓴다 */
   | 'shield'
+  /* 구속 측정 관리자 — 계기판 */
+  | 'gauge'
   | 'menu';
 
 export type NavItem = {
@@ -160,6 +162,14 @@ export const NAV_GROUPS: NavGroup[] = [
         href: '/admin',
         label: '관리자',
         icon: 'shield',
+        tone: 'armcare',
+        adminOnly: true,
+      },
+      /* 카메라로 잰 값과 스피드건 값을 견줘 정확도를 올리는 자료 — 관리자만, 웹 화면 */
+      {
+        href: '/admin/velocity',
+        label: '구속 측정 관리자',
+        icon: 'gauge',
         tone: 'armcare',
         adminOnly: true,
       },

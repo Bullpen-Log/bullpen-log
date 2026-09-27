@@ -32,6 +32,10 @@ export type VelocitySetup = {
    * 정규 마운드(18.44m)에서 릴리스가 판보다 약 1.8m 앞, 카메라가 홈플레이트 뒤 약 1.8m 면 ≈ 18.5m.
    */
   releaseDistM: number;
+  /** 자동 측정 — 켜 두면 공마다 알아서 잡는다. 끄면 공마다 단추를 눌러 기다린다 */
+  autoMode: boolean;
+  /** 관리자의 '정확도 보정용 저장' — 켜고 재면 공마다 영상 클립 · 분석 자료를 올린다(관리자만 효과) */
+  calibSave: boolean;
   savedAt: string;
 };
 
@@ -76,6 +80,8 @@ export const DEFAULT_SETUP: Omit<VelocitySetup, 'savedAt'> = {
   voice: false,
   useCal: true,
   releaseDistM: 18.5,
+  autoMode: true,
+  calibSave: false,
 };
 
 const isRect = (z: unknown): z is ZoneRect =>
@@ -108,6 +114,8 @@ export function loadSetup(): VelocitySetup | null {
         p.releaseDistM <= RELEASE_DIST_MAX
           ? p.releaseDistM
           : DEFAULT_SETUP.releaseDistM,
+      autoMode: p.autoMode !== false,
+      calibSave: p.calibSave === true,
       savedAt: typeof p.savedAt === 'string' ? p.savedAt : '',
     };
   } catch {

@@ -11,19 +11,26 @@ Claude 로 작업을 시작하면 저절로 읽힌다. 규칙은 `AGENTS.md` 6�
 
 ---
 
-## 김민에게 — 2026-09-27 밤 · 금윤호(Claude) — 구속 측정 엔진 정확도
+## 김민에게 — 2026-09-28 · 금윤호(Claude) — 구속 측정 관리자 · 자동 측정 · 엔진 정확도
 
 네 메모(운동 라이브러리 · 장비 · 캐시 v7 → 서버 다시 켜기)는 사용자에게 전하고 처리했다.
 
-**받은 뒤 할 일 없음** — DB 구조 · 패키지 그대로(`package.json` 에 시험대 스크립트 한 줄만 늘었다).
-구속 측정 파일만 고쳤다(`lib/velocity-engine/*`, `components/velocity/*`, `app/(session)/velocity/*`,
-`lib/velocity-lens.ts` · `lib/velocity-setup.ts`).
+**받은 뒤 `npx prisma generate` 하고 개발 서버를 다시 켠다.** 표 둘에 칸을 더했다(추가만, 기본값
+있음, 백업 뒤 적용 끝 — `20260927230500_velocity_clips_analysis`): `VelocitySession` 에
+forCalibration · autoMode · focalPx · lensCal(Json) · releaseDistM · frameW/H, `VelocityPitch` 에
+clipPath · clipBytes · clipSec · clipMime · clipEventSec · analysis(Json) · autoDetected · calibExclude.
+패키지는 그대로.
 
-- **정확도 시험대 `npm run velocity:accuracy`**(`scripts/velocity-accuracy.mts`) — 진짜 구속을 아는 공을 프레임으로
-  그려(번짐 · 잡음 · 노출 변화 · 옆 흐름 · 공기저항 · 화각 오차 · 포수 뒤) 엔진 전체를 돌리고 오차를 잰다.
-  `--only=글자` 로 일부만, `--seeds=N`, `--diag` 로 지름 치우침. 엔진을 손대면 이걸로 앞뒤를 견준다.
-- 엔진에서 바뀐 것(부르는 쪽 영향): `analyzeFrames` 입력에 `focalPx`(렌즈 보정값) · `releaseDistanceM`(포수 뒤) 이
-  늘었고, `ReleaseInfo.dxCm/dyCm/distanceM` 이 `number | null` 이 됐다(포수 뒤는 위치를 모른다). `MeasureSuccess.detail`
-  에 `startKmh` · `endKmh`. `findMovedBlobs` 다섯째 인자 `exposureBias`. `simulatePitch` 의 `dragPerSec` → `dragPerM`.
-- 속도 맞춤이 직선에서 공기저항 곡선(`geometry.ts` `fitDrag`)으로 바뀌었다. 지름은 문턱값 상자가 아니라 밝기 총량으로
-  다시 잰다(`analyze-frames.ts` `refineTrack`). 시험대 기준 편향 −8~−23km/h → ±0.5km/h 안(자세한 건 커밋 본문).
+- **구속 측정 관리자(웹)** `/admin/velocity`(종합 · 날짜별 · 공마다 스피드건 값 · 영상 클립 · 제외 · 삭제,
+  영상 파일로 재기). 관리자 메뉴에 '구속 측정 관리자'가 생겼다(`lib/nav.ts` · `components/nav-icons.tsx`).
+  웹 관리자가 투구 기록 탭에서 '구속 측정'을 고르면 여기로 온다(폰 틀 패널은 앱에서만).
+- 네 영역 파일을 고친 것: `app/(app)/videos/page.tsx` · `videos-client.tsx`(관리자 웹 → /admin/velocity,
+  webTest 경고 제거), `app/(app)/admin/page.tsx`(카드 하나), `lib/nav.ts` · `components/nav-icons.tsx`.
+- 저장 액션 `app/actions/velocity.ts`: 입력에 analysis · autoDetected · forCalibration · autoMode · focalPx ·
+  lensCal · releaseDistM · frameW/H, 반환에 pitchIds. 클립 업로드 `createClipUpload` · `attachClip`
+  (투구 영상과 같은 서명 업로드, 버킷 `pitch-videos`, 경로 `<userId>/<uuid>.<ext>`). 세션 뒷정리는
+  `lib/velocity-sync.ts` 로 옮겼다(관리자 액션 `app/actions/velocity-admin.ts` 와 같이 씀).
+- 측정 화면은 카메라 앱 모양 + 자동/수동 세션 + 카메라 숨김 정보 판 + 공마다 클립 + 재초점 + 튜토리얼
+  (`components/velocity/tutorial.tsx`). 엔진: 원근 타원 보정(`geometry.ts` perspectiveFactor), 분석 배율을
+  짧은 변 720 기준으로(`analyzeScale`), 렌즈 보정 저장 형식 v2(`lib/velocity-lens.ts` — 옛 값은 버림).
+- 자료를 다시 보는 스크립트 `npm run velocity:review`(`scripts/velocity-review.mts`, 읽기 전용).

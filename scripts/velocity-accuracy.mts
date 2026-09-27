@@ -145,7 +145,7 @@ const SCENARIOS: Scenario[] = [
 
 /* ─────────────────────────── 그리기 ─────────────────────────── */
 
-const ANALYZE_WIDTH = 720;
+const ANALYZE_SHORT_SIDE = 720;
 
 function makeRandom(seed: number) {
   let state = seed >>> 0;
@@ -213,11 +213,35 @@ function drawBall(
   diameter: number,
   brightness: number,
   blurSigma: number,
-  smear: { dx: number; dy: number } | null
+  smear: { dx: number; dy: number } | null,
+  /** 원근 타원 — 화면 중심(분석 픽셀)과 초점거리(분석 픽셀). 가운데서 벗어난 공은 시선 방향으로 1/cosθ 늘어난다 */
+  ellipse: { cx: number; cy: number; focalPx: number } | null = null
 ) {
   const r = diameter / 2;
+  /* 타원 축 — u 는 화면 중심에서 공으로 향하는 단위 벡터, 그 방향 반지름이 r/cosθ */
+  let ux = 1;
+  let uy = 0;
+  let ra = r;
+  if (ellipse) {
+    const dx = cx - ellipse.cx;
+    const dy = cy - ellipse.cy;
+    const rr = Math.hypot(dx, dy);
+    if (rr > 1e-6) {
+      ux = dx / rr;
+      uy = dy / rr;
+      const cos = ellipse.focalPx / Math.hypot(ellipse.focalPx, rr);
+      ra = r / cos;
+    }
+  }
+  const inside = (px: number, py: number, ox: number, oy: number) => {
+    const ex = px - ox;
+    const ey = py - oy;
+    const pu = ex * ux + ey * uy;
+    const pv = -ex * uy + ey * ux;
+    return (pu * pu) / (ra * ra) + (pv * pv) / (r * r) <= 1;
+  };
   const pad = Math.ceil(
-    r + 3 * blurSigma + (smear ? Math.hypot(smear.dx, smear.dy) : 0) + 2
+    Math.max(r, ra) + 3 * blurSigma + (smear ? Math.hypot(smear.dx, smear.dy) : 0) + 2
   );
   const x0 = Math.max(0, Math.floor(cx - pad));
   const x1 = Math.min(width - 1, Math.ceil(cx + pad));
@@ -234,15 +258,15 @@ function drawBall(
     const oy = cy + (smear ? smear.dy * f : 0);
     for (let y = y0; y <= y1; y++) {
       for (let x = x0; x <= x1; x++) {
-        let inside = 0;
+        let insideN = 0;
         for (let sy = 0; sy < 3; sy++) {
           for (let sx = 0; sx < 3; sx++) {
             const px = x + (sx + 0.5) / 3 - 0.5;
             const py = y + (sy + 0.5) / 3 - 0.5;
-            if ((px - ox) ** 2 + (py - oy) ** 2 <= r * r) inside++;
+            if (inside(px, py, ox, oy)) insideN++;
           }
         }
-        cover[(y - y0) * w + (x - x0)] += inside / 9 / steps;
+        cover[(y - y0) * w + (x - x0)] += insideN / 9 / steps;
       }
     }
   }
@@ -298,7 +322,7 @@ type Outcome =
 function throwOnce(sc: Scenario, seed: number): Outcome {
   const rand = makeRandom(seed * 7919 + 17);
   const { w: sw, h: sh } = sc.source;
-  const scale = Math.min(1, ANALYZE_WIDTH / sw);
+  const scale = Math.min(1, ANALYZE_SHORT_SIDE / Math.min(sw, sh));
   const width = Math.round(sw * scale);
   const height = Math.round(sh * scale);
   const longSide = Math.max(sw, sh);
@@ -355,7 +379,11 @@ function throwOnce(sc: Scenario, seed: number): Outcome {
             dy: ((lat.y * (dt / 2) * trueFocal) / z) * scale,
           }
         : null;
-    drawBall(luma, width, height, cx, cy, dSmall, ball, blur, smear);
+    drawBall(luma, width, height, cx, cy, dSmall, ball, blur, smear, {
+      cx: (sw / 2) * scale,
+      cy: (sh / 2) * scale,
+      focalPx: trueFocal * scale,
+    });
     addNoise(luma, noise, Math.floor(rand() * 65536));
     frames.push({ t, luma });
     truth.push({ t, z });

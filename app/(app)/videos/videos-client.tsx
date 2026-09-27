@@ -1,6 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { Plus } from 'lucide-react';
 import {
   VelocityPanel,
@@ -44,8 +45,12 @@ const VIEW_OPTIONS = [
   { value: 'calendar', label: '캘린더' },
   { value: 'list', label: '목록' },
 ] as const;
-/* 구속 측정(불펜 벨로시티)은 앱 안이거나 관리자일 때만 세 번째 칸으로 붙는다 */
+/*
+ * 구속 측정(불펜 벨로시티)은 앱 안이거나 관리자일 때만 세 번째 칸으로 붙는다. 관리자가 웹에서
+ * 보면 폰 틀 패널 대신 구속 측정 관리자(/admin/velocity)로 가는 칸이 된다(velocityHref).
+ */
 const VELOCITY_OPTION = { value: 'velocity', label: '구속 측정' } as const;
+const VELOCITY_ADMIN_OPTION = { value: 'velocity', label: '구속 측정 관리자' } as const;
 type View = 'calendar' | 'list' | 'velocity';
 
 /**
@@ -63,6 +68,7 @@ export function VideosClient({
   initialDate,
   today,
   canMeasure,
+  velocityHref,
   measured,
   velocity,
   initialView,
@@ -78,22 +84,24 @@ export function VideosClient({
   today: string;
   /** 카메라 구속 측정 단추를 보일까 — 앱 안이거나 관리자일 때만(app/(app)/videos/page.tsx) */
   canMeasure: boolean;
+  /** 관리자 웹 — 세 번째 칸을 고르면 보기를 바꾸지 않고 이 주소(구속 측정 관리자)로 간다 */
+  velocityHref: string | null;
   /** 날짜별 카메라 측정 요약(공 수 · 최고 km/h) — 캘린더의 그날 칸에 적는다 */
   measured: Record<string, { n: number; max: number }>;
-  /** [구속 측정] 보기가 쓰는 것 — 오늘 잰 세션 · 오늘 투구 기록 요약 · 보정식. canMeasure 일 때만 */
+  /** [구속 측정] 보기가 쓰는 것 — 오늘 잰 세션 · 오늘 투구 기록 요약 · 보정식. 앱 안일 때만 */
   velocity: {
     sessions: VelocitySessionView[];
     todayLog: TodayLogSummary;
     calibration: CalFit;
-    webTest: boolean;
   } | null;
   /** 처음 보일 칸 — ?view=velocity 로 들어오면 구속 측정 */
   initialView: View;
 }) {
+  const router = useRouter();
   const todayKey = useTodayKey(today);
   const [view, setView] = useState<View>(initialView);
   const viewOptions: readonly { value: View; label: string }[] = canMeasure
-    ? [...VIEW_OPTIONS, VELOCITY_OPTION]
+    ? [...VIEW_OPTIONS, velocityHref ? VELOCITY_ADMIN_OPTION : VELOCITY_OPTION]
     : VIEW_OPTIONS;
   const [comparing, setComparing] = useState(false);
   /* 목록에서 고른 둘. 비교 화면이 이 둘로 열린다. */
@@ -165,6 +173,11 @@ export function VideosClient({
         label="기록 보기 방식"
         value={view}
         onChange={(next) => {
+          /* 관리자 웹의 세 번째 칸은 보기가 아니라 관리자 화면으로 가는 길 */
+          if (next === 'velocity' && velocityHref) {
+            router.push(velocityHref);
+            return;
+          }
           setView(next);
           if (next === 'calendar') setSelecting(false);
         }}
@@ -220,7 +233,6 @@ export function VideosClient({
             sessions={velocity.sessions}
             todayLog={velocity.todayLog}
             calibration={velocity.calibration}
-            webTest={velocity.webTest}
           />
         ) : view === 'calendar' ? (
           <VideoCalendar

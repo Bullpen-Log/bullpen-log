@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { ChevronRight, ScrollText } from 'lucide-react';
+import { ChevronRight, Gauge, ScrollText } from 'lucide-react';
 import { prisma } from '@/lib/prisma';
 import { requireAdmin } from '@/lib/dal';
 import { Badge, Card, PageHeading } from '@/components/ui';
@@ -180,6 +180,24 @@ export default async function AdminPage() {
           <span className="block text-sm font-bold text-ink">패치노트</span>
           <span className="mt-0.5 block text-xs leading-relaxed text-muted">
             프로그램을 누가 언제 어떻게 고쳤는지 날마다 쌓입니다.
+          </span>
+        </span>
+        <ChevronRight aria-hidden className="h-4 w-4 shrink-0 text-muted" />
+      </Link>
+
+      {/* 구속 측정 관리자 — 카메라 값과 스피드건 값을 견줘 정확도를 올리는 자료 */}
+      <Link
+        href="/admin/velocity"
+        className="flex items-center gap-4 rounded-2xl border border-line bg-surface px-5 py-4 transition-colors duration-75 hover:border-sky-soft hover:bg-surface-2"
+      >
+        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-line-strong text-muted">
+          <Gauge aria-hidden className="h-4 w-4" />
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block text-sm font-bold text-ink">구속 측정 관리자</span>
+          <span className="mt-0.5 block text-xs leading-relaxed text-muted">
+            카메라로 잰 값과 스피드건 값을 날짜별로 견주고, 영상 클립을 보며 보정 자료를
+            관리합니다.
           </span>
         </span>
         <ChevronRight aria-hidden className="h-4 w-4 shrink-0 text-muted" />

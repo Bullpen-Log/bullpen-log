@@ -46,7 +46,14 @@ import { Panel, SectionLabel } from './kit';
 
 export type SettingsValues = Pick<
   VelocitySetup,
-  'mode' | 'cameraPos' | 'net' | 'voice' | 'useCal' | 'releaseDistM'
+  | 'mode'
+  | 'cameraPos'
+  | 'net'
+  | 'voice'
+  | 'useCal'
+  | 'releaseDistM'
+  | 'autoMode'
+  | 'calibSave'
 > & { fovDeg: number };
 
 const NET_VALUES = [
@@ -59,10 +66,13 @@ export function VelocitySettingsFields({
   onChange,
   calibration,
   showChoices = true,
+  isAdmin = false,
 }: {
   values: SettingsValues;
   onChange: (patch: Partial<SettingsValues>) => void;
   calibration: CalFit;
+  /** 관리자에게만 '정확도 보정용 저장' 줄을 보인다 */
+  isAdmin?: boolean;
   /** 녹화 종류 · 카메라 위치 · 네트도 여기서 바꿀까 — 측정 중에는 숨긴다 */
   showChoices?: boolean;
 }) {
@@ -84,6 +94,20 @@ export function VelocitySettingsFields({
               }
             }}
           />
+          <ToggleRow
+            title="자동 측정"
+            hint="켜 두면 공마다 알아서 잡아요. 끄면 공마다 '다음 공'을 눌러 기다려요."
+            checked={values.autoMode}
+            onChange={(autoMode) => onChange({ autoMode })}
+          />
+          {isAdmin && (
+            <ToggleRow
+              title="정확도 보정용 저장(관리자)"
+              hint="켜고 재면 공마다 영상 클립 · 분석 자료가 구속 측정 관리자에 올라가요. 스피드건 값과 견줘 엔진을 맞추는 자료예요."
+              checked={values.calibSave}
+              onChange={(calibSave) => onChange({ calibSave })}
+            />
+          )}
           <ToggleRow
             title="스피드건 보정 적용"
             hint={
@@ -298,10 +322,12 @@ export function VelocitySettingsButton({
   calibration,
   className = '',
   label = '불펜 벨로시티 설정',
+  isAdmin = false,
 }: {
   calibration: CalFit;
   className?: string;
   label?: string;
+  isAdmin?: boolean;
 }) {
   const stored = useStoredSetup();
   const [open, setOpen] = useState(false);
@@ -314,6 +340,8 @@ export function VelocitySettingsButton({
     voice: base.voice,
     useCal: base.useCal,
     releaseDistM: base.releaseDistM,
+    autoMode: base.autoMode,
+    calibSave: base.calibSave,
     fovDeg: fov,
   };
   const change = (patch: Partial<SettingsValues>) => {
@@ -332,6 +360,8 @@ export function VelocitySettingsButton({
         voice: base.voice,
         useCal: base.useCal,
         releaseDistM: base.releaseDistM,
+        autoMode: base.autoMode,
+        calibSave: base.calibSave,
         ...rest,
       });
     }
@@ -358,6 +388,7 @@ export function VelocitySettingsButton({
             values={values}
             onChange={change}
             calibration={calibration}
+            isAdmin={isAdmin}
           />
           <div className="flex flex-wrap gap-2">
             <Button
@@ -372,6 +403,8 @@ export function VelocitySettingsButton({
                   voice: base.voice,
                   useCal: base.useCal,
                   releaseDistM: base.releaseDistM,
+                  autoMode: base.autoMode,
+                  calibSave: base.calibSave,
                 })
               }
             >

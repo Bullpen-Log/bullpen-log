@@ -22,7 +22,8 @@ import { ZoneGrid } from './pitch-editor';
  * 투구 기록 탭의 [구속 측정] 보기 — 불펜 벨로시티.
  *
  * 로고, 측정 시작(/velocity/measure), 설정, 오늘 카메라로 잰 것과 오늘 투구 기록의 간단한 숫자,
- * 마지막 세션의 공들. 앱 안이거나 관리자일 때만 이 보기가 있다(app/(app)/videos/page.tsx).
+ * 마지막 세션의 공들. 앱 안에서만 이 보기가 있다(app/(app)/videos/page.tsx) — 관리자가 웹에서
+ * 보면 이 패널 대신 구속 측정 관리자(/admin/velocity)로 간다.
  */
 export type TodayLogSummary = {
   entries: number;
@@ -36,14 +37,11 @@ export function VelocityPanel({
   sessions,
   todayLog,
   calibration,
-  webTest,
 }: {
   today: string;
   sessions: VelocitySessionView[];
   todayLog: TodayLogSummary;
   calibration: CalFit;
-  /** 관리자가 웹에서 보는 중 — 실제 측정은 앱에서라고 적는다 */
-  webTest: boolean;
 }) {
   const unit = useSpeedUnit();
   const stored = useStoredSetup();
@@ -85,12 +83,6 @@ export function VelocityPanel({
               ? `지난 설정: ${setupSummary(stored)} — 시작하면 그대로 쓸지 물어요`
               : '처음이면 무엇을 어디서 잴지부터 물어요'}
           </p>
-          {webTest && (
-            <p className="mt-1 text-center text-xs leading-snug text-warn">
-              웹 시험 모드(관리자) — 실제 측정은 앱의 고속 촬영으로. 일반 계정에는 이
-              보기가 없어요.
-            </p>
-          )}
         </div>
       </section>
 

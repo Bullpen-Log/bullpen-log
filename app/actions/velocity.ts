@@ -1,8 +1,22 @@
 'use server';
 
+import { Prisma } from '@prisma/client';
 import { revalidatePath } from 'next/cache';
 import { prisma } from '@/lib/prisma';
 import { getCurrentUser } from '@/lib/dal';
+import {
+  MAX_VIDEO_BYTES,
+  createUploadTarget,
+  deleteVideos,
+  isOwnedBy,
+  isStorageConfigured,
+} from '@/lib/storage';
+import {
+  deleteVelocityPitchRow,
+  deleteVelocitySessionRows,
+  sanitizeAnalysis,
+  velocityLogMemo,
+} from '@/lib/velocity-sync';
 import { isRestSession, validateSessionType } from '@/lib/session-type';
 import { fitCalibration, type CalFit, type CalPair } from '@/lib/velocity-calibration';
 import {
@@ -10,7 +24,6 @@ import {
   PITCH_TYPE_KEYS,
   ZONE_MAX,
   ZONE_MIN,
-  VELOCITY_MEMO_MARK,
   type PitchEdit,
 } from '@/lib/velocity-meta';
 
@@ -43,6 +56,10 @@ export type SavePitchInput = {
   durationSec: number | null;
   frames: number | null;
   fps: number | null;
+  /** 엔진이 본 자료(궤적 · 해상도 · 초점거리 · 맞음새 …) — 영상 없이도 다시 맞춰 볼 수 있게. 없어도 된다 */
+  analysis?: unknown;
+  /** 자동 감지로 잡힌 공인가(false = 수동으로 단추를 눌러 잼) */
+  autoDetected?: boolean;
 } & PitchEdit;
 
 export type SaveSessionInput = {
@@ -57,6 +74,16 @@ export type SaveSessionInput = {
   mode: string;
   cameraPos: string;
   net: boolean;
+  /** 관리자의 '정확도 보정용 저장' — 켜면 공마다 영상 클립을 올릴 수 있다(관리자만 켜진다) */
+  forCalibration?: boolean;
+  /** 자동 감지 모드였나 */
+  autoMode?: boolean;
+  /** 그때 쓴 초점거리(원본 긴 변 기준 픽셀) · 렌즈 보정 정보 · 포수 뒤 릴리스 거리 · 원본 프레임 크기 */
+  focalPx?: number | null;
+  lensCal?: unknown;
+  releaseDistM?: number | null;
+  frameW?: number | null;
+  frameH?: number | null;
   pitches: SavePitchInput[];
 };
 
@@ -113,7 +140,7 @@ export async function loadCalibration(): Promise<{ fit: CalFit; pairs: CalPair[]
 
 export async function saveVelocitySession(
   input: SaveSessionInput
-): Promise<VelocityActionResult & { sessionId?: string }> {
+): Promise<VelocityActionResult & { sessionId?: string; pitchIds?: string[] }> {
   const user = await getCurrentUser();
   if (!user) return { ok: false, error: '로그인이 필요합니다.' };
 
@@ -148,7 +175,12 @@ export async function saveVelocitySession(
   const { fit } = await loadCalibration();
 
   const pitches: Array<
-    Omit<SavePitchInput, keyof PitchEdit> & PitchEdit & { kmh: number }
+    Omit<SavePitchInput, keyof PitchEdit | 'analysis' | 'autoDetected'> &
+      PitchEdit & {
+        kmh: number;
+        analysis: Prisma.InputJsonValue | undefined;
+        autoDetected: boolean;
+      }
   > = [];
   for (const p of input.pitches) {
     const rawKmh = num(p.rawKmh, MIN_KMH, MAX_KMH);
@@ -175,6 +207,9 @@ export async function saveVelocitySession(
       durationSec: optional(p.durationSec, 0, 10),
       frames: optional(p.frames, 0, 10_000),
       fps: optional(p.fps, 0, 1000),
+      analysis: (sanitizeAnalysis(p.analysis) ?? undefined) as
+        Prisma.InputJsonValue | undefined,
+      autoDetected: p.autoDetected !== false,
       ...edit,
     });
   }
@@ -194,7 +229,7 @@ export async function saveVelocitySession(
         intensity,
         maxVelocity,
         avgVelocity,
-        memo: `${VELOCITY_MEMO_MARK} 카메라로 잰 ${pitches.length}구 — 자세한 값은 아래 '구속 측정'에`,
+        memo: velocityLogMemo(pitches.length),
         videoPaths: [],
       },
     });
@@ -212,16 +247,36 @@ export async function saveVelocitySession(
         cameraPos,
         net: input.net !== false,
         device: input.device ? String(input.device).slice(0, 200) : null,
+        /* 보정용 저장은 관리자만 — 일반 계정이 켜 보내도 저장하지 않는다 */
+        forCalibration: user.role === 'ADMIN' && input.forCalibration === true,
+        autoMode: input.autoMode !== false,
+        focalPx: optional(input.focalPx, 100, 100_000),
+        lensCal:
+          input.lensCal && typeof input.lensCal === 'object'
+            ? (JSON.parse(
+                JSON.stringify(input.lensCal).slice(0, 2000)
+              ) as Prisma.InputJsonValue)
+            : undefined,
+        releaseDistM: optional(input.releaseDistM, 1, 60),
+        frameW: optional(input.frameW, 1, 10_000),
+        frameH: optional(input.frameH, 1, 10_000),
         pitches: {
           create: pitches.map((p, i) => ({ ...p, seq: i + 1, userId: user.id })),
         },
       },
-      select: { id: true },
+      select: {
+        id: true,
+        pitches: { select: { id: true }, orderBy: { seq: 'asc' } },
+      },
     });
   });
 
   revalidateDay(input.date);
-  return { ok: true, sessionId: session.id };
+  return {
+    ok: true,
+    sessionId: session.id,
+    pitchIds: session.pitches.map((p) => p.id),
+  };
 }
 
 export async function updateVelocityPitch(
@@ -250,12 +305,16 @@ export async function deleteVelocityPitch(id: string): Promise<VelocityActionRes
 
   const row = await prisma.velocityPitch.findFirst({
     where: { id, userId: user.id },
-    select: { id: true, sessionId: true, session: { select: { date: true } } },
+    select: {
+      id: true,
+      sessionId: true,
+      clipPath: true,
+      session: { select: { date: true } },
+    },
   });
   if (!row) return { ok: false, error: '공을 찾을 수 없습니다.' };
 
-  await prisma.velocityPitch.delete({ where: { id } });
-  await syncSession(row.sessionId);
+  await deleteVelocityPitchRow(row);
   revalidateDay(row.session.date.toISOString().slice(0, 10));
   return { ok: true };
 }
@@ -266,63 +325,13 @@ export async function deleteVelocitySession(id: string): Promise<VelocityActionR
 
   const session = await prisma.velocitySession.findFirst({
     where: { id, userId: user.id },
-    select: {
-      id: true,
-      date: true,
-      pitchLogId: true,
-      pitchLog: { select: { memo: true } },
-    },
+    select: { id: true, date: true },
   });
   if (!session) return { ok: false, error: '세션을 찾을 수 없습니다.' };
 
-  await prisma.$transaction(async (tx) => {
-    await tx.velocitySession.delete({ where: { id } });
-    /* 같이 만든 투구 기록도 지운다 — 사람이 따로 만든 기록(표시 없음)은 건드리지 않는다 */
-    if (session.pitchLogId && session.pitchLog?.memo?.startsWith(VELOCITY_MEMO_MARK)) {
-      await tx.pitchLog.delete({ where: { id: session.pitchLogId } });
-    }
-  });
+  await deleteVelocitySessionRows(id);
   revalidateDay(session.date.toISOString().slice(0, 10));
   return { ok: true };
-}
-
-/**
- * 공이 줄었으면 같이 만든 투구 기록의 투구수 · 구속을 다시 맞춘다. 공이 하나도 안 남으면
- * 세션과 그 기록을 지운다.
- */
-async function syncSession(sessionId: string) {
-  const session = await prisma.velocitySession.findUnique({
-    where: { id: sessionId },
-    select: {
-      pitchLogId: true,
-      pitchLog: { select: { memo: true } },
-      pitches: { select: { kmh: true } },
-    },
-  });
-  if (!session) return;
-  const own =
-    !!session.pitchLogId && !!session.pitchLog?.memo?.startsWith(VELOCITY_MEMO_MARK);
-
-  if (session.pitches.length === 0) {
-    await prisma.$transaction(async (tx) => {
-      await tx.velocitySession.delete({ where: { id: sessionId } });
-      if (own)
-        await tx.pitchLog.delete({ where: { id: session.pitchLogId as string } });
-    });
-    return;
-  }
-  if (!own) return;
-  const kmhs = session.pitches.map((p) => p.kmh);
-  await prisma.pitchLog.update({
-    where: { id: session.pitchLogId as string },
-    data: {
-      pitchCount: kmhs.length,
-      maxVelocity: Math.max(...kmhs),
-      avgVelocity:
-        Math.round((kmhs.reduce((s, v) => s + v, 0) / kmhs.length) * 10) / 10,
-      memo: `${VELOCITY_MEMO_MARK} 카메라로 잰 ${kmhs.length}구 — 자세한 값은 아래 '구속 측정'에`,
-    },
-  });
 }
 
 function revalidateDay(date: string) {
@@ -330,4 +339,98 @@ function revalidateDay(date: string) {
   revalidatePath('/videos');
   revalidatePath('/today');
   revalidatePath('/velocity');
+  revalidatePath('/admin/velocity');
+  revalidatePath(`/admin/velocity/${date}`);
+}
+
+/* ───────────────────────── 영상 클립(정확도 보정용 저장) ───────────────────────── */
+
+export type ClipUploadTarget =
+  | { ok: true; path: string; signedUrl: string; token: string }
+  | { ok: false; error: string };
+
+/**
+ * 공 하나의 영상 클립을 올릴 서명 주소. 보정용 저장을 켠 세션(관리자)의 본인 공만.
+ * 브라우저가 이 주소로 PUT 한 뒤 attachClip 으로 경로를 적는다(투구 영상과 같은 흐름).
+ */
+export async function createClipUpload(
+  pitchId: string,
+  mime: string,
+  bytes: number
+): Promise<ClipUploadTarget> {
+  const user = await getCurrentUser();
+  if (!user) return { ok: false, error: '로그인이 필요합니다.' };
+  if (!isStorageConfigured())
+    return { ok: false, error: '영상 저장소가 설정되지 않았습니다.' };
+  if (!/^video\//.test(String(mime)))
+    return { ok: false, error: '영상 파일만 올릴 수 있습니다.' };
+  if (!(bytes > 0 && bytes <= MAX_VIDEO_BYTES)) {
+    return {
+      ok: false,
+      error: `클립은 ${Math.round(MAX_VIDEO_BYTES / 1024 / 1024)}MB 까지 올릴 수 있습니다.`,
+    };
+  }
+  const row = await prisma.velocityPitch.findFirst({
+    where: { id: pitchId, userId: user.id },
+    select: { id: true, session: { select: { forCalibration: true } } },
+  });
+  if (!row) return { ok: false, error: '공을 찾을 수 없습니다.' };
+  if (!row.session.forCalibration) {
+    return { ok: false, error: '정확도 보정용 저장을 켠 세션이 아닙니다.' };
+  }
+  const ext = /mp4/.test(mime) ? 'mp4' : /quicktime/.test(mime) ? 'mov' : 'webm';
+  try {
+    const target = await createUploadTarget(user.id, `clip.${ext}`);
+    return { ok: true, ...target };
+  } catch (e) {
+    return {
+      ok: false,
+      error: e instanceof Error ? e.message : '업로드 주소를 만들지 못했습니다.',
+    };
+  }
+}
+
+/** 올린 클립의 경로 · 크기 · 길이 · 던진 시각을 공에 적는다. 이미 있던 클립은 지운다 */
+export async function attachClip(
+  pitchId: string,
+  info: {
+    path: string;
+    bytes: number;
+    sec: number | null;
+    mime: string;
+    eventSec: number | null;
+  }
+): Promise<VelocityActionResult> {
+  const user = await getCurrentUser();
+  if (!user) return { ok: false, error: '로그인이 필요합니다.' };
+  const path = String(info.path ?? '');
+  if (!isOwnedBy(path, user.id))
+    return { ok: false, error: '클립 경로가 올바르지 않습니다.' };
+  const row = await prisma.velocityPitch.findFirst({
+    where: { id: pitchId, userId: user.id },
+    select: {
+      id: true,
+      clipPath: true,
+      session: { select: { date: true, forCalibration: true } },
+    },
+  });
+  if (!row) return { ok: false, error: '공을 찾을 수 없습니다.' };
+  if (!row.session.forCalibration) {
+    return { ok: false, error: '정확도 보정용 저장을 켠 세션이 아닙니다.' };
+  }
+  await prisma.velocityPitch.update({
+    where: { id: pitchId },
+    data: {
+      clipPath: path,
+      clipBytes: Math.round(num(info.bytes, 0, MAX_VIDEO_BYTES) ?? 0),
+      clipSec: optional(info.sec, 0, 600),
+      clipMime: String(info.mime ?? '').slice(0, 80) || null,
+      clipEventSec: optional(info.eventSec, 0, 600),
+    },
+  });
+  if (row.clipPath && row.clipPath !== path) {
+    await deleteVideos([row.clipPath]).catch(() => undefined);
+  }
+  revalidateDay(row.session.date.toISOString().slice(0, 10));
+  return { ok: true };
 }

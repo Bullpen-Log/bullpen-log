@@ -2,7 +2,7 @@
 
 import { toLuma } from './detect.ts';
 import {
-  ANALYZE_WIDTH,
+  analyzeScale,
   analyzeFrames,
   cornerShift,
   DEFAULT_FOV_DEG,
@@ -27,7 +27,7 @@ export { DEFAULT_FOV_DEG, type AnalyzeResult } from './analyze-frames.ts';
  * 여기는 프레임을 꺼내는 일만 한다. 계산은 analyze-frames.ts — 카메라로 바로 잴 때와
  * 같은 코드다.
  *
- * 분석 가로 크기(ANALYZE_WIDTH)를 720 으로 둔 까닭: 원본 그대로 훑으면 브라우저가
+ * 분석 크기(짧은 변 ANALYZE_SHORT_SIDE = 720)를 그렇게 둔 까닭: 원본 그대로 훑으면 브라우저가
  * 버벅인다. 너무 줄이면 멀어진 공이 몇 픽셀로 뭉개져 감지 한계에 걸리므로, 둘 사이에서
  * 720 을 쓴다. 지름을 원본 기준으로 되돌릴 때 이 배율을 함께 곱하므로 결과가 달라지지는
  * 않는다.
@@ -113,7 +113,7 @@ export async function analyzeVideo(options: AnalyzeOptions): Promise<AnalyzeResu
     const sourceH = video.videoHeight;
     if (!sourceW || !sourceH) throw new Error('영상 크기를 읽지 못했습니다.');
 
-    const scale = Math.min(1, ANALYZE_WIDTH / sourceW);
+    const scale = analyzeScale(sourceW, sourceH);
     const width = Math.round(sourceW * scale);
     const height = Math.round(sourceH * scale);
 

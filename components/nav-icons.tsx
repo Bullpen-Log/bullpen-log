@@ -2,6 +2,7 @@ import {
   BookOpen,
   Dumbbell,
   Film,
+  Gauge,
   House,
   Menu,
   Settings,
@@ -30,5 +31,6 @@ export const NAV_ICONS: Record<NavIconName, LucideIcon> = {
   book: BookOpen,
   settings: Settings,
   shield: Shield,
+  gauge: Gauge,
   menu: Menu,
 };

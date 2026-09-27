@@ -2,7 +2,7 @@
 
 import { buildBackground } from './detect.ts';
 import {
-  ANALYZE_WIDTH,
+  analyzeScale,
   analyzeFrames,
   cornerShift,
   type AnalyzeResult,
@@ -38,6 +38,24 @@ import {
  * 남짓 — 요즘 폰이면 된다. Float32 로 쥐면 네 배라 Uint8 로 둔다.
  */
 
+/**
+ * 영상 클립 — 녹화기 둘이 번갈아 돈다. 조각 길이 3초, 1.5초마다 새 조각을 시작하므로 어느 순간
+ * T 든 [T−0.4, T+1.1] 을 통째로 담은 조각이 하나는 있다(조각마다 파일 머리가 있어 그대로 재생된다
+ * — 한 녹화기의 조각을 이어 붙이면 머리가 없어 못 튼다). 던진 뒤 그 조각이 끝나면 클립으로 내보낸다.
+ */
+const CLIP_SEG_SEC = 3;
+const CLIP_STEP_SEC = 1.5;
+const CLIP_PRE_SEC = 0.4;
+const CLIP_POST_SEC = 1.1;
+const CLIP_BITS_PER_SEC = 5_000_000;
+const CLIP_MIME_CANDIDATES = [
+  'video/mp4;codecs=avc1',
+  'video/mp4',
+  'video/webm;codecs=vp9',
+  'video/webm;codecs=vp8',
+  'video/webm',
+];
+
 export type LiveStatus =
   /** 카메라 꺼짐 */
   | 'off'
@@ -62,6 +80,19 @@ export type CameraInfo = {
   height: number;
   label: string;
   focus: CameraFocus;
+  /** 줌 배율(브라우저가 알려줄 때). 1 이 아니면 렌즈 보정 · 화각 가정이 안 맞아 재면 안 된다 */
+  zoom: number | null;
+};
+
+/** 결과에 붙는 번호 — 나중에 오는 영상 클립(onClip)과 짝을 맞춘다 */
+export type ResultMeta = { id: number; triggerT: number };
+
+/** 공 하나의 영상 클립 — 던진 순간을 담은 3초 조각. eventSec = 클립 안에서 던진 시각 */
+export type PitchClip = {
+  blob: Blob;
+  mime: string;
+  durationSec: number;
+  eventSec: number;
 };
 
 /**
@@ -110,7 +141,9 @@ async function applyFocus(
 
 export type LiveCaptureHandlers = {
   onStatus: (status: LiveStatus) => void;
-  onResult: (result: AnalyzeResult) => void;
+  onResult: (result: AnalyzeResult, meta: ResultMeta) => void;
+  /** 결과 뒤 1~3초 안에 그 공의 영상 클립(클립 저장을 켰을 때만). id 는 onResult 의 것 */
+  onClip?: (id: number, clip: PitchClip) => void;
   onError: (message: string) => void;
   /** 실제로 들어오는 초당 프레임 수 — 화면에 보여 준다 */
   onFps?: (fps: number) => void;
@@ -158,6 +191,7 @@ export class LiveCapture {
   private background: Float32Array | null = null;
   private quietSamples: Uint8Array[] = [];
   private triggerT: number | null = null;
+  private triggerWall = 0;
   private captured: RingFrame[] = [];
   private cooldownUntil = 0;
   private center = { x0: 0, y0: 0, x1: 0, y1: 0 };
@@ -174,6 +208,175 @@ export class LiveCapture {
 
   setNet(net: boolean) {
     this.net = net;
+  }
+
+  /** 수동 모드 — 공 하나를 재면 다시 기다리지 않고 '준비됨'으로 돌아간다(단추를 눌러야 다음 공) */
+  private manual = false;
+  setManual(v: boolean) {
+    this.manual = v;
+  }
+
+  /** 결과 번호 — onResult 와 onClip 을 잇는다 */
+  private resultSeq = 0;
+
+  /* ── 영상 클립 ── */
+  private clipsOn = false;
+  private recorders: {
+    rec: MediaRecorder;
+    startedAt: number | null;
+    chunks: Blob[];
+  }[] = [];
+  private clipTimer: ReturnType<typeof setInterval> | null = null;
+  private clipMime = '';
+  private pendingClips: { id: number; wallT: number }[] = [];
+
+  /** 공마다 영상 클립을 남길까(정확도 보정용 저장 · 세션 목록 재생) */
+  setClips(on: boolean) {
+    if (this.clipsOn === on) return;
+    this.clipsOn = on;
+    if (this.stream) {
+      if (on) this.startClipLoop();
+      else this.stopClipLoop();
+    }
+  }
+
+  private pickClipMime(): string {
+    if (typeof MediaRecorder === 'undefined') return '';
+    for (const m of CLIP_MIME_CANDIDATES) {
+      try {
+        if (MediaRecorder.isTypeSupported(m)) return m;
+      } catch {
+        /* 다음 후보 */
+      }
+    }
+    return '';
+  }
+
+  private startClipLoop() {
+    if (!this.stream || this.clipTimer) return;
+    this.clipMime = this.pickClipMime();
+    if (!this.clipMime) {
+      this.handlers.onError(
+        '이 브라우저는 영상 클립 저장을 지원하지 않아요. 측정은 그대로 돼요.'
+      );
+      this.clipsOn = false;
+      return;
+    }
+    this.startSegment();
+    this.clipTimer = setInterval(() => this.startSegment(), CLIP_STEP_SEC * 1000);
+  }
+
+  private stopClipLoop() {
+    if (this.clipTimer) clearInterval(this.clipTimer);
+    this.clipTimer = null;
+    for (const r of this.recorders) {
+      try {
+        if (r.rec.state !== 'inactive') r.rec.stop();
+      } catch {
+        /* 이미 멈춤 */
+      }
+    }
+    this.recorders = [];
+    this.pendingClips = [];
+  }
+
+  private startSegment() {
+    if (!this.stream) return;
+    /* 조각 길이가 찬 녹화기는 멈춘다(멈추면 onstop 에서 클립을 내보낸다) */
+    const now = performance.now() / 1000;
+    for (const r of this.recorders) {
+      if (
+        r.startedAt != null &&
+        now - r.startedAt >= CLIP_SEG_SEC - 0.05 &&
+        r.rec.state === 'recording'
+      ) {
+        try {
+          r.rec.stop();
+        } catch {
+          /* 무시 */
+        }
+      }
+    }
+    let rec: MediaRecorder;
+    try {
+      rec = new MediaRecorder(this.stream, {
+        mimeType: this.clipMime,
+        videoBitsPerSecond: CLIP_BITS_PER_SEC,
+      });
+    } catch {
+      return;
+    }
+    const entry = { rec, startedAt: null as number | null, chunks: [] as Blob[] };
+    rec.onstart = () => {
+      entry.startedAt = performance.now() / 1000;
+    };
+    rec.ondataavailable = (e) => {
+      if (e.data && e.data.size > 0) entry.chunks.push(e.data);
+    };
+    rec.onstop = () => {
+      const stoppedAt = performance.now() / 1000;
+      this.recorders = this.recorders.filter((r) => r !== entry);
+      if (entry.startedAt == null || !entry.chunks.length) return;
+      const startedAt = entry.startedAt;
+      const durationSec = stoppedAt - startedAt;
+      /* 이 조각이 통째로 담은 던짐만 내보낸다 */
+      const done: number[] = [];
+      for (const pc of this.pendingClips) {
+        if (
+          pc.wallT - CLIP_PRE_SEC >= startedAt &&
+          pc.wallT + CLIP_POST_SEC <= stoppedAt
+        ) {
+          const blob = new Blob(entry.chunks, { type: this.clipMime.split(';')[0] });
+          this.handlers.onClip?.(pc.id, {
+            blob,
+            mime: blob.type,
+            durationSec,
+            eventSec: pc.wallT - startedAt,
+          });
+          done.push(pc.id);
+        }
+      }
+      /* 담을 조각이 지나가 버린 것(멈춤 · 끊김)은 버린다 */
+      this.pendingClips = this.pendingClips.filter(
+        (pc) => !done.includes(pc.id) && stoppedAt - pc.wallT < CLIP_SEG_SEC * 2
+      );
+    };
+    try {
+      rec.start();
+      this.recorders.push(entry);
+    } catch {
+      /* 녹화기를 못 켜면 클립 없이 간다 */
+    }
+  }
+
+  /**
+   * 초점을 다시 잡는다 — 자동초점을 한 번 돌린 뒤 규칙(네트 있음 = 수동)대로 다시 건다.
+   * 브라우저가 초점을 못 만지는 기기(아이폰 사파리)는 'unsupported'.
+   */
+  async refocus(): Promise<CameraFocus> {
+    const track = this.stream?.getVideoTracks()[0];
+    if (!track?.getCapabilities) return 'unsupported';
+    const caps = track.getCapabilities() as MediaTrackCapabilities & {
+      focusMode?: string[];
+    };
+    if (!caps.focusMode?.length) return 'unsupported';
+    const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+    try {
+      if (caps.focusMode.includes('single-shot')) {
+        await track.applyConstraints({
+          advanced: [{ focusMode: 'single-shot' } as MediaTrackConstraintSet],
+        });
+        await sleep(800);
+      } else if (caps.focusMode.includes('continuous')) {
+        await track.applyConstraints({
+          advanced: [{ focusMode: 'continuous' } as MediaTrackConstraintSet],
+        });
+        await sleep(1200);
+      }
+    } catch {
+      /* 못 바꾸면 그대로 */
+    }
+    return applyFocus(track, this.net, this.approach);
   }
 
   /** 공으로 보정한 초점거리(긴 변 픽셀당). 없으면 화각 가정(lib/velocity-lens.ts) */
@@ -281,7 +484,7 @@ export class LiveCapture {
       throw new Error('카메라 화면 크기를 읽지 못했습니다.');
     }
 
-    const scale = Math.min(1, ANALYZE_WIDTH / this.sourceWidth);
+    const scale = analyzeScale(this.sourceWidth, this.sourceHeight);
     this.width = Math.round(this.sourceWidth * scale);
     this.height = Math.round(this.sourceHeight * scale);
     this.canvas = document.createElement('canvas');
@@ -309,11 +512,33 @@ export class LiveCapture {
 
     const track = stream.getVideoTracks()[0];
     const focus = await applyFocus(track, this.net, this.approach);
+    /*
+     * 줌은 1 로 못박는다 — 디지털 줌 · 초광각(0.5x) · 망원은 초점거리를 배율만큼 바꿔 구속이 그
+     * 역수로 밀린다(1.2x 면 −22km/h). 범위의 최솟값이 아니라 '1' 을 범위 안에 끼워 건다(픽셀 · 삼성의
+     * 가상 카메라는 0.5 부터 시작해 min 을 걸면 초광각이 된다). 걸고도 1 이 아니면 화면이 막는다.
+     */
+    let zoom: number | null = null;
+    try {
+      const caps = track?.getCapabilities?.() as
+        (MediaTrackCapabilities & { zoom?: { min: number; max: number } }) | undefined;
+      if (caps?.zoom) {
+        const z1 = Math.min(caps.zoom.max, Math.max(caps.zoom.min, 1));
+        await track
+          .applyConstraints({ advanced: [{ zoom: z1 } as MediaTrackConstraintSet] })
+          .catch(() => undefined);
+        const settings = track.getSettings() as MediaTrackSettings & { zoom?: number };
+        zoom = typeof settings.zoom === 'number' ? settings.zoom : z1;
+      }
+    } catch {
+      zoom = null;
+    }
+    if (this.clipsOn) this.startClipLoop();
     return {
       width: this.sourceWidth,
       height: this.sourceHeight,
       label: track?.label ?? '',
       focus,
+      zoom,
     };
   }
 
@@ -335,6 +560,7 @@ export class LiveCapture {
   stop() {
     this.cancelFrame?.();
     this.cancelFrame = null;
+    this.stopClipLoop();
     this.stream?.getTracks().forEach((t) => t.stop());
     this.stream = null;
     if (this.video.srcObject) this.video.srcObject = null;
@@ -488,6 +714,7 @@ export class LiveCapture {
     }
 
     this.triggerT = frame.t;
+    this.triggerWall = performance.now() / 1000;
     /* 던지기 직전 프레임도 담는다 — 릴리스 순간이 표적에 닿기 한두 장 앞일 수 있다 */
     /*
      * 다가오는 공은 가운데가 밝아지기 한참 전부터 멀리서 작게 보인다 — 앞을 두 배 담아
@@ -509,9 +736,12 @@ export class LiveCapture {
     const frames = this.captured;
     const backgroundSamples = this.quietSamples;
     const background = this.background;
+    const meta: ResultMeta = { id: ++this.resultSeq, triggerT: this.triggerT };
+    const wallT = this.triggerWall;
     this.captured = [];
     this.triggerT = null;
     this.setStatus('analyzing');
+    if (this.clipsOn) this.pendingClips.push({ id: meta.id, wallT });
 
     /* 다음 그리기 뒤에 계산한다 — 그래야 '계산 중' 표시가 먼저 뜬다 */
     setTimeout(() => {
@@ -539,7 +769,7 @@ export class LiveCapture {
           approach: this.approach,
           releaseDistanceM: this.releaseDistanceM,
         });
-        this.handlers.onResult(result);
+        this.handlers.onResult(result, meta);
       } catch (e) {
         this.handlers.onError(e instanceof Error ? e.message : '계산하지 못했습니다.');
       } finally {
@@ -547,7 +777,13 @@ export class LiveCapture {
           /* 배경은 그대로 두고 곧장 다음 공을 기다린다 — 카메라는 안 움직였다 */
           this.background = background;
           this.cooldownUntil = (this.ring[this.ring.length - 1]?.t ?? 0) + COOLDOWN_SEC;
-          this.setStatus(background ? 'armed' : 'settling');
+          if (this.manual) {
+            /* 수동 모드 — 다음 공은 단추를 눌러야 기다린다 */
+            this.resetArm();
+            this.setStatus('ready');
+          } else {
+            this.setStatus(background ? 'armed' : 'settling');
+          }
         }
       }
     }, 0);

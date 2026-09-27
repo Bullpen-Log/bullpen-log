@@ -448,6 +448,19 @@ model VelocitySession {
   /// 카메라 이름 · 해상도 같은 기기 정보(있으면)
   device     String?
   memo       String?
+  /// 관리자가 '정확도 보정용 저장'을 켜고 잰 세션 — 공마다 영상 클립 · 분석 자료를 남긴다
+  forCalibration Boolean @default(false)
+  /// 자동 감지 모드였나(false = 공마다 단추를 눌러 잼)
+  autoMode       Boolean @default(true)
+  /// 그때 쓴 초점거리(원본 긴 변 기준 픽셀) — 렌즈 보정값이 있으면 그것, 없으면 화각으로 구한 값
+  focalPx        Float?
+  /// 렌즈 보정 정보(lib/velocity-lens.ts 의 LensCalibration) — 어떤 보정으로 쟀는지 되짚을 때
+  lensCal        Json?
+  /// 포수 뒤일 때 카메라 → 릴리스 지점 거리(m)
+  releaseDistM   Float?
+  /// 원본 프레임 크기
+  frameW         Int?
+  frameH         Int?
   createdAt  DateTime @default(now())
 
   user     User           @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -492,6 +505,18 @@ model VelocityPitch {
   /// 같이 잰 스피드건 값(km/h) — 보정 자료
   gunKmh       Float?
   memo         String?
+  /// 영상 클립(저장소 경로 · 바이트 · 길이(초) · MIME · 클립 안에서 공이 던져진 시각(초)) — 보정용 저장일 때만
+  clipPath     String?
+  clipBytes    Int?
+  clipSec      Float?
+  clipMime     String?
+  clipEventSec Float?
+  /// 엔진이 본 자료(관측 궤적 · 분석 해상도 · 초점거리 · 맞음새 · 첫/끝 속도 …) — 영상 없이도 다시 맞춰 볼 수 있게
+  analysis     Json?
+  /// 자동 감지로 잡힌 공인가(false = 수동)
+  autoDetected Boolean  @default(true)
+  /// 보정 통계에서 뺀다(잘못 잡힌 공 · 스피드건 값이 의심스러울 때) — 관리자가 켠다
+  calibExclude Boolean  @default(false)
   createdAt    DateTime @default(now())
 
   session VelocitySession @relation(fields: [sessionId], references: [id], onDelete: Cascade)

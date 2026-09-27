@@ -52,7 +52,14 @@ export type { Approach } from './measure.ts';
 export const DEFAULT_FOV_DEG = 69;
 
 /** 분석할 때 줄이는 가로 크기(픽셀) — 왜 720 인지는 analyze-video.ts 에 적었다 */
-export const ANALYZE_WIDTH = 720;
+export const ANALYZE_SHORT_SIDE = 720;
+/** @deprecated 이름만 남긴다 — 짧은 변 기준(ANALYZE_SHORT_SIDE)을 쓴다 */
+export const ANALYZE_WIDTH = ANALYZE_SHORT_SIDE;
+
+/** 원본 → 분석 배율. 짧은 변을 720 으로 — 가로로 찍어도 세로와 같은 정밀도(예전엔 가로 720 이라 가로 촬영이 0.375 배였다) */
+export function analyzeScale(sourceW: number, sourceH: number): number {
+  return Math.min(1, ANALYZE_SHORT_SIDE / Math.max(1, Math.min(sourceW, sourceH)));
+}
 
 export type CapturedFrame = {
   /** 영상 안의 시각(초) */

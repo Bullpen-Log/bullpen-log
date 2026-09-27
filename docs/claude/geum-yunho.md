@@ -130,6 +130,25 @@
     ⑥ 포수 뒤 릴리스 구속: 설정 `releaseDistM`(기본 18.5m)만큼 되돌림 ⑦ 주의사항 카드 9장(렌즈 보정 · 1x/손떨림
     보정 끄기 · 스피드건 짝 추가). 결과(seeds=3): 처음 −8~−23 → 마지막 ±0.5km/h 안(모두 섞임 +1.2). 남은 것:
     9~15px 작은 공의 −2~3%(노출 변화 + 모션 블러 조합), 실제 폰 촬영으로 문턱값 확인. 셀프테스트 33 · 10 통과.
+  - **5차(2026-09-28 — 관리자 · 자동 측정 · 클립).** 사용자 요청: 웹 관리자의 폰 틀 메인 대신
+    **구속 측정 관리자** `/admin/velocity`(종합 통계 · 날짜별 · 공마다 스피드건 값 · 클립 · 제외 · 삭제 ·
+    영상 파일로 재기), 관리자 설정 '정확도 보정용 저장'을 켜면 공마다 영상 클립(MediaRecorder 두 대가
+    3초 조각으로 번갈아 녹화, `live-capture.ts` setClips) · 분석 JSON(`lib/velocity-analysis.ts` →
+    `VelocityPitch.analysis`)이 저장 뒤 올라간다(`lib/velocity-clip-upload.ts`, 액션 `createClipUpload` ·
+    `attachClip`). 측정 화면은 카메라 앱 모양(위 줄 닫기 · 재초점 · 카메라 보기 · 설정, 아래 파일 · 셔터 ·
+    자동/수동), 시작하면 카메라를 1px 로 숨기고 정보 판(방금 공 · 구종 칩 · 통계 · 목록 + 클립 ▶), 가운데
+    아래 '측정 종료' → 저장 시트. 자동(엔진이 계속 재장전)/수동(공마다 '다음 공') = `setManual`. 튜토리얼
+    `components/velocity/tutorial.tsx`('다시 보지 않기' localStorage). 자료 되돌리기 `npm run velocity:review`.
+    DB 칸 추가(`20260927230500_velocity_clips_analysis`, 백업 뒤). 엔진 추가: 원근 타원 √cosθ(`perspectiveFactor`),
+    분석 배율 짧은 변 720(`analyzeScale`), 렌즈 보정 v2(앞면 거리 + 반지름 + 입사동, 1m 권장, 카메라 서명
+    label · aspect · zoom 으로 `lensMatches` — 다르면 화각 가정), 줌 1 고정 · CameraInfo.zoom.
+    **지난 검토(17 에이전트)에서 아직 안 넣은 것**: ① 릴리스 직후 손이 붙은 첫 프레임(지름 ×1.3)이 맞춤을
+    +12km/h 끌고 감 → 앞쪽 자르기를 '뒤에서부터 키우며' 픽셀 잔차로 검사 + ẑ 가중 · 25% 상한
+    (`geometry.ts` fitSpeed · dropOutliers) ② 공의 음영(구면)으로 면적 지름이 −5~10% → 32방향 국소 50%
+    교차점(안 0.55~0.8R · 밖 1.25~1.6R 기준)으로 지름, d≥12 만, `measureStaticBall` 도 같게, 시험대에
+    램버트 음영 옵션 ③ 실밥 · 그물코가 덩어리를 가름 → moved 마스크 닫힘(팽창→침식) + 맞닿은 상자 합치기
+    (`detect.ts`). 다음에 손댈 순서 그대로. 실제 폰 촬영 자료가 쌓이면 `velocity:review` 로 k(초점 배율)
+    편향부터 본다.
   - 3차(설정 단계): 지난 설정 → 투구/타격 · 투수 뒤/포수 뒤 · 네트 → 주의사항 카드 6장(그림 SVG, '자세히'
     시트) → 카메라 수평계(deviceorientation, 아이폰은 허락 단추) · 표적 → 반투명 스트라이크 존(끌기 · 크기)
     → 측정(설정에 소리 안내 = speechSynthesis ko-KR). 설정은 localStorage `bullpen-velocity-setup`. 엔진에

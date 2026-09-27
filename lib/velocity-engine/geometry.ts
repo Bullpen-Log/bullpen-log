@@ -107,17 +107,34 @@ export type BallPoint3D = {
  * 되지만, 릴리스에서 도달까지의 실제 이동 거리를 재려면 세 축이 모두 필요하다.
  */
 export function toPoint3D(obs: BallObservation, lens: CameraLens): BallPoint3D | null {
-  const z = distanceFromBallPx(obs.diameterPx, lens);
-  if (z == null) return null;
-
   const cx = lens.frameWidth / 2;
   const cy = lens.frameHeight / 2;
+  const z = distanceFromBallPx(obs.diameterPx * perspectiveFactor(obs, lens), lens);
+  if (z == null) return null;
+
   return {
     t: obs.t,
     x: ((obs.x - cx) * z) / lens.focalPx,
     y: ((obs.y - cy) * z) / lens.focalPx,
     z,
   };
+}
+
+/**
+ * 가운데서 벗어난 공의 원근 타원 되돌리기.
+ *
+ * 공이 광축에서 θ 만큼 벗어나 있으면 화면에는 원이 아니라 시선 방향으로 늘어난 타원으로 찍힌다
+ * (가로 반지름 f·r/(Z·cosθ), 세로 f·r/Z). 면적으로 잰 지름은 그 기하평균이라 f·D/(Z·√cosθ) —
+ * 실제(f·D/Z)보다 1/√cosθ 만큼 크고, 그대로 두면 거리가 가깝게 · 속도가 낮게 나온다(화면
+ * 가장자리 θ=25° 에서 −3km/h). tanθ = 화면 중심에서의 거리 / 초점거리.
+ */
+export function perspectiveFactor(
+  obs: Pick<BallObservation, 'x' | 'y'>,
+  lens: CameraLens
+): number {
+  const r = Math.hypot(obs.x - lens.frameWidth / 2, obs.y - lens.frameHeight / 2);
+  const cos = lens.focalPx / Math.hypot(lens.focalPx, r);
+  return Math.sqrt(cos);
 }
 
 /** 두 점 사이의 직선 거리(m) */
