@@ -1554,7 +1554,12 @@ console.log('\n[목표] 고른 목표가 실제로 배분을 바꾸는가');
       restSeconds: null,
       perSide: false,
     };
-    const withBike = lower60('컨디셔닝', [...library, bike]);
+    /*
+     * 라이브러리의 유산소는 빼고 시험용 하나만 넣는다 — 유산소가 올라온 뒤로는(2026-09-27)
+     * 그중 하나가 뽑혀 '넣은 것이 바로 들어온다'를 가를 수 없었다.
+     */
+    const noCardio = library.filter((ex) => ex.category !== '유산소');
+    const withBike = lower60('컨디셔닝', [...noCardio, bike]);
     check(
       '유산소 영상을 하나 넣으면 컨디셔닝에 바로 들어온다',
       withBike
