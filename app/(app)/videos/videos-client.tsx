@@ -114,53 +114,69 @@ export function VideosClient({
     );
   }
 
+  /* 보기 고르개 줄 — 세로가 낮은 PC 에서는 제목 줄 오른쪽으로 올라간다(아래) */
+  const viewControls = (
+    <>
+      {/* 캘린더에서도 견주기로 곧장 — 목록으로 넘어가 둘을 고르는 자리를 연다 */}
+      {view === 'calendar' && clips.length >= 2 ? (
+        <button
+          type="button"
+          onClick={() => {
+            setView('list');
+            setSelecting(true);
+          }}
+          className="rounded-lg border border-sky bg-sky-tint px-3 py-1.5 text-xs font-semibold text-sky-strong transition-colors hover:bg-sky-tint/70"
+        >
+          2분할 비교
+        </button>
+      ) : (
+        <span />
+      )}
+      <Segmented
+        label="기록 보기 방식"
+        value={view}
+        onChange={(next) => {
+          setView(next);
+          if (next === 'calendar') setSelecting(false);
+        }}
+        options={VIEW_OPTIONS}
+        tone="raised"
+        itemClassName="px-4 py-1.5"
+      />
+    </>
+  );
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 desk-low:space-y-3">
       <PageHeading
         eyebrow="Pitch log"
         title="투구 기록"
         action={
-          /* 기록을 남기는 곳은 날짜 화면이다 — 이 탭에서 곧장 오늘로 */
-          <ButtonLink
-            href={`/pitch-log/${todayKey}`}
-            transitionTypes={OPEN_POPUP_TYPES}
-            className="gap-1.5"
-          >
-            <LinkPending>
-              <Plus aria-hidden className="h-4 w-4" />
-            </LinkPending>
-            오늘 기록 남기기
-          </ButtonLink>
+          <div className="flex items-center gap-2">
+            {/*
+              세로가 낮은 PC(노트북)에서는 고르개 줄을 따로 두지 않고 여기에 붙인다 — 한 줄
+              (60px 남짓)만큼 캘린더 칸이 커진다. 한 벌만 보이고 나머지는 숨는다(display: none).
+            */}
+            <div className="hidden items-center gap-2 desk-low:flex">
+              {viewControls}
+            </div>
+            {/* 기록을 남기는 곳은 날짜 화면이다 — 이 탭에서 곧장 오늘로 */}
+            <ButtonLink
+              href={`/pitch-log/${todayKey}`}
+              transitionTypes={OPEN_POPUP_TYPES}
+              className="gap-1.5"
+            >
+              <LinkPending>
+                <Plus aria-hidden className="h-4 w-4" />
+              </LinkPending>
+              오늘 기록 남기기
+            </ButtonLink>
+          </div>
         }
       />
 
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        {/* 캘린더에서도 견주기로 곧장 — 목록으로 넘어가 둘을 고르는 자리를 연다 */}
-        {view === 'calendar' && clips.length >= 2 ? (
-          <button
-            type="button"
-            onClick={() => {
-              setView('list');
-              setSelecting(true);
-            }}
-            className="rounded-lg border border-sky bg-sky-tint px-3 py-1.5 text-xs font-semibold text-sky-strong transition-colors hover:bg-sky-tint/70"
-          >
-            2분할 비교
-          </button>
-        ) : (
-          <span />
-        )}
-        <Segmented
-          label="기록 보기 방식"
-          value={view}
-          onChange={(next) => {
-            setView(next);
-            if (next === 'calendar') setSelecting(false);
-          }}
-          options={VIEW_OPTIONS}
-          tone="raised"
-          itemClassName="px-4 py-1.5"
-        />
+      <div className="flex flex-wrap items-center justify-between gap-2 desk-low:hidden">
+        {viewControls}
       </div>
 
       {/* 두 방식을 오갈 때 살짝 떠오르며 바뀐다 */}

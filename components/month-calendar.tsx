@@ -216,14 +216,23 @@ export function MonthCalendar({
     emptySpoken,
     flags,
   };
+  /*
+   * 큰 캘린더(영상 캘린더)는 세로가 낮은 PC(desk-low)에서 머리 · 꼬리 틈을 줄인다 — 줄인 만큼
+   * 칸이 커진다(cal-cell-fit). 홈의 캘린더는 그대로 둔다.
+   */
+  const low = size === 'large';
 
   return (
-    <div className="space-y-4">
+    <div className={low ? 'space-y-4 desk-low:space-y-3' : 'space-y-4'}>
       {/*
         제목 줄 밑에도 선을 긋는다 — 맨 아래 범례 위의 선과 같은 굵기 · 같은 간격이다.
         위아래 두 선이 날짜 칸을 감싸서, 제목 · 칸 · 범례가 한 덩이로 읽힌다.
       */}
-      <div className="flex items-center justify-between border-b border-line pb-4">
+      <div
+        className={`flex items-center justify-between border-b border-line pb-4 ${
+          low ? 'desk-low:pb-3' : ''
+        }`}
+      >
         <MonthJump
           month={month}
           dir={direction}
@@ -325,7 +334,11 @@ export function MonthCalendar({
       </div>
 
       {children && (
-        <div className="flex flex-wrap items-center gap-x-3 gap-y-2 border-t border-line pt-4 text-[11px] text-muted">
+        <div
+          className={`flex flex-wrap items-center gap-x-3 gap-y-2 border-t border-line pt-4 text-[11px] text-muted ${
+            low ? 'desk-low:pt-3' : ''
+          }`}
+        >
           {children}
         </div>
       )}
@@ -374,7 +387,11 @@ function DayGrid({
   ];
 
   return (
-    <div className="grid grid-cols-7 gap-1 sm:gap-1.5">
+    <div
+      className="grid grid-cols-7 gap-1 sm:gap-1.5"
+      /* 이 달의 줄 수 — 큰 캘린더의 칸이 남는 높이를 이만큼으로 나눈다(cal-cell-fit) */
+      style={{ '--cal-rows': Math.ceil(cells.length / 7) } as React.CSSProperties}
+    >
       {cells.map((day, i) => {
         if (day === null) return <div key={`blank-${i}`} />;
 
@@ -412,7 +429,8 @@ function DayGrid({
               aria-pressed={isSelected}
               className={`group relative overflow-hidden rounded-lg border transition-[border-color,box-shadow] duration-200 ${
                 size === 'large'
-                  ? 'h-[4.25rem] sm:h-20'
+                  ? /* PC 에서는 화면 높이에 맞춘다 — 세로가 넉넉하면 80px 그대로 */
+                    'h-[4.25rem] sm:h-20 desk:cal-cell-fit'
                   : 'min-h-[3.25rem] sm:min-h-[4rem]'
               } ${
                 isFuture

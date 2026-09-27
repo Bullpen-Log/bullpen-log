@@ -91,8 +91,9 @@ const WEEKDAYS = ['일', '월', '화', '수', '목', '금', '토'];
  * 화면이라 여백만으로도 한 화면을 넘겼다. Card 에 p-4 를 덧대면 어느 쪽이 이길지가 CSS
  * 순서에 달려 있어 따로 적는다.
  */
+/* 세로가 낮은 PC(노트북, desk-low)에서는 안쪽 여백을 휴대폰과 같게 줄인다 — 한 화면에 들어오게 */
 const PANEL =
-  'rounded-2xl border border-line bg-surface p-4 shadow-[0_1px_0_0_rgba(255,255,255,0.03)_inset] sm:p-5';
+  'rounded-2xl border border-line bg-surface p-4 shadow-[0_1px_0_0_rgba(255,255,255,0.03)_inset] sm:p-5 desk-low:p-4';
 
 /** '9월 25일 (목)' */
 export function dayTitle(date: string) {
@@ -182,7 +183,7 @@ export function NutritionView({ day, today }: { day: NutritionDay; today: string
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 desk-low:space-y-3">
       {/*
         제목 · 날짜 · 날짜 띠 · 목표를 한 줄에.
 
@@ -245,8 +246,8 @@ export function NutritionView({ day, today }: { day: NutritionDay; today: string
         </div>
       )}
 
-      <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,1fr)_22rem]">
-        <div className="space-y-4">
+      <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,1fr)_22rem] desk-low:gap-3">
+        <div className="space-y-4 desk-low:space-y-3">
           <SummaryCard eaten={eaten} day={day} />
 
           {/*
@@ -277,7 +278,7 @@ export function NutritionView({ day, today }: { day: NutritionDay; today: string
           </ul>
         </div>
 
-        <div className="space-y-4">
+        <div className="space-y-4 desk-low:space-y-3">
           <BurnCard day={day} />
           <WeightCard day={day} />
           <section className={`${PANEL} space-y-3`}>

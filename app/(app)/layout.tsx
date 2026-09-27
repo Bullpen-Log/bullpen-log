@@ -170,7 +170,8 @@ export default async function AppLayout({
         — 글줄이 너무 길어지면 읽기 어렵다.
       */}
       <div className="desk:pt-16">
-        <main className="mx-auto w-full max-w-5xl px-4 py-6 pb-24 sm:px-6 sm:pt-6 xl:max-w-6xl 2xl:max-w-7xl desk:pb-12">
+        {/* 세로가 낮은 PC(노트북, desk-low)는 위아래 여백을 줄인다 — 투구 기록 · 영양이 한 화면에 들어오게 */}
+        <main className="mx-auto w-full max-w-5xl px-4 py-6 pb-24 sm:px-6 sm:pt-6 xl:max-w-6xl 2xl:max-w-7xl desk:pb-12 desk-low:pt-3 desk-low:pb-4">
           {/*
            * 탭을 옮길 때 본문만 부드럽게 바뀐다.
            *
