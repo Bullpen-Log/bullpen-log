@@ -144,7 +144,12 @@ function Chip({
   );
 }
 
-/** 스트라이크 존 9칸 — 1~9, 왼쪽 위부터. 다시 누르면 푼다 */
+/**
+ * 스트라이크 존 9칸 — 1~9, 왼쪽 위부터. 다시 누르면 푼다.
+ *
+ * onChange 가 없으면 보여 주기만 한다 — 그때는 칸을 <span> 으로 그린다. 공 목록의 줄이 통째로
+ * <button> 이라 그 안에 <button> 을 두면 HTML 이 어긋나 화면이 다시 그려진다(hydration).
+ */
 export function ZoneGrid({
   value,
   onChange,
@@ -155,28 +160,39 @@ export function ZoneGrid({
   size?: 'sm' | 'md';
 }) {
   const cell = size === 'sm' ? 'h-4 w-4' : 'h-9 w-9';
+  const zones = Array.from({ length: 9 }, (_, i) => i + 1);
+  const cellClass = (on: boolean) =>
+    `${cell} rounded-[3px] transition-colors ${on ? 'bg-sky' : onChange ? 'bg-surface hover:bg-sky-tint' : 'bg-surface'}`;
+  const frame =
+    'grid grid-cols-3 gap-0.5 rounded-lg border-2 border-ink/20 bg-line p-0.5';
+
+  if (!onChange) {
+    return (
+      <span
+        role="img"
+        aria-label={zoneLabel(value) ? `코스 ${zoneLabel(value)}` : '코스 없음'}
+        className={`${frame} shrink-0`}
+      >
+        {zones.map((z) => (
+          <span key={z} className={cellClass(value === z)} />
+        ))}
+      </span>
+    );
+  }
+
   return (
-    <div
-      role={onChange ? 'radiogroup' : undefined}
-      aria-label="코스"
-      className={`grid grid-cols-3 gap-0.5 rounded-lg border-2 border-ink/20 bg-line p-0.5 ${
-        onChange ? '' : 'pointer-events-none'
-      }`}
-    >
-      {Array.from({ length: 9 }, (_, i) => i + 1).map((z) => {
+    <div role="radiogroup" aria-label="코스" className={frame}>
+      {zones.map((z) => {
         const on = value === z;
         return (
           <button
             key={z}
             type="button"
-            role={onChange ? 'radio' : undefined}
-            aria-checked={onChange ? on : undefined}
+            role="radio"
+            aria-checked={on}
             aria-label={zoneLabel(z) ?? String(z)}
-            tabIndex={onChange ? 0 : -1}
-            onClick={onChange ? () => onChange(on ? null : z) : undefined}
-            className={`${cell} rounded-[3px] transition-colors ${
-              on ? 'bg-sky' : 'bg-surface hover:bg-sky-tint'
-            }`}
+            onClick={() => onChange(on ? null : z)}
+            className={cellClass(on)}
           />
         );
       })}

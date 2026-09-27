@@ -8,6 +8,7 @@ import { ChevronDown, Film, Star, X } from 'lucide-react';
 import { usePlaybackUrls } from '@/components/use-playback-urls';
 import { intensityClass } from '@/components/month-calendar';
 import { REST_SESSION_TYPE, SESSION_TYPES } from '@/lib/session-type';
+import { VELOCITY_MEMO_MARK } from '@/lib/velocity-meta';
 import { setFeaturedVideo } from '@/app/actions/featured-video';
 import type { ClipOption } from './compare-view';
 import type { VideoLog } from './videos-client';
@@ -131,6 +132,8 @@ export function VideoGallery({
                   : null,
                 `${log.pitchCount}구`,
                 `강도 ${log.intensity}/10`,
+                /* 카메라로 잰 기록 — 공마다 값은 그날 화면의 '구속 측정' 칸에 */
+                log.memo?.startsWith(VELOCITY_MEMO_MARK) ? '카메라 측정' : null,
               ]
                 .filter(Boolean)
                 .join(' · '),

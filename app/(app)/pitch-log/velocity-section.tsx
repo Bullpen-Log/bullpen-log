@@ -107,9 +107,11 @@ export function VelocitySection({ sessions }: { sessions: VelocitySessionView[] 
 
   return (
     <section className="space-y-3">
-      <div className="flex items-center gap-2">
-        <Camera aria-hidden className="h-4 w-4 text-sky" />
-        <h2 className="font-bold text-ink">구속 측정</h2>
+      <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+        <h2 className="inline-flex items-center gap-1.5 font-bold text-ink">
+          <Camera aria-hidden className="h-4 w-4 text-sky" />
+          구속 측정
+        </h2>
         <span className="text-xs text-muted">
           카메라로 잰 공 — 누르면 구종 · 코스 · 결과를 고쳐요
         </span>

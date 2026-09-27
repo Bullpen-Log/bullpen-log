@@ -115,9 +115,8 @@
     (`analyze-frames.ts` `DRAG_KMH_PER_M`), 공 편집기 · 바닥 시트 `components/velocity/pitch-editor.tsx`,
     측정 화면 새 디자인(밝은 바탕 · 내비 바 · 3:4 뷰파인더 · 방금 공 구종 칩 · 요약 4칸 · 공 목록 · 시트),
     그날 화면 '구속 측정' 칸(`pitch-log/velocity-section.tsx`), 캘린더 그날 칸 한 줄. tsc · lint 통과.
-  - **안 한 것:** 브라우저로 화면 확인(임시 경로 `app/dev-preview-velocity` 를 만들어 `VelocityScreen` ·
-    `VelocitySection` 에 가짜 데이터로 띄워 폰 375 · PC 1536 에서 보고 지운다), 목록(video-gallery) 줄에
-    측정 표시, HANDOFF 의 시제품 항목 정리, 커밋 뒤 사용자에게 "올려줘" 받기.
+  - 브라우저로 폰 375 · PC 1536 확인 끝(측정 화면 · 시트 · 그날 칸). 목록 줄에 '카메라 측정' 표시.
+    남은 것: 사용자가 폰(앱 · 크롬)에서 카메라로 실제 던져 보고 고칠 점 말하기 → 감지 문턱값 · 화각 조정.
   - 앱(UA 에 `BullpenLogApp`) 또는 관리자만 연다. 웹 카메라는 60fps 밑이라 엔진이 거부 — 웹은 흐름 확인용.
     다음에 손댈 후보: 던짐 감지 문턱값(`live-capture.ts` 상단 상수), 화각 기본값, 네이티브 고속 촬영 연결.
 - **사용자 답 대기** — 약관 · 개인정보 처리방침의 빈칸: 시행일 `2026년 0월 0일`(`app/(legal)/terms` · `privacy`),
