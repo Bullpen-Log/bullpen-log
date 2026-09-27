@@ -23,10 +23,10 @@ import {
  */
 export default function SessionError({
   error,
-  unstable_retry,
+  retry,
 }: {
   error: Error & { digest?: string };
-  unstable_retry: () => void;
+  retry: () => void;
 }) {
   useEffect(() => {
     console.error('[운동 화면 오류]', error);
@@ -40,7 +40,7 @@ export default function SessionError({
         있다가, 화면이 다시 뜨면 저절로 보내집니다.
       </FallbackText>
       <FallbackActions>
-        <FallbackButton onClick={() => unstable_retry()} primary>
+        <FallbackButton onClick={() => retry()} primary>
           다시 시도
         </FallbackButton>
         <FallbackLink href="/training">트레이닝으로</FallbackLink>

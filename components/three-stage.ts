@@ -12,8 +12,8 @@ import type { GLTF } from 'three/addons/loaders/GLTFLoader.js';
  * 지키는 것:
  * - three 는 여기서 import() 로 불러온다 — 3D 를 안 여는 화면에는 실리지 않는다.
  * - 모델은 주소마다 한 번만 받고 한 번만 읽는다(모듈에 들고 있는다). 창을 열 때마다
- *   다시 받고 다시 읽던 것을 없앴다. 조각의 모양(geometry)은 무대끼리 나눠 쓰므로
- *   치울 때 지우지 않는다 — 렌더러를 치우면(forceContextLoss) GPU 쪽 몫은 함께 풀린다.
+ *   다시 받고 다시 읽던 것을 없앴다. 조각의 모양(geometry)은 무대마다 껍데기만 새로
+ *   만들고 속(꼭짓점 배열)은 나눠 쓴다 — 치울 때 껍데기를 지워야 렌더러가 풀린다(아래).
  * - 그릴 일이 있을 때만 그린다(dirty). 화면 밖이면 그 확인조차 멈춘다.
  * - 치울 때 WebGL 연결까지 놓는다. 브라우저는 동시에 열 수 있는 연결 수를 넘으면 가장
  *   오래된 연결을 끊는다.
@@ -173,6 +173,29 @@ export async function createStage(
   renderer.domElement.style.touchAction = 'pan-y';
 
   const root = gltf.scene.clone(true);
+  /*
+   * 조각마다 geometry 껍데기를 이 무대 것으로 바꾼다 — 꼭짓점 배열(attribute)은 나눠 쓴다.
+   *
+   * three 의 렌더러는 그리는 geometry 마다 'dispose' 리스너를 달고, 이 리스너는
+   * geometry.dispose() 를 불러야만 떨어진다(렌더러를 치워도 남는다). 캐시된 geometry 를
+   * 그대로 나눠 쓰며 지우지 않았더니, 창을 여닫을 때마다 닫힌 렌더러(잃은 WebGL 연결 ·
+   * 캔버스 · 버퍼 기록)가 그 리스너에 붙들려 탭을 닫을 때까지 메모리에 쌓였다(2026-09-27
+   * 검토). 껍데기는 이 무대만 쓰므로 치울 때 지운다.
+   */
+  const shells: Three.BufferGeometry[] = [];
+  root.traverse((o) => {
+    const mesh = o as Three.Mesh;
+    if (!mesh.isMesh) return;
+    const src = mesh.geometry;
+    const shell = new THREE.BufferGeometry();
+    shell.setIndex(src.index);
+    for (const [name, attr] of Object.entries(src.attributes)) shell.setAttribute(name, attr);
+    for (const g of src.groups) shell.addGroup(g.start, g.count, g.materialIndex);
+    shell.boundingBox = src.boundingBox?.clone() ?? null;
+    shell.boundingSphere = src.boundingSphere?.clone() ?? null;
+    mesh.geometry = shell;
+    shells.push(shell);
+  });
   root.updateMatrixWorld(true);
   scene.add(root);
 
@@ -275,6 +298,7 @@ export async function createStage(
       seen.disconnect();
       sizer.disconnect();
       renderer.setAnimationLoop(null);
+      for (const shell of shells) shell.dispose();
       controls.dispose();
       envMap.dispose();
       pmrem.dispose();

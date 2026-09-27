@@ -2,9 +2,11 @@
 
 import { useState, useTransition } from 'react';
 import Link from 'next/link';
+import { unstable_rethrow } from 'next/navigation';
 import { Check, Play, RefreshCw } from 'lucide-react';
 import { setExerciseDone } from '@/app/actions/exercise-log';
 import { makeArmcareRoutine } from '@/app/actions/armcare';
+import { CHECK_CONNECTION } from '@/lib/offline';
 import { ExerciseBadges } from '@/components/meta-badges';
 import { findArmcareArea, type ArmcareAreaKey } from '@/lib/armcare/anatomy';
 import { ARMCARE_KIND_TEXT, type ArmcareKind } from '@/lib/armcare/routine';
@@ -55,8 +57,14 @@ export function ArmcareToday({
   const make = () => {
     setError(undefined);
     startMaking(async () => {
-      const res = await makeArmcareRoutine();
-      if ('error' in res) setError(res.error);
+      /* 신호가 끊겨 못 보냈으면 알리기만 한다 — 오류가 화면 전체로 번지지 않게(2026-09-27 검토) */
+      try {
+        const res = await makeArmcareRoutine();
+        if ('error' in res) setError(res.error);
+      } catch (err) {
+        unstable_rethrow(err);
+        setError(`루틴을 만들지 못했어요. ${CHECK_CONNECTION}`);
+      }
     });
   };
 
@@ -171,6 +179,12 @@ export function ArmcareToday({
 
 const WEEKDAYS = ['일', '월', '화', '수', '목', '금', '토'];
 
+/** 'YYYY-MM-DD' → '9월 26일' */
+const monthDay = (key: string) => {
+  const [, m, d] = key.split('-').map(Number);
+  return `${m}월 ${d}일`;
+};
+
 /**
  * 이번 주 암케어 — 최근 7일(오늘 포함)을 점 7개로.
  *
@@ -247,12 +261,31 @@ export function Checklist({
   const [error, setError] = useState<string>();
   const [, startTransition] = useTransition();
 
-  /* 부모가 새 목록을 주면(다시 만들기) 그것을 따른다 */
+  /*
+   * 부모가 새 목록을 주면(다시 만들기) 그것을 따른다.
+   *
+   * 단 날이 바뀐 목록이고 이 목록에서 체크를 했었으면 바로 바꾸지 않는다. 자정을 넘겨
+   * 체크하면 체크는 목록의 날(어제)에 남는데, 체크 뒤 서버가 새날 목록으로 다시 그려서
+   * 방금 누른 체크가 풀린 것처럼 보였고, 다시 누르면 같은 운동이 이틀에 남았다
+   * (2026-09-27 검토). 날이 바뀌었다고 알리고, 오늘 목록으로 바꾸는 것은 본인이 누른다.
+   */
+  const [shownDate, setShownDate] = useState(dateKey);
+  const [touched, setTouched] = useState(false);
   const [seen, setSeen] = useState(initial);
   if (seen !== initial) {
     setSeen(initial);
-    setItems(initial);
+    if (dateKey === shownDate || !touched) {
+      setShownDate(dateKey);
+      setItems(initial);
+    }
   }
+  const dayChanged = dateKey !== shownDate;
+  const showToday = () => {
+    setShownDate(dateKey);
+    setItems(initial);
+    setTouched(false);
+    setError(undefined);
+  };
 
   const toggle = (id: string) => {
     const target = items.find((it) => it.exercise.id === id);
@@ -265,6 +298,7 @@ export function Checklist({
     setItems((prev) =>
       prev.map((it) => (it.exercise.id === id ? { ...it, done: next } : it))
     );
+    setTouched(true);
     setError(undefined);
     const undo = (message: string) => {
       setItems((prev) =>
@@ -275,10 +309,11 @@ export function Checklist({
     startTransition(async () => {
       /* 신호가 끊겨 못 보냈으면 되돌리고 알린다 — 오류가 화면 전체로 번지지 않게 */
       try {
-        const res = await setExerciseDone(id, next, dateKey);
+        const res = await setExerciseDone(id, next, shownDate);
         if ('error' in res) undo(res.error);
-      } catch {
-        undo('저장하지 못했어요. 인터넷 연결을 확인하고 다시 눌러 주세요.');
+      } catch (err) {
+        unstable_rethrow(err);
+        undo(`저장하지 못했어요. ${CHECK_CONNECTION}`);
       }
     });
   };
@@ -319,6 +354,15 @@ export function Checklist({
           />
         </div>
       </div>
+
+      {dayChanged && (
+        <p className="rounded-lg border border-warn-line bg-warn-bg px-4 py-3 text-sm leading-relaxed break-keep text-warn">
+          날짜가 바뀌었어요 — 이 목록의 체크는 {monthDay(shownDate)} 기록으로 남아요.{' '}
+          <button type="button" onClick={showToday} className="font-semibold underline">
+            오늘 목록 보기
+          </button>
+        </p>
+      )}
 
       {error && (
         <p className="rounded-lg border border-danger-line bg-danger-bg px-4 py-3 text-sm text-danger">

@@ -6,9 +6,11 @@ import {
   useReducer,
   useRef,
   useState,
+  useSyncExternalStore,
   type ReactNode,
 } from 'react';
 import Link from 'next/link';
+import { unstable_rethrow } from 'next/navigation';
 import {
   AlertTriangle,
   Check,
@@ -20,7 +22,8 @@ import {
 } from 'lucide-react';
 import { LibraryVideo } from '@/components/library-video';
 import { useWakeLock } from '@/components/use-wake-lock';
-import { setExerciseDone } from '@/app/actions/exercise-log';
+import { markExerciseDone, refreshTrainingLists } from '@/app/actions/exercise-log';
+import { checkId, checkOutbox } from '@/lib/armcare/check-outbox';
 import { formatSeconds } from '@/lib/exercise-meta';
 import { REST_CLOCK_LIMIT_SECONDS } from '@/lib/workout/rest';
 import {
@@ -187,7 +190,12 @@ function useAlarm() {
         return;
       }
     }
-    if (ac.state === 'suspended') ac.resume().catch(() => {});
+    /*
+     * 'running' 이 아니면 깨운다. 아이폰 사파리는 다른 앱 · 전화 · 화면 잠금에 다녀오면
+     * 'suspended' 가 아니라 'interrupted' 로 남기도 해서, 'suspended' 만 깨웠더니 그 뒤로
+     * 끝 소리가 안 났다(2026-09-27 검토).
+     */
+    if (ac.state !== 'running' && ac.state !== 'closed') ac.resume().catch(() => {});
   }, []);
 
   const ring = useCallback((kind: Clock['kind']) => {
@@ -227,7 +235,7 @@ function useAlarm() {
  *
  * 2026-09-26 사용자분과 정한 품질 올리기의 둘째 — 목록을 읽지 않고 따라만 하면 되게.
  * 맞춤 루틴과 내 루틴이 함께 쓴다(page.tsx). 운동의 마지막 세트를 마치면 그 운동을
- * 체크하고(setExerciseDone — 루틴 목록의 체크와 같은 기록), 안 한 다음 운동으로 넘어간다.
+ * 체크하고(markExerciseDone — 루틴 목록의 체크와 같은 기록), 안 한 다음 운동으로 넘어간다.
  * 이미 체크한 운동은 건너뛴다.
  *
  * 버티는 운동은 [버티기 시작]을 누르면 시계가 세고 끝나면 진동·소리로 알린다. 세트
@@ -251,10 +259,10 @@ export function ArmcarePlayer({
   items: PlayerItem[];
 }) {
   /*
-   * 목록은 처음 받은 것으로 못박는다. 체크를 남길 때마다 이 화면이 서버에서 새로
-   * 그려지는데(새 items), 진행 상태(몇 번째 · 몇 세트)는 처음 목록의 차례를 가리킨다.
-   * 그 사이 목록이 바뀌면(다른 기기에서 운동을 뺐다 등) 없는 운동을 읽다 오류가 나거나
-   * 다른 운동이 체크됐다(2026-09-26 검토).
+   * 목록은 처음 받은 것으로 못박는다. 이 화면이 서버에서 새로 그려지면(다 마친 뒤 목록을
+   * 새로 그릴 때 등) 새 items 가 오는데, 진행 상태(몇 번째 · 몇 세트)는 처음 목록의 차례를
+   * 가리킨다. 그 사이 목록이 바뀌면(다른 기기에서 운동을 뺐다 등) 없는 운동을 읽다 오류가
+   * 나거나 다른 운동이 체크됐다(2026-09-26 검토).
    */
   const [items] = useState(initialItems);
   const [state, dispatch] = useReducer(
@@ -277,45 +285,99 @@ export function ArmcarePlayer({
   useWakeLock(!idle && !state.finished);
 
   /*
-   * 체크 — 마친 운동을 기록에 남긴다. 한 운동은 한 번만 보낸다(sent).
+   * 체크 — 마친 운동을 기록에 남긴다. 먼저 폰에 담고(lib/armcare/check-outbox.ts) 뒤에서
+   * 하나씩 보낸다. 한 운동은 한 번만 담는다(queued).
    *
-   * 신호가 끊겨 못 보낸 것은 남겨 뒀다가 다시 보낸다 — 다음 운동을 마칠 때, 신호가
-   * 돌아올 때(online), [다시 보내기]를 누를 때. 예전에는 보내다 끊기면 그 오류가 화면
-   * 전체로 번져, 운동 중에 오류 화면이 뜨고 진행이 사라졌다(2026-09-26 검토).
+   * 신호가 끊겨 못 보낸 것은 폰에 남아 다시 보낸다 — 다음 운동을 마칠 때, 신호가 돌아올
+   * 때, 앱으로 돌아올 때, 15초마다, [다시 보내기]를 누를 때. 따라하기를 닫아도 암케어
+   * 목록을 열면 이어서 보낸다(training/pending-checks.tsx). 예전에는 보내다 끊기면 그
+   * 오류가 화면 전체로 번졌고(2026-09-26 검토), 못 보낸 것을 메모리에만 들고 있어 나가면
+   * 말없이 사라졌다(2026-09-27 검토).
+   *
+   * 보내는 동작은 이 화면을 다시 그리지 않는다(markExerciseDone). 목록·홈은 다 마치면
+   * 한 번 새로 그린다(아래 refreshTrainingLists).
    */
-  const sent = useRef(new Set<string>());
+  const pending = useSyncExternalStore(
+    checkOutbox.subscribe,
+    checkOutbox.snapshot,
+    checkOutbox.serverSnapshot
+  );
+  const queued = useRef(new Set<string>());
   const [saved, setSaved] = useState<ReadonlySet<string>>(() => new Set());
-  const [failed, setFailed] = useState<{ ids: string[]; message: string | null }>({
-    ids: [],
-    message: null,
-  });
-  const [retry, setRetry] = useState(0);
+  /* 서버가 받지 않은 것(지운 운동 등) — 다시 보내도 안 되므로 폰에서 빼고 알린다 */
+  const [refused, setRefused] = useState<{ ids: string[]; message: string } | null>(null);
+  const [offline, setOffline] = useState(false);
+
+  const flush = useCallback(async () => {
+    const outcome = await checkOutbox.drain(
+      () => true,
+      (p) => markExerciseDone(p.exerciseId, p.dateKey),
+      (p, res) => {
+        const id = checkId(p);
+        if ('error' in res) {
+          setRefused((r) => ({
+            ids: [...(r?.ids ?? []).filter((x) => x !== id), id],
+            message: res.error,
+          }));
+        } else {
+          setSaved((prev) => new Set(prev).add(id));
+        }
+      },
+      /* 화면 이동 같은 Next.js 자체 신호(로그인이 풀려 옮겨 가기 등)는 그대로 넘긴다 */
+      unstable_rethrow
+    );
+    if (outcome === 'offline') setOffline(true);
+    else if (outcome === 'done') setOffline(false);
+  }, []);
+
   useEffect(() => {
-    const fail = (id: string, message: string | null) => {
-      sent.current.delete(id);
-      setFailed((f) => ({
-        ids: f.ids.includes(id) ? f.ids : [...f.ids, id],
-        message,
-      }));
-    };
+    let added = false;
     items.forEach((it, i) => {
       const id = it.exercise.id;
-      if (!state.done[i] || it.doneBefore || sent.current.has(id)) return;
-      sent.current.add(id);
-      setExerciseDone(id, true, dateKey)
-        .then((res) => {
-          if ('error' in res) return fail(id, res.error);
-          setSaved((prev) => new Set(prev).add(id));
-          setFailed((f) => ({ ...f, ids: f.ids.filter((x) => x !== id) }));
-        })
-        .catch(() => fail(id, null));
+      if (!state.done[i] || it.doneBefore || queued.current.has(id)) return;
+      queued.current.add(id);
+      checkOutbox.add({ exerciseId: id, dateKey, recordedAt: new Date().toISOString() });
+      added = true;
     });
-  }, [items, state.done, dateKey, retry]);
+    if (added) void flush();
+  }, [items, state.done, dateKey, flush]);
+
+  /* 다시 보내는 때 — 신호가 돌아올 때, 앱으로 돌아올 때, 15초마다, 처음 열 때(지난번 것) */
   useEffect(() => {
-    const again = () => setRetry((n) => n + 1);
-    window.addEventListener('online', again);
-    return () => window.removeEventListener('online', again);
-  }, []);
+    const kick = () => void flush();
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') kick();
+    };
+    window.addEventListener('online', kick);
+    document.addEventListener('visibilitychange', onVisible);
+    const timer = window.setInterval(kick, 15_000);
+    kick();
+    return () => {
+      window.removeEventListener('online', kick);
+      document.removeEventListener('visibilitychange', onVisible);
+      window.clearInterval(timer);
+    };
+  }, [flush]);
+
+  /* 이 루틴에서 새로 마친 운동 — 남았는지(saved) · 못 받았는지(refused) · 아직인지 */
+  const newlyDone = items
+    .filter((it, i) => state.done[i] && !it.doneBefore)
+    .map((it) => checkId({ exerciseId: it.exercise.id, dateKey }));
+  const refusedHere = newlyDone.filter((id) => refused?.ids.includes(id));
+  const unsaved = newlyDone.filter((id) => !saved.has(id) && !refusedHere.includes(id));
+  const waiting = pending.filter((p) => newlyDone.includes(checkId(p))).length;
+
+  /*
+   * 다 마쳤고 체크가 모두 남았으면 목록·홈을 한 번 새로 그리게 한다. 체크는 화면을 다시
+   * 그리지 않고 남겼으므로, 이것이 없으면 뒤로 가기로 돌아간 목록이 체크 전 모습일 수 있다.
+   */
+  const refreshed = useRef(false);
+  const settled = state.finished && newlyDone.length > 0 && unsaved.length === 0;
+  useEffect(() => {
+    if (!settled || refreshed.current) return;
+    refreshed.current = true;
+    refreshTrainingLists().catch(() => {});
+  }, [settled]);
 
   /* 시계 — 끝나는 순간에 한 번. 버티기가 끝나면 세트를(좌우 각각이면 한쪽을) 마친다 */
   useEffect(() => {
@@ -354,8 +416,19 @@ export function ArmcarePlayer({
   };
 
   const shell = { title, backHref, items, state, onTouch: touch, onPress: arm };
-  const unsent = failed.ids.length;
-  const resend = () => setRetry((n) => n + 1);
+  /* 신호가 없어 폰에 남은 체크 수 — 보내는 중이면 세지 않는다 */
+  const unsent = offline ? waiting : 0;
+  const resend = () => void flush();
+  const notSaved = (
+    <>
+      {unsent > 0 && <Unsent count={unsent} onRetry={resend} />}
+      {refusedHere.length > 0 && refused && (
+        <p className="rounded-xl border border-danger-line bg-danger-bg px-3.5 py-2.5 text-[13px] leading-relaxed break-keep text-danger">
+          체크 {refusedHere.length}개를 남기지 못했어요 — {refused.message}
+        </p>
+      )}
+    </>
+  );
 
   if (items.length === 0) {
     return (
@@ -370,9 +443,6 @@ export function ArmcarePlayer({
   if (state.finished) {
     const count = state.done.filter(Boolean).length;
     const all = count === items.length;
-    const pending = items.some(
-      (it, i) => state.done[i] && !it.doneBefore && !saved.has(it.exercise.id)
-    );
     return (
       <Shell {...shell}>
         <div className="grid flex-1 place-items-center px-6 text-center">
@@ -389,10 +459,13 @@ export function ArmcarePlayer({
               {all
                 ? `운동 ${count}개를 모두 마쳤어요`
                 : `운동 ${items.length}개 중 ${count}개를 마쳤어요`}
-              {count > 0 && !pending && ' · 기록에 체크됐어요'}
-              {pending && unsent === 0 && ' · 기록에 남기는 중…'}
+              {count > 0 &&
+                unsaved.length === 0 &&
+                refusedHere.length === 0 &&
+                ' · 기록에 체크됐어요'}
+              {unsaved.length > 0 && unsent === 0 && ' · 기록에 남기는 중…'}
             </p>
-            {unsent > 0 && <Unsent count={unsent} message={failed.message} onRetry={resend} />}
+            {notSaved}
             <Link
               href={backHref}
               className="inline-flex rounded-xl bg-sky px-5 py-3 text-sm font-semibold text-white hover:bg-sky-strong"
@@ -469,7 +542,7 @@ export function ArmcarePlayer({
 
             <HowTo exercise={ex} />
           </div>
-          {unsent > 0 && <Unsent count={unsent} message={failed.message} onRetry={resend} />}
+          {notSaved}
         </div>
       </div>
 
@@ -655,19 +728,12 @@ function Countdown({ clock, label }: { clock: Clock; label: string }) {
   );
 }
 
-/** 못 남긴 체크 — 몇 개인지와 [다시 보내기] */
-function Unsent({
-  count,
-  message,
-  onRetry,
-}: {
-  count: number;
-  message: string | null;
-  onRetry: () => void;
-}) {
+/** 신호가 없어 못 남긴 체크 — 몇 개인지와 [다시 보내기]. 폰에 담아 뒀다 저절로도 보낸다 */
+function Unsent({ count, onRetry }: { count: number; onRetry: () => void }) {
   return (
     <p className="rounded-xl border border-warn-line bg-warn-bg px-3.5 py-2.5 text-[13px] leading-relaxed break-keep text-warn">
-      {message ?? '인터넷이 끊겨'} 체크 {count}개를 아직 못 남겼어요.{' '}
+      인터넷이 끊겨 체크 {count}개를 아직 못 남겼어요. 폰에 담아 뒀다가 신호가 돌아오면
+      보내요.{' '}
       <button type="button" onClick={onRetry} className="font-semibold underline">
         다시 보내기
       </button>

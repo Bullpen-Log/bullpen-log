@@ -4337,6 +4337,42 @@ console.log('\n[암케어] 부위·근육 · 오늘의 루틴 · 부하');
     frontLeaks.size === 0,
     [...frontLeaks].join(', ')
   );
+  /*
+   * 오늘 이미 한 운동을 먼저 넣을 때도 같다 — 내 루틴에서 프론트 레이즈를 체크한 날 맞춤
+   * 루틴을 만들었더니, 그 운동이 어깨 전방 자리를 차지해 내회전이 빠졌다(2026-09-27 검토).
+   */
+  const frontDone = armcareLib.filter((ex) =>
+    ['전면 삼각근', '대흉근'].includes(ex.targetMuscles[0] ?? '')
+  );
+  const frontDoneMisses: string[] = [];
+  for (const done of frontDone) {
+    for (const kind of ['strength', 'recovery'] as const) {
+      for (let d = 1; d <= 10; d++) {
+        const r = build(kind, {
+          seed: `2026-06-${String(d).padStart(2, '0')}`,
+          doneToday: new Set([done.id]),
+        });
+        const inner = r.items.some(
+          (it) =>
+            it.area === 'shoulder-front' &&
+            exOf.get(it.exerciseId)!.targetMuscles[0] === '견갑하근'
+        );
+        const kept = r.items.some((it) => it.exerciseId === done.id);
+        if (!inner || !kept) {
+          frontDoneMisses.push(
+            `${done.title}·${kind}·${d}일${inner ? '' : ' 내회전 없음'}${kept ? '' : ' 체크한 것 빠짐'}`
+          );
+        }
+      }
+    }
+  }
+  check(
+    '어깨 전방 운동(프론트 레이즈 등)을 오늘 체크했어도 루틴에 내회전이 남는다',
+    frontDone.length > 0 && frontDoneMisses.length === 0,
+    frontDone.length === 0
+      ? '전면 삼각근·대흉근이 주 근육인 운동이 없다'
+      : frontDoneMisses.slice(0, 6).join(', ')
+  );
 
   const recovery = build('recovery');
   const heavyIn = recovery.items.filter((it) => {

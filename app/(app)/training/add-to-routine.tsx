@@ -8,10 +8,12 @@ import {
   type ReactNode,
 } from 'react';
 import Link from 'next/link';
+import { unstable_rethrow } from 'next/navigation';
 import { Check, Plus } from 'lucide-react';
 import { Modal } from '@/components/modal';
 import { addToMyArmcareRoutine } from '@/app/actions/armcare';
 import { MY_ROUTINE_MAX, MY_ROUTINE_MAX_ITEMS } from '@/lib/armcare/my-routines';
+import { CHECK_CONNECTION } from '@/lib/offline';
 
 /**
  * 부위별 보강(운동 목록 · 3D 근육 지도)에서 운동을 내 루틴에 담는 단추.
@@ -64,7 +66,15 @@ export function AddToRoutine({
   const add = (r: RoutineChoice) => {
     setMessage(undefined);
     startTransition(async () => {
-      const res = await addToMyArmcareRoutine(r.id, exerciseId);
+      /* 신호가 끊겨 못 보냈으면 창 안에 알리기만 한다 — 오류가 화면 전체로 번지지 않게 */
+      let res: Awaited<ReturnType<typeof addToMyArmcareRoutine>>;
+      try {
+        res = await addToMyArmcareRoutine(r.id, exerciseId);
+      } catch (err) {
+        unstable_rethrow(err);
+        setMessage(`담지 못했어요. ${CHECK_CONNECTION}`);
+        return;
+      }
       if ('error' in res) {
         setMessage(res.error);
         return;

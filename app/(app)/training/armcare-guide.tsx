@@ -57,8 +57,13 @@ export function ArmcareGuide({
   /*
    * 볼 팔 — 양투는 3D 지도에서 바꿀 수 있다. 여기서 쥐어 '자세히 보기' 창(부위 카드에서
    * 연 것까지)도 같은 팔로 연다. 예전에는 지도에서만 바뀌고 창은 늘 오른팔이었다.
+   *
+   * 쥐는 것은 양투가 고른 팔뿐이고, 볼 팔은 그리는 때마다 계정 값(map.side)에서 셈한다.
+   * 처음 값을 상태로 들고 있었더니, 이 화면을 연 채 내 정보에서 던지는 손을 바꾸면 3D 와
+   * 창이 옛 팔로 남았다 — 좌투로 바꾸면 팔 고르기 칸도 사라져 되돌릴 수 없었다(2026-09-27 검토).
    */
-  const [side, setSide] = useState(map.side);
+  const [picked, setPicked] = useState<'right' | 'left' | null>(null);
+  const side = map.bothHands ? (picked ?? map.side) : map.side;
 
   /* 지도에서 '이 부위 운동 모두 보기' — 그 카드를 열고 그 자리로 내려간다 */
   const showArea = (key: ArmcareAreaKey) => {
@@ -84,7 +89,7 @@ export function ArmcareGuide({
 
           <MuscleMapPanel
             side={side}
-            onSide={setSide}
+            onSide={setPicked}
             bothHands={map.bothHands}
             exercises={exercises}
             initial={selectionFor(map.focusMuscle)}

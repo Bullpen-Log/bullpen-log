@@ -42,15 +42,45 @@ export function ArmcareInfoBody({
       ? { kind: 'muscle', name: current.name, part: current.part }
       : view;
 
+  /*
+   * '‹'로 돌아갈 곳 — 운동의 근육 칸이면 그 운동의 근육 모두, 아니면 옮겨 오기 전 화면.
+   * 창을 바로 연 화면(근육 칩 등)에는 없다.
+   */
+  const back: InfoTarget | null =
+    view.kind === 'exercise'
+      ? current
+        ? { ...view, current: null }
+        : null
+      : (view.back ?? null);
+  /* 앞으로 옮겨 간다 — 지금 화면을 돌아올 곳으로 달아 둔다 */
+  const go = (
+    next:
+      | { kind: 'area'; key: ArmcareAreaKey }
+      | { kind: 'muscle'; name: string; part?: string | null }
+  ) => onChange({ ...next, back: view });
+
   const pick = (next: MapSelection) => {
     if (view.kind === 'exercise') {
       /* 운동의 근육을 누르면 그 근육 칸으로, 밖을 누르면 한 칸 물러나 모두로 */
       const hit = next.muscle && view.muscles.includes(next.muscle) ? next.muscle : null;
       onChange({ ...view, current: hit ? { name: hit, part: next.part } : null });
     } else if (next.muscle) {
-      onChange({ kind: 'muscle', name: next.muscle, part: next.part });
+      /* 근육 보기에서 누른 갈래만 바뀐 것은 옮겨 가는 것이 아니다 */
+      if (view.kind === 'muscle' && view.name === next.muscle) {
+        onChange({ ...view, part: next.part });
+      } else {
+        go({ kind: 'muscle', name: next.muscle, part: next.part });
+      }
     } else if (next.area) {
-      onChange({ kind: 'area', key: next.area });
+      if (view.kind === 'area') {
+        /* 부위끼리 옮겨 다니는 것은 한 층 — 돌아갈 곳은 그대로 */
+        onChange({ kind: 'area', key: next.area, back: view.back });
+      } else if (back?.kind === 'area' && back.key === next.area) {
+        /* 근육 밖을 눌러 들어온 부위로 물러났다 — 돌아간 것과 같다 */
+        onChange(back);
+      } else {
+        go({ kind: 'area', key: next.area });
+      }
     }
   };
 
@@ -87,19 +117,21 @@ export function ArmcareInfoBody({
         <AreaInfo
           key={`area-${shown.key}`}
           areaKey={shown.key}
-          onMuscle={(name) => onChange({ kind: 'muscle', name })}
+          onMuscle={(name) => go({ kind: 'muscle', name })}
+          back={back && { label: labelOf(back), onBack: () => onChange(back) }}
         />
       ) : shown.kind === 'muscle' ? (
         <MuscleInfo
           key={`muscle-${shown.name}`}
           name={shown.name}
           part={shown.part ?? null}
-          onArea={(key) => onChange({ kind: 'area', key })}
-          back={
-            view.kind === 'exercise'
-              ? { label: view.title, onBack: () => onChange({ ...view, current: null }) }
-              : undefined
+          onArea={
+            /* 돌아갈 곳이 이 근육의 부위면 '‹'와 같은 곳이라 따로 두지 않는다 */
+            back?.kind === 'area' && back.key === areaOfMuscle(shown.name)?.key
+              ? undefined
+              : (key) => go({ kind: 'area', key })
           }
+          back={back && { label: labelOf(back), onBack: () => onChange(back) }}
         />
       ) : (
         <ExerciseMuscles
@@ -109,6 +141,51 @@ export function ArmcareInfoBody({
         />
       )}
     </>
+  );
+}
+
+/** '‹'에 적는 이름 — 돌아갈 화면 */
+function labelOf(t: InfoTarget): string {
+  if (t.kind === 'area') return `${findArmcareArea(t.key)?.label ?? ''} 자세히`;
+  if (t.kind === 'muscle') return t.name;
+  return t.current?.name ?? t.title;
+}
+
+/** 돌아가기 · 부위로 가기 — 근육·부위 설명 맨 위 한 줄 */
+function NavRow({
+  back,
+  forward,
+}: {
+  back?: { label: string; onBack: () => void } | null;
+  forward?: { label: string; onGo: () => void } | null;
+}) {
+  if (!back && !forward) return null;
+  return (
+    <div className="-mt-1 flex items-center justify-between gap-3 text-xs font-semibold text-sky-strong">
+      {back ? (
+        <button
+          type="button"
+          onClick={back.onBack}
+          aria-label={`돌아가기 — ${back.label}`}
+          className="inline-flex min-w-0 items-center gap-0.5"
+        >
+          <ChevronLeft aria-hidden className="h-3.5 w-3.5 shrink-0" />
+          <span className="truncate">{back.label}</span>
+        </button>
+      ) : (
+        <span />
+      )}
+      {forward && (
+        <button
+          type="button"
+          onClick={forward.onGo}
+          className="inline-flex shrink-0 items-center gap-0.5"
+        >
+          {forward.label}
+          <ChevronRight aria-hidden className="h-3.5 w-3.5" />
+        </button>
+      )}
+    </div>
   );
 }
 
@@ -278,9 +355,12 @@ function ExerciseMuscles({
 function AreaInfo({
   areaKey,
   onMuscle,
+  back,
 }: {
   areaKey: ArmcareAreaKey;
   onMuscle: (name: string) => void;
+  /** 옮겨 오기 전 화면으로 — 창을 바로 연 부위면 없다 */
+  back?: { label: string; onBack: () => void } | null;
 }) {
   const ref = useScrollTop();
   const area = findArmcareArea(areaKey);
@@ -293,6 +373,7 @@ function AreaInfo({
       ref={ref}
       className="space-y-5 text-[14px] leading-relaxed break-keep text-ink/85"
     >
+      <NavRow back={back} />
       <Section title="던질 때 하는 일">
         <p>{d.role}</p>
       </Section>
@@ -350,13 +431,14 @@ function MuscleInfo({
 }: {
   name: string;
   part: string | null;
-  onArea: (key: ArmcareAreaKey) => void;
+  /** 이 근육의 부위 설명으로 — '‹'가 이미 그 부위로 가면 없다 */
+  onArea?: (key: ArmcareAreaKey) => void;
   /**
-   * 들어온 화면으로 돌아가는 길 — 운동의 근육 목록에서 들어왔으면 그 운동으로. 없으면 이
-   * 근육의 부위로 간다. 운동에서 들어왔는데 뒤로 가기가 부위('견갑 자세히')로 가서, 보던
-   * 운동으로 돌아갈 수 없었다(2026-09-26 사용자분).
+   * 들어온 화면으로 돌아가는 길 — 운동의 근육 목록에서 들어왔으면 그 운동으로, 부위에서
+   * 들어왔으면 그 부위로. 운동에서 들어왔는데 뒤로 가기가 부위('견갑 자세히')로 가서, 보던
+   * 운동으로 돌아갈 수 없었다(2026-09-26 사용자분). 부위로 가는 길은 오른쪽에 따로 둔다.
    */
-  back?: { label: string; onBack: () => void };
+  back?: { label: string; onBack: () => void } | null;
 }) {
   const ref = useScrollTop();
   const info = muscleInfo(name);
@@ -372,14 +454,10 @@ function MuscleInfo({
       ref={ref}
       className="space-y-5 text-[14px] leading-relaxed break-keep text-ink/85"
     >
-      <button
-        type="button"
-        onClick={back ? back.onBack : () => onArea(area.key)}
-        className="-mt-1 inline-flex items-center gap-0.5 text-xs font-semibold text-sky-strong"
-      >
-        <ChevronLeft aria-hidden className="h-3.5 w-3.5" />
-        {back ? back.label : `${area.label} 자세히`}
-      </button>
+      <NavRow
+        back={back}
+        forward={onArea && { label: `${area.label} 자세히`, onGo: () => onArea(area.key) }}
+      />
       <Section title="어떤 근육인가요">
         <p>{d.what}</p>
       </Section>

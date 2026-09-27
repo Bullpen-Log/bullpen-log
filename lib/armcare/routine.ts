@@ -436,13 +436,21 @@ export function buildArmcareRoutine({
   /*
    * 오늘 이미 체크한 것은 먼저 넣는다. 다시 만들었더니 방금 한 운동이 사라지면
    * 체크를 풀 수도 없고, 한 것을 또 하게 된다.
+   *
+   * 자리의 뜻(SLOT_MUSCLES)에 안 맞는 운동은 넣기만 하고 자리를 차지하지 않는다. 내
+   * 루틴에서 프론트 레이즈를 체크한 날 맞춤 루틴을 만들었더니, 그 운동이 어깨 전방
+   * 자리를 가져가 내회전이 빠졌다(2026-09-27 검토).
    */
+  const fitsSlot = (ex: ArmcareCandidate, area: ArmcareAreaKey) => {
+    const muscles = SLOT_MUSCLES[area];
+    return !muscles || muscles.includes(ex.targetMuscles[0] ?? '');
+  };
   const slots = SLOTS[kind].map((area, i) => ({ area, core: i < CORE_SLOTS[kind] }));
   for (const id of doneToday) {
     const ex = byId.get(id);
     const area = ex ? (areaOf(ex) ?? previousArea.get(id) ?? null) : null;
     if (!ex || !area) continue;
-    const at = slots.findIndex((s) => s.area === area);
+    const at = fitsSlot(ex, area) ? slots.findIndex((s) => s.area === area) : -1;
     if (at >= 0) slots.splice(at, 1);
     put(ex, area);
   }
@@ -459,12 +467,8 @@ export function buildArmcareRoutine({
     /* 팔꿈치가 뻐근하면 전완은 하나만 */
     if (stiffElbow && ELBOW_AREAS.includes(area) && elbowCount >= 1) continue;
 
-    const slotMuscles = SLOT_MUSCLES[area];
     const inArea = candidates.filter(
-      (ex) =>
-        !taken.has(ex.id) &&
-        areaOf(ex) === area &&
-        (!slotMuscles || slotMuscles.includes(ex.targetMuscles[0] ?? ''))
+      (ex) => !taken.has(ex.id) && areaOf(ex) === area && fitsSlot(ex, area)
     );
     const pool = inArea.filter(allowed).sort(order(area));
     if (pool.length === 0) {

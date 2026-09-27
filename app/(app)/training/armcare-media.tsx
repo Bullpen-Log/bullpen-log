@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useTransition } from 'react';
+import { unstable_rethrow } from 'next/navigation';
 import { Info, Scan } from 'lucide-react';
 import { LibraryVideo } from '@/components/library-video';
 import { useArmcareInfo } from '@/components/armcare-info-context';
@@ -38,6 +39,10 @@ export type ArmcareExerciseView = {
  * 받다가 신호가 끊기면 오류를 던지는 대신 '못 받았다'로 둔다. 예전에는 그 오류가 화면
  * 전체의 오류로 번져, 따라하기 도중에 오류 화면으로 바뀌었다(2026-09-26 검토). 다시
  * 펼치면 다시 받는다.
+ *
+ * 서버가 null 을 주는 것도 '못 받았다'다(로그인이 풀림 · 지운 운동). 설명이 정말 없는
+ * 운동은 빈 글('')이 온다 — 둘을 같게 보여 줬더니 못 받은 것이 '아직 적힌 설명이
+ * 없어요'로 보이고 다시 받지도 않았다(2026-09-27 검토).
  */
 export function useExerciseDescription(id: string) {
   const [got, setGot] = useState<{ id: string; text: string | null; failed: boolean }>();
@@ -49,8 +54,10 @@ export function useExerciseDescription(id: string) {
     if (loading || (mine && !mine.failed)) return;
     startLoading(async () => {
       try {
-        setGot({ id, text: await exerciseDescription(id), failed: false });
-      } catch {
+        const text = await exerciseDescription(id);
+        setGot({ id, text, failed: text == null });
+      } catch (err) {
+        unstable_rethrow(err);
         setGot({ id, text: null, failed: true });
       }
     });

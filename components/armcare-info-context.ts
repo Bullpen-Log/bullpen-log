@@ -10,10 +10,14 @@ import type { ArmcareAreaKey } from '@/lib/armcare/anatomy';
  * exercise 는 루틴의 '근육 위치'가 연다. 예전에는 맨 앞 근육 하나만 열어서, 케이블 외회전
  * 0도(극하근 · 소원근)를 눌러도 극하근만 나왔다(2026-09-26 사용자분). current 는 창 위의
  * '모두 · 근육' 칸에서 고른 근육이다 — 없으면 모두.
+ *
+ * back 은 창 안에서 옮겨 오기 전의 화면이다 — '‹'가 거기로 돌아간다(이동 기록). 창을 여는
+ * 곳은 넣지 않는다. 예전에는 '‹'가 어떤 때는 이전 화면으로, 어떤 때는 부위로 가서, 운동에서
+ * 근육으로 들어가면 부위 설명에 닿을 길이 없었다(2026-09-27 검토).
  */
 export type InfoTarget =
-  | { kind: 'area'; key: ArmcareAreaKey }
-  | { kind: 'muscle'; name: string; part?: string | null }
+  | { kind: 'area'; key: ArmcareAreaKey; back?: InfoTarget }
+  | { kind: 'muscle'; name: string; part?: string | null; back?: InfoTarget }
   | {
       kind: 'exercise';
       title: string;

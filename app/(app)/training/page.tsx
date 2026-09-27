@@ -568,7 +568,7 @@ export default async function TrainingPage({
             )}
 
             <DoneFold folded={done != null} count={exercises.length}>
-              <ExerciseChecklist exercises={exercises}>
+              <ExerciseChecklist exercises={exercises} dateKey={core.todayKey}>
                 {/*
                 만들어 준 목록을 그대로 하는 사람은 없다. 빼는 것은 목록에서
                 바로, 더하는 것은 여기서 찾아서.

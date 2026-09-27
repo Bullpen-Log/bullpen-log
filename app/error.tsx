@@ -18,10 +18,10 @@ import {
  */
 export default function RootError({
   error,
-  unstable_retry,
+  retry,
 }: {
   error: Error & { digest?: string };
-  unstable_retry: () => void;
+  retry: () => void;
 }) {
   useEffect(() => {
     console.error('[화면 오류]', error);
@@ -35,7 +35,7 @@ export default function RootError({
         열어주세요.
       </FallbackText>
       <FallbackActions>
-        <FallbackButton onClick={() => unstable_retry()} primary>
+        <FallbackButton onClick={() => retry()} primary>
           다시 시도
         </FallbackButton>
         <FallbackLink href="/login">로그인으로</FallbackLink>
