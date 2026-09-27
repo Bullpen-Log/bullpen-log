@@ -6,6 +6,7 @@ import {
   analyzeFrames,
   cornerShift,
   type AnalyzeResult,
+  type Approach,
   type CapturedFrame,
 } from './analyze-frames.ts';
 
@@ -116,11 +117,17 @@ export class LiveCapture {
   constructor(
     private readonly video: HTMLVideoElement,
     private readonly handlers: LiveCaptureHandlers,
-    private fovDeg: number
+    private fovDeg: number,
+    /** 공이 멀어지나(투수 뒤) 다가오나(포수 뒤) — 다가오면 앞을 더 길게 담는다 */
+    private approach: Approach = 'receding'
   ) {}
 
   setFov(fovDeg: number) {
     this.fovDeg = fovDeg;
+  }
+
+  setApproach(approach: Approach) {
+    this.approach = approach;
   }
 
   getStatus() {
@@ -395,7 +402,12 @@ export class LiveCapture {
 
     this.triggerT = frame.t;
     /* 던지기 직전 프레임도 담는다 — 릴리스 순간이 표적에 닿기 한두 장 앞일 수 있다 */
-    this.captured = this.ring.filter((f) => f.t >= frame.t - PRE_SEC);
+    /*
+     * 다가오는 공은 가운데가 밝아지기 한참 전부터 멀리서 작게 보인다 — 앞을 두 배 담아
+     * 그 구간도 계산에 넣는다.
+     */
+    const pre = this.approach === 'approaching' ? PRE_SEC * 2 : PRE_SEC;
+    this.captured = this.ring.filter((f) => f.t >= frame.t - pre);
     this.setStatus('capturing');
   }
 
@@ -434,6 +446,7 @@ export class LiveCapture {
           sourceHeight: this.sourceHeight,
           fovDeg: this.fovDeg,
           shakePx,
+          approach: this.approach,
         });
         this.handlers.onResult(result);
       } catch (e) {

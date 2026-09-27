@@ -10,6 +10,7 @@ import { calibrationText } from '@/lib/velocity-calibration';
 import {
   CONFIDENCE_TEXT,
   pitchTypeLabel,
+  sessionSetupText,
   summarize,
   zoneLabel,
   type PitchEdit,
@@ -144,7 +145,9 @@ export function VelocitySection({ sessions }: { sessions: VelocitySessionView[] 
                 {String(at.getHours()).padStart(2, '0')}:
                 {String(at.getMinutes()).padStart(2, '0')}
               </span>
-              <span>{s.source === 'file' ? '영상 파일' : '카메라'}</span>
+              <span>
+                {s.source === 'file' ? '영상 파일' : '카메라'} · {sessionSetupText(s)}
+              </span>
               {stats && (
                 <span>
                   {stats.n}구 · 최고{' '}

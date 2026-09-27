@@ -53,6 +53,10 @@ export type SaveSessionInput = {
   fovDeg: number;
   source: 'camera' | 'file';
   device: string | null;
+  /** 무엇을 어디서 — 'pitch' · 'hit', 'behind-pitcher' · 'behind-catcher', 네트 유무 */
+  mode: string;
+  cameraPos: string;
+  net: boolean;
   pitches: SavePitchInput[];
 };
 
@@ -129,6 +133,10 @@ export async function saveVelocitySession(
   const fovDeg = num(input.fovDeg, 30, 120);
   if (fovDeg == null) return { ok: false, error: '화각이 올바르지 않습니다.' };
 
+  const mode = input.mode === 'hit' ? 'hit' : 'pitch';
+  const cameraPos =
+    input.cameraPos === 'behind-catcher' ? 'behind-catcher' : 'behind-pitcher';
+
   if (!Array.isArray(input.pitches) || input.pitches.length === 0) {
     return { ok: false, error: '잰 공이 없습니다.' };
   }
@@ -200,6 +208,9 @@ export async function saveVelocitySession(
         calOffset: fit.offset,
         calPairs: fit.n,
         source: input.source === 'file' ? 'file' : 'camera',
+        mode,
+        cameraPos,
+        net: input.net !== false,
         device: input.device ? String(input.device).slice(0, 200) : null,
         pitches: {
           create: pitches.map((p, i) => ({ ...p, seq: i + 1, userId: user.id })),

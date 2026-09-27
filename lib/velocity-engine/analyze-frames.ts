@@ -11,7 +11,14 @@ import {
   type CameraLens,
 } from './geometry.ts';
 import { checkFootage } from './validate.ts';
-import { measureVelocity, MIN_USABLE_BALL_PX, type MeasureResult } from './measure.ts';
+import {
+  measureVelocity,
+  MIN_USABLE_BALL_PX,
+  type Approach,
+  type MeasureResult,
+} from './measure.ts';
+
+export type { Approach } from './measure.ts';
 
 /**
  * 이미 꺼내 둔 프레임(밝기 그림)으로 구속을 잰다 — 계산의 한가운데.
@@ -57,6 +64,8 @@ export type AnalyzeFramesInput = {
   fovDeg?: number;
   /** 카메라가 얼마나 흔들렸는지(픽셀). 비우면 여기서 잰다 */
   shakePx?: number;
+  /** 공이 멀어지나(투수 뒤, 기본) 다가오나(포수 뒤) */
+  approach?: Approach;
 };
 
 /**
@@ -186,7 +195,14 @@ function releaseInfo(
 }
 
 export function analyzeFrames(input: AnalyzeFramesInput): AnalyzeResult {
-  const { width, height, sourceWidth, sourceHeight, fovDeg = DEFAULT_FOV_DEG } = input;
+  const {
+    width,
+    height,
+    sourceWidth,
+    sourceHeight,
+    fovDeg = DEFAULT_FOV_DEG,
+    approach = 'receding',
+  } = input;
 
   /*
    * 1) 같은 장면이 두 번 나오면 건너뛴다.
@@ -236,7 +252,11 @@ export function analyzeFrames(input: AnalyzeFramesInput): AnalyzeResult {
     t: f.t,
     blobs: findMovedBlobs(background, f.luma, width, height),
   }));
-  const track = trackBall(blobFrames, { frameWidth: width, frameHeight: height });
+  const track = trackBall(blobFrames, {
+    frameWidth: width,
+    frameHeight: height,
+    approach,
+  });
 
   // 지름·좌표를 원본 해상도 기준으로 되돌린다. 렌즈 정보가 원본 기준이기 때문이다.
   const scale = width / sourceWidth;
@@ -278,13 +298,16 @@ export function analyzeFrames(input: AnalyzeFramesInput): AnalyzeResult {
         observations: scaled,
         lens,
         stability: { maxBackgroundShiftPx: shakePx },
+        approach,
       });
 
   return {
     measure,
-    release: measure.ok
-      ? releaseInfo(scaled, lens, measure.kmh, measure.detail.travelM)
-      : null,
+    /* 릴리스 포인트는 멀어지는 공(투수 뒤)에서만 잡힌다 — 다가오는 공은 릴리스가 화면 밖 */
+    release:
+      measure.ok && approach === 'receding'
+        ? releaseInfo(scaled, lens, measure.kmh, measure.detail.travelM)
+        : null,
     fps: measuredFps,
     track,
     analyzeSize: { width, height },

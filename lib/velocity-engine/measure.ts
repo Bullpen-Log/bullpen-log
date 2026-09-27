@@ -13,10 +13,13 @@ import {
   estimateErrorKmh,
   gradeConfidence,
   reject,
+  type Approach,
   type CameraStability,
   type Confidence,
   type Rejection,
 } from './validate.ts';
+
+export type { Approach } from './validate.ts';
 
 /**
  * 구속 측정의 진입점.
@@ -34,6 +37,8 @@ export type MeasureInput = {
   lens: CameraLens | null;
   /** 배경이 얼마나 흔들렸는지 — 삼각대 고정 여부 판정에 쓴다 */
   stability?: CameraStability;
+  /** 공이 멀어지나(투수 뒤, 기본) 다가오나(포수 뒤) */
+  approach?: Approach;
 };
 
 export type MeasureSuccess = {
@@ -73,7 +78,7 @@ const round1 = (n: number) => Math.round(n * 10) / 10;
 export const MIN_USABLE_BALL_PX = 9;
 
 export function measureVelocity(input: MeasureInput): MeasureResult {
-  const { observations, lens, stability } = input;
+  const { observations, lens, stability, approach = 'receding' } = input;
 
   // 1) 렌즈를 모르면 거리를 못 구한다. 여기서 막지 않으면 뒤가 전부 무의미하다.
   const lensProblem = checkLens(lens);
@@ -85,14 +90,17 @@ export function measureVelocity(input: MeasureInput): MeasureResult {
    *    단, 앞부분(가까울 때)이 잘려나가면 안 되므로 뒤에서부터 자른다.
    */
   const byTime = [...observations].sort((a, b) => a.t - b.t);
-  const usable: BallObservation[] = [];
-  for (const obs of byTime) {
+  /* 다가오는 공은 앞쪽(멀 때)이 작다 — 뒤에서부터 보아 앞을 자른다 */
+  const ordered = approach === 'receding' ? byTime : [...byTime].reverse();
+  const kept: BallObservation[] = [];
+  for (const obs of ordered) {
     if (obs.diameterPx < MIN_USABLE_BALL_PX) break;
-    usable.push(obs);
+    kept.push(obs);
   }
+  const usable = approach === 'receding' ? kept : kept.reverse();
 
   // 3) 추적이 매끄러웠는지 — 공이 아닌 것을 따라간 흔적이 있으면 여기서 걸린다.
-  const trackProblem = checkTrackContinuity(usable, camera);
+  const trackProblem = checkTrackContinuity(usable, camera, approach);
   if (trackProblem) return { ok: false, ...trackProblem };
 
   const sorted = usable;
@@ -106,10 +114,12 @@ export function measureVelocity(input: MeasureInput): MeasureResult {
   }
 
   // 5) 촬영 자세 — 고정했는지, 1m 이내인지, 릴리스가 중앙인지.
+  const anchor = approach === 'receding' ? 0 : sorted.length - 1;
   const framingProblem = checkFraming({
-    first: { obs: sorted[0], point: points[0] },
+    first: { obs: sorted[anchor], point: points[anchor] },
     lens: camera,
     stability,
+    approach,
   });
   if (framingProblem) return { ok: false, ...framingProblem };
 

@@ -26,5 +26,11 @@ DB 에는 적용했다. `User` · `PitchLog` 에 관계 줄만 늘었다(칸은 
 - 네 파일을 고친 것: `app/(app)/pitch-log/[date]/load.ts` · `day-client.tsx`(그날 화면에 '구속 측정'
   칸 — `pitch-log/velocity-section.tsx`), `app/(app)/videos/page.tsx` · `videos-client.tsx` ·
   `video-calendar.tsx`(그날 칸에 '카메라 측정 n구 · 최고' 한 줄). 읽기는 `lib/velocity-load.ts`.
-- 화면은 아직 다듬는 중이다(`docs/claude/geum-yunho.md` 진행 중인 일). 시제품 설명은 앞서 지운
-  메모(git 이력 e80c7c3)에 있다.
+- 같은 표에 칸 셋을 더 더했다(기본값 있음, `20260927xxxxxx_velocity_session_setup`): `mode`(투구 · 타구) ·
+  `cameraPos`(투수 뒤 · 포수 뒤) · `net`. 이것도 `prisma generate` 한 번이면 된다.
+- **엔진(`lib/velocity-engine`)에 방향 옵션 `approach`를 넣었다** — 'receding'(멀어짐, 기본 = 예전 동작) ·
+  'approaching'(다가옴, 포수 뒤). `trackBall` 의 크기 조건, `measureVelocity` 의 앞뒤 자르기 · 자세 검사,
+  `checkTrackContinuity` 의 부호를 방향에 따라 뒤집는다. 기본값이면 예전과 같고 자가시험 32 + 10 그대로.
+- 측정 앞에 설정 단계가 붙었다(지난 설정 → 고르기 → 주의사항 카드 → 수평 · 표적 → 스트라이크 존 → 측정,
+  `components/velocity/setup-steps.tsx` · `lib/velocity-setup.ts` · `lib/use-device-level.ts`). 시제품 설명은
+  앞서 지운 메모(git 이력 e80c7c3)에 있다.

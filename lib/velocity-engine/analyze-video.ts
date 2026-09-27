@@ -8,6 +8,7 @@ import {
   DEFAULT_FOV_DEG,
   isSameFrame,
   type AnalyzeResult,
+  type Approach,
   type CapturedFrame,
 } from './analyze-frames.ts';
 
@@ -54,6 +55,8 @@ export type AnalyzeOptions = {
   fovDeg?: number;
   /** 진행 상황 알림 (0~1) */
   onProgress?: (ratio: number) => void;
+  /** 공이 멀어지나(투수 뒤, 기본) 다가오나(포수 뒤) */
+  approach?: Approach;
 };
 
 function waitForEvent(
@@ -80,7 +83,14 @@ function waitForEvent(
 }
 
 export async function analyzeVideo(options: AnalyzeOptions): Promise<AnalyzeResult> {
-  const { file, startSec = 0, endSec, fovDeg = DEFAULT_FOV_DEG, onProgress } = options;
+  const {
+    file,
+    startSec = 0,
+    endSec,
+    fovDeg = DEFAULT_FOV_DEG,
+    onProgress,
+    approach = 'receding',
+  } = options;
 
   const url = URL.createObjectURL(file);
   const video = document.createElement('video');
@@ -172,6 +182,7 @@ export async function analyzeVideo(options: AnalyzeOptions): Promise<AnalyzeResu
       sourceHeight: sourceH,
       fovDeg,
       shakePx,
+      approach,
     });
     onProgress?.(1);
     return result;

@@ -34,6 +34,15 @@ export const MAX_RELEASE_DISTANCE_M = 2.5;
 export const MIN_RELEASE_DISTANCE_M = 0.4;
 
 /**
+ * 포수 뒤에서 찍을 때(공이 다가옴) 마지막 관측(가장 가까운 공)이 카메라에서 이만큼 안이어야
+ * 한다(m). 포수 미트는 카메라 앞 1~3m 다. 릴리스 지점은 화면에 안 잡히므로 대신 이걸 본다.
+ */
+export const MAX_APPROACH_END_DISTANCE_M = 4;
+
+/** 공이 카메라에서 멀어지나(투수 뒤) 다가오나(포수 뒤) */
+export type Approach = 'receding' | 'approaching';
+
+/**
  * 릴리스 지점이 화면 중앙에서 벗어나도 되는 정도.
  * 화면 짧은 변의 절반을 1.0으로 본 비율이며, 참고 앱의 중앙 상자와 비슷하다.
  */
@@ -261,14 +270,27 @@ export function checkFraming({
   first,
   lens,
   stability,
+  approach = 'receding',
 }: {
   /** 릴리스 직후 첫 관측 */
+  /** 기준 관측 — 멀어지는 공은 첫 관측(릴리스), 다가오는 공은 마지막 관측(가장 가까울 때) */
   first: { obs: BallObservation; point: BallPoint3D };
   lens: CameraLens;
   stability?: CameraStability;
+  approach?: Approach;
 }): Rejection | null {
   if (stability && stability.maxBackgroundShiftPx > MAX_CAMERA_SHAKE_PX) {
     return reject('CAMERA_SHAKE');
+  }
+
+  /*
+   * 다가오는 공(포수 뒤)은 릴리스가 화면에 안 잡힌다 — 가장 가까운 공이 카메라 앞 몇 m 안에
+   * 있는지만 보고, '가운데'는 따지지 않는다(공은 스트라이크 존 어디로든 온다).
+   */
+  if (approach === 'approaching') {
+    if (first.point.z > MAX_APPROACH_END_DISTANCE_M) return reject('TOO_FAR');
+    if (first.point.z < MIN_RELEASE_DISTANCE_M) return reject('TOO_CLOSE');
+    return null;
   }
 
   if (first.point.z > MAX_RELEASE_DISTANCE_M) return reject('TOO_FAR');
@@ -295,7 +317,8 @@ export function checkFraming({
  */
 export function checkTrackContinuity(
   observations: BallObservation[],
-  lens: CameraLens
+  lens: CameraLens,
+  approach: Approach = 'receding'
 ): Rejection | null {
   if (observations.length < MIN_OBSERVATIONS) return reject('NOT_ENOUGH_FRAMES');
 
@@ -323,7 +346,8 @@ export function checkTrackContinuity(
     const to = zAt(j);
     if (from == null || to == null) return reject('UNSTABLE_TRACK');
 
-    const step = to - from;
+    /* 다가오는 공은 거리가 줄어든다 — 부호를 뒤집어 '나아간 거리'로 같이 본다 */
+    const step = approach === 'receding' ? to - from : from - to;
     const gap = sorted[j].t - sorted[i].t;
     const safeGap = gap > 0 ? gap : FALLBACK_FRAME_GAP_SEC;
 

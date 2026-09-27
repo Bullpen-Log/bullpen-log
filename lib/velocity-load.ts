@@ -30,6 +30,9 @@ export async function loadVelocityDay(
     calOffset: s.calOffset,
     calPairs: s.calPairs,
     source: s.source,
+    mode: s.mode,
+    cameraPos: s.cameraPos,
+    net: s.net,
     device: s.device,
     createdAt: s.createdAt.toISOString(),
     pitches: s.pitches.map((p) => ({

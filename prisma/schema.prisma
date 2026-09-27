@@ -439,6 +439,12 @@ model VelocitySession {
   calPairs   Int      @default(0)
   /// 'camera'(앱 · 웹 카메라) · 'file'(슬로모션 영상 파일)
   source     String   @default("camera")
+  /// 무엇을 쟀나 — 'pitch'(투구) · 'hit'(타구)
+  mode       String   @default("pitch")
+  /// 카메라가 어디 — 'behind-pitcher'(투수 뒤, 공이 멀어짐) · 'behind-catcher'(포수 뒤, 공이 다가옴)
+  cameraPos  String   @default("behind-pitcher")
+  /// 앞에 네트가 있었나
+  net        Boolean  @default(true)
   /// 카메라 이름 · 해상도 같은 기기 정보(있으면)
   device     String?
   memo       String?

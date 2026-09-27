@@ -91,10 +91,24 @@ export type VelocitySessionView = {
   calOffset: number;
   calPairs: number;
   source: string;
+  /** 'pitch' · 'hit' */
+  mode: string;
+  /** 'behind-pitcher' · 'behind-catcher' */
+  cameraPos: string;
+  net: boolean;
   device: string | null;
   createdAt: string;
   pitches: VelocityPitchView[];
 };
+
+/** '투구 · 투수 뒤 · 네트 있음' — 세션 머리 한 줄 */
+export function sessionSetupText(s: { mode: string; cameraPos: string; net: boolean }) {
+  return [
+    s.mode === 'hit' ? '타구' : '투구',
+    s.cameraPos === 'behind-catcher' ? '포수 뒤' : '투수 뒤',
+    s.net ? '네트 있음' : '네트 없음',
+  ].join(' · ');
+}
 
 /** 사람이 고치는 칸 — 측정 화면과 그날 화면이 같은 편집기를 쓴다 */
 export type PitchEdit = {
