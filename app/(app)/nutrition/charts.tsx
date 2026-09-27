@@ -32,7 +32,8 @@ export function WeekChart({
 
   return (
     <div className="space-y-2">
-      <div className="flex h-20 items-end gap-1.5">
+      {/* 세로가 낮은 PC(노트북)에서는 막대를 낮춘다 — 영양 탭이 한 화면에 들어오게 */}
+      <div className="flex h-20 items-end gap-1.5 desk-low:h-14">
         {week.map((d) => {
           const sel = d.date === selected;
           const over = d.kcal > d.target;

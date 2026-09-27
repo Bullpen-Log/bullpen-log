@@ -200,7 +200,7 @@ export function DayClient({
   );
 
   return (
-    <div className="space-y-6">
+    <div className="stack-page">
       {/*
         돌아갈 곳을 맨 위에 둔다 — 홈 달력과 투구 기록 둘 다. 예전에는 홈 달력 하나라,
         투구 기록 탭에서 들어온 사람도 홈으로 떨어졌다. 팝업이면 연 화면 쪽이 '돌아가기'다.
@@ -217,9 +217,7 @@ export function DayClient({
       <div className={modal ? '' : 'border-b border-line pb-6'}>
         {/* 팝업이면 날짜는 창 머리가 보여 준다 — 두 번 적지 않는다 */}
         {!modal && (
-          <h1 className="text-heading text-[1.75rem] leading-[1.15] text-ink sm:text-[2.25rem]">
-            {spokenDate(date)}
-          </h1>
+          <h1 className="text-heading page-title text-ink">{spokenDate(date)}</h1>
         )}
         <p className={`text-sm text-muted ${modal ? '' : 'mt-2'}`}>
           {future

@@ -351,7 +351,7 @@ function ExerciseGrid({ items, isAdmin }: { items: ExerciseItem[]; isAdmin: bool
   const [openId, setOpenId] = useState<string | null>(null);
 
   return (
-    <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+    <div className="grid grid-cols-2 gap-block sm:grid-cols-3 lg:grid-cols-4">
       {items.map((item) =>
         openId === item.id ? (
           <div key={item.id} className="col-span-full">

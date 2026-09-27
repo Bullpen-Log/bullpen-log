@@ -255,7 +255,7 @@ export function ReportClient({ logs }: { logs: Log[] }) {
           </div>
 
           {/* 요약 지표 — 직전 동일 기간과 비교 */}
-          <div className="grid gap-5 @xl:grid-cols-2">
+          <div className="grid gap-block @xl:grid-cols-2">
             <Card>
               <h2 className="text-sm font-bold text-ink">투구량</h2>
               <p className="mb-2 mt-1 text-xs text-muted">직전 {days}일과 비교</p>

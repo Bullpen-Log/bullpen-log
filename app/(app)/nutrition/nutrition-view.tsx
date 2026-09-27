@@ -91,8 +91,9 @@ const WEEKDAYS = ['일', '월', '화', '수', '목', '금', '토'];
  * 화면이라 여백만으로도 한 화면을 넘겼다. Card 에 p-4 를 덧대면 어느 쪽이 이길지가 CSS
  * 순서에 달려 있어 따로 적는다.
  */
+/* 세로가 낮은 PC(노트북, desk-low)에서는 안쪽 여백을 휴대폰과 같게 줄인다 — 한 화면에 들어오게 */
 const PANEL =
-  'rounded-2xl border border-line bg-surface p-4 shadow-[0_1px_0_0_rgba(255,255,255,0.03)_inset] sm:p-5';
+  'rounded-2xl border border-line bg-surface p-4 shadow-[0_1px_0_0_rgba(255,255,255,0.03)_inset] sm:p-5 desk-low:p-4';
 
 /** '9월 25일 (목)' */
 export function dayTitle(date: string) {
@@ -182,7 +183,7 @@ export function NutritionView({ day, today }: { day: NutritionDay; today: string
   }
 
   return (
-    <div className="space-y-4">
+    <div className="stack-page">
       {/*
         제목 · 날짜 · 날짜 띠 · 목표를 한 줄에.
 
@@ -191,7 +192,7 @@ export function NutritionView({ day, today }: { day: NutritionDay; today: string
         줄에 선다 — 예전에는 띠가 따로 한 줄(57px + 간격)을 차지해 오른쪽 절반이 비었다.
       */}
       <header className="flex flex-wrap items-center gap-x-3 gap-y-3 sm:gap-x-4">
-        <h1 className="text-heading text-2xl text-ink">영양</h1>
+        <h1 className="text-heading page-title text-ink">영양</h1>
         <DateNav date={day.date} today={today} calendar={day.calendar} />
         <WeekStrip
           strip={day.strip}
@@ -245,8 +246,8 @@ export function NutritionView({ day, today }: { day: NutritionDay; today: string
         </div>
       )}
 
-      <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,1fr)_22rem]">
-        <div className="space-y-4">
+      <div className="grid items-start gap-block lg:grid-cols-[minmax(0,1fr)_22rem]">
+        <div className="stack-block">
           <SummaryCard eaten={eaten} day={day} />
 
           {/*
@@ -277,7 +278,7 @@ export function NutritionView({ day, today }: { day: NutritionDay; today: string
           </ul>
         </div>
 
-        <div className="space-y-4">
+        <div className="stack-block">
           <BurnCard day={day} />
           <WeightCard day={day} />
           <section className={`${PANEL} space-y-3`}>

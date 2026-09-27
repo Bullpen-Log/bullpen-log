@@ -30,6 +30,21 @@
   }
 }
 
+/*
+ * desk-low — PC 틀(desk)인데 세로가 900px 이하인 화면. 1920×1080 을 125% 로 쓰는 노트북은
+ * 브라우저 안쪽이 1536×700 남짓이다.
+ *
+ * 투구 기록 · 영양은 1920×960 에서 스크롤 없이 들어오게 맞췄는데, 노트북에서는 230px 가까이
+ * 모자라 굴려야 했다. 이 화면에서만 여백을 줄이고 캘린더 칸 · 영상 · 그래프를 낮춘다 —
+ * 세로가 넉넉한 PC 는 그대로다. 조건은 desk 와 같게 적는다(위 설명 — 블록 꼴로).
+ */
+@custom-variant desk-low {
+  @media (min-width: 64rem) and (max-height: 56.25rem),
+    (min-width: 36rem) and (hover: hover) and (pointer: fine) and (max-height: 56.25rem) {
+    @slot;
+  }
+}
+
 @theme {
   /* 밝고 캐주얼한 팔레트 — 흰색 바탕에 하늘색 포인트 */
 
@@ -101,6 +116,62 @@
     'Pretendard Variable', Pretendard, system-ui, -apple-system, 'Malgun Gothic',
     sans-serif;
   --font-display: var(--font-bebas);
+}
+
+/*
+ * PC 화면의 크기 기준 — 웹 표준에 맞춘다(2026-09-27, 사용자: "블록 · 글자는 작게, 블록 사이는 넉넉하게,
+ * 한 화면에 들어오게").
+ *
+ * 조사한 것:
+ *   윈도우(Fluent 2)   본문 14 · 작은 글 12 · 소제목 16~20 · 제목 24~28px
+ *   구글 머티리얼 3     본문 14(큰 본문 16) · 작은 글 12 · 제목 24~32px
+ *   구글 검색(실측)     본문 14~16 · 결과 제목 22 · 결과 사이 30px
+ *   유튜브(실측)        영상 제목 16 · 정보 12~14 · 카드 사이 16 · 위 막대 56 · 메뉴 한 줄 40px
+ *
+ * 그래서:
+ * - 본문(text-sm 14px)과 작은 글(text-xs 12px)은 이미 표준이라 그대로 둔다.
+ * - 16px 이상은 한 단계씩 낮춘다 — 16→15, 18→16, 20→18, 24→20, 30→24, 36→28, 48→36.
+ * - 블록 안쪽 여백 · 높이 · 아이콘은 10% 작게 — Tailwind 의 간격 단위(--spacing)를 4 → 3.6px.
+ *   높이 40px 단추가 36px(구글 · 유튜브 단추 높이)가 된다.
+ * - 블록 사이는 넓힌다 — 쪽의 큰 덩이 사이 28px(stack-page), 나란한 카드 사이 20px(gap-block).
+ * - 쪽 제목은 모든 탭이 24px 하나(page-title) — 예전에는 탭마다 24 · 30 · 32 · 36px 였다.
+ * - 오른쪽 위(메뉴 · 알림 · 설정 · 내 정보)와 왼쪽 위(로고)는 그대로 — ui-chrome 이 원래 값으로 되돌린다.
+ * - 휴대폰은 그대로다 — 손가락으로 누르는 크기라 PC 틀(desk, 조건은 위와 같다)에서만 바꾼다.
+ *
+ * 테마 값(@layer theme)보다 뒤(@layer base)라 이긴다. Tailwind 가 p-4 · text-2xl 같은 것을 이 변수로
+ * 그리므로 화면 코드를 하나하나 고치지 않아도 전부 따라온다. 대괄호로 적은 값(text-[11px])은 안 따라온다.
+ */
+@layer base {
+  :root {
+    --gap-page: 1.5rem;
+    --gap-block: 1rem;
+  }
+
+  @media (min-width: 64rem), (min-width: 36rem) and (hover: hover) and (pointer: fine) {
+    :root {
+      --spacing: 0.225rem;
+      --text-base: 0.9375rem;
+      --text-lg: 1rem;
+      --text-xl: 1.125rem;
+      --text-2xl: 1.25rem;
+      --text-3xl: 1.5rem;
+      --text-4xl: 1.75rem;
+      --text-5xl: 2.25rem;
+      --gap-page: 1.75rem;
+      --gap-block: 1.25rem;
+    }
+
+    .ui-chrome {
+      --spacing: 0.25rem;
+      --text-base: 1rem;
+      --text-lg: 1.125rem;
+      --text-xl: 1.25rem;
+      --text-2xl: 1.5rem;
+      --text-3xl: 1.875rem;
+      --text-4xl: 2.25rem;
+      --text-5xl: 3rem;
+    }
+  }
 }
 
 /*
@@ -628,6 +699,52 @@ input[type='date']::-webkit-calendar-picker-indicator {
   &::-webkit-scrollbar {
     display: none;
   }
+}
+
+/*
+ * 캘린더 칸이 화면 높이에 맞춰 늘고 준다 — 영상 캘린더(month-calendar 의 size="large").
+ *
+ * 칸 말고 화면에서 세로를 차지하는 것(제목 · 여백 · 캘린더 머리와 꼬리)을 --cal-chrome 에 적어
+ * 두면(video-calendar.tsx), 남는 높이를 줄 수(--cal-rows, 달마다 5 · 6줄)로 나눈다. 칸 사이 틈
+ * (6px)도 뺀다. 5rem(80px) 넘게는 안 키우고 2.75rem 밑으로는 안 줄인다.
+ */
+@utility cal-cell-fit {
+  height: clamp(
+    calc(var(--spacing) * 11),
+    calc((100dvh - var(--cal-chrome, 31rem)) / var(--cal-rows, 6) - 0.375rem),
+    calc(var(--spacing) * 20)
+  );
+}
+
+/*
+ * 쪽의 큰 덩이 사이 — 모든 탭이 같은 간격(휴대폰 24px · PC 28px, 위 '크기 기준'의 --gap-page).
+ * 탭마다 space-y-4 · 5 · 6 으로 제각각이던 것을 하나로 모은다. 모양은 space-y 와 같다.
+ */
+@utility stack-page {
+  & > :not(:last-child) {
+    margin-block-end: var(--gap-page);
+  }
+}
+
+/* 나란히 놓인 카드 사이 — 휴대폰 16px · PC 20px(--gap-block) */
+@utility gap-block {
+  gap: var(--gap-block);
+}
+
+/* 한 줄(칼럼) 안에 세로로 쌓인 카드 사이 — gap-block 과 같은 간격 */
+@utility stack-block {
+  & > :not(:last-child) {
+    margin-block-end: var(--gap-block);
+  }
+}
+
+/*
+ * 쪽 제목 — 모든 탭이 24px 하나(윈도우 Fluent 의 Title 3, 머티리얼 3 의 Headline Small).
+ * 예전에는 탭마다 24 · 30 · 32 · 36px 로 달랐다. 굵기 · 자간은 text-heading 이 준다.
+ */
+@utility page-title {
+  font-size: 1.5rem;
+  line-height: 1.25;
 }
 
 /* 새로 온 것이 조용히 나타난다 — 프로필 사진처럼 자리가 이미 잡혀 있는 곳에 쓴다 */

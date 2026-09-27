@@ -44,12 +44,11 @@ export function PageHeading({
      * 제목 묶음은 한 화면의 머리일 뿐이라 낮게 둔다. 예전에는 글자 2.5rem · 밑 여백 2rem 으로
      * 150px 가까이 차지해, 화면마다 본문이 그만큼 밑으로 밀려 스크롤이 늘었다.
      */
-    <div className="flex flex-col gap-4 border-b border-line pb-5 sm:flex-row sm:items-end sm:justify-between">
-      <div className="space-y-2">
+    /* 제목 글자는 모든 탭이 같은 page-title(24px, globals.css). 세로가 낮은 PC(desk-low)는 밑 여백만 줄인다 */
+    <div className="flex flex-col gap-4 border-b border-line pb-5 sm:flex-row sm:items-end sm:justify-between desk-low:pb-3">
+      <div className="space-y-2 desk-low:space-y-1">
         {eyebrow && <Eyebrow>{eyebrow}</Eyebrow>}
-        <h1 className="text-heading text-[1.625rem] leading-[1.15] text-ink sm:text-[2rem]">
-          {title}
-        </h1>
+        <h1 className="text-heading page-title text-ink">{title}</h1>
         {description && (
           <p className="max-w-2xl break-keep text-sm leading-relaxed text-muted">
             {description}

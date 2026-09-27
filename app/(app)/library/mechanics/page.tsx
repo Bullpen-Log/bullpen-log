@@ -48,7 +48,7 @@ export default async function MechanicsPage() {
    * 세는 대신 별을 달아 다시 찾기 쉽게 하는 쪽으로 바꿨다.
    */
   return (
-    <div className="space-y-6">
+    <div className="stack-page">
       <MechanicsClient guides={items} isAdmin={user.role === 'ADMIN'} />
     </div>
   );

@@ -61,7 +61,7 @@ export default async function AdminPage() {
   ];
 
   return (
-    <div className="space-y-10">
+    <div className="stack-page">
       <PageHeading eyebrow="Admin" title="관리자" />
 
       {/* 요약 */}

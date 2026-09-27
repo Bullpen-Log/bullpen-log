@@ -13,6 +13,7 @@ import { pickCheckinDetail, pickCheckinParts } from '@/lib/checkin';
 import { visibleExercises } from '@/lib/library-cache';
 import { availableParts } from '@/lib/report/today-pick';
 import { OPEN_POPUP, QUIET_REFRESH } from '@/lib/transition-types';
+import { SiteFooter } from '@/components/site-footer';
 
 /** 렌더 중에 현재 시각을 직접 읽지 않도록 함수로 감싼다. */
 function todayKey() {
@@ -79,7 +80,8 @@ export default async function AppLayout({
   }));
 
   return (
-    <div className="min-h-screen">
+    /* 세로로 쌓는 틀 — 본문이 짧은 화면에서도 맨 밑 정보(SiteFooter)가 화면 바닥에 붙는다 */
+    <div className="flex min-h-screen flex-col">
       <AppNav
         groups={visibleGroups(isAdmin)}
         quick={quickTabs()}
@@ -169,8 +171,12 @@ export default async function AppLayout({
         넓어진 자리에는 캘린더 옆 그날 칸처럼 나란히 놓는 배치가 들어선다. 더 넓히지는 않는다
         — 글줄이 너무 길어지면 읽기 어렵다.
       */}
-      <div className="desk:pt-16">
-        <main className="mx-auto w-full max-w-5xl px-4 py-6 pb-24 sm:px-6 sm:pt-6 xl:max-w-6xl 2xl:max-w-7xl desk:pb-12">
+      <div className="flex flex-1 flex-col desk:pt-16">
+        {/*
+          세로가 낮은 PC(노트북, desk-low)는 위 여백을 줄인다 — 투구 기록 · 영양이 한 화면에 들어오게.
+          밑 여백은 본문과 맨 밑 정보 사이의 틈이다. 휴대폰 하단 탭만큼 비우는 일은 SiteFooter 가 한다.
+        */}
+        <main className="mx-auto w-full max-w-5xl flex-1 px-4 py-6 pb-10 sm:px-6 sm:pt-6 xl:max-w-6xl 2xl:max-w-7xl desk:pb-12 desk-low:pt-3">
           {/*
            * 탭을 옮길 때 본문만 부드럽게 바뀐다.
            *
@@ -205,6 +211,8 @@ export default async function AppLayout({
             {children}
           </ViewTransition>
         </main>
+
+        <SiteFooter tabBar />
       </div>
     </div>
   );

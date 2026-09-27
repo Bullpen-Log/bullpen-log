@@ -47,7 +47,7 @@ export default async function PatchNotePage({
   ];
 
   return (
-    <div className="space-y-6">
+    <div className="stack-page">
       <Link
         href="/admin/patch-notes"
         className="inline-flex items-center gap-1.5 text-sm font-medium text-muted transition-colors hover:text-sky"
@@ -58,7 +58,7 @@ export default async function PatchNotePage({
 
       <div className="border-b border-line pb-6">
         <p className="text-xs font-medium tracking-normal text-sky">{note.authorName}</p>
-        <h1 className="text-heading mt-1 text-2xl text-ink">{spokenDay(note.day)}</h1>
+        <h1 className="text-heading page-title mt-1 text-ink">{spokenDay(note.day)}</h1>
         {note.areas.length > 0 && (
           <p className="mt-2 flex flex-wrap gap-1">
             {note.areas.map((a) => (

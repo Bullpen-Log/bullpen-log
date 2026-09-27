@@ -61,9 +61,7 @@ export default async function ArticleDetailPage({
           </div>
         )}
 
-        <h1 className="text-3xl font-bold leading-tight tracking-tight text-ink">
-          {article.title}
-        </h1>
+        <h1 className="text-heading page-title text-ink">{article.title}</h1>
 
         <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-muted">
           <span className="text-ink">{article.user.nickname}</span>

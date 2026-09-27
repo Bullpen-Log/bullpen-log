@@ -93,7 +93,7 @@ export function toLuma(
  *
  * 가장 어두운 값 하나만 쓰면 잡티 하나에 휘둘리므로 두 번째로 어두운 값을 쓴다.
  */
-export function buildBackground(samples: Float32Array[]): Float32Array {
+export function buildBackground(samples: ArrayLike<number>[]): Float32Array {
   if (samples.length === 0) throw new Error('배경을 만들 프레임이 없습니다.');
   const size = samples[0].length;
   const background = new Float32Array(size);
@@ -114,9 +114,14 @@ export function buildBackground(samples: Float32Array[]): Float32Array {
  * 흐름 채우기(flood fill)를 쓰되 재귀 대신 배열을 쓴다. 큰 덩어리에서
  * 재귀로 하면 브라우저가 멈춘다.
  */
+/*
+ * 프레임 밝기는 숫자 배열이면 된다(ArrayLike). 영상 파일은 Float32Array 로, 카메라에서
+ * 바로 받는 프레임은 메모리를 4분의 1만 쓰는 Uint8Array 로 온다(live-capture.ts) — 같은
+ * 0~255 눈금이라 문턱값(DIFF_THRESHOLD)은 그대로다.
+ */
 export function findMovedBlobs(
   background: Float32Array,
-  currLuma: Float32Array,
+  currLuma: ArrayLike<number>,
   width: number,
   height: number
 ): Blob[] {

@@ -1,5 +1,7 @@
+import { headers } from 'next/headers';
 import { prisma } from '@/lib/prisma';
 import { requireUser } from '@/lib/dal';
+import { isNativeUserAgent } from '@/lib/app-env';
 import { toDateKey } from '@/lib/pitch-stats';
 import { VideosClient } from './videos-client';
 
@@ -21,6 +23,12 @@ export default async function VideosPage({
 }) {
   const user = await requireUser();
   const params = await searchParams;
+  /*
+   * 카메라 구속 측정(/velocity)은 앱 안에서만 — 폰의 고속 촬영이 있어야 해서(lib/app-env.ts).
+   * 관리자는 웹에서도 열어 스피드건과 견주며 보정한다. 그 밖에는 단추를 아예 안 보인다.
+   */
+  const canMeasure =
+    user.role === 'ADMIN' || isNativeUserAgent((await headers()).get('user-agent'));
   /* 캘린더의 '대표 바꾸기'로 들어오면 그 날짜의 달을 펴 둔다(?month=2026-08) */
   const month = readMonthParam(params.month);
   /* 홈에서 그날 영상으로 들어오면 영상 캘린더가 그날을 열어 둔다(?date=2026-08-30) */
@@ -71,6 +79,7 @@ export default async function VideosPage({
       initialMonth={month ?? (date ? date.slice(0, 7) : null)}
       initialDate={date}
       today={toDateKey(now())}
+      canMeasure={canMeasure}
     />
   );
 }

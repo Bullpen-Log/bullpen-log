@@ -1081,7 +1081,8 @@ export function AppNav({
          * 어두워진다.
          */
         style={{ viewTransitionName: choreo ? 'none' : 'shell-logo' }}
-        className="fixed left-6 top-6 z-40 hidden items-center gap-2 desk:flex"
+        /* ui-chrome — PC 의 작아진 크기 기준(globals.css)에서 빠져 원래 크기를 지킨다(사용자 요청) */
+        className="ui-chrome fixed left-6 top-6 z-40 hidden items-center gap-2 desk:flex"
       >
         <BaseballMark className="h-8 w-8" />
         <span className="text-display text-base leading-none text-ink">
@@ -1103,7 +1104,8 @@ export function AppNav({
       <nav
         ref={navRef}
         aria-label="간편 이동"
-        className="fixed right-4 top-3 z-40 hidden items-center desk:flex"
+        /* 오른쪽 위 한 줄(알림 창 포함)은 원래 크기 그대로 — ui-chrome(globals.css) */
+        className="ui-chrome fixed right-4 top-3 z-40 hidden items-center desk:flex"
       >
         {/*
           살짝 비치는 알약.
@@ -1736,7 +1738,7 @@ function DockGrid({
       onPointerEnter={onPointerEnter}
       onPointerDown={onPointerDown}
       /* right 는 격자 한가운데까지의 거리라, 제 폭의 절반만큼 오른쪽으로 밀어 가운데를 맞춘다 */
-      className="fixed z-40 hidden translate-x-1/2 rounded-2xl border border-line/70 bg-surface/70 p-1.5 shadow-lg backdrop-blur-xl desk:block"
+      className="ui-chrome fixed z-40 hidden translate-x-1/2 rounded-2xl border border-line/70 bg-surface/70 p-1.5 shadow-lg backdrop-blur-xl desk:block"
     >
       <nav
         ref={containerRef}
@@ -1947,7 +1949,7 @@ function DetailMenu({
        * 비치면 밝은 테마의 바탕이 흰색보다 한 단계 어두워져, 11px 짜리 muted 글자의
        * 대비가 4.4:1 로 기준(4.5:1) 밑으로 내려갔다. 잉크 65% 는 5.5:1 쯤이다.
        */
-      className="h-full w-72 border-l border-line/80 bg-surface/92 p-0 text-ink shadow-2xl backdrop:bg-shade/50 desk:backdrop-blur-xl"
+      className="ui-chrome h-full w-72 border-l border-line/80 bg-surface/92 p-0 text-ink shadow-2xl backdrop:bg-shade/50 desk:backdrop-blur-xl"
     >
       <div className="flex h-full flex-col">
         <div className="flex h-12 shrink-0 items-center justify-between border-b border-line px-4">

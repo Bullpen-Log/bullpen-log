@@ -402,8 +402,13 @@ export function VideoCalendar({
         날짜를 누를 때마다 캘린더를 지나 한참 내려가야 그날 영상이 보였다. 좁은 화면은
         그대로 밑에서 펴진다.
       */}
-      <div className="grid gap-4 xl:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)] xl:items-start">
-        <Card>
+      {/*
+        --cal-chrome: 칸 말고 세로를 차지하는 것 전부(위 막대 · 제목 · 보기 고르개 · 카드 여백 ·
+        캘린더 머리와 꼬리 · 밑 여백). 칸은 화면 높이에서 이만큼을 뺀 나머지를 나눠 가진다
+        (globals.css 의 cal-cell-fit). 세로가 낮은 PC(desk-low)는 여백을 줄여 이 값도 작다.
+      */}
+      <div className="grid gap-block [--cal-chrome:31rem] xl:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)] xl:items-start desk-low:[--cal-chrome:20rem]">
+        <Card className="desk-low:p-4">
           <MonthCalendar
             month={month}
             onMonthChange={setMonth}
@@ -587,8 +592,12 @@ function DayPanel({
   }
 
   return (
-    <section className="motion-safe:animate-fade-in overflow-hidden rounded-2xl border border-line bg-surface">
-      <header className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 border-b border-line px-5 py-3">
+    /*
+      세로가 낮은 PC 에서 캘린더 옆에 설 때(xl)는 화면 밑을 넘지 않는다 — 기록이 여럿이거나 메모가
+      길어 넘치는 날만 이 칸 안에서 굴린다. 10.75rem 은 위 막대 · 제목 · 밑 여백이다.
+    */
+    <section className="motion-safe:animate-fade-in overflow-hidden rounded-2xl border border-line bg-surface desk-low:xl:max-h-[calc(100dvh-10.75rem)] desk-low:xl:overflow-y-auto">
+      <header className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 border-b border-line px-5 py-3 desk-low:py-2">
         <h3 className="text-sm font-bold text-ink">
           {spokenDate(date)}
           <span className="font-normal text-muted">
@@ -618,7 +627,7 @@ function DayPanel({
         {day.logs.map((l, i) => (
           <li
             key={l.id}
-            className="motion-safe:animate-row-in flex flex-wrap items-baseline gap-x-3 gap-y-1 px-5 py-2.5"
+            className="motion-safe:animate-row-in flex flex-wrap items-baseline gap-x-3 gap-y-1 px-5 py-2.5 desk-low:py-2"
             style={{ '--row': i } as React.CSSProperties}
           >
             <span className="rounded-md bg-surface-2 px-1.5 py-0.5 text-[11px] font-semibold text-muted">
@@ -655,7 +664,7 @@ function DayPanel({
         )
       ) : (
         <div
-          className={`grid gap-4 p-4 sm:p-5 ${
+          className={`grid gap-4 p-4 sm:p-5 desk-low:gap-3 desk-low:p-4 ${
             day.paths.length > 1
               ? 'lg:grid-cols-[minmax(0,1fr)_14rem] xl:grid-cols-1'
               : ''
@@ -677,10 +686,14 @@ function DayPanel({
                   playsInline
                   preload="metadata"
                   onPlay={() => setStatus('idle')}
-                  className="motion-safe:animate-fade-in block aspect-video max-h-[65vh] w-full object-contain"
+                  /*
+                    세로가 낮은 PC 에서는 캘린더 옆 칸이 화면 밑으로 넘치지 않게 영상을 낮춘다 —
+                    폭은 그대로라 양옆에 검은 띠가 생긴다. 크게 보려면 전체 화면 단추가 있다.
+                  */
+                  className="motion-safe:animate-fade-in block aspect-video max-h-[65vh] w-full object-contain desk-low:max-h-[calc(100dvh-29.5rem)]"
                 />
               ) : (
-                <div className="flex aspect-video w-full items-center justify-center text-xs text-white/60">
+                <div className="flex aspect-video w-full items-center justify-center text-xs text-white/60 desk-low:max-h-[calc(100dvh-29.5rem)]">
                   영상을 불러오는 중…
                 </div>
               )}
@@ -734,7 +747,7 @@ function DayPanel({
           </div>
 
           {day.paths.length > 1 && (
-            <ul className="grid grid-cols-2 content-start gap-2 lg:grid-cols-1 xl:grid-cols-3">
+            <ul className="grid grid-cols-2 content-start gap-2 lg:grid-cols-1 xl:grid-cols-3 desk-low:xl:grid-cols-4">
               {day.paths.map((path, i) => {
                 const on = path === playing;
                 return (
