@@ -1,7 +1,7 @@
 'use client';
 
 import { useMemo, useState, useTransition } from 'react';
-import { useRouter } from 'next/navigation';
+import { unstable_rethrow, useRouter } from 'next/navigation';
 import {
   ArrowDown,
   ArrowUp,
@@ -27,6 +27,7 @@ import {
   type MyRoutineItem,
 } from '@/lib/armcare/my-routines';
 import { deleteMyArmcareRoutine, saveMyArmcareRoutine } from '@/app/actions/armcare';
+import { CHECK_CONNECTION } from '@/lib/offline';
 import { ExerciseMedia, type ArmcareExerciseView } from '../../armcare-media';
 
 /** 고르는 목록의 운동 하나 — 서버(page.tsx)가 만들어 넘긴다 */
@@ -138,7 +139,18 @@ export function RoutineBuilder({
     }
     setError(undefined);
     startSaving(async () => {
-      const res = await saveMyArmcareRoutine({ id, name, items });
+      /*
+       * 신호가 끊겨 못 보냈으면 알리기만 한다. 예전에는 오류가 화면 전체의 오류 화면으로
+       * 번져, 고른 운동·세트·이름이 모두 사라졌다(2026-09-27 검토).
+       */
+      let res: Awaited<ReturnType<typeof saveMyArmcareRoutine>>;
+      try {
+        res = await saveMyArmcareRoutine({ id, name, items });
+      } catch (err) {
+        unstable_rethrow(err);
+        setError(`루틴을 저장하지 못했어요. ${CHECK_CONNECTION}`);
+        return;
+      }
       if ('error' in res) {
         setError(res.error);
         return;

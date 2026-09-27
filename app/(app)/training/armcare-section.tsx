@@ -12,6 +12,7 @@ import { ArmcareToday, WeekDots, type ArmcareTodayItem } from './armcare-today';
 import { ArmcareGuide } from './armcare-guide';
 import { ArmcareInfoProvider } from './armcare-info';
 import { MyRoutines, type MyRoutineView } from './my-routines';
+import { SendPendingChecks } from './pending-checks';
 import type { ArmcareTab } from './armcare-tabs';
 import { toArmcareViews } from './armcare-views';
 import { TrainingCheckin } from './training-checkin';
@@ -192,6 +193,8 @@ export async function ArmcareSection({
   /* 운동의 근육 칩을 누르면 뜨는 3D 그림·설명 창(armcare-info.tsx) — 던지는 팔로 */
   return (
     <ArmcareInfoProvider side={throwingSide(user.throwingHand)}>
+      {/* 따라하기에서 신호가 없어 못 보낸 체크가 폰에 남아 있으면 이어서 보낸다 */}
+      <SendPendingChecks />
       <div className="space-y-10">
         <section className="space-y-3">
           <SectionHead title="맞춤 루틴" desc="몸 상태에 맞춰 앱이 짜 줘요" />

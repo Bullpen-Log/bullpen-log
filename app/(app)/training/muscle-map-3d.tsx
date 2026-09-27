@@ -67,9 +67,10 @@ type Engine = {
  * 칠하고 무엇을 누르는지만 정한다. 모델은 public/models/armcare-upper.glb(약 1.3MB).
  *
  * 누르기: 처음 누르면 그 부위, 같은 부위를 한 번 더 누르면 그 근육. 부위를 고르면 그
- * 부위만 또렷하게 남고 나머지는 비쳐 보여 속 근육(견갑하근 등)도 보인다. 근육을 고르면
- * 그 근육만 색이 남는다 — 같은 부위의 다른 근육도 색을 뺀다. 운동 하나가 쓰는 근육을
- * 한꺼번에 켤 수도 있다(selection.muscles) — 그때는 켜진 근육만 눌린다.
+ * 부위만 또렷하게 남고 나머지는 비쳐 보여 속 근육(견갑하근 등)도 보인다. 켜진 근육에
+ * 속 근육이 끼어 있으면 함께 켜진 겉근육은 반쯤 비치게 칠해, 속 근육이 가려지지 않는다.
+ * 근육을 고르면 그 근육만 색이 남는다 — 같은 부위의 다른 근육도 색을 뺀다. 운동 하나가
+ * 쓰는 근육을 한꺼번에 켤 수도 있다(selection.muscles) — 그때는 켜진 근육만 눌린다.
  *
  * WebGL 이 안 되는 기기에서는 아무것도 그리지 않고 'unavailable' 을 알린다. 부모가
  * 3D 자리를 접고 목록으로 보여 준다.
@@ -183,6 +184,28 @@ export function MuscleMap3D({
       const muscleOf = (e: Entry, arm: 'right' | 'left') =>
         e.key && e.side === arm ? (MODEL_KEY_TO_MUSCLE.get(e.key) ?? null) : null;
 
+      /*
+       * 속 근육 — 조각이 모두 속층(userData.layer 'deep')인 근육. 견갑하근 · 극상근 · 극하근 ·
+       * 소원근 · 능형근. 삼두근처럼 한 갈래만 속층인 근육은 겉근육으로 본다.
+       */
+      const layers = new Map<string, boolean>();
+      for (const e of entries) {
+        const name = e.key ? MODEL_KEY_TO_MUSCLE.get(e.key) : undefined;
+        if (!name) continue;
+        const deepPart = e.mesh.userData.layer === 'deep';
+        layers.set(name, (layers.get(name) ?? true) && deepPart);
+      }
+      const deep = new Set([...layers].filter(([, d]) => d).map(([name]) => name));
+
+      /* 켜지는 근육 — 여럿이면 그 근육들, 아니면 고른 부위(근육을 골랐으면 그 근육만) */
+      const isOn = (s: MapSelection, name: string | null) => {
+        if (!name) return false;
+        if (s.muscles?.length) return s.muscles.includes(name);
+        return !!s.area && areaOfMuscle(name)?.key === s.area && (!s.muscle || name === s.muscle);
+      };
+      /* 지금 반쯤 비치게 칠한 겉근육 — 누를 때 그 뒤의 속 근육을 가로채지 않게 */
+      const ghosts = new Set<string>();
+
       /* ── 카메라 ── */
       const frame = (s: MapSelection, arm: 'right' | 'left') => {
         const many = s.muscles?.length ? s.muscles : null;
@@ -223,14 +246,26 @@ export function MuscleMap3D({
       let lastKey = '';
       const apply: Engine['apply'] = (s, arm, animate) => {
         const many = s.muscles?.length ? s.muscles : null;
+        /*
+         * 켜진 근육에 속 근육이 끼어 있으면 함께 켜진 겉근육은 반쯤 비치게 한다. 어깨 전방에
+         * 대흉근 · 전면 삼각근을 더했더니 두 겉근육이 불투명하게 켜져 이 부위의 주인공인
+         * 견갑하근을 다 가렸고, 누르면 대흉근이 골라졌다(2026-09-27 검토). 견갑 부위의
+         * 능형근도 상부 승모근에 거의 다 가려졌다.
+         */
+        const lit = new Set<string>();
         for (const e of entries) {
           const name = muscleOf(e, arm);
-          const area = name ? areaOfMuscle(name)?.key : undefined;
+          if (name && isOn(s, name)) lit.add(name);
+        }
+        ghosts.clear();
+        if ([...lit].some((name) => deep.has(name))) {
+          for (const name of lit) if (!deep.has(name)) ghosts.add(name);
+        }
+        for (const e of entries) {
+          const name = muscleOf(e, arm);
           let color: string = e.bone ? COLOR.bone : name ? COLOR.target : COLOR.context;
-          const inArea = !!s.area && area === s.area;
-          const on = many
-            ? !!name && many.includes(name)
-            : inArea && (!s.muscle || name === s.muscle);
+          const on = isOn(s, name);
+          const ghost = on && !!name && ghosts.has(name);
           if (on) color = COLOR.pick;
           /*
            * 근육을 골랐으면 고른 근육만 색을 남기고 나머지는 모두 색을 뺀다. 같은
@@ -240,16 +275,19 @@ export function MuscleMap3D({
           if ((s.muscle || many) && !on && name) color = COLOR.context;
           target.set(color);
           e.material.color.copy(target);
-          e.material.emissive.copy(on ? target : black);
-          e.material.emissiveIntensity = on
+          e.material.emissive.copy(on && !ghost ? target : black);
+          e.material.emissiveIntensity = on && !ghost
             ? s.muscle && !many && e.key === s.part
               ? 0.42
               : 0.18
             : 0;
-          /* 고른 것이 있으면 나머지를 비춰 보이게 — 속 근육도 보인다 */
-          const faded = (!!s.area || !!many) && !on;
+          /*
+           * 고른 것이 있으면 나머지를 비춰 보이게 — 속 근육도 보인다. 반쯤 비치는 겉근육은
+           * 빛나지 않고 옅게 — 같은 하늘색이라 짙으면 뒤의 속 근육과 구별이 안 됐다.
+           */
+          const faded = ((!!s.area || !!many) && !on) || ghost;
           e.material.transparent = faded;
-          e.material.opacity = faded ? (e.bone ? 0.35 : name ? 0.12 : 0.06) : 1;
+          e.material.opacity = ghost ? 0.28 : faded ? (e.bone ? 0.35 : name ? 0.12 : 0.06) : 1;
           e.material.depthWrite = !faded;
           e.material.needsUpdate = true;
         }
@@ -296,10 +334,17 @@ export function MuscleMap3D({
           const area = name ? areaOfMuscle(name)?.key : null;
           if (e && name && area) found.push({ key: e.key, name, area });
         }
+        /*
+         * 맞은 것 중 조건에 드는 첫 근육. 반쯤 비치게 칠한 겉근육은 그 뒤에 켜진 속 근육이
+         * 맞았으면 그쪽에 양보한다 — 비쳐 보이는 견갑하근을 눌렀는데 앞의 대흉근이 골라지지
+         * 않게. 겉근육만 맞은 자리(가슴 한가운데 등)를 누르면 그 겉근육이 골라진다.
+         */
+        const first = (test: (f: (typeof found)[number]) => boolean) =>
+          found.find((f) => test(f) && !ghosts.has(f.name)) ?? found.find(test);
 
         if (s.muscles?.length) {
           /* 여럿을 켜 둔 채 — 켜진 근육을 누르면 그 근육. 흐린 근육은 가로채지 않는다 */
-          const lit = found.find((f) => s.muscles!.includes(f.name));
+          const lit = first((f) => s.muscles!.includes(f.name));
           if (lit) onPick({ area: lit.area, muscle: lit.name, part: lit.key });
           return;
         }
@@ -328,7 +373,7 @@ export function MuscleMap3D({
          * 부위 근육(흐리게 남은 삼각근 등)이 먼저 맞아도 건너뛴다 — 그러지 않으면 어깨
          * 전방을 골라 켜진 견갑하근을 눌렀는데 삼각근이 가로채 다른 부위로 넘어갔다.
          */
-        const inArea = s.area ? found.find((f) => f.area === s.area) : undefined;
+        const inArea = s.area ? first((f) => f.area === s.area) : undefined;
         if (inArea) {
           onPick({ area: inArea.area, muscle: inArea.name, part: inArea.key });
         } else if (found[0]) {

@@ -54,7 +54,44 @@ export async function setExerciseDone(
   dateKey?: string
 ): Promise<{ ok: true } | { error: string }> {
   const user = await requireUser();
+  const res = await saveDone(user.id, exerciseId, done, dateKey);
+  if ('error' in res) return res;
+  revalidatePath('/today');
+  revalidatePath('/training');
+  return res;
+}
 
+/**
+ * 따라하기의 체크 — setExerciseDone 과 같은 기록을 남기되 화면을 다시 그리지 않는다.
+ *
+ * 서버 함수에서 revalidatePath 를 부르면 Next 가 지금 보고 있는 화면을 통째로 다시
+ * 그려 응답에 싣는다(경로가 달라도 — next 16.3 의 revalidate.js). 따라하기는 운동을
+ * 마칠 때마다 체크를 남기는데, 그때마다 따라하기 화면 전체(쿼리 예닐곱 개)를 다시
+ * 그리고 버렸다. 다시 그리다 통증 체크인이나 지운 루틴을 만나면 도중에 목록으로
+ * 튕기기도 했다(2026-09-27 검토). 목록·홈은 따라하기를 마칠 때 한 번 새로 그린다
+ * (refreshTrainingLists) — 실시간 운동의 세트 저장과 같은 방식이다(app/actions/workout.ts).
+ */
+export async function markExerciseDone(
+  exerciseId: string,
+  dateKey: string
+): Promise<{ ok: true } | { error: string }> {
+  const user = await requireUser();
+  return saveDone(user.id, exerciseId, true, dateKey);
+}
+
+/** 따라하기를 마쳤다 — 조용히 남긴 체크가 목록·홈에 보이게 한 번 새로 그린다 */
+export async function refreshTrainingLists(): Promise<void> {
+  await requireUser();
+  revalidatePath('/today');
+  revalidatePath('/training');
+}
+
+async function saveDone(
+  userId: string,
+  exerciseId: string,
+  done: boolean,
+  dateKey?: string
+): Promise<{ ok: true } | { error: string }> {
   if (typeof exerciseId !== 'string' || !exerciseId) {
     return { error: '잘못된 요청입니다.' };
   }
@@ -79,7 +116,7 @@ export async function setExerciseDone(
     };
   }
   const date = new Date(`${target}T00:00:00.000Z`);
-  const key = { userId: user.id, exerciseId, date };
+  const key = { userId, exerciseId, date };
 
   if (done) {
     /*
@@ -95,7 +132,7 @@ export async function setExerciseDone(
      * 건드리지 않는다.
      */
     const session = await prisma.trainingSession.findUnique({
-      where: { userId_date: { userId: user.id, date } },
+      where: { userId_date: { userId, date } },
       select: { id: true },
     });
     const rows = session
@@ -123,9 +160,6 @@ export async function setExerciseDone(
     // 취소는 흔적을 남기지 않는다 — "안 했다"와 "표시를 지웠다"를 구분할 필요가 없다.
     await prisma.userExerciseLog.deleteMany({ where: key });
   }
-
-  revalidatePath('/today');
-  revalidatePath('/training');
   return { ok: true };
 }
 

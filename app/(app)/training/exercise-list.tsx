@@ -1,8 +1,10 @@
 'use client';
 
 import { useState, useTransition } from 'react';
+import { unstable_rethrow } from 'next/navigation';
 import { ChevronDown, History, X } from 'lucide-react';
 import { setExerciseDone } from '@/app/actions/exercise-log';
+import { CHECK_CONNECTION } from '@/lib/offline';
 import { removeFromTodayPlan } from '@/app/actions/plan-edit';
 import { SLOT_LABELS, SLOT_ORDER, type SlotKey } from '@/lib/report/theme';
 import { formatAmount } from '@/lib/exercise-meta';
@@ -54,7 +56,7 @@ export type TodayExercise = {
   past: PastAmount[];
 };
 
-const OFFLINE = '저장하지 못했어요. 인터넷 연결을 확인하고 다시 눌러 주세요.';
+const OFFLINE = `저장하지 못했어요. ${CHECK_CONNECTION}`;
 
 /**
  * 오늘 할 운동 목록. 누르면 바로 완료로 표시된다.
@@ -68,9 +70,15 @@ const OFFLINE = '저장하지 못했어요. 인터넷 연결을 확인하고 다
  */
 export function ExerciseChecklist({
   exercises,
+  dateKey,
   children,
 }: {
   exercises: TodayExercise[];
+  /**
+   * 이 목록의 날(YYYY-MM-DD). 체크를 이 날에 남긴다 — 밤 11시 58분에 연 목록을 자정
+   * 넘어 체크하면 다음 날 기록으로 들어갔다(2026-09-27 검토, 암케어 목록과 같은 까닭).
+   */
+  dateKey: string;
   /** 목록 아래에 붙는 '운동 추가' 단추 */
   children?: React.ReactNode;
 }) {
@@ -95,7 +103,8 @@ export function ExerciseChecklist({
           setItems(before);
           setError(res.error);
         }
-      } catch {
+      } catch (err) {
+        unstable_rethrow(err);
         setItems(before);
         setError(OFFLINE);
       }
@@ -129,9 +138,10 @@ export function ExerciseChecklist({
     };
     startTransition(async () => {
       try {
-        const res = await setExerciseDone(id, next);
+        const res = await setExerciseDone(id, next, dateKey);
         if ('error' in res) undo(res.error);
-      } catch {
+      } catch (err) {
+        unstable_rethrow(err);
         undo(OFFLINE);
       }
     });

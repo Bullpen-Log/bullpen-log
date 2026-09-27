@@ -27,10 +27,10 @@ import {
  */
 export default function AppError({
   error,
-  unstable_retry,
+  retry,
 }: {
   error: Error & { digest?: string };
-  unstable_retry: () => void;
+  retry: () => void;
 }) {
   useEffect(() => {
     // 서버 로그에 남겨 나중에 무엇이 터졌는지 찾을 수 있게 한다.
@@ -46,10 +46,13 @@ export default function AppError({
       </FallbackText>
       <FallbackActions>
         {/*
-          unstable_retry 는 이 자리만 서버에서 다시 받아온다. 화면 전체를
+          retry 는 이 자리만 서버에서 다시 받아온다. 화면 전체를
           새로고침하면 지금까지 연 것이 다 날아가므로 이쪽이 낫다.
+
+          Next 16.3 부터 이름이 retry 다. 옛 이름(unstable_retry)으로 둔 채 16.3.6 으로
+          올렸더니 네 오류 화면 모두 '다시 시도'를 눌러도 아무 일이 없었다(2026-09-27 검토).
         */}
-        <FallbackButton onClick={() => unstable_retry()} primary>
+        <FallbackButton onClick={() => retry()} primary>
           다시 시도
         </FallbackButton>
         <FallbackLink href="/today">홈으로</FallbackLink>

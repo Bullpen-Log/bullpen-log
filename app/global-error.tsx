@@ -51,10 +51,10 @@ const THEME_SCRIPT = `try{var t=localStorage.getItem('${THEME_STORAGE_KEY}');doc
 
 export default function GlobalError({
   error,
-  unstable_retry,
+  retry,
 }: {
   error: Error & { digest?: string };
-  unstable_retry: () => void;
+  retry: () => void;
 }) {
   useEffect(() => {
     console.error('[전체 오류]', error);
@@ -102,7 +102,7 @@ export default function GlobalError({
             >
               <button
                 type="button"
-                onClick={() => unstable_retry()}
+                onClick={() => retry()}
                 style={{
                   border: 0,
                   borderRadius: 12,

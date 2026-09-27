@@ -3,6 +3,7 @@
 import { useCallback, type ReactNode } from 'react';
 import dynamic from 'next/dynamic';
 import { Modal, useModalState } from '@/components/modal';
+import { ModalBodyBoundary } from '@/components/modal-body-boundary';
 import {
   BodyPartsContext,
   isBodyPart,
@@ -69,12 +70,14 @@ export function BodyPartsProvider({ children }: { children: ReactNode }) {
         }
         origin={modal.origin}
       >
-        {shown && (
-          <BodyPartsView
-            shown={shown}
-            onChange={(current) => setContent({ ...shown, current })}
-          />
-        )}
+        <ModalBodyBoundary resetKey={modal.open}>
+          {shown && (
+            <BodyPartsView
+              shown={shown}
+              onChange={(current) => setContent({ ...shown, current })}
+            />
+          )}
+        </ModalBodyBoundary>
       </Modal>
     </BodyPartsContext.Provider>
   );

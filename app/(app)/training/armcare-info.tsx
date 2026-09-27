@@ -3,6 +3,7 @@
 import { useContext, type ReactNode } from 'react';
 import dynamic from 'next/dynamic';
 import { Modal, useModalState } from '@/components/modal';
+import { ModalBodyBoundary } from '@/components/modal-body-boundary';
 import { ArmcareInfoContext, type InfoTarget } from '@/components/armcare-info-context';
 import {
   ARMCARE_MUSCLES,
@@ -74,7 +75,9 @@ export function ArmcareInfoProvider({
         description={head.description}
         origin={modal.origin}
       >
-        {shown && <ArmcareInfoBody view={shown} side={side} onChange={setContent} />}
+        <ModalBodyBoundary resetKey={modal.open}>
+          {shown && <ArmcareInfoBody view={shown} side={side} onChange={setContent} />}
+        </ModalBodyBoundary>
       </Modal>
     </ArmcareInfoContext.Provider>
   );

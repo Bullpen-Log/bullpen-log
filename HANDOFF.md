@@ -26,3 +26,16 @@ Claude 로 작업을 시작하면 저절로 읽힌다. 규칙은 `AGENTS.md` 6�
     scripts/armcare-retag-2026-09-26b.json`). 프론트 레이즈 둘 · 크로스바디 인만 주 근육이 바뀐다.
   - 암케어 참고 영상 운동 넷을 더했다(`scripts/add-armcare-reference.mts`) — 고무줄 손가락 펴기 ·
     싱글암 덤벨 오버헤드 슈러그 · 푸쉬업 플러스 · 밴드 프론트 레이즈.
+
+## 금윤호에게 — 2026-09-27 · 김민(Claude)
+
+받은 뒤 할 일: 없다(DB 구조 · 패키지 · 캐시 이름 그대로). 같이 쓰는 파일을 고친 것만 알린다.
+
+- 오류 화면 넷(`app/error.tsx` · `app/global-error.tsx` · `app/(app)/error.tsx` ·
+  `app/(session)/error.tsx`)의 '다시 시도'가 옛 이름 `unstable_retry` 를 불러 눌러도 아무 일이
+  없었다 — Next 16.3.6 이 넘기는 이름 `retry` 로 고쳤다.
+- 창 본문을 늦게 받는 두 곳(`app/(app)/training/armcare-info.tsx` · `components/body-parts.tsx`)을
+  `components/modal-body-boundary.tsx` 로 감쌌다 — 받기에 실패해도 창 안에서만 알린다.
+  `components/modal.tsx` 는 건드리지 않았다.
+- 폰에 맡겨 두는 곳(outbox)의 틀을 `lib/outbox.ts` 로 뺐다. 운동 세트(`lib/workout/outbox.ts`,
+  쓰는 법 그대로)와 따라하기의 암케어 체크(`lib/armcare/check-outbox.ts`)가 같이 쓴다.
