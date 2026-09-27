@@ -95,7 +95,7 @@ export function VideosClient({
 
   if (comparing) {
     return (
-      <div className="space-y-6">
+      <div className="stack-page">
         <PageHeading
           eyebrow="Pitch log"
           title="2분할 비교"
@@ -147,7 +147,7 @@ export function VideosClient({
   );
 
   return (
-    <div className="space-y-6 desk-low:space-y-3">
+    <div className="stack-page">
       <PageHeading
         eyebrow="Pitch log"
         title="투구 기록"

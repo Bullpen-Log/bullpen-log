@@ -40,9 +40,9 @@ function now() {
  */
 function TodaySkeleton() {
   return (
-    <div aria-busy="true" className="space-y-6">
+    <div aria-busy="true" className="stack-page">
       <span className="sr-only">오늘 기록을 불러오는 중입니다</span>
-      <div className="grid gap-4 lg:grid-cols-3">
+      <div className="grid gap-block lg:grid-cols-3">
         <Skeleton className="h-40 rounded-2xl" />
         <Skeleton className="h-40 rounded-2xl" />
         <Skeleton className="h-40 rounded-2xl" />
@@ -74,7 +74,7 @@ export default async function HomePage({
   const analysisTab = readAnalysisTab(params.analysis);
 
   return (
-    <div className="space-y-6">
+    <div className="stack-page">
       {/*
         제목 — 다른 탭과 같은 모양(영어 이름표 + 한국어 제목).
 

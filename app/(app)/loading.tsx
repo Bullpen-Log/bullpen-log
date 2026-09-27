@@ -14,7 +14,7 @@ import { Skeleton } from '@/components/fallback';
  */
 export default function Loading() {
   return (
-    <div className="space-y-6" aria-busy="true" aria-live="polite">
+    <div className="stack-page" aria-busy="true" aria-live="polite">
       {/* 화면 낭독기에는 한 줄로 알린다. 회색 덩어리는 읽어봐야 뜻이 없다. */}
       <span className="sr-only">불러오는 중입니다</span>
 
@@ -29,7 +29,7 @@ export default function Loading() {
       <Skeleton className="h-44 w-full rounded-3xl" />
 
       {/* 작은 카드 넷 */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-block sm:grid-cols-2 lg:grid-cols-4">
         <Skeleton className="h-28" />
         <Skeleton className="h-28" />
         <Skeleton className="h-28" />

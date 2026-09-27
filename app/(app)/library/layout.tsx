@@ -9,7 +9,7 @@ import { LibraryTabs } from './tabs';
  */
 export default function LibraryLayout({ children }: { children: ReactNode }) {
   return (
-    <div className="space-y-8">
+    <div className="stack-page">
       <PageHeading eyebrow="Library" title="라이브러리" />
       <LibraryTabs />
       {children}

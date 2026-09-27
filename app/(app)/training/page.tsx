@@ -131,7 +131,7 @@ export default async function TrainingPage({
     /* 없앤 '훈련 방식' 칸(?tab=methods)으로 들어오면 루틴 칸을 연다 */
     const tab: ArmcareTab = params.tab === 'guide' ? 'guide' : 'today';
     return (
-      <div className="space-y-6">
+      <div className="stack-page">
         <PageHeading eyebrow="Training" title="암케어" />
         <ViewTabs
           current="armcare"
@@ -379,7 +379,7 @@ export default async function TrainingPage({
   /* 운동의 부위 태그를 누르면 전신 3D 창(components/body-parts.tsx) — 목록과 운동 추가 창이 쓴다 */
   return (
     <BodyPartsProvider>
-      <div className="space-y-6">
+      <div className="stack-page">
         <PageHeading eyebrow="Training" title="트레이닝" />
 
         <ViewTabs current="today" settings={user} returnTo={TRAINING_PART_HREF.today} />

@@ -11,11 +11,11 @@ import { PageHeading } from '@/components/ui';
  */
 export default function Loading() {
   return (
-    <div className="space-y-6" aria-busy="true" aria-live="polite">
+    <div className="stack-page" aria-busy="true" aria-live="polite">
       <PageHeading eyebrow="Home" title="홈" />
       <span className="sr-only">불러오는 중입니다</span>
       <Skeleton className="h-[26rem] rounded-2xl" />
-      <div className="grid gap-4 lg:grid-cols-3">
+      <div className="grid gap-block lg:grid-cols-3">
         <Skeleton className="h-40 rounded-2xl" />
         <Skeleton className="h-40 rounded-2xl" />
         <Skeleton className="h-40 rounded-2xl" />

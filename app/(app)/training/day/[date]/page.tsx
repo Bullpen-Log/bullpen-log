@@ -51,7 +51,7 @@ export default async function TrainingDayPage({
   const empty = count === 0 && detail.intensity == null;
 
   return (
-    <div className="space-y-6">
+    <div className="stack-page">
       <Link
         href={`/today?date=${date}`}
         className="inline-flex items-center gap-1.5 text-sm font-medium text-muted transition-colors hover:text-sky"
@@ -61,9 +61,7 @@ export default async function TrainingDayPage({
       </Link>
 
       <div className="border-b border-line pb-6">
-        <h1 className="text-heading text-[1.75rem] leading-[1.15] text-ink sm:text-[2.25rem]">
-          {spokenDate(date)}
-        </h1>
+        <h1 className="text-heading page-title text-ink">{spokenDate(date)}</h1>
         <p className="mt-2 text-sm text-muted">
           {empty ? '이 날은 운동 기록이 없습니다' : `운동 ${count}개`}
         </p>

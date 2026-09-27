@@ -81,7 +81,7 @@ export function SummaryPanel({
      * 넓은 화면에서는 세 칸이 나란히 선다. 한 줄에 하나씩 쌓으면 같은 내용이
      * 세 배로 길어져서, 아래로 훑어야 할 것이 늘어난다.
      */
-    <aside className="grid gap-4 lg:grid-cols-3 lg:items-start">
+    <aside className="grid gap-block lg:grid-cols-3 lg:items-start">
       {/* ── 지금 몸 상태 ─────────────────────────────── */}
       <section className="rounded-2xl border border-line bg-surface px-5 py-4">
         <div className="flex items-baseline justify-between gap-2">

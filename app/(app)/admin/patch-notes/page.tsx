@@ -52,7 +52,7 @@ export default async function PatchNotesPage() {
   }));
 
   return (
-    <div className="space-y-6">
+    <div className="stack-page">
       <PageHeading eyebrow="Patch notes" title="패치노트" />
       <PatchNoteList rows={rows} />
     </div>

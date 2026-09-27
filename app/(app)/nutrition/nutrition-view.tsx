@@ -183,7 +183,7 @@ export function NutritionView({ day, today }: { day: NutritionDay; today: string
   }
 
   return (
-    <div className="space-y-4 desk-low:space-y-3">
+    <div className="stack-page">
       {/*
         제목 · 날짜 · 날짜 띠 · 목표를 한 줄에.
 
@@ -192,7 +192,7 @@ export function NutritionView({ day, today }: { day: NutritionDay; today: string
         줄에 선다 — 예전에는 띠가 따로 한 줄(57px + 간격)을 차지해 오른쪽 절반이 비었다.
       */}
       <header className="flex flex-wrap items-center gap-x-3 gap-y-3 sm:gap-x-4">
-        <h1 className="text-heading text-2xl text-ink">영양</h1>
+        <h1 className="text-heading page-title text-ink">영양</h1>
         <DateNav date={day.date} today={today} calendar={day.calendar} />
         <WeekStrip
           strip={day.strip}
@@ -246,8 +246,8 @@ export function NutritionView({ day, today }: { day: NutritionDay; today: string
         </div>
       )}
 
-      <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,1fr)_22rem] desk-low:gap-3">
-        <div className="space-y-4 desk-low:space-y-3">
+      <div className="grid items-start gap-block lg:grid-cols-[minmax(0,1fr)_22rem]">
+        <div className="stack-block">
           <SummaryCard eaten={eaten} day={day} />
 
           {/*
@@ -278,7 +278,7 @@ export function NutritionView({ day, today }: { day: NutritionDay; today: string
           </ul>
         </div>
 
-        <div className="space-y-4 desk-low:space-y-3">
+        <div className="stack-block">
           <BurnCard day={day} />
           <WeightCard day={day} />
           <section className={`${PANEL} space-y-3`}>

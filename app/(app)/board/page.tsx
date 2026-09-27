@@ -27,7 +27,7 @@ export default async function BoardPage() {
   });
 
   return (
-    <div className="space-y-10">
+    <div className="stack-page">
       <PageHeading
         eyebrow="Library"
         title="자료실"

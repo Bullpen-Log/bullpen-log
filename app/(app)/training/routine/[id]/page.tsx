@@ -77,7 +77,7 @@ export default async function RoutinePage({
       : [];
 
   return (
-    <div className="space-y-6">
+    <div className="stack-page">
       <Link
         href="/training?view=armcare"
         className="inline-flex items-center gap-1.5 text-sm font-medium text-muted transition-colors hover:text-sky"
@@ -87,7 +87,7 @@ export default async function RoutinePage({
       </Link>
 
       <div className="space-y-2 border-b border-line pb-6">
-        <h1 className="text-heading text-[1.75rem] leading-[1.15] text-ink sm:text-[2.25rem]">
+        <h1 className="text-heading page-title text-ink">
           {isNew ? '새 루틴 만들기' : '루틴 고치기'}
         </h1>
         <p className="text-sm break-keep text-muted">

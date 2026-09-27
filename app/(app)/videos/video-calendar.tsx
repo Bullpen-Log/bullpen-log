@@ -407,7 +407,7 @@ export function VideoCalendar({
         캘린더 머리와 꼬리 · 밑 여백). 칸은 화면 높이에서 이만큼을 뺀 나머지를 나눠 가진다
         (globals.css 의 cal-cell-fit). 세로가 낮은 PC(desk-low)는 여백을 줄여 이 값도 작다.
       */}
-      <div className="grid gap-4 [--cal-chrome:31rem] xl:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)] xl:items-start desk-low:gap-3 desk-low:[--cal-chrome:21rem]">
+      <div className="grid gap-block [--cal-chrome:31rem] xl:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)] xl:items-start desk-low:[--cal-chrome:20rem]">
         <Card className="desk-low:p-4">
           <MonthCalendar
             month={month}
@@ -690,10 +690,10 @@ function DayPanel({
                     세로가 낮은 PC 에서는 캘린더 옆 칸이 화면 밑으로 넘치지 않게 영상을 낮춘다 —
                     폭은 그대로라 양옆에 검은 띠가 생긴다. 크게 보려면 전체 화면 단추가 있다.
                   */
-                  className="motion-safe:animate-fade-in block aspect-video max-h-[65vh] w-full object-contain desk-low:max-h-[calc(100dvh-30.5rem)]"
+                  className="motion-safe:animate-fade-in block aspect-video max-h-[65vh] w-full object-contain desk-low:max-h-[calc(100dvh-29.5rem)]"
                 />
               ) : (
-                <div className="flex aspect-video w-full items-center justify-center text-xs text-white/60 desk-low:max-h-[calc(100dvh-30.5rem)]">
+                <div className="flex aspect-video w-full items-center justify-center text-xs text-white/60 desk-low:max-h-[calc(100dvh-29.5rem)]">
                   영상을 불러오는 중…
                 </div>
               )}

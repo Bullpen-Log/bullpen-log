@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { ArrowLeft } from 'lucide-react';
 import { BaseballMark } from '@/components/logo';
+import { SiteFooter } from '@/components/site-footer';
 
 /**
  * 약관과 개인정보 처리방침이 함께 쓰는 껍데기.
@@ -10,8 +11,9 @@ import { BaseballMark } from '@/components/logo';
  */
 export default function LegalLayout({ children }: { children: React.ReactNode }) {
   return (
-    <div className="min-h-full bg-page">
-      <header className="border-b border-line bg-surface">
+    <div className="flex min-h-screen flex-col bg-page">
+      {/* 왼쪽 위 로고 · 오른쪽 위 '돌아가기'는 PC 의 작아진 크기 기준에서 뺀다(ui-chrome, globals.css) */}
+      <header className="ui-chrome border-b border-line bg-surface">
         <div className="mx-auto flex max-w-3xl items-center justify-between gap-4 px-5 py-4 sm:px-6">
           <Link href="/" className="flex items-center gap-2.5">
             <BaseballMark className="h-7 w-7" />
@@ -29,9 +31,11 @@ export default function LegalLayout({ children }: { children: React.ReactNode })
         </div>
       </header>
 
-      <main className="mx-auto max-w-3xl px-5 py-10 pb-24 sm:px-6 sm:py-14">
+      <main className="mx-auto w-full max-w-3xl flex-1 px-5 py-10 pb-16 sm:px-6 sm:py-14">
         {children}
       </main>
+
+      <SiteFooter width="max-w-3xl" />
     </div>
   );
 }

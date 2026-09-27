@@ -1,4 +1,5 @@
 import { ButtonLink, Eyebrow } from '@/components/ui';
+import { SiteFooter } from '@/components/site-footer';
 import { getCurrentUser } from '@/lib/dal';
 
 const PILLARS = [
@@ -80,14 +81,8 @@ export default async function LandingPage() {
         </div>
       </section>
 
-      <footer className="border-t border-line">
-        <div className="mx-auto flex max-w-6xl flex-col gap-2 px-6 py-10 text-center sm:flex-row sm:justify-between sm:text-left">
-          <span className="text-display text-lg text-ink">BULLPEN LOG</span>
-          <span className="text-xs text-muted">
-            투수를 위한 트레이닝 &amp; 기록 플랫폼
-          </span>
-        </div>
-      </footer>
+      {/* 맨 밑 정보 — 앱 안 화면 · 약관 화면과 같은 것(components/site-footer.tsx) */}
+      <SiteFooter width="max-w-6xl" />
     </main>
   );
 }

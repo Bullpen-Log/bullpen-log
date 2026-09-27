@@ -31,7 +31,7 @@ export default async function MorePage() {
   const groups = moreGroups(user.role === 'ADMIN');
 
   return (
-    <div className="space-y-6">
+    <div className="stack-page">
       {/*
         프로필 머리.
 
