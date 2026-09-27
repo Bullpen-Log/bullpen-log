@@ -46,9 +46,27 @@ export async function probeAspect(videoId) {
     return null;
   }
 
-  const sizes = [...html.matchAll(/"width":(\d+),"height":(\d+)/g)]
-    .map((m) => [Number(m[1]), Number(m[2])])
-    .filter(([w, h]) => w >= MIN_SIDE && h >= MIN_SIDE);
+  /*
+   * 재생 정보(streamingData)에 적힌 판 크기만 본다. 예전에는 페이지 전체에서 가장 큰
+   * 크기를 골랐는데, 세로 쇼츠(720x1280)에서 가로 썸네일(1920x1080) 크기가 더 커서
+   * 세로 영상을 가로(1.778)로 잘못 쟀다(2026-09-27). 재생 정보를 못 찾을 때만 예전처럼
+   * 페이지 전체에서 찾는다.
+   */
+  const pairsIn = (text) =>
+    [...text.matchAll(/"width":(\d+),"height":(\d+)/g)]
+      .map((m) => [Number(m[1]), Number(m[2])])
+      .filter(([w, h]) => w >= MIN_SIDE && h >= MIN_SIDE);
+  const start = html.indexOf('"streamingData"');
+  let sizes = [];
+  if (start >= 0) {
+    /* 재생 정보 다음에 오는 칸 가운데 가장 가까운 것까지만 */
+    const ends = ['"playbackTracking"', '"videoDetails"', '"playerConfig"', '"storyboards"']
+      .map((key) => html.indexOf(key, start))
+      .filter((i) => i > start);
+    const end = ends.length ? Math.min(...ends) : start + 200_000;
+    sizes = pairsIn(html.slice(start, end));
+  }
+  if (sizes.length === 0) sizes = pairsIn(html);
 
   if (sizes.length === 0) return null;
 

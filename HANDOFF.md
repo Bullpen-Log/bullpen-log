@@ -13,8 +13,16 @@ Claude 로 작업을 시작하면 저절로 읽힌다. 규칙은 `AGENTS.md` 6�
 
 ## 금윤호에게 — 2026-09-27 · 김민(Claude)
 
-받은 뒤 할 일: 없다(DB 구조 · 패키지 · 캐시 이름 그대로). 같이 쓰는 파일을 고친 것만 알린다.
-네 메모 둘(구속 측정 시제품 · PC 크기 기준)은 사용자에게 전하고 지웠다.
+받은 뒤 할 일: **개발 서버를 다시 켠다** — 운동 목록 캐시 이름을 `library:exercises:v6` 으로
+바꿨다(`lib/library-cache.ts`). DB 구조 · 패키지는 그대로다. 네 메모 둘(구속 측정 시제품 ·
+PC 크기 기준)은 사용자에게 전하고 지웠다.
+
+- **운동 라이브러리에 11개를 더했다(구조가 아니라 줄, 백업 뒤에).** 유산소 7개(0개였다 —
+  회복날 · 컨디셔닝 날의 유산소 칸이 비어서 나왔다)와 손가락을 굽히는 암케어 4개
+  (`scripts/add-reference-exercises.mts scripts/exercises-2026-09-27.json`, 사용자 요청).
+  장비 목록에 `실내 자전거` · `로잉머신` · `악력기` 를 더했다(`lib/exercise-meta.ts`).
+- 유튜브 영상 비율을 재는 `scripts/youtube-aspect.mjs` 가 세로 쇼츠를 가로(1.778)로 잘못 재던
+  것을 고쳤다 — 재생 정보(streamingData)의 크기만 본다.
 
 - 오류 화면 넷(`app/error.tsx` · `app/global-error.tsx` · `app/(app)/error.tsx` ·
   `app/(session)/error.tsx`)의 '다시 시도'가 옛 이름 `unstable_retry` 를 불러 눌러도 아무 일이
