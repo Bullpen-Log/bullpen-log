@@ -2,7 +2,9 @@ import { headers } from 'next/headers';
 import { prisma } from '@/lib/prisma';
 import { requireUser } from '@/lib/dal';
 import { isNativeUserAgent } from '@/lib/app-env';
-import { loadVelocityByDate } from '@/lib/velocity-load';
+import { loadVelocityByDate, loadVelocityDay } from '@/lib/velocity-load';
+import { loadCalibration } from '@/app/actions/velocity';
+import { isRestSession } from '@/lib/session-type';
 import { toDateKey } from '@/lib/pitch-stats';
 import { VideosClient } from './videos-client';
 
@@ -72,6 +74,44 @@ export default async function VideosPage({
     loadVelocityByDate(user.id),
   ]);
 
+  /*
+   * [구속 측정] 보기 — 오늘 카메라로 잰 세션과 오늘 투구 기록 요약, 보정식. 이 보기가 있을 때만
+   * 읽는다(앱 안이거나 관리자).
+   */
+  const todayKey = toDateKey(now());
+  const todayAt = new Date(`${todayKey}T00:00:00.000Z`);
+  const velocity = canMeasure
+    ? await (async () => {
+        const [sessions, { fit }] = await Promise.all([
+          loadVelocityDay(user.id, todayAt),
+          loadCalibration(),
+        ]);
+        const todayLogs = logs.filter(
+          (l) => l.date.toISOString().slice(0, 10) === todayKey
+        );
+        const thrown = todayLogs.filter((l) => !isRestSession(l.sessionType));
+        return {
+          sessions,
+          todayLog: {
+            entries: thrown.length,
+            pitches: thrown.reduce((s, l) => s + l.pitchCount, 0),
+            maxVelocity: thrown.reduce<number | null>(
+              (m, l) =>
+                l.maxVelocity != null && (m == null || l.maxVelocity > m)
+                  ? l.maxVelocity
+                  : m,
+              null
+            ),
+            rested: todayLogs.length > 0 && thrown.length === 0,
+          },
+          calibration: fit,
+          webTest:
+            user.role === 'ADMIN' &&
+            !isNativeUserAgent((await headers()).get('user-agent')),
+        };
+      })()
+    : null;
+
   // Date 객체는 클라이언트로 그대로 넘길 수 없어 문자열로 바꿔 전달한다.
   return (
     <VideosClient
@@ -84,6 +124,8 @@ export default async function VideosPage({
       today={toDateKey(now())}
       canMeasure={canMeasure}
       measured={measured}
+      velocity={velocity}
+      initialView={canMeasure && params.view === 'velocity' ? 'velocity' : 'calendar'}
     />
   );
 }

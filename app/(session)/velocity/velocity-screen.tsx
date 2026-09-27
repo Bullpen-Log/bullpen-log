@@ -77,6 +77,7 @@ import {
   ZoneOverlay,
   type Choices,
 } from '@/components/velocity/setup-steps';
+import { VelocitySettingsFields } from '@/components/velocity/velocity-settings';
 import { saveVelocitySession, type SavePitchInput } from '@/app/actions/velocity';
 
 /**
@@ -206,7 +207,7 @@ export function VelocityScreen({
   };
 
   const persistSetup = (patch: Partial<Omit<VelocitySetup, 'savedAt'>> = {}) =>
-    saveSetup({ ...choices, zone, voice, ...patch });
+    saveSetup({ ...choices, zone, voice, useCal, ...patch });
 
   const addResult = (result: AnalyzeResult, source: LocalPitch['source']) => {
     setLast(result);
@@ -274,7 +275,8 @@ export function VelocityScreen({
         onFps: (f) => setFps(Math.round(f)),
       },
       fov,
-      approach
+      approach,
+      choices.net
     );
     captureRef.current?.stop();
     captureRef.current = capture;
@@ -299,6 +301,7 @@ export function VelocityScreen({
     setChoices({ mode: stored.mode, cameraPos: stored.cameraPos, net: stored.net });
     setZone(stored.zone);
     setVoice(stored.voice);
+    setUseCal(stored.useCal);
     setDecided(true);
     setStep('align');
     void startCamera();
@@ -539,6 +542,8 @@ export function VelocityScreen({
             >
               {camera.width}×{camera.height}
               {fps != null && ` · ${fps}fps`}
+              {camera.focus === 'manual' && ' · 수동초점'}
+              {camera.focus === 'auto' && ' · 자동초점'}
             </span>
           )}
         </div>
@@ -638,7 +643,7 @@ export function VelocityScreen({
           </button>
         ) : (
           <Link
-            href="/videos"
+            href="/videos?view=velocity"
             className="inline-flex h-10 items-center gap-0.5 rounded-full pl-1 pr-3 text-[15px] text-sky transition-colors hover:bg-sky-tint"
           >
             <ChevronLeft aria-hidden className="h-5 w-5" />
@@ -1107,69 +1112,22 @@ export function VelocityScreen({
         title="설정"
       >
         <div className="space-y-4">
-          <div className="overflow-hidden rounded-2xl bg-surface-2">
-            <label className="flex items-center justify-between gap-3 px-4 py-3">
-              <span>
-                <span className="block text-[15px]">소리로 구속 알려주기</span>
-                <span className="block text-[11px] text-muted">
-                  공을 잴 때마다 폰이 숫자를 읽어요. 카메라를 볼 필요 없이 던질 수
-                  있어요.
-                </span>
-              </span>
-              <input
-                type="checkbox"
-                checked={voice}
-                onChange={(e) => {
-                  setVoice(e.target.checked);
-                  persistSetup({ voice: e.target.checked });
-                  if (e.target.checked && typeof speechSynthesis !== 'undefined') {
-                    const u = new SpeechSynthesisUtterance('소리 안내를 켰어요');
-                    u.lang = 'ko-KR';
-                    speechSynthesis.speak(u);
-                  }
-                }}
-                className="h-5 w-5 accent-sky"
-              />
-            </label>
-            <label className="flex items-center justify-between gap-3 border-t border-line px-4 py-3">
-              <span>
-                <span className="block text-[15px]">카메라 가로 화각</span>
-                <span className="block text-[11px] text-muted">
-                  아이폰 후면 기본 카메라 약 69°. 크게 잡으면 구속이 높게 나와요.
-                </span>
-              </span>
-              <span className="inline-flex items-center gap-1 text-[15px]">
-                <input
-                  inputMode="decimal"
-                  defaultValue={fov}
-                  onBlur={(e) => {
-                    const n = Number(e.target.value);
-                    if (n >= 30 && n <= 120) changeFov(n);
-                    else e.target.value = String(fov);
-                  }}
-                  className="h-10 w-16 rounded-xl border border-line bg-surface px-2 text-right tabular-nums focus:border-sky focus:outline-none"
-                />
-                °
-              </span>
-            </label>
-            <label className="flex items-center justify-between gap-3 border-t border-line px-4 py-3">
-              <span>
-                <span className="block text-[15px]">스피드건 보정 적용</span>
-                <span className="block text-[11px] text-muted">
-                  {fit.n > 0
-                    ? `내 짝 ${fit.n}개로 맞춘 식 ${calibrationText(fit)}`
-                    : '아직 짝이 없어요 — 공에 스피드건 값을 적고 저장하면 쌓여요.'}
-                </span>
-              </span>
-              <input
-                type="checkbox"
-                checked={useCal}
-                disabled={fit.n === 0}
-                onChange={(e) => setUseCal(e.target.checked)}
-                className="h-5 w-5 accent-sky"
-              />
-            </label>
-          </div>
+          <VelocitySettingsFields
+            values={{ ...choices, voice, useCal, fovDeg: fov }}
+            showChoices={false}
+            calibration={fit}
+            onChange={(patch) => {
+              if (patch.fovDeg != null) changeFov(patch.fovDeg);
+              if (patch.voice != null) {
+                setVoice(patch.voice);
+                persistSetup({ voice: patch.voice });
+              }
+              if (patch.useCal != null) {
+                setUseCal(patch.useCal);
+                persistSetup({ useCal: patch.useCal });
+              }
+            }}
+          />
 
           <div className="rounded-2xl bg-surface-2 px-4 py-3 text-[13px] text-muted">
             <p className="font-semibold text-ink">지금 설정</p>

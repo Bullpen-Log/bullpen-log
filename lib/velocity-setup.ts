@@ -8,6 +8,8 @@
 import type { Approach } from '@/lib/velocity-engine/analyze-frames';
 
 export const SETUP_KEY = 'bullpen-velocity-setup';
+/** 같은 탭 안에서 설정이 바뀌었다고 알리는 신호 — storage 이벤트는 다른 탭에만 간다 */
+export const SETUP_CHANGE_EVENT = 'bullpen:velocity-setup';
 
 export type RecordMode = 'pitch' | 'hit';
 export type CameraPos = 'behind-pitcher' | 'behind-catcher';
@@ -22,6 +24,8 @@ export type VelocitySetup = {
   zone: ZoneRect;
   /** 잰 구속을 소리로 읽어 줄까 */
   voice: boolean;
+  /** 스피드건 보정식을 적용할까 */
+  useCal: boolean;
   savedAt: string;
 };
 
@@ -44,8 +48,12 @@ export const CAMERA_OPTIONS: { key: CameraPos; label: string; hint: string }[] =
 ];
 
 export const NET_OPTIONS: { key: boolean; label: string; hint: string }[] = [
-  { key: true, label: '네트 있음', hint: '공이 네트에 닿을 때까지 잰다' },
-  { key: false, label: '네트 없음', hint: '포수나 벽까지 잰다' },
+  {
+    key: true,
+    label: '네트 있음',
+    hint: '초점을 고정해요(수동초점) — 그물코에 초점이 안 잡히게',
+  },
+  { key: false, label: '네트 없음', hint: '자동초점 · 포수나 벽까지 잰다' },
 ];
 
 /** 처음 놓이는 스트라이크 존 — 화면 가운데 조금 아래, 폭 40% · 높이 30% */
@@ -57,6 +65,7 @@ export const DEFAULT_SETUP: Omit<VelocitySetup, 'savedAt'> = {
   net: true,
   zone: DEFAULT_ZONE,
   voice: false,
+  useCal: true,
 };
 
 const isRect = (z: unknown): z is ZoneRect =>
@@ -82,6 +91,7 @@ export function loadSetup(): VelocitySetup | null {
       net: p.net !== false,
       zone: isRect(p.zone) ? p.zone : DEFAULT_ZONE,
       voice: p.voice === true,
+      useCal: p.useCal !== false,
       savedAt: typeof p.savedAt === 'string' ? p.savedAt : '',
     };
   } catch {
@@ -96,7 +106,18 @@ export function saveSetup(setup: Omit<VelocitySetup, 'savedAt'>): VelocitySetup 
   } catch {
     /* 사생활 보호 모드 등 — 이번만 쓴다 */
   }
+  window.dispatchEvent(new Event(SETUP_CHANGE_EVENT));
   return full;
+}
+
+/** 저장된 설정을 지운다 — 다음 측정 때 처음부터 다시 묻는다 */
+export function clearSetup() {
+  try {
+    localStorage.removeItem(SETUP_KEY);
+  } catch {
+    /* 위와 같다 */
+  }
+  window.dispatchEvent(new Event(SETUP_CHANGE_EVENT));
 }
 
 /**

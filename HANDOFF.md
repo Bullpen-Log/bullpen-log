@@ -34,3 +34,11 @@ DB 에는 적용했다. `User` · `PitchLog` 에 관계 줄만 늘었다(칸은 
 - 측정 앞에 설정 단계가 붙었다(지난 설정 → 고르기 → 주의사항 카드 → 수평 · 표적 → 스트라이크 존 → 측정,
   `components/velocity/setup-steps.tsx` · `lib/velocity-setup.ts` · `lib/use-device-level.ts`). 시제품 설명은
   앞서 지운 메모(git 이력 e80c7c3)에 있다.
+- **이름은 '불펜 벨로시티'.** 들어가는 길은 투구 기록 탭의 세 번째 보기 [캘린더 | 목록 | 구속 측정]
+  (`videos-client.tsx` — 앱 안이거나 관리자일 때만 칸이 붙는다, 일반 계정 웹에서는 숨김). 그 보기
+  (`components/velocity/velocity-panel.tsx`)에 로고 · 측정 시작(`/velocity/measure`) · 오늘 요약 · 설정.
+  `/velocity` 는 `/videos?view=velocity` 로 보낸다. PC 에서도 폰 틀 안에 보인다. 설정 시트
+  (`components/velocity/velocity-settings.tsx`)는 측정 화면 · 이 보기가 같이 쓴다.
+- **규칙: 네트 있음 = 수동초점, 네트 없음 = 자동초점**(사용자). 카메라를 켤 때 `focusMode` 를 그렇게
+  건다(`live-capture.ts` 의 `applyFocus` — 브라우저가 지원할 때만, 아이폰 사파리는 못 바꾼다). 앱 껍데기를
+  만들 때 네이티브 카메라도 같은 규칙으로.

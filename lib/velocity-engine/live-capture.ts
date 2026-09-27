@@ -54,11 +54,59 @@ export type LiveStatus =
   /** 계산 중 */
   | 'analyzing';
 
+/** 초점 — 네트가 있으면 고정(manual), 없으면 자동(auto). 브라우저가 못 바꾸면 unsupported */
+export type CameraFocus = 'manual' | 'auto' | 'unsupported';
+
 export type CameraInfo = {
   width: number;
   height: number;
   label: string;
+  focus: CameraFocus;
 };
+
+/**
+ * 초점을 건다 — 규칙: 네트 있음 = 수동초점, 네트 없음 = 자동초점(사용자가 정함).
+ *
+ * 네트 뒤에서 자동초점을 두면 카메라가 눈앞의 그물코에 초점을 맞춰 공이 흐려진다. 그래서 네트가
+ * 있으면 초점을 고정한다 — 투수 뒤(공이 멀어짐)는 릴리스~네트 3m 근처, 포수 뒤(다가옴)는 마운드
+ * 쪽 멀리. 브라우저(크롬 안드로이드 일부)만 focusMode 를 바꿀 수 있고, 아이폰 사파리는 못 바꾼다 —
+ * 그때는 그대로 두고 'unsupported' 로 알린다(앱 껍데기가 네이티브 카메라로 같은 규칙을 건다).
+ */
+async function applyFocus(
+  track: MediaStreamTrack | undefined,
+  net: boolean,
+  approach: Approach
+): Promise<CameraFocus> {
+  if (!track?.getCapabilities) return 'unsupported';
+  const caps = track.getCapabilities() as MediaTrackCapabilities & {
+    focusMode?: string[];
+    focusDistance?: { min: number; max: number; step: number };
+  };
+  const modes = caps.focusMode ?? [];
+  try {
+    if (net) {
+      if (!modes.includes('manual')) return 'unsupported';
+      const range = caps.focusDistance;
+      const wanted = approach === 'receding' ? 3 : (range?.max ?? 10);
+      const focusDistance = range
+        ? Math.min(range.max, Math.max(range.min, wanted))
+        : wanted;
+      await track.applyConstraints({
+        advanced: [{ focusMode: 'manual', focusDistance }],
+      } as unknown as MediaTrackConstraints);
+      return 'manual';
+    }
+    if (modes.includes('continuous')) {
+      await track.applyConstraints({
+        advanced: [{ focusMode: 'continuous' }],
+      } as unknown as MediaTrackConstraints);
+      return 'auto';
+    }
+    return 'unsupported';
+  } catch {
+    return 'unsupported';
+  }
+}
 
 export type LiveCaptureHandlers = {
   onStatus: (status: LiveStatus) => void;
@@ -119,8 +167,14 @@ export class LiveCapture {
     private readonly handlers: LiveCaptureHandlers,
     private fovDeg: number,
     /** 공이 멀어지나(투수 뒤) 다가오나(포수 뒤) — 다가오면 앞을 더 길게 담는다 */
-    private approach: Approach = 'receding'
+    private approach: Approach = 'receding',
+    /** 앞에 네트가 있나 — 있으면 초점을 고정한다(applyFocus) */
+    private net: boolean = true
   ) {}
+
+  setNet(net: boolean) {
+    this.net = net;
+  }
 
   setFov(fovDeg: number) {
     this.fovDeg = fovDeg;
@@ -223,10 +277,12 @@ export class LiveCapture {
     this.setStatus('ready');
 
     const track = stream.getVideoTracks()[0];
+    const focus = await applyFocus(track, this.net, this.approach);
     return {
       width: this.sourceWidth,
       height: this.sourceHeight,
       label: track?.label ?? '',
+      focus,
     };
   }
 
