@@ -34,3 +34,10 @@ clipPath · clipBytes · clipSec · clipMime · clipEventSec · analysis(Json) �
   (`components/velocity/tutorial.tsx`). 엔진: 원근 타원 보정(`geometry.ts` perspectiveFactor), 분석 배율을
   짧은 변 720 기준으로(`analyzeScale`), 렌즈 보정 저장 형식 v2(`lib/velocity-lens.ts` — 옛 값은 버림).
 - 자료를 다시 보는 스크립트 `npm run velocity:review`(`scripts/velocity-review.mts`, 읽기 전용).
+- **휴대폰(사파리) 최적화 — 앱 전체에 걸리는 것 둘**(받은 뒤 할 일 없음):
+  - `app/globals.css` 끝에 `@media (pointer: coarse)` 규칙 — 손가락 화면의 입력칸 글자를 16px 로 올린다.
+    아이폰 사파리는 16px 밑의 입력칸(로그인 15px · 메모 14px)을 누르면 화면을 확대한 채 두어, 그 뒤
+    모든 화면이 잘리고 비율이 틀어져 보였다. 새 입력칸은 `text-sm` 으로 만들어도 휴대폰에서는 16px 로 보인다.
+  - `app/(app)/layout.tsx` · `app/(legal)/layout.tsx` · `app/page.tsx` 의 `min-h-screen` 을 `min-h-dvh` 로(한 줄씩).
+    `app/(app)/videos/video-calendar.tsx` 의 그날 영상은 휴대폰에서 영상 제 비율(세로 영상이 16:9 칸에
+    작게 들어가던 것), PC 는 그대로 16:9.

@@ -198,7 +198,7 @@ export function VelocitySection({ sessions }: { sessions: VelocitySessionView[] 
                           <span className="ml-2 font-normal text-muted">{p.memo}</span>
                         )}
                       </span>
-                      <span className="block truncate text-[11px] text-muted">
+                      <span className="block break-keep text-xs leading-snug text-muted">
                         {zoneLabel(p.zone) ?? '코스 —'} ·{' '}
                         {CONFIDENCE_TEXT[p.confidence]}
                         {p.releaseKmh != null &&

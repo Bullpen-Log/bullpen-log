@@ -1729,3 +1729,43 @@ html[data-gate-up] *::after {
     animation: armcare-pop 360ms cubic-bezier(0.22, 1, 0.36, 1) both;
   }
 }
+
+/*
+ * 휴대폰(손가락 화면)의 입력칸 글자는 16px — 아이폰 사파리가 화면을 확대하지 않게.
+ *
+ * 사파리는 글자가 16px 보다 작은 입력칸을 누르면 화면을 확대하고, 다 쓴 뒤에도 그대로 둔다.
+ * 로그인(15px) · 검색 · 메모(14px) 칸을 한 번 누르면 그 뒤 모든 화면이 확대된 채라 오른쪽이
+ * 잘리고 비율이 틀어져 보였다(2026-09-28 사용자, 사파리). 마우스로 쓰는 PC 는 그대로 14px.
+ *
+ * @layer 밖이라 text-sm · text-[15px] 같은 클래스보다 힘이 세다. 일부러 크게 쓴 입력칸
+ * (text-lg 이상)은 건드리지 않는다.
+ */
+@media (pointer: coarse) {
+  :is(
+      input:not(
+          [type='checkbox'],
+          [type='radio'],
+          [type='range'],
+          [type='hidden'],
+          [type='file'],
+          [type='color'],
+          [type='button'],
+          [type='submit'],
+          [type='reset'],
+          [type='image']
+        ),
+      textarea,
+      select
+    ):not(
+      [class*='text-lg'],
+      [class*='text-xl'],
+      [class*='text-2xl'],
+      [class*='text-3xl'],
+      [class*='text-4xl'],
+      [class*='text-5xl'],
+      [class*='text-6xl'],
+      [class*='text-display']
+    ) {
+    font-size: 16px;
+  }
+}

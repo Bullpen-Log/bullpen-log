@@ -696,10 +696,11 @@ function DayPanel({
                   preload="metadata"
                   onPlay={() => setStatus('idle')}
                   /*
-                    세로가 낮은 PC 에서는 캘린더 옆 칸이 화면 밑으로 넘치지 않게 영상을 낮춘다 —
-                    폭은 그대로라 양옆에 검은 띠가 생긴다. 크게 보려면 전체 화면 단추가 있다.
+                    휴대폰은 영상 제 비율로(세로로 찍은 영상이 16:9 칸에 작게 들어가지 않게), 화면 높이의
+                    65%(사파리 주소창을 뺀 dvh)까지. PC 는 16:9 칸 — 세로가 낮은 PC 에서는 캘린더 옆 칸이
+                    화면 밑으로 넘치지 않게 영상을 낮춘다. 크게 보려면 전체 화면 단추가 있다.
                   */
-                  className="motion-safe:animate-fade-in block aspect-video max-h-[65vh] w-full object-contain desk-low:max-h-[calc(100dvh-29.5rem)]"
+                  className="motion-safe:animate-fade-in block h-auto max-h-[65dvh] w-full object-contain desk:aspect-video desk-low:max-h-[calc(100dvh-29.5rem)]"
                 />
               ) : (
                 <div className="flex aspect-video w-full items-center justify-center text-xs text-white/60 desk-low:max-h-[calc(100dvh-29.5rem)]">

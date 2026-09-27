@@ -14,7 +14,14 @@ export const SETUP_CHANGE_EVENT = 'bullpen:velocity-setup';
 export type RecordMode = 'pitch' | 'hit';
 export type CameraPos = 'behind-pitcher' | 'behind-catcher';
 
-/** 스트라이크 존 — 뷰파인더 기준 0~1 비율(왼쪽 위 x · y, 폭 · 높이) */
+/**
+ * 스트라이크 존 — 카메라 장면(원본 프레임) 기준 0~1 비율(왼쪽 위 x · y, 폭 · 높이).
+ *
+ * 예전에는 뷰파인더 칸 기준이었다. 그런데 칸 모양이 단계마다 달라(존 놓기는 좁은 칸, 측정은 꽉 찬
+ * 칸) 뷰파인더가 장면을 다르게 잘라 보여 주니, 같은 비율이 장면의 다른 자리를 가리켰다 — 놓은 존이
+ * 측정 화면에서 다른 자리 · 다른 크기로 보였다. 장면 기준으로 두고 그릴 때마다 칸에 맞춰 바꾼다
+ * (frameRectToView · viewRectToFrame).
+ */
 export type ZoneRect = { x: number; y: number; w: number; h: number };
 
 export type VelocitySetup = {
@@ -171,6 +178,7 @@ export function setupSummary(s: Pick<VelocitySetup, 'mode' | 'cameraPos' | 'net'
  * 뷰파인더 안의 한 점(0~1)이 스트라이크 존의 어느 칸인가 — 1~9, 왼쪽 위부터. 밖이면 null.
  * 카메라가 투수 뒤면 화면의 왼쪽이 투수의 왼쪽이라 그대로, 포수 뒤면 좌우가 뒤집힌다.
  */
+/** 장면 비율(0~1)의 점이 존의 몇 번째 칸(1~9, 투수 시점)인가 — 존 밖이면 null */
 export function zoneOfPoint(
   px: number,
   py: number,
@@ -203,5 +211,49 @@ export function frameToView(
   return {
     x: (point.x * scale + offX) / view.width,
     y: (point.y * scale + offY) / view.height,
+  };
+}
+
+/**
+ * object-cover 로 채운 뷰파인더에 장면의 어느 부분이 보이나 — 보이는 조각을 장면 비율(0~1)로.
+ * 칸이 장면보다 넓적하면 위아래가, 홀쭉하면 양옆이 잘린다.
+ */
+export function visibleFrameRect(
+  frame: { width: number; height: number },
+  view: { width: number; height: number }
+): ZoneRect {
+  const scale = Math.max(view.width / frame.width, view.height / frame.height);
+  const w = view.width / scale / frame.width;
+  const h = view.height / scale / frame.height;
+  return { x: (1 - w) / 2, y: (1 - h) / 2, w, h };
+}
+
+/** 장면 비율 사각형 → 뷰파인더 비율 사각형(칸 밖이면 0~1 을 벗어난다) */
+export function frameRectToView(
+  rect: ZoneRect,
+  frame: { width: number; height: number },
+  view: { width: number; height: number }
+): ZoneRect {
+  const v = visibleFrameRect(frame, view);
+  return {
+    x: (rect.x - v.x) / v.w,
+    y: (rect.y - v.y) / v.h,
+    w: rect.w / v.w,
+    h: rect.h / v.h,
+  };
+}
+
+/** 뷰파인더 비율 사각형 → 장면 비율 사각형 */
+export function viewRectToFrame(
+  rect: ZoneRect,
+  frame: { width: number; height: number },
+  view: { width: number; height: number }
+): ZoneRect {
+  const v = visibleFrameRect(frame, view);
+  return {
+    x: v.x + rect.x * v.w,
+    y: v.y + rect.y * v.h,
+    w: rect.w * v.w,
+    h: rect.h * v.h,
   };
 }

@@ -45,13 +45,17 @@ export function StepShell({
 }) {
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 pb-4 pt-4">
+      <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 pb-4 pt-4 short:pt-3">
         <StepBar step={step} total={total} />
-        <h2 className="text-heading mt-4 text-2xl leading-tight">{title}</h2>
+        <h2 className="text-heading mt-4 text-2xl leading-tight short:mt-3 short:text-xl">
+          {title}
+        </h2>
         {subtitle && (
-          <p className="mt-1.5 text-sm leading-relaxed text-muted">{subtitle}</p>
+          <p className="mt-1.5 text-sm leading-relaxed text-muted short:mt-1 short:leading-snug">
+            {subtitle}
+          </p>
         )}
-        <div className="mt-5">{children}</div>
+        <div className="mt-5 short:mt-3">{children}</div>
       </div>
       <div className="flex shrink-0 items-center gap-2 border-t border-line bg-surface px-4 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3">
         {footer}
@@ -247,8 +251,8 @@ function tipsFor(c: Choices): Tip[] {
       key: 'lens',
       title: '렌즈 보정을 한 번 하세요',
       short:
-        '줄자로 0.5m 에 공을 두고 화면의 원에 맞추면 이 폰의 초점거리를 재요. 구속 정확도의 절반이 여기서 정해져요.',
-      long: '구속은 공이 화면에서 몇 픽셀인지로 거리를 재서 나와요. 그 환산에 렌즈의 초점거리가 곱해지는데, 기종 · 동영상 모드의 크롭 · 손떨림 보정에 따라 5~10% 달라요. 화각을 69° 로 가정했는데 실제가 63° 면 130km/h 가 120 으로 나와요. 렌즈 보정은 공을 카메라 렌즈에서 정확히 잰 거리(줄자로 0.5m 권장)에 두고 화면에서 크기를 재 초점거리를 직접 구해요. 같은 공으로 재니 공 크기 오차도 함께 사라져요. 폰 · 렌즈(1x/0.5x) · 촬영 해상도를 바꾸면 다시 하세요. 설정 → 렌즈 보정.',
+        '카메라 유리에서 공 앞면까지 줄자로 1m. 원에 맞춰 재면 이 폰의 초점거리가 나와요.',
+      long: '구속은 공이 화면에서 몇 픽셀인지로 거리를 재서 나와요. 그 환산에 렌즈의 초점거리가 곱해지는데, 기종 · 동영상 모드의 크롭 · 손떨림 보정에 따라 5~10% 달라요. 화각을 69° 로 가정했는데 실제가 63° 면 130km/h 가 120 으로 나와요. 렌즈 보정은 공을 카메라 렌즈에서 정확히 잰 거리(카메라 유리에서 공 앞면까지 줄자로 1m 권장)에 두고 화면에서 크기를 재 초점거리를 직접 구해요. 같은 공으로 재니 공 크기 오차도 함께 사라져요. 폰 · 렌즈(1x/0.5x) · 촬영 해상도를 바꾸면 다시 하세요. 설정 → 렌즈 보정.',
       art: <ArtLens />,
     },
     {
@@ -357,10 +361,10 @@ export function TipsStep({
         key={tip.key}
         className="motion-safe:animate-fade-in overflow-hidden rounded-2xl border border-line bg-surface"
       >
-        <div className="flex aspect-[4/3] items-center justify-center bg-sky-tint/60 px-6 text-sky">
+        <div className="flex aspect-[4/3] items-center justify-center bg-sky-tint/60 px-6 text-sky short:aspect-auto short:h-32">
           {tip.art}
         </div>
-        <div className="px-5 pb-5 pt-4">
+        <div className="px-5 pb-5 pt-4 short:pb-4 short:pt-3">
           <p className="text-heading text-lg">{tip.title}</p>
           <p className="mt-1.5 text-sm leading-relaxed text-muted">{tip.short}</p>
           <button
@@ -375,7 +379,7 @@ export function TipsStep({
       </div>
 
       <div
-        className="mt-4 flex items-center justify-center gap-1.5"
+        className="mt-2 flex items-center justify-center"
         aria-label={`${i + 1} / ${tips.length}`}
       >
         {tips.map((t, k) => (
@@ -385,8 +389,12 @@ export function TipsStep({
             onClick={() => setI(k)}
             aria-label={`${k + 1}번째 카드`}
             aria-current={k === i}
-            className={`h-2 rounded-full transition-all ${k === i ? 'w-5 bg-sky' : 'w-2 bg-line-strong'}`}
-          />
+            className="flex h-8 items-center px-[3px]"
+          >
+            <span
+              className={`block h-2 rounded-full transition-all ${k === i ? 'w-5 bg-sky' : 'w-2 bg-line-strong'}`}
+            />
+          </button>
         ))}
       </div>
 
@@ -634,7 +642,7 @@ function ArtLens() {
         fill="#b45309"
         stroke="none"
       >
-        0.5m
+        1m
       </text>
     </svg>
   );

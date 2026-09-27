@@ -81,7 +81,7 @@ export default async function AppLayout({
 
   return (
     /* 세로로 쌓는 틀 — 본문이 짧은 화면에서도 맨 밑 정보(SiteFooter)가 화면 바닥에 붙는다 */
-    <div className="flex min-h-screen flex-col">
+    <div className="flex min-h-dvh flex-col">
       <AppNav
         groups={visibleGroups(isAdmin)}
         quick={quickTabs()}

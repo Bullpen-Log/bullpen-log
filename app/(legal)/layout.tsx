@@ -11,7 +11,7 @@ import { SiteFooter } from '@/components/site-footer';
  */
 export default function LegalLayout({ children }: { children: React.ReactNode }) {
   return (
-    <div className="flex min-h-screen flex-col bg-page">
+    <div className="flex min-h-dvh flex-col bg-page">
       {/* 왼쪽 위 로고 · 오른쪽 위 '돌아가기'는 PC 의 작아진 크기 기준에서 뺀다(ui-chrome, globals.css) */}
       <header className="ui-chrome border-b border-line bg-surface">
         <div className="mx-auto flex max-w-3xl items-center justify-between gap-4 px-5 py-4 sm:px-6">

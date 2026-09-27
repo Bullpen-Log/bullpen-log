@@ -66,7 +66,8 @@ import {
 import {
   approachOf,
   DEFAULT_SETUP,
-  frameToView,
+  frameRectToView,
+  viewRectToFrame,
   loadSetup,
   modeLabel,
   saveSetup,
@@ -224,7 +225,6 @@ export function VelocityScreen({
     null
   );
   /* 뷰파인더가 마지막으로 보였을 때 크기 — 숨긴 동안 코스를 짐작할 때 */
-  const finderRectRef = useRef<{ width: number; height: number } | null>(null);
   /* 처음 쓰는 사람에게 튜토리얼 — '다시 보지 않기'면 안 뜬다 */
   const tutorialHidden = useTutorialHidden();
   const [tutorialDone, setTutorialDone] = useState(false);
@@ -254,6 +254,11 @@ export function VelocityScreen({
   const focalRatio = lensOk ? lens.focalPerLongSide : null;
   const zoomBad = camera?.zoom != null && Math.abs(camera.zoom - 1) > 0.05;
   const [circle, setCircle] = useState<Circle>(DEFAULT_CIRCLE);
+  /* 뷰파인더 칸의 크기 — 스트라이크 존(장면 좌표)을 칸 좌표로 바꿔 그릴 때 */
+  const [finderSize, setFinderSize] = useState<{
+    width: number;
+    height: number;
+  } | null>(null);
   const fit = calibration;
   const shown = (raw: number) =>
     useCal && fit.n > 0 ? applyCalibration(raw, fit) : raw;
@@ -327,18 +332,15 @@ export function VelocityScreen({
      * 공이 미트 근처라 잘 맞고, 투수 뒤에서는 공이 멀어 어림일 뿐이다. 사람이 고칠 수 있다.
      */
     let guessedZone: number | null = null;
-    const finder = finderRef.current;
     const tail = result.track[result.track.length - 1];
-    /* 뷰파인더가 숨겨져 있으면(세션 중) 마지막으로 보였을 때의 크기로 잰다 */
-    if (finder && finder.clientWidth > 40) {
-      const r = finder.getBoundingClientRect();
-      finderRectRef.current = { width: r.width, height: r.height };
-    }
-    const view = finderRectRef.current;
-    if (view && tail && source === 'camera') {
-      const k = result.sourceSize.width / result.analyzeSize.width;
-      const p = frameToView({ x: tail.x * k, y: tail.y * k }, result.sourceSize, view);
-      guessedZone = zoneOfPoint(p.x, p.y, zone, choices.cameraPos);
+    /* 존은 장면 좌표라 뷰파인더 크기와 상관없이 잰다(세션 중 카메라를 가려도 같다) */
+    if (tail && source === 'camera') {
+      guessedZone = zoneOfPoint(
+        tail.x / result.analyzeSize.width,
+        tail.y / result.analyzeSize.height,
+        zone,
+        choices.cameraPos
+      );
     }
 
     setPitches((prev) => [
@@ -501,11 +503,6 @@ export function VelocityScreen({
   const startSession = () => {
     const capture = captureRef.current;
     if (!capture) return;
-    const finder = finderRef.current;
-    if (finder && finder.clientWidth > 40) {
-      const r = finder.getBoundingClientRect();
-      finderRectRef.current = { width: r.width, height: r.height };
-    }
     setError(null);
     setLast(null);
     setSaved(false);
@@ -579,6 +576,23 @@ export function VelocityScreen({
   useEffect(() => {
     captureRef.current?.setFocalPerLongSide(focalRatio);
   }, [focalRatio]);
+  useEffect(() => {
+    const el = finderRef.current;
+    if (!el || typeof ResizeObserver === 'undefined') return;
+    const ro = new ResizeObserver(([entry]) => {
+      const { width, height } = entry.contentRect;
+      if (!(width > 0 && height > 0)) return;
+      setFinderSize((prev) =>
+        prev &&
+        Math.abs(prev.width - width) < 0.5 &&
+        Math.abs(prev.height - height) < 0.5
+          ? prev
+          : { width, height }
+      );
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [step, showAsk]);
   useEffect(() => {
     captureRef.current?.setReleaseDistance(
       approach === 'approaching' ? releaseDistM : null
@@ -709,6 +723,11 @@ export function VelocityScreen({
         ? '릴리스 포인트'
         : '미트가 오는 자리';
 
+  /* 스트라이크 존 — 장면 좌표를 지금 뷰파인더 칸에 맞춰 그린다(카메라가 꺼져 있으면 칸 = 장면으로 본다) */
+  const frameSize = camera ? { width: camera.width, height: camera.height } : null;
+  const viewZone =
+    frameSize && finderSize ? frameRectToView(zone, frameSize, finderSize) : zone;
+
   /* 뷰파인더 — 4 · 5 · 6 단계가 같은 <video> 를 쓴다 */
   const finder = (
     <div
@@ -716,7 +735,9 @@ export function VelocityScreen({
       className={
         step === 'measure'
           ? 'relative h-full w-full overflow-hidden bg-black'
-          : 'relative aspect-[3/4] w-full overflow-hidden rounded-2xl bg-black'
+          : step === 'lens'
+            ? 'relative aspect-[3/4] max-h-[50dvh] w-full overflow-hidden rounded-2xl bg-black'
+            : 'relative h-full min-h-40 w-full overflow-hidden rounded-2xl bg-black'
       }
     >
       <video
@@ -754,7 +775,17 @@ export function VelocityScreen({
         <CircleOverlay value={circle} onChange={setCircle} />
       )}
       {cameraOn && step !== 'align' && step !== 'lens' && (
-        <ZoneOverlay rect={zone} onChange={setZone} editable={step === 'zone'} />
+        <ZoneOverlay
+          rect={viewZone}
+          onChange={(next) =>
+            setZone(
+              frameSize && finderSize
+                ? viewRectToFrame(next, frameSize, finderSize)
+                : next
+            )
+          }
+          editable={step === 'zone'}
+        />
       )}
 
       {/* 표적 — 릴리스 포인트 */}
@@ -986,21 +1017,21 @@ export function VelocityScreen({
       {/* 4 · 5 — 카메라 맞추기 · 존 놓기 */}
       {!showAsk && (step === 'align' || step === 'zone') && (
         <>
-          <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 pb-4 pt-3">
+          <div className="flex min-h-0 flex-1 flex-col px-4 pb-3 pt-3">
             <StepBar step={step === 'align' ? 4 : 5} total={6} />
-            <h2 className="text-heading mt-4 text-2xl leading-tight">
+            <h2 className="text-heading mt-3 text-xl leading-tight short:mt-2 short:text-lg">
               {step === 'align'
                 ? '수평을 맞추고 표적을 맞추세요'
                 : '스트라이크 존을 놓으세요'}
             </h2>
-            <p className="mb-4 mt-1.5 text-sm leading-relaxed text-muted">
+            <p className="mb-3 mt-1 text-sm leading-snug text-muted short:mb-2">
               {step === 'align'
                 ? `${withGa(targetText)} 가운데 표적에 오게 폰 높이와 방향을 맞추세요.${
                     level.supported ? ' 위 수평계가 초록이 되면 좋아요.' : ''
                   }`
-                : '끌어서 옮기고 오른쪽 아래 손잡이로 크기를 바꾸세요. 뒤가 비쳐 보여요. 잰 공의 코스를 짐작하는 데 써요.'}
+                : '끌어서 옮기고 오른쪽 아래 손잡이로 크기를 바꾸세요. 잰 공의 코스를 짐작하는 데 써요.'}
             </p>
-            {finder}
+            <div className="min-h-0 flex-1">{finder}</div>
             {error && (
               <p
                 role="alert"

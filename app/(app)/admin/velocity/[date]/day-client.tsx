@@ -134,7 +134,7 @@ function SessionCard({
           </p>
         </div>
         <div className="flex shrink-0 items-center gap-2">
-          <label className="inline-flex items-center gap-1.5 text-xs text-muted">
+          <label className="inline-flex h-9 cursor-pointer items-center gap-1.5 rounded-lg px-1.5 text-xs text-muted hover:bg-surface-2">
             <input
               type="checkbox"
               checked={s.forCalibration}
@@ -228,31 +228,47 @@ function PitchRow({
   }
 
   return (
+    /*
+     * 휴대폰 — [차례 · 릴리스 구속 · 건과의 차이] / 카메라 값 / 설명 / [건 · 제외 · 클립 · 지우기] 네 줄.
+     * 넓은 화면(sm) — 한 줄 5칸 격자(차례 · 값 · 건과 차이 · 제외와 클립 · 지우기). 조작 묶음은 sm 에서
+     * display: contents 로 풀려 3~5 번째 칸이 된다.
+     */
     <li
-      className={`grid grid-cols-[auto_1fr] items-center gap-x-4 gap-y-2 rounded-2xl border border-line px-4 py-3 transition-opacity sm:grid-cols-[2rem_1fr_auto_auto_auto] ${
+      className={`rounded-2xl border border-line px-3 py-2.5 transition-opacity sm:grid sm:grid-cols-[2rem_1fr_auto_auto_auto] sm:items-center sm:gap-x-4 sm:px-4 sm:py-3 ${
         p.calibExclude ? 'opacity-50' : ''
       }`}
     >
-      {/* 차례 · 시각 */}
-      <span className="text-xs tabular-nums text-muted">
+      {/* 차례 · 시각 — 넓은 화면의 첫 칸 */}
+      <span className="hidden text-xs tabular-nums text-muted sm:block">
         <span className="block text-sm font-bold text-ink">{p.seq}</span>
         {hhmm(p.createdAt)}
       </span>
 
-      {/* 카메라 값들 */}
-      <span className="min-w-0">
-        <span className="flex flex-wrap items-baseline gap-x-2">
-          <span className="text-xs text-muted">카메라</span>
-          <span className="text-sm tabular-nums text-muted">{p.rawKmh}</span>
-          <span className="text-xs text-muted">→</span>
-          <span className="text-sm font-semibold tabular-nums text-ink">{p.kmh}</span>
-          <span className="ml-1 text-xs text-muted">릴리스</span>
+      {/* 값 */}
+      <span className="block min-w-0">
+        <span className="flex items-baseline gap-x-2">
+          <span className="text-sm font-bold tabular-nums text-ink sm:hidden">
+            {p.seq}
+          </span>
+          <span className="text-xs text-muted">릴리스</span>
           <span className="text-display text-lg tabular-nums text-ink">
             {p.releaseKmh ?? '—'}
           </span>
-          <span className="text-xs text-muted">km/h · ±{p.errorKmh}</span>
+          <span className="text-xs text-muted">km/h</span>
+          {/* 휴대폰 — 건과의 차이를 첫 줄 오른쪽에(넓은 화면은 건 칸 옆) */}
+          {diff != null && (
+            <span
+              className={`ml-auto text-sm font-semibold tabular-nums sm:hidden ${errorTone(diff)}`}
+            >
+              건 {signed(diff)}
+            </span>
+          )}
         </span>
-        <span className="block truncate text-xs text-muted">
+        <span className="block text-xs tabular-nums text-muted">
+          카메라 {p.rawKmh} → {p.kmh} · ±{p.errorKmh}
+          <span className="sm:hidden"> · {hhmm(p.createdAt)}</span>
+        </span>
+        <span className="block break-keep text-xs text-muted sm:truncate">
           {confidence}
           {p.pitchType && ` · ${pitchTypeLabel(p.pitchType)}`}
           {p.zone != null && ` · ${zoneLabel(p.zone)}`}
@@ -265,72 +281,78 @@ function PitchRow({
         </span>
       </span>
 
-      {/* 스피드건 · 차이 */}
-      <span className="col-span-2 flex items-center gap-2 sm:col-span-1">
-        <label className="flex items-center gap-1.5 text-xs text-muted">
-          건
-          <input
-            inputMode="decimal"
-            value={gun}
-            disabled={pending}
-            placeholder="—"
-            onChange={(e) => setGun(e.target.value)}
-            onBlur={commitGun}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
-            }}
-            className="w-20 rounded-lg border border-line bg-surface-2 px-2.5 py-1.5 text-sm tabular-nums text-ink focus:border-sky focus:outline-none"
-          />
-          km/h
-        </label>
-        <span
-          className={`w-12 text-right text-sm font-semibold tabular-nums ${errorTone(diff)}`}
-        >
-          {signed(diff)}
+      {/* 조작 — 휴대폰은 한 줄, 넓은 화면은 풀어서 3~5 번째 칸 */}
+      <span className="mt-2 flex items-center gap-2 sm:contents">
+        {/* 스피드건 · 차이 */}
+        <span className="flex items-center gap-2">
+          <label className="flex items-center gap-1.5 text-xs text-muted">
+            건
+            <input
+              inputMode="decimal"
+              value={gun}
+              disabled={pending}
+              placeholder="—"
+              aria-label={`${p.seq}번 공 스피드건 값(km/h)`}
+              onChange={(e) => setGun(e.target.value)}
+              onBlur={commitGun}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
+              }}
+              className="h-9 w-16 rounded-lg border border-line bg-surface-2 px-2.5 text-sm tabular-nums text-ink focus:border-sky focus:outline-none sm:w-20"
+            />
+            <span className="hidden sm:inline">km/h</span>
+          </label>
+          <span
+            className={`hidden w-12 text-right text-sm font-semibold tabular-nums sm:inline ${errorTone(diff)}`}
+          >
+            {signed(diff)}
+          </span>
         </span>
-      </span>
 
-      {/* 제외 · 클립 · 지우기 */}
-      <span className="col-span-2 flex items-center gap-2 sm:col-span-1">
-        <label className="inline-flex items-center gap-1.5 text-xs text-muted">
-          <input
-            type="checkbox"
-            checked={p.calibExclude}
-            disabled={pending}
-            onChange={(e) =>
-              onRun(() =>
-                adminUpdateVelocityPitch(p.id, { calibExclude: e.target.checked })
-              )
-            }
-            className="h-4 w-4 accent-sky"
-          />
-          제외
-        </label>
-        {p.clipPath && (
+        {/* 제외 · 클립 */}
+        <span className="ml-auto flex items-center gap-1.5 sm:ml-0 sm:gap-2">
+          <label className="inline-flex h-9 cursor-pointer items-center gap-1.5 rounded-lg px-1.5 text-xs text-muted hover:bg-surface-2">
+            <input
+              type="checkbox"
+              checked={p.calibExclude}
+              disabled={pending}
+              onChange={(e) =>
+                onRun(() =>
+                  adminUpdateVelocityPitch(p.id, { calibExclude: e.target.checked })
+                )
+              }
+              className="h-4 w-4 accent-sky"
+            />
+            제외
+          </label>
+          {p.clipPath && (
+            <button
+              type="button"
+              onClick={() => onOpenClip(p)}
+              className="inline-flex h-9 items-center gap-1 rounded-lg border border-line-strong px-2.5 text-xs font-semibold text-ink transition-colors hover:border-sky hover:text-sky"
+            >
+              <Film aria-hidden className="h-3.5 w-3.5" />
+              클립
+            </button>
+          )}
+        </span>
+
+        {/* 지우기 */}
+        <span className="flex justify-end">
           <button
             type="button"
-            onClick={() => onOpenClip(p)}
-            className="inline-flex items-center gap-1 rounded-lg border border-line-strong px-2.5 py-1.5 text-xs font-semibold text-ink transition-colors hover:border-sky hover:text-sky"
+            disabled={pending}
+            aria-label="공 지우기"
+            onClick={() => {
+              if (window.confirm(`${p.seq}번 공을 지울까요? 클립도 같이 지워져요.`)) {
+                onRun(() => adminDeleteVelocityPitch(p.id));
+              }
+            }}
+            className="inline-flex h-9 w-9 items-center justify-center rounded-lg text-muted transition-colors hover:bg-danger-bg hover:text-danger"
           >
-            <Film aria-hidden className="h-3.5 w-3.5" />
-            클립
+            <Trash2 aria-hidden className="h-4 w-4" />
           </button>
-        )}
-      </span>
-      <span className="col-span-2 flex justify-end sm:col-span-1">
-        <button
-          type="button"
-          disabled={pending}
-          aria-label="공 지우기"
-          onClick={() => {
-            if (window.confirm(`${p.seq}번 공을 지울까요? 클립도 같이 지워져요.`)) {
-              onRun(() => adminDeleteVelocityPitch(p.id));
-            }
-          }}
-          className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-muted transition-colors hover:bg-danger-bg hover:text-danger"
-        >
-          <Trash2 aria-hidden className="h-4 w-4" />
-        </button>
+        </span>
       </span>
     </li>
   );
@@ -462,7 +484,7 @@ function ClipDialog({
       onClick={onClose}
     >
       <div
-        className="max-h-[92vh] w-full max-w-4xl overflow-y-auto rounded-t-3xl border border-line bg-surface p-5 shadow-2xl sm:rounded-3xl sm:p-6"
+        className="max-h-[92dvh] w-full max-w-4xl overflow-y-auto rounded-t-3xl border border-line bg-surface p-5 shadow-2xl sm:rounded-3xl sm:p-6"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-start justify-between gap-3">
@@ -506,7 +528,7 @@ function ClipDialog({
                   if (p.clipEventSec != null)
                     v.currentTime = Math.max(0, p.clipEventSec - 0.4);
                 }}
-                className="aspect-video w-full rounded-2xl bg-ink object-contain"
+                className="mx-auto block h-auto max-h-[55dvh] w-full rounded-2xl bg-ink object-contain"
               />
             ) : (
               <p className="rounded-2xl border border-dashed border-line px-4 py-10 text-center text-sm text-muted">
