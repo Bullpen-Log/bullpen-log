@@ -1,19 +1,34 @@
-import Link from 'next/link';
-import { Camera, ChevronRight } from 'lucide-react';
-import type { AdminOverview } from '@/lib/velocity-admin-load';
+import { Camera } from 'lucide-react';
+import type { AdminDay, AdminOverview } from '@/lib/velocity-admin-load';
 import { calibrationText } from '@/lib/velocity-calibration';
-import { ButtonLink, Card, EmptyState, PageHeading } from '@/components/ui';
+import { ButtonLink, Card, PageHeading } from '@/components/ui';
 import { BiasChart } from './overview-client';
-import { FileMeasure } from './file-measure';
-import { dayLabel, mb, signed } from './format';
+import { FileMeasureButton } from './file-measure-button';
+import { VelocityExplorer } from './explorer';
+import { explorerHref, type ExplorerPath } from './explorer-path';
+import type { FolderStat } from './explorer-panels';
+import { mb, signed } from './format';
 
 /**
- * 구속 측정 관리자 — 종합 화면(자료를 받아 그리기만 한다). 읽기 · 권한은 page.tsx.
+ * 구속 측정 관리자 화면(자료를 받아 그리기만 한다). 읽기 · 권한 · 주소 읽기는 page.tsx.
  *
- * 휴대폰(375px)에서도 한눈에: 숫자 타일은 2칸씩 · 여백을 줄이고, 날짜 줄은 편향 · p90 을
- * 둘째 줄에 붙이며(넓은 화면은 오른쪽 칸), 설정별 줄은 이름 밑에 숫자를 둔다.
+ *   머리 줄 — 구속 측정 시작 · 영상 파일로 재기
+ *   숫자 타일 — 모든 자료의 세션 · 공 · 짝 · 클립 · 편향 · p90
+ *   탐색기 — 연도 › 월 › 날짜 › 세션 폴더, 그 안의 공 파일(explorer.tsx)
+ *   종합 분석 — 최근 30일 편향 · 보정식 · 설정별
+ *   Claude 로 — 자료를 엔진에 되먹이는 법
  */
-export function VelocityAdminOverviewView({ data }: { data: AdminOverview }) {
+export function VelocityAdminView({
+  data,
+  path,
+  day,
+  pick,
+}: {
+  data: AdminOverview;
+  path: ExplorerPath;
+  day: AdminDay | null;
+  pick: string | null;
+}) {
   const { totals, overall, fit } = data;
 
   const tiles = [
@@ -33,169 +48,127 @@ export function VelocityAdminOverviewView({ data }: { data: AdminOverview }) {
     },
   ];
 
+  const rootStat: FolderStat = {
+    sessions: totals.sessions,
+    users: totals.users,
+    pitches: totals.pitches,
+    pairs: totals.pairs,
+    clips: totals.clips,
+    biasKmh: overall.biasKmh,
+    p90Kmh: overall.p90Kmh,
+    sdKmh: overall.sdKmh,
+    maxKmh: data.days.reduce<number | null>(
+      (m, d) => (d.maxKmh != null && (m == null || d.maxKmh > m) ? d.maxKmh : m),
+      null
+    ),
+  };
+
   return (
     <div className="stack-page">
       <PageHeading
         eyebrow="Bullpen Velocity"
         title="구속 측정 관리자"
-        description="카메라 값과 스피드건 값을 견줘 정확도를 올리는 자료예요. 웹 카메라는 60fps 밑이면 숫자를 내지 않아요."
+        description="잰 값을 폴더처럼 찾아요 — 연도 › 월 › 날짜 › 세션 › 공. 공 파일을 누르면 영상과 값을 보고 스피드건 값을 넣어요."
         action={
-          <ButtonLink
-            href="/velocity/measure"
-            className="inline-flex w-full items-center gap-2 sm:w-auto"
-          >
-            <Camera aria-hidden className="h-4 w-4" />
-            구속 측정 시작
-          </ButtonLink>
+          <div className="flex flex-col gap-2 sm:flex-row">
+            <FileMeasureButton />
+            <ButtonLink
+              href="/velocity/measure"
+              className="inline-flex w-full items-center gap-2 sm:w-auto"
+            >
+              <Camera aria-hidden className="h-4 w-4" />
+              구속 측정 시작
+            </ButtonLink>
+          </div>
         }
       />
 
       <StatTiles tiles={tiles} />
 
-      <div className="grid gap-block lg:grid-cols-5">
-        {/* 최근 30일 편향 */}
-        <Card className="lg:col-span-3">
-          <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
-            <h2 className="text-lg font-bold text-ink">최근 30일 편향</h2>
-            <span className="text-xs text-muted">
-              릴리스 추정 − 스피드건 · 날짜별 평균
-            </span>
-          </div>
-          <div className="mt-4">
-            <BiasChart points={data.recent} />
-          </div>
-        </Card>
+      {/* 폴더가 바뀌면 새로 만든다 — 고른 파일 · 정렬 · 찾기가 초기화된다 */}
+      <VelocityExplorer
+        key={explorerHref(path)}
+        tree={data.tree}
+        rootStat={rootStat}
+        path={path}
+        day={day}
+        initialPick={pick}
+      />
 
-        {/* 보정식 */}
-        <Card className="lg:col-span-2">
-          <h2 className="text-lg font-bold text-ink">보정식</h2>
-          <p className="mt-1 break-keep text-xs leading-relaxed text-muted">
-            전체 짝으로 맞춘 “건 ≈ a × 카메라 + b”. 사람마다 저장할 때 쓰는 식은 그 사람
-            짝으로 따로 맞춰요.
-          </p>
-          <dl className="mt-4 divide-y divide-line">
-            <FitRow
-              label="보정 전(raw) 기준"
-              text={calibrationText(fit.raw)}
-              n={fit.raw.n}
-            />
-            <FitRow
-              label="릴리스 추정 기준"
-              text={calibrationText(fit.release)}
-              n={fit.release.n}
-            />
-            {overall.sdKmh != null && (
-              <div className="flex items-baseline justify-between gap-3 py-2.5">
-                <dt className="text-sm text-muted">오차 표준편차</dt>
-                <dd className="text-sm font-semibold tabular-nums text-ink">
-                  {overall.sdKmh.toFixed(1)} km/h
-                </dd>
-              </div>
-            )}
-          </dl>
-
-          <h3 className="mt-5 text-sm font-bold text-ink">설정별</h3>
-          {data.bySetup.length === 0 ? (
-            <p className="mt-2 text-xs text-muted">아직 잰 것이 없어요.</p>
-          ) : (
-            <ul className="mt-2 divide-y divide-line">
-              {data.bySetup.map((s) => (
-                <li
-                  key={s.key}
-                  className="flex flex-col gap-0.5 py-2 sm:flex-row sm:items-baseline sm:justify-between sm:gap-3"
-                >
-                  <span className="min-w-0 text-sm text-ink sm:truncate">
-                    {s.label}
-                  </span>
-                  <span className="text-xs tabular-nums text-muted sm:shrink-0">
-                    {s.pitches}구 · 짝 {s.pairs}
-                    {s.biasKmh != null && (
-                      <>
-                        {' '}
-                        · 편향 <span className="text-ink">{signed(s.biasKmh)}</span> ·
-                        p90 {s.p90Kmh?.toFixed(1)}
-                      </>
-                    )}
-                  </span>
-                </li>
-              ))}
-            </ul>
-          )}
-        </Card>
-      </div>
-
-      {/* 날짜 목록 */}
       <section className="space-y-3">
-        <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
-          <h2 className="text-lg font-bold text-ink">날짜별</h2>
-          <span className="text-xs text-muted">최근 날짜부터 · 모든 계정</span>
-        </div>
-        {data.days.length === 0 ? (
-          <EmptyState
-            title="아직 잰 날이 없어요"
-            description="구속 측정 시작으로 재거나, 아래 '영상 파일로 재기'로 첫 자료를 만들어요."
-          />
-        ) : (
-          <div className="space-y-2 sm:space-y-3">
-            {data.days.map((d) => (
-              <Link
-                key={d.date}
-                href={`/admin/velocity/${d.date}`}
-                className="flex items-center gap-3 rounded-2xl border border-line bg-surface px-4 py-3 transition-colors duration-75 hover:border-sky-soft hover:bg-surface-2 sm:gap-4 sm:px-5 sm:py-4"
-              >
-                <span className="min-w-0 flex-1">
-                  <span className="flex flex-wrap items-baseline gap-x-2">
-                    <span className="text-sm font-bold text-ink">
-                      {dayLabel(d.date)}
-                    </span>
-                    <span className="text-xs text-muted">{d.date}</span>
-                  </span>
-                  <span className="mt-1 block break-keep text-xs text-muted">
-                    세션 {d.sessions} · 공 {d.pitches} · 짝 {d.pairs} · 클립 {d.clips}
-                    {d.users > 1 && ` · ${d.users}명`}
-                    {d.maxKmh != null && ` · 최고 ${d.maxKmh} km/h`}
-                  </span>
-                  {/* 휴대폰 — 편향 · p90 을 셋째 줄에(넓은 화면은 오른쪽 칸) */}
-                  {d.biasKmh != null && (
-                    <span className="mt-0.5 block text-xs tabular-nums text-muted sm:hidden">
-                      편향{' '}
-                      <span className="font-semibold text-ink">
-                        {signed(d.biasKmh)}
-                      </span>{' '}
-                      · p90{' '}
-                      <span className="font-semibold text-ink">
-                        {d.p90Kmh == null ? '—' : d.p90Kmh.toFixed(1)}
-                      </span>{' '}
-                      km/h
-                    </span>
-                  )}
-                </span>
-                <span className="hidden shrink-0 text-right sm:block">
-                  <span className="block text-xs text-muted">편향 · p90</span>
-                  <span className="block text-sm font-semibold tabular-nums text-ink">
-                    {signed(d.biasKmh)}
-                    <span className="mx-1 text-muted">·</span>
-                    {d.p90Kmh == null ? '—' : d.p90Kmh.toFixed(1)}
-                  </span>
-                </span>
-                <ChevronRight aria-hidden className="h-4 w-4 shrink-0 text-muted" />
-              </Link>
-            ))}
-          </div>
-        )}
-      </section>
+        <h2 className="text-lg font-bold text-ink">종합 분석</h2>
+        <div className="grid gap-block lg:grid-cols-5">
+          {/* 최근 30일 편향 */}
+          <Card className="lg:col-span-3">
+            <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+              <h3 className="text-base font-bold text-ink">최근 30일 편향</h3>
+              <span className="text-xs text-muted">
+                릴리스 추정 − 스피드건 · 날짜별 평균
+              </span>
+            </div>
+            <div className="mt-4">
+              <BiasChart points={data.recent} />
+            </div>
+          </Card>
 
-      {/* 영상 파일로 재기 */}
-      <Card>
-        <h2 className="text-lg font-bold text-ink">영상 파일로 재기(보정용)</h2>
-        <p className="mt-1 break-keep text-xs leading-relaxed text-muted">
-          폰으로 찍어 둔 슬로모션 영상을 골라 재고, 스피드건 값과 함께 보정용으로
-          저장해요. 영상은 클립으로 함께 올라가 날짜 페이지에서 다시 볼 수 있어요.
-        </p>
-        <div className="mt-5">
-          <FileMeasure />
+          {/* 보정식 */}
+          <Card className="lg:col-span-2">
+            <h3 className="text-base font-bold text-ink">보정식</h3>
+            <p className="mt-1 break-keep text-xs leading-relaxed text-muted">
+              전체 짝으로 맞춘 “건 ≈ a × 카메라 + b”. 사람마다 저장할 때 쓰는 식은 그
+              사람 짝으로 따로 맞춰요.
+            </p>
+            <dl className="mt-4 divide-y divide-line">
+              <FitRow
+                label="보정 전(raw) 기준"
+                text={calibrationText(fit.raw)}
+                n={fit.raw.n}
+              />
+              <FitRow
+                label="릴리스 추정 기준"
+                text={calibrationText(fit.release)}
+                n={fit.release.n}
+              />
+              {overall.sdKmh != null && (
+                <div className="flex items-baseline justify-between gap-3 py-2.5">
+                  <dt className="text-sm text-muted">오차 표준편차</dt>
+                  <dd className="text-sm font-semibold tabular-nums text-ink">
+                    {overall.sdKmh.toFixed(1)} km/h
+                  </dd>
+                </div>
+              )}
+            </dl>
+
+            <h4 className="mt-5 text-sm font-bold text-ink">설정별</h4>
+            {data.bySetup.length === 0 ? (
+              <p className="mt-2 text-xs text-muted">아직 잰 것이 없어요.</p>
+            ) : (
+              <ul className="mt-2 divide-y divide-line">
+                {data.bySetup.map((s) => (
+                  <li
+                    key={s.key}
+                    className="flex flex-col gap-0.5 py-2 sm:flex-row sm:items-baseline sm:justify-between sm:gap-3"
+                  >
+                    <span className="min-w-0 text-sm text-ink sm:truncate">
+                      {s.label}
+                    </span>
+                    <span className="text-xs tabular-nums text-muted sm:shrink-0">
+                      {s.pitches}구 · 짝 {s.pairs}
+                      {s.biasKmh != null && (
+                        <>
+                          {' '}
+                          · 편향 <span className="text-ink">{signed(s.biasKmh)}</span> ·
+                          p90 {s.p90Kmh?.toFixed(1)}
+                        </>
+                      )}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </Card>
         </div>
-      </Card>
+      </section>
 
       {/* Claude 로 */}
       <Card>
@@ -217,7 +190,6 @@ export function VelocityAdminOverviewView({ data }: { data: AdminOverview }) {
 
 /**
  * 숫자 타일 — 휴대폰은 2칸 · 좁은 여백 · 한 단계 작은 숫자, 넓어지면 3칸 · 6칸.
- * 종합 · 날짜 화면이 같이 쓴다.
  */
 export function StatTiles({
   tiles,

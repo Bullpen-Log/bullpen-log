@@ -39,3 +39,10 @@ export function errorTone(err: number | null) {
   const a = Math.abs(err);
   return a <= 2 ? 'text-ok' : a <= 5 ? 'text-warn' : 'text-danger';
 }
+
+/** '28일 (일)' — 탐색기의 날짜 폴더 이름 */
+export function dayShortLabel(date: string) {
+  const [y, m, d] = date.split('-').map(Number);
+  const w = WEEKDAYS[new Date(Date.UTC(y, m - 1, d)).getUTCDay()];
+  return `${d}일 (${w})`;
+}

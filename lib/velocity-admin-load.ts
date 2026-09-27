@@ -37,7 +37,18 @@ export type AdminSetupStat = {
   p90Kmh: number | null;
 };
 
+/** 탐색기의 월 폴더 — 그 달의 날짜 폴더들(최근부터). stat.date 는 '2026-09' */
+export type AdminTreeMonth = { key: string; stat: AdminDayStat; days: AdminDayStat[] };
+/** 탐색기의 연도 폴더 — 그 해의 월 폴더들(최근부터). stat.date 는 '2026' */
+export type AdminTreeYear = {
+  key: string;
+  stat: AdminDayStat;
+  months: AdminTreeMonth[];
+};
+
 export type AdminOverview = {
+  /** 탐색기 폴더 트리 — 연도 › 월 › 날짜(모두 최근부터), 폴더마다 통계 */
+  tree: AdminTreeYear[];
   totals: {
     users: number;
     sessions: number;
@@ -136,42 +147,9 @@ export type AdminDay = {
 
 /* ───────────────────────── 오차 통계 ───────────────────────── */
 
-type PairLike = {
-  kmh: number;
-  releaseKmh: number | null;
-  gunKmh: number | null;
-  calibExclude: boolean;
-};
+import { errorStats, isPair, pitchError } from '@/lib/velocity-stats';
+export { errorStats, isPair, pitchError };
 
-const round1 = (n: number) => Math.round(n * 10) / 10;
-
-/** 짝인가 — 스피드건 값이 있고 보정에서 빼지 않은 공 */
-export function isPair<T extends PairLike>(p: T): p is T & { gunKmh: number } {
-  return p.gunKmh != null && !p.calibExclude;
-}
-
-/** 공 하나의 오차 — (릴리스 추정 ?? 보정 후 값) − 스피드건. 짝이 아니면 null */
-export function pitchError(p: PairLike): number | null {
-  if (!isPair(p)) return null;
-  return round1((p.releaseKmh ?? p.kmh) - p.gunKmh);
-}
-
-/** 오차 묶음의 편향 · p90 · 표준편차. 짝이 없으면 전부 null */
-export function errorStats(errors: number[]): {
-  biasKmh: number | null;
-  p90Kmh: number | null;
-  sdKmh: number | null;
-} {
-  const n = errors.length;
-  if (n === 0) return { biasKmh: null, p90Kmh: null, sdKmh: null };
-  const mean = errors.reduce((s, v) => s + v, 0) / n;
-  const abs = errors.map((e) => Math.abs(e)).sort((a, b) => a - b);
-  /* 90 백분위 — 가장 가까운 순위(nearest-rank) */
-  const p90 = abs[Math.min(n - 1, Math.max(0, Math.ceil(n * 0.9) - 1))];
-  const sd =
-    n > 1 ? Math.sqrt(errors.reduce((s, v) => s + (v - mean) ** 2, 0) / (n - 1)) : 0;
-  return { biasKmh: round1(mean), p90Kmh: round1(p90), sdKmh: round1(sd) };
-}
 
 /* ───────────────────────── 종합 ───────────────────────── */
 
@@ -244,6 +222,34 @@ export async function loadVelocityAdminOverview(): Promise<AdminOverview> {
     .sort(([a], [b]) => (a < b ? 1 : a > b ? -1 : 0))
     .map(([date, list]) => dayStatOf(date, list));
 
+  /* 탐색기 트리 — 연도 › 월 › 날짜. 폴더 통계는 그 안의 공 전부로 다시 낸다(p90 은 날짜 값을 합칠 수 없다) */
+  const groupBy = (keyOf: (d: string) => string) => {
+    const m = new Map<string, OverviewPitch[]>();
+    for (const [date, list] of byDate) {
+      const k = keyOf(date);
+      const acc = m.get(k);
+      if (acc) acc.push(...list);
+      else m.set(k, [...list]);
+    }
+    return m;
+  };
+  const byYear = groupBy((d) => d.slice(0, 4));
+  const byMonth = groupBy((d) => d.slice(0, 7));
+  const tree: AdminTreeYear[] = [...byYear.keys()]
+    .sort((a, b) => (a < b ? 1 : -1))
+    .map((year) => ({
+      key: year,
+      stat: dayStatOf(year, byYear.get(year) as OverviewPitch[]),
+      months: [...byMonth.keys()]
+        .filter((m) => m.startsWith(`${year}-`))
+        .sort((a, b) => (a < b ? 1 : -1))
+        .map((month) => ({
+          key: month,
+          stat: dayStatOf(month, byMonth.get(month) as OverviewPitch[]),
+          days: days.filter((d) => d.date.startsWith(`${month}-`)),
+        })),
+    }));
+
   /* 최근 30일 — 오늘(UTC 날짜 기준)부터 거꾸로 30칸, 오름차순 */
   const recent: AdminOverview['recent'] = [];
   const today = new Date();
@@ -293,6 +299,7 @@ export async function loadVelocityAdminOverview(): Promise<AdminOverview> {
     .sort((a, b) => b.pitches - a.pitches);
 
   return {
+    tree,
     totals: {
       users: new Set(rows.map((r) => r.userId)).size,
       sessions: sessionCount,

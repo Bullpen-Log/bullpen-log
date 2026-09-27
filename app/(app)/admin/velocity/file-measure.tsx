@@ -31,7 +31,12 @@ type Stage =
   | { kind: 'saving'; result: AnalyzeResult; percent: number | null }
   | { kind: 'saved'; date: string };
 
-export function FileMeasure() {
+export function FileMeasure({
+  onOpenSaved,
+}: {
+  /** 저장 뒤 '자료 보기'를 누르면 — 창에 띄웠으면 창을 닫는다 */
+  onOpenSaved?: () => void;
+} = {}) {
   const router = useRouter();
   const [, startTransition] = useTransition();
   const fileRef = useRef<HTMLInputElement>(null);
@@ -300,10 +305,11 @@ export function FileMeasure() {
         <p className="rounded-xl border border-line bg-surface-2 px-4 py-3 text-sm text-ink">
           저장했어요 —{' '}
           <Link
-            href={`/admin/velocity/${stage.date}`}
+            href={`/admin/velocity?at=${stage.date}`}
+            onClick={() => onOpenSaved?.()}
             className="font-semibold text-sky"
           >
-            {stage.date} 자료 보기
+            {stage.date} 폴더 열기
           </Link>
         </p>
       )}
