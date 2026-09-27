@@ -1,7 +1,7 @@
 'use client';
 
 import { useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
-import { Check, ChevronLeft, ChevronRight, Info } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Info } from 'lucide-react';
 import {
   CAMERA_OPTIONS,
   MODE_OPTIONS,
@@ -13,7 +13,9 @@ import {
   type ZoneRect,
 } from '@/lib/velocity-setup';
 import { LEVEL_OK_DEG, type DeviceLevel } from '@/lib/use-device-level';
+import { Segmented } from '@/components/segmented';
 import { BottomSheet } from './pitch-editor';
+import { SectionLabel, StepBar } from './kit';
 
 /**
  * 구속 측정 앞 단계들 — 카메라를 켜기 전에 고르고 읽는 것.
@@ -44,16 +46,14 @@ export function StepShell({
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 pb-4 pt-4">
-        <p className="text-[11px] font-semibold tracking-wide text-sky">
-          {step} / {total}
-        </p>
-        <h2 className="text-heading mt-1 text-[1.75rem] leading-tight">{title}</h2>
+        <StepBar step={step} total={total} />
+        <h2 className="text-heading mt-4 text-2xl leading-tight">{title}</h2>
         {subtitle && (
-          <p className="mt-1.5 text-[13px] leading-relaxed text-muted">{subtitle}</p>
+          <p className="mt-1.5 text-sm leading-relaxed text-muted">{subtitle}</p>
         )}
         <div className="mt-5">{children}</div>
       </div>
-      <div className="shrink-0 border-t border-line bg-surface/90 px-4 pb-[max(env(safe-area-inset-bottom),0.75rem)] pt-3 backdrop-blur">
+      <div className="flex shrink-0 items-center gap-2 border-t border-line bg-surface px-4 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3">
         {footer}
       </div>
     </div>
@@ -76,10 +76,10 @@ export function PrimaryButton({
       type="button"
       onClick={onClick}
       disabled={disabled}
-      className={`inline-flex h-12 flex-1 items-center justify-center gap-1.5 rounded-2xl text-[15px] font-bold transition-colors disabled:opacity-50 ${
+      className={`inline-flex h-12 flex-1 items-center justify-center gap-2 rounded-xl text-sm font-semibold transition-colors disabled:opacity-50 ${
         tone === 'sky'
           ? 'bg-sky text-white hover:bg-sky-strong'
-          : 'bg-surface-2 text-ink hover:bg-line'
+          : 'border border-line-strong bg-surface-2 text-ink hover:border-sky hover:text-sky'
       }`}
     >
       {children}
@@ -106,17 +106,17 @@ export function AskPreviousStep({
       title="지난 설정 그대로 쓸까요?"
       subtitle="같은 자리에서 같은 방식으로 재면 바로 카메라로 가요."
       footer={
-        <div className="flex gap-2">
+        <>
           <PrimaryButton tone="quiet" onClick={onFresh}>
             새로 설정
           </PrimaryButton>
           <PrimaryButton onClick={onUse}>그대로 쓰기</PrimaryButton>
-        </div>
+        </>
       }
     >
-      <div className="overflow-hidden rounded-2xl bg-surface shadow-sm">
+      <div className="overflow-hidden rounded-2xl border border-line bg-surface">
         <div className="px-4 py-3">
-          <p className="text-[15px] font-semibold">{setupSummary(setup)}</p>
+          <p className="text-sm font-semibold">{setupSummary(setup)}</p>
           <p className="mt-0.5 text-xs text-muted">
             스트라이크 존 자리 저장됨 · 소리 안내 {setup.voice ? '켬' : '끔'}
             {when && ` · ${when.getMonth() + 1}월 ${when.getDate()}일에 저장`}
@@ -131,6 +131,11 @@ export function AskPreviousStep({
 
 export type Choices = { mode: RecordMode; cameraPos: CameraPos; net: boolean };
 
+const NET_VALUES = [
+  { value: 'yes', label: '네트 있음' },
+  { value: 'no', label: '네트 없음' },
+] as const;
+
 export function ChoicesStep({
   value,
   onChange,
@@ -140,101 +145,80 @@ export function ChoicesStep({
   onChange: (next: Choices) => void;
   onNext: () => void;
 }) {
+  /* 고르는 줄은 앱의 Segmented(캘린더 | 목록과 같은 부품). 고른 것의 설명 한 줄이 밑에 붙는다 */
   return (
     <StepShell
       step={2}
       total={6}
       title="무엇을, 어디서 잴까요?"
       subtitle="고른 대로 계산 방향과 안내가 달라져요."
-      footer={<PrimaryButton onClick={onNext}>다음</PrimaryButton>}
+      footer={
+        <PrimaryButton onClick={onNext}>
+          다음
+          <ChevronRight aria-hidden className="h-4 w-4" />
+        </PrimaryButton>
+      }
     >
       <div className="space-y-5">
-        <ChoiceGroup label="녹화 종류">
-          {MODE_OPTIONS.map((o) => (
-            <ChoiceCard
-              key={o.key}
-              on={value.mode === o.key}
-              label={o.label}
-              hint={o.hint}
-              onClick={() => onChange({ ...value, mode: o.key })}
-            />
-          ))}
-        </ChoiceGroup>
-        <ChoiceGroup label="카메라 위치">
-          {CAMERA_OPTIONS.map((o) => (
-            <ChoiceCard
-              key={o.key}
-              on={value.cameraPos === o.key}
-              label={o.label}
-              hint={o.hint}
-              onClick={() => onChange({ ...value, cameraPos: o.key })}
-            />
-          ))}
-        </ChoiceGroup>
-        <ChoiceGroup label="네트">
-          {NET_OPTIONS.map((o) => (
-            <ChoiceCard
-              key={String(o.key)}
-              on={value.net === o.key}
-              label={o.label}
-              hint={o.hint}
-              onClick={() => onChange({ ...value, net: o.key })}
-            />
-          ))}
-        </ChoiceGroup>
+        <ChoiceRow
+          label="녹화 종류"
+          hint={MODE_OPTIONS.find((o) => o.key === value.mode)?.hint}
+        >
+          <Segmented
+            label="녹화 종류"
+            value={value.mode}
+            onChange={(mode) => onChange({ ...value, mode })}
+            options={MODE_OPTIONS.map((o) => ({ value: o.key, label: o.label }))}
+            size="md"
+            tone="raised"
+          />
+        </ChoiceRow>
+        <ChoiceRow
+          label="카메라 위치"
+          hint={CAMERA_OPTIONS.find((o) => o.key === value.cameraPos)?.hint}
+        >
+          <Segmented
+            label="카메라 위치"
+            value={value.cameraPos}
+            onChange={(cameraPos) => onChange({ ...value, cameraPos })}
+            options={CAMERA_OPTIONS.map((o) => ({ value: o.key, label: o.label }))}
+            size="md"
+            tone="raised"
+          />
+        </ChoiceRow>
+        <ChoiceRow
+          label="네트"
+          hint={NET_OPTIONS.find((o) => o.key === value.net)?.hint}
+        >
+          <Segmented
+            label="네트"
+            value={value.net ? 'yes' : 'no'}
+            onChange={(v) => onChange({ ...value, net: v === 'yes' })}
+            options={NET_VALUES}
+            size="md"
+            tone="raised"
+          />
+        </ChoiceRow>
       </div>
     </StepShell>
   );
 }
 
-function ChoiceGroup({
+function ChoiceRow({
   label,
+  hint,
   children,
 }: {
   label: string;
+  hint?: string;
   children: React.ReactNode;
 }) {
   return (
     <div>
-      <p className="mb-1.5 px-1 text-[13px] font-semibold text-muted">{label}</p>
-      <div role="radiogroup" aria-label={label} className="grid grid-cols-2 gap-2">
-        {children}
-      </div>
+      <SectionLabel>{label}</SectionLabel>
+      {children}
+      <p className="mt-2 min-h-4 px-0.5 text-xs leading-relaxed text-muted">{hint}</p>
     </div>
-  );
-}
-
-function ChoiceCard({
-  on,
-  label,
-  hint,
-  onClick,
-}: {
-  on: boolean;
-  label: string;
-  hint: string;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      role="radio"
-      aria-checked={on}
-      onClick={onClick}
-      className={`relative rounded-2xl border-2 px-3.5 py-3 text-left transition-colors ${
-        on
-          ? 'border-sky bg-sky-tint'
-          : 'border-transparent bg-surface shadow-sm hover:bg-surface-2'
-      }`}
-    >
-      <span className="block text-[15px] font-bold">{label}</span>
-      <span className="mt-0.5 block text-[11px] leading-snug text-muted">{hint}</span>
-      {on && (
-        <span className="absolute right-2.5 top-2.5 flex h-5 w-5 items-center justify-center rounded-full bg-sky text-white">
-          <Check aria-hidden className="h-3 w-3" />
-        </span>
-      )}
-    </button>
   );
 }
 
@@ -329,12 +313,12 @@ export function TipsStep({
       title="정확하게 재려면"
       subtitle="카드를 넘기며 확인하세요. 자세한 까닭은 '자세히'에."
       footer={
-        <div className="flex gap-2">
+        <>
           <button
             type="button"
             onClick={() => (i === 0 ? onBack() : setI(i - 1))}
             aria-label="이전"
-            className="inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-surface-2 text-ink hover:bg-line"
+            className="inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border border-line-strong bg-surface-2 text-ink transition-colors hover:border-sky hover:text-sky"
           >
             <ChevronLeft aria-hidden className="h-5 w-5" />
           </button>
@@ -342,23 +326,23 @@ export function TipsStep({
             {last ? '카메라 켜기' : '다음'}
             {!last && <ChevronRight aria-hidden className="h-4 w-4" />}
           </PrimaryButton>
-        </div>
+        </>
       }
     >
       <div
         key={tip.key}
-        className="motion-safe:animate-fade-in overflow-hidden rounded-[1.75rem] bg-surface shadow-sm"
+        className="motion-safe:animate-fade-in overflow-hidden rounded-2xl border border-line bg-surface"
       >
         <div className="flex aspect-[4/3] items-center justify-center bg-sky-tint/60 px-6 text-sky">
           {tip.art}
         </div>
         <div className="px-5 pb-5 pt-4">
-          <p className="text-heading text-xl">{tip.title}</p>
-          <p className="mt-1.5 text-[15px] leading-relaxed text-muted">{tip.short}</p>
+          <p className="text-heading text-lg">{tip.title}</p>
+          <p className="mt-1.5 text-sm leading-relaxed text-muted">{tip.short}</p>
           <button
             type="button"
             onClick={() => setDetail(true)}
-            className="mt-3 inline-flex items-center gap-1 text-[13px] font-semibold text-sky"
+            className="mt-3 inline-flex items-center gap-1 text-sm font-semibold text-sky"
           >
             <Info aria-hidden className="h-4 w-4" />
             자세히
@@ -389,10 +373,10 @@ export function TipsStep({
               key={t.key}
               className={k === i ? 'rounded-2xl bg-sky-tint/60 p-3' : 'px-3'}
             >
-              <p className="text-[15px] font-bold">
+              <p className="text-sm font-bold">
                 {k + 1}. {t.title}
               </p>
-              <p className="mt-1 text-[13px] leading-relaxed text-muted">{t.long}</p>
+              <p className="mt-1 text-sm leading-relaxed text-muted">{t.long}</p>
             </li>
           ))}
         </ol>
@@ -609,7 +593,7 @@ export function LevelBubble({ level }: { level: DeviceLevel }) {
     <div
       aria-live="polite"
       aria-label={ok ? '수평' : `기울어짐 좌우 ${roll}도 앞뒤 ${pitch}도`}
-      className={`pointer-events-none flex items-center gap-2 rounded-full px-3 py-1.5 text-[11px] font-semibold backdrop-blur ${
+      className={`pointer-events-none flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-semibold backdrop-blur ${
         ok ? 'bg-ok/85 text-white' : 'bg-black/55 text-white/90'
       }`}
     >
@@ -733,7 +717,7 @@ export function ZoneOverlay({
             type="button"
             aria-label="크기 바꾸기"
             onPointerDown={(e) => begin('resize', e)}
-            className="absolute -bottom-3 -right-3 h-7 w-7 cursor-nwse-resize touch-none rounded-full border-2 border-white bg-sky shadow"
+            className="absolute -bottom-3.5 -right-3.5 h-8 w-8 cursor-nwse-resize touch-none rounded-full border-2 border-white bg-sky shadow"
           />
         </>
       )}

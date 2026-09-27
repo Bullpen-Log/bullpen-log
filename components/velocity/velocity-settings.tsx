@@ -2,6 +2,8 @@
 
 import { useMemo, useState, useSyncExternalStore } from 'react';
 import { Settings2 } from 'lucide-react';
+import { Segmented } from '@/components/segmented';
+import { Button } from '@/components/ui';
 import {
   calibrationText,
   loadFov,
@@ -23,18 +25,25 @@ import {
   type VelocitySetup,
 } from '@/lib/velocity-setup';
 import { BottomSheet } from './pitch-editor';
+import { Panel, SectionLabel } from './kit';
 
 /**
- * 불펜 벨로시티 설정 — 측정 화면 · 벨로시티 홈 · 투구 기록 탭이 같은 칸을 쓴다.
+ * 불펜 벨로시티 설정 — 측정 화면 · 투구 기록 탭의 [구속 측정] 보기가 같은 칸을 쓴다.
  *
  * 값은 브라우저(localStorage)에 있다(lib/velocity-setup.ts). 측정 화면은 제 상태를 넘겨 주고
- * (controlled), 홈과 투구 기록 탭은 저장된 것을 읽어 바로 고친다(VelocitySettingsButton).
+ * (controlled), 보기는 저장된 것을 읽어 바로 고친다(VelocitySettingsButton).
+ * 고르는 줄은 앱의 Segmented(캘린더 | 목록과 같은 부품), 켜고 끄는 것은 체크 상자.
  */
 
 export type SettingsValues = Pick<
   VelocitySetup,
   'mode' | 'cameraPos' | 'net' | 'voice' | 'useCal'
 > & { fovDeg: number };
+
+const NET_VALUES = [
+  { value: 'yes', label: '네트 있음' },
+  { value: 'no', label: '네트 없음' },
+] as const;
 
 export function VelocitySettingsFields({
   values,
@@ -49,146 +58,146 @@ export function VelocitySettingsFields({
   showChoices?: boolean;
 }) {
   return (
-    <div className="space-y-4">
-      <div className="overflow-hidden rounded-2xl bg-surface-2">
-        <Row
-          title="소리로 구속 알려주기"
-          hint="공을 잴 때마다 폰이 숫자를 읽어요. 카메라를 볼 필요 없이 던질 수 있어요."
-        >
-          <input
-            type="checkbox"
+    <div className="space-y-5">
+      <div>
+        <SectionLabel>측정</SectionLabel>
+        <Panel className="divide-y divide-line">
+          <ToggleRow
+            title="소리로 구속 알려주기"
+            hint="공을 잴 때마다 폰이 숫자를 읽어요. 카메라를 볼 필요 없이 던질 수 있어요."
             checked={values.voice}
-            onChange={(e) => {
-              onChange({ voice: e.target.checked });
-              if (e.target.checked && typeof speechSynthesis !== 'undefined') {
+            onChange={(voice) => {
+              onChange({ voice });
+              if (voice && typeof speechSynthesis !== 'undefined') {
                 const u = new SpeechSynthesisUtterance('소리 안내를 켰어요');
                 u.lang = 'ko-KR';
                 speechSynthesis.speak(u);
               }
             }}
-            className="h-5 w-5 accent-sky"
           />
-        </Row>
-        <Row
-          title="카메라 가로 화각"
-          hint="아이폰 후면 기본 카메라 약 69°. 크게 잡으면 구속이 높게 나와요."
-        >
-          <span className="inline-flex items-center gap-1 text-[15px]">
-            <input
-              inputMode="decimal"
-              key={values.fovDeg}
-              defaultValue={values.fovDeg}
-              onBlur={(e) => {
-                const n = Number(e.target.value);
-                if (n >= 30 && n <= 120 && n !== values.fovDeg) onChange({ fovDeg: n });
-                else e.target.value = String(values.fovDeg);
-              }}
-              aria-label="카메라 가로 화각(도)"
-              className="h-10 w-16 rounded-xl border border-line bg-surface px-2 text-right tabular-nums focus:border-sky focus:outline-none"
-            />
-            °
-          </span>
-        </Row>
-        <Row
-          title="스피드건 보정 적용"
-          hint={
-            calibration.n > 0
-              ? `내 짝 ${calibration.n}개로 맞춘 식 ${calibrationText(calibration)}`
-              : '아직 짝이 없어요 — 공에 스피드건 값을 적고 저장하면 쌓여요.'
-          }
-        >
-          <input
-            type="checkbox"
+          <ToggleRow
+            title="스피드건 보정 적용"
+            hint={
+              calibration.n > 0
+                ? `내 짝 ${calibration.n}개로 맞춘 식 ${calibrationText(calibration)}`
+                : '아직 짝이 없어요 — 공에 스피드건 값을 적고 저장하면 쌓여요.'
+            }
             checked={values.useCal}
             disabled={calibration.n === 0}
-            onChange={(e) => onChange({ useCal: e.target.checked })}
-            className="h-5 w-5 accent-sky"
+            onChange={(useCal) => onChange({ useCal })}
           />
-        </Row>
+          <label className="flex min-h-14 items-center justify-between gap-3 px-4 py-3">
+            <span className="min-w-0">
+              <span className="block text-sm text-ink">카메라 가로 화각</span>
+              <span className="block text-xs leading-snug text-muted">
+                아이폰 후면 기본 카메라 약 69°. 크게 잡으면 구속이 높게 나와요.
+              </span>
+            </span>
+            <span className="inline-flex shrink-0 items-center gap-1 text-sm">
+              <input
+                inputMode="decimal"
+                key={values.fovDeg}
+                defaultValue={values.fovDeg}
+                onBlur={(e) => {
+                  const n = Number(e.target.value);
+                  if (n >= 30 && n <= 120 && n !== values.fovDeg)
+                    onChange({ fovDeg: n });
+                  else e.target.value = String(values.fovDeg);
+                }}
+                aria-label="카메라 가로 화각(도)"
+                className="h-11 w-20 rounded-xl border border-line bg-surface-2 px-3 text-right text-sm tabular-nums text-ink transition-colors focus:border-sky focus:outline-none"
+              />
+              °
+            </span>
+          </label>
+        </Panel>
       </div>
 
       {showChoices && (
-        <div className="overflow-hidden rounded-2xl bg-surface-2">
-          <ChipRow
-            title="녹화 종류"
-            options={MODE_OPTIONS.map((o) => ({ key: o.key, label: o.label }))}
-            value={values.mode}
-            onPick={(k) => onChange({ mode: k as SettingsValues['mode'] })}
-          />
-          <ChipRow
-            title="카메라 위치"
-            options={CAMERA_OPTIONS.map((o) => ({ key: o.key, label: o.label }))}
-            value={values.cameraPos}
-            onPick={(k) => onChange({ cameraPos: k as SettingsValues['cameraPos'] })}
-          />
-          <ChipRow
-            title="네트"
-            hint="있으면 초점을 고정해요(수동초점) — 자동초점은 그물코에 잡혀요"
-            options={NET_OPTIONS.map((o) => ({ key: String(o.key), label: o.label }))}
-            value={String(values.net)}
-            onPick={(k) => onChange({ net: k === 'true' })}
-          />
+        <div>
+          <SectionLabel>촬영</SectionLabel>
+          <Panel className="divide-y divide-line">
+            <ChoiceRow title="녹화 종류">
+              <Segmented
+                label="녹화 종류"
+                value={values.mode}
+                onChange={(mode) => onChange({ mode })}
+                options={MODE_OPTIONS.map((o) => ({ value: o.key, label: o.label }))}
+                size="sm"
+              />
+            </ChoiceRow>
+            <ChoiceRow title="카메라 위치">
+              <Segmented
+                label="카메라 위치"
+                value={values.cameraPos}
+                onChange={(cameraPos) => onChange({ cameraPos })}
+                options={CAMERA_OPTIONS.map((o) => ({ value: o.key, label: o.label }))}
+                size="sm"
+              />
+            </ChoiceRow>
+            <ChoiceRow
+              title="네트"
+              hint={NET_OPTIONS.find((o) => o.key === values.net)?.hint}
+            >
+              <Segmented
+                label="네트"
+                value={values.net ? 'yes' : 'no'}
+                onChange={(v) => onChange({ net: v === 'yes' })}
+                options={NET_VALUES}
+                size="sm"
+              />
+            </ChoiceRow>
+          </Panel>
         </div>
       )}
     </div>
   );
 }
 
-function Row({
+function ToggleRow({
+  title,
+  hint,
+  checked,
+  disabled,
+  onChange,
+}: {
+  title: string;
+  hint: string;
+  checked: boolean;
+  disabled?: boolean;
+  onChange: (next: boolean) => void;
+}) {
+  return (
+    <label className="flex min-h-14 items-center justify-between gap-3 px-4 py-3">
+      <span className="min-w-0">
+        <span className="block text-sm text-ink">{title}</span>
+        <span className="block text-xs leading-snug text-muted">{hint}</span>
+      </span>
+      <input
+        type="checkbox"
+        checked={checked}
+        disabled={disabled}
+        onChange={(e) => onChange(e.target.checked)}
+        className="h-5 w-5 shrink-0 accent-sky"
+      />
+    </label>
+  );
+}
+
+function ChoiceRow({
   title,
   hint,
   children,
 }: {
   title: string;
-  hint: string;
+  hint?: string;
   children: React.ReactNode;
 }) {
   return (
-    <label className="flex items-center justify-between gap-3 border-t border-line px-4 py-3 first:border-t-0">
-      <span>
-        <span className="block text-[15px]">{title}</span>
-        <span className="block text-[11px] leading-snug text-muted">{hint}</span>
-      </span>
-      {children}
-    </label>
-  );
-}
-
-function ChipRow({
-  title,
-  hint,
-  options,
-  value,
-  onPick,
-}: {
-  title: string;
-  hint?: string;
-  options: { key: string; label: string }[];
-  value: string;
-  onPick: (key: string) => void;
-}) {
-  return (
-    <div className="border-t border-line px-4 py-3 first:border-t-0">
-      <p className="text-[15px]">{title}</p>
-      {hint && <p className="text-[11px] leading-snug text-muted">{hint}</p>}
-      <div role="radiogroup" aria-label={title} className="mt-2 flex flex-wrap gap-1.5">
-        {options.map((o) => (
-          <button
-            key={o.key}
-            type="button"
-            role="radio"
-            aria-checked={value === o.key}
-            onClick={() => onPick(o.key)}
-            className={`min-h-9 rounded-full px-3.5 text-[13px] font-semibold transition-colors ${
-              value === o.key
-                ? 'bg-sky text-white'
-                : 'bg-surface text-ink hover:bg-line'
-            }`}
-          >
-            {o.label}
-          </button>
-        ))}
-      </div>
+    <div className="px-4 py-3">
+      <p className="text-sm text-ink">{title}</p>
+      <div className="mt-2">{children}</div>
+      {hint && <p className="mt-2 text-xs leading-snug text-muted">{hint}</p>}
     </div>
   );
 }
@@ -218,7 +227,7 @@ export function useStoredSetup(): VelocitySetup | null {
 }
 
 /**
- * 톱니 단추 하나 — 누르면 설정 시트. 홈과 투구 기록 탭이 쓴다.
+ * 톱니 단추 하나 — 누르면 설정 시트. [구속 측정] 보기가 쓴다.
  * 저장된 설정이 없으면 기본값을 보여 주고, 고치는 순간 저장한다.
  */
 export function VelocitySettingsButton({
@@ -278,15 +287,16 @@ export function VelocitySettingsButton({
         onClose={() => setOpen(false)}
         title="불펜 벨로시티 설정"
       >
-        <div className="space-y-4">
+        <div className="space-y-5">
           <VelocitySettingsFields
             values={values}
             onChange={change}
             calibration={calibration}
           />
-          <div className="flex flex-wrap gap-2 text-[13px]">
-            <button
-              type="button"
+          <div className="flex flex-wrap gap-2">
+            <Button
+              variant="secondary"
+              className="h-10 px-3.5 text-xs"
               onClick={() =>
                 saveSetup({
                   mode: base.mode,
@@ -297,19 +307,18 @@ export function VelocitySettingsButton({
                   useCal: base.useCal,
                 })
               }
-              className="rounded-full bg-surface-2 px-3.5 py-2 font-semibold text-ink hover:bg-line"
             >
               스트라이크 존 자리 초기화
-            </button>
-            <button
-              type="button"
+            </Button>
+            <Button
+              variant="secondary"
+              className="h-10 px-3.5 text-xs"
               onClick={() => clearSetup()}
-              className="rounded-full bg-surface-2 px-3.5 py-2 font-semibold text-ink hover:bg-line"
             >
               저장된 설정 지우기
-            </button>
+            </Button>
           </div>
-          <p className="text-[11px] leading-relaxed text-muted">
+          <p className="text-xs leading-relaxed text-muted">
             이 설정은 이 기기에만 남아요. 지우면 다음 측정 때 처음부터 다시 물어요.
           </p>
         </div>

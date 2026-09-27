@@ -8,6 +8,7 @@ import {
   zoneLabel,
   type PitchEdit,
 } from '@/lib/velocity-meta';
+import { CHIP_BASE, CHIP_ON } from './kit';
 
 /**
  * 공 하나를 고치는 칸들 — 구종 · 코스 · 결과 · 스피드건 값 · 메모.
@@ -105,8 +106,8 @@ function Field({
   return (
     <div>
       <div className="mb-1.5 flex items-baseline justify-between gap-2">
-        <span className="text-[13px] font-semibold text-ink">{label}</span>
-        {hint && <span className="text-[11px] text-muted">{hint}</span>}
+        <span className="text-xs font-medium text-muted">{label}</span>
+        {hint && <span className="text-xs text-muted">{hint}</span>}
       </div>
       {children}
     </div>
@@ -124,20 +125,19 @@ function Chip({
   onClick: () => void;
   children: React.ReactNode;
 }) {
+  /* 운동 등록 폼의 선택 칩과 같은 색 · 모서리(components/choice-inputs.tsx). 손가락용이라 높이 40px */
   const onClass =
     tone === 'ok'
-      ? 'bg-ok text-white'
+      ? 'border-ok bg-ok/10 font-medium text-ok'
       : tone === 'warn'
-        ? 'bg-warn text-white'
-        : 'bg-sky text-white';
+        ? 'border-warn bg-warn-bg font-medium text-warn'
+        : CHIP_ON;
   return (
     <button
       type="button"
       onClick={onClick}
       aria-pressed={on}
-      className={`min-h-9 rounded-full px-3.5 text-[13px] font-semibold transition-colors ${
-        on ? onClass : 'bg-surface-2 text-ink hover:bg-line'
-      }`}
+      className={on ? `${CHIP_BASE} ${onClass}` : CHIP_BASE}
     >
       {children}
     </button>
@@ -159,7 +159,7 @@ export function ZoneGrid({
   onChange?: (zone: number | null) => void;
   size?: 'sm' | 'md';
 }) {
-  const cell = size === 'sm' ? 'h-4 w-4' : 'h-9 w-9';
+  const cell = size === 'sm' ? 'h-4 w-4' : 'h-10 w-10';
   const zones = Array.from({ length: 9 }, (_, i) => i + 1);
   const cellClass = (on: boolean) =>
     `${cell} rounded-[3px] transition-colors ${on ? 'bg-sky' : onChange ? 'bg-surface hover:bg-sky-tint' : 'bg-surface'}`;

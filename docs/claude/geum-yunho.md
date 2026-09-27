@@ -46,6 +46,9 @@
   (윈도우 Fluent 2 · 머티리얼 3 · 구글 · 유튜브 기준 — globals.css 'PC 화면의 크기 기준'). 새 화면은
   쪽 제목 `page-title`, 큰 덩이 사이 `stack-page`, 카드 사이 `gap-block` · `stack-block` 을 쓴다.
   오른쪽 위 · 왼쪽 위(메뉴 · 로고)는 `ui-chrome` 으로 빼 원래 크기를 지킨다. 맨 밑 정보는 `SiteFooter`.
+  폰 화면(구속 측정 등)의 누르는 것은 큰 단추 48px(h-12, 앱 Button) · 아이콘 단추 48px · 칩 40px(등록 폼의
+  선택 칩 모양, `components/velocity/kit.tsx` 의 CHIP_BASE) · 목록 줄 56px. 고르기는 Segmented, 단계는
+  StepBar. 임의 px 글자(text-[13px] 같은 것)는 쓰지 않는다 — 2026-09-27 사용자가 "통일 · 한눈에"를 요구했다.
 - **애니메이션은 기본값.** 새 기능에는 묻지 않고 부드러운 전환을 넣는다(창 · 목록 · 값 · 화면 이동). `motion-safe`
   로 움직임 줄이기에 대응. 나가는 것은 빠르게(~120ms), 들어오는 것은 조금 느리게(160~200ms).
 - **디자인은 impeccable 스킬로**(아래 5절). UI 를 고치기 직전에 `reference/craft-floor.md` 를 읽고, 고친 뒤

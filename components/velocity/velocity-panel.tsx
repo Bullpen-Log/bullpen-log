@@ -75,18 +75,18 @@ export function VelocityPanel({
         <div className="px-5 pb-5 pt-4">
           <Link
             href="/velocity/measure"
-            className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-2xl bg-sky text-[15px] font-bold text-white shadow-sm transition-colors hover:bg-sky-strong"
+            className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-sky text-sm font-semibold text-white shadow-sm transition-colors hover:bg-sky-strong"
           >
             <Camera aria-hidden className="h-5 w-5" />
             측정 시작
           </Link>
-          <p className="mt-2 text-center text-[11px] text-muted">
+          <p className="mt-2 text-center text-xs text-muted">
             {stored
               ? `지난 설정: ${setupSummary(stored)} — 시작하면 그대로 쓸지 물어요`
               : '처음이면 무엇을 어디서 잴지부터 물어요'}
           </p>
           {webTest && (
-            <p className="mt-1 text-center text-[11px] leading-snug text-warn">
+            <p className="mt-1 text-center text-xs leading-snug text-warn">
               웹 시험 모드(관리자) — 실제 측정은 앱의 고속 촬영으로. 일반 계정에는 이
               보기가 없어요.
             </p>
@@ -166,7 +166,7 @@ export function VelocityPanel({
                         <span className="ml-1.5 text-warn">B</span>
                       )}
                     </span>
-                    <span className="block truncate text-[11px] text-muted">
+                    <span className="block truncate text-xs text-muted">
                       {zoneLabel(p.zone) ?? '코스 —'} · {CONFIDENCE_TEXT[p.confidence]}
                     </span>
                   </span>
@@ -198,12 +198,10 @@ function Stat({
 }) {
   return (
     <div className="px-2 py-3 text-center">
-      <dt className="text-[11px] text-muted">{label}</dt>
+      <dt className="text-xs text-muted">{label}</dt>
       <dd className="text-display mt-0.5 text-2xl leading-none tabular-nums text-ink">
         {value}
-        {unit && (
-          <span className="ml-0.5 font-sans text-[11px] text-muted">{unit}</span>
-        )}
+        {unit && <span className="ml-0.5 font-sans text-xs text-muted">{unit}</span>}
       </dd>
     </div>
   );
