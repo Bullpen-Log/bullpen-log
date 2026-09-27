@@ -3,7 +3,8 @@ import { ChevronRight } from 'lucide-react';
 import { requireAdmin } from '@/lib/dal';
 import { loadVelocityAdminOverview } from '@/lib/velocity-admin-load';
 import { calibrationText } from '@/lib/velocity-calibration';
-import { Card, EmptyState, PageHeading } from '@/components/ui';
+import { Camera } from 'lucide-react';
+import { ButtonLink, Card, EmptyState, PageHeading } from '@/components/ui';
 import { BiasChart } from './overview-client';
 import { FileMeasure } from './file-measure';
 import { dayLabel, mb, signed } from './format';
@@ -41,7 +42,16 @@ export default async function VelocityAdminPage() {
       <PageHeading
         eyebrow="Bullpen Velocity"
         title="구속 측정 관리자"
-        description="카메라로 잰 값과 스피드건 값을 견줘 정확도를 올리는 자료를 관리해요."
+        description="카메라로 잰 값과 스피드건 값을 견줘 정확도를 올리는 자료를 관리해요. 측정 자체는 여기서 바로 켤 수 있어요(웹 카메라는 60fps 밑이면 숫자를 내지 않아요 — 폰 앱이나 슬로모션 파일이 정확해요)."
+        action={
+          <ButtonLink
+            href="/velocity/measure"
+            className="inline-flex items-center gap-2"
+          >
+            <Camera aria-hidden className="h-4 w-4" />
+            구속 측정 시작
+          </ButtonLink>
+        }
       />
 
       {/* 숫자 타일 */}

@@ -1,9 +1,9 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, Camera } from 'lucide-react';
 import { requireAdmin } from '@/lib/dal';
 import { loadVelocityAdminDay } from '@/lib/velocity-admin-load';
-import { EmptyState, PageHeading } from '@/components/ui';
+import { ButtonLink, EmptyState, PageHeading } from '@/components/ui';
 import { dayLabel, signed } from '../format';
 import { DayClient } from './day-client';
 
@@ -54,6 +54,15 @@ export default async function VelocityAdminDayPage({
         description={`${date} · 세션 ${stat.sessions}개 · ${stat.users}명${
           stat.sdKmh != null ? ` · 오차 표준편차 ${stat.sdKmh.toFixed(1)} km/h` : ''
         }`}
+        action={
+          <ButtonLink
+            href="/velocity/measure"
+            className="inline-flex items-center gap-2"
+          >
+            <Camera aria-hidden className="h-4 w-4" />
+            구속 측정 시작
+          </ButtonLink>
+        }
       />
 
       <div className="grid grid-cols-2 gap-px overflow-hidden rounded-2xl border border-line bg-line sm:grid-cols-3 lg:grid-cols-6">
