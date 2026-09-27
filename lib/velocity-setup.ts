@@ -26,8 +26,17 @@ export type VelocitySetup = {
   voice: boolean;
   /** 스피드건 보정식을 적용할까 */
   useCal: boolean;
+  /**
+   * 포수 뒤에서 찍을 때, 카메라에서 릴리스 지점까지의 거리(m). 다가오는 공은 마지막 몇 m 만
+   * 보이므로 이 거리만큼 공기저항을 되돌려 릴리스 구속을 낸다(1m 에 약 0.8km/h).
+   * 정규 마운드(18.44m)에서 릴리스가 판보다 약 1.8m 앞, 카메라가 홈플레이트 뒤 약 1.8m 면 ≈ 18.5m.
+   */
+  releaseDistM: number;
   savedAt: string;
 };
+
+export const RELEASE_DIST_MIN = 3;
+export const RELEASE_DIST_MAX = 40;
 
 export const MODE_OPTIONS: { key: RecordMode; label: string; hint: string }[] = [
   { key: 'pitch', label: '투구 녹화', hint: '투수가 던진 공의 구속' },
@@ -66,6 +75,7 @@ export const DEFAULT_SETUP: Omit<VelocitySetup, 'savedAt'> = {
   zone: DEFAULT_ZONE,
   voice: false,
   useCal: true,
+  releaseDistM: 18.5,
 };
 
 const isRect = (z: unknown): z is ZoneRect =>
@@ -92,6 +102,12 @@ export function loadSetup(): VelocitySetup | null {
       zone: isRect(p.zone) ? p.zone : DEFAULT_ZONE,
       voice: p.voice === true,
       useCal: p.useCal !== false,
+      releaseDistM:
+        typeof p.releaseDistM === 'number' &&
+        p.releaseDistM >= RELEASE_DIST_MIN &&
+        p.releaseDistM <= RELEASE_DIST_MAX
+          ? p.releaseDistM
+          : DEFAULT_SETUP.releaseDistM,
       savedAt: typeof p.savedAt === 'string' ? p.savedAt : '',
     };
   } catch {

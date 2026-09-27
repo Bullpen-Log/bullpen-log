@@ -53,8 +53,12 @@ export type MeasureSuccess = {
     frames: number;
     fitQuality: number;
     travelM: number;
+    /** 첫 관측 거리(m) — 투수 뒤에서는 릴리스 지점, 포수 뒤에서는 가장 먼 관측 */
     releaseDistanceM: number;
     durationSec: number;
+    /** 첫 · 마지막 관측 시점의 속도(km/h, 공기저항 모델) */
+    startKmh: number;
+    endKmh: number;
   };
 };
 
@@ -123,7 +127,7 @@ export function measureVelocity(input: MeasureInput): MeasureResult {
   });
   if (framingProblem) return { ok: false, ...framingProblem };
 
-  // 6) 속도를 낸다. 모든 프레임을 직선에 맞춰 개별 오차를 상쇄시킨다.
+  // 6) 속도를 낸다. 모든 프레임을 공기저항 곡선에 맞춰 개별 오차를 상쇄시킨다.
   const fit = fitSpeed(points);
   if (!fit) return { ok: false, ...reject('NOT_ENOUGH_FRAMES') };
 
@@ -142,6 +146,8 @@ export function measureVelocity(input: MeasureInput): MeasureResult {
       travelM: round1(Math.abs(fit.endDistanceM - fit.startDistanceM)),
       releaseDistanceM: round1(fit.startDistanceM),
       durationSec: Math.round(fit.durationSec * 1000) / 1000,
+      startKmh: round1(fit.startKmh),
+      endKmh: round1(fit.endKmh),
     },
   };
 }

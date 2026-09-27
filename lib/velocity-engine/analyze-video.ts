@@ -57,6 +57,10 @@ export type AnalyzeOptions = {
   onProgress?: (ratio: number) => void;
   /** 공이 멀어지나(투수 뒤, 기본) 다가오나(포수 뒤) */
   approach?: Approach;
+  /** 공으로 보정한 초점거리(긴 변 픽셀당) — 있으면 화각 대신 쓴다 */
+  focalPerLongSide?: number | null;
+  /** 포수 뒤: 카메라에서 릴리스 지점까지(m) — 릴리스 구속을 되돌릴 때 */
+  releaseDistanceM?: number | null;
 };
 
 function waitForEvent(
@@ -90,6 +94,8 @@ export async function analyzeVideo(options: AnalyzeOptions): Promise<AnalyzeResu
     fovDeg = DEFAULT_FOV_DEG,
     onProgress,
     approach = 'receding',
+    focalPerLongSide = null,
+    releaseDistanceM = null,
   } = options;
 
   const url = URL.createObjectURL(file);
@@ -181,8 +187,12 @@ export async function analyzeVideo(options: AnalyzeOptions): Promise<AnalyzeResu
       sourceWidth: sourceW,
       sourceHeight: sourceH,
       fovDeg,
+      focalPx: focalPerLongSide
+        ? focalPerLongSide * Math.max(sourceW, sourceH)
+        : undefined,
       shakePx,
       approach,
+      releaseDistanceM,
     });
     onProgress?.(1);
     return result;

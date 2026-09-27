@@ -28,6 +28,21 @@ export const BALL_DIAMETER_M = 0.073;
 export const MPS_TO_KMH = 3.6;
 
 /**
+ * 공기저항 — 감속 a = K·v² (m/s², v 는 m/s). 거리로 적으면 dv/ds = −K·v, 즉 v(s) = v₀·e^(−K·s).
+ * 시간으로 풀면 나아간 거리 s(τ) = ln(1 + K·v₀·τ) / K, 속도 v(τ) = v₀ / (1 + K·v₀·τ).
+ *
+ * 야구공(145g, 지름 7.3cm, 항력계수 약 0.35, 공기 1.2kg/m³): K = ½·ρ·C_d·A/m ≈ 0.006 /m.
+ * 130km/h 면 1m 에 0.78km/h 씩 느려진다 — 메이저리그 추적 자료(릴리스→홈 17m 에 8~10%)와 맞는다.
+ * 어림값이다 — 스피드건 짝이 쌓이면 보정식이 남은 차이를 흡수한다.
+ */
+export const DRAG_K_PER_M = 0.006;
+
+/** 첫 관측 뒤 τ초 동안 나아간 거리(m) — 공기저항 모델 */
+export function dragDistance(v0Mps: number, tau: number): number {
+  return Math.log(1 + DRAG_K_PER_M * v0Mps * tau) / DRAG_K_PER_M;
+}
+
+/**
  * 카메라 렌즈 정보.
  *
  * focalPx 는 "초점거리를 픽셀로 환산한 값"이다. 아이폰 앱에서는 iOS가 알려주는
@@ -125,13 +140,23 @@ export function distanceBetween(a: BallPoint3D, b: BallPoint3D): number {
  * 투수 뒤에서 찍으면 공은 주로 z 방향으로 가지만, 좌우·상하로도 조금 움직인다.
  * 세 축을 함께 맞춰야 실제 이동 속도가 나온다.
  *
- * 돌려주는 값은 "구간 평균 속도"다. 공은 날아가며 공기저항으로 느려지므로,
- * 레이더건이 재는 릴리스 직후 속도보다 낮게 나온다. 그 차이를 어떻게 다룰지는
- * 이 함수 밖(보정 단계)에서 정한다 — 여기서는 잰 값을 그대로 돌려준다.
+ * ── 왜 직선이 아니라 공기저항 곡선에 맞추는가 ──
+ *
+ * 공은 날아가며 느려진다(1m 에 약 0.8km/h). 가까운 관측에 무게를 많이 두는 가중 직선을
+ * 그대로 쓰면 기울기가 가까운 쪽(투수 뒤에서는 빠른 앞부분)으로 쏠려, 구간 평균이 3~5km/h
+ * 높게 나왔다(시험대 2026-09-27). 그래서 직선은 진행 방향을 정하는 데만 쓰고, 그 방향 위의
+ * 위치에 s(τ) = ln(1 + K·v₀·τ)/K 를 맞춰 v₀ 를 구한다 — 무게를 어디에 두든 치우치지 않는다.
+ *
+ * 돌려주는 값: 구간 평균(kmh)과 첫 · 마지막 관측 시점의 속도(startKmh · endKmh). 릴리스
+ * 구속으로 무엇을 쓸지는 이 함수 밖(analyze-frames)에서 정한다.
  */
 export type SpeedFit = {
-  /** 구간 평균 속도(km/h) */
+  /** 구간 평균 속도(km/h) — 첫 관측에서 마지막 관측까지 */
   kmh: number;
+  /** 첫 관측 시점의 속도(km/h) — 공기저항 모델로 맞춘 값. 투수 뒤에서는 릴리스 직후 */
+  startKmh: number;
+  /** 마지막 관측 시점의 속도(km/h) */
+  endKmh: number;
   /** 직선이 얼마나 잘 맞았는지 (1에 가까울수록 좋음) */
   fitQuality: number;
   /** 계산에 쓴 관측 수 */
@@ -302,23 +327,136 @@ export function fitSpeed(points: BallPoint3D[]): SpeedFit | null {
     weights
   );
 
-  const speedMps = Math.hypot(fx.slope, fy.slope, fz.slope);
+  const speedLinear = Math.hypot(fx.slope, fy.slope, fz.slope);
+
+  /* 진행 방향(단위 벡터). 기울기가 전혀 없으면 카메라 축 */
+  const u =
+    speedLinear > 0
+      ? {
+          x: fx.slope / speedLinear,
+          y: fy.slope / speedLinear,
+          z: fz.slope / speedLinear,
+        }
+      : { x: 0, y: 0, z: 1 };
+
+  /* 그 방향 위의 위치 s_i 에 공기저항 곡선을 맞춘다 */
+  const t0 = ts[0];
+  const taus = ts.map((t) => t - t0);
+  const along = sorted.map((p) => p.x * u.x + p.y * u.y + p.z * u.z);
+  const drag = fitDrag(taus, along, weights);
+  const tauEnd = taus[taus.length - 1];
+  const travel = dragDistance(drag.v0, tauEnd);
+  const avgMps = travel / tauEnd;
+  const endMps = drag.v0 / (1 + DRAG_K_PER_M * drag.v0 * tauEnd);
 
   /*
-   * 맞음새는 세 축을 합쳐 본다. 공이 실제로 직선으로 날아갔다면 1에 가깝고,
-   * 감지가 튀었거나 공이 아닌 것을 따라갔다면 뚝 떨어진다. 이 값이 낮으면
-   * 결과를 내주지 않는다(판정은 validate.ts).
+   * 맞음새 — 세 축을 합친 R². 공이 실제로 한 직선을 따라 모델대로 날아갔다면 1에 가깝고,
+   * 감지가 튀었거나 공이 아닌 것을 따라갔다면 뚝 떨어진다. 낮으면 결과를 내주지 않는다
+   * (판정은 validate.ts).
    */
-  const ssRes = fx.ssRes + fy.ssRes + fz.ssRes;
-  const ssTot = fx.ssTot + fy.ssTot + fz.ssTot;
+  const sHat = taus.map((tau) => drag.a + dragDistance(drag.v0, tau));
+  let sumW = 0;
+  const c = { x: 0, y: 0, z: 0 };
+  const mean = { x: 0, y: 0, z: 0 };
+  for (let i = 0; i < sorted.length; i++) {
+    const w = weights[i];
+    const p = sorted[i];
+    sumW += w;
+    c.x += w * (p.x - u.x * sHat[i]);
+    c.y += w * (p.y - u.y * sHat[i]);
+    c.z += w * (p.z - u.z * sHat[i]);
+    mean.x += w * p.x;
+    mean.y += w * p.y;
+    mean.z += w * p.z;
+  }
+  let ssRes = 0;
+  let ssTot = 0;
+  for (let i = 0; i < sorted.length; i++) {
+    const w = weights[i];
+    const p = sorted[i];
+    ssRes +=
+      w *
+      ((p.x - (c.x / sumW + u.x * sHat[i])) ** 2 +
+        (p.y - (c.y / sumW + u.y * sHat[i])) ** 2 +
+        (p.z - (c.z / sumW + u.z * sHat[i])) ** 2);
+    ssTot +=
+      w *
+      ((p.x - mean.x / sumW) ** 2 +
+        (p.y - mean.y / sumW) ** 2 +
+        (p.z - mean.z / sumW) ** 2);
+  }
   const fitQuality = ssTot === 0 ? 0 : Math.max(0, 1 - ssRes / ssTot);
 
   return {
-    kmh: speedMps * MPS_TO_KMH,
+    kmh: avgMps * MPS_TO_KMH,
+    startKmh: drag.v0 * MPS_TO_KMH,
+    endKmh: endMps * MPS_TO_KMH,
     fitQuality,
     sampleCount: sorted.length,
     durationSec,
     startDistanceM: sorted[0].z,
     endDistanceM: sorted[sorted.length - 1].z,
   };
+}
+
+/**
+ * 궤적 위 위치 s_i 에 s = a + ln(1 + K·v₀·τ)/K 를 가중 최소제곱으로 맞춰 v₀ 를 낸다.
+ *
+ * 매개변수는 v₀ 하나(a 는 v₀ 가 정해지면 닫힌 꼴로 나온다)라, 1m/s 격자로 골짜기를 찾고
+ * 황금분할로 조인다. 관측 90개 × 평가 130번 — 1ms 안이다.
+ */
+function fitDrag(
+  taus: number[],
+  ss: number[],
+  ws: number[]
+): { v0: number; a: number; ssRes: number } {
+  const sumW = ws.reduce((p, q) => p + q, 0);
+  const cost = (v0: number) => {
+    let a = 0;
+    for (let i = 0; i < taus.length; i++)
+      a += ws[i] * (ss[i] - dragDistance(v0, taus[i]));
+    a /= sumW;
+    let res = 0;
+    for (let i = 0; i < taus.length; i++) {
+      const e = ss[i] - a - dragDistance(v0, taus[i]);
+      res += ws[i] * e * e;
+    }
+    return { a, res };
+  };
+  const V_MIN = 1;
+  const V_MAX = 90;
+  let bestV = V_MIN;
+  let bestRes = Infinity;
+  for (let v = V_MIN; v <= V_MAX; v += 1) {
+    const r = cost(v).res;
+    if (r < bestRes) {
+      bestRes = r;
+      bestV = v;
+    }
+  }
+  let lo = Math.max(V_MIN, bestV - 1.5);
+  let hi = Math.min(V_MAX, bestV + 1.5);
+  const phi = (Math.sqrt(5) - 1) / 2;
+  let x1 = hi - phi * (hi - lo);
+  let x2 = lo + phi * (hi - lo);
+  let f1 = cost(x1).res;
+  let f2 = cost(x2).res;
+  for (let k = 0; k < 40; k++) {
+    if (f1 < f2) {
+      hi = x2;
+      x2 = x1;
+      f2 = f1;
+      x1 = hi - phi * (hi - lo);
+      f1 = cost(x1).res;
+    } else {
+      lo = x1;
+      x1 = x2;
+      f1 = f2;
+      x2 = lo + phi * (hi - lo);
+      f2 = cost(x2).res;
+    }
+  }
+  const v0 = (lo + hi) / 2;
+  const { a, res } = cost(v0);
+  return { v0, a, ssRes: res };
 }

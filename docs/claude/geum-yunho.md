@@ -120,6 +120,16 @@
     측정 화면 새 디자인(밝은 바탕 · 내비 바 · 3:4 뷰파인더 · 방금 공 구종 칩 · 요약 4칸 · 공 목록 · 시트),
     그날 화면 '구속 측정' 칸(`pitch-log/velocity-section.tsx`), 캘린더 그날 칸 한 줄. tsc · lint 통과.
   - 브라우저로 폰 375 · PC 1536 확인 끝(측정 화면 · 시트 · 그날 칸). 목록 줄에 '카메라 측정' 표시.
+  - **4차(정확도, 2026-09-27 밤 — 사용자: "정확도가 가장 중요, 검증을 반복").** 시험대
+    `npm run velocity:accuracy`(`scripts/velocity-accuracy.mts`, `--only=글자` · `--seeds=N` · `--diag`)로 그린
+    공의 오차를 잰다. 고친 것: ① 지름을 문턱값 상자 대신 밝기 총량 면적으로(`refineTrack`, 자르지 않는 합 + 창 둘레
+    고리 치우침 제거 — 자르면 −1.2% 치우쳤다) ② 프레임마다 노출 치우침(`exposureBias`) ③ 흔들림은 블록 평균
+    (`cornerShift`) ④ 속도 맞춤을 가중 직선 → 공기저항 곡선(`geometry.ts` `fitDrag`, 직선은 가까운 쪽으로 쏠려
+    +3~5km/h) ⑤ 렌즈 보정(`lib/velocity-lens.ts`, 화면 `components/velocity/lens-calibration.tsx`, 측정 화면 'lens'
+    단계 · 설정 시트 줄): 공을 줄자 0.5m 에 두고 초점거리를 직접 잰다 — 화각 6° 오차(−12km/h)를 없앤다
+    ⑥ 포수 뒤 릴리스 구속: 설정 `releaseDistM`(기본 18.5m)만큼 되돌림 ⑦ 주의사항 카드 9장(렌즈 보정 · 1x/손떨림
+    보정 끄기 · 스피드건 짝 추가). 결과(seeds=3): 처음 −8~−23 → 마지막 ±0.5km/h 안(모두 섞임 +1.2). 남은 것:
+    9~15px 작은 공의 −2~3%(노출 변화 + 모션 블러 조합), 실제 폰 촬영으로 문턱값 확인. 셀프테스트 33 · 10 통과.
   - 3차(설정 단계): 지난 설정 → 투구/타격 · 투수 뒤/포수 뒤 · 네트 → 주의사항 카드 6장(그림 SVG, '자세히'
     시트) → 카메라 수평계(deviceorientation, 아이폰은 허락 단추) · 표적 → 반투명 스트라이크 존(끌기 · 크기)
     → 측정(설정에 소리 안내 = speechSynthesis ko-KR). 설정은 localStorage `bullpen-velocity-setup`. 엔진에

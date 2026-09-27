@@ -29,6 +29,26 @@ function check(name: string, ok: boolean, detail = '') {
 
 const lens = iphoneLens(1920, 1080);
 
+/**
+ * 엔진이 실제로 쓴 거리 구간의 진짜 평균 구속(km/h).
+ *
+ * 엔진은 공이 9픽셀보다 작아진 뒤(멀리)는 버리므로, 시뮬레이션 전체(16m)의 평균과 견주면
+ * 공기저항 때문에 정답이 더 낮게 나온다. 엔진이 돌려준 첫 거리 · 나아간 거리로 구간을 잘라 견준다.
+ */
+function trueAverageOver(
+  sim: { trueDistances: { t: number; z: number }[] },
+  startZ: number,
+  travelM: number
+) {
+  const nearest = (z: number) =>
+    sim.trueDistances.reduce((best, d) =>
+      Math.abs(d.z - z) < Math.abs(best.z - z) ? d : best
+    );
+  const a = nearest(startZ);
+  const b = nearest(startZ + travelM);
+  return ((b.z - a.z) / (b.t - a.t)) * 3.6;
+}
+
 console.log('\n════ 1. 이상적인 조건에서 구속을 맞히는가 ════\n');
 for (const kmh of [100, 120, 130, 140, 150]) {
   for (const fps of [30, 60, 240]) {
@@ -42,11 +62,16 @@ for (const kmh of [100, 120, 130, 140, 150]) {
       check(`${kmh}km/h @ ${fps}fps`, false, `거부됨: ${result.code}`);
       continue;
     }
-    const diff = Math.abs(result.kmh - sim.trueAverageKmh);
+    const truth = trueAverageOver(
+      sim,
+      result.detail.releaseDistanceM,
+      result.detail.travelM
+    );
+    const diff = Math.abs(result.kmh - truth);
     check(
       `${kmh}km/h @ ${fps}fps`,
       diff < 0.5,
-      `측정 ${result.kmh} / 정답 ${sim.trueAverageKmh.toFixed(1)} (차이 ${diff.toFixed(2)}) · 프레임 ${result.detail.frames} · 신뢰도 ${result.confidence}`
+      `측정 ${result.kmh} / 정답 ${truth.toFixed(1)} (차이 ${diff.toFixed(2)}) · 프레임 ${result.detail.frames} · 신뢰도 ${result.confidence}`
     );
   }
 }
@@ -190,24 +215,32 @@ console.log('\n════ 3. 잘못된 촬영을 거부하는가 (가장 중�
   );
 }
 
-console.log('\n════ 4. 공기저항이 있을 때 (실제와 가장 비슷) ════\n');
+console.log('\n════ 4. 공기저항이 엔진 가정과 다를 때 (습한 날 · 무거운 공) ════\n');
 {
-  const sim = simulatePitch({ kmh: 140, lens, fps: 240, dragPerSec: 0.35 });
+  /* 엔진은 K=0.006/m 을 가정한다. 실제가 0.0075 여도 릴리스 속도는 1.5km/h 안에서 되찾아야 한다 */
+  const sim = simulatePitch({ kmh: 140, lens, fps: 240, dragPerM: 0.0075 });
   const r = measureVelocity({
     observations: sim.observations,
     lens,
     stability: { maxBackgroundShiftPx: 1 },
   });
   if (r.ok) {
-    console.log(`  릴리스 140km/h로 던졌을 때 → 측정 ${r.kmh}km/h (구간 평균)`);
     console.log(
-      `  차이 ${(140 - r.kmh).toFixed(1)}km/h — 레이더건 값과의 이 차이는 보정 단계에서 다룬다.`
+      `  릴리스 140km/h로 던졌을 때 → 구간 평균 ${r.kmh}km/h · 첫 관측 시점 ${r.detail.startKmh}km/h (정답 평균 ${sim.trueAverageKmh.toFixed(1)})`
     );
     check(
-      '공기저항 있어도 측정됨',
-      true,
-      `신뢰도 ${r.confidence} · 오차범위 ±${r.errorKmh}`
+      '릴리스 속도를 1.5km/h 안에서 되찾음',
+      Math.abs(r.detail.startKmh - 140) < 1.5,
+      `첫 관측 시점 ${r.detail.startKmh} · 신뢰도 ${r.confidence} · 오차범위 ±${r.errorKmh}`
     );
+    {
+      const truth = trueAverageOver(sim, r.detail.releaseDistanceM, r.detail.travelM);
+      check(
+        '구간 평균도 1km/h 안(K 가 달라도)',
+        Math.abs(r.kmh - truth) < 1,
+        `측정 ${r.kmh} / 정답 ${truth.toFixed(1)}`
+      );
+    }
   } else {
     check('공기저항 있어도 측정됨', false, r.code);
   }

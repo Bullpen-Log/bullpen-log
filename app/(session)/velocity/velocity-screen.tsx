@@ -78,7 +78,15 @@ import {
   type Choices,
 } from '@/components/velocity/setup-steps';
 import { VelocitySettingsFields } from '@/components/velocity/velocity-settings';
-import { StepBar } from '@/components/velocity/kit';
+import { StepBar, Note } from '@/components/velocity/kit';
+import {
+  CircleOverlay,
+  DEFAULT_CIRCLE,
+  LensCalibrationPanel,
+  type Circle,
+} from '@/components/velocity/lens-calibration';
+import { useStoredLens } from '@/components/velocity/velocity-settings';
+import { clearLens, focalPxFor, fovDegFromFocal } from '@/lib/velocity-lens';
 import { saveVelocitySession, type SavePitchInput } from '@/app/actions/velocity';
 
 /**
@@ -94,7 +102,7 @@ import { saveVelocitySession, type SavePitchInput } from '@/app/actions/velocity
  * 않는다. 잰 값은 '저장'을 누를 때 서버로 간다(app/actions/velocity.ts). 영상은 어디에도 안 올린다.
  */
 
-export type Step = 'choices' | 'tips' | 'align' | 'zone' | 'measure';
+export type Step = 'choices' | 'tips' | 'align' | 'zone' | 'measure' | 'lens';
 type LocalPitch = SavePitchInput & { id: number; source: 'camera' | 'file' };
 
 const STATUS_TEXT: Record<LiveStatus, string> = {
@@ -165,6 +173,7 @@ export function VelocityScreen({
   });
   const [zone, setZone] = useState<ZoneRect>(DEFAULT_SETUP.zone);
   const [voice, setVoice] = useState(false);
+  const [releaseDistM, setReleaseDistM] = useState(DEFAULT_SETUP.releaseDistM);
   const showAsk = stored != null && !decided;
   const approach = approachOf(choices);
 
@@ -181,6 +190,10 @@ export function VelocityScreen({
 
   const [fov, setFov] = useState(() => loadFov(DEFAULT_FOV_DEG));
   const [useCal, setUseCal] = useState(true);
+  /* 렌즈 보정(공으로 잰 초점거리) — 있으면 화각 가정 대신 쓴다 */
+  const lens = useStoredLens();
+  const focalRatio = lens?.focalPerLongSide ?? null;
+  const [circle, setCircle] = useState<Circle>(DEFAULT_CIRCLE);
   const fit = calibration;
   const shown = (raw: number) =>
     useCal && fit.n > 0 ? applyCalibration(raw, fit) : raw;
@@ -211,7 +224,7 @@ export function VelocityScreen({
   };
 
   const persistSetup = (patch: Partial<Omit<VelocitySetup, 'savedAt'>> = {}) =>
-    saveSetup({ ...choices, zone, voice, useCal, ...patch });
+    saveSetup({ ...choices, zone, voice, useCal, releaseDistM, ...patch });
 
   const addResult = (result: AnalyzeResult, source: LocalPitch['source']) => {
     setLast(result);
@@ -282,6 +295,8 @@ export function VelocityScreen({
       approach,
       choices.net
     );
+    capture.setFocalPerLongSide(focalRatio);
+    capture.setReleaseDistance(approach === 'approaching' ? releaseDistM : null);
     captureRef.current?.stop();
     captureRef.current = capture;
     try {
@@ -306,6 +321,7 @@ export function VelocityScreen({
     setZone(stored.zone);
     setVoice(stored.voice);
     setUseCal(stored.useCal);
+    setReleaseDistM(stored.releaseDistM);
     setDecided(true);
     setStep('align');
     void startCamera();
@@ -355,6 +371,8 @@ export function VelocityScreen({
           fovDeg: fov,
           onProgress: setFileProgress,
           approach,
+          focalPerLongSide: focalRatio,
+          releaseDistanceM: approach === 'approaching' ? releaseDistM : null,
         }),
         'file'
       );
@@ -364,6 +382,15 @@ export function VelocityScreen({
       setFileBusy(false);
     }
   };
+
+  useEffect(() => {
+    captureRef.current?.setFocalPerLongSide(focalRatio);
+  }, [focalRatio]);
+  useEffect(() => {
+    captureRef.current?.setReleaseDistance(
+      approach === 'approaching' ? releaseDistM : null
+    );
+  }, [approach, releaseDistM]);
 
   const changeFov = (next: number) => {
     setFov(next);
@@ -484,12 +511,15 @@ export function VelocityScreen({
       )}
 
       {/* 스트라이크 존 — 5에서 놓고 6에서 비쳐 보인다 */}
-      {cameraOn && step !== 'align' && (
+      {cameraOn && step === 'lens' && (
+        <CircleOverlay value={circle} onChange={setCircle} />
+      )}
+      {cameraOn && step !== 'align' && step !== 'lens' && (
         <ZoneOverlay rect={zone} onChange={setZone} editable={step === 'zone'} />
       )}
 
       {/* 표적 — 릴리스 포인트 */}
-      {cameraOn && step !== 'zone' && (
+      {cameraOn && step !== 'zone' && step !== 'lens' && (
         <div aria-hidden className="pointer-events-none absolute inset-0 text-white">
           <div
             className={`absolute left-1/2 top-1/2 h-28 w-28 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 transition-colors ${
@@ -636,6 +666,15 @@ export function VelocityScreen({
             <ChevronLeft aria-hidden className="h-5 w-5" />
             주의사항
           </button>
+        ) : step === 'lens' ? (
+          <button
+            type="button"
+            onClick={() => setStep('measure')}
+            className="inline-flex h-10 items-center gap-0.5 rounded-lg pl-1 pr-3 text-sm font-medium text-sky transition-colors hover:bg-sky-tint"
+          >
+            <ChevronLeft aria-hidden className="h-5 w-5" />
+            측정
+          </button>
         ) : step === 'zone' ? (
           <button
             type="button"
@@ -735,6 +774,32 @@ export function VelocityScreen({
             </PrimaryButton>
           </div>
         </>
+      )}
+
+      {/* 렌즈 보정 — 공을 아는 거리에 두고 크기를 재 초점거리를 얻는다 */}
+      {!showAsk && step === 'lens' && (
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 pb-6 pt-4">
+          <h2 className="text-heading text-2xl leading-tight">렌즈 보정</h2>
+          <p className="mb-4 mt-1.5 text-sm leading-relaxed text-muted">
+            공을 줄자로 잰 거리에 들고, 화면의 원을 공에 대충 맞춘 뒤
+            &lsquo;재기&rsquo;를 누르세요. 초점거리를 직접 재면 화각 가정의 오차(기종 ·
+            크롭)가 사라져요.
+          </p>
+          {finder}
+          {!cameraOn && (
+            <div className="mt-3">
+              <Note tone="warn">카메라를 켜야 잴 수 있어요.</Note>
+            </div>
+          )}
+          <LensCalibrationPanel
+            snapshot={() => captureRef.current?.snapshot() ?? null}
+            camera={camera}
+            finderRef={finderRef}
+            circle={circle}
+            current={lens}
+            onSaved={() => setStep('measure')}
+          />
+        </div>
       )}
 
       {/* 6 — 측정 */}
@@ -1113,7 +1178,7 @@ export function VelocityScreen({
       >
         <div className="space-y-4">
           <VelocitySettingsFields
-            values={{ ...choices, voice, useCal, fovDeg: fov }}
+            values={{ ...choices, voice, useCal, fovDeg: fov, releaseDistM }}
             showChoices={false}
             calibration={fit}
             onChange={(patch) => {
@@ -1126,6 +1191,10 @@ export function VelocityScreen({
                 setUseCal(patch.useCal);
                 persistSetup({ useCal: patch.useCal });
               }
+              if (patch.releaseDistM != null) {
+                setReleaseDistM(patch.releaseDistM);
+                persistSetup({ releaseDistM: patch.releaseDistM });
+              }
             }}
           />
 
@@ -1134,6 +1203,45 @@ export function VelocityScreen({
             <p className="mt-0.5">
               {setupSummary(choices)} · 스트라이크 존 자리 저장됨
             </p>
+          </div>
+
+          <div className="rounded-2xl border border-line bg-surface px-4 py-3 text-sm">
+            <div className="flex items-center justify-between gap-3">
+              <span className="min-w-0">
+                <span className="block text-ink">렌즈 보정</span>
+                <span className="block text-xs leading-snug text-muted">
+                  {lens && camera
+                    ? `공으로 잰 초점거리 ${Math.round(
+                        focalPxFor(lens, Math.max(camera.width, camera.height))
+                      )}px · 화각 약 ${fovDegFromFocal(
+                        focalPxFor(lens, Math.max(camera.width, camera.height)),
+                        Math.max(camera.width, camera.height)
+                      )}°`
+                    : lens
+                      ? '공으로 잰 값을 쓰는 중'
+                      : `아직 안 했어요 — 화각 ${fov}° 가정으로 계산 중. 정확도를 위해 꼭 한 번 하세요.`}
+                </span>
+              </span>
+              <button
+                type="button"
+                onClick={() => {
+                  setSheet('none');
+                  setStep('lens');
+                }}
+                className="inline-flex h-10 shrink-0 items-center justify-center rounded-xl border border-line-strong bg-surface-2 px-3.5 text-xs font-semibold text-ink hover:border-sky hover:text-sky"
+              >
+                {lens ? '다시 재기' : '보정하기'}
+              </button>
+            </div>
+            {lens && (
+              <button
+                type="button"
+                onClick={() => clearLens()}
+                className="mt-2 text-xs text-muted underline-offset-2 hover:underline"
+              >
+                보정 지우기(화각 가정으로 돌아가기)
+              </button>
+            )}
           </div>
 
           <div className="flex gap-2">

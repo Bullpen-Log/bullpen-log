@@ -123,12 +123,15 @@ export function findMovedBlobs(
   background: Float32Array,
   currLuma: ArrayLike<number>,
   width: number,
-  height: number
+  height: number,
+  /** 이 프레임이 배경보다 전체적으로 밝아진 양(자동 노출) — 빼고 견준다(analyze-frames.ts) */
+  exposureBias = 0
 ): Blob[] {
   const moved = new Uint8Array(width * height);
+  const threshold = DIFF_THRESHOLD + exposureBias;
   for (let i = 0; i < moved.length; i++) {
     // 공은 배경보다 밝게 찍히는 쪽이라 밝아진 곳만 본다. 그림자를 걸러준다.
-    if (currLuma[i] - background[i] > DIFF_THRESHOLD) moved[i] = 1;
+    if (currLuma[i] - background[i] > threshold) moved[i] = 1;
   }
 
   const blobs: Blob[] = [];

@@ -23,7 +23,16 @@ import {
   SETUP_CHANGE_EVENT,
   SETUP_KEY,
   type VelocitySetup,
+  approachOf,
+  RELEASE_DIST_MIN,
+  RELEASE_DIST_MAX,
 } from '@/lib/velocity-setup';
+import {
+  LENS_CHANGE_EVENT,
+  LENS_KEY,
+  loadLens,
+  type LensCalibration,
+} from '@/lib/velocity-lens';
 import { BottomSheet } from './pitch-editor';
 import { Panel, SectionLabel } from './kit';
 
@@ -37,7 +46,7 @@ import { Panel, SectionLabel } from './kit';
 
 export type SettingsValues = Pick<
   VelocitySetup,
-  'mode' | 'cameraPos' | 'net' | 'voice' | 'useCal'
+  'mode' | 'cameraPos' | 'net' | 'voice' | 'useCal' | 'releaseDistM'
 > & { fovDeg: number };
 
 const NET_VALUES = [
@@ -110,6 +119,40 @@ export function VelocitySettingsFields({
               °
             </span>
           </label>
+          {approachOf(values) === 'approaching' && (
+            <label className="flex min-h-14 items-center justify-between gap-3 px-4 py-3">
+              <span className="min-w-0">
+                <span className="block text-sm text-ink">
+                  카메라에서 릴리스 지점까지
+                </span>
+                <span className="block text-xs leading-snug text-muted">
+                  다가오는 공은 마지막 몇 m 만 보여요. 이 거리만큼 공기저항(1m 에 약
+                  0.8km/h)을 되돌려 릴리스 구속을 내요. 정규 마운드 · 홈 뒤 1.8m 면 약
+                  18.5m.
+                </span>
+              </span>
+              <span className="inline-flex shrink-0 items-center gap-1 text-sm">
+                <input
+                  inputMode="decimal"
+                  key={values.releaseDistM}
+                  defaultValue={values.releaseDistM}
+                  onBlur={(e) => {
+                    const n = Math.round(Number(e.target.value) * 10) / 10;
+                    if (
+                      n >= RELEASE_DIST_MIN &&
+                      n <= RELEASE_DIST_MAX &&
+                      n !== values.releaseDistM
+                    )
+                      onChange({ releaseDistM: n });
+                    else e.target.value = String(values.releaseDistM);
+                  }}
+                  aria-label="카메라에서 릴리스 지점까지 거리(m)"
+                  className="h-11 w-20 rounded-xl border border-line bg-surface-2 px-3 text-right text-sm tabular-nums text-ink transition-colors focus:border-sky focus:outline-none"
+                />
+                m
+              </span>
+            </label>
+          )}
         </Panel>
       </div>
 
@@ -220,6 +263,27 @@ const readRaw = () => {
   }
 };
 
+/** 저장된 렌즈 보정 — 서버에서는 null. 바뀌면 다시 그린다 */
+export function useStoredLens(): LensCalibration | null {
+  const raw = useSyncExternalStore(subscribeLens, readLensRaw, () => null);
+  return useMemo(() => (raw ? loadLens() : null), [raw]);
+}
+const subscribeLens = (cb: () => void) => {
+  window.addEventListener('storage', cb);
+  window.addEventListener(LENS_CHANGE_EVENT, cb);
+  return () => {
+    window.removeEventListener('storage', cb);
+    window.removeEventListener(LENS_CHANGE_EVENT, cb);
+  };
+};
+const readLensRaw = () => {
+  try {
+    return localStorage.getItem(LENS_KEY);
+  } catch {
+    return null;
+  }
+};
+
 /** 저장된 설정 — 서버에서는 null, 브라우저에서는 있으면 값. 바뀌면 다시 그린다 */
 export function useStoredSetup(): VelocitySetup | null {
   const raw = useSyncExternalStore(subscribe, readRaw, () => null);
@@ -249,6 +313,7 @@ export function VelocitySettingsButton({
     net: base.net,
     voice: base.voice,
     useCal: base.useCal,
+    releaseDistM: base.releaseDistM,
     fovDeg: fov,
   };
   const change = (patch: Partial<SettingsValues>) => {
@@ -266,6 +331,7 @@ export function VelocitySettingsButton({
         zone: base.zone,
         voice: base.voice,
         useCal: base.useCal,
+        releaseDistM: base.releaseDistM,
         ...rest,
       });
     }
@@ -305,6 +371,7 @@ export function VelocitySettingsButton({
                   zone: DEFAULT_ZONE,
                   voice: base.voice,
                   useCal: base.useCal,
+                  releaseDistM: base.releaseDistM,
                 })
               }
             >

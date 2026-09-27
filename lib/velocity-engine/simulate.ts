@@ -1,5 +1,6 @@
 import {
   BALL_DIAMETER_M,
+  DRAG_K_PER_M,
   focalPxFromFov,
   type BallObservation,
   type CameraLens,
@@ -42,8 +43,11 @@ export type SimulationOptions = {
   releaseOffsetPx?: { x: number; y: number };
   /** 공 지름을 재는 데 섞이는 오차(픽셀 단위 표준편차) */
   diameterNoisePx?: number;
-  /** 공기저항으로 느려지는 정도(1/s). 0이면 등속 */
-  dragPerSec?: number;
+  /**
+   * 공기저항 — 1m 날 때마다 속도가 K 비율로 주는 감속 상수(1/m, v(s) = v₀·e^(−K·s)).
+   * 기본은 엔진과 같은 0.006(실제 야구공). 0 이면 등속 — 계산기의 기하만 볼 때.
+   */
+  dragPerM?: number;
   /** 난수 씨앗 — 같은 값을 넣으면 같은 결과가 나온다 */
   seed?: number;
 };
@@ -87,7 +91,7 @@ export function simulatePitch(opts: SimulationOptions): Simulation {
     travelM = 16,
     releaseOffsetPx = { x: 0, y: 0 },
     diameterNoisePx = 0,
-    dragPerSec = 0,
+    dragPerM = DRAG_K_PER_M,
     seed = 1,
   } = opts;
 
@@ -114,8 +118,8 @@ export function simulatePitch(opts: SimulationOptions): Simulation {
       diameterPx: Math.max(0.1, diameterTrue + noise),
     });
 
-    // 공기저항이 있으면 조금씩 느려진다.
-    const speed = speed0 * Math.exp(-dragPerSec * t);
+    // 공기저항 — 지금까지 날아온 거리만큼 느려져 있다.
+    const speed = speed0 * Math.exp(-dragPerM * traveled);
     const step = speed * dt;
     distance += step;
     traveled += step;

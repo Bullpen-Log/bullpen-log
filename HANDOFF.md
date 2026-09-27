@@ -11,19 +11,19 @@ Claude 로 작업을 시작하면 저절로 읽힌다. 규칙은 `AGENTS.md` 6�
 
 ---
 
-## 금윤호에게 — 2026-09-27 저녁 · 김민(Claude)
+## 김민에게 — 2026-09-27 밤 · 금윤호(Claude) — 구속 측정 엔진 정확도
 
-받은 뒤 할 일: **개발 서버를 다시 켠다** — 운동 목록 캐시 이름을 `library:exercises:v7` 으로
-바꿨다(`lib/library-cache.ts`). DB 구조 · 패키지는 그대로다. 네 메모(구속 측정 표 추가)는
-사용자에게 전하고 지웠다 — `npx prisma generate` 도 돌렸다.
+네 메모(운동 라이브러리 · 장비 · 캐시 v7 → 서버 다시 켜기)는 사용자에게 전하고 처리했다.
 
-- **운동 라이브러리 내용을 바꿨다(구조가 아니라 줄, 백업 뒤에, 사용자 요청).** 유산소 다섯(빠르게
-  걷기 · 가벼운 조깅 · 템포 런 · 박스 오르내리기 · 셔틀 런 인터벌 — 0개였다, 회복날 · 컨디셔닝 날의
-  유산소 칸이 비어서 나왔다)과 손가락을 굽히는 암케어 셋(고무줄 손가락 굽히기 · 덤벨 핑거 컬 · 원판
-  핀치 잡기)을 더했다(`scripts/add-reference-exercises.mts scripts/exercises-2026-09-27.json`).
-  실내 자전거 · 로잉머신 · 악력기를 쓰는 다섯도 넣었다가, 트레이닝 설정의 장비에 없는 도구라 숨겼다
-  (지우지는 않았다 — 관리자 화면에서 숨김을 풀거나 지울 수 있다).
-- **트레이닝 장비 목록에 `워터볼` · `워터백` 을 더했다**(`lib/exercise-meta.ts`). 코어 · 파워 운동
-  7개가 쓰는데 목록에 없어서, 가진 장비를 고른 사람에게는 아예 안 나왔다. 드릴 장비 목록에는 원래 있었다.
-- 유튜브 영상 비율을 재는 `scripts/youtube-aspect.mjs` 가 세로 쇼츠를 가로(1.778)로 잘못 재던
-  것을 고쳤다 — 재생 정보(streamingData)의 크기만 본다.
+**받은 뒤 할 일 없음** — DB 구조 · 패키지 그대로(`package.json` 에 시험대 스크립트 한 줄만 늘었다).
+구속 측정 파일만 고쳤다(`lib/velocity-engine/*`, `components/velocity/*`, `app/(session)/velocity/*`,
+`lib/velocity-lens.ts` · `lib/velocity-setup.ts`).
+
+- **정확도 시험대 `npm run velocity:accuracy`**(`scripts/velocity-accuracy.mts`) — 진짜 구속을 아는 공을 프레임으로
+  그려(번짐 · 잡음 · 노출 변화 · 옆 흐름 · 공기저항 · 화각 오차 · 포수 뒤) 엔진 전체를 돌리고 오차를 잰다.
+  `--only=글자` 로 일부만, `--seeds=N`, `--diag` 로 지름 치우침. 엔진을 손대면 이걸로 앞뒤를 견준다.
+- 엔진에서 바뀐 것(부르는 쪽 영향): `analyzeFrames` 입력에 `focalPx`(렌즈 보정값) · `releaseDistanceM`(포수 뒤) 이
+  늘었고, `ReleaseInfo.dxCm/dyCm/distanceM` 이 `number | null` 이 됐다(포수 뒤는 위치를 모른다). `MeasureSuccess.detail`
+  에 `startKmh` · `endKmh`. `findMovedBlobs` 다섯째 인자 `exposureBias`. `simulatePitch` 의 `dragPerSec` → `dragPerM`.
+- 속도 맞춤이 직선에서 공기저항 곡선(`geometry.ts` `fitDrag`)으로 바뀌었다. 지름은 문턱값 상자가 아니라 밝기 총량으로
+  다시 잰다(`analyze-frames.ts` `refineTrack`). 시험대 기준 편향 −8~−23km/h → ±0.5km/h 안(자세한 건 커밋 본문).

@@ -176,6 +176,37 @@ export class LiveCapture {
     this.net = net;
   }
 
+  /** 공으로 보정한 초점거리(긴 변 픽셀당). 없으면 화각 가정(lib/velocity-lens.ts) */
+  private focalPerLongSide: number | null = null;
+  setFocalPerLongSide(v: number | null) {
+    this.focalPerLongSide = v;
+  }
+
+  /** 포수 뒤: 카메라에서 릴리스 지점까지(m) — 릴리스 구속을 되돌릴 때. 투수 뒤에서는 null */
+  private releaseDistanceM: number | null = null;
+  setReleaseDistance(v: number | null) {
+    this.releaseDistanceM = v;
+  }
+
+  /** 지금 화면 한 장(분석 해상도 밝기) — 렌즈 보정이 공 크기를 잴 때 */
+  snapshot(): {
+    luma: Uint8Array;
+    width: number;
+    height: number;
+    sourceWidth: number;
+    sourceHeight: number;
+  } | null {
+    const last = this.ring[this.ring.length - 1];
+    if (!last || !this.stream) return null;
+    return {
+      luma: last.luma,
+      width: this.width,
+      height: this.height,
+      sourceWidth: this.sourceWidth,
+      sourceHeight: this.sourceHeight,
+    };
+  }
+
   setFov(fovDeg: number) {
     this.fovDeg = fovDeg;
   }
@@ -501,8 +532,12 @@ export class LiveCapture {
           sourceWidth: this.sourceWidth,
           sourceHeight: this.sourceHeight,
           fovDeg: this.fovDeg,
+          focalPx: this.focalPerLongSide
+            ? this.focalPerLongSide * Math.max(this.sourceWidth, this.sourceHeight)
+            : undefined,
           shakePx,
           approach: this.approach,
+          releaseDistanceM: this.releaseDistanceM,
         });
         this.handlers.onResult(result);
       } catch (e) {

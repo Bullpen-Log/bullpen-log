@@ -1,6 +1,7 @@
 'use client';
 
-import type { ReactNode } from 'react';
+import type { ComponentProps, ReactNode } from 'react';
+import { Button } from '@/components/ui';
 
 /**
  * 불펜 벨로시티 화면들이 같이 쓰는 작은 조각 — 앱의 부품(components/ui)과 같은 규격.
@@ -124,3 +125,59 @@ export function Note({
 export const CHIP_BASE =
   'min-h-10 rounded-lg border px-3.5 text-sm transition-colors border-line bg-surface-2 text-muted hover:border-sky-soft hover:text-ink';
 export const CHIP_ON = 'border-sky bg-sky/10 font-medium text-sky';
+
+/** 큰 단추 — 앱의 Button 그대로, 높이만 48px 로 못박고 남는 폭을 채운다 */
+export function BigButton({ className, ...props }: ComponentProps<typeof Button>) {
+  return <Button className={join('h-12 flex-1', className)} {...props} />;
+}
+
+/**
+ * 칩 — 하나를 고르는 짧은 항목들. 운동 등록 폼의 선택 칩과 같은 색 · 모서리(CHIP_BASE), 높이 40px.
+ */
+export function Chips<V extends string>({
+  label,
+  options,
+  value,
+  onChange,
+  allowNone = true,
+  wrap = true,
+}: {
+  label: string;
+  options: readonly { value: V; label: string }[];
+  value: V | null;
+  onChange: (v: V | null) => void;
+  /** 고른 것을 다시 누르면 푼다 */
+  allowNone?: boolean;
+  /** false 면 한 줄로 두고 옆으로 굴린다 */
+  wrap?: boolean;
+}) {
+  return (
+    <div
+      role="radiogroup"
+      aria-label={label}
+      className={
+        wrap
+          ? 'flex flex-wrap gap-2'
+          : 'no-scrollbar -mx-4 flex gap-2 overflow-x-auto px-4'
+      }
+    >
+      {options.map((o) => {
+        const on = value === o.value;
+        return (
+          <button
+            key={o.value}
+            type="button"
+            role="radio"
+            aria-checked={on}
+            onClick={() => onChange(on && allowNone ? null : o.value)}
+            className={
+              on ? `${CHIP_BASE} ${CHIP_ON} shrink-0` : `${CHIP_BASE} shrink-0`
+            }
+          >
+            {o.label}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
