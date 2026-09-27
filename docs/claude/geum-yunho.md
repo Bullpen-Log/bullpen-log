@@ -107,11 +107,19 @@
   활용신청 상태를 보게 한다. 사용자가 "키 넣었어"라고 하면 로그인 상태로 `/api/nutrition/search?q=쌀밥` 응답의
   칸 번호(AMT_NUM1 kcal · 3 단백질 · 4 지방 · 6 탄수화물)가 맞는지 보고, 틀리면 `lib/nutrition/mfds-parse.ts` 를 고친다.
   Vercel 환경변수에도 넣었는지 묻는다.
-- **구속 측정 시제품(2026-09-27).** `/velocity`(app/(session)/velocity) — 카메라로 던짐을 알아채 잰다
-  (`lib/velocity-engine/live-capture.ts` → `analyze-frames.ts`). 앱(UA 에 `BullpenLogApp`) 또는 관리자만.
-  웹 카메라는 60fps 밑이라 엔진이 거부하므로 웹에서는 흐름만 본다. 사용자가 앱으로 만들어 스피드건과 견주며
-  고칠 점을 말하기로 했다 — 보정 짝은 지금 localStorage(`lib/velocity-calibration.ts`), 쓸 만해지면 DB 표로.
-  다음에 손댈 후보: 던짐 감지 문턱값(live-capture.ts 상단 상수), 화각 기본값, 네이티브 고속 촬영 연결.
+- **구속 측정 2차(2026-09-27, 멈춘 자리 — "이어서 해줘"라고 하면 여기부터).** 사용자 요청: Smart Scout ·
+  PitchLab 흐름을 우리 디자인 · 아이폰 느낌으로, 잰 것을 투구 기록에서 관리, 더 많은 정보.
+  - 끝난 것: 표 `VelocitySession` · `VelocityPitch`(백업 뒤 추가, 적용됨), 서버 액션 `app/actions/velocity.ts`
+    (저장 · 공 고치기 · 지우기 · 세션 지우기 · 보정식은 DB 짝으로), 읽기 `lib/velocity-load.ts`, 공용 정의
+    `lib/velocity-meta.ts`(구종 8 · 코스 9칸 · 결과), 엔진에 릴리스 포인트(cm) · 릴리스 구속 추정
+    (`analyze-frames.ts` `DRAG_KMH_PER_M`), 공 편집기 · 바닥 시트 `components/velocity/pitch-editor.tsx`,
+    측정 화면 새 디자인(밝은 바탕 · 내비 바 · 3:4 뷰파인더 · 방금 공 구종 칩 · 요약 4칸 · 공 목록 · 시트),
+    그날 화면 '구속 측정' 칸(`pitch-log/velocity-section.tsx`), 캘린더 그날 칸 한 줄. tsc · lint 통과.
+  - **안 한 것:** 브라우저로 화면 확인(임시 경로 `app/dev-preview-velocity` 를 만들어 `VelocityScreen` ·
+    `VelocitySection` 에 가짜 데이터로 띄워 폰 375 · PC 1536 에서 보고 지운다), 목록(video-gallery) 줄에
+    측정 표시, HANDOFF 의 시제품 항목 정리, 커밋 뒤 사용자에게 "올려줘" 받기.
+  - 앱(UA 에 `BullpenLogApp`) 또는 관리자만 연다. 웹 카메라는 60fps 밑이라 엔진이 거부 — 웹은 흐름 확인용.
+    다음에 손댈 후보: 던짐 감지 문턱값(`live-capture.ts` 상단 상수), 화각 기본값, 네이티브 고속 촬영 연결.
 - **사용자 답 대기** — 약관 · 개인정보 처리방침의 빈칸: 시행일 `2026년 0월 0일`(`app/(legal)/terms` · `privacy`),
   개인정보 보호책임자 `[이름]`(privacy). 그리고 `/more` 화면을 홈으로 넘기고 지울지.
 - **`NutritionProfile.sex` 칸 지우기(금윤호 몫).** 성별은 `User.sex` 로 옮겼고 이 칸은 안 쓴다. 지우는 마이그레이션은

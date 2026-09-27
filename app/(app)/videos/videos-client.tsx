@@ -54,6 +54,7 @@ export function VideosClient({
   initialDate,
   today,
   canMeasure,
+  measured,
 }: {
   logs: VideoLog[];
   /** 날짜(YYYY-MM-DD)별로 고른 대표 영상. 안 고른 날은 없다. */
@@ -66,6 +67,8 @@ export function VideosClient({
   today: string;
   /** 카메라 구속 측정 단추를 보일까 — 앱 안이거나 관리자일 때만(app/(app)/videos/page.tsx) */
   canMeasure: boolean;
+  /** 날짜별 카메라 측정 요약(공 수 · 최고 km/h) — 캘린더의 그날 칸에 적는다 */
+  measured: Record<string, { n: number; max: number }>;
 }) {
   const todayKey = useTodayKey(today);
   const [view, setView] = useState<'calendar' | 'list'>('calendar');
@@ -198,6 +201,7 @@ export function VideosClient({
           <VideoCalendar
             logs={logs}
             featured={featured}
+            measured={measured}
             initialMonth={initialMonth}
             initialDate={initialDate}
           />

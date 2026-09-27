@@ -2,6 +2,7 @@ import { headers } from 'next/headers';
 import { prisma } from '@/lib/prisma';
 import { requireUser } from '@/lib/dal';
 import { isNativeUserAgent } from '@/lib/app-env';
+import { loadVelocityByDate } from '@/lib/velocity-load';
 import { toDateKey } from '@/lib/pitch-stats';
 import { VideosClient } from './videos-client';
 
@@ -43,7 +44,7 @@ export default async function VideosPage({
    * 목록은 기록 전체를 훑는 자리다. 한 줄이 숫자 몇 개와 짧은 메모라, 매일 3년을
    * 남겨도 천 줄 남짓이다.
    */
-  const [logs, featured] = await Promise.all([
+  const [logs, featured, measured] = await Promise.all([
     prisma.pitchLog.findMany({
       where: { userId: user.id },
       /*
@@ -67,6 +68,8 @@ export default async function VideosPage({
       where: { userId: user.id },
       select: { date: true, videoPath: true },
     }),
+    /* 카메라로 잰 날 — 그날 칸에 '측정 n구 · 최고' 한 줄 */
+    loadVelocityByDate(user.id),
   ]);
 
   // Date 객체는 클라이언트로 그대로 넘길 수 없어 문자열로 바꿔 전달한다.
@@ -80,6 +83,7 @@ export default async function VideosPage({
       initialDate={date}
       today={toDateKey(now())}
       canMeasure={canMeasure}
+      measured={measured}
     />
   );
 }

@@ -2,6 +2,7 @@ import { headers } from 'next/headers';
 import { requireUser } from '@/lib/dal';
 import { isNativeUserAgent } from '@/lib/app-env';
 import { toDateKey } from '@/lib/pitch-stats';
+import { loadCalibration } from '@/app/actions/velocity';
 import { VelocityScreen } from './velocity-screen';
 import { AppOnly } from './app-only';
 
@@ -25,7 +26,15 @@ export default async function VelocityPage() {
 
   if (!isAdmin && !native) return <AppOnly />;
 
+  /* 그 사람의 스피드건 짝으로 맞춘 보정식 — 화면은 이걸로 잰 값을 바로 보정해 보여 준다 */
+  const { fit } = await loadCalibration();
+
   return (
-    <VelocityScreen isAdmin={isAdmin} native={native} today={toDateKey(new Date())} />
+    <VelocityScreen
+      isAdmin={isAdmin}
+      native={native}
+      today={toDateKey(new Date())}
+      calibration={fit}
+    />
   );
 }

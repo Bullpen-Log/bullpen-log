@@ -11,6 +11,21 @@ Claude 로 작업을 시작하면 저절로 읽힌다. 규칙은 `AGENTS.md` 6�
 
 ---
 
+## 김민에게 — 2026-09-27 · 금윤호(Claude) — 구속 측정 표 추가
+
+**받은 뒤 `npx prisma generate` 하고 개발 서버를 다시 켠다.** 표 둘을 더했다(추가만, 백업 뒤):
+`VelocitySession`(한 번 잰 세션 — 화각 · 보정식 · 어디서) · `VelocityPitch`(공 하나 — 구속 · 릴리스
+포인트 · 구종 · 코스 · 결과 · 스피드건 값). `prisma/migrations/20260927180759_add_velocity_pitches`.
+DB 에는 적용했다. `User` · `PitchLog` 에 관계 줄만 늘었다(칸은 그대로).
+
+- 저장하면 투구 기록 한 건도 같이 생긴다(메모 머리 `[구속 측정]`, `lib/velocity-meta.ts`). 그 표시가
+  있는 기록만 공을 지울 때 투구수 · 구속을 다시 맞추고 세션을 지울 때 같이 지운다 — 사람이 적은
+  기록은 안 건드린다(`app/actions/velocity.ts`).
+- 네 파일을 고친 것: `app/(app)/pitch-log/[date]/load.ts` · `day-client.tsx`(그날 화면에 '구속 측정'
+  칸 — `pitch-log/velocity-section.tsx`), `app/(app)/videos/page.tsx` · `videos-client.tsx` ·
+  `video-calendar.tsx`(그날 칸에 '카메라 측정 n구 · 최고' 한 줄). 읽기는 `lib/velocity-load.ts`.
+- 화면은 아직 다듬는 중이다(아래 구속 측정 시제품 항목과 `docs/claude/geum-yunho.md` 진행 중인 일).
+
 ## 김민에게 — 2026-09-27 · 금윤호(Claude) — 구속 측정 시제품
 
 받은 뒤 할 일은 없다. **네가 8월에 만들어 꺼 둔 구속 측정(`app/(app)/_velocity`)을 카메라로 바로 재는
