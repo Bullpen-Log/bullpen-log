@@ -82,10 +82,13 @@ export function VideoCalendar({
   featured,
   initialMonth,
   initialDate,
+  measured,
 }: {
   logs: VideoLog[];
   /** 날짜별로 고른 대표 영상 */
   featured: Record<string, string>;
+  /** 날짜별 카메라 구속 측정 요약 — 그날 칸 머리에 한 줄 */
+  measured: Record<string, { n: number; max: number }>;
   /** 처음에 펴 둘 달(YYYY-MM) */
   initialMonth: string | null;
   /** 처음에 열어 둘 날(YYYY-MM-DD) — 홈에서 '영상 탭에서 보기'로 들어온 경우 */
@@ -443,6 +446,7 @@ export function VideoCalendar({
                 date={shown}
                 day={shownDay}
                 rep={repOf(shown)}
+                measured={measured[shown] ?? null}
                 thumbs={thumbs}
                 failed={failed}
                 onFeature={(path) => feature(shown, path)}
@@ -525,6 +529,7 @@ function DayPanel({
   date,
   day,
   rep,
+  measured,
   thumbs,
   failed,
   onFeature,
@@ -533,6 +538,8 @@ function DayPanel({
   date: string;
   day: Day | undefined;
   rep: string | null;
+  /** 이날 카메라로 잰 구속 요약 — 없으면 null */
+  measured: { n: number; max: number } | null;
   thumbs: Thumbs;
   failed: Set<string>;
   onFeature: (path: string) => void;
@@ -603,6 +610,8 @@ function DayPanel({
           <span className="font-normal text-muted">
             {day.rest ? ' · 쉬는 날' : ` · ${day.pitches}구`}
             {day.paths.length > 0 && ` · 영상 ${day.paths.length}개`}
+            {measured &&
+              ` · 카메라 측정 ${measured.n}구 · 최고 ${formatSpeed(measured.max, speedUnit)}`}
           </span>
         </h3>
         <Link

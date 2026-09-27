@@ -5,11 +5,11 @@
  * 낮게 나온다(그리고 렌즈 화각이 조금만 달라도 전체가 같이 밀린다). 그래서 스피드건과
  * 같이 재며 짝(카메라 값, 건 값)을 모으고, 그 짝으로 '건 값 ≈ a × 카메라 값 + b' 를 맞춘다.
  *
- * 짝은 브라우저(localStorage)에만 둔다 — 시제품이라 DB 표를 새로 만들지 않았다. 팀이 모은
- * 짝은 '복사' 로 글자로 뽑아 나눈다. 쓸 만해지면 표로 옮기고 화각 · 계수를 계정에 둔다.
+ * 짝은 공마다 DB 에 있다(VelocityPitch.rawKmh · gunKmh). 서버가 그 사람 것을 모아 식을 맞추고
+ * (app/actions/velocity.ts), 세션을 저장할 때 그때의 식을 세션에 박아 둔다. 화각은 기기마다
+ * 달라 브라우저(localStorage)에 둔다.
  */
 
-export const CAL_KEY = 'bullpen-velocity-cal';
 export const FOV_KEY = 'bullpen-velocity-fov';
 
 export type CalPair = {
@@ -17,8 +17,6 @@ export type CalPair = {
   measured: number;
   /** 스피드건 값(km/h) */
   gun: number;
-  /** 언제(ISO) */
-  at: string;
 };
 
 export type CalFit = {
@@ -28,33 +26,7 @@ export type CalFit = {
   n: number;
 };
 
-const IDENTITY: CalFit = { scale: 1, offset: 0, n: 0 };
-
-export function loadPairs(): CalPair[] {
-  if (typeof window === 'undefined') return [];
-  try {
-    const raw = localStorage.getItem(CAL_KEY);
-    const parsed: unknown = raw ? JSON.parse(raw) : [];
-    if (!Array.isArray(parsed)) return [];
-    return parsed.filter(
-      (p): p is CalPair =>
-        !!p &&
-        typeof p === 'object' &&
-        Number.isFinite((p as CalPair).measured) &&
-        Number.isFinite((p as CalPair).gun)
-    );
-  } catch {
-    return [];
-  }
-}
-
-export function savePairs(pairs: CalPair[]) {
-  try {
-    localStorage.setItem(CAL_KEY, JSON.stringify(pairs));
-  } catch {
-    /* 사생활 보호 모드 등 — 저장이 안 되면 이번 세션만 쓴다 */
-  }
-}
+export const NO_CALIBRATION: CalFit = { scale: 1, offset: 0, n: 0 };
 
 export function loadFov(fallback: number): number {
   if (typeof window === 'undefined') return fallback;
@@ -70,7 +42,7 @@ export function saveFov(fovDeg: number) {
   try {
     localStorage.setItem(FOV_KEY, String(fovDeg));
   } catch {
-    /* 위와 같다 */
+    /* 사생활 보호 모드 등 — 저장이 안 되면 이번만 쓴다 */
   }
 }
 
@@ -85,7 +57,7 @@ export function saveFov(fovDeg: number) {
  */
 export function fitCalibration(pairs: CalPair[]): CalFit {
   const n = pairs.length;
-  if (n === 0) return IDENTITY;
+  if (n === 0) return NO_CALIBRATION;
   if (n < 3) {
     const offset = pairs.reduce((s, p) => s + (p.gun - p.measured), 0) / n;
     return { scale: 1, offset: round2(offset), n };
@@ -108,12 +80,18 @@ export function applyCalibration(kmh: number, fit: CalFit): number {
   return Math.round((kmh * fit.scale + fit.offset) * 10) / 10;
 }
 
+/** '×1.02 +1.3 (짝 4)' — 화면에 보여 줄 한 줄. 짝이 없으면 null */
+export function calibrationText(fit: CalFit): string | null {
+  if (fit.n === 0) return null;
+  return `×${fit.scale} ${fit.offset >= 0 ? '+' : ''}${fit.offset} (짝 ${fit.n})`;
+}
+
 /** 짝을 글자로 — 팀과 나누거나 표에 붙여 넣을 때 */
 export function pairsToText(pairs: CalPair[]): string {
-  const lines = pairs.map(
-    (p) => `${p.at.slice(0, 16).replace('T', ' ')}\t${p.measured}\t${p.gun}`
-  );
-  return ['시각\t카메라(km/h)\t스피드건(km/h)', ...lines].join('\n');
+  return [
+    '카메라(km/h)\t스피드건(km/h)',
+    ...pairs.map((p) => `${p.measured}\t${p.gun}`),
+  ].join('\n');
 }
 
 const round2 = (n: number) => Math.round(n * 100) / 100;

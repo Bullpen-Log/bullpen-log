@@ -4,9 +4,21 @@ import {
   trackBall,
   type FrameBlobs,
 } from './detect.ts';
-import { focalPxFromFov, type BallObservation, type CameraLens } from './geometry.ts';
+import {
+  focalPxFromFov,
+  toPoint3D,
+  type BallObservation,
+  type CameraLens,
+} from './geometry.ts';
 import { checkFootage } from './validate.ts';
-import { measureVelocity, type MeasureResult } from './measure.ts';
+import {
+  measureVelocity,
+  MIN_USABLE_BALL_PX,
+  type Approach,
+  type MeasureResult,
+} from './measure.ts';
+
+export type { Approach } from './measure.ts';
 
 /**
  * 이미 꺼내 둔 프레임(밝기 그림)으로 구속을 잰다 — 계산의 한가운데.
@@ -52,10 +64,35 @@ export type AnalyzeFramesInput = {
   fovDeg?: number;
   /** 카메라가 얼마나 흔들렸는지(픽셀). 비우면 여기서 잰다 */
   shakePx?: number;
+  /** 공이 멀어지나(투수 뒤, 기본) 다가오나(포수 뒤) */
+  approach?: Approach;
+};
+
+/**
+ * 공기 저항으로 공이 1m 날아갈 때 느려지는 정도(km/h).
+ *
+ * 메이저리그 추적 자료로는 릴리스에서 홈까지(약 17m) 8~10% 느려진다 — 150km/h 면 1m 에
+ * 0.7~0.9km/h. 카메라 값은 구간 평균이라 구간 한가운데의 속도에 가깝고, 릴리스 직후는 그보다
+ * 이만큼 × (구간/2) 빠르다. 어림값이다. 스피드건 짝이 쌓이면 보정식이 이 몫까지 흡수하므로,
+ * 화면에는 '추정'이라고 적는다.
+ */
+export const DRAG_KMH_PER_M = 0.8;
+
+/** 측정이 성공했을 때 더 낼 수 있는 것들 */
+export type ReleaseInfo = {
+  /** 릴리스 직후 구속 추정(km/h) — 구간 평균에 공기 저항만큼 되돌린 값 */
+  releaseKmh: number;
+  /** 릴리스 포인트가 표적(화면 가운데)에서 좌우 · 상하로 몇 cm 떨어졌나(오른쪽 · 위가 +) */
+  dxCm: number;
+  dyCm: number;
+  /** 카메라에서 릴리스 지점까지(m) */
+  distanceM: number;
 };
 
 export type AnalyzeResult = {
   measure: MeasureResult;
+  /** 측정이 성공했을 때만 */
+  release: ReleaseInfo | null;
   /** 화면에 궤적을 그릴 때 쓸 관측 (분석 해상도 기준) */
   track: BallObservation[];
   /** 분석에 쓴 해상도 */
@@ -129,8 +166,43 @@ export function isSameFrame(prev: ArrayLike<number>, curr: ArrayLike<number>): b
   return n > 0 && diff / n < 0.6;
 }
 
+/**
+ * 릴리스 포인트와 릴리스 구속 추정.
+ *
+ * 릴리스 포인트는 '쓸 만한 크기로 찍힌 첫 관측'의 3차원 위치다(measure.ts 가 계산에 쓰는
+ * 첫 점과 같다). 화면 가운데 표적에서 얼마나 벗어났는지를 cm 로 — 같은 투수가 공마다 얼마나
+ * 같은 자리에서 놓는지(일관성)를 보는 데 쓴다. 카메라가 투수 뒤에 있으므로 오른쪽이 투수의
+ * 오른쪽이다. 화면 y 는 아래로 자라므로 뒤집어 위를 + 로 둔다.
+ */
+function releaseInfo(
+  observations: BallObservation[],
+  lens: CameraLens,
+  kmh: number,
+  travelM: number
+): ReleaseInfo | null {
+  const first = [...observations]
+    .sort((a, b) => a.t - b.t)
+    .find((o) => o.diameterPx >= MIN_USABLE_BALL_PX);
+  const point = first ? toPoint3D(first, lens) : null;
+  if (!point) return null;
+  const round1 = (n: number) => Math.round(n * 10) / 10;
+  return {
+    releaseKmh: round1(kmh + (DRAG_KMH_PER_M * travelM) / 2),
+    dxCm: round1(point.x * 100),
+    dyCm: round1(-point.y * 100),
+    distanceM: Math.round(point.z * 100) / 100,
+  };
+}
+
 export function analyzeFrames(input: AnalyzeFramesInput): AnalyzeResult {
-  const { width, height, sourceWidth, sourceHeight, fovDeg = DEFAULT_FOV_DEG } = input;
+  const {
+    width,
+    height,
+    sourceWidth,
+    sourceHeight,
+    fovDeg = DEFAULT_FOV_DEG,
+    approach = 'receding',
+  } = input;
 
   /*
    * 1) 같은 장면이 두 번 나오면 건너뛴다.
@@ -180,7 +252,11 @@ export function analyzeFrames(input: AnalyzeFramesInput): AnalyzeResult {
     t: f.t,
     blobs: findMovedBlobs(background, f.luma, width, height),
   }));
-  const track = trackBall(blobFrames, { frameWidth: width, frameHeight: height });
+  const track = trackBall(blobFrames, {
+    frameWidth: width,
+    frameHeight: height,
+    approach,
+  });
 
   // 지름·좌표를 원본 해상도 기준으로 되돌린다. 렌즈 정보가 원본 기준이기 때문이다.
   const scale = width / sourceWidth;
@@ -222,10 +298,16 @@ export function analyzeFrames(input: AnalyzeFramesInput): AnalyzeResult {
         observations: scaled,
         lens,
         stability: { maxBackgroundShiftPx: shakePx },
+        approach,
       });
 
   return {
     measure,
+    /* 릴리스 포인트는 멀어지는 공(투수 뒤)에서만 잡힌다 — 다가오는 공은 릴리스가 화면 밖 */
+    release:
+      measure.ok && approach === 'receding'
+        ? releaseInfo(scaled, lens, measure.kmh, measure.detail.travelM)
+        : null,
     fps: measuredFps,
     track,
     analyzeSize: { width, height },

@@ -107,11 +107,30 @@
   활용신청 상태를 보게 한다. 사용자가 "키 넣었어"라고 하면 로그인 상태로 `/api/nutrition/search?q=쌀밥` 응답의
   칸 번호(AMT_NUM1 kcal · 3 단백질 · 4 지방 · 6 탄수화물)가 맞는지 보고, 틀리면 `lib/nutrition/mfds-parse.ts` 를 고친다.
   Vercel 환경변수에도 넣었는지 묻는다.
-- **구속 측정 시제품(2026-09-27).** `/velocity`(app/(session)/velocity) — 카메라로 던짐을 알아채 잰다
-  (`lib/velocity-engine/live-capture.ts` → `analyze-frames.ts`). 앱(UA 에 `BullpenLogApp`) 또는 관리자만.
-  웹 카메라는 60fps 밑이라 엔진이 거부하므로 웹에서는 흐름만 본다. 사용자가 앱으로 만들어 스피드건과 견주며
-  고칠 점을 말하기로 했다 — 보정 짝은 지금 localStorage(`lib/velocity-calibration.ts`), 쓸 만해지면 DB 표로.
-  다음에 손댈 후보: 던짐 감지 문턱값(live-capture.ts 상단 상수), 화각 기본값, 네이티브 고속 촬영 연결.
+- **구속 측정 2차(2026-09-27, 멈춘 자리 — "이어서 해줘"라고 하면 여기부터).** 사용자 요청: Smart Scout ·
+  PitchLab 흐름을 우리 디자인 · 아이폰 느낌으로, 잰 것을 투구 기록에서 관리, 더 많은 정보.
+  - 끝난 것: 표 `VelocitySession` · `VelocityPitch`(백업 뒤 추가, 적용됨), 서버 액션 `app/actions/velocity.ts`
+    (저장 · 공 고치기 · 지우기 · 세션 지우기 · 보정식은 DB 짝으로), 읽기 `lib/velocity-load.ts`, 공용 정의
+    `lib/velocity-meta.ts`(구종 8 · 코스 9칸 · 결과), 엔진에 릴리스 포인트(cm) · 릴리스 구속 추정
+    (`analyze-frames.ts` `DRAG_KMH_PER_M`), 공 편집기 · 바닥 시트 `components/velocity/pitch-editor.tsx`,
+    측정 화면 새 디자인(밝은 바탕 · 내비 바 · 3:4 뷰파인더 · 방금 공 구종 칩 · 요약 4칸 · 공 목록 · 시트),
+    그날 화면 '구속 측정' 칸(`pitch-log/velocity-section.tsx`), 캘린더 그날 칸 한 줄. tsc · lint 통과.
+  - 브라우저로 폰 375 · PC 1536 확인 끝(측정 화면 · 시트 · 그날 칸). 목록 줄에 '카메라 측정' 표시.
+  - 3차(설정 단계): 지난 설정 → 투구/타격 · 투수 뒤/포수 뒤 · 네트 → 주의사항 카드 6장(그림 SVG, '자세히'
+    시트) → 카메라 수평계(deviceorientation, 아이폰은 허락 단추) · 표적 → 반투명 스트라이크 존(끌기 · 크기)
+    → 측정(설정에 소리 안내 = speechSynthesis ko-KR). 설정은 localStorage `bullpen-velocity-setup`. 엔진에
+    `approach` 옵션(포수 뒤 = 다가오는 공). 세션 표에 mode · cameraPos · net 칸. 잰 공의 코스는 마지막 관측
+    위치를 존에 대어 짐작해 미리 채운다(`zoneOfPoint` · `frameToView`).
+    남은 것: 사용자가 폰(앱 · 크롬)에서 카메라로 실제 던져 보고 고칠 점 말하기 → 감지 문턱값 · 화각 조정.
+  - **규칙(사용자, 2026-09-27): 네트 있음 = 수동초점, 네트 없음 = 자동초점.** 네트 뒤에서 자동초점을 두면
+    카메라가 그물코에 초점을 맞춰 공이 흐려진다. 카메라를 켤 때 `focusMode` 를 그렇게 건다
+    (`live-capture.ts` — 브라우저가 지원하면 `manual` + `focusDistance`, 아니면 그대로). 앱 껍데기를 만들 때도
+    같은 규칙으로 네이티브 카메라를 잡는다. 브랜딩은 '불펜 벨로시티' — 자리는 투구 기록 탭의 세 번째 보기
+    [캘린더 | 목록 | 구속 측정](`components/velocity/velocity-panel.tsx`, 앱 · 관리자만 칸이 붙음, PC 에서도
+    폰 틀), 측정은 `/velocity/measure`, `/velocity` 는 그 보기로 보낸다. 설정 시트는 `velocity-settings.tsx`
+    (측정 화면 · 보기가 같이 씀, localStorage). 사용자가 홈 페이지 대신 탭 안의 보기를 원했다(2026-09-27).
+  - 앱(UA 에 `BullpenLogApp`) 또는 관리자만 연다. 웹 카메라는 60fps 밑이라 엔진이 거부 — 웹은 흐름 확인용.
+    다음에 손댈 후보: 던짐 감지 문턱값(`live-capture.ts` 상단 상수), 화각 기본값, 네이티브 고속 촬영 연결.
 - **사용자 답 대기** — 약관 · 개인정보 처리방침의 빈칸: 시행일 `2026년 0월 0일`(`app/(legal)/terms` · `privacy`),
   개인정보 보호책임자 `[이름]`(privacy). 그리고 `/more` 화면을 홈으로 넘기고 지울지.
 - **`NutritionProfile.sex` 칸 지우기(금윤호 몫).** 성별은 `User.sex` 로 옮겼고 이 칸은 안 쓴다. 지우는 마이그레이션은

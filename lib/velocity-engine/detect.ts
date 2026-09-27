@@ -237,6 +237,11 @@ export type TrackOptions = {
   maxStepPx?: number;
   /** 중간에 놓쳐도 되는 프레임 수 */
   maxGapFrames?: number;
+  /**
+   * 공이 카메라에서 멀어지나(투수 뒤, 기본) 다가오나(포수 뒤). 멀어지면 작아지고 다가오면
+   * 커진다 — 크기 조건을 뒤집는 것 말고는 같다.
+   */
+  approach?: 'receding' | 'approaching';
 };
 
 /**
@@ -266,6 +271,7 @@ export function trackBall(
     seedCenterRatio = 0.45,
     maxStepPx = Math.max(frameWidth, frameHeight) * 0.12,
     maxGapFrames = 2,
+    approach = 'receding',
   } = options;
 
   const cx = frameWidth / 2;
@@ -295,7 +301,12 @@ export function trackBall(
         for (const blob of frames[f].blobs) {
           const d = blobDiameter(blob);
           // 멀어지는 공은 커지지 않는다. 조금 커지는 것은 재기 흔들림으로 본다.
-          if (d > last.diameterPx * 1.25) continue;
+          if (
+            approach === 'receding'
+              ? d > last.diameterPx * 1.25
+              : d < last.diameterPx / 1.25
+          )
+            continue;
           const step = Math.hypot(blob.cx - last.x, blob.cy - last.y);
           if (step > maxStepPx * (missed + 1)) continue;
 
@@ -340,9 +351,11 @@ export function trackBall(
       if (trimmed.length < 3) continue;
 
       const sizeRatio = trimmed[trimmed.length - 1].diameterPx / trimmed[0].diameterPx;
-      if (sizeRatio > MAX_END_SIZE_RATIO) continue; // 작아지지 않았다 = 공이 아니다
+      /* 다가오는 공은 커진다 — 뒤집어서 '얼마나 작아졌나'로 같이 본다 */
+      const shrank = approach === 'receding' ? sizeRatio : 1 / sizeRatio;
+      if (shrank > MAX_END_SIZE_RATIO) continue; // 작아지지(커지지) 않았다 = 공이 아니다
 
-      const score = trimmed.length * (1 - sizeRatio);
+      const score = trimmed.length * (1 - shrank);
       if (score > bestScore) {
         bestScore = score;
         best = trimmed;

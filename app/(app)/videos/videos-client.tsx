@@ -1,7 +1,13 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { Gauge, Plus } from 'lucide-react';
+import { Plus } from 'lucide-react';
+import {
+  VelocityPanel,
+  type TodayLogSummary,
+} from '@/components/velocity/velocity-panel';
+import type { CalFit } from '@/lib/velocity-calibration';
+import type { VelocitySessionView } from '@/lib/velocity-meta';
 import { ButtonLink, PageHeading } from '@/components/ui';
 import { useTodayKey } from '@/components/use-today-key';
 import { Segmented } from '@/components/segmented';
@@ -38,6 +44,9 @@ const VIEW_OPTIONS = [
   { value: 'calendar', label: '캘린더' },
   { value: 'list', label: '목록' },
 ] as const;
+/* 구속 측정(불펜 벨로시티)은 앱 안이거나 관리자일 때만 세 번째 칸으로 붙는다 */
+const VELOCITY_OPTION = { value: 'velocity', label: '구속 측정' } as const;
+type View = 'calendar' | 'list' | 'velocity';
 
 /**
  * 캘린더·목록과 2분할 비교, 화면들을 오간다.
@@ -54,6 +63,9 @@ export function VideosClient({
   initialDate,
   today,
   canMeasure,
+  measured,
+  velocity,
+  initialView,
 }: {
   logs: VideoLog[];
   /** 날짜(YYYY-MM-DD)별로 고른 대표 영상. 안 고른 날은 없다. */
@@ -66,9 +78,23 @@ export function VideosClient({
   today: string;
   /** 카메라 구속 측정 단추를 보일까 — 앱 안이거나 관리자일 때만(app/(app)/videos/page.tsx) */
   canMeasure: boolean;
+  /** 날짜별 카메라 측정 요약(공 수 · 최고 km/h) — 캘린더의 그날 칸에 적는다 */
+  measured: Record<string, { n: number; max: number }>;
+  /** [구속 측정] 보기가 쓰는 것 — 오늘 잰 세션 · 오늘 투구 기록 요약 · 보정식. canMeasure 일 때만 */
+  velocity: {
+    sessions: VelocitySessionView[];
+    todayLog: TodayLogSummary;
+    calibration: CalFit;
+    webTest: boolean;
+  } | null;
+  /** 처음 보일 칸 — ?view=velocity 로 들어오면 구속 측정 */
+  initialView: View;
 }) {
   const todayKey = useTodayKey(today);
-  const [view, setView] = useState<'calendar' | 'list'>('calendar');
+  const [view, setView] = useState<View>(initialView);
+  const viewOptions: readonly { value: View; label: string }[] = canMeasure
+    ? [...VIEW_OPTIONS, VELOCITY_OPTION]
+    : VIEW_OPTIONS;
   const [comparing, setComparing] = useState(false);
   /* 목록에서 고른 둘. 비교 화면이 이 둘로 열린다. */
   const [preset, setPreset] = useState<{ a: string; b: string } | null>(null);
@@ -142,7 +168,7 @@ export function VideosClient({
           setView(next);
           if (next === 'calendar') setSelecting(false);
         }}
-        options={VIEW_OPTIONS}
+        options={viewOptions}
         tone="raised"
         itemClassName="px-4 py-1.5"
       />
@@ -167,12 +193,6 @@ export function VideosClient({
               카메라로 구속 재기 — 폰 화면 하나짜리 기능이라 따로 연다(/velocity). 앱 안이거나
               관리자일 때만 보인다. 일반 계정이 웹에서 주소로 들어가도 '앱에서 쓸 수 있어요'만 본다.
             */}
-            {canMeasure && (
-              <ButtonLink href="/velocity" variant="secondary" className="gap-1.5">
-                <Gauge aria-hidden className="h-4 w-4" />
-                구속 측정
-              </ButtonLink>
-            )}
             {/* 기록을 남기는 곳은 날짜 화면이다 — 이 탭에서 곧장 오늘로 */}
             <ButtonLink
               href={`/pitch-log/${todayKey}`}
@@ -194,10 +214,19 @@ export function VideosClient({
 
       {/* 두 방식을 오갈 때 살짝 떠오르며 바뀐다 */}
       <div key={view} className="motion-safe:animate-fade-in">
-        {view === 'calendar' ? (
+        {view === 'velocity' && velocity ? (
+          <VelocityPanel
+            today={todayKey}
+            sessions={velocity.sessions}
+            todayLog={velocity.todayLog}
+            calibration={velocity.calibration}
+            webTest={velocity.webTest}
+          />
+        ) : view === 'calendar' ? (
           <VideoCalendar
             logs={logs}
             featured={featured}
+            measured={measured}
             initialMonth={initialMonth}
             initialDate={initialDate}
           />

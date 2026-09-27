@@ -6,6 +6,7 @@ import { intensityRangeText, pitchRangeText } from '@/lib/report/plan';
 import type { PlanNoteData } from '@/components/plan-note';
 import type { PitchMetric } from '@/lib/pose/measure';
 import type { SavedAnalysisView } from '@/lib/pose/saved';
+import { loadVelocityDay } from '@/lib/velocity-load';
 import type { DayClient } from './day-client';
 
 /**
@@ -34,7 +35,7 @@ export async function loadPitchDay(date: string): Promise<PitchDayData | null> {
   const now = new Date();
   const todayKey = toDateKey(now);
 
-  const [logs, { plan }] = await Promise.all([
+  const [logs, { plan }, velocity] = await Promise.all([
     prisma.pitchLog.findMany({
       where: { userId: user.id, date: at },
       orderBy: { createdAt: 'asc' },
@@ -44,6 +45,8 @@ export async function loadPitchDay(date: string): Promise<PitchDayData | null> {
      * 그때 계획인 양 보여줄 수는 없다. 그날 아침의 계획은 남겨두지 않는다.
      */
     gatherFactsAndPlan(user, now, { excludeToday: true }),
+    /* 카메라로 잰 구속 — 세션과 공 하나하나(그날 화면의 '구속 측정' 칸) */
+    loadVelocityDay(user.id, at),
   ]);
 
   /* 이 날의 기록에 붙은 폼 분석만 읽는다. 다른 날 것까지 부를 이유가 없다. */
@@ -116,6 +119,7 @@ export async function loadPitchDay(date: string): Promise<PitchDayData | null> {
     todayLimits,
     initialLogs: logs.map((log) => ({ ...log, date: log.date.toISOString() })),
     saved: analyses.map((a) => toView(a, date)),
+    velocity,
     earlier: earlier.map((a) => toView(a, a.pitchLog.date.toISOString().slice(0, 10))),
   };
 }

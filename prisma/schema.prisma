@@ -93,6 +93,8 @@ model User {
   drillFavorites    UserDrillFavorite[]
   drillLogs         UserDrillLog[]
   pitchLogs         PitchLog[]
+  velocitySessions  VelocitySession[]
+  velocityPitches   VelocityPitch[]
   userExerciseLogs  UserExerciseLog[]
   workoutSessions   TrainingSession[]
   articles          Article[]
@@ -410,8 +412,93 @@ model PitchLog {
   videoPaths  String[]
   createdAt   DateTime @default(now())
 
-  user         User           @relation(fields: [userId], references: [id], onDelete: Cascade)
-  poseAnalyses PoseAnalysis[]
+  user             User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  poseAnalyses     PoseAnalysis[]
+  velocitySessions VelocitySession[]
+}
+
+/**
+ * 카메라 구속 측정 — 한 번 자리를 잡고 잰 한 세션. 공은 VelocityPitch 에 하나씩.
+ *
+ * 저장할 때 투구 기록(PitchLog) 한 건도 같이 만든다(투구수 = 잰 공 수, 최고 · 평균 구속).
+ * 기록을 지우면 세션의 연결만 끊긴다(SetNull) — 잰 값은 보정 자료라 남긴다.
+ *
+ * 보정식은 세션에 박아 둔다. 나중에 보정식이 바뀌어도 그때 무엇으로 계산했는지 알아야
+ * 되짚을 수 있다(스피드건과 견주는 일이 이 기능의 핵심이라).
+ */
+model VelocitySession {
+  id         String   @id @default(uuid())
+  userId     String
+  date       DateTime @db.Date
+  pitchLogId String?
+  /// 카메라 가로 화각(도) — 구속 계산의 가장 큰 변수
+  fovDeg     Float
+  /// 보정식: 보정값 = calScale × 카메라값 + calOffset. calPairs = 맞추는 데 쓴 스피드건 짝 수
+  calScale   Float    @default(1)
+  calOffset  Float    @default(0)
+  calPairs   Int      @default(0)
+  /// 'camera'(앱 · 웹 카메라) · 'file'(슬로모션 영상 파일)
+  source     String   @default("camera")
+  /// 무엇을 쟀나 — 'pitch'(투구) · 'hit'(타구)
+  mode       String   @default("pitch")
+  /// 카메라가 어디 — 'behind-pitcher'(투수 뒤, 공이 멀어짐) · 'behind-catcher'(포수 뒤, 공이 다가옴)
+  cameraPos  String   @default("behind-pitcher")
+  /// 앞에 네트가 있었나
+  net        Boolean  @default(true)
+  /// 카메라 이름 · 해상도 같은 기기 정보(있으면)
+  device     String?
+  memo       String?
+  createdAt  DateTime @default(now())
+
+  user     User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  pitchLog PitchLog?      @relation(fields: [pitchLogId], references: [id], onDelete: SetNull)
+  pitches  VelocityPitch[]
+
+  @@index([userId, date])
+}
+
+/**
+ * 구속 측정 — 공 하나.
+ *
+ * rawKmh 는 카메라가 낸 값(구간 평균, 보정 전), kmh 는 그때의 보정식을 거친 값이다. 화면과
+ * 통계는 kmh 를 쓰고, 보정을 다시 맞출 때는 rawKmh 와 gunKmh 의 짝을 쓴다.
+ */
+model VelocityPitch {
+  id           String   @id @default(uuid())
+  sessionId    String
+  userId       String
+  /// 세션 안 차례(1부터)
+  seq          Int
+  rawKmh       Float
+  kmh          Float
+  errorKmh     Float    @default(0)
+  /// 'high' · 'medium' · 'low'
+  confidence   String   @default("medium")
+  /// 릴리스 직후 구속 추정 — 구간 평균에 공기 저항만큼 되돌린 값(km/h)
+  releaseKmh   Float?
+  /// 릴리스 포인트 — 표적(화면 가운데)에서 좌우 · 상하로 몇 cm (오른쪽 · 위가 +)
+  releaseDxCm  Float?
+  releaseDyCm  Float?
+  /// 카메라에서 릴리스 지점까지(m), 공이 날아간 구간(m) · 시간(초), 쓴 프레임 수 · 초당 장면 수
+  releaseDistM Float?
+  travelM      Float?
+  durationSec  Float?
+  frames       Int?
+  fps          Float?
+  /// 구종(직구 · 슬라이더 …, 사용자가 고른다) · 코스(1~9, 스트라이크 존 9칸) · 결과('strike' · 'ball')
+  pitchType    String?
+  zone         Int?
+  result       String?
+  /// 같이 잰 스피드건 값(km/h) — 보정 자료
+  gunKmh       Float?
+  memo         String?
+  createdAt    DateTime @default(now())
+
+  session VelocitySession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  user    User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@index([sessionId, seq])
 }
 
 /**

@@ -15,6 +15,8 @@ import type { SavedAnalysisView } from '@/lib/pose/saved';
 import { EntryForm } from '../entry-form';
 import { DayRecord } from '../day-record';
 import type { Log } from '../types';
+import { VelocitySection } from '../velocity-section';
+import type { VelocitySessionView } from '@/lib/velocity-meta';
 import { useDayModal } from './day-modal';
 
 const WEEKDAYS = ['일', '월', '화', '수', '목', '금', '토'];
@@ -88,6 +90,7 @@ export function DayClient({
   initialLogs,
   saved,
   earlier,
+  velocity,
 }: {
   date: string;
   todayKey: string;
@@ -105,6 +108,8 @@ export function DayClient({
   saved: SavedAnalysisView[];
   /** 이 날보다 앞선 분석들 — 변화를 견주는 기준 */
   earlier: SavedAnalysisView[];
+  /** 카메라로 잰 구속 — 세션과 공 하나하나. 없으면 빈 배열 */
+  velocity: VelocitySessionView[];
 }) {
   const router = useRouter();
   const modal = useDayModal();
@@ -247,6 +252,9 @@ export function DayClient({
           남겨주세요.
         </p>
       )}
+
+      {/* 카메라 구속 측정 — 공마다 구종 · 코스 · 결과를 고치고 지운다 */}
+      <VelocitySection sessions={velocity} />
 
       {logs.map((log) =>
         editingId === log.id ? (
