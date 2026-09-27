@@ -93,6 +93,8 @@ export function VideosClient({
     sessions: VelocitySessionView[];
     todayLog: TodayLogSummary;
     calibration: CalFit;
+    /** 관리자면 설정에 '정확도 보정용 저장'이 보인다 */
+    isAdmin: boolean;
   } | null;
   /** 처음 보일 칸 — ?view=velocity 로 들어오면 구속 측정 */
   initialView: View;
@@ -233,6 +235,7 @@ export function VideosClient({
             sessions={velocity.sessions}
             todayLog={velocity.todayLog}
             calibration={velocity.calibration}
+            isAdmin={velocity.isAdmin}
           />
         ) : view === 'calendar' ? (
           <VideoCalendar

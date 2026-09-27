@@ -91,6 +91,11 @@
 - **전환 중에는 무엇을 눌러도 `<html>` 로 온다**(크롬, `::view-transition { pointer-events: none }` 을 줘도).
   메뉴에 커서를 대고 있는데 미니 사이드바가 닫히던 것 · 연출 중에 누른 단추가 안 먹던 것이 이것이었다 — 커서 자리를
   `getBoundingClientRect` 로 가리고(`app-shell.tsx` 의 `within`) 누른 것은 그 자리의 단추를 대신 누른다.
+- **카메라 영상을 숨길 때 1px · `opacity: 0` 으로 줄이지 않는다.** 크롬은 투명도 0 인 영상을 그리지 않아
+  `requestVideoFrameCallback` 이 끊길 수 있고, 아이폰은 안 보이는 영상을 멈출 수 있다 — 그러면 측정이 멈춘다.
+  영상은 제 크기로 두고 그 위를 98% 검은 판(`bg-black/98`)으로 덮는다(100% 면 크롬이 가려진 영상을 건너뛸 수 있다).
+  구속 측정 세션 화면이 이렇게 한다(`velocity-screen.tsx` 측정 단계). 로그인 없이 확인할 때는 임시 경로에서
+  `navigator.mediaDevices.getUserMedia` 를 캔버스 `captureStream()` 으로 바꿔 끼우면 세션 · 던짐 감지까지 돌려 볼 수 있다.
 - 셀프테스트는 `npm run nutrition:test` 처럼 npm 으로 돌린다. `node scripts/…mts` 로 바로 돌리면 `@/` 경로를 못 찾는다.
 - 첫 페인트 전에 돌아야 하는 코드는 `next/script` `beforeInteractive` 가 아니라 `<head>` 의 평범한
   `<script dangerouslySetInnerHTML>` 로 둔다(App Router 에서는 첫 페인트 전에 안 돈다).

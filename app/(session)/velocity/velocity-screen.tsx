@@ -228,7 +228,9 @@ export function VelocityScreen({
   /* 처음 쓰는 사람에게 튜토리얼 — '다시 보지 않기'면 안 뜬다 */
   const tutorialHidden = useTutorialHidden();
   const [tutorialDone, setTutorialDone] = useState(false);
-  const tutorialOpen = tutorialHidden === false && !tutorialDone;
+  /* 설정의 '사용 안내 다시 보기' — '다시 보지 않기'를 골랐어도 한 번 연다 */
+  const [tutorialForce, setTutorialForce] = useState(false);
+  const tutorialOpen = (tutorialHidden === false && !tutorialDone) || tutorialForce;
   const showAsk = stored != null && !decided;
   const approach = approachOf(choices);
 
@@ -266,6 +268,14 @@ export function VelocityScreen({
   useEffect(() => {
     pitchesRef.current = pitches;
   }, [pitches]);
+  /* 저장하지 않은 공이 있으면 탭을 닫거나 새로고침할 때 브라우저가 한 번 묻는다 */
+  const unsaved = pitches.length > 0;
+  useEffect(() => {
+    if (!unsaved) return;
+    const warn = (e: BeforeUnloadEvent) => e.preventDefault();
+    window.addEventListener('beforeunload', warn);
+    return () => window.removeEventListener('beforeunload', warn);
+  }, [unsaved]);
 
   useEffect(() => {
     return () => {
@@ -515,6 +525,18 @@ export function VelocityScreen({
   };
   const nextPitch = () => {
     captureRef.current?.arm();
+  };
+  /* 나가기 — 저장하지 않은 공이 있으면 한 번 묻는다(말없이 사라지지 않게) */
+  const leave = () => {
+    if (
+      pitches.length > 0 &&
+      !window.confirm(
+        `저장하지 않은 공 ${pitches.length}개가 있어요. 저장하지 않고 나갈까요?`
+      )
+    ) {
+      return;
+    }
+    router.push('/videos?view=velocity');
   };
   const refocus = async () => {
     const capture = captureRef.current;
@@ -879,6 +901,7 @@ export function VelocityScreen({
           onClose={(hide) => {
             setTutorialHidden(hide);
             setTutorialDone(true);
+            setTutorialForce(false);
           }}
         />
       )}
@@ -916,13 +939,14 @@ export function VelocityScreen({
               수평
             </button>
           ) : (
-            <Link
-              href="/videos?view=velocity"
+            <button
+              type="button"
+              onClick={leave}
               className="inline-flex h-10 items-center gap-0.5 rounded-lg pl-1 pr-3 text-sm font-medium text-sky transition-colors hover:bg-sky-tint"
             >
               <ChevronLeft aria-hidden className="h-5 w-5" />
               투구 기록
-            </Link>
+            </button>
           )}
           <h1 className="text-heading text-base">{modeLabel(choices.mode)} 측정</h1>
           {step === 'measure' ? (
@@ -1037,15 +1061,200 @@ export function VelocityScreen({
       {/* 6 — 측정: 폰 카메라 앱처럼. 세션 전에는 카메라가 꽉 차고, 시작하면 카메라 대신 정보 판 */}
       {!showAsk && step === 'measure' && (
         <div className="relative flex min-h-0 flex-1 flex-col bg-black text-white">
-          {/* 뷰파인더 — 세션 중에는 1px 로 숨겨 두고(재생은 계속돼야 프레임이 온다) 정보 판을 보인다 */}
-          <div
-            className={
-              live && !showCamera
-                ? 'pointer-events-none absolute left-0 top-0 h-px w-px overflow-hidden opacity-0'
-                : 'relative min-h-0 flex-1'
-            }
-          >
+          {/*
+           * 뷰파인더 — 세션 중에도 제 크기로 재생해 둔다(프레임이 와야 잰다). 카메라를 숨길 때는 그 위를
+           * 거의 불투명한 정보 판으로 덮는다. 영상을 1px · 투명도 0 으로 줄이면 크롬은 그 영상을 그리지 않아
+           * 프레임 알림(requestVideoFrameCallback)이 끊길 수 있고, 아이폰은 안 보이는 영상을 멈출 수 있다.
+           * 판을 100% 불투명하게 하면 크롬이 가려진 영상을 건너뛸 수 있어 98% 로 둔다. 크기가 그대로라
+           * 스트라이크 존 · 코스 짐작의 기준도 바뀌지 않는다.
+           */}
+          <div className="relative min-h-0 flex-1">
             {finder}
+            {/* 정보 판 — 세션 중, 카메라 대신 */}
+            {live && !showCamera && (
+              <div className="absolute inset-0 z-5 overflow-y-auto overscroll-contain bg-black/98 px-4 pb-4 pt-[calc(3.5rem+env(safe-area-inset-top))]">
+                <section className="rounded-3xl bg-white/[0.06] px-5 pb-4 pt-5 text-center">
+                  {lastPitch ? (
+                    <div key={lastPitch.id} className="motion-safe:animate-fade-in">
+                      <p className="text-xs font-medium text-white/60">
+                        {pitches.length}구째
+                        {lastPitch.autoDetected === false ? ' · 수동' : ''}
+                        {pitchTypeLabel(lastPitch.pitchType)
+                          ? ` · ${pitchTypeLabel(lastPitch.pitchType)}`
+                          : ''}
+                      </p>
+                      <p className="text-display mt-1 text-7xl leading-none tabular-nums">
+                        {speedNum(shown(lastPitch.rawKmh))}
+                        <span className="ml-2 text-xl text-white/60">
+                          {speedLabel(unit)}
+                        </span>
+                      </p>
+                      <p className="mt-2 text-xs text-white/70">
+                        ± {lastPitch.errorKmh} ·{' '}
+                        {
+                          CONFIDENCE_TEXT[
+                            lastPitch.confidence as keyof typeof CONFIDENCE_TEXT
+                          ]
+                        }
+                        {lastPitch.releaseKmh != null &&
+                          ` · 릴리스 ${speedNum(shown(lastPitch.releaseKmh))}`}
+                        {lastPitch.zone != null &&
+                          ` · ${zoneLabel(lastPitch.zone)}(짐작)`}
+                      </p>
+                    </div>
+                  ) : last && !last.measure.ok ? (
+                    <div className="py-3 motion-safe:animate-fade-in">
+                      <p className="text-sm font-bold text-warn-line">재지 않았어요</p>
+                      <p className="mt-1 text-xs leading-relaxed text-white/90">
+                        {last.measure.message}
+                      </p>
+                      <p className="mt-1 text-xs leading-relaxed text-white/60">
+                        {last.measure.fix}
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="py-6">
+                      <p className="text-lg font-semibold">
+                        {status === 'armed' ? '던지세요' : STATUS_TEXT[status]}
+                      </p>
+                      <p className="mt-1 text-xs leading-relaxed text-white/60">
+                        {autoMode
+                          ? '공마다 알아서 잡아요. 끝나면 아래 가운데 측정 종료.'
+                          : '아래 오른쪽 "다음 공"을 누르고 던지세요.'}
+                      </p>
+                    </div>
+                  )}
+
+                  {/* 방금 공 구종 — 한 번에 */}
+                  {lastPitch && (
+                    <div className="no-scrollbar -mx-5 mt-4 flex gap-1.5 overflow-x-auto px-5 pb-0.5">
+                      {PITCH_TYPES.map((t) => {
+                        const on = lastPitch.pitchType === t.key;
+                        return (
+                          <button
+                            key={t.key}
+                            type="button"
+                            onClick={() =>
+                              patch(lastPitch.id, { pitchType: on ? null : t.key })
+                            }
+                            aria-pressed={on}
+                            className={`h-10 shrink-0 rounded-full px-3.5 text-sm font-semibold transition-colors ${
+                              on
+                                ? 'bg-sky text-white'
+                                : 'bg-white/10 text-white hover:bg-white/20'
+                            }`}
+                          >
+                            {t.label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                </section>
+
+                {/* 이번 세션 */}
+                {stats && (
+                  <dl className="mt-3 grid grid-cols-4 gap-px overflow-hidden rounded-2xl bg-white/10">
+                    <DarkStat
+                      label="최고"
+                      value={speedNum(stats.max)}
+                      unit={speedLabel(unit)}
+                    />
+                    <DarkStat
+                      label="평균"
+                      value={speedNum(stats.avg)}
+                      unit={speedLabel(unit)}
+                    />
+                    <DarkStat label="공" value={stats.n} unit="구" />
+                    <DarkStat
+                      label="스트라이크"
+                      value={stats.strikeRate == null ? '—' : stats.strikeRate}
+                      unit={stats.strikeRate == null ? '' : '%'}
+                    />
+                  </dl>
+                )}
+
+                {error && (
+                  <p
+                    role="alert"
+                    className="mt-3 rounded-xl border border-danger-line/60 bg-danger/15 px-4 py-2.5 text-sm leading-relaxed text-white"
+                  >
+                    {error}
+                  </p>
+                )}
+
+                {/* 목록 — 공마다 영상 클립 */}
+                {shownPitches.length > 0 && (
+                  <ul className="mt-3 overflow-hidden rounded-2xl bg-white/[0.06]">
+                    {[...shownPitches].reverse().map((p) => {
+                      const i = shownPitches.indexOf(p);
+                      return (
+                        <li
+                          key={p.id}
+                          className={
+                            i < shownPitches.length - 1
+                              ? 'border-t border-white/10'
+                              : ''
+                          }
+                        >
+                          <div className="flex min-h-14 items-center gap-2 pl-4 pr-2">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setEditing(p.id);
+                                setSheet('pitch');
+                              }}
+                              className="flex min-w-0 flex-1 items-center gap-3 py-2 text-left"
+                            >
+                              <span className="w-6 text-xs text-white/50 tabular-nums">
+                                {i + 1}
+                              </span>
+                              <span className="text-display text-2xl leading-none tabular-nums">
+                                {speedNum(p.kmh)}
+                              </span>
+                              <span className="min-w-0 flex-1">
+                                <span className="block truncate text-sm font-semibold">
+                                  {pitchTypeLabel(p.pitchType) ?? (
+                                    <span className="text-white/50">구종 —</span>
+                                  )}
+                                  {p.result === 'strike' && (
+                                    <span className="ml-1.5 text-ok">S</span>
+                                  )}
+                                  {p.result === 'ball' && (
+                                    <span className="ml-1.5 text-warn">B</span>
+                                  )}
+                                </span>
+                                <span className="block truncate text-xs text-white/55">
+                                  {zoneLabel(p.zone) ?? '코스 —'}
+                                  {p.releaseKmh != null &&
+                                    ` · 릴리스 ${speedNum(shown(p.releaseKmh))}`}
+                                  {p.gunKmh != null && ` · 건 ${p.gunKmh}`}
+                                  {p.source === 'file' && ' · 파일'}
+                                </span>
+                              </span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setClipOpen(p.id)}
+                              disabled={!p.clip}
+                              aria-label={p.clip ? '영상 보기' : '영상 준비 중'}
+                              title={p.clip ? '영상 보기' : '영상 준비 중'}
+                              className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white/10 text-white transition-colors hover:bg-white/20 disabled:opacity-30"
+                            >
+                              {p.clip ? (
+                                <Play aria-hidden className="h-4 w-4 fill-current" />
+                              ) : (
+                                <Loader2 aria-hidden className="h-4 w-4 animate-spin" />
+                              )}
+                            </button>
+                          </div>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                )}
+              </div>
+            )}
           </div>
 
           {/* 위 줄 — 카메라 위 컨트롤: 닫기/상태 · 재초점 · 카메라 보기 · 설정 */}
@@ -1065,13 +1274,14 @@ export function VelocityScreen({
                   {autoMode ? '자동' : '수동'} · {STATUS_TEXT[status]}
                 </span>
               ) : (
-                <Link
-                  href="/videos?view=velocity"
+                <button
+                  type="button"
+                  onClick={leave}
                   aria-label="닫기"
                   className={CHROME_BTN}
                 >
                   <X aria-hidden className="h-5 w-5" />
-                </Link>
+                </button>
               )}
             </div>
             <div className="pointer-events-auto flex items-center gap-1">
@@ -1116,190 +1326,6 @@ export function VelocityScreen({
               </button>
             </div>
           </div>
-
-          {/* 정보 판 — 세션 중, 카메라 대신 */}
-          {live && !showCamera && (
-            <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 pb-4 pt-[calc(3.5rem+env(safe-area-inset-top))]">
-              <section className="rounded-3xl bg-white/[0.06] px-5 pb-4 pt-5 text-center">
-                {lastPitch ? (
-                  <div key={lastPitch.id} className="motion-safe:animate-fade-in">
-                    <p className="text-xs font-medium text-white/60">
-                      {pitches.length}구째
-                      {lastPitch.autoDetected === false ? ' · 수동' : ''}
-                      {pitchTypeLabel(lastPitch.pitchType)
-                        ? ` · ${pitchTypeLabel(lastPitch.pitchType)}`
-                        : ''}
-                    </p>
-                    <p className="text-display mt-1 text-7xl leading-none tabular-nums">
-                      {speedNum(shown(lastPitch.rawKmh))}
-                      <span className="ml-2 text-xl text-white/60">
-                        {speedLabel(unit)}
-                      </span>
-                    </p>
-                    <p className="mt-2 text-xs text-white/70">
-                      ± {lastPitch.errorKmh} ·{' '}
-                      {
-                        CONFIDENCE_TEXT[
-                          lastPitch.confidence as keyof typeof CONFIDENCE_TEXT
-                        ]
-                      }
-                      {lastPitch.releaseKmh != null &&
-                        ` · 릴리스 ${speedNum(shown(lastPitch.releaseKmh))}`}
-                      {lastPitch.zone != null &&
-                        ` · ${zoneLabel(lastPitch.zone)}(짐작)`}
-                    </p>
-                  </div>
-                ) : last && !last.measure.ok ? (
-                  <div className="py-3 motion-safe:animate-fade-in">
-                    <p className="text-sm font-bold text-warn-line">재지 않았어요</p>
-                    <p className="mt-1 text-xs leading-relaxed text-white/90">
-                      {last.measure.message}
-                    </p>
-                    <p className="mt-1 text-xs leading-relaxed text-white/60">
-                      {last.measure.fix}
-                    </p>
-                  </div>
-                ) : (
-                  <div className="py-6">
-                    <p className="text-lg font-semibold">
-                      {status === 'armed' ? '던지세요' : STATUS_TEXT[status]}
-                    </p>
-                    <p className="mt-1 text-xs leading-relaxed text-white/60">
-                      {autoMode
-                        ? '공마다 알아서 잡아요. 끝나면 아래 가운데 측정 종료.'
-                        : '아래 오른쪽 "다음 공"을 누르고 던지세요.'}
-                    </p>
-                  </div>
-                )}
-
-                {/* 방금 공 구종 — 한 번에 */}
-                {lastPitch && (
-                  <div className="no-scrollbar -mx-5 mt-4 flex gap-1.5 overflow-x-auto px-5 pb-0.5">
-                    {PITCH_TYPES.map((t) => {
-                      const on = lastPitch.pitchType === t.key;
-                      return (
-                        <button
-                          key={t.key}
-                          type="button"
-                          onClick={() =>
-                            patch(lastPitch.id, { pitchType: on ? null : t.key })
-                          }
-                          aria-pressed={on}
-                          className={`h-10 shrink-0 rounded-full px-3.5 text-sm font-semibold transition-colors ${
-                            on
-                              ? 'bg-sky text-white'
-                              : 'bg-white/10 text-white hover:bg-white/20'
-                          }`}
-                        >
-                          {t.label}
-                        </button>
-                      );
-                    })}
-                  </div>
-                )}
-              </section>
-
-              {/* 이번 세션 */}
-              {stats && (
-                <dl className="mt-3 grid grid-cols-4 gap-px overflow-hidden rounded-2xl bg-white/10">
-                  <DarkStat
-                    label="최고"
-                    value={speedNum(stats.max)}
-                    unit={speedLabel(unit)}
-                  />
-                  <DarkStat
-                    label="평균"
-                    value={speedNum(stats.avg)}
-                    unit={speedLabel(unit)}
-                  />
-                  <DarkStat label="공" value={stats.n} unit="구" />
-                  <DarkStat
-                    label="스트라이크"
-                    value={stats.strikeRate == null ? '—' : stats.strikeRate}
-                    unit={stats.strikeRate == null ? '' : '%'}
-                  />
-                </dl>
-              )}
-
-              {error && (
-                <p
-                  role="alert"
-                  className="mt-3 rounded-xl border border-danger-line/60 bg-danger/15 px-4 py-2.5 text-sm leading-relaxed text-white"
-                >
-                  {error}
-                </p>
-              )}
-
-              {/* 목록 — 공마다 영상 클립 */}
-              {shownPitches.length > 0 && (
-                <ul className="mt-3 overflow-hidden rounded-2xl bg-white/[0.06]">
-                  {[...shownPitches].reverse().map((p) => {
-                    const i = shownPitches.indexOf(p);
-                    return (
-                      <li
-                        key={p.id}
-                        className={
-                          i < shownPitches.length - 1 ? 'border-t border-white/10' : ''
-                        }
-                      >
-                        <div className="flex min-h-14 items-center gap-2 pl-4 pr-2">
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setEditing(p.id);
-                              setSheet('pitch');
-                            }}
-                            className="flex min-w-0 flex-1 items-center gap-3 py-2 text-left"
-                          >
-                            <span className="w-6 text-xs text-white/50 tabular-nums">
-                              {i + 1}
-                            </span>
-                            <span className="text-display text-2xl leading-none tabular-nums">
-                              {speedNum(p.kmh)}
-                            </span>
-                            <span className="min-w-0 flex-1">
-                              <span className="block truncate text-sm font-semibold">
-                                {pitchTypeLabel(p.pitchType) ?? (
-                                  <span className="text-white/50">구종 —</span>
-                                )}
-                                {p.result === 'strike' && (
-                                  <span className="ml-1.5 text-ok">S</span>
-                                )}
-                                {p.result === 'ball' && (
-                                  <span className="ml-1.5 text-warn">B</span>
-                                )}
-                              </span>
-                              <span className="block truncate text-xs text-white/55">
-                                {zoneLabel(p.zone) ?? '코스 —'}
-                                {p.releaseKmh != null &&
-                                  ` · 릴리스 ${speedNum(shown(p.releaseKmh))}`}
-                                {p.gunKmh != null && ` · 건 ${p.gunKmh}`}
-                                {p.source === 'file' && ' · 파일'}
-                              </span>
-                            </span>
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => setClipOpen(p.id)}
-                            disabled={!p.clip}
-                            aria-label={p.clip ? '영상 보기' : '영상 준비 중'}
-                            title={p.clip ? '영상 보기' : '영상 준비 중'}
-                            className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white/10 text-white transition-colors hover:bg-white/20 disabled:opacity-30"
-                          >
-                            {p.clip ? (
-                              <Play aria-hidden className="h-4 w-4 fill-current" />
-                            ) : (
-                              <Loader2 aria-hidden className="h-4 w-4 animate-spin" />
-                            )}
-                          </button>
-                        </div>
-                      </li>
-                    );
-                  })}
-                </ul>
-              )}
-            </div>
-          )}
 
           {/* 알림 — 아래 단추 위 */}
           {(!live || showCamera) &&
@@ -1778,6 +1804,17 @@ export function VelocityScreen({
               처음부터 다시 설정
             </PrimaryButton>
           </div>
+
+          <button
+            type="button"
+            onClick={() => {
+              setSheet('none');
+              setTutorialForce(true);
+            }}
+            className="w-full text-center text-sm text-muted underline-offset-2 hover:underline"
+          >
+            사용 안내 다시 보기
+          </button>
 
           {cameraOn && (
             <button

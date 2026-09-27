@@ -123,7 +123,8 @@ export function VelocitySettingsFields({
             <span className="min-w-0">
               <span className="block text-sm text-ink">카메라 가로 화각</span>
               <span className="block text-xs leading-snug text-muted">
-                아이폰 후면 기본 카메라 약 69°. 크게 잡으면 구속이 높게 나와요.
+                아이폰 후면 기본 카메라 약 69°. 크게 잡으면 구속이 낮게 나와요. 렌즈
+                보정을 하면 이 값 대신 잰 초점거리를 써요.
               </span>
             </span>
             <span className="inline-flex shrink-0 items-center gap-1 text-sm">

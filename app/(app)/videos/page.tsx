@@ -110,6 +110,7 @@ export default async function VideosPage({
               rested: todayLogs.length > 0 && thrown.length === 0,
             },
             calibration: fit,
+            isAdmin: user.role === 'ADMIN',
           };
         })()
       : null;

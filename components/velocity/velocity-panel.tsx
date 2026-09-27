@@ -37,11 +37,14 @@ export function VelocityPanel({
   sessions,
   todayLog,
   calibration,
+  isAdmin = false,
 }: {
   today: string;
   sessions: VelocitySessionView[];
   todayLog: TodayLogSummary;
   calibration: CalFit;
+  /** 관리자면 설정에 '정확도 보정용 저장'이 보인다 */
+  isAdmin?: boolean;
 }) {
   const unit = useSpeedUnit();
   const stored = useStoredSetup();
@@ -63,6 +66,7 @@ export function VelocityPanel({
           <VelocityWordmark />
           <VelocitySettingsButton
             calibration={calibration}
+            isAdmin={isAdmin}
             className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-line-strong bg-surface-2 text-ink transition-colors hover:border-sky hover:text-sky [&>svg]:h-4.5 [&>svg]:w-4.5"
           />
         </div>
