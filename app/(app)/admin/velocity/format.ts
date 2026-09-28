@@ -46,3 +46,13 @@ export function dayShortLabel(date: string) {
   const w = WEEKDAYS[new Date(Date.UTC(y, m - 1, d)).getUTCDay()];
   return `${d}일 (${w})`;
 }
+
+/** '1차 보정 · 9/28 · v1.4.0' — [보정] 영역의 차수 폴더 이름. 보정일(createdAt)은 한국 시간의 월/일 */
+export function calibRunName(run: { pass: number; createdAt: string; engineVersion: string }) {
+  const md = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'Asia/Seoul',
+    month: 'numeric',
+    day: 'numeric',
+  }).format(new Date(run.createdAt));
+  return `${run.pass}차 보정 · ${md} · v${run.engineVersion}`;
+}

@@ -1,7 +1,11 @@
 import { Camera } from 'lucide-react';
-import type { AdminDay, AdminOverview } from '@/lib/velocity-admin-load';
+import type {
+  AdminCalibRunView,
+  AdminDay,
+  AdminOverview,
+} from '@/lib/velocity-admin-load';
 import { calibrationText } from '@/lib/velocity-calibration';
-import { ButtonLink, Card } from '@/components/ui';
+import { Badge, ButtonLink, Card } from '@/components/ui';
 import { PitchLogHeading, VelocityAdminViewSwitch } from '@/app/(app)/videos/pitch-log-heading';
 import { BiasChart } from './overview-client';
 import { FileMeasureButton } from './file-measure-button';
@@ -13,11 +17,11 @@ import { mb, signed } from './format';
 /**
  * 구속 측정 관리자 화면(자료를 받아 그리기만 한다). 읽기 · 권한 · 주소 읽기는 page.tsx.
  *
- *   머리 줄 — 투구 기록과 같은 머리(제목 · [캘린더 | 목록 | 구속 측정 관리자] 고르개) + 구속 측정
- *             시작 · 영상 파일로 재기. 투구 기록의 한 보기로 읽힌다(2026-09-28 사용자) — 고르개의
- *             캘린더 · 목록을 누르면 투구 기록으로 돌아간다.
+ *   머리 줄 — 투구 기록과 같은 머리(제목 · [캘린더 | 목록 | 구속 측정 관리자] 고르개) + 지금 모델
+ *             버전 배지 · 영상 파일로 재기 · 구속 측정 시작. 투구 기록의 한 보기로 읽힌다(2026-09-28
+ *             사용자) — 고르개의 캘린더 · 목록을 누르면 투구 기록으로 돌아간다.
  *   숫자 타일 — 모든 자료의 세션 · 공 · 짝 · 클립 · 편향 · p90
- *   탐색기 — 연도 › 월 › 날짜 › 세션 폴더, 그 안의 공 파일(explorer.tsx)
+ *   탐색기 — [원본] · [보정] › 연도 › 월 › 날짜(› N차 보정) 폴더, 그 안의 공 파일(explorer.tsx)
  *   종합 분석 — 최근 30일 편향 · 보정식 · 설정별
  *   Claude 로 — 자료를 엔진에 되먹이는 법
  */
@@ -25,11 +29,15 @@ export function VelocityAdminView({
   data,
   path,
   day,
+  run,
   pick,
 }: {
   data: AdminOverview;
   path: ExplorerPath;
+  /** 날짜 · 차수 폴더일 때 그날 자료(세션 · 공 · 클립 주소) */
   day: AdminDay | null;
+  /** [보정] 차수 폴더일 때 그 차수(요약 + 결과 줄) */
+  run: AdminCalibRunView | null;
   pick: string | null;
 }) {
   const { totals, overall, fit } = data;
@@ -77,7 +85,14 @@ export function VelocityAdminView({
           </>
         }
         action={
-          <div className="flex flex-col gap-2 sm:flex-row">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+            {/* 지금 배포된 구속 측정 모델 — 잰 값 · 보정 차수의 버전과 견준다(Badge 는 title 을 안 받아 감싼다) */}
+            <span
+              title="구속 측정 모델 버전 — lib/velocity-engine/version.ts"
+              className="inline-flex self-start sm:self-auto"
+            >
+              <Badge className="tabular-nums">모델 v{data.engineVersion}</Badge>
+            </span>
             <FileMeasureButton />
             <ButtonLink
               href="/velocity/measure"
@@ -96,9 +111,12 @@ export function VelocityAdminView({
       <VelocityExplorer
         key={explorerHref(path)}
         tree={data.tree}
+        calibTree={data.calibTree}
         rootStat={rootStat}
+        engineVersion={data.engineVersion}
         path={path}
         day={day}
+        run={run}
         initialPick={pick}
       />
 

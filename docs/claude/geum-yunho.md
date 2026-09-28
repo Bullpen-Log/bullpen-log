@@ -199,6 +199,17 @@
     `MIN_FPS` 60 → 50(59.94 · 가변 60 을 받게). 시험: 헤드리스 크롬에서 WebCodecs 로 가짜 투구 mp4(모의 투구를
     캔버스에 그림)를 30 · 60 · 120 · 240fps 로 만들어 — 30 막힘, 60fps 4 · 8초 130.5 · 120fps 130.1 · 240fps
     129.8km/h(실제 130). 정확도 시험대 · 셀프테스트 33 · 10 결과 그대로.
+  - **규칙 — 구속 측정 모델 버전(사용자, 2026-09-28).** 엔진(`lib/velocity-engine/*`)을 고칠 때마다 `lib/velocity-engine/version.ts`
+    의 `VELOCITY_ENGINE_VERSION` 을 올리고 그 파일의 지난 버전 표에 한 줄 적는다 — 큰 자리: 재는 방식이 바뀌어 옛 값과 못
+    견줄 때, 가운데: 감지 · 추적 · 지름 재기가 바뀌어 값이 눈에 띄게 달라질 때, 작은 자리: 문턱값 · 예외 처리 같은 손질.
+    세션 · 공(`engineVersion`) · 보정 차수(`VelocityCalibRun.engineVersion`)에 남고 관리자 오른쪽 위 배지에 보인다.
+  - **13차(2026-09-28 — 탐색기 [원본 | 보정], 날짜 바로 공, 스피드건 10km/h 그룹, 보정 차수).** 주소 모형 `explorer-path.ts`:
+    root › area(orig|calib) › year › month › day › run(`?area=&at=&run=&pick=`, 옛 `?at=` 만이면 원본). 원본 날짜 폴더는
+    세션 폴더 없이 그날 공 파일 전부를 `gunGroupOf`(스피드건 10km/h) 그룹 머리줄로 묶어 보인다. 보정 영역: 날짜 › "N차 보정 ·
+    보정일 · v모델" 폴더 › 결과 파일(원본 값 · 다시 잰 값 · 건 · 차이). '이 날 보정 재측정'(`calib-run-button.tsx`)이 그날
+    클립을 브라우저에서 지금 모델로 다시 재 `adminSaveCalibRun` 으로 차수를 남긴다(원본은 그대로). 결과 미리보기의 '이 값을
+    원본 공에 채우기' = `adminApplyMeasurement`. 표: `VelocityCalibRun` · `VelocityCalibResult`(백업 뒤 추가). 세션 정보 ·
+    지우기는 공 미리보기 안 details 로. 부품은 워크플로(서버 · 탐색기 · 패널 3 + 검증 1).
   - **12차(2026-09-28 — 측정 불가 영상의 수기 올리기 · 흰 그물).** `VelocityPitch.manual`(백업 뒤 추가,
     `20260928123000_velocity_pitch_manual`): 관리자 '영상 파일로 재기'에서 30fps 이하 · fps 모름 · 공을 못 찾은 영상도
     스피드건 값만 적어 '수기 값으로 올리기'(`saveVelocitySession` pitches[].manual — rawKmh·kmh 는 건 값 복사,

@@ -1,7 +1,9 @@
 import 'server-only';
+import type { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 import { createPlaybackUrls } from '@/lib/storage';
 import { fitCalibration, type CalFit, type CalPair } from '@/lib/velocity-calibration';
+import { VELOCITY_ENGINE_VERSION } from '@/lib/velocity-engine/version';
 
 /**
  * 구속 측정 관리자(/admin/velocity)가 읽는 것 — 모든 계정의 세션 · 공 · 스피드건 짝 · 영상 클립.
@@ -46,9 +48,60 @@ export type AdminTreeYear = {
   months: AdminTreeMonth[];
 };
 
+/* ── 보정 재측정(VelocityCalibRun) — 탐색기의 [보정] 영역 ── */
+
+/** 보정 차수 하나의 요약 — 날짜 폴더 안의 폴더 하나 */
+export type AdminCalibRunSummary = {
+  id: string;
+  /** 다시 잰 공들의 날짜(YYYY-MM-DD) */
+  date: string;
+  /** 그날의 몇 번째 보정인가(1부터) */
+  pass: number;
+  engineVersion: string;
+  /** 돌린 때(ISO) — 보정일 */
+  createdAt: string;
+  nickname: string;
+  memo: string | null;
+  /** 결과 수 · 잰 수(ok) · 스피드건 짝(ok 이고 건 값 있음) */
+  results: number;
+  ok: number;
+  pairs: number;
+  /** 다시 잰 값(릴리스 ?? 카메라) − 스피드건 — 짝 기준 */
+  biasKmh: number | null;
+  p90Kmh: number | null;
+  sdKmh: number | null;
+};
+/** 보정 영역의 날짜 폴더 — 그날의 차수들(최근 차수부터) */
+export type AdminCalibDay = { date: string; runs: AdminCalibRunSummary[] };
+export type AdminCalibMonth = { key: string; runs: number; days: AdminCalibDay[] };
+export type AdminCalibYear = { key: string; runs: number; months: AdminCalibMonth[] };
+
+/** 보정 차수 안의 공 하나 — 원본 값 · 다시 잰 값 · 스피드건 */
+export type AdminCalibResultRow = {
+  id: string;
+  pitchId: string;
+  /** 원본 공 — 차례 · 스피드건 · 구종 · 클립 주소 · 원본 값 */
+  pitch: AdminPitchRow;
+  session: AdminSessionRow;
+  ok: boolean;
+  rawKmh: number | null;
+  releaseKmh: number | null;
+  errorKmh: number | null;
+  confidence: string | null;
+  frames: number | null;
+  fps: number | null;
+  /** 거부 까닭(RejectCode) — ok 가 false 일 때 */
+  reject: string | null;
+};
+export type AdminCalibRunView = AdminCalibRunSummary & { rows: AdminCalibResultRow[] };
+
 export type AdminOverview = {
   /** 탐색기 폴더 트리 — 연도 › 월 › 날짜(모두 최근부터), 폴더마다 통계 */
   tree: AdminTreeYear[];
+  /** [보정] 영역의 트리 — 연도 › 월 › 날짜 › 차수 */
+  calibTree: AdminCalibYear[];
+  /** 지금 배포된 구속 측정 모델 버전(lib/velocity-engine/version.ts) */
+  engineVersion: string;
   totals: {
     users: number;
     sessions: number;
@@ -81,8 +134,11 @@ export type AdminPitchAnalysis = {
 
 export type AdminPitchRow = {
   id: string;
+  sessionId: string;
   seq: number;
   createdAt: string;
+  /** 이 값을 낸 모델 버전 — 옛 자료는 null */
+  engineVersion: string | null;
   rawKmh: number;
   kmh: number;
   releaseKmh: number | null;
@@ -120,6 +176,8 @@ export type AdminSessionRow = {
   nickname: string;
   date: string;
   createdAt: string;
+  /** 잰 모델 버전 — 옛 세션은 null */
+  engineVersion: string | null;
   source: string;
   mode: string;
   cameraPos: string;
@@ -193,9 +251,123 @@ function setupLabel(cameraPos: string, net: boolean, source: string) {
   ].join(' · ');
 }
 
-/** 종합 — 숫자 타일 · 날짜 목록 · 최근 30일 편향 · 보정식 · 설정별 */
+/* ── 보정 차수 요약 ── */
+
+/** 차수 요약에 필요한 만큼만 — 결과마다 원본 공의 스피드건 · 제외 표시 */
+const CALIB_RUN_SELECT = {
+  id: true,
+  date: true,
+  pass: true,
+  engineVersion: true,
+  userId: true,
+  memo: true,
+  createdAt: true,
+  results: {
+    select: {
+      ok: true,
+      rawKmh: true,
+      releaseKmh: true,
+      pitch: { select: { gunKmh: true, calibExclude: true } },
+    },
+  },
+} satisfies Prisma.VelocityCalibRunSelect;
+
+type CalibRunLite = Prisma.VelocityCalibRunGetPayload<{ select: typeof CALIB_RUN_SELECT }>;
+
+/**
+ * 결과 하나의 오차 — (다시 잰 릴리스 ?? 다시 잰 카메라 값) − 스피드건. 짝 = 잰 것(ok)이고 원본 공에
+ * 스피드건 값이 있고 보정에서 빼지 않은 것. 원본이 수기(manual)여도 이번 결과는 영상을 새로 잰 값이라 짝이다.
+ */
+function calibResultError(r: {
+  ok: boolean;
+  rawKmh: number | null;
+  releaseKmh: number | null;
+  pitch: { gunKmh: number | null; calibExclude: boolean };
+}): number | null {
+  if (!r.ok || r.pitch.gunKmh == null || r.pitch.calibExclude) return null;
+  const v = r.releaseKmh ?? r.rawKmh;
+  if (v == null) return null;
+  return Math.round((v - r.pitch.gunKmh) * 10) / 10;
+}
+
+function calibRunSummaryOf(run: CalibRunLite, nickname: string): AdminCalibRunSummary {
+  const errors = run.results
+    .map(calibResultError)
+    .filter((e): e is number => e != null);
+  return {
+    id: run.id,
+    date: dateKeyOf(run.date),
+    pass: run.pass,
+    engineVersion: run.engineVersion,
+    createdAt: run.createdAt.toISOString(),
+    nickname,
+    memo: run.memo,
+    results: run.results.length,
+    ok: run.results.filter((r) => r.ok).length,
+    pairs: errors.length,
+    ...errorStats(errors),
+  };
+}
+
+/** 돌린 관리자의 별명 — VelocityCalibRun 은 User 와 관계를 두지 않아 따로 읽는다. 탈퇴했으면 '—' */
+async function nicknamesOf(userIds: string[]): Promise<Map<string, string>> {
+  const ids = [...new Set(userIds)];
+  if (ids.length === 0) return new Map();
+  const users = await prisma.user.findMany({
+    where: { id: { in: ids } },
+    select: { id: true, nickname: true },
+  });
+  return new Map(users.map((u) => [u.id, u.nickname]));
+}
+
+/** [보정] 트리 — 연도 › 월 › 날짜 › 차수, 모두 최근부터 */
+function calibTreeOf(runs: AdminCalibRunSummary[]): AdminCalibYear[] {
+  const desc = (a: string, b: string) => (a < b ? 1 : a > b ? -1 : 0);
+  const byDate = new Map<string, AdminCalibRunSummary[]>();
+  for (const r of runs) {
+    const list = byDate.get(r.date);
+    if (list) list.push(r);
+    else byDate.set(r.date, [r]);
+  }
+  const days: AdminCalibDay[] = [...byDate.entries()]
+    .sort(([a], [b]) => desc(a, b))
+    .map(([date, list]) => ({
+      date,
+      runs: [...list].sort((a, b) => b.pass - a.pass),
+    }));
+  const months = new Map<string, AdminCalibDay[]>();
+  for (const d of days) {
+    const k = d.date.slice(0, 7);
+    const list = months.get(k);
+    if (list) list.push(d);
+    else months.set(k, [d]);
+  }
+  const monthRows: AdminCalibMonth[] = [...months.entries()]
+    .sort(([a], [b]) => desc(a, b))
+    .map(([key, list]) => ({
+      key,
+      runs: list.reduce((s, d) => s + d.runs.length, 0),
+      days: list,
+    }));
+  const years = new Map<string, AdminCalibMonth[]>();
+  for (const m of monthRows) {
+    const k = m.key.slice(0, 4);
+    const list = years.get(k);
+    if (list) list.push(m);
+    else years.set(k, [m]);
+  }
+  return [...years.entries()]
+    .sort(([a], [b]) => desc(a, b))
+    .map(([key, list]) => ({
+      key,
+      runs: list.reduce((s, m) => s + m.runs, 0),
+      months: list,
+    }));
+}
+
+/** 종합 — 숫자 타일 · 날짜 목록 · 최근 30일 편향 · 보정식 · 설정별 · [보정] 트리 */
 export async function loadVelocityAdminOverview(): Promise<AdminOverview> {
-  const [rows, sessionCount] = await Promise.all([
+  const [rows, sessionCount, calibRuns] = await Promise.all([
     prisma.velocityPitch.findMany({
       select: {
         sessionId: true,
@@ -212,7 +384,15 @@ export async function loadVelocityAdminOverview(): Promise<AdminOverview> {
       },
     }),
     prisma.velocitySession.count(),
+    prisma.velocityCalibRun.findMany({
+      orderBy: [{ date: 'desc' }, { pass: 'desc' }],
+      select: CALIB_RUN_SELECT,
+    }),
   ]);
+  const nicknames = await nicknamesOf(calibRuns.map((r) => r.userId));
+  const calibTree = calibTreeOf(
+    calibRuns.map((r) => calibRunSummaryOf(r, nicknames.get(r.userId) ?? '—'))
+  );
 
   /* 날짜별로 묶는다 */
   const byDate = new Map<string, OverviewPitch[]>();
@@ -304,6 +484,8 @@ export async function loadVelocityAdminOverview(): Promise<AdminOverview> {
 
   return {
     tree,
+    calibTree,
+    engineVersion: VELOCITY_ENGINE_VERSION,
     totals: {
       users: new Set(rows.map((r) => r.userId)).size,
       sessions: sessionCount,
@@ -356,30 +538,62 @@ function lensCalText(raw: unknown): string | null {
   return parts.length ? parts.join(' · ') : null;
 }
 
-/** 그날(YYYY-MM-DD)의 모든 계정 세션 — 관리자 날짜 페이지 */
-export async function loadVelocityAdminDay(date: string): Promise<AdminDay> {
-  const at = new Date(`${date}T00:00:00.000Z`);
-  const sessions = await prisma.velocitySession.findMany({
-    where: { date: at },
-    orderBy: { createdAt: 'asc' },
-    include: {
-      user: { select: { nickname: true } },
-      pitches: { orderBy: { seq: 'asc' } },
-    },
-  });
+/** 세션 + 별명 + 공 전부(차례대로) — 날짜 페이지 · 보정 차수 페이지가 같은 모양으로 읽는다 */
+const SESSION_INCLUDE = {
+  user: { select: { nickname: true } },
+  pitches: { orderBy: { seq: 'asc' } },
+} satisfies Prisma.VelocitySessionInclude;
 
-  /* 그날 클립 전부의 재생 주소를 한 번에 */
-  const clipPaths = sessions.flatMap((s) =>
-    s.pitches.map((p) => p.clipPath).filter((p): p is string => !!p)
-  );
-  const urls = clipPaths.length ? await createPlaybackUrls(clipPaths) : {};
+type SessionWithPitches = Prisma.VelocitySessionGetPayload<{ include: typeof SESSION_INCLUDE }>;
 
-  const rows: AdminSessionRow[] = sessions.map((s) => ({
+function toPitchRow(
+  p: SessionWithPitches['pitches'][number],
+  urls: Record<string, string>
+): AdminPitchRow {
+  return {
+    id: p.id,
+    sessionId: p.sessionId,
+    seq: p.seq,
+    createdAt: p.createdAt.toISOString(),
+    engineVersion: p.engineVersion,
+    rawKmh: p.rawKmh,
+    kmh: p.kmh,
+    releaseKmh: p.releaseKmh,
+    errorKmh: p.errorKmh,
+    confidence: p.confidence,
+    releaseDxCm: p.releaseDxCm,
+    releaseDyCm: p.releaseDyCm,
+    releaseDistM: p.releaseDistM,
+    travelM: p.travelM,
+    durationSec: p.durationSec,
+    frames: p.frames,
+    fps: p.fps,
+    gunKmh: p.gunKmh,
+    calibExclude: p.calibExclude,
+    manual: p.manual,
+    autoDetected: p.autoDetected,
+    pitchType: p.pitchType,
+    zone: p.zone,
+    result: p.result,
+    memo: p.memo,
+    clipPath: p.clipPath,
+    clipUrl: p.clipPath ? (urls[p.clipPath] ?? null) : null,
+    clipSec: p.clipSec,
+    clipEventSec: p.clipEventSec,
+    clipBytes: p.clipBytes,
+    clipMime: p.clipMime,
+    analysis: pickAnalysis(p.analysis),
+  };
+}
+
+function toSessionRow(s: SessionWithPitches, urls: Record<string, string>): AdminSessionRow {
+  return {
     id: s.id,
     userId: s.userId,
     nickname: s.user.nickname,
-    date,
+    date: dateKeyOf(s.date),
     createdAt: s.createdAt.toISOString(),
+    engineVersion: s.engineVersion,
     source: s.source,
     mode: s.mode,
     cameraPos: s.cameraPos,
@@ -397,39 +611,28 @@ export async function loadVelocityAdminDay(date: string): Promise<AdminDay> {
     frameW: s.frameW,
     frameH: s.frameH,
     memo: s.memo,
-    pitches: s.pitches.map((p) => ({
-      id: p.id,
-      seq: p.seq,
-      createdAt: p.createdAt.toISOString(),
-      rawKmh: p.rawKmh,
-      kmh: p.kmh,
-      releaseKmh: p.releaseKmh,
-      errorKmh: p.errorKmh,
-      confidence: p.confidence,
-      releaseDxCm: p.releaseDxCm,
-      releaseDyCm: p.releaseDyCm,
-      releaseDistM: p.releaseDistM,
-      travelM: p.travelM,
-      durationSec: p.durationSec,
-      frames: p.frames,
-      fps: p.fps,
-      gunKmh: p.gunKmh,
-      calibExclude: p.calibExclude,
-      manual: p.manual,
-      autoDetected: p.autoDetected,
-      pitchType: p.pitchType,
-      zone: p.zone,
-      result: p.result,
-      memo: p.memo,
-      clipPath: p.clipPath,
-      clipUrl: p.clipPath ? (urls[p.clipPath] ?? null) : null,
-      clipSec: p.clipSec,
-      clipEventSec: p.clipEventSec,
-      clipBytes: p.clipBytes,
-      clipMime: p.clipMime,
-      analysis: pickAnalysis(p.analysis),
-    })),
-  }));
+    pitches: s.pitches.map((p) => toPitchRow(p, urls)),
+  };
+}
+
+/** 세션들을 화면 줄로 — 클립 전부의 서명 재생 주소를 한 번에 만든다 */
+async function sessionRowsOf(sessions: SessionWithPitches[]): Promise<AdminSessionRow[]> {
+  const clipPaths = sessions.flatMap((s) =>
+    s.pitches.map((p) => p.clipPath).filter((p): p is string => !!p)
+  );
+  const urls = clipPaths.length ? await createPlaybackUrls(clipPaths) : {};
+  return sessions.map((s) => toSessionRow(s, urls));
+}
+
+/** 그날(YYYY-MM-DD)의 모든 계정 세션 — 관리자 날짜 폴더(원본 · 보정 둘 다 이 자료를 쓴다) */
+export async function loadVelocityAdminDay(date: string): Promise<AdminDay> {
+  const at = new Date(`${date}T00:00:00.000Z`);
+  const sessions = await prisma.velocitySession.findMany({
+    where: { date: at },
+    orderBy: { createdAt: 'asc' },
+    include: SESSION_INCLUDE,
+  });
+  const rows = await sessionRowsOf(sessions);
 
   /* 그날 타일 — 종합과 같은 계산 */
   const flat: OverviewPitch[] = sessions.flatMap((s) =>
@@ -449,4 +652,88 @@ export async function loadVelocityAdminDay(date: string): Promise<AdminDay> {
   );
 
   return { date, stat: dayStatOf(date, flat), sessions: rows };
+}
+
+/* ───────────────────────── 보정 차수 ───────────────────────── */
+
+/**
+ * 보정 차수 하나 — 요약 + 결과 줄(공마다 원본 공 · 그 세션 · 다시 잰 값). 없는 차수면 null.
+ * 결과의 원본 공 · 세션은 날짜 폴더와 같은 모양(클립 주소까지)이라 미리보기가 같은 부품을 쓴다.
+ * 줄 차례는 세션이 만들어진 순서, 그 안에서 공 차례(seq).
+ */
+export async function loadVelocityAdminCalibRun(
+  runId: string
+): Promise<AdminCalibRunView | null> {
+  const run = await prisma.velocityCalibRun.findUnique({
+    where: { id: runId },
+    select: {
+      ...CALIB_RUN_SELECT,
+      results: {
+        select: {
+          id: true,
+          pitchId: true,
+          ok: true,
+          rawKmh: true,
+          releaseKmh: true,
+          errorKmh: true,
+          confidence: true,
+          frames: true,
+          fps: true,
+          reject: true,
+          pitch: { select: { sessionId: true, gunKmh: true, calibExclude: true } },
+        },
+      },
+    },
+  });
+  if (!run) return null;
+
+  const sessionIds = [...new Set(run.results.map((r) => r.pitch.sessionId))];
+  const [sessions, nicknames] = await Promise.all([
+    sessionIds.length
+      ? prisma.velocitySession.findMany({
+          where: { id: { in: sessionIds } },
+          orderBy: { createdAt: 'asc' },
+          include: SESSION_INCLUDE,
+        })
+      : Promise.resolve([] as SessionWithPitches[]),
+    nicknamesOf([run.userId]),
+  ]);
+  const sessionRows = await sessionRowsOf(sessions);
+  const sessionById = new Map(sessionRows.map((s) => [s.id, s]));
+  const pitchById = new Map(sessionRows.flatMap((s) => s.pitches.map((p) => [p.id, p])));
+
+  const rows: AdminCalibResultRow[] = [];
+  for (const r of run.results) {
+    const pitch = pitchById.get(r.pitchId);
+    const session = pitch && sessionById.get(pitch.sessionId);
+    /* 원본 공이 그새 지워졌으면(결과는 cascade 로 같이 지워지지만 그 사이) 건너뛴다 */
+    if (!pitch || !session) continue;
+    rows.push({
+      id: r.id,
+      pitchId: r.pitchId,
+      pitch,
+      session,
+      ok: r.ok,
+      rawKmh: r.rawKmh,
+      releaseKmh: r.releaseKmh,
+      errorKmh: r.errorKmh,
+      confidence: r.confidence,
+      frames: r.frames,
+      fps: r.fps,
+      reject: r.reject,
+    });
+  }
+  rows.sort(
+    (a, b) =>
+      (a.session.createdAt < b.session.createdAt
+        ? -1
+        : a.session.createdAt > b.session.createdAt
+          ? 1
+          : 0) || a.pitch.seq - b.pitch.seq
+  );
+
+  return {
+    ...calibRunSummaryOf(run, nicknames.get(run.userId) ?? '—'),
+    rows,
+  };
 }

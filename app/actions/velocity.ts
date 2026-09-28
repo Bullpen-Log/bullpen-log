@@ -19,6 +19,7 @@ import {
 } from '@/lib/velocity-sync';
 import { isRestSession, validateSessionType } from '@/lib/session-type';
 import { fitCalibration, type CalFit, type CalPair } from '@/lib/velocity-calibration';
+import { VELOCITY_ENGINE_VERSION } from '@/lib/velocity-engine/version';
 import {
   PITCH_RESULT_KEYS,
   PITCH_TYPE_KEYS,
@@ -187,6 +188,8 @@ export async function saveVelocitySession(
         analysis: Prisma.InputJsonValue | undefined;
         autoDetected: boolean;
         manual: boolean;
+        /** 이 값을 낸 모델 — 수기는 카메라 값이 없어 null */
+        engineVersion: string | null;
       }
   > = [];
   for (const p of input.pitches) {
@@ -214,6 +217,7 @@ export async function saveVelocitySession(
         analysis: undefined,
         autoDetected: false,
         manual: true,
+        engineVersion: null,
         ...edit,
       });
       continue;
@@ -246,6 +250,7 @@ export async function saveVelocitySession(
         Prisma.InputJsonValue | undefined,
       autoDetected: p.autoDetected !== false,
       manual: false,
+      engineVersion: VELOCITY_ENGINE_VERSION,
       ...edit,
     });
   }
@@ -282,6 +287,8 @@ export async function saveVelocitySession(
         mode,
         cameraPos,
         net: input.net !== false,
+        /* 어느 모델로 쟀나 — 관리자 [보정] 폴더에서 원본과 다시 잰 값을 견줄 때 본다 */
+        engineVersion: VELOCITY_ENGINE_VERSION,
         device: input.device ? String(input.device).slice(0, 200) : null,
         /* 보정용 저장은 관리자만 — 일반 계정이 켜 보내도 저장하지 않는다 */
         forCalibration: user.role === 'ADMIN' && input.forCalibration === true,
