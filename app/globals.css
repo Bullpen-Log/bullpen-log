@@ -1571,6 +1571,13 @@ html[data-nav-choreo]::view-transition-new(.nav-grow.g2) {
 html[data-nav-choreo]::view-transition-new(.nav-grow.g3) {
   animation-delay: 230ms;
 }
+/* 구속 측정 메뉴가 붙어 판에만 자리가 있는 것이 여섯까지 — 관리자 계정 */
+html[data-nav-choreo]::view-transition-new(.nav-grow.g4) {
+  animation-delay: 260ms;
+}
+html[data-nav-choreo]::view-transition-new(.nav-grow.g5) {
+  animation-delay: 290ms;
+}
 @keyframes nav-grow-in {
   from {
     opacity: 0;
@@ -1620,6 +1627,17 @@ html[data-nav-choreo]::view-transition-group(.d7),
 html[data-nav-choreo]::view-transition-old(.d7),
 html[data-nav-choreo]::view-transition-new(.d7) {
   animation-delay: calc(var(--fly-base) + 7 * var(--fly-step));
+}
+/* 관리자 계정은 메뉴가 열까지(구속 측정 · 구속 측정 관리자) — 도크의 셋째 줄 */
+html[data-nav-choreo]::view-transition-group(.d8),
+html[data-nav-choreo]::view-transition-old(.d8),
+html[data-nav-choreo]::view-transition-new(.d8) {
+  animation-delay: calc(var(--fly-base) + 8 * var(--fly-step));
+}
+html[data-nav-choreo]::view-transition-group(.d9),
+html[data-nav-choreo]::view-transition-old(.d9),
+html[data-nav-choreo]::view-transition-new(.d9) {
+  animation-delay: calc(var(--fly-base) + 9 * var(--fly-step));
 }
 
 /*

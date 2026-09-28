@@ -1,7 +1,8 @@
 import { Camera } from 'lucide-react';
 import type { AdminDay, AdminOverview } from '@/lib/velocity-admin-load';
 import { calibrationText } from '@/lib/velocity-calibration';
-import { ButtonLink, Card, PageHeading } from '@/components/ui';
+import { ButtonLink, Card } from '@/components/ui';
+import { PitchLogHeading, VelocityAdminViewSwitch } from '@/app/(app)/videos/pitch-log-heading';
 import { BiasChart } from './overview-client';
 import { FileMeasureButton } from './file-measure-button';
 import { VelocityExplorer } from './explorer';
@@ -12,7 +13,9 @@ import { mb, signed } from './format';
 /**
  * 구속 측정 관리자 화면(자료를 받아 그리기만 한다). 읽기 · 권한 · 주소 읽기는 page.tsx.
  *
- *   머리 줄 — 구속 측정 시작 · 영상 파일로 재기
+ *   머리 줄 — 투구 기록과 같은 머리(제목 · [캘린더 | 목록 | 구속 측정 관리자] 고르개) + 구속 측정
+ *             시작 · 영상 파일로 재기. 투구 기록의 한 보기로 읽힌다(2026-09-28 사용자) — 고르개의
+ *             캘린더 · 목록을 누르면 투구 기록으로 돌아간다.
  *   숫자 타일 — 모든 자료의 세션 · 공 · 짝 · 클립 · 편향 · p90
  *   탐색기 — 연도 › 월 › 날짜 › 세션 폴더, 그 안의 공 파일(explorer.tsx)
  *   종합 분석 — 최근 30일 편향 · 보정식 · 설정별
@@ -65,10 +68,14 @@ export function VelocityAdminView({
 
   return (
     <div className="stack-page">
-      <PageHeading
-        eyebrow="Bullpen Velocity"
-        title="구속 측정 관리자"
-        description="잰 값을 폴더처럼 찾아요 — 연도 › 월 › 날짜 › 세션 › 공. 공 파일을 누르면 영상과 값을 보고 스피드건 값을 넣어요."
+      <PitchLogHeading
+        controls={
+          <>
+            {/* 투구 기록의 '2분할 비교' 자리 — 비워 고르개를 오른쪽에 둔다 */}
+            <span />
+            <VelocityAdminViewSwitch />
+          </>
+        }
         action={
           <div className="flex flex-col gap-2 sm:flex-row">
             <FileMeasureButton />

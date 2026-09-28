@@ -11,7 +11,14 @@ import type { CalFit } from '@/lib/velocity-calibration';
 import type { VelocitySessionView } from '@/lib/velocity-meta';
 import { ButtonLink, PageHeading } from '@/components/ui';
 import { useTodayKey } from '@/components/use-today-key';
-import { Segmented } from '@/components/segmented';
+import {
+  PITCH_VIEW_OPTIONS,
+  PitchLogHeading,
+  PitchViewSwitch,
+  VELOCITY_ADMIN_OPTION,
+  VELOCITY_OPTION,
+  type PitchView,
+} from './pitch-log-heading';
 import { CompareView, type ClipOption } from './compare-view';
 import { VideoGallery } from './video-gallery';
 import { VideoCalendar } from './video-calendar';
@@ -33,25 +40,8 @@ export type VideoLog = {
   videoPaths: string[];
 };
 
-/**
- * [캘린더 | 목록] — 같은 기록을 다르게 찾는 두 방식.
- *
- * 캘린더는 '그날'을 알 때 — 투구한 날이 칠해지고, 영상이 있는 날은 그날 영상의 한
- * 장면이 칸을 채운다. 날짜를 누르면 그날 기록과 영상이 밑에 펴진다.
- * 목록은 여러 날을 가로질러 훑을 때 — 구속·강도로 줄 세우고, 영상 두 개를 골라 견준다.
- * 홈의 [캘린더 | 목록]과 같은 고르개를 쓴다.
- */
-const VIEW_OPTIONS = [
-  { value: 'calendar', label: '캘린더' },
-  { value: 'list', label: '목록' },
-] as const;
-/*
- * 구속 측정(불펜 벨로시티)은 앱 안이거나 관리자일 때만 세 번째 칸으로 붙는다. 관리자가 웹에서
- * 보면 폰 틀 패널 대신 구속 측정 관리자(/admin/velocity)로 가는 칸이 된다(velocityHref).
- */
-const VELOCITY_OPTION = { value: 'velocity', label: '구속 측정' } as const;
-const VELOCITY_ADMIN_OPTION = { value: 'velocity', label: '구속 측정 관리자' } as const;
-type View = 'calendar' | 'list' | 'velocity';
+/* 보기 칸 [캘린더 | 목록 | 구속 측정]은 투구 기록 머리와 같이 둔다(pitch-log-heading.tsx) */
+type View = PitchView;
 
 /**
  * 캘린더·목록과 2분할 비교, 화면들을 오간다.
@@ -103,8 +93,8 @@ export function VideosClient({
   const todayKey = useTodayKey(today);
   const [view, setView] = useState<View>(initialView);
   const viewOptions: readonly { value: View; label: string }[] = canMeasure
-    ? [...VIEW_OPTIONS, velocityHref ? VELOCITY_ADMIN_OPTION : VELOCITY_OPTION]
-    : VIEW_OPTIONS;
+    ? [...PITCH_VIEW_OPTIONS, velocityHref ? VELOCITY_ADMIN_OPTION : VELOCITY_OPTION]
+    : PITCH_VIEW_OPTIONS;
   const [comparing, setComparing] = useState(false);
   /* 목록에서 고른 둘. 비교 화면이 이 둘로 열린다. */
   const [preset, setPreset] = useState<{ a: string; b: string } | null>(null);
@@ -171,8 +161,7 @@ export function VideosClient({
       ) : (
         <span />
       )}
-      <Segmented
-        label="기록 보기 방식"
+      <PitchViewSwitch
         value={view}
         onChange={(next) => {
           /* 관리자 웹의 세 번째 칸은 보기가 아니라 관리자 화면으로 가는 길 */
@@ -184,48 +173,28 @@ export function VideosClient({
           if (next === 'calendar') setSelecting(false);
         }}
         options={viewOptions}
-        tone="raised"
-        itemClassName="px-4 py-1.5"
       />
     </>
   );
 
   return (
     <div className="stack-page">
-      <PageHeading
-        eyebrow="Pitch log"
-        title="투구 기록"
+      <PitchLogHeading
+        controls={viewControls}
         action={
-          <div className="flex items-center gap-2">
-            {/*
-              세로가 낮은 PC(노트북)에서는 고르개 줄을 따로 두지 않고 여기에 붙인다 — 한 줄
-              (60px 남짓)만큼 캘린더 칸이 커진다. 한 벌만 보이고 나머지는 숨는다(display: none).
-            */}
-            <div className="hidden items-center gap-2 desk-low:flex">
-              {viewControls}
-            </div>
-            {/*
-              카메라로 구속 재기 — 폰 화면 하나짜리 기능이라 따로 연다(/velocity). 앱 안이거나
-              관리자일 때만 보인다. 일반 계정이 웹에서 주소로 들어가도 '앱에서 쓸 수 있어요'만 본다.
-            */}
-            {/* 기록을 남기는 곳은 날짜 화면이다 — 이 탭에서 곧장 오늘로 */}
-            <ButtonLink
-              href={`/pitch-log/${todayKey}`}
-              transitionTypes={OPEN_POPUP_TYPES}
-              className="gap-1.5"
-            >
-              <LinkPending>
-                <Plus aria-hidden className="h-4 w-4" />
-              </LinkPending>
-              오늘 기록 남기기
-            </ButtonLink>
-          </div>
+          /* 기록을 남기는 곳은 날짜 화면이다 — 이 탭에서 곧장 오늘로 */
+          <ButtonLink
+            href={`/pitch-log/${todayKey}`}
+            transitionTypes={OPEN_POPUP_TYPES}
+            className="gap-1.5"
+          >
+            <LinkPending>
+              <Plus aria-hidden className="h-4 w-4" />
+            </LinkPending>
+            오늘 기록 남기기
+          </ButtonLink>
         }
       />
-
-      <div className="flex flex-wrap items-center justify-between gap-2 desk-low:hidden">
-        {viewControls}
-      </div>
 
       {/* 두 방식을 오갈 때 살짝 떠오르며 바뀐다 */}
       <div key={view} className="motion-safe:animate-fade-in">

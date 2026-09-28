@@ -129,7 +129,14 @@ export default async function VideosPage({
       velocityHref={velocityHref}
       measured={measured}
       velocity={velocity}
-      initialView={velocity && params.view === 'velocity' ? 'velocity' : 'calendar'}
+      /* ?view=list 는 구속 측정 관리자의 고르개에서 '목록'을 눌러 돌아올 때(pitch-log-heading.tsx) */
+      initialView={
+        velocity && params.view === 'velocity'
+          ? 'velocity'
+          : params.view === 'list'
+            ? 'list'
+            : 'calendar'
+      }
     />
   );
 }

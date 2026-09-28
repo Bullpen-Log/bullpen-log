@@ -24,6 +24,8 @@ export type NavIconName =
   | 'shield'
   /* 구속 측정 관리자 — 계기판 */
   | 'gauge'
+  /* 구속 측정 — 스피드건(레이더 건)처럼 곧장 잰다. 계기판(관리자)과 가르려고 다른 그림 */
+  | 'radar'
   | 'menu';
 
 export type NavItem = {
@@ -58,6 +60,11 @@ export type NavItem = {
   tone?: 'lower' | 'upper' | 'mobility' | 'power' | 'core' | 'armcare' | 'recovery';
   /** 관리자에게만 보이는 항목 */
   adminOnly?: boolean;
+  /**
+   * 앱(스마트폰 껍데기)에서는 누구나, 웹에서는 관리자만 보이는 항목 — 폰의 고속 촬영이 있어야
+   * 하는 구속 측정. 여는 쪽의 규칙(app/(session)/velocity/access.ts)과 같다.
+   */
+  appOrAdmin?: boolean;
 };
 
 export type NavGroup = {
@@ -131,6 +138,16 @@ export const NAV_GROUPS: NavGroup[] = [
    */
   {
     items: [{ href: '/nutrition', label: '영양', icon: 'utensils' }],
+  },
+  /*
+   * 구속 측정 — 투구 기록을 거치지 않고 카메라 측정으로 곧장(2026-09-28 사용자). 막대의 넷
+   * (홈 · 투구 기록 · 트레이닝 · 영양) 뒤에 둔다 — 도크의 첫 줄이 막대의 넷이라, 그 사이에 끼우면
+   * 막대에서 날아온 아이콘이 제 줄에 앉지 못한다.
+   */
+  {
+    items: [
+      { href: '/velocity/measure', label: '구속 측정', icon: 'radar', appOrAdmin: true },
+    ],
   },
   {
     title: '라이브러리',
@@ -213,7 +230,8 @@ export const DESK_MEDIA =
  * 캘린더에서 날짜를 눌러 들어가도 지금 어느 탭에 있는지 메뉴가 알려 준다.
  */
 export const NAV_ALSO: Record<string, readonly string[]> = {
-  '/videos': ['/pitch-log'],
+  /* 구속 측정 관리자도 투구 기록의 한 보기다(같은 머리 · 같은 고르개, app/(app)/videos/pitch-log-heading.tsx) */
+  '/videos': ['/pitch-log', '/admin/velocity'],
 };
 
 export const MOBILE_TABS: NavItem[] = [
@@ -235,11 +253,16 @@ export function quickTabs(): NavItem[] {
   return MOBILE_TABS.filter((t) => t.href !== MORE_HREF);
 }
 
-/** 관리자가 아니면 관리자 전용 항목을 걸러낸다. */
-export function visibleGroups(isAdmin: boolean): NavGroup[] {
+/**
+ * 볼 수 없는 항목을 걸러낸다 — 관리자 전용은 관리자만, 앱 · 관리자 전용(구속 측정)은 앱 안이거나
+ * 관리자일 때만. 앱 안인지는 요청의 User-Agent 로 부르는 쪽이 가린다(lib/app-env.ts).
+ */
+export function visibleGroups(isAdmin: boolean, isNative = false): NavGroup[] {
   return NAV_GROUPS.map((g) => ({
     ...g,
-    items: g.items.filter((i) => !i.adminOnly || isAdmin),
+    items: g.items.filter(
+      (i) => (!i.adminOnly || isAdmin) && (!i.appOrAdmin || isAdmin || isNative)
+    ),
   })).filter((g) => g.items.length > 0);
 }
 
@@ -250,9 +273,9 @@ export function visibleGroups(isAdmin: boolean): NavGroup[] {
  * 저장해 둔 사람을 위해 화면만 남겨 둔다. 하단 탭에 이미 있는 항목은 빼서
  * 같은 화면에 두 번 나오지 않게 한다.
  */
-export function moreGroups(isAdmin: boolean): NavGroup[] {
+export function moreGroups(isAdmin: boolean, isNative = false): NavGroup[] {
   const inTabs = new Set(MOBILE_TABS.map((t) => t.href));
-  return visibleGroups(isAdmin)
+  return visibleGroups(isAdmin, isNative)
     .map((g) => ({ ...g, items: g.items.filter((i) => !inTabs.has(i.href)) }))
     .filter((g) => g.items.length > 0);
 }

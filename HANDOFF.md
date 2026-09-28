@@ -57,3 +57,17 @@ clipPath · clipBytes · clipSec · clipMime · clipEventSec · analysis(Json) �
   `training-note.tsx` · `day/[date]/page.tsx` · `routine/[id]/routine-builder.tsx`, `library/training/training-client.tsx` ·
   `library/mechanics/mechanics-client.tsx` · `library/warmup/warmup-client.tsx`, `today/page.tsx` · `today/summary-panel.tsx`,
   `coach/*`(overview · parts · report-client · training-review), `components/category-section.tsx` · `meta-filter.tsx`.
+
+## 김민에게 — 2026-09-28 · 금윤호(Claude) — 메뉴에 '구속 측정' · 투구 기록 머리 부품
+
+받은 뒤 할 일 없음. 사용자 요청: 구속 측정 관리자도 투구 기록의 한 기능처럼(돌아갈 고르개가 없었다), 메뉴에
+구속 측정으로 곧장 가는 아이콘(웹은 관리자만, 앱은 누구나).
+
+- `lib/nav.ts`: 새 항목 **구속 측정**(`/velocity/measure`, 아이콘 `radar`) — 영양 뒤 따로 한 묶음(도크 첫 줄 =
+  막대의 넷을 지키려고). 새 표시 `appOrAdmin`, **`visibleGroups(isAdmin, isNative)` · `moreGroups(isAdmin, isNative)`
+  에 둘째 인자가 생겼다**(기본 false). `NAV_ALSO['/videos']` 에 `/admin/velocity` 를 더했다.
+- `app/(app)/layout.tsx` · `more/page.tsx`: User-Agent 로 앱 안인지 가려(`isNativeUserAgent`) 메뉴에 넘긴다.
+- `components/app-shell.tsx` `useIsActive`: 하위 경로에 더 자세한 메뉴가 있으면 그 메뉴만 켜진다(구속 측정
+  관리자에서 '관리자'까지 켜지던 것). `components/nav-icons.tsx` 에 `Radar`. `globals.css` 에 d8 · d9 · g4 · g5 딱지.
+- 투구 기록 머리를 부품으로 뗐다: `app/(app)/videos/pitch-log-heading.tsx`(제목 + [캘린더 | 목록 | 구속 측정] 고르개).
+  `videos-client.tsx` 와 `admin/velocity/overview-view.tsx` 가 같이 쓴다. `videos/page.tsx` 는 `?view=list` 로 목록을 연다.

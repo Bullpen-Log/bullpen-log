@@ -1,5 +1,7 @@
 import { ViewTransition } from 'react';
+import { headers } from 'next/headers';
 import { requireUser } from '@/lib/dal';
+import { isNativeUserAgent } from '@/lib/app-env';
 import { isSex, toDateInputValue } from '@/lib/profile';
 import { toDateKey } from '@/lib/pitch-stats';
 import { createAvatarUrl } from '@/lib/storage';
@@ -41,6 +43,8 @@ export default async function AppLayout({
   // 이 레이아웃 아래의 모든 페이지는 로그인이 필요하다.
   const user = await requireUser();
   const isAdmin = user.role === 'ADMIN';
+  /* 앱(스마트폰 껍데기) 안인가 — 구속 측정 메뉴는 앱이면 누구나, 웹이면 관리자만(lib/nav.ts) */
+  const isNative = isNativeUserAgent((await headers()).get('user-agent'));
   /*
    * 프로필 사진은 비공개 저장소에 있어 볼 때마다 임시 주소를 만든다.
    *
@@ -83,7 +87,7 @@ export default async function AppLayout({
     /* 세로로 쌓는 틀 — 본문이 짧은 화면에서도 맨 밑 정보(SiteFooter)가 화면 바닥에 붙는다 */
     <div className="flex min-h-dvh flex-col">
       <AppNav
-        groups={visibleGroups(isAdmin)}
+        groups={visibleGroups(isAdmin, isNative)}
         quick={quickTabs()}
         tabs={MOBILE_TABS}
         nickname={user.nickname}

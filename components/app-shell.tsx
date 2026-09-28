@@ -20,7 +20,7 @@ import { quietRefresh } from '@/lib/quiet-refresh';
 import { rememberPage } from '@/lib/last-page';
 import { REST_SESSION_TYPE } from '@/lib/session-type';
 import type { NavGroup, NavItem } from '@/lib/nav';
-import { DESK_MEDIA, MORE_HREF, NAV_ALSO } from '@/lib/nav';
+import { DESK_MEDIA, MORE_HREF, NAV_ALSO, NAV_GROUPS } from '@/lib/nav';
 import { BaseballMark } from '@/components/logo';
 import { Modal } from '@/components/modal';
 import { ProfilePanel, type ProfileData } from '@/components/profile-panel';
@@ -39,20 +39,28 @@ import {
   useSlidingThumb,
 } from '@/components/use-sliding-thumb';
 
+/** 메뉴 주소 전부(경로만) — 더 자세한 메뉴가 있는지 볼 때 쓴다 */
+const MENU_PATHS = NAV_GROUPS.flatMap((g) => g.items.map((i) => i.href.split('?')[0]));
+
 /**
  * 현재 위치 판정. 하위 경로도 같은 메뉴로 본다.
  * 단 '/'로 시작하는 다른 메뉴를 잘못 물지 않게 정확히 비교한다.
+ *
+ * 하위 경로에 더 자세한 메뉴가 따로 있으면 그 메뉴만 켜진다 — 구속 측정 관리자(/admin/velocity)
+ * 에서 관리자(/admin)까지 같이 켜져, 사이드바에 불이 두세 개 들어와 있었다.
  */
 function useIsActive() {
   const pathname = usePathname();
   const under = (path: string) => pathname === path || pathname.startsWith(`${path}/`);
   /*
    * 메뉴 주소에 ?칸이 붙을 수 있다(트레이닝 — lib/training-part.ts) — 경로만 본다.
-   * 그 탭에 속하는 다른 주소도 본다(투구 기록 ← 날짜 화면, lib/nav.ts 의 NAV_ALSO).
+   * 그 탭에 속하는 다른 주소도 본다(투구 기록 ← 날짜 화면 · 구속 측정 관리자, lib/nav.ts 의 NAV_ALSO).
    */
   return (href: string) => {
     const path = href.split('?')[0];
-    return under(path) || (NAV_ALSO[path] ?? []).some(under);
+    if ((NAV_ALSO[path] ?? []).some(under)) return true;
+    if (!under(path)) return false;
+    return !MENU_PATHS.some((p) => p !== path && p.startsWith(`${path}/`) && under(p));
   };
 }
 

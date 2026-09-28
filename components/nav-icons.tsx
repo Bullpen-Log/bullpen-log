@@ -5,6 +5,7 @@ import {
   Gauge,
   House,
   Menu,
+  Radar,
   Settings,
   Shield,
   Target,
@@ -32,5 +33,6 @@ export const NAV_ICONS: Record<NavIconName, LucideIcon> = {
   settings: Settings,
   shield: Shield,
   gauge: Gauge,
+  radar: Radar,
   menu: Menu,
 };

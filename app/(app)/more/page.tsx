@@ -1,7 +1,9 @@
 import Link from 'next/link';
 import { ChevronRight } from 'lucide-react';
 import { NAV_ICONS } from '@/components/nav-icons';
+import { headers } from 'next/headers';
 import { requireUser } from '@/lib/dal';
+import { isNativeUserAgent } from '@/lib/app-env';
 import { logout } from '@/app/actions/auth';
 import { moreGroups } from '@/lib/nav';
 import { ThemeToggle } from '@/components/theme-toggle';
@@ -28,7 +30,10 @@ const TONE_CLASS: Record<string, string> = {
  */
 export default async function MorePage() {
   const user = await requireUser();
-  const groups = moreGroups(user.role === 'ADMIN');
+  const groups = moreGroups(
+    user.role === 'ADMIN',
+    isNativeUserAgent((await headers()).get('user-agent'))
+  );
 
   return (
     <div className="stack-page">
