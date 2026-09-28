@@ -22,6 +22,8 @@ import {
 import { errorStats, pitchError } from '@/lib/velocity-stats';
 import { approachOf } from '@/lib/velocity-setup';
 import { analyzeVideo, type AnalyzeResult } from '@/lib/velocity-engine/analyze-video';
+import { analysisOf } from '@/lib/velocity-analysis';
+import { adminApplyMeasurement } from '@/app/actions/velocity-admin';
 import { readVideoFps } from '@/lib/velocity-engine/video-fps';
 import { errorTone, hhmm, mb, signed } from './format';
 import { FolderGlyph } from './explorer-glyphs';
@@ -384,25 +386,47 @@ export function PitchPreview({
         </p>
       )}
 
-      {/* 값 */}
+      {/* 값 — 수기 공은 카메라 값이 없다(스피드건 값이 곧 구속) */}
       <div>
-        <p className="flex items-baseline gap-2">
-          <span className="text-xs text-muted">릴리스</span>
-          <span className="text-display text-3xl tabular-nums text-ink">
-            {p.releaseKmh ?? '—'}
-          </span>
-          <span className="text-xs text-muted">km/h</span>
-          {diff != null && (
-            <span
-              className={`ml-auto text-sm font-semibold tabular-nums ${errorTone(diff)}`}
-            >
-              건과 {signed(diff)}
-            </span>
-          )}
-        </p>
-        <p className="mt-1 text-xs tabular-nums text-muted">
-          카메라 {p.rawKmh} → {p.kmh} km/h · ±{p.errorKmh} · {confidence}
-        </p>
+        {p.manual ? (
+          <>
+            <p className="flex items-baseline gap-2">
+              <span className="text-xs text-muted">스피드건(수기)</span>
+              <span className="text-display text-3xl tabular-nums text-ink">
+                {p.gunKmh ?? p.kmh}
+              </span>
+              <span className="text-xs text-muted">km/h</span>
+              <Badge className="ml-auto border-warn-line bg-warn-bg text-warn">
+                수기 · 카메라 값 없음
+              </Badge>
+            </p>
+            <p className="mt-1 break-keep text-xs leading-relaxed text-muted">
+              카메라가 재지 못한 영상을 스피드건 값만 적어 올린 공이에요. 보정 짝에는 안
+              들어가요 — 엔진이 좋아지면 아래 &lsquo;이 영상으로 다시 재기&rsquo;로 재서
+              값을 채우면 짝이 돼요.
+            </p>
+          </>
+        ) : (
+          <>
+            <p className="flex items-baseline gap-2">
+              <span className="text-xs text-muted">릴리스</span>
+              <span className="text-display text-3xl tabular-nums text-ink">
+                {p.releaseKmh ?? '—'}
+              </span>
+              <span className="text-xs text-muted">km/h</span>
+              {diff != null && (
+                <span
+                  className={`ml-auto text-sm font-semibold tabular-nums ${errorTone(diff)}`}
+                >
+                  건과 {signed(diff)}
+                </span>
+              )}
+            </p>
+            <p className="mt-1 text-xs tabular-nums text-muted">
+              카메라 {p.rawKmh} → {p.kmh} km/h · ±{p.errorKmh} · {confidence}
+            </p>
+          </>
+        )}
         <p className="mt-0.5 break-keep text-xs text-muted">
           {[
             pitchTypeLabel(p.pitchType),
@@ -506,20 +530,55 @@ export function PitchPreview({
         </div>
       )}
       {re.kind === 'failed' && <p className="text-xs text-danger">{re.message}</p>}
-      {re.kind === 'done' && <RemeasureResult result={re.result} gunKmh={p.gunKmh} />}
+      {re.kind === 'done' && (
+        <RemeasureResult
+          result={re.result}
+          gunKmh={p.gunKmh}
+          manual={p.manual}
+          pending={pending}
+          onApply={() => {
+            const r = re.result;
+            const m = r.measure;
+            if (!m.ok) return;
+            onRun(() =>
+              adminApplyMeasurement(p.id, {
+                rawKmh: m.kmh,
+                errorKmh: m.errorKmh,
+                confidence: m.confidence,
+                releaseKmh: r.release?.releaseKmh ?? null,
+                releaseDxCm: r.release?.dxCm ?? null,
+                releaseDyCm: r.release?.dyCm ?? null,
+                releaseDistM: r.release?.distanceM ?? m.detail.releaseDistanceM,
+                travelM: m.detail.travelM,
+                durationSec: m.detail.durationSec,
+                frames: m.detail.frames,
+                fps: r.fps,
+                analysis: analysisOf(r, approach),
+              })
+            );
+            setRe({ kind: 'idle' });
+          }}
+        />
+      )}
 
       <DetailList rows={details} />
     </div>
   );
 }
 
-/** 다시 잰 결과 — 저장하지 않고 그 자리에만 보여 준다 */
+/** 다시 잰 결과 — 그 자리에 보여 주고, '이 값으로 채우기'를 누르면 공에 저장한다(수기 공은 짝이 된다) */
 function RemeasureResult({
   result,
   gunKmh,
+  manual,
+  pending,
+  onApply,
 }: {
   result: AnalyzeResult;
   gunKmh: number | null;
+  manual: boolean;
+  pending: boolean;
+  onApply: () => void;
 }) {
   const m = result.measure;
   if (!m.ok) {
@@ -562,6 +621,17 @@ function RemeasureResult({
           </p>
         </div>
       ))}
+      <div className="col-span-2 bg-surface px-3 py-2">
+        <Button
+          type="button"
+          variant={manual ? 'primary' : 'secondary'}
+          className="h-9 w-full px-3 py-0 text-xs"
+          disabled={pending}
+          onClick={onApply}
+        >
+          {manual ? '이 값으로 채우기 — 수기를 풀고 보정 짝으로' : '이 값으로 바꾸기'}
+        </Button>
+      </div>
     </div>
   );
 }

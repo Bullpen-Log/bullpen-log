@@ -65,6 +65,10 @@ type Scenario = {
   startM?: number;
   /** 렌즈 보정을 한 경우 — 엔진에 실제 초점거리를 준다(화각 가정 대신) */
   calibrated?: boolean;
+  /** 카메라 앞 흰 그물 — 실 굵기 · 코 간격(분석 픽셀) · 실 밝기. 공을 가린다(정지해 있어 배경에도 든다) */
+  mesh?: { strand: number; pitch: number; luma: number };
+  /** 배경 밝기(기본 90~120 회색) — 흰 망이 뒤에 있을 때는 220 쯤 */
+  bgLevel?: number;
 };
 
 const LANDSCAPE = { w: 1920, h: 1080 };
@@ -129,6 +133,31 @@ const SCENARIOS: Scenario[] = [
     startM: 14,
   },
   {
+    name: '흰 그물 앞(실 2px · 코 10px)',
+    kmh: 130,
+    fps: 240,
+    source: PORTRAIT,
+    mesh: { strand: 2, pitch: 10, luma: 225 },
+  },
+  {
+    name: '흰 그물 앞 · 포수 뒤(다가옴)',
+    kmh: 130,
+    fps: 240,
+    source: PORTRAIT,
+    approach: 'approaching',
+    startM: 14,
+    mesh: { strand: 2, pitch: 10, luma: 225 },
+  },
+  {
+    name: '흰 그물 앞 · 굵은 실 3px · 코 8px',
+    kmh: 130,
+    fps: 240,
+    source: PORTRAIT,
+    mesh: { strand: 3, pitch: 8, luma: 225 },
+  },
+  { name: '흰 배경(공 뒤가 흰 망 220)', kmh: 130, fps: 240, source: PORTRAIT, bgLevel: 220 },
+  { name: '밝은 배경(공 뒤 190)', kmh: 130, fps: 240, source: PORTRAIT, bgLevel: 190 },
+  {
     name: '모두 섞임(현실)',
     kmh: 135,
     fps: 240,
@@ -180,24 +209,49 @@ function addNoise(luma: Float32Array, sigma: number, start: number) {
 
 /** 배경 — 회색 무늬(위치마다 조금 다름). 흔들림은 x 방향으로 밀어 그린다 */
 const BG_CACHE = new Map<string, Float32Array>();
-function background(width: number, height: number, shiftX: number): Float32Array {
-  const key = `${width}x${height}@${shiftX.toFixed(2)}`;
+function background(
+  width: number,
+  height: number,
+  shiftX: number,
+  level = 90
+): Float32Array {
+  const key = `${width}x${height}@${shiftX.toFixed(2)}/${level}`;
   const cached = BG_CACHE.get(key);
   if (cached) return new Float32Array(cached);
-  const made = backgroundRaw(width, height, shiftX);
+  const made = backgroundRaw(width, height, shiftX, level);
   if (shiftX === 0) BG_CACHE.set(key, made);
   return new Float32Array(made);
 }
-function backgroundRaw(width: number, height: number, shiftX: number): Float32Array {
+function backgroundRaw(
+  width: number,
+  height: number,
+  shiftX: number,
+  level: number
+): Float32Array {
   const out = new Float32Array(width * height);
   for (let y = 0; y < height; y++) {
     for (let x = 0; x < width; x++) {
       const sx = x + shiftX;
       out[y * width + x] =
-        90 + ((sx * 7 + y * 13) % 25) + 4 * Math.sin(sx / 17) * Math.cos(y / 23);
+        level + ((sx * 7 + y * 13) % 25) + 4 * Math.sin(sx / 17) * Math.cos(y / 23);
     }
   }
   return out;
+}
+
+/** 카메라 앞 흰 그물 — 가로 · 세로 실을 공 위에 덮어 그린다(정지해 있어 배경 표본에도 같은 자리) */
+function drawMesh(
+  luma: Float32Array,
+  width: number,
+  height: number,
+  mesh: { strand: number; pitch: number; luma: number }
+) {
+  for (let y = 0; y < height; y++) {
+    const rowStrand = y % mesh.pitch < mesh.strand;
+    for (let x = 0; x < width; x++) {
+      if (rowStrand || x % mesh.pitch < mesh.strand) luma[y * width + x] = mesh.luma;
+    }
+  }
 }
 
 /**
@@ -347,7 +401,8 @@ function throwOnce(sc: Scenario, seed: number): Outcome {
 
   /* 던지기 전 잠잠한 프레임 넷 — 배경 표본 */
   for (let i = 0; i < 4; i++) {
-    const luma = background(width, height, 0);
+    const luma = background(width, height, 0, sc.bgLevel);
+    if (sc.mesh) drawMesh(luma, width, height, sc.mesh);
     addNoise(luma, noise, Math.floor(rand() * 65536));
     backgroundSamples.push(luma);
     frames.push({ t: -(4 - i) * dt, luma });
@@ -369,7 +424,7 @@ function throwOnce(sc: Scenario, seed: number): Outcome {
     const cx = (sw / 2 + off.x + lx) * scale;
     const cy = (sh / 2 + off.y + ly) * scale;
     const shift = sc.shakePx ? (rand() - 0.5) * 2 * sc.shakePx : 0;
-    const luma = background(width, height, shift);
+    const luma = background(width, height, shift, sc.bgLevel);
     exposure += sc.exposureDrift ?? 0;
     if (exposure) for (let k = 0; k < luma.length; k++) luma[k] += exposure;
     const smear =
@@ -384,6 +439,8 @@ function throwOnce(sc: Scenario, seed: number): Outcome {
       cy: (sh / 2) * scale,
       focalPx: trueFocal * scale,
     });
+    /* 그물은 공 앞에 있다 — 공을 그린 뒤 덮는다 */
+    if (sc.mesh) drawMesh(luma, width, height, sc.mesh);
     addNoise(luma, noise, Math.floor(rand() * 65536));
     frames.push({ t, luma });
     truth.push({ t, z });

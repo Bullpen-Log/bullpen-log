@@ -4,7 +4,13 @@ import { revalidatePath } from 'next/cache';
 import { prisma } from '@/lib/prisma';
 import { getCurrentUser } from '@/lib/dal';
 import { deleteVideos } from '@/lib/storage';
-import { deleteVelocityPitchRow, deleteVelocitySessionRows } from '@/lib/velocity-sync';
+import {
+  deleteVelocityPitchRow,
+  deleteVelocitySessionRows,
+  sanitizeAnalysis,
+  syncVelocitySession,
+} from '@/lib/velocity-sync';
+import type { Prisma } from '@prisma/client';
 import {
   PITCH_RESULT_KEYS,
   PITCH_TYPE_KEYS,
@@ -214,4 +220,74 @@ function revalidateAll(date: string) {
   revalidatePath(`/pitch-log/${date}`);
   revalidatePath('/videos');
   revalidatePath('/today');
+}
+
+/** 다시 잰 값 — 브라우저가 영상을 다시 재서 넘기는 것(explorer-panels.tsx 의 RemeasureResult) */
+export type RemeasuredValues = {
+  rawKmh: number;
+  errorKmh: number;
+  confidence: string;
+  releaseKmh: number | null;
+  releaseDxCm: number | null;
+  releaseDyCm: number | null;
+  releaseDistM: number | null;
+  travelM: number | null;
+  durationSec: number | null;
+  frames: number | null;
+  fps: number | null;
+  analysis?: unknown;
+};
+
+/**
+ * 다시 잰 값을 공에 채운다 — 수기로 올린 공(카메라 값 없음)이 엔진이 좋아진 뒤 영상으로 재지면
+ * 그 값이 들어가고 수기 표시가 풀려 보정 짝이 된다. 카메라로 잰 공도 새 값으로 바꿀 수 있다.
+ * 보정 뒤 값(kmh)은 그 세션이 저장될 때의 보정식으로 — 세션 안 다른 공과 같은 눈금으로.
+ */
+export async function adminApplyMeasurement(
+  id: string,
+  values: RemeasuredValues
+): Promise<AdminActionResult> {
+  if (!(await requireAdminUser())) return NOT_ADMIN;
+  const raw = num(values.rawKmh, MIN_KMH, MAX_KMH);
+  if (raw == null)
+    return { ok: false, error: `구속 값이 ${MIN_KMH}~${MAX_KMH} km/h 를 벗어났습니다.` };
+  const opt = (v: unknown, lo: number, hi: number) => (v == null ? null : num(v, lo, hi));
+
+  const row = await prisma.velocityPitch.findUnique({
+    where: { id },
+    select: {
+      id: true,
+      sessionId: true,
+      session: { select: { date: true, calScale: true, calOffset: true } },
+    },
+  });
+  if (!row) return { ok: false, error: '공을 찾을 수 없습니다.' };
+
+  const kmh = Math.round((raw * row.session.calScale + row.session.calOffset) * 10) / 10;
+  await prisma.velocityPitch.update({
+    where: { id },
+    data: {
+      rawKmh: raw,
+      kmh,
+      errorKmh: num(values.errorKmh, 0, 100) ?? 0,
+      confidence: ['high', 'medium', 'low'].includes(values.confidence)
+        ? values.confidence
+        : 'medium',
+      releaseKmh: opt(values.releaseKmh, 0, 250),
+      releaseDxCm: opt(values.releaseDxCm, -500, 500),
+      releaseDyCm: opt(values.releaseDyCm, -500, 500),
+      releaseDistM: opt(values.releaseDistM, 0, 50),
+      travelM: opt(values.travelM, 0, 100),
+      durationSec: opt(values.durationSec, 0, 10),
+      frames: opt(values.frames, 0, 10_000),
+      fps: opt(values.fps, 0, 1000),
+      analysis: (sanitizeAnalysis(values.analysis) ?? undefined) as
+        Prisma.InputJsonValue | undefined,
+      manual: false,
+    },
+  });
+  /* 같이 만든 투구 기록의 최고 · 평균도 새 값으로 */
+  await syncVelocitySession(row.sessionId);
+  revalidateAll(row.session.date.toISOString().slice(0, 10));
+  return { ok: true };
 }

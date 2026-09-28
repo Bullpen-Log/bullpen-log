@@ -72,6 +72,13 @@ clipPath · clipBytes · clipSec · clipMime · clipEventSec · analysis(Json) �
 - 투구 기록 머리를 부품으로 뗐다: `app/(app)/videos/pitch-log-heading.tsx`(제목 + [캘린더 | 목록 | 구속 측정] 고르개).
   `videos-client.tsx` 와 `admin/velocity/overview-view.tsx` 가 같이 쓴다. `videos/page.tsx` 는 `?view=list` 로 목록을 연다.
 
+## 김민에게 — 2026-09-28 · 금윤호(Claude) — 공 표에 칸 하나(수기) · 흰 그물 감지
+
+**받은 뒤 `npx prisma generate` 하고 개발 서버를 다시 켠다.** `VelocityPitch` 에 칸 하나를 더했다(추가만, 기본값
+있음, 백업 뒤 적용 끝 — `20260928123000_velocity_pitch_manual`): `manual Boolean @default(false)` — 카메라가 재지
+못한 영상을 스피드건 값만 적어 올린 공(관리자 '영상 파일로 재기' › 수기 값으로 올리기). 패키지는 그대로.
+흰 그물 너머 촬영을 위해 엔진의 공 감지에 닫힘(팽창 → 침식)을 넣었다 — 네 영역과는 무관.
+
 ## 김민에게 — 2026-09-28 · 금윤호(Claude) — 투구 기록의 '구속 측정' 단추 · 구속 측정 메인 화면
 
 받은 뒤 할 일 없음. 사용자 요청: 투구 기록 ↔ 구속 측정 관리자 전환을 부드럽게(고르개가 사라지지 않게),

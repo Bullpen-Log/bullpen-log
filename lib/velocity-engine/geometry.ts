@@ -89,6 +89,11 @@ export type BallObservation = {
   y: number;
   /** 공 지름(픽셀) */
   diameterPx: number;
+  /**
+   * 공 가운데 배경보다 밝게 잡힌 픽셀의 비율(0~1). 그물 너머로 찍으면 그물코 사이만 잡혀 1 보다 작다 —
+   * 밝기 총량으로 면적을 낼 때 이만큼 나눠 되돌린다(analyze-frames.ts 의 refineTrack). 없으면 1.
+   */
+  visibleFrac?: number;
 };
 
 /** 카메라를 원점으로 한 3차원 위치(m). z 가 카메라에서 멀어지는 방향이다. */

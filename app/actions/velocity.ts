@@ -60,6 +60,11 @@ export type SavePitchInput = {
   analysis?: unknown;
   /** 자동 감지로 잡힌 공인가(false = 수동으로 단추를 눌러 잼) */
   autoDetected?: boolean;
+  /**
+   * 수기 — 카메라가 재지 못한 영상(30fps · 공을 못 찾음)을 스피드건 값만 적어 올린 공(관리자의 '영상
+   * 파일로 재기'). gunKmh 가 꼭 있어야 하고 rawKmh · kmh 는 그 값이 된다. 보정 짝에는 안 들어간다.
+   */
+  manual?: boolean;
 } & PitchEdit;
 
 export type SaveSessionInput = {
@@ -129,7 +134,8 @@ export async function loadCalibration(): Promise<{ fit: CalFit; pairs: CalPair[]
   const user = await getCurrentUser();
   if (!user) return { fit: fitCalibration([]), pairs: [] };
   const rows = await prisma.velocityPitch.findMany({
-    where: { userId: user.id, gunKmh: { not: null } },
+    /* 수기 공은 카메라 값이 없어(스피드건 값 복사) 짝이 아니다 */
+    where: { userId: user.id, gunKmh: { not: null }, manual: false },
     orderBy: { createdAt: 'desc' },
     take: CAL_PAIR_LIMIT,
     select: { rawKmh: true, gunKmh: true },
@@ -175,14 +181,43 @@ export async function saveVelocitySession(
   const { fit } = await loadCalibration();
 
   const pitches: Array<
-    Omit<SavePitchInput, keyof PitchEdit | 'analysis' | 'autoDetected'> &
+    Omit<SavePitchInput, keyof PitchEdit | 'analysis' | 'autoDetected' | 'manual'> &
       PitchEdit & {
         kmh: number;
         analysis: Prisma.InputJsonValue | undefined;
         autoDetected: boolean;
+        manual: boolean;
       }
   > = [];
   for (const p of input.pitches) {
+    if (p.manual) {
+      /* 수기 — 관리자만. 스피드건 값이 곧 구속이고 카메라 값 칸은 비운다 */
+      if (user.role !== 'ADMIN')
+        return { ok: false, error: '수기 입력은 관리자만 할 수 있습니다.' };
+      const edit = checkEdit(p);
+      if ('error' in edit) return { ok: false, error: edit.error };
+      if (edit.gunKmh == null)
+        return { ok: false, error: '수기로 올리려면 스피드건 값이 있어야 합니다.' };
+      pitches.push({
+        rawKmh: edit.gunKmh,
+        kmh: edit.gunKmh,
+        errorKmh: 0,
+        confidence: 'low',
+        releaseKmh: null,
+        releaseDxCm: null,
+        releaseDyCm: null,
+        releaseDistM: null,
+        travelM: null,
+        durationSec: null,
+        frames: null,
+        fps: optional(p.fps, 0, 1000),
+        analysis: undefined,
+        autoDetected: false,
+        manual: true,
+        ...edit,
+      });
+      continue;
+    }
     const rawKmh = num(p.rawKmh, MIN_KMH, MAX_KMH);
     if (rawKmh == null)
       return {
@@ -210,6 +245,7 @@ export async function saveVelocitySession(
       analysis: (sanitizeAnalysis(p.analysis) ?? undefined) as
         Prisma.InputJsonValue | undefined,
       autoDetected: p.autoDetected !== false,
+      manual: false,
       ...edit,
     });
   }

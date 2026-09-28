@@ -63,7 +63,64 @@ export type Blob = {
   width: number;
   height: number;
   pixels: number;
+  /** 닫힘 전(문턱값을 넘은) 픽셀 수 / 닫힘 뒤 픽셀 수 — 그물에 가려진 만큼 1 보다 작다 */
+  visibleFrac: number;
 };
+
+/**
+ * 닫힘 반지름(픽셀) — 팽창한 뒤 침식하면 이 거리 안의 틈이 메워진다.
+ *
+ * 흰 그물(네트) 너머로 찍으면 그물 실이 공을 가늘게 가른다. 실은 가만히 있어 배경에 들어가므로
+ * 공은 그물코 사이에서만 밝아진 조각들로 잡히고, 조각마다 따로 덩어리가 되어 공 하나를 못 잇는다
+ * (2026-09-28 사용자 — "흰 망에서 측정이 잘 안 된다"). 분석 크기(짧은 변 720)에서 실 굵기는 1~3px
+ * 라 2px 면 대부분 메워진다. 더 키우면 공 옆을 지나가는 손 · 팔이 공에 붙는다.
+ */
+const CLOSE_RADIUS = 2;
+
+/**
+ * 마스크의 닫힘 — 팽창(radius)한 뒤 침식(radius). 정사각형 구조 요소를 가로 · 세로로 나눠 돌려
+ * 픽셀마다 (2r+1)×2 번만 본다. 결과는 새 배열, 원본은 그대로.
+ */
+function closeMask(mask: Uint8Array, width: number, height: number, radius: number): Uint8Array {
+  const pass = (src: Uint8Array, want: number): Uint8Array => {
+    /* 가로 */
+    const tmp = new Uint8Array(src.length);
+    for (let y = 0; y < height; y++) {
+      const row = y * width;
+      for (let x = 0; x < width; x++) {
+        let hit = false;
+        const x0 = Math.max(0, x - radius);
+        const x1 = Math.min(width - 1, x + radius);
+        for (let k = x0; k <= x1; k++) {
+          if (src[row + k] === want) {
+            hit = true;
+            break;
+          }
+        }
+        tmp[row + x] = hit ? want : 1 - want;
+      }
+    }
+    /* 세로 */
+    const out = new Uint8Array(src.length);
+    for (let x = 0; x < width; x++) {
+      for (let y = 0; y < height; y++) {
+        let hit = false;
+        const y0 = Math.max(0, y - radius);
+        const y1 = Math.min(height - 1, y + radius);
+        for (let k = y0; k <= y1; k++) {
+          if (tmp[k * width + x] === want) {
+            hit = true;
+            break;
+          }
+        }
+        out[y * width + x] = hit ? want : 1 - want;
+      }
+    }
+    return out;
+  };
+  /* 팽창 = 근처에 1 이 있으면 1, 침식 = 근처에 0 이 있으면 0 */
+  return pass(pass(mask, 1), 0);
+}
 
 /** 픽셀 배열에서 밝기만 뽑는다. 색은 조명에 따라 흔들려 밝기가 더 안정적이다. */
 export function toLuma(
@@ -127,12 +184,14 @@ export function findMovedBlobs(
   /** 이 프레임이 배경보다 전체적으로 밝아진 양(자동 노출) — 빼고 견준다(analyze-frames.ts) */
   exposureBias = 0
 ): Blob[] {
-  const moved = new Uint8Array(width * height);
+  const raw = new Uint8Array(width * height);
   const threshold = DIFF_THRESHOLD + exposureBias;
-  for (let i = 0; i < moved.length; i++) {
+  for (let i = 0; i < raw.length; i++) {
     // 공은 배경보다 밝게 찍히는 쪽이라 밝아진 곳만 본다. 그림자를 걸러준다.
-    if (currLuma[i] - background[i] > threshold) moved[i] = 1;
+    if (currLuma[i] - background[i] > threshold) raw[i] = 1;
   }
+  /* 그물코 · 실밥에 갈린 조각을 잇는다(CLOSE_RADIUS). 덩어리는 이은 마스크에서 찾고, 보이는 비율은 원본으로 센다 */
+  const moved = closeMask(raw, width, height, CLOSE_RADIUS);
 
   const blobs: Blob[] = [];
   const visited = new Uint8Array(width * height);
@@ -152,6 +211,7 @@ export function findMovedBlobs(
     let sumX = 0;
     let sumY = 0;
     let count = 0;
+    let rawCount = 0;
 
     while (stack.length > 0) {
       const idx = stack.pop()!;
@@ -159,6 +219,7 @@ export function findMovedBlobs(
       const y = (idx - x) / width;
 
       count++;
+      if (raw[idx]) rawCount++;
       sumX += x;
       sumY += y;
       if (x < minX) minX = x;
@@ -199,6 +260,7 @@ export function findMovedBlobs(
       width: w,
       height: h,
       pixels: count,
+      visibleFrac: rawCount / count,
     });
     if (blobs.length > MAX_CANDIDATES_PER_FRAME) break;
   }
@@ -298,7 +360,13 @@ export function trackBall(
       if (offset > seedCenterRatio) continue;
 
       const track: BallObservation[] = [
-        { t: frames[s].t, x: seed.cx, y: seed.cy, diameterPx: blobDiameter(seed) },
+        {
+          t: frames[s].t,
+          x: seed.cx,
+          y: seed.cy,
+          diameterPx: blobDiameter(seed),
+          visibleFrac: seed.visibleFrac,
+        },
       ];
 
       let last = track[0];
@@ -346,6 +414,7 @@ export function trackBall(
           x: picked.cx,
           y: picked.cy,
           diameterPx: blobDiameter(picked),
+          visibleFrac: picked.visibleFrac,
         };
         track.push(last);
       }

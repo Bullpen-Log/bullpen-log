@@ -1045,7 +1045,7 @@ const fileCols: Col[] = [
     className: 'hidden md:table-cell lg:hidden xl:table-cell text-muted',
     cell: (it) => {
       const p = pitchOf(it);
-      return p ? `${p.rawKmh} → ${p.kmh}` : '—';
+      return p ? (p.manual ? `수기 ${p.kmh}` : `${p.rawKmh} → ${p.kmh}`) : '—';
     },
     sort: (it) => pitchOf(it)?.kmh ?? null,
   },

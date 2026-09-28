@@ -97,6 +97,8 @@ export type AdminPitchRow = {
   fps: number | null;
   gunKmh: number | null;
   calibExclude: boolean;
+  /** 수기 — 카메라 값 없이 스피드건 값만 적어 올린 공(rawKmh · kmh 는 그 값) */
+  manual: boolean;
   autoDetected: boolean;
   pitchType: string | null;
   zone: number | null;
@@ -161,6 +163,7 @@ type OverviewPitch = {
   releaseKmh: number | null;
   gunKmh: number | null;
   calibExclude: boolean;
+  manual: boolean;
   clipPath: string | null;
   clipBytes: number | null;
   session: { date: Date; cameraPos: string; net: boolean; source: string };
@@ -202,6 +205,7 @@ export async function loadVelocityAdminOverview(): Promise<AdminOverview> {
         releaseKmh: true,
         gunKmh: true,
         calibExclude: true,
+        manual: true,
         clipPath: true,
         clipBytes: true,
         session: { select: { date: true, cameraPos: true, net: true, source: true } },
@@ -411,6 +415,7 @@ export async function loadVelocityAdminDay(date: string): Promise<AdminDay> {
       fps: p.fps,
       gunKmh: p.gunKmh,
       calibExclude: p.calibExclude,
+      manual: p.manual,
       autoDetected: p.autoDetected,
       pitchType: p.pitchType,
       zone: p.zone,
@@ -436,6 +441,7 @@ export async function loadVelocityAdminDay(date: string): Promise<AdminDay> {
       releaseKmh: p.releaseKmh,
       gunKmh: p.gunKmh,
       calibExclude: p.calibExclude,
+      manual: p.manual,
       clipPath: p.clipPath,
       clipBytes: p.clipBytes,
       session: { date: s.date, cameraPos: s.cameraPos, net: s.net, source: s.source },

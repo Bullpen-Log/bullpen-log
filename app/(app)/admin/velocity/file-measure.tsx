@@ -21,8 +21,10 @@ import { quietRefresh } from '@/lib/quiet-refresh';
  * (analyzeVideo). 저장하면 공 하나짜리 세션(source: 'file', forCalibration)이 생기고 그 영상이 클립으로
  * 올라간다.
  *
- * 30fps 이하 영상은 고르는 순간 막는다(video-fps.ts 의 isLowFrameRate) — 재지도 올리지도 않는다.
- * fps 는 파일 머리에서 읽는다(readVideoFps). 못 읽는 파일(webm 등)도 30 이하인지 알 수 없어 막는다.
+ * 측정이 안 되는 영상(30fps 이하 · fps 를 못 읽음 · 공을 못 찾음)도 올릴 수 있다 — 스피드건 값을
+ * 적어 '수기'로 저장하면 영상 클립과 값이 남고(VelocityPitch.manual), 보정 짝에는 안 들어간다.
+ * 엔진이 좋아진 뒤 관리자 화면에서 그 영상을 다시 재 값을 채우면 짝이 된다(사용자 요청, 2026-09-28).
+ * 카메라 측정('재기')은 fps 를 읽었고 30 을 넘을 때만.
  */
 const CAMERA_OPTIONS = [
   { value: 'behind-pitcher', label: '투수 뒤' },
@@ -34,6 +36,8 @@ type Stage =
   | { kind: 'analyzing'; ratio: number }
   | { kind: 'done'; result: AnalyzeResult }
   | { kind: 'saving'; result: AnalyzeResult; percent: number | null }
+  /* 수기 — 재지 않고 스피드건 값으로 저장 · 클립 올리기 */
+  | { kind: 'manual'; percent: number | null }
   | { kind: 'saved'; date: string };
 
 export function FileMeasure({
@@ -61,17 +65,17 @@ export function FileMeasure({
   const [error, setError] = useState<string | null>(null);
 
   const approach = approachOf({ mode: 'pitch', cameraPos });
-  const busy = stage.kind === 'analyzing' || stage.kind === 'saving';
-  const ready = file != null && typeof fps === 'number';
-
-  /** 고른 파일을 비운다 — 30fps 이하 · fps 를 못 읽은 파일은 받지 않는다 */
-  function refuse(message: string) {
-    setFile(null);
-    setFps(null);
-    setDurationSec(null);
-    if (fileRef.current) fileRef.current.value = '';
-    setError(message);
-  }
+  const busy =
+    stage.kind === 'analyzing' || stage.kind === 'saving' || stage.kind === 'manual';
+  /* 카메라로 잴 수 있나 — fps 를 읽었고 30 을 넘어야. 아니면 수기로만 올린다 */
+  const measurable = typeof fps === 'number' && !isLowFrameRate(fps);
+  const ready = file != null && measurable;
+  const unmeasurableWhy =
+    fps === null && file
+      ? '이 영상은 fps 를 읽지 못해 카메라로 잴 수 없어요 — 수기 값으로만 올릴 수 있어요.'
+      : typeof fps === 'number' && isLowFrameRate(fps)
+        ? `${Math.round(fps)}fps 라 카메라로 잴 수 없어요(60fps 이상이어야) — 수기 값으로만 올릴 수 있어요.`
+        : null;
 
   /**
    * 파일을 고르면 fps 와 길이를 미리 읽어 둔다. fps 가 30 이하면 그 자리에서 막는다 — 길이는
@@ -87,16 +91,7 @@ export function FileMeasure({
     if (!next) return;
     void readVideoFps(next).then((read) => {
       if (seq !== pickSeq.current) return;
-      if (read == null) {
-        return refuse(
-          '이 영상의 초당 장면 수(fps)를 읽지 못해 올릴 수 없어요. 폰으로 찍은 mp4 · mov 영상을 골라주세요.'
-        );
-      }
-      if (isLowFrameRate(read)) {
-        return refuse(
-          `이 영상은 ${Math.round(read)}fps예요 — 30fps 이하는 올릴 수 없어요. 60fps 이상(일반 60fps · 슬로모션 120~240fps)으로 찍어 주세요.`
-        );
-      }
+      /* 못 읽었거나 30fps 이하면 '재기'는 잠기고 수기로만 올린다(아래 unmeasurableWhy) */
       setFps(read);
     });
     const url = URL.createObjectURL(next);
@@ -114,7 +109,9 @@ export function FileMeasure({
 
   async function measure() {
     if (!file) return setError('영상 파일을 골라주세요.');
-    if (typeof fps !== 'number') return setError('영상의 fps 를 읽는 중이에요. 잠깐 뒤 다시 눌러주세요.');
+    if (fps === 'reading') return setError('영상의 fps 를 읽는 중이에요. 잠깐 뒤 다시 눌러주세요.');
+    if (typeof fps !== 'number' || !measurable)
+      return setError(unmeasurableWhy ?? '이 영상은 카메라로 잴 수 없어요.');
     const fov = Number(fovDeg);
     if (!(fov >= 30 && fov <= 120))
       return setError('화각은 30~120° 사이로 넣어주세요.');
@@ -140,12 +137,85 @@ export function FileMeasure({
     }
   }
 
+  /**
+   * 수기로 올리기 — 재지 않고(또는 재지 못해서) 스피드건 값만으로 공 하나짜리 세션을 만들고 영상을
+   * 클립으로 올린다. 카메라 값이 없으니 보정 짝은 아니다 — 나중에 다시 재서 채울 자료.
+   */
+  async function uploadManual() {
+    if (!file || busy) return;
+    if (fps === 'reading') return setError('영상의 fps 를 읽는 중이에요. 잠깐 뒤 다시 눌러주세요.');
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return setError('날짜가 올바르지 않습니다.');
+    const gunKmh = gun.trim() === '' ? null : Number(gun);
+    if (gunKmh == null || !(gunKmh >= 30 && gunKmh <= 200)) {
+      return setError('수기로 올리려면 스피드건 값(30~200 km/h)을 적어야 해요.');
+    }
+    const fov = Number(fovDeg);
+    const dist = cameraPos === 'behind-catcher' ? Number(releaseDist) : null;
+    setError(null);
+    setStage({ kind: 'manual', percent: null });
+
+    const saved = await saveVelocitySession({
+      date,
+      sessionType: '불펜',
+      intensity: 5,
+      fovDeg: fov >= 30 && fov <= 120 ? fov : 69,
+      source: 'file',
+      device: file.name.slice(0, 200),
+      mode: 'pitch',
+      cameraPos,
+      net: false,
+      forCalibration: true,
+      autoMode: false,
+      focalPx: null,
+      frameW: null,
+      frameH: null,
+      releaseDistM: dist != null && dist >= 3 && dist <= 40 ? dist : null,
+      pitches: [
+        {
+          manual: true,
+          rawKmh: gunKmh,
+          errorKmh: 0,
+          confidence: 'low',
+          releaseKmh: null,
+          releaseDxCm: null,
+          releaseDyCm: null,
+          releaseDistM: null,
+          travelM: null,
+          durationSec: null,
+          frames: null,
+          fps: typeof fps === 'number' ? fps : null,
+          autoDetected: false,
+          pitchType: pitchType || null,
+          zone: null,
+          result: null,
+          gunKmh,
+          memo: null,
+        },
+      ],
+    });
+    if (!saved.ok) {
+      setStage({ kind: 'idle' });
+      return setError(saved.error);
+    }
+    const pitchId = saved.pitchIds?.[0];
+    if (pitchId) {
+      const up = await uploadClip(
+        pitchId,
+        file,
+        { sec: durationSec, eventSec: null },
+        (percent) => setStage({ kind: 'manual', percent })
+      );
+      if (!up.ok) setError(`공은 저장했지만 클립은 못 올렸어요: ${up.error}`);
+    }
+    setStage({ kind: 'saved', date });
+    setFile(null);
+    setFps(null);
+    if (fileRef.current) fileRef.current.value = '';
+    startTransition(() => quietRefresh(router));
+  }
+
   async function save() {
     if (stage.kind !== 'done' || !file) return;
-    /* 고를 때 막지만, 한 번 더 — 30fps 이하 영상은 저장 · 클립 올리기를 하지 않는다 */
-    if (typeof fps !== 'number' || isLowFrameRate(fps)) {
-      return setError('30fps 이하 영상은 올릴 수 없어요.');
-    }
     const { result } = stage;
     const m = result.measure;
     if (!m.ok) return setError('거부된 측정은 저장할 수 없어요.');
@@ -229,7 +299,7 @@ export function FileMeasure({
       <div className="grid gap-4 sm:grid-cols-2">
         <Field
           label="영상 파일"
-          hint="60fps 이상 영상(일반 60fps · 슬로모션 120~240fps). 30fps 이하는 올릴 수 없어요. 서버로 보내지 않고 이 브라우저에서 재요."
+          hint="60fps 이상(일반 60fps · 슬로모션 120~240fps)이면 이 브라우저에서 재요. 30fps 이하 · 못 재는 영상은 스피드건 값을 적어 수기로 올려요."
         >
           <input
             ref={fileRef}
@@ -243,8 +313,15 @@ export function FileMeasure({
             <span className="block text-xs text-muted">
               {file.name} · {(file.size / 1024 / 1024).toFixed(1)}MB
               {durationSec != null && ` · ${durationSec}초`}
-              {fps === 'reading' ? ' · fps 읽는 중…' : typeof fps === 'number' && ` · ${Math.round(fps)}fps`}
+              {fps === 'reading'
+                ? ' · fps 읽는 중…'
+                : typeof fps === 'number'
+                  ? ` · ${Math.round(fps)}fps`
+                  : ' · fps 모름'}
             </span>
+          )}
+          {file && unmeasurableWhy && (
+            <span className="block text-xs leading-relaxed text-warn">{unmeasurableWhy}</span>
           )}
         </Field>
         <div className="space-y-2">
@@ -288,7 +365,7 @@ export function FileMeasure({
             onChange={(e) => setDate(e.target.value)}
           />
         </Field>
-        <Field label="스피드건 값(km/h, 선택)">
+        <Field label="스피드건 값(km/h)" hint="수기로 올릴 때는 꼭 적어요">
           <Input
             inputMode="decimal"
             placeholder="예: 128"
@@ -325,6 +402,21 @@ export function FileMeasure({
         {stage.kind === 'done' && stage.result.measure.ok && (
           <Button type="button" variant="secondary" onClick={save}>
             보정용으로 저장
+          </Button>
+        )}
+        {/* 재지 않거나 못 잰 영상 — 스피드건 값만으로 올린다(관리자 · 보정 짝 아님) */}
+        {file && stage.kind !== 'saving' && !(stage.kind === 'done' && stage.result.measure.ok) && (
+          <Button
+            type="button"
+            variant="secondary"
+            onClick={uploadManual}
+            disabled={busy || fps === 'reading'}
+          >
+            {stage.kind === 'manual'
+              ? stage.percent == null
+                ? '저장하는 중…'
+                : `클립 올리는 중 ${stage.percent}%`
+              : '수기 값으로 올리기'}
           </Button>
         )}
         {stage.kind === 'saving' && (

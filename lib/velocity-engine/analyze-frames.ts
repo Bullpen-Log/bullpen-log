@@ -387,10 +387,16 @@ function refineTrack(
       }
     }
     if (area < 3 || sw <= 0) return o;
-    const d = 2 * Math.sqrt(area / Math.PI);
+    /*
+     * 그물 너머(visibleFrac < 1)면 그물코 사이만 밝아져 총량이 그 비율만큼 준다 — 나눠 되돌린다.
+     * 비율이 너무 낮으면(0.3 밑) 조각이 공인지도 의심스러워 되돌리지 않고 감지기 값을 둔다.
+     */
+    const vis = o.visibleFrac ?? 1;
+    if (vis < 0.3) return o;
+    const d = 2 * Math.sqrt(area / vis / Math.PI);
     /* 감지기 값과 너무 다르면(이웃 것이 섞였거나 잘렸거나) 믿지 않는다 */
     if (d < o.diameterPx * 0.6 || d > o.diameterPx * 1.5) return o;
-    return { t: o.t, x: sx / sw, y: sy / sw, diameterPx: d };
+    return { t: o.t, x: sx / sw, y: sy / sw, diameterPx: d, visibleFrac: o.visibleFrac };
   });
 }
 

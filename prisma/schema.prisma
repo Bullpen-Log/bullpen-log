@@ -517,6 +517,9 @@ model VelocityPitch {
   autoDetected Boolean  @default(true)
   /// 보정 통계에서 뺀다(잘못 잡힌 공 · 스피드건 값이 의심스러울 때) — 관리자가 켠다
   calibExclude Boolean  @default(false)
+  /// 수기 — 카메라가 재지 못한 영상(30fps · 공을 못 찾음)을 스피드건 값만 적어 올린 공. rawKmh · kmh 는 그 값의
+  /// 복사라 보정 짝에 넣지 않는다. 나중에 엔진이 좋아져 그 영상을 다시 재면 값을 채우고 false 가 된다.
+  manual       Boolean  @default(false)
   createdAt    DateTime @default(now())
 
   session VelocitySession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
