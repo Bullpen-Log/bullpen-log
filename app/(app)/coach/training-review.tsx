@@ -238,7 +238,7 @@ export function TrainingReviewCards({
   return (
     <>
       {/* ── 주별 흐름 ─────────────────────────────────────── */}
-      <section className="rounded-2xl border border-line bg-surface px-5 py-5 sm:px-6">
+      <section className="rounded-2xl border border-line bg-surface p-(--block-pad)">
         <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
           <h2 className="text-base font-bold text-ink">최근 {weekCount}주 운동</h2>
           <p className="text-xs text-muted">오늘부터 7일씩 거슬러 나눕니다</p>
@@ -269,7 +269,7 @@ export function TrainingReviewCards({
       </section>
 
       {/* ── 투구와 운동 ───────────────────────────────────── */}
-      <section className="rounded-2xl border border-line bg-surface px-5 py-5 sm:px-6">
+      <section className="rounded-2xl border border-line bg-surface p-(--block-pad)">
         <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
           <h2 className="text-base font-bold text-ink">투구와 운동</h2>
           <p className="text-xs text-muted">던진 날과 챙긴 날을 나란히</p>

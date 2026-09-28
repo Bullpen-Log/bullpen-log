@@ -133,7 +133,7 @@ function ExerciseDetail({
       perSide: item.perSide,
     };
     return (
-      <Card className="border-sky-soft/50 bg-sky/[0.03] p-4 sm:p-5">
+      <Card className="border-sky-soft/50 bg-sky/[0.03]">
         <div className="mb-4 flex items-center justify-between gap-3">
           <p className="text-sm font-bold text-sky">운동 수정</p>
           <button
@@ -155,7 +155,7 @@ function ExerciseDetail({
   }
 
   return (
-    <Card className="grid gap-5 border-sky-soft/40 p-4 sm:p-5 md:grid-cols-[minmax(0,420px)_1fr]">
+    <Card className="grid gap-5 border-sky-soft/40 md:grid-cols-[minmax(0,420px)_1fr]">
       <LibraryVideo
         path={item.videoPath}
         referenceVideoId={item.referenceVideoId}
@@ -457,7 +457,7 @@ export function TrainingClient({
   return (
     <div className="space-y-6">
       {/* 이름으로 찾기 — 조건 고르기보다 위에 둔다. 이름을 알면 이쪽이 빠르다. */}
-      <label className="flex items-center gap-2 rounded-2xl border border-line bg-surface px-4 py-3">
+      <label className="flex items-center gap-2 rounded-2xl border border-line bg-surface px-(--block-pad) py-3">
         <Search aria-hidden className="h-4 w-4 shrink-0 text-muted" />
         <input
           type="search"
@@ -484,7 +484,7 @@ export function TrainingClient({
         일정을 고칠 때 445개를 다시 훑지 않아도 되게 하려고 둔다.
       */}
       {exercises.length > 0 && (
-        <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-line bg-surface px-5 py-3.5">
+        <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-line bg-surface px-(--block-pad) py-3">
           <button
             type="button"
             onClick={() => setOnlyFavorites((v) => !v)}
@@ -516,7 +516,7 @@ export function TrainingClient({
 
       {/* 촬영이 어디까지 됐는지 — 참고 영상이 하나라도 있을 때만 보여준다 */}
       {referenceCount > 0 && (
-        <div className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-2xl border border-line bg-surface px-5 py-4">
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-2xl border border-line bg-surface p-(--block-pad)">
           <span className="text-sm text-muted">
             직접 촬영 <strong className="text-ink">{ownCount}</strong>개 · 촬영 전{' '}
             <strong className="text-warn">{referenceCount}</strong>개

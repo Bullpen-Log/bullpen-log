@@ -161,7 +161,7 @@ export function RoutineBuilder({
 
   if (full) {
     return (
-      <p className="rounded-2xl border border-warn-line bg-warn-bg px-5 py-4 text-sm leading-relaxed break-keep text-warn">
+      <p className="rounded-2xl border border-warn-line bg-warn-bg p-(--block-pad) text-sm leading-relaxed break-keep text-warn">
         루틴은 {MY_ROUTINE_MAX}개까지 둘 수 있습니다. 안 쓰는 루틴을 지운 뒤 새로 만들어
         주세요.
       </p>

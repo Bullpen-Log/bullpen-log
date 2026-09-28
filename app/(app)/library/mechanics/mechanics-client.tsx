@@ -66,7 +66,7 @@ function GuideDetail({
       sortOrder: item.sortOrder,
     };
     return (
-      <Card className="border-sky-soft/50 bg-sky/[0.03] p-4 sm:p-6">
+      <Card className="border-sky-soft/50 bg-sky/[0.03]">
         <div className="mb-4 flex items-center justify-between gap-3">
           <p className="text-sm font-bold text-sky">드릴 수정</p>
           <button
@@ -272,7 +272,7 @@ export function MechanicsClient({
         한 번도 별을 안 단 사람에게는 무엇을 하는 단추인지 함께 적어 준다.
       */}
       {guides.length > 0 && (
-        <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-line bg-surface px-5 py-3.5">
+        <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-line bg-surface px-(--block-pad) py-3">
           <button
             type="button"
             onClick={() => setOnlyFavorites((v) => !v)}

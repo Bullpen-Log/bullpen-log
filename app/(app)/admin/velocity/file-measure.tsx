@@ -321,7 +321,7 @@ function ResultCard({ result }: { result: AnalyzeResult }) {
   const m = result.measure;
   if (!m.ok) {
     return (
-      <div className="rounded-2xl border border-warn-line bg-warn-bg px-5 py-4">
+      <div className="rounded-2xl border border-warn-line bg-warn-bg p-(--block-pad)">
         <p className="text-sm font-semibold text-warn">{m.message}</p>
         <p className="mt-1 text-xs leading-relaxed text-warn">{m.fix}</p>
         <p className="mt-2 text-xs text-muted">

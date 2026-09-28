@@ -171,7 +171,7 @@ export default async function AdminPage() {
       */}
       <Link
         href="/admin/patch-notes"
-        className="flex items-center gap-4 rounded-2xl border border-line bg-surface px-5 py-4 transition-colors duration-75 hover:border-sky-soft hover:bg-surface-2"
+        className="flex items-center gap-4 rounded-2xl border border-line bg-surface p-(--block-pad) transition-colors duration-75 hover:border-sky-soft hover:bg-surface-2"
       >
         <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-line-strong text-muted">
           <ScrollText aria-hidden className="h-4 w-4" />
@@ -188,7 +188,7 @@ export default async function AdminPage() {
       {/* 구속 측정 관리자 — 카메라 값과 스피드건 값을 견줘 정확도를 올리는 자료 */}
       <Link
         href="/admin/velocity"
-        className="flex items-center gap-4 rounded-2xl border border-line bg-surface px-5 py-4 transition-colors duration-75 hover:border-sky-soft hover:bg-surface-2"
+        className="flex items-center gap-4 rounded-2xl border border-line bg-surface p-(--block-pad) transition-colors duration-75 hover:border-sky-soft hover:bg-surface-2"
       >
         <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-line-strong text-muted">
           <Gauge aria-hidden className="h-4 w-4" />

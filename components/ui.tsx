@@ -44,9 +44,9 @@ export function PageHeading({
      * 제목 묶음은 한 화면의 머리일 뿐이라 낮게 둔다. 예전에는 글자 2.5rem · 밑 여백 2rem 으로
      * 150px 가까이 차지해, 화면마다 본문이 그만큼 밑으로 밀려 스크롤이 늘었다.
      */
-    /* 제목 글자는 모든 탭이 같은 page-title(24px, globals.css). 세로가 낮은 PC(desk-low)는 밑 여백만 줄인다 */
-    <div className="flex flex-col gap-4 border-b border-line pb-5 sm:flex-row sm:items-end sm:justify-between desk-low:pb-3">
-      <div className="space-y-2 desk-low:space-y-1">
+    /* 제목 글자는 모든 탭이 같은 page-title(24px, globals.css). PC 는 모든 탭 · 모든 높이에서 같은 낮은 머리 */
+    <div className="flex flex-col gap-4 border-b border-line pb-5 sm:flex-row sm:items-end sm:justify-between desk:pb-4">
+      <div className="space-y-2 desk:space-y-1">
         {eyebrow && <Eyebrow>{eyebrow}</Eyebrow>}
         <h1 className="text-heading page-title text-ink">{title}</h1>
         {description && (
@@ -60,11 +60,15 @@ export function PageHeading({
   );
 }
 
+/**
+ * 블록(카드) — 모든 탭의 큰 덩이. 안쪽 여백은 모든 탭이 같은 --block-pad(휴대폰 20 · PC 16px,
+ * globals.css '크기 기준'). 여백을 className 으로 따로 주지 않는다 — 탭마다 달라져 중구난방이 된다.
+ */
 export function Card({ className, children, ...props }: ComponentProps<'div'>) {
   return (
     <div
       className={cn(
-        'rounded-2xl border border-line bg-surface p-5 shadow-[0_1px_0_0_rgba(255,255,255,0.03)_inset] sm:p-6',
+        'rounded-2xl border border-line bg-surface p-(--block-pad) shadow-[0_1px_0_0_rgba(255,255,255,0.03)_inset]',
         className
       )}
       {...props}

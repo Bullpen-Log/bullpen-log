@@ -40,7 +40,7 @@ export function MetaFilter({
   };
 
   return (
-    <div className="space-y-4 rounded-2xl border border-line bg-surface p-5 sm:p-6">
+    <div className="space-y-4 rounded-2xl border border-line bg-surface p-(--block-pad)">
       <div className="flex items-center justify-between gap-3">
         <h2 className="text-sm font-bold text-ink">조건으로 찾기</h2>
         {active ? (

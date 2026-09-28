@@ -150,7 +150,7 @@ export function ExerciseChecklist({
   return (
     <div className="space-y-3">
       {/* 진행 상황 */}
-      <div className="rounded-2xl border border-line bg-surface px-5 py-4">
+      <div className="rounded-2xl border border-line bg-surface p-(--block-pad)">
         <div className="flex items-baseline justify-between gap-3">
           <p className="text-sm font-bold text-ink">
             오늘 <span className="text-display text-lg">{doneCount}</span>

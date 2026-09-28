@@ -83,7 +83,7 @@ export function SummaryPanel({
      */
     <aside className="grid gap-block lg:grid-cols-3 lg:items-start">
       {/* ── 지금 몸 상태 ─────────────────────────────── */}
-      <section className="rounded-2xl border border-line bg-surface px-5 py-4">
+      <section className="rounded-2xl border border-line bg-surface p-(--block-pad)">
         <div className="flex items-baseline justify-between gap-2">
           <h2 className="text-heading text-sm text-ink">지금 부하</h2>
           {/* 분석 탭이 홈으로 들어와, 같은 화면 위쪽의 분석 칸으로 올려 준다 */}
@@ -106,7 +106,7 @@ export function SummaryPanel({
       </section>
 
       {/* ── 이번 주 ──────────────────────────────────── */}
-      <section className="rounded-2xl border border-line bg-surface px-5 py-4">
+      <section className="rounded-2xl border border-line bg-surface p-(--block-pad)">
         <h2 className="text-heading text-sm text-ink">이번 주</h2>
         <dl className="mt-3 space-y-2 text-sm">
           <div className="flex items-baseline gap-2">
@@ -149,7 +149,7 @@ export function SummaryPanel({
       </section>
 
       {/* ── 최근 기록 ────────────────────────────────── */}
-      <section className="rounded-2xl border border-line bg-surface px-5 py-4">
+      <section className="rounded-2xl border border-line bg-surface p-(--block-pad)">
         {/*
           예전에는 제목 옆에 '투구 일지'로 가는 링크가 있었다. 그 화면이
           이 화면 맨 위로 올라왔으므로 뺐다 — 같은 화면 안에서 위로 올라가라는

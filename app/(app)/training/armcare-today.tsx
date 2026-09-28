@@ -73,7 +73,7 @@ export function ArmcareToday({
   if (!routine) {
     return (
       <div className="space-y-3">
-        <section className="space-y-3 rounded-2xl border border-sky-soft/40 bg-gradient-to-br from-sky/[0.07] via-surface to-surface p-5 sm:p-6">
+        <section className="space-y-3 rounded-2xl border border-sky-soft/40 bg-gradient-to-br from-sky/[0.07] via-surface to-surface p-(--block-pad)">
           <p className="text-heading text-xl text-ink">
             오늘은 {suggested.label}을 권합니다
           </p>
@@ -106,7 +106,7 @@ export function ArmcareToday({
 
   return (
     <div className="space-y-3">
-      <section className="space-y-3 rounded-2xl border border-sky-soft/40 bg-gradient-to-br from-sky/[0.07] via-surface to-surface p-5 sm:p-6">
+      <section className="space-y-3 rounded-2xl border border-sky-soft/40 bg-gradient-to-br from-sky/[0.07] via-surface to-surface p-(--block-pad)">
         <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
           <p className="text-heading text-xl text-ink">오늘의 {label}</p>
           <p className="text-sm text-muted">
@@ -334,7 +334,7 @@ export function Checklist({
 
   return (
     <div className="space-y-3">
-      <div className="rounded-2xl border border-line bg-surface px-5 py-4">
+      <div className="rounded-2xl border border-line bg-surface p-(--block-pad)">
         <div className="flex items-baseline justify-between gap-3">
           <p className="text-sm font-bold text-ink">
             <span className="text-display text-lg">{doneCount}</span>

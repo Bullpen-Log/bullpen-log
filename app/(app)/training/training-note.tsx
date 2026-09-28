@@ -43,7 +43,7 @@ export function TrainingNote({
 
   if (!saved && !done) {
     return (
-      <p className="rounded-2xl border border-dashed border-line px-5 py-4 text-sm leading-relaxed text-muted">
+      <p className="rounded-2xl border border-dashed border-line p-(--block-pad) text-sm leading-relaxed text-muted">
         운동을 하나라도 마치면 여기에 오늘 운동이 어땠는지 남길 수 있습니다.
       </p>
     );
@@ -51,7 +51,7 @@ export function TrainingNote({
 
   if (saved && !editing) {
     return (
-      <div className="rounded-2xl border border-line bg-surface px-5 py-4">
+      <div className="rounded-2xl border border-line bg-surface p-(--block-pad)">
         <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
           <span className="inline-flex items-center gap-1.5 text-sm font-semibold text-sky">
             <Check className="h-4 w-4" strokeWidth={3} />
@@ -76,7 +76,7 @@ export function TrainingNote({
   }
 
   return (
-    <div className="space-y-4 rounded-2xl border border-line bg-surface px-5 py-4">
+    <div className="space-y-4 rounded-2xl border border-line bg-surface p-(--block-pad)">
       <div>
         <p className="text-sm font-bold text-ink">오늘 운동은 어땠나요?</p>
         <p className="mt-0.5 text-xs leading-relaxed text-muted">

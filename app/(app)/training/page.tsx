@@ -410,7 +410,7 @@ export default async function TrainingPage({
         많으면 읽지 않고 넘긴다(2026-09-26 사용자분).
       */}
         {aiTraining && (
-          <details className="group rounded-2xl border border-sky-soft/60 bg-sky-tint px-5 py-4">
+          <details className="group rounded-2xl border border-sky-soft/60 bg-sky-tint p-(--block-pad)">
             <summary className="flex cursor-pointer list-none items-start gap-2">
               <Sparkles
                 aria-hidden
@@ -630,7 +630,7 @@ export default async function TrainingPage({
             바뀌어서, "컨디션 3/10이라 무게 드는 운동을 뺐습니다"라고 적혀 있는데
             목록에는 데드리프트가 있는 상태가 된다.
           */}
-            <details className="rounded-2xl border border-line bg-surface px-5 py-4">
+            <details className="rounded-2xl border border-line bg-surface p-(--block-pad)">
               <summary className="cursor-pointer text-sm font-medium text-ink">
                 왜 이 운동인가요?
               </summary>

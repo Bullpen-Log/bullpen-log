@@ -260,7 +260,7 @@ export function DayClient({
         editingId === log.id ? (
           <div
             key={log.id}
-            className="space-y-4 rounded-2xl border border-line bg-surface-2 p-4 sm:p-5"
+            className="space-y-4 rounded-2xl border border-line bg-surface-2 p-(--block-pad)"
           >
             <div>
               <h2 className="font-bold text-ink">기록 수정</h2>
@@ -298,7 +298,7 @@ export function DayClient({
       {/* 기록 추가 — 기록이 없는 날은 처음부터 열려 있다 */}
       {!future &&
         (formOpen ? (
-          <div className="space-y-4 rounded-2xl border border-line bg-surface-2 p-4 sm:p-5">
+          <div className="space-y-4 rounded-2xl border border-line bg-surface-2 p-(--block-pad)">
             <div className="flex items-start justify-between gap-3">
               <h2 className="font-bold text-ink">
                 {logs.length > 0 ? '기록 추가' : '이날 기록하기'}

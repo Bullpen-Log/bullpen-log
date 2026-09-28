@@ -27,7 +27,7 @@ export function ArticleForm() {
   return (
     <form
       action={formAction}
-      className="space-y-6 rounded-2xl border border-line bg-surface p-8"
+      className="space-y-6 rounded-2xl border border-line bg-surface p-(--block-pad)"
     >
       <FormError>{state?.error}</FormError>
 

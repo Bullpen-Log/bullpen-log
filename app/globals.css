@@ -130,35 +130,44 @@
  *
  * 그래서:
  * - 본문(text-sm 14px)과 작은 글(text-xs 12px)은 이미 표준이라 그대로 둔다.
- * - 16px 이상은 한 단계씩 낮춘다 — 16→15, 18→16, 20→18, 24→20, 30→24, 36→28, 48→36.
- * - 블록 안쪽 여백 · 높이 · 아이콘은 10% 작게 — Tailwind 의 간격 단위(--spacing)를 4 → 3.6px.
- *   높이 40px 단추가 36px(구글 · 유튜브 단추 높이)가 된다.
- * - 블록 사이는 넓힌다 — 쪽의 큰 덩이 사이 28px(stack-page), 나란한 카드 사이 20px(gap-block).
+ * - 16px 이상은 낮춘다 — 16→15, 18→16, 20→17, 24→18, 30→22, 36→24, 48→30. 큰 숫자일수록 많이.
+ * - 블록 안쪽 여백 · 높이 · 아이콘은 20% 작게 — Tailwind 의 간격 단위(--spacing)를 4 → 3.2px.
+ *   높이 40px 단추가 32px(윈도우 Fluent 단추 높이)가 된다.
+ * - 블록(카드) 안쪽 여백은 모든 탭이 16px 하나(--block-pad, 머티리얼 · Fluent 카드) — 예전에는 탭마다
+ *   12 · 14 · 18 · 20 · 22 · 29px 로 달랐다.
+ * - 블록 사이는 넉넉하게 — 쪽의 큰 덩이 사이 28px(stack-page), 나란한 카드 사이 20px(gap-block).
  * - 쪽 제목은 모든 탭이 24px 하나(page-title) — 예전에는 탭마다 24 · 30 · 32 · 36px 였다.
+ * - 쪽의 맨 위는 모든 탭 · 모든 PC 가 같다 — 화면 맨 위에서 본문까지 100px(--page-top). 위 막대(메뉴
+ *   줄, 바닥 67px) 밑에 33px 가 빈다. 예전에는 노트북에서 본문이 막대에 붙어 있었다(2026-09-28 사용자
+ *   "모든 탭의 상단에 여유가 없다 · 블록 비율이 훨씬 작아져야 한다 · 탭마다 중구난방").
  * - 오른쪽 위(메뉴 · 알림 · 설정 · 내 정보)와 왼쪽 위(로고)는 그대로 — ui-chrome 이 원래 값으로 되돌린다.
  * - 휴대폰은 그대로다 — 손가락으로 누르는 크기라 PC 틀(desk, 조건은 위와 같다)에서만 바꾼다.
  *
  * 테마 값(@layer theme)보다 뒤(@layer base)라 이긴다. Tailwind 가 p-4 · text-2xl 같은 것을 이 변수로
  * 그리므로 화면 코드를 하나하나 고치지 않아도 전부 따라온다. 대괄호로 적은 값(text-[11px])은 안 따라온다.
+ * 새 블록은 Card 를 쓰거나 p-(--block-pad) 로 안쪽 여백을 맞춘다.
  */
 @layer base {
   :root {
     --gap-page: 1.5rem;
     --gap-block: 1rem;
+    --block-pad: 1.25rem;
   }
 
   @media (min-width: 64rem), (min-width: 36rem) and (hover: hover) and (pointer: fine) {
     :root {
-      --spacing: 0.225rem;
+      --spacing: 0.2rem;
       --text-base: 0.9375rem;
       --text-lg: 1rem;
-      --text-xl: 1.125rem;
-      --text-2xl: 1.25rem;
-      --text-3xl: 1.5rem;
-      --text-4xl: 1.75rem;
-      --text-5xl: 2.25rem;
+      --text-xl: 1.0625rem;
+      --text-2xl: 1.125rem;
+      --text-3xl: 1.375rem;
+      --text-4xl: 1.5rem;
+      --text-5xl: 1.875rem;
       --gap-page: 1.75rem;
       --gap-block: 1.25rem;
+      --block-pad: 1rem;
+      --page-top: 6.25rem;
     }
 
     .ui-chrome {

@@ -333,7 +333,7 @@ export function StatsOverview({
           />
 
           {/* ── 최근 28일 추이 ──────────────────────────────────── */}
-          <div className="min-w-0 rounded-2xl border border-line bg-surface p-5 sm:p-6">
+          <div className="min-w-0 rounded-2xl border border-line bg-surface p-(--block-pad)">
             <div className="mb-5 min-w-0">
               <h2 className="text-base font-bold text-ink">최근 28일 추이</h2>
               {/*
@@ -365,7 +365,7 @@ export function StatsOverview({
               예전에는 눌러서 내 정보 화면으로 가는 링크였다. 그 화면이 창으로
               바뀌면서 갈 곳이 없어졌으므로, 어디서 고치는지만 알려준다.
             */
-            <div className="flex items-center gap-4 rounded-2xl border border-sky-soft/60 bg-sky/5 px-5 py-4">
+            <div className="flex items-center gap-4 rounded-2xl border border-sky-soft/60 bg-sky/5 p-(--block-pad)">
               <UserCog className="h-5 w-5 shrink-0 text-sky" />
               <span className="min-w-0 flex-1 text-sm leading-relaxed text-ink/90">
                 생년월일이 아직 등록되지 않았습니다. 나이에 맞는 안전한 투구수를

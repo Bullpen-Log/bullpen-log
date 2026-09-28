@@ -342,7 +342,7 @@ async function TodayBody({ user }: { user: Awaited<ReturnType<typeof requireUser
         알림 창에 넣기에는 긴 이야기라, 홈에 그대로 둔다.
       */}
       {plan.needsPainCheck && !picked.halted && (
-        <Card className="space-y-2 border-warn-line bg-warn-bg py-4">
+        <Card className="space-y-2 border-warn-line bg-warn-bg">
           <p className="text-sm font-bold text-warn">지금 통증이 있으신가요?</p>
           <p className="text-sm leading-relaxed text-warn">
             최근 투구 일지 메모에{' '}
@@ -359,7 +359,7 @@ async function TodayBody({ user }: { user: Awaited<ReturnType<typeof requireUser
 
       {/* 최근 체크인에 통증이 있었던 경우. */}
       {plan.recovering && !plan.needsPainCheck && !picked.halted && (
-        <Card className="space-y-1 border-warn-line bg-warn-bg py-4">
+        <Card className="space-y-1 border-warn-line bg-warn-bg">
           <p className="text-sm font-bold text-warn">회복 수준으로 낮춰 배정했습니다</p>
           <p className="text-sm leading-relaxed text-warn">
             최근 체크인에 통증 기록이 있어, 오늘은 무게를 다루는 운동을 빼고 회복·가동성
@@ -377,7 +377,7 @@ async function TodayBody({ user }: { user: Awaited<ReturnType<typeof requireUser
         잔소리가 되고, 매일 뜨는 안내는 곧 안 읽게 된다.
       */}
       {!core.hasLogs && (
-        <div className="rounded-2xl border border-sky-soft/60 bg-sky-tint px-5 py-4">
+        <div className="rounded-2xl border border-sky-soft/60 bg-sky-tint p-(--block-pad)">
           <p className="text-sm font-bold text-sky-strong">여기부터 시작하세요</p>
           <p className="mt-1.5 text-sm leading-relaxed text-ink/80">
             오른쪽 위 <strong className="text-ink">알림(종)</strong>을 눌러{' '}

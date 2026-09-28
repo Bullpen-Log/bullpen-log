@@ -41,3 +41,19 @@ clipPath · clipBytes · clipSec · clipMime · clipEventSec · analysis(Json) �
   - `app/(app)/layout.tsx` · `app/(legal)/layout.tsx` · `app/page.tsx` 의 `min-h-screen` 을 `min-h-dvh` 로(한 줄씩).
     `app/(app)/videos/video-calendar.tsx` 의 그날 영상은 휴대폰에서 영상 제 비율(세로 영상이 16:9 칸에
     작게 들어가던 것), PC 는 그대로 16:9.
+
+## 김민에게 — 2026-09-28 · 금윤호(Claude) — PC 크기 규격 통일(모든 탭)
+
+받은 뒤 할 일 없음(패키지 · DB 그대로). 사용자 요청: "모든 탭의 상단에 여유가 없다 · 블록 비율을 훨씬 작게 ·
+탭마다 중구난방이니 통일 · 규격화". PC(desk)에서만 바뀌고 휴대폰은 그대로다. 자세한 값은 `globals.css` 'PC 화면의 크기 기준'.
+
+- 전역 값: `--spacing` 3.6 → 3.2px(단추 · 칸 · 여백이 모두 작아진다), 16px 넘는 글자 낮춤(text-2xl 20→18 · 3xl 24→22 ·
+  4xl 28→24 · 5xl 36→30 · xl 18→17), 본문 14 · 작은 글 12 는 그대로.
+- **위 여백은 모든 탭 · 모든 PC 가 100px**(`--page-top`, `app/(app)/layout.tsx` 의 main 이 준다). 노트북만 줄이던 것(desk-low:pt-3)은 뺐다.
+- **블록(카드) 안쪽 여백은 모든 탭이 16px**(`--block-pad`, 휴대폰 20px). `Card` 는 이 값으로 그리고, 직접 만든 둥근
+  블록은 `p-(--block-pad)` 를 쓴다. **새 블록에 className 으로 p-4 · px-5 py-4 같은 여백을 따로 주지 말아 줘** — 탭마다
+  달라진다. 목록 줄 · 칩 · 떠 있는 창은 블록이 아니라 제 여백 그대로.
+- 네 영역에서 바꾼 것(여백 클래스만 바꿈, 동작 그대로): `training/page.tsx` · `armcare-today.tsx` · `exercise-list.tsx` ·
+  `training-note.tsx` · `day/[date]/page.tsx` · `routine/[id]/routine-builder.tsx`, `library/training/training-client.tsx` ·
+  `library/mechanics/mechanics-client.tsx` · `library/warmup/warmup-client.tsx`, `today/page.tsx` · `today/summary-panel.tsx`,
+  `coach/*`(overview · parts · report-client · training-review), `components/category-section.tsx` · `meta-filter.tsx`.

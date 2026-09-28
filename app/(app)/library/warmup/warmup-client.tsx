@@ -198,7 +198,7 @@ function RoutineBlock({
   const [picking, setPicking] = useState(false);
 
   return (
-    <Card className="space-y-4 p-4 sm:p-5">
+    <Card className="space-y-4">
       {editing ? (
         <NameForm routine={routine} onDone={() => setEditing(false)} />
       ) : (
@@ -337,7 +337,7 @@ export function WarmupClient({
 
   return (
     <div className="space-y-5">
-      <div className="rounded-2xl border border-sky-soft/50 bg-sky-tint px-5 py-4">
+      <div className="rounded-2xl border border-sky-soft/50 bg-sky-tint p-(--block-pad)">
         <p className="text-sm font-bold text-sky-strong">워밍업은 고정입니다</p>
         <p className="mt-1.5 text-xs leading-relaxed text-ink/80">
           날마다 새로 뽑지 않습니다. 운동을 시작하면 본운동에 들어가기 전에

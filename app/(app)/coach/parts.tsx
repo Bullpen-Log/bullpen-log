@@ -368,7 +368,7 @@ export function MetricHelp({
   if (shown.length === 0) return null;
 
   return (
-    <details className="group rounded-2xl border border-line bg-surface px-5 py-4">
+    <details className="group rounded-2xl border border-line bg-surface p-(--block-pad)">
       <summary className="flex cursor-pointer list-none items-center gap-1.5 text-[11px] text-muted transition-colors hover:text-sky">
         <ChevronDown className="h-3.5 w-3.5 transition-transform group-open:rotate-180" />
         {shown.length === 1

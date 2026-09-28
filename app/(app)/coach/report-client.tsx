@@ -211,7 +211,7 @@ export function ReportClient({ logs }: { logs: Log[] }) {
    */
   return (
     <details
-      className="group rounded-2xl border border-line bg-surface px-5 py-4 sm:px-6"
+      className="group rounded-2xl border border-line bg-surface p-(--block-pad)"
       /*
        * 열릴 때까지 안쪽을 그리지 않는다. 기간별 수치·코멘트·메모가 다 들어
        * 있어 덩이가 큰데, 접혀 있는 동안에는 아무도 보지 않는다.

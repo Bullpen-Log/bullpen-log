@@ -581,7 +581,7 @@ export function VideoGallery({
       */}
       {selecting && (
         <div className="fixed inset-x-0 bottom-16 z-30 px-4 desk:bottom-4">
-          <div className="mx-auto flex max-w-3xl flex-wrap items-center gap-2 rounded-2xl border border-line-strong bg-surface px-4 py-3 shadow-2xl">
+          <div className="mx-auto flex max-w-3xl flex-wrap items-center gap-2 rounded-2xl border border-line-strong bg-surface px-(--block-pad) py-3 shadow-2xl">
             {[0, 1].map((i) => {
               const p = picked[i];
               return (

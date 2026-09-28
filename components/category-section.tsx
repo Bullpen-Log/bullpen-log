@@ -69,7 +69,7 @@ export function CategorySection({
               </button>
 
               {formOpen && (
-                <div className="mt-4 rounded-2xl border border-sky-soft/40 bg-sky/[0.04] p-5 sm:p-6">
+                <div className="mt-4 rounded-2xl border border-sky-soft/40 bg-sky/[0.04] p-(--block-pad)">
                   {form}
                 </div>
               )}

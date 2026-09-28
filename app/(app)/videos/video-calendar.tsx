@@ -410,8 +410,8 @@ export function VideoCalendar({
         캘린더 머리와 꼬리 · 밑 여백). 칸은 화면 높이에서 이만큼을 뺀 나머지를 나눠 가진다
         (globals.css 의 cal-cell-fit). 세로가 낮은 PC(desk-low)는 여백을 줄여 이 값도 작다.
       */}
-      <div className="grid gap-block [--cal-chrome:31rem] xl:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)] xl:items-start desk-low:[--cal-chrome:20rem]">
-        <Card className="desk-low:p-4">
+      <div className="grid gap-block [--cal-chrome:31rem] xl:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)] xl:items-start desk-low:[--cal-chrome:21.5rem]">
+        <Card>
           <MonthCalendar
             month={month}
             onMonthChange={setMonth}
@@ -603,7 +603,7 @@ function DayPanel({
       세로가 낮은 PC 에서 캘린더 옆에 설 때(xl)는 화면 밑을 넘지 않는다 — 기록이 여럿이거나 메모가
       길어 넘치는 날만 이 칸 안에서 굴린다. 10.75rem 은 위 막대 · 제목 · 밑 여백이다.
     */
-    <section className="motion-safe:animate-fade-in overflow-hidden rounded-2xl border border-line bg-surface desk-low:xl:max-h-[calc(100dvh-10.75rem)] desk-low:xl:overflow-y-auto">
+    <section className="motion-safe:animate-fade-in overflow-hidden rounded-2xl border border-line bg-surface desk-low:xl:max-h-[calc(100dvh-12.5rem)] desk-low:xl:overflow-y-auto">
       <header className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 border-b border-line px-5 py-3 desk-low:py-2">
         <h3 className="text-sm font-bold text-ink">
           {spokenDate(date)}
@@ -673,7 +673,7 @@ function DayPanel({
         )
       ) : (
         <div
-          className={`grid gap-4 p-4 sm:p-5 desk-low:gap-3 desk-low:p-4 ${
+          className={`grid gap-4 p-(--block-pad) desk-low:gap-3 ${
             day.paths.length > 1
               ? 'lg:grid-cols-[minmax(0,1fr)_14rem] xl:grid-cols-1'
               : ''

@@ -24,6 +24,7 @@ import {
   X,
 } from 'lucide-react';
 import { MiniCalendar } from '@/components/mini-calendar';
+import { Eyebrow } from '@/components/ui';
 import { useWeightUnit } from '@/components/use-units';
 import { fromWeight, toWeight } from '@/lib/units';
 import { shiftDateKey } from '@/lib/pitch-stats';
@@ -91,9 +92,9 @@ const WEEKDAYS = ['일', '월', '화', '수', '목', '금', '토'];
  * 화면이라 여백만으로도 한 화면을 넘겼다. Card 에 p-4 를 덧대면 어느 쪽이 이길지가 CSS
  * 순서에 달려 있어 따로 적는다.
  */
-/* 세로가 낮은 PC(노트북, desk-low)에서는 안쪽 여백을 휴대폰과 같게 줄인다 — 한 화면에 들어오게 */
+/* 안쪽 여백은 모든 탭의 블록과 같은 --block-pad(globals.css '크기 기준') */
 const PANEL =
-  'rounded-2xl border border-line bg-surface p-4 shadow-[0_1px_0_0_rgba(255,255,255,0.03)_inset] sm:p-5 desk-low:p-4';
+  'rounded-2xl border border-line bg-surface p-(--block-pad) shadow-[0_1px_0_0_rgba(255,255,255,0.03)_inset]';
 
 /** '9월 25일 (목)' */
 export function dayTitle(date: string) {
@@ -185,14 +186,21 @@ export function NutritionView({ day, today }: { day: NutritionDay; today: string
   return (
     <div className="stack-page">
       {/*
-        제목 · 날짜 · 날짜 띠 · 목표를 한 줄에.
+        제목 · 날짜 · 날짜 띠 · 목표를 한 줄에. 머리글(Nutrition) · 밑줄 · 여백은 다른 탭의 쪽 머리
+        (PageHeading)와 같게 — 탭마다 머리 모양이 다르면 규격이 흐트러진다(2026-09-28 사용자).
 
         휴대폰에서는 제목 · 날짜 · 목표가 한 줄이고(목표 단추는 그림만), 날짜 띠는 맨 뒤로
         보내 밑줄을 통째로 쓴다(order-last). 넓은 화면(lg)에서는 띠가 제자리로 돌아와 같은
         줄에 선다 — 예전에는 띠가 따로 한 줄(57px + 간격)을 차지해 오른쪽 절반이 비었다.
       */}
-      <header className="flex flex-wrap items-center gap-x-3 gap-y-3 sm:gap-x-4">
-        <h1 className="text-heading page-title text-ink">영양</h1>
+      <header className="flex flex-wrap items-end gap-x-3 gap-y-3 border-b border-line pb-5 sm:gap-x-4 desk:pb-4">
+        {/* 머리글은 휴대폰에서 뺀다 — 제목 줄에 날짜 · 목표가 같이 서서, 넣으면 목표 단추가 밑줄로 밀린다 */}
+        <div className="space-y-2 desk:space-y-1">
+          <span className="hidden sm:block">
+            <Eyebrow>Nutrition</Eyebrow>
+          </span>
+          <h1 className="text-heading page-title text-ink">영양</h1>
+        </div>
         <DateNav date={day.date} today={today} calendar={day.calendar} />
         <WeekStrip
           strip={day.strip}
