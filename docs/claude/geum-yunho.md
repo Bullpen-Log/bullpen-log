@@ -188,6 +188,17 @@
     다시 재기 · 지우기 / 세션 정보 · 메모 · 보정용 · 지우기 / 폴더 통계). 폴더 트리 통계는 `loadVelocityAdminOverview().tree`,
     오차 통계 함수는 `lib/velocity-stats.ts`(브라우저에서도). 예전 날짜 주소 `/admin/velocity/<날짜>` 는 탐색기로 보낸다.
     '영상 파일로 재기'는 머리 줄 단추 → 창(`file-measure-button.tsx`).
+  - **8차(2026-09-28 — 영상 파일 60fps 받기, 사용자: "60프레임 일반 영상도 올라가게, 30 이하만 막아라").**
+    fps 는 파일 머리(moov › stts)에서 읽는다(`lib/velocity-engine/video-fps.ts` `readVideoFps` — mp4 · mov, 가변 fps 는
+    가장 많은 장면 길이로). 고르는 순간 반올림 30 이하(`isLowFrameRate`) · 못 읽는 파일(webm 등)은 막는다(재지도
+    올리지도 않음, 저장 때 한 번 더). 엔진: 영상 전체를 120장으로 나누던 것 → fps 를 알면 48장을 작게 훑어 가장 크게
+    바뀐 때(던진 때)를 찾고 그 앞뒤 1초만 장면마다(한가운데 시각) 꺼낸다(`analyze-video.ts`, 240fps 는 한 장 건너).
+    함정 셋을 같이 고침: ① 같은 장면 거르기(`isSameFrame`, 97픽셀마다 짚음)가 작아진 공 장면을 버림 → fps 를 알면
+    거르지 않음 ② 공 추적 씨앗이 앞 12장뿐(`trackBall`) → 영상 파일은 전부(`seedFrames`) ③ 흔들림을 네 귀퉁이
+    전체 평균으로 재 투수 팔이 한 귀퉁이를 지나가도 거부 → 귀퉁이별로 재서 두 번째로 적게 바뀐 값(`cornerShift`).
+    `MIN_FPS` 60 → 50(59.94 · 가변 60 을 받게). 시험: 헤드리스 크롬에서 WebCodecs 로 가짜 투구 mp4(모의 투구를
+    캔버스에 그림)를 30 · 60 · 120 · 240fps 로 만들어 — 30 막힘, 60fps 4 · 8초 130.5 · 120fps 130.1 · 240fps
+    129.8km/h(실제 130). 정확도 시험대 · 셀프테스트 33 · 10 결과 그대로.
   - 3차(설정 단계): 지난 설정 → 투구/타격 · 투수 뒤/포수 뒤 · 네트 → 주의사항 카드 6장(그림 SVG, '자세히'
     시트) → 카메라 수평계(deviceorientation, 아이폰은 허락 단추) · 표적 → 반투명 스트라이크 존(끌기 · 크기)
     → 측정(설정에 소리 안내 = speechSynthesis ko-KR). 설정은 localStorage `bullpen-velocity-setup`. 엔진에

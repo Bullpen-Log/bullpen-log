@@ -245,6 +245,12 @@ export type TrackOptions = {
    * 커진다 — 크기 조건을 뒤집는 것 말고는 같다.
    */
   approach?: 'receding' | 'approaching';
+  /**
+   * 앞에서 몇 장까지를 씨앗(공이 처음 보이는 장면)으로 삼나. 기본 12 — 카메라로 잴 때는 던짐을
+   * 감지한 바로 그 앞뒤를 넘겨 공이 앞쪽에 있다. 영상 파일은 던지기 한참 전부터 훑으므로 전부를
+   * 본다(analyze-video.ts). 길고 많이 작아진 궤적을 고르므로 늦게 시작한 가짜가 이기지 못한다.
+   */
+  seedFrames?: number;
 };
 
 /**
@@ -275,6 +281,7 @@ export function trackBall(
     maxStepPx = Math.max(frameWidth, frameHeight) * 0.12,
     maxGapFrames = 2,
     approach = 'receding',
+    seedFrames = 12,
   } = options;
 
   const cx = frameWidth / 2;
@@ -285,7 +292,7 @@ export function trackBall(
   let bestScore = 0;
 
   // 앞쪽 프레임들을 차례로 씨앗 삼아 가장 긴 궤적을 찾는다.
-  for (let s = 0; s < Math.min(frames.length, 12); s++) {
+  for (let s = 0; s < Math.min(frames.length, seedFrames); s++) {
     for (const seed of frames[s].blobs) {
       const offset = Math.hypot(seed.cx - cx, seed.cy - cy) / half;
       if (offset > seedCenterRatio) continue;

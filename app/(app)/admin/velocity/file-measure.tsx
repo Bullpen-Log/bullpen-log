@@ -9,15 +9,20 @@ import { saveVelocitySession } from '@/app/actions/velocity';
 import { uploadClip } from '@/lib/velocity-clip-upload';
 import { analysisOf } from '@/lib/velocity-analysis';
 import { analyzeVideo, type AnalyzeResult } from '@/lib/velocity-engine/analyze-video';
+import { isLowFrameRate, readVideoFps } from '@/lib/velocity-engine/video-fps';
 import { approachOf, type CameraPos } from '@/lib/velocity-setup';
 import { CONFIDENCE_TEXT, PITCH_TYPES, type ConfidenceKey } from '@/lib/velocity-meta';
 import { toDateKey } from '@/lib/pitch-stats';
 import { quietRefresh } from '@/lib/quiet-refresh';
 
 /**
- * 영상 파일로 재기(보정용) — 관리자가 폰 슬로모션 영상을 골라 브라우저에서 재고, 스피드건 값과
- * 함께 보정용 세션으로 저장한다. 영상은 서버로 보내지 않고 브라우저가 연다(analyzeVideo).
- * 저장하면 공 하나짜리 세션(source: 'file', forCalibration)이 생기고 그 영상이 클립으로 올라간다.
+ * 영상 파일로 재기(보정용) — 관리자가 폰 영상(일반 60fps · 슬로모션 120~240fps)을 골라 브라우저에서
+ * 재고, 스피드건 값과 함께 보정용 세션으로 저장한다. 영상은 서버로 보내지 않고 브라우저가 연다
+ * (analyzeVideo). 저장하면 공 하나짜리 세션(source: 'file', forCalibration)이 생기고 그 영상이 클립으로
+ * 올라간다.
+ *
+ * 30fps 이하 영상은 고르는 순간 막는다(video-fps.ts 의 isLowFrameRate) — 재지도 올리지도 않는다.
+ * fps 는 파일 머리에서 읽는다(readVideoFps). 못 읽는 파일(webm 등)도 30 이하인지 알 수 없어 막는다.
  */
 const CAMERA_OPTIONS = [
   { value: 'behind-pitcher', label: '투수 뒤' },
@@ -42,6 +47,10 @@ export function FileMeasure({
   const fileRef = useRef<HTMLInputElement>(null);
   const [file, setFile] = useState<File | null>(null);
   const [durationSec, setDurationSec] = useState<number | null>(null);
+  /* 파일 머리에서 읽은 fps — 읽는 중이면 'reading' */
+  const [fps, setFps] = useState<number | 'reading' | null>(null);
+  /* 파일을 잇달아 고르면 먼저 고른 파일의 fps 가 늦게 와도 버린다 */
+  const pickSeq = useRef(0);
   const [cameraPos, setCameraPos] = useState<CameraPos>('behind-pitcher');
   const [fovDeg, setFovDeg] = useState('69');
   const [releaseDist, setReleaseDist] = useState('18.5');
@@ -53,14 +62,43 @@ export function FileMeasure({
 
   const approach = approachOf({ mode: 'pitch', cameraPos });
   const busy = stage.kind === 'analyzing' || stage.kind === 'saving';
+  const ready = file != null && typeof fps === 'number';
 
-  /** 파일을 고르면 길이를 미리 읽어 둔다 — 저장할 때 클립 길이로 적는다 */
+  /** 고른 파일을 비운다 — 30fps 이하 · fps 를 못 읽은 파일은 받지 않는다 */
+  function refuse(message: string) {
+    setFile(null);
+    setFps(null);
+    setDurationSec(null);
+    if (fileRef.current) fileRef.current.value = '';
+    setError(message);
+  }
+
+  /**
+   * 파일을 고르면 fps 와 길이를 미리 읽어 둔다. fps 가 30 이하면 그 자리에서 막는다 — 길이는
+   * 저장할 때 클립 길이로 적는다.
+   */
   function pickFile(next: File | null) {
+    const seq = ++pickSeq.current;
     setFile(next);
+    setFps(next ? 'reading' : null);
     setDurationSec(null);
     setStage({ kind: 'idle' });
     setError(null);
     if (!next) return;
+    void readVideoFps(next).then((read) => {
+      if (seq !== pickSeq.current) return;
+      if (read == null) {
+        return refuse(
+          '이 영상의 초당 장면 수(fps)를 읽지 못해 올릴 수 없어요. 폰으로 찍은 mp4 · mov 영상을 골라주세요.'
+        );
+      }
+      if (isLowFrameRate(read)) {
+        return refuse(
+          `이 영상은 ${Math.round(read)}fps예요 — 30fps 이하는 올릴 수 없어요. 60fps 이상(일반 60fps · 슬로모션 120~240fps)으로 찍어 주세요.`
+        );
+      }
+      setFps(read);
+    });
     const url = URL.createObjectURL(next);
     const video = document.createElement('video');
     video.preload = 'metadata';
@@ -76,6 +114,7 @@ export function FileMeasure({
 
   async function measure() {
     if (!file) return setError('영상 파일을 골라주세요.');
+    if (typeof fps !== 'number') return setError('영상의 fps 를 읽는 중이에요. 잠깐 뒤 다시 눌러주세요.');
     const fov = Number(fovDeg);
     if (!(fov >= 30 && fov <= 120))
       return setError('화각은 30~120° 사이로 넣어주세요.');
@@ -88,6 +127,7 @@ export function FileMeasure({
     try {
       const result = await analyzeVideo({
         file,
+        fps,
         fovDeg: fov,
         approach,
         releaseDistanceM: cameraPos === 'behind-catcher' ? dist : null,
@@ -102,6 +142,10 @@ export function FileMeasure({
 
   async function save() {
     if (stage.kind !== 'done' || !file) return;
+    /* 고를 때 막지만, 한 번 더 — 30fps 이하 영상은 저장 · 클립 올리기를 하지 않는다 */
+    if (typeof fps !== 'number' || isLowFrameRate(fps)) {
+      return setError('30fps 이하 영상은 올릴 수 없어요.');
+    }
     const { result } = stage;
     const m = result.measure;
     if (!m.ok) return setError('거부된 측정은 저장할 수 없어요.');
@@ -173,6 +217,7 @@ export function FileMeasure({
     }
     setStage({ kind: 'saved', date });
     setFile(null);
+    setFps(null);
     if (fileRef.current) fileRef.current.value = '';
     startTransition(() => quietRefresh(router));
   }
@@ -184,7 +229,7 @@ export function FileMeasure({
       <div className="grid gap-4 sm:grid-cols-2">
         <Field
           label="영상 파일"
-          hint="폰 슬로모션(120~240fps) 영상. 서버로 보내지 않고 이 브라우저에서 재요."
+          hint="60fps 이상 영상(일반 60fps · 슬로모션 120~240fps). 30fps 이하는 올릴 수 없어요. 서버로 보내지 않고 이 브라우저에서 재요."
         >
           <input
             ref={fileRef}
@@ -198,6 +243,7 @@ export function FileMeasure({
             <span className="block text-xs text-muted">
               {file.name} · {(file.size / 1024 / 1024).toFixed(1)}MB
               {durationSec != null && ` · ${durationSec}초`}
+              {fps === 'reading' ? ' · fps 읽는 중…' : typeof fps === 'number' && ` · ${Math.round(fps)}fps`}
             </span>
           )}
         </Field>
@@ -271,7 +317,7 @@ export function FileMeasure({
       <FormError>{error}</FormError>
 
       <div className="flex flex-wrap items-center gap-3">
-        <Button type="button" onClick={measure} disabled={busy || !file}>
+        <Button type="button" onClick={measure} disabled={busy || !ready}>
           {stage.kind === 'analyzing'
             ? `재는 중 ${Math.round(stage.ratio * 100)}%`
             : '재기'}

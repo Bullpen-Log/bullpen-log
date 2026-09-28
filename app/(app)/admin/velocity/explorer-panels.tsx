@@ -22,6 +22,7 @@ import {
 import { errorStats, pitchError } from '@/lib/velocity-stats';
 import { approachOf } from '@/lib/velocity-setup';
 import { analyzeVideo, type AnalyzeResult } from '@/lib/velocity-engine/analyze-video';
+import { readVideoFps } from '@/lib/velocity-engine/video-fps';
 import { errorTone, hhmm, mb, signed } from './format';
 import { FolderGlyph } from './explorer-glyphs';
 
@@ -285,6 +286,8 @@ export function PitchPreview({
       });
       const result = await analyzeVideo({
         file,
+        /* 올린 영상 파일(mp4 · mov)이면 그 fps 로 장면마다 꺼낸다. 앱이 찍은 클립(webm)은 몰라서 예전처럼 */
+        fps: await readVideoFps(file),
         fovDeg: s.fovDeg,
         approach,
         focalPerLongSide:

@@ -98,6 +98,13 @@ export type AnalyzeFramesInput = {
    * 보이므로, 이 거리만큼 공기저항을 되돌려야 릴리스 구속이 나온다. 없으면 릴리스 추정을 안 낸다.
    */
   releaseDistanceM?: number | null;
+  /**
+   * 꺼낸 장면의 초당 수를 알면(영상 파일의 fps 로 장면마다 꺼냈을 때) 준다. 비우면 남은 장면의
+   * 수로 센다 — 그러면 가만히 있는 장면이 같은 장면으로 걸러져 실제보다 적게 나온다.
+   */
+  fps?: number | null;
+  /** 앞에서 몇 장까지 공이 처음 보일 수 있나 — 기본 12(detect.ts 의 trackBall). 영상 파일은 전부 */
+  seedFrames?: number;
 };
 
 /** 공기저항 상수 — 정의와 설명은 geometry.ts */
@@ -143,11 +150,14 @@ export type AnalyzeResult = {
 const CORNER_RATIO = 0.15;
 const BLOCK = 8;
 
-/** 네 귀퉁이(각 변의 15%)를 BLOCK×BLOCK 씩 돌며 부른다 — 공이 지나가지 않는 자리라 배경만 있다 */
+/**
+ * 네 귀퉁이(각 변의 15%)를 BLOCK×BLOCK 씩 돌며 부른다 — 공이 지나가지 않는 자리라 배경만 있다.
+ * 세 번째 값은 귀퉁이 번호(0 왼쪽 위 · 1 오른쪽 위 · 2 왼쪽 아래 · 3 오른쪽 아래).
+ */
 function eachCornerBlock(
   width: number,
   height: number,
-  fn: (x0: number, y0: number) => void
+  fn: (x0: number, y0: number, corner: number) => void
 ) {
   const bw = Math.floor(width * CORNER_RATIO);
   const bh = Math.floor(height * CORNER_RATIO);
@@ -157,11 +167,11 @@ function eachCornerBlock(
     [0, height - bh],
     [width - bw, height - bh],
   ];
-  for (const [ox, oy] of corners) {
+  corners.forEach(([ox, oy], corner) => {
     for (let y = oy; y + BLOCK <= oy + bh; y += BLOCK) {
-      for (let x = ox; x + BLOCK <= ox + bw; x += BLOCK) fn(x, y);
+      for (let x = ox; x + BLOCK <= ox + bw; x += BLOCK) fn(x, y, corner);
     }
-  }
+  });
 }
 
 function blockMean(
@@ -185,6 +195,11 @@ function blockMean(
  * 픽셀 차 평균이 7 근처)이 그대로 흔들림으로 잡혀 정상 촬영이 거부된다. 블록 평균은 잡음을
  * 1/8 로 누르고, 카메라가 밀리면 무늬가 통째로 옮겨 가 블록 평균이 크게 달라진다.
  * 정확한 이동량 대신 "고정인가 아닌가"를 가리는 데 쓴다(검사 기준 MAX_CAMERA_SHAKE_PX).
+ *
+ * 귀퉁이마다 따로 재서 두 번째로 적게 바뀐 귀퉁이의 값을 쓴다. 카메라가 흔들리면 네 귀퉁이가
+ * 다 바뀌지만, 투수 · 포수의 몸이 지나가면 그 귀퉁이만 바뀐다. 전체 평균으로 쟀더니 영상 파일
+ * (던지기 전 투구 동작까지 훑는다)에서 팔이 한 귀퉁이를 지나간 것을 흔들림으로 보고 거부했다.
+ * 두 귀퉁이까지는 몸이 지나가도 된다.
  */
 export function cornerShift(
   prev: ArrayLike<number>,
@@ -192,15 +207,20 @@ export function cornerShift(
   width: number,
   height: number
 ): number {
-  let diffSum = 0;
-  let n = 0;
-  eachCornerBlock(width, height, (x0, y0) => {
-    diffSum += Math.abs(
+  const sum = [0, 0, 0, 0];
+  const count = [0, 0, 0, 0];
+  eachCornerBlock(width, height, (x0, y0, corner) => {
+    sum[corner] += Math.abs(
       blockMean(curr, width, x0, y0) - blockMean(prev, width, x0, y0)
     );
-    n++;
+    count[corner]++;
   });
-  return n ? diffSum / n : 0;
+  const means = sum
+    .map((s, i) => (count[i] ? s / count[i] : null))
+    .filter((m): m is number => m != null)
+    .sort((a, b) => a - b);
+  if (means.length === 0) return 0;
+  return means[Math.min(1, means.length - 1)];
 }
 
 /**
@@ -447,7 +467,8 @@ export function analyzeFrames(input: AnalyzeFramesInput): AnalyzeResult {
       if (input.shakePx == null) {
         shakePx = Math.max(shakePx, cornerShift(prev.luma, f.luma, width, height));
       }
-      if (isSameFrame(prev.luma, f.luma)) continue;
+      /* 초당 장면 수를 받았으면 장면마다 한 번씩 꺼낸 것이라 거르지 않는다(analyze-video.ts) */
+      if (input.fps == null && isSameFrame(prev.luma, f.luma)) continue;
     }
     frames.push(f);
   }
@@ -460,7 +481,8 @@ export function analyzeFrames(input: AnalyzeFramesInput): AnalyzeResult {
    * 수밖에 없다.
    */
   const measuredFps =
-    times.length > 1 ? (times.length - 1) / (times[times.length - 1] - times[0]) : null;
+    input.fps ??
+    (times.length > 1 ? (times.length - 1) / (times[times.length - 1] - times[0]) : null);
 
   /*
    * 2) 배경 기준선. 부르는 쪽이 준 장면(던지기 전)에 구간 안에서 고르게 뽑은 몇 장을
@@ -488,6 +510,7 @@ export function analyzeFrames(input: AnalyzeFramesInput): AnalyzeResult {
     frameWidth: width,
     frameHeight: height,
     approach,
+    seedFrames: input.seedFrames,
   });
 
   /* 4) 지름 · 중심을 대비 50% 면적으로 다시 잰다 — 번짐에 치우치지 않게 */
