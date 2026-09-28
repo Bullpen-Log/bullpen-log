@@ -1,4 +1,12 @@
 import type { BallObservation } from './geometry.ts';
+import { MIN_RELEASE_DISTANCE_M } from './validate.ts';
+
+/**
+ * 한 장면 사이에 공이 갈 수 있는 최대 속도(m/s) — 234km/h. 크기가 이보다 빨리 줄거나 커지는 두 덩어리는
+ * 같은 공이 아니다(투수의 손 · 팔이 공보다 먼저 크게 잡혔다가 다음 장면에 공만 남는 경우 — 실제 60fps
+ * 영상에서 팔(118px) → 공(30px)으로 이어 붙여 궤적이 흔들렸다, 2026-09-28 김민 보정 자료).
+ */
+const MAX_SPEED_MPS = 65;
 
 /**
  * 영상 프레임에서 공을 찾아낸다.
@@ -54,7 +62,13 @@ const MAX_ASPECT = 1.8;
  */
 const MIN_FILL_RATIO = 0.45;
 
-/** 한 프레임에서 후보를 이만큼까지만 본다. 더 많으면 화면 전체가 움직인 것이다. */
+/**
+ * 한 프레임에서 후보를 이만큼까지만 본다. 더 많으면 화면 전체가 움직인 것이다.
+ *
+ * 넘치면 '픽셀 수 × 보이는 비율'이 큰 것부터 남긴다. 예전에는 훑다가 상한에서 멈췄는데, 훑는 순서가
+ * 위에서 아래라 그물코 잡음(7×10px · 보이는 비율 0.2~0.5)이 위쪽에 40개 넘게 깔린 영상에서는 그 밑에
+ * 있는 진짜 공(25×25 · 1.0)이 통째로 빠졌다(첫 보정 자료 675d2051).
+ */
 const MAX_CANDIDATES_PER_FRAME = 40;
 
 export type Blob = {
@@ -262,7 +276,11 @@ export function findMovedBlobs(
       pixels: count,
       visibleFrac: rawCount / count,
     });
-    if (blobs.length > MAX_CANDIDATES_PER_FRAME) break;
+  }
+
+  if (blobs.length > MAX_CANDIDATES_PER_FRAME) {
+    blobs.sort((a, b) => b.pixels * b.visibleFrac - a.pixels * a.visibleFrac);
+    blobs.length = MAX_CANDIDATES_PER_FRAME;
   }
 
   return blobs;
@@ -313,6 +331,12 @@ export type TrackOptions = {
    * 본다(analyze-video.ts). 길고 많이 작아진 궤적을 고르므로 늦게 시작한 가짜가 이기지 못한다.
    */
   seedFrames?: number;
+  /**
+   * 초점거리 × 공 지름(분석 픽셀 · m) — 지름을 거리로 바꾸는 상수(z = 이것 / d). 있으면 씨앗은
+   * 가장 가까운 릴리스 거리(MIN_RELEASE_DISTANCE_M)보다 큰 덩어리를 빼고, 장면 사이 크기 변화가
+   * MAX_SPEED_MPS 를 넘는 이음을 막는다.
+   */
+  focalDiameterPx?: number;
 };
 
 /**
@@ -332,6 +356,47 @@ const MAX_END_SIZE_RATIO = 0.85;
  */
 const MAX_TRACK_SECONDS = 1.0;
 
+/**
+ * 궤적 전체의 평균 깊이 속도(m/s)가 이보다 느리면 공이 아니다(약 29km/h).
+ *
+ * 카메라 앞 2m 에 서 있는 투수의 몸통이 배경과 달라 80×113px 덩어리로 40장 넘게 가만히 있다가
+ * 던지며 움직이면 '길고 작아진' 궤적이 돼, 13장짜리 진짜 공(33→9px)을 점수에서 이겼다(첫 보정
+ * 자료 819baba0 · b3fb4050). 공은 어느 구간이든 빠르다 — 처음과 끝의 거리 차를 시간으로 나눈
+ * 평균 속도는 몸통(0.7→1.8m 를 0.9초에, 1.2m/s)과 공(2.4→8m 를 0.2초에, 28m/s)을 확실히 가른다.
+ * 씨앗 크기 상한(maxSeedPx)만으로는 몸통(원시 덩어리 96px)이 걸러지지 않았다.
+ */
+const MIN_TRACK_SPEED_MPS = 8;
+
+/**
+ * 같은 자리에 같은 크기로 이만큼(초) 머물면 공이 아니라 배경의 무언가다 — 머물기 시작한 자리에서
+ * 궤적을 끊는다. 40km/h 공도 0.05초에 0.55m 나아가 8m 밖에서도 지름이 7% 는 줄고 자리도 옮긴다.
+ *
+ * 공이 사라진 뒤 그 근처의 가만히 있는 점(9×7px)을 20장 넘게 이어 붙여, 맞춤이 그 꼬리에 끌려
+ * −11.6km/h 가 났다(첫 보정 자료 6487091a). 서 있는 투수 몸통도 이 규칙에서 씨앗부터 끊긴다.
+ */
+const STATIC_RUN_SEC = 0.1;
+const STATIC_POS_PX = 1;
+const STATIC_DIAMETER_PX = 0.75;
+
+/**
+ * 궤적 끝이 STATIC_RUN_SEC 동안 같은 자리 · 같은 크기였으면 그 머묾이 시작된 차례를, 아니면 -1.
+ */
+function staticRunStart(track: BallObservation[]): number {
+  const last = track[track.length - 1];
+  for (let i = track.length - 2; i >= 0; i--) {
+    const o = track[i];
+    if (
+      Math.abs(o.x - last.x) >= STATIC_POS_PX ||
+      Math.abs(o.y - last.y) >= STATIC_POS_PX ||
+      Math.abs(o.diameterPx - last.diameterPx) >= STATIC_DIAMETER_PX
+    ) {
+      return -1;
+    }
+    if (last.t - o.t >= STATIC_RUN_SEC) return i;
+  }
+  return -1;
+}
+
 export function trackBall(
   frames: FrameBlobs[],
   options: TrackOptions
@@ -344,7 +409,16 @@ export function trackBall(
     maxGapFrames = 2,
     approach = 'receding',
     seedFrames = 12,
+    focalDiameterPx,
   } = options;
+  /*
+   * 씨앗이 될 수 있는 최대 지름 — 릴리스 0.8m 일 때의 공 크기. 검사의 최소 거리(0.4m)보다 빡빡하게 두는
+   * 까닭: 실제 영상에서 투수의 손 · 팔이 100~120px 덩어리로 잡혀 궤적의 첫 점이 되곤 했다(0.4m 기준으로는
+   * 200px 까지 허용돼 못 걸렀다). 폰을 0.8m 안쪽에 붙이는 일은 없다.
+   */
+  const maxSeedPx = focalDiameterPx
+    ? focalDiameterPx / Math.max(MIN_RELEASE_DISTANCE_M, 0.8)
+    : Infinity;
 
   const cx = frameWidth / 2;
   const cy = frameHeight / 2;
@@ -358,6 +432,8 @@ export function trackBall(
     for (const seed of frames[s].blobs) {
       const offset = Math.hypot(seed.cx - cx, seed.cy - cy) / half;
       if (offset > seedCenterRatio) continue;
+      /* 손 · 팔처럼 공일 수 없이 큰 덩어리는 씨앗이 아니다 */
+      if (blobDiameter(seed) > maxSeedPx) continue;
 
       const track: BallObservation[] = [
         {
@@ -387,6 +463,25 @@ export function trackBall(
             continue;
           const step = Math.hypot(blob.cx - last.x, blob.cy - last.y);
           if (step > maxStepPx * (missed + 1)) continue;
+          /*
+           * 한 장면 사이 크기 변화가 최고 속도로도 안 되는 만큼이면 다른 물체다 — 손(118px)에서
+           * 공(30px)으로 건너뛰는 이음을 막는다. z = fD/d 이니 다음 거리는 z ± vmax·dt 안이어야 한다.
+           */
+          /*
+           * 크기가 크게(30% 넘게) 뛸 때만 본다 — 멀어져 몇 픽셀이 된 공은 잡음만으로도 한두 픽셀이
+           * 흔들려, 작은 변화까지 물리로 따지면 정상 궤적이 끊긴다(시험대에서 프레임이 절반으로 줄었다).
+           */
+          const ratio = d / last.diameterPx;
+          if (focalDiameterPx && (ratio < 0.7 || ratio > 1.4)) {
+            const dt = frames[f].t - last.t;
+            const dz = MAX_SPEED_MPS * Math.max(dt, 1e-3);
+            const zPrev = focalDiameterPx / last.diameterPx;
+            if (approach === 'receding') {
+              if (d < focalDiameterPx / (zPrev + dz)) continue;
+            } else if (zPrev - dz > 0 && d > focalDiameterPx / (zPrev - dz)) {
+              continue;
+            }
+          }
 
           /*
            * 가까울수록, 크기가 비슷할수록 좋은 후보다.
@@ -417,6 +512,13 @@ export function trackBall(
           visibleFrac: picked.visibleFrac,
         };
         track.push(last);
+
+        /* 같은 자리 · 같은 크기로 머무는 것은 배경이다 — 머물기 시작한 자리에서 궤적을 끊는다 */
+        const stuck = staticRunStart(track);
+        if (stuck >= 0) {
+          track.length = stuck;
+          break;
+        }
       }
 
       /*
@@ -433,6 +535,16 @@ export function trackBall(
       /* 다가오는 공은 커진다 — 뒤집어서 '얼마나 작아졌나'로 같이 본다 */
       const shrank = approach === 'receding' ? sizeRatio : 1 / sizeRatio;
       if (shrank > MAX_END_SIZE_RATIO) continue; // 작아지지(커지지) 않았다 = 공이 아니다
+
+      /* 궤적 전체가 공답게 빠른가 — 서 있는 몸통 · 배경의 점은 여기서 떨어진다 */
+      if (focalDiameterPx) {
+        const dt = trimmed[trimmed.length - 1].t - trimmed[0].t;
+        const dz = Math.abs(
+          focalDiameterPx / trimmed[trimmed.length - 1].diameterPx -
+            focalDiameterPx / trimmed[0].diameterPx
+        );
+        if (dz < MIN_TRACK_SPEED_MPS * dt) continue;
+      }
 
       const score = trimmed.length * (1 - shrank);
       if (score > bestScore) {

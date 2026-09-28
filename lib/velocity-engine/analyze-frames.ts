@@ -10,6 +10,7 @@ import {
   type BallObservation,
   type CameraLens,
   DRAG_K_PER_M,
+  BALL_DIAMETER_M,
 } from './geometry.ts';
 import { checkFootage } from './validate.ts';
 import {
@@ -105,6 +106,8 @@ export type AnalyzeFramesInput = {
   fps?: number | null;
   /** 앞에서 몇 장까지 공이 처음 보일 수 있나 — 기본 12(detect.ts 의 trackBall). 영상 파일은 전부 */
   seedFrames?: number;
+  /** 진단용 — 켜면 결과에 장면마다 찾은 덩어리 전부(blobFrames)를 실어 준다 */
+  debug?: boolean;
 };
 
 /** 공기저항 상수 — 정의와 설명은 geometry.ts */
@@ -143,6 +146,8 @@ export type AnalyzeResult = {
   shakePx: number;
   /** 계산에 쓴 초점거리(원본 픽셀) */
   focalPx: number;
+  /** 진단용(입력 debug) — 장면마다 찾은 덩어리 전부(분석 픽셀 기준) */
+  blobFrames?: FrameBlobs[];
 };
 
 /* ───────────────────────── 귀퉁이 — 흔들림 · 노출 ───────────────────────── */
@@ -512,11 +517,25 @@ export function analyzeFrames(input: AnalyzeFramesInput): AnalyzeResult {
     biasAt.set(f.t, bias);
     return { t: f.t, blobs: findMovedBlobs(background, f.luma, width, height, bias) };
   });
+  /*
+   * 렌즈의 초점거리. 공으로 보정한 값(focalPx)이 있으면 그것, 없으면 화각 가정으로 구한다.
+   *
+   * 화각은 화면의 '긴 쪽'을 기준으로 잰다. 폰에 적힌 화각(약 69도)은 가로로 눕혀 찍었을 때의
+   * 값이다. 세로로 찍으면 같은 렌즈인데도 가로가 짧아져, 짧은 쪽에 그 화각을 대입하면 초점거리를
+   * 실제보다 작게 본다. 그러면 공이 실제보다 가까이 있다고 계산돼 구속이 낮게 나온다. 초점거리는
+   * 방향과 무관한 렌즈의 성질이므로, 긴 쪽으로 한 번 구해 두면 가로 · 세로 어느 쪽으로 찍어도
+   * 같은 값을 쓴다. 추적에도 넘긴다(분석 픽셀 기준) — 크기 변화가 물리적으로 가능한지 보려고.
+   */
+  const focalPx =
+    input.focalPx && input.focalPx > 0
+      ? input.focalPx
+      : focalPxFromFov(Math.max(sourceWidth, sourceHeight), fovDeg);
   const rough = trackBall(blobFrames, {
     frameWidth: width,
     frameHeight: height,
     approach,
     seedFrames: input.seedFrames,
+    focalDiameterPx: focalPx * (width / sourceWidth) * BALL_DIAMETER_M,
   });
 
   /* 4) 지름 · 중심을 대비 50% 면적으로 다시 잰다 — 번짐에 치우치지 않게 */
@@ -531,19 +550,6 @@ export function analyzeFrames(input: AnalyzeFramesInput): AnalyzeResult {
     diameterPx: o.diameterPx / scale,
   }));
 
-  /*
-   * 렌즈의 초점거리. 공으로 보정한 값(focalPx)이 있으면 그것, 없으면 화각 가정으로 구한다.
-   *
-   * 화각은 화면의 '긴 쪽'을 기준으로 잰다. 폰에 적힌 화각(약 69도)은 가로로 눕혀 찍었을 때의
-   * 값이다. 세로로 찍으면 같은 렌즈인데도 가로가 짧아져, 짧은 쪽에 그 화각을 대입하면 초점거리를
-   * 실제보다 작게 본다. 그러면 공이 실제보다 가까이 있다고 계산돼 구속이 낮게 나온다. 초점거리는
-   * 방향과 무관한 렌즈의 성질이므로, 긴 쪽으로 한 번 구해 두면 가로 · 세로 어느 쪽으로 찍어도
-   * 같은 값을 쓴다.
-   */
-  const focalPx =
-    input.focalPx && input.focalPx > 0
-      ? input.focalPx
-      : focalPxFromFov(Math.max(sourceWidth, sourceHeight), fovDeg);
   const lens: CameraLens = {
     focalPx,
     frameWidth: sourceWidth,
@@ -581,5 +587,6 @@ export function analyzeFrames(input: AnalyzeFramesInput): AnalyzeResult {
     frameCount: frames.length,
     shakePx: Math.round(shakePx * 10) / 10,
     focalPx: Math.round(focalPx),
+    ...(input.debug ? { blobFrames } : {}),
   };
 }

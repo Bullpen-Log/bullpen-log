@@ -135,8 +135,16 @@ export async function loadCalibration(): Promise<{ fit: CalFit; pairs: CalPair[]
   const user = await getCurrentUser();
   if (!user) return { fit: fitCalibration([]), pairs: [] };
   const rows = await prisma.velocityPitch.findMany({
-    /* 수기 공은 카메라 값이 없어(스피드건 값 복사) 짝이 아니다 */
-    where: { userId: user.id, gunKmh: { not: null }, manual: false },
+    /*
+     * 수기 공은 카메라 값이 없어(스피드건 값 복사) 짝이 아니다. 옛 모델로 잰 공도 뺀다 — 모델이 고쳐진
+     * 뒤에도 옛 편향을 되풀이해 보정하면 두 번 고치는 셈이다(관리자가 다시 재서 채우면 지금 모델이 된다).
+     */
+    where: {
+      userId: user.id,
+      gunKmh: { not: null },
+      manual: false,
+      engineVersion: VELOCITY_ENGINE_VERSION,
+    },
     orderBy: { createdAt: 'desc' },
     take: CAL_PAIR_LIMIT,
     select: { rawKmh: true, gunKmh: true },

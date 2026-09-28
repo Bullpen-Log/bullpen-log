@@ -31,6 +31,7 @@ import { approachOf } from '@/lib/velocity-setup';
 import { analyzeVideo, type AnalyzeResult } from '@/lib/velocity-engine/analyze-video';
 import { analysisOf } from '@/lib/velocity-analysis';
 import { readVideoFps } from '@/lib/velocity-engine/video-fps';
+import { readVideoLens, videoFovFor } from '@/lib/velocity-engine/video-lens';
 import {
   reject,
   type RejectCode,
@@ -276,14 +277,20 @@ export async function remeasurePitch(
   const file = new File([blob], name, {
     type: pitch.clipMime ?? blob.type ?? 'video/mp4',
   });
+  /*
+   * 초점거리: 렌즈 보정(공으로 잰 것)이 있는 세션만 그 값을 쓴다. 세션의 focalPx 는 화각 가정으로 만든
+   * 값이라 그것을 쓰면 옛 화각이 굳는다. 보정이 없으면 파일의 렌즈 정보로 영상 모드 화각(아이폰 62°)을,
+   * 그것도 없으면 세션의 화각.
+   */
+  const lens = await readVideoLens(file);
   return analyzeVideo({
     file,
     /* 올린 영상 파일(mp4 · mov)이면 그 fps 로 장면마다 꺼낸다. 앱이 찍은 클립(webm)은 몰라서 예전처럼 */
     fps: await readVideoFps(file),
-    fovDeg: session.fovDeg,
+    fovDeg: videoFovFor(lens) ?? session.fovDeg,
     approach: approachOfSession(session),
     focalPerLongSide:
-      session.focalPx && session.frameW && session.frameH
+      session.lensCal && session.focalPx && session.frameW && session.frameH
         ? session.focalPx / Math.max(session.frameW, session.frameH)
         : null,
     releaseDistanceM: session.releaseDistM,

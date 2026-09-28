@@ -10,6 +10,7 @@ import { uploadClip } from '@/lib/velocity-clip-upload';
 import { analysisOf } from '@/lib/velocity-analysis';
 import { analyzeVideo, type AnalyzeResult } from '@/lib/velocity-engine/analyze-video';
 import { isLowFrameRate, readVideoFps } from '@/lib/velocity-engine/video-fps';
+import { readVideoLens, videoFovFor, videoLensText } from '@/lib/velocity-engine/video-lens';
 import { approachOf, type CameraPos } from '@/lib/velocity-setup';
 import { CONFIDENCE_TEXT, PITCH_TYPES, type ConfidenceKey } from '@/lib/velocity-meta';
 import { toDateKey } from '@/lib/pitch-stats';
@@ -57,6 +58,8 @@ export function FileMeasure({
   const pickSeq = useRef(0);
   const [cameraPos, setCameraPos] = useState<CameraPos>('behind-pitcher');
   const [fovDeg, setFovDeg] = useState('69');
+  /* 파일에서 읽은 렌즈 — 아이폰 영상이면 화각을 62° 로 채운다(video-lens.ts) */
+  const [lensText, setLensText] = useState<string | null>(null);
   const [releaseDist, setReleaseDist] = useState('18.5');
   const [date, setDate] = useState(() => toDateKey(new Date()));
   const [gun, setGun] = useState('');
@@ -93,6 +96,14 @@ export function FileMeasure({
       if (seq !== pickSeq.current) return;
       /* 못 읽었거나 30fps 이하면 '재기'는 잠기고 수기로만 올린다(아래 unmeasurableWhy) */
       setFps(read);
+    });
+    setLensText(null);
+    void readVideoLens(next).then((lens) => {
+      if (seq !== pickSeq.current) return;
+      const fov = videoFovFor(lens);
+      const text = videoLensText(lens);
+      setLensText(text ? `${text}${fov ? ` → 화각 ${fov}°` : ''}` : null);
+      if (fov) setFovDeg(String(fov));
     });
     const url = URL.createObjectURL(next);
     const video = document.createElement('video');
@@ -339,7 +350,14 @@ export function FileMeasure({
               : '공이 다가와요 — 릴리스까지 거리로 릴리스 구속을 되돌려요'}
           </span>
         </div>
-        <Field label="화각(°)" hint="아이폰 후면 메인 카메라 약 69°">
+        <Field
+          label="화각(°)"
+          hint={
+            lensText
+              ? `파일의 렌즈: ${lensText} — 아이폰 영상 모드는 사진(69°)보다 좁아요`
+              : '아이폰 후면 메인 카메라 영상 모드 약 62°, 사진 모드 69°'
+          }
+        >
           <Input
             inputMode="decimal"
             value={fovDeg}

@@ -79,6 +79,8 @@ export type AnalyzeOptions = {
   focalPerLongSide?: number | null;
   /** 포수 뒤: 카메라에서 릴리스 지점까지(m) — 릴리스 구속을 되돌릴 때 */
   releaseDistanceM?: number | null;
+  /** 진단용 — 결과에 장면마다 찾은 덩어리 전부를 싣는다(analyze-frames.ts) */
+  debug?: boolean;
 };
 
 function waitForEvent(
@@ -115,6 +117,7 @@ export async function analyzeVideo(options: AnalyzeOptions): Promise<AnalyzeResu
     approach = 'receding',
     focalPerLongSide = null,
     releaseDistanceM = null,
+    debug = false,
   } = options;
 
   const url = URL.createObjectURL(file);
@@ -252,6 +255,7 @@ export async function analyzeVideo(options: AnalyzeOptions): Promise<AnalyzeResu
        * 남은 장수로 세면 60fps 영상도 50 밑으로 나와 '장면 수 부족'으로 거부됐다.
        */
       fps: sampleFps,
+      debug,
       /* 구간이 던지기 한참 전부터라 공이 처음 보이는 장면이 뒤쪽에 있을 수 있다 — 전부에서 찾는다 */
       seedFrames: Number.POSITIVE_INFINITY,
     });
