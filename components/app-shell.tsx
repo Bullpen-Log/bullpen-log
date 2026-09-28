@@ -400,13 +400,19 @@ export function AppNav({
       if (to !== 'bar') setBellOpen(false);
     });
 
+    /*
+     * 옮기기도 전에 건너뛰어졌다(아래 ready.catch) — 다른 전환이 끼어들면 브라우저는 그 거절을
+     * 먼저 알리고 옮기는 일(update)은 뒤에 부른다. 그때는 연출로 뜬 것으로 치지 않는다. 쳤더니
+     * 판이 제 여는 움직임 없이 툭 나타났다.
+     */
+    let skipped = false;
     const vt = document.startViewTransition(() => {
       /* 그사이 이 연출이 거둬졌으면(판의 링크를 눌렀다든지) 옮기지 않는다 */
       if (running.current !== vt) return;
       /* 새 모습: 도착한 쪽으로 옮긴다. 이름표도 그리로 따라간다. */
       flushSync(() => {
-        if (to === 'dock') setDockBuilt(true);
-        if (to === 'sheet') setSheetBuilt(true);
+        if (to === 'dock') setDockBuilt(!skipped);
+        if (to === 'sheet') setSheetBuilt(!skipped);
         land(to);
       });
     });
@@ -448,6 +454,7 @@ export function AppNav({
      */
     vt.ready.catch(() => {
       if (running.current !== vt) return;
+      skipped = true;
       if (to === 'dock') setDockBuilt(false);
       if (to === 'sheet') setSheetBuilt(false);
     });

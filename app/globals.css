@@ -1257,6 +1257,15 @@ html[data-nav-choreo='sheet-bar'] {
 }
 
 /*
+ * 화면 전체(root)의 틀은 연출 중에 움직일 것이 없다. 그런데 브라우저 기본값(0.25초)으로 돌아서
+ * 0.2초면 끝나는 도크 닫기가 0.25초까지 늘었다 — 그동안은 찍어 둔 그림이라 커서를 대도 반응이
+ * 없다. 연출 중에는 끈다.
+ */
+html[data-nav-choreo]::view-transition-group(root) {
+  animation: none;
+}
+
+/*
  * 판과 오갈 때 뒤 화면이 어두워지고 밝아지는 것.
  *
  * 화면을 옮길 때의 전환은 뒤 화면 전체(root)를 겹치지 않게 꺼 두었다(위 page-fade
@@ -1361,34 +1370,70 @@ html[data-nav-choreo='dock-bar']::view-transition-group(nav-tail) {
  * 아이콘보다 조금 늦게 시작한다. 상자가 먼저 다 생기면 빈 상자를 향해 아이콘이
  * 날아오는 것으로 보이고, 아이콘이 먼저 떠나면 상자가 그것을 받으러 나온 것으로
  * 보인다. 접을 때는 거꾸로, 돋아났던 것이 잦아든 뒤에 접힌다.
+ *
+ * 옅어지는 것은 그림이 아니라 틀(group)에 건다. 크롬은 요소의 뒤 흐림(backdrop-filter)을
+ * 틀에 옮겨 칠하는데(View Transitions 명세), 틀은 연출이 끝날 때까지 제자리에 남는다.
+ * 그림만 옅어지게 했더니 아이콘이 다 떠난 뒤에도 흐린 네모(모서리가 각진)가 연출 끝까지
+ * 남았다(2026-09-28 사용자 — "아이콘이 다 사라지고 나서도 뒤의 불투명한 게 남는다").
+ * 틀이 옅어지면 흐림도 같이 옅어진다. 틀의 모서리는 도크(rounded-2xl)와 같게 둥글린다.
+ *
+ * 줄어드는 것(scale)만 그림에 둔다. 틀의 자리는 브라우저가 transform 으로 잡아 두어서,
+ * 틀을 줄이면 자리까지 같이 끌려간다. 뜨는 것(translate)은 자리와 따로 놀아 틀에 걸어도 된다.
  */
 html[data-nav-choreo]::view-transition-group(nav-dock) {
   z-index: 1;
+  border-radius: 1rem;
+}
+html[data-nav-choreo='bar-dock']::view-transition-group(nav-dock) {
+  animation: dock-glass-in 220ms cubic-bezier(0.2, 0, 0, 1) 30ms both;
 }
 html[data-nav-choreo='bar-dock']::view-transition-new(nav-dock) {
   transform-origin: top center;
-  animation: dock-in 220ms cubic-bezier(0.2, 0, 0, 1) 30ms both;
+  animation: dock-grow 220ms cubic-bezier(0.2, 0, 0, 1) 30ms both;
+}
+html[data-nav-choreo='dock-bar']::view-transition-group(nav-dock) {
+  animation: dock-glass-out 110ms cubic-bezier(0.4, 0, 1, 1) 40ms both;
 }
 html[data-nav-choreo='dock-bar']::view-transition-old(nav-dock) {
   transform-origin: top center;
-  animation: dock-out 110ms cubic-bezier(0.4, 0, 1, 1) 40ms both;
+  animation: dock-shrink 110ms cubic-bezier(0.4, 0, 1, 1) 40ms both;
 }
 /*
  * 도크가 판이 될 때 — 아이콘은 모두 판으로 날아가고, 빈 상자는 제자리에서 곧장
  * 옅어진다. 상자까지 판을 따라 오른쪽으로 가면 판이 둘 들어오는 것처럼 보인다.
  */
+html[data-nav-choreo='dock-sheet']::view-transition-group(nav-dock) {
+  animation: dock-glass-out 160ms cubic-bezier(0.4, 0, 1, 1) both;
+}
 html[data-nav-choreo='dock-sheet']::view-transition-old(nav-dock) {
   transform-origin: top center;
-  animation: dock-out 160ms cubic-bezier(0.4, 0, 1, 1) both;
+  animation: dock-shrink 160ms cubic-bezier(0.4, 0, 1, 1) both;
 }
-@keyframes dock-in {
+@keyframes dock-glass-in {
   from {
     opacity: 0;
-    transform: translateY(-6px) scale(0.92);
+    translate: 0 -6px;
   }
 }
-@keyframes dock-out {
+@keyframes dock-glass-out {
   to {
+    opacity: 0;
+    translate: 0 -6px;
+  }
+}
+@keyframes dock-grow {
+  from {
+    scale: 0.92;
+  }
+}
+@keyframes dock-shrink {
+  to {
+    scale: 0.92;
+  }
+}
+/* 연출 없이 뜰 때(아래 [data-dock])의 모양 — 연출의 두 몫(틀 · 그림)을 한 번에 */
+@keyframes dock-in {
+  from {
     opacity: 0;
     transform: translateY(-6px) scale(0.92);
   }
@@ -1411,33 +1456,41 @@ html[data-nav-choreo='dock-sheet']::view-transition-old(nav-dock) {
  * 읽혔다. 판은 늘 붙어 있는 쪽(오른쪽)에서 나온다 — 연출이 없을 때의 판
  * (dialog[data-drawer])과 같은 길, 같은 곡선이다.
  *
- * 판은 한쪽 모습에만 있다(들어올 때는 새 모습, 나갈 때는 옛 모습). 틀은 판의
- * 자리에 가만히 있고, 그림만 제 폭만큼(100%) 오른쪽 밖에서 들어오거나 밖으로
- * 나간다. 판에 실린 아이콘은 이름표를 달고 따로 날아가므로, 판의 그림에는 그
- * 자리가 비어 있다가 날아온 아이콘이 채운다.
+ * 판은 한쪽 모습에만 있다(들어올 때는 새 모습, 나갈 때는 옛 모습). 판을 제 폭만큼
+ * (100%) 오른쪽 밖에서 들이고 밖으로 내보낸다. 판에 실린 아이콘은 이름표를 달고 따로
+ * 날아가므로, 판의 그림에는 그 자리가 비어 있다가 날아온 아이콘이 채운다.
+ *
+ * 미는 것은 그림이 아니라 틀(group)이다. 크롬은 판의 뒤 흐림(backdrop-filter)을 틀에
+ * 옮겨 칠한다. 예전처럼 틀은 판의 자리에 세워 두고 그림만 밀었더니, 판이 오기도 전에
+ * 화면 오른쪽 띠가 먼저 흐려졌고 닫을 때는 판이 나간 뒤에도 흐린 띠가 남았다가 툭
+ * 사라졌다 — 메뉴를 열고 닫을 때 화면이 깜빡이던 것(2026-09-28 사용자). 틀을 밀면 흐림도
+ * 판과 함께 움직인다. 틀의 자리는 브라우저가 transform 으로 잡아 두므로 translate 로 민다.
+ * 틀의 모서리는 판(dialog[data-drawer])과 같게 둥글린다.
  */
 html[data-nav-choreo]::view-transition-group(nav-sheet) {
   z-index: 1;
+  border-radius: var(--drawer-radius) 0 0 var(--drawer-radius);
 }
 html[data-nav-choreo]::view-transition-old(nav-sheet),
 html[data-nav-choreo]::view-transition-new(nav-sheet) {
   mix-blend-mode: normal;
+  animation: none;
 }
-html[data-nav-choreo='dock-sheet']::view-transition-new(nav-sheet),
-html[data-nav-choreo='bar-sheet']::view-transition-new(nav-sheet) {
+html[data-nav-choreo='dock-sheet']::view-transition-group(nav-sheet),
+html[data-nav-choreo='bar-sheet']::view-transition-group(nav-sheet) {
   animation: sheet-slide-in 280ms cubic-bezier(0.32, 0.72, 0, 1) both;
 }
-html[data-nav-choreo='sheet-bar']::view-transition-old(nav-sheet) {
+html[data-nav-choreo='sheet-bar']::view-transition-group(nav-sheet) {
   animation: sheet-slide-out 220ms cubic-bezier(0.4, 0, 1, 1) both;
 }
 @keyframes sheet-slide-in {
   from {
-    transform: translateX(100%);
+    translate: 100% 0;
   }
 }
 @keyframes sheet-slide-out {
   to {
-    transform: translateX(100%);
+    translate: 100% 0;
   }
 }
 
