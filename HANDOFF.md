@@ -71,3 +71,18 @@ clipPath · clipBytes · clipSec · clipMime · clipEventSec · analysis(Json) �
   관리자에서 '관리자'까지 켜지던 것). `components/nav-icons.tsx` 에 `Radar`. `globals.css` 에 d8 · d9 · g4 · g5 딱지.
 - 투구 기록 머리를 부품으로 뗐다: `app/(app)/videos/pitch-log-heading.tsx`(제목 + [캘린더 | 목록 | 구속 측정] 고르개).
   `videos-client.tsx` 와 `admin/velocity/overview-view.tsx` 가 같이 쓴다. `videos/page.tsx` 는 `?view=list` 로 목록을 연다.
+
+## 김민에게 — 2026-09-28 · 금윤호(Claude) — 투구 기록의 '구속 측정' 단추 · 구속 측정 메인 화면
+
+받은 뒤 할 일 없음. 사용자 요청: 투구 기록 ↔ 구속 측정 관리자 전환을 부드럽게(고르개가 사라지지 않게),
+목록 옆에 '구속 측정' 단추(웹은 관리자만 · 앱은 누구나) → 구속 측정 메인 화면(/velocity, 지난 세션 구속 변화 ·
+설정 · 측정 시작), 설정 단계를 그림 카드로, 주의사항은 팝업으로.
+
+- `app/(app)/videos/videos-client.tsx`: 탭 안의 [구속 측정] 보기(VelocityPanel)를 뺐다 — 대신 고르개 옆 '구속 측정'
+  단추가 `/velocity` 로 간다. **`velocity` prop 이 없어졌다**(page.tsx 도 그 자료를 더 읽지 않는다). 관리자 화면 ·
+  `/velocity` 를 `router.prefetch` 로 미리 받는다. `components/velocity/velocity-panel.tsx` 는 지웠다.
+- `app/(app)/videos/page.tsx`: `?view=velocity` 는 앱이면 `/velocity`, 관리자 웹이면 `/admin/velocity` 로 보낸다.
+- `app/(app)/videos/pitch-log-heading.tsx`: 제목 줄 · 고르개 줄에 `ViewTransition name`(pitch-log-heading ·
+  pitch-log-controls) — 화면이 바뀌어도 그 자리에 남는다. `app/(app)/admin/velocity/loading.tsx` 가 같은 머리를 단다.
+- `lib/nav.ts`: '구속 측정' 메뉴가 `/velocity/measure` → `/velocity`(메인).
+- `lib/velocity-setup.ts`: 설정에 `sessionType`(어떤 투구)이 생겼다(localStorage 값, DB 아님).

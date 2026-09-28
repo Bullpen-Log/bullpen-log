@@ -1,6 +1,6 @@
 'use client';
 
-import type { ReactNode } from 'react';
+import { ViewTransition, type ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
 import { PageHeading } from '@/components/ui';
 import { Segmented } from '@/components/segmented';
@@ -12,6 +12,12 @@ import { Segmented } from '@/components/segmented';
  * 세 번째 칸을 누르면 구속 측정 관리자로 가는데, 예전에는 거기 머리가 따로라 투구 기록으로 돌아갈
  * 고르개가 사라졌다(2026-09-28 사용자 — "구속 측정 관리자도 투구 기록 기능의 하나라는 느낌으로").
  * 이제 두 화면이 같은 제목 · 같은 고르개를 달고, 고르개의 칸만 바뀐다.
+ *
+ * 제목 줄과 고르개 줄에 전환 이름표(ViewTransition name)를 단다. 투구 기록 ↔ 구속 측정 관리자는
+ * 화면(주소)이 바뀌는 이동이라 본문 전체가 페이드하는데(app/(app)/layout.tsx 의 app-main), 이름표가
+ * 같은 요소는 옛 화면과 새 화면에서 짝지어져 그 자리에 그대로 남는다 — 눌렀던 고르개가 사라졌다
+ * 나타나지 않는다(2026-09-28 사용자: "어딘가로 멀리 이동하는 느낌 · 누르는 바가 사라지면 안 된다").
+ * 불러오는 동안의 화면(admin/velocity/loading.tsx)도 같은 머리를 달아, 자료가 오기 전에도 머리는 제자리다.
  */
 
 export type PitchView = 'calendar' | 'list' | 'velocity';
@@ -76,19 +82,23 @@ export function PitchLogHeading({
 }) {
   return (
     <>
-      <PageHeading
-        eyebrow="Pitch log"
-        title="투구 기록"
-        action={
-          <div className="flex items-center gap-2">
-            <div className="hidden items-center gap-2 desk-low:flex">{controls}</div>
-            {action}
-          </div>
-        }
-      />
-      <div className="flex flex-wrap items-center justify-between gap-2 desk-low:hidden">
-        {controls}
-      </div>
+      <ViewTransition name="pitch-log-heading">
+        <PageHeading
+          eyebrow="Pitch log"
+          title="투구 기록"
+          action={
+            <div className="flex items-center gap-2">
+              <div className="hidden items-center gap-2 desk-low:flex">{controls}</div>
+              {action}
+            </div>
+          }
+        />
+      </ViewTransition>
+      <ViewTransition name="pitch-log-controls">
+        <div className="flex flex-wrap items-center justify-between gap-2 desk-low:hidden">
+          {controls}
+        </div>
+      </ViewTransition>
     </>
   );
 }

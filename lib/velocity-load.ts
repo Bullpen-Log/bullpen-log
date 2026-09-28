@@ -1,6 +1,7 @@
 import 'server-only';
 import { prisma } from '@/lib/prisma';
 import type { VelocitySessionView } from '@/lib/velocity-meta';
+import type { VelocityHistoryItem } from '@/components/velocity/session-types';
 
 /**
  * 구속 측정을 읽는다 — 서버 컴포넌트가 쓴다.
@@ -59,6 +60,47 @@ export async function loadVelocityDay(
       memo: p.memo,
     })),
   }));
+}
+
+/**
+ * 지난 세션 전부(오래된 것부터) — 구속 측정 메인 화면(/velocity)의 구속 변화 그래프 · 최근 세션 목록.
+ * 공은 kmh 와 구종만 읽는다 — 그래프에는 세션마다 최고 · 평균 · 공 수면 된다.
+ */
+export async function loadVelocityHistory(userId: string): Promise<VelocityHistoryItem[]> {
+  const rows = await prisma.velocitySession.findMany({
+    where: { userId },
+    orderBy: [{ date: 'asc' }, { createdAt: 'asc' }],
+    select: {
+      id: true,
+      date: true,
+      createdAt: true,
+      mode: true,
+      cameraPos: true,
+      net: true,
+      pitchLog: { select: { sessionType: true } },
+      pitches: { select: { kmh: true, pitchType: true } },
+    },
+  });
+  return rows
+    .filter((s) => s.pitches.length > 0)
+    .map((s) => {
+      const kmhs = s.pitches.map((p) => p.kmh);
+      const byType: Record<string, number> = {};
+      for (const p of s.pitches) if (p.pitchType) byType[p.pitchType] = (byType[p.pitchType] ?? 0) + 1;
+      return {
+        id: s.id,
+        date: s.date.toISOString().slice(0, 10),
+        createdAt: s.createdAt.toISOString(),
+        sessionType: s.pitchLog?.sessionType ?? null,
+        mode: s.mode,
+        cameraPos: s.cameraPos,
+        net: s.net,
+        n: kmhs.length,
+        maxKmh: Math.max(...kmhs),
+        avgKmh: Math.round((kmhs.reduce((a, b) => a + b, 0) / kmhs.length) * 10) / 10,
+        byType,
+      };
+    });
 }
 
 /** 날짜별 요약(공 수 · 최고) — 투구 기록 캘린더의 그날 칸 */

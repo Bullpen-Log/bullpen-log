@@ -6,6 +6,7 @@
  */
 
 import type { Approach } from '@/lib/velocity-engine/analyze-frames';
+import { DEFAULT_SESSION_TYPE, isRestSession, isSessionType } from '@/lib/session-type';
 
 export const SETUP_KEY = 'bullpen-velocity-setup';
 /** 같은 탭 안에서 설정이 바뀌었다고 알리는 신호 — storage 이벤트는 다른 탭에만 간다 */
@@ -25,6 +26,8 @@ export type CameraPos = 'behind-pitcher' | 'behind-catcher';
 export type ZoneRect = { x: number; y: number; w: number; h: number };
 
 export type VelocitySetup = {
+  /** 어떤 투구인가 — 투구 기록의 종류(불펜 · 라이브 · 경기 · 캐치볼). 저장할 때 그 기록의 종류가 된다 */
+  sessionType: string;
   mode: RecordMode;
   cameraPos: CameraPos;
   net: boolean;
@@ -80,6 +83,7 @@ export const NET_OPTIONS: { key: boolean; label: string; hint: string }[] = [
 export const DEFAULT_ZONE: ZoneRect = { x: 0.3, y: 0.42, w: 0.4, h: 0.3 };
 
 export const DEFAULT_SETUP: Omit<VelocitySetup, 'savedAt'> = {
+  sessionType: DEFAULT_SESSION_TYPE,
   mode: 'pitch',
   cameraPos: 'behind-pitcher',
   net: true,
@@ -109,6 +113,12 @@ export function loadSetup(): VelocitySetup | null {
     if (p.cameraPos !== 'behind-pitcher' && p.cameraPos !== 'behind-catcher')
       return null;
     return {
+      sessionType:
+        typeof p.sessionType === 'string' &&
+        isSessionType(p.sessionType) &&
+        !isRestSession(p.sessionType)
+          ? p.sessionType
+          : DEFAULT_SESSION_TYPE,
       mode: p.mode,
       cameraPos: p.cameraPos,
       net: p.net !== false,

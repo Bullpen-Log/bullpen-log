@@ -199,6 +199,20 @@
     `MIN_FPS` 60 → 50(59.94 · 가변 60 을 받게). 시험: 헤드리스 크롬에서 WebCodecs 로 가짜 투구 mp4(모의 투구를
     캔버스에 그림)를 30 · 60 · 120 · 240fps 로 만들어 — 30 막힘, 60fps 4 · 8초 130.5 · 120fps 130.1 · 240fps
     129.8km/h(실제 130). 정확도 시험대 · 셀프테스트 33 · 10 결과 그대로.
+  - **11차(2026-09-28 — 구속 측정 메인 · 설정 흐름 새로 · 관리자 전환 부드럽게).** 투구 기록 → 구속 측정 관리자는
+    주소가 바뀌는 이동이라 본문이 통째로 페이드했고 자료(모든 세션)를 누른 뒤에 읽어 느렸다 → 머리(제목 · 고르개)에
+    `ViewTransition name`(pitch-log-heading · pitch-log-controls)을 달아 공유 요소로 제자리에 두고, `admin/velocity/loading.tsx`
+    가 같은 머리를 달아 자료 오기 전에도 고르개가 서 있고, `router.prefetch` 로 미리 받는다. 고르개 옆 **'구속 측정' 단추**
+    (canMeasure — 앱은 누구나 · 웹은 관리자) → `/velocity` **메인 화면**(`velocity-home.tsx`: ‹투구 기록 · 설정 톱니 ·
+    로고 · 지난 설정 한 줄 · `components/velocity/session-history.tsx` 구속 변화 그래프 · 최근 세션 · 아래 '측정 시작').
+    자료는 `lib/velocity-load.ts` `loadVelocityHistory`(세션마다 최고 · 평균 · 공 수 · 구종별, `VelocityHistoryItem`).
+    탭 안의 [구속 측정] 보기(VelocityPanel)는 지웠다. **설정 흐름**: 지난 설정(그림 네 칸 + [새 설정 | 이 설정으로 시작])
+    → 1 어떤 투구(불펜 · 라이브 · 경기 · 캐치볼, 설정 `sessionType` — 저장 시트의 종류가 이것으로 미리 채워짐) → 2 무엇을
+    (투구 · 타구) → 3 카메라 위치 → 4 네트 — 단계마다 `components/velocity/setup-art.tsx` 의 `OptionCards`(그림 + 이름 +
+    설명 + '이럴 때'). **주의사항은 단계가 아니라 팝업**(`tips-popup.tsx`, 카메라 화면 위 `<dialog>`, 뒤가 여백에서만
+    보임, '다시 보지 않기' 없음, 다음 단추 밑 작은 '오늘은 보지 않기' = localStorage `bullpen-velocity-tips-skip`=날짜).
+    `Step` 타입: type · mode · camera · net · align · zone · measure · lens(choices · tips 없어짐), 뒤로는 `BACK_OF`.
+    나가기 · 저장 뒤는 `/velocity` 로. 부품 셋은 워크플로(빌더 3 + 검증 1).
   - **10차(2026-09-28 — 측정 중 화면 · 세션 요약 · 관리자 점프, 사용자 요청).** 측정 중(live) 화면: 방금 공
     구속(크게) · 구종 칩 · **회전축 그림**(`components/velocity/spin-axis.tsx` + `lib/velocity-spin.ts` — 카메라는 회전을
     못 재므로 구종 + 던지는 손의 전형값, 시계 방향 · 효율 · rpm, 좌투는 거울; 화면에 '전형값' 문구) · 통계 4칸.

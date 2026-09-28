@@ -367,6 +367,7 @@ export function VelocitySettingsButton({
     delete rest.fovDeg;
     if (Object.keys(rest).length > 0) {
       saveSetup({
+        sessionType: base.sessionType,
         mode: base.mode,
         cameraPos: base.cameraPos,
         net: base.net,
@@ -410,6 +411,7 @@ export function VelocitySettingsButton({
               className="h-10 px-3.5 text-xs"
               onClick={() =>
                 saveSetup({
+                  sessionType: base.sessionType,
                   mode: base.mode,
                   cameraPos: base.cameraPos,
                   net: base.net,

@@ -49,8 +49,11 @@ export function throwingHandOf(profile: string | null | undefined): ThrowingHand
 /** 측정 화면 안의 화면들 — 관리자 점프 단추(components/velocity/admin-jump.tsx)가 이 이름으로 옮긴다 */
 export const VELOCITY_SCREENS = [
   { key: 'ask', label: '지난 설정 묻기', hint: '저장된 설정이 있을 때 첫 화면' },
-  { key: 'choices', label: '무엇을 어디서', hint: '투구/타격 · 카메라 위치 · 네트' },
-  { key: 'tips', label: '주의사항', hint: '촬영 전 카드' },
+  { key: 'type', label: '어떤 투구', hint: '불펜 · 라이브 · 경기 · 캐치볼' },
+  { key: 'mode', label: '무엇을 재나', hint: '투구 · 타구' },
+  { key: 'camera', label: '카메라 위치', hint: '투수 뒤 · 포수 뒤' },
+  { key: 'net', label: '네트', hint: '있음 · 없음' },
+  { key: 'tips', label: '주의사항 창', hint: '카메라 화면 위 팝업' },
   { key: 'align', label: '수평 · 표적', hint: '카메라 맞추기' },
   { key: 'zone', label: '스트라이크 존', hint: '존 놓기' },
   { key: 'lens', label: '렌즈 보정', hint: '공으로 초점거리 재기' },
@@ -60,3 +63,28 @@ export const VELOCITY_SCREENS = [
 ] as const;
 
 export type VelocityScreenKey = (typeof VELOCITY_SCREENS)[number]['key'];
+
+/**
+ * 구속 측정 메인 화면(/velocity)의 지난 세션 한 줄 — 세션마다 최고 · 평균 · 공 수.
+ * 서버가 lib/velocity-load.ts 의 loadVelocityHistory 로 만들어 넘긴다(components/velocity/session-history.tsx).
+ */
+export type VelocityHistoryItem = {
+  id: string;
+  /** YYYY-MM-DD */
+  date: string;
+  /** ISO — 같은 날 여러 세션의 차례 */
+  createdAt: string;
+  /** 같이 만든 투구 기록의 종류(불펜 · 라이브 · 경기 · 캐치볼). 없으면 null */
+  sessionType: string | null;
+  /** 'pitch' · 'hit' */
+  mode: string;
+  /** 'behind-pitcher' · 'behind-catcher' */
+  cameraPos: string;
+  net: boolean;
+  n: number;
+  /** 보정 뒤 km/h */
+  maxKmh: number;
+  avgKmh: number;
+  /** 구종 키별 공 수 — 안 고른 공은 빠진다 */
+  byType: Record<string, number>;
+};

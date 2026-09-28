@@ -146,7 +146,7 @@ export const NAV_GROUPS: NavGroup[] = [
    */
   {
     items: [
-      { href: '/velocity/measure', label: '구속 측정', icon: 'radar', appOrAdmin: true },
+      { href: '/velocity', label: '구속 측정', icon: 'radar', appOrAdmin: true },
     ],
   },
   {

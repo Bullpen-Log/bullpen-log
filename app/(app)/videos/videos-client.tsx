@@ -1,14 +1,8 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Plus } from 'lucide-react';
-import {
-  VelocityPanel,
-  type TodayLogSummary,
-} from '@/components/velocity/velocity-panel';
-import type { CalFit } from '@/lib/velocity-calibration';
-import type { VelocitySessionView } from '@/lib/velocity-meta';
+import { Plus, Radar } from 'lucide-react';
 import { ButtonLink, PageHeading } from '@/components/ui';
 import { useTodayKey } from '@/components/use-today-key';
 import {
@@ -16,7 +10,6 @@ import {
   PitchLogHeading,
   PitchViewSwitch,
   VELOCITY_ADMIN_OPTION,
-  VELOCITY_OPTION,
   type PitchView,
 } from './pitch-log-heading';
 import { CompareView, type ClipOption } from './compare-view';
@@ -60,7 +53,6 @@ export function VideosClient({
   canMeasure,
   velocityHref,
   measured,
-  velocity,
   initialView,
 }: {
   logs: VideoLog[];
@@ -78,23 +70,28 @@ export function VideosClient({
   velocityHref: string | null;
   /** 날짜별 카메라 측정 요약(공 수 · 최고 km/h) — 캘린더의 그날 칸에 적는다 */
   measured: Record<string, { n: number; max: number }>;
-  /** [구속 측정] 보기가 쓰는 것 — 오늘 잰 세션 · 오늘 투구 기록 요약 · 보정식. 앱 안일 때만 */
-  velocity: {
-    sessions: VelocitySessionView[];
-    todayLog: TodayLogSummary;
-    calibration: CalFit;
-    /** 관리자면 설정에 '정확도 보정용 저장'이 보인다 */
-    isAdmin: boolean;
-  } | null;
   /** 처음 보일 칸 — ?view=velocity 로 들어오면 구속 측정 */
   initialView: View;
 }) {
   const router = useRouter();
   const todayKey = useTodayKey(today);
   const [view, setView] = useState<View>(initialView);
-  const viewOptions: readonly { value: View; label: string }[] = canMeasure
-    ? [...PITCH_VIEW_OPTIONS, velocityHref ? VELOCITY_ADMIN_OPTION : VELOCITY_OPTION]
-    : PITCH_VIEW_OPTIONS;
+  /*
+   * 고르개 칸 — 관리자 웹은 셋째 칸이 구속 측정 관리자. 카메라 측정(구속 측정 모드)은 칸이 아니라
+   * 고르개 옆의 단추다(아래 viewControls) — 다른 화면(/velocity)으로 가고 뒤로 가기로 여기로 돌아온다.
+   */
+  const viewOptions: readonly { value: View; label: string }[] =
+    canMeasure && velocityHref
+      ? [...PITCH_VIEW_OPTIONS, VELOCITY_ADMIN_OPTION]
+      : PITCH_VIEW_OPTIONS;
+  /*
+   * 갈 곳을 미리 받아 둔다 — 구속 측정 관리자는 자료가 많아, 누른 뒤에 받기 시작하면 한참 기다린다
+   * (사용자: "멀리 이동하는 느낌 · 로딩이 길다"). 구속 측정 모드도 같은 이유로.
+   */
+  useEffect(() => {
+    if (velocityHref) router.prefetch(velocityHref);
+    if (canMeasure) router.prefetch('/velocity');
+  }, [router, velocityHref, canMeasure]);
   const [comparing, setComparing] = useState(false);
   /* 목록에서 고른 둘. 비교 화면이 이 둘로 열린다. */
   const [preset, setPreset] = useState<{ a: string; b: string } | null>(null);
@@ -161,19 +158,35 @@ export function VideosClient({
       ) : (
         <span />
       )}
-      <PitchViewSwitch
-        value={view}
-        onChange={(next) => {
-          /* 관리자 웹의 세 번째 칸은 보기가 아니라 관리자 화면으로 가는 길 */
-          if (next === 'velocity' && velocityHref) {
-            router.push(velocityHref);
-            return;
-          }
-          setView(next);
-          if (next === 'calendar') setSelecting(false);
-        }}
-        options={viewOptions}
-      />
+      <div className="flex items-center gap-2">
+        <PitchViewSwitch
+          value={view}
+          onChange={(next) => {
+            /* 관리자 웹의 세 번째 칸은 보기가 아니라 관리자 화면으로 가는 길 */
+            if (next === 'velocity' && velocityHref) {
+              router.push(velocityHref);
+              return;
+            }
+            setView(next);
+            if (next === 'calendar') setSelecting(false);
+          }}
+          options={viewOptions}
+        />
+        {/*
+          구속 측정 모드로 — 폰 카메라로 재는 화면(/velocity). 앱 안이면 누구나, 웹이면 관리자만
+          (canMeasure). 링크가 아니라 push 라 뒤로 가기로 이 화면 · 이 보기로 돌아온다.
+        */}
+        {canMeasure && (
+          <button
+            type="button"
+            onClick={() => router.push('/velocity')}
+            className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-sky bg-sky-tint px-3 text-xs font-semibold text-sky-strong transition-colors hover:bg-sky-tint/70"
+          >
+            <Radar aria-hidden className="h-4 w-4" />
+            구속 측정
+          </button>
+        )}
+      </div>
     </>
   );
 
@@ -198,15 +211,7 @@ export function VideosClient({
 
       {/* 두 방식을 오갈 때 살짝 떠오르며 바뀐다 */}
       <div key={view} className="motion-safe:animate-fade-in">
-        {view === 'velocity' && velocity ? (
-          <VelocityPanel
-            today={todayKey}
-            sessions={velocity.sessions}
-            todayLog={velocity.todayLog}
-            calibration={velocity.calibration}
-            isAdmin={velocity.isAdmin}
-          />
-        ) : view === 'calendar' ? (
+        {view === 'calendar' ? (
           <VideoCalendar
             logs={logs}
             featured={featured}

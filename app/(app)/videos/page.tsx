@@ -3,9 +3,7 @@ import { redirect } from 'next/navigation';
 import { prisma } from '@/lib/prisma';
 import { requireUser } from '@/lib/dal';
 import { isNativeUserAgent } from '@/lib/app-env';
-import { loadVelocityByDate, loadVelocityDay } from '@/lib/velocity-load';
-import { loadCalibration } from '@/app/actions/velocity';
-import { isRestSession } from '@/lib/session-type';
+import { loadVelocityByDate } from '@/lib/velocity-load';
 import { toDateKey } from '@/lib/pitch-stats';
 import { VideosClient } from './videos-client';
 
@@ -28,14 +26,14 @@ export default async function VideosPage({
   const user = await requireUser();
   const params = await searchParams;
   /*
-   * 카메라 구속 측정(/velocity)은 앱 안에서만 — 폰의 고속 촬영이 있어야 해서(lib/app-env.ts).
-   * 관리자가 웹에서 열면 폰 틀 패널 대신 구속 측정 관리자(/admin/velocity)로 간다 — 세 번째
-   * 보기 칸이 그 링크가 되고, ?view=velocity 로 들어와도 그리로 보낸다. 그 밖에는 칸을 아예 안 보인다.
+   * 카메라 구속 측정(/velocity)은 앱 안에서만 — 폰의 고속 촬영이 있어야 해서(lib/app-env.ts). 관리자는
+   * 웹에서도. 고르개 옆 '구속 측정' 단추가 그리로 간다. 관리자가 웹에서 보면 셋째 칸이 구속 측정 관리자
+   * (/admin/velocity). 옛 주소 ?view=velocity 는 앱이면 구속 측정 모드로, 관리자 웹이면 관리자로 보낸다.
    */
   const isNative = isNativeUserAgent((await headers()).get('user-agent'));
   const canMeasure = user.role === 'ADMIN' || isNative;
   const velocityHref = user.role === 'ADMIN' && !isNative ? '/admin/velocity' : null;
-  if (velocityHref && params.view === 'velocity') redirect(velocityHref);
+  if (params.view === 'velocity' && canMeasure) redirect(velocityHref ?? '/velocity');
   /* 캘린더의 '대표 바꾸기'로 들어오면 그 날짜의 달을 펴 둔다(?month=2026-08) */
   const month = readMonthParam(params.month);
   /* 홈에서 그날 영상으로 들어오면 영상 캘린더가 그날을 열어 둔다(?date=2026-08-30) */
@@ -78,43 +76,6 @@ export default async function VideosPage({
     loadVelocityByDate(user.id),
   ]);
 
-  /*
-   * [구속 측정] 보기 — 오늘 카메라로 잰 세션과 오늘 투구 기록 요약, 보정식. 이 보기가 있을 때만
-   * 읽는다(앱 안). 관리자 웹은 패널 대신 관리자 화면으로 가므로 읽지 않는다.
-   */
-  const todayKey = toDateKey(now());
-  const todayAt = new Date(`${todayKey}T00:00:00.000Z`);
-  const velocity =
-    canMeasure && !velocityHref
-      ? await (async () => {
-          const [sessions, { fit }] = await Promise.all([
-            loadVelocityDay(user.id, todayAt),
-            loadCalibration(),
-          ]);
-          const todayLogs = logs.filter(
-            (l) => l.date.toISOString().slice(0, 10) === todayKey
-          );
-          const thrown = todayLogs.filter((l) => !isRestSession(l.sessionType));
-          return {
-            sessions,
-            todayLog: {
-              entries: thrown.length,
-              pitches: thrown.reduce((s, l) => s + l.pitchCount, 0),
-              maxVelocity: thrown.reduce<number | null>(
-                (m, l) =>
-                  l.maxVelocity != null && (m == null || l.maxVelocity > m)
-                    ? l.maxVelocity
-                    : m,
-                null
-              ),
-              rested: todayLogs.length > 0 && thrown.length === 0,
-            },
-            calibration: fit,
-            isAdmin: user.role === 'ADMIN',
-          };
-        })()
-      : null;
-
   // Date 객체는 클라이언트로 그대로 넘길 수 없어 문자열로 바꿔 전달한다.
   return (
     <VideosClient
@@ -128,15 +89,8 @@ export default async function VideosPage({
       canMeasure={canMeasure}
       velocityHref={velocityHref}
       measured={measured}
-      velocity={velocity}
       /* ?view=list 는 구속 측정 관리자의 고르개에서 '목록'을 눌러 돌아올 때(pitch-log-heading.tsx) */
-      initialView={
-        velocity && params.view === 'velocity'
-          ? 'velocity'
-          : params.view === 'list'
-            ? 'list'
-            : 'calendar'
-      }
+      initialView={params.view === 'list' ? 'list' : 'calendar'}
     />
   );
 }

@@ -228,7 +228,7 @@ function ChoiceRow({
 
 /* ───────────────────────── 3. 주의사항 카드 ───────────────────────── */
 
-type Tip = {
+export type Tip = {
   key: string;
   title: string;
   short: string;
@@ -236,7 +236,8 @@ type Tip = {
   art: React.ReactNode;
 };
 
-function tipsFor(c: Choices): Tip[] {
+/** 고른 설정에 맞는 주의사항 카드들 — 팝업(components/velocity/tips-popup.tsx)이 그린다 */
+export function tipsFor(c: Choices): Tip[] {
   const behind = c.cameraPos === 'behind-pitcher';
   const who = c.mode === 'hit' ? '타자' : '투수';
   return [
