@@ -12,7 +12,7 @@ import { AppOnly } from '../app-only';
  * 화면이라 PC 에서는 폰 크기 틀 안에 띄운다.
  */
 export default async function VelocityMeasurePage() {
-  const { isAdmin, native, allowed } = await velocityAccess();
+  const { user, isAdmin, native, allowed } = await velocityAccess();
   if (!allowed) return <AppOnly />;
 
   /* 그 사람의 스피드건 짝으로 맞춘 보정식 — 화면은 이걸로 잰 값을 바로 보정해 보여 준다 */
@@ -24,6 +24,7 @@ export default async function VelocityMeasurePage() {
       native={native}
       today={toDateKey(new Date())}
       calibration={fit}
+      throwingHand={user.throwingHand}
     />
   );
 }

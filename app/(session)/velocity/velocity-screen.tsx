@@ -15,11 +15,10 @@ import {
   Check,
   ChevronLeft,
   ChevronRight,
-  Eye,
-  EyeOff,
   Film,
   Focus,
   Hand,
+  List,
   Loader2,
   Play,
   RefreshCw,
@@ -59,8 +58,10 @@ import {
   CONFIDENCE_TEXT,
   PITCH_TYPES,
   pitchTypeLabel,
+  sessionSetupText,
   summarize,
   zoneLabel,
+  type ConfidenceKey,
   type PitchEdit,
 } from '@/lib/velocity-meta';
 import {
@@ -81,7 +82,7 @@ import { LEVEL_OK_DEG, useDeviceLevel } from '@/lib/use-device-level';
 import { SESSION_TYPES, DEFAULT_SESSION_TYPE, isRestSession } from '@/lib/session-type';
 import { formatSpeed, speedLabel, toSpeed } from '@/lib/units';
 import { useSpeedUnit } from '@/components/use-units';
-import { BottomSheet, PitchEditorFields } from '@/components/velocity/pitch-editor';
+import { BottomSheet, PitchEditorFields, ZoneGrid } from '@/components/velocity/pitch-editor';
 import {
   AskPreviousStep,
   ChoicesStep,
@@ -92,7 +93,8 @@ import {
   type Choices,
 } from '@/components/velocity/setup-steps';
 import { VelocitySettingsFields } from '@/components/velocity/velocity-settings';
-import { StepBar, Note } from '@/components/velocity/kit';
+import { Panel, StatRow, StepBar, Note } from '@/components/velocity/kit';
+import { spinAxisFor } from '@/lib/velocity-spin';
 import {
   CircleOverlay,
   DEFAULT_CIRCLE,
@@ -107,12 +109,21 @@ import {
   lensMatches,
 } from '@/lib/velocity-lens';
 import { saveVelocitySession, type SavePitchInput } from '@/app/actions/velocity';
+import { SpinAxisGraphic, SpinAxisNote } from '@/components/velocity/spin-axis';
+import { SessionSummary } from '@/components/velocity/session-summary';
+import { AdminJump } from '@/components/velocity/admin-jump';
+import {
+  throwingHandOf,
+  type SessionPitch,
+  type VelocityScreenKey,
+} from '@/components/velocity/session-types';
 
 /**
  * 구속 측정 화면 — Smart Scout · PitchLab 의 흐름을 우리 모양(아이폰 느낌)으로.
  *
  *   1 지난 설정 그대로?  → 2 투구/타격 · 투수 뒤/포수 뒤 · 네트  → 3 주의사항 카드(자세히)
  *   → 4 카메라: 수평계 · 릴리스 포인트를 표적에  → 5 반투명 스트라이크 존 놓기  → 6 측정
+ *   → 세션(측정 중 화면: 구속 · 구종 · 회전축 · 이전 공)  → 세션 종료 → 세션 요약(저장하기 · 계속 재기)
  *
  * 카메라는 4에서 켜져 6까지 같은 <video> 로 이어진다. 고른 것과 존 자리는 브라우저에 남겨
  * 다음에는 1에서 바로 4로 간다. 6의 설정에서 소리 안내 · 화각 · 보정 · 처음부터 다시.
@@ -129,7 +140,17 @@ type LocalPitch = SavePitchInput & {
   /** LiveCapture 결과 번호 — 뒤에 오는 영상 클립과 짝 */
   captureId?: number;
   clip?: LocalClip;
+  /** 관리자 점프 도구가 넣은 예시 공 — 화면 확인용, 저장은 막는다 */
+  sample?: boolean;
 };
+
+/* 관리자 점프의 '예시 공' — 화면(세션 · 요약 · 이전 공)을 자료 없이도 확인할 수 있게 */
+const SAMPLE_PITCHES: { kmh: number; type: string; zone: number; result: string }[] = [
+  { kmh: 128.4, type: 'fastball', zone: 5, result: 'strike' },
+  { kmh: 131.2, type: 'fastball', zone: 2, result: 'ball' },
+  { kmh: 112.7, type: 'slider', zone: 9, result: 'strike' },
+  { kmh: 118.9, type: 'changeup', zone: 8, result: 'strike' },
+];
 
 /** 보정용 저장이 아닐 때 이 폰에 쥐고 있는 클립 수(메모리) — 넘으면 오래된 것부터 버린다 */
 const MAX_LOCAL_CLIPS = 30;
@@ -180,6 +201,7 @@ export function VelocityScreen({
   native,
   today,
   calibration,
+  throwingHand = null,
   initialStep = 'choices',
 }: {
   isAdmin: boolean;
@@ -187,11 +209,14 @@ export function VelocityScreen({
   today: string;
   /** 서버가 그 사람의 스피드건 짝으로 맞춘 보정식 */
   calibration: CalFit;
+  /** 프로필의 던지는 손('우투' · '좌투' · '양투') — 회전축 그림의 좌우 */
+  throwingHand?: string | null;
   /** 처음 보일 단계 — 미리보기 · 시험용. 보통은 처음부터 */
   initialStep?: Step;
 }) {
   const router = useRouter();
   const unit = useSpeedUnit();
+  const hand = throwingHandOf(throwingHand);
   const videoRef = useRef<HTMLVideoElement>(null);
   const finderRef = useRef<HTMLDivElement>(null);
   const captureRef = useRef<LiveCapture | null>(null);
@@ -218,6 +243,10 @@ export function VelocityScreen({
   /* 세션 — 시작하면 카메라를 숨기고 정보 판을 보인다 */
   const [live, setLive] = useState(false);
   const [showCamera, setShowCamera] = useState(false);
+  /* 세션을 끝낸 뒤 — 종합 화면(저장하기 · 계속 재기) */
+  const [summaryOpen, setSummaryOpen] = useState(false);
+  /* 세션 중 오른쪽 아래 '이전 공' 시트 */
+  const [prevOpen, setPrevOpen] = useState(false);
   const [clipOpen, setClipOpen] = useState<number | null>(null);
   const [toast, setToast] = useState<string | null>(null);
   const [focusBusy, setFocusBusy] = useState(false);
@@ -514,11 +543,18 @@ export function VelocityScreen({
       autoMode ? '측정을 시작해요. 던지세요' : '측정을 시작해요. 공마다 단추를 누르세요'
     );
   };
+  /* 세션 종료 — 잰 공이 있으면 종합 화면으로. 거기서 저장하거나(끝) 이어서 잰다 */
   const endSession = () => {
     captureRef.current?.disarm();
     setLive(false);
     setShowCamera(false);
-    if (pitches.length > 0) setSheet('save');
+    setPrevOpen(false);
+    if (pitches.length > 0) setSummaryOpen(true);
+  };
+  /* 요약에서 '구속 측정하기' — 같은 세션에 공을 더 잰다(카메라가 꺼져 있으면 대기 화면으로) */
+  const continueSession = () => {
+    setSummaryOpen(false);
+    startSession();
   };
   const nextPitch = () => {
     captureRef.current?.arm();
@@ -615,7 +651,35 @@ export function VelocityScreen({
 
   const shownPitches = pitches.map((p) => ({ ...p, kmh: shown(p.rawKmh) }));
   const stats = summarize(shownPitches);
+  /* 세션 화면 · 요약 · 이전 공 시트가 받는 모양(components/velocity/session-types.ts) */
+  const sessionPitches: SessionPitch[] = shownPitches.map((p, i) => ({
+    id: p.id,
+    seq: i + 1,
+    kmh: p.kmh,
+    rawKmh: p.rawKmh,
+    errorKmh: p.errorKmh,
+    confidence: (p.confidence in CONFIDENCE_TEXT ? p.confidence : 'medium') as ConfidenceKey,
+    releaseKmh: p.releaseKmh != null ? shown(p.releaseKmh) : null,
+    releaseDxCm: p.releaseDxCm,
+    releaseDyCm: p.releaseDyCm,
+    releaseDistM: p.releaseDistM,
+    travelM: p.travelM,
+    durationSec: p.durationSec,
+    frames: p.frames,
+    fps: p.fps,
+    pitchType: p.pitchType,
+    zone: p.zone,
+    result: p.result,
+    gunKmh: p.gunKmh,
+    memo: p.memo,
+    autoDetected: p.autoDetected !== false,
+    source: p.source,
+    clip: p.clip
+      ? { url: p.clip.url, durationSec: p.clip.durationSec, eventSec: p.clip.eventSec }
+      : null,
+  }));
   const lastPitch = pitches[pitches.length - 1] ?? null;
+  const spinAxis = spinAxisFor(lastPitch?.pitchType ?? null, hand);
   const editingPitch =
     editing == null ? null : (pitches.find((p) => p.id === editing) ?? null);
   const clipPitch =
@@ -623,6 +687,12 @@ export function VelocityScreen({
 
   const save = () => {
     if (!stats || saving) return;
+    /* 관리자 점프의 예시 공은 화면 확인용 — 실제 기록에 섞이면 안 된다 */
+    if (pitches.some((p) => p.sample)) {
+      setSheet('none');
+      setError('예시 공은 저장할 수 없어요 — 관리자 이동 › 예시 공 지우기.');
+      return;
+    }
     setError(null);
     startSaving(async () => {
       const longSide = camera ? Math.max(camera.width, camera.height) : null;
@@ -705,7 +775,96 @@ export function VelocityScreen({
       setPitches([]);
       setClipOpen(null);
       setSheet('none');
-      router.refresh();
+      setSummaryOpen(false);
+      /*
+       * 저장은 곧 측정의 끝(사용자 규칙: '세션 저장하기'로 끝내고, 더 재려면 '구속 측정하기').
+       * 저장된 세션이 보이는 곳으로 간다 — 앱은 투구 기록의 [구속 측정] 보기, 관리자 웹은
+       * 구속 측정 관리자의 오늘 폴더. 화면을 떠나면 카메라도 꺼진다.
+       */
+      router.push(
+        native ? '/videos?view=velocity' : isAdmin ? `/admin/velocity?at=${today}` : '/videos'
+      );
+    });
+  };
+
+  /* ── 관리자 점프 — 측정 화면 안의 어느 화면으로든(components/velocity/admin-jump.tsx) ── */
+  const currentScreen: VelocityScreenKey = showAsk
+    ? 'ask'
+    : summaryOpen
+      ? 'summary'
+      : step === 'measure'
+        ? live
+          ? 'live'
+          : 'measure'
+        : step;
+  const jumpTo = (key: VelocityScreenKey) => {
+    setSheet('none');
+    setPrevOpen(false);
+    setClipOpen(null);
+    setEditing(null);
+    if (key === 'ask') {
+      if (!stored) {
+        setToast('저장된 설정이 없어요 — 설정을 한 번 마치면 생겨요');
+        return;
+      }
+      setLive(false);
+      setSummaryOpen(false);
+      setDecided(false);
+      return;
+    }
+    setDecided(true);
+    if (key === 'live') {
+      setStep('measure');
+      setSummaryOpen(false);
+      setShowCamera(false);
+      setLive(true);
+      return;
+    }
+    if (key === 'summary') {
+      setStep('measure');
+      setLive(false);
+      setSummaryOpen(true);
+      return;
+    }
+    setLive(false);
+    setSummaryOpen(false);
+    setStep(key);
+  };
+  const addSamplePitches = () => {
+    setPitches((prev) => [
+      ...prev,
+      ...SAMPLE_PITCHES.map((sp, i) => ({
+        id: ++seq,
+        source: 'camera' as const,
+        sample: true,
+        rawKmh: sp.kmh,
+        errorKmh: 2.1,
+        confidence: i === 2 ? 'medium' : 'high',
+        releaseKmh: Math.round((sp.kmh + 2.3) * 10) / 10,
+        releaseDxCm: Math.round(((i % 3) - 1) * 4.2 * 10) / 10,
+        releaseDyCm: Math.round((i * 1.5 - 2) * 10) / 10,
+        releaseDistM: 1.3,
+        travelM: 5.4,
+        durationSec: 0.16,
+        frames: 11,
+        fps: 120,
+        analysis: null,
+        autoDetected: true,
+        pitchType: sp.type,
+        zone: sp.zone,
+        result: sp.result,
+        gunKmh: null,
+        memo: null,
+      })),
+    ]);
+    setLast(null);
+    setSaved(false);
+    setToast(`예시 공 ${SAMPLE_PITCHES.length}개를 넣었어요(저장은 안 돼요)`);
+  };
+  const clearSamplePitches = () => {
+    setPitches((prev) => {
+      for (const p of prev) if (p.sample && p.clip) URL.revokeObjectURL(p.clip.url);
+      return prev.filter((p) => !p.sample);
     });
   };
 
@@ -936,6 +1095,21 @@ export function VelocityScreen({
           }}
         />
       )}
+      {/*
+        관리자 점프 — 측정 화면 안의 화면들로 곧장(사용자 요청: 관리자가 기능을 확인해 보게). 접히면
+        반투명한 손잡이, 누르면 화면 이름 목록. 일반 계정은 이 부품이 없다.
+      */}
+      {isAdmin && (
+        <AdminJump
+          current={currentScreen}
+          onJump={jumpTo}
+          tools={[
+            { label: `예시 공 ${SAMPLE_PITCHES.length}개 넣기`, onClick: addSamplePitches },
+            { label: '예시 공 지우기', onClick: clearSamplePitches },
+          ]}
+          className="absolute left-0 top-1/2 z-30 -translate-y-1/2"
+        />
+      )}
       {/* 내비게이션 바 — 측정 단계는 카메라 앱처럼 위 줄을 카메라 위에 그린다 */}
       {!(step === 'measure' && !showAsk) && (
         <header className="flex h-12 shrink-0 items-center justify-between border-b border-line bg-surface px-2 pt-[env(safe-area-inset-top)]">
@@ -1150,7 +1324,7 @@ export function VelocityScreen({
                       </p>
                       <p className="mt-1 text-xs leading-relaxed text-white/60">
                         {autoMode
-                          ? '공마다 알아서 잡아요. 끝나면 아래 가운데 측정 종료.'
+                          ? '공마다 알아서 잡아요. 끝나면 아래 가운데 세션 종료.'
                           : '아래 오른쪽 "다음 공"을 누르고 던지세요.'}
                       </p>
                     </div>
@@ -1181,6 +1355,41 @@ export function VelocityScreen({
                       })}
                     </div>
                   )}
+                </section>
+
+                {/* 회전축 — 고른 구종의 전형값(카메라는 회전을 못 잰다). 구종 칩을 누르면 축이 돈다 */}
+                <section className="mt-3 rounded-2xl bg-white/[0.06] px-5 py-4">
+                  <div className="flex items-center gap-4">
+                    <SpinAxisGraphic
+                      pitchType={lastPitch?.pitchType ?? null}
+                      hand={hand}
+                      size={104}
+                      tone="dark"
+                      showLabel={false}
+                    />
+                    <div className="min-w-0 flex-1 text-left">
+                      <p className="text-xs font-medium text-white/55">
+                        회전축 · {hand === 'left' ? '좌투' : '우투'} 기준
+                      </p>
+                      <p className="mt-0.5 text-lg font-semibold">
+                        {pitchTypeLabel(lastPitch?.pitchType) ?? '구종을 고르세요'}
+                      </p>
+                      {spinAxis && (
+                        <>
+                          <p className="mt-1 text-sm tabular-nums text-white/85">
+                            {spinAxis.clock} · 효율 {spinAxis.efficiencyPct}% ·{' '}
+                            {spinAxis.rpm[0]}~{spinAxis.rpm[1]}rpm
+                          </p>
+                          <p className="mt-0.5 text-xs leading-snug text-white/55">
+                            {spinAxis.movement}
+                          </p>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                  <div className="mt-2">
+                    <SpinAxisNote tone="dark" />
+                  </div>
                 </section>
 
                 {/* 이번 세션 */}
@@ -1214,85 +1423,114 @@ export function VelocityScreen({
                   </p>
                 )}
 
-                {/* 목록 — 공마다 영상 클립 */}
-                {shownPitches.length > 0 && (
-                  <ul className="mt-3 overflow-hidden rounded-2xl bg-white/[0.06]">
-                    {[...shownPitches].reverse().map((p) => {
-                      const i = shownPitches.indexOf(p);
-                      return (
-                        <li
-                          key={p.id}
-                          className={
-                            i < shownPitches.length - 1
-                              ? 'border-t border-white/10'
-                              : ''
-                          }
-                        >
-                          <div className="flex min-h-14 items-center gap-2 pl-4 pr-2">
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setEditing(p.id);
-                                setSheet('pitch');
-                              }}
-                              className="flex min-w-0 flex-1 items-center gap-3 py-2 text-left"
-                            >
-                              <span className="w-6 text-xs text-white/50 tabular-nums">
-                                {i + 1}
-                              </span>
-                              <span className="text-display text-2xl leading-none tabular-nums">
-                                {speedNum(p.kmh)}
-                              </span>
-                              <span className="min-w-0 flex-1">
-                                <span className="block truncate text-sm font-semibold">
-                                  {pitchTypeLabel(p.pitchType) ?? (
-                                    <span className="text-white/50">구종 —</span>
-                                  )}
-                                  {p.result === 'strike' && (
-                                    <span className="ml-1.5 text-ok">S</span>
-                                  )}
-                                  {p.result === 'ball' && (
-                                    <span className="ml-1.5 text-warn">B</span>
-                                  )}
-                                </span>
-                                <span className="block truncate text-xs text-white/55">
-                                  {zoneLabel(p.zone) ?? '코스 —'}
-                                  {p.releaseKmh != null &&
-                                    ` · 릴리스 ${speedNum(shown(p.releaseKmh))}`}
-                                  {p.gunKmh != null && ` · 건 ${p.gunKmh}`}
-                                  {p.source === 'file' && ' · 파일'}
-                                </span>
-                              </span>
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => setClipOpen(p.id)}
-                              disabled={!p.clip}
-                              aria-label={p.clip ? '영상 보기' : '영상 준비 중'}
-                              title={p.clip ? '영상 보기' : '영상 준비 중'}
-                              className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white/10 text-white transition-colors hover:bg-white/20 disabled:opacity-30"
-                            >
-                              {p.clip ? (
-                                <Play aria-hidden className="h-4 w-4 fill-current" />
-                              ) : (
-                                <Loader2 aria-hidden className="h-4 w-4 animate-spin" />
-                              )}
-                            </button>
-                          </div>
-                        </li>
-                      );
-                    })}
-                  </ul>
-                )}
+                <p className="mt-3 text-center text-xs text-white/45">
+                  이전 공은 오른쪽 아래 목록에서 — 구종 · 코스 고치기와 영상.
+                </p>
               </div>
             )}
           </div>
 
-          {/* 위 줄 — 카메라 위 컨트롤: 닫기/상태 · 재초점 · 카메라 보기 · 설정 */}
-          <div className="pointer-events-none absolute inset-x-0 top-0 z-10 flex items-center justify-between px-2 pt-[max(0.5rem,env(safe-area-inset-top))]">
-            <div className="pointer-events-auto flex items-center gap-1">
-              {live ? (
-                <span className="inline-flex h-10 items-center gap-1.5 rounded-full bg-black/45 px-3 text-xs font-semibold backdrop-blur">
+          {/*
+           * 세션 요약 — 세션 종료 뒤. 카메라(뷰파인더)는 밑에 그대로 둔다 — '구속 측정하기'로 같은
+           * 세션을 이어 잴 수 있게(영상을 떼면 카메라가 멈춘다). 위 줄과 아래 단추도 이 판이 덮는다.
+           */}
+          {summaryOpen && (
+            <div className="absolute inset-0 z-20 flex flex-col bg-page text-ink motion-safe:animate-fade-in">
+              <div className="flex h-12 shrink-0 items-center justify-between border-b border-line bg-surface px-2 pt-[env(safe-area-inset-top)]">
+                <button
+                  type="button"
+                  onClick={leave}
+                  className="inline-flex h-10 items-center gap-0.5 rounded-lg pl-1 pr-3 text-sm font-medium text-sky transition-colors hover:bg-sky-tint"
+                >
+                  <ChevronLeft aria-hidden className="h-5 w-5" />
+                  투구 기록
+                </button>
+                <span className="text-heading text-base">{modeLabel(choices.mode)} 측정</span>
+                <button
+                  type="button"
+                  onClick={() => setSheet('settings')}
+                  aria-label="설정"
+                  className="inline-flex h-10 w-10 items-center justify-center rounded-lg text-sky transition-colors hover:bg-sky-tint"
+                >
+                  <Settings2 aria-hidden className="h-5 w-5" />
+                </button>
+              </div>
+              <div className="flex min-h-0 flex-1 flex-col">
+                <SessionSummary
+                  pitches={sessionPitches}
+                  unit={unit}
+                  hand={hand}
+                  date={today}
+                  setupText={sessionSetupText(choices)}
+                  calibrationText={useCal && fit.n > 0 ? calibrationText(fit) : null}
+                  onSave={() => setSheet('save')}
+                  onContinue={continueSession}
+                  onPlayClip={(id) => setClipOpen(id)}
+                  onEditPitch={(id) => {
+                    setEditing(id);
+                    setSheet('pitch');
+                  }}
+                  /* 지우기는 공을 눌러 여는 편집 시트에 — 줄에 단추가 셋이면 폰 폭에서 구종 글자가 잘린다 */
+                  saving={saving}
+                />
+              </div>
+              {error && (
+                <p
+                  role="alert"
+                  className="absolute inset-x-4 bottom-20 rounded-xl bg-danger/90 px-4 py-2.5 text-sm leading-relaxed text-white"
+                >
+                  {error}
+                </p>
+              )}
+            </div>
+          )}
+
+          {/*
+           * 위 줄 — 카메라 앱처럼 카메라 위에. 세션 중에는 왼쪽 '초점 재조정'(카메라로 돌아가 초점을
+           * 다시 맞춘다), 가운데 상태, 오른쪽 설정(단위 · 소리 · 자동 측정 …). 세션 전에는 닫기 · 재초점 · 설정.
+           */}
+          {!summaryOpen && (
+            <div className="pointer-events-none absolute inset-x-0 top-0 z-10 flex items-center justify-between px-2 pt-[max(0.5rem,env(safe-area-inset-top))]">
+              <div className="pointer-events-auto flex items-center gap-1">
+                {live && !showCamera ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowCamera(true);
+                      void refocus();
+                    }}
+                    disabled={focusBusy}
+                    className="inline-flex h-10 items-center gap-1.5 rounded-full bg-black/45 pl-3 pr-3.5 text-xs font-semibold text-white backdrop-blur transition-colors hover:bg-black/60 disabled:opacity-40"
+                  >
+                    {focusBusy ? (
+                      <Loader2 aria-hidden className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Focus aria-hidden className="h-4 w-4" />
+                    )}
+                    초점 재조정
+                  </button>
+                ) : live && showCamera ? (
+                  <button
+                    type="button"
+                    onClick={() => setShowCamera(false)}
+                    className="inline-flex h-10 items-center gap-0.5 rounded-full bg-black/45 pl-2 pr-3.5 text-xs font-semibold text-white backdrop-blur transition-colors hover:bg-black/60"
+                  >
+                    <ChevronLeft aria-hidden className="h-4 w-4" />
+                    측정 화면
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={leave}
+                    aria-label="닫기"
+                    className={CHROME_BTN}
+                  >
+                    <X aria-hidden className="h-5 w-5" />
+                  </button>
+                )}
+              </div>
+              {live && (
+                <span className="absolute left-1/2 top-[max(0.5rem,env(safe-area-inset-top))] inline-flex h-10 -translate-x-1/2 items-center gap-1.5 whitespace-nowrap rounded-full bg-black/45 px-3 text-xs font-semibold backdrop-blur">
                   <span
                     className={`h-2 w-2 rounded-full ${
                       status === 'armed'
@@ -1304,59 +1542,35 @@ export function VelocityScreen({
                   />
                   {autoMode ? '자동' : '수동'} · {STATUS_TEXT[status]}
                 </span>
-              ) : (
+              )}
+              <div className="pointer-events-auto flex items-center gap-1">
+                {cameraOn && (!live || showCamera) && (
+                  <button
+                    type="button"
+                    onClick={refocus}
+                    disabled={focusBusy}
+                    aria-label="재초점"
+                    title="재초점"
+                    className={CHROME_BTN}
+                  >
+                    {focusBusy ? (
+                      <Loader2 aria-hidden className="h-5 w-5 animate-spin" />
+                    ) : (
+                      <Focus aria-hidden className="h-5 w-5" />
+                    )}
+                  </button>
+                )}
                 <button
                   type="button"
-                  onClick={leave}
-                  aria-label="닫기"
+                  onClick={() => setSheet('settings')}
+                  aria-label="설정"
                   className={CHROME_BTN}
                 >
-                  <X aria-hidden className="h-5 w-5" />
+                  <Settings2 aria-hidden className="h-5 w-5" />
                 </button>
-              )}
+              </div>
             </div>
-            <div className="pointer-events-auto flex items-center gap-1">
-              {cameraOn && (
-                <button
-                  type="button"
-                  onClick={refocus}
-                  disabled={focusBusy}
-                  aria-label="재초점"
-                  title="재초점"
-                  className={CHROME_BTN}
-                >
-                  {focusBusy ? (
-                    <Loader2 aria-hidden className="h-5 w-5 animate-spin" />
-                  ) : (
-                    <Focus aria-hidden className="h-5 w-5" />
-                  )}
-                </button>
-              )}
-              {live && (
-                <button
-                  type="button"
-                  onClick={() => setShowCamera((v) => !v)}
-                  aria-label={showCamera ? '카메라 숨기기' : '카메라 보기'}
-                  aria-pressed={showCamera}
-                  className={CHROME_BTN}
-                >
-                  {showCamera ? (
-                    <EyeOff aria-hidden className="h-5 w-5" />
-                  ) : (
-                    <Eye aria-hidden className="h-5 w-5" />
-                  )}
-                </button>
-              )}
-              <button
-                type="button"
-                onClick={() => setSheet('settings')}
-                aria-label="설정"
-                className={CHROME_BTN}
-              >
-                <Settings2 aria-hidden className="h-5 w-5" />
-              </button>
-            </div>
-          </div>
+          )}
 
           {/* 알림 — 아래 단추 위 */}
           {(!live || showCamera) &&
@@ -1480,41 +1694,20 @@ export function VelocityScreen({
             ) : (
               <>
                 <div className="flex w-20 flex-col items-center">
-                  <button
-                    type="button"
-                    onClick={() => setSheet('settings')}
-                    aria-label="설정"
-                    className={SIDE_BTN}
-                  >
-                    <Settings2 aria-hidden className="h-5 w-5" />
-                  </button>
-                  <span className={SIDE_LABEL}>설정</span>
-                </div>
-                <div className="flex flex-col items-center">
-                  <button
-                    type="button"
-                    onClick={endSession}
-                    aria-label="측정 종료"
-                    className="group flex h-[4.75rem] w-[4.75rem] items-center justify-center rounded-full border-4 border-white/90"
-                  >
-                    <span className="flex h-16 w-16 items-center justify-center rounded-full bg-danger text-white transition-transform group-active:scale-90">
-                      <Square aria-hidden className="h-6 w-6 fill-current" />
-                    </span>
-                  </button>
-                  <span className={SIDE_LABEL}>
-                    측정 종료{pitches.length ? ` · ${pitches.length}구` : ''}
-                  </span>
-                </div>
-                <div className="flex w-20 flex-col items-center">
                   {autoMode ? (
                     <>
-                      <span
-                        className={`${SIDE_BTN} text-display text-xl tabular-nums`}
-                        aria-hidden
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setAutoMode(false);
+                          persistSetup({ autoMode: false });
+                        }}
+                        aria-label="수동 측정으로 바꾸기"
+                        className={SIDE_BTN}
                       >
-                        {pitches.length}
-                      </span>
-                      <span className={SIDE_LABEL}>잰 공</span>
+                        <RefreshCw aria-hidden className="h-5 w-5" />
+                      </button>
+                      <span className={SIDE_LABEL}>자동</span>
                     </>
                   ) : (
                     <>
@@ -1533,11 +1726,123 @@ export function VelocityScreen({
                     </>
                   )}
                 </div>
+                <div className="flex flex-col items-center">
+                  <button
+                    type="button"
+                    onClick={endSession}
+                    aria-label="세션 종료"
+                    className="group flex h-[4.75rem] w-[4.75rem] items-center justify-center rounded-full border-4 border-white/90"
+                  >
+                    <span className="flex h-16 w-16 items-center justify-center rounded-full bg-danger text-white transition-transform group-active:scale-90">
+                      <Square aria-hidden className="h-6 w-6 fill-current" />
+                    </span>
+                  </button>
+                  <span className={SIDE_LABEL}>
+                    세션 종료{pitches.length ? ` · ${pitches.length}구` : ''}
+                  </span>
+                </div>
+                <div className="flex w-20 flex-col items-center">
+                  <button
+                    type="button"
+                    onClick={() => setPrevOpen(true)}
+                    disabled={pitches.length === 0}
+                    aria-label={`이전 공 보기 · ${pitches.length}구`}
+                    className={`${SIDE_BTN} relative`}
+                  >
+                    <List aria-hidden className="h-5 w-5" />
+                    {pitches.length > 0 && (
+                      <span className="absolute -right-1 -top-1 min-w-5 rounded-full bg-sky px-1 text-center text-xs font-bold leading-5 text-white tabular-nums">
+                        {pitches.length}
+                      </span>
+                    )}
+                  </button>
+                  <span className={SIDE_LABEL}>이전 공</span>
+                </div>
               </>
             )}
           </div>
         </div>
       )}
+
+      {/* 이전 공 — 세션 중 오른쪽 아래. 줄을 누르면 고치기, ▶ 는 그 공의 영상 */}
+      <BottomSheet
+        open={prevOpen}
+        onClose={() => setPrevOpen(false)}
+        title={`이전 공 · ${pitches.length}구`}
+      >
+        <div className="space-y-3">
+          {stats && (
+            <Panel>
+              <StatRow
+                items={[
+                  { label: '최고', value: speedNum(stats.max), unit: speedLabel(unit) },
+                  { label: '평균', value: speedNum(stats.avg), unit: speedLabel(unit) },
+                  { label: '공', value: stats.n, unit: '구' },
+                  {
+                    label: '스트라이크',
+                    value: stats.strikeRate == null ? '—' : stats.strikeRate,
+                    unit: stats.strikeRate == null ? '' : '%',
+                  },
+                ]}
+              />
+            </Panel>
+          )}
+          <Panel>
+            <ul className="divide-y divide-line">
+              {[...sessionPitches].reverse().map((p) => (
+                <li key={p.id} className="flex min-h-14 items-center gap-2 pl-4 pr-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setPrevOpen(false);
+                      setEditing(p.id);
+                      setSheet('pitch');
+                    }}
+                    className="flex min-w-0 flex-1 items-center gap-3 py-2 text-left"
+                  >
+                    <span className="w-5 text-xs text-muted tabular-nums">{p.seq}</span>
+                    <span className="text-display w-14 text-2xl leading-none tabular-nums text-ink">
+                      {speedNum(p.kmh)}
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-sm font-semibold text-ink">
+                        {pitchTypeLabel(p.pitchType) ?? (
+                          <span className="text-muted">구종 —</span>
+                        )}
+                        {p.result === 'strike' && <span className="ml-1.5 text-ok">S</span>}
+                        {p.result === 'ball' && <span className="ml-1.5 text-warn">B</span>}
+                      </span>
+                      <span className="block truncate text-xs text-muted">
+                        {zoneLabel(p.zone) ?? '코스 —'}
+                        {p.releaseKmh != null && ` · 릴리스 ${speedNum(p.releaseKmh)}`}
+                        {p.gunKmh != null && ` · 건 ${p.gunKmh}`}
+                        {p.source === 'file' && ' · 파일'}
+                      </span>
+                    </span>
+                    <ZoneGrid value={p.zone} size="sm" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setPrevOpen(false);
+                      setClipOpen(p.id);
+                    }}
+                    disabled={!p.clip}
+                    aria-label={p.clip ? '영상 보기' : '영상 없음'}
+                    title={p.clip ? '영상 보기' : '영상 없음'}
+                    className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-surface-2 text-ink transition-colors hover:bg-sky-tint hover:text-sky disabled:opacity-30"
+                  >
+                    <Play aria-hidden className="h-4 w-4 fill-current" />
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </Panel>
+          <p className="text-xs leading-relaxed text-muted">
+            공을 누르면 구종 · 코스 · 결과 · 스피드건 값을 고쳐요. ▶ 는 그 공의 영상(이 폰에서만).
+          </p>
+        </div>
+      </BottomSheet>
 
       {/* 공 하나의 영상 클립 — 이 폰에서만(보정용 저장이면 저장할 때 올라간다) */}
       <BottomSheet

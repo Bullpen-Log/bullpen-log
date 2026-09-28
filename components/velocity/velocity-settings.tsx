@@ -33,6 +33,8 @@ import {
   loadLens,
   type LensCalibration,
 } from '@/lib/velocity-lens';
+import { applySpeedUnit, SPEED_UNITS } from '@/lib/units';
+import { useSpeedUnit } from '@/components/use-units';
 import { BottomSheet } from './pitch-editor';
 import { Panel, SectionLabel } from './kit';
 
@@ -76,11 +78,22 @@ export function VelocitySettingsFields({
   /** 녹화 종류 · 카메라 위치 · 네트도 여기서 바꿀까 — 측정 중에는 숨긴다 */
   showChoices?: boolean;
 }) {
+  /* 구속 단위 — 앱 전체의 단위 설정(내 정보 · 투구 기록)과 같은 값. 여기서 바꾸면 거기도 바뀐다 */
+  const speedUnit = useSpeedUnit();
   return (
     <div className="space-y-5">
       <div>
         <SectionLabel>측정</SectionLabel>
         <Panel className="divide-y divide-line">
+          <ChoiceRow title="구속 단위" hint="앱 전체에 적용돼요 — 투구 기록 · 내 정보도 같은 단위로 보여요.">
+            <Segmented
+              label="구속 단위"
+              value={speedUnit}
+              onChange={applySpeedUnit}
+              options={SPEED_UNITS.map((u) => ({ value: u.value, label: u.label, hint: u.hint }))}
+              size="sm"
+            />
+          </ChoiceRow>
           <ToggleRow
             title="소리로 구속 알려주기"
             hint="공을 잴 때마다 폰이 숫자를 읽어요. 카메라를 볼 필요 없이 던질 수 있어요."
