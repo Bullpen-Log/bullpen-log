@@ -445,6 +445,8 @@ model VelocitySession {
   cameraPos  String   @default("behind-pitcher")
   /// 앞에 네트가 있었나
   net        Boolean  @default(true)
+  /// 잰 구속 측정 모델 버전(lib/velocity-engine/version.ts) — 옛 세션은 null
+  engineVersion String?
   /// 카메라 이름 · 해상도 같은 기기 정보(있으면)
   device     String?
   memo       String?
@@ -520,9 +522,12 @@ model VelocityPitch {
   /// 수기 — 카메라가 재지 못한 영상(30fps · 공을 못 찾음)을 스피드건 값만 적어 올린 공. rawKmh · kmh 는 그 값의
   /// 복사라 보정 짝에 넣지 않는다. 나중에 엔진이 좋아져 그 영상을 다시 재면 값을 채우고 false 가 된다.
   manual       Boolean  @default(false)
+  /// 이 값을 낸 구속 측정 모델 버전 — 다시 재서 채우면 그때 버전으로 바뀐다
+  engineVersion String?
   createdAt    DateTime @default(now())
 
-  session VelocitySession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  session      VelocitySession       @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  calibResults VelocityCalibResult[]
   user    User            @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, createdAt])
@@ -1096,4 +1101,46 @@ model DailyNutrition {
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId, date])
+}
+
+/// 보정 재측정 한 차례 — 어느 날의 영상들을 그때의 모델로 다시 잰 것(구속 측정 관리자 › 보정 폴더).
+/// 같은 날을 여러 번 재면 pass 가 1 · 2 · 3 으로 는다. 원본 공은 그대로고 결과만 따로 쌓인다.
+model VelocityCalibRun {
+  id            String   @id @default(uuid())
+  /// 다시 잰 공들의 날짜(원본 세션의 날짜)
+  date          DateTime @db.Date
+  /// 그날의 몇 번째 보정인가(1부터)
+  pass          Int
+  /// 그때의 구속 측정 모델 버전
+  engineVersion String
+  /// 돌린 관리자
+  userId        String
+  memo          String?
+  createdAt     DateTime @default(now())
+
+  results VelocityCalibResult[]
+
+  @@index([date])
+}
+
+/// 보정 재측정에서 공 하나의 결과 — 재지 못했으면 reject 에 까닭, 쟀으면 값
+model VelocityCalibResult {
+  id          String  @id @default(uuid())
+  runId       String
+  pitchId     String
+  ok          Boolean
+  rawKmh      Float?
+  releaseKmh  Float?
+  errorKmh    Float?
+  confidence  String?
+  frames      Int?
+  fps         Float?
+  /// 거부 까닭(validate.ts 의 RejectCode) — ok 가 false 일 때
+  reject      String?
+
+  run   VelocityCalibRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+  pitch VelocityPitch    @relation(fields: [pitchId], references: [id], onDelete: Cascade)
+
+  @@index([runId])
+  @@index([pitchId])
 }
