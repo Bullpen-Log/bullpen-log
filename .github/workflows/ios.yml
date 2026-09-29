@@ -1,0 +1,109 @@
+# 아이폰 앱 굽기 — GitHub 의 맥에서 mobile/ 을 아이폰 앱으로 만든다.
+#
+# 지금(2026-09-29)은 '시험 굽기'만 한다: 서명 없이 앱이 만들어지기만 하는지 본다. 애플 개발자
+# 계정이 생기면 서명 · TestFlight 올리기를 여기에 더한다(mobile/README.md '앞으로 할 일').
+#
+# 언제 도나: main 에 mobile/ 이나 이 파일을 바꾼 커밋이 올라올 때, 또는 GitHub → Actions →
+# '아이폰 앱 굽기' → Run workflow. 사이트만 고친 커밋에는 돌지 않는다.
+# 공개 저장소라 GitHub 의 맥을 쓰는 값은 무료다.
+#
+# 성공하면 알림 주석(notice), 실패하면 오류 줄을 오류 주석(error)으로 남긴다. 공개 저장소의 주석은
+# 로그인 없이도 읽혀서(Checks API), 로그를 열 수 없는 곳에서도 결과와 실패 이유를 볼 수 있다.
+name: 아이폰 앱 굽기
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'mobile/**'
+      - '.github/workflows/ios.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ios-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: 시험 굽기 (서명 없음)
+    # Capacitor 8 은 Xcode 26 이상이 필요하다 — macos-26 의 기본 Xcode 가 26.x 다
+    runs-on: macos-26
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: mobile
+    env:
+      NO_COLOR: '1'
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: mobile/package-lock.json
+
+      - name: Capacitor 패키지 설치
+        id: npm
+        run: |
+          set -o pipefail
+          npm ci --no-audit --no-fund 2>&1 | tee "$RUNNER_TEMP/npm.log"
+
+      # ios/App/App/public · capacitor.config.json 은 올리지 않는 파일이라 여기서 만든다
+      - name: 설정을 iOS 프로젝트에 옮겨 담기
+        id: sync
+        run: |
+          set -o pipefail
+          npx cap sync ios 2>&1 | tee "$RUNNER_TEMP/sync.log"
+
+      - name: 앱 굽기 — 서명 없이 아카이브
+        id: xcodebuild
+        run: |
+          set -o pipefail
+          xcodebuild -version
+          xcodebuild archive \
+            -project ios/App/App.xcodeproj \
+            -scheme App \
+            -configuration Release \
+            -destination 'generic/platform=iOS' \
+            -archivePath "$RUNNER_TEMP/App.xcarchive" \
+            CODE_SIGNING_ALLOWED=NO \
+            2>&1 | tee "$RUNNER_TEMP/xcodebuild.log"
+
+      - name: 만들어진 앱 확인
+        id: check
+        run: |
+          APP="$RUNNER_TEMP/App.xcarchive/Products/Applications/App.app"
+          plist() { /usr/libexec/PlistBuddy -c "Print :$1" "$APP/Info.plist"; }
+          test -f "$APP/Assets.car"                # 아이콘 · 시작 화면
+          test -f "$APP/capacitor.config.json"     # cap sync 가 넣은 설정
+          test -f "$APP/public/offline.html"       # 인터넷이 끊겼을 때 화면
+          plist NSCameraUsageDescription > /dev/null
+          MSG="앱이 만들어졌다 — $(plist CFBundleDisplayName) · $(plist CFBundleIdentifier) · 최소 iOS $(plist MinimumOSVersion) · $(lipo -archs "$APP/App") · $(du -sh "$APP" | cut -f1)"
+          echo "::notice title=시험 굽기 성공::$MSG"
+          echo "### $MSG" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: 실패 이유를 주석으로 남기기
+        if: failure()
+        env:
+          NPM: ${{ steps.npm.outcome }}
+          SYNC: ${{ steps.sync.outcome }}
+          XCB: ${{ steps.xcodebuild.outcome }}
+          CHECK: ${{ steps.check.outcome }}
+        run: |
+          OUT="$RUNNER_TEMP/errors.txt"
+          {
+            if [ "$NPM" = failure ]; then tail -n 10 "$RUNNER_TEMP/npm.log"; fi
+            if [ "$SYNC" = failure ]; then tail -n 10 "$RUNNER_TEMP/sync.log"; fi
+            if [ "$XCB" = failure ]; then
+              LOG="$RUNNER_TEMP/xcodebuild.log"
+              grep -E 'error:|\*\* (ARCHIVE|BUILD) FAILED' "$LOG" | awk '!seen[$0]++' | head -n 10
+              grep -q 'error:' "$LOG" || tail -n 10 "$LOG"
+            fi
+            if [ "$CHECK" = failure ]; then echo "만들어진 앱에 빠진 것이 있다 — '만들어진 앱 확인' 단계의 test 줄을 본다"; fi
+          } 2>/dev/null | tr -d '\r' > "$OUT" || true
+          head -n 10 "$OUT" | cut -c1-900 | sed 's/%/%25/g; s/^/::error title=굽기 실패::/'
+          { echo '### 굽기 실패 — 오류 줄'; echo '```'; cat "$OUT"; echo '```'; } >> "$GITHUB_STEP_SUMMARY"

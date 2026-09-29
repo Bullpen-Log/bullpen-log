@@ -44,9 +44,23 @@ npm run assets      # 로고를 바꾼 뒤 — 아이콘 · 시작 화면 다시
 **윈도우에서는 앱을 구울 수 없다** — 아이폰 앱은 맥의 Xcode 로만 만들어진다. 윈도우에서는 이 폴더를
 고치기만 하고, 굽기는 GitHub 의 맥(GitHub Actions)이나 맥북에서 한다.
 
+## GitHub 의 맥에서 굽기 — `.github/workflows/ios.yml`
+
+`mobile/` 을 바꾼 커밋이 main 에 올라오면 저절로 돈다(사이트만 고친 커밋에는 안 돈다). 손으로 돌리려면
+GitHub → Actions → **아이폰 앱 굽기** → Run workflow. 공개 저장소라 무료다.
+
+- 지금은 **시험 굽기**만 한다: 서명 없이 아카이브를 만들고, 앱 안에 아이콘 · 설정 · 끊김 화면 ·
+  카메라 권한 문구가 들었는지 본다. 폰에 깔 수 있는 앱은 아직 아니다(서명이 없다).
+- 결과는 그 실행의 주석(annotation)으로 남는다 — 성공은 '시험 굽기 성공'(이름 · 고유번호 · 최소 iOS ·
+  크기), 실패는 '굽기 실패'(오류 줄). 공개 저장소의 주석은 로그인 없이 읽힌다:
+  `https://api.github.com/repos/Bullpen-Log/bullpen-log/actions/runs?head_sha=<커밋>` → 실행의 jobs →
+  `check_run_url` 뒤에 `/annotations`.
+- `ios/App/App.xcodeproj/xcshareddata/xcschemes/App.xcscheme` 는 굽기 설정(스킴)이다. 템플릿에 없어서
+  더했다 — 없으면 맥이 새로 받은 프로젝트에서 `-scheme App` 을 못 찾을 수 있다.
+
 ## 앞으로 할 일 (2026-09-29 계획)
 
-1. GitHub 의 맥에서 서명 없이 시험 굽기 — 만들어지기만 하는지 본다(무료).
+1. GitHub 의 맥에서 서명 없이 시험 굽기 — 만들어지기만 하는지 본다(무료, 위의 굽기).
 2. 애플 개발자 가입(김민, 연 99달러) → 앱 등록 · API 열쇠를 GitHub 비밀 금고(Secrets)에 → TestFlight 로 올리기.
 3. 두 사람(김민 · 금윤호)을 TestFlight 내부 테스터로 넣어 설치. TestFlight 빌드는 90일마다 새로 올린다.
 4. 구속 측정용 빠른 카메라(초당 240장 · 초점 · 셔터)를 앱 쪽 코드로 붙인다. 값은 사이트가 보내게 만들어
