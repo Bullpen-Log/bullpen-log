@@ -118,6 +118,92 @@ jobs:
           echo "::notice title=굽기 성공::$MSG"
           echo "### $MSG" >> "$GITHUB_STEP_SUMMARY"
 
+      # 켜자마자 꺼지는 흔한 까닭 — 실행 파일(과 각 프레임워크)이 찾는 @rpath 부품이 앱 안 Frameworks
+      # 폴더에 없는 것. 없으면 폰이 앱을 켜는 순간 부품을 못 찾아 꺼진다(dyld). 올리기 전에 막는다.
+      - name: 앱 안 부품 확인
+        id: frameworks
+        run: |
+          APP="$RUNNER_TEMP/App.xcarchive/Products/Applications/App.app"
+          FW=$(ls "$APP/Frameworks" 2>/dev/null | tr '\n' ' ')
+          NEED=""
+          for bin in "$APP/App" "$APP"/Frameworks/*.framework/*; do
+            [ -f "$bin" ] && file "$bin" | grep -q 'Mach-O' || continue
+            NEED="$NEED $(otool -L "$bin" | awk 'NR>1{print $1}' | grep '^@rpath/' | sed 's#^@rpath/##' | tr '\n' ' ')"
+          done
+          NEED=$(echo $NEED | tr ' ' '\n' | sort -u | tr '\n' ' ')
+          echo "::notice title=앱 안 부품::Frameworks 폴더: ${FW:-없음} / 실행 파일이 찾는 것: ${NEED:-없음}"
+          MISSING=""
+          for n in $NEED; do [ -e "$APP/Frameworks/$n" ] || MISSING="$MISSING $n"; done
+          if [ -n "$MISSING" ]; then
+            echo "::error title=앱 안 부품이 빠졌다::폰에서 켜는 순간 이것을 못 찾아 꺼진다:$MISSING"
+            exit 1
+          fi
+
+      # 아이폰 시뮬레이터에서 실제로 켜 보고, 30초 안에 꺼지면 충돌 기록에서 까닭을 뽑아 알린다.
+      # 켜지지 않는 앱이 TestFlight 에 올라가지 않게 막는다(폰에만 있는 서명 문제는 여기서 안 잡힌다).
+      - name: 시뮬레이터에서 켜 보기
+        id: simlaunch
+        run: |
+          set -o pipefail
+          if ! xcodebuild build -project ios/App/App.xcodeproj -scheme App -configuration Release \
+               -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' \
+               -derivedDataPath "$RUNNER_TEMP/sim" CODE_SIGNING_ALLOWED=NO > "$RUNNER_TEMP/sim-build.log" 2>&1; then
+            grep -E 'error:' "$RUNNER_TEMP/sim-build.log" | awk '!seen[$0]++' | head -n 8 | cut -c1-900 \
+              | sed 's/%/%25/g; s/^/::error title=시뮬레이터용 굽기 실패::/'
+            exit 1
+          fi
+          SIMAPP="$RUNNER_TEMP/sim/Build/Products/Release-iphonesimulator/App.app"
+          UDID=$(xcrun simctl list devices available -j | python3 -c '
+          import json, sys
+          d = json.load(sys.stdin)["devices"]
+          ios = sorted((k for k in d if "iOS" in k), reverse=True)
+          print(next(x["udid"] for k in ios for x in d[k] if x["name"].startswith("iPhone")))
+          ')
+          xcrun simctl boot "$UDID" 2>/dev/null || true
+          xcrun simctl bootstatus "$UDID" -b > /dev/null
+          xcrun simctl install "$UDID" "$SIMAPP"
+          xcrun simctl launch --console-pty "$UDID" com.bullpenlog.app > "$RUNNER_TEMP/sim-console.log" 2>&1 &
+          CONSOLE_PID=$!
+          sleep 30
+          if xcrun simctl spawn "$UDID" launchctl list | grep -q 'com.bullpenlog.app'; then
+            kill "$CONSOLE_PID" 2>/dev/null || true
+            echo "::notice title=시뮬레이터에서 켜짐::30초 동안 꺼지지 않았다"
+            exit 0
+          fi
+          cat > "$RUNNER_TEMP/ips.py" <<'PY'
+          import json, sys
+          txt = open(sys.argv[1], encoding="utf-8", errors="replace").read()
+          body = txt.partition("\n")[2]
+          try:
+              b = json.loads(body)
+          except Exception:
+              print("충돌 기록을 읽지 못했다:", sys.argv[1])
+              sys.exit(0)
+          ex = b.get("exception") or {}
+          print("예외:", ex.get("type"), ex.get("signal"), ex.get("subtype") or "")
+          t = b.get("termination") or {}
+          reasons = t.get("reasons") or []
+          if isinstance(reasons, str):
+              reasons = [reasons]
+          print("종료:", t.get("namespace"), t.get("indicator") or "", " / ".join(reasons)[:600])
+          for k, v in (b.get("asi") or {}).items():
+              print("추가 정보(" + k + "):", " ".join(v if isinstance(v, list) else [str(v)])[:600])
+          imgs = b.get("usedImages") or []
+          threads = b.get("threads") or []
+          ft = b.get("faultingThread", 0)
+          if threads and ft < len(threads):
+              for fr in threads[ft].get("frames", [])[:5]:
+                  i = fr.get("imageIndex")
+                  name = imgs[i].get("name", "?") if isinstance(i, int) and i < len(imgs) else "?"
+                  print("위치:", name, fr.get("symbol", ""))
+          PY
+          REPORT=$(ls -t ~/Library/Logs/DiagnosticReports/App-*.ips 2>/dev/null | head -n 1)
+          {
+            if [ -n "$REPORT" ]; then python3 "$RUNNER_TEMP/ips.py" "$REPORT"; else echo "꺼졌는데 충돌 기록 파일이 없다"; fi
+            grep -Ei 'fatal|error|exception|terminat' "$RUNNER_TEMP/sim-console.log" | tail -n 3
+          } | tr -d '\r' | head -n 10 | cut -c1-900 | sed 's/%/%25/g; s/^/::error title=시뮬레이터에서 꺼짐::/'
+          exit 1
+
       # 열쇠 넷이 다 있는지, 모양이 맞는지 본다 — 붙여 넣을 때 흔한 실수(빈칸 · 서로 바꿔 넣기 ·
       # 파일 일부만 복사)를 여기서 잡아 알아듣게 알린다. 열쇠 파일은 이 단계에서 임시 폴더에 쓰고
       # 마지막 단계에서 지운다.
@@ -162,9 +248,10 @@ jobs:
           [ "$ok" = 1 ] || exit 1
           echo "ready=true" >> "$GITHUB_OUTPUT"
 
+      # 커밋 메시지에 [진단] 이 있으면 올리지 않는다 — 원인만 보려는 실행이 TestFlight 에 빌드를 쌓지 않게
       - name: 배포 도장을 찍어 TestFlight 에 올리기
         id: upload
-        if: steps.signing.outputs.ready == 'true'
+        if: steps.signing.outputs.ready == 'true' && !contains(github.event.head_commit.message, '[진단]')
         env:
           ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
           ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
