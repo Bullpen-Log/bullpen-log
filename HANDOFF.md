@@ -20,6 +20,9 @@ Claude 로 작업을 시작하면 저절로 읽힌다. 규칙은 `AGENTS.md` 6�
 - 앱은 User-Agent 끝에 `BullpenLogApp/1.0` 을 붙인다. 네 `lib/app-env.ts` 가 이것으로 앱을 가리니 그대로 쓰면 된다.
 - 새 GitHub Actions `.github/workflows/ios.yml`('아이폰 앱 굽기'): `mobile/` 을 바꾼 커밋이 main 에 올라오면
   GitHub 의 맥이 앱을 서명 없이 시험 굽기한다. 사이트만 고친 커밋에는 안 돈다(Vercel 배포와도 상관없다).
-- 계획: GitHub 의 맥에서 굽기 → TestFlight 로 두 사람 폰에. 애플 개발자 계정은 김민 명의, 너는 팀원 · 테스터로 초대된다.
+- 계획: GitHub 의 맥에서 굽기 → TestFlight 로 두 사람 폰에. 애플 개발자 계정은 김민 명의(결제 끝, 승인 대기),
+  너는 App Store Connect 팀원(개발자) · TestFlight 테스터로 초대된다 — **초대 메일이 오면 수락해 줘.**
+- 애플 열쇠 넷(`ASC_KEY_ID` · `ASC_ISSUER_ID` · `ASC_KEY_P8` · `APPLE_TEAM_ID`)이 GitHub Secrets 에 들어가면, 그 뒤로
+  `mobile/` 을 바꾼 커밋을 올릴 때마다 TestFlight 에 새 빌드가 올라간다(두 사람 폰에 업데이트 알림). 순서는 `mobile/APPLE-SETUP.md`.
 - 구속 측정의 네이티브 카메라(240fps · 초점 · 셔터)는 나중 단계다. 초당 장수 · 초점 · 셔터 값을 사이트가 보내게 만들어
   값 조정은 사이트만 고쳐서 하자는 안이다. 누가 무엇을 맡을지는 사용자끼리 정한다.

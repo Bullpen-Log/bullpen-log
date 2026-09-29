@@ -1,14 +1,32 @@
-# 아이폰 앱 굽기 — GitHub 의 맥에서 mobile/ 을 아이폰 앱으로 만든다.
+# 아이폰 앱 굽기 — GitHub 의 맥에서 mobile/ 을 아이폰 앱으로 만들고, 애플 열쇠가 있으면 TestFlight 에 올린다.
 #
-# 지금(2026-09-29)은 '시험 굽기'만 한다: 서명 없이 앱이 만들어지기만 하는지 본다. 애플 개발자
-# 계정이 생기면 서명 · TestFlight 올리기를 여기에 더한다(mobile/README.md '앞으로 할 일').
+# 순서: 서명 없이 아카이브(굽기) → 앱 안의 파일 확인 → (열쇠가 있으면) 애플 배포 도장을 찍어 TestFlight 에 올리기.
 #
-# 언제 도나: main 에 mobile/ 이나 이 파일을 바꾼 커밋이 올라올 때, 또는 GitHub → Actions →
-# '아이폰 앱 굽기' → Run workflow. 사이트만 고친 커밋에는 돌지 않는다.
-# 공개 저장소라 GitHub 의 맥을 쓰는 값은 무료다.
+# ■ 서명은 굽는 단계가 아니라 내보내는(export) 단계에서만 한다
 #
-# 성공하면 알림 주석(notice), 실패하면 오류 줄을 오류 주석(error)으로 남긴다. 공개 저장소의 주석은
-# 로그인 없이도 읽혀서(Checks API), 로그를 열 수 없는 곳에서도 결과와 실패 이유를 볼 수 있다.
+# GitHub 의 맥은 매번 새 컴퓨터다. 굽는 단계에서 자동 서명을 하면 실행마다 개발 인증서를 새로 만들어
+# 애플 한도(3개)에 금방 막히고, 등록한 기기가 없으면 개발용 프로필도 못 만든다. 내보낼 때 배포용
+# 자동 서명을 하면 애플이 보관하는 배포 인증서(클라우드 서명)를 써서 인증서가 늘지 않고, 이 컴퓨터에
+# 비밀 키를 둘 필요도 없다. 이 클라우드 서명을 쓰려면 API 키의 권한이 '관리자(Admin)' 여야 한다.
+#
+# ■ 열쇠 — 저장소 Settings → Secrets and variables → Actions (설정 순서는 mobile/APPLE-SETUP.md)
+#
+#   ASC_KEY_ID      App Store Connect API 팀 키의 키 ID
+#   ASC_ISSUER_ID   같은 화면의 발급자 ID(Issuer ID)
+#   ASC_KEY_P8      내려받은 AuthKey_<키 ID>.p8 파일의 내용 전체(-----BEGIN … END----- 까지)
+#   APPLE_TEAM_ID   developer.apple.com/account → 멤버십 세부 사항의 팀 ID
+#
+# 넷 다 없으면 굽기만 하고 끝낸다(애플 계정이 생기기 전). 일부만 있거나 모양이 틀리면 무엇이
+# 잘못됐는지 알리고 실패한다.
+#
+# ■ 언제 도나
+#
+# main 에 mobile/ 이나 이 파일을 바꾼 커밋이 올라올 때, 또는 GitHub → Actions → '아이폰 앱 굽기' →
+# Run workflow. 사이트만 고친 커밋에는 돌지 않는다. 공개 저장소라 GitHub 의 맥을 쓰는 값은 무료다.
+# TestFlight 빌드는 90일이면 만료되니 그 전에 Run workflow 로 새로 올린다.
+#
+# 결과는 주석(annotation)으로 남긴다 — 공개 저장소의 주석은 로그인 없이 읽혀서(Checks API),
+# 로그를 열 수 없는 곳에서도 결과와 실패 이유를 볼 수 있다.
 name: 아이폰 앱 굽기
 
 on:
@@ -28,7 +46,7 @@ concurrency:
 
 jobs:
   build:
-    name: 시험 굽기 (서명 없음)
+    name: 굽기 · TestFlight 올리기
     # Capacitor 8 은 Xcode 26 이상이 필요하다 — macos-26 의 기본 Xcode 가 26.x 다
     runs-on: macos-26
     timeout-minutes: 30
@@ -59,8 +77,18 @@ jobs:
           set -o pipefail
           npx cap sync ios 2>&1 | tee "$RUNNER_TEMP/sync.log"
 
+      # 빌드 번호는 올릴 때마다 커져야 한다(같거나 작으면 애플이 거절한다). 시각으로 만든다 —
+      # 20260930.123045(UTC). 맥북에서 손으로 올릴 때도 같은 모양을 쓰면 겹치지 않는다.
+      - name: 빌드 번호 정하기
+        id: version
+        run: |
+          NOW=$(date -u +%Y%m%d%H%M%S)
+          echo "build=${NOW:0:8}.$((10#${NOW:8:6}))" >> "$GITHUB_OUTPUT"
+
       - name: 앱 굽기 — 서명 없이 아카이브
         id: xcodebuild
+        env:
+          BUILD: ${{ steps.version.outputs.build }}
         run: |
           set -o pipefail
           xcodebuild -version
@@ -71,10 +99,13 @@ jobs:
             -destination 'generic/platform=iOS' \
             -archivePath "$RUNNER_TEMP/App.xcarchive" \
             CODE_SIGNING_ALLOWED=NO \
+            CURRENT_PROJECT_VERSION="$BUILD" \
             2>&1 | tee "$RUNNER_TEMP/xcodebuild.log"
 
       - name: 만들어진 앱 확인
         id: check
+        env:
+          BUILD: ${{ steps.version.outputs.build }}
         run: |
           APP="$RUNNER_TEMP/App.xcarchive/Products/Applications/App.app"
           plist() { /usr/libexec/PlistBuddy -c "Print :$1" "$APP/Info.plist"; }
@@ -82,9 +113,105 @@ jobs:
           test -f "$APP/capacitor.config.json"     # cap sync 가 넣은 설정
           test -f "$APP/public/offline.html"       # 인터넷이 끊겼을 때 화면
           plist NSCameraUsageDescription > /dev/null
-          MSG="앱이 만들어졌다 — $(plist CFBundleDisplayName) · $(plist CFBundleIdentifier) · 최소 iOS $(plist MinimumOSVersion) · $(lipo -archs "$APP/App") · $(du -sh "$APP" | cut -f1)"
-          echo "::notice title=시험 굽기 성공::$MSG"
+          test "$(plist CFBundleVersion)" = "$BUILD"
+          MSG="앱이 만들어졌다 — $(plist CFBundleDisplayName) $(plist CFBundleShortVersionString) ($BUILD) · $(plist CFBundleIdentifier) · 최소 iOS $(plist MinimumOSVersion) · $(lipo -archs "$APP/App") · $(du -sh "$APP" | cut -f1)"
+          echo "::notice title=굽기 성공::$MSG"
           echo "### $MSG" >> "$GITHUB_STEP_SUMMARY"
+
+      # 열쇠 넷이 다 있는지, 모양이 맞는지 본다 — 붙여 넣을 때 흔한 실수(빈칸 · 서로 바꿔 넣기 ·
+      # 파일 일부만 복사)를 여기서 잡아 알아듣게 알린다. 열쇠 파일은 이 단계에서 임시 폴더에 쓰고
+      # 마지막 단계에서 지운다.
+      - name: 애플 열쇠 확인
+        id: signing
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          ASC_KEY_P8: ${{ secrets.ASC_KEY_P8 }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          missing=""
+          [ -n "$ASC_KEY_ID" ] || missing="$missing ASC_KEY_ID"
+          [ -n "$ASC_ISSUER_ID" ] || missing="$missing ASC_ISSUER_ID"
+          [ -n "$ASC_KEY_P8" ] || missing="$missing ASC_KEY_P8"
+          [ -n "$APPLE_TEAM_ID" ] || missing="$missing APPLE_TEAM_ID"
+          if [ "$missing" = " ASC_KEY_ID ASC_ISSUER_ID ASC_KEY_P8 APPLE_TEAM_ID" ]; then
+            echo "::notice title=TestFlight 건너뜀::애플 열쇠가 아직 없어 굽기만 했다 — 설정 순서는 mobile/APPLE-SETUP.md"
+            exit 0
+          fi
+          if [ -n "$missing" ]; then
+            echo "::error title=애플 열쇠가 빠졌다::GitHub Secrets 에 없는 것:$missing — mobile/APPLE-SETUP.md 5번"
+            exit 1
+          fi
+          KEY_ID=$(printf '%s' "$ASC_KEY_ID" | tr -d '[:space:]')
+          ISSUER=$(printf '%s' "$ASC_ISSUER_ID" | tr -d '[:space:]')
+          TEAM=$(printf '%s' "$APPLE_TEAM_ID" | tr -d '[:space:]')
+          ok=1
+          printf '%s' "$KEY_ID" | grep -Eq '^[A-Z0-9]{10}$' \
+            || { echo "::error title=ASC_KEY_ID 모양이 틀렸다::키 ID 는 영문 대문자 · 숫자 10자다(발급자 ID 와 바꿔 넣지 않았는지 본다)"; ok=0; }
+          printf '%s' "$ISSUER" | grep -Eiq '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' \
+            || { echo "::error title=ASC_ISSUER_ID 모양이 틀렸다::발급자 ID 는 8-4-4-4-12 모양(예: 57246542-96fe-1a63-e053-0824d011072a)이다"; ok=0; }
+          printf '%s' "$TEAM" | grep -Eq '^[A-Z0-9]{10}$' \
+            || { echo "::error title=APPLE_TEAM_ID 모양이 틀렸다::팀 ID 는 영문 대문자 · 숫자 10자다"; ok=0; }
+          KEY_DIR="$RUNNER_TEMP/private_keys"
+          mkdir -p "$KEY_DIR"
+          printf '%s\n' "$ASC_KEY_P8" | tr -d '\r' > "$KEY_DIR/AuthKey.p8"
+          if ! grep -q 'BEGIN PRIVATE KEY' "$KEY_DIR/AuthKey.p8" || ! openssl pkey -in "$KEY_DIR/AuthKey.p8" -noout 2>/dev/null; then
+            echo "::error title=ASC_KEY_P8 내용이 틀렸다::.p8 파일을 메모장으로 열어 -----BEGIN PRIVATE KEY----- 부터 -----END PRIVATE KEY----- 까지 전부 붙여 넣는다"
+            ok=0
+          fi
+          [ "$ok" = 1 ] || exit 1
+          echo "ready=true" >> "$GITHUB_OUTPUT"
+
+      - name: 배포 도장을 찍어 TestFlight 에 올리기
+        id: upload
+        if: steps.signing.outputs.ready == 'true'
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          BUILD: ${{ steps.version.outputs.build }}
+        run: |
+          set -o pipefail
+          KEY_ID=$(printf '%s' "$ASC_KEY_ID" | tr -d '[:space:]')
+          ISSUER=$(printf '%s' "$ASC_ISSUER_ID" | tr -d '[:space:]')
+          TEAM=$(printf '%s' "$APPLE_TEAM_ID" | tr -d '[:space:]')
+          # method app-store-connect = TestFlight · 앱스토어용 배포 서명, destination upload = 내보내며 곧바로 올린다
+          cat > "$RUNNER_TEMP/ExportOptions.plist" <<PLIST
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+            <key>method</key>
+            <string>app-store-connect</string>
+            <key>destination</key>
+            <string>upload</string>
+            <key>signingStyle</key>
+            <string>automatic</string>
+            <key>teamID</key>
+            <string>$TEAM</string>
+            <key>manageAppVersionAndBuildNumber</key>
+            <false/>
+            <key>uploadSymbols</key>
+            <false/>
+          </dict>
+          </plist>
+          PLIST
+          xcodebuild -exportArchive \
+            -archivePath "$RUNNER_TEMP/App.xcarchive" \
+            -exportOptionsPlist "$RUNNER_TEMP/ExportOptions.plist" \
+            -exportPath "$RUNNER_TEMP/export" \
+            -allowProvisioningUpdates \
+            -authenticationKeyPath "$RUNNER_TEMP/private_keys/AuthKey.p8" \
+            -authenticationKeyID "$KEY_ID" \
+            -authenticationKeyIssuerID "$ISSUER" \
+            2>&1 | tee "$RUNNER_TEMP/export.log"
+          MSG="TestFlight 에 올렸다 — Bullpen Log ($BUILD). 애플 처리(보통 5~30분)가 끝나면 TestFlight 앱에 뜬다"
+          echo "::notice title=TestFlight 올리기 성공::$MSG"
+          echo "### $MSG" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: 열쇠 파일 지우기
+        if: always()
+        run: rm -rf "$RUNNER_TEMP/private_keys" "$RUNNER_TEMP/ExportOptions.plist"
 
       - name: 실패 이유를 주석으로 남기기
         if: failure()
@@ -93,6 +220,7 @@ jobs:
           SYNC: ${{ steps.sync.outcome }}
           XCB: ${{ steps.xcodebuild.outcome }}
           CHECK: ${{ steps.check.outcome }}
+          UPLOAD: ${{ steps.upload.outcome }}
         run: |
           OUT="$RUNNER_TEMP/errors.txt"
           {
@@ -104,6 +232,11 @@ jobs:
               grep -q 'error:' "$LOG" || tail -n 10 "$LOG"
             fi
             if [ "$CHECK" = failure ]; then echo "만들어진 앱에 빠진 것이 있다 — '만들어진 앱 확인' 단계의 test 줄을 본다"; fi
+            if [ "$UPLOAD" = failure ]; then
+              LOG="$RUNNER_TEMP/export.log"
+              grep -Ei 'error|failed|permission|agreement' "$LOG" | awk '!seen[$0]++' | head -n 10
+              grep -Eqi 'error|failed' "$LOG" || tail -n 10 "$LOG"
+            fi
           } 2>/dev/null | tr -d '\r' > "$OUT" || true
-          head -n 10 "$OUT" | cut -c1-900 | sed 's/%/%25/g; s/^/::error title=굽기 실패::/'
-          { echo '### 굽기 실패 — 오류 줄'; echo '```'; cat "$OUT"; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+          head -n 10 "$OUT" | cut -c1-900 | sed 's/%/%25/g; s/^/::error title=실패::/'
+          { echo '### 실패 — 오류 줄'; echo '```'; cat "$OUT"; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
