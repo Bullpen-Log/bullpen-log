@@ -21,6 +21,11 @@
 - **앱 표시**: 앱은 브라우저 이름표(User-Agent) 끝에 `BullpenLogApp/1.0` 을 붙인다. 사이트의
   `lib/app-env.ts` 가 이것(과 `window.Capacitor`)을 보고 앱 안인지 가린다 — 구속 측정처럼 앱에서만
   여는 기능이 이것으로 열린다. 표시를 바꾸면 `lib/app-env.ts` 의 `NATIVE_UA_MARK` 도 같이 바꾼다.
+- **여는 주소는 `server.url` 에 경로까지 적는다**(`https://bullpen-log.vercel.app/today`). `server.appStartPath`
+  는 쓰지 않는다 — Capacitor 는 그 경로를 폰 안의 파일(`public/today`)로도 찾아보고, 없으면 켜자마자
+  `exit(1)` 로 앱을 스스로 끈다(충돌 기록도 안 남는다). 2026-09-29 첫 TestFlight 빌드가 이것으로 켜지지 않았다.
+  주소에 경로가 붙으면 Capacitor 가 같은 사이트의 다른 경로를 '바깥 주소'로 보고 사파리로 여니,
+  `server.allowNavigation` 에 사이트 호스트를 넣어 앱 안에서 열리게 한다.
 - **고유번호** `com.bullpenlog.app` 은 애플(App Store Connect)에 앱을 등록하는 순간 못 바꾼다.
   등록 전이면 `capacitor.config.json` 의 `appId` 와 `ios/App/App.xcodeproj/project.pbxproj` 의
   `PRODUCT_BUNDLE_IDENTIFIER` 두 곳을 같이 바꾼다.

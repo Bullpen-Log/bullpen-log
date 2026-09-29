@@ -4,8 +4,8 @@
   "webDir": "www",
   "appendUserAgent": "BullpenLogApp/1.0",
   "server": {
-    "url": "https://bullpen-log.vercel.app",
-    "appStartPath": "/today",
+    "url": "https://bullpen-log.vercel.app/today",
+    "allowNavigation": ["bullpen-log.vercel.app"],
     "errorPath": "offline.html"
   },
   "ios": {
