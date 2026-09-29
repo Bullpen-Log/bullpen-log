@@ -1,0 +1,100 @@
+<!doctype html>
+<!--
+  사이트를 못 불러왔을 때 앱이 대신 보여 주는 화면 (capacitor.config.json 의 server.errorPath).
+  앱은 bullpen-log.vercel.app 을 그대로 여는 껍데기라, 인터넷이 끊기면 이 화면이 뜬다.
+  인터넷이 돌아오면 저절로 다시 불러온다.
+-->
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>Bullpen Log</title>
+    <style>
+      :root {
+        --bg: #f4f7fb;
+        --ink: #0f172a;
+        --muted: #64748b;
+        --sky: #0ea5e9;
+        color-scheme: light dark;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --bg: #0b1220;
+          --ink: #e2e8f0;
+          --muted: #94a3b8;
+        }
+      }
+      html,
+      body {
+        height: 100%;
+        margin: 0;
+      }
+      body {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 12px;
+        padding: 24px;
+        box-sizing: border-box;
+        background: var(--bg);
+        color: var(--ink);
+        font-family: -apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', sans-serif;
+        text-align: center;
+      }
+      h1 {
+        margin: 8px 0 0;
+        font-size: 20px;
+      }
+      p {
+        margin: 0;
+        font-size: 15px;
+        line-height: 1.5;
+        color: var(--muted);
+      }
+      button {
+        margin-top: 16px;
+        height: 48px;
+        padding: 0 28px;
+        border: 0;
+        border-radius: 999px;
+        background: var(--sky);
+        color: #fff;
+        font: inherit;
+        font-size: 16px;
+        font-weight: 600;
+      }
+    </style>
+  </head>
+  <body>
+    <svg width="56" height="56" viewBox="0 0 24 24" aria-hidden="true">
+      <circle cx="12" cy="12" r="12" fill="#0ea5e9" />
+      <g
+        transform="translate(4.56 4.56) scale(0.62)"
+        fill="none"
+        stroke="#fff"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+      >
+        <g stroke-width="1.6">
+          <circle cx="12" cy="12" r="9.5" />
+          <path d="M5.3 5C8.5 8 8.5 16 5.3 19" />
+          <path d="M18.7 5C15.5 8 15.5 16 18.7 19" />
+        </g>
+        <g stroke-width="1.2">
+          <path d="M5.3 6.7 8.4 7.95M6 10 9.2 10.7M6 14 9.2 13.3M5.3 17.3 8.4 16.05" />
+          <path d="M18.7 6.7 15.6 7.95M18 10 14.8 10.7M18 14 14.8 13.3M18.7 17.3 15.6 16.05" />
+        </g>
+      </g>
+    </svg>
+    <h1>인터넷 연결을 확인해 주세요</h1>
+    <p>불펜로그를 불러오지 못했어요.<br />연결되면 저절로 다시 열려요.</p>
+    <button type="button" id="retry">다시 시도</button>
+    <script>
+      const START = 'https://bullpen-log.vercel.app/today';
+      const retry = () => location.replace(START);
+      document.getElementById('retry').addEventListener('click', retry);
+      window.addEventListener('online', retry);
+    </script>
+  </body>
+</html>

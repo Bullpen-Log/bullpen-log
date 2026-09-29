@@ -1,0 +1,20 @@
+{
+  "name": "bullpen-log-mobile",
+  "private": true,
+  "description": "불펜로그 아이폰 앱 껍데기(Capacitor) — 설명은 README.md",
+  "type": "module",
+  "scripts": {
+    "sync": "cap sync ios",
+    "assets": "node scripts/make-ios-assets.mjs"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "dependencies": {
+    "@capacitor/core": "8.5.2",
+    "@capacitor/ios": "8.5.2"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "8.5.2"
+  }
+}

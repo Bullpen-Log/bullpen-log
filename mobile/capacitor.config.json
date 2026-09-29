@@ -1,0 +1,14 @@
+{
+  "appId": "com.bullpenlog.app",
+  "appName": "Bullpen Log",
+  "webDir": "www",
+  "appendUserAgent": "BullpenLogApp/1.0",
+  "server": {
+    "url": "https://bullpen-log.vercel.app",
+    "appStartPath": "/today",
+    "errorPath": "offline.html"
+  },
+  "ios": {
+    "contentInset": "automatic"
+  }
+}
