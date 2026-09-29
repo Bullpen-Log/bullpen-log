@@ -65,8 +65,9 @@ GitHub → Actions → **아이폰 앱 굽기** → Run workflow. 공개 저장�
 ## 앞으로 할 일 (2026-09-29 계획)
 
 1. ~~GitHub 의 맥에서 서명 없이 시험 굽기~~ — 끝(2026-09-29, 1.3MB · 약 1분).
-2. 애플 개발자 가입(김민, 연 99달러) — 결제 끝, 승인 대기(2026-09-29). 승인되면 [APPLE-SETUP.md](APPLE-SETUP.md)
-   대로 앱 등록 · API 열쇠를 GitHub 비밀 금고(Secrets)에 → Run workflow 로 TestFlight 에 올리기.
+2. ~~애플 개발자 가입(김민, 연 99달러)~~ — 끝(2026-09-29 승인). [APPLE-SETUP.md](APPLE-SETUP.md) 1~5번(App ID
+   `com.bullpenlog.app` 등록 · App Store Connect 에 앱 만들기 · 관리자 API 열쇠 · GitHub Secrets 넷)도 끝 —
+   이 줄을 고친 커밋이 첫 TestFlight 올리기를 시작한다(`mobile/` 이 바뀐 커밋이라 워크플로가 저절로 돈다).
 3. 두 사람(김민 · 금윤호)을 TestFlight 내부 테스터로 넣어 설치. TestFlight 빌드는 90일마다 새로 올린다.
 4. 구속 측정용 빠른 카메라(초당 240장 · 초점 · 셔터)를 앱 쪽 코드로 붙인다. 값은 사이트가 보내게 만들어
    값 조정은 사이트만 고쳐서 하게 한다. 이 코드를 처음 만들 때는 맥북에 폰을 연결해 시험한다.
