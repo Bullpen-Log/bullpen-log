@@ -1,5 +1,6 @@
 import { ButtonLink, Eyebrow } from '@/components/ui';
 import { SiteFooter } from '@/components/site-footer';
+import { BullpenMark } from '@/components/logo';
 import { getCurrentUser } from '@/lib/dal';
 
 const PILLARS = [
@@ -45,9 +46,15 @@ export default async function LandingPage() {
         <div className="mx-auto flex max-w-4xl flex-col items-center px-6 py-28 text-center sm:py-36">
           <Eyebrow>For Pitchers</Eyebrow>
           <h1 className="text-display mt-6 text-6xl leading-[0.95] text-ink sm:text-8xl">
-            BULLPEN
+            {/* 첫 글자 B 자리에 로고 — components/logo.tsx 의 Wordmark 와 같은 짜임(두 줄이라 따로 둔다) */}
+            <span aria-hidden className="inline-flex items-baseline">
+              <BullpenMark className="mr-[0.07em] h-[0.7em]" />
+              ULLPEN
+            </span>
+            <span className="sr-only">BULLPEN</span>
             <br />
-            <span className="text-sky">LOG</span>
+            {/* 로고와 같은 파랑 — 하늘색(sky)이면 바로 위 B 와 파랑이 두 가지로 보인다 */}
+            <span className="text-brand">LOG</span>
           </h1>
           <p className="mt-7 max-w-xl text-base leading-relaxed text-muted">
             트레이닝, 메커니즘, 투구 기록, 자료실. 투수에게 필요한 것들을 한 곳에
