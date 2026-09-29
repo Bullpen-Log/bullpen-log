@@ -397,6 +397,25 @@ function staticRunStart(track: BallObservation[]): number {
   return -1;
 }
 
+/**
+ * 이음 문 — 궤적이 두 장 이상 이어진 뒤에는 다음 공이 '앞 이음의 화면 속도(px/초) × 지난 시간'의
+ * GATE_SPEED_FACTOR 배 + 여유(GATE_MARGIN_PX + 지름의 GATE_MARGIN_DIAM 배) 안에 있어야 한다.
+ *
+ * 멀어지는 공의 화면 속도는 소실점으로 모이며 계속 준다(x = f·X/Z 라 화면 속도 ∝ 1/Z) — 앞 이음보다
+ * 두 배 넘게 빨라질 일이 없다. 다가오는 공은 1/Z² ∝ 지름² 로 빨라지므로 지름 비의 제곱을 곱한다.
+ *
+ * 이 문이 없으면 공이 작아져 사라진 뒤에도 궤적이 한 장에 154px(긴 변의 12%)까지 뛰며 배경의 점 ·
+ * 흔들리는 그물 조각으로 이어졌다(첫 보정 자료 74f6586f — 공 3~5px 뒤로 뜀). 그러면 궤적 전체로 보는
+ * 검사(평균 깊이 속도 · 얼마나 작아졌나)를 그 꼬리가 좌우해 진짜 공 궤적이 통째로 버려지곤 했다
+ * (2026-09-29, 1차 조사 coverage · 검증).
+ *
+ * 장면 수가 아니라 **시간**으로 잰다 — 카메라로 잴 때는 같은 장면 거르기 · 브라우저가 장면을 빠뜨림으로
+ * 장면 사이 시간이 들쭉날쭉하다. 장면 수로 곱하면 빠진 장면을 모르는 채 한 장 간격으로 판정한다.
+ */
+const GATE_SPEED_FACTOR = 2;
+const GATE_MARGIN_PX = 2;
+const GATE_MARGIN_DIAM = 0.25;
+
 export function trackBall(
   frames: FrameBlobs[],
   options: TrackOptions
@@ -447,6 +466,8 @@ export function trackBall(
 
       let last = track[0];
       let missed = 0;
+      /* 앞 이음의 화면 속도(분석 px/초) — 두 번째 공부터 이음 문에 쓴다 */
+      let prevSpeedPxPerSec: number | null = null;
 
       for (let f = s + 1; f < frames.length; f++) {
         let picked: Blob | null = null;
@@ -463,6 +484,15 @@ export function trackBall(
             continue;
           const step = Math.hypot(blob.cx - last.x, blob.cy - last.y);
           if (step > maxStepPx * (missed + 1)) continue;
+          if (prevSpeedPxPerSec != null) {
+            const growth =
+              approach === 'receding' ? 1 : Math.max(1, (d / last.diameterPx) ** 2);
+            const gate =
+              GATE_SPEED_FACTOR * prevSpeedPxPerSec * (frames[f].t - last.t) * growth +
+              GATE_MARGIN_PX +
+              GATE_MARGIN_DIAM * last.diameterPx;
+            if (step > gate) continue;
+          }
           /*
            * 한 장면 사이 크기 변화가 최고 속도로도 안 되는 만큼이면 다른 물체다 — 손(118px)에서
            * 공(30px)으로 건너뛰는 이음을 막는다. z = fD/d 이니 다음 거리는 z ± vmax·dt 안이어야 한다.
@@ -503,6 +533,11 @@ export function trackBall(
           continue;
         }
 
+        {
+          const linkDt = frames[f].t - last.t;
+          prevSpeedPxPerSec =
+            linkDt > 0 ? Math.hypot(picked.cx - last.x, picked.cy - last.y) / linkDt : null;
+        }
         missed = 0;
         last = {
           t: frames[f].t,

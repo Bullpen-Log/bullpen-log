@@ -22,8 +22,12 @@ import { BALL_DIAMETER_M } from '@/lib/velocity-engine/geometry';
  */
 
 export const LENS_KEY = 'bullpen-velocity-lens';
-/** 저장 형식 판 — 옛 값(거리 기준이 달랐다)은 버리고 다시 재게 한다 */
-export const LENS_VERSION = 2;
+/**
+ * 저장 형식 판 — 옛 값은 버리고 다시 재게 한다. 2: 거리 기준(앞면 + 반지름 + 입사동). 3(모델 1.6.0): 공 지름을 비행 중과
+ * 같은 윤곽 자(limb.ts measureLimbStatic)로 잰다 — 2 는 면적으로 재 윤곽보다 0.91~0.95 배라, 그 값으로 재면 구속이
+ * 5~9% 낮았다.
+ */
+export const LENS_VERSION = 3;
 
 export type LensCalibration = {
   version: number;

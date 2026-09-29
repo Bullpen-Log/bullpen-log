@@ -69,6 +69,34 @@ type Scenario = {
   mesh?: { strand: number; pitch: number; luma: number };
   /** 배경 밝기(기본 90~120 회색) — 흰 망이 뒤에 있을 때는 220 쯤 */
   bgLevel?: number;
+  /**
+   * 카메라처럼 담는다 — 공과 배경을 선형 빛에서 섞은 뒤 sRGB 로 눌러 담는다(실제 폰 영상 · 카메라가 그렇다:
+   * 반쯤 덮인 테두리 화소가 부호값으로는 더 밝다). 끄면 예전 그림(부호값을 그대로 섞음 — 선형 카메라).
+   */
+  gamma?: boolean;
+  /**
+   * 노출 동안의 실제 움직임 — 셔터가 열린 동안(장면 간격 × shutter) 공의 화면 위치 · 크기를 7번 그려 평균한다(옆
+   * 흐름뿐 아니라 소실점으로 모이는 움직임 · 멀어지며 작아짐 · 다가오며 커짐까지). 끄면 예전처럼 옆 흐름만(motionBlur).
+   */
+  exposure?: boolean;
+  /** 셔터가 열린 비율(장면 간격 대비) — 실제 보정 영상에서 0.2~0.45(1차 조사 focal). 기본 0.35 */
+  shutter?: number;
+  /**
+   * 흰 과녁 천 — 카메라에서 fromM 보다 먼 공이 지나가는 화면 자리(공 지름만큼 넓힘) 뒤 배경을 이 밝기로 칠한다.
+   * 과녁을 겨눈 공은 끝에서 천 앞을 지난다(실제 보정 영상 eb05ae07 · e9ae8712).
+   */
+  brightTarget?: { level: number; fromM: number };
+  /**
+   * 실제 카메라의 윤곽 — 공의 선형 빛 50% 선(번진 계단의 가운데)을 참 실루엣보다 이만큼(원본 px) 안쪽에 그린다.
+   * 실제 영상 13개(흰 천 없는 것)의 평균 단면(lab/core-d/profile.mts): 선형 빛에서 윤곽은 σ≈0.72(분석 px)의 대칭
+   * 계단이고, 궤적 모양(공기저항 K)과 스피드건이 함께 가리킨 실루엣(부호값 α 0.3 선)은 그 가운데보다 분석 0.62px
+   * (원본 0.93px) 바깥이었다. 원인은 모른다(감마는 방향이 반대 · 테두리 어두움은 단면에 없다 — 카메라의 영상 처리로
+   * 본다). 이 그림의 작은 공은 실제보다 조금 작게 재져서(3×3 덮임 · 이상적인 원판), 가장자리 폭을 실제와 같게(1.40px,
+   * blur 0.43) 맞춘 뒤 기본 60fps 세 시나리오가 치우치지 않는 값 0.7 을 쓴다(0.6 → −1.1~−3.1, 0.8 → +1.1~+1.6,
+   * 0.93 → +3.0~+3.8km/h). 그래서 이 시나리오들이 치우치지 않는 것은 α 를 검증하지 않는다 — 속도 · fps · 먼 공 ·
+   * 흰 천 · 초점 흐림 · 다가옴이 그 위에서 어떻게 움직이는지를 본다.
+   */
+  cameraEdgeSrcPx?: number;
 };
 
 const LANDSCAPE = { w: 1920, h: 1080 };
@@ -170,7 +198,72 @@ const SCENARIOS: Scenario[] = [
     noise: 3,
     exposureDrift: 0.5,
   },
+  /*
+   * ── 실제 카메라처럼 담은 공(2026-09-29, 모델 1.6.0) ──
+   * 실제 보정 영상(아이폰 15 Pro Max 60fps 세로, 투수 뒤 2~3m, 어두운 실내)에 맞춘 그림: 선형 빛에서 섞어 sRGB 로
+   * 담고(gamma), 셔터가 열린 동안의 진짜 움직임(소실점으로 모임 · 작아짐)으로 번지고(exposure), 윤곽은 실측한 카메라
+   * 윤곽(cameraEdgeSrcPx — 설명은 타입)으로 그린다. 공은 옆에서 던져 과녁(20m, 카메라 축 근처)으로 날아간다(realThrow).
+   * 주의(2차 검증 — 물리): 이 줄들은 **맞춘 모형**이다 — cameraEdgeSrcPx 0.7 은 기본 60fps 세 줄이 0 이 되게 고른 값이라,
+   * 치우침이 없는 것은 윤곽 비율 · 절대 배율의 검증이 아니다. 그림에 없는 것: 1080 → 720 재표본, H.264, BT.601 가중의 색
+   * 번짐, 시간 잡음 줄이기, 공의 그늘(조명). 그 위에서 속도 · fps · 먼 공 · 흰 천 · 흐림 · 다가옴이 어떻게 움직이나를 본다.
+   */
+  realThrow('실제 카메라 60fps 110km/h', 110, 60, 2.5),
+  realThrow('실제 카메라 60fps 75km/h', 75, 60, 2.5),
+  realThrow('실제 카메라 60fps 130km/h', 130, 60, 2.5),
+  realThrow('실제 카메라 먼 릴리스 3.5m(작은 공)', 110, 60, 3.5),
+  realThrow('실제 카메라 240fps 120km/h', 120, 240, 2.5),
+  realThrow('실제 카메라 흰 과녁 천(9m부터 뒤 225)', 110, 60, 2.5, { brightTarget: { level: 225, fromM: 9 } }),
+  realThrow('실제 카메라 흰 과녁 천(5m부터 뒤 225)', 110, 60, 2.5, { brightTarget: { level: 225, fromM: 5 } }),
+  realThrow('실제 카메라 초점 흐림 σ1.0', 110, 60, 2.5, { blur: 1.0 }),
+  {
+    ...realThrow('실제 카메라 포수 뒤(다가옴) 240fps', 130, 240, 14),
+    approach: 'approaching',
+    startM: 14,
+    offsetPx: { x: 40, y: -30 },
+    lateralMps: { x: 0, y: 0 },
+  },
+  /*
+   * 카메라 윤곽 없이 감마 · 실제 번짐만 — 이상적인 계단(선형 50% = 실루엣)에서 α 0.3 이 얼마나 크게 재는지(1차 검증 G5/G6).
+   * 1.6.0 의 기대값: G5 −15.5% · G6 −9.9%(교과서 카메라라면 이만큼 낮게 읽는다). 윤곽 자의 절대 배율이 바뀌면 이 두 줄이
+   * 먼저 움직인다 — 1% 넘게 바뀌면 까닭을 version.ts 에 적는다.
+   */
+  realThrow('G5 감마 · 실제 번짐(이상적 윤곽)', 120, 60, 2.5, { cameraEdgeSrcPx: 0 }),
+  realThrow('G6 선형 · 실제 번짐(이상적 윤곽)', 120, 60, 2.5, { cameraEdgeSrcPx: 0, gamma: false }),
 ];
+
+/**
+ * 실제 보정 영상 같은 한 번의 던지기 — 릴리스가 카메라 축에서 옆 0.25m · 위 0.2m, 공은 20m 앞 과녁(축 위, 0.5m 아래)으로
+ * 곧게 간다. 엔진 식의 매개변수(offsetPx = 릴리스 시선의 화면 자리, lateralMps = 그 시선에 대한 옆 속도)로 바꾼다:
+ * X(t) = (off/f)·z(t) + lat·t 가 X0 + vx·t 가 되려면 lat = vx − X0·v/z0.
+ */
+function realThrow(name: string, kmh: number, fps: number, releaseM: number, extra: Partial<Scenario> = {}): Scenario {
+  const f = focalPxFromFov(PORTRAIT.h, ENGINE_FOV);
+  const v = kmh / 3.6;
+  const X0 = 0.25;
+  const Y0 = -0.2;
+  const flight = 20 / v;
+  const vx = -X0 / flight;
+  const vy = (0.5 - Y0) / flight;
+  return {
+    name,
+    kmh,
+    fps,
+    source: PORTRAIT,
+    releaseM,
+    offsetPx: { x: (f * X0) / releaseM, y: (f * Y0) / releaseM },
+    lateralMps: { x: vx - (X0 * v) / releaseM, y: vy - (Y0 * v) / releaseM },
+    ball: 210,
+    bgLevel: 60,
+    /* 윤곽 폭(limb.ts edgePx)이 실제 영상의 1.40px 와 같아지는 초점 흐림 — 3×3 덮임 · 노출 번짐 · 광선의 보간이 나머지를 더한다 */
+    blur: 0.43,
+    noise: 2,
+    gamma: true,
+    exposure: true,
+    shutter: 0.35,
+    cameraEdgeSrcPx: 0.7,
+    ...extra,
+  };
+}
 
 /* ─────────────────────────── 그리기 ─────────────────────────── */
 
@@ -254,62 +347,84 @@ function drawMesh(
   }
 }
 
+/** sRGB 전달 함수(0~255 부호값 ↔ 0~1 선형) — 브라우저 캔버스 값이 이것이다 */
+function srgbToLinear(v: number) {
+  const e = Math.min(1, Math.max(0, v / 255));
+  return e <= 0.04045 ? e / 12.92 : Math.pow((e + 0.055) / 1.055, 2.4);
+}
+function linearToSrgb(l: number) {
+  const x = Math.min(1, Math.max(0, l));
+  return 255 * (x <= 0.0031308 ? 12.92 * x : 1.055 * Math.pow(x, 1 / 2.4) - 0.055);
+}
+
+/** 노출 동안의 공 한 자리(분석 픽셀) — 중심 · 지름 */
+type BallPose = { x: number; y: number; d: number };
+
 /**
- * 공 — 가장자리는 부분 덮임(3×3 표본)으로 부드럽게, 옵션으로 초점 흐림 · 모션 블러.
- * 모션 블러는 셔터가 열린 동안 공이 옆으로 움직인 자리들을 평균한다(공의 크기 변화는 작아 무시).
+ * 공 — 가장자리는 부분 덮임(3×3 표본)으로 부드럽게, 옵션으로 초점 흐림 · 노출 동안의 움직임.
+ * poses 는 셔터가 열린 동안의 공 자리들 — 그 덮임을 평균한다(모션 블러). 한 자리면 멈춘 공.
+ * gamma 면 공과 배경을 선형 빛에서 섞어 sRGB 로 담는다(실제 카메라). edgeInPx 는 그린 원판을 참 지름보다 한쪽 이만큼
+ * 작게 한다(분석 px — 'camera edge', 시나리오 설명).
  */
 function drawBall(
   luma: Float32Array,
   width: number,
   height: number,
-  cx: number,
-  cy: number,
-  diameter: number,
+  poses: BallPose[],
   brightness: number,
   blurSigma: number,
-  smear: { dx: number; dy: number } | null,
   /** 원근 타원 — 화면 중심(분석 픽셀)과 초점거리(분석 픽셀). 가운데서 벗어난 공은 시선 방향으로 1/cosθ 늘어난다 */
-  ellipse: { cx: number; cy: number; focalPx: number } | null = null
+  ellipse: { cx: number; cy: number; focalPx: number } | null = null,
+  gamma = false,
+  edgeInPx = 0
 ) {
-  const r = diameter / 2;
-  /* 타원 축 — u 는 화면 중심에서 공으로 향하는 단위 벡터, 그 방향 반지름이 r/cosθ */
-  let ux = 1;
-  let uy = 0;
-  let ra = r;
-  if (ellipse) {
-    const dx = cx - ellipse.cx;
-    const dy = cy - ellipse.cy;
-    const rr = Math.hypot(dx, dy);
-    if (rr > 1e-6) {
-      ux = dx / rr;
-      uy = dy / rr;
-      const cos = ellipse.focalPx / Math.hypot(ellipse.focalPx, rr);
-      ra = r / cos;
+  const shapes = poses.map((p) => {
+    const r = Math.max(0.3, p.d / 2 - edgeInPx);
+    /* 타원 축 — u 는 화면 중심에서 공으로 향하는 단위 벡터, 그 방향 반지름이 r/cosθ */
+    let ux = 1;
+    let uy = 0;
+    let ra = r;
+    if (ellipse) {
+      const dx = p.x - ellipse.cx;
+      const dy = p.y - ellipse.cy;
+      const rr = Math.hypot(dx, dy);
+      if (rr > 1e-6) {
+        ux = dx / rr;
+        uy = dy / rr;
+        const cos = ellipse.focalPx / Math.hypot(ellipse.focalPx, rr);
+        ra = r / cos;
+      }
     }
-  }
-  const inside = (px: number, py: number, ox: number, oy: number) => {
-    const ex = px - ox;
-    const ey = py - oy;
-    const pu = ex * ux + ey * uy;
-    const pv = -ex * uy + ey * ux;
-    return (pu * pu) / (ra * ra) + (pv * pv) / (r * r) <= 1;
+    return { ox: p.x, oy: p.y, r, ra, ux, uy };
+  });
+  const inside = (px: number, py: number, sh: (typeof shapes)[number]) => {
+    const ex = px - sh.ox;
+    const ey = py - sh.oy;
+    const pu = ex * sh.ux + ey * sh.uy;
+    const pv = -ex * sh.uy + ey * sh.ux;
+    return (pu * pu) / (sh.ra * sh.ra) + (pv * pv) / (sh.r * sh.r) <= 1;
   };
-  const pad = Math.ceil(
-    Math.max(r, ra) + 3 * blurSigma + (smear ? Math.hypot(smear.dx, smear.dy) : 0) + 2
-  );
-  const x0 = Math.max(0, Math.floor(cx - pad));
-  const x1 = Math.min(width - 1, Math.ceil(cx + pad));
-  const y0 = Math.max(0, Math.floor(cy - pad));
-  const y1 = Math.min(height - 1, Math.ceil(cy + pad));
-  const steps = smear ? 6 : 1;
+  let bx0 = Infinity;
+  let bx1 = -Infinity;
+  let by0 = Infinity;
+  let by1 = -Infinity;
+  for (const sh of shapes) {
+    const ext = Math.max(sh.r, sh.ra) + 3 * blurSigma + 2;
+    bx0 = Math.min(bx0, sh.ox - ext);
+    bx1 = Math.max(bx1, sh.ox + ext);
+    by0 = Math.min(by0, sh.oy - ext);
+    by1 = Math.max(by1, sh.oy + ext);
+  }
+  const x0 = Math.max(0, Math.floor(bx0));
+  const x1 = Math.min(width - 1, Math.ceil(bx1));
+  const y0 = Math.max(0, Math.floor(by0));
+  const y1 = Math.min(height - 1, Math.ceil(by1));
+  if (x1 < x0 || y1 < y0) return;
   const w = x1 - x0 + 1;
   const h = y1 - y0 + 1;
   const cover = new Float32Array(w * h);
 
-  for (let s = 0; s < steps; s++) {
-    const f = steps === 1 ? 0 : s / (steps - 1) - 0.5;
-    const ox = cx + (smear ? smear.dx * f : 0);
-    const oy = cy + (smear ? smear.dy * f : 0);
+  for (const sh of shapes) {
     for (let y = y0; y <= y1; y++) {
       for (let x = x0; x <= x1; x++) {
         let insideN = 0;
@@ -317,10 +432,10 @@ function drawBall(
           for (let sx = 0; sx < 3; sx++) {
             const px = x + (sx + 0.5) / 3 - 0.5;
             const py = y + (sy + 0.5) / 3 - 0.5;
-            if (inside(px, py, ox, oy)) insideN++;
+            if (inside(px, py, sh)) insideN++;
           }
         }
-        cover[(y - y0) * w + (x - x0)] += insideN / 9 / steps;
+        cover[(y - y0) * w + (x - x0)] += insideN / 9 / shapes.length;
       }
     }
   }
@@ -357,12 +472,15 @@ function drawBall(
       }
   }
 
+  const ballLin = srgbToLinear(brightness);
   for (let y = y0; y <= y1; y++) {
     for (let x = x0; x <= x1; x++) {
       const c = field[(y - y0) * w + (x - x0)];
       if (c <= 0) continue;
       const i = y * width + x;
-      luma[i] = luma[i] * (1 - c) + brightness * c;
+      luma[i] = gamma
+        ? linearToSrgb(srgbToLinear(luma[i]) * (1 - c) + ballLin * c)
+        : luma[i] * (1 - c) + brightness * c;
     }
   }
 }
@@ -370,7 +488,7 @@ function drawBall(
 /* ─────────────────────────── 한 번 던지기 ─────────────────────────── */
 
 type Outcome =
-  | { ok: true; avgErr: number; relErr: number; frames: number; conf: string }
+  | { ok: true; avgErr: number; relErr: number; frames: number; conf: string; relKmh: number; relSe: number | null; relPm: number | null; trims: number }
   | { ok: false; code: string };
 
 function throwOnce(sc: Scenario, seed: number): Outcome {
@@ -399,9 +517,47 @@ function throwOnce(sc: Scenario, seed: number): Outcome {
   const backgroundSamples: Float32Array[] = [];
   const truth: { t: number; z: number }[] = [];
 
+  /* 공의 화면 자리 — 시각 tt(초)의 중심 · 지름(분석 픽셀). 옆으로 흐른 만큼은 원근으로 거리에 반비례해 옮겨간다 */
+  const zAt = (tt: number) => (approach === 'receding' ? z0 + distAt(tt) : z0 - distAt(tt));
+  const poseAt = (tt: number): BallPose => {
+    const zz = zAt(tt);
+    return {
+      x: (sw / 2 + off.x + (lat.x * tt * trueFocal) / zz) * scale,
+      y: (sh / 2 + off.y + (lat.y * tt * trueFocal) / zz) * scale,
+      d: ((BALL_DIAMETER_M * trueFocal) / zz) * scale,
+    };
+  };
+
+  /*
+   * 흰 과녁 천 — fromM 보다 먼 공이 지나가는 화면 자리(공 반지름 + 2px 넓힘)를 칠한다. 가만히 있는 배경이라 배경 표본에도
+   * 같이 칠한다. 다가오는 공은 먼 쪽이 처음이다.
+   */
+  let target: { x0: number; x1: number; y0: number; y1: number } | null = null;
+  if (sc.brightTarget) {
+    let bx0 = Infinity, bx1 = -Infinity, by0 = Infinity, by1 = -Infinity, dMax = 0;
+    for (let k = 0; k < 4000; k++) {
+      const tt = k * 0.0005;
+      const zz = zAt(tt);
+      if (zz < 0.5 || distAt(tt) > 12) break;
+      if (zz < sc.brightTarget.fromM) continue;
+      const pz = poseAt(tt);
+      bx0 = Math.min(bx0, pz.x); bx1 = Math.max(bx1, pz.x); by0 = Math.min(by0, pz.y); by1 = Math.max(by1, pz.y);
+      dMax = Math.max(dMax, pz.d);
+    }
+    if (Number.isFinite(bx0)) {
+      const m = dMax / 2 + 2;
+      target = { x0: Math.max(0, Math.floor(bx0 - m)), x1: Math.min(width - 1, Math.ceil(bx1 + m)), y0: Math.max(0, Math.floor(by0 - m)), y1: Math.min(height - 1, Math.ceil(by1 + m)) };
+    }
+  }
+  const paintTarget = (luma: Float32Array) => {
+    if (!target || !sc.brightTarget) return;
+    for (let y = target.y0; y <= target.y1; y++) for (let x = target.x0; x <= target.x1; x++) luma[y * width + x] = sc.brightTarget.level;
+  };
+
   /* 던지기 전 잠잠한 프레임 넷 — 배경 표본 */
   for (let i = 0; i < 4; i++) {
     const luma = background(width, height, 0, sc.bgLevel);
+    paintTarget(luma);
     if (sc.mesh) drawMesh(luma, width, height, sc.mesh);
     addNoise(luma, noise, Math.floor(rand() * 65536));
     backgroundSamples.push(luma);
@@ -425,6 +581,7 @@ function throwOnce(sc: Scenario, seed: number): Outcome {
     const cy = (sh / 2 + off.y + ly) * scale;
     const shift = sc.shakePx ? (rand() - 0.5) * 2 * sc.shakePx : 0;
     const luma = background(width, height, shift, sc.bgLevel);
+    paintTarget(luma);
     exposure += sc.exposureDrift ?? 0;
     if (exposure) for (let k = 0; k < luma.length; k++) luma[k] += exposure;
     const smear =
@@ -434,11 +591,30 @@ function throwOnce(sc: Scenario, seed: number): Outcome {
             dy: ((lat.y * (dt / 2) * trueFocal) / z) * scale,
           }
         : null;
-    drawBall(luma, width, height, cx, cy, dSmall, ball, blur, smear, {
-      cx: (sw / 2) * scale,
-      cy: (sh / 2) * scale,
-      focalPx: trueFocal * scale,
-    });
+    /* 셔터가 열린 동안의 공 자리들 — 실제 움직임(exposure) · 옛 옆 흐름(motionBlur) · 멈춘 공 */
+    let poses: BallPose[];
+    if (sc.exposure) {
+      const open = (sc.shutter ?? 0.35) * dt;
+      poses = [];
+      for (let k = 0; k < 7; k++) poses.push(poseAt(t + (k / 6 - 0.5) * open));
+    } else if (smear) {
+      poses = [];
+      for (let k = 0; k < 6; k++) {
+        const f = k / 5 - 0.5;
+        poses.push({ x: cx + smear.dx * f, y: cy + smear.dy * f, d: dSmall });
+      }
+    } else poses = [{ x: cx, y: cy, d: dSmall }];
+    drawBall(
+      luma,
+      width,
+      height,
+      poses,
+      ball,
+      blur,
+      { cx: (sw / 2) * scale, cy: (sh / 2) * scale, focalPx: trueFocal * scale },
+      sc.gamma === true,
+      (sc.cameraEdgeSrcPx ?? 0) * scale
+    );
     /* 그물은 공 앞에 있다 — 공을 그린 뒤 덮는다 */
     if (sc.mesh) drawMesh(luma, width, height, sc.mesh);
     addNoise(luma, noise, Math.floor(rand() * 65536));
@@ -518,10 +694,23 @@ function throwOnce(sc: Scenario, seed: number): Outcome {
         Object.entries(buckets)
           .map(([k, v]) => `${k} ${fmt(v)}`)
           .join(' · ') +
-        ` · 첫 관측 ${m.detail.releaseDistanceM}m · startKmh ${m.detail.startKmh} · 참 v0(3D) ${trueRelease.toFixed(1)}`
+        ` · 첫 관측 ${m.detail.releaseDistanceM}m · startKmh ${m.detail.startKmh} · 참 v0(3D) ${trueRelease.toFixed(1)}` +
+        (result.diameter ? ` · 가장자리 폭 ${result.diameter.edgeWidthPx} · 흐림 보정 ${result.diameter.blurCorrectionPx}px` : '')
     );
   }
-  return { ok: true, avgErr, relErr, frames: m.detail.frames, conf: m.confidence };
+  const d = m.detail as { startSeKmh?: number | null; startTrimmed?: number; endTrimmed?: number; farTrimmed?: number };
+  return {
+    ok: true,
+    avgErr,
+    relErr,
+    frames: m.detail.frames,
+    conf: m.confidence,
+    relKmh: result.release?.releaseKmh ?? NaN,
+    /* 잭나이프 SE(첫 관측 시점) · 릴리스 ±(90%) · 자른 장 수 — 불확실성이 답을 아는 그림에서 맞는 크기인지 볼 때(모델 1.6.0) */
+    relSe: d.startSeKmh ?? null,
+    relPm: (result.release as { errorKmh?: number } | null)?.errorKmh ?? null,
+    trims: (d.startTrimmed ?? 0) + (d.endTrimmed ?? 0) + (d.farTrimmed ?? 0),
+  };
 }
 
 /* ─────────────────────────── 채점 ─────────────────────────── */
@@ -536,6 +725,8 @@ type Row = {
   relBias: number;
   relP90: number;
   frames: number;
+  /** 씨앗마다의 결과(릴리스 오차 · SE · ± · 믿음) — --json 으로 불확실성을 따로 본다 */
+  outs: Outcome[];
 };
 
 const rows: Row[] = [];
@@ -563,6 +754,7 @@ for (const sc of SCENARIOS.filter((x) => !ONLY || x.name.includes(ONLY))) {
     relBias: mean(rel),
     relP90: p90(rel),
     frames: mean(ok.map((o) => o.frames)),
+    outs,
   });
 }
 

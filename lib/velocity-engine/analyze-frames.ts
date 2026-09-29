@@ -12,7 +12,15 @@ import {
   DRAG_K_PER_M,
   BALL_DIAMETER_M,
 } from './geometry.ts';
-import { checkFootage } from './validate.ts';
+import {
+  checkFootage,
+  ERROR_INTERVAL_Z,
+  reject,
+  speedSigmaRel,
+  MAX_RELATIVE_SE,
+  SYSTEMATIC_FLOOR_REL,
+  type Rejection,
+} from './validate.ts';
 import {
   measureVelocity,
   MIN_USABLE_BALL_PX,
@@ -20,6 +28,9 @@ import {
   type MeasureResult,
   type MeasureSuccess,
 } from './measure.ts';
+import { measureLimb, blurCutPx, type LimbFailure, type LumaTransfer } from './limb.ts';
+
+export type { LumaTransfer } from './limb.ts';
 
 export type { Approach } from './measure.ts';
 
@@ -47,20 +58,25 @@ export type { Approach } from './measure.ts';
  *    안 빼면 몇 프레임 뒤 화면 전체가 '움직인 것'이 돼 추적이 끊긴다.
  * 3. 흔들림은 픽셀이 아니라 **8×8 블록 평균**으로 잰다(cornerShift) — 픽셀 잡음(σ6 정도)이 흔들림으로
  *    잘못 잡혀 정상 촬영이 거부되던 것을 막는다.
+ * 4. (모델 1.6.0, 2026-09-29 2차 보정) 거리 자는 1 의 면적이 아니라 **빛 받은 쪽의 또렷한 윤곽에 맞춘 원**이다
+ *    (limb.ts · measureDiameters). 실제 영상 18개에서 면적 지름은 공의 그늘(영상마다 다른 몫) · 번짐 × 톤 곡선 ·
+ *    빌린 대비 · 흰 천 때문에 장면마다 1.3~1.7% 흔들렸고, 윤곽은 0.6% 였다. 면적은 윤곽의 첫 어림과 검사에만
+ *    쓴다 — 두 자는 배율이 달라(면적 ≈ 윤곽 × 0.92, 영상마다 0.91~0.95) 한 궤적에 섞지 않는다. 윤곽을 못 잰
+ *    장면은 빼고, 모자라면 거부한다(말없이 면적으로 돌아가지 않는다).
  */
 
 /** 아이폰 후면 메인 카메라의 대략적인 가로 화각(도) */
 export const DEFAULT_FOV_DEG = 69;
 
-/** 분석할 때 줄이는 가로 크기(픽셀) — 왜 720 인지는 analyze-video.ts 에 적었다 */
-export const ANALYZE_SHORT_SIDE = 720;
+/*
+ * 분석 크기(짧은 변 720 — 왜 720 인지는 analyze-video.ts)와 원본 → 분석 배율은 geometry.ts 에 둔다: 맞춤의 무게가
+ * 지름의 계통 오차(분석 픽셀)를 원본 픽셀로 옮길 때 같은 값을 써야 해서. 짧은 변 기준이라 가로로 찍어도 세로와 같은
+ * 정밀도다(예전엔 가로 720 이라 가로 촬영이 0.375 배였다).
+ */
+export { ANALYZE_SHORT_SIDE, analyzeScale } from './geometry.ts';
+import { ANALYZE_SHORT_SIDE } from './geometry.ts';
 /** @deprecated 이름만 남긴다 — 짧은 변 기준(ANALYZE_SHORT_SIDE)을 쓴다 */
 export const ANALYZE_WIDTH = ANALYZE_SHORT_SIDE;
-
-/** 원본 → 분석 배율. 짧은 변을 720 으로 — 가로로 찍어도 세로와 같은 정밀도(예전엔 가로 720 이라 가로 촬영이 0.375 배였다) */
-export function analyzeScale(sourceW: number, sourceH: number): number {
-  return Math.min(1, ANALYZE_SHORT_SIDE / Math.max(1, Math.min(sourceW, sourceH)));
-}
 
 export type CapturedFrame = {
   /** 영상 안의 시각(초) */
@@ -77,6 +93,12 @@ export type AnalyzeFramesInput = {
    * 고르게 뽑아 쓴다.
    */
   backgroundSamples?: ArrayLike<number>[];
+  /**
+   * 구간 안에서 고르게 뽑아 배경에 보탤 장면 수 — 기본 7. 영상 파일에서 공이 나타난 때에 묶은 배경 장면을
+   * backgroundSamples 로 줬으면 0 을 준다(analyze-video.ts). 구간 안에서 뽑으면 구간을 어디서 시작하느냐에 따라
+   * 배경이 달라져, 같은 공이 구간 자리만으로 0.5~1.8km/h 흔들렸다(2차 조사). 카메라(live-capture)는 기본 그대로.
+   */
+  inWindowBackground?: number;
   /** 분석 해상도 */
   width: number;
   height: number;
@@ -108,6 +130,30 @@ export type AnalyzeFramesInput = {
   seedFrames?: number;
   /** 진단용 — 켜면 결과에 장면마다 찾은 덩어리 전부(blobFrames)를 실어 준다 */
   debug?: boolean;
+  /**
+   * 밝기 값의 전달 함수 — 기본 'srgb' = 브라우저 캔버스가 준 부호값 그대로. 영상 파일 · 카메라 모두 캔버스에 그린
+   * 값이다. 크롬은 BT.709 영상을 곡선을 바꾸지 않고 (Y′−16)·255/219 로 그대로 그린다(2차 조사에서 잼, ±0.04) —
+   * 윤곽 비율(α)과 화각이 바로 이 값에서 맞춰졌으므로 영상 파일에도 'bt709' 를 넘기지 않는다(넘기면 파일 값이
+   * 카메라 값보다 평균 0.4% 낮아진다, analyze-video.ts). 합성 그림처럼 선형 빛이면 'linear'. 다른 전달 함수는
+   * 윤곽을 잴 때 이 부호값으로 옮겨 잰다(limb.ts).
+   */
+  transfer?: LumaTransfer;
+  /**
+   * 시험용 — false 면 1.5.0 의 면적 지름을 거리 자로 쓴다(윤곽과 배율이 달라 같은 화각으로 견줄 수 없다).
+   * 앱에서는 쓰지 않는다.
+   */
+  limb?: boolean;
+  /**
+   * 이 촬영이 윤곽 비율(α) · 화각을 맞춘 조건 안인가 — 아이폰 15 Pro · Pro Max 메인 카메라(24mm) · SDR · 50~70fps 영상
+   * 파일(analyze-video.ts 가 파일 머리로 가린다). 모르면 false: 카메라 실시간(live-capture) · 다른 폰 · 240fps · HDR 은
+   * 몇 % 다를 수 있어(2차 검증 — 물리: 2~10%) ± 에 OUT_OF_DOMAIN_SIGMA_REL 을 더하고 믿음은 '보통'까지만 준다.
+   */
+  calibrated?: boolean;
+  /**
+   * 보정한 조건 밖일 때 ± 에 더할 σ(값에 대한 비율) — 기본 OUT_OF_DOMAIN_SIGMA_REL(4%). 조건마다 모르는 정도가 달라
+   * 부르는 쪽이 더 크게 줄 수 있다: HDR 영상 5.5%(analyze-video.ts), 카메라 실시간 6%(live-capture.ts).
+   */
+  domainSigmaRel?: number;
 };
 
 /** 공기저항 상수 — 정의와 설명은 geometry.ts */
@@ -122,6 +168,11 @@ export type ReleaseInfo = {
    * 속도. 포수 뒤: 첫 관측(가장 먼 곳)에서 릴리스 지점까지 공기저항을 되돌린 값.
    */
   releaseKmh: number;
+  /**
+   * releaseKmh 의 ±(km/h, 90% 구간) — 잭나이프 SE 와 바닥(validate.ts)으로. 포수 뒤는 공기저항을 되돌린 몫의
+   * 불확실성(K 가 ±25% — 야구공의 항력계수 0.3~0.5)을 더한다.
+   */
+  errorKmh: number;
   /** 릴리스 포인트가 표적(화면 가운데)에서 좌우 · 상하로 몇 cm 떨어졌나(오른쪽 · 위가 +). 포수 뒤에서는 없다 */
   dxCm: number | null;
   dyCm: number | null;
@@ -148,6 +199,12 @@ export type AnalyzeResult = {
   focalPx: number;
   /** 진단용(입력 debug) — 장면마다 찾은 덩어리 전부(분석 픽셀 기준) */
   blobFrames?: FrameBlobs[];
+  /** 지름을 어떻게 쟀나 — 거리 자 · 뺀 장면과 까닭(분석 JSON 에 남겨 자가 다른 공을 보정에 섞지 않게) */
+  diameter: DiameterReport;
+  /** 진단용(입력 debug) — 윤곽 전의 첫 어림 궤적(면적 지름, 분석 픽셀) */
+  seedTrack?: BallObservation[];
+  /** 진단용(입력 debug) — 마지막 단계(measureTrack)에 넘긴 입력 그대로. 맞춤만 바꿔 다시 돌릴 때 */
+  trackInput?: TrackMeasureInput;
 };
 
 /* ───────────────────────── 귀퉁이 — 흔들림 · 노출 ───────────────────────── */
@@ -232,7 +289,7 @@ export function cornerShift(
  * 자동 노출 — 프레임 전체가 배경보다 얼마나 밝아졌나(중앙값). 귀퉁이 블록 평균으로 잰다.
  * 공이 나타나면 카메라가 노출을 조금 내리거나 올리는데, 그만큼을 빼야 배경이 '움직인 것'이 안 된다.
  */
-function exposureBias(
+export function exposureBias(
   background: Float32Array,
   luma: ArrayLike<number>,
   width: number,
@@ -405,46 +462,331 @@ function refineTrack(
   });
 }
 
+/* ───────────────────────── 지름 — 윤곽(거리 자) ───────────────────────── */
+
+/**
+ * 윤곽 지름 ÷ 첫 어림(면적) 지름이 이 범위 밖이면 그 장면을 뺀다. 실제 공은 1.04~1.10(면적이 그늘 몫만큼
+ * 작다) — 크게 벗어나면 윤곽이 딴 것(손 · 흰 천 가장자리)에 맞춰졌거나 첫 어림이 이웃 것을 담은 것이다.
+ * 1차 검증이 요구한 장면 단위 검사(e9ae8712 의 흰 천 앞 윤곽 25.6px 은 면적 19.2px 의 1.33 배였다).
+ */
+const LIMB_GUARD_MIN = 0.8;
+const LIMB_GUARD_MAX = 1.3;
+
+/**
+ * 밝은 배경 — 화소의 '공 밝기 − 그 화소의 배경'이 공의 보통 대비(큰 장면 가운데의 공 − 배경)의 이 비율보다
+ * 작으면, 그 화소는 공이 덮었는지 알 수 없다(흰 과녁 천 · 흰 벽 · 조명). 1차 조사 · 검증(2026-09-29): 0.5~0.65 가
+ * 평평한 구간이고 0.35(−30%)에서 흰 천 영상 두 개가 +13 · +28km/h 로 무너졌다 — 엄격한 쪽 0.6.
+ */
+export const MIN_PIXEL_CONTRAST_RATIO = 0.6;
+/**
+ * 공 원판 안에서 그런 화소가 이 비율을 넘으면 그 장면은 뺀다. 1차 검증: 0.015~0.1 이 평평했고 0.13 부터 흰 천
+ * 영상이 +6km/h 로 틀렸다 — 엄격한 쪽 0.05. 윤곽은 가려진 광선을 건너뛰어 반쯤 천에 걸린 공도 원을 맞출 수
+ * 있지만(eb05ae07 원판 24% 가 천 — 맞게 잼), 절반쯤 걸리면 원이 커졌다(50% — 1/d 걸음이 앞의 2/3) · e9ae8712
+ * (30~40% — 면적의 1.33 배). 어디서 믿음이 끝나는지 날이 서 있어(칼날) 엄격한 쪽에 둔다 — 흰 천 앞은
+ * '정확도'가 아니라 '믿을 수 있나'의 문제로 다룬다(모자라면 거부 BRIGHT_BACKGROUND).
+ */
+export const MAX_BRIGHT_FRAC = 0.05;
+/**
+ * 감지기가 잰 보이는 비율이 이보다 작으면 그물 너머로 본다 — 흰 그물 실은 공 앞의 가림이라 배경 장면에도
+ * 들어 있어 '밝은 배경'처럼 보인다. 그물 장면은 밝은 배경 검사를 하지 않는다(윤곽은 실 표본을 건너뛴다).
+ */
+const NET_VISIBLE_FRAC = 0.9;
+/**
+ * 밝은 배경 검사의 원판 반지름 = 첫 어림(면적) 지름 × 이 값 + 1px. 면적 지름은 윤곽의 0.91~0.95 배라 0.55 면
+ * 윤곽 반지름 + 여유(공 테두리의 번진 1px)다.
+ */
+const BRIGHT_DISC_K = 0.55;
+
+/**
+ * 흐림과 믿음 · ±. 흐림 보정(limb.ts BLUR_KAPPA)은 여러 영상의 평균은 맞추지만 영상 하나하나는 못 맞춘다 — 보정 영상을
+ * 일부러 더 흐리게 하자 가장자리 폭(limb.ts edgePx, 궤적 중앙값) 1.85 · 2.57 · 3.57px 에서 영상마다 흩어짐이 1.85 ·
+ * 3.5 · 5.0% 였고(2차 검증 — 물리), 스피드건 오차는 1.55 → 2.4 · 3.7km/h 로 커졌다(2차 검증 — 통계). 그래서
+ *  - ± 에는 흐림 σ = BLUR_SIGMA_K × √(폭 − 1.6px) 를 제곱합으로 더한다 — 위 세 점(1.8 · 3.55 · 5.05%)에 맞춘 식,
+ *  - 믿음은 EDGE_MEDIUM_PX(1.8px)부터 '보통'까지, EDGE_LOW_PX(2.2px)부터 '낮음'.
+ * 문턱 하나(예전 2.6px)면 그 바로 밑의 흐린 영상(+6~7% 틀림)이 '보통'과 좁은 ± 를 그대로 받았다. 보정 영상 13개의
+ * 폭은 1.34~1.57px 라 어느 것도 바뀌지 않는다(스피드건 없이 정한 문턱 — 보정 영상 폭의 범위에서).
+ */
+const BLUR_SIGMA_REF_PX = 1.6;
+const BLUR_SIGMA_K = 0.036;
+const EDGE_MEDIUM_PX = 1.8;
+const EDGE_LOW_PX = 2.2;
+
+/** 가장자리 폭 → 흐림 때문에 더할 예상 σ(값에 대한 비율) */
+function blurSigmaRel(edgeWidthPx: number | null): number {
+  return edgeWidthPx == null ? 0 : BLUR_SIGMA_K * Math.sqrt(Math.max(0, edgeWidthPx - BLUR_SIGMA_REF_PX));
+}
+
+/**
+ * 보정한 조건 밖(입력 calibrated 가 아님)의 치우침, 1σ 비율. α 0.3 · 화각 59.8° 는 아이폰 15 Pro Max 카메라 앱 SDR 60fps
+ * 영상을 크롬이 그린 값 하나로 맞췄다. 다른 폰(손떨림 보정이 자르는 폭) · 240fps(노출 번짐, 합성 시험 +3%) · HDR · 카메라
+ * 실시간(다른 영상 처리) · 조명(해를 등지면 빛 받은 테두리가 없다 — 합성 구 −3~−10%)은 스피드건 짝이 없다. 짝이 쌓일
+ * 때까지 ± 에 4% 를 더하고 믿음을 '보통'까지만 준다.
+ */
+export const OUT_OF_DOMAIN_SIGMA_REL = 0.04;
+
+/**
+ * 윤곽 원호가 좁아(그늘 · 옆 · 위 조명) 뺀 장면이 첫 어림의 이만큼 이상이면 믿음은 '보통'까지 — 빛 받은 테두리가 한쪽만
+ * 남은 조명이라 자가 몇 % 흔들릴 수 있다(2차 검증 — 물리).
+ */
+const ARC_DROP_MEDIUM_FRAC = 1 / 3;
+
+/** 장면을 뺀 까닭 — bright: 공 뒤가 공만큼 밝음, limb: 윤곽을 못 잼(번짐 · 가림 · 원호 모자람), guard: 윤곽 ÷ 면적이 공답지 않음 */
+export type DiameterDrop = 'bright' | 'limb' | 'guard';
+
+export type DiameterReport = {
+  /** 거리 자 — 'limb'(윤곽, 1.6.0) · 'area'(면적, 시험용 limb:false). 자가 다르면 같은 화각 · 보정식을 쓰면 안 된다 */
+  ruler: 'limb' | 'area';
+  /** 첫 어림(추적) 장면 수 */
+  seed: number;
+  /** 거리 자로 쓴 장면 수 */
+  kept: number;
+  drops: Record<DiameterDrop, number>;
+  /** 쓸 만한 크기(원본 MIN_USABLE_BALL_PX 이상)인데 밝은 배경 때문에 뺀 장면 수 — 거부 사유 · 믿음 표시에 */
+  brightUsable: number;
+  /** 윤곽 ÷ 면적의 중앙값(둘 다 잰 장면) — 면적으로만 잰 기준점(릴리스 위치)을 윤곽 자로 옮길 때 */
+  limbPerArea: number | null;
+  /** 궤적의 가장자리 폭(분석 px, 장면 중앙값들의 중앙값) — 영상이 얼마나 흐린가. 보정 영상은 1.34~1.57 */
+  edgeWidthPx: number | null;
+  /** 흐림 보정으로 지름에서 뺀 값(분석 px) — limb.ts blurCutPx(edgeWidthPx) */
+  blurCorrectionPx: number;
+  /** 가장자리 폭이 EDGE_LOW_PX(2.2px) 이상 — 초점이 나간 영상. 믿음 '낮음' */
+  blurred: boolean;
+  /** 윤곽 원호가 좁아(limb.ts 'arc') 뺀 장면 수 — drops.limb 에 들어 있는 것 가운데 */
+  arcDrops: number;
+};
+
+function medianOf(vals: number[]): number {
+  const s = [...vals].sort((a, b) => a - b);
+  return s[Math.floor(s.length / 2)];
+}
+
+/**
+ * 공의 밝기(노출 치우침을 뺀 부호값)와 보통 대비 — 큰 장면들(CORE_MIN_PX 이상) 가운데(반지름의 절반 안)의 중앙값.
+ * 공의 밝기는 공과 조명의 성질이라 날아가는 내내 거의 같다(실제 영상 18개에서 203~214, 크기와 무관).
+ */
+function ballLevel(
+  track: BallObservation[],
+  lumaAt: Map<number, ArrayLike<number>>,
+  biasAt: Map<number, number>,
+  background: Float32Array,
+  width: number,
+  height: number
+): { level: number; contrast: number } | null {
+  const levels: number[] = [];
+  const contrasts: number[] = [];
+  for (const o of track) {
+    if (o.diameterPx < CORE_MIN_PX) continue;
+    const luma = lumaAt.get(o.t);
+    if (!luma) continue;
+    const bias = biasAt.get(o.t) ?? 0;
+    const r = Math.max(1, o.diameterPx / 4);
+    const lv: number[] = [];
+    const cv: number[] = [];
+    for (let y = Math.max(0, Math.floor(o.y - r)); y <= Math.min(height - 1, Math.ceil(o.y + r)); y++) {
+      for (let x = Math.max(0, Math.floor(o.x - r)); x <= Math.min(width - 1, Math.ceil(o.x + r)); x++) {
+        if ((x - o.x) ** 2 + (y - o.y) ** 2 > r * r) continue;
+        const i = y * width + x;
+        lv.push(luma[i] - bias);
+        cv.push(luma[i] - background[i] - bias);
+      }
+    }
+    if (lv.length < 3) continue;
+    const c = medianOf(cv);
+    if (!(c > 0)) continue;
+    levels.push(medianOf(lv));
+    contrasts.push(c);
+  }
+  if (!levels.length) return null;
+  return { level: medianOf(levels), contrast: medianOf(contrasts) };
+}
+
+/** 공 원판(첫 어림 중심, 반지름 BRIGHT_DISC_K·d + 1) 안에서 배경이 공만큼 밝은 화소의 비율 */
+function brightFraction(
+  o: BallObservation,
+  background: Float32Array,
+  width: number,
+  height: number,
+  ball: { level: number; contrast: number }
+): number {
+  const R = BRIGHT_DISC_K * o.diameterPx + 1;
+  const minDen = MIN_PIXEL_CONTRAST_RATIO * ball.contrast;
+  let n = 0;
+  let bright = 0;
+  for (let y = Math.max(0, Math.floor(o.y - R)); y <= Math.min(height - 1, Math.ceil(o.y + R)); y++) {
+    for (let x = Math.max(0, Math.floor(o.x - R)); x <= Math.min(width - 1, Math.ceil(o.x + R)); x++) {
+      if ((x - o.x) ** 2 + (y - o.y) ** 2 > R * R) continue;
+      n++;
+      if (ball.level - background[y * width + x] < minDen) bright++;
+    }
+  }
+  return n ? bright / n : 0;
+}
+
+/**
+ * 추적한 공마다 거리 자(윤곽 지름)를 잰다. 첫 어림은 refineTrack(면적)의 중심 · 지름.
+ *
+ * 한 궤적은 한 가지 자로만 잰다. 윤곽을 못 잰 장면은 면적으로 채우지 않고 뺀다 — 면적 지름은 그늘 몫만큼
+ * 작고(윤곽의 0.91~0.95 배, 영상마다 다름) 번진 장면에서는 커서, 섞으면 그 장면만 튄다. 빼도 괜찮은 까닭:
+ * 1/d 는 시간에 거의 곧아 몇 장이 빠져도 맞춤이 흔들리지 않는다. 남은 장면이 모자라면 measureVelocity 가
+ * 거부한다(말없이 면적 궤적으로 돌아가지 않는다 — 1차 검증 요구).
+ *
+ * 투수 뒤(멀어짐) · 포수 뒤(다가옴) 둘 다 같은 자다 — 자가 모드마다 다르면 화각 하나로 둘 다 맞출 수 없다.
+ */
+function measureDiameters(
+  seed: BallObservation[],
+  lumaAt: Map<number, ArrayLike<number>>,
+  biasAt: Map<number, number>,
+  background: Float32Array,
+  width: number,
+  height: number,
+  minUsablePx: number,
+  transfer: LumaTransfer | undefined
+): { track: BallObservation[]; report: DiameterReport } {
+  const drops: Record<DiameterDrop, number> = { bright: 0, limb: 0, guard: 0 };
+  let brightUsable = 0;
+  let arcDrops = 0;
+  const seedD: number[] = [];
+  const widths: number[] = [];
+  const track: BallObservation[] = [];
+  const ball = ballLevel(seed, lumaAt, biasAt, background, width, height);
+  for (const o of seed) {
+    const luma = lumaAt.get(o.t);
+    if (!luma) continue;
+    const bias = biasAt.get(o.t) ?? 0;
+    /* 공 뒤가 공만큼 밝으면(흰 천 · 흰 벽) 테두리를 믿을 수 없다 — 그물(공 앞의 가림)은 빼고 본다 */
+    if (
+      ball &&
+      (o.visibleFrac ?? 1) >= NET_VISIBLE_FRAC &&
+      brightFraction(o, background, width, height, ball) > MAX_BRIGHT_FRAC
+    ) {
+      drops.bright++;
+      if (o.diameterPx >= minUsablePx) brightUsable++;
+      continue;
+    }
+    const why: { reason?: LimbFailure } = {};
+    const limb = measureLimb(
+      { luma, background, width, height, x: o.x, y: o.y, diameterPx: o.diameterPx, bias },
+      { transfer },
+      why
+    );
+    if (!limb) {
+      /* 대비가 모자라 광선 대부분을 못 쓴 것은 밝은 배경 탓이다(limb.ts 'contrast') */
+      if (why.reason === 'contrast' && (o.visibleFrac ?? 1) >= NET_VISIBLE_FRAC) {
+        drops.bright++;
+        if (o.diameterPx >= minUsablePx) brightUsable++;
+      } else {
+        drops.limb++;
+        if (why.reason === 'arc') arcDrops++;
+      }
+      continue;
+    }
+    const ratio = limb.diameterPx / o.diameterPx;
+    if (ratio < LIMB_GUARD_MIN || ratio > LIMB_GUARD_MAX) {
+      drops.guard++;
+      continue;
+    }
+    seedD.push(o.diameterPx);
+    widths.push(limb.edgePx);
+    track.push({
+      t: o.t,
+      x: limb.x,
+      y: limb.y,
+      diameterPx: limb.diameterPx,
+      visibleFrac: o.visibleFrac,
+    });
+  }
+  /*
+   * 흐림 보정 — 궤적 한 값(limb.ts EDGE_REF_PX · BLUR_KAPPA). 장면마다 보정하면 폭의 흔들림이 지름에 들어가 스피드건
+   * LOO 가 1.3 → 2.6 으로 나빠졌다. 면적 ÷ 윤곽 비는 보정한 지름으로 잰다(릴리스 위치 기준점이 같은 자가 되게).
+   */
+  const edgeWidth = widths.length ? medianOf(widths) : null;
+  const blurCut = edgeWidth != null ? blurCutPx(edgeWidth) : 0;
+  const ratios: number[] = [];
+  for (let k = 0; k < track.length; k++) {
+    const d = track[k].diameterPx - blurCut;
+    track[k] = { ...track[k], diameterPx: Math.max(1, d) };
+    ratios.push(track[k].diameterPx / seedD[k]);
+  }
+  return {
+    track,
+    report: {
+      ruler: 'limb',
+      seed: seed.length,
+      kept: track.length,
+      drops,
+      brightUsable,
+      limbPerArea: ratios.length ? Math.round(medianOf(ratios) * 1000) / 1000 : null,
+      edgeWidthPx: edgeWidth != null ? Math.round(edgeWidth * 1000) / 1000 : null,
+      blurCorrectionPx: Math.round(blurCut * 1000) / 1000,
+      blurred: edgeWidth != null && edgeWidth >= EDGE_LOW_PX,
+      arcDrops,
+    },
+  };
+}
+
 /* ───────────────────────── 릴리스 ───────────────────────── */
 
 /**
  * 릴리스 포인트와 릴리스 구속 추정.
  *
- * 투수 뒤: 릴리스 포인트는 '쓸 만한 크기로 찍힌 첫 관측'의 3차원 위치다(measure.ts 가 계산에
- * 쓰는 첫 점과 같다). 화면 가운데 표적에서 얼마나 벗어났는지를 cm 로 — 같은 투수가 공마다
- * 얼마나 같은 자리에서 놓는지(일관성)를 보는 데 쓴다. 카메라가 투수 뒤에 있으므로 오른쪽이
- * 투수의 오른쪽이다. 화면 y 는 아래로 자라므로 뒤집어 위를 + 로 둔다. 릴리스 구속은 그 첫 관측
- * 시점의 모델 속도(startKmh) — 첫 관측이 릴리스보다 한두 장 늦어도 그 사이 손실은 0.5km/h 안이다.
+ * 투수 뒤: 릴리스 포인트는 '공을 처음 찾은 곳'(anchor — 첫 어림 궤적에서 쓸 만한 크기로 찍힌 첫 관측)의 3차원
+ * 위치다. 윤곽은 번진 첫 장면을 빼곤 해서 계산의 첫 점이 그보다 한두 장 늦을 수 있는데, 포인트는 공을 놓은
+ * 자리를 보여 줘야 해서 처음 찾은 곳으로 한다. 그 관측의 지름은 면적(자가 다름)이라 궤적의 '윤곽 ÷ 면적'
+ * 중앙값을 곱해 윤곽 자로 옮긴다. 화면 가운데 표적에서 얼마나 벗어났는지를 cm 로 — 같은 투수가 공마다
+ * 얼마나 같은 자리에서 놓는지(일관성)를 보는 데 쓴다. 카메라가 투수 뒤에 있으므로 오른쪽이 투수의 오른쪽이다.
+ * 화면 y 는 아래로 자라므로 뒤집어 위를 + 로 둔다. 릴리스 구속은 계산의 첫 관측 시점의 모델 속도(startKmh).
+ * 공을 처음 찾은 시각까지 공기저항으로 되돌리지 않는다 — 1차 검증에서 되돌리면 스피드건과 더 어긋났다(첫
+ * 어림의 첫 덩어리가 손일 때가 있다). 그 사이 손실은 60fps 두세 장이면 1% 안팎이고 배율 보정에 흡수된다.
  *
  * 포수 뒤: 공이 마지막 몇 m 에 와서야 잴 만큼 커지므로 첫 관측 시점 속도는 릴리스보다 한참 낮다
  * (17m 면 약 8%). 설정에서 받은 카메라 → 릴리스 거리(releaseDistanceM)와 첫 관측 거리의 차이만큼
  * 되돌린다: v₀ = v·e^(K·gap). 거리를 모르면 릴리스 추정을 내지 않는다.
  */
+/** 공기저항 상수 K 의 상대 불확실성 — 야구공의 항력계수 0.3~0.5(K 0.0045~0.0078)를 1σ 로 */
+const RELEASE_DRAG_REL_SD = 0.25;
+
+/** 첫 관측 시점 속도의 예상 σ(비율) — SE 를 못 냈으면 거부 문턱만큼 */
+function startSigmaRel(measure: MeasureSuccess): number {
+  const se = measure.detail.startSeKmh;
+  return se != null
+    ? speedSigmaRel(se, measure.detail.startKmh)
+    : Math.hypot(MAX_RELATIVE_SE, SYSTEMATIC_FLOOR_REL);
+}
+
 function releaseInfo(
   observations: BallObservation[],
   lens: CameraLens,
   measure: MeasureSuccess,
   approach: Approach,
-  releaseDistanceM: number | null | undefined
+  releaseDistanceM: number | null | undefined,
+  anchor: BallObservation | null,
+  /** 잭나이프가 못 보는 σ(비율) — 흐림 · 보정 조건 밖(measureTrack) */
+  extraSigmaRel = 0
 ): ReleaseInfo | null {
   const round1 = (n: number) => Math.round(n * 10) / 10;
+  const sigmaRel = Math.hypot(startSigmaRel(measure), extraSigmaRel);
   if (approach === 'approaching') {
     if (!(releaseDistanceM != null && releaseDistanceM > 0)) return null;
     const gap = Math.max(0, releaseDistanceM - measure.detail.releaseDistanceM);
+    const kmh = measure.detail.startKmh * Math.exp(DRAG_K_PER_M * gap);
     return {
-      releaseKmh: round1(measure.detail.startKmh * Math.exp(DRAG_K_PER_M * gap)),
+      releaseKmh: round1(kmh),
+      errorKmh: round1(ERROR_INTERVAL_Z * kmh * Math.hypot(sigmaRel, RELEASE_DRAG_REL_SD * DRAG_K_PER_M * gap)),
       dxCm: null,
       dyCm: null,
       distanceM: Math.round(releaseDistanceM * 100) / 100,
     };
   }
-  const first = [...observations]
-    .sort((a, b) => a.t - b.t)
-    .find((o) => o.diameterPx >= MIN_USABLE_BALL_PX);
+  const first =
+    anchor ??
+    [...observations]
+      .sort((a, b) => a.t - b.t)
+      .find((o) => o.diameterPx >= MIN_USABLE_BALL_PX);
   const point = first ? toPoint3D(first, lens) : null;
   if (!point) return null;
   return {
     releaseKmh: round1(measure.detail.startKmh),
+    errorKmh: round1(ERROR_INTERVAL_Z * measure.detail.startKmh * sigmaRel),
     dxCm: round1(point.x * 100),
     dyCm: round1(-point.y * 100),
     distanceM: Math.round(point.z * 100) / 100,
@@ -452,6 +794,9 @@ function releaseInfo(
 }
 
 /* ───────────────────────── 본체 ───────────────────────── */
+
+/** 장면이 모자라 거부된 것 — 밝은 배경에 뺀 장면 탓이면 그 까닭(BRIGHT_BACKGROUND)으로 바꿔 알린다 */
+const SHORTAGE_CODES = new Set(['NOT_ENOUGH_FRAMES', 'TRAVEL_TOO_SHORT']);
 
 export function analyzeFrames(input: AnalyzeFramesInput): AnalyzeResult {
   const {
@@ -500,7 +845,9 @@ export function analyzeFrames(input: AnalyzeFramesInput): AnalyzeResult {
    *    보탠다 — 공이 오래 머무는 자리도 배경으로 채워지게.
    */
   const samples: ArrayLike<number>[] = [...(input.backgroundSamples ?? [])];
-  const inWindow = Math.min(7, frames.length);
+  /* 준 배경이 없으면 0 을 받아도 구간 안에서 뽑는다 — 배경이 비면 아무것도 못 찾는다 */
+  const inWindowWanted = samples.length > 0 ? (input.inWindowBackground ?? 7) : 7;
+  const inWindow = Math.min(Math.max(0, Math.floor(inWindowWanted)), frames.length);
   for (let i = 0; i < inWindow; i++) {
     samples.push(
       frames[Math.floor((i * (frames.length - 1)) / Math.max(1, inWindow - 1))].luma
@@ -538,17 +885,64 @@ export function analyzeFrames(input: AnalyzeFramesInput): AnalyzeResult {
     focalDiameterPx: focalPx * (width / sourceWidth) * BALL_DIAMETER_M,
   });
 
-  /* 4) 지름 · 중심을 대비 50% 면적으로 다시 잰다 — 번짐에 치우치지 않게 */
-  const track = refineTrack(rough, lumaAt, biasAt, background, width, height);
+  /* 4) 첫 어림 — 지름 · 중심을 밝기 총량(면적)으로. 윤곽을 어디서 찾을지 · 검사 · 릴리스 위치에만 쓴다 */
+  const seedTrack = refineTrack(rough, lumaAt, biasAt, background, width, height);
+  const scale = width / sourceWidth;
+
+  /* 5) 거리 자 — 빛 받은 쪽 윤곽의 원(limb.ts). 시험용 limb:false 면 1.5.0 의 면적 */
+  const measured =
+    input.limb === false
+      ? {
+          track: seedTrack,
+          report: {
+            ruler: 'area' as const,
+            seed: seedTrack.length,
+            kept: seedTrack.length,
+            drops: { bright: 0, limb: 0, guard: 0 },
+            brightUsable: 0,
+            limbPerArea: null,
+            edgeWidthPx: null,
+            blurCorrectionPx: 0,
+            blurred: false,
+            arcDrops: 0,
+          },
+        }
+      : measureDiameters(
+          seedTrack,
+          lumaAt,
+          biasAt,
+          background,
+          width,
+          height,
+          MIN_USABLE_BALL_PX * scale,
+          input.transfer
+        );
+  const track = measured.track;
+  const diameter: DiameterReport = measured.report;
 
   // 지름·좌표를 원본 해상도 기준으로 되돌린다. 렌즈 정보가 원본 기준이기 때문이다.
-  const scale = width / sourceWidth;
-  const scaled: BallObservation[] = track.map((o) => ({
+  const toSource = (o: BallObservation, k = 1): BallObservation => ({
     t: o.t,
     x: o.x / scale,
     y: o.y / scale,
-    diameterPx: o.diameterPx / scale,
-  }));
+    diameterPx: (o.diameterPx * k) / scale,
+  });
+  const scaled: BallObservation[] = track.map((o) => toSource(o));
+
+  /*
+   * 촬영 자세 검사(거리 · 중앙)와 릴리스 포인트의 기준 관측 — 투수 뒤는 공을 처음 찾은 곳, 포수 뒤는 가장
+   * 가까운 곳. 윤곽은 번진 장면(투수 뒤의 첫 장면 · 포수 뒤의 마지막 장면)을 빼곤 해서, 뺀 만큼 밀린 관측으로
+   * 검사하면 멀쩡한 촬영이 '너무 멀다'로 거부된다(1차 검증: 거꾸로 돌린 실제 영상 셋이 포수 뒤로 TOO_FAR).
+   * 그래서 첫 어림 궤적에서 쓸 만한 크기(원본 9px 이상)의 끝 관측을 쓰고, 지름은 윤곽 자로 옮긴다.
+   */
+  const anchor = (() => {
+    if (diameter.ruler !== 'limb' || diameter.limbPerArea == null) return null;
+    const usable = [...seedTrack]
+      .sort((a, b) => a.t - b.t)
+      .filter((o) => o.diameterPx / scale >= MIN_USABLE_BALL_PX);
+    const at = approach === 'receding' ? usable[0] : usable[usable.length - 1];
+    return at ? toSource(at, diameter.limbPerArea) : null;
+  })();
 
   const lens: CameraLens = {
     focalPx,
@@ -566,20 +960,23 @@ export function analyzeFrames(input: AnalyzeFramesInput): AnalyzeResult {
     fps: measuredFps,
   });
 
-  const measure: MeasureResult = footage
-    ? { ok: false, ...footage }
-    : measureVelocity({
-        observations: scaled,
-        lens,
-        stability: { maxBackgroundShiftPx: shakePx },
-        approach,
-      });
+  const trackInput: TrackMeasureInput = {
+    observations: scaled,
+    anchor,
+    lens,
+    shakePx,
+    approach,
+    diameter,
+    footage,
+    releaseDistanceM: input.releaseDistanceM,
+    calibrated: input.calibrated === true,
+    domainSigmaRel: input.domainSigmaRel,
+  };
+  const { measure, release } = measureTrack(trackInput);
 
   return {
     measure,
-    release: measure.ok
-      ? releaseInfo(scaled, lens, measure, approach, input.releaseDistanceM)
-      : null,
+    release,
     fps: measuredFps,
     track,
     analyzeSize: { width, height },
@@ -587,6 +984,106 @@ export function analyzeFrames(input: AnalyzeFramesInput): AnalyzeResult {
     frameCount: frames.length,
     shakePx: Math.round(shakePx * 10) / 10,
     focalPx: Math.round(focalPx),
-    ...(input.debug ? { blobFrames } : {}),
+    diameter,
+    ...(input.debug ? { blobFrames, seedTrack, trackInput } : {}),
+  };
+}
+
+/**
+ * 거리 자로 잰 궤적(원본 픽셀) → 구속 · 릴리스. analyzeFrames 의 마지막 단계를 떼어 둔 것 — 영상 처리(감지 · 추적 ·
+ * 지름)는 그대로 두고 맞춤 · 판정만 바꿔 볼 때 같은 코드로 다시 돌리려고(2차 보정 실험실).
+ */
+export type TrackMeasureInput = {
+  /** 거리 자로 잰 관측(원본 픽셀) */
+  observations: BallObservation[];
+  /** 촬영 자세 · 릴리스 포인트의 기준 관측(원본 픽셀, 윤곽 자로 옮긴 것) — analyzeFrames 설명 */
+  anchor: BallObservation | null;
+  lens: CameraLens;
+  shakePx: number;
+  approach: Approach;
+  diameter: DiameterReport;
+  /** 영상 자체의 거부 사유(해상도 · fps) — 있으면 재지 않는다 */
+  footage: Rejection | null;
+  releaseDistanceM?: number | null;
+  /** 보정한 조건 안인가(AnalyzeFramesInput.calibrated) — 아니면 ± 를 넓히고 믿음은 '보통'까지 */
+  calibrated?: boolean;
+  /** 보정한 조건 밖일 때 ± 에 더할 σ(비율) — AnalyzeFramesInput.domainSigmaRel */
+  domainSigmaRel?: number;
+};
+
+export function measureTrack(input: TrackMeasureInput): {
+  measure: MeasureResult;
+  release: ReleaseInfo | null;
+} {
+  const { observations, anchor, lens, shakePx, approach, diameter, footage } = input;
+  let measure: MeasureResult = footage
+    ? { ok: false, ...footage }
+    : measureVelocity({
+        observations,
+        lens,
+        stability: { maxBackgroundShiftPx: shakePx },
+        approach,
+        framingAnchor: anchor,
+      });
+
+  /*
+   * 장면이 모자라 거부됐는데 공 뒤가 밝아 뺀 장면이 있으면, 그 까닭을 알린다 — '공을 못 잡았다'만으로는 무엇을
+   * 고칠지 모른다(과녁을 겨눈 공은 끝에서 흰 과녁 천 앞을 지난다).
+   */
+  /*
+   * 밝은 배경 탓일 때만 — 밝은 배경으로 뺀 장면이 윤곽을 못 잰 장면보다 적지 않을 때. 한 장이라도 밝은 배경이면 이름을
+   * 바꾸던 때는, 흐려서(윤곽 실패가 대부분) 못 잰 영상에도 '흰 과녁' 안내가 붙었다(2차 검증 — 견고성). 공이 천에 묻혀
+   * 추적이 몇 장에서 끊기면 밝은 배경으로 뺀 장면은 한두 장뿐이어도 까닭은 천이다(합성 '흰 과녁 5m': 4장 중 1장).
+   */
+  if (
+    !measure.ok &&
+    SHORTAGE_CODES.has(measure.code) &&
+    diameter.brightUsable > 0 &&
+    diameter.brightUsable >= diameter.drops.limb
+  ) {
+    measure = { ok: false, ...reject('BRIGHT_BACKGROUND') };
+  }
+  /*
+   * 믿음을 낮출 것 — 두 가지 다 값은 내되 'low' 로(값을 버리지는 않는다):
+   *  - 초점이 크게 나간 영상(흐림 보정의 시험 범위 밖 — EDGE_MAX_PX)
+   *  - 흰 천 · 흰 벽 앞이라 뺀 장면이 쓸 만한 크기 장면의 3분의 1 이상 — 남은 장면이 궤적의 앞쪽에 몰려 있다
+   *    (1차 검증: eb05ae07 처럼 천 가장자리에 걸친 먼 장면은 넣고 빼기가 칼날이다)
+   */
+  if (measure.ok && measure.confidence !== 'low') {
+    const usable = measure.detail.frames + diameter.brightUsable;
+    if (diameter.blurred || (diameter.brightUsable > 0 && diameter.brightUsable * 3 >= usable)) {
+      measure = { ...measure, confidence: 'low' };
+    }
+  }
+  /*
+   * 믿음 '보통'까지(값 · ± 는 아래):
+   *  - 가장자리 폭 EDGE_MEDIUM_PX(1.8px) 이상 — 조금 흐린 영상
+   *  - 보정한 조건 밖 — 다른 폰 · 카메라 실시간 · 240fps · HDR(AnalyzeFramesInput.calibrated 설명)
+   *  - 윤곽 원호가 좁아 뺀 장면이 첫 어림의 3분의 1 이상 — 빛 받은 테두리가 한쪽만 남은 조명
+   */
+  if (measure.ok && measure.confidence === 'high') {
+    const edge = diameter.edgeWidthPx;
+    const arcLimited = diameter.seed > 0 && diameter.arcDrops >= ARC_DROP_MEDIUM_FRAC * diameter.seed;
+    if ((edge != null && edge >= EDGE_MEDIUM_PX) || input.calibrated !== true || arcLimited) {
+      measure = { ...measure, confidence: 'medium' };
+    }
+  }
+  /* ± 에 잭나이프가 못 보는 σ(흐림 · 보정 조건 밖)를 더한다 — 구간 평균 · 릴리스 둘 다 */
+  const extraSigmaRel = Math.hypot(
+    blurSigmaRel(diameter.edgeWidthPx),
+    input.calibrated === true ? 0 : (input.domainSigmaRel ?? OUT_OF_DOMAIN_SIGMA_REL)
+  );
+  if (measure.ok && extraSigmaRel > 0) {
+    measure = {
+      ...measure,
+      errorKmh:
+        Math.round(Math.hypot(measure.errorKmh, ERROR_INTERVAL_Z * extraSigmaRel * measure.kmh) * 10) / 10,
+    };
+  }
+  return {
+    measure,
+    release: measure.ok
+      ? releaseInfo(observations, lens, measure, approach, input.releaseDistanceM, anchor, extraSigmaRel)
+      : null,
   };
 }

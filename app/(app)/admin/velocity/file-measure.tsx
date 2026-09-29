@@ -10,7 +10,7 @@ import { uploadClip } from '@/lib/velocity-clip-upload';
 import { analysisOf } from '@/lib/velocity-analysis';
 import { analyzeVideo, type AnalyzeResult } from '@/lib/velocity-engine/analyze-video';
 import { isLowFrameRate, readVideoFps } from '@/lib/velocity-engine/video-fps';
-import { readVideoLens, videoFovFor, videoLensText } from '@/lib/velocity-engine/video-lens';
+import { readVideoLens, videoFovInfo, videoLensText } from '@/lib/velocity-engine/video-lens';
 import { approachOf, type CameraPos } from '@/lib/velocity-setup';
 import { CONFIDENCE_TEXT, PITCH_TYPES, type ConfidenceKey } from '@/lib/velocity-meta';
 import { toDateKey } from '@/lib/pitch-stats';
@@ -100,9 +100,13 @@ export function FileMeasure({
     setLensText(null);
     void readVideoLens(next).then((lens) => {
       if (seq !== pickSeq.current) return;
-      const fov = videoFovFor(lens);
+      /* 스피드건으로 맞춘 것은 24mm(15 Pro · Pro Max)뿐 — 다른 초점거리는 추정이라 알린다(video-lens.ts videoFovInfo) */
+      const info = videoFovInfo(lens);
+      const fov = info?.fovDeg ?? null;
       const text = videoLensText(lens);
-      setLensText(text ? `${text}${fov ? ` → 화각 ${fov}°` : ''}` : null);
+      setLensText(
+        text ? `${text}${fov ? ` → 화각 ${fov}°${info?.estimate ? '(추정 — 렌즈 보정 권장)' : ''}` : ''}` : null
+      );
       if (fov) setFovDeg(String(fov));
     });
     const url = URL.createObjectURL(next);
@@ -355,7 +359,7 @@ export function FileMeasure({
           hint={
             lensText
               ? `파일의 렌즈: ${lensText} — 아이폰 영상 모드는 사진(69°)보다 좁아요`
-              : '아이폰 후면 메인 카메라 영상 모드 약 62°, 사진 모드 69°'
+              : '아이폰 15 Pro 메인 카메라 영상 모드 59.8°(스피드건으로 맞춘 값), 사진 모드 약 69°'
           }
         >
           <Input

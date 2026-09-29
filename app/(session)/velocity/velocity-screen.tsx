@@ -40,6 +40,7 @@ import {
   type ResultMeta,
 } from '@/lib/velocity-engine/live-capture';
 import { focalPxFromFov } from '@/lib/velocity-engine/geometry';
+import { readVideoLens, videoFovFor } from '@/lib/velocity-engine/video-lens';
 import { analysisOf } from '@/lib/velocity-analysis';
 import { uploadClip } from '@/lib/velocity-clip-upload';
 import {
@@ -621,17 +622,23 @@ export function VelocityScreen({
     setError(null);
     setLast(null);
     try {
-      addResult(
-        await analyzeVideo({
-          file,
-          fovDeg: fov,
-          onProgress: setFileProgress,
-          approach,
-          focalPerLongSide: focalRatio,
-          releaseDistanceM: approach === 'approaching' ? releaseDistM : null,
-        }),
-        'file'
-      );
+      /*
+       * 파일의 렌즈 정보로 화각을 잡는다(관리자 '영상 파일로 재기'와 같게). 카메라 앱 영상은 손떨림 보정이 가장자리를
+       * 잘라 실시간 카메라보다 좁다 — 설정 화각(기본 69°) · 실시간 렌즈 보정을 쓰면 아이폰 영상이 약 16% 낮게 나왔다
+       * (2차 보정). 렌즈 정보가 없는 파일만 설정 화각 · 렌즈 보정 그대로.
+       */
+      const fileFov = videoFovFor(await readVideoLens(file));
+      const result = await analyzeVideo({
+        file,
+        fovDeg: fileFov ?? fov,
+        onProgress: setFileProgress,
+        approach,
+        focalPerLongSide: fileFov != null ? null : focalRatio,
+        releaseDistanceM: approach === 'approaching' ? releaseDistM : null,
+      });
+      addResult(result, 'file');
+      /* HDR · 보정한 촬영과 다른 영상이면 그 알림(± 가 넓은 까닭)을 잠깐 보인다 */
+      if (result.measure.ok && result.video.notes.length) setToast(result.video.notes[0]);
     } catch (e) {
       setError(e instanceof Error ? e.message : '영상을 분석하지 못했습니다.');
     } finally {

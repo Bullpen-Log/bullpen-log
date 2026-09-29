@@ -32,6 +32,7 @@ import { analyzeVideo, type AnalyzeResult } from '@/lib/velocity-engine/analyze-
 import { analysisOf } from '@/lib/velocity-analysis';
 import { readVideoFps } from '@/lib/velocity-engine/video-fps';
 import { readVideoLens, videoFovFor } from '@/lib/velocity-engine/video-lens';
+import { LENS_VERSION } from '@/lib/velocity-lens';
 import {
   reject,
   type RejectCode,
@@ -279,7 +280,7 @@ export async function remeasurePitch(
   });
   /*
    * 초점거리: 렌즈 보정(공으로 잰 것)이 있는 세션만 그 값을 쓴다. 세션의 focalPx 는 화각 가정으로 만든
-   * 값이라 그것을 쓰면 옛 화각이 굳는다. 보정이 없으면 파일의 렌즈 정보로 영상 모드 화각(아이폰 62°)을,
+   * 값이라 그것을 쓰면 옛 화각이 굳는다. 보정이 없으면 파일의 렌즈 정보로 영상 모드 화각(아이폰 59.8°)을,
    * 그것도 없으면 세션의 화각.
    */
   const lens = await readVideoLens(file);
@@ -289,8 +290,16 @@ export async function remeasurePitch(
     fps: await readVideoFps(file),
     fovDeg: videoFovFor(lens) ?? session.fovDeg,
     approach: approachOfSession(session),
+    /*
+     * 렌즈 보정은 지금 판(윤곽 자로 잰 것)만 — 옛 판(면적)은 윤곽 지름과 0.91~0.95 배 어긋나 구속이 5~9% 낮게 나온다.
+     * 그런 세션은 파일의 렌즈 정보(없으면 세션 화각)로 잰다.
+     */
     focalPerLongSide:
-      session.lensCal && session.focalPx && session.frameW && session.frameH
+      session.lensCal &&
+      session.lensCalVersion === LENS_VERSION &&
+      session.focalPx &&
+      session.frameW &&
+      session.frameH
         ? session.focalPx / Math.max(session.frameW, session.frameH)
         : null,
     releaseDistanceM: session.releaseDistM,

@@ -187,6 +187,11 @@ export type AdminSessionRow = {
   focalPx: number | null;
   /** 렌즈 보정 요약 한 줄(있을 때) */
   lensCal: string | null;
+  /**
+   * 렌즈 보정의 저장 형식 판(lib/velocity-lens.ts LENS_VERSION). 지금 판이 아니면 다른 자(면적)로 잰 보정이라 다시 잴 때
+   * 그 초점거리를 쓰지 않는다(explorer-panels remeasurePitch).
+   */
+  lensCalVersion: number | null;
   releaseDistM: number | null;
   autoMode: boolean;
   forCalibration: boolean;
@@ -522,6 +527,12 @@ function pickAnalysis(raw: unknown): AdminPitchAnalysis | null {
   };
 }
 
+/** 렌즈 보정 JSON 의 저장 형식 판 — 없으면 null */
+function lensCalVersionOf(raw: unknown): number | null {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
+  return numOrNull((raw as Record<string, unknown>).version);
+}
+
 /** 렌즈 보정 JSON(lib/velocity-lens.ts 의 LensCalibration) 한 줄 요약 */
 function lensCalText(raw: unknown): string | null {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
@@ -602,6 +613,7 @@ function toSessionRow(s: SessionWithPitches, urls: Record<string, string>): Admi
     fovDeg: s.fovDeg,
     focalPx: s.focalPx,
     lensCal: lensCalText(s.lensCal),
+    lensCalVersion: lensCalVersionOf(s.lensCal),
     releaseDistM: s.releaseDistM,
     autoMode: s.autoMode,
     forCalibration: s.forCalibration,

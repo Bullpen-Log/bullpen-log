@@ -112,7 +112,12 @@ export function sanitizeAnalysis(raw: unknown): Record<string, unknown> | null {
         .filter((p): p is number[] => !!p)
     : [];
   const out: Record<string, unknown> = {
-    v: 1,
+    v: a.v === 2 ? 2 : 1,
+    /* v2(모델 1.6.0) — 어느 자로 쟀나 · 흐림 · SE(lib/velocity-analysis.ts) */
+    ruler: a.ruler === 'limb' || a.ruler === 'area' ? a.ruler : null,
+    edgeWidthPx: n(a.edgeWidthPx),
+    blurCorrectionPx: n(a.blurCorrectionPx),
+    startSeKmh: n(a.startSeKmh),
     track,
     analyzeSize: size(a.analyzeSize),
     sourceSize: size(a.sourceSize),

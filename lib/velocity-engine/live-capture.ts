@@ -164,6 +164,13 @@ const TRIGGER_MAX_RATIO = 0.35;
 /** 던지기 앞뒤로 담는 시간(초) */
 const PRE_SEC = 0.12;
 const POST_SEC = 0.6;
+/**
+ * 카메라 실시간 측정의 ± 에 더할 σ(값에 대한 비율). 윤곽 자 · 화각은 아이폰 카메라 앱 영상 파일로 맞췄고 실시간(웹뷰 ·
+ * getUserMedia)은 스피드건 짝이 없다 — 같은 화각이면 1.5.0 보다 평균 6% 낮게 읽는다(영상 14개, −13.5~+2.7%, 2차 검증 —
+ * 견고성). 어느 쪽이 맞는지 짝이 없어, 짝이 쌓일 때까지 ± 를 넓히고 믿음은 '보통'까지(analyze-frames calibrated 없음).
+ */
+const LIVE_DOMAIN_SIGMA_REL = 0.06;
+
 /** 계산에 넘기는 최대 프레임 수 — 240fps 라도 앞 0.37초면 공은 이미 사라졌다 */
 const MAX_ANALYZE_FRAMES = 90;
 /** 고리 버퍼 크기(프레임) */
@@ -754,6 +761,17 @@ export class LiveCapture {
           );
         }
         const captured: CapturedFrame[] = frames.map((f) => ({ t: f.t, luma: f.luma }));
+        /*
+         * 초당 장면 수를 장면 시각(mediaTime) 간격의 중앙값으로 재서 넘긴다 — 안 넘기면 엔진이 '같은 장면'을 걸러 작아진 공
+         * 장면을 버리고(실시간 흉내에서 43장 중 3~7장), 남은 장수로 센 fps 가 50 밑이면 '초당 장면 수 부족'으로 거부했다.
+         */
+        const gaps: number[] = [];
+        for (let i = 1; i < frames.length; i++) {
+          const dt = frames[i].t - frames[i - 1].t;
+          if (dt > 0) gaps.push(dt);
+        }
+        gaps.sort((a, b) => a - b);
+        const liveFps = gaps.length >= 3 ? 1 / gaps[Math.floor(gaps.length / 2)] : null;
         const result = analyzeFrames({
           frames: captured,
           backgroundSamples,
@@ -768,6 +786,9 @@ export class LiveCapture {
           shakePx,
           approach: this.approach,
           releaseDistanceM: this.releaseDistanceM,
+          fps: liveFps,
+          /* 카메라 실시간은 스피드건 짝이 없다 — 영상 처리 · 화각(설정 값)이 보정한 영상 파일과 달라 ± 를 넓게 */
+          domainSigmaRel: LIVE_DOMAIN_SIGMA_REL,
         });
         this.handlers.onResult(result, meta);
       } catch (e) {

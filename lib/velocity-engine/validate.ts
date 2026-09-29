@@ -1,5 +1,6 @@
 import {
   BALL_DIAMETER_M,
+  CURVATURE_TRIM_SIGMA,
   MIN_OBSERVATIONS,
   type BallObservation,
   type BallPoint3D,
@@ -56,7 +57,14 @@ export const MAX_RELEASE_OFFSET_RATIO = 0.45;
 /** 공이 이만큼은 멀어져야 속도를 낼 수 있다(m). 너무 짧으면 오차가 지배한다. */
 export const MIN_TRAVEL_M = 2.5;
 
-/** 궤적이 직선에서 벗어난 정도의 하한. 이보다 낮으면 공을 놓친 것으로 본다. */
+/**
+ * 궤적이 직선에서 벗어난 정도의 하한(세 축 R²). 이보다 낮으면 공을 놓친 것으로 본다.
+ *
+ * 모델 1.6.0 에서 다시 따졌다: 공기저항 곡선 위 장면마다의 거리 잡음이 σ_z 이면 R² ≈ 1 − 12·(σ_z / 이동 거리)². 실제로
+ * 본 가장 나쁜 장면 잡음(작은 공 2%)으로 10m 에서 가장 짧게 허락한 이동(2.5m)이면 0.92 — 멀쩡한 공은 이 위에 있다(실제
+ * 영상 18개는 모두 0.995 이상). 몇 장이 답을 좌우하는 궤적은 이것이 아니라 잭나이프 SE(MAX_RELATIVE_SE)가 거른다 —
+ * 이것은 공이 아닌 것을 따라간 큰 실패만 본다. 그래서 0.9 를 그대로 둔다.
+ */
 export const MIN_FIT_QUALITY = 0.9;
 
 /** 사람이 던질 수 있는 범위(km/h). 밖이면 측정이 틀린 것이다. */
@@ -189,7 +197,8 @@ export type RejectCode =
   | 'TRAVEL_TOO_SHORT'
   | 'UNSTABLE_TRACK'
   | 'IMPLAUSIBLE_SPEED'
-  | 'LENS_UNKNOWN';
+  | 'LENS_UNKNOWN'
+  | 'BRIGHT_BACKGROUND';
 
 export type Rejection = {
   code: RejectCode;
@@ -210,7 +219,11 @@ const REJECTIONS: Record<RejectCode, Omit<Rejection, 'code'>> = {
   },
   NOT_ENOUGH_FRAMES: {
     message: '공을 충분히 잡지 못했습니다.',
-    fix: '밝은 곳에서, 공이 가려지지 않게 다시 찍어주세요. 슬로모션으로 찍으면 더 잘 잡힙니다.',
+    /*
+     * 흰 과녁 천 앞으로 날아간 공은 손을 떠난 지 1~3장 만에 배경과 밝기가 같아져 궤적 자체가 안 잡힌다(2차 보정의
+     * 3be4d460 · 675d2051) — 그때는 BRIGHT_BACKGROUND 가 아니라 이 까닭으로 끝나므로 여기에도 같은 안내를 둔다.
+     */
+    fix: '밝은 곳에서, 공이 가려지지 않게 다시 찍어주세요. 공 뒤에 흰 과녁 천 · 흰 벽이 오면 공이 배경에 묻혀 보이지 않습니다 — 카메라를 조금 낮추거나 어두운 천을 쓰세요. 슬로모션으로 찍으면 더 잘 잡힙니다.',
   },
   CAMERA_SHAKE: {
     message: '촬영 중 카메라가 움직였습니다.',
@@ -218,7 +231,7 @@ const REJECTIONS: Record<RejectCode, Omit<Rejection, 'code'>> = {
   },
   TOO_FAR: {
     message: '카메라가 투수에게서 너무 멀리 있습니다.',
-    fix: '투수 바로 뒤 1m 이내에 삼각대를 세우고 다시 찍어주세요.',
+    fix: '투수 바로 뒤(릴리스에서 2~3m 안)에 삼각대를 세우고, 공이 손을 떠나는 순간이 화면 가운데 오게 다시 찍어주세요.',
   },
   TOO_CLOSE: {
     message: '카메라가 너무 가깝습니다.',
@@ -234,7 +247,7 @@ const REJECTIONS: Record<RejectCode, Omit<Rejection, 'code'>> = {
   },
   UNSTABLE_TRACK: {
     message: '공의 움직임이 고르지 않아 믿을 수 없는 값입니다.',
-    fix: '공과 배경이 비슷한 색이면 놓치기 쉽습니다. 배경이 단순한 곳에서 다시 찍어주세요.',
+    fix: '공이 흐리게 찍혔거나(초점) 너무 짧게 보였을 수 있습니다. 초점을 공이 날아갈 쪽에 맞추고, 공과 배경의 색이 다른 곳에서 다시 찍어주세요.',
   },
   IMPLAUSIBLE_SPEED: {
     message: '측정값이 실제 투구 범위를 벗어났습니다.',
@@ -243,6 +256,15 @@ const REJECTIONS: Record<RejectCode, Omit<Rejection, 'code'>> = {
   LENS_UNKNOWN: {
     message: '이 카메라의 렌즈 정보를 아직 모릅니다.',
     fix: '측정 전 카메라 보정을 한 번 해주세요. 한 번만 하면 됩니다.',
+  },
+  /*
+   * 공이 흰 과녁 천 · 흰 벽 · 밝은 조명 앞을 지나 테두리를 잴 수 없는 장면을 빼고 나니 모자란 것(analyze-frames.ts
+   * MAX_BRIGHT_FRAC). 공(밝기 205 안팎)과 그 뒤 배경의 밝기가 같으면 공이 어디서 끝나는지 영상에 없다 — 기술로
+   * 풀 수 없고 찍는 자리를 바꿔야 한다(2026-09-29 2차 보정: 과녁을 겨눈 공 둘이 끝에서 흰 천 앞을 지났다).
+   */
+  BRIGHT_BACKGROUND: {
+    message: '공이 흰 과녁 · 밝은 벽 앞을 지나가 공의 크기를 잴 수 없었습니다.',
+    fix: '공 뒤로 어두운 배경이 오게 해 주세요 — 카메라를 조금 낮추거나 옆으로 옮기고, 흰 과녁 천은 어두운 천으로 바꾸면 됩니다. 공과 배경의 밝기가 같으면 공의 테두리가 영상에 남지 않습니다.',
   },
 };
 
@@ -376,6 +398,45 @@ export function checkTrackContinuity(
   return null;
 }
 
+/*
+ * ───────────────────── 불확실성 · 믿음(모델 1.6.0 — 2차 보정 core-f) ─────────────────────
+ *
+ * 값의 흔들림 σ = hypot(잭나이프 SE, 바닥 × 값).
+ *  - 잭나이프 SE(geometry.ts fitSpeed): 1/30초 블록을 하나씩 빼고 다시 맞춘 값의 흩어짐 — 이 궤적의 장면 잡음과
+ *    몇 장에 기대는 정도를 그대로 잰다. 실제 영상 14개(흰 천 없는 것)에서 가운데 1.1~1.3%, 제곱평균 1.27km/h 로
+ *    스피드건과의 차이(배율 LOO 제곱평균 1.16~1.27km/h — 건 자체의 잡음까지 든 값)와 크기가 같았다.
+ *  - 바닥(SYSTEMATIC_FLOOR_REL): 잭나이프가 못 보는 궤적 전체의 치우침 — 자의 배율이 영상마다 조금씩 다른 것
+ *    (가장자리 폭 · 배경 밝기), 릴리스와 첫 관측 사이의 몇 장. 장면을 아무리 모아도 줄지 않는다.
+ */
+
+/** 잭나이프가 못 보는 궤적마다의 치우침(값에 대한 비율) — 설명은 위 */
+export const SYSTEMATIC_FLOOR_REL = 0.01;
+
+/**
+ * 잭나이프 SE 가 값의 이만큼(5%)을 넘으면 거부한다. 그 궤적은 몇 장이 답을 좌우한다(공이 아닌 것을 따라갔거나 너무
+ * 짧다). 5% 면 90% 구간이 ±8%(110km/h 에서 ±9km/h) — 직구와 변화구를 가를 수도 없어 숫자로 내면 안 된다. 실제 영상
+ * 18개의 모든 구간에서 가장 큰 값은 4.4%(흰 천 가장자리의 eb05ae07, 먼 장면 넷)였다.
+ */
+export const MAX_RELATIVE_SE = 0.05;
+
+/** 화면의 ± 는 90% 구간(정규분포 1.645σ) */
+export const ERROR_INTERVAL_Z = 1.645;
+
+/**
+ * 믿음 등급 — 예상 σ(값에 대한 비율)로 나눈다. 높음: 1.5% 이하(110km/h 에서 90% 구간 ±2.7km/h, 스피드건끼리의 차이
+ * 수준), 보통: 3% 이하(±5.4km/h), 그 밖은 낮음(참고용). 높음은 잭나이프 블록이 다섯 개 이상일 때만 — 블록이 적으면
+ * SE 자체를 믿을 수 없다(블록 셋이면 SE 의 상대 흔들림이 50% 가 넘는다).
+ */
+export const HIGH_MAX_SIGMA_REL = 0.015;
+export const MEDIUM_MAX_SIGMA_REL = 0.03;
+export const HIGH_MIN_JACKKNIFE_BLOCKS = 5;
+
+/** 예상 σ(값에 대한 비율). SE 를 못 냈으면(블록 셋 미만) 무한대 */
+export function speedSigmaRel(seKmh: number, kmh: number): number {
+  if (!Number.isFinite(seKmh) || !(kmh > 0)) return Number.POSITIVE_INFINITY;
+  return Math.hypot(seKmh / kmh, SYSTEMATIC_FLOOR_REL);
+}
+
 /** 계산된 속도가 쓸 만한지 검사 */
 export function checkFit(fit: SpeedFit): Rejection | null {
   if (fit.sampleCount < MIN_OBSERVATIONS) return reject('NOT_ENOUGH_FRAMES');
@@ -387,36 +448,45 @@ export function checkFit(fit: SpeedFit): Rejection | null {
   if (fit.kmh < MIN_PLAUSIBLE_KMH || fit.kmh > MAX_PLAUSIBLE_KMH) {
     return reject('IMPLAUSIBLE_SPEED');
   }
+  /* 몇 장이 답을 좌우하는 궤적 — 숫자를 내지 않는다(SE 를 못 냈으면 여기서는 보지 않고 믿음을 낮춘다) */
+  if (Number.isFinite(fit.startSeKmh) && fit.startSeKmh > MAX_RELATIVE_SE * fit.startKmh) {
+    return reject('UNSTABLE_TRACK');
+  }
   return null;
 }
 
 /**
- * 이 측정을 얼마나 믿을 수 있는지.
- *
- * 통과했다고 다 같은 품질은 아니다. 프레임이 많고 직선에 잘 맞고 가까이서
- * 찍었을수록 믿을 만하다. 낮게 나오면 화면에서 "참고용"이라고 알린다.
+ * 이 측정을 얼마나 믿을 수 있는지 — 예상 σ(릴리스 값 기준)로 나눈다(위 설명). 그 밖에 낮추는 것:
+ *  - 먼 쪽을 빼고도 궤적의 곡률이 공기저항으로 설명되지 않는 궤적(geometry.ts curvatureSigma > 3)은 높음이 될 수 없다 —
+ *    자가 궤적을 따라 틀어져 있다는 뜻이고, 그 치우침은 잭나이프에 안 잡힌다.
+ * 낮게 나오면 화면에서 "참고용"이라고 알린다.
  */
 export type Confidence = 'high' | 'medium' | 'low';
 
+/** 곡률이 문턱에서 이만큼(σ) 아래까지 오면 '높음'을 주지 않는다 — 위 설명 */
+const CURVATURE_HIGH_MARGIN = 0.5;
+
 export function gradeConfidence(fit: SpeedFit): Confidence {
-  const travel = Math.abs(fit.endDistanceM - fit.startDistanceM);
-  if (fit.sampleCount >= 12 && fit.fitQuality >= 0.985 && travel >= 6) return 'high';
-  if (fit.sampleCount >= 7 && fit.fitQuality >= 0.96 && travel >= 4) return 'medium';
+  const sigma = speedSigmaRel(fit.startSeKmh, fit.startKmh);
+  /*
+   * 곡률이 문턱(CURVATURE_TRIM_SIGMA 3σ) 근처면 먼 쪽을 자르느냐 마느냐가 칼날이다 — 화각을 1° 만 바꿔도 a3df7d09 가
+   * 2.6% 뛰었다(2차 검증 — 통계). 문턱보다 0.5σ 아래부터 '높음'을 주지 않는다.
+   */
+  const bent = fit.curvatureSigma > CURVATURE_TRIM_SIGMA - CURVATURE_HIGH_MARGIN;
+  if (sigma <= HIGH_MAX_SIGMA_REL && fit.jackknifeBlocks >= HIGH_MIN_JACKKNIFE_BLOCKS && !bent) {
+    return 'high';
+  }
+  if (sigma <= MEDIUM_MAX_SIGMA_REL) return 'medium';
   return 'low';
 }
 
 /**
- * 잰 값이 얼마나 흔들릴 수 있는지 어림한다(± km/h).
- *
- * 지름을 반 픽셀 잘못 재는 것을 기준으로 잡는다. 공이 작게 찍힐수록(멀수록)
- * 같은 반 픽셀이 더 큰 오차가 되므로, 마지막 관측의 공 크기를 기준으로 본다.
+ * 구간 평균(kmh)의 ± (km/h, 90% 구간). SE 를 못 냈으면 거부 문턱(5%)만큼 흔들린다고 본다.
+ * 릴리스 구속의 ± 는 analyze-frames.ts releaseInfo 가 같은 식으로(startSeKmh) 낸다.
  */
-export function estimateErrorKmh(fit: SpeedFit, lens: CameraLens): number {
-  const endBallPx = (BALL_DIAMETER_M * lens.focalPx) / fit.endDistanceM;
-  if (!(endBallPx > 0)) return Number.POSITIVE_INFINITY;
-
-  const relative = 0.5 / endBallPx;
-  // 프레임이 많을수록 개별 오차가 서로 상쇄된다.
-  const averaged = relative / Math.sqrt(Math.max(1, fit.sampleCount));
-  return fit.kmh * averaged * 2;
+export function estimateErrorKmh(fit: SpeedFit): number {
+  const rel = Number.isFinite(fit.avgSeKmh)
+    ? speedSigmaRel(fit.avgSeKmh, fit.kmh)
+    : Math.hypot(MAX_RELATIVE_SE, SYSTEMATIC_FLOOR_REL);
+  return ERROR_INTERVAL_Z * rel * fit.kmh;
 }

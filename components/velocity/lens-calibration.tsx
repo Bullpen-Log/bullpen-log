@@ -8,6 +8,7 @@ import {
 } from 'react';
 import { Check, Loader2, Ruler } from 'lucide-react';
 import type { CameraInfo, LiveCapture } from '@/lib/velocity-engine/live-capture';
+import { measureLimbStatic } from '@/lib/velocity-engine/limb';
 
 /** 카메라의 지금 장면 — LiveCapture.snapshot() 이 주는 것 */
 export type FrameSnapshot = NonNullable<ReturnType<LiveCapture['snapshot']>>;
@@ -27,11 +28,15 @@ import { BigButton, Chips, Note, Panel, SectionLabel } from './kit';
  * 렌즈 보정 — 공을 아는 거리에 두고 화면에서 크기를 재 초점거리를 얻는다(lib/velocity-lens.ts).
  *
  * 흐름: 줄자로 카메라 유리에서 공의 앞면까지 1.0m(권장) 를 재고 공을 고정한다 → 화면의 원을 공에
- * 대충 맞춘다(끌기 · 손잡이) → '재기' 를 누르면 약 1초 동안 여러 장을 받아 각 장에서 밝기 총량으로
- * 공의 면적을 잰 뒤 지름의 중앙값을 쓴다(측정 엔진과 같은 방법). 장 사이 퍼짐이 크면 손떨림으로 보고
- * 거절한다 → 저장. 원은 어림이고 정확한 값은 자동으로 잰다 — 사람 손으로 1px 을 맞출 수는 없다.
+ * 대충 맞춘다(끌기 · 손잡이) → '재기' 를 누르면 약 1초 동안 여러 장을 받아 각 장에서 공의 지름을 잰 뒤
+ * 중앙값을 쓴다. 장 사이 퍼짐이 크면 손떨림으로 보고 거절한다 → 저장. 원은 어림이고 정확한 값은 자동으로 잰다 —
+ * 사람 손으로 1px 을 맞출 수는 없다.
  *
- * 공 뒤 배경은 어둡고 단순해야 한다(공보다 밝은 것이 원 둘레에 있으면 잘못 잰다).
+ * 지름은 비행 중과 같은 자(빛 받은 쪽 윤곽의 원 — limb.ts measureLimbStatic, 모델 1.6.0)로 잰다. 밝기 총량(면적)은
+ * 대비를 확인하고 어림 지름을 얻는 데만 쓴다 — 면적 지름은 윤곽보다 0.91~0.95 배라, 그것으로 보정하면 구속이 5~9%
+ * 낮았다(2차 보정). 그래서 저장 형식 판을 올려(lib/velocity-lens.ts LENS_VERSION 3) 옛 보정은 다시 재게 한다.
+ *
+ * 공 뒤 배경은 어둡고 단순해야 하고, 공 한쪽에 빛이 들어야 한다(테두리가 또렷해야 윤곽을 잰다).
  */
 
 export type Circle = { x: number; y: number; d: number }; // 뷰파인더 폭 기준 0~1 (d 는 지름/폭)
@@ -129,7 +134,8 @@ export function CircleOverlay({
 }
 
 /**
- * 멈춘 장면에서 공의 지름을 잰다 — 밝기 총량으로 면적(측정 엔진의 refineTrack 과 같은 원리).
+ * 멈춘 장면에서 공의 어림 지름과 대비를 잰다 — 밝기 총량으로 면적. 보정값은 이 지름이 아니라 윤곽
+ * (measureLimbStatic)으로 낸다 — 여기서는 공이 배경과 구별되는지(대비)와 윤곽을 찾을 어림 크기만 쓴다.
  * 배경은 원 둘레 고리(1.25~1.6R)의 중앙값, 대비는 원 가운데(지름의 ¼ 안)의 중앙값. 창 안의
  * (밝기 − 배경)/대비 를 자르지 않고 다 더한다 — 잡음은 상쇄되고 번진 꼬리도 들어간다. 지름(분석
  * 픽셀)과 대비를 돌려준다. 대비가 낮으면(공이 배경과 구별이 안 되면) null.
@@ -266,6 +272,7 @@ export function LensCalibrationPanel({
     const diameters: number[] = [];
     const contrasts: number[] = [];
     let noContrast = 0;
+    let noLimb = 0;
     let lastStamp: number | null = null;
     let lastLuma: ArrayLike<number> | null = null;
     try {
@@ -298,7 +305,13 @@ export function LensCalibrationPanel({
           noContrast++;
           continue;
         }
-        diameters.push(got.diameterPx / k);
+        /* 보정값은 비행과 같은 윤곽 자로 — 흐림 보정까지 같게(분석 해상도 장면) */
+        const limb = measureLimbStatic(snap.luma, snap.width, snap.height, f.cx * k, f.cy * k, got.diameterPx);
+        if (!limb) {
+          noLimb++;
+          continue;
+        }
+        diameters.push(limb.diameterPx / k);
         contrasts.push(got.contrast);
       }
       if (!alive.current) return;
@@ -306,7 +319,9 @@ export function LensCalibrationPanel({
         setError(
           noContrast > 0
             ? '공과 배경이 잘 구별되지 않아요. 공 뒤가 어둡고 단순한 곳에서, 원을 공에 더 가깝게 맞춰 보세요.'
-            : '카메라에서 새 장면을 받지 못했어요. 카메라가 켜져 있는지 보고 다시 재세요.'
+            : noLimb > 0
+              ? '공 테두리가 또렷하지 않아요. 초점을 공에 맞추고, 공 한쪽에 빛이 들게 해서 다시 재세요.'
+              : '카메라에서 새 장면을 받지 못했어요. 카메라가 켜져 있는지 보고 다시 재세요.'
         );
         return;
       }
