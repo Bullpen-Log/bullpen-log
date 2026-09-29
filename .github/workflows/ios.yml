@@ -168,15 +168,22 @@ jobs:
           xcrun simctl bootstatus "$UDID" -b > /dev/null
           xcrun simctl install "$UDID" "$SIMAPP"
           step "설치 끝, 켜 본다"
-          # --console: 첫 줄에 pid, 이어서 앱의 출력(Capacitor 의 '⚡️ ERROR' 같은 것)을 받는다.
+          # --console: 앱의 출력(NSLog · Capacitor 의 '⚡️ ERROR' 같은 것)을 파일로 받는다.
           # --console-pty 는 터미널이 없는 여기서는 아무것도 안 남겨 켜졌는지 알 수 없었다.
           xcrun simctl launch --console "$UDID" com.bullpenlog.app > "$RUNNER_TEMP/sim-console.log" 2>&1 &
           CONSOLE_PID=$!
           sleep 30
+          # 앱이 살아 있는지 — 세 가지로 본다. simctl 이 pid 를 안 찍을 때가 있어서(2026-09-30 실행에서
+          # 앱은 멀쩡히 돌았는데 pid 를 못 찾아 '꺼졌다'로 잘못 판단했다) 앱 출력의 'App[pid:' 도 보고,
+          # 그래도 없으면 시뮬레이터 안의 launchctl 목록에 앱이 있는지 본다.
           APP_PID=$(grep -Eo 'com\.bullpenlog\.app: [0-9]+' "$RUNNER_TEMP/sim-console.log" | head -n 1 | awk '{print $2}' || true)
-          if [ -n "$APP_PID" ] && kill -0 "$APP_PID" 2>/dev/null; then
+          [ -n "$APP_PID" ] || APP_PID=$(grep -Eo 'App\[[0-9]+' "$RUNNER_TEMP/sim-console.log" | head -n 1 | tr -dc '0-9' || true)
+          ALIVE=""
+          if [ -n "$APP_PID" ] && kill -0 "$APP_PID" 2>/dev/null; then ALIVE="pid $APP_PID"; fi
+          if [ -z "$ALIVE" ] && xcrun simctl spawn "$UDID" launchctl list 2>/dev/null | grep -q 'com\.bullpenlog\.app'; then ALIVE="launchctl"; fi
+          if [ -n "$ALIVE" ]; then
             kill "$CONSOLE_PID" 2>/dev/null || true
-            echo "::notice title=시뮬레이터에서 켜짐::30초 동안 꺼지지 않았다 (pid $APP_PID)"
+            echo "::notice title=시뮬레이터에서 켜짐::30초 동안 꺼지지 않았다 ($ALIVE)"
             exit 0
           fi
           # 꺼졌다(또는 켜지지 않았다) — 여기부터는 멈추지 말고 까닭을 모은다
