@@ -16,7 +16,7 @@ import { CalendarDays, CircleAlert } from 'lucide-react';
 import { MiniCalendar } from '@/components/mini-calendar';
 import { checkSignupEmail, login, signup, type AuthState } from '@/app/actions/auth';
 import { Button, Field, FormError, Input } from '@/components/ui';
-import { BaseballMark } from '@/components/logo';
+import { Wordmark } from '@/components/logo';
 import { kept } from '@/lib/form-values';
 import { readLoginPrefs, saveLoginPrefs } from '@/lib/login-prefs';
 import {
@@ -116,10 +116,7 @@ function AuthCard({
             className="group inline-flex items-center gap-2.5 rounded-lg"
             aria-label="Bullpen Log 첫 화면"
           >
-            <BaseballMark className="h-8 w-8 md:h-9 md:w-9" />
-            <span className="text-display text-xl leading-none text-ink transition-colors group-hover:text-sky md:text-2xl">
-              BULLPEN LOG
-            </span>
+            <Wordmark className="text-2xl text-ink transition-colors group-hover:text-sky md:text-3xl" />
           </Link>
 
           <div key={titleKey} className="motion-safe:animate-fade-in">

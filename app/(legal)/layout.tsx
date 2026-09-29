@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { ArrowLeft } from 'lucide-react';
-import { BaseballMark } from '@/components/logo';
+import { Wordmark } from '@/components/logo';
 import { SiteFooter } from '@/components/site-footer';
 
 /**
@@ -16,10 +16,7 @@ export default function LegalLayout({ children }: { children: React.ReactNode })
       <header className="ui-chrome border-b border-line bg-surface">
         <div className="mx-auto flex max-w-3xl items-center justify-between gap-4 px-5 py-4 sm:px-6">
           <Link href="/" className="flex items-center gap-2.5">
-            <BaseballMark className="h-7 w-7" />
-            <span className="text-display text-lg leading-none text-ink">
-              BULLPEN LOG
-            </span>
+            <Wordmark className="text-2xl text-ink" />
           </Link>
           <Link
             href="/login"

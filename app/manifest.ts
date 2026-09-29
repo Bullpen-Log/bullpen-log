@@ -12,7 +12,7 @@ import type { MetadataRoute } from 'next';
  * 두면 옛 화면이 폰에 붙어 배포한 것이 안 보인다. 운동 중 신호가 끊기는 문제는
  * 세트를 폰에 맡겨 두는 쪽(lib/workout/outbox.ts)이 따로 맡는다.
  *
- * 아이콘은 지금 로고로 만든 임시판이다 (scripts/make-icons.mjs).
+ * 아이콘은 새 로고(파란 B, 2026-09-30)로 만든다 (scripts/make-icons.mjs).
  */
 export default function manifest(): MetadataRoute.Manifest {
   return {

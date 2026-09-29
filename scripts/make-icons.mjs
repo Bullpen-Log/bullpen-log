@@ -1,12 +1,10 @@
 /**
- * 앱 아이콘을 만든다 — 지금 로고(파란 원 + 야구공 선그림) 그대로.
+ * 앱 아이콘을 만든다 — 지금 로고(굵은 막대 + 반원 둘로 짠 파란 B) 그대로.
  *
  *   npm run icons
  *
  * 홈 화면에 앱으로 추가했을 때(PWA) 뜨는 아이콘과 브라우저 탭 아이콘이다.
- * 전용 아이콘을 따로 디자인하기 전까지 쓰는 임시판이다(2026-09-23, C안).
- * 새 아이콘이 오면 아래 '만드는 파일'을 같은 이름·같은 크기로 바꿔 넣으면
- * 되고, 이 스크립트는 다시 돌리지 않는다.
+ * 2026-09-30 사용자분이 만든 새 로고로 바꿨다(그 전은 파란 원 + 야구공 임시판).
  *
  * ■ 만드는 파일
  *
@@ -21,58 +19,52 @@
  *
  * ■ 그림
  *
- * components/logo.tsx 의 BaseballMark 와 같은 선이다(24 칸 기준 좌표). 앱
- * 안에서 보던 표시와 홈 화면 아이콘이 달라 보이면 같은 앱인지 헷갈린다.
+ * components/logo.tsx 의 BullpenMark 와 같은 모양 · 같은 색이다(594 × 613 칸).
+ * 앱 안에서 보던 표시와 홈 화면 아이콘이 달라 보이면 같은 앱인지 헷갈린다.
  *
- * 홈 화면용은 네모를 파랗게 꽉 채운다. 아이폰은 투명한 모서리를 검게 칠하고,
- * 안드로이드는 원·둥근 네모로 잘라 쓰기 때문이다. 공은 가운데 62% 안에 두어
- * 어떤 모양으로 잘려도 안 잘린다(안드로이드는 가운데 80% 원 안을 지킨다).
- * 탭 아이콘은 앱 안의 표시처럼 둥근 배지로, 모서리는 투명하다.
+ * 홈 화면용은 원본 로고처럼 흰 네모 가운데에 파란 B. 투명 칸 없이 꽉 채운다 —
+ * 아이폰은 투명한 모서리를 검게 칠하고, 안드로이드는 원·둥근 네모로 잘라 쓴다.
+ * B 는 한 변의 50%(잘라 쓰는 판은 42%) — 안드로이드가 지키는 가운데 80% 원 안에
+ * 모서리까지 들어간다. 탭 아이콘은 바탕 없이 B 만 크게(88%) — 16px 에서도 B 로 읽히게.
  */
 import { mkdirSync, writeFileSync } from 'node:fs';
 import sharp from 'sharp';
 
-const SKY = '#0ea5e9';
-
-/* components/logo.tsx 와 같은 선 — 공 테두리, 좌우 솔기, 실밥 */
-const BALL = `
-  <g stroke-width="1.6">
-    <circle cx="12" cy="12" r="9.5" />
-    <path d="M5.3 5C8.5 8 8.5 16 5.3 19" />
-    <path d="M18.7 5C15.5 8 15.5 16 18.7 19" />
-  </g>
-  <g stroke-width="1.2">
-    <path d="M5.3 6.7 8.4 7.95M6 10 9.2 10.7M6 14 9.2 13.3M5.3 17.3 8.4 16.05" />
-    <path d="M18.7 6.7 15.6 7.95M18 10 14.8 10.7M18 14 14.8 13.3M18.7 17.3 15.6 16.05" />
-  </g>`;
+/* components/logo.tsx 와 같은 모양 · 색 */
+const BRAND = '#0297e4';
+const MARK_W = 594;
+const MARK_H = 613;
+const MARK_PATH =
+  'M0 0H237V613H0Z' +
+  'M281 0H453A125 141 0 0 1 453 282H281Z' +
+  'M281 329H470A124 142 0 0 1 470 613H281Z';
 
 /**
- * 한 장의 SVG. size 는 한 변의 픽셀, shape 는 바탕 모양.
- * 공(24 칸 상자)은 한 변의 62% — 앱 안의 배지와 같은 비율이다.
+ * 한 장의 SVG. size 는 한 변의 픽셀, ratio 는 B 높이가 한 변에서 차지하는 몫,
+ * ground 는 바탕색(없으면 투명).
  */
-function svg(size, shape) {
-  const box = size * 0.62;
-  const at = (size - box) / 2;
-  const ground =
-    shape === 'square'
-      ? `<rect width="${size}" height="${size}" fill="${SKY}" />`
-      : `<circle cx="${size / 2}" cy="${size / 2}" r="${size / 2}" fill="${SKY}" />`;
+function svg(size, ratio, ground) {
+  const h = size * ratio;
+  const k = h / MARK_H;
+  const x = (size - MARK_W * k) / 2;
+  const y = (size - h) / 2;
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">
-  ${ground}
-  <g transform="translate(${at} ${at}) scale(${box / 24})" fill="none" stroke="#ffffff" stroke-linecap="round" stroke-linejoin="round">${BALL}
-  </g>
+  ${ground ? `<rect width="${size}" height="${size}" fill="${ground}" />` : ''}
+  <path transform="translate(${x} ${y}) scale(${k})" fill="${BRAND}" d="${MARK_PATH}" />
 </svg>`;
 }
 
 /*
- * 홈 화면용 네모는 투명 칸을 아예 없앤다(flatten). 겉보기엔 꽉 차 있어도 투명
+ * 홈 화면용은 투명 칸을 아예 없앤다(flatten). 겉보기엔 꽉 차 있어도 투명
  * 칸이 붙어 있으면, 아이폰이 그 판을 투명 그림으로 보고 모서리를 검게 칠할 수
- * 있다. 탭 아이콘(둥근 배지)은 모서리가 투명해야 하므로 그대로 둔다.
+ * 있다. 탭 아이콘은 바탕이 비쳐야 하므로 그대로 둔다.
  */
-const png = (size, shape) => {
-  const img = sharp(Buffer.from(svg(size, shape)));
-  return (shape === 'square' ? img.flatten({ background: SKY }) : img).png().toBuffer();
-};
+const home = (size, ratio = 0.5) =>
+  sharp(Buffer.from(svg(size, ratio, '#ffffff')))
+    .flatten({ background: '#ffffff' })
+    .png()
+    .toBuffer();
+const tabIcon = (size) => sharp(Buffer.from(svg(size, 0.88))).png().toBuffer();
 
 /**
  * PNG 여러 장을 .ico 하나로 묶는다.
@@ -105,13 +97,13 @@ function ico(images) {
 
 mkdirSync('public/icons', { recursive: true });
 
-writeFileSync('public/icons/icon-192.png', await png(192, 'square'));
-writeFileSync('public/icons/icon-512.png', await png(512, 'square'));
-writeFileSync('public/icons/icon-maskable-512.png', await png(512, 'square'));
-writeFileSync('app/apple-icon.png', await png(180, 'square'));
+writeFileSync('public/icons/icon-192.png', await home(192));
+writeFileSync('public/icons/icon-512.png', await home(512));
+writeFileSync('public/icons/icon-maskable-512.png', await home(512, 0.42));
+writeFileSync('app/apple-icon.png', await home(180));
 
 const tab = await Promise.all(
-  [16, 32, 48].map(async (size) => ({ size, data: await png(size, 'circle') }))
+  [16, 32, 48].map(async (size) => ({ size, data: await tabIcon(size) }))
 );
 writeFileSync('app/favicon.ico', ico(tab));
 

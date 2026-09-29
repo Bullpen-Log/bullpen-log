@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { BaseballMark } from '@/components/logo';
+import { Wordmark } from '@/components/logo';
 
 /** 문의 메일 — 이용약관 · 개인정보 처리방침의 '문의'와 같은 주소 */
 const CONTACT = 'bullpenlog.com@gmail.com';
@@ -33,10 +33,7 @@ export function SiteFooter({
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div>
             <p className="flex items-center gap-2">
-              <BaseballMark className="h-5 w-5" />
-              <span className="text-display text-sm leading-none text-ink">
-                BULLPEN LOG
-              </span>
+              <Wordmark className="text-lg text-ink" />
             </p>
             <p className="mt-1.5 text-xs text-muted">
               투수를 위한 트레이닝 &amp; 기록 플랫폼

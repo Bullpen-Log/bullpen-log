@@ -7,6 +7,7 @@ import { isNativeUserAgent } from '@/lib/app-env';
 import { logout } from '@/app/actions/auth';
 import { moreGroups } from '@/lib/nav';
 import { ThemeToggle } from '@/components/theme-toggle';
+import { Wordmark } from '@/components/logo';
 
 /*
  * 아이콘 배경색.
@@ -120,7 +121,7 @@ export default async function MorePage() {
       </form>
 
       <p className="pt-2 text-center text-xs text-muted">
-        ⚾ Bullpen Log — 투수를 위한 트레이닝 &amp; 기록 플랫폼
+        <Wordmark className="text-sm" /> — 투수를 위한 트레이닝 &amp; 기록 플랫폼
       </p>
     </div>
   );

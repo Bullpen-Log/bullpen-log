@@ -21,7 +21,7 @@ import { rememberPage } from '@/lib/last-page';
 import { REST_SESSION_TYPE } from '@/lib/session-type';
 import type { NavGroup, NavItem } from '@/lib/nav';
 import { DESK_MEDIA, MORE_HREF, NAV_ALSO, NAV_GROUPS } from '@/lib/nav';
-import { BaseballMark } from '@/components/logo';
+import { Wordmark } from '@/components/logo';
 import { Modal } from '@/components/modal';
 import { ProfilePanel, type ProfileData } from '@/components/profile-panel';
 import { SettingsPanel, type SettingsData } from '@/components/settings-panel';
@@ -1099,10 +1099,7 @@ export function AppNav({
         /* ui-chrome — PC 의 작아진 크기 기준(globals.css)에서 빠져 원래 크기를 지킨다(사용자 요청) */
         className="ui-chrome fixed left-6 top-6 z-40 hidden items-center gap-2 desk:flex"
       >
-        <BaseballMark className="h-8 w-8" />
-        <span className="text-display text-base leading-none text-ink">
-          BULLPEN LOG
-        </span>
+        <Wordmark className="text-2xl text-ink" />
       </Link>
 
       {/*
@@ -2167,10 +2164,7 @@ function MobileTopBar({
       className="sticky top-0 z-40 flex h-14 items-center gap-2 border-b border-line bg-surface px-4 desk:hidden"
     >
       <Link href="/today" onClick={onHome} className="flex items-center gap-2">
-        <BaseballMark className="h-8 w-8" />
-        <span className="text-display text-base leading-none text-ink">
-          BULLPEN LOG
-        </span>
+        <Wordmark className="text-2xl text-ink" />
       </Link>
 
       {/* 종은 설정 왼쪽 — PC 막대와 같은 차례 */}

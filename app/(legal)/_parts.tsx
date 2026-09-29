@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import { Wordmark } from '@/components/logo';
 
 /**
  * 약관 글에 쓰는 조각들.
@@ -21,8 +22,8 @@ export function LegalHeading({
 }) {
   return (
     <header className="mb-10 border-b border-line pb-8">
-      <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-muted">
-        Bullpen Log
+      <p className="text-sm text-muted">
+        <Wordmark />
       </p>
       <h1 className="mt-2 text-3xl font-bold tracking-tight text-ink">{title}</h1>
       <p className="mt-1.5 text-xs tabular-nums text-muted">시행일 {updatedAt}</p>

@@ -64,6 +64,8 @@
   --color-sky-soft: #7dd3fc;
   /* 아주 옅은 하늘색 배경 (뱃지·강조 블록) */
   --color-sky-tint: #e0f2fe;
+  /* 로고의 파랑 — 새 로고 원본 그대로(components/logo.tsx). 어두운 판에서도 같은 색 */
+  --color-brand: #0297e4;
 
   /* 글자 */
   --color-ink: #0f172a;
