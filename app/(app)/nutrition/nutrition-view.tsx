@@ -7,6 +7,7 @@ import {
   useOptimistic,
   useRef,
   useState,
+  useSyncExternalStore,
   useTransition,
   type CSSProperties,
   type MouseEvent,
@@ -55,9 +56,13 @@ import {
   recoveryEaten,
   type ThrowGuide,
 } from '@/lib/nutrition/guide';
+import { computeTargets } from '@/lib/nutrition/targets';
+import { STEP_KCAL, goalCopy, planOnSave } from '@/lib/nutrition/weight-goal';
 import {
   addMealEntries,
+  applyWeightStep,
   deleteMealEntry,
+  saveNutritionProfile,
   setWeight,
   updateMealAmount,
   type NutritionResult,
@@ -289,7 +294,7 @@ export function NutritionView({ day, today }: { day: NutritionDay; today: string
               carbsGap={gaps.carbs > 0}
             />
           )}
-          <SummaryCard eaten={eaten} gaps={gaps} day={day} />
+          <SummaryCard eaten={eaten} gaps={gaps} day={day} today={today} />
 
           {/*
             끼니 넷 — 넓으면 두 칸씩(2×2), 좁으면 한 줄에 하나.
@@ -321,7 +326,7 @@ export function NutritionView({ day, today }: { day: NutritionDay; today: string
 
         <div className="stack-block">
           <BurnCard day={day} />
-          <WeightCard day={day} />
+          <WeightCard day={day} today={today} onOpenGoal={openGoal} />
           <section className={`${PANEL} space-y-3`}>
             <div className="flex items-baseline justify-between gap-2">
               <h2 className="text-sm font-bold text-ink">최근 7일</h2>
@@ -888,12 +893,20 @@ function SummaryCard({
   eaten,
   gaps,
   day,
+  today,
 }: {
   eaten: Macros;
   gaps: MacroGaps;
   day: NutritionDay;
+  today: string;
 }) {
   const t = day.targets;
+  /*
+   * 체중 카드의 권유를 여기서 한 줄로 알린다 — 휴대폰에서 체중 카드는 끼니 넷 아래라 안 보인다.
+   * 단추는 체중 카드에만 있다(까닭을 읽고 누르게). 던지는 날 가이드가 뜬 날은 알림을 겹치지 않는다.
+   */
+  const snoozed = useSuggestionSnoozed(day, today);
+  const nudge = day.plan.suggestion !== null && !day.guide && !snoozed;
   const left = t.kcal - eaten.kcal;
   const max = Math.max(t.kcal, eaten.kcal, 1);
   const pct = (n: number) => `${Math.min(100, (Math.max(0, n) / max) * 100)}%`;
@@ -929,6 +942,14 @@ function SummaryCard({
           </span>
           <span>
             목표 <b className="font-semibold text-ink">{kcalText(t.kcal)}</b>
+            {/* 체중 흐름을 보고 받아들인 조정이 얹혀 있으면 말한다 — 숫자가 왜 계산과 다른지 */}
+            {t.adjust !== 0 && (
+              <>
+                {' '}
+                (체중 조정 {t.adjust > 0 ? '+' : '−'}
+                {kcalText(Math.abs(t.adjust))} 포함)
+              </>
+            )}
             {t.burn > 0 && (
               <>
                 {' '}
@@ -1014,6 +1035,29 @@ function SummaryCard({
           {gapNames(gaps)} 정보가 없는 음식이 {gaps.foods}개라,{' '}
           <b className="font-semibold text-warn">+</b> 표시한 양은 실제보다 적게
           잡혔어요.
+        </p>
+      )}
+
+      {nudge && (
+        <p className="motion-safe:animate-fade-in flex flex-wrap items-center gap-x-2 text-xs text-muted">
+          체중 흐름을 보고 목표를 조금 바꿔 볼까요?
+          <a
+            href="#weight-card"
+            onClick={(e) => {
+              const card = document.getElementById('weight-card');
+              if (!card) return;
+              e.preventDefault();
+              card.scrollIntoView({
+                behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches
+                  ? 'auto'
+                  : 'smooth',
+                block: 'center',
+              });
+            }}
+            className="-my-2 inline-flex min-h-10 items-center rounded-md px-1 font-semibold text-sky-strong underline-offset-2 hover:underline"
+          >
+            보기
+          </a>
         </p>
       )}
 
@@ -1299,7 +1343,72 @@ function BurnCard({ day }: { day: NutritionDay }) {
 
 /* ─────────────────────────── 체중 ─────────────────────────── */
 
-function WeightCard({ day }: { day: NutritionDay }) {
+/*
+ * '그대로 둘게요' — 권유를 접어 둔다. 이 기기에만 남긴다(단위 · 테마와 같은 까닭: DB 칸을 늘릴 일이 아니다).
+ * 다른 기기에서는 다시 보인다. 같은 권유(같은 다음 조정값)를 14일 동안 접고, 그 뒤에는 다시 묻는다.
+ *
+ * useSyncExternalStore 로 읽는다 — 서버가 그릴 때는 '안 접음'이고 화면에 붙은 뒤 진짜 값으로 바꿔 그린다
+ * (components/use-units.ts 와 같은 방식).
+ */
+const SNOOZE_KEY = 'bullpen-weight-suggest-snooze';
+const SNOOZE_DAYS = 14;
+const snoozeListeners = new Set<() => void>();
+
+function subscribeSnooze(onChange: () => void) {
+  snoozeListeners.add(onChange);
+  window.addEventListener('storage', onChange);
+  return () => {
+    snoozeListeners.delete(onChange);
+    window.removeEventListener('storage', onChange);
+  };
+}
+
+function readSnooze() {
+  try {
+    return window.localStorage.getItem(SNOOZE_KEY) ?? '';
+  } catch {
+    return '';
+  }
+}
+
+function writeSnooze(value: string | null) {
+  try {
+    if (value === null) window.localStorage.removeItem(SNOOZE_KEY);
+    else window.localStorage.setItem(SNOOZE_KEY, value);
+  } catch {
+    /* 저장소를 못 쓰는 브라우저(사생활 보호 창) — 접히지 않을 뿐이다 */
+  }
+  snoozeListeners.forEach((notify) => notify());
+}
+
+/** 오늘의 권유를 접어 두었나 */
+function useSuggestionSnoozed(day: NutritionDay, today: string) {
+  const stored = useSyncExternalStore(subscribeSnooze, readSnooze, () => '');
+  const suggestion = day.plan.suggestion;
+  if (!suggestion || !stored) return false;
+  const [since, next] = stored.split(':');
+  const days = Math.round(
+    (Date.parse(`${today}T00:00:00.000Z`) - Date.parse(`${since}T00:00:00.000Z`)) /
+      86_400_000
+  );
+  return Number(next) === suggestion.nextAdjust && days >= 0 && days < SNOOZE_DAYS;
+}
+
+const STEP_LABEL = {
+  raise: `하루 +${STEP_KCAL}kcal 올리기`,
+  lower: `하루 −${STEP_KCAL}kcal 내리기`,
+  maintain: '유지로 바꾸기',
+} as const;
+
+function WeightCard({
+  day,
+  today,
+  onOpenGoal,
+}: {
+  day: NutritionDay;
+  today: string;
+  onOpenGoal: (e: MouseEvent<HTMLElement>) => void;
+}) {
   const unit = useWeightUnit();
   const saved = day.weightKg;
   const shown = (kg: number | null) =>
@@ -1315,6 +1424,7 @@ function WeightCard({ day }: { day: NutritionDay }) {
     setText(shown(saved));
   }
   const [pending, startTransition] = useTransition();
+  const [stepping, startStep] = useTransition();
   const [error, setError] = useState<string | null>(null);
 
   const parsed = text.trim() === '' ? null : Number(text);
@@ -1331,8 +1441,67 @@ function WeightCard({ day }: { day: NutritionDay }) {
     });
   }
 
+  /* ── 체중 목표: 흐름과 계획을 견준 글(lib/nutrition/weight-goal.ts) ── */
+  const t = day.targets;
+  const plan = day.plan;
+  const copy = goalCopy(plan, {
+    goal: t.goal,
+    band: t.ageBand,
+    ageKnown: day.body.age !== null,
+    hasProfile: day.hasProfile,
+    unit,
+    isToday: day.date === today,
+  });
+  const snoozed = useSuggestionSnoozed(day, today);
+
+  /* '유지로 바꾸기'를 누르면 하루 목표가 얼마가 되나 — 목표 창과 같은 규칙으로 미리 셈한다 */
+  const keepProfile = {
+    goal: 'maintain' as const,
+    activity: day.profile.activity,
+    weeklyRateKg: null,
+    kcalTarget: day.profile.kcalTarget,
+  };
+  const keepBase =
+    copy.action === 'maintain'
+      ? computeTargets(
+          {
+            ...day.profile,
+            ...keepProfile,
+            targetWeightKg: null,
+            kcalAdjust: planOnSave(day.profile, keepProfile, day.body.age).kcalAdjust,
+          },
+          day.body,
+          0
+        ).base
+      : t.base;
+
+  function act() {
+    const action = copy.action;
+    if (!action) return;
+    setError(null);
+    startStep(async () => {
+      const res =
+        action === 'maintain'
+          ? await orOffline(
+              saveNutritionProfile({
+                ...keepProfile,
+                proteinPerKg: t.proteinPerKg,
+                targetWeightKg: null,
+              }),
+              OFFLINE
+            )
+          : await orOffline(
+              applyWeightStep(action === 'raise' ? STEP_KCAL : -STEP_KCAL),
+              OFFLINE
+            );
+      if (!res.ok) setError(res.error);
+    });
+  }
+
+  const hasStatus = copy.label !== null || copy.sentence !== null;
+
   return (
-    <section className={`${PANEL} space-y-3`}>
+    <section id="weight-card" className={`${PANEL} scroll-mt-20 space-y-3`}>
       <div className="flex items-baseline justify-between gap-2">
         <h2 className="text-sm font-bold text-ink">체중</h2>
         {day.weightFrom === 'checkin' && (
@@ -1374,7 +1543,98 @@ function WeightCard({ day }: { day: NutritionDay }) {
           {error}
         </p>
       )}
-      <WeightTrend weights={day.weights} unit={unit} />
+
+      {/*
+        흐름과 계획 — 숫자 하나 · 문장 하나 · 단추 하나. 숫자에 색을 입히지 않는다(체중은 성적이 아니다).
+        상태가 바뀌면(저장 · 단추) 통째로 다시 떠오른다.
+      */}
+      {hasStatus && (
+        <div
+          key={`${plan.status}-${plan.hold}-${copy.action}`}
+          className="motion-safe:animate-fade-in space-y-1.5 break-keep"
+        >
+          {copy.label && <p className="text-xs text-muted">{copy.label}</p>}
+          {copy.number && (
+            <p className="text-[1.75rem] font-bold leading-tight tabular-nums text-ink">
+              {copy.number}
+            </p>
+          )}
+          {copy.sub && <p className="text-xs text-muted tabular-nums">{copy.sub}</p>}
+          {copy.sentence && (
+            <p className="pt-0.5 text-sm leading-relaxed text-ink">{copy.sentence}</p>
+          )}
+          {copy.note && (
+            <p className="text-xs leading-relaxed text-muted">{copy.note}</p>
+          )}
+
+          {copy.action &&
+            (snoozed ? (
+              <p
+                key="snoozed"
+                className="motion-safe:animate-fade-in flex flex-wrap items-center gap-x-2 text-xs text-muted"
+              >
+                그대로 두기로 했어요.
+                <button
+                  type="button"
+                  onClick={() => writeSnooze(null)}
+                  className="-my-2 min-h-10 rounded-md px-1 font-semibold text-sky-strong underline-offset-2 hover:underline"
+                >
+                  다시 보기
+                </button>
+              </p>
+            ) : (
+              <div
+                key="actions"
+                className="motion-safe:animate-fade-in space-y-1.5 pt-1.5"
+              >
+                <button
+                  type="button"
+                  onClick={act}
+                  disabled={stepping}
+                  className="min-h-11 w-full rounded-xl bg-sky px-4 py-2.5 text-sm font-semibold text-white transition-[background-color,opacity] hover:bg-sky-strong disabled:opacity-60"
+                >
+                  {stepping ? '바꾸는 중…' : STEP_LABEL[copy.action]}
+                </button>
+                {copy.action === 'maintain' && keepBase !== t.base && (
+                  <p className="text-center text-xs text-muted tabular-nums">
+                    하루 목표가 {kcalText(t.base)} → {kcalText(keepBase)}kcal로 바뀌어요
+                  </p>
+                )}
+                {copy.actionNote && (
+                  <p className="text-center text-xs text-muted">{copy.actionNote}</p>
+                )}
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    if (copy.action === 'maintain') onOpenGoal(e);
+                    else if (plan.suggestion) {
+                      writeSnooze(`${today}:${plan.suggestion.nextAdjust}`);
+                    }
+                  }}
+                  disabled={stepping}
+                  className="min-h-10 w-full rounded-xl text-sm font-medium text-muted transition-colors hover:text-ink disabled:opacity-60"
+                >
+                  {copy.action === 'maintain' ? '새 목표 정하기' : '그대로 둘게요'}
+                </button>
+              </div>
+            ))}
+        </div>
+      )}
+      {copy.minor && (
+        <p className="motion-safe:animate-fade-in break-keep text-xs leading-relaxed text-muted">
+          {copy.minor}
+        </p>
+      )}
+
+      <WeightTrend
+        weights={day.weights}
+        unit={unit}
+        trend={plan.trend}
+        targetKg={plan.targetKg}
+      />
+      {hasStatus && (
+        <p className="break-keep text-[11px] leading-relaxed text-muted">{copy.foot}</p>
+      )}
     </section>
   );
 }

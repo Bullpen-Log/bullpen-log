@@ -6,8 +6,11 @@ import {
 } from '@/lib/nutrition/meta';
 import {
   ageRule,
+  effectiveAdjust,
   effectiveGoal,
   effectiveProtein,
+  effectiveRate,
+  paceDelta,
   schofieldKcal,
   type AgeBand,
 } from '@/lib/nutrition/age';
@@ -20,7 +23,8 @@ import {
  *
  *   기초대사량   Mifflin-St Jeor 식. 요즘 계산기들이 가장 많이 쓰는 식이다.
  *               만 18세 밑은 Schofield 식(lib/nutrition/age.ts — 나이에 맞춘 기준).
- *   운동 전 목표  기초대사량 × 평소 움직임 + 목표(증량 +300 · 감량 −400, 나이마다 다름)
+ *   운동 전 목표  기초대사량 × 평소 움직임 + 목표(증량 +300 · 감량 −400, 나이 · 고른 속도마다 다름)
+ *               + 체중 흐름 조정(단추로 받아들인 ±100kcal 의 합 — lib/nutrition/weight-goal.ts)
  *   오늘 목표    운동 전 목표 + 오늘 운동으로 쓴 것(OUT)
  *
  * 영양소는 단백질 → 지방 → 탄수화물 차례로 정한다.
@@ -42,6 +46,17 @@ export type ProfileSettings = {
   proteinPerKg: number | null;
   /** 직접 정한 운동 전 하루 칼로리 */
   kcalTarget: number | null;
+  /*
+   * ── 체중 목표(영양 로드맵 4번). 넷 다 null 이면 목표 숫자는 이 칸들이 생기기 전과 똑같다 ──
+   */
+  /** 목표 체중(kg). 증량(성장기 · 성인) · 감량(성인)일 때만 뜻이 있다 */
+  targetWeightKg: number | null;
+  /** 고른 주당 속도(kg, 크기만). null 은 나이별 기본 속도 */
+  weeklyRateKg: number | null;
+  /** 체중 흐름을 보고 받아들인 하루 칼로리 조정. null 은 0 */
+  kcalAdjust: number | null;
+  /** 지금 칼로리 계획이 시작된 날('YYYY-MM-DD') — 체중 흐름을 계획과 견줄 구간의 시작 */
+  planSince: string | null;
 };
 
 export const DEFAULT_PROFILE: ProfileSettings = {
@@ -49,6 +64,10 @@ export const DEFAULT_PROFILE: ProfileSettings = {
   activity: 'mid',
   proteinPerKg: null,
   kcalTarget: null,
+  targetWeightKg: null,
+  weeklyRateKg: null,
+  kcalAdjust: null,
+  planSince: null,
 };
 
 export type Body = {
@@ -92,6 +111,12 @@ export type Targets = {
   proteinPerKg: number;
   /** 계산에 쓴 목표 — 어린이의 감량은 유지로 셈한다 */
   goal: GoalKey;
+  /** 목표에서 온 하루 kcal(부호 있음) — 증량 +300 · 감량 −400 처럼. 직접 정한 날에도 셈해 둔다 */
+  delta: number;
+  /** 실제로 더한 체중 흐름 조정(나이 한도로 당긴 값). 칼로리를 직접 정했으면 0 */
+  adjust: number;
+  /** 계획한 주당 속도(kg, 크기만). 유지는 0. 어린이와 생년월일을 모르는 계정은 null(계획과 견주지 않는다) */
+  paceKg: number | null;
 };
 
 /** 만 나이. 생일이 안 지났으면 한 살 뺀다. */
@@ -138,11 +163,21 @@ export function computeTargets(
   /* 나이 칸은 짐작 나이(20세)까지 넣어서 고른다 — 모르면 성인 기준 */
   const rule = ageRule(age);
   const goal = effectiveGoal(profile.goal, age);
-  const delta = rule.goalDelta[goal] ?? 0;
+  /*
+   * 속도와 조정의 한도는 짐작 나이(20세)가 아니라 진짜 나이로 본다 — 생년월일을 모르면 둘 다 없다.
+   * 모르는 나이를 성인으로 쳐서 미성년자에게 성인 한도가 열리는 일을 막는다.
+   */
+  const rate = effectiveRate(profile.weeklyRateKg, body.age, goal);
+  const delta = paceDelta(age, goal, rate);
   const proteinPerKg = effectiveProtein(profile.proteinPerKg, age);
 
   const manual = profile.kcalTarget !== null;
-  const base = profile.kcalTarget ?? round10(bmr * activity.factor + delta);
+  const adjust = manual
+    ? 0
+    : effectiveAdjust(profile.kcalAdjust, body.age, goal, delta);
+  const base = profile.kcalTarget ?? round10(bmr * activity.factor + delta) + adjust;
+  const paceKg =
+    body.age === null || rule.band === 'child' ? null : goal === 'maintain' ? 0 : rate;
   const burn = Math.max(0, Math.round(burnKcal));
   const kcal = base + burn;
 
@@ -164,5 +199,8 @@ export function computeTargets(
     ageBand: rule.band,
     proteinPerKg,
     goal,
+    delta,
+    adjust,
+    paceKg,
   };
 }

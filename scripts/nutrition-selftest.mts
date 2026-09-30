@@ -11,8 +11,27 @@ import {
   basalKcal,
   computeTargets,
   DEFAULT_PROFILE,
+  type Body,
   type ProfileSettings,
 } from '../lib/nutrition/targets.ts';
+import {
+  checkTargetWeight,
+  etaWeeks,
+  fmtRate,
+  goalCopy,
+  intakeCheck,
+  noiseFloor,
+  planOnSave,
+  targetRange,
+  weightGoal,
+  weightTrend,
+  type IntakeDay,
+  type TargetRange,
+  type Trend,
+  type WeightGoal,
+  type WeightPoint,
+} from '../lib/nutrition/weight-goal.ts';
+import { shiftDateKey } from '../lib/pitch-stats.ts';
 import { kcalFor, pitchingBurn, trainingBurn } from '../lib/nutrition/burn.ts';
 import { choseong, matchScore } from '../lib/nutrition/hangul.ts';
 import {
@@ -51,7 +70,16 @@ import {
   scaleMacros,
   type MealEntryView,
 } from '../lib/nutrition/meta.ts';
-import { ageBand, effectiveGoal, effectiveProtein } from '../lib/nutrition/age.ts';
+import {
+  AGE_RULES,
+  ageBand,
+  defaultPace,
+  effectiveAdjust,
+  effectiveGoal,
+  effectiveProtein,
+  paceChoices,
+  storedRate,
+} from '../lib/nutrition/age.ts';
 import {
   gradeText,
   levelAgeProblem,
@@ -988,6 +1016,1067 @@ console.log('\n■ 소속과 생년월일');
     '예전 값은 옮겨 읽는다',
     normalizeLevel('사회인·동호회') === '사회인' &&
       normalizeLevel('실업·프로') === '프로'
+  );
+}
+
+console.log('\n■ 체중 목표와 조정');
+{
+  const D = '2026-09-30';
+  const ago = (n: number) => shiftDateKey(D, -n);
+  const mk = (list: [number, number][]): WeightPoint[] =>
+    list.map(([n, kg]) => ({ date: ago(n), kg }));
+  const wig = [0.3, -0.4, 0.1, 0.5, -0.2, -0.5, 0.2];
+  const r1 = (n: number) => Math.round(n * 10) / 10;
+  /* 매일 잰 기록 — 하루 perDay 씩 움직이고 ±0.5kg 흔들린다 */
+  const series = (days: number, start: number, perDay: number) =>
+    mk(
+      Array.from(
+        { length: days + 1 },
+        (_, k) => [days - k, r1(start + perDay * k + wig[k % 7])] as [number, number]
+      )
+    );
+  const from = ago(55);
+  const near = (a: number, b: number, tol = 0.002) => Math.abs(a - b) <= tol;
+  const ok = (t: Trend) => {
+    if (!t.ok) throw new Error(`추세가 없다: ${t.reason}`);
+    return t;
+  };
+  const miss = (t: Trend) => {
+    if (t.ok) throw new Error('추세가 있다');
+    return t;
+  };
+
+  /* ── 추세 ── */
+  check(
+    '하루 흔들림의 사전값 — 35kg 0.3 · 80kg 0.64 · 110kg 0.8',
+    noiseFloor(35) === 0.3 && near(noiseFloor(80), 0.64) && noiseFloor(110) === 0.8
+  );
+  const five = ok(
+    weightTrend(
+      mk([
+        [21, 80.0],
+        [16, 80.2],
+        [10, 80.4],
+        [5, 80.6],
+        [0, 80.75],
+      ]),
+      from,
+      D
+    )
+  );
+  check(
+    '5번 / 21일 — 주 +0.25kg 이지만 아직 또렷하지 않다(표준오차 0.27)',
+    five.rate20 === 5 &&
+      near(five.se, 0.271) &&
+      five.kind === 'noisy' &&
+      near(five.currentKg, 80.76, 0.01),
+    `se ${five.se.toFixed(3)}`
+  );
+  const three = miss(
+    weightTrend(
+      mk([
+        [20, 80],
+        [10, 80.3],
+        [0, 80.5],
+      ]),
+      from,
+      D
+    )
+  );
+  check('3번뿐 — 1번 더', three.reason === 'few' && three.needPoints === 1);
+  const nine = miss(
+    weightTrend(
+      mk([
+        [9, 80],
+        [6, 80.3],
+        [3, 80.1],
+        [0, 80.5],
+      ]),
+      from,
+      D
+    )
+  );
+  check('4번 / 9일 — 5일 더', nine.reason === 'short' && nine.needDays === 5);
+  const bunched = miss(
+    weightTrend(
+      mk([
+        [20, 80],
+        [19, 80.3],
+        [18, 80.1],
+        [8, 80.5],
+      ]),
+      from,
+      D
+    )
+  );
+  check(
+    '앞에 몰린 기록 — 날은 찼으니 오늘 재면 된다',
+    bunched.reason === 'short' && bunched.needDays === 0
+  );
+  const stale = miss(
+    weightTrend(
+      mk([
+        [40, 80],
+        [30, 80.3],
+        [20, 80.1],
+        [11, 80.5],
+      ]),
+      from,
+      D
+    )
+  );
+  check(
+    '마지막 기록이 11일 전 — 말하지 않는다',
+    stale.reason === 'stale' && stale.staleDays === 11
+  );
+  const none = miss(weightTrend([], from, D));
+  check('기록 없음', none.reason === 'none' && none.needPoints === 4);
+
+  const flat50 = series(49, 80, 0);
+  const daily = ok(weightTrend(flat50, from, D));
+  check(
+    '매일 50번 제자리 — 거의 그대로(표준오차 0.067: 촘촘한 점은 덜 센다)',
+    daily.rate20 === 0 && near(daily.se, 0.067) && daily.kind === 'flat',
+    `se ${daily.se.toFixed(3)}`
+  );
+  const weekly8 = mk([
+    [49, 79.6],
+    [42, 80.5],
+    [35, 79.9],
+    [28, 80.4],
+    [21, 79.7],
+    [14, 80.3],
+    [7, 80.0],
+    [0, 79.8],
+  ]);
+  const weekly = ok(weightTrend(weekly8, from, D));
+  check(
+    '주 1회 8번 제자리 — 거의 그대로(표준오차 0.099)',
+    Object.is(weekly.rate20, 0) && near(weekly.se, 0.099) && weekly.kind === 'flat',
+    `se ${weekly.se.toFixed(3)}`
+  );
+  const up29 = series(28, 78, 0.05);
+  const up = ok(weightTrend(up29, from, D));
+  check(
+    '매일 29번 증가 — 주 +0.35kg, 확실히 는다',
+    up.rate20 === 7 &&
+      near(up.se, 0.149) &&
+      up.kind === 'up' &&
+      near(up.currentKg, 79.45, 0.01) &&
+      up.dropped.length === 0,
+    `se ${up.se.toFixed(3)}`
+  );
+  const typo = ok(
+    weightTrend(
+      up29.map((p) => (p.date === ago(10) ? { ...p, kg: 87.5 } : p)),
+      from,
+      D
+    )
+  );
+  check(
+    '오타(87.5)는 흐름에서 뺀다 — 속도는 그대로',
+    typo.dropped.join() === '2026-09-20' && typo.n === 28 && typo.rate20 === 7,
+    typo.dropped.join()
+  );
+  const dehydrated = ok(
+    weightTrend(
+      up29.map((p) => (p.date === D ? { ...p, kg: r1(p.kg - 2.5) } : p)),
+      from,
+      D
+    )
+  );
+  check(
+    '탈수된 마지막 날도 뺀다 — 추세선은 그 전날에서 끝난다',
+    dehydrated.dropped.join() === D &&
+      dehydrated.toDate === '2026-09-29' &&
+      dehydrated.rate20 === 7
+  );
+  const outside = ok(weightTrend([...mk([[60, 70]]), ...weekly8], from, D));
+  check(
+    '창(56일) 밖의 기록은 안 본다',
+    outside.n === 8 && Object.is(outside.rate20, 0) && near(outside.se, weekly.se)
+  );
+  const weekly5 = ok(
+    weightTrend(
+      mk([
+        [28, 72.0],
+        [21, 72.3],
+        [14, 72.5],
+        [7, 72.8],
+        [0, 73.0],
+      ]),
+      from,
+      D
+    )
+  );
+  check(
+    '주 1회 5번 증가 — 한 줄로 서도 확실한 척하지 않는다(흔들림 바닥 0.58)',
+    weekly5.rate20 === 5 &&
+      near(weekly5.se, 0.184) &&
+      near(weekly5.sigma, 0.58) &&
+      weekly5.kind === 'noisy',
+    `se ${weekly5.se.toFixed(3)}`
+  );
+  const four = ok(
+    weightTrend(
+      mk([
+        [21, 76.3],
+        [14, 66.5],
+        [7, 76.8],
+        [0, 77.1],
+      ]),
+      from,
+      D
+    )
+  );
+  check(
+    '4번 중 오타 — 뺄 수 없으니(다섯에 하나까지) 또렷하지 않다고 말한다',
+    four.dropped.length === 0 && four.kind === 'noisy' && four.se > 2
+  );
+
+  /* ── 목표 계산: 새 칸이 비면 예전과 같다 ── */
+  const man: Body = { weightKg: 80, heightCm: 180, age: 20, sex: 'M' };
+  const teen: Body = { weightKg: 65, heightCm: 172, age: 15, sex: 'M' };
+  const kid: Body = { weightKg: 40, heightCm: 145, age: 11, sex: 'M' };
+  const ageless: Body = { weightKg: 80, heightCm: 180, age: null, sex: 'M' };
+  const P = DEFAULT_PROFILE;
+  const baseOf = (p: Partial<ProfileSettings>, b: Body = man) =>
+    computeTargets({ ...P, ...p }, b, 0).base;
+  check(
+    '새 칸 넷이 비면 예전 숫자 그대로 — 유지 2750 · 증량 3050 · 감량 2350',
+    baseOf({}) === 2750 &&
+      baseOf({ goal: 'gain' }) === 3050 &&
+      baseOf({ goal: 'lose' }) === 2350
+  );
+  check(
+    '속도 — 증량 0.35 는 3150, 0.5 를 넣어도 0.35 로, 감량 0.25 는 2450',
+    baseOf({ goal: 'gain', weeklyRateKg: 0.35 }) === 3150 &&
+      baseOf({ goal: 'gain', weeklyRateKg: 0.5 }) === 3150 &&
+      baseOf({ goal: 'lose', weeklyRateKg: 0.25 }) === 2450
+  );
+  check(
+    '증량 조정 — +100 은 3150, +500 은 +300 까지(3350), −500 은 −200 까지(2850)',
+    baseOf({ goal: 'gain', kcalAdjust: 100 }) === 3150 &&
+      baseOf({ goal: 'gain', kcalAdjust: 500 }) === 3350 &&
+      baseOf({ goal: 'gain', kcalAdjust: -500 }) === 2850
+  );
+  check(
+    '감량 조정은 덜 빼는 쪽으로만 — −200 은 0(2350), +900 은 유지까지(2750)',
+    baseOf({ goal: 'lose', kcalAdjust: -200 }) === 2350 &&
+      baseOf({ goal: 'lose', kcalAdjust: 900 }) === 2750 &&
+      baseOf({ goal: 'lose', weeklyRateKg: 0.25, kcalAdjust: 400 }) === 2750
+  );
+  check(
+    '유지 조정 — 내리지 않는다(−100 → 2750), 올리기는 된다(+200 → 2950)',
+    baseOf({ kcalAdjust: -100 }) === 2750 && baseOf({ kcalAdjust: 200 }) === 2950
+  );
+  const manualT = computeTargets(
+    { ...P, goal: 'gain', kcalTarget: 2400, kcalAdjust: 200 },
+    man,
+    0
+  );
+  check(
+    '칼로리를 직접 정했으면 조정은 안 얹는다',
+    manualT.base === 2400 && manualT.adjust === 0 && manualT.manual
+  );
+  check(
+    '성장기 — 유지 2710 · 증량 3010 · 감량 2510, 속도는 한 가지(0.35 를 넣어도 그대로)',
+    baseOf({}, teen) === 2710 &&
+      baseOf({ goal: 'gain' }, teen) === 3010 &&
+      baseOf({ goal: 'lose' }, teen) === 2510 &&
+      baseOf({ goal: 'gain', weeklyRateKg: 0.35 }, teen) === 3010 &&
+      baseOf({ goal: 'lose', weeklyRateKg: 0.35 }, teen) === 2510
+  );
+  check(
+    '성장기 조정 — 올리기는 +200 까지, 내리기는 없다',
+    baseOf({ goal: 'gain', kcalAdjust: 300 }, teen) === 3210 &&
+      baseOf({ goal: 'lose', kcalAdjust: -100 }, teen) === 2510 &&
+      baseOf({ goal: 'lose', kcalAdjust: 300 }, teen) === 2710 &&
+      baseOf({ kcalAdjust: -100 }, teen) === 2710
+  );
+  const kidT = computeTargets(
+    { ...P, goal: 'gain', weeklyRateKg: 0.35, kcalAdjust: 200, targetWeightKg: 45 },
+    kid,
+    0
+  );
+  check(
+    '어린이 — 속도 · 조정을 넣어도 예전 그대로(증량 2250), 계획은 없다',
+    baseOf({}, kid) === 2050 &&
+      kidT.base === 2250 &&
+      kidT.paceKg === null &&
+      baseOf({ goal: 'lose' }, kid) === 2050
+  );
+  const agelessT = computeTargets(
+    { ...P, goal: 'gain', weeklyRateKg: 0.35, kcalAdjust: 300 },
+    ageless,
+    0
+  );
+  check(
+    '생년월일을 모르면 성인 한도를 열지 않는다 — 증량 3050 그대로, 계획 없음',
+    agelessT.base === 3050 &&
+      agelessT.paceKg === null &&
+      baseOf({ goal: 'lose', weeklyRateKg: 0.25 }, ageless) === 2350
+  );
+  check(
+    '가벼운 성인의 감량도 예전 숫자 그대로(1180)',
+    computeTargets(
+      { ...P, goal: 'lose', activity: 'low' },
+      { weightKg: 50, heightCm: 160, age: 25, sex: 'F' },
+      0
+    ).base === 1180
+  );
+  const paceOf = (p: Partial<ProfileSettings>, b: Body = man) =>
+    computeTargets({ ...P, ...p }, b, 0).paceKg;
+  check(
+    '계획 속도 — 성인 증량 0.25 · 감량 0.35 · 유지 0 · 성장기 감량 0.2',
+    paceOf({ goal: 'gain' }) === 0.25 &&
+      paceOf({ goal: 'lose' }) === 0.35 &&
+      paceOf({}) === 0 &&
+      paceOf({ goal: 'lose' }, teen) === 0.2
+  );
+  check(
+    '고를 수 있는 속도 — 성인 증량의 0.35 는 70kg 부터, 성장기는 하나, 어린이 · 나이 모름은 없음',
+    paceChoices(20, 'gain', 80).join() === '0.25,0.35' &&
+      paceChoices(20, 'gain', 65).join() === '0.25' &&
+      paceChoices(20, 'gain', null).join() === '0.25' &&
+      paceChoices(20, 'lose', 60).join() === '0.25,0.35' &&
+      paceChoices(15, 'gain', 80).join() === '0.25' &&
+      paceChoices(15, 'lose', 60).join() === '0.2' &&
+      paceChoices(11, 'gain', 40).length === 0 &&
+      paceChoices(null, 'gain', 80).length === 0 &&
+      paceChoices(20, 'maintain', 80).length === 0
+  );
+  check(
+    '조정 한도',
+    effectiveAdjust(-200, 15, 'gain', 300) === 0 &&
+      effectiveAdjust(900, 20, 'gain', 300) === 300 &&
+      effectiveAdjust(-300, 20, 'lose', -400) === 0 &&
+      effectiveAdjust(100, 11, 'gain', 200) === 0 &&
+      effectiveAdjust(300, null, 'gain', 300) === 0 &&
+      effectiveAdjust(400, 20, 'lose', -300) === 300
+  );
+  check(
+    '기본 속도의 kcal 은 예전 goalDelta 와 같다(기본 속도를 고르면 숫자가 안 바뀐다)',
+    (['teen', 'adult'] as const).every((band) =>
+      (['gain', 'lose'] as const).every(
+        (g) =>
+          defaultPace(band, g)?.kcal === Math.abs(AGE_RULES[band].goalDelta[g] ?? 0)
+      )
+    )
+  );
+  check(
+    '저장할 속도 — 기본 속도는 null, 빠른 속도만 숫자로',
+    storedRate(0.25, 20, 'gain') === null &&
+      storedRate(0.35, 20, 'gain') === 0.35 &&
+      storedRate(0.35, 20, 'lose') === null &&
+      storedRate(0.25, 20, 'lose') === 0.25 &&
+      storedRate(0.35, 15, 'gain') === null &&
+      storedRate(0.35, null, 'gain') === null &&
+      storedRate(0.35, 20, 'maintain') === null
+  );
+  /* 무엇을 넣어도 안전한가 — 몸 5 × 목표 3 × 움직임 3 × 속도 5 × 조정 21 */
+  {
+    let bad = 0;
+    let count = 0;
+    const bodies: Body[] = [
+      man,
+      teen,
+      kid,
+      ageless,
+      { weightKg: 50, heightCm: 160, age: 25, sex: 'F' },
+    ];
+    for (const b of bodies)
+      for (const goal of ['gain', 'maintain', 'lose'] as const)
+        for (const activity of ['low', 'mid', 'high'] as const)
+          for (const weeklyRateKg of [null, 0.2, 0.25, 0.35, 0.5])
+            for (let kcalAdjust = -1000; kcalAdjust <= 1000; kcalAdjust += 100) {
+              count++;
+              const old = computeTargets({ ...P, goal, activity }, b, 0);
+              const keep = computeTargets({ ...P, activity }, b, 0);
+              const t = computeTargets(
+                { ...P, goal, activity, weeklyRateKg, kcalAdjust },
+                b,
+                0
+              );
+              /* 감량 · 유지는 예전보다 낮아지지 않는다 */
+              if (t.goal !== 'gain' && t.base < old.base) bad++;
+              /* 만 18세 밑 · 나이 모름은 내리는 조정이 없다 */
+              if ((b.age === null || b.age < 18) && t.adjust < 0) bad++;
+              /* 나이 모름 · 어린이는 예전과 같다 */
+              if ((b.age === null || t.ageBand === 'child') && t.base !== old.base)
+                bad++;
+              /* 증량은 유지보다 적어도 100 많고, 감량은 유지를 넘지 않는다 */
+              if (t.goal === 'gain' && t.base < keep.base + 100) bad++;
+              if (t.goal === 'lose' && t.base > keep.base) bad++;
+            }
+    check(
+      `무엇을 넣어도 한도 안 — ${count.toLocaleString()}가지`,
+      bad === 0,
+      `위반 ${bad}`
+    );
+  }
+
+  /* ── 식사 확인 · 목표 체중 · 주수 ── */
+  const days = (list: [number, number][]) =>
+    list.flatMap(([n, kcal]) =>
+      Array.from({ length: n }, () => ({ kcal, target: 3050 }))
+    );
+  const iGood = days([[14, 3000]]);
+  const iUnder = days([
+    [10, 2500],
+    [4, 0],
+  ]);
+  const iFew = days([
+    [3, 2900],
+    [11, 0],
+  ]);
+  const iOver = days([
+    [9, 3600],
+    [5, 1000],
+  ]);
+  const good = intakeCheck(iGood);
+  const under = intakeCheck(iUnder);
+  const over = intakeCheck(iOver);
+  check(
+    '식사 확인 — 14일 다 적음: 믿는다, 목표의 98%',
+    good.trusted && good.days === 14 && near(good.ratio!, 0.984) && good.gapKcal === -50
+  );
+  check(
+    '10일 적고 덜 먹음 — 목표의 82%, 하루 550 모자람',
+    under.trusted &&
+      under.days === 10 &&
+      near(under.ratio!, 0.82) &&
+      under.gapKcal === -550
+  );
+  check(
+    '3일만 적음 — 안 믿는다',
+    !intakeCheck(iFew).trusted && intakeCheck(iFew).days === 3
+  );
+  check(
+    '9일 적고 더 먹음 — 목표의 118%(적다 만 날 1,000kcal 은 안 센다)',
+    over.trusted && over.days === 9 && near(over.ratio!, 1.18) && over.gapKcal === 550
+  );
+  check(
+    '목표의 절반도 안 적은 날(1,500 < 1,525)은 안 센다',
+    intakeCheck(
+      days([
+        [7, 3000],
+        [7, 1500],
+      ])
+    ).days === 7
+  );
+  check('기록이 없으면 비율도 없다', intakeCheck([]).ratio === null);
+
+  const rangeText = (r: TargetRange) => (r.ok ? `${r.min}~${r.max}` : r.why);
+  check(
+    '목표 체중 범위 — 성인 증량은 지금의 115% 까지, 성장기는 110% 까지',
+    rangeText(targetRange('gain', 20, 75.2, 180)) === '75.7~86.4' &&
+      rangeText(targetRange('gain', 15, 62, 170)) === '62.5~68.2'
+  );
+  check(
+    '성인 감량은 지금의 90% 와 BMI 20 중 높은 쪽까지',
+    rangeText(targetRange('lose', 20, 85, 180)) === '76.5~84.5' &&
+      rangeText(targetRange('lose', 20, 64, 180)) === 'light' &&
+      rangeText(targetRange('lose', 20, 85, null)) === 'height'
+  );
+  check(
+    '성장기 감량 · 어린이 · 유지 · 나이 모름 · 체중 모름은 목표 체중이 없다',
+    rangeText(targetRange('lose', 15, 70, 170)) === 'band' &&
+      rangeText(targetRange('gain', 11, 40, 145)) === 'band' &&
+      rangeText(targetRange('maintain', 20, 80, 180)) === 'band' &&
+      rangeText(targetRange('gain', null, 80, 180)) === 'age' &&
+      rangeText(targetRange('gain', 20, null, 180)) === 'weight'
+  );
+  const tw = (
+    goal: 'gain' | 'lose' | 'maintain',
+    age: number | null,
+    kg: number | null,
+    prev: number | null = null
+  ) => checkTargetWeight(goal, age, 80, 180, kg, prev);
+  check(
+    '목표 체중 저장 — 범위 안은 통과, 밖은 범위를 말한다',
+    JSON.stringify(tw('gain', 20, 85.04)) === '{"ok":true,"kg":85}' &&
+      tw('gain', 20, 95).ok === false &&
+      (tw('gain', 20, 95) as { error: string }).error.includes('80.5~92kg')
+  );
+  check(
+    '정할 수 없는 나이 · 목표면 조용히 비운다',
+    JSON.stringify(tw('maintain', 20, 85)) === '{"ok":true,"kg":null}' &&
+      JSON.stringify(tw('lose', 15, 70)) === '{"ok":true,"kg":null}' &&
+      JSON.stringify(tw('gain', null, 85)) === '{"ok":true,"kg":null}'
+  );
+  check(
+    '이미 저장된 목표는 범위가 밀려도 그대로 통과한다',
+    JSON.stringify(tw('gain', 20, 95, 95)) === '{"ok":true,"kg":95}'
+  );
+  check(
+    '약 N주 — 정수로 나눈다(2.1 ÷ 0.35 = 6, 실수로 나누면 7)',
+    etaWeeks(2.1, 0.35) === 6 &&
+      etaWeeks(4.2, 0.35) === 12 &&
+      etaWeeks(2.0, 0.25) === 8 &&
+      etaWeeks(2.4, 0.25) === 10 &&
+      etaWeeks(3.0, 0.35) === 9 &&
+      etaWeeks(1.0, 0.2) === 5
+  );
+  check(
+    '한 해를 넘거나 남은 것이 없으면 말하지 않는다',
+    etaWeeks(14, 0.25) === null && etaWeeks(0, 0.25) === null && etaWeeks(2, 0) === null
+  );
+
+  /* ── 판정 ── */
+  type Run = {
+    points: WeightPoint[];
+    profile?: Partial<ProfileSettings>;
+    body?: Body;
+    intake?: IntakeDay[];
+    isToday?: boolean;
+    hasProfile?: boolean;
+  };
+  const run = (o: Run) => {
+    const profile = { ...P, goal: 'gain' as const, targetWeightKg: 82, ...o.profile };
+    const body = o.body ?? man;
+    return weightGoal({
+      date: D,
+      isToday: o.isToday ?? true,
+      hasProfile: o.hasProfile ?? true,
+      points: o.points,
+      profile,
+      targets: computeTargets(profile, body, 0),
+      age: body.age,
+      intake: o.intake ?? iGood,
+    });
+  };
+  const sug = (g: WeightGoal) =>
+    g.suggestion
+      ? `${g.suggestion.step}/${g.suggestion.nextAdjust}/${g.suggestion.logs}`
+      : null;
+
+  const p1 = run({ points: flat50 });
+  check(
+    '증량인데 7주째 제자리 — 하루 +100 을 권한다',
+    p1.status === 'low' &&
+      sug(p1) === '100/100/ok' &&
+      p1.remainingKg === 2 &&
+      p1.etaWeeks === 8,
+    `${p1.status} ${sug(p1)}`
+  );
+  const p2 = run({ points: series(35, 80, 0) });
+  check(
+    '같은 제자리라도 5주치로는 아직 모른다(기운 쪽만 말한다)',
+    p2.status === 'unsure' && p2.lean === -1 && p2.suggestion === null
+  );
+  check('6주치가 되면 권한다', run({ points: series(42, 80, 0) }).status === 'low');
+  const p3 = run({ points: flat50, intake: iUnder });
+  check(
+    '목표만큼 못 먹고 있으면 올리지 않는다 — 먼저 채우기',
+    p3.status === 'low' && p3.hold === 'eatFirst' && p3.suggestion === null
+  );
+  check(
+    '식사 기록이 적어도 올리기는 권한다(확인 못 했다고 알린다)',
+    sug(run({ points: flat50, intake: iFew })) === '100/100/few'
+  );
+  check(
+    '칼로리를 직접 정했으면 권하지 않는다',
+    run({ points: flat50, profile: { kcalTarget: 3000 } }).hold === 'manual'
+  );
+  check(
+    '지난 날을 볼 때는 권하지 않는다',
+    run({ points: flat50, isToday: false }).hold === 'past'
+  );
+  check(
+    '목표를 저장한 적 없거나 생년월일을 모르면 흐름만',
+    run({ points: flat50, hasProfile: false }).status === 'off' &&
+      run({ points: flat50, body: ageless }).status === 'off'
+  );
+
+  const since = (n: number) => ({ planSince: ago(n) });
+  const p6a = run({ points: flat50, profile: since(10) });
+  check(
+    '계획을 바꾼 지 10일 — 기다린다. 카드는 56일 흐름을 그대로 보인다',
+    p6a.status === 'wait' &&
+      p6a.planDays === 10 &&
+      !p6a.judged &&
+      p6a.trend.ok &&
+      p6a.trend.n === 50 &&
+      p6a.wait?.reason === 'short'
+  );
+  check(
+    '17일째도 기다린다',
+    run({ points: flat50, profile: since(17) }).status === 'wait'
+  );
+  const p6e = run({ points: flat50, profile: since(18) });
+  check(
+    '18일째부터 견준다 — 나흘을 뺀 15점으로는 아직 모른다',
+    p6e.status === 'unsure' && p6e.judged && p6e.trend.ok && p6e.trend.n === 15
+  );
+  check(
+    '30일째도 제자리 흔들림 안이면 아직 모른다',
+    run({ points: flat50, profile: since(30) }).status === 'unsure'
+  );
+  check(
+    '고른 날이 계획을 시작하기 전이면 흐름만',
+    run({ points: flat50, profile: { planSince: shiftDateKey(D, 3) } }).status === 'off'
+  );
+
+  const rising = series(42, 77.5, 0.05);
+  const p7 = run({ points: rising, profile: { weeklyRateKg: 0.35 } });
+  check(
+    '계획(주 0.35kg)대로 — 남은 2.4kg, 약 7주',
+    p7.status === 'onPace' &&
+      p7.trend.ok &&
+      p7.trend.rate20 === 7 &&
+      p7.remainingKg === 2.4 &&
+      p7.etaWeeks === 7,
+    `${p7.status} ${p7.remainingKg} ${p7.etaWeeks}`
+  );
+
+  const fast = series(42, 76, 0.1);
+  const p8 = run({ points: fast, profile: { targetWeightKg: 85 } });
+  check(
+    '성인 증량이 계획의 세 배로 빠르다 — 하루 −100 을 권한다',
+    p8.status === 'high' && sug(p8) === '-100/-100/ok',
+    `${p8.status} ${sug(p8)}`
+  );
+  check(
+    '식사 기록이 적으면 내리기는 권하지 않는다',
+    run({ points: fast, profile: { targetWeightKg: 85 }, intake: iFew }).hold ===
+      'needLog'
+  );
+  check(
+    '목표보다 많이 먹고 있으면 내리지 않는다 — 목표에 맞추기',
+    run({ points: fast, profile: { targetWeightKg: 85 }, intake: iOver }).hold ===
+      'overEating'
+  );
+  check(
+    '이미 −200 이면 더 내리지 않는다',
+    run({ points: fast, profile: { targetWeightKg: 85, kcalAdjust: -200 } }).hold ===
+      'floor'
+  );
+  const p9 = run({
+    points: series(42, 60, 0.1),
+    profile: { targetWeightKg: 68 },
+    body: teen,
+  });
+  check(
+    '성장기 증량이 빨라도 줄이라고 하지 않는다',
+    p9.status === 'high' &&
+      p9.hold === 'keep' &&
+      p9.suggestion === null &&
+      run({
+        points: series(42, 60, 0.1),
+        profile: { targetWeightKg: 68, kcalAdjust: 100 },
+        body: teen,
+      }).hold === 'keep'
+  );
+
+  const losing = series(28, 84, -0.13);
+  const p10 = run({ points: losing, profile: { goal: 'lose', targetWeightKg: 76 } });
+  check(
+    '성인 감량이 너무 빠르다(주 −0.9kg) — 하루 +100 을 권한다',
+    p10.status === 'low' && sug(p10) === '100/100/ok',
+    `${p10.status} ${sug(p10)}`
+  );
+  check(
+    '이미 유지만큼 올렸으면 더 못 올린다',
+    run({
+      points: losing,
+      profile: { goal: 'lose', targetWeightKg: 76, kcalAdjust: 400 },
+    }).hold === 'cap'
+  );
+  const p11 = run({ points: flat50, profile: { goal: 'lose', targetWeightKg: 76 } });
+  check(
+    '성인 감량이 안 돼도 더 깊이 빼라고 하지 않는다',
+    p11.status === 'high' && p11.hold === 'floor' && p11.suggestion === null
+  );
+  check(
+    '전에 올려 둔 조정이 있으면 그것을 되돌리기만 권한다',
+    sug(
+      run({
+        points: flat50,
+        profile: { goal: 'lose', targetWeightKg: 76, kcalAdjust: 100 },
+      })
+    ) === '-100/0/ok'
+  );
+  const p12 = run({
+    points: series(49, 65, 0),
+    profile: { goal: 'lose', targetWeightKg: 60 },
+    body: teen,
+  });
+  check(
+    '성장기 감량이 안 될 때 — 더 줄이지 않는다, 저장된 목표 체중도 안 읽는다',
+    p12.status === 'high' && p12.hold === 'keep' && p12.targetKg === null
+  );
+  const p12b = run({
+    points: series(28, 67, -0.08),
+    profile: { goal: 'lose', targetWeightKg: null },
+    body: teen,
+  });
+  check(
+    '성장기 감량이 너무 빠르다 — 하루 +100 을 권하고 한 줄 알린다',
+    p12b.status === 'low' && sug(p12b) === '100/100/ok' && p12b.minorDrop,
+    `${p12b.status} ${sug(p12b)} ${p12b.minorDrop}`
+  );
+
+  const p13 = run({
+    points: rising,
+    profile: { weeklyRateKg: 0.35, targetWeightKg: 79.5 },
+  });
+  check(
+    '목표 체중에 닿았다 — 추세도 마지막 기록도 넘었다',
+    p13.status === 'reached' && p13.remainingKg === 0 && p13.suggestion === null
+  );
+  check(
+    '마지막 기록만 아직 아래면 닿았다고 하지 않는다',
+    run({
+      points: [...rising.slice(0, -1), { date: D, kg: 79.2 }],
+      profile: { weeklyRateKg: 0.35, targetWeightKg: 79.5 },
+    }).status === 'onPace'
+  );
+  const p14 = run({
+    points: series(35, 36, -0.03),
+    profile: { goal: 'gain', targetWeightKg: 40 },
+    body: { ...kid, weightKg: 35 },
+  });
+  check(
+    '어린이 — 계획도 권유도 없다. 줄고 있으면 한 줄만',
+    p14.status === 'off' && p14.suggestion === null && p14.minorDrop
+  );
+  const keepGoal = { goal: 'maintain' as const, targetWeightKg: null };
+  check(
+    '유지인데 빠진다 — 하루 +100 을 권한다',
+    sug(run({ points: losing, profile: keepGoal })) === '100/100/ok'
+  );
+  check(
+    '유지인데 는다 — 줄이라고 하지 않는다. 전에 올린 것이 있으면 되돌리기만',
+    run({ points: fast, profile: keepGoal }).hold === 'floor' &&
+      sug(run({ points: fast, profile: { ...keepGoal, kcalAdjust: 100 } })) ===
+        '-100/0/ok'
+  );
+  const p16 = run({
+    points: series(49, 62, 0),
+    profile: { targetWeightKg: 66 },
+    body: teen,
+  });
+  check(
+    '성장기 증량이 제자리 — 하루 +100, 남은 4kg 약 16주',
+    sug(p16) === '100/100/ok' && p16.remainingKg === 4 && p16.etaWeeks === 16
+  );
+  check(
+    '올리기 한도 — 성장기 +200, 성인 +300',
+    run({
+      points: series(49, 62, 0),
+      profile: { targetWeightKg: 66, kcalAdjust: 200 },
+      body: teen,
+    }).hold === 'cap' &&
+      run({ points: flat50, profile: { kcalAdjust: 300 } }).hold === 'cap'
+  );
+  const p17 = run({
+    points: mk([
+      [20, 80],
+      [10, 80.3],
+      [0, 80.5],
+    ]),
+  });
+  check(
+    '기록이 3번뿐 — 기다린다. 남은 양은 마지막 기록으로 셈한다',
+    p17.status === 'wait' && p17.remainingKg === 1.5 && p17.etaWeeks === 6
+  );
+  check(
+    '주 1회 8번 제자리 증량 — 권한다(문턱을 간신히 넘는다)',
+    run({ points: weekly8 }).status === 'low'
+  );
+  const p20 = run({
+    points: mk([
+      [28, 80.0],
+      [21, 80.3],
+      [14, 79.9],
+      [7, 80.2],
+      [0, 80.0],
+    ]),
+  });
+  check(
+    '주 1회 5번 제자리 — 점이 적으면 말하지 않는다',
+    p20.status === 'unsure' && p20.lean === -1
+  );
+  const p21 = run({ points: flat50, profile: { targetWeightKg: null } });
+  check(
+    '목표 체중이 없어도 속도는 견준다',
+    p21.status === 'low' && sug(p21) === '100/100/ok' && p21.remainingKg === null
+  );
+
+  /* ── 목표를 저장할 때 ── */
+  const prev = {
+    goal: 'gain' as const,
+    activity: 'mid' as const,
+    weeklyRateKg: null,
+    kcalTarget: null,
+    kcalAdjust: 200,
+  };
+  const next = {
+    goal: 'gain' as const,
+    activity: 'mid' as const,
+    weeklyRateKg: null,
+    kcalTarget: null,
+  };
+  const saved = (r: { kcalAdjust: number | null; restart: boolean }) =>
+    `${r.kcalAdjust}/${r.restart}`;
+  check(
+    '같은 설정으로 저장 — 조정도 시작일도 그대로(기본 속도를 숫자로 보내도 같다)',
+    saved(planOnSave(prev, next, 20)) === '200/false' &&
+      saved(planOnSave(prev, { ...next, weeklyRateKg: 0.25 }, 20)) === '200/false'
+  );
+  check(
+    '증량 → 유지는 올려 둔 조정을 남긴다(벌크 뒤 급락 방지)',
+    saved(planOnSave(prev, { ...next, goal: 'maintain' }, 20)) === '200/true' &&
+      saved(
+        planOnSave({ ...prev, kcalAdjust: -100 }, { ...next, goal: 'maintain' }, 20)
+      ) === 'null/true'
+  );
+  check(
+    '목표 · 움직임 · 속도 · 직접 칼로리가 바뀌면 조정은 0 으로, 계획은 새로',
+    saved(planOnSave(prev, { ...next, goal: 'lose' }, 20)) === 'null/true' &&
+      saved(planOnSave(prev, { ...next, activity: 'high' }, 20)) === 'null/true' &&
+      saved(planOnSave(prev, { ...next, weeklyRateKg: 0.35 }, 20)) === 'null/true' &&
+      saved(planOnSave(prev, { ...next, kcalTarget: 3000 }, 20)) === 'null/true' &&
+      saved(
+        planOnSave({ ...prev, goal: 'lose' }, { ...next, goal: 'maintain' }, 20)
+      ) === 'null/true' &&
+      saved(planOnSave(null, next, 20)) === 'null/true'
+  );
+  check(
+    '조정 지우기 — 지울 것이 있을 때만 계획을 새로 시작한다',
+    saved(planOnSave(prev, { ...next, clearAdjust: true }, 20)) === 'null/true' &&
+      saved(
+        planOnSave({ ...prev, kcalAdjust: null }, { ...next, clearAdjust: true }, 20)
+      ) === 'null/false'
+  );
+
+  /* ── 화면의 글 ── */
+  check(
+    "속도 글 — '주 +0.25kg' · '주 0kg' · '주 −0.7kg' · '주 +0.6lb'",
+    fmtRate(5, 'kg') === '주 +0.25kg' &&
+      fmtRate(0, 'kg') === '주 0kg' &&
+      fmtRate(-14, 'kg') === '주 −0.7kg' &&
+      fmtRate(5, 'lb') === '주 +0.6lb'
+  );
+  const ctx = {
+    goal: 'gain' as const,
+    band: 'adult' as const,
+    ageKnown: true,
+    hasProfile: true,
+    unit: 'kg' as const,
+    isToday: true,
+  };
+  const c1 = goalCopy(p1, ctx);
+  check(
+    '느릴 때 — 숫자 하나 · 문장 하나 · 단추 하나',
+    c1.number === '주 0kg' &&
+      c1.label === '최근 7주 흐름' &&
+      c1.sub === '계획 주 +0.25kg · 목표 82kg까지 2kg · 계획대로면 약 8주' &&
+      c1.sentence ===
+        '계획보다 느려요. 하루 100kcal 올려 볼까요? 바나나 1개쯤이에요.' &&
+      c1.action === 'raise',
+    `${c1.label} | ${c1.number} | ${c1.sub} | ${c1.sentence}`
+  );
+  check(
+    '못 먹고 있을 때는 얼마나 모자란지 말한다',
+    goalCopy(p3, ctx).sentence ===
+      '계획보다 느려요. 기록으로는 목표보다 하루 550kcal쯤 덜 먹었어요. 목표는 그대로 두고 먼저 채워 보세요.' &&
+      goalCopy(p3, ctx).action === null
+  );
+  const c9 = goalCopy(p9, { ...ctx, band: 'teen' });
+  check(
+    '성장기 증량이 빠를 때 — 자연스러운 일이라고 말하고 단추는 없다',
+    Boolean(c9.sentence?.includes('키가 크는 시기엔')) && c9.action === null
+  );
+  const c13 = goalCopy(p13, ctx);
+  check(
+    '닿았을 때 — 유지로 바꾸기',
+    c13.action === 'maintain' && c13.label === '목표 79.5kg' && c13.number === '79.6kg',
+    `${c13.label} ${c13.number}`
+  );
+  check(
+    '또렷하지 않은 흐름은 숫자를 보이지 않는다',
+    goalCopy(p20, ctx).number === null &&
+      goalCopy(p20, ctx).sentence ===
+        '계획보다 조금 느린 듯해요. 아직 확실하지 않아 1~2주 더 볼게요.'
+  );
+  check(
+    '기다릴 때는 까닭과 남은 날을 말한다',
+    goalCopy(p6a, ctx).sentence === '새 목표로 10일째예요. 8일 뒤에 계획과 비교해요.' &&
+      goalCopy(run({ points: flat50, profile: since(0) }), ctx).sentence ===
+        '오늘 목표를 바꿨어요. 18일 뒤에 계획과 비교해요.' &&
+      goalCopy(p17, ctx).sentence ===
+        '1번 더 재면 계획과 비교해요. 주 2~3번이면 충분해요.'
+  );
+  const c14 = goalCopy(p14, { ...ctx, band: 'child' });
+  check(
+    '어린이 카드 — 글은 없고 줄어들 때의 한 줄만',
+    c14.label === null &&
+      c14.sentence === null &&
+      Boolean(c14.minor?.includes('끼니를 거르지'))
+  );
+  const off = goalCopy(run({ points: flat50, hasProfile: false }), {
+    ...ctx,
+    hasProfile: false,
+  });
+  check(
+    '계획이 없으면 흐름만 말한다',
+    off.sentence === '거의 그대로예요.' && off.sub === null && off.action === null
+  );
+  check(
+    '생년월일을 모르면 적어 달라고 한 줄',
+    goalCopy(run({ points: flat50, body: ageless }), { ...ctx, ageKnown: false })
+      .note === '생년월일을 내 정보에 적으면 계획과 비교해 드려요.'
+  );
+  check(
+    '파운드로 볼 때',
+    goalCopy(p1, { ...ctx, unit: 'lb' }).sub ===
+      '계획 주 +0.6lb · 목표 180.8lb까지 4.4lb · 계획대로면 약 8주'
+  );
+
+  /* ── 검토에서 찾아 고친 것 ── */
+  /* 7주 동안 60kg 이다가 마지막 일주일 57kg — 수준이 바뀐 것이지 오타가 아니다 */
+  const shifted = mk(
+    Array.from(
+      { length: 56 },
+      (_, k) => [55 - k, r1((k < 49 ? 60 : 57) + wig[k % 7])] as [number, number]
+    )
+  );
+  const shiftTrend = ok(weightTrend(shifted, from, D));
+  check(
+    '끝에 같은 쪽으로 이어진 점(일주일 새 −3kg)은 이상값이 아니다 — 빼지 않고 줄고 있다고 읽는다',
+    shiftTrend.dropped.length === 0 && shiftTrend.kind === 'down',
+    `dropped ${shiftTrend.dropped.length} ${shiftTrend.kind}`
+  );
+  const teenShift = run({ points: shifted, profile: { goal: 'maintain' }, body: teen });
+  check(
+    '성장기 유지 중 일주일 새 3kg 이 빠지면 곧바로 더 먹기 쪽(미성년 한 줄은 며칠 더 지나야 — 56일 직선이라)',
+    teenShift.status === 'low' && teenShift.trend.ok && teenShift.trend.kind === 'down',
+    `${teenShift.status} ${teenShift.minorDrop}`
+  );
+  const twoDay = ok(
+    weightTrend(
+      up29.map((p, i) => (i >= 27 ? { ...p, kg: r1(p.kg - 2.5) } : p)),
+      from,
+      D
+    )
+  );
+  check('이틀짜리 탈수는 그대로 뺀다', twoDay.dropped.length === 2);
+  const jump = miss(
+    weightTrend(
+      mk([
+        [47, 78.0],
+        [40, 78.2],
+        [33, 78.1],
+        [26, 78.3],
+        [19, 78.2],
+        [12, 78.3],
+        [0, 80.4],
+      ]),
+      from,
+      D
+    )
+  );
+  check(
+    '오늘 잰 값이 튀어 빠졌으면 "오늘 재 볼까요"가 아니라 "1번 더 재면" — 남은 kg 도 남긴 기록으로',
+    jump.reason === 'few' && jump.needPoints === 1 && jump.lastKg === 78.3,
+    `${jump.reason} ${jump.lastKg}`
+  );
+
+  check(
+    '감량인데 체중이 늘면 "천천히 빠져요"라고 하지 않는다',
+    goalCopy(
+      run({
+        points: series(42, 84, 0.05),
+        profile: { goal: 'lose', targetWeightKg: 80 },
+      }),
+      {
+        ...ctx,
+        goal: 'lose',
+      }
+    ).sentence === '감량이 목표인데 체중이 늘고 있어요. 목표는 더 낮추지 않아요.' &&
+      goalCopy(p11, { ...ctx, goal: 'lose' }).sentence ===
+        '감량이 목표인데 체중이 줄지 않고 있어요. 목표는 더 낮추지 않아요.' &&
+      goalCopy(
+        run({
+          points: series(28, 80, 0),
+          profile: { goal: 'lose', targetWeightKg: 76 },
+        }),
+        { ...ctx, goal: 'lose' }
+      ).sentence === '체중이 줄지 않는 듯해요. 아직 확실하지 않아 1~2주 더 볼게요.'
+  );
+  check(
+    '증량인데 체중이 줄면 그렇게 말한다',
+    Boolean(
+      goalCopy(
+        run({ points: series(28, 82, -0.08), profile: {} }),
+        ctx
+      ).sentence?.startsWith('증량이 목표인데 체중이 줄고 있어요.')
+    )
+  );
+  check(
+    '기록이 없거나 오래됐으면 날짜를 세지 않고 재 달라고 한다',
+    goalCopy(run({ points: [], profile: since(0) }), ctx).sentence ===
+      '체중을 적으면 계획과 비교해 드려요. 2주 동안 4번이면 돼요.' &&
+      goalCopy(run({ points: mk([[30, 80]]), profile: since(5) }), ctx).sentence ===
+        '마지막 기록이 30일 전이에요. 오늘 한 번 재 볼까요?'
+  );
+  const teenFast = series(42, 60, 0.1);
+  check(
+    '성장기가 계획보다 위로 갈 때는 지난 날이든 직접 칼로리든 "줄이지 않는다"가 먼저',
+    run({
+      points: teenFast,
+      profile: { targetWeightKg: 68 },
+      body: teen,
+      isToday: false,
+    }).hold === 'keep' &&
+      run({
+        points: teenFast,
+        profile: { targetWeightKg: 68, kcalTarget: 3000 },
+        body: teen,
+      }).hold === 'keep' &&
+      run({
+        points: series(49, 65, 0),
+        profile: { goal: 'lose' },
+        body: teen,
+        isToday: false,
+      }).hold === 'keep'
+  );
+  check(
+    '지난 날에도 오늘 막혔을 까닭은 그대로 말한다(못 먹고 있음 · 한도)',
+    run({ points: flat50, intake: iUnder, isToday: false }).hold === 'eatFirst' &&
+      run({ points: flat50, profile: { kcalAdjust: 300 }, isToday: false }).hold ===
+        'cap' &&
+      run({ points: flat50, isToday: false }).hold === 'past'
+  );
+  const teenSlowLose = run({
+    points: series(55, 52.2, -0.04),
+    profile: { goal: 'lose' },
+    body: { ...teen, weightKg: 50 },
+  });
+  check(
+    '성장기 감량이 계획대로인데 체중의 0.5%/주 넘게 줄면 "지금처럼 먹으면 돼요"를 붙이지 않는다',
+    teenSlowLose.status === 'onPace' &&
+      teenSlowLose.minorDrop &&
+      goalCopy(teenSlowLose, { ...ctx, goal: 'lose', band: 'teen' }).sentence ===
+        '계획대로예요.',
+    `${teenSlowLose.status} ${teenSlowLose.minorDrop}`
+  );
+  check(
+    '미성년 한 줄은 성인 · 천천히 줄 때 · 늘 때는 뜨지 않는다',
+    !run({ points: series(28, 82, -0.08), profile: { goal: 'lose' } }).minorDrop &&
+      !run({ points: series(49, 65, -0.01), profile: { goal: 'lose' }, body: teen })
+        .minorDrop &&
+      !p9.minorDrop
+  );
+  const oldTypo = series(49, 78, 0.035).map((p) =>
+    p.date === ago(40) ? { ...p, kg: 87.5 } : p
+  );
+  const withPlan = run({ points: oldTypo, profile: since(30) });
+  check(
+    '계획을 바꾸기 전의 오타도 그래프에 "뺀 값"으로 내려간다',
+    withPlan.judged && withPlan.trend.ok && withPlan.trend.dropped.includes(ago(40))
   );
 }
 

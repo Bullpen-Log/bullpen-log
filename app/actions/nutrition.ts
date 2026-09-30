@@ -3,7 +3,17 @@
 import { revalidatePath } from 'next/cache';
 import { prisma } from '@/lib/prisma';
 import { getCurrentUser } from '@/lib/dal';
+import { toDateKey } from '@/lib/pitch-stats';
 import { dbDate, isNutritionDate } from '@/lib/nutrition/days';
+import {
+  effectiveGoal,
+  effectiveRate,
+  paceChoices,
+  storedRate,
+} from '@/lib/nutrition/age';
+import { loadNutritionDay, recentWeightKg } from '@/lib/nutrition/load';
+import { ageOn } from '@/lib/nutrition/targets';
+import { STEP_KCAL, checkTargetWeight, planOnSave } from '@/lib/nutrition/weight-goal';
 import {
   AMOUNT_MAX,
   AMOUNT_MIN,
@@ -282,6 +292,19 @@ export type ProfileInput = {
   activity: string;
   proteinPerKg: number;
   kcalTarget: number | null;
+  /*
+   * 체중 목표(lib/nutrition/weight-goal.ts). 배포 전에 열어 둔 화면은 이 칸들을 안 보낸다(undefined) —
+   * 그때는 목표가 그대로면 저장된 값을 두고, 목표를 바꿨으면 비운다.
+   *
+   * 조정(kcalAdjust)과 계획 시작일(planSince)은 받지 않는다 — 서버가 정한다. 조정은 체중 카드의 단추
+   * (applyWeightStep)로만 움직이고, 여기서는 지우는 것만 된다(clearAdjust).
+   */
+  /** 목표 체중(kg). null 은 안 정함 */
+  targetWeightKg?: number | null;
+  /** 주당 속도(kg). null 은 나이별 기본 속도 */
+  weeklyRateKg?: number | null;
+  /** 받아들여 둔 체중 흐름 조정을 지운다 */
+  clearAdjust?: boolean;
 };
 
 export async function saveNutritionProfile(
@@ -315,11 +338,84 @@ export async function saveNutritionProfile(
     kcalTarget = Math.round(input.kcalTarget);
   }
 
+  /* ── 체중 목표: 속도 · 목표 체중은 나이와 지금 체중으로 본다 ── */
+  const prev = await prisma.nutritionProfile.findUnique({ where: { userId: user.id } });
+  const today = toDateKey(new Date());
+  const age = ageOn(user.birthDate, today);
+  /* 어린이의 감량은 유지로 셈한다 — 속도와 목표 체중도 그 목표로 본다 */
+  const goal = effectiveGoal(input.goal, age);
+  const sameGoal = prev !== null && prev.goal === input.goal;
+  const refKg = (await recentWeightKg(user.id, today)) ?? user.weightKg;
+
+  let weeklyRateKg: number | null = null;
+  if (input.weeklyRateKg === undefined) {
+    weeklyRateKg = sameGoal ? prev.weeklyRateKg : null;
+  } else if (isNum(input.weeklyRateKg)) {
+    /*
+     * 고를 수 있는 속도이거나, 이미 저장해 둔 속도 그대로(체중이 70kg 아래로 내려가도 다른 저장이 막히지 않게)일
+     * 때만 받는다. 그 밖은 거절하지 않고 기본 속도로 둔다 — 지난 날을 보며 연 목표 창은 그날 나이로 셈한 속도를
+     * 보내는데(만 18세 생일 전날의 0.2), 거절하면 고를 칸도 없는 화면에서 저장이 통째로 막힌다.
+     * 어느 쪽이든 storedRate 가 오늘 나이의 선택지 안으로 당긴다.
+     */
+    const kept = sameGoal && prev.weeklyRateKg === input.weeklyRateKg;
+    const picked = effectiveRate(input.weeklyRateKg, age, goal);
+    const usable =
+      kept || (picked !== null && paceChoices(age, goal, refKg).includes(picked));
+    weeklyRateKg = storedRate(usable ? input.weeklyRateKg : null, age, goal);
+  }
+
+  let targetWeightKg: number | null = null;
+  if (input.targetWeightKg === undefined) {
+    targetWeightKg = sameGoal ? prev.targetWeightKg : null;
+  } else {
+    const checked = checkTargetWeight(
+      goal,
+      age,
+      refKg,
+      user.heightCm,
+      input.targetWeightKg,
+      sameGoal ? prev.targetWeightKg : null
+    );
+    if (!checked.ok) return checked;
+    targetWeightKg = checked.kg;
+  }
+
+  /* 칼로리 계획이 바뀌면 조정은 0 으로, 계획은 오늘부터 — 목표 창의 미리보기와 같은 규칙 */
+  const plan = planOnSave(
+    prev && {
+      goal: isGoalKey(prev.goal) ? prev.goal : 'maintain',
+      activity: isActivityKey(prev.activity) ? prev.activity : 'mid',
+      weeklyRateKg: prev.weeklyRateKg,
+      kcalTarget: prev.kcalTarget,
+      kcalAdjust: prev.kcalAdjust,
+    },
+    {
+      goal: input.goal,
+      activity: input.activity,
+      weeklyRateKg,
+      kcalTarget,
+      clearAdjust: input.clearAdjust === true,
+    },
+    age
+  );
+
   const data = {
     goal: input.goal,
     activity: input.activity,
     proteinPerKg: Math.round(input.proteinPerKg * 10) / 10,
     kcalTarget,
+    targetWeightKg,
+    weeklyRateKg,
+    kcalAdjust: plan.kcalAdjust,
+    /*
+     * 계획이 안 바뀐 저장(단백질만 고침)은 시작일을 그대로 둔다. 시작일이 없던 옛 줄은 여기서 '마지막으로
+     * 저장한 날'로 굳힌다 — 이 저장이 updatedAt 을 오늘로 밀면 읽는 쪽(toProfile)이 오늘을 시작일로 읽는다.
+     */
+    ...(plan.restart
+      ? { planSince: dbDate(today) }
+      : prev && prev.planSince === null
+        ? { planSince: dbDate(toDateKey(prev.updatedAt)) }
+        : {}),
   };
   await prisma.nutritionProfile.upsert({
     where: { userId: user.id },
@@ -334,6 +430,35 @@ export async function saveNutritionProfile(
     revalidatePath('/', 'layout');
   }
 
+  revalidatePath(PATH);
+  return { ok: true };
+}
+
+/**
+ * 체중 흐름을 보고 권한 한 걸음(하루 ±100kcal)을 받아들인다 — 체중 카드의 단추.
+ *
+ * 화면이 보낸 숫자를 믿지 않는다. 서버가 오늘의 권유를 다시 셈해 같은 걸음일 때만 저장한다: 그래야 한도를
+ * 넘는 값이나 권하지 않은 걸음이 들어오지 못하고, 두 번 눌러도 한 번만 움직인다(저장하면 계획이 오늘부터
+ * 새로 시작되어 권유가 사라진다).
+ */
+export async function applyWeightStep(step: number): Promise<NutritionResult> {
+  const user = await getCurrentUser();
+  if (!user) return NEED_LOGIN;
+  if (step !== STEP_KCAL && step !== -STEP_KCAL) {
+    return { ok: false, error: '잘못된 요청입니다.' };
+  }
+  const today = toDateKey(new Date());
+  const day = await loadNutritionDay(user, today);
+  const suggestion = day.plan.suggestion;
+  if (!suggestion || suggestion.step !== step) {
+    return { ok: false, error: '이미 반영됐어요. 새로고침해 주세요.' };
+  }
+  /* 권유는 목표를 저장한 사람에게만 나온다 — 줄이 늘 있다. 그사이 지워졌으면 아무것도 바꾸지 않는다 */
+  const { count } = await prisma.nutritionProfile.updateMany({
+    where: { userId: user.id },
+    data: { kcalAdjust: suggestion.nextAdjust, planSince: dbDate(today) },
+  });
+  if (count === 0) return { ok: false, error: '목표를 먼저 저장해 주세요.' };
   revalidatePath(PATH);
   return { ok: true };
 }

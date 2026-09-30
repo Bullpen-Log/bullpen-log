@@ -27,8 +27,16 @@ import {
   trainingBurn,
   type BurnItem,
 } from '@/lib/nutrition/burn';
+import { ageBand } from '@/lib/nutrition/age';
 import { mfdsEnabled } from '@/lib/nutrition/mfds-key';
 import { throwDayGuide, type ThrowGuide } from '@/lib/nutrition/guide';
+import {
+  INTAKE_DAYS,
+  TREND_DAYS,
+  weightGoal,
+  type WeightGoal,
+  type WeightPoint,
+} from '@/lib/nutrition/weight-goal';
 import { popularFoods } from '@/lib/nutrition/popular';
 
 /**
@@ -46,7 +54,7 @@ export type DaySummary = {
   target: number;
 };
 
-export type WeightPoint = { date: string; kg: number };
+export type { WeightPoint };
 
 export type NutritionDay = {
   date: string;
@@ -66,8 +74,10 @@ export type NutritionDay = {
    * 날짜를 옮겨도 띠가 흔들리지 않는다. 앞날도 칸은 있다(누를 수는 없다).
    */
   strip: DaySummary[];
-  /** 고른 날까지 30일의 체중 */
+  /** 고른 날까지 56일의 체중 — 그래프와 추세가 읽는다(목표 계산의 체중은 여전히 30일 안에서 고른다) */
   weights: WeightPoint[];
+  /** 체중 목표 — 흐름과 계획을 견준 결과(lib/nutrition/weight-goal.ts) */
+  plan: WeightGoal;
   /** 최근 먹은 것 — 같은 음식은 한 번만 */
   recent: Food[];
   mine: Food[];
@@ -119,6 +129,12 @@ export function toProfile(
     activity: string;
     proteinPerKg: number;
     kcalTarget: number | null;
+    /* 체중 목표의 네 칸 — 이 칸들이 생기기 전의 줄 모양도 받는다(없으면 비어 있는 것과 같다) */
+    targetWeightKg?: number | null;
+    weeklyRateKg?: number | null;
+    kcalAdjust?: number | null;
+    planSince?: Date | null;
+    updatedAt?: Date;
   } | null
 ): ProfileSettings {
   if (!row) return DEFAULT_PROFILE;
@@ -127,6 +143,19 @@ export function toProfile(
     activity: isActivityKey(row.activity) ? row.activity : DEFAULT_PROFILE.activity,
     proteinPerKg: row.proteinPerKg,
     kcalTarget: row.kcalTarget,
+    targetWeightKg: row.targetWeightKg ?? null,
+    weeklyRateKg: row.weeklyRateKg ?? null,
+    kcalAdjust: row.kcalAdjust ?? null,
+    /*
+     * 계획 시작일이 없는 줄(이 칸이 생기기 전에 저장한 목표)은 마지막으로 저장한 날을 시작일로 본다 —
+     * 배포 며칠 전에 유지 → 증량으로 바꾼 사람에게 첫날 "계획보다 느려요"가 뜨지 않게. 오래된 줄은 그 날짜가
+     * 56일 창보다 앞이라 전체를 견준다(달라지는 것이 없다).
+     */
+    planSince: row.planSince
+      ? keyOfDbDate(row.planSince)
+      : row.updatedAt
+        ? toDateKey(row.updatedAt)
+        : null,
   };
 }
 
@@ -170,12 +199,17 @@ export async function loadNutritionDay(
 ): Promise<NutritionDay> {
   const weekStart = shiftDateKey(date, -(WEEK_DAYS - 1));
   const weightStart = shiftDateKey(date, -(WEIGHT_DAYS - 1));
+  /* 체중은 추세 창(56일)만큼 읽는다 — 목표 계산의 체중은 그 가운데 최근 30일에서 고른다(아래 recent30) */
+  const trendStart = shiftDateKey(date, -(TREND_DAYS - 1));
   const recentStart = shiftDateKey(date, -RECENT_DAYS);
   /* 날짜 띠(일~토)와 7일 그래프를 한 번에 읽도록 둘을 덮는 범위 */
   const stripStart = shiftDateKey(date, -new Date(`${date}T00:00:00.000Z`).getUTCDay());
   const stripEnd = shiftDateKey(stripStart, 6);
   const rangeStart = weekStart < stripStart ? weekStart : stripStart;
   const rangeEnd = date > stripEnd ? date : stripEnd;
+  /* 운동 기록은 식사 확인의 14일까지 — 그날그날의 목표(운동한 만큼 더한 것)를 알아야 '목표만큼 먹었나'를 본다 */
+  const intakeStart = shiftDateKey(date, -INTAKE_DAYS);
+  const burnStart = intakeStart < rangeStart ? intakeStart : rangeStart;
   const userId = user.id;
   /* 던지는 날 가이드는 오늘에만 뜬다 — 지난 날을 볼 때는 그 몫의 체크인을 읽지 않는다 */
   const isToday = date === toDateKey(new Date());
@@ -199,23 +233,23 @@ export async function loadNutritionDay(
       orderBy: { createdAt: 'asc' },
     }),
     prisma.dailyNutrition.findMany({
-      where: { userId, date: { gte: dbDate(weightStart), lte: dbDate(date) } },
+      where: { userId, date: { gte: dbDate(trendStart), lte: dbDate(date) } },
       select: { date: true, weightKg: true },
     }),
     prisma.dailyCheckin.findMany({
       where: {
         userId,
-        date: { gte: dbDate(weightStart), lte: dbDate(date) },
+        date: { gte: dbDate(trendStart), lte: dbDate(date) },
         bodyWeightKg: { not: null },
       },
       select: { date: true, bodyWeightKg: true },
     }),
     prisma.trainingSession.findMany({
-      where: { userId, date: { gte: dbDate(rangeStart), lte: dbDate(rangeEnd) } },
+      where: { userId, date: { gte: dbDate(burnStart), lte: dbDate(rangeEnd) } },
       select: { date: true, activeSeconds: true },
     }),
     prisma.pitchLog.findMany({
-      where: { userId, date: { gte: dbDate(rangeStart), lte: dbDate(rangeEnd) } },
+      where: { userId, date: { gte: dbDate(burnStart), lte: dbDate(rangeEnd) } },
       select: {
         date: true,
         sessionType: true,
@@ -292,7 +326,11 @@ export async function loadNutritionDay(
     .map(([day, w]) => ({ date: day, kg: w.kg }))
     .sort((a, b) => a.date.localeCompare(b.date));
   const today = weightByDay.get(date) ?? null;
-  const latestKg = weights.at(-1)?.kg ?? null;
+  /*
+   * 목표 계산의 체중은 예전처럼 30일 안에서 고른다 — recentWeightKg()(캘린더의 그날 칸)와 같은 규칙이어야
+   * 두 화면의 목표가 같다. 56일로 넓힌 것은 그래프와 추세뿐이다.
+   */
+  const latestKg = weights.filter((w) => w.date >= weightStart).at(-1)?.kg ?? null;
   const bodyKg = today?.kg ?? latestKg ?? user.weightKg;
 
   /* ── 운동으로 쓴 것(OUT) — 날마다 ── */
@@ -319,6 +357,46 @@ export async function loadNutritionDay(
   };
   const burnItems = burnByDay.get(date) ?? [];
   const targets = computeTargets(profile, body, totalBurn(burnItems));
+
+  /* ── 체중 목표: 흐름을 계획과 견준다 ── */
+  const intake = Array.from({ length: INTAKE_DAYS }, (_, i) => {
+    const day = shiftDateKey(date, -(i + 1));
+    return {
+      kcal: calendar[day] ?? 0,
+      target: computeTargets(
+        profile,
+        { ...body, age: ageOn(user.birthDate, day) },
+        totalBurn(burnByDay.get(day) ?? [])
+      ).kcal,
+    };
+  });
+  /*
+   * 생일이 지나 나이 칸이 바뀌면(만 13세 · 18세) 속도와 하루 칼로리가 그날부터 달라진다 — 저장은 안 했어도
+   * 계획이 바뀐 것이다. 추세 창 안에 그런 날이 있으면 그날을 계획 시작일로 쳐서, 옛 계획의 체중으로 새 계획을
+   * 판정하지 않는다(생일날 목표가 내려간 선수에게 곧바로 "100 더 줄여 볼까요?"가 뜨던 자리).
+   */
+  let bandSince: string | null = null;
+  for (let i = 1; i < TREND_DAYS; i++) {
+    const day = shiftDateKey(date, -i);
+    if (ageBand(ageOn(user.birthDate, day)) !== ageBand(body.age)) {
+      bandSince = shiftDateKey(day, 1);
+      break;
+    }
+  }
+  const planProfile =
+    bandSince && (!profile.planSince || bandSince > profile.planSince)
+      ? { ...profile, planSince: bandSince }
+      : profile;
+  const plan = weightGoal({
+    date,
+    isToday,
+    hasProfile: profileRow !== null,
+    points: weights,
+    profile: planProfile,
+    targets,
+    age: body.age,
+    intake,
+  });
 
   /* ── 기록 ── */
   const toView = (e: (typeof weekEntries)[number]): MealEntryView => ({
@@ -434,6 +512,7 @@ export async function loadNutritionDay(
     week,
     strip,
     weights,
+    plan,
     recent,
     mine,
     favorites: foodRows

@@ -1024,6 +1024,15 @@ model NutritionProfile {
   proteinPerKg Float    @default(1.8)
   /// 직접 정한 하루 칼로리(운동 전). 있으면 계산값 대신 쓴다.
   kcalTarget   Int?
+  /// ── 체중 목표(영양 로드맵 4번 — lib/nutrition/weight-goal.ts). 넷 다 비면 목표 숫자는 예전과 같다 ──
+  /// 목표 체중(kg, 0.1 단위). 증량(성장기 · 성인) · 감량(성인)일 때만 있다. 비면 속도만 본다.
+  targetWeightKg Float?
+  /// 고른 주당 속도(kg/주, 크기만 — 방향은 goal). null = 나이별 기본 속도(예전 goalDelta 와 같은 kcal).
+  weeklyRateKg Float?
+  /// 체중 흐름을 보고 단추로 받아들인 하루 칼로리 조정(100 단위). null = 0. 서버만 쓴다.
+  kcalAdjust   Int?
+  /// 지금 칼로리 계획이 시작된 날(목표 · 속도 · 평소 움직임 · 직접 칼로리 · 조정이 바뀐 날). 판정 구간의 시작.
+  planSince    DateTime? @db.Date
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
   user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
