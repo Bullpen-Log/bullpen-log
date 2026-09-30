@@ -5,7 +5,9 @@ import {
   APPETITE_LEVELS,
   CHECKIN_PARTS,
   DETAIL_SCALES,
+  formatSleepHours,
   pickCheckinParts,
+  sorenessWord,
 } from '@/lib/checkin';
 import { dbDate } from '@/lib/nutrition/days';
 import {
@@ -57,7 +59,7 @@ export type DayDetail = {
     sleep: string;
     /** 부위마다 — 정상 · 뻐근 · 통증 */
     parts: { label: string; value: string }[];
-    /** 상세 체크인에서 적은 것 — '수면 7.5시간', '팔 피로 조금' */
+    /** 간편 · 상세에서 적은 것(적은 날만) — '잔 시간 6.5시간', '근육통 많이', '팔 피로 조금' */
     details: { label: string; value: string }[];
     note: string | null;
   };
@@ -145,6 +147,14 @@ export async function loadDayDetail(user: UserBody, date: string): Promise<DayDe
   if (checkin) {
     const parts = pickCheckinParts(checkin);
     const details: { label: string; value: string }[] = [];
+    /*
+     * 잔 시간 · 근육통을 맨 앞에 둔다 — 간편 쪽에서 적는 칸이고 트레이닝 추천이 읽는 값이라,
+     * 그날 운동이 왜 가벼웠는지 돌아볼 때 먼저 찾는다. 안 적은 날은 줄을 만들지 않는다.
+     */
+    if (checkin.sleepHours != null)
+      details.push({ label: '잔 시간', value: formatSleepHours(checkin.sleepHours) });
+    const soreness = sorenessWord(checkin.soreness);
+    if (soreness) details.push({ label: '근육통', value: soreness });
     for (const s of DETAIL_SCALES) {
       const v = checkin[s.key];
       if (v != null && v >= 1 && v <= s.options.length) {

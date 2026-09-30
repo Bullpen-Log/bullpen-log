@@ -100,6 +100,9 @@ export async function generateAiReport(): Promise<AiReportState> {
       condition: c.condition,
       sleep: c.sleep,
       preferredParts: c.preferredParts,
+      // 잔 시간 · 근육통 — 잠이 부족한 날 수와 리포트의 '오늘' 줄이 읽는다(안 적은 날은 null)
+      sleepHours: c.sleepHours,
+      soreness: c.soreness,
     })),
     // 메모는 최근 것 위주로 넘긴다. 통증 표현 감지에도 쓰인다.
     memos: logs

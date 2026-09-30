@@ -105,6 +105,9 @@ export async function gatherFactsAndPlan(
       sleep: c.sleep,
       preferredParts: c.preferredParts,
       preferredWorkout: c.preferredWorkout,
+      // 잔 시간 · 근육통 — 안 적은 날은 null 이고, 그러면 추천이 아무것도 바꾸지 않는다
+      sleepHours: c.sleepHours,
+      soreness: c.soreness,
     })),
     memos: usedLogs
       .filter((l) => l.memo?.trim())

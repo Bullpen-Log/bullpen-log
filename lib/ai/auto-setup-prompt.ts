@@ -1,6 +1,12 @@
 import { z } from 'zod';
 import { ACWR_ZONES } from '@/lib/pitch-stats';
-import { CHECKIN_PARTS, summarizeParts, type CheckinPartKey } from '@/lib/checkin';
+import {
+  CHECKIN_PARTS,
+  formatSleepHours,
+  sorenessWord,
+  summarizeParts,
+  type CheckinPartKey,
+} from '@/lib/checkin';
 import {
   GOAL_FOCUSES,
   TRAINING_GOALS,
@@ -200,7 +206,19 @@ export function buildAutoPrompt(input: AutoPromptInput): string {
 
   lines.push(`\n## 오늘 체크인`);
   if (today) {
-    lines.push(`- 컨디션 ${today.condition}/10 (10이 최상) · 수면 ${today.sleep}`);
+    /*
+     * 잔 시간 · 전신 근육통은 적은 날만 붙인다(안 적은 날의 줄은 예전과 같다).
+     * 시간은 소수로만('6.5시간') — '6시간 30분'으로 적어 주면 AI 가 그 '30분'을 따라 쓰고,
+     * 아래 acceptAnswer 의 분 검사가 운동 시간으로 읽는다. 근육통은 숫자 없이 말로.
+     */
+    const soreness = sorenessWord(today.soreness);
+    const body = [
+      `컨디션 ${today.condition}/10 (10이 최상)`,
+      `수면 ${today.sleep}`,
+      today.sleepHours != null ? `잔 시간 ${formatSleepHours(today.sleepHours)}` : null,
+      soreness ? `전신 근육통 '${soreness}'` : null,
+    ].filter((bit) => bit != null);
+    lines.push(`- ${body.join(' · ')}`);
     lines.push(`- 몸: ${summarizeParts(today)}`);
     lines.push(
       `- 하고 싶은 운동 종류: ${today.preferredWorkout ?? '추천대로 (고르지 않음)'}`
@@ -386,7 +404,25 @@ export function acceptAnswer(
     return fail(`자료에 없는 투구수(${strayPitches.join(', ')}구)`);
   }
   const minutes = givenMinutes(input);
-  const strayMinutes = [...reason.matchAll(/(\d+)\s*분/g)]
+  /*
+   * 잔 시간을 풀어 쓴 것은 운동 시간이 아니다.
+   *
+   * 자료에는 '5.5시간'으로만 적어 주지만, AI 는 사람 말로 '5시간 30분'이라고 쓰곤 한다. 그 '30분'을
+   * 자료에 없는 시간으로 보고 답을 버리면 멀쩡한 답을 잃는다. 그렇다고 30분을 통째로 허용하면
+   * 운동 시간을 30분이라고 잘못 쓴 답도 통과한다 — 그래서 오늘 잔 시간과 꼭 맞는 말만 떼고 센다.
+   *
+   * 앞이 숫자나 소수점이면 떼지 않는다. '15시간 30분'의 뒤쪽 '5시간 30분'도, '5.5시간 30분'(잔 시간
+   * 뒤에 지어낸 운동 시간 30분을 붙여 쓴 것)의 뒤쪽 '5시간 30분'도 잔 시간을 풀어 쓴 말이 아니다.
+   */
+  const sleepHours = input.facts.condition.today?.sleepHours;
+  const counted =
+    sleepHours != null && sleepHours % 1 === 0.5
+      ? reason.replace(
+          new RegExp(`(?<![\\d.])${Math.floor(sleepHours)}\\s*시간\\s*30\\s*분`, 'g'),
+          ''
+        )
+      : reason;
+  const strayMinutes = [...counted.matchAll(/(\d+)\s*분/g)]
     .map((m) => Number(m[1]))
     .filter((n) => !minutes.has(n));
   if (strayMinutes.length > 0) {

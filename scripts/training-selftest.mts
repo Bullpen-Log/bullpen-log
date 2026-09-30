@@ -18,6 +18,12 @@ import { PrismaClient } from '@prisma/client';
 import { PrismaPg } from '@prisma/adapter-pg';
 import { buildFacts, type CheckinLike } from '../lib/report/facts.ts';
 import {
+  isShortSleep,
+  parseCheckinBody,
+  pickCheckinBody,
+  sleepLevelFromHours,
+} from '../lib/checkin.ts';
+import {
   countMissingDays,
   countSessionTypes,
   buildReportFindings,
@@ -63,6 +69,7 @@ import {
   effectiveMinutes,
   estimateMinutes,
   pickForTheme,
+  workoutConflict,
   type ThemeKey,
 } from '../lib/report/theme.ts';
 import {
@@ -125,7 +132,7 @@ import {
 import { readTrainingPart } from '../lib/training-part.ts';
 import { AREA_VIEW, MUSCLE_MODEL, throwingSide } from '../lib/armcare/muscle-map.ts';
 import { reportReadiness } from '../lib/report/cadence.ts';
-import { SYSTEM_PROMPT } from '../lib/ai/report-prompt.ts';
+import { SYSTEM_PROMPT, buildUserPrompt } from '../lib/ai/report-prompt.ts';
 import {
   BASELINE_WORKOUT_FREQ_NAMES,
   COMPETITION_LEVELS,
@@ -221,6 +228,22 @@ type Person = {
   baselineDailyLoad?: number;
   /** 오늘 체크인에서 고른 운동 종류 — 파워 / 웨이트 / 회복 */
   wants?: string | null;
+  /** 잔 느낌 — 충분 / 보통 / 부족. 안 주면 지금처럼 '보통' */
+  sleep?: string;
+  /**
+   * 어젯밤 잔 시간(시간) · 전신 근육통(1~5) — 간편 체크인의 선택 칸.
+   *
+   * 안 주면 체크인에 칸 자체를 안 만든다 — 두 칸이 생기기 전의 기록과 같은 모양이라,
+   * 예전 시험들이 보던 사람이 그대로다. null 을 주면 칸은 있고 값이 null 이다.
+   * 읽는 쪽이 둘을 똑같이 '안 적음'으로 보는지 가려 보려고 나눠 둔다.
+   */
+  sleepHours?: number | null;
+  soreness?: number | null;
+  /**
+   * 어제 체크인에 어깨 통증을 남겼는가.
+   * '최근에 아팠지만 오늘은 괜찮다'(plan.recovering)를 만들려고 둔다 — 오늘 통증(pain)과 다르다.
+   */
+  painYesterday?: boolean;
 };
 
 function factsFor(p: Person) {
@@ -247,7 +270,7 @@ function factsFor(p: Person) {
             {
               date: dayBefore(0).slice(0, 10),
               condition: p.condition,
-              sleep: '보통',
+              sleep: p.sleep ?? '보통',
               shoulder: p.pain ? '통증' : '괜찮음',
               elbow: '괜찮음',
               wrist: '괜찮음',
@@ -255,7 +278,26 @@ function factsFor(p: Person) {
               lowerBody: '괜찮음',
               preferredParts: [],
               preferredWorkout: p.wants ?? null,
+              /* 준 것만 칸을 만든다 — 안 준 사람의 체크인은 예전과 글자 하나 안 다르다 */
+              ...(p.sleepHours !== undefined ? { sleepHours: p.sleepHours } : {}),
+              ...(p.soreness !== undefined ? { soreness: p.soreness } : {}),
             } satisfies CheckinLike,
+            ...(p.painYesterday
+              ? [
+                  {
+                    date: dayBefore(1).slice(0, 10),
+                    condition: 6,
+                    sleep: '보통',
+                    shoulder: '통증',
+                    elbow: '괜찮음',
+                    wrist: '괜찮음',
+                    lowerBack: '괜찮음',
+                    lowerBody: '괜찮음',
+                    preferredParts: [],
+                    preferredWorkout: null,
+                  } satisfies CheckinLike,
+                ]
+              : []),
           ],
     memos: [],
   });
@@ -427,6 +469,368 @@ console.log('\n[안전] 몸이 안 좋은 날 무거운 운동이 섞이지 않�
     '경력 입문 → 초급 난이도만',
     hard.length === 0,
     `후보 ${picked.candidates.length}개`
+  );
+}
+{
+  /*
+   * 전신 근육통 · 잔 시간 (2026-09-30) — 간편 체크인의 두 선택 칸이 후보와 테마를 바꾸는가.
+   *
+   * 새 신호는 '더 가볍게'만 한다. 통증 · 부하 규칙보다 뒤에서 읽고, 안 적은 날은 아무것도
+   * 바꾸지 않는다(안 적은 것과 '보통'은 다르다).
+   *   근육통 '많이'  가장 센 것(강도 5)만 뺀다. 요일은 그대로.
+   *   근육통 '심함'  무게 드는 것(강도 4 이상)을 빼고 회복·재생 데이.
+   *   짧은 밤        느낌이 '부족'이거나 6시간 미만 — 가장 센 것만 뺀다. 요일 · 목표는 그대로.
+   */
+  type Planned = ReturnType<typeof planFor>;
+  const levels = (r: Planned) =>
+    r.picked.candidates.map((e) => intensityLevel(e.intensity));
+  const countAt = (r: Planned, level: number) =>
+    levels(r).filter((l) => l === level).length;
+  const idsOf = (r: Planned) => r.picked.candidates.map((e) => e.id).join(',');
+  const ruleCount = (r: Planned, rule: string) =>
+    r.picked.excluded.find((x) => x.rule === rule)?.count ?? 0;
+  /** 후보 · 근거 · 빠진 개수 · 테마를 한 줄로 — 글자 하나라도 다르면 다른 결과다 */
+  const snapshot = (r: Planned) =>
+    JSON.stringify({
+      ids: r.picked.candidates.map((e) => e.id),
+      basis: r.picked.basis,
+      excluded: r.picked.excluded,
+      theme: r.theme,
+    });
+
+  /*
+   * 기준부터 본다. 기준 사람의 후보에 강도 5 · 4 가 없으면 아래 '제외' 시험들이
+   * 아무것도 안 보고 통과한다 — 그래서 없으면 실패로 친다.
+   */
+  const base = planFor({ person: { condition: 8 } });
+  check(
+    '(기준) 컨디션 8 · 근육통/잔 시간 없음 · 만 22세 → 후보에 강도 5(매우 높음)와 4(높음)가 있다',
+    countAt(base, 5) > 0 && countAt(base, 4) > 0,
+    `강도 5 ${countAt(base, 5)}개 · 강도 4 ${countAt(base, 4)}개 · 전체 ${base.picked.candidates.length}개`
+  );
+  check(
+    '(기준) 기준 사람은 근력 날이다 — 회복 · 보조날이면 요일 시험이 아무것도 못 가른다',
+    base.theme.key === 'lower' || base.theme.key === 'upper',
+    base.theme.label
+  );
+
+  /* ── 근육통 ── */
+  const severe = planFor({ person: { condition: 8, soreness: 5 } });
+  check(
+    "근육통 '심함'(컨디션 8) → 무게 드는 운동 없음 (강도 3 까지)",
+    levels(severe).length > 0 && levels(severe).every((l) => l <= 3),
+    `남은 후보 ${severe.picked.candidates.length}개 · '전신 근육통'으로 ${ruleCount(severe, '전신 근육통')}개 빠짐`
+  );
+  check(
+    "근육통 '심함' → 회복 테마, 이유가 근육통",
+    severe.theme.key === 'recovery' &&
+      severe.theme.reason ===
+        "전신 근육통이 '심함'이라 가볍게 움직이는 회복 위주로 구성했습니다. 가만히 쉬는 것보다 가볍게 움직이는 편이 풀리는 데 도움이 될 수 있습니다.",
+    severe.theme.reason
+  );
+  check(
+    "근육통 '심함' → 근거에 적고, 빠진 개수에 이름이 남는다",
+    severe.picked.basis.includes("전신 근육통 '심함' → 무게 드는 운동 제외") &&
+      ruleCount(severe, '전신 근육통') === countAt(base, 5) + countAt(base, 4),
+    severe.picked.basis.join(' / ')
+  );
+
+  const high = planFor({ person: { condition: 8, soreness: 4 } });
+  check(
+    "근육통 '많이'(컨디션 8) → 가장 센 것(강도 5)만 빠지고 강도 4 는 남는다",
+    countAt(high, 5) === 0 &&
+      countAt(high, 4) === countAt(base, 4) &&
+      ruleCount(high, '전신 근육통') === countAt(base, 5),
+    `강도 5 ${countAt(high, 5)}개 · 강도 4 ${countAt(high, 4)}개`
+  );
+  check(
+    "근육통 '많이' → 요일은 그대로 (근육통 없는 날과 같은 테마)",
+    JSON.stringify(high.theme) === JSON.stringify(base.theme),
+    high.theme.label
+  );
+  check(
+    "근육통 '많이' → 근거에 적는다",
+    high.picked.basis.includes("전신 근육통 '많이' → 매우 높은 강도 제외"),
+    high.picked.basis.join(' / ')
+  );
+
+  /* '보통'은 훈련한 다음 날의 정상 반응이다 — 그것까지 줄이면 매일 줄어든다 */
+  for (const [soreness, word] of [
+    [3, '보통'],
+    [2, '조금'],
+  ] as const) {
+    const mild = planFor({ person: { condition: 8, soreness } });
+    check(
+      `근육통 '${word}' → 후보 · 테마 · 빠진 개수가 근육통 없는 날과 똑같다`,
+      idsOf(mild) === idsOf(base) &&
+        JSON.stringify(mild.theme) === JSON.stringify(base.theme) &&
+        JSON.stringify(mild.picked.excluded) === JSON.stringify(base.picked.excluded),
+      `후보 ${mild.picked.candidates.length}개`
+    );
+    check(
+      `근육통 '${word}' → 근거에 '제한 없음' 한 줄만 더 붙는다 (읽었다는 것은 보인다)`,
+      JSON.stringify(mild.picked.basis) ===
+        JSON.stringify([...base.picked.basis, `전신 근육통 '${word}' → 제한 없음`]),
+      mild.picked.basis.join(' / ')
+    );
+  }
+
+  /*
+   * 옛 기록 회귀 기준 — 칸이 없는 체크인(두 칸이 생기기 전)과 null 로 적힌 체크인이
+   * 글자 하나 안 다른 결과를 낸다. 기준 사람이 '칸 없음'이다.
+   */
+  const nulled = planFor({
+    person: { condition: 8, sleepHours: null, soreness: null },
+  });
+  const baseToday = base.facts.condition.today!;
+  const nulledToday = nulled.facts.condition.today!;
+  check(
+    '(기준) 도우미가 칸 없음과 null 을 다르게 만든다',
+    !('soreness' in baseToday) &&
+      !('sleepHours' in baseToday) &&
+      'soreness' in nulledToday &&
+      nulledToday.soreness === null &&
+      'sleepHours' in nulledToday &&
+      nulledToday.sleepHours === null
+  );
+  check(
+    '근육통 · 잔 시간이 null 이어도 칸이 없어도 → 후보 · 근거 · 빠진 개수 · 테마가 똑같다',
+    snapshot(nulled) === snapshot(base),
+    `근거 ${nulled.picked.basis.join(' / ')}`
+  );
+
+  /*
+   * 1~5 밖의 값도 안 적은 것으로 본다. 화면으로는 못 만들지만(폼은 1~5 정수만 저장한다)
+   * DB 를 손으로 고치면 올 수 있다. 말이 없는 값으로 글을 만들면 근거 · 테마 이유에
+   * "전신 근육통 'null'"이 찍힌다.
+   */
+  for (const soreness of [6, 4.5, 0]) {
+    const odd = planFor({ person: { condition: 8, soreness } });
+    check(
+      `근육통 ${soreness}(1~5 밖) → 안 적은 날과 똑같다 — 글에 'null' 이 안 찍힌다`,
+      snapshot(odd) === snapshot(base),
+      `${odd.theme.label} · 근거 ${odd.picked.basis.join(' / ')}`
+    );
+  }
+
+  /* ── 통증이 앞선다 ── */
+  const hurt = planFor({ person: { condition: 8, pain: true, soreness: 5 } });
+  check(
+    "근육통 '심함' + 오늘 통증 → 처방이 멈추고, 근거는 통증 한 줄뿐",
+    hurt.plan.halted &&
+      hurt.picked.halted &&
+      hurt.picked.candidates.length === 0 &&
+      JSON.stringify(hurt.picked.basis) ===
+        JSON.stringify(['통증 신호 → 운동 처방 중단']),
+    hurt.picked.basis.join(' / ')
+  );
+
+  const healing = planFor({ person: { condition: 8, painYesterday: true } });
+  const healingSore = planFor({
+    person: { condition: 8, painYesterday: true, soreness: 5 },
+  });
+  check(
+    '(기준) 어제 통증 · 오늘 괜찮음 → 회복 중(멈추지는 않는다)',
+    healing.plan.recovering && !healing.plan.halted && levels(healing).length > 0,
+    `후보 ${healing.picked.candidates.length}개`
+  );
+  check(
+    "근육통 '심함' + 통증 회복 중 → 테마 이유는 통증 문장",
+    healingSore.theme.key === 'recovery' &&
+      healingSore.theme.reason === healing.theme.reason &&
+      healingSore.theme.reason.includes('최근 통증 기록') &&
+      !healingSore.theme.reason.includes('근육통'),
+    healingSore.theme.reason
+  );
+  check(
+    "근육통 '심함' + 통증 회복 중 → 후보는 강도 2 까지 (더 낮은 상한이 이긴다)",
+    levels(healingSore).length > 0 &&
+      levels(healingSore).every((l) => l <= 2) &&
+      idsOf(healingSore) === idsOf(healing),
+    `후보 ${healingSore.picked.candidates.length}개`
+  );
+
+  /* 회복으로 가는 까닭이 여럿이면 이유 글은 사다리에서 먼저 걸린 것 */
+  const lowAndSore = planFor({ person: { condition: 3, soreness: 5 } });
+  check(
+    "컨디션 3 + 근육통 '심함' → 테마 이유는 컨디션 문장 (사다리에서 먼저)",
+    lowAndSore.theme.key === 'recovery' &&
+      lowAndSore.theme.reason.includes('컨디션이 3/10') &&
+      !lowAndSore.theme.reason.includes('근육통'),
+    lowAndSore.theme.reason
+  );
+
+  /*
+   * 투구 부하 주의 구간은 보조·코어 데이다. 근육통 '심함'은 그보다 앞이라 회복이 된다.
+   * 위 '평소만큼 던지는 사람'의 투구를 그대로 쓰고, 평소 부하(문진 추정)만 낮춰 주의 구간을 만든다.
+   */
+  const busy = {
+    condition: 8,
+    pitches: [60, 0, 55, 0, 60, 0, 55],
+    baselineDailyLoad: 60,
+  };
+  const caution = planFor({ person: busy });
+  const cautionSore = planFor({ person: { ...busy, soreness: 5 } });
+  check(
+    '(기준) 투구 부하 주의 구간 → 보조·코어 데이',
+    caution.facts.load.zone === 'caution' && caution.theme.key === 'assist',
+    `${caution.facts.load.zone} · ${caution.theme.label}`
+  );
+  check(
+    "투구 부하 주의 구간 + 근육통 '심함' → 보조·코어가 아니라 회복",
+    cautionSore.facts.load.zone === 'caution' &&
+      cautionSore.theme.key === 'recovery' &&
+      cautionSore.theme.reason.includes('근육통'),
+    cautionSore.theme.label
+  );
+
+  /* ── 잔 시간 ── */
+  const short = planFor({ person: { condition: 8, sleepHours: 5.5 } });
+  check(
+    '잔 시간 5.5 · 느낌 보통 → 가장 센 것(강도 5)만 빠진다',
+    countAt(short, 5) === 0 &&
+      countAt(short, 4) === countAt(base, 4) &&
+      ruleCount(short, '수면 부족') === countAt(base, 5),
+    `강도 5 ${countAt(short, 5)}개 · 강도 4 ${countAt(short, 4)}개`
+  );
+  check(
+    '잔 시간 5.5 → 테마는 그대로 · 근거에 잔 시간을 적는다',
+    JSON.stringify(short.theme) === JSON.stringify(base.theme) &&
+      short.picked.basis.includes('어젯밤 5.5시간 수면 → 매우 높은 강도 제외'),
+    short.picked.basis.join(' / ')
+  );
+  const six = planFor({ person: { condition: 8, sleepHours: 6 } });
+  check(
+    '잔 시간 6 · 느낌 보통 → 후보가 기준과 같다 (경계 — 6시간은 짧은 밤이 아니다)',
+    idsOf(six) === idsOf(base) &&
+      six.picked.basis.includes('어젯밤 6시간 수면 → 제한 없음'),
+    six.picked.basis.join(' / ')
+  );
+  const rested = planFor({ person: { condition: 8, sleepHours: 7.5 } });
+  check(
+    "잔 시간 7.5 → 후보가 기준과 같고 근거에 '제한 없음'",
+    idsOf(rested) === idsOf(base) &&
+      JSON.stringify(rested.picked.basis) ===
+        JSON.stringify([...base.picked.basis, '어젯밤 7.5시간 수면 → 제한 없음']),
+    rested.picked.basis.join(' / ')
+  );
+  const feltShort = planFor({ person: { condition: 8, sleep: '부족' } });
+  check(
+    "느낌 '부족' · 시간 없음 → 가장 센 것만 빠지고 근거는 느낌으로 적는다",
+    countAt(feltShort, 5) === 0 &&
+      countAt(feltShort, 4) === countAt(base, 4) &&
+      feltShort.picked.basis.includes("오늘 수면 '부족' → 매우 높은 강도 제외"),
+    feltShort.picked.basis.join(' / ')
+  );
+  /* 시간은 '부족'을 더할 수만 있고 뺄 수는 없다 — 8시간을 잤어도 부족하다고 했으면 부족이다 */
+  const feltShortLong = planFor({
+    person: { condition: 8, sleep: '부족', sleepHours: 8 },
+  });
+  check(
+    "느낌 '부족' · 8시간 → 같은 결과 (둘 중 하나면 짧은 밤)",
+    snapshot(feltShortLong) === snapshot(feltShort),
+    feltShortLong.picked.basis.join(' / ')
+  );
+
+  /*
+   * 새 신호는 풀어 주지 못한다.
+   * 이미 더 낮은 상한에 걸린 사람에게 근육통 '많이'와 잔 시간 5 를 더해도, 후보가 늘지 않는다.
+   */
+  const extra = { soreness: 4, sleepHours: 5 };
+  const spike = {
+    condition: 8,
+    pitches: [200, 190, 180, 170, 190, 180, 200],
+    baselineDailyLoad: 20,
+  };
+  const capped: [string, Person][] = [
+    ['부하 위험 구간', spike],
+    ['통증 회복 중', { condition: 8, painYesterday: true }],
+  ];
+  for (const [label, person] of capped) {
+    const before = planFor({ person });
+    const after = planFor({ person: { ...person, ...extra } });
+    const allowed = new Set(before.picked.candidates.map((e) => e.id));
+    const leaked = after.picked.candidates.filter((e) => !allowed.has(e.id));
+    check(
+      `새 신호는 풀어 주지 못한다 — ${label}인 사람에 근육통 '많이' · 잔 시간 5 를 더해도 후보가 안 늘어난다`,
+      (label === '부하 위험 구간'
+        ? before.facts.load.zone === 'danger'
+        : before.plan.recovering) &&
+        before.picked.candidates.length > 0 &&
+        after.picked.candidates.length > 0 &&
+        leaked.length === 0 &&
+        levels(after).every((l) => l <= 2),
+      `더하기 전 ${before.picked.candidates.length}개 → 뒤 ${after.picked.candidates.length}개`
+    );
+  }
+}
+
+console.log('\n[체크인 해석] 근육통 · 잔 시간을 오류 없이 읽는가');
+{
+  /*
+   * 두 칸은 고르는 칸이라 잘못 칠 수 없다. 범위 밖 값(예전 0~16 기록, 손으로 만든 요청)이
+   * 와도 오류를 내지 않는다 — 손도 안 댄 칸 때문에 체크인 저장이 막히면 안 된다.
+   */
+  const body = (sleepHours: string, soreness: string) =>
+    parseCheckinBody((name) => ({ sleepHours, soreness })[name] ?? '');
+
+  const hourCases: [string, number | null][] = [
+    ['', null],
+    ['7.3', 7.5],
+    ['2', 3],
+    ['13', 12],
+    ['abc', null],
+  ];
+  const hourResults = hourCases.map(([raw]) => body(raw, '').sleepHours);
+  check(
+    "잔 시간: '' → 안 적음 · '7.3' → 7.5 · '2' → 3 · '13' → 12 · 'abc' → 안 적음",
+    hourCases.every(([, want], i) => hourResults[i] === want),
+    JSON.stringify(hourResults)
+  );
+  const soreCases: [string, number | null][] = [
+    ['4', 4],
+    ['6', null],
+    ['', null],
+    ['abc', null],
+  ];
+  const soreResults = soreCases.map(([raw]) => body('', raw).soreness);
+  check(
+    "근육통: '4' → 4 · '6' → 안 적음 · '' → 안 적음 · 'abc' → 안 적음",
+    soreCases.every(([, want], i) => soreResults[i] === want),
+    JSON.stringify(soreResults)
+  );
+
+  check(
+    'DB 행에서 뽑기: 칸이 없는 행(옛 기록) → 둘 다 null',
+    JSON.stringify(pickCheckinBody({})) ===
+      JSON.stringify({ sleepHours: null, soreness: null })
+  );
+  check(
+    'DB 행에서 뽑기: 적은 값은 그대로',
+    JSON.stringify(pickCheckinBody({ sleepHours: 6.5, soreness: 4 })) ===
+      JSON.stringify({ sleepHours: 6.5, soreness: 4 })
+  );
+
+  const feel = [7, 6.5, 6, 5.5].map(sleepLevelFromHours);
+  check(
+    '잔 시간 → 잔 느낌: 7 충분 · 6.5 보통 · 6 보통 · 5.5 부족',
+    feel.join(',') === '충분,보통,보통,부족',
+    feel.join(' · ')
+  );
+
+  /* 짧은 밤 — 느낌이 '부족'이거나 6시간 미만. 시간을 안 적은 날은 느낌만 본다 */
+  const nights: [{ sleep: string; sleepHours?: number | null }, boolean][] = [
+    [{ sleep: '보통', sleepHours: 5.5 }, true],
+    [{ sleep: '보통', sleepHours: 6 }, false],
+    [{ sleep: '부족', sleepHours: 8 }, true],
+    [{ sleep: '충분', sleepHours: null }, false],
+    [{ sleep: '부족' }, true],
+  ];
+  const nightResults = nights.map(([c]) => isShortSleep(c));
+  check(
+    '짧은 밤: 보통+5.5 예 · 보통+6 아니오 · 부족+8 예 · 충분+안 적음 아니오 · 부족+칸 없음 예',
+    nights.every(([, want], i) => nightResults[i] === want),
+    nightResults.map((r) => (r ? '예' : '아니오')).join(' · ')
   );
 }
 
@@ -1433,6 +1837,67 @@ console.log('\n[오늘 하고 싶은 운동] 고른 대로 가되, 몸 상태는
     forced.theme.label
   );
   check('통증이 있으면 처방 자체가 멈춘다', forced.picked.halted);
+}
+{
+  /*
+   * 전신 근육통 '심함'도 부딪히는 날이다 — 낮은 컨디션과 같은 자리 · 같은 방식.
+   *
+   * 부딪힘을 말하는 곳(workoutConflict)과 테마를 정하는 곳(decideTheme)에 같은 줄이 따로 있다.
+   * 한쪽만 고치면 "부딪힌다"면서 파워 날을 주거나, 말없이 회복으로 보낸다 — 그래서 둘을 같이 본다.
+   */
+  const person = { condition: 8, wants: '파워', soreness: 5 };
+  const suggested = planFor({ person });
+  const conflict = workoutConflict({
+    facts: suggested.facts,
+    preferredWorkout: '파워',
+  });
+  check(
+    "파워를 골랐지만 근육통 '심함' → 부딪힘: 회복 쪽, 까닭은 근육통",
+    conflict?.fallback === 'recovery' &&
+      conflict.reason === "전신 근육통이 '심함'입니다",
+    conflict ? `${conflict.reason} → ${conflict.fallback}` : '부딪힘 없음'
+  );
+  check(
+    "파워를 골랐지만 근육통 '심함' → 기본은 회복 (부딪힘과 테마가 같은 결론)",
+    suggested.theme.key === 'recovery' && suggested.theme.reason.includes('근육통'),
+    suggested.theme.label
+  );
+
+  /* 통증이 아니라 밀고 나갈 수는 있다. 다만 후보 상한은 남는다 — 낮은 컨디션과 같다 */
+  const forced = planFor({ person, override: true });
+  check(
+    "근육통 '심함'이어도 그래도 하겠다고 하면 → 회복이 아닌 테마, 이유에 그 사실을 적는다",
+    (forced.theme.key === 'lower' || forced.theme.key === 'upper') &&
+      forced.theme.reason.includes(
+        "전신 근육통이 '심함'입니다만, 그래도 하겠다고 하셔서 그대로 만들었습니다."
+      ),
+    `${forced.theme.label} — ${forced.theme.reason.slice(-52)}`
+  );
+  const forcedLevels = forced.picked.candidates.map((e) => intensityLevel(e.intensity));
+  check(
+    '밀고 나가도 후보는 강도 3 까지 — 무게 드는 운동은 안 나온다',
+    forcedLevels.length > 0 && forcedLevels.every((l) => l <= 3),
+    `후보 ${forcedLevels.length}개`
+  );
+
+  /* '많이'는 부딪힘이 아니다 — 고른 대로 가고 가장 센 것만 빠진다 */
+  const high = planFor({ person: { condition: 8, wants: '파워', soreness: 4 } });
+  check(
+    "파워 + 근육통 '많이' → 부딪히지 않는다 (고른 대로 간다)",
+    workoutConflict({ facts: high.facts, preferredWorkout: '파워' }) === null &&
+      (high.theme.key === 'lower' || high.theme.key === 'upper'),
+    high.theme.label
+  );
+
+  /* 1~5 밖의 값은 안 적은 것이다 — 부딪힘 글에 "'null'입니다"가 찍히지 않는다(두 곳 모두) */
+  const odd = planFor({ person: { condition: 8, wants: '파워', soreness: 6 } });
+  check(
+    '파워 + 근육통 6(1~5 밖) → 부딪히지 않는다 · 테마도 근육통 없는 날과 같다',
+    workoutConflict({ facts: odd.facts, preferredWorkout: '파워' }) === null &&
+      JSON.stringify(odd.theme) ===
+        JSON.stringify(planFor({ person: { condition: 8, wants: '파워' } }).theme),
+    `${odd.theme.label} — ${odd.theme.reason}`
+  );
 }
 {
   /*
@@ -2693,6 +3158,15 @@ console.log('\n[AI 맞춤] 규칙이 울타리를 치고, 그 밖의 답은 받�
     wants = null as string | null,
     lowerBody = '정상',
     pitches = [40, 0, 35, 0, 40, 0, 30],
+    /* 오늘의 잔 시간 · 전신 근육통. 안 주면 칸을 안 만든다(factsFor 와 같은 방식) */
+    sleepHours = undefined as number | null | undefined,
+    soreness = undefined as number | null | undefined,
+    /**
+     * 지난 날들의 잔 시간(0번째가 어제). 그날 느낌은 '보통'으로 둔다 —
+     * 느낌이 아니라 시간만으로 '잠이 부족한 날'이 세어지는지 보려고.
+     * poorSleepPast 와 같이 주면 그 날들 뒤에 이어 붙는다(같은 날짜가 겹치지 않게).
+     */
+    pastHours = [] as number[],
   }) =>
     buildFacts({
       nickname: '시험',
@@ -2720,6 +3194,8 @@ console.log('\n[AI 맞춤] 규칙이 울타리를 치고, 그 밖의 답은 받�
           lowerBody,
           preferredParts: [],
           preferredWorkout: wants,
+          ...(sleepHours !== undefined ? { sleepHours } : {}),
+          ...(soreness !== undefined ? { soreness } : {}),
         },
         ...Array.from({ length: poorSleepPast }, (_, i) => ({
           date: dayBefore(i + 1).slice(0, 10),
@@ -2732,6 +3208,19 @@ console.log('\n[AI 맞춤] 규칙이 울타리를 치고, 그 밖의 답은 받�
           lowerBody: '정상',
           preferredParts: [],
           preferredWorkout: null,
+        })),
+        ...pastHours.map((hours, i) => ({
+          date: dayBefore(poorSleepPast + i + 1).slice(0, 10),
+          condition: 7,
+          sleep: '보통',
+          shoulder: '정상',
+          elbow: '정상',
+          wrist: '정상',
+          lowerBack: '정상',
+          lowerBody: '정상',
+          preferredParts: [],
+          preferredWorkout: null,
+          sleepHours: hours,
         })),
       ] satisfies CheckinLike[],
       memos: [],
@@ -2830,6 +3319,60 @@ console.log('\n[AI 맞춤] 규칙이 울타리를 치고, 그 밖의 답은 받�
   const oneNight = fenceFor(factsWith({ sleep: '부족' }));
   check('오늘 하루 못 잔 것만으로는 고정하지 않는다', oneNight.fixedGoal == null);
 
+  /*
+   * 잔 시간으로도 같은 규칙이 돈다(2026-09-30). '잠이 부족한 날'은 느낌이 '부족'이거나
+   * 6시간 미만인 날이다(lib/checkin.ts 의 isShortSleep) — 오늘도, 지난 날을 세는 것도 그 하나로.
+   * 느낌은 모두 '보통'으로 두고 시간만으로 걸리는지 본다.
+   */
+  const shortWeek = factsWith({ sleepHours: 5, pastHours: [5, 5] });
+  check(
+    '잠이 부족한 날 세기: 오늘 5시간 + 지난 이틀 5시간(느낌은 모두 보통) → 3일',
+    shortWeek.condition.poorSleepDays === 3,
+    `${shortWeek.condition.poorSleepDays}일`
+  );
+  const sixWeek = factsWith({ sleepHours: 6, pastHours: [6, 6] });
+  check(
+    '잠이 부족한 날 세기: 같은 날들이 6시간이면 0일 (6시간은 짧은 밤이 아니다)',
+    sixWeek.condition.poorSleepDays === 0,
+    `${sixWeek.condition.poorSleepDays}일`
+  );
+  const tiredByHours = fenceFor(shortWeek);
+  check(
+    '오늘 5시간 + 지난 이틀 5시간 → 컨디셔닝, 시간 줄임',
+    tiredByHours.fixedGoal === CONDITIONING_GOAL &&
+      JSON.stringify(tiredByHours.minutes[CONDITIONING_GOAL]) === '[45]',
+    JSON.stringify(tiredByHours.minutes)
+  );
+  check(
+    '잔 시간이 짧아서 걸린 날 → 규칙 줄 앞에 어젯밤 시간을 적는다',
+    tiredByHours.rules.includes(
+      `어젯밤 5시간 · 최근 7일 중 잠이 부족한 날 3일(오늘 포함) → ${CONDITIONING_GOAL}, 시간 한 단계 줄임`
+    ),
+    tiredByHours.rules.join(' / ')
+  );
+  check(
+    "느낌만 '부족'인 날의 규칙 줄은 예전 그대로 (어젯밤 시간이 안 붙는다)",
+    tired.rules.includes(
+      `최근 7일 중 잠이 부족한 날 3일(오늘 포함) → ${CONDITIONING_GOAL}, 시간 한 단계 줄임`
+    ),
+    tired.rules.join(' / ')
+  );
+  const oneShortNight = fenceFor(factsWith({ sleepHours: 5 }));
+  check(
+    '오늘 하루만 5시간 → 고정하지 않고 시간도 안 줄인다',
+    oneShortNight.fixedGoal == null &&
+      oneShortNight.goals.length === 3 &&
+      JSON.stringify(oneShortNight.minutes) === JSON.stringify(plain.minutes),
+    JSON.stringify(oneShortNight.minutes)
+  );
+  /* 지난 날이 아무리 부족했어도 오늘 잘 잤으면 무게를 막지 않는다 */
+  const sleptToday = factsWith({ sleepHours: 7.5, poorSleepPast: 3 });
+  check(
+    "오늘 7.5시간 · 보통 + 지난 사흘 '부족' → 고정하지 않는다 (오늘이 짧은 밤이어야 한다)",
+    sleptToday.condition.poorSleepDays === 3 && fenceFor(sleptToday).fixedGoal == null,
+    `잠이 부족한 날 ${sleptToday.condition.poorSleepDays}일`
+  );
+
   const power = fenceFor(factsWith({ wants: '파워' }));
   check(
     '체크인에서 파워 (몸 상태 괜찮음) → 파워 향상으로 고정',
@@ -2875,6 +3418,116 @@ console.log('\n[AI 맞춤] 규칙이 울타리를 치고, 그 밖의 답은 받�
     JSON.stringify(sore.focuses)
   );
 
+  /*
+   * 전신 근육통(2026-09-30).
+   *   '많이'  요일은 그대로 · 시간 한 단계(한 번만) · AI 가 고를 수 있는 목표에서 파워 향상 제외.
+   *           체크인에서 파워를 직접 고른 날은 그 뜻 그대로 둔다(부딪힘으로 보지 않는다).
+   *   '심함'  회복날이다 — 회복날은 이미 시간을 줄이므로 두 번 줄이지 않는다.
+   *   '보통'  아무것도 안 바꾼다.
+   */
+  const soreHigh = fenceFor(factsWith({ soreness: 4 }));
+  check(
+    "근육통 '많이' → 근력 날 그대로 · 목표는 AI 가 고르되 파워 향상은 없다",
+    soreHigh.strengthDay &&
+      soreHigh.day.key === plain.day.key &&
+      soreHigh.fixedGoal == null &&
+      soreHigh.goals.length === 2 &&
+      !soreHigh.goals.includes('파워 향상'),
+    `${soreHigh.day.label} · ${soreHigh.goals.join(', ')}`
+  );
+  check(
+    "근육통 '많이' → 목표마다 시간 한 단계 줄임 (60 → 45)",
+    soreHigh.goals.every((g) => JSON.stringify(soreHigh.minutes[g]) === '[45]'),
+    JSON.stringify(soreHigh.minutes)
+  );
+  check(
+    "근육통 '많이' → 규칙 줄에 무엇을 바꿨는지 적는다",
+    soreHigh.rules.includes(
+      "전신 근육통 '많이' → 시간 한 단계 줄임, 파워 향상은 고르지 않음"
+    ),
+    soreHigh.rules.join(' / ')
+  );
+  check(
+    "근육통 '많이' → 초안 이유가 근육통 이야기로 시작한다",
+    soreHigh.draft.reason ===
+      "근육통이 '많이'인 날이라 가장 센 운동은 빼고 갑니다. 목표는 근력 향상으로 두었습니다. 시간은 45분으로 줄였습니다.",
+    soreHigh.draft.reason
+  );
+  const soreHighPower = fenceFor(factsWith({ soreness: 4, wants: '파워' }));
+  check(
+    "근육통 '많이' + 체크인에서 파워 → 파워 향상 그대로 · 시간만 한 단계",
+    soreHighPower.fixedGoal === '파워 향상' &&
+      soreHighPower.clash == null &&
+      JSON.stringify(soreHighPower.minutes) === JSON.stringify({ '파워 향상': [45] }),
+    JSON.stringify(soreHighPower.minutes)
+  );
+  check(
+    "근육통 '많이' + 체크인에서 파워 → 규칙 줄은 시간만 말한다",
+    soreHighPower.rules.includes("전신 근육통 '많이' → 시간 한 단계 줄임"),
+    soreHighPower.rules.join(' / ')
+  );
+  const soreHighLoaded = fenceFor(
+    factsWith({ soreness: 4 }),
+    signals({ zone: 'caution', ratio: 1.41 })
+  );
+  check(
+    "근육통 '많이' + 운동 부하 주의 → 컨디셔닝 45분 (한 번만 줄인다 — 비거나 더 짧아지지 않는다)",
+    soreHighLoaded.fixedGoal === CONDITIONING_GOAL &&
+      JSON.stringify(soreHighLoaded.minutes[CONDITIONING_GOAL]) === '[45]' &&
+      JSON.stringify(soreHighLoaded.minutes) === JSON.stringify(loaded.minutes) &&
+      /* 근육통이 바꾼 것이 없는 날이라 '줄였다'고 또 말하지 않는다 */
+      !soreHighLoaded.rules.some((r) => r.startsWith('전신 근육통')),
+    `${JSON.stringify(soreHighLoaded.minutes)} · ${soreHighLoaded.rules.join(' / ')}`
+  );
+  const soreSevere = fenceFor(factsWith({ soreness: 5 }));
+  check(
+    "근육통 '심함' → 회복날 · 컨디셔닝 고정 · 시간은 두 번 안 줄인다",
+    soreSevere.day.key === 'recovery' &&
+      !soreSevere.strengthDay &&
+      soreSevere.fixedGoal === CONDITIONING_GOAL &&
+      JSON.stringify(soreSevere.minutes[CONDITIONING_GOAL]) === '[45,60]',
+    `${soreSevere.day.label} · ${JSON.stringify(soreSevere.minutes)}`
+  );
+  check(
+    "근육통 '보통' → 울타리가 평소 날과 똑같다",
+    JSON.stringify(fenceFor(factsWith({ soreness: 3 }))) === JSON.stringify(plain)
+  );
+  check(
+    "근육통 6 · 4.5(1~5 밖) → 울타리가 평소 날과 똑같다 — 규칙 줄에 'null' 이 안 찍힌다",
+    [6, 4.5].every(
+      (soreness) =>
+        JSON.stringify(fenceFor(factsWith({ soreness }))) === JSON.stringify(plain)
+    )
+  );
+
+  /*
+   * 기본 시간이 이미 맨 아래(45분)인 사람은 더 줄일 데가 없다. 그대로인데 '줄였다'고 적지 않는다 —
+   * 파워 향상을 뺀 것만 말한다.
+   */
+  const plainFloor = fenceFor(factsWith({}), signals(), 45);
+  const soreHighFloor = fenceFor(factsWith({ soreness: 4 }), signals(), 45);
+  check(
+    '(기준) 기본 45분인 사람의 평소 날 → 목표마다 시간 [45]',
+    plainFloor.goals.every((g) => JSON.stringify(plainFloor.minutes[g]) === '[45]'),
+    JSON.stringify(plainFloor.minutes)
+  );
+  check(
+    "근육통 '많이' + 기본 45분 → 시간은 그대로 [45] · 규칙 줄은 파워 향상만 말한다",
+    soreHighFloor.goals.length === 2 &&
+      soreHighFloor.goals.every(
+        (g) => JSON.stringify(soreHighFloor.minutes[g]) === '[45]'
+      ) &&
+      soreHighFloor.rules.includes("전신 근육통 '많이' → 파워 향상은 고르지 않음") &&
+      !soreHighFloor.rules.some((r) => r.includes('시간 한 단계 줄임')),
+    `${JSON.stringify(soreHighFloor.minutes)} · ${soreHighFloor.rules.join(' / ')}`
+  );
+  check(
+    "근육통 '많이' + 기본 45분 → 초안 이유도 '줄였습니다'라고 하지 않는다",
+    soreHighFloor.draft.reason ===
+      "근육통이 '많이'인 날이라 가장 센 운동은 빼고 갑니다. 목표는 근력 향상으로 두었습니다. 시간은 45분입니다.",
+    soreHighFloor.draft.reason
+  );
+
   /* 통증인 날은 AI를 부르지 않는다 — 그 조건이 plan.halted 다 (training-setup.ts) */
   const pain = factsFor({ condition: 7, pain: true });
   check(
@@ -2903,6 +3556,50 @@ console.log('\n[AI 맞춤] 규칙이 울타리를 치고, 그 밖의 답은 받�
   check(
     '울타리가 바뀌어 그 목표가 안 되면 → 다시 묻는다',
     !canReuse({ ...prev, goal: '파워 향상' }, loaded, stamp)
+  );
+
+  /*
+   * 잔 시간 · 근육통도 울타리를 바꾸므로 도장에 든다 — 고치면 다시 묻는다.
+   * 칸이 없는 것(옛 기록)과 null 은 둘 다 '안 적음'이라 같은 도장이다. 다르면 배포 뒤
+   * 아무것도 안 바꾼 사람까지 다시 묻게 된다.
+   */
+  check(
+    '잔 시간만 바꿔도 도장이 달라진다 → 다시 묻는다',
+    checkinStamp({ ...today, sleepHours: 6.5 }) !== stamp &&
+      checkinStamp({ ...today, sleepHours: 6.5 }) !==
+        checkinStamp({ ...today, sleepHours: 7 }) &&
+      !canReuse(prev, plain, checkinStamp({ ...today, sleepHours: 6.5 }))
+  );
+  check(
+    '근육통만 바꿔도 도장이 달라진다 → 다시 묻는다',
+    checkinStamp({ ...today, soreness: 4 }) !== stamp &&
+      checkinStamp({ ...today, soreness: 3 }) !==
+        checkinStamp({ ...today, soreness: 4 }) &&
+      !canReuse(prev, plain, checkinStamp({ ...today, soreness: 4 }))
+  );
+  check(
+    '칸이 없는 체크인과 null 로 적힌 체크인은 같은 도장',
+    !('sleepHours' in today) &&
+      !('soreness' in today) &&
+      checkinStamp({ ...today, sleepHours: null, soreness: null }) === stamp
+  );
+
+  /* AI 가 파워 향상을 골라 둔 날, 체크인은 그대로인데 울타리에서 파워가 빠졌다면 다시 묻는다 */
+  const soreStamp = checkinStamp(factsWith({ soreness: 4 }).condition.today!);
+  const prevSore: AutoRecord = {
+    ...soreHigh.draft,
+    by: 'ai',
+    rules: [],
+    checkin: soreStamp,
+  };
+  check(
+    "(기준) 근육통 '많이'인 날 울타리 안의 기록은 그대로 쓴다 · 평소 울타리는 파워 향상을 받는다",
+    canReuse(prevSore, soreHigh, soreStamp) &&
+      canReuse({ ...prev, goal: '파워 향상' }, plain, stamp)
+  );
+  check(
+    "AI 가 파워 향상을 골랐던 기록 + 근육통 '많이'의 울타리 → 다시 묻는다 (울타리 밖)",
+    !canReuse({ ...prevSore, goal: '파워 향상' }, soreHigh, soreStamp)
   );
 
   /* ── AI 답 검사 ── */
@@ -3018,6 +3715,134 @@ console.log('\n[AI 맞춤] 규칙이 울타리를 치고, 그 밖의 답은 받�
   check(
     '근력 날에 AI가 컨디셔닝을 고를 수 있으면 → 그날 이름이 바뀐다고 알려 준다',
     buildAutoPrompt(input).includes(CONDITIONING_DAY_LABEL)
+  );
+
+  /*
+   * 잔 시간 · 전신 근육통도 AI 에게 준다 — 적은 날만, 시간은 소수로만('5.5시간').
+   *
+   * '5시간 30분'으로 풀어 주면 AI 가 그 '30분'을 따라 쓰고, 아래 분 검사가 그것을 운동 시간으로
+   * 읽는다. 그래도 AI 는 사람 말로 풀어 쓰곤 하므로, 검사는 오늘 잔 시간과 꼭 맞는 말만 떼고 센다.
+   * 30분을 통째로 허용하지는 않는다 — 운동 시간을 30분이라고 잘못 쓴 답까지 통과한다.
+   */
+  const inputFor = (f: ReturnType<typeof buildFacts>): AutoPromptInput => ({
+    ...input,
+    facts: f,
+    plan: buildPitchPlan(f),
+    fence: fenceFor(f),
+  });
+  const checkinLine = (text: string) =>
+    text.split('\n').find((line) => line.startsWith('- 컨디션 ')) ?? '';
+  const bodyPrompt = buildAutoPrompt(
+    inputFor(factsWith({ sleepHours: 5.5, soreness: 4 }))
+  );
+  check(
+    '프롬프트의 체크인 줄에 잔 시간 · 전신 근육통이 들어간다',
+    checkinLine(bodyPrompt) ===
+      "- 컨디션 8/10 (10이 최상) · 수면 보통 · 잔 시간 5.5시간 · 전신 근육통 '많이'",
+    checkinLine(bodyPrompt)
+  );
+  check(
+    "잔 시간은 소수로만 준다 — '5시간 30분' 꼴은 프롬프트 어디에도 없다",
+    bodyPrompt.includes('5.5시간') && !/5\s*시간\s*30\s*분/.test(bodyPrompt)
+  );
+  check(
+    '값이 없는 날의 체크인 줄은 예전 그대로',
+    checkinLine(buildAutoPrompt(input)) === '- 컨디션 8/10 (10이 최상) · 수면 보통',
+    checkinLine(buildAutoPrompt(input))
+  );
+
+  const spelledOut: AutoAnswer = {
+    ...good,
+    reason:
+      '어젯밤 5시간 30분밖에 못 주무셔서 가장 센 것은 빼고 근력에 씁니다. 60분이면 충분합니다.',
+  };
+  const shortNightInput = inputFor(factsWith({ sleepHours: 5.5 }));
+  const spelled = acceptAnswer(spelledOut, shortNightInput, ALL_TITLES);
+  check(
+    "잔 시간 5.5 인 날 이유에 '5시간 30분밖에 못 주무셔서' → 받는다 (잔 시간을 풀어 쓴 것은 운동 시간이 아니다)",
+    spelled.ok,
+    spelled.ok ? spelled.decision.reason : spelled.reason
+  );
+  const strayHalf = acceptAnswer(
+    {
+      ...good,
+      reason: '어젯밤 5시간 30분밖에 못 주무셨으니 오늘은 30분만 가볍게 합니다.',
+    },
+    shortNightInput,
+    ALL_TITLES
+  );
+  check(
+    '그날에도 운동 시간으로 쓴 30분(자료에 없는 분)은 버린다',
+    !strayHalf.ok && strayHalf.reason.includes('30분'),
+    strayHalf.ok ? '받아버림' : strayHalf.reason
+  );
+  const fullNight = acceptAnswer(
+    spelledOut,
+    inputFor(factsWith({ sleepHours: 7 })),
+    ALL_TITLES
+  );
+  check(
+    "잔 시간 7 인 날 이유에 '30분'(자료에 없는 분) → 지금처럼 버린다",
+    !fullNight.ok && fullNight.reason.includes('30분'),
+    fullNight.ok ? '받아버림' : fullNight.reason
+  );
+  /*
+   * 떼어 내는 것은 오늘 잔 시간이 x.5 인 날의 그 말뿐이다. 정수로 잔 날의 'N시간 30분'은
+   * 잔 시간을 풀어 쓴 것이 아니라 틀린 말이다 — 위 시험은 문장이 '5시간 30분'이라 이것을 못 가른다.
+   */
+  const wrongHalf = acceptAnswer(
+    {
+      ...good,
+      reason: '어젯밤 7시간 30분 주무셔서 근력에 씁니다. 60분이면 충분합니다.',
+    },
+    inputFor(factsWith({ sleepHours: 7 })),
+    ALL_TITLES
+  );
+  check(
+    "잔 시간 7 인 날 이유에 '7시간 30분' → 버린다 (정수로 잔 날은 떼어 낼 말이 없다)",
+    !wrongHalf.ok && wrongHalf.reason.includes('30분'),
+    wrongHalf.ok ? '받아버림' : wrongHalf.reason
+  );
+  /* 소수 뒤 · 다른 숫자 뒤의 '5시간 30분'은 잔 시간을 풀어 쓴 말이 아니다 — 떼지 않는다 */
+  for (const [label, reason] of [
+    [
+      "'5.5시간 30분만'(잔 시간 뒤에 붙여 쓴 운동 시간 30분)",
+      '어젯밤 잔 시간이 5.5시간 30분만 가볍게 합니다.',
+    ],
+    [
+      "'15시간 30분'",
+      '어젯밤 15시간 30분 주무셔서 근력에 씁니다. 60분이면 충분합니다.',
+    ],
+  ] as const) {
+    const r = acceptAnswer({ ...good, reason }, shortNightInput, ALL_TITLES);
+    check(
+      `잔 시간 5.5 인 날 이유에 ${label} → 버린다`,
+      !r.ok && r.reason.includes('30분'),
+      r.ok ? '받아버림' : r.reason
+    );
+  }
+
+  /*
+   * 리포트 프롬프트의 '오늘:' 줄에도 같은 두 조각이 붙는다 — 적은 날만, 시간은 소수로,
+   * 근육통은 숫자 없이 말로. 안 적은 날의 줄은 두 칸이 생기기 전과 같다.
+   */
+  const todayLine = (f: ReturnType<typeof buildFacts>) =>
+    buildUserPrompt(f, buildPitchPlan(f))
+      .split('\n')
+      .find((line) => line.startsWith('- 오늘: ')) ?? '';
+  const reportBody = todayLine(factsWith({ sleepHours: 6.5, soreness: 4 }));
+  check(
+    "리포트 프롬프트의 '오늘:' 줄 끝에 잔 시간 · 전신 근육통이 붙는다",
+    reportBody.endsWith("컨디션 8/10, 수면 보통, 잔 시간 6.5시간, 전신 근육통 '많이'"),
+    reportBody
+  );
+  const reportPlain = todayLine(factsWith({}));
+  check(
+    "값이 없는 날의 '오늘:' 줄은 예전 그대로 (수면에서 끝난다)",
+    reportPlain.endsWith('컨디션 8/10, 수면 보통') &&
+      reportPlain === todayLine(factsWith({ sleepHours: null, soreness: null })) &&
+      reportPlain === todayLine(factsWith({ soreness: 6 })),
+    reportPlain
   );
 
   /*
@@ -3878,7 +4703,8 @@ console.log('\n[암케어] 부위·근육 · 오늘의 루틴 · 부하');
     for (const ex of armcareLib) {
       if (!ex.targetMuscles.some((m) => areaOfMuscle(m)?.key === area.key)) continue;
       const shown = visibleChips(ex.targetMuscles, own, 2);
-      if (!shown.some((m) => own.includes(m))) hiddenReason.push(`${area.label}: ${ex.title}`);
+      if (!shown.some((m) => own.includes(m)))
+        hiddenReason.push(`${area.label}: ${ex.title}`);
     }
   }
   check(
@@ -4257,6 +5083,30 @@ console.log('\n[암케어] 부위·근육 · 오늘의 루틴 · 부하');
   check(
     "팔 피로 '보통'은 넘긴다 → 강화",
     decide({ condition: 8, pitches: rested }, 3).kind === 'strength'
+  );
+  /*
+   * 전신 근육통 '심함'인 날은 트레이닝도 회복·재생 데이다 — 팔만 강화하면 두 화면이 다른 말을 한다.
+   * '많이'는 넘긴다: 온몸 값이라 팔이 어떤지는 모르고, 팔은 팔 피로가 본다.
+   * 기본 사람은 '어제 40구'라 이미 회복이다 — 일주일 안 던진 사람(rested)으로 봐야 갈린다.
+   */
+  const soreBody = decide({ condition: 8, pitches: rested, soreness: 5 });
+  check(
+    "전신 근육통 '심함' → 회복, 까닭에 적는다",
+    soreBody.kind === 'recovery' &&
+      soreBody.reason === "전신 근육통 '심함' → 회복 루틴",
+    soreBody.reason
+  );
+  check(
+    "전신 근육통 '많이'는 넘긴다 → 강화",
+    decide({ condition: 8, pitches: rested, soreness: 4 }).kind === 'strength'
+  );
+  check(
+    "전신 근육통 6(1~5 밖)은 안 적은 것이다 → 강화 (까닭에 'null' 이 안 찍힌다)",
+    decide({ condition: 8, pitches: rested, soreness: 6 }).kind === 'strength'
+  );
+  check(
+    "전신 근육통 '심함' + 통증 → 쉬기 (통증이 먼저)",
+    decide({ condition: 8, pitches: rested, pain: true, soreness: 5 }).kind === 'rest'
   );
   const low = decide({ condition: 3, pitches: rested });
   check(

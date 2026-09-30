@@ -1,3 +1,4 @@
+import { SEVERE_SORENESS, sorenessWord } from '@/lib/checkin';
 import { intensityLevel, minutesForSets } from '@/lib/exercise-meta';
 import type { ReportFacts } from '@/lib/report/facts';
 import { pendingOuting, type PitchPlan } from '@/lib/report/plan';
@@ -18,7 +19,7 @@ import {
  * 상태를 보고 세 가지 중 하나를 낸다.
  *
  *   쉬기   통증이 있는 날 — 루틴 대신 진료 안내
- *   회복   던진 날·다음 날, 팔 피로가 높은 날, 부하가 높은 날 — 가볍게, 피가 돌 만큼
+ *   회복   던진 날·다음 날, 팔 피로가 높은 날, 부하가 높은 날, 온몸 근육통이 심한 날 — 가볍게, 피가 돌 만큼
  *   강화   그 밖의 날(던진 지 이틀이 넘은 날) — 부위를 고르게, 제대로
  *
  * 투수 표준 프로그램(Thrower's Ten)과 투구 뒤 48~72시간 회복 원칙을 따랐다.
@@ -107,6 +108,18 @@ export function decideArmcare({
   const condition = facts.condition.today?.condition;
   if (condition != null && condition <= LOW_CONDITION) {
     signals.push(`컨디션 ${condition}/10`);
+  }
+  /*
+   * 전신 근육통 '심함' — 그날은 트레이닝도 회복·재생 데이다(lib/report/theme.ts). 팔만 제대로
+   * 강화하면 두 화면이 다른 말을 한다.
+   *
+   * '많이'는 넘긴다 — 온몸 값이라 팔이 어떤지는 모르고, 팔은 팔 피로가 본다. 안 적은 날도,
+   * 1~5 밖의 값(말이 없는 값 — 까닭에 'null' 이 찍힌다)도 넘긴다.
+   */
+  const soreness = facts.condition.today?.soreness;
+  const soreWord = sorenessWord(soreness);
+  if (soreness != null && soreWord && soreness >= SEVERE_SORENESS) {
+    signals.push(`전신 근육통 '${soreWord}'`);
   }
   if (plan.recovering) signals.push('최근 통증 기록');
   if (facts.condition.today?.preferredWorkout === '회복') {

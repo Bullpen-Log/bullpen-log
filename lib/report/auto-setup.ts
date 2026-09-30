@@ -1,6 +1,14 @@
 import type { CheckinLike, ReportFacts } from '@/lib/report/facts';
 import type { PitchPlan } from '@/lib/report/plan';
-import { CHECKIN_PARTS, type CheckinPartKey } from '@/lib/checkin';
+import {
+  CHECKIN_PARTS,
+  HIGH_SORENESS,
+  SHORT_SLEEP_HOURS,
+  formatSleepHours,
+  isShortSleep,
+  sorenessWord,
+  type CheckinPartKey,
+} from '@/lib/checkin';
 import { ACWR_ZONES } from '@/lib/pitch-stats';
 import { withJosa } from '@/lib/korean';
 import {
@@ -26,8 +34,8 @@ import type { TrainingLoad } from '@/lib/training-load';
  *
  * 사용자는 장비만 고른다. 나머지는 두 겹으로 정한다(2026-09-23 사용자분과 정함).
  *
- *   규칙   몸을 지키는 것 — 통증, 회복날·보조날, 운동 부하, 수면, 체크인에서
- *          고른 운동. 여기서 정한 것은 AI가 바꾸지 못한다.
+ *   규칙   몸을 지키는 것 — 통증, 회복날·보조날, 운동 부하, 수면, 전신 근육통,
+ *          체크인에서 고른 운동. 여기서 정한 것은 AI가 바꾸지 못한다.
  *   AI     그 울타리 안에서 목표·시간·부위를 고르고, 메모에서 조심할 부위를
  *          찾고, 왜 그렇게 정했는지 사람 말로 설명한다 (lib/ai/auto-setup.ts).
  *
@@ -65,6 +73,10 @@ for (const name of [DEFAULT_GOAL, POWER_GOAL, STRENGTH_GOAL, CONDITIONING_GOAL])
  *
  * 하루 이틀 못 잔 것은 흔한 일이라 그것만으로 목표를 바꾸지 않는다. 한 주의
  * 절반 가까이 못 잔 채로 오늘도 못 잤다면, 무게를 올릴 날이 아니다.
+ *
+ * 어느 날이 '부족한 날'인지는 lib/checkin.ts 의 isShortSleep 이 정한다 — 느낌이
+ * '부족'이거나 잔 시간이 6시간 미만. 오늘도, 지난 날을 세는 것도 그 함수 하나다.
+ * (하루 못 잔 날에 가장 센 운동만 빼는 것은 prescription.ts 가 따로 한다.)
  */
 export const SLEEP_DEBT_DAYS = 3;
 
@@ -184,6 +196,9 @@ function soreParts(today: CheckinLike | null): CheckinPartKey[] {
  * '다시 만들기'는 대개 운동 목록이 마음에 안 들어서 누른다. 방향(목표·시간)은
  * 그대로 두고 종목만 새로 뽑으면 되는데, 그때마다 AI를 부르면 비용만 든다.
  * 체크인을 고쳤다면 몸 상태가 달라진 것이니 다시 묻는다.
+ *
+ * 잔 시간 · 근육통도 울타리를 바꾸므로 도장에 든다. 칸이 없는 것(옛 기록)과 null 은
+ * 같은 도장이다 — 둘 다 '안 적음'이라 다시 물을 까닭이 없다.
  */
 export function checkinStamp(today: CheckinLike): string {
   return JSON.stringify([
@@ -192,6 +207,8 @@ export function checkinStamp(today: CheckinLike): string {
     today.sleep,
     today.preferredParts,
     today.preferredWorkout ?? null,
+    today.sleepHours ?? null,
+    today.soreness ?? null,
   ]);
 }
 
@@ -252,7 +269,9 @@ export function decideAutoFence({
 
   const loadHigh = workout.zone === 'caution' || workout.zone === 'danger';
   const sleepDebt =
-    today?.sleep === '부족' && facts.condition.poorSleepDays >= SLEEP_DEBT_DAYS;
+    today != null &&
+    isShortSleep(today) &&
+    facts.condition.poorSleepDays >= SLEEP_DEBT_DAYS;
 
   let fixedGoal: string | null = null;
   let shorten = false;
@@ -285,8 +304,14 @@ export function decideAutoFence({
       rules.push(`운동 부하 지수${ratio}(${zone.label}) → ${tail}`);
     }
     if (sleepDebt) {
+      /* 잔 시간이 짧아서 걸린 날은 그 숫자를 앞에 적는다. 느낌만 '부족'이면 예전 문장 그대로 */
+      const hours = today?.sleepHours;
+      const lastNight =
+        hours != null && hours < SHORT_SLEEP_HOURS
+          ? `어젯밤 ${formatSleepHours(hours)} · `
+          : '';
       rules.push(
-        `최근 7일 중 잠이 부족한 날 ${facts.condition.poorSleepDays}일(오늘 포함) → ${tail}`
+        `${lastNight}최근 7일 중 잠이 부족한 날 ${facts.condition.poorSleepDays}일(오늘 포함) → ${tail}`
       );
     }
   } else if (strengthDay && (preferred === '파워' || preferred === '웨이트')) {
@@ -298,7 +323,51 @@ export function decideAutoFence({
     rules.push(`체크인에서 ${preferred} 운동을 고르셔서 → ${fixedGoal}`);
   }
 
-  const goals = fixedGoal ? [fixedGoal] : [...TRAINING_GOAL_NAMES];
+  /*
+   * 전신 근육통 '많이' — 시간을 한 단계 줄이고, AI 가 고를 수 있는 목표에서 파워 향상을 뺀다.
+   *
+   * 알이 심하게 밴 날은 점프 · 전력 동작이 먼저 떨어진다. 가장 센 운동은 이미 후보에서 빠지지만
+   * (prescription.ts), 목표가 파워면 남은 것으로 파워 날을 채우게 된다. 요일(상체·하체)은 그대로 둔다.
+   *
+   * 위 규칙들보다 뒤에 본다. 시간은 한 번만 줄인다(shorten 하나) — 운동 부하 · 잠 때문에 이미
+   * 줄였으면 그대로다. 목표가 이미 정해진 날은 목표를 안 건드린다: 체크인에서 파워를 직접 고른
+   * 날은 그 뜻 그대로 간다(부딪힘으로 보지 않는다).
+   *
+   * '심함'은 늘 회복날이라 여기 안 온다 — 회복날은 이미 시간을 줄인다(effectiveMinutes).
+   * 1~5 밖의 값(말이 없는 값)은 안 적은 것으로 넘긴다 — 규칙 줄에 'null' 이 찍히지 않게.
+   */
+  const soreWord = sorenessWord(today?.soreness);
+  const soreHigh =
+    soreWord != null &&
+    (today?.soreness ?? 0) >= HIGH_SORENESS &&
+    day.key !== 'recovery';
+  const dropPower = soreHigh && fixedGoal == null;
+
+  const goals = fixedGoal
+    ? [fixedGoal]
+    : TRAINING_GOAL_NAMES.filter((g) => !(dropPower && g === POWER_GOAL));
+
+  let shortBySoreness = false;
+  if (soreHigh) {
+    if (!shorten) {
+      /*
+       * 실제로 줄어들 때만 줄였다고 한다. 기본 시간이 이미 맨 아래(45분)인 사람은 더 줄일 데가
+       * 없다 — 그대로인데 '시간 한 단계 줄임' · '45분으로 줄였습니다'라고 적으면 없는 일을 말하게 된다.
+       */
+      shortBySoreness = goals.some((goal) => {
+        const base = nearestMinutesChoice(defaultMinutes, goal);
+        return oneStepDown(goal, base) < base;
+      });
+      shorten = shortBySoreness;
+    }
+    const bits = [
+      shortBySoreness ? '시간 한 단계 줄임' : null,
+      dropPower ? `${POWER_GOAL}은 고르지 않음` : null,
+    ].filter((bit) => bit != null);
+    if (bits.length > 0) {
+      rules.push(`전신 근육통 '${soreWord}' → ${bits.join(', ')}`);
+    }
+  }
 
   /*
    * 시간은 기본 시간을 넘지 않는다 — 줄이는 것만 고를 수 있다.
@@ -361,6 +430,7 @@ export function decideAutoFence({
         loadHigh,
         sleepDebt,
         shorten,
+        soreHigh: shortBySoreness || dropPower ? soreWord : null,
         preferred,
         hasHistory: workout.recentDays > 0,
         /* 회복날은 고른 시간보다 짧게 한다 — 이유에는 실제로 할 시간을 적는다 */
@@ -384,6 +454,7 @@ function draftReason({
   loadHigh,
   sleepDebt,
   shorten,
+  soreHigh,
   preferred,
   hasHistory,
   actualMinutes,
@@ -395,6 +466,8 @@ function draftReason({
   loadHigh: boolean;
   sleepDebt: boolean;
   shorten: boolean;
+  /** 근육통 때문에 시간이나 고를 목표가 바뀐 날이면 그 말('많이'). 아니면 null */
+  soreHigh: string | null;
   preferred: string | null;
   hasHistory: boolean;
   actualMinutes: number;
@@ -416,6 +489,14 @@ function draftReason({
   }
   if (sleepDebt) {
     return `잠이 부족한 날이 이어져, 오늘은 무게를 올리기보다 ${goal}에 씁니다. ${time}`;
+  }
+  if (soreHigh) {
+    /* 파워 · 웨이트를 직접 고른 날은 목표가 그 뜻대로 갔다는 것까지 말한다 */
+    const goalNote =
+      preferred === '파워' || preferred === '웨이트'
+        ? `체크인에서 ${preferred} 운동을 고르셔서 목표는 ${withJosa(goal, '으로/로')} 잡았습니다. `
+        : `목표는 ${withJosa(goal, '으로/로')} 두었습니다. `;
+    return `근육통이 '${soreHigh}'인 날이라 가장 센 운동은 빼고 갑니다. ${goalNote}${time}`;
   }
   if (!strengthDay) {
     return `몸을 아끼는 날이라 목표는 ${withJosa(goal, '으로/로')} 두었습니다. ${time}`;

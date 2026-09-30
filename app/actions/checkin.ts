@@ -5,6 +5,7 @@ import { prisma } from '@/lib/prisma';
 import { getCurrentUser } from '@/lib/dal';
 import {
   CHECKIN_PARTS,
+  parseCheckinBody,
   parseCheckinDetail,
   pickCheckinParts,
   pickWorkoutKind,
@@ -71,12 +72,28 @@ async function trySaveCheckin(formData: FormData): Promise<CheckinState> {
 
   const date = new Date(`${dateKey}T00:00:00.000Z`);
 
-  /* 간편 체크인이 받는 것 — 몸 상태·컨디션·수면. 늘 저장한다. */
+  /*
+   * 간편 체크인이 받는 것 — 몸 상태·컨디션·수면(잔 느낌). 늘 저장한다.
+   * 같은 자리의 선택 칸인 근육통 · 잔 시간은 바로 밑(body)에서 따로 다룬다.
+   */
   const quick = {
     ...pickCheckinParts(checked.value),
     condition: checked.value.condition,
     sleep: checked.value.sleep,
   };
+
+  /*
+   * 근육통 · 잔 시간은 간편 쪽 선택 칸이다. 폼이 표시(body=1)를 보냈을 때만 쓴다(비우면 null).
+   * 표시가 없으면 배포 전에 열려 있던 옛 화면이라, 아침에 적은 값을 빈 값으로 덮지 않게
+   * 건드리지 않는다. 상세의 detail=1 과 같은 방식이다.
+   *
+   * 검사해서 막지 않는다 — 고르는 칸이라 잘못 칠 수 없고, 범위 밖 값은 맞추거나 안 적은 것으로
+   * 본다(lib/checkin.ts 의 parseCheckinBody).
+   */
+  const body =
+    formData.get('body') === '1'
+      ? parseCheckinBody((name) => String(formData.get(name) ?? ''))
+      : {};
 
   /*
    * 상세 쪽(운동 선호 · 상세 기록)은 폼이 담아 보냈을 때만(detail=1) 바꾼다.
@@ -101,11 +118,11 @@ async function trySaveCheckin(formData: FormData): Promise<CheckinState> {
 
   await prisma.dailyCheckin.upsert({
     where: { userId_date: { userId: user.id, date } },
-    update: { ...quick, ...detail },
-    create: { userId: user.id, date, preferredParts: [], ...quick, ...detail },
+    update: { ...quick, ...body, ...detail },
+    create: { userId: user.id, date, preferredParts: [], ...quick, ...body, ...detail },
   });
 
-  // 통증·뻐근함은 오늘의 운동 후보를 바꾼다.
+  // 통증·뻐근함 · 근육통 · 잔 시간은 오늘의 운동 후보를 바꾼다.
   revalidatePath('/today');
   revalidatePath('/training');
   /* 체크인 관문은 모든 화면의 틀(레이아웃)에 있다. 거기도 오늘 체크인을 알아야 한다. */
