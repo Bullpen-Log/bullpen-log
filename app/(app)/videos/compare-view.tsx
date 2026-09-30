@@ -104,7 +104,7 @@ function ComparePane({
       <div className="flex items-center gap-1.5 border-b border-line p-1.5 sm:gap-2 sm:p-2">
         <span
           className={`flex h-6 w-6 shrink-0 items-center justify-center rounded text-xs font-bold ${
-            side === 'A' ? 'bg-sky text-white' : 'bg-white text-ink border border-line'
+            side === 'A' ? 'bg-sky text-white' : 'bg-surface text-ink border border-line'
           }`}
         >
           {side}

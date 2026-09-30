@@ -62,7 +62,7 @@ export function MuscleChips({
             type="button"
             onClick={(e) => info({ kind: 'muscle', name: m }, e)}
             aria-label={`${m} — 위치와 설명 보기`}
-            className={`${look} min-h-6 ring-sky transition-shadow hover:ring-1`}
+            className={`${look} min-h-6 ring-sky transition-shadow hover:ring-1 relative before:absolute before:-inset-x-0.5 before:-inset-y-2`}
           >
             {dot}
             {m}
@@ -83,7 +83,7 @@ export function MuscleChips({
             type="button"
             onClick={() => setAll(true)}
             aria-label={`근육 ${hidden.length}개 더 보기`}
-            className="min-h-6 rounded-full bg-surface-2 px-2 py-0.5 text-[11px] font-medium text-muted ring-sky transition-shadow hover:ring-1"
+            className="min-h-6 rounded-full bg-surface-2 px-2 py-0.5 text-[11px] font-medium text-muted ring-sky transition-shadow hover:ring-1 relative before:absolute before:-inset-x-0.5 before:-inset-y-2"
           >
             +{hidden.length}
           </button>

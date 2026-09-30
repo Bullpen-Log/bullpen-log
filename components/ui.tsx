@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import type { ComponentProps, ReactNode } from 'react';
+import { ErrorLine } from '@/components/error-line';
 
 function cn(...classes: (string | false | undefined | null)[]) {
   return classes.filter(Boolean).join(' ');
@@ -186,9 +187,6 @@ export function EmptyState({
 
 export function FormError({ children }: { children?: ReactNode }) {
   if (!children) return null;
-  return (
-    <p className="rounded-lg border border-danger-line bg-danger-bg px-4 py-3 text-sm text-danger">
-      {children}
-    </p>
-  );
+  /* 새 오류가 뜨면 보이는 자리로 굴려 온다 — 저장 단추는 밑, 이 칸은 위라 실패를 못 봤다(components/error-line.tsx) */
+  return <ErrorLine>{children}</ErrorLine>;
 }

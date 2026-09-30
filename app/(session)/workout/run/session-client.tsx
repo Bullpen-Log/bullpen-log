@@ -752,7 +752,7 @@ export function SessionClient({
           type="button"
           onClick={() => router.push('/training')}
           aria-label="나가기"
-          className="rounded-lg p-1.5 text-muted transition-colors hover:text-ink"
+          className="-m-1.5 grid h-11 w-11 shrink-0 place-items-center rounded-lg text-muted transition-colors hover:text-ink"
         >
           <X className="h-5 w-5" />
         </button>
@@ -791,7 +791,7 @@ export function SessionClient({
             void flush();
           }}
           disabled={ending}
-          className="shrink-0 rounded-lg border border-line-strong px-2.5 py-1.5 text-xs font-semibold text-ink transition-colors hover:border-sky hover:text-sky disabled:opacity-50"
+          className="min-h-10 shrink-0 rounded-lg border border-line-strong px-3 text-xs font-semibold text-ink transition-colors hover:border-sky hover:text-sky disabled:opacity-50"
         >
           {ending ? '정리 중' : '운동 종료'}
         </button>
@@ -1019,9 +1019,10 @@ export function SessionClient({
                     type="button"
                     onClick={() => drop(s)}
                     aria-label={`${i + 1}세트 지우기`}
-                    className="rounded-md p-1.5 text-muted transition-colors hover:text-warn"
+                    /* 손가락 크기(44px) · 고치기 연필과 거리 — 26px 라 연필을 누르려다 세트가 지워졌다 */
+                    className="ml-1 grid h-11 w-11 shrink-0 place-items-center rounded-lg text-muted transition-colors hover:text-warn active:text-warn"
                   >
-                    <Trash2 className="h-3.5 w-3.5" />
+                    <Trash2 className="h-4 w-4" />
                   </button>
                 </div>
               );

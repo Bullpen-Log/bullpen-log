@@ -65,9 +65,9 @@ export function ExerciseSheet({
             type="button"
             onClick={onClose}
             aria-label="목록 닫기"
-            className="rounded-lg p-1.5 text-muted transition-colors hover:text-ink"
+            className="-m-2 grid h-11 w-11 shrink-0 place-items-center rounded-lg text-muted transition-colors hover:text-ink desk:m-0 desk:h-8 desk:w-8"
           >
-            <X className="h-4 w-4" />
+            <X className="h-5 w-5 desk:h-4 desk:w-4" />
           </button>
         </div>
 
@@ -110,29 +110,36 @@ export function ExerciseSheet({
                       {ex.title}
                     </span>
                     <span className="block truncate text-[11px] text-muted">
-                      {done > 0 ? `${done}세트 남김` : (ex.prescription ?? '아직')}
+                      {/* 뺄 수 없는 까닭을 글로 — title(마우스 올리기)은 폰에서 안 보인다 */}
+                      {done > 0
+                        ? `${done}세트 남김 · 기록이 있어 못 빼요`
+                        : (ex.prescription ?? '아직')}
                     </span>
                   </span>
                 </button>
 
-                <span className="flex shrink-0 items-center gap-0.5">
+                {/*
+                  손가락 크기(44px)로 — 28px 단추 셋이 2px 사이로 붙어 있어 ↓ 를 누르려다 ✕ 를 눌러 운동이 빠졌다.
+                  ✕ 는 조금 떨어뜨린다.
+                */}
+                <span className="flex shrink-0 items-center gap-1">
                   <button
                     type="button"
                     onClick={() => move(i, -1)}
                     disabled={busy || i === 0}
                     aria-label={`${ex.title} 위로`}
-                    className="rounded-md p-1.5 text-muted transition-colors active:text-sky disabled:opacity-25"
+                    className="grid h-11 w-11 place-items-center rounded-lg text-muted transition-colors active:text-sky disabled:opacity-25"
                   >
-                    <ChevronUp className="h-4 w-4" />
+                    <ChevronUp className="h-5 w-5" />
                   </button>
                   <button
                     type="button"
                     onClick={() => move(i, 1)}
                     disabled={busy || i === exercises.length - 1}
                     aria-label={`${ex.title} 아래로`}
-                    className="rounded-md p-1.5 text-muted transition-colors active:text-sky disabled:opacity-25"
+                    className="grid h-11 w-11 place-items-center rounded-lg text-muted transition-colors active:text-sky disabled:opacity-25"
                   >
-                    <ChevronDown className="h-4 w-4" />
+                    <ChevronDown className="h-5 w-5" />
                   </button>
                   {/*
                     세트를 남긴 운동은 못 뺀다. 빼면 목록에는 없는데 기록은
@@ -144,9 +151,9 @@ export function ExerciseSheet({
                     disabled={busy || done > 0 || exercises.length === 1}
                     aria-label={`${ex.title} 오늘 빼기`}
                     title={done > 0 ? '기록을 남긴 운동은 뺄 수 없습니다' : undefined}
-                    className="rounded-md p-1.5 text-muted transition-colors active:text-warn disabled:opacity-25"
+                    className="ml-2 grid h-11 w-11 place-items-center rounded-lg text-muted transition-colors active:text-warn disabled:opacity-25"
                   >
-                    <X className="h-4 w-4" />
+                    <X className="h-5 w-5" />
                   </button>
                 </span>
               </li>

@@ -199,7 +199,8 @@ export function Segmented<V extends string>({
          * 표시가 아직 놓이기 전(서버 그림·숨은 창)에는 고른 글자를 흰색 대신
          * 진한 색으로 둔다. 흰 글자 밑에 표시가 없으면 글자가 안 보인다.
          */
-        const cls = `relative flex items-center justify-center gap-1.5 rounded-lg ${text} font-medium whitespace-nowrap transition-colors duration-200 ${
+        /* 폰은 칩 크기(40px) 밑으로 안 내려간다 — 칸마다 py-1.5 라 28px 짜리가 많았다. PC 는 부르는 쪽 여백 그대로 */
+        const cls = `relative flex min-h-10 items-center justify-center gap-1.5 rounded-lg desk:min-h-0 ${text} font-medium whitespace-nowrap transition-colors duration-200 ${
           selected ? (visible ? 'text-white' : 'text-ink') : 'text-muted hover:text-ink'
         } ${itemClassName}`;
         const face = (

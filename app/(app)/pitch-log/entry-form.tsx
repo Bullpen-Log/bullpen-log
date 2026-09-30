@@ -102,6 +102,8 @@ function SpeedInput({
     <Field label={`${label} (${speedLabel(unit)})`} hint={hint}>
       <Input
         type="number"
+        /* 아이폰은 type=number 만으로는 숫자판이 아니라 전체 자판을 연다 */
+        inputMode="decimal"
         step="0.1"
         min={round1(toSpeed(SPEED_MIN_KMH, unit))}
         max={round1(toSpeed(SPEED_MAX_KMH, unit))}
@@ -330,6 +332,7 @@ export function EntryForm({
                   {/* 상한은 오타를 잡는 자리다. 서버에서 같은 선으로 한 번 더 본다. */}
                   <Input
                     type="number"
+                    inputMode="numeric"
                     min="1"
                     max="500"
                     value={form.pitchCount}

@@ -247,7 +247,7 @@ export function MonthCalendar({
                 (prev) => new Date(prev.getFullYear(), prev.getMonth() - 1, 1)
               )
             }
-            className="rounded-lg border border-line p-2 text-muted transition-colors hover:border-sky hover:text-sky"
+            className="grid h-10 w-10 place-items-center rounded-lg border border-line text-muted transition-colors hover:border-sky hover:text-sky desk:h-8 desk:w-8"
           >
             <ChevronLeft className="h-4 w-4" />
           </button>
@@ -259,7 +259,7 @@ export function MonthCalendar({
                 (prev) => new Date(prev.getFullYear(), prev.getMonth() + 1, 1)
               )
             }
-            className="rounded-lg border border-line p-2 text-muted transition-colors hover:border-sky hover:text-sky"
+            className="grid h-10 w-10 place-items-center rounded-lg border border-line text-muted transition-colors hover:border-sky hover:text-sky desk:h-8 desk:w-8"
           >
             <ChevronRight className="h-4 w-4" />
           </button>

@@ -305,9 +305,10 @@ export function Modal({
           type="button"
           onClick={onClose}
           aria-label="닫기"
-          className="-mr-1 -mt-1 rounded-lg p-1.5 text-muted transition-colors hover:bg-surface-2 hover:text-ink"
+          /* 폰은 손가락 크기(44px) — 28px 라 창마다 닫기가 잘 안 눌렸다. PC 는 예전 크기 */
+          className="-mr-3 -mt-3 grid h-11 w-11 shrink-0 place-items-center rounded-lg text-muted transition-colors hover:bg-surface-2 hover:text-ink desk:-mr-1 desk:-mt-1 desk:h-7 desk:w-7"
         >
-          <X className="h-4 w-4" />
+          <X className="h-5 w-5 desk:h-4 desk:w-4" />
         </button>
       </div>
 

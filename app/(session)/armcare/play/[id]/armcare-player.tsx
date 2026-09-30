@@ -606,12 +606,13 @@ export function ArmcarePlayer({
             </button>
           )}
 
-          <div className="flex items-center justify-between text-sm font-semibold text-muted">
+          {/* 손가락 크기(48px) — 28px 라 큰 단추를 누르려다 밑의 '끝내기'가 눌리곤 했다. 큰 단추와 사이도 띄운다 */}
+          <div className="mt-2 flex items-center justify-between text-sm font-semibold text-muted">
             <button
               type="button"
               disabled={state.index === 0}
               onClick={() => dispatch({ type: 'go', index: state.index - 1 })}
-              className="inline-flex items-center gap-1 py-1 disabled:opacity-30"
+              className="-mx-2 inline-flex min-h-12 items-center gap-1 rounded-lg px-2 active:bg-surface-2 disabled:opacity-30"
             >
               <ChevronLeft className="h-4 w-4" /> 이전
             </button>
@@ -619,7 +620,7 @@ export function ArmcarePlayer({
               <button
                 type="button"
                 onClick={() => dispatch({ type: 'go', index: state.index + 1 })}
-                className="inline-flex items-center gap-1 py-1"
+                className="-mx-2 inline-flex min-h-12 items-center gap-1 rounded-lg px-2 active:bg-surface-2"
               >
                 다음 <ChevronRight className="h-4 w-4" />
               </button>
@@ -627,7 +628,7 @@ export function ArmcarePlayer({
               <button
                 type="button"
                 onClick={() => dispatch({ type: 'finish' })}
-                className="inline-flex items-center gap-1 py-1"
+                className="-mx-2 inline-flex min-h-12 items-center gap-1 rounded-lg px-2 active:bg-surface-2"
               >
                 끝내기 <Check className="h-4 w-4" />
               </button>

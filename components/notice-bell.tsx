@@ -104,7 +104,7 @@ export function NoticeBellButton({
       /* 창이 열려 있을 때만 가리킨다 — 닫혀 있으면 그 이름의 창이 없다 */
       aria-controls={open ? panelId : undefined}
       aria-label={count > 0 ? `알림 — 오늘 할 일 ${count}개` : '알림'}
-      className={`relative flex h-8 w-8 items-center justify-center rounded-full transition-colors duration-75 ${
+      className={`relative flex h-8 w-8 items-center justify-center rounded-full transition-colors duration-75 before:absolute before:-inset-1.5 before:rounded-full ${
         open ? 'bg-sky/15 text-sky' : idle
       }`}
     >
