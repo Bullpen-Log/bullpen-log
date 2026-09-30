@@ -1851,3 +1851,24 @@ html[data-gate-up] *::after {
     font-size: 16px;
   }
 }
+
+/*
+ * 아이폰 앱 안 — <html data-app="native">(app/layout.tsx 의 첫 스크립트, lib/native-app.ts 가 붙인다).
+ *
+ * 앱은 화면 끝(시계 · 홈 막대 자리)까지 그린다(mobile/capacitor.config.json 의 contentInset 'never' +
+ * 뿌리 레이아웃의 viewportFit 'cover'). 사파리에는 걸리지 않는다.
+ */
+
+/* 화면 전체가 고무줄처럼 튕기지 않게 — 튕길 때 위아래 막대만 떠 있어 앱 같지 않았다(2026-09-30 사용자).
+   사파리는 그대로 둔다(당겨서 새로고침이 이것을 쓴다). 창 안에서 굴러가는 칸은 제 설정 그대로다. */
+html[data-app='native'],
+html[data-app='native'] body {
+  overscroll-behavior-y: none;
+}
+
+/* 위아래 막대가 없는 화면(로그인 · 약관 · 오류)은 시계 · 홈 막대만큼 비운다. 앱 틀(app-shell 의
+   MobileTopBar)과 운동 · 구속 측정 화면(app/(session))은 스스로 비우므로 표시(data-safe-area)로 뺀다. */
+html[data-app='native'] body:not(:has([data-safe-area])) {
+  padding-top: env(safe-area-inset-top);
+  padding-bottom: env(safe-area-inset-bottom);
+}

@@ -43,5 +43,14 @@ export default async function SessionLayout({
    * 100vh 가 아니라 100dvh 다. 휴대폰 브라우저의 주소창이 접혔다 펴질 때
    * 100vh 는 안 바뀌어서 아래 단추가 주소창 뒤로 숨는다.
    */
-  return <div className="flex h-[100dvh] flex-col bg-page">{children}</div>;
+  /*
+   * data-safe-area — 이 화면들은 시계 · 홈 막대 여백을 스스로 비운다(env(safe-area-inset-*)).
+   * 아이폰 앱이 위아래 막대 없는 화면에 몸 전체 여백을 더하는 규칙(globals.css '아이폰 앱 안')이
+   * 이 표시를 보고 빠진다. 없으면 여백이 두 번 들어간다.
+   */
+  return (
+    <div data-safe-area className="flex h-[100dvh] flex-col bg-page">
+      {children}
+    </div>
+  );
 }
