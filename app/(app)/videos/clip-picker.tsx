@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Check, ChevronDown, Search, X } from 'lucide-react';
 import type { ClipOption } from './compare-view';
 
@@ -27,6 +27,38 @@ export function ClipPicker({
 }) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
+  const buttonRef = useRef<HTMLButtonElement>(null);
+  /*
+   * 목록 자리 — 화면 기준(fixed). 칸(영상 한 칸)은 모서리를 둥글게 자르느라 넘치는 것을 잘라서, 폰처럼 칸이 낮으면 칸 안에
+   * 붙인 목록(약 300px)이 잘려 날짜를 거의 고를 수 없었다. 누른 단추 밑(모자라면 위)에 띄우고, 폭은 적어도 240px.
+   */
+  const [place, setPlace] = useState<React.CSSProperties>({});
+  const toggle = () => {
+    if (open) return setOpen(false);
+    const r = buttonRef.current?.getBoundingClientRect();
+    if (r) {
+      const width = Math.min(Math.max(r.width, 240), window.innerWidth - 16);
+      const left = Math.min(Math.max(8, r.left), window.innerWidth - width - 8);
+      const below = window.innerHeight - r.bottom;
+      setPlace(
+        below < 320 && r.top > below
+          ? { left, width, bottom: window.innerHeight - r.top + 4 }
+          : { left, width, top: r.bottom + 4 }
+      );
+    }
+    setOpen(true);
+  };
+  /* 떠 있는 목록은 굴리면 단추에서 떨어지므로 닫는다 */
+  useEffect(() => {
+    if (!open) return;
+    const close = () => setOpen(false);
+    window.addEventListener('scroll', close, { passive: true });
+    window.addEventListener('resize', close);
+    return () => {
+      window.removeEventListener('scroll', close);
+      window.removeEventListener('resize', close);
+    };
+  }, [open]);
 
   const selected = clips.find((c) => c.id === selectedId);
 
@@ -54,8 +86,9 @@ export function ClipPicker({
   return (
     <div className="relative min-w-0 flex-1">
       <button
+        ref={buttonRef}
         type="button"
-        onClick={() => setOpen((v) => !v)}
+        onClick={toggle}
         aria-haspopup="listbox"
         aria-expanded={open}
         aria-label={`${side}면 영상 선택`}
@@ -77,7 +110,10 @@ export function ClipPicker({
             className="fixed inset-0 z-40 cursor-default"
           />
 
-          <div className="absolute left-0 right-0 top-full z-50 mt-1 overflow-hidden rounded-xl border border-line-strong bg-surface shadow-2xl">
+          <div
+            style={place}
+            className="fixed z-50 overflow-hidden rounded-xl border border-line-strong bg-surface shadow-2xl"
+          >
             <div className="flex items-center gap-1.5 border-b border-line px-2 py-2">
               <Search className="h-3.5 w-3.5 shrink-0 text-muted" />
               <input

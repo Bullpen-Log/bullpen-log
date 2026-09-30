@@ -162,10 +162,19 @@ export function EntryForm({
    */
   const freshRef = useRef(new Set<string>());
   const savingRef = useRef(false);
+  /* 닫을 때 풀 미리보기(blob:) — 방금 올린 파일을 쥐고 있어, 안 풀면 화면을 떠나도 그 파일이 메모리에 남는다 */
+  const blobUrlsRef = useRef<string[]>([]);
+  useEffect(() => {
+    blobUrlsRef.current = videos
+      .map((v) => v.previewUrl)
+      .filter((u): u is string => !!u?.startsWith('blob:'));
+  }, [videos]);
   useEffect(() => {
     const fresh = freshRef.current;
+    const blobs = blobUrlsRef;
     return () => {
       if (!savingRef.current) discardUploads([...fresh]);
+      for (const url of blobs.current) URL.revokeObjectURL(url);
     };
   }, []);
   /* 목록이 바뀔 때 — 새로 올린 것이 빠졌으면 그것만 지운다 */

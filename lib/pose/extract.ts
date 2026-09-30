@@ -343,6 +343,9 @@ function scanByPlayback(
   });
 }
 
+/** 영상이 열리기를 기다리는 한도 — 넘으면 오류로 알린다(아래 extractPoseTrack) */
+const LOAD_TIMEOUT_MS = 30_000;
+
 /**
  * 영상 전체를 훑어 관절 좌표 시계열을 만든다.
  * onProgress는 0~1 진행률을 받는다.
@@ -360,9 +363,30 @@ export async function extractPoseTrack(
   video.src = src;
 
   try {
+    /*
+     * 영상이 열릴 때까지 — 끝없이 기다리지 않는다. 아이폰은 화면에 없는 영상을 누름 없이 안 받기도 하고 신호가 끊기면
+     * loadeddata 도 error 도 안 와서, 예전에는 '분석 중'이 영영 돌았다(취소도 안 먹었다).
+     */
     await new Promise<void>((resolve, reject) => {
-      video.onloadeddata = () => resolve();
-      video.onerror = () => reject(new Error('영상을 열 수 없습니다.'));
+      const timer = setTimeout(
+        () =>
+          finish(() =>
+            reject(
+              new Error('영상을 불러오지 못했습니다. 연결을 확인하고 다시 해 주세요.')
+            )
+          ),
+        LOAD_TIMEOUT_MS
+      );
+      const onAbort = () => finish(() => reject(new Error('분석이 취소되었습니다.')));
+      const finish = (next: () => void) => {
+        clearTimeout(timer);
+        signal?.removeEventListener('abort', onAbort);
+        next();
+      };
+      video.onloadeddata = () => finish(resolve);
+      video.onerror = () => finish(() => reject(new Error('영상을 열 수 없습니다.')));
+      if (signal?.aborted) onAbort();
+      else signal?.addEventListener('abort', onAbort, { once: true });
     });
 
     const duration = Math.min(
