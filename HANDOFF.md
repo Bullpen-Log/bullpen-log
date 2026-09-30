@@ -24,8 +24,8 @@ Claude 로 작업을 시작하면 저절로 읽힌다. 규칙은 `AGENTS.md` 6�
   가기와 틀을 떠날 때 잊는다(`forgetPage`). 알림 창을 새로 열 때 '오늘 안 던졌어요' 실패 알림을 지운다.
 - `lib/theme.ts`: 다른 탭에서 테마를 바꾸면 이 탭의 `<html data-theme>` 도 칠한다.
 - **안 고침(구속 측정 쪽)**: `/velocity` 의 최근 세션 줄에서 `/pitch-log/<날짜>` 로 가면 (app) 의 가로채는 경로가 잡혀, 빈 (app)
-  화면 위에 팝업이 뜬다(`components/velocity/session-history.tsx`). 가로채지 않게 하려면 그 링크에 `scroll` 이 아니라 일반 이동
-  (`window.location` 또는 `<a>`)을 쓰거나 팝업 쪽에서 출발 화면을 가려야 한다.
+  화면 위에 팝업이 뜬다(`components/velocity/session-history.tsx`). 가로채지 않게 하려면 그 링크를 일반 `<a>`(전체 이동)로 하거나
+  팝업 쪽에서 출발 화면을 가려야 한다.
 
 ## 금윤호에게 — 2026-09-30 · 김민(Claude) — 비밀번호 바꾸면 다른 기기 로그아웃 · 앱 진동
 
