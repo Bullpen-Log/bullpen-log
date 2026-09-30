@@ -89,7 +89,8 @@ const MAX_WIDTH = 640;
  */
 export async function frameOf(video: HTMLVideoElement): Promise<Blob | null> {
   const { videoWidth, videoHeight } = video;
-  if (!videoWidth || !videoHeight) return null;
+  /* 그릴 장면이 아직 없으면(HAVE_CURRENT_DATA 전) 빈 그림 대신 null — 부르는 쪽이 영상을 새로 받아 뜬다 */
+  if (!videoWidth || !videoHeight || video.readyState < 2) return null;
   try {
     const scale = Math.min(1, MAX_WIDTH / videoWidth);
     const canvas = document.createElement('canvas');

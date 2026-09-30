@@ -12,6 +12,13 @@ const PATHS_PER_REQUEST = 10;
 type Settled = 'done' | 'failed';
 
 /**
+ * 받은 주소를 이만큼 지나면 새로 받는다. 서버는 남은 수명이 30분 넘는 주소를 준다(lib/storage.ts 의 URL_REUSE_MS) —
+ * 예전에는 한 번 받으면 다시 안 받아, 아이폰 앱을 한참 뒤에 다시 열거나 화면을 오래 켜 두면 받아 둔 주소가 만료돼
+ * 영상 · 썸네일이 검게 떴다.
+ */
+const STALE_MS = 20 * 60 * 1000;
+
+/**
  * 지금 보고 있는 영상의 재생 주소만 필요할 때 받아온다.
  * 기록이 100개가 넘어가도 페이지를 열 때 전부 발급하지 않게 하려는 목적이다.
  * 한 번 받은 주소는 캐시해 같은 영상을 다시 고를 때 재요청하지 않는다.
@@ -35,16 +42,37 @@ export function usePlaybackUrls(paths: (string | undefined)[]) {
   const [settled, setSettled] = useState<Record<string, Settled>>({});
   /* 물어본 경로(받는 중 포함). 같은 것을 두 번 묻지 않게 한다. 실패하면 뺀다. */
   const requestedRef = useRef<Set<string>>(new Set());
+  /* 경로마다 주소를 받은 때 — 오래되면(STALE_MS) 새로 받는다. 받는 중에는 비어 있다. */
+  const fetchedAtRef = useRef<Map<string, number>>(new Map());
+  /* 앱 · 탭으로 돌아온 횟수 — 돌아오면 오래된 주소가 있는지 다시 본다 */
+  const [wake, setWake] = useState(0);
 
   // 배열은 매 렌더마다 새로 만들어지므로 문자열로 바꿔 비교한다.
   const key = paths.filter(Boolean).join('|');
 
   useEffect(() => {
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') setWake((n) => n + 1);
+    };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => document.removeEventListener('visibilitychange', onVisible);
+  }, []);
+
+  useEffect(() => {
     const wanted = key ? key.split('|') : [];
-    const missing = wanted.filter((p) => !requestedRef.current.has(p));
+    const now = Date.now();
+    const stale = (p: string) => {
+      const at = fetchedAtRef.current.get(p);
+      return at != null && now - at > STALE_MS;
+    };
+    /* 새로 받는 동안에도 옛 주소는 그대로 둔다(아직 살아 있다) — 로딩 표시도 다시 띄우지 않는다 */
+    const missing = wanted.filter((p) => !requestedRef.current.has(p) || stale(p));
     if (missing.length === 0) return;
 
-    missing.forEach((p) => requestedRef.current.add(p));
+    missing.forEach((p) => {
+      requestedRef.current.add(p);
+      fetchedAtRef.current.delete(p);
+    });
 
     const mark = (chunk: string[], value: Settled) =>
       setSettled((prev) => ({
@@ -61,6 +89,8 @@ export function usePlaybackUrls(paths: (string | undefined)[]) {
       })
         .then((res) => (res.ok ? res.json() : Promise.reject(new Error(String(res.status)))))
         .then((data: { urls?: Record<string, string> }) => {
+          const at = Date.now();
+          chunk.forEach((p) => fetchedAtRef.current.set(p, at));
           setUrls((prev) => ({ ...prev, ...(data.urls ?? {}) }));
           mark(chunk, 'done');
         })
@@ -70,7 +100,7 @@ export function usePlaybackUrls(paths: (string | undefined)[]) {
           mark(chunk, 'failed');
         });
     }
-  }, [key]);
+  }, [key, wake]);
 
   const wanted = key ? key.split('|') : [];
   const loading = wanted.some((p) => settled[p] == null);

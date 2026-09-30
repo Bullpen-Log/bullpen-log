@@ -189,11 +189,20 @@ export function DayClient({
 
   const handleDelete = useCallback(
     async (id: string) => {
-      const res = await fetch('/api/pitch-log', {
-        method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id }),
-      });
+      let res: Response;
+      try {
+        res = await fetch('/api/pitch-log', {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id }),
+        });
+      } catch {
+        /* 신호가 끊겨 요청 자체가 실패 — 예전에는 확인 창이 아무 말 없이 떠 있었다(잡지 않은 오류) */
+        setError(
+          '신호가 약해 기록을 지우지 못했습니다. 신호가 잡히면 다시 시도해주세요.'
+        );
+        return;
+      }
       if (!res.ok) {
         setError('기록을 지우지 못했습니다. 잠시 뒤에 다시 시도해주세요.');
         return;
