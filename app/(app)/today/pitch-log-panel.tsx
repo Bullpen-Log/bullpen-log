@@ -207,13 +207,15 @@ export function PitchLogPanel({
   /*
    * 좁은 화면에서는 그날 칸이 달력 밑에서 펴진다. 달력이 화면을 거의 채우고 있어서,
    * 펴진 칸이 화면 밖이면 거기까지만 살짝 굴려 보여 준다(이미 보이면 가만히 둔다).
+   * 하단 탭이 덮는 자리(칸의 scroll-mb — 아이폰 앱은 홈 막대 자리까지)도 화면 밖으로 친다.
    */
   useEffect(() => {
     if (!selectedDate || window.matchMedia('(min-width: 1024px)').matches) return;
     const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     const timer = window.setTimeout(() => {
       const el = panelRef.current;
-      if (el && el.getBoundingClientRect().bottom > window.innerHeight) {
+      const covered = el ? parseFloat(getComputedStyle(el).scrollMarginBottom) || 0 : 0;
+      if (el && el.getBoundingClientRect().bottom + covered > window.innerHeight) {
         el.scrollIntoView({ behavior: reduce ? 'auto' : 'smooth', block: 'nearest' });
       }
     }, 320);
@@ -485,7 +487,7 @@ export function PitchLogPanel({
               ref={panelRef}
               aria-hidden={!panelOpen}
               inert={!panelOpen}
-              className={`grid overflow-hidden transition-[grid-template-rows,width,margin,opacity] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] lg:block lg:shrink-0 ${
+              className={`grid scroll-mb-[calc(3.5rem+env(safe-area-inset-bottom))] overflow-hidden transition-[grid-template-rows,width,margin,opacity] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] lg:block lg:shrink-0 ${
                 panelOpen
                   ? 'mt-4 grid-rows-[1fr] opacity-100 lg:ml-4 lg:mt-0 lg:w-[20rem]'
                   : 'mt-0 grid-rows-[0fr] opacity-0 lg:ml-0 lg:w-0'

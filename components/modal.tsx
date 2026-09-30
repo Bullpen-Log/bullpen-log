@@ -264,10 +264,14 @@ export function Modal({
        *
        * 창에 높이를 걸고(max-h) 넘치는 것을 자른 뒤(overflow-clip), 세로로
        * 쌓아 머리글은 고정하고 본문만 남은 높이를 채우게 한다.
+       *
+       * 'page' 창은 아이폰 앱에서 시계 · 홈 막대 자리를 뺀다 — 창은 가운데에 서므로 둘 중 큰 쪽을
+       * 위아래에서 뺀다. 94dvh 그대로면 제목 줄과 닫기(✕)가 시계 밑에 들어가 눌리지 않았다.
+       * 브라우저는 그 값이 0 이라 예전과 같다.
        */
       className={`m-auto flex flex-col overflow-clip ${
         size === 'page'
-          ? 'max-h-[94dvh] w-[min(76rem,calc(100vw-1.5rem))]'
+          ? 'max-h-[min(94dvh,calc(100dvh-2*max(env(safe-area-inset-top),env(safe-area-inset-bottom))-1.5rem))] w-[min(76rem,calc(100vw-1.5rem))]'
           : size === 'wide'
             ? 'max-h-[min(85dvh,48rem)] w-[min(62rem,calc(100vw-1.5rem))]'
             : 'max-h-[min(85dvh,48rem)] w-[min(38rem,calc(100vw-1.5rem))]'

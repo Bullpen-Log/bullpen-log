@@ -1276,7 +1276,7 @@ export function VelocityScreen({
       )}
       {/* 내비게이션 바 — 측정 단계는 카메라 앱처럼 위 줄을 카메라 위에 그린다 */}
       {!(step === 'measure' && !showAsk) && (
-        <header className="flex h-12 shrink-0 items-center justify-between border-b border-line bg-surface px-2 pt-[env(safe-area-inset-top)]">
+        <header className="flex h-[calc(3rem+env(safe-area-inset-top))] shrink-0 items-center justify-between border-b border-line bg-surface px-2 pt-[env(safe-area-inset-top)]">
           {back ? (
             <button
               type="button"
@@ -1469,7 +1469,7 @@ export function VelocityScreen({
 
       {/* 렌즈 보정 — 공을 아는 거리에 두고 크기를 재 초점거리를 얻는다 */}
       {!showAsk && step === 'lens' && (
-        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 pb-6 pt-4">
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 pb-[max(1.5rem,env(safe-area-inset-bottom))] pt-4">
           <h2 className="text-heading text-2xl leading-tight">렌즈 보정</h2>
           <p className="mb-4 mt-1.5 text-sm leading-relaxed text-muted">
             카메라 유리에서 공 앞면까지 줄자로 1m 를 재어 공을 두고, 화면의 원을 공에
@@ -1679,7 +1679,7 @@ export function VelocityScreen({
            */}
           {summaryOpen && (
             <div className="absolute inset-0 z-20 flex flex-col bg-page text-ink motion-safe:animate-fade-in">
-              <div className="flex h-12 shrink-0 items-center justify-between border-b border-line bg-surface px-2 pt-[env(safe-area-inset-top)]">
+              <div className="flex h-[calc(3rem+env(safe-area-inset-top))] shrink-0 items-center justify-between border-b border-line bg-surface px-2 pt-[env(safe-area-inset-top)]">
                 <button
                   type="button"
                   onClick={leave}
@@ -1720,7 +1720,7 @@ export function VelocityScreen({
               {error && (
                 <p
                   role="alert"
-                  className="absolute inset-x-4 bottom-20 rounded-xl bg-danger/90 px-4 py-2.5 text-sm leading-relaxed text-white"
+                  className="absolute inset-x-4 bottom-[calc(4.25rem+max(0.75rem,env(safe-area-inset-bottom)))] rounded-xl bg-danger/90 px-4 py-2.5 text-sm leading-relaxed text-white"
                 >
                   {error}
                 </p>
@@ -1824,7 +1824,7 @@ export function VelocityScreen({
               fpsNote ||
               cropNote ||
               (isAdmin && !native)) && (
-              <div className="pointer-events-none absolute inset-x-4 bottom-[8.25rem] z-10 space-y-2">
+              <div className="pointer-events-none absolute inset-x-4 bottom-[calc(7.25rem+max(1rem,env(safe-area-inset-bottom)))] z-10 space-y-2">
                 {zoomBad && camera && (
                   <p className="rounded-xl bg-warn/90 px-4 py-2.5 text-sm font-semibold text-white">
                     줌이 {camera.zoom}배예요 — 값이 부정확할 수 있어요. 1배로 두면 더
@@ -1870,7 +1870,7 @@ export function VelocityScreen({
               </div>
             )}
           {live && !showCamera && toast && (
-            <p className="pointer-events-none absolute inset-x-4 bottom-[8.25rem] z-10 rounded-xl bg-white/15 px-4 py-2.5 text-center text-sm text-white backdrop-blur motion-safe:animate-fade-in">
+            <p className="pointer-events-none absolute inset-x-4 bottom-[calc(7.25rem+max(1rem,env(safe-area-inset-bottom)))] z-10 rounded-xl bg-white/15 px-4 py-2.5 text-center text-sm text-white backdrop-blur motion-safe:animate-fade-in">
               {toast}
             </p>
           )}

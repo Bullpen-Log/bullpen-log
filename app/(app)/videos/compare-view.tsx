@@ -367,7 +367,7 @@ export function CompareView({
     <div
       className={
         expanded
-          ? 'fixed inset-0 z-[60] flex flex-col gap-2 bg-shade p-2 focus:outline-none'
+          ? 'fixed inset-0 z-[60] flex flex-col gap-2 bg-shade px-2 pt-[max(0.5rem,env(safe-area-inset-top))] pb-[max(0.5rem,env(safe-area-inset-bottom))] focus:outline-none'
           : 'space-y-4'
       }
       onKeyDown={handleKeyDown}
@@ -454,14 +454,14 @@ export function CompareView({
 
       {/*
         공용 조작부 — 스크롤해도 항상 손이 닿도록 아래에 붙여둔다.
-        모바일 하단 탭(약 3.25rem) 위에 오도록 위치를 잡는다. 탭이 없는 PC 틀(desk —
+        모바일 하단 탭(51px + 홈 막대 자리) 위에 오도록 위치를 잡는다. 탭이 없는 PC 틀(desk —
         app/globals.css)에서는 바닥 가까이(bottom-4) 붙인다.
       */}
       <div
         className={`z-30 rounded-xl border border-sky-soft/50 bg-shade/95 p-2 backdrop-blur-xl sm:p-3 ${
           expanded
             ? 'shrink-0'
-            : 'sticky bottom-[calc(3rem_+_env(safe-area-inset-bottom))] desk:bottom-4'
+            : 'sticky bottom-[calc(3.5rem_+_env(safe-area-inset-bottom))] desk:bottom-4'
         }`}
       >
         <div className="flex flex-wrap items-center gap-x-1.5 gap-y-2 sm:gap-x-3">

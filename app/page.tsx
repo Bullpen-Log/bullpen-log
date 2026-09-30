@@ -40,7 +40,7 @@ export default async function LandingPage() {
   const user = await getCurrentUser();
 
   return (
-    <main className="min-h-dvh">
+    <main className="min-h-[calc(100dvh-env(safe-area-inset-top)-env(safe-area-inset-bottom))]">
       {/* 히어로 */}
       <section className="bg-spotlight border-b border-line">
         <div className="mx-auto flex max-w-4xl flex-col items-center px-6 py-28 text-center sm:py-36">

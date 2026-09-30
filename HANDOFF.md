@@ -11,6 +11,24 @@ Claude 로 작업을 시작하면 저절로 읽힌다. 규칙은 `AGENTS.md` 6�
 
 ---
 
+## 금윤호에게 — 2026-09-30 · 김민(Claude) — 앱에서 시계 · 홈 막대에 가리던 곳(네 파일 여럿)
+
+받은 뒤 할 일 없음. 앱이 화면 끝까지 그리게 된 뒤(아래 메모) 아이폰에서 가리던 곳을 고쳤다. 사파리 · PC 는
+`env(safe-area-inset-*)` 가 0 이라 그대로다. **새 화면에 `h-12 … pt-[env(safe-area-inset-top)]` 를 쓰지 마** — 테일윈드는
+border-box 라 높이 48px 안에 59px 여백이 들어가 단추가 시계 밑과 본문 위로 삐져나온다. 높이에 더한다:
+`h-[calc(3rem+env(safe-area-inset-top))]`.
+
+- 구속 측정: 위 막대 셋(`velocity-home.tsx` · `velocity-screen.tsx` 내비 바 · 세션 요약)을 위처럼, 카메라 위 알림
+  (`bottom-[8.25rem]` → 홈 막대만큼 더), 요약의 오류 줄, 렌즈 보정 칸 밑 여백.
+- `checkin-gate.tsx` · `components/modal.tsx`('page' 창 = 투구 기록 팝업): 최대 높이에서 시계 · 홈 막대 자리를 뺐다
+  (92 · 94dvh 그대로면 제목과 ✕ 가 시계 밑이었다).
+- 영상: `pitch-video-player.tsx` 크게 보기 · `compare-view.tsx` 크게 보기에 위아래 여백, 비교 조작부 · 영상 고르기
+  막대를 하단 탭(이제 51px + 홈 막대) 위로.
+- `today/pitch-log-panel.tsx`: 그날 칸을 굴려 보일 때 하단 탭 밑에 숨지 않게(`scroll-mb` + 그 값을 빼고 잰다).
+- 로그인 · 약관 · 첫 화면: `min-h-dvh` 에서 위아래 자리를 뺐다(몸 여백과 겹쳐 조금씩 굴러갔다).
+- `globals.css` '아이폰 앱 안': 막대 없는 화면의 시계 자리 바탕색 덮개, `scroll-padding-top`(scrollIntoView 가
+  시계 밑으로 안 가게), 캘린더 칸 높이(`cal-cell-fit`)에서 위아래 자리 빼기.
+
 ## 금윤호에게 — 2026-09-30 · 김민(Claude) — 아이폰 앱을 앱답게(네 화면 틀을 고쳤다)
 
 받은 뒤 할 일 없음(뿌리 패키지 · DB 그대로, `mobile/` 에 `@capacitor/splash-screen` 만 더함). 사용자 요청: 켤 때

@@ -127,7 +127,8 @@ export function PitchVideoPlayer({ src, label }: { src: string; label: string })
       ref={containerRef}
       className={
         expanded
-          ? 'fixed inset-0 z-[60] flex flex-col bg-shade focus:outline-none'
+          ? /* 앱에서는 시계 · 홈 막대 자리를 비운다 — 닫기(✕)가 시계 밑에 들어가지 않게 */
+            'fixed inset-0 z-[60] flex flex-col bg-shade pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)] focus:outline-none'
           : 'overflow-hidden rounded-xl border border-line bg-surface-2 focus-within:border-sky focus:outline-none focus-visible:border-sky focus-visible:ring-1 focus-visible:ring-sky'
       }
       onKeyDown={handleKeyDown}
