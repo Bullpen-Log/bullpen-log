@@ -126,6 +126,9 @@
 - 경로가 긴 파일을 git 에 넘길 때 `-F <긴 경로>` 가 실패하면 표준 입력으로 넘긴다(`git commit -F -`).
 - **패치노트는 사람이 적지 않는다.** `git push` 때 `.githooks/pre-push` 가 커밋 메시지로 채운다(한 장 = 한 사람의 하루,
   합침 커밋은 빠진다). 그래서 커밋 메시지를 사용자가 읽을 말로 쓴다.
+- **아이폰 앱은 화면 끝(시계 · 홈 막대 자리)까지 그린다**(김민 e7d90ec, 뿌리 viewport `viewportFit: 'cover'`). `data-safe-area`
+  가 없는 화면은 globals.css 가 몸 전체에 그 여백을 준다 — **새 화면 틀을 만들어 스스로 `env(safe-area-inset-*)` 여백을 비우면
+  그 틀에 `data-safe-area` 를 단다**(안 달면 여백이 두 번 들어간다). `app/(session)/layout.tsx` 가 그렇게 한다.
 - **폰 기울기(deviceorientation)의 γ 는 세운 폰에서 쓰면 안 된다.** β ≈ 90° 가 오일러 각의 특이점이라, 뒤로 2° 젖힌 폰을
   옆으로 1° 기울이면 γ 가 26°, 0.5° 면 −59° 로 읽힌다(수평계가 튀던 까닭). β · γ 로 중력 방향을 만들어 거기서 좌우 · 앞뒤를
   잰다(`lib/use-device-level.ts` gravityOf · tiltOf). **크롬에도 `DeviceOrientationEvent.requestPermission` 이 있다**(묻지 않고
