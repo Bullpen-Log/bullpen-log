@@ -27,7 +27,7 @@ import {
   trainingBurn,
   type BurnItem,
 } from '@/lib/nutrition/burn';
-import { mfdsEnabled } from '@/lib/nutrition/mfds';
+import { mfdsEnabled } from '@/lib/nutrition/mfds-key';
 import { popularFoods } from '@/lib/nutrition/popular';
 
 /**

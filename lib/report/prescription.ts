@@ -1,4 +1,13 @@
-import { CHECKIN_PARTS, type CheckinPartKey } from '@/lib/checkin';
+import {
+  CHECKIN_PARTS,
+  HIGH_SORENESS,
+  SEVERE_SORENESS,
+  SHORT_SLEEP_HOURS,
+  formatSleepHours,
+  isShortSleep,
+  sorenessWord,
+  type CheckinPartKey,
+} from '@/lib/checkin';
 import { INTENSITY_CAP, intensityLevel, type BodyPart } from '@/lib/exercise-meta';
 import { YOUTH_AGE_THRESHOLD } from '@/lib/report/plan';
 import { BEGINNER_LEVEL_NAME } from '@/lib/report/personalize';
@@ -193,7 +202,8 @@ export function selectCandidates<T extends ExerciseLike>({
 
   /*
    * 체크인이 없으면 아래 두 규칙(컨디션 저하·뻐근한 부위)이 통째로 건너뛰어진다.
-   * 남은 것은 투구 부하로 정한 상한뿐이다.
+   * 남은 것은 투구 부하로 정한 상한뿐이다. 그 사이의 전신 근육통 · 짧은 밤(4-1 · 4-2)도
+   * 체크인에서 읽는 값이라 같이 건너뛴다.
    *
    * 그 사실을 근거에 적어두지 않으면, 몸 상태를 보고 고른 것처럼 보인다.
    * 실제로는 보지 않았으므로 그대로 밝힌다.
@@ -206,6 +216,55 @@ export function selectCandidates<T extends ExerciseLike>({
   if (today && today.condition <= LOW_CONDITION_THRESHOLD) {
     basis.push(`오늘 컨디션 ${today.condition}/10 → 무게 드는 운동 제외`);
     capTo('컨디션 저하', INTENSITY_CAP.MODERATE);
+  }
+
+  /*
+   * 4-1) 전신 근육통 (간편 체크인의 선택 칸 — 안 적은 날은 아무 일도 글도 없다).
+   *
+   * 온몸 값이라 어느 부위인지는 모른다. 그래서 부위를 골라 빼지 않고 전체 강도만 낮춘다
+   * (부위를 아는 것은 바로 아래의 '뻐근'이 한다).
+   *   '심함'  무게 드는 운동을 뺀다 — 그날은 회복·재생 데이다(theme.ts 의 decideTheme). '그래도
+   *           하겠다'로 테마를 밀어도 이 상한은 남는다(낮은 컨디션과 같은 방식).
+   *   '많이'  가장 센 것만 뺀다. 알이 심하게 밴 날은 최대 힘 · 점프가 먼저 떨어진다.
+   *   '보통' 아래  훈련한 다음 날의 정상 반응이라 줄이지 않는다. 다만 읽었다는 것은 근거에 남긴다.
+   *
+   * 1~5 밖의 값(화면으로는 못 만든다 — DB 를 손으로 고친 경우뿐)은 안 적은 것으로 넘긴다.
+   * 말이 없는 값으로 글을 만들면 근거에 "전신 근육통 'null'"이 찍힌다. 폼을 읽을 때와 같은
+   * 판단이다(lib/checkin.ts 의 parseCheckinBody — 범위 밖은 안 적은 것으로).
+   */
+  const soreness = today?.soreness;
+  const soreWord = sorenessWord(soreness);
+  if (soreness != null && soreWord) {
+    if (soreness >= SEVERE_SORENESS) {
+      basis.push(`전신 근육통 '${soreWord}' → 무게 드는 운동 제외`);
+      capTo('전신 근육통', INTENSITY_CAP.MODERATE);
+    } else if (soreness >= HIGH_SORENESS) {
+      basis.push(`전신 근육통 '${soreWord}' → 매우 높은 강도 제외`);
+      capTo('전신 근육통', INTENSITY_CAP.STRENGTH);
+    } else {
+      basis.push(`전신 근육통 '${soreWord}' → 제한 없음`);
+    }
+  }
+
+  /*
+   * 4-2) 짧은 밤 — 느낌이 '부족'이거나 잔 시간이 6시간 미만(lib/checkin.ts 의 isShortSleep).
+   *
+   * 하루 못 잔 것으로는 목표도 요일도 시간도 안 바꾼다. 가장 센 것만 뺀다 — 하룻밤 부족은
+   * 기술 · 순발력이 먼저 떨어지는데, 최대 무게 · 전력 동작이 바로 그것을 요구한다.
+   * (며칠 이어질 때 목표를 바꾸는 것은 AI 맞춤의 몫이다 — auto-setup.ts 의 SLEEP_DEBT_DAYS.)
+   *
+   * 잔 시간도 안 적었고 느낌이 충분 · 보통이면 글을 안 붙인다 — 두 칸이 생기기 전과 같은 근거다.
+   */
+  const sleepHours = today?.sleepHours;
+  if (today && isShortSleep(today)) {
+    basis.push(
+      sleepHours != null && sleepHours < SHORT_SLEEP_HOURS
+        ? `어젯밤 ${formatSleepHours(sleepHours)} 수면 → 매우 높은 강도 제외`
+        : `오늘 수면 '부족' → 매우 높은 강도 제외`
+    );
+    capTo('수면 부족', INTENSITY_CAP.STRENGTH);
+  } else if (sleepHours != null) {
+    basis.push(`어젯밤 ${formatSleepHours(sleepHours)} 수면 → 제한 없음`);
   }
 
   /*

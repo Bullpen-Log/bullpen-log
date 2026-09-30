@@ -12,7 +12,8 @@ import {
   passwordFingerprint,
 } from '@/lib/session';
 import { isSex, validateProfile, type Sex } from '@/lib/profile';
-import { validateBaseline } from '@/lib/baseline';
+import { levelAgeProblem, validateBaseline } from '@/lib/baseline';
+import { toDateKey } from '@/lib/pitch-stats';
 import { readTrainingProfile } from '@/lib/report/personalize';
 import { withInput, type FormValues } from '@/lib/form-values';
 
@@ -133,6 +134,14 @@ async function trySignup(formData: FormData): Promise<AuthState> {
     competitionLevel: String(formData.get('competitionLevel') ?? ''),
   });
   if ('error' in baseline) return baseline;
+
+  /* 소속은 생년월일과 맞아야 한다 — 중학생 나이에 '프로'는 받지 않는다(lib/baseline.ts levelFit) */
+  const levelProblem = levelAgeProblem(
+    baseline.value.competitionLevel,
+    String(formData.get('birthDate') ?? '').trim() || null,
+    toDateKey(new Date())
+  );
+  if (levelProblem) return { error: levelProblem, field: 'competitionLevel' };
 
   /*
    * 웨이트 트레이닝 경력 — 트레이닝이 경력에 비해 이른 운동을 빼는 기준.

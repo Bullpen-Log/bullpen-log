@@ -120,7 +120,7 @@ export function CircleOverlay({
       className="absolute -translate-x-1/2 -translate-y-1/2 cursor-move touch-none rounded-full border-2 border-sky-soft shadow-[0_0_0_9999px_rgba(0,0,0,0.25)]"
     >
       <span className="pointer-events-none absolute left-1/2 top-1/2 h-1.5 w-1.5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-sky-soft" />
-      <span className="pointer-events-none absolute -top-6 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-md bg-black/60 px-1.5 py-0.5 text-[10px] font-semibold text-white">
+      <span className="pointer-events-none absolute left-1/2 top-full mt-2 -translate-x-1/2 whitespace-nowrap rounded-full bg-black/55 px-2 py-0.5 text-xs font-semibold text-white backdrop-blur">
         공에 대충 맞추세요
       </span>
       <button

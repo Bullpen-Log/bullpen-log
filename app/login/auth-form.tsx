@@ -18,6 +18,7 @@ import { checkSignupEmail, login, signup, type AuthState } from '@/app/actions/a
 import { guardFormAction } from '@/lib/action-offline';
 import { Button, Field, FormError, Input } from '@/components/ui';
 import { Wordmark } from '@/components/logo';
+import { LevelChoices } from '@/components/level-choices';
 import { kept } from '@/lib/form-values';
 import { readLoginPrefs, saveLoginPrefs } from '@/lib/login-prefs';
 import {
@@ -34,7 +35,6 @@ import {
   BASELINE_INTENSITY_NAMES,
   BASELINE_VOLUME_NAMES,
   BASELINE_WORKOUT_FREQ_NAMES,
-  COMPETITION_LEVELS,
   THROWING_HANDS,
 } from '@/lib/baseline';
 import { TRAINING_LEVELS } from '@/lib/report/personalize';
@@ -388,7 +388,7 @@ const STEPS = [
   {
     key: 'league',
     title: '어디서 야구를 하시나요?',
-    desc: '안 고르셔도 됩니다. 훈련 내용을 바꾸는 값이 아니라, 나중에 비슷한 또래와 견줘 보여드리려고 여쭙습니다.',
+    desc: '생년월일에 맞는 소속만 고를 수 있어요. 나중에 비슷한 또래와 견줘 보여드리려고 여쭙습니다.',
     fields: ['competitionLevel'],
   },
 ] as const;
@@ -515,6 +515,12 @@ function checkStep(key: StepKey, form: HTMLFormElement, today: string): Problem 
       }
       return null;
     case 'league':
+      if (!get('competitionLevel')) {
+        return {
+          error: '어디서 야구를 하시는지 골라주세요.',
+          field: 'competitionLevel',
+        };
+      }
       return null;
   }
 }
@@ -1258,16 +1264,18 @@ function SignupWizard({
         )}
 
         {/*
-          수준. 지금은 아무 계산에도 안 쓴다 — 나이는 생년월일로 이미 알고 안전 한도도
-          거기서 나온다. 나중에 또래와 견주려고 모으는 값이라 안 골라도 가입이 된다.
+          소속 — 꼭 고른다(2026-09-30 사용자 요청). 첫 단계의 생년월일과 이어져, 나이에
+          안 맞는 곳은 막히고 학교 나이면 그 학교가 먼저 골라져 있다(components/level-choices).
+          계산을 바꾸는 값은 아니다 — 나이는 생년월일로 이미 알고 안전 한도도 거기서 나온다.
         */}
         {panel(
           6,
-          <Choices
+          <LevelChoices
             legend="소속"
-            name="competitionLevel"
-            options={COMPETITION_LEVELS}
-            selected={kept(before, 'competitionLevel')}
+            birthDate={birthDate}
+            today={today}
+            initial={kept(before, 'competitionLevel')}
+            required
             invalid={invalid('competitionLevel')}
           />
         )}

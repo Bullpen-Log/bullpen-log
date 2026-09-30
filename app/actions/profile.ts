@@ -12,7 +12,8 @@ import {
   isSex,
   validateProfile,
 } from '@/lib/profile';
-import { validateBaseline } from '@/lib/baseline';
+import { levelAgeProblem, validateBaseline } from '@/lib/baseline';
+import { toDateKey } from '@/lib/pitch-stats';
 import { validateTargetVelocity } from '@/lib/velocity';
 import { WORKOUT_MINUTES_CHOICES } from '@/lib/report/theme';
 import { withInput, type FormValues } from '@/lib/form-values';
@@ -65,6 +66,12 @@ async function tryUpdateProfile(formData: FormData): Promise<ProfileState> {
   if (anyBaseline) {
     const baseline = validateBaseline(rawBaseline);
     if ('error' in baseline) return baseline;
+    const levelProblem = levelAgeProblem(
+      baseline.value.competitionLevel,
+      String(formData.get('birthDate') ?? '').trim() || null,
+      toDateKey(new Date())
+    );
+    if (levelProblem) return { error: levelProblem };
     baselineValue = baseline.value;
   }
 

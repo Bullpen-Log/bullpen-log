@@ -15,7 +15,7 @@ import {
   type PeriodSummary,
   type PitchLogLike,
 } from '@/lib/pitch-stats';
-import { hasPain, type CheckinParts } from '@/lib/checkin';
+import { hasPain, isShortSleep, type CheckinParts } from '@/lib/checkin';
 
 /**
  * 리포트에 쓰이는 모든 수치를 한곳에 모은다.
@@ -32,6 +32,15 @@ export type CheckinLike = CheckinParts & {
   preferredParts: string[];
   /** 오늘 하고 싶다고 고른 운동 종류. 안 골랐으면 null */
   preferredWorkout?: string | null;
+  /*
+   * 어젯밤 잔 시간 · 전신 근육통(1~5) — 간편 체크인의 선택 칸(lib/checkin.ts 의 CheckinBody).
+   *
+   * 둘 다 있어도 없어도 되는 칸(?)으로 둔다. 칸이 아예 없는 값이 여러 곳에 있다 — 저장해 둔
+   * 리포트의 facts, 두 칸이 생기기 전의 기록, 자가 시험이 손으로 만든 체크인(satisfies CheckinLike).
+   * 읽는 쪽은 '칸 없음'과 null 을 똑같이 '안 적음'으로 본다: 아무것도 바꾸지 않고 글도 안 붙인다.
+   */
+  sleepHours?: number | null;
+  soreness?: number | null;
 };
 
 export type MemoNote = { date: string; text: string };
@@ -132,7 +141,10 @@ export type ReportFacts = {
     painWordsInMemo: string[];
     /** 최근 7일 평균 컨디션 (1~10, 높을수록 좋음) */
     avgCondition: number | null;
-    /** 최근 7일 중 수면 '부족'인 날 수 */
+    /**
+     * 최근 7일 중 잠이 부족한 날 수 — 느낌이 '부족'이거나 잔 시간이 6시간 미만
+     * (lib/checkin.ts 의 isShortSleep). 오늘의 판정과 같은 함수를 쓴다.
+     */
     poorSleepDays: number;
     checkinDays: number;
   };
@@ -261,7 +273,7 @@ export function buildFacts({
       avgCondition: conditions.length
         ? conditions.reduce((a, b) => a + b, 0) / conditions.length
         : null,
-      poorSleepDays: recentCheckins.filter((c) => c.sleep === '부족').length,
+      poorSleepDays: recentCheckins.filter(isShortSleep).length,
       checkinDays: recentCheckins.length,
     },
     memos,

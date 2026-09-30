@@ -67,8 +67,7 @@ export function isActivityKey(v: unknown): v is ActivityKey {
 /* 성별은 계정에 딸린 값이라 lib/profile.ts 에 있다. 영양 쪽에서도 같은 것을 쓴다. */
 export { SEXES, isSex, type Sex } from '@/lib/profile';
 
-/** 체중 1kg 당 단백질(g). 선수에게 권하는 범위가 1.6~2.2 다. */
-export const PROTEIN_CHOICES = [1.6, 1.8, 2.0, 2.2] as const;
+/** 체중 1kg 당 단백질(g)로 저장할 수 있는 범위. 나이마다 고르는 칸은 lib/nutrition/age.ts */
 export const PROTEIN_MIN = 1.2;
 export const PROTEIN_MAX = 2.5;
 
@@ -139,7 +138,60 @@ export type MealEntryView = {
   fat: number | null;
 };
 
-/** 1인분 값 × 먹은 양 */
+export type MacroKey = 'carbs' | 'protein' | 'fat';
+
+const MACRO_KEYS: readonly MacroKey[] = ['carbs', 'protein', 'fat'];
+const MACRO_NAMES: Record<MacroKey, string> = {
+  carbs: '탄수화물',
+  protein: '단백질',
+  fat: '지방',
+};
+const MACRO_SHORT: Record<MacroKey, string> = { carbs: '탄', protein: '단', fat: '지' };
+
+/**
+ * 정보가 없는 영양소.
+ *
+ * 식약처 '수집' 자료(프랜차이즈 · 카페 메뉴 등)는 원자료에 탄수화물 · 지방이 없는
+ * 일이 많다(2026-09-30 표본 200개 중 132개). 합계에서는 0 으로 더해지므로(scaleMacros),
+ * 화면이 '실제로는 더 먹었다'고 따로 알려야 숫자를 믿을 수 있다.
+ */
+export function missingMacros(per: {
+  carbs: number | null;
+  protein: number | null;
+  fat: number | null;
+}): MacroKey[] {
+  return MACRO_KEYS.filter((k) => per[k] === null);
+}
+
+/** '탄·지 모름' — 음식 한 줄 옆에. '없음'이라 적으면 0g 으로 읽힌다 */
+export function missingText(keys: MacroKey[]) {
+  return `${keys.map((k) => MACRO_SHORT[k]).join('·')} 모름`;
+}
+
+/** 영양소마다 정보가 빠진 음식 수, 그리고 하나라도 빠진 음식 수 */
+export type MacroGaps = Record<MacroKey, number> & { foods: number };
+
+export function macroGaps(entries: MealEntryView[]): MacroGaps {
+  const gaps: MacroGaps = { carbs: 0, protein: 0, fat: 0, foods: 0 };
+  for (const e of entries) {
+    const miss = missingMacros(e);
+    for (const k of miss) gaps[k] += 1;
+    if (miss.length > 0) gaps.foods += 1;
+  }
+  return gaps;
+}
+
+/** '탄수화물·지방' — 빠진 것이 있는 영양소 이름 */
+export function gapNames(gaps: MacroGaps) {
+  return MACRO_KEYS.filter((k) => gaps[k] > 0)
+    .map((k) => MACRO_NAMES[k])
+    .join('·');
+}
+
+/**
+ * 1인분 값 × 먹은 양.
+ * 모르는 칸(null)은 0 으로 셈한다 — 빠졌다는 표시는 missingMacros 로 따로 한다.
+ */
 export function scaleMacros(
   per: {
     kcal: number;

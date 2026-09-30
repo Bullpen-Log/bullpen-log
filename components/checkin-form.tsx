@@ -8,7 +8,7 @@ import {
   useSyncExternalStore,
 } from 'react';
 import { useFormStatus } from 'react-dom';
-import { CheckCircle2, ChevronDown, Pencil } from 'lucide-react';
+import { CheckCircle2, ChevronDown, Minus, Pencil, Plus } from 'lucide-react';
 import { saveCheckin, type CheckinState } from '@/app/actions/checkin';
 import {
   BODY_FEELINGS,
@@ -17,21 +17,29 @@ import {
   CHECKIN_WEIGHT_MAX_KG,
   CHECKIN_WEIGHT_MIN_KG,
   DETAIL_SCALES,
-  HYDRATION_LEVELS,
+  APPETITE_LEVELS,
+  HIGH_SORENESS,
   MAX_CONDITION,
   MAX_PREFERRED_PARTS,
   MIN_CONDITION,
   NO_WORKOUT_KIND,
-  NUTRITION_LEVELS,
-  RESTING_HR_MAX,
-  RESTING_HR_MIN,
+  THROW_PLANS,
   SLEEP_HOURS_MAX,
+  SLEEP_HOURS_MIN,
+  SLEEP_HOURS_STEP,
   SLEEP_LEVELS,
+  SORENESS_LEVELS,
   WORKOUT_KINDS,
+  type CheckinBody,
   type CheckinDetail,
   type CheckinParts,
+  clampSleepHours,
+  formatSleepHours,
   hasDetail,
   hasPain,
+  parseSleepHours,
+  sleepLevelFromHours,
+  sorenessWord,
 } from '@/lib/checkin';
 import { kept, keptAll, withInput } from '@/lib/form-values';
 import { OFFLINE_MESSAGE, orOffline } from '@/lib/action-offline';
@@ -40,6 +48,7 @@ import { formatWeight, fromWeight, round1, toWeight } from '@/lib/units';
 import { useWeightUnit } from '@/components/use-units';
 
 export type CheckinData = CheckinParts &
+  CheckinBody &
   CheckinDetail & {
     /** YYYY-MM-DD */
     date: string;
@@ -67,6 +76,7 @@ function ChipRadio({
   name,
   value,
   defaultChecked,
+  checked,
   className,
   children,
   required,
@@ -76,6 +86,13 @@ function ChipRadio({
   name: string;
   value: string;
   defaultChecked?: boolean;
+  /**
+   * 부모가 고른 값을 들고 있을 때(제어형). 주면 이것을 쓰고 defaultChecked 는 안 쓴다 —
+   * 둘을 같이 넘기지 않는다. 잔 시간을 고르면 잔 느낌이 따라 골라지는 자리(SleepRow)에서 쓴다.
+   * 누른 것은 onPick 으로 받아 부모가 값을 바꿔야 한다. toggleable 과는 같이 쓰지 않는다
+   * (그쪽은 라디오를 직접 끄는데, 제어형은 다음에 그릴 때 부모 값으로 되돌아간다).
+   */
+  checked?: boolean;
   className?: string;
   children: React.ReactNode;
   required?: boolean;
@@ -94,14 +111,28 @@ function ChipRadio({
     <label
       className="inline-flex"
       /*
-       * 누르기 직전에 이미 골라져 있었는지를 적어 둔다 — 누른 뒤에는 늘 골라져 있다. 손가락은 숨은 라디오가 아니라 옆의
-       * 칩을 누르므로 label 에서 받는다(라디오에 달았더니 한 번도 오지 않아 다시 눌러도 풀리지 않았다).
+       * 누르기 직전에 이미 골라져 있었는지를 적어 둔다 — 누른 뒤에는 늘 골라져 있다.
+       *
+       * 라벨에서 받는다. 라디오는 숨겨져 있고(sr-only) 손가락이 닿는 것은 보이는 칩(span)이라,
+       * 라디오에 걸어 두면 pointerdown 이 거기까지 가지 않아 '다시 누르면 풀림'이 듣지 않는다.
        */
       onPointerDown={
         toggleable
           ? (e) => {
-              const input = e.currentTarget.querySelector('input');
+              const input = e.currentTarget.control as HTMLInputElement | null;
               if (input) input.dataset.was = input.checked ? '1' : '';
+            }
+          : undefined
+      }
+      /*
+       * 누르다 만 것(칩에 손가락을 댄 채 화면을 밀어 올림)은 click 이 오지 않는다. 적어 둔 표시가
+       * 남으면, 나중에 pointerdown 없이 오는 click(키보드 화살표 · 화면 읽기)이 고르자마자 풀어 버린다.
+       */
+      onPointerCancel={
+        toggleable
+          ? (e) => {
+              const input = e.currentTarget.control as HTMLInputElement | null;
+              if (input) input.dataset.was = '';
             }
           : undefined
       }
@@ -110,9 +141,19 @@ function ChipRadio({
         type="radio"
         name={name}
         value={value}
-        defaultChecked={defaultChecked}
+        checked={checked}
+        defaultChecked={checked === undefined ? defaultChecked : undefined}
         required={required}
         onChange={() => onPick?.(value)}
+        /* 키보드(스페이스)로 누를 때도 같은 것을 적는다 — 이때는 pointerdown 이 없다 */
+        onKeyDown={
+          toggleable
+            ? (e) => {
+                if (e.key === ' ')
+                  e.currentTarget.dataset.was = e.currentTarget.checked ? '1' : '';
+              }
+            : undefined
+        }
         onClick={
           toggleable
             ? (e) => {
@@ -163,11 +204,42 @@ function ChipCheckbox({
   );
 }
 
-function Row({ label, children }: { label: string; children: React.ReactNode }) {
+function Row({
+  label,
+  top,
+  radios,
+  children,
+}: {
+  label: string;
+  /**
+   * 하나만 고르는 칩 줄일 때 — 묶음에 이 칸의 이름을 붙인다(화면 읽기).
+   * 이름은 옆의 글자일 뿐 라디오와 이어져 있지 않다. 근육통 · 팔 피로처럼 보기가 같은 칸이 여럿이라
+   * (없음 ~ 심함), 이름이 없으면 '보통, 3/5'만 읽혀 어느 칸인지 알 수 없다.
+   */
+  radios?: boolean;
+  /**
+   * 칸이 여러 줄일 때 — 이름을 가운데가 아니라 첫 줄에 맞춘다(수면).
+   * 첫 줄의 단추가 44px 이라 그 가운데에 오게 위를 조금 띄운다.
+   */
+  top?: boolean;
+  children: React.ReactNode;
+}) {
   return (
-    <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-      <span className="w-28 shrink-0 text-xs font-medium text-muted">{label}</span>
-      <div className="flex flex-wrap items-center gap-1.5">{children}</div>
+    <div
+      className={`flex flex-col gap-2 sm:flex-row ${top ? 'sm:items-start' : 'sm:items-center'}`}
+    >
+      <span
+        className={`w-28 shrink-0 text-xs font-medium text-muted ${top ? 'sm:pt-3.5' : ''}`}
+      >
+        {label}
+      </span>
+      <div
+        role={radios ? 'radiogroup' : undefined}
+        aria-label={radios ? label : undefined}
+        className="flex min-w-0 flex-wrap items-center gap-1.5"
+      >
+        {children}
+      </div>
     </div>
   );
 }
@@ -184,44 +256,6 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 
 const numberInput =
   'w-24 rounded-lg border border-line bg-surface-2 px-3 py-2 text-xs text-ink outline-none transition-colors placeholder:text-muted/50 focus:border-sky';
-
-/** 숫자 한 칸 — 뒤에 단위를 붙인다 */
-function NumberRow({
-  label,
-  name,
-  suffix,
-  defaultValue,
-  min,
-  max,
-  step,
-  placeholder,
-}: {
-  label: string;
-  name: string;
-  suffix: string;
-  defaultValue?: string;
-  min: number;
-  max: number;
-  step: number;
-  placeholder: string;
-}) {
-  return (
-    <Row label={label}>
-      <input
-        type="number"
-        name={name}
-        inputMode="decimal"
-        defaultValue={defaultValue}
-        min={min}
-        max={max}
-        step={step}
-        placeholder={placeholder}
-        className={numberInput}
-      />
-      <span className="text-xs text-muted">{suffix}</span>
-    </Row>
-  );
-}
 
 /**
  * 오늘 몸무게 — 고른 단위(kg·lb)로 보여주고 저장은 늘 kg.
@@ -264,6 +298,216 @@ function WeightRow({ defaultKg }: { defaultKg?: string }) {
       <span className="text-xs text-muted">{unit}</span>
       {/* 서버로 가는 값은 언제나 kg */}
       <input type="hidden" name="bodyWeightKg" value={kg} />
+    </Row>
+  );
+}
+
+/** 잔 시간을 한 번에 고르는 빠른 칩 — 대부분의 밤이 이 안에 든다. 그 밖은 −/+ 로 맞춘다 */
+const SLEEP_QUICK_HOURS = [5, 6, 7, 8, 9] as const;
+
+/** 지난 기록이 없을 때 −/+ 가 시작하는 자리(시간) */
+const SLEEP_SEED_HOURS = 7;
+
+/*
+ * 잔 시간 줄의 누르는 것들 — 손가락으로 누르는 자리라 높이 44px 을 채운다.
+ * 빠른 칩은 폭만 40px 이다 — 다섯 칩과 '지우기'가 360px 휴대폰의 한 줄(안쪽 약 294px)에 들어가야
+ * 가로로 넘치지도, '지우기'만 다음 줄로 떨어지지도 않는다.
+ */
+const sleepStepButton =
+  'inline-flex h-11 w-11 shrink-0 cursor-pointer items-center justify-center rounded-lg border border-line bg-surface-2 text-muted outline-none transition-colors hover:border-sky-soft hover:text-ink focus-visible:ring-1 focus-visible:ring-sky active:bg-sky/10 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:border-line disabled:hover:text-muted';
+const sleepQuickChip =
+  'inline-flex min-h-11 min-w-10 cursor-pointer select-none items-center justify-center rounded-lg border px-3 py-2 text-xs tabular-nums outline-none transition-colors focus-visible:ring-1 focus-visible:ring-sky';
+
+/**
+ * 수면 — 어젯밤 잔 시간(선택)과 잔 느낌(충분 · 보통 · 부족, 필수)을 한 칸에서 받는다.
+ *
+ * 시간은 글자로 치지 않고 고른다(−/+ 30분씩, 빠른 칩). 시간을 고르면 잔 느낌이 따라 골라져서
+ * 숫자 하나만 눌러도 수면이 끝난다. 둘을 따로 두면 같은 것을 두 번 묻게 된다.
+ *
+ * 느낌을 직접 누른 뒤에는 시간이 느낌을 덮지 않는다(pinned) — 6시간을 자도 개운한 날이 있고,
+ * 8시간을 자도 못 잔 것 같은 날이 있다. 본인이 고친 것이 이긴다. 시간을 지워도 느낌은 그대로 둔다.
+ *
+ * 따라 골라진 느낌은 추천을 바꾸지 않는다 — 6시간 미만은 느낌과 상관없이 이미 짧은 밤이다
+ * (lib/checkin.ts 의 isShortSleep). 그래서 저절로 골라져도 안전하다.
+ *
+ * 상태는 누를 때(이벤트 처리기) 같이 바꾼다. 효과(useEffect)로 맞추지 않는다 — 한 번 더 그리고,
+ * 직접 고친 느낌까지 덮게 된다.
+ */
+function SleepRow({
+  defaultLevel,
+  defaultHours,
+  seedHours,
+}: {
+  /** 저장된(또는 오류로 돌아온) 잔 느낌 */
+  defaultLevel?: string;
+  /** 저장된(또는 오류로 돌아온) 잔 시간 — 폼 값이라 글자다 */
+  defaultHours?: string;
+  /** 비어 있을 때 −/+ 가 시작하는 시간 — 지난번에 적은 잔 시간 */
+  seedHours: number;
+}) {
+  /* 예전에 0~16 으로 적은 기록은 고르는 범위(3~12 · 30분 단위)로 맞춰서 시작한다 */
+  const [hours, setHours] = useState<number | null>(() =>
+    parseSleepHours(defaultHours ?? '')
+  );
+  const [level, setLevel] = useState(defaultLevel ?? '');
+  /*
+   * 저장된(또는 오류로 돌아온) 느낌이 본인이 고른 것인가.
+   *
+   * 시간이 없는데 느낌이 있으면 그 느낌은 반드시 본인이 누른 것이다 — 시간이 골라 줄 수 없었다.
+   * 시간이 있는데 거기서 나올 값과 다르면 본인이 고친 것이다. 둘 다 그대로 둔다.
+   *
+   * 앞의 것을 빼먹으면, 아침에 '부족'만 적어 둔 사람이 나중에 8시간을 더하는 순간 느낌이 말없이
+   * '충분'으로 바뀌고 짧은 밤 제한이 풀린다 — 시간은 '부족'을 더할 수만 있고 뺄 수는 없다
+   * (lib/checkin.ts 의 isShortSleep)는 원칙이 화면에서 깨진다.
+   */
+  const [pinned, setPinned] = useState(
+    () =>
+      Boolean(defaultLevel) &&
+      (hours == null || sleepLevelFromHours(hours) !== defaultLevel)
+  );
+  /* 시간을 지우면 누르던 단추('지우기')가 사라진다 — 초점을 옮겨 둘 자리 */
+  const firstQuickRef = useRef<HTMLButtonElement>(null);
+
+  const change = (next: number | null) => {
+    setHours(next);
+    if (next != null && !pinned) setLevel(sleepLevelFromHours(next));
+  };
+  /* 비어 있을 때는 지난번 값에서 시작한다(한 칸 움직이지 않는다) — 대개 어제와 비슷하게 잔다 */
+  const step = (dir: 1 | -1) =>
+    change(clampSleepHours(hours == null ? seedHours : hours + dir * SLEEP_HOURS_STEP));
+
+  return (
+    <Row label="수면" top>
+      <div className="flex w-full min-w-0 flex-col gap-3">
+        <div className="space-y-1.5">
+          {/* 좁은 화면에서는 '증감 단추 / 빠른 칩' 두 줄로 접힌다 */}
+          <div
+            role="group"
+            aria-label="어젯밤 잔 시간"
+            className="flex flex-wrap items-center gap-x-3 gap-y-2"
+          >
+            <div className="flex items-center gap-1.5">
+              <button
+                type="button"
+                onClick={() => step(-1)}
+                disabled={hours != null && hours <= SLEEP_HOURS_MIN}
+                aria-label="30분 줄이기"
+                className={sleepStepButton}
+              >
+                <Minus aria-hidden className="h-4 w-4" />
+              </button>
+              {/* 읽어 주는 자리(output)는 그대로 두고 안쪽 글만 새로 그린다 — 값이 바뀔 때마다 조용히 나타난다 */}
+              <output
+                aria-live="polite"
+                className="min-w-[4.5rem] text-center text-sm tabular-nums"
+              >
+                <span
+                  key={hours ?? 'none'}
+                  className={`inline-block motion-safe:animate-fade-in ${
+                    hours == null ? 'text-muted' : 'font-semibold text-ink'
+                  }`}
+                >
+                  {hours == null ? '—' : formatSleepHours(hours)}
+                </span>
+              </output>
+              <button
+                type="button"
+                onClick={() => step(1)}
+                disabled={hours != null && hours >= SLEEP_HOURS_MAX}
+                aria-label="30분 늘리기"
+                className={sleepStepButton}
+              >
+                <Plus aria-hidden className="h-4 w-4" />
+              </button>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-1.5">
+              {SLEEP_QUICK_HOURS.map((n) => {
+                const on = hours === n;
+                return (
+                  <button
+                    key={n}
+                    ref={n === SLEEP_QUICK_HOURS[0] ? firstQuickRef : undefined}
+                    type="button"
+                    aria-pressed={on}
+                    aria-label={formatSleepHours(n)}
+                    /* 고른 숫자를 다시 누르면 지워진다 */
+                    onClick={() => change(on ? null : n)}
+                    className={`${sleepQuickChip} ${
+                      on
+                        ? 'border-sky bg-sky/10 font-medium text-sky'
+                        : 'border-line bg-surface-2 text-muted hover:border-sky-soft hover:text-ink'
+                    }`}
+                  >
+                    {n}
+                  </button>
+                );
+              })}
+              {/*
+               * 값이 있을 때만 보인다. 자리는 늘 잡아 둔다 — 시간을 고르는 순간 단추가 생기면서
+               * 칩 줄이 다음 줄로 밀리면(창 폭에 따라 그렇게 된다) 누르던 칩이 손가락 밑에서 달아난다.
+               */}
+              <button
+                type="button"
+                /*
+                 * 지우면 이 단추가 꺼지고 숨는다. 초점이 여기 있었으면(키보드) 갈 곳을 잃으므로
+                 * 첫 빠른 칩으로 옮겨 둔다 — 거기서 바로 다시 고를 수 있다.
+                 */
+                onClick={(e) => {
+                  const focused = document.activeElement === e.currentTarget;
+                  change(null);
+                  if (focused) firstQuickRef.current?.focus();
+                }}
+                disabled={hours == null}
+                className={`inline-flex min-h-11 cursor-pointer items-center rounded-lg px-1.5 text-xs text-muted underline-offset-4 outline-none transition-[opacity,color] duration-200 hover:text-ink hover:underline focus-visible:ring-1 focus-visible:ring-sky ${
+                  hours == null ? 'invisible opacity-0' : 'opacity-100'
+                }`}
+              >
+                지우기
+              </button>
+            </div>
+          </div>
+          <p className="text-[10px] text-muted/60">
+            어젯밤 잔 시간 · 30분 단위 · 몰라도 됩니다
+          </p>
+          {/* 서버로 가는 값 — 비어 있으면 안 적은 것(null)으로 저장된다 */}
+          <input type="hidden" name="sleepHours" value={hours ?? ''} />
+        </div>
+
+        {/*
+         * 이미 골라진 칩을 다시 눌러도 직접 고른 것으로 친다(pinned). 골라진 라디오를 또 누르면
+         * change 가 오지 않아 onPick 이 안 불린다 — 시간이 골라 준 느낌을 '맞다'고 눌러 확인한 것을
+         * 놓치고, 그 뒤 시간을 고치면 느낌이 따라 바뀐다. 칩(라벨)을 누르면 라디오에 click 이 가고
+         * 그것이 여기로 올라오므로 그때 잡는다.
+         */}
+        <div
+          role="radiogroup"
+          aria-label="잔 느낌"
+          onClick={(e) => {
+            if (e.target instanceof HTMLInputElement) setPinned(true);
+          }}
+          className="flex flex-wrap items-center gap-1.5"
+        >
+          {SLEEP_LEVELS.map((v) => (
+            <ChipRadio
+              key={v}
+              name="sleep"
+              value={v}
+              required
+              checked={level === v}
+              onPick={(picked) => {
+                setLevel(picked);
+                setPinned(true);
+              }}
+            >
+              {v}
+            </ChipRadio>
+          ))}
+          <span className="ml-1 self-center text-[10px] text-muted/60">
+            잔 느낌 · 시간을 고르면 따라 골라져요
+          </span>
+        </div>
+      </div>
     </Row>
   );
 }
@@ -343,16 +587,15 @@ function ModeSwitch({ mode, onChange }: { mode: Mode; onChange: (m: Mode) => voi
 /** 요약에 쓰는 상세 값 — 적은 것만 한 줄씩 */
 function detailLines(d: CheckinData, weightUnit: 'kg' | 'lb'): [string, string][] {
   const out: [string, string][] = [];
-  if (d.sleepHours != null) out.push(['잔 시간', `${d.sleepHours}시간`]);
   for (const s of DETAIL_SCALES) {
     const v = d[s.key];
     if (v != null) out.push([s.label, s.options[v - 1] ?? String(v)]);
   }
   if (d.bodyWeightKg != null)
     out.push(['몸무게', formatWeight(d.bodyWeightKg, weightUnit) ?? '']);
-  if (d.restingHr != null) out.push(['아침 심박', `${d.restingHr}bpm`]);
-  if (d.hydration) out.push(['수분', d.hydration]);
-  if (d.nutrition) out.push(['식사', d.nutrition]);
+  if (d.appetite != null)
+    out.push(['식욕', APPETITE_LEVELS[d.appetite - 1] ?? String(d.appetite)]);
+  if (d.throwPlan) out.push(['던지는 일정', d.throwPlan]);
   return out;
 }
 
@@ -378,12 +621,18 @@ function saveCheckinSafely(
  * 그날 첫 접속 때 뜨는 체크인 관문(components/checkin-gate.tsx). 그래서 자기 껍데기(테두리·제목)를
  * 만들지 않는다 — 감싸는 쪽이 이미 가지고 있어서 겹친다.
  *
- * 간편과 상세 두 가지로 받는다. 간편은 몸 상태·컨디션·수면만 — 매일 쓰는 것이라
- * 몇 초 안에 끝나야 한다. 상세는 운동 선호와 더 많은 기록(잔 시간·피로·팔 피로·
- * 몸무게·메모 등)까지 받되, 전부 안 채워도 된다.
+ * 간편과 상세 두 가지로 받는다. 간편은 몸 상태·컨디션·수면, 그리고 선택 칸인 근육통 ·
+ * 잔 시간만 — 매일 쓰는 것이라 몇 초 안에 끝나야 한다. 상세는 운동 선호와 앱이 실제로 쓰는
+ * 기록(팔 피로 · 몸무게 · 식욕 · 던지는 일정)과 메모까지 받되, 전부 안 채워도 된다.
+ *
+ * 근육통 · 잔 시간은 2026-09-30 에 상세에서 뺐다가 같은 날 되살렸다 — 트레이닝 추천이 읽는다
+ * (사용자: "둘다 트레이닝을 추천함에 있어서 필요한 데이터야"). 상세가 아니라 간편 쪽(늘 보이는 자리)에
+ * 둔다. 기본이 간편이라 상세에 두면 대부분 영영 안 적고, 그러면 추천이 읽을 값이 안 쌓인다.
+ * 꼭 적게 하지는 않는다 — 안 적은 날은 아무것도 바꾸지 않는다(lib/checkin.ts).
  *
  * 간편으로 저장하면 상세 기록은 건드리지 않는다. 아침에 상세로 적어 둔 것을
  * 저녁에 간편으로 고쳐도 몸무게·메모가 지워지지 않는다(app/actions/checkin.ts).
+ * 근육통 · 잔 시간은 어느 쪽으로 저장하든 같이 간다(body=1) — 비우면 비운 대로 저장된다.
  */
 export function CheckinForm({
   recent,
@@ -512,6 +761,25 @@ export function CheckinForm({
 
   const detailed = mode === 'detail';
 
+  /*
+   * 오늘 체크인 요약의 첫 줄. 수면은 잔 시간을 적은 날만 '보통 · 6.5시간'으로 붙이고,
+   * 근육통은 적은 날만 한 칸 더한다 — 안 적은 칸을 '없음'처럼 보이게 하지 않는다.
+   */
+  const todaySoreness = sorenessWord(today?.soreness);
+  const summaryLines: [string, string][] = today
+    ? [
+        ...CHECKIN_PARTS.map((p): [string, string] => [p.label, today[p.key]]),
+        ['컨디션', `${today.condition}/10`],
+        [
+          '수면',
+          today.sleepHours != null
+            ? `${today.sleep} · ${formatSleepHours(today.sleepHours)}`
+            : today.sleep,
+        ],
+        ...(todaySoreness ? [['근육통', todaySoreness] as [string, string]] : []),
+      ]
+    : [];
+
   return (
     <div>
       {/*
@@ -542,11 +810,7 @@ export function CheckinForm({
             <div className="motion-safe:animate-fade-in">
               {/* 완료 요약 */}
               <dl className="flex flex-wrap gap-x-5 gap-y-1.5 text-xs text-muted">
-                {[
-                  ...CHECKIN_PARTS.map((p) => [p.label, today[p.key]] as const),
-                  ['컨디션', `${today.condition}/10`],
-                  ['수면', today.sleep],
-                ].map(([k, v]) => (
+                {summaryLines.map(([k, v]) => (
                   <div key={k} className="flex items-baseline gap-1.5">
                     <dt>{k}</dt>
                     <dd
@@ -615,13 +879,19 @@ export function CheckinForm({
           ) : (
             <form key={formKey} action={formAction} className="space-y-4">
               <input type="hidden" name="date" value={todayKey} />
+              {/*
+               * 근육통 · 잔 시간을 담아 보낸다는 표시. 서버는 이것이 왔을 때만 두 칸을 쓴다
+               * (비우면 null). 배포 전에 열려 있던 옛 화면에는 이 표시가 없어, 아침에 적은 값을
+               * 빈 값으로 덮지 않는다(app/actions/checkin.ts). 상세 fieldset 밖이라 간편에서도 간다.
+               */}
+              <input type="hidden" name="body" value="1" />
 
               <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
                 <ModeSwitch mode={mode} onChange={pickMode} />
                 <span className="text-[11px] leading-relaxed text-muted">
                   {detailed
                     ? '더 적을수록 추천이 오늘에 맞춰집니다. 비워 둔 칸은 저장하지 않습니다.'
-                    : '몸 상태 · 컨디션 · 수면만 — 몇 초면 끝납니다.'}
+                    : '몸 상태 · 근육통 · 컨디션 · 수면 — 몇 초면 끝납니다.'}
                 </span>
               </div>
 
@@ -676,7 +946,7 @@ export function CheckinForm({
 
                 <div className={partsExpanded ? 'mt-3 space-y-3' : 'hidden'}>
                   {CHECKIN_PARTS.map((part) => (
-                    <Row key={part.key} label={part.label}>
+                    <Row key={part.key} label={part.label} radios>
                       {BODY_FEELINGS.map((v) => (
                         <ChipRadio
                           key={v}
@@ -708,7 +978,37 @@ export function CheckinForm({
                 </div>
               </div>
 
-              <Row label="전신 컨디션">
+              {/*
+               * 전신 근육통(선택). 몸 상태 상자 바로 밑에 둔다 — 부위의 '뻐근 · 통증'과 헷갈리는
+               * 칸이라 나란히 놓고 글로 가른다. 근육통 '심함'은 통증 관문을 열지 않는다
+               * (운동 추천을 멈추는 것은 부위 통증뿐이다).
+               *
+               * 색은 '많이' · '심함'만 주황 — 추천이 가벼워지는 눈금(HIGH_SORENESS)부터다.
+               * 빨강은 통증만 쓴다.
+               */}
+              <Row label="근육통" radios>
+                {SORENESS_LEVELS.map((label, i) => (
+                  <ChipRadio
+                    key={label}
+                    name="soreness"
+                    value={String(i + 1)}
+                    toggleable
+                    defaultChecked={pick('soreness', today?.soreness) === String(i + 1)}
+                    className={
+                      i + 1 >= HIGH_SORENESS ? feelingChipClass('뻐근') : undefined
+                    }
+                  >
+                    {label}
+                  </ChipRadio>
+                ))}
+                <span className="ml-1 self-center text-[10px] leading-relaxed break-keep text-muted/60">
+                  {
+                    "온몸 알배김 · 다시 누르면 풀려요 · 한곳이 콕 집어 아프면 위 '몸 상태'에서 통증으로"
+                  }
+                </span>
+              </Row>
+
+              <Row label="전신 컨디션" radios>
                 {Array.from(
                   { length: MAX_CONDITION - MIN_CONDITION + 1 },
                   (_, i) => MIN_CONDITION + i
@@ -728,19 +1028,15 @@ export function CheckinForm({
                 </span>
               </Row>
 
-              <Row label="수면">
-                {SLEEP_LEVELS.map((v) => (
-                  <ChipRadio
-                    key={v}
-                    name="sleep"
-                    value={v}
-                    required
-                    defaultChecked={pick('sleep', today?.sleep) === v}
-                  >
-                    {v}
-                  </ChipRadio>
-                ))}
-              </Row>
+              <SleepRow
+                defaultLevel={pick('sleep', today?.sleep)}
+                defaultHours={pick('sleepHours', today?.sleepHours)}
+                /* 오늘이 아닌 가장 최근 기록의 잔 시간(recent 는 최근 날부터) — 없으면 7시간 */
+                seedHours={
+                  recent.find((c) => c.date !== todayKey && c.sleepHours != null)
+                    ?.sleepHours ?? SLEEP_SEED_HOURS
+                }
+              />
 
               {/*
                * 상세 쪽.
@@ -775,7 +1071,7 @@ export function CheckinForm({
                        * '추천대로'는 빈 값으로 보낸다. '고르지 않음'을 값으로 저장하면
                        * 나중에 목록을 고칠 때 그게 무엇이었는지 다시 따져야 한다.
                        */}
-                      <Row label="종류">
+                      <Row label="종류" radios>
                         <ChipRadio
                           name="preferredWorkout"
                           value=""
@@ -822,19 +1118,9 @@ export function CheckinForm({
                     </Section>
                   </div>
 
-                  <Section title="몸과 마음 · 고른 것을 다시 누르면 풀립니다">
-                    <NumberRow
-                      label="잔 시간"
-                      name="sleepHours"
-                      suffix="시간"
-                      defaultValue={pick('sleepHours', today?.sleepHours)}
-                      min={0}
-                      max={SLEEP_HOURS_MAX}
-                      step={0.5}
-                      placeholder="7.5"
-                    />
+                  <Section title="몸 · 고른 것을 다시 누르면 풀립니다">
                     {DETAIL_SCALES.map((s) => (
-                      <Row key={s.key} label={s.label}>
+                      <Row key={s.key} label={s.label} radios>
                         {s.options.map((label, i) => (
                           <ChipRadio
                             key={label}
@@ -851,40 +1137,33 @@ export function CheckinForm({
                       </Row>
                     ))}
                     <WeightRow defaultKg={pick('bodyWeightKg', today?.bodyWeightKg)} />
-                    <NumberRow
-                      label="아침 심박"
-                      name="restingHr"
-                      suffix="bpm"
-                      defaultValue={pick('restingHr', today?.restingHr)}
-                      min={RESTING_HR_MIN}
-                      max={RESTING_HR_MAX}
-                      step={1}
-                      placeholder="60"
-                    />
                   </Section>
 
-                  <Section title="먹고 마신 것">
-                    <Row label="수분">
-                      {HYDRATION_LEVELS.map((v) => (
+                  {/* 식욕 · 던지는 일정은 영양 탭의 가이드가 쓴다(lib/checkin.ts) */}
+                  <Section title="영양 가이드에 써요">
+                    <Row label="식욕" radios>
+                      {APPETITE_LEVELS.map((label, i) => (
                         <ChipRadio
-                          key={v}
-                          name="hydration"
-                          value={v}
+                          key={label}
+                          name="appetite"
+                          value={String(i + 1)}
                           toggleable
-                          defaultChecked={pick('hydration', today?.hydration) === v}
+                          defaultChecked={
+                            pick('appetite', today?.appetite) === String(i + 1)
+                          }
                         >
-                          {v}
+                          {label}
                         </ChipRadio>
                       ))}
                     </Row>
-                    <Row label="식사">
-                      {NUTRITION_LEVELS.map((v) => (
+                    <Row label="던지는 일정" radios>
+                      {THROW_PLANS.map((v) => (
                         <ChipRadio
                           key={v}
-                          name="nutrition"
+                          name="throwPlan"
                           value={v}
                           toggleable
-                          defaultChecked={pick('nutrition', today?.nutrition) === v}
+                          defaultChecked={pick('throwPlan', today?.throwPlan) === v}
                         >
                           {v}
                         </ChipRadio>

@@ -1,3 +1,4 @@
+import { SEVERE_SORENESS, sorenessWord } from '@/lib/checkin';
 import { intensityLevel, minutesForSets, type Prescription } from '@/lib/exercise-meta';
 import { withJosa } from '@/lib/korean';
 import type { ReportFacts } from '@/lib/report/facts';
@@ -263,6 +264,20 @@ export function workoutConflict({
   if (condition != null && condition <= LOW_CONDITION_THRESHOLD) {
     return { reason: `오늘 컨디션이 ${condition}/10입니다`, fallback: 'recovery' };
   }
+  /*
+   * 전신 근육통 '심함' — 낮은 컨디션과 같은 자리 · 같은 결론(회복).
+   *
+   * 통증이 아니라 고를 수 있다(override). 다만 후보 상한은 prescription.ts 가 남긴다 — 그래도
+   * 하겠다고 해도 무게 드는 운동은 안 나온다. '많이'는 여기 안 걸린다(고른 대로 가고 가장 센 것만
+   * 빠진다). decideTheme 의 같은 자리에도 같은 줄이 있다 — 두 곳을 같이 고칠 것.
+   *
+   * 1~5 밖의 값(말이 없는 값)은 안 적은 것으로 넘긴다 — 글에 'null' 이 찍히지 않게.
+   */
+  const soreness = facts.condition.today?.soreness;
+  const soreWord = sorenessWord(soreness);
+  if (soreness != null && soreWord && soreness >= SEVERE_SORENESS) {
+    return { reason: `전신 근육통이 '${soreWord}'입니다`, fallback: 'recovery' };
+  }
   if (facts.load.zone === 'caution') {
     return { reason: '투구 부하가 주의 구간입니다', fallback: 'assist' };
   }
@@ -432,6 +447,22 @@ export function decideTheme({
         key: 'recovery',
         label: '회복·재생 데이',
         reason: `오늘 컨디션이 ${condition}/10이라 회복 위주로 구성했습니다.`,
+      };
+    }
+    /*
+     * 전신 근육통 '심함' — 컨디션 바로 뒤, 부하 주의(보조·코어)보다 앞.
+     *
+     * 온몸에 알이 심하게 밴 날은 무게를 올릴 날이 아니다. 통증이 아니라 고를 수 있다(override) —
+     * 다만 후보 상한은 prescription.ts 가 남긴다. workoutConflict 의 같은 자리에도 같은 줄이 있다 —
+     * 두 곳을 같이 고칠 것. 안 적은 날(null · 칸 없음)과 1~5 밖의 값(말이 없는 값)은 여기 안 걸린다.
+     */
+    const soreness = facts.condition.today?.soreness;
+    const soreWord = sorenessWord(soreness);
+    if (soreness != null && soreWord && soreness >= SEVERE_SORENESS) {
+      return {
+        key: 'recovery',
+        label: '회복·재생 데이',
+        reason: `전신 근육통이 '${soreWord}'이라 가볍게 움직이는 회복 위주로 구성했습니다. 가만히 쉬는 것보다 가볍게 움직이는 편이 풀리는 데 도움이 될 수 있습니다.`,
       };
     }
     if (facts.load.zone === 'caution') {

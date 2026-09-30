@@ -6,7 +6,6 @@ import { Segmented } from '@/components/segmented';
 import {
   ACTIVITIES,
   GOALS,
-  PROTEIN_CHOICES,
   SEXES,
   kcalText,
   type ActivityKey,
@@ -18,6 +17,7 @@ import {
   type Body,
   type ProfileSettings,
 } from '@/lib/nutrition/targets';
+import { ageRule, effectiveGoal, effectiveProtein } from '@/lib/nutrition/age';
 import { saveNutritionProfile } from '@/app/actions/nutrition';
 import { OFFLINE_MESSAGE, orOffline } from '@/lib/action-offline';
 import type { Origin } from './shared';
@@ -56,9 +56,20 @@ export function GoalSheet({
   body: Body;
   assumed: Assumed[];
 }) {
-  const [goal, setGoal] = useState<GoalKey>(profile.goal);
+  /*
+   * 나이에 맞춘 기준(lib/nutrition/age.ts) — 18세 밑은 단백질 범위가 낮고, 감량이
+   * 작거나(성장기) 없다(어린이). 저장된 값이 그 밖이면 범위 안의 값으로 연다.
+   */
+  const rule = ageRule(body.age);
+  const [goal, setGoal] = useState<GoalKey>(() =>
+    effectiveGoal(profile.goal, body.age)
+  );
   const [activity, setActivity] = useState<ActivityKey>(profile.activity);
-  const [protein, setProtein] = useState(profile.proteinPerKg);
+  const [protein, setProtein] = useState(() =>
+    effectiveProtein(profile.proteinPerKg, body.age)
+  );
+  const goals = GOALS.filter((g) => rule.goalDelta[g.key] !== null);
+  const [lo, hi] = [rule.proteinChoices[0], rule.proteinChoices.at(-1)];
   const [manual, setManual] = useState(profile.kcalTarget !== null);
   const [kcal, setKcal] = useState(
     profile.kcalTarget ? String(profile.kcalTarget) : ''
@@ -70,12 +81,12 @@ export function GoalSheet({
   const kcalTarget =
     manual && kcal.trim() !== '' && Number.isFinite(kcalNum) ? kcalNum : null;
 
-  const draft: ProfileSettings = {
+  const draft = {
     goal,
     activity,
     proteinPerKg: protein,
     kcalTarget,
-  };
+  } satisfies ProfileSettings;
   const preview = computeTargets(draft, body, 0);
   const auto = computeTargets({ ...draft, kcalTarget: null }, body, 0);
 
@@ -103,7 +114,9 @@ export function GoalSheet({
     `${Math.round(preview.weightKg * 10) / 10}kg${assumed.includes('weight') ? '(짐작)' : ''}`,
     body.heightCm ? `${body.heightCm}cm` : '키 178cm(짐작)',
     body.age ? `${body.age}세` : '20세(짐작)',
-    body.sex ? SEXES.find((s) => s.key === body.sex)?.label : '성별 모름(남녀 가운데 값)',
+    body.sex
+      ? SEXES.find((s) => s.key === body.sex)?.label
+      : '성별 모름(남녀 가운데 값)',
   ].join(' · ');
 
   return (
@@ -115,14 +128,21 @@ export function GoalSheet({
       origin={origin}
     >
       <div className="space-y-6">
-        <Row label="목표" hint={hint(GOALS, goal)}>
+        <Row
+          label="목표"
+          hint={
+            rule.band === 'child'
+              ? `${rule.goalHint[goal]} · ${rule.goalHint.lose}`
+              : rule.goalHint[goal]
+          }
+        >
           <Segmented
             label="목표"
             size="md"
             itemClassName={BIG}
             value={goal}
             onChange={setGoal}
-            options={GOALS.map((g) => ({ value: g.key, label: g.label }))}
+            options={goals.map((g) => ({ value: g.key, label: g.label }))}
           />
         </Row>
 
@@ -143,7 +163,11 @@ export function GoalSheet({
         */}
         <Row
           label="단백질 (체중 1kg 당)"
-          hint="선수에게 권하는 범위는 1.6~2.2g 이에요. 감량 중이면 높게 잡으세요."
+          hint={
+            rule.band === 'adult'
+              ? '선수에게 권하는 범위는 1.6~2.2g 이에요. 감량 중이면 높게 잡으세요.'
+              : `${rule.label} 선수에게 권하는 범위는 ${lo}~${hi}g 이에요. 더 먹는다고 더 자라지 않고, 그만큼 탄수화물 자리가 줄어요.`
+          }
         >
           <Segmented
             label="단백질"
@@ -151,7 +175,7 @@ export function GoalSheet({
             itemClassName={BIG}
             value={String(protein)}
             onChange={(v) => setProtein(Number(v))}
-            options={PROTEIN_CHOICES.map((p) => ({
+            options={rule.proteinChoices.map((p) => ({
               value: String(p),
               label: `${p.toFixed(1)}g`,
             }))}
@@ -208,7 +232,10 @@ export function GoalSheet({
             <Stat label="지방" value={`${preview.fat}g`} />
           </dl>
           <p className="text-xs leading-relaxed text-muted">
-            기초대사량 {kcalText(preview.bmr)}kcal
+            기초대사량 {kcalText(preview.bmr)}kcal ({rule.bmrName})
+            <br />
+            나이 기준: {rule.label}
+            {rule.band !== 'adult' && ' — 자라는 몸에 맞춰 셈해요'}
             <br />
             계산에 쓴 몸: {bodyLine}
             {assumed.length > 0 && ' — 내 정보에서 채우면 더 정확해져요.'}

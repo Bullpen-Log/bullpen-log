@@ -36,12 +36,12 @@ import {
 } from '@/lib/profile';
 import { TARGET_VELOCITY_MAX, TARGET_VELOCITY_MIN } from '@/lib/velocity';
 import { RadioGroup } from '@/components/choice-inputs';
+import { LevelChoices } from '@/components/level-choices';
 import {
   BASELINE_FREQ_NAMES,
   BASELINE_INTENSITY_NAMES,
   BASELINE_VOLUME_NAMES,
   BASELINE_WORKOUT_FREQ_NAMES,
-  COMPETITION_LEVELS,
   THROWING_HANDS,
 } from '@/lib/baseline';
 import {
@@ -114,7 +114,8 @@ function BodyField({
   const isLength = kind === 'length';
   const unit = isLength ? lengthUnit : weightUnit;
   const swapped = isLength ? lengthUnit === 'in' : weightUnit === 'lb';
-  const to = (n: number) => (isLength ? toLength(n, lengthUnit) : toWeight(n, weightUnit));
+  const to = (n: number) =>
+    isLength ? toLength(n, lengthUnit) : toWeight(n, weightUnit);
   const from = (n: number) =>
     isLength ? fromLength(n, lengthUnit) : fromWeight(n, weightUnit);
 
@@ -256,6 +257,8 @@ export function ProfileForm({
   const before = state?.values;
   const pick = (name: string, fallback: string | number | null) =>
     before ? (kept(before, name) ?? '') : fallback == null ? '' : String(fallback);
+  /* 소속 칸이 나이에 맞춰 바뀌도록 생년월일을 따라 쥔다(칸 자체는 그대로 폼이 보낸다) */
+  const [birth, setBirth] = useState(() => pick('birthDate', birthDate));
 
   return (
     <form action={formAction} className="space-y-5">
@@ -286,11 +289,15 @@ export function ProfileForm({
           />
         </Field>
 
-        <Field label="생년월일" hint="나이에 따라 안전한 투구수 한도가 달라집니다.">
+        <Field
+          label="생년월일"
+          hint="나이에 따라 안전한 투구수 한도와 영양 기준이 달라집니다."
+        >
           <Input
             name="birthDate"
             type="date"
             defaultValue={pick('birthDate', birthDate)}
+            onChange={(e) => setBirth(e.target.value)}
             max={today}
             required
           />
@@ -435,15 +442,16 @@ export function ProfileForm({
           selected={pick('throwingHand', baseline.throwingHand)}
         />
         {/*
-          수준은 지금 아무 계산에도 안 쓴다 — 나이는 생년월일로 이미 알고
-          안전 한도도 거기서 나온다. 그 사실을 숨기지 않고 적어 둔다.
+          소속은 위 생년월일과 이어져 있다 — 나이에 안 맞는 곳은 막힌다(components/level-choices).
+          계산을 바꾸는 값은 아니다. 나이는 생년월일로 이미 알고 안전 한도도 거기서 나온다.
         */}
-        <RadioGroup
-          name="competitionLevel"
-          label="어디서 야구를 하시나요"
-          hint="훈련 내용을 바꾸는 값이 아닙니다. 나중에 비슷한 또래와 견줘 보여드리려고 여쭙습니다. 안 고르셔도 됩니다."
-          options={COMPETITION_LEVELS.map((name) => ({ name }))}
-          selected={pick('competitionLevel', baseline.competitionLevel)}
+        <LevelChoices
+          size="sm"
+          legend="어디서 야구를 하시나요"
+          hint="훈련 내용을 바꾸는 값이 아닙니다. 나중에 비슷한 또래와 견줘 보여드리려고 여쭙습니다."
+          birthDate={birth}
+          today={today}
+          initial={pick('competitionLevel', baseline.competitionLevel)}
         />
       </div>
 

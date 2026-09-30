@@ -12,7 +12,7 @@ import { RefreshOnReturn } from '@/components/refresh-on-return';
 import { SendPendingSets } from '@/components/send-pending-sets';
 import type { CheckinData } from '@/components/checkin-form';
 import { prisma } from '@/lib/prisma';
-import { pickCheckinDetail, pickCheckinParts } from '@/lib/checkin';
+import { pickCheckinBody, pickCheckinDetail, pickCheckinParts } from '@/lib/checkin';
 import { visibleExercises } from '@/lib/library-cache';
 import { availableParts } from '@/lib/report/today-pick';
 import { OPEN_POPUP, QUIET_REFRESH } from '@/lib/transition-types';
@@ -81,6 +81,8 @@ export default async function AppLayout({
     sleep: c.sleep,
     preferredParts: c.preferredParts,
     preferredWorkout: c.preferredWorkout,
+    /* 근육통 · 잔 시간 — 간편 쪽 선택 칸. 체크인 창이 저장된 값으로 다시 채운다 */
+    ...pickCheckinBody(c),
     ...pickCheckinDetail(c),
   }));
 

@@ -15,6 +15,7 @@ import {
   deleteVelocityPitchRow,
   deleteVelocitySessionRows,
   sanitizeAnalysis,
+  syncVelocitySession,
   velocityLogMemo,
 } from '@/lib/velocity-sync';
 import { isRestSession, validateSessionType } from '@/lib/session-type';
@@ -138,11 +139,13 @@ export async function loadCalibration(): Promise<{ fit: CalFit; pairs: CalPair[]
     /*
      * 수기 공은 카메라 값이 없어(스피드건 값 복사) 짝이 아니다. 옛 모델로 잰 공도 뺀다 — 모델이 고쳐진
      * 뒤에도 옛 편향을 되풀이해 보정하면 두 번 고치는 셈이다(관리자가 다시 재서 채우면 지금 모델이 된다).
+     * 관리자가 '보정에서 빼기'를 한 공(잘못 적은 건 값 등)도 뺀다 — 관리자 통계(isPair)만 빼고 여기는 쓰고 있었다.
      */
     where: {
       userId: user.id,
       gunKmh: { not: null },
       manual: false,
+      calibExclude: false,
       engineVersion: VELOCITY_ENGINE_VERSION,
     },
     orderBy: { createdAt: 'desc' },
@@ -341,11 +344,30 @@ export async function updateVelocityPitch(
 
   const row = await prisma.velocityPitch.findFirst({
     where: { id, userId: user.id },
-    select: { id: true, session: { select: { date: true } } },
+    select: {
+      id: true,
+      manual: true,
+      sessionId: true,
+      session: { select: { date: true } },
+    },
   });
   if (!row) return { ok: false, error: '공을 찾을 수 없습니다.' };
 
-  await prisma.velocityPitch.update({ where: { id }, data: checked });
+  /*
+   * 수기 공은 스피드건 값이 곧 구속이다 — 건 값만 고치면 구속 · 투구 기록의 최고 · 평균이 옛 값으로 남았다(관리자 쪽
+   * adminUpdateVelocityPitch 와 같게, 2026-09-30 코드 검토). 수기 공의 건 값은 비울 수 없다.
+   */
+  const data: Prisma.VelocityPitchUpdateInput = { ...checked };
+  const manualSpeed = row.manual && 'gunKmh' in checked;
+  if (manualSpeed) {
+    if (checked.gunKmh == null)
+      return { ok: false, error: '수기 공은 스피드건 값을 비울 수 없어요.' };
+    data.rawKmh = checked.gunKmh;
+    data.kmh = checked.gunKmh;
+  }
+
+  await prisma.velocityPitch.update({ where: { id }, data });
+  if (manualSpeed) await syncVelocitySession(row.sessionId);
   revalidateDay(row.session.date.toISOString().slice(0, 10));
   return { ok: true };
 }

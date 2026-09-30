@@ -45,6 +45,8 @@ import {
   gramText,
   kcalText,
   mealLabel,
+  missingMacros,
+  missingText,
   scaleMacros,
   sumMacros,
   type Food,
@@ -180,32 +182,65 @@ export function FoodSheet({
 
   const q = query.trim();
 
-  /* ── 식약처 검색 — 치다 멈추면 묻는다. 결과에는 어느 낱말의 것인지 붙여 둔다. ── */
-  const [remote, setRemote] = useState<{ q: string; foods: Food[] }>({
+  /*
+   * ── 식약처 검색 — 치다 멈추면 묻는다. 결과에는 어느 낱말의 것인지 붙여 둔다. ──
+   *
+   * 두 번 묻는다(app/api/nutrition/search). 표준값(품목대표)은 서버에 넣어 둔 것이라 바로 오고,
+   * 상품까지 든 결과는 포털을 거쳐 1~13초 뒤에 온다 — 먼저 온 것을 보여 주다가 다 오면 바꿔 끼운다
+   * (full). 포털이 끝내 답하지 않으면 먼저 온 것을 그대로 둔다.
+   */
+  const [remote, setRemote] = useState<{ q: string; foods: Food[]; full: boolean }>({
     q: '',
     foods: [],
+    full: true,
   });
   useEffect(() => {
     if (!mfds || !q) return;
     const ctrl = new AbortController();
-    const timer = window.setTimeout(async () => {
-      try {
-        const res = await fetch(`/api/nutrition/search?q=${encodeURIComponent(q)}`, {
+    const ask = async (part: '' | '&part=reps') => {
+      const res = await fetch(
+        `/api/nutrition/search?q=${encodeURIComponent(q)}${part}`,
+        {
           signal: ctrl.signal,
+        }
+      );
+      const json = (await res.json()) as { foods?: Food[] };
+      return Array.isArray(json.foods) ? json.foods : [];
+    };
+    const timer = window.setTimeout(() => {
+      let done = false; // 상품까지 든 결과가 왔다 — 늦게 온 표준값이 덮어쓰지 않는다
+      let failed = false; // 그 요청이 실패했다 — 뒤에 온 표준값은 기다림 표시 없이 보인다
+      ask('&part=reps')
+        .then(
+          (foods) =>
+            !done &&
+            /* 같은 말로 돌아왔을 때 이미 다 와 있던 목록을 표준값만으로 되돌리지 않는다 */
+            setRemote((r) =>
+              r.q === q && r.full && r.foods.length > 0 ? r : { q, foods, full: failed }
+            )
+        )
+        .catch(() => {});
+      ask('')
+        .then((foods) => {
+          done = true;
+          setRemote({ q, foods, full: true });
+        })
+        .catch(() => {
+          if (ctrl.signal.aborted) return;
+          failed = true;
+          setRemote((r) =>
+            r.q === q ? { ...r, full: true } : { q, foods: [], full: true }
+          );
         });
-        const json = (await res.json()) as { foods?: Food[] };
-        setRemote({ q, foods: Array.isArray(json.foods) ? json.foods : [] });
-      } catch {
-        if (!ctrl.signal.aborted) setRemote({ q, foods: [] });
-      }
     }, 280);
     return () => {
       window.clearTimeout(timer);
       ctrl.abort();
     };
   }, [q, mfds]);
-  const remoteLoading = mfds && q !== '' && remote.q !== q;
   const remoteFoods = remote.q === q ? remote.foods : [];
+  /* 아직 다 안 왔다 — 아무것도 안 왔거나, 표준값만 오고 상품을 기다리는 중 */
+  const remoteLoading = mfds && q !== '' && (remote.q !== q || !remote.full);
 
   const myFoods = useMemo(
     () => mine.filter((f) => !gone.has(f.id ?? '')),
@@ -602,6 +637,8 @@ function FoodRow({
   const open = openKey === key;
   /* 인기 순위에서 온 음식이면 순위와 횟수가 붙어 있다 */
   const ranked = 'rank' in food ? (food as RankedFood) : null;
+  /* 식약처 '수집' 자료는 탄수화물 · 지방이 비어 오는 일이 많다 — 담기 전에 보이게 */
+  const missing = missingMacros(food);
   /* 지우기는 두 번 눌러야 한다 — 직접 만든 음식은 되살릴 길이 없다 */
   const [confirm, setConfirm] = useState(false);
   const [flash, setFlash] = useState(0);
@@ -663,6 +700,7 @@ function FoodRow({
                 : food.note && !hideNote
                   ? ` · ${food.note}`
                   : ''}
+              {missing.length > 0 ? ` · ${missingText(missing)}` : ''}
             </span>
           </span>
           <span className="shrink-0 text-sm tabular-nums text-ink">
@@ -773,23 +811,33 @@ function SearchResults({
   onCustom: (food: Food, save: boolean) => void;
 }) {
   const nothing = local.length === 0 && remote.length === 0 && !remoteLoading;
+  /* 표준값이 먼저 와 있으면 그 밑에서 상품을 기다린다 — 줄 수를 줄여 '더 오는 중'으로 읽히게 */
+  const waiting = remote.length > 0 ? [0, 1] : [0, 1, 2];
   return (
     <div className="space-y-4">
       {local.length > 0 && <FoodList foods={local} />}
 
       {mfds && (remoteLoading || remote.length > 0) && (
-        <section className="space-y-1">
+        <section className="space-y-1" aria-busy={remoteLoading}>
           <h3 className="px-1 text-xs font-semibold text-muted">
             식약처 식품영양성분DB
           </h3>
-          {remoteLoading ? (
-            <div aria-busy="true" className="space-y-2 py-1">
-              {[0, 1, 2].map((i) => (
-                <div key={i} className="h-11 animate-pulse rounded-xl bg-surface-2" />
+          {remote.length > 0 && <FoodList foods={remote} />}
+          {remoteLoading && (
+            <div className="motion-safe:animate-fade-in space-y-2 py-1">
+              {remote.length > 0 && (
+                <p role="status" className="px-1 text-[11px] text-muted/80">
+                  상품을 더 찾는 중…
+                </p>
+              )}
+              {waiting.map((i) => (
+                <div
+                  key={i}
+                  aria-hidden
+                  className="h-11 animate-pulse rounded-xl bg-surface-2"
+                />
               ))}
             </div>
-          ) : (
-            <FoodList foods={remote} />
           )}
         </section>
       )}
@@ -944,15 +992,33 @@ function PickFood({ food, onAdd }: { food: Food; onAdd: (amount: number) => void
         </div>
         <div>
           <dt className="text-[11px] text-muted">탄수화물</dt>
-          <dd className="text-sm font-semibold text-ink">{gramText(got.carbs)}g</dd>
+          <dd className="text-sm font-semibold text-ink">
+            {food.carbs === null ? (
+              <span className="text-muted">정보 없음</span>
+            ) : (
+              `${gramText(got.carbs)}g`
+            )}
+          </dd>
         </div>
         <div>
           <dt className="text-[11px] text-muted">단백질</dt>
-          <dd className="text-sm font-semibold text-ink">{gramText(got.protein)}g</dd>
+          <dd className="text-sm font-semibold text-ink">
+            {food.protein === null ? (
+              <span className="text-muted">정보 없음</span>
+            ) : (
+              `${gramText(got.protein)}g`
+            )}
+          </dd>
         </div>
         <div>
           <dt className="text-[11px] text-muted">지방</dt>
-          <dd className="text-sm font-semibold text-ink">{gramText(got.fat)}g</dd>
+          <dd className="text-sm font-semibold text-ink">
+            {food.fat === null ? (
+              <span className="text-muted">정보 없음</span>
+            ) : (
+              `${gramText(got.fat)}g`
+            )}
+          </dd>
         </div>
       </dl>
 

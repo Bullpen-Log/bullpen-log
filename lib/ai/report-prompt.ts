@@ -7,7 +7,7 @@ import {
   type DayPlan,
   type PitchPlan,
 } from '@/lib/report/plan';
-import { summarizeParts } from '@/lib/checkin';
+import { formatSleepHours, sorenessWord, summarizeParts } from '@/lib/checkin';
 
 /**
  * 리포트 프롬프트와 검사 규칙.
@@ -229,8 +229,14 @@ export function buildUserPrompt(
     lines.push(`- 평균 컨디션: ${condition.avgCondition?.toFixed(1)} / 10 (10이 최상)`);
     lines.push(`- 수면 부족한 날: ${condition.poorSleepDays}일`);
     if (condition.today) {
+      /* 잔 시간 · 전신 근육통은 적은 날만 붙인다. 시간은 소수로, 근육통은 숫자 없이 말로 */
+      const soreness = sorenessWord(condition.today.soreness);
+      const body =
+        (condition.today.sleepHours != null
+          ? `, 잔 시간 ${formatSleepHours(condition.today.sleepHours)}`
+          : '') + (soreness ? `, 전신 근육통 '${soreness}'` : '');
       lines.push(
-        `- 오늘: ${summarizeParts(condition.today)}, 컨디션 ${condition.today.condition}/10, 수면 ${condition.today.sleep}`
+        `- 오늘: ${summarizeParts(condition.today)}, 컨디션 ${condition.today.condition}/10, 수면 ${condition.today.sleep}${body}`
       );
     }
   } else {
