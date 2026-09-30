@@ -2,7 +2,7 @@ import 'server-only';
 import { cache } from 'react';
 import { redirect } from 'next/navigation';
 import { prisma } from '@/lib/prisma';
-import { getSession } from '@/lib/session';
+import { getSession, passwordFingerprint } from '@/lib/session';
 
 /**
  * 현재 로그인한 사용자를 반환한다. 로그인하지 않았으면 null.
@@ -39,10 +39,19 @@ export const getCurrentUser = cache(async () => {
       trainingLevel: true,
       trainingGoal: true,
       trainingFocus: true,
+      /* 표의 비밀번호 지문과 견주는 데만 쓴다 — 돌려주지 않는다(아래) */
+      password: true,
     },
   });
+  if (!user) return null;
 
-  return user;
+  const { password, ...rest } = user;
+  /*
+   * 비밀번호를 바꾸면 그 전에 받은 표(다른 기기의 로그인)는 끝난다 — 지문이 다르다. 지문이 없는 옛 표는 기한까지
+   * 통한다(lib/jwt.ts SessionPayload.pw).
+   */
+  if (session.pw && session.pw !== passwordFingerprint(password)) return null;
+  return rest;
 });
 
 /** 로그인이 필요한 페이지에서 사용. 비로그인 시 /login으로 보낸다. */

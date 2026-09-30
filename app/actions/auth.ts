@@ -5,7 +5,12 @@ import bcrypt from 'bcryptjs';
 import { prisma } from '@/lib/prisma';
 import { getCurrentUser } from '@/lib/dal';
 import { deleteUserFiles, deleteVideos } from '@/lib/storage';
-import { createSession, deleteSession } from '@/lib/session';
+import {
+  createSession,
+  deleteSession,
+  getSession,
+  passwordFingerprint,
+} from '@/lib/session';
 import { isSex, validateProfile, type Sex } from '@/lib/profile';
 import { validateBaseline } from '@/lib/baseline';
 import { readTrainingProfile } from '@/lib/report/personalize';
@@ -149,11 +154,12 @@ async function trySignup(formData: FormData): Promise<AuthState> {
   const adminEmail = process.env.ADMIN_EMAIL?.trim().toLowerCase();
   const role = adminEmail && email === adminEmail ? 'ADMIN' : 'USER';
 
+  const passwordHash = await bcrypt.hash(password, 10);
   const user = await prisma.user.create({
     data: {
       email,
       nickname,
-      password: await bcrypt.hash(password, 10),
+      password: passwordHash,
       role,
       ...profile.value,
       sex,
@@ -163,7 +169,11 @@ async function trySignup(formData: FormData): Promise<AuthState> {
     select: { id: true, role: true },
   });
 
-  await createSession({ userId: user.id, role: user.role });
+  await createSession({
+    userId: user.id,
+    role: user.role,
+    pw: passwordFingerprint(passwordHash),
+  });
   redirect('/today');
 }
 
@@ -203,7 +213,10 @@ async function tryLogin(formData: FormData): Promise<AuthState> {
    */
   const stayLoggedIn = formData.get('stayLoggedIn') != null;
 
-  await createSession({ userId: user.id, role: user.role }, stayLoggedIn);
+  await createSession(
+    { userId: user.id, role: user.role, pw: passwordFingerprint(user.password) },
+    stayLoggedIn
+  );
   redirect('/today');
 }
 
@@ -260,12 +273,22 @@ export async function changePassword(
     return { error: '지금 비밀번호가 맞지 않습니다.' };
   }
 
+  const nextHash = await bcrypt.hash(next, 10);
   await prisma.user.update({
     where: { id: user.id },
-    data: { password: await bcrypt.hash(next, 10) },
+    data: { password: nextHash },
   });
+  /*
+   * 이 기기의 로그인은 새 비밀번호의 지문으로 다시 만든다 — 다른 기기에 남은 로그인(옛 지문)은 여기서 끝난다
+   * (lib/dal.ts getCurrentUser). 자동 로그인이었으면 그대로 자동 로그인으로.
+   */
+  const session = await getSession();
+  await createSession(
+    { userId: user.id, role: user.role, pw: passwordFingerprint(nextHash) },
+    session?.persistent ?? true
+  );
 
-  return { success: '비밀번호를 바꿨습니다.' };
+  return { success: '비밀번호를 바꿨습니다. 다른 기기의 로그인은 풀립니다.' };
 }
 
 /**
