@@ -171,6 +171,26 @@ export async function createStage(
    * 스크롤에 돌려준다 — 3D 가 화면을 크게 차지해도 쓸어서 내려갈 수 있게. 좌우로 끌면 돈다.
    */
   renderer.domElement.style.touchAction = 'pan-y';
+  /*
+   * PC 마우스 휠도 화면 스크롤에 돌려준다 — 휠이 3D 위를 지나가면 스크롤이 멈추고 모델이 커졌다.
+   * 확대는 Ctrl + 휠(노트북 터치패드의 두 손가락 벌리기도 이것으로 온다). OrbitControls 보다 먼저
+   * 듣고(같은 요소의 capture 는 bubble 보다 먼저), 그 뒤에 다시 켠다 — 손가락 벌리기 · 가운데 단추
+   * 끌기도 enableZoom 을 보므로 휠 밖에서는 늘 켜 둔다.
+   */
+  renderer.domElement.addEventListener(
+    'wheel',
+    (e) => {
+      controls.enableZoom = e.ctrlKey;
+    },
+    { capture: true, passive: true }
+  );
+  renderer.domElement.addEventListener(
+    'wheel',
+    () => {
+      controls.enableZoom = true;
+    },
+    { passive: true }
+  );
 
   const root = gltf.scene.clone(true);
   /*

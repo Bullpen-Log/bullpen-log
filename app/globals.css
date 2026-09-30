@@ -675,10 +675,11 @@ input[type='date']::-webkit-calendar-picker-indicator {
 ::view-transition-new(.page) {
   animation: 150ms ease-out 40ms both page-fade;
 }
+/* 틀(group)은 움직이지 않는다 — 멀리 내려간 화면에서 탭을 바꾸면 Next 가 이 전환 안에서 맨 위로
+   굴려, 틀이 옛 자리(위로 수천 px)에서 날아 내려왔다. 옛 · 새 그림의 옅어지기만 남긴다. */
 ::view-transition-group(app-main),
 ::view-transition-group(.page) {
-  animation-duration: 190ms;
-  animation-timing-function: cubic-bezier(0.32, 0.72, 0, 1);
+  animation: none;
 }
 
 /*
@@ -1948,4 +1949,36 @@ html[data-app='native'] body:not(:has([data-safe-area]))::before {
    칸이 덮고 있어 찾아간 머리가 그 밑에 숨었다. 칸마다 단 scroll-mt-20(위 막대 몫)에 더해진다. */
 html[data-app='native'] {
   scroll-padding-top: env(safe-area-inset-top);
+}
+
+/* 창(<dialog> showModal)이 열린 동안 뒤 페이지를 잠근다 — 어두운 바깥을 끌거나 창 안을 끝까지 굴리면
+   뒤 페이지가 굴러가, 닫고 나면 다른 자리였다(투구 기록 팝업은 닫을 때 한 번 더 튐). body 가 아니라
+   html 이다: html 이 overflow-x: clip 이라 body 의 overflow 는 화면 스크롤에 안 먹는다.
+   gutter 는 PC 스크롤 막대(10px)가 사라지며 뒤 화면이 옆으로 밀리지 않게. */
+html:has(dialog:modal) {
+  overflow: hidden;
+  scrollbar-gutter: stable;
+}
+
+/* 손가락 화면에서 글자를 치는 동안 하단 탭을 숨긴다 — 아이폰은 자판이 올라와도 화면 높이가 그대로라
+   탭이 자판 위 · 화면 가운데에 떠서 입력칸을 가렸다 */
+@media (pointer: coarse) {
+  html:has(
+      :is(
+          input:not(
+              [type='checkbox'],
+              [type='radio'],
+              [type='range'],
+              [type='button'],
+              [type='submit'],
+              [type='file'],
+              [type='color']
+            ),
+          textarea,
+          [contenteditable='true']
+        ):focus
+    )
+    [data-mobile-tabs] {
+    display: none;
+  }
 }

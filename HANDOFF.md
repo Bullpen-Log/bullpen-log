@@ -24,6 +24,16 @@ Claude 로 작업을 시작하면 저절로 읽힌다. 규칙은 `AGENTS.md` 6�
 - 다크 테마: 체크인 '통증' 칩 · 업로드 오류 · 영상 비교 'B' 표시를 테마 색(danger · surface)으로.
 - 투구 기록 폼: 투구수 `inputMode="numeric"`, 구속 `decimal`(아이폰이 숫자판 대신 전체 자판을 열었다).
 
+**스크롤** — 네 영역인 앱 틀 · globals.css 를 건드렸다:
+- 창이 열린 동안 뒤 페이지 잠금: `html:has(dialog:modal){overflow:hidden}`(globals.css). 예전엔 바깥을 끌면 뒤가 굴러갔다.
+  **body 가 아니라 html** — html 이 `overflow-x: clip` 이라 body 의 overflow 는 화면 스크롤에 안 먹는다. 영상 '크게 보기'
+  (`pitch-video-player.tsx` · `compare-view.tsx`)의 body 잠금이 그래서 아무 일도 안 했다 → html 로 바꿈.
+- `::view-transition-group(app-main | .page)` 애니메이션 없앰 — 멀리 내려간 화면에서 탭을 바꾸면 Next 가 전환 안에서 맨 위로
+  굴려 틀이 위에서 날아 내려왔다. 옅어지기는 그대로.
+- 위 막대 숨김: 화면이 바뀌면 다시 보이고, 사파리 끝 고무줄 튕김을 올림으로 안 읽는다(`useHideOnScroll`).
+- 손가락 화면에서 글자 칸에 초점이 있으면 하단 탭을 숨긴다(`[data-mobile-tabs]`) — 자판 위에 떠서 칸을 가렸다.
+- 홈 기간 설정 '끝' 달력이 줄바꿈되면 왼쪽으로 편다(화면 밖으로 잘렸다) · 영상 눌러 재생할 때 화면 튐(`focus({preventScroll})`).
+
 ## 금윤호에게 — 2026-09-30 · 김민(Claude) — 앱 틀 · 팝업 손질(네 영역)
 
 받은 뒤 할 일 없음.

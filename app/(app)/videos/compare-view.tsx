@@ -270,12 +270,14 @@ export function CompareView({
     };
     document.addEventListener('keydown', onKey);
 
-    const previous = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
+    /* body 가 아니라 html 을 잠근다 — html 이 overflow-x: clip 이라 body 의 overflow 는 화면 스크롤에 안 먹는다 */
+    const root = document.documentElement;
+    const previous = root.style.overflow;
+    root.style.overflow = 'hidden';
 
     return () => {
       document.removeEventListener('keydown', onKey);
-      document.body.style.overflow = previous;
+      root.style.overflow = previous;
     };
   }, [expanded]);
 

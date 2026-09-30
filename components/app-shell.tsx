@@ -2258,6 +2258,14 @@ function MobileTopBar({
  */
 function useHideOnScroll(locked: boolean) {
   const [hidden, setHidden] = useState(false);
+  /* 다른 화면으로 가면 다시 보인다 — 새 화면이 굴린 자리(56~80px)를 그대로 받으면 스크롤이 안 일어나
+     숨은 채 남고 첫 줄이 잘렸다 */
+  const pathname = usePathname();
+  const [shownFor, setShownFor] = useState(pathname);
+  if (shownFor !== pathname) {
+    setShownFor(pathname);
+    setHidden(false);
+  }
 
   useEffect(() => {
     if (locked) return;
@@ -2267,7 +2275,9 @@ function useHideOnScroll(locked: boolean) {
       if (frame) return;
       frame = requestAnimationFrame(() => {
         frame = 0;
-        const y = window.scrollY;
+        /* 끝에서 튕겼다 돌아오는 것(사파리 고무줄)을 올림으로 읽지 않게 굴릴 수 있는 범위로 자른다 */
+        const max = document.documentElement.scrollHeight - window.innerHeight;
+        const y = Math.min(Math.max(window.scrollY, 0), Math.max(max, 0));
         if (y < 56) {
           setHidden(false);
           last = y;
@@ -2350,6 +2360,7 @@ function MobileTabs({
     <nav
       /* 본문이 바뀌는 동안 탭바는 움직이지 않는다. */
       style={{ viewTransitionName: 'shell-tabbar' }}
+      data-mobile-tabs
       className="fixed inset-x-0 bottom-0 z-50 border-t border-line bg-surface pb-[env(safe-area-inset-bottom)] desk:hidden"
     >
       <div className="flex">

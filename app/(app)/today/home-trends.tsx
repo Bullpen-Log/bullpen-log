@@ -571,6 +571,8 @@ function RangeEnd({
   onPick: (day: string) => void;
 }) {
   const [open, setOpen] = useState(false);
+  /* 판을 펴는 쪽 — 끝 칸이 줄바꿈돼 왼쪽 끝에 오면 오른쪽 맞춤 판이 화면 왼쪽 밖으로 나간다 */
+  const [side, setSide] = useState(align);
   const box = useRef<HTMLSpanElement>(null);
 
   useEffect(() => {
@@ -593,7 +595,13 @@ function RangeEnd({
     <span ref={box} className="relative">
       <button
         type="button"
-        onClick={() => setOpen((o) => !o)}
+        onClick={() => {
+          const r = box.current?.getBoundingClientRect();
+          /* 판 폭 18.5rem 을 버튼 오른쪽 끝에서 왼쪽으로 펼 자리가 없으면 왼쪽에 맞춘다 */
+          const fits = r ? r.right - 18.5 * 16 >= 8 : true;
+          setSide(align === 'right' && !fits ? 'left' : align);
+          setOpen((o) => !o);
+        }}
         aria-expanded={open}
         aria-haspopup="dialog"
         aria-label={`${label} ${spokenDay(value)} — 다른 날 고르기`}
@@ -615,7 +623,7 @@ function RangeEnd({
           role="dialog"
           aria-label={`${label} 고르기`}
           className={`motion-safe:animate-fade-in absolute top-full z-30 mt-2 w-[18.5rem] rounded-2xl border border-line bg-surface p-3 shadow-lg ${
-            align === 'left' ? 'left-0 origin-top-left' : 'right-0 origin-top-right'
+            side === 'left' ? 'left-0 origin-top-left' : 'right-0 origin-top-right'
           }`}
         >
           <MiniCalendar
