@@ -132,6 +132,20 @@
 - **서버 액션을 부르는 저장 단추는 `orOffline`(`lib/action-offline.ts`)으로, 폼 action 은 `guardFormAction` 으로 감싼다**(김민,
   2026-09-30). 신호가 끊겨 서버 액션이 던지면 전환 · useActionState 가 오류 화면으로 가서 적던 것이 통째로 사라졌다(가입 일곱 단계 ·
   체크인 · 영양). 감싸면 한 줄 오류로 남는다. 구속 측정 저장은 try/catch + `unstable_rethrow` 로 같은 일을 한다.
+  `<form action={서버 동작}>` 을 새로 쓸 때는 `components/safe-form.tsx` 의 `SafeForm`(성공하면 redirect 그대로, 끊기면 폼 밑 한 줄).
+- **김민이 앱 틀에 넣은 것(2026-09-30, HANDOFF 에서 옮김) — 고칠 때 지킬 것.**
+  - 아이폰 앱의 시작 연출은 앱 안(Swift `MainViewController`)이 한다. 사이트는 첫 화면을 그리면 `lib/native-app.ts` 가
+    `bullpenIntro` 에 'ready' 를 보낸다 — 이게 안 가면 연출 판이 10초까지 사이트를 가린다. **뿌리 레이아웃 · 첫 스크립트를 고칠 때
+    이 알림을 지킨다.**
+  - 창이 열린 동안 뒤 화면 잠금은 `html:has(dialog:modal){overflow:hidden}` — **body 가 아니라 html**(html 이
+    `overflow-x: clip` 이라 body 의 overflow 는 화면 스크롤에 안 먹는다).
+  - 폰에서 누르는 자리: 창 닫기 ✕ 44px(`components/modal.tsx`), `Segmented` 칸 `min-h-10 desk:min-h-0`(칩 40px 규칙).
+    새 오류 줄은 `components/error-line.tsx`(뜨면 그 칸이 보이게 굴려 온다). 숫자 칸은 `inputMode="numeric"` · `"decimal"`.
+  - 떨림은 `lib/haptics.ts` 의 `buzz`(아이폰 앱은 `@capacitor/haptics`). 구속 측정 화면(`velocity-screen.tsx`)의
+    `navigator.vibrate` 는 아직 그대로다 — `buzz` 로 바꾸면 앱에서도 떨린다(내 파일이라 김민이 안 건드렸다).
+  - 비밀번호를 바꾸면 다른 기기 로그인이 풀린다(로그인 표의 비밀번호 지문 `pw`). 투구 기록은 2분 안 같은 값이면 새로 안 만든다.
+  - `/velocity` 최근 세션 줄 → `/pitch-log/<날짜>` 가 (app) 의 가로채는 경로에 잡혀 빈 화면 위에 팝업이 뜬다(안 고침, 구속 쪽 일).
+  - `mobile/` 에서 작업할 때만 `cd mobile && npm ci`(패키지가 바뀌었다).
 - **카메라 <video> 는 늘 같은 자리에 그린다.** 같은 JSX 조각이라도 부모가 다르면(단계마다 다른 틀) React 가 새 <video> 를
   만들어 카메라 스트림이 끊긴다(측정 화면이 까맸던 까닭). 구속 측정은 카메라 단계를 '카메라 무대' 하나로 두어 뷰파인더를
   같은 자리에 둔다. LiveCapture 는 처음 받은 <video> 를 붙들고 있어 캔버스 길 · 렌즈 보정 사진도 같이 죽는다.
