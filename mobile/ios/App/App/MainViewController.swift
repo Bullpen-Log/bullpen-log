@@ -74,12 +74,14 @@ final class IntroOverlay: UIView {
     private static let paper = UIColor(red: 244 / 255, green: 247 / 255, blue: 251 / 255, alpha: 1)
     private static let brand = UIColor(red: 2 / 255, green: 151 / 255, blue: 228 / 255, alpha: 1)
 
-    // 움직임의 때(초) — 앱이 보인 뒤부터
-    private static let markStart: TimeInterval = 0.1
-    private static let markDuration: TimeInterval = 0.8
-    private static let wordStart: TimeInterval = 0.55
-    private static let wordDuration: TimeInterval = 0.9
-    private static let settleAt: TimeInterval = 1.8
+    // 움직임의 때(초) — 앱이 보인 뒤부터. 처음 큰 B 를 0.4초 보인 뒤 움직이고, 움직임은 조금 느긋하게
+    // (2026-09-30 사용자: "아주 조금만 느리게, 처음 B 도 조금만 더 길게" — 예전 0.1 · 0.8 · 0.55 · 0.9 · 1.8 · 걷힘 0.45)
+    private static let markStart: TimeInterval = 0.4
+    private static let markDuration: TimeInterval = 1.0
+    private static let wordStart: TimeInterval = 0.95
+    private static let wordDuration: TimeInterval = 1.1
+    private static let settleAt: TimeInterval = 2.45
+    private static let leaveDuration: TimeInterval = 0.55
     /// 사이트가 끝내 알려 오지 않아도 이때는 걷는다 — 판이 사이트를 가린 채 남지 않게
     private static let giveUpAt: TimeInterval = 10
 
@@ -263,7 +265,7 @@ final class IntroOverlay: UIView {
         guard settled, ready, !leaving else { return }
         leaving = true
         isUserInteractionEnabled = false
-        UIView.animate(withDuration: 0.45, delay: 0, options: [.curveEaseIn], animations: {
+        UIView.animate(withDuration: Self.leaveDuration, delay: 0, options: [.curveEaseIn], animations: {
             self.alpha = 0
             self.stage.transform = CGAffineTransform(scaleX: 1.06, y: 1.06)
         }, completion: { _ in
