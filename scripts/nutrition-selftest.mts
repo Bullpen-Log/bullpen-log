@@ -24,7 +24,21 @@ import {
 } from '../lib/nutrition/foods.ts';
 import { itemsOf, toFood } from '../lib/nutrition/mfds-parse.ts';
 import { isNutritionDate } from '../lib/nutrition/days.ts';
-import { amountText, scaleMacros } from '../lib/nutrition/meta.ts';
+import {
+  amountText,
+  macroGaps,
+  missingMacros,
+  missingText,
+  scaleMacros,
+  type MealEntryView,
+} from '../lib/nutrition/meta.ts';
+import { ageBand, effectiveGoal, effectiveProtein } from '../lib/nutrition/age.ts';
+import {
+  gradeText,
+  levelAgeProblem,
+  levelFit,
+  normalizeLevel,
+} from '../lib/baseline.ts';
 
 let passed = 0;
 let failed = 0;
@@ -284,6 +298,106 @@ console.log('\n■ 날짜와 양');
   check(
     '모르는 영양소는 0 으로 더한다',
     m.kcal === 150 && m.carbs === 0 && m.protein === 15
+  );
+}
+
+console.log('\n■ 모르는 영양소 표시');
+{
+  check(
+    '탄·지가 비면 둘을 짚는다',
+    missingMacros({ carbs: null, protein: 26, fat: null }).join() === 'carbs,fat'
+  );
+  check("'탄·지 모름'", missingText(['carbs', 'fat']) === '탄·지 모름');
+  const e = (
+    carbs: number | null,
+    protein: number | null,
+    fat: number | null
+  ): MealEntryView => ({
+    id: 'x',
+    meal: 'lunch',
+    name: 'x',
+    source: 'mfds',
+    sourceId: 'x',
+    servingLabel: null,
+    servingGrams: null,
+    amount: 1,
+    kcal: 100,
+    carbs,
+    protein,
+    fat,
+  });
+  const g = macroGaps([e(10, 5, 1), e(null, 26, null), e(null, 3, null)]);
+  check(
+    '하루 합계에서 빠진 음식 수',
+    g.foods === 2 && g.carbs === 2 && g.fat === 2 && g.protein === 0
+  );
+}
+
+console.log('\n■ 나이에 맞춘 영양 기준');
+{
+  check(
+    '만 12세 어린이 · 13세 성장기 · 18세 성인',
+    ageBand(12) === 'child' && ageBand(13) === 'teen' && ageBand(18) === 'adult'
+  );
+  check('나이를 모르면 성인', ageBand(null) === 'adult');
+  check(
+    '18세 밑은 Schofield — 남 65kg 15세 = 1808',
+    Math.round(basalKcal(65, 170, 15, 'M')) === 1808
+  );
+  check(
+    '18세부터 Mifflin — 남 65kg 170cm 18세 = 1628',
+    Math.round(basalKcal(65, 170, 18, 'M')) === 1628
+  );
+  check(
+    '안 정한 단백질은 나이 기본값',
+    effectiveProtein(null, 15) === 1.5 &&
+      effectiveProtein(null, 11) === 1.2 &&
+      effectiveProtein(null, 25) === 1.8
+  );
+  check('성장기는 1.8 을 넘지 않는다', effectiveProtein(2.2, 15) === 1.8);
+  check('성인은 정한 값 그대로', effectiveProtein(2.2, 25) === 2.2);
+  check(
+    '어린이 감량은 유지로 셈한다',
+    effectiveGoal('lose', 11) === 'maintain' && effectiveGoal('lose', 15) === 'lose'
+  );
+  const body15 = { weightKg: 65, heightCm: 172, age: 15, sex: 'M' as const };
+  const keep = computeTargets(DEFAULT_PROFILE, body15, 0);
+  const lose = computeTargets({ ...DEFAULT_PROFILE, goal: 'lose' }, body15, 0);
+  check(
+    '성장기 감량은 하루 −200kcal',
+    keep.base - lose.base === 200,
+    `${keep.base} → ${lose.base}`
+  );
+}
+
+console.log('\n■ 소속과 생년월일');
+{
+  const T = '2026-09-30';
+  check(
+    '2011년생은 2026년 가을에 중3',
+    gradeText(levelFit('2011-05-01', T).grade!) === '중학교 3학년'
+  );
+  check(
+    '1·2월은 지난 학년도',
+    gradeText(levelFit('2011-01-15', '2026-02-10').grade!) === '중학교 2학년'
+  );
+  const mid = levelFit('2011-05-01', T);
+  check(
+    '중3 나이 — 중학교를 먼저, 고등학교까지',
+    mid.suggested === '중학교' && mid.allowed.join() === '중학교,고등학교'
+  );
+  const adult = levelFit('1990-01-01', T);
+  check(
+    '어른 — 학교는 못 고르고 먼저 고르지 않는다',
+    adult.suggested === null && !adult.allowed.includes('고등학교')
+  );
+  check('생년월일을 모르면 모두 고를 수 있다', levelFit(null, T).allowed.length === 7);
+  check('중3 나이에 프로는 막는다', levelAgeProblem('프로', '2011-05-01', T) !== null);
+  check('어른의 사회인은 통과', levelAgeProblem('사회인', '1990-01-01', T) === null);
+  check(
+    '예전 값은 옮겨 읽는다',
+    normalizeLevel('사회인·동호회') === '사회인' &&
+      normalizeLevel('실업·프로') === '프로'
   );
 }
 
