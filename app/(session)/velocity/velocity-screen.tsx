@@ -8,6 +8,7 @@ import {
   useSyncExternalStore,
   useTransition,
 } from 'react';
+import { flushSync } from 'react-dom';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import {
@@ -144,6 +145,9 @@ import {
 
 export type Step = 'type' | 'mode' | 'camera' | 'net' | 'align' | 'zone' | 'measure' | 'lens';
 
+/** 카메라(뷰파인더)가 필요한 단계 — 들어오면 카메라를 켠다 */
+const CAMERA_STEPS: ReadonlySet<Step> = new Set<Step>(['align', 'zone', 'measure', 'lens']);
+
 /* 내비게이션 바의 뒤로 — 어느 단계에서 어디로, 무슨 이름으로. 없으면 '투구 기록'(나가기) */
 const BACK_OF: Partial<Record<Step, { to: Step; label: string }>> = {
   mode: { to: 'type', label: '종류' },
@@ -240,6 +244,8 @@ export function VelocityScreen({
   const videoRef = useRef<HTMLVideoElement>(null);
   const finderRef = useRef<HTMLDivElement>(null);
   const captureRef = useRef<LiveCapture | null>(null);
+  /* 카메라를 저절로 켠 단계 — 한 단계에 한 번만(아래 안전장치 효과) */
+  const autoStartedFor = useRef<Step | null>(null);
   const pitchesRef = useRef<LocalPitch[]>([]);
   const fileRef = useRef<HTMLInputElement>(null);
 
@@ -429,6 +435,11 @@ export function VelocityScreen({
 
   const startCamera = async () => {
     const video = videoRef.current;
+    /*
+     * 뷰파인더(<video>)는 카메라 단계(수평 · 존 · 측정 · 렌즈)에서만 그려진다. 단계를 바꾸는 누름 안에서 부를 때는
+     * flushSync 로 먼저 그린 뒤 부른다(enterCameraStep) — 예전에는 그리기 전에 불려 여기서 조용히 끝나, 카메라가
+     * 안 켜지고 '카메라 다시 켜기' 단추만 남았다(웹 · 앱 모두, 2026-09-30 사용자).
+     */
     if (!video) return;
     setError(null);
     setLast(null);
@@ -473,19 +484,30 @@ export function VelocityScreen({
   const openTips = () => {
     if (!isTipsSkippedToday(today)) setTipsOpen(true);
   };
+  /*
+   * 카메라 단계로 들어가며 카메라를 켠다 — 상태 바꾸기를 flushSync 로 바로 그려 <video> 가 붙은 뒤, 같은 누름 안에서
+   * 켠다(아이폰은 카메라 권한 창 · 영상 재생을 사용자의 누름에 붙여 두는 편이 안전하다).
+   */
+  const enterCameraStep = (target: Step, apply: () => void) => {
+    /* 안전장치 효과가 같은 단계에서 한 번 더 켜지 않게 먼저 적어 둔다(flushSync 안에서 효과가 돌 수 있다) */
+    autoStartedFor.current = target;
+    flushSync(apply);
+    void startCamera();
+  };
   const usePrevious = () => {
     if (!stored) return;
-    setChoices({ mode: stored.mode, cameraPos: stored.cameraPos, net: stored.net });
-    setSessionType(stored.sessionType);
-    setZone(stored.zone);
-    setVoice(stored.voice);
-    setUseCal(stored.useCal);
-    setReleaseDistM(stored.releaseDistM);
-    setAutoMode(stored.autoMode);
-    setCalibSave(stored.calibSave);
-    setDecided(true);
-    setStep('align');
-    void startCamera();
+    enterCameraStep('align', () => {
+      setChoices({ mode: stored.mode, cameraPos: stored.cameraPos, net: stored.net });
+      setSessionType(stored.sessionType);
+      setZone(stored.zone);
+      setVoice(stored.voice);
+      setUseCal(stored.useCal);
+      setReleaseDistM(stored.releaseDistM);
+      setAutoMode(stored.autoMode);
+      setCalibSave(stored.calibSave);
+      setDecided(true);
+      setStep('align');
+    });
     openTips();
   };
   const startFresh = () => {
@@ -493,8 +515,7 @@ export function VelocityScreen({
     setStep('type');
   };
   const goAlign = () => {
-    setStep('align');
-    void startCamera();
+    enterCameraStep('align', () => setStep('align'));
     openTips();
   };
   const goZone = () => setStep('zone');
@@ -649,6 +670,21 @@ export function VelocityScreen({
   useEffect(() => {
     captureRef.current?.setFocalPerLongSide(focalRatio);
   }, [focalRatio]);
+  /*
+   * 안전장치 — 카메라가 필요한 단계에 들어왔는데 카메라가 없으면(관리자 점프 · 뒤로 · 다른 길) 들어올 때 한 번 저절로
+   * 켠다. 한 단계에 한 번뿐 — 권한을 거절했으면 되풀이하지 않고 '카메라 다시 켜기' 단추로 둔다.
+   */
+  useEffect(() => {
+    const needs = !showAsk && CAMERA_STEPS.has(step);
+    if (!needs) {
+      autoStartedFor.current = null;
+      return;
+    }
+    if (autoStartedFor.current === step || captureRef.current || !videoRef.current) return;
+    autoStartedFor.current = step;
+    void startCamera();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- 단계가 바뀔 때만 본다
+  }, [step, showAsk]);
   useEffect(() => {
     const el = finderRef.current;
     if (!el || typeof ResizeObserver === 'undefined') return;
