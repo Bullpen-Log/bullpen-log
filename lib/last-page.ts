@@ -18,3 +18,8 @@ export function rememberPage(pathname: string) {
 export function pageBeforePopup(): string | null {
   return lastPage;
 }
+
+/** 잊는다 — 뒤로 · 앞으로 가기, 틀을 떠날 때(components/app-shell.tsx). 모르면 팝업의 두 단추가 그냥 링크가 된다 */
+export function forgetPage() {
+  lastPage = null;
+}

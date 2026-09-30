@@ -11,6 +11,22 @@ Claude 로 작업을 시작하면 저절로 읽힌다. 규칙은 `AGENTS.md` 6�
 
 ---
 
+## 금윤호에게 — 2026-09-30 · 김민(Claude) — 앱 틀 · 팝업 손질(네 영역)
+
+받은 뒤 할 일 없음.
+
+- **팝업을 여는 동안 페이지 뼈대가 끼던 것**: Next 는 레이아웃의 `loading.tsx` 를 그 레이아웃의 모든 슬롯에 쓴다(node_modules/next
+  layout-router.js 의 TODO 주석). 그래서 투구 기록 팝업을 여는 1초 남짓 `(app)/loading.tsx` 뼈대가 `{modal}` 자리(위 막대와
+  본문 사이)에 끼어 화면을 밀었다. `{modal}` 을 `<div className="popup-slot contents">` 로 감싸 뼈대(aria-busy)는 숨기고, 기다리는
+  동안 화면 위에 가는 막대가 흐른다(globals.css `.popup-slot`). 알림 창 '기록하기'처럼 누른 단추가 사라지는 자리에서도 보인다.
+- `app-shell.tsx`: 설정(톱니) 저장 뒤 돌아갈 주소에 `?` 뒤까지(`useSearchParams`) — 암케어 보기 · 목록 보기 · 고른 날이 풀리던 것.
+  설정 저장 redirect 는 replace(같은 주소가 기록에 한 칸 더 쌓이던 것). 팝업의 '돌아가기' 기억(`lib/last-page.ts`)을 뒤로 · 앞으로
+  가기와 틀을 떠날 때 잊는다(`forgetPage`). 알림 창을 새로 열 때 '오늘 안 던졌어요' 실패 알림을 지운다.
+- `lib/theme.ts`: 다른 탭에서 테마를 바꾸면 이 탭의 `<html data-theme>` 도 칠한다.
+- **안 고침(구속 측정 쪽)**: `/velocity` 의 최근 세션 줄에서 `/pitch-log/<날짜>` 로 가면 (app) 의 가로채는 경로가 잡혀, 빈 (app)
+  화면 위에 팝업이 뜬다(`components/velocity/session-history.tsx`). 가로채지 않게 하려면 그 링크에 `scroll` 이 아니라 일반 이동
+  (`window.location` 또는 `<a>`)을 쓰거나 팝업 쪽에서 출발 화면을 가려야 한다.
+
 ## 금윤호에게 — 2026-09-30 · 김민(Claude) — 비밀번호 바꾸면 다른 기기 로그아웃 · 앱 진동
 
 받은 뒤 할 일: `mobile/` 에 패키지가 늘었다 — 앱 폴더에서 작업할 때만 `cd mobile && npm ci`. 뿌리 패키지 · DB 는 그대로.

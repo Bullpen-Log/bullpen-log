@@ -1895,6 +1895,44 @@ html[data-app='native'] body:not(:has([data-safe-area]))::before {
   pointer-events: none;
 }
 
+/*
+ * 투구 기록 팝업 자리(app/(app)/layout.tsx 의 popup-slot) — 팝업을 불러오는 동안.
+ *
+ * Next 는 레이아웃의 loading.tsx 를 그 레이아웃의 모든 자리(본문 · 팝업)에 쓴다. 그래서 팝업을 여는 1초 남짓 페이지
+ * 뼈대(aria-busy)가 팝업 자리 — 위 막대와 본문 사이 — 에 끼어 화면을 밀어냈다. 뼈대는 숨기고, 기다리는 줄 알게 화면 위에
+ * 가는 막대가 흐른다(알림 창의 '기록하기'처럼 누른 단추가 사라지는 자리에서도 보인다).
+ */
+.popup-slot > [aria-busy] {
+  display: none;
+}
+.popup-slot:has(> [aria-busy])::before {
+  content: '';
+  position: fixed;
+  z-index: 60;
+  top: env(safe-area-inset-top);
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: linear-gradient(90deg, transparent, var(--color-sky), transparent) no-repeat;
+  background-size: 40% 100%;
+  animation: popup-loading 900ms ease-in-out infinite;
+  pointer-events: none;
+}
+@keyframes popup-loading {
+  from {
+    background-position: -40% 0;
+  }
+  to {
+    background-position: 140% 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .popup-slot:has(> [aria-busy])::before {
+    animation: none;
+    background-size: 100% 100%;
+  }
+}
+
 /* 굴려서 무엇을 보이게 할 때(scrollIntoView · 입력칸 초점 · #주소) 시계 자리를 뺀다 — 그 자리는 늘 막대 색
    칸이 덮고 있어 찾아간 머리가 그 밑에 숨었다. 칸마다 단 scroll-mt-20(위 막대 몫)에 더해진다. */
 html[data-app='native'] {
