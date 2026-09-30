@@ -135,11 +135,12 @@
   `cd mobile && npm run assets`). 남은 일: 첫 빌드(TestFlight)를 폰에 깔았을 때 홈 화면 아이콘 · 시작 화면이 새 B
   인지 보고, 옛 공 그림이면 굽기 쪽이 파일을 덮어쓰는지 찾는다. 로고를 또 바꾸면 `components/logo.tsx` ·
   `scripts/make-icons.mjs` · `mobile/scripts/make-ios-assets.mjs` 셋을 같이 고친다.
-- **영양 탭 식약처 검색 — 키 승인 대기.** API `FoodNtrCpntDbInfo02`, 키는 환경변수 `FOOD_API_KEY`(사용자가 직접 넣는다).
-  2026-09-25 에 넣었지만 계속 403 `SERVICE_KEY_IS_NOT_REGISTERED_ERROR` 였다 — 공공데이터포털 마이페이지에서
-  활용신청 상태를 보게 한다. 사용자가 "키 넣었어"라고 하면 로그인 상태로 `/api/nutrition/search?q=쌀밥` 응답의
-  칸 번호(AMT_NUM1 kcal · 3 단백질 · 4 지방 · 6 탄수화물)가 맞는지 보고, 틀리면 `lib/nutrition/mfds-parse.ts` 를 고친다.
-  Vercel 환경변수에도 넣었는지 묻는다.
+- **영양 탭 식약처 검색 — 로컬은 됨, 배포 확인만 남음(2026-09-30).** 403 `SERVICE_KEY_IS_NOT_REGISTERED_ERROR`
+  의 원인은 키가 아니라 **옛 주소**였다 — 식약처가 2026-09 에 `FoodNtrCpntDbInfo02` 를 `FoodNtrCpntDbInfo03`
+  (`getFoodNtrCpntDbInq03`)으로 바꿨고, 사용자 키는 03 에서만 된다. `lib/nutrition/mfds.ts` 주소를 03 으로 고쳤다.
+  칸 번호(AMT_NUM1 kcal · 3 단백질 · 4 지방 · 6 탄수화물, Z10500 1회 중량)는 03 도 같다(쌀밥 100g 166kcal 로 확인).
+  남은 일: Vercel 환경변수에 `FOOD_API_KEY` 가 있는지(사용자가 넣는다), 배포 뒤 폰에서 검색되는지. 참고: '수집'
+  자료(프랜차이즈 등)는 원자료에 탄수화물 · 지방이 없어 빈칸이다(kcal · 단백질 · 당 · 나트륨만).
 - **구속 측정 = 불펜 벨로시티(2026-09-27, 올렸고 배포됨 5432b69).** 사용자 요청: Smart Scout ·
   PitchLab 흐름을 우리 디자인 · 아이폰 느낌으로, 잰 것을 투구 기록에서 관리, 더 많은 정보. 다음 할 일은
   사용자가 폰(앱 · 크롬)에서 실제로 던져 보고 말하는 고칠 점부터.

@@ -15,10 +15,15 @@ import { itemsOf, toFood } from '@/lib/nutrition/mfds-parse';
  * 빈 목록을 돌려주고, 화면은 기본 목록과 내 음식만으로 돈다.
  *
  * 공공누리 자료라 출처를 밝힌다 — 화면의 검색 결과 밑에 적는다.
+ *
+ * 주소는 03판이다. 식약처가 2026-09 에 02판을 03판으로 바꿨고, 그 뒤에 받은 키는
+ * 02판 주소에서 '등록되지 않은 서비스키'(403, 코드 30)로 거절된다 — 키가 틀린 것처럼
+ * 보이지만 주소가 옛것이었다(2026-09-30 확인). 응답 칸(AMT_NUM1 · 3 · 4 · 6, Z10500)은
+ * 03판도 같다. 또 거절되면 포털의 API 페이지에서 판 번호부터 본다.
  */
 
 const ENDPOINT =
-  'https://apis.data.go.kr/1471000/FoodNtrCpntDbInfo02/getFoodNtrCpntDbInq02';
+  'https://apis.data.go.kr/1471000/FoodNtrCpntDbInfo03/getFoodNtrCpntDbInq03';
 
 function apiKey() {
   const raw = process.env.FOOD_API_KEY?.trim();
