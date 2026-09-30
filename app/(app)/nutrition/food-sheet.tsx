@@ -45,6 +45,8 @@ import {
   gramText,
   kcalText,
   mealLabel,
+  missingMacros,
+  missingText,
   scaleMacros,
   sumMacros,
   type Food,
@@ -591,6 +593,8 @@ function FoodRow({
   const open = openKey === key;
   /* 인기 순위에서 온 음식이면 순위와 횟수가 붙어 있다 */
   const ranked = 'rank' in food ? (food as RankedFood) : null;
+  /* 식약처 '수집' 자료는 탄수화물 · 지방이 비어 오는 일이 많다 — 담기 전에 보이게 */
+  const missing = missingMacros(food);
   /* 지우기는 두 번 눌러야 한다 — 직접 만든 음식은 되살릴 길이 없다 */
   const [confirm, setConfirm] = useState(false);
   const [flash, setFlash] = useState(0);
@@ -652,6 +656,7 @@ function FoodRow({
                 : food.note && !hideNote
                   ? ` · ${food.note}`
                   : ''}
+              {missing.length > 0 ? ` · ${missingText(missing)}` : ''}
             </span>
           </span>
           <span className="shrink-0 text-sm tabular-nums text-ink">
@@ -931,15 +936,33 @@ function PickFood({ food, onAdd }: { food: Food; onAdd: (amount: number) => void
         </div>
         <div>
           <dt className="text-[11px] text-muted">탄수화물</dt>
-          <dd className="text-sm font-semibold text-ink">{gramText(got.carbs)}g</dd>
+          <dd className="text-sm font-semibold text-ink">
+            {food.carbs === null ? (
+              <span className="text-muted">정보 없음</span>
+            ) : (
+              `${gramText(got.carbs)}g`
+            )}
+          </dd>
         </div>
         <div>
           <dt className="text-[11px] text-muted">단백질</dt>
-          <dd className="text-sm font-semibold text-ink">{gramText(got.protein)}g</dd>
+          <dd className="text-sm font-semibold text-ink">
+            {food.protein === null ? (
+              <span className="text-muted">정보 없음</span>
+            ) : (
+              `${gramText(got.protein)}g`
+            )}
+          </dd>
         </div>
         <div>
           <dt className="text-[11px] text-muted">지방</dt>
-          <dd className="text-sm font-semibold text-ink">{gramText(got.fat)}g</dd>
+          <dd className="text-sm font-semibold text-ink">
+            {food.fat === null ? (
+              <span className="text-muted">정보 없음</span>
+            ) : (
+              `${gramText(got.fat)}g`
+            )}
+          </dd>
         </div>
       </dl>
 

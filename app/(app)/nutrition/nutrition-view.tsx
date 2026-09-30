@@ -34,10 +34,15 @@ import {
   MEALS,
   amountText,
   entryMacros,
+  gapNames,
   kcalText,
+  macroGaps,
   mealLabel,
+  missingMacros,
+  missingText,
   sumMacros,
   type Food,
+  type MacroGaps,
   type Macros,
   type MealEntryView,
   type MealKey,
@@ -125,6 +130,7 @@ export function NutritionView({ day, today }: { day: NutritionDay; today: string
 
   const t = day.targets;
   const eaten = sumMacros(entries.map(entryMacros));
+  const gaps = macroGaps(entries);
 
   const report = (res: NutritionResult) => {
     if (!res.ok) setError(res.error);
@@ -256,7 +262,7 @@ export function NutritionView({ day, today }: { day: NutritionDay; today: string
 
       <div className="grid items-start gap-block lg:grid-cols-[minmax(0,1fr)_22rem]">
         <div className="stack-block">
-          <SummaryCard eaten={eaten} day={day} />
+          <SummaryCard eaten={eaten} gaps={gaps} day={day} />
 
           {/*
             끼니 넷 — 넓으면 두 칸씩(2×2), 좁으면 한 줄에 하나.
@@ -690,7 +696,15 @@ const MACROS = [
   { key: 'fat', label: '지방', bar: 'bg-cat-mobility' },
 ] as const;
 
-function SummaryCard({ eaten, day }: { eaten: Macros; day: NutritionDay }) {
+function SummaryCard({
+  eaten,
+  gaps,
+  day,
+}: {
+  eaten: Macros;
+  gaps: MacroGaps;
+  day: NutritionDay;
+}) {
   const t = day.targets;
   const left = t.kcal - eaten.kcal;
   const max = Math.max(t.kcal, eaten.kcal, 1);
@@ -781,8 +795,17 @@ function SummaryCard({ eaten, day }: { eaten: Macros; day: NutritionDay }) {
               <div className="flex flex-col sm:flex-row sm:items-baseline sm:justify-between sm:gap-2">
                 <dt className="text-xs text-muted">{m.label}</dt>
                 <dd className="text-xs tabular-nums text-muted">
-                  <b className="text-sm font-semibold text-ink">{Math.round(got)}</b> /{' '}
-                  {goal}g
+                  <b className="text-sm font-semibold text-ink">{Math.round(got)}</b>
+                  {/* 정보가 빠진 음식이 있으면 '+' — 적어도 이만큼, 실제로는 더 먹었다 */}
+                  {gaps[m.key] > 0 && (
+                    <b
+                      className="font-semibold text-warn"
+                      title="정보가 없는 음식이 있어 실제로는 더 먹었어요"
+                    >
+                      +
+                    </b>
+                  )}{' '}
+                  / {goal}g
                 </dd>
               </div>
               <div className="h-1.5 overflow-hidden rounded-full bg-surface-2">
@@ -797,6 +820,14 @@ function SummaryCard({ eaten, day }: { eaten: Macros; day: NutritionDay }) {
           );
         })}
       </dl>
+
+      {gaps.foods > 0 && (
+        <p className="motion-safe:animate-fade-in text-xs text-muted">
+          {gapNames(gaps)} 정보가 없는 음식이 {gaps.foods}개라,{' '}
+          <b className="font-semibold text-warn">+</b> 표시한 양은 실제보다 적게
+          잡혔어요.
+        </p>
+      )}
 
       {/*
         비어서 짐작으로 셈한 것 — 성별도 이제 알린다. 성별은 예전에 목표 창에서
@@ -845,6 +876,7 @@ function MealSection({
   onRemove: (id: string) => void;
 }) {
   const total = sumMacros(entries.map(entryMacros));
+  const proteinGap = entries.some((e) => e.protein === null);
   const label = mealLabel(meal);
 
   /*
@@ -861,6 +893,7 @@ function MealSection({
         {entries.length > 0 && (
           <p className="min-w-0 truncate text-xs tabular-nums text-muted">
             {kcalText(total.kcal)}kcal · 단백질 {Math.round(total.protein)}g
+            {proteinGap ? '+' : ''}
           </p>
         )}
         {entries.length > 0 && (
@@ -923,6 +956,7 @@ function EntryRow({
   const [open, setOpen] = useState(false);
   const [draft, setDraft] = useState(entry.amount);
   const kcal = entry.kcal * entry.amount;
+  const missing = missingMacros(entry);
   const saving = entry.id.startsWith('tmp-');
 
   function toggle() {
@@ -950,6 +984,8 @@ function EntryRow({
           {entry.name}
           <span className="ml-1.5 text-xs text-muted">
             {amountText(entry.amount)}
+            {/* 빠진 영양소는 양 바로 뒤에 — 줄이 좁으면 뒤쪽부터 잘려서, 끝에 두면 안 보인다 */}
+            {missing.length > 0 ? ` · ${missingText(missing)}` : ''}
             {entry.servingLabel ? ` · ${entry.servingLabel}` : ''}
           </span>
         </span>
