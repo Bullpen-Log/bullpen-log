@@ -1,6 +1,7 @@
 import 'server-only';
+import { createHash } from 'node:crypto';
 import { cookies } from 'next/headers';
-import { encrypt, decrypt, type SessionPayload } from '@/lib/jwt';
+import { encrypt, decrypt, type SessionInfo, type SessionPayload } from '@/lib/jwt';
 
 const SESSION_COOKIE = 'session';
 
@@ -44,7 +45,15 @@ export async function createSession(payload: SessionPayload, persist = true) {
   });
 }
 
-export async function getSession(): Promise<SessionPayload | null> {
+/**
+ * 비밀번호(해시)의 지문 — 로그인 표에 싣는다(lib/jwt.ts SessionPayload.pw). 해시를 다시 해시한 앞 16글자라 표를 열어
+ * 봐도 비밀번호에 대해 알 수 있는 것이 없다.
+ */
+export function passwordFingerprint(passwordHash: string) {
+  return createHash('sha256').update(passwordHash).digest('base64url').slice(0, 16);
+}
+
+export async function getSession(): Promise<SessionInfo | null> {
   const cookieStore = await cookies();
   return decrypt(cookieStore.get(SESSION_COOKIE)?.value);
 }

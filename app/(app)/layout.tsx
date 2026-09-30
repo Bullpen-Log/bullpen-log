@@ -162,8 +162,12 @@ export default async function AppLayout({
         팝업 자리. 본문(children) 밖에 둔다 — 팝업이 떠도 밑의 화면은 그대로 남고, 본문의
         화면 전환(app-main)에도 끼지 않는다. 창은 맨 위 칸(top layer)에 뜨므로 자리는 어디든
         상관없다.
+
+        popup-slot(globals.css) — Next 는 이 레이아웃의 loading.tsx(페이지 뼈대)를 팝업 자리의 로딩으로도
+        쓴다. 팝업을 여는 1초 남짓 그 뼈대가 위 막대와 본문 사이에 끼어 화면을 밀어냈다. 뼈대는 숨기고
+        화면 위에 가는 로딩 막대만 보인다.
       */}
-      {modal}
+      <div className="popup-slot contents">{modal}</div>
 
       {/*
         위쪽만 비운다.

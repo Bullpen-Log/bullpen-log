@@ -107,9 +107,9 @@ export function FinishSheet({
             type="button"
             onClick={onClose}
             aria-label="닫기"
-            className="rounded-lg p-1.5 text-muted transition-colors hover:text-ink"
+            className="-m-2 grid h-11 w-11 shrink-0 place-items-center rounded-lg text-muted transition-colors hover:text-ink desk:m-0 desk:h-8 desk:w-8"
           >
-            <X className="h-4 w-4" />
+            <X className="h-5 w-5 desk:h-4 desk:w-4" />
           </button>
         </div>
 

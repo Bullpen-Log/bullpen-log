@@ -172,11 +172,90 @@ jobs:
           xcrun simctl bootstatus "$UDID" -b > /dev/null
           xcrun simctl install "$UDID" "$SIMAPP"
           step "설치 끝, 켜 본다"
+          # 시작 연출 찍어 보기 — 켠 뒤 12초 동안 화면을 여러 번 찍어, 장면마다 연출 바탕색의 몫과 파란 B ·
+          # 검은 글자가 있는 자리(화면 가로 · 세로 %)를 주석으로 남긴다. 폰 없이도 연출이 도는지 본다
+          # (ios/App/App/MainViewController.swift — 처음엔 한가운데 큰 B, 1초 뒤쯤 작은 B + 오른쪽 글자, 사이트가
+          # 알리면 바탕이 사라진다). 위 시계 줄 · 아래 홈 막대 자리는 빼고 센다.
+          cat > "$RUNNER_TEMP/intro-shots.py" <<'PY'
+          import os, struct, subprocess, sys, time
+
+          udid, t0, out = sys.argv[1], float(sys.argv[2]), sys.argv[3]
+          os.makedirs(out, exist_ok=True)
+
+          def read_bmp(path):
+              d = open(path, "rb").read()
+              off = struct.unpack_from("<I", d, 10)[0]
+              w, h = struct.unpack_from("<ii", d, 18)
+              bpp = struct.unpack_from("<H", d, 28)[0]
+              comp = struct.unpack_from("<I", d, 30)[0]
+              masks = struct.unpack_from("<III", d, 54) if comp in (3, 6) else None
+              def chan(v, m):
+                  s = (m & -m).bit_length() - 1
+                  return ((v & m) >> s) * 255 // (m >> s)
+              top_down, h = h < 0, abs(h)
+              row = ((w * bpp + 31) // 32) * 4
+              px = []
+              for y in range(h):
+                  base = off + (y if top_down else h - 1 - y) * row
+                  line = []
+                  for x in range(w):
+                      i = base + x * (bpp // 8)
+                      if masks:
+                          v = int.from_bytes(d[i:i + 4], "little")
+                          line.append((chan(v, masks[0]), chan(v, masks[1]), chan(v, masks[2])))
+                      else:
+                          line.append((d[i + 2], d[i + 1], d[i]))
+                  px.append(line)
+              return w, h, px
+
+          def describe(path):
+              w, h, px = read_bmp(path)
+              y_from, y_to = int(h * 0.08), int(h * 0.94)
+              paper = total = 0
+              boxes = {"B": [w, h, -1, -1, 0], "글자": [w, h, -1, -1, 0]}
+              for y in range(y_from, y_to):
+                  for x in range(w):
+                      r, g, b = px[y][x]
+                      total += 1
+                      if abs(r - 244) <= 6 and abs(g - 247) <= 6 and abs(b - 251) <= 6:
+                          paper += 1
+                          continue
+                      key = "B" if (b >= 170 and r <= 120 and b - r >= 90) else "글자" if (r <= 90 and g <= 100 and b <= 120) else None
+                      if key:
+                          k = boxes[key]
+                          k[0], k[1], k[2], k[3], k[4] = min(k[0], x), min(k[1], y), max(k[2], x), max(k[3], y), k[4] + 1
+              parts = ["바탕 %d%%" % (paper * 100 // max(total, 1))]
+              for name, (x1, y1, x2, y2, n) in boxes.items():
+                  if n < 4:
+                      parts.append(name + " 없음")
+                  else:
+                      parts.append("%s 가로 %d-%d 세로 %d-%d" % (name, x1 * 100 // w, x2 * 100 // w, y1 * 100 // h, y2 * 100 // h))
+              return " · ".join(parts)
+
+          lines = []
+          while time.time() - t0 < 12 and len(lines) < 24:
+              png = os.path.join(out, "shot%02d.png" % len(lines))
+              bmp = png[:-4] + ".bmp"
+              t1 = time.time()
+              if subprocess.run(["xcrun", "simctl", "io", udid, "screenshot", png], capture_output=True).returncode != 0:
+                  time.sleep(0.3)
+                  continue
+              t = (t1 + time.time()) / 2 - t0
+              subprocess.run(["sips", "-s", "format", "bmp", "-Z", "320", png, "--out", bmp], capture_output=True)
+              try:
+                  lines.append("%.1f초 %s" % (t, describe(bmp)))
+              except Exception as e:
+                  lines.append("%.1f초 읽지 못함(%s)" % (t, e))
+          for i in range(0, len(lines), 6):
+              print("::notice title=시작 연출 화면 %d::%s" % (i // 6 + 1, " / ".join(lines[i:i + 6])))
+          PY
+          LAUNCH_T0=$(python3 -c 'import time; print(time.time())')
           # --console: 앱의 출력(NSLog · Capacitor 의 '⚡️ ERROR' 같은 것)을 파일로 받는다.
           # --console-pty 는 터미널이 없는 여기서는 아무것도 안 남겨 켜졌는지 알 수 없었다.
           xcrun simctl launch --console "$UDID" com.bullpenlog.app > "$RUNNER_TEMP/sim-console.log" 2>&1 &
           CONSOLE_PID=$!
-          sleep 30
+          python3 "$RUNNER_TEMP/intro-shots.py" "$UDID" "$LAUNCH_T0" "$RUNNER_TEMP/shots" || true
+          sleep 18
           # 앱이 살아 있는지 — 세 가지로 본다. simctl 이 pid 를 안 찍을 때가 있어서(2026-09-30 실행에서
           # 앱은 멀쩡히 돌았는데 pid 를 못 찾아 '꺼졌다'로 잘못 판단했다) 앱 출력의 'App[pid:' 도 보고,
           # 그래도 없으면 시뮬레이터 안의 launchctl 목록에 앱이 있는지 본다.

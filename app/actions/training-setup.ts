@@ -1,7 +1,7 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
-import { redirect } from 'next/navigation';
+import { redirect, RedirectType } from 'next/navigation';
 import { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 import { getCurrentUser } from '@/lib/dal';
@@ -106,7 +106,8 @@ export async function saveTrainingSettings(formData: FormData) {
   const back = returnPath(formData);
   revalidatePath('/today');
   revalidatePath('/training');
-  redirect(back);
+  /* 누른 화면으로 돌아간다 — 같은 주소라 기록(뒤로 가기)에 한 칸 더 쌓지 않는다 */
+  redirect(back, RedirectType.replace);
 }
 
 /** 가지고 있는 장비만 저장한다. 경력은 건드리지 않는다. */
@@ -122,7 +123,8 @@ export async function saveOwnedEquipment(formData: FormData) {
   const back = returnPath(formData);
   revalidatePath('/today');
   revalidatePath('/training');
-  redirect(back);
+  /* 누른 화면으로 돌아간다 — 같은 주소라 기록(뒤로 가기)에 한 칸 더 쌓지 않는다 */
+  redirect(back, RedirectType.replace);
 }
 
 /**
@@ -227,7 +229,7 @@ export async function generateTodayPlan(formData: FormData) {
    * 모른 채 짜게 되고, 무엇보다 오늘 통증이 있어도 멈추지 못한다. 화면도 폼
    * 대신 '체크인 먼저'를 내지만, 폼은 누구나 보낼 수 있어 여기서 한 번 더 막는다.
    */
-  if (!facts.condition.today) redirect(returnPath(formData));
+  if (!facts.condition.today) redirect(returnPath(formData), RedirectType.replace);
 
   const [library, recentIds, sessionsAgo, strengthDates, before] = await Promise.all([
     /* 누가 보든 같은 목록이라 캐시에서 꺼낸다 (lib/library-cache.ts) */
@@ -387,7 +389,8 @@ export async function generateTodayPlan(formData: FormData) {
   const back = returnPath(formData);
   revalidatePath('/today');
   revalidatePath('/training');
-  redirect(back);
+  /* 누른 화면으로 돌아간다 — 같은 주소라 기록(뒤로 가기)에 한 칸 더 쌓지 않는다 */
+  redirect(back, RedirectType.replace);
 }
 
 /**

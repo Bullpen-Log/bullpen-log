@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState, useSyncExternalStore } from 'react';
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { Button, Field, Input, Textarea } from '@/components/ui';
 import { VideoUpload, type UploadedVideo } from '@/components/video-upload';
 import { usePlaybackUrls } from '@/components/use-playback-urls';
@@ -24,6 +24,20 @@ import {
  * 일지 화면에서 접었다 펼 수 있게 따로 뒀다. 지난 기록을 돌아볼 때는
  * 폼이 자리만 차지하고, 오늘 던진 걸 남길 때는 바로 열려 있어야 한다.
  */
+
+/**
+ * 올렸다가 저장하지 않고 버린 영상을 지우게 한다(app/api/pitch-log/discard — 기록에 붙은 파일은 서버가 건드리지 않는다).
+ * 폼을 닫는 중에도 끝까지 가게 keepalive. 못 가도 그만이다 — 파일이 남을 뿐 기록은 멀쩡하다.
+ */
+function discardUploads(paths: string[]) {
+  if (paths.length === 0) return;
+  void fetch('/api/pitch-log/discard', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ paths }),
+    keepalive: true,
+  }).catch(() => {});
+}
 
 const EMPTY_FORM = {
   sessionType: DEFAULT_SESSION_TYPE as string,
@@ -88,6 +102,8 @@ function SpeedInput({
     <Field label={`${label} (${speedLabel(unit)})`} hint={hint}>
       <Input
         type="number"
+        /* 아이폰은 type=number 만으로는 숫자판이 아니라 전체 자판을 연다 */
+        inputMode="decimal"
         step="0.1"
         min={round1(toSpeed(SPEED_MIN_KMH, unit))}
         max={round1(toSpeed(SPEED_MAX_KMH, unit))}
@@ -143,6 +159,35 @@ export function EntryForm({
   );
   const [saving, setSaving] = useState(false);
   /*
+   * 이 폼에서 새로 올리고 아직 저장하지 않은 영상. 빼거나 저장 없이 폼을 닫으면 지운다 — 예전에는 버린 업로드가 저장소에
+   * 영영 남았다. 저장이 끝나면 비운다(기록에 붙었다). 저장하는 중에 닫히면 지우지 않는다(곧 기록에 붙는다).
+   */
+  const freshRef = useRef(new Set<string>());
+  const savingRef = useRef(false);
+  /* 닫을 때 풀 미리보기(blob:) — 방금 올린 파일을 쥐고 있어, 안 풀면 화면을 떠나도 그 파일이 메모리에 남는다 */
+  const blobUrlsRef = useRef<string[]>([]);
+  useEffect(() => {
+    blobUrlsRef.current = videos
+      .map((v) => v.previewUrl)
+      .filter((u): u is string => !!u?.startsWith('blob:'));
+  }, [videos]);
+  useEffect(() => {
+    const fresh = freshRef.current;
+    const blobs = blobUrlsRef;
+    return () => {
+      if (!savingRef.current) discardUploads([...fresh]);
+      for (const url of blobs.current) URL.revokeObjectURL(url);
+    };
+  }, []);
+  /* 목록이 바뀔 때 — 새로 올린 것이 빠졌으면 그것만 지운다 */
+  const changeVideos = (next: UploadedVideo[]) => {
+    const kept = new Set(next.map((v) => v.path));
+    const gone = [...freshRef.current].filter((p) => !kept.has(p));
+    gone.forEach((p) => freshRef.current.delete(p));
+    discardUploads(gone);
+    setVideos(next);
+  };
+  /*
    * 영상을 올리는 중인가. 그동안은 저장을 막는다.
    *
    * 올리는 영상은 다 올라가야 목록(videos)에 들어간다. 그 전에 저장하면 기록은
@@ -190,6 +235,7 @@ export function EntryForm({
     /* 단추는 막혀 있지만 Enter 로도 제출된다 */
     if (uploading) return;
     setSaving(true);
+    savingRef.current = true;
     onError(undefined);
 
     try {
@@ -217,6 +263,8 @@ export function EntryForm({
           data.error ?? (editing ? '수정에 실패했습니다.' : '저장에 실패했습니다.')
         );
       }
+      /* 새로 올린 영상은 이제 기록에 붙었다 — 폼을 닫아도 지우지 않는다 */
+      freshRef.current.clear();
 
       // 수정은 폼을 비우지 않는다. 저장하면 폼 자체가 닫히기 때문이다.
       if (!editing) {
@@ -233,6 +281,7 @@ export function EntryForm({
       onError(err instanceof Error ? err.message : fallback);
     } finally {
       setSaving(false);
+      savingRef.current = false;
     }
   };
 
@@ -283,6 +332,7 @@ export function EntryForm({
                   {/* 상한은 오타를 잡는 자리다. 서버에서 같은 선으로 한 번 더 본다. */}
                   <Input
                     type="number"
+                    inputMode="numeric"
                     min="1"
                     max="500"
                     value={form.pitchCount}
@@ -368,13 +418,16 @@ export function EntryForm({
                 {!resting && <FilmingGuide />}
                 <VideoUpload
                   videos={shownVideos}
-                  onChange={setVideos}
+                  onChange={changeVideos}
                   max={2}
                   disabled={resting}
                   confirmRemove={removeNote}
                   onUploadingChange={setUploading}
                   /* 영상 캘린더의 썸네일 — 손에 든 파일에서 바로 뜬다(기다리지 않는다) */
-                  onUploaded={(path, file) => void makePitchThumb(path, file)}
+                  onUploaded={(path, file) => {
+                    freshRef.current.add(path);
+                    void makePitchThumb(path, file);
+                  }}
                 />
               </div>
             </Field>

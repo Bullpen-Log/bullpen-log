@@ -25,6 +25,7 @@ import {
   nearestMinutesChoice,
   CONDITIONING_GOAL,
 } from '@/lib/report/theme';
+import { SafeForm } from '@/components/safe-form';
 
 /**
  * 트레이닝 설정과 일정 만들기 폼.
@@ -281,7 +282,7 @@ export function PlanForm({
   );
 
   return (
-    <form action={generateTodayPlan} className="space-y-4">
+    <SafeForm action={generateTodayPlan} className="space-y-4">
       <input type="hidden" name="returnTo" value={returnTo} />
       <input type="hidden" name="mode" value={mode} />
 
@@ -324,7 +325,6 @@ export function PlanForm({
               </p>
             </div>
           )}
-
         </>
       ) : (
         <>
@@ -411,7 +411,6 @@ export function PlanForm({
             selected={`${pickedMinutes}분`}
             compact
           />
-
         </>
       )}
 
@@ -450,7 +449,7 @@ export function PlanForm({
         )}
         {cancel}
       </div>
-    </form>
+    </SafeForm>
   );
 }
 
@@ -500,7 +499,7 @@ export function TrainingSettingsForm({
 
   return (
     <div className="space-y-6">
-      <form action={saveTrainingSettings} className="space-y-5">
+      <SafeForm action={saveTrainingSettings} className="space-y-5">
         <input type="hidden" name="returnTo" value={returnTo} />
         <RadioGroup
           name="trainingLevel"
@@ -510,13 +509,16 @@ export function TrainingSettingsForm({
           selected={trainingLevel}
         />
         <SubmitButton label="경력 저장" busy="저장 중…" />
-      </form>
+      </SafeForm>
 
       {/*
         장비는 자기 폼과 자기 단추를 쓴다. 위에서 경력만 고치고 저장해도
         여기 값은 그대로 남는다.
       */}
-      <form action={saveOwnedEquipment} className="space-y-5 border-t border-line pt-6">
+      <SafeForm
+        action={saveOwnedEquipment}
+        className="space-y-5 border-t border-line pt-6"
+      >
         <input type="hidden" name="returnTo" value={returnTo} />
         <CheckboxGroup
           name="ownedEquipment"
@@ -530,7 +532,7 @@ export function TrainingSettingsForm({
           selected={equipmentSelected}
         />
         <SubmitButton label="가진 장비 저장" busy="저장 중…" />
-      </form>
+      </SafeForm>
     </div>
   );
 }

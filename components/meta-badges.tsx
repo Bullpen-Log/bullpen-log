@@ -76,7 +76,7 @@ export function ExerciseBadges({
             type="button"
             onClick={(e) => open(bodyParts, part, e)}
             aria-label={`${part} — 3D 로 보기`}
-            className="inline-flex min-h-6 items-center gap-0.5 rounded-full bg-surface-2 px-2 py-0.5 text-[11px] font-medium text-ink/80 ring-sky transition-shadow hover:ring-1"
+            className="inline-flex min-h-6 items-center gap-0.5 rounded-full bg-surface-2 px-2 py-0.5 text-[11px] font-medium text-ink/80 ring-sky transition-shadow hover:ring-1 relative before:absolute before:-inset-x-0.5 before:-inset-y-2"
           >
             {part}
             <span aria-hidden className="opacity-60">

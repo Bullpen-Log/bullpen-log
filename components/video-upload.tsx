@@ -264,7 +264,7 @@ export function VideoUpload({
       )}
 
       {error && (
-        <p className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+        <p className="rounded-lg border border-danger-line bg-danger-bg px-4 py-3 text-sm text-danger">
           {error}
         </p>
       )}
@@ -300,11 +300,12 @@ export function VideoUpload({
                   aria-label={
                     asking === v.path ? `${v.name} 정말 빼기` : `${v.name} 빼기`
                   }
-                  className={`rounded p-1 transition-colors ${
-                    asking === v.path ? 'text-danger' : 'text-muted hover:text-red-600'
+                  /* 손가락 크기(40px) — 22px 라 잘 안 눌렸다. 빨강은 테마 색(text-danger)으로 */
+                  className={`-my-2 -mr-2 grid h-10 w-10 shrink-0 place-items-center rounded-lg transition-colors ${
+                    asking === v.path ? 'text-danger' : 'text-muted hover:text-danger'
                   }`}
                 >
-                  <X className="h-3.5 w-3.5" />
+                  <X className="h-4 w-4" />
                 </button>
               </div>
 

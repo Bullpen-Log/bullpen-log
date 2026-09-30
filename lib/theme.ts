@@ -83,10 +83,19 @@ const listeners = new Set<() => void>();
 
 export function subscribeTheme(onChange: () => void) {
   listeners.add(onChange);
-  window.addEventListener('storage', onChange);
+  /*
+   * 다른 탭에서 바꾸면 이 탭의 <html> 에도 칠한다 — 알리기만 하고 칠하지 않아서, 다른 탭은 새로고침 전까지 옛 색 그대로
+   * 고르개만 옛 값을 보였다.
+   */
+  const onStorage = (e: StorageEvent) => {
+    if (e.key === THEME_STORAGE_KEY)
+      document.documentElement.dataset.theme = normalizeTheme(e.newValue);
+    onChange();
+  };
+  window.addEventListener('storage', onStorage);
   return () => {
     listeners.delete(onChange);
-    window.removeEventListener('storage', onChange);
+    window.removeEventListener('storage', onStorage);
   };
 }
 

@@ -16,7 +16,8 @@
 | `www/offline.html` | 인터넷이 끊겨 사이트를 못 불러올 때 보이는 화면(연결되면 저절로 다시 연다) |
 | `www/index.html` | 자리표. 앱은 이 파일을 열지 않는다(Capacitor 가 요구해서 둔다) |
 | `ios/` | Xcode 프로젝트. `Info.plist` 에 카메라 · 마이크 · 사진 권한 문구, 세로 고정, 아이폰 전용 |
-| `scripts/make-ios-assets.mjs` | 앱 아이콘(1024) · 시작 화면([B]ULLPEN LOG, 밝은 판)을 지금 로고로 만든다(글자는 크롬으로 그린다) |
+| `ios/App/App/MainViewController.swift` | 앱의 첫 화면 — 사이트를 여는 Capacitor 화면 위에 시작 연출 판을 얹는다(`SceneDelegate.swift` 가 쓴다) |
+| `scripts/make-ios-assets.mjs` | 앱 아이콘(1024) · 시작 화면(한가운데 큰 B, 밝은 판) · 시작 연출의 글자 그림(ULLPEN LOG)을 지금 로고로 만든다 |
 
 - **앱 표시**: 앱은 브라우저 이름표(User-Agent) 끝에 `BullpenLogApp/1.0` 을 붙인다. 사이트의
   `lib/app-env.ts` 가 이것(과 `window.Capacitor`)을 보고 앱 안인지 가린다 — 구속 측정처럼 앱에서만
@@ -35,12 +36,20 @@
   앱 틀(`components/app-shell.tsx`)이 시계 쪽을 막대 색으로 채우고 하단 탭을 홈 막대까지 늘린다.
   위아래 막대가 없는 화면(로그인 · 약관 · 오류)은 `app/globals.css` '아이폰 앱 안'이 여백을 더한다.
 - **앱 안에서만 도는 것**은 `lib/native-app.ts`(뿌리 레이아웃의 첫 스크립트)가 켠다 — `<html data-app="native">`
-  표시, 상태바 글자색을 앱 테마에 맞추기(`SystemBars`, Capacitor 안에 있음), 첫 화면이 그려지면 로딩 화면
-  걷기(`SplashScreen`). 사이트는 Capacitor 패키지 없이 `window.Capacitor.nativePromise` 로 부른다.
-- **로딩 화면**: 켤 때 아이폰이 그리는 시작 화면과 `@capacitor/splash-screen` 이 같은 그림(`Splash`)을 써서,
-  켜는 순간부터 첫 화면이 뜰 때까지 [B]ULLPEN LOG 와 작은 로딩 표시가 이어진다(최대 4초 —
-  `capacitor.config.json` 의 `plugins.SplashScreen`). 밝은 판 하나다 — 앱 테마가 폰의 다크 모드와 따로
-  라이트로 시작해서, 폰 설정을 따르면 어두운 로딩 → 밝은 첫 화면으로 번쩍였다.
+  표시, 상태바 글자색을 앱 테마에 맞추기(`SystemBars`, Capacitor 안에 있음), 첫 화면이 그려지면 시작 연출 판에
+  알리기(`window.webkit.messageHandlers.bullpenIntro`). 사이트는 Capacitor 패키지 없이 `window.Capacitor.nativePromise` 로 부른다.
+- **시작 화면 · 시작 연출**(2026-09-30, 사용자: "넷플릭스 N 처럼, 통통 튀지 않게"): 아이콘을 누르면 아이폰이 앱 코드가
+  돌기 전에 시작 화면(`LaunchScreen` — 한가운데 큰 B 그림 한 장, 애플 규칙이라 움직일 수 없다)을 띄운다. 앱이 켜지는
+  첫 장면에 `MainViewController.swift` 의 연출 판이 똑같은 B 를 그려 이어 받고, 곧바로 B 가 부드럽게 작아지며 이름의
+  첫 글자 자리로 가고, 자리에 닿으면 'ULLPEN LOG' 가 B 뒤에서 오른쪽으로 미끄러져 나온다(큰 B 0.4초 뒤 움직이기 시작, 약 2.8초 — 글자는 B 오른쪽에만 보이는 창 안에 있어 B 와 겹쳐 보이지 않는다). 그동안 사이트는 판 뒤에서 불러오고, 사이트가 첫 화면을
+  다 그렸다고 알리면(인터넷이 끊겨 `offline.html` 이 떠도 알린다) 판이 옅어지며 걷힌다. 알림이 끝내 안 오면 10초에 걷힌다.
+  움직임 줄이기를 켠 폰은 움직이지 않고 걷히기만 한다. 로딩 그림 부품(`@capacitor/splash-screen`)은 이것으로 바꾸며 뺐다.
+  판은 밝은 판 하나다 — 앱 테마가 폰의 다크 모드와 따로 라이트로 시작해서, 폰 설정을 따르면 어두운 로딩 → 밝은 첫 화면으로
+  번쩍였다. 시작 화면 그림의 B 크기(2732px 중 437px)와 글자 그림의 둘레(`WORD_PAD`)는 `make-ios-assets.mjs` 와
+  `MainViewController.swift` 두 곳이 같아야 넘어가는 순간이 안 보인다.
+- **진동**(`@capacitor/haptics`, 2026-09-30): 아이폰은 웹(사파리)에서 진동을 쓸 수 없고, 무음 모드면 끝 소리도 안 난다.
+  그래서 암케어 버티기 · 쉬기 끝과 체크를 앱의 진동으로 알린다 — 사이트의 `lib/haptics.ts` 가 `window.Capacitor.nativePromise`
+  로 부르고, 진동이 든 앱을 아직 안 깔았으면 웹과 같다(아무 일 없음).
 - **세로 고정**: 삼각대에 둔 폰이 구속 측정 중에 돌아가지 않게 했다. 가로가 필요해지면
   `ios/App/App/Info.plist` 의 `UISupportedInterfaceOrientations` 에 더한다.
 
@@ -50,7 +59,7 @@
 cd mobile
 npm ci              # 처음 한 번 (Capacitor 패키지)
 npx cap sync ios    # capacitor.config.json · www 를 바꾼 뒤 — ios 프로젝트에 옮겨 담는다
-npm run assets      # 로고를 바꾼 뒤 — 아이콘 · 시작 화면 다시 만들기 (뿌리에서 npm install, 크롬 · 인터넷 필요)
+npm run assets      # 로고를 바꾼 뒤 — 아이콘 · 시작 화면 · 연출 글자 다시 만들기 (뿌리에서 npm install, 크롬 · 인터넷 필요)
 ```
 
 `ios/App/App/public` · `ios/App/App/capacitor.config.json` 은 `cap sync` 가 만드는 것이라 올리지 않는다

@@ -15,9 +15,9 @@ import { flushSync } from 'react-dom';
 import Link, { useLinkStatus } from 'next/link';
 import { X } from 'lucide-react';
 import { NAV_ICONS } from '@/components/nav-icons';
-import { usePathname, useRouter } from 'next/navigation';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { quietRefresh } from '@/lib/quiet-refresh';
-import { rememberPage } from '@/lib/last-page';
+import { forgetPage, rememberPage } from '@/lib/last-page';
 import { REST_SESSION_TYPE } from '@/lib/session-type';
 import type { NavGroup, NavItem } from '@/lib/nav';
 import { DESK_MEDIA, MORE_HREF, NAV_ALSO, NAV_GROUPS } from '@/lib/nav';
@@ -243,6 +243,18 @@ export function AppNav({
   useEffect(() => {
     rememberPage(pathname);
   }, [pathname]);
+  /*
+   * 뒤로 · 앞으로 가기와 이 틀을 떠날 때는 잊는다 — 브라우저가 되살린 팝업은 적어 둔 화면 위에 뜬다는 보장이 없다.
+   * 팝업에서 '투구 기록'으로 옮긴 뒤 뒤로 가면 팝업이 홈 위에 다시 떴는데 '← 투구 기록'이라고 해, 누르면 닫히기만
+   * 했다. 모르면 두 단추가 그냥 링크가 된다(lib/last-page.ts).
+   */
+  useEffect(() => {
+    window.addEventListener('popstate', forgetPage);
+    return () => {
+      window.removeEventListener('popstate', forgetPage);
+      forgetPage();
+    };
+  }, []);
 
   /*
    * 판·도크가 떠 있는가. 둘이 한꺼번에 뜨는 일은 없다(land 가 같이 정한다).
@@ -863,9 +875,11 @@ export function AppNav({
   /*
    * 저장하고 나면 서버가 어딘가로 보내는데, 그 '어딘가'를 지금 보던 화면으로
    * 둔다. 창은 어느 화면 위에서나 열리므로, 고정해 두면 설정 하나 바꿨다고
-   * 엉뚱한 화면으로 끌려간다.
+   * 엉뚱한 화면으로 끌려간다. 주소의 ?뒤(보기 · 날짜)까지 — 경로만 넘겼더니 암케어 보기 · 목록 보기 · 고른 날에서
+   * 저장하면 기본 보기 · 오늘로 돌아갔다.
    */
-  const here = pathname;
+  const search = useSearchParams().toString();
+  const here = search ? `${pathname}?${search}` : pathname;
 
   /*
    * 창이 어디서 튀어나올지 — 방금 누른 버튼의 한가운데.
@@ -945,6 +959,8 @@ export function AppNav({
     }
     const opening = !bellOpen;
     setBellOpen(opening);
+    /* 지난번 '오늘 안 던졌어요' 실패 알림은 새로 열 때 지운다 — 다음 날 열어도 남아 있었다 */
+    if (opening) setRestError(undefined);
     /*
      * 열 때 새로 받는다. 틀(레이아웃)은 화면을 옮겨도 다시 그리지 않아서, 다른 기기에서
      * 남긴 기록을 모른 채 '아직 없어요'를 띄우고 '오늘 안 던졌어요'까지 누르게 할 수
@@ -2242,6 +2258,14 @@ function MobileTopBar({
  */
 function useHideOnScroll(locked: boolean) {
   const [hidden, setHidden] = useState(false);
+  /* 다른 화면으로 가면 다시 보인다 — 새 화면이 굴린 자리(56~80px)를 그대로 받으면 스크롤이 안 일어나
+     숨은 채 남고 첫 줄이 잘렸다 */
+  const pathname = usePathname();
+  const [shownFor, setShownFor] = useState(pathname);
+  if (shownFor !== pathname) {
+    setShownFor(pathname);
+    setHidden(false);
+  }
 
   useEffect(() => {
     if (locked) return;
@@ -2251,7 +2275,9 @@ function useHideOnScroll(locked: boolean) {
       if (frame) return;
       frame = requestAnimationFrame(() => {
         frame = 0;
-        const y = window.scrollY;
+        /* 끝에서 튕겼다 돌아오는 것(사파리 고무줄)을 올림으로 읽지 않게 굴릴 수 있는 범위로 자른다 */
+        const max = document.documentElement.scrollHeight - window.innerHeight;
+        const y = Math.min(Math.max(window.scrollY, 0), Math.max(max, 0));
         if (y < 56) {
           setHidden(false);
           last = y;
@@ -2334,6 +2360,7 @@ function MobileTabs({
     <nav
       /* 본문이 바뀌는 동안 탭바는 움직이지 않는다. */
       style={{ viewTransitionName: 'shell-tabbar' }}
+      data-mobile-tabs
       className="fixed inset-x-0 bottom-0 z-50 border-t border-line bg-surface pb-[env(safe-area-inset-bottom)] desk:hidden"
     >
       <div className="flex">

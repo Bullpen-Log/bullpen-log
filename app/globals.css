@@ -675,10 +675,11 @@ input[type='date']::-webkit-calendar-picker-indicator {
 ::view-transition-new(.page) {
   animation: 150ms ease-out 40ms both page-fade;
 }
+/* 틀(group)은 움직이지 않는다 — 멀리 내려간 화면에서 탭을 바꾸면 Next 가 이 전환 안에서 맨 위로
+   굴려, 틀이 옛 자리(위로 수천 px)에서 날아 내려왔다. 옛 · 새 그림의 옅어지기만 남긴다. */
 ::view-transition-group(app-main),
 ::view-transition-group(.page) {
-  animation-duration: 190ms;
-  animation-timing-function: cubic-bezier(0.32, 0.72, 0, 1);
+  animation: none;
 }
 
 /*
@@ -1906,8 +1907,78 @@ html[data-app='native'] body:not(:has([data-safe-area]))::before {
   pointer-events: none;
 }
 
+/*
+ * 투구 기록 팝업 자리(app/(app)/layout.tsx 의 popup-slot) — 팝업을 불러오는 동안.
+ *
+ * Next 는 레이아웃의 loading.tsx 를 그 레이아웃의 모든 자리(본문 · 팝업)에 쓴다. 그래서 팝업을 여는 1초 남짓 페이지
+ * 뼈대(aria-busy)가 팝업 자리 — 위 막대와 본문 사이 — 에 끼어 화면을 밀어냈다. 뼈대는 숨기고, 기다리는 줄 알게 화면 위에
+ * 가는 막대가 흐른다(알림 창의 '기록하기'처럼 누른 단추가 사라지는 자리에서도 보인다).
+ */
+.popup-slot > [aria-busy] {
+  display: none;
+}
+.popup-slot:has(> [aria-busy])::before {
+  content: '';
+  position: fixed;
+  z-index: 60;
+  top: env(safe-area-inset-top);
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: linear-gradient(90deg, transparent, var(--color-sky), transparent) no-repeat;
+  background-size: 40% 100%;
+  animation: popup-loading 900ms ease-in-out infinite;
+  pointer-events: none;
+}
+@keyframes popup-loading {
+  from {
+    background-position: -40% 0;
+  }
+  to {
+    background-position: 140% 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .popup-slot:has(> [aria-busy])::before {
+    animation: none;
+    background-size: 100% 100%;
+  }
+}
+
 /* 굴려서 무엇을 보이게 할 때(scrollIntoView · 입력칸 초점 · #주소) 시계 자리를 뺀다 — 그 자리는 늘 막대 색
    칸이 덮고 있어 찾아간 머리가 그 밑에 숨었다. 칸마다 단 scroll-mt-20(위 막대 몫)에 더해진다. */
 html[data-app='native'] {
   scroll-padding-top: env(safe-area-inset-top);
+}
+
+/* 창(<dialog> showModal)이 열린 동안 뒤 페이지를 잠근다 — 어두운 바깥을 끌거나 창 안을 끝까지 굴리면
+   뒤 페이지가 굴러가, 닫고 나면 다른 자리였다(투구 기록 팝업은 닫을 때 한 번 더 튐). body 가 아니라
+   html 이다: html 이 overflow-x: clip 이라 body 의 overflow 는 화면 스크롤에 안 먹는다.
+   gutter 는 PC 스크롤 막대(10px)가 사라지며 뒤 화면이 옆으로 밀리지 않게. */
+html:has(dialog:modal) {
+  overflow: hidden;
+  scrollbar-gutter: stable;
+}
+
+/* 손가락 화면에서 글자를 치는 동안 하단 탭을 숨긴다 — 아이폰은 자판이 올라와도 화면 높이가 그대로라
+   탭이 자판 위 · 화면 가운데에 떠서 입력칸을 가렸다 */
+@media (pointer: coarse) {
+  html:has(
+      :is(
+          input:not(
+              [type='checkbox'],
+              [type='radio'],
+              [type='range'],
+              [type='button'],
+              [type='submit'],
+              [type='file'],
+              [type='color']
+            ),
+          textarea,
+          [contenteditable='true']
+        ):focus
+    )
+    [data-mobile-tabs] {
+    display: none;
+  }
 }

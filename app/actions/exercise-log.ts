@@ -189,7 +189,15 @@ export async function saveTrainingNote(
   if (value == null) return { error: '운동 강도를 1~10 중에서 골라주세요.' };
 
   const text = typeof memo === 'string' ? memo.trim().slice(0, 1000) : '';
-  const key = dateKey ?? toDateKey(new Date());
+  /* 화면이 준 날(자정을 넘겨 저장해도 그 목록의 날) — 체크(saveDone)와 같은 선으로 본다: 앞날 · 7일 넘은 날은 안 받는다 */
+  const todayKey = toDateKey(new Date());
+  const key = dateKey ?? todayKey;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(key) || key > todayKey) {
+    return { error: '날짜가 올바르지 않습니다.' };
+  }
+  if (key < shiftDateKey(todayKey, -BACKFILL_DAYS)) {
+    return { error: `${BACKFILL_DAYS}일이 지난 기록은 고칠 수 없습니다.` };
+  }
   const date = new Date(`${key}T00:00:00.000Z`);
 
   await prisma.dailyTrainingNote.upsert({

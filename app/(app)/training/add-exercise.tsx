@@ -8,6 +8,7 @@ import { matchesSearch } from '@/lib/korean';
 import { ExerciseBadges } from '@/components/meta-badges';
 import { CategoryBadge } from '@/components/category-badge';
 import { addToTodayPlan } from '@/app/actions/plan-edit';
+import { OFFLINE_MESSAGE, orOffline } from '@/lib/action-offline';
 import {
   BODY_PARTS,
   EXERCISE_EQUIPMENT,
@@ -73,6 +74,15 @@ export function AddExercise({
   const [pending, startTransition] = useTransition();
   /** 방금 더한 운동. 화면이 새로 그려지기 전까지 눌린 티를 낸다. */
   const [added, setAdded] = useState<string[]>([]);
+  /*
+   * 서버가 새 목록을 주면(더하기 · 빼기 뒤) 방금 더한 표시는 그 목록에 맡긴다. 남겨 두면 더했다가 목록에서 ✕ 로 뺀 운동이
+   * 새로고침 전까지 계속 '넣음'으로 막혀 다시 더할 수 없었다.
+   */
+  const [seenPlan, setSeenPlan] = useState(inPlanIds);
+  if (seenPlan !== inPlanIds) {
+    setSeenPlan(inPlanIds);
+    setAdded((prev) => prev.filter((id) => !inPlanIds.includes(id)));
+  }
   const [limit, setLimit] = useState(PAGE);
   /** 별 단 것만 보기 */
   const [onlyFavorites, setOnlyFavorites] = useState(false);
@@ -118,7 +128,8 @@ export function AddExercise({
     setError(undefined);
     setAdded((prev) => [...prev, id]);
     startTransition(async () => {
-      const res = await addToTodayPlan(id);
+      /* 신호가 끊겨도 오류 화면 대신 한 줄로 알리고 눌린 티를 되돌린다(lib/action-offline.ts) */
+      const res = await orOffline(addToTodayPlan(id), { error: OFFLINE_MESSAGE });
       if ('error' in res) {
         setAdded((prev) => prev.filter((x) => x !== id));
         setError(res.error);

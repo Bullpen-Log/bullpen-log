@@ -576,7 +576,8 @@ export default async function TrainingPage({
                 <AddExercise
                   library={pickable}
                   inPlanIds={savedPlan.picks.map((p) => p.exerciseId)}
-                  safeIds={picked.candidates.map((ex) => ex.id)}
+                  /* 몸 상태로만 가른 안전 — 장비 · 경력은 창이 따로 표시한다(lib/report/today-data.ts) */
+                  safeIds={core.safeIds}
                   ownedEquipment={user.ownedEquipment}
                 />
               </ExerciseChecklist>
@@ -591,6 +592,7 @@ export default async function TrainingPage({
               intensity={trainingNote?.intensity ?? null}
               memo={trainingNote?.memo ?? null}
               done={exercises.some((ex) => ex.done)}
+              dateKey={core.todayKey}
             />
 
             {/* 후보가 빠듯하면 숨기지 않고 알린다. */}

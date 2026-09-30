@@ -104,7 +104,7 @@ function ComparePane({
       <div className="flex items-center gap-1.5 border-b border-line p-1.5 sm:gap-2 sm:p-2">
         <span
           className={`flex h-6 w-6 shrink-0 items-center justify-center rounded text-xs font-bold ${
-            side === 'A' ? 'bg-sky text-white' : 'bg-white text-ink border border-line'
+            side === 'A' ? 'bg-sky text-white' : 'bg-surface text-ink border border-line'
           }`}
         >
           {side}
@@ -270,12 +270,14 @@ export function CompareView({
     };
     document.addEventListener('keydown', onKey);
 
-    const previous = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
+    /* body 가 아니라 html 을 잠근다 — html 이 overflow-x: clip 이라 body 의 overflow 는 화면 스크롤에 안 먹는다 */
+    const root = document.documentElement;
+    const previous = root.style.overflow;
+    root.style.overflow = 'hidden';
 
     return () => {
       document.removeEventListener('keydown', onKey);
-      document.body.style.overflow = previous;
+      root.style.overflow = previous;
     };
   }, [expanded]);
 

@@ -63,7 +63,8 @@ export type CheckinData = CheckinParts &
 /** 값에 따라 칩 색이 달라진다. '통증'은 항상 빨간색으로 도드라지게. */
 function feelingChipClass(value: string) {
   if (value === '통증')
-    return 'peer-checked:border-red-500/70 peer-checked:bg-red-500/10 peer-checked:text-red-700';
+    /* 테마 색(danger) — 다크 · 네이비에서 text-red-700 은 검은 바탕에 거의 안 보였다 */
+    return 'peer-checked:border-danger-line peer-checked:bg-danger-bg peer-checked:text-danger';
   if (value === '뻐근')
     return 'peer-checked:border-amber-500/60 peer-checked:bg-amber-500/10 peer-checked:text-warn';
   return 'peer-checked:border-sky peer-checked:bg-sky/10 peer-checked:text-sky';

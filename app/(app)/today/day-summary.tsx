@@ -213,7 +213,7 @@ export function DaySummary({
             type="button"
             onClick={onClose}
             aria-label="그날 칸 닫기"
-            className="absolute right-3 top-3 rounded-lg p-1.5 text-muted transition-colors hover:bg-surface-2 hover:text-ink"
+            className="absolute right-1 top-1 grid h-11 w-11 place-items-center rounded-lg text-muted transition-colors hover:bg-surface-2 hover:text-ink desk:right-3 desk:top-3 desk:h-7 desk:w-7"
           >
             <X aria-hidden className="h-4 w-4" />
           </button>

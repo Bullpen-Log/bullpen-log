@@ -3,6 +3,7 @@
 import { useState, useTransition } from 'react';
 import { Check, Pencil } from 'lucide-react';
 import { saveTrainingNote } from '@/app/actions/exercise-log';
+import { OFFLINE_MESSAGE, orOffline } from '@/lib/action-offline';
 import { IntensityGuide } from '@/components/intensity-guide';
 
 /**
@@ -18,12 +19,18 @@ export function TrainingNote({
   intensity,
   memo,
   done,
+  dateKey,
 }: {
   /** 저장해 둔 강도. 아직 안 적었으면 null */
   intensity: number | null;
   memo: string | null;
   /** 오늘 운동을 하나라도 마쳤는가 — 안 했으면 적을 것이 없다 */
   done: boolean;
+  /**
+   * 이 목록의 날 — 서버의 '지금'이 아니라 화면이 보여 준 날로 남긴다. 23:50 에 연 화면에서 00:05 에 저장하면 강도가 다음 날로
+   * 가서, 운동한 날의 강도가 비고 부하가 '추정'으로 빠졌다.
+   */
+  dateKey: string;
 }) {
   const saved = intensity != null;
   const [editing, setEditing] = useState(!saved);
@@ -35,7 +42,10 @@ export function TrainingNote({
   const save = () => {
     setError(undefined);
     startTransition(async () => {
-      const res = await saveTrainingNote(value, text);
+      /* 신호가 끊겨도 적던 메모는 남기고 한 줄로 알린다(lib/action-offline.ts) */
+      const res = await orOffline(saveTrainingNote(value, text, dateKey), {
+        error: OFFLINE_MESSAGE,
+      });
       if ('error' in res) setError(res.error);
       else setEditing(false);
     });

@@ -9,6 +9,7 @@ import { Modal } from '@/components/modal';
 import { formatAmount } from '@/lib/exercise-meta';
 import { useWeightUnit } from '@/components/use-units';
 import type { TrainingDayDetail } from '@/lib/report/training-history';
+import { OFFLINE_MESSAGE, orOffline } from '@/lib/action-offline';
 
 /**
  * 그날 한 운동 목록.
@@ -45,7 +46,10 @@ export function DayExercises({
     );
     setError(undefined);
     startTransition(async () => {
-      const res = await setExerciseDone(exerciseId, next, date);
+      /* 신호가 끊겨도 오류 화면 대신 되돌리고 알린다(lib/action-offline.ts) */
+      const res = await orOffline(setExerciseDone(exerciseId, next, date), {
+        error: OFFLINE_MESSAGE,
+      });
       if ('error' in res) {
         setExercises((prev) =>
           prev.map((e) => (e.id === exerciseId ? { ...e, done: !next } : e))

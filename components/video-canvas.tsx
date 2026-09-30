@@ -404,6 +404,8 @@ export function VideoCanvas({
   // 각도는 세 번 눌러야 완성되므로 찍은 점을 모아둔다.
   const [anglePts, setAnglePts] = useState<Point[]>([]);
   const drawingRef = useRef(false);
+  /* 그리는 중인 선 — 화면은 draft 상태로, 확정은 이 값으로(아래 handleUp) */
+  const draftRef = useRef<Shape | null>(null);
 
   const redraw = useCallback(() => {
     const canvas = canvasRef.current;
@@ -504,25 +506,35 @@ export function VideoCanvas({
     }
 
     drawingRef.current = true;
-    setDraft({ kind: 'tilt', color, a: p, b: p });
+    const start: Shape = { kind: 'tilt', color, a: p, b: p };
+    draftRef.current = start;
+    setDraft(start);
   };
 
   const handleMove = (e: React.PointerEvent) => {
     if (!enabled || !drawingRef.current) return;
     const p = toPoint(e);
-    setDraft((prev) => (prev && prev.kind === 'tilt' ? { ...prev, b: p } : prev));
+    const prev = draftRef.current;
+    if (!prev || prev.kind !== 'tilt') return;
+    const next = { ...prev, b: p };
+    draftRef.current = next;
+    setDraft(next);
   };
 
+  /*
+   * 그리던 선을 확정한다. 확정(onCommit)은 상태 바꾸기 함수(setDraft 의 updater) 밖에서 부른다 — updater 는 React 가 두 번
+   * 부를 수 있어(개발 모드 StrictMode · 그리기를 다시 시작할 때) 같은 선이 두 개씩 남았다.
+   */
   const handleUp = () => {
     if (!enabled || !drawingRef.current) return;
     drawingRef.current = false;
-    setDraft((prev) => {
-      // 점만 찍고 만 경우는 버린다.
-      if (prev && prev.kind === 'tilt') {
-        if (Math.hypot(prev.a.x - prev.b.x, prev.a.y - prev.b.y) > 0.01) onCommit(prev);
-      }
-      return null;
-    });
+    const prev = draftRef.current;
+    draftRef.current = null;
+    setDraft(null);
+    // 점만 찍고 만 경우는 버린다.
+    if (prev && prev.kind === 'tilt') {
+      if (Math.hypot(prev.a.x - prev.b.x, prev.a.y - prev.b.y) > 0.01) onCommit(prev);
+    }
   };
 
   return (

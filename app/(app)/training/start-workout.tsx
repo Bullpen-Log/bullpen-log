@@ -1,5 +1,6 @@
 import { Play } from 'lucide-react';
 import { startWorkout } from '@/app/actions/workout';
+import { SafeForm } from '@/components/safe-form';
 
 /**
  * 운동을 시작하는 단추.
@@ -13,7 +14,8 @@ import { startWorkout } from '@/app/actions/workout';
  */
 export function StartWorkout({ resume }: { resume: boolean }) {
   return (
-    <form action={startWorkout}>
+    /* 체육관처럼 신호가 약한 곳에서 누르는 단추라, 못 보내면 오류 화면 대신 밑에 한 줄로(components/safe-form.tsx) */
+    <SafeForm action={startWorkout}>
       <button
         type="submit"
         className="flex w-full items-center justify-center gap-2 rounded-2xl bg-sky py-4 text-base font-bold text-white transition-transform motion-safe:active:scale-[0.98]"
@@ -21,6 +23,6 @@ export function StartWorkout({ resume }: { resume: boolean }) {
         <Play className="h-5 w-5" />
         {resume ? '운동 이어서 하기' : '운동 시작'}
       </button>
-    </form>
+    </SafeForm>
   );
 }

@@ -8,6 +8,7 @@ import { toDateKey } from '@/lib/pitch-stats';
 import { readDailyPlan } from '@/lib/report/daily-plan';
 import { slotForTheme } from '@/lib/report/theme';
 import { readArmcareRoutine } from '@/lib/armcare/routine';
+import { readRoutineItems } from '@/lib/armcare/my-routines';
 
 /**
  * 오늘 일정에서 운동을 빼고 더한다.
@@ -62,22 +63,45 @@ export async function removeFromTodayPlan(exerciseId: string): Promise<Result> {
   if (!plan) return { error: '오늘 만들어 둔 일정이 없습니다.' };
 
   const picks = plan.picks.filter((p) => p.exerciseId !== exerciseId);
-  if (picks.length === plan.picks.length) {
-    return { error: '오늘 목록에 없는 운동입니다.' };
-  }
+  const inPicks = picks.length !== plan.picks.length;
 
   /*
-   * 같은 운동이 오늘의 암케어에도 있으면 체크는 남긴다. 운동 기록은 운동·날짜마다
-   * 한 줄이라 두 화면이 같은 줄을 쓴다 — 여기서 지우면 암케어에서 한 체크까지
-   * 사라진다. 일정에서 뺀 것은 일정의 일이다.
+   * 같은 운동이 오늘의 암케어나 내 암케어 루틴에도 있으면 체크는 남긴다. 운동 기록은 운동·날짜마다 한 줄이라 두 화면이
+   * 같은 줄을 쓴다 — 여기서 지우면 암케어에서 한 체크까지 사라진다. 일정에서 뺀 것은 일정의 일이다.
    */
-  const armcare = await prisma.dailyArmcare.findUnique({
-    where: { userId_date: { userId: user.id, date } },
-    select: { plan: true },
-  });
-  const inArmcare = readArmcareRoutine(armcare?.plan)?.items.some(
-    (it) => it.exerciseId === exerciseId
-  );
+  const [armcare, myRoutines] = await Promise.all([
+    prisma.dailyArmcare.findUnique({
+      where: { userId_date: { userId: user.id, date } },
+      select: { plan: true },
+    }),
+    prisma.userArmcareRoutine.findMany({
+      where: { userId: user.id },
+      select: { items: true },
+    }),
+  ]);
+  const inArmcare =
+    readArmcareRoutine(armcare?.plan)?.items.some(
+      (it) => it.exerciseId === exerciseId
+    ) ||
+    myRoutines.some((r) =>
+      readRoutineItems(r.items).some((it) => it.exerciseId === exerciseId)
+    );
+
+  /*
+   * 일정에는 없는데 오늘 체크해 목록에 도로 든 운동(lib/report/today-data.ts 의 strays) — 빼기는 그 체크를 푸는 것이다.
+   * 예전에는 일정에 없다고 '오늘 목록에 없는 운동입니다'만 떠서 ✕ 가 늘 안 먹었다.
+   */
+  if (!inPicks) {
+    if (inArmcare) return { error: '암케어에서 한 체크라 여기서는 뺄 수 없습니다.' };
+    const res = await prisma.userExerciseLog.deleteMany({
+      where: { userId: user.id, date, exerciseId },
+    });
+    if (res.count === 0) return { error: '오늘 목록에 없는 운동입니다.' };
+    revalidatePath('/training');
+    revalidatePath('/today');
+    return { ok: true };
+  }
+
   if (!inArmcare) {
     await prisma.userExerciseLog.deleteMany({
       where: { userId: user.id, date, exerciseId },

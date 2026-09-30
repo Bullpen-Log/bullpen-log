@@ -60,12 +60,14 @@ export function PitchVideoPlayer({ src, label }: { src: string; label: string })
     };
     document.addEventListener('keydown', onKey);
 
-    const previous = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
+    /* body 가 아니라 html 을 잠근다 — html 이 overflow-x: clip 이라 body 의 overflow 는 화면 스크롤에 안 먹는다 */
+    const root = document.documentElement;
+    const previous = root.style.overflow;
+    root.style.overflow = 'hidden';
 
     return () => {
       document.removeEventListener('keydown', onKey);
-      document.body.style.overflow = previous;
+      root.style.overflow = previous;
     };
   }, [expanded]);
 
@@ -172,7 +174,7 @@ export function PitchVideoPlayer({ src, label }: { src: string; label: string })
           preload="metadata"
           onClick={() => {
             // 영상을 클릭한 뒤 바로 화살표 키를 쓸 수 있도록 포커스를 옮긴다.
-            containerRef.current?.focus();
+            containerRef.current?.focus({ preventScroll: true });
             togglePlay();
           }}
           onPlay={() => setPlaying(true)}

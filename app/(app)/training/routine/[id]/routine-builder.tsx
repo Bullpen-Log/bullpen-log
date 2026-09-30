@@ -237,7 +237,7 @@ export function RoutineBuilder({
                         onClick={() => setSets(i, it.sets - 1)}
                         disabled={it.sets <= MY_ROUTINE_SETS_MIN}
                         aria-label={`${e.view.title} 세트 줄이기`}
-                        className="flex h-7 w-7 items-center justify-center text-muted transition-colors hover:text-sky disabled:opacity-30"
+                        className="flex h-10 w-10 items-center justify-center text-muted transition-colors hover:text-sky disabled:opacity-30 desk:h-7 desk:w-7"
                       >
                         <Minus className="h-3.5 w-3.5" />
                       </button>
@@ -249,19 +249,20 @@ export function RoutineBuilder({
                         onClick={() => setSets(i, it.sets + 1)}
                         disabled={it.sets >= MY_ROUTINE_SETS_MAX}
                         aria-label={`${e.view.title} 세트 늘리기`}
-                        className="flex h-7 w-7 items-center justify-center text-muted transition-colors hover:text-sky disabled:opacity-30"
+                        className="flex h-10 w-10 items-center justify-center text-muted transition-colors hover:text-sky disabled:opacity-30 desk:h-7 desk:w-7"
                       >
                         <Plus className="h-3.5 w-3.5" />
                       </button>
                     </span>
                   </span>
-                  <span className="flex shrink-0 flex-col gap-1">
+                  {/* 앞 · 뒤 · 빼기는 폰에서 손가락 크기(40px), 빼기는 조금 떼어 둔다 — 28px 가 붙어 있어 옮기려다 빠지곤 했다 */}
+                  <span className="flex shrink-0 flex-col gap-2 desk:gap-1">
                     <button
                       type="button"
                       onClick={() => move(i, -1)}
                       disabled={i === 0}
                       aria-label={`${e.view.title} 앞으로`}
-                      className="flex h-7 w-7 items-center justify-center rounded-lg border border-line text-muted transition-colors hover:text-sky disabled:opacity-30"
+                      className="flex h-10 w-10 items-center justify-center rounded-lg border border-line text-muted transition-colors hover:text-sky disabled:opacity-30 desk:h-7 desk:w-7"
                     >
                       <ArrowUp className="h-3.5 w-3.5" />
                     </button>
@@ -270,7 +271,7 @@ export function RoutineBuilder({
                       onClick={() => move(i, 1)}
                       disabled={i === items.length - 1}
                       aria-label={`${e.view.title} 뒤로`}
-                      className="flex h-7 w-7 items-center justify-center rounded-lg border border-line text-muted transition-colors hover:text-sky disabled:opacity-30"
+                      className="flex h-10 w-10 items-center justify-center rounded-lg border border-line text-muted transition-colors hover:text-sky disabled:opacity-30 desk:h-7 desk:w-7"
                     >
                       <ArrowDown className="h-3.5 w-3.5" />
                     </button>
@@ -279,7 +280,7 @@ export function RoutineBuilder({
                     type="button"
                     onClick={() => toggle(e)}
                     aria-label={`${e.view.title} 빼기`}
-                    className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-muted transition-colors hover:bg-surface-2 hover:text-danger"
+                    className="ml-1 flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-muted transition-colors hover:bg-surface-2 hover:text-danger desk:ml-0 desk:h-9 desk:w-9"
                   >
                     <X className="h-4 w-4" />
                   </button>

@@ -604,7 +604,8 @@ export function VideoGallery({
                         setPicked((prev) => prev.map((x, j) => (j === i ? null : x)))
                       }
                       aria-label={`${i === 0 ? 'A' : 'B'}면 비우기`}
-                      className="shrink-0 rounded p-0.5 transition-colors hover:text-danger"
+                      /* 보이는 크기는 그대로, 누르는 자리만 넓게(before) — 16px 라 손가락으로 거의 안 눌렸다 */
+                      className="relative shrink-0 rounded p-0.5 transition-colors before:absolute before:-inset-3 hover:text-danger"
                     >
                       <X className="h-3 w-3" />
                     </button>

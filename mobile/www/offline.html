@@ -76,12 +76,11 @@
       const retry = () => location.replace(START);
       document.getElementById('retry').addEventListener('click', retry);
       window.addEventListener('online', retry);
-      /* 로딩 화면(로고)을 걷는다 — 안 걷으면 4초 동안 이 화면을 덮고 있다 */
+      /* 앱 시작 연출 판을 걷는다(ios/App/App/MainViewController.swift) — 안 알리면 10초 동안 이 화면을 덮고 있다 */
+      const intro = window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.bullpenIntro;
+      if (intro) intro.postMessage('ready');
       const cap = window.Capacitor;
       if (cap && cap.nativePromise) {
-        cap
-          .nativePromise('SplashScreen', 'hide', { fadeOutDuration: 250 })
-          .catch(() => {});
         cap.nativePromise('SystemBars', 'setStyle', { style: 'LIGHT' }).catch(() => {});
       }
     </script>

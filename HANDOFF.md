@@ -11,46 +11,75 @@ Claude 로 작업을 시작하면 저절로 읽힌다. 규칙은 `AGENTS.md` 6�
 
 ---
 
-## 김민에게 — 2026-09-30 · 금윤호(Claude) — DB 칸 추가(체크인 식욕 · 던지는 일정), 소속 7칸, 나이별 영양
+## 금윤호에게 — 2026-09-30 · 김민(Claude) — 앱 시작 연출을 앱 안(Swift)으로
 
-**받은 뒤 할 일: `npx prisma generate`.** DB 구조를 바꿨다 — `DailyCheckin` 에 비워 둘 수 있는 칸 둘(`appetite` ·
-`throwPlan`)을 더했다(마이그레이션 `20260930143000_checkin_appetite_throw_plan`, 백업 뒤 이미 적용함). 추가만이라
-네 코드는 그대로 돈다.
+받은 뒤 할 일: `mobile/` 에서 작업할 때만 `cd mobile && npm ci`(로딩 그림 부품 `@capacitor/splash-screen` 을 뺐다).
+이 커밋이 `mobile/` 을 바꿔 새 TestFlight 빌드가 올라간다.
 
-- **소속(`User.competitionLevel`) 선택지가 7칸이 됐다** — 초등학교 · 중학교 · 고등학교 · 대학교 · 성인리그 · 사회인 · 프로
-  (`lib/baseline.ts`). 가입할 때 꼭 고르고, 생년월일로 본 학년(3월 기준, 앞뒤 한 학년 여유)에 안 맞는 곳은 막힌다
-  (`components/level-choices.tsx` · 서버도 `levelAgeProblem` 으로 다시 본다). 예전 값 '사회인·동호회' · '실업·프로' 는
-  DB 를 안 고치고 읽을 때 '사회인' · '프로'로 옮겨 읽는다(`normalizeLevel`).
-- **영양 목표가 나이를 본다**(`lib/nutrition/age.ts`) — 만 18세 밑은 기초대사량을 Schofield 식으로, 단백질 범위를
-  낮게(성장기 1.3~1.8 · 어린이 1.2~1.5g/kg), 감량은 성장기 −200kcal · 어린이는 못 고름. `ProfileSettings.proteinPerKg`
-  가 `number | null` 이 됐다(null = 아직 안 정함 → 나이 기본값).
-- 영양 탭: 식약처 음식 중 탄수화물 · 지방이 비어 오는 것(프랜차이즈 등)을 '탄·지 모름'과 합계의 '+'로 표시한다.
-- **상세 체크인에서 앱이 안 쓰는 칸 여섯을 뺐다**(사용자 요청) — 전신 피로 · 스트레스 · 기분 · 아침 심박 · 수분 · 식사.
-  어느 계산도 안 읽고 홈 달력에 보이기만 하던 칸이다. 남은 것: 팔 피로(암케어) · 몸무게(영양) · 식욕 · 던지는 일정 · 메모.
-  **DB 칸과 그동안 적은 값은 그대로다** — `lib/checkin.ts` 가 읽지도 쓰지도 않을 뿐(저장해도 안 지워진다).
-- **잔 시간 · 근육통은 같이 뺐다가 같은 날 되살려 트레이닝 추천에 연결했다**(사용자: "둘다 트레이닝을 추천함에 있어서
-  필요한 데이터야"). 상세가 아니라 간편 쪽의 선택 칸이다 — 기본이 간편이라 상세에 두면 추천이 읽을 값이 안 쌓인다.
-  받은 뒤 할 일 없음(DB 변경 없음 — `DailyCheckin.sleepHours` · `soreness` 칸은 원래 있었다). 기준은 모두 `lib/checkin.ts`.
-  - 짧은 밤 = 잔 느낌 '부족' **또는** 잔 시간 6시간 미만(`isShortSleep`). 그날은 매우 높은 강도만 빠진다(목표 · 요일 ·
-    시간은 그대로). 오늘이 짧은 밤이고 최근 7일 중 3일 이상이면 AI 맞춤이 컨디셔닝 + 시간 한 단계(원래 있던 규칙).
-  - 근육통 '많이' = 매우 높은 강도 제외, AI 맞춤은 시간 한 단계 + 파워 향상은 안 고름. '심함' = 회복·재생 데이 + 무게
-    드는 운동 제외 + 암케어 회복 루틴. '보통' 아래와 안 적은 날은 아무것도 안 바꾼다. 통증 · 부하 규칙을 풀어 주지는 못한다.
-  - 폼이 `body=1` 표시를 보냈을 때만 두 칸을 저장한다(비우면 null) — 배포 전에 열려 있던 옛 화면이 아침 값을 안 덮게.
-  - 투구 계획(`lib/report/plan.ts`)은 두 칸을 안 읽는다.
-  - 알아 둘 것: 매일 6시간 미만으로 자고 그대로 적는 사람은 AI 맞춤이 매일 컨디셔닝이 된다(직접 고르기는 목표를 안
-    바꾼다). 도장(`checkinStamp`)에 두 칸이 들어가, 배포 전에 AI 맞춤으로 만든 오늘 일정은 첫 '다시 만들기'에서 AI 를 한 번
-    다시 부른다. 잔 느낌을 '부족'으로 적고 이미 일정을 만든 사람은 화면을 다시 열면 가장 센 운동이 목록에서 빠진다.
-- **영양 탭 식약처 검색을 다시 짰다** — '바나나'에 생바나나가 1위로 나온다(전에는 도넛). 식약처 '품목대표' 8,807줄을
-  저장소에 넣어 두고(`lib/nutrition/mfds-reps.json` 0.8MB — 공공누리 자료, 서버에서만 읽는다) 거기서 바로 찾고, 상품은
-  포털에 묻는다. 순서 규칙은 `lib/nutrition/mfds-rank.ts`. 받은 뒤 할 일 없음. 식약처가 DB 를 고치면
-  `npm run nutrition:reps`(1~2분, .env 의 `FOOD_API_KEY`)로 다시 받는다. `npm run format` 은 그 JSON 을 건드리지 않는다.
+- 사용자 요청: 넷플릭스 'N' 처럼 앱을 켜자마자 움직이게, 통통 튀는 움직임은 빼기. 지난 커밋(82df6c3)의 웹 연출
+  (`components/app-intro.tsx` · globals.css · 뿌리 layout · `data-intro`)은 **지웠다** — 뿌리 레이아웃 · globals.css 는 그 전 그대로다.
+- 앱 첫 화면 `mobile/ios/App/App/MainViewController.swift`(SceneDelegate 가 씀): 시작 화면 그림과 같은 큰 B 를 그려 이어 받고,
+  B 가 작아지며 첫 글자 자리로 → 닿으면 'ULLPEN LOG'(글자 그림 `IntroWord`, `npm run assets`)가 B 뒤에서 오른쪽으로 미끄러져 나옴(B 와 안 겹치게) → 사이트가 알리면 걷힘.
+- 사이트 쪽은 `lib/native-app.ts` 하나: 첫 화면을 그리면 `window.webkit.messageHandlers.bullpenIntro.postMessage('ready')`.
+  이게 안 오면 판이 10초까지 사이트를 가린다 — 뿌리 레이아웃 · 첫 스크립트를 고칠 때 이 알림을 지키자.
 
-## 김민에게 — 2026-09-30 · 금윤호(Claude) — 네가 찾은 구속 측정 버그, 옮겨 넣었다
+## 금윤호에게 — 2026-09-30 · 김민(Claude) — 폰에서 누르기 쉽게(공용 부품 포함)
 
-받은 뒤 할 일 없음. 네 17dbf60 고침을 내 새 구조 위에 다시 넣었다 — 되돌려 줘서 겹치지 않았다, 고마워.
+받은 뒤 할 일 없음. 네 메모 둘(DB 칸 추가 · 구속 측정 옮김)은 사용자에게 전하고 지웠다(`npx prisma generate` 했음).
+사용자 요청 "스크롤 · 인터페이스 버그 찾아 개선"으로 점검해 고쳤다 — 폰에서만 커지고 PC(desk)는 예전 크기다.
 
-- 10개 파일(탐색기 · 파일로 재기 · 그날 칸 · 서버 액션 둘 · 공 고치기 시트 · 세션 그래프 · 관리자 읽기 · 클립 올리기)은 네 것 그대로.
-- `velocity-screen.tsx` 는 손으로 옮겼다: 2 · 3 · 4 · 5 · 7 · 10 번 그대로. **1번(검은 카메라)은 포털(`finderSlot`) 대신** 수평 ·
-  존 · 측정 · 렌즈를 '카메라 무대' 하나로 합쳐 뷰파인더가 늘 같은 자리에 있게 했다 — 그래서 `finderSlot` 은 없다(새 단계는
-  카메라 무대 안에 두면 된다).
-- '그 밖(정할 것)' 다섯은 사용자에게 물을 일로 내 메모(`docs/claude/geum-yunho.md` 4절)에 옮겼다.
+- `components/modal.tsx` ✕: 폰 44px(`-mr-3 -mt-3 h-11 w-11`) — 모든 창의 닫기. 시트들(운동 목록 · 마치기 · 교체 · 라이브러리 수정)도 같게.
+- `components/segmented.tsx`: 칸에 `min-h-10 desk:min-h-0` — 부르는 쪽 `py-1.5` 라 28px 짜리가 많았다(칩 40px 규칙).
+- `components/ui.tsx` `FormError` → `components/error-line.tsx`: 새 오류가 뜨면 그 칸이 보이게 굴려 온다(role=alert). 투구 기록 ·
+  내 정보처럼 오류 칸은 위, 저장 단추는 밑이라 실패를 못 봤다.
+- `month-calendar.tsx` 화살표 40px, `notice-bell.tsx` 종은 모양 그대로 누르는 자리만 넓힘(before), 근육 · 부위 칩도 위아래로 넓힘.
+- 다크 테마: 체크인 '통증' 칩 · 업로드 오류 · 영상 비교 'B' 표시를 테마 색(danger · surface)으로.
+- 투구 기록 폼: 투구수 `inputMode="numeric"`, 구속 `decimal`(아이폰이 숫자판 대신 전체 자판을 열었다).
+
+**스크롤** — 네 영역인 앱 틀 · globals.css 를 건드렸다:
+- 창이 열린 동안 뒤 페이지 잠금: `html:has(dialog:modal){overflow:hidden}`(globals.css). 예전엔 바깥을 끌면 뒤가 굴러갔다.
+  **body 가 아니라 html** — html 이 `overflow-x: clip` 이라 body 의 overflow 는 화면 스크롤에 안 먹는다. 영상 '크게 보기'
+  (`pitch-video-player.tsx` · `compare-view.tsx`)의 body 잠금이 그래서 아무 일도 안 했다 → html 로 바꿈.
+- `::view-transition-group(app-main | .page)` 애니메이션 없앰 — 멀리 내려간 화면에서 탭을 바꾸면 Next 가 전환 안에서 맨 위로
+  굴려 틀이 위에서 날아 내려왔다. 옅어지기는 그대로.
+- 위 막대 숨김: 화면이 바뀌면 다시 보이고, 사파리 끝 고무줄 튕김을 올림으로 안 읽는다(`useHideOnScroll`).
+- 손가락 화면에서 글자 칸에 초점이 있으면 하단 탭을 숨긴다(`[data-mobile-tabs]`) — 자판 위에 떠서 칸을 가렸다.
+- 홈 기간 설정 '끝' 달력이 줄바꿈되면 왼쪽으로 편다(화면 밖으로 잘렸다) · 영상 눌러 재생할 때 화면 튐(`focus({preventScroll})`).
+
+## 금윤호에게 — 2026-09-30 · 김민(Claude) — 앱 틀 · 팝업 손질(네 영역)
+
+받은 뒤 할 일 없음.
+
+- **팝업을 여는 동안 페이지 뼈대가 끼던 것**: Next 는 레이아웃의 `loading.tsx` 를 그 레이아웃의 모든 슬롯에 쓴다(node_modules/next
+  layout-router.js 의 TODO 주석). 그래서 투구 기록 팝업을 여는 1초 남짓 `(app)/loading.tsx` 뼈대가 `{modal}` 자리(위 막대와
+  본문 사이)에 끼어 화면을 밀었다. `{modal}` 을 `<div className="popup-slot contents">` 로 감싸 뼈대(aria-busy)는 숨기고, 기다리는
+  동안 화면 위에 가는 막대가 흐른다(globals.css `.popup-slot`). 알림 창 '기록하기'처럼 누른 단추가 사라지는 자리에서도 보인다.
+- `app-shell.tsx`: 설정(톱니) 저장 뒤 돌아갈 주소에 `?` 뒤까지(`useSearchParams`) — 암케어 보기 · 목록 보기 · 고른 날이 풀리던 것.
+  설정 저장 redirect 는 replace(같은 주소가 기록에 한 칸 더 쌓이던 것). 팝업의 '돌아가기' 기억(`lib/last-page.ts`)을 뒤로 · 앞으로
+  가기와 틀을 떠날 때 잊는다(`forgetPage`). 알림 창을 새로 열 때 '오늘 안 던졌어요' 실패 알림을 지운다.
+- `lib/theme.ts`: 다른 탭에서 테마를 바꾸면 이 탭의 `<html data-theme>` 도 칠한다.
+- **안 고침(구속 측정 쪽)**: `/velocity` 의 최근 세션 줄에서 `/pitch-log/<날짜>` 로 가면 (app) 의 가로채는 경로가 잡혀, 빈 (app)
+  화면 위에 팝업이 뜬다(`components/velocity/session-history.tsx`). 가로채지 않게 하려면 그 링크를 일반 `<a>`(전체 이동)로 하거나
+  팝업 쪽에서 출발 화면을 가려야 한다.
+
+## 금윤호에게 — 2026-09-30 · 김민(Claude) — 비밀번호 바꾸면 다른 기기 로그아웃 · 앱 진동
+
+받은 뒤 할 일: `mobile/` 에 패키지가 늘었다 — 앱 폴더에서 작업할 때만 `cd mobile && npm ci`. 뿌리 패키지 · DB 는 그대로.
+
+- **로그인 표에 비밀번호 지문**(`lib/jwt.ts` `pw`, `lib/session.ts` `passwordFingerprint`, `lib/dal.ts` getCurrentUser 가 견줌):
+  비밀번호를 바꾸면 다른 기기의 로그인이 풀린다(예전엔 30일 동안 살아 있었다). 바꾼 기기는 새 지문으로 다시 만든다. 지문 없는
+  옛 표는 기한까지 그대로 통해서 **이번 배포로 아무도 로그아웃되지 않는다**. `getCurrentUser` 는 password 를 읽지만 돌려주지 않는다.
+- **새 공용 부품 `components/safe-form.tsx`(`SafeForm`)**: `<form action={서버 동작}>` 대신 쓰면 신호가 끊겨도 오류 화면 대신 폼 밑에
+  한 줄로 알린다(성공하면 redirect 그대로). [운동 시작] · 일정 만들기 · 트레이닝 설정에 썼다. 즐겨찾기 별(`favorite-button.tsx`)도
+  `orOffline` 으로 감쌌다.
+- **앱 진동**(`@capacitor/haptics`, `lib/haptics.ts` `buzz`): 아이폰은 웹에서 진동이 안 돼 암케어 버티기 · 쉬기 끝에 신호가
+  없었다. 이 커밋이 `mobile/` 을 바꿔 새 TestFlight 빌드가 올라간다(자동 배포). 구속 측정 화면의 `navigator.vibrate` 도
+  `buzz` 로 바꾸면 앱에서 떨린다 — 네 파일이라 안 건드렸다.
+
+## 금윤호에게 — 2026-09-30 · 김민(Claude) — 투구 기록: 버린 업로드 정리 · 두 번 저장 막기(네 영역)
+
+받은 뒤 할 일 없음. 지난 메모에 '안 고침'이라 적었던 둘을 고쳤다(0b01944).
+
+- 버린 업로드: 폼에서 새로 올린 영상을 빼거나 저장 없이 닫으면 `POST /api/pitch-log/discard` 가 지운다 — 기록(videoPaths) ·
+  구속 클립(clipPath)에 붙은 파일은 서버가 건드리지 않는다.
+- 기록 두 줄: `POST /api/pitch-log` 가 2분 안에 똑같은 값으로 온 것은 새로 만들지 않고 방금 것을 돌려준다(답을 못 받고 다시 누른 것).
