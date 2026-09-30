@@ -206,49 +206,32 @@ export function validateCheckinDate(dateKey: string, now = new Date()): boolean 
  * 상세는 더 적고 싶은 날에만 채운다. 전부 고르지 않아도 되고, 비어 있으면 그날은
  * 안 적은 것이다(0 이나 '보통'으로 채우지 않는다 — 안 적은 것과 보통인 것은 다르다).
  *
- * 무엇을 묻는지: 운동선수 컨디션 점검에서 흔히 쓰는 것(피로·근육통·스트레스·기분·
- * 수면)에, 투수라서 따로 봐야 하는 팔 피로, 그리고 숫자로 남겨야 흐름이 보이는 것
- * (잔 시간·몸무게·아침 심박)과 먹고 마신 것을 더했다.
+ * 무엇을 묻는지: **앱이 실제로 쓰는 것만.** 팔 피로(암케어 루틴이 본다), 몸무게(영양 목표 ·
+ * 홈 그래프), 식욕 · 던지는 일정(영양 가이드), 그리고 메모.
+ *
+ * 2026-09-30 에 뺐다(사용자: "사용하지 않는 굳이 필요없는 건 빼줘") — 잔 시간 · 전신 피로 · 근육통 ·
+ * 스트레스 · 기분 · 아침 심박 · 수분 · 식사. 어느 계산도 읽지 않고 홈 달력에 보이기만 하던 칸들이다
+ * (수면은 간편의 충분/보통/부족을 쓰고, 먹은 것은 영양 탭이 끼니별로 받는다). DB 칸(DailyCheckin 의
+ * sleepHours · fatigue · soreness · stress · mood · restingHr · hydration · nutrition)과 그동안 적은 값은
+ * 그대로 있다 — 여기서 읽지도 쓰지도 않을 뿐이라, 저장해도 예전 값이 지워지지 않는다.
+ * 다시 쓰려면 아래 목록과 폼(components/checkin-form.tsx)에 칸을 되살리면 된다.
  */
 
 /**
  * 1~5 로 고르는 것들.
  *
  * 보기를 말로 적는다. 숫자만 있으면 3이 좋은 건지 나쁜 건지 매번 헷갈린다.
- * 피로·근육통·스트레스는 클수록 그 느낌이 강하고, 기분만 클수록 좋다.
+ * 클수록 그 느낌이 강하다.
  */
 export const DETAIL_SCALES = [
-  {
-    key: 'fatigue',
-    label: '전신 피로',
-    options: ['없음', '조금', '보통', '많이', '심함'],
-  },
   {
     key: 'armFatigue',
     label: '팔 피로',
     options: ['없음', '조금', '보통', '많이', '심함'],
   },
-  {
-    key: 'soreness',
-    label: '근육통',
-    options: ['없음', '조금', '보통', '많이', '심함'],
-  },
-  {
-    key: 'stress',
-    label: '스트레스',
-    options: ['없음', '조금', '보통', '많이', '심함'],
-  },
-  {
-    key: 'mood',
-    label: '기분',
-    options: ['나쁨', '별로', '보통', '좋음', '아주 좋음'],
-  },
 ] as const;
 
 export type DetailScaleKey = (typeof DETAIL_SCALES)[number]['key'];
-
-export const HYDRATION_LEVELS = ['충분', '보통', '부족'] as const;
-export const NUTRITION_LEVELS = ['잘 먹음', '보통', '부족'] as const;
 
 /*
  * 영양 가이드에 쓰는 두 칸(2026-09-30 사용자: "영양 가이드에 필요한 정보가 있다면 체크인에도").
@@ -262,20 +245,13 @@ export const NUTRITION_LEVELS = ['잘 먹음', '보통', '부족'] as const;
 export const APPETITE_LEVELS = ['거의 없음', '적음', '보통', '좋음', '왕성'] as const;
 export const THROW_PLANS = ['오늘 등판', '오늘 불펜', '내일 등판', '없음'] as const;
 
-export const SLEEP_HOURS_MAX = 16;
-export const RESTING_HR_MIN = 30;
-export const RESTING_HR_MAX = 150;
 export const CHECKIN_NOTE_MAX = 500;
 /* 몸무게 범위는 내 정보의 몸무게와 같다 */
 export const CHECKIN_WEIGHT_MIN_KG = 20;
 export const CHECKIN_WEIGHT_MAX_KG = 200;
 
 export type CheckinDetail = Record<DetailScaleKey, number | null> & {
-  sleepHours: number | null;
   bodyWeightKg: number | null;
-  restingHr: number | null;
-  hydration: string | null;
-  nutrition: string | null;
   appetite: number | null;
   throwPlan: string | null;
   note: string | null;
@@ -285,11 +261,7 @@ export type CheckinDetail = Record<DetailScaleKey, number | null> & {
 export function hasDetail(d: Partial<CheckinDetail>) {
   return (
     DETAIL_SCALES.some((s) => d[s.key] != null) ||
-    d.sleepHours != null ||
     d.bodyWeightKg != null ||
-    d.restingHr != null ||
-    d.hydration != null ||
-    d.nutrition != null ||
     d.appetite != null ||
     d.throwPlan != null ||
     Boolean(d.note)
@@ -299,7 +271,7 @@ export function hasDetail(d: Partial<CheckinDetail>) {
 /**
  * 폼에서 온 상세 값을 정리한다.
  *
- * 비어 있으면 null. 고르는 칸(척도·수분·식사)에 목록에 없는 값이 오면 안 고른
+ * 비어 있으면 null. 고르는 칸(척도 · 식욕 · 던지는 일정)에 목록에 없는 값이 오면 안 고른
  * 것으로 본다 — 화면에서는 나올 수 없는 값이고, 그것 때문에 체크인 전체를 막을
  * 일이 아니다. 숫자는 범위를 벗어나면 알려 준다. 사람이 직접 친 값이라 잘못 친
  * 것일 수 있다.
@@ -320,14 +292,6 @@ export function parseCheckinDetail(
     return Number.isFinite(n) ? n : NaN;
   };
 
-  const sleepHours = num('sleepHours');
-  if (
-    sleepHours !== null &&
-    (Number.isNaN(sleepHours) || sleepHours < 0 || sleepHours > SLEEP_HOURS_MAX)
-  ) {
-    return { error: `잔 시간은 0~${SLEEP_HOURS_MAX}시간 사이로 적어주세요.` };
-  }
-
   const bodyWeightKg = num('bodyWeightKg');
   if (
     bodyWeightKg !== null &&
@@ -336,19 +300,6 @@ export function parseCheckinDetail(
       bodyWeightKg > CHECKIN_WEIGHT_MAX_KG)
   ) {
     return { error: '몸무게를 다시 확인해주세요.' };
-  }
-
-  const restingHr = num('restingHr');
-  if (
-    restingHr !== null &&
-    (Number.isNaN(restingHr) ||
-      !Number.isInteger(restingHr) ||
-      restingHr < RESTING_HR_MIN ||
-      restingHr > RESTING_HR_MAX)
-  ) {
-    return {
-      error: `아침 심박은 ${RESTING_HR_MIN}~${RESTING_HR_MAX} 사이의 정수로 적어주세요.`,
-    };
   }
 
   const pickFrom = (list: readonly string[], raw: string) =>
@@ -370,12 +321,7 @@ export function parseCheckinDetail(
   return {
     value: {
       ...scales,
-      /* 0.5 시간 단위로 맞춘다 — 7.3 시간 같은 값은 기록으로서 뜻이 없다 */
-      sleepHours: sleepHours === null ? null : Math.round(sleepHours * 2) / 2,
       bodyWeightKg: bodyWeightKg === null ? null : Math.round(bodyWeightKg * 10) / 10,
-      restingHr,
-      hydration: pickFrom(HYDRATION_LEVELS, get('hydration')),
-      nutrition: pickFrom(NUTRITION_LEVELS, get('nutrition')),
       appetite,
       throwPlan: pickFrom(THROW_PLANS, get('throwPlan')),
       note: note || null,
@@ -389,16 +335,8 @@ export function parseCheckinDetail(
  */
 export function pickCheckinDetail(row: Partial<CheckinDetail>): CheckinDetail {
   return {
-    sleepHours: row.sleepHours ?? null,
-    fatigue: row.fatigue ?? null,
     armFatigue: row.armFatigue ?? null,
-    soreness: row.soreness ?? null,
-    stress: row.stress ?? null,
-    mood: row.mood ?? null,
     bodyWeightKg: row.bodyWeightKg ?? null,
-    restingHr: row.restingHr ?? null,
-    hydration: row.hydration ?? null,
-    nutrition: row.nutrition ?? null,
     appetite: row.appetite ?? null,
     throwPlan: row.throwPlan ?? null,
     note: row.note ?? null,

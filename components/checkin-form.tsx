@@ -18,16 +18,11 @@ import {
   CHECKIN_WEIGHT_MIN_KG,
   DETAIL_SCALES,
   APPETITE_LEVELS,
-  HYDRATION_LEVELS,
   MAX_CONDITION,
   MAX_PREFERRED_PARTS,
   MIN_CONDITION,
   NO_WORKOUT_KIND,
-  NUTRITION_LEVELS,
   THROW_PLANS,
-  RESTING_HR_MAX,
-  RESTING_HR_MIN,
-  SLEEP_HOURS_MAX,
   SLEEP_LEVELS,
   WORKOUT_KINDS,
   type CheckinDetail,
@@ -180,44 +175,6 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 const numberInput =
   'w-24 rounded-lg border border-line bg-surface-2 px-3 py-2 text-xs text-ink outline-none transition-colors placeholder:text-muted/50 focus:border-sky';
 
-/** 숫자 한 칸 — 뒤에 단위를 붙인다 */
-function NumberRow({
-  label,
-  name,
-  suffix,
-  defaultValue,
-  min,
-  max,
-  step,
-  placeholder,
-}: {
-  label: string;
-  name: string;
-  suffix: string;
-  defaultValue?: string;
-  min: number;
-  max: number;
-  step: number;
-  placeholder: string;
-}) {
-  return (
-    <Row label={label}>
-      <input
-        type="number"
-        name={name}
-        inputMode="decimal"
-        defaultValue={defaultValue}
-        min={min}
-        max={max}
-        step={step}
-        placeholder={placeholder}
-        className={numberInput}
-      />
-      <span className="text-xs text-muted">{suffix}</span>
-    </Row>
-  );
-}
-
 /**
  * 오늘 몸무게 — 고른 단위(kg·lb)로 보여주고 저장은 늘 kg.
  *
@@ -327,16 +284,12 @@ function ModeSwitch({ mode, onChange }: { mode: Mode; onChange: (m: Mode) => voi
 /** 요약에 쓰는 상세 값 — 적은 것만 한 줄씩 */
 function detailLines(d: CheckinData, weightUnit: 'kg' | 'lb'): [string, string][] {
   const out: [string, string][] = [];
-  if (d.sleepHours != null) out.push(['잔 시간', `${d.sleepHours}시간`]);
   for (const s of DETAIL_SCALES) {
     const v = d[s.key];
     if (v != null) out.push([s.label, s.options[v - 1] ?? String(v)]);
   }
   if (d.bodyWeightKg != null)
     out.push(['몸무게', formatWeight(d.bodyWeightKg, weightUnit) ?? '']);
-  if (d.restingHr != null) out.push(['아침 심박', `${d.restingHr}bpm`]);
-  if (d.hydration) out.push(['수분', d.hydration]);
-  if (d.nutrition) out.push(['식사', d.nutrition]);
   if (d.appetite != null)
     out.push(['식욕', APPETITE_LEVELS[d.appetite - 1] ?? String(d.appetite)]);
   if (d.throwPlan) out.push(['던지는 일정', d.throwPlan]);
@@ -351,8 +304,8 @@ function detailLines(d: CheckinData, weightUnit: 'kg' | 'lb'): [string, string][
  * 만들지 않는다 — 감싸는 쪽이 이미 가지고 있어서 겹친다.
  *
  * 간편과 상세 두 가지로 받는다. 간편은 몸 상태·컨디션·수면만 — 매일 쓰는 것이라
- * 몇 초 안에 끝나야 한다. 상세는 운동 선호와 더 많은 기록(잔 시간·피로·팔 피로·
- * 몸무게·메모 등)까지 받되, 전부 안 채워도 된다.
+ * 몇 초 안에 끝나야 한다. 상세는 운동 선호와 앱이 실제로 쓰는 기록(팔 피로 · 몸무게 ·
+ * 식욕 · 던지는 일정)과 메모까지 받되, 전부 안 채워도 된다.
  *
  * 간편으로 저장하면 상세 기록은 건드리지 않는다. 아침에 상세로 적어 둔 것을
  * 저녁에 간편으로 고쳐도 몸무게·메모가 지워지지 않는다(app/actions/checkin.ts).
@@ -794,17 +747,7 @@ export function CheckinForm({
                     </Section>
                   </div>
 
-                  <Section title="몸과 마음 · 고른 것을 다시 누르면 풀립니다">
-                    <NumberRow
-                      label="잔 시간"
-                      name="sleepHours"
-                      suffix="시간"
-                      defaultValue={pick('sleepHours', today?.sleepHours)}
-                      min={0}
-                      max={SLEEP_HOURS_MAX}
-                      step={0.5}
-                      placeholder="7.5"
-                    />
+                  <Section title="몸 · 고른 것을 다시 누르면 풀립니다">
                     {DETAIL_SCALES.map((s) => (
                       <Row key={s.key} label={s.label}>
                         {s.options.map((label, i) => (
@@ -823,46 +766,10 @@ export function CheckinForm({
                       </Row>
                     ))}
                     <WeightRow defaultKg={pick('bodyWeightKg', today?.bodyWeightKg)} />
-                    <NumberRow
-                      label="아침 심박"
-                      name="restingHr"
-                      suffix="bpm"
-                      defaultValue={pick('restingHr', today?.restingHr)}
-                      min={RESTING_HR_MIN}
-                      max={RESTING_HR_MAX}
-                      step={1}
-                      placeholder="60"
-                    />
                   </Section>
 
                   {/* 식욕 · 던지는 일정은 영양 탭의 가이드가 쓴다(lib/checkin.ts) */}
-                  <Section title="먹고 마신 것 · 영양 가이드에 써요">
-                    <Row label="수분">
-                      {HYDRATION_LEVELS.map((v) => (
-                        <ChipRadio
-                          key={v}
-                          name="hydration"
-                          value={v}
-                          toggleable
-                          defaultChecked={pick('hydration', today?.hydration) === v}
-                        >
-                          {v}
-                        </ChipRadio>
-                      ))}
-                    </Row>
-                    <Row label="식사">
-                      {NUTRITION_LEVELS.map((v) => (
-                        <ChipRadio
-                          key={v}
-                          name="nutrition"
-                          value={v}
-                          toggleable
-                          defaultChecked={pick('nutrition', today?.nutrition) === v}
-                        >
-                          {v}
-                        </ChipRadio>
-                      ))}
-                    </Row>
+                  <Section title="영양 가이드에 써요">
                     <Row label="식욕">
                       {APPETITE_LEVELS.map((label, i) => (
                         <ChipRadio

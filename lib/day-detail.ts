@@ -145,8 +145,6 @@ export async function loadDayDetail(user: UserBody, date: string): Promise<DayDe
   if (checkin) {
     const parts = pickCheckinParts(checkin);
     const details: { label: string; value: string }[] = [];
-    if (checkin.sleepHours != null)
-      details.push({ label: '잔 시간', value: `${checkin.sleepHours}시간` });
     for (const s of DETAIL_SCALES) {
       const v = checkin[s.key];
       if (v != null && v >= 1 && v <= s.options.length) {
@@ -155,10 +153,6 @@ export async function loadDayDetail(user: UserBody, date: string): Promise<DayDe
     }
     if (checkin.bodyWeightKg != null)
       details.push({ label: '체중', value: `${checkin.bodyWeightKg}kg` });
-    if (checkin.restingHr != null)
-      details.push({ label: '안정 심박', value: `${checkin.restingHr}` });
-    if (checkin.hydration) details.push({ label: '물', value: checkin.hydration });
-    if (checkin.nutrition) details.push({ label: '식사', value: checkin.nutrition });
     if (
       checkin.appetite != null &&
       checkin.appetite >= 1 &&
