@@ -13,6 +13,8 @@ import {
 } from 'react';
 import {
   CalendarDays,
+  Check,
+  ChevronDown,
   ChevronLeft,
   ChevronRight,
   ChevronsLeft,
@@ -48,6 +50,11 @@ import {
   type MealKey,
 } from '@/lib/nutrition/meta';
 import type { DaySummary, NutritionDay } from '@/lib/nutrition/load';
+import {
+  GUIDE_DISCLAIMER,
+  recoveryEaten,
+  type ThrowGuide,
+} from '@/lib/nutrition/guide';
 import {
   addMealEntries,
   deleteMealEntry,
@@ -272,6 +279,16 @@ export function NutritionView({ day, today }: { day: NutritionDay; today: string
 
       <div className="grid items-start gap-block lg:grid-cols-[minmax(0,1fr)_22rem]">
         <div className="stack-block">
+          {/* 던지는 날 가이드 — 오늘이 등판 · 불펜 전날이나 당일, 던진 뒤일 때만(lib/nutrition/guide.ts) */}
+          {day.guide && (
+            <GuideCard
+              guide={day.guide}
+              entries={entries}
+              carbsEaten={eaten.carbs}
+              carbsTarget={t.carbs}
+              carbsGap={gaps.carbs > 0}
+            />
+          )}
           <SummaryCard eaten={eaten} gaps={gaps} day={day} />
 
           {/*
@@ -695,6 +712,167 @@ function WeekStrip({
         </span>
       )}
     </div>
+  );
+}
+
+/* ─────────────────────────── 던지는 날 가이드 ─────────────────────────── */
+
+/**
+ * 던지는 날 가이드 한 장 — 무엇을 언제 먹으면 좋은지.
+ *
+ * 글은 서버가 만든다(lib/nutrition/guide.ts — 체크인의 던지는 일정 · 식욕, 오늘의 투구 기록). 여기서는
+ * 먹은 기록과 견준 줄만 셈한다: 음식을 담으면 바로 따라 움직이게(담는 즉시 바뀌는 entries 를 읽는다).
+ *
+ *   전날 · 던지는 날  오늘 탄수화물을 목표에 견줘 얼마나 채웠나
+ *   던진 뒤          던진 뒤에 담은 음식의 단백질 — 회복식을 챙겼나
+ *
+ * 못 채웠다고 나무라지 않는다 — 채운 것만 말한다.
+ *
+ * 처음에는 가장 중요한 한 줄과 견준 줄(그리고 그 사람에게만 뜨는 덧말)만 보인다. 나머지(곁들일 말 · 참고 안내)는 '더 보기'로 편다 —
+ * 다 펼쳐 두면 휴대폰에서 이 카드가 화면 절반을 먹어 정작 끼니 칸이 밀린다.
+ */
+function GuideCard({
+  guide,
+  entries,
+  carbsEaten,
+  carbsTarget,
+  carbsGap,
+}: {
+  guide: ThrowGuide;
+  entries: MealEntryView[];
+  carbsEaten: number;
+  carbsTarget: number;
+  /** 탄수화물 정보가 없는 음식이 있다 — 아래 요약 카드처럼 '+' 를 붙인다 */
+  carbsGap: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  const recovery = recoveryEaten(entries, guide);
+  const [first, ...rest] = guide.lines;
+  /* 막대는 목표까지만 찬다 — 넘겨 먹은 것은 숫자로만 */
+  const share = (got: number, goal: number) =>
+    `${Math.min(100, goal > 0 ? (Math.max(0, got) / goal) * 100 : 0)}%`;
+
+  return (
+    <section
+      aria-labelledby="throw-guide-title"
+      className={`${PANEL} motion-safe:animate-fade-in space-y-3 break-keep`}
+    >
+      <div className="flex items-start gap-2">
+        {/* 이름표와 제목은 좁으면 두 줄로 접히고, 펴기 단추는 늘 오른쪽 위에 있다 */}
+        <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-2.5 gap-y-1.5">
+          <span className="rounded-full border border-sky/30 bg-sky-tint px-2.5 py-0.5 text-xs font-semibold text-ink">
+            {guide.badge}
+          </span>
+          <h2 id="throw-guide-title" className="text-[15px] font-bold text-ink">
+            {guide.title}
+          </h2>
+        </div>
+        <button
+          type="button"
+          onClick={() => setOpen((o) => !o)}
+          aria-expanded={open}
+          aria-controls="throw-guide-more"
+          aria-label={open ? '안내 접기' : '안내 더 보기'}
+          className="-my-2 -mr-2 flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-muted transition-colors hover:bg-surface-2 hover:text-ink"
+        >
+          <ChevronDown
+            aria-hidden
+            className={`h-4 w-4 transition-transform duration-200 ${EASE} ${open ? 'rotate-180' : ''}`}
+          />
+        </button>
+      </div>
+
+      <p className="text-sm leading-relaxed text-ink">{first}</p>
+
+      {guide.kind === 'after' ? (
+        recovery && (
+          <div className="motion-safe:animate-fade-in space-y-1.5">
+            <p
+              className={`flex items-center gap-1.5 text-sm tabular-nums transition-colors ${
+                recovery.done ? 'font-semibold text-ok' : 'text-muted'
+              }`}
+            >
+              {/* 챙긴 뒤의 글은 짧게 — 길면 휴대폰에서 두 줄로 접혀 체크가 줄 사이에 뜬다 */}
+              {recovery.done ? (
+                <>
+                  <Check aria-hidden className="h-4 w-4 shrink-0" />
+                  회복식을 챙겼어요 · 단백질 {recovery.protein}g
+                </>
+              ) : (
+                <>
+                  던진 뒤 담은 음식의 단백질 {recovery.protein}g
+                  {guide.recoveryProtein != null && <> / {guide.recoveryProtein}g</>}
+                </>
+              )}
+            </p>
+            {guide.recoveryProtein != null && (
+              <div
+                aria-hidden
+                className="h-1.5 overflow-hidden rounded-full bg-surface-2"
+              >
+                <div
+                  className={`h-full rounded-full bg-cat-recovery transition-[width] duration-500 ${EASE}`}
+                  style={{ width: share(recovery.protein, guide.recoveryProtein) }}
+                />
+              </div>
+            )}
+          </div>
+        )
+      ) : (
+        <div className="space-y-1.5">
+          <p className="flex items-baseline justify-between gap-2 text-xs text-muted">
+            <span>오늘 탄수화물</span>
+            <span className="tabular-nums">
+              <b className="text-sm font-semibold text-ink">{Math.round(carbsEaten)}</b>
+              {carbsGap && <b className="font-semibold text-warn">+</b>} / {carbsTarget}
+              g
+            </span>
+          </p>
+          <div aria-hidden className="h-1.5 overflow-hidden rounded-full bg-surface-2">
+            <div
+              className={`h-full rounded-full bg-cat-power transition-[width] duration-500 ${EASE}`}
+              style={{ width: share(carbsEaten, carbsTarget) }}
+            />
+          </div>
+        </div>
+      )}
+
+      {/*
+        덧말(입맛이 없는 날 · 감량 중 · 성장기)은 접지 않는다 — 그 사람에게만 뜨는 말이고, 체크인의
+        '식욕'은 이 한 줄을 띄우려고 받는 칸이다. 없는 날이 대부분이라 카드는 평소 그대로 작다.
+      */}
+      {guide.notes.length > 0 && (
+        <div className="space-y-1">
+          {guide.notes.map((note) => (
+            <p key={note} className="text-xs leading-relaxed text-muted">
+              {note}
+            </p>
+          ))}
+        </div>
+      )}
+
+      {/* 더 보기 — 높이가 부드럽게 열리고 닫힌다(끼니 줄의 양 고치기와 같은 방식) */}
+      <div
+        id="throw-guide-more"
+        className={`-mt-3 grid transition-[grid-template-rows] duration-200 ${EASE} ${
+          open ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'
+        }`}
+      >
+        <div className="min-h-0 overflow-hidden" inert={!open}>
+          <div className="space-y-2 pt-3">
+            {rest.map((line) => (
+              <p key={line} className="text-sm leading-relaxed text-muted">
+                {line}
+              </p>
+            ))}
+            {guide.hint && (
+              <p className="text-xs leading-relaxed text-muted">{guide.hint}</p>
+            )}
+            <p className="text-[11px] leading-relaxed text-muted">{GUIDE_DISCLAIMER}</p>
+          </div>
+        </div>
+      </div>
+    </section>
   );
 }
 

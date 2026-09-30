@@ -34,6 +34,14 @@ import {
   MFDS_REPS_DATE,
   findMfdsReps,
 } from '../lib/nutrition/mfds-reps.ts';
+import {
+  recoveryEaten,
+  riceBowls,
+  throwDayGuide,
+  throwDayKind,
+  type GuideBody,
+  type GuideSignals,
+} from '../lib/nutrition/guide.ts';
 import { isNutritionDate } from '../lib/nutrition/days.ts';
 import {
   amountText,
@@ -509,6 +517,358 @@ console.log('\n■ 식약처 검색 — 무엇을 모으고 어떤 순서로');
   check(
     '빈 풀 · 빈 검색어는 빈 결과',
     rankMfds('바나나', []).length === 0 && rankMfds('', mixed).length === 0
+  );
+}
+
+console.log('\n■ 던지는 날 가이드');
+{
+  const at = '2026-09-30T05:00:00.000Z';
+  const sig = (over: Partial<GuideSignals> = {}): GuideSignals => ({
+    planToday: null,
+    planYesterday: null,
+    appetite: null,
+    pitches: [],
+    ...over,
+  });
+  const adult: GuideBody = { weightKg: 75, ageBand: 'adult', goal: 'maintain' };
+  const game = (pitchCount = 85) => [{ sessionType: '경기', pitchCount, loggedAt: at }];
+
+  check('신호가 없으면 아무것도 안 띄운다', throwDayGuide(sig(), adult) === null);
+  check(
+    "'없음'이라 적은 날도 안 띄운다",
+    throwDayKind(sig({ planToday: '없음' })) === null
+  );
+  check(
+    '오늘 등판 · 오늘 불펜 → 던지는 날',
+    throwDayKind(sig({ planToday: '오늘 등판' })) === 'today' &&
+      throwDayKind(sig({ planToday: '오늘 불펜' })) === 'today'
+  );
+  check('내일 등판 → 전날', throwDayKind(sig({ planToday: '내일 등판' })) === 'eve');
+  check(
+    "어제 '내일 등판'이라 적었으면 오늘 체크인이 없어도 던지는 날",
+    throwDayKind(sig({ planYesterday: '내일 등판' })) === 'today'
+  );
+  check(
+    "어제 '내일 등판'이어도 오늘 '없음'이면 오늘 적은 쪽을 따른다",
+    throwDayKind(sig({ planYesterday: '내일 등판', planToday: '없음' })) === null
+  );
+  check(
+    '비로 밀려 오늘도 내일 등판이면 전날',
+    throwDayKind(sig({ planYesterday: '내일 등판', planToday: '내일 등판' })) === 'eve'
+  );
+  check(
+    '투구 기록이 있으면 일정과 상관없이 던진 뒤',
+    throwDayKind(sig({ planToday: '오늘 등판', pitches: game() })) === 'after'
+  );
+  check(
+    '캐치볼 · 쉰 날 · 0구는 던진 것으로 안 친다',
+    throwDayKind(
+      sig({
+        pitches: [
+          { sessionType: '캐치볼', pitchCount: 40, loggedAt: at },
+          { sessionType: '휴식', pitchCount: 0, loggedAt: at },
+          { sessionType: '불펜', pitchCount: 0, loggedAt: at },
+        ],
+      })
+    ) === null
+  );
+
+  const pre = throwDayGuide(sig({ planToday: '오늘 등판' }), adult);
+  check(
+    '등판 전 식사 — 75kg 이면 탄수화물 110g(1.5g/kg), 쌀밥 1공기 반',
+    pre?.badge === '오늘 등판' &&
+      Boolean(pre.lines[0].includes('110g') && pre.lines[0].includes('1공기 반')),
+    pre?.lines[0]
+  );
+  const bullpen = throwDayGuide(sig({ planToday: '오늘 불펜' }), adult);
+  check(
+    '불펜 전 식사는 평소 한 끼쯤 — 80g(1g/kg)',
+    bullpen?.badge === '오늘 불펜' && Boolean(bullpen.lines[0].includes('80g')),
+    bullpen?.lines[0]
+  );
+  const eve = throwDayGuide(sig({ planToday: '내일 등판' }), adult);
+  check(
+    '전날 — 저녁 탄수화물을 넉넉히',
+    eve?.kind === 'eve' && eve.title.includes('탄수화물')
+  );
+  check(
+    '밥 공기 — 66g 1공기 · 110g 1공기 반 · 30g 도 적어도 1공기',
+    riceBowls(66) === '1공기' &&
+      riceBowls(110) === '1공기 반' &&
+      riceBowls(30) === '1공기'
+  );
+
+  const after = throwDayGuide(sig({ pitches: game() }), adult);
+  check(
+    '던진 뒤 — 75kg 이면 단백질 25g(0.3g/kg) + 탄수화물 80g',
+    after?.kind === 'after' &&
+      after.badge === '경기 85구 뒤' &&
+      after.recoveryProtein === 25 &&
+      after.lines[0].includes('단백질 25g') &&
+      after.lines[0].includes('탄수화물 80g'),
+    after?.lines[0]
+  );
+  check(
+    '단백질은 20~40g 사이 — 50kg 은 20g, 150kg 은 40g',
+    throwDayGuide(sig({ pitches: game() }), { ...adult, weightKg: 50 })
+      ?.recoveryProtein === 20 &&
+      throwDayGuide(sig({ pitches: game() }), { ...adult, weightKg: 150 })
+        ?.recoveryProtein === 40
+  );
+  const child = throwDayGuide(sig({ pitches: game(40) }), {
+    weightKg: 35,
+    ageBand: 'child',
+    goal: 'maintain',
+  });
+  check(
+    '어린이는 15g 부터 · 보충제 없이 음식으로',
+    child?.recoveryProtein === 15 && child.notes.some((n) => n.includes('보충제 없이')),
+    `${child?.recoveryProtein}g`
+  );
+  check(
+    '성인에게는 보충제 말을 하지 않는다',
+    !after?.notes.some((n) => n.includes('보충제'))
+  );
+  const unknown = throwDayGuide(sig({ pitches: game() }), { ...adult, weightKg: null });
+  check(
+    '체중을 모르면 g 을 지어내지 않는다 — 20~40g 으로 말한다',
+    unknown?.recoveryProtein === null && Boolean(unknown?.lines[0].includes('20~40g')),
+    unknown?.lines[0]
+  );
+  check(
+    '여러 번 던진 날 — 가장 많이 던진 것을 이름표로, 그 세션의 기록 시각을 기준으로',
+    (() => {
+      const g = throwDayGuide(
+        sig({
+          pitches: [
+            {
+              sessionType: '불펜',
+              pitchCount: 30,
+              loggedAt: '2026-09-30T02:00:00.000Z',
+            },
+            {
+              sessionType: '경기',
+              pitchCount: 70,
+              loggedAt: '2026-09-30T09:00:00.000Z',
+            },
+          ],
+        }),
+        adult
+      );
+      return g?.badge === '경기 70구 뒤' && g.thrownAt === '2026-09-30T09:00:00.000Z';
+    })()
+  );
+  check(
+    '일정을 안 적고 던진 날에만 체크인 알림',
+    Boolean(after?.hint) &&
+      throwDayGuide(sig({ planToday: '오늘 등판', pitches: game() }), adult)?.hint ===
+        null &&
+      throwDayGuide(sig({ planYesterday: '내일 등판', pitches: game() }), adult)
+        ?.hint === null
+  );
+  check(
+    '던진 날 내일 등판이면 저녁 탄수화물 한 줄',
+    Boolean(
+      throwDayGuide(
+        sig({ planToday: '내일 등판', pitches: game() }),
+        adult
+      )?.lines.some((l) => l.includes('내일 등판이'))
+    )
+  );
+  const fromYesterday = throwDayGuide(sig({ planYesterday: '내일 등판' }), adult);
+  check(
+    "어제 '내일 등판'으로 알게 된 날은 등판 기준(110g)으로 안내한다",
+    fromYesterday?.badge === '오늘 등판' &&
+      Boolean(fromYesterday.lines[0].includes('110g')),
+    fromYesterday?.lines[0]
+  );
+  check(
+    '라이브 피칭도 던진 것으로 친다',
+    throwDayGuide(
+      sig({ pitches: [{ sessionType: '라이브', pitchCount: 25, loggedAt: at }] }),
+      adult
+    )?.badge === '라이브 25구 뒤'
+  );
+  const teen = throwDayGuide(sig({ pitches: game(60) }), {
+    weightKg: 50,
+    ageBand: 'teen',
+    goal: 'maintain',
+  });
+  check(
+    '청소년은 20g 부터 · 보충제 없이 음식으로',
+    teen?.recoveryProtein === 20 && teen.notes.some((n) => n.includes('보충제 없이')),
+    `${teen?.recoveryProtein}g`
+  );
+  const small = throwDayGuide(sig({ planToday: '오늘 불펜' }), {
+    weightKg: 30,
+    ageBand: 'child',
+    goal: 'maintain',
+  });
+  check(
+    '몸이 작아도 던지기 전 식사는 밥 한 공기(70g)부터 — g 과 공기가 어긋나지 않는다',
+    Boolean(
+      small?.lines[0].includes('70g') &&
+      small.lines[0].includes('1공기쯤') &&
+      riceBowls(70) === '1공기'
+    ),
+    small?.lines[0]
+  );
+  const warmup = throwDayGuide(
+    sig({
+      planToday: '오늘 등판',
+      pitches: [{ sessionType: '불펜', pitchCount: 5, loggedAt: at }],
+    }),
+    adult
+  );
+  check(
+    '등판일에 몸풀기 불펜만 적었으면 회복식 카드에 등판 전 식사 한 줄을 남긴다',
+    warmup?.kind === 'after' &&
+      warmup.lines.some((l) => l.includes('아직 등판 전이라면')) &&
+      !throwDayGuide(
+        sig({ planToday: '오늘 등판', pitches: game() }),
+        adult
+      )?.lines.some((l) => l.includes('아직 등판 전이라면')) &&
+      !throwDayGuide(
+        sig({
+          planToday: '오늘 불펜',
+          pitches: [{ sessionType: '불펜', pitchCount: 30, loggedAt: at }],
+        }),
+        adult
+      )?.lines.some((l) => l.includes('아직 등판 전이라면'))
+  );
+  check(
+    '보기로 든 조합은 첫 줄의 단백질을 실제로 채운다(기본 음식 값으로)',
+    (() => {
+      const p = (id: string) => BASIC_FOODS.find((f) => f.id === id)?.protein ?? 0;
+      const others = [
+        p('rice') + p('chicken-breast-pack'),
+        p('milk') * 2 + p('egg') * 2 + p('banana'),
+        p('triangle-gimbap') * 2 + p('egg') * 2,
+      ];
+      const kids = [
+        p('rice') + p('egg') * 2,
+        p('milk') * 2 + p('banana'),
+        p('triangle-gimbap') + p('egg') * 2,
+      ];
+      /* 그 밖은 목표 20~25g(체중 92kg 까지), 어린이는 15g 을 기준으로 — 8할이면 챙긴 것이다 */
+      return (
+        others.every((g) => Math.round(g) >= 25 * 0.8) &&
+        kids.every((g) => Math.round(g) >= 15 * 0.8)
+      );
+    })()
+  );
+  check(
+    '입맛이 없는 날(적음 이하)만 덧말',
+    Boolean(
+      throwDayGuide(sig({ planToday: '오늘 등판', appetite: 2 }), adult)?.notes.some(
+        (n) => n.includes('입맛')
+      )
+    ) &&
+      !throwDayGuide(sig({ planToday: '오늘 등판', appetite: 3 }), adult)?.notes.some(
+        (n) => n.includes('입맛')
+      )
+  );
+  check(
+    '감량 중이면 끼니를 줄이지 말라는 덧말',
+    Boolean(
+      throwDayGuide(sig({ planToday: '내일 등판' }), {
+        ...adult,
+        goal: 'lose',
+      })?.notes.some((n) => n.includes('감량'))
+    )
+  );
+
+  /* 회복식을 챙겼나 — 던진 뒤에 담은 음식만 센다 */
+  const meal = (
+    protein: number | null,
+    loggedAt?: string,
+    amount = 1,
+    slot: MealEntryView['meal'] = 'dinner'
+  ): MealEntryView => ({
+    id: 'x',
+    meal: slot,
+    name: 'x',
+    source: 'basic',
+    sourceId: 'x',
+    servingLabel: null,
+    servingGrams: null,
+    amount,
+    kcal: 100,
+    carbs: 10,
+    protein,
+    fat: 1,
+    loggedAt,
+  });
+  const g = after!;
+  check(
+    '던지기 전에 담은 것은 안 센다',
+    recoveryEaten([meal(30, '2026-09-30T01:00:00.000Z')], g) === null
+  );
+  const some = recoveryEaten([meal(12, '2026-09-30T06:00:00.000Z')], g);
+  check(
+    '던진 뒤 담은 단백질 12g — 아직 채우지 못함',
+    some?.protein === 12 && some.done === false
+  );
+  const done = recoveryEaten([meal(10, '2026-09-30T06:00:00.000Z', 2)], g);
+  check(
+    '목표의 8할(25g 중 20g)이면 챙긴 것으로',
+    done?.protein === 20 && done.done === true
+  );
+  check('방금 담아 시각이 없는 줄도 센다', recoveryEaten([meal(25)], g)?.done === true);
+  check(
+    '단백질을 모르는 음식은 0 으로 — 아무 말도 안 한다',
+    recoveryEaten([meal(null)], g) === null
+  );
+  check('던진 뒤가 아닌 날에는 세지 않는다', recoveryEaten([meal(30)], pre!) === null);
+  check(
+    '19g 은 아직(25g 의 8할은 20g)',
+    recoveryEaten([meal(19, '2026-09-30T06:00:00.000Z')], g)?.done === false
+  );
+  check(
+    '투구 기록과 같은 순간에 담은 것도 센다',
+    recoveryEaten([meal(25, at)], g)?.done === true
+  );
+  check(
+    '체중을 몰라 목표가 없으면 아무리 먹어도 챙겼다고 하지 않는다',
+    recoveryEaten([meal(50)], unknown!)?.done === false
+  );
+  /* 저녁에 하루치를 몰아 적는 사람 — 투구 기록 뒤에 담았어도 이미 지난 끼니 칸은 던지기 전에 먹은 것이다 */
+  const evening = throwDayGuide(
+    sig({
+      pitches: [
+        { sessionType: '경기', pitchCount: 85, loggedAt: '2026-09-30T08:00:00.000Z' },
+      ],
+    }),
+    adult
+  )!;
+  check(
+    '오후 5시에 기록을 남겼으면 그 뒤에 적은 아침 · 점심 칸은 안 센다',
+    recoveryEaten(
+      [
+        meal(30, '2026-09-30T09:00:00.000Z', 1, 'breakfast'),
+        meal(30, '2026-09-30T09:00:00.000Z', 1, 'lunch'),
+      ],
+      evening
+    ) === null &&
+      recoveryEaten([meal(30, '2026-09-30T09:00:00.000Z', 1, 'dinner')], evening)
+        ?.done === true &&
+      recoveryEaten([meal(30, '2026-09-30T09:00:00.000Z', 1, 'snack')], evening)
+        ?.done === true
+  );
+  const morning = throwDayGuide(
+    sig({
+      pitches: [
+        { sessionType: '불펜', pitchCount: 40, loggedAt: '2026-09-30T01:30:00.000Z' },
+      ],
+    }),
+    adult
+  )!;
+  check(
+    '오전 10시 반에 기록을 남겼으면 그 뒤의 아침 · 점심 칸은 센다',
+    recoveryEaten([meal(25, '2026-09-30T03:00:00.000Z', 1, 'lunch')], morning)?.done ===
+      true &&
+      recoveryEaten([meal(25, '2026-09-30T02:00:00.000Z', 1, 'breakfast')], morning)
+        ?.done === true
   );
 }
 

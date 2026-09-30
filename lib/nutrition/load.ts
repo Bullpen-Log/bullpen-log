@@ -1,6 +1,6 @@
 import 'server-only';
 import { prisma } from '@/lib/prisma';
-import { shiftDateKey } from '@/lib/pitch-stats';
+import { shiftDateKey, toDateKey } from '@/lib/pitch-stats';
 import { NUTRITION_BACK_DAYS, dbDate, keyOfDbDate } from '@/lib/nutrition/days';
 import {
   isActivityKey,
@@ -28,6 +28,7 @@ import {
   type BurnItem,
 } from '@/lib/nutrition/burn';
 import { mfdsEnabled } from '@/lib/nutrition/mfds-key';
+import { throwDayGuide, type ThrowGuide } from '@/lib/nutrition/guide';
 import { popularFoods } from '@/lib/nutrition/popular';
 
 /**
@@ -78,6 +79,11 @@ export type NutritionDay = {
   body: Body;
   /** 식약처 검색을 쓸 수 있나(인증키가 있나) */
   mfds: boolean;
+  /**
+   * 던지는 날 가이드 — 오늘을 볼 때만, 띄울 것이 있는 날만(등판 · 불펜 전날과 당일, 던진 뒤).
+   * 지난 날을 볼 때는 늘 null 이다: 그날 무엇을 먹으라는 말은 지나고 나면 쓸모가 없다.
+   */
+  guide: ThrowGuide | null;
   /** 모든 사람이 가장 많이 담은 20가지 — '전체 음식 → 인기' */
   popular: RankedFood[];
   /**
@@ -171,6 +177,8 @@ export async function loadNutritionDay(
   const rangeStart = weekStart < stripStart ? weekStart : stripStart;
   const rangeEnd = date > stripEnd ? date : stripEnd;
   const userId = user.id;
+  /* 던지는 날 가이드는 오늘에만 뜬다 — 지난 날을 볼 때는 그 몫의 체크인을 읽지 않는다 */
+  const isToday = date === toDateKey(new Date());
 
   const [
     profileRow,
@@ -183,6 +191,7 @@ export async function loadNutritionDay(
     foodRows,
     popular,
     calendarRows,
+    planRows,
   ] = await Promise.all([
     prisma.nutritionProfile.findUnique({ where: { userId } }),
     prisma.mealEntry.findMany({
@@ -207,7 +216,13 @@ export async function loadNutritionDay(
     }),
     prisma.pitchLog.findMany({
       where: { userId, date: { gte: dbDate(rangeStart), lte: dbDate(rangeEnd) } },
-      select: { date: true, sessionType: true, pitchCount: true, intensity: true },
+      select: {
+        date: true,
+        sessionType: true,
+        pitchCount: true,
+        intensity: true,
+        createdAt: true,
+      },
     }),
     prisma.mealEntry.findMany({
       where: { userId, date: { gte: dbDate(recentStart), lte: dbDate(date) } },
@@ -239,6 +254,16 @@ export async function loadNutritionDay(
       },
       select: { date: true, kcal: true, amount: true },
     }),
+    /* 오늘과 어제 체크인의 '던지는 일정' · '식욕' — 어제 '내일 등판'이라 적었으면 오늘이 등판일이다 */
+    isToday
+      ? prisma.dailyCheckin.findMany({
+          where: {
+            userId,
+            date: { gte: dbDate(shiftDateKey(date, -1)), lte: dbDate(date) },
+          },
+          select: { date: true, throwPlan: true, appetite: true },
+        })
+      : [],
   ]);
 
   const calendar: Record<string, number> = {};
@@ -309,6 +334,7 @@ export async function loadNutritionDay(
     carbs: e.carbs,
     protein: e.protein,
     fat: e.fat,
+    loggedAt: e.createdAt.toISOString(),
   });
   const entries = weekEntries.filter((e) => keyOfDbDate(e.date) === date).map(toView);
   const prevDay = shiftDateKey(date, -1);
@@ -375,6 +401,27 @@ export async function loadNutritionDay(
     note: f.source === 'mfds' ? '식약처' : f.source === 'basic' ? '기본' : undefined,
   }));
 
+  /* ── 던지는 날 가이드(오늘만) ── */
+  const planOf = (day: string) => planRows.find((c) => keyOfDbDate(c.date) === day);
+  const guide = isToday
+    ? throwDayGuide(
+        {
+          planToday: planOf(date)?.throwPlan ?? null,
+          planYesterday: planOf(prevDay)?.throwPlan ?? null,
+          appetite: planOf(date)?.appetite ?? null,
+          pitches: pitches
+            .filter((p) => keyOfDbDate(p.date) === date)
+            .map((p) => ({
+              sessionType: p.sessionType,
+              pitchCount: p.pitchCount,
+              loggedAt: p.createdAt.toISOString(),
+            })),
+        },
+        /* 체중을 모르면(짐작 75kg) g 을 말하지 않는다 */
+        { weightKg: bodyKg, ageBand: targets.ageBand, goal: targets.goal }
+      )
+    : null;
+
   return {
     date,
     profile,
@@ -397,5 +444,6 @@ export async function loadNutritionDay(
     mfds: mfdsEnabled(),
     popular,
     calendar,
+    guide,
   };
 }

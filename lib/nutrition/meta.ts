@@ -136,6 +136,11 @@ export type MealEntryView = {
   carbs: number | null;
   protein: number | null;
   fat: number | null;
+  /**
+   * 담은 시각(ISO). 던지는 날 가이드가 '던진 뒤에 담은 음식'을 셀 때 쓴다(lib/nutrition/guide.ts).
+   * 방금 담아 아직 저장 중인 줄에는 없다.
+   */
+  loggedAt?: string;
 };
 
 export type MacroKey = 'carbs' | 'protein' | 'fat';
