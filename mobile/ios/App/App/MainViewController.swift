@@ -54,9 +54,9 @@ extension MainViewController: WKScriptMessageHandler {
     }
 }
 
-/// 시작 연출 판 — 큰 B 가 부드럽게 작아지며 이름의 첫 글자 자리로 가고, 자리에 닿으면 'ULLPEN LOG' 가 B 뒤에서
-/// 오른쪽으로 미끄러져 나온다. 글자는 B 끝 자리의 오른쪽에만 보이는 창 안에 있고 B 보다 아래 층이라 B 와 겹쳐
-/// 보이지 않는다. 다 나온 뒤 사이트가 준비되면(pageReady) 옅어지며 살짝 다가오듯 커져 걷힌다.
+/// 시작 연출 판 — 큰 B 가 부드럽게 작아지며 이름의 첫 글자 자리로 가고, 자리에 닿으면 'ULLPEN LOG' 가 연하게
+/// 나타나 진해지면서 B 뒤에서 살짝 밀려 나온다. 글자는 B 끝 자리의 오른쪽에만 보이는 창 안에 있고 B 보다 아래 층이라
+/// B 와 겹쳐 보이지 않는다. 다 나온 뒤 사이트가 준비되면(pageReady) 옅어지며 살짝 다가오듯 커져 걷힌다.
 /// 튀는 움직임(작아졌다 커졌다)은 넣지 않는다(2026-09-30 사용자).
 final class IntroOverlay: UIView {
     static let messageName = "bullpenIntro"
@@ -75,14 +75,17 @@ final class IntroOverlay: UIView {
     private static let paper = UIColor(red: 244 / 255, green: 247 / 255, blue: 251 / 255, alpha: 1)
     private static let brand = UIColor(red: 2 / 255, green: 151 / 255, blue: 228 / 255, alpha: 1)
 
-    // 움직임의 때(초) — 앱이 보인 뒤부터. 처음 큰 B 를 0.4초 보인 뒤 1초 동안 제자리로 가고, 닿을 무렵(1.35초)부터
-    // 글자가 1초 동안 B 뒤에서 나온다. (2026-09-30 사용자: "아주 조금만 느리게, 처음 B 도 조금만 더 길게" · "글자 앞쪽이
-    // 작아지는 B 와 겹쳐 나온다 — 뒤에서 나오게". 예전엔 B 가 움직이는 도중 0.95초부터 글자를 펼쳐 아직 큰 B 위에 겹쳤다)
+    // 움직임의 때(초) — 앱이 보인 뒤부터. 처음 큰 B 를 0.4초 보인 뒤 1초 동안 제자리로 가고, 닿을 무렵(1.25초)부터
+    // 글자가 1.2초 동안 연하게 나타나 진해지며 B 뒤에서 대문자 높이만큼 밀려 나온다. (2026-09-30 사용자: "아주 조금만
+    // 느리게, 처음 B 도 조금만 더 길게" · "글자 앞쪽이 작아지는 B 와 겹쳐 나온다 — 뒤에서 나오게" · "나오는 게 부자연스럽다 —
+    // 조금 천천히, 흐렸다가 진해지게". 한때 단어 길이만큼 통째로 끌려 나오게 했더니 글자가 빠르게 줄지어 지나가 기계 같았다)
     private static let markStart: TimeInterval = 0.4
     private static let markDuration: TimeInterval = 1.0
-    private static let wordStart: TimeInterval = 1.35
-    private static let wordDuration: TimeInterval = 1.0
-    private static let settleAt: TimeInterval = 2.75
+    private static let wordStart: TimeInterval = 1.25
+    private static let wordDuration: TimeInterval = 1.2
+    /// 글자가 밀려 나오는 거리 — 대문자 높이의 배수. 처음엔 앞 글자(U · L 일부)만 B 뒤에 숨어 있다
+    private static let wordSlide: CGFloat = 1.0
+    private static let settleAt: TimeInterval = 2.85
     private static let leaveDuration: TimeInterval = 0.55
     /// 사이트가 끝내 알려 오지 않아도 이때는 걷는다 — 판이 사이트를 가린 채 남지 않게
     private static let giveUpAt: TimeInterval = 10
@@ -99,7 +102,7 @@ final class IntroOverlay: UIView {
     /// 창의 왼쪽 가장자리를 옅게 — 글자가 B 뒤에서 나올 때 칼로 자른 듯 끊겨 보이지 않게
     private let edgeFade = CAGradientLayer()
     /// 글자가 나오는 움직임 — 끝날 때까지 붙들어 둔다
-    private var wordSlide: UIViewPropertyAnimator?
+    private var wordReveal: UIViewPropertyAnimator?
 
     private var started = false
     private var settled = false
@@ -198,14 +201,15 @@ final class IntroOverlay: UIView {
         CATransaction.setDisableActions(true)
         markShape.frame = mark.bounds
         markShape.path = Self.markPath().copy(using: &scale)
-        // 글자 창은 B 끝 자리의 오른쪽 끝부터. 글자는 끝 자리에 맞춰 넣되, 처음엔 창 폭만큼 왼쪽으로 밀어(B 뒤) 숨긴다
+        // 글자 창은 B 끝 자리의 오른쪽 끝부터. 글자는 끝 자리에 맞춰 넣되, 처음엔 조금 왼쪽(B 뒤)으로 밀고 투명하게 둔다
         let windowLeft = spot.markRight
         wordWindow.frame = CGRect(x: windowLeft, y: spot.wordFrame.minY,
                                   width: max(spot.wordFrame.maxX - windowLeft, 0), height: spot.wordFrame.height)
         word.transform = .identity
         word.frame = CGRect(x: spot.wordFrame.minX - windowLeft, y: 0,
                             width: spot.wordFrame.width, height: spot.wordFrame.height)
-        word.transform = CGAffineTransform(translationX: -wordWindow.bounds.width, y: 0)
+        word.transform = CGAffineTransform(translationX: -Self.wordSlide * spot.capHeight, y: 0)
+        word.alpha = 0
         // 옅은 가장자리는 B 와 글자 사이 틈(대문자 높이의 0.1 넘게) 안에서만 — 다 나온 글자는 흐려지지 않는다
         edgeFade.frame = wordWindow.bounds
         let fade = wordWindow.bounds.width > 0 ? 0.08 * spot.capHeight / wordWindow.bounds.width : 0
@@ -236,16 +240,17 @@ final class IntroOverlay: UIView {
             self.mark.transform = CGAffineTransform(scaleX: small, y: small)
         }, completion: nil)
 
-        // 2. B 가 자리에 닿을 무렵 ULLPEN LOG 가 B 뒤에서 오른쪽으로 미끄러져 나온다 — 천천히 나와 빨라졌다가
+        // 2. B 가 자리에 닿을 무렵 ULLPEN LOG 가 연하게 나타나 진해지며 B 뒤에서 살짝 밀려 나온다 — 천천히 시작해
         //    부드럽게 멈춘다(CSS 의 ease 와 같은 곡선, 튀지 않는다)
         if word.image != nil {
-            let slide = UIViewPropertyAnimator(duration: Self.wordDuration,
-                                               controlPoint1: CGPoint(x: 0.25, y: 0.1),
-                                               controlPoint2: CGPoint(x: 0.25, y: 1)) {
+            let reveal = UIViewPropertyAnimator(duration: Self.wordDuration,
+                                                controlPoint1: CGPoint(x: 0.25, y: 0.1),
+                                                controlPoint2: CGPoint(x: 0.25, y: 1)) {
                 self.word.transform = .identity
+                self.word.alpha = 1
             }
-            slide.startAnimation(afterDelay: Self.wordStart)
-            wordSlide = slide
+            reveal.startAnimation(afterDelay: Self.wordStart)
+            wordReveal = reveal
         }
 
         // 3. 다 펼친 모습을 잠깐 보인 뒤 — 사이트가 준비됐으면 걷는다(아니면 준비될 때까지 이 모습으로 기다린다)

@@ -19,7 +19,7 @@ Claude 로 작업을 시작하면 저절로 읽힌다. 규칙은 `AGENTS.md` 6�
 - 사용자 요청: 넷플릭스 'N' 처럼 앱을 켜자마자 움직이게, 통통 튀는 움직임은 빼기. 지난 커밋(82df6c3)의 웹 연출
   (`components/app-intro.tsx` · globals.css · 뿌리 layout · `data-intro`)은 **지웠다** — 뿌리 레이아웃 · globals.css 는 그 전 그대로다.
 - 앱 첫 화면 `mobile/ios/App/App/MainViewController.swift`(SceneDelegate 가 씀): 시작 화면 그림과 같은 큰 B 를 그려 이어 받고,
-  B 가 작아지며 첫 글자 자리로 → 닿으면 'ULLPEN LOG'(글자 그림 `IntroWord`, `npm run assets`)가 B 뒤에서 오른쪽으로 미끄러져 나옴(B 와 안 겹치게) → 사이트가 알리면 걷힘.
+  B 가 작아지며 첫 글자 자리로 → 닿으면 'ULLPEN LOG'(글자 그림 `IntroWord`, `npm run assets`)가 연하게 나타나 진해지며 B 뒤에서 살짝 밀려 나옴(B 와 안 겹치게) → 사이트가 알리면 걷힘.
 - 사이트 쪽은 `lib/native-app.ts` 하나: 첫 화면을 그리면 `window.webkit.messageHandlers.bullpenIntro.postMessage('ready')`.
   이게 안 오면 판이 10초까지 사이트를 가린다 — 뿌리 레이아웃 · 첫 스크립트를 고칠 때 이 알림을 지키자.
 
