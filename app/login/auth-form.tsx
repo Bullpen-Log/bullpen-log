@@ -15,6 +15,7 @@ import { createPortal, useFormStatus } from 'react-dom';
 import { CalendarDays, CircleAlert } from 'lucide-react';
 import { MiniCalendar } from '@/components/mini-calendar';
 import { checkSignupEmail, login, signup, type AuthState } from '@/app/actions/auth';
+import { guardFormAction } from '@/lib/action-offline';
 import { Button, Field, FormError, Input } from '@/components/ui';
 import { Wordmark } from '@/components/logo';
 import { kept } from '@/lib/form-values';
@@ -234,7 +235,11 @@ function LoginForm({
   onSignup: () => void;
   focusHeading: boolean;
 }) {
-  const [state, formAction] = useActionState<AuthState, FormData>(login, undefined);
+  /* 신호가 끊겨도 로그인 밖 오류 화면으로 넘어가지 않고 한 줄로 알린다(lib/action-offline.ts) */
+  const [state, formAction] = useActionState<AuthState, FormData>(
+    guardFormAction(login),
+    undefined
+  );
   const before = state?.values;
 
   /*
@@ -768,7 +773,14 @@ function SignupWizard({
   onLogin: () => void;
   focusHeading: boolean;
 }) {
-  const [state, formAction] = useActionState<AuthState, FormData>(signup, undefined);
+  /*
+   * 신호가 끊겨 가입이 던지면 — 예전에는 로그인 밖 오류 화면으로 넘어가 '다시 시도'가 로그인 칸으로 돌아가며 일곱 단계가
+   * 통째로 사라졌다. 이제 누른 자리(마지막 단계)에 한 줄로 알리고 적은 것은 그대로다(lib/action-offline.ts).
+   */
+  const [state, formAction] = useActionState<AuthState, FormData>(
+    guardFormAction(signup, { field: 'competitionLevel' }),
+    undefined
+  );
   const before = state?.values;
   const formRef = useRef<HTMLFormElement>(null);
 

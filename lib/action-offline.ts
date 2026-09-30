@@ -1,4 +1,5 @@
 import { unstable_rethrow } from 'next/navigation';
+import { keepInput, type FormValues } from '@/lib/form-values';
 
 /** 신호가 끊겨 서버에 닿지 못했을 때 보이는 말 */
 export const OFFLINE_MESSAGE = '인터넷 연결을 확인한 뒤 다시 해 주세요.';
@@ -17,4 +18,22 @@ export async function orOffline<T, F>(call: Promise<T>, fallback: F): Promise<T 
     unstable_rethrow(err);
     return fallback;
   }
+}
+
+/**
+ * useActionState 에 넘길 폼 액션을 신호 끊김에서 지킨다 — 던지면 오류 한 줄과 적은 값(values, 폼이 다시 채운다)을
+ * 돌려준다. extra 는 함께 돌려줄 것(가입 폼의 field — 오류를 보일 단계).
+ */
+export function guardFormAction<
+  S extends { error?: string; values?: FormValues } | undefined,
+>(
+  action: (prev: S, formData: FormData) => Promise<S>,
+  extra?: Omit<NonNullable<S>, 'error' | 'values'>
+): (prev: S, formData: FormData) => Promise<S> {
+  return (prev, formData) =>
+    orOffline(action(prev, formData), {
+      ...extra,
+      error: OFFLINE_MESSAGE,
+      values: keepInput(formData),
+    } as S);
 }

@@ -8,7 +8,9 @@ import { Badge } from '@/components/ui';
 import { ConfirmDeleteForm } from '@/components/confirm-delete';
 
 function formatDate(date: Date) {
+  /* 서버(Vercel)는 UTC 로 돈다 — 시간대를 안 주면 한국 0~9시에 쓴 글이 전날로, 시각은 9시간 이르게 찍혔다 */
   return new Intl.DateTimeFormat('ko-KR', {
+    timeZone: 'Asia/Seoul',
     year: 'numeric',
     month: '2-digit',
     day: '2-digit',

@@ -22,7 +22,7 @@ import {
   type SwapMode,
 } from '@/lib/workout/swap';
 import { clampRecordedAt } from '@/lib/workout/set-time';
-import { dayStart, isAbandoned, sessionEnd } from '@/lib/workout/stale';
+import { dayStart, isAbandoned, sessionEnd, STALE_AFTER_MS } from '@/lib/workout/stale';
 import { closeAbandoned, lastSetAt, summaryWrites } from '@/lib/workout/close-stale';
 import { saveTrainingNote } from '@/app/actions/exercise-log';
 
@@ -100,6 +100,22 @@ export async function startWorkout() {
    */
   const mainStartedAt = noWarmup ? new Date() : null;
 
+  /*
+   * 다시 여는 판은 그 판이 쓰던 목록을 지킨다. 예전에는 오늘 일정으로 새로 찍어, 바꿔 넣은 운동(과 그 세트)이 목록에서
+   * 빠져 고치지도 지우지도 못했다('오늘 목록에 없는 운동'). 오늘 일정에 새로 들어온 운동만 뒤에 붙인다.
+   */
+  const kept = open ? readFrozenPlan(open.plan) : null;
+  const sessionPlan =
+    kept && kept.exercises.length > 0
+      ? {
+          ...kept,
+          exercises: [
+            ...kept.exercises,
+            ...plan.exercises.filter((e) => !kept.exercises.some((k) => k.id === e.id)),
+          ],
+        }
+      : plan;
+
   await prisma.trainingSession.upsert({
     where: { userId_date: { userId: user.id, date: core.midnight } },
     create: {
@@ -111,9 +127,9 @@ export async function startWorkout() {
       mainStartedAt,
     },
     update: {
-      /* 한 번 닫은 판을 다시 열 때 — 목록을 새로 찍고 상태를 되돌린다 */
-      themeKey: plan.themeKey,
-      plan,
+      /* 한 번 닫은 판을 다시 열 때 — 쓰던 목록(위 sessionPlan)으로 상태를 되돌린다 */
+      themeKey: sessionPlan.themeKey,
+      plan: sessionPlan,
       status: 'ACTIVE',
       endedAt: null,
       mainStartedAt,
@@ -240,6 +256,22 @@ async function sessionForSet(userId: string, sessionId: unknown) {
   return s?.status === 'ACTIVE' ? s : null;
 }
 
+/**
+ * 늦게 온 세트를 받을 수 있는, 저절로 닫힌 판.
+ *
+ * 신호가 없는 곳에서 남긴 세트는 폰에 담겨 있다가 나중에 보내진다(lib/workout/outbox.ts). 그런데 다음 날 앱을 열면
+ * 서버가 화면을 그리기 전에 '종료를 안 누른 판'을 먼저 닫는다(lib/workout/close-stale.ts) — 서버가 가진 세트만 보고.
+ * 그 뒤에 폰이 보낸 세트는 '이미 마친 운동'으로 거절되고 폰에서도 지워져, 신호 없이 한 세트가 통째로 사라졌다.
+ * 그래서 저절로 닫힌 판(ABANDONED)은 그 판에 담아 둔 세트를 받는다 — 판 번호는 담을 때의 것이라 그 판의 세트가 맞다.
+ * 사람이 [종료]를 누른 판(FINISHED)은 받지 않는다 — 종료는 못 보낸 세트가 있으면 막힌다.
+ */
+async function abandonedSessionForSet(userId: string, sessionId: unknown) {
+  if (typeof sessionId !== 'string' || !sessionId) return null;
+  return prisma.trainingSession.findFirst({
+    where: { id: sessionId, userId, status: 'ABANDONED' },
+  });
+}
+
 async function setsOf(sessionId: string): Promise<SavedSet[]> {
   const rows = await prisma.userExerciseSet.findMany({
     where: { sessionId },
@@ -264,8 +296,12 @@ async function setsOf(sessionId: string): Promise<SavedSet[]> {
  */
 export async function logSet(input: SetInput): Promise<SetResult> {
   const user = await requireUser();
-  const session = await sessionForSet(user.id, input.sessionId);
+  const session =
+    (await sessionForSet(user.id, input.sessionId)) ??
+    (await abandonedSessionForSet(user.id, input.sessionId));
   if (!session) return { error: '이미 마친 운동이라 이 세트는 저장하지 못했습니다.' };
+  /* 저절로 닫힌 뒤에 늦게 온 세트(위 abandonedSessionForSet) */
+  const late = session.status === 'ABANDONED';
 
   const plan = readFrozenPlan(session.plan);
   const ex = plan?.exercises.find((e) => e.id === input.exerciseId);
@@ -293,6 +329,16 @@ export async function logSet(input: SetInput): Promise<SetResult> {
   }
 
   const at = clampRecordedAt(input.recordedAt, session.startedAt);
+  /*
+   * 늦게 온 세트는 그 판을 하던 때의 것만 — 닫힌 끝 시각(마지막으로 무언가 한 때)에서 3시간 안. 그보다 뒤라면 그 판을
+   * 하던 중이 아니다(3시간 넘게 아무 일이 없으면 떠난 판으로 친다, lib/workout/stale.ts).
+   */
+  if (
+    late &&
+    at.getTime() > (session.endedAt ?? session.startedAt).getTime() + STALE_AFTER_MS
+  ) {
+    return { error: '이미 마친 운동이라 이 세트는 저장하지 못했습니다.' };
+  }
 
   /*
    * 어젯밤 판에 오늘 세트가 붙지 않게 한다.
@@ -305,7 +351,7 @@ export async function logSet(input: SetInput): Promise<SetResult> {
    * 신호가 없어 폰에 담아 두었다가 늦게 보내는 세트는 남긴 시각(at)이 그 판의
    * 시간 안이라 그대로 받는다. 자정을 넘겨 이어 하는 판도 마찬가지다.
    */
-  if (session.date.getTime() < dayStart(new Date()).getTime()) {
+  if (!late && session.date.getTime() < dayStart(new Date()).getTime()) {
     const last = await lastSetAt(session.id);
     if (isAbandoned(session, last, at)) {
       await closeAbandoned(user.id, session, last, new Date());
@@ -334,6 +380,26 @@ export async function logSet(input: SetInput): Promise<SetResult> {
     },
     update: { weightKg: w, reps, holdSeconds: hold, recordedAt: at },
   });
+
+  /*
+   * 닫힌 판에 늦게 온 세트 — 운동 기록(요약)을 세트에서 다시 접고, 이 세트가 닫힌 끝보다 뒤면 끝 시각 · 운동 시간을
+   * 그만큼 늘린다. 닫을 때와 같은 쓰기라 두 번 돌아도 달라지지 않는다.
+   */
+  if (late) {
+    const end = session.endedAt ?? at;
+    const extra = Math.max(0, Math.floor((at.getTime() - end.getTime()) / 1000));
+    await prisma.$transaction([
+      ...(await summaryWrites(user.id, session)),
+      ...(extra > 0
+        ? [
+            prisma.trainingSession.update({
+              where: { id: session.id },
+              data: { endedAt: at, activeSeconds: { increment: extra } },
+            }),
+          ]
+        : []),
+    ]);
+  }
 
   /* 일부러 revalidatePath 를 안 부른다 (맨 위 설명 참고) */
   return { sets: await setsOf(session.id) };
