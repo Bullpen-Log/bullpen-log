@@ -18,6 +18,9 @@ Claude 로 작업을 시작하면 저절로 읽힌다. 규칙은 `AGENTS.md` 6�
 - **로그인 표에 비밀번호 지문**(`lib/jwt.ts` `pw`, `lib/session.ts` `passwordFingerprint`, `lib/dal.ts` getCurrentUser 가 견줌):
   비밀번호를 바꾸면 다른 기기의 로그인이 풀린다(예전엔 30일 동안 살아 있었다). 바꾼 기기는 새 지문으로 다시 만든다. 지문 없는
   옛 표는 기한까지 그대로 통해서 **이번 배포로 아무도 로그아웃되지 않는다**. `getCurrentUser` 는 password 를 읽지만 돌려주지 않는다.
+- **새 공용 부품 `components/safe-form.tsx`(`SafeForm`)**: `<form action={서버 동작}>` 대신 쓰면 신호가 끊겨도 오류 화면 대신 폼 밑에
+  한 줄로 알린다(성공하면 redirect 그대로). [운동 시작] · 일정 만들기 · 트레이닝 설정에 썼다. 즐겨찾기 별(`favorite-button.tsx`)도
+  `orOffline` 으로 감쌌다.
 - **앱 진동**(`@capacitor/haptics`, `lib/haptics.ts` `buzz`): 아이폰은 웹에서 진동이 안 돼 암케어 버티기 · 쉬기 끝에 신호가
   없었다. 이 커밋이 `mobile/` 을 바꿔 새 TestFlight 빌드가 올라간다(자동 배포). 구속 측정 화면의 `navigator.vibrate` 도
   `buzz` 로 바꾸면 앱에서 떨린다 — 네 파일이라 안 건드렸다.

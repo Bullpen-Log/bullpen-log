@@ -375,18 +375,31 @@ export function ArmcarePlayer({
     refreshTrainingLists().catch(() => {});
   }, [settled]);
 
-  /* 시계 — 끝나는 순간에 한 번. 버티기가 끝나면 세트를(좌우 각각이면 한쪽을) 마친다 */
+  /*
+   * 시계 — 끝나는 순간에 한 번. 버티기가 끝나면 세트를(좌우 각각이면 한쪽을) 마친다.
+   *
+   * 아이폰은 화면이 꺼지거나 앱을 벗어난 동안 타이머가 멈춰, 돌아오면 화면 숫자(벽시계)는 0:00 인데 남은 만큼 더 기다린
+   * 뒤에야 끝났다. 화면으로 돌아올 때 벽시계로 한 번 더 본다.
+   */
   useEffect(() => {
     const clock = state.clock;
     if (!clock) return;
-    const id = setTimeout(
-      () => {
-        ring(clock.kind);
-        dispatch({ type: 'clock-end', clock, at: Date.now() });
-      },
-      Math.max(0, clock.endsAt - Date.now())
-    );
-    return () => clearTimeout(id);
+    let ended = false;
+    const end = () => {
+      if (ended) return;
+      ended = true;
+      ring(clock.kind);
+      dispatch({ type: 'clock-end', clock, at: Date.now() });
+    };
+    const id = setTimeout(end, Math.max(0, clock.endsAt - Date.now()));
+    const onVisible = () => {
+      if (document.visibilityState === 'visible' && Date.now() >= clock.endsAt) end();
+    };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => {
+      clearTimeout(id);
+      document.removeEventListener('visibilitychange', onVisible);
+    };
   }, [state.clock, ring]);
 
   /*

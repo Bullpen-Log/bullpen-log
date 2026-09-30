@@ -7,6 +7,7 @@ import { equipmentForToday, filterByEquipment } from '@/lib/report/equipment';
 import { filterByLevel } from '@/lib/report/personalize';
 import { readDailyPlan } from '@/lib/report/daily-plan';
 import { readArmcareRoutine } from '@/lib/armcare/routine';
+import { readRoutineItems } from '@/lib/armcare/my-routines';
 import { visibleExercises } from '@/lib/library-cache';
 import { closeAbandonedSessions } from '@/lib/workout/close-stale';
 import {
@@ -74,7 +75,7 @@ export async function loadTodayCore(user: UserForToday, today: Date) {
       select: { id: true },
     })) !== null;
 
-  const [library, doneLogs, todaySetup, armcareToday] = await Promise.all([
+  const [library, doneLogs, todaySetup, armcareToday, myRoutines] = await Promise.all([
     /*
      * 거르는 데 필요한 항목만 가져온다.
      *
@@ -110,6 +111,11 @@ export async function loadTodayCore(user: UserForToday, today: Date) {
     prisma.dailyArmcare.findUnique({
       where: { userId_date: { userId: user.id, date: midnight } },
       select: { plan: true },
+    }),
+    /* 내 암케어 루틴 — 거기서 한 체크도 strays 에서 뺀다(아래) */
+    prisma.userArmcareRoutine.findMany({
+      where: { userId: user.id },
+      select: { items: true },
     }),
   ]);
 
@@ -184,7 +190,15 @@ export async function loadTodayCore(user: UserForToday, today: Date) {
    *                   빼면 방금 넣은 운동이 사라지는 셈이라, 대신 표시만 한다.
    */
   const doneIds = new Set(doneLogs.map((d) => d.exerciseId));
-  const safeIds = new Set(picked.candidates.map((ex) => ex.id));
+  /*
+   * 몸 상태로만 가른 '안전' — 장비 · 경력으로 거르기 전의 전체 목록에서 본다. 위의 picked 는 오늘 장비 · 경력으로 거른
+   * 목록이라, 그것으로 가르면 장비를 바꾸거나 경력을 올린 것만으로 이미 만든 일정의 운동이 '몸 상태가 바뀌어 무리인 운동'
+   * 으로 빠지고, '운동 추가' 창에서는 가진 장비 운동이 '오늘 몸 상태에는 권하지 않는 운동'으로 보였다(틀린 말). 설정 창은
+   * 오늘 일정은 그대로라고 약속한다.
+   */
+  const safeIds = new Set(
+    selectCandidates({ facts, plan, library }).candidates.map((ex) => ex.id)
+  );
   const planned = (savedPlan?.picks ?? [])
     .filter((p) => safeIds.has(p.exerciseId) || doneIds.has(p.exerciseId) || p.manual)
     .map((p) => ({
@@ -213,9 +227,14 @@ export async function loadTodayCore(user: UserForToday, today: Date) {
    * 암케어를 통째로 뺐더니, 일정을 '다시 만들기'하면 그 체크가 목록에서 사라져
    * 풀 수도 없었다(이 규칙이 처음 막으려던 바로 그 일이다). 자리는 암케어 칸이다.
    */
-  const armcareIds = new Set(
-    readArmcareRoutine(armcareToday?.plan)?.items.map((it) => it.exerciseId) ?? []
-  );
+  /*
+   * 내 암케어 루틴(직접 고른 루틴)에서 한 체크도 같다 — 맞춤 루틴만 빼서, 내 루틴으로 한 밴드 운동이 트레이닝 목록에
+   * '직접 넣음'으로 끼고 [운동 시작]에서 세션에까지 얼어붙었다.
+   */
+  const armcareIds = new Set([
+    ...(readArmcareRoutine(armcareToday?.plan)?.items.map((it) => it.exerciseId) ?? []),
+    ...myRoutines.flatMap((r) => readRoutineItems(r.items).map((it) => it.exerciseId)),
+  ]);
   const inPlan = new Set(planned.map((p) => p.exerciseId));
   const strays = [...doneIds]
     .filter((id) => !inPlan.has(id))
@@ -261,8 +280,13 @@ export async function loadTodayCore(user: UserForToday, today: Date) {
     doneIds,
     /** 오늘 실제로 보여줄 운동 (안전 재확인을 통과했거나 이미 마친 것) */
     shownPicks,
-    /** 일정을 만든 뒤 몸 상태가 바뀌어 빠진 개수 */
-    droppedForSafety: (savedPlan?.picks.length ?? 0) - shownPicks.length,
+    /**
+     * 일정을 만든 뒤 몸 상태가 바뀌어 빠진 개수 — 일정 안에서만 센다. 보이는 목록(shownPicks)으로 세면 오늘 체크한 다른
+     * 운동(strays)만큼 줄어, 실제로 뺀 것이 있어도 알림이 사라졌다.
+     */
+    droppedForSafety: (savedPlan?.picks.length ?? 0) - planned.length,
+    /** 오늘 몸 상태에서 권할 수 있는 운동(장비 · 경력과 상관없이) — '운동 추가' 창의 경고 */
+    safeIds: [...safeIds],
     /** 목록에 남아 있지만 지금은 권하지 않는 운동 수 (직접 더한 것) */
     unsafeShown: shownPicks.filter((p) => p.unsafe).length,
     /*

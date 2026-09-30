@@ -2,6 +2,7 @@
 
 import { ChevronDown, CircleCheck } from 'lucide-react';
 import { startWorkout } from '@/app/actions/workout';
+import { SafeForm } from '@/components/safe-form';
 import { useWeightUnit } from '@/components/use-units';
 import { formatSummary, volumeIn, type ExerciseSummary } from '@/lib/workout/summarize';
 
@@ -107,14 +108,14 @@ export function DoneCard({
       )}
 
       {canResume && (
-        <form action={startWorkout}>
+        <SafeForm action={startWorkout}>
           <button
             type="submit"
             className="w-full py-1 text-xs font-medium text-muted underline underline-offset-2 transition-colors hover:text-sky"
           >
             운동 더 하기
           </button>
-        </form>
+        </SafeForm>
       )}
     </section>
   );

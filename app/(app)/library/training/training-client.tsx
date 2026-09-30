@@ -96,6 +96,9 @@ function ExerciseDetail({
    * 저장하면 멀쩡한 설명이 지워진다. 그래서 오기 전에는 수정을 못 연다.
    */
   const [description, setDescription] = useState<string | null>(null);
+  /* 설명을 못 받았나 — 예전에는 한 번 실패하면 '불러오는 중…'이 영영 남고 수정 단추도 막혔다. 누르면 다시 받는다 */
+  const [failed, setFailed] = useState(false);
+  const [attempt, setAttempt] = useState(0);
 
   /*
    * 다른 카드를 펼치면 이 조각이 통째로 다시 만들어진다 — 감싸는 div 에
@@ -105,13 +108,18 @@ function ExerciseDetail({
    */
   useEffect(() => {
     let alive = true;
-    exerciseDescription(item.id).then((text) => {
-      if (alive) setDescription(text);
-    });
+    exerciseDescription(item.id).then(
+      (text) => {
+        if (alive) setDescription(text);
+      },
+      () => {
+        if (alive) setFailed(true);
+      }
+    );
     return () => {
       alive = false;
     };
-  }, [item.id]);
+  }, [item.id, attempt]);
 
   /* 설명이 아직 없으면 수정 화면으로 넘어가지 않는다 (위 주석 참고) */
   if (editing && description !== null) {
@@ -285,7 +293,24 @@ function ExerciseDetail({
         )}
 
         <p className="whitespace-pre-wrap text-sm leading-relaxed text-muted">
-          {description ?? <span className="opacity-50">설명을 불러오는 중…</span>}
+          {description ??
+            (failed ? (
+              <span>
+                설명을 불러오지 못했어요.{' '}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setFailed(false);
+                    setAttempt((n) => n + 1);
+                  }}
+                  className="font-semibold text-sky-strong underline underline-offset-2"
+                >
+                  다시 불러오기
+                </button>
+              </span>
+            ) : (
+              <span className="opacity-50">설명을 불러오는 중…</span>
+            ))}
         </p>
 
         {/*
@@ -573,6 +598,8 @@ export function TrainingClient({
                 onClick={() => {
                   setFilter({});
                   setOnlyFavorites(false);
+                  /* 찾는 말도 — 남기면 여전히 조건이 걸린 채 빈 화면이 그대로였다 */
+                  setQuery('');
                 }}
               >
                 조건 모두 지우기

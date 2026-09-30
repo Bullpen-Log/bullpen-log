@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from 'react';
 import { Star } from 'lucide-react';
+import { OFFLINE_MESSAGE, orOffline } from '@/lib/action-offline';
 
 /**
  * 즐겨찾기 별.
@@ -38,7 +39,8 @@ export function FavoriteButton({
     setFavorite(!before);
     setError(undefined);
     startTransition(async () => {
-      const res = await onToggle();
+      /* 신호가 끊겨도 오류 화면 대신 되돌리고 알린다(lib/action-offline.ts) */
+      const res = await orOffline(onToggle(), { error: OFFLINE_MESSAGE });
       if ('error' in res) {
         setFavorite(before);
         setError(res.error);
