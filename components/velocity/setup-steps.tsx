@@ -1,6 +1,11 @@
 'use client';
 
-import { useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
+import {
+  useCallback,
+  useRef,
+  useState,
+  type PointerEvent as ReactPointerEvent,
+} from 'react';
 import {
   ArrowDown,
   ArrowUp,
@@ -913,17 +918,34 @@ export function LevelBubble({
 /* ───────────────────────── 5. 스트라이크 존 ───────────────────────── */
 
 /**
- * 반투명 스트라이크 존 — 뒤(카메라)가 비쳐 보인다. 끌어서 옮기고 오른쪽 아래 손잡이로 크기를 바꾼다. 좌표는 부모(뷰파인더 ·
- * 영상) 기준 0~1 비율이라 폰 크기가 달라도 같은 자리다.
+ * 반투명 스트라이크 존 — 뒤(카메라)가 비쳐 보인다. 좌표는 부모(뷰파인더 · 영상) 기준 0~1 비율이라 폰 크기가 달라도 같은
+ * 자리다.
  *
- * 모양은 스트라이크 존 그대로 지킨다(aspect = 세로 ÷ 가로, 이 좌표 기준) — 손잡이는 모서리 대각선을 따라 크기만 바꾸고,
- * 크기는 minW ~ maxW 안에서만(lib/velocity-setup.ts ZONE_WIDTH_RANGE). 예전에는 가로 · 세로를 따로 끌어 화면을 덮는
- * 띠도 만들 수 있었다(2026-09-30 사용자: "너무 자유롭다").
+ * 모양은 스트라이크 존 그대로 지킨다(aspect = 세로 ÷ 가로, 이 좌표 기준), 크기는 minW ~ maxW 안에서만
+ * (lib/velocity-setup.ts ZONE_WIDTH_RANGE). 예전에는 가로 · 세로를 따로 끌어 화면을 덮는 띠도 만들 수 있었다(2026-09-30
+ * 사용자: "너무 자유롭다").
+ *
+ * 놓는 법(editable) — 투수 뒤 존은 폰에서 10~40px 라 존 자체를 잡기 어려웠다(사용자: "크기 · 위치 변경이 잘 안 된다").
+ * 그래서 뷰파인더 전체가 손을 받는다: 한 손가락으로 어디를 끌든 존이 따라 옮겨지고, 두 손가락으로 벌리거나 오므리면 가운데를
+ * 두고 커지고 작아진다. 모서리 손잡이로도 크기를 바꾼다. 뷰파인더 전체가 touch-none 이라 끄는 동안 화면이 굴러가지 않는다.
  */
+
 /** 존 둘레의 이름표 · 손잡이가 차지하는 자리(px) — 옮길 때 이만큼 안쪽으로 묶는다 */
 const CHROME_LABEL_PX = 30;
 const CHROME_HALF_LABEL_PX = 40;
-const CHROME_KNOB_PX = 20;
+const CHROME_KNOB_PX = 36;
+
+type ZoneStart = {
+  startX: number;
+  startY: number;
+  rect: ZoneRect;
+  w: number;
+  h: number;
+};
+type ZoneDrag =
+  | ({ kind: 'move' } & ZoneStart)
+  | ({ kind: 'resize' } & ZoneStart)
+  | { kind: 'pinch'; dist: number; rect: ZoneRect; w: number; h: number };
 
 export function ZoneOverlay({
   rect,
@@ -933,6 +955,7 @@ export function ZoneOverlay({
   minW = 0,
   maxW = 1,
   highlight = null,
+  topInset,
 }: {
   rect: ZoneRect;
   onChange?: (next: ZoneRect) => void;
@@ -944,163 +967,288 @@ export function ZoneOverlay({
   maxW?: number;
   /** 칸 하나를 밝힌다 — 0~8, 화면의 왼쪽 위부터(영상에서 짐작한 코스) */
   highlight?: number | null;
+  /**
+   * 위에서 비울 높이(px) — 부모 위에 떠 있는 위 줄 · 수평계 줄 밑으로 존이 들어가면 손잡이를 못 잡는다. 끌 때마다 잰다
+   * (그리는 동안에는 부르지 않는다).
+   */
+  topInset?: () => number;
 }) {
-  const box = useRef<HTMLDivElement>(null);
-  const [active, setActive] = useState<'move' | 'resize' | null>(null);
-  const drag = useRef<{
-    kind: 'move' | 'resize';
-    startX: number;
-    startY: number;
-    rect: ZoneRect;
-    w: number;
-    h: number;
-  } | null>(null);
+  const layer = useRef<HTMLDivElement>(null);
+  const [active, setActive] = useState<'move' | 'resize' | 'pinch' | null>(null);
+  /* 누르고 있는 손가락(포인터 id → 자리) · 지금 하는 손동작 — 이벤트 안에서만 만진다 */
+  const fingers = useRef(new Map<number, { x: number; y: number }>());
+  const drag = useRef<ZoneDrag | null>(null);
+  /*
+   * 손동작 중 마지막으로 알린 자리 — 손가락을 더하거나 뗄 때 여기서 이어 간다. 그리기(rect)는 끄는 동안 한 박자 늦을 수
+   * 있어 그것으로 이으면 몇 px 뒤로 튀었다.
+   */
+  const last = useRef<ZoneRect | null>(null);
+  const emit = (next: ZoneRect) => {
+    last.current = next;
+    onChange?.(next);
+  };
+  /*
+   * 뷰파인더 층이 붙고 떨어질 때 — 손가락을 댄 채 놓기가 끝나면(완료를 눌러 층이 떨어짐) 남은 손동작을 버린다(다음에 한
+   * 손가락이 두 손가락으로 읽혔다). 한 번만 만든다 — 그릴 때마다 새 함수면 React 가 그때마다 떼었다 붙여 손동작이 지워졌다.
+   */
+  const attachLayer = useCallback((el: HTMLDivElement | null) => {
+    layer.current = el;
+    if (!el) return;
+    return () => {
+      layer.current = null;
+      fingers.current.clear();
+      drag.current = null;
+      last.current = null;
+    };
+  }, []);
+  /* 존을 놓는 동안만 손동작 모양을 보인다(놓기를 마친 뒤 남은 상태가 측정 화면에 새지 않게) */
+  const shown = editable ? active : null;
+  const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v));
 
-  /* 누르기 시작 — 손잡이를 누르면 크기, 그 밖은 옮기기. 이벤트 안에서만 ref 를 만진다 */
-  const begin = (kind: 'move' | 'resize', e: ReactPointerEvent) => {
+  const size = () => {
+    const r = layer.current?.getBoundingClientRect();
+    return r && r.width > 0 && r.height > 0 ? { w: r.width, h: r.height } : null;
+  };
+
+  /*
+   * 이름표(위 28px) · 손잡이(오른쪽 아래 바깥 26px, 누르는 자리까지 34px)가 뷰파인더에 잘리지 않게 그만큼 안쪽 여백(이 좌표). 이름표는 가운데
+   * 정렬이라 존이 작으면 옆으로도 여백이 든다. 실제 존은 화면 끝에 오지 않는다.
+   */
+  const pads = (wRect: number, w: number, h: number) => {
+    const l = Math.max(0, CHROME_HALF_LABEL_PX - (wRect * w) / 2) / w;
+    return {
+      l,
+      r: Math.max(l, CHROME_KNOB_PX / w),
+      t: ((topInset?.() ?? 0) + CHROME_LABEL_PX) / h,
+      b: CHROME_KNOB_PX / h,
+    };
+  };
+
+  /* 가운데(cx, cy)를 두고 가로 wNew 로 — 모양 · 범위 · 여백을 지켜 알린다 */
+  const place = (
+    cx: number,
+    cy: number,
+    wNew: number,
+    base: ZoneRect,
+    w: number,
+    h: number
+  ) => {
+    const k = aspect ?? base.h / base.w;
+    const p = pads(wNew, w, h);
+    const hi = Math.max(
+      Math.min(minW, base.w),
+      Math.min(maxW, 1 - p.l - p.r, (1 - p.t - p.b) / k)
+    );
+    const wz = clamp(wNew, Math.min(minW, hi), hi);
+    const hz = wz * k;
+    emit({
+      x: clamp(cx - wz / 2, p.l, Math.max(p.l, 1 - wz - p.r)),
+      y: clamp(cy - hz / 2, p.t, Math.max(p.t, 1 - hz - p.b)),
+      w: wz,
+      h: hz,
+    });
+  };
+
+  /* ── 뷰파인더 전체: 한 손가락 = 옮기기, 두 손가락 = 벌려 크기 ── */
+  const startFrom = () => {
+    const sz = size();
+    const pts = [...fingers.current.values()];
+    /* 손동작 도중이면 마지막으로 알린 자리에서, 처음이면 그려진 자리에서 */
+    const from = drag.current && last.current ? last.current : rect;
+    if (!sz || pts.length === 0) {
+      drag.current = null;
+      last.current = null;
+      setActive(null);
+      return;
+    }
+    if (pts.length >= 2) {
+      const dist = Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y);
+      drag.current = {
+        kind: 'pinch',
+        dist: Math.max(dist, 1),
+        rect: from,
+        w: sz.w,
+        h: sz.h,
+      };
+      setActive('pinch');
+    } else {
+      drag.current = {
+        kind: 'move',
+        startX: pts[0].x,
+        startY: pts[0].y,
+        rect: from,
+        w: sz.w,
+        h: sz.h,
+      };
+      setActive('move');
+    }
+  };
+
+  const onLayerDown = (e: ReactPointerEvent) => {
     if (!editable || !onChange) return;
-    const parent = box.current?.parentElement;
-    if (!parent) return;
-    const r = parent.getBoundingClientRect();
+    fingers.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+    e.preventDefault();
+    startFrom();
+  };
+
+  const onLayerMove = (e: ReactPointerEvent) => {
+    if (!fingers.current.has(e.pointerId)) return;
+    fingers.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    const d = drag.current;
+    if (!d || d.kind === 'resize') return;
+    const cx = d.rect.x + d.rect.w / 2;
+    const cy = d.rect.y + d.rect.h / 2;
+    if (d.kind === 'move') {
+      place(
+        cx + (e.clientX - d.startX) / d.w,
+        cy + (e.clientY - d.startY) / d.h,
+        d.rect.w,
+        d.rect,
+        d.w,
+        d.h
+      );
+      return;
+    }
+    const pts = [...fingers.current.values()];
+    if (pts.length < 2) return;
+    const dist = Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y);
+    place(cx, cy, d.rect.w * (dist / d.dist), d.rect, d.w, d.h);
+  };
+
+  const onLayerUp = (e: ReactPointerEvent) => {
+    if (!fingers.current.delete(e.pointerId)) return;
+    /* 두 손가락 중 하나를 떼면 남은 손가락으로 이어서 옮긴다(튀지 않게 지금 자리에서) */
+    startFrom();
+  };
+
+  /* ── 모서리 손잡이: 왼쪽 위를 붙박고 대각선으로 크기 ── */
+  const beginResize = (e: ReactPointerEvent) => {
+    if (!editable || !onChange) return;
+    const sz = size();
+    if (!sz) return;
     drag.current = {
-      kind,
+      kind: 'resize',
       startX: e.clientX,
       startY: e.clientY,
       rect,
-      w: r.width,
-      h: r.height,
+      w: sz.w,
+      h: sz.h,
     };
-    setActive(kind);
+    setActive('resize');
     (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
     e.preventDefault();
     e.stopPropagation();
   };
 
-  const move = (e: ReactPointerEvent) => {
+  const onResizeMove = (e: ReactPointerEvent) => {
     const d = drag.current;
-    if (!d || !onChange) return;
-    const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v));
-    /*
-     * 옮길 때는 이름표(위 28px) · 손잡이(오른쪽 아래 바깥 18px)가 뷰파인더에 잘리지 않게 그만큼 안쪽으로 묶는다(가장자리에서
-     * '트라이크 존'으로 잘렸다). 이름표는 가운데 정렬이라 존이 작으면 옆으로도 여백이 든다. 실제 존은 화면 끝에 오지 않는다.
-     */
-    const padL = Math.max(0, CHROME_HALF_LABEL_PX - (d.rect.w * d.w) / 2) / d.w;
-    const padR = Math.max(padL, CHROME_KNOB_PX / d.w);
-    const padT = CHROME_LABEL_PX / d.h;
-    const padB = CHROME_KNOB_PX / d.h;
-    if (d.kind === 'move') {
-      const dx = (e.clientX - d.startX) / d.w;
-      const dy = (e.clientY - d.startY) / d.h;
-      const lo = (a: number, b: number) => Math.min(a, b);
-      onChange({
-        ...d.rect,
-        x: clamp(
-          d.rect.x + dx,
-          lo(padL, d.rect.x),
-          Math.max(d.rect.x, 1 - d.rect.w - padR)
-        ),
-        y: clamp(
-          d.rect.y + dy,
-          lo(padT, d.rect.y),
-          Math.max(d.rect.y, 1 - d.rect.h - padB)
-        ),
-      });
-      return;
-    }
-    /*
-     * 크기 — 왼쪽 위를 붙박고, 끈 거리를 존의 대각선(픽셀) 방향으로 내려 가로를 정한다. 세로는 모양(aspect)대로 따라온다.
-     * 가로는 범위와 부모 안(오른쪽 · 아래 끝)으로 묶는다.
-     */
+    if (!d || d.kind !== 'resize') return;
+    /* 끈 거리를 존의 대각선(픽셀) 방향으로 내려 가로를 정한다. 세로는 모양(aspect)대로 따라온다 */
     const k = aspect ?? d.rect.h / d.rect.w;
     const kPx = (k * d.h) / d.w; // 존의 세로 ÷ 가로(픽셀)
-    const dxPx = e.clientX - d.startX;
-    const dyPx = e.clientY - d.startY;
-    const grow = (dxPx + dyPx * kPx) / (1 + kPx * kPx); // 가로 픽셀이 늘어난 만큼
+    const grow =
+      (e.clientX - d.startX + (e.clientY - d.startY) * kPx) / (1 + kPx * kPx);
+    const p = pads(d.rect.w, d.w, d.h);
     const hi = Math.max(
       d.rect.w,
-      Math.min(maxW, 1 - d.rect.x - padR, (1 - d.rect.y - padB) / k)
+      Math.min(maxW, 1 - d.rect.x - p.r, (1 - d.rect.y - p.b) / k)
     );
     const w = clamp(d.rect.w + grow / d.w, Math.min(minW, hi), hi);
-    onChange({ ...d.rect, w, h: w * k });
+    emit({ ...d.rect, w, h: w * k });
   };
 
-  const end = () => {
+  const onResizeEnd = () => {
+    if (drag.current?.kind !== 'resize') return;
     drag.current = null;
+    last.current = null;
     setActive(null);
   };
 
   return (
-    <div
-      ref={box}
-      role={editable ? 'application' : 'img'}
-      aria-label="스트라이크 존"
-      onPointerDown={(e) => begin('move', e)}
-      onPointerMove={move}
-      onPointerUp={end}
-      onPointerCancel={end}
-      style={{
-        left: `${rect.x * 100}%`,
-        top: `${rect.y * 100}%`,
-        width: `${rect.w * 100}%`,
-        height: `${rect.h * 100}%`,
-      }}
-      className={`absolute rounded-[3px] border-[1.5px] shadow-[0_0_0_1px_rgba(0,0,0,0.35)] transition-colors duration-150 ${
-        active
-          ? 'border-white bg-sky/15'
-          : editable
-            ? 'border-white/90 bg-white/10'
-            : 'border-white/80 bg-transparent'
-      } ${editable ? 'cursor-move touch-none' : 'pointer-events-none'}`}
-    >
-      {/* 작은 존(투수 뒤)도 손가락으로 잡히게 — 누르는 자리를 둘레로 넓힌다 */}
-      {editable && <span aria-hidden className="absolute -inset-4" />}
-      {highlight != null && highlight >= 0 && highlight <= 8 && (
-        <span
+    <>
+      {editable && (
+        <div
+          ref={attachLayer}
           aria-hidden
-          className="pointer-events-none absolute bg-sky/45"
-          style={{
-            left: `${(highlight % 3) * (100 / 3)}%`,
-            top: `${Math.floor(highlight / 3) * (100 / 3)}%`,
-            width: `${100 / 3}%`,
-            height: `${100 / 3}%`,
-          }}
+          onPointerDown={onLayerDown}
+          onPointerMove={onLayerMove}
+          onPointerUp={onLayerUp}
+          onPointerCancel={onLayerUp}
+          onLostPointerCapture={onLayerUp}
+          className="absolute inset-0 cursor-move touch-none"
         />
       )}
-      {/* 격자 — 흰 과녁 천 · 미트 위에서도 보이게 어두운 그림자를 두른다(흐림 거름은 이 묶음에만 — 이름표의 흐림을 살린다) */}
-      <span
-        aria-hidden
-        className="pointer-events-none absolute inset-0 drop-shadow-[0_0_1px_rgba(0,0,0,0.7)]"
+      <div
+        role="img"
+        aria-label="스트라이크 존"
+        onPointerMove={onResizeMove}
+        onPointerUp={onResizeEnd}
+        onPointerCancel={onResizeEnd}
+        style={{
+          left: `${rect.x * 100}%`,
+          top: `${rect.y * 100}%`,
+          width: `${rect.w * 100}%`,
+          height: `${rect.h * 100}%`,
+        }}
+        className={`pointer-events-none absolute rounded-[3px] border-[1.5px] transition-[background-color,border-color,box-shadow] duration-150 ${
+          shown
+            ? /* 움직이는 동안 — 작은 존(폰에서 15px)도 손가락 옆에서 보이게 둘레에 빛 */
+              'border-sky-300 bg-sky/20 shadow-[0_0_0_1px_rgba(0,0,0,0.35),0_0_0_6px_rgba(56,189,248,0.35)]'
+            : editable
+              ? 'border-white/90 bg-white/10 shadow-[0_0_0_1px_rgba(0,0,0,0.35)]'
+              : 'border-white/80 bg-transparent shadow-[0_0_0_1px_rgba(0,0,0,0.35)]'
+        }`}
       >
-        <span className="absolute inset-y-0 left-1/3 w-px bg-white/70" />
-        <span className="absolute inset-y-0 left-2/3 w-px bg-white/70" />
-        <span className="absolute inset-x-0 top-1/3 h-px bg-white/70" />
-        <span className="absolute inset-x-0 top-2/3 h-px bg-white/70" />
-      </span>
-      {editable && (
-        <>
+        {highlight != null && highlight >= 0 && highlight <= 8 && (
           <span
-            className={`pointer-events-none absolute -top-7 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full bg-black/55 px-2 py-0.5 text-xs font-semibold text-white backdrop-blur transition-opacity duration-150 ${
-              active ? 'opacity-0' : 'opacity-100'
-            }`}
-          >
-            스트라이크 존
-          </span>
-          {/*
-           * 손잡이 — 24px 를 모서리 바깥 대각선에(겹침 6px). 안쪽에 두면 투수 뒤의 작은 존(폰에서 10~40px)을 덮어 존이 안
-           * 보이고 옮길 수도 없었다. 누르는 자리는 둘레로 넓혀 48px.
-           */}
-          <button
-            type="button"
-            aria-label="크기 바꾸기"
-            onPointerDown={(e) => begin('resize', e)}
-            className={`absolute left-full top-full -ml-1.5 -mt-1.5 flex h-6 w-6 cursor-nwse-resize touch-none items-center justify-center rounded-full border-2 border-white bg-sky text-white shadow-md before:absolute before:-inset-3 before:content-[''] transition-transform duration-150 ${
-              active === 'resize' ? 'scale-110' : ''
-            }`}
-          >
-            <MoveDiagonal2 aria-hidden className="h-3.5 w-3.5" />
-          </button>
-        </>
-      )}
-    </div>
+            aria-hidden
+            className="absolute bg-sky/45"
+            style={{
+              left: `${(highlight % 3) * (100 / 3)}%`,
+              top: `${Math.floor(highlight / 3) * (100 / 3)}%`,
+              width: `${100 / 3}%`,
+              height: `${100 / 3}%`,
+            }}
+          />
+        )}
+        {/* 격자 — 흰 과녁 천 · 미트 위에서도 보이게 어두운 그림자를 두른다(흐림 거름은 이 묶음에만 — 이름표의 흐림을 살린다) */}
+        <span
+          aria-hidden
+          className="absolute inset-0 drop-shadow-[0_0_1px_rgba(0,0,0,0.7)]"
+        >
+          <span className="absolute inset-y-0 left-1/3 w-px bg-white/70" />
+          <span className="absolute inset-y-0 left-2/3 w-px bg-white/70" />
+          <span className="absolute inset-x-0 top-1/3 h-px bg-white/70" />
+          <span className="absolute inset-x-0 top-2/3 h-px bg-white/70" />
+        </span>
+        {editable && (
+          <>
+            <span
+              className={`absolute -top-7 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-semibold text-white backdrop-blur transition-[opacity,background-color] duration-150 ${
+                shown ? 'bg-sky' : 'bg-black/55'
+              } ${shown === 'pinch' || shown === 'resize' ? 'opacity-0' : 'opacity-100'}`}
+            >
+              스트라이크 존
+            </span>
+            {/*
+             * 손잡이 — 24px 를 모서리 바깥 대각선에 떼어 둔다. 누르는 자리(44px)도 바깥 · 아래로만 넓힌다 — 존 쪽으로 넓히면
+             * 투수 뒤의 작은 존(15×21px)을 86% 덮어, 존을 끌면 옮겨지지 않고 크기가 바뀌었다(2026-09-30 코드 검토). 존 틀은 손을
+             * 받지 않고(pointer-events-none) 손잡이만 받는다 — 존 위를 누르면 뒤의 뷰파인더 전체 층이 받아 옮긴다.
+             */}
+            <button
+              type="button"
+              aria-label="크기 바꾸기"
+              onPointerDown={beginResize}
+              className={`pointer-events-auto absolute left-full top-full ml-0.5 mt-0.5 flex h-6 w-6 cursor-nwse-resize touch-none items-center justify-center rounded-full border-2 border-white bg-sky text-white shadow-md before:absolute before:-bottom-4 before:-left-1 before:-right-4 before:-top-1 before:content-[''] transition-transform duration-150 ${
+                shown === 'resize' ? 'scale-110' : ''
+              }`}
+            >
+              <MoveDiagonal2 aria-hidden className="h-3.5 w-3.5" />
+            </button>
+          </>
+        )}
+      </div>
+    </>
   );
 }

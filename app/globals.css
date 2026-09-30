@@ -802,6 +802,17 @@ input[type='date']::-webkit-calendar-picker-indicator {
   }
 }
 
+/* 구속 측정 세션의 정보 판 — 카메라 위로 밑에서 끝까지 올라온다(velocity-screen.tsx). 내려갈 때는 transition 으로 */
+@utility animate-panel-up {
+  animation: panel-up 200ms cubic-bezier(0.2, 0, 0, 1);
+}
+
+@keyframes panel-up {
+  from {
+    translate: 0 100%;
+  }
+}
+
 @utility animate-row-in {
   animation: row-in 260ms ease-out backwards;
   animation-delay: calc(min(var(--row, 0), 9) * 28ms);
