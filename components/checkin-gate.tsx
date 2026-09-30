@@ -290,7 +290,8 @@ export function CheckinGate({
       onClose={() => {
         if (needed) skip();
       }}
-      className="m-auto flex max-h-[min(92dvh,56rem)] w-[min(40rem,calc(100vw-1.5rem))] flex-col overflow-clip rounded-2xl border border-line bg-surface p-0 text-ink shadow-2xl outline-none backdrop:bg-shade/60"
+      /* 아이폰 앱은 시계 · 홈 막대 자리를 뺀다(components/modal.tsx 의 page 창과 같은 까닭) */
+      className="m-auto flex max-h-[min(92dvh,56rem,calc(100dvh-2*max(env(safe-area-inset-top),env(safe-area-inset-bottom))-1.5rem))] w-[min(40rem,calc(100vw-1.5rem))] flex-col overflow-clip rounded-2xl border border-line bg-surface p-0 text-ink shadow-2xl outline-none backdrop:bg-shade/60"
     >
       <div className="shrink-0 border-b border-line px-5 py-4">
         {today && (

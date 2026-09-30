@@ -30,7 +30,7 @@ function todayKey() {
  */
 export default function LoginPage() {
   return (
-    <main className="bg-spotlight flex min-h-dvh items-center justify-center px-5 py-4 short:py-3 max-md:items-stretch sm:px-8 sm:py-6 md:py-10 md:short:py-4">
+    <main className="bg-spotlight flex min-h-[calc(100dvh-env(safe-area-inset-top)-env(safe-area-inset-bottom))] items-center justify-center px-5 py-4 short:py-3 max-md:items-stretch sm:px-8 sm:py-6 md:py-10 md:short:py-4">
       <AuthForm today={todayKey()} />
     </main>
   );

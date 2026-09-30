@@ -81,7 +81,8 @@ export function WarmupClient({
   return (
     <>
       {/* ─────────── 위: 보는 곳 ─────────── */}
-      <div className="flex-1 overflow-y-auto px-4 pt-4 pb-5">
+      {/* 앱에서는 시계 자리만큼 내려서 시작한다 — 굴러가는 칸이 시계 밑으로 지나가지 않게 */}
+      <div className="mt-[env(safe-area-inset-top)] flex-1 overflow-y-auto px-4 pt-4 pb-5">
         <p className="text-xs text-muted">{themeLabel}</p>
         <h1 className="mt-1 text-xl font-bold text-ink">워밍업</h1>
         <p className="mt-1.5 text-xs leading-relaxed text-muted">
