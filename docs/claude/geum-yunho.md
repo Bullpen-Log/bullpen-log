@@ -129,6 +129,9 @@
 - **아이폰 앱은 화면 끝(시계 · 홈 막대 자리)까지 그린다**(김민 e7d90ec, 뿌리 viewport `viewportFit: 'cover'`). `data-safe-area`
   가 없는 화면은 globals.css 가 몸 전체에 그 여백을 준다 — **새 화면 틀을 만들어 스스로 `env(safe-area-inset-*)` 여백을 비우면
   그 틀에 `data-safe-area` 를 단다**(안 달면 여백이 두 번 들어간다). `app/(session)/layout.tsx` 가 그렇게 한다.
+- **서버 액션을 부르는 저장 단추는 `orOffline`(`lib/action-offline.ts`)으로, 폼 action 은 `guardFormAction` 으로 감싼다**(김민,
+  2026-09-30). 신호가 끊겨 서버 액션이 던지면 전환 · useActionState 가 오류 화면으로 가서 적던 것이 통째로 사라졌다(가입 일곱 단계 ·
+  체크인 · 영양). 감싸면 한 줄 오류로 남는다. 구속 측정 저장은 try/catch + `unstable_rethrow` 로 같은 일을 한다.
 - **카메라 <video> 는 늘 같은 자리에 그린다.** 같은 JSX 조각이라도 부모가 다르면(단계마다 다른 틀) React 가 새 <video> 를
   만들어 카메라 스트림이 끊긴다(측정 화면이 까맸던 까닭). 구속 측정은 카메라 단계를 '카메라 무대' 하나로 두어 뷰파인더를
   같은 자리에 둔다. LiveCapture 는 처음 받은 <video> 를 붙들고 있어 캔버스 길 · 렌즈 보정 사진도 같이 죽는다.

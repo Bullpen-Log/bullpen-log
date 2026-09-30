@@ -3,6 +3,7 @@
 import { useActionState, useState } from 'react';
 import { Check } from 'lucide-react';
 import { updatePatchNote, type PatchNoteState } from '@/app/actions/patch-note';
+import { guardFormAction } from '@/lib/action-offline';
 import { Button, FormError, Textarea } from '@/components/ui';
 
 /**
@@ -17,7 +18,8 @@ import { Button, FormError, Textarea } from '@/components/ui';
  */
 export function PatchNoteEditor({ id, note }: { id: string; note: string }) {
   const [state, formAction, pending] = useActionState<PatchNoteState, FormData>(
-    updatePatchNote,
+    /* 신호가 끊겨도 오류 화면으로 넘어가지 않고 한 줄로 알린다(lib/action-offline.ts) */
+    guardFormAction(updatePatchNote),
     undefined
   );
   const [text, setText] = useState(note);

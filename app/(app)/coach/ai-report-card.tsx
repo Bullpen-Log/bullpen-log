@@ -4,6 +4,7 @@ import { useActionState, useState } from 'react';
 import { useFormStatus } from 'react-dom';
 import { AlertTriangle, ChevronDown, Minus, Moon, Sparkles, Sun } from 'lucide-react';
 import { generateAiReport, type AiReportState } from '@/app/actions/ai-report';
+import { OFFLINE_MESSAGE, orOffline } from '@/lib/action-offline';
 import { type ReportReadiness } from '@/lib/report/cadence';
 import type { AiReportBody } from '@/lib/ai/report-prompt';
 import {
@@ -284,7 +285,8 @@ export function AiReportCard({
   aiReady: boolean;
 }) {
   const [state, formAction] = useActionState<AiReportState, FormData>(
-    generateAiReport,
+    /* 신호가 끊기거나 AI 가 너무 오래 걸려 부르기가 던지면 — 홈 본문이 오류 화면으로 바뀌지 않게 한 줄로 알린다 */
+    () => orOffline(generateAiReport(), { error: OFFLINE_MESSAGE }),
     undefined
   );
 

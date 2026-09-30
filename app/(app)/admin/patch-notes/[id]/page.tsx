@@ -149,9 +149,10 @@ function spokenDay(day: string) {
   return `${d.getUTCFullYear()}년 ${d.getUTCMonth() + 1}월 ${d.getUTCDate()}일 (${WEEKDAYS[d.getUTCDay()]})`;
 }
 
-/** '9월 24일 오후 3:14' */
+/** '9월 24일 오후 3:14' — 서버(UTC)에서 그리므로 한국 시간대를 준다(안 주면 9시간 이르게 찍혔다) */
 function spokenTime(date: Date) {
   return date.toLocaleString('ko-KR', {
+    timeZone: 'Asia/Seoul',
     month: 'long',
     day: 'numeric',
     hour: 'numeric',

@@ -107,6 +107,11 @@ export function Modal({
   children: ReactNode;
 }) {
   const ref = useRef<HTMLDialogElement>(null);
+  /*
+   * 누름이 배경에서 시작했나 — 배경을 '눌렀다 뗀' 것만 닫는다. 창 안에서 글자를 끌어 고르다 배경에서 놓아도 click 은
+   * 창(dialog) 자신에게 와서, 예전에는 그대로 닫혀 적던 기록 · 올린 영상 목록이 사라졌다.
+   */
+  const pressedBackdrop = useRef(false);
 
   /*
    * showModal() 은 DOM 을 직접 건드리는 일이라 effect 에서 부른다.
@@ -252,8 +257,13 @@ export function Modal({
        * 배경을 눌러도 닫는다. 배경 클릭은 dialog 자기 자신을 목표로 삼으므로,
        * 안쪽 상자를 눌렀을 때와 이렇게 구분된다.
        */
+      onPointerDown={(e) => {
+        pressedBackdrop.current = e.target === ref.current;
+      }}
       onClick={(e) => {
-        if (e.target === ref.current) onClose();
+        const fromBackdrop = pressedBackdrop.current;
+        pressedBackdrop.current = false;
+        if (e.target === ref.current && fromBackdrop) onClose();
       }}
       /*
        * m-auto 가 창을 화면 가운데로 보낸다.

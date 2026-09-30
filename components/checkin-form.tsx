@@ -33,7 +33,8 @@ import {
   hasDetail,
   hasPain,
 } from '@/lib/checkin';
-import { kept, keptAll } from '@/lib/form-values';
+import { kept, keptAll, withInput } from '@/lib/form-values';
+import { OFFLINE_MESSAGE, orOffline } from '@/lib/action-offline';
 import { toDateKey } from '@/lib/pitch-stats';
 import { formatWeight, fromWeight, round1, toWeight } from '@/lib/units';
 import { useWeightUnit } from '@/components/use-units';
@@ -90,7 +91,21 @@ function ChipRadio({
   toggleable?: boolean;
 }) {
   return (
-    <label className="inline-flex">
+    <label
+      className="inline-flex"
+      /*
+       * 누르기 직전에 이미 골라져 있었는지를 적어 둔다 — 누른 뒤에는 늘 골라져 있다. 손가락은 숨은 라디오가 아니라 옆의
+       * 칩을 누르므로 label 에서 받는다(라디오에 달았더니 한 번도 오지 않아 다시 눌러도 풀리지 않았다).
+       */
+      onPointerDown={
+        toggleable
+          ? (e) => {
+              const input = e.currentTarget.querySelector('input');
+              if (input) input.dataset.was = input.checked ? '1' : '';
+            }
+          : undefined
+      }
+    >
       <input
         type="radio"
         name={name}
@@ -98,14 +113,6 @@ function ChipRadio({
         defaultChecked={defaultChecked}
         required={required}
         onChange={() => onPick?.(value)}
-        /* 누르기 직전에 이미 골라져 있었는지를 적어 둔다 — 누른 뒤에는 늘 골라져 있다 */
-        onPointerDown={
-          toggleable
-            ? (e) => {
-                e.currentTarget.dataset.was = e.currentTarget.checked ? '1' : '';
-              }
-            : undefined
-        }
         onClick={
           toggleable
             ? (e) => {
@@ -225,7 +232,17 @@ function NumberRow({
 function WeightRow({ defaultKg }: { defaultKg?: string }) {
   const unit = useWeightUnit();
   const [kg, setKg] = useState(defaultKg ?? '');
-  const shown = kg === '' ? '' : String(round1(toWeight(Number(kg), unit)));
+  /*
+   * 적는 중인 글자와 그 단위 — kg 를 되돌려 보이면(0.1kg 로 반올림) lb 로 적는 사이 글자가 바뀌어(1 → 1.1, 1.16 → 1.1)
+   * 몸무게를 적을 수 없었다. 적는 동안은 적은 그대로 보이고, 단위를 바꾸면 kg 에서 다시 보인다.
+   */
+  const [draft, setDraft] = useState<{ text: string; unit: string } | null>(null);
+  const shown =
+    draft && draft.unit === unit
+      ? draft.text
+      : kg === ''
+        ? ''
+        : String(round1(toWeight(Number(kg), unit)));
 
   return (
     <Row label="몸무게">
@@ -235,6 +252,7 @@ function WeightRow({ defaultKg }: { defaultKg?: string }) {
         value={shown}
         onChange={(e) => {
           const v = e.target.value;
+          setDraft({ text: v, unit });
           setKg(v === '' ? '' : String(round1(fromWeight(Number(v), unit))));
         }}
         min={round1(toWeight(CHECKIN_WEIGHT_MIN_KG, unit))}
@@ -338,6 +356,21 @@ function detailLines(d: CheckinData, weightUnit: 'kg' | 'lb'): [string, string][
   return out;
 }
 
+/*
+ * 저장을 신호 끊김에서 지킨다. useActionState 는 액션이 던진 오류를 가장 가까운 오류 화면으로 올리는데, 이 폼은 (app)
+ * 레이아웃(체크인 관문 · 알림 창)에 있어 그 자리가 로그인 밖 오류 화면(app/error.tsx, '로그인으로')이다 — 신호가 약한 곳에서
+ * 저장을 누르면 앱 전체가 그 화면으로 바뀌고 고른 것도 사라졌다. 실패로 돌려주고 고른 것을 되살린다.
+ */
+function saveCheckinSafely(
+  prev: CheckinState,
+  formData: FormData
+): Promise<CheckinState> {
+  return orOffline(
+    saveCheckin(prev, formData),
+    withInput({ error: OFFLINE_MESSAGE }, formData)
+  );
+}
+
 /**
  * 오늘 컨디션 체크인.
  *
@@ -385,7 +418,7 @@ export function CheckinForm({
    */
   const [mode, setMode] = useState<Mode>(readMode);
   const [state, formAction] = useActionState<CheckinState, FormData>(
-    saveCheckin,
+    saveCheckinSafely,
     undefined
   );
 

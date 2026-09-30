@@ -65,39 +65,19 @@ function dateOnly(today: Date) {
 }
 
 /*
- * 일정은 홈과 트레이닝 두 곳에서 만들 수 있다. 만들고 나면 누른 화면으로
- * 돌아와야 한다 — 트레이닝에서 눌렀는데 홈으로 튕기면 방금 만든 목록을 보러
- * 다시 들어가야 한다.
+ * 저장한 뒤 돌아갈 곳. 일정은 홈 · 트레이닝에서 만들고, 설정 창은 어느 화면 위에서나 열리므로 누른 그 화면으로 돌아와야
+ * 한다 — 트레이닝에서 눌렀는데 홈으로 튕기면 방금 만든 목록을 보러 다시 들어가야 한다.
  *
- * 폼이 보내온 값을 그대로 redirect 에 넘기지는 않는다. 주소를 마음대로 넣을 수
- * 있으면 남의 사이트로 보내는 링크를 만들 수 있다. 아는 곳만 허용한다.
+ * 폼이 보낸 값을 그대로 redirect 에 넘기지는 않는다. 주소를 마음대로 넣을 수 있으면 남의 사이트로 보내는 링크를 만들 수
+ * 있다. 이 사이트 안의 주소 — '/' 로 시작하고 둘째 글자가 '/' 나 '\'(다른 사이트로 읽힘)가 아니며 주소에 쓰는 글자만 — 만
+ * 받고, 그 밖은 홈으로 떨어뜨린다. 예전에는 아는 주소 몇 개만 받아 영양 · 라이브러리 · 코치 · 투구 기록 팝업에서 설정을
+ * 저장하면 홈으로 튕겼다.
  */
-const RETURN_TO = [
-  '/today',
-  '/training',
-  /*
-   * 트레이닝의 [트레이닝]·[암케어] 칸에서 트레이닝 설정을 열고 저장하면 그 칸으로
-   * 돌아온다. 주소를 풀어 따지지 않고 통째로 적는다 — 그래야 남의 곳으로 보내는
-   * 길이 생기지 않는다.
-   */
-  '/training?view=armcare',
-  '/training?view=armcare&tab=guide',
-  /*
-   * 설정이 창으로도 열리면서, 저장한 뒤 돌아갈 곳이 '설정 화면'이 아니라
-   * '그때 보고 있던 화면'이 됐다. 창은 어느 화면 위에서나 열리므로 그 화면들을
-   * 여기 적어 둔다. 목록에 없는 값이 오면 아래에서 홈으로 떨어뜨린다 —
-   * 적어 둔 곳 말고는 못 가게 하려고 두는 목록이다.
-   */
-  '/videos',
-  '/board',
-  '/more',
-] as const;
+const SAME_SITE_PATH = /^\/(?![/\\])[\w\-./?=&%~]*$/;
 
-function returnPath(formData: FormData): (typeof RETURN_TO)[number] {
+function returnPath(formData: FormData): string {
   const asked = String(formData.get('returnTo') ?? '');
-  return (RETURN_TO as readonly string[]).includes(asked)
-    ? (asked as (typeof RETURN_TO)[number])
-    : '/today';
+  return SAME_SITE_PATH.test(asked) ? asked : '/today';
 }
 
 /**

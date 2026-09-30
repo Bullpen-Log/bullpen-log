@@ -124,6 +124,36 @@ export function toProfile(
   };
 }
 
+/**
+ * 그날 목표에 쓰는 체중 — 그날까지 30일 안에서 가장 최근에 적은 것(같은 날이면 영양 탭에 적은 값이 체크인보다 앞선다).
+ * 아래 loadNutritionDay 의 '그날 적은 것 → 가장 최근 것' 과 같은 규칙이다. 캘린더의 그날 칸(lib/day-detail.ts)이 이것을
+ * 써서 두 화면의 목표가 같다 — 예전에는 그날 칸만 가입 때 적은 몸무게로 건너뛰어 kcal · 단백질 목표가 달랐다.
+ * 없으면 null(부르는 쪽이 가입 때 적은 몸무게로).
+ */
+export async function recentWeightKg(
+  userId: string,
+  date: string
+): Promise<number | null> {
+  const range = {
+    gte: dbDate(shiftDateKey(date, -(WEIGHT_DAYS - 1))),
+    lte: dbDate(date),
+  };
+  const [daily, checkin] = await Promise.all([
+    prisma.dailyNutrition.findFirst({
+      where: { userId, date: range, weightKg: { not: null } },
+      orderBy: { date: 'desc' },
+      select: { date: true, weightKg: true },
+    }),
+    prisma.dailyCheckin.findFirst({
+      where: { userId, date: range, bodyWeightKg: { not: null } },
+      orderBy: { date: 'desc' },
+      select: { date: true, bodyWeightKg: true },
+    }),
+  ]);
+  if (daily && (!checkin || daily.date >= checkin.date)) return daily.weightKg;
+  return checkin?.bodyWeightKg ?? null;
+}
+
 const SOURCES: EntrySource[] = ['basic', 'mfds', 'mine', 'free'];
 const asSource = (s: string): EntrySource =>
   (SOURCES as string[]).includes(s) ? (s as EntrySource) : 'free';

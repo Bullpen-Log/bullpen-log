@@ -106,6 +106,16 @@ export function PitchVideoPlayer({ src, label }: { src: string; label: string })
   }, []);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
+    /*
+     * 크게 보는 중의 Esc 는 크게 보기만 닫는다. 투구 기록 팝업 안이면 팝업의 Esc 받기(창 닫기)까지 올라가 팝업이 통째로
+     * 닫혔다 — 적던 기록까지.
+     */
+    if (e.key === 'Escape' && expanded) {
+      e.preventDefault();
+      e.stopPropagation();
+      setExpanded(false);
+      return;
+    }
     // 진행 바에 포커스가 있을 때는 화살표가 그쪽 동작이어야 한다.
     const tag = (e.target as HTMLElement).tagName;
     if (tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA') return;

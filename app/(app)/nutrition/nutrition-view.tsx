@@ -50,10 +50,17 @@ import {
   updateMealAmount,
   type NutritionResult,
 } from '@/app/actions/nutrition';
+import { OFFLINE_MESSAGE, orOffline } from '@/lib/action-offline';
 import { FoodSheet } from './food-sheet';
 import { GoalSheet } from './goal-sheet';
 import { WeekChart, WeightTrend } from './charts';
 import { EASE, originOf, toFoodInput, type Origin } from './shared';
+
+/*
+ * 서버에 닿지 못했을 때(신호 끊김) — 부르기가 던지면 전환 안의 오류가 오류 화면으로 넘어가 영양 화면(열어 둔 음식 창까지)이
+ * 통째로 바뀌었다. 실패로 바꿔 알림 한 줄로 보인다(lib/action-offline.ts).
+ */
+const OFFLINE: NutritionResult = { ok: false, error: OFFLINE_MESSAGE };
 
 /**
  * 영양 탭 — 하루치 화면.
@@ -156,10 +163,13 @@ export function NutritionView({ day, today }: { day: NutritionDay; today: string
     return new Promise((resolve) => {
       startTransition(async () => {
         applyEntries({ type: 'add', entries: temp });
-        const res = await addMealEntries(
-          day.date,
-          meal,
-          items.map(({ food, amount }) => ({ food: toFoodInput(food), amount }))
+        const res = await orOffline(
+          addMealEntries(
+            day.date,
+            meal,
+            items.map(({ food, amount }) => ({ food: toFoodInput(food), amount }))
+          ),
+          OFFLINE
         );
         report(res);
         resolve(res);
@@ -171,7 +181,7 @@ export function NutritionView({ day, today }: { day: NutritionDay; today: string
     setError(null);
     startTransition(async () => {
       applyEntries({ type: 'amount', id, amount });
-      report(await updateMealAmount(id, amount));
+      report(await orOffline(updateMealAmount(id, amount), OFFLINE));
     });
   }
 
@@ -179,7 +189,7 @@ export function NutritionView({ day, today }: { day: NutritionDay; today: string
     setError(null);
     startTransition(async () => {
       applyEntries({ type: 'delete', id });
-      report(await deleteMealEntry(id));
+      report(await orOffline(deleteMealEntry(id), OFFLINE));
     });
   }
 
@@ -903,10 +913,12 @@ function MealSection({
 
 const QUICK_AMOUNTS = [0.5, 1, 1.5, 2];
 
+/* − 는 0.25 밑의 양(그램으로 적은 0.1인분 등)을 늘리지 않는다 — 예전에는 0.1 에서 − 를 누르면 0.25 로 커졌다 */
 function step(amount: number, dir: 1 | -1) {
   const size = amount < 1 || (amount === 1 && dir === -1) ? 0.25 : 0.5;
   const next = Math.round((amount + dir * size) / size) * size;
-  return Math.min(AMOUNT_MAX, Math.max(0.25, next));
+  const floor = dir === -1 ? Math.min(amount, 0.25) : 0.25;
+  return Math.min(AMOUNT_MAX, Math.max(floor, next));
 }
 
 function EntryRow({
@@ -1100,7 +1112,7 @@ function WeightCard({ day }: { day: NutritionDay }) {
     if (!changed) return;
     setError(null);
     startTransition(async () => {
-      const res = await setWeight(day.date, nextKg);
+      const res = await orOffline(setWeight(day.date, nextKg), OFFLINE);
       if (!res.ok) setError(res.error);
     });
   }

@@ -146,7 +146,14 @@ export function createOutbox<T extends Stamped & K, K>({
             return 'offline';
           }
           handle(next, result);
-          remove(next);
+          /*
+           * 보낸 그것만 뺀다. 보내는 사이에 같은 것(같은 세트)을 고쳐 다시 담았으면 열쇠는 같고 값만 새것이라, 열쇠로
+           * 빼면 그 새 값까지 지워져 고친 것이 서버에 안 갔다(약한 신호에서 8회 → 10회로 고쳐도 8회로 남음). 새 값은
+           * 남겨 두어 다음 차례에 보낸다.
+           */
+          const now = load().find((x) => same(x, next));
+          if (now === next || JSON.stringify(now) === JSON.stringify(next))
+            remove(next);
         }
       } finally {
         draining = false;

@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useActionState, useState, useSyncExternalStore } from 'react';
 import { useFormStatus } from 'react-dom';
 import { updateProfile, type ProfileState } from '@/app/actions/profile';
+import { guardFormAction } from '@/lib/action-offline';
 import { Button, Field, FormError, Input } from '@/components/ui';
 import { kept } from '@/lib/form-values';
 import {
@@ -80,6 +81,7 @@ function BodyField({
   min,
   max,
   placeholder,
+  integer = false,
 }: {
   /** 서버로 보낼 칸 이름 — 값은 언제나 cm 또는 kg */
   name: string;
@@ -94,6 +96,8 @@ function BodyField({
   max: number;
   /** 기본 단위일 때 보여줄 예시 */
   placeholder: string;
+  /** 저장 값을 정수로(키 — 서버가 정수 cm 만 받는다. 인치로 적은 70 이 177.8cm 로 가 저장이 막혔다) */
+  integer?: boolean;
 }) {
   const lengthUnit = useSyncExternalStore(
     subscribeUnits,
@@ -114,7 +118,17 @@ function BodyField({
   const from = (n: number) =>
     isLength ? fromLength(n, lengthUnit) : fromWeight(n, weightUnit);
 
-  const shown = stored === '' ? '' : String(round1(to(Number(stored))));
+  /*
+   * 적는 중인 글자와 그 단위 — 저장 단위로 바꿨다 되돌려 보이면(0.1 로 반올림) lb · inch 로 적는 사이 글자가 바뀌어(1 →
+   * 1.1) 적을 수 없었다. 적는 동안은 적은 그대로, 단위를 바꾸면 저장 값에서 다시 보인다.
+   */
+  const [draft, setDraft] = useState<{ text: string; unit: string } | null>(null);
+  const shown =
+    draft && draft.unit === unit
+      ? draft.text
+      : stored === ''
+        ? ''
+        : String(round1(to(Number(stored))));
 
   return (
     <Field label={`${label} (${unit === 'in' ? 'inch' : unit})`} hint={hint}>
@@ -124,11 +138,17 @@ function BodyField({
         value={shown}
         onChange={(e) => {
           const v = e.target.value;
-          setStored(v === '' ? '' : String(round1(from(Number(v)))));
+          setDraft({ text: v, unit });
+          const saved = from(Number(v));
+          setStored(v === '' ? '' : String(integer ? Math.round(saved) : round1(saved)));
         }}
         min={round1(to(min))}
         max={round1(to(max))}
-        step={0.5}
+        /*
+         * 칸 단위는 따지지 않는다(any). 0.5 로 두었더니 lb · inch 로 바꾼 값(72kg → 158.7lb)이 칸에 안 맞아 브라우저가
+         * 폼 저장을 통째로 막았다 — 닉네임만 고쳐도.
+         */
+        step="any"
         placeholder={swapped ? String(Math.round(to(Number(placeholder)))) : placeholder}
       />
       {/* 서버로 가는 값은 언제나 cm · kg */}
@@ -150,7 +170,14 @@ function TargetVelocityField({ base }: { base: string }) {
   const unit = useSyncExternalStore(subscribeUnits, readSpeedUnit, serverSpeedUnit);
   const [kmh, setKmh] = useState(base);
 
-  const shown = kmh === '' ? '' : String(round1(toSpeed(Number(kmh), unit)));
+  /* 적는 중인 글자와 그 단위 — 정수 km/h 로 바꿨다 되돌려 보이면 mph 로 적는 사이 글자가 바뀌었다(9 → 8.7). 몸 치수와 같다 */
+  const [draft, setDraft] = useState<{ text: string; unit: string } | null>(null);
+  const shown =
+    draft && draft.unit === unit
+      ? draft.text
+      : kmh === ''
+        ? ''
+        : String(round1(toSpeed(Number(kmh), unit)));
 
   return (
     <Field
@@ -170,11 +197,12 @@ function TargetVelocityField({ base }: { base: string }) {
            * 보여줄 때만 소수를 남긴다. mph 로 보면 90.1 처럼 떨어지지 않는 것이
            * 정상이고, 그것을 반올림해 버리면 목표가 슬금슬금 달라진다.
            */
+          setDraft({ text: v, unit });
           setKmh(v === '' ? '' : String(Math.round(fromSpeed(Number(v), unit))));
         }}
         min={round1(toSpeed(TARGET_VELOCITY_MIN, unit))}
         max={round1(toSpeed(TARGET_VELOCITY_MAX, unit))}
-        step={0.1}
+        step="any"
         placeholder={unit === 'mph' ? '87' : '140'}
       />
       {/* 서버로 가는 값은 언제나 km/h */}
@@ -216,7 +244,8 @@ export function ProfileForm({
   today: string;
 }) {
   const [state, formAction] = useActionState<ProfileState, FormData>(
-    updateProfile,
+    /* 신호가 끊겨도 오류 화면으로 넘어가지 않고 한 줄로 알린다(lib/action-offline.ts) */
+    guardFormAction(updateProfile),
     undefined
   );
 
@@ -273,6 +302,7 @@ export function ProfileForm({
           hint="영상에서 잰 보폭을 몸 크기로 견줄 때 씁니다."
           base={pick('heightCm', heightCm)}
           kind="length"
+          integer
           min={MIN_HEIGHT_CM}
           max={MAX_HEIGHT_CM}
           placeholder="180"

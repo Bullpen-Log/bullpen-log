@@ -546,7 +546,7 @@ function DayPanel({
   onThumb: (path: string, url: string | null) => void;
 }) {
   const speedUnit = useSpeedUnit();
-  const [playing, setPlaying] = useState<string | null>(rep);
+  const [picked, setPlaying] = useState<string | null>(rep);
   const { urls } = usePlaybackUrls(day?.paths ?? []);
   const player = useRef<HTMLVideoElement>(null);
   const [status, setStatus] = useState<'idle' | 'saving' | 'saved' | 'failed'>('idle');
@@ -570,6 +570,11 @@ function DayPanel({
     );
   }
 
+  /*
+   * 틀고 있는 영상 — 고른 것이 그날에 아직 있을 때만. '기록 고치기'로 그 영상을 빼거나 기록을 지우면(같은 날 다른 영상은
+   * 남음) 이 칸은 새로 안 그려져, 없어진 영상을 검은 화면으로 틀고 '이 장면을 썸네일로'가 주인 없는 그림을 올렸다.
+   */
+  const playing = picked && day.paths.includes(picked) ? picked : rep;
   const url = playing ? urls[playing] : undefined;
   const log = playing
     ? day.logs.find((l) => l.videoPaths.includes(playing))

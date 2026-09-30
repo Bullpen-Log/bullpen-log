@@ -63,6 +63,16 @@ export async function loadTodayCore(user: UserForToday, today: Date) {
   await closeAbandonedSessions(user.id, today);
 
   const { facts, plan, hasLogs } = await gatherFactsAndPlan(user, today);
+  /*
+   * 한 번이라도 투구를 남긴 적이 있나 — hasLogs 는 최근 45일 안만 봐서, 시즌을 쉬다 돌아온 사람에게도 홈의 '여기부터
+   * 시작하세요'(처음 온 사람 안내)가 떴다. 최근 기록이 있으면 묻지 않는다.
+   */
+  const everLogged =
+    hasLogs ||
+    (await prisma.pitchLog.findFirst({
+      where: { userId: user.id },
+      select: { id: true },
+    })) !== null;
 
   const [library, doneLogs, todaySetup, armcareToday] = await Promise.all([
     /*
@@ -243,6 +253,7 @@ export async function loadTodayCore(user: UserForToday, today: Date) {
     facts,
     plan,
     hasLogs,
+    everLogged,
     library,
     todaySetup,
     savedPlan,
