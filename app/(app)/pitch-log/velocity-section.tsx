@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useTransition } from 'react';
-import { useRouter } from 'next/navigation';
+import { unstable_rethrow, useRouter } from 'next/navigation';
 import { Camera, ChevronRight, Loader2, Trash2 } from 'lucide-react';
 import { quietRefresh } from '@/lib/quiet-refresh';
 import { formatSpeed, speedLabel, toSpeed } from '@/lib/units';
@@ -34,6 +34,17 @@ import {
  * 투구 기록 한 건(투구수 · 최고 · 평균)은 위의 기록 카드에 있고, 여기는 그 안의 공 하나하나다.
  * 공을 지우면 서버가 그 기록의 투구수 · 구속도 다시 맞춘다(app/actions/velocity.ts).
  */
+/*
+ * 세션 시각 — 한국 시간으로 적는다. 이 칸은 서버(UTC)에서도 그려져, 기기 시각(getHours)을 쓰면 서버 글자와 폰 글자가
+ * 달라 맞추기(hydration)가 어긋났다.
+ */
+const TIME_KST = new Intl.DateTimeFormat('ko-KR', {
+  timeZone: 'Asia/Seoul',
+  hour: '2-digit',
+  minute: '2-digit',
+  hourCycle: 'h23',
+});
+
 export function VelocitySection({ sessions }: { sessions: VelocitySessionView[] }) {
   const router = useRouter();
   const unit = useSpeedUnit();
@@ -44,6 +55,15 @@ export function VelocitySection({ sessions }: { sessions: VelocitySessionView[] 
   const speedNum = (kmh: number) => Math.round(toSpeed(kmh, unit) * 10) / 10;
 
   if (sessions.length === 0) return null;
+
+  /* 신호가 끊겨 서버 액션이 던지면 — 전환 안의 오류가 오류 화면으로 넘어가지 않게 실패로 바꾼다 */
+  const offline = (err: unknown) => {
+    unstable_rethrow(err);
+    return {
+      ok: false as const,
+      error: '신호가 약해 서버에 닿지 못했어요. 신호가 잡히면 다시 눌러 주세요.',
+    };
+  };
 
   const open = (p: VelocityPitchView) => {
     setEditing(p);
@@ -64,7 +84,7 @@ export function VelocitySection({ sessions }: { sessions: VelocitySessionView[] 
   const save = () => {
     if (!editing || !draft) return;
     start(async () => {
-      const res = await updateVelocityPitch(editing.id, draft);
+      const res = await updateVelocityPitch(editing.id, draft).catch(offline);
       if (!res.ok) {
         setError(res.error);
         return;
@@ -79,7 +99,7 @@ export function VelocitySection({ sessions }: { sessions: VelocitySessionView[] 
     if (!confirm('이 공을 지울까요? 투구 기록의 투구수와 구속도 다시 맞춰져요.'))
       return;
     start(async () => {
-      const res = await deleteVelocityPitch(editing.id);
+      const res = await deleteVelocityPitch(editing.id).catch(offline);
       if (!res.ok) {
         setError(res.error);
         return;
@@ -97,7 +117,7 @@ export function VelocitySection({ sessions }: { sessions: VelocitySessionView[] 
     )
       return;
     start(async () => {
-      const res = await deleteVelocitySession(s.id);
+      const res = await deleteVelocitySession(s.id).catch(offline);
       if (!res.ok) {
         setError(res.error);
         return;
@@ -142,8 +162,7 @@ export function VelocitySection({ sessions }: { sessions: VelocitySessionView[] 
           >
             <header className="flex flex-wrap items-center gap-x-3 gap-y-1 border-b border-line px-4 py-2.5 text-xs text-muted">
               <span className="font-semibold text-ink tabular-nums">
-                {String(at.getHours()).padStart(2, '0')}:
-                {String(at.getMinutes()).padStart(2, '0')}
+                {TIME_KST.format(at)}
               </span>
               <span>
                 {s.source === 'file' ? '영상 파일' : '카메라'} · {sessionSetupText(s)}
@@ -226,6 +245,15 @@ export function VelocitySection({ sessions }: { sessions: VelocitySessionView[] 
         {editing && draft && (
           <div className="space-y-5">
             <PitchEditorFields value={draft} onChange={setDraft} />
+            {/* 저장 · 지우기 실패 — 시트가 위의 오류 줄을 덮으니 여기에도 */}
+            {error && (
+              <p
+                role="alert"
+                className="rounded-xl border border-danger-line bg-danger-bg px-4 py-2 text-xs text-danger"
+              >
+                {error}
+              </p>
+            )}
             <dl className="grid grid-cols-2 gap-x-4 gap-y-1.5 rounded-2xl bg-surface-2 px-4 py-3 text-xs">
               <Row label="카메라 값(보정 전)" value={`${editing.rawKmh} km/h`} />
               <Row

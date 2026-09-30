@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { unstable_rethrow, useRouter } from 'next/navigation';
 import {
   Fragment,
   useEffect,
@@ -268,8 +268,9 @@ function runStat(r: AdminCalibRunView): FolderStat {
 
 const folder = (f: Omit<FolderItem, 'kind'>): Item => ({ kind: 'folder', ...f });
 
+/* 수기 공은 카메라 값이 없어(건 값 복사) 차이가 없다 — 0.0 으로 보이면 정확히 맞은 것처럼 읽힌다 */
 const pitchDiff = (p: AdminPitchRow) =>
-  p.gunKmh != null ? round1((p.releaseKmh ?? p.kmh) - p.gunKmh) : null;
+  p.gunKmh != null && !p.manual ? round1((p.releaseKmh ?? p.kmh) - p.gunKmh) : null;
 
 /** 원본 날짜 폴더의 공 파일 — 세션이 폴더가 아니니 누구의 몇 시 세션인지를 설명에 적는다 */
 function fileItem(p: AdminPitchRow, s: AdminSessionRow): Item {
@@ -409,7 +410,18 @@ export function VelocityExplorer({
   const act: Run = (action, after) => {
     setError(null);
     startTransition(async () => {
-      const res = await action();
+      let res: Awaited<ReturnType<typeof action>>;
+      try {
+        res = await action();
+      } catch (err) {
+        /*
+         * 신호가 끊겨 서버 액션이 던지면 — 전환 안의 오류는 오류 화면으로 넘어가, 오래 걸린 보정 재측정의 결과까지
+         * 잃었다. 화면은 두고 한 줄로 알린다(Next.js 자체 신호는 그대로 넘긴다).
+         */
+        unstable_rethrow(err);
+        setError('신호가 약해 서버에 닿지 못했어요. 신호가 잡히면 다시 해 주세요.');
+        return;
+      }
       if (!res.ok) {
         setError(res.error);
         return;
