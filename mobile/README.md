@@ -16,7 +16,7 @@
 | `www/offline.html` | 인터넷이 끊겨 사이트를 못 불러올 때 보이는 화면(연결되면 저절로 다시 연다) |
 | `www/index.html` | 자리표. 앱은 이 파일을 열지 않는다(Capacitor 가 요구해서 둔다) |
 | `ios/` | Xcode 프로젝트. `Info.plist` 에 카메라 · 마이크 · 사진 권한 문구, 세로 고정, 아이폰 전용 |
-| `scripts/make-ios-assets.mjs` | 앱 아이콘(1024) · 시작 화면(밝은 판 · 어두운 판)을 지금 로고로 만든다 |
+| `scripts/make-ios-assets.mjs` | 앱 아이콘(1024) · 시작 화면([B]ULLPEN LOG, 밝은 판)을 지금 로고로 만든다(글자는 크롬으로 그린다) |
 
 - **앱 표시**: 앱은 브라우저 이름표(User-Agent) 끝에 `BullpenLogApp/1.0` 을 붙인다. 사이트의
   `lib/app-env.ts` 가 이것(과 `window.Capacitor`)을 보고 앱 안인지 가린다 — 구속 측정처럼 앱에서만
@@ -29,8 +29,18 @@
 - **고유번호** `com.bullpenlog.app` 은 애플(App Store Connect)에 앱을 등록하는 순간 못 바꾼다.
   등록 전이면 `capacitor.config.json` 의 `appId` 와 `ios/App/App.xcodeproj/project.pbxproj` 의
   `PRODUCT_BUNDLE_IDENTIFIER` 두 곳을 같이 바꾼다.
-- **화면 위아래 여백**: 사이트는 `viewport-fit=cover` 를 쓰지 않아서, 앱은 상태 표시줄 · 홈 막대만큼
-  비켜 그리게 했다(`ios.contentInset: automatic`). 실제 폰에서 위아래가 어색하면 여기부터 본다.
+- **화면 끝까지 그린다**(`ios.contentInset: never`, 2026-09-30). 예전(`automatic`)에는 시계 · 홈 막대
+  자리를 비워 두어 스크롤하면 그 틈으로 내용이 지나가 위아래 막대만 떠 보였다. 이제 사이트가 그 자리를
+  스스로 채운다 — 뿌리 레이아웃의 `viewportFit: 'cover'` 로 `env(safe-area-inset-*)` 가 살아나고,
+  앱 틀(`components/app-shell.tsx`)이 시계 쪽을 막대 색으로 채우고 하단 탭을 홈 막대까지 늘린다.
+  위아래 막대가 없는 화면(로그인 · 약관 · 오류)은 `app/globals.css` '아이폰 앱 안'이 여백을 더한다.
+- **앱 안에서만 도는 것**은 `lib/native-app.ts`(뿌리 레이아웃의 첫 스크립트)가 켠다 — `<html data-app="native">`
+  표시, 상태바 글자색을 앱 테마에 맞추기(`SystemBars`, Capacitor 안에 있음), 첫 화면이 그려지면 로딩 화면
+  걷기(`SplashScreen`). 사이트는 Capacitor 패키지 없이 `window.Capacitor.nativePromise` 로 부른다.
+- **로딩 화면**: 켤 때 아이폰이 그리는 시작 화면과 `@capacitor/splash-screen` 이 같은 그림(`Splash`)을 써서,
+  켜는 순간부터 첫 화면이 뜰 때까지 [B]ULLPEN LOG 와 작은 로딩 표시가 이어진다(최대 4초 —
+  `capacitor.config.json` 의 `plugins.SplashScreen`). 밝은 판 하나다 — 앱 테마가 폰의 다크 모드와 따로
+  라이트로 시작해서, 폰 설정을 따르면 어두운 로딩 → 밝은 첫 화면으로 번쩍였다.
 - **세로 고정**: 삼각대에 둔 폰이 구속 측정 중에 돌아가지 않게 했다. 가로가 필요해지면
   `ios/App/App/Info.plist` 의 `UISupportedInterfaceOrientations` 에 더한다.
 
@@ -40,7 +50,7 @@
 cd mobile
 npm ci              # 처음 한 번 (Capacitor 패키지)
 npx cap sync ios    # capacitor.config.json · www 를 바꾼 뒤 — ios 프로젝트에 옮겨 담는다
-npm run assets      # 로고를 바꾼 뒤 — 아이콘 · 시작 화면 다시 만들기 (뿌리에서 npm install 을 해 둔 상태로)
+npm run assets      # 로고를 바꾼 뒤 — 아이콘 · 시작 화면 다시 만들기 (뿌리에서 npm install, 크롬 · 인터넷 필요)
 ```
 
 `ios/App/App/public` · `ios/App/App/capacitor.config.json` 은 `cap sync` 가 만드는 것이라 올리지 않는다

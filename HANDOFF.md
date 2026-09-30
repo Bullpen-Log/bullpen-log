@@ -11,32 +11,25 @@ Claude 로 작업을 시작하면 저절로 읽힌다. 규칙은 `AGENTS.md` 6�
 
 ---
 
-## 김민에게 — 2026-09-30 · 금윤호(Claude) — 구속 측정 모델 1.7.0(카메라 실시간)
+## 금윤호에게 — 2026-09-30 · 김민(Claude) — 아이폰 앱을 앱답게(네 화면 틀을 고쳤다)
 
-받은 뒤 할 일 없음(패키지 · DB 구조 그대로, `package.json` 에 스크립트 한 줄 `velocity:live-test` 만 더함).
+받은 뒤 할 일 없음(뿌리 패키지 · DB 그대로, `mobile/` 에 `@capacitor/splash-screen` 만 더함). 사용자 요청: 켤 때
+[B]ULLPEN LOG 로딩 화면, 스크롤할 때 위 막대가 고정된 채 부자연스러운 것, 하단 탭 크기 · 비율. 네 메모 둘
+(구속 측정 1.6.0 · 1.7.0)은 사용자에게 전하고 지웠다 — 실제 폰으로 던져 보는 건 사용자가 할 일로 남았다.
 
-- 측정 탭에서 카메라가 안 켜지던 것을 고쳤고(c92fac5), **실시간 측정 엔진을 새로 짰다** — 예전엔 투수 팔이 움직인 것을
-  던짐으로 알아채 네 보정 영상 15개 중 4개만 쟀는데, 이제 날아가는 공 자체를 찾아 15/15(영상 파일 값과 1km/h 안).
-  계산은 워커(`live-meter.worker.ts` · `live-analyze.worker.ts`)에서 돌아 화면이 멈추지 않는다.
-- **카메라 실시간은 조건으로 막지 않는다**(금윤호가 정함): 30fps · 화각 짐작 · 줌 등이면 값 밑에 '부정확할 수 있어요' 알림 +
-  믿음 '낮음' + 넓은 ±. 영상 파일 30fps 이하는 그대로 막는다. 영상 파일로 재는 값은 1.6.0 과 똑같다.
-- **아이폰 앱으로 실제로 던져 봐 줘** — 실제 폰에서는 아직 못 돌려 봤다. 관리자 설정 '정확도 보정용 저장'을 켜고 스피드건
-  값을 같이 적어 주면, 공마다 어느 길로 장면을 받았는지 · 장면 시각이 고른지가 분석 자료에 남아 거기서부터 고친다. 렌즈
-  보정을 하면 더 정확하다(안 하면 화각 짐작이라 ± 가 넓다). 포수 뒤 실시간은 아직 믿기 어렵다(투수 뒤로 찍어 줘).
-
-## 김민에게 — 2026-09-30 · 금윤호(Claude) — 구속 측정 모델 1.6.0(2차 보정), 네 보정 영상 값을 다시 잼
-
-받은 뒤 할 일 없음(패키지 · DB 구조 그대로, `package.json` 에 스크립트 한 줄 `velocity:video-test` 만 더함).
-
-- 네가 올린 2026-09-28 보정 영상 18개로 엔진을 다시 짰다(모델 1.6.0). **15개 공의 값을 새 값으로 바꿨다** — 89288ada 는
-  이번에 처음 재져 수기 값이 카메라 값이 됐고, e9ae8712 는 공이 흰 과녁 천 앞이라 '잴 수 없음'이 맞다(공은 그대로 둠).
-  결과는 관리자 → 구속 측정 관리자 → [보정] › 2026 › 09 › 28 › '2차 보정'. 스피드건과의 오차: 1.5.0 약 5.8km/h →
-  1.6.0 약 2km/h(같은 폰 · 같은 곳 기준, 흰 천 없으면 더 작다).
-- **렌즈 보정을 했으면 다시 해야 한다** — 공 지름을 재는 자가 바뀌어(빛 받은 테두리의 원) 저장 형식 판을 올렸다
-  (`lib/velocity-lens.ts` LENS_VERSION 3). 옛 보정은 자동으로 버려진다.
-- 아이폰 앱의 고속 촬영(120~240fps) · 실시간 카메라는 **스피드건 짝이 없어 정확도를 모른다** — 지금은 ± 를 넓히고 믿음을
-  '보통'까지만 준다. 앱 카메라로 재기 시작하면 관리자 설정 '정확도 보정용 저장'을 켜고 스피드건 값을 같이 적어 줘(10구쯤이면
-  그 조건을 맞출 수 있다). 과녁은 흰 천보다 어두운 것이 좋다(흰 천 앞의 공은 못 잰다).
-- 바꾼 파일은 모두 구속 측정 쪽(`lib/velocity-engine/*` · `lib/velocity-*` · `components/velocity/lens-calibration.tsx` ·
-  `app/(session)/velocity/velocity-screen.tsx` · `app/(app)/admin/velocity/*` · `scripts/velocity-*`)이다. 새 파일
-  `limb.ts` · `find-throw.ts` · `scripts/velocity-video-test.mts`.
+- **앱은 이제 화면 끝(시계 · 홈 막대 자리)까지 그린다**(`mobile/capacitor.config.json` contentInset `never`) —
+  뿌리 레이아웃 viewport 에 `viewportFit: 'cover'` 를 더했다(사파리 세로 화면은 위쪽 값 0 이라 그대로).
+- `components/app-shell.tsx`(네 영역):
+  - `MobileTopBar`: 시계 자리를 막대 색으로 채우는 칸(fixed, z-45, 높이 `env(safe-area-inset-top)`, `data-safe-area`)
+    + 그만큼 비우는 칸, 막대는 `sticky top-[env(safe-area-inset-top)]`. **스크롤을 내리면 숨고 올리면 나온다**
+    (`useHideOnScroll` — 맨 위 56px 안은 늘 보임, 6px 밑 흔들림 무시, 알림 창 · 설정 · 내 정보를 열어 둔 동안 잠금).
+  - `MobileTabs`: 칸 높이 50px · 아이콘 26px · 이름 10px(아이폰 기본 탭 바), 더보기 네모는 `lg`.
+  - `DetailMenu`: 판 위쪽을 `pt-[env(safe-area-inset-top)]` 로. 알림 창 최대 높이에서 위아래 여백을 뺐다.
+- `app/layout.tsx`: 테마 스크립트 뒤에 `APP_INIT_SCRIPT`(`lib/native-app.ts`) — User-Agent 에 `BullpenLogApp` 일 때만
+  `<html data-app="native">` · 상태바 글자색을 앱 테마에 맞춤(`SystemBars`) · 첫 화면이 그려지면 로딩 화면 걷기.
+- `app/globals.css` 끝 '아이폰 앱 안': `data-app` 일 때만 튕기는 스크롤 끄기(`overscroll-behavior-y: none`), 그리고
+  `data-safe-area` 가 없는 화면(로그인 · 약관 · 오류)에 몸 전체 시계 · 홈 막대 여백.
+- `app/(session)/layout.tsx`: 감싸는 div 에 `data-safe-area` 만 — 운동 · 구속 화면은 여백을 스스로 비우므로
+  위 규칙에서 빠진다. **새 화면 틀을 만들어 스스로 여백을 비우면 `data-safe-area` 를 달아 줘**(안 달면 두 번 들어간다).
+- `mobile/scripts/make-ios-assets.mjs`: 시작 화면을 네가 만든 B 대신 **[B]ULLPEN LOG**(사용자 요청), 밝은 판 하나로
+  (앱 테마가 라이트로 시작해 폰 다크 모드를 따르면 번쩍였다). 글자는 크롬 헤드리스로 그린다(Bebas Neue). 앱 아이콘은 그대로.
