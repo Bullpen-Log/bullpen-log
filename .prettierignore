@@ -12,3 +12,5 @@ docs
 # 운동 목록·설명을 담아 둔 자료 파일. 코드가 아니라 데이터라 손대지 않는다.
 scripts/lists
 scripts/details-*.json
+# 식약처 품목대표 8,800줄 — 한 줄에 한 음식으로 적어 둔 것을 풀어 쓰지 않게
+lib/nutrition/mfds-reps.json

@@ -22,7 +22,18 @@ import {
   rankFoods,
   searchBasicFoods,
 } from '../lib/nutrition/foods.ts';
-import { itemsOf, toFood } from '../lib/nutrition/mfds-parse.ts';
+import { itemsOf, pageOf, toFood, type MfdsItem } from '../lib/nutrition/mfds-parse.ts';
+import {
+  firstRound,
+  rankMfds,
+  secondRound,
+  type MfdsCall,
+} from '../lib/nutrition/mfds-rank.ts';
+import {
+  MFDS_REPS_COUNT,
+  MFDS_REPS_DATE,
+  findMfdsReps,
+} from '../lib/nutrition/mfds-reps.ts';
 import { isNutritionDate } from '../lib/nutrition/days.ts';
 import {
   amountText,
@@ -266,6 +277,53 @@ console.log('\n■ 식약처 응답 읽기');
       drink.kcal === 125 &&
       drink.note === '동아오츠카'
   );
+  const soup = toFood({
+    FOOD_CD: 'D101-1',
+    FOOD_NM_KR: '해장국',
+    SERVING_SIZE: '100g',
+    Z10500: '1,000.000g',
+    AMT_NUM1: '71.00',
+  });
+  check(
+    '1회 중량의 천 단위 쉼표를 읽는다 — 해장국 1,000g',
+    soup?.servingLabel === '1회(1000g)' && soup.kcal === 710,
+    `${soup?.servingLabel} ${soup?.kcal}kcal`
+  );
+  const box = toFood({
+    FOOD_CD: 'P101-1',
+    FOOD_NM_KR: '프로틴바(더블초콜릿청크)',
+    SERVING_SIZE: '100g',
+    Z10500: '720g',
+    AMT_NUM1: '219',
+  });
+  check(
+    '가공식품의 포장 전체 중량(500g 초과)은 1회로 치지 않는다',
+    box?.servingLabel === '100g' && box.kcal === 219,
+    `${box?.servingLabel} ${box?.kcal}kcal`
+  );
+  const bowl = toFood({
+    FOOD_CD: 'D101-2',
+    FOOD_NM_KR: '국밥_돼지머리',
+    SERVING_SIZE: '100g',
+    Z10500: '900.000g',
+    AMT_NUM1: '137.000',
+  });
+  check(
+    '음식의 900g 은 한 그릇 그대로',
+    bowl?.servingLabel === '1회(900g)' && bowl.kcal === 1233
+  );
+  const same = toFood({
+    FOOD_CD: 'D301-1',
+    FOOD_NM_KR: '쌀밥',
+    SERVING_SIZE: '100g',
+    Z10500: '100.000g',
+    AMT_NUM1: '166.000',
+  });
+  check(
+    "중량이 기준량과 같으면 그냥 '100g'",
+    same?.servingLabel === '100g' && same.kcal === 166
+  );
+
   check(
     '칼로리가 없으면 버린다',
     toFood({ FOOD_CD: 'X', FOOD_NM_KR: '무엇' }) === null
@@ -280,6 +338,178 @@ console.log('\n■ 식약처 응답 읽기');
     itemsOf({ response: { body: { items: { item: {} } } } }).length === 1
   );
   check('엉뚱한 모양은 빈 목록', itemsOf({ oops: true }).length === 0);
+
+  const ok = pageOf({
+    header: { resultCode: '00' },
+    body: { totalCount: 1835, items: [{}, {}] },
+  });
+  check('한 쪽 — 전체 수와 줄들', ok?.total === 1835 && ok.items.length === 2);
+  const none = pageOf({ header: { resultCode: '00' }, body: { totalCount: 0 } });
+  check(
+    '0건은 오류가 아니다(items 칸이 없다)',
+    none?.total === 0 && none.items.length === 0
+  );
+  check(
+    '결과 코드가 00 이 아니면 정상 응답이 아니다',
+    pageOf({ header: { resultCode: '22' }, body: { totalCount: 5 } }) === null
+  );
+}
+
+console.log('\n■ 식약처 검색 — 무엇을 모으고 어떤 순서로');
+{
+  const names = (items: MfdsItem[]) => items.map((x) => String(x.FOOD_NM_KR));
+  const has = (calls: MfdsCall[], term: string, cls: string, page: number | 'last') =>
+    calls.some((c) => c.term === term && c.cls === cls && c.page === page);
+  /** 앱이 품목대표로 모으는 줄 — 1차의 품목대표 말을 넣어 둔 자료에서 */
+  const repPool = (q: string) => {
+    const pool = new Map<string, MfdsItem>();
+    for (const c of firstRound(q)) {
+      if (c.cls !== '품목대표') continue;
+      for (const it of findMfdsReps(c.term)) pool.set(String(it.FOOD_CD), it);
+    }
+    return [...pool.values()];
+  };
+  const top = (q: string) => names(rankMfds(q, repPool(q)))[0];
+
+  check(
+    '넣어 둔 품목대표는 8천 줄이 넘는다',
+    MFDS_REPS_COUNT > 8000,
+    `${MFDS_REPS_COUNT}줄 · ${MFDS_REPS_DATE}`
+  );
+  check(
+    "'바나나'에 생바나나가 들어 있다",
+    names(findMfdsReps('바나나')).includes('바나나, 생것')
+  );
+  check('빈 말은 찾지 않는다', findMfdsReps(' ').length === 0);
+
+  check(
+    '1차 — 검색어의 품목대표와 1쪽',
+    has(firstRound('바나나'), '바나나', '품목대표', 1) &&
+      has(firstRound('바나나'), '바나나', '', 1)
+  );
+  check(
+    '표준 표기로도 찾는다 — 계란 → 달걀',
+    has(firstRound('계란'), '달걀', '품목대표', 1)
+  );
+  check(
+    "동물 + 부위 — 닭가슴살 → '닭고기, 가슴'",
+    has(firstRound('닭가슴살'), '닭고기, 가슴', '품목대표', 1)
+  );
+  check(
+    '조리 앞말은 떼고 재료로 — 구운계란 → 달걀',
+    has(firstRound('구운계란'), '달걀', '품목대표', 1)
+  );
+  check('영어도 — banana → 바나나', firstRound('banana')[0]?.term === '바나나');
+  check(
+    '수량 말은 뗀다 — 바나나 한 개',
+    firstRound('바나나 한 개')[0]?.term === '바나나'
+  );
+  check(
+    '빈 검색어는 부르지 않는다',
+    firstRound('  ').length === 0 && firstRound(',').length === 0
+  );
+  check(
+    '2차 — 상품 이름 같은 말은 마지막 쪽',
+    has(
+      secondRound('그릭요거트', { total: 586, repTotal: 1 }),
+      '그릭요거트',
+      '',
+      'last'
+    )
+  );
+  check(
+    "2차 — 품목대표가 많으면 '검색어,'(원재료 이름만)",
+    has(secondRound('소고기', { total: 1818, repTotal: 396 }), '소고기,', '품목대표', 1)
+  );
+  check('수를 모르면 2차는 없다', secondRound('그릭요거트', null).length === 0);
+
+  check("'바나나' 1위는 생바나나", top('바나나') === '바나나, 생것', top('바나나'));
+  check("'계란' 1위는 삶은 달걀", top('계란') === '달걀_삶은것', top('계란'));
+  check("'김치찌개' 1위는 김치찌개", top('김치찌개') === '김치찌개', top('김치찌개'));
+  check(
+    "'닭가슴살' 1위는 닭고기 가슴 생것",
+    top('닭가슴살') === '닭고기, 가슴, 생것',
+    top('닭가슴살')
+  );
+  check(
+    "'삶은계란'은 삶은 달걀이 먼저",
+    top('삶은계란') === '달걀_삶은것',
+    top('삶은계란')
+  );
+  check("'우유' 1위는 우유", top('우유') === '우유', top('우유'));
+
+  /* 상품이 섞인 풀 — 포털 1쪽이 주는 것들 */
+  const product = (
+    cd: string,
+    name: string,
+    maker: string,
+    kcal: string,
+    extra = {}
+  ) => ({
+    FOOD_CD: cd,
+    FOOD_NM_KR: name,
+    DB_GRP_CM: cd[0],
+    DB_CLASS_NM: '상용제품',
+    MAKER_NM: maker,
+    SERVING_SIZE: '100g',
+    Z10500: '70g',
+    AMT_NUM1: kcal,
+    AMT_NUM3: '5',
+    AMT_NUM4: '20',
+    AMT_NUM6: '45',
+    ...extra,
+  });
+  const mixed = [
+    product('D202-111000000-0001', '도넛_바나나크림도넛(1개입)', '파리바게뜨', '402'),
+    product('D202-111000000-0002', '와플_바나나누텔라 와플', '와플칸', '380'),
+    ...repPool('바나나'),
+  ];
+  const before = JSON.stringify(mixed);
+  const ranked = rankMfds('바나나', mixed);
+  check(
+    '도넛 · 와플이 앞에 있어도 생바나나가 1위',
+    names(ranked)[0] === '바나나, 생것' &&
+      names(ranked).indexOf('도넛_바나나크림도넛(1개입)') > 3,
+    names(ranked).slice(0, 3).join(' / ')
+  );
+  check('받은 줄은 바꾸지 않는다', JSON.stringify(mixed) === before);
+  check(
+    '합친 순서가 달라도 같은 결과',
+    JSON.stringify(names(rankMfds('바나나', [...mixed].reverse()))) ===
+      JSON.stringify(names(ranked))
+  );
+
+  const sizes = rankMfds('아메리카노', [
+    product('D201-001000000-0001', '커피_아메리카노 (Tall)', '별다방', '5', {
+      SERVING_SIZE: '100mL',
+      Z10500: '355mL',
+    }),
+    product('D201-001000000-0002', '커피_아메리카노 (Grande)', '별다방', '5', {
+      SERVING_SIZE: '100mL',
+      Z10500: '473mL',
+    }),
+    product('D201-001000000-0003', '커피_아메리카노 (Tall)', '달다방', '9', {
+      AMT_NUM6: '2',
+      SERVING_SIZE: '100mL',
+      Z10500: '355mL',
+    }),
+  ]);
+  check(
+    '같은 회사의 크기만 다른 메뉴는 한 줄로 접는다',
+    sizes.length === 2,
+    `${sizes.length}줄`
+  );
+
+  check(
+    '우연히 글자만 든 줄뿐이면 빈 결과 — 콜라 ↔ 콜라비',
+    rankMfds('콜라', [
+      product('R1', '콜라비, 생것', '', '22', { DB_CLASS_NM: '품목대표' }),
+    ]).length === 0
+  );
+  check(
+    '빈 풀 · 빈 검색어는 빈 결과',
+    rankMfds('바나나', []).length === 0 && rankMfds('', mixed).length === 0
+  );
 }
 
 console.log('\n■ 날짜와 양');
