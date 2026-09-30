@@ -27,12 +27,14 @@ import {
   type ConfidenceKey,
 } from '@/lib/velocity-meta';
 import { errorStats, pitchError } from '@/lib/velocity-stats';
-import { approachOf } from '@/lib/velocity-setup';
+import { approachOf, DEFAULT_SETUP, type CameraPos } from '@/lib/velocity-setup';
 import { analyzeVideo, type AnalyzeResult } from '@/lib/velocity-engine/analyze-video';
 import { analysisOf } from '@/lib/velocity-analysis';
 import { readVideoFps } from '@/lib/velocity-engine/video-fps';
 import { readVideoLens, videoFovFor } from '@/lib/velocity-engine/video-lens';
 import { LENS_VERSION } from '@/lib/velocity-lens';
+import { ClipPlayer } from '@/components/velocity/clip-player';
+import { useStoredSetup } from '@/components/velocity/velocity-settings';
 import {
   reject,
   type RejectCode,
@@ -307,6 +309,11 @@ export async function remeasurePitch(
   });
 }
 
+/** 세션의 카메라 위치(DB 문자열) — 모르는 값은 투수 뒤 */
+function cameraPosOf(s: AdminSessionRow): CameraPos {
+  return s.cameraPos === 'behind-catcher' ? 'behind-catcher' : 'behind-pitcher';
+}
+
 /**
  * 공 하나 — 영상(있으면) · 값 · 스피드건 입력 · 제외 · 다시 재기 · 지우기. 맨 밑에 세션 정보를
  * 접어 둔다(세션 폴더가 없어져 여기서 본다).
@@ -336,6 +343,8 @@ export function PitchPreview({
   const confidence =
     CONFIDENCE_TEXT[p.confidence as ConfidenceKey] ?? CONFIDENCE_TEXT.medium;
   const approach = approachOfSession(s);
+  /* 영상에 스트라이크 존 — 구속 측정 설정(이 기기)을 따른다 */
+  const clipZone = useStoredSetup()?.clipZone ?? DEFAULT_SETUP.clipZone;
 
   function commitGun() {
     const trimmed = gun.trim();
@@ -424,20 +433,17 @@ export function PitchPreview({
         </span>
       </p>
 
-      {/* 영상 — 세로 영상은 세로로(칸을 16:9 로 못박지 않는다) */}
+      {/* 영상 — 세로 영상은 세로로(칸을 16:9 로 못박지 않는다). 설정이 켜져 있으면 잰 순간의 스트라이크 존을 겹친다 */}
       {p.clipUrl ? (
-        <video
-          controls
-          playsInline
-          preload="metadata"
+        <ClipPlayer
           src={p.clipUrl}
-          onLoadedMetadata={(e) => {
-            /* 공이 던져진 시각 조금 앞에서 시작 */
-            const v = e.currentTarget;
-            if (p.clipEventSec != null)
-              v.currentTime = Math.max(0, p.clipEventSec - 0.4);
-          }}
-          className="mx-auto block h-auto max-h-[45dvh] w-full rounded-xl bg-shade object-contain"
+          eventSec={p.clipEventSec}
+          zoneRect={p.analysis?.zoneRect}
+          zone={p.zone}
+          cameraPos={cameraPosOf(s)}
+          showZone={clipZone}
+          maxHeight="45dvh"
+          className="rounded-xl bg-shade"
         />
       ) : (
         <p className="flex items-center gap-2 rounded-xl border border-dashed border-line px-4 py-6 text-xs leading-relaxed text-muted">
@@ -615,7 +621,11 @@ export function PitchPreview({
                 durationSec: m.detail.durationSec,
                 frames: m.detail.frames,
                 fps: r.fps,
-                analysis: analysisOf(r, approach),
+                /* 영상 파일로 다시 재도 잰 순간의 스트라이크 존(영상에 겹치는 자리)은 원래 것을 지킨다 */
+                analysis: {
+                  ...analysisOf(r, approach),
+                  zoneRect: p.analysis?.zoneRect ?? null,
+                },
               })
             );
             setRe({ kind: 'idle' });
@@ -828,6 +838,7 @@ export function CalibResultPanel({
   onRun: Run;
 }) {
   const p = row.pitch;
+  const clipZone = useStoredSetup()?.clipZone ?? DEFAULT_SETUP.clipZone;
   /* 소수 한 자리로 — 엔진이 그렇게 저장하지만 옛 자료 · 채운 값이 섞여도 화면은 한결같게 */
   const orig = round1(p.releaseKmh ?? p.kmh);
   const again =
@@ -911,17 +922,15 @@ export function CalibResultPanel({
       </div>
 
       {p.clipUrl ? (
-        <video
-          controls
-          playsInline
-          preload="metadata"
+        <ClipPlayer
           src={p.clipUrl}
-          onLoadedMetadata={(e) => {
-            const v = e.currentTarget;
-            if (p.clipEventSec != null)
-              v.currentTime = Math.max(0, p.clipEventSec - 0.4);
-          }}
-          className="mx-auto block h-auto max-h-[45dvh] w-full rounded-xl bg-shade object-contain"
+          eventSec={p.clipEventSec}
+          zoneRect={p.analysis?.zoneRect}
+          zone={p.zone}
+          cameraPos={cameraPosOf(row.session)}
+          showZone={clipZone}
+          maxHeight="45dvh"
+          className="rounded-xl bg-shade"
         />
       ) : (
         <p className="flex items-center gap-2 rounded-xl border border-dashed border-line px-4 py-6 text-xs leading-relaxed text-muted">

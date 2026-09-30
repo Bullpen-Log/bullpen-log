@@ -97,6 +97,18 @@ const LIVE_NOTE_CODES = new Set([
   'BLUR',
 ]);
 const LIVE_PIPELINES = new Set(['worker-stream', 'worker-frames', 'main']);
+/** 잰 순간의 스트라이크 존(장면 비율 0~1) — 넷 다 0~1 이고 폭 · 높이가 있을 때만 */
+function sanitizeZoneRect(raw: unknown): Record<string, number> | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const z = raw as Record<string, unknown>;
+  const out: Record<string, number> = {};
+  for (const k of ['x', 'y', 'w', 'h']) {
+    const v = z[k];
+    if (typeof v !== 'number' || !Number.isFinite(v) || v < 0 || v > 1) return null;
+    out[k] = Math.round(v * 10000) / 10000;
+  }
+  return out.w > 0 && out.h > 0 ? out : null;
+}
 function sanitizeLive(raw: unknown): Record<string, unknown> | null {
   if (!raw || typeof raw !== 'object') return null;
   const l = raw as Record<string, unknown>;
@@ -184,6 +196,7 @@ export function sanitizeAnalysis(raw: unknown): Record<string, unknown> | null {
     frameCount: n(a.frameCount),
     approach: a.approach === 'approaching' ? 'approaching' : 'receding',
     live: sanitizeLive(a.live),
+    zoneRect: sanitizeZoneRect(a.zoneRect),
   };
   return JSON.stringify(out).length > 40_000 ? null : out;
 }

@@ -130,6 +130,8 @@ export type AdminPitchAnalysis = {
   endKmh: number | null;
   focalPx: number | null;
   shakePx: number | null;
+  /** 잰 순간의 스트라이크 존(장면 비율) — 영상에 겹쳐 그린다. 옛 공은 null */
+  zoneRect: { x: number; y: number; w: number; h: number } | null;
 };
 
 export type AdminPitchRow = {
@@ -524,7 +526,20 @@ function pickAnalysis(raw: unknown): AdminPitchAnalysis | null {
     endKmh: numOrNull(a.endKmh),
     focalPx: numOrNull(a.focalPx),
     shakePx: numOrNull(a.shakePx),
+    zoneRect: zoneRectOf(a.zoneRect),
   };
+}
+
+function zoneRectOf(raw: unknown): AdminPitchAnalysis['zoneRect'] {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
+  const z = raw as Record<string, unknown>;
+  const x = numOrNull(z.x);
+  const y = numOrNull(z.y);
+  const w = numOrNull(z.w);
+  const h = numOrNull(z.h);
+  return x != null && y != null && w != null && h != null && w > 0 && h > 0
+    ? { x, y, w, h }
+    : null;
 }
 
 /** 렌즈 보정 JSON 의 저장 형식 판 — 없으면 null */

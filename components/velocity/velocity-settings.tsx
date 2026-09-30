@@ -15,7 +15,7 @@ import {
   CAMERA_OPTIONS,
   clearSetup,
   DEFAULT_SETUP,
-  DEFAULT_ZONE,
+  defaultZone,
   loadSetup,
   MODE_OPTIONS,
   NET_OPTIONS,
@@ -56,6 +56,7 @@ export type SettingsValues = Pick<
   | 'releaseDistM'
   | 'autoMode'
   | 'calibSave'
+  | 'clipZone'
 > & { fovDeg: number };
 
 const NET_VALUES = [
@@ -121,6 +122,12 @@ export function VelocitySettingsFields({
               onChange={(calibSave) => onChange({ calibSave })}
             />
           )}
+          <ToggleRow
+            title="영상에 스트라이크 존 표시"
+            hint="저장된 공 영상(▶ · 구속 측정 관리자)을 볼 때 잰 순간의 스트라이크 존과 짐작한 코스 칸을 겹쳐 보여요. 영상 파일은 그대로예요."
+            checked={values.clipZone}
+            onChange={(clipZone) => onChange({ clipZone })}
+          />
           <ToggleRow
             title="스피드건 보정 적용"
             hint={
@@ -356,6 +363,7 @@ export function VelocitySettingsButton({
     releaseDistM: base.releaseDistM,
     autoMode: base.autoMode,
     calibSave: base.calibSave,
+    clipZone: base.clipZone,
     fovDeg: fov,
   };
   const change = (patch: Partial<SettingsValues>) => {
@@ -371,12 +379,17 @@ export function VelocitySettingsButton({
         mode: base.mode,
         cameraPos: base.cameraPos,
         net: base.net,
-        zone: base.zone,
+        /* 카메라 위치를 바꾸면 존 크기 범위가 달라 그 자리의 기본 존으로 */
+        zone:
+          rest.cameraPos && rest.cameraPos !== base.cameraPos
+            ? defaultZone(rest.cameraPos)
+            : base.zone,
         voice: base.voice,
         useCal: base.useCal,
         releaseDistM: base.releaseDistM,
         autoMode: base.autoMode,
         calibSave: base.calibSave,
+        clipZone: base.clipZone,
         ...rest,
       });
     }
@@ -415,12 +428,13 @@ export function VelocitySettingsButton({
                   mode: base.mode,
                   cameraPos: base.cameraPos,
                   net: base.net,
-                  zone: DEFAULT_ZONE,
+                  zone: defaultZone(base.cameraPos),
                   voice: base.voice,
                   useCal: base.useCal,
                   releaseDistM: base.releaseDistM,
                   autoMode: base.autoMode,
                   calibSave: base.calibSave,
+                  clipZone: base.clipZone,
                 })
               }
             >

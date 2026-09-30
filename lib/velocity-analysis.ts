@@ -1,5 +1,6 @@
 import type { AnalyzeResult, Approach } from '@/lib/velocity-engine/analyze-frames';
 import type { FrameTiming, LiveReport } from '@/lib/velocity-engine/live-meter';
+import type { ZoneRect } from '@/lib/velocity-setup';
 
 /**
  * 엔진이 본 자료를 DB(VelocityPitch.analysis)에 남길 모양으로 — 영상 없이도 다시 맞춰 볼 수 있게.
@@ -44,6 +45,11 @@ export type AnalysisJson = {
     pipeline: string | null;
     frame: LiveReport['frame'] | null;
   } | null;
+  /**
+   * 잰 순간의 스트라이크 존 — 카메라 장면 비율(0~1, lib/velocity-setup.ts ZoneRect). 영상 클립도 같은 장면이라 볼 때 그대로
+   * 겹쳐 그린다(설정 '영상에 스트라이크 존 표시'). 카메라로 잰 공만 — 영상 파일 · 옛 공은 없음.
+   */
+  zoneRect?: ZoneRect | null;
 };
 
 export function analysisOf(
