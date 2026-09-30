@@ -117,15 +117,28 @@ function MetricRow({
   );
 }
 
-export function ReportClient({ logs }: { logs: Log[] }) {
+export function ReportClient({
+  logs,
+  today,
+}: {
+  logs: Log[];
+  /**
+   * 기간의 끝 날 — 홈에서 지난 날을 고르면 그날. 없으면 오늘. 예전에는 늘 오늘로 셌는데 기록은 고른 날까지만 받아,
+   * 두 달 전을 보면 '최근 7일'이 오늘 기준 빈 기간(투구 0)으로 나왔다.
+   */
+  today?: Date;
+}) {
   /* 구속을 보여줄 단위. 저장은 늘 km/h 다(lib/units.ts). */
   const speedUnit = useSpeedUnit();
   const [days, setDays] = useState<7 | 30>(7);
 
   const byDay = useMemo(() => groupByDay(logs), [logs]);
 
-  const currentKeys = useMemo(() => buildDateRange(days), [days]);
-  const previousKeys = useMemo(() => buildDateRangeOffset(days, days), [days]);
+  const currentKeys = useMemo(() => buildDateRange(days, today), [days, today]);
+  const previousKeys = useMemo(
+    () => buildDateRangeOffset(days, days, today),
+    [days, today]
+  );
 
   const current = useMemo(() => summarize(byDay, currentKeys), [byDay, currentKeys]);
   const sessionCounts = useMemo(
