@@ -154,6 +154,23 @@ export type AnalyzeFramesInput = {
    * 부르는 쪽이 더 크게 줄 수 있다: HDR 영상 5.5%(analyze-video.ts), 카메라 실시간 6%(live-capture.ts).
    */
   domainSigmaRel?: number;
+  /**
+   * 받는 가장 낮은 초당 장면 수 — 기본 validate.ts MIN_FPS(50). 영상 파일은 30fps 이하를 늘 막는다(사용자 규칙, 2026-09-28).
+   * 카메라 실시간(live-meter.ts)은 0 — 촬영 조건으로는 막지 않고 알림 · 믿음 '낮음' · 넓은 ± 로 대신한다(사용자, 2026-09-30).
+   */
+  minFps?: number;
+  /** 받는 가장 작은 긴 변(원본 px) — 기본 validate.ts MIN_FRAME_WIDTH_PX. 카메라 실시간은 0(위와 같은 까닭) */
+  minLongSidePx?: number;
+  /**
+   * 카메라 실시간만 — 궤적의 가장자리 폭(DiameterReport.edgeWidthPx)이 이 값(분석 px) 이상이면 한 장의 노출 동안 공이 작아지며
+   * 번진 것일 수 있다. 값은 그대로 내되 믿음 '낮음', ± 에 exposureBlurSigmaPerPx × (폭 − 1.6px) 를 더한다. 공을 못 이어
+   * 거부된 것(장면 부족 · 궤적 불안정 등)은 MOTION_BLUR 로 까닭을 알린다. 비우면 보지 않는다(영상 파일).
+   */
+  exposureBlurPx?: number | null;
+  /** 위 번짐의 σ(값에 대한 비율) — 가장자리 폭이 1.6px 를 넘는 1px 마다 */
+  exposureBlurSigmaPerPx?: number;
+  /** 믿음의 상한 — 'low' 면 값은 내되 '낮음(참고용)'. 좋은 조건 밖의 카메라 실시간(live-meter.ts liveConditions) */
+  confidenceCap?: 'medium' | 'low';
 };
 
 /** 공기저항 상수 — 정의와 설명은 geometry.ts */
@@ -958,6 +975,8 @@ export function analyzeFrames(input: AnalyzeFramesInput): AnalyzeResult {
     frameWidth: sourceWidth,
     frameHeight: sourceHeight,
     fps: measuredFps,
+    minFps: input.minFps,
+    minLongSidePx: input.minLongSidePx,
   });
 
   const trackInput: TrackMeasureInput = {
@@ -971,6 +990,9 @@ export function analyzeFrames(input: AnalyzeFramesInput): AnalyzeResult {
     releaseDistanceM: input.releaseDistanceM,
     calibrated: input.calibrated === true,
     domainSigmaRel: input.domainSigmaRel,
+    exposureBlurPx: input.exposureBlurPx,
+    exposureBlurSigmaPerPx: input.exposureBlurSigmaPerPx,
+    confidenceCap: input.confidenceCap,
   };
   const { measure, release } = measureTrack(trackInput);
 
@@ -1009,7 +1031,15 @@ export type TrackMeasureInput = {
   calibrated?: boolean;
   /** 보정한 조건 밖일 때 ± 에 더할 σ(비율) — AnalyzeFramesInput.domainSigmaRel */
   domainSigmaRel?: number;
+  /** 노출 번짐 문턱(분석 px) · σ — AnalyzeFramesInput.exposureBlurPx · exposureBlurSigmaPerPx */
+  exposureBlurPx?: number | null;
+  exposureBlurSigmaPerPx?: number;
+  /** 믿음의 상한 — AnalyzeFramesInput.confidenceCap */
+  confidenceCap?: 'medium' | 'low';
 };
+
+/** 번짐 탓일 수 있는 거부 — 노출 번짐이 문턱을 넘었으면 이 까닭들은 MOTION_BLUR 로 바꿔 알린다(무엇을 고칠지가 분명하게) */
+const BLUR_OVERRIDABLE = new Set(['NOT_ENOUGH_FRAMES', 'TRAVEL_TOO_SHORT', 'UNSTABLE_TRACK', 'IMPLAUSIBLE_SPEED']);
 
 export function measureTrack(input: TrackMeasureInput): {
   measure: MeasureResult;
@@ -1068,10 +1098,34 @@ export function measureTrack(input: TrackMeasureInput): {
       measure = { ...measure, confidence: 'medium' };
     }
   }
+  /*
+   * 노출 번짐(카메라 실시간만) — 흐림 보정은 초점 흐림(둥글게 퍼짐)의 평균을 맞춘 것이라, 한 장 안에서 공이 작아지며 생긴
+   * 번짐(1/30초 노출)은 크게 틀린다: 보정 영상 두 장면을 겹쳐 흉내 내자 17개 중 16개가 높게, −5~+36%(가장자리 폭 2.6~6.2px,
+   * 또렷한 장면 1.32~1.64px — 2026-09-30 되돌려 보기). 사용자 규칙(2026-09-30: 촬영 조건으로는 값을 막지 않는다)으로 값은
+   * 내되 믿음 '낮음'에 ± 를 넓힌다(아래 exposureSigma). 공을 못 이어 거부된 것은 번짐이 까닭이라고 알린다.
+   */
+  const exposureBlurred =
+    input.exposureBlurPx != null && diameter.edgeWidthPx != null && diameter.edgeWidthPx >= input.exposureBlurPx;
+  if (exposureBlurred && !measure.ok && BLUR_OVERRIDABLE.has(measure.code)) {
+    measure = { ok: false, ...reject('MOTION_BLUR') };
+  }
+  if (measure.ok && (input.confidenceCap === 'low' || exposureBlurred)) measure = { ...measure, confidence: 'low' };
+  if (measure.ok && input.confidenceCap === 'medium' && measure.confidence === 'high') {
+    measure = { ...measure, confidence: 'medium' };
+  }
   /* ± 에 잭나이프가 못 보는 σ(흐림 · 보정 조건 밖)를 더한다 — 구간 평균 · 릴리스 둘 다 */
+  /*
+   * σ 는 1.6px 부터 서서히 켠다(알림 · '낮음'은 문턱 exposureBlurPx 부터) — 문턱에서 계단처럼 켜면 그 바로 밑(1.65~1.8px, 1/30초에
+   * 가까운 노출)의 −10.7 · +11% 가 ± 끝에 걸렸다(2026-09-30 정확도 검증).
+   */
+  const exposureSigma =
+    input.exposureBlurPx != null && diameter.edgeWidthPx != null && diameter.edgeWidthPx > BLUR_SIGMA_REF_PX
+      ? (input.exposureBlurSigmaPerPx ?? 0) * (diameter.edgeWidthPx - BLUR_SIGMA_REF_PX)
+      : 0;
   const extraSigmaRel = Math.hypot(
     blurSigmaRel(diameter.edgeWidthPx),
-    input.calibrated === true ? 0 : (input.domainSigmaRel ?? OUT_OF_DOMAIN_SIGMA_REL)
+    input.calibrated === true ? 0 : (input.domainSigmaRel ?? OUT_OF_DOMAIN_SIGMA_REL),
+    exposureSigma
   );
   if (measure.ok && extraSigmaRel > 0) {
     measure = {

@@ -1,4 +1,5 @@
 import type { AnalyzeResult, Approach } from '@/lib/velocity-engine/analyze-frames';
+import type { FrameTiming, LiveReport } from '@/lib/velocity-engine/live-meter';
 
 /**
  * 엔진이 본 자료를 DB(VelocityPitch.analysis)에 남길 모양으로 — 영상 없이도 다시 맞춰 볼 수 있게.
@@ -30,9 +31,25 @@ export type AnalysisJson = {
   endKmh: number | null;
   frameCount: number;
   approach: Approach;
+  /**
+   * 카메라 실시간의 촬영 조건(모델 1.7.0) — 알림 코드(LOW_FPS · TIMING · APPROACH · CROPPED · FOV_GUESS · ZOOM · HDR · LOW_RES · BLUR) ·
+   * ± 에 더한 σ · 초점거리를 렌즈 보정으로 쟀나 · 장면 시각의 질 · 장면을 받은 길(워커 직접 · 캔버스 · 화면 스레드)과 워커가 본
+   * 장면(형식 · 돌림 · 크기). 영상 파일로 잰 공은 null. 실제 폰(아이폰 웹뷰)에서 어떻게 도는지 되짚으려고.
+   */
+  live: {
+    notes: string[];
+    sigmaRel: number;
+    focalFromLens: boolean;
+    timing: FrameTiming | null;
+    pipeline: string | null;
+    frame: LiveReport['frame'] | null;
+  } | null;
 };
 
-export function analysisOf(result: AnalyzeResult, approach: Approach): AnalysisJson {
+export function analysisOf(
+  result: AnalyzeResult & { live?: LiveReport },
+  approach: Approach
+): AnalysisJson {
   const m = result.measure;
   const d = result.diameter;
   return {
@@ -57,5 +74,15 @@ export function analysisOf(result: AnalyzeResult, approach: Approach): AnalysisJ
     endKmh: m.ok ? m.detail.endKmh : null,
     frameCount: result.frameCount,
     approach,
+    live: result.live
+      ? {
+          notes: result.live.notes.map((n) => n.code),
+          sigmaRel: result.live.sigmaRel,
+          focalFromLens: result.live.focalFrom === 'lens',
+          timing: result.live.timing,
+          pipeline: result.live.pipeline ?? null,
+          frame: result.live.frame ?? null,
+        }
+      : null,
   };
 }
