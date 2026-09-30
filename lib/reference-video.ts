@@ -19,9 +19,12 @@ export function referenceThumbUrl(videoId: string): string {
  *
  * 유튜브가 다른 사이트에서 틀 수 있게 공식으로 제공하는 재생기다.
  * 관련 영상이 끝나고 뜨지 않도록 rel=0 을 붙인다.
+ *
+ * playsinline=1 — 아이폰은 이것이 없으면 누르자마자 전체 화면으로 튄다. 앱은 세로로 고정이라 전체 화면에서
+ * 돌려 볼 수도 없어 가로 영상이 작게만 보였다. 제자리에서 틀고, 크게 보려면 재생기의 전체 화면 단추를 쓴다.
  */
 export function referenceEmbedUrl(videoId: string): string {
-  return `https://www.youtube-nocookie.com/embed/${videoId}?rel=0`;
+  return `https://www.youtube-nocookie.com/embed/${videoId}?rel=0&playsinline=1`;
 }
 
 /** 유튜브에서 바로 열 때 쓰는 주소. 삽입이 막힌 영상의 대비책이다. */

@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache';
 import { prisma } from '@/lib/prisma';
 import { getCurrentUser } from '@/lib/dal';
+import { deleteUserFiles } from '@/lib/storage';
 
 export type AdminState = { error?: string; success?: string } | undefined;
 
@@ -70,6 +71,8 @@ export async function deleteUser(
   });
   if (!target) return { error: '대상을 찾을 수 없습니다.' };
 
+  /* 저장소의 그 사람 파일(영상 · 사진 · 클립)도 — DB 만 지우면 파일이 주인 없이 남는다(탈퇴와 같다) */
+  await deleteUserFiles(userId);
   await prisma.user.delete({ where: { id: userId } });
 
   revalidatePath('/admin');

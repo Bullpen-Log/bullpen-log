@@ -41,8 +41,9 @@ import {
   type ResultMeta,
 } from '@/lib/velocity-engine/live-capture';
 import { focalPxFromFov } from '@/lib/velocity-engine/geometry';
+import { liveFpsNote, type LiveReport } from '@/lib/velocity-engine/live-meter';
 import { readVideoLens, videoFovFor } from '@/lib/velocity-engine/video-lens';
-import { analysisOf } from '@/lib/velocity-analysis';
+import { analysisOf, type AnalysisJson } from '@/lib/velocity-analysis';
 import { uploadClip } from '@/lib/velocity-clip-upload';
 import {
   VelocityTutorial,
@@ -69,18 +70,23 @@ import {
 import {
   approachOf,
   DEFAULT_SETUP,
+  defaultZone,
+  fitZone,
   frameRectToView,
   viewRectToFrame,
+  visibleFrameRect,
   loadSetup,
   modeLabel,
   saveSetup,
   SETUP_KEY,
   setupSummary,
+  ZONE_WIDTH_RANGE,
+  zoneAspectIn,
   zoneOfPoint,
   type VelocitySetup,
   type ZoneRect,
 } from '@/lib/velocity-setup';
-import { LEVEL_OK_DEG, useDeviceLevel } from '@/lib/use-device-level';
+import { useDeviceLevel } from '@/lib/use-device-level';
 import { SESSION_TYPES, isRestSession } from '@/lib/session-type';
 import { formatSpeed, speedLabel, toSpeed } from '@/lib/units';
 import { useSpeedUnit } from '@/components/use-units';
@@ -102,6 +108,7 @@ import {
 } from '@/components/velocity/setup-art';
 import { isTipsSkippedToday, TipsPopup } from '@/components/velocity/tips-popup';
 import { VelocitySettingsFields } from '@/components/velocity/velocity-settings';
+import { ClipPlayer } from '@/components/velocity/clip-player';
 import { Panel, StatRow, StepBar, Note } from '@/components/velocity/kit';
 import { spinAxisFor } from '@/lib/velocity-spin';
 import {
@@ -160,13 +167,19 @@ const BACK_OF: Partial<Record<Step, { to: Step; label: string }>> = {
 type LocalClip = { url: string; blob: Blob; durationSec: number; eventSec: number };
 type LocalPitch = SavePitchInput & {
   id: number;
+  /** 엔진이 본 자료 — 잰 순간의 스트라이크 존(zoneRect)도 실려 영상에 겹쳐 그린다 */
+  analysis?: AnalysisJson | null;
   source: 'camera' | 'file';
   /** LiveCapture 결과 번호 — 뒤에 오는 영상 클립과 짝 */
   captureId?: number;
   clip?: LocalClip;
   /** 관리자 점프 도구가 넣은 예시 공 — 화면 확인용, 저장은 막는다 */
   sample?: boolean;
+  /** 카메라 실시간의 촬영 조건 알림(초당 장면 · 잘린 화면 · 짐작한 화각 · 번짐 …) — 화면에만 보인다 */
+  notes?: string[];
 };
+/** 카메라 실시간 결과에는 촬영 조건 알림(live)이 붙는다(lib/velocity-engine/live-meter.ts) — 영상 파일 결과에는 없다 */
+type ScreenResult = AnalyzeResult & { live?: LiveReport };
 
 /* 관리자 점프의 '예시 공' — 화면(세션 · 요약 · 이전 공)을 자료 없이도 확인할 수 있게 */
 const SAMPLE_PITCHES: { kmh: number; type: string; zone: number; result: string }[] = [
@@ -190,7 +203,7 @@ const STATUS_TEXT: Record<LiveStatus, string> = {
   off: '카메라 꺼짐',
   starting: '카메라 켜는 중…',
   ready: '준비됨',
-  settling: '잠잠해지면 시작해요',
+  settling: '가만히 — 배경 잡는 중',
   armed: '던지세요',
   capturing: '담는 중',
   analyzing: '계산 중…',
@@ -264,6 +277,8 @@ export function VelocityScreen({
   const [releaseDistM, setReleaseDistM] = useState(DEFAULT_SETUP.releaseDistM);
   const [autoMode, setAutoMode] = useState(DEFAULT_SETUP.autoMode);
   const [calibSave, setCalibSave] = useState(DEFAULT_SETUP.calibSave);
+  /* 저장된 공 영상에 스트라이크 존을 겹쳐 그릴까(설정) */
+  const [clipZone, setClipZone] = useState(DEFAULT_SETUP.clipZone);
   /* 보정용 저장은 관리자만 효과가 있다 */
   const calibOn = isAdmin && calibSave;
   /* 세션 — 시작하면 카메라를 숨기고 정보 판을 보인다 */
@@ -296,11 +311,10 @@ export function VelocityScreen({
   const [camera, setCamera] = useState<CameraInfo | null>(null);
   const [fps, setFps] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [last, setLast] = useState<AnalyzeResult | null>(null);
+  const [last, setLast] = useState<ScreenResult | null>(null);
   const [pitches, setPitches] = useState<LocalPitch[]>([]);
   const [fileBusy, setFileBusy] = useState(false);
   const [fileProgress, setFileProgress] = useState(0);
-  const { level, requestPermission } = useDeviceLevel(step === 'align');
 
   const [fov, setFov] = useState(() => loadFov(DEFAULT_FOV_DEG));
   const [useCal, setUseCal] = useState(true);
@@ -316,6 +330,30 @@ export function VelocityScreen({
     width: number;
     height: number;
   } | null>(null);
+  const cameraOn = status !== 'off' && status !== 'starting';
+  /*
+   * 스트라이크 존 — 규격(모양 ZONE_ASPECT · 가로 범위 ZONE_WIDTH_RANGE)에 맞춘 것을 쓴다. 놓는 단계에서는 칸에 보이는 장면
+   * 안으로 넣는다(칸 밖으로 나간 존은 손잡이를 못 잡는다).
+   */
+  const frameSize = camera ? { width: camera.width, height: camera.height } : null;
+  const visible =
+    frameSize && finderSize
+      ? visibleFrameRect(frameSize, finderSize)
+      : { x: 0, y: 0, w: 1, h: 1 };
+  const activeZone = fitZone(
+    zone,
+    choices.cameraPos,
+    frameSize ?? undefined,
+    step === 'zone' ? visible : undefined
+  );
+  /* 수평계 — 카메라가 보이는 동안(수평 · 존 · 측정 직전 · 세션 중 '초점 재조정'으로 카메라를 볼 때) 저절로 켠다 */
+  const levelOn =
+    cameraOn &&
+    !showAsk &&
+    (step === 'align' ||
+      step === 'zone' ||
+      (step === 'measure' && (!live || showCamera) && !summaryOpen));
+  const { level, requestPermission } = useDeviceLevel(levelOn);
   const fit = calibration;
   const shown = (raw: number) =>
     useCal && fit.n > 0 ? applyCalibration(raw, fit) : raw;
@@ -344,6 +382,7 @@ export function VelocityScreen({
     return () => {
       captureRef.current?.stop();
       captureRef.current = null;
+      autoStartedFor.current = null;
       if (typeof speechSynthesis !== 'undefined') speechSynthesis.cancel();
       for (const p of pitchesRef.current) if (p.clip) URL.revokeObjectURL(p.clip.url);
     };
@@ -363,25 +402,44 @@ export function VelocityScreen({
     saveSetup({
       ...choices,
       sessionType,
-      zone,
+      zone: activeZone,
       voice,
       useCal,
       releaseDistM,
       autoMode,
       calibSave,
+      clipZone,
       ...patch,
     });
 
   const addResult = (
-    result: AnalyzeResult,
+    result: ScreenResult,
     source: LocalPitch['source'],
     meta?: ResultMeta
   ) => {
-    setLast(result);
     if (!result.measure.ok) {
+      /*
+       * 자동 모드에서 공 궤적이 세 장도 안 된 거부는 던진 공이 아니라 잡음일 때가 많다 — 튄 공 · 몸짓(장면 부족 · 너무 멂 ·
+       * 거리 부족), 공이 맞은 뒤 1초 남짓 흔들리는 흰 과녁 천(번짐 · 궤적 불안정, 실제 영상 18개 중 4개 — 2026-09-30 정확도
+       * 검증). 방금 잰 값을 거부 문구로 덮지 않고 '못 쟀어요'도 말하지 않는다.
+       */
+      const noise =
+        source === 'camera' &&
+        autoMode &&
+        result.track.length < 3 &&
+        [
+          'NOT_ENOUGH_FRAMES',
+          'TOO_FAR',
+          'TRAVEL_TOO_SHORT',
+          'MOTION_BLUR',
+          'UNSTABLE_TRACK',
+        ].includes(result.measure.code);
+      if (noise) return;
+      setLast(result);
       speak('못 쟀어요');
       return;
     }
+    setLast(result);
     const m = result.measure;
     const r = result.release;
     const value = shown(m.kmh);
@@ -397,7 +455,7 @@ export function VelocityScreen({
       guessedZone = zoneOfPoint(
         tail.x / result.analyzeSize.width,
         tail.y / result.analyzeSize.height,
-        zone,
+        activeZone,
         choices.cameraPos
       );
     }
@@ -418,9 +476,14 @@ export function VelocityScreen({
         durationSec: m.detail.durationSec,
         frames: m.detail.frames,
         fps: result.fps,
-        analysis: analysisOf(result, approach),
+        analysis: {
+          ...analysisOf(result, approach),
+          /* 클립은 카메라 장면 그대로라 이 존을 영상 위에 그대로 얹는다. 영상 파일은 장면이 달라 싣지 않는다 */
+          zoneRect: source === 'camera' ? activeZone : null,
+        },
         autoDetected: source === 'camera' ? autoMode : false,
         captureId: meta?.id,
+        notes: result.live?.notes.map((note) => note.text) ?? [],
         ...EMPTY_EDIT,
         zone: guessedZone,
       },
@@ -450,6 +513,7 @@ export function VelocityScreen({
         onResult: (r, meta) => addResultRef.current(r, 'camera', meta),
         onClip: (id, clip) => attachClipRef.current(id, clip),
         onError: setError,
+        onNotice: setToast,
         onFps: (f) => setFps(Math.round(f)),
       },
       fov,
@@ -465,8 +529,10 @@ export function VelocityScreen({
     try {
       setCamera(await capture.start());
     } catch (e) {
+      /* 켜는 사이에 껐다(화면을 떠남 · 다시 켬) — 알릴 것 없다 */
+      if (e instanceof DOMException && e.name === 'AbortError') return;
       setError(e instanceof Error ? e.message : '카메라를 켜지 못했습니다.');
-      captureRef.current = null;
+      if (captureRef.current === capture) captureRef.current = null;
     }
   };
 
@@ -505,12 +571,15 @@ export function VelocityScreen({
       setReleaseDistM(stored.releaseDistM);
       setAutoMode(stored.autoMode);
       setCalibSave(stored.calibSave);
+      setClipZone(stored.clipZone);
       setDecided(true);
       setStep('align');
     });
     openTips();
   };
   const startFresh = () => {
+    /* 새 설정이어도 보기 취향(영상에 존 표시)은 이어 간다 — 안 그러면 저장할 때 켜짐으로 되돌아간다 */
+    if (stored) setClipZone(stored.clipZone);
     setDecided(true);
     setStep('type');
   };
@@ -518,8 +587,17 @@ export function VelocityScreen({
     enterCameraStep('align', () => setStep('align'));
     openTips();
   };
-  const goZone = () => setStep('zone');
+  /*
+   * 수평계 허락(아이폰) — 카메라 허락 창과 한 누름에 겹치지 않게, 카메라를 켠 다음 누름들(주의사항 닫기 · 다음 · 측정 시작)에서
+   * 청한다. 이미 허락했거나 허락이 필요 없는 기기면 아무 일도 없다. 그래도 못 받았으면 수평계 자리의 '수평계 켜기'.
+   */
+  const goZone = () => {
+    void requestPermission();
+    setStep('zone');
+  };
   const goMeasure = () => {
+    void requestPermission();
+    setZone(activeZone);
     persistSetup();
     captureRef.current?.setApproach(approach);
     setStep('measure');
@@ -534,7 +612,7 @@ export function VelocityScreen({
 
   /* 최신 처리 함수를 ref 로 — LiveCapture 의 handler 는 카메라를 켤 때의 closure 라 그대로 두면 존 · 설정이 옛 값이다 */
   const addResultRef = useRef<
-    (r: AnalyzeResult, s: LocalPitch['source'], m?: ResultMeta) => void
+    (r: ScreenResult, s: LocalPitch['source'], m?: ResultMeta) => void
   >(() => undefined);
   const attachClipRef = useRef<(id: number, clip: PitchClip) => void>(() => undefined);
   const calibOnRef = useRef(false);
@@ -584,6 +662,7 @@ export function VelocityScreen({
   const startSession = () => {
     const capture = captureRef.current;
     if (!capture) return;
+    void requestPermission();
     setError(null);
     setLast(null);
     setSaved(false);
@@ -947,14 +1026,16 @@ export function VelocityScreen({
     });
   };
 
-  const cameraOn = status !== 'off' && status !== 'starting';
   const back = showAsk ? null : (BACK_OF[step] ?? null);
-  const lowFps = fps != null && fps < 60;
+  const fpsNote = liveFpsNote(fps);
+  const lowFps = fpsNote != null;
+  /* 카메라가 잘려 왔으면(원래 비율이 아니면) 화각을 짐작한다 — 막지 않고 알린다 */
+  const cropNote =
+    camera?.cropped === true
+      ? `카메라 화면이 잘려 와서(${camera.width}×${camera.height}) 값이 부정확할 수 있어요.`
+      : null;
   const speedNum = (kmh: number) => Math.round(toSpeed(kmh, unit) * 10) / 10;
-  const levelOk =
-    !level.supported ||
-    (Math.abs(level.roll ?? 0) <= LEVEL_OK_DEG &&
-      Math.abs(level.pitch ?? 0) <= LEVEL_OK_DEG);
+  const levelOk = !level.supported || level.ok;
   const targetText =
     choices.mode === 'hit'
       ? '배트에 맞는 지점'
@@ -962,10 +1043,16 @@ export function VelocityScreen({
         ? '릴리스 포인트'
         : '미트가 오는 자리';
 
-  /* 스트라이크 존 — 장면 좌표를 지금 뷰파인더 칸에 맞춰 그린다(카메라가 꺼져 있으면 칸 = 장면으로 본다) */
-  const frameSize = camera ? { width: camera.width, height: camera.height } : null;
+  /*
+   * 스트라이크 존 — 장면 좌표를 지금 뷰파인더 칸에 맞춰 그린다(카메라가 꺼져 있으면 칸 = 장면으로 본다). 모양 · 크기는 규격
+   * (activeZone, 위)이고, 놓는 단계에서 끌 때도 같은 규격(모양 zoneAspect · 가로 zoneMinW ~ zoneMaxW, 칸 좌표로 바꾼 것).
+   */
   const viewZone =
-    frameSize && finderSize ? frameRectToView(zone, frameSize, finderSize) : zone;
+    frameSize && finderSize
+      ? frameRectToView(activeZone, frameSize, finderSize)
+      : activeZone;
+  const [zoneLo, zoneHi] = ZONE_WIDTH_RANGE[choices.cameraPos];
+  const zoneAspectView = (zoneAspectIn(frameSize ?? undefined) * visible.w) / visible.h;
 
   /* 뷰파인더 — 4 · 5 · 6 단계가 같은 <video> 를 쓴다 */
   const finder = (
@@ -1024,6 +1111,9 @@ export function VelocityScreen({
             )
           }
           editable={step === 'zone'}
+          aspect={zoneAspectView}
+          minW={zoneLo / visible.w}
+          maxW={zoneHi / visible.w}
         />
       )}
 
@@ -1033,7 +1123,7 @@ export function VelocityScreen({
           <div
             className={`absolute left-1/2 top-1/2 h-28 w-28 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 transition-colors ${
               status === 'armed'
-                ? 'border-sky-soft shadow-[0_0_0_9999px_rgba(0,0,0,0.15)]'
+                ? 'border-sky-300 shadow-[0_0_0_9999px_rgba(0,0,0,0.15)]'
                 : status === 'capturing'
                   ? 'border-warn-line'
                   : 'border-white/70'
@@ -1054,37 +1144,37 @@ export function VelocityScreen({
       {/* 위 줄 — 상태 · 수평계 · 카메라 정보 */}
       {cameraOn && (
         <div
-          className={`pointer-events-none absolute inset-x-3 flex items-start justify-between gap-2 text-xs ${
+          className={`pointer-events-none absolute inset-x-3 flex items-center justify-between gap-2 text-xs ${
             step === 'measure' ? 'top-[calc(3.5rem+env(safe-area-inset-top))]' : 'top-3'
           }`}
         >
-          {step === 'measure' ? (
-            <span
-              className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 font-semibold backdrop-blur ${
-                status === 'armed'
-                  ? 'bg-sky text-white'
-                  : status === 'capturing'
-                    ? 'bg-warn text-white'
-                    : 'bg-black/55 text-white/90'
-              }`}
-            >
-              {(status === 'analyzing' || status === 'settling') && (
-                <Loader2 aria-hidden className="h-3 w-3 animate-spin" />
-              )}
-              {status === 'armed' && (
-                <span className="h-2 w-2 animate-pulse rounded-full bg-white" />
-              )}
-              {STATUS_TEXT[status]}
-            </span>
-          ) : step === 'align' ? (
-            <LevelBubble level={level} />
-          ) : (
-            <span />
-          )}
+          <div className="flex min-w-0 items-center gap-1.5">
+            {levelOn && <LevelBubble level={level} onRequest={requestPermission} />}
+            {/* 측정 직전의 상태 — 세션 중에는 위 가운데 알약이 같은 것을 말해 여기서는 뺀다 */}
+            {step === 'measure' && !live && (
+              <span
+                className={`inline-flex h-7 items-center gap-1.5 whitespace-nowrap rounded-full px-2.5 font-semibold backdrop-blur ${
+                  status === 'armed'
+                    ? 'bg-sky text-white'
+                    : status === 'capturing'
+                      ? 'bg-amber-600 text-white'
+                      : 'bg-black/55 text-white/90'
+                }`}
+              >
+                {(status === 'analyzing' || status === 'settling') && (
+                  <Loader2 aria-hidden className="h-3 w-3 animate-spin" />
+                )}
+                {status === 'armed' && (
+                  <span className="h-2 w-2 animate-pulse rounded-full bg-white" />
+                )}
+                {STATUS_TEXT[status]}
+              </span>
+            )}
+          </div>
           {camera && (
             <span
-              className={`rounded-full px-2.5 py-1 tabular-nums backdrop-blur ${
-                lowFps ? 'bg-warn text-white' : 'bg-black/55 text-white/80'
+              className={`h-7 min-w-0 truncate rounded-full px-2.5 leading-7 tabular-nums backdrop-blur ${
+                lowFps ? 'bg-amber-600 text-white' : 'bg-black/55 text-white/80'
               }`}
             >
               {camera.width}×{camera.height}
@@ -1094,17 +1184,6 @@ export function VelocityScreen({
             </span>
           )}
         </div>
-      )}
-
-      {/* 수평계 허락(아이폰) */}
-      {step === 'align' && cameraOn && level.needsPermission && (
-        <button
-          type="button"
-          onClick={requestPermission}
-          className="absolute left-3 top-3 rounded-full bg-white/90 px-3 py-1.5 text-xs font-semibold text-ink shadow"
-        >
-          기울기 허용하기
-        </button>
       )}
 
       {/* 결과 — 6에서 카메라 위에 크게 */}
@@ -1122,6 +1201,11 @@ export function VelocityScreen({
                   ` · 릴리스 추정 ${speedNum(shown(last.release.releaseKmh))}`}
                 {useCal && fit.n > 0 && ` · 보정 전 ${last.measure.kmh}`}
               </p>
+              {last.live?.notes.slice(0, 2).map((note) => (
+                <p key={note.code} className="mt-1 text-xs leading-snug text-warn-line">
+                  {note.text}
+                </p>
+              ))}
             </div>
           ) : (
             <div className="motion-safe:animate-fade-in">
@@ -1295,7 +1379,10 @@ export function VelocityScreen({
             label="카메라 위치"
             options={cameraPosOptions(choices.mode)}
             value={choices.cameraPos}
-            onChange={(cameraPos) => setChoices({ ...choices, cameraPos })}
+            onChange={(cameraPos) => {
+              if (cameraPos !== choices.cameraPos) setZone(defaultZone(cameraPos));
+              setChoices({ ...choices, cameraPos });
+            }}
             columns={1}
           />
         </StepShell>
@@ -1335,9 +1422,13 @@ export function VelocityScreen({
             <p className="mb-3 mt-1 text-sm leading-snug text-muted short:mb-2">
               {step === 'align'
                 ? `${withGa(targetText)} 가운데 표적에 오게 폰 높이와 방향을 맞추세요.${
-                    level.supported ? ' 위 수평계가 초록이 되면 좋아요.' : ''
+                    level.supported
+                      ? " 왼쪽 위 수평계가 초록 '수평'이 되면 좋아요."
+                      : ''
                   }`
-                : '끌어서 옮기고 오른쪽 아래 손잡이로 크기를 바꾸세요. 잰 공의 코스를 짐작하는 데 써요.'}
+                : choices.cameraPos === 'behind-pitcher'
+                  ? '멀리 포수 미트 쪽에 끌어다 놓고 손잡이로 크기를 맞추세요. 모양은 스트라이크 존 그대로예요. 잰 공의 코스를 짐작하는 데 써요.'
+                  : '홈플레이트 위에 끌어다 놓고 손잡이로 크기를 맞추세요. 모양은 스트라이크 존 그대로예요. 잰 공의 코스를 짐작하는 데 써요.'}
             </p>
             <div className="min-h-0 flex-1">{finder}</div>
             {error && (
@@ -1356,7 +1447,12 @@ export function VelocityScreen({
           </div>
           <div className="flex shrink-0 gap-2 border-t border-line bg-surface px-4 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3">
             {step === 'zone' && (
-              <PrimaryButton tone="quiet" onClick={() => setZone(DEFAULT_SETUP.zone)}>
+              <PrimaryButton
+                tone="quiet"
+                onClick={() =>
+                  setZone(defaultZone(choices.cameraPos, frameSize ?? undefined))
+                }
+              >
                 기본 자리
               </PrimaryButton>
             )}
@@ -1440,6 +1536,14 @@ export function VelocityScreen({
                         {lastPitch.zone != null &&
                           ` · ${zoneLabel(lastPitch.zone)}(짐작)`}
                       </p>
+                      {lastPitch.notes?.slice(0, 2).map((text) => (
+                        <p
+                          key={text}
+                          className="mt-1.5 text-xs leading-snug text-warn-line"
+                        >
+                          {text}
+                        </p>
+                      ))}
                     </div>
                   ) : last && !last.measure.ok ? (
                     <div className="py-3 motion-safe:animate-fade-in">
@@ -1461,6 +1565,11 @@ export function VelocityScreen({
                           ? '공마다 알아서 잡아요. 끝나면 아래 가운데 세션 종료.'
                           : '아래 오른쪽 "다음 공"을 누르고 던지세요.'}
                       </p>
+                      {(fpsNote ?? cropNote) && (
+                        <p className="mt-2 text-xs leading-snug text-warn-line">
+                          {fpsNote ?? cropNote}
+                        </p>
+                      )}
                     </div>
                   )}
 
@@ -1708,18 +1817,29 @@ export function VelocityScreen({
 
           {/* 알림 — 아래 단추 위 */}
           {(!live || showCamera) &&
-            (error || saved || toast || zoomBad || (isAdmin && !native)) && (
+            (error ||
+              saved ||
+              toast ||
+              zoomBad ||
+              fpsNote ||
+              cropNote ||
+              (isAdmin && !native)) && (
               <div className="pointer-events-none absolute inset-x-4 bottom-[8.25rem] z-10 space-y-2">
                 {zoomBad && camera && (
-                  <p className="rounded-xl bg-danger/90 px-4 py-2.5 text-sm font-semibold text-white">
-                    줌이 ×{camera.zoom} 이에요 — 1× 에서만 잴 수 있어요. 카메라를 다시
-                    켜 보세요.
+                  <p className="rounded-xl bg-warn/90 px-4 py-2.5 text-sm font-semibold text-white">
+                    줌이 {camera.zoom}배예요 — 값이 부정확할 수 있어요. 1배로 두면 더
+                    정확해요.
+                  </p>
+                )}
+                {(fpsNote ?? cropNote) && !error && (
+                  <p className="rounded-xl bg-warn/90 px-4 py-2.5 text-sm leading-snug text-white">
+                    {fpsNote ?? cropNote}
                   </p>
                 )}
                 {isAdmin && !native && !error && !saved && (
                   <p className="rounded-xl bg-black/55 px-4 py-2 text-xs leading-snug text-white/85 backdrop-blur">
-                    웹 시험 모드(관리자) — 브라우저 카메라는 60fps 밑이면 숫자를 내지
-                    않아요.
+                    웹 시험 모드(관리자) — 브라우저 카메라는 대개 초당 30장이라 값은
+                    참고용이에요.
                   </p>
                 )}
                 {error && (
@@ -1786,7 +1906,7 @@ export function VelocityScreen({
                   <button
                     type="button"
                     onClick={cameraOn ? startSession : startCamera}
-                    disabled={status === 'starting' || fileBusy || zoomBad}
+                    disabled={status === 'starting' || fileBusy}
                     aria-label={cameraOn ? '측정 시작' : '카메라 켜기'}
                     className="group flex h-[4.75rem] w-[4.75rem] items-center justify-center rounded-full border-4 border-white/90 disabled:opacity-40"
                   >
@@ -1986,7 +2106,10 @@ export function VelocityScreen({
         open={tipsOpen}
         choices={choices}
         today={today}
-        onClose={() => setTipsOpen(false)}
+        onClose={() => {
+          void requestPermission();
+          setTipsOpen(false);
+        }}
       />
 
       {/* 공 하나의 영상 클립 — 이 폰에서만(보정용 저장이면 저장할 때 올라간다) */}
@@ -1997,20 +2120,14 @@ export function VelocityScreen({
       >
         {clipPitch?.clip && (
           <div className="space-y-3">
-            <video
-              key={clipPitch.clip.url}
+            <ClipPlayer
               src={clipPitch.clip.url}
-              controls
-              playsInline
-              muted
+              eventSec={clipPitch.clip.eventSec}
+              zoneRect={clipPitch.analysis?.zoneRect ?? null}
+              zone={clipPitch.zone}
+              cameraPos={choices.cameraPos}
+              showZone={clipZone}
               autoPlay
-              onLoadedMetadata={(e) => {
-                const v = e.currentTarget;
-                const at = Math.max(0, (clipPitch.clip?.eventSec ?? 0) - 0.4);
-                if (Number.isFinite(v.duration))
-                  v.currentTime = Math.min(at, v.duration);
-              }}
-              className="max-h-[60dvh] w-full rounded-2xl bg-black object-contain"
             />
             <p className="text-xs leading-relaxed text-muted">
               {formatSpeed(shown(clipPitch.rawKmh), unit)} · 던진 순간{' '}
@@ -2190,6 +2307,7 @@ export function VelocityScreen({
               releaseDistM,
               autoMode,
               calibSave,
+              clipZone,
             }}
             showChoices={false}
             isAdmin={isAdmin}
@@ -2215,6 +2333,10 @@ export function VelocityScreen({
               if (patch.calibSave != null) {
                 setCalibSave(patch.calibSave);
                 persistSetup({ calibSave: patch.calibSave });
+              }
+              if (patch.clipZone != null) {
+                setClipZone(patch.clipZone);
+                persistSetup({ clipZone: patch.clipZone });
               }
             }}
           />

@@ -19,6 +19,7 @@ import {
 } from '@/lib/nutrition/targets';
 import { ageRule, effectiveGoal, effectiveProtein } from '@/lib/nutrition/age';
 import { saveNutritionProfile } from '@/app/actions/nutrition';
+import { OFFLINE_MESSAGE, orOffline } from '@/lib/action-offline';
 import type { Origin } from './shared';
 
 /**
@@ -96,7 +97,11 @@ export function GoalSheet({
       return;
     }
     startTransition(async () => {
-      const res = await saveNutritionProfile(draft);
+      /* 신호가 끊겨 부르기가 던지면 오류 화면 대신 한 줄로 알린다(lib/action-offline.ts) */
+      const res = await orOffline(saveNutritionProfile(draft), {
+        ok: false as const,
+        error: OFFLINE_MESSAGE,
+      });
       if (res.ok) onClose();
       else setError(res.error);
     });

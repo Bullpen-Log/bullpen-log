@@ -9,6 +9,7 @@ import {
   removeWarmupItem,
   updateWarmupRoutine,
 } from '@/app/actions/warmup';
+import { guardFormAction } from '@/lib/action-offline';
 import { Button, Card, EmptyState, Field, FormError, Input } from '@/components/ui';
 
 /**
@@ -70,7 +71,10 @@ function Thumb({ url, title }: { url: string | null; title: string }) {
 
 /** 이름과 한 줄 설명을 고치는 칸 */
 function NameForm({ routine, onDone }: { routine: RoutineCard; onDone: () => void }) {
-  const [state, action] = useActionState(updateWarmupRoutine, undefined);
+  const [state, action] = useActionState(
+    guardFormAction(updateWarmupRoutine),
+    undefined
+  );
 
   return (
     <form action={action} className="space-y-3">

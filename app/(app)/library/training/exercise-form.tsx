@@ -8,6 +8,7 @@ import {
   updateExercise,
   type ActionState,
 } from '@/app/actions/content';
+import { guardFormAction } from '@/lib/action-offline';
 import { Button, Field, FormError, Input, Textarea } from '@/components/ui';
 import { CheckboxGroup, RadioGroup } from '@/components/choice-inputs';
 import { MusclePicker } from '@/components/muscle-picker';
@@ -77,7 +78,7 @@ export function ExerciseForm({
   const cardio = category === '유산소';
   const armcare = category === ARMCARE_CATEGORY;
   const [state, formAction] = useActionState<ActionState, FormData>(
-    editing ? updateExercise : createExercise,
+    guardFormAction(editing ? updateExercise : createExercise),
     undefined
   );
   const [videos, setVideos] = useState<UploadedVideo[]>([]);

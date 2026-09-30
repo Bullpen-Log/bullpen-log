@@ -4,6 +4,7 @@ import { useActionState } from 'react';
 import { useFormStatus } from 'react-dom';
 import { ShieldCheck, ShieldOff, Trash2 } from 'lucide-react';
 import { deleteUser, toggleUserRole, type AdminState } from '@/app/actions/admin';
+import { guardFormAction } from '@/lib/action-offline';
 
 function ActionButton({
   label,
@@ -55,7 +56,7 @@ export function RoleToggle({
   disabled: boolean;
 }) {
   const [, formAction] = useActionState<AdminState, FormData>(
-    toggleUserRole,
+    guardFormAction(toggleUserRole),
     undefined
   );
 
@@ -100,7 +101,10 @@ export function DeleteUser({
   nickname: string;
   disabled: boolean;
 }) {
-  const [, formAction] = useActionState<AdminState, FormData>(deleteUser, undefined);
+  const [, formAction] = useActionState<AdminState, FormData>(
+    guardFormAction(deleteUser),
+    undefined
+  );
 
   if (disabled) return null;
 

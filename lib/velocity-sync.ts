@@ -84,6 +84,72 @@ export async function deleteVelocityPitchRow(pitch: {
   await syncVelocitySession(pitch.sessionId);
 }
 
+/** 카메라 실시간의 촬영 조건(lib/velocity-analysis.ts AnalysisJson.live) — 아는 코드 · 숫자만 */
+const LIVE_NOTE_CODES = new Set([
+  'LOW_FPS',
+  'TIMING',
+  'APPROACH',
+  'LOW_RES',
+  'CROPPED',
+  'FOV_GUESS',
+  'ZOOM',
+  'HDR',
+  'BLUR',
+]);
+const LIVE_PIPELINES = new Set(['worker-stream', 'worker-frames', 'main']);
+/** 잰 순간의 스트라이크 존(장면 비율 0~1) — 넷 다 0~1 이고 폭 · 높이가 있을 때만 */
+function sanitizeZoneRect(raw: unknown): Record<string, number> | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const z = raw as Record<string, unknown>;
+  const out: Record<string, number> = {};
+  for (const k of ['x', 'y', 'w', 'h']) {
+    const v = z[k];
+    if (typeof v !== 'number' || !Number.isFinite(v) || v < 0 || v > 1) return null;
+    out[k] = Math.round(v * 10000) / 10000;
+  }
+  return out.w > 0 && out.h > 0 ? out : null;
+}
+function sanitizeLive(raw: unknown): Record<string, unknown> | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const l = raw as Record<string, unknown>;
+  const n = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) ? v : null);
+  const obj = (v: unknown) =>
+    v && typeof v === 'object' ? (v as Record<string, unknown>) : null;
+  const t = obj(l.timing);
+  const f = obj(l.frame);
+  return {
+    notes: Array.isArray(l.notes)
+      ? l.notes.filter(
+          (c): c is string => typeof c === 'string' && LIVE_NOTE_CODES.has(c)
+        )
+      : [],
+    sigmaRel: n(l.sigmaRel),
+    focalFromLens: l.focalFromLens === true,
+    timing: t
+      ? {
+          frames: n(t.frames),
+          medianGapMs: n(t.medianGapMs),
+          sdGapMs: n(t.sdGapMs),
+          maxGapMs: n(t.maxGapMs),
+          dropped: n(t.dropped),
+          regularized: t.regularized === true,
+        }
+      : null,
+    pipeline:
+      typeof l.pipeline === 'string' && LIVE_PIPELINES.has(l.pipeline)
+        ? l.pipeline
+        : null,
+    frame: f
+      ? {
+          format: typeof f.format === 'string' ? f.format.slice(0, 12) : null,
+          rotation: n(f.rotation),
+          visible: Array.isArray(f.visible) ? f.visible.slice(0, 2).map(n) : null,
+          rotationFix: n(f.rotationFix),
+        }
+      : null,
+  };
+}
+
 /**
  * 엔진이 본 자료(분석 JSON)를 저장할 모양으로 다듬는다 — 숫자만, 궤적은 200점까지.
  * 브라우저가 보낸 것을 그대로 믿지 않는다.
@@ -129,6 +195,8 @@ export function sanitizeAnalysis(raw: unknown): Record<string, unknown> | null {
     endKmh: n(a.endKmh),
     frameCount: n(a.frameCount),
     approach: a.approach === 'approaching' ? 'approaching' : 'receding',
+    live: sanitizeLive(a.live),
+    zoneRect: sanitizeZoneRect(a.zoneRect),
   };
   return JSON.stringify(out).length > 40_000 ? null : out;
 }

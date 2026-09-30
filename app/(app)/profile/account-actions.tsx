@@ -9,6 +9,7 @@ import {
   logout,
   type AccountState,
 } from '@/app/actions/auth';
+import { guardFormAction } from '@/lib/action-offline';
 import { Button, Field, FormError, Input } from '@/components/ui';
 import { Modal } from '@/components/modal';
 
@@ -105,7 +106,8 @@ export function AccountActions() {
 
 function PasswordForm({ onDone }: { onDone: () => void }) {
   const [state, formAction, pending] = useActionState<AccountState, FormData>(
-    changePassword,
+    /* 신호가 끊겨도 오류 화면으로 넘어가지 않고 한 줄로 알린다(lib/action-offline.ts) */
+    guardFormAction(changePassword),
     undefined
   );
 
@@ -161,7 +163,8 @@ function PasswordForm({ onDone }: { onDone: () => void }) {
 
 function LeaveForm() {
   const [state, formAction, pending] = useActionState<AccountState, FormData>(
-    deleteAccount,
+    /* 신호가 끊겨도 오류 화면으로 넘어가지 않고 한 줄로 알린다(lib/action-offline.ts) */
+    guardFormAction(deleteAccount),
     undefined
   );
 

@@ -356,9 +356,9 @@ function ArtZone() {
       aria-hidden
     >
       <rect x="40" y="10" width="120" height="130" rx="14" fill="white" />
-      {/* 수평계 */}
-      <rect x="62" y="24" width="76" height="12" rx="6" />
-      <circle cx="100" cy="30" r="4" fill="#047857" stroke="none" />
+      {/* 수평계 — 왼쪽 위 작은 동그라미, 선이 수평이면 초록 */}
+      <circle cx="60" cy="30" r="8" strokeWidth="3" />
+      <path d="M54 30h12" stroke="#047857" strokeWidth="3" />
       {/* 표적 */}
       <circle cx="100" cy="78" r="18" stroke="#94a3b8" />
       <path d="M100 54v8M100 94v8M76 78h8M116 78h8" stroke="#94a3b8" />

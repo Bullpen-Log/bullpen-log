@@ -60,7 +60,14 @@ import {
   unfavoriteFood,
   type NutritionResult,
 } from '@/app/actions/nutrition';
+import { OFFLINE_MESSAGE, orOffline } from '@/lib/action-offline';
 import { EASE, toFoodInput, type Origin } from './shared';
+
+/*
+ * 서버에 닿지 못했을 때(신호 끊김) — 부르기가 던지면 전환 안의 오류가 오류 화면으로 넘어가 영양 화면(열어 둔 음식 창까지)이
+ * 통째로 바뀌었다. 실패로 바꿔 알림 한 줄로 보인다(lib/action-offline.ts).
+ */
+const OFFLINE: NutritionResult = { ok: false, error: OFFLINE_MESSAGE };
 
 /**
  * 음식 담기 창 — 끼니 단추를 누르면 뜬다.
@@ -301,9 +308,10 @@ export function FoodSheet({
       });
     flip(on);
     startTransition(async () => {
-      const res = on
-        ? await saveUserFood(toFoodInput(food))
-        : await unfavoriteFood(food.source, food.id!);
+      const res = await orOffline(
+        on ? saveUserFood(toFoodInput(food)) : unfavoriteFood(food.source, food.id!),
+        OFFLINE
+      );
       if (!res.ok) {
         flip(!on);
         setError(res.error);
@@ -316,7 +324,7 @@ export function FoodSheet({
     const id = food.id;
     setGone((s) => new Set(s).add(id));
     startTransition(async () => {
-      const res = await deleteUserFood(id);
+      const res = await orOffline(deleteUserFood(id), OFFLINE);
       if (!res.ok) {
         setGone((s) => {
           const next = new Set(s);
@@ -332,7 +340,10 @@ export function FoodSheet({
     add(food, 1);
     if (!save) return;
     startTransition(async () => {
-      const res = await saveUserFood(toFoodInput({ ...food, source: 'mine' }));
+      const res = await orOffline(
+        saveUserFood(toFoodInput({ ...food, source: 'mine' })),
+        OFFLINE
+      );
       if (!res.ok) setError(res.error);
     });
   }
@@ -853,10 +864,12 @@ function SearchResults({
 
 const QUICK = [0.5, 1, 1.5, 2, 3];
 
+/* − 는 0.25 밑의 양(그램으로 적은 0.1인분 등)을 늘리지 않는다 — 예전에는 0.1 에서 − 를 누르면 0.25 로 커졌다 */
 function stepAmount(amount: number, dir: 1 | -1) {
   const size = amount < 1 || (amount === 1 && dir === -1) ? 0.25 : 0.5;
   const next = Math.round((amount + dir * size) / size) * size;
-  return Math.min(AMOUNT_MAX, Math.max(0.25, next));
+  const floor = dir === -1 ? Math.min(amount, 0.25) : 0.25;
+  return Math.min(AMOUNT_MAX, Math.max(floor, next));
 }
 
 const round20 = (n: number) => Math.round(n * 20) / 20;

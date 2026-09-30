@@ -9,6 +9,7 @@ import { MOBILE_TABS, quickTabs, visibleGroups } from '@/lib/nav';
 import { AppNav } from '@/components/app-shell';
 import { CheckinGate } from '@/components/checkin-gate';
 import { RefreshOnReturn } from '@/components/refresh-on-return';
+import { SendPendingSets } from '@/components/send-pending-sets';
 import type { CheckinData } from '@/components/checkin-form';
 import { prisma } from '@/lib/prisma';
 import { pickCheckinBody, pickCheckinDetail, pickCheckinParts } from '@/lib/checkin';
@@ -153,6 +154,9 @@ export default async function AppLayout({
 
       {/* 오래 비워 둔 탭으로 돌아오면 새로 받는다 — 다른 기기에서 바꾼 사진·정보가 보이게 */}
       <RefreshOnReturn />
+
+      {/* 신호 없이 남겨 폰에 담긴 운동 세트를 어느 화면에서든 이어서 보낸다 */}
+      <SendPendingSets />
 
       {/*
         팝업 자리. 본문(children) 밖에 둔다 — 팝업이 떠도 밑의 화면은 그대로 남고, 본문의

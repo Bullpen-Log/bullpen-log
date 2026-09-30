@@ -174,11 +174,15 @@ export function checkFootage(input: {
   frameHeight: number;
   /** 영상의 실제 초당 장면 수. 셀 수 없으면 넣지 않는다. */
   fps?: number | null;
+  /** 받는 가장 낮은 fps — 기본 MIN_FPS. 카메라 실시간은 0(촬영 조건으로 막지 않는다, AnalyzeFramesInput.minFps) */
+  minFps?: number;
+  /** 받는 가장 작은 긴 변 — 기본 MIN_FRAME_WIDTH_PX. 카메라 실시간은 0(AnalyzeFramesInput.minLongSidePx) */
+  minLongSidePx?: number;
 }): Rejection | null {
   // 세로로 찍으면 가로가 짧다. 둘 중 긴 쪽을 기준으로 본다.
   const longSide = Math.max(input.frameWidth, input.frameHeight);
-  if (longSide < MIN_FRAME_WIDTH_PX) return reject('RESOLUTION_TOO_LOW');
-  if (input.fps != null && input.fps > 0 && input.fps < MIN_FPS) {
+  if (longSide < (input.minLongSidePx ?? MIN_FRAME_WIDTH_PX)) return reject('RESOLUTION_TOO_LOW');
+  if (input.fps != null && input.fps > 0 && input.fps < (input.minFps ?? MIN_FPS)) {
     return reject('FRAME_RATE_TOO_LOW');
   }
   return null;
@@ -198,7 +202,8 @@ export type RejectCode =
   | 'UNSTABLE_TRACK'
   | 'IMPLAUSIBLE_SPEED'
   | 'LENS_UNKNOWN'
-  | 'BRIGHT_BACKGROUND';
+  | 'BRIGHT_BACKGROUND'
+  | 'MOTION_BLUR';
 
 export type Rejection = {
   code: RejectCode;
@@ -262,6 +267,16 @@ const REJECTIONS: Record<RejectCode, Omit<Rejection, 'code'>> = {
    * MAX_BRIGHT_FRAC). 공(밝기 205 안팎)과 그 뒤 배경의 밝기가 같으면 공이 어디서 끝나는지 영상에 없다 — 기술로
    * 풀 수 없고 찍는 자리를 바꿔야 한다(2026-09-29 2차 보정: 과녁을 겨눈 공 둘이 끝에서 흰 천 앞을 지났다).
    */
+  /*
+   * 카메라 실시간만(AnalyzeFramesInput.exposureBlurPx). 한 장의 노출이 길면(초당 30장 급 카메라는 1/30초까지) 멀어지며
+   * 작아지는 공이 번져 이어지지 않는다 — 공을 못 이어 거부된 까닭이 번짐일 때 이 말로 바꿔 알린다(값이 나온 번진 공은 거부하지
+   * 않고 알림 · 넓은 ± 로 보인다, live-meter.ts). 보정 영상 두 장면을 겹친 1/30초 흉내: 가장자리 폭 2.6~6.2px(또렷한 장면
+   * 1.32~1.64px, 2026-09-30 되돌려 보기).
+   */
+  MOTION_BLUR: {
+    message: '공이 번져 찍혀 이어서 잴 수 없었습니다.',
+    fix: '한 장의 노출이 길어 날아가는 공이 번집니다(초당 30장 안팎인 카메라에서 흔해요). 더 밝은 곳에서 재면(노출이 짧아져요) 나아지고, 60fps 로 찍는 카메라 · 앱이면 가장 정확합니다.',
+  },
   BRIGHT_BACKGROUND: {
     message: '공이 흰 과녁 · 밝은 벽 앞을 지나가 공의 크기를 잴 수 없었습니다.',
     fix: '공 뒤로 어두운 배경이 오게 해 주세요 — 카메라를 조금 낮추거나 옆으로 옮기고, 흰 과녁 천은 어두운 천으로 바꾸면 됩니다. 공과 배경의 밝기가 같으면 공의 테두리가 영상에 남지 않습니다.',

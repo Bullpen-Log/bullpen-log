@@ -3,6 +3,7 @@
 import { useActionState } from 'react';
 import { useFormStatus } from 'react-dom';
 import { createArticle, type BoardState } from '@/app/actions/board';
+import { guardFormAction } from '@/lib/action-offline';
 import { Button, ButtonLink, Field, FormError, Input, Textarea } from '@/components/ui';
 import { kept } from '@/lib/form-values';
 
@@ -17,7 +18,8 @@ function SubmitButton() {
 
 export function ArticleForm() {
   const [state, formAction] = useActionState<BoardState, FormData>(
-    createArticle,
+    /* 신호가 끊겨도 오류 화면으로 넘어가지 않고 한 줄로 알린다(lib/action-offline.ts) */
+    guardFormAction(createArticle),
     undefined
   );
 

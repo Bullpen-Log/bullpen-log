@@ -107,6 +107,11 @@ export function Modal({
   children: ReactNode;
 }) {
   const ref = useRef<HTMLDialogElement>(null);
+  /*
+   * 누름이 배경에서 시작했나 — 배경을 '눌렀다 뗀' 것만 닫는다. 창 안에서 글자를 끌어 고르다 배경에서 놓아도 click 은
+   * 창(dialog) 자신에게 와서, 예전에는 그대로 닫혀 적던 기록 · 올린 영상 목록이 사라졌다.
+   */
+  const pressedBackdrop = useRef(false);
 
   /*
    * showModal() 은 DOM 을 직접 건드리는 일이라 effect 에서 부른다.
@@ -215,8 +220,15 @@ export function Modal({
       ref={ref}
       /* 출발점이 있는 창만 날아온다. 없으면 제자리에서 떠오른다. */
       data-pop={origin ? '' : undefined}
-      // ESC 를 눌러 브라우저가 스스로 닫은 경우에도 부모에게 알린다.
-      onClose={onClose}
+      /*
+       * ESC 를 눌러 브라우저가 스스로 닫은 경우에도 부모에게 알린다.
+       *
+       * 이 창의 닫힘만 받는다. React 는 dialog 의 close 를 부모 쪽으로도 올려 보내서(19.2), 창 안에 뜬 창(투구 기록 팝업
+       * 안의 공 고치기 시트, 설정 안의 비밀번호 창)을 닫으면 바깥 창까지 같이 닫혔다.
+       */
+      onClose={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
       /*
        * ESC 를 직접 받아 닫는다.
        *
@@ -245,8 +257,13 @@ export function Modal({
        * 배경을 눌러도 닫는다. 배경 클릭은 dialog 자기 자신을 목표로 삼으므로,
        * 안쪽 상자를 눌렀을 때와 이렇게 구분된다.
        */
+      onPointerDown={(e) => {
+        pressedBackdrop.current = e.target === ref.current;
+      }}
       onClick={(e) => {
-        if (e.target === ref.current) onClose();
+        const fromBackdrop = pressedBackdrop.current;
+        pressedBackdrop.current = false;
+        if (e.target === ref.current && fromBackdrop) onClose();
       }}
       /*
        * m-auto 가 창을 화면 가운데로 보낸다.
@@ -264,10 +281,14 @@ export function Modal({
        *
        * 창에 높이를 걸고(max-h) 넘치는 것을 자른 뒤(overflow-clip), 세로로
        * 쌓아 머리글은 고정하고 본문만 남은 높이를 채우게 한다.
+       *
+       * 'page' 창은 아이폰 앱에서 시계 · 홈 막대 자리를 뺀다 — 창은 가운데에 서므로 둘 중 큰 쪽을
+       * 위아래에서 뺀다. 94dvh 그대로면 제목 줄과 닫기(✕)가 시계 밑에 들어가 눌리지 않았다.
+       * 브라우저는 그 값이 0 이라 예전과 같다.
        */
       className={`m-auto flex flex-col overflow-clip ${
         size === 'page'
-          ? 'max-h-[94dvh] w-[min(76rem,calc(100vw-1.5rem))]'
+          ? 'max-h-[min(94dvh,calc(100dvh-2*max(env(safe-area-inset-top),env(safe-area-inset-bottom))-1.5rem))] w-[min(76rem,calc(100vw-1.5rem))]'
           : size === 'wide'
             ? 'max-h-[min(85dvh,48rem)] w-[min(62rem,calc(100vw-1.5rem))]'
             : 'max-h-[min(85dvh,48rem)] w-[min(38rem,calc(100vw-1.5rem))]'

@@ -205,6 +205,36 @@ export async function deleteVideos(paths: string[]) {
   }
 }
 
+/**
+ * 한 사람의 폴더(`{userId}/`)에 있는 파일을 모두 지운다 — 탈퇴 · 관리자 삭제 때.
+ *
+ * 투구 영상 · 미리보기 · 프로필 사진 · 구속 측정 클립 · 올리고 저장하지 않은 파일이 모두 그 폴더에 있다(아래 경로 규칙).
+ * 예전에는 투구 기록의 영상만 골라 지워 사진 · 클립이 저장소에 남았고(개인 정보), 관리자 삭제는 하나도 안 지웠다.
+ * 지울 범위가 곧 폴더 이름이라, 회원 번호(uuid) 모양이 아니면 아무것도 안 한다 — 빈 값이면 저장소 전체가 된다.
+ * 실패해도 던지지 않는다(회원 삭제 자체는 막지 않는다).
+ */
+export async function deleteUserFiles(userId: string) {
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(userId)) return;
+  const bucket = getClient().storage.from(VIDEO_BUCKET);
+  const paths: string[] = [];
+  const PAGE = 100;
+  try {
+    for (let offset = 0; ; offset += PAGE) {
+      const { data, error } = await bucket.list(userId, { limit: PAGE, offset });
+      if (error) throw error;
+      /* 폴더 안의 폴더는 없다(파일은 모두 `{userId}/파일`) — 혹시 있으면(id 없음) 건너뛴다 */
+      for (const item of data ?? []) if (item.id) paths.push(`${userId}/${item.name}`);
+      if (!data || data.length < PAGE) break;
+    }
+    for (let i = 0; i < paths.length; i += PAGE) {
+      const { error } = await bucket.remove(paths.slice(i, i + PAGE));
+      if (error) throw error;
+    }
+  } catch (error) {
+    console.error('[storage] 회원 파일 삭제 실패', userId, error);
+  }
+}
+
 /** 해당 경로가 그 사용자의 폴더인지 확인한다. */
 export function isOwnedBy(path: string, userId: string) {
   return path.startsWith(`${userId}/`);

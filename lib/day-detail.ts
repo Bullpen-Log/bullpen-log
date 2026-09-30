@@ -19,7 +19,7 @@ import {
 } from '@/lib/nutrition/meta';
 import { ageOn, computeTargets } from '@/lib/nutrition/targets';
 import { pitchingBurn, totalBurn, trainingBurn } from '@/lib/nutrition/burn';
-import { toProfile } from '@/lib/nutrition/load';
+import { recentWeightKg, toProfile } from '@/lib/nutrition/load';
 
 /**
  * 홈 캘린더에서 고른 날의 '조금 더 자세한' 요약 — 캘린더 밑 칸이 보여 준다.
@@ -78,13 +78,10 @@ export async function loadDayDetail(user: UserBody, date: string): Promise<DayDe
   const day = dbDate(date);
   const where = { userId: user.id, date: day };
 
-  const [training, meals, daily, profileRow, checkin, sessions, pitches] =
+  const [training, meals, profileRow, checkin, sessions, pitches, recentKg] =
     await Promise.all([
       trainingDay(user.id, date),
       prisma.mealEntry.findMany({ where, orderBy: { createdAt: 'asc' } }),
-      prisma.dailyNutrition.findUnique({
-        where: { userId_date: { userId: user.id, date: day } },
-      }),
       prisma.nutritionProfile.findUnique({ where: { userId: user.id } }),
       prisma.dailyCheckin.findUnique({
         where: { userId_date: { userId: user.id, date: day } },
@@ -94,10 +91,12 @@ export async function loadDayDetail(user: UserBody, date: string): Promise<DayDe
         where,
         select: { sessionType: true, pitchCount: true, intensity: true },
       }),
+      /* 목표의 체중 — 영양 탭과 같은 규칙(그날 → 30일 안 가장 최근 → 가입 때) */
+      recentWeightKg(user.id, date),
     ]);
 
   /* ── 영양: 합과 그날 목표 ── */
-  const weightKg = daily?.weightKg ?? checkin?.bodyWeightKg ?? user.weightKg;
+  const weightKg = recentKg ?? user.weightKg;
   const burnKg = weightKg ?? 75;
   const burn = totalBurn(
     [

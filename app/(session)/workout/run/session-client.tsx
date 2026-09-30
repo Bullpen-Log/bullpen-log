@@ -600,6 +600,31 @@ export function SessionClient({
       setField('count');
       return;
     }
+    /*
+     * 서버가 받는 한도(AMOUNT_LIMITS)를 여기서 먼저 본다 — 넘는 값은 폰에 담긴 뒤 서버가 거절하고, 대기열에서 빠져 그 세트가
+     * 사라졌다('버틴 시간을 적어주세요'처럼 엉뚱한 말과 함께 — 40분 유산소를 2400초로 보낸 경우).
+     */
+    const countLimit = ex.isHold
+      ? ex.inMinutes
+        ? AMOUNT_LIMITS.holdSeconds / 60
+        : AMOUNT_LIMITS.holdSeconds
+      : AMOUNT_LIMITS.reps;
+    if (c > countLimit) {
+      setError(
+        ex.isHold
+          ? `${timeLabel}은 30분까지 적을 수 있어요.`
+          : `횟수는 ${countLimit}회까지 적을 수 있어요.`
+      );
+      setField('count');
+      return;
+    }
+    if (w != null && w > AMOUNT_LIMITS.weightKg) {
+      setError(
+        `무게는 ${formatWeight(AMOUNT_LIMITS.weightKg, wUnit)}까지 적을 수 있어요.`
+      );
+      setField('weight');
+      return;
+    }
 
     /* 고치는 중이면 그 세트의 번호와 마친 시각을 그대로 쓴다 (editing 설명 참고) */
     const fixing = editIndex >= 0 ? editing : null;
@@ -1007,7 +1032,14 @@ export function SessionClient({
         {/* 쉰 시간 — 0초부터 올라간다. 끝이 없다. */}
         {rest != null && (
           <div className="mt-4 rounded-2xl bg-shade px-4 py-3 text-center">
-            <p className="text-display text-3xl leading-none tabular-nums text-white">
+            {/*
+              쉬는 중에 새로고침하면 서버가 그린 초와 폰이 처음 그린 초가 달라 맞추기(hydration)가 어긋났다 —
+              시계라 다른 것이 맞으니 이 글자만 봐준다.
+            */}
+            <p
+              suppressHydrationWarning
+              className="text-display text-3xl leading-none tabular-nums text-white"
+            >
               {clockText(rest)}
             </p>
             <p className="mt-1 text-[11px] text-white/60">쉬는 중</p>

@@ -46,6 +46,20 @@ function waitFor(
   });
 }
 
+/** 방금 옮긴 장면이 그려질 때까지 기다린다 — 알림이 없으면 0.3초 뒤에 그냥 간다 */
+function frameReady(video: HTMLVideoElement): Promise<void> {
+  const v = video as HTMLVideoElement & {
+    requestVideoFrameCallback?: (cb: () => void) => number;
+  };
+  return new Promise((resolve) => {
+    const timer = setTimeout(resolve, 300);
+    v.requestVideoFrameCallback?.(() => {
+      clearTimeout(timer);
+      resolve();
+    });
+  });
+}
+
 /**
  * @param at 뽑을 장면(초). 비우면 앞쪽 조금 뒤(15%, 최대 2초)에서 뽑는다 — 첫 프레임은
  *   검은 화면인 경우가 많다. 영상 캘린더에서 '이 장면을 썸네일로'를 누르면 그 자리를 준다.
@@ -82,7 +96,14 @@ export async function captureThumbnail(
       const seeked = waitFor(video, 'seeked', SEEK_TIMEOUT_MS);
       video.currentTime = target;
       await seeked;
+      /*
+       * 사파리는 새 장면이 준비되기 전에 seeked 를 먼저 보낸다 — 그대로 뜨면 첫(흔히 검은) 장면이 썸네일로 남았다. 장면이
+       * 그려질 때까지(requestVideoFrameCallback) 기다리고, 안 오면 0.3초 뒤에 뜬다(lib/pose/extract.ts 의 seekTo 와 같다).
+       */
+      await frameReady(video);
     }
+    /* 그릴 장면이 아직 없으면(HAVE_CURRENT_DATA 전) 빈 그림을 올리지 않는다 */
+    if (video.readyState < 2) return null;
 
     const scale = Math.min(1, MAX_WIDTH / videoWidth);
     const canvas = document.createElement('canvas');

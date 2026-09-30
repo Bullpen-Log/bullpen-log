@@ -4,6 +4,7 @@ import { useActionState, useState } from 'react';
 import { useFormStatus } from 'react-dom';
 import { Film, RefreshCw } from 'lucide-react';
 import { createGuide, updateGuide, type ActionState } from '@/app/actions/content';
+import { guardFormAction } from '@/lib/action-offline';
 import { Button, Field, FormError, Input, Textarea } from '@/components/ui';
 import { CheckboxGroup } from '@/components/choice-inputs';
 import { kept, keptAll } from '@/lib/form-values';
@@ -42,7 +43,7 @@ export function GuideForm({
 }) {
   const editing = Boolean(initial);
   const [state, formAction] = useActionState<ActionState, FormData>(
-    editing ? updateGuide : createGuide,
+    guardFormAction(editing ? updateGuide : createGuide),
     undefined
   );
   const [videos, setVideos] = useState<UploadedVideo[]>([]);

@@ -92,48 +92,72 @@ export type Blob = {
 const CLOSE_RADIUS = 2;
 
 /**
- * 마스크의 닫힘 — 팽창(radius)한 뒤 침식(radius). 정사각형 구조 요소를 가로 · 세로로 나눠 돌려
- * 픽셀마다 (2r+1)×2 번만 본다. 결과는 새 배열, 원본은 그대로.
+ * 마스크의 닫힘 — 팽창(radius)한 뒤 침식(radius). 정사각형 구조 요소를 가로 · 세로로 나눠 돌린다. 결과는 새 배열,
+ * 원본은 그대로. 창은 화면 가장자리에서 잘린다(잘린 창 안에서 '하나라도 1' · '모두 1').
+ *
+ * 빠르게(2026-09-30, 실시간 측정): 예전에는 픽셀마다 창을 다시 훑고 세로를 열 차례로 돌아(메모리를 720 칸씩 건너뛰어)
+ * 장면 하나에 50ms 넘게 들었다 — 카메라로 잰 공 하나(44장)의 계산 4~6초 가운데 절반이 여기였다. 지금은 한 줄을 32픽셀씩
+ * 비트로 묶어(Uint32) 밀기 · 논리합(팽창) · 논리곱(침식)으로 한 번에 32픽셀을 본다. 화면 밖은 팽창에서는 0, 침식에서는
+ * 1 로 채워 '잘린 창'과 같게 한다. 결과는 예전과 한 픽셀도 다르지 않다(lab 의 무작위 · 실제 장면 비교, 셀프테스트).
  */
-function closeMask(mask: Uint8Array, width: number, height: number, radius: number): Uint8Array {
-  const pass = (src: Uint8Array, want: number): Uint8Array => {
-    /* 가로 */
-    const tmp = new Uint8Array(src.length);
-    for (let y = 0; y < height; y++) {
-      const row = y * width;
-      for (let x = 0; x < width; x++) {
-        let hit = false;
-        const x0 = Math.max(0, x - radius);
-        const x1 = Math.min(width - 1, x + radius);
-        for (let k = x0; k <= x1; k++) {
-          if (src[row + k] === want) {
-            hit = true;
-            break;
-          }
-        }
-        tmp[row + x] = hit ? want : 1 - want;
-      }
-    }
-    /* 세로 */
-    const out = new Uint8Array(src.length);
-    for (let x = 0; x < width; x++) {
-      for (let y = 0; y < height; y++) {
-        let hit = false;
-        const y0 = Math.max(0, y - radius);
-        const y1 = Math.min(height - 1, y + radius);
-        for (let k = y0; k <= y1; k++) {
-          if (tmp[k * width + x] === want) {
-            hit = true;
-            break;
-          }
-        }
-        out[y * width + x] = hit ? want : 1 - want;
-      }
-    }
-    return out;
+function closeMask(bits: Uint32Array, width: number, height: number, radius: number): Uint32Array {
+  const wpr = (width + 31) >>> 5;
+  return morphBits(morphBits(bits, width, height, wpr, radius, true), width, height, wpr, radius, false);
+}
+
+/** 비트로 묶은 마스크의 팽창(dilate: 창 안에 1 이 하나라도) 또는 침식(창 안이 모두 1) — 가로 다음 세로 */
+function morphBits(
+  src: Uint32Array,
+  width: number,
+  height: number,
+  wpr: number,
+  r: number,
+  dilate: boolean
+): Uint32Array {
+  /* 화면 밖 · 줄 끝의 남는 비트 — 팽창은 0, 침식은 1(잘린 창은 화면 안만 본다) */
+  const fill = dilate ? 0 : 0xffffffff;
+  const tailBits = width & 31;
+  const tailMask = tailBits === 0 ? 0 : (0xffffffff << tailBits) >>> 0;
+  const tmp = new Uint32Array(src.length);
+  const word = (wrow: number, w: number): number => {
+    if (w < 0 || w >= wpr) return fill;
+    let v = src[wrow + w];
+    if (w === wpr - 1 && tailMask !== 0) v = dilate ? v & ~tailMask : v | tailMask;
+    return v;
   };
-  /* 팽창 = 근처에 1 이 있으면 1, 침식 = 근처에 0 이 있으면 0 */
-  return pass(pass(mask, 1), 0);
+  for (let y = 0; y < height; y++) {
+    const wrow = y * wpr;
+    for (let w = 0; w < wpr; w++) {
+      const cur = word(wrow, w);
+      if (dilate && cur === 0 && word(wrow, w - 1) === 0 && word(wrow, w + 1) === 0) continue;
+      if (!dilate && cur === 0) continue;
+      const prev = word(wrow, w - 1);
+      const next = word(wrow, w + 1);
+      let acc = cur;
+      for (let k = 1; k <= r; k++) {
+        /* x 는 x−k 의 값(왼쪽 이웃) · x+k 의 값(오른쪽 이웃)을 본다 */
+        const fromLeft = (cur << k) | (prev >>> (32 - k));
+        const fromRight = (cur >>> k) | (next << (32 - k));
+        acc = dilate ? acc | fromLeft | fromRight : acc & fromLeft & fromRight;
+      }
+      tmp[wrow + w] = acc >>> 0;
+    }
+  }
+  const out = new Uint32Array(src.length);
+  for (let y = 0; y < height; y++) {
+    const lo = Math.max(0, y - r);
+    const hi = Math.min(height - 1, y + r);
+    const wrow = y * wpr;
+    for (let w = 0; w < wpr; w++) {
+      let acc = tmp[lo * wpr + w];
+      for (let yy = lo + 1; yy <= hi; yy++) {
+        const v = tmp[yy * wpr + w];
+        acc = dilate ? acc | v : acc & v;
+      }
+      out[wrow + w] = acc >>> 0;
+    }
+  }
+  return out;
 }
 
 /** 픽셀 배열에서 밝기만 뽑는다. 색은 조명에 따라 흔들려 밝기가 더 안정적이다. */
@@ -167,16 +191,25 @@ export function toLuma(
 export function buildBackground(samples: ArrayLike<number>[]): Float32Array {
   if (samples.length === 0) throw new Error('배경을 만들 프레임이 없습니다.');
   const size = samples[0].length;
-  const background = new Float32Array(size);
-  const bucket: number[] = new Array(samples.length);
   const rank = samples.length >= 4 ? 1 : 0;
-
-  for (let i = 0; i < size; i++) {
-    for (let s = 0; s < samples.length; s++) bucket[s] = samples[s][i];
-    bucket.sort((a, b) => a - b);
-    background[i] = bucket[rank];
+  /*
+   * 가장 어두운 값(m1)과 두 번째(m2)를 장면 차례로 한 번씩 훑어 센다 — 픽셀마다 배열을 정렬하던 것과 값이 똑같고(같은
+   * 값이 둘이면 둘째도 그 값) 몇 배 빠르다(720×1280 × 12장이 0.8초 → 수십 ms, 실시간 측정의 계산 시간).
+   */
+  const m1 = new Float32Array(size).fill(Number.POSITIVE_INFINITY);
+  const m2 = new Float32Array(size).fill(Number.POSITIVE_INFINITY);
+  for (const sample of samples) {
+    for (let i = 0; i < size; i++) {
+      const v = sample[i];
+      if (v < m1[i]) {
+        m2[i] = m1[i];
+        m1[i] = v;
+      } else if (v < m2[i]) {
+        m2[i] = v;
+      }
+    }
   }
-  return background;
+  return rank === 0 ? m1 : m2;
 }
 
 /**
@@ -198,21 +231,40 @@ export function findMovedBlobs(
   /** 이 프레임이 배경보다 전체적으로 밝아진 양(자동 노출) — 빼고 견준다(analyze-frames.ts) */
   exposureBias = 0
 ): Blob[] {
-  const raw = new Uint8Array(width * height);
+  /*
+   * 마스크는 한 줄을 32픽셀씩 비트로 묶어 쥔다(closeMask 설명) — 문턱값을 넘은 픽셀(raw)과 닫힌 마스크(moved). 덩어리 찾기도
+   * 비트에서 바로 한다: 대부분이 0 이라 32픽셀씩 건너뛰고, 켜진 비트를 왼쪽부터 차례로 짚어 예전(픽셀 차례 훑기)과 같은
+   * 차례 · 같은 덩어리가 나온다.
+   */
+  const wpr = (width + 31) >>> 5;
+  const raw = new Uint32Array(wpr * height);
   const threshold = DIFF_THRESHOLD + exposureBias;
-  for (let i = 0; i < raw.length; i++) {
-    // 공은 배경보다 밝게 찍히는 쪽이라 밝아진 곳만 본다. 그림자를 걸러준다.
-    if (currLuma[i] - background[i] > threshold) raw[i] = 1;
+  for (let y = 0; y < height; y++) {
+    const row = y * width;
+    const wrow = y * wpr;
+    for (let x = 0; x < width; x++) {
+      // 공은 배경보다 밝게 찍히는 쪽이라 밝아진 곳만 본다. 그림자를 걸러준다.
+      if (currLuma[row + x] - background[row + x] > threshold) raw[wrow + (x >>> 5)] |= 1 << (x & 31);
+    }
   }
   /* 그물코 · 실밥에 갈린 조각을 잇는다(CLOSE_RADIUS). 덩어리는 이은 마스크에서 찾고, 보이는 비율은 원본으로 센다 */
   const moved = closeMask(raw, width, height, CLOSE_RADIUS);
+  const on = (bits: Uint32Array, x: number, y: number) => (bits[y * wpr + (x >>> 5)] >>> (x & 31)) & 1;
 
   const blobs: Blob[] = [];
   const visited = new Uint8Array(width * height);
   const stack: number[] = [];
 
-  for (let start = 0; start < moved.length; start++) {
-    if (!moved[start] || visited[start]) continue;
+  for (let wy = 0; wy < height; wy++) {
+    for (let wi = 0; wi < wpr; wi++) {
+      let word = moved[wy * wpr + wi];
+      while (word !== 0) {
+        const low = word & -word;
+        word = (word ^ low) >>> 0;
+        const sx0 = (wi << 5) + (31 - Math.clz32(low));
+        if (sx0 >= width) break;
+        const start = wy * width + sx0;
+        if (visited[start]) continue;
 
     stack.length = 0;
     stack.push(start);
@@ -233,7 +285,7 @@ export function findMovedBlobs(
       const y = (idx - x) / width;
 
       count++;
-      if (raw[idx]) rawCount++;
+      if (on(raw, x, y)) rawCount++;
       sumX += x;
       sumY += y;
       if (x < minX) minX = x;
@@ -242,19 +294,19 @@ export function findMovedBlobs(
       if (y > maxY) maxY = y;
 
       // 상하좌우 이웃만 본다. 대각선까지 이으면 서로 다른 것이 붙는다.
-      if (x > 0 && moved[idx - 1] && !visited[idx - 1]) {
+      if (x > 0 && !visited[idx - 1] && on(moved, x - 1, y)) {
         visited[idx - 1] = 1;
         stack.push(idx - 1);
       }
-      if (x < width - 1 && moved[idx + 1] && !visited[idx + 1]) {
+      if (x < width - 1 && !visited[idx + 1] && on(moved, x + 1, y)) {
         visited[idx + 1] = 1;
         stack.push(idx + 1);
       }
-      if (y > 0 && moved[idx - width] && !visited[idx - width]) {
+      if (y > 0 && !visited[idx - width] && on(moved, x, y - 1)) {
         visited[idx - width] = 1;
         stack.push(idx - width);
       }
-      if (y < height - 1 && moved[idx + width] && !visited[idx + width]) {
+      if (y < height - 1 && !visited[idx + width] && on(moved, x, y + 1)) {
         visited[idx + width] = 1;
         stack.push(idx + width);
       }
@@ -276,6 +328,8 @@ export function findMovedBlobs(
       pixels: count,
       visibleFrac: rawCount / count,
     });
+      }
+    }
   }
 
   if (blobs.length > MAX_CANDIDATES_PER_FRAME) {

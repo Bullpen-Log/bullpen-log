@@ -1269,7 +1269,7 @@ export function AppNav({
           bellOpen
             ? noticePanel(
                 panelPhoneId,
-                'absolute right-4 top-full mt-2 w-[min(20rem,calc(100vw-2rem))] max-h-[calc(100dvh-8.5rem)] overflow-y-auto overscroll-contain'
+                'absolute right-4 top-full mt-2 w-[min(20rem,calc(100vw-2rem))] max-h-[calc(100dvh-8.5rem-env(safe-area-inset-top)-env(safe-area-inset-bottom))] overflow-y-auto overscroll-contain'
               )
             : null
         }
@@ -1963,7 +1963,8 @@ function DetailMenu({
        */
       className="ui-chrome h-full w-72 border-l border-line/80 bg-surface/92 p-0 text-ink shadow-2xl backdrop:bg-shade/50 desk:backdrop-blur-xl"
     >
-      <div className="flex h-full flex-col">
+      {/* 위쪽은 시계 · 배터리 자리만큼 내린다(아이폰 앱에서만 값이 있다 — MobileTopBar 참고) */}
+      <div className="flex h-full flex-col pt-[env(safe-area-inset-top)]">
         <div className="flex h-12 shrink-0 items-center justify-between border-b border-line px-4">
           <span className="text-heading text-sm text-ink">메뉴</span>
           <button
@@ -2148,64 +2149,128 @@ function MobileTopBar({
    * 화면 폭이 바뀌었다고 같은 버튼이 다르게 대답하면 다른 버튼인 줄 안다.
    */
   const [spinning, setSpinning] = useState(false);
+  /* 알림 창 · 설정 · 내 정보를 열어 둔 동안은 숨지 않는다 — 알림 창은 이 막대에 붙어 있다 */
+  const hidden = useHideOnScroll(panel != null || settingsOpen || profileOpen);
 
   return (
-    <header
-      /*
-       * 본문이 바뀌는 동안 상단 바는 움직이지 않는다.
-       *
-       * 뒤 흐림(backdrop-blur)은 뺐다. 바탕이 95% 불투명이라 흐림은 거의 안
-       * 보이는데, 아이폰 사파리는 그 위로 무언가 움직일 때마다 흐림을 매번 다시
-       * 계산하다 깜빡인다. 설정·내 정보 창이 바로 이 바에서 튀어나오므로 창을
-       * 열 때마다 바가 깜빡였다. 하단 탭도 같은 이유로 뺐다.
-       */
-      ref={headerRef}
-      style={{ viewTransitionName: 'shell-topbar' }}
-      className="sticky top-0 z-40 flex h-14 items-center gap-2 border-b border-line bg-surface px-4 desk:hidden"
-    >
-      <Link href="/today" onClick={onHome} className="flex items-center gap-2">
-        <Wordmark className="text-2xl text-ink" />
-      </Link>
-
-      {/* 종은 설정 왼쪽 — PC 막대와 같은 차례 */}
-      <div className="ml-auto">{bell}</div>
+    <>
       {/*
-        창은 종 바로 뒤에 둔다 — 키보드로 종을 열면 Tab 한 번에 창 안으로 들어간다.
-        맨 끝에 두면 톱니·사진을 먼저 거쳐야 했다. 자리는 막대에 붙여 잡는다(absolute).
+        시계 · 배터리 자리를 막대 색으로 채운다 — 높이는 env(safe-area-inset-top)이라 아이폰 앱에서만
+        생긴다(사파리 세로 화면은 0). 예전에는 이 자리가 비어 스크롤하면 그 틈으로 내용이 지나가
+        막대만 떠 있어 보였다(2026-09-30 사용자 "매우 부자연스럽다"). 막대가 숨을 때 이 밑으로 들어간다.
+        data-safe-area — 이 틀이 시계 · 홈 막대 여백을 스스로 비운다는 표시(globals.css '아이폰 앱 안').
       */}
-      {panel}
-
-      <button
-        type="button"
-        onClick={(e) => {
-          setSpinning(true);
-          onSettings(e.currentTarget);
-        }}
-        aria-haspopup="dialog"
-        aria-expanded={settingsOpen}
-        aria-label="설정"
-        className="flex h-9 w-9 items-center justify-center rounded-full text-muted transition-colors duration-75 active:bg-surface-2 active:text-ink"
+      <div
+        data-safe-area
+        aria-hidden
+        className="pointer-events-none fixed inset-x-0 top-0 z-45 h-[env(safe-area-inset-top)] bg-surface desk:hidden"
+      />
+      {/* 첫 화면에서 막대가 시계 밑에서 시작하도록 그만큼 비운다 */}
+      <div aria-hidden className="h-[env(safe-area-inset-top)] shrink-0 desk:hidden" />
+      <header
+        /*
+         * 본문이 바뀌는 동안 상단 바는 움직이지 않는다.
+         *
+         * 뒤 흐림(backdrop-blur)은 뺐다. 바탕이 95% 불투명이라 흐림은 거의 안
+         * 보이는데, 아이폰 사파리는 그 위로 무언가 움직일 때마다 흐림을 매번 다시
+         * 계산하다 깜빡인다. 설정·내 정보 창이 바로 이 바에서 튀어나오므로 창을
+         * 열 때마다 바가 깜빡였다. 하단 탭도 같은 이유로 뺐다.
+         *
+         * 스크롤을 내리면 위로 숨고 올리면 다시 나온다(useHideOnScroll) — 숨을 때는 시계 자리의
+         * 채움(z-45) 밑으로 들어간다. 움직임을 줄여 쓰는 사람에게는 미끄러지지 않고 곧바로 바뀐다.
+         */
+        ref={headerRef}
+        style={{ viewTransitionName: 'shell-topbar' }}
+        className={`sticky top-[env(safe-area-inset-top)] z-40 flex h-14 items-center gap-2 border-b border-line bg-surface px-4 motion-safe:transition-transform motion-safe:duration-200 motion-safe:ease-out desk:hidden ${
+          hidden ? '-translate-y-full' : 'translate-y-0'
+        }`}
       >
-        <Cog
-          aria-hidden
-          className={spinning ? 'h-5 w-5 motion-safe:animate-cog' : 'h-5 w-5'}
-          strokeWidth={1.9}
-          onAnimationEnd={() => setSpinning(false)}
-        />
-      </button>
+        <Link href="/today" onClick={onHome} className="flex items-center gap-2">
+          <Wordmark className="text-2xl text-ink" />
+        </Link>
 
-      <button
-        type="button"
-        onClick={(e) => onProfile(e.currentTarget)}
-        aria-haspopup="dialog"
-        aria-expanded={profileOpen}
-        aria-label="내 정보"
-        className="rounded-full transition-opacity duration-75 active:opacity-70"
-      >
-        <Avatar nickname={nickname} avatarUrl={avatarUrl} />
-      </button>
-    </header>
+        {/* 종은 설정 왼쪽 — PC 막대와 같은 차례 */}
+        <div className="ml-auto">{bell}</div>
+        {/*
+          창은 종 바로 뒤에 둔다 — 키보드로 종을 열면 Tab 한 번에 창 안으로 들어간다.
+          맨 끝에 두면 톱니·사진을 먼저 거쳐야 했다. 자리는 막대에 붙여 잡는다(absolute).
+        */}
+        {panel}
+
+        <button
+          type="button"
+          onClick={(e) => {
+            setSpinning(true);
+            onSettings(e.currentTarget);
+          }}
+          aria-haspopup="dialog"
+          aria-expanded={settingsOpen}
+          aria-label="설정"
+          className="flex h-9 w-9 items-center justify-center rounded-full text-muted transition-colors duration-75 active:bg-surface-2 active:text-ink"
+        >
+          <Cog
+            aria-hidden
+            className={spinning ? 'h-5 w-5 motion-safe:animate-cog' : 'h-5 w-5'}
+            strokeWidth={1.9}
+            onAnimationEnd={() => setSpinning(false)}
+          />
+        </button>
+
+        <button
+          type="button"
+          onClick={(e) => onProfile(e.currentTarget)}
+          aria-haspopup="dialog"
+          aria-expanded={profileOpen}
+          aria-label="내 정보"
+          className="rounded-full transition-opacity duration-75 active:opacity-70"
+        >
+          <Avatar nickname={nickname} avatarUrl={avatarUrl} />
+        </button>
+      </header>
+    </>
   );
+}
+
+/**
+ * 스크롤을 내리면 위 막대를 숨기고, 올리면 다시 보인다 — 인스타그램 · 사파리처럼(2026-09-30 사용자).
+ *
+ * 맨 위 근처(막대 높이 56px 안)에서는 늘 보인다. 손가락이 조금 떨려 오르내리는 것(6px 밑)은
+ * 무시한다. 한 화면에 한 번씩만 계산한다(requestAnimationFrame).
+ *
+ * 잠겨 있으면(창을 열어 둔 동안) 늘 보인다. 창은 막대의 단추로만 열리므로 열 때는 이미 보이는
+ * 중이고, 잠긴 동안은 스크롤을 따라가지 않아 닫은 뒤에도 그대로 보인다.
+ */
+function useHideOnScroll(locked: boolean) {
+  const [hidden, setHidden] = useState(false);
+
+  useEffect(() => {
+    if (locked) return;
+    let last = window.scrollY;
+    let frame = 0;
+    const onScroll = () => {
+      if (frame) return;
+      frame = requestAnimationFrame(() => {
+        frame = 0;
+        const y = window.scrollY;
+        if (y < 56) {
+          setHidden(false);
+          last = y;
+          return;
+        }
+        const dy = y - last;
+        if (Math.abs(dy) < 6) return;
+        setHidden(dy > 0);
+        last = y;
+      });
+    };
+    window.addEventListener('scroll', onScroll, { passive: true });
+    return () => {
+      window.removeEventListener('scroll', onScroll);
+      cancelAnimationFrame(frame);
+    };
+  }, [locked]);
+
+  return hidden && !locked;
 }
 
 /**
@@ -2237,15 +2302,21 @@ function TabFace({
     >
       <Icon
         aria-hidden
-        className="h-5 w-5"
-        strokeWidth={active || pending ? 2.4 : 1.9}
+        className="h-[26px] w-[26px]"
+        strokeWidth={active || pending ? 2.2 : 1.8}
       />
       {label}
     </span>
   );
 }
 
-/** 모바일 하단 탭바 */
+/**
+ * 모바일 하단 탭바.
+ *
+ * 크기는 아이폰 기본 탭 바에 맞춘다(2026-09-30 사용자 "크기 · 비율 조정") — 칸 높이 50px(애플 49pt),
+ * 아이콘 26px(예전 20px), 이름 10px. 홈 막대 자리(env(safe-area-inset-bottom))까지 막대 색으로
+ * 채운다 — 아이폰 앱은 화면 끝까지 그리므로 그 자리가 막대 밑에 붙어 나온다.
+ */
 function MobileTabs({
   tabs,
   menuOpen,
@@ -2290,12 +2361,12 @@ function MobileTabs({
                 }}
                 aria-haspopup="dialog"
                 aria-expanded={menuOpen}
-                className={`relative flex flex-1 flex-col items-center gap-0.5 py-2 text-[11px] transition-[color,transform] duration-75 motion-safe:active:scale-90 ${
+                className={`relative flex h-[50px] flex-1 flex-col items-center justify-center gap-0.5 text-[10px] font-medium transition-[color,transform] duration-75 motion-safe:active:scale-90 ${
                   menuOpen ? 'font-semibold text-sky' : 'text-muted active:text-sky'
                 }`}
               >
-                <span className="flex h-5 w-5 items-center justify-center">
-                  <Squares spinning={spinning} onDone={() => setSpinning(false)} />
+                <span className="flex h-[26px] w-[26px] items-center justify-center">
+                  <Squares spinning={spinning} onDone={() => setSpinning(false)} size="lg" />
                 </span>
                 {tab.short ?? tab.label}
               </button>
@@ -2313,7 +2384,7 @@ function MobileTabs({
                * 색이 바뀌게 해서, 화면이 바뀌기 전에 먼저 대답하게 한다.
                * 움직임을 줄여 쓰는 사람에게는 크기 변화 없이 색만 바뀐다.
                */
-              className={`relative flex flex-1 flex-col items-center gap-0.5 py-2 text-[11px] transition-[color,transform] duration-75 motion-safe:active:scale-90 ${
+              className={`relative flex h-[50px] flex-1 flex-col items-center justify-center gap-0.5 text-[10px] font-medium transition-[color,transform] duration-75 motion-safe:active:scale-90 ${
                 active ? 'font-semibold text-sky' : 'text-muted active:text-sky'
               }`}
             >

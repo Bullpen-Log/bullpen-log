@@ -4,7 +4,7 @@ import { redirect } from 'next/navigation';
 import bcrypt from 'bcryptjs';
 import { prisma } from '@/lib/prisma';
 import { getCurrentUser } from '@/lib/dal';
-import { deleteVideos } from '@/lib/storage';
+import { deleteUserFiles, deleteVideos } from '@/lib/storage';
 import { createSession, deleteSession } from '@/lib/session';
 import { isSex, validateProfile, type Sex } from '@/lib/profile';
 import { levelAgeProblem, validateBaseline } from '@/lib/baseline';
@@ -323,6 +323,8 @@ export async function deleteAccount(
   });
   const paths = logs.flatMap((l) => l.videoPaths);
   if (paths.length > 0) await deleteVideos(paths);
+  /* 그 밖의 파일(프로필 사진 · 구속 측정 클립 · 저장하지 않은 올린 파일)까지 — 폴더를 통째로 */
+  await deleteUserFiles(user.id);
 
   await prisma.user.delete({ where: { id: user.id } });
   await deleteSession();

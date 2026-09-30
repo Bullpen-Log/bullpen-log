@@ -319,12 +319,36 @@ export async function PATCH(req: Request) {
       if ('error' in checkedPaths) {
         return NextResponse.json({ error: checkedPaths.error }, { status: 400 });
       }
-      const next = new Set(checkedPaths.paths);
+      /*
+       * 폼이 열릴 때의 목록(baseVideoPaths)을 함께 받으면, 이 폼에서 뺀 것만 빼고 그사이 다른 기기에서 더한 영상은 남긴다.
+       * 예전에는 지금 DB 목록과 견줘서, 폰으로 영상을 더한 뒤 PC 에 열어 둔 폼으로 메모만 고쳐 저장해도 그 영상 · 미리보기 ·
+       * 폼 분석이 지워졌다. 안 보내는 옛 화면은 예전처럼 보낸 목록이 전부다.
+       */
+      const base = Array.isArray(body.baseVideoPaths)
+        ? new Set(body.baseVideoPaths.map((p: unknown) => String(p ?? '')))
+        : null;
+      const sent = new Set(checkedPaths.paths);
+      const finalPaths = base
+        ? [
+            ...checkedPaths.paths,
+            ...target.videoPaths.filter((p) => !base.has(p) && !sent.has(p)),
+          ]
+        : checkedPaths.paths;
+      if (finalPaths.length > MAX_VIDEOS) {
+        return NextResponse.json(
+          {
+            error:
+              '그사이 다른 곳에서 영상이 더해져 개수를 넘었습니다. 기록을 다시 열어 고쳐주세요.',
+          },
+          { status: 409 }
+        );
+      }
+      const next = new Set(finalPaths);
       removed = target.videoPaths.filter((p) => !next.has(p));
 
       const log = await prisma.pitchLog.update({
         where: { id: target.id },
-        data: { ...checked, videoPaths: checkedPaths.paths },
+        data: { ...checked, videoPaths: finalPaths },
       });
 
       if (removed.length > 0) {

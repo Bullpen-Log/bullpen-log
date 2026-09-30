@@ -3,27 +3,19 @@
   사이트를 못 불러왔을 때 앱이 대신 보여 주는 화면 (capacitor.config.json 의 server.errorPath).
   앱은 bullpen-log.vercel.app 을 그대로 여는 껍데기라, 인터넷이 끊기면 이 화면이 뜬다.
   인터넷이 돌아오면 저절로 다시 불러온다.
+
+  밝은 판 하나다 — 로딩 화면(시작 화면)과 앱의 처음 테마가 라이트라서 폰의 다크 모드를 따르면
+  밝은 로딩 → 어두운 이 화면으로 번쩍였다. 로고는 components/logo.tsx 의 B(새 로고).
 -->
 <html lang="ko">
   <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, viewport-fit=cover"
+    />
     <title>Bullpen Log</title>
     <style>
-      :root {
-        --bg: #f4f7fb;
-        --ink: #0f172a;
-        --muted: #64748b;
-        --sky: #0ea5e9;
-        color-scheme: light dark;
-      }
-      @media (prefers-color-scheme: dark) {
-        :root {
-          --bg: #0b1220;
-          --ink: #e2e8f0;
-          --muted: #94a3b8;
-        }
-      }
       html,
       body {
         height: 100%;
@@ -35,22 +27,25 @@
         align-items: center;
         justify-content: center;
         gap: 12px;
-        padding: 24px;
+        padding: max(24px, env(safe-area-inset-top)) 24px
+          max(24px, env(safe-area-inset-bottom));
         box-sizing: border-box;
-        background: var(--bg);
-        color: var(--ink);
-        font-family: -apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', sans-serif;
+        background: #f4f7fb;
+        color: #0f172a;
+        font-family:
+          -apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', sans-serif;
         text-align: center;
+        overscroll-behavior: none;
       }
       h1 {
-        margin: 8px 0 0;
+        margin: 12px 0 0;
         font-size: 20px;
       }
       p {
         margin: 0;
         font-size: 15px;
         line-height: 1.5;
-        color: var(--muted);
+        color: #56657a;
       }
       button {
         margin-top: 16px;
@@ -58,7 +53,7 @@
         padding: 0 28px;
         border: 0;
         border-radius: 999px;
-        background: var(--sky);
+        background: #0297e4;
         color: #fff;
         font: inherit;
         font-size: 16px;
@@ -67,25 +62,11 @@
     </style>
   </head>
   <body>
-    <svg width="56" height="56" viewBox="0 0 24 24" aria-hidden="true">
-      <circle cx="12" cy="12" r="12" fill="#0ea5e9" />
-      <g
-        transform="translate(4.56 4.56) scale(0.62)"
-        fill="none"
-        stroke="#fff"
-        stroke-linecap="round"
-        stroke-linejoin="round"
-      >
-        <g stroke-width="1.6">
-          <circle cx="12" cy="12" r="9.5" />
-          <path d="M5.3 5C8.5 8 8.5 16 5.3 19" />
-          <path d="M18.7 5C15.5 8 15.5 16 18.7 19" />
-        </g>
-        <g stroke-width="1.2">
-          <path d="M5.3 6.7 8.4 7.95M6 10 9.2 10.7M6 14 9.2 13.3M5.3 17.3 8.4 16.05" />
-          <path d="M18.7 6.7 15.6 7.95M18 10 14.8 10.7M18 14 14.8 13.3M18.7 17.3 15.6 16.05" />
-        </g>
-      </g>
+    <svg height="48" viewBox="0 0 594 613" aria-hidden="true">
+      <path
+        fill="#0297e4"
+        d="M0 0H237V613H0ZM281 0H453A125 141 0 0 1 453 282H281ZM281 329H470A124 142 0 0 1 470 613H281Z"
+      />
     </svg>
     <h1>인터넷 연결을 확인해 주세요</h1>
     <p>불펜로그를 불러오지 못했어요.<br />연결되면 저절로 다시 열려요.</p>
@@ -95,6 +76,14 @@
       const retry = () => location.replace(START);
       document.getElementById('retry').addEventListener('click', retry);
       window.addEventListener('online', retry);
+      /* 로딩 화면(로고)을 걷는다 — 안 걷으면 4초 동안 이 화면을 덮고 있다 */
+      const cap = window.Capacitor;
+      if (cap && cap.nativePromise) {
+        cap
+          .nativePromise('SplashScreen', 'hide', { fadeOutDuration: 250 })
+          .catch(() => {});
+        cap.nativePromise('SystemBars', 'setStyle', { style: 'LIGHT' }).catch(() => {});
+      }
     </script>
   </body>
 </html>

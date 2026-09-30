@@ -105,3 +105,15 @@ export function drainOutbox<R>(
 ): Promise<'done' | 'offline' | 'busy'> {
   return box.drain((p) => p.sessionId === sessionId, send, handle, rethrow);
 }
+
+/**
+ * 모든 판의 세트를 보낸다 — 운동 화면 밖에서(components/send-pending-sets.tsx). 운동 화면은 제 판의 것만 보내서,
+ * 신호 없이 운동을 마치고 나가면 신호가 돌아와도 아무도 안 보냈다.
+ */
+export function drainAllSets<R>(
+  send: (p: PendingSet) => Promise<R>,
+  handle: (p: PendingSet, result: R) => void,
+  rethrow: (err: unknown) => void = () => {}
+): Promise<'done' | 'offline' | 'busy'> {
+  return box.drain(() => true, send, handle, rethrow);
+}

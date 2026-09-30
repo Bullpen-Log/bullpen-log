@@ -1,7 +1,16 @@
 'use client';
 
 import { useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
-import { ChevronLeft, ChevronRight, Info } from 'lucide-react';
+import {
+  ArrowDown,
+  ArrowUp,
+  ChevronLeft,
+  ChevronRight,
+  Info,
+  MoveDiagonal2,
+  RotateCcw,
+  RotateCw,
+} from 'lucide-react';
 import {
   CAMERA_OPTIONS,
   MODE_OPTIONS,
@@ -12,7 +21,7 @@ import {
   type VelocitySetup,
   type ZoneRect,
 } from '@/lib/velocity-setup';
-import { LEVEL_OK_DEG, type DeviceLevel } from '@/lib/use-device-level';
+import { PITCH_OK_DEG, type DeviceLevel } from '@/lib/use-device-level';
 import { Segmented } from '@/components/segmented';
 import { BottomSheet } from './pitch-editor';
 import { SectionLabel, StepBar } from './kit';
@@ -286,8 +295,8 @@ export function tipsFor(c: Choices): Tip[] {
     {
       key: 'level',
       title: '폰을 수평으로',
-      short: '다음 단계의 수평계가 초록이 되게 맞추세요.',
-      long: '기울면 공이 화면을 비스듬히 지나가고 스트라이크 존 격자도 기울어요. 삼각대 헤드를 돌려 좌우 · 앞뒤 기울기를 1.5° 안으로 맞추세요. 폰이 기울기 값을 주지 않는 기기면 수평계가 안 뜨고, 그때는 눈으로 맞추세요.',
+      short: "카메라 화면 왼쪽 위 수평계가 초록 '수평'이 되게 맞추세요.",
+      long: '옆으로 기울면 공이 화면을 비스듬히 지나가고 스트라이크 존 격자도 기울어요. 삼각대 헤드를 돌려 좌우 기울기를 1.5° 안으로 맞추세요 — 수평계의 선이 양쪽 눈금과 나란해지면 초록이 돼요. 앞뒤는 표적을 맞추느라 조금(10° 안) 숙이거나 젖혀도 괜찮아요. 폰이 기울기 값을 주지 않는 기기면 수평계가 안 뜨고, 그때는 눈으로 맞추세요.',
       art: <ArtLevel />,
     },
     {
@@ -784,55 +793,160 @@ function ArtGun() {
 
 /* ───────────────────────── 4. 수평계 ───────────────────────── */
 
-export function LevelBubble({ level }: { level: DeviceLevel }) {
+/*
+ * 카메라 위(늘 어두운 영상 위)에 얹는 것이라 테마를 따라 뒤집히는 색 토큰(ok · sky-soft)을 쓰지 않고 밝은 초록을 못박는다 —
+ * 다크 테마의 ok(#34d399) 위 흰 글자 · 라이트 테마의 진한 ok(#047857) 선은 검은 영상 위에서 잘 안 보였다.
+ */
+const LEVEL_GREEN = 'bg-emerald-400';
+
+/**
+ * 수평계 — 카메라 화면 왼쪽 위의 작은 알약. 둥근 창 안의 선이 실제 수평선이다: 폰을 기울이면 선이 반대로 돌고(좌우),
+ * 카메라가 위아래를 보면 선이 오르내린다(앞뒤). 양쪽 눈금과 나란해지면 초록 '수평'. 아니면 돌릴 방향과 각도 하나만
+ * 보인다(예전에는 좌우 · 앞뒤 숫자를 둘 다 적어 어지러웠다). 값은 lib/use-device-level.ts 가 부드럽게 해 준다.
+ */
+export function LevelBubble({
+  level,
+  onRequest,
+}: {
+  level: DeviceLevel;
+  /** 아이폰에서 아직 허락이 없을 때 — 누르면 허락을 청한다 */
+  onRequest?: () => void;
+}) {
+  if (level.needsPermission && onRequest) {
+    return (
+      <button
+        type="button"
+        onClick={onRequest}
+        className="pointer-events-auto inline-flex h-10 items-center gap-1.5 rounded-full bg-black/55 pl-2 pr-3 text-xs font-semibold text-white backdrop-blur transition-colors hover:bg-black/60"
+      >
+        <span className="relative h-5 w-5 rounded-full ring-1 ring-white/40">
+          <span className="absolute inset-x-1 top-1/2 h-px bg-white/70" />
+        </span>
+        수평계 켜기
+      </button>
+    );
+  }
   if (!level.supported) return null;
   const roll = level.roll ?? 0;
   const pitch = level.pitch ?? 0;
-  const ok = Math.abs(roll) <= LEVEL_OK_DEG && Math.abs(pitch) <= LEVEL_OK_DEG;
-  const clamp = (v: number) => Math.max(-50, Math.min(50, v));
+  const ok = level.ok;
+  const rollOff = level.cause === 'roll';
+  /* 글자 각도 — 벗어난 축만, 정수로(훅이 경계에서 깜박이지 않게 붙들어 준다). 벗어났으면 문턱보다 작게 보이지 않게 */
+  const deg = rollOff
+    ? Math.max(2, Math.abs(level.rollDeg ?? 0))
+    : Math.max(PITCH_OK_DEG + 1, Math.abs(level.pitchDeg ?? 0));
+  /* 앞뒤는 선의 높이로 — 창 반지름(10px) 안에서 10° 가 5px 쯤 */
+  const lift = Math.max(-7, Math.min(7, pitch * 0.5));
   return (
-    <div
-      aria-live="polite"
-      aria-label={ok ? '수평' : `기울어짐 좌우 ${roll}도 앞뒤 ${pitch}도`}
-      className={`pointer-events-none flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-semibold backdrop-blur ${
-        ok ? 'bg-ok/85 text-white' : 'bg-black/55 text-white/90'
-      }`}
-    >
-      <span className="relative block h-3 w-24 overflow-hidden rounded-full bg-white/25">
-        <span className="absolute left-1/2 top-0 h-full w-px bg-white/70" />
+    <>
+      <div
+        role="img"
+        aria-label={
+          ok
+            ? '수평'
+            : rollOff
+              ? `좌우로 ${deg}도 기울어짐`
+              : `앞뒤로 ${deg}도 기울어짐`
+        }
+        className="inline-flex h-7 shrink-0 items-center gap-1.5 rounded-full bg-black/55 pl-1 pr-2.5 text-xs font-semibold text-white backdrop-blur motion-safe:animate-fade-in"
+      >
         <span
-          className={`absolute top-0.5 h-2 w-2 rounded-full transition-transform ${ok ? 'bg-white' : 'bg-warn-line'}`}
-          style={{
-            left: 'calc(50% - 0.25rem)',
-            transform: `translateX(${clamp(roll * 4)}px)`,
-          }}
-        />
+          aria-hidden
+          className={`relative h-5 w-5 overflow-hidden rounded-full ring-1 transition-colors duration-200 ${
+            ok ? 'bg-emerald-400/15 ring-emerald-300/80' : 'bg-white/5 ring-white/35'
+          }`}
+        >
+          {/* 폰의 수평 — 양쪽 눈금(수평이면 선과 같이 초록) */}
+          <span
+            className={`absolute left-0 top-1/2 h-px w-1 -translate-y-1/2 transition-colors duration-200 ${ok ? 'bg-emerald-300' : 'bg-white/60'}`}
+          />
+          <span
+            className={`absolute right-0 top-1/2 h-px w-1 -translate-y-1/2 transition-colors duration-200 ${ok ? 'bg-emerald-300' : 'bg-white/60'}`}
+          />
+          {/*
+           * 실제 수평선 — 눈금과 틈을 두고. 16px 선이 3° 기울면 거의 안 보여 세 배로 기울여 그린다(30° 까지). 숫자는 그대로다.
+           */}
+          <span
+            className={`absolute inset-x-1.5 top-1/2 -mt-px h-0.5 rounded-full transition-[transform,background-color] duration-200 ease-out motion-reduce:transition-none ${
+              ok ? LEVEL_GREEN : 'bg-white'
+            }`}
+            style={{
+              transform: `translateY(${lift}px) rotate(${-Math.max(-30, Math.min(30, roll * 3))}deg)`,
+            }}
+          />
+        </span>
+        <span
+          className={`min-w-[2.25rem] tabular-nums transition-colors duration-200 ${ok ? 'text-emerald-300' : ''}`}
+        >
+          {ok ? (
+            '수평'
+          ) : rollOff ? (
+            <span className="inline-flex items-center gap-0.5">
+              {roll > 0 ? (
+                <RotateCcw aria-hidden className="h-3 w-3" />
+              ) : (
+                <RotateCw aria-hidden className="h-3 w-3" />
+              )}
+              {deg}°
+            </span>
+          ) : (
+            <span className="inline-flex items-center gap-0.5">
+              {/* 카메라가 위를 보면(+) 아래로 숙이라고 */}
+              {pitch > 0 ? (
+                <ArrowDown aria-hidden className="h-3 w-3" />
+              ) : (
+                <ArrowUp aria-hidden className="h-3 w-3" />
+              )}
+              {deg}°
+            </span>
+          )}
+        </span>
+      </div>
+      {/* 화면 읽기 — 수평이 되거나 벗어날 때만 말한다(각도가 바뀔 때마다 읽으면 시끄럽다). role=img 밖에 둬야 읽힌다 */}
+      <span className="sr-only" aria-live="polite">
+        {ok ? '수평이에요' : '기울어 있어요'}
       </span>
-      <span className="tabular-nums">
-        {ok
-          ? '수평'
-          : `좌우 ${roll > 0 ? '+' : ''}${roll}° · 앞뒤 ${pitch > 0 ? '+' : ''}${pitch}°`}
-      </span>
-    </div>
+    </>
   );
 }
 
 /* ───────────────────────── 5. 스트라이크 존 ───────────────────────── */
 
 /**
- * 반투명 스트라이크 존 — 뒤(카메라)가 비쳐 보인다. 끌어서 옮기고 오른쪽 아래 손잡이로 크기를 바꾼다.
- * 좌표는 부모(뷰파인더) 기준 0~1 비율이라 폰 크기가 달라도 같은 자리다.
+ * 반투명 스트라이크 존 — 뒤(카메라)가 비쳐 보인다. 끌어서 옮기고 오른쪽 아래 손잡이로 크기를 바꾼다. 좌표는 부모(뷰파인더 ·
+ * 영상) 기준 0~1 비율이라 폰 크기가 달라도 같은 자리다.
+ *
+ * 모양은 스트라이크 존 그대로 지킨다(aspect = 세로 ÷ 가로, 이 좌표 기준) — 손잡이는 모서리 대각선을 따라 크기만 바꾸고,
+ * 크기는 minW ~ maxW 안에서만(lib/velocity-setup.ts ZONE_WIDTH_RANGE). 예전에는 가로 · 세로를 따로 끌어 화면을 덮는
+ * 띠도 만들 수 있었다(2026-09-30 사용자: "너무 자유롭다").
  */
+/** 존 둘레의 이름표 · 손잡이가 차지하는 자리(px) — 옮길 때 이만큼 안쪽으로 묶는다 */
+const CHROME_LABEL_PX = 30;
+const CHROME_HALF_LABEL_PX = 40;
+const CHROME_KNOB_PX = 20;
+
 export function ZoneOverlay({
   rect,
   onChange,
   editable,
+  aspect,
+  minW = 0,
+  maxW = 1,
+  highlight = null,
 }: {
   rect: ZoneRect;
   onChange?: (next: ZoneRect) => void;
   editable: boolean;
+  /** 세로 ÷ 가로 — 이 좌표(0~1) 기준. 없으면 rect 의 비율을 지킨다 */
+  aspect?: number;
+  /** 가로의 범위 — 이 좌표 기준 */
+  minW?: number;
+  maxW?: number;
+  /** 칸 하나를 밝힌다 — 0~8, 화면의 왼쪽 위부터(영상에서 짐작한 코스) */
+  highlight?: number | null;
 }) {
   const box = useRef<HTMLDivElement>(null);
+  const [active, setActive] = useState<'move' | 'resize' | null>(null);
   const drag = useRef<{
     kind: 'move' | 'resize';
     startX: number;
@@ -856,6 +970,7 @@ export function ZoneOverlay({
       w: r.width,
       h: r.height,
     };
+    setActive(kind);
     (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
     e.preventDefault();
     e.stopPropagation();
@@ -864,26 +979,54 @@ export function ZoneOverlay({
   const move = (e: ReactPointerEvent) => {
     const d = drag.current;
     if (!d || !onChange) return;
-    const dx = (e.clientX - d.startX) / d.w;
-    const dy = (e.clientY - d.startY) / d.h;
     const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v));
+    /*
+     * 옮길 때는 이름표(위 28px) · 손잡이(오른쪽 아래 바깥 18px)가 뷰파인더에 잘리지 않게 그만큼 안쪽으로 묶는다(가장자리에서
+     * '트라이크 존'으로 잘렸다). 이름표는 가운데 정렬이라 존이 작으면 옆으로도 여백이 든다. 실제 존은 화면 끝에 오지 않는다.
+     */
+    const padL = Math.max(0, CHROME_HALF_LABEL_PX - (d.rect.w * d.w) / 2) / d.w;
+    const padR = Math.max(padL, CHROME_KNOB_PX / d.w);
+    const padT = CHROME_LABEL_PX / d.h;
+    const padB = CHROME_KNOB_PX / d.h;
     if (d.kind === 'move') {
+      const dx = (e.clientX - d.startX) / d.w;
+      const dy = (e.clientY - d.startY) / d.h;
+      const lo = (a: number, b: number) => Math.min(a, b);
       onChange({
         ...d.rect,
-        x: clamp(d.rect.x + dx, 0, 1 - d.rect.w),
-        y: clamp(d.rect.y + dy, 0, 1 - d.rect.h),
+        x: clamp(
+          d.rect.x + dx,
+          lo(padL, d.rect.x),
+          Math.max(d.rect.x, 1 - d.rect.w - padR)
+        ),
+        y: clamp(
+          d.rect.y + dy,
+          lo(padT, d.rect.y),
+          Math.max(d.rect.y, 1 - d.rect.h - padB)
+        ),
       });
-    } else {
-      onChange({
-        ...d.rect,
-        w: clamp(d.rect.w + dx, 0.15, 1 - d.rect.x),
-        h: clamp(d.rect.h + dy, 0.12, 1 - d.rect.y),
-      });
+      return;
     }
+    /*
+     * 크기 — 왼쪽 위를 붙박고, 끈 거리를 존의 대각선(픽셀) 방향으로 내려 가로를 정한다. 세로는 모양(aspect)대로 따라온다.
+     * 가로는 범위와 부모 안(오른쪽 · 아래 끝)으로 묶는다.
+     */
+    const k = aspect ?? d.rect.h / d.rect.w;
+    const kPx = (k * d.h) / d.w; // 존의 세로 ÷ 가로(픽셀)
+    const dxPx = e.clientX - d.startX;
+    const dyPx = e.clientY - d.startY;
+    const grow = (dxPx + dyPx * kPx) / (1 + kPx * kPx); // 가로 픽셀이 늘어난 만큼
+    const hi = Math.max(
+      d.rect.w,
+      Math.min(maxW, 1 - d.rect.x - padR, (1 - d.rect.y - padB) / k)
+    );
+    const w = clamp(d.rect.w + grow / d.w, Math.min(minW, hi), hi);
+    onChange({ ...d.rect, w, h: w * k });
   };
 
   const end = () => {
     drag.current = null;
+    setActive(null);
   };
 
   return (
@@ -901,25 +1044,61 @@ export function ZoneOverlay({
         width: `${rect.w * 100}%`,
         height: `${rect.h * 100}%`,
       }}
-      className={`absolute rounded-lg border-2 border-white/85 bg-white/15 shadow-[0_0_0_1px_rgba(0,0,0,0.25)] backdrop-blur-[1px] ${
-        editable ? 'cursor-move touch-none' : 'pointer-events-none'
-      }`}
+      className={`absolute rounded-[3px] border-[1.5px] shadow-[0_0_0_1px_rgba(0,0,0,0.35)] transition-colors duration-150 ${
+        active
+          ? 'border-white bg-sky/15'
+          : editable
+            ? 'border-white/90 bg-white/10'
+            : 'border-white/80 bg-transparent'
+      } ${editable ? 'cursor-move touch-none' : 'pointer-events-none'}`}
     >
-      <span className="pointer-events-none absolute inset-y-0 left-1/3 w-px bg-white/70" />
-      <span className="pointer-events-none absolute inset-y-0 left-2/3 w-px bg-white/70" />
-      <span className="pointer-events-none absolute inset-x-0 top-1/3 h-px bg-white/70" />
-      <span className="pointer-events-none absolute inset-x-0 top-2/3 h-px bg-white/70" />
+      {/* 작은 존(투수 뒤)도 손가락으로 잡히게 — 누르는 자리를 둘레로 넓힌다 */}
+      {editable && <span aria-hidden className="absolute -inset-4" />}
+      {highlight != null && highlight >= 0 && highlight <= 8 && (
+        <span
+          aria-hidden
+          className="pointer-events-none absolute bg-sky/45"
+          style={{
+            left: `${(highlight % 3) * (100 / 3)}%`,
+            top: `${Math.floor(highlight / 3) * (100 / 3)}%`,
+            width: `${100 / 3}%`,
+            height: `${100 / 3}%`,
+          }}
+        />
+      )}
+      {/* 격자 — 흰 과녁 천 · 미트 위에서도 보이게 어두운 그림자를 두른다(흐림 거름은 이 묶음에만 — 이름표의 흐림을 살린다) */}
+      <span
+        aria-hidden
+        className="pointer-events-none absolute inset-0 drop-shadow-[0_0_1px_rgba(0,0,0,0.7)]"
+      >
+        <span className="absolute inset-y-0 left-1/3 w-px bg-white/70" />
+        <span className="absolute inset-y-0 left-2/3 w-px bg-white/70" />
+        <span className="absolute inset-x-0 top-1/3 h-px bg-white/70" />
+        <span className="absolute inset-x-0 top-2/3 h-px bg-white/70" />
+      </span>
       {editable && (
         <>
-          <span className="pointer-events-none absolute -top-6 left-0 rounded-md bg-black/60 px-1.5 py-0.5 text-[10px] font-semibold text-white">
-            끌어서 옮기기
+          <span
+            className={`pointer-events-none absolute -top-7 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full bg-black/55 px-2 py-0.5 text-xs font-semibold text-white backdrop-blur transition-opacity duration-150 ${
+              active ? 'opacity-0' : 'opacity-100'
+            }`}
+          >
+            스트라이크 존
           </span>
+          {/*
+           * 손잡이 — 24px 를 모서리 바깥 대각선에(겹침 6px). 안쪽에 두면 투수 뒤의 작은 존(폰에서 10~40px)을 덮어 존이 안
+           * 보이고 옮길 수도 없었다. 누르는 자리는 둘레로 넓혀 48px.
+           */}
           <button
             type="button"
             aria-label="크기 바꾸기"
             onPointerDown={(e) => begin('resize', e)}
-            className="absolute -bottom-3.5 -right-3.5 h-8 w-8 cursor-nwse-resize touch-none rounded-full border-2 border-white bg-sky shadow"
-          />
+            className={`absolute left-full top-full -ml-1.5 -mt-1.5 flex h-6 w-6 cursor-nwse-resize touch-none items-center justify-center rounded-full border-2 border-white bg-sky text-white shadow-md before:absolute before:-inset-3 before:content-[''] transition-transform duration-150 ${
+              active === 'resize' ? 'scale-110' : ''
+            }`}
+          >
+            <MoveDiagonal2 aria-hidden className="h-3.5 w-3.5" />
+          </button>
         </>
       )}
     </div>

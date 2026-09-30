@@ -46,6 +46,11 @@ export type VelocitySetup = {
   autoMode: boolean;
   /** 관리자의 '정확도 보정용 저장' — 켜고 재면 공마다 영상 클립 · 분석 자료를 올린다(관리자만 효과) */
   calibSave: boolean;
+  /**
+   * 저장된 공 영상(▶ · 구속 측정 관리자)에 스트라이크 존과 짐작한 코스 칸을 겹쳐 그릴까. 영상 파일에 새기지 않고 볼 때
+   * 겹친다 — 그래서 언제든 켜고 끌 수 있다. 존 자리는 공마다 잰 순간의 것(analysis.zoneRect).
+   */
+  clipZone: boolean;
   savedAt: string;
 };
 
@@ -79,8 +84,89 @@ export const NET_OPTIONS: { key: boolean; label: string; hint: string }[] = [
   { key: false, label: '네트 없음', hint: '자동초점 · 포수나 벽까지 잰다' },
 ];
 
-/** 처음 놓이는 스트라이크 존 — 화면 가운데 조금 아래, 폭 40% · 높이 30% */
-export const DEFAULT_ZONE: ZoneRect = { x: 0.3, y: 0.42, w: 0.4, h: 0.3 };
+/**
+ * 스트라이크 존 모양 — 세로 ÷ 가로(픽셀). 가로는 홈플레이트 폭 43.2cm, 세로는 무릎부터 어깨와 벨트의 한가운데까지(성인 약
+ * 55~65cm, 규칙서의 평균 존 0.46~1.07m)라 1.3~1.45 — 1.35 로 둔다. 존을 놓을 때 이 모양은 지키고 크기만 바꾼다.
+ */
+export const ZONE_ASPECT = 1.35;
+
+/**
+ * 존 가로의 범위 — 장면 가로에 대한 비율, 카메라 위치별. 아이폰 기본 카메라(세로, 화각 약 69°)로 찍으면 존(43cm)의 가로는
+ * 거리 d(m)에서 장면 가로의 약 0.56 ÷ d 다(초점 1397px × 0.432m ÷ 1080px).
+ *  - 포수 뒤: 홈까지 1.2~4m → 14~47% — 12~50%.
+ *  - 투수 뒤: 홈까지 17~20m → 2.8~3.3%. 실제 크기까지 줄일 수 있게 2%부터, 줌 · 가까운 연습장도 되게 15%까지.
+ */
+export const ZONE_WIDTH_RANGE: Record<CameraPos, readonly [number, number]> = {
+  'behind-catcher': [0.12, 0.5],
+  'behind-pitcher': [0.02, 0.15],
+};
+
+/** 처음 놓는 존의 가로(장면 가로 비율) — 포수 뒤 2m 남짓 · 투수 뒤는 실제(약 3%)보다 조금 크게, 눈에 보이게 */
+const ZONE_DEFAULT_W: Record<CameraPos, number> = {
+  'behind-catcher': 0.3,
+  'behind-pitcher': 0.04,
+};
+
+type FrameSize = { width: number; height: number };
+/** 카메라 장면 크기를 모를 때 — 폰 세로 1080×1920 */
+const PORTRAIT: FrameSize = { width: 1080, height: 1920 };
+const WHOLE: ZoneRect = { x: 0, y: 0, w: 1, h: 1 };
+
+/** 장면 비율 좌표에서 존의 세로 ÷ 가로 — 픽셀 모양(ZONE_ASPECT)을 장면 가로 · 세로로 나눈 것 */
+export function zoneAspectIn(frame: FrameSize = PORTRAIT): number {
+  return (ZONE_ASPECT * frame.width) / frame.height;
+}
+
+/**
+ * 존을 규격에 맞춘다 — 가운데는 두고 모양(ZONE_ASPECT) · 크기(ZONE_WIDTH_RANGE)를 지켜, 보이는 장면(bounds, 장면 비율) 안에
+ * 넣는다. 예전에 마음대로 늘려 둔 존 · 카메라 위치를 바꾼 뒤의 존도 이것으로 고친다. 이미 맞으면 같은 객체를 돌려준다.
+ */
+export function fitZone(
+  rect: ZoneRect,
+  cameraPos: CameraPos,
+  frame: FrameSize = PORTRAIT,
+  bounds: ZoneRect = WHOLE
+): ZoneRect {
+  const k = zoneAspectIn(frame);
+  const [lo, hi] = ZONE_WIDTH_RANGE[cameraPos];
+  const maxW = Math.min(hi, bounds.w, bounds.h / k);
+  const w = Math.min(maxW, Math.max(lo, rect.w));
+  const h = w * k;
+  const clamp = (v: number, a: number, b: number) => Math.max(a, Math.min(b, v));
+  const x = clamp(rect.x + rect.w / 2 - w / 2, bounds.x, bounds.x + bounds.w - w);
+  const y = clamp(rect.y + rect.h / 2 - h / 2, bounds.y, bounds.y + bounds.h - h);
+  const same = (a: number, b: number) => Math.abs(a - b) < 1e-6;
+  return same(x, rect.x) && same(y, rect.y) && same(w, rect.w) && same(h, rect.h)
+    ? rect
+    : { x, y, w, h };
+}
+
+/** 카메라 위치별 처음 존 — 가운데, 조금 아래(공이 떨어진다) */
+export function defaultZone(
+  cameraPos: CameraPos,
+  frame: FrameSize = PORTRAIT
+): ZoneRect {
+  const w = ZONE_DEFAULT_W[cameraPos];
+  const h = w * zoneAspectIn(frame);
+  return { x: 0.5 - w / 2, y: 0.54 - h / 2, w, h };
+}
+
+/** 처음 놓이는 스트라이크 존(투수 뒤 기준) — 카메라 위치를 알면 defaultZone(cameraPos) */
+export const DEFAULT_ZONE: ZoneRect = defaultZone('behind-pitcher');
+
+/**
+ * 존 번호(1~9, 투수가 보는 대로 — zoneOfPoint)를 화면 칸(0~8, 화면의 왼쪽 위부터)으로. 포수 뒤는 좌우가 뒤집힌다.
+ * 영상에 짐작한 코스 칸을 밝힐 때.
+ */
+export function zoneCellOnScreen(
+  zone: number | null | undefined,
+  cameraPos: CameraPos
+): number | null {
+  if (zone == null || !Number.isInteger(zone) || zone < 1 || zone > 9) return null;
+  const row = Math.floor((zone - 1) / 3);
+  const col = (zone - 1) % 3;
+  return row * 3 + (cameraPos === 'behind-catcher' ? 2 - col : col);
+}
 
 export const DEFAULT_SETUP: Omit<VelocitySetup, 'savedAt'> = {
   sessionType: DEFAULT_SESSION_TYPE,
@@ -93,9 +179,10 @@ export const DEFAULT_SETUP: Omit<VelocitySetup, 'savedAt'> = {
   releaseDistM: 18.5,
   autoMode: true,
   calibSave: false,
+  clipZone: true,
 };
 
-const isRect = (z: unknown): z is ZoneRect =>
+export const isRect = (z: unknown): z is ZoneRect =>
   !!z &&
   typeof z === 'object' &&
   ['x', 'y', 'w', 'h'].every((k) => {
@@ -122,7 +209,8 @@ export function loadSetup(): VelocitySetup | null {
       mode: p.mode,
       cameraPos: p.cameraPos,
       net: p.net !== false,
-      zone: isRect(p.zone) ? p.zone : DEFAULT_ZONE,
+      /* 예전(모양 · 크기가 자유롭던 때)에 놓은 존도 규격에 맞춘다 */
+      zone: fitZone(isRect(p.zone) ? p.zone : defaultZone(p.cameraPos), p.cameraPos),
       voice: p.voice === true,
       useCal: p.useCal !== false,
       releaseDistM:
@@ -133,6 +221,7 @@ export function loadSetup(): VelocitySetup | null {
           : DEFAULT_SETUP.releaseDistM,
       autoMode: p.autoMode !== false,
       calibSave: p.calibSave === true,
+      clipZone: p.clipZone !== false,
       savedAt: typeof p.savedAt === 'string' ? p.savedAt : '',
     };
   } catch {

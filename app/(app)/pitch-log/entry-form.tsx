@@ -121,12 +121,17 @@ export function EntryForm({
 }) {
   const editing = Boolean(initial);
 
+  /*
+   * 쉰 날 기록은 투구수 · 강도가 0 으로 저장돼 있다(서버가 쉰 날은 0 으로 적는다). 그대로 채우면 던진 날로 바꿀 때 강도 막대는
+   * 1 을 보이는데 값은 '0' 이라 '투구 강도는 1에서 10 사이' 로 저장이 막혔다 — 쉰 날이면 새 기록의 기본값에서 시작한다.
+   */
   const [form, setForm] = useState(() =>
     initial
       ? {
           sessionType: initial.sessionType,
-          pitchCount: String(initial.pitchCount),
-          intensity: String(initial.intensity),
+          pitchCount: initial.pitchCount > 0 ? String(initial.pitchCount) : '',
+          intensity:
+            initial.intensity >= 1 ? String(initial.intensity) : EMPTY_FORM.intensity,
           maxVelocity: initial.maxVelocity == null ? '' : String(initial.maxVelocity),
           avgVelocity: initial.avgVelocity == null ? '' : String(initial.avgVelocity),
           memo: initial.memo ?? '',
@@ -192,7 +197,10 @@ export function EntryForm({
         method: editing ? 'PATCH' : 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          ...(editing ? { id: initial!.id } : { date }),
+          /* 고칠 때는 열 때의 영상 목록도 — 서버가 이 폼에서 뺀 것만 지운다(다른 기기에서 더한 것은 남김) */
+          ...(editing
+            ? { id: initial!.id, baseVideoPaths: initial!.videoPaths }
+            : { date }),
           videoPaths: videos.map((v) => v.path),
           sessionType: form.sessionType,
           pitchCount: form.pitchCount,

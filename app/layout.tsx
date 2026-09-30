@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from 'next';
 import { Bebas_Neue } from 'next/font/google';
 import { THEME_INIT_SCRIPT } from '@/lib/theme';
+import { APP_INIT_SCRIPT } from '@/lib/native-app';
 import './globals.css';
 
 /**
@@ -40,8 +41,15 @@ export const metadata: Metadata = {
  *
  * 운동 화면은 자기 viewport(노치까지 쓰기 등)를 따로 내는데, Next.js 가 칸별로
  * 합치므로 이 색은 거기서도 그대로 산다.
+ *
+ * 화면 끝(시계 · 홈 막대 자리)까지 쓴다(viewportFit cover, 2026-09-30). 아이폰 앱은 화면 끝까지
+ * 그리고(mobile/capacitor.config.json 의 contentInset 'never'), 이걸 켜야 env(safe-area-inset-*)
+ * 값이 살아나 앱 틀이 시계 쪽을 막대 색으로 채울 수 있다(components/app-shell.tsx MobileTopBar).
+ * 예전에는 시계 쪽이 비어 스크롤하면 그 틈으로 내용이 지나가 보였다. 사파리의 세로 화면은 위쪽
+ * 값이 0 이라 그대로고, 아래쪽은 주소창이 접혔을 때 홈 막대만큼 하단 탭이 올라간다.
  */
 export const viewport: Viewport = {
+  viewportFit: 'cover',
   themeColor: [
     { media: '(prefers-color-scheme: light)', color: '#f4f7fb' },
     { media: '(prefers-color-scheme: dark)', color: '#0b1220' },
@@ -72,6 +80,11 @@ export default function RootLayout({
          * 새로 그릴 때 내는 경고도 나지 않는다.
          */}
         <script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
+        {/*
+         * 아이폰 앱 안에서만 — 앱 표시(data-app) · 상태바 글자색 · 로딩 화면 걷기(lib/native-app.ts).
+         * 테마 스크립트 뒤라야 고른 테마(data-theme)를 보고 상태바 색을 맞춘다.
+         */}
+        <script dangerouslySetInnerHTML={{ __html: APP_INIT_SCRIPT }} />
         {/*
          * Pretendard — 본문과 제목을 함께 맡는다.
          *

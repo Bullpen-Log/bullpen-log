@@ -376,7 +376,7 @@ async function TodayBody({ user }: { user: Awaited<ReturnType<typeof requireUser
         줄 모른다. 투구 기록이 하나도 없을 때만 낸다. 한 번이라도 남긴 사람에게는
         잔소리가 되고, 매일 뜨는 안내는 곧 안 읽게 된다.
       */}
-      {!core.hasLogs && (
+      {!core.everLogged && (
         <div className="rounded-2xl border border-sky-soft/60 bg-sky-tint p-(--block-pad)">
           <p className="text-sm font-bold text-sky-strong">여기부터 시작하세요</p>
           <p className="mt-1.5 text-sm leading-relaxed text-ink/80">
