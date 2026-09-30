@@ -215,8 +215,15 @@ export function Modal({
       ref={ref}
       /* 출발점이 있는 창만 날아온다. 없으면 제자리에서 떠오른다. */
       data-pop={origin ? '' : undefined}
-      // ESC 를 눌러 브라우저가 스스로 닫은 경우에도 부모에게 알린다.
-      onClose={onClose}
+      /*
+       * ESC 를 눌러 브라우저가 스스로 닫은 경우에도 부모에게 알린다.
+       *
+       * 이 창의 닫힘만 받는다. React 는 dialog 의 close 를 부모 쪽으로도 올려 보내서(19.2), 창 안에 뜬 창(투구 기록 팝업
+       * 안의 공 고치기 시트, 설정 안의 비밀번호 창)을 닫으면 바깥 창까지 같이 닫혔다.
+       */
+      onClose={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
       /*
        * ESC 를 직접 받아 닫는다.
        *

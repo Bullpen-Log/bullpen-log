@@ -138,11 +138,13 @@ export async function loadCalibration(): Promise<{ fit: CalFit; pairs: CalPair[]
     /*
      * 수기 공은 카메라 값이 없어(스피드건 값 복사) 짝이 아니다. 옛 모델로 잰 공도 뺀다 — 모델이 고쳐진
      * 뒤에도 옛 편향을 되풀이해 보정하면 두 번 고치는 셈이다(관리자가 다시 재서 채우면 지금 모델이 된다).
+     * 관리자가 '보정에서 빼기'를 한 공(잘못 적은 건 값 등)도 뺀다 — 관리자 통계(isPair)만 빼고 여기는 쓰고 있었다.
      */
     where: {
       userId: user.id,
       gunKmh: { not: null },
       manual: false,
+      calibExclude: false,
       engineVersion: VELOCITY_ENGINE_VERSION,
     },
     orderBy: { createdAt: 'desc' },

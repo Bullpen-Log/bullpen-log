@@ -1,16 +1,18 @@
 'use client';
 
 import {
+  useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
   useSyncExternalStore,
   useTransition,
 } from 'react';
-import { flushSync } from 'react-dom';
+import { createPortal, flushSync } from 'react-dom';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { unstable_rethrow, useRouter } from 'next/navigation';
 import {
   Camera,
   Check,
@@ -90,6 +92,7 @@ import { useDeviceLevel } from '@/lib/use-device-level';
 import { SESSION_TYPES, isRestSession } from '@/lib/session-type';
 import { formatSpeed, speedLabel, toSpeed } from '@/lib/units';
 import { useSpeedUnit } from '@/components/use-units';
+import { useWakeLock } from '@/components/use-wake-lock';
 import { BottomSheet, PitchEditorFields, ZoneGrid } from '@/components/velocity/pitch-editor';
 import {
   LevelBubble,
@@ -225,6 +228,8 @@ const subscribeStorage = (cb: () => void) => {
   window.addEventListener('storage', cb);
   return () => window.removeEventListener('storage', cb);
 };
+/* 브라우저에서 그리는 중인가 — 서버 · 첫 맞추기(hydration)에서는 false */
+const noopSubscribe = () => () => {};
 const readSetupRaw = () => {
   try {
     return localStorage.getItem(SETUP_KEY);
@@ -256,7 +261,42 @@ export function VelocityScreen({
   const hand = throwingHandOf(throwingHand);
   const videoRef = useRef<HTMLVideoElement>(null);
   const finderRef = useRef<HTMLDivElement>(null);
+  /*
+   * 뷰파인더는 한 번만 만들어 단계마다 그 단계의 자리로 옮긴다(아래 finderSlot). 단계마다(수평 · 존 / 측정 / 렌즈) 다른
+   * 자리에 그리면 React 가 <video> 를 새로 만드는데, 카메라(LiveCapture)는 켤 때의 <video> 를 쥐고 있어서 존에서
+   * '측정 시작하기'를 누르면 새 화면이 검게 비고, 문서에서 떨어진 옛 화면은 멈췄다(2026-09-30). 그래서 뷰파인더를 떠 있는
+   * 상자(finderHost)에 한 번 그리고(createPortal) 자리가 붙을 때 상자를 그리로 옮긴다 — 같은 요소가 같은 그리기 안에서
+   * 옮겨 가므로 영상은 멈추지 않는다. 상자와 자리는 display: contents 라 배치는 예전에 그 자리에 바로 그렸을 때와 같다.
+   */
+  const clientReady = useSyncExternalStore(noopSubscribe, () => true, () => false);
+  const [finderHost] = useState(() => {
+    if (typeof document === 'undefined') return null;
+    const host = document.createElement('div');
+    host.style.display = 'contents';
+    return host;
+  });
+  const placeFinder = useCallback(
+    (slot: HTMLDivElement | null) => {
+      if (slot && finderHost && finderHost.parentNode !== slot) slot.appendChild(finderHost);
+    },
+    [finderHost]
+  );
   const captureRef = useRef<LiveCapture | null>(null);
+  /* 카메라를 켠 차례 — 결과 · 클립 번호를 켤 때마다 가른다(startCamera) */
+  const captureGenRef = useRef(0);
+  /*
+   * 카메라를 켤 때 넣는 설정의 최신 값 — 아래 useLayoutEffect 가 그릴 때마다 맞춘다. enterCameraStep 은 누르기 전 그림의
+   * startCamera 를 부르므로, 그 함수가 쥔 값을 쓰면 flushSync 로 막 넣은 설정('이 설정으로 시작'의 네트 · 포수 뒤 · 릴리스
+   * 거리)이 카메라에 안 들어갔다(네트 없음인데 초점 고정 등). 그리기(커밋) 안에서 맞추므로 flushSync 가 끝나면 새 값이다.
+   */
+  const cameraSettingsRef = useRef({
+    fov: DEFAULT_FOV_DEG,
+    approach: 'receding' as ReturnType<typeof approachOf>,
+    net: DEFAULT_SETUP.net,
+    focalRatio: null as number | null,
+    releaseDistM: DEFAULT_SETUP.releaseDistM,
+    autoMode: DEFAULT_SETUP.autoMode,
+  });
   /* 카메라를 저절로 켠 단계 — 한 단계에 한 번만(아래 안전장치 효과) */
   const autoStartedFor = useRef<Step | null>(null);
   const pitchesRef = useRef<LocalPitch[]>([]);
@@ -331,6 +371,18 @@ export function VelocityScreen({
     height: number;
   } | null>(null);
   const cameraOn = status !== 'off' && status !== 'starting';
+  /* 삼각대에 세워 두고 손대지 않으니 화면이 저절로 꺼지지 않게 — 꺼지면 카메라도 멈춘다 */
+  useWakeLock(cameraOn);
+  useLayoutEffect(() => {
+    cameraSettingsRef.current = {
+      fov,
+      approach,
+      net: choices.net,
+      focalRatio,
+      releaseDistM,
+      autoMode,
+    };
+  });
   /*
    * 스트라이크 존 — 규격(모양 ZONE_ASPECT · 가로 범위 ZONE_WIDTH_RANGE)에 맞춘 것을 쓴다. 놓는 단계에서는 칸에 보이는 장면
    * 안으로 넣는다(칸 밖으로 나간 존은 손잡이를 못 잡는다).
@@ -398,8 +450,13 @@ export function VelocityScreen({
     speechSynthesis.speak(u);
   };
 
-  const persistSetup = (patch: Partial<Omit<VelocitySetup, 'savedAt'>> = {}) =>
-    saveSetup({
+  const persistSetup = (patch: Partial<Omit<VelocitySetup, 'savedAt'>> = {}) => {
+    /*
+     * 설정을 남기는 것은 이미 고른 뒤다 — 처음 쓰는 사람은 여기서 처음으로 '저장된 설정'이 생겨, 이것을 안 적으면
+     * '측정 시작하기'를 누르는 순간 '지난 설정 그대로?' 화면으로 튀었다(카메라는 켜진 채).
+     */
+    setDecided(true);
+    return saveSetup({
       ...choices,
       sessionType,
       zone: activeZone,
@@ -411,6 +468,7 @@ export function VelocityScreen({
       clipZone,
       ...patch,
     });
+  };
 
   const addResult = (
     result: ScreenResult,
@@ -506,23 +564,31 @@ export function VelocityScreen({
     if (!video) return;
     setError(null);
     setLast(null);
+    /*
+     * 결과 번호는 LiveCapture 가 켤 때마다 1부터 다시 센다 — 세션 중에 카메라를 다시 켜면 새 공의 클립이 같은 번호의
+     * 옛 공에도 붙었다. 켤 때마다 다른 자리를 얹어 가른다.
+     */
+    const idBase = ++captureGenRef.current * 1_000_000;
+    /* 설정은 방금 그린 값으로(cameraSettingsRef) — 이 함수가 옛 그림의 것이어도 */
+    const now = cameraSettingsRef.current;
     const capture = new LiveCapture(
       video,
       {
         onStatus: setStatus,
-        onResult: (r, meta) => addResultRef.current(r, 'camera', meta),
-        onClip: (id, clip) => attachClipRef.current(id, clip),
+        onResult: (r, meta) =>
+          addResultRef.current(r, 'camera', meta && { ...meta, id: idBase + meta.id }),
+        onClip: (id, clip) => attachClipRef.current(idBase + id, clip),
         onError: setError,
         onNotice: setToast,
         onFps: (f) => setFps(Math.round(f)),
       },
-      fov,
-      approach,
-      choices.net
+      now.fov,
+      now.approach,
+      now.net
     );
-    capture.setFocalPerLongSide(focalRatio);
-    capture.setReleaseDistance(approach === 'approaching' ? releaseDistM : null);
-    capture.setManual(!autoMode);
+    capture.setFocalPerLongSide(now.focalRatio);
+    capture.setReleaseDistance(now.approach === 'approaching' ? now.releaseDistM : null);
+    capture.setManual(!now.autoMode);
     capture.setClips(true);
     captureRef.current?.stop();
     captureRef.current = capture;
@@ -531,7 +597,16 @@ export function VelocityScreen({
     } catch (e) {
       /* 켜는 사이에 껐다(화면을 떠남 · 다시 켬) — 알릴 것 없다 */
       if (e instanceof DOMException && e.name === 'AbortError') return;
-      setError(e instanceof Error ? e.message : '카메라를 켜지 못했습니다.');
+      const message = e instanceof Error ? e.message : '카메라를 켜지 못했습니다.';
+      /*
+       * 앱에는 주소창이 없다 — 앱에서 막혔으면 아이폰이 카메라를 거절한 것이고, 아이폰은 앱 안에서 다시 묻지 않는다.
+       * 엔진의 거절 문구('허용해 주세요 … 자물쇠')를 앱에서는 설정 길로 바꾼다.
+       */
+      setError(
+        native && message.includes('허용')
+          ? '카메라가 꺼져 있어요. 아이폰 설정 › Bullpen Log › 카메라를 켠 뒤 다시 켜 주세요.'
+          : message
+      );
       if (captureRef.current === capture) captureRef.current = null;
     }
   };
@@ -630,6 +705,8 @@ export function VelocityScreen({
 
   /* 결과 뒤 1~3초 안에 오는 영상 클립을 그 공에 붙인다. 보정용 저장이 아니면 최근 몇 개만 쥔다(메모리) */
   const attachClipToPitch = (id: number, clip: PitchClip) => {
+    /* 짝이 되는 공이 없으면(잡음 · 거부된 던짐) 받지 않는다 — 주소를 만들면 그 영상(2MB 남짓)이 화면을 떠날 때까지 남는다 */
+    if (!pitchesRef.current.some((p) => p.captureId === id)) return;
     const url = URL.createObjectURL(clip.blob);
     setPitches((prev) => {
       const next = prev.map((p) =>
@@ -762,8 +839,8 @@ export function VelocityScreen({
     if (autoStartedFor.current === step || captureRef.current || !videoRef.current) return;
     autoStartedFor.current = step;
     void startCamera();
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- 단계가 바뀔 때만 본다
-  }, [step, showAsk]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- 단계가 바뀔 때만 본다(뷰파인더가 처음 붙을 때 한 번 더)
+  }, [step, showAsk, clientReady]);
   useEffect(() => {
     const el = finderRef.current;
     if (!el || typeof ResizeObserver === 'undefined') return;
@@ -780,7 +857,7 @@ export function VelocityScreen({
     });
     ro.observe(el);
     return () => ro.disconnect();
-  }, [step, showAsk]);
+  }, [step, showAsk, clientReady]);
   useEffect(() => {
     captureRef.current?.setReleaseDistance(
       approach === 'approaching' ? releaseDistM : null
@@ -848,50 +925,64 @@ export function VelocityScreen({
     setError(null);
     startSaving(async () => {
       const longSide = camera ? Math.max(camera.width, camera.height) : null;
-      const res = await saveVelocitySession({
-        date: today,
-        sessionType,
-        intensity,
-        fovDeg: fov,
-        source: pitches.every((p) => p.source === 'file') ? 'file' : 'camera',
-        device: camera
-          ? `${camera.label} ${camera.width}×${camera.height}`.trim()
-          : null,
-        mode: choices.mode,
-        cameraPos: choices.cameraPos,
-        net: choices.net,
-        forCalibration: calibOn,
-        autoMode,
-        focalPx: longSide
-          ? focalRatio
-            ? focalRatio * longSide
-            : focalPxFromFov(longSide, fov)
-          : null,
-        lensCal: lensOk ? lens : null,
-        releaseDistM: approach === 'approaching' ? releaseDistM : null,
-        frameW: camera?.width ?? null,
-        frameH: camera?.height ?? null,
-        pitches: pitches.map((p) => ({
-          rawKmh: p.rawKmh,
-          errorKmh: p.errorKmh,
-          confidence: p.confidence,
-          releaseKmh: p.releaseKmh,
-          releaseDxCm: p.releaseDxCm,
-          releaseDyCm: p.releaseDyCm,
-          releaseDistM: p.releaseDistM,
-          travelM: p.travelM,
-          durationSec: p.durationSec,
-          frames: p.frames,
-          fps: p.fps,
-          pitchType: p.pitchType,
-          zone: p.zone,
-          result: p.result,
-          gunKmh: p.gunKmh,
-          memo: p.memo,
-          analysis: p.analysis ?? null,
-          autoDetected: p.autoDetected !== false,
-        })),
-      });
+      let res: Awaited<ReturnType<typeof saveVelocitySession>>;
+      try {
+        res = await saveVelocitySession({
+          date: today,
+          sessionType,
+          intensity,
+          fovDeg: fov,
+          source: pitches.every((p) => p.source === 'file') ? 'file' : 'camera',
+          device: camera
+            ? `${camera.label} ${camera.width}×${camera.height}`.trim()
+            : null,
+          mode: choices.mode,
+          cameraPos: choices.cameraPos,
+          net: choices.net,
+          forCalibration: calibOn,
+          autoMode,
+          focalPx: longSide
+            ? focalRatio
+              ? focalRatio * longSide
+              : focalPxFromFov(longSide, fov)
+            : null,
+          lensCal: lensOk ? lens : null,
+          releaseDistM: approach === 'approaching' ? releaseDistM : null,
+          frameW: camera?.width ?? null,
+          frameH: camera?.height ?? null,
+          pitches: pitches.map((p) => ({
+            rawKmh: p.rawKmh,
+            errorKmh: p.errorKmh,
+            confidence: p.confidence,
+            releaseKmh: p.releaseKmh,
+            releaseDxCm: p.releaseDxCm,
+            releaseDyCm: p.releaseDyCm,
+            releaseDistM: p.releaseDistM,
+            travelM: p.travelM,
+            durationSec: p.durationSec,
+            frames: p.frames,
+            fps: p.fps,
+            pitchType: p.pitchType,
+            zone: p.zone,
+            result: p.result,
+            gunKmh: p.gunKmh,
+            memo: p.memo,
+            analysis: p.analysis ?? null,
+            autoDetected: p.autoDetected !== false,
+          })),
+        });
+      } catch (err) {
+        /* 화면 이동 같은 Next.js 자체 신호는 잡지 않고 그대로 넘긴다 */
+        unstable_rethrow(err);
+        /*
+         * 신호가 끊겨도 잰 공은 그대로 둔다 — 예전에는 전환(transition) 안의 오류가 오류 화면으로 넘어가 세션이 통째로
+         * 사라졌다.
+         */
+        setError(
+          '신호가 약해 저장하지 못했어요. 잰 공은 그대로 있으니 신호가 잡히면 다시 저장해 주세요.'
+        );
+        return;
+      }
       if (!res.ok) {
         setError(res.error);
         return;
@@ -1054,7 +1145,9 @@ export function VelocityScreen({
   const [zoneLo, zoneHi] = ZONE_WIDTH_RANGE[choices.cameraPos];
   const zoneAspectView = (zoneAspectIn(frameSize ?? undefined) * visible.w) / visible.h;
 
-  /* 뷰파인더 — 4 · 5 · 6 단계가 같은 <video> 를 쓴다 */
+  /* 뷰파인더가 들어갈 자리 — 단계마다 여기에 둔다(위 finderHost) */
+  const finderSlot = <div ref={placeFinder} className="contents" />;
+  /* 뷰파인더 — 4 · 5 · 6 단계가 같은 <video> 를 쓴다(finderHost 에 한 번만 그린다) */
   const finder = (
     <div
       ref={finderRef}
@@ -1249,6 +1342,8 @@ export function VelocityScreen({
      * 꽉 채운다. ui-chrome — PC 의 작아진 크기 기준을 쓰지 않고 폰 크기 그대로 그린다.
      */
     <div className="ui-chrome relative flex min-h-0 flex-1 flex-col bg-page text-ink desk:mx-auto desk:my-4 desk:h-[calc(100dvh-2rem)] desk:max-h-[52.75rem] desk:w-[24.375rem] desk:flex-none desk:overflow-hidden desk:rounded-[2.5rem] desk:border-[6px] desk:border-ink/85 desk:shadow-2xl">
+      {/* 뷰파인더 — 한 번만 그려 단계의 자리(finderSlot)로 옮긴다. 서버 · 첫 맞추기에서는 그리지 않는다 */}
+      {finderHost && clientReady && createPortal(finder, finderHost)}
       {tutorialOpen && (
         <VelocityTutorial
           open
@@ -1430,7 +1525,7 @@ export function VelocityScreen({
                   ? '멀리 포수 미트 쪽에 끌어다 놓고 손잡이로 크기를 맞추세요. 모양은 스트라이크 존 그대로예요. 잰 공의 코스를 짐작하는 데 써요.'
                   : '홈플레이트 위에 끌어다 놓고 손잡이로 크기를 맞추세요. 모양은 스트라이크 존 그대로예요. 잰 공의 코스를 짐작하는 데 써요.'}
             </p>
-            <div className="min-h-0 flex-1">{finder}</div>
+            <div className="min-h-0 flex-1">{finderSlot}</div>
             {error && (
               <p
                 role="alert"
@@ -1476,7 +1571,7 @@ export function VelocityScreen({
             대충 맞춘 뒤 &lsquo;재기&rsquo;를 누르세요. 초점거리를 직접 재면 화각 가정의
             오차(기종 · 크롭)가 사라져요.
           </p>
-          {finder}
+          {finderSlot}
           {!cameraOn && (
             <div className="mt-3">
               <Note tone="warn">카메라를 켜야 잴 수 있어요.</Note>
@@ -1504,7 +1599,7 @@ export function VelocityScreen({
            * 스트라이크 존 · 코스 짐작의 기준도 바뀌지 않는다.
            */}
           <div className="relative min-h-0 flex-1">
-            {finder}
+            {finderSlot}
             {/* 정보 판 — 세션 중, 카메라 대신 */}
             {live && !showCamera && (
               <div className="absolute inset-0 z-5 overflow-y-auto overscroll-contain bg-black/98 px-4 pb-4 pt-[calc(3.5rem+env(safe-area-inset-top))]">
