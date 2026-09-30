@@ -34,6 +34,9 @@ type CheckedEntry = {
   memo: string | null;
 };
 
+/** 이 안에 똑같은 기록이 또 오면 새로 만들지 않는다(POST — 답을 못 받아 다시 누른 것) */
+const DUPLICATE_WINDOW_MS = 2 * 60 * 1000;
+
 /**
  * 폼에서 온 기록 값을 검사한다.
  *
@@ -247,6 +250,23 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: checkedPaths.error }, { status: 400 });
     }
     const paths = checkedPaths.paths;
+
+    /*
+     * 같은 것을 두 번 남기지 않는다. 휴대폰 신호가 약하면 저장은 됐는데 답만 못 받아 '저장에 실패'가 뜨고, 다시 누르면 같은
+     * 기록이 두 줄이 되어 그날 투구수 · 부하 지수가 두 배가 됐다. 방금(2분 안) 똑같은 값(종류 · 투구수 · 강도 · 구속 · 메모 ·
+     * 영상)으로 만든 기록이 있으면 새로 만들지 않고 그것을 돌려준다 — 사람이 2분 안에 똑같은 기록을 두 번 남길 일은 없다.
+     */
+    const duplicate = await prisma.pitchLog.findFirst({
+      where: {
+        userId: user.id,
+        date: parsedDate,
+        createdAt: { gte: new Date(Date.now() - DUPLICATE_WINDOW_MS) },
+        ...checked,
+        videoPaths: { equals: paths },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+    if (duplicate) return NextResponse.json(duplicate, { status: 200 });
 
     const log = await prisma.pitchLog.create({
       data: {
