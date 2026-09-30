@@ -129,6 +129,12 @@
 
 ## 4. 진행 중인 일
 
+- **아이폰 앱 — 애플 키 대기, 다시 시작하면 앱 로고부터(2026-09-30).** 애플 키(`mobile/APPLE-SETUP.md` 의 넷)를
+  아직 못 받아 앱 작업을 멈췄다. 사용자: "나중에 앱을 수정하게 되면 앱 로고를 불펜로그 로고로 바꿔야 한다" — 앱
+  작업을 다시 열면 이것부터 챙긴다. 앱 아이콘 · 시작 화면 파일은 새 B 로고로 이미 다시 만들어 올렸다(7296b01,
+  `cd mobile && npm run assets`). 남은 일: 첫 빌드(TestFlight)를 폰에 깔았을 때 홈 화면 아이콘 · 시작 화면이 새 B
+  인지 보고, 옛 공 그림이면 굽기 쪽이 파일을 덮어쓰는지 찾는다. 로고를 또 바꾸면 `components/logo.tsx` ·
+  `scripts/make-icons.mjs` · `mobile/scripts/make-ios-assets.mjs` 셋을 같이 고친다.
 - **영양 탭 식약처 검색 — 키 승인 대기.** API `FoodNtrCpntDbInfo02`, 키는 환경변수 `FOOD_API_KEY`(사용자가 직접 넣는다).
   2026-09-25 에 넣었지만 계속 403 `SERVICE_KEY_IS_NOT_REGISTERED_ERROR` 였다 — 공공데이터포털 마이페이지에서
   활용신청 상태를 보게 한다. 사용자가 "키 넣었어"라고 하면 로그인 상태로 `/api/nutrition/search?q=쌀밥` 응답의
