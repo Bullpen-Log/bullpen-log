@@ -961,6 +961,8 @@ export function CalibResultPanel({
                 durationSec: null,
                 frames: row.frames,
                 fps: row.fps,
+                /* 이 차수를 잰 모델 — 지금 버전이 아니면 지금 모델의 보정 짝이 되지 않는다 */
+                engineVersion: run.engineVersion,
               })
             )
           }

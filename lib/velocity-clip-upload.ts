@@ -1,6 +1,10 @@
 'use client';
 
+import { unstable_rethrow } from 'next/navigation';
 import { attachClip, createClipUpload } from '@/app/actions/velocity';
+
+/* 서버 액션이 신호 끊김으로 던지면 — 부르는 쪽(저장 · 전환)이 오류 화면으로 넘어가지 않게 실패로 돌려준다 */
+const OFFLINE = { ok: false, error: '신호가 약해 클립을 올리지 못했어요.' } as const;
 
 /**
  * 공 하나의 영상 클립을 저장소에 올리고 공에 적는다 — 측정 화면(카메라 클립)과 관리자의
@@ -14,7 +18,13 @@ export async function uploadClip(
   onProgress?: (percent: number) => void
 ): Promise<{ ok: true; path: string } | { ok: false; error: string }> {
   const mime = blob.type || 'video/webm';
-  const target = await createClipUpload(pitchId, mime, blob.size);
+  let target: Awaited<ReturnType<typeof createClipUpload>>;
+  try {
+    target = await createClipUpload(pitchId, mime, blob.size);
+  } catch (err) {
+    unstable_rethrow(err);
+    return OFFLINE;
+  }
   if (!target.ok) return target;
 
   try {
@@ -40,13 +50,19 @@ export async function uploadClip(
     };
   }
 
-  const attached = await attachClip(pitchId, {
-    path: target.path,
-    bytes: blob.size,
-    sec: info.sec,
-    mime,
-    eventSec: info.eventSec,
-  });
+  let attached: Awaited<ReturnType<typeof attachClip>>;
+  try {
+    attached = await attachClip(pitchId, {
+      path: target.path,
+      bytes: blob.size,
+      sec: info.sec,
+      mime,
+      eventSec: info.eventSec,
+    });
+  } catch (err) {
+    unstable_rethrow(err);
+    return OFFLINE;
+  }
   if (!attached.ok) return attached;
   return { ok: true, path: target.path };
 }
