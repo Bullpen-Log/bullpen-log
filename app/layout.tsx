@@ -2,7 +2,6 @@ import type { Metadata, Viewport } from 'next';
 import { Bebas_Neue } from 'next/font/google';
 import { THEME_INIT_SCRIPT } from '@/lib/theme';
 import { APP_INIT_SCRIPT } from '@/lib/native-app';
-import { AppIntro } from '@/components/app-intro';
 import './globals.css';
 
 /**
@@ -99,11 +98,7 @@ export default function RootLayout({
          */}
         <link rel="stylesheet" href="/fonts/pretendard/pretendard.css" />
       </head>
-      <body className="min-h-full font-sans">
-        {/* 아이폰 앱을 켤 때 한 번 도는 시작 연출 — 앱이 아니면 안 보인다(components/app-intro.tsx) */}
-        <AppIntro />
-        {children}
-      </body>
+      <body className="min-h-full font-sans">{children}</body>
     </html>
   );
 }

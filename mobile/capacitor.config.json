@@ -12,11 +12,6 @@
     "contentInset": "never"
   },
   "plugins": {
-    "SplashScreen": {
-      "launchShowDuration": 4000,
-      "launchAutoHide": true,
-      "showSpinner": false
-    },
     "SystemBars": {
       "style": "LIGHT"
     }

@@ -11,16 +11,17 @@ Claude 로 작업을 시작하면 저절로 읽힌다. 규칙은 `AGENTS.md` 6�
 
 ---
 
-## 금윤호에게 — 2026-09-30 · 김민(Claude) — 앱 시작 연출(뿌리 레이아웃 · globals.css)
+## 금윤호에게 — 2026-09-30 · 김민(Claude) — 앱 시작 연출을 앱 안(Swift)으로
 
-받은 뒤 할 일 없음. `mobile/` 이 바뀌어 새 TestFlight 빌드가 올라간다.
+받은 뒤 할 일: `mobile/` 에서 작업할 때만 `cd mobile && npm ci`(로딩 그림 부품 `@capacitor/splash-screen` 을 뺐다).
+이 커밋이 `mobile/` 을 바꿔 새 TestFlight 빌드가 올라간다.
 
-- 사용자 요청: 앱을 켤 때 돌아가는 로딩 표시를 없애고, 큰 B 가 작아졌다 커졌다 튄 뒤 작아지며 BULLPEN LOG 가 펼쳐지고 홈으로.
-- 로딩 그림은 한가운데 큰 B 하나(화면 높이의 16%, `mobile/scripts/make-ios-assets.mjs`), 톱니 로딩 표시는 끔(`showSpinner: false`).
-- `app/layout.tsx` 의 body 맨 앞에 `<AppIntro />`(`components/app-intro.tsx`) — 앱에서 켠 뒤 한 번만(`sessionStorage`
-  `bullpen-intro`) `lib/native-app.ts` 가 `<html data-intro>` 를 붙이고, 판이 같은 B 로 로딩 그림을 이어 받아 Web Animations 로
-  움직인다(속성을 안 바꿔 붙이기가 안 어긋남). 앱이 아니면 `display:none`. 연출 중엔 `<dialog>` 를 숨긴다(체크인 창이 판 위에 떴다).
-  로고를 바꾸면 `INTRO_B_RATIO` · `SPLASH_B_RATIO` 를 같이 본다.
+- 사용자 요청: 넷플릭스 'N' 처럼 앱을 켜자마자 움직이게, 통통 튀는 움직임은 빼기. 지난 커밋(82df6c3)의 웹 연출
+  (`components/app-intro.tsx` · globals.css · 뿌리 layout · `data-intro`)은 **지웠다** — 뿌리 레이아웃 · globals.css 는 그 전 그대로다.
+- 앱 첫 화면 `mobile/ios/App/App/MainViewController.swift`(SceneDelegate 가 씀): 시작 화면 그림과 같은 큰 B 를 그려 이어 받고,
+  B 가 작아지며 첫 글자 자리로 → 'ULLPEN LOG'(글자 그림 `IntroWord`, `npm run assets`)가 왼쪽부터 펼쳐짐 → 사이트가 알리면 걷힘.
+- 사이트 쪽은 `lib/native-app.ts` 하나: 첫 화면을 그리면 `window.webkit.messageHandlers.bullpenIntro.postMessage('ready')`.
+  이게 안 오면 판이 10초까지 사이트를 가린다 — 뿌리 레이아웃 · 첫 스크립트를 고칠 때 이 알림을 지키자.
 
 ## 금윤호에게 — 2026-09-30 · 김민(Claude) — 폰에서 누르기 쉽게(공용 부품 포함)
 

@@ -11,13 +11,12 @@
  * 2. 상태바(시계 · 배터리) 글자색을 앱 테마에 맞춘다 — 라이트면 검은 글자, 다크 · 네이비면 흰 글자.
  *    앱 테마는 폰의 다크 모드와 따로 고르므로(lib/theme.ts) 폰 설정에 맡기면 흰 막대에 흰 글자가
  *    되어 안 보였다. <html data-theme> 이 바뀔 때마다 다시 맞춘다.
- * 3. 앱을 켠 뒤 처음이면(sessionStorage) <html data-intro> 를 붙인다 — 시작 연출(components/app-intro.tsx)이
- *    로딩 화면(큰 B, mobile/scripts/make-ios-assets.mjs)을 이어 받아 걷는다. 아니면(같은 앱 안에서 다시 읽음)
- *    첫 화면이 그려질 때 로딩 화면을 걷는다. 안 걷으면 앱 설정의 최대 시간(4초)까지 덮고 있다.
+ * 3. 첫 화면이 그려지면 앱에 알린다 — 앱을 켤 때 도는 시작 연출 판(mobile/ios/App/App/MainViewController.swift)이
+ *    이 알림(window.webkit.messageHandlers.bullpenIntro)을 받아야 걷힌다. 안 알리면 연출이 끝나고도 10초까지
+ *    덮고 있다. 옛 앱(연출 판 대신 로딩 그림 부품 SplashScreen 이 든 빌드)이면 그 로딩 그림을 걷는다.
  *
  * 앱 기능은 Capacitor 가 모든 페이지에 심는 window.Capacitor.nativePromise 로 부른다 — 사이트에
- * Capacitor 패키지를 더하지 않아도 된다. SystemBars 는 Capacitor 안에 들어 있고, SplashScreen 은
- * mobile/package.json 의 @capacitor/splash-screen 이다.
+ * Capacitor 패키지를 더하지 않아도 된다. SystemBars 는 Capacitor 안에 들어 있다.
  */
 export const APP_INIT_SCRIPT = `(function () {
   try {
@@ -34,16 +33,15 @@ export const APP_INIT_SCRIPT = `(function () {
     };
     bars();
     new MutationObserver(bars).observe(root, { attributes: true, attributeFilter: ['data-theme'] });
-    var seen = true;
-    try { seen = sessionStorage.getItem('bullpen-intro') === '1'; } catch (e) {}
-    if (!seen) {
-      root.setAttribute('data-intro', '');
-      return;
-    }
     document.addEventListener('DOMContentLoaded', function () {
       requestAnimationFrame(function () {
         requestAnimationFrame(function () {
-          call('SplashScreen', 'hide', { fadeOutDuration: 250 });
+          var handlers = window.webkit && window.webkit.messageHandlers;
+          if (handlers && handlers.bullpenIntro) handlers.bullpenIntro.postMessage('ready');
+          var cap = window.Capacitor;
+          if (cap && cap.isPluginAvailable && cap.isPluginAvailable('SplashScreen')) {
+            call('SplashScreen', 'hide', { fadeOutDuration: 250 });
+          }
         });
       });
     });
