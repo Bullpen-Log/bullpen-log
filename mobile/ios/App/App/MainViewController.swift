@@ -54,8 +54,9 @@ extension MainViewController: WKScriptMessageHandler {
     }
 }
 
-/// 시작 연출 판 — 큰 B 가 부드럽게 작아지며 이름의 첫 글자 자리로 가고, 'ULLPEN LOG' 가 B 뒤에서 왼쪽부터
-/// 스르르 펼쳐진다. 다 펼친 뒤 사이트가 준비되면(pageReady) 옅어지며 살짝 다가오듯 커져 걷힌다.
+/// 시작 연출 판 — 큰 B 가 부드럽게 작아지며 이름의 첫 글자 자리로 가고, 자리에 닿으면 'ULLPEN LOG' 가 B 뒤에서
+/// 오른쪽으로 미끄러져 나온다. 글자는 B 끝 자리의 오른쪽에만 보이는 창 안에 있고 B 보다 아래 층이라 B 와 겹쳐
+/// 보이지 않는다. 다 나온 뒤 사이트가 준비되면(pageReady) 옅어지며 살짝 다가오듯 커져 걷힌다.
 /// 튀는 움직임(작아졌다 커졌다)은 넣지 않는다(2026-09-30 사용자).
 final class IntroOverlay: UIView {
     static let messageName = "bullpenIntro"
@@ -74,13 +75,14 @@ final class IntroOverlay: UIView {
     private static let paper = UIColor(red: 244 / 255, green: 247 / 255, blue: 251 / 255, alpha: 1)
     private static let brand = UIColor(red: 2 / 255, green: 151 / 255, blue: 228 / 255, alpha: 1)
 
-    // 움직임의 때(초) — 앱이 보인 뒤부터. 처음 큰 B 를 0.4초 보인 뒤 움직이고, 움직임은 조금 느긋하게
-    // (2026-09-30 사용자: "아주 조금만 느리게, 처음 B 도 조금만 더 길게" — 예전 0.1 · 0.8 · 0.55 · 0.9 · 1.8 · 걷힘 0.45)
+    // 움직임의 때(초) — 앱이 보인 뒤부터. 처음 큰 B 를 0.4초 보인 뒤 1초 동안 제자리로 가고, 닿을 무렵(1.35초)부터
+    // 글자가 1초 동안 B 뒤에서 나온다. (2026-09-30 사용자: "아주 조금만 느리게, 처음 B 도 조금만 더 길게" · "글자 앞쪽이
+    // 작아지는 B 와 겹쳐 나온다 — 뒤에서 나오게". 예전엔 B 가 움직이는 도중 0.95초부터 글자를 펼쳐 아직 큰 B 위에 겹쳤다)
     private static let markStart: TimeInterval = 0.4
     private static let markDuration: TimeInterval = 1.0
-    private static let wordStart: TimeInterval = 0.95
-    private static let wordDuration: TimeInterval = 1.1
-    private static let settleAt: TimeInterval = 2.45
+    private static let wordStart: TimeInterval = 1.35
+    private static let wordDuration: TimeInterval = 1.0
+    private static let settleAt: TimeInterval = 2.75
     private static let leaveDuration: TimeInterval = 0.55
     /// 사이트가 끝내 알려 오지 않아도 이때는 걷는다 — 판이 사이트를 가린 채 남지 않게
     private static let giveUpAt: TimeInterval = 10
@@ -92,8 +94,12 @@ final class IntroOverlay: UIView {
     private let mark = UIView()
     private let markShape = CAShapeLayer()
     private let word = UIImageView(image: UIImage(named: "IntroWord"))
-    /// 글자를 가리는 가리개 — 왼쪽은 보이고 오른쪽은 가리는 부드러운 띠. 오른쪽으로 밀면 글자가 펼쳐진다
-    private let wipe = CAGradientLayer()
+    /// 글자가 보이는 창 — B 끝 자리의 오른쪽 끝부터 오른쪽만. 글자는 처음에 이 창 왼쪽 밖(B 뒤)에 숨어 있다
+    private let wordWindow = UIView()
+    /// 창의 왼쪽 가장자리를 옅게 — 글자가 B 뒤에서 나올 때 칼로 자른 듯 끊겨 보이지 않게
+    private let edgeFade = CAGradientLayer()
+    /// 글자가 나오는 움직임 — 끝날 때까지 붙들어 둔다
+    private var wordSlide: UIViewPropertyAnimator?
 
     private var started = false
     private var settled = false
@@ -110,18 +116,18 @@ final class IntroOverlay: UIView {
         stage.autoresizingMask = [.flexibleWidth, .flexibleHeight]
         addSubview(stage)
 
+        // 글자 창을 먼저(아래 층), B 를 나중에(위 층) — 혹시 둘이 닿아도 B 가 글자 위에 그려진다
+        word.contentMode = .scaleToFill
+        edgeFade.startPoint = CGPoint(x: 0, y: 0.5)
+        edgeFade.endPoint = CGPoint(x: 1, y: 0.5)
+        edgeFade.colors = [UIColor.clear.cgColor, UIColor.black.cgColor, UIColor.black.cgColor]
+        wordWindow.layer.mask = edgeFade
+        wordWindow.addSubview(word)
+        stage.addSubview(wordWindow)
+
         markShape.fillColor = Self.brand.cgColor
         mark.layer.addSublayer(markShape)
         stage.addSubview(mark)
-
-        word.contentMode = .scaleToFill
-        word.alpha = 0
-        wipe.startPoint = CGPoint(x: 0, y: 0.5)
-        wipe.endPoint = CGPoint(x: 1, y: 0.5)
-        wipe.colors = [UIColor.black.cgColor, UIColor.black.cgColor, UIColor.clear.cgColor, UIColor.clear.cgColor]
-        wipe.locations = [0, 0.6, 0.7, 1]
-        word.layer.mask = wipe
-        stage.addSubview(word)
     }
 
     required init?(coder: NSCoder) {
@@ -134,7 +140,7 @@ final class IntroOverlay: UIView {
         let scale = traitCollection.displayScale
         guard window != nil, scale > 0 else { return }
         markShape.contentsScale = scale
-        wipe.contentsScale = scale
+        edgeFade.contentsScale = scale
     }
 
     /// 자리 계산 — 시작 장면(큰 B)과 끝 장면(가운데에 [B]ULLPEN LOG).
@@ -145,6 +151,8 @@ final class IntroOverlay: UIView {
         var capHeight: CGFloat
         /// 끝 장면의 B 가운데
         var markCenter: CGPoint
+        /// 끝 장면의 B 오른쪽 끝 — 글자 창이 여기서 시작한다
+        var markRight: CGFloat
         /// 끝 장면의 글자 그림 자리
         var wordFrame: CGRect
     }
@@ -154,21 +162,22 @@ final class IntroOverlay: UIView {
         // 이름의 크기는 사이트 머리의 이름과 같은 비율 — 글자 크기 = 화면 폭의 15%(최대 68pt), 대문자 높이 = 그 0.7
         let cap = 0.7 * min(0.15 * size.width, 68)
         let midY = size.height / 2
+        let markWidth = cap * Self.markUnits.width / Self.markUnits.height
         guard let image = word.image, image.size.width > 0, image.size.height > 0 else {
             // 글자 그림이 없으면 B 만 가운데에서 작아진다
-            return Layout(bigHeight: bigHeight, capHeight: cap,
-                          markCenter: CGPoint(x: size.width / 2, y: midY), wordFrame: .zero)
+            return Layout(bigHeight: bigHeight, capHeight: cap, markCenter: CGPoint(x: size.width / 2, y: midY),
+                          markRight: (size.width + markWidth) / 2, wordFrame: .zero)
         }
         let pad = Self.wordPad * cap
         let wordHeight = cap + 2 * pad
         let wordWidth = wordHeight * image.size.width / image.size.height
         let inkWidth = wordWidth - 2 * pad // B 왼쪽 끝부터 글자 오른쪽 끝까지 — 이것을 가운데에 둔다
         let left = (size.width - inkWidth) / 2
-        let markWidth = cap * Self.markUnits.width / Self.markUnits.height
         return Layout(
             bigHeight: bigHeight,
             capHeight: cap,
             markCenter: CGPoint(x: left + markWidth / 2, y: midY),
+            markRight: left + markWidth,
             wordFrame: CGRect(x: left - pad, y: midY - wordHeight / 2, width: wordWidth, height: wordHeight)
         )
     }
@@ -189,18 +198,20 @@ final class IntroOverlay: UIView {
         CATransaction.setDisableActions(true)
         markShape.frame = mark.bounds
         markShape.path = Self.markPath().copy(using: &scale)
-        // 글자는 끝 자리에 두고 가리개로 숨겨 둔다
+        // 글자 창은 B 끝 자리의 오른쪽 끝부터. 글자는 끝 자리에 맞춰 넣되, 처음엔 창 폭만큼 왼쪽으로 밀어(B 뒤) 숨긴다
+        let windowLeft = spot.markRight
+        wordWindow.frame = CGRect(x: windowLeft, y: spot.wordFrame.minY,
+                                  width: max(spot.wordFrame.maxX - windowLeft, 0), height: spot.wordFrame.height)
         word.transform = .identity
-        word.frame = spot.wordFrame
-        let width = spot.wordFrame.width
-        wipe.bounds = CGRect(x: 0, y: 0, width: 3 * width, height: spot.wordFrame.height)
-        wipe.position = CGPoint(x: Self.hiddenWipeX(width), y: spot.wordFrame.height / 2)
+        word.frame = CGRect(x: spot.wordFrame.minX - windowLeft, y: 0,
+                            width: spot.wordFrame.width, height: spot.wordFrame.height)
+        word.transform = CGAffineTransform(translationX: -wordWindow.bounds.width, y: 0)
+        // 옅은 가장자리는 B 와 글자 사이 틈(대문자 높이의 0.1 넘게) 안에서만 — 다 나온 글자는 흐려지지 않는다
+        edgeFade.frame = wordWindow.bounds
+        let fade = wordWindow.bounds.width > 0 ? 0.08 * spot.capHeight / wordWindow.bounds.width : 0
+        edgeFade.locations = [0, NSNumber(value: Double(fade)), 1]
         CATransaction.commit()
     }
-
-    // 가리개 띠(글자 폭의 3배)의 가운데 자리 — 보이는 부분(왼쪽 60%)이 글자 왼쪽 끝 밖에 있을 때와 글자 전체를 덮을 때
-    private static func hiddenWipeX(_ width: CGFloat) -> CGFloat { return -0.6 * width }
-    private static func shownWipeX(_ width: CGFloat) -> CGFloat { return 0.7 * width }
 
     /// 움직이기 시작한다 — 화면이 처음 보인 뒤(viewDidAppear) 한 번
     func play() {
@@ -225,27 +236,16 @@ final class IntroOverlay: UIView {
             self.mark.transform = CGAffineTransform(scaleX: small, y: small)
         }, completion: nil)
 
-        // 2. ULLPEN LOG 가 B 뒤에서 왼쪽부터 스르르 — 가리개가 오른쪽으로 걷히며 글자가 조금 따라 들어온다
+        // 2. B 가 자리에 닿을 무렵 ULLPEN LOG 가 B 뒤에서 오른쪽으로 미끄러져 나온다 — 천천히 나와 빨라졌다가
+        //    부드럽게 멈춘다(CSS 의 ease 와 같은 곡선, 튀지 않는다)
         if word.image != nil {
-            let width = spot.wordFrame.width
-            word.transform = CGAffineTransform(translationX: -0.35 * spot.capHeight, y: 0)
-            UIView.animate(withDuration: Self.wordDuration, delay: Self.wordStart, options: [.curveEaseOut], animations: {
-                self.word.alpha = 1
+            let slide = UIViewPropertyAnimator(duration: Self.wordDuration,
+                                               controlPoint1: CGPoint(x: 0.25, y: 0.1),
+                                               controlPoint2: CGPoint(x: 0.25, y: 1)) {
                 self.word.transform = .identity
-            }, completion: nil)
-
-            let reveal = CABasicAnimation(keyPath: "position.x")
-            reveal.fromValue = Self.hiddenWipeX(width)
-            reveal.toValue = Self.shownWipeX(width)
-            reveal.beginTime = CACurrentMediaTime() + Self.wordStart
-            reveal.duration = Self.wordDuration
-            reveal.timingFunction = CAMediaTimingFunction(name: .easeOut)
-            reveal.fillMode = .backwards
-            CATransaction.begin()
-            CATransaction.setDisableActions(true)
-            wipe.position.x = Self.shownWipeX(width)
-            CATransaction.commit()
-            wipe.add(reveal, forKey: "reveal")
+            }
+            slide.startAnimation(afterDelay: Self.wordStart)
+            wordSlide = slide
         }
 
         // 3. 다 펼친 모습을 잠깐 보인 뒤 — 사이트가 준비됐으면 걷는다(아니면 준비될 때까지 이 모습으로 기다린다)
