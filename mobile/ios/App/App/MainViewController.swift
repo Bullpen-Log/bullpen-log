@@ -54,10 +54,10 @@ extension MainViewController: WKScriptMessageHandler {
     }
 }
 
-/// 시작 연출 판 — 큰 B 가 부드럽게 작아지며 이름의 첫 글자 자리로 가고, 자리에 닿으면 'ULLPEN LOG' 가 연하게
-/// 나타나 진해지면서 B 뒤에서 살짝 밀려 나온다. 글자는 B 끝 자리의 오른쪽에만 보이는 창 안에 있고 B 보다 아래 층이라
-/// B 와 겹쳐 보이지 않는다. 다 나온 뒤 사이트가 준비되면(pageReady) 옅어지며 살짝 다가오듯 커져 걷힌다.
-/// 튀는 움직임(작아졌다 커졌다)은 넣지 않는다(2026-09-30 사용자).
+/// 시작 연출 판 — 큰 B 가 부드럽게 작아지며 이름의 첫 글자 자리로 가고, 자리에 닿을 무렵부터 'ULLPEN LOG' 의
+/// 글자가 U → L → L → P → E → N → L → O → G 순서로 하나씩 연하게 나타나 진해지며 살짝 밀려 나온다. 글자는 B 끝 자리의
+/// 오른쪽에만 보이는 창 안에 있고 B 보다 아래 층이라 B 와 겹쳐 보이지 않는다. 다 나온 뒤 사이트가 준비되면
+/// (pageReady) 옅어지며 살짝 다가오듯 커져 걷힌다. 튀는 움직임(작아졌다 커졌다)은 넣지 않는다(2026-09-30 사용자).
 final class IntroOverlay: UIView {
     static let messageName = "bullpenIntro"
 
@@ -76,16 +76,19 @@ final class IntroOverlay: UIView {
     private static let brand = UIColor(red: 2 / 255, green: 151 / 255, blue: 228 / 255, alpha: 1)
 
     // 움직임의 때(초) — 앱이 보인 뒤부터. 처음 큰 B 를 0.4초 보인 뒤 1초 동안 제자리로 가고, 닿을 무렵(1.25초)부터
-    // 글자가 1.2초 동안 연하게 나타나 진해지며 B 뒤에서 대문자 높이만큼 밀려 나온다. (2026-09-30 사용자: "아주 조금만
-    // 느리게, 처음 B 도 조금만 더 길게" · "글자 앞쪽이 작아지는 B 와 겹쳐 나온다 — 뒤에서 나오게" · "나오는 게 부자연스럽다 —
-    // 조금 천천히, 흐렸다가 진해지게". 한때 단어 길이만큼 통째로 끌려 나오게 했더니 글자가 빠르게 줄지어 지나가 기계 같았다)
+    // 글자가 0.075초 간격으로 하나씩 0.65초 동안 연하게 나타나 진해진다(마지막 G 는 2.5초에 다 나온다).
+    // (2026-09-30 사용자: "아주 조금만 느리게, 처음 B 도 조금만 더 길게" · "글자 앞쪽이 작아지는 B 와 겹쳐 나온다 —
+    // 뒤에서 나오게" · "흐렸다가 진해지게" · "전체가 한꺼번에 연하게 말고 글자별로 나오는 순서에 따라"
+    // — 단어 통째로 끌려 나오게 했을 땐 기계 같았고, 통째로 옅어졌다 진해지게 했을 땐 한 덩어리로 보였다)
     private static let markStart: TimeInterval = 0.4
     private static let markDuration: TimeInterval = 1.0
     private static let wordStart: TimeInterval = 1.25
-    private static let wordDuration: TimeInterval = 1.2
-    /// 글자가 밀려 나오는 거리 — 대문자 높이의 배수. 처음엔 앞 글자(U · L 일부)만 B 뒤에 숨어 있다
-    private static let wordSlide: CGFloat = 1.0
-    private static let settleAt: TimeInterval = 2.85
+    /// 글자 하나가 연하게 나타나 진해지는 시간 · 다음 글자가 뒤따르는 간격
+    private static let letterDuration: TimeInterval = 0.65
+    private static let letterStagger: TimeInterval = 0.075
+    /// 글자가 밀려 나오는 거리 — 대문자 높이의 배수. 첫 글자 U 는 이만큼 B 뒤에서 나온다
+    private static let letterSlide: CGFloat = 0.35
+    private static let settleAt: TimeInterval = 2.9
     private static let leaveDuration: TimeInterval = 0.55
     /// 사이트가 끝내 알려 오지 않아도 이때는 걷는다 — 판이 사이트를 가린 채 남지 않게
     private static let giveUpAt: TimeInterval = 10
@@ -96,13 +99,17 @@ final class IntroOverlay: UIView {
     private let stage = UIView()
     private let mark = UIView()
     private let markShape = CAShapeLayer()
-    private let word = UIImageView(image: UIImage(named: "IntroWord"))
-    /// 글자가 보이는 창 — B 끝 자리의 오른쪽 끝부터 오른쪽만. 글자는 처음에 이 창 왼쪽 밖(B 뒤)에 숨어 있다
+    private let wordImage = UIImage(named: "IntroWord")
+    /// 글자가 보이는 창 — B 끝 자리의 오른쪽 끝부터 오른쪽만. 글자는 처음에 조금 왼쪽(B 뒤)에서 투명하게 기다린다
     private let wordWindow = UIView()
     /// 창의 왼쪽 가장자리를 옅게 — 글자가 B 뒤에서 나올 때 칼로 자른 듯 끊겨 보이지 않게
     private let edgeFade = CAGradientLayer()
-    /// 글자가 나오는 움직임 — 끝날 때까지 붙들어 둔다
-    private var wordReveal: UIViewPropertyAnimator?
+    /// 글자 하나하나(U · L · L · P · E · N · L · O · G)의 칸 — 칸마다 제 글자 범위만 보이게 자르고 같은 글자 그림을 넣는다
+    private var letterCells: [UIView] = []
+    /// 글자 그림 속 글자마다의 가로 범위(그림 폭에 대한 비율) — 그림을 한 번 읽어 찾는다
+    private lazy var letterRanges: [(CGFloat, CGFloat)] = IntroOverlay.letterBounds(of: self.wordImage)
+    /// 글자들이 나오는 움직임 — 끝날 때까지 붙들어 둔다
+    private var letterReveals: [UIViewPropertyAnimator] = []
 
     private var started = false
     private var settled = false
@@ -120,12 +127,10 @@ final class IntroOverlay: UIView {
         addSubview(stage)
 
         // 글자 창을 먼저(아래 층), B 를 나중에(위 층) — 혹시 둘이 닿아도 B 가 글자 위에 그려진다
-        word.contentMode = .scaleToFill
         edgeFade.startPoint = CGPoint(x: 0, y: 0.5)
         edgeFade.endPoint = CGPoint(x: 1, y: 0.5)
         edgeFade.colors = [UIColor.clear.cgColor, UIColor.black.cgColor, UIColor.black.cgColor]
         wordWindow.layer.mask = edgeFade
-        wordWindow.addSubview(word)
         stage.addSubview(wordWindow)
 
         markShape.fillColor = Self.brand.cgColor
@@ -166,7 +171,7 @@ final class IntroOverlay: UIView {
         let cap = 0.7 * min(0.15 * size.width, 68)
         let midY = size.height / 2
         let markWidth = cap * Self.markUnits.width / Self.markUnits.height
-        guard let image = word.image, image.size.width > 0, image.size.height > 0 else {
+        guard let image = wordImage, image.size.width > 0, image.size.height > 0 else {
             // 글자 그림이 없으면 B 만 가운데에서 작아진다
             return Layout(bigHeight: bigHeight, capHeight: cap, markCenter: CGPoint(x: size.width / 2, y: midY),
                           markRight: (size.width + markWidth) / 2, wordFrame: .zero)
@@ -201,20 +206,36 @@ final class IntroOverlay: UIView {
         CATransaction.setDisableActions(true)
         markShape.frame = mark.bounds
         markShape.path = Self.markPath().copy(using: &scale)
-        // 글자 창은 B 끝 자리의 오른쪽 끝부터. 글자는 끝 자리에 맞춰 넣되, 처음엔 조금 왼쪽(B 뒤)으로 밀고 투명하게 둔다
+        // 글자 창은 B 끝 자리의 오른쪽 끝부터 글자 그림 오른쪽 끝까지
         let windowLeft = spot.markRight
         wordWindow.frame = CGRect(x: windowLeft, y: spot.wordFrame.minY,
                                   width: max(spot.wordFrame.maxX - windowLeft, 0), height: spot.wordFrame.height)
-        word.transform = .identity
-        word.frame = CGRect(x: spot.wordFrame.minX - windowLeft, y: 0,
-                            width: spot.wordFrame.width, height: spot.wordFrame.height)
-        word.transform = CGAffineTransform(translationX: -Self.wordSlide * spot.capHeight, y: 0)
-        word.alpha = 0
+        placeLetters(wordFrame: spot.wordFrame, windowLeft: windowLeft, slide: Self.letterSlide * spot.capHeight)
         // 옅은 가장자리는 B 와 글자 사이 틈(대문자 높이의 0.1 넘게) 안에서만 — 다 나온 글자는 흐려지지 않는다
         edgeFade.frame = wordWindow.bounds
         let fade = wordWindow.bounds.width > 0 ? 0.08 * spot.capHeight / wordWindow.bounds.width : 0
         edgeFade.locations = [0, NSNumber(value: Double(fade)), 1]
         CATransaction.commit()
+    }
+
+    /// 글자 칸들을 끝 자리에 놓는다 — 칸마다 제 글자 범위만 보이게 잘라 같은 글자 그림을 넣고, 처음엔 투명하게 조금 왼쪽에 둔다
+    private func placeLetters(wordFrame: CGRect, windowLeft: CGFloat, slide: CGFloat) {
+        letterCells.forEach { $0.removeFromSuperview() }
+        letterCells = []
+        guard let image = wordImage, wordFrame.width > 0 else { return }
+        for (start, end) in letterRanges {
+            let cell = UIView(frame: CGRect(x: wordFrame.minX - windowLeft + start * wordFrame.width, y: 0,
+                                            width: (end - start) * wordFrame.width, height: wordFrame.height))
+            cell.clipsToBounds = true
+            let picture = UIImageView(image: image)
+            picture.contentMode = .scaleToFill
+            picture.frame = CGRect(x: -start * wordFrame.width, y: 0, width: wordFrame.width, height: wordFrame.height)
+            cell.addSubview(picture)
+            cell.alpha = 0
+            cell.transform = CGAffineTransform(translationX: -slide, y: 0)
+            wordWindow.addSubview(cell)
+            letterCells.append(cell)
+        }
     }
 
     /// 움직이기 시작한다 — 화면이 처음 보인 뒤(viewDidAppear) 한 번
@@ -240,27 +261,27 @@ final class IntroOverlay: UIView {
             self.mark.transform = CGAffineTransform(scaleX: small, y: small)
         }, completion: nil)
 
-        // 2. B 가 자리에 닿을 무렵 ULLPEN LOG 가 연하게 나타나 진해지며 B 뒤에서 살짝 밀려 나온다 — 천천히 시작해
-        //    부드럽게 멈춘다(CSS 의 ease 와 같은 곡선, 튀지 않는다)
-        if word.image != nil {
-            let reveal = UIViewPropertyAnimator(duration: Self.wordDuration,
+        // 2. B 가 자리에 닿을 무렵부터 글자가 U → L → … → G 순서로 하나씩, 연하게 나타나 진해지며 살짝 밀려 나온다
+        //    — 글자마다 천천히 시작해 부드럽게 멈춘다(CSS 의 ease 와 같은 곡선, 튀지 않는다)
+        for (index, cell) in letterCells.enumerated() {
+            let reveal = UIViewPropertyAnimator(duration: Self.letterDuration,
                                                 controlPoint1: CGPoint(x: 0.25, y: 0.1),
                                                 controlPoint2: CGPoint(x: 0.25, y: 1)) {
-                self.word.transform = .identity
-                self.word.alpha = 1
+                cell.alpha = 1
+                cell.transform = .identity
             }
-            reveal.startAnimation(afterDelay: Self.wordStart)
-            wordReveal = reveal
+            reveal.startAnimation(afterDelay: Self.wordStart + Double(index) * Self.letterStagger)
+            letterReveals.append(reveal)
         }
 
-        // 3. 다 펼친 모습을 잠깐 보인 뒤 — 사이트가 준비됐으면 걷는다(아니면 준비될 때까지 이 모습으로 기다린다)
+        // 3. 다 나온 모습을 잠깐 보인 뒤 — 사이트가 준비됐으면 걷는다(아니면 준비될 때까지 이 모습으로 기다린다)
         DispatchQueue.main.asyncAfter(deadline: .now() + Self.settleAt) { [weak self] in
             self?.settled = true
             self?.leaveIfDone()
         }
     }
 
-    /// 사이트가 첫 화면을 다 그렸다 — 다 펼친 뒤라면 걷는다
+    /// 사이트가 첫 화면을 다 그렸다 — 다 나온 뒤라면 걷는다
     func pageReady() {
         ready = true
         leaveIfDone()
@@ -277,6 +298,54 @@ final class IntroOverlay: UIView {
             self.removeFromSuperview()
             self.onFinish?()
         })
+    }
+
+    /// 글자 그림에서 글자마다의 가로 범위(그림 폭에 대한 비율)를 찾는다 — 잉크가 있는 세로줄이 이어진 덩어리 하나가
+    /// 글자 하나(띄어쓰기는 덩어리가 없어 저절로 빠진다). 이웃 글자와의 경계는 둘 사이 빈틈의 한가운데.
+    /// 그림을 못 읽으면 그림 전체를 한 덩어리로 돌려준다(그때는 이름 전체가 한꺼번에 나타난다).
+    private static func letterBounds(of image: UIImage?) -> [(CGFloat, CGFloat)] {
+        let whole: [(CGFloat, CGFloat)] = [(0, 1)]
+        guard let cg = image?.cgImage else { return whole }
+        let width = cg.width
+        let height = cg.height
+        guard width > 0, height > 0 else { return whole }
+        var pixels = [UInt8](repeating: 0, count: width * height * 4)
+        let drawn = pixels.withUnsafeMutableBytes { raw -> Bool in
+            guard let context = CGContext(data: raw.baseAddress, width: width, height: height, bitsPerComponent: 8,
+                                          bytesPerRow: width * 4, space: CGColorSpaceCreateDeviceRGB(),
+                                          bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue) else { return false }
+            context.draw(cg, in: CGRect(x: 0, y: 0, width: width, height: height))
+            return true
+        }
+        guard drawn else { return whole }
+
+        var runs: [(Int, Int)] = []
+        var runStart = -1
+        for x in 0..<width {
+            var ink = false
+            for y in 0..<height where pixels[(y * width + x) * 4 + 3] > 40 {
+                ink = true
+                break
+            }
+            if ink && runStart < 0 {
+                runStart = x
+            } else if !ink && runStart >= 0 {
+                runs.append((runStart, x))
+                runStart = -1
+            }
+        }
+        if runStart >= 0 {
+            runs.append((runStart, width))
+        }
+        guard !runs.isEmpty else { return whole }
+
+        var bounds: [(CGFloat, CGFloat)] = []
+        for (index, run) in runs.enumerated() {
+            let left = index == 0 ? 0 : (runs[index - 1].1 + run.0) / 2
+            let right = index == runs.count - 1 ? width : (run.1 + runs[index + 1].0) / 2
+            bounds.append((CGFloat(left) / CGFloat(width), CGFloat(right) / CGFloat(width)))
+        }
+        return bounds
     }
 
     /// B — components/logo.tsx 의 MARK_PATH 를 그대로 옮겼다(594 × 613 칸). 두 반원은 타원의 반쪽이다.
