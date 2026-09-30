@@ -1982,3 +1982,64 @@ html:has(dialog:modal) {
     display: none;
   }
 }
+
+/* ───────── 앱 시작 연출(components/app-intro.tsx) ─────────
+   아이폰 앱을 켤 때 한 번 — lib/native-app.ts 가 <html data-intro> 를 붙일 때만 보인다. 바탕 · 글자색은
+   테마와 상관없이 로딩 그림(mobile/scripts/make-ios-assets.mjs)과 같은 밝은 판이다. 큰 B 는 로딩 그림처럼
+   화면 한가운데 · 화면 높이의 16%(INTRO_B_RATIO) — 그래야 그림에서 이 판으로 넘어가는 것이 안 보인다. */
+#app-intro {
+  display: none;
+}
+html[data-intro] #app-intro {
+  display: block;
+  position: fixed;
+  inset: 0;
+  z-index: 2147483000;
+  background: #f4f7fb;
+  overflow: hidden;
+  pointer-events: auto;
+}
+#app-intro .intro-stage {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+#app-intro .intro-word {
+  display: inline-flex;
+  align-items: baseline;
+  white-space: pre;
+  font-family: var(--font-bebas), sans-serif;
+  font-size: min(15vw, 4.25rem);
+  line-height: 1;
+  letter-spacing: 0.02em;
+  color: #0f172a;
+}
+/* 작아진 B 가 들어앉을 자리 — components/logo.tsx 의 Wordmark 와 같은 짜임(0.7em · 0.07em) */
+#app-intro .intro-slot {
+  display: inline-block;
+  height: 0.7em;
+  aspect-ratio: 594 / 613;
+  margin-right: 0.07em;
+}
+#app-intro .intro-letter {
+  display: inline-block;
+  opacity: 0;
+}
+#app-intro .intro-b {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  height: 16vh;
+  width: auto;
+  aspect-ratio: 594 / 613;
+  transform: translate(-50%, -50%);
+  transform-origin: 50% 50%;
+  fill: var(--color-brand);
+}
+/* 연출하는 동안 저절로 뜨는 창(체크인 등)은 판 위(top layer)에 그려지므로 숨겨 둔다 */
+html[data-intro] dialog,
+html[data-intro] dialog::backdrop {
+  visibility: hidden;
+}

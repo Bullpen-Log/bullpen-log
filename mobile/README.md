@@ -16,7 +16,7 @@
 | `www/offline.html` | 인터넷이 끊겨 사이트를 못 불러올 때 보이는 화면(연결되면 저절로 다시 연다) |
 | `www/index.html` | 자리표. 앱은 이 파일을 열지 않는다(Capacitor 가 요구해서 둔다) |
 | `ios/` | Xcode 프로젝트. `Info.plist` 에 카메라 · 마이크 · 사진 권한 문구, 세로 고정, 아이폰 전용 |
-| `scripts/make-ios-assets.mjs` | 앱 아이콘(1024) · 시작 화면([B]ULLPEN LOG, 밝은 판)을 지금 로고로 만든다(글자는 크롬으로 그린다) |
+| `scripts/make-ios-assets.mjs` | 앱 아이콘(1024) · 시작 화면(한가운데 큰 B, 밝은 판)을 지금 로고로 만든다 |
 
 - **앱 표시**: 앱은 브라우저 이름표(User-Agent) 끝에 `BullpenLogApp/1.0` 을 붙인다. 사이트의
   `lib/app-env.ts` 가 이것(과 `window.Capacitor`)을 보고 앱 안인지 가린다 — 구속 측정처럼 앱에서만
@@ -38,8 +38,9 @@
   표시, 상태바 글자색을 앱 테마에 맞추기(`SystemBars`, Capacitor 안에 있음), 첫 화면이 그려지면 로딩 화면
   걷기(`SplashScreen`). 사이트는 Capacitor 패키지 없이 `window.Capacitor.nativePromise` 로 부른다.
 - **로딩 화면**: 켤 때 아이폰이 그리는 시작 화면과 `@capacitor/splash-screen` 이 같은 그림(`Splash`)을 써서,
-  켜는 순간부터 첫 화면이 뜰 때까지 [B]ULLPEN LOG 와 작은 로딩 표시가 이어진다(최대 4초 —
-  `capacitor.config.json` 의 `plugins.SplashScreen`). 밝은 판 하나다 — 앱 테마가 폰의 다크 모드와 따로
+  켜는 순간부터 사이트가 뜰 때까지 한가운데 큰 B 가 이어진다(돌아가는 로딩 표시는 끔, 최대 4초 —
+  `capacitor.config.json` 의 `plugins.SplashScreen`). 사이트가 뜨면 시작 연출(`components/app-intro.tsx`)이
+  같은 자리 · 같은 크기의 B 로 이어 받아 튀기고 BULLPEN LOG 로 펼친 뒤 홈을 보인다(앱을 켤 때 한 번). 밝은 판 하나다 — 앱 테마가 폰의 다크 모드와 따로
   라이트로 시작해서, 폰 설정을 따르면 어두운 로딩 → 밝은 첫 화면으로 번쩍였다.
 - **진동**(`@capacitor/haptics`, 2026-09-30): 아이폰은 웹(사파리)에서 진동을 쓸 수 없고, 무음 모드면 끝 소리도 안 난다.
   그래서 암케어 버티기 · 쉬기 끝과 체크를 앱의 진동으로 알린다 — 사이트의 `lib/haptics.ts` 가 `window.Capacitor.nativePromise`

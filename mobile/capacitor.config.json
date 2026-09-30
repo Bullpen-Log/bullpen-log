@@ -15,9 +15,7 @@
     "SplashScreen": {
       "launchShowDuration": 4000,
       "launchAutoHide": true,
-      "showSpinner": true,
-      "iosSpinnerStyle": "small",
-      "spinnerColor": "#94a3b8"
+      "showSpinner": false
     },
     "SystemBars": {
       "style": "LIGHT"
