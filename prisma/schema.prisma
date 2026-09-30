@@ -266,6 +266,11 @@ model DailyCheckin {
   hydration    String?
   /// 끼니를 얼마나 챙겼나: 잘 먹음 / 보통 / 부족
   nutrition    String?
+  /// 식욕 1(거의 없음)~5(왕성). 영양 가이드가 쓴다 — 입맛이 없는 날은 적게 자주 먹게 권한다.
+  appetite     Int?
+  /// 던지는 일정: 오늘 등판 / 오늘 불펜 / 내일 등판 / 없음 (lib/checkin.ts THROW_PLANS).
+  /// 영양 가이드가 탄수화물을 언제 늘릴지 정한다 — 투구 기록은 던진 뒤에야 생긴다.
+  throwPlan    String?
   /// 그날 남기고 싶은 말
   note         String? @db.Text
 

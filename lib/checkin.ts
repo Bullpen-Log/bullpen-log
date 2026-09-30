@@ -250,6 +250,18 @@ export type DetailScaleKey = (typeof DETAIL_SCALES)[number]['key'];
 export const HYDRATION_LEVELS = ['충분', '보통', '부족'] as const;
 export const NUTRITION_LEVELS = ['잘 먹음', '보통', '부족'] as const;
 
+/*
+ * 영양 가이드에 쓰는 두 칸(2026-09-30 사용자: "영양 가이드에 필요한 정보가 있다면 체크인에도").
+ *
+ * 식욕은 1~5, 클수록 입맛이 돈다(다른 척도처럼 '클수록 그 느낌이 강하다'). 입맛이 없는
+ * 날은 한 번에 많이보다 적게 자주 — 증량 중인 선수에게 특히 중요하다.
+ *
+ * 던지는 일정은 탄수화물을 언제 늘릴지 정한다. 투구 기록은 던진 뒤에야 생겨서, 등판
+ * 전날 저녁 · 당일 아침에 챙길 것을 미리 알려면 여기서 받아야 한다.
+ */
+export const APPETITE_LEVELS = ['거의 없음', '적음', '보통', '좋음', '왕성'] as const;
+export const THROW_PLANS = ['오늘 등판', '오늘 불펜', '내일 등판', '없음'] as const;
+
 export const SLEEP_HOURS_MAX = 16;
 export const RESTING_HR_MIN = 30;
 export const RESTING_HR_MAX = 150;
@@ -264,6 +276,8 @@ export type CheckinDetail = Record<DetailScaleKey, number | null> & {
   restingHr: number | null;
   hydration: string | null;
   nutrition: string | null;
+  appetite: number | null;
+  throwPlan: string | null;
   note: string | null;
 };
 
@@ -276,6 +290,8 @@ export function hasDetail(d: Partial<CheckinDetail>) {
     d.restingHr != null ||
     d.hydration != null ||
     d.nutrition != null ||
+    d.appetite != null ||
+    d.throwPlan != null ||
     Boolean(d.note)
   );
 }
@@ -338,6 +354,14 @@ export function parseCheckinDetail(
   const pickFrom = (list: readonly string[], raw: string) =>
     list.includes(raw.trim()) ? raw.trim() : null;
 
+  const appetiteNum = Number(get('appetite'));
+  const appetite =
+    Number.isInteger(appetiteNum) &&
+    appetiteNum >= 1 &&
+    appetiteNum <= APPETITE_LEVELS.length
+      ? appetiteNum
+      : null;
+
   const note = get('note').trim();
   if (note.length > CHECKIN_NOTE_MAX) {
     return { error: `메모는 ${CHECKIN_NOTE_MAX}자까지 적을 수 있습니다.` };
@@ -352,6 +376,8 @@ export function parseCheckinDetail(
       restingHr,
       hydration: pickFrom(HYDRATION_LEVELS, get('hydration')),
       nutrition: pickFrom(NUTRITION_LEVELS, get('nutrition')),
+      appetite,
+      throwPlan: pickFrom(THROW_PLANS, get('throwPlan')),
       note: note || null,
     },
   };
@@ -373,6 +399,8 @@ export function pickCheckinDetail(row: Partial<CheckinDetail>): CheckinDetail {
     restingHr: row.restingHr ?? null,
     hydration: row.hydration ?? null,
     nutrition: row.nutrition ?? null,
+    appetite: row.appetite ?? null,
+    throwPlan: row.throwPlan ?? null,
     note: row.note ?? null,
   };
 }

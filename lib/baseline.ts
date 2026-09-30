@@ -72,20 +72,135 @@ const EQUIVALENT_SETS_PER_MINUTE = 0.17;
 export const THROWING_HANDS = ['우투', '좌투', '양투'] as const;
 
 /**
- * 어디서 야구를 하는지.
+ * 어디서 야구를 하는지 — 가입할 때 고른다(2026-09-30 부터 꼭 고른다).
  *
- * 이 값으로 무엇을 강제로 바꾸지 않는다 — 나이는 생년월일로 이미 알고 있고
- * 안전 한도도 거기서 나온다. 나중에 "고등학교 투수들은 보통 어떤지"를 보려고
- * 모으는 값이다.
+ * 이 값으로 계산을 바꾸지는 않는다 — 나이는 생년월일로 이미 알고 있고, 안전 한도와
+ * 영양 기준도 나이에서 나온다. 대신 생년월일과 어긋나는 곳은 고를 수 없게 한다
+ * (levelFit). "고등학교 투수들은 보통 어떤지"를 보려고 모으는 값이다.
+ *
+ * 2026-09-30 에 여섯 칸 → 일곱 칸으로 바꿨다(사용자: 유소년 · 중 · 고 · 대학 · 성인리그 ·
+ * 사회인 · 프로). 예전 값은 normalizeLevel 이 옮겨 읽는다.
  */
 export const COMPETITION_LEVELS = [
   '초등학교',
   '중학교',
   '고등학교',
   '대학교',
-  '실업·프로',
-  '사회인·동호회',
+  '성인리그',
+  '사회인',
+  '프로',
 ] as const;
+
+export type CompetitionLevel = (typeof COMPETITION_LEVELS)[number];
+
+/** 화면에 보일 이름 — 값은 짧게 두고 필요한 곳만 풀어 쓴다 */
+export const COMPETITION_LEVEL_LABELS: Record<CompetitionLevel, string> = {
+  초등학교: '초등학교 · 유소년',
+  중학교: '중학교',
+  고등학교: '고등학교',
+  대학교: '대학교',
+  성인리그: '성인리그',
+  사회인: '사회인',
+  프로: '프로',
+};
+
+/**
+ * 예전 선택지 → 지금 것. '실업·프로'는 성인리그 · 프로 둘로 나뉘었는데 어느 쪽인지
+ * 알 수 없어 프로로 읽는다 — 내 정보에서 다시 고르면 된다(그때 회원 5명 중 1명).
+ */
+const LEGACY_LEVELS: Record<string, CompetitionLevel> = {
+  '사회인·동호회': '사회인',
+  '실업·프로': '프로',
+};
+
+export function isCompetitionLevel(v: unknown): v is CompetitionLevel {
+  return typeof v === 'string' && (COMPETITION_LEVELS as readonly string[]).includes(v);
+}
+
+export function normalizeLevel(v: string | null | undefined): CompetitionLevel | null {
+  if (!v) return null;
+  if (isCompetitionLevel(v)) return v;
+  return LEGACY_LEVELS[v] ?? null;
+}
+
+/**
+ * 생년월일로 본 학년(1~6 초등 · 7~9 중 · 10~12 고 · 13 부터 졸업 뒤, 0 이하는 입학 전).
+ *
+ * 한국은 3월에 학년이 바뀌고, 태어난 해 + 7 년의 3월에 초등학교에 들어간다. 그래서
+ * (올해 학년도) − 태어난 해 − 6. 1·2월에는 아직 지난 학년도다. 2009년 전의 1·2월생
+ * (빠른 년생)은 한 해 일찍 들어갔고 유급 · 재수도 있어, 고르는 칸은 앞뒤 한 학년씩
+ * 넉넉히 연다(levelFit).
+ *
+ * 날짜는 'YYYY-MM-DD' 글자 그대로 받는다 — 화면(달력)과 서버가 같은 답을 내게.
+ */
+export function schoolGrade(birthKey: string, todayKey: string): number | null {
+  const by = Number(birthKey.slice(0, 4));
+  const [ty, tm] = todayKey.split('-').map(Number);
+  if (!by || !ty || !tm) return null;
+  const schoolYear = tm >= 3 ? ty : ty - 1;
+  return schoolYear - by - 6;
+}
+
+/** '중학교 3학년' — 학년을 사람 말로 */
+export function gradeText(grade: number) {
+  if (grade <= 0) return '초등학교 입학 전';
+  if (grade <= 6) return `초등학교 ${grade}학년`;
+  if (grade <= 9) return `중학교 ${grade - 6}학년`;
+  if (grade <= 12) return `고등학교 ${grade - 9}학년`;
+  return '고등학교 졸업 뒤';
+}
+
+function levelsAtGrade(grade: number): CompetitionLevel[] {
+  if (grade <= 6) return ['초등학교'];
+  if (grade <= 9) return ['중학교'];
+  if (grade <= 12) return ['고등학교'];
+  return ['대학교', '성인리그', '사회인', '프로'];
+}
+
+/**
+ * 나이에 맞는 소속 — 고를 수 있는 것(allowed)과 먼저 골라 둘 것(suggested).
+ *
+ * 학교 나이면 그 학교를 먼저 골라 둔다. 졸업 뒤 나이는 대학 · 성인리그 · 사회인 · 프로
+ * 어느 것일지 모르니 고르게 둔다. 생년월일을 모르면 모두 고를 수 있다.
+ */
+export function levelFit(
+  birthKey: string | null,
+  todayKey: string
+): {
+  grade: number | null;
+  allowed: CompetitionLevel[];
+  suggested: CompetitionLevel | null;
+} {
+  const grade = birthKey ? schoolGrade(birthKey, todayKey) : null;
+  if (grade === null) {
+    return { grade: null, allowed: [...COMPETITION_LEVELS], suggested: null };
+  }
+  const near = new Set([
+    ...levelsAtGrade(grade - 1),
+    ...levelsAtGrade(grade),
+    ...levelsAtGrade(grade + 1),
+  ]);
+  return {
+    grade,
+    allowed: COMPETITION_LEVELS.filter((l) => near.has(l)),
+    suggested: grade <= 12 ? levelsAtGrade(grade)[0] : null,
+  };
+}
+
+/**
+ * 생년월일과 어긋나는 소속이면 까닭을, 괜찮으면 null. 서버가 저장하기 전에 본다 —
+ * 화면이 이미 막지만 오래 열어 둔 화면이나 손으로 만든 요청도 있다.
+ */
+export function levelAgeProblem(
+  level: string | null,
+  birthKey: string | null,
+  todayKey: string
+): string | null {
+  if (!level || !birthKey || !isCompetitionLevel(level)) return null;
+  const fit = levelFit(birthKey, todayKey);
+  if (fit.grade === null || fit.allowed.includes(level)) return null;
+  return `생년월일로 보면 ${gradeText(fit.grade)} 나이라 '${COMPETITION_LEVEL_LABELS[level]}' 소속은 고를 수 없어요. 소속을 다시 골라 주세요.`;
+}
 
 export const BASELINE_WORKOUT_FREQ_NAMES: readonly string[] = BASELINE_WORKOUT_FREQ.map(
   (o) => o.name

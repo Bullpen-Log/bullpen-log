@@ -17,12 +17,14 @@ import {
   CHECKIN_WEIGHT_MAX_KG,
   CHECKIN_WEIGHT_MIN_KG,
   DETAIL_SCALES,
+  APPETITE_LEVELS,
   HYDRATION_LEVELS,
   MAX_CONDITION,
   MAX_PREFERRED_PARTS,
   MIN_CONDITION,
   NO_WORKOUT_KIND,
   NUTRITION_LEVELS,
+  THROW_PLANS,
   RESTING_HR_MAX,
   RESTING_HR_MIN,
   SLEEP_HOURS_MAX,
@@ -335,6 +337,9 @@ function detailLines(d: CheckinData, weightUnit: 'kg' | 'lb'): [string, string][
   if (d.restingHr != null) out.push(['아침 심박', `${d.restingHr}bpm`]);
   if (d.hydration) out.push(['수분', d.hydration]);
   if (d.nutrition) out.push(['식사', d.nutrition]);
+  if (d.appetite != null)
+    out.push(['식욕', APPETITE_LEVELS[d.appetite - 1] ?? String(d.appetite)]);
+  if (d.throwPlan) out.push(['던지는 일정', d.throwPlan]);
   return out;
 }
 
@@ -830,7 +835,8 @@ export function CheckinForm({
                     />
                   </Section>
 
-                  <Section title="먹고 마신 것">
+                  {/* 식욕 · 던지는 일정은 영양 탭의 가이드가 쓴다(lib/checkin.ts) */}
+                  <Section title="먹고 마신 것 · 영양 가이드에 써요">
                     <Row label="수분">
                       {HYDRATION_LEVELS.map((v) => (
                         <ChipRadio
@@ -852,6 +858,34 @@ export function CheckinForm({
                           value={v}
                           toggleable
                           defaultChecked={pick('nutrition', today?.nutrition) === v}
+                        >
+                          {v}
+                        </ChipRadio>
+                      ))}
+                    </Row>
+                    <Row label="식욕">
+                      {APPETITE_LEVELS.map((label, i) => (
+                        <ChipRadio
+                          key={label}
+                          name="appetite"
+                          value={String(i + 1)}
+                          toggleable
+                          defaultChecked={
+                            pick('appetite', today?.appetite) === String(i + 1)
+                          }
+                        >
+                          {label}
+                        </ChipRadio>
+                      ))}
+                    </Row>
+                    <Row label="던지는 일정">
+                      {THROW_PLANS.map((v) => (
+                        <ChipRadio
+                          key={v}
+                          name="throwPlan"
+                          value={v}
+                          toggleable
+                          defaultChecked={pick('throwPlan', today?.throwPlan) === v}
                         >
                           {v}
                         </ChipRadio>

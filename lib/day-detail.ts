@@ -1,9 +1,20 @@
 import 'server-only';
 import { prisma } from '@/lib/prisma';
 import { trainingDay, type TrainingDayDetail } from '@/lib/report/training-history';
-import { CHECKIN_PARTS, DETAIL_SCALES, pickCheckinParts } from '@/lib/checkin';
+import {
+  APPETITE_LEVELS,
+  CHECKIN_PARTS,
+  DETAIL_SCALES,
+  pickCheckinParts,
+} from '@/lib/checkin';
 import { dbDate } from '@/lib/nutrition/days';
-import { MEALS, amountText, isMealKey, isSex, type MealKey } from '@/lib/nutrition/meta';
+import {
+  MEALS,
+  amountText,
+  isMealKey,
+  isSex,
+  type MealKey,
+} from '@/lib/nutrition/meta';
 import { ageOn, computeTargets } from '@/lib/nutrition/targets';
 import { pitchingBurn, totalBurn, trainingBurn } from '@/lib/nutrition/burn';
 import { toProfile } from '@/lib/nutrition/load';
@@ -148,6 +159,14 @@ export async function loadDayDetail(user: UserBody, date: string): Promise<DayDe
       details.push({ label: '안정 심박', value: `${checkin.restingHr}` });
     if (checkin.hydration) details.push({ label: '물', value: checkin.hydration });
     if (checkin.nutrition) details.push({ label: '식사', value: checkin.nutrition });
+    if (
+      checkin.appetite != null &&
+      checkin.appetite >= 1 &&
+      checkin.appetite <= APPETITE_LEVELS.length
+    )
+      details.push({ label: '식욕', value: APPETITE_LEVELS[checkin.appetite - 1] });
+    if (checkin.throwPlan)
+      details.push({ label: '던지는 일정', value: checkin.throwPlan });
     checkinOut = {
       condition: checkin.condition,
       sleep: checkin.sleep,

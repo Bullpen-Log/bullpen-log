@@ -11,6 +11,21 @@ Claude 로 작업을 시작하면 저절로 읽힌다. 규칙은 `AGENTS.md` 6�
 
 ---
 
+## 김민에게 — 2026-09-30 · 금윤호(Claude) — DB 칸 추가(체크인 식욕 · 던지는 일정), 소속 7칸, 나이별 영양
+
+**받은 뒤 할 일: `npx prisma generate`.** DB 구조를 바꿨다 — `DailyCheckin` 에 비워 둘 수 있는 칸 둘(`appetite` ·
+`throwPlan`)을 더했다(마이그레이션 `20260930143000_checkin_appetite_throw_plan`, 백업 뒤 이미 적용함). 추가만이라
+네 코드는 그대로 돈다.
+
+- **소속(`User.competitionLevel`) 선택지가 7칸이 됐다** — 초등학교 · 중학교 · 고등학교 · 대학교 · 성인리그 · 사회인 · 프로
+  (`lib/baseline.ts`). 가입할 때 꼭 고르고, 생년월일로 본 학년(3월 기준, 앞뒤 한 학년 여유)에 안 맞는 곳은 막힌다
+  (`components/level-choices.tsx` · 서버도 `levelAgeProblem` 으로 다시 본다). 예전 값 '사회인·동호회' · '실업·프로' 는
+  DB 를 안 고치고 읽을 때 '사회인' · '프로'로 옮겨 읽는다(`normalizeLevel`).
+- **영양 목표가 나이를 본다**(`lib/nutrition/age.ts`) — 만 18세 밑은 기초대사량을 Schofield 식으로, 단백질 범위를
+  낮게(성장기 1.3~1.8 · 어린이 1.2~1.5g/kg), 감량은 성장기 −200kcal · 어린이는 못 고름. `ProfileSettings.proteinPerKg`
+  가 `number | null` 이 됐다(null = 아직 안 정함 → 나이 기본값).
+- 영양 탭: 식약처 음식 중 탄수화물 · 지방이 비어 오는 것(프랜차이즈 등)을 '탄·지 모름'과 합계의 '+'로 표시한다.
+
 ## 김민에게 — 2026-09-30 · 금윤호(Claude) — 구속 측정 모델 1.6.0(2차 보정), 네 보정 영상 값을 다시 잼
 
 받은 뒤 할 일 없음(패키지 · DB 구조 그대로, `package.json` 에 스크립트 한 줄 `velocity:video-test` 만 더함).
