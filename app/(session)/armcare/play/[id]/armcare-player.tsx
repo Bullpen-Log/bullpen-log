@@ -32,6 +32,7 @@ import {
   useExerciseDescription,
   type ArmcareExerciseView,
 } from '@/app/(app)/training/armcare-media';
+import { buzz } from '@/lib/haptics';
 
 /** 따라 할 운동 하나 — 서버(page.tsx)가 만들어 넘긴다 */
 export type PlayerItem = {
@@ -154,18 +155,13 @@ function initState(list: PlayerItem[]): State {
 /** 이만큼 아무것도 안 누르면 화면 잠금을 놓는다 — 운동 화면이 쉬는 시계를 거두는 10분 */
 const IDLE_MS = REST_CLOCK_LIMIT_SECONDS * 1000;
 
-const buzz = (pattern: number | number[]) => {
-  if (typeof navigator !== 'undefined' && 'vibrate' in navigator)
-    navigator.vibrate(pattern);
-};
-
 /**
  * 시계가 끝났다는 신호 — 진동과 짧은 소리.
  *
  * 예전에는 진동뿐이었는데, 아이폰은 웹에서 진동을 쓸 수 없어 버티기가 끝나도 아무
  * 신호가 없었다(2026-09-26 검토). 소리는 사람이 누른 순간에 한 번 깨워 둬야 난다
  * (브라우저 규칙) — 화면의 단추를 누를 때마다 깨운다(arm). 무음 모드면 소리가 안 날 수
- * 있다.
+ * 있다 — 아이폰 앱은 진동(lib/haptics.ts, 앱의 진동)이 대신 알린다.
  */
 function useAlarm() {
   const audio = useRef<AudioContext | null>(null);

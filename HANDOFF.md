@@ -11,6 +11,17 @@ Claude 로 작업을 시작하면 저절로 읽힌다. 규칙은 `AGENTS.md` 6�
 
 ---
 
+## 금윤호에게 — 2026-09-30 · 김민(Claude) — 비밀번호 바꾸면 다른 기기 로그아웃 · 앱 진동
+
+받은 뒤 할 일: `mobile/` 에 패키지가 늘었다 — 앱 폴더에서 작업할 때만 `cd mobile && npm ci`. 뿌리 패키지 · DB 는 그대로.
+
+- **로그인 표에 비밀번호 지문**(`lib/jwt.ts` `pw`, `lib/session.ts` `passwordFingerprint`, `lib/dal.ts` getCurrentUser 가 견줌):
+  비밀번호를 바꾸면 다른 기기의 로그인이 풀린다(예전엔 30일 동안 살아 있었다). 바꾼 기기는 새 지문으로 다시 만든다. 지문 없는
+  옛 표는 기한까지 그대로 통해서 **이번 배포로 아무도 로그아웃되지 않는다**. `getCurrentUser` 는 password 를 읽지만 돌려주지 않는다.
+- **앱 진동**(`@capacitor/haptics`, `lib/haptics.ts` `buzz`): 아이폰은 웹에서 진동이 안 돼 암케어 버티기 · 쉬기 끝에 신호가
+  없었다. 이 커밋이 `mobile/` 을 바꿔 새 TestFlight 빌드가 올라간다(자동 배포). 구속 측정 화면의 `navigator.vibrate` 도
+  `buzz` 로 바꾸면 앱에서 떨린다 — 네 파일이라 안 건드렸다.
+
 ## 금윤호에게 — 2026-09-30 · 김민(Claude) — 투구 기록 · 영상 버그 고침(네 영역)
 
 받은 뒤 할 일 없음(DB · 패키지 그대로).

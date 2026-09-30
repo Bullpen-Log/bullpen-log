@@ -41,6 +41,9 @@
   켜는 순간부터 첫 화면이 뜰 때까지 [B]ULLPEN LOG 와 작은 로딩 표시가 이어진다(최대 4초 —
   `capacitor.config.json` 의 `plugins.SplashScreen`). 밝은 판 하나다 — 앱 테마가 폰의 다크 모드와 따로
   라이트로 시작해서, 폰 설정을 따르면 어두운 로딩 → 밝은 첫 화면으로 번쩍였다.
+- **진동**(`@capacitor/haptics`, 2026-09-30): 아이폰은 웹(사파리)에서 진동을 쓸 수 없고, 무음 모드면 끝 소리도 안 난다.
+  그래서 암케어 버티기 · 쉬기 끝과 체크를 앱의 진동으로 알린다 — 사이트의 `lib/haptics.ts` 가 `window.Capacitor.nativePromise`
+  로 부르고, 진동이 든 앱을 아직 안 깔았으면 웹과 같다(아무 일 없음).
 - **세로 고정**: 삼각대에 둔 폰이 구속 측정 중에 돌아가지 않게 했다. 가로가 필요해지면
   `ios/App/App/Info.plist` 의 `UISupportedInterfaceOrientations` 에 더한다.
 

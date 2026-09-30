@@ -13,6 +13,7 @@ import { ARMCARE_KIND_TEXT, type ArmcareKind } from '@/lib/armcare/routine';
 import { MuscleChips } from '@/components/muscle-chips';
 import { ExerciseMedia, type ArmcareExerciseView } from './armcare-media';
 import { CheckRow } from './check-row';
+import { buzz } from '@/lib/haptics';
 
 export type ArmcareTodayItem = {
   area: ArmcareAreaKey;
@@ -291,10 +292,8 @@ export function Checklist({
     const target = items.find((it) => it.exercise.id === id);
     if (!target) return;
     const next = !target.done;
-    /* 체크할 때 짧게 떨려 손에 '됐다'가 느껴지게 — 풀 때는 조용히 */
-    if (next && typeof navigator !== 'undefined' && 'vibrate' in navigator) {
-      navigator.vibrate(12);
-    }
+    /* 체크할 때 짧게 떨려 손에 '됐다'가 느껴지게 — 풀 때는 조용히(아이폰 앱은 가벼운 톡, lib/haptics.ts) */
+    if (next) buzz(12);
     setItems((prev) =>
       prev.map((it) => (it.exercise.id === id ? { ...it, done: next } : it))
     );
