@@ -2,7 +2,7 @@
 
 import { useRef, useState, useTransition } from 'react';
 import Link from 'next/link';
-import { unstable_rethrow, useRouter } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 import { Button, Field, FormError, Input } from '@/components/ui';
 import { Segmented } from '@/components/segmented';
 import { saveVelocitySession } from '@/app/actions/velocity';
@@ -156,15 +156,6 @@ export function FileMeasure({
    * 수기로 올리기 — 재지 않고(또는 재지 못해서) 스피드건 값만으로 공 하나짜리 세션을 만들고 영상을
    * 클립으로 올린다. 카메라 값이 없으니 보정 짝은 아니다 — 나중에 다시 재서 채울 자료.
    */
-  /* 신호가 끊겨 서버 액션이 던지면 — 단계가 '저장 중'에 멈춘 채 남지 않게 실패로 바꾼다(Next.js 자체 신호는 그대로) */
-  function offline(err: unknown) {
-    unstable_rethrow(err);
-    return {
-      ok: false as const,
-      error: '신호가 약해 저장하지 못했어요. 신호가 잡히면 다시 눌러 주세요.',
-    };
-  }
-
   async function uploadManual() {
     if (!file || busy) return;
     if (fps === 'reading') return setError('영상의 fps 를 읽는 중이에요. 잠깐 뒤 다시 눌러주세요.');
@@ -216,7 +207,7 @@ export function FileMeasure({
           memo: null,
         },
       ],
-    }).catch(offline);
+    });
     if (!saved.ok) {
       setStage({ kind: 'idle' });
       return setError(saved.error);
@@ -291,7 +282,7 @@ export function FileMeasure({
           memo: null,
         },
       ],
-    }).catch(offline);
+    });
     if (!saved.ok) {
       setStage({ kind: 'done', result });
       return setError(saved.error);

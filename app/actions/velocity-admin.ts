@@ -64,8 +64,6 @@ export async function adminUpdateVelocityPitch(
 
   const data: {
     gunKmh?: number | null;
-    rawKmh?: number;
-    kmh?: number;
     calibExclude?: boolean;
     pitchType?: string | null;
     zone?: number | null;
@@ -120,29 +118,11 @@ export async function adminUpdateVelocityPitch(
 
   const row = await prisma.velocityPitch.findUnique({
     where: { id },
-    select: {
-      id: true,
-      manual: true,
-      sessionId: true,
-      session: { select: { date: true } },
-    },
+    select: { id: true, session: { select: { date: true } } },
   });
   if (!row) return { ok: false, error: '공을 찾을 수 없습니다.' };
 
-  /*
-   * 수기 공은 스피드건 값이 곧 구속이다(저장할 때 raw · kmh 에 복사) — 건 값만 고치면 구속은 옛 값 그대로 남았다.
-   * 구속도 같이 바꾸고 투구 기록의 최고 · 평균을 다시 맞춘다. 수기 공의 건 값은 비울 수 없다.
-   */
-  const manualSpeed = row.manual && 'gunKmh' in data;
-  if (manualSpeed) {
-    if (data.gunKmh == null)
-      return { ok: false, error: '수기 공은 스피드건 값을 비울 수 없어요.' };
-    data.rawKmh = data.gunKmh;
-    data.kmh = data.gunKmh;
-  }
-
   await prisma.velocityPitch.update({ where: { id }, data });
-  if (manualSpeed) await syncVelocitySession(row.sessionId);
   revalidateAll(row.session.date.toISOString().slice(0, 10));
   return { ok: true };
 }
@@ -260,8 +240,6 @@ export type RemeasuredValues = {
   frames: number | null;
   fps: number | null;
   analysis?: unknown;
-  /** 이 값을 낸 모델 — 보정 차수의 결과를 채울 때 그 차수의 버전. 없으면 지금 모델(방금 다시 잰 값) */
-  engineVersion?: string;
 };
 
 /**
@@ -310,15 +288,8 @@ export async function adminApplyMeasurement(
       analysis: (sanitizeAnalysis(values.analysis) ?? undefined) as
         Prisma.InputJsonValue | undefined,
       manual: false,
-      /*
-       * 새 값을 낸 모델 — 방금 다시 잰 값이면 지금 버전, 보정 차수의 결과면 그 차수의 버전. 옛 차수(v1.5 등)의 값에 지금
-       * 버전을 찍으면 옛 모델의 값이 지금 모델의 보정 짝으로 섞였다(loadCalibration 은 버전이 같은 짝만 쓴다).
-       */
-      engineVersion:
-        typeof values.engineVersion === 'string' &&
-        /^\d+\.\d+\.\d+$/.test(values.engineVersion)
-          ? values.engineVersion
-          : VELOCITY_ENGINE_VERSION,
+      /* 새 값을 낸 모델 — 원본이 옛 모델이었어도 이제 이 버전의 값 */
+      engineVersion: VELOCITY_ENGINE_VERSION,
     },
   });
   /* 같이 만든 투구 기록의 최고 · 평균도 새 값으로 */

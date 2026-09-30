@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef } from 'react';
 import { X } from 'lucide-react';
 import {
   PITCH_RESULTS,
@@ -9,13 +9,6 @@ import {
   type PitchEdit,
 } from '@/lib/velocity-meta';
 import { CHIP_BASE, CHIP_ON } from './kit';
-
-/* 스피드건 칸의 글자 → 값. 다 적기 전('138.')도 읽는다(138) */
-function parseGun(text: string): number | null {
-  if (text === '' || text === '.') return null;
-  const n = Number(text);
-  return Number.isFinite(n) ? n : null;
-}
 
 /**
  * 공 하나를 고치는 칸들 — 구종 · 코스 · 결과 · 스피드건 값 · 메모.
@@ -31,19 +24,6 @@ export function PitchEditorFields({
   onChange: (next: PitchEdit) => void;
 }) {
   const set = (patch: Partial<PitchEdit>) => onChange({ ...value, ...patch });
-  /*
-   * 스피드건 칸은 적는 글자 그대로 쥔다 — 숫자로만 쥐면 '138.' 의 점이 그 자리에서 사라져, 138.5 를 적으면 1385 가 됐다
-   * (서버가 범위 밖이라 세션 저장을 통째로 거절했다). 값이 밖에서 바뀌면(다른 공을 열었을 때) 글자를 다시 맞춘다.
-   */
-  const [gunText, setGunText] = useState(
-    value.gunKmh == null ? '' : String(value.gunKmh)
-  );
-  const [gunSeen, setGunSeen] = useState(value.gunKmh);
-  if (value.gunKmh !== gunSeen) {
-    setGunSeen(value.gunKmh);
-    if (parseGun(gunText) !== value.gunKmh)
-      setGunText(value.gunKmh == null ? '' : String(value.gunKmh));
-  }
   return (
     <div className="space-y-4">
       <Field label="구종">
@@ -87,13 +67,10 @@ export function PitchEditorFields({
         <div className="relative">
           <input
             inputMode="decimal"
-            value={gunText}
+            value={value.gunKmh ?? ''}
             onChange={(e) => {
-              /* 숫자와 점 하나만 */
-              const [whole, ...rest] = e.target.value.replace(/[^\d.]/g, '').split('.');
-              const t = rest.length ? `${whole}.${rest.join('')}` : whole;
-              setGunText(t);
-              set({ gunKmh: parseGun(t) });
+              const t = e.target.value.replace(/[^\d.]/g, '');
+              set({ gunKmh: t === '' ? null : Number(t) });
             }}
             placeholder="예) 138"
             className="h-11 w-full rounded-xl border border-line bg-surface-2 px-4 pr-14 text-base tabular-nums text-ink placeholder:text-muted/60 focus:border-sky focus:outline-none"
@@ -249,14 +226,7 @@ export function BottomSheet({
   return (
     <dialog
       ref={ref}
-      /* 이 시트의 닫힘만 — React 는 close 를 부모 쪽으로도 올려 보내 바깥 창(투구 기록 팝업)까지 닫았다(components/modal.tsx) */
-      onClose={(e) => {
-        if (e.target === e.currentTarget) onClose();
-      }}
-      /* ESC 는 이 시트만 닫는다 — 바깥 창(Modal)의 ESC 받기까지 올라가면 그 창도 닫힌다 */
-      onKeyDown={(e) => {
-        if (e.key === 'Escape') e.stopPropagation();
-      }}
+      onClose={onClose}
       onClick={(e) => {
         if (e.target === e.currentTarget) onClose();
       }}

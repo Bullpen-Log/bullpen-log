@@ -4,7 +4,6 @@ import { prisma } from '@/lib/prisma';
 import { createPlaybackUrls } from '@/lib/storage';
 import { fitCalibration, type CalFit, type CalPair } from '@/lib/velocity-calibration';
 import { VELOCITY_ENGINE_VERSION } from '@/lib/velocity-engine/version';
-import { toDateKey } from '@/lib/pitch-stats';
 
 /**
  * 구속 측정 관리자(/admin/velocity)가 읽는 것 — 모든 계정의 세션 · 공 · 스피드건 짝 · 영상 클립.
@@ -442,14 +441,13 @@ export async function loadVelocityAdminOverview(): Promise<AdminOverview> {
         })),
     }));
 
-  /*
-   * 최근 30일 — 오늘(한국 날짜)부터 거꾸로 30칸, 오름차순. 서버는 UTC 로 돌아서 UTC 날짜로 세면 한국 0~9시에는 오늘이
-   * 빠졌다(세션 날짜는 한국 날짜를 UTC 자정으로 적어 둔 것이라 칸도 그 모양으로 만든다).
-   */
+  /* 최근 30일 — 오늘(UTC 날짜 기준)부터 거꾸로 30칸, 오름차순 */
   const recent: AdminOverview['recent'] = [];
-  const [ty, tm, td] = toDateKey(new Date()).split('-').map(Number);
+  const today = new Date();
   for (let i = 29; i >= 0; i--) {
-    const d = new Date(Date.UTC(ty, tm - 1, td - i));
+    const d = new Date(
+      Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate() - i)
+    );
     const key = dateKeyOf(d);
     const stat = byDate.has(key)
       ? dayStatOf(key, byDate.get(key) as OverviewPitch[])
