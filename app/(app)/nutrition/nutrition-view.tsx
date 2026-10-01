@@ -56,6 +56,7 @@ import {
   recoveryEaten,
   type ThrowGuide,
 } from '@/lib/nutrition/guide';
+import { mealProtein, type MealProtein } from '@/lib/nutrition/meal-protein';
 import { computeTargets } from '@/lib/nutrition/targets';
 import { STEP_KCAL, goalCopy, planOnSave } from '@/lib/nutrition/weight-goal';
 import {
@@ -309,6 +310,8 @@ export function NutritionView({ day, today }: { day: NutritionDay; today: string
                 key={m.key}
                 meal={m.key}
                 entries={entries.filter((e) => e.meal === m.key)}
+                protein={mealProtein(m.key, entries, t.protein, t.ageBand)}
+                dailyProtein={t.protein}
                 onOpen={(e) =>
                   setSheet({
                     meal: m.key,
@@ -1097,18 +1100,22 @@ function withObjectParticle(word: string) {
 function MealSection({
   meal,
   entries,
+  protein: p,
+  dailyProtein,
   onOpen,
   onAmount,
   onRemove,
 }: {
   meal: MealKey;
   entries: MealEntryView[];
+  /** 끼니별 단백질 — 한 끼 목표와 견준 것(lib/nutrition/meal-protein.ts) */
+  protein: MealProtein;
+  dailyProtein: number;
   onOpen: (e: MouseEvent<HTMLButtonElement>) => void;
   onAmount: (id: string, amount: number) => void;
   onRemove: (id: string) => void;
 }) {
   const total = sumMacros(entries.map(entryMacros));
-  const proteinGap = entries.some((e) => e.protein === null);
   const label = mealLabel(meal);
 
   /*
@@ -1122,11 +1129,44 @@ function MealSection({
     <li className="flex flex-col gap-1.5 bg-surface px-4 py-3 sm:px-5">
       <div className="flex min-h-9 items-center gap-2">
         <h2 className="shrink-0 text-[15px] font-bold text-ink">{label}</h2>
+        {/*
+          끼니별 단백질 — 세 끼는 한 끼 목표와 견주어 숫자 밑에 가는 막대를 둔다(머리 줄 높이 36px 안이라
+          칸이 커지지 않는다). 목표의 8할을 넘기면 초록 + 체크. 간식은 숫자만.
+        */}
         {entries.length > 0 && (
-          <p className="min-w-0 truncate text-xs tabular-nums text-muted">
-            {kcalText(total.kcal)}kcal · 단백질 {Math.round(total.protein)}g
-            {proteinGap ? '+' : ''}
-          </p>
+          <div className="min-w-0">
+            <p className="truncate text-xs tabular-nums text-muted">
+              {kcalText(total.kcal)}kcal ·{' '}
+              <span
+                title={
+                  p.goal !== null
+                    ? `한 끼 단백질 목표 ${p.goal}g — 하루 ${dailyProtein}g 을 세 끼와 간식에 고르게 나눈 양`
+                    : undefined
+                }
+                className={`transition-colors duration-300 ${p.done ? 'font-semibold text-ok' : ''}`}
+              >
+                {p.done && (
+                  <Check aria-hidden className="-mt-0.5 mr-0.5 inline h-3.5 w-3.5" />
+                )}
+                단백질 {p.protein}
+                {p.unknown ? '+' : ''}
+                {p.goal !== null && <> / {p.goal}</>}g
+              </span>
+            </p>
+            {p.goal !== null && (
+              <div
+                aria-hidden
+                className="mt-1 h-1 w-24 overflow-hidden rounded-full bg-surface-2"
+              >
+                <div
+                  className={`h-full rounded-full transition-[width,background-color] duration-500 ${EASE} ${
+                    p.done ? 'bg-ok' : 'bg-cat-lower'
+                  }`}
+                  style={{ width: `${Math.min(100, (p.protein / p.goal) * 100)}%` }}
+                />
+              </div>
+            )}
+          </div>
         )}
         {entries.length > 0 && (
           <button
@@ -1161,6 +1201,14 @@ function MealSection({
             />
           ))}
         </ul>
+      )}
+
+      {/* 모자란 끼니 — 기본 음식으로 채우는 예시 하나. 단백질을 모르는 음식이 섞이면 띄우지 않는다 */}
+      {p.tip && (
+        <p className="motion-safe:animate-fade-in break-keep text-xs leading-relaxed text-muted">
+          단백질 <b className="font-semibold text-ink">{p.short}g</b> 모자라요 ·{' '}
+          {p.tip.label}(+{p.tip.protein}g)이면 {p.tip.covers ? '채워요' : '거의 채워요'}
+        </p>
       )}
     </li>
   );

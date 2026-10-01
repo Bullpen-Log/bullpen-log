@@ -1,5 +1,9 @@
 import type { AgeBand } from '@/lib/nutrition/age';
 import type { GoalKey, MealEntryView } from '@/lib/nutrition/meta';
+import {
+  MEAL_PROTEIN_DONE_RATIO,
+  MEAL_PROTEIN_RANGE,
+} from '@/lib/nutrition/meal-protein';
 
 /**
  * 던지는 날 영양 가이드 — 오늘이 어떤 날인지 보고 한 장의 안내를 만든다(순수 계산).
@@ -98,18 +102,14 @@ const PRE_MEAL_MIN_CARBS = 70;
 /** 회복식(체중 1kg 당 g) */
 export const RECOVERY_PROTEIN_PER_KG = 0.3;
 export const RECOVERY_CARB_PER_KG = 1;
-/** 회복식 단백질의 아래 · 위 — 어린이(만 12세 이하)는 몸이 작아 한 단계 낮게 */
-const RECOVERY_PROTEIN_RANGE: Record<AgeBand, [number, number]> = {
-  child: [15, 30],
-  teen: [20, 40],
-  adult: [20, 40],
-};
+/** 회복식 단백질의 아래 · 위 — 끼니별 단백질의 한 끼 범위와 같다(lib/nutrition/meal-protein.ts) */
+const RECOVERY_PROTEIN_RANGE: Record<AgeBand, [number, number]> = MEAL_PROTEIN_RANGE;
 /** 이 아래면 '입맛이 없는 날'(거의 없음 · 적음) */
 const LOW_APPETITE = 2;
 /** 쌀밥 한 공기(210g)의 탄수화물 — 기본 음식 목록(foods.ts 'rice')과 같은 값 */
 const RICE_BOWL_CARBS = 66;
-/** 담은 단백질이 목표의 이만큼이면 회복식을 챙긴 것으로 본다(딱 맞춰 먹는 사람은 없다) */
-const RECOVERY_DONE_RATIO = 0.8;
+/** 담은 단백질이 목표의 이만큼이면 회복식을 챙긴 것으로 본다(딱 맞춰 먹는 사람은 없다) — 끼니별 단백질과 같은 기준 */
+const RECOVERY_DONE_RATIO = MEAL_PROTEIN_DONE_RATIO;
 
 /** 서비스 기준 시각(한국)은 UTC+9 — 끼니 칸이 '이미 지난 끼니'인지 볼 때만 쓴다(lib/pitch-stats.ts SERVICE_TIME_ZONE) */
 const SERVICE_UTC_OFFSET_HOURS = 9;

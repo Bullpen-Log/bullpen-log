@@ -63,6 +63,12 @@ import {
 } from '../lib/nutrition/guide.ts';
 import { isNutritionDate } from '../lib/nutrition/days.ts';
 import {
+  MEAL_PROTEIN_RANGE,
+  mealProtein,
+  mealProteinGoal,
+  proteinTip,
+} from '../lib/nutrition/meal-protein.ts';
+import {
   amountText,
   macroGaps,
   missingMacros,
@@ -2077,6 +2083,124 @@ console.log('\n■ 체중 목표와 조정');
   check(
     '계획을 바꾸기 전의 오타도 그래프에 "뺀 값"으로 내려간다',
     withPlan.judged && withPlan.trend.ok && withPlan.trend.dropped.includes(ago(40))
+  );
+}
+
+console.log('\n■ 끼니별 단백질(로드맵 5번)');
+{
+  check(
+    '한 끼 목표 = 하루 ÷ 4 를 5g 단위 — 성인 135g → 35g',
+    mealProteinGoal(135, 'adult') === 35
+  );
+  check(
+    '범위 밖은 당긴다 — 성인 198g → 40g, 성인 60g → 20g',
+    mealProteinGoal(198, 'adult') === 40 && mealProteinGoal(60, 'adult') === 20
+  );
+  check(
+    '어린이는 15~30g — 48g → 15g',
+    mealProteinGoal(48, 'child') === 15 && MEAL_PROTEIN_RANGE.child[0] === 15
+  );
+  check('성장기 90g → 25g(22.5 를 반올림)', mealProteinGoal(90, 'teen') === 25);
+  {
+    /* 진짜 계산과 이어서 — 80kg 성인 기본 1.8g/kg = 144g → 한 끼 35g */
+    const t = computeTargets({ ...DEFAULT_PROFILE }, body, 0);
+    check(
+      '목표 계산과 이어진다(80kg 성인 144g → 35g)',
+      t.protein === 144 && mealProteinGoal(t.protein, t.ageBand) === 35,
+      `${t.protein}g`
+    );
+  }
+
+  const row = (
+    meal: MealEntryView['meal'],
+    protein: number | null,
+    amount = 1
+  ): MealEntryView => ({
+    id: `${meal}-${protein}-${amount}`,
+    meal,
+    name: 'x',
+    source: 'basic',
+    sourceId: 'x',
+    servingLabel: null,
+    servingGrams: null,
+    amount,
+    kcal: 100,
+    carbs: 10,
+    protein,
+    fat: 1,
+  });
+
+  const low = mealProtein('breakfast', [row('breakfast', 6.3, 2)], 135, 'adult');
+  check(
+    '아침 달걀 2개(13g) — 목표 35g 에 22g 모자람 · 예시가 붙는다',
+    low.protein === 13 && low.goal === 35 && !low.done && low.short === 22 && !!low.tip,
+    `${low.tip?.label} +${low.tip?.protein}g`
+  );
+  check(
+    '모자란 22g 을 넘는 가장 작은 예시 — 닭가슴살 1팩(23g)',
+    low.tip?.label === '닭가슴살 1팩' && low.tip.protein === 23 && low.tip.covers
+  );
+  const done = mealProtein('lunch', [row('lunch', 28)], 135, 'adult');
+  check(
+    '목표의 8할(35g 중 28g)이면 채움 — 예시 없음',
+    done.done && done.short === 0 && done.tip === null
+  );
+  check(
+    '다른 끼니의 음식은 세지 않는다',
+    mealProtein('dinner', [row('lunch', 40), row('dinner', 10)], 135, 'adult')
+      .protein === 10
+  );
+  const unknown = mealProtein(
+    'dinner',
+    [row('dinner', 5), row('dinner', null)],
+    135,
+    'adult'
+  );
+  check(
+    '단백질을 모르는 음식이 섞이면 모자란다고 하지 않는다',
+    unknown.unknown &&
+      unknown.protein === 5 &&
+      !unknown.done &&
+      unknown.short === 0 &&
+      unknown.tip === null
+  );
+  const snack = mealProtein('snack', [row('snack', 3)], 135, 'adult');
+  check(
+    '간식은 숫자만 — 목표 · 예시 없음',
+    snack.goal === null &&
+      !snack.done &&
+      snack.short === 0 &&
+      snack.tip === null &&
+      snack.protein === 3
+  );
+  const empty = mealProtein('lunch', [], 135, 'adult');
+  check(
+    '빈 끼니는 아무 말도 안 한다',
+    empty.protein === 0 && empty.goal === 35 && empty.short === 0 && empty.tip === null
+  );
+  check(
+    '양(인분)을 곱한다 — 닭가슴살 1.5팩 = 35g → 채움',
+    mealProtein('dinner', [row('dinner', 23, 1.5)], 135, 'adult').done
+  );
+
+  check('예시 — 6g 이하는 달걀 1개', proteinTip(6)?.label === '달걀 1개');
+  check('예시 — 8g 은 그릭요거트 100g(9g)', proteinTip(8)?.label === '그릭요거트 100g');
+  check(
+    '예시 — 17g 은 달걀 2개 · 우유 1컵(19g)',
+    proteinTip(17)?.label === '달걀 2개 · 우유 1컵' && proteinTip(17)?.protein === 19
+  );
+  const big = proteinTip(40);
+  check(
+    '가장 큰 예시로도 모자라면 그것을 주고 "다 채운다"고 하지 않는다',
+    big?.label === '닭가슴살 1팩 · 달걀 2개' && big.covers === false
+  );
+  check(
+    '모자란 것이 없으면 예시도 없다',
+    proteinTip(0) === null && proteinTip(-3) === null
+  );
+  check(
+    '예시의 단백질은 기본 음식 목록 값과 같다(달걀 2개 = 12.6g → 13g)',
+    proteinTip(12)?.label === '달걀 2개' && proteinTip(12)?.protein === 13
   );
 }
 

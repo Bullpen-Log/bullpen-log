@@ -34,6 +34,7 @@ import {
   targetAllowed,
   targetRange,
 } from '@/lib/nutrition/weight-goal';
+import { mealProteinGoal } from '@/lib/nutrition/meal-protein';
 import { saveNutritionProfile } from '@/app/actions/nutrition';
 import { OFFLINE_MESSAGE, orOffline } from '@/lib/action-offline';
 import type { Origin } from './shared';
@@ -459,6 +460,11 @@ export function GoalSheet({
             <Stat label="탄수화물" value={`${preview.carbs}g`} />
             <Stat label="지방" value={`${preview.fat}g`} />
           </dl>
+          {/* 끼니별 단백질(lib/nutrition/meal-protein.ts) — 끼니 칸의 '단백질 18 / 35g' 이 어디서 왔는지 여기서 말한다 */}
+          <p className="text-xs text-muted">
+            단백질은 세 끼에 {mealProteinGoal(preview.protein, preview.ageBand)}g 쯤씩
+            나눠 먹어요 — 한 번에 몰아 먹는 것보다 근육이 잘 써요.
+          </p>
           {/* 체중 카드에서 받아들인 조정 — 얹혀 있으면 말하고, 저장으로 사라지면 그것도 말한다 */}
           {preview.adjust !== 0 ? (
             <p className="flex flex-wrap items-center gap-x-2 text-xs text-muted">
