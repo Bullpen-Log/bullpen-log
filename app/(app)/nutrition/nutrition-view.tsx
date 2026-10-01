@@ -13,6 +13,7 @@ import {
   type MouseEvent,
 } from 'react';
 import {
+  ArrowRightLeft,
   CalendarDays,
   Check,
   ChevronDown,
@@ -38,12 +39,14 @@ import {
   amountText,
   entryMacros,
   gapNames,
+  isMealKey,
   kcalText,
   macroGaps,
   mealLabel,
   missingMacros,
   missingText,
   sumMacros,
+  type EntryEdit,
   type Food,
   type MacroGaps,
   type Macros,
@@ -62,10 +65,9 @@ import { STEP_KCAL, goalCopy, planOnSave } from '@/lib/nutrition/weight-goal';
 import {
   addMealEntries,
   applyWeightStep,
-  deleteMealEntry,
+  editMealEntries,
   saveNutritionProfile,
   setWeight,
-  updateMealAmount,
   type NutritionResult,
 } from '@/app/actions/nutrition';
 import { OFFLINE_MESSAGE, orOffline } from '@/lib/action-offline';
@@ -95,18 +97,21 @@ const OFFLINE: NutritionResult = { ok: false, error: OFFLINE_MESSAGE };
 let tempSeq = 0;
 
 type EntryAction =
-  | { type: 'add'; entries: MealEntryView[] }
-  | { type: 'amount'; id: string; amount: number }
-  | { type: 'delete'; id: string };
+  { type: 'add'; entries: MealEntryView[] } | { type: 'edit'; edits: EntryEdit[] };
 
 function reduceEntries(list: MealEntryView[], a: EntryAction): MealEntryView[] {
   switch (a.type) {
     case 'add':
       return [...list, ...a.entries];
-    case 'amount':
-      return list.map((e) => (e.id === a.id ? { ...e, amount: a.amount } : e));
-    case 'delete':
-      return list.filter((e) => e.id !== a.id);
+    case 'edit': {
+      const by = new Map(a.edits.map((e) => [e.id, e]));
+      return list.flatMap((e) => {
+        const edit = by.get(e.id);
+        if (!edit) return [e];
+        if (edit.remove) return [];
+        return [{ ...e, amount: edit.amount ?? e.amount, meal: edit.meal ?? e.meal }];
+      });
+    }
   }
 }
 
@@ -196,19 +201,12 @@ export function NutritionView({ day, today }: { day: NutritionDay; today: string
     });
   }
 
-  function changeAmount(id: string, amount: number) {
+  /* 끼니 편집의 '완료' — 화면을 먼저 바꾸고 한 번에 저장한다. 실패하면 원래대로 돌아가고 까닭을 띄운다 */
+  function editEntries(edits: EntryEdit[]) {
     setError(null);
     startTransition(async () => {
-      applyEntries({ type: 'amount', id, amount });
-      report(await orOffline(updateMealAmount(id, amount), OFFLINE));
-    });
-  }
-
-  function removeEntry(id: string) {
-    setError(null);
-    startTransition(async () => {
-      applyEntries({ type: 'delete', id });
-      report(await orOffline(deleteMealEntry(id), OFFLINE));
+      applyEntries({ type: 'edit', edits });
+      report(await orOffline(editMealEntries(edits), OFFLINE));
     });
   }
 
@@ -320,8 +318,7 @@ export function NutritionView({ day, today }: { day: NutritionDay; today: string
                     open: true,
                   })
                 }
-                onAmount={changeAmount}
-                onRemove={removeEntry}
+                onEdit={editEntries}
               />
             ))}
           </ul>
@@ -1099,14 +1096,16 @@ function withObjectParticle(word: string) {
 
 /* ─────────────────────────── 끼니 ─────────────────────────── */
 
+/* 끼니 편집의 한 줄 — 고친 값은 '완료'를 누를 때 한 번에 저장한다(lib 의 EntryEdit) */
+type Draft = { amount: number; meal: MealKey; remove: boolean };
+
 function MealSection({
   meal,
   entries,
   protein: p,
   dailyProtein,
   onOpen,
-  onAmount,
-  onRemove,
+  onEdit,
 }: {
   meal: MealKey;
   entries: MealEntryView[];
@@ -1114,18 +1113,60 @@ function MealSection({
   protein: MealProtein;
   dailyProtein: number;
   onOpen: (e: MouseEvent<HTMLButtonElement>) => void;
-  onAmount: (id: string, amount: number) => void;
-  onRemove: (id: string) => void;
+  /** 편집을 마치면 고친 것만 모아 한 번에 */
+  onEdit: (edits: EntryEdit[]) => void;
 }) {
   const total = sumMacros(entries.map(entryMacros));
   const label = mealLabel(meal);
+  /*
+   * 끼니 편집 — 머리 줄 오른쪽의 '편집'(또는 음식 줄)을 누르면 끼니 전체가 고치는 모양이 된다. 줄마다 양 −/+,
+   * 다른 끼니로 옮기기, 지우기가 바로 보여서 하나씩 펴 볼 필요가 없다. 고친 것은 '완료' 때 한 번에 저장하고
+   * (서버에 한 번), '취소'면 그대로 둔다. 지운 줄은 완료 전까지 '되살리기'로 돌릴 수 있다.
+   */
+  const [editing, setEditing] = useState(false);
+  const [drafts, setDrafts] = useState<Record<string, Draft>>({});
+  /* 저장 중인 줄(tmp-)은 아직 서버 이름이 없어 고칠 수 없다 */
+  const editable = entries.filter((e) => !e.id.startsWith('tmp-'));
+  const isEditing = editing && editable.length > 0;
+
+  const draftOf = (e: MealEntryView): Draft =>
+    drafts[e.id] ?? { amount: e.amount, meal: e.meal, remove: false };
+
+  function startEdit() {
+    setDrafts(
+      Object.fromEntries(
+        editable.map((e) => [e.id, { amount: e.amount, meal: e.meal, remove: false }])
+      )
+    );
+    setEditing(true);
+  }
+
+  function finish() {
+    const edits: EntryEdit[] = [];
+    for (const e of editable) {
+      const d = drafts[e.id];
+      if (!d) continue;
+      if (d.remove) {
+        edits.push({ id: e.id, remove: true });
+        continue;
+      }
+      const edit: EntryEdit = { id: e.id };
+      if (d.amount !== e.amount) edit.amount = d.amount;
+      if (d.meal !== e.meal) edit.meal = d.meal;
+      if (edit.amount !== undefined || edit.meal !== undefined) edits.push(edit);
+    }
+    setEditing(false);
+    if (edits.length > 0) onEdit(edits);
+  }
+
+  const setDraft = (id: string, d: Draft) => setDrafts((all) => ({ ...all, [id]: d }));
+  const allRemoved = editable.every((e) => draftOf(e).remove);
 
   /*
-   * 끼니 한 칸. 머리 줄(이름 · 합계 · 담기) 밑에 음식이 한 줄씩.
+   * 끼니 한 칸. 머리 줄(이름 · 합계 · 편집 · 담기) 밑에 음식이 한 줄씩.
    *
    * 칸이 두 개씩 나란해서 한 줄의 높이는 옆 칸과 같아진다. 비어 있는 끼니의 '기록하기'는
    * 남는 높이를 채워(flex-1) 옆 칸이 길어도 빈 자리가 생기지 않고, 누르는 자리가 넓어진다.
-   * 누르는 것들은 줄여도 40px 밑으로 내리지 않는다 — 손가락으로 누르는 화면이다.
    */
   return (
     <li className="flex flex-col gap-1.5 bg-surface px-4 py-3 sm:px-5">
@@ -1171,14 +1212,46 @@ function MealSection({
           </div>
         )}
         {entries.length > 0 && (
-          <button
-            type="button"
-            onClick={onOpen}
-            className="-mr-2 ml-auto inline-flex h-9 shrink-0 items-center gap-1 rounded-lg px-2.5 text-sm font-medium text-sky transition-colors hover:bg-sky-tint"
-          >
-            <Plus aria-hidden className="h-4 w-4" />
-            담기
-          </button>
+          <div className="-mr-2 ml-auto flex shrink-0 items-center">
+            {isEditing ? (
+              <>
+                <button
+                  type="button"
+                  onClick={() => setEditing(false)}
+                  className="motion-safe:animate-fade-in inline-flex h-9 items-center rounded-lg px-2.5 text-xs font-medium text-muted transition-colors hover:bg-surface-2 hover:text-ink"
+                >
+                  취소
+                </button>
+                <button
+                  type="button"
+                  onClick={finish}
+                  className="motion-safe:animate-fade-in inline-flex h-9 items-center rounded-lg px-2.5 text-sm font-semibold text-sky transition-colors hover:bg-sky-tint"
+                >
+                  완료
+                </button>
+              </>
+            ) : (
+              <>
+                <button
+                  type="button"
+                  onClick={startEdit}
+                  disabled={editable.length === 0}
+                  aria-label={`${label} 편집`}
+                  className="inline-flex h-9 items-center rounded-lg px-2.5 text-xs font-medium text-muted transition-colors hover:bg-surface-2 hover:text-ink disabled:opacity-40"
+                >
+                  편집
+                </button>
+                <button
+                  type="button"
+                  onClick={onOpen}
+                  className="inline-flex h-9 items-center gap-1 rounded-lg px-2.5 text-sm font-medium text-sky transition-colors hover:bg-sky-tint"
+                >
+                  <Plus aria-hidden className="h-4 w-4" />
+                  담기
+                </button>
+              </>
+            )}
+          </div>
         )}
       </div>
 
@@ -1191,22 +1264,56 @@ function MealSection({
           <Plus aria-hidden className="h-4 w-4" />
           {label} 기록하기
         </button>
+      ) : isEditing ? (
+        <div className="space-y-1">
+          <ul>
+            {entries.map((e, i) =>
+              e.id.startsWith('tmp-') ? (
+                <EntryRow key={e.id} entry={e} index={i} onEdit={() => {}} />
+              ) : (
+                <EditRow
+                  key={e.id}
+                  entry={e}
+                  index={i}
+                  draft={draftOf(e)}
+                  onChange={(d) => setDraft(e.id, d)}
+                />
+              )
+            )}
+          </ul>
+          <div className="flex items-center justify-between gap-2">
+            <p className="text-xs text-muted">
+              고친 것은 완료를 누르면 한 번에 저장돼요
+            </p>
+            <button
+              type="button"
+              onClick={() =>
+                setDrafts(
+                  Object.fromEntries(
+                    editable.map((e) => [e.id, { ...draftOf(e), remove: !allRemoved }])
+                  )
+                )
+              }
+              className={`-mr-2 inline-flex h-9 shrink-0 items-center rounded-lg px-2.5 text-xs font-medium transition-colors ${
+                allRemoved
+                  ? 'text-sky hover:bg-sky-tint'
+                  : 'text-danger hover:bg-danger-bg'
+              }`}
+            >
+              {allRemoved ? '모두 되살리기' : '모두 지우기'}
+            </button>
+          </div>
+        </div>
       ) : (
         <ul>
           {entries.map((e, i) => (
-            <EntryRow
-              key={e.id}
-              entry={e}
-              index={i}
-              onAmount={(a) => onAmount(e.id, a)}
-              onRemove={() => onRemove(e.id)}
-            />
+            <EntryRow key={e.id} entry={e} index={i} onEdit={startEdit} />
           ))}
         </ul>
       )}
 
       {/* 모자란 끼니 — 기본 음식으로 채우는 예시 하나. 단백질을 모르는 음식이 섞이면 띄우지 않는다 */}
-      {p.tip && (
+      {p.tip && !isEditing && (
         <p className="motion-safe:animate-fade-in break-keep text-xs leading-relaxed text-muted">
           단백질 <b className="font-semibold text-ink">{p.short}g</b> 모자라요 ·{' '}
           {p.tip.label}(+{p.tip.protein}g)이면 {p.tip.covers ? '채워요' : '거의 채워요'}
@@ -1216,8 +1323,6 @@ function MealSection({
   );
 }
 
-const QUICK_AMOUNTS = [0.5, 1, 1.5, 2];
-
 /* − 는 0.25 밑의 양(그램으로 적은 0.1인분 등)을 늘리지 않는다 — 예전에는 0.1 에서 − 를 누르면 0.25 로 커졌다 */
 function step(amount: number, dir: 1 | -1) {
   const size = amount < 1 || (amount === 1 && dir === -1) ? 0.25 : 0.5;
@@ -1226,27 +1331,19 @@ function step(amount: number, dir: 1 | -1) {
   return Math.min(AMOUNT_MAX, Math.max(floor, next));
 }
 
+/** 음식 한 줄(보기). 누르면 그 끼니의 편집이 열린다 — 예전에는 줄마다 따로 펴서 하나씩 고쳤다 */
 function EntryRow({
   entry,
   index,
-  onAmount,
-  onRemove,
+  onEdit,
 }: {
   entry: MealEntryView;
   index: number;
-  onAmount: (amount: number) => void;
-  onRemove: () => void;
+  onEdit: () => void;
 }) {
-  const [open, setOpen] = useState(false);
-  const [draft, setDraft] = useState(entry.amount);
   const kcal = entry.kcal * entry.amount;
   const missing = missingMacros(entry);
   const saving = entry.id.startsWith('tmp-');
-
-  function toggle() {
-    setDraft(entry.amount);
-    setOpen((o) => !o);
-  }
 
   return (
     <li
@@ -1255,9 +1352,8 @@ function EntryRow({
     >
       <button
         type="button"
-        onClick={toggle}
+        onClick={onEdit}
         disabled={saving}
-        aria-expanded={open}
         className="-mx-2 flex min-h-10 w-[calc(100%+1rem)] items-center gap-3 rounded-xl px-2 py-1.5 text-left transition-colors hover:bg-surface-2 disabled:cursor-default disabled:hover:bg-transparent"
       >
         {/*
@@ -1282,77 +1378,116 @@ function EntryRow({
           <span className="ml-0.5 text-xs text-muted">kcal</span>
         </span>
       </button>
+    </li>
+  );
+}
 
-      {/* 누르면 펼쳐지는 양 고치기 — 높이가 부드럽게 열리고 닫힌다 */}
-      <div
-        className={`grid transition-[grid-template-rows] duration-200 ${EASE} ${
-          open ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'
-        }`}
+/**
+ * 편집 중인 음식 한 줄 — 양 −/+ · 다른 끼니로 옮기기 · 지우기가 한 줄에 다 있다.
+ * 옮기기는 휴대폰의 기본 고르개(select)를 아이콘 밑에 깔아, 누르면 끼니 넷이 뜬다.
+ */
+function EditRow({
+  entry,
+  index,
+  draft,
+  onChange,
+}: {
+  entry: MealEntryView;
+  index: number;
+  draft: Draft;
+  onChange: (d: Draft) => void;
+}) {
+  const moved = draft.meal !== entry.meal;
+  return (
+    <li
+      className="motion-safe:animate-row-in flex min-h-11 items-center gap-1.5 py-0.5"
+      style={{ '--row': index } as CSSProperties}
+    >
+      <span
+        className={`min-w-0 flex-1 transition-opacity duration-200 ${draft.remove ? 'opacity-45' : ''}`}
       >
-        <div className="min-h-0 overflow-hidden" inert={!open}>
-          <div className="flex flex-wrap items-center gap-2 pb-2 pt-1">
-            <div className="flex items-center rounded-xl border border-line bg-surface-2">
-              <button
-                type="button"
-                onClick={() => setDraft((d) => step(d, -1))}
-                aria-label="줄이기"
-                className="flex h-9 w-9 items-center justify-center rounded-l-xl text-muted transition-colors hover:text-ink"
-              >
-                <Minus aria-hidden className="h-4 w-4" />
-              </button>
-              <span className="min-w-[4.5rem] text-center text-sm font-semibold tabular-nums text-ink">
-                {amountText(draft)}
-              </span>
-              <button
-                type="button"
-                onClick={() => setDraft((d) => step(d, 1))}
-                aria-label="늘리기"
-                className="flex h-9 w-9 items-center justify-center rounded-r-xl text-muted transition-colors hover:text-ink"
-              >
-                <Plus aria-hidden className="h-4 w-4" />
-              </button>
-            </div>
-            {QUICK_AMOUNTS.map((a) => (
-              <button
-                key={a}
-                type="button"
-                onClick={() => setDraft(a)}
-                className={`rounded-lg px-2.5 py-1.5 text-xs font-medium transition-colors ${
-                  draft === a ? 'bg-sky-tint text-sky' : 'text-muted hover:bg-surface-2'
-                }`}
-              >
-                {amountText(a)}
-              </button>
-            ))}
-            <div className="ml-auto flex items-center gap-1">
-              <button
-                type="button"
-                onClick={() => {
-                  setOpen(false);
-                  onRemove();
-                }}
-                aria-label={`${entry.name} 지우기`}
-                className="flex h-9 w-9 items-center justify-center rounded-lg text-muted transition-colors hover:bg-danger-bg hover:text-danger"
-              >
-                <Trash2 aria-hidden className="h-4 w-4" />
-              </button>
-              <button
-                type="button"
-                disabled={draft === entry.amount}
-                onClick={() => {
-                  setOpen(false);
-                  onAmount(draft);
-                }}
-                className="rounded-lg bg-sky px-3 py-2 text-xs font-semibold text-white transition-colors hover:bg-sky-strong disabled:opacity-40"
-              >
-                {draft === entry.amount
-                  ? '그대로'
-                  : `${kcalText(entry.kcal * draft)}kcal로 고치기`}
-              </button>
-            </div>
+        <span
+          className={`block truncate text-sm text-ink ${draft.remove ? 'line-through' : ''}`}
+        >
+          {entry.name}
+        </span>
+        <span className="block truncate text-xs tabular-nums text-muted">
+          {kcalText(entry.kcal * draft.amount)}kcal
+          {moved && !draft.remove && (
+            <span className="font-medium text-sky">
+              {' '}
+              · {mealLabel(draft.meal)}으로 옮김
+            </span>
+          )}
+        </span>
+      </span>
+      {draft.remove ? (
+        <button
+          type="button"
+          onClick={() => onChange({ ...draft, remove: false })}
+          className="motion-safe:animate-fade-in inline-flex h-9 shrink-0 items-center rounded-lg px-3 text-xs font-semibold text-sky transition-colors hover:bg-sky-tint"
+        >
+          되살리기
+        </button>
+      ) : (
+        <>
+          <div className="flex shrink-0 items-center rounded-xl border border-line bg-surface-2">
+            <button
+              type="button"
+              onClick={() => onChange({ ...draft, amount: step(draft.amount, -1) })}
+              aria-label={`${entry.name} 줄이기`}
+              className="flex h-9 w-9 items-center justify-center rounded-l-xl text-muted transition-colors hover:text-ink motion-safe:active:scale-90"
+            >
+              <Minus aria-hidden className="h-4 w-4" />
+            </button>
+            <span
+              key={draft.amount}
+              className="motion-safe:animate-fade-in min-w-[3.25rem] text-center text-xs font-semibold tabular-nums text-ink"
+            >
+              {amountText(draft.amount)}
+            </span>
+            <button
+              type="button"
+              onClick={() => onChange({ ...draft, amount: step(draft.amount, 1) })}
+              aria-label={`${entry.name} 늘리기`}
+              className="flex h-9 w-9 items-center justify-center rounded-r-xl text-muted transition-colors hover:text-ink motion-safe:active:scale-90"
+            >
+              <Plus aria-hidden className="h-4 w-4" />
+            </button>
           </div>
-        </div>
-      </div>
+          <label
+            title="다른 끼니로 옮기기"
+            className={`relative flex h-9 w-9 shrink-0 cursor-pointer items-center justify-center rounded-lg transition-colors hover:bg-surface-2 ${
+              moved ? 'text-sky' : 'text-muted hover:text-ink'
+            }`}
+          >
+            <ArrowRightLeft aria-hidden className="h-4 w-4" />
+            <span className="sr-only">{entry.name} 다른 끼니로 옮기기</span>
+            <select
+              value={draft.meal}
+              onChange={(ev) =>
+                isMealKey(ev.target.value) &&
+                onChange({ ...draft, meal: ev.target.value })
+              }
+              className="absolute inset-0 cursor-pointer opacity-0"
+            >
+              {MEALS.map((m) => (
+                <option key={m.key} value={m.key}>
+                  {m.label}
+                </option>
+              ))}
+            </select>
+          </label>
+          <button
+            type="button"
+            onClick={() => onChange({ ...draft, remove: true })}
+            aria-label={`${entry.name} 지우기`}
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-muted transition-colors hover:bg-danger-bg hover:text-danger"
+          >
+            <Trash2 aria-hidden className="h-4 w-4" />
+          </button>
+        </>
+      )}
     </li>
   );
 }

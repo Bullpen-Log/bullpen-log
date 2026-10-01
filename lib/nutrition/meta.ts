@@ -26,6 +26,14 @@ export function mealLabel(key: MealKey) {
   return MEALS.find((m) => m.key === key)?.label ?? key;
 }
 
+/** 끼니 편집에서 고친 한 줄 — 양 · 끼니를 바꾸거나 지운다(고친 것만 싣는다) */
+export type EntryEdit = {
+  id: string;
+  amount?: number;
+  meal?: MealKey;
+  remove?: boolean;
+};
+
 /**
  * 목표. 칼로리를 얼마나 더하고 빼나.
  *

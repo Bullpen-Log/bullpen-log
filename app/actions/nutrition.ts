@@ -186,6 +186,49 @@ export async function updateMealAmount(
   return { ok: true };
 }
 
+/**
+ * 끼니 편집을 한 번에 저장한다 — 양 바꾸기 · 다른 끼니로 옮기기 · 지우기. 하나라도 틀리면 아무것도 안 바꾼다
+ * (한 묶음으로 저장 — 절반만 저장되면 화면과 기록이 어긋난다).
+ */
+export async function editMealEntries(edits: unknown): Promise<NutritionResult> {
+  const user = await getCurrentUser();
+  if (!user) return NEED_LOGIN;
+  if (!Array.isArray(edits) || edits.length === 0 || edits.length > 60) {
+    return { ok: false, error: '고칠 것이 없습니다.' };
+  }
+  const ops = [];
+  for (const raw of edits) {
+    const e = (raw ?? {}) as Record<string, unknown>;
+    const id = typeof e.id === 'string' ? e.id : '';
+    if (!id) return { ok: false, error: '고칠 기록을 찾지 못했습니다.' };
+    if (e.remove === true) {
+      ops.push(prisma.mealEntry.deleteMany({ where: { id, userId: user.id } }));
+      continue;
+    }
+    const data: { amount?: number; meal?: string } = {};
+    if (e.amount !== undefined) {
+      const amount = cleanAmount(e.amount);
+      if (amount === null) {
+        return {
+          ok: false,
+          error: `먹은 양은 ${AMOUNT_MIN}~${AMOUNT_MAX}인분 사이로 적어 주세요.`,
+        };
+      }
+      data.amount = amount;
+    }
+    if (e.meal !== undefined) {
+      if (!isMealKey(e.meal)) return { ok: false, error: '끼니가 올바르지 않습니다.' };
+      data.meal = e.meal;
+    }
+    if (data.amount !== undefined || data.meal !== undefined) {
+      ops.push(prisma.mealEntry.updateMany({ where: { id, userId: user.id }, data }));
+    }
+  }
+  if (ops.length > 0) await prisma.$transaction(ops);
+  revalidatePath(PATH);
+  return { ok: true };
+}
+
 export async function deleteMealEntry(id: string): Promise<NutritionResult> {
   const user = await getCurrentUser();
   if (!user) return NEED_LOGIN;
