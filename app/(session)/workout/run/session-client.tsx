@@ -22,13 +22,18 @@ import {
   ListOrdered,
   Pencil,
   Plus,
+  RotateCcw,
   Star,
+  Timer,
   Trash2,
   X,
 } from 'lucide-react';
 import { LibraryVideo } from '@/components/library-video';
 import { ExerciseHistoryPanel } from '@/components/exercise-history';
 import { useWakeLock } from '@/components/use-wake-lock';
+import { useAlarm } from '@/components/use-alarm';
+import { buzz } from '@/lib/haptics';
+import { newRecord } from '@/lib/workout/bests';
 import {
   deleteSet,
   finishWorkout,
@@ -103,8 +108,10 @@ export type { RunExercise };
  * 마지막 세트로부터 흐른 시간.
  *
  * 정해 둔 시간에서 거꾸로 내려가지 않는다. 얼마나 쉬었는지를 보는 것이
- * 요점이라 '끝'이 없고, 알릴 일도 없다. 다만 10분이 넘으면 시계를 거둔다 —
- * [운동 종료]를 안 누르고 떠난 판에서 끝없이 올라가지 않게(lib/workout/rest.ts).
+ * 요점이라 '끝'이 없다. 처방에 쉬는 시간이 있으면 그만큼에서 링이 다 차고 한 번
+ * 알릴 뿐, 시계는 그 뒤로도 올라간다(RestPill, 2026-10-01 '감성'). 다만 10분이
+ * 넘으면 시계를 거둔다 — [운동 종료]를 안 누르고 떠난 판에서 끝없이 올라가지
+ * 않게(lib/workout/rest.ts).
  *
  * 흘러가는 숫자를 들고 있지 않고 '마지막 세트 시각' 하나만 둔다. 화면이
  * 꺼졌다 켜져도, 앱을 나갔다 들어와도 쉰 시간이 정확하다.
@@ -144,6 +151,114 @@ function clockText(seconds: number) {
   const m = Math.floor(seconds / 60);
   const s = seconds % 60;
   return `${m}:${String(s).padStart(2, '0')}`;
+}
+
+/** 링 한 바퀴의 길이 — 반지름 9 */
+const RING = 2 * Math.PI * 9;
+const subscribeNothing = () => () => {};
+
+/**
+ * 쉬는 시간 알약 — 링 · 쉰 시간 · 목표. 아이폰의 실시간 현황(라이브 액티비티) 알약처럼(2026-10-01 '감성').
+ *
+ * 처방에 쉬는 시간(target)이 있으면 링이 그만큼에서 다 차고, 다 차면 링이 파란 체크가 되며 넘은 만큼을
+ * '+0:12'로 보인다 — 시계는 멈추지 않는다. 처방이 없으면 링 없이 시계만.
+ *
+ * 화면을 다 그린 뒤에만 그린다. 시계라 서버가 그린 초와 폰이 처음 그린 초가 달라 맞추기(hydration)가
+ * 어긋난다 — 그사이 자리만 비워 둔다.
+ */
+function RestPill({ seconds, target }: { seconds: number; target: number | null }) {
+  const client = useSyncExternalStore(
+    subscribeNothing,
+    () => true,
+    () => false
+  );
+  if (!client) return <div aria-hidden className="h-10" />;
+
+  const over = target != null && seconds >= target;
+  const frac = target ? Math.min(1, seconds / target) : 0;
+  return (
+    <div
+      role="timer"
+      aria-label={`쉰 시간 ${clockText(seconds)}${target != null ? `, 쉬는 시간 ${clockText(target)}` : ''}`}
+      className={`mx-auto flex h-10 w-fit items-center gap-2 rounded-full pr-4 pl-1.5 transition-colors duration-300 ${
+        over ? 'bg-sky/12' : 'bg-ink/6'
+      }`}
+    >
+      {target == null ? (
+        <Timer aria-hidden className="ml-1 h-5 w-5 text-muted" />
+      ) : over ? (
+        <span
+          aria-hidden
+          className="finish-pop grid h-7 w-7 place-items-center rounded-full bg-sky text-white"
+        >
+          <Check className="h-4 w-4" strokeWidth={3} />
+        </span>
+      ) : (
+        <svg aria-hidden viewBox="0 0 24 24" className="h-7 w-7 -rotate-90">
+          <circle
+            cx="12"
+            cy="12"
+            r="9"
+            fill="none"
+            strokeWidth="3"
+            className="stroke-ink/12"
+          />
+          <circle
+            cx="12"
+            cy="12"
+            r="9"
+            fill="none"
+            strokeWidth="3"
+            strokeLinecap="round"
+            className="stroke-sky transition-[stroke-dashoffset] duration-1000 ease-linear"
+            strokeDasharray={RING}
+            strokeDashoffset={RING * (1 - frac)}
+          />
+        </svg>
+      )}
+      <span className="text-numeric text-lg leading-none text-ink">
+        {clockText(seconds)}
+      </span>
+      <span className={`text-xs ${over ? 'font-semibold text-sky' : 'text-muted'}`}>
+        {target == null
+          ? '쉬는 중'
+          : over
+            ? `쉬기 끝 · +${clockText(seconds - target)}`
+            : `/ ${clockText(target)}`}
+      </span>
+    </div>
+  );
+}
+
+/**
+ * 처방 세트 수만큼의 점 — 남긴 세트만큼 파랗게 찬다(칠해지는 순간 톡 커진다). 다 차면 '다 했어요'.
+ * 처방보다 더 하면 점이 늘어난다 — 더 한 것도 한 것이다. 암케어 따라하기의 점과 같은 모양.
+ */
+function SetDots({ planned, done }: { planned: number; done: number }) {
+  const total = Math.max(planned, done);
+  return (
+    <div className="mt-3 flex items-center gap-2.5">
+      <span className="flex flex-wrap gap-1.5" aria-hidden>
+        {Array.from({ length: total }, (_, i) => (
+          <span
+            /* 칠해지는 순간 새로 그려져 한 번 톡 커진다(finish-pop) */
+            key={`${i}-${i < done}`}
+            className={`h-2.5 w-2.5 rounded-full ${i < done ? 'finish-pop bg-sky' : 'bg-ink/15'}`}
+          />
+        ))}
+      </span>
+      {done >= planned ? (
+        <span className="finish-pop inline-flex items-center gap-1 text-xs font-semibold text-sky">
+          <Check aria-hidden className="h-3.5 w-3.5" strokeWidth={3} />
+          {planned}세트 다 했어요
+        </span>
+      ) : (
+        <span className="text-xs tabular-nums text-muted">
+          {planned}세트 중 {done}세트
+        </span>
+      )}
+    </div>
+  );
 }
 
 /* ----------------------------- 숫자판 ----------------------------- */
@@ -186,7 +301,7 @@ function NumberPad({
           type="button"
           onClick={() => press(k)}
           disabled={k === '.' && !allowDecimal}
-          className="h-12 rounded-xl border border-line-strong bg-surface text-lg font-semibold text-ink transition-colors active:bg-surface-2 disabled:opacity-25 motion-safe:active:scale-95"
+          className="h-12 rounded-xl bg-raised text-xl font-medium text-ink shadow-[0_1px_0_rgb(0_0_0/0.14)] transition active:bg-ink/10 disabled:opacity-25 motion-safe:active:scale-95"
         >
           {k}
         </button>
@@ -195,7 +310,7 @@ function NumberPad({
         type="button"
         onClick={() => onChange((prev) => prev.slice(0, -1))}
         aria-label="한 글자 지우기"
-        className="flex h-12 items-center justify-center rounded-xl border border-line-strong bg-surface text-muted transition-colors active:bg-surface-2 motion-safe:active:scale-95"
+        className="flex h-12 items-center justify-center rounded-xl text-ink transition active:bg-ink/10 motion-safe:active:scale-95"
       >
         <Delete className="h-5 w-5" />
       </button>
@@ -361,11 +476,12 @@ export function SessionClient({
    * 세트가 그대로 있는데, 그것부터 세면 '47분째 쉬는 중'이 떠서 종료가 안
    * 된 것처럼 보인다.
    */
-  const lastAt = useMemo(() => {
+  const lastSet = useMemo(() => {
     const mine = sets.filter((s) => s.recordedAt >= openedAt);
     if (mine.length === 0) return null;
-    return mine.reduce((a, b) => (a.recordedAt > b.recordedAt ? a : b)).recordedAt;
+    return mine.reduce((a, b) => (a.recordedAt > b.recordedAt ? a : b));
   }, [sets, openedAt]);
+  const lastAt = lastSet?.recordedAt ?? null;
   /*
    * 마지막으로 운동한 때부터 흐른 시간 — 세트를 남겼으면 그 시각부터, 아직이면
    * 판을 연 시각부터. 10분이 넘으면 null 이다(lib/workout/rest.ts).
@@ -386,7 +502,31 @@ export function SessionClient({
    */
   useWakeLock(idle != null);
 
-  const doneCount = useMemo(() => new Set(sets.map((s) => s.exerciseId)).size, [sets]);
+  /*
+   * 쉬는 시간 목표 — 마지막 세트를 한 운동의 처방 휴식. 링이 이만큼에서 다 차고, 다 차는 순간 한 번
+   * 떨고 짧게 울린다(useAlarm — 소리는 [세트 완료]를 누를 때 깨워 둔다). 다 찬 뒤 한참 지나 알게 된 것
+   * (화면을 다시 켰을 때)은 울리지 않는다 — 늦은 알림은 소음이다.
+   */
+  const restTarget = lastSet
+    ? (list.find((e) => e.id === lastSet.exerciseId)?.restSeconds ?? null)
+    : null;
+  const { arm, ring } = useAlarm();
+  const alarmed = useRef<string | null>(null);
+  useEffect(() => {
+    if (restTarget == null || rest == null || lastAt == null) return;
+    if (rest < restTarget || alarmed.current === lastAt) return;
+    alarmed.current = lastAt;
+    if (rest - restTarget <= 3) ring('rest');
+  }, [rest, restTarget, lastAt, ring]);
+
+  /* 운동마다 남긴 세트 수 — 위 막대의 칸이 이만큼 찬다 */
+  const setCounts = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const s of sets) counts.set(s.exerciseId, (counts.get(s.exerciseId) ?? 0) + 1);
+    return counts;
+  }, [sets]);
+  /* 오늘 이 운동에서 지난 최고를 넘은 세트 — 그 줄에 '새 최고'(lib/workout/bests.ts) */
+  const record = useMemo(() => newRecord(ex, mine, ex.best), [ex, mine]);
 
   /*
    * 폰에 담아 둔 세트를 누른 순서대로 하나씩 보낸다.
@@ -639,14 +779,35 @@ export function SessionClient({
       return;
     }
 
-    /* 폰에 먼저 담는다 — 신호가 없어도 여기서 끝나고, 보내기는 뒤에서 한다 */
-    outbox.add({
-      sessionId,
-      exerciseId: ex.id,
+    const entry = {
       setNo,
       weightKg: w,
       reps: ex.isHold ? null : c,
       holdSeconds: ex.isHold ? (ex.inMinutes ? c * 60 : c) : null,
+    };
+
+    /*
+     * 손에 '남겼다'를 알린다 — 가볍게 톡 한 번. 이 세트로 지난 최고를 새로 넘었으면 두 번(줄에 '새 최고'가
+     * 뜬다). 쉬는 시간이 다 차면 울릴 소리도 여기서 깨워 둔다 — 소리는 누른 순간에만 깨울 수 있다.
+     */
+    arm();
+    const before = newRecord(ex, mine, ex.best);
+    const after = newRecord(
+      ex,
+      [...mine.filter((m) => m.setNo !== setNo), entry],
+      ex.best
+    );
+    const beatNow =
+      after != null &&
+      after.setNo === setNo &&
+      (before == null || after.value > before.value);
+    buzz(beatNow ? [15, 120, 15] : 12);
+
+    /* 폰에 먼저 담는다 — 신호가 없어도 여기서 끝나고, 보내기는 뒤에서 한다 */
+    outbox.add({
+      sessionId,
+      exerciseId: ex.id,
+      ...entry,
       recordedAt: fixing?.recordedAt ?? new Date().toISOString(),
     });
 
@@ -752,9 +913,11 @@ export function SessionClient({
           type="button"
           onClick={() => router.push('/training')}
           aria-label="나가기"
-          className="-m-1.5 grid h-11 w-11 shrink-0 place-items-center rounded-lg text-muted transition-colors hover:text-ink"
+          className="-m-1.5 grid h-11 w-11 shrink-0 place-items-center text-muted transition-colors hover:text-ink"
         >
-          <X className="h-5 w-5" />
+          <span className="grid h-8 w-8 place-items-center rounded-full bg-ink/6">
+            <X className="h-4 w-4" strokeWidth={2.4} />
+          </span>
         </button>
         {/*
           진행 막대를 누르면 오늘 목록이 열린다.
@@ -769,13 +932,36 @@ export function SessionClient({
           className="min-w-0 flex-1 text-left"
         >
           <p className="truncate text-xs text-muted">{themeLabel}</p>
-          <div className="mt-1 flex items-center gap-2">
+          {/*
+            운동마다 한 칸 — 세트를 남길수록 그 칸이 찬다(처방 세트 수만큼이면 가득). 지금 보는 운동의 칸은
+            옅은 파랑. 예전 막대는 '몇 번째 운동을 보나'라 앞 운동으로 돌아가면 줄었다 — 한 만큼 차야
+            뿌듯하다(2026-10-01 '감성', 암케어 따라하기의 칸 막대와 같은 모양).
+          */}
+          <div className="mt-1.5 flex items-center gap-2">
             <ListOrdered className="h-3.5 w-3.5 shrink-0 text-muted" />
-            <span className="h-1 flex-1 overflow-hidden rounded-full bg-surface-2">
-              <span
-                className="block h-full bg-sky transition-[width] duration-200"
-                style={{ width: `${((at + 1) / list.length) * 100}%` }}
-              />
+            <span aria-hidden className="flex flex-1 gap-[3px]">
+              {list.map((item, i) => {
+                const n = setCounts.get(item.id) ?? 0;
+                const fill =
+                  n === 0
+                    ? 0
+                    : item.plannedSets
+                      ? Math.min(1, n / item.plannedSets)
+                      : 1;
+                return (
+                  <span
+                    key={item.id}
+                    className={`h-1 flex-1 overflow-hidden rounded-full ${
+                      i === at ? 'bg-sky/25' : 'bg-ink/10'
+                    }`}
+                  >
+                    <span
+                      className="block h-full rounded-full bg-sky transition-[width] duration-300 ease-out"
+                      style={{ width: `${fill * 100}%` }}
+                    />
+                  </span>
+                );
+              })}
             </span>
             <span className="shrink-0 text-[11px] tabular-nums text-muted">
               {at + 1}/{list.length}
@@ -791,9 +977,12 @@ export function SessionClient({
             void flush();
           }}
           disabled={ending}
-          className="min-h-10 shrink-0 rounded-lg border border-line-strong px-3 text-xs font-semibold text-ink transition-colors hover:border-sky hover:text-sky disabled:opacity-50"
+          /* 누르는 자리는 44px, 보이는 알약은 그보다 작게 */
+          className="group -my-1 flex min-h-11 shrink-0 items-center disabled:opacity-50"
         >
-          {ending ? '정리 중' : '운동 종료'}
+          <span className="rounded-full bg-ink/6 px-3.5 py-2 text-[13px] font-semibold text-ink transition-colors group-hover:text-sky group-active:bg-ink/12">
+            {ending ? '정리 중' : '운동 종료'}
+          </span>
         </button>
       </header>
 
@@ -823,7 +1012,7 @@ export function SessionClient({
       )}
 
       <div ref={topRef} className="flex-1 overflow-y-auto px-4 py-4">
-        <p className="text-xs text-muted">{ex.category}</p>
+        <p className="text-xs font-medium text-muted">{ex.category}</p>
         {/*
           이름 옆에 ★(즐겨찾기)와 [교체].
 
@@ -831,7 +1020,7 @@ export function SessionClient({
           세트를 남긴 운동이면 [추가]가 된다 — 하던 운동은 두고 바로 뒤에 더한다.
         */}
         <div className="mt-0.5 flex items-start gap-1">
-          <h1 className="min-w-0 flex-1 text-xl font-bold leading-snug text-ink">
+          <h1 className="min-w-0 flex-1 pt-1 text-2xl font-bold leading-tight text-ink">
             {ex.title}
           </h1>
           <button
@@ -840,10 +1029,10 @@ export function SessionClient({
             disabled={starring}
             aria-pressed={favorites.has(ex.id)}
             aria-label={favorites.has(ex.id) ? '즐겨찾기에서 빼기' : '즐겨찾기에 담기'}
-            className="shrink-0 rounded-lg p-1.5 transition-colors disabled:opacity-60"
+            className="grid h-11 w-11 shrink-0 place-items-center transition-transform disabled:opacity-60 motion-safe:active:scale-90"
           >
             <Star
-              className={`h-5 w-5 ${favorites.has(ex.id) ? 'text-warn' : 'text-muted'}`}
+              className={`h-6 w-6 ${favorites.has(ex.id) ? 'text-sky' : 'text-muted'}`}
               fill={favorites.has(ex.id) ? 'currentColor' : 'none'}
               strokeWidth={1.8}
             />
@@ -851,7 +1040,7 @@ export function SessionClient({
           <button
             type="button"
             onClick={() => setSwap(true)}
-            className="mt-0.5 inline-flex shrink-0 items-center gap-1 rounded-lg border border-line-strong px-2.5 py-1.5 text-xs font-semibold text-ink transition-colors active:bg-surface-2"
+            className="mt-1.5 inline-flex min-h-8 shrink-0 items-center gap-1 rounded-full bg-surface px-3 text-xs font-semibold text-ink transition-colors active:bg-ink/6"
           >
             {mine.length > 0 ? (
               <Plus aria-hidden className="h-3.5 w-3.5" />
@@ -866,6 +1055,9 @@ export function SessionClient({
             {ex.prescription}
             {ex.perSide && ' (좌우 각각)'}
           </p>
+        )}
+        {ex.plannedSets != null && ex.plannedSets > 0 && (
+          <SetDots planned={ex.plannedSets} done={mine.length} />
         )}
         {/*
           내 메모 — 운동마다 하나. 할 때마다 떠올려야 하는 것이라 이름 바로
@@ -899,7 +1091,7 @@ export function SessionClient({
               type="button"
               onClick={() => setShowForm((v) => !v)}
               aria-expanded={showForm}
-              className="flex items-center justify-center gap-1.5 rounded-xl border border-line-strong py-2 text-xs font-semibold text-ink transition-colors active:bg-surface-2"
+              className="flex min-h-10 items-center justify-center gap-1.5 rounded-full bg-surface text-xs font-semibold text-ink transition-colors active:bg-ink/6 aria-expanded:text-sky"
             >
               <Info className="h-3.5 w-3.5" />
               {showForm ? '자세 설명 접기' : '자세·영상 보기'}
@@ -909,7 +1101,7 @@ export function SessionClient({
             type="button"
             onClick={() => setShowHistory((v) => !v)}
             aria-expanded={showHistory}
-            className="flex items-center justify-center gap-1.5 rounded-xl border border-line-strong py-2 text-xs font-semibold text-ink transition-colors active:bg-surface-2"
+            className="flex min-h-10 items-center justify-center gap-1.5 rounded-full bg-surface text-xs font-semibold text-ink transition-colors active:bg-ink/6 aria-expanded:text-sky"
           >
             <ChartLine className="h-3.5 w-3.5" />
             {showHistory ? '내 기록 접기' : '내 기록'}
@@ -917,7 +1109,7 @@ export function SessionClient({
         </div>
 
         {showForm && hasForm && (
-          <div className="mt-2 space-y-3 rounded-xl border border-line bg-surface p-3">
+          <div className="mt-2 space-y-3 rounded-2xl bg-surface p-3">
             {(ex.videoPath || ex.referenceVideoId) && (
               <LibraryVideo
                 path={ex.videoPath}
@@ -936,7 +1128,7 @@ export function SessionClient({
         )}
 
         {showHistory && (
-          <div className="mt-2 rounded-xl border border-line bg-surface p-3">
+          <div className="mt-2 rounded-2xl bg-surface p-3">
             <ExerciseHistoryPanel
               exerciseId={ex.id}
               excludeSessionId={sessionId}
@@ -964,96 +1156,89 @@ export function SessionClient({
           줄을 누르면 그 세트를 고친다 — 값이 아래 칸에 채워지고 큰 단추가
           'N세트 고치기'가 된다. 지우기는 오른쪽 휴지통 그대로다.
         */}
-        <div className="mt-4 space-y-1.5">
+        <div className="mt-4">
           {mine.length === 0 ? (
-            <p className="rounded-xl bg-surface-2 px-4 py-3 text-xs text-muted">
-              아직 남긴 세트가 없습니다. 한 세트를 마치면 아래에서 적어주세요.
+            <p className="rounded-2xl bg-surface px-4 py-3.5 text-sm text-muted">
+              첫 세트를 마치면 여기에 쌓여요.
             </p>
           ) : (
-            mine.map((s, i) => {
-              const fixingThis = i === editIndex;
-              return (
-                <div
-                  key={s.setNo}
-                  className={`flex items-center gap-1 rounded-xl border pr-1.5 transition-colors ${
-                    fixingThis ? 'border-sky bg-sky/5' : 'border-line'
-                  }`}
-                >
-                  <button
-                    type="button"
-                    onClick={() => startEdit(s)}
-                    aria-pressed={fixingThis}
-                    className="flex min-w-0 flex-1 items-center gap-3 py-2 pl-3 pr-1 text-left"
+            <ul className="divide-y divide-line overflow-hidden rounded-2xl bg-surface">
+              {mine.map((s, i) => {
+                const fixingThis = i === editIndex;
+                return (
+                  <li
+                    key={s.setNo}
+                    className={`flex items-center transition-colors ${fixingThis ? 'bg-sky/8' : ''}`}
                   >
-                    <span
-                      className={`w-10 shrink-0 text-xs ${fixingThis ? 'font-semibold text-sky' : 'text-muted'}`}
+                    <button
+                      type="button"
+                      onClick={() => startEdit(s)}
+                      aria-pressed={fixingThis}
+                      className="flex min-h-13 min-w-0 flex-1 items-center gap-3 py-2 pr-1 pl-3.5 text-left transition-colors active:bg-ink/4"
                     >
-                      {i + 1}세트
-                    </span>
-                    <span className="flex-1 text-sm tabular-nums text-ink">
-                      {s.weightKg != null && `${formatWeight(s.weightKg, wUnit)} × `}
-                      {s.holdSeconds != null
-                        ? formatSeconds(s.holdSeconds)
-                        : `${s.reps}회`}
-                    </span>
-                    {s.pending && (
                       <span
-                        title="아직 서버에 보내지 못했습니다. 신호가 잡히면 저절로 보냅니다."
-                        className="inline-flex shrink-0 items-center gap-1 text-[10px] font-medium text-warn"
+                        className={`grid h-6 w-6 shrink-0 place-items-center rounded-full text-[11px] font-bold tabular-nums ${
+                          fixingThis ? 'bg-sky text-white' : 'bg-ink/6 text-muted'
+                        }`}
                       >
-                        <CloudOff aria-hidden className="h-3 w-3" />
-                        대기
+                        {i + 1}
+                        <span className="sr-only">세트</span>
                       </span>
-                    )}
-                    <Pencil
-                      aria-hidden
-                      className={`h-3.5 w-3.5 shrink-0 ${fixingThis ? 'text-sky' : 'text-muted/50'}`}
-                    />
-                    <span className="sr-only">
-                      {fixingThis
-                        ? '고치는 중. 다시 누르면 그만둡니다'
-                        : '눌러서 고치기'}
-                    </span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => drop(s)}
-                    aria-label={`${i + 1}세트 지우기`}
-                    /* 손가락 크기(44px) · 고치기 연필과 거리 — 26px 라 연필을 누르려다 세트가 지워졌다 */
-                    className="ml-1 grid h-11 w-11 shrink-0 place-items-center rounded-lg text-muted transition-colors hover:text-warn active:text-warn"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </button>
-                </div>
-              );
-            })
+                      <span className="text-numeric min-w-0 flex-1 truncate text-lg leading-none text-ink">
+                        {s.weightKg != null && `${formatWeight(s.weightKg, wUnit)} × `}
+                        {s.holdSeconds != null
+                          ? formatSeconds(s.holdSeconds)
+                          : `${s.reps}회`}
+                      </span>
+                      {/* 지난 모든 기록보다 나은 세트 — 남기는 순간 톡 뜨고 손에 두 번 떤다(save) */}
+                      {record?.setNo === s.setNo && (
+                        <span className="finish-pop shrink-0 rounded-full bg-sky px-2 py-0.5 text-[11px] font-bold text-white">
+                          새 최고
+                        </span>
+                      )}
+                      {s.pending && (
+                        <span
+                          title="아직 서버에 보내지 못했습니다. 신호가 잡히면 저절로 보냅니다."
+                          className="inline-flex shrink-0 items-center gap-1 text-[10px] font-medium text-warn"
+                        >
+                          <CloudOff aria-hidden className="h-3 w-3" />
+                          대기
+                        </span>
+                      )}
+                      <Pencil
+                        aria-hidden
+                        className={`h-3.5 w-3.5 shrink-0 ${fixingThis ? 'text-sky' : 'text-muted/50'}`}
+                      />
+                      <span className="sr-only">
+                        {fixingThis
+                          ? '고치는 중. 다시 누르면 그만둡니다'
+                          : '눌러서 고치기'}
+                      </span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => drop(s)}
+                      aria-label={`${i + 1}세트 지우기`}
+                      /* 손가락 크기(44px) · 고치기 연필과 거리 — 26px 라 연필을 누르려다 세트가 지워졌다 */
+                      className="ml-1 grid h-11 w-11 shrink-0 place-items-center text-muted transition-colors hover:text-warn active:text-warn"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
           )}
         </div>
-
-        {/* 쉰 시간 — 0초부터 올라간다. 끝이 없다. */}
-        {rest != null && (
-          <div className="mt-4 rounded-2xl bg-shade px-4 py-3 text-center">
-            {/*
-              쉬는 중에 새로고침하면 서버가 그린 초와 폰이 처음 그린 초가 달라 맞추기(hydration)가 어긋났다 —
-              시계라 다른 것이 맞으니 이 글자만 봐준다.
-            */}
-            <p
-              suppressHydrationWarning
-              className="text-numeric text-3xl leading-none tabular-nums text-white"
-            >
-              {clockText(rest)}
-            </p>
-            <p className="mt-1 text-[11px] text-white/60">쉬는 중</p>
-          </div>
-        )}
-
-        <p className="mt-4 text-center text-[11px] text-muted/70">
-          오늘 {doneCount}/{list.length}개 운동에 기록을 남겼습니다
-        </p>
       </div>
 
       {/* ─────────── 아래: 누르는 곳 ─────────── */}
-      <div className="shrink-0 space-y-2 border-t-2 border-sky bg-surface px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3">
+      <div className="shrink-0 space-y-2 border-t border-line bg-surface px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3">
+        {/*
+          쉬는 시간 — 엄지가 닿는 곳, 언제나 보이는 자리. 예전에는 세트 목록 밑(굴러가는 칸)이라 세트가
+          쌓이면 화면 밖으로 밀려났다. 처방에 쉬는 시간이 있으면 링이 그만큼에서 다 차고 한 번 알린다.
+        */}
+        {rest != null && <RestPill seconds={rest} target={restTarget} />}
         {error && (
           <p className="rounded-lg bg-warn-bg px-3 py-2 text-center text-xs text-warn">
             {error}
@@ -1093,23 +1278,30 @@ export function SessionClient({
                 bump(f.key, -1);
               }}
               aria-label={`${f.label} 줄이기`}
-              className="h-14 w-14 shrink-0 rounded-xl border border-line-strong text-xl text-ink transition-colors active:bg-surface-2 motion-safe:active:scale-95"
+              className="h-14 w-14 shrink-0 rounded-2xl bg-ink/6 text-2xl text-ink transition active:bg-ink/12 motion-safe:active:scale-95"
             >
               −
             </button>
             <button
               type="button"
               onClick={() => openPad(f.key)}
-              className={`flex h-14 flex-1 items-center justify-between rounded-xl border px-3 transition-colors ${
+              className={`flex h-14 min-w-0 flex-1 items-center justify-between gap-2 rounded-2xl px-4 transition-colors ${
                 pad && field === f.key
-                  ? 'border-sky bg-sky/5'
-                  : 'border-line-strong bg-surface-2'
+                  ? 'bg-sky/10 ring-2 ring-sky ring-inset'
+                  : 'bg-ink/6'
               }`}
             >
-              <span className="text-[11px] text-muted">{f.label}</span>
-              <span className="text-xl font-semibold tabular-nums text-ink">
-                {f.value === '' ? '—' : f.value}
-                <span className="ml-1 text-xs font-normal text-muted">{f.unit}</span>
+              <span className="min-w-0 truncate text-xs text-muted">{f.label}</span>
+              {/* 지금 넣는 숫자는 크게 — 기구를 든 채 팔 길이에서 읽힌다 */}
+              <span className="text-numeric shrink-0 text-2xl leading-none text-ink">
+                {f.value === '' ? (
+                  <span className="font-sans font-normal text-muted/50">—</span>
+                ) : (
+                  f.value
+                )}
+                <span className="ml-1 font-sans text-sm font-medium text-muted">
+                  {f.unit}
+                </span>
               </span>
             </button>
             <button
@@ -1119,7 +1311,7 @@ export function SessionClient({
                 bump(f.key, 1);
               }}
               aria-label={`${f.label} 늘리기`}
-              className="h-14 w-14 shrink-0 rounded-xl border border-line-strong text-xl text-ink transition-colors active:bg-surface-2 motion-safe:active:scale-95"
+              className="h-14 w-14 shrink-0 rounded-2xl bg-ink/6 text-2xl text-ink transition active:bg-ink/12 motion-safe:active:scale-95"
             >
               +
             </button>
@@ -1128,7 +1320,7 @@ export function SessionClient({
 
         {/* 자판은 숫자를 누를 때만. 접으면 그만큼 위쪽이 넓어진다. */}
         {pad && (
-          <div className="space-y-1.5 rounded-xl bg-surface-2 p-2">
+          <div className="space-y-1.5 rounded-2xl bg-ink/6 p-1.5">
             <NumberPad
               onChange={field === 'weight' ? setWeight : setCount}
               allowDecimal={field === 'weight'}
@@ -1146,7 +1338,7 @@ export function SessionClient({
                 if (field === 'weight') setField('count');
                 else setPad(false);
               }}
-              className="h-12 w-full rounded-xl border border-sky bg-sky/10 text-sm font-bold text-sky transition-transform motion-safe:active:scale-[0.98]"
+              className="h-12 w-full rounded-xl bg-sky/15 text-sm font-bold text-sky transition-transform motion-safe:active:scale-[0.98]"
             >
               {field === 'weight'
                 ? `다음 · ${ex.isHold ? timeLabel : '횟수'} →`
@@ -1161,7 +1353,7 @@ export function SessionClient({
         */}
         {!pad &&
           (editIndex >= 0 ? (
-            <div className="flex items-center gap-2 rounded-lg bg-sky/10 px-3 py-2 text-xs text-sky">
+            <div className="flex items-center gap-2 rounded-xl bg-sky/10 px-3.5 py-1 text-xs text-sky">
               <Pencil aria-hidden className="h-3.5 w-3.5 shrink-0" />
               <span className="flex-1">
                 <b>{editIndex + 1}세트</b>를 고치는 중입니다
@@ -1169,7 +1361,7 @@ export function SessionClient({
               <button
                 type="button"
                 onClick={endEdit}
-                className="shrink-0 font-semibold underline underline-offset-2"
+                className="-mr-1.5 min-h-9 shrink-0 px-1.5 font-semibold transition-opacity active:opacity-60"
               >
                 그만두기
               </button>
@@ -1179,8 +1371,9 @@ export function SessionClient({
               <button
                 type="button"
                 onClick={fillLast}
-                className="w-full rounded-lg border border-dashed border-line-strong py-1.5 text-[11px] text-muted transition-colors hover:border-sky hover:text-sky"
+                className="mx-auto flex min-h-9 w-fit items-center gap-1.5 rounded-full px-3 text-[13px] font-semibold text-sky transition-opacity active:opacity-60"
               >
+                <RotateCcw aria-hidden className="h-3.5 w-3.5" strokeWidth={2.4} />
                 지난번 그대로 담기
               </button>
             )
@@ -1194,17 +1387,17 @@ export function SessionClient({
         <button
           type="button"
           onClick={save}
-          className="h-[72px] w-full rounded-2xl bg-sky text-base font-bold text-white transition-transform motion-safe:active:scale-[0.98]"
+          className="flex h-[72px] w-full items-center justify-center gap-2 rounded-full bg-sky text-lg font-bold text-white transition-transform motion-safe:active:scale-[0.98]"
         >
           {editIndex >= 0 ? (
             <>
-              <Pencil className="mr-1.5 inline h-5 w-5" />
+              <Pencil className="h-5 w-5" />
               {`${editIndex + 1}세트 고치기`}
             </>
           ) : (
             <>
-              <Check className="mr-1.5 inline h-5 w-5" />
-              {`세트 완료 (${mine.length + 1}세트째)`}
+              <Check className="h-6 w-6" strokeWidth={2.6} />
+              {`${mine.length + 1}세트 완료`}
             </>
           )}
         </button>
@@ -1216,7 +1409,7 @@ export function SessionClient({
               type="button"
               onClick={() => goTo(at - 1)}
               disabled={at === 0}
-              className="flex flex-1 items-center justify-center gap-1 rounded-xl border border-line-strong py-2.5 text-xs font-semibold text-ink transition-colors disabled:opacity-30 motion-safe:active:scale-[0.98]"
+              className="flex min-h-11 flex-1 items-center justify-center gap-1 rounded-full bg-ink/6 text-[13px] font-semibold text-ink transition active:bg-ink/12 disabled:opacity-30 motion-safe:active:scale-[0.98]"
             >
               <ChevronLeft className="h-4 w-4" />
               이전 운동
@@ -1225,7 +1418,7 @@ export function SessionClient({
               type="button"
               onClick={() => goTo(at + 1)}
               disabled={at === list.length - 1}
-              className="flex flex-1 items-center justify-center gap-1 rounded-xl border border-line-strong py-2.5 text-xs font-semibold text-ink transition-colors disabled:opacity-30 motion-safe:active:scale-[0.98]"
+              className="flex min-h-11 flex-1 items-center justify-center gap-1 rounded-full bg-ink/6 text-[13px] font-semibold text-ink transition active:bg-ink/12 disabled:opacity-30 motion-safe:active:scale-[0.98]"
             >
               다음 운동
               <ChevronRight className="h-4 w-4" />
@@ -1236,7 +1429,6 @@ export function SessionClient({
 
       {finish && (
         <FinishSheet
-          exercises={list}
           sets={sets}
           startedAt={openedAt}
           priorSeconds={priorSeconds}
@@ -1251,7 +1443,7 @@ export function SessionClient({
             setFinishError(null);
             startEnding(async () => {
               try {
-                /* 성공하면 서버가 트레이닝으로 보낸다 — 돌아오면 실패한 것이다 */
+                /* 성공하면 서버가 축하 화면(/workout/done)으로 보낸다 — 돌아오면 실패한 것이다 */
                 /* 이 화면의 판을 콕 집어 닫는다 — 다른 날 열린 판을 닫지 않게 */
                 const res = await finishWorkout({ sessionId, intensity, memo });
                 if (res && 'error' in res) setFinishError(res.error);

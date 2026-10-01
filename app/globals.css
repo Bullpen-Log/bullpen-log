@@ -1930,6 +1930,38 @@ html[data-gate-up] *::after {
 }
 
 /*
+ * 운동 끝 화면(app/(session)/workout/done) — 링이 한 바퀴 그려지고(0.7초) 그 끝에 체크가 톡 뜨고, 아래 덩이는
+ * 차례로 떠오른다(--rise-delay). 애플 워치의 운동 요약처럼(2026-10-01 '감성'). 움직임 줄이기면 처음부터 다 보인다.
+ * .finish-pop 뒤에 두어야 체크의 늦춤(animation-delay)이 그 줄임말(animation)에 지워지지 않는다.
+ */
+@media (prefers-reduced-motion: no-preference) {
+  .done-ring {
+    animation: done-ring 700ms cubic-bezier(0.65, 0, 0.35, 1) both;
+  }
+  .done-check {
+    animation-delay: 520ms;
+  }
+  .rise-in {
+    animation: rise-in 420ms cubic-bezier(0.22, 1, 0.36, 1) both;
+    animation-delay: var(--rise-delay, 0ms);
+  }
+}
+@keyframes done-ring {
+  from {
+    stroke-dashoffset: 100;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+@keyframes rise-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+}
+
+/*
  * 휴대폰(손가락 화면)의 입력칸 글자는 16px — 아이폰 사파리가 화면을 확대하지 않게.
  *
  * 사파리는 글자가 16px 보다 작은 입력칸을 누르면 화면을 확대하고, 다 쓴 뒤에도 그대로 둔다.

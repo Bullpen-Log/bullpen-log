@@ -27,6 +27,12 @@ export type FrozenExercise = {
   plannedSets: number | null;
   plannedReps: number | null;
   plannedHoldSeconds: number | null;
+  /**
+   * 세트 사이 쉬는 시간(초) — 운동 화면의 쉬는 시간 링이 이만큼에서 다 찬다. 처방 줄의
+   * '세트 사이 2분 휴식'과 같은 값. 2026-10-01 에 더해, 그 앞에 찍은 판에는 없다(undefined) —
+   * 그때는 라이브러리 값을 쓴다(lib/workout/run-exercises.ts).
+   */
+  restSeconds?: number | null;
   perSide: boolean;
   /** 바벨·덤벨처럼 무게를 안 적으면 완료로 남길 수 없는 운동인가 */
   needsWeight: boolean;
@@ -76,6 +82,7 @@ export function freezeExercise(ex: SourceExercise, slot: SlotKey): FrozenExercis
     plannedSets: ex.sets,
     plannedReps: ex.reps,
     plannedHoldSeconds: ex.holdSeconds,
+    restSeconds: ex.restSeconds,
     perSide: ex.perSide,
     needsWeight: needsWeight(ex.equipment),
     /* 버티기 초가 적혀 있고 횟수가 없으면 시간형이다 */

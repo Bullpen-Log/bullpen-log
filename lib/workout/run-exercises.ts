@@ -4,6 +4,8 @@ import { createPlaybackUrls } from '@/lib/storage';
 import { recentAmounts } from '@/lib/report/exercise-recent';
 import { exerciseNotes } from '@/lib/exercise-notes';
 import { favoriteExerciseIds } from '@/lib/favorites';
+import { priorBests } from '@/lib/workout/prior-bests';
+import type { PriorBest } from '@/lib/workout/bests';
 import type { DoneAmount } from '@/lib/exercise-meta';
 import type { SlotKey } from '@/lib/report/theme';
 import type { FrozenExercise } from '@/lib/workout/session-plan';
@@ -16,6 +18,8 @@ export type RunExercise = {
   slot: SlotKey;
   prescription: string | null;
   plannedSets: number | null;
+  /** 세트 사이 쉬는 시간(초). 처방에 없으면 null — 쉬는 시계가 목표 없이 올라가기만 한다 */
+  restSeconds: number | null;
   perSide: boolean;
   needsWeight: boolean;
   isHold: boolean;
@@ -38,6 +42,8 @@ export type RunExercise = {
   note: string | null;
   /** 이 사람이 별을 달아 둔 운동인가 — 라이브러리의 별과 같은 것 */
   favorite: boolean;
+  /** 오늘 앞의 최고 기록 — 세트가 이것을 넘으면 '새 최고'(lib/workout/bests.ts). 처음 하는 운동은 null */
+  best: PriorBest | null;
 };
 
 /**
@@ -61,7 +67,7 @@ export async function runExercises(
 ): Promise<RunExercise[]> {
   const ids = entries.map((e) => e.id);
 
-  const [details, thumbUrls, past, notes, favorites] = await Promise.all([
+  const [details, thumbUrls, past, notes, favorites, bests] = await Promise.all([
     exercisesByIds(ids),
     /* 서명 주소는 한 시간이면 죽는다. 찍어 두지 않고 그릴 때마다 발급한다. */
     createPlaybackUrls(entries.map((e) => e.thumbPath).filter((p): p is string => !!p)),
@@ -70,6 +76,8 @@ export async function runExercises(
     /* 운동마다 남겨 둔 내 메모 */
     exerciseNotes(userId, ids),
     favoriteExerciseIds(userId),
+    /* '새 최고'를 가를 기준 — 운동마다 가장 큰 값만 */
+    priorBests(userId, ids, sessionDate),
   ]);
   const byId = new Map(details.map((d) => [d.id, d]));
 
@@ -82,6 +90,9 @@ export async function runExercises(
       slot: e.slot,
       prescription: e.prescription,
       plannedSets: e.plannedSets,
+      /* 처방을 찍기 전에 연 판(undefined)은 라이브러리 값으로 */
+      restSeconds:
+        e.restSeconds !== undefined ? e.restSeconds : (d?.restSeconds ?? null),
       perSide: e.perSide,
       needsWeight: e.needsWeight,
       isHold: e.isHold,
@@ -98,6 +109,7 @@ export async function runExercises(
       last: past.get(e.id)?.[0] ?? null,
       note: notes.get(e.id) ?? null,
       favorite: favorites.has(e.id),
+      best: bests.get(e.id) ?? null,
     };
   });
 }

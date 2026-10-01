@@ -490,7 +490,12 @@ export async function finishWorkout(input: {
 
   revalidatePath('/today');
   revalidatePath('/training');
-  redirect('/training', RedirectType.replace);
+  /*
+   * 축하 화면으로 — 링 · 세 숫자 · 새 최고를 보이고 [완료]로 트레이닝에 간다(app/(session)/workout/done,
+   * 2026-10-01 '감성'). 예전에는 곧장 트레이닝 목록이라 한 시간 운동의 끝이 화면 바뀜뿐이었다.
+   * 바꿔 넣는다(replace) — 뒤로 가기로 닫힌 운동 화면에 돌아가지 않게.
+   */
+  redirect(`/workout/done?id=${encodeURIComponent(session.id)}`, RedirectType.replace);
 }
 
 /* ---------------------------- 목록 고치기 ---------------------------- */

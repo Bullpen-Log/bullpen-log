@@ -2,33 +2,21 @@
 
 import { useState } from 'react';
 import { Check, X } from 'lucide-react';
-import {
-  formatSummary,
-  summarizeSets,
-  totalVolumeKg,
-  volumeIn,
-} from '@/lib/workout/summarize';
-import { useWeightUnit } from '@/components/use-units';
+import { summarizeSets } from '@/lib/workout/summarize';
 import { IntensityGuide } from '@/components/intensity-guide';
-import type { RunExercise, RunSet } from './session-client';
+import type { RunSet } from './session-client';
 
 /**
- * 운동을 마치기 전에 보는 요약.
+ * 운동을 마치기 직전 — 체감 강도를 받고 마친다.
  *
- * 왜 마치기 '전'인가. 마치고 나면 트레이닝 화면으로 돌아가는데, 거기서는
- * 오늘 무엇을 얼마나 했는지가 체크 표시로만 보인다. 한 시간을 쓰고 나서
- * 남는 것이 체크뿐이면 그 한 시간이 숫자로 안 남는다.
+ * 마치면 축하 화면(app/(session)/workout/done)이 세 숫자 · 새 최고 · 한 운동을 크게 보여준다. 예전에는 그
+ * 요약을 여기서 보였는데(마치면 곧장 트레이닝 목록으로 가서 숫자가 안 남았다), 이제 요약은 끝 화면의 몫이고
+ * 이 창은 '마칠까요?'와 강도 하나에 집중한다 — 고를 것이 맨 위에 있다(2026-10-01 '감성').
  *
- * 체감 강도도 여기서 받는다. 트레이닝 화면에도 적는 자리가 있지만
- * (training-note.tsx), 운동이 끝난 직후가 가장 정확하게 답하는 순간이고
- * 그 자리를 지나 화면을 옮기고 나면 아무도 다시 안 적는다.
- *
- * 요약은 서버가 저장할 때 쓰는 것과 같은 함수로 접는다
- * (lib/workout/summarize.ts). 규칙이 갈리면 화면에는 60kg 이라고 떠 놓고
- * 기록에는 다른 숫자가 들어간다.
+ * 체감 강도는 여기서 받는다. 트레이닝 화면에도 적는 자리가 있지만(training-note.tsx), 운동이 끝난 직후가
+ * 가장 정확하게 답하는 순간이고 그 자리를 지나 화면을 옮기고 나면 아무도 다시 안 적는다.
  */
 export function FinishSheet({
-  exercises,
   sets,
   startedAt,
   priorSeconds,
@@ -38,7 +26,6 @@ export function FinishSheet({
   busy,
   error,
 }: {
-  exercises: RunExercise[];
   sets: RunSet[];
   /** 본운동을 시작한 시각. 워밍업에 쓴 시간은 여기 안 들어간다. */
   startedAt: string;
@@ -76,20 +63,7 @@ export function FinishSheet({
     0,
     Math.round((priorSeconds * 1000 + (openedAt - Date.parse(startedAt))) / 60000)
   );
-
-  const summaries = summarizeSets(sets);
-  const volume = totalVolumeKg(sets);
-  /* 무게는 고른 단위로 보여준다(설정 → 단위). 저장은 kg 그대로다. */
-  const unit = useWeightUnit();
-  const byId = new Map(exercises.map((e) => [e.id, e]));
-
-  /* 목록 순서대로 — 한 것 먼저, 안 한 것은 아예 안 낸다 */
-  const rows = exercises.flatMap((ex) => {
-    const s = summaries.find((x) => x.exerciseId === ex.id);
-    return s ? [{ ex, s }] : [];
-  });
-  /* 목록에서 뺀 뒤에도 기록이 남은 운동이 있으면 빠뜨리지 않는다 */
-  const orphans = summaries.filter((s) => !byId.has(s.exerciseId));
+  const exerciseCount = summarizeSets(sets).length;
 
   return (
     <div className="fixed inset-0 z-50 flex flex-col justify-end">
@@ -97,153 +71,105 @@ export function FinishSheet({
         type="button"
         aria-label="닫기"
         onClick={onClose}
-        className="absolute inset-0 bg-shade/60"
+        className="absolute inset-0 bg-black/40 motion-safe:animate-[backdrop-in_260ms_ease-out]"
       />
 
-      <div className="relative flex max-h-[92%] flex-col rounded-t-3xl border-t border-line bg-surface">
-        <div className="flex shrink-0 items-center justify-between gap-3 border-b border-line px-4 py-3">
-          <p className="text-sm font-bold text-ink">오늘 운동을 마칩니다</p>
+      {/* 아래에서 올라오는 시트 — 앱의 다른 창(components/modal.tsx)과 같은 모양 · 움직임 */}
+      <div className="relative flex max-h-[92%] flex-col rounded-t-[28px] bg-surface shadow-2xl motion-safe:animate-[sheet-in_380ms_cubic-bezier(0.32,0.72,0,1)]">
+        <div
+          aria-hidden
+          className="mx-auto mt-2 h-[5px] w-9 shrink-0 rounded-full bg-ink/15"
+        />
+        <div className="flex shrink-0 items-start justify-between gap-3 px-5 pt-3">
+          <div className="min-w-0">
+            <p className="text-xl font-bold text-ink">오늘 운동을 마칠까요?</p>
+            <p className="mt-0.5 text-sm text-muted tabular-nums">
+              {sets.length > 0
+                ? `운동 ${exerciseCount}개 · ${sets.length}세트 · ${minutes}분`
+                : `${minutes}분`}
+            </p>
+          </div>
           <button
             type="button"
             onClick={onClose}
             aria-label="닫기"
-            className="-m-2 grid h-11 w-11 shrink-0 place-items-center rounded-lg text-muted transition-colors hover:text-ink desk:m-0 desk:h-8 desk:w-8"
+            className="-mt-1 -mr-2 grid h-11 w-11 shrink-0 place-items-center text-muted transition-colors hover:text-ink"
           >
-            <X className="h-5 w-5 desk:h-4 desk:w-4" />
+            <span className="grid h-8 w-8 place-items-center rounded-full bg-ink/6">
+              <X className="h-4 w-4" strokeWidth={2.4} />
+            </span>
           </button>
         </div>
 
-        <div className="flex-1 overflow-y-auto px-4 py-4">
-          {/* 세 숫자만 크게. 더 늘리면 무엇을 봐야 할지 흐려진다. */}
-          <div className="grid grid-cols-3 gap-2">
-            {[
-              { label: '운동 시간', value: `${minutes}`, unit: '분' },
-              { label: '총 세트', value: `${sets.length}`, unit: '세트' },
-              {
-                label: '총 볼륨',
-                value:
-                  volume > 0 ? volumeIn(volume, unit).toLocaleString('ko-KR') : '—',
-                unit: volume > 0 ? unit : '',
-              },
-            ].map((n) => (
-              <div
-                key={n.label}
-                className="rounded-2xl border border-line bg-surface-2 px-2 py-3 text-center"
-              >
-                <p className="text-[11px] text-muted">{n.label}</p>
-                <p className="mt-0.5 text-numeric text-xl text-ink">
-                  {n.value}
-                  <span className="ml-0.5 text-xs font-normal text-muted">
-                    {n.unit}
-                  </span>
-                </p>
-              </div>
-            ))}
-          </div>
-          {volume > 0 && (
-            <p className="mt-1.5 text-center text-[11px] text-muted/80">
-              총 볼륨은 무게 × 횟수를 다 더한 값입니다. 맨몸·버티기는 빠집니다.
+        <div className="flex-1 overflow-y-auto px-5 pt-4 pb-4">
+          {sets.length === 0 && (
+            <p className="mb-5 rounded-2xl bg-ink/6 px-4 py-3 text-sm leading-relaxed text-muted">
+              남긴 세트가 없어요. 이대로 마치면 오늘은 기록이 남지 않아요.
             </p>
-          )}
-
-          {sets.length === 0 ? (
-            <p className="mt-4 rounded-xl border border-dashed border-line-strong px-4 py-6 text-center text-xs leading-relaxed text-muted">
-              남긴 세트가 없습니다.
-              <br />
-              이대로 마치면 오늘은 기록이 남지 않습니다.
-            </p>
-          ) : (
-            <ul className="mt-4 divide-y divide-line overflow-hidden rounded-2xl border border-line">
-              {rows.map(({ ex, s }) => (
-                <li key={ex.id} className="flex items-center gap-3 px-3.5 py-2.5">
-                  <span className="min-w-0 flex-1 truncate text-sm font-semibold text-ink">
-                    {ex.title}
-                  </span>
-                  <span className="shrink-0 text-xs tabular-nums text-muted">
-                    {formatSummary(s, unit)}
-                  </span>
-                </li>
-              ))}
-              {orphans.map((s) => (
-                <li
-                  key={s.exerciseId}
-                  className="flex items-center gap-3 px-3.5 py-2.5"
-                >
-                  <span className="min-w-0 flex-1 truncate text-sm text-muted">
-                    목록에서 뺀 운동
-                  </span>
-                  <span className="shrink-0 text-xs tabular-nums text-muted">
-                    {formatSummary(s, unit)}
-                  </span>
-                </li>
-              ))}
-            </ul>
           )}
 
           {/* ── 체감 강도 ── */}
-          <div className="mt-5">
-            <p className="text-sm font-bold text-ink">
-              오늘 얼마나 힘들었나요?
-              <span className="ml-1.5 text-[11px] font-semibold text-sky">필수</span>
-            </p>
-            <p className="mt-0.5 text-xs leading-relaxed text-muted">
-              오늘 운동 전체가 얼마나 힘들었는지 고르세요. 이 숫자로 운동 부하 지수를
-              계산합니다.
-            </p>
+          <p className="text-base font-bold text-ink">
+            오늘 얼마나 힘들었나요?
+            <span className="ml-1.5 text-xs font-semibold text-sky">필수</span>
+          </p>
+          <p className="mt-0.5 text-xs leading-relaxed text-muted">
+            오늘 운동 전체가 얼마나 힘들었는지 골라 주세요. 이 숫자로 운동 부하를
+            계산해요.
+          </p>
 
-            {/*
-              1~10 을 눌러서 고른다.
-              밀대(slider)는 엄지로 정확한 칸에 세우기가 어렵고, 손을 대는 순간
-              어딘가가 골라져 '안 고름'을 남길 수가 없다.
-            */}
-            <div className="mt-2.5 grid grid-cols-10 gap-1">
-              {Array.from({ length: 10 }, (_, i) => i + 1).map((n) => (
-                <button
-                  key={n}
-                  type="button"
-                  /* 한 번 고른 뒤 같은 것을 또 눌러도 안 비워진다 — 필수이므로 */
-                  onClick={() => setIntensity(n)}
-                  aria-pressed={intensity === n}
-                  className={`h-11 rounded-lg border text-sm font-semibold tabular-nums transition-colors ${
-                    intensity === n
-                      ? 'border-sky bg-sky text-white'
-                      : 'border-line-strong bg-surface text-ink active:bg-surface-2'
-                  }`}
-                >
-                  {n}
-                </button>
-              ))}
-            </div>
-            <div className="mt-1 flex justify-between text-[11px] text-muted">
-              <span>1 아주 가벼움</span>
-              <span>10 최대</span>
-            </div>
-
-            {/* 감으로 찍으면 그 뒤 계산이 전부 흔들린다 — 고르는 자리 바로 밑에 기준을 둔다 */}
-            <div className="mt-2">
-              <IntensityGuide kind="training" />
-            </div>
-
-            <label className="mt-3 block space-y-1.5">
-              <span className="text-sm font-medium text-ink">
-                느낀점
-                <span className="ml-1.5 text-[11px] font-normal text-muted">선택</span>
-              </span>
-              <textarea
-                value={memo}
-                onChange={(e) => setMemo(e.target.value)}
-                rows={2}
-                placeholder="안 적어도 됩니다. 무거웠던 곳, 잘 된 동작 같은 것."
-                className="w-full resize-y rounded-xl border border-line bg-surface-2 px-3.5 py-2.5 text-sm text-ink outline-none transition-colors placeholder:text-muted focus:border-sky"
-              />
-            </label>
+          {/*
+            1~10 을 눌러서 고른다.
+            밀대(slider)는 엄지로 정확한 칸에 세우기가 어렵고, 손을 대는 순간
+            어딘가가 골라져 '안 고름'을 남길 수가 없다.
+          */}
+          <div className="mt-3 grid grid-cols-10 gap-1">
+            {Array.from({ length: 10 }, (_, i) => i + 1).map((n) => (
+              <button
+                key={n}
+                type="button"
+                /* 한 번 고른 뒤 같은 것을 또 눌러도 안 비워진다 — 필수이므로 */
+                onClick={() => setIntensity(n)}
+                aria-pressed={intensity === n}
+                className={`h-11 rounded-full text-sm font-semibold tabular-nums transition ${
+                  intensity === n
+                    ? 'bg-sky text-white motion-safe:scale-105'
+                    : 'bg-ink/6 text-ink active:bg-ink/12'
+                }`}
+              >
+                {n}
+              </button>
+            ))}
           </div>
+          <div className="mt-1.5 flex justify-between px-1 text-[11px] text-muted">
+            <span>1 아주 가벼움</span>
+            <span>10 최대</span>
+          </div>
+
+          {/* 감으로 찍으면 그 뒤 계산이 전부 흔들린다 — 고르는 자리 바로 밑에 기준을 둔다 */}
+          <div className="mt-2">
+            <IntensityGuide kind="training" />
+          </div>
+
+          <label className="mt-4 block space-y-1.5">
+            <span className="text-sm font-medium text-ink">
+              느낀점
+              <span className="ml-1.5 text-[11px] font-normal text-muted">선택</span>
+            </span>
+            <textarea
+              value={memo}
+              onChange={(e) => setMemo(e.target.value)}
+              rows={2}
+              placeholder="안 적어도 돼요. 무거웠던 곳, 잘 된 동작 같은 것."
+              className="w-full resize-y rounded-2xl bg-ink/6 px-4 py-3 text-sm text-ink outline-none transition placeholder:text-muted focus:bg-surface focus:ring-2 focus:ring-sky"
+            />
+          </label>
         </div>
 
         {/* ── 마치기 ── */}
-        <div className="shrink-0 space-y-2 border-t border-line px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3">
+        <div className="shrink-0 space-y-2 px-4 pt-2 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
           {error && (
-            <p className="rounded-lg bg-warn-bg px-3 py-2 text-center text-xs text-warn">
+            <p className="rounded-xl bg-warn-bg px-3 py-2 text-center text-xs text-warn">
               {error}
             </p>
           )}
@@ -254,14 +180,14 @@ export function FinishSheet({
             위에 있어야 한다.
           */}
           {pendingCount > 0 ? (
-            <p className="text-center text-[11px] leading-relaxed text-warn">
-              아직 못 보낸 세트가 {pendingCount}개 있습니다. 신호가 잡혀 저절로 보내지면
-              마칠 수 있습니다.
+            <p className="text-center text-xs leading-relaxed text-warn">
+              아직 못 보낸 세트가 {pendingCount}개 있어요. 신호가 잡혀 저절로 보내지면
+              마칠 수 있어요.
             </p>
           ) : (
             intensity == null && (
-              <p className="text-center text-[11px] text-muted">
-                오늘 강도를 고르면 마칠 수 있습니다.
+              <p className="text-center text-xs text-muted">
+                오늘 강도를 고르면 마칠 수 있어요.
               </p>
             )
           )}
@@ -271,16 +197,16 @@ export function FinishSheet({
               intensity != null && pendingCount === 0 && onFinish(intensity, memo)
             }
             disabled={busy || intensity == null || pendingCount > 0}
-            className="flex h-[72px] w-full items-center justify-center gap-1.5 rounded-2xl bg-sky text-base font-bold text-white transition-transform disabled:opacity-40 motion-safe:active:scale-[0.98]"
+            className="flex h-[72px] w-full items-center justify-center gap-2 rounded-full bg-sky text-lg font-bold text-white transition disabled:opacity-40 motion-safe:active:scale-[0.98]"
           >
-            <Check className="h-5 w-5" />
+            <Check className="h-6 w-6" strokeWidth={2.6} />
             {busy ? '정리 중' : '운동 마치기'}
           </button>
           <button
             type="button"
             onClick={onClose}
             disabled={busy}
-            className="w-full rounded-xl py-2.5 text-xs font-semibold text-muted transition-colors disabled:opacity-40 active:text-ink"
+            className="min-h-11 w-full rounded-full text-sm font-semibold text-sky transition-opacity disabled:opacity-40 active:opacity-60"
           >
             더 하기
           </button>
