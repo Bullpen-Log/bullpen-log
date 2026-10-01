@@ -8,7 +8,6 @@ import {
   Minus,
   Plus,
   RefreshCw,
-  Sparkles,
   Trash2,
 } from 'lucide-react';
 import {
@@ -141,9 +140,8 @@ export function PlanCard({
         aria-labelledby="plan-card-title"
         className="motion-safe:animate-fade-in space-y-3 rounded-2xl border border-line bg-surface p-(--block-pad)"
       >
-        <div className="flex items-start gap-2">
-          <Sparkles aria-hidden className="mt-0.5 h-4 w-4 shrink-0 text-sky" />
-          <div className="min-w-0 flex-1">
+        <div>
+          <div>
             <h2 id="plan-card-title" className="text-sm font-bold text-ink">
               오늘 식단 짜기
             </h2>
@@ -170,10 +168,6 @@ export function PlanCard({
           onClick={() => onMake({ place, hot, variant: 0 })}
           className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-full bg-sky px-5 text-sm font-semibold text-white transition-[background-color,opacity] hover:bg-sky-strong disabled:opacity-60 desk:w-auto desk:rounded-xl"
         >
-          <Sparkles
-            aria-hidden
-            className={`h-4 w-4 ${pending ? 'motion-safe:animate-pulse' : ''}`}
-          />
           {pending ? '짜는 중…' : '식단 짜기'}
         </button>
       </section>
@@ -189,7 +183,6 @@ export function PlanCard({
       className="motion-safe:animate-fade-in space-y-2 rounded-2xl border border-line bg-surface p-(--block-pad)"
     >
       <div className="flex items-center gap-2">
-        <Sparkles aria-hidden className="h-4 w-4 shrink-0 text-sky" />
         <div className="min-w-0 flex-1">
           <h2 id="plan-card-title" className="text-sm font-bold text-ink">
             오늘 식단
