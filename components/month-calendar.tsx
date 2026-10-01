@@ -535,13 +535,15 @@ function DayGrid({
 /**
  * 제목의 '년 · 월' — 둥근 숫자(text-numeric, SF Pro Rounded) 옆에 붙는 본문 서체의 글자.
  *
- * 숫자의 0.875배 · 굵기 800 · 같은 기준선. 아이폰 WebKit 에서 재 보니 둥근 숫자 24px 은
- * 기준선 위 17.3px 이고, Pretendard 한글은 21px(0.875배)일 때 위 16.8px 로 숫자와 키가
- * 같다. 둥근 숫자의 획이 두꺼워 한글은 한 단계 굵게(800) 둬야 같은 무게로 보인다.
- * 예전 값(20px · 1px 올림)은 Bebas 숫자에 맞춘 것이라, 둥근 숫자로 바뀐 뒤에는 한글이
- * 작고 떠 보였다. em 으로 두어 PC(숫자 18px)에서도 같은 비율이다.
+ * 위아래 끝을 숫자에 맞춘다. 아이폰 WebKit 에서 재 보니 둥근 숫자 24px 은 기준선 위
+ * 17.3px · 아래 0.4px 다. Pretendard 한글은 기준선 아래로 2px 쯤 내려가서, 같은 기준선에
+ * 그냥 두면 '년 · 월'만 처져 줄이 삐뚤어 보였다(2026-10-01 사용자). 그래서
+ * 0.83배(위 16.6 · 아래 1.2)로 줄이고 0.1em 올려 위아래 끝을 숫자와 맞춘다(확대해서 픽셀로 맞춤).
+ * 둥근 숫자의 획이 두꺼워 한글은 가장 굵게(900) 둬야 같은 무게로 보인다.
+ * em 으로 두어 PC(숫자 18px)에서도 같은 비율이다.
  */
-const UNIT_CLASS = 'ml-0.5 font-sans text-[0.875em] font-extrabold tracking-normal';
+const UNIT_CLASS =
+  'relative -top-[0.1em] ml-0.5 font-sans text-[0.83em] font-black tracking-normal';
 
 /**
  * '2026년 9월'을 누르면 펼쳐지는 빠른 이동.
