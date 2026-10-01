@@ -157,7 +157,7 @@ export function ExerciseChecklist({
             <span className="text-muted">/{items.length}</span> 완료
           </p>
           {allDone && (
-            <span className="text-sm font-semibold text-sky">전부 마쳤습니다 👏</span>
+            <span className="text-sm font-semibold text-sky">전부 마쳤어요 👏</span>
           )}
         </div>
         <div className="mt-3 h-2 overflow-hidden rounded-full bg-surface-2">
@@ -180,8 +180,8 @@ export function ExerciseChecklist({
         {doneCount === 0 && items.length > 0 && (
           <p className="mt-3 text-[11px] leading-relaxed text-muted">
             마친 운동은 눌러서 표시해주세요. 이 표시로 <b>운동 부하</b>를 재고, 다음
-            일정에서 <b>같은 부위가 겹치지 않게</b> 고릅니다 — 표시가 없으면 앱은 안 한
-            것으로 봅니다.
+            일정에서 <b>같은 부위가 겹치지 않게</b> 골라요 — 표시가 없으면 앱은 안 한
+            것으로 봐요.
           </p>
         )}
       </div>
@@ -355,7 +355,7 @@ function ExerciseList({
                   </>
                 }
                 prescription={ex.prescription}
-                warning={ex.unsafe ? '오늘 몸 상태에는 권하지 않는 운동입니다' : null}
+                warning={ex.unsafe ? '오늘 몸 상태에는 권하지 않는 운동이에요' : null}
                 thumbUrl={ex.thumbUrl}
                 thumbClassName="hidden h-16 w-24 sm:block"
               >

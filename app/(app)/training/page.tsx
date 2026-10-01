@@ -432,7 +432,7 @@ export default async function TrainingPage({
         {picked.halted ? (
           <Card className="space-y-2 border-warn-line bg-warn-bg">
             <p className="text-sm font-bold text-warn">
-              오늘은 운동을 처방하지 않았습니다
+              오늘은 운동을 처방하지 않았어요
             </p>
             {/*
             까닭과 할 일을 한 번씩만 말한다. 예전에는 haltReason 안에 이미
@@ -440,7 +440,7 @@ export default async function TrainingPage({
             상태를 고쳐주세요"라고 해, 같은 말을 두 번 하는 문단이 됐다.
           */}
             <p className="text-sm leading-relaxed text-warn">
-              {picked.haltReason ?? '통증 신호가 있어 훈련 조언을 만들지 않았습니다.'}
+              {picked.haltReason ?? '통증 신호가 있어 훈련 조언을 만들지 않았어요.'}
             </p>
             <OpenCheckinButton className="text-sm font-semibold text-warn underline">
               통증이 아니면 체크인 고치기
@@ -448,7 +448,7 @@ export default async function TrainingPage({
           </Card>
         ) : !core.hasLogs ? (
           <EmptyState
-            title="투구 기록이 있어야 운동을 고를 수 있습니다"
+            title="투구 기록이 있어야 운동을 고를 수 있어요"
             description="투구량을 봐야 무리 없는 운동을 고를 수 있어요."
             action={
               /* 홈의 투구 상자가 알림(종)으로 옮겨 가서, 그날 투구 화면으로 바로 보낸다 */
@@ -481,7 +481,7 @@ export default async function TrainingPage({
         ) : exercises.length === 0 ? (
           <Card className="space-y-4">
             <p className="text-sm font-bold text-ink">
-              만들어 둔 일정에 남은 운동이 없습니다
+              만들어 둔 일정에 남은 운동이 없어요
             </p>
             <p className="text-sm text-muted">
               {droppedForSafety > 0

@@ -15,27 +15,27 @@ const CHECKLIST = [
   {
     title: '옆에서 찍기 — 항상 같은 쪽',
     detail:
-      '1루 또는 3루 쪽에서 옆모습이 나오게 찍습니다. 매번 같은 쪽에서 찍어야 지난 영상과 비교할 수 있습니다.',
+      '1루 또는 3루 쪽에서 옆모습이 나오게 찍어요. 매번 같은 쪽에서 찍어야 지난 영상과 비교할 수 있어요.',
   },
   {
     title: '삼각대로 고정, 허리 높이',
     detail:
-      '손으로 들고 찍으면 흔들려서 각도를 잴 수 없습니다. 카메라 높이는 허리쯤이 좋습니다.',
+      '손으로 들고 찍으면 흔들려서 각도를 잴 수 없어요. 카메라 높이는 허리쯤이 좋아요.',
   },
   {
     title: '전신이 다 들어오게',
     detail:
-      '머리 끝부터 발끝까지, 그리고 공을 놓는 순간까지 화면 안에 있어야 합니다. 너무 가까이 가지 마세요.',
+      '머리 끝부터 발끝까지, 그리고 공을 놓는 순간까지 화면 안에 있어야 해요. 너무 가까이 가지 마세요.',
   },
   {
     title: '슬로우모션으로 (120fps 이상)',
     detail:
-      '일반 촬영(30fps)은 팔이 빨라서 뭉개집니다. 팔 동작까지 보려면 슬로우모션이 필요합니다.',
+      '일반 촬영(30fps)은 팔이 빨라서 뭉개져요. 팔 동작까지 보려면 슬로우모션이 필요해요.',
   },
   {
     title: '밝은 곳에서, 배경은 단순하게',
     detail:
-      '어둡거나 배경이 복잡하면 몸을 제대로 인식하지 못합니다. 옷은 배경과 다른 색이 좋습니다.',
+      '어둡거나 배경이 복잡하면 몸을 제대로 인식하지 못해요. 옷은 배경과 다른 색이 좋아요.',
   },
 ] as const;
 
@@ -247,7 +247,7 @@ export function FilmingGuide({ defaultOpen = false }: { defaultOpen?: boolean })
             투구 영상 촬영 가이드
           </span>
           <span className="mt-0.5 block text-xs text-muted">
-            이대로 찍어두면 나중에 자동 폼 분석에 그대로 쓸 수 있습니다
+            이대로 찍어두면 나중에 자동 폼 분석에 그대로 쓸 수 있어요
           </span>
         </span>
         <ChevronDown
@@ -310,7 +310,7 @@ export function FilmingGuide({ defaultOpen = false }: { defaultOpen?: boolean })
                 → <span className="text-sky">높은 호환성</span>
                 <span className="block text-muted/70">
                   이 설정이 아니면 업로드할 때 영상이 다시 변환되면서 화질과 프레임이
-                  떨어집니다.
+                  떨어져요.
                 </span>
               </p>
             </div>
@@ -318,9 +318,9 @@ export function FilmingGuide({ defaultOpen = false }: { defaultOpen?: boolean })
 
           <p className="rounded-xl empty-well px-4 py-3 text-xs leading-relaxed text-muted/80">
             <span className="text-ink">왜 이렇게까지 하냐면</span> — 나중에 영상에서
-            몸통 기울기나 보폭 같은 수치를 자동으로 재려고 합니다. 그때 각도와 거리가
-            매번 다르면 지난 영상과 비교할 수가 없습니다. 지금부터 조건을 맞춰
-            찍어두시면 그 영상들이 그대로 분석 자료가 됩니다.
+            몸통 기울기나 보폭 같은 수치를 자동으로 재려고 해요. 그때 각도와 거리가 매번
+            다르면 지난 영상과 비교할 수가 없어요. 지금부터 조건을 맞춰 찍어두시면 그
+            영상들이 그대로 분석 자료가 돼요.
           </p>
         </div>
       )}

@@ -49,7 +49,7 @@ export function MyRoutines({
 
       {routines.length === 0 ? (
         <div className="space-y-3 rounded-2xl bg-surface px-5 py-5 desk:border desk:border-dashed desk:border-line-strong">
-          <p className="text-sm font-bold text-ink">아직 만든 루틴이 없습니다</p>
+          <p className="text-sm font-bold text-ink">아직 만든 루틴이 없어요</p>
           <p className="text-[13px] break-keep text-muted">
             자주 하는 운동만 골라 이름을 붙여 두세요.
           </p>
@@ -72,7 +72,7 @@ export function MyRoutines({
             <NewRoutineLink />
           ) : (
             <p className="px-1 text-xs text-muted">
-              루틴은 {MY_ROUTINE_MAX}개까지 둘 수 있습니다.
+              루틴은 {MY_ROUTINE_MAX}개까지 둘 수 있어요.
             </p>
           )}
         </>
@@ -165,7 +165,7 @@ function RoutineCard({
         <div className="space-y-3 border-t border-line px-3 py-3 sm:px-4">
           {all === 0 ? (
             <p className="px-1 text-[13px] text-muted">
-              담긴 운동이 모두 라이브러리에서 숨겨졌습니다. 고치기에서 다시 담아 주세요.
+              담긴 운동이 모두 라이브러리에서 숨겨졌어요. 고치기에서 다시 담아 주세요.
             </p>
           ) : (
             <Checklist
@@ -177,7 +177,7 @@ function RoutineCard({
           )}
           {r.hidden > 0 && (
             <p className="px-1 text-xs text-muted">
-              담아 둔 운동 중 {r.hidden}개는 라이브러리에서 숨겨져 빠졌습니다.
+              담아 둔 운동 중 {r.hidden}개는 라이브러리에서 숨겨져 빠졌어요.
             </p>
           )}
         </div>

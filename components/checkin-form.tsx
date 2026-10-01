@@ -473,7 +473,7 @@ function SleepRow({
             </div>
           </div>
           <p className="text-[10px] text-muted/60">
-            어젯밤 잔 시간 · 30분 단위 · 몰라도 됩니다
+            어젯밤 잔 시간 · 30분 단위 · 몰라도 돼요
           </p>
           {/* 서버로 가는 값 — 비어 있으면 안 적은 것(null)으로 저장된다 */}
           <input type="hidden" name="sleepHours" value={hours ?? ''} />
@@ -796,7 +796,7 @@ export function CheckinForm({
         <div className="mb-4 flex items-center gap-2">
           <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-ok">
             <CheckCircle2 className="h-4 w-4" />
-            오늘 체크인을 남겼습니다
+            오늘 체크인을 남겼어요
           </span>
           <button
             type="button"
@@ -877,8 +877,8 @@ export function CheckinForm({
               {painToday && (
                 <p className="mt-4 rounded-xl border border-danger-line bg-danger-bg px-4 py-3 text-xs leading-relaxed text-danger">
                   통증이 있는 날은 던지거나 무리한 운동을 하지 마세요. 통증이 이어지면
-                  전문의 진료를 받아보는 것이 좋습니다. 통증이 있는 동안에는 운동 추천도
-                  제공하지 않습니다.
+                  전문의 진료를 받아보는 것이 좋아요. 통증이 있는 동안에는 운동 추천도
+                  하지 않아요.
                 </p>
               )}
             </div>
@@ -896,8 +896,8 @@ export function CheckinForm({
                 <ModeSwitch mode={mode} onChange={pickMode} />
                 <span className="text-[11px] leading-relaxed text-muted">
                   {detailed
-                    ? '더 적을수록 추천이 오늘에 맞춰집니다. 비워 둔 칸은 저장하지 않습니다.'
-                    : '몸 상태 · 근육통 · 컨디션 · 수면 — 몇 초면 끝납니다.'}
+                    ? '더 적을수록 추천이 오늘에 맞춰져요. 비워 둔 칸은 저장하지 않아요.'
+                    : '몸 상태 · 근육통 · 컨디션 · 수면 — 몇 초면 끝나요.'}
                 </span>
               </div>
 
@@ -1122,14 +1122,14 @@ export function CheckinForm({
                             </ChipCheckbox>
                           ))}
                           <span className="ml-1 self-center text-[10px] text-muted/60">
-                            최대 {MAX_PREFERRED_PARTS}개 · 안 골라도 됩니다
+                            최대 {MAX_PREFERRED_PARTS}개 · 안 골라도 돼요
                           </span>
                         </Row>
                       )}
                     </Section>
                   </div>
 
-                  <Section title="몸 · 고른 것을 다시 누르면 풀립니다">
+                  <Section title="몸 · 고른 것을 다시 누르면 풀려요">
                     {DETAIL_SCALES.map((s) => (
                       <Row key={s.key} label={s.label} radios>
                         {s.options.map((label, i) => (

@@ -100,7 +100,7 @@ export function SwapSheet({
       .catch(() => {
         if (alive) {
           setLoadError(
-            '신호가 없어 불러오지 못했습니다. 신호가 잡히면 다시 열어 주세요.'
+            '신호가 없어 불러오지 못했어요. 신호가 잡히면 다시 열어 주세요.'
           );
         }
       });
@@ -127,7 +127,7 @@ export function SwapSheet({
         onDone(res.exercise, res.mode);
       } catch (err) {
         unstable_rethrow(err);
-        setError('신호가 없어 넣지 못했습니다. 신호가 잡히면 다시 눌러 주세요.');
+        setError('신호가 없어 넣지 못했어요. 신호가 잡히면 다시 눌러 주세요.');
       } finally {
         setBusyId(null);
       }
@@ -242,7 +242,7 @@ export function SwapSheetView({
           {unsafe && !halted && (
             <p className="mt-1 flex items-start gap-1 text-[11px] leading-relaxed text-warn">
               <AlertTriangle aria-hidden className="mt-0.5 h-3 w-3 shrink-0" />
-              오늘 몸 상태로는 넣을 수 없는 운동입니다
+              오늘 몸 상태로는 넣을 수 없는 운동이에요
             </p>
           )}
         </div>
@@ -309,7 +309,7 @@ export function SwapSheetView({
           <p className="mt-0.5 text-[11px] leading-relaxed break-keep text-muted">
             {mode === 'replace'
               ? `‘${current.title}’ 대신 할 운동을 고르세요.`
-              : `‘${current.title}’ — 이미 세트를 남긴 운동이라 그대로 두고, 고른 운동을 바로 다음에 더합니다.`}
+              : `‘${current.title}’ — 이미 세트를 남긴 운동이라 그대로 두고, 고른 운동을 바로 다음에 더해요.`}
           </p>
           <Segmented
             role="tablist"
@@ -358,8 +358,8 @@ export function SwapSheetView({
             choices.similar.length === 0 ? (
               <p className="rounded-xl bg-surface-2 px-4 py-6 text-center text-xs leading-relaxed break-keep text-muted">
                 {halted
-                  ? '오늘은 운동을 더하거나 바꿀 수 없습니다.'
-                  : '오늘 장비와 몸 상태로 할 수 있는 비슷한 운동을 찾지 못했습니다. ‘찾기’에서 골라 주세요.'}
+                  ? '오늘은 운동을 더하거나 바꿀 수 없어요.'
+                  : '오늘 장비와 몸 상태로 할 수 있는 비슷한 운동을 찾지 못했어요. ‘찾기’에서 골라 주세요.'}
               </p>
             ) : (
               <ul className="space-y-1.5">
@@ -372,8 +372,8 @@ export function SwapSheetView({
           ) : tab === 'mine' ? (
             favoritePicks.length === 0 && recentPicks.length === 0 ? (
               <p className="rounded-xl bg-surface-2 px-4 py-6 text-center text-xs leading-relaxed break-keep text-muted">
-                아직 즐겨찾기도 최근에 한 운동도 없습니다. 운동 이름 옆의 ☆ 를 누르면
-                여기 모입니다.
+                아직 즐겨찾기도 최근에 한 운동도 없어요. 운동 이름 옆의 ☆ 를 누르면 여기
+                모여요.
               </p>
             ) : (
               <div className="space-y-4">
@@ -401,7 +401,7 @@ export function SwapSheetView({
             )
           ) : matched.length === 0 ? (
             <p className="rounded-xl bg-surface-2 px-4 py-6 text-center text-xs text-muted">
-              ‘{query.trim()}’에 맞는 운동이 없습니다.
+              ‘{query.trim()}’에 맞는 운동이 없어요.
             </p>
           ) : (
             <>
@@ -421,7 +421,7 @@ export function SwapSheetView({
           )}
 
           <p className="mt-3 px-2 text-center text-[11px] leading-relaxed break-keep text-muted/80">
-            바꾼 운동은 오늘 운동에만 반영됩니다. 트레이닝 화면의 일정은 그대로입니다.
+            바꾼 운동은 오늘 운동에만 반영돼요. 트레이닝 화면의 일정은 그대로예요.
           </p>
         </div>
       </div>

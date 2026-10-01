@@ -609,7 +609,7 @@ export function SessionClient({
       } catch (err) {
         unstable_rethrow(err);
         setListError(
-          '신호가 없어 순서를 바꾸지 못했습니다. 신호가 잡히면 다시 해 주세요.'
+          '신호가 없어 순서를 바꾸지 못했어요. 신호가 잡히면 다시 해 주세요.'
         );
         return;
       }
@@ -679,7 +679,7 @@ export function SessionClient({
         unstable_rethrow(err);
         mark(!on);
         setError(
-          '신호가 없어 즐겨찾기를 바꾸지 못했습니다. 신호가 잡히면 다시 눌러 주세요.'
+          '신호가 없어 즐겨찾기를 바꾸지 못했어요. 신호가 잡히면 다시 눌러 주세요.'
         );
       }
     });
@@ -775,7 +775,7 @@ export function SessionClient({
      */
     const setNo = fixing?.setNo ?? mine.reduce((m, x) => Math.max(m, x.setNo), 0) + 1;
     if (setNo > AMOUNT_LIMITS.sets) {
-      setError('세트가 너무 많습니다.');
+      setError('세트가 너무 많아요.');
       return;
     }
 
@@ -850,9 +850,7 @@ export function SessionClient({
         else setSaved(res.sets);
       } catch (err) {
         unstable_rethrow(err);
-        setError(
-          '신호가 없어 지금은 지울 수 없습니다. 신호가 잡히면 다시 눌러 주세요.'
-        );
+        setError('신호가 없어 지금은 지울 수 없어요. 신호가 잡히면 다시 눌러 주세요.');
       }
     });
   };
@@ -1002,8 +1000,8 @@ export function SessionClient({
           <CloudOff aria-hidden className="h-3.5 w-3.5 shrink-0" />
           {offline ? (
             <span>
-              <b>신호가 없습니다.</b> 세트 {pending.length}개를 폰에 저장해 두었고,
-              신호가 잡히면 저절로 보냅니다.
+              <b>신호가 없어요.</b> 세트 {pending.length}개를 폰에 저장해 두었고, 신호가
+              잡히면 저절로 보내요.
             </span>
           ) : (
             <span>세트 {pending.length}개 보내는 중…</span>
@@ -1198,7 +1196,7 @@ export function SessionClient({
                       )}
                       {s.pending && (
                         <span
-                          title="아직 서버에 보내지 못했습니다. 신호가 잡히면 저절로 보냅니다."
+                          title="아직 서버에 보내지 못했어요. 신호가 잡히면 저절로 보내요."
                           className="inline-flex shrink-0 items-center gap-1 text-[10px] font-medium text-warn"
                         >
                           <CloudOff aria-hidden className="h-3 w-3" />
@@ -1211,7 +1209,7 @@ export function SessionClient({
                       />
                       <span className="sr-only">
                         {fixingThis
-                          ? '고치는 중. 다시 누르면 그만둡니다'
+                          ? '고치는 중. 다시 누르면 그만둬요'
                           : '눌러서 고치기'}
                       </span>
                     </button>
@@ -1356,7 +1354,7 @@ export function SessionClient({
             <div className="flex items-center gap-2 rounded-xl bg-sky/10 px-3.5 py-1 text-xs text-sky">
               <Pencil aria-hidden className="h-3.5 w-3.5 shrink-0" />
               <span className="flex-1">
-                <b>{editIndex + 1}세트</b>를 고치는 중입니다
+                <b>{editIndex + 1}세트</b>를 고치는 중이에요
               </span>
               <button
                 type="button"
@@ -1450,7 +1448,7 @@ export function SessionClient({
               } catch (err) {
                 unstable_rethrow(err);
                 setFinishError(
-                  '신호가 약해 마치지 못했습니다. 신호가 잡히면 다시 눌러 주세요.'
+                  '신호가 약해 마치지 못했어요. 신호가 잡히면 다시 눌러 주세요.'
                 );
               }
             });

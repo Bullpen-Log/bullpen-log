@@ -217,8 +217,8 @@ function ExerciseDetail({
                     }
                     title={
                       item.hiddenAt
-                        ? '다시 보이기 — 새 일정에 다시 나옵니다'
-                        : '숨기기 — 새 일정에 안 나오고, 지난 기록은 남습니다'
+                        ? '다시 보이기 — 새 일정에 다시 나와요'
+                        : '숨기기 — 새 일정에 안 나오고, 지난 기록은 남아요'
                     }
                     className="rounded-lg p-2 text-muted transition-colors hover:bg-surface-2 hover:text-sky"
                   >
@@ -243,18 +243,17 @@ function ExerciseDetail({
                       {item.usedCount > 0 ? (
                         <p className="text-warn">
                           회원들이 이 운동을 한 기록 <strong>{item.usedCount}건</strong>
-                          이 함께 지워집니다. 지나간 운동 부하 지수도 그만큼 다시
-                          계산됩니다 — 본인은 아무것도 안 했는데 어제와 다른 숫자를 보게
-                          됩니다.
+                          이 함께 지워져요. 지나간 운동 부하 지수도 그만큼 다시 계산돼요
+                          — 본인은 아무것도 안 했는데 어제와 다른 숫자를 보게 돼요.
                         </p>
                       ) : (
                         <p className="text-muted">
-                          아직 아무도 이 운동을 하지 않았습니다.
+                          아직 아무도 이 운동을 하지 않았어요.
                         </p>
                       )}
                       <p className="text-muted">
-                        되돌릴 수 없습니다. 새 일정에만 안 나오게 하려면 옆의{' '}
-                        <strong>숨기기</strong>를 쓰세요 — 지난 기록이 그대로 남습니다.
+                        되돌릴 수 없어요. 새 일정에만 안 나오게 하려면 옆의{' '}
+                        <strong>숨기기</strong>를 쓰세요 — 지난 기록이 그대로 남아요.
                       </p>
                     </div>
                   }
@@ -332,7 +331,7 @@ function ExerciseDetail({
         {isAdmin && !item.thumbUrl && item.videoPath && (
           <div className="border-t border-line pt-4">
             <p className="mb-2 text-xs text-muted">
-              이 영상은 미리보기 이미지가 없습니다.
+              이 영상은 미리보기 이미지가 없어요.
             </p>
             <ThumbnailFixer
               itemId={item.id}
@@ -535,8 +534,8 @@ export function TrainingClient({
           </button>
           <span className="text-xs text-muted">
             {favoriteCount === 0
-              ? '운동을 열고 별을 달아두면 여기서 모아 볼 수 있습니다'
-              : '오늘 일정에 운동을 더할 때 이 목록에서 바로 담을 수 있습니다'}
+              ? '운동을 열고 별을 달아두면 여기서 모아 볼 수 있어요'
+              : '오늘 일정에 운동을 더할 때 이 목록에서 바로 담을 수 있어요'}
           </span>
         </div>
       )}
@@ -612,8 +611,8 @@ export function TrainingClient({
           <ExerciseGrid items={matched} isAdmin={isAdmin} />
         ) : (
           <EmptyState
-            title="조건에 맞는 운동이 없습니다"
-            description="고른 조건을 하나씩 줄이면 더 많은 운동이 나옵니다."
+            title="조건에 맞는 운동이 없어요"
+            description="고른 조건을 하나씩 줄이면 더 많은 운동이 나와요."
             action={
               <Button
                 variant="secondary"
@@ -647,7 +646,7 @@ export function TrainingClient({
                   <p className="rounded-xl empty-well px-5 py-10 text-center text-sm text-muted">
                     {isAdmin
                       ? '"영상 추가"를 눌러 이 파트의 첫 영상을 등록해보세요.'
-                      : '아직 등록된 영상이 없습니다.'}
+                      : '아직 등록된 영상이 없어요.'}
                   </p>
                 ) : (
                   <ExerciseGrid items={items} isAdmin={isAdmin} />

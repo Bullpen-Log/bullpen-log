@@ -57,7 +57,7 @@ export default async function TrainingDayPage({
       <div className="pb-1 desk:border-b desk:border-line desk:pb-6">
         <h1 className="text-heading page-title text-ink">{spokenDate(date)}</h1>
         <p className="mt-2 text-sm text-muted">
-          {empty ? '이 날은 운동 기록이 없습니다' : `운동 ${count}개`}
+          {empty ? '이 날은 운동 기록이 없어요' : `운동 ${count}개`}
         </p>
       </div>
 
@@ -70,21 +70,21 @@ export default async function TrainingDayPage({
               {detail.memo}
             </p>
           ) : (
-            <p className="mt-2 text-sm text-muted">남긴 메모가 없습니다.</p>
+            <p className="mt-2 text-sm text-muted">남긴 메모가 없어요.</p>
           )}
         </div>
       )}
 
       {empty ? (
         <p className="rounded-2xl empty-well px-4 py-10 text-center text-sm leading-relaxed text-muted">
-          이 날은 운동 기록이 없습니다.
+          이 날은 운동 기록이 없어요.
           {date === todayKey && (
             <>
               <br />
               <Link href="/training" className="font-semibold text-sky underline">
                 트레이닝
               </Link>
-              에서 남길 수 있습니다.
+              에서 남길 수 있어요.
             </>
           )}
         </p>

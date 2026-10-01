@@ -53,7 +53,7 @@ export function ExerciseHistoryPanel({
           setLoaded({
             id: exerciseId,
             error:
-              '신호가 없어 기록을 불러오지 못했습니다. 신호가 잡히면 다시 열어 주세요.',
+              '신호가 없어 기록을 불러오지 못했어요. 신호가 잡히면 다시 열어 주세요.',
           });
         }
       });
@@ -274,7 +274,7 @@ export function ExerciseHistoryView({
       <div className="space-y-3">
         {noteBox}
         <p className="rounded-xl bg-surface-2 px-4 py-5 text-center text-xs leading-relaxed break-keep text-muted">
-          아직 이 운동을 한 기록이 없습니다. 운동을 마치면 여기에 쌓입니다.
+          아직 이 운동을 한 기록이 없어요. 운동을 마치면 여기에 쌓여요.
         </p>
       </div>
     );
@@ -352,7 +352,7 @@ export function ExerciseHistoryView({
           {approx && (
             <p className="mt-1.5 text-[10px] leading-relaxed break-keep text-muted/80">
               세트를 하나씩 남기지 않은 날은 요약(세트 × 횟수 × 가장 무거운 무게)으로
-              어림했습니다.
+              어림했어요.
             </p>
           )}
         </div>

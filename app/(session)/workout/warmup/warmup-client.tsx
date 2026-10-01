@@ -73,7 +73,7 @@ export function WarmupClient({
       } catch (err) {
         /* 화면 이동 같은 Next.js 자체 신호는 잡지 않고 그대로 넘긴다 */
         unstable_rethrow(err);
-        setError('신호가 약해 넘어가지 못했습니다. 신호가 잡히면 다시 눌러 주세요.');
+        setError('신호가 약해 넘어가지 못했어요. 신호가 잡히면 다시 눌러 주세요.');
       }
     });
   };
@@ -86,7 +86,7 @@ export function WarmupClient({
         <p className="text-xs text-muted">{themeLabel}</p>
         <h1 className="mt-1 text-xl font-bold text-ink">워밍업</h1>
         <p className="mt-1.5 text-xs leading-relaxed text-muted">
-          본운동 전에 몸을 풉니다. 운동 시간은 여기를 지난 뒤부터 셉니다.
+          본운동 전에 몸을 풀어요. 운동 시간은 여기를 지난 뒤부터 재요.
           {total > 0 && (
             <>
               {' '}
@@ -99,9 +99,9 @@ export function WarmupClient({
 
         {total === 0 && (
           <p className="mt-5 rounded-xl empty-well px-4 py-6 text-center text-xs leading-relaxed text-muted">
-            아직 루틴에 담긴 운동이 없습니다.
+            아직 루틴에 담긴 운동이 없어요.
             <br />
-            영상이 올라오면 여기에 나옵니다.
+            영상이 올라오면 여기에 나와요.
           </p>
         )}
 

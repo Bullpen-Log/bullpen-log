@@ -236,8 +236,8 @@ export function PlanForm({
       <div className="space-y-2 rounded-xl border border-line bg-surface-2 px-4 py-3">
         <p className="text-sm font-bold text-ink">오늘 체크인을 먼저 남겨주세요</p>
         <p className="text-[13px] leading-relaxed text-muted">
-          운동 일정은 오늘 몸 상태를 보고 짭니다. 체크인이 없으면 통증이나 뻐근한 곳을
-          모른 채 짜게 됩니다. 30초면 됩니다.
+          운동 일정은 오늘 몸 상태를 보고 짜요. 체크인이 없으면 통증이나 뻐근한 곳을
+          모른 채 짜게 돼요. 30초면 돼요.
         </p>
         {/*
           체크인할 길.
@@ -265,7 +265,7 @@ export function PlanForm({
       <CheckboxGroup
         name="availableEquipment"
         label="오늘 쓸 수 있는 장비"
-        hint="오늘 실제로 쓸 수 있는 것만 켜주세요. 아무것도 안 켜면 맨몸 운동만 나옵니다."
+        hint="오늘 실제로 쓸 수 있는 것만 켜주세요. 아무것도 안 켜면 맨몸 운동만 나와요."
         options={choices}
         selected={equipmentSelected}
       />
@@ -304,7 +304,7 @@ export function PlanForm({
         <>
           <p className="text-[13px] leading-relaxed text-muted">
             오늘 체크인 · 최근 투구 · 운동 기록 · 남긴 메모를 보고 AI가 목표와 시간을
-            정합니다. 장비만 골라주세요.
+            정해요. 장비만 골라주세요.
           </p>
 
           {/*
@@ -320,8 +320,8 @@ export function PlanForm({
               </p>
               <p className="text-[13px] leading-relaxed text-warn">
                 AI 맞춤은 몸 상태에 맞춰 {clash.fallbackLabel} 위주로 만들고, 그 이유를
-                함께 알려드립니다. 그래도 {clash.kind} 운동을 하고 싶으시면 ‘직접
-                고르기’에서 만들 수 있습니다.
+                함께 알려드려요. 그래도 {clash.kind} 운동을 하고 싶으시면 ‘직접
+                고르기’에서 만들 수 있어요.
               </p>
             </div>
           )}
@@ -334,9 +334,8 @@ export function PlanForm({
                 {clash.kind} 운동을 하고 싶다고 하셨는데, {clash.reason}.
               </p>
               <p className="text-[13px] leading-relaxed text-warn">
-                그래서 기본은 {clash.fallbackLabel} 위주로 만들어 드립니다. 몸이
-                괜찮다고 느끼시면 원하신 대로 만들어 드릴 수도 있습니다 — 정하는 것은
-                본인입니다.
+                그래서 기본은 {clash.fallbackLabel} 위주로 만들어 드려요. 몸이 괜찮다고
+                느끼시면 원하신 대로 만들어 드릴 수도 있어요 — 정하는 것은 본인이에요.
               </p>
               <label className="flex items-start gap-2.5 text-[13px] font-medium leading-relaxed text-warn">
                 <input
@@ -345,7 +344,7 @@ export function PlanForm({
                   value="on"
                   className="mt-0.5 h-4 w-4 shrink-0 rounded border-warn-line accent-sky"
                 />
-                알겠습니다. 그래도 {clash.kind} 운동으로 만들어주세요
+                알겠어요. 그래도 {clash.kind} 운동으로 만들어주세요
               </label>
             </div>
           )}
@@ -361,7 +360,7 @@ export function PlanForm({
             key="goal"
             name="trainingGoal"
             label="오늘 훈련 목표"
-            hint="같은 시간을 어디에 더 쓸지 정합니다. 몸 상태가 안 좋은 날에는 목표와 상관없이 회복이 먼저입니다."
+            hint="같은 시간을 어디에 더 쓸지 정해요. 몸 상태가 안 좋은 날에는 목표와 상관없이 회복이 먼저예요."
             options={TRAINING_GOALS.map((g) => ({ name: g.name, desc: g.desc }))}
             selected={pickedGoal}
             onChange={setPickedGoal}
@@ -380,7 +379,7 @@ export function PlanForm({
               key={`focus-${pickedGoal}`}
               name="trainingFocus"
               label="오늘 할 부위"
-              hint="안 고르면 최근에 한 것을 보고 상체·하체를 번갈아 골라드립니다. 몸 상태가 안 좋은 날에는 부위와 상관없이 회복이 먼저입니다."
+              hint="안 고르면 최근에 한 것을 보고 상체·하체를 번갈아 골라드려요. 몸 상태가 안 좋은 날에는 부위와 상관없이 회복이 먼저예요."
               options={focusChoices.map((f) => ({
                 name: f.label,
                 value: f.key,
@@ -398,7 +397,7 @@ export function PlanForm({
             label="오늘 운동 시간"
             hint={
               pickedGoal === CONDITIONING_GOAL
-                ? '몸을 다지는 날이라 길게 끌지 않습니다 — 75분까지 고를 수 있습니다.'
+                ? '몸을 다지는 날이라 길게 끌지 않아요 — 75분까지 고를 수 있어요.'
                 : undefined
             }
             options={minuteChoices.map((m) => ({
@@ -440,7 +439,7 @@ export function PlanForm({
         {mode === 'auto' ? (
           <SubmitButton
             label={generated ? 'AI 맞춤으로 다시 만들기' : 'AI 맞춤으로 만들기'}
-            busy="AI가 오늘 몸 상태를 보고 있습니다…"
+            busy="AI가 오늘 몸 상태를 보고 있어요…"
           />
         ) : (
           <SubmitButton
@@ -504,7 +503,7 @@ export function TrainingSettingsForm({
         <RadioGroup
           name="trainingLevel"
           label="웨이트 트레이닝 경력"
-          hint="경력에 비해 이른 운동을 빼는 기준입니다. 안 고르면 아무것도 빼지 않습니다."
+          hint="경력에 비해 이른 운동을 빼는 기준이에요. 안 고르면 아무것도 빼지 않아요."
           options={TRAINING_LEVELS.map((l) => ({ name: l.name, desc: l.desc }))}
           selected={trainingLevel}
         />
@@ -525,8 +524,8 @@ export function TrainingSettingsForm({
           label="가지고 있는 장비"
           hint={
             hasChosenEquipment
-              ? '여기서 고른 것 중에 오늘 쓸 수 있는 것을 일정을 만들 때 다시 고릅니다.'
-              : '아직 고르신 적이 없어 전부 켜 두었습니다. 없는 것을 꺼주세요 — 그래야 못 하는 운동이 안 나옵니다.'
+              ? '여기서 고른 것 중에 오늘 쓸 수 있는 것을 일정을 만들 때 다시 골라요.'
+              : '아직 고르신 적이 없어 전부 켜 두었어요. 없는 것을 꺼주세요 — 그래야 못 하는 운동이 안 나와요.'
           }
           options={SELECTABLE_EQUIPMENT}
           selected={equipmentSelected}

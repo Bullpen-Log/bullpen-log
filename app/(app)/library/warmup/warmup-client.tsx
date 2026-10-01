@@ -82,7 +82,7 @@ function NameForm({ routine, onDone }: { routine: RoutineCard; onDone: () => voi
       <Field label="이름">
         <Input name="name" defaultValue={routine.name} required />
       </Field>
-      <Field label="한 줄 설명" hint="카드에 작게 적힙니다. 비워도 됩니다.">
+      <Field label="한 줄 설명" hint="카드에 작게 적혀요. 비워도 돼요.">
         <Input name="description" defaultValue={routine.description} />
       </Field>
       <FormError>{state?.error}</FormError>
@@ -116,7 +116,7 @@ function Picker({
   if (pickable.length === 0) {
     return (
       <div className="rounded-xl empty-well px-4 py-5 text-center">
-        <p className="text-sm text-muted">아직 워밍업 운동이 하나도 없습니다.</p>
+        <p className="text-sm text-muted">아직 워밍업 운동이 하나도 없어요.</p>
         <p className="mt-1.5 text-xs leading-relaxed text-muted">
           <Link
             href="/library/training"
@@ -125,7 +125,7 @@ function Picker({
             운동 영상
           </Link>
           에서 카테고리를 <strong className="text-ink">워밍업</strong>으로 골라 올리시면
-          여기에 나옵니다.
+          여기에 나와요.
         </p>
         <button
           type="button"
@@ -154,7 +154,7 @@ function Picker({
 
       {rest.length === 0 ? (
         <p className="py-2 text-center text-xs text-muted">
-          있는 워밍업 운동을 모두 담았습니다.
+          있는 워밍업 운동을 모두 담았어요.
         </p>
       ) : (
         <ul className="space-y-1.5">
@@ -235,7 +235,7 @@ function RoutineBlock({
 
       {routine.items.length === 0 ? (
         <p className="rounded-xl bg-surface-2 px-4 py-3 text-xs leading-relaxed text-muted">
-          아직 담긴 운동이 없습니다. 이 루틴은 운동을 담기 전까지 화면에 안 나옵니다.
+          아직 담긴 운동이 없어요. 이 루틴은 운동을 담기 전까지 화면에 안 나와요.
         </p>
       ) : (
         <ol className="space-y-1.5">
@@ -333,8 +333,8 @@ export function WarmupClient({
   if (routines.length === 0) {
     return (
       <EmptyState
-        title="워밍업 루틴이 없습니다"
-        description="루틴은 설치할 때 함께 만들어집니다. 이 화면이 비어 있으면 관리자에게 알려주세요."
+        title="워밍업 루틴이 없어요"
+        description="루틴은 설치할 때 함께 만들어져요. 이 화면이 비어 있으면 관리자에게 알려주세요."
       />
     );
   }
@@ -342,16 +342,15 @@ export function WarmupClient({
   return (
     <div className="space-y-5">
       <div className="rounded-2xl border border-sky-soft/50 bg-sky-tint p-(--block-pad)">
-        <p className="text-sm font-bold text-sky-strong">워밍업은 고정입니다</p>
+        <p className="text-sm font-bold text-sky-strong">워밍업은 고정이에요</p>
         <p className="mt-1.5 text-xs leading-relaxed text-ink/80">
-          날마다 새로 뽑지 않습니다. 운동을 시작하면 본운동에 들어가기 전에
+          날마다 새로 뽑지 않아요. 운동을 시작하면 본운동에 들어가기 전에
           <strong className="text-ink"> 오늘 목적에 맞는 루틴 하나</strong>와
-          <strong className="text-ink"> 전신 루틴</strong>이 뜹니다. 한 것은 체크만
-          하고,{' '}
-          <strong className="text-ink">운동 시간과 운동량에는 안 들어갑니다.</strong>
+          <strong className="text-ink"> 전신 루틴</strong>이 떠요. 한 것은 체크만 하고,{' '}
+          <strong className="text-ink">운동 시간과 운동량에는 안 들어가요.</strong>
         </p>
         <p className="mt-2 text-xs leading-relaxed text-muted">
-          회복하는 날에는 워밍업이 아예 나오지 않습니다.
+          회복하는 날에는 워밍업이 아예 나오지 않아요.
         </p>
       </div>
 

@@ -48,7 +48,7 @@ async function uploadToStorage(
   });
 
   const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(data.error ?? '업로드 주소를 받지 못했습니다.');
+  if (!res.ok) throw new Error(data.error ?? '업로드 주소를 받지 못했어요.');
 
   await new Promise<void>((resolve, reject) => {
     const xhr = new XMLHttpRequest();
@@ -61,8 +61,8 @@ async function uploadToStorage(
     xhr.onload = () =>
       xhr.status >= 200 && xhr.status < 300
         ? resolve()
-        : reject(new Error('업로드에 실패했습니다.'));
-    xhr.onerror = () => reject(new Error('네트워크 오류로 업로드에 실패했습니다.'));
+        : reject(new Error('업로드에 실패했어요.'));
+    xhr.onerror = () => reject(new Error('네트워크 오류로 업로드에 실패했어요.'));
     xhr.send(file);
   });
 
@@ -143,17 +143,17 @@ export function VideoUpload({
     setError(undefined);
 
     if (!file.type.startsWith('video/')) {
-      setError('영상 파일만 올릴 수 있습니다.');
+      setError('영상 파일만 올릴 수 있어요.');
       return;
     }
     if (file.size > MAX_VIDEO_BYTES) {
       setError(
-        `${MAX_VIDEO_MB}MB 이하만 올릴 수 있습니다. (선택한 파일 ${formatSize(file.size)})`
+        `${MAX_VIDEO_MB}MB 이하만 올릴 수 있어요. (선택한 파일 ${formatSize(file.size)})`
       );
       return;
     }
     if (videos.length >= max) {
-      setError(`영상은 최대 ${max}개까지 첨부할 수 있습니다.`);
+      setError(`영상은 최대 ${max}개까지 첨부할 수 있어요.`);
       return;
     }
 
@@ -187,7 +187,7 @@ export function VideoUpload({
         { path, name: file.name, previewUrl: URL.createObjectURL(file), thumbPath },
       ]);
     } catch (err) {
-      setError(err instanceof Error ? err.message : '업로드에 실패했습니다.');
+      setError(err instanceof Error ? err.message : '업로드에 실패했어요.');
     } finally {
       setBusy(false);
       setProgress(0);

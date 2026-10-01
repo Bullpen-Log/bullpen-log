@@ -162,7 +162,7 @@ export function RoutineBuilder({
   if (full) {
     return (
       <p className="rounded-2xl border border-warn-line bg-warn-bg p-(--block-pad) text-sm leading-relaxed break-keep text-warn">
-        루틴은 {MY_ROUTINE_MAX}개까지 둘 수 있습니다. 안 쓰는 루틴을 지운 뒤 새로 만들어
+        루틴은 {MY_ROUTINE_MAX}개까지 둘 수 있어요. 안 쓰는 루틴을 지운 뒤 새로 만들어
         주세요.
       </p>
     );
@@ -203,13 +203,13 @@ export function RoutineBuilder({
         </div>
         {droppedHidden > 0 && (
           <p className="px-1 text-xs text-muted">
-            담아 둔 운동 중 {droppedHidden}개는 라이브러리에서 숨겨져 뺐습니다. 저장하면
-            빠진 채로 남습니다.
+            담아 둔 운동 중 {droppedHidden}개는 라이브러리에서 숨겨져 뺐어요. 저장하면
+            빠진 채로 남아요.
           </p>
         )}
         {items.length === 0 ? (
           <p className="rounded-2xl empty-well px-4 py-8 text-center text-sm leading-relaxed break-keep text-muted">
-            아래 목록에서 운동을 골라 담으세요. 담은 차례대로 합니다.
+            아래 목록에서 운동을 골라 담으세요. 담은 차례대로 해요.
           </p>
         ) : (
           <ol className="space-y-2">
@@ -334,7 +334,7 @@ export function RoutineBuilder({
 
         {shown.length === 0 ? (
           <p className="px-1 py-6 text-center text-sm text-muted">
-            맞는 운동이 없습니다.
+            맞는 운동이 없어요.
           </p>
         ) : (
           <ul className="space-y-2">
@@ -415,8 +415,8 @@ export function RoutineBuilder({
             title="이 루틴을 지울까요?"
             detail={
               <>
-                <b>{initialName}</b> 루틴이 사라집니다. 그동안 체크한 운동 기록은 그대로
-                남습니다.
+                <b>{initialName}</b> 루틴이 사라져요. 그동안 체크한 운동 기록은 그대로
+                남아요.
               </>
             }
             ariaLabel={`${initialName} 루틴 지우기`}

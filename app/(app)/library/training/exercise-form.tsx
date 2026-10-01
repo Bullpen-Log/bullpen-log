@@ -141,10 +141,10 @@ export function ExerciseForm({
         label="운동 영상"
         hint={
           !editing
-            ? '폰이나 컴퓨터에 있는 영상을 바로 올립니다.'
+            ? '폰이나 컴퓨터에 있는 영상을 바로 올려요.'
             : initial?.isReference
-              ? '직접 찍은 영상을 올리면 유튜브 참고 영상 대신 그것이 나옵니다.'
-              : '그대로 두면 지금 영상이 유지됩니다.'
+              ? '직접 찍은 영상을 올리면 유튜브 참고 영상 대신 그것이 나와요.'
+              : '그대로 두면 지금 영상이 유지돼요.'
         }
       >
         {/* 새로 올렸을 때만 경로가 실려간다. 비어 있으면 서버가 기존 영상을 유지한다. */}
@@ -156,8 +156,8 @@ export function ExerciseForm({
             <Film className="h-4 w-4 shrink-0 text-sky" />
             <span className="min-w-0 flex-1 text-sm text-muted">
               {initial?.isReference
-                ? '지금은 유튜브 참고 영상을 보여주고 있습니다'
-                : '지금 올려둔 영상을 그대로 씁니다'}
+                ? '지금은 유튜브 참고 영상을 보여주고 있어요'
+                : '지금 올려둔 영상을 그대로 써요'}
             </span>
             <button
               type="button"
@@ -208,7 +208,7 @@ export function ExerciseForm({
         <CheckboxGroup
           name="bodyParts"
           label="목표 부위 · 필수"
-          hint="여러 개 고를 수 있습니다."
+          hint="여러 개 고를 수 있어요."
           options={BODY_PARTS}
           selected={pickAll('bodyParts', initial?.bodyParts)}
         />
@@ -216,7 +216,7 @@ export function ExerciseForm({
         <RadioGroup
           name="intensity"
           label="운동 강도 · 필수"
-          hint="부하가 높은 날 어떤 운동을 뺄지 정하는 기준이 됩니다."
+          hint="부하가 높은 날 어떤 운동을 뺄지 정하는 기준이 돼요."
           options={INTENSITY_LEVELS}
           required
           selected={pick('intensity', initial?.intensity)}
@@ -298,7 +298,7 @@ export function ExerciseForm({
           </Field>
         </div>
         <p className="text-xs text-muted/70">
-          시간으로 버티는 운동은 횟수를 비우고 버티는 시간만 적습니다.
+          시간으로 버티는 운동은 횟수를 비우고 버티는 시간만 적어요.
         </p>
         <label className="flex items-center gap-2.5 text-sm text-ink">
           <input

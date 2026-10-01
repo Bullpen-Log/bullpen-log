@@ -48,27 +48,27 @@ const PITCH_LEVELS = [
   {
     range: '1 – 2',
     label: '몸 푸는 정도',
-    detail: '가까운 거리 캐치볼. 숨이 차지 않고 팔에 힘을 거의 안 씁니다.',
+    detail: '가까운 거리 캐치볼. 숨이 차지 않고 팔에 힘을 거의 안 써요.',
   },
   {
     range: '3 – 4',
     label: '편하게',
-    detail: '롱토스 워밍업, 가벼운 플랫. 폼을 확인하는 정도로 던집니다.',
+    detail: '롱토스 워밍업, 가벼운 플랫. 폼을 확인하는 정도로 던져요.',
   },
   {
     range: '5 – 6',
     label: '절반쯤 힘',
-    detail: '불펜 초반이나 폼 점검. 여유 있게 던지지만 제대로 된 투구 동작입니다.',
+    detail: '불펜 초반이나 폼 점검. 여유 있게 던지지만 제대로 된 투구 동작이에요.',
   },
   {
     range: '7 – 8',
     label: '세게',
-    detail: '불펜 본 세션, 라이브. 경기와 비슷하지만 아직 여유가 남아 있습니다.',
+    detail: '불펜 본 세션, 라이브. 경기와 비슷하지만 아직 여유가 남아 있어요.',
   },
   {
     range: '9 – 10',
     label: '전력',
-    detail: '경기, 최고 구속 측정. 더 세게는 못 던집니다.',
+    detail: '경기, 최고 구속 측정. 더 세게는 못 던져요.',
   },
 ] as const;
 
@@ -76,27 +76,27 @@ const TRAINING_LEVELS = [
   {
     range: '1 – 2',
     label: '아주 가벼움',
-    detail: '몸을 푸는 정도로 끝났습니다. 끝나고도 피로가 거의 없습니다.',
+    detail: '몸을 푸는 정도로 끝났어요. 끝나고도 피로가 거의 없어요.',
   },
   {
     range: '3 – 4',
     label: '가벼움',
-    detail: '땀은 났지만 여유가 많았습니다. 같은 운동을 한 번 더 해도 될 것 같습니다.',
+    detail: '땀은 났지만 여유가 많았어요. 같은 운동을 한 번 더 해도 될 것 같아요.',
   },
   {
     range: '5 – 6',
     label: '보통',
-    detail: '평소대로 제대로 한 날입니다. 끝날 즈음 지쳤지만 무리는 아니었습니다.',
+    detail: '평소대로 제대로 한 날이에요. 끝날 즈음 지쳤지만 무리는 아니었어요.',
   },
   {
     range: '7 – 8',
     label: '힘듦',
-    detail: '후반부는 버티면서 했습니다. 끝나고 한동안 쉬어야 했습니다.',
+    detail: '후반부는 버티면서 했어요. 끝나고 한동안 쉬어야 했어요.',
   },
   {
     range: '9 – 10',
     label: '최대',
-    detail: '오늘 쓸 수 있는 힘을 다 썼습니다. 한 세트도 더 못 할 것 같습니다.',
+    detail: '오늘 쓸 수 있는 힘을 다 썼어요. 한 세트도 더 못 할 것 같아요.',
   },
 ] as const;
 
@@ -145,9 +145,9 @@ export function IntensityGuide({ kind }: { kind: IntensityKind }) {
               "살살 던졌다"고 낮춰 적으면 덜 쉬라는 답이 돌아온다.
             */
             <p className="rounded-lg border border-warn-line bg-warn-bg px-3 py-2 text-[11px] leading-relaxed text-warn">
-              <strong>느낌보다 팔에 가는 부담은 큽니다.</strong> 연구에 따르면 절반
-              힘으로 던져도 구속은 최고의 80%가 나오고, 팔꿈치에 걸리는 힘은 75%나
-              됩니다. 가볍게 느껴져도 실제로 던진 만큼 적어주세요.
+              <strong>느낌보다 팔에 가는 부담은 커요.</strong> 연구에 따르면 절반 힘으로
+              던져도 구속은 최고의 80%가 나오고, 팔꿈치에 걸리는 힘은 75%나 돼요. 가볍게
+              느껴져도 실제로 던진 만큼 적어주세요.
             </p>
           ) : (
             /*
@@ -157,7 +157,7 @@ export function IntensityGuide({ kind }: { kind: IntensityKind }) {
             <p className="rounded-lg border border-sky-soft/60 bg-sky-tint px-3 py-2 text-[11px] leading-relaxed text-sky-strong">
               <strong>오늘 운동 전체를 합쳐서 떠올려 주세요.</strong> 가장 힘들었던 한
               세트나 방금 끝낸 운동이 아니라, 처음부터 끝까지 해 보니 얼마나
-              힘들었는지가 기준입니다.
+              힘들었는지가 기준이에요.
             </p>
           )}
         </div>
