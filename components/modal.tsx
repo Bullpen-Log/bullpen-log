@@ -9,6 +9,12 @@ import {
   type ReactNode,
 } from 'react';
 import { X } from 'lucide-react';
+import { DESK_MEDIA } from '@/lib/nav';
+
+/** 휴대폰 틀인가 — 휴대폰의 창은 아래에서 올라오는 시트다(globals.css 의 dialog[data-sheet]) */
+function isPhone() {
+  return typeof window !== 'undefined' && !window.matchMedia(DESK_MEDIA).matches;
+}
 
 /** 창이 날아올 자리 — Modal 의 origin */
 export type ModalOrigin = { x: number; y: number };
@@ -138,7 +144,7 @@ export function Modal({
       el.showModal();
 
       const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-      if (origin) {
+      if (origin && !isPhone()) {
         const box = el.getBoundingClientRect();
         const dx = Math.round(origin.x - (box.left + box.width / 2));
         const dy = Math.round(origin.y - (box.top + box.height / 2));
@@ -164,8 +170,48 @@ export function Modal({
         el.style.removeProperty('--pop-y');
       }
     }
-    if (!open && el.open) el.close();
+    if (!open && el.open) {
+      /* 끌어내리다 놓아 닫을 때 — 남은 자리(인라인 transform)를 지워야 닫히는 움직임이 거기서 이어진다 */
+      el.style.transform = '';
+      el.close();
+    }
   }, [open, origin]);
+
+  /*
+   * 휴대폰 시트를 끌어내려 닫기 — 손잡이 · 제목 줄을 잡고 아래로 끌면 따라 내려오고, 충분히(110px) 내리거나 빠르게
+   * 튕기면 닫힌다. 덜 내리면 제자리로 돌아간다. 아이폰 시트처럼(2026-10-01 '애플처럼'). 단추를 잡은 것은 끌기가 아니다.
+   */
+  const drag = useRef<{ id: number; y: number; t: number; dy: number } | null>(null);
+  const startDrag = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (!isPhone() || (e.target as HTMLElement).closest('button, a, input, textarea, select')) return;
+    drag.current = { id: e.pointerId, y: e.clientY, t: performance.now(), dy: 0 };
+    e.currentTarget.setPointerCapture(e.pointerId);
+  };
+  const moveDrag = (e: React.PointerEvent<HTMLDivElement>) => {
+    const d = drag.current;
+    const el = ref.current;
+    if (!d || !el || e.pointerId !== d.id) return;
+    d.dy = Math.max(0, e.clientY - d.y);
+    el.style.transform = `translateY(${d.dy}px)`;
+  };
+  const endDrag = (e: React.PointerEvent<HTMLDivElement>) => {
+    const d = drag.current;
+    const el = ref.current;
+    if (!d || !el || e.pointerId !== d.id) return;
+    drag.current = null;
+    const speed = d.dy / Math.max(1, performance.now() - d.t);
+    if (d.dy > 110 || (d.dy > 30 && speed > 0.6)) {
+      onClose();
+      return;
+    }
+    if (d.dy > 0) {
+      el.animate([{ transform: `translateY(${d.dy}px)` }, { transform: 'translateY(0)' }], {
+        duration: 220,
+        easing: 'cubic-bezier(0.32, 0.72, 0, 1)',
+      });
+    }
+    el.style.transform = '';
+  };
 
   /*
    * 'page' 창은 안의 높이가 바뀌면 그 사이를 부드럽게 잇는다.
@@ -218,8 +264,11 @@ export function Modal({
   return (
     <dialog
       ref={ref}
-      /* 출발점이 있는 창만 날아온다. 없으면 제자리에서 떠오른다. */
+      /* 출발점이 있는 창만 날아온다(PC). 없으면 제자리에서 떠오른다 */
       data-pop={origin ? '' : undefined}
+      /* 휴대폰에서는 아래에서 올라오는 시트(globals.css) — PC 에서는 아무 뜻 없다 */
+      data-sheet=""
+
       /*
        * ESC 를 눌러 브라우저가 스스로 닫은 경우에도 부모에게 알린다.
        *
@@ -286,15 +335,28 @@ export function Modal({
        * 위아래에서 뺀다. 94dvh 그대로면 제목 줄과 닫기(✕)가 시계 밑에 들어가 눌리지 않았다.
        * 브라우저는 그 값이 0 이라 예전과 같다.
        */
-      className={`m-auto flex flex-col overflow-clip ${
+      /*
+       * 휴대폰: 화면 바닥에 붙은 시트 — 폭 전체, 위 모서리만 둥글게(28px), 위로는 시계 자리 밑 12px 까지. 'page'(투구 기록
+       * 팝업)는 그 높이를 늘 다 쓴다(내용이 오는 동안 키가 들쭉날쭉하지 않게). PC: 예전 그대로 가운데 창.
+       */
+      className={`mx-0 mb-0 mt-auto flex w-full max-w-none flex-col overflow-clip rounded-t-[28px] rounded-b-none border-0 max-h-[calc(100dvh-env(safe-area-inset-top)-0.75rem)] desk:m-auto desk:max-w-[calc(100vw-1.5rem)] desk:rounded-2xl desk:border desk:border-line ${
         size === 'page'
-          ? 'max-h-[min(94dvh,calc(100dvh-2*max(env(safe-area-inset-top),env(safe-area-inset-bottom))-1.5rem))] w-[min(76rem,calc(100vw-1.5rem))]'
+          ? 'h-[calc(100dvh-env(safe-area-inset-top)-0.75rem)] desk:h-auto desk:max-h-[min(94dvh,calc(100dvh-2*max(env(safe-area-inset-top),env(safe-area-inset-bottom))-1.5rem))] desk:w-[min(76rem,calc(100vw-1.5rem))]'
           : size === 'wide'
-            ? 'max-h-[min(85dvh,48rem)] w-[min(62rem,calc(100vw-1.5rem))]'
-            : 'max-h-[min(85dvh,48rem)] w-[min(38rem,calc(100vw-1.5rem))]'
-      } rounded-2xl border border-line bg-surface p-0 text-ink shadow-2xl backdrop:bg-black/50`}
+            ? 'desk:max-h-[min(85dvh,48rem)] desk:w-[min(62rem,calc(100vw-1.5rem))]'
+            : 'desk:max-h-[min(85dvh,48rem)] desk:w-[min(38rem,calc(100vw-1.5rem))]'
+      } bg-surface p-0 text-ink shadow-2xl backdrop:bg-black/40`}
     >
-      <div className="flex shrink-0 items-start gap-3 border-b border-line px-5 py-4">
+      {/* 손잡이 · 제목 줄 — 휴대폰은 여기를 잡고 끌어내려 닫는다(startDrag) */}
+      <div
+        className="shrink-0 touch-none desk:touch-auto"
+        onPointerDown={startDrag}
+        onPointerMove={moveDrag}
+        onPointerUp={endDrag}
+        onPointerCancel={endDrag}
+      >
+      <div aria-hidden className="mx-auto mt-2 h-[5px] w-9 rounded-full bg-ink/15 desk:hidden" />
+      <div className="flex shrink-0 items-start gap-3 px-5 pt-3 pb-2 desk:border-b desk:border-line desk:py-4">
         <div className="min-w-0 flex-1">
           <h2 className="text-base font-bold text-ink">{title}</h2>
           {description && (
@@ -310,6 +372,7 @@ export function Modal({
         >
           <X className="h-5 w-5 desk:h-4 desk:w-4" />
         </button>
+      </div>
       </div>
 
       {/*
@@ -335,7 +398,7 @@ export function Modal({
         또 막대가 서면 테두리가 두 줄로 보인다. 굴리는 것은 그대로 된다 —
         휠·손가락·키보드 모두 평소와 같다.
       */}
-      <div className="no-scrollbar relative min-h-0 flex-auto overflow-y-auto px-5 py-5">
+      <div className="no-scrollbar relative min-h-0 flex-auto overflow-y-auto px-5 pt-3 pb-[calc(1.25rem+env(safe-area-inset-bottom))] desk:py-5">
         {/* 내용의 제 높이를 재는 자리(위 'page' 창의 높이 잇기) */}
         <div ref={contentRef}>{children}</div>
       </div>

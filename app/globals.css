@@ -1788,6 +1788,36 @@ dialog[open]::backdrop {
 }
 
 /*
+ * 휴대폰의 창 = 아래에서 올라오는 시트(components/modal.tsx 의 data-sheet) — 아이폰처럼(2026-10-01 사용자 '애플처럼').
+ * 바닥에 붙어 아래에서 미끄러져 올라오고, 닫으면(끌어내려 닫기 포함) 아래로 내려간다. 누른 자리에서 날아오는
+ * 움직임(data-pop)은 PC 에만 남는다 — 여기 규칙이 더 무거워(속성 셋) 휴대폰에서는 그쪽을 이긴다. 조건은 desk 의 반대.
+ */
+@media (max-width: 63.999rem) and (max-width: 35.999rem),
+  (max-width: 63.999rem) and (hover: none),
+  (max-width: 63.999rem) and (pointer: coarse) {
+  dialog[data-sheet],
+  dialog[data-sheet][data-pop] {
+    opacity: 1;
+    transform: translateY(100%);
+    transition:
+      transform 260ms cubic-bezier(0.32, 0.72, 0, 1),
+      overlay 260ms ease-in allow-discrete,
+      display 260ms ease-in allow-discrete;
+  }
+  dialog[data-sheet][open],
+  dialog[data-sheet][data-pop][open] {
+    transform: none;
+    transition: none;
+    animation: sheet-in 380ms cubic-bezier(0.32, 0.72, 0, 1);
+  }
+}
+@keyframes sheet-in {
+  from {
+    transform: translateY(100%);
+  }
+}
+
+/*
  * 체크인 관문 (components/checkin-gate.tsx) — 그날 첫 접속 때 뜨는 창.
  *
  * 보통 창보다 느리게 떠오른다(0.42초). 앱에 들어오자마자 뜨는 창이라, 휙 튀어나오면

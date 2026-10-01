@@ -40,11 +40,15 @@ function ConfirmDialog({
       <div className="space-y-5">
         <div className="text-sm leading-relaxed text-ink">{detail}</div>
 
-        <div className="flex flex-wrap items-center justify-end gap-2">
+        {/*
+          휴대폰은 아이폰의 동작 시트처럼 — 가로로 꽉 찬 큰 알약 둘, 빨간 '지우기'가 위 · '취소'가 아래(2026-10-01 '애플처럼').
+          PC 는 예전처럼 오른쪽에 나란히(취소 · 지우기).
+        */}
+        <div className="flex flex-col-reverse gap-2 desk:flex-row desk:flex-wrap desk:items-center desk:justify-end">
           <button
             type="button"
             onClick={onClose}
-            className="rounded-xl border border-line-strong px-4 py-2.5 text-sm font-medium text-ink transition-colors hover:border-sky hover:text-sky"
+            className="min-h-12 w-full rounded-full bg-ink/6 px-4 py-2.5 text-base font-medium text-ink transition-colors active:bg-ink/10 desk:min-h-0 desk:w-auto desk:rounded-xl desk:border desk:border-line-strong desk:bg-transparent desk:text-sm desk:hover:border-sky desk:hover:text-sky"
           >
             취소
           </button>
@@ -52,7 +56,7 @@ function ConfirmDialog({
             type="button"
             onClick={onConfirm}
             disabled={pending}
-            className="rounded-xl border border-danger-line bg-danger-bg px-4 py-2.5 text-sm font-semibold text-danger transition-colors hover:bg-danger-bg/70 disabled:opacity-50"
+            className="min-h-12 w-full rounded-full bg-danger-bg px-4 py-2.5 text-base font-semibold text-danger transition-colors active:opacity-70 disabled:opacity-50 desk:min-h-0 desk:w-auto desk:rounded-xl desk:border desk:border-danger-line desk:text-sm desk:hover:bg-danger-bg/70"
           >
             {pending ? '지우는 중…' : confirmLabel}
           </button>
