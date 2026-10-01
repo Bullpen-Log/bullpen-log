@@ -11,6 +11,28 @@ Claude 로 작업을 시작하면 저절로 읽힌다. 규칙은 `AGENTS.md` 6�
 
 ---
 
+## 금윤호에게 — 2026-10-01 · 김민(Claude) — '애플처럼' C(화면별) 1차 + D 둘 — 홈 · 캘린더 · 체크인 · 설정 · 더보기 · 필터 · 영상 · 테마
+
+받은 뒤 할 일 없음(DB 구조 그대로). 네 영역이 많아 적는다. **모양은 휴대폰만, 색은 PC 까지** 원칙 그대로, 영양 · 구속 측정은 안 건드렸다.
+
+- **홈**(e50fb8a · 69821d1): 맨 위 새 `app/(app)/today/today-rings.tsx` — 오늘 체크인 · 투구 · 운동 · 영양 링 넷(`loadDayDetail` + 오늘 투구 기록,
+  page.tsx 에 Suspense 하나 · loading.tsx 에 자리). 색 하나로: 그래프 여섯(`home-trends.tsx` tone) · 그날 아이콘 다섯(`day-summary.tsx` TONES) ·
+  영양 막대 셋(`day-detail.tsx` MACROS) · 분석 아이콘 → 모두 sky. 경고색은 그대로.
+- **캘린더**(`components/month-calendar.tsx`, 53c629e — 투구 기록 캘린더도 같이): 오늘 = 파란 동그라미 숫자, 빈 날은 휴대폰에서 칸 없이 숫자만,
+  요일 빨강 · 파랑 → 회색, 달 넘기기는 테두리 없는 파란 화살표, 범례는 휴대폰에서 '표시 보기'로 접힘(PC 는 그대로).
+- **체크인 관문**(0d5aed4): 휴대폰은 아래 시트(globals.css '휴대폰의 체크인 관문'), 저장은 폭 전체 알약, [간편 | 상세]는 아이폰 고르개, 칩 ·
+  잔 시간 단추는 테두리 없는 알약(`checkin-form.tsx` chipBase · sleepStepButton). **원래 있던 버그 고침**: 접힌 상세의 숨긴 라디오가 잘라내기를
+  빠져나가 창 밑에 빈 자리 500px → 상세 칸에 `relative overflow-hidden`.
+- **설정 · 내 정보**(9fccfb8): 칸 아이콘 = 파랗게 칠한 둥근 네모, 칸 사이 선 대신 틈(휴대폰), 해요체.
+- **더보기**(4aeb00f, `app-shell.tsx` DetailMenu + globals.css '휴대폰의 더보기'): 휴대폰은 오른쪽 서랍 대신 아래 시트(손잡이 · 메뉴만큼 높이 ·
+  불투명). PC 판 · 연출은 그대로. 주의: 화면에 붙은 창의 높이는 `auto` 가 아니라 `fit-content`(auto 면 화면 높이로 늘어난다).
+- **조건으로 찾기**(`components/meta-filter.tsx`, fa07a89 — 투구 드릴 · 운동 추가 창도 같이): 휴대폰은 [필터] 단추 → 아래 시트('12개 보기'),
+  새 `leading` 칸(운동 영상은 [★ 즐겨찾기]를 거기 둔다). PC 는 늘 펴 둔 칸 그대로.
+- **영상 크게 보기**(f9d3706, `pitch-video-player.tsx` · `videos/compare-view.tsx`): 라이트 테마에서 짙은 바탕 + 짙은 글자로 안 보이던 것 →
+  새 `.theme-dark`(globals.css — 그 칸 안의 색 토큰을 다크 값으로) + `bg-black`. 늘 어두워야 하는 칸에 그대로 쓰면 된다.
+- **테마 '자동'**(91fa904, `lib/theme.ts`): [라이트 | 다크 | 네이비 | 자동]. 고른 값은 `<html data-theme-choice>`, 칠한 값은 그대로 `data-theme`
+  (light|dark|navy) — data-theme 를 보는 코드는 바꿀 것 없음. 기본은 그대로 라이트.
+
 ## 금윤호에게 — 2026-10-01 · 김민(Claude) — '애플처럼' B(감성) — 누름 표시 · 빈 상자 · 체크인 축하 (네 영역 몇 곳)
 
 받은 뒤 할 일 없음(DB 구조 그대로). B 는 대부분 운동 화면(김민 영역 — f9dd43e)이고, 공용 · 네 영역은 아래만 바꿨다(ca34ba8 · fbb2408).
