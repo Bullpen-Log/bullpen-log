@@ -15,15 +15,17 @@ Claude 로 작업을 시작하면 저절로 읽힌다. 규칙은 `AGENTS.md` 6�
 
 받은 뒤 할 일 없음. 네 메모 셋(영양 DB 칸 · 표)은 사용자에게 전하고 `npx prisma generate` · 개발 서버 다시 켜기를 했다.
 
-사용자 요청 "애플 앱스토어의 하단 바처럼 앱 내부 인터페이스를 전체적으로 동글동글하게". **휴대폰만** 바꿨고 PC(desk)는 예전 그대로다.
+사용자 요청 "애플 앱스토어의 하단 바처럼 앱 내부 인터페이스를 전체적으로 동글동글하게"(앱스토어 화면을 보내 줘 재서 맞춤).
+**휴대폰만** 바꿨고 PC(desk)는 예전 그대로다.
 네 영역(앱 틀 · 공용 부품)이라 적는다.
 
-- **모서리 토큰**(`app/globals.css` '@layer base' 의 `:root`): 휴대폰에서 `--radius-sm`~`--radius-4xl` 를 약 1.5배(lg 8 → 14 ·
-  xl 12 → 18 · 2xl 16 → 24 · 3xl 24 → 32px)로 키우고, 'PC 화면의 크기 기준' 블록에서 원래 값으로 되돌린다. rounded-* 를 쓰는 곳은
+- **모서리 토큰**(`app/globals.css` '@layer base' 의 `:root`): 휴대폰에서 `--radius-sm`~`--radius-4xl` 를 앱스토어 비율로(lg 8 → 12 ·
+  xl 12 → 16 · 2xl 16 → 20(앱스토어 카드 약 20pt) · 3xl 24 → 28px) 키우고, 'PC 화면의 크기 기준' 블록에서 원래 값으로 되돌린다. rounded-* 를 쓰는 곳은
   화면 코드를 안 고쳐도 다 따라온다. 대괄호 값(`rounded-[…]`)은 안 따라온다.
-- **하단 탭**(`app-shell.tsx` `MobileTabs`): 화면 끝에 붙은 막대 → 바닥에서 떠 있는 반투명 알약(양옆 16px, 밑 `--tab-bar-gap`,
-  높이 64px). 지금 탭 표시는 위의 짧은 선 → 칸 전체를 감싸는 옅은 하늘색(`bg-sky/12`) 둥근 배경, 이름표 `tab-indicator` 그대로라
-  탭을 옮기면 미끄러진다(옅어서 전환 중 아이콘을 안 가린다). 알약 양옆 빈 곳은 눌러도 본문으로 간다(pointer-events).
+- **하단 탭**(`app-shell.tsx` `MobileTabs`): 화면 끝에 붙은 막대 → 바닥에서 떠 있는 반투명 알약(양옆 20px, 밑 `--tab-bar-gap` —
+  아이폰에서 21px, 높이 62px, 앱스토어 실측). 지금 탭 표시는 위의 짧은 선 → 칸 전체를 감싸는 옅은 회색(`bg-ink/8`) 둥근 배경 + 파란
+  아이콘 · 이름, 다른 탭은 검은 아이콘 · 이름(`text-ink`). 이름표 `tab-indicator` 그대로라 탭을 옮기면 미끄러진다(옅어서 전환 중
+  아이콘을 안 가린다). 알약 양옆 빈 곳은 눌러도 본문으로 간다(pointer-events).
 - **하단 탭 높이 변수** `--tab-bar-top`(화면 바닥 ~ 알약 윗변): `SiteFooter` 의 끝 여백, 하단 탭 위에 띄우는 셋(`routine-builder` ·
   `videos/compare-view` · `videos/video-gallery` — 예전 `3.5rem/4rem + env(safe-area-inset-bottom)`)이 이 값을 쓴다. 새로 하단 탭 위에
   띄우는 것도 `bottom-[calc(var(--tab-bar-top)+0.5rem)]` 처럼.

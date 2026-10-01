@@ -2339,11 +2339,11 @@ function TabFace({
 /**
  * 모바일 하단 탭바 — 바닥에서 살짝 떠 있는 둥근 알약(아이폰 iOS 26 · 앱스토어의 하단 바처럼).
  *
- * 2026-10-01 사용자 "애플 앱스토어의 하단 바처럼 전체적으로 동글동글하게": 화면 끝에 붙은 흰 막대(위 테두리 ·
- * 지금 탭 위의 짧은 선) 대신, 양옆 16px · 밑으로 --tab-bar-gap(globals.css) 떨어져 뜬 반투명 알약이다. 뒤의 본문이
- * 흐리게 비치고, 지금 탭은 둥근 연한 하늘색 배경이 감싼다. 크기는 아이폰 기본 탭 바에 맞춘다(2026-09-30 "크기 ·
- * 비율 조정") — 칸 높이 54px, 아이콘 26px, 이름 10px. 알약 윗변까지의 높이(--tab-bar-top)를 본문 끝 여백과 그 위에
- * 띄우는 것들이 같이 쓴다.
+ * 2026-10-01 사용자 "애플 앱스토어의 하단 바처럼 전체적으로 동글동글하게" + 앱스토어 화면을 보내 줌: 화면 끝에 붙은
+ * 흰 막대(위 테두리 · 지금 탭 위의 짧은 선) 대신, 양옆 20px · 밑으로 --tab-bar-gap(globals.css) 떨어져 뜬 반투명 알약이다.
+ * 앱스토어를 재서 맞췄다 — 알약 높이 62pt, 양옆 · 밑 여백 약 21pt, 지금 탭은 옅은 회색 알약 위에 파란 아이콘 · 이름,
+ * 다른 탭은 검은 아이콘 · 이름. 칸 높이 52px, 아이콘 26px, 이름 10px. 알약 윗변까지의 높이(--tab-bar-top)를 본문 끝
+ * 여백과 그 위에 띄우는 것들이 같이 쓴다.
  */
 function MobileTabs({
   tabs,
@@ -2363,10 +2363,10 @@ function MobileTabs({
       /* 본문이 바뀌는 동안 탭바는 움직이지 않는다. */
       style={{ viewTransitionName: 'shell-tabbar' }}
       data-mobile-tabs
-      className="pointer-events-none fixed inset-x-0 bottom-0 z-50 px-4 pb-(--tab-bar-gap) desk:hidden"
+      className="pointer-events-none fixed inset-x-0 bottom-0 z-50 px-5 pb-(--tab-bar-gap) desk:hidden"
     >
-      {/* 알약만 누를 수 있다 — 양옆 빈 곳을 누르면 밑의 본문으로 간다 */}
-      <div className="pointer-events-auto mx-auto flex max-w-md rounded-full border border-line/70 bg-surface/85 p-1 shadow-[0_10px_30px_-10px_rgba(15,23,42,0.35)] backdrop-blur-xl backdrop-saturate-150">
+      {/* 알약만 누를 수 있다 — 양옆 빈 곳을 누르면 밑의 본문으로 간다. 뒤의 본문이 비치는 옅은 유리(앱스토어처럼 많이 비친다) */}
+      <div className="pointer-events-auto mx-auto flex max-w-md rounded-full border border-line/60 bg-surface/70 p-1 shadow-[0_8px_32px_-12px_rgba(15,23,42,0.3)] backdrop-blur-2xl backdrop-saturate-150">
         {tabs.map((tab) => {
           /*
            * '더보기'는 화면으로 넘어가지 않고 옆에서 사이드바를 연다.
@@ -2391,8 +2391,8 @@ function MobileTabs({
                 }}
                 aria-haspopup="dialog"
                 aria-expanded={menuOpen}
-                className={`relative flex h-[54px] flex-1 flex-col items-center justify-center gap-0.5 rounded-full text-[10px] font-medium transition-[color,transform] duration-75 motion-safe:active:scale-90 ${
-                  menuOpen ? 'font-semibold text-sky' : 'text-muted active:text-sky'
+                className={`relative flex h-[52px] flex-1 flex-col items-center justify-center gap-0.5 rounded-full text-[10px] font-medium transition-[color,transform] duration-75 motion-safe:active:scale-90 ${
+                  menuOpen ? 'font-semibold text-sky' : 'text-ink active:text-sky'
                 }`}
               >
                 <span className="flex h-[26px] w-[26px] items-center justify-center">
@@ -2414,8 +2414,8 @@ function MobileTabs({
                * 색이 바뀌게 해서, 화면이 바뀌기 전에 먼저 대답하게 한다.
                * 움직임을 줄여 쓰는 사람에게는 크기 변화 없이 색만 바뀐다.
                */
-              className={`relative flex h-[54px] flex-1 flex-col items-center justify-center gap-0.5 rounded-full text-[10px] font-medium transition-[color,transform] duration-75 motion-safe:active:scale-90 ${
-                active ? 'font-semibold text-sky' : 'text-muted active:text-sky'
+              className={`relative flex h-[52px] flex-1 flex-col items-center justify-center gap-0.5 rounded-full text-[10px] font-medium transition-[color,transform] duration-75 motion-safe:active:scale-90 ${
+                active ? 'font-semibold text-sky' : 'text-ink active:text-sky'
               }`}
             >
               {/*
@@ -2423,7 +2423,7 @@ function MobileTabs({
                *
                * 화면에 한 번에 하나만 있고 이름이 같아서, 탭을 옮기면 브라우저가
                * 사라졌다 나타나는 대신 옛 자리에서 새 자리로 미끄러뜨린다.
-               * 전환 중에는 이름 붙은 것이 아이콘들 위로 올라와 지나가는데, 옅은 하늘색(12%)이라
+               * 전환 중에는 이름 붙은 것이 아이콘들 위로 올라와 지나가는데, 옅은 회색(글자색 8%)이라
                * 지나가는 자리의 아이콘 · 글자를 가리지 않는다(불투명하면 덮는다 — globals.css 'tab-indicator').
                *
                * 색은 이미 글자와 아이콘이 알려주므로 이 배경은 장식이다.
@@ -2433,7 +2433,7 @@ function MobileTabs({
                 <span
                   aria-hidden
                   style={{ viewTransitionName: 'tab-indicator' }}
-                  className="absolute inset-0 rounded-full bg-sky/12"
+                  className="absolute inset-0 rounded-full bg-ink/8"
                 />
               )}
               <TabFace Icon={Icon} active={active} label={tab.short ?? tab.label} />
