@@ -39,7 +39,9 @@ import {
   isMealKey,
   isSex,
   type EntrySource,
+  ENTRY_SOURCES,
 } from '@/lib/nutrition/meta';
+import { cleanBarcode } from '@/lib/nutrition/barcode';
 
 /**
  * 영양 탭의 저장.
@@ -60,7 +62,7 @@ const BAD_DATE: NutritionResult = {
   error: '날짜가 올바르지 않습니다. 새로고침 후 다시 시도해 주세요.',
 };
 
-const SOURCES: EntrySource[] = ['basic', 'mfds', 'mine', 'free'];
+const SOURCES: EntrySource[] = ENTRY_SOURCES;
 
 export type FoodInput = {
   source: EntrySource;
@@ -95,6 +97,9 @@ function cleanFood(raw: unknown): FoodInput | string {
   if (!f.source || !SOURCES.includes(f.source)) return '음식 출처가 올바르지 않습니다.';
   const sourceId =
     typeof f.sourceId === 'string' && f.sourceId.length <= 80 ? f.sourceId : null;
+  /* 바코드 음식의 열쇠는 바코드 숫자 — 내 음식에서 같은 바코드를 다시 찾는 데 쓰므로 검사 숫자까지 맞아야 */
+  if (f.source === 'barcode' && cleanBarcode(sourceId) !== sourceId)
+    return '바코드 숫자가 맞지 않습니다.';
 
   if (!isNum(f.kcal) || f.kcal < 0 || f.kcal > KCAL_MAX) {
     return `칼로리는 0~${KCAL_MAX.toLocaleString('ko-KR')} 사이로 적어 주세요.`;
@@ -354,7 +359,7 @@ export async function unfavoriteFood(
 ): Promise<NutritionResult> {
   const user = await getCurrentUser();
   if (!user) return NEED_LOGIN;
-  if (source !== 'basic' && source !== 'mfds')
+  if (source !== 'basic' && source !== 'mfds' && source !== 'barcode')
     return { ok: false, error: '잘못된 요청입니다.' };
   await prisma.userFood.deleteMany({
     where: { userId: user.id, source, sourceId: String(sourceId) },

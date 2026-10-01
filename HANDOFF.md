@@ -27,6 +27,12 @@ AI 를 부르는 곳 셋 · 지금까지 쓴 양(리포트 10번 ≈ 360원) · 
 - 같이 알아 둘 것: `AI_MODEL` 을 `claude-sonnet-5-5` · `claude-opus-5-5` 로 바꾸면 트레이닝 호출의 `thinking: { type: 'disabled' }`
   가 오류(400)가 되어 AI 맞춤이 늘 규칙대로 간다(4절 4번).
 
+## 김민에게 — 2026-10-02 · 금윤호(Claude) — 음식 출처에 'barcode' 가 생김(DB 구조는 그대로)
+
+받은 뒤 할 일 없음. 영양 로드맵 8번(바코드로 담기)으로 `MealEntry.source` · `UserFood.source` 에 `'barcode'`(열쇠는 바코드 숫자)가
+들어올 수 있다 — 글자 칸이라 DB 는 안 바뀐다. 출처 목록은 `lib/nutrition/meta.ts` 의 `ENTRY_SOURCES` 한곳으로 모았다. 캘린더 그날 칸처럼
+출처를 읽는 곳이 있으면 모르는 값도 받게 해 줘(`SOURCE_LABEL.barcode` = '바코드').
+
 ## 김민에게 — 2026-10-02 · 금윤호(Claude) — DB 칸 추가(DailyNutrition.photoCalls) · 영양 사진 기록(꺼 둠)
 
 받은 뒤 할 일: `npx prisma generate`. `DailyNutrition` 에 `photoCalls Int @default(0)` 한 칸(마이그레이션

@@ -68,6 +68,7 @@ import {
   mfdsCategory,
 } from '../lib/nutrition/mfds-category.ts';
 import { allMfdsReps } from '../lib/nutrition/mfds-reps.ts';
+import { cleanBarcode, gtinValid, parseOffProduct } from '../lib/nutrition/barcode.ts';
 import {
   amountForGrams,
   matchBasicFood,
@@ -3068,6 +3069,111 @@ console.log('\n■ 사진 기록 — AI 가 부른 이름을 앱 음식에 맞�
     [...allMfdsReps()].filter((r) => String(r.FOOD_NM_KR).startsWith('김치찌개'))
   );
   check('실제 자료에서도 김치찌개를 찾는다', real !== null, String(real?.FOOD_NM_KR));
+}
+
+console.log('\n■ 바코드로 담기(로드맵 8번)');
+{
+  check(
+    '검사 숫자 — 신라면 · 서울우유 · EAN-8 · UPC-A 는 맞고, 끝자리가 틀리면 아니다',
+    gtinValid('8801043014809') &&
+      gtinValid('8801115114154') &&
+      gtinValid('96385074') &&
+      gtinValid('036000291452') &&
+      !gtinValid('8801043014808')
+  );
+  check(
+    '적은 바코드 다듬기 — 띄어쓰기 · 줄표는 빼고, 자릿수 · 검사 숫자가 틀리면 null',
+    cleanBarcode(' 880 1043-014809 ') === '8801043014809' &&
+      cleanBarcode('8801043014808') === null &&
+      cleanBarcode('12345') === null &&
+      cleanBarcode('abc') === null &&
+      cleanBarcode(null) === null
+  );
+  const ramen = parseOffProduct('8801043014809', {
+    status: 1,
+    product: {
+      brands: 'Nongshim',
+      product_name: 'Shin Ramyun',
+      serving_quantity: 120,
+      serving_size: '120g',
+      nutriments: {
+        'energy-kcal_100g': 421,
+        'energy-kcal_serving': 505,
+        carbohydrates_100g: 62.1,
+        carbohydrates_serving: 74.5,
+        proteins_100g: 8.3,
+        fat_100g: 13,
+      },
+    },
+  }).food;
+  check(
+    '1회 양이 있으면 1회 — 회사 이름을 앞에, 1회 값이 없는 칸은 100g 값으로 셈',
+    ramen !== null &&
+      ramen.source === 'barcode' &&
+      ramen.id === '8801043014809' &&
+      ramen.name === 'Nongshim Shin Ramyun' &&
+      ramen.servingLabel === '1회(120g)' &&
+      ramen.kcal === 505 &&
+      ramen.carbs === 74.5 &&
+      ramen.protein === 10 &&
+      ramen.fat === 15.6,
+    JSON.stringify(ramen)
+  );
+  const choco = parseOffProduct('8801062518210', {
+    status: 1,
+    product: {
+      brands: 'Lotte',
+      product_name: 'lotte choco',
+      product_quantity: 54,
+      nutriments: { 'energy-kcal_100g': 518, carbohydrates_100g: 67.9, fat_100g: 25 },
+    },
+  }).food;
+  check(
+    '1회 양이 없고 포장이 작으면 한 개(54g), 회사 이름이 이미 있으면 안 붙임',
+    choco !== null &&
+      choco.name === 'lotte choco' &&
+      choco.servingLabel === '1개(54g)' &&
+      choco.kcal === 279.7 &&
+      choco.protein === null,
+    JSON.stringify(choco)
+  );
+  const milk = parseOffProduct('8801115114154', {
+    status: 1,
+    product: {
+      brands: 'Seoul Milk',
+      product_name: 'Milk',
+      product_name_ko: '나 100% 1급A우유 1L',
+      product_quantity: 1000,
+      nutriments: { 'energy-kj_100g': 284, proteins_100g: 3 },
+    },
+  }).food;
+  check(
+    '한국어 이름 먼저 · kJ 만 있으면 kcal 로 · 큰 포장(1L)은 100g',
+    milk !== null &&
+      milk.name === 'Seoul Milk 나 100% 1급A우유 1L' &&
+      milk.servingLabel === '100g' &&
+      milk.kcal === 67.9 &&
+      milk.protein === 3,
+    JSON.stringify(milk)
+  );
+  const noKcal = parseOffProduct('8801056038861', {
+    status: 1,
+    product: { product_name: '이름만 있는 제품', nutriments: {} },
+  });
+  check(
+    '칼로리를 모르면 담지 않고 이름만(직접 입력 칸에 미리 넣는다) · 없는 제품은 둘 다 null',
+    noKcal.food === null &&
+      noKcal.name === '이름만 있는 제품' &&
+      parseOffProduct('1', { status: 0 }).food === null &&
+      parseOffProduct('1', null).name === null
+  );
+  check(
+    '상한을 넘는 값(단위 잘못)은 담지 않는다',
+    parseOffProduct('1', {
+      status: 1,
+      product: { product_name: 'x', nutriments: { 'energy-kcal_100g': 99999 } },
+    }).food === null
+  );
 }
 
 console.log(`\n${passed}개 통과, ${failed}개 실패`);

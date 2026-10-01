@@ -98,13 +98,24 @@ export const MACRO_MAX = 500;
 export const FOOD_NAME_MAX = 60;
 
 /** 음식이 어디서 왔나 */
-export type FoodSource = 'basic' | 'mfds' | 'mine';
+/* barcode — 바코드로 찾은 제품(열쇠는 바코드 숫자, lib/nutrition/barcode.ts) */
+export type FoodSource = 'basic' | 'mfds' | 'mine' | 'barcode';
 export type EntrySource = FoodSource | 'free';
+
+/** 받을 수 있는 출처 전부 — 서버 검사 · 읽기가 한곳에서 본다 */
+export const ENTRY_SOURCES: EntrySource[] = [
+  'basic',
+  'mfds',
+  'mine',
+  'barcode',
+  'free',
+];
 
 export const SOURCE_LABEL: Record<EntrySource, string> = {
   basic: '기본',
   mfds: '식약처',
   mine: '내 음식',
+  barcode: '바코드',
   free: '직접 입력',
 };
 

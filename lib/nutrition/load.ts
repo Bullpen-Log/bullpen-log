@@ -12,6 +12,7 @@ import {
   type Food,
   type MealEntryView,
   type RankedFood,
+  ENTRY_SOURCES,
 } from '@/lib/nutrition/meta';
 import {
   DEFAULT_PROFILE,
@@ -219,7 +220,7 @@ export async function recentWeightKg(
   return checkin?.bodyWeightKg ?? null;
 }
 
-const SOURCES: EntrySource[] = ['basic', 'mfds', 'mine', 'free'];
+const SOURCES: EntrySource[] = ENTRY_SOURCES;
 const asSource = (s: string): EntrySource =>
   (SOURCES as string[]).includes(s) ? (s as EntrySource) : 'free';
 
@@ -518,7 +519,14 @@ export async function loadNutritionDay(
     protein: f.protein,
     fat: f.fat,
     /* 즐겨찾기로 옮겨 온 것은 원래 어디서 왔는지 적어 둔다 */
-    note: f.source === 'mfds' ? '식약처' : f.source === 'basic' ? '기본' : undefined,
+    note:
+      f.source === 'mfds'
+        ? '식약처'
+        : f.source === 'basic'
+          ? '기본'
+          : f.source === 'barcode'
+            ? '바코드'
+            : undefined,
   }));
 
   /* ── 던지는 날 가이드(오늘만) ── */

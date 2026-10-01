@@ -9,6 +9,7 @@ import {
   type Macros,
   type MealEntryView,
   type MealKey,
+  ENTRY_SOURCES,
 } from '@/lib/nutrition/meta';
 
 /**
@@ -150,7 +151,7 @@ export function orderCombos(list: MealComboView[], meal: MealKey) {
     .map(({ c }) => c);
 }
 
-const SOURCES: EntrySource[] = ['basic', 'mfds', 'mine', 'free'];
+const SOURCES: EntrySource[] = ENTRY_SOURCES;
 const num = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) ? v : null);
 const str = (v: unknown) => (typeof v === 'string' && v.trim() ? v.trim() : null);
 

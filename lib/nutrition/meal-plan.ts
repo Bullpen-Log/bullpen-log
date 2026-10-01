@@ -26,6 +26,7 @@ import {
   type GoalKey,
   type Macros,
   type MealKey,
+  ENTRY_SOURCES,
 } from '@/lib/nutrition/meta';
 
 /**
@@ -766,7 +767,7 @@ export type PlanContext = {
 };
 
 const num = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) ? v : null);
-const PLAN_SOURCES: EntrySource[] = ['basic', 'mfds', 'mine', 'free'];
+const PLAN_SOURCES: EntrySource[] = ENTRY_SOURCES;
 
 /** DB 의 items(Json)를 하나씩 다시 본다 — 틀린 줄은 버린다(손으로 고친 줄 하나가 화면을 넘어뜨리지 않게) */
 export function parsePlanItems(raw: unknown): PlanItem[] {

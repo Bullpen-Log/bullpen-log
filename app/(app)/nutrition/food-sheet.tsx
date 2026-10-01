@@ -25,6 +25,7 @@ import {
   Star,
   Trash2,
   X,
+  ScanBarcode,
 } from 'lucide-react';
 import { Modal } from '@/components/modal';
 import { Segmented } from '@/components/segmented';
@@ -84,6 +85,7 @@ import {
 import { OFFLINE_MESSAGE, orOffline } from '@/lib/action-offline';
 import { EASE, toFoodInput, type Origin } from './shared';
 import { PhotoCapture } from './photo-panel';
+import { BarcodePanel } from './barcode-panel';
 import { ErrorLine } from '@/components/error-line';
 
 /*
@@ -134,7 +136,7 @@ const favKey = (f: Food) => `${f.source}:${f.id}`;
 /* 줄 하나를 가리키는 이름 — 직접 입력한 음식은 id 가 없어 이름으로 */
 const rowKey = (f: Food) => `${f.source}:${f.id ?? f.name}`;
 const canFavorite = (f: Food) =>
-  (f.source === 'basic' || f.source === 'mfds') && !!f.id;
+  (f.source === 'basic' || f.source === 'mfds' || f.source === 'barcode') && !!f.id;
 /* 직접 입력 칸을 가리키는 이름 — 펴 둔 줄은 한 번에 하나라 줄 이름과 같은 자리를 쓴다 */
 const CUSTOM_KEY = 'custom';
 /* 조합 저장 칸도 같다 */
@@ -242,6 +244,8 @@ export function FoodSheet({
     );
     return () => window.clearTimeout(timer);
   }, [open, replacingName]);
+  /* 바코드로 찾기 칸(barcode-panel.tsx)을 폈나 */
+  const [scan, setScan] = useState(false);
   /* 바꾸는 중 — 같은 렌더 안의 두 번 누름도 막게 ref 로 먼저 잠근다(화면 표시는 replaceBusy) */
   const replaceLock = useRef(false);
   /* 창을 연 때의 목록 — 담는 동안 순서가 바뀌어 줄이 밀리지 않게(위 설명) */
@@ -496,10 +500,13 @@ export function FoodSheet({
   }
 
   function addCustom(food: Food, save: boolean) {
+    /* 바코드 음식은 바코드째(다음에 같은 바코드를 읽으면 바로 나온다), 나머지는 내 음식으로 */
     const saveMine = () =>
       startTransition(async () => {
         const res = await orOffline(
-          saveUserFood(toFoodInput({ ...food, source: 'mine' })),
+          saveUserFood(
+            toFoodInput(food.source === 'barcode' ? food : { ...food, source: 'mine' })
+          ),
           OFFLINE
         );
         if (!res.ok) setError(res.error);
@@ -542,8 +549,8 @@ export function FoodSheet({
       <SheetContext value={sheet}>
         <div className="space-y-4">
           {/* 찾는 칸은 목록을 굴려도 위에 붙어 있다 */}
-          <div className="sticky -top-5 z-10 -mx-5 -mt-5 bg-surface px-5 pb-3 pt-5">
-            <label className="relative block">
+          <div className="sticky -top-5 z-10 -mx-5 -mt-5 flex gap-2 bg-surface px-5 pb-3 pt-5">
+            <label className="relative block min-w-0 flex-1">
               <span className="sr-only">음식 이름</span>
               <Search
                 aria-hidden
@@ -576,7 +583,37 @@ export function FoodSheet({
                 </button>
               )}
             </label>
+            {/* 바코드로 찾기(로드맵 8번) — 누르면 찾는 칸 밑에 카메라 · 숫자 칸이 펴진다 */}
+            <button
+              type="button"
+              onClick={() => setScan((v) => !v)}
+              aria-expanded={scan}
+              aria-label="바코드로 찾기"
+              className={`flex w-12 shrink-0 items-center justify-center rounded-xl border transition-colors ${
+                scan
+                  ? 'border-sky bg-sky-tint text-sky'
+                  : 'border-line bg-surface-2 text-muted hover:border-sky hover:text-sky'
+              }`}
+            >
+              <ScanBarcode aria-hidden className="h-5 w-5" />
+            </button>
           </div>
+
+          {scan && (
+            <BarcodePanel
+              onClose={() => setScan(false)}
+              renderFood={(food) => <FoodRow food={food} index={0} hideNote={false} />}
+              renderCustom={(code, name) => (
+                <CustomFood
+                  key={code}
+                  meal={meal}
+                  initialName={name}
+                  barcode={code}
+                  onAdd={addCustom}
+                />
+              )}
+            />
+          )}
 
           {/* 뜨면 그 자리로 굴려 온다 — 목록을 한참 내려가 고른 뒤 실패해도 보이게 */}
           {error && <ErrorLine>{error}</ErrorLine>}
@@ -1694,10 +1731,13 @@ function CustomFood({
   meal,
   initialName,
   onAdd,
+  barcode = null,
 }: {
   meal: MealKey;
   initialName: string;
   onAdd: (food: Food, save: boolean) => void;
+  /** 바코드로 못 찾은 제품 — 적은 것을 바코드째 저장해(기본으로 켬) 다음부터 읽자마자 나오게 */
+  barcode?: string | null;
 }) {
   const { replacing } = useSheet();
   const [name, setName] = useState(initialName);
@@ -1706,7 +1746,7 @@ function CustomFood({
   const [carbs, setCarbs] = useState('');
   const [protein, setProtein] = useState('');
   const [fat, setFat] = useState('');
-  const [save, setSave] = useState(false);
+  const [save, setSave] = useState(barcode !== null);
   const [error, setError] = useState<string | null>(null);
 
   const num = (s: string) => (s.trim() === '' ? null : Number(s));
@@ -1727,10 +1767,10 @@ function CustomFood({
     }
     onAdd(
       {
-        source: 'free',
-        id: null,
+        source: barcode ? 'barcode' : 'free',
+        id: barcode,
         name: name.trim(),
-        servingLabel: serving.trim() || '1인분',
+        servingLabel: serving.trim() || (barcode ? '1개' : '1인분'),
         servingGrams: null,
         kcal: k,
         carbs: macros[0],
@@ -1766,12 +1806,14 @@ function CustomFood({
           />
         </label>
         <label className="space-y-1.5">
-          <span className="text-xs font-medium text-muted">먹은 양 (선택)</span>
+          <span className="text-xs font-medium text-muted">
+            {barcode ? '1회 양 (선택)' : '먹은 양 (선택)'}
+          </span>
           <input
             value={serving}
             onChange={(e) => setServing(e.target.value)}
             maxLength={40}
-            placeholder="1인분"
+            placeholder={barcode ? '1봉지 · 1개(54g)' : '1인분'}
             className={field}
           />
         </label>
@@ -1806,7 +1848,9 @@ function CustomFood({
           onChange={(e) => setSave(e.target.checked)}
           className="h-5 w-5 accent-sky"
         />
-        내 음식에 저장해 다음에도 쓰기
+        {barcode
+          ? '이 바코드로 저장해 다음부터 바로 찾기'
+          : '내 음식에 저장해 다음에도 쓰기'}
       </label>
 
       {error && (
