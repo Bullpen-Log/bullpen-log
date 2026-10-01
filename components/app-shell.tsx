@@ -1977,19 +1977,28 @@ function DetailMenu({
        * 비치면 밝은 테마의 바탕이 흰색보다 한 단계 어두워져, 11px 짜리 muted 글자의
        * 대비가 4.4:1 로 기준(4.5:1) 밑으로 내려갔다. 잉크 65% 는 5.5:1 쯤이다.
        */
-      className="ui-chrome h-full w-72 border-l border-line/80 bg-surface/92 p-0 text-ink shadow-2xl backdrop:bg-shade/50 desk:backdrop-blur-xl"
+      /*
+       * 휴대폰은 아래 시트(폭 전체 · 불투명 — globals.css 의 '휴대폰의 더보기'), PC 는 오른쪽 판(w-72 · 비침).
+       */
+      className="ui-chrome w-full border-0 bg-surface p-0 text-ink shadow-2xl backdrop:bg-black/40 desk:h-full desk:w-72 desk:border-l desk:border-line/80 desk:bg-surface/92 desk:backdrop:bg-shade/50 desk:backdrop-blur-xl"
     >
-      {/* 위쪽은 시계 · 배터리 자리만큼 내린다(아이폰 앱에서만 값이 있다 — MobileTopBar 참고) */}
-      <div className="flex h-full flex-col pt-[env(safe-area-inset-top)]">
-        <div className="flex h-12 shrink-0 items-center justify-between border-b border-line px-4">
-          <span className="text-heading text-sm text-ink">메뉴</span>
+      {/*
+        PC 는 위쪽을 시계 · 배터리 자리만큼 내린다(아이폰 앱에서만 값이 있다 — MobileTopBar 참고). 휴대폰 시트는
+        시계 자리 밑에서 멈추므로 내릴 것이 없고, 대신 손잡이를 단다.
+      */}
+      <div className="flex max-h-[calc(100dvh-env(safe-area-inset-top)-0.75rem)] flex-col desk:h-full desk:max-h-none desk:pt-[env(safe-area-inset-top)]">
+        <div aria-hidden className="mx-auto mt-2 h-[5px] w-9 shrink-0 rounded-full bg-ink/15 desk:hidden" />
+        <div className="flex h-12 shrink-0 items-center justify-between px-4 desk:border-b desk:border-line">
+          <span className="text-heading text-lg text-ink desk:text-sm">메뉴</span>
           <button
             type="button"
             onClick={onClose}
             aria-label="닫기"
-            className="rounded-lg p-2 text-muted transition-colors hover:bg-ink/6 hover:text-ink"
+            className="-mr-2 grid h-11 w-11 place-items-center text-muted transition-colors hover:text-ink desk:mr-0 desk:h-auto desk:w-auto desk:rounded-lg desk:p-2 desk:hover:bg-ink/6"
           >
-            <X className="h-5 w-5" />
+            <span className="grid h-8 w-8 place-items-center rounded-full bg-ink/6 desk:contents">
+              <X className="h-4 w-4 desk:h-5 desk:w-5" strokeWidth={2.4} />
+            </span>
           </button>
         </div>
 
@@ -2004,7 +2013,7 @@ function DetailMenu({
                */
               className={
                 group.title
-                  ? 'mt-3 space-y-1 border-t border-line/70 pt-3'
+                  ? 'mt-4 space-y-1 desk:mt-3 desk:border-t desk:border-line/70 desk:pt-3'
                   : 'space-y-1'
               }
             >

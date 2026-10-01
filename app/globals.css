@@ -1287,6 +1287,34 @@ dialog[data-drawer][open]::backdrop {
   animation-duration: 240ms;
 }
 
+/*
+ * 휴대폰의 '더보기' = 아래에서 올라오는 시트 — 오른쪽 서랍 대신(2026-10-01 '애플처럼'). 하단 탭의 '더보기'를
+ * 누르면 엄지 쪽(아래)에서 올라온다 — 화면 오른쪽 끝까지 손을 뻗지 않는다. 앱의 다른 창(Modal 의 data-sheet)과
+ * 같은 모양 · 움직임. PC 는 오른쪽 판과 막대 · 도크 연출 그대로(연출은 PC 에서만 돈다 — app-shell 의 canChoreo).
+ * 위 규칙과 무게가 같아 뒤에 둔다. 조건은 desk 의 반대.
+ */
+@media (max-width: 63.999rem) and (max-width: 35.999rem),
+  (max-width: 63.999rem) and (hover: none),
+  (max-width: 63.999rem) and (pointer: coarse) {
+  dialog[data-drawer] {
+    margin: auto 0 0;
+    width: 100%;
+    /* auto 가 아니라 fit-content — 화면에 붙은(fixed · inset 0) 창은 auto 면 화면 높이로 늘어난다 */
+    height: fit-content;
+    max-height: calc(100dvh - env(safe-area-inset-top) - 0.75rem);
+    border-radius: 28px 28px 0 0;
+    transform: translateY(100%);
+    transition:
+      transform 260ms cubic-bezier(0.32, 0.72, 0, 1),
+      overlay 260ms ease-in allow-discrete,
+      display 260ms ease-in allow-discrete;
+  }
+  dialog[data-drawer][open] {
+    transform: none;
+    animation: sheet-in 380ms cubic-bezier(0.32, 0.72, 0, 1);
+  }
+}
+
 /* ── 메뉴가 막대 · 도크 · 판 사이를 오가는 연출 (PC) ───────────── */
 
 /*
