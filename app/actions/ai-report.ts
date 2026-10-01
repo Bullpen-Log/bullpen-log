@@ -8,6 +8,7 @@ import { ageFromBirthDate } from '@/lib/profile';
 import { estimateDailyLoad } from '@/lib/baseline';
 import { toDateKey } from '@/lib/pitch-stats';
 import { AI_MODEL, isAiConfigured } from '@/lib/ai/client';
+import { AI_FEATURES } from '@/lib/ai/features';
 import { generateReportBody } from '@/lib/ai/report';
 import { trainingLoad } from '@/lib/report/training-acwr';
 import { reportReadiness } from '@/lib/report/cadence';
@@ -34,6 +35,13 @@ const LOOKBACK_DAYS = 45;
 // useActionState는 인자를 넘기지만, 받지 않는 함수에 넘겨도 문제없다.
 export async function generateAiReport(): Promise<AiReportState> {
   const user = await requireUser();
+
+  /* 잠시 멈춤(2026-10-02) — AI 비용을 두 사람이 정하기 전까지. 화면이 단추를 감춰도 여기서 한 번 더 막는다 */
+  if (!AI_FEATURES.homeReport) {
+    return {
+      error: '리포트 만들기를 잠시 멈췄어요. 지난 리포트는 그대로 볼 수 있어요.',
+    };
+  }
 
   if (!isAiConfigured()) {
     return { error: 'AI가 아직 설정되지 않았습니다. 관리자에게 문의해주세요.' };

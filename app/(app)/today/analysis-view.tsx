@@ -5,6 +5,7 @@ import { shiftDateKey, toDateKey } from '@/lib/pitch-stats';
 import { trainingLoad } from '@/lib/report/training-acwr';
 import { reportReadiness } from '@/lib/report/cadence';
 import { isAiConfigured } from '@/lib/ai/client';
+import { AI_FEATURES } from '@/lib/ai/features';
 import type { AiReportBody } from '@/lib/ai/report-prompt';
 import { readPitchPlan } from '@/lib/report/plan';
 import { recentReports, reportOn, type ReportSummary } from '@/lib/report/history';
@@ -108,7 +109,12 @@ async function TodayReport({ user, today }: { user: User; today: string }) {
 
   return (
     <div className="space-y-4">
-      <AiReportCard report={report} readiness={readiness} aiReady={isAiConfigured()} />
+      <AiReportCard
+        report={report}
+        readiness={readiness}
+        aiReady={isAiConfigured() && AI_FEATURES.homeReport}
+        paused={!AI_FEATURES.homeReport}
+      />
       <PastReports reports={past} />
     </div>
   );

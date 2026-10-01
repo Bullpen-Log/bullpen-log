@@ -278,11 +278,14 @@ export function AiReportCard({
   report,
   readiness,
   aiReady,
+  paused = false,
 }: {
   report: StoredReport | null;
   /** 투구 기록이 몇 번 쌓였는지, 지금 만들 수 있는지 */
   readiness: ReportReadiness;
   aiReady: boolean;
+  /** 리포트 만들기를 잠시 멈췄는가(lib/ai/features.ts) — 지난 리포트는 그대로 보인다 */
+  paused?: boolean;
 }) {
   const [state, formAction] = useActionState<AiReportState, FormData>(
     /* 신호가 끊기거나 AI 가 너무 오래 걸려 부르기가 던지면 — 홈 본문이 오류 화면으로 바뀌지 않게 한 줄로 알린다 */
@@ -330,7 +333,9 @@ export function AiReportCard({
 
         {!aiReady && (
           <p className="rounded-xl empty-well px-4 py-6 text-center text-sm text-muted">
-            AI 기능이 아직 설정되지 않았어요.
+            {paused
+              ? '리포트 만들기를 잠시 멈췄어요. 지난 리포트는 그대로 볼 수 있어요.'
+              : 'AI 기능이 아직 설정되지 않았어요.'}
           </p>
         )}
 
