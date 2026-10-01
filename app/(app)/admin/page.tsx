@@ -71,7 +71,7 @@ export default async function AdminPage() {
         {stats.map((s) => (
           <div key={s.label} className="bg-surface px-5 py-5">
             <p className="text-xs tracking-normal text-muted">{s.label}</p>
-            <p className="text-display mt-2 text-3xl text-ink">
+            <p className="text-numeric mt-2 text-3xl text-ink">
               {s.value}
               <span className="ml-1 text-sm text-muted">{s.unit}</span>
             </p>
@@ -159,7 +159,7 @@ export default async function AdminPage() {
           ].map((c) => (
             <div key={c.label} className="bg-surface px-5 py-5">
               <p className="text-xs tracking-normal text-muted">{c.label}</p>
-              <p className="text-display mt-2 text-2xl text-ink">{c.value}</p>
+              <p className="text-numeric mt-2 text-2xl text-ink">{c.value}</p>
             </div>
           ))}
         </div>

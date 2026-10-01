@@ -311,9 +311,9 @@ export function VideoGallery({
     <div className={selecting ? 'space-y-3 pb-24' : 'space-y-3'}>
       <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
         <p className="text-sm font-bold text-ink">
-          투구 기록 <span className="text-display text-base">{recordCount}</span>건
+          투구 기록 <span className="text-numeric text-base">{recordCount}</span>건
           <span className="font-normal text-muted">
-            {' · '}영상 <span className="text-display text-base">{videoCount}</span>개
+            {' · '}영상 <span className="text-numeric text-base">{videoCount}</span>개
           </span>
         </p>
         {videoCount >= 2 && (
@@ -367,7 +367,7 @@ export function VideoGallery({
           >
             {c.label}
             <span
-              className={`text-display text-[13px] leading-none ${
+              className={`text-numeric text-[13px] leading-none ${
                 filter === c.key ? 'text-sky-strong' : 'text-line-strong'
               }`}
             >
@@ -410,7 +410,7 @@ export function VideoGallery({
               <span className="text-sm font-bold text-ink">
                 {spokenMonth(group.month)}
               </span>
-              <span className="text-display text-sm leading-none text-muted">
+              <span className="text-numeric text-sm leading-none text-muted">
                 {group.items.length}
               </span>
             </button>
@@ -436,7 +436,7 @@ export function VideoGallery({
                               : intensityClass(clip.intensity)
                           }`}
                         >
-                          <span className="text-display text-3xl leading-none">
+                          <span className="text-numeric text-3xl leading-none">
                             {clip.rest ? '휴식' : `${clip.pitchCount}구`}
                           </span>
                           {!clip.rest && (

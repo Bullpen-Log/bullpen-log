@@ -510,11 +510,11 @@ export default async function TrainingPage({
                   운동을 빼도 "약 50분"이 그대로 남으면 안 된다. 홈도 같은
                   값을 쓴다(lib/report/today-data.ts).
                 */}
-                  <span className="text-display text-base text-ink">
+                  <span className="text-numeric text-base text-ink">
                     {exercises.length}
                   </span>
                   종목 · 약{' '}
-                  <span className="text-display text-base text-ink">
+                  <span className="text-numeric text-base text-ink">
                     {core.shownMinutes}
                   </span>
                   분

@@ -71,7 +71,7 @@ function DayRow({ day }: { day: DayPlan }) {
       {day.throwing ? (
         <span className="flex items-baseline gap-1.5">
           <Sun className="h-3.5 w-3.5 self-center text-sky" />
-          <span className="text-display text-xl leading-none text-sky tabular-nums">
+          <span className="text-numeric text-xl leading-none text-sky tabular-nums">
             {pitchRangeText(day)}
           </span>
           <span className="mx-1 text-line-strong">·</span>

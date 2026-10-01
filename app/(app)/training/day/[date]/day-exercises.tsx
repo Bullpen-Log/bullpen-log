@@ -71,7 +71,7 @@ export function DayExercises({
 
       {exercises.length > 0 && (
         <p className="px-1 text-sm text-muted">
-          <span className="text-display text-lg text-ink">{doneCount}</span>
+          <span className="text-numeric text-lg text-ink">{doneCount}</span>
           <span className="text-line-strong">/{exercises.length}</span> 마침
         </p>
       )}

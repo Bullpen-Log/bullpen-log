@@ -94,7 +94,7 @@ export function DayRecord({
             내지 말고 투구수를 대신 크게 보여준다 — 그날 한 일이 없어 보이면
             기록을 남길 마음이 안 든다.
           */}
-            <p className="text-display text-2xl leading-none text-sky">
+            <p className="text-numeric text-2xl leading-none text-sky">
               {rested ? (
                 <span className="text-muted">쉬는 날</span>
               ) : log.maxVelocity != null ? (

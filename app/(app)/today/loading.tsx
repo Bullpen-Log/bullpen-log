@@ -1,5 +1,5 @@
 import { Skeleton } from '@/components/fallback';
-import { PageHeading } from '@/components/ui';
+import { PageHeading, todayKicker } from '@/components/ui';
 
 /**
  * 홈을 불러오는 동안.
@@ -12,7 +12,7 @@ import { PageHeading } from '@/components/ui';
 export default function Loading() {
   return (
     <div className="stack-page" aria-busy="true" aria-live="polite">
-      <PageHeading eyebrow="Home" title="홈" />
+      <PageHeading eyebrow="Home" kicker={todayKicker()} title="홈" />
       <span className="sr-only">불러오는 중입니다</span>
       <Skeleton className="h-[26rem] rounded-2xl" />
       <div className="grid gap-block lg:grid-cols-3">

@@ -475,6 +475,19 @@ label {
   letter-spacing: 0.02em;
 }
 
+/*
+ * 숫자 — 애플 피트니스 · 건강의 둥글고 굵은 숫자(SF Pro Rounded)와 고정폭 숫자(2026-10-01 사용자 '애플처럼').
+ * 예전에는 포스터용 좁은 대문자체(Bebas, text-display)라 한글 문장 사이에서 크기 · 기준선이 따로 놀았다.
+ * ui-rounded 는 아이폰 · 맥에서 SF Pro Rounded 를 고르고, 없는 기기(윈도우 · 안드로이드)는 본문 글꼴의 굵은 숫자다.
+ * Bebas 는 로고 · 소개 · 404 와 구속 측정 화면(금윤호 영역)에 남는다.
+ */
+.text-numeric {
+  font-family: ui-rounded, 'SF Pro Rounded', var(--font-sans);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+}
+
 /**
  * 한글 제목.
  *
@@ -803,12 +816,17 @@ input[type='date']::-webkit-calendar-picker-indicator {
 }
 
 /*
- * 쪽 제목 — 모든 탭이 24px 하나(윈도우 Fluent 의 Title 3, 머티리얼 3 의 Headline Small).
- * 예전에는 탭마다 24 · 30 · 32 · 36px 로 달랐다. 굵기 · 자간은 text-heading 이 준다.
+ * 쪽 제목 — PC 는 모든 탭이 24px 하나(윈도우 Fluent 의 Title 3, 머티리얼 3 의 Headline Small), 휴대폰은 32px 큰
+ * 제목(아이폰의 Large Title — 2026-10-01 사용자 '애플처럼'). 예전에는 탭마다 24 · 30 · 32 · 36px 로 달랐다.
+ * 굵기 · 자간은 text-heading 이 준다.
  */
 @utility page-title {
-  font-size: 1.5rem;
-  line-height: 1.25;
+  font-size: 2rem;
+  line-height: 1.15;
+  @media (min-width: 64rem), (min-width: 36rem) and (hover: hover) and (pointer: fine) {
+    font-size: 1.5rem;
+    line-height: 1.25;
+  }
 }
 
 /* 새로 온 것이 조용히 나타난다 — 프로필 사진처럼 자리가 이미 잡혀 있는 곳에 쓴다 */
@@ -1988,6 +2006,22 @@ html[data-app='native'] body:not(:has([data-safe-area]))::before {
   .popup-slot:has(> [aria-busy])::before {
     animation: none;
     background-size: 100% 100%;
+  }
+}
+
+/*
+ * 휴대폰의 카드는 테두리 없이 흰 면만 — 아이폰(설정 · 건강 · 앱스토어)처럼 회색 바탕과의 밝기 차이로 나눈다
+ * (2026-10-01 사용자 "애플처럼 깔끔하게" · 점검: 테두리 515곳 대 그림자 48곳이라 서류처럼 딱딱했다).
+ * 카드 모양(둥근 2xl + border-line + bg-surface)은 Card 와 손으로 만든 것 60여 곳이 같아서, 화면 코드를 하나하나
+ * 고치지 않고 이 규칙 하나로 테두리 색만 투명하게 한다(두께는 남겨 자리가 1px 도 안 움직인다). @layer 밖이라 border-line
+ * 유틸보다 세다. PC 는 예전 테두리 그대로. 다크는 카드 #1c1c1e 가 검정 바탕에서 떠 보인다.
+ */
+.rounded-2xl.border-line.bg-surface {
+  border-color: transparent;
+}
+@media (min-width: 64rem), (min-width: 36rem) and (hover: hover) and (pointer: fine) {
+  .rounded-2xl.border-line.bg-surface {
+    border-color: var(--color-line);
   }
 }
 

@@ -4,7 +4,7 @@ import { requireUser } from '@/lib/dal';
 import { loadTodayCore } from '@/lib/report/today-data';
 import { hasPain, pickCheckinParts } from '@/lib/checkin';
 import { toDateKey } from '@/lib/pitch-stats';
-import { Card, PageHeading } from '@/components/ui';
+import { Card, PageHeading, todayKicker } from '@/components/ui';
 import { Skeleton } from '@/components/fallback';
 import { trainingLoad } from '@/lib/report/training-acwr';
 import { planSummaries, trainingSummaries } from '@/lib/report/training-history';
@@ -82,7 +82,7 @@ export default async function HomePage({
         매일 여는 화면에서 같은 인사를 읽을 까닭이 없어 인사와 안내는 뺐다. 제목은
         loading.tsx 도 똑같이 그려, 불러오는 동안과 다 온 뒤에 자리가 바뀌지 않는다.
       */}
-      <PageHeading eyebrow="Home" title="홈" />
+      <PageHeading eyebrow="Home" kicker={todayKicker()} title="홈" />
 
       {/*
         달력이 맨 앞이다.

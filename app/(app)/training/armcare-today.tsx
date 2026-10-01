@@ -111,11 +111,11 @@ export function ArmcareToday({
         <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
           <p className="text-heading text-xl text-ink">오늘의 {label}</p>
           <p className="text-sm text-muted">
-            <span className="text-display text-base text-ink">
+            <span className="text-numeric text-base text-ink">
               {routine.items.length}
             </span>
             개 · 약{' '}
-            <span className="text-display text-base text-ink">
+            <span className="text-numeric text-base text-ink">
               {routine.estimatedMinutes}
             </span>
             분
@@ -200,7 +200,7 @@ export function WeekDots({ week }: { week: { key: string; done: boolean }[] }) {
       <p className="flex items-baseline justify-between text-sm">
         <span className="font-semibold text-ink">이번 주 암케어</span>
         <span className="text-muted">
-          <b className="text-display text-base text-ink tabular-nums">{days}</b>/7일
+          <b className="text-numeric text-base text-ink tabular-nums">{days}</b>/7일
         </span>
       </p>
       <ol
@@ -336,7 +336,7 @@ export function Checklist({
       <div className="rounded-2xl border border-line bg-surface p-(--block-pad)">
         <div className="flex items-baseline justify-between gap-3">
           <p className="text-sm font-bold text-ink">
-            <span className="text-display text-lg">{doneCount}</span>
+            <span className="text-numeric text-lg">{doneCount}</span>
             <span className="text-muted">/{items.length}</span> 완료
           </p>
           {allDone && (

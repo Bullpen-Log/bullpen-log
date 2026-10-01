@@ -34,7 +34,7 @@ function ZoneLine({
       {ratio != null && z ? (
         <>
           <span
-            className={`text-display text-xl leading-none tabular-nums ${TONE[z.tone].text}`}
+            className={`text-numeric text-xl leading-none tabular-nums ${TONE[z.tone].text}`}
           >
             {ratio.toFixed(2)}
           </span>
@@ -114,7 +114,7 @@ export function SummaryPanel({
             <dd className="text-ink">
               {week.pitches > 0 ? (
                 <>
-                  <span className="text-display text-xl leading-none">
+                  <span className="text-numeric text-xl leading-none">
                     {week.pitches}
                   </span>
                   구
@@ -132,7 +132,7 @@ export function SummaryPanel({
             <dd className="text-ink">
               {week.workoutDays > 0 ? (
                 <>
-                  <span className="text-display text-xl leading-none">
+                  <span className="text-numeric text-xl leading-none">
                     {week.workoutDays}
                   </span>
                   일

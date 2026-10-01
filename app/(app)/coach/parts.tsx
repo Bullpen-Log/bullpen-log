@@ -66,7 +66,7 @@ export function StatCard({
       />
       <p className="text-[11px] font-medium tracking-normal text-muted">{label}</p>
       <p className="mt-3 flex items-baseline gap-1.5">
-        <span className="text-display text-3xl leading-none text-ink tabular-nums sm:text-4xl">
+        <span className="text-numeric text-3xl leading-none text-ink tabular-nums sm:text-4xl">
           {value}
         </span>
         {unit && <span className="text-xs text-muted">{unit}</span>}

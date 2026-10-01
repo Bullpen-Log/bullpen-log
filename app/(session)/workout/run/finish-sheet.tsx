@@ -131,7 +131,7 @@ export function FinishSheet({
                 className="rounded-2xl border border-line bg-surface-2 px-2 py-3 text-center"
               >
                 <p className="text-[11px] text-muted">{n.label}</p>
-                <p className="mt-0.5 text-display text-xl text-ink">
+                <p className="mt-0.5 text-numeric text-xl text-ink">
                   {n.value}
                   <span className="ml-0.5 text-xs font-normal text-muted">
                     {n.unit}

@@ -204,7 +204,7 @@ function Primary({ view }: { view: LoadView }) {
           <div>
             <p className="flex items-baseline gap-2">
               <span
-                className={`text-display text-5xl leading-none tabular-nums sm:text-6xl ${TONE[zone.tone].text}`}
+                className={`text-numeric text-5xl leading-none tabular-nums sm:text-6xl ${TONE[zone.tone].text}`}
               >
                 {view.ratio.toFixed(2)}
               </span>

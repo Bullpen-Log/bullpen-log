@@ -142,7 +142,7 @@ export function LogList({ logs }: { logs: Log[] }) {
           >
             {c.label}
             <span
-              className={`text-display text-[13px] leading-none ${
+              className={`text-numeric text-[13px] leading-none ${
                 filter === c.key ? 'text-sky-strong' : 'text-line-strong'
               }`}
             >
@@ -174,7 +174,7 @@ export function LogList({ logs }: { logs: Log[] }) {
                 <span className="text-[13px] font-semibold text-ink">
                   {spokenMonth(group.month)}
                 </span>
-                <span className="text-display text-sm leading-none text-muted">
+                <span className="text-numeric text-sm leading-none text-muted">
                   {group.items.length}
                 </span>
               </button>

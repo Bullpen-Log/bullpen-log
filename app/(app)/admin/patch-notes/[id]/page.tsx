@@ -78,7 +78,7 @@ export default async function PatchNotePage({
         {stats.map((s) => (
           <div key={s.label} className="bg-surface px-4 py-3">
             <p className="text-[11px] tracking-normal text-muted">{s.label}</p>
-            <p className="text-display mt-1 text-xl text-ink">{s.value}</p>
+            <p className="text-numeric mt-1 text-xl text-ink">{s.value}</p>
           </div>
         ))}
       </div>

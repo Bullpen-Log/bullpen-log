@@ -80,7 +80,7 @@ export function DoneCard({
         ].map((n) => (
           <div key={n.label} className="rounded-xl bg-surface px-2 py-2.5 text-center">
             <p className="text-[11px] text-muted">{n.label}</p>
-            <p className="mt-0.5 text-display text-xl text-ink">
+            <p className="mt-0.5 text-numeric text-xl text-ink">
               {n.value}
               <span className="ml-0.5 text-xs font-normal text-muted">{n.unit}</span>
             </p>

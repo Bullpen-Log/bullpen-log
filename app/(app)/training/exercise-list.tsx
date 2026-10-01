@@ -153,7 +153,7 @@ export function ExerciseChecklist({
       <div className="rounded-2xl border border-line bg-surface p-(--block-pad)">
         <div className="flex items-baseline justify-between gap-3">
           <p className="text-sm font-bold text-ink">
-            오늘 <span className="text-display text-lg">{doneCount}</span>
+            오늘 <span className="text-numeric text-lg">{doneCount}</span>
             <span className="text-muted">/{items.length}</span> 완료
           </p>
           {allDone && (

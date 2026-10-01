@@ -29,13 +29,26 @@ export function Eyebrow({ children }: { children: ReactNode }) {
   );
 }
 
+/** 휴대폰 큰 제목 위에 다는 오늘 날짜 — '10월 1일 수요일'(서울 시각) */
+export function todayKicker(now: Date = new Date()): string {
+  return new Intl.DateTimeFormat('ko-KR', {
+    month: 'long',
+    day: 'numeric',
+    weekday: 'long',
+    timeZone: 'Asia/Seoul',
+  }).format(now);
+}
+
 export function PageHeading({
   eyebrow,
+  kicker,
   title,
   description,
   action,
 }: {
   eyebrow?: string;
+  /** 휴대폰에서 큰 제목 위에 회색 작은 글씨로 — 앱스토어 '투데이' 위의 날짜처럼(예: '10월 1일 수요일') */
+  kicker?: string;
   title: string;
   description?: string;
   action?: ReactNode;
@@ -45,10 +58,18 @@ export function PageHeading({
      * 제목 묶음은 한 화면의 머리일 뿐이라 낮게 둔다. 예전에는 글자 2.5rem · 밑 여백 2rem 으로
      * 150px 가까이 차지해, 화면마다 본문이 그만큼 밑으로 밀려 스크롤이 늘었다.
      */
-    /* 제목 글자는 모든 탭이 같은 page-title(24px, globals.css). PC 는 모든 탭 · 모든 높이에서 같은 낮은 머리 */
-    <div className="flex flex-col gap-4 border-b border-line pb-5 sm:flex-row sm:items-end sm:justify-between desk:pb-4">
-      <div className="space-y-2 desk:space-y-1">
-        {eyebrow && <Eyebrow>{eyebrow}</Eyebrow>}
+    /*
+     * 제목 글자는 모든 탭이 같은 page-title(globals.css — 휴대폰 32px 큰 제목, PC 24px). PC 는 모든 탭 · 모든 높이에서
+     * 같은 낮은 머리. 휴대폰은 애플의 큰 제목처럼 영어 머리글 · 밑줄 없이 제목 하나(2026-10-01 '애플처럼').
+     */
+    <div className="flex flex-col gap-4 pb-1 sm:flex-row sm:items-end sm:justify-between desk:border-b desk:border-line desk:pb-4">
+      <div className="space-y-1">
+        {kicker && <p className="text-sm font-medium text-muted desk:hidden">{kicker}</p>}
+        {eyebrow && (
+          <span className="hidden desk:block">
+            <Eyebrow>{eyebrow}</Eyebrow>
+          </span>
+        )}
         <h1 className="text-heading page-title text-ink">{title}</h1>
         {description && (
           <p className="max-w-2xl break-keep text-sm leading-relaxed text-muted">
@@ -84,11 +105,12 @@ type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'danger';
 const buttonStyles: Record<ButtonVariant, string> = {
   primary:
     'bg-sky text-white hover:bg-sky-strong focus-visible:outline-sky font-semibold',
+  /* 휴대폰은 테두리 없이 옅은 회색 채움(아이폰 단추), PC 는 예전 테두리 상자(2026-10-01 '애플처럼') */
   secondary:
-    'border border-line-strong bg-surface-2 text-ink hover:border-sky hover:text-sky focus-visible:outline-sky',
+    'border border-transparent bg-ink/6 text-ink hover:text-sky focus-visible:outline-sky desk:border-line-strong desk:bg-surface-2 desk:hover:border-sky',
   ghost: 'text-muted hover:text-ink focus-visible:outline-line-strong',
   danger:
-    'border border-danger-line bg-danger-bg text-danger hover:border-danger focus-visible:outline-danger',
+    'border border-transparent bg-danger-bg text-danger focus-visible:outline-danger desk:border-danger-line desk:hover:border-danger',
 };
 
 /* 휴대폰은 알약 모양(아이폰 iOS 26 의 단추처럼, 2026-10-01 사용자 "동글동글") · PC 는 예전 모서리 */
@@ -156,7 +178,7 @@ export function Badge({
   return (
     <span
       className={cn(
-        'inline-flex items-center rounded-full border border-line-strong px-3 py-1 text-xs text-muted',
+        'inline-flex items-center rounded-full border border-transparent bg-ink/6 px-3 py-1 text-xs text-muted desk:border-line-strong desk:bg-transparent',
         className
       )}
     >

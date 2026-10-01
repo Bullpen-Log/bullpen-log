@@ -40,7 +40,7 @@ function WeekRow({ week, busiest }: { week: ReviewWeek; busiest: number }) {
           <span className="ml-auto text-xs text-muted/60">쉬었습니다</span>
         ) : (
           <span className="ml-auto flex items-baseline gap-1.5">
-            <span className="text-display text-lg leading-none text-ink tabular-nums">
+            <span className="text-numeric text-lg leading-none text-ink tabular-nums">
               {week.days}
             </span>
             <span className="text-xs text-muted">일</span>
@@ -161,7 +161,7 @@ function PitchTraining({
           >
             <p className="text-[11px] text-muted">{c.label}</p>
             <p
-              className={`text-display mt-0.5 text-xl leading-none tabular-nums ${
+              className={`text-numeric mt-0.5 text-xl leading-none tabular-nums ${
                 c.alert ? 'text-warn' : 'text-ink'
               }`}
             >

@@ -724,7 +724,7 @@ function Countdown({ clock, label }: { clock: Clock; label: string }) {
     <>
       <div className="flex items-baseline justify-between">
         <span className="text-sm font-semibold text-muted">{label}</span>
-        <span className="text-display text-4xl tabular-nums text-ink">{clockText(left)}</span>
+        <span className="text-numeric text-4xl tabular-nums text-ink">{clockText(left)}</span>
       </div>
       <div className="h-2 overflow-hidden rounded-full bg-surface-2">
         <div

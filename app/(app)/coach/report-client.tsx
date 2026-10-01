@@ -92,7 +92,7 @@ function MetricRow({
     <div className="flex items-baseline justify-between gap-3 border-b border-line py-3 last:border-b-0">
       <span className="text-sm text-muted">{label}</span>
       <span className="flex items-baseline gap-2">
-        <span className="text-display text-2xl tabular-nums text-ink">
+        <span className="text-numeric text-2xl tabular-nums text-ink">
           {value}
           {unit && <span className="ml-1 text-xs text-muted">{unit}</span>}
         </span>

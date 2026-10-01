@@ -201,7 +201,7 @@ export function AddExercise({
                 보는 중'이라는 뜻을 대신한다.
               */}
               즐겨찾기
-              <span className="text-display text-sm leading-none">{favoriteCount}</span>
+              <span className="text-numeric text-sm leading-none">{favoriteCount}</span>
             </button>
           )}
 

@@ -607,7 +607,7 @@ function MonthJump({
         aria-haspopup="true"
         aria-expanded={open}
         aria-label={`${currentYear}년 ${currentMonth + 1}월, 달 고르기`}
-        className="text-display rounded-lg text-2xl text-ink transition-colors hover:text-sky"
+        className="text-numeric rounded-lg text-2xl text-ink transition-colors hover:text-sky"
       >
         {/*
           제목도 캘린더와 같은 쪽에서 살짝 밀려 들어온다. 칸만 움직이고 제목이

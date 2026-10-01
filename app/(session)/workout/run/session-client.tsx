@@ -1039,7 +1039,7 @@ export function SessionClient({
             */}
             <p
               suppressHydrationWarning
-              className="text-display text-3xl leading-none tabular-nums text-white"
+              className="text-numeric text-3xl leading-none tabular-nums text-white"
             >
               {clockText(rest)}
             </p>

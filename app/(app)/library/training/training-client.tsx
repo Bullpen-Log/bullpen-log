@@ -528,7 +528,7 @@ export function TrainingClient({
             />
             즐겨찾기
             {favoriteCount > 0 && (
-              <span className="text-display text-sm leading-none">{favoriteCount}</span>
+              <span className="text-numeric text-sm leading-none">{favoriteCount}</span>
             )}
           </button>
           <span className="text-xs text-muted">
