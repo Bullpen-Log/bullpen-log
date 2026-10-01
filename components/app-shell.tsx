@@ -2365,8 +2365,11 @@ function MobileTabs({
       data-mobile-tabs
       className="pointer-events-none fixed inset-x-0 bottom-0 z-50 px-5 pb-(--tab-bar-gap) desk:hidden"
     >
-      {/* 알약만 누를 수 있다 — 양옆 빈 곳을 누르면 밑의 본문으로 간다. 뒤의 본문이 비치는 옅은 유리(앱스토어처럼 많이 비친다) */}
-      <div className="pointer-events-auto mx-auto flex max-w-md rounded-full border border-line/60 bg-surface/70 p-1 shadow-[0_8px_32px_-12px_rgba(15,23,42,0.3)] backdrop-blur-2xl backdrop-saturate-150">
+      {/*
+        알약만 누를 수 있다 — 양옆 빈 곳을 누르면 밑의 본문으로 간다. 뒤의 본문이 살짝만 비치는 유리 — 앱스토어를 재 보니
+        바탕이 흰색 약 80%(뒤의 진한 것이 20% 남짓 비침)였고, 70% 일 때 사용자가 "너무 투명하다"고 해 88% 로 올렸다.
+      */}
+      <div className="pointer-events-auto mx-auto flex max-w-md rounded-full border border-line/60 bg-surface/88 p-1 shadow-[0_8px_32px_-12px_rgba(15,23,42,0.3)] backdrop-blur-2xl backdrop-saturate-150">
         {tabs.map((tab) => {
           /*
            * '더보기'는 화면으로 넘어가지 않고 옆에서 사이드바를 연다.
