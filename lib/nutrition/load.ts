@@ -39,6 +39,7 @@ import {
 } from '@/lib/nutrition/weight-goal';
 import { popularFoods } from '@/lib/nutrition/popular';
 import { COMBO_MAX, comboView, type MealComboView } from '@/lib/nutrition/combos';
+import { toDietPrefs, type DietPrefs } from '@/lib/nutrition/diet-prefs';
 
 /**
  * 영양 탭 한 화면에 필요한 것을 한 번에 읽는다.
@@ -60,6 +61,8 @@ export type { WeightPoint };
 export type NutritionDay = {
   date: string;
   profile: ProfileSettings;
+  /** 식단 취향 · 시즌 · 목표 날짜(lib/nutrition/diet-prefs.ts) — 목표 창과 식단 짜기가 읽는다 */
+  prefs: DietPrefs;
   /** 목표를 한 번이라도 저장했나 — 안 했으면 처음 설정을 권한다 */
   hasProfile: boolean;
   targets: Targets;
@@ -516,6 +519,7 @@ export async function loadNutritionDay(
   return {
     date,
     profile,
+    prefs: toDietPrefs(profileRow),
     hasProfile: profileRow !== null,
     targets,
     burnItems,

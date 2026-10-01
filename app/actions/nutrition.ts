@@ -14,6 +14,7 @@ import {
 import { loadNutritionDay, recentWeightKg } from '@/lib/nutrition/load';
 import { ageOn } from '@/lib/nutrition/targets';
 import { STEP_KCAL, checkTargetWeight, planOnSave } from '@/lib/nutrition/weight-goal';
+import { cleanDietPrefs } from '@/lib/nutrition/diet-prefs';
 import {
   COMBO_ITEMS_MAX,
   COMBO_MAX,
@@ -327,6 +328,34 @@ export async function unfavoriteFood(
     return { ok: false, error: '잘못된 요청입니다.' };
   await prisma.userFood.deleteMany({
     where: { userId: user.id, source, sourceId: String(sourceId) },
+  });
+  revalidatePath(PATH);
+  return { ok: true };
+}
+
+/* ─────────────────────────── 식단 취향(lib/nutrition/diet-prefs.ts) ─────────────────────────── */
+
+/**
+ * 식단 취향 · 시즌 단계 · 목표 날짜 저장. 칼로리 계획(목표 · 속도 · 조정)과 따로 저장한다 — 이것을 바꿔도
+ * 체중 흐름을 견주는 계획 시작일(planSince)이 다시 시작되지 않는다.
+ */
+export async function saveDietPrefs(raw: unknown): Promise<NutritionResult> {
+  const user = await getCurrentUser();
+  if (!user) return NEED_LOGIN;
+  const prefs = cleanDietPrefs(raw, toDateKey(new Date()));
+  if (typeof prefs === 'string') return { ok: false, error: prefs };
+  const data = {
+    goalEndDate: prefs.goalEndDate ? dbDate(prefs.goalEndDate) : null,
+    seasonPhase: prefs.seasonPhase,
+    dietStyle: prefs.dietStyle,
+    mealPattern: prefs.mealPattern,
+    avoidFoods: prefs.avoid,
+    allowSupplements: prefs.supplements,
+  };
+  await prisma.nutritionProfile.upsert({
+    where: { userId: user.id },
+    update: data,
+    create: { userId: user.id, ...data },
   });
   revalidatePath(PATH);
   return { ok: true };
