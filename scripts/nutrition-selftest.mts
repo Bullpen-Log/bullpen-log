@@ -2099,6 +2099,33 @@ console.log('\n■ 체중 목표와 조정');
   );
 }
 
+console.log('\n■ 단백질 직접 정하기');
+{
+  const auto = computeTargets({ ...DEFAULT_PROFILE }, body, 0);
+  const manual = computeTargets({ ...DEFAULT_PROFILE, proteinTargetG: 160 }, body, 0);
+  check(
+    '직접 정한 g 이 하루 단백질이 된다(계산값은 따로 남는다)',
+    manual.protein === 160 &&
+      manual.proteinManual &&
+      manual.proteinAuto === auto.protein &&
+      !auto.proteinManual,
+    `${auto.protein} → ${manual.protein}`
+  );
+  check(
+    '칼로리는 그대로, 늘어난 단백질만큼 탄수화물이 준다(지방은 칼로리 비율)',
+    manual.kcal === auto.kcal &&
+      manual.fat === auto.fat &&
+      manual.carbs ===
+        Math.max(0, Math.round((auto.kcal - 160 * 4 - auto.fat * 9) / 4)),
+    `탄 ${auto.carbs} → ${manual.carbs}`
+  );
+  check(
+    '소수는 반올림',
+    computeTargets({ ...DEFAULT_PROFILE, proteinTargetG: 120.6 }, body, 0).protein ===
+      121
+  );
+}
+
 console.log('\n■ 끼니별 단백질(로드맵 5번)');
 {
   check(

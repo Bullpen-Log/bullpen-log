@@ -29,7 +29,7 @@ import {
  *
  * 영양소는 단백질 → 지방 → 탄수화물 차례로 정한다.
  *   단백질    체중 × 1kg 당 g (기본 성인 1.8 · 성장기 1.5 · 어린이 1.2g). 가장 먼저,
- *             칼로리와 상관없이 챙길 것.
+ *             칼로리와 상관없이 챙길 것. 하루 g 을 직접 정했으면 그 값(proteinTargetG).
  *   지방      오늘 목표의 25%. 다만 체중 1kg 당 0.8g 아래로는 내리지 않는다.
  *   탄수화물  남은 칼로리 전부. 그래서 운동·투구를 많이 한 날은 탄수화물이
  *             저절로 늘어난다 — 던지는 날 먹어야 할 것이 바로 탄수화물이다.
@@ -46,6 +46,8 @@ export type ProfileSettings = {
   proteinPerKg: number | null;
   /** 직접 정한 운동 전 하루 칼로리 */
   kcalTarget: number | null;
+  /** 직접 정한 하루 단백질(g). null 은 체중 × 1kg 당 g 으로 계산 */
+  proteinTargetG: number | null;
   /*
    * ── 체중 목표(영양 로드맵 4번). 넷 다 null 이면 목표 숫자는 이 칸들이 생기기 전과 똑같다 ──
    */
@@ -64,6 +66,7 @@ export const DEFAULT_PROFILE: ProfileSettings = {
   activity: 'mid',
   proteinPerKg: null,
   kcalTarget: null,
+  proteinTargetG: null,
   targetWeightKg: null,
   weeklyRateKg: null,
   kcalAdjust: null,
@@ -109,6 +112,10 @@ export type Targets = {
   ageBand: AgeBand;
   /** 계산에 쓴 단백질(체중 1kg 당) — 나이 범위로 당긴 값 */
   proteinPerKg: number;
+  /** 계산으로 나온 하루 단백질(g) — 직접 정했어도 셈해 둔다(목표 창이 옆에 보여 준다) */
+  proteinAuto: number;
+  /** 하루 단백질을 직접 정했나 */
+  proteinManual: boolean;
   /** 계산에 쓴 목표 — 어린이의 감량은 유지로 셈한다 */
   goal: GoalKey;
   /** 목표에서 온 하루 kcal(부호 있음) — 증량 +300 · 감량 −400 처럼. 직접 정한 날에도 셈해 둔다 */
@@ -181,7 +188,9 @@ export function computeTargets(
   const burn = Math.max(0, Math.round(burnKcal));
   const kcal = base + burn;
 
-  const protein = Math.round(proteinPerKg * weightKg);
+  const proteinAuto = Math.round(proteinPerKg * weightKg);
+  const proteinManual = profile.proteinTargetG !== null;
+  const protein = Math.round(profile.proteinTargetG ?? proteinAuto);
   const fat = Math.round(Math.max((kcal * 0.25) / 9, 0.8 * weightKg));
   const carbs = Math.max(0, Math.round((kcal - protein * 4 - fat * 9) / 4));
 
@@ -198,6 +207,8 @@ export function computeTargets(
     manual,
     ageBand: rule.band,
     proteinPerKg,
+    proteinAuto,
+    proteinManual,
     goal,
     delta,
     adjust,

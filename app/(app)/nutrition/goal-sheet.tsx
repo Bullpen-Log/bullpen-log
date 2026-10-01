@@ -8,6 +8,8 @@ import { fromWeight, round1, toWeight, type WeightUnit } from '@/lib/units';
 import {
   ACTIVITIES,
   GOALS,
+  PROTEIN_G_MAX,
+  PROTEIN_G_MIN,
   SEXES,
   kcalText,
   type ActivityKey,
@@ -101,6 +103,11 @@ export function GoalSheet({
   const [kcal, setKcal] = useState(
     profile.kcalTarget ? String(profile.kcalTarget) : ''
   );
+  /* 하루 단백질 직접 정하기 — 칼로리와 같은 모양(스위치 + 숫자 칸) */
+  const [proteinManual, setProteinManual] = useState(profile.proteinTargetG !== null);
+  const [proteinG, setProteinG] = useState(
+    profile.proteinTargetG !== null ? String(profile.proteinTargetG) : ''
+  );
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
@@ -130,6 +137,11 @@ export function GoalSheet({
   const kcalNum = Number(kcal);
   const kcalTarget =
     manual && kcal.trim() !== '' && Number.isFinite(kcalNum) ? kcalNum : null;
+  const proteinNum = Number(proteinG);
+  const proteinTargetG =
+    proteinManual && proteinG.trim() !== '' && Number.isFinite(proteinNum)
+      ? proteinNum
+      : null;
 
   const choices = paceChoices(body.age, goal, refKg);
   const pickedRate = effectiveRate(rate, body.age, goal);
@@ -180,13 +192,18 @@ export function GoalSheet({
     activity,
     proteinPerKg: protein,
     kcalTarget,
+    proteinTargetG,
     targetWeightKg: targetSave,
     weeklyRateKg: pickedRate,
     kcalAdjust: planned.kcalAdjust,
     planSince: profile.planSince,
   } satisfies ProfileSettings;
   const preview = computeTargets(draft, body, 0);
-  const auto = computeTargets({ ...draft, kcalTarget: null }, body, 0);
+  const auto = computeTargets(
+    { ...draft, kcalTarget: null, proteinTargetG: null },
+    body,
+    0
+  );
   /* 지금 얹혀 있는 조정(나이 한도로 당긴 값) — 저장하면 사라지는지 알리려고 */
   const savedAdjust = computeTargets(profile, body, 0).adjust;
 
@@ -194,6 +211,15 @@ export function GoalSheet({
     setError(null);
     if (manual && kcalTarget === null) {
       setError('하루 칼로리를 숫자로 적어 주세요.');
+      return;
+    }
+    if (
+      proteinManual &&
+      (proteinTargetG === null ||
+        proteinTargetG < PROTEIN_G_MIN ||
+        proteinTargetG > PROTEIN_G_MAX)
+    ) {
+      setError(`하루 단백질은 ${PROTEIN_G_MIN}~${PROTEIN_G_MAX}g 사이로 적어 주세요.`);
       return;
     }
     if (showPlan && !targetCheck.ok) {
@@ -208,6 +234,7 @@ export function GoalSheet({
           activity,
           proteinPerKg: protein,
           kcalTarget,
+          proteinTargetG,
           targetWeightKg: targetSave,
           /*
            * 고른 그대로 보낸다(null = 기본 속도). 지난 날을 보며 열면 이 창은 그날 나이로 셈하는데, 그 나이로
@@ -393,9 +420,11 @@ export function GoalSheet({
         <Row
           label="단백질 (체중 1kg 당)"
           hint={
-            rule.band === 'adult'
-              ? '선수에게 권하는 범위는 1.6~2.2g 이에요. 감량 중이면 높게 잡으세요.'
-              : `${rule.label} 선수에게 권하는 범위는 ${lo}~${hi}g 이에요. 더 먹는다고 더 자라지 않고, 그만큼 탄수화물 자리가 줄어요.`
+            proteinManual
+              ? '아래에서 하루 단백질을 직접 정했어요 — 그 숫자가 먼저예요.'
+              : rule.band === 'adult'
+                ? '선수에게 권하는 범위는 1.6~2.2g 이에요. 감량 중이면 높게 잡으세요.'
+                : `${rule.label} 선수에게 권하는 범위는 ${lo}~${hi}g 이에요. 더 먹는다고 더 자라지 않고, 그만큼 탄수화물 자리가 줄어요.`
           }
         >
           <Segmented
@@ -445,6 +474,50 @@ export function GoalSheet({
                   className="h-12 w-32 rounded-xl border border-line bg-surface-2 px-3 text-right text-base tabular-nums text-ink transition-colors focus:border-sky focus:outline-none"
                 />
                 kcal (운동 전) — 계산으로는 {kcalText(auto.base)}
+              </label>
+            </div>
+          </div>
+
+          {/* 하루 단백질 직접 정하기 — 칼로리 스위치와 같은 모양. 계산값은 옆에 그대로 보인다 */}
+          <label className="flex min-h-12 cursor-pointer items-center gap-3 rounded-xl border border-line bg-surface-2 px-4 py-3 text-sm text-ink transition-colors hover:border-sky-soft">
+            <span className="min-w-0 flex-1">하루 단백질을 직접 정하기</span>
+            <input
+              type="checkbox"
+              role="switch"
+              checked={proteinManual}
+              onChange={(e) => {
+                setProteinManual(e.target.checked);
+                /* 처음 켜면 계산값을 넣어 두고 거기서 고치게 — 빈칸에서 시작하면 얼마가 적당한지 모른다 */
+                if (e.target.checked && proteinG.trim() === '') {
+                  setProteinG(
+                    String(
+                      Math.min(PROTEIN_G_MAX, Math.max(PROTEIN_G_MIN, auto.proteinAuto))
+                    )
+                  );
+                }
+              }}
+              className="peer sr-only"
+            />
+            <span
+              aria-hidden
+              className="relative h-7 w-12 shrink-0 rounded-full bg-line-strong transition-colors duration-200 peer-checked:bg-sky peer-focus-visible:ring-2 peer-focus-visible:ring-sky peer-focus-visible:ring-offset-2 peer-focus-visible:ring-offset-surface after:absolute after:left-1 after:top-1 after:h-5 after:w-5 after:rounded-full after:bg-white after:shadow after:transition-transform after:duration-200 after:ease-[cubic-bezier(0.22,1,0.36,1)] peer-checked:after:translate-x-5"
+            />
+          </label>
+          <div
+            className={`grid transition-[grid-template-rows] duration-200 ease-out ${
+              proteinManual ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'
+            }`}
+          >
+            <div className="min-h-0 overflow-hidden" inert={!proteinManual}>
+              <label className="flex flex-wrap items-center gap-2 pt-2 text-sm text-muted">
+                <input
+                  inputMode="numeric"
+                  value={proteinG}
+                  onChange={(e) => setProteinG(e.target.value.replace(/[^\d]/g, ''))}
+                  placeholder={String(auto.proteinAuto)}
+                  className="h-12 w-32 rounded-xl border border-line bg-surface-2 px-3 text-right text-base tabular-nums text-ink transition-colors focus:border-sky focus:outline-none"
+                />
+                g — 계산으로는 {auto.proteinAuto}g (체중 × {protein.toFixed(1)}g)
               </label>
             </div>
           </div>

@@ -78,6 +78,12 @@ export { SEXES, isSex, type Sex } from '@/lib/profile';
 /** 체중 1kg 당 단백질(g)로 저장할 수 있는 범위. 나이마다 고르는 칸은 lib/nutrition/age.ts */
 export const PROTEIN_MIN = 1.2;
 export const PROTEIN_MAX = 2.5;
+/**
+ * 직접 정하는 하루 단백질(g)의 범위 — 계산값이 늘 이 안에 들게 넓게 둔다: 가장 가벼운 어린이(20kg × 1.2g = 24g)부터
+ * 가장 무거운 성인(200kg × 2.2g = 440g)까지. 좁히면 앱이 미리 채운 계산값이 저장에서 막힌다.
+ */
+export const PROTEIN_G_MIN = 10;
+export const PROTEIN_G_MAX = 450;
 
 /**
  * 먹은 양(인분). 버튼으로는 ¼ 인분씩 오르내리지만, 그램으로 적으면 더 잘게

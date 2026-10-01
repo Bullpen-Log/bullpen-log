@@ -28,6 +28,8 @@ import {
   FOOD_NAME_MAX,
   KCAL_MAX,
   MACRO_MAX,
+  PROTEIN_G_MAX,
+  PROTEIN_G_MIN,
   PROTEIN_MAX,
   PROTEIN_MIN,
   isActivityKey,
@@ -436,6 +438,8 @@ export type ProfileInput = {
   activity: string;
   proteinPerKg: number;
   kcalTarget: number | null;
+  /** 직접 정한 하루 단백질(g). null 은 계산으로. 배포 전에 열어 둔 화면은 안 보낸다(undefined → 저장된 값 그대로) */
+  proteinTargetG?: number | null;
   /*
    * 체중 목표(lib/nutrition/weight-goal.ts). 배포 전에 열어 둔 화면은 이 칸들을 안 보낸다(undefined) —
    * 그때는 목표가 그대로면 저장된 값을 두고, 목표를 바꿨으면 비운다.
@@ -480,6 +484,21 @@ export async function saveNutritionProfile(
       return { ok: false, error: '하루 칼로리는 1,000~6,000 사이로 적어 주세요.' };
     }
     kcalTarget = Math.round(input.kcalTarget);
+  }
+  let proteinTargetG: number | null | undefined = undefined;
+  if (input.proteinTargetG === null) proteinTargetG = null;
+  else if (input.proteinTargetG !== undefined) {
+    if (
+      !isNum(input.proteinTargetG) ||
+      input.proteinTargetG < PROTEIN_G_MIN ||
+      input.proteinTargetG > PROTEIN_G_MAX
+    ) {
+      return {
+        ok: false,
+        error: `하루 단백질은 ${PROTEIN_G_MIN}~${PROTEIN_G_MAX}g 사이로 적어 주세요.`,
+      };
+    }
+    proteinTargetG = Math.round(input.proteinTargetG);
   }
 
   /* ── 체중 목표: 속도 · 목표 체중은 나이와 지금 체중으로 본다 ── */
@@ -548,6 +567,8 @@ export async function saveNutritionProfile(
     activity: input.activity,
     proteinPerKg: Math.round(input.proteinPerKg * 10) / 10,
     kcalTarget,
+    /* 안 보낸 화면(undefined)은 저장된 값을 건드리지 않는다 */
+    ...(proteinTargetG !== undefined ? { proteinTargetG } : {}),
     targetWeightKg,
     weeklyRateKg,
     kcalAdjust: plan.kcalAdjust,

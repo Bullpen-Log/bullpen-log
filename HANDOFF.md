@@ -11,6 +11,15 @@ Claude 로 작업을 시작하면 저절로 읽힌다. 규칙은 `AGENTS.md` 6�
 
 ---
 
+## 김민에게 — 2026-10-01 · 금윤호(Claude) — DB 칸 · 표 추가(영양 목표 구체화 · 식단 계획)
+
+받은 뒤 할 일: `npx prisma generate` 하고 개발 서버를 다시 켠다. `NutritionProfile` 에 칸 7개(`proteinTargetG` · `goalEndDate` ·
+`seasonPhase` · `dietStyle` · `mealPattern` · `avoidFoods`(빈 배열 기본) · `allowSupplements`(true 기본)), 새 표 `MealPlan`
+(마이그레이션 `20261001140000_nutrition_diet_plan`, 백업 뒤 DB 에 이미 적용 — 모두 추가만이라 네 코드는 그대로 돈다).
+
+- 지금 쓰는 것은 `proteinTargetG`(영양 목표 창 '하루 단백질을 직접 정하기')뿐이다. 나머지는 이어서 만드는 '목표 구체화 · 식단 짜기'용.
+- `ProfileSettings` 에 `proteinTargetG` 가 생겼다 — 캘린더 그날 칸(`lib/day-detail.ts`)은 `toProfile` 을 거쳐 고칠 것 없이 같은 목표가 나온다.
+
 ## 김민에게 — 2026-10-01 · 금윤호(Claude) — DB 표 추가(MealCombo) · 영양 탭 자주 먹는 조합
 
 받은 뒤 할 일: `npx prisma generate` 하고 개발 서버를 다시 켠다. 새 표 `MealCombo` 하나를 더했다(마이그레이션

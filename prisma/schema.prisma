@@ -109,6 +109,7 @@ model User {
   mealEntries       MealEntry[]
   userFoods         UserFood[]
   mealCombos        MealCombo[]
+  mealPlans         MealPlan[]
   dailyNutrition    DailyNutrition[]
 }
 
@@ -1034,6 +1035,21 @@ model NutritionProfile {
   kcalAdjust   Int?
   /// 지금 칼로리 계획이 시작된 날(목표 · 속도 · 평소 움직임 · 직접 칼로리 · 조정이 바뀐 날). 판정 구간의 시작.
   planSince    DateTime? @db.Date
+  /// 직접 정한 하루 단백질(g). 있으면 체중 × 1kg 당 g 대신 쓴다(지방 · 탄수화물은 그 뒤로 계산).
+  proteinTargetG   Float?
+  /// ── 목표 구체화 · 식단 짜기(lib/nutrition/diet-prefs.ts). 비어 있으면 식단 짜기가 기본값으로 짠다 ──
+  /// 목표 날짜 — 이때까지 목표 체중에 닿고 싶다. 비면 기간 없이 속도로만 본다.
+  goalEndDate      DateTime? @db.Date
+  /// 시즌 단계: 'off' 비시즌 · 'pre' 시즌 준비 · 'in' 시즌 중 · 'rehab' 재활
+  seasonPhase      String?
+  /// 식단 스타일: 'korean' 한식 위주 · 'mixed' 골고루 · 'simple' 간편식 위주
+  dietStyle        String?
+  /// 끼니 구성: '3' 세 끼 · '3+1' 세 끼 + 간식 · '3+2' 세 끼 + 간식 둘 · '2+1' 두 끼 + 간식
+  mealPattern      String?
+  /// 못 먹거나 안 먹는 것 — lib/nutrition/diet-prefs.ts 의 AVOIDS 열쇠
+  avoidFoods       String[]  @default([])
+  /// 단백질 쉐이크 · 바 같은 보충식품을 식단에 넣어도 되나
+  allowSupplements Boolean   @default(true)
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
   user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -1118,6 +1134,23 @@ model MealCombo {
   user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
+}
+
+/// 짜 준 하루 식단(lib/nutrition/meal-plan.ts). 먹은 기록(MealEntry)과 따로 둔다 — 계획은 먹기 전이라 먹은 칼로리 ·
+/// 체중 흐름 판정에 섞이면 안 된다. 계획 줄을 '먹었어요'로 누르면 그때 MealEntry 가 생기고 그 줄은 먹은 것으로 표시된다.
+model MealPlan {
+  id        String   @id @default(uuid())
+  userId    String
+  date      DateTime @db.Date
+  /// 끼니별 음식과 먹었는지 — lib/nutrition/meal-plan.ts 의 PlanItem[]
+  items     Json
+  /// 짤 때 쓴 조건(오늘 장소 · 더위 · 다시 짠 횟수 · 까닭) — lib/nutrition/meal-plan.ts 의 PlanContext
+  context   Json
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, date])
 }
 
 /// 하루의 체중 — 영양 탭에서 적는다.

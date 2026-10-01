@@ -245,13 +245,13 @@
     자주 · 마시는 열량) · 근육통(많이↑면 단백질 · 자기 전 유제품) · 던지는 일정(던지기 전 끼니 탄수화물 · 저지방, 던진 뒤 회복식)만 쓴다.
   - 단계(각 단계 끝에 커밋 + 사용자에게 다음 단계 묻기):
     1. **끝남(a599d7d)** 끼니 '편집' — 줄마다 양 −/+ · 옮기기 · 지우기, '완료'에 한 번에 저장(`editMealEntries`).
-    2. **다음** 칼로리 · 단백질 직접 설정 + DB 칸 한 번에 추가(백업 먼저, 추가만): `NutritionProfile` 에 `proteinTargetG Float?` ·
+    2. **끝남** 칼로리 · 단백질 직접 설정 + DB 칸 한 번에 추가(백업 뒤 적용, 마이그레이션 `20261001140000_nutrition_diet_plan`): `NutritionProfile` 에 `proteinTargetG Float?` ·
        `goalEndDate DateTime? @db.Date` · `seasonPhase String?` · `dietStyle String?` · `mealPattern String?` ·
        `avoidFoods String[] @default([])` · `allowSupplements Boolean @default(true)`, 새 표 `MealPlan`(userId · date 유일 · items Json ·
        context Json). `ProfileSettings` 에는 proteinTargetG 만(computeTargets: 있으면 그 g, 지방 · 탄수화물은 그 뒤로 계산), 나머지는
        `DietPrefs`(새 파일) → `NutritionDay.prefs`. `toProfile`(day-detail.ts 도 씀)은 새 칸이 없는 줄도 받게. 목표 창에 '하루 단백질을
-       직접 정하기' 스위치(칼로리 스위치 옆, 30~350g, 계산값을 placeholder 로).
-    3. 목표 구체화 — 목표 창을 [목표 | 식단 취향] 두 칸으로. 목표 체중 밑 '언제까지'(없음 · 4 · 8 · 12 · 16 · 24주 → goalEndDate,
+       직접 정하기' 스위치(칼로리 스위치 옆, 10~450g — 계산값이 늘 범위 안, 켜면 계산값을 미리 채움).
+    3. **다음** 목표 구체화 — 목표 창을 [목표 | 식단 취향] 두 칸으로. 목표 체중 밑 '언제까지'(없음 · 4 · 8 · 12 · 16 · 24주 → goalEndDate,
        필요한 속도를 계산해 고를 수 있는 속도 중 맞는 것을 고르고, 안전 한도를 넘으면 "약 N주 걸려요"). 식단 취향: 시즌 단계 · 스타일
        (한식 위주 · 골고루 · 간편식 위주) · 끼니 구성(세 끼 · +간식 · +간식 둘 · 두 끼+간식) · 못 먹는 것(유제품 · 달걀 · 해산물 ·
        돼지고기 · 소고기 · 닭고기 · 밀가루 · 견과류 · 매운 것) · 보충식품(쉐이크 · 바) 넣기.

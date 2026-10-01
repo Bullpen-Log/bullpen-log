@@ -132,6 +132,8 @@ export function toProfile(
     activity: string;
     proteinPerKg: number;
     kcalTarget: number | null;
+    /* 직접 정한 단백질 — 이 칸이 생기기 전의 줄 모양도 받는다 */
+    proteinTargetG?: number | null;
     /* 체중 목표의 네 칸 — 이 칸들이 생기기 전의 줄 모양도 받는다(없으면 비어 있는 것과 같다) */
     targetWeightKg?: number | null;
     weeklyRateKg?: number | null;
@@ -146,6 +148,7 @@ export function toProfile(
     activity: isActivityKey(row.activity) ? row.activity : DEFAULT_PROFILE.activity,
     proteinPerKg: row.proteinPerKg,
     kcalTarget: row.kcalTarget,
+    proteinTargetG: row.proteinTargetG ?? null,
     targetWeightKg: row.targetWeightKg ?? null,
     weeklyRateKg: row.weeklyRateKg ?? null,
     kcalAdjust: row.kcalAdjust ?? null,
