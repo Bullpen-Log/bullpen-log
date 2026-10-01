@@ -157,7 +157,7 @@ function ComparePane({
             onClick={() => onShapes((prev) => prev.slice(0, -1))}
             disabled={shapes.length === 0}
             aria-label={`${side}면 되돌리기`}
-            className="ml-auto flex h-8 w-8 items-center justify-center rounded-lg border border-line text-muted transition-colors hover:border-sky hover:text-sky disabled:opacity-40"
+            className="ml-auto flex h-11 w-11 items-center justify-center rounded-lg border border-line text-muted transition-colors hover:border-sky hover:text-sky disabled:opacity-40 desk:h-8 desk:w-8"
           >
             <Undo2 className="h-3.5 w-3.5" />
           </button>
@@ -166,7 +166,7 @@ function ComparePane({
             onClick={() => onShapes(() => [])}
             disabled={shapes.length === 0}
             aria-label={`${side}면 전체 지우기`}
-            className="flex h-8 w-8 items-center justify-center rounded-lg border border-line text-muted transition-colors hover:border-red-400 hover:text-red-600 disabled:opacity-40"
+            className="flex h-11 w-11 items-center justify-center rounded-lg border border-line text-muted transition-colors hover:border-red-400 hover:text-red-600 disabled:opacity-40 desk:h-8 desk:w-8"
           >
             <Eraser className="h-3.5 w-3.5" />
           </button>

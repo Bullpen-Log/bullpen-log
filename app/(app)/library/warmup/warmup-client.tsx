@@ -146,7 +146,7 @@ function Picker({
           type="button"
           onClick={onDone}
           aria-label="닫기"
-          className="rounded-lg p-1 text-muted transition-colors hover:text-ink"
+          className="-m-2 grid h-11 w-11 place-items-center rounded-lg text-muted transition-colors hover:text-ink desk:m-0 desk:h-auto desk:w-auto desk:p-1"
         >
           <X className="h-3.5 w-3.5" />
         </button>
@@ -276,7 +276,7 @@ function RoutineBlock({
                         type="submit"
                         disabled={off}
                         aria-label={`${item.title} ${label}`}
-                        className="rounded-md p-1.5 text-muted transition-colors hover:text-sky disabled:opacity-30"
+                        className="grid h-11 w-11 place-items-center rounded-md text-muted transition-colors hover:text-sky disabled:opacity-30 desk:h-auto desk:w-auto desk:p-1.5"
                       >
                         <Icon className="h-3.5 w-3.5" />
                       </button>
@@ -288,7 +288,7 @@ function RoutineBlock({
                     <button
                       type="submit"
                       aria-label={`${item.title} 빼기`}
-                      className="rounded-md p-1.5 text-muted transition-colors hover:text-warn"
+                      className="grid h-11 w-11 place-items-center rounded-md text-muted transition-colors hover:text-warn desk:h-auto desk:w-auto desk:p-1.5"
                     >
                       <X className="h-3.5 w-3.5" />
                     </button>

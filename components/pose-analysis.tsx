@@ -750,7 +750,7 @@ export function PoseAnalysis({
             type="button"
             onClick={() => stepFrame(-1)}
             aria-label="이전 프레임"
-            className="rounded-lg border border-line p-1.5 text-muted transition-colors hover:border-sky hover:text-sky"
+            className="grid h-11 w-11 place-items-center rounded-lg border border-line text-muted transition-colors hover:border-sky hover:text-sky desk:h-auto desk:w-auto desk:p-1.5"
           >
             <ChevronLeft className="h-3.5 w-3.5" />
           </button>
@@ -758,7 +758,7 @@ export function PoseAnalysis({
             type="button"
             onClick={() => stepFrame(1)}
             aria-label="다음 프레임"
-            className="rounded-lg border border-line p-1.5 text-muted transition-colors hover:border-sky hover:text-sky"
+            className="grid h-11 w-11 place-items-center rounded-lg border border-line text-muted transition-colors hover:border-sky hover:text-sky desk:h-auto desk:w-auto desk:p-1.5"
           >
             <ChevronRight className="h-3.5 w-3.5" />
           </button>

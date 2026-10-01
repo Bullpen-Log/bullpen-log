@@ -497,7 +497,7 @@ export function TrainingClient({
             type="button"
             onClick={() => setQuery('')}
             aria-label="찾기 지우기"
-            className="shrink-0 rounded p-1 text-muted transition-colors hover:text-ink"
+            className="-mr-2 grid h-11 w-11 shrink-0 place-items-center rounded-full text-muted transition-colors hover:text-ink desk:mr-0 desk:h-auto desk:w-auto desk:rounded desk:p-1"
           >
             <X className="h-3.5 w-3.5" />
           </button>
