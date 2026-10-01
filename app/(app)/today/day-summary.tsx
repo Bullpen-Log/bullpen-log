@@ -244,24 +244,23 @@ export function DaySummary({
 }
 
 /*
- * 아이콘마다 제 색 — 휴대폰 앱처럼 색으로도 무엇인지 알아본다.
+ * 남긴 것은 칠하고 안 남긴 것은 회색 — 색은 하나(sky-strong)다.
  *
- * 밝은 화면: 짙은 바탕에 흰 그림. 어두운 화면: 이 색들이 옅은 색으로 바뀌므로
- * (globals.css 의 dark · navy) 그림은 바탕색(짙은 색)으로 뒤집는다 — text-surface 가
- * 두 경우를 한 번에 맡는다. 투구는 앱의 대표색이지만 sky 는 흰 글씨와 대비가 모자라
- * 한 단계 짙은 sky-strong 을 쓴다.
+ * 예전에는 아이콘마다 제 색(초록 · 주황 · 보라 · 빨강)이었는데, 사용자 규칙 '그림은 색 적게 —
+ * 기본색 하나 + 고른 것만 강조'에 따라 하나로 모았다(2026-10-01 '애플처럼'). 무엇인지는 그림과 이름이
+ * 말하고, 색은 '남겼다'만 말한다.
  *
- * ring: 펴 둔 아이콘의 테두리. 제 색으로 둘러야 어느 것이 펴졌는지 색으로도 이어진다.
- *
- * 영상은 녹화 단추의 빨강(cat-armcare)이다. 보라(cat-core)는 바로 옆 캘린더에서 '분석'
- * 표시의 색이라 같이 쓰면 둘이 섞인다.
+ * 밝은 화면: 짙은 바탕에 흰 그림. 어두운 화면: 색이 옅어지므로(globals.css 의 dark · navy) 그림은
+ * 바탕색으로 뒤집는다 — text-surface 가 두 경우를 한 번에 맡는다. sky 는 흰 글씨와 대비가 모자라
+ * 한 단계 짙은 sky-strong 을 쓴다. ring: 펴 둔 아이콘의 테두리.
  */
+const ONE_TONE = { fill: 'bg-sky-strong', ring: 'ring-sky-strong' };
 const TONES = {
-  pitch: { fill: 'bg-sky-strong', ring: 'ring-sky-strong' },
-  training: { fill: 'bg-cat-lower', ring: 'ring-cat-lower' },
-  nutrition: { fill: 'bg-cat-power', ring: 'ring-cat-power' },
-  checkin: { fill: 'bg-cat-recovery', ring: 'ring-cat-recovery' },
-  video: { fill: 'bg-cat-armcare', ring: 'ring-cat-armcare' },
+  pitch: ONE_TONE,
+  training: ONE_TONE,
+  nutrition: ONE_TONE,
+  checkin: ONE_TONE,
+  video: ONE_TONE,
 } satisfies Record<DayFocus, { fill: string; ring: string }>;
 
 type Row = {

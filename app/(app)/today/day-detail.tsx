@@ -372,9 +372,10 @@ function doneText(e: DayDetail['training']['exercises'][number]) {
 /* ─────────────────────────── 영양 ─────────────────────────── */
 
 const MACROS = [
-  { key: 'carbs', label: '탄수화물', bar: 'bg-cat-power' },
-  { key: 'protein', label: '단백질', bar: 'bg-cat-lower' },
-  { key: 'fat', label: '지방', bar: 'bg-cat-mobility' },
+  /* 색은 하나 — 무엇인지는 이름이 말한다(그림은 색 적게) */
+  { key: 'carbs', label: '탄수화물', bar: 'bg-sky' },
+  { key: 'protein', label: '단백질', bar: 'bg-sky' },
+  { key: 'fat', label: '지방', bar: 'bg-sky' },
 ] as const;
 
 function NutritionDetail({ n }: { n: DayDetail['nutrition'] }) {

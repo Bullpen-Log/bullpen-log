@@ -209,7 +209,7 @@ const METRICS: {
     agg: 'max',
     total: 'max',
     change: 'diff',
-    tone: 'text-cat-power',
+    tone: 'text-sky',
   },
   {
     key: 'condition',
@@ -218,7 +218,7 @@ const METRICS: {
     agg: 'avg',
     total: 'avg',
     change: 'diff',
-    tone: 'text-cat-recovery',
+    tone: 'text-sky',
   },
   {
     key: 'weight',
@@ -227,7 +227,7 @@ const METRICS: {
     agg: 'avg',
     total: 'last',
     change: 'diff',
-    tone: 'text-cat-mobility',
+    tone: 'text-sky',
   },
   {
     key: 'kcal',
@@ -236,7 +236,7 @@ const METRICS: {
     agg: 'avg',
     total: 'avg',
     change: 'pct',
-    tone: 'text-cat-armcare',
+    tone: 'text-sky',
   },
   {
     key: 'training',
@@ -245,7 +245,7 @@ const METRICS: {
     agg: 'sum',
     total: 'sum',
     change: 'pct',
-    tone: 'text-cat-lower',
+    tone: 'text-sky',
   },
 ];
 
