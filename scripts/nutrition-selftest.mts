@@ -63,6 +63,19 @@ import {
 } from '../lib/nutrition/guide.ts';
 import { isNutritionDate } from '../lib/nutrition/days.ts';
 import {
+  COMBO_ITEMS_MAX,
+  COMBO_NAME_MAX,
+  comboMacros,
+  comboSignature,
+  comboView,
+  defaultComboName,
+  findCombo,
+  itemsFromEntries,
+  orderCombos,
+  parseComboItems,
+  type MealComboView,
+} from '../lib/nutrition/combos.ts';
+import {
   MEAL_PROTEIN_RANGE,
   mealProtein,
   mealProteinGoal,
@@ -2201,6 +2214,149 @@ console.log('\n■ 끼니별 단백질(로드맵 5번)');
   check(
     '예시의 단백질은 기본 음식 목록 값과 같다(달걀 2개 = 12.6g → 13g)',
     proteinTip(12)?.label === '달걀 2개' && proteinTip(12)?.protein === 13
+  );
+}
+
+console.log('\n■ 자주 먹는 조합(로드맵 6번)');
+{
+  const e = (
+    name: string,
+    over: Partial<MealEntryView> = {},
+    meal: MealEntryView['meal'] = 'breakfast'
+  ): MealEntryView => ({
+    id: `${name}-${over.amount ?? 1}`,
+    meal,
+    name,
+    source: 'basic',
+    sourceId: name,
+    servingLabel: '1인분',
+    servingGrams: 100,
+    amount: 1,
+    kcal: 100,
+    carbs: 10,
+    protein: 5,
+    fat: 2,
+    ...over,
+  });
+
+  const egg = e('달걀(삶은 것)', { sourceId: 'egg', kcal: 78, protein: 6.3 });
+  const rice = e('쌀밥', { sourceId: 'rice', kcal: 300, protein: 5.5 });
+  const milk = e('우유', { sourceId: 'milk', kcal: 130, protein: 6.5 });
+
+  const items = itemsFromEntries([egg, rice, { ...egg, id: 'egg2', amount: 1 }, milk]);
+  check(
+    '같은 음식 두 줄은 양을 더해 한 줄로 — 달걀 2개 · 쌀밥 · 우유',
+    items.length === 3 && items[0].name === '달걀(삶은 것)' && items[0].amount === 2,
+    items.map((i) => `${i.name}×${i.amount}`).join(', ')
+  );
+  check(
+    '조합 합계 — 78×2 + 300 + 130 = 586kcal, 단백질 24.6g',
+    Math.round(comboMacros(items).kcal) === 586 &&
+      Math.round(comboMacros(items).protein * 10) === 246
+  );
+  check(
+    '기본 이름 — 괄호를 빼고 둘까지, 나머지는 "외 N가지"',
+    defaultComboName(items) === '달걀 · 쌀밥 외 1가지',
+    defaultComboName(items)
+  );
+  check(
+    '두 가지면 "외" 없이',
+    defaultComboName(itemsFromEntries([rice, milk])) === '쌀밥 · 우유'
+  );
+  const long = itemsFromEntries([
+    e('아주아주아주 긴 이름의 프로틴 바나나 쉐이크', { sourceId: 'a' }),
+    e('통곡물 시리얼과 그릭요거트 볼', { sourceId: 'b' }),
+  ]);
+  check(
+    `이름이 길면 ${COMBO_NAME_MAX}자에서 자른다`,
+    defaultComboName(long).length === COMBO_NAME_MAX &&
+      defaultComboName(long).endsWith('…')
+  );
+
+  check(
+    '지문은 담은 차례와 상관없다',
+    comboSignature(itemsFromEntries([egg, rice, milk])) ===
+      comboSignature(itemsFromEntries([milk, egg, rice]))
+  );
+  check(
+    '양이 다르면 다른 조합',
+    comboSignature(itemsFromEntries([egg, rice])) !==
+      comboSignature(itemsFromEntries([{ ...egg, amount: 2 }, rice]))
+  );
+  check(
+    '이름이 같아도 직접 입력의 kcal 이 다르면 다른 음식',
+    itemsFromEntries([
+      e('엄마표 제육', { source: 'free', sourceId: null, kcal: 500 }),
+      e('엄마표 제육', { source: 'free', sourceId: null, kcal: 700 }),
+    ]).length === 2
+  );
+
+  const view = (
+    id: string,
+    list: MealEntryView[],
+    meal: MealComboView['meal'],
+    useCount = 0
+  ): MealComboView => ({ id, name: id, meal, items: itemsFromEntries(list), useCount });
+  const saved = [
+    view('점심 세트', [rice, milk], 'lunch', 9),
+    view('아침 세트', [egg, rice, milk], 'breakfast', 1),
+    view('간식', [milk], 'snack', 3),
+    view('아침 둘째', [egg, milk], 'breakfast', 4),
+  ];
+  check(
+    '같은 조합을 찾는다(차례가 달라도)',
+    findCombo(saved, itemsFromEntries([milk, rice, egg]))?.id === '아침 세트' &&
+      findCombo(saved, itemsFromEntries([egg, rice])) === null &&
+      findCombo(saved, []) === null
+  );
+  check(
+    '차례 — 이 끼니의 조합 먼저(자주 담은 것부터), 그다음 다른 끼니도 자주 담은 것부터',
+    orderCombos(saved, 'breakfast')
+      .map((c) => c.id)
+      .join(',') === '아침 둘째,아침 세트,점심 세트,간식',
+    orderCombos(saved, 'breakfast')
+      .map((c) => c.id)
+      .join(',')
+  );
+
+  const parsed = parseComboItems([
+    { ...items[0] },
+    { source: 'hack', name: 'x', kcal: 1, amount: 1 },
+    { source: 'basic', name: '', kcal: 1, amount: 1 },
+    { source: 'basic', name: '음수', kcal: -5, amount: 1 },
+    { source: 'basic', name: '양 없음', kcal: 5, amount: 0 },
+    {
+      source: 'free',
+      sourceId: 'zzz',
+      name: '직접',
+      kcal: 50,
+      protein: -1,
+      amount: 1.234,
+    },
+    'garbage',
+    null,
+  ]);
+  check(
+    'DB 값을 다시 본다 — 틀린 줄은 버리고, 직접 입력의 열쇠 · 음수 영양소는 비운다',
+    parsed.length === 2 &&
+      parsed[1].sourceId === null &&
+      parsed[1].protein === null &&
+      parsed[1].amount === 1.25,
+    JSON.stringify(parsed[1])
+  );
+  check(
+    `조합의 음식은 ${COMBO_ITEMS_MAX}가지까지`,
+    itemsFromEntries(
+      Array.from({ length: 25 }, (_, i) => e(`음식${i}`, { sourceId: `f${i}` }))
+    ).length === COMBO_ITEMS_MAX &&
+      parseComboItems(Array.from({ length: 25 }, () => items[0])).length ===
+        COMBO_ITEMS_MAX
+  );
+  check(
+    'DB 줄 → 화면 — 음식이 하나도 안 남으면 안 보이고, 모르는 끼니는 null',
+    comboView({ id: 'a', name: 'a', meal: 'brunch', items: [items[0]], useCount: 0 })
+      ?.meal === null &&
+      comboView({ id: 'b', name: 'b', meal: 'lunch', items: 'x', useCount: 0 }) === null
   );
 }
 

@@ -15,6 +15,14 @@ import { loadNutritionDay, recentWeightKg } from '@/lib/nutrition/load';
 import { ageOn } from '@/lib/nutrition/targets';
 import { STEP_KCAL, checkTargetWeight, planOnSave } from '@/lib/nutrition/weight-goal';
 import {
+  COMBO_ITEMS_MAX,
+  COMBO_MAX,
+  COMBO_NAME_MAX,
+  comboSignature,
+  parseComboItems,
+  type ComboItem,
+} from '@/lib/nutrition/combos';
+import {
   AMOUNT_MAX,
   AMOUNT_MIN,
   FOOD_NAME_MAX,
@@ -276,6 +284,99 @@ export async function unfavoriteFood(
     where: { userId: user.id, source, sourceId: String(sourceId) },
   });
   revalidatePath(PATH);
+  return { ok: true };
+}
+
+/* ─────────────────────────── 자주 먹는 조합(lib/nutrition/combos.ts) ─────────────────────────── */
+
+export type ComboResult = { ok: true; id: string } | { ok: false; error: string };
+
+/**
+ * 조합 저장. 음식 값은 담을 때와 같은 검사(cleanFood · cleanAmount)를 거친다.
+ * 같은 조합(음식과 양이 같음)이 이미 있으면 새로 만들지 않고 그것을 돌려준다 — 저장을 두 번 눌러도 하나다.
+ */
+export async function saveMealCombo(input: {
+  name: unknown;
+  meal: unknown;
+  items: unknown;
+}): Promise<ComboResult> {
+  const user = await getCurrentUser();
+  if (!user) return { ok: false, error: '로그인이 필요합니다.' };
+
+  const name = typeof input?.name === 'string' ? input.name.trim() : '';
+  if (!name) return { ok: false, error: '조합 이름을 적어 주세요.' };
+  if (name.length > COMBO_NAME_MAX) {
+    return {
+      ok: false,
+      error: `조합 이름은 ${COMBO_NAME_MAX}자까지 적을 수 있습니다.`,
+    };
+  }
+  const meal = isMealKey(input.meal) ? input.meal : null;
+  const raw = input.items;
+  if (!Array.isArray(raw) || raw.length === 0) {
+    return { ok: false, error: '조합에 넣을 음식이 없습니다.' };
+  }
+  if (raw.length > COMBO_ITEMS_MAX) {
+    return {
+      ok: false,
+      error: `조합에는 음식을 ${COMBO_ITEMS_MAX}가지까지 넣을 수 있습니다.`,
+    };
+  }
+  const items: ComboItem[] = [];
+  for (const r of raw) {
+    const food = cleanFood(r);
+    if (typeof food === 'string') return { ok: false, error: food };
+    const amount = cleanAmount((r as { amount?: unknown } | null)?.amount);
+    if (amount === null) {
+      return {
+        ok: false,
+        error: `양은 ${AMOUNT_MIN}~${AMOUNT_MAX}인분 사이로 적어 주세요.`,
+      };
+    }
+    items.push({ ...food, amount });
+  }
+
+  const existing = await prisma.mealCombo.findMany({
+    where: { userId: user.id },
+    select: { id: true, items: true },
+  });
+  const sig = comboSignature(items);
+  const same = existing.find((c) => comboSignature(parseComboItems(c.items)) === sig);
+  if (same) return { ok: true, id: same.id };
+  if (existing.length >= COMBO_MAX) {
+    return {
+      ok: false,
+      error: `조합은 ${COMBO_MAX}개까지 둘 수 있습니다. 안 쓰는 것을 지워 주세요.`,
+    };
+  }
+
+  const row = await prisma.mealCombo.create({
+    data: { userId: user.id, name, meal, items },
+    select: { id: true },
+  });
+  revalidatePath(PATH);
+  return { ok: true, id: row.id };
+}
+
+export async function deleteMealCombo(id: string): Promise<NutritionResult> {
+  const user = await getCurrentUser();
+  if (!user) return NEED_LOGIN;
+  await prisma.mealCombo.deleteMany({ where: { id: String(id), userId: user.id } });
+  revalidatePath(PATH);
+  return { ok: true };
+}
+
+/**
+ * 조합을 담았다 — 횟수만 센다(자주 담은 것을 위로). 음식은 화면이 addMealEntries 로 따로 담는다.
+ * 화면을 다시 그리지 않는다(revalidatePath 없음) — 담기가 이미 그 일을 하고, 세는 것은 다음에 열 때 보이면 된다.
+ */
+export async function markComboUsed(id: string): Promise<NutritionResult> {
+  const user = await getCurrentUser();
+  if (!user) return NEED_LOGIN;
+  await prisma.mealCombo.updateMany({
+    where: { id: String(id), userId: user.id },
+    data: { useCount: { increment: 1 }, lastUsedAt: new Date() },
+  });
   return { ok: true };
 }
 

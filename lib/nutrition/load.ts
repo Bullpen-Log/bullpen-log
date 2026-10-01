@@ -38,6 +38,7 @@ import {
   type WeightPoint,
 } from '@/lib/nutrition/weight-goal';
 import { popularFoods } from '@/lib/nutrition/popular';
+import { COMBO_MAX, comboView, type MealComboView } from '@/lib/nutrition/combos';
 
 /**
  * 영양 탭 한 화면에 필요한 것을 한 번에 읽는다.
@@ -83,6 +84,8 @@ export type NutritionDay = {
   mine: Food[];
   /** 즐겨찾기한 기본·식약처 음식 — '출처:열쇠' */
   favorites: string[];
+  /** 자주 먹는 조합(lib/nutrition/combos.ts) — 자주 담은 것부터 */
+  combos: MealComboView[];
   /** 전날 먹은 것 — '어제와 같이' 담기에 쓴다 */
   yesterday: MealEntryView[];
   /** 목표 계산에 쓴 몸 정보 — 목표 설정 창이 미리 계산해 보여 준다 */
@@ -223,6 +226,7 @@ export async function loadNutritionDay(
     pitches,
     recentRows,
     foodRows,
+    comboRows,
     popular,
     calendarRows,
     planRows,
@@ -278,6 +282,12 @@ export async function loadNutritionDay(
       where: { userId },
       orderBy: { updatedAt: 'desc' },
       take: 100,
+    }),
+    prisma.mealCombo.findMany({
+      where: { userId },
+      orderBy: [{ useCount: 'desc' }, { createdAt: 'asc' }],
+      take: COMBO_MAX,
+      select: { id: true, name: true, meal: true, items: true, useCount: true },
     }),
     popularFoods(),
     /* 고른 날에서 한 해 앞까지 — 앞날에는 적을 수 없어 끝은 두지 않는다 */
@@ -518,6 +528,7 @@ export async function loadNutritionDay(
     favorites: foodRows
       .filter((f) => f.source !== 'mine' && f.sourceId)
       .map((f) => `${f.source}:${f.sourceId}`),
+    combos: comboRows.map(comboView).filter((c): c is MealComboView => c !== null),
     yesterday,
     body,
     mfds: mfdsEnabled(),

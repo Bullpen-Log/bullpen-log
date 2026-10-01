@@ -108,6 +108,7 @@ model User {
   nutritionProfile  NutritionProfile?
   mealEntries       MealEntry[]
   userFoods         UserFood[]
+  mealCombos        MealCombo[]
   dailyNutrition    DailyNutrition[]
 }
 
@@ -1093,6 +1094,28 @@ model UserFood {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
   user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+/// 자주 먹는 조합 — 여러 음식을 한 묶음으로 저장해 두고 한 번에 담는다(영양 로드맵 6번).
+///
+/// 음식 값은 MealEntry 처럼 찍어 둔다(items). 원래 음식이 고쳐지거나 지워져도 조합은 그대로다.
+/// 줄 모양은 lib/nutrition/combos.ts 의 ComboItem — 읽을 때 그 파일이 하나씩 다시 본다.
+model MealCombo {
+  id         String    @id @default(uuid())
+  userId     String
+  name       String
+  /// 저장한 끼니('breakfast' · 'lunch' · 'dinner' · 'snack') — 그 끼니 창에서 먼저 보인다. 다른 끼니에도 담을 수 있다
+  meal       String?
+  /// 음식들 — [{ source, sourceId, name, servingLabel, servingGrams, kcal, carbs, protein, fat, amount }]
+  items      Json
+  /// 담은 횟수와 마지막으로 담은 때 — 자주 쓰는 조합을 위로
+  useCount   Int       @default(0)
+  lastUsedAt DateTime?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
 }

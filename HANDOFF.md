@@ -11,6 +11,15 @@ Claude 로 작업을 시작하면 저절로 읽힌다. 규칙은 `AGENTS.md` 6�
 
 ---
 
+## 김민에게 — 2026-10-01 · 금윤호(Claude) — DB 표 추가(MealCombo) · 영양 탭 자주 먹는 조합
+
+받은 뒤 할 일: `npx prisma generate` 하고 개발 서버를 다시 켠다. 새 표 `MealCombo` 하나를 더했다(마이그레이션
+`20261001130000_nutrition_meal_combo`, 백업 뒤 DB 에 이미 적용 — 추가만이라 네 코드는 그대로 돈다). `User` 에는 관계 줄
+`mealCombos` 만 붙었다(DB 칸은 안 바뀜).
+
+- 영양 로드맵 6번 — 끼니를 조합으로 저장해 음식 창에서 한 번에 담는다. 계산은 `lib/nutrition/combos.ts`(순수),
+  저장은 `app/actions/nutrition.ts` 의 `saveMealCombo` · `deleteMealCombo` · `markComboUsed`. 네 영역은 안 건드렸다.
+
 ## 김민에게 — 2026-10-01 · 금윤호(Claude) — DB 칸 추가(영양 목표 4칸) · 영양 탭 체중 목표
 
 받은 뒤 할 일: `npx prisma generate`. `NutritionProfile` 에 빈 칸 4개(`targetWeightKg` · `weeklyRateKg` · `kcalAdjust` · `planSince`)를

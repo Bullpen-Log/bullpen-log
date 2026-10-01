@@ -11,8 +11,11 @@ import {
   type CSSProperties,
 } from 'react';
 import {
+  BookmarkPlus,
   Check,
+  ChevronDown,
   History,
+  Layers,
   Minus,
   PencilLine,
   Plus,
@@ -55,9 +58,25 @@ import {
   type RankedFood,
 } from '@/lib/nutrition/meta';
 import {
+  COMBO_NAME_MAX,
+  COMBO_TOP,
+  comboFood,
+  comboMacros,
+  defaultComboName,
+  findCombo,
+  itemsFromEntries,
+  orderCombos,
+  type ComboItem,
+  type MealComboView,
+} from '@/lib/nutrition/combos';
+import {
+  deleteMealCombo,
   deleteUserFood,
+  markComboUsed,
+  saveMealCombo,
   saveUserFood,
   unfavoriteFood,
+  type ComboResult,
   type NutritionResult,
 } from '@/app/actions/nutrition';
 import { OFFLINE_MESSAGE, orOffline } from '@/lib/action-offline';
@@ -68,6 +87,7 @@ import { EASE, toFoodInput, type Origin } from './shared';
  * 통째로 바뀌었다. 실패로 바꿔 알림 한 줄로 보인다(lib/action-offline.ts).
  */
 const OFFLINE: NutritionResult = { ok: false, error: OFFLINE_MESSAGE };
+const OFFLINE_COMBO: ComboResult = { ok: false, error: OFFLINE_MESSAGE };
 
 /**
  * 음식 담기 창 — 끼니 단추를 누르면 뜬다.
@@ -113,6 +133,8 @@ const canFavorite = (f: Food) =>
   (f.source === 'basic' || f.source === 'mfds') && !!f.id;
 /* 직접 입력 칸을 가리키는 이름 — 펴 둔 줄은 한 번에 하나라 줄 이름과 같은 자리를 쓴다 */
 const CUSTOM_KEY = 'custom';
+/* 조합 저장 칸도 같다 */
+const COMBO_SAVE_KEY = 'combo-save';
 
 /**
  * 창 안의 줄들이 함께 쓰는 것.
@@ -147,6 +169,8 @@ export function FoodSheet({
   mine,
   favorites,
   yesterday,
+  combos,
+  current,
   mfds,
   popular,
   onAdd,
@@ -159,6 +183,10 @@ export function FoodSheet({
   mine: Food[];
   favorites: string[];
   yesterday: MealEntryView[];
+  /** 자주 먹는 조합(lib/nutrition/combos.ts) */
+  combos: MealComboView[];
+  /** 지금 이 끼니에 담긴 것 — 담는 대로 늘어난다. '이 끼니를 조합으로 저장'이 읽는다 */
+  current: MealEntryView[];
   mfds: boolean;
   /** 모든 사람이 가장 많이 담은 음식 — 순위대로 */
   popular: RankedFood[];
@@ -179,6 +207,15 @@ export function FoodSheet({
   const [favs, setFavs] = useState(() => new Set(favorites));
   const [gone, setGone] = useState<Set<string>>(() => new Set());
   const [error, setError] = useState<string | null>(null);
+  /*
+   * 조합은 창을 연 때의 차례로 둔다(최근 목록과 같은 까닭 — 담을 때마다 차례가 바뀌면 줄이 밀린다).
+   * 저장 · 지우기만 이 목록에 바로 더하고 뺀다.
+   */
+  const [comboList, setComboList] = useState(() => orderCombos(combos, meal));
+  /* 이 창에서 방금 저장한 조합의 이름 — 저장 줄이 '저장했어요'로 바뀐다 */
+  const [savedName, setSavedName] = useState<string | null>(null);
+  const currentItems = useMemo(() => itemsFromEntries(current), [current]);
+  const savedCurrent = findCombo(comboList, currentItems);
 
   const q = query.trim();
 
@@ -294,6 +331,55 @@ export function FoodSheet({
   }
 
   const [, startTransition] = useTransition();
+
+  /* 조합 담기 — 음식은 다른 음식과 같은 길로 담고, 담은 횟수는 뒤에서 센다(실패해도 담기에는 상관없다) */
+  function addCombo(combo: MealComboView) {
+    track(
+      `${combo.name} ${combo.items.length}가지`,
+      onAdd(combo.items.map((i) => ({ food: comboFood(i), amount: i.amount })))
+    );
+    setOpenKey(null);
+    startTransition(async () => {
+      await orOffline(markComboUsed(combo.id), OFFLINE);
+    });
+  }
+
+  async function saveCombo(name: string, items: ComboItem[]) {
+    setError(null);
+    const res = await orOffline(saveMealCombo({ name, meal, items }), OFFLINE_COMBO);
+    if (!res.ok) {
+      setError(res.error);
+      return false;
+    }
+    setComboList((list) =>
+      list.some((c) => c.id === res.id)
+        ? list
+        : [...list, { id: res.id, name, meal, items, useCount: 0 }]
+    );
+    setSavedName(name);
+    setOpenKey(null);
+    return true;
+  }
+
+  function removeCombo(combo: MealComboView) {
+    setComboList((list) => list.filter((c) => c.id !== combo.id));
+    startTransition(async () => {
+      const res = await orOffline(deleteMealCombo(combo.id), OFFLINE);
+      if (!res.ok) {
+        setComboList((list) =>
+          list.some((c) => c.id === combo.id) ? list : [...list, combo]
+        );
+        setError(res.error);
+      }
+    });
+  }
+
+  /* '담았어요' 줄의 '조합 저장' — 찾는 말을 지우고 맨 위 저장 칸을 편다(그 칸이 제 자리로 굴러 온다) */
+  function openSaveCombo() {
+    setQuery('');
+    setOpenKey(COMBO_SAVE_KEY);
+  }
+  const canSaveCombo = currentItems.length >= 2 && !savedCurrent;
 
   function toggleFavorite(food: Food) {
     if (!canFavorite(food)) return;
@@ -419,6 +505,17 @@ export function FoodSheet({
             />
           ) : (
             <>
+              {/* 자주 먹는 조합 — 이 끼니에 저장한 것부터 세 개. 누르면 한 번에 담는다 */}
+              {comboList.length > 0 && (
+                <ul className="space-y-2" aria-label="자주 먹는 조합">
+                  {comboList.slice(0, COMBO_TOP).map((c) => (
+                    <li key={c.id}>
+                      <ComboButton combo={c} onAdd={() => addCombo(c)} />
+                    </li>
+                  ))}
+                </ul>
+              )}
+
               {yesterday.length > 0 && (
                 <button
                   type="button"
@@ -438,6 +535,22 @@ export function FoodSheet({
                     {kcalText(yesterdayTotal.kcal)}kcal
                   </span>
                 </button>
+              )}
+
+              {savedName ? (
+                <p
+                  role="status"
+                  className="motion-safe:animate-fade-in flex items-center gap-2 rounded-xl bg-ok/10 px-4 py-3 text-sm text-ok"
+                >
+                  <Check aria-hidden className="h-4 w-4 shrink-0" />
+                  <span className="min-w-0 truncate">
+                    ‘{savedName}’ 조합으로 저장했어요
+                  </span>
+                </p>
+              ) : (
+                canSaveCombo && (
+                  <SaveCombo label={label} items={currentItems} onSave={saveCombo} />
+                )
               )}
 
               <Segmented
@@ -468,10 +581,39 @@ export function FoodSheet({
                     <FoodList foods={recentList} />
                   ))}
                 {tab === 'mine' &&
-                  (myFoods.length === 0 ? (
-                    <Empty text="자주 먹는 것은 음식을 펴서 ★ 로 여기에 모아 두세요. 직접 만든 음식도 여기에 들어와요." />
+                  (myFoods.length === 0 && comboList.length === 0 ? (
+                    <Empty text="자주 먹는 것은 음식을 펴서 ★ 로 여기에 모아 두세요. 직접 만든 음식도, 두 가지 넘게 담은 끼니를 저장한 조합도 여기에 들어와요." />
                   ) : (
-                    <FoodList foods={myFoods} onRemove={removeMine} />
+                    <div className="space-y-3">
+                      {comboList.length > 0 && (
+                        <section className="space-y-1">
+                          <h3 className="px-1 text-xs font-semibold text-muted">
+                            조합
+                          </h3>
+                          <ul className="-mx-2">
+                            {comboList.map((c, i) => (
+                              <ComboRow
+                                key={c.id}
+                                combo={c}
+                                index={i}
+                                onAdd={() => addCombo(c)}
+                                onRemove={() => removeCombo(c)}
+                              />
+                            ))}
+                          </ul>
+                        </section>
+                      )}
+                      {myFoods.length > 0 && (
+                        <section className="space-y-1">
+                          {comboList.length > 0 && (
+                            <h3 className="px-1 text-xs font-semibold text-muted">
+                              음식
+                            </h3>
+                          )}
+                          <FoodList foods={myFoods} onRemove={removeMine} />
+                        </section>
+                      )}
+                    </div>
                   ))}
                 {tab === 'all' && (
                   <AllFoods
@@ -501,6 +643,16 @@ export function FoodSheet({
                   ? `${added[0]} 담았어요`
                   : `${added.length}번 담았어요 — ${added.at(-1)}`}
               </p>
+              {canSaveCombo && !savedName && (
+                <button
+                  type="button"
+                  onClick={openSaveCombo}
+                  className="motion-safe:animate-fade-in -my-1 inline-flex min-h-10 shrink-0 items-center gap-1 rounded-xl px-2.5 text-sm font-medium text-sky transition-colors hover:bg-sky-tint"
+                >
+                  <BookmarkPlus aria-hidden className="h-4 w-4" />
+                  조합 저장
+                </button>
+              )}
               <button
                 type="button"
                 onClick={onClose}
@@ -513,6 +665,221 @@ export function FoodSheet({
         </div>
       </SheetContext>
     </Modal>
+  );
+}
+
+/* ─────────────────────────── 조합 ─────────────────────────── */
+
+/* '달걀 · 쌀밥 · 우유' 와 '612kcal · 단백질 31g' */
+function comboLines(combo: { items: ComboItem[] }) {
+  const m = comboMacros(combo.items);
+  return {
+    names: combo.items.map((i) => i.name).join(', '),
+    totals: `${kcalText(m.kcal)}kcal · 단백질 ${Math.round(m.protein)}g`,
+  };
+}
+
+/** 창 맨 위의 조합 한 줄 — 누르면 음식 전부를 저장한 양대로 한 번에 담는다('어제와 같이'와 같은 모양) */
+function ComboButton({ combo, onAdd }: { combo: MealComboView; onAdd: () => void }) {
+  const { names, totals } = comboLines(combo);
+  return (
+    <button
+      type="button"
+      onClick={onAdd}
+      className="flex w-full items-center gap-3 rounded-xl border border-line bg-surface-2 px-4 py-3 text-left transition-[color,border-color,background-color,transform] duration-150 hover:border-sky hover:bg-sky-tint/60 motion-safe:active:scale-[0.99]"
+    >
+      <Layers aria-hidden className="h-4 w-4 shrink-0 text-sky" />
+      <span className="min-w-0 flex-1">
+        <span className="block truncate text-sm font-medium text-ink">
+          {combo.name}
+        </span>
+        <span className="block truncate text-xs text-muted">{names}</span>
+      </span>
+      <span className="shrink-0 text-right text-xs tabular-nums text-muted">
+        {totals}
+      </span>
+    </button>
+  );
+}
+
+/** '내 음식' 탭의 조합 한 줄 — 음식 줄처럼 + 로 담고, 휴지통은 두 번 눌러 지운다 */
+function ComboRow({
+  combo,
+  index,
+  onAdd,
+  onRemove,
+}: {
+  combo: MealComboView;
+  index: number;
+  onAdd: () => void;
+  onRemove: () => void;
+}) {
+  const { names, totals } = comboLines(combo);
+  const [confirm, setConfirm] = useState(false);
+  const [flash, setFlash] = useState(0);
+  const put = () => {
+    onAdd();
+    setFlash((n) => n + 1);
+  };
+  return (
+    <li
+      className="motion-safe:animate-row-in flex items-center gap-1"
+      style={{ '--row': index } as CSSProperties}
+    >
+      <button
+        type="button"
+        onClick={put}
+        className="flex min-w-0 flex-1 items-center gap-3 rounded-xl px-2 py-2.5 text-left transition-colors hover:bg-surface-2"
+      >
+        <Layers aria-hidden className="h-4 w-4 shrink-0 text-sky" />
+        <span className="min-w-0 flex-1">
+          <span className="block truncate text-sm font-medium text-ink">
+            {combo.name}
+          </span>
+          <span className="block truncate text-xs text-muted">
+            {combo.meal ? `${mealLabel(combo.meal)} · ` : ''}
+            {names}
+          </span>
+        </span>
+        <span className="shrink-0 text-xs tabular-nums text-muted">{totals}</span>
+      </button>
+      {confirm ? (
+        <button
+          type="button"
+          onClick={onRemove}
+          onBlur={() => setConfirm(false)}
+          className="shrink-0 rounded-lg bg-danger-bg px-2.5 py-2 text-xs font-semibold text-danger"
+        >
+          지우기
+        </button>
+      ) : (
+        <button
+          type="button"
+          onClick={() => setConfirm(true)}
+          aria-label={`${combo.name} 조합 지우기`}
+          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-muted transition-colors hover:bg-danger-bg hover:text-danger"
+        >
+          <Trash2 aria-hidden className="h-4 w-4" />
+        </button>
+      )}
+      <button
+        type="button"
+        onClick={put}
+        aria-label={`${combo.name} 한 번에 담기`}
+        className="relative flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-sky transition-[background-color,transform] duration-150 hover:bg-sky-tint motion-safe:active:scale-90"
+      >
+        {flash > 0 ? (
+          <Check
+            key={flash}
+            aria-hidden
+            className="motion-safe:animate-fade-in h-4 w-4 text-ok"
+          />
+        ) : (
+          <Plus aria-hidden className="h-4 w-4" />
+        )}
+      </button>
+    </li>
+  );
+}
+
+/**
+ * '이 아침을 조합으로 저장' — 이 끼니에 두 가지 넘게 담겨 있고 같은 조합이 아직 없을 때만 뜬다.
+ * 누르면 그 밑에서 이름 칸이 펴진다. 이름은 음식 이름으로 미리 채워 두고, 고치지 않으면 담는 대로 따라 바뀐다.
+ */
+function SaveCombo({
+  label,
+  items,
+  onSave,
+}: {
+  label: string;
+  items: ComboItem[];
+  onSave: (name: string, items: ComboItem[]) => Promise<boolean>;
+}) {
+  const { openKey, toggle } = useSheet();
+  const open = openKey === COMBO_SAVE_KEY;
+  /* null = 아직 안 고침 — 기본 이름을 쓴다 */
+  const [typed, setTyped] = useState<string | null>(null);
+  const [pending, setPending] = useState(false);
+  const name = typed ?? defaultComboName(items);
+  const box = useRef<HTMLDivElement>(null);
+
+  /* 편 칸이 창 밖이면(아래 '조합 저장' 단추로 열었을 때) 다 펴진 뒤 그 자리로 굴린다 — 음식 줄과 같은 방식 */
+  useEffect(() => {
+    if (!open) return;
+    const timer = window.setTimeout(() => {
+      const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      box.current?.scrollIntoView({
+        block: 'nearest',
+        behavior: reduce ? 'auto' : 'smooth',
+      });
+    }, 320);
+    return () => window.clearTimeout(timer);
+  }, [open]);
+
+  async function submit() {
+    const clean = name.trim();
+    if (!clean || pending) return;
+    setPending(true);
+    const ok = await onSave(clean, items);
+    setPending(false);
+    if (ok) setTyped(null);
+  }
+
+  return (
+    <div
+      ref={box}
+      className={`scroll-mt-20 rounded-xl border border-dashed transition-colors ${
+        open ? 'border-sky' : 'border-line-strong hover:border-sky'
+      }`}
+    >
+      <button
+        type="button"
+        onClick={() => toggle(COMBO_SAVE_KEY)}
+        aria-expanded={open}
+        className="flex w-full items-center gap-3 px-4 py-3 text-left"
+      >
+        <BookmarkPlus aria-hidden className="h-4 w-4 shrink-0 text-sky" />
+        <span className="min-w-0 flex-1">
+          <span className="block text-sm font-medium text-ink">
+            이 {label}을 조합으로 저장
+          </span>
+          <span className="block truncate text-xs text-muted">
+            {items.map((i) => i.name).join(', ')} — 다음부터 한 번에 담아요
+          </span>
+        </span>
+        <ChevronDown
+          aria-hidden
+          className={`h-4 w-4 shrink-0 text-muted transition-transform duration-200 ${EASE} ${open ? 'rotate-180' : ''}`}
+        />
+      </button>
+      <Expand open={open}>
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            void submit();
+          }}
+          className="flex items-center gap-2 px-4 pb-3"
+        >
+          <label className="min-w-0 flex-1">
+            <span className="sr-only">조합 이름</span>
+            <input
+              value={name}
+              onChange={(e) => setTyped(e.target.value)}
+              maxLength={COMBO_NAME_MAX}
+              enterKeyHint="done"
+              className="h-10 w-full rounded-xl border border-line bg-surface-2 px-3 text-sm text-ink transition-colors focus:border-sky focus:outline-none"
+            />
+          </label>
+          <button
+            type="submit"
+            disabled={pending || !name.trim()}
+            className="h-10 shrink-0 rounded-xl bg-sky px-4 text-sm font-semibold text-white transition-[background-color,opacity] hover:bg-sky-strong disabled:opacity-60"
+          >
+            {pending ? '저장 중' : '저장'}
+          </button>
+        </form>
+      </Expand>
+    </div>
   );
 }
 

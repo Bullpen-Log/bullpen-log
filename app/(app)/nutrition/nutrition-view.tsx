@@ -352,6 +352,8 @@ export function NutritionView({ day, today }: { day: NutritionDay; today: string
           mine={day.mine}
           favorites={day.favorites}
           yesterday={day.yesterday.filter((e) => e.meal === sheet.meal)}
+          combos={day.combos}
+          current={entries.filter((e) => e.meal === sheet.meal)}
           mfds={day.mfds}
           popular={day.popular}
           onAdd={(items) => addFoods(sheet.meal, items)}
