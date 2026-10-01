@@ -15,6 +15,7 @@ import { loadNutritionDay, recentWeightKg } from '@/lib/nutrition/load';
 import { ageOn } from '@/lib/nutrition/targets';
 import { STEP_KCAL, checkTargetWeight, planOnSave } from '@/lib/nutrition/weight-goal';
 import { cleanDietPrefs } from '@/lib/nutrition/diet-prefs';
+import { buildMealPlan, isPlace, parsePlanItems } from '@/lib/nutrition/meal-plan';
 import {
   COMBO_ITEMS_MAX,
   COMBO_MAX,
@@ -329,6 +330,173 @@ export async function unfavoriteFood(
   await prisma.userFood.deleteMany({
     where: { userId: user.id, source, sourceId: String(sourceId) },
   });
+  revalidatePath(PATH);
+  return { ok: true };
+}
+
+/* ─────────────────────────── 식단 짜기(lib/nutrition/meal-plan.ts) ─────────────────────────── */
+
+/**
+ * 오늘 식단을 짠다(다시 짜기도 이것). 화면이 보낸 것은 그날 환경(훈련 장소 · 더운 날 야외)과 '다른 식단으로' 횟수뿐 —
+ * 목표 · 취향 · 신호 · 이미 먹은 것은 서버가 다시 읽는다(화면이 보낸 숫자로 짜지 않는다). 계획은 먹은 기록과 따로 둔다.
+ */
+export async function makeMealPlan(
+  date: string,
+  options: { place: unknown; hot: unknown; variant: unknown }
+): Promise<NutritionResult> {
+  const user = await getCurrentUser();
+  if (!user) return NEED_LOGIN;
+  if (date !== toDateKey(new Date())) {
+    return { ok: false, error: '식단은 오늘 것만 짤 수 있어요.' };
+  }
+  if (!isPlace(options?.place))
+    return { ok: false, error: '훈련 장소를 다시 골라 주세요.' };
+  const variant =
+    isNum(options.variant) && options.variant >= 0 && options.variant < 1000
+      ? Math.floor(options.variant)
+      : 0;
+  const hot = options.hot === true;
+
+  const day = await loadNutritionDay(user, date);
+  const eaten = new Map<string, { kcal: number; protein: number }>();
+  for (const e of day.entries) {
+    const sum = eaten.get(e.meal) ?? { kcal: 0, protein: 0 };
+    sum.kcal += e.kcal * e.amount;
+    sum.protein += (e.protein ?? 0) * e.amount;
+    eaten.set(e.meal, sum);
+  }
+  const plan = buildMealPlan({
+    date,
+    seed: user.id,
+    variant,
+    targets: { kcal: day.targets.kcal, protein: day.targets.protein },
+    goal: day.targets.goal,
+    ageBand: day.targets.ageBand,
+    prefs: day.prefs,
+    place: options.place,
+    hot,
+    throwKind: day.planSignals?.throwKind ?? null,
+    appetite: day.planSignals?.appetite ?? null,
+    soreness: day.planSignals?.soreness ?? null,
+    eaten: [...eaten].flatMap(([meal, v]) => (isMealKey(meal) ? [{ meal, ...v }] : [])),
+  });
+  const context = {
+    place: options.place,
+    hot,
+    variant,
+    reasons: plan.reasons,
+    meals: plan.meals,
+    target: plan.target,
+  };
+  await prisma.mealPlan.upsert({
+    where: { userId_date: { userId: user.id, date: dbDate(date) } },
+    update: { items: plan.items, context },
+    create: { userId: user.id, date: dbDate(date), items: plan.items, context },
+  });
+  revalidatePath(PATH);
+  return { ok: true };
+}
+
+/**
+ * 계획 줄을 먹었다 — 그 값 그대로 먹은 기록(MealEntry)을 만들고 계획 줄은 '먹음'으로. 한 묶음으로 저장한다.
+ * 이미 먹은 줄 · 없는 줄은 건너뛴다(두 번 눌러도 한 번만 기록된다).
+ */
+export async function eatPlanItems(
+  date: string,
+  keys: unknown
+): Promise<NutritionResult> {
+  const user = await getCurrentUser();
+  if (!user) return NEED_LOGIN;
+  if (!isNutritionDate(date)) return BAD_DATE;
+  if (!Array.isArray(keys) || keys.length === 0 || keys.length > 80) {
+    return { ok: false, error: '먹은 것을 다시 골라 주세요.' };
+  }
+  const where = { userId_date: { userId: user.id, date: dbDate(date) } };
+  const row = await prisma.mealPlan.findUnique({ where, select: { items: true } });
+  if (!row) return { ok: false, error: '식단이 없어요. 새로고침해 주세요.' };
+  const items = parsePlanItems(row.items);
+  const want = new Set(keys.filter((k): k is string => typeof k === 'string'));
+  const eat = items.filter((i) => want.has(i.key) && !i.done);
+  if (eat.length === 0) return { ok: true };
+
+  const rows = [];
+  for (const i of eat) {
+    const food = cleanFood({
+      source: 'basic',
+      sourceId: i.sourceId,
+      name: i.name,
+      servingLabel: i.servingLabel,
+      servingGrams: i.servingGrams,
+      kcal: i.kcal,
+      carbs: i.carbs,
+      protein: i.protein,
+      fat: i.fat,
+    });
+    const amount = cleanAmount(i.amount);
+    if (typeof food === 'string' || amount === null) continue;
+    rows.push({ userId: user.id, date: dbDate(date), meal: i.meal, amount, ...food });
+  }
+  const done = new Set(eat.map((i) => i.key));
+  await prisma.$transaction([
+    prisma.mealEntry.createMany({ data: rows }),
+    prisma.mealPlan.update({
+      where,
+      data: { items: items.map((i) => (done.has(i.key) ? { ...i, done: true } : i)) },
+    }),
+  ]);
+  revalidatePath(PATH);
+  return { ok: true };
+}
+
+/** 계획 줄 고치기 — 끼니 편집의 '완료'에서 양 바꾸기 · 빼기(아직 안 먹은 줄만) */
+export async function editPlanItems(
+  date: string,
+  edits: unknown
+): Promise<NutritionResult> {
+  const user = await getCurrentUser();
+  if (!user) return NEED_LOGIN;
+  if (!isNutritionDate(date)) return BAD_DATE;
+  if (!Array.isArray(edits) || edits.length === 0 || edits.length > 80) {
+    return { ok: false, error: '고칠 것이 없습니다.' };
+  }
+  const where = { userId_date: { userId: user.id, date: dbDate(date) } };
+  const row = await prisma.mealPlan.findUnique({ where, select: { items: true } });
+  if (!row) return { ok: false, error: '식단이 없어요. 새로고침해 주세요.' };
+  const by = new Map<string, Record<string, unknown>>();
+  for (const raw of edits) {
+    const e = (raw ?? {}) as Record<string, unknown>;
+    if (typeof e.key === 'string') by.set(e.key, e);
+  }
+  const next = [];
+  for (const i of parsePlanItems(row.items)) {
+    const e = by.get(i.key);
+    if (!e || i.done) {
+      next.push(i);
+      continue;
+    }
+    if (e.remove === true) continue;
+    if (e.amount !== undefined) {
+      const amount = cleanAmount(e.amount);
+      if (amount === null) {
+        return {
+          ok: false,
+          error: `양은 ${AMOUNT_MIN}~${AMOUNT_MAX}인분 사이로 적어 주세요.`,
+        };
+      }
+      next.push({ ...i, amount });
+    } else next.push(i);
+  }
+  await prisma.mealPlan.update({ where, data: { items: next } });
+  revalidatePath(PATH);
+  return { ok: true };
+}
+
+/** 짠 식단 지우기 — 이미 먹어서 기록이 된 것은 그대로 남는다 */
+export async function clearMealPlan(date: string): Promise<NutritionResult> {
+  const user = await getCurrentUser();
+  if (!user) return NEED_LOGIN;
+  if (!isNutritionDate(date)) return BAD_DATE;
+  await prisma.mealPlan.deleteMany({ where: { userId: user.id, date: dbDate(date) } });
   revalidatePath(PATH);
   return { ok: true };
 }

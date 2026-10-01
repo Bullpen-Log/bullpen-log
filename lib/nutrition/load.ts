@@ -40,6 +40,13 @@ import {
 import { popularFoods } from '@/lib/nutrition/popular';
 import { COMBO_MAX, comboView, type MealComboView } from '@/lib/nutrition/combos';
 import { toDietPrefs, type DietPrefs } from '@/lib/nutrition/diet-prefs';
+import {
+  parsePlanContext,
+  parsePlanItems,
+  type PlanContext,
+  type PlanItem,
+  type ThrowKind,
+} from '@/lib/nutrition/meal-plan';
 
 /**
  * 영양 탭 한 화면에 필요한 것을 한 번에 읽는다.
@@ -89,6 +96,17 @@ export type NutritionDay = {
   favorites: string[];
   /** 자주 먹는 조합(lib/nutrition/combos.ts) — 자주 담은 것부터 */
   combos: MealComboView[];
+  /** 그날 짜 둔 식단(lib/nutrition/meal-plan.ts) — 먹은 기록과 따로다. 없으면 null */
+  mealPlan: { items: PlanItem[]; context: PlanContext } | null;
+  /**
+   * 식단 짜기가 읽는 오늘의 신호(오늘만) — 화면이 '오늘 상태'로 보여 준다. 짜는 것은 서버가 다시 읽어서 한다.
+   * 던지는 날의 종류는 영양 가이드와 같은 판정(guide.kind).
+   */
+  planSignals: {
+    throwKind: ThrowKind;
+    appetite: number | null;
+    soreness: number | null;
+  } | null;
   /** 전날 먹은 것 — '어제와 같이' 담기에 쓴다 */
   yesterday: MealEntryView[];
   /** 목표 계산에 쓴 몸 정보 — 목표 설정 창이 미리 계산해 보여 준다 */
@@ -236,6 +254,7 @@ export async function loadNutritionDay(
     popular,
     calendarRows,
     planRows,
+    mealPlanRow,
   ] = await Promise.all([
     prisma.nutritionProfile.findUnique({ where: { userId } }),
     prisma.mealEntry.findMany({
@@ -311,9 +330,13 @@ export async function loadNutritionDay(
             userId,
             date: { gte: dbDate(shiftDateKey(date, -1)), lte: dbDate(date) },
           },
-          select: { date: true, throwPlan: true, appetite: true },
+          select: { date: true, throwPlan: true, appetite: true, soreness: true },
         })
       : [],
+    prisma.mealPlan.findUnique({
+      where: { userId_date: { userId, date: dbDate(date) } },
+      select: { items: true, context: true },
+    }),
   ]);
 
   const calendar: Record<string, number> = {};
@@ -542,5 +565,18 @@ export async function loadNutritionDay(
     popular,
     calendar,
     guide,
+    mealPlan: mealPlanRow
+      ? {
+          items: parsePlanItems(mealPlanRow.items),
+          context: parsePlanContext(mealPlanRow.context),
+        }
+      : null,
+    planSignals: isToday
+      ? {
+          throwKind: guide?.kind ?? null,
+          appetite: planOf(date)?.appetite ?? null,
+          soreness: planOf(date)?.soreness ?? null,
+        }
+      : null,
   };
 }

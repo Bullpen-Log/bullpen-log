@@ -60,12 +60,18 @@ import {
   type ThrowGuide,
 } from '@/lib/nutrition/guide';
 import { mealProtein, type MealProtein } from '@/lib/nutrition/meal-protein';
+import type { PlanItem } from '@/lib/nutrition/meal-plan';
+import type { Place } from '@/lib/nutrition/meal-templates';
 import { computeTargets } from '@/lib/nutrition/targets';
 import { STEP_KCAL, goalCopy, planOnSave } from '@/lib/nutrition/weight-goal';
 import {
   addMealEntries,
   applyWeightStep,
+  clearMealPlan,
+  eatPlanItems,
   editMealEntries,
+  editPlanItems,
+  makeMealPlan,
   saveNutritionProfile,
   setWeight,
   type NutritionResult,
@@ -74,6 +80,7 @@ import { OFFLINE_MESSAGE, orOffline } from '@/lib/action-offline';
 import { FoodSheet } from './food-sheet';
 import { GoalSheet } from './goal-sheet';
 import { WeekChart, WeightTrend } from './charts';
+import { PlanBlock, PlanCard, PlanEditRow, type PlanEdit } from './plan-parts';
 import { EASE, originOf, toFoodInput, type Origin } from './shared';
 
 /*
@@ -115,6 +122,29 @@ function reduceEntries(list: MealEntryView[], a: EntryAction): MealEntryView[] {
   }
 }
 
+type PlanAction =
+  | { type: 'eat'; keys: string[] }
+  | { type: 'edit'; edits: PlanEdit[] }
+  | { type: 'clear' };
+
+function reducePlan(list: PlanItem[], a: PlanAction): PlanItem[] {
+  switch (a.type) {
+    case 'eat':
+      return list.map((i) => (a.keys.includes(i.key) ? { ...i, done: true } : i));
+    case 'edit': {
+      const by = new Map(a.edits.map((e) => [e.key, e]));
+      return list.flatMap((i) => {
+        const e = by.get(i.key);
+        if (!e || i.done) return [i];
+        if (e.remove) return [];
+        return [{ ...i, amount: e.amount ?? i.amount }];
+      });
+    }
+    case 'clear':
+      return [];
+  }
+}
+
 const WEEKDAYS = ['일', '월', '화', '수', '목', '금', '토'];
 
 /*
@@ -136,6 +166,9 @@ export function NutritionView({ day, today }: { day: NutritionDay; today: string
   useArrowKeys(day.date, today);
   const [, startTransition] = useTransition();
   const [entries, applyEntries] = useOptimistic(day.entries, reduceEntries);
+  /* 짜 둔 식단(먹은 기록과 따로) — 먹었어요 · 고치기 · 지우기를 먼저 보이고 저장은 뒤에서 */
+  const [plan, applyPlan] = useOptimistic(day.mealPlan?.items ?? [], reducePlan);
+  const [planPending, startPlan] = useTransition();
   const [error, setError] = useState<string | null>(null);
   /*
    * 창은 닫아도 곧바로 치우지 않는다(open 만 끈다). 치워 버리면 닫히는 움직임 없이
@@ -147,11 +180,17 @@ export function NutritionView({ day, today }: { day: NutritionDay; today: string
     n: number;
     open: boolean;
   } | null>(null);
-  const [goal, setGoal] = useState<{ origin: Origin; n: number; open: boolean } | null>(
-    null
-  );
+  const [goal, setGoal] = useState<{
+    origin: Origin;
+    n: number;
+    open: boolean;
+    tab: 'goal' | 'diet';
+  } | null>(null);
   const openGoal = (e: MouseEvent<HTMLElement>) =>
-    setGoal({ origin: originOf(e), n: (goal?.n ?? 0) + 1, open: true });
+    setGoal({ origin: originOf(e), n: (goal?.n ?? 0) + 1, open: true, tab: 'goal' });
+  /* 식단 카드의 '취향 바꾸기' — 목표 창을 식단 취향 칸부터 연다 */
+  const openPrefs = (e: MouseEvent<HTMLElement>) =>
+    setGoal({ origin: originOf(e), n: (goal?.n ?? 0) + 1, open: true, tab: 'diet' });
 
   const t = day.targets;
   const eaten = sumMacros(entries.map(entryMacros));
@@ -198,6 +237,56 @@ export function NutritionView({ day, today }: { day: NutritionDay; today: string
         report(res);
         resolve(res);
       });
+    });
+  }
+
+  /* ── 식단 짜기(plan-parts.tsx) ── */
+  function makePlan(options: { place: Place; hot: boolean; variant: number }) {
+    setError(null);
+    startPlan(async () => {
+      report(await orOffline(makeMealPlan(day.date, options), OFFLINE));
+    });
+  }
+
+  /** 계획 줄을 먹었다 — 끼니 칸에 먹은 줄을 먼저 그리고(임시) 계획 줄은 지운다 */
+  function eatPlan(keys: string[]) {
+    const eat = plan.filter((i) => keys.includes(i.key) && !i.done);
+    if (eat.length === 0) return;
+    setError(null);
+    const temp: MealEntryView[] = eat.map((i) => ({
+      id: `tmp-${++tempSeq}`,
+      meal: i.meal,
+      name: i.name,
+      source: 'basic',
+      sourceId: i.sourceId,
+      servingLabel: i.servingLabel,
+      servingGrams: i.servingGrams,
+      amount: i.amount,
+      kcal: i.kcal,
+      carbs: i.carbs,
+      protein: i.protein,
+      fat: i.fat,
+    }));
+    startTransition(async () => {
+      applyPlan({ type: 'eat', keys });
+      applyEntries({ type: 'add', entries: temp });
+      report(await orOffline(eatPlanItems(day.date, keys), OFFLINE));
+    });
+  }
+
+  function editPlan(edits: PlanEdit[]) {
+    setError(null);
+    startTransition(async () => {
+      applyPlan({ type: 'edit', edits });
+      report(await orOffline(editPlanItems(day.date, edits), OFFLINE));
+    });
+  }
+
+  function clearPlan() {
+    setError(null);
+    startTransition(async () => {
+      applyPlan({ type: 'clear' });
+      report(await orOffline(clearMealPlan(day.date), OFFLINE));
     });
   }
 
@@ -281,7 +370,8 @@ export function NutritionView({ day, today }: { day: NutritionDay; today: string
         </div>
       )}
 
-      <div className="grid items-start gap-block lg:grid-cols-[minmax(0,1fr)_22rem]">
+      {/* 휴대폰 한 칸도 minmax(0,1fr) — 한 줄 고정 글(식단 카드 요약 같은 것)이 칸의 최소 너비를 밀어 화면 밖으로 넘치지 않게 */}
+      <div className="grid grid-cols-[minmax(0,1fr)] items-start gap-block lg:grid-cols-[minmax(0,1fr)_22rem]">
         <div className="stack-block">
           {/* 던지는 날 가이드 — 오늘이 등판 · 불펜 전날이나 당일, 던진 뒤일 때만(lib/nutrition/guide.ts) */}
           {day.guide && (
@@ -294,6 +384,26 @@ export function NutritionView({ day, today }: { day: NutritionDay; today: string
             />
           )}
           <SummaryCard eaten={eaten} gaps={gaps} day={day} today={today} />
+
+          {/* 오늘 식단 짜기 — 짠 식단은 아래 끼니 칸에 '식단' 줄로 들어간다(먹으면 체크) */}
+          <PlanCard
+            /* 짠 조건이 바뀌면(다시 짜기) 고른 칩을 새 조건으로 연다 */
+            key={
+              day.mealPlan
+                ? `${day.mealPlan.context.place}-${day.mealPlan.context.hot}`
+                : 'none'
+            }
+            isToday={day.date === today}
+            targets={t}
+            prefs={day.prefs}
+            signals={day.planSignals}
+            context={plan.length > 0 ? (day.mealPlan?.context ?? null) : null}
+            items={plan}
+            pending={planPending}
+            onMake={makePlan}
+            onClear={clearPlan}
+            onOpenPrefs={openPrefs}
+          />
 
           {/*
             끼니 넷 — 넓으면 두 칸씩(2×2), 좁으면 한 줄에 하나.
@@ -319,6 +429,9 @@ export function NutritionView({ day, today }: { day: NutritionDay; today: string
                   })
                 }
                 onEdit={editEntries}
+                plan={plan.filter((i) => i.meal === m.key && !i.done)}
+                onEat={eatPlan}
+                onPlanEdit={editPlan}
               />
             ))}
           </ul>
@@ -363,6 +476,7 @@ export function NutritionView({ day, today }: { day: NutritionDay; today: string
           open={goal.open}
           origin={goal.origin}
           onClose={() => setGoal((g) => g && { ...g, open: false })}
+          initialTab={goal.tab}
           profile={day.profile}
           prefs={day.prefs}
           today={today}
@@ -1156,6 +1270,9 @@ function MealSection({
   dailyProtein,
   onOpen,
   onEdit,
+  plan,
+  onEat,
+  onPlanEdit,
 }: {
   meal: MealKey;
   entries: MealEntryView[];
@@ -1165,6 +1282,10 @@ function MealSection({
   onOpen: (e: MouseEvent<HTMLButtonElement>) => void;
   /** 편집을 마치면 고친 것만 모아 한 번에 */
   onEdit: (edits: EntryEdit[]) => void;
+  /** 이 끼니에 짠 식단 중 아직 안 먹은 줄 */
+  plan: PlanItem[];
+  onEat: (keys: string[]) => void;
+  onPlanEdit: (edits: PlanEdit[]) => void;
 }) {
   const total = sumMacros(entries.map(entryMacros));
   const label = mealLabel(meal);
@@ -1175,9 +1296,16 @@ function MealSection({
    */
   const [editing, setEditing] = useState(false);
   const [drafts, setDrafts] = useState<Record<string, Draft>>({});
+  /* 계획 줄의 고친 값 — 양 · 빼기만(먹은 줄과 같은 '완료'에 저장) */
+  const [planDrafts, setPlanDrafts] = useState<
+    Record<string, { amount: number; remove: boolean }>
+  >({});
   /* 저장 중인 줄(tmp-)은 아직 서버 이름이 없어 고칠 수 없다 */
   const editable = entries.filter((e) => !e.id.startsWith('tmp-'));
-  const isEditing = editing && editable.length > 0;
+  const isEditing = editing && (editable.length > 0 || plan.length > 0);
+  const hasAny = entries.length > 0 || plan.length > 0;
+  const planDraftOf = (i: PlanItem) =>
+    planDrafts[i.key] ?? { amount: i.amount, remove: false };
 
   const draftOf = (e: MealEntryView): Draft =>
     drafts[e.id] ?? { amount: e.amount, meal: e.meal, remove: false };
@@ -1187,6 +1315,9 @@ function MealSection({
       Object.fromEntries(
         editable.map((e) => [e.id, { amount: e.amount, meal: e.meal, remove: false }])
       )
+    );
+    setPlanDrafts(
+      Object.fromEntries(plan.map((i) => [i.key, { amount: i.amount, remove: false }]))
     );
     setEditing(true);
   }
@@ -1205,12 +1336,34 @@ function MealSection({
       if (d.meal !== e.meal) edit.meal = d.meal;
       if (edit.amount !== undefined || edit.meal !== undefined) edits.push(edit);
     }
+    const planEdits: PlanEdit[] = [];
+    for (const i of plan) {
+      const d = planDrafts[i.key];
+      if (!d) continue;
+      if (d.remove) planEdits.push({ key: i.key, remove: true });
+      else if (d.amount !== i.amount) planEdits.push({ key: i.key, amount: d.amount });
+    }
     setEditing(false);
     if (edits.length > 0) onEdit(edits);
+    if (planEdits.length > 0) onPlanEdit(planEdits);
   }
 
   const setDraft = (id: string, d: Draft) => setDrafts((all) => ({ ...all, [id]: d }));
-  const allRemoved = editable.every((e) => draftOf(e).remove);
+  const allRemoved =
+    editable.every((e) => draftOf(e).remove) &&
+    plan.every((i) => planDraftOf(i).remove);
+  function toggleAllRemoved() {
+    setDrafts(
+      Object.fromEntries(
+        editable.map((e) => [e.id, { ...draftOf(e), remove: !allRemoved }])
+      )
+    );
+    setPlanDrafts(
+      Object.fromEntries(
+        plan.map((i) => [i.key, { ...planDraftOf(i), remove: !allRemoved }])
+      )
+    );
+  }
 
   /*
    * 끼니 한 칸. 머리 줄(이름 · 합계 · 편집 · 담기) 밑에 음식이 한 줄씩.
@@ -1261,7 +1414,7 @@ function MealSection({
             )}
           </div>
         )}
-        {entries.length > 0 && (
+        {hasAny && (
           <div className="-mr-2 ml-auto flex shrink-0 items-center">
             {isEditing ? (
               <>
@@ -1285,7 +1438,7 @@ function MealSection({
                 <button
                   type="button"
                   onClick={startEdit}
-                  disabled={editable.length === 0}
+                  disabled={editable.length === 0 && plan.length === 0}
                   aria-label={`${label} 편집`}
                   className="inline-flex h-9 items-center rounded-lg px-2.5 text-xs font-medium text-muted transition-colors hover:bg-surface-2 hover:text-ink disabled:opacity-40"
                 >
@@ -1305,7 +1458,7 @@ function MealSection({
         )}
       </div>
 
-      {entries.length === 0 ? (
+      {!hasAny ? (
         <button
           type="button"
           onClick={onOpen}
@@ -1330,6 +1483,15 @@ function MealSection({
                 />
               )
             )}
+            {plan.map((item, i) => (
+              <PlanEditRow
+                key={item.key}
+                item={item}
+                index={entries.length + i}
+                draft={planDraftOf(item)}
+                onChange={(d) => setPlanDrafts((all) => ({ ...all, [item.key]: d }))}
+              />
+            ))}
           </ul>
           <div className="flex items-center justify-between gap-2">
             <p className="text-xs text-muted">
@@ -1337,13 +1499,7 @@ function MealSection({
             </p>
             <button
               type="button"
-              onClick={() =>
-                setDrafts(
-                  Object.fromEntries(
-                    editable.map((e) => [e.id, { ...draftOf(e), remove: !allRemoved }])
-                  )
-                )
-              }
+              onClick={toggleAllRemoved}
               className={`-mr-2 inline-flex h-9 shrink-0 items-center rounded-lg px-2.5 text-xs font-medium transition-colors ${
                 allRemoved
                   ? 'text-sky hover:bg-sky-tint'
@@ -1355,11 +1511,16 @@ function MealSection({
           </div>
         </div>
       ) : (
-        <ul>
-          {entries.map((e, i) => (
-            <EntryRow key={e.id} entry={e} index={i} onEdit={startEdit} />
-          ))}
-        </ul>
+        <>
+          {entries.length > 0 && (
+            <ul>
+              {entries.map((e, i) => (
+                <EntryRow key={e.id} entry={e} index={i} onEdit={startEdit} />
+              ))}
+            </ul>
+          )}
+          {plan.length > 0 && <PlanBlock meal={meal} items={plan} onEat={onEat} />}
+        </>
       )}
 
       {/* 모자란 끼니 — 기본 음식으로 채우는 예시 하나. 단백질을 모르는 음식이 섞이면 띄우지 않는다 */}
