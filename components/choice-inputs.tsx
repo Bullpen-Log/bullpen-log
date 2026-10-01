@@ -1,5 +1,7 @@
 'use client';
 
+import { Check } from 'lucide-react';
+
 /**
  * 운동·드릴 등록 폼에서 쓰는 선택 입력.
  * 네이티브 input을 그대로 쓰고 라벨만 꾸며서, 폼을 초기화하면
@@ -15,12 +17,22 @@ function Legend({ label, hint }: { label: string; hint?: string }) {
   );
 }
 
+/*
+ * 칩 — 휴대폰은 테두리 없는 회색 알약(체크인 칩과 같은 모양), PC 는 예전 네모 칩(2026-10-01 '애플처럼').
+ */
 const chipBase =
-  'cursor-pointer select-none rounded-lg border px-3 py-2 text-xs transition-colors border-line bg-surface-2 text-muted hover:border-sky-soft hover:text-ink';
+  'cursor-pointer select-none rounded-full border border-transparent bg-ink/6 px-3.5 py-2 text-[13px] text-ink/80 transition-colors desk:rounded-lg desk:border-line desk:bg-surface-2 desk:px-3 desk:text-xs desk:text-muted desk:hover:border-sky-soft desk:hover:text-ink';
+
+/*
+ * 설명이 붙는 고르기(경력 · 목표 …) — 휴대폰은 한 줄에 하나씩 둥근 칸, 고른 칸은 파랑으로 두르고 오른쪽에 체크
+ * (아이폰의 고르는 목록처럼). PC 는 예전 네모 칩.
+ */
+const cardBase =
+  'cursor-pointer select-none rounded-2xl border border-transparent bg-ink/5 px-4 py-3 text-sm text-ink transition-colors desk:rounded-lg desk:border-line desk:bg-surface-2 desk:px-3 desk:py-2 desk:text-xs desk:text-muted desk:hover:border-sky-soft desk:hover:text-ink';
 
 /** 선택된 항목에 색이 들어가도록 peer-checked를 쓴다. */
 const chipChecked =
-  'peer-checked:border-sky peer-checked:bg-sky/10 peer-checked:text-sky peer-checked:font-medium';
+  'peer-checked:border-sky peer-checked:bg-sky/10 peer-checked:text-sky peer-checked:font-semibold desk:peer-checked:font-medium';
 
 export function CheckboxGroup({
   name,
@@ -105,7 +117,7 @@ export function RadioGroup({
       <Legend label={label} hint={hint} />
       <div className={compact ? 'flex flex-wrap gap-2' : 'grid gap-2 sm:grid-cols-3'}>
         {options.map((option) => (
-          <label key={option.name} className="block">
+          <label key={option.name} className="group block">
             <input
               type="radio"
               name={name}
@@ -117,19 +129,35 @@ export function RadioGroup({
               }
               className="peer sr-only"
             />
-            <span
-              className={`${chipBase} ${chipChecked} block h-full peer-focus-visible:ring-1 peer-focus-visible:ring-sky`}
-            >
-              <span className={compact ? 'inline' : 'block'}>{option.name}</span>
-              {option.desc &&
-                (compact ? (
+            {compact ? (
+              <span
+                className={`${chipBase} ${chipChecked} block h-full peer-focus-visible:ring-1 peer-focus-visible:ring-sky`}
+              >
+                <span className="inline">{option.name}</span>
+                {option.desc && (
                   <span className="ml-1.5 text-[11px] opacity-70">{option.desc}</span>
-                ) : (
-                  <span className="mt-1 block text-[11px] leading-relaxed opacity-70">
-                    {option.desc}
-                  </span>
-                ))}
-            </span>
+                )}
+              </span>
+            ) : (
+              <span
+                className={`${cardBase} ${chipChecked} flex h-full items-center gap-3 peer-focus-visible:ring-1 peer-focus-visible:ring-sky desk:block`}
+              >
+                <span className="min-w-0 flex-1">
+                  <span className="block">{option.name}</span>
+                  {option.desc && (
+                    <span className="mt-1 block text-xs leading-relaxed font-normal opacity-70 desk:text-[11px]">
+                      {option.desc}
+                    </span>
+                  )}
+                </span>
+                {/* 고른 칸의 체크 — 휴대폰만(PC 는 칸 색으로 안다) */}
+                <Check
+                  aria-hidden
+                  className="h-5 w-5 shrink-0 text-sky opacity-0 transition-opacity group-has-[:checked]:opacity-100 desk:hidden"
+                  strokeWidth={2.6}
+                />
+              </span>
+            )}
           </label>
         ))}
       </div>
