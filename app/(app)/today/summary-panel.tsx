@@ -32,13 +32,17 @@ function ZoneLine({
     <div className="flex items-baseline gap-2">
       <span className="w-12 shrink-0 text-xs text-muted">{name}</span>
       {ratio != null && z ? (
+        /*
+          말이 먼저 — '적정 · 주의'를 크게, 지수(1.12 같은 숫자)는 옆에 작게. 숫자만 크게 있으면 무엇이 좋은
+          값인지 알아야 읽힌다(2026-10-01 '애플처럼' — 기술 숫자는 뒤로). 자세한 뜻은 위 분석 칸에.
+        */
         <>
-          <span
-            className={`text-numeric text-xl leading-none tabular-nums ${TONE[z.tone].text}`}
-          >
-            {ratio.toFixed(2)}
+          <span className={`text-base leading-none font-bold ${TONE[z.tone].text}`}>
+            {z.short}
           </span>
-          <span className={`text-xs font-medium ${TONE[z.tone].text}`}>{z.short}</span>
+          <span className="text-xs text-muted tabular-nums">
+            지수 {ratio.toFixed(2)}
+          </span>
         </>
       ) : (
         <span className="text-xs text-muted/70">{waiting}</span>

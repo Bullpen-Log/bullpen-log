@@ -56,7 +56,7 @@ async function decode(file: Blob): Promise<Decoded> {
   } catch {
     URL.revokeObjectURL(url);
     throw new UnreadableImageError(
-      '이 사진은 열 수 없습니다. JPG나 PNG 사진으로 골라주세요. (아이폰 HEIC 사진은 PC 에서 열리지 않을 수 있습니다)'
+      '이 사진은 열 수 없어요. JPG나 PNG 사진으로 골라주세요. (아이폰 HEIC 사진은 PC 에서 열리지 않을 수 있어요)'
     );
   }
 }
@@ -66,7 +66,7 @@ export async function shrinkImage(file: Blob): Promise<Blob> {
   const image = await decode(file);
   try {
     if (!image.width || !image.height) {
-      throw new UnreadableImageError('사진 크기를 읽지 못했습니다. 다른 사진으로 골라주세요.');
+      throw new UnreadableImageError('사진 크기를 읽지 못했어요. 다른 사진으로 골라주세요.');
     }
     const scale = Math.min(1, SHORT_SIDE_PX / Math.min(image.width, image.height));
     const width = Math.max(1, Math.round(image.width * scale));
@@ -76,7 +76,7 @@ export async function shrinkImage(file: Blob): Promise<Blob> {
     canvas.width = width;
     canvas.height = height;
     const ctx = canvas.getContext('2d');
-    if (!ctx) throw new Error('사진을 줄이지 못했습니다.');
+    if (!ctx) throw new Error('사진을 줄이지 못했어요.');
 
     /* JPG 에는 투명한 곳이 없다. 비워 두면 투명한 PNG 의 바탕이 검게 나온다. */
     ctx.fillStyle = '#ffffff';
@@ -87,7 +87,7 @@ export async function shrinkImage(file: Blob): Promise<Blob> {
     const blob = await new Promise<Blob | null>((resolve) =>
       canvas.toBlob(resolve, 'image/jpeg', JPEG_QUALITY)
     );
-    if (!blob) throw new Error('사진을 줄이지 못했습니다.');
+    if (!blob) throw new Error('사진을 줄이지 못했어요.');
     return blob;
   } finally {
     image.close();

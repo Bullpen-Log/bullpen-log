@@ -77,14 +77,14 @@ export function normalizeRoutineInput(input: {
     typeof input.name === 'string' ? input.name.trim().replace(/\s+/g, ' ') : '';
   if (!name) return { ok: false, error: '루틴 이름을 적어 주세요.' };
   if (name.length > MY_ROUTINE_NAME_MAX) {
-    return { ok: false, error: `루틴 이름은 ${MY_ROUTINE_NAME_MAX}자까지입니다.` };
+    return { ok: false, error: `루틴 이름은 ${MY_ROUTINE_NAME_MAX}자까지예요.` };
   }
   const items = readRoutineItems(input.items);
   if (items.length === 0) return { ok: false, error: '운동을 하나 이상 담아 주세요.' };
   if (items.length > MY_ROUTINE_MAX_ITEMS) {
     return {
       ok: false,
-      error: `한 루틴에는 운동을 ${MY_ROUTINE_MAX_ITEMS}개까지 담을 수 있습니다.`,
+      error: `한 루틴에는 운동을 ${MY_ROUTINE_MAX_ITEMS}개까지 담을 수 있어요.`,
     };
   }
   return { ok: true, name, items };

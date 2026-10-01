@@ -106,7 +106,7 @@ function getClient() {
 
   if (!url || !key) {
     throw new Error(
-      'SUPABASE_URL과 SUPABASE_SERVICE_ROLE_KEY 환경변수가 필요합니다. .env와 배포 환경 설정을 확인하세요.'
+      'SUPABASE_URL과 SUPABASE_SERVICE_ROLE_KEY 환경변수가 필요해요. .env와 배포 환경 설정을 확인하세요.'
     );
   }
 
@@ -140,7 +140,7 @@ export async function createUploadTarget(userId: string, fileName: string) {
     .createSignedUploadUrl(path);
 
   if (error || !data) {
-    throw new Error(error?.message ?? '업로드 주소를 만들지 못했습니다.');
+    throw new Error(error?.message ?? '업로드 주소를 만들지 못했어요.');
   }
 
   return { path: data.path, signedUrl: data.signedUrl, token: data.token };
@@ -301,7 +301,7 @@ export async function createPitchThumbUploadTarget(thumbPath: string) {
     .createSignedUploadUrl(thumbPath, { upsert: true });
 
   if (error || !data) {
-    throw new Error(error?.message ?? '업로드 주소를 만들지 못했습니다.');
+    throw new Error(error?.message ?? '업로드 주소를 만들지 못했어요.');
   }
 
   urlCache.delete(thumbPath);
@@ -329,7 +329,7 @@ export async function createAvatarUploadTarget(userId: string, fileType: string)
     .createSignedUploadUrl(path);
 
   if (error || !data) {
-    throw new Error(error?.message ?? '업로드 주소를 만들지 못했습니다.');
+    throw new Error(error?.message ?? '업로드 주소를 만들지 못했어요.');
   }
 
   return { path: data.path, signedUrl: data.signedUrl, token: data.token };
@@ -372,7 +372,7 @@ export async function createLibraryUploadTarget(
     .createSignedUploadUrl(path);
 
   if (error || !data) {
-    throw new Error(error?.message ?? '업로드 주소를 만들지 못했습니다.');
+    throw new Error(error?.message ?? '업로드 주소를 만들지 못했어요.');
   }
 
   return { path: data.path, signedUrl: data.signedUrl, token: data.token };

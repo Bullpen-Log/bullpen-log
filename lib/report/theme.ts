@@ -224,7 +224,7 @@ function outingPhrase(strain: { pitches: number; daysAgo: number }): string {
       : strain.daysAgo === 1
         ? '어제'
         : `${strain.daysAgo}일 전`;
-  return `${when} ${strain.pitches}구를 던지셨습니다`;
+  return `${when} ${strain.pitches}구를 던지셨어요`;
 }
 
 /**
@@ -258,11 +258,11 @@ export function workoutConflict({
     return { reason: outingPhrase(strain), fallback: 'recovery' };
   }
   if (facts.load.zone === 'danger') {
-    return { reason: '투구 부하가 위험 구간입니다', fallback: 'recovery' };
+    return { reason: '투구 부하가 위험 구간이에요', fallback: 'recovery' };
   }
   const condition = facts.condition.today?.condition;
   if (condition != null && condition <= LOW_CONDITION_THRESHOLD) {
-    return { reason: `오늘 컨디션이 ${condition}/10입니다`, fallback: 'recovery' };
+    return { reason: `오늘 컨디션이 ${condition}/10이에요`, fallback: 'recovery' };
   }
   /*
    * 전신 근육통 '심함' — 낮은 컨디션과 같은 자리 · 같은 결론(회복).
@@ -276,10 +276,10 @@ export function workoutConflict({
   const soreness = facts.condition.today?.soreness;
   const soreWord = sorenessWord(soreness);
   if (soreness != null && soreWord && soreness >= SEVERE_SORENESS) {
-    return { reason: `전신 근육통이 '${soreWord}'입니다`, fallback: 'recovery' };
+    return { reason: `전신 근육통이 '${soreWord}'이에요`, fallback: 'recovery' };
   }
   if (facts.load.zone === 'caution') {
-    return { reason: '투구 부하가 주의 구간입니다', fallback: 'assist' };
+    return { reason: '투구 부하가 주의 구간이에요', fallback: 'assist' };
   }
   if (strain.level === 1) {
     return { reason: outingPhrase(strain), fallback: 'assist' };
@@ -299,7 +299,7 @@ function threwTodayNote(facts: ReportFacts): string {
   const threwToday =
     facts.patterns.restDays === 0 && (facts.patterns.lastOutingPitches ?? 0) > 0;
   return threwToday
-    ? `오늘 ${facts.patterns.lastOutingPitches}구를 던지셨습니다. 그 부담을 빼고 골랐습니다. `
+    ? `오늘 ${facts.patterns.lastOutingPitches}구를 던지셨어요. 그 부담을 빼고 골랐어요. `
     : '';
 }
 
@@ -343,7 +343,7 @@ export function conditioningDay(
     label: CONDITIONING_DAY_LABEL,
     reason:
       threwTodayNote(facts) +
-      `목표가 컨디셔닝이라 무게 드는 운동 대신 ${withJosa(filled, '으로/로')} 채웠습니다. ${part} 근력은 다음 근력 날로 넘어갑니다.`,
+      `목표가 컨디셔닝이라 무게 드는 운동 대신 ${withJosa(filled, '으로/로')} 채웠어요. ${part} 근력은 다음 근력 날로 넘어가요.`,
   };
 }
 
@@ -395,8 +395,8 @@ export function decideTheme({
       key: 'recovery',
       label: '회복·재생 데이',
       reason: plan.halted
-        ? '통증 기록이 있어 재생과 가동성 외에는 권하지 않습니다.'
-        : '최근 통증 기록이 있어 재생과 가동성 위주로 구성했습니다.',
+        ? '통증 기록이 있어 재생과 가동성 외에는 권하지 않아요.'
+        : '최근 통증 기록이 있어 재생과 가동성 위주로 구성했어요.',
     };
   }
 
@@ -405,7 +405,7 @@ export function decideTheme({
     return {
       key: 'recovery',
       label: '회복·재생 데이',
-      reason: '오늘은 회복 위주로 하고 싶다고 하셔서 그렇게 구성했습니다.',
+      reason: '오늘은 회복 위주로 하고 싶다고 하셔서 그렇게 구성했어요.',
     };
   }
 
@@ -431,14 +431,14 @@ export function decideTheme({
       return {
         key: 'recovery',
         label: '회복·재생 데이',
-        reason: `${outingPhrase(strain)}. 아직 회복할 시간이 필요해 가볍게만 구성했습니다.`,
+        reason: `${outingPhrase(strain)}. 아직 회복할 시간이 필요해 가볍게만 구성했어요.`,
       };
     }
     if (facts.load.zone === 'danger') {
       return {
         key: 'recovery',
         label: '회복·재생 데이',
-        reason: '투구 부하가 위험 구간이라 회복 위주로 구성했습니다.',
+        reason: '투구 부하가 위험 구간이라 회복 위주로 구성했어요.',
       };
     }
     const condition = facts.condition.today?.condition;
@@ -446,7 +446,7 @@ export function decideTheme({
       return {
         key: 'recovery',
         label: '회복·재생 데이',
-        reason: `오늘 컨디션이 ${condition}/10이라 회복 위주로 구성했습니다.`,
+        reason: `오늘 컨디션이 ${condition}/10이라 회복 위주로 구성했어요.`,
       };
     }
     /*
@@ -462,28 +462,28 @@ export function decideTheme({
       return {
         key: 'recovery',
         label: '회복·재생 데이',
-        reason: `전신 근육통이 '${soreWord}'이라 가볍게 움직이는 회복 위주로 구성했습니다. 가만히 쉬는 것보다 가볍게 움직이는 편이 풀리는 데 도움이 될 수 있습니다.`,
+        reason: `전신 근육통이 '${soreWord}'이라 가볍게 움직이는 회복 위주로 구성했어요. 가만히 쉬는 것보다 가볍게 움직이는 편이 풀리는 데 도움이 될 수 있어요.`,
       };
     }
     if (facts.load.zone === 'caution') {
       return {
         key: 'assist',
         label: '보조·코어 데이',
-        reason: '투구 부하가 주의 구간이라 무게 대신 코어와 보강에 집중합니다.',
+        reason: '투구 부하가 주의 구간이라 무게 대신 코어와 보강에 집중해요.',
       };
     }
     if (strain.level === 1) {
       return {
         key: 'assist',
         label: '보조·코어 데이',
-        reason: `${outingPhrase(strain)}. 무게는 빼고 코어와 보강 위주로 잡았습니다.`,
+        reason: `${outingPhrase(strain)}. 무게는 빼고 코어와 보강 위주로 잡았어요.`,
       };
     }
   }
 
   /** 몸 상태 경고를 넘기고 온 날에는 그 사실을 이유에 붙인다. */
   const forcedNote = forcing
-    ? ` ${conflict.reason}만, 그래도 하겠다고 하셔서 그대로 만들었습니다. 무리가 오면 바로 멈추세요.`
+    ? ` ${conflict.reason}. 그래도 하겠다고 하셔서 그대로 만들었어요. 무리가 오면 바로 멈추세요.`
     : '';
 
   const todayNote = threwTodayNote(facts);
@@ -500,8 +500,7 @@ export function decideTheme({
     return {
       key: chosen.theme,
       label: chosen.dayLabel,
-      reason:
-        todayNote + `오늘 목표에서 '${chosen.label}'를 고르셨습니다.` + forcedNote,
+      reason: todayNote + `오늘 목표에서 '${chosen.label}'를 고르셨어요.` + forcedNote,
     };
   }
 
@@ -521,7 +520,7 @@ export function decideTheme({
           label: '하체 스트렝스 데이',
           reason:
             todayNote +
-            '부하가 적정 범위입니다. 투구의 힘은 하체에서 나옵니다.' +
+            '부하가 적정 범위예요. 투구의 힘은 하체에서 나와요.' +
             forcedNote,
         }
       : {
@@ -529,7 +528,7 @@ export function decideTheme({
           label: '상체 스트렝스 데이',
           reason:
             todayNote +
-            '부하가 적정 범위라 상체 근력을 훈련하기 좋은 날입니다.' +
+            '부하가 적정 범위라 상체 근력을 훈련하기 좋은 날이에요.' +
             forcedNote,
         };
   }
@@ -540,8 +539,8 @@ export function decideTheme({
       reason:
         todayNote +
         (lastUpperKey != null
-          ? '최근에 상체를 했으니 오늘은 하체 차례입니다.'
-          : '최근 하체 기록이 없어 하체부터 시작합니다.') +
+          ? '최근에 상체를 했으니 오늘은 하체 차례예요.'
+          : '최근 하체 기록이 없어 하체부터 시작해요.') +
         forcedNote,
     };
   }
@@ -551,8 +550,8 @@ export function decideTheme({
     reason:
       todayNote +
       (lastLowerKey != null
-        ? '최근에 하체를 했으니 오늘은 상체 차례입니다.'
-        : '최근 상체 기록이 없어 상체부터 시작합니다.') +
+        ? '최근에 하체를 했으니 오늘은 상체 차례예요.'
+        : '최근 상체 기록이 없어 상체부터 시작해요.') +
       forcedNote,
   };
 }
@@ -579,7 +578,7 @@ export const SLOT_LABELS: Record<SlotKey, { label: string; hint: string }> = {
    */
   cardio: { label: '유산소', hint: '회복날은 가볍게, 컨디셔닝 날은 숨이 찰 만큼' },
   mobility: { label: '가동성', hint: '천천히 관절을 열어주세요' },
-  main: { label: '본운동', hint: '오늘 테마의 핵심입니다' },
+  main: { label: '본운동', hint: '오늘 테마의 핵심이에요' },
   core: { label: '코어', hint: '몸통을 단단하게' },
   /*
    * 보강.
@@ -1571,7 +1570,7 @@ export function pickForTheme<T extends ThemedExercise>({
       }
       if (chosen.length > 0) {
         notes.push(
-          `${spec.categories.join('·')} 운동이 부족해 ${label}을 다른 운동으로 채웠습니다.`
+          `${spec.categories.join('·')} 운동이 부족해 ${label}을 다른 운동으로 채웠어요.`
         );
       }
     }

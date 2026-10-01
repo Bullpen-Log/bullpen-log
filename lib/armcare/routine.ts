@@ -79,7 +79,7 @@ export function decideArmcare({
       kind: 'rest',
       reason:
         plan.haltReason ??
-        '통증 기록이 있어 오늘은 팔을 쉽니다. 통증이 이어지면 전문의 진료를 받아보세요.',
+        '통증 기록이 있어 오늘은 팔을 쉬어요. 통증이 이어지면 전문의 진료를 받아보세요.',
     };
   }
 
@@ -136,7 +136,7 @@ export function decideArmcare({
     kind: 'strength',
     reason:
       p.restDays == null
-        ? '최근 투구 기록이 없습니다 → 강화 루틴'
+        ? '최근 투구 기록이 없어요 → 강화 루틴'
         : `마지막 투구 ${p.restDays}일 전 → 강화 루틴`,
   };
 }
@@ -502,11 +502,11 @@ export function buildArmcareRoutine({
 
   if (stiffShoulder) {
     notes.push(
-      '어깨가 뻐근해서 어깨를 쓰는 운동은 가벼운 것과 버티기 위주로 골랐습니다.'
+      '어깨가 뻐근해서 어깨를 쓰는 운동은 가벼운 것과 버티기 위주로 골랐어요.'
     );
   }
   if (stiffElbow) {
-    notes.push('팔꿈치·손목이 뻐근해서 전완 운동은 가벼운 것 하나만 넣었습니다.');
+    notes.push('팔꿈치·손목이 뻐근해서 전완 운동은 가벼운 것 하나만 넣었어요.');
   }
   /* 조사는 붙는 낱말에 맞춘다 — '어깨 상부은'이 실제로 나왔다(lib/korean) */
   const emptyLabels = (keys: Set<ArmcareAreaKey>) =>
@@ -516,7 +516,7 @@ export function buildArmcareRoutine({
   const gearGaps = emptyLabels(noGear);
   if (gearGaps.length > 0) {
     notes.push(
-      `가진 장비로 할 수 있는 운동이 없어 ${withJosa(gearGaps.join('·'), '은/는')} 뺐습니다.`
+      `가진 장비로 할 수 있는 운동이 없어 ${withJosa(gearGaps.join('·'), '은/는')} 뺐어요.`
     );
   }
   const ruleGaps = emptyLabels(byRule).filter((label) => !gearGaps.includes(label));
@@ -524,8 +524,8 @@ export function buildArmcareRoutine({
     const list = withJosa(ruleGaps.join('·'), '은/는');
     notes.push(
       kind === 'recovery'
-        ? `회복날에는 무게를 싣지 않는 가벼운 운동만 넣어서 ${list} 뺐습니다.`
-        : `오늘 몸 상태에 맞는 가벼운 운동이 없어 ${list} 뺐습니다.`
+        ? `회복날에는 무게를 싣지 않는 가벼운 운동만 넣어서 ${list} 뺐어요.`
+        : `오늘 몸 상태에 맞는 가벼운 운동이 없어 ${list} 뺐어요.`
     );
   }
 

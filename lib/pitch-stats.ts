@@ -502,14 +502,14 @@ export function buildReportFindings({
   if (fatigueCount > 0) {
     findings.push({
       tone: 'warn',
-      title: '이틀 연속 부하가 높았던 구간이 있습니다',
-      detail: `${label} 동안 ${fatigueCount}번 나왔습니다. 연속한 이틀의 강도 합이 ${TWO_DAY_INTENSITY_LIMIT}을 넘으면 어깨·팔꿈치에 피로가 쌓이기 쉽습니다. 다음 날은 강도를 낮추거나 쉬는 편이 좋습니다.`,
+      title: '이틀 연속 부하가 높았던 구간이 있어요',
+      detail: `${label} 동안 ${fatigueCount}번 나왔어요. 연속한 이틀의 강도 합이 ${TWO_DAY_INTENSITY_LIMIT}을 넘으면 어깨·팔꿈치에 피로가 쌓이기 쉬워요. 다음 날은 강도를 낮추거나 쉬는 편이 좋아요.`,
     });
   } else if (current.activeDays > 0) {
     findings.push({
       tone: 'good',
-      title: '연속 부하 관리가 잘 되고 있습니다',
-      detail: `${label} 동안 이틀 합산 강도가 ${TWO_DAY_INTENSITY_LIMIT}을 넘은 구간이 없습니다.`,
+      title: '연속 부하 관리가 잘 되고 있어요',
+      detail: `${label} 동안 이틀 합산 강도가 ${TWO_DAY_INTENSITY_LIMIT}을 넘은 구간이 없어요.`,
     });
   }
 
@@ -520,19 +520,19 @@ export function buildReportFindings({
     if (volumeChange >= 30) {
       findings.push({
         tone: 'warn',
-        title: `투구량이 직전 ${days}일보다 ${rounded}% 늘었습니다`,
-        detail: `${previous.totalPitches}구 → ${current.totalPitches}구. 갑작스러운 증가는 부상 위험을 높입니다. 주당 증가폭을 완만하게 가져가세요.`,
+        title: `투구량이 직전 ${days}일보다 ${rounded}% 늘었어요`,
+        detail: `${previous.totalPitches}구 → ${current.totalPitches}구. 갑작스러운 증가는 부상 위험을 높여요. 주당 증가폭을 완만하게 가져가세요.`,
       });
     } else if (volumeChange <= -30) {
       findings.push({
         tone: 'info',
-        title: `투구량이 직전 ${days}일보다 ${Math.abs(rounded)}% 줄었습니다`,
-        detail: `${previous.totalPitches}구 → ${current.totalPitches}구. 회복 기간이라면 정상입니다.`,
+        title: `투구량이 직전 ${days}일보다 ${Math.abs(rounded)}% 줄었어요`,
+        detail: `${previous.totalPitches}구 → ${current.totalPitches}구. 회복 기간이라면 정상이에요.`,
       });
     } else {
       findings.push({
         tone: 'good',
-        title: '투구량이 안정적으로 유지되고 있습니다',
+        title: '투구량이 안정적으로 유지되고 있어요',
         detail: `직전 ${days}일 대비 ${rounded >= 0 ? '+' : ''}${rounded}% (${previous.totalPitches}구 → ${current.totalPitches}구).`,
       });
     }
@@ -545,13 +545,13 @@ export function buildReportFindings({
     if (diff >= 1) {
       findings.push({
         tone: 'good',
-        title: `최고 구속이 ${rounded}km/h 올랐습니다`,
+        title: `최고 구속이 ${rounded}km/h 올랐어요`,
         detail: `직전 ${days}일 ${previous.maxVelocity}km/h → ${label} ${current.maxVelocity}km/h.`,
       });
     } else if (diff <= -2) {
       findings.push({
         tone: 'info',
-        title: `최고 구속이 ${Math.abs(rounded)}km/h 떨어졌습니다`,
+        title: `최고 구속이 ${Math.abs(rounded)}km/h 떨어졌어요`,
         detail: `직전 ${days}일 ${previous.maxVelocity}km/h → ${label} ${current.maxVelocity}km/h. 피로가 쌓였는지, 폼이 달라졌는지 영상 분석에서 확인해보세요.`,
       });
     }
@@ -561,8 +561,8 @@ export function buildReportFindings({
   if (streak >= 3) {
     findings.push({
       tone: 'warn',
-      title: `${streak}일 연속으로 던진 구간이 있습니다`,
-      detail: '연투가 이어지면 회복이 따라가지 못합니다. 중간에 쉬는 날을 넣어보세요.',
+      title: `${streak}일 연속으로 던진 구간이 있어요`,
+      detail: '연투가 이어지면 회복이 따라가지 못해요. 중간에 쉬는 날을 넣어보세요.',
     });
   }
 
@@ -595,11 +595,11 @@ export function buildReportFindings({
     findings.push({
       tone: 'warn',
       title: gameStarted
-        ? '경기가 시작됐는데 연습량은 그대로입니다'
-        : '경기가 늘었는데 연습량은 그대로입니다',
+        ? '경기가 시작됐는데 연습량은 그대로예요'
+        : '경기가 늘었는데 연습량은 그대로예요',
       detail: gameStarted
-        ? `${label} 경기 부하가 전체의 ${share}%인데, 연습량은 직전 기간과 비슷합니다. 경기는 던질 양을 내가 정할 수 없으므로, 그만큼 불펜이나 캐치볼을 줄여 균형을 맞추는 편이 좋습니다.`
-        : `${label} 경기에서 온 부하가 직전 기간보다 늘어 전체의 ${share}%가 됐습니다. 경기는 던질 양을 내가 정할 수 없으므로, 늘어난 만큼 불펜이나 캐치볼을 줄여 균형을 맞추는 편이 좋습니다.`,
+        ? `${label} 경기 부하가 전체의 ${share}%인데, 연습량은 직전 기간과 비슷해요. 경기는 던질 양을 내가 정할 수 없으므로, 그만큼 불펜이나 캐치볼을 줄여 균형을 맞추는 편이 좋아요.`
+        : `${label} 경기에서 온 부하가 직전 기간보다 늘어 전체의 ${share}%가 됐어요. 경기는 던질 양을 내가 정할 수 없으므로, 늘어난 만큼 불펜이나 캐치볼을 줄여 균형을 맞추는 편이 좋아요.`,
     });
   }
 
@@ -607,8 +607,8 @@ export function buildReportFindings({
   if (current.activeDays === 0) {
     findings.push({
       tone: 'info',
-      title: `${label} 동안 기록이 없습니다`,
-      detail: '투구 기록을 남기면 다음 리포트부터 추이를 볼 수 있습니다.',
+      title: `${label} 동안 기록이 없어요`,
+      detail: '투구 기록을 남기면 다음 리포트부터 추이를 볼 수 있어요.',
     });
   }
 
@@ -652,35 +652,35 @@ export const ACWR_ZONES: Record<
     label: '부하 낮음',
     range: '0.8 미만',
     tone: 'info',
-    meaning: '평소보다 적게 던지고 있습니다.',
+    meaning: '평소보다 적게 던지고 있어요.',
     advice:
-      '최근 부하가 평소보다 적습니다. 회복 중이라면 정상이며, 복귀할 때는 한 번에 늘리지 말고 조금씩 올리세요.',
+      '최근 부하가 평소보다 적어요. 회복 중이라면 정상이며, 복귀할 때는 한 번에 늘리지 말고 조금씩 올리세요.',
   },
   optimal: {
     short: '적정',
     label: '적정',
     range: '0.8 ~ 1.3',
     tone: 'good',
-    meaning: '몸이 감당해온 양 안에서 던지고 있습니다.',
-    advice: '평소 쌓아온 양에 맞는 부하입니다. 지금 흐름을 유지해도 좋습니다.',
+    meaning: '몸이 감당해온 양 안에서 던지고 있어요.',
+    advice: '평소 쌓아온 양에 맞는 부하예요. 지금 흐름을 유지해도 좋아요.',
   },
   caution: {
     short: '주의',
     label: '주의',
     range: '1.3 ~ 1.5',
     tone: 'warn',
-    meaning: '평소보다 빠르게 늘고 있습니다.',
+    meaning: '평소보다 빠르게 늘고 있어요.',
     advice:
-      '최근 부하가 평소보다 빠르게 올랐습니다. 이번 주는 투구수나 강도를 조금 낮추는 편이 안전합니다.',
+      '최근 부하가 평소보다 빠르게 올랐어요. 이번 주는 투구수나 강도를 조금 낮추는 편이 안전해요.',
   },
   danger: {
     short: '위험',
     label: '위험',
     range: '1.5 초과',
     tone: 'bad',
-    meaning: '평소 감당하던 양을 크게 넘었습니다.',
+    meaning: '평소 감당하던 양을 크게 넘었어요.',
     advice:
-      '평소 감당하던 양을 크게 넘었습니다. 투구량을 확실히 줄이고 회복에 시간을 주세요.',
+      '평소 감당하던 양을 크게 넘었어요. 투구량을 확실히 줄이고 회복에 시간을 주세요.',
   },
 };
 

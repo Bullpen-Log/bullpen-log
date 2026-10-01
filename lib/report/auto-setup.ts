@@ -474,40 +474,40 @@ function draftReason({
 }): string {
   const time =
     actualMinutes < minutes
-      ? `회복날이라 시간은 ${actualMinutes}분으로 줄였습니다.`
+      ? `회복날이라 시간은 ${actualMinutes}분으로 줄였어요.`
       : shorten
-        ? `시간은 ${minutes}분으로 줄였습니다.`
-        : `시간은 ${minutes}분입니다.`;
+        ? `시간은 ${minutes}분으로 줄였어요.`
+        : `시간은 ${minutes}분이에요.`;
   if (clash) {
-    return `${clash.kind} 운동을 하고 싶다고 하셨는데, ${clash.reason}. 그래서 오늘은 몸 상태에 맞춰 가볍게 만들었습니다. ${time}`;
+    return `${clash.kind} 운동을 하고 싶다고 하셨는데, ${clash.reason}. 그래서 오늘은 몸 상태에 맞춰 가볍게 만들었어요. ${time}`;
   }
   if (loadHigh && sleepDebt) {
-    return `최근 운동 부하가 높고 잠도 부족한 날이 이어져, 목표는 ${withJosa(goal, '으로/로')} 두었습니다. ${time}`;
+    return `최근 운동 부하가 높고 잠도 부족한 날이 이어져, 목표는 ${withJosa(goal, '으로/로')} 두었어요. ${time}`;
   }
   if (loadHigh) {
-    return `최근 운동 부하가 평소보다 높아, 목표는 ${withJosa(goal, '으로/로')} 두었습니다. ${time}`;
+    return `최근 운동 부하가 평소보다 높아, 목표는 ${withJosa(goal, '으로/로')} 두었어요. ${time}`;
   }
   if (sleepDebt) {
-    return `잠이 부족한 날이 이어져, 오늘은 무게를 올리기보다 ${goal}에 씁니다. ${time}`;
+    return `잠이 부족한 날이 이어져, 오늘은 무게를 올리기보다 ${goal}에 써요. ${time}`;
   }
   if (soreHigh) {
     /* 파워 · 웨이트를 직접 고른 날은 목표가 그 뜻대로 갔다는 것까지 말한다 */
     const goalNote =
       preferred === '파워' || preferred === '웨이트'
-        ? `체크인에서 ${preferred} 운동을 고르셔서 목표는 ${withJosa(goal, '으로/로')} 잡았습니다. `
-        : `목표는 ${withJosa(goal, '으로/로')} 두었습니다. `;
-    return `근육통이 '${soreHigh}'인 날이라 가장 센 운동은 빼고 갑니다. ${goalNote}${time}`;
+        ? `체크인에서 ${preferred} 운동을 고르셔서 목표는 ${withJosa(goal, '으로/로')} 잡았어요. `
+        : `목표는 ${withJosa(goal, '으로/로')} 두었어요. `;
+    return `근육통이 '${soreHigh}'인 날이라 가장 센 운동은 빼고 가요. ${goalNote}${time}`;
   }
   if (!strengthDay) {
-    return `몸을 아끼는 날이라 목표는 ${withJosa(goal, '으로/로')} 두었습니다. ${time}`;
+    return `몸을 아끼는 날이라 목표는 ${withJosa(goal, '으로/로')} 두었어요. ${time}`;
   }
   if (preferred === '파워' || preferred === '웨이트') {
-    return `체크인에서 ${preferred} 운동을 고르셔서 목표를 ${withJosa(goal, '으로/로')} 잡았습니다. ${time}`;
+    return `체크인에서 ${preferred} 운동을 고르셔서 목표를 ${withJosa(goal, '으로/로')} 잡았어요. ${time}`;
   }
   if (!hasHistory) {
-    return `운동 기록이 아직 적어 ${withJosa(goal, '으로/로')} 시작합니다. 기록이 쌓이면 더 맞춰 드립니다. ${time}`;
+    return `운동 기록이 아직 적어 ${withJosa(goal, '으로/로')} 시작해요. 기록이 쌓이면 더 맞춰 드려요. ${time}`;
   }
-  return `특별히 바꿀 신호가 없어 기본 목표인 ${withJosa(goal, '으로/로')} 잡았습니다. ${time}`;
+  return `특별히 바꿀 신호가 없어 기본 목표인 ${withJosa(goal, '으로/로')} 잡았어요. ${time}`;
 }
 
 /**

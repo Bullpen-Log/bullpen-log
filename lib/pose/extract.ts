@@ -119,7 +119,7 @@ function seekTo(video: VideoWithFrameCallback, t: number): Promise<void> {
       if (settled) return;
       settled = true;
       cleanup();
-      reject(new Error('영상 탐색에 실패했습니다.'));
+      reject(new Error('영상 탐색에 실패했어요.'));
     };
     const cleanup = () => {
       video.removeEventListener('seeked', onSeeked);
@@ -203,7 +203,7 @@ async function scanBySeek(
   // timestamp는 단조 증가해야 해서 소수점 오차를 피해 정수 ms를 쓴다.
   // (엔진을 영상마다 새로 만들므로 0부터 시작해도 안전하다)
   for (let i = 0; i * step <= duration; i++) {
-    if (signal?.aborted) throw new Error('분석이 취소되었습니다.');
+    if (signal?.aborted) throw new Error('분석이 취소됐어요.');
 
     const t = i * step;
     await seekTo(video, t);
@@ -306,7 +306,7 @@ function scanByPlayback(
 
     const stepCb = (_now: number, metadata?: FrameMetadata) => {
       if (finished) return;
-      if (signal?.aborted) return finish(new Error('분석이 취소되었습니다.'));
+      if (signal?.aborted) return finish(new Error('분석이 취소됐어요.'));
       armStallTimer();
       // mediaTime은 "지금 화면에 표시된 그 프레임"의 정확한 시각이다.
       // currentTime은 표시된 프레임보다 앞서 있을 수 있어 좌표-시각이 어긋난다.
@@ -372,19 +372,19 @@ export async function extractPoseTrack(
         () =>
           finish(() =>
             reject(
-              new Error('영상을 불러오지 못했습니다. 연결을 확인하고 다시 해 주세요.')
+              new Error('영상을 불러오지 못했어요. 연결을 확인하고 다시 해 주세요.')
             )
           ),
         LOAD_TIMEOUT_MS
       );
-      const onAbort = () => finish(() => reject(new Error('분석이 취소되었습니다.')));
+      const onAbort = () => finish(() => reject(new Error('분석이 취소됐어요.')));
       const finish = (next: () => void) => {
         clearTimeout(timer);
         signal?.removeEventListener('abort', onAbort);
         next();
       };
       video.onloadeddata = () => finish(resolve);
-      video.onerror = () => finish(() => reject(new Error('영상을 열 수 없습니다.')));
+      video.onerror = () => finish(() => reject(new Error('영상을 열 수 없어요.')));
       if (signal?.aborted) onAbort();
       else signal?.addEventListener('abort', onAbort, { once: true });
     });
@@ -393,7 +393,7 @@ export async function extractPoseTrack(
       Number.isFinite(video.duration) ? video.duration : 0,
       MAX_ANALYZE_SECONDS
     );
-    if (duration <= 0) throw new Error('영상 길이를 읽을 수 없습니다.');
+    if (duration <= 0) throw new Error('영상 길이를 읽을 수 없어요.');
 
     const perSecond = Math.min(
       SAMPLES_PER_SECOND,
@@ -497,7 +497,7 @@ export async function extractPoseTrack(
 
     if (scan.frames.length === 0) {
       throw new Error(
-        '영상에서 사람을 인식하지 못했습니다. 전신이 나오게, 밝은 곳에서 찍힌 영상인지 확인해주세요.'
+        '영상에서 사람을 인식하지 못했어요. 전신이 나오게, 밝은 곳에서 찍힌 영상인지 확인해주세요.'
       );
     }
 
@@ -527,7 +527,7 @@ export async function extractPoseTrack(
     if (err instanceof Error && /[가-힣]/.test(err.message)) throw err;
     // 그 외(MediaPipe 내부 오류 등)는 사람이 읽을 안내로 바꾼다.
     throw new Error(
-      '분석 도구에 문제가 생겨 중단됐습니다. 한 번 더 눌러 다시 시도해주세요.'
+      '분석 도구에 문제가 생겨 중단됐어요. 한 번 더 눌러 다시 시도해주세요.'
     );
   } finally {
     video.src = '';

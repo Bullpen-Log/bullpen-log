@@ -341,7 +341,7 @@ export function buildPitchPlan(facts: ReportFacts): PitchPlan {
 
   const youthNote =
     profile.age != null && profile.age < YOUTH_AGE_THRESHOLD
-      ? `만 ${profile.age}세는 성장기라 위 수치보다 더 보수적으로 잡는 것이 안전합니다. 지도자와 상의하세요.`
+      ? `만 ${profile.age}세는 성장기라 위 수치보다 더 보수적으로 잡는 것이 안전해요. 지도자와 상의하세요.`
       : null;
 
   /*
@@ -359,7 +359,7 @@ export function buildPitchPlan(facts: ReportFacts): PitchPlan {
     return {
       halted: true,
       haltReason:
-        '오늘 체크인에 통증이 기록되어 있습니다. 통증이 있는 동안에는 투구 계획을 제공하지 않습니다. 통증이 이어지면 전문의 진료를 받아보세요. 통증이 가라앉았다면 오늘 체크인을 다시 저장해주세요.',
+        '오늘 체크인에 통증이 기록되어 있어요. 통증이 있는 동안에는 투구 계획을 제공하지 않아요. 통증이 이어지면 전문의 진료를 받아보세요. 통증이 가라앉았다면 오늘 체크인을 다시 저장해주세요.',
       today: restDay(facts.asOf, TODAY_LABEL, '통증 기록'),
       tomorrow: null,
       threwToday: false,
@@ -375,7 +375,7 @@ export function buildPitchPlan(facts: ReportFacts): PitchPlan {
     return {
       halted: true,
       haltReason:
-        '최근 체크인에 통증이 기록되어 있습니다. 지금 어떤 상태인지 알 수 없어 계획을 내지 않았습니다. 오늘 체크인을 남겨주시면 상태에 맞춰 다시 계획을 만듭니다. 통증이 이어지면 전문의 진료를 받아보세요.',
+        '최근 체크인에 통증이 기록되어 있어요. 지금 어떤 상태인지 알 수 없어 계획을 내지 않았어요. 오늘 체크인을 남겨주시면 상태에 맞춰 다시 계획을 만들어요. 통증이 이어지면 전문의 진료를 받아보세요.',
       today: restDay(facts.asOf, TODAY_LABEL, '통증 확인 필요'),
       tomorrow: null,
       threwToday: false,
@@ -435,7 +435,7 @@ export function buildPitchPlan(facts: ReportFacts): PitchPlan {
         ? `${lastOuting}구`
         : `${lastOuting}구(전력 환산 ${lastAdjusted}구)`;
     basis.push(
-      `마지막 등판 ${amount} → 전력 등판까지 ${needRest}일 (경과 ${restedSoFar}일). 그사이에도 가볍게는 던집니다`
+      `마지막 등판 ${amount} → 전력 등판까지 ${needRest}일 (경과 ${restedSoFar}일). 그사이에도 가볍게는 던져요`
     );
   }
 
@@ -497,7 +497,7 @@ export function buildPitchPlan(facts: ReportFacts): PitchPlan {
    */
   if (patterns.longestStreak >= 3) {
     basis.push(
-      `최근 4주 최장 연투 ${patterns.longestStreak}일 — 이어 던진 뒤에는 하루 쉬는 편이 좋습니다`
+      `최근 4주 최장 연투 ${patterns.longestStreak}일 — 이어 던진 뒤에는 하루 쉬는 편이 좋아요`
     );
   }
 
@@ -537,7 +537,7 @@ export function buildPitchPlan(facts: ReportFacts): PitchPlan {
         return restDay(
           dateKey,
           label,
-          `${pending.pitches}구 등판 다음 날 — 오늘은 완전히 쉽니다`
+          `${pending.pitches}구 등판 다음 날 — 오늘은 완전히 쉬어요`
         );
       }
       const step = Math.min(
@@ -555,7 +555,7 @@ export function buildPitchPlan(facts: ReportFacts): PitchPlan {
         maxPitches: light.max,
         minIntensity: Math.max(RECOVERY_MIN_INTENSITY, ceiling - INTENSITY_SPAN),
         maxIntensity: ceiling,
-        reason: `${pending.pitches}구 등판 회복 중(${pending.elapsed}일째) — 가볍게 던지며 풉니다`,
+        reason: `${pending.pitches}구 등판 회복 중(${pending.elapsed}일째) — 가볍게 던지며 풀어요`,
       };
     }
 

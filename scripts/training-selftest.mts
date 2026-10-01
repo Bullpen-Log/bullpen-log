@@ -525,7 +525,7 @@ console.log('\n[안전] 몸이 안 좋은 날 무거운 운동이 섞이지 않�
     "근육통 '심함' → 회복 테마, 이유가 근육통",
     severe.theme.key === 'recovery' &&
       severe.theme.reason ===
-        "전신 근육통이 '심함'이라 가볍게 움직이는 회복 위주로 구성했습니다. 가만히 쉬는 것보다 가볍게 움직이는 편이 풀리는 데 도움이 될 수 있습니다.",
+        "전신 근육통이 '심함'이라 가볍게 움직이는 회복 위주로 구성했어요. 가만히 쉬는 것보다 가볍게 움직이는 편이 풀리는 데 도움이 될 수 있어요.",
     severe.theme.reason
   );
   check(
@@ -1854,7 +1854,7 @@ console.log('\n[오늘 하고 싶은 운동] 고른 대로 가되, 몸 상태는
   check(
     "파워를 골랐지만 근육통 '심함' → 부딪힘: 회복 쪽, 까닭은 근육통",
     conflict?.fallback === 'recovery' &&
-      conflict.reason === "전신 근육통이 '심함'입니다",
+      conflict.reason === "전신 근육통이 '심함'이에요",
     conflict ? `${conflict.reason} → ${conflict.fallback}` : '부딪힘 없음'
   );
   check(
@@ -1869,7 +1869,7 @@ console.log('\n[오늘 하고 싶은 운동] 고른 대로 가되, 몸 상태는
     "근육통 '심함'이어도 그래도 하겠다고 하면 → 회복이 아닌 테마, 이유에 그 사실을 적는다",
     (forced.theme.key === 'lower' || forced.theme.key === 'upper') &&
       forced.theme.reason.includes(
-        "전신 근육통이 '심함'입니다만, 그래도 하겠다고 하셔서 그대로 만들었습니다."
+        "전신 근육통이 '심함'이에요. 그래도 하겠다고 하셔서 그대로 만들었어요."
       ),
     `${forced.theme.label} — ${forced.theme.reason.slice(-52)}`
   );
@@ -3450,7 +3450,7 @@ console.log('\n[AI 맞춤] 규칙이 울타리를 치고, 그 밖의 답은 받�
   check(
     "근육통 '많이' → 초안 이유가 근육통 이야기로 시작한다",
     soreHigh.draft.reason ===
-      "근육통이 '많이'인 날이라 가장 센 운동은 빼고 갑니다. 목표는 근력 향상으로 두었습니다. 시간은 45분으로 줄였습니다.",
+      "근육통이 '많이'인 날이라 가장 센 운동은 빼고 가요. 목표는 근력 향상으로 두었어요. 시간은 45분으로 줄였어요.",
     soreHigh.draft.reason
   );
   const soreHighPower = fenceFor(factsWith({ soreness: 4, wants: '파워' }));
@@ -3522,9 +3522,9 @@ console.log('\n[AI 맞춤] 규칙이 울타리를 치고, 그 밖의 답은 받�
     `${JSON.stringify(soreHighFloor.minutes)} · ${soreHighFloor.rules.join(' / ')}`
   );
   check(
-    "근육통 '많이' + 기본 45분 → 초안 이유도 '줄였습니다'라고 하지 않는다",
+    "근육통 '많이' + 기본 45분 → 초안 이유도 '줄였어요'라고 하지 않는다",
     soreHighFloor.draft.reason ===
-      "근육통이 '많이'인 날이라 가장 센 운동은 빼고 갑니다. 목표는 근력 향상으로 두었습니다. 시간은 45분입니다.",
+      "근육통이 '많이'인 날이라 가장 센 운동은 빼고 가요. 목표는 근력 향상으로 두었어요. 시간은 45분이에요.",
     soreHighFloor.draft.reason
   );
 
