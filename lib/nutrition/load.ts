@@ -29,6 +29,7 @@ import {
 } from '@/lib/nutrition/burn';
 import { ageBand } from '@/lib/nutrition/age';
 import { mfdsEnabled } from '@/lib/nutrition/mfds-key';
+import { isAiFeatureOn } from '@/lib/ai/features';
 import { throwDayGuide, type ThrowGuide } from '@/lib/nutrition/guide';
 import {
   INTAKE_DAYS,
@@ -113,6 +114,8 @@ export type NutritionDay = {
   body: Body;
   /** 식약처 검색을 쓸 수 있나(인증키가 있나) */
   mfds: boolean;
+  /** 사진 기록(AI)을 쓸 수 있나 — 키가 없으면 음식 창의 '사진으로 담기'를 숨긴다 */
+  photo: boolean;
   /**
    * 던지는 날 가이드 — 오늘을 볼 때만, 띄울 것이 있는 날만(등판 · 불펜 전날과 당일, 던진 뒤).
    * 지난 날을 볼 때는 늘 null 이다: 그날 무엇을 먹으라는 말은 지나고 나면 쓸모가 없다.
@@ -562,6 +565,7 @@ export async function loadNutritionDay(
     yesterday,
     body,
     mfds: mfdsEnabled(),
+    photo: isAiFeatureOn('nutritionPhoto'),
     popular,
     calendar,
     guide,

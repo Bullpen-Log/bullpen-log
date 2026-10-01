@@ -1166,6 +1166,8 @@ model DailyNutrition {
   userId    String
   date      DateTime @db.Date
   weightKg  Float?
+  /// 그날 사진으로 음식을 알아본 횟수(영양 로드맵 7번 — AI 를 부르므로 하루 상한을 센다). 이 칸만 있는 줄은 체중이 비어 있다 — 체중을 읽는 곳은 모두 weightKg 가 있는 줄만 본다.
+  photoCalls Int     @default(0)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)

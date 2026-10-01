@@ -27,6 +27,14 @@ AI 를 부르는 곳 셋 · 지금까지 쓴 양(리포트 10번 ≈ 360원) · 
 - 같이 알아 둘 것: `AI_MODEL` 을 `claude-sonnet-5-5` · `claude-opus-5-5` 로 바꾸면 트레이닝 호출의 `thinking: { type: 'disabled' }`
   가 오류(400)가 되어 AI 맞춤이 늘 규칙대로 간다(4절 4번).
 
+## 김민에게 — 2026-10-02 · 금윤호(Claude) — DB 칸 추가(DailyNutrition.photoCalls) · 영양 사진 기록(꺼 둠)
+
+받은 뒤 할 일: `npx prisma generate`. `DailyNutrition` 에 `photoCalls Int @default(0)` 한 칸(마이그레이션
+`20261002120000_nutrition_photo_calls`, 백업 뒤 DB 에 이미 적용 — 추가만이라 네 코드는 그대로 돈다).
+
+- 영양 로드맵 7번 사진 기록 코드가 들어왔지만 **AI 회의 전까지 꺼져 있다**(`lib/ai/features.ts` 의 nutritionPhoto). 켜지면 하루
+  30번까지 이 칸으로 센다. 이 칸만 있는 줄은 체중이 비어 있다 — 체중을 읽는 곳은 모두 weightKg 가 있는 줄만 본다.
+
 ## 김민에게 — 2026-10-02 · 금윤호(Claude) — 공용 확인 창을 밖에서도 쓰게 · 구속 측정의 영어 확인창 · 진동 · 팝업 링크
 
 받은 뒤 할 일 없음. 네가 짚어 준 것(10-01 '애플처럼' 메모)을 고쳤고, 그러느라 공용 부품 하나를 건드렸다.

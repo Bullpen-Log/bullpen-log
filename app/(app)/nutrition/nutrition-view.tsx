@@ -547,6 +547,7 @@ export function NutritionView({ day, today }: { day: NutritionDay; today: string
           combos={day.combos}
           current={entries.filter((e) => e.meal === sheet.meal)}
           mfds={day.mfds}
+          photo={day.photo}
           popular={day.popular}
           onAdd={(items) => addFoods(sheet.meal, items)}
           replacing={sheet.replace ? { name: sheet.replace.name } : null}
