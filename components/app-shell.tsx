@@ -2167,6 +2167,11 @@ function MobileTopBar({
   const [spinning, setSpinning] = useState(false);
   /* 알림 창 · 설정 · 내 정보를 열어 둔 동안은 숨지 않는다 — 알림 창은 이 막대에 붙어 있다 */
   const hidden = useHideOnScroll(panel != null || settingsOpen || profileOpen);
+  /*
+   * 맨 위에서는 막대가 바탕과 같은 색이고 밑 선이 없다 — 아이폰의 큰 제목 화면처럼 막대와 제목이 한 면이다.
+   * 굴리면 흰 막대와 가는 선이 나타나 본문과 갈린다(2026-10-01 사용자 '애플처럼').
+   */
+  const scrolled = useScrolledFromTop();
 
   return (
     <>
@@ -2179,7 +2184,9 @@ function MobileTopBar({
       <div
         data-safe-area
         aria-hidden
-        className="pointer-events-none fixed inset-x-0 top-0 z-45 h-[env(safe-area-inset-top)] bg-surface desk:hidden"
+        className={`pointer-events-none fixed inset-x-0 top-0 z-45 h-[env(safe-area-inset-top)] transition-colors duration-200 desk:hidden ${
+          scrolled ? 'bg-surface' : 'bg-page'
+        }`}
       />
       {/* 첫 화면에서 막대가 시계 밑에서 시작하도록 그만큼 비운다 */}
       <div aria-hidden className="h-[env(safe-area-inset-top)] shrink-0 desk:hidden" />
@@ -2197,9 +2204,9 @@ function MobileTopBar({
          */
         ref={headerRef}
         style={{ viewTransitionName: 'shell-topbar' }}
-        className={`sticky top-[env(safe-area-inset-top)] z-40 flex h-14 items-center gap-2 border-b border-line bg-surface px-4 motion-safe:transition-transform motion-safe:duration-200 motion-safe:ease-out desk:hidden ${
+        className={`sticky top-[env(safe-area-inset-top)] z-40 flex h-14 items-center gap-2 border-b px-4 transition-colors duration-200 motion-safe:transition-[transform,background-color,border-color] motion-safe:duration-200 motion-safe:ease-out desk:hidden ${
           hidden ? '-translate-y-full' : 'translate-y-0'
-        }`}
+        } ${scrolled ? 'border-line bg-surface' : 'border-transparent bg-page'}`}
       >
         <Link href="/today" onClick={onHome} className="flex items-center gap-2">
           <Wordmark className="text-2xl text-ink" />
@@ -2245,6 +2252,28 @@ function MobileTopBar({
       </header>
     </>
   );
+}
+
+/** 화면을 조금이라도 굴렸는가 — 위 막대가 맨 위에서는 바탕과 한 면, 굴리면 흰 막대가 된다 */
+function useScrolledFromTop() {
+  const [scrolled, setScrolled] = useState(false);
+  useEffect(() => {
+    let frame = 0;
+    const read = () => {
+      frame = 0;
+      setScrolled(window.scrollY > 4);
+    };
+    const onScroll = () => {
+      if (!frame) frame = requestAnimationFrame(read);
+    };
+    read();
+    window.addEventListener('scroll', onScroll, { passive: true });
+    return () => {
+      window.removeEventListener('scroll', onScroll);
+      cancelAnimationFrame(frame);
+    };
+  }, []);
+  return scrolled;
 }
 
 /**

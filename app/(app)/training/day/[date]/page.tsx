@@ -1,6 +1,6 @@
 import { notFound } from 'next/navigation';
 import Link from 'next/link';
-import { ArrowLeft } from 'lucide-react';
+import { BackLink } from '@/components/ui';
 import { requireUser } from '@/lib/dal';
 import { trainingDay } from '@/lib/report/training-history';
 import { toDateKey } from '@/lib/pitch-stats';
@@ -52,15 +52,9 @@ export default async function TrainingDayPage({
 
   return (
     <div className="stack-page">
-      <Link
-        href={`/today?date=${date}`}
-        className="inline-flex items-center gap-1.5 text-sm font-medium text-muted transition-colors hover:text-sky"
-      >
-        <ArrowLeft className="h-4 w-4" />
-        {spokenMonth(date)} 달력
-      </Link>
+      <BackLink href={`/today?date=${date}`}>{spokenMonth(date)} 달력</BackLink>
 
-      <div className="border-b border-line pb-6">
+      <div className="pb-1 desk:border-b desk:border-line desk:pb-6">
         <h1 className="text-heading page-title text-ink">{spokenDate(date)}</h1>
         <p className="mt-2 text-sm text-muted">
           {empty ? '이 날은 운동 기록이 없습니다' : `운동 ${count}개`}

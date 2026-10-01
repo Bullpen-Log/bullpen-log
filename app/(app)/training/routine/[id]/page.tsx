@@ -1,6 +1,5 @@
-import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { ArrowLeft } from 'lucide-react';
+import { BackLink } from '@/components/ui';
 import { requireUser } from '@/lib/dal';
 import { visibleExercises } from '@/lib/library-cache';
 import { formatPrescription } from '@/lib/exercise-meta';
@@ -78,15 +77,9 @@ export default async function RoutinePage({
 
   return (
     <div className="stack-page">
-      <Link
-        href="/training?view=armcare"
-        className="inline-flex items-center gap-1.5 text-sm font-medium text-muted transition-colors hover:text-sky"
-      >
-        <ArrowLeft className="h-4 w-4" />
-        암케어
-      </Link>
+      <BackLink href="/training?view=armcare">암케어</BackLink>
 
-      <div className="space-y-2 border-b border-line pb-6">
+      <div className="space-y-2 pb-1 desk:border-b desk:border-line desk:pb-6">
         <h1 className="text-heading page-title text-ink">
           {isNew ? '새 루틴 만들기' : '루틴 고치기'}
         </h1>

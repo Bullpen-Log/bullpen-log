@@ -1,10 +1,9 @@
-import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { ArrowLeft, ExternalLink, Eye, Trash2 } from 'lucide-react';
+import { ExternalLink, Eye, Trash2 } from 'lucide-react';
 import { prisma } from '@/lib/prisma';
 import { requireUser } from '@/lib/dal';
 import { deleteArticle } from '@/app/actions/board';
-import { Badge } from '@/components/ui';
+import { BackLink, Badge } from '@/components/ui';
 import { ConfirmDeleteForm } from '@/components/confirm-delete';
 
 function formatDate(date: Date) {
@@ -44,13 +43,7 @@ export default async function ArticleDetailPage({
 
   return (
     <article className="mx-auto max-w-3xl space-y-8">
-      <Link
-        href="/board"
-        className="inline-flex items-center gap-2 text-sm text-muted transition-colors hover:text-sky"
-      >
-        <ArrowLeft className="h-4 w-4" />
-        자료실로 돌아가기
-      </Link>
+      <BackLink href="/board">자료실</BackLink>
 
       <header className="space-y-5 border-b border-line pb-8">
         {article.tags.length > 0 && (

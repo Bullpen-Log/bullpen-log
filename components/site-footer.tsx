@@ -2,7 +2,11 @@ import Link from 'next/link';
 import { Wordmark } from '@/components/logo';
 
 /** 문의 메일 — 이용약관 · 개인정보 처리방침의 '문의'와 같은 주소 */
-const CONTACT = 'bullpenlog.com@gmail.com';
+export const CONTACT = 'bullpenlog.com@gmail.com';
+
+/** 의료 안내 — 꼬리말과 설정 창 '정보'(휴대폰은 꼬리말이 없다)가 같이 쓴다 */
+export const MEDICAL_NOTICE =
+  '투구 계획과 운동 제안은 남긴 기록을 바탕으로 계산한 참고 자료이며, 의학적 진단이나 처방이 아닙니다. 통증이 있으면 수치와 관계없이 던지지 말고 전문의와 상담하세요.';
 
 /**
  * 화면 맨 밑 — 웹사이트라면 흔히 두는 것을 짧게(사용자 요청, 2026-09-27).
@@ -24,7 +28,13 @@ export function SiteFooter({
   tabBar?: boolean;
 }) {
   return (
-    <footer className="border-t border-line bg-surface/60">
+    <>
+      {/*
+        휴대폰의 앱 안 화면은 꼬리말 없이 하단 탭 자리만 비운다 — 앱에는 화면마다 붙는 꼬리말이 없고, 약관 · 문의 ·
+        의료 안내는 설정 창 맨 밑 '정보'에 있다(2026-10-01 사용자 '애플처럼'). PC 와 첫 화면 · 약관 화면은 그대로.
+      */}
+      {tabBar && <div aria-hidden className="h-[calc(var(--tab-bar-top)+1rem)] shrink-0 desk:hidden" />}
+    <footer className={`border-t border-line bg-surface/60 ${tabBar ? 'hidden desk:block' : ''}`}>
       <div
         className={`mx-auto w-full px-4 pt-8 sm:px-6 ${width} ${
           tabBar ? 'pb-[calc(var(--tab-bar-top)+1.5rem)] desk:pb-10' : 'pb-10'
@@ -63,14 +73,13 @@ export function SiteFooter({
         </div>
 
         <p className="mt-5 max-w-3xl break-keep text-xs leading-relaxed text-muted">
-          투구 계획과 운동 제안은 남긴 기록을 바탕으로 계산한 참고 자료이며, 의학적
-          진단이나 처방이 아닙니다. 통증이 있으면 수치와 관계없이 던지지 말고 전문의와
-          상담하세요.
+          {MEDICAL_NOTICE}
         </p>
         <p className="mt-2 text-xs text-muted">
           © 2026 Bullpen Log. All rights reserved.
         </p>
       </div>
     </footer>
+    </>
   );
 }
