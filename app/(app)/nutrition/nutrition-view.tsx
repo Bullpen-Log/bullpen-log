@@ -364,6 +364,8 @@ export function NutritionView({ day, today }: { day: NutritionDay; today: string
           origin={goal.origin}
           onClose={() => setGoal((g) => g && { ...g, open: false })}
           profile={day.profile}
+          prefs={day.prefs}
+          today={today}
           body={day.body}
           assumed={t.assumed}
         />

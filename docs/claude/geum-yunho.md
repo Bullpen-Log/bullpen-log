@@ -272,7 +272,10 @@
        context Json). `ProfileSettings` 에는 proteinTargetG 만(computeTargets: 있으면 그 g, 지방 · 탄수화물은 그 뒤로 계산), 나머지는
        `DietPrefs`(새 파일) → `NutritionDay.prefs`. `toProfile`(day-detail.ts 도 씀)은 새 칸이 없는 줄도 받게. 목표 창에 '하루 단백질을
        직접 정하기' 스위치(칼로리 스위치 옆, 10~450g — 계산값이 늘 범위 안, 켜면 계산값을 미리 채움).
-    3. **진행 중** 목표 구체화. 3-1 **끝남(699fe34)**: `lib/nutrition/diet-prefs.ts`(취향 · 시즌 상수, `toDietPrefs` · `cleanDietPrefs`),
+    3. **끝남** 목표 구체화. 3-2 · 3-3: 목표 창(`goal-sheet.tsx`)이 [목표 | 식단 취향] 두 칸(저장 하나가 `saveNutritionProfile` → `saveDietPrefs`),
+       목표 체중 밑 '언제까지' 칩(없음 · 4~24주 · 저장한 날짜) — 고르면 그 날짜에 닿는 가장 느린 속도를 고르고, 무리면 '약 N주'.
+       식단 취향 칸의 칩은 `ChoiceChips`(공용 칩 모양, 값은 창이 쥠), 성장기 · 어린이는 보충식품 스위치 꺼짐. `initialTab` 으로 식단 취향부터 열 수 있다.
+       3-1 **끝남(699fe34)**: `lib/nutrition/diet-prefs.ts`(취향 · 시즌 상수, `toDietPrefs` · `cleanDietPrefs`),
        `NutritionDay.prefs`, 서버 `saveDietPrefs`(칼로리 계획과 따로 — planSince 를 안 건드림), 시험 6개. **다음 3-2**: 목표 창을 [목표 | 식단 취향] 두 칸으로. 목표 체중 밑 '언제까지'(없음 · 4 · 8 · 12 · 16 · 24주 → goalEndDate,
        필요한 속도를 계산해 고를 수 있는 속도 중 맞는 것을 고르고, 안전 한도를 넘으면 "약 N주 걸려요"). 식단 취향: 시즌 단계 · 스타일
        (한식 위주 · 골고루 · 간편식 위주) · 끼니 구성(세 끼 · +간식 · +간식 둘 · 두 끼+간식) · 못 먹는 것(유제품 · 달걀 · 해산물 ·
