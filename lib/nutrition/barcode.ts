@@ -22,12 +22,32 @@ export function gtinValid(digits: string) {
   return (10 - (sum % 10)) % 10 === check;
 }
 
-/** 적거나 읽은 바코드 → 숫자만(EAN-13 · EAN-8 · UPC-A 12 · GTIN-14, 검사 숫자가 맞을 때). 아니면 null */
+/**
+ * UPC-E(8자리 줄인 UPC — 작은 캔 · 과자) → UPC-A 12자리. 첫 자리(번호 체계)가 0 · 1 이 아니거나 펼친 값의 검사 숫자가
+ * 맞지 않으면 null. 여섯째 자리가 0~2 · 3 · 4 · 5~9 일 때 회사 · 제품 번호를 펴는 자리가 다르다.
+ */
+export function expandUpcE(code: string): string | null {
+  if (!/^[01]\d{7}$/.test(code)) return null;
+  const [ns, a, b, c, d, e, f, check] = [...code];
+  let body: string;
+  if (f === '0' || f === '1' || f === '2') body = `${a}${b}${f}0000${c}${d}${e}`;
+  else if (f === '3') body = `${a}${b}${c}00000${d}${e}`;
+  else if (f === '4') body = `${a}${b}${c}${d}00000${e}`;
+  else body = `${a}${b}${c}${d}${e}0000${f}`;
+  const upcA = `${ns}${body}${check}`;
+  return gtinValid(upcA) ? upcA : null;
+}
+
+/**
+ * 적거나 읽은 바코드 → 숫자만(EAN-13 · EAN-8 · UPC-A 12 · GTIN-14, 검사 숫자가 맞을 때). 아니면 null.
+ * 8자리가 EAN-8 로 맞지 않으면 UPC-E 로 보고 12자리로 편다(자료는 UPC-A 로 찾는다).
+ */
 export function cleanBarcode(raw: string | null | undefined): string | null {
   const digits = String(raw ?? '').replace(/[\s-]/g, '');
   if (!/^\d+$/.test(digits)) return null;
   if (![8, 12, 13, 14].includes(digits.length)) return null;
-  return gtinValid(digits) ? digits : null;
+  if (gtinValid(digits)) return digits;
+  return digits.length === 8 ? expandUpcE(digits) : null;
 }
 
 type OffProduct = {

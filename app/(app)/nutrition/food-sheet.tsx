@@ -198,6 +198,7 @@ export function FoodSheet({
   current,
   mfds,
   photo = false,
+  onError,
   browseSubs = {},
   popular,
   onAdd,
@@ -219,6 +220,8 @@ export function FoodSheet({
   mfds: boolean;
   /** 사진 기록(AI)을 쓸 수 있나 */
   photo?: boolean;
+  /** 창이 닫힌 뒤에 끝난 일의 실패 — 영양 화면의 오류 줄로 */
+  onError?: (message: string) => void;
   /** 식약처 둘러보기의 분류 → 세부 칸 → 음식 수 */
   browseSubs?: Record<string, Record<string, number>>;
   /** 모든 사람이 가장 많이 담은 음식 — 순위대로 */
@@ -515,7 +518,11 @@ export function FoodSheet({
           ),
           OFFLINE
         );
-        if (!res.ok) setError(res.error);
+        if (!res.ok) {
+          setError(res.error);
+          /* 바꾸기는 저장 전에 창을 닫는다 — 영양 화면에도 남겨야 보인다 */
+          onError?.(`${food.name} — 내 음식에 저장하지 못했어요. ${res.error}`);
+        }
       });
     if (replacing && onReplace) {
       /* 바뀐 뒤에만 내 음식에 저장 — 두 번 눌러도 · 바꾸기가 실패해도 내 음식이 두 줄 생기지 않게 */
@@ -605,7 +612,8 @@ export function FoodSheet({
             </button>
           </div>
 
-          {scan && (
+          {/* 창이 닫히면 칸을 내려 카메라를 끈다 — 닫힌 창은 그대로 그려 두므로 open 을 같이 본다 */}
+          {open && scan && (
             <BarcodePanel
               onClose={() => setScan(false)}
               renderFood={(food) => <FoodRow food={food} index={0} hideNote={false} />}

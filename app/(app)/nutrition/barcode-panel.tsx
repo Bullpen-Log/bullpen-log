@@ -4,7 +4,7 @@ import { useEffect, useRef, useState, type ReactNode, type RefObject } from 'rea
 import { Camera, CameraOff, Loader2, ScanBarcode, X } from 'lucide-react';
 import { ErrorLine } from '@/components/error-line';
 import { buzz } from '@/lib/haptics';
-import { cleanBarcode } from '@/lib/nutrition/barcode';
+import { cleanBarcode, expandUpcE } from '@/lib/nutrition/barcode';
 import type { Food } from '@/lib/nutrition/meta';
 
 /**
@@ -26,7 +26,9 @@ type Look =
   | { kind: 'error'; message: string };
 
 type Detector = {
-  detect: (source: HTMLVideoElement) => Promise<{ rawValue: string }[]>;
+  detect: (
+    source: HTMLVideoElement
+  ) => Promise<{ rawValue: string; format?: string }[]>;
 };
 type DetectorClass = {
   new (options: { formats: string[] }): Detector;
@@ -104,15 +106,23 @@ export function BarcodePanel({
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const abortRef = useRef<AbortController | null>(null);
+  /* 카메라를 켜는 중(허락 창 · 켜지는 0.3~1초) — 두 번 눌러 스트림이 둘 생기지 않게 */
+  const startingRef = useRef(false);
+  /* 칸이 내려갔나 — 켜는 중에 닫히면 늦게 온 스트림을 바로 끈다(아무도 끄지 않아 표시등이 켜진 채 남았다) */
+  const goneRef = useRef(false);
 
-  /* 창을 닫으면 카메라 · 물음을 멈춘다 */
-  useEffect(
-    () => () => {
+  /* 칸을 닫거나 창이 닫히면 카메라 · 물음을 멈춘다 */
+  useEffect(() => {
+    goneRef.current = false;
+    return () => {
+      goneRef.current = true;
       streamRef.current?.getTracks().forEach((t) => t.stop());
+      streamRef.current = null;
+      /* 끊을 것은 닫는 그때 진행 중인 물음(마지막 컨트롤러)이라 일부러 지금 값을 읽는다 */
+      // eslint-disable-next-line react-hooks/exhaustive-deps
       abortRef.current?.abort();
-    },
-    []
-  );
+    };
+  }, []);
 
   /* 카메라가 켜지면 장면마다(0.2초) 읽는다 — 읽히면 떨고, 카메라를 끄고, 찾는다 */
   useEffect(() => {
@@ -135,7 +145,13 @@ export function BarcodePanel({
         if (video.readyState >= 2) {
           try {
             const found = await detector.detect(video);
-            const code = found.map((b) => cleanBarcode(b.rawValue)).find(Boolean);
+            const code = found
+              .map((b) =>
+                b.format === 'upc_e'
+                  ? (expandUpcE(b.rawValue) ?? cleanBarcode(b.rawValue))
+                  : cleanBarcode(b.rawValue)
+              )
+              .find(Boolean);
             if (code && !stopped) {
               stopped = true;
               buzz(30);
@@ -161,6 +177,11 @@ export function BarcodePanel({
   }, [cam]);
 
   async function startCamera() {
+    if (startingRef.current || streamRef.current) return;
+    startingRef.current = true;
+    /* 앞 바코드의 조회가 아직 오는 중이면 끊는다 — 새로 비추는 카메라 밑에 옛 결과가 다시 뜨지 않게 */
+    abortRef.current?.abort();
+    setLook({ kind: 'idle' });
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
         video: {
@@ -170,11 +191,16 @@ export function BarcodePanel({
         },
         audio: false,
       });
+      if (goneRef.current) {
+        stream.getTracks().forEach((t) => t.stop());
+        return;
+      }
       streamRef.current = stream;
-      setLook({ kind: 'idle' });
       setCam('on');
     } catch {
-      setCam('denied');
+      if (!goneRef.current) setCam('denied');
+    } finally {
+      startingRef.current = false;
     }
   }
 

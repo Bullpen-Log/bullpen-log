@@ -68,7 +68,12 @@ import {
   mfdsCategory,
 } from '../lib/nutrition/mfds-category.ts';
 import { allMfdsReps } from '../lib/nutrition/mfds-reps.ts';
-import { cleanBarcode, gtinValid, parseOffProduct } from '../lib/nutrition/barcode.ts';
+import {
+  cleanBarcode,
+  expandUpcE,
+  gtinValid,
+  parseOffProduct,
+} from '../lib/nutrition/barcode.ts';
 import {
   OTHER_SUB,
   isSubcategory,
@@ -2821,7 +2826,7 @@ console.log('\n■ 식약처 음식 둘러보기');
       cat('R121-0', '빵, 식빵, 버터 첨가') === '면·빵'
   );
   check(
-    '분식은 기본 목록처럼 — 삼각김밥 · 떡볶이 · 라면 · 만두 · 순대 · 햄버거(어느 묶음이든), 순대국밥 · 떡만두국은 제자리',
+    '분식은 기본 목록처럼 — 삼각김밥 · 떡볶이 · 라면 · 만두 · 순대 · 햄버거(어느 묶음이든), 순대국밥은 밥, 떡만두국은 떡국처럼 밥',
     cat('D101-0', '삼각김밥_참치마요네즈') === '분식' &&
       cat('D110-0', '떡볶이') === '분식' &&
       cat('D103-0', '라면') === '분식' &&
@@ -2830,7 +2835,7 @@ console.log('\n■ 식약처 음식 둘러보기');
       cat('D102-0', '햄버거_불고기버거') === '분식' &&
       cat('D102-0', '케이크_생크림케이크') === '간식·보충' &&
       cat('D101-0', '국밥_순대국밥') === '밥' &&
-      cat('D105-0', '떡만두국') === '국·찌개' &&
+      cat('D105-0', '떡만두국') === '밥' &&
       cat('R121-0', '김밥용김') !== '분식'
   );
   check(
@@ -3281,6 +3286,52 @@ console.log('\n■ 음식 세부 분류');
     stir.total === counts['반찬'].stir &&
       stir.items.every((i) => subcategoryOf('반찬', i.food.name, i.food.id) === 'stir'),
     String(stir.total)
+  );
+}
+
+console.log('\n■ 검토에서 나온 것(2026-10-02) — 바코드 UPC-E · 분류 규칙이 겹치는 글자');
+{
+  check(
+    'UPC-E 8자리 → UPC-A 12자리(콜라 캔 04963406 → 049000006346), EAN-8 은 그대로',
+    expandUpcE('04963406') === '049000006346' &&
+      cleanBarcode('04963406') === '049000006346' &&
+      cleanBarcode('96385074') === '96385074' &&
+      expandUpcE('24963406') === null
+  );
+  const c = (code: string, name: string) => mfdsCategory(code, name);
+  check(
+    '메인 분류 — 패티 · 콜라비 · 새우동그랑땡 · 강정 · 사탕무 · 산자나무 · 팝콘치킨이 엉뚱한 곳에 안 감',
+    c('P120-0', '새우패티') !== '우유·음료' &&
+      c('R106-0', '콜라비, 생것') === '과일·채소' &&
+      c('P120-0', '새우동그랑땡') !== '면·빵' &&
+      c('D412-0', '돼지갈비강정') === '반찬' &&
+      c('P101-0', '쌀엿강정') === '간식·보충' &&
+      c('R106-0', '사탕무, 생것') === '과일·채소' &&
+      c('R108-0', '산자나무 열매(씨벅톤), 생것') === '과일·채소' &&
+      c('D303-0', '떡국_소고기') === '밥' &&
+      c('D303-0', '만두국_사골') === '국·찌개' &&
+      c('D104-0', '스프_양송이버섯') === '국·찌개'
+  );
+  const sub = (cat: Parameters<typeof subcategoryOf>[0], name: string, code?: string) =>
+    subcategoryOf(cat, name, code);
+  check(
+    '세부 분류 — 소고기 목심 · 앞다리는 소, 가오리 · 굴비 · 홍게, 기장밥, 모자반 · 통조림, 원재료 과일 · 버섯, 양파',
+    sub('고기·생선', '소고기, 한우(1++등급), 목심, 생것') === 'beef' &&
+      sub('고기·생선', '소고기, 한우(1등급), 앞다리(부채살), 생것') === 'beef' &&
+      sub('고기·생선', '돼지고기, 앞다리, 생것') === 'pork' &&
+      sub('고기·생선', '가오리, 나비가오리, 생것', 'R211-0') === 'fish' &&
+      sub('고기·생선', '조기(참조기), 굴비, 소금에 절여 말린것', 'R211-0') === 'fish' &&
+      sub('고기·생선', '홍게, 생것', 'R211-0') === 'seafood' &&
+      sub('고기·생선', '백합, 생것', 'R211-0') === 'seafood' &&
+      sub('밥', '기장밥') === 'rice' &&
+      sub('밥', '수수밥') === 'rice' &&
+      sub('반찬', '모자반, 말린것') === 'seaweed' &&
+      sub('반찬', '완두, 통조림') === 'bean' &&
+      sub('과일·채소', '앵두, 생것', 'R108-0') === 'fruit' &&
+      sub('과일·채소', '포타벨라, 생것', 'R107-0') === 'mushroom' &&
+      sub('과일·채소', '양파, 레드프라임, 생것', 'R106-0') === 'veg' &&
+      sub('우유·음료', '새우패티') !== 'coffee' &&
+      sub('간식·보충', '사탕무, 생것') !== 'candy'
   );
 }
 
