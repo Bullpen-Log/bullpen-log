@@ -308,10 +308,11 @@ export function EntryForm({
                     type="button"
                     onClick={() => setForm({ ...form, sessionType: t.name })}
                     aria-pressed={active}
-                    className={`rounded-xl border px-4 py-2 text-sm transition-colors ${
+                    /* 휴대폰은 테두리 없는 회색 알약(고른 것은 파랑으로 두름), PC 는 예전 네모 */
+                    className={`min-h-10 rounded-full border px-4 text-sm transition-colors desk:min-h-0 desk:rounded-xl desk:py-2 ${
                       active
                         ? 'border-sky bg-sky/10 font-semibold text-sky-strong'
-                        : 'border-line bg-surface-2 text-muted hover:border-sky-soft hover:text-ink'
+                        : 'border-transparent bg-ink/6 text-ink/80 desk:border-line desk:bg-surface-2 desk:text-muted desk:hover:border-sky-soft desk:hover:text-ink'
                     }`}
                   >
                     {t.name}

@@ -340,10 +340,11 @@ export function VideoGallery({
               type="button"
               onClick={() => setSort(s.key)}
               aria-pressed={sort === s.key}
-              className={`rounded-lg border px-2.5 py-1 text-[11px] font-medium transition-colors ${
+              /* 휴대폰은 테두리 없는 알약, PC 는 예전 테두리 칩 */
+              className={`min-h-8 rounded-full border px-3 text-xs font-medium transition-colors desk:min-h-0 desk:rounded-lg desk:px-2.5 desk:py-1 desk:text-[11px] ${
                 sort === s.key
                   ? 'border-sky bg-sky-tint text-sky-strong'
-                  : 'border-line text-muted hover:border-sky-soft'
+                  : 'border-transparent bg-ink/6 text-ink/70 desk:border-line desk:bg-transparent desk:text-muted desk:hover:border-sky-soft'
               }`}
             >
               {s.label}
@@ -359,10 +360,10 @@ export function VideoGallery({
             type="button"
             onClick={() => setFilter(c.key)}
             aria-pressed={filter === c.key}
-            className={`inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs font-medium transition-colors ${
+            className={`inline-flex min-h-9 items-center gap-1.5 rounded-full border px-3.5 text-[13px] font-medium transition-colors desk:min-h-0 desk:rounded-lg desk:px-2.5 desk:py-1.5 desk:text-xs ${
               filter === c.key
                 ? 'border-sky bg-sky-tint text-sky-strong'
-                : 'border-line text-muted hover:border-sky-soft'
+                : 'border-transparent bg-ink/6 text-ink/80 desk:border-line desk:bg-transparent desk:text-muted desk:hover:border-sky-soft'
             }`}
           >
             {c.label}
@@ -416,7 +417,11 @@ export function VideoGallery({
             </button>
 
             {open && (
-              <ul className="grid gap-3 border-t border-line p-4 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
+              /*
+                휴대폰은 두 칸씩 촘촘하게(아이폰 사진 앱처럼) — 한 줄에 하나면 영상 열 개를 보려고 화면 열 장을 굴렸다
+                (2026-10-01 '애플처럼'). PC 는 예전 그대로.
+              */
+              <ul className="grid grid-cols-2 gap-2 border-t border-line p-2 sm:gap-3 sm:p-4 lg:grid-cols-3 2xl:grid-cols-4">
                 {group.items.map((clip) => {
                   const slot = slotOf(clip.id);
                   const url = clip.path ? urls[clip.path] : undefined;
@@ -486,10 +491,11 @@ export function VideoGallery({
                     </>
                   );
 
+                  /* 휴대폰은 테두리 없이 옅은 면(사진처럼), PC 는 예전 테두리 */
                   const shell = `relative block overflow-hidden rounded-xl border transition-colors ${
                     selecting && slot >= 0
                       ? 'border-sky ring-1 ring-sky'
-                      : 'border-line hover:border-sky-soft'
+                      : 'border-transparent bg-ink/4 desk:border-line desk:bg-transparent desk:hover:border-sky-soft'
                   }`;
 
                   /*

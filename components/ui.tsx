@@ -154,8 +154,12 @@ export function ButtonLink({
   );
 }
 
+/*
+ * 입력칸 — 휴대폰은 테두리 없는 옅은 회색 면(아이폰 입력칸), 누르면 파랑으로 두르고 흰 바탕. PC 는 예전 테두리 칸
+ * (2026-10-01 '애플처럼').
+ */
 const fieldStyles =
-  'w-full rounded-xl border border-line bg-surface-2 px-4 py-3 text-sm text-ink placeholder:text-muted/60 transition-colors focus:border-sky focus:outline-none';
+  'w-full rounded-xl border border-transparent bg-ink/5 px-4 py-3 text-sm text-ink placeholder:text-muted/60 transition-colors focus:border-sky focus:bg-surface focus:outline-none desk:border-line desk:bg-surface-2';
 
 export function Field({
   label,
