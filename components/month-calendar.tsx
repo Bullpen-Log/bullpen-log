@@ -533,14 +533,15 @@ function DayGrid({
 }
 
 /**
- * 제목의 '년 · 월' — 숫자(Bebas) 옆에 붙는 본문 서체의 글자.
+ * 제목의 '년 · 월' — 둥근 숫자(text-numeric, SF Pro Rounded) 옆에 붙는 본문 서체의 글자.
  *
- * 크기는 잉크 높이로 맞춘다. 재 보니 Bebas 24px 숫자는 기준선 위 17px · 아래 1px(18px)
- * 이고, Pretendard 한글은 20px 일 때 위 16px · 아래 2px(18px)다. 예전 15px 은 14px 짜리라
- * 숫자보다 눈에 띄게 작았다. 1px 올려(-top-px) 위아래 끝까지 숫자와 같게 한다.
+ * 숫자의 0.875배 · 굵기 800 · 같은 기준선. 아이폰 WebKit 에서 재 보니 둥근 숫자 24px 은
+ * 기준선 위 17.3px 이고, Pretendard 한글은 21px(0.875배)일 때 위 16.8px 로 숫자와 키가
+ * 같다. 둥근 숫자의 획이 두꺼워 한글은 한 단계 굵게(800) 둬야 같은 무게로 보인다.
+ * 예전 값(20px · 1px 올림)은 Bebas 숫자에 맞춘 것이라, 둥근 숫자로 바뀐 뒤에는 한글이
+ * 작고 떠 보였다. em 으로 두어 PC(숫자 18px)에서도 같은 비율이다.
  */
-const UNIT_CLASS =
-  'relative -top-px ml-0.5 font-sans text-xl font-extrabold tracking-normal';
+const UNIT_CLASS = 'ml-0.5 font-sans text-[0.875em] font-extrabold tracking-normal';
 
 /**
  * '2026년 9월'을 누르면 펼쳐지는 빠른 이동.
@@ -639,7 +640,7 @@ function MonthJump({
           완전히 사라졌다 나타나지는 않는다(0.35 에서 시작). 글자 몇 개가
           깜빡이면 움직임이 아니라 떨림으로 읽힌다.
 
-          '2026년 9월'로 적는다. 숫자 서체(Bebas)에는 한글이 없어서 '년 · 월'은 본문
+          '2026년 9월'로 적는다. 숫자 서체(둥근 숫자)에는 한글이 없어서 '년 · 월'은 본문
           서체로 붙인다 — 그대로 두면 기기 글꼴(맑은 고딕 등)로 떨어져 기기마다 모양이
           달라진다. 글자 높이는 숫자와 같게 맞춘다(UNIT_CLASS).
         */}
