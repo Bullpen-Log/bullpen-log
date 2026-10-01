@@ -885,10 +885,11 @@ function GuideCard({
 
 /* ─────────────────────────── 오늘 한눈에 ─────────────────────────── */
 
+/* 색은 하나 — 무엇인지는 이름이 말한다(사용자 규칙 '그림은 색 적게', 2026-10-01 '애플처럼') */
 const MACROS = [
-  { key: 'carbs', label: '탄수화물', bar: 'bg-cat-power' },
-  { key: 'protein', label: '단백질', bar: 'bg-cat-lower' },
-  { key: 'fat', label: '지방', bar: 'bg-cat-mobility' },
+  { key: 'carbs', label: '탄수화물', bar: 'bg-sky' },
+  { key: 'protein', label: '단백질', bar: 'bg-sky' },
+  { key: 'fat', label: '지방', bar: 'bg-sky' },
 ] as const;
 
 function SummaryCard({
@@ -920,23 +921,70 @@ function SummaryCard({
    * '먹은 것 · 목표' 줄은 큰 숫자와 같은 줄 오른쪽으로 올렸다 — 게이지 밑에 따로 한 줄을
    * 차지하던 것이다. 좁으면 숫자 밑으로 내려간다(flex-wrap).
    */
+  /* 먹은 만큼 차는 링(휴대폰) — 0~100. 넘치면 링은 한 바퀴, 색은 경고 */
+  const share = t.kcal > 0 ? Math.round((eaten.kcal / t.kcal) * 100) : 0;
+  const ring = Math.min(100, share);
+
   return (
     <section className={`${PANEL} space-y-3`}>
       <div className="flex flex-wrap items-end justify-between gap-x-4 gap-y-1">
-        <div>
-          <p className="text-xs text-muted">
-            {over ? '목표보다' : '오늘 더 먹을 수 있는 양'}
-          </p>
-          <p
-            className={`text-[1.75rem] font-bold leading-tight tabular-nums transition-colors ${
-              over ? 'text-warn' : 'text-ink'
-            }`}
+        <div className="flex items-center gap-4">
+          {/*
+            휴대폰은 오늘 먹은 만큼 차는 링 — 아이폰 피트니스의 링처럼 한눈에(2026-10-01 '애플처럼'). 가운데는
+            목표의 몇 %. 밑의 가로 막대(운동으로 늘어난 몫까지 보이는 것)는 PC 에서만 — 휴대폰은 링이 맡는다.
+          */}
+          <span
+            role="img"
+            aria-label={`목표의 ${share}% 먹음`}
+            className="relative grid h-[4.5rem] w-[4.5rem] shrink-0 place-items-center desk:hidden"
           >
-            {kcalText(Math.abs(left))}
-            <span className="ml-1 text-sm font-semibold">
-              kcal{over ? ' 더 먹었어요' : ''}
-            </span>
-          </p>
+            <svg
+              aria-hidden
+              viewBox="0 0 64 64"
+              className="absolute inset-0 -rotate-90"
+            >
+              <circle
+                cx="32"
+                cy="32"
+                r="27"
+                fill="none"
+                strokeWidth="7"
+                className="stroke-ink/8"
+              />
+              {ring > 0 && (
+                <circle
+                  cx="32"
+                  cy="32"
+                  r="27"
+                  fill="none"
+                  strokeWidth="7"
+                  strokeLinecap="round"
+                  pathLength={100}
+                  strokeDasharray="100"
+                  strokeDashoffset={100 - ring}
+                  className={`ring-grow transition-[stroke-dashoffset] duration-500 ${
+                    over ? 'stroke-warn' : 'stroke-sky'
+                  }`}
+                />
+              )}
+            </svg>
+            <span className="text-numeric text-sm text-ink">{share}%</span>
+          </span>
+          <div>
+            <p className="text-xs text-muted">
+              {over ? '목표보다' : '오늘 더 먹을 수 있는 양'}
+            </p>
+            <p
+              className={`text-[1.75rem] font-bold leading-tight tabular-nums transition-colors ${
+                over ? 'text-warn' : 'text-ink'
+              }`}
+            >
+              {kcalText(Math.abs(left))}
+              <span className="ml-1 text-sm font-semibold">
+                kcal{over ? ' 더 먹었어요' : ''}
+              </span>
+            </p>
+          </div>
         </div>
         <p className="flex flex-wrap gap-x-3 gap-y-1 pb-1 text-xs text-muted tabular-nums">
           <span>
@@ -956,7 +1004,7 @@ function SummaryCard({
               <>
                 {' '}
                 = 기본 {kcalText(t.base)} +{' '}
-                <span className="text-cat-recovery">운동 {kcalText(t.burn)}</span>
+                <span className="text-sky">운동 {kcalText(t.burn)}</span>
               </>
             )}
           </span>
@@ -966,12 +1014,12 @@ function SummaryCard({
       <div
         role="img"
         aria-label={`목표 ${kcalText(t.kcal)}kcal 가운데 ${kcalText(eaten.kcal)}kcal 먹음`}
-        className="relative h-3 overflow-hidden rounded-full bg-surface-2"
+        className="relative hidden h-3 overflow-hidden rounded-full bg-surface-2 desk:block"
       >
-        {/* 운동으로 늘어난 몫 — 옅은 초록으로 깔아 둔다 */}
+        {/* 운동으로 늘어난 몫 — 옅은 파랑으로 깔아 둔다 */}
         {t.burn > 0 && (
           <div
-            className={`absolute inset-y-0 bg-cat-recovery/25 transition-[left,width] duration-500 ${EASE}`}
+            className={`absolute inset-y-0 bg-sky/20 transition-[left,width] duration-500 ${EASE}`}
             style={{
               left: pct(t.base),
               width: `calc(${pct(t.kcal)} - ${pct(t.base)})`,
