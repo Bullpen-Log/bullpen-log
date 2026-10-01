@@ -1,38 +1,40 @@
-import { ButtonLink, Eyebrow } from '@/components/ui';
+import Link from 'next/link';
+import { BookOpen, ChartLine, Dumbbell, type LucideIcon } from 'lucide-react';
+import { ButtonLink } from '@/components/ui';
 import { SiteFooter } from '@/components/site-footer';
-import { BullpenMark } from '@/components/logo';
+import { BullpenMark, Wordmark } from '@/components/logo';
+import { Baseball } from '@/components/baseball-icon';
 import { getCurrentUser } from '@/lib/dal';
 
-const PILLARS = [
+/**
+ * 소개 — 처음 온 사람이 보는 첫 화면(아이폰 앱이 로그인 전에 여는 화면이기도 하다).
+ *
+ * 아이폰 앱의 환영 화면처럼 짰다(2026-10-01 사용자 '애플처럼 깔끔하고 감성있게'): 앱 아이콘 · 이름 · 한 줄,
+ * 그 밑에 할 수 있는 것 넷을 아이콘과 한 줄씩, 맨 밑에 큰 [시작하기]. 예전에는 영어 머리글('For Pitchers') ·
+ * 화면을 다 채우는 큰 글씨 · 번호 붙은 여섯 칸(01~06)이라, 읽을 것은 많고 무엇을 누를지는 늦게 보였다.
+ *
+ * 휴대폰에서는 단추가 화면 바닥에 붙어 있다 — 소개를 다 읽기 전에도 엄지 밑에 있다.
+ */
+const FEATURES: { icon: LucideIcon; title: string; desc: string }[] = [
   {
-    num: '01',
-    title: '투구 기록',
-    desc: '날짜별로 투구수, 체감 강도, 최고·평균 구속을 남깁니다. 그날 던진 영상과 느낀점도 함께 기록합니다.',
+    icon: Baseball,
+    title: '투구 기록 · 영상',
+    desc: '투구수 · 강도 · 구속과 그날 던진 영상을 날짜별로 남겨요.',
   },
   {
-    num: '02',
-    title: '영상 분석',
-    desc: '캘린더에서 날짜를 고르면 그날의 영상과 메모가 함께 열립니다. 예전 폼과 지금을 나란히 되돌아봅니다.',
+    icon: Dumbbell,
+    title: '오늘에 맞춘 트레이닝',
+    desc: '몸 상태와 던진 양을 보고 오늘 할 운동을 골라 줘요. 암케어도 따라 하기로.',
   },
   {
-    num: '03',
+    icon: ChartLine,
     title: '리포트',
-    desc: '최근 7일·30일 투구량과 강도, 구속을 보고서로 정리합니다. 직전 기간과 비교해 짚어야 할 점을 알려줍니다.',
+    desc: '최근 7일 · 30일 투구량과 구속을 정리하고 짚을 점을 알려 줘요.',
   },
   {
-    num: '04',
-    title: '트레이닝',
-    desc: '하체·상체 스트렝스부터 모빌리티, 파워, 코어, 암케어, 회복까지 일곱 파트로 나눠 영상과 설명을 정리합니다.',
-  },
-  {
-    num: '05',
-    title: '투구 메커니즘',
-    desc: '스로잉 드릴, 메디신볼 드릴, 무브먼트 패턴 드릴을 설명과 함께 봅니다. 자주 하는 것은 즐겨찾기에 담아 바로 찾습니다.',
-  },
-  {
-    num: '06',
-    title: '자료실',
-    desc: '투구 역학과 트레이닝에 관한 분석글을 모아 둡니다. 근거 있는 훈련을 위한 참고 자료입니다.',
+    icon: BookOpen,
+    title: '메커니즘 · 자료실',
+    desc: '스로잉 · 메디신볼 드릴과 투구 역학 자료를 한곳에서 봐요.',
   },
 ];
 
@@ -40,53 +42,64 @@ export default async function LandingPage() {
   const user = await getCurrentUser();
 
   return (
-    <main className="min-h-[calc(100dvh-env(safe-area-inset-top)-env(safe-area-inset-bottom))]">
-      {/* 히어로 */}
-      <section className="bg-spotlight border-b border-line">
-        <div className="mx-auto flex max-w-4xl flex-col items-center px-6 py-28 text-center sm:py-36">
-          <Eyebrow>For Pitchers</Eyebrow>
-          <h1 className="text-display mt-6 text-6xl leading-[0.95] text-ink sm:text-8xl">
-            {/* 첫 글자 B 자리에 로고 — components/logo.tsx 의 Wordmark 와 같은 짜임(두 줄이라 따로 둔다) */}
-            <span aria-hidden className="inline-flex items-baseline">
-              <BullpenMark className="mr-[0.07em] h-[0.7em]" />
-              ULLPEN
-            </span>
-            <span className="sr-only">BULLPEN</span>
-            <br />
-            {/* 로고와 같은 파랑 — 하늘색(sky)이면 바로 위 B 와 파랑이 두 가지로 보인다 */}
-            <span className="text-brand">LOG</span>
-          </h1>
-          <p className="mt-7 max-w-xl text-base leading-relaxed text-muted">
-            트레이닝, 메커니즘, 투구 기록, 자료실. 투수에게 필요한 것들을 한 곳에
-            모았습니다.
-          </p>
-          <div className="mt-10 flex flex-col gap-3 sm:flex-row">
-            {user ? (
-              <ButtonLink href="/today">오늘 트레이닝 →</ButtonLink>
-            ) : (
-              <>
-                <ButtonLink href="/login">시작하기 →</ButtonLink>
-                <ButtonLink href="/login" variant="secondary">
-                  로그인
-                </ButtonLink>
-              </>
-            )}
-          </div>
+    <main className="bg-spotlight flex min-h-[calc(100dvh-env(safe-area-inset-top)-env(safe-area-inset-bottom))] flex-col">
+      <div className="mx-auto w-full max-w-md flex-1 px-6 pt-16 pb-8 sm:pt-24">
+        {/* 앱 아이콘 — 홈 화면의 아이콘과 같은 B */}
+        <div className="motion-safe:animate-fade-in mx-auto grid h-20 w-20 place-items-center rounded-[22px] bg-surface shadow-[0_10px_30px_-12px_rgb(2_151_228/0.45)] ring-1 ring-line">
+          <BullpenMark className="h-11" />
         </div>
-      </section>
 
-      {/* 4개 축 소개 */}
-      <section className="mx-auto max-w-6xl px-6 py-24">
-        <div className="grid gap-px overflow-hidden rounded-2xl border border-line bg-line sm:grid-cols-2">
-          {PILLARS.map((p) => (
-            <div key={p.num} className="bg-surface p-8 sm:p-10">
-              <span className="text-display text-3xl text-sky-soft">{p.num}</span>
-              <h2 className="mt-4 text-xl font-bold text-ink">{p.title}</h2>
-              <p className="mt-3 text-sm leading-relaxed text-muted">{p.desc}</p>
-            </div>
+        <h1 className="mt-6 text-center">
+          <Wordmark className="text-5xl text-ink" />
+        </h1>
+        <p className="mt-3 text-center text-base leading-relaxed break-keep text-muted">
+          투수를 위한 기록과 트레이닝, 한곳에서.
+        </p>
+
+        <ul className="mt-12 space-y-7">
+          {FEATURES.map(({ icon: Icon, title, desc }) => (
+            <li key={title} className="flex items-start gap-4">
+              <Icon
+                aria-hidden
+                className="mt-0.5 h-7 w-7 shrink-0 text-sky"
+                strokeWidth={1.9}
+              />
+              <div className="min-w-0">
+                <p className="text-[15px] font-semibold text-ink">{title}</p>
+                <p className="mt-0.5 text-sm leading-relaxed break-keep text-muted">
+                  {desc}
+                </p>
+              </div>
+            </li>
           ))}
+        </ul>
+      </div>
+
+      {/*
+        단추 — 휴대폰은 화면 바닥에 붙는다(아이폰 환영 화면처럼). 밑은 홈 막대 자리만큼 비운다.
+        '계정 만들기'는 로그인 화면 안에 있다(로그인 화면은 미리 만들어 둔 화면이라 주소로 모드를 고르지 않는다).
+      */}
+      <div className="sticky bottom-0 bg-linear-to-t from-page via-page/95 to-page/0 pt-6 pb-[max(1.25rem,env(safe-area-inset-bottom))] sm:static sm:bg-none">
+        <div className="mx-auto flex w-full max-w-md flex-col items-stretch gap-1 px-6">
+          {user ? (
+            <ButtonLink href="/today" className="min-h-13 text-base">
+              홈으로
+            </ButtonLink>
+          ) : (
+            <>
+              <ButtonLink href="/login" className="min-h-13 text-base">
+                시작하기
+              </ButtonLink>
+              <Link
+                href="/login"
+                className="mx-auto flex min-h-11 items-center px-3 text-sm font-semibold text-sky transition-opacity active:opacity-60"
+              >
+                이미 계정이 있어요 · 로그인
+              </Link>
+            </>
+          )}
         </div>
-      </section>
+      </div>
 
       {/* 맨 밑 정보 — 앱 안 화면 · 약관 화면과 같은 것(components/site-footer.tsx) */}
       <SiteFooter width="max-w-6xl" />
