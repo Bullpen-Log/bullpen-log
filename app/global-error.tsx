@@ -47,7 +47,7 @@ const THEME_STYLE = `
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Noto Sans KR', sans-serif; }
 `;
 
-const THEME_SCRIPT = `try{var t=localStorage.getItem('${THEME_STORAGE_KEY}');document.documentElement.dataset.theme=t==='dark'?'dark':'${DEFAULT_THEME}';}catch(e){}`;
+const THEME_SCRIPT = `try{var t=localStorage.getItem('${THEME_STORAGE_KEY}');document.documentElement.dataset.theme=t==='dark'||(t==='system'&&matchMedia('(prefers-color-scheme: dark)').matches)?'dark':'${DEFAULT_THEME}';}catch(e){}`;
 
 export default function GlobalError({
   error,

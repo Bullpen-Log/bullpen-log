@@ -1,9 +1,11 @@
 /**
  * 화면 테마.
  *
- * 세 가지다 — 라이트 · 다크 · 네이비. 아무것도 고르지 않았으면 언제나
- * 라이트로 시작한다. 기기 설정(prefers-color-scheme)은 보지 않는다 —
- * 처음 들어온 사람이 늘 같은 화면을 보게 하려는 것이다.
+ * 네 가지다 — 라이트 · 다크 · 네이비 · 자동. 아무것도 고르지 않았으면 언제나
+ * 라이트로 시작한다. 기기 설정(prefers-color-scheme)은 '자동'을 고른 사람에게만
+ * 본다 — 처음 들어온 사람은 늘 같은 화면을 보고, 아이폰처럼 밤에 저절로 어두워지길
+ * 바라는 사람은 '자동'을 고른다(2026-10-01 '애플처럼'). 자동은 라이트 또는 다크로
+ * 칠한다(네이비는 고른 사람만).
  *
  * 다크와 네이비를 나눈 이유: 원래 '다크'가 남색 계열이었는데, 다크 모드를
  * 찾는 사람이 기대하는 것은 대개 검은 화면이다. OLED 화면에서 진짜 검정은
@@ -15,7 +17,8 @@
  * 화면에서는 쓸 수가 없고, 기기마다 다르게 두고 싶은 설정이기도 하다.
  *
  * 실제로 화면에 적용되는 값은 <html data-theme="light|dark|navy"> 하나뿐이고,
- * 색은 app/globals.css 에서 그 선택자로 갈아끼운다.
+ * 색은 app/globals.css 에서 그 선택자로 갈아끼운다. 고른 것(자동 포함)은
+ * <html data-theme-choice> 에 따로 적어 고르개가 읽는다.
  */
 
 export const THEME_STORAGE_KEY = 'bullpen-theme';
@@ -24,9 +27,19 @@ export const THEME_CHOICES = [
   { value: 'light', label: '라이트', hint: '밝은 화면' },
   { value: 'dark', label: '다크', hint: '검은 화면' },
   { value: 'navy', label: '네이비', hint: '남색 화면' },
+  { value: 'system', label: '자동', hint: '기기 설정을 따라' },
 ] as const;
 
 export type ThemeChoice = (typeof THEME_CHOICES)[number]['value'];
+
+/** 기기가 어두운 화면을 쓰는가 — '자동'이 이것으로 라이트 · 다크를 가른다 */
+const DARK_QUERY = '(prefers-color-scheme: dark)';
+
+/** 화면에 실제로 칠할 값 — '자동'은 기기 설정에 따라 라이트나 다크 */
+function resolveTheme(choice: ThemeChoice): Exclude<ThemeChoice, 'system'> {
+  if (choice !== 'system') return choice;
+  return window.matchMedia(DARK_QUERY).matches ? 'dark' : 'light';
+}
 
 /** 모르는 값이면 라이트로 떨어뜨린다. 옛 저장값과 손댄 값을 함께 막는다. */
 function normalizeTheme(value: unknown): ThemeChoice {
@@ -53,8 +66,14 @@ export const THEME_INIT_SCRIPT = `
   try {
     var stored = localStorage.getItem('${THEME_STORAGE_KEY}');
     var known = ${JSON.stringify(THEME_CHOICES.map((c) => c.value))};
+    var choice = known.indexOf(stored) === -1 ? 'light' : stored;
+    document.documentElement.dataset.themeChoice = choice;
     document.documentElement.dataset.theme =
-      known.indexOf(stored) === -1 ? 'light' : stored;
+      choice !== 'system'
+        ? choice
+        : window.matchMedia('${DARK_QUERY}').matches
+          ? 'dark'
+          : 'light';
   } catch (e) {
     document.documentElement.dataset.theme = 'light';
   }
@@ -62,14 +81,22 @@ export const THEME_INIT_SCRIPT = `
 `.trim();
 
 /**
- * 지금 화면에 칠해져 있는 값.
+ * 지금 고른 값(자동 포함).
  *
  * 저장된 값을 다시 읽지 않고 <html> 을 그대로 본다. 위 스크립트가 이미
- * 칠해 두었기 때문에 이쪽이 언제나 화면과 일치한다.
+ * 적어 두었기 때문에 이쪽이 언제나 화면과 일치한다.
  */
 export function readTheme(): ThemeChoice {
   if (typeof document === 'undefined') return DEFAULT_THEME;
-  return normalizeTheme(document.documentElement.dataset.theme);
+  const root = document.documentElement;
+  return normalizeTheme(root.dataset.themeChoice ?? root.dataset.theme);
+}
+
+/** 고른 값을 <html> 에 칠한다 — 고른 것과 실제로 칠할 것을 함께 적는다 */
+function paint(choice: ThemeChoice) {
+  const root = document.documentElement;
+  root.dataset.themeChoice = choice;
+  root.dataset.theme = resolveTheme(choice);
 }
 
 /**
@@ -88,14 +115,22 @@ export function subscribeTheme(onChange: () => void) {
    * 고르개만 옛 값을 보였다.
    */
   const onStorage = (e: StorageEvent) => {
-    if (e.key === THEME_STORAGE_KEY)
-      document.documentElement.dataset.theme = normalizeTheme(e.newValue);
+    if (e.key === THEME_STORAGE_KEY) paint(normalizeTheme(e.newValue));
+    onChange();
+  };
+  /* '자동'이면 기기가 밝음 ↔ 어두움으로 바뀔 때(해 질 녘 · 제어 센터) 따라 칠한다 */
+  const scheme = window.matchMedia(DARK_QUERY);
+  const onScheme = () => {
+    if (readTheme() !== 'system') return;
+    paint('system');
     onChange();
   };
   window.addEventListener('storage', onStorage);
+  scheme.addEventListener('change', onScheme);
   return () => {
     listeners.delete(onChange);
     window.removeEventListener('storage', onStorage);
+    scheme.removeEventListener('change', onScheme);
   };
 }
 
@@ -134,13 +169,13 @@ export function applyTheme(choice: ThemeChoice) {
    * 이미 같은 테마면 아무것도 하지 않는다. 같은 버튼을 두 번 눌렀다고
    * 화면 전체에 전환을 걸 이유가 없다.
    */
-  if (root.dataset.theme !== choice) {
+  if (root.dataset.theme !== resolveTheme(choice)) {
     root.setAttribute(SWITCHING_ATTR, '');
     clearTimeout(switchTimer);
     switchTimer = setTimeout(() => root.removeAttribute(SWITCHING_ATTR), SWITCH_MS);
   }
 
-  root.dataset.theme = choice;
+  paint(choice);
   for (const listener of listeners) listener();
 }
 

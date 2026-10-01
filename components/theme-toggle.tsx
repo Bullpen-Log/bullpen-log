@@ -1,7 +1,7 @@
 'use client';
 
 import { useSyncExternalStore } from 'react';
-import { Moon, MoonStar, Sun, type LucideIcon } from 'lucide-react';
+import { Moon, MoonStar, Sun, SunMoon, type LucideIcon } from 'lucide-react';
 import {
   applyTheme,
   getServerTheme,
@@ -30,6 +30,7 @@ const THEME_ICONS: Record<ThemeChoice, LucideIcon> = {
   light: Sun,
   dark: Moon,
   navy: MoonStar,
+  system: SunMoon,
 };
 
 /* 고르개에 넘길 모양으로 한 번만 합쳐 둔다 — 그릴 때마다 새로 만들 이유가 없다. */

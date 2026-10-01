@@ -35,7 +35,7 @@ export function SettingsPanel({
         <SectionHead
           icon={<Monitor className="h-4 w-4" />}
           title="화면"
-          desc="밝게 볼지 어둡게 볼지 골라요. 이 기기에만 적용돼요."
+          desc="밝게 볼지 어둡게 볼지 골라요. 자동은 기기 설정을 따라요. 이 기기에만 적용돼요."
         />
         <ThemeToggle />
       </section>
