@@ -482,7 +482,8 @@ export function TrainingClient({
   return (
     <div className="space-y-6">
       {/* 이름으로 찾기 — 조건 고르기보다 위에 둔다. 이름을 알면 이쪽이 빠르다. */}
-      <label className="flex items-center gap-2 rounded-2xl border border-line bg-surface px-(--block-pad) py-3">
+      {/* 휴대폰은 아이폰 찾기 칸(회색 면 · 테두리 없이), PC 는 예전 카드 */}
+      <label className="flex h-11 items-center gap-2 rounded-xl bg-ink/8 px-3 desk:h-auto desk:rounded-2xl desk:border desk:border-line desk:bg-surface desk:px-(--block-pad) desk:py-3">
         <Search aria-hidden className="h-4 w-4 shrink-0 text-muted" />
         <input
           type="search"
@@ -508,8 +509,9 @@ export function TrainingClient({
         즐겨찾기만 보기.
         일정을 고칠 때 445개를 다시 훑지 않아도 되게 하려고 둔다.
       */}
+      {/* 휴대폰은 [★ 즐겨찾기]를 [필터] 옆에 둔다(MetaFilter 의 leading) — 여기 카드는 PC 에서만 */}
       {exercises.length > 0 && (
-        <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-line bg-surface px-(--block-pad) py-3">
+        <div className="hidden flex-wrap items-center gap-2 rounded-2xl border border-line bg-surface px-(--block-pad) py-3 desk:flex">
           <button
             type="button"
             onClick={() => setOnlyFavorites((v) => !v)}
@@ -517,8 +519,8 @@ export function TrainingClient({
             disabled={favoriteCount === 0}
             className={`inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-60 ${
               onlyFavorites
-                ? 'border-warn-line bg-warn-bg text-warn'
-                : 'border-line-strong bg-surface-2 text-muted enabled:hover:border-warn-line enabled:hover:text-warn'
+                ? 'border-sky bg-sky-tint text-sky-strong'
+                : 'border-line-strong bg-surface-2 text-muted enabled:hover:border-sky enabled:hover:text-sky'
             }`}
           >
             <Star
@@ -579,6 +581,27 @@ export function TrainingClient({
           onChange={setFilter}
           total={visible.length}
           matched={matched.length}
+          leading={
+            favoriteCount > 0 && (
+              <button
+                type="button"
+                onClick={() => setOnlyFavorites((v) => !v)}
+                aria-pressed={onlyFavorites}
+                className={`inline-flex min-h-10 shrink-0 items-center gap-1.5 rounded-full px-4 text-sm font-semibold whitespace-nowrap transition-colors ${
+                  onlyFavorites ? 'bg-sky text-white' : 'bg-ink/6 text-ink'
+                }`}
+              >
+                <Star
+                  aria-hidden
+                  className="h-4 w-4"
+                  fill={onlyFavorites ? 'currentColor' : 'none'}
+                  strokeWidth={1.9}
+                />
+                즐겨찾기
+                <span className="tabular-nums">{favoriteCount}</span>
+              </button>
+            )
+          }
         />
       )}
 
