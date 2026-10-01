@@ -2,6 +2,7 @@
 
 import {
   createContext,
+  useCallback,
   useContext,
   useEffect,
   useMemo,
@@ -1008,8 +1009,193 @@ function AllFoods({
             </section>
           );
         })}
+        {/* 식약처 음식 — 검색하지 않아도 전체 · 분류에서 내려가며 본다(앱에 넣어 둔 품목대표) */}
+        {category !== 'popular' && <MfdsBrowse category={category} />}
       </div>
     </div>
+  );
+}
+
+/**
+ * 식약처 품목대표 둘러보기 — 기본 음식 밑에 이어진다(app/api/nutrition/browse, 분류는 lib/nutrition/mfds-category.ts).
+ *
+ * 6천 줄이 넘어 한 번에 그리지 않는다. 40줄씩 받고, 목록 끝이 화면에 가까워지면(아래 400px 앞) 다음 40줄을 묻는다.
+ * 받은 쪽마다 FoodList 하나라, 줄이 들어오는 움직임이 쪽마다 처음부터 시작한다(뒤쪽 줄이 한참 늦게 뜨지 않게).
+ * 전체에서는 분류가 바뀌는 자리에 작은 제목을 단다.
+ */
+type BrowseItem = { food: Food; category: FoodCategory };
+type BrowsePageData = { items: BrowseItem[]; total: number; next: number | null };
+
+async function fetchBrowse(
+  category: FoodCategory | 'all',
+  offset: number,
+  signal?: AbortSignal
+): Promise<BrowsePageData> {
+  const res = await fetch(
+    `/api/nutrition/browse?cat=${encodeURIComponent(category)}&offset=${offset}`,
+    { signal }
+  );
+  if (!res.ok) throw new Error(String(res.status));
+  return (await res.json()) as BrowsePageData;
+}
+
+/**
+ * 받은 쪽들을 그릴 덩이로 — 쪽마다 따로(줄이 들어오는 움직임이 쪽마다 처음부터), 전체에서는 분류가 바뀌는 자리에서도 끊고
+ * 그 덩이에 분류 제목을 단다(앞 덩이와 같은 분류면 안 단다).
+ */
+function browseBlocks(pages: BrowseItem[][], byCategory: boolean) {
+  const blocks: {
+    key: string;
+    category: FoodCategory;
+    foods: Food[];
+    heading: boolean;
+  }[] = [];
+  let prev: FoodCategory | null = null;
+  pages.forEach((page, i) => {
+    let current: (typeof blocks)[number] | null = null;
+    page.forEach((it, j) => {
+      if (!current || (byCategory && it.category !== current.category)) {
+        current = {
+          key: `${i}-${j}`,
+          category: it.category,
+          foods: [],
+          heading: byCategory && it.category !== prev,
+        };
+        blocks.push(current);
+      }
+      current.foods.push(it.food);
+      prev = it.category;
+    });
+  });
+  return blocks;
+}
+
+function MfdsBrowse({ category }: { category: FoodCategory | 'all' }) {
+  const [pages, setPages] = useState<BrowseItem[][]>([]);
+  const [total, setTotal] = useState<number | null>(null);
+  const [next, setNext] = useState<number | null>(null);
+  /* 처음 쪽은 칸을 열자마자(아래 effect) — 그동안은 받는 중 */
+  const [loading, setLoading] = useState(true);
+  const [failed, setFailed] = useState(false);
+  const busy = useRef(true);
+  const end = useRef<HTMLDivElement>(null);
+
+  const take = useCallback((page: BrowsePageData) => {
+    setPages((p) => [...p, page.items]);
+    setTotal(page.total);
+    setNext(page.next);
+  }, []);
+
+  /* 첫 쪽 — 스크롤을 기다리지 않는다(분류를 고르면 곧바로 식약처 줄까지 보이게) */
+  useEffect(() => {
+    const ctrl = new AbortController();
+    fetchBrowse(category, 0, ctrl.signal)
+      .then(take)
+      .catch(() => {
+        if (!ctrl.signal.aborted) setFailed(true);
+      })
+      .finally(() => {
+        if (ctrl.signal.aborted) return;
+        busy.current = false;
+        setLoading(false);
+      });
+    return () => ctrl.abort();
+  }, [category, take]);
+
+  /** 다음 쪽 — 목록 끝이 가까워지거나 '더 보기' · '다시'를 누르면 */
+  const load = useCallback(async () => {
+    if (busy.current) return;
+    const offset = pages.length === 0 ? 0 : next;
+    if (offset === null) return;
+    busy.current = true;
+    setLoading(true);
+    setFailed(false);
+    try {
+      take(await fetchBrowse(category, offset));
+    } catch {
+      setFailed(true);
+    } finally {
+      busy.current = false;
+      setLoading(false);
+    }
+  }, [category, next, pages.length, take]);
+
+  /* 목록 끝이 가까워지면 다음 쪽 — 창 안을 굴리는 것이라 화면(뷰포트) 기준으로 본다 */
+  useEffect(() => {
+    const el = end.current;
+    if (!el || next === null || failed) return;
+    const io = new IntersectionObserver(
+      (seen) => {
+        if (seen.some((x) => x.isIntersecting)) void load();
+      },
+      { rootMargin: '400px 0px' }
+    );
+    io.observe(el);
+    return () => io.disconnect();
+  }, [load, next, failed]);
+
+  const blocks = browseBlocks(pages, category === 'all');
+  return (
+    <section aria-label="식약처 식품영양성분DB" className="space-y-1">
+      <h3 className="flex items-baseline gap-1.5 px-1 pt-2 text-xs font-semibold text-ink">
+        식약처 식품영양성분DB
+        {total !== null && (
+          <span className="font-normal text-muted">
+            {total.toLocaleString('ko-KR')}
+          </span>
+        )}
+      </h3>
+      <p className="px-1 text-xs text-muted">
+        조리한 음식 → 가공식품 → 원재료 순이에요. 찾는 게 있으면 위에서 검색하는 게
+        빨라요.
+      </p>
+      {blocks.map((block) => (
+        <div key={block.key} className="space-y-1">
+          {block.heading && (
+            <h4 className="px-1 pt-2 text-xs font-medium text-muted">
+              {block.category}
+            </h4>
+          )}
+          <FoodList foods={block.foods} />
+        </div>
+      ))}
+      <div ref={end} aria-hidden className="h-4 w-full" />
+      {loading && (
+        <div className="motion-safe:animate-fade-in space-y-2 py-1" aria-busy>
+          {[0, 1, 2].map((k) => (
+            <div
+              key={k}
+              aria-hidden
+              className="h-11 animate-pulse rounded-xl bg-surface-2"
+            />
+          ))}
+        </div>
+      )}
+      {failed && (
+        <p className="flex items-center justify-between gap-2 px-1 text-xs text-muted">
+          불러오지 못했어요.
+          <button
+            type="button"
+            onClick={() => void load()}
+            className="inline-flex min-h-10 items-center rounded-lg px-2 font-semibold text-sky-strong hover:bg-sky-tint"
+          >
+            다시
+          </button>
+        </p>
+      )}
+      {!loading && !failed && next !== null && pages.length > 0 && (
+        <button
+          type="button"
+          onClick={() => void load()}
+          className="flex min-h-10 w-full items-center justify-center rounded-xl text-sm font-medium text-sky transition-colors hover:bg-sky-tint"
+        >
+          더 보기
+        </button>
+      )}
+      {next === null && pages.length > 0 && (
+        <p className="px-1 py-2 text-center text-xs text-muted">끝까지 봤어요</p>
+      )}
+    </section>
   );
 }
 

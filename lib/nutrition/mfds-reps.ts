@@ -32,6 +32,11 @@ const REPS: MfdsItem[] = (data.rows as string[][]).map(
   })
 );
 
+/** 넣어 둔 품목대표 전부 — 음식 창의 둘러보기가 분류별로 나눈다(lib/nutrition/mfds-browse.ts) */
+export function allMfdsReps(): readonly MfdsItem[] {
+  return REPS;
+}
+
 /** 넣어 둔 자료를 받은 날(YYYY-MM-DD) — 검색 결과 저장의 열쇠에도 들어간다(자료를 다시 받으면 옛 결과를 안 쓴다) */
 export const MFDS_REPS_DATE: string = data.fetchedAt;
 

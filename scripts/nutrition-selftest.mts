@@ -63,6 +63,12 @@ import {
 } from '../lib/nutrition/guide.ts';
 import { isNutritionDate } from '../lib/nutrition/days.ts';
 import {
+  browsePage,
+  buildBrowseIndex,
+  mfdsCategory,
+} from '../lib/nutrition/mfds-category.ts';
+import { allMfdsReps } from '../lib/nutrition/mfds-reps.ts';
+import {
   MEAL_TEMPLATES,
   TEMPLATE_PROBLEMS,
   avoidsOf,
@@ -2749,6 +2755,88 @@ console.log('\n■ 식단 짜기');
   check(
     '계획의 합은 아직 안 먹은 줄만',
     planMacros(parsed).kcal === parsed[0].kcal * parsed[0].amount
+  );
+}
+
+console.log('\n■ 식약처 음식 둘러보기');
+{
+  check(
+    '식품코드로 분류 — 밥 · 김밥은 분식 · 국 · 찌개 · 구이는 고기·생선 · 원재료 채소',
+    mfdsCategory('D101-004160000-0001', '국밥_돼지머리') === '밥' &&
+      mfdsCategory('D101-007000000-0001', '김밥') === '분식' &&
+      mfdsCategory('D105-000000000-0001', '갈비탕') === '국·찌개' &&
+      mfdsCategory('D306-000000000-0001', '김치찌개') === '국·찌개' &&
+      mfdsCategory('D108-000000000-0001', '고등어구이') === '고기·생선' &&
+      mfdsCategory('R106-000000000-0001', '가지, 생것') === '과일·채소' &&
+      mfdsCategory('R211-000000000-0001', '가자미, 생것') === '고기·생선'
+  );
+  check(
+    '떡은 면·빵(D1 · D3), 빵 · 햄버거는 분식(D4~D7)',
+    mfdsCategory('D102-0', '가래떡') === '면·빵' &&
+      mfdsCategory('D302-0', '송편') === '면·빵' &&
+      mfdsCategory('D402-0', '햄버거_치킨') === '분식'
+  );
+  check(
+    '양념 · 기름 · 당류 · 장류 · 조미료 · 술 · 이름 없는 줄은 둘러보기에서 뺀다',
+    [
+      ['D118-0', '짜장소스'],
+      ['P107-0', '쇼트닝'],
+      ['P104-0', '물엿'],
+      ['P112-0', '된장'],
+      ['P113-0', '마요네즈'],
+      ['P115-0', '막걸리'],
+      ['R114-0', '올리브유'],
+      ['R118-0', '고춧가루'],
+      ['D318-0', ''],
+    ].every(([code, name]) => mfdsCategory(code, name) === null)
+  );
+
+  const index = buildBrowseIndex([...allMfdsReps()]);
+  const all = browsePage(index, 'all', 0, 40);
+  const sizes = [...index].map(([c, list]) => `${c} ${list.length}`).join(' · ');
+  check(
+    '분류마다 식약처 음식이 넉넉하다(100가지 넘게)',
+    [...index.values()].every((l) => l.length >= 100),
+    sizes
+  );
+  check(
+    '전체 = 분류의 합, 5천 가지 넘게(같은 이름 · 뺀 것을 빼고)',
+    all.total === [...index.values()].reduce((a, l) => a + l.length, 0) &&
+      all.total > 5000,
+    String(all.total)
+  );
+  check(
+    '한 분류 안에 같은 이름은 하나',
+    [...index.values()].every((l) => new Set(l.map((f) => f.name)).size === l.length)
+  );
+  const order = (id: string) =>
+    id[0] === 'D' ? (id[1] === '1' ? 0 : 1) : id[0] === 'P' ? 2 : 3;
+  check(
+    '조리한 음식 → 가공식품 → 원재료 순',
+    [...index.values()].every((l) =>
+      l.every((f, i) => i === 0 || order(l[i - 1].id!) <= order(f.id!))
+    )
+  );
+  check(
+    '모두 식약처 음식(1회 kcal 있음)',
+    [...index.values()].every((l) => l.every((f) => f.source === 'mfds' && f.kcal >= 0))
+  );
+  const soup = browsePage(index, '국·찌개', 0, 40);
+  const soup2 = browsePage(index, '국·찌개', soup.next ?? 0, 40);
+  const last = browsePage(index, '국·찌개', soup.total - 5, 40);
+  check(
+    '40줄씩 — 다음 자리 · 끝에서는 null',
+    soup.items.length === 40 &&
+      soup.next === 40 &&
+      soup2.items[0].food.id !== soup.items[0].food.id &&
+      last.items.length === 5 &&
+      last.next === null &&
+      browsePage(index, '국·찌개', 99999, 40).items.length === 0
+  );
+  check(
+    '전체는 분류 차례로 이어 붙인다(첫 줄은 밥)',
+    all.items[0].category === '밥' &&
+      browsePage(index, 'all', all.total - 1, 40).items[0].category === '간식·보충'
   );
 }
 
