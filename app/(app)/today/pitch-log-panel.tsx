@@ -466,7 +466,7 @@ export function PitchLogPanel({
                   영상
                 </LegendSwatch>
                 <span className="flex items-center gap-1.5">
-                  <ChartLine aria-hidden className="h-3 w-3 text-cat-core" />
+                  <ChartLine aria-hidden className="h-3 w-3 text-sky" />
                   분석
                 </span>
               </MonthCalendar>

@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
-import { ChartLine, ChevronDown, ChevronLeft, ChevronRight } from 'lucide-react';
+import { ChartLine, ChevronDown, ChevronLeft, ChevronRight, Info } from 'lucide-react';
 import { dateKeyOf, toDateKey } from '@/lib/pitch-stats';
 
 /**
@@ -51,8 +51,8 @@ export function intensityClass(intensity: number) {
   return 'bg-sky/15 text-ink';
 }
 
-/** 색을 안 채우는 날 — 남긴 것은 있다는 뜻으로 점선만 준다. */
-const OUTLINE_CLASS = 'border-dashed border-line-strong bg-surface-2 text-muted';
+/** 색을 안 채우는 날 — 남긴 것은 있다는 뜻으로 점선만 준다(휴대폰은 바탕 없이, PC 는 회색 칸). */
+const OUTLINE_CLASS = 'border-dashed border-line-strong text-muted desk:bg-surface-2';
 
 export function MonthCalendar({
   month,
@@ -229,7 +229,7 @@ export function MonthCalendar({
         위아래 두 선이 날짜 칸을 감싸서, 제목 · 칸 · 범례가 한 덩이로 읽힌다.
       */}
       <div
-        className={`flex items-center justify-between border-b border-line pb-4 ${
+        className={`flex items-center justify-between pb-1 desk:border-b desk:border-line desk:pb-4 ${
           low ? 'desk-low:pb-3' : ''
         }`}
       >
@@ -247,9 +247,9 @@ export function MonthCalendar({
                 (prev) => new Date(prev.getFullYear(), prev.getMonth() - 1, 1)
               )
             }
-            className="grid h-10 w-10 place-items-center rounded-lg border border-line text-muted transition-colors hover:border-sky hover:text-sky desk:h-8 desk:w-8"
+            className="grid h-10 w-10 place-items-center rounded-full text-sky transition-colors desk:h-8 desk:w-8 desk:rounded-lg desk:border desk:border-line desk:text-muted desk:hover:border-sky desk:hover:text-sky"
           >
-            <ChevronLeft className="h-4 w-4" />
+            <ChevronLeft className="h-5 w-5 desk:h-4 desk:w-4" strokeWidth={2.4} />
           </button>
           <button
             type="button"
@@ -259,9 +259,9 @@ export function MonthCalendar({
                 (prev) => new Date(prev.getFullYear(), prev.getMonth() + 1, 1)
               )
             }
-            className="grid h-10 w-10 place-items-center rounded-lg border border-line text-muted transition-colors hover:border-sky hover:text-sky desk:h-8 desk:w-8"
+            className="grid h-10 w-10 place-items-center rounded-full text-sky transition-colors desk:h-8 desk:w-8 desk:rounded-lg desk:border desk:border-line desk:text-muted desk:hover:border-sky desk:hover:text-sky"
           >
-            <ChevronRight className="h-4 w-4" />
+            <ChevronRight className="h-5 w-5 desk:h-4 desk:w-4" strokeWidth={2.4} />
           </button>
         </div>
       </div>
@@ -272,16 +272,10 @@ export function MonthCalendar({
           미끄러졌는데, 안 바뀌는 것까지 흔들리면 무엇이 바뀌었는지 흐려진다.
         */}
         <div className="mb-1 grid grid-cols-7 gap-1 sm:mb-1.5 sm:gap-1.5">
-          {WEEKDAYS.map((w, i) => (
+          {WEEKDAYS.map((w) => (
             <div
               key={w}
-              className={`pb-1 text-center text-[11px] font-medium ${
-                i === 0
-                  ? 'text-red-600/70'
-                  : i === 6
-                    ? 'text-blue-400/70'
-                    : 'text-muted'
-              }`}
+              className="pb-1 text-center text-[11px] font-medium text-muted"
             >
               {w}
             </div>
@@ -334,13 +328,32 @@ export function MonthCalendar({
       </div>
 
       {children && (
-        <div
-          className={`flex flex-wrap items-center gap-x-3 gap-y-2 border-t border-line pt-4 text-[11px] text-muted ${
-            low ? 'desk-low:pt-3' : ''
-          }`}
-        >
-          {children}
-        </div>
+        <>
+          {/*
+            휴대폰: 범례를 접어 둔다 — 칸의 파란 진하기는 보면 알고, 무슨 뜻인지 궁금할 때만 편다
+            (2026-10-01 '애플처럼' · 사용자 규칙 '겉은 단순, 누르면 자세히').
+          */}
+          <details className="group -mt-2 desk:hidden">
+            <summary className="mx-auto flex min-h-9 w-fit cursor-pointer list-none items-center gap-1 px-2 text-xs text-muted [&::-webkit-details-marker]:hidden">
+              <Info aria-hidden className="h-3.5 w-3.5" />
+              표시 보기
+              <ChevronDown
+                aria-hidden
+                className="h-3.5 w-3.5 transition-transform group-open:rotate-180"
+              />
+            </summary>
+            <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-2 pt-1 text-[11px] text-muted">
+              {children}
+            </div>
+          </details>
+          <div
+            className={`hidden flex-wrap items-center gap-x-3 gap-y-2 border-t border-line pt-4 text-[11px] text-muted desk:flex ${
+              low ? 'desk-low:pt-3' : ''
+            }`}
+          >
+            {children}
+          </div>
+        </>
       )}
     </div>
   );
@@ -472,12 +485,22 @@ function DayGrid({
                   ? intensityClass(mark.intensity)
                   : mark
                     ? ''
-                    : 'bg-surface-2 text-muted hover:text-ink'
+                    : 'text-ink desk:bg-surface-2 desk:text-muted desk:hover:text-ink'
             }`}
           >
+            {/*
+              오늘은 숫자를 파란 동그라미에 — 아이폰 달력처럼(예전 굵은 밑줄). 진한 칸(흰 글자) 위에서는
+              흰 동그라미에 파란 숫자로 뒤집어 보이게.
+            */}
             <span
               className={
-                isToday ? 'font-bold underline underline-offset-4' : 'font-medium'
+                isToday
+                  ? `grid h-6 w-6 place-items-center rounded-full text-[13px] font-bold ${
+                      mark?.intensity != null && mark.intensity >= 8
+                        ? 'bg-surface text-sky'
+                        : 'bg-sky text-white'
+                    }`
+                  : 'font-medium'
               }
             >
               {day}
@@ -499,7 +522,7 @@ function DayGrid({
                 aria-hidden
                 className="absolute left-1 top-1 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-surface/90 shadow-sm"
               >
-                <ChartLine className="h-2.5 w-2.5 text-cat-core" />
+                <ChartLine className="h-2.5 w-2.5 text-sky" />
               </span>
             )}
           </button>
