@@ -307,6 +307,8 @@ export function NutritionView({ day, today }: { day: NutritionDay; today: string
             OFFLINE
           );
         }
+        /* 창이 그사이 닫혔어도 까닭이 화면에 남게(창 안에도 보인다) */
+        report(res);
         resolve(res);
       });
     });
@@ -539,7 +541,11 @@ export function NutritionView({ day, today }: { day: NutritionDay; today: string
           open={sheet.open}
           meal={sheet.meal}
           origin={sheet.origin}
-          onClose={() => setSheet((s) => s && { ...s, open: false })}
+          /* 그 창의 번호로만 닫는다 — 바꾸기 결과가 늦게 와서 닫으려 할 때 그사이 새로 연 창을 닫지 않게 */
+          onClose={() => {
+            const n = sheet.n;
+            setSheet((s) => (s && s.n === n ? { ...s, open: false } : s));
+          }}
           recent={day.recent}
           mine={day.mine}
           favorites={day.favorites}
@@ -1350,9 +1356,19 @@ function withObjectParticle(word: string) {
 /* ─────────────────────────── 끼니 ─────────────────────────── */
 
 /* 끼니 편집의 한 줄 — 고친 값은 '완료'를 누를 때 한 번에 저장한다(lib 의 EntryEdit) */
-/* name — 편집을 시작할 때의 음식 이름. 편집 중에 그 줄을 바꾸기로 다른 음식으로 바꾸면 옛 초안(양)을 버린다 */
-type Draft = { amount: number; meal: MealKey; remove: boolean; name: string };
-type PlanDraft = { amount: number; remove: boolean; name: string };
+/*
+ * sig — 초안을 만들 때 그 줄의 값(음식 · 양). 편집 중에 그 줄을 '바꾸기'로 바꾸면 sig 가 달라져 초안의 양을 버리고 새 양을
+ * 따른다(옮기기 · 지우기는 지킨다). 이름만 보면 같은 이름의 다른 음식(식약처 '쌀밥')으로 바꿀 때 '완료'가 옛 양으로 덮었다.
+ */
+type Draft = { amount: number; meal: MealKey; remove: boolean; sig: string };
+type PlanDraft = { amount: number; remove: boolean; sig: string };
+const rowSig = (r: {
+  source: string;
+  sourceId: string | null;
+  name: string;
+  kcal: number;
+  amount: number;
+}) => `${r.source}|${r.sourceId ?? ''}|${r.name}|${r.kcal}|${r.amount}`;
 
 function MealSection({
   meal,
@@ -1398,16 +1414,21 @@ function MealSection({
   const hasAny = entries.length > 0 || plan.length > 0;
   const planDraftOf = (i: PlanItem): PlanDraft => {
     const d = planDrafts[i.key];
-    return d && d.name === i.name
-      ? d
-      : { amount: i.amount, remove: false, name: i.name };
+    const sig = rowSig(i);
+    if (d && d.sig === sig) return d;
+    return { amount: i.amount, remove: d?.remove ?? false, sig };
   };
 
   const draftOf = (e: MealEntryView): Draft => {
     const d = drafts[e.id];
-    return d && d.name === e.name
-      ? d
-      : { amount: e.amount, meal: e.meal, remove: false, name: e.name };
+    const sig = rowSig(e);
+    if (d && d.sig === sig) return d;
+    return {
+      amount: e.amount,
+      meal: d?.meal ?? e.meal,
+      remove: d?.remove ?? false,
+      sig,
+    };
   };
 
   function startEdit() {
@@ -1415,13 +1436,13 @@ function MealSection({
       Object.fromEntries(
         editable.map((e) => [
           e.id,
-          { amount: e.amount, meal: e.meal, remove: false, name: e.name },
+          { amount: e.amount, meal: e.meal, remove: false, sig: rowSig(e) },
         ])
       )
     );
     setPlanDrafts(
       Object.fromEntries(
-        plan.map((i) => [i.key, { amount: i.amount, remove: false, name: i.name }])
+        plan.map((i) => [i.key, { amount: i.amount, remove: false, sig: rowSig(i) }])
       )
     );
     setEditing(true);

@@ -84,6 +84,7 @@ import {
 import { OFFLINE_MESSAGE, orOffline } from '@/lib/action-offline';
 import { EASE, toFoodInput, type Origin } from './shared';
 import { PhotoCapture } from './photo-panel';
+import { ErrorLine } from '@/components/error-line';
 
 /*
  * 서버에 닿지 못했을 때(신호 끊김) — 부르기가 던지면 전환 안의 오류가 오류 화면으로 넘어가 영양 화면(열어 둔 음식 창까지)이
@@ -149,6 +150,8 @@ type SheetState = {
   meal: MealKey;
   /** 바꾸기 모드 — 고르면 담는 대신 그 자리의 음식을 바꾼다(단추 글 · 아이콘이 바뀐다) */
   replacing: boolean;
+  /** 바꾸는 중 — 결과가 올 때까지 다른 줄을 누르지 못한다 */
+  busy: boolean;
   /** 펴 둔 줄. 한 번에 하나다 — 다른 줄을 펴면 먼저 것은 접힌다 */
   openKey: string | null;
   toggle: (key: string) => void;
@@ -229,14 +232,18 @@ export function FoodSheet({
    * 그 뒤에 옮긴다(autoFocus 는 창이 열리기 전에 돌아 덮인다).
    */
   const searchRef = useRef<HTMLInputElement>(null);
+  /* 이름으로 본다 — 영양 화면이 다시 그려질 때마다 새 객체가 와서, 객체를 보면 그때마다 커서를 찾는 칸으로 빼앗았다 */
+  const replacingName = replacing?.name ?? null;
   useEffect(() => {
-    if (!open || !replacing) return;
+    if (!open || replacingName === null) return;
     const timer = window.setTimeout(
       () => searchRef.current?.focus({ preventScroll: true }),
       80
     );
     return () => window.clearTimeout(timer);
-  }, [open, replacing]);
+  }, [open, replacingName]);
+  /* 바꾸는 중 — 같은 렌더 안의 두 번 누름도 막게 ref 로 먼저 잠근다(화면 표시는 replaceBusy) */
+  const replaceLock = useRef(false);
   /* 창을 연 때의 목록 — 담는 동안 순서가 바뀌어 줄이 밀리지 않게(위 설명) */
   const [recentList] = useState(recent);
   const [popularList] = useState(popular);
@@ -348,18 +355,28 @@ export function FoodSheet({
     });
   }
 
+  /**
+   * 바꾸기 — 한 번만(두 번 눌러 두 번 바뀌지 않게). 되면 창을 닫고 안 되면 창 안에 까닭.
+   * 받아들였으면 결과(바뀌었나)를, 이미 바꾸는 중이면 null 을 돌려준다.
+   */
+  function replaceWith(food: Food, amount: number): Promise<boolean> | null {
+    if (!onReplace || replaceLock.current) return null;
+    replaceLock.current = true;
+    setError(null);
+    setReplaceBusy(true);
+    return onReplace(food, amount).then((res) => {
+      replaceLock.current = false;
+      setReplaceBusy(false);
+      if (res.ok) onClose();
+      else setError(`${food.name} — 바꾸지 못했어요. ${res.error}`);
+      return res.ok;
+    });
+  }
+
   /* 담으면 펴 둔 줄을 접는다. 목록은 그대로 두어, 바로 다음 음식을 고른다 */
   function add(food: Food, amount: number) {
     if (replacing && onReplace) {
-      /* 바꾸기 — 한 번만(두 번 눌러 두 번 바뀌지 않게), 되면 창을 닫고 안 되면 창 안에 까닭 */
-      if (replaceBusy) return;
-      setError(null);
-      setReplaceBusy(true);
-      onReplace(food, amount).then((res) => {
-        setReplaceBusy(false);
-        if (res.ok) onClose();
-        else setError(`${food.name} — 바꾸지 못했어요. ${res.error}`);
-      });
+      void replaceWith(food, amount);
       return;
     }
     track(`${food.name} ${amountText(amount)}`, onAdd([{ food, amount }]));
@@ -479,20 +496,28 @@ export function FoodSheet({
   }
 
   function addCustom(food: Food, save: boolean) {
+    const saveMine = () =>
+      startTransition(async () => {
+        const res = await orOffline(
+          saveUserFood(toFoodInput({ ...food, source: 'mine' })),
+          OFFLINE
+        );
+        if (!res.ok) setError(res.error);
+      });
+    if (replacing && onReplace) {
+      /* 바뀐 뒤에만 내 음식에 저장 — 두 번 눌러도 · 바꾸기가 실패해도 내 음식이 두 줄 생기지 않게 */
+      const done = replaceWith(food, 1);
+      if (done && save) void done.then((ok) => ok && saveMine());
+      return;
+    }
     add(food, 1);
-    if (!save) return;
-    startTransition(async () => {
-      const res = await orOffline(
-        saveUserFood(toFoodInput({ ...food, source: 'mine' })),
-        OFFLINE
-      );
-      if (!res.ok) setError(res.error);
-    });
+    if (save) saveMine();
   }
 
   const sheet: SheetState = {
     meal,
     replacing: !!replacing,
+    busy: replaceBusy,
     openKey,
     toggle: (key) => setOpenKey((k) => (k === key ? null : key)),
     add,
@@ -553,14 +578,8 @@ export function FoodSheet({
             </label>
           </div>
 
-          {error && (
-            <p
-              role="alert"
-              className="motion-safe:animate-fade-in rounded-lg bg-danger-bg px-3 py-2 text-xs text-danger"
-            >
-              {error}
-            </p>
-          )}
+          {/* 뜨면 그 자리로 굴려 온다 — 목록을 한참 내려가 고른 뒤 실패해도 보이게 */}
+          {error && <ErrorLine>{error}</ErrorLine>}
 
           {q ? (
             <SearchResults
@@ -1257,7 +1276,7 @@ function FoodRow({
   onRemove?: () => void;
   hideNote: boolean;
 }) {
-  const { openKey, toggle, add, replacing } = useSheet();
+  const { openKey, toggle, add, replacing, busy } = useSheet();
   const key = rowKey(food);
   const open = openKey === key;
   /* 인기 순위에서 온 음식이면 순위와 횟수가 붙어 있다 */
@@ -1287,7 +1306,8 @@ function FoodRow({
 
   const put = (amount: number) => {
     add(food, amount);
-    setFlash((n) => n + 1);
+    /* 바꾸기는 결과를 기다린다 — 되면 창이 닫히고, 안 되면 오류 줄이 뜬다(✓ 를 먼저 띄우면 된 것처럼 보였다) */
+    if (!replacing) setFlash((n) => n + 1);
   };
 
   return (
@@ -1356,10 +1376,11 @@ function FoodRow({
         <button
           type="button"
           onClick={() => put(1)}
+          disabled={replacing && busy}
           aria-label={
             replacing ? `${withTo(food.name)} 바꾸기` : `${food.name} 1인분 담기`
           }
-          className="relative flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-sky transition-[background-color,transform] duration-150 hover:bg-sky-tint motion-safe:active:scale-90"
+          className="relative flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-sky transition-[background-color,transform,opacity] duration-150 hover:bg-sky-tint disabled:opacity-40 motion-safe:active:scale-90"
         >
           {flash > 0 ? (
             <Check
@@ -1510,7 +1531,7 @@ const round20 = (n: number) => Math.round(n * 20) / 20;
  * 내 음식 단추를 한 줄에 두고, 그 밑에 양과 담기를 둔다.
  */
 function PickFood({ food, onAdd }: { food: Food; onAdd: (amount: number) => void }) {
-  const { meal, isFavorite, toggleFavorite, replacing } = useSheet();
+  const { meal, isFavorite, toggleFavorite, replacing, busy } = useSheet();
   const favorite = isFavorite(food);
   const [amount, setAmount] = useState(1);
   const [grams, setGrams] = useState(
@@ -1654,9 +1675,14 @@ function PickFood({ food, onAdd }: { food: Food; onAdd: (amount: number) => void
       <button
         type="button"
         onClick={() => onAdd(amount)}
-        className="w-full rounded-xl bg-sky py-3 text-sm font-semibold text-white transition-colors hover:bg-sky-strong"
+        disabled={replacing && busy}
+        className="w-full rounded-xl bg-sky py-3 text-sm font-semibold text-white transition-[background-color,opacity] hover:bg-sky-strong disabled:opacity-60"
       >
-        {replacing ? `${withTo(food.name)} 바꾸기` : `${mealLabel(meal)}에 담기`}
+        {replacing
+          ? busy
+            ? '바꾸는 중…'
+            : `${withTo(food.name)} 바꾸기`
+          : `${mealLabel(meal)}에 담기`}
       </button>
     </div>
   );

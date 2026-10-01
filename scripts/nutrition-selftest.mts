@@ -2798,6 +2798,109 @@ console.log('\n■ 식약처 음식 둘러보기');
     ].every(([code, name]) => mfdsCategory(code, name) === null)
   );
 
+  const cat = (code: string, name: string) => mfdsCategory(code, name);
+  check(
+    '이름으로 제자리 — 국수 · 당면은 면·빵, 과자 · 사탕 · 팝콘은 간식, 떡은 면·빵, 빵은 면·빵',
+    cat('R101-0', '국수, 소면, 말린것') === '면·빵' &&
+      cat('R101-0', '마카로니, 말린것') === '면·빵' &&
+      cat('R102-0', '당면, 고구마, 말린것') === '면·빵' &&
+      cat('P101-0', '감자칩') === '간식·보충' &&
+      cat('P101-0', '박하사탕') === '간식·보충' &&
+      cat('P101-0', '젤리구미') === '간식·보충' &&
+      cat('D324-0', '팝콘') === '간식·보충' &&
+      cat('P101-0', '가래떡') === '면·빵' &&
+      cat('P101-0', '식빵') === '면·빵' &&
+      cat('R121-0', '빵, 식빵, 버터 첨가') === '면·빵'
+  );
+  check(
+    '분식은 기본 목록처럼 — 삼각김밥 · 떡볶이 · 라면 · 만두 · 순대 · 햄버거(어느 묶음이든), 순대국밥 · 떡만두국은 제자리',
+    cat('D101-0', '삼각김밥_참치마요네즈') === '분식' &&
+      cat('D110-0', '떡볶이') === '분식' &&
+      cat('D103-0', '라면') === '분식' &&
+      cat('D103-0', '고기만두') === '분식' &&
+      cat('D107-0', '순대') === '분식' &&
+      cat('D102-0', '햄버거_불고기버거') === '분식' &&
+      cat('D102-0', '케이크_생크림케이크') === '간식·보충' &&
+      cat('D101-0', '국밥_순대국밥') === '밥' &&
+      cat('D105-0', '떡만두국') === '국·찌개' &&
+      cat('R121-0', '김밥용김') !== '분식'
+  );
+  check(
+    '한 끼가 아닌 것은 뺀다 — 가루 · 반죽 · 베이킹파우더 · 청 · 버터 · 생크림 · 액젓 · 육수 · 전분 · 참깨',
+    [
+      ['R101-0', '밀, 강력밀가루'],
+      ['P116-0', '베이킹파우더'],
+      ['P116-0', '튀김가루'],
+      ['P116-0', '녹두전/반죽'],
+      ['P114-0', '매실청'],
+      ['P119-0', '버터/무염'],
+      ['P119-0', '생크림'],
+      ['P119-0', '1단계분유'],
+      ['P120-0', '까나리액젓'],
+      ['R211-0', '멸치육수'],
+      ['R102-0', '전분, 감자, 가루'],
+      ['R105-0', '참깨, 흰색, 볶은것'],
+      ['P101-0', '쿠키/생지'],
+      ['P101-0', '피자도우'],
+    ].every(([code, name]) => cat(code, name) === null)
+  );
+  check(
+    'R121(잡동사니)은 아는 것만 — 햄 · 두부는 고기·생선, 김치는 반찬, 간장 · 소주 · 생수 · 소금은 뺀다',
+    cat('R121-0', '햄, 슬라이스햄') === '고기·생선' &&
+      cat('R121-0', '두부, 순두부') === '고기·생선' &&
+      cat('R121-0', '김치, 배추 김치') === '반찬' &&
+      cat('R121-0', '요구르트, 액상') === '우유·음료' &&
+      cat('R121-0', '간장, 개량, 산분해') === null &&
+      cat('R121-0', '증류주, 소주, 희석식') === null &&
+      cat('R121-0', '생수') === null &&
+      cat('R121-0', '소금, 정제염') === null
+  );
+  check(
+    '마시는 가루는 담는다(물에 탄 것 · 음료), 맛 이름의 양념은 빼지 않는다',
+    cat('D420-0', '미숫가루(선식)음료') === '우유·음료' &&
+      cat('R121-0', '카페라테, 가루, 물에 탄것(중량 14.2g)') === '우유·음료' &&
+      cat('D105-0', '된장국_시금치') === '국·찌개' &&
+      cat('D510-0', '떡볶이_간장') === '분식'
+  );
+  {
+    /* 실제 자료 전부 — 어느 분류에도 양념 · 술 · 물 · 가루가 앞말로 남지 않는다 */
+    const BAD =
+      /^(간장|고추장|된장|소금|설탕|식초|발효주|증류주|생수|버터|분유|마가린|쇼트닝)$|소스$|드레싱$|가루$|파우더$|반죽$|액젓$|육수$/;
+    const leaks = [...allMfdsReps()].filter((r) => {
+      const name = String(r.FOOD_NM_KR ?? '');
+      const head = name.split(/[,_/(]/)[0].trim();
+      return (
+        mfdsCategory(String(r.FOOD_CD ?? ''), name) !== null &&
+        BAD.test(head) &&
+        !/음료|탄것|끓인것/.test(name)
+      );
+    });
+    check(
+      '실제 자료 8,807줄 — 둘러보기에 양념 · 술 · 가루가 0줄',
+      leaks.length === 0,
+      leaks
+        .slice(0, 5)
+        .map((r) => r.FOOD_NM_KR)
+        .join(' · ')
+    );
+    const r121meat = [...allMfdsReps()].filter(
+      (r) =>
+        String(r.FOOD_CD).startsWith('R121') &&
+        mfdsCategory(String(r.FOOD_CD), String(r.FOOD_NM_KR)) === '고기·생선'
+    );
+    check(
+      'R121 의 고기·생선은 고기 · 생선 · 콩 가공품뿐(예전 643줄)',
+      r121meat.length > 30 &&
+        r121meat.length < 120 &&
+        r121meat.every((r) =>
+          /햄|소시지|베이컨|게맛살|어묵|미트볼|소고기|불고기|커틀릿|너겟|돈저냐|닭꼬치|두부|낫토|비지|대체식품|달걀/.test(
+            String(r.FOOD_NM_KR)
+          )
+        ),
+      String(r121meat.length)
+    );
+  }
+
   const index = buildBrowseIndex([...allMfdsReps()]);
   const all = browsePage(index, 'all', 0, 40);
   const sizes = [...index].map(([c, list]) => `${c} ${list.length}`).join(' · ');
@@ -2874,7 +2977,11 @@ console.log('\n■ 사진 기록 — AI 가 부른 이름을 앱 음식에 맞�
       amountForGrams(rice, Number.NaN) === 1
   );
 
-  const p = (name: string, grams: number, extra: Partial<PhotoFood> = {}): PhotoFood => ({
+  const p = (
+    name: string,
+    grams: number,
+    extra: Partial<PhotoFood> = {}
+  ): PhotoFood => ({
     name,
     grams,
     kcal: 200,
@@ -2884,10 +2991,26 @@ console.log('\n■ 사진 기록 — AI 가 부른 이름을 앱 음식에 맞�
     confidence: 'high',
     ...extra,
   });
-  const macaron = { ...rice, source: 'mfds' as const, id: 'D-mac', name: '마카롱', servingGrams: 30 };
+  const macaron = {
+    ...rice,
+    source: 'mfds' as const,
+    id: 'D-mac',
+    name: '마카롱',
+    servingGrams: 30,
+  };
   const asked: string[] = [];
   const out = matchPhotoFoods(
-    [p('흰밥', 315), p('마카롱', 60), p('외계인 요리', 99999, { kcal: 99999, protein: -5, carbs: Number.NaN, confidence: 'low' }), p('   ', 100)],
+    [
+      p('흰밥', 315),
+      p('마카롱', 60),
+      p('외계인 요리', 99999, {
+        kcal: 99999,
+        protein: -5,
+        carbs: Number.NaN,
+        confidence: 'low',
+      }),
+      p('   ', 100),
+    ],
     (name) => {
       asked.push(name);
       return name === '마카롱' ? macaron : null;
@@ -2896,8 +3019,11 @@ console.log('\n■ 사진 기록 — AI 가 부른 이름을 앱 음식에 맞�
   check(
     '기본 음식 → 식약처 → AI 값 차례로 맞추고, 빈 이름은 뺀다',
     out.length === 3 &&
-      out[0].from === 'basic' && out[0].food.id === 'rice' && out[0].amount === 1.5 &&
-      out[1].from === 'mfds' && out[1].amount === 2 &&
+      out[0].from === 'basic' &&
+      out[0].food.id === 'rice' &&
+      out[0].amount === 1.5 &&
+      out[1].from === 'mfds' &&
+      out[1].amount === 2 &&
       out[2].from === 'ai' &&
       !asked.includes('흰밥'),
     out.map((c) => `${c.aiName}:${c.from}:${c.amount}`).join(' · ')
@@ -2917,7 +3043,10 @@ console.log('\n■ 사진 기록 — AI 가 부른 이름을 앱 음식에 맞�
   );
   check(
     '한 장에서 12가지까지만',
-    matchPhotoFoods(Array.from({ length: 20 }, (_, i) => p(`음식${i}`, 100)), () => null).length === 12
+    matchPhotoFoods(
+      Array.from({ length: 20 }, (_, i) => p(`음식${i}`, 100)),
+      () => null
+    ).length === 12
   );
 
   const rows = [
@@ -2934,7 +3063,10 @@ console.log('\n■ 사진 기록 — AI 가 부른 이름을 앱 음식에 맞�
       pickMfdsRep('김치', rows) === null &&
       pickMfdsRep('', rows) === null
   );
-  const real = pickMfdsRep('김치찌개', [...allMfdsReps()].filter((r) => String(r.FOOD_NM_KR).startsWith('김치찌개')));
+  const real = pickMfdsRep(
+    '김치찌개',
+    [...allMfdsReps()].filter((r) => String(r.FOOD_NM_KR).startsWith('김치찌개'))
+  );
   check('실제 자료에서도 김치찌개를 찾는다', real !== null, String(real?.FOOD_NM_KR));
 }
 

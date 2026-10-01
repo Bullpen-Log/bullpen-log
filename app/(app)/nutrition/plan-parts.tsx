@@ -373,7 +373,7 @@ export function PlanBlock({
 }
 
 /** 끼니 편집에서 계획 줄 — 양 −/+ · 빼기. 다른 끼니로 옮기기는 없다(짠 끼니의 짝이 깨진다) */
-export function PlanEditRow({
+export function PlanEditRow<D extends { amount: number; remove: boolean }>({
   item,
   index,
   draft,
@@ -382,8 +382,9 @@ export function PlanEditRow({
 }: {
   item: PlanItem;
   index: number;
-  draft: { amount: number; remove: boolean; name: string };
-  onChange: (d: { amount: number; remove: boolean; name: string }) => void;
+  /* 끼니 칸의 초안 — 양 · 빼기만 고치고 나머지(바꾸기 서명)는 그대로 돌려준다 */
+  draft: D;
+  onChange: (d: D) => void;
   /** 이름을 눌렀다 — 다른 음식으로 바꾸는 창 */
   onReplace: (e: MouseEvent<HTMLElement>) => void;
 }) {
