@@ -1872,6 +1872,28 @@ dialog[data-gate][open]::backdrop {
     transform: translateY(18px) scale(0.98);
   }
 }
+/*
+ * 휴대폰의 체크인 관문 = 아래에서 올라오는 시트 — 앱의 다른 창(Modal 의 data-sheet)과 같은 모양 · 움직임
+ * (2026-10-01 '애플처럼'). 인사하듯 조금 천천히(0.46초) 올라오고, 닫히면(완료 · 건너뛰기) 아래로 내려간다
+ * (0.3초 — checkin-gate.tsx 의 CLOSE_MS 와 같다). 위 규칙과 무게가 같아 뒤에 둔다. 조건은 desk 의 반대.
+ */
+@media (max-width: 63.999rem) and (max-width: 35.999rem),
+  (max-width: 63.999rem) and (hover: none),
+  (max-width: 63.999rem) and (pointer: coarse) {
+  dialog[data-gate] {
+    opacity: 1;
+    transform: translateY(100%);
+    transition:
+      transform 300ms cubic-bezier(0.32, 0.72, 0, 1),
+      overlay 300ms ease-in allow-discrete,
+      display 300ms ease-in allow-discrete;
+  }
+  dialog[data-gate][open] {
+    transform: none;
+    transition: none;
+    animation: sheet-in 460ms cubic-bezier(0.32, 0.72, 0, 1);
+  }
+}
 
 /*
  * 관문이 떠 있는 동안에는 아무것도 화면 전환 층으로 빼지 않는다.

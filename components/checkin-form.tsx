@@ -70,8 +70,12 @@ function feelingChipClass(value: string) {
   return 'peer-checked:border-sky peer-checked:bg-sky/10 peer-checked:text-sky';
 }
 
+/*
+ * 칩 — 휴대폰은 테두리 없는 회색 알약(아이폰), 고른 것은 파랑으로 두르고 옅게 칠한다. PC 는 예전 네모 칩
+ * (2026-10-01 '애플처럼').
+ */
 const chipBase =
-  'cursor-pointer select-none rounded-lg border border-line bg-surface-2 px-3 py-2 text-xs text-muted transition-colors hover:border-sky-soft hover:text-ink peer-checked:font-medium';
+  'cursor-pointer select-none rounded-full border border-transparent bg-ink/6 px-3.5 py-2 text-[13px] text-ink/80 transition-colors hover:text-ink peer-checked:font-semibold desk:rounded-lg desk:border-line desk:bg-surface-2 desk:px-3 desk:text-xs desk:text-muted desk:hover:border-sky-soft desk:peer-checked:font-medium';
 
 function ChipRadio({
   name,
@@ -315,9 +319,9 @@ const SLEEP_SEED_HOURS = 7;
  * 가로로 넘치지도, '지우기'만 다음 줄로 떨어지지도 않는다.
  */
 const sleepStepButton =
-  'inline-flex h-11 w-11 shrink-0 cursor-pointer items-center justify-center rounded-lg border border-line bg-surface-2 text-muted outline-none transition-colors hover:border-sky-soft hover:text-ink focus-visible:ring-1 focus-visible:ring-sky active:bg-sky/10 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:border-line disabled:hover:text-muted';
+  'inline-flex h-11 w-11 shrink-0 cursor-pointer items-center justify-center rounded-full border border-transparent bg-ink/6 text-ink outline-none transition-colors focus-visible:ring-1 focus-visible:ring-sky active:bg-sky/10 disabled:cursor-not-allowed disabled:opacity-40 desk:rounded-lg desk:border-line desk:bg-surface-2 desk:text-muted desk:hover:border-sky-soft desk:hover:text-ink desk:disabled:hover:border-line desk:disabled:hover:text-muted';
 const sleepQuickChip =
-  'inline-flex min-h-11 min-w-10 cursor-pointer select-none items-center justify-center rounded-lg border px-3 py-2 text-xs tabular-nums outline-none transition-colors focus-visible:ring-1 focus-visible:ring-sky';
+  'inline-flex min-h-11 min-w-11 cursor-pointer select-none items-center justify-center rounded-full border px-3 py-2 text-[13px] tabular-nums outline-none transition-colors focus-visible:ring-1 focus-visible:ring-sky desk:min-w-10 desk:rounded-lg desk:text-xs';
 
 /**
  * 수면 — 어젯밤 잔 시간(선택)과 잔 느낌(충분 · 보통 · 부족, 필수)을 한 칸에서 받는다.
@@ -437,7 +441,7 @@ function SleepRow({
                     className={`${sleepQuickChip} ${
                       on
                         ? 'border-sky bg-sky/10 font-medium text-sky'
-                        : 'border-line bg-surface-2 text-muted hover:border-sky-soft hover:text-ink'
+                        : 'border-transparent bg-ink/6 text-ink/80 desk:border-line desk:bg-surface-2 desk:text-muted desk:hover:border-sky-soft desk:hover:text-ink'
                     }`}
                   >
                     {n}
@@ -519,7 +523,8 @@ function SubmitButton() {
     <button
       type="submit"
       disabled={pending}
-      className="rounded-xl bg-sky px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-sky-strong disabled:cursor-not-allowed disabled:opacity-50"
+      /* 휴대폰은 폭 전체의 큰 알약(아이폰 시트의 주 단추), PC 는 예전 크기 */
+      className="w-full rounded-full bg-sky px-5 py-3.5 text-base font-semibold text-white transition-colors hover:bg-sky-strong disabled:cursor-not-allowed disabled:opacity-50 desk:w-auto desk:rounded-xl desk:py-2.5 desk:text-sm"
     >
       {pending ? '저장 중…' : '체크인 저장'}
     </button>
@@ -559,11 +564,11 @@ function ModeSwitch({ mode, onChange }: { mode: Mode; onChange: (m: Mode) => voi
     <div
       role="radiogroup"
       aria-label="체크인 방식"
-      className="relative inline-grid grid-cols-2 rounded-xl border border-line-strong bg-surface p-0.5 text-xs font-semibold"
+      className="relative inline-grid grid-cols-2 rounded-xl bg-ink/8 p-0.5 text-xs font-semibold"
     >
       <span
         aria-hidden
-        className={`absolute inset-y-0.5 left-0.5 w-[calc(50%-2px)] rounded-lg bg-sky transition-transform duration-300 ease-[cubic-bezier(0.2,0,0,1)] ${
+        className={`absolute inset-y-0.5 left-0.5 w-[calc(50%-2px)] rounded-lg bg-raised shadow-[0_1px_3px_rgb(0_0_0/0.12)] transition-transform duration-300 ease-[cubic-bezier(0.2,0,0,1)] ${
           mode === 'detail' ? 'translate-x-full' : 'translate-x-0'
         }`}
       />
@@ -574,8 +579,8 @@ function ModeSwitch({ mode, onChange }: { mode: Mode; onChange: (m: Mode) => voi
           role="radio"
           aria-checked={mode === m}
           onClick={() => onChange(m)}
-          className={`relative px-4 py-1.5 transition-colors duration-200 ${
-            mode === m ? 'text-white' : 'text-muted hover:text-ink'
+          className={`relative min-h-9 px-4 transition-colors duration-200 desk:min-h-0 desk:py-1.5 ${
+            mode === m ? 'text-ink' : 'font-medium text-ink/60 hover:text-ink'
           }`}
         >
           {m === 'quick' ? '간편 체크인' : '상세 체크인'}
@@ -796,7 +801,7 @@ export function CheckinForm({
           <button
             type="button"
             onClick={() => setEditing(true)}
-            className="ml-auto inline-flex items-center gap-1 rounded-lg border border-line px-2.5 py-1.5 text-xs text-muted transition-colors hover:border-sky hover:text-sky"
+            className="ml-auto inline-flex min-h-9 items-center gap-1 rounded-full bg-ink/6 px-3 text-xs font-medium text-ink transition-colors desk:min-h-0 desk:rounded-lg desk:border desk:border-line desk:bg-transparent desk:px-2.5 desk:py-1.5 desk:font-normal desk:text-muted desk:hover:border-sky desk:hover:text-sky"
           >
             <Pencil className="h-3 w-3" />
             수정 · 더 적기
@@ -916,7 +921,7 @@ export function CheckinForm({
                * 접혀 있어도 값은 그대로 폼에 들어간다 — 라디오를 숨기기만 하고
                * 지우지 않는다. 불편한 곳이 있는 날에는 저절로 펴진다.
                */}
-              <div className="rounded-xl border border-line bg-surface-2/50 px-3 py-2.5">
+              <div className="rounded-2xl bg-ink/4 px-3.5 py-3 desk:rounded-xl desk:border desk:border-line desk:bg-surface-2/50 desk:px-3 desk:py-2.5">
                 <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
                   <span className="text-xs font-medium text-muted">몸 상태</span>
                   <span
@@ -934,7 +939,7 @@ export function CheckinForm({
                       type="button"
                       onClick={() => setPartsOpen((v) => !v)}
                       aria-expanded={partsExpanded}
-                      className="ml-auto inline-flex items-center gap-1 rounded-lg border border-line px-2.5 py-1 text-xs text-muted transition-colors hover:border-sky hover:text-sky"
+                      className="ml-auto inline-flex min-h-8 items-center gap-1 rounded-full bg-surface px-3 text-xs font-medium text-ink transition-colors desk:min-h-0 desk:rounded-lg desk:border desk:border-line desk:bg-transparent desk:px-2.5 desk:py-1 desk:font-normal desk:text-muted desk:hover:border-sky desk:hover:text-sky"
                     >
                       <ChevronDown
                         aria-hidden
@@ -1051,8 +1056,13 @@ export function CheckinForm({
                * 높이를 grid-rows 로 연다. 픽셀로 적으면 칸 수가 바뀔 때마다 맞춰야
                * 하고, display 로 끄면 부드럽게 열 수 없다.
                */}
+              {/*
+                relative overflow-hidden — 접힌 상세 속 칩의 숨긴 라디오(sr-only, absolute)는 가장 가까운 '자리 잡힌'
+                조상을 기준으로 놓여 이 칸의 잘라내기를 빠져나갔고, 창을 끝까지 굴리면 [저장] 밑에 빈 자리가 500px 남았다
+                (2026-10-01 시트로 바꾸며 발견). 이 칸을 기준(relative)으로 삼아 함께 잘라낸다.
+              */}
               <div
-                className={`grid transition-[grid-template-rows,opacity] duration-300 ease-[cubic-bezier(0.2,0,0,1)] ${
+                className={`relative grid overflow-hidden transition-[grid-template-rows,opacity] duration-300 ease-[cubic-bezier(0.2,0,0,1)] ${
                   detailed ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'
                 }`}
               >
@@ -1185,13 +1195,13 @@ export function CheckinForm({
                 </fieldset>
               </div>
 
-              <div className="flex items-center gap-3 pt-1">
+              <div className="flex flex-col gap-1 pt-1 desk:flex-row desk:items-center desk:gap-3">
                 <SubmitButton />
                 {today && (
                   <button
                     type="button"
                     onClick={() => setEditing(false)}
-                    className="text-xs text-muted transition-colors hover:text-ink"
+                    className="min-h-10 text-sm text-muted transition-colors hover:text-ink desk:min-h-0 desk:text-xs"
                   >
                     취소
                   </button>

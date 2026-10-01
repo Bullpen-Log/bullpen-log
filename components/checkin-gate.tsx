@@ -328,14 +328,21 @@ export function CheckinGate({
       onClose={() => {
         if (needed) skip();
       }}
-      /* 아이폰 앱은 시계 · 홈 막대 자리를 뺀다(components/modal.tsx 의 page 창과 같은 까닭) */
-      className="m-auto flex max-h-[min(92dvh,56rem,calc(100dvh-2*max(env(safe-area-inset-top),env(safe-area-inset-bottom))-1.5rem))] w-[min(40rem,calc(100vw-1.5rem))] flex-col overflow-clip rounded-2xl border border-line bg-surface p-0 text-ink shadow-2xl outline-none backdrop:bg-shade/60"
+      /*
+       * 휴대폰: 화면 바닥에 붙은 시트(폭 전체 · 위 모서리만 둥글게 · 시계 자리 밑 12px 까지, globals.css 의
+       * '휴대폰의 체크인 관문'). PC: 가운데 창 그대로 — 아이폰 앱은 시계 · 홈 막대 자리를 뺀다
+       * (components/modal.tsx 의 page 창과 같은 까닭).
+       */
+      className="mx-0 mt-auto mb-0 flex max-h-[calc(100dvh-env(safe-area-inset-top)-0.75rem)] w-full max-w-none flex-col overflow-clip rounded-t-[28px] rounded-b-none border-0 bg-surface p-0 text-ink shadow-2xl outline-none backdrop:bg-black/40 desk:m-auto desk:max-h-[min(92dvh,56rem,calc(100dvh-2*max(env(safe-area-inset-top),env(safe-area-inset-bottom))-1.5rem))] desk:w-[min(40rem,calc(100vw-1.5rem))] desk:max-w-[calc(100vw-1.5rem)] desk:rounded-2xl desk:border desk:border-line"
     >
-      <div className="shrink-0 border-b border-line px-5 py-4">
+      <div className="shrink-0 px-5 pt-6 pb-1 desk:border-b desk:border-line desk:py-4">
         {today && (
           <p className="text-[11px] font-semibold text-sky">{spokenDay(today)}</p>
         )}
-        <h2 id="checkin-gate-title" className="mt-0.5 text-lg font-bold text-ink">
+        <h2
+          id="checkin-gate-title"
+          className="mt-0.5 text-xl font-bold text-ink desk:text-lg"
+        >
           오늘 몸 상태부터 남겨주세요
         </h2>
         <p className="mt-1 text-xs leading-relaxed text-muted">
@@ -350,7 +357,7 @@ export function CheckinGate({
         아래쪽 라디오들이 창의 스크롤 길이를 늘리고, 초점이 거기로 가는 순간 창
         전체가 위로 밀려 올라가 제목이 화면 밖으로 사라진다(실제로 400px 넘게 밀렸다).
       */}
-      <div className="no-scrollbar relative min-h-0 flex-auto overflow-y-auto px-5 py-5">
+      <div className="no-scrollbar relative min-h-0 flex-auto overflow-y-auto px-5 pt-4 pb-5 desk:py-5">
         {showDone ? (
           <CheckinDone today={today} days={[...streakDays, ...checkedDays]} />
         ) : (
@@ -360,14 +367,14 @@ export function CheckinGate({
       </div>
 
       {!showDone && (
-        <div className="flex shrink-0 flex-wrap items-center justify-between gap-x-3 gap-y-1 border-t border-line px-5 py-3">
+        <div className="flex shrink-0 flex-wrap items-center justify-between gap-x-3 gap-y-1 px-5 pt-1 pb-[max(0.75rem,env(safe-area-inset-bottom))] desk:border-t desk:border-line desk:py-3">
           <p className="text-[11px] text-muted">
             건너뛰면 다음에 접속할 때 다시 묻습니다.
           </p>
           <button
             type="button"
             onClick={skip}
-            className="rounded-lg px-2.5 py-1.5 text-xs font-medium text-muted transition-colors hover:bg-surface-2 hover:text-ink"
+            className="-mr-2 min-h-10 rounded-full px-3 text-sm font-semibold text-sky transition-colors desk:mr-0 desk:min-h-0 desk:rounded-lg desk:px-2.5 desk:py-1.5 desk:text-xs desk:font-medium desk:text-muted desk:hover:bg-surface-2 desk:hover:text-ink"
           >
             오늘은 건너뛰기
           </button>
