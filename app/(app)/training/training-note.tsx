@@ -53,7 +53,7 @@ export function TrainingNote({
 
   if (!saved && !done) {
     return (
-      <p className="rounded-2xl border border-dashed border-line p-(--block-pad) text-sm leading-relaxed text-muted">
+      <p className="rounded-2xl empty-well p-(--block-pad) text-sm leading-relaxed text-muted">
         운동을 하나라도 마치면 여기에 오늘 운동이 어땠는지 남길 수 있습니다.
       </p>
     );

@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from 'next';
 import { Bebas_Neue } from 'next/font/google';
 import { THEME_INIT_SCRIPT } from '@/lib/theme';
 import { APP_INIT_SCRIPT } from '@/lib/native-app';
+import { PressFeedback } from '@/components/press-feedback';
 import './globals.css';
 
 /**
@@ -98,7 +99,11 @@ export default function RootLayout({
          */}
         <link rel="stylesheet" href="/fonts/pretendard/pretendard.css" />
       </head>
-      <body className="min-h-full font-sans">{children}</body>
+      <body className="min-h-full font-sans">
+        {children}
+        {/* 손가락으로 누른 것을 옅게 — 아이폰 단추처럼(globals.css '손가락으로 눌렀을 때') */}
+        <PressFeedback />
+      </body>
     </html>
   );
 }

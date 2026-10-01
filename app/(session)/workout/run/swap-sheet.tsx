@@ -281,22 +281,29 @@ export function SwapSheetView({
         type="button"
         aria-label="닫기"
         onClick={onClose}
-        className="absolute inset-0 bg-shade/60"
+        data-press-none
+        className="absolute inset-0 bg-black/40 motion-safe:animate-[backdrop-in_260ms_ease-out]"
       />
 
-      <div className="relative flex max-h-[85%] flex-col overflow-hidden rounded-t-3xl border-t border-line bg-surface">
-        <div className="shrink-0 border-b border-line px-4 pt-3 pb-3">
+      <div className="relative flex max-h-[85%] flex-col overflow-hidden rounded-t-[28px] bg-surface shadow-2xl motion-safe:animate-[sheet-in_380ms_cubic-bezier(0.32,0.72,0,1)]">
+        <div className="shrink-0 border-b border-line px-4 pb-3">
+          <div
+            aria-hidden
+            className="mx-auto mt-2 mb-1 h-[5px] w-9 rounded-full bg-ink/15"
+          />
           <div className="flex items-center justify-between gap-3">
-            <p className="text-sm font-bold text-ink">
+            <p className="text-base font-bold text-ink">
               {mode === 'replace' ? '운동 교체' : '운동 추가'}
             </p>
             <button
               type="button"
               onClick={onClose}
               aria-label="교체 창 닫기"
-              className="-m-2 grid h-11 w-11 shrink-0 place-items-center rounded-lg text-muted transition-colors hover:text-ink desk:m-0 desk:h-8 desk:w-8"
+              className="-mr-2 grid h-11 w-11 shrink-0 place-items-center text-muted transition-colors hover:text-ink"
             >
-              <X className="h-5 w-5 desk:h-4 desk:w-4" />
+              <span className="grid h-8 w-8 place-items-center rounded-full bg-ink/6">
+                <X className="h-4 w-4" strokeWidth={2.4} />
+              </span>
             </button>
           </div>
           <p className="mt-0.5 text-[11px] leading-relaxed break-keep text-muted">

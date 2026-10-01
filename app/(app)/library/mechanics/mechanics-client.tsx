@@ -348,7 +348,7 @@ export function MechanicsClient({
                 form={<GuideForm category={category.name} />}
               >
                 {items.length === 0 ? (
-                  <p className="rounded-xl border border-dashed border-line px-5 py-10 text-center text-sm text-muted">
+                  <p className="rounded-xl empty-well px-5 py-10 text-center text-sm text-muted">
                     {isAdmin
                       ? '"영상 추가"를 눌러 이 파트의 첫 드릴을 등록해보세요.'
                       : '아직 등록된 드릴이 없습니다.'}

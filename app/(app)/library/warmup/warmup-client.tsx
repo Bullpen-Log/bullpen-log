@@ -115,7 +115,7 @@ function Picker({
 
   if (pickable.length === 0) {
     return (
-      <div className="rounded-xl border border-dashed border-line-strong px-4 py-5 text-center">
+      <div className="rounded-xl empty-well px-4 py-5 text-center">
         <p className="text-sm text-muted">아직 워밍업 운동이 하나도 없습니다.</p>
         <p className="mt-1.5 text-xs leading-relaxed text-muted">
           <Link
@@ -311,7 +311,7 @@ function RoutineBlock({
           <button
             type="button"
             onClick={() => setPicking(true)}
-            className="w-full rounded-xl border border-dashed border-line-strong py-2.5 text-xs font-semibold text-muted transition-colors hover:border-sky hover:text-sky"
+            className="w-full rounded-xl bg-ink/6 py-2.5 desk:border desk:border-dashed desk:border-line-strong desk:bg-transparent text-xs font-semibold text-muted transition-colors hover:border-sky hover:text-sky"
           >
             <Plus className="mr-1 inline h-3.5 w-3.5" />
             운동 담기

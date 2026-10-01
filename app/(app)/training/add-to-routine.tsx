@@ -156,7 +156,7 @@ export function AddToRoutine({
           {routines.length < MY_ROUTINE_MAX && (
             <Link
               href={`/training/routine/new?add=${exerciseId}`}
-              className="flex items-center justify-center gap-1.5 rounded-xl border border-dashed border-line-strong px-4 py-3 text-sm font-semibold text-ink transition-colors hover:border-sky hover:text-sky"
+              className="flex items-center justify-center gap-1.5 rounded-xl bg-ink/6 px-4 py-3 desk:border desk:border-dashed desk:border-line-strong desk:bg-transparent text-sm font-semibold text-ink transition-colors hover:border-sky hover:text-sky"
             >
               <Plus aria-hidden className="h-4 w-4" />이 운동으로 새 루틴 만들기
             </Link>

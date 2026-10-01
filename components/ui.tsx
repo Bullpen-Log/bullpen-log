@@ -204,23 +204,37 @@ export function Badge({
   );
 }
 
-/** 데이터가 없을 때 보여주는 빈 상태 */
+/**
+ * 데이터가 없을 때 보여주는 빈 상태 — 아이폰의 빈 화면처럼 흐린 큰 아이콘 · 제목 · 한 줄 · 단추를 가운데에.
+ * 휴대폰은 상자 없이, PC 는 예전 점선 상자(2026-10-01 '애플처럼').
+ */
 export function EmptyState({
+  icon,
   title,
   description,
   action,
 }: {
+  /** 무엇이 비었는지 한눈에 — lucide 아이콘 하나(크기 · 색 · 굵기는 여기서 맞춘다) */
+  icon?: ReactNode;
   title: string;
   description?: string;
   action?: ReactNode;
 }) {
   return (
-    <div className="flex flex-col items-center justify-center gap-3 rounded-2xl border border-dashed border-line px-6 py-16 text-center">
-      <p className="text-sm font-medium text-ink">{title}</p>
-      {description && (
-        <p className="max-w-sm text-sm leading-relaxed text-muted">{description}</p>
+    <div className="flex flex-col items-center justify-center gap-2 px-6 py-14 text-center desk:gap-3 desk:rounded-2xl desk:border desk:border-dashed desk:border-line desk:py-16">
+      {icon && (
+        <span
+          aria-hidden
+          className="mb-1 text-muted/45 [&_svg]:h-12 [&_svg]:w-12 [&_svg]:stroke-[1.5] desk:[&_svg]:h-9 desk:[&_svg]:w-9"
+        >
+          {icon}
+        </span>
       )}
-      {action}
+      <p className="text-base font-semibold text-ink desk:text-sm desk:font-medium">{title}</p>
+      {description && (
+        <p className="max-w-sm text-sm leading-relaxed break-keep text-muted">{description}</p>
+      )}
+      {action && <div className="mt-2 desk:mt-0">{action}</div>}
     </div>
   );
 }

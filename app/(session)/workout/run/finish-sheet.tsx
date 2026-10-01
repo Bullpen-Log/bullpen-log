@@ -71,6 +71,7 @@ export function FinishSheet({
         type="button"
         aria-label="닫기"
         onClick={onClose}
+        data-press-none
         className="absolute inset-0 bg-black/40 motion-safe:animate-[backdrop-in_260ms_ease-out]"
       />
 

@@ -98,7 +98,7 @@ export function WarmupClient({
         </p>
 
         {total === 0 && (
-          <p className="mt-5 rounded-xl border border-dashed border-line-strong px-4 py-6 text-center text-xs leading-relaxed text-muted">
+          <p className="mt-5 rounded-xl empty-well px-4 py-6 text-center text-xs leading-relaxed text-muted">
             아직 루틴에 담긴 운동이 없습니다.
             <br />
             영상이 올라오면 여기에 나옵니다.

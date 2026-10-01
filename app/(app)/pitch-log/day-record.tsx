@@ -236,7 +236,7 @@ export function DayRecord({
           ))}
         </div>
       ) : rested ? null : (
-        <p className="flex items-center gap-2 rounded-xl border border-dashed border-line px-4 py-5 text-sm text-muted">
+        <p className="flex items-center gap-2 rounded-xl empty-well px-4 py-5 text-sm text-muted">
           <VideoOff className="h-4 w-4" />이 기록에는 영상이 없습니다
         </p>
       )}

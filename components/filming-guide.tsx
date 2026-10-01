@@ -316,7 +316,7 @@ export function FilmingGuide({ defaultOpen = false }: { defaultOpen?: boolean })
             </div>
           </div>
 
-          <p className="rounded-xl border border-dashed border-line px-4 py-3 text-xs leading-relaxed text-muted/80">
+          <p className="rounded-xl empty-well px-4 py-3 text-xs leading-relaxed text-muted/80">
             <span className="text-ink">왜 이렇게까지 하냐면</span> — 나중에 영상에서
             몸통 기울기나 보폭 같은 수치를 자동으로 재려고 합니다. 그때 각도와 거리가
             매번 다르면 지난 영상과 비교할 수가 없습니다. 지금부터 조건을 맞춰

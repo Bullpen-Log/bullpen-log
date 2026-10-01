@@ -245,7 +245,7 @@ export function DayClient({
       <FormError>{error}</FormError>
 
       {future && (
-        <p className="rounded-xl border border-dashed border-line px-4 py-8 text-center text-sm leading-relaxed text-muted">
+        <p className="rounded-xl empty-well px-4 py-8 text-center text-sm leading-relaxed text-muted">
           앞으로 올 날짜에는 기록할 수 없습니다.
           <br />
           던지고 나서 그날 또는 그 뒤에 남겨주세요.
@@ -333,7 +333,7 @@ export function DayClient({
           <button
             type="button"
             onClick={() => setFormOpen(true)}
-            className="flex w-full items-center justify-center gap-2 rounded-2xl border border-dashed border-sky-soft bg-sky-tint px-4 py-3.5 text-sm font-medium text-sky-strong transition-colors hover:bg-sky-tint/70"
+            className="flex w-full items-center justify-center gap-2 rounded-2xl bg-sky-tint desk:border desk:border-dashed desk:border-sky-soft px-4 py-3.5 text-sm font-medium text-sky-strong transition-colors hover:bg-sky-tint/70"
           >
             <Plus className="h-4 w-4" />이 날짜에 기록 추가
           </button>

@@ -433,7 +433,7 @@ export function VideoCalendar({
         <div ref={panelRef} className="scroll-mt-20">
           {/* 나란히 둘 때 아무 날도 안 골랐으면 오른쪽이 비지 않게 — 무엇이 여기 뜨는지 */}
           {selected == null && (
-            <p className="hidden rounded-2xl border border-dashed border-line px-6 py-16 text-center text-sm leading-relaxed text-muted xl:block">
+            <p className="hidden rounded-2xl empty-well px-6 py-16 text-center text-sm leading-relaxed text-muted xl:block">
               날짜를 누르면 그날 남긴 투구와
               <br />
               영상이 여기에 펴져요.
@@ -554,7 +554,7 @@ function DayPanel({
   /* 아무것도 남기지 않은 날 — 그날 기록 화면으로 가서 남긴다 */
   if (!day) {
     return (
-      <section className="motion-safe:animate-fade-in rounded-2xl border border-dashed border-line px-5 py-8 text-center">
+      <section className="motion-safe:animate-fade-in rounded-2xl empty-well px-5 py-8 text-center">
         <p className="text-sm text-muted">{spokenDate(date)}에는 남긴 투구가 없어요.</p>
         <Link
           href={`/pitch-log/${date}`}

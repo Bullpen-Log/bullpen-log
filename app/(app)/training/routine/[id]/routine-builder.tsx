@@ -208,7 +208,7 @@ export function RoutineBuilder({
           </p>
         )}
         {items.length === 0 ? (
-          <p className="rounded-2xl border border-dashed border-line-strong px-4 py-8 text-center text-sm leading-relaxed break-keep text-muted">
+          <p className="rounded-2xl empty-well px-4 py-8 text-center text-sm leading-relaxed break-keep text-muted">
             아래 목록에서 운동을 골라 담으세요. 담은 차례대로 합니다.
           </p>
         ) : (

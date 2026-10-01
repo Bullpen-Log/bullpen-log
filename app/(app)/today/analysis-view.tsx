@@ -151,7 +151,7 @@ async function PastReport({ user, date }: { user: User; date: string }) {
   const earlierKey = earlier ? earlier.asOf.toISOString().slice(0, 10) : null;
   return (
     <div className="space-y-4">
-      <div className="rounded-2xl border border-dashed border-line px-5 py-8 text-center">
+      <div className="rounded-2xl empty-well px-5 py-8 text-center">
         <p className="text-sm text-ink">{spokenDate(date)}에는 만든 리포트가 없어요.</p>
         <p className="mt-1 text-xs leading-relaxed text-muted">
           리포트가 있는 날은 캘린더 칸 왼쪽 위에 그래프 표시가 있어요. 투구·트레이닝

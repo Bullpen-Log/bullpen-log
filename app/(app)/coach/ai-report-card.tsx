@@ -329,7 +329,7 @@ export function AiReportCard({
         )}
 
         {!aiReady && (
-          <p className="rounded-xl border border-dashed border-line px-4 py-6 text-center text-sm text-muted">
+          <p className="rounded-xl empty-well px-4 py-6 text-center text-sm text-muted">
             AI 기능이 아직 설정되지 않았습니다.
           </p>
         )}
@@ -339,13 +339,13 @@ export function AiReportCard({
           단추만 없으면 고장 난 것으로 보인다.
         */}
         {aiReady && !readiness.ready && (
-          <p className="rounded-xl border border-dashed border-line px-4 py-6 text-center text-sm leading-relaxed text-muted">
+          <p className="rounded-xl empty-well px-4 py-6 text-center text-sm leading-relaxed text-muted">
             {readiness.message}
           </p>
         )}
 
         {aiReady && readiness.ready && !report && (
-          <p className="rounded-xl border border-dashed border-line px-4 py-6 text-center text-sm text-muted">
+          <p className="rounded-xl empty-well px-4 py-6 text-center text-sm text-muted">
             {readiness.message} 위 버튼을 눌러 만들어보세요.
           </p>
         )}

@@ -31,7 +31,7 @@ export async function analysisFor(date: string, tab: string): Promise<ReactNode>
 
 function Notice({ children }: { children: ReactNode }) {
   return (
-    <p className="rounded-2xl border border-dashed border-line px-5 py-10 text-center text-sm text-muted">
+    <p className="rounded-2xl empty-well px-5 py-10 text-center text-sm text-muted">
       {children}
     </p>
   );

@@ -76,7 +76,7 @@ export default async function TrainingDayPage({
       )}
 
       {empty ? (
-        <p className="rounded-2xl border border-dashed border-line px-4 py-10 text-center text-sm leading-relaxed text-muted">
+        <p className="rounded-2xl empty-well px-4 py-10 text-center text-sm leading-relaxed text-muted">
           이 날은 운동 기록이 없습니다.
           {date === todayKey && (
             <>

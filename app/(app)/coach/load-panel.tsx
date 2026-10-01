@@ -249,7 +249,7 @@ function Primary({ view }: { view: LoadView }) {
           <TrendLine trend={view.trend} />
         </>
       ) : (
-        <div className="rounded-xl border border-dashed border-line bg-surface-2/40 px-4 py-4">
+        <div className="rounded-xl empty-well px-4 py-4">
           <p className="text-sm font-medium text-ink">
             {view.hasRecords
               ? '아직 지수를 낼 수 없습니다'

@@ -48,7 +48,7 @@ export function MyRoutines({
       )}
 
       {routines.length === 0 ? (
-        <div className="space-y-3 rounded-2xl border border-dashed border-line-strong bg-surface px-5 py-5">
+        <div className="space-y-3 rounded-2xl bg-surface px-5 py-5 desk:border desk:border-dashed desk:border-line-strong">
           <p className="text-sm font-bold text-ink">아직 만든 루틴이 없습니다</p>
           <p className="text-[13px] break-keep text-muted">
             자주 하는 운동만 골라 이름을 붙여 두세요.

@@ -298,7 +298,7 @@ export function VideoGallery({
 
   if (clips.length === 0) {
     return (
-      <p className="rounded-2xl border border-dashed border-line px-4 py-10 text-center text-sm leading-relaxed text-muted">
+      <p className="rounded-2xl empty-well px-4 py-10 text-center text-sm leading-relaxed text-muted">
         아직 남긴 투구 기록이 없습니다.
         <br />
         위의 &apos;오늘 기록 남기기&apos;로 시작하세요. 영상도 그때 함께 올릴 수

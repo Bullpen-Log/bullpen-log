@@ -988,7 +988,7 @@ function Chart({
       }}
     >
       {empty ? (
-        <p className="absolute inset-0 mb-1.5 flex items-center justify-center rounded-lg border border-dashed border-line text-[11px] text-muted">
+        <p className="absolute inset-0 mb-1.5 flex items-center justify-center rounded-lg empty-well text-[11px] text-muted">
           이 기간 기록이 없어요
         </p>
       ) : (

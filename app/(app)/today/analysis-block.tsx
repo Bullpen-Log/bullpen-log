@@ -205,7 +205,7 @@ export function AnalysisBlock({
             </span>
           )}
           {failed[key] ? (
-            <div className="flex flex-wrap items-center justify-center gap-2 rounded-2xl border border-dashed border-line px-5 py-10 text-sm">
+            <div className="flex flex-wrap items-center justify-center gap-2 rounded-2xl empty-well px-5 py-10 text-sm">
               <p role="alert" className="text-danger">
                 이 날 분석을 불러오지 못했어요.
               </p>

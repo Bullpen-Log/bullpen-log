@@ -55,20 +55,31 @@ export function ExerciseSheet({
         type="button"
         aria-label="닫기"
         onClick={onClose}
-        className="absolute inset-0 bg-shade/60"
+        data-press-none
+        className="absolute inset-0 bg-black/40 motion-safe:animate-[backdrop-in_260ms_ease-out]"
       />
 
-      <div className="relative max-h-[80%] overflow-y-auto rounded-t-3xl border-t border-line bg-surface pb-[max(1rem,env(safe-area-inset-bottom))]">
-        <div className="sticky top-0 flex items-center justify-between gap-3 border-b border-line bg-surface px-4 py-3">
-          <p className="text-sm font-bold text-ink">오늘 운동 {exercises.length}개</p>
-          <button
-            type="button"
-            onClick={onClose}
-            aria-label="목록 닫기"
-            className="-m-2 grid h-11 w-11 shrink-0 place-items-center rounded-lg text-muted transition-colors hover:text-ink desk:m-0 desk:h-8 desk:w-8"
-          >
-            <X className="h-5 w-5 desk:h-4 desk:w-4" />
-          </button>
+      <div className="relative max-h-[80%] overflow-y-auto rounded-t-[28px] bg-surface pb-[max(1rem,env(safe-area-inset-bottom))] shadow-2xl motion-safe:animate-[sheet-in_380ms_cubic-bezier(0.32,0.72,0,1)]">
+        <div className="sticky top-0 z-10 border-b border-line bg-surface px-4 pb-2">
+          <div
+            aria-hidden
+            className="mx-auto mt-2 mb-1 h-[5px] w-9 rounded-full bg-ink/15"
+          />
+          <div className="flex items-center justify-between gap-3">
+            <p className="text-base font-bold text-ink">
+              오늘 운동 {exercises.length}개
+            </p>
+            <button
+              type="button"
+              onClick={onClose}
+              aria-label="목록 닫기"
+              className="-mr-2 grid h-11 w-11 shrink-0 place-items-center text-muted transition-colors hover:text-ink"
+            >
+              <span className="grid h-8 w-8 place-items-center rounded-full bg-ink/6">
+                <X className="h-4 w-4" strokeWidth={2.4} />
+              </span>
+            </button>
+          </div>
         </div>
 
         {error && (

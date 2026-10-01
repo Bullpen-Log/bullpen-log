@@ -251,7 +251,7 @@ export function TrainingReviewCards({
             ))}
           </ul>
         ) : (
-          <p className="mt-4 rounded-xl border border-dashed border-line px-4 py-8 text-center text-sm leading-relaxed text-muted">
+          <p className="mt-4 rounded-xl empty-well px-4 py-8 text-center text-sm leading-relaxed text-muted">
             최근 {weekCount}주 동안 마쳤다고 표시한 운동(암케어 제외)이 없습니다.
             <br />
             트레이닝에서 운동을 마치고 눌러주시면 여기에 쌓입니다. 암케어는 아래

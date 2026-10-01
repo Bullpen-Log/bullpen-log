@@ -147,7 +147,7 @@ export function AddExercise({
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="flex w-full items-center justify-center gap-2 rounded-2xl border border-dashed border-sky-soft bg-sky-tint px-4 py-3.5 text-sm font-medium text-sky-strong transition-colors hover:bg-sky-tint/70"
+        className="flex w-full items-center justify-center gap-2 rounded-2xl bg-sky-tint desk:border desk:border-dashed desk:border-sky-soft px-4 py-3.5 text-sm font-medium text-sky-strong transition-colors hover:bg-sky-tint/70"
       >
         <Plus className="h-4 w-4" />
         운동 추가
@@ -214,7 +214,7 @@ export function AddExercise({
           />
 
           {matched.length === 0 ? (
-            <p className="rounded-xl border border-dashed border-line px-4 py-8 text-center text-sm text-muted">
+            <p className="rounded-xl empty-well px-4 py-8 text-center text-sm text-muted">
               조건에 맞는 운동이 없습니다. 조건을 줄여보세요.
             </p>
           ) : (
