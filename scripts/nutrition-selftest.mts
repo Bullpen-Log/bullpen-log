@@ -63,6 +63,21 @@ import {
 } from '../lib/nutrition/guide.ts';
 import { isNutritionDate } from '../lib/nutrition/days.ts';
 import {
+  MEAL_TEMPLATES,
+  TEMPLATE_PROBLEMS,
+  avoidsOf,
+} from '../lib/nutrition/meal-templates.ts';
+import {
+  MAX_PER_MEAL,
+  amountStep,
+  buildMealPlan,
+  parsePlanContext,
+  parsePlanItems,
+  planMacros,
+  type PlanInput,
+} from '../lib/nutrition/meal-plan.ts';
+import { AVOIDS } from '../lib/nutrition/diet-prefs.ts';
+import {
   DEFAULT_PREFS,
   cleanDietPrefs,
   toDietPrefs,
@@ -2445,6 +2460,295 @@ console.log('\n■ 자주 먹는 조합(로드맵 6번)');
     comboView({ id: 'a', name: 'a', meal: 'brunch', items: [items[0]], useCount: 0 })
       ?.meal === null &&
       comboView({ id: 'b', name: 'b', meal: 'lunch', items: 'x', useCount: 0 }) === null
+  );
+}
+
+console.log('\n■ 식단 짜기');
+{
+  check(
+    '식단 틀의 음식 열쇠가 모두 기본 목록에 있다',
+    TEMPLATE_PROBLEMS.length === 0,
+    TEMPLATE_PROBLEMS.join(', ')
+  );
+  const bySlot = (slot: string) =>
+    MEAL_TEMPLATES.filter((t) => t.slots.includes(slot as never));
+  check(
+    '끼니마다 고를 틀이 넉넉하다(14개 넘게)',
+    ['breakfast', 'lunch', 'dinner', 'snack'].every((s) => bySlot(s).length >= 14),
+    ['breakfast', 'lunch', 'dinner', 'snack']
+      .map((s) => `${s} ${bySlot(s).length}`)
+      .join(' · ')
+  );
+  check(
+    '장소마다 점심 · 간식 틀이 셋 넘게 있다',
+    (['home', 'gym', 'team', 'out'] as const).every(
+      (p) =>
+        bySlot('lunch').filter((t) => t.places.includes(p)).length >= 3 &&
+        bySlot('snack').filter((t) => t.places.includes(p)).length >= 3
+    )
+  );
+  check(
+    '건강한 식단 — 라면 · 과자 · 탄산 · 아이스크림은 틀에 없다',
+    !MEAL_TEMPLATES.some((t) =>
+      t.items.some((i) =>
+        [
+          'ramen',
+          'cup-ramen',
+          'potato-chips',
+          'cola',
+          'ice-cream',
+          'choco-pie',
+        ].includes(i.food.id!)
+      )
+    )
+  );
+
+  const base: PlanInput = {
+    date: '2026-10-02',
+    seed: 'u1',
+    variant: 0,
+    targets: { kcal: 2900, protein: 140 },
+    goal: 'maintain',
+    ageBand: 'adult',
+    prefs: { ...DEFAULT_PREFS },
+    place: 'home',
+    hot: false,
+    throwKind: null,
+    appetite: null,
+    soreness: null,
+    eaten: [],
+  };
+
+  /* 넓게 훑기 — 나이 칸 · 체중에 맞춘 실제 같은 목표 300가지 */
+  const kinds = [null, 'eve', 'today', 'after'] as const;
+  const places = ['home', 'gym', 'team', 'out'] as const;
+  const pats = ['3', '3+1', '3+2', '2+1'] as const;
+  const styles = ['korean', 'mixed', 'simple'] as const;
+  let kcalOff = 0,
+    protLow = 0,
+    protHighAdult = 0,
+    adults = 0,
+    capOver = 0,
+    avoidHit = 0,
+    suppHit = 0,
+    stepOff = 0,
+    changed = 0;
+  for (let i = 0; i < 300; i++) {
+    const avoid = AVOIDS.filter((_, k) => (i * 7 + k * 13) % 9 === 0).map((a) => a.key);
+    const band = (['adult', 'teen', 'child'] as const)[i % 3];
+    const kg =
+      band === 'child'
+        ? 30 + (i % 20)
+        : band === 'teen'
+          ? 50 + (i % 25)
+          : 65 + (i % 35);
+    const protein = Math.round(
+      kg * (band === 'child' ? 1.2 : band === 'teen' ? 1.5 : 1.8)
+    );
+    const kcal = Math.round(
+      kg * (band === 'child' ? 60 : band === 'teen' ? 48 : 38) + (i % 5) * 150
+    );
+    const input: PlanInput = {
+      ...base,
+      date: `2026-10-${String(1 + (i % 28)).padStart(2, '0')}`,
+      seed: 'u' + (i % 17),
+      variant: i % 5,
+      targets: { kcal, protein },
+      goal: (['gain', 'maintain', 'lose'] as const)[i % 3],
+      ageBand: band,
+      prefs: {
+        ...DEFAULT_PREFS,
+        mealPattern: pats[i % 4],
+        dietStyle: styles[i % 3],
+        avoid,
+        seasonPhase: (['off', 'pre', 'in', 'rehab', null] as const)[i % 5],
+        supplements: i % 2 === 0,
+      },
+      place: places[i % 4],
+      hot: i % 6 === 0,
+      throwKind: kinds[i % 4],
+      appetite: i % 7 === 0 ? 1 : null,
+      soreness: i % 9 === 0 ? 5 : null,
+    };
+    const r = buildMealPlan(input);
+    const m = planMacros(r.items);
+    if (Math.abs(m.kcal - kcal) > kcal * 0.1) kcalOff++;
+    if (m.protein < protein * 0.85) protLow++;
+    if (band !== 'child') {
+      adults++;
+      if (m.protein > protein * 1.4) protHighAdult++;
+    }
+    for (const it of r.items) {
+      const same = r.items.filter(
+        (x) => x.meal === it.meal && x.sourceId === it.sourceId
+      );
+      const sum = same.reduce((a, x) => a + x.amount, 0);
+      if (MAX_PER_MEAL[it.sourceId] && sum > MAX_PER_MEAL[it.sourceId] + 1e-9)
+        capOver++;
+      if (avoidsOf(it.sourceId).some((a) => avoid.includes(a))) avoidHit++;
+      if (
+        ['protein-shake', 'protein-bar'].includes(it.sourceId) &&
+        (band !== 'adult' || !input.prefs.supplements)
+      ) {
+        suppHit++;
+      }
+      const step = amountStep(it.sourceId);
+      if (Math.abs(it.amount / step - Math.round(it.amount / step)) > 1e-6) stepOff++;
+    }
+    const again = buildMealPlan({ ...input, variant: input.variant + 1 });
+    if (
+      again.meals.map((x) => x.template).join() !==
+      r.meals.map((x) => x.template).join()
+    )
+      changed++;
+  }
+  check('하루 kcal 이 목표의 ±10% 안(300가지 모두)', kcalOff === 0, `밖 ${kcalOff}`);
+  check(
+    '하루 단백질이 목표의 85% 넘게(300가지 모두)',
+    protLow === 0,
+    `모자람 ${protLow}`
+  );
+  check(
+    '성인 · 성장기 단백질은 목표의 1.4배를 넘는 일이 드물다(5% 밑)',
+    protHighAdult <= adults * 0.05,
+    `${protHighAdult}/${adults}`
+  );
+  check(
+    '한 끼에 먹을 만한 양을 넘지 않는다(달걀 3개 · 우유 2컵 …)',
+    capOver === 0,
+    `넘음 ${capOver}`
+  );
+  check('못 먹는 것은 하나도 안 들어간다', avoidHit === 0, `들어감 ${avoidHit}`);
+  check(
+    '보충식품은 끈 사람 · 성장기 · 어린이에게 안 들어간다',
+    suppHit === 0,
+    `들어감 ${suppHit}`
+  );
+  check('양은 음식마다의 단위(1 · ½ · ¼)로', stepOff === 0, `어긋남 ${stepOff}`);
+  check(
+    "'다른 식단으로'를 누르면 대개 다른 틀이 나온다(9할 넘게)",
+    changed >= 270,
+    `${changed}/300`
+  );
+
+  const one = buildMealPlan(base);
+  check(
+    '같은 날 · 같은 사람 · 같은 조건이면 같은 식단(다시 열어도 그대로)',
+    JSON.stringify(buildMealPlan(base)) === JSON.stringify(one)
+  );
+  check(
+    '끼니 구성대로 — 세 끼 + 간식',
+    ['breakfast', 'lunch', 'dinner', 'snack'].every((m) =>
+      one.items.some((i) => i.meal === m)
+    )
+  );
+  const two = buildMealPlan({
+    ...base,
+    prefs: { ...DEFAULT_PREFS, mealPattern: '2+1' },
+  });
+  check('두 끼 + 간식이면 아침이 없다', !two.items.some((i) => i.meal === 'breakfast'));
+
+  const ate = buildMealPlan({
+    ...base,
+    eaten: [{ meal: 'breakfast', kcal: 700, protein: 35 }],
+  });
+  check(
+    '이미 먹은 끼니는 짜지 않고 남은 몫으로 짠다',
+    !ate.items.some((i) => i.meal === 'breakfast') &&
+      ate.skipped.includes('breakfast') &&
+      ate.target.kcal === 2200 &&
+      ate.target.protein === 105 &&
+      ate.reasons[0].startsWith('이미 먹은 아침은')
+  );
+  const full = buildMealPlan({
+    ...base,
+    eaten: [{ meal: 'lunch', kcal: 2850, protein: 140 }],
+  });
+  check(
+    '목표를 거의 채웠으면 짜지 않는다',
+    full.items.length === 0 && full.reasons.some((r) => r.includes('거의 채웠어요'))
+  );
+
+  const appetite = buildMealPlan({
+    ...base,
+    appetite: 1,
+    prefs: { ...DEFAULT_PREFS, mealPattern: '3' },
+  });
+  check(
+    '입맛 없는 날은 세 끼 구성이어도 간식을 더해 양을 나눈다',
+    appetite.items.some((i) => i.meal === 'snack') &&
+      appetite.reasons.some((r) => r.includes('입맛'))
+  );
+
+  const tagOf = (key: string) => MEAL_TEMPLATES.find((t) => t.key === key)?.tags ?? [];
+  let preLunch = 0,
+    heat = 0,
+    gymOk = 0;
+  for (let i = 0; i < 40; i++) {
+    const p = buildMealPlan({ ...base, seed: 'u' + i, throwKind: 'today' });
+    if (tagOf(p.meals.find((m) => m.meal === 'lunch')!.template).includes('pre'))
+      preLunch++;
+    const h = buildMealPlan({ ...base, seed: 'h' + i, hot: true });
+    if (h.meals.some((m) => tagOf(m.template).includes('heat'))) heat++;
+    const g = buildMealPlan({ ...base, seed: 'g' + i, place: 'gym' });
+    if (
+      g.meals
+        .filter((m) => m.meal === 'lunch' || m.meal === 'snack')
+        .every((m) =>
+          MEAL_TEMPLATES.find((t) => t.key === m.template)!.places.includes('gym')
+        )
+    ) {
+      gymOk++;
+    }
+  }
+  check(
+    '던지는 날 점심은 대개 던지기 전 끼니(탄수화물 위주)',
+    preLunch >= 30,
+    `${preLunch}/40`
+  );
+  check('더운 날은 대개 더위에 맞는 끼니가 하나 넘게', heat >= 24, `${heat}/40`);
+  check(
+    '헬스장이면 점심 · 간식은 헬스장에서 먹을 수 있는 것',
+    gymOk === 40,
+    `${gymOk}/40`
+  );
+
+  const avoidPork = buildMealPlan({
+    ...base,
+    prefs: { ...DEFAULT_PREFS, avoid: ['pork'] },
+  });
+  check(
+    "못 먹는 것을 까닭에 받침에 맞춰 적는다('돼지고기는')",
+    avoidPork.reasons.some((r) => r.startsWith('돼지고기는 빼고'))
+  );
+  check(
+    '까닭은 넷까지',
+    [one, ate, appetite].every((p) => p.reasons.length >= 1 && p.reasons.length <= 4)
+  );
+
+  const parsed = parsePlanItems([
+    { ...one.items[0] },
+    { ...one.items[0], key: 'x', meal: 'brunch' },
+    { ...one.items[0], key: 'y', amount: 0 },
+    { ...one.items[0], key: 'z', kcal: -1 },
+    'junk',
+    { ...one.items[0], key: 'w', done: true, protein: -3 },
+  ]);
+  check(
+    '저장한 계획을 다시 본다 — 틀린 줄은 버리고 음수 영양소는 비운다',
+    parsed.length === 2 && parsed[1].done && parsed[1].protein === null
+  );
+  const ctx = parsePlanContext({ place: 'mars', hot: 'yes', reasons: ['a', 3] });
+  check(
+    '저장한 조건을 다시 본다 — 모르는 값은 기본값',
+    ctx.place === 'home' &&
+      ctx.hot === false &&
+      ctx.reasons.join() === 'a' &&
+      ctx.variant === 0
+  );
+  check(
+    '계획의 합은 아직 안 먹은 줄만',
+    planMacros(parsed).kcal === parsed[0].kcal * parsed[0].amount
   );
 }
 
