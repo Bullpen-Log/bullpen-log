@@ -21,6 +21,7 @@ import {
   mealLabel,
   scaleMacros,
   sumMacros,
+  type EntrySource,
   type Food,
   type GoalKey,
   type Macros,
@@ -86,6 +87,9 @@ export type PlanInput = {
 export type PlanItem = {
   key: string;
   meal: MealKey;
+  /** 어디서 온 음식인가 — 짠 것은 늘 기본 목록, 사용자가 바꿔 넣으면 식약처 · 내 음식 · 직접 입력일 수 있다 */
+  source: EntrySource;
+  /** 원래 음식의 열쇠. 직접 입력으로 바꿔 넣었으면 빈 글 */
   sourceId: string;
   name: string;
   servingLabel: string;
@@ -660,6 +664,7 @@ export function buildMealPlan(input: PlanInput): MealPlanResult {
       items.push({
         key: `${m.slot}-${items.length}-${i}-${l.food.id}`,
         meal: m.slot,
+        source: 'basic',
         sourceId: l.food.id!,
         name: l.food.name,
         servingLabel: l.food.servingLabel,
@@ -761,6 +766,7 @@ export type PlanContext = {
 };
 
 const num = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) ? v : null);
+const PLAN_SOURCES: EntrySource[] = ['basic', 'mfds', 'mine', 'free'];
 
 /** DB 의 items(Json)를 하나씩 다시 본다 — 틀린 줄은 버린다(손으로 고친 줄 하나가 화면을 넘어뜨리지 않게) */
 export function parsePlanItems(raw: unknown): PlanItem[] {
@@ -790,6 +796,8 @@ export function parsePlanItems(raw: unknown): PlanItem[] {
     out.push({
       key: o.key,
       meal: o.meal,
+      /* 출처 칸이 생기기 전의 계획은 모두 기본 목록이었다 */
+      source: PLAN_SOURCES.find((x) => x === o.source) ?? 'basic',
       sourceId: o.sourceId,
       name: o.name,
       servingLabel: typeof o.servingLabel === 'string' ? o.servingLabel : '1인분',

@@ -8,6 +8,7 @@ import {
   Minus,
   Plus,
   RefreshCw,
+  Replace,
   Trash2,
 } from 'lucide-react';
 import {
@@ -301,10 +302,13 @@ export function PlanBlock({
   meal,
   items,
   onEat,
+  onReplace,
 }: {
   meal: MealKey;
   items: PlanItem[];
   onEat: (keys: string[]) => void;
+  /** 이름(또는 오른쪽 바꾸기 아이콘)을 눌렀다 — 그 줄을 찾아 바꾸는 창 */
+  onReplace: (item: PlanItem, e: MouseEvent<HTMLElement>) => void;
 }) {
   const kcal = planMacros(items).kcal;
   return (
@@ -343,16 +347,24 @@ export function PlanBlock({
                 strokeWidth={2.6}
               />
             </button>
-            <span className="min-w-0 flex-1 truncate text-sm text-ink/70">
-              {item.name}
-              <span className="ml-1.5 text-xs text-muted">
-                {amountText(item.amount)} · {item.servingLabel}
+            <button
+              type="button"
+              onClick={(e) => onReplace(item, e)}
+              aria-label={`${item.name} — 다른 음식으로 바꾸기`}
+              className="-my-1 flex min-w-0 flex-1 items-center gap-2 rounded-lg px-1 py-1.5 text-left transition-colors hover:bg-sky/10"
+            >
+              <span className="min-w-0 flex-1 truncate text-sm text-ink/70">
+                {item.name}
+                <span className="ml-1.5 text-xs text-muted">
+                  {amountText(item.amount)} · {item.servingLabel}
+                </span>
               </span>
-            </span>
-            <span className="shrink-0 text-sm tabular-nums text-ink/70">
-              {kcalText(item.kcal * item.amount)}
-              <span className="ml-0.5 text-xs text-muted">kcal</span>
-            </span>
+              <span className="shrink-0 text-sm tabular-nums text-ink/70">
+                {kcalText(item.kcal * item.amount)}
+                <span className="ml-0.5 text-xs text-muted">kcal</span>
+              </span>
+              <Replace aria-hidden className="h-3.5 w-3.5 shrink-0 text-sky/60" />
+            </button>
           </li>
         ))}
       </ul>
@@ -366,11 +378,14 @@ export function PlanEditRow({
   index,
   draft,
   onChange,
+  onReplace,
 }: {
   item: PlanItem;
   index: number;
-  draft: { amount: number; remove: boolean };
-  onChange: (d: { amount: number; remove: boolean }) => void;
+  draft: { amount: number; remove: boolean; name: string };
+  onChange: (d: { amount: number; remove: boolean; name: string }) => void;
+  /** 이름을 눌렀다 — 다른 음식으로 바꾸는 창 */
+  onReplace: (e: MouseEvent<HTMLElement>) => void;
 }) {
   const unit = amountStep(item.sourceId);
   const move = (dir: 1 | -1) =>
@@ -383,8 +398,12 @@ export function PlanEditRow({
       className="motion-safe:animate-row-in flex min-h-11 items-center gap-1.5 py-0.5"
       style={{ '--row': index } as CSSProperties}
     >
-      <span
-        className={`min-w-0 flex-1 transition-opacity duration-200 ${draft.remove ? 'opacity-45' : ''}`}
+      <button
+        type="button"
+        onClick={onReplace}
+        disabled={draft.remove}
+        aria-label={`${item.name} — 다른 음식으로 바꾸기`}
+        className={`-my-1 -ml-1 min-w-0 flex-1 rounded-lg px-1 py-1 text-left transition-[opacity,background-color] duration-200 hover:bg-surface-2 disabled:cursor-default disabled:hover:bg-transparent ${draft.remove ? 'opacity-45' : ''}`}
       >
         <span
           className={`block truncate text-sm text-ink/70 ${draft.remove ? 'line-through' : ''}`}
@@ -394,8 +413,9 @@ export function PlanEditRow({
         </span>
         <span className="block truncate text-xs tabular-nums text-muted">
           {kcalText(scaleMacros(item, draft.amount).kcal)}kcal
+          {!draft.remove && <span className="text-sky"> · 바꾸기</span>}
         </span>
-      </span>
+      </button>
       {draft.remove ? (
         <button
           type="button"

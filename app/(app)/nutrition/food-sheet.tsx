@@ -19,6 +19,7 @@ import {
   Minus,
   PencilLine,
   Plus,
+  Replace,
   Search,
   Star,
   Trash2,
@@ -144,6 +145,8 @@ const COMBO_SAVE_KEY = 'combo-save';
  */
 type SheetState = {
   meal: MealKey;
+  /** 바꾸기 모드 — 고르면 담는 대신 그 자리의 음식을 바꾼다(단추 글 · 아이콘이 바뀐다) */
+  replacing: boolean;
   /** 펴 둔 줄. 한 번에 하나다 — 다른 줄을 펴면 먼저 것은 접힌다 */
   openKey: string | null;
   toggle: (key: string) => void;
@@ -153,6 +156,20 @@ type SheetState = {
 };
 
 const SheetContext = createContext<SheetState | null>(null);
+
+/** '닭가슴살로' · '돈가스로' · '김밥으로' — 받침(ㄹ 받침은 '로')에 맞춘 '(으)로' */
+function withTo(word: string) {
+  /* 끝의 괄호 · 숫자는 건너뛰고 마지막 한글 글자로 본다 — '닭가슴살(익힌 것)' 은 '것' */
+  let final = 0;
+  for (let k = word.length - 1; k >= 0; k--) {
+    const code = word.charCodeAt(k) - 0xac00;
+    if (code >= 0 && code <= 11171) {
+      final = code % 28;
+      break;
+    }
+  }
+  return `${word}${final === 0 || final === 8 ? '로' : '으로'}`;
+}
 
 function useSheet() {
   const sheet = useContext(SheetContext);
@@ -174,6 +191,8 @@ export function FoodSheet({
   mfds,
   popular,
   onAdd,
+  replacing = null,
+  onReplace,
 }: {
   open: boolean;
   meal: MealKey;
@@ -191,8 +210,28 @@ export function FoodSheet({
   /** 모든 사람이 가장 많이 담은 음식 — 순위대로 */
   popular: RankedFood[];
   onAdd: (items: { food: Food; amount: number }[]) => Promise<NutritionResult>;
+  /**
+   * 바꾸기 모드 — 끼니 칸에서 음식 이름(편집 중) · 식단 줄 이름을 눌러 열었을 때. 고르면 담지 않고 그 음식을 바꾸고 창을 닫는다.
+   * 조합 · 어제와 같이 · 조합 저장처럼 여럿을 담는 것은 숨긴다.
+   */
+  replacing?: { name: string } | null;
+  onReplace?: (food: Food, amount: number) => Promise<NutritionResult>;
 }) {
   const label = mealLabel(meal);
+  const [replaceBusy, setReplaceBusy] = useState(false);
+  /*
+   * 바꾸기는 찾으러 온 것 — 창이 열리면 찾는 칸에 커서를 둔다. 창(dialog)은 열릴 때 닫기 단추에 먼저 초점을 주므로
+   * 그 뒤에 옮긴다(autoFocus 는 창이 열리기 전에 돌아 덮인다).
+   */
+  const searchRef = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    if (!open || !replacing) return;
+    const timer = window.setTimeout(
+      () => searchRef.current?.focus({ preventScroll: true }),
+      80
+    );
+    return () => window.clearTimeout(timer);
+  }, [open, replacing]);
   /* 창을 연 때의 목록 — 담는 동안 순서가 바뀌어 줄이 밀리지 않게(위 설명) */
   const [recentList] = useState(recent);
   const [popularList] = useState(popular);
@@ -306,6 +345,18 @@ export function FoodSheet({
 
   /* 담으면 펴 둔 줄을 접는다. 목록은 그대로 두어, 바로 다음 음식을 고른다 */
   function add(food: Food, amount: number) {
+    if (replacing && onReplace) {
+      /* 바꾸기 — 한 번만(두 번 눌러 두 번 바뀌지 않게), 되면 창을 닫고 안 되면 창 안에 까닭 */
+      if (replaceBusy) return;
+      setError(null);
+      setReplaceBusy(true);
+      onReplace(food, amount).then((res) => {
+        setReplaceBusy(false);
+        if (res.ok) onClose();
+        else setError(`${food.name} — 바꾸지 못했어요. ${res.error}`);
+      });
+      return;
+    }
     track(`${food.name} ${amountText(amount)}`, onAdd([{ food, amount }]));
     setOpenKey(null);
   }
@@ -436,6 +487,7 @@ export function FoodSheet({
 
   const sheet: SheetState = {
     meal,
+    replacing: !!replacing,
     openKey,
     toggle: (key) => setOpenKey((k) => (k === key ? null : key)),
     add,
@@ -446,7 +498,17 @@ export function FoodSheet({
   const yesterdayTotal = sumMacros(yesterday.map(entryMacros));
 
   return (
-    <Modal open={open} onClose={onClose} title={`${label} 담기`} origin={origin}>
+    <Modal
+      open={open}
+      onClose={onClose}
+      title={replacing ? `‘${replacing.name}’ 바꾸기` : `${label} 담기`}
+      description={
+        replacing
+          ? '찾아서 고르면 그 자리에서 바뀌어요. 양은 줄을 펴서 정해요.'
+          : undefined
+      }
+      origin={origin}
+    >
       <SheetContext value={sheet}>
         <div className="space-y-4">
           {/* 찾는 칸은 목록을 굴려도 위에 붙어 있다 */}
@@ -467,6 +529,7 @@ export function FoodSheet({
                 }}
                 placeholder="음식 이름 — 초성도 돼요 (ㄷㄱㅅㅅ)"
                 enterKeyHint="search"
+                ref={searchRef}
                 className="w-full rounded-xl border border-line bg-surface-2 py-3 pl-10 pr-10 text-sm text-ink placeholder:text-muted/60 transition-colors focus:border-sky focus:outline-none"
               />
               {query && (
@@ -506,7 +569,7 @@ export function FoodSheet({
           ) : (
             <>
               {/* 자주 먹는 조합 — 이 끼니에 저장한 것부터 세 개. 누르면 한 번에 담는다 */}
-              {comboList.length > 0 && (
+              {!replacing && comboList.length > 0 && (
                 <ul className="space-y-2" aria-label="자주 먹는 조합">
                   {comboList.slice(0, COMBO_TOP).map((c) => (
                     <li key={c.id}>
@@ -516,7 +579,7 @@ export function FoodSheet({
                 </ul>
               )}
 
-              {yesterday.length > 0 && (
+              {!replacing && yesterday.length > 0 && (
                 <button
                   type="button"
                   onClick={addYesterday}
@@ -537,7 +600,7 @@ export function FoodSheet({
                 </button>
               )}
 
-              {savedName ? (
+              {replacing ? null : savedName ? (
                 <p
                   role="status"
                   className="motion-safe:animate-fade-in flex items-center gap-2 rounded-xl bg-ok/10 px-4 py-3 text-sm text-ok"
@@ -581,11 +644,11 @@ export function FoodSheet({
                     <FoodList foods={recentList} />
                   ))}
                 {tab === 'mine' &&
-                  (myFoods.length === 0 && comboList.length === 0 ? (
+                  (myFoods.length === 0 && (replacing || comboList.length === 0) ? (
                     <Empty text="자주 먹는 것은 음식을 펴서 ★ 로 여기에 모아 두세요. 직접 만든 음식도, 두 가지 넘게 담은 끼니를 저장한 조합도 여기에 들어와요." />
                   ) : (
                     <div className="space-y-3">
-                      {comboList.length > 0 && (
+                      {!replacing && comboList.length > 0 && (
                         <section className="space-y-1">
                           <h3 className="px-1 text-xs font-semibold text-muted">
                             조합
@@ -605,7 +668,7 @@ export function FoodSheet({
                       )}
                       {myFoods.length > 0 && (
                         <section className="space-y-1">
-                          {comboList.length > 0 && (
+                          {!replacing && comboList.length > 0 && (
                             <h3 className="px-1 text-xs font-semibold text-muted">
                               음식
                             </h3>
@@ -631,7 +694,7 @@ export function FoodSheet({
             </>
           )}
 
-          {added.length > 0 && (
+          {!replacing && added.length > 0 && (
             <div className="motion-safe:animate-fade-in sticky -bottom-5 z-10 -mx-5 -mb-5 flex items-center gap-3 border-t border-line bg-surface px-5 py-3">
               <Check aria-hidden className="h-4 w-4 shrink-0 text-ok" />
               {/* 담을 때마다 글이 바뀌며 살짝 떠오른다 — 눌린 것이 들어갔는지 눈으로 확인 */}
@@ -999,7 +1062,7 @@ function FoodRow({
   onRemove?: () => void;
   hideNote: boolean;
 }) {
-  const { openKey, toggle, add } = useSheet();
+  const { openKey, toggle, add, replacing } = useSheet();
   const key = rowKey(food);
   const open = openKey === key;
   /* 인기 순위에서 온 음식이면 순위와 횟수가 붙어 있다 */
@@ -1098,7 +1161,9 @@ function FoodRow({
         <button
           type="button"
           onClick={() => put(1)}
-          aria-label={`${food.name} 1인분 담기`}
+          aria-label={
+            replacing ? `${withTo(food.name)} 바꾸기` : `${food.name} 1인분 담기`
+          }
           className="relative flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-sky transition-[background-color,transform] duration-150 hover:bg-sky-tint motion-safe:active:scale-90"
         >
           {flash > 0 ? (
@@ -1107,6 +1172,8 @@ function FoodRow({
               aria-hidden
               className="motion-safe:animate-fade-in h-4 w-4 text-ok"
             />
+          ) : replacing ? (
+            <Replace aria-hidden className="h-4 w-4" />
           ) : (
             <Plus aria-hidden className="h-4 w-4" />
           )}
@@ -1248,7 +1315,7 @@ const round20 = (n: number) => Math.round(n * 20) / 20;
  * 내 음식 단추를 한 줄에 두고, 그 밑에 양과 담기를 둔다.
  */
 function PickFood({ food, onAdd }: { food: Food; onAdd: (amount: number) => void }) {
-  const { meal, isFavorite, toggleFavorite } = useSheet();
+  const { meal, isFavorite, toggleFavorite, replacing } = useSheet();
   const favorite = isFavorite(food);
   const [amount, setAmount] = useState(1);
   const [grams, setGrams] = useState(
@@ -1394,7 +1461,7 @@ function PickFood({ food, onAdd }: { food: Food; onAdd: (amount: number) => void
         onClick={() => onAdd(amount)}
         className="w-full rounded-xl bg-sky py-3 text-sm font-semibold text-white transition-colors hover:bg-sky-strong"
       >
-        {mealLabel(meal)}에 담기
+        {replacing ? `${withTo(food.name)} 바꾸기` : `${mealLabel(meal)}에 담기`}
       </button>
     </div>
   );
@@ -1411,6 +1478,7 @@ function CustomFood({
   initialName: string;
   onAdd: (food: Food, save: boolean) => void;
 }) {
+  const { replacing } = useSheet();
   const [name, setName] = useState(initialName);
   const [serving, setServing] = useState('');
   const [kcal, setKcal] = useState('');
@@ -1533,7 +1601,7 @@ function CustomFood({
         type="submit"
         className="w-full rounded-xl bg-sky py-3 text-sm font-semibold text-white transition-colors hover:bg-sky-strong"
       >
-        {mealLabel(meal)}에 담기
+        {replacing ? '이 음식으로 바꾸기' : `${mealLabel(meal)}에 담기`}
       </button>
     </form>
   );

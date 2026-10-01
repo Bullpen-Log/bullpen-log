@@ -72,6 +72,8 @@ import {
   editMealEntries,
   editPlanItems,
   makeMealPlan,
+  replaceMealEntry,
+  replacePlanItem,
   saveNutritionProfile,
   setWeight,
   type NutritionResult,
@@ -104,7 +106,26 @@ const OFFLINE: NutritionResult = { ok: false, error: OFFLINE_MESSAGE };
 let tempSeq = 0;
 
 type EntryAction =
-  { type: 'add'; entries: MealEntryView[] } | { type: 'edit'; edits: EntryEdit[] };
+  | { type: 'add'; entries: MealEntryView[] }
+  | { type: 'edit'; edits: EntryEdit[] }
+  | { type: 'replace'; id: string; food: Food; amount: number };
+
+/** 바꿔 넣을 음식의 값 — 먹은 줄 · 식단 줄이 같은 칸 이름을 쓴다 */
+const foodValues = (food: Food) => ({
+  name: food.name,
+  source: food.source,
+  servingLabel: food.servingLabel,
+  servingGrams: food.servingGrams,
+  kcal: food.kcal,
+  carbs: food.carbs,
+  protein: food.protein,
+  fat: food.fat,
+});
+
+/** 끼니 칸에서 바꿀 줄 — 먹은 기록이거나 식단 줄 */
+type ReplaceTarget =
+  | { kind: 'entry'; id: string; name: string }
+  | { kind: 'plan'; key: string; name: string };
 
 function reduceEntries(list: MealEntryView[], a: EntryAction): MealEntryView[] {
   switch (a.type) {
@@ -119,12 +140,19 @@ function reduceEntries(list: MealEntryView[], a: EntryAction): MealEntryView[] {
         return [{ ...e, amount: edit.amount ?? e.amount, meal: edit.meal ?? e.meal }];
       });
     }
+    case 'replace':
+      return list.map((e) =>
+        e.id === a.id
+          ? { ...e, ...foodValues(a.food), sourceId: a.food.id, amount: a.amount }
+          : e
+      );
   }
 }
 
 type PlanAction =
   | { type: 'eat'; keys: string[] }
   | { type: 'edit'; edits: PlanEdit[] }
+  | { type: 'replace'; key: string; food: Food; amount: number }
   | { type: 'clear' };
 
 function reducePlan(list: PlanItem[], a: PlanAction): PlanItem[] {
@@ -140,6 +168,18 @@ function reducePlan(list: PlanItem[], a: PlanAction): PlanItem[] {
         return [{ ...i, amount: e.amount ?? i.amount }];
       });
     }
+    case 'replace':
+      return list.map((i) =>
+        i.key === a.key && !i.done
+          ? {
+              ...i,
+              ...foodValues(a.food),
+              sourceId: a.food.id ?? '',
+              servingLabel: a.food.servingLabel ?? '1인분',
+              amount: a.amount,
+            }
+          : i
+      );
     case 'clear':
       return [];
   }
@@ -179,6 +219,8 @@ export function NutritionView({ day, today }: { day: NutritionDay; today: string
     origin: Origin;
     n: number;
     open: boolean;
+    /** 바꾸기로 열었으면 바꿀 줄 — 없으면 담기 */
+    replace: ReplaceTarget | null;
   } | null>(null);
   const [goal, setGoal] = useState<{
     origin: Origin;
@@ -240,6 +282,36 @@ export function NutritionView({ day, today }: { day: NutritionDay; today: string
     });
   }
 
+  /**
+   * 바꾸기 — 끼니 칸에서 이름을 눌러 연 창에서 고른 음식으로. 화면을 먼저 바꾸고 저장은 뒤에서(실패하면 되돌아가고 창이 까닭을 보인다).
+   */
+  function replaceFood(
+    target: ReplaceTarget,
+    food: Food,
+    amount: number
+  ): Promise<NutritionResult> {
+    setError(null);
+    return new Promise((resolve) => {
+      startTransition(async () => {
+        let res: NutritionResult;
+        if (target.kind === 'entry') {
+          applyEntries({ type: 'replace', id: target.id, food, amount });
+          res = await orOffline(
+            replaceMealEntry(target.id, toFoodInput(food), amount),
+            OFFLINE
+          );
+        } else {
+          applyPlan({ type: 'replace', key: target.key, food, amount });
+          res = await orOffline(
+            replacePlanItem(day.date, target.key, toFoodInput(food), amount),
+            OFFLINE
+          );
+        }
+        resolve(res);
+      });
+    });
+  }
+
   /* ── 식단 짜기(plan-parts.tsx) ── */
   function makePlan(options: { place: Place; hot: boolean; variant: number }) {
     setError(null);
@@ -257,8 +329,8 @@ export function NutritionView({ day, today }: { day: NutritionDay; today: string
       id: `tmp-${++tempSeq}`,
       meal: i.meal,
       name: i.name,
-      source: 'basic',
-      sourceId: i.sourceId,
+      source: i.source,
+      sourceId: i.sourceId || null,
       servingLabel: i.servingLabel,
       servingGrams: i.servingGrams,
       amount: i.amount,
@@ -426,6 +498,16 @@ export function NutritionView({ day, today }: { day: NutritionDay; today: string
                     origin: originOf(e),
                     n: (sheet?.n ?? 0) + 1,
                     open: true,
+                    replace: null,
+                  })
+                }
+                onReplace={(target, e) =>
+                  setSheet({
+                    meal: m.key,
+                    origin: originOf(e),
+                    n: (sheet?.n ?? 0) + 1,
+                    open: true,
+                    replace: target,
                   })
                 }
                 onEdit={editEntries}
@@ -467,6 +549,12 @@ export function NutritionView({ day, today }: { day: NutritionDay; today: string
           mfds={day.mfds}
           popular={day.popular}
           onAdd={(items) => addFoods(sheet.meal, items)}
+          replacing={sheet.replace ? { name: sheet.replace.name } : null}
+          onReplace={(food, amount) =>
+            sheet.replace
+              ? replaceFood(sheet.replace, food, amount)
+              : Promise.resolve({ ok: true as const })
+          }
         />
       )}
 
@@ -1261,7 +1349,9 @@ function withObjectParticle(word: string) {
 /* ─────────────────────────── 끼니 ─────────────────────────── */
 
 /* 끼니 편집의 한 줄 — 고친 값은 '완료'를 누를 때 한 번에 저장한다(lib 의 EntryEdit) */
-type Draft = { amount: number; meal: MealKey; remove: boolean };
+/* name — 편집을 시작할 때의 음식 이름. 편집 중에 그 줄을 바꾸기로 다른 음식으로 바꾸면 옛 초안(양)을 버린다 */
+type Draft = { amount: number; meal: MealKey; remove: boolean; name: string };
+type PlanDraft = { amount: number; remove: boolean; name: string };
 
 function MealSection({
   meal,
@@ -1273,6 +1363,7 @@ function MealSection({
   plan,
   onEat,
   onPlanEdit,
+  onReplace,
 }: {
   meal: MealKey;
   entries: MealEntryView[];
@@ -1286,6 +1377,8 @@ function MealSection({
   plan: PlanItem[];
   onEat: (keys: string[]) => void;
   onPlanEdit: (edits: PlanEdit[]) => void;
+  /** 음식 이름을 눌렀다 — 그 줄을 찾아 바꾸는 창을 연다 */
+  onReplace: (target: ReplaceTarget, e: MouseEvent<HTMLElement>) => void;
 }) {
   const total = sumMacros(entries.map(entryMacros));
   const label = mealLabel(meal);
@@ -1297,27 +1390,38 @@ function MealSection({
   const [editing, setEditing] = useState(false);
   const [drafts, setDrafts] = useState<Record<string, Draft>>({});
   /* 계획 줄의 고친 값 — 양 · 빼기만(먹은 줄과 같은 '완료'에 저장) */
-  const [planDrafts, setPlanDrafts] = useState<
-    Record<string, { amount: number; remove: boolean }>
-  >({});
+  const [planDrafts, setPlanDrafts] = useState<Record<string, PlanDraft>>({});
   /* 저장 중인 줄(tmp-)은 아직 서버 이름이 없어 고칠 수 없다 */
   const editable = entries.filter((e) => !e.id.startsWith('tmp-'));
   const isEditing = editing && (editable.length > 0 || plan.length > 0);
   const hasAny = entries.length > 0 || plan.length > 0;
-  const planDraftOf = (i: PlanItem) =>
-    planDrafts[i.key] ?? { amount: i.amount, remove: false };
+  const planDraftOf = (i: PlanItem): PlanDraft => {
+    const d = planDrafts[i.key];
+    return d && d.name === i.name
+      ? d
+      : { amount: i.amount, remove: false, name: i.name };
+  };
 
-  const draftOf = (e: MealEntryView): Draft =>
-    drafts[e.id] ?? { amount: e.amount, meal: e.meal, remove: false };
+  const draftOf = (e: MealEntryView): Draft => {
+    const d = drafts[e.id];
+    return d && d.name === e.name
+      ? d
+      : { amount: e.amount, meal: e.meal, remove: false, name: e.name };
+  };
 
   function startEdit() {
     setDrafts(
       Object.fromEntries(
-        editable.map((e) => [e.id, { amount: e.amount, meal: e.meal, remove: false }])
+        editable.map((e) => [
+          e.id,
+          { amount: e.amount, meal: e.meal, remove: false, name: e.name },
+        ])
       )
     );
     setPlanDrafts(
-      Object.fromEntries(plan.map((i) => [i.key, { amount: i.amount, remove: false }]))
+      Object.fromEntries(
+        plan.map((i) => [i.key, { amount: i.amount, remove: false, name: i.name }])
+      )
     );
     setEditing(true);
   }
@@ -1325,8 +1429,7 @@ function MealSection({
   function finish() {
     const edits: EntryEdit[] = [];
     for (const e of editable) {
-      const d = drafts[e.id];
-      if (!d) continue;
+      const d = draftOf(e);
       if (d.remove) {
         edits.push({ id: e.id, remove: true });
         continue;
@@ -1338,8 +1441,7 @@ function MealSection({
     }
     const planEdits: PlanEdit[] = [];
     for (const i of plan) {
-      const d = planDrafts[i.key];
-      if (!d) continue;
+      const d = planDraftOf(i);
       if (d.remove) planEdits.push({ key: i.key, remove: true });
       else if (d.amount !== i.amount) planEdits.push({ key: i.key, amount: d.amount });
     }
@@ -1480,6 +1582,9 @@ function MealSection({
                   index={i}
                   draft={draftOf(e)}
                   onChange={(d) => setDraft(e.id, d)}
+                  onReplace={(ev) =>
+                    onReplace({ kind: 'entry', id: e.id, name: e.name }, ev)
+                  }
                 />
               )
             )}
@@ -1490,6 +1595,9 @@ function MealSection({
                 index={entries.length + i}
                 draft={planDraftOf(item)}
                 onChange={(d) => setPlanDrafts((all) => ({ ...all, [item.key]: d }))}
+                onReplace={(ev) =>
+                  onReplace({ kind: 'plan', key: item.key, name: item.name }, ev)
+                }
               />
             ))}
           </ul>
@@ -1519,7 +1627,16 @@ function MealSection({
               ))}
             </ul>
           )}
-          {plan.length > 0 && <PlanBlock meal={meal} items={plan} onEat={onEat} />}
+          {plan.length > 0 && (
+            <PlanBlock
+              meal={meal}
+              items={plan}
+              onEat={onEat}
+              onReplace={(item, ev) =>
+                onReplace({ kind: 'plan', key: item.key, name: item.name }, ev)
+              }
+            />
+          )}
         </>
       )}
 
@@ -1602,11 +1719,14 @@ function EditRow({
   index,
   draft,
   onChange,
+  onReplace,
 }: {
   entry: MealEntryView;
   index: number;
   draft: Draft;
   onChange: (d: Draft) => void;
+  /** 이름을 눌렀다 — 다른 음식으로 바꾸는 창 */
+  onReplace: (e: MouseEvent<HTMLElement>) => void;
 }) {
   const moved = draft.meal !== entry.meal;
   return (
@@ -1614,8 +1734,13 @@ function EditRow({
       className="motion-safe:animate-row-in flex min-h-11 items-center gap-1.5 py-0.5"
       style={{ '--row': index } as CSSProperties}
     >
-      <span
-        className={`min-w-0 flex-1 transition-opacity duration-200 ${draft.remove ? 'opacity-45' : ''}`}
+      {/* 이름을 누르면 찾아서 다른 음식으로 바꾼다(지운 줄은 못 바꾼다) */}
+      <button
+        type="button"
+        onClick={onReplace}
+        disabled={draft.remove}
+        aria-label={`${entry.name} — 다른 음식으로 바꾸기`}
+        className={`-my-1 -ml-1 min-w-0 flex-1 rounded-lg px-1 py-1 text-left transition-[opacity,background-color] duration-200 hover:bg-surface-2 disabled:cursor-default disabled:hover:bg-transparent ${draft.remove ? 'opacity-45' : ''}`}
       >
         <span
           className={`block truncate text-sm text-ink ${draft.remove ? 'line-through' : ''}`}
@@ -1630,8 +1755,9 @@ function EditRow({
               · {mealLabel(draft.meal)}으로 옮김
             </span>
           )}
+          {!draft.remove && <span className="text-sky"> · 바꾸기</span>}
         </span>
-      </span>
+      </button>
       {draft.remove ? (
         <button
           type="button"

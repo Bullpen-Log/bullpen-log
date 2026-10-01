@@ -233,6 +233,35 @@ export async function editMealEntries(edits: unknown): Promise<NutritionResult> 
   return { ok: true };
 }
 
+/**
+ * 먹은 기록을 다른 음식으로 바꾼다 — 끼니 편집에서 음식 이름을 눌러 찾은 것. 끼니 · 날짜 · 기록의 이름(id)은 그대로,
+ * 음식 값(찍어 둔 1인분 값)과 양만 바뀐다.
+ */
+export async function replaceMealEntry(
+  id: string,
+  raw: unknown,
+  amount: unknown
+): Promise<NutritionResult> {
+  const user = await getCurrentUser();
+  if (!user) return NEED_LOGIN;
+  const food = cleanFood(raw);
+  if (typeof food === 'string') return { ok: false, error: food };
+  const clean = cleanAmount(amount);
+  if (clean === null) {
+    return {
+      ok: false,
+      error: `먹은 양은 ${AMOUNT_MIN}~${AMOUNT_MAX}인분 사이로 적어 주세요.`,
+    };
+  }
+  const { count } = await prisma.mealEntry.updateMany({
+    where: { id: String(id), userId: user.id },
+    data: { ...food, amount: clean },
+  });
+  if (count === 0) return { ok: false, error: '이미 지워진 기록입니다.' };
+  revalidatePath(PATH);
+  return { ok: true };
+}
+
 export async function deleteMealEntry(id: string): Promise<NutritionResult> {
   const user = await getCurrentUser();
   if (!user) return NEED_LOGIN;
@@ -422,8 +451,8 @@ export async function eatPlanItems(
   const rows = [];
   for (const i of eat) {
     const food = cleanFood({
-      source: 'basic',
-      sourceId: i.sourceId,
+      source: i.source,
+      sourceId: i.sourceId || null,
       name: i.name,
       servingLabel: i.servingLabel,
       servingGrams: i.servingGrams,
@@ -444,6 +473,62 @@ export async function eatPlanItems(
       data: { items: items.map((i) => (done.has(i.key) ? { ...i, done: true } : i)) },
     }),
   ]);
+  revalidatePath(PATH);
+  return { ok: true };
+}
+
+/**
+ * 계획 줄을 다른 음식으로 바꾼다 — 끼니 칸에서 식단 줄의 이름을 눌러 찾은 음식(기본 · 식약처 · 내 음식 · 직접 입력).
+ * 끼니와 줄 이름(key)은 그대로라 편집 중인 다른 줄에 영향이 없다. 이미 먹은 줄은 못 바꾼다(그건 먹은 기록에서 바꾼다).
+ */
+export async function replacePlanItem(
+  date: string,
+  key: string,
+  raw: unknown,
+  amount: unknown
+): Promise<NutritionResult> {
+  const user = await getCurrentUser();
+  if (!user) return NEED_LOGIN;
+  if (!isNutritionDate(date)) return BAD_DATE;
+  const food = cleanFood(raw);
+  if (typeof food === 'string') return { ok: false, error: food };
+  const clean = cleanAmount(amount);
+  if (clean === null) {
+    return {
+      ok: false,
+      error: `양은 ${AMOUNT_MIN}~${AMOUNT_MAX}인분 사이로 적어 주세요.`,
+    };
+  }
+  const where = { userId_date: { userId: user.id, date: dbDate(date) } };
+  const row = await prisma.mealPlan.findUnique({ where, select: { items: true } });
+  if (!row) return { ok: false, error: '식단이 없어요. 새로고침해 주세요.' };
+  const items = parsePlanItems(row.items);
+  const target = items.find((i) => i.key === String(key));
+  if (!target || target.done) {
+    return { ok: false, error: '이미 먹었거나 없는 식단이에요. 새로고침해 주세요.' };
+  }
+  await prisma.mealPlan.update({
+    where,
+    data: {
+      items: items.map((i) =>
+        i.key === target.key
+          ? {
+              ...i,
+              source: food.source,
+              sourceId: food.sourceId ?? '',
+              name: food.name,
+              servingLabel: food.servingLabel ?? '1인분',
+              servingGrams: food.servingGrams,
+              kcal: food.kcal,
+              carbs: food.carbs,
+              protein: food.protein,
+              fat: food.fat,
+              amount: clean,
+            }
+          : i
+      ),
+    },
+  });
   revalidatePath(PATH);
   return { ok: true };
 }
