@@ -8,9 +8,10 @@ import {
   useState,
   useSyncExternalStore,
 } from 'react';
-import { CheckCircle2 } from 'lucide-react';
+import { Check } from 'lucide-react';
 import { CheckinForm, type CheckinData } from '@/components/checkin-form';
 import { useTodayKey } from '@/components/use-today-key';
+import { buzz } from '@/lib/haptics';
 
 /**
  * 체크인 관문 — 그날 체크인을 안 했으면 앱에 들어오자마자 먼저 뜬다.
@@ -65,8 +66,32 @@ function spokenDay(day: string) {
   return `${d.getUTCMonth() + 1}월 ${d.getUTCDate()}일 (${WEEKDAYS[d.getUTCDay()]})`;
 }
 
-/** 저장한 뒤 '체크인 완료'를 보여 주는 시간. 너무 짧으면 된 건지 모르고, 길면 기다리게 된다. */
-const DONE_MS = 900;
+/**
+ * 저장한 뒤 '체크인 완료'를 보여 주는 시간. 너무 짧으면 된 건지 모르고, 길면 기다리게 된다.
+ * 링이 그려지고(0.7초) 체크가 뜬 뒤 'N일 연속'을 읽을 틈까지 — 예전 0.9초는 축하 없이 글만 있을 때 값이다.
+ */
+const DONE_MS = 1800;
+
+/** 'N일 연속' — 오늘부터 하루씩 거슬러 체크인이 이어진 날 수 */
+function streakOf(days: readonly string[], today: string) {
+  const have = new Set(days);
+  const d = new Date(`${today}T00:00:00.000Z`);
+  let n = 0;
+  while (have.has(d.toISOString().slice(0, 10))) {
+    n++;
+    d.setUTCDate(d.getUTCDate() - 1);
+  }
+  return n;
+}
+
+/** 오늘까지 이레 — 완료 화면의 점 일곱(오늘이 맨 오른쪽) */
+function lastWeek(today: string) {
+  return Array.from({ length: 7 }, (_, i) => {
+    const d = new Date(`${today}T00:00:00.000Z`);
+    d.setUTCDate(d.getUTCDate() - (6 - i));
+    return { key: d.toISOString().slice(0, 10), weekday: WEEKDAYS[d.getUTCDay()] };
+  });
+}
 
 /*
  * 저장한 뒤 창에 뜨는 말. 창을 열기 전에 이 글자의 글꼴 조각도 같이 받아 둔다 —
@@ -75,6 +100,8 @@ const DONE_MS = 900;
 const DONE_TITLE = '체크인 완료';
 const DONE_BODY =
   '오늘 기록에 맞춰 준비할게요. 오른쪽 위 알림(종)에서 언제든 고치거나 더 적을 수 있어요.';
+/** 연속 기록 줄 · 요일 점의 글자 — 글꼴 조각을 미리 받아 둔다(DONE_TITLE 과 같은 까닭) */
+const DONE_STREAK = '0123456789일 연속이에요 월화수목금토';
 
 /**
  * 창을 열기 전에 기다리는 가장 긴 시간(아래 readyToOpen). 처음 접속한 날 보통 망에서
@@ -124,6 +151,7 @@ async function readyToOpen(el: HTMLDialogElement) {
     ),
     DONE_TITLE,
     DONE_BODY,
+    DONE_STREAK,
   ].join('');
   const fonts = document.fonts
     ?.load(`1em ${getComputedStyle(el).fontFamily}`, text)
@@ -159,11 +187,14 @@ async function readyToOpen(el: HTMLDialogElement) {
 
 export function CheckinGate({
   checkedDays,
+  streakDays,
   recent,
   parts,
 }: {
   /** 체크인한 날들(YYYY-MM-DD). 서버와 사용자의 '오늘'이 다를 수 있어 며칠치를 받는다. */
   checkedDays: string[];
+  /** 두 달치 체크인한 날 — 완료 화면의 'N일 연속' · 이레 점(날짜만) */
+  streakDays: string[];
   /** 최근 체크인 — 폼이 오늘 것을 찾아 채울 때 쓴다 */
   recent: CheckinData[];
   /** 상세 체크인에서 고를 수 있는 운동 부위 */
@@ -204,11 +235,18 @@ export function CheckinGate({
   }
   const open = needed || showDone;
 
-  /* 완료 화면은 잠깐만 — 보여 준 뒤 닫는다 */
+  /*
+   * 완료 화면은 잠깐만 — 보여 준 뒤 닫는다. 체크가 뜨는 순간(링이 다 그려질 때) 손에 두 번 떤다
+   * (2026-10-01 '애플처럼 감성있게' — 예전에는 초록 체크 아이콘과 글만 0.9초).
+   */
   useEffect(() => {
     if (!showDone) return;
+    const pop = window.setTimeout(() => buzz([15, 120, 15]), 550);
     const timer = window.setTimeout(() => setShowDone(false), DONE_MS);
-    return () => window.clearTimeout(timer);
+    return () => {
+      window.clearTimeout(pop);
+      window.clearTimeout(timer);
+    };
   }, [showDone]);
 
   /* 관문이 통째로 사라지면(로그아웃 · 운동 화면) 표시도 뗀다 — 남으면 앱의 화면 전환이 계속 막힌다 */
@@ -314,11 +352,7 @@ export function CheckinGate({
       */}
       <div className="no-scrollbar relative min-h-0 flex-auto overflow-y-auto px-5 py-5">
         {showDone ? (
-          <div className="motion-safe:animate-fade-in flex flex-col items-center gap-2 py-10 text-center">
-            <CheckCircle2 aria-hidden className="h-10 w-10 text-ok" />
-            <p className="text-base font-bold text-ink">{DONE_TITLE}</p>
-            <p className="text-xs text-muted">{DONE_BODY}</p>
-          </div>
+          <CheckinDone today={today} days={[...streakDays, ...checkedDays]} />
         ) : (
           /* 창이 열릴 때만 그린다 — 닫혀 있는 동안 폼이 상태를 들고 있을 까닭이 없다 */
           open && <CheckinForm recent={recent} parts={parts} onSaved={onSaved} />
@@ -340,5 +374,77 @@ export function CheckinGate({
         </div>
       )}
     </dialog>
+  );
+}
+
+/**
+ * 체크인을 마친 순간 — 링이 한 바퀴 그려지고 체크가 톡 뜬다(운동 끝 화면과 같은 움직임, globals.css 'done-ring').
+ * 밑에 'N일 연속'과 지난 이레의 점(한 날은 파랑, 오늘이 맨 오른쪽). 연속이 하루뿐이면 줄은 빼고 점만 —
+ * '1일 연속'은 축하가 아니다. 아이폰 피트니스의 주간 점처럼(2026-10-01 '감성').
+ */
+function CheckinDone({ today, days }: { today: string | null; days: string[] }) {
+  const streak = today ? streakOf(days, today) : 0;
+  const have = new Set(days);
+  return (
+    <div className="motion-safe:animate-fade-in flex flex-col items-center py-8 text-center">
+      <div className="relative h-20 w-20">
+        <svg aria-hidden viewBox="0 0 100 100" className="absolute inset-0 -rotate-90">
+          <circle
+            cx="50"
+            cy="50"
+            r="45"
+            fill="none"
+            strokeWidth="7"
+            className="stroke-sky/15"
+          />
+          <circle
+            cx="50"
+            cy="50"
+            r="45"
+            fill="none"
+            strokeWidth="7"
+            strokeLinecap="round"
+            pathLength={100}
+            strokeDasharray="100"
+            className="done-ring stroke-sky"
+          />
+        </svg>
+        <span
+          aria-hidden
+          className="finish-pop done-check absolute inset-2.5 grid place-items-center rounded-full bg-sky text-white"
+        >
+          <Check className="h-8 w-8" strokeWidth={3} />
+        </span>
+      </div>
+      <p className="mt-4 text-lg font-bold text-ink">{DONE_TITLE}</p>
+      {streak >= 2 && (
+        <p className="rise-in mt-0.5 text-sm font-semibold text-sky [--rise-delay:600ms]">
+          {streak}일 연속이에요
+        </p>
+      )}
+      {today && (
+        <ol
+          aria-label="지난 이레 체크인"
+          className="rise-in mt-4 flex gap-2.5 [--rise-delay:700ms]"
+        >
+          {lastWeek(today).map((d) => (
+            <li key={d.key} className="flex flex-col items-center gap-1">
+              <span
+                aria-label={`${d.weekday}요일 ${have.has(d.key) ? '함' : '안 함'}`}
+                className={`h-2.5 w-2.5 rounded-full ${have.has(d.key) ? 'bg-sky' : 'bg-ink/15'}`}
+              />
+              <span
+                className={`text-[11px] ${d.key === today ? 'font-bold text-ink' : 'text-muted'}`}
+              >
+                {d.weekday}
+              </span>
+            </li>
+          ))}
+        </ol>
+      )}
+      <p className="mt-4 max-w-xs break-keep text-xs leading-relaxed text-muted">
+        {DONE_BODY}
+      </p>
+    </div>
   );
 }

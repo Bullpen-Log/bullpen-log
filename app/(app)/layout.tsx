@@ -33,6 +33,11 @@ function checkinWindowStart() {
   return new Date(Date.now() - 3 * 86_400_000);
 }
 
+/** '며칠 연속 체크인'을 셀 만큼 — 두 달. 날짜만 읽는다(체크인 관문의 완료 화면) */
+function streakWindowStart() {
+  return new Date(Date.now() - 62 * 86_400_000);
+}
+
 export default async function AppLayout({
   children,
   modal,
@@ -61,19 +66,25 @@ export default async function AppLayout({
    * 오른쪽 위 알림(종)에 줄 것 — 최근 며칠 동안 투구를 남긴 날. 날짜만 읽는다.
    * 같은 날 여러 번 남겼어도 한 줄이면 된다(distinct). 체크인은 위 목록을 같이 쓴다.
    */
-  const [avatarUrl, recentCheckins, library, recentPitchDays] = await Promise.all([
-    createAvatarUrl(user.avatarPath),
-    prisma.dailyCheckin.findMany({
-      where: { userId: user.id, date: { gte: checkinWindowStart() } },
-      orderBy: { date: 'desc' },
-    }),
-    visibleExercises(),
-    prisma.pitchLog.findMany({
-      where: { userId: user.id, date: { gte: checkinWindowStart() } },
-      select: { date: true },
-      distinct: ['date'],
-    }),
-  ]);
+  const [avatarUrl, recentCheckins, library, recentPitchDays, streakCheckins] =
+    await Promise.all([
+      createAvatarUrl(user.avatarPath),
+      prisma.dailyCheckin.findMany({
+        where: { userId: user.id, date: { gte: checkinWindowStart() } },
+        orderBy: { date: 'desc' },
+      }),
+      visibleExercises(),
+      prisma.pitchLog.findMany({
+        where: { userId: user.id, date: { gte: checkinWindowStart() } },
+        select: { date: true },
+        distinct: ['date'],
+      }),
+      /* 체크인을 마치면 'N일 연속'을 보여 준다(체크인 관문) — 날짜만 */
+      prisma.dailyCheckin.findMany({
+        where: { userId: user.id, date: { gte: streakWindowStart() } },
+        select: { date: true },
+      }),
+    ]);
   const gateCheckins: CheckinData[] = recentCheckins.map((c) => ({
     date: c.date.toISOString().slice(0, 10),
     ...pickCheckinParts(c),
@@ -148,6 +159,7 @@ export default async function AppLayout({
       */}
       <CheckinGate
         checkedDays={gateCheckins.map((c) => c.date)}
+        streakDays={streakCheckins.map((c) => c.date.toISOString().slice(0, 10))}
         recent={gateCheckins}
         parts={availableParts(library)}
       />
