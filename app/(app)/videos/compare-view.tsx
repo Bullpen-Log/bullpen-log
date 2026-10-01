@@ -369,7 +369,7 @@ export function CompareView({
     <div
       className={
         expanded
-          ? 'fixed inset-0 z-[60] flex flex-col gap-2 bg-shade px-2 pt-[max(0.5rem,env(safe-area-inset-top))] pb-[max(0.5rem,env(safe-area-inset-bottom))] focus:outline-none'
+          ? 'theme-dark fixed inset-0 z-[60] flex flex-col gap-2 bg-black px-2 pt-[max(0.5rem,env(safe-area-inset-top))] pb-[max(0.5rem,env(safe-area-inset-bottom))] text-ink focus:outline-none'
           : 'space-y-4'
       }
       onKeyDown={handleKeyDown}
@@ -385,9 +385,11 @@ export function CompareView({
             type="button"
             onClick={() => setExpanded(false)}
             aria-label="크게 보기 닫기"
-            className="ml-auto flex h-9 w-9 items-center justify-center rounded-lg border border-line text-muted transition-colors hover:border-sky hover:text-sky"
+            className="ml-auto grid h-11 w-11 place-items-center rounded-full text-ink transition-colors"
           >
-            <X className="h-4 w-4" />
+            <span className="grid h-8 w-8 place-items-center rounded-full bg-white/15">
+              <X className="h-4 w-4" strokeWidth={2.4} />
+            </span>
           </button>
         </div>
       )}

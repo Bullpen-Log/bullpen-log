@@ -140,7 +140,7 @@ export function PitchVideoPlayer({ src, label }: { src: string; label: string })
       className={
         expanded
           ? /* 앱에서는 시계 · 홈 막대 자리를 비운다 — 닫기(✕)가 시계 밑에 들어가지 않게 */
-            'fixed inset-0 z-[60] flex flex-col bg-shade pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)] focus:outline-none'
+            'theme-dark fixed inset-0 z-[60] flex flex-col bg-black text-ink pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)] focus:outline-none'
           : 'overflow-hidden rounded-xl border border-line bg-surface-2 focus-within:border-sky focus:outline-none focus-visible:border-sky focus-visible:ring-1 focus-visible:ring-sky'
       }
       onKeyDown={handleKeyDown}
@@ -158,9 +158,11 @@ export function PitchVideoPlayer({ src, label }: { src: string; label: string })
             type="button"
             onClick={() => setExpanded(false)}
             aria-label="크게 보기 닫기"
-            className="flex h-9 w-9 items-center justify-center rounded-lg border border-line text-muted transition-colors hover:border-sky hover:text-sky"
+            className="grid h-11 w-11 place-items-center rounded-full text-ink transition-colors"
           >
-            <X className="h-4 w-4" />
+            <span className="grid h-8 w-8 place-items-center rounded-full bg-white/15">
+              <X className="h-4 w-4" strokeWidth={2.4} />
+            </span>
           </button>
         </div>
       )}
