@@ -33,7 +33,7 @@ const MODEL_URL = '/models/armcare-upper.glb';
 const COLOR = {
   context: '#c9d1da',
   target: '#d9776a',
-  pick: '#0ea5e9',
+  pick: '#0a84d6',
   bone: '#ece4d4',
 } as const;
 

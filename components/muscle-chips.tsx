@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { areaOfMuscle, helpsLine, muscleInfo } from '@/lib/armcare/anatomy';
+import { helpsLine, muscleInfo } from '@/lib/armcare/anatomy';
 import { visibleChips } from '@/lib/armcare/chips';
 import { useArmcareInfo } from '@/components/armcare-info-context';
 
@@ -44,18 +44,10 @@ export function MuscleChips({
     <span className="flex flex-wrap gap-1">
       {shown.map((m) => {
         const strong = highlight ? highlight.includes(m) : m === muscles[0];
-        /* 근육이 속한 부위의 색 점 — 색만 봐도 어디 근육인지 (lib/armcare/anatomy.ts) */
-        const color = areaOfMuscle(m)?.color;
+        /* 부위 색 점은 거뒀다(2026-10-01 '기본색 하나 + 고른 것만 강조') — 고른 근육만 강조색 */
         const look = `inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium ${
           strong ? 'bg-sky-tint text-sky-strong' : 'bg-surface-2 text-muted'
         }`;
-        const dot = color && (
-          <span
-            aria-hidden
-            className="h-1.5 w-1.5 rounded-full"
-            style={{ backgroundColor: color }}
-          />
-        );
         return info ? (
           <button
             key={m}
@@ -64,7 +56,6 @@ export function MuscleChips({
             aria-label={`${m} — 위치와 설명 보기`}
             className={`${look} min-h-6 ring-sky transition-shadow hover:ring-1 relative before:absolute before:-inset-x-0.5 before:-inset-y-2`}
           >
-            {dot}
             {m}
             <span aria-hidden className="opacity-60">
               ›
@@ -72,7 +63,6 @@ export function MuscleChips({
           </button>
         ) : (
           <span key={m} title={muscleInfo(m)?.does} className={look}>
-            {dot}
             {m}
           </span>
         );

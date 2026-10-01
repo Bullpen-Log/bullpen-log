@@ -170,11 +170,6 @@ function AreaCard({
         {/* 제목 밑 설명 한 줄(던질 때 하는 일)은 뺐다 — 2026-09-26 사용자분 */}
         <span className="flex min-w-0 flex-1 flex-wrap items-baseline gap-x-2">
           <span className="flex items-center gap-2 text-[15px] font-bold text-ink">
-            <span
-              aria-hidden
-              className="h-2.5 w-2.5 rounded-full"
-              style={{ backgroundColor: area.color }}
-            />
             {area.label}
           </span>
           <span className="text-xs text-muted">운동 {count}개</span>

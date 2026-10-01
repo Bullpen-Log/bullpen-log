@@ -35,8 +35,8 @@ export default function manifest(): MetadataRoute.Manifest {
     scope: '/',
     display: 'standalone',
     /* 앱이 뜨기 전 잠깐 보이는 바탕 — 밝은 화면의 바탕색(app/globals.css) */
-    background_color: '#f4f7fb',
-    theme_color: '#f4f7fb',
+    background_color: '#f2f2f7',
+    theme_color: '#f2f2f7',
     icons: [
       {
         src: '/icons/icon-192.png',

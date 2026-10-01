@@ -113,11 +113,6 @@ export function MuscleMapPanel({
                   : 'border-line bg-surface text-ink hover:border-sky'
               }`}
             >
-              <span
-                aria-hidden
-                className="mr-1.5 inline-block h-2 w-2 rounded-full align-middle"
-                style={{ backgroundColor: a.color }}
-              />
               {a.label}
             </button>
           );
@@ -141,11 +136,6 @@ export function MuscleMapPanel({
         ) : (
           <>
             <div className="flex items-center gap-2">
-              <span
-                aria-hidden
-                className="h-2.5 w-2.5 shrink-0 rounded-full"
-                style={{ backgroundColor: area.color }}
-              />
               <b className="min-w-0 flex-1 text-[15px] text-ink">{area.label}</b>
               <InfoButton
                 target={{ kind: 'area', key: area.key }}

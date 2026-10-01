@@ -46,30 +46,39 @@
 }
 
 @theme {
-  /* 밝고 캐주얼한 팔레트 — 흰색 바탕에 하늘색 포인트 */
+  /*
+   * 애플(iOS)처럼 깔끔한 팔레트 — 색 기운 없는 중립 회색 + 강조색 하나(2026-10-01 사용자 "애플처럼 깔끔하고
+   * 감성있게"). 예전에는 Tailwind 의 slate(남색 기운 회색)와 옅은 하늘색(#0ea5e9)이라 웹 대시보드처럼 보였고,
+   * 하늘색 단추 위 흰 글자의 대비가 2.8:1 로 읽기 어려웠다.
+   */
 
-  /* 페이지 바탕 (카드보다 살짝 어두워 카드가 떠 보이게) */
-  --color-page: #f4f7fb;
+  /* 페이지 바탕 (카드보다 살짝 어두워 카드가 떠 보이게) — 아이폰 설정 · 건강 앱의 바탕 #f2f2f7 */
+  --color-page: #f2f2f7;
   /* 카드·패널 */
   --color-surface: #ffffff;
-  /* 은은한 채움 (입력창, 눌린 칩 등) */
-  --color-surface-2: #f1f5f9;
+  /* 은은한 채움 (입력창, 눌린 칩 등) — 흰 카드 안에서 바탕과 같은 회색 */
+  --color-surface-2: #f2f2f7;
+  /* 떠 있는 조작 — 고르개의 고른 칸처럼 회색 위에 놓인 흰 칸. 다크에서는 한 단계 밝은 회색 */
+  --color-raised: #ffffff;
 
-  --color-line: #e4e9f0;
-  --color-line-strong: #cbd5e1;
+  --color-line: #e5e5ea;
+  --color-line-strong: #c7c7cc;
 
-  /* 포인트 — 하늘색 */
-  --color-sky: #0ea5e9;
-  --color-sky-strong: #0284c7;
-  --color-sky-soft: #7dd3fc;
-  /* 아주 옅은 하늘색 배경 (뱃지·강조 블록) */
-  --color-sky-tint: #e0f2fe;
+  /*
+   * 포인트 — 파랑 하나. 누를 수 있는 것과 고른 것에만 쓴다. 로고 파랑(#0297e4)과 같은 결이되 한 단계 진해,
+   * 흰 글자 대비가 아이폰 파랑(#007AFF)과 같은 4:1 이다. 이름은 예전 그대로 sky — 화면 코드가 1,000곳 넘게 쓴다.
+   */
+  --color-sky: #0a84d6;
+  --color-sky-strong: #0369a1;
+  --color-sky-soft: #8cc8f0;
+  /* 아주 옅은 파랑 배경 (뱃지·강조 블록) */
+  --color-sky-tint: #e8f3fc;
   /* 로고의 파랑 — 새 로고 원본 그대로(components/logo.tsx). 어두운 판에서도 같은 색 */
   --color-brand: #0297e4;
 
-  /* 글자 */
-  --color-ink: #0f172a;
-  --color-muted: #64748b;
+  /* 글자 — 애플의 본문(#1d1d1f) · 보조(#6e6e73) 회색. 흰 바탕 대비 각각 16:1 · 5:1 */
+  --color-ink: #1d1d1f;
+  --color-muted: #6e6e73;
 
   /*
    * 경고 — 주의는 필요하지만 위험은 아닌 것 (부하 주의 구간, 급증 알림 등).
@@ -233,7 +242,7 @@
   color-scheme: dark;
 
   /* 버튼 배경으로 쓰이므로 흰 글자와의 대비를 라이트와 같게 유지한다 */
-  --color-sky: #0ea5e9;
+  --color-sky: #0a84d6;
   /* 옅은 바탕 위 글자였던 것이, 어두운 바탕 위 글자로 뒤집힌다 */
   --color-sky-strong: #7dd3fc;
   --color-sky-soft: #1f5f85;
@@ -241,6 +250,7 @@
 
   --color-ink: #e8eef7;
   --color-muted: #94a3b8;
+  --color-raised: #3b4a63;
 
   --color-warn: #fcd34d;
   --color-warn-line: #78350f;
@@ -269,21 +279,24 @@
  *
  * 카드(surface)는 검정보다 한 단계 밝게 둔다. 바탕과 카드가 똑같이 검으면
  * 어디까지가 카드인지 선으로만 알 수 있어서, 화면이 평평한 종이처럼 보인다.
+ * 애플 다크와 같은 값이다 — 카드 #1c1c1e, 그 안의 칸 #2c2c2e(2026-10-01, 예전 #0d0d0d · #1a1a1a 는
+ * 검정과 거의 같아 카드가 선으로만 보였다). 휴대폰은 카드 테두리를 빼므로 이 밝기 차이가 경계다.
  *
- * 색조가 없는 회색을 쓴다(#0d0d0d, #1a1a1a). 여기에 파란 기가 섞이면
- * 네이비와 구별이 안 되고, 두 테마를 나눈 이유가 사라진다.
+ * 색조가 없는 회색을 쓴다. 여기에 파란 기가 섞이면 네이비와 구별이 안 되고,
+ * 두 테마를 나눈 이유가 사라진다.
  */
 :root[data-theme='dark'] {
   --color-page: #000000;
-  --color-surface: #0d0d0d;
-  --color-surface-2: #1a1a1a;
+  --color-surface: #1c1c1e;
+  --color-surface-2: #2c2c2e;
+  --color-raised: #636366;
 
-  --color-line: #262626;
-  --color-line-strong: #404040;
+  --color-line: #38383a;
+  --color-line-strong: #48484a;
 
-  /* 검은 바탕에서는 파란 기 도는 흰색이 뜬다. 중립 회색 쪽으로 맞춘다. */
-  --color-ink: #ededed;
-  --color-muted: #a1a1aa;
+  /* 검은 바탕에서는 파란 기 도는 흰색이 뜬다. 중립 회색 쪽으로 맞춘다(애플 다크의 글자 · 보조 글자). */
+  --color-ink: #f5f5f7;
+  --color-muted: #98989d;
 
   /* 강조 바탕도 색을 빼고 어둡게 — 검정 위에서 남색 블록만 떠 보이지 않게 */
   --color-sky-soft: #1c5372;

@@ -379,11 +379,6 @@ export function Checklist({
             {area && (
               <div className="flex flex-wrap items-baseline gap-x-2 px-1">
                 <h2 className="flex items-center gap-2 text-heading text-[15px] text-ink">
-                  <span
-                    aria-hidden
-                    className="h-2.5 w-2.5 rounded-full"
-                    style={{ backgroundColor: area.color }}
-                  />
                   {area.label}
                 </h2>
               </div>

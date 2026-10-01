@@ -29,14 +29,14 @@ export type ChartTheme = {
 };
 
 const FALLBACK: ChartTheme = {
-  tick: '#64748b',
-  grid: 'rgba(203, 213, 225, 0.5)',
-  border: 'rgba(203, 213, 225, 0.9)',
-  accent: '#0ea5e9',
-  accentStrong: '#0284c7',
-  tooltipBg: '#0f172a',
+  tick: '#6e6e73',
+  grid: 'rgba(199, 199, 204, 0.5)',
+  border: 'rgba(199, 199, 204, 0.9)',
+  accent: '#0a84d6',
+  accentStrong: '#0369a1',
+  tooltipBg: '#1d1d1f',
   tooltipTitle: '#ffffff',
-  tooltipBody: '#cbd5e1',
+  tooltipBody: '#c7c7cc',
   surface: '#ffffff',
 };
 
@@ -51,8 +51,8 @@ function readChartTheme(): ChartTheme {
   const dark = document.documentElement.dataset.theme === 'dark';
 
   const muted = token(styles, '--color-muted', FALLBACK.tick);
-  const line = token(styles, '--color-line', '#e4e9f0');
-  const lineStrong = token(styles, '--color-line-strong', '#cbd5e1');
+  const line = token(styles, '--color-line', '#e5e5ea');
+  const lineStrong = token(styles, '--color-line-strong', '#c7c7cc');
   const surface = token(styles, '--color-surface', '#ffffff');
 
   return {
@@ -63,8 +63,8 @@ function readChartTheme(): ChartTheme {
     // sky-strong 은 이미 모드별로 뒤집어 정의해 두었다.
     // 라이트에서는 진한 파랑, 다크에서는 옅은 하늘색이 나온다.
     accentStrong: token(styles, '--color-sky-strong', FALLBACK.accentStrong),
-    tooltipBg: dark ? token(styles, '--color-surface-2', '#1e293b') : '#0f172a',
-    tooltipTitle: dark ? token(styles, '--color-ink', '#e8eef7') : '#ffffff',
+    tooltipBg: dark ? token(styles, '--color-surface-2', '#2c2c2e') : '#1d1d1f',
+    tooltipTitle: dark ? token(styles, '--color-ink', '#f5f5f7') : '#ffffff',
     tooltipBody: muted,
     surface,
   };

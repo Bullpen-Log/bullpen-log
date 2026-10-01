@@ -67,10 +67,10 @@ export function FavoriteButton({
           type="button"
           onClick={toggle}
           aria-pressed={favorite}
-          className={`inline-flex w-full items-center justify-center gap-2 rounded-xl border px-4 py-2.5 text-sm transition-colors sm:w-auto ${
+          className={`inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-full px-4 py-2.5 text-sm transition-colors desk:rounded-xl sm:w-auto ${
             favorite
-              ? 'border-warn-line bg-warn-bg font-medium text-warn'
-              : 'border-line-strong bg-surface-2 text-muted hover:border-warn-line hover:text-warn'
+              ? 'bg-sky-tint font-medium text-sky-strong'
+              : 'bg-ink/6 text-ink hover:text-sky'
           }`}
         >
           {star}
@@ -89,7 +89,7 @@ export function FavoriteButton({
       aria-label={`${label} 즐겨찾기`}
       title={error ?? (favorite ? '즐겨찾기에서 빼기' : '즐겨찾기에 담기')}
       className={`flex items-center justify-center transition-colors ${
-        favorite ? 'text-warn' : 'text-muted/50 hover:text-warn'
+        favorite ? 'text-sky' : 'text-muted/50 hover:text-sky'
       } ${className}`}
     >
       {star}

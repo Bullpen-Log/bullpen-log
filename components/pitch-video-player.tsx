@@ -226,7 +226,7 @@ export function PitchVideoPlayer({ src, label }: { src: string; label: string })
             setCurrent(v);
           }}
           aria-label="재생 위치"
-          className="h-6 w-full cursor-pointer accent-[#0ea5e9]"
+          className="h-6 w-full cursor-pointer accent-[#0a84d6]"
         />
       </div>
 

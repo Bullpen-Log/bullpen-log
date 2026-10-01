@@ -158,7 +158,12 @@ export function Segmented<V extends string>({
   }
 
   const text = size === 'md' ? 'text-sm' : 'text-xs';
-  const bg = tone === 'raised' ? 'bg-surface' : 'bg-surface-2';
+  /*
+   * 아이폰 고르개 — 옅은 회색 바탕 위에 흰 칸(raised)이 미끄러지고, 고른 글자만 굵어진다(2026-10-01 사용자
+   * "애플처럼"). 예전엔 고른 칸이 꽉 찬 하늘색 + 흰 글자라 한 화면에 파란 덩어리가 서넛씩 떠 '고른 것만 강조'가
+   * 무너졌다. 바탕은 글자색의 8% 라 흰 카드 위에서도 회색 페이지 위에서도 보인다 — tone 은 더 안 갈린다.
+   */
+  void tone;
 
   return (
     <div
@@ -166,7 +171,7 @@ export function Segmented<V extends string>({
       role={links ? 'navigation' : role}
       aria-label={label}
       /* 휴대폰은 알약처럼 둥글게(rounded-3xl — 한 줄이면 높이의 절반에서 멈춰 알약, 두 줄이면 둥근 상자) · PC 는 예전 모서리 */
-      className={`relative gap-1 rounded-3xl desk:rounded-xl border border-line ${bg} p-1 ${
+      className={`relative gap-1 rounded-3xl desk:rounded-xl bg-ink/8 p-1 ${
         layout === 'grid' ? 'grid' : 'flex flex-wrap'
       } ${className}`}
       style={
@@ -184,7 +189,7 @@ export function Segmented<V extends string>({
         ref={thumbRef}
         data-thumb
         aria-hidden
-        className="pointer-events-none absolute left-0 top-0 rounded-2xl desk:rounded-lg bg-sky"
+        className="pointer-events-none absolute left-0 top-0 rounded-2xl desk:rounded-lg bg-raised shadow-[0_1px_3px_rgba(0,0,0,0.12),0_1px_1px_rgba(0,0,0,0.04)]"
         style={thumbStyle({ box, visible, animate })}
       />
       {options.map((option, index) => {
@@ -197,12 +202,11 @@ export function Segmented<V extends string>({
          * 그 배경이 0.2초에 걸쳐 옅어지며 미끄러져 들어오는 표시를 덮어 뿌옇게
          * 보인다. 체크인의 간편|상세 알약처럼 글자색만 진해지게 둔다.
          *
-         * 표시가 아직 놓이기 전(서버 그림·숨은 창)에는 고른 글자를 흰색 대신
-         * 진한 색으로 둔다. 흰 글자 밑에 표시가 없으면 글자가 안 보인다.
+         * 고른 글자는 굵은 검정, 안 고른 글자는 조금 옅은 검정 — 흰 칸이 고른 것을 알린다.
          */
         /* 폰은 칩 크기(40px) 밑으로 안 내려간다 — 칸마다 py-1.5 라 28px 짜리가 많았다. PC 는 부르는 쪽 여백 그대로 */
-        const cls = `relative flex min-h-10 items-center justify-center gap-1.5 rounded-2xl desk:rounded-lg desk:min-h-0 ${text} font-medium whitespace-nowrap transition-colors duration-200 ${
-          selected ? (visible ? 'text-white' : 'text-ink') : 'text-muted hover:text-ink'
+        const cls = `relative flex min-h-10 items-center justify-center gap-1.5 rounded-2xl desk:rounded-lg desk:min-h-0 ${text} whitespace-nowrap transition-colors duration-200 ${
+          selected ? 'font-semibold text-ink' : 'font-medium text-ink/75 hover:text-ink'
         } ${itemClassName}`;
         const face = (
           <>

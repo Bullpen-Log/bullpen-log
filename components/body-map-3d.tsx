@@ -19,7 +19,7 @@ const MODEL_URL = '/models/body-full.glb';
 const COLOR = {
   context: '#c9d1da',
   bone: '#ece4d4',
-  pick: '#0ea5e9',
+  pick: '#0a84d6',
 } as const;
 
 /* 보는 방향 — 모델은 앞이 +Z, 사람의 왼쪽이 +X */

@@ -84,7 +84,7 @@ export function LibraryVideo({
           type="button"
           onClick={() => setShowEmbed(true)}
           aria-label={`${title} 참고 영상 재생`}
-          className={`group relative flex ${frame} items-center justify-center overflow-hidden rounded-xl border border-warn-line bg-surface-2 transition-colors hover:border-sky-soft`}
+          className={`group relative flex ${frame} items-center justify-center overflow-hidden rounded-xl bg-surface-2`}
         >
           {thumbUrl && (
             // 유튜브가 공개하는 주소라 이미지 최적화 대상이 아니다.
@@ -96,11 +96,10 @@ export function LibraryVideo({
               className="absolute inset-0 h-full w-full object-cover"
             />
           )}
-          <span className="absolute inset-0 bg-shade/40 transition-colors group-hover:bg-shade/20" />
-          <span className="relative flex h-14 w-14 items-center justify-center rounded-full bg-sky text-white shadow-lg transition-transform group-hover:scale-110">
-            <Play className="ml-0.5 h-6 w-6 fill-current" />
+          <span className="relative flex h-12 w-12 items-center justify-center rounded-full bg-black/40 text-white backdrop-blur-sm transition-transform group-hover:scale-105">
+            <Play className="ml-0.5 h-5 w-5 fill-current" />
           </span>
-          <span className="absolute left-2 top-2 rounded-md bg-warn-bg px-2 py-1 text-[11px] font-semibold text-warn">
+          <span className="absolute left-2 top-2 rounded-full bg-black/45 px-2 py-0.5 text-xs font-medium text-white backdrop-blur-sm">
             참고 영상
           </span>
         </button>

@@ -20,11 +20,11 @@ import { DEFAULT_THEME, THEME_STORAGE_KEY } from '@/lib/theme';
  */
 
 const LIGHT = {
-  bg: '#f4f7fb',
+  bg: '#f2f2f7',
   surface: '#ffffff',
-  ink: '#0f172a',
-  muted: '#64748b',
-  line: '#e2e8f0',
+  ink: '#1d1d1f',
+  muted: '#6e6e73',
+  line: '#e5e5ea',
 };
 const DARK = {
   bg: '#0b1220',

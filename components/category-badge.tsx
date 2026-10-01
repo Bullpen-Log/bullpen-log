@@ -11,27 +11,15 @@ import {
   Zap,
   type LucideIcon,
 } from 'lucide-react';
-import {
-  MECHANICS_CATEGORIES,
-  TRAINING_CATEGORIES,
-  type CategoryTone,
-} from '@/lib/categories';
-
 /**
- * 카테고리 배지 — 색과 아이콘.
+ * 카테고리 배지 — 아이콘과 이름(회색 한 가지).
  *
- * 예전에는 카테고리가 회색 글자 한 줄이었다. 운동 445개가 전부 같은 모양으로
- * 나오니 목록이 아니라 설정 화면처럼 보였고, 무엇이 하체고 무엇이 암케어인지
- * 글자를 읽어야만 알 수 있었다.
- *
- * 색과 아이콘을 붙이면 읽기 전에 알아본다. 넓은 면을 칠하지 않고 작은 배지에만
- * 쓰므로 일곱 가지 색이어도 어지럽지 않다.
+ * 한때 카테고리마다 색을 하나씩(일곱 가지) 칠했다. 운동 445개가 같은 회색 글자라 설정 화면처럼
+ * 보였기 때문인데, 2026-10-01 사용자가 "애플처럼 깔끔하게 · 기본색 하나 + 고른 것만 강조"를 정하며 색을
+ * 거뒀다 — 한 화면에 하체 남보라 · 파워 주황 · 암케어 장미가 섞여 정작 고른 것이 안 보였다. 이제는
+ * 아이콘이 무엇인지 알려 주고, 색은 고른 것(강조색)에만 쓴다. 카테고리의 색 이름(lib/categories.ts 의
+ * tone)은 남겨 두었다 — 다시 쓸 일이 있으면 여기만 고치면 된다.
  */
-
-/** 카테고리 이름 → 색 이름. 목록에 없는 이름은 색 없이 그린다. */
-const TONE_BY_NAME = new Map<string, CategoryTone>(
-  [...TRAINING_CATEGORIES, ...MECHANICS_CATEGORIES].map((c) => [c.name, c.tone])
-);
 
 /**
  * 카테고리 이름 → 아이콘.
@@ -52,30 +40,11 @@ const ICON_BY_NAME: Record<string, LucideIcon> = {
   '무브먼트 패턴 드릴': Move,
 };
 
-/*
- * 색 이름 → 실제 클래스.
- *
- * 표로 만들어 두는 이유가 있다. Tailwind 는 소스에 그대로 적힌 클래스 이름만
- * 찾아 넣으므로, `text-cat-${tone}` 처럼 이어 붙이면 아무 색도 안 나온다.
- */
-const TONE_CLASS: Record<CategoryTone, { text: string; chip: string }> = {
-  lower: { text: 'text-cat-lower', chip: 'bg-cat-lower/10 text-cat-lower' },
-  upper: { text: 'text-cat-upper', chip: 'bg-cat-upper/10 text-cat-upper' },
-  mobility: { text: 'text-cat-mobility', chip: 'bg-cat-mobility/10 text-cat-mobility' },
-  power: { text: 'text-cat-power', chip: 'bg-cat-power/10 text-cat-power' },
-  core: { text: 'text-cat-core', chip: 'bg-cat-core/10 text-cat-core' },
-  armcare: { text: 'text-cat-armcare', chip: 'bg-cat-armcare/10 text-cat-armcare' },
-  recovery: { text: 'text-cat-recovery', chip: 'bg-cat-recovery/10 text-cat-recovery' },
-};
-
-const NEUTRAL = { text: 'text-muted', chip: 'bg-surface-2 text-muted' };
+/* 모든 카테고리가 같은 회색 — 옅은 회색 바탕(글자색 6%) 위 보조 글자색 */
+const NEUTRAL = { text: 'text-muted', chip: 'bg-ink/6 text-muted' };
 
 export function categoryStyle(name: string) {
-  const tone = TONE_BY_NAME.get(name);
-  return {
-    ...(tone ? TONE_CLASS[tone] : NEUTRAL),
-    Icon: ICON_BY_NAME[name] ?? null,
-  };
+  return { ...NEUTRAL, Icon: ICON_BY_NAME[name] ?? null };
 }
 
 /** 목록 줄에 붙이는 작은 배지 — 아이콘 + 이름 */
