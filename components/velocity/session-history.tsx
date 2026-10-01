@@ -1,9 +1,7 @@
 'use client';
 
 import { useLayoutEffect, useRef, useState, type RefObject } from 'react';
-import Link from 'next/link';
 import { Activity } from 'lucide-react';
-import { OPEN_POPUP_TYPES } from '@/lib/transition-types';
 import { speedLabel, toSpeed, type SpeedUnit } from '@/lib/units';
 import { PITCH_TYPES, pitchTypeLabel } from '@/lib/velocity-meta';
 import { Panel, SectionLabel, StatRow } from './kit';
@@ -115,9 +113,12 @@ export function SessionHistory({
                   : dayLabel(s.date, today);
               return (
                 <li key={s.id}>
-                  <Link
+                  {/*
+                    일반 이동 — 구속 측정 메인은 (app) 밖이라, 앱 안의 링크로 가면 (app) 의 팝업 경로가 가로채 빈 화면 위에 팝업이
+                    떴다(김민 2026-10-01). 주소로 곧장 가면 팝업 없이 그날 화면이 뜬다.
+                  */}
+                  <a
                     href={`/pitch-log/${s.date}`}
-                    transitionTypes={OPEN_POPUP_TYPES}
                     className="flex min-h-14 items-center gap-3 px-4 py-2 transition-colors hover:bg-surface-2/60 active:bg-surface-2"
                   >
                     <span className="min-w-0 flex-1">
@@ -144,7 +145,7 @@ export function SessionHistory({
                         평균 {speedNum(s.avgKmh)}
                       </span>
                     </span>
-                  </Link>
+                  </a>
                 </li>
               );
             })}

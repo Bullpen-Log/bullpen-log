@@ -4,6 +4,7 @@ import { useState, useTransition } from 'react';
 import { unstable_rethrow, useRouter } from 'next/navigation';
 import { Camera, ChevronRight, Loader2, Trash2 } from 'lucide-react';
 import { quietRefresh } from '@/lib/quiet-refresh';
+import { ConfirmDialog } from '@/components/confirm-delete';
 import { formatSpeed, speedLabel, toSpeed } from '@/lib/units';
 import { useSpeedUnit } from '@/components/use-units';
 import { calibrationText } from '@/lib/velocity-calibration';
@@ -52,6 +53,10 @@ export function VelocitySection({ sessions }: { sessions: VelocitySessionView[] 
   const [draft, setDraft] = useState<PitchEdit | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [pending, start] = useTransition();
+  /* 지우기 전에 묻는 창(앱에서 window.confirm 은 영어 'Cancel/OK') — 무엇을 지우는지 */
+  const [ask, setAsk] = useState<
+    { kind: 'pitch' } | { kind: 'session'; session: VelocitySessionView } | null
+  >(null);
   const speedNum = (kmh: number) => Math.round(toSpeed(kmh, unit) * 10) / 10;
 
   if (sessions.length === 0) return null;
@@ -96,8 +101,11 @@ export function VelocitySection({ sessions }: { sessions: VelocitySessionView[] 
 
   const removePitch = () => {
     if (!editing) return;
-    if (!confirm('이 공을 지울까요? 투구 기록의 투구수와 구속도 다시 맞춰져요.'))
-      return;
+    setAsk({ kind: 'pitch' });
+  };
+  const doRemovePitch = () => {
+    if (!editing) return;
+    setAsk(null);
     start(async () => {
       const res = await deleteVelocityPitch(editing.id).catch(offline);
       if (!res.ok) {
@@ -110,12 +118,10 @@ export function VelocitySection({ sessions }: { sessions: VelocitySessionView[] 
   };
 
   const removeSession = (s: VelocitySessionView) => {
-    if (
-      !confirm(
-        `이 측정 세션(${s.pitches.length}구)을 통째로 지울까요? 같이 만든 투구 기록도 지워져요.`
-      )
-    )
-      return;
+    setAsk({ kind: 'session', session: s });
+  };
+  const doRemoveSession = (s: VelocitySessionView) => {
+    setAsk(null);
     start(async () => {
       const res = await deleteVelocitySession(s.id).catch(offline);
       if (!res.ok) {
@@ -311,6 +317,25 @@ export function VelocitySection({ sessions }: { sessions: VelocitySessionView[] 
           </div>
         )}
       </BottomSheet>
+
+      <ConfirmDialog
+        open={ask !== null}
+        onClose={() => setAsk(null)}
+        onConfirm={() => {
+          if (ask?.kind === 'pitch') doRemovePitch();
+          else if (ask?.kind === 'session') doRemoveSession(ask.session);
+        }}
+        title={
+          ask?.kind === 'session' ? '이 측정 세션을 지울까요?' : '이 공을 지울까요?'
+        }
+        detail={
+          ask?.kind === 'session'
+            ? `${ask.session.pitches.length}구를 통째로 지워요. 같이 만든 투구 기록도 지워지고 되돌릴 수 없어요.`
+            : '투구 기록의 투구수와 구속도 다시 맞춰져요. 되돌릴 수 없어요.'
+        }
+        confirmLabel={ask?.kind === 'session' ? '세션 지우기' : '공 지우기'}
+        pending={pending}
+      />
     </section>
   );
 }

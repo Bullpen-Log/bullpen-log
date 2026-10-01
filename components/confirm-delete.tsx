@@ -18,7 +18,11 @@ import { Modal } from '@/components/modal';
  * 다르고 폰에서는 시스템 창이 떠서, 앱 안에서 벌어지는 일처럼 안 보인다.
  */
 
-function ConfirmDialog({
+/**
+ * 묻는 창만 — 열고 닫기를 부르는 쪽이 쥘 때(손으로 만든 단추 · 나가기처럼 지우기가 아닌 확인).
+ * 앱(아이폰)에서 window.confirm 은 영어 'Cancel/OK' 시스템 창이 떠서 이것을 쓴다.
+ */
+export function ConfirmDialog({
   open,
   onClose,
   onConfirm,
@@ -26,6 +30,7 @@ function ConfirmDialog({
   detail,
   confirmLabel,
   pending,
+  pendingLabel = '지우는 중…',
 }: {
   open: boolean;
   onClose: () => void;
@@ -34,6 +39,8 @@ function ConfirmDialog({
   detail: ReactNode;
   confirmLabel: string;
   pending: boolean;
+  /** 누른 뒤 기다리는 동안의 글 — 기본은 '지우는 중…' */
+  pendingLabel?: string;
 }) {
   return (
     <Modal open={open} onClose={onClose} title={title}>
@@ -58,7 +65,7 @@ function ConfirmDialog({
             disabled={pending}
             className="min-h-12 w-full rounded-full bg-danger-bg px-4 py-2.5 text-base font-semibold text-danger transition-colors active:opacity-70 disabled:opacity-50 desk:min-h-0 desk:w-auto desk:rounded-xl desk:border desk:border-danger-line desk:text-sm desk:hover:bg-danger-bg/70"
           >
-            {pending ? '지우는 중…' : confirmLabel}
+            {pending ? pendingLabel : confirmLabel}
           </button>
         </div>
       </div>

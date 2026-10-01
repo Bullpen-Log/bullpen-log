@@ -11,7 +11,8 @@ import {
   useTransition,
 } from 'react';
 import { flushSync } from 'react-dom';
-import Link from 'next/link';
+import { ConfirmDialog } from '@/components/confirm-delete';
+import { buzz } from '@/lib/haptics';
 import { unstable_rethrow, useRouter } from 'next/navigation';
 import {
   Camera,
@@ -424,6 +425,8 @@ export function VelocityScreen({
   const [intensity, setIntensity] = useState(7);
   const [saving, startSaving] = useTransition();
   const [saved, setSaved] = useState(false);
+  /* 저장하지 않은 공이 있을 때 나가기 — 묻는 창(앱의 영어 시스템 창 대신) */
+  const [askLeave, setAskLeave] = useState(false);
 
   useEffect(() => {
     pitchesRef.current = pitches;
@@ -570,7 +573,8 @@ export function VelocityScreen({
       },
     ]);
     setSaved(false);
-    if (navigator.vibrate) navigator.vibrate(30);
+    /* 앱(아이폰)에서도 떨린다 — navigator.vibrate 는 아이폰에 없다(lib/haptics.ts) */
+    buzz(30);
     speak(`${Math.round(toSpeed(value, unit))}`);
   };
   useEffect(() => {
@@ -817,12 +821,8 @@ export function VelocityScreen({
   };
   /* 나가기 — 저장하지 않은 공이 있으면 한 번 묻는다(말없이 사라지지 않게) */
   const leave = () => {
-    if (
-      pitches.length > 0 &&
-      !window.confirm(
-        `저장하지 않은 공 ${pitches.length}개가 있어요. 저장하지 않고 나갈까요?`
-      )
-    ) {
+    if (pitches.length > 0) {
+      setAskLeave(true);
       return;
     }
     router.push('/velocity');
@@ -1758,12 +1758,16 @@ export function VelocityScreen({
                         <p className="pointer-events-auto flex items-center gap-2 rounded-xl bg-black/70 px-4 py-2.5 text-sm text-white backdrop-blur">
                           <Check aria-hidden className="h-4 w-4 text-ok" />
                           오늘 투구 기록에 남겼어요.
-                          <Link
+                          {/*
+                            일반 이동 — 앱 안의 링크로 가면 (app) 의 팝업 경로(@modal/(.)pitch-log)가 가로채 빈 화면 위에 팝업이
+                            떴다(측정 화면은 (app) 밖이다). 주소로 곧장 가면 팝업 없이 그날 화면이 뜬다.
+                          */}
+                          <a
                             href={`/pitch-log/${today}`}
                             className="ml-auto font-semibold text-sky-soft"
                           >
                             기록 보기
-                          </Link>
+                          </a>
                         </p>
                       )}
                       {toast && (
@@ -2668,6 +2672,19 @@ export function VelocityScreen({
           )}
         </div>
       </BottomSheet>
+
+      <ConfirmDialog
+        open={askLeave}
+        onClose={() => setAskLeave(false)}
+        onConfirm={() => {
+          setAskLeave(false);
+          router.push('/velocity');
+        }}
+        title="저장하지 않고 나갈까요?"
+        detail={`저장하지 않은 공 ${pitches.length}개가 사라져요. 남기려면 취소하고 '측정 종료'에서 저장하세요.`}
+        confirmLabel="저장하지 않고 나가기"
+        pending={false}
+      />
     </div>
   );
 }
