@@ -1,6 +1,7 @@
 import { toFood, type MfdsItem } from '@/lib/nutrition/mfds-parse';
 import { FOOD_CATEGORIES, type FoodCategory } from '@/lib/nutrition/foods';
 import type { Food } from '@/lib/nutrition/meta';
+import { subcategoryOf } from '@/lib/nutrition/food-subcategory';
 
 /**
  * 식약처 '품목대표'를 앱의 음식 분류(foods.ts FOOD_CATEGORIES)로 나눈다 — 음식 창의 [전체 음식]에서 검색 없이 둘러보게(2026-10-02 사용자).
@@ -164,7 +165,12 @@ const MOVES: [RegExp, FoodCategory][] = [
   ],
   [/치즈$|모차렐라|모짜렐라|체다|파르메산/, '우유·음료'],
   [/^(김|조미김|김자반|파래자반|김부각|다시마부각|다시마튀각)$/, '반찬'],
+  /* 묵(도토리 · 메밀 · 청포) — 두부류(P106) · 원재료에 섞여 고기·생선으로 가던 것 */
+  [/^(도토리|메밀|청포|밤|우무|녹두|클로렐라|올방개)?묵$|^묵\//, '반찬'],
 ];
+
+/* 구이(D?08)는 고기·생선 묶음이지만 채소 · 김 구이도 섞여 있다 */
+const VEG_GRILL = /버섯|감자|옥수수|더덕|우엉|채소|콘치즈|김구이|가지|호박|두부/;
 
 /** R121(가공식품 잡동사니) — 아는 앞말만 담고 나머지는 뺀다. MOVES 다음에 본다 */
 const R121: [RegExp, FoodCategory][] = [
@@ -223,6 +229,7 @@ export function mfdsCategory(code: string, name: string): FoodCategory | null {
     if (kind === '01') return '밥';
     /* 02 — 이름으로 못 가른 것: D1 · D3 은 떡 · 빵 쪽, D4~D7 은 분식(기본 목록에서 햄버거 · 피자 · 샌드위치는 분식) */
     if (kind === '02') return code[1] === '1' || code[1] === '3' ? '면·빵' : '분식';
+    if (kind === '08' && VEG_GRILL.test(full)) return '반찬';
     return kind in D_KIND ? D_KIND[kind] : '반찬';
   }
   if (group === 'P') {
@@ -283,21 +290,38 @@ export type BrowsePage = {
   next: number | null;
 };
 
-/** 한 쪽 — 'all' 은 분류 차례대로 이어 붙인 목록 */
+/** 한 쪽 — 'all' 은 분류 차례대로 이어 붙인 목록. sub 는 그 분류의 세부 칸(food-subcategory.ts)으로 거른다 */
 export function browsePage(
   index: BrowseIndex,
   category: FoodCategory | 'all',
   offset: number,
-  limit: number
+  limit: number,
+  sub: string | null = null
 ): BrowsePage {
   const list =
     category === 'all'
       ? FOOD_CATEGORIES.flatMap((c) =>
           (index.get(c) ?? []).map((food) => ({ food, category: c }))
         )
-      : (index.get(category) ?? []).map((food) => ({ food, category }));
+      : (index.get(category) ?? [])
+          .filter((food) => !sub || subcategoryOf(category, food.name, food.id) === sub)
+          .map((food) => ({ food, category }));
   const start = Math.max(0, Math.min(list.length, Math.floor(offset)));
   const items = list.slice(start, start + limit);
   const end = start + items.length;
   return { items, total: list.length, next: end < list.length ? end : null };
+}
+
+/** 분류마다 세부 칸별 개수 — 화면이 빈 칸을 숨기고 숫자를 단다 */
+export function subCounts(index: BrowseIndex): Record<string, Record<string, number>> {
+  const out: Record<string, Record<string, number>> = {};
+  for (const [category, foods] of index) {
+    const counts: Record<string, number> = {};
+    for (const food of foods) {
+      const key = subcategoryOf(category, food.name, food.id);
+      counts[key] = (counts[key] ?? 0) + 1;
+    }
+    out[category] = counts;
+  }
+  return out;
 }

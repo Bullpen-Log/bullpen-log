@@ -86,6 +86,7 @@ import { OFFLINE_MESSAGE, orOffline } from '@/lib/action-offline';
 import { EASE, toFoodInput, type Origin } from './shared';
 import { PhotoCapture } from './photo-panel';
 import { BarcodePanel } from './barcode-panel';
+import { subcategoriesOf, subcategoryOf } from '@/lib/nutrition/food-subcategory';
 import { ErrorLine } from '@/components/error-line';
 
 /*
@@ -197,6 +198,7 @@ export function FoodSheet({
   current,
   mfds,
   photo = false,
+  browseSubs = {},
   popular,
   onAdd,
   replacing = null,
@@ -217,6 +219,8 @@ export function FoodSheet({
   mfds: boolean;
   /** 사진 기록(AI)을 쓸 수 있나 */
   photo?: boolean;
+  /** 식약처 둘러보기의 분류 → 세부 칸 → 음식 수 */
+  browseSubs?: Record<string, Record<string, number>>;
   /** 모든 사람이 가장 많이 담은 음식 — 순위대로 */
   popular: RankedFood[];
   onAdd: (items: { food: Food; amount: number }[]) => Promise<NutritionResult>;
@@ -257,6 +261,8 @@ export function FoodSheet({
   const [category, setCategory] = useState<Category>(
     popularList.length > 0 ? 'popular' : 'all'
   );
+  /* 세부 칸 — 분류를 바꾸면 '전체'로 돌아간다 */
+  const [sub, setSub] = useState<string>('all');
   const [openKey, setOpenKey] = useState<string | null>(null);
   const [added, setAdded] = useState<string[]>([]);
   const [favs, setFavs] = useState(() => new Set(favorites));
@@ -750,8 +756,15 @@ export function FoodSheet({
                     category={category}
                     onCategory={(next) => {
                       setCategory(next);
+                      setSub('all');
                       setOpenKey(null);
                     }}
+                    sub={sub}
+                    onSub={(next) => {
+                      setSub(next);
+                      setOpenKey(null);
+                    }}
+                    browseSubs={browseSubs}
                   />
                 )}
               </div>
@@ -1025,13 +1038,34 @@ function AllFoods({
   popular,
   category,
   onCategory,
+  sub,
+  onSub,
+  browseSubs,
 }: {
   popular: RankedFood[];
   category: Category;
   onCategory: (c: Category) => void;
+  /** 세부 칸(food-subcategory.ts) — 'all' 이면 그 분류 전부 */
+  sub: string;
+  onSub: (key: string) => void;
+  browseSubs: Record<string, Record<string, number>>;
 }) {
   const shown =
     category === 'popular' ? [] : category === 'all' ? FOOD_CATEGORIES : [category];
+  const picked = category !== 'popular' && category !== 'all' ? category : null;
+  /* 세부 칸 고르기 — 기본 음식 + 식약처 음식 수를 달고, 빈 칸은 숨긴다 */
+  const subs = picked
+    ? subcategoriesOf(picked)
+        .map((s) => ({
+          ...s,
+          count:
+            (FOODS_BY_CATEGORY.get(picked) ?? []).filter(
+              (f) => subcategoryOf(picked, f.name) === s.key
+            ).length + (browseSubs[picked]?.[s.key] ?? 0),
+        }))
+        .filter((s) => s.count > 0)
+    : [];
+  const subTotal = subs.reduce((a, s) => a + s.count, 0);
   return (
     <div className="space-y-4">
       <Segmented
@@ -1047,8 +1081,43 @@ function AllFoods({
           ...FOOD_CATEGORIES.map((c) => ({ value: c, label: c })),
         ]}
       />
-      {/* 분류를 바꿀 때마다 목록을 새로 그려, 줄이 위에서부터 다시 들어온다 */}
-      <div key={category} className="space-y-4">
+      {/*
+        세부 칸 — 분류 하나에 음식이 수백~천 가지라(반찬 1천 넘게) 한 번 더 좁힌다(2026-10-02 사용자).
+        분류 고르개보다 한 단 작은 알약이라 위계가 보인다. 고르면 기본 음식 · 식약처 목록이 함께 좁혀진다.
+      */}
+      {picked && subs.length > 1 && (
+        <div
+          key={picked}
+          role="tablist"
+          aria-label={`${picked} 세부 분류`}
+          className="motion-safe:animate-fade-in -mt-1 flex flex-wrap gap-1.5"
+        >
+          {[{ key: 'all', label: '전체', count: subTotal }, ...subs].map((s) => {
+            const on = sub === s.key;
+            return (
+              <button
+                key={s.key}
+                type="button"
+                role="tab"
+                aria-selected={on}
+                onClick={() => onSub(s.key)}
+                className={`inline-flex min-h-10 items-center gap-1 rounded-full border px-3 text-xs transition-colors desk:min-h-8 ${
+                  on
+                    ? 'border-sky bg-sky-tint font-semibold text-sky-strong'
+                    : 'border-line text-muted hover:border-sky hover:text-ink'
+                }`}
+              >
+                {s.label}
+                <span className="tabular-nums opacity-60">
+                  {s.count.toLocaleString('ko-KR')}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      )}
+      {/* 분류 · 세부 칸을 바꿀 때마다 목록을 새로 그려, 줄이 위에서부터 다시 들어온다 */}
+      <div key={`${category}-${sub}`} className="space-y-4">
         {category === 'popular' &&
           (popular.length === 0 ? (
             <Empty text="아직 모인 기록이 적어요. 사람들이 음식을 담기 시작하면 여기에 순위가 생겨요." />
@@ -1061,7 +1130,10 @@ function AllFoods({
             </section>
           ))}
         {shown.map((c) => {
-          const foods = FOODS_BY_CATEGORY.get(c) ?? [];
+          const foods = (FOODS_BY_CATEGORY.get(c) ?? []).filter(
+            (f) => !picked || sub === 'all' || subcategoryOf(c, f.name) === sub
+          );
+          if (foods.length === 0) return null;
           return (
             <section key={c} aria-label={c} className="space-y-1">
               {category === 'all' && (
@@ -1075,7 +1147,9 @@ function AllFoods({
           );
         })}
         {/* 식약처 음식 — 검색하지 않아도 전체 · 분류에서 내려가며 본다(앱에 넣어 둔 품목대표) */}
-        {category !== 'popular' && <MfdsBrowse category={category} />}
+        {category !== 'popular' && (
+          <MfdsBrowse category={category} sub={picked && sub !== 'all' ? sub : null} />
+        )}
       </div>
     </div>
   );
@@ -1094,10 +1168,13 @@ type BrowsePageData = { items: BrowseItem[]; total: number; next: number | null 
 async function fetchBrowse(
   category: FoodCategory | 'all',
   offset: number,
+  sub: string | null,
   signal?: AbortSignal
 ): Promise<BrowsePageData> {
   const res = await fetch(
-    `/api/nutrition/browse?cat=${encodeURIComponent(category)}&offset=${offset}`,
+    `/api/nutrition/browse?cat=${encodeURIComponent(category)}&offset=${offset}${
+      sub ? `&sub=${encodeURIComponent(sub)}` : ''
+    }`,
     { signal }
   );
   if (!res.ok) throw new Error(String(res.status));
@@ -1135,7 +1212,14 @@ function browseBlocks(pages: BrowseItem[][], byCategory: boolean) {
   return blocks;
 }
 
-function MfdsBrowse({ category }: { category: FoodCategory | 'all' }) {
+function MfdsBrowse({
+  category,
+  sub,
+}: {
+  category: FoodCategory | 'all';
+  /** 세부 칸 — null 이면 그 분류 전부 */
+  sub: string | null;
+}) {
   const [pages, setPages] = useState<BrowseItem[][]>([]);
   const [total, setTotal] = useState<number | null>(null);
   const [next, setNext] = useState<number | null>(null);
@@ -1154,7 +1238,7 @@ function MfdsBrowse({ category }: { category: FoodCategory | 'all' }) {
   /* 첫 쪽 — 스크롤을 기다리지 않는다(분류를 고르면 곧바로 식약처 줄까지 보이게) */
   useEffect(() => {
     const ctrl = new AbortController();
-    fetchBrowse(category, 0, ctrl.signal)
+    fetchBrowse(category, 0, sub, ctrl.signal)
       .then(take)
       .catch(() => {
         if (!ctrl.signal.aborted) setFailed(true);
@@ -1165,7 +1249,7 @@ function MfdsBrowse({ category }: { category: FoodCategory | 'all' }) {
         setLoading(false);
       });
     return () => ctrl.abort();
-  }, [category, take]);
+  }, [category, sub, take]);
 
   /** 다음 쪽 — 목록 끝이 가까워지거나 '더 보기' · '다시'를 누르면 */
   const load = useCallback(async () => {
@@ -1176,14 +1260,14 @@ function MfdsBrowse({ category }: { category: FoodCategory | 'all' }) {
     setLoading(true);
     setFailed(false);
     try {
-      take(await fetchBrowse(category, offset));
+      take(await fetchBrowse(category, offset, sub));
     } catch {
       setFailed(true);
     } finally {
       busy.current = false;
       setLoading(false);
     }
-  }, [category, next, pages.length, take]);
+  }, [category, sub, next, pages.length, take]);
 
   /* 목록 끝이 가까워지면 다음 쪽 — 창 안을 굴리는 것이라 화면(뷰포트) 기준으로 본다 */
   useEffect(() => {
@@ -1200,6 +1284,7 @@ function MfdsBrowse({ category }: { category: FoodCategory | 'all' }) {
   }, [load, next, failed]);
 
   const blocks = browseBlocks(pages, category === 'all');
+  if (total === 0 && !loading && !failed) return null;
   return (
     <section aria-label="식약처 식품영양성분DB" className="space-y-1">
       <h3 className="flex items-baseline gap-1.5 px-1 pt-2 text-xs font-semibold text-ink">

@@ -70,6 +70,13 @@ import {
 import { allMfdsReps } from '../lib/nutrition/mfds-reps.ts';
 import { cleanBarcode, gtinValid, parseOffProduct } from '../lib/nutrition/barcode.ts';
 import {
+  OTHER_SUB,
+  isSubcategory,
+  subcategoriesOf,
+  subcategoryOf,
+} from '../lib/nutrition/food-subcategory.ts';
+import { subCounts } from '../lib/nutrition/mfds-category.ts';
+import {
   amountForGrams,
   matchBasicFood,
   matchPhotoFoods,
@@ -3173,6 +3180,107 @@ console.log('\n■ 바코드로 담기(로드맵 8번)');
       status: 1,
       product: { product_name: 'x', nutriments: { 'energy-kcal_100g': 99999 } },
     }).food === null
+  );
+}
+
+console.log('\n■ 음식 세부 분류');
+{
+  const sub = (c: Parameters<typeof subcategoryOf>[0], name: string, code?: string) =>
+    subcategoryOf(c, name, code);
+  check(
+    '기본 음식이 제 칸에 — 밥 · 분식 · 면·빵 · 국·찌개',
+    sub('밥', '쌀밥') === 'rice' &&
+      sub('밥', '비빔밥') === 'bowl' &&
+      sub('밥', '볶음밥') === 'fried' &&
+      sub('밥', '돼지국밥') === 'soup' &&
+      sub('밥', '돈가스') === 'set' &&
+      sub('밥', '멥쌀, 백미, 생것') === 'grain' &&
+      sub('밥', '멥쌀, 백미, 밥') === 'rice' &&
+      sub('밥', '멥쌀, 백미, 죽') === 'porridge' &&
+      sub('분식', '참치김밥') === 'gimbap' &&
+      sub('분식', '떡볶이') === 'tteok' &&
+      sub('분식', '컵라면(작은 컵)') === 'ramen' &&
+      sub('분식', '샌드위치(햄치즈)') === 'burger' &&
+      sub('면·빵', '짜장면') === 'chinese' &&
+      sub('면·빵', '물냉면') === 'noodle' &&
+      sub('면·빵', '토마토 파스타') === 'pasta' &&
+      sub('면·빵', '베이글') === 'bread' &&
+      sub('면·빵', '가래떡') === 'tteok' &&
+      sub('국·찌개', '김치찌개') === 'jjigae' &&
+      sub('국·찌개', '갈비탕') === 'tang' &&
+      sub('국·찌개', '미역국') === 'guk'
+  );
+  check(
+    '반찬 · 고기·생선 · 과일·채소 · 음료 · 간식',
+    sub('반찬', '배추김치') === 'kimchi' &&
+      sub('반찬', '시금치나물') === 'namul' &&
+      sub('반찬', '멸치볶음') === 'stir' &&
+      sub('반찬', '두부조림') === 'braise' &&
+      sub('반찬', '김치전') === 'jeon' &&
+      sub('반찬', '계란말이') === 'eggtofu' &&
+      sub('반찬', '닭가슴살 샐러드') === 'salad' &&
+      sub('반찬', '깐풍기') === 'chinese' &&
+      sub('반찬', '대두, 노란색, 삶은것') === 'bean' &&
+      sub('고기·생선', '닭가슴살(익힌 것)') === 'chicken' &&
+      sub('고기·생선', '삼겹살') === 'pork' &&
+      sub('고기·생선', '돼지갈비구이') === 'pork' &&
+      sub('고기·생선', '소고기 등심(구운 것)') === 'beef' &&
+      sub('고기·생선', '육회') === 'beef' &&
+      sub('고기·생선', '고등어구이') === 'fish' &&
+      sub('고기·생선', '오징어불고기') === 'seafood' &&
+      sub('고기·생선', '햄(슬라이스)') === 'processed' &&
+      sub('고기·생선', '달걀(삶은 것)') === 'eggtofu' &&
+      sub('고기·생선', '눈볼대, 생것', 'R211-0') === 'fish' &&
+      sub('과일·채소', '바나나') === 'fruit' &&
+      sub('과일·채소', '브로콜리') === 'veg' &&
+      sub('과일·채소', '고구마(찐 것)') === 'starch' &&
+      sub('우유·음료', '바나나우유') === 'milk' &&
+      sub('우유·음료', '두유') === 'milk' &&
+      sub('우유·음료', '카페라떼') === 'coffee' &&
+      sub('우유·음료', '그릭요거트(플레인)') === 'yogurt' &&
+      sub('우유·음료', '콜라') === 'soda' &&
+      sub('우유·음료', '오렌지주스') === 'juice' &&
+      sub('간식·보충', '단백질 쉐이크') === 'protein' &&
+      sub('간식·보충', '오트밀') === 'cereal' &&
+      sub('간식·보충', '견과류 믹스') === 'nuts' &&
+      sub('간식·보충', '감자칩') === 'snack' &&
+      sub('간식·보충', '초코파이') === 'dessert' &&
+      sub('간식·보충', '아이스크림(바)') === 'ice' &&
+      sub('간식·보충', '꿀') === 'sweet'
+  );
+  check(
+    '과일·채소는 나머지가 채소(기타 칸 없음), 다른 분류는 끝에 기타',
+    !subcategoriesOf('과일·채소').some((x) => x.key === OTHER_SUB) &&
+      subcategoriesOf('반찬').at(-1)?.key === OTHER_SUB &&
+      isSubcategory('반찬', 'stir') &&
+      !isSubcategory('반찬', 'pasta') &&
+      isSubcategory('밥', OTHER_SUB)
+  );
+  /* 실제 식약처 자료 — 기타로 남는 것이 분류마다 1할 아래 */
+  const counts = subCounts(buildBrowseIndex([...allMfdsReps()]));
+  const share = Object.entries(counts).map(([cat, c]) => {
+    const total = Object.values(c).reduce((a, n) => a + n, 0);
+    return [cat, (c[OTHER_SUB] ?? 0) / Math.max(1, total)] as const;
+  });
+  check(
+    '실제 자료 — 분류마다 기타가 1할 아래',
+    share.every(([, r]) => r < 0.1),
+    share.map(([c, r]) => `${c} ${Math.round(r * 100)}%`).join(' · ')
+  );
+  check(
+    '세부 칸 개수의 합 = 그 분류 음식 수',
+    Object.entries(counts).every(([cat, c]) => {
+      const total = Object.values(c).reduce((a, n) => a + n, 0);
+      return total === browsePage(buildBrowseIndex([...allMfdsReps()]), cat as '밥', 0, 1).total;
+    })
+  );
+  const index = buildBrowseIndex([...allMfdsReps()]);
+  const stir = browsePage(index, '반찬', 0, 40, 'stir');
+  check(
+    '세부 칸으로 한 쪽 거르기 — 볶음만, 개수가 칸 수와 같다',
+    stir.total === counts['반찬'].stir &&
+      stir.items.every((i) => subcategoryOf('반찬', i.food.name, i.food.id) === 'stir'),
+    String(stir.total)
   );
 }
 

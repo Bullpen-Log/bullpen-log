@@ -3,6 +3,7 @@ import { allMfdsReps } from '@/lib/nutrition/mfds-reps';
 import {
   browsePage,
   buildBrowseIndex,
+  subCounts,
   type BrowseIndex,
 } from '@/lib/nutrition/mfds-category';
 import { FOOD_CATEGORIES, type FoodCategory } from '@/lib/nutrition/foods';
@@ -21,7 +22,26 @@ export function isBrowseCategory(v: unknown): v is FoodCategory | 'all' {
   return v === 'all' || FOOD_CATEGORIES.some((c) => c === v);
 }
 
-export function browseMfds(category: FoodCategory | 'all', offset: number) {
+export function browseMfds(
+  category: FoodCategory | 'all',
+  offset: number,
+  sub: string | null = null
+) {
   index ??= buildBrowseIndex([...allMfdsReps()]);
-  return browsePage(index, category, offset, BROWSE_PAGE);
+  return browsePage(
+    index,
+    category,
+    offset,
+    BROWSE_PAGE,
+    category === 'all' ? null : sub
+  );
+}
+
+let counts: Record<string, Record<string, number>> | null = null;
+
+/** 분류 → 세부 칸 → 식약처 음식 수(영양 화면이 읽어 음식 창에 넘긴다) */
+export function mfdsSubCounts() {
+  index ??= buildBrowseIndex([...allMfdsReps()]);
+  counts ??= subCounts(index);
+  return counts;
 }
