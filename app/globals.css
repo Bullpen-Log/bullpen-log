@@ -1980,6 +1980,18 @@ html[data-gate-up] *::after {
   }
 }
 
+/* 홈 '오늘' 링(app/(app)/today/today-rings.tsx) — 처음 보일 때 0 에서 오늘 한 만큼까지 차오른다 */
+@media (prefers-reduced-motion: no-preference) {
+  .ring-grow {
+    animation: ring-grow 900ms cubic-bezier(0.22, 1, 0.36, 1) 120ms both;
+  }
+}
+@keyframes ring-grow {
+  from {
+    stroke-dashoffset: 100;
+  }
+}
+
 /*
  * 휴대폰(손가락 화면)의 입력칸 글자는 16px — 아이폰 사파리가 화면을 확대하지 않게.
  *

@@ -14,6 +14,8 @@ export default function Loading() {
     <div className="stack-page" aria-busy="true" aria-live="polite">
       <PageHeading eyebrow="Home" kicker={todayKicker()} title="홈" />
       <span className="sr-only">불러오는 중입니다</span>
+      {/* 오늘 링 자리(today-rings.tsx) */}
+      <Skeleton className="h-[8.75rem] rounded-2xl" />
       <Skeleton className="h-[26rem] rounded-2xl" />
       <div className="grid gap-block lg:grid-cols-3">
         <Skeleton className="h-40 rounded-2xl" />

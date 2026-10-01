@@ -13,6 +13,7 @@ import { PitchLogPanel } from './pitch-log-panel';
 import { AnalysisSkeleton } from './analysis-block';
 import { AnalysisView } from './analysis-view';
 import { readAnalysisTab, type AnalysisTab } from './analysis-tabs';
+import { TodayRings } from './today-rings';
 
 /**
  * 홈 — 오늘 남길 것.
@@ -83,6 +84,14 @@ export default async function HomePage({
         loading.tsx 도 똑같이 그려, 불러오는 동안과 다 온 뒤에 자리가 바뀌지 않는다.
       */}
       <PageHeading eyebrow="Home" kicker={todayKicker()} title="홈" />
+
+      {/*
+        오늘 — 체크인 · 투구 · 운동 · 영양이 링으로 한눈에(아이폰 피트니스처럼, 2026-10-01 '애플처럼').
+        달력 앞이다: 홈을 열면 '오늘 어디까지 했나'가 먼저다. 그날 요약 하나를 읽느라 기다리므로 따로 울타리.
+      */}
+      <Suspense fallback={<Skeleton className="h-[8.75rem] rounded-2xl" />}>
+        <TodayRings user={user} today={toDateKey(now())} />
+      </Suspense>
 
       {/*
         달력이 맨 앞이다.
