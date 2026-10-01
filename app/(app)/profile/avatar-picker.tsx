@@ -85,7 +85,7 @@ export function AvatarPicker({
         body: JSON.stringify({ fileSize: photo.size, fileType: photo.type }),
       });
       const target = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(target.error ?? '업로드 주소를 받지 못했습니다.');
+      if (!res.ok) throw new Error(target.error ?? '업로드 주소를 받지 못했어요.');
 
       /* 받은 주소로 파일을 그대로 올린다 */
       const put = await fetch(target.signedUrl, {
@@ -97,13 +97,13 @@ export function AvatarPicker({
         /* 저장소가 알려 준 까닭을 함께 보여 준다 — 없으면 무엇이 막혔는지 알 수 없다 */
         const why = await put.json().catch(() => null);
         throw new Error(
-          `사진을 올리지 못했습니다${why?.message ? ` (${why.message})` : ` (${put.status})`}.`
+          `사진을 올리지 못했어요${why?.message ? ` (${why.message})` : ` (${put.status})`}.`
         );
       }
 
       const saved = await saveAvatar(target.path);
       if (saved?.error) throw new Error(saved.error);
-      setDone(saved?.success ?? '사진을 바꿨습니다.');
+      setDone(saved?.success ?? '사진을 바꿨어요.');
     } catch (e) {
       /* 잠깐 띄운 것을 거둔다 — 서버의 사진(바꾸기 전 것)이 다시 보인다 */
       setLocal(null);
@@ -123,7 +123,7 @@ export function AvatarPicker({
       try {
         const res = await saveAvatar(null);
         if (res?.error) throw new Error(res.error);
-        setDone(res?.success ?? '사진을 지웠습니다.');
+        setDone(res?.success ?? '사진을 지웠어요.');
       } catch (e) {
         setClearing(false);
         setError(explain(e));
@@ -217,8 +217,8 @@ export function AvatarPicker({
       )}
 
       <p className="text-xs leading-relaxed text-muted/70">
-        사진은 작게 줄여서 올립니다. 본인만 볼 수 있는 저장소에 들어가고, 화면에 보일
-        때만 잠깐 쓰는 주소가 만들어집니다.
+        사진은 작게 줄여서 올려요. 본인만 볼 수 있는 저장소에 들어가고, 화면에 보일
+        때만 잠깐 쓰는 주소가 만들어져요.
       </p>
     </div>
   );
@@ -235,10 +235,10 @@ function explain(e: unknown) {
   if (e instanceof UnreadableImageError) return e.message;
   const message = e instanceof Error ? e.message : '';
   if (/Server Action|was not found on the server|Failed to find Server Action/i.test(message)) {
-    return '앱이 새로 바뀌었습니다. 새로고침(F5)한 뒤 다시 골라주세요.';
+    return '앱이 새로 바뀌었어요. 새로고침(F5)한 뒤 다시 골라주세요.';
   }
   if (/Failed to fetch|NetworkError|Load failed/i.test(message)) {
     return '인터넷 연결을 확인한 뒤 다시 골라주세요.';
   }
-  return message || '사진을 바꾸지 못했습니다.';
+  return message || '사진을 바꾸지 못했어요.';
 }

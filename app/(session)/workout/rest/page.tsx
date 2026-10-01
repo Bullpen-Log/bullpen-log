@@ -10,10 +10,10 @@ export default function RestPage() {
   return (
     <main className="flex flex-1 flex-col items-center justify-center px-6 py-16 text-center">
       <p className="text-xs font-medium tracking-normal text-sky">TODAY</p>
-      <h1 className="mt-3 text-2xl font-bold text-ink">오늘은 쉬는 것이 훈련입니다</h1>
+      <h1 className="mt-3 text-2xl font-bold text-ink">오늘은 쉬는 것이 훈련이에요</h1>
       <p className="mt-4 max-w-sm text-sm leading-relaxed text-muted">
-        오늘 체크인에 통증을 남기셨습니다. 아픈 날에 무게를 드는 것은 회복을 늦추기만
-        합니다.
+        오늘 체크인에 통증을 남기셨어요. 아픈 날에 무게를 드는 것은 회복을 늦추기만
+        해요.
       </p>
       <p className="mt-2 max-w-sm text-sm leading-relaxed text-muted">
         통증이 이어지면 수치와 관계없이 전문의와 상담하세요.

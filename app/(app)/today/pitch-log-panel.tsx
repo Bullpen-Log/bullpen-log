@@ -336,7 +336,7 @@ export function PitchLogPanel({
         if (cancelled) return;
         // 다시 넘어오면 한 번 더 받아볼 수 있게 표시를 지운다.
         loadedMonths.current.delete(monthKey);
-        setError('그 달 기록을 불러오지 못했습니다. 잠시 후 다시 시도해주세요.');
+        setError('그 달 기록을 불러오지 못했어요. 잠시 후 다시 시도해주세요.');
       });
 
     return () => {

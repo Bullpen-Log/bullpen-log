@@ -54,7 +54,7 @@ export function TrainingNote({
   if (!saved && !done) {
     return (
       <p className="rounded-2xl empty-well p-(--block-pad) text-sm leading-relaxed text-muted">
-        운동을 하나라도 마치면 여기에 오늘 운동이 어땠는지 남길 수 있습니다.
+        운동을 하나라도 마치면 여기에 오늘 운동이 어땠는지 남길 수 있어요.
       </p>
     );
   }
@@ -90,7 +90,7 @@ export function TrainingNote({
       <div>
         <p className="text-sm font-bold text-ink">오늘 운동은 어땠나요?</p>
         <p className="mt-0.5 text-xs leading-relaxed text-muted">
-          하루에 한 번만 적으면 됩니다. 투구와 함께 몸에 걸린 부담을 보는 데 씁니다.
+          하루에 한 번만 적으면 돼요. 투구와 함께 몸에 걸린 부담을 보는 데 써요.
         </p>
       </div>
 
@@ -136,7 +136,7 @@ export function TrainingNote({
           value={text}
           onChange={(e) => setText(e.target.value)}
           rows={3}
-          placeholder="안 적어도 됩니다. 무거웠던 곳, 잘 된 것 같은 동작 같은 걸 남겨두면 나중에 도움이 됩니다."
+          placeholder="안 적어도 돼요. 무거웠던 곳, 잘 된 것 같은 동작 같은 걸 남겨두면 나중에 도움이 돼요."
           className="w-full resize-y rounded-xl border border-line bg-surface-2 px-3.5 py-2.5 text-sm text-ink outline-none transition-colors placeholder:text-muted focus:border-sky"
         />
       </label>

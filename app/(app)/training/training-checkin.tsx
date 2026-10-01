@@ -21,7 +21,7 @@ import { CheckinForm } from '@/components/checkin-form';
  */
 export function TrainingCheckin({
   parts,
-  description = '30초면 됩니다. 남기면 바로 오늘 운동 일정을 만들 수 있습니다.',
+  description = '30초면 돼요. 남기면 바로 오늘 운동 일정을 만들 수 있어요.',
 }: {
   parts: string[];
   /** 창 위의 한 줄 — 암케어 화면은 '오늘의 암케어를 만들 수 있습니다'로 바꾼다 */

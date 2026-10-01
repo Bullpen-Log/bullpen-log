@@ -93,7 +93,7 @@ export async function ArmcareSection({
     /* 통증 — 운동 일정이 멈추는 것과 같은 조건, 같은 말 */
     custom = (
       <Card className="space-y-2 border-warn-line bg-warn-bg">
-        <p className="text-sm font-bold text-warn">오늘은 팔을 쉬는 날입니다</p>
+        <p className="text-sm font-bold text-warn">오늘은 팔을 쉬는 날이에요</p>
         <p className="text-sm leading-relaxed break-keep text-warn">
           {data.decision.reason}
         </p>

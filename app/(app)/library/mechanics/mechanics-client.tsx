@@ -137,7 +137,7 @@ function GuideDetail({
                         <strong className="text-ink">{item.title}</strong>
                       </p>
                       <p className="text-muted">
-                        모든 회원의 라이브러리에서 사라집니다. 되돌릴 수 없습니다.
+                        모든 회원의 라이브러리에서 사라져요. 되돌릴 수 없어요.
                       </p>
                     </div>
                   }
@@ -169,7 +169,7 @@ function GuideDetail({
         {isAdmin && !item.thumbUrl && item.videoPath && (
           <div className="mt-4 border-t border-line pt-4">
             <p className="mb-2 text-xs text-muted">
-              이 영상은 미리보기 이미지가 없습니다.
+              이 영상은 미리보기 이미지가 없어요.
             </p>
             <ThumbnailFixer
               itemId={item.id}
@@ -296,8 +296,8 @@ export function MechanicsClient({
           </button>
           <span className="text-xs text-muted">
             {favoriteCount === 0
-              ? '드릴을 열고 별을 달아두면 여기서 모아 볼 수 있습니다'
-              : '오늘 할 드릴을 고를 때 이 목록에서 바로 담을 수 있습니다'}
+              ? '드릴을 열고 별을 달아두면 여기서 모아 볼 수 있어요'
+              : '오늘 할 드릴을 고를 때 이 목록에서 바로 담을 수 있어요'}
           </span>
         </div>
       )}
@@ -318,8 +318,8 @@ export function MechanicsClient({
           <GuideGrid items={matched} isAdmin={isAdmin} />
         ) : (
           <EmptyState
-            title="조건에 맞는 드릴이 없습니다"
-            description="고른 조건을 하나씩 줄이면 더 많은 드릴이 나옵니다."
+            title="조건에 맞는 드릴이 없어요"
+            description="고른 조건을 하나씩 줄이면 더 많은 드릴이 나와요."
             action={
               <Button
                 variant="secondary"
@@ -351,7 +351,7 @@ export function MechanicsClient({
                   <p className="rounded-xl empty-well px-5 py-10 text-center text-sm text-muted">
                     {isAdmin
                       ? '"영상 추가"를 눌러 이 파트의 첫 드릴을 등록해보세요.'
-                      : '아직 등록된 드릴이 없습니다.'}
+                      : '아직 등록된 드릴이 없어요.'}
                   </p>
                 ) : (
                   <GuideGrid items={items} isAdmin={isAdmin} />

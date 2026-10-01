@@ -58,13 +58,13 @@ export const DRAW_TOOLS: {
   {
     kind: 'tilt',
     label: '기울기',
-    hint: '두 점을 이어 수직 대비 기울기를 잽니다. 몸통·어깨선에 씁니다.',
+    hint: '두 점을 이어 수직 대비 기울기를 재요. 몸통·어깨선에 써요.',
     Icon: Triangle,
   },
   {
     kind: 'angle',
     label: '각도',
-    hint: '세 곳을 차례로 누르세요. 두 번째로 누른 곳이 꼭짓점입니다.',
+    hint: '세 곳을 차례로 누르세요. 두 번째로 누른 곳이 꼭짓점이에요.',
     Icon: Triangle,
   },
   {

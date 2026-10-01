@@ -34,10 +34,10 @@ export default function SessionError({
 
   return (
     <FallbackShell>
-      <FallbackTitle>운동 화면에 문제가 생겼습니다</FallbackTitle>
+      <FallbackTitle>운동 화면에 문제가 생겼어요</FallbackTitle>
       <FallbackText>
-        남긴 세트는 지워지지 않았습니다. 신호가 없을 때 남긴 세트도 이 폰에 보관돼
-        있다가, 화면이 다시 뜨면 저절로 보내집니다.
+        남긴 세트는 지워지지 않았어요. 신호가 없을 때 남긴 세트도 이 폰에 보관돼 있다가,
+        화면이 다시 뜨면 저절로 보내져요.
       </FallbackText>
       <FallbackActions>
         <FallbackButton onClick={() => retry()} primary>

@@ -215,7 +215,7 @@ export function AddExercise({
 
           {matched.length === 0 ? (
             <p className="rounded-xl empty-well px-4 py-8 text-center text-sm text-muted">
-              조건에 맞는 운동이 없습니다. 조건을 줄여보세요.
+              조건에 맞는 운동이 없어요. 조건을 줄여보세요.
             </p>
           ) : (
             <ul className="space-y-2">
@@ -266,9 +266,9 @@ export function AddExercise({
                         <p className="flex items-start gap-1.5 text-[11px] leading-relaxed text-warn">
                           <AlertTriangle className="mt-0.5 h-3 w-3 shrink-0" />
                           {[
-                            notSafe ? '오늘 몸 상태에는 권하지 않는 운동입니다' : null,
+                            notSafe ? '오늘 몸 상태에는 권하지 않는 운동이에요' : null,
                             missing.length > 0
-                              ? `${missing.join('·')}이(가) 필요합니다`
+                              ? `${missing.join('·')}이(가) 필요해요`
                               : null,
                           ]
                             .filter(Boolean)

@@ -67,7 +67,7 @@ export function JumpToDate({
 export function AnalysisSkeleton() {
   return (
     <div aria-busy="true" className="space-y-4">
-      <span className="sr-only">분석을 불러오는 중입니다</span>
+      <span className="sr-only">분석을 불러오는 중이에요</span>
       <Skeleton className="h-16 rounded-2xl" />
       <Skeleton className="h-56 rounded-2xl" />
     </div>

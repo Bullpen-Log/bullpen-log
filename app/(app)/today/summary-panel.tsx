@@ -159,7 +159,7 @@ export function SummaryPanel({
 
         {recent.length === 0 ? (
           <p className="mt-3 text-xs leading-relaxed text-muted/70">
-            아직 남긴 기록이 없습니다.
+            아직 남긴 기록이 없어요.
           </p>
         ) : (
           <ul className="mt-3 space-y-2">

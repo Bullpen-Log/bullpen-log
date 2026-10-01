@@ -37,7 +37,7 @@ function WeekRow({ week, busiest }: { week: ReviewWeek; busiest: number }) {
           {shortDate(week.from)}–{shortDate(week.to)}
         </span>
         {empty ? (
-          <span className="ml-auto text-xs text-muted/60">쉬었습니다</span>
+          <span className="ml-auto text-xs text-muted/60">쉬었어요</span>
         ) : (
           <span className="ml-auto flex items-baseline gap-1.5">
             <span className="text-numeric text-lg leading-none text-ink tabular-nums">
@@ -174,8 +174,8 @@ function PitchTraining({
 
       {armCareMissing && (
         <p className="rounded-xl border border-warn-line bg-warn-bg px-4 py-3 text-xs leading-relaxed text-warn">
-          최근 {weekCount}주 동안 {totals.pitchedDays}일 던졌는데 암케어 기록이
-          없습니다. 암케어는 던진 뒤 어깨와 팔꿈치를 관리하는 운동입니다.
+          최근 {weekCount}주 동안 {totals.pitchedDays}일 던졌는데 암케어 기록이 없어요.
+          암케어는 던진 뒤 어깨와 팔꿈치를 관리하는 운동이에요.
         </p>
       )}
 
@@ -241,7 +241,7 @@ export function TrainingReviewCards({
       <section className="rounded-2xl border border-line bg-surface p-(--block-pad)">
         <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
           <h2 className="text-base font-bold text-ink">최근 {weekCount}주 운동</h2>
-          <p className="text-xs text-muted">오늘부터 7일씩 거슬러 나눕니다</p>
+          <p className="text-xs text-muted">오늘부터 7일씩 거슬러 나눠요</p>
         </div>
 
         {anyTraining ? (
@@ -252,19 +252,19 @@ export function TrainingReviewCards({
           </ul>
         ) : (
           <p className="mt-4 rounded-xl empty-well px-4 py-8 text-center text-sm leading-relaxed text-muted">
-            최근 {weekCount}주 동안 마쳤다고 표시한 운동(암케어 제외)이 없습니다.
+            최근 {weekCount}주 동안 마쳤다고 표시한 운동(암케어 제외)이 없어요.
             <br />
-            트레이닝에서 운동을 마치고 눌러주시면 여기에 쌓입니다. 암케어는 아래
-            &lsquo;투구와 운동&rsquo;에서 따로 셉니다.
+            트레이닝에서 운동을 마치고 눌러주시면 여기에 쌓여요. 암케어는 아래
+            &lsquo;투구와 운동&rsquo;에서 따로 세어요.
           </p>
         )}
 
         {/* 어떻게 나온 숫자인지 — 안 적어두면 그냥 믿거나 그냥 무시한다 */}
         <p className="mt-3 text-[11px] leading-relaxed text-muted/70">
-          날 수는 암케어를 뺀 운동을 하나라도 마쳤다고 표시한 날입니다(암케어는 아래에서
-          따로 셉니다). 시간은 운동마다 정해진 세트당 시간(수행 + 세트 사이 휴식)에
-          실제로 한 세트를 곱해 더한 값이고, 강도는 그 주에 적은 값의 평균입니다. 부하
-          지수는 시간이 아니라 세트로 세므로 이 시간과는 다른 숫자입니다.
+          날 수는 암케어를 뺀 운동을 하나라도 마쳤다고 표시한 날이에요(암케어는 아래에서
+          따로 세어요). 시간은 운동마다 정해진 세트당 시간(수행 + 세트 사이 휴식)에
+          실제로 한 세트를 곱해 더한 값이고, 강도는 그 주에 적은 값의 평균이에요. 부하
+          지수는 시간이 아니라 세트로 세므로 이 시간과는 다른 숫자예요.
         </p>
       </section>
 
@@ -280,10 +280,10 @@ export function TrainingReviewCards({
         </div>
 
         <p className="mt-3 text-[11px] leading-relaxed text-muted/70">
-          칸 하나가 하루입니다. 짚으면 그날 몇 구를 던졌는지 나옵니다. 운동은
-          &lsquo;마침&rsquo;을 누른 날만 셉니다 — 했는데 안 눌렀으면 빈칸으로 남습니다.
+          칸 하나가 하루예요. 짚으면 그날 몇 구를 던졌는지 나와요. 운동은
+          &lsquo;마침&rsquo;을 누른 날만 세어요 — 했는데 안 눌렀으면 빈칸으로 남아요.
           암케어를 따로 뺀 것은 던지는 사람에게 어깨·팔꿈치 관리가 다른 운동으로
-          대신되지 않기 때문입니다.
+          대신되지 않기 때문이에요.
         </p>
       </section>
     </>

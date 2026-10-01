@@ -119,7 +119,7 @@ export function ArmcareGuide({
 
           {untagged > 0 && (
             <p className="px-1 text-xs leading-relaxed text-muted">
-              근육을 아직 적지 않은 암케어 운동 {untagged}개는 여기 나오지 않습니다.
+              근육을 아직 적지 않은 암케어 운동 {untagged}개는 여기 나오지 않아요.
             </p>
           )}
         </div>
@@ -219,7 +219,7 @@ function AreaCard({
             <h3 className="text-xs font-semibold text-muted">운동</h3>
             {count === 0 ? (
               <p className="text-[13px] text-muted">
-                이 부위를 키우는 운동이 아직 없습니다.
+                이 부위를 키우는 운동이 아직 없어요.
               </p>
             ) : (
               <ul className="space-y-2">

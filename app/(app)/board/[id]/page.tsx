@@ -78,7 +78,7 @@ export default async function ArticleDetailPage({
                     <p>
                       <strong className="text-ink">{article.title}</strong>
                     </p>
-                    <p className="text-muted">되돌릴 수 없습니다.</p>
+                    <p className="text-muted">되돌릴 수 없어요.</p>
                   </div>
                 }
                 className="inline-flex items-center gap-1.5 rounded-xl border border-danger-line bg-danger-bg px-3 py-2 text-xs font-semibold text-danger transition-colors hover:bg-danger-bg/70"

@@ -225,9 +225,9 @@ export function EntryForm({
   /** 이 영상을 빼면 폼 분석도 같이 사라진다 — 뺄 때 알린다 */
   const removeNote = (video: UploadedVideo) =>
     analyzedPaths?.includes(video.path)
-      ? '이 영상에는 폼 분석이 저장돼 있습니다. 영상을 빼면 분석도 함께 지워지고, 되돌릴 수 없습니다.'
+      ? '이 영상에는 폼 분석이 저장돼 있어요. 영상을 빼면 분석도 함께 지워지고, 되돌릴 수 없어요.'
       : initial?.videoPaths.includes(video.path)
-        ? '저장돼 있던 영상입니다. 빼면 되돌릴 수 없습니다.'
+        ? '저장돼 있던 영상이에요. 빼면 되돌릴 수 없어요.'
         : undefined;
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -260,7 +260,7 @@ export function EntryForm({
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
         throw new Error(
-          data.error ?? (editing ? '수정에 실패했습니다.' : '저장에 실패했습니다.')
+          data.error ?? (editing ? '수정에 실패했어요.' : '저장에 실패했어요.')
         );
       }
       /* 새로 올린 영상은 이제 기록에 붙었다 — 폼을 닫아도 지우지 않는다 */
@@ -277,7 +277,7 @@ export function EntryForm({
       }
       await onSaved();
     } catch (err) {
-      const fallback = editing ? '수정에 실패했습니다.' : '저장에 실패했습니다.';
+      const fallback = editing ? '수정에 실패했어요.' : '저장에 실패했어요.';
       onError(err instanceof Error ? err.message : fallback);
     } finally {
       setSaving(false);
@@ -385,7 +385,7 @@ export function EntryForm({
                 />
                 <SpeedInput
                   label="평균 구속"
-                  hint="비워두셔도 됩니다."
+                  hint="비워두셔도 돼요."
                   kmh={form.avgVelocity}
                   onKmh={(v) => setForm({ ...form, avgVelocity: v })}
                   sample={132}
@@ -410,8 +410,8 @@ export function EntryForm({
               label="투구 영상"
               hint={
                 resting
-                  ? '쉰 날에는 새로 올릴 수 없습니다. 이미 붙어 있는 영상은 뺄 수 있습니다.'
-                  : '폰이나 컴퓨터에 있는 영상을 바로 올릴 수 있습니다.'
+                  ? '쉰 날에는 새로 올릴 수 없어요. 이미 붙어 있는 영상은 뺄 수 있어요.'
+                  : '폰이나 컴퓨터에 있는 영상을 바로 올릴 수 있어요.'
               }
             >
               <div className="space-y-3">

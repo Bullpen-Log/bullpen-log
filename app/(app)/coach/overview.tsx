@@ -208,8 +208,8 @@ export function StatsOverview({
     meaning: acwr.zone ? ACWR_ZONES[acwr.zone].meaning : '',
     hasRecords,
     emptyHint: hasRecords
-      ? '지수는 최근 부하를 평소 부하와 견주는 값입니다. 비교할 기준이 아직 없습니다.'
-      : '투구를 기록하면 이곳에 부하 지수가 표시됩니다.',
+      ? '지수는 최근 부하를 평소 부하와 견주는 값이에요. 비교할 기준이 아직 없어요.'
+      : '투구를 기록하면 이곳에 부하 지수가 표시돼요.',
   };
   const trainingView: LoadView = {
     name: '운동',
@@ -232,8 +232,8 @@ export function StatsOverview({
      */
     emptyHint:
       training.historyDays > 0
-        ? '평소 운동량과 견줄 기준이 아직 없습니다. 내 정보에서 평소 웨이트 횟수를 답하면 바로 나옵니다.'
-        : '트레이닝에서 운동을 마쳤다고 표시하면 여기에 나옵니다.',
+        ? '평소 운동량과 견줄 기준이 아직 없어요. 내 정보에서 평소 웨이트 횟수를 답하면 바로 나와요.'
+        : '트레이닝에서 운동을 마쳤다고 표시하면 여기에 나와요.',
   };
 
   return (
@@ -368,8 +368,8 @@ export function StatsOverview({
             <div className="flex items-center gap-4 rounded-2xl border border-sky-soft/60 bg-sky/5 p-(--block-pad)">
               <UserCog className="h-5 w-5 shrink-0 text-sky" />
               <span className="min-w-0 flex-1 text-sm leading-relaxed text-ink/90">
-                생년월일이 아직 등록되지 않았습니다. 나이에 맞는 안전한 투구수를
-                계산하려면 필요합니다.
+                생년월일이 아직 등록되지 않았어요. 나이에 맞는 안전한 투구수를
+                계산하려면 필요해요.
               </span>
               <span className="shrink-0 text-xs font-medium tracking-normal break-keep text-sky">
                 위쪽 내 사진에서 입력

@@ -198,7 +198,7 @@ export function BodyMap3D({
         onLook={(v) => engine.current?.look(v)}
         hint="좌우로 끌어 돌리기"
         loadingText="3D 근육 그림을 불러오는 중…"
-        errorText="3D 모델을 불러오지 못했습니다."
+        errorText="3D 모델을 불러오지 못했어요."
       />
     </div>
   );

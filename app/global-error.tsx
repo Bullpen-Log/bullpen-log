@@ -78,7 +78,7 @@ export default function GlobalError({
         >
           <div style={{ maxWidth: 420, textAlign: 'center' }}>
             <h1 style={{ fontSize: 20, fontWeight: 700, margin: 0 }}>
-              앱을 불러오지 못했습니다
+              앱을 불러오지 못했어요
             </h1>
             <p
               style={{
@@ -88,8 +88,8 @@ export default function GlobalError({
                 color: 'var(--muted)',
               }}
             >
-              잠깐 문제가 생겼습니다. 다시 시도해보시고, 계속 같은 화면이 나오면 조금
-              뒤에 열어주세요. 기록은 그대로 남아 있습니다.
+              잠깐 문제가 생겼어요. 다시 시도해보시고, 계속 같은 화면이 나오면 조금 뒤에
+              열어주세요. 기록은 그대로 남아 있어요.
             </p>
             <div
               style={{

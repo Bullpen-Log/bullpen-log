@@ -131,15 +131,15 @@ export function DayClient({
   const thrown = logs.filter((l) => l.sessionType !== REST_SESSION_TYPE);
   const overText = (() => {
     if (!todayLimits || thrown.length === 0) return null;
-    if (!todayLimits.throwing) return '오늘은 쉬는 것이 계획이었습니다.';
+    if (!todayLimits.throwing) return '오늘은 쉬는 것이 계획이었어요.';
     const total = thrown.reduce((sum, l) => sum + l.pitchCount, 0);
     const topIntensity = Math.max(...thrown.map((l) => l.intensity));
     const parts = [
       todayLimits.maxPitches != null && total > todayLimits.maxPitches
-        ? `계획보다 ${total - todayLimits.maxPitches}구 많습니다`
+        ? `계획보다 ${total - todayLimits.maxPitches}구 많아요`
         : null,
       todayLimits.maxIntensity != null && topIntensity > todayLimits.maxIntensity
-        ? `계획 강도(${todayLimits.maxIntensity})를 넘었습니다`
+        ? `계획 강도(${todayLimits.maxIntensity})를 넘었어요`
         : null,
     ].filter(Boolean);
     return parts.length ? `${parts.join(' · ')}.` : null;
@@ -199,12 +199,12 @@ export function DayClient({
       } catch {
         /* 신호가 끊겨 요청 자체가 실패 — 예전에는 확인 창이 아무 말 없이 떠 있었다(잡지 않은 오류) */
         setError(
-          '신호가 약해 기록을 지우지 못했습니다. 신호가 잡히면 다시 시도해주세요.'
+          '신호가 약해 기록을 지우지 못했어요. 신호가 잡히면 다시 시도해주세요.'
         );
         return;
       }
       if (!res.ok) {
-        setError('기록을 지우지 못했습니다. 잠시 뒤에 다시 시도해주세요.');
+        setError('기록을 지우지 못했어요. 잠시 뒤에 다시 시도해주세요.');
         return;
       }
       if (editingId === id) setEditingId(null);
@@ -235,10 +235,10 @@ export function DayClient({
         )}
         <p className={`text-sm text-muted ${modal ? '' : 'mt-2'}`}>
           {future
-            ? '아직 오지 않은 날입니다'
+            ? '아직 오지 않은 날이에요'
             : logs.length > 0
               ? `${logs.length}건의 기록`
-              : '이 날은 아직 기록이 없습니다'}
+              : '이 날은 아직 기록이 없어요'}
         </p>
       </div>
 
@@ -246,7 +246,7 @@ export function DayClient({
 
       {future && (
         <p className="rounded-xl empty-well px-4 py-8 text-center text-sm leading-relaxed text-muted">
-          앞으로 올 날짜에는 기록할 수 없습니다.
+          앞으로 올 날짜에는 기록할 수 없어요.
           <br />
           던지고 나서 그날 또는 그 뒤에 남겨주세요.
         </p>
@@ -257,8 +257,7 @@ export function DayClient({
       {/* 계획을 넘겼으면 알린다. 막지는 않고 알리기만 한다. */}
       {overText && (
         <p className="rounded-lg border border-warn-line bg-warn-bg px-3 py-2 text-xs leading-relaxed text-warn">
-          {overText} 내일 계획에 반영됩니다. 어깨나 팔꿈치가 무거우면 체크인에
-          남겨주세요.
+          {overText} 내일 계획에 반영돼요. 어깨나 팔꿈치가 무거우면 체크인에 남겨주세요.
         </p>
       )}
 
@@ -273,7 +272,7 @@ export function DayClient({
           >
             <div>
               <h2 className="font-bold text-ink">기록 수정</h2>
-              <p className="mt-1 text-sm text-muted">영상도 함께 바꿀 수 있습니다</p>
+              <p className="mt-1 text-sm text-muted">영상도 함께 바꿀 수 있어요</p>
             </div>
             <EntryForm
               date={date}

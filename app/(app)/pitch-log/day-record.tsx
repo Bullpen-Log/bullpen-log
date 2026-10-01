@@ -111,7 +111,7 @@ export function DayRecord({
             </p>
             <div className="mt-3 flex flex-wrap gap-1.5">
               {rested ? (
-                <Badge>던지지 않았습니다</Badge>
+                <Badge>던지지 않았어요</Badge>
               ) : (
                 <>
                   <Badge className="border-sky-soft/60 font-semibold text-sky-strong">
@@ -155,11 +155,11 @@ export function DayRecord({
                   {log.videoPaths.length > 0 && (
                     <p className="text-warn">
                       올려둔 영상 {log.videoPaths.length}개와 그 영상의 폼 분석도 함께
-                      지워집니다.
+                      지워져요.
                     </p>
                   )}
                   <p className="text-muted">
-                    되돌릴 수 없습니다. 수치만 고치실 거라면 옆의 연필을 눌러주세요.
+                    되돌릴 수 없어요. 수치만 고치실 거라면 옆의 연필을 눌러주세요.
                   </p>
                 </div>
               }
@@ -188,7 +188,7 @@ export function DayRecord({
               {log.memo}
             </p>
           ) : (
-            <p className="mt-2 text-sm text-muted">남긴 메모가 없습니다.</p>
+            <p className="mt-2 text-sm text-muted">남긴 메모가 없어요.</p>
           )}
         </div>
       </div>
@@ -229,7 +229,7 @@ export function DayRecord({
                 </>
               ) : (
                 <div className="flex aspect-video items-center justify-center rounded-xl border border-line bg-surface-2 text-xs text-muted">
-                  {urlsPending ? '불러오는 중…' : '영상을 불러올 수 없습니다'}
+                  {urlsPending ? '불러오는 중…' : '영상을 불러올 수 없어요'}
                 </div>
               )}
             </div>
@@ -237,7 +237,7 @@ export function DayRecord({
         </div>
       ) : rested ? null : (
         <p className="flex items-center gap-2 rounded-xl empty-well px-4 py-5 text-sm text-muted">
-          <VideoOff className="h-4 w-4" />이 기록에는 영상이 없습니다
+          <VideoOff className="h-4 w-4" />이 기록에는 영상이 없어요
         </p>
       )}
     </Card>

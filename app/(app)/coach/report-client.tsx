@@ -206,8 +206,8 @@ export function ReportClient({
   if (logs.length === 0) {
     return (
       <EmptyState
-        title="아직 돌아볼 기록이 없습니다"
-        description="투구 기록에서 며칠치를 남기면 이곳에 기간별 정리가 만들어집니다."
+        title="아직 돌아볼 기록이 없어요"
+        description="투구 기록에서 며칠치를 남기면 이곳에 기간별 정리가 만들어져요."
       />
     );
   }
@@ -245,7 +245,7 @@ export function ReportClient({
           </span>
           <span className="mt-1 block text-sm leading-relaxed text-muted">
             7일·30일 기록과 코멘트. 위쪽 지수가 &lsquo;지금&rsquo;을 본다면 여기는
-            &lsquo;그동안&rsquo;을 봅니다.
+            &lsquo;그동안&rsquo;을 봐요.
           </span>
         </span>
       </summary>
@@ -419,8 +419,8 @@ export function ReportClient({
 
             {memoDates.length === 0 ? (
               <EmptyState
-                title="남긴 메모가 없습니다"
-                description="투구 기록의 '특이사항 · 느낀점'에 적은 내용이 이곳에 모입니다."
+                title="남긴 메모가 없어요"
+                description="투구 기록의 '특이사항 · 느낀점'에 적은 내용이 이곳에 모여요."
               />
             ) : (
               <Card className="space-y-4">

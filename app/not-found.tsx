@@ -21,9 +21,9 @@ export default function NotFound() {
     <FallbackShell>
       <p className="text-display text-5xl leading-none text-line-strong">404</p>
       <div className="mt-4">
-        <FallbackTitle>없는 주소입니다</FallbackTitle>
+        <FallbackTitle>없는 주소예요</FallbackTitle>
         <FallbackText>
-          주소가 바뀌었거나 잘못 입력하셨을 수 있습니다. 아래에서 다시 시작해주세요.
+          주소가 바뀌었거나 잘못 입력하셨을 수 있어요. 아래에서 다시 시작해주세요.
         </FallbackText>
       </div>
       <FallbackActions>

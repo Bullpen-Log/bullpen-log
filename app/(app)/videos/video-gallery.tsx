@@ -265,7 +265,7 @@ export function VideoGallery({
         }
       } catch {
         undo();
-        setFeatureError('대표 영상을 저장하지 못했습니다. 잠시 후 다시 시도해주세요.');
+        setFeatureError('대표 영상을 저장하지 못했어요. 잠시 후 다시 시도해주세요.');
       }
     });
   };
@@ -299,10 +299,9 @@ export function VideoGallery({
   if (clips.length === 0) {
     return (
       <p className="rounded-2xl empty-well px-4 py-10 text-center text-sm leading-relaxed text-muted">
-        아직 남긴 투구 기록이 없습니다.
+        아직 남긴 투구 기록이 없어요.
         <br />
-        위의 &apos;오늘 기록 남기기&apos;로 시작하세요. 영상도 그때 함께 올릴 수
-        있습니다.
+        위의 &apos;오늘 기록 남기기&apos;로 시작하세요. 영상도 그때 함께 올릴 수 있어요.
       </p>
     );
   }
@@ -520,12 +519,12 @@ export function VideoGallery({
                           aria-pressed={isFeatured}
                           aria-label={
                             isFeatured
-                              ? `${spokenDate(clip.date)} 대표 영상 — 캘린더에 이 영상이 뜹니다`
+                              ? `${spokenDate(clip.date)} 대표 영상 — 캘린더에 이 영상이 떠요`
                               : `${spokenDate(clip.date)} 대표 영상으로 고르기`
                           }
                           title={
                             isFeatured
-                              ? '캘린더에서 이 날을 누르면 이 영상이 뜹니다'
+                              ? '캘린더에서 이 날을 누르면 이 영상이 떠요'
                               : '이 날의 대표 영상으로 고르기'
                           }
                           className={`absolute left-2 top-2 z-10 inline-flex items-center gap-1 rounded-full px-2 py-1 text-[11px] font-semibold shadow transition-colors ${

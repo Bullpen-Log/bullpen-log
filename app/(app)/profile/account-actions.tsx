@@ -87,7 +87,7 @@ export function AccountActions() {
         open={pwOpen}
         onClose={() => setPwOpen(false)}
         title="비밀번호 바꾸기"
-        description="지금 비밀번호를 먼저 확인합니다."
+        description="지금 비밀번호를 먼저 확인해요."
       >
         <PasswordForm key={`pw-${formSeq}`} onDone={() => setPwOpen(false)} />
       </Modal>
@@ -96,7 +96,7 @@ export function AccountActions() {
         open={outOpen}
         onClose={() => setOutOpen(false)}
         title="회원 탈퇴"
-        description="지금까지 남긴 것이 전부 사라집니다."
+        description="지금까지 남긴 것이 전부 사라져요."
       >
         <LeaveForm key={`out-${formSeq}`} />
       </Modal>
@@ -177,10 +177,10 @@ function LeaveForm() {
         한 번 더 필요한데, 여기서 중요한 것은 "몇 건인가"가 아니라 "전부"다.
       */}
       <div className="space-y-2 rounded-xl border border-danger-line bg-danger-bg px-4 py-3.5 text-sm leading-relaxed text-danger">
-        <p className="font-bold">되돌릴 수 없습니다.</p>
+        <p className="font-bold">되돌릴 수 없어요.</p>
         <p>
-          투구 기록과 올려둔 영상, 컨디션 체크인, 운동 기록, 남긴 글이 모두 지워집니다.
-          같은 이메일로 다시 가입해도 예전 기록은 돌아오지 않습니다.
+          투구 기록과 올려둔 영상, 컨디션 체크인, 운동 기록, 남긴 글이 모두 지워져요.
+          같은 이메일로 다시 가입해도 예전 기록은 돌아오지 않아요.
         </p>
       </div>
 

@@ -42,7 +42,7 @@ export function ArticleForm() {
         />
       </Field>
 
-      <Field label="태그" hint="쉼표로 구분해 최대 5개까지 입력할 수 있습니다.">
+      <Field label="태그" hint="쉼표로 구분해 최대 5개까지 입력할 수 있어요.">
         <Input
           name="tags"
           defaultValue={kept(before, 'tags')}

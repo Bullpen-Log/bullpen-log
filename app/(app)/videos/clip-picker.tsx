@@ -138,7 +138,7 @@ export function ClipPicker({
             <div className="max-h-64 overflow-y-auto overscroll-contain">
               {groups.length === 0 ? (
                 <p className="px-3 py-6 text-center text-xs text-muted">
-                  일치하는 날짜가 없습니다
+                  일치하는 날짜가 없어요
                 </p>
               ) : (
                 groups.map(([month, items]) => (

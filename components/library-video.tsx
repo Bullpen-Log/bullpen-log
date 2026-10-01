@@ -129,10 +129,10 @@ export function LibraryVideo({
       const data = await res.json().catch(() => ({}));
       const found = data.urls?.[path];
 
-      if (!found) throw new Error('영상을 불러올 수 없습니다.');
+      if (!found) throw new Error('영상을 불러올 수 없어요.');
       setUrl(found);
     } catch (err) {
-      setError(err instanceof Error ? err.message : '영상을 불러올 수 없습니다.');
+      setError(err instanceof Error ? err.message : '영상을 불러올 수 없어요.');
     } finally {
       setLoading(false);
     }

@@ -105,8 +105,8 @@ export function GuideForm({
         label="드릴 영상"
         hint={
           editing
-            ? '그대로 두면 지금 영상이 유지됩니다.'
-            : '폰이나 컴퓨터에 있는 영상을 바로 올립니다.'
+            ? '그대로 두면 지금 영상이 유지돼요.'
+            : '폰이나 컴퓨터에 있는 영상을 바로 올려요.'
         }
       >
         <input type="hidden" name="videoPath" value={videos[0]?.path ?? ''} />
@@ -116,7 +116,7 @@ export function GuideForm({
           <div className="flex flex-wrap items-center gap-3 rounded-xl border border-line bg-surface-2 px-4 py-3">
             <Film className="h-4 w-4 shrink-0 text-sky" />
             <span className="min-w-0 flex-1 text-sm text-muted">
-              지금 올려둔 영상을 그대로 씁니다
+              지금 올려둔 영상을 그대로 써요
             </span>
             <button
               type="button"
@@ -152,7 +152,7 @@ export function GuideForm({
         )}
       </Field>
 
-      <Field label="노출 순서" hint="숫자가 작을수록 위에 표시됩니다. 비워두면 0.">
+      <Field label="노출 순서" hint="숫자가 작을수록 위에 표시돼요. 비워두면 0.">
         <Input
           name="sortOrder"
           type="number"

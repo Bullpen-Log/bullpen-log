@@ -29,9 +29,9 @@ export default function RootError({
 
   return (
     <FallbackShell>
-      <FallbackTitle>화면을 불러오지 못했습니다</FallbackTitle>
+      <FallbackTitle>화면을 불러오지 못했어요</FallbackTitle>
       <FallbackText>
-        잠깐 문제가 생겼습니다. 다시 시도해보시고, 계속 같은 화면이 나오면 조금 뒤에
+        잠깐 문제가 생겼어요. 다시 시도해보시고, 계속 같은 화면이 나오면 조금 뒤에
         열어주세요.
       </FallbackText>
       <FallbackActions>

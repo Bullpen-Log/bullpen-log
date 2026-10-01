@@ -80,9 +80,7 @@ export function AddToRoutine({
         return;
       }
       setAddedTo((prev) => [...prev, r.id]);
-      setMessage(
-        res.added ? `'${r.name}'에 담았습니다.` : `'${r.name}'에 이미 있습니다.`
-      );
+      setMessage(res.added ? `'${r.name}'에 담았어요.` : `'${r.name}'에 이미 있어요.`);
     });
   };
 
@@ -113,7 +111,7 @@ export function AddToRoutine({
         <div className="space-y-3">
           {routines.length === 0 ? (
             <p className="text-sm leading-relaxed break-keep text-muted">
-              아직 만든 루틴이 없습니다. 이 운동으로 새 루틴을 시작해 보세요.
+              아직 만든 루틴이 없어요. 이 운동으로 새 루틴을 시작해 보세요.
             </p>
           ) : (
             <ul className="space-y-2">

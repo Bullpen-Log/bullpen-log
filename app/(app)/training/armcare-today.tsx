@@ -76,7 +76,7 @@ export function ArmcareToday({
       <div className="space-y-3">
         <section className="space-y-3 rounded-2xl border border-sky-soft/40 bg-gradient-to-br from-sky/[0.07] via-surface to-surface p-(--block-pad)">
           <p className="text-heading text-xl text-ink">
-            오늘은 {suggested.label}을 권합니다
+            오늘은 {suggested.label}을 권해요
           </p>
           <p className="text-sm font-semibold break-keep text-sky-strong">
             {decision.reason}
@@ -405,7 +405,7 @@ export function Checklist({
                     }
                     prescription={ex.prescription}
                     warning={
-                      unsafe && !done ? '지금 몸 상태에는 권하지 않는 운동입니다' : null
+                      unsafe && !done ? '지금 몸 상태에는 권하지 않는 운동이에요' : null
                     }
                     thumbUrl={ex.thumbUrl}
                     thumbClassName="h-14 w-20 sm:h-16 sm:w-24"

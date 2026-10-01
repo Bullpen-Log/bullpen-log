@@ -172,7 +172,7 @@ function TrendLine({ trend }: { trend: AcwrTrendPoint[] }) {
 
       <p className="mt-1.5 text-[11px] leading-relaxed text-muted">
         <span className="text-muted/70">점선 = 0.8 · 1.3 경계.</span> 요일에 따라
-        오르내립니다 — 훈련이 그대로여도 던진 다음 날은 높고 이틀 쉰 날은 낮게 나옵니다.
+        오르내려요 — 훈련이 그대로여도 던진 다음 날은 높고 이틀 쉰 날은 낮게 나와요.
         하루 값보다 흐름을 보세요.
       </p>
     </div>
@@ -220,7 +220,7 @@ function Primary({ view }: { view: LoadView }) {
             {view.estimated && (
               <p className="mt-2 inline-flex items-center gap-1.5 rounded-full border border-line-strong bg-surface-2 px-2.5 py-1 text-[11px] text-muted">
                 문진 추정 기준 · 실측 반영 {Math.round(view.realWeight * 100)}%
-                <span className="text-muted/60">— 기록할수록 정확해집니다</span>
+                <span className="text-muted/60">— 기록할수록 정확해져요</span>
               </p>
             )}
           </div>
@@ -241,8 +241,8 @@ function Primary({ view }: { view: LoadView }) {
             {view.estimated && (
               <span className="text-muted/70">
                 {' '}
-                다만 아직 평소치가 문진 추정이라 이 숫자는 크게 흔들립니다. 며칠만 더
-                남기면 자리를 잡습니다.
+                다만 아직 평소치가 문진 추정이라 이 숫자는 크게 흔들려요. 며칠만 더
+                남기면 자리를 잡아요.
               </span>
             )}
           </p>
@@ -251,9 +251,7 @@ function Primary({ view }: { view: LoadView }) {
       ) : (
         <div className="rounded-xl empty-well px-4 py-4">
           <p className="text-sm font-medium text-ink">
-            {view.hasRecords
-              ? '아직 지수를 낼 수 없습니다'
-              : '기록을 남기면 표시됩니다'}
+            {view.hasRecords ? '아직 지수를 낼 수 없어요' : '기록을 남기면 표시돼요'}
           </p>
           {view.hasRecords && view.daysNeeded > 0 && (
             <div className="mt-3 space-y-1.5">
@@ -318,11 +316,11 @@ export function LoadPanel({
         missingDays >= missingWarningAt && (
           <p className="border-t border-warn-line bg-warn-bg px-6 py-3 text-[11px] leading-relaxed text-warn sm:px-8">
             최근 {CHRONIC_WINDOW_DAYS}일 중 <strong>{missingDays}일</strong>은 투구
-            기록이 없어 안 던진 날로 계산했습니다. 실제로 던진 날이 있으면{' '}
+            기록이 없어 안 던진 날로 계산했어요. 실제로 던진 날이 있으면{' '}
             <Link href="/today" className="underline">
               투구 일지
             </Link>
-            에서 추가해주세요. 지수가 실제보다 낮게 나오고 있을 수 있습니다.
+            에서 추가해주세요. 지수가 실제보다 낮게 나오고 있을 수 있어요.
           </p>
         )}
 
@@ -334,9 +332,9 @@ export function LoadPanel({
       */}
       {isPitching && throwStreak != null && throwStreak >= STREAK_WARNING && (
         <p className="border-t border-warn-line bg-warn-bg px-6 py-3 text-[11px] leading-relaxed text-warn sm:px-8">
-          최근 4주에 <strong>{throwStreak}일 연속</strong>으로 던진 구간이 있습니다.
-          지수는 평소와 견준 값이라 늘 많이 던져온 사람은 높게 나오지 않습니다 — 숫자와
-          별개로 쉬는 날을 넣는 것이 좋습니다.
+          최근 4주에 <strong>{throwStreak}일 연속</strong>으로 던진 구간이 있어요.
+          지수는 평소와 견준 값이라 늘 많이 던져온 사람은 높게 나오지 않아요 — 숫자와
+          별개로 쉬는 날을 넣는 것이 좋아요.
         </p>
       )}
 

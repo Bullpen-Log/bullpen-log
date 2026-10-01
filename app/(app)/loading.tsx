@@ -16,7 +16,7 @@ export default function Loading() {
   return (
     <div className="stack-page" aria-busy="true" aria-live="polite">
       {/* 화면 낭독기에는 한 줄로 알린다. 회색 덩어리는 읽어봐야 뜻이 없다. */}
-      <span className="sr-only">불러오는 중입니다</span>
+      <span className="sr-only">불러오는 중이에요</span>
 
       {/* 제목 자리 */}
       <div className="space-y-2">

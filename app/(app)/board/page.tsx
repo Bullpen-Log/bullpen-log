@@ -40,11 +40,11 @@ export default async function BoardPage() {
 
       {articles.length === 0 ? (
         <EmptyState
-          title="아직 등록된 자료가 없습니다"
+          title="아직 등록된 자료가 없어요"
           description={
             canWrite
-              ? '첫 번째 자료를 올려보세요. 참고한 링크와 함께 요약을 남기면 좋습니다.'
-              : '투구 역학과 트레이닝 자료가 올라오면 여기에 보입니다.'
+              ? '첫 번째 자료를 올려보세요. 참고한 링크와 함께 요약을 남기면 좋아요.'
+              : '투구 역학과 트레이닝 자료가 올라오면 여기에 보여요.'
           }
           action={
             canWrite ? (

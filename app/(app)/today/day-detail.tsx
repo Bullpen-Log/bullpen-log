@@ -164,7 +164,7 @@ export function DayDetailBlock({
 function Waiting() {
   return (
     <div aria-busy="true" className="space-y-2.5">
-      <span className="sr-only">불러오는 중입니다</span>
+      <span className="sr-only">불러오는 중이에요</span>
       {[80, 60, 70].map((w) => (
         <div
           key={w}
@@ -571,7 +571,7 @@ function DayVideo({ path, label }: { path: string; label: string }) {
           />
         ) : (
           <div className="flex aspect-video w-full items-center justify-center bg-surface-2 text-xs text-muted">
-            {ready ? '영상을 불러오지 못했습니다' : '영상을 불러오는 중…'}
+            {ready ? '영상을 불러오지 못했어요' : '영상을 불러오는 중…'}
           </div>
         )}
       </div>

@@ -117,7 +117,7 @@ export function LogList({ logs }: { logs: Log[] }) {
   if (logs.length === 0) {
     return (
       <p className="rounded-2xl empty-well px-4 py-10 text-center text-sm leading-relaxed text-muted">
-        아직 남긴 기록이 없습니다.
+        아직 남긴 기록이 없어요.
         <br />
         달력에서 날짜를 눌러 첫 기록을 남겨보세요.
       </p>
@@ -240,7 +240,7 @@ export function LogList({ logs }: { logs: Log[] }) {
 
       {months.length === 0 && (
         <p className="rounded-2xl empty-well px-4 py-8 text-center text-sm text-muted">
-          고른 조건에 맞는 기록이 없습니다.
+          고른 조건에 맞는 기록이 없어요.
         </p>
       )}
     </div>

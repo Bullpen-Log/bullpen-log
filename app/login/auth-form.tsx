@@ -282,7 +282,7 @@ function LoginForm({
       <AuthCard
         titleKey="login"
         title="로그인"
-        desc="다시 오신 걸 환영합니다. 기록을 이어서 관리하려면 로그인하세요."
+        desc="다시 오신 걸 환영해요. 기록을 이어서 관리하려면 로그인하세요."
         focusHeading={focusHeading}
         footer={
           <>
@@ -326,13 +326,13 @@ function LoginForm({
               ref={stayRef}
               name="stayLoggedIn"
               label="자동 로그인"
-              title="브라우저를 닫아도 30일 동안 로그인이 유지됩니다. 공용 컴퓨터에서는 꺼주세요."
+              title="브라우저를 닫아도 30일 동안 로그인이 유지돼요. 공용 컴퓨터에서는 꺼주세요."
               onChange={(on) => saveLoginPrefs({ stayLoggedIn: on })}
             />
             <CheckLine
               ref={rememberRef}
               label="아이디 기억하기"
-              title="다음에 올 때 이메일 칸을 채워 둡니다. 비밀번호는 저장하지 않습니다."
+              title="다음에 올 때 이메일 칸을 채워 둬요. 비밀번호는 저장하지 않아요."
               onChange={rememberNow}
             />
           </div>
@@ -352,43 +352,43 @@ const STEPS = [
   {
     key: 'basic',
     title: '계정 만들기',
-    desc: '생년월일은 나이에 맞는 안전한 투구수를, 성별은 영양 목표를 계산하는 데 씁니다.',
+    desc: '생년월일은 나이에 맞는 안전한 투구수를, 성별은 영양 목표를 계산하는 데 써요.',
     fields: ['email', 'nickname', 'birthDate', 'sex'],
   },
   {
     key: 'password',
     title: '비밀번호 만들기',
-    desc: '8자 이상이면 됩니다. 다른 곳에서 쓰지 않는 것으로 정해 주세요.',
+    desc: '8자 이상이면 돼요. 다른 곳에서 쓰지 않는 것으로 정해 주세요.',
     fields: ['password', 'passwordConfirm'],
   },
   {
     key: 'terms',
     title: '약관 동의',
-    desc: '두 가지 모두 동의해야 가입할 수 있어요. 눌러서 내용을 볼 수 있습니다.',
+    desc: '두 가지 모두 동의해야 가입할 수 있어요. 눌러서 내용을 볼 수 있어요.',
     fields: ['agreeTerms', 'agreePrivacy'],
   },
   {
     key: 'body',
     title: '어느 손으로 던지세요?',
-    desc: '이제 이 앱에 필요한 것을 몇 가지 여쭙니다. 모두 가입한 뒤 내 정보에서 바꿀 수 있어요.',
+    desc: '이제 이 앱에 필요한 것을 몇 가지 여쭤볼게요. 모두 가입한 뒤 내 정보에서 바꿀 수 있어요.',
     fields: ['throwingHand', 'heightCm'],
   },
   {
     key: 'pitching',
     title: '평소 얼마나 던지시나요?',
-    desc: '부하 지수를 첫날부터 보여드리기 위한 3문항입니다.',
+    desc: '부하 지수를 첫날부터 보여드리기 위한 3문항이에요.',
     fields: ['baselineFreq', 'baselineVolume', 'baselineIntensity'],
   },
   {
     key: 'weight',
     title: '웨이트는 얼마나 하시나요?',
-    desc: '운동 부하를 첫날부터 보여드리고 경력에 맞는 운동을 고르기 위한 2문항입니다.',
+    desc: '운동 부하를 첫날부터 보여드리고 경력에 맞는 운동을 고르기 위한 2문항이에요.',
     fields: ['baselineWorkoutFreq', 'trainingLevel'],
   },
   {
     key: 'league',
     title: '어디서 야구를 하시나요?',
-    desc: '생년월일에 맞는 소속만 고를 수 있어요. 나중에 비슷한 또래와 견줘 보여드리려고 여쭙습니다.',
+    desc: '생년월일에 맞는 소속만 고를 수 있어요. 나중에 비슷한 또래와 견줘 보여드리려고 여쭤봐요.',
     fields: ['competitionLevel'],
   },
 ] as const;
@@ -426,12 +426,12 @@ function checkStep(key: StepKey, form: HTMLFormElement, today: string): Problem 
       const email = get('email');
       if (!email) return { error: '이메일을 입력해주세요.', field: 'email' };
       if (!EMAIL_RE.test(email)) {
-        return { error: '올바른 이메일 형식이 아닙니다.', field: 'email' };
+        return { error: '올바른 이메일 형식이 아니에요.', field: 'email' };
       }
       const nickname = get('nickname');
       if (!nickname) return { error: '닉네임을 입력해주세요.', field: 'nickname' };
       if (nickname.length < 2) {
-        return { error: '닉네임은 2자 이상이어야 합니다.', field: 'nickname' };
+        return { error: '닉네임은 2자 이상이어야 해요.', field: 'nickname' };
       }
       const birth = get('birthDate');
       if (!birth) return { error: '생년월일을 입력해주세요.', field: 'birthDate' };
@@ -450,13 +450,13 @@ function checkStep(key: StepKey, form: HTMLFormElement, today: string): Problem 
       const password = String(fd.get('password') ?? '');
       const confirm = String(fd.get('passwordConfirm') ?? '');
       if (password.length < 8) {
-        return { error: '비밀번호는 8자 이상이어야 합니다.', field: 'password' };
+        return { error: '비밀번호는 8자 이상이어야 해요.', field: 'password' };
       }
       if (!confirm) {
         return { error: '비밀번호를 한 번 더 입력해주세요.', field: 'passwordConfirm' };
       }
       if (password !== confirm) {
-        return { error: '비밀번호가 일치하지 않습니다.', field: 'passwordConfirm' };
+        return { error: '비밀번호가 일치하지 않아요.', field: 'passwordConfirm' };
       }
       return null;
     }
@@ -1168,7 +1168,7 @@ function SignupWizard({
                 개인정보 처리방침
               </Link>
               에 동의합니다. 여기에는 어깨·팔꿈치 통증 같은{' '}
-              <strong>건강에 관한 정보</strong>가 들어갑니다.{' '}
+              <strong>건강에 관한 정보</strong>가 들어가요.{' '}
               <span className="text-muted">(필수)</span>
             </AgreeLine>
           </div>
@@ -1185,7 +1185,7 @@ function SignupWizard({
               required
               invalid={invalid('throwingHand')}
             />
-            <Field label="키 (cm)" hint="선택 — 나중에 적어도 됩니다.">
+            <Field label="키 (cm)" hint="선택 — 나중에 적어도 돼요.">
               <Input
                 name="heightCm"
                 type="number"

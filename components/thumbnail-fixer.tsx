@@ -40,13 +40,13 @@ export function ThumbnailFixer({
       });
       const data = await res.json().catch(() => ({}));
       const url = data.urls?.[videoPath];
-      if (!url) throw new Error('영상을 불러오지 못했습니다.');
+      if (!url) throw new Error('영상을 불러오지 못했어요.');
 
       // 2) 브라우저에서 한 장면을 캡처한다.
       const shot = await captureThumbnail(url);
       if (!shot) {
         throw new Error(
-          '이 브라우저에서 영상의 장면을 읽지 못했습니다. 다른 브라우저에서 시도하거나, 영상을 H.264(높은 호환성)로 다시 저장해 올려보세요.'
+          '이 브라우저에서 영상의 장면을 읽지 못했어요. 다른 브라우저에서 시도하거나, 영상을 H.264(높은 호환성)로 다시 저장해 올려보세요.'
         );
       }
 
@@ -63,14 +63,14 @@ export function ThumbnailFixer({
           }),
         })
       ).json();
-      if (!target?.signedUrl) throw new Error('이미지를 올릴 곳을 받지 못했습니다.');
+      if (!target?.signedUrl) throw new Error('이미지를 올릴 곳을 받지 못했어요.');
 
       const put = await fetch(target.signedUrl, {
         method: 'PUT',
         headers: { 'Content-Type': 'image/jpeg' },
         body: shot,
       });
-      if (!put.ok) throw new Error('이미지를 올리지 못했습니다.');
+      if (!put.ok) throw new Error('이미지를 올리지 못했어요.');
 
       // 4) 만든 이미지를 이 항목에 연결한다.
       const form = new FormData();
@@ -79,11 +79,11 @@ export function ThumbnailFixer({
       const saved = await onSave(form);
 
       if (saved?.error) throw new Error(saved.error);
-      setMessage(saved?.success ?? '미리보기 이미지를 만들었습니다.');
+      setMessage(saved?.success ?? '미리보기 이미지를 만들었어요.');
     } catch (err) {
       setFailed(true);
       setMessage(
-        err instanceof Error ? err.message : '미리보기 이미지를 만들지 못했습니다.'
+        err instanceof Error ? err.message : '미리보기 이미지를 만들지 못했어요.'
       );
     } finally {
       setBusy(false);

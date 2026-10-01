@@ -55,7 +55,7 @@ const METRICS = [
     label: '투구수',
     unit: '구',
     kind: 'bar',
-    hint: '그날 던진 개수입니다.',
+    hint: '그날 던진 개수예요.',
     sparse: false,
   },
   {
@@ -63,7 +63,7 @@ const METRICS = [
     label: '누적 부하',
     unit: '',
     kind: 'line',
-    hint: '그날까지 최근 7일 부하의 합입니다. (부하 = 투구수 × 강도)',
+    hint: '그날까지 최근 7일 부하의 합이에요. (부하 = 투구수 × 강도)',
     sparse: false,
   },
   {
@@ -71,7 +71,7 @@ const METRICS = [
     label: '최고 구속',
     unit: 'km/h',
     kind: 'line',
-    hint: '던진 날만 값이 있습니다. 쉰 날은 건너뛰고 이어집니다.',
+    hint: '던진 날만 값이 있어요. 쉰 날은 건너뛰고 이어져요.',
     /*
      * 던진 날에만 값이 있어 대부분의 칸이 비어 있다.
      * 다른 지표처럼 점을 숨기고 빈 칸에서 선을 끊으면, 하루만 던진 날은
@@ -84,7 +84,7 @@ const METRICS = [
     label: '투구 강도',
     unit: '/ 10',
     kind: 'bar',
-    hint: '스스로 매긴 그날의 힘 쓴 정도입니다.',
+    hint: '스스로 매긴 그날의 힘 쓴 정도예요.',
     sparse: false,
   },
 ] as const;

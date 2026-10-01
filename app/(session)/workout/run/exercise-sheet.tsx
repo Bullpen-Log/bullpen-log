@@ -161,7 +161,7 @@ export function ExerciseSheet({
                     onClick={() => drop(i)}
                     disabled={busy || done > 0 || exercises.length === 1}
                     aria-label={`${ex.title} 오늘 빼기`}
-                    title={done > 0 ? '기록을 남긴 운동은 뺄 수 없습니다' : undefined}
+                    title={done > 0 ? '기록을 남긴 운동은 뺄 수 없어요' : undefined}
                     className="ml-2 grid h-11 w-11 place-items-center rounded-lg text-muted transition-colors active:text-warn disabled:opacity-25"
                   >
                     <X className="h-5 w-5" />
@@ -173,7 +173,7 @@ export function ExerciseSheet({
         </ol>
 
         <p className="px-4 pb-3 text-center text-[11px] leading-relaxed text-muted/80">
-          뺀 운동은 오늘만 빠집니다. 트레이닝 화면의 일정은 그대로 남습니다.
+          뺀 운동은 오늘만 빠져요. 트레이닝 화면의 일정은 그대로 남아요.
         </p>
       </div>
     </div>

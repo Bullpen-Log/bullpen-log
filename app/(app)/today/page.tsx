@@ -42,7 +42,7 @@ function now() {
 function TodaySkeleton() {
   return (
     <div aria-busy="true" className="stack-page">
-      <span className="sr-only">오늘 기록을 불러오는 중입니다</span>
+      <span className="sr-only">오늘 기록을 불러오는 중이에요</span>
       <div className="grid gap-block lg:grid-cols-3">
         <Skeleton className="h-40 rounded-2xl" />
         <Skeleton className="h-40 rounded-2xl" />
@@ -356,12 +356,12 @@ async function TodayBody({ user }: { user: Awaited<ReturnType<typeof requireUser
           <p className="text-sm leading-relaxed text-warn">
             최근 투구 일지 메모에{' '}
             <strong>{facts.condition.painWordsInMemo.join(', ')}</strong> 같은 표현이
-            있었습니다. 실제로 통증이 있는지 알 수 없어, 확인될 때까지 투구는 휴식으로
-            두고 운동은 회복·가동성 수준만 골랐습니다.
+            있었어요. 실제로 통증이 있는지 알 수 없어, 확인될 때까지 투구는 휴식으로
+            두고 운동은 회복·가동성 수준만 골랐어요.
           </p>
           <p className="text-sm leading-relaxed text-warn">
             통증이 있다면 던지지 말고 전문의와 상담하세요. 통증이 아니라면 오른쪽 위
-            알림(종)에서 오늘 체크인을 남겨주시면 바로 평소 계획으로 돌아갑니다.
+            알림(종)에서 오늘 체크인을 남겨주시면 바로 평소 계획으로 돌아가요.
           </p>
         </Card>
       )}
@@ -369,10 +369,10 @@ async function TodayBody({ user }: { user: Awaited<ReturnType<typeof requireUser
       {/* 최근 체크인에 통증이 있었던 경우. */}
       {plan.recovering && !plan.needsPainCheck && !picked.halted && (
         <Card className="space-y-1 border-warn-line bg-warn-bg">
-          <p className="text-sm font-bold text-warn">회복 수준으로 낮춰 배정했습니다</p>
+          <p className="text-sm font-bold text-warn">회복 수준으로 낮춰 배정했어요</p>
           <p className="text-sm leading-relaxed text-warn">
             최근 체크인에 통증 기록이 있어, 오늘은 무게를 다루는 운동을 빼고 회복·가동성
-            운동만 골랐습니다. 통증이 다시 느껴지면 오른쪽 위 알림(종)에서 오늘 체크인에
+            운동만 골랐어요. 통증이 다시 느껴지면 오른쪽 위 알림(종)에서 오늘 체크인에
             그대로 남겨주세요.
           </p>
         </Card>
@@ -391,9 +391,8 @@ async function TodayBody({ user }: { user: Awaited<ReturnType<typeof requireUser
           <p className="mt-1.5 text-sm leading-relaxed text-ink/80">
             오른쪽 위 <strong className="text-ink">알림(종)</strong>을 눌러{' '}
             <strong className="text-ink">오늘 투구</strong>를 먼저 남겨주세요. 던진 양을
-            알아야 부하를 재고 무리가 안 되는 운동을 고를 수 있습니다. 오늘 안
-            던지셨다면 <strong className="text-ink">‘오늘 안 던졌어요’</strong>를
-            눌러주시면 됩니다.
+            알아야 부하를 재고 무리가 안 되는 운동을 고를 수 있어요. 오늘 안 던지셨다면{' '}
+            <strong className="text-ink">‘오늘 안 던졌어요’</strong>를 눌러주시면 돼요.
           </p>
         </div>
       )}
@@ -404,13 +403,13 @@ async function TodayBody({ user }: { user: Awaited<ReturnType<typeof requireUser
           pitching={{
             ratio: facts.load.ratio,
             zone: facts.load.zone,
-            waiting: core.hasLogs ? '기록을 쌓는 중' : '기록하면 나옵니다',
+            waiting: core.hasLogs ? '기록을 쌓는 중' : '기록하면 나와요',
           }}
           training={{
             ratio: training.ratio,
             zone: training.zone,
             waiting:
-              training.historyDays > 0 ? '기록을 쌓는 중' : '운동을 체크하면 나옵니다',
+              training.historyDays > 0 ? '기록을 쌓는 중' : '운동을 체크하면 나와요',
           }}
           week={{
             pitches: facts.volume.current.totalPitches,

@@ -417,7 +417,7 @@ export function MuscleMap3D({
         onLook={(view) => engine.current?.look(view)}
         hint="좌우로 끌어 돌리기 · 근육 누르기"
         loadingText="3D 근육 지도를 불러오는 중…"
-        errorText="3D 모델을 불러오지 못했습니다. 아래 목록으로 보세요."
+        errorText="3D 모델을 불러오지 못했어요. 아래 목록으로 보세요."
       />
     </div>
   );

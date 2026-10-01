@@ -103,7 +103,7 @@ export function DoneCard({
         </ul>
       ) : (
         <p className="rounded-xl bg-surface px-3 py-3 text-center text-xs text-muted">
-          남긴 세트 없이 마쳤습니다.
+          남긴 세트 없이 마쳤어요.
         </p>
       )}
 

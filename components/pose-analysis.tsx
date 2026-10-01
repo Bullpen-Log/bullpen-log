@@ -337,7 +337,7 @@ function DeltaBlock({
         ))}
       </div>
       <p className="text-[11px] leading-relaxed text-muted/60">
-        같은 조건(측면·같은 거리)으로 찍었을 때만 의미 있는 비교입니다.
+        같은 조건(측면·같은 거리)으로 찍었을 때만 의미 있는 비교예요.
       </p>
     </div>
   );
@@ -455,7 +455,7 @@ export function PoseAnalysis({
       setTrack(result);
       setPhase('ready');
     } catch (err) {
-      setError(err instanceof Error ? err.message : '분석에 실패했습니다.');
+      setError(err instanceof Error ? err.message : '분석에 실패했어요.');
       setPhase('error');
     }
   };
@@ -494,7 +494,7 @@ export function PoseAnalysis({
       })
       .catch(() => {
         setSaveState('error');
-        setSaveError('저장에 실패했습니다. 잠시 후 다시 시도해주세요.');
+        setSaveError('저장에 실패했어요. 잠시 후 다시 시도해주세요.');
       });
   };
 
@@ -580,7 +580,7 @@ export function PoseAnalysis({
         <p className="flex items-center gap-2 text-xs text-muted">
           <Loader2 className="h-3.5 w-3.5 animate-spin text-sky" />
           {phase === 'loading'
-            ? '분석 도구 준비 중… (처음 한 번만 내려받습니다)'
+            ? '분석 도구 준비 중… (처음 한 번만 내려받아요)'
             : `관절 위치 추출 중… ${Math.round(progress * 100)}%`}
         </p>
         <div className="h-1.5 overflow-hidden rounded-full bg-surface">
@@ -590,7 +590,7 @@ export function PoseAnalysis({
           />
         </div>
         <p className="text-[11px] text-muted/60">
-          영상은 전송되지 않고 이 기기 안에서만 분석됩니다.
+          영상은 전송되지 않고 이 기기 안에서만 분석돼요.
         </p>
       </div>
     );
@@ -678,10 +678,9 @@ export function PoseAnalysis({
       {track && track.coverage < 0.8 && (
         <div className="space-y-2 rounded-lg border border-warn-line bg-warn-bg px-3 py-2">
           <p className="text-[11px] leading-relaxed text-warn">
-            영상 구간의 {Math.round(track.coverage * 100)}%에서만 몸을 인식했습니다.
-            인식이 끊긴 구간에서는 스켈레톤이 표시되지 않습니다. 일시적인 문제일 수
-            있으니 다시 분석해보고, 계속 그러면 밝은 곳에서 전신이 크게 나오게 다시
-            찍어주세요.
+            영상 구간의 {Math.round(track.coverage * 100)}%에서만 몸을 인식했어요.
+            인식이 끊긴 구간에서는 스켈레톤이 표시되지 않아요. 일시적인 문제일 수 있으니
+            다시 분석해보고, 계속 그러면 밝은 곳에서 전신이 크게 나오게 다시 찍어주세요.
           </p>
           <button
             type="button"
@@ -736,7 +735,7 @@ export function PoseAnalysis({
                 setHandedLabel(events.throwingSide === 'right' ? 'left' : 'right');
                 setSaveState('idle');
               }}
-              title="투구 방향의 뒤에서 찍힌 영상은 좌우가 뒤집혀 인식될 수 있습니다. 표기만 바뀌고 측정값은 그대로입니다."
+              title="투구 방향의 뒤에서 찍힌 영상은 좌우가 뒤집혀 인식될 수 있어요. 표기만 바뀌고 측정값은 그대로예요."
               className="ml-auto rounded-lg border border-line px-2.5 py-1.5 text-[11px] text-muted transition-colors hover:border-sky-soft hover:text-ink"
             >
               {events.throwingSide === 'right'
@@ -801,37 +800,37 @@ export function PoseAnalysis({
         {events && !events.sideViewOk ? (
           <p className="text-[11px] leading-relaxed text-muted/60">
             구간을 직접 지정할 수는 있지만, 촬영 각도 때문에 수치는 실제와 다르게
-            나옵니다.
+            나와요.
           </p>
         ) : events && !events.kneeUp && !events.footPlant && !events.release ? (
           <p className="text-[11px] leading-relaxed text-warn">
-            투구 동작을 찾지 못했습니다. 팔을 휘두르는 장면이 화면 안에 다 들어와 있는지
+            투구 동작을 찾지 못했어요. 팔을 휘두르는 장면이 화면 안에 다 들어와 있는지
             확인해주세요. 구간을 누른 뒤 ◀ ▶로 프레임을 맞추고 직접 지정하면 수치는
-            똑같이 계산됩니다.
+            똑같이 계산돼요.
           </p>
         ) : (
           <p className="text-[11px] leading-relaxed text-muted/60">
-            구간을 누르면 그 순간으로 이동합니다. 위치가 틀리면 ◀ ▶로 맞춘 뒤 지정을
-            누르세요. ?는 그 순간 관절 인식이 흐렸다는 표시입니다.
+            구간을 누르면 그 순간으로 이동해요. 위치가 틀리면 ◀ ▶로 맞춘 뒤 지정을
+            누르세요. ?는 그 순간 관절 인식이 흐렸다는 표시예요.
           </p>
         )}
       </div>
 
       {events && !events.sideViewOk && (
         <p className="rounded-lg border border-warn-line bg-warn-bg px-3 py-2 text-[11px] leading-relaxed text-warn">
-          투구 방향의 앞이나 뒤에서 찍힌 영상이라 자동 분석을 하지 않았습니다. 이
+          투구 방향의 앞이나 뒤에서 찍힌 영상이라 자동 분석을 하지 않았어요. 이
           각도에서는 몸이 화면 안쪽으로 움직여 거리와 각도를 잴 수 없어, 숫자를 내면
-          전부 틀린 값이 됩니다. 위 촬영 가이드대로 1루 또는 3루 쪽에서 옆모습으로
-          찍어주세요. 스켈레톤은 그대로 보실 수 있습니다.
+          전부 틀린 값이 돼요. 위 촬영 가이드대로 1루 또는 3루 쪽에서 옆모습으로
+          찍어주세요. 스켈레톤은 그대로 보실 수 있어요.
         </p>
       )}
 
       {badCameraAngle && (
         <p className="rounded-lg border border-warn-line bg-warn-bg px-3 py-2 text-[11px] leading-relaxed text-warn">
-          스트라이드가 신장의 {strideMetric?.value}%로 측정됐습니다 — 옆(90도)이 아닌
-          각도에서 찍힌 영상 같습니다. 이런 영상은 거리·각도 수치가 실제보다 작게 나오고
-          좌/우투 인식도 뒤집힐 수 있습니다. 위 촬영 가이드대로 옆에서 다시 찍으면
-          정확해집니다.
+          스트라이드가 신장의 {strideMetric?.value}%로 측정됐어요 — 옆(90도)이 아닌
+          각도에서 찍힌 영상 같아요. 이런 영상은 거리·각도 수치가 실제보다 작게 나오고
+          좌/우투 인식도 뒤집힐 수 있어요. 위 촬영 가이드대로 옆에서 다시 찍으면
+          정확해져요.
         </p>
       )}
 
@@ -840,8 +839,8 @@ export function PoseAnalysis({
         <div className="space-y-1.5">
           <MetricsGrid metrics={metrics} />
           <p className="text-[11px] leading-relaxed text-muted/60">
-            90도 측면 촬영 기준의 근사값입니다. 절대값보다는 같은 조건으로 찍은 지난
-            영상과의 변화를 보세요. 구간을 수동 지정하면 수치도 다시 계산됩니다.
+            90도 측면 촬영 기준의 근사값이에요. 절대값보다는 같은 조건으로 찍은 지난
+            영상과의 변화를 보세요. 구간을 수동 지정하면 수치도 다시 계산돼요.
           </p>
 
           {previous && <DeltaBlock current={metrics} previous={previous} />}
@@ -868,7 +867,7 @@ export function PoseAnalysis({
                         : '이 분석 저장'}
                 </button>
                 <span className="text-[11px] text-muted/60">
-                  저장하면 다음에 재분석 없이 바로 보이고, 이후 세션과 자동 비교됩니다.
+                  저장하면 다음에 재분석 없이 바로 보이고, 이후 세션과 자동 비교돼요.
                 </span>
                 {saveState === 'error' && saveError && (
                   <span className="text-[11px] text-danger">{saveError}</span>
@@ -880,8 +879,8 @@ export function PoseAnalysis({
 
       {lowQuality && (
         <p className="rounded-lg border border-warn-line bg-warn-bg px-3 py-2 text-[11px] leading-relaxed text-warn">
-          관절 인식 신뢰도가 낮습니다. 밝은 곳에서 전신이 다 나오게, 배경과 구분되는
-          옷으로 다시 찍으면 좋아집니다. 이 상태의 측정값은 신뢰하기 어렵습니다.
+          관절 인식 신뢰도가 낮아요. 밝은 곳에서 전신이 다 나오게, 배경과 구분되는
+          옷으로 다시 찍으면 좋아져요. 이 상태의 측정값은 신뢰하기 어려워요.
         </p>
       )}
     </div>

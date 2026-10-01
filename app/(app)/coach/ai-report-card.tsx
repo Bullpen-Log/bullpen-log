@@ -38,7 +38,7 @@ function GenerateButton({ label }: { label: string }) {
       className="inline-flex items-center gap-2 rounded-xl bg-sky px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-sky-strong disabled:cursor-not-allowed disabled:opacity-50"
     >
       <Sparkles className={`h-4 w-4 ${pending ? 'animate-pulse' : ''}`} />
-      {pending ? '분석 중… (10초쯤 걸립니다)' : label}
+      {pending ? '분석 중… (10초쯤 걸려요)' : label}
     </button>
   );
 }
@@ -146,7 +146,7 @@ export function ReportBody({ report }: { report: StoredReport }) {
         <div className="rounded-xl border border-danger-line bg-danger-bg p-5">
           <p className="flex items-center gap-2 text-sm font-bold text-danger">
             <AlertTriangle className="h-4 w-4" />
-            투구 계획을 제공하지 않았습니다
+            투구 계획을 제공하지 않았어요
           </p>
           <p className="mt-2 text-sm leading-relaxed text-danger/80">
             {report.haltReason}
@@ -266,8 +266,8 @@ export function ReportBody({ report }: { report: StoredReport }) {
       )}
 
       <p className="text-[11px] leading-relaxed text-muted/60">
-        수치와 계획은 기록에서 규칙으로 계산한 값이고, 문장은 그 수치를 설명한 것입니다.
-        훈련량 관리를 돕는 참고 자료이며 의학적 진단이 아닙니다. 통증이 있으면 수치와
+        수치와 계획은 기록에서 규칙으로 계산한 값이고, 문장은 그 수치를 설명한 것이에요.
+        훈련량 관리를 돕는 참고 자료이며 의학적 진단이 아니에요. 통증이 있으면 수치와
         관계없이 전문의와 상담하세요.
       </p>
     </div>
@@ -305,8 +305,8 @@ export function AiReportCard({
           <h2 className="text-sm font-bold text-ink">리포트</h2>
           <p className="mt-0.5 text-xs text-muted">
             {report
-              ? `${report.asOf} 기준 · 다시 만들기 전까지 내용이 바뀌지 않습니다`
-              : '기록을 바탕으로 앞으로 3일 투구 계획을 만듭니다'}
+              ? `${report.asOf} 기준 · 다시 만들기 전까지 내용이 바뀌지 않아요`
+              : '기록을 바탕으로 앞으로 3일 투구 계획을 만들어요'}
           </p>
         </div>
 
@@ -330,7 +330,7 @@ export function AiReportCard({
 
         {!aiReady && (
           <p className="rounded-xl empty-well px-4 py-6 text-center text-sm text-muted">
-            AI 기능이 아직 설정되지 않았습니다.
+            AI 기능이 아직 설정되지 않았어요.
           </p>
         )}
 

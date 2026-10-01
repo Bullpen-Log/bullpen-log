@@ -73,7 +73,7 @@ export function ExerciseNote({
         settle((d) => ({
           ...d,
           error:
-            '신호가 없어 메모를 저장하지 못했습니다. 신호가 잡히면 다시 눌러 주세요.',
+            '신호가 없어 메모를 저장하지 못했어요. 신호가 잡히면 다시 눌러 주세요.',
         }));
       }
     });
@@ -125,8 +125,7 @@ export function ExerciseNote({
         />
         <p className="mt-1 flex gap-2 text-[11px] leading-relaxed text-muted">
           <span className="flex-1 break-keep">
-            다음에 이 운동을 할 때와 라이브러리에서 보입니다. 비우고 저장하면
-            지워집니다.
+            다음에 이 운동을 할 때와 라이브러리에서 보여요. 비우고 저장하면 지워져요.
           </span>
           <span className="shrink-0 tabular-nums">
             {writing.text.length}/{EXERCISE_NOTE_MAX}

@@ -136,7 +136,7 @@ async function PastReport({ user, date }: { user: User; date: string }) {
           <header className="border-b border-line px-5 py-4 sm:px-6">
             <h3 className="text-sm font-bold text-ink">{spokenDate(date)} 리포트</h3>
             <p className="mt-0.5 text-xs text-muted">
-              이 날 기록으로 만든 리포트입니다. 그때 수치와 계획을 그대로 보여줍니다.
+              이 날 기록으로 만든 리포트예요. 그때 수치와 계획을 그대로 보여줘요.
             </p>
           </header>
           <div className="px-5 py-5 sm:px-6 sm:py-6">
@@ -199,7 +199,7 @@ function PastReports({ reports }: { reports: ReportSummary[] }) {
                       투구 계획을 내지 않은 날
                     </span>
                   ) : (
-                    (r.headline ?? '내용을 읽을 수 없습니다')
+                    (r.headline ?? '내용을 읽을 수 없어요')
                   )}
                 </span>
               </span>
@@ -283,7 +283,7 @@ async function LoadView({
       {tab === 'pitch' && <ReportClient logs={serialized} today={asOf} />}
 
       <p className="pb-2 text-center text-[11px] leading-relaxed text-muted/60">
-        부하 지수는 훈련량 관리를 돕는 참고 지표입니다. 통증이 있다면 수치와 관계없이
+        부하 지수는 훈련량 관리를 돕는 참고 지표예요. 통증이 있다면 수치와 관계없이
         전문의와 상담하세요.
       </p>
     </div>

@@ -183,7 +183,7 @@ function TargetVelocityField({ base }: { base: string }) {
   return (
     <Field
       label={`목표 구속 (${speedLabel(unit)})`}
-      hint="선택 입력. 비워두면 목표를 지웁니다."
+      hint="선택 입력. 비워두면 목표를 지워요."
     >
       <Input
         type="number"
@@ -291,7 +291,7 @@ export function ProfileForm({
 
         <Field
           label="생년월일"
-          hint="나이에 따라 안전한 투구수 한도와 영양 기준이 달라집니다."
+          hint="나이에 따라 안전한 투구수 한도와 영양 기준이 달라져요."
         >
           <Input
             name="birthDate"
@@ -306,7 +306,7 @@ export function ProfileForm({
         <BodyField
           name="heightCm"
           label="키"
-          hint="영상에서 잰 보폭을 몸 크기로 견줄 때 씁니다."
+          hint="영상에서 잰 보폭을 몸 크기로 견줄 때 써요."
           base={pick('heightCm', heightCm)}
           kind="length"
           integer
@@ -328,7 +328,7 @@ export function ProfileForm({
         <BodyField
           name="wingspanCm"
           label="윙스팬"
-          hint="양팔을 벌린 길이. 보통 키와 비슷하거나 조금 깁니다."
+          hint="양팔을 벌린 길이. 보통 키와 비슷하거나 조금 길어요."
           base={pick('wingspanCm', wingspanCm)}
           kind="length"
           min={MIN_WINGSPAN_CM}
@@ -347,7 +347,7 @@ export function ProfileForm({
       <RadioGroup
         name="sex"
         label="성별"
-        hint="영양 목표(기초대사량)를 계산하는 데 씁니다."
+        hint="영양 목표(기초대사량)를 계산하는 데 써요."
         options={SEX_OPTIONS}
         selected={pick('sex', sex)}
         compact
@@ -357,7 +357,7 @@ export function ProfileForm({
       <RadioGroup
         name="dailyWorkoutMinutes"
         label="하루 운동 시간"
-        hint="트레이닝 화면이 이 시간에 맞춰 운동 개수를 정합니다. 몸 상태가 안 좋은 날은 자동으로 줄어듭니다."
+        hint="트레이닝 화면이 이 시간에 맞춰 운동 개수를 정해요. 몸 상태가 안 좋은 날은 자동으로 줄어요."
         options={WORKOUT_MINUTES_CHOICES.map((m) => ({ name: `${m}분` }))}
         selected={pick(
           'dailyWorkoutMinutes',
@@ -375,7 +375,7 @@ export function ProfileForm({
       <div className="flex flex-wrap items-center gap-x-3 gap-y-2 border-t border-line pt-5">
         <p className="text-sm text-muted">
           웨이트 경력 · 훈련 목표 · 가지고 있는 장비는{' '}
-          <strong className="text-ink">트레이닝</strong> 화면에서 고릅니다.
+          <strong className="text-ink">트레이닝</strong> 화면에서 골라요.
         </p>
         <Link
           href="/today"
@@ -390,8 +390,8 @@ export function ProfileForm({
         <p className="text-sm font-semibold text-ink">
           평소 얼마나 던지시나요?
           <span className="mt-1 block text-xs font-normal text-muted">
-            이 답으로 부하 지수를 기록 첫날부터 계산합니다. 상황이 바뀌면 언제든 고칠 수
-            있습니다.
+            이 답으로 부하 지수를 기록 첫날부터 계산해요. 상황이 바뀌면 언제든 고칠 수
+            있어요.
           </span>
         </p>
         <RadioGroup
@@ -422,7 +422,7 @@ export function ProfileForm({
         <p className="text-sm font-semibold text-ink">
           평소 웨이트는 얼마나 하시나요?
           <span className="mt-1 block text-xs font-normal text-muted">
-            이 답으로 운동 부하 지수를 기록 첫날부터 계산합니다.
+            이 답으로 운동 부하 지수를 기록 첫날부터 계산해요.
           </span>
         </p>
         <RadioGroup
@@ -437,7 +437,7 @@ export function ProfileForm({
         <RadioGroup
           name="throwingHand"
           label="던지는 손"
-          hint="투구폼 분석에서 어느 팔을 볼지 정합니다."
+          hint="투구폼 분석에서 어느 팔을 볼지 정해요."
           options={THROWING_HANDS.map((name) => ({ name }))}
           selected={pick('throwingHand', baseline.throwingHand)}
         />
@@ -448,7 +448,7 @@ export function ProfileForm({
         <LevelChoices
           size="sm"
           legend="어디서 야구를 하시나요"
-          hint="훈련 내용을 바꾸는 값이 아닙니다. 나중에 비슷한 또래와 견줘 보여드리려고 여쭙습니다."
+          hint="훈련 내용을 바꾸는 값은 아니에요. 나중에 비슷한 또래와 견줘 보여드리려고 여쭤봐요."
           birthDate={birth}
           today={today}
           initial={pick('competitionLevel', baseline.competitionLevel)}
