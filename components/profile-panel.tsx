@@ -52,10 +52,11 @@ export function ProfilePanel({
   today: string;
 }) {
   return (
-    <div className="space-y-6">
+    /* 휴대폰은 선 없이 넉넉한 틈으로 가른다(아이폰 설정처럼), PC 는 예전 위 선 */
+    <div className="space-y-8 desk:space-y-6">
       <AvatarPicker nickname={data.nickname} initialUrl={avatarUrl} />
 
-      <div className="border-t border-line pt-6">
+      <div className="desk:border-t desk:border-line desk:pt-6">
         <ProfileForm
           nickname={data.nickname}
           birthDate={data.birthDate}
@@ -70,15 +71,15 @@ export function ProfilePanel({
         />
       </div>
 
-      <section className="space-y-3 border-t border-line pt-6">
+      <section className="space-y-3 desk:border-t desk:border-line desk:pt-6">
         <div>
-          <h3 className="text-sm font-bold text-ink">계정</h3>
+          <h3 className="text-base font-bold text-ink desk:text-sm">계정</h3>
           <p className="mt-0.5 text-xs break-all text-muted">{data.email}</p>
         </div>
         {data.isAdmin && (
           <p className="text-xs text-muted">
-            관리자 계정입니다 — 트레이닝 영상과 메커니즘 가이드를 등록·삭제할 수
-            있습니다.
+            관리자 계정이에요 — 트레이닝 영상과 메커니즘 가이드를 등록 · 삭제할 수
+            있어요.
           </p>
         )}
         <AccountActions />
