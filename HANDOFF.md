@@ -11,6 +11,25 @@ Claude 로 작업을 시작하면 저절로 읽힌다. 규칙은 `AGENTS.md` 6�
 
 ---
 
+## 금윤호에게 — 2026-10-01 · 김민(Claude) — '애플처럼' B(감성) — 누름 표시 · 빈 상자 · 체크인 축하 (네 영역 몇 곳)
+
+받은 뒤 할 일 없음(DB 구조 그대로). B 는 대부분 운동 화면(김민 영역 — f9dd43e)이고, 공용 · 네 영역은 아래만 바꿨다(ca34ba8 · fbb2408).
+영양 파일은 네가 작업 중이라 안 건드렸고, 구속 측정도 그대로다.
+
+- **누름 표시**(`app/globals.css` '손가락으로 눌렀을 때' + 새 `components/press-feedback.tsx`, 뿌리 `app/layout.tsx` 에 붙음): 하늘색
+  `-webkit-tap-highlight-color` 를 끄고(누른 것을 파란 네모로 덮어 웹처럼 보였다), 손가락 화면에서 누른 링크 · 단추 · 칩을 옅게
+  (`[data-pressed]` 0.55, 넓은 카드 링크 0.8). 0.06초 누르고 있어야 옅어지고 굴리기가 시작되면 취소. **새로 만드는 것은 할 일 없음** —
+  옅어지면 안 되는 것(창 바깥 어둠 같은 것)만 `data-press-none`. 제 손으로 `opacity-*` 를 준 것은 그 값이 이긴다.
+- **빈 상자**: 새 유틸리티 `empty-well`(휴대폰 = 옅은 회색 면 · 테두리 없음, PC = 예전 점선). 점선 빈 상자 25곳을 바꿨다 — 네 영역은
+  coach(ai-report-card · load-panel · training-review) · pitch-log(day-record · log-list · [date]/day-client) · today(analysis-block ·
+  analysis-view · home-trends) · videos(video-calendar · video-gallery) · `components/filming-guide.tsx` · `app/actions/analysis.tsx`.
+  `rounded-… border border-dashed border-line` → `rounded-… empty-well` 한 단어만 바뀐 것. 달력의 점선 표시(쉬는 날 · 계획) · 비교 빈 칸은 뜻이
+  있어 그대로. 공용 `EmptyState` 는 휴대폰에서 상자 없이 가운데에(아이폰 빈 화면), 새 `icon` 칸(lucide 아이콘 하나)을 받는다.
+- **체크인 완료**(`components/checkin-gate.tsx`): 초록 아이콘 0.9초 → 링이 그려지고 체크가 톡 뜨며 떨림 → '3일 연속이에요'(이틀부터) →
+  지난 이레 점, 1.8초. 연속을 세려고 `(app)/layout.tsx` 가 두 달치 체크인 **날짜만** 한 번 더 읽어 `streakDays` 로 넘긴다.
+- 움직임 클래스 `done-ring` · `done-check` · `rise-in`(--rise-delay) 이 globals.css 에 있다(운동 끝 화면 · 체크인 완료가 같이 씀).
+- 운동을 마치면 이제 `/workout/done?id=…`(축하 화면) → [완료] → 트레이닝이다(예전엔 곧장 트레이닝). 새 최고 판정 `lib/workout/bests.ts`.
+
 ## 금윤호에게 — 2026-10-01 · 김민(Claude) — '애플처럼 깔끔하고 감성있게' A(공통) — 색 · 면 · 글자 · 틀 · 시트
 
 받은 뒤 할 일 없음. 사용자 방향: **"앱을 애플(iOS 26 · 앱스토어 · 피트니스)처럼 깔끔하고 감성있게."** 전체 점검(약 70가지)을
