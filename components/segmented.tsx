@@ -165,7 +165,8 @@ export function Segmented<V extends string>({
       ref={containerRef}
       role={links ? 'navigation' : role}
       aria-label={label}
-      className={`relative gap-1 rounded-xl border border-line ${bg} p-1 ${
+      /* 휴대폰은 알약처럼 둥글게(rounded-3xl — 한 줄이면 높이의 절반에서 멈춰 알약, 두 줄이면 둥근 상자) · PC 는 예전 모서리 */
+      className={`relative gap-1 rounded-3xl desk:rounded-xl border border-line ${bg} p-1 ${
         layout === 'grid' ? 'grid' : 'flex flex-wrap'
       } ${className}`}
       style={
@@ -183,7 +184,7 @@ export function Segmented<V extends string>({
         ref={thumbRef}
         data-thumb
         aria-hidden
-        className="pointer-events-none absolute left-0 top-0 rounded-lg bg-sky"
+        className="pointer-events-none absolute left-0 top-0 rounded-2xl desk:rounded-lg bg-sky"
         style={thumbStyle({ box, visible, animate })}
       />
       {options.map((option, index) => {
@@ -200,7 +201,7 @@ export function Segmented<V extends string>({
          * 진한 색으로 둔다. 흰 글자 밑에 표시가 없으면 글자가 안 보인다.
          */
         /* 폰은 칩 크기(40px) 밑으로 안 내려간다 — 칸마다 py-1.5 라 28px 짜리가 많았다. PC 는 부르는 쪽 여백 그대로 */
-        const cls = `relative flex min-h-10 items-center justify-center gap-1.5 rounded-lg desk:min-h-0 ${text} font-medium whitespace-nowrap transition-colors duration-200 ${
+        const cls = `relative flex min-h-10 items-center justify-center gap-1.5 rounded-2xl desk:rounded-lg desk:min-h-0 ${text} font-medium whitespace-nowrap transition-colors duration-200 ${
           selected ? (visible ? 'text-white' : 'text-ink') : 'text-muted hover:text-ink'
         } ${itemClassName}`;
         const face = (

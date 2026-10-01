@@ -154,6 +154,29 @@
     --gap-page: 1.5rem;
     --gap-block: 1rem;
     --block-pad: 1.25rem;
+
+    /*
+     * 휴대폰의 모서리 — 아이폰(iOS 26 · 앱스토어)처럼 동글동글하게(2026-10-01 사용자 "앱 내부 인터페이스를
+     * 애플처럼 전체적으로 동글동글하게"). Tailwind 의 rounded-* 가 이 값을 읽으므로 화면 코드를 하나하나 고치지
+     * 않아도 카드(2xl 16 → 24px) · 입력칸 · 목록 줄(xl 12 → 18px) · 작은 단추(lg 8 → 14px) · 창(3xl 24 → 32px)이
+     * 다 따라온다. 안쪽 것이 바깥 것보다 4px 덜 둥근 짝(p-1 로 들어앉은 고르개 표시 등)도 그대로 맞는다.
+     * PC 는 아래 'PC 화면의 크기 기준'에서 원래 값으로 되돌린다.
+     */
+    --radius-sm: 0.375rem;
+    --radius-md: 0.625rem;
+    --radius-lg: 0.875rem;
+    --radius-xl: 1.125rem;
+    --radius-2xl: 1.5rem;
+    --radius-3xl: 2rem;
+    --radius-4xl: 2.5rem;
+
+    /*
+     * 휴대폰 하단 탭 — 바닥에서 떠 있는 알약(components/app-shell.tsx 의 MobileTabs). 알약 밑의 틈은 홈 막대
+     * 자리(env(safe-area-inset-bottom))에 10px 걸치되 12px 보다 좁지 않게, 알약 높이 64px(칸 54 + 안쪽 여백 4px 씩 +
+     * 테두리 1px 씩). --tab-bar-top 은 화면 바닥에서 알약 윗변까지 — 본문 끝 여백(SiteFooter)과 그 위에 띄우는 것들이 쓴다.
+     */
+    --tab-bar-gap: max(calc(env(safe-area-inset-bottom) - 0.625rem), 0.75rem);
+    --tab-bar-top: calc(var(--tab-bar-gap) + 4rem);
   }
 
   @media (min-width: 64rem), (min-width: 36rem) and (hover: hover) and (pointer: fine) {
@@ -170,6 +193,14 @@
       --gap-block: 1.25rem;
       --block-pad: 1rem;
       --page-top: 6.25rem;
+      /* 모서리는 원래 값(Tailwind 기본) — 휴대폰만 동글동글하게 키웠다(위) */
+      --radius-sm: 0.25rem;
+      --radius-md: 0.375rem;
+      --radius-lg: 0.5rem;
+      --radius-xl: 0.75rem;
+      --radius-2xl: 1rem;
+      --radius-3xl: 1.5rem;
+      --radius-4xl: 2rem;
     }
 
     .ui-chrome {
@@ -623,7 +654,7 @@ input[type='date']::-webkit-calendar-picker-indicator {
 }
 
 /*
- * 지금 어느 탭인지 알려주는 하단의 짧은 막대.
+ * 지금 어느 탭인지 알려주는 하단 탭의 둥근 배경(예전엔 짧은 막대).
  *
  * 화면에 한 번에 하나뿐이고 이름이 같아서, 브라우저가 옛 자리에서 새 자리로
  * 잇는다. 틀보다 위에 둬야 탭바를 가로질러 지나간다.

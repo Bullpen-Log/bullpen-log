@@ -580,7 +580,7 @@ export function VideoGallery({
         바뀌며 고른 것이 사라졌다.
       */}
       {selecting && (
-        <div className="fixed inset-x-0 bottom-[calc(4rem+env(safe-area-inset-bottom))] z-30 px-4 desk:bottom-4">
+        <div className="fixed inset-x-0 bottom-[calc(var(--tab-bar-top)+0.75rem)] z-30 px-4 desk:bottom-4">
           <div className="mx-auto flex max-w-3xl flex-wrap items-center gap-2 rounded-2xl border border-line-strong bg-surface px-(--block-pad) py-3 shadow-2xl">
             {[0, 1].map((i) => {
               const p = picked[i];

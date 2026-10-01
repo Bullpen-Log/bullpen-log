@@ -428,7 +428,7 @@ export function RoutineBuilder({
       )}
 
       {/* 저장 — 목록을 훑는 동안에도 손이 닿게 아래에 붙인다(모바일 하단 탭 위) */}
-      <div className="sticky bottom-[calc(3.5rem_+_env(safe-area-inset-bottom))] z-30 space-y-2 rounded-2xl border border-sky-soft/50 bg-surface/95 p-3 backdrop-blur-xl desk:bottom-4">
+      <div className="sticky bottom-[calc(var(--tab-bar-top)+0.5rem)] z-30 space-y-2 rounded-2xl border border-sky-soft/50 bg-surface/95 p-3 backdrop-blur-xl desk:bottom-4">
         {error && <p className="px-1 text-sm break-keep text-danger">{error}</p>}
         <div className="flex items-center gap-3">
           <p className="min-w-0 flex-1 px-1 text-xs break-keep text-muted">

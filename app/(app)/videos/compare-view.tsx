@@ -463,7 +463,7 @@ export function CompareView({
         className={`z-30 rounded-xl border border-sky-soft/50 bg-shade/95 p-2 backdrop-blur-xl sm:p-3 ${
           expanded
             ? 'shrink-0'
-            : 'sticky bottom-[calc(3.5rem_+_env(safe-area-inset-bottom))] desk:bottom-4'
+            : 'sticky bottom-[calc(var(--tab-bar-top)+0.5rem)] desk:bottom-4'
         }`}
       >
         <div className="flex flex-wrap items-center gap-x-1.5 gap-y-2 sm:gap-x-3">

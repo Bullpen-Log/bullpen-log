@@ -27,7 +27,7 @@ export function SiteFooter({
     <footer className="border-t border-line bg-surface/60">
       <div
         className={`mx-auto w-full px-4 pt-8 sm:px-6 ${width} ${
-          tabBar ? 'pb-24 desk:pb-10' : 'pb-10'
+          tabBar ? 'pb-[calc(var(--tab-bar-top)+1.5rem)] desk:pb-10' : 'pb-10'
         }`}
       >
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">

@@ -91,8 +91,9 @@ const buttonStyles: Record<ButtonVariant, string> = {
     'border border-danger-line bg-danger-bg text-danger hover:border-danger focus-visible:outline-danger',
 };
 
+/* 휴대폰은 알약 모양(아이폰 iOS 26 의 단추처럼, 2026-10-01 사용자 "동글동글") · PC 는 예전 모서리 */
 const buttonBase =
-  'inline-flex items-center justify-center gap-2 rounded-xl px-5 py-3 text-sm transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 disabled:cursor-not-allowed disabled:opacity-50';
+  'inline-flex items-center justify-center gap-2 rounded-full desk:rounded-xl px-5 py-3 text-sm transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 disabled:cursor-not-allowed disabled:opacity-50';
 
 export function Button({
   variant = 'primary',
