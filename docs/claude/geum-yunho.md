@@ -606,8 +606,15 @@
   사용자가 '앱에서 제대로'를 골랐다(웹은 아이폰 WebKit 이 카메라를 한 번에 하나만 켜서 안 됨 — 두 번째를 켜면 앞의 트랙이 muted).
   단계: 1 **끝남** 설정 `wideClip`(기기별, 기본 끔) · DB 칸 `VelocityPitch.wideClip*`(백업 뒤 적용) · 올리기 `uploadClip(…, kind 'wide')` ·
   `attachClip(…, kind)` · 지우기 흐름 · 관리자 미리보기에 '광각' 영상(존은 안 겹침), `lib/dual-camera.ts`(앱 부품 'DualCamera' 있나).
-  2 앱(Swift): AVCaptureMultiCamSession 으로 일반(측정) + 광각, 두 카메라 3초 조각 녹화, 일반 카메라 장면을 웹 측정 엔진에 넘기는 길
-  (60fps 를 넘길 만큼 빠른지가 가장 큰 위험 — 커스텀 URL 스킴 등), GitHub 맥(ios.yml 의 시뮬레이터 빌드)에서 컴파일 확인. 3 TestFlight
+  2 **코드 끝 · 컴파일 대기** 앱(Swift) `mobile/ios/App/App/DualCameraPlugin.swift`(부품 'DualCamera', MainViewController 에서 등록,
+  pbxproj 에 파일 추가). **설계를 바꿨다 — 장면을 웹으로 실시간 넘기지 않는다**: 두 카메라를 1초 fMP4 조각(AVAssetWriter
+  mpeg4AppleHLS)으로 이어 녹화해 최근 8초를 쥐고, 일반 카메라의 움직임(볼 자리 48×48 밝기 차, 0.35초 조용 → 평소 3배)으로 던짐을
+  알아채 'throw' { atSec } 를 알린다. 사이트가 clip({ atSec }) 하면 두 카메라 다 잘라(tfdt · sidx 를 0 으로 옮김) 파일로 주고, read 로
+  1MB 씩 base64 로 읽어 간다(`lib/dual-camera.ts` readDualClip). 사이트는 일반 클립을 **영상 파일 엔진**으로 잰다(fps · 화각은 부품이
+  알려 줌 — fMP4 라 파일 머리에서 fps 를 못 읽으니 analyzeVideo 의 fps · fovDeg 로 넘길 것, 렌즈 메타가 없어 '보정 조건 밖'으로 ± 가
+  넓어짐 → 4단계에서 calibrated 판단을 부품 값으로). 결과는 던진 뒤 1~3초. 미리보기는 웹뷰를 투명하게 하고 뒤에 그린다(setPreview).
+  네트 있음 = 초점 고정(lensPosition 1.0), 손떨림 보정 끔, 줌 1. 두 카메라 하드웨어 몫이 1 을 넘으면 광각부터 30fps 로. **맥이 없어 컴파일을
+  못 해 봤다** — 올리면 ios.yml 이 굽고, 결과는 공개 Checks API 주석으로 본다. 3 TestFlight
   로 폰 확인(애플 키 필요) — 60fps 유지 · 넘기기 속도 · 정확도. 4 웹 연결(앱 + 설정 켬 → 앱 카메라로 측정, 클립 둘 올리기). 설정이
   꺼져 있으면 지금 길(getUserMedia) 그대로라 위험이 켤 때만 있다. `mobile/` 는 김민의 앱 틀 — 건드리면 HANDOFF.
 - **`NutritionProfile.sex` 칸 지우기 — 끝(2026-10-03).** 2단계 마이그레이션 `20261003100000_drop_nutrition_profile_sex` 적용(1단계 배포 뒤,

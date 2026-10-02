@@ -18,6 +18,8 @@ class MainViewController: CAPBridgeViewController {
         super.capacitorDidLoad()
         // 사이트가 첫 화면을 다 그렸다는 알림을 받을 곳 — 사이트는 window.webkit.messageHandlers.bullpenIntro 로 보낸다
         webView?.configuration.userContentController.add(self, name: IntroOverlay.messageName)
+        // 구속 측정의 일반 · 광각 동시 촬영(DualCameraPlugin.swift) — 앱 안 부품이라 여기서 등록한다
+        bridge?.registerPluginInstance(DualCameraPlugin())
     }
 
     override func viewDidLoad() {

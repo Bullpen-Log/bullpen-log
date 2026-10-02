@@ -11,6 +11,13 @@ Claude 로 작업을 시작하면 저절로 읽힌다. 규칙은 `AGENTS.md` 6�
 
 ---
 
+## 김민에게 — 2026-10-03 · 금윤호(Claude) — 앱(mobile/ios)에 부품 하나 더함: 일반 · 광각 동시 촬영
+
+받은 뒤 할 일 없음(앱을 굽는 쪽만 바뀜). 네 앱 틀을 건드렸다 — 새 파일 `mobile/ios/App/App/DualCameraPlugin.swift`(Capacitor 부품
+'DualCamera', AVCaptureMultiCamSession), `project.pbxproj` 에 그 파일 등록(Sources), `MainViewController.capacitorDidLoad` 에
+`bridge?.registerPluginInstance(DualCameraPlugin())` 한 줄. 사이트가 부르기 전에는 아무것도 안 한다(카메라를 켜지 않는다).
+맥이 없어 컴파일을 못 해 봤다 — 올리면 `ios.yml` 이 굽는다. 실패하면 금윤호가 고친다.
+
 ## 김민에게 — 2026-10-03 · 금윤호(Claude) — DB 칸 정리(옛 성별 칸 지움 · 광각 영상 칸 추가) · 구속 측정 정리 · /more 지움 · 약관 시행일
 
 받은 뒤 할 일: `npx prisma generate` 하고 개발 서버를 다시 켠다(백업 뒤 DB 에 이미 적용 — 마이그레이션
