@@ -406,6 +406,7 @@ export function VelocitySettingsButton({
         clipZone: base.clipZone,
         wideClip: base.wideClip,
         camMode: base.camMode,
+        recordMode: base.recordMode,
         ...rest,
       });
     }
@@ -451,6 +452,7 @@ export function VelocitySettingsButton({
                   clipZone: base.clipZone,
                   wideClip: base.wideClip,
                   camMode: base.camMode,
+                  recordMode: base.recordMode,
                 })
               }
             >

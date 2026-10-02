@@ -60,6 +60,11 @@ export type VelocitySetup = {
   wideClip: boolean;
   /** 측정 카메라의 화질 · 프레임(lib/velocity-camera-mode.ts) — null 이면 자동(1080p · 60fps) */
   camMode: CamMode | null;
+  /**
+   * 엔진 개발용 녹화(관리자) — 켜면 측정 대기 화면의 시작 단추가 녹화 단추가 되어 측정 없이 찍어 구속 측정 관리자로 올린다
+   * (lib/velocity-recorder.ts). 관리자가 아니면 켜져 있어도 효과가 없다.
+   */
+  recordMode: boolean;
   savedAt: string;
 };
 
@@ -185,6 +190,7 @@ export const DEFAULT_SETUP: Omit<VelocitySetup, 'savedAt'> = {
   clipZone: true,
   wideClip: false,
   camMode: null,
+  recordMode: false,
 };
 
 export const isRect = (z: unknown): z is ZoneRect =>
@@ -227,6 +233,7 @@ export function loadSetup(): VelocitySetup | null {
       clipZone: p.clipZone !== false,
       wideClip: p.wideClip === true,
       camMode: isCamMode(p.camMode) ? p.camMode : null,
+      recordMode: p.recordMode === true,
       savedAt: typeof p.savedAt === 'string' ? p.savedAt : '',
     };
   } catch {

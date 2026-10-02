@@ -301,6 +301,11 @@ export class LiveCapture {
     this.mode = mode;
   }
 
+  /** 켜진 카메라의 영상 흐름 — 엔진 개발용 녹화(lib/velocity-recorder.ts)가 같은 흐름을 찍는다. 꺼져 있으면 null */
+  getStream(): MediaStream | null {
+    return this.stream;
+  }
+
   /** 이 카메라로 고를 수 있는 화질 — 켠 뒤에 안다(브라우저가 알려 주는 범위로 짐작) */
   private options: CamModeOption[] = [];
   getModeOptions(): CamModeOption[] {

@@ -1221,3 +1221,87 @@ model VelocityCalibResult {
   @@index([runId])
   @@index([pitchId])
 }
+
+/**
+ * 구속 측정 — 엔진 개발용 녹화(관리자). 측정 없이 찍은 원본 영상이다(2026-10-03 사용자: "밖에서 하나도 안 쟀다 — 왜 안 됐는지
+ * 알려면 측정이 안 돼도 영상을 찍게"). 저장소가 파일 하나 50MB 라 30초 남짓 조각(VelocityRecordingPart)으로 겹쳐 찍어 올린다.
+ * 관리자가 구속 측정 관리자에서 공마다 범위를 잡아 스피드건 값을 적는다(VelocityRecordingCut). 사용자 보정식에는 섞지 않는다.
+ */
+model VelocityRecording {
+  id          String   @id @default(uuid())
+  /// 찍은 관리자
+  userId      String
+  /// 찍은 날(한국 날짜) — 탐색기 폴더
+  date        DateTime @db.Date
+  /// 'recording'(찍는 중 · 끊김) · 'done'(멈춤 단추로 끝냄)
+  status      String   @default("recording")
+  /// 처음 조각 시작부터 마지막 조각 끝까지(초)
+  durationSec Float?
+  /// 카메라 · 설정(라벨 · 크기 · fps · 화각 · 렌즈 보정 · 카메라 위치 · 네트 · 존 · 형식 · 비트레이트 · 모델 버전)
+  meta        Json?
+  memo        String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  parts VelocityRecordingPart[]
+  cuts  VelocityRecordingCut[]
+
+  @@index([userId, date])
+  @@index([date])
+}
+
+/// 녹화 조각 하나 — 저장소 파일 하나. 앞 조각과 몇 초 겹친다(공 하나가 조각 사이에 걸려도 어느 한 조각에 다 들어가게)
+model VelocityRecordingPart {
+  id          String   @id @default(uuid())
+  recordingId String
+  /// 0부터
+  index       Int
+  path        String
+  bytes       Int
+  mime        String
+  /// 녹화 시작에서 이 조각이 시작한 때(초)
+  offsetSec   Float
+  durationSec Float?
+  createdAt   DateTime @default(now())
+
+  recording VelocityRecording      @relation(fields: [recordingId], references: [id], onDelete: Cascade)
+  cuts      VelocityRecordingCut[]
+
+  @@unique([recordingId, index])
+}
+
+/// 녹화에서 잘라 낸 공 하나 — 파일을 자르지 않고 조각 안의 범위(초)만 적는다. 다시 잴 때 그 범위만 엔진에 넘긴다
+model VelocityRecordingCut {
+  id          String    @id @default(uuid())
+  recordingId String
+  partId      String
+  /// 조각 파일 안의 시작 · 끝(초)
+  startSec    Float
+  endSec      Float
+  /// 손에서 떠난 때(초, 조각 파일 기준) — 표시한 자리
+  eventSec    Float?
+  /// 스피드건 값(km/h)
+  gunKmh      Float?
+  /// 구종 키(lib/velocity-meta.ts)
+  pitchType   String?
+  memo        String?
+  /// 보정 통계에서 뺄까
+  excluded    Boolean   @default(false)
+  /// 마지막으로 잰 값 — 재지 못했으면 ok false · reject 에 까닭
+  ok          Boolean?
+  rawKmh      Float?
+  releaseKmh  Float?
+  errorKmh    Float?
+  reject      String?
+  engineVersion String?
+  measuredAt  DateTime?
+  analysis    Json?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  recording VelocityRecording     @relation(fields: [recordingId], references: [id], onDelete: Cascade)
+  part      VelocityRecordingPart @relation(fields: [partId], references: [id], onDelete: Cascade)
+
+  @@index([recordingId])
+  @@index([partId])
+}

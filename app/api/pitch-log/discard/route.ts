@@ -33,7 +33,7 @@ export async function POST(req: Request) {
     );
   if (own.length === 0) return NextResponse.json({ deleted: 0 });
 
-  const [logs, clips] = await Promise.all([
+  const [logs, clips, parts] = await Promise.all([
     prisma.pitchLog.findMany({
       where: { userId: user.id, videoPaths: { hasSome: own } },
       select: { videoPaths: true },
@@ -45,9 +45,15 @@ export async function POST(req: Request) {
       },
       select: { clipPath: true, wideClipPath: true },
     }),
+    /* 엔진 개발용 녹화 조각(관리자) — 같은 폴더에 있다 */
+    prisma.velocityRecordingPart.findMany({
+      where: { path: { in: own } },
+      select: { path: true },
+    }),
   ]);
   const used = new Set<string>([
     ...logs.flatMap((l) => l.videoPaths),
+    ...parts.map((p) => p.path),
     ...clips
       .flatMap((c) => [c.clipPath, c.wideClipPath])
       .filter((p): p is string => p != null),

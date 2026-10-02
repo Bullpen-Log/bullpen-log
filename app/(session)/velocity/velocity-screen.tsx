@@ -21,6 +21,7 @@ import {
   ChevronLeft,
   ChevronRight,
   ChevronUp,
+  Clapperboard,
   Database,
   Film,
   FlaskConical,
@@ -66,6 +67,12 @@ import { focalPxFromFov } from '@/lib/velocity-engine/geometry';
 import { liveFpsNote, type LiveReport } from '@/lib/velocity-engine/live-meter';
 import { readVideoLens, videoFovFor } from '@/lib/velocity-engine/video-lens';
 import { analysisOf, type AnalysisJson } from '@/lib/velocity-analysis';
+import {
+  SegmentedRecorder,
+  recordingBitrate,
+  type RecorderState,
+} from '@/lib/velocity-recorder';
+import { VELOCITY_ENGINE_VERSION } from '@/lib/velocity-engine/version';
 import { uploadClip } from '@/lib/velocity-clip-upload';
 import {
   VelocityTutorial,
@@ -238,6 +245,15 @@ const SIDE_BTN =
   'inline-flex h-12 w-12 items-center justify-center rounded-full border border-white/25 bg-white/10 text-white transition-colors active:bg-white/25 disabled:opacity-40';
 const SIDE_LABEL = 'mt-1 text-xs text-white/70';
 
+/** 녹화 시간 — 분:초(한 시간이 넘으면 시:분:초) */
+const formatClock = (sec: number) => {
+  const t = Math.max(0, Math.floor(sec));
+  const h = Math.floor(t / 3600);
+  const m = Math.floor((t % 3600) / 60);
+  const s = String(t % 60).padStart(2, '0');
+  return h > 0 ? `${h}:${String(m).padStart(2, '0')}:${s}` : `${m}:${s}`;
+};
+
 const STATUS_TEXT: Record<LiveStatus, string> = {
   off: '카메라 꺼짐',
   starting: '카메라 켜는 중…',
@@ -324,6 +340,7 @@ export function VelocityScreen({
     autoMode: DEFAULT_SETUP.autoMode,
     wideClip: DEFAULT_SETUP.wideClip,
     camMode: DEFAULT_SETUP.camMode,
+    recordMode: false,
   });
   /* 카메라를 저절로 켠 단계 — 한 단계에 한 번만(아래 안전장치 효과) */
   const autoStartedFor = useRef<Step | null>(null);
@@ -344,6 +361,13 @@ export function VelocityScreen({
   const [releaseDistM, setReleaseDistM] = useState(DEFAULT_SETUP.releaseDistM);
   const [autoMode, setAutoMode] = useState(DEFAULT_SETUP.autoMode);
   const [calibSave, setCalibSave] = useState(DEFAULT_SETUP.calibSave);
+  /* 엔진 개발용 녹화(관리자 설정) — 켜면 측정 대기 화면의 시작 단추가 녹화 단추 */
+  const [recordMode, setRecordMode] = useState(DEFAULT_SETUP.recordMode);
+  const recOn = isAdmin && recordMode;
+  /* 녹화기 · 그 상태(찍는 시간 · 조각 · 올림) — 녹화 중이 아니면 null */
+  const recorderRef = useRef<SegmentedRecorder | null>(null);
+  const [rec, setRec] = useState<RecorderState | null>(null);
+  const recording = rec != null && (rec.phase === 'starting' || rec.phase === 'recording' || rec.phase === 'stopping');
   /* 저장된 공 영상에 스트라이크 존을 겹쳐 그릴까(설정) */
   const [clipZone, setClipZone] = useState(DEFAULT_SETUP.clipZone);
   /* 광각 영상도 같이 저장(설정) — 앱의 동시 촬영 부품이 있을 때 공마다 wideClip 이 붙는다(2단계) */
@@ -423,6 +447,7 @@ export function VelocityScreen({
       autoMode,
       wideClip,
       camMode,
+      recordMode: recOn,
     };
     liveRef.current = live;
   });
@@ -483,6 +508,9 @@ export function VelocityScreen({
 
   useEffect(() => {
     return () => {
+      /* 녹화 중에 화면을 떠나면 찍던 조각은 버린다(이미 올린 조각은 남는다) */
+      recorderRef.current?.abort();
+      recorderRef.current = null;
       captureRef.current?.stop();
       captureRef.current = null;
       autoStartedFor.current = null;
@@ -519,6 +547,7 @@ export function VelocityScreen({
       clipZone,
       wideClip,
       camMode,
+      recordMode,
       ...patch,
     });
   };
@@ -649,7 +678,7 @@ export function VelocityScreen({
      * 기기 검사는 화면을 열 때 미리 해 둔다 — 아직이면 기다린다(앱 길만. 웹 카메라는 누름에 바로 붙여 켠다).
      */
     let dualOk = false;
-    if (native && now.wideClip && finder) {
+    if (native && now.wideClip && !now.recordMode && finder) {
       const s = dualStatusNow() ?? (await dualCameraStatus());
       if (gen !== captureGenRef.current) return;
       dualOk = s.supported;
@@ -692,7 +721,8 @@ export function VelocityScreen({
       now.approach === 'approaching' ? now.releaseDistM : null
     );
     capture.setManual(!now.autoMode);
-    capture.setClips(true);
+    /* 엔진 개발용 녹화 중에는 공마다 클립 녹화기를 끈다 — 긴 녹화와 녹화기 셋이 겹치면 장면이 밀린다 */
+    capture.setClips(!now.recordMode);
     capture.setMode(now.camMode);
     /* 세션 중에 다시 켰으면(화질 · 프레임을 바꿈) 켜지는 대로 이어서 기다린다 */
     if (liveRef.current) capture.arm();
@@ -774,6 +804,7 @@ export function VelocityScreen({
       setClipZone(stored.clipZone);
       setWideClip(stored.wideClip);
       setCamMode(stored.camMode);
+      setRecordMode(stored.recordMode);
       setDecided(true);
       setStep('align');
     });
@@ -785,6 +816,7 @@ export function VelocityScreen({
       setClipZone(stored.clipZone);
       setWideClip(stored.wideClip);
       setCamMode(stored.camMode);
+      setRecordMode(stored.recordMode);
     }
     setDecided(true);
     setStep('type');
@@ -928,6 +960,69 @@ export function VelocityScreen({
     setPrevOpen(false);
     if (pitches.length > 0) setSummaryOpen(true);
   };
+  /*
+   * 엔진 개발용 녹화(관리자) — 측정 없이 카메라 영상을 계속 찍어 30초 남짓 조각으로 구속 측정 관리자에 올린다
+   * (lib/velocity-recorder.ts). 그때의 카메라 · 설정(meta)을 같이 남겨, 관리자 화면에서 공마다 범위를 잡아 같은 조건으로 다시 잰다.
+   */
+  const startRecording = async () => {
+    const capture = captureRef.current;
+    const stream = capture instanceof LiveCapture ? capture.getStream() : null;
+    if (!stream || !camera || recorderRef.current) {
+      setToast('카메라를 켠 뒤에 녹화할 수 있어요');
+      return;
+    }
+    const recorder = new SegmentedRecorder(stream, (s) => setRec({ ...s }));
+    recorderRef.current = recorder;
+    const frameFps = fps ?? camera.frameRate ?? 60;
+    await recorder.start({
+      date: today,
+      bitrate: recordingBitrate(camera.width, camera.height, frameFps),
+      meta: {
+        engineVersion: VELOCITY_ENGINE_VERSION,
+        app: native,
+        camera: {
+          label: camera.label,
+          width: camera.width,
+          height: camera.height,
+          frameRate: camera.frameRate,
+          measuredFps: fps,
+          focus: camera.focus,
+          zoom: camera.zoom,
+          cropped: camera.cropped,
+        },
+        camMode,
+        fovDeg: fov,
+        focalRatio,
+        cameraPos: choices.cameraPos,
+        net: choices.net,
+        zone: activeZone,
+        releaseDistM: approach === 'approaching' ? releaseDistM : null,
+      },
+    });
+    if (recorder.state.phase === 'error') {
+      setToast(recorder.state.error ?? '녹화를 시작하지 못했어요');
+      recorderRef.current = null;
+      setRec(null);
+      return;
+    }
+    buzz(20);
+  };
+  const stopRecording = async () => {
+    const recorder = recorderRef.current;
+    if (!recorder || recorder.state.phase !== 'recording') return;
+    const res = await recorder.stop();
+    recorderRef.current = null;
+    setRec(null);
+    buzz(20);
+    setToast(
+      res.ok
+        ? `녹화를 구속 측정 관리자에 올렸어요(조각 ${res.parts}개)`
+        : res.parts > 0
+          ? `조각 ${res.parts}개만 올렸어요 — ${res.error ?? '일부를 못 올렸어요'}`
+          : (res.error ?? '녹화를 올리지 못했어요')
+    );
+  };
+
   /* 요약에서 '구속 측정하기' — 같은 세션에 공을 더 잰다(카메라가 꺼져 있으면 대기 화면으로) */
   const continueSession = () => {
     setSummaryOpen(false);
@@ -938,6 +1033,10 @@ export function VelocityScreen({
   };
   /* 나가기 — 저장하지 않은 공이 있으면 한 번 묻는다(말없이 사라지지 않게) */
   const leave = () => {
+    if (recorderRef.current) {
+      setToast('녹화를 먼저 멈춰 주세요');
+      return;
+    }
     if (pitches.length > 0) {
       setAskLeave(true);
       return;
@@ -1014,18 +1113,26 @@ export function VelocityScreen({
    */
   useEffect(() => {
     const capture = captureRef.current;
-    if (!capture || live) return;
-    const wantsDual = native && wideClip && dualStatusNow()?.supported === true;
-    if (wantsDual === capture instanceof DualCapture) return;
+    if (!capture || live || recorderRef.current) return;
+    const wantsDual =
+      native && wideClip && !recOn && dualStatusNow()?.supported === true;
+    if (wantsDual === capture instanceof DualCapture) {
+      capture.setClips(!recOn);
+      return;
+    }
     void startCamera();
     // eslint-disable-next-line react-hooks/exhaustive-deps -- 설정이 바뀔 때만 본다
-  }, [wideClip]);
+  }, [wideClip, recOn]);
 
   /*
    * 화질 · 프레임 고르기(오른쪽 위 카메라 정보 → 시트). 고르면 남기고 카메라를 다시 켠다 — 세션 중이면 켜지는 대로 이어서
    * 기다린다(startCamera 의 liveRef). remember 면 고르기 전 값을 쥐어, 고른 조합이 30fps 이하로 켜지면 되돌린다.
    */
   const applyCamMode = (next: CamMode | null, remember = true) => {
+    if (recorderRef.current) {
+      setToast('녹화 중에는 화질을 바꿀 수 없어요');
+      return;
+    }
     modeBeforeRef.current = remember ? camMode : undefined;
     setCamMode(next);
     persistSetup({ camMode: next });
@@ -1556,6 +1663,21 @@ export function VelocityScreen({
               onChange: (next) => {
                 setCalibSave(next);
                 persistSetup({ calibSave: next });
+              },
+            },
+            {
+              key: 'recordMode',
+              label: '엔진 개발용 녹화',
+              hint: '측정 대기 화면의 시작 단추가 녹화 단추가 돼요. 측정 없이 찍어 구속 측정 관리자에 올려요.',
+              icon: Clapperboard,
+              on: recordMode,
+              onChange: (next) => {
+                if (recorderRef.current) {
+                  setToast('녹화를 먼저 멈춰 주세요');
+                  return;
+                }
+                setRecordMode(next);
+                persistSetup({ recordMode: next });
               },
             },
           ]}
@@ -2183,14 +2305,16 @@ export function VelocityScreen({
                 >
                   <span
                     className={`h-2 w-2 shrink-0 rounded-full ${
-                      status === 'armed'
+                      recording || status === 'armed'
                         ? 'animate-pulse bg-danger'
                         : status === 'capturing' || status === 'analyzing'
                           ? 'bg-amber-400'
                           : 'bg-white/60'
                     }`}
                   />
-                  <span className="truncate">{STATUS_TEXT[status]}</span>
+                  <span className="truncate">
+                    {recording ? `녹화 중 ${formatClock(rec?.elapsedSec ?? 0)}` : STATUS_TEXT[status]}
+                  </span>
                 </span>
               )}
               <div className="pointer-events-auto flex items-center gap-1">
@@ -2292,6 +2416,79 @@ export function VelocityScreen({
                     </span>
                   </div>
                   <div aria-hidden className="w-20" />
+                </>
+              ) : !live && recOn ? (
+                /*
+                 * 엔진 개발용 녹화(관리자 설정) — 시작 단추 자리가 녹화 단추. 왼쪽은 조각 · 올림, 오른쪽은 찍은 시간.
+                 * 멈추면 남은 조각을 다 올린 뒤 끝난다(그동안 단추는 도는 표시).
+                 */
+                <>
+                  <div className="flex w-20 flex-col items-center">
+                    <span
+                      className={`${SIDE_BTN} pointer-events-none flex-col text-xs leading-tight tabular-nums`}
+                    >
+                      <span className="font-semibold">
+                        {rec ? `${rec.uploaded}/${rec.parts}` : '0/0'}
+                      </span>
+                    </span>
+                    <span className={SIDE_LABEL}>
+                      {rec?.progress != null ? `올리는 중 ${rec.progress}%` : '올린 조각'}
+                    </span>
+                  </div>
+                  <div className="flex flex-col items-center">
+                    <button
+                      type="button"
+                      onClick={
+                        recording
+                          ? () => void stopRecording()
+                          : cameraOn
+                            ? () => void startRecording()
+                            : startCamera
+                      }
+                      disabled={
+                        status === 'starting' ||
+                        rec?.phase === 'starting' ||
+                        rec?.phase === 'stopping'
+                      }
+                      aria-label={
+                        recording ? '녹화 멈춤' : cameraOn ? '녹화 시작' : '카메라 켜기'
+                      }
+                      className="group flex h-[4.75rem] w-[4.75rem] items-center justify-center rounded-full border-4 border-white/90 disabled:opacity-60"
+                    >
+                      {rec?.phase === 'starting' || rec?.phase === 'stopping' ? (
+                        <Loader2 aria-hidden className="h-7 w-7 animate-spin text-white" />
+                      ) : recording ? (
+                        <span className="h-8 w-8 rounded-lg bg-red-500 transition-transform group-active:scale-90" />
+                      ) : cameraOn ? (
+                        <span className="h-16 w-16 rounded-full bg-red-500 transition-transform group-active:scale-90" />
+                      ) : (
+                        <span className="flex h-16 w-16 items-center justify-center rounded-full bg-white text-black">
+                          <Camera aria-hidden className="h-6 w-6" />
+                        </span>
+                      )}
+                    </button>
+                    <span className={SIDE_LABEL}>
+                      {rec?.phase === 'stopping'
+                        ? '남은 조각 올리는 중'
+                        : recording
+                          ? '녹화 멈춤'
+                          : cameraOn
+                            ? '엔진 개발용 녹화'
+                            : '카메라 켜기'}
+                    </span>
+                  </div>
+                  <div className="flex w-20 flex-col items-center">
+                    <span
+                      className={`${SIDE_BTN} pointer-events-none text-xs font-semibold tabular-nums ${
+                        recording ? 'text-red-400' : ''
+                      }`}
+                    >
+                      {formatClock(rec?.elapsedSec ?? 0)}
+                    </span>
+                    <span className={SIDE_LABEL}>
+                      {rec?.failed ? `실패 ${rec.failed}` : recording ? '녹화 중' : '대기'}
+                    </span>
+                  </div>
                 </>
               ) : !live ? (
                 <>

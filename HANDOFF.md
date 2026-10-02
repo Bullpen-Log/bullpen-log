@@ -11,6 +11,18 @@ Claude 로 작업을 시작하면 저절로 읽힌다. 규칙은 `AGENTS.md` 6�
 
 ---
 
+## 김민에게 — 2026-10-03 · 금윤호(Claude) — DB 표 3개 추가(엔진 개발용 녹화) · 관리자 단추가 제어 센터로
+
+받은 뒤 할 일: `npx prisma generate` 하고 개발 서버를 다시 켠다(백업 뒤 DB 에 이미 적용 — 마이그레이션
+`20261003120000_velocity_recording`, 새 표만이라 네 코드는 그대로 돈다).
+
+- 새 표 `VelocityRecording` · `VelocityRecordingPart` · `VelocityRecordingCut` — 관리자가 측정 없이 찍은 원본 영상(30초 조각, 3초 겹침)과
+  공별 범위 · 스피드건 값. User 와 관계는 안 걸었다(VelocityCalibRun 처럼 userId 만) — User 모델은 안 건드렸다.
+- 측정 화면 왼쪽 관리자 단추를 누르면 아이폰 제어 센터처럼 [화면 이동] · [관리자 설정] 타일이 뜬다. 관리자 설정의 '엔진 개발용 녹화'를
+  켜면 측정 대기 화면의 시작 단추가 빨간 녹화 단추가 된다(조각은 `lib/velocity-recorder.ts`, 서버 `app/actions/velocity-recording.ts`).
+  일반 설정의 '정확도 보정용 저장(관리자)'는 관리자 설정으로 옮겼다.
+- `app/api/pitch-log/discard/route.ts` 가 녹화 조각 경로도 '쓰는 중'으로 본다.
+
 ## 김민에게 — 2026-10-03 · 금윤호(Claude) — DualCamera 부품 고침: 기기 검사 · 화질 고르기 · 30fps 안 씀
 
 받은 뒤 할 일 없음(앱을 굽는 쪽만 바뀜). `mobile/ios/App/App/DualCameraPlugin.swift` 만 고쳤다 — `status()` 가 고를 수 있는 화질

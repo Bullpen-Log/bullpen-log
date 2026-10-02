@@ -645,10 +645,18 @@
   클립을 나눠 구속을 적게. 관리자 설정은 왼쪽 작은 관리자 단추에서, 아이폰 제어센터 느낌으로, 관리자 이동과 관리자 설정은 따로."
   단계: 1 **끝남(0930601)** 제어 센터 — `components/velocity/admin-jump.tsx`(손잡이 → 흐린 판 + 큰 타일 [화면 이동] [관리자 설정],
   각각 따로 판; 설정은 스위치 타일 `toggles` · 도구 타일 `tools`), 일반 설정에서 관리자 줄 · isAdmin 을 뺌(홈 · 페이지까지). 휴대폰 375 ·
-  PC 1536×700 폰 틀 안 확인. 2 엔진 개발용 녹화(1.5~2시간): 저장소가 파일 하나 50MB(`MAX_VIDEO_BYTES`,
-  버킷 설정과 같음)라 MediaRecorder 두 대로 30초 조각을 3초 겹쳐 찍으며 바로 올림, 측정은 끄고 웹 카메라로(동시 촬영 길은 안 씀), DB 표
-  `VelocityRecording` · `VelocityRecordingPart` · `VelocityRecordingCut`(추가만, 백업 · HANDOFF 먼저), 관리자 설정 스위치 '엔진 개발용
-  녹화' → 측정 대기 화면의 셔터가 빨간 녹화 단추. discard 경로의 '쓰는 중'에 녹화 조각 경로도. 3 관리자 편집기(1.5~2시간): 탐색기에
+  PC 1536×700 폰 틀 안 확인. 2 **끝남** 엔진 개발용 녹화 — DB 표 `VelocityRecording` · `VelocityRecordingPart` · `VelocityRecordingCut`
+  (마이그레이션 `20261003120000_velocity_recording`, 백업 `db-2026-10-02-15-15.json` 뒤 적용, User 관계 없음). 서버
+  `app/actions/velocity-recording.ts`(관리자만: start · 조각 서명 주소 · attach(같은 차례 다시 올리면 옛 파일 지움) · finish).
+  녹화기 `lib/velocity-recorder.ts` `SegmentedRecorder`: 저장소가 파일 하나 50MB(`MAX_VIDEO_BYTES`, 버킷 설정과 같음)라 MediaRecorder 를
+  조각마다 새로 켜(start() 한 번에 받기 — 클립 녹화기와 같은 길, 아이폰 timeslice 는 미확인) 30초 조각을 3초 겹치고, 목표 36MB 에 맞춰
+  실제 초당 크기로 다음 조각 길이를 줄임(10~30초), 끝나는 대로 한 번에 하나씩 올림(실패 두 번 더). 비트레이트 `recordingBitrate`
+  (1080p60 ≈ 10Mbps). 시험용으로 `api` 를 갈아 끼울 수 있다. 측정 화면: 관리자 설정 '엔진 개발용 녹화'(`recordMode`, 관리자만 효과) → 웹
+  카메라로(동시 촬영 길 안 씀) · 클립 녹화기 끔 · 시작 단추가 빨간 녹화(멈춤 네모, 왼쪽 올린 조각 · 오른쪽 시간, 위 알약 '녹화 중 m:ss').
+  녹화 중에는 나가기 · 화질 바꾸기 · 스위치 끄기를 막음, 화면을 떠나면 찍던 조각은 버림. meta 에 카메라 · 화각 · 렌즈 · 존 · 모델 버전.
+  시험: 가짜 카메라 · 가짜 서버로 70초 → 조각 0 · 27 · 54.3초 시작, 셋 다 재생되는 mp4. **주의: 파일 속 시간과 벽시계가 다를 수 있다**
+  (가려진 탭의 캔버스는 30초 조각이 22.8초 영상) — 편집기는 조각 파일 시간으로 자르고 offsetSec 은 차례 맞추기에만. **실제 아이폰 녹화 ·
+  올리기는 아직 안 해 봄.** 3 관리자 편집기(1.5~2시간): 탐색기에
   '녹화' 영역, 조각을 이은 시간 막대 · '공 표시'(앞 0.6 · 뒤 1.4초, 조각 하나에 다 들어가게) · 범위 조정 · 스피드건 · 구종 · 지금 엔진으로
   재기(analyzeVideo startSec/endSec, fps 는 녹화 때 값) · 오차. 사용자 보정식(loadCalibration)에는 섞지 않는다.
 - **`NutritionProfile.sex` 칸 지우기 — 끝(2026-10-03).** 2단계 마이그레이션 `20261003100000_drop_nutrition_profile_sex` 적용(1단계 배포 뒤,
