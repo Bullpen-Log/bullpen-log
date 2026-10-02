@@ -1013,11 +1013,9 @@ model PatchNote {
 model NutritionProfile {
   id           String   @id @default(uuid())
   userId       String   @unique
-  /// 더는 읽지도 쓰지도 않는다 — 성별은 계정(User.sex)으로 옮겼다(2026-09-26).
-  /// 옛 배포가 아직 이 칸을 읽을 수 있어 바로 지우지 않는다. 새 코드가 배포된 뒤
-  /// 따로 지운다(물 칸을 뺀 것과 같은 두 단계). 스키마에서 먼저 빼면 다음
-  /// migrate diff 가 DROP COLUMN 을 만들어 버리니, 지울 때까지 여기 둔다.
-  sex          String?
+  // 옛 성별 칸(sex)을 스키마에서 뺐다(2026-10-03, 1단계) — 성별은 계정(User.sex)에 있다. DB 의 칸은 아직 남아 있고,
+  // 이 코드가 배포된 뒤 마이그레이션으로 지운다(2단계). 그 사이 migrate diff 를 돌리면 DROP COLUMN "sex" 가 따라 나온다 —
+  // 그 줄은 금윤호가 2단계로 따로 올리니 빼고 쓴다(HANDOFF.md).
   /// 'gain' 증량 · 'maintain' 유지 · 'lose' 감량
   goal         String   @default("maintain")
   /// 운동을 뺀 평소 움직임: 'low' · 'mid' · 'high'. 운동은 그날 기록으로 따로 더한다.

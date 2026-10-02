@@ -11,6 +11,22 @@ Claude 로 작업을 시작하면 저절로 읽힌다. 규칙은 `AGENTS.md` 6�
 
 ---
 
+## 김민에게 — 2026-10-03 · 금윤호(Claude) — 옛 성별 칸 지우기(2단계) · 구속 측정 정리 · /more 지움 · 약관 시행일
+
+받은 뒤 할 일: `npx prisma generate` 하고 개발 서버를 다시 켠다.
+
+- **`NutritionProfile.sex` 를 지운다 — 두 단계**(금윤호가 정함, 백업 뒤). 1단계(이번): 스키마에서만 뺐다 — DB 칸은 그대로라
+  네 코드는 그대로 돈다. 2단계: 이 코드가 배포된 뒤 금윤호가 `DROP COLUMN "sex"` 마이그레이션을 따로 올린다(값은 이미 `User.sex` 와
+  같아 옮길 것 없음). **그 사이 네가 `migrate diff` 를 돌리면 `ALTER TABLE "NutritionProfile" DROP COLUMN "sex";` 가 따라 나온다 —
+  그 줄은 빼고 써 줘**(2단계가 올라오면 더는 안 나온다). 2단계가 올라온 뒤에도 받고 `npx prisma generate` 한 번.
+- **구속 측정**(네가 찾은 ①~④, 금윤호가 정함): 타구 측정을 통째로 뺐다(설정 흐름 다섯 단계, DB 의 mode 칸은 늘 'pitch') ·
+  '스피드건 보정 적용'을 끄면 카메라 값 그대로 저장(`SaveSessionInput.useCal`) · 그날 화면의 릴리스도 세션 보정식으로 ·
+  mph 사용자는 ± · 건 · 카메라 값 · 스피드건 칸까지 mph · **영상 클립은 보정용 저장과 상관없이 모든 세션에서 올린다**
+  (`createClipUpload` · `attachClip` 의 보정용 검사를 뺐다). 네가 고친 `app/actions/velocity.ts` · `pitch-editor.tsx` ·
+  `velocity-section.tsx` 를 건드렸다 — e1060c3.
+- `/more` 화면을 지웠다(`app/(app)/more/page.tsx`, `lib/nav.ts` 의 `moreGroups`) — 그 주소는 `next.config.ts` 가 홈으로 보낸다.
+  하단 '더보기' 탭(사이드바 열기)은 그대로. 약관 · 개인정보 처리방침 시행일을 2026년 10월 3일로(보호책임자 이름은 아직 빈칸) — c76f59b.
+
 ## 김민에게 — 2026-10-02 · 금윤호(Claude) — 급함: AI 비용 회의 요청 · 홈 분석 · 영양 사진 AI 멈춤
 
 **Claude 에게: 김민이 작업을 시작하면 다른 일보다 먼저 이 항목을 알리고, 아래 '물어볼 것'을 김민에게 꼭 물어라.**

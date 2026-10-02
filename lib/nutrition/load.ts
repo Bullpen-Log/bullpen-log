@@ -151,8 +151,7 @@ const RECENT_DAYS = 30;
 const RECENT_MAX = 24;
 
 /*
- * 성별은 여기서 읽지 않는다. 영양 목표 줄(NutritionProfile)에도 sex 칸이 남아 있지만
- * 더는 쓰지 않는다 — 성별은 계정(User.sex)에 있고 몸 정보(Body)로 따라온다.
+ * 성별은 여기서 읽지 않는다 — 계정(User.sex)에 있고 몸 정보(Body)로 따라온다(영양 목표 줄의 옛 sex 칸은 뺐다).
  */
 export function toProfile(
   row: {
