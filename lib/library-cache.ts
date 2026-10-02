@@ -74,8 +74,8 @@ export const allExercises = unstable_cache(
    * 참고 영상, scripts/add-reference-exercises.mts, :v7 — 같은 날 그중 장비 목록에 없는
    * 도구를 쓰는 다섯을 숨기고, 우리 장비로 하는 유산소 둘(박스 오르내리기 · 셔틀 런 인터벌)을
    * 더함, :v8 — 2026-10-01 혼자 못 하는 · 특수 세팅 운동 여덟을 숨기고 장비 · 이름 · 설명을 고침,
-   * scripts/library-cleanup-2026-10-01.mjs, :v9 — 2026-10-02 바벨 운동 여섯 설명에 랙 한 줄,
-   * scripts/library-fixes-2026-10-02.mjs).
+   * scripts/library-cleanup-2026-10-01.mjs, :v9 — 2026-10-02 바벨 운동 여섯 설명에 랙 한 줄과
+   * 영상과 다른 동작을 말하던 설명 70개를 영상에 맞춤, scripts/library-fixes-2026-10-02.mjs).
    *
    * 캐시는 시간으로 비워지지 않고, 배포해도 남는다 — 이름(과 함수 모양)이 같으면
    * 새 칸이 없는 옛 줄이 계속 나온다. 그대로 두면 암케어의 부위별 보강이 텅 비고
