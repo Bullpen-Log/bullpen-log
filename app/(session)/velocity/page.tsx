@@ -16,7 +16,7 @@ import { VelocityHome } from './velocity-home';
  * 위 막대 · 하단 탭 없이 화면 전체를 쓰고, PC 에서는 폰 크기 틀 안에 띄운다.
  */
 export default async function VelocityPage() {
-  const { user, isAdmin, allowed } = await velocityAccess();
+  const { user, allowed } = await velocityAccess();
   if (!allowed) return <AppOnly />;
 
   const [history, { fit }] = await Promise.all([
@@ -25,11 +25,6 @@ export default async function VelocityPage() {
   ]);
 
   return (
-    <VelocityHome
-      history={history}
-      calibration={fit}
-      isAdmin={isAdmin}
-      today={toDateKey(new Date())}
-    />
+    <VelocityHome history={history} calibration={fit} today={toDateKey(new Date())} />
   );
 }

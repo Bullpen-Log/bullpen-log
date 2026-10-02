@@ -21,7 +21,9 @@ import {
   ChevronLeft,
   ChevronRight,
   ChevronUp,
+  Database,
   Film,
+  FlaskConical,
   Focus,
   Hand,
   Info,
@@ -1544,12 +1546,26 @@ export function VelocityScreen({
         <AdminJump
           current={currentScreen}
           onJump={jumpTo}
+          toggles={[
+            {
+              key: 'calibSave',
+              label: '정확도 보정용 저장',
+              hint: '켜고 잰 세션을 구속 측정 관리자에서 보정 자료로 표시해요.',
+              icon: Database,
+              on: calibSave,
+              onChange: (next) => {
+                setCalibSave(next);
+                persistSetup({ calibSave: next });
+              },
+            },
+          ]}
           tools={[
             {
               label: `예시 공 ${SAMPLE_PITCHES.length}개 넣기`,
               onClick: addSamplePitches,
+              icon: FlaskConical,
             },
-            { label: '예시 공 지우기', onClick: clearSamplePitches },
+            { label: '예시 공 지우기', onClick: clearSamplePitches, icon: Trash2 },
           ]}
           className="absolute left-0 top-1/2 z-30 -translate-y-1/2"
         />
@@ -2728,7 +2744,6 @@ export function VelocityScreen({
               wideClip,
             }}
             showChoices={false}
-            isAdmin={isAdmin}
             calibration={fit}
             onChange={(patch) => {
               if (patch.fovDeg != null) changeFov(patch.fovDeg);

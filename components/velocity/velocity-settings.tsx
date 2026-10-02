@@ -69,13 +69,10 @@ export function VelocitySettingsFields({
   onChange,
   calibration,
   showChoices = true,
-  isAdmin = false,
 }: {
   values: SettingsValues;
   onChange: (patch: Partial<SettingsValues>) => void;
   calibration: CalFit;
-  /** 관리자에게만 '정확도 보정용 저장' 줄을 보인다 */
-  isAdmin?: boolean;
   /** 녹화 종류 · 카메라 위치 · 네트도 여기서 바꿀까 — 측정 중에는 숨긴다 */
   showChoices?: boolean;
 }) {
@@ -120,14 +117,7 @@ export function VelocitySettingsFields({
             checked={values.autoMode}
             onChange={(autoMode) => onChange({ autoMode })}
           />
-          {isAdmin && (
-            <ToggleRow
-              title="정확도 보정용 저장(관리자)"
-              hint="켜고 잰 세션이 구속 측정 관리자에서 보정 자료로 표시돼요. 영상 클립 · 분석 자료는 이것과 상관없이 모든 세션에서 올라가요."
-              checked={values.calibSave}
-              onChange={(calibSave) => onChange({ calibSave })}
-            />
-          )}
+          {/* 관리자 스위치(정확도 보정용 저장 · 엔진 개발용 녹화)는 측정 화면 왼쪽 관리자 단추의 '관리자 설정'으로 옮겼다(2026-10-03) */}
           <ToggleRow
             title="영상에 스트라이크 존 표시"
             hint="저장된 공 영상(▶ · 구속 측정 관리자)을 볼 때 잰 순간의 스트라이크 존과 짐작한 코스 칸을 겹쳐 보여요. 영상 파일은 그대로예요."
@@ -370,12 +360,10 @@ export function VelocitySettingsButton({
   calibration,
   className = '',
   label = '불펜 벨로시티 설정',
-  isAdmin = false,
 }: {
   calibration: CalFit;
   className?: string;
   label?: string;
-  isAdmin?: boolean;
 }) {
   const stored = useStoredSetup();
   const [open, setOpen] = useState(false);
@@ -444,7 +432,6 @@ export function VelocitySettingsButton({
             values={values}
             onChange={change}
             calibration={calibration}
-            isAdmin={isAdmin}
           />
           <div className="flex flex-wrap gap-2">
             <Button
