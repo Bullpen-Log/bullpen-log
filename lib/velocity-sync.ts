@@ -58,11 +58,13 @@ export async function deleteVelocitySessionRows(sessionId: string) {
     select: {
       pitchLogId: true,
       pitchLog: { select: { memo: true } },
-      pitches: { select: { clipPath: true } },
+      pitches: { select: { clipPath: true, wideClipPath: true } },
     },
   });
   if (!session) return null;
-  const clips = session.pitches.map((p) => p.clipPath).filter((p): p is string => !!p);
+  const clips = session.pitches
+    .flatMap((p) => [p.clipPath, p.wideClipPath])
+    .filter((p): p is string => !!p);
   await prisma.$transaction(async (tx) => {
     await tx.velocitySession.delete({ where: { id: sessionId } });
     if (session.pitchLogId && session.pitchLog?.memo?.startsWith(VELOCITY_MEMO_MARK)) {
@@ -78,9 +80,12 @@ export async function deleteVelocityPitchRow(pitch: {
   id: string;
   sessionId: string;
   clipPath: string | null;
+  /** 같은 공의 광각 영상 — 없으면 null */
+  wideClipPath?: string | null;
 }) {
   await prisma.velocityPitch.delete({ where: { id: pitch.id } });
-  if (pitch.clipPath) await deleteVideos([pitch.clipPath]).catch(() => undefined);
+  const clips = [pitch.clipPath, pitch.wideClipPath].filter((p): p is string => !!p);
+  if (clips.length) await deleteVideos(clips).catch(() => undefined);
   await syncVelocitySession(pitch.sessionId);
 }
 

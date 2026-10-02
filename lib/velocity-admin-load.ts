@@ -170,6 +170,11 @@ export type AdminPitchRow = {
   clipEventSec: number | null;
   clipBytes: number | null;
   clipMime: string | null;
+  /** 같은 공의 광각 카메라 영상(앱의 동시 촬영) — 서명 재생 주소 · 길이 · 던진 시각 */
+  wideClipPath: string | null;
+  wideClipUrl: string | null;
+  wideClipSec: number | null;
+  wideClipEventSec: number | null;
   analysis: AdminPitchAnalysis | null;
 };
 
@@ -610,6 +615,10 @@ function toPitchRow(
     clipEventSec: p.clipEventSec,
     clipBytes: p.clipBytes,
     clipMime: p.clipMime,
+    wideClipPath: p.wideClipPath,
+    wideClipUrl: p.wideClipPath ? (urls[p.wideClipPath] ?? null) : null,
+    wideClipSec: p.wideClipSec,
+    wideClipEventSec: p.wideClipEventSec,
     analysis: pickAnalysis(p.analysis),
   };
 }
@@ -647,7 +656,9 @@ function toSessionRow(s: SessionWithPitches, urls: Record<string, string>): Admi
 /** 세션들을 화면 줄로 — 클립 전부의 서명 재생 주소를 한 번에 만든다 */
 async function sessionRowsOf(sessions: SessionWithPitches[]): Promise<AdminSessionRow[]> {
   const clipPaths = sessions.flatMap((s) =>
-    s.pitches.map((p) => p.clipPath).filter((p): p is string => !!p)
+    s.pitches
+      .flatMap((p) => [p.clipPath, p.wideClipPath])
+      .filter((p): p is string => !!p)
   );
   const urls = clipPaths.length ? await createPlaybackUrls(clipPaths) : {};
   return sessions.map((s) => toSessionRow(s, urls));

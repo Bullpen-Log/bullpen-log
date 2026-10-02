@@ -11,9 +11,16 @@ Claude 로 작업을 시작하면 저절로 읽힌다. 규칙은 `AGENTS.md` 6�
 
 ---
 
-## 김민에게 — 2026-10-03 · 금윤호(Claude) — 옛 성별 칸 지우기(2단계) · 구속 측정 정리 · /more 지움 · 약관 시행일
+## 김민에게 — 2026-10-03 · 금윤호(Claude) — DB 칸 정리(옛 성별 칸 지움 · 광각 영상 칸 추가) · 구속 측정 정리 · /more 지움 · 약관 시행일
 
-받은 뒤 할 일: `npx prisma generate` 하고 개발 서버를 다시 켠다.
+받은 뒤 할 일: `npx prisma generate` 하고 개발 서버를 다시 켠다(백업 뒤 DB 에 이미 적용 — 마이그레이션
+`20261003100000_drop_nutrition_profile_sex` · `20261003100100_velocity_wide_clip`).
+
+- **`NutritionProfile.sex` 를 지웠다**(2단계까지 끝 — 아래 줄은 지난 설명). **`VelocityPitch` 에 광각 영상 칸 다섯 개**(`wideClipPath` ·
+  `wideClipBytes` · `wideClipSec` · `wideClipMime` · `wideClipEventSec`, 다 비울 수 있음 — 추가만). 설정 '광각 영상도 같이 저장':
+  아이폰 앱이 일반 · 광각을 함께 찍으면 공마다 광각 영상도 남긴다(측정은 일반 카메라). 웹은 카메라를 하나만 켤 수 있어 **앱에
+  'DualCamera' 부품(Swift, AVCaptureMultiCamSession)이 들어가야 실제로 찍힌다** — 금윤호가 다음 단계로 `mobile/ios` 에 만든다(네 앱 틀을
+  건드리게 된다, 그때 다시 적음). `app/api/pitch-log/discard/route.ts` 가 광각 영상 경로도 '쓰는 중'으로 본다.
 
 - **`NutritionProfile.sex` 를 지운다 — 두 단계**(금윤호가 정함, 백업 뒤). 1단계(이번): 스키마에서만 뺐다 — DB 칸은 그대로라
   네 코드는 그대로 돈다. 2단계: 이 코드가 배포된 뒤 금윤호가 `DROP COLUMN "sex"` 마이그레이션을 따로 올린다(값은 이미 `User.sex` 와

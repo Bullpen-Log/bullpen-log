@@ -387,6 +387,7 @@ export async function deleteVelocityPitch(id: string): Promise<VelocityActionRes
       id: true,
       sessionId: true,
       clipPath: true,
+      wideClipPath: true,
       session: { select: { date: true } },
     },
   });
@@ -465,7 +466,7 @@ export async function createClipUpload(
   }
 }
 
-/** 올린 클립의 경로 · 크기 · 길이 · 던진 시각을 공에 적는다. 이미 있던 클립은 지운다 */
+/** 올린 클립의 경로 · 크기 · 길이 · 던진 시각을 공에 적는다. 이미 있던 클립은 지운다. kind 'wide' 면 광각 영상 칸에 */
 export async function attachClip(
   pitchId: string,
   info: {
@@ -474,7 +475,8 @@ export async function attachClip(
     sec: number | null;
     mime: string;
     eventSec: number | null;
-  }
+  },
+  kind: 'main' | 'wide' = 'main'
 ): Promise<VelocityActionResult> {
   const user = await getCurrentUser();
   if (!user) return { ok: false, error: '로그인이 필요합니다.' };
@@ -486,22 +488,37 @@ export async function attachClip(
     select: {
       id: true,
       clipPath: true,
+      wideClipPath: true,
       session: { select: { date: true } },
     },
   });
   if (!row) return { ok: false, error: '공을 찾을 수 없습니다.' };
+  const bytes = Math.round(num(info.bytes, 0, MAX_VIDEO_BYTES) ?? 0);
+  const sec = optional(info.sec, 0, 600);
+  const mime = String(info.mime ?? '').slice(0, 80) || null;
+  const eventSec = optional(info.eventSec, 0, 600);
+  const wide = kind === 'wide';
   await prisma.velocityPitch.update({
     where: { id: pitchId },
-    data: {
-      clipPath: path,
-      clipBytes: Math.round(num(info.bytes, 0, MAX_VIDEO_BYTES) ?? 0),
-      clipSec: optional(info.sec, 0, 600),
-      clipMime: String(info.mime ?? '').slice(0, 80) || null,
-      clipEventSec: optional(info.eventSec, 0, 600),
-    },
+    data: wide
+      ? {
+          wideClipPath: path,
+          wideClipBytes: bytes,
+          wideClipSec: sec,
+          wideClipMime: mime,
+          wideClipEventSec: eventSec,
+        }
+      : {
+          clipPath: path,
+          clipBytes: bytes,
+          clipSec: sec,
+          clipMime: mime,
+          clipEventSec: eventSec,
+        },
   });
-  if (row.clipPath && row.clipPath !== path) {
-    await deleteVideos([row.clipPath]).catch(() => undefined);
+  const old = wide ? row.wideClipPath : row.clipPath;
+  if (old && old !== path) {
+    await deleteVideos([old]).catch(() => undefined);
   }
   revalidateDay(row.session.date.toISOString().slice(0, 10));
   return { ok: true };

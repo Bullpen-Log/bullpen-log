@@ -602,7 +602,17 @@
   클립을 그날 화면(관리자 아닌 사람)에서 보는 ▶ 는 아직 없다 — 관리자 탐색기에서만.
 - **약관 · 개인정보 처리방침**: 시행일 2026년 10월 3일로 넣음(c76f59b). **개인정보 보호책임자 `[이름]` 은 아직 빈칸** — 사용자가 이름을 줄 때.
   `/more` 화면은 지우고 홈으로 넘김(next.config.ts).
-- **`NutritionProfile.sex` 칸 지우기 — 1단계 끝, 2단계 대기(2026-10-03).** 1단계: 스키마에서만 뺌(DB 칸은 그대로, 백업
+- **광각 동시 클립(2026-10-03 시작, 사용자: "광각 카메라가 있으면 일반 카메라로 측정하면서 광각 클립도 동시에, 설정에서 껐다 켜기").**
+  사용자가 '앱에서 제대로'를 골랐다(웹은 아이폰 WebKit 이 카메라를 한 번에 하나만 켜서 안 됨 — 두 번째를 켜면 앞의 트랙이 muted).
+  단계: 1 **끝남** 설정 `wideClip`(기기별, 기본 끔) · DB 칸 `VelocityPitch.wideClip*`(백업 뒤 적용) · 올리기 `uploadClip(…, kind 'wide')` ·
+  `attachClip(…, kind)` · 지우기 흐름 · 관리자 미리보기에 '광각' 영상(존은 안 겹침), `lib/dual-camera.ts`(앱 부품 'DualCamera' 있나).
+  2 앱(Swift): AVCaptureMultiCamSession 으로 일반(측정) + 광각, 두 카메라 3초 조각 녹화, 일반 카메라 장면을 웹 측정 엔진에 넘기는 길
+  (60fps 를 넘길 만큼 빠른지가 가장 큰 위험 — 커스텀 URL 스킴 등), GitHub 맥(ios.yml 의 시뮬레이터 빌드)에서 컴파일 확인. 3 TestFlight
+  로 폰 확인(애플 키 필요) — 60fps 유지 · 넘기기 속도 · 정확도. 4 웹 연결(앱 + 설정 켬 → 앱 카메라로 측정, 클립 둘 올리기). 설정이
+  꺼져 있으면 지금 길(getUserMedia) 그대로라 위험이 켤 때만 있다. `mobile/` 는 김민의 앱 틀 — 건드리면 HANDOFF.
+- **`NutritionProfile.sex` 칸 지우기 — 끝(2026-10-03).** 2단계 마이그레이션 `20261003100000_drop_nutrition_profile_sex` 적용(1단계 배포 뒤,
+  백업 `db-2026-10-02-03-56.json`). 아래는 지난 설명.
+- **(지난) `NutritionProfile.sex` 칸 지우기 — 1단계 끝, 2단계 대기(2026-10-03).** 1단계: 스키마에서만 뺌(DB 칸은 그대로, 백업
   `db-2026-10-02-03-38.json`). 값은 1줄뿐이고 이미 `User.sex` 와 같아 옮길 것이 없었다. **2단계(1단계 배포가 끝난 뒤)**: 마이그레이션
   `<날짜>_drop_nutrition_profile_sex` = `UPDATE "User" … SET "sex" = np."sex" WHERE u."sex" IS NULL`(안전용) + `ALTER TABLE
   "NutritionProfile" DROP COLUMN "sex";` → `migrate deploy` → 커밋 · 올리기. 1단계와 같은 푸시에 싣지 않는 까닭: 빌드가 DB 칸을 먼저

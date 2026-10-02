@@ -52,6 +52,11 @@ export type VelocitySetup = {
    * 겹친다 — 그래서 언제든 켜고 끌 수 있다. 존 자리는 공마다 잰 순간의 것(analysis.zoneRect).
    */
   clipZone: boolean;
+  /**
+   * 광각 영상도 같이 저장 — 광각 카메라가 있는 아이폰 앱에서, 측정은 일반 카메라로 하면서 공마다 광각 카메라 영상도 함께 남긴다
+   * (2026-10-03 사용자). 웹 화면은 카메라를 하나만 켤 수 있어 앱의 'DualCamera' 부품이 있어야 실제로 찍힌다(lib/dual-camera.ts).
+   */
+  wideClip: boolean;
   savedAt: string;
 };
 
@@ -175,6 +180,7 @@ export const DEFAULT_SETUP: Omit<VelocitySetup, 'savedAt'> = {
   autoMode: true,
   calibSave: false,
   clipZone: true,
+  wideClip: false,
 };
 
 export const isRect = (z: unknown): z is ZoneRect =>
@@ -215,6 +221,7 @@ export function loadSetup(): VelocitySetup | null {
       autoMode: p.autoMode !== false,
       calibSave: p.calibSave === true,
       clipZone: p.clipZone !== false,
+      wideClip: p.wideClip === true,
       savedAt: typeof p.savedAt === 'string' ? p.savedAt : '',
     };
   } catch {

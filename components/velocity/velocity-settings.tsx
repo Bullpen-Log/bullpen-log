@@ -34,6 +34,7 @@ import {
 } from '@/lib/velocity-lens';
 import { applySpeedUnit, SPEED_UNITS } from '@/lib/units';
 import { useSpeedUnit } from '@/components/use-units';
+import { useDualCameraAvailable } from '@/lib/dual-camera';
 import { BottomSheet } from './pitch-editor';
 import { Panel, SectionLabel } from './kit';
 
@@ -55,6 +56,7 @@ export type SettingsValues = Pick<
   | 'autoMode'
   | 'calibSave'
   | 'clipZone'
+  | 'wideClip'
 > & { fovDeg: number };
 
 const NET_VALUES = [
@@ -79,6 +81,8 @@ export function VelocitySettingsFields({
 }) {
   /* 구속 단위 — 앱 전체의 단위 설정(내 정보 · 투구 기록)과 같은 값. 여기서 바꾸면 거기도 바뀐다 */
   const speedUnit = useSpeedUnit();
+  /* 일반 · 광각 동시 촬영 부품이 든 앱인가 — 아니면 '광각 영상도 같이 저장'은 켜 두기만 된다 */
+  const dualReady = useDualCameraAvailable();
   return (
     <div className="space-y-5">
       <div>
@@ -125,6 +129,16 @@ export function VelocitySettingsFields({
             hint="저장된 공 영상(▶ · 구속 측정 관리자)을 볼 때 잰 순간의 스트라이크 존과 짐작한 코스 칸을 겹쳐 보여요. 영상 파일은 그대로예요."
             checked={values.clipZone}
             onChange={(clipZone) => onChange({ clipZone })}
+          />
+          <ToggleRow
+            title="광각 영상도 같이 저장"
+            hint={
+              dualReady
+                ? '측정은 일반 카메라로 하고, 공마다 광각 카메라 영상도 함께 남겨요. 구속 측정 관리자에서 두 영상을 나란히 봐요.'
+                : '광각 카메라가 있는 아이폰 앱에서 돼요 — 다음 앱 업데이트부터 실제로 찍혀요. 지금은 켜 두기만 돼요.'
+            }
+            checked={values.wideClip}
+            onChange={(wideClip) => onChange({ wideClip })}
           />
           <ToggleRow
             title="스피드건 보정 적용"
@@ -352,6 +366,7 @@ export function VelocitySettingsButton({
     autoMode: base.autoMode,
     calibSave: base.calibSave,
     clipZone: base.clipZone,
+    wideClip: base.wideClip,
     fovDeg: fov,
   };
   const change = (patch: Partial<SettingsValues>) => {
@@ -377,6 +392,7 @@ export function VelocitySettingsButton({
         autoMode: base.autoMode,
         calibSave: base.calibSave,
         clipZone: base.clipZone,
+        wideClip: base.wideClip,
         ...rest,
       });
     }
@@ -421,6 +437,7 @@ export function VelocitySettingsButton({
                   autoMode: base.autoMode,
                   calibSave: base.calibSave,
                   clipZone: base.clipZone,
+                  wideClip: base.wideClip,
                 })
               }
             >

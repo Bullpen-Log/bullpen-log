@@ -449,8 +449,30 @@ export function PitchPreview({
           <Film aria-hidden className="h-4 w-4 shrink-0" />
           {p.clipPath
             ? '재생 주소를 만들지 못했어요. 저장소 설정을 확인해요.'
-            : '영상이 없어요 — 정확도 보정용 저장을 켜고 잰 공만 영상이 남아요.'}
+            : '영상이 없어요 — 2026-10-03 전에는 정확도 보정용 저장을 켜고 잰 공만 영상이 남았어요.'}
         </p>
+      )}
+
+      {/* 광각 — 같은 공을 앱이 광각 카메라로 함께 찍은 영상(설정 '광각 영상도 같이 저장'). 화각이 달라 존은 겹치지 않는다 */}
+      {p.wideClipUrl && (
+        <div className="space-y-1.5">
+          <p className="text-xs font-semibold text-muted">
+            광각
+            {p.wideClipSec != null && (
+              <span className="ml-1.5 font-normal">{p.wideClipSec}초</span>
+            )}
+          </p>
+          <ClipPlayer
+            src={p.wideClipUrl}
+            eventSec={p.wideClipEventSec}
+            zoneRect={null}
+            zone={p.zone}
+            cameraPos={cameraPosOf(s)}
+            showZone={false}
+            maxHeight="45dvh"
+            className="rounded-xl bg-shade"
+          />
+        </div>
       )}
 
       {/* 값 — 수기 공은 카메라 값이 없다(스피드건 값이 곧 구속) */}

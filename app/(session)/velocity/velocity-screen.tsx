@@ -179,6 +179,11 @@ const BACK_OF: Partial<Record<Step, { to: Step; label: string }>> = {
   lens: { to: 'measure', label: '측정' },
 };
 type LocalClip = { url: string; blob: Blob; durationSec: number; eventSec: number };
+/** 공의 영상 주소(일반 · 광각)를 푼다 — 저장했거나 화면을 떠날 때 */
+const revokeClips = (p: { clip?: LocalClip; wideClip?: LocalClip }) => {
+  if (p.clip) URL.revokeObjectURL(p.clip.url);
+  if (p.wideClip) URL.revokeObjectURL(p.wideClip.url);
+};
 type LocalPitch = SavePitchInput & {
   id: number;
   /** 엔진이 본 자료 — 잰 순간의 스트라이크 존(zoneRect)도 실려 영상에 겹쳐 그린다 */
@@ -187,6 +192,8 @@ type LocalPitch = SavePitchInput & {
   /** LiveCapture 결과 번호 — 뒤에 오는 영상 클립과 짝 */
   captureId?: number;
   clip?: LocalClip;
+  /** 같은 공의 광각 카메라 영상 — 앱이 일반 · 광각을 함께 찍을 때(설정 '광각 영상도 같이 저장') */
+  wideClip?: LocalClip;
   /** 관리자 점프 도구가 넣은 예시 공 — 화면 확인용, 저장은 막는다 */
   sample?: boolean;
   /** 카메라 실시간의 촬영 조건 알림(초당 장면 · 잘린 화면 · 짐작한 화각 · 번짐 …) — 화면에만 보인다 */
@@ -320,6 +327,8 @@ export function VelocityScreen({
   const [calibSave, setCalibSave] = useState(DEFAULT_SETUP.calibSave);
   /* 저장된 공 영상에 스트라이크 존을 겹쳐 그릴까(설정) */
   const [clipZone, setClipZone] = useState(DEFAULT_SETUP.clipZone);
+  /* 광각 영상도 같이 저장(설정) — 앱의 동시 촬영 부품이 있을 때 공마다 wideClip 이 붙는다(2단계) */
+  const [wideClip, setWideClip] = useState(DEFAULT_SETUP.wideClip);
   /* 보정용 저장은 관리자만 효과가 있다 */
   const calibOn = isAdmin && calibSave;
   /* 세션 — 시작하면 카메라를 숨기고 정보 판을 보인다 */
@@ -439,7 +448,7 @@ export function VelocityScreen({
       captureRef.current = null;
       autoStartedFor.current = null;
       if (typeof speechSynthesis !== 'undefined') speechSynthesis.cancel();
-      for (const p of pitchesRef.current) if (p.clip) URL.revokeObjectURL(p.clip.url);
+      for (const p of pitchesRef.current) revokeClips(p);
     };
   }, []);
 
@@ -469,6 +478,7 @@ export function VelocityScreen({
       autoMode,
       calibSave,
       clipZone,
+      wideClip,
       ...patch,
     });
   };
@@ -669,6 +679,7 @@ export function VelocityScreen({
       setAutoMode(stored.autoMode);
       setCalibSave(stored.calibSave);
       setClipZone(stored.clipZone);
+      setWideClip(stored.wideClip);
       setDecided(true);
       setStep('align');
     });
@@ -676,7 +687,10 @@ export function VelocityScreen({
   };
   const startFresh = () => {
     /* 새 설정이어도 보기 취향(영상에 존 표시)은 이어 간다 — 안 그러면 저장할 때 켜짐으로 되돌아간다 */
-    if (stored) setClipZone(stored.clipZone);
+    if (stored) {
+      setClipZone(stored.clipZone);
+      setWideClip(stored.wideClip);
+    }
     setDecided(true);
     setStep('type');
   };
@@ -915,6 +929,11 @@ export function VelocityScreen({
   };
 
   const shownPitches = pitches.map((p) => ({ ...p, kmh: shown(p.rawKmh) }));
+  /* 저장 때 올릴 영상 수 — 일반 + 광각 */
+  const clipCount = pitches.reduce(
+    (n, p) => n + (p.clip ? 1 : 0) + (p.wideClip ? 1 : 0),
+    0
+  );
   const stats = summarize(shownPitches);
   /* 세션 화면 · 요약 · 이전 공 시트가 받는 모양(components/velocity/session-types.ts) */
   const sessionPitches: SessionPitch[] = shownPitches.map((p, i) => ({
@@ -1028,21 +1047,27 @@ export function VelocityScreen({
       /* 공마다 영상 클립을 올린다(모든 세션) — 실패해도 측정값은 이미 저장됐다 */
       if (res.pitchIds) {
         const ids = res.pitchIds;
-        const targets = pitches
-          .map((p, i) => ({ p, id: ids[i] }))
-          .filter(
-            (t): t is { p: LocalPitch & { clip: LocalClip }; id: string } =>
-              !!t.p.clip && !!t.id
-          );
+        /* 공마다 일반 영상 · (있으면) 광각 영상 */
+        const targets = pitches.flatMap((p, i) => {
+          const id = ids[i];
+          if (!id) return [];
+          const jobs: { id: string; clip: LocalClip; kind: 'main' | 'wide' }[] = [];
+          if (p.clip) jobs.push({ id, clip: p.clip, kind: 'main' });
+          if (p.wideClip) jobs.push({ id, clip: p.wideClip, kind: 'wide' });
+          return jobs;
+        });
         if (targets.length) {
           setUploading({ done: 0, total: targets.length });
           let failed = 0;
           for (let i = 0; i < targets.length; i++) {
-            const { p, id } = targets[i];
-            const r = await uploadClip(id, p.clip.blob, {
-              sec: p.clip.durationSec,
-              eventSec: p.clip.eventSec,
-            });
+            const { id, clip, kind } = targets[i];
+            const r = await uploadClip(
+              id,
+              clip.blob,
+              { sec: clip.durationSec, eventSec: clip.eventSec },
+              undefined,
+              kind
+            );
             if (!r.ok) failed++;
             setUploading({ done: i + 1, total: targets.length });
           }
@@ -1051,7 +1076,7 @@ export function VelocityScreen({
             setError(`클립 ${failed}개를 올리지 못했어요(측정값은 저장됐어요).`);
         }
       }
-      for (const p of pitches) if (p.clip) URL.revokeObjectURL(p.clip.url);
+      for (const p of pitches) revokeClips(p);
       setSaved(true);
       setPitches([]);
       setClipOpen(null);
@@ -1150,7 +1175,7 @@ export function VelocityScreen({
   };
   const clearSamplePitches = () => {
     setPitches((prev) => {
-      for (const p of prev) if (p.sample && p.clip) URL.revokeObjectURL(p.clip.url);
+      for (const p of prev) if (p.sample) revokeClips(p);
       return prev.filter((p) => !p.sample);
     });
   };
@@ -2467,8 +2492,8 @@ export function VelocityScreen({
               {saving && <Loader2 aria-hidden className="h-4 w-4 animate-spin" />}
               {uploading
                 ? `클립 올리는 중 ${uploading.done}/${uploading.total}`
-                : pitches.some((p) => p.clip)
-                  ? `저장하고 클립 ${pitches.filter((p) => p.clip).length}개 올리기`
+                : clipCount > 0
+                  ? `저장하고 클립 ${clipCount}개 올리기`
                   : '저장'}
             </button>
             {calibOn && (
@@ -2503,6 +2528,7 @@ export function VelocityScreen({
               autoMode,
               calibSave,
               clipZone,
+              wideClip,
             }}
             showChoices={false}
             isAdmin={isAdmin}
@@ -2532,6 +2558,10 @@ export function VelocityScreen({
               if (patch.clipZone != null) {
                 setClipZone(patch.clipZone);
                 persistSetup({ clipZone: patch.clipZone });
+              }
+              if (patch.wideClip != null) {
+                setWideClip(patch.wideClip);
+                persistSetup({ wideClip: patch.wideClip });
               }
             }}
           />

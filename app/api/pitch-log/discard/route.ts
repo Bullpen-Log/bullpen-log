@@ -39,13 +39,18 @@ export async function POST(req: Request) {
       select: { videoPaths: true },
     }),
     prisma.velocityPitch.findMany({
-      where: { userId: user.id, clipPath: { in: own } },
-      select: { clipPath: true },
+      where: {
+        userId: user.id,
+        OR: [{ clipPath: { in: own } }, { wideClipPath: { in: own } }],
+      },
+      select: { clipPath: true, wideClipPath: true },
     }),
   ]);
   const used = new Set<string>([
     ...logs.flatMap((l) => l.videoPaths),
-    ...clips.map((c) => c.clipPath).filter((p): p is string => p != null),
+    ...clips
+      .flatMap((c) => [c.clipPath, c.wideClipPath])
+      .filter((p): p is string => p != null),
   ]);
   const orphans = own.filter((p) => !used.has(p));
   if (orphans.length > 0) await deleteVideos(orphans);
