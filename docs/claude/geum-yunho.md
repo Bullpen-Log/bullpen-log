@@ -637,7 +637,7 @@
       웹은 getCapabilities 의 최대값으로 칸을 짐작(조합은 브라우저가 안 알려 줌 — 켜 본 뒤 실제 값을 알림), 앱은 status.modes
       (화질마다 최고 fps). 고른 조합이 30fps 이하로 켜지면 고르기 전으로 되돌림. 세션 중에 바꾸면 다시 켜고 이어서 기다림(liveRef).
     - Swift: status 에 modes · reason 'fps', start 에 short, 일반 카메라는 30fps 로 안 떨어뜨림(광각 30 → 광각 가장 작은 화면 → 일반
-      작은 화면 같은 fps → 안 되면 'unsupported-cost'). **맥이 없어 컴파일 못 해 봄 — 올리면 ios.yml 이 굽는다.**
+      작은 화면 같은 fps → 안 되면 'unsupported-cost'). e86101f 굽기 · 시뮬레이터 · TestFlight 올리기 성공(빌드 20261002.55754).
     - **물어볼 것**: 60fps 를 아예 못 내는 카메라(옛 폰 · PC 웹캠)는 지금처럼 '부정확할 수 있다' 알림만 띄우고 재게 둘지(2026-09-30
       규칙), 아예 막을지.
 - **`NutritionProfile.sex` 칸 지우기 — 끝(2026-10-03).** 2단계 마이그레이션 `20261003100000_drop_nutrition_profile_sex` 적용(1단계 배포 뒤,
