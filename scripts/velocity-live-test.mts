@@ -17,6 +17,8 @@ import {
   LiveMeter,
   MOTION_METER_CONFIG,
   analyzeJob,
+  packJob,
+  unpackJob,
   fpsFromTimes,
   isCroppedAspect,
   liveConditionSigma,
@@ -103,6 +105,29 @@ function backgroundAt(shiftX = 0): Float32Array {
 const BG = backgroundAt();
 const BG_SHIFT = backgroundAt(24);
 
+/**
+ * 밖 — 밝은 하늘(level, 잔무늬 ±2) · horizonY 를 주면 그 줄 밑은 땅(ground + 실내 배경의 무늬). 투수 뒤에서 수평으로 찍으면
+ * 공은 하늘 앞에서 출발한다(THROW 의 공은 y 584 → 662).
+ */
+type Sky = { level: number; horizonY?: number; ground?: number };
+const SKY_CACHE = new Map<string, Float32Array>();
+function skyAt(sky: Sky): Float32Array {
+  const key = JSON.stringify(sky);
+  const hit = SKY_CACHE.get(key);
+  if (hit) return hit;
+  const out = new Float32Array(W * H);
+  for (let y = 0; y < H; y++) {
+    for (let x = 0; x < W; x++) {
+      const ground = sky.horizonY != null && y >= sky.horizonY;
+      out[y * W + x] = ground
+        ? BG[y * W + x] - 60 + (sky.ground ?? 60)
+        : sky.level + 2 * Math.sin(x / 29) * Math.cos(y / 31);
+    }
+  }
+  SKY_CACHE.set(key, out);
+  return out;
+}
+
 const srgbToLinear = (v: number) => {
   const e = Math.min(1, Math.max(0, v / 255));
   return e <= 0.04045 ? e / 12.92 : Math.pow((e + 0.055) / 1.055, 2.4);
@@ -114,8 +139,8 @@ const linearToSrgb = (l: number) => {
 
 type Pose = { x: number; y: number; d: number };
 
-/** 공(밝기 210) — 3×3 부분 덮임, 여러 자리면 노출 동안 움직인 것(평균), 선형 빛에서 섞는다 */
-function drawBall(luma: Float32Array, poses: Pose[]) {
+/** 공(밝기 210, 밖 장면은 ballLevel) — 3×3 부분 덮임, 여러 자리면 노출 동안 움직인 것(평균), 선형 빛에서 섞는다 */
+function drawBall(luma: Float32Array, poses: Pose[], ballLevel = 210) {
   let x0 = Infinity;
   let x1 = -Infinity;
   let y0 = Infinity;
@@ -130,7 +155,7 @@ function drawBall(luma: Float32Array, poses: Pose[]) {
   const bx1 = Math.min(W - 1, Math.ceil(x1));
   const by0 = Math.max(0, Math.floor(y0));
   const by1 = Math.min(H - 1, Math.ceil(y1));
-  const ball = srgbToLinear(210);
+  const ball = srgbToLinear(ballLevel);
   for (let y = by0; y <= by1; y++) {
     for (let x = bx0; x <= bx1; x++) {
       let c = 0;
@@ -197,11 +222,35 @@ type SceneOpts = {
   shakeAt?: number;
   /** 노출(초) — 1/60 이 기본. 길면 공이 번진다 */
   exposure?: number;
+  /** 밖 — 밝은 하늘(skyAt). 없으면 어두운 실내 */
+  sky?: Sky;
+  /** 공 밝기(부호값) — 기본 210 */
+  ball?: number;
+  /** 자동 노출 — 시각 t 의 밝기 곱(공 · 배경 모두) */
+  gain?: (t: number) => number;
+  /**
+   * 던지기 전의 헛것 — t0 부터 장면마다 지름이 d0 에서 step 만큼, 자리가 옆으로 dx 만큼 n 장 줄며 옮겨 가다가(멀어지는 공처럼) 그
+   * 크기 · 자리로 hold 초 머문다(흰 글러브 조각이 앞으로 나가며 작아지다 멈춘 것)
+   */
+  decoy?: {
+    t0: number;
+    x: number;
+    y: number;
+    dx: number;
+    d0: number;
+    step: number;
+    n: number;
+    hold: number;
+  };
 };
 
 let noiseAt = 0;
 function frameAt(t: number, o: SceneOpts): Uint8Array {
-  const base = o.shakeAt != null && t >= o.shakeAt ? BG_SHIFT : BG;
+  const base = o.sky
+    ? skyAt(o.sky)
+    : o.shakeAt != null && t >= o.shakeAt
+      ? BG_SHIFT
+      : BG;
   const luma = new Float32Array(base);
   if (o.armLeaves != null) {
     /* 팔이 떠나기 전 0.3초 동안 왼쪽으로 빠져나간다 */
@@ -216,7 +265,23 @@ function frameAt(t: number, o: SceneOpts): Uint8Array {
       if (p && p.d >= 1.5 && p.x > -50 && p.x < W + 50 && p.y > -50 && p.y < H + 50)
         poses.push(p);
     }
-    if (poses.length) drawBall(luma, poses);
+    if (poses.length) drawBall(luma, poses, o.ball);
+  }
+  if (o.decoy) {
+    const c = o.decoy;
+    const k = Math.floor((t - c.t0) * 60);
+    if (k >= 0 && t - c.t0 <= c.n / 60 + c.hold)
+      drawBall(luma, [
+        {
+          x: c.x + c.dx * Math.min(k, c.n),
+          y: c.y,
+          d: c.d0 - c.step * Math.min(k, c.n),
+        },
+      ]);
+  }
+  if (o.gain) {
+    const g = o.gain(t);
+    for (let i = 0; i < luma.length; i++) luma[i] *= g;
   }
   const out = new Uint8Array(W * H);
   let j = (noiseAt += 7919) & 0xffff;
@@ -504,6 +569,23 @@ console.log('\n2) 60fps — 투수 팔이 떠난 빈자리(유령)에 속지 않
       ? `± ${lensRes.measure.errorKmh} (짐작 ${res?.measure.ok ? res.measure.errorKmh : '-'}) · ${lensRes.measure.confidence}`
       : '-'
   );
+  /* 계산 워커로 넘기는 일감 — 버퍼 하나에 모아(packJob) transfer 로 넘긴다. 받은 쪽(unpackJob) 계산이 같아야 한다 */
+  const packed = job ? packJob(job) : null;
+  const unique = job
+    ? new Set([...job.frames.map((f) => f.luma), ...job.backgroundSamples]).size
+    : 0;
+  const slots = packed ? packed.buffer.byteLength / packed.slotBytes : 0;
+  const back = packed ? analyzeJob(unpackJob(packed), CAMERA) : null;
+  check(
+    '일감을 버퍼 하나로 모아 넘겨도(packJob → unpackJob) 계산이 같다 · 같은 장면은 한 번만 담는다',
+    !!back &&
+      !!res &&
+      JSON.stringify({ m: back.measure, r: back.release, t: back.track }) ===
+        JSON.stringify({ m: res.measure, r: res.release, t: res.track }) &&
+      slots === unique &&
+      unique < job!.frames.length + job!.backgroundSamples.length,
+    `칸 ${slots} · 장면 ${job ? job.frames.length + job.backgroundSamples.length : 0}`
+  );
   const seq = r.statuses.map((s) => s.s).join('>');
   check(
     '상태 settling → armed → capturing → analyzing → armed',
@@ -760,6 +842,242 @@ console.log('\n4) 던지지 않으면 · 카메라가 움직이면 · 두 번 �
       if (e.kind === 'capture') appCaptured = true;
   }
   check("포수 뒤(다가옴)는 1.6.0 의 판단('motion')으로 담는다", appCaptured);
+}
+
+/* ───────────────────────── 4b) 밖 — 밝은 하늘 앞의 어두운 공(극성) ───────────────────────── */
+
+/*
+ * 4b · 4c 는 따로 만든 절이라 둘 다 4) 끝의 센서 잡음 차례(noiseAt)에서 시작하게 둔다 — 그린 장면의 잡음이 앞 절이 그린 장면 수에
+ * 따라 바뀌면 같은 엔진도 값이 0.1~0.9km/h 흔들려(4c 의 225px 공 94.8 → 93.9) 절마다 고친 전후를 견줄 수 없다.
+ */
+const noiseAfter4 = noiseAt;
+
+console.log('\n4b) 밖 — 밝은 하늘 앞에서 공이 하늘보다 어두워도 공으로 알아채고 잰다');
+{
+  /*
+   * 해를 마주한 밖: 하늘 230, 공의 카메라 쪽 면은 그늘이라 160. 예전 감지(밝아진 곳만)는 이 공을 영영 못 본다 — 사용자가 밖에서
+   * 던져 한 개도 안 잡혔다(2026-10-03). 투수 팔(어두운 30)도 하늘 앞에서 움직인다 — 하늘보다 어두운 헛것이 는다.
+   */
+  const sky: SceneOpts = {
+    throws: [THROW],
+    armLeaves: 1.0,
+    sky: { level: 230 },
+    ball: 160,
+  };
+  const r = run(sky, { duration: 3 });
+  const job = r.jobs[0];
+  check(
+    '하늘 앞 어두운 공 — 한 번만 알아챈다',
+    r.jobs.length === 1,
+    `${r.jobs.length}번`
+  );
+  check(
+    '하늘 앞 어두운 공 — 공이 처음 보인 장면(릴리스 뒤 한 장 안)에 알아챈다',
+    !!job?.ball && job.ball.t >= THROW.t - 1e-6 && job.ball.t <= THROW.t + 1.5 / 60,
+    job?.ball
+      ? `릴리스 +${((job.ball.t - THROW.t) * 1000).toFixed(0)}ms, 이음 ${job.ball.links}`
+      : '공 없음'
+  );
+  const res = r.results[0];
+  const rel = res?.release?.releaseKmh ?? null;
+  /* 같은 장면을 실내(어두운 배경 · 밝은 공 210)로 그린 2) 의 값과 견준다 — 극성만 다른 같은 공 */
+  const bright = run({ throws: [THROW], armLeaves: 1.0 }, { duration: 3 }).results[0];
+  const brightRel = bright?.release?.releaseKmh ?? null;
+  check(
+    '하늘 앞 어두운 공 — 값을 내고, 같은 공을 실내에서 잰 값과 4% 안',
+    rel != null && brightRel != null && Math.abs(rel - brightRel) / brightRel < 0.04,
+    `밖 ${rel ?? (res && !res.measure.ok ? res.measure.code : '-')} · 실내 ${brightRel ?? '-'} · 참값 ${THROW.kmh}`
+  );
+  check(
+    "하늘 앞 어두운 공 — 극성 'dark' · ± 가 실내보다 넓다(확인 못 한 윤곽 자리)",
+    res?.measure.ok === true &&
+      res.diameter.polarity === 'dark' &&
+      bright?.measure.ok === true &&
+      res.measure.errorKmh > bright.measure.errorKmh,
+    res?.measure.ok
+      ? `${res.diameter.polarity} · ± ${res.measure.errorKmh} (실내 ${bright?.measure.ok ? bright.measure.errorKmh : '-'})`
+      : '-'
+  );
+  check(
+    '실내(밝은 공)는 예전 길 그대로 — 극성 표시가 없다',
+    bright?.measure.ok === true && bright.diameter.polarity == null
+  );
+
+  const idleSky = run(
+    { armLeaves: 1.0, sky: { level: 230 } },
+    { duration: 2.5, analyze: false }
+  );
+  check(
+    '하늘 앞에서 팔만 움직이고 던지지 않으면 알아채지 않는다',
+    idleSky.jobs.length === 0,
+    `${idleSky.jobs.length}번`
+  );
+
+  /* 지평선(620) — 위 하늘 235 · 아래 땅(어두운 실내 무늬), 공 175: 하늘 앞에서 어둡게 출발해 땅 앞에서 밝게 끝난다 */
+  const horizon = run(
+    { throws: [THROW], sky: { level: 235, horizonY: 620, ground: 60 }, ball: 175 },
+    { duration: 3 }
+  );
+  const hz = horizon.results[0];
+  check(
+    '지평선에 걸친 공 — 알아채고 값을 낸다(실내 값과 6% 안)',
+    horizon.jobs.length === 1 &&
+      hz?.release != null &&
+      brightRel != null &&
+      Math.abs(hz.release.releaseKmh - brightRel) / brightRel < 0.06,
+    `${horizon.jobs.length}번 · ${hz?.release?.releaseKmh ?? (hz && !hz.measure.ok ? hz.measure.code : '-')} · ${hz?.diameter.polarity ?? '-'}`
+  );
+}
+
+/* ───────────────────────── 4c) 밖에서 — 노출 · 카메라 자세 · 헛것 ───────────────────────── */
+
+noiseAt = noiseAfter4;
+
+console.log(
+  '\n4c) 밖에서 — 자동 노출 · 폰을 올려 든 자세 · 표적에서 벗어난 릴리스 · 던지기 전 헛것(2026-10-03, 밖에서 한 번도 안 걸림)'
+);
+{
+  const near = (r: Run, th: Throw) =>
+    r.jobs.filter(
+      (j) => !!j.ball && j.ball.t >= th.t - 0.02 && j.ball.t <= th.t + 0.15
+    );
+
+  /* 1.7.0 은 귀퉁이 밝기가 6 넘게 바뀌면 카메라가 움직인 것으로 보고 배경을 다시 준비(0.4초)해 그 공을 놓쳤다 */
+  const jump = run(
+    { throws: [THROW], gain: (t) => (t >= THROW.t - 0.05 ? 1.12 : 1) },
+    { duration: 3, analyze: false }
+  );
+  check(
+    '팔이 들어오며 노출이 12% 뛰어도(릴리스 0.05초 전) 다시 준비하지 않고 공을 알아챈다',
+    near(jump, THROW).length === 1 &&
+      !jump.statuses.some((s, i) => i > 1 && s.s === 'settling'),
+    jump.statuses.map((s) => s.s).join('>')
+  );
+  const steps = run(
+    { armLeaves: 1.0, gain: (t) => (Math.floor(t / 0.7) % 2 ? 1.12 : 1) },
+    { duration: 3, analyze: false }
+  );
+  check(
+    '던지지 않을 때 노출이 0.7초마다 12% 바뀌어도 헛 알아챔 없고 준비(settling)로 돌아가지 않는다',
+    steps.jobs.length === 0 &&
+      steps.meter.getStatus() === 'armed' &&
+      steps.statuses.length === 2,
+    `${steps.jobs.length}번 · ${steps.statuses.map((s) => s.s).join('>')}`
+  );
+
+  /*
+   * 표적에 릴리스를 맞추느라 폰을 올려 들면 비행선이 카메라 시선과 벌어져 공이 화면 아래로 빠르게 흐른다(카메라 1.2m · 릴리스
+   * 1.85m · 2.2m 앞이면 22°, 110km/h 가 옆으로 11.5m/s). 1.7.0 은 옆 속도 7m/s 넘는 이음을 막아 한 번도 알아채지 못했다.
+   */
+  const steep: Throw = {
+    t: 1.6,
+    z0: 2.2,
+    kmh: 110,
+    X0: 0.05,
+    Y0: -0.05,
+    vx: 2,
+    vy: 10,
+  };
+  for (const fps of [60, 30]) {
+    /* 낮의 밖은 노출이 짧다(1/500초) — 화면에서 빠르게 흐르는 공이 한 장 안에서 번지지 않는다 */
+    const r = run({ throws: [steep], exposure: 1 / 500 }, { fps, duration: 3 });
+    const hit = near(r, steep);
+    const res = hit.length ? r.results[r.jobs.indexOf(hit[0])] : null;
+    const want = Math.hypot(steep.kmh, steep.vx * 3.6, steep.vy * 3.6);
+    const rel = res?.release?.releaseKmh ?? null;
+    check(
+      `${fps}fps — 옆으로 10m/s 흐르는 공(시선과 18°)도 알아채고 값이 나온다(참값 ${want.toFixed(0)}의 20% 안, 그린 공)`,
+      hit.length === 1 && rel != null && Math.abs(rel - want) / want < 0.2,
+      hit.length
+        ? res?.measure.ok
+          ? `릴리스 ${rel}`
+          : `거부 ${res && !res.measure.ok ? res.measure.code : '-'}`
+        : `${r.jobs.length}번 — 못 알아챔`
+    );
+  }
+
+  /* 표적 원(반지름 100px 남짓)보다 조금 벗어난 릴리스 — 1.7.0 은 가운데 0.45(162px) 밖에서 나타난 공을 씨앗으로 안 봤다 */
+  const off: Throw = {
+    t: 1.6,
+    z0: 2.4,
+    kmh: 110,
+    X0: 0.1,
+    Y0: -0.47,
+    vx: 0.3,
+    vy: 2.5,
+  };
+  const offRun = run({ throws: [off] }, { duration: 3 });
+  const offHit = near(offRun, off);
+  const offRes = offHit.length ? offRun.results[offRun.jobs.indexOf(offHit[0])] : null;
+  check(
+    '가운데에서 225px(0.62) 위에서 나와 가운데로 들어오는 공 — 알아채고 값을 낸다',
+    offHit.length === 1 && offRes?.measure.ok === true,
+    offHit.length
+      ? offRes?.measure.ok
+        ? `릴리스 ${offRes.release?.releaseKmh}`
+        : `거부 ${offRes && !offRes.measure.ok ? offRes.measure.code : '-'}`
+      : '못 알아챔'
+  );
+  /* 소실점(미트)까지 가운데 밖 — 위로 6m/s 면 소실점이 가운데에서 218px(0.61) 위다 */
+  const away: Throw = { t: 1.6, z0: 2.4, kmh: 110, X0: 0.1, Y0: -0.5, vx: 0.3, vy: -6 };
+  const awayRun = run({ throws: [away] }, { duration: 3 });
+  const awayHit = near(awayRun, away);
+  const awayRes = awayHit.length
+    ? awayRun.results[awayRun.jobs.indexOf(awayHit[0])]
+    : null;
+  check(
+    "가운데로 끝내 안 들어오는 공 — 알아채고 '릴리스가 화면 중앙에서 벗어났다'고 알린다(1.7.0 은 아무 반응 없음)",
+    awayHit.length === 1 &&
+      awayRes != null &&
+      !awayRes.measure.ok &&
+      awayRes.measure.code === 'RELEASE_NOT_CENTERED',
+    awayHit.length
+      ? awayRes?.measure.ok
+        ? `값 ${awayRes.release?.releaseKmh}`
+        : `거부 ${awayRes && !awayRes.measure.ok ? awayRes.measure.code : '-'}`
+      : '못 알아챔'
+  );
+
+  /*
+   * 던지기 0.4초 전, 가운데에서 멀어지는 공처럼 작아지다 멈춘 헛것(흰 글러브 조각) — 1.7.0 은 거기서 알아채 0.9초를 담고 1.5초를
+   * 쉬느라 그 사이 던진 공을 놓쳤다. 이제는 헛것이 공답게 멀어지지 않으면 담는 동안 다시 찾아 진짜 공으로 옮겨 담는다.
+   */
+  const decoy = {
+    t0: 1.2,
+    x: W / 2 + 40,
+    y: H / 2 + 30,
+    dx: -4,
+    d0: 32,
+    step: 4,
+    n: 3,
+    hold: 0.6,
+  };
+  const dec = run({ throws: [THROW], decoy }, { duration: 3.4, analyze: false });
+  check(
+    '던지기 전 헛것에 먼저 걸려도 진짜 공으로 옮겨 담는다(일감 하나, 공은 릴리스 뒤 한 장 안)',
+    dec.jobs.length === 1 &&
+      !!dec.jobs[0].ball &&
+      Math.abs(dec.jobs[0].ball.t - THROW.t) <= 1.5 / 60,
+    dec.jobs
+      .map((j) => (j.ball ? `공 ${((j.ball.t - THROW.t) * 1000).toFixed(0)}ms` : '-'))
+      .join(', ')
+  );
+  const decOnly = run({ decoy }, { duration: 3, analyze: false });
+  const decBall = decOnly.jobs[0]?.ball;
+  check(
+    '헛것만 있으면 일감은 하나, 공답게 멀어지지 않은 것으로 표시(strong false) · 그 뒤 쉬지 않고 기다린다',
+    decOnly.jobs.length === 1 &&
+      decBall?.strong === false &&
+      decOnly.meter.getStatus() === 'armed',
+    `${decOnly.jobs.length}번 · strong ${decBall?.strong}`
+  );
+  /* 제자리에서 크기만 줄어 보인 헛것(흔들리는 카메라의 테두리 조각 · 글러브 무늬)은 네 이음이 안 되면 알아채지 않는다 */
+  const still = run({ decoy: { ...decoy, dx: 0 } }, { duration: 3, analyze: false });
+  check(
+    '제자리에서 세 번 작아지다 멈춘 헛것은 알아채지 않는다',
+    still.jobs.length === 0,
+    `${still.jobs.length}번`
+  );
 }
 
 /* ───────────────────────── 5) 실제 영상(캐시가 있을 때만) ───────────────────────── */

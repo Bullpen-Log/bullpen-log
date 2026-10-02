@@ -1,14 +1,25 @@
-import { buildBackground } from './detect.ts';
+import {
+  buildBackground,
+  DARK_MAX_SPREAD,
+  DARK_MIN_BACKGROUND,
+  DARK_THRESHOLD,
+} from './detect.ts';
 import {
   analyzeFrames,
-  cornerShift,
+  cornerMeans,
   type AnalyzeFramesInput,
   type AnalyzeResult,
   type Approach,
   type CapturedFrame,
 } from './analyze-frames.ts';
 import { BALL_DIAMETER_M, focalPxFromFov } from './geometry.ts';
-import { MIN_FPS, MIN_FRAME_WIDTH_PX } from './validate.ts';
+import {
+  MAX_RELEASE_DISTANCE_M,
+  MAX_RELEASE_OFFSET_RATIO,
+  MIN_FPS,
+  MIN_FRAME_WIDTH_PX,
+  reject,
+} from './validate.ts';
 
 /**
  * 카메라 실시간 측정의 '판단' — 프레임을 하나씩 받아 배경 → 던짐(공) 알아채기 → 담기 → 계산 넘기기 → 쉬기 → 다시
@@ -31,7 +42,30 @@ import { MIN_FPS, MIN_FRAME_WIDTH_PX } from './validate.ts';
  * 지금(trigger 'ball'): 날아가는 공 자체를 찾는다 — 파일에서 던진 때를 찾는 find-throw.ts 와 같은 물리. 가운데 근처에
  * 새로 나타난 둥근 밝은 덩어리가 장면마다 작아지며(멀어짐) 3차원 속도 8~65m/s 로 이어지면 공이다. 서 있는 몸 · 빈자리
  * (유령) · 흔들리는 천은 작아지지 않거나 너무 느려 이어지지 않는다. 공이 처음 보인 장면 앞 PRE 초부터 담는다 — 공이
- * 계산 구간의 앞쪽에 오고, 릴리스 직전 장면도 담긴다. 빠른 계산을 위해 가운데 정사각형만 반 해상도로 본다.
+ * 계산 구간의 앞쪽에 오고, 릴리스 직전 장면도 담긴다. 빠른 계산을 위해 가운데 네모만 반 해상도로 본다.
+ *
+ * ── 밖에서 한 번도 안 걸렸다(2026-10-03) ──
+ *
+ * 실내 터널 영상 18개로만 맞춘 판단이라, 보정 영상에 조건을 더해 흘려 보고(장면 빠짐 · 30fps · 표적 벗어남 · 작은 공 · 자동 노출 ·
+ * 흔들림 · 반짝이는 잎) 야외 장면을 그려 보니(카메라 높이 · 겨냥 · 하늘) 한 번도 안 걸리는 조건이 다섯 있었다.
+ *   ① 표적에 릴리스를 맞추느라 폰을 올려 들면 공이 옆으로 7m/s 넘게 흘러 막혔다 → 옆 속도 상한을 깊이 속도에 비례(lateralCap),
+ *      대신 빠른 궤적은 세 이음 · 고른 옆 속도 · 곧은 화면 길(lateralSteady) · 줄기만 하는 화면 속도(WATCH_SPEEDUP), 찾는 네모를 넓힘.
+ *   ② 노출이 한 번 바뀌면(팔이 들어올 때 8%) 흔들림으로 보고 배경을 다시 준비하느라 그 공을 놓쳤다 → 노출을 빼고 잰다(cornerMotion).
+ *      계산에 넘기는 흔들림(CAMERA_SHAKE)도 같은 값으로 — 그대로면 알아챈 공을 계산이 '카메라가 움직였다'로 거부했다.
+ *   ③ 릴리스가 가운데에서 150px 더 벗어나면 0/18 → 씨앗 자리를 넓히고(가운데 밖 궤적은 증거를 더), 끝내 가운데로 안 오면
+ *      '릴리스가 중앙에서 벗어났다'고 알린다(analyzeJob).
+ *   ④ 던지기 전 글러브 · 몸 조각에 먼저 걸리면 1초 가까이 담고 1.5초 쉬느라 진짜 공을 놓쳤다 → 따라간 것이 공답게 멀어지지 않으면
+ *      담는 동안 다시 찾아 옮겨 담고(captureBall), 그런 담기 뒤에는 쉬지 않는다(finish).
+ *   ⑤ 밝은 배경(하늘 · 해 받은 벽) 앞에서 공이 배경보다 어둡게 찍히면(해를 마주 봄 · 흐린 하늘) 밝아진 덩어리만 찾아서는 영영
+ *      못 알아챘다 → 가만한 밝은 배경 앞에서 어두워진 덩어리도 따로 찾고(BallWatch.blobs — detect.ts '밝은 배경'), 알아채기 전
+ *      궤적은 한 극성으로만 잇는다. 계산도 예전 길로 못 쟀으면 두 번째 길(극성)로 다시 잰다(analyze-frames.ts).
+ * 남은 것: 공 반쪽이 하늘과 같은 밝기(밖-5)이거나 대비가 35 밑이면 그대로 못 잰다.
+ * 되돌려 보기(조건 45가지 × 18개): 알아챈 공 628 → 701/810, 헛 알아챔 67 → 41(던지기 전 26 → 13), 던지지 않을 때(12조건 × 4초)
+ * 50 → 45번. 야외 합성(카메라 높이 · 겨냥 · 하늘 17가지 × 2): 13 → 34/34, 헛 알아챔 0. 판단 한 장 0.8 → 1.2ms(노드).
+ * ⑤ 를 ①~④ 와 그대로 합치면 어두운 헛것이 늘었다(헛 알아챔 41 → 50, 던지기 전 13 → 18) — 어두운 궤적은 가운데 씨앗 · 세 이음부터
+ * (step · confirmed), 공답게 멀어졌나는 씨앗과 같은 극성의 앞부분으로만(followedStrong) 보게 하자 알아챈 공 711/810, 헛 알아챔
+ * 39(던지기 전 8), 던지지 않을 때 46번. 실내 보정 영상 18개의 60fps 되돌려 보기에서 ⑤ 는 알아챈 때 · 담은 장면 · 값을 한 글자도
+ * 바꾸지 않았다.
  */
 
 export type MeterStatus =
@@ -65,6 +99,10 @@ export type FoundBall = {
   d: number;
   /** 알아챌 때까지 이은 공들(분석 픽셀) — 진단용 */
   path: { t: number; x: number; y: number; d: number }[];
+  /** 첫 공이 계산의 씨앗 자리(validate.ts MAX_RELEASE_OFFSET_RATIO) 밖이었나 */
+  offCenter?: boolean;
+  /** 따라가 보니 공답게 멀어졌나(지름이 처음의 0.4배 밑까지, WATCH_STRONG_SHRINK) — 담기를 마칠 때 정한다 */
+  strong?: boolean;
 };
 
 /** 계산할 일감 — 담은 장면들과 배경 장면들 */
@@ -150,6 +188,17 @@ export type MeterConfig = {
   /** 계산에는 공이 마지막으로 보인 뒤 이만큼(초)까지만 넘긴다(적어도 첫 공 뒤 analysisMinSec) — 배경은 담은 구간 전체에서 */
   analysisTailSec: number;
   analysisMinSec: number;
+  /**
+   * (실험 · 기본 끔) 공이 사라졌으면 계산할 장면의 끝(공이 마지막으로 보인 뒤 analysisTailSec, 적어도 첫 공 뒤 analysisMinSec)
+   * 뒤 이만큼(초)에서 담기를 끝낸다. null 이면 postSec 를 다 채운다.
+   *
+   * 왜 끄나(2026-10-03, 되돌려 보기 60fps 18개): 0 이면 알아챔 → 일감이 0.87초에서 중앙 0.50초(0.30~0.83)로 줄지만, 계산 배경의
+   * 구간 7장이 공 앞 0.12초 ~ 뒤 0.9초에서 고르게 뽑히던 것이 짧은 구간에 몰려 값이 바뀐다 — b3fb4050 108.6 → 105.3(−3.3),
+   * eb05ae07 −1.2, af31e8d0 −0.8km/h, 스피드건 LOO 1.0 → 1.2km/h, 영상 파일 값과 최대 0.9 → 2.7km/h. 0.3 이어도 b3fb4050 −3.7 이라
+   * 기다림을 줄이면서 값을 지킬 수 있는 자리가 없었다(영상 파일 엔진의 배경과 같은 모양이어야 보정 상수가 맞는다). 일찍 '먼저 보기'
+   * 값을 보이고 0.9초 뒤 바꾸는 쓰임새를 위해 남겨 둔다.
+   */
+  goneEndSec: number | null;
   /** 담는 최대 장면 수 */
   maxFrames: number;
   /** 고리 버퍼 크기(장면) */
@@ -185,6 +234,7 @@ export const DEFAULT_METER_CONFIG: MeterConfig = {
   motionPostSec: 0.6,
   analysisTailSec: 0.2,
   analysisMinSec: 0.35,
+  goneEndSec: null,
   maxFrames: 90,
   ringSize: 80,
   cooldownSec: 1.5,
@@ -286,12 +336,45 @@ function fitGrid(
   return { out, worst };
 }
 
-/* ───────────────────────── 공 찾기(반 해상도, 가운데 정사각형) ───────────────────────── */
+/* ───────────────────────── 공 찾기(반 해상도, 가운데 네모) ───────────────────────── */
 
-/** 가운데 정사각형 — 짧은 변 절반의 이 비율이 한 변의 절반. 씨앗(0.45)보다 넓게 — 공이 소실점으로 모이며 조금 옮겨 간다 */
-const WATCH_REGION_RATIO = 0.6;
-/** 씨앗이 될 수 있는 자리 — 짧은 변 절반의 이 비율 안(detect.ts trackBall · validate.ts 와 같다) */
-const WATCH_SEED_RATIO = 0.45;
+/**
+ * 공을 찾는 가운데 네모 — 짧은 변 절반의 이 비율이 가로 · 세로 반 길이(화면 밖으로는 안 나간다). 씨앗(0.45)보다 넓게 — 공은
+ * 표적에서 나타나 소실점(미트) 쪽으로 옮겨 가는데, 알아채려면 그동안 세 장은 이 안에 있어야 한다.
+ *
+ * 1.7.0 은 0.6 정사각형이었다(실내 터널 영상은 카메라가 터널을 따라 놓여 공이 거의 제자리에서 작아졌다). 표적에 릴리스를 맞추느라
+ * 폰을 올려 들면 공이 화면 아래(미트 쪽)로 빠르게 흐른다 — 카메라 1.2m · 릴리스 2.2m 앞이면 30fps 세 장째가 가운데에서 213px,
+ * 1.3m 앞이면 60fps 두 장 만에 216px 를 넘어 이음이 끊겼다(야외 합성). 세로는 폰을 세우든 눕히든 땅과 하늘 방향이라 더 넓게 둔다
+ * (눕힌 화면은 세로가 짧은 변이라 화면 끝까지).
+ */
+const WATCH_REGION_RATIO_X = 0.85;
+const WATCH_REGION_RATIO_Y = 1.1;
+/**
+ * 씨앗이 될 수 있는 자리 — 짧은 변 절반의 이 비율 안. 계산(detect.ts trackBall · validate.ts)은 0.45 안에서만 공을 찾지만 판단은
+ * 넓게 본다: 실내 보정 영상도 첫 공이 이미 가운데에서 150px(0.42) 떨어져 있었고(017af066 · b3fb4050), 그 위로 80px 만 더
+ * 벗어나면 18개 가운데 9개, 150px 면 하나도 알아채지 못했다(되돌려 보기 shift). 화면의 표적 원(지름 112 CSS px)은 폭 390px
+ * 폰에서 분석 픽셀 반지름 100px(0.29) 남짓이라 사용자가 맞춰도 이만큼은 벗어난다. 알아채면 공이 가운데로 들어온 뒤 장면으로
+ * 재고, 끝내 안 들어오면 '릴리스가 화면 중앙에서 벗어났다'고 알린다(analyzeJob) — 아무 반응이 없는 것보다 무엇을 고칠지 안다.
+ * 0.6 · 0.7 · 0.8 을 견줬다(되돌려 보기, 150px 위로 옮김 · 던지지 않음 12조건 4초씩): 잡은 수 5 · 15 · 15/18, 헛 알아챔
+ * 37 · 44 · 56번(1.7.0 은 0/18 · 50번). 0.7 이 같은 수를 잡으며 헛것이 적다.
+ */
+const WATCH_SEED_RATIO = 0.7;
+/** 이 비율(계산이 공을 찾는 자리와 같다) 밖에서 시작한 궤적은 증거를 더 본다(confirmed) */
+const WATCH_INNER_SEED_RATIO = MAX_RELEASE_OFFSET_RATIO;
+/**
+ * 가운데 밖 씨앗은 이 거리(m) 넘게만 — 카메라 가까이 옆에 있는 것은 공이 아니라 투수의 글러브 · 몸이다(흰 글러브 조각이 1.17m ·
+ * 0.57 자리에서 58 → 32px 로 멀어지며 걸렸다 — a3df7d09, 던지지 않을 때 다섯 조건에서). 릴리스는 카메라에서 1.5m 넘게 앞이다
+ * (투수 바로 뒤에 둬도 몸 + 내딛는 걸음).
+ */
+const WATCH_OUTER_SEED_MIN_M = 1.4;
+/**
+ * 궤적이 화면에서 첫 지름의 이 배 안만 움직였으면 '제자리'로 보고 증거를 더 본다(confirmed). 실제 공은 가장 적게 움직인 것도
+ * 0.25 배(89288ada), 헛것은 11px 에 2px(0.18 — 흔들리는 카메라의 테두리 조각)까지 봤다.
+ */
+const WATCH_STATIONARY_FRAC = 0.2;
+/** 깊이가 곧게 느나(depthSteady) — 장면마다 직선에서 이만큼(m) 또는 지름 이만큼(칸)이 흔들린 깊이까지 */
+const WATCH_DEPTH_TOL_M = 0.1;
+const WATCH_DEPTH_TOL_D = 2;
 /**
  * 공의 깊이 속도 범위(m/s) — 위는 find-throw.ts 와 같다. 아래는 알아챌 때 궤적 전체로 보는 값이라 계산이 받는 가장 느린 공
  * (validate.ts MIN_PLAUSIBLE_KMH 40km/h ≈ 11m/s)에 맞춘다 — 8 이면 제자리에서 크기만 1px 씩 흔들리는 밝은 점이 넘었다(거꾸로
@@ -300,14 +383,37 @@ const WATCH_SEED_RATIO = 0.45;
 const WATCH_MIN_DEPTH_MPS = 11;
 const WATCH_MAX_DEPTH_MPS = 65;
 /**
- * 옆 · 위아래 속도 상한(m/s). 영상 파일(find-throw.ts)은 거친 장면 간격이 길어 12 로 넉넉히 두지만, 카메라는 장면마다 보므로
- * 좁힌다 — 되돌려 보기 18개(60 · 30fps, 번짐 흉내 포함)의 진짜 공은 릴리스 직후 0.1~4.3m/s 였고, 30fps 에서 투수 몸 가장자리의
- * 점들을 이은 헛궤적은 9.4~11.8m/s 였다(b3fb4050, 던지기 0.34초 전에 알아채 공을 놓쳤다).
+ * 옆 · 위아래 속도 상한(m/s) — 깊이 속도에 비례해 넓힌다.
+ *
+ * 공의 옆 속도는 카메라 시선과 비행 방향이 벌어진 각 θ 만큼이다(v·sinθ, 깊이 속도는 v·cosθ). 실내 터널 영상 18개는 카메라가
+ * 터널을 따라 놓여 θ 가 몇 도뿐이라 릴리스 직후 0.1~4.3m/s 였고, 그래서 1.7.0 은 7m/s 로 좁혔다(30fps 에서 투수 몸 가장자리의
+ * 점들을 이은 헛궤적 9.4~11.8m/s 를 막으려고 — b3fb4050). 그런데 화면 안내대로 릴리스 포인트를 한가운데 표적에 맞추면 삼각대가
+ * 릴리스보다 낮은 만큼 폰을 올려 들어 θ 가 커진다 — 카메라 1.2m · 릴리스 1.85m · 2.2m 앞 · 팔 쪽 0.35m 면 22°, 110km/h 공이
+ * 옆으로 11.5m/s 라 한 번도 알아채지 못했다(야외 합성, 2026-10-03). 그래서 상한을 깊이 속도의 WATCH_LATERAL_PER_DEPTH 배(θ 42°
+ * 까지)로 넓히되 7m/s 밑으로는 줄이지 않고, WATCH_MAX_LATERAL_LINK_MPS 는 넘지 않는다. 헛궤적은 이제 크기가 장면마다 줄어야
+ * 하고(strict) · 새로 나타나야 하고 · 깊이 속도 11m/s 이상 · 화면 속도가 줄어야(WATCH_SPEEDUP) 해서 이것 없이도 걸린다.
  */
 const WATCH_MAX_LATERAL_MPS = 7;
-/** 씨앗의 거리 범위(m) — 가까운 쪽은 손 · 팔(detect.ts), 먼 쪽은 릴리스 4m + 한 간격(find-throw.ts SEED_MAX_M) */
+const WATCH_LATERAL_PER_DEPTH = 0.9;
+const WATCH_MAX_LATERAL_LINK_MPS = 30;
+/**
+ * 7m/s 넘게 옆으로 흐르는 궤적의 이음마다 옆 속도가 평균에서 벗어나도 되는 폭 — 이만큼(m/s) 또는 평균의 이 비율 가운데 큰 것.
+ * 옆 자리는 (화면 자리 ÷ 지름)으로 재서 반 해상도 지름의 한 칸 흔들림이 가장자리(가운데에서 150px · 지름 13px)에서 이음 하나에
+ * 4~5m/s 를 흔든다.
+ */
+const WATCH_LATERAL_TOL_MPS = 4;
+const WATCH_LATERAL_TOL_REL = 0.4;
+/** 옆으로 빠른(또는 가운데 밖) 궤적의 화면 걸음이 꺾여도 되는 각(°) — lateralSteady */
+const WATCH_FAST_TURN_DEG = 45;
+const WATCH_FAST_FIRST_TURN_DEG = 75;
+/**
+ * 씨앗의 거리 범위(m) — 가까운 쪽은 손 · 팔(detect.ts). 먼 쪽은 1.7.0 의 6.8(find-throw.ts SEED_MAX_M — 영상 파일의 거친 간격용)에서
+ * 5.5 로: 보정 영상에 조건 46가지를 더해 흘린 진짜 공의 씨앗은 모두 4.6m 안(판단의 초점거리 69° 기준)이었고, 던지지 않을 때 걸린
+ * 헛것 50번 가운데 17번이 5.7~6.8m(지름 10~12px — 흔들림 · 잎이 만든 테두리 조각)였다. 계산은 릴리스 4m 넘으면 어차피 거부한다
+ * (validate.ts MAX_RELEASE_DISTANCE_M) — 30fps 에서 한 장 늦게 보인 공(+1m)까지 받게 둔다.
+ */
 const WATCH_SEED_MIN_M = 0.8;
-const WATCH_SEED_MAX_M = 6.8;
+const WATCH_SEED_MAX_M = 5.5;
 /** 두 이음이면 첫 공이 이 거리(m) 안이어야 믿는다 — 먼 점 셋이 우연히 이어진 것을 거른다(find-throw.ts WEAK_SEED_MAX_M) */
 const WATCH_WEAK_SEED_MAX_M = 4;
 /**
@@ -335,6 +441,15 @@ function maxLinkSec(period: number): number {
  * 90° 넘게 꺾이면 공이 아니다 — 투수 몸 가장자리에서 위아래로 튀던 헛궤적(716 → 676 → 762)을 막는다.
  */
 const WATCH_TURN_MIN_PX = 3;
+/**
+ * 화면 속도가 늘면 안 된다 — 곧게 멀어지는 공의 화면 속도는 F·|v⊥·Z − X·vz| / Z² 라 Z 가 커지면 줄기만 한다(공기저항 · 중력으로도
+ * 안 는다). 앞 이음의 화면 속도 × WATCH_SPEEDUP + 덩어리 중심 흔들림(반 해상도 한 칸 = 2px 남짓, 손에 붙은 첫 장면은 지름의
+ * 1/4 까지 끌린다)까지 받는다. 옆 속도 상한을 넓히며 넣었다 — 이음 하나가 더 멀리 닿으니 화면에서 들쭉날쭉 뛰는 점들을
+ * 이을 수 있다.
+ */
+const WATCH_SPEEDUP = 1.6;
+const WATCH_SPEEDUP_MARGIN_PX = 3;
+const WATCH_SPEEDUP_MARGIN_D = 0.25;
 /** 이만큼(분석 px) 안 움직이고 지름도 1px 안에서 같으면 머무는 것 — 알아채기 전 궤적에는 잇지 않는다 */
 const WATCH_STILL_PX = 1.5;
 /**
@@ -354,20 +469,55 @@ const WATCH_MIN_PIXELS = 6;
 const WATCH_MIN_ASPECT = 0.55;
 const WATCH_MAX_ASPECT = 1.8;
 const WATCH_MIN_FILL = 0.45;
-const WATCH_MAX_CANDIDATES = 40;
+/**
+ * 장면마다 이을 덩어리는 큰 것부터 이만큼까지. 1.7.0 은 40 이었는데 찾는 네모를 넓히자 카메라가 흔들리는 장면(±6px 3Hz)에서
+ * 테두리 조각이 40개를 넘겨 작은 공이 빠졌다(7f8f2d15, 되돌려 보기 sway). 이음은 덩어리 수에 비례해 늘 뿐이라(궤적 60 × 80) 넉넉히.
+ */
+const WATCH_MAX_CANDIDATES = 80;
 /** 앞 장면의 같은 자리(지름의 이 비율 안) · 같은 크기(이 비율 안)에 있던 덩어리는 머무는 것 — 씨앗이 아니다 */
 const WATCH_STATIC_POS = 0.25;
 const WATCH_STATIC_SIZE = 0.15;
 /** 공이 사라졌다고 볼 때 — 이음 없이 이만큼(초) 지났거나 지름이 이 밑(분석 px, 원본 9px 이면 6px) */
 const WATCH_GONE_SEC = 0.1;
 const WATCH_GONE_D = 6;
+/** 따라간 것을 공으로 믿을 만큼 줄었나 — 처음 지름의 이 배 밑까지(followedStrong) */
+const WATCH_STRONG_SHRINK = 0.4;
+/** 따라가는 것이 이만큼(초) 더 작아지지 않으면 사라진 것으로 본다(follow) */
+const WATCH_STALL_SEC = 0.15;
+/**
+ * 진짜 공은 이 시간(초) 안에 공답게 멀어진다(WATCH_STRONG_SHRINK) — 40km/h(11m/s) 공도 2m 에서 0.27초면 거리가 2.5배다. 넘도록
+ * 아니면 놓고 다시 찾는다(captureBall). 흰 글러브 조각이 40 → 34 → 32 → 30px 로 조금씩 작아지며 따라가지는 동안 0.67초 뒤의
+ * 진짜 공을 놓쳤다(a3df7d09 에 장면 빠짐 · 잎 · 지나가는 사람을 더해 흘림).
+ */
+const WATCH_STRONG_WITHIN_SEC = 0.3;
+/** 공답게 멀어졌나(followedStrong)의 곧은 깊이 폭 — 이만큼(m) 또는 지름 이만큼(칸)이 흔들린 깊이까지 */
+const WATCH_STRONG_DEPTH_TOL_M = 0.25;
+const WATCH_STRONG_DEPTH_TOL_D = 3;
 
-type WatchBlob = { x: number; y: number; d: number; px: number };
-type WatchPoint = { t: number; x: number; y: number; d: number };
+/** 덩어리 — dark: 배경보다 어두워져 잡힌 것(밝은 배경 앞, 어두워짐 따로 잇기) */
+type WatchBlob = { x: number; y: number; d: number; px: number; dark?: boolean };
+type WatchPoint = { t: number; x: number; y: number; d: number; dark?: boolean };
+
+/** a → b 사이 공의 옆 · 위아래 이동(m) — 화면 자리 ÷ 지름 × 공 지름(초점거리와 상관없다) */
+function lateralShiftM(a: WatchPoint, b: WatchPoint, cx: number, cy: number): number {
+  const lx = ((b.x - cx) / b.d - (a.x - cx) / a.d) * BALL_DIAMETER_M;
+  const ly = ((b.y - cy) / b.d - (a.y - cy) / a.d) * BALL_DIAMETER_M;
+  return Math.hypot(lx, ly);
+}
+
+/** 깊이 속도 vz(m/s)에서 받는 옆 속도 상한(m/s) — WATCH_MAX_LATERAL_MPS 참고 */
+function lateralCap(vz: number): number {
+  return Math.min(
+    WATCH_MAX_LATERAL_LINK_MPS,
+    Math.max(WATCH_MAX_LATERAL_MPS, WATCH_LATERAL_PER_DEPTH * vz)
+  );
+}
 
 /**
- * 가운데 정사각형을 반 해상도로 줄여 배경(중앙값)보다 밝은 둥근 덩어리를 찾고, 장면마다 멀어지는 공으로 잇는다.
- * 계산은 장면마다 1ms 안팎(216×216 반 해상도 픽셀) — 카메라 한 장 사이(60fps 16.7ms)에 넉넉하다.
+ * 가운데 네모를 반 해상도로 줄여 배경(중앙값)보다 밝은(가만한 밝은 배경 앞이면 어두운) 둥근 덩어리를 찾고, 장면마다 멀어지는 공으로
+ * 잇는다.
+ * 계산은 장면마다 2ms 안팎(세로 화면 306×396 반 해상도 픽셀 — 1.7.0 의 216×216 보다 2.6배) — 카메라 한 장 사이(60fps 16.7ms)에
+ * 넉넉하다.
  */
 class BallWatch {
   readonly x0: number;
@@ -381,55 +531,170 @@ class BallWatch {
   private readonly cy: number;
   private readonly halfShort: number;
   private bg: Float32Array | null = null;
+  private spread: Float32Array | null = null;
   private prevBlobs: WatchBlob[][] = [];
   private chains: WatchPoint[][] = [];
   private followed: WatchPoint[] | null = null;
   private readonly mask: Uint8Array;
   private readonly stack: Int32Array;
+  private readonly scratch: Float32Array;
   private readonly hist = new Int32Array(511);
 
   constructor(width: number, height: number, focalPx: number) {
     this.width = width;
     const short = Math.min(width, height);
-    const halfSide = Math.floor((short / 2) * WATCH_REGION_RATIO);
-    this.w = halfSide; // 반 해상도 한 변 = 분석 해상도 한 변(2·halfSide)의 절반
-    this.h = halfSide;
-    this.x0 = Math.floor(width / 2) - halfSide;
-    this.y0 = Math.floor(height / 2) - halfSide;
+    /* 반 해상도 가로 · 세로 = 분석 해상도 네모(2·반 길이)의 절반 */
+    const halfW = Math.floor(Math.min(width / 2, (short / 2) * WATCH_REGION_RATIO_X));
+    const halfH = Math.floor(Math.min(height / 2, (short / 2) * WATCH_REGION_RATIO_Y));
+    this.w = halfW;
+    this.h = halfH;
+    this.x0 = Math.floor(width / 2) - halfW;
+    this.y0 = Math.floor(height / 2) - halfH;
     this.k = focalPx * BALL_DIAMETER_M;
     this.cx = width / 2;
     this.cy = height / 2;
     this.halfShort = short / 2;
     this.mask = new Uint8Array(this.w * this.h);
     this.stack = new Int32Array(this.w * this.h);
+    this.scratch = new Float32Array(this.w * this.h);
   }
 
-  /** 가운데 정사각형을 2×2 평균으로 줄인다 */
-  region(luma: ArrayLike<number>): Float32Array {
-    const out = new Float32Array(this.w * this.h);
+  /** 가운데 네모를 2×2 평균으로 줄인다 */
+  region(luma: ArrayLike<number>, into?: Float32Array): Float32Array {
+    const { w, h, x0, y0 } = this;
+    const out = into ?? new Float32Array(w * h);
     const W = this.width;
-    for (let j = 0; j < this.h; j++) {
-      const r0 = (this.y0 + 2 * j) * W + this.x0;
+    for (let j = 0; j < h; j++) {
+      const r0 = (y0 + 2 * j) * W + x0;
       const r1 = r0 + W;
-      for (let i = 0; i < this.w; i++) {
+      const o = j * w;
+      for (let i = 0; i < w; i++) {
         const a = r0 + 2 * i;
         const b = r1 + 2 * i;
-        out[j * this.w + i] = (luma[a] + luma[a + 1] + luma[b] + luma[b + 1]) * 0.25;
+        out[o + i] = (luma[a] + luma[a + 1] + luma[b] + luma[b + 1]) * 0.25;
       }
     }
     return out;
+  }
+
+  /**
+   * 이번 장면의 네모(region)를 늘 같은 판에 — 장면마다 새 판(세로 화면 0.5MB)을 만들면 쓰레기 치우기가 잦아진다. 쥐어 둘 때(기록 ·
+   * 배경)는 복사한다(LiveMeter.record).
+   */
+  regionNow(luma: ArrayLike<number>): Float32Array {
+    return this.region(luma, this.scratch);
   }
 
   hasBackground(): boolean {
     return this.bg != null;
   }
 
-  /** 배경 = 픽셀마다 장면들의 중앙값 — 잠깐 지나간 팔 · 글러브 · 공은 빠지고, 오래 있는 것만 남는다 */
+  /**
+   * 배경 = 픽셀마다 장면들의 중앙값 — 잠깐 지나간 팔 · 글러브 · 공은 빠지고, 오래 있는 것만 남는다. 그 자리가 스스로 밝기를 바꾸는
+   * 폭('두 번째로 밝은 값 − 중앙값')도 같이 둔다 — 어두워짐은 폭이 작은(가만한) 밝은 배경에서만 본다(detect.ts DARK_MAX_SPREAD).
+   */
   setBackground(regions: Float32Array[]) {
     const m = regions.length;
     if (!m) return;
     const n = this.w * this.h;
     const bg = new Float32Array(n);
+    const spread = new Float32Array(n);
+    if (m === 7) {
+      /*
+       * 늘 쓰는 7장은 정렬 그물(13번 견주기, Devillard opt_med7)로 — 넓힌 네모에서 삽입 정렬이 0.25초마다 몇 ms 씩 걸렸다. 값은 같다.
+       * 그물은 가운데 값만 맞춰 주므로 흔들림 폭에 쓸 두 번째로 밝은 값은 따로 센다(같은 값이 둘이면 그 값 — 정렬한 bucket[5] 와 같다).
+       */
+      const [r0, r1, r2, r3, r4, r5, r6] = regions;
+      for (let p = 0; p < n; p++) {
+        let a = r0[p];
+        let b = r1[p];
+        let c = r2[p];
+        let d = r3[p];
+        let e = r4[p];
+        let f = r5[p];
+        let g = r6[p];
+        let hi = a;
+        let hi2 = -Infinity;
+        for (let s = 1; s < 7; s++) {
+          const v = regions[s][p];
+          if (v > hi) {
+            hi2 = hi;
+            hi = v;
+          } else if (v > hi2) hi2 = v;
+        }
+        let t: number;
+        if (a > f) {
+          t = a;
+          a = f;
+          f = t;
+        }
+        if (a > d) {
+          t = a;
+          a = d;
+          d = t;
+        }
+        if (b > g) {
+          t = b;
+          b = g;
+          g = t;
+        }
+        if (c > e) {
+          t = c;
+          c = e;
+          e = t;
+        }
+        if (a > b) {
+          t = a;
+          a = b;
+          b = t;
+        }
+        if (d > f) {
+          t = d;
+          d = f;
+          f = t;
+        }
+        if (c > g) {
+          t = c;
+          c = g;
+          g = t;
+        }
+        if (c > d) {
+          t = c;
+          c = d;
+          d = t;
+        }
+        if (d > g) {
+          t = d;
+          d = g;
+          g = t;
+        }
+        if (e > f) {
+          t = e;
+          e = f;
+          f = t;
+        }
+        if (b > e) {
+          t = b;
+          b = e;
+          e = t;
+        }
+        if (b > d) {
+          t = b;
+          b = d;
+          d = t;
+        }
+        if (d > e) {
+          t = d;
+          d = e;
+          e = t;
+        }
+        bg[p] = d;
+        spread[p] = hi2 - d;
+      }
+      this.bg = bg;
+      this.spread = spread;
+      return;
+    }
     const bucket = new Float32Array(m);
     for (let p = 0; p < n; p++) {
       for (let s = 0; s < m; s++) {
@@ -442,22 +707,25 @@ class BallWatch {
         bucket[j + 1] = v;
       }
       bg[p] = bucket[m >> 1];
+      spread[p] = m >= 3 ? bucket[m - 2] - bucket[m >> 1] : 0;
     }
     this.bg = bg;
+    this.spread = spread;
   }
 
   reset() {
     this.bg = null;
+    this.spread = null;
     this.prevBlobs = [];
     this.chains = [];
     this.followed = null;
   }
 
-  /** 배경보다 밝은 둥근 덩어리(분석 픽셀 좌표) */
+  /** 배경보다 밝은(밝은 배경 앞이면 어두운) 둥근 덩어리(분석 픽셀 좌표) */
   private blobs(reg: Float32Array): WatchBlob[] {
     const bg = this.bg;
     if (!bg) return [];
-    const { w, h, mask, stack, hist } = this;
+    const { w, h, mask, hist } = this;
     const n = w * h;
     /* 자동 노출 — 성기게 짚은 (밝기 − 배경)의 중앙값(find-throw.ts 와 같다) */
     hist.fill(0);
@@ -477,13 +745,68 @@ class BallWatch {
       }
     }
     const threshold = DIFF_THRESHOLD + median;
-    for (let p = 0; p < n; p++) mask[p] = reg[p] - bg[p] > threshold ? 1 : 0;
+    /*
+     * 밝은 배경(하늘) 앞의 어두운 공도 — 배경(중앙값)이 DARK_MIN_BACKGROUND 이상이고 가만한(DARK_MAX_SPREAD) 자리에서
+     * DARK_THRESHOLD 넘게 어두워진 곳(detect.ts '밝은 배경'). 밖에서 투수 뒤로 찍으면 공이 하늘 앞에서 출발해, 밝아진 곳만 보면
+     * 공을 영영 못 알아챈다. 배경이 이미 중앙값이라 어두운 공이 머문 자리도 배경이 공이 되지 않는다.
+     *
+     * 밝아진 곳(1)과 어두워진 곳(3)은 따로 잇는다 — 합쳐 이으면 실내 보정 영상에서 투수 손(밝음)에 밝은 바닥 앞의 팔(어두움)이
+     * 붙어 덩어리가 커지고, 그 '커진 손'이 다음 장면의 손과 '작아지는' 이음이 돼 한 장 먼저 알아챘다(9f3f2654, 값 75.8 → 76.1).
+     * 따로 이으면 밝은 덩어리는 예전과 한 픽셀도 다르지 않다. 지평선에 걸친 공은 반원 둘로 갈려 그 장면에서는 못 잇지만,
+     * 알아채기는 릴리스 직후 몇 장(공이 한쪽 배경 앞에 있을 때)이면 된다 — 계산(analyze-frames 두 번째 길)은 합쳐 잇는다.
+     */
+    const darkTh = median - DARK_THRESHOLD;
+    const spread = this.spread;
+    /*
+     * 켜진 픽셀의 처음 · 끝 자리(밝아짐 · 어두워짐 따로) — 덩어리 찾기는 그 사이만 훑는다(같은 덩어리 · 같은 차례). 어두워진 곳이
+     * 없으면(실내는 대개) 건너뛴다 — 어두워짐을 더하며 장면마다 판을 한 번 더 훑던 몫(판단 한 장 +0.6ms, 노드)을 줄인다.
+     */
+    let b0 = 0;
+    let b1 = -1;
+    let d0 = 0;
+    let d1 = -1;
+    for (let p = 0; p < n; p++) {
+      const d = reg[p] - bg[p];
+      if (d > threshold) {
+        mask[p] = 1;
+        if (b1 < 0) b0 = p;
+        b1 = p;
+      } else if (
+        d < darkTh &&
+        spread != null &&
+        bg[p] >= DARK_MIN_BACKGROUND &&
+        spread[p] <= DARK_MAX_SPREAD
+      ) {
+        mask[p] = 3;
+        if (d1 < 0) d0 = p;
+        d1 = p;
+      } else mask[p] = 0;
+    }
+    const out = this.fill(1, b0, b1);
+    if (out.length > WATCH_MAX_CANDIDATES) {
+      out.sort((a, b) => b.px - a.px);
+      out.length = WATCH_MAX_CANDIDATES;
+    }
+    if (d1 < 0) return out;
+    const dark = this.fill(3, d0, d1);
+    for (const b of dark) b.dark = true;
+    if (dark.length > WATCH_MAX_CANDIDATES) {
+      dark.sort((a, b) => b.px - a.px);
+      dark.length = WATCH_MAX_CANDIDATES;
+    }
+    return dark.length ? out.concat(dark) : out;
+  }
+
+  /** mask 에서 값이 cls 인 픽셀끼리 이은 둥근 덩어리(분석 픽셀 좌표) — 지난 픽셀은 cls + 1 로 표시. from ~ to 는 cls 픽셀이 있는 자리 */
+  private fill(cls: number, from: number, to: number): WatchBlob[] {
+    const { w, h, mask, stack } = this;
+    const seen = cls + 1;
     const out: WatchBlob[] = [];
-    for (let start = 0; start < n; start++) {
-      if (mask[start] !== 1) continue;
+    for (let start = from; start <= to; start++) {
+      if (mask[start] !== cls) continue;
       let top = 0;
       stack[top++] = start;
-      mask[start] = 2;
+      mask[start] = seen;
       let px = 0;
       let sx = 0;
       let sy = 0;
@@ -502,20 +825,20 @@ class BallWatch {
         if (x > maxX) maxX = x;
         if (y < minY) minY = y;
         if (y > maxY) maxY = y;
-        if (x > 0 && mask[p - 1] === 1) {
-          mask[p - 1] = 2;
+        if (x > 0 && mask[p - 1] === cls) {
+          mask[p - 1] = seen;
           stack[top++] = p - 1;
         }
-        if (x < w - 1 && mask[p + 1] === 1) {
-          mask[p + 1] = 2;
+        if (x < w - 1 && mask[p + 1] === cls) {
+          mask[p + 1] = seen;
           stack[top++] = p + 1;
         }
-        if (y > 0 && mask[p - w] === 1) {
-          mask[p - w] = 2;
+        if (y > 0 && mask[p - w] === cls) {
+          mask[p - w] = seen;
           stack[top++] = p - w;
         }
-        if (y < h - 1 && mask[p + w] === 1) {
-          mask[p + w] = 2;
+        if (y < h - 1 && mask[p + w] === cls) {
+          mask[p + w] = seen;
           stack[top++] = p + w;
         }
       }
@@ -530,10 +853,6 @@ class BallWatch {
         d: bw + bh, // 반 해상도 (가로 + 세로) / 2 × 2
         px,
       });
-    }
-    if (out.length > WATCH_MAX_CANDIDATES) {
-      out.sort((a, b) => b.px - a.px);
-      out.length = WATCH_MAX_CANDIDATES;
     }
     return out;
   }
@@ -551,6 +870,12 @@ class BallWatch {
     if (!(dt > 0) || dt > maxDt) return false;
     if (b.d > a.d * WATCH_GROW_TOL) return false;
     if (strict) {
+      /*
+       * 알아채기 전 궤적은 한 극성으로만 — 어두워진 덩어리(밝은 배경 앞)와 밝아진 덩어리를 잇지 않는다. 실내 보정 영상에서 밝은
+       * 바닥 앞을 지나는 투수 손(어두움, 59 → 58px)에서 막 놓은 공(밝음, 37px)으로 이어 릴리스 0.036초 전에 알아챘다(f43a7958 ·
+       * d931be81). 공이 지평선을 넘는 것은 날아가는 도중이라, 알아챈 뒤 따라가기(follow)는 두 극성을 다 잇는다.
+       */
+      if (!!a.dark !== !!b.dark) return false;
       if (b.d >= a.d && period >= 1 / WATCH_STRICT_GROW_MAX_FPS) return false;
       const mx = b.x - a.x;
       const my = b.y - a.y;
@@ -558,19 +883,29 @@ class BallWatch {
       if (before) {
         const ux = a.x - before.x;
         const uy = a.y - before.y;
+        const prev = Math.hypot(ux, uy);
+        const step = Math.hypot(mx, my);
         if (
-          Math.hypot(ux, uy) >= WATCH_TURN_MIN_PX &&
-          Math.hypot(mx, my) >= WATCH_TURN_MIN_PX &&
+          prev >= WATCH_TURN_MIN_PX &&
+          step >= WATCH_TURN_MIN_PX &&
           ux * mx + uy * my < 0
+        )
+          return false;
+        /* 멀어지는 공의 화면 속도는 1/Z² 로 줄기만 한다 — 앞 이음보다 크게 빨라지면 공이 아니다 */
+        const prevDt = a.t - before.t;
+        if (
+          prevDt > 0 &&
+          step >
+            WATCH_SPEEDUP * prev * (dt / prevDt) +
+              WATCH_SPEEDUP_MARGIN_PX +
+              WATCH_SPEEDUP_MARGIN_D * a.d
         )
           return false;
       }
     }
     const vz = (this.k / b.d - this.k / a.d) / dt;
     if (vz > WATCH_MAX_DEPTH_MPS) return false;
-    const lx = ((b.x - this.cx) / b.d - (a.x - this.cx) / a.d) * BALL_DIAMETER_M;
-    const ly = ((b.y - this.cy) / b.d - (a.y - this.cy) / a.d) * BALL_DIAMETER_M;
-    return Math.hypot(lx, ly) / dt <= WATCH_MAX_LATERAL_MPS;
+    return lateralShiftM(a, b, this.cx, this.cy) / dt <= lateralCap(vz);
   }
 
   /** 이어진 궤적을 공으로 믿나 — 적어도 WATCH_MIN_CONFIRM_SEC 동안 두 이음 이상, 전체 깊이 속도가 공답게 */
@@ -583,7 +918,116 @@ class BallWatch {
     if (dt < WATCH_MIN_CONFIRM_SEC) return false;
     const vz = (this.k / b.d - this.k / a.d) / dt;
     if (vz < WATCH_MIN_DEPTH_MPS || vz > WATCH_MAX_DEPTH_MPS) return false;
+    /* 옆 속도도 궤적 전체로 한 번 더 — 이음 하나보다 길게 재서 덜 흔들린다 */
+    if (lateralShiftM(a, b, this.cx, this.cy) / dt > lateralCap(vz)) return false;
+    /*
+     * 가운데(WATCH_INNER_SEED_RATIO) 밖에서 시작한 궤적은 증거를 더 본다 — 세 이음 이상, 옆 속도 · 깊이 속도가 고르다. 거기는
+     * 투수의 글러브 · 팔이 걸리는 자리다: 흰 글러브가 앞으로 나가며 쪼개진 조각들(58 → 40 → 34px)이 두 이음만으로는 16 · 18m/s 로
+     * 멀어지는 공처럼 보였다(a3df7d09, 릴리스 0.7초 전).
+     */
+    const outer =
+      Math.hypot(a.x - this.cx, a.y - this.cy) / this.halfShort >
+      WATCH_INNER_SEED_RATIO;
+    if (outer && (links < 3 || !this.depthSteady(chain))) return false;
+    /*
+     * 화면에서 거의 안 움직이며 작아지기만 한 궤적도 증거를 더 본다(네 이음 · 깊이가 곧게). 시선과 비행선이 딱 맞으면 공도
+     * 제자리에서 작아지지만, 실제 영상 18개의 공은 두 이음 동안 첫 지름의 0.25배(89288ada, 34px 에 8.6px) 넘게 움직였다. 제자리에서
+     * 크기만 줄어 보이는 것은 대개 흔들리는 카메라 · 반짝이는 잎이 만든 테두리 조각이나 글러브 무늬다(9f3f2654 를 0.8배로 줄여
+     * 흘리자 14 → 13 → 11px 이 2px 움직이며 릴리스 0.34초 전에 걸렸다).
+     */
+    if (
+      Math.hypot(b.x - a.x, b.y - a.y) < WATCH_STATIONARY_FRAC * a.d &&
+      (links < 4 || !this.depthSteady(chain))
+    )
+      return false;
+    if (!this.lateralSteady(chain, outer)) return false;
+    /*
+     * 어두운 궤적(밝은 배경 앞, 알아채기 전에는 한 극성만 잇는다)은 두 이음 약한 씨앗 규칙(가까우면 두 이음으로 믿음)을 쓰지 않는다 —
+     * 세 이음부터. 넓힌 판단(씨앗 자리 · 옆 속도 · 다시 찾기)과 어두워짐 감지를 합치자 실내 보정 영상을 흐리게 · 밝게 눌러 흘린
+     * 되돌려 보기에서 어두운 헛것이 늘었는데(던진 뒤 그물 · 흰 천의 그늘, 던지기 전 몸 그늘 — 45조건 헛 알아챔 41 → 50), 그 대부분이
+     * 두 이음이었다(017a · 675d bright=0.2, 3be4 · 675d lowc, 3be4 scale=0.8, 7f8f shake=4). 진짜 어두운 공(흰 천 앞의 3be4 · 675d,
+     * 하늘 앞 합성 공)은 세 이음 넘게 이어졌다 — 알아채는 때만 한 장 늦고 공이 처음 보인 장면(ball.t)은 그대로다.
+     */
+    if (a.dark) return links >= 3;
     return links >= 3 || this.k / a.d <= WATCH_WEAK_SEED_MAX_M;
+  }
+
+  /**
+   * 깊이(z = k / 지름)가 시간에 곧게 느나 — 곧게 날아가는 공은 0.1초 남짓 동안 깊이 속도가 거의 같다(공기저항 2%). 장면마다
+   * 직선에서 벗어난 것이 WATCH_DEPTH_TOL_M 또는 지름 WATCH_DEPTH_TOL_D 칸이 흔들린 만큼(z·칸/지름) 안이어야 한다.
+   */
+  private depthSteady(
+    chain: WatchPoint[],
+    tolM = WATCH_DEPTH_TOL_M,
+    tolD = WATCH_DEPTH_TOL_D
+  ): boolean {
+    const n = chain.length;
+    const zs = chain.map((p) => this.k / p.d);
+    const ts = chain.map((p) => p.t);
+    const mt = ts.reduce((s, v) => s + v, 0) / n;
+    const mz = zs.reduce((s, v) => s + v, 0) / n;
+    let num = 0;
+    let den = 0;
+    for (let i = 0; i < n; i++) {
+      num += (ts[i] - mt) * (zs[i] - mz);
+      den += (ts[i] - mt) ** 2;
+    }
+    if (!(den > 0)) return false;
+    const slope = num / den;
+    return chain.every(
+      (p, i) =>
+        Math.abs(zs[i] - (mz + slope * (ts[i] - mt))) <=
+        Math.max(tolM, (tolD * zs[i]) / p.d)
+    );
+  }
+
+  /**
+   * 옆으로 빠르게(WATCH_MAX_LATERAL_MPS 넘게) 흐르는 궤적은 증거를 더 본다 — 세 이음 이상이고, 이음마다의 옆 속도(벡터)가 고르다.
+   * 곧게 날아가는 공의 옆 속도(m/s)는 시선과 벌어진 각 그대로라 장면마다 같다(공기저항은 0.1초에 2% 남짓). 상한을 넓혔더니
+   * 던지기 전 글러브의 두 조각(19px → 13px, 65px 떨어짐 — 크기 차로 깊이 50m/s 라 옆 17m/s 도 받아짐)과 그 자리에 머문 조각이
+   * 공으로 이어졌다(f43a7958, 릴리스 0.52초 전). 7m/s 안의 궤적은 1.7.0 그대로다. always 면 느려도 본다(가운데 밖 궤적).
+   *
+   * 화면의 길도 곧아야 한다 — 3차원의 곧은 선은 화면에서도 곧은 선이다. 이웃한 두 걸음(둘 다 WATCH_TURN_MIN_PX 넘게)의 방향이
+   * WATCH_FAST_TURN_DEG 넘게 꺾이면 공이 아니다(첫 걸음은 손에 붙은 첫 장면이 지름의 1/4 까지 끌려 WATCH_FAST_FIRST_TURN_DEG).
+   * 던지는 팔이 호를 그리며 내려오는 조각들(211,676/16 → 166,771/13 → 141,792/10 → 131,781/8 — 옆 21m/s · 깊이 29m/s, 이음마다
+   * 옆 속도도 고르다)이 b3fb4050 의 릴리스 0.34초 전에 걸렸는데, 걸음 방향이 115° → 140° → 228° 로 돌았다.
+   */
+  private lateralSteady(chain: WatchPoint[], always = false): boolean {
+    const vs: [number, number][] = [];
+    let fast = always;
+    for (let i = 1; i < chain.length; i++) {
+      const a = chain[i - 1];
+      const b = chain[i];
+      const dt = b.t - a.t;
+      const vx =
+        (((b.x - this.cx) / b.d - (a.x - this.cx) / a.d) * BALL_DIAMETER_M) / dt;
+      const vy =
+        (((b.y - this.cy) / b.d - (a.y - this.cy) / a.d) * BALL_DIAMETER_M) / dt;
+      vs.push([vx, vy]);
+      if (Math.hypot(vx, vy) > WATCH_MAX_LATERAL_MPS) fast = true;
+    }
+    if (!fast) return true;
+    if (vs.length < 3) return false;
+    const mx = vs.reduce((s, v) => s + v[0], 0) / vs.length;
+    const my = vs.reduce((s, v) => s + v[1], 0) / vs.length;
+    const tol = Math.max(
+      WATCH_LATERAL_TOL_MPS,
+      WATCH_LATERAL_TOL_REL * Math.hypot(mx, my)
+    );
+    if (!vs.every((v) => Math.hypot(v[0] - mx, v[1] - my) <= tol)) return false;
+    for (let i = 2; i < chain.length; i++) {
+      const ux = chain[i - 1].x - chain[i - 2].x;
+      const uy = chain[i - 1].y - chain[i - 2].y;
+      const wx = chain[i].x - chain[i - 1].x;
+      const wy = chain[i].y - chain[i - 1].y;
+      const lu = Math.hypot(ux, uy);
+      const lw = Math.hypot(wx, wy);
+      if (lu < WATCH_TURN_MIN_PX || lw < WATCH_TURN_MIN_PX) continue;
+      const limit = i === 2 ? WATCH_FAST_FIRST_TURN_DEG : WATCH_FAST_TURN_DEG;
+      if ((ux * wx + uy * wy) / (lu * lw) < Math.cos((limit * Math.PI) / 180))
+        return false;
+    }
+    return true;
   }
 
   private bestLink(
@@ -599,7 +1043,9 @@ class BallWatch {
     let best: WatchPoint | null = null;
     let cost = Infinity;
     for (const b of blobs) {
-      const p = { t, x: b.x, y: b.y, d: b.d };
+      const p: WatchPoint = b.dark
+        ? { t, x: b.x, y: b.y, d: b.d, dark: true }
+        : { t, x: b.x, y: b.y, d: b.d };
       if (!this.linkOk(last, p, maxDt, before, strict, period)) continue;
       const c = Math.hypot(p.x - last.x, p.y - last.y) / Math.max(1, last.d);
       if (c < cost) {
@@ -630,10 +1076,17 @@ class BallWatch {
     }
     /* 2) 씨앗 — 가운데 근처에 새로 나타난, 릴리스 거리의 크기인 덩어리 */
     for (const b of blobs) {
-      if (Math.hypot(b.x - this.cx, b.y - this.cy) / this.halfShort > WATCH_SEED_RATIO)
-        continue;
+      const off = Math.hypot(b.x - this.cx, b.y - this.cy) / this.halfShort;
+      if (off > WATCH_SEED_RATIO) continue;
       const z = this.k / b.d;
       if (z < WATCH_SEED_MIN_M || z > WATCH_SEED_MAX_M) continue;
+      if (off > WATCH_INNER_SEED_RATIO && z < WATCH_OUTER_SEED_MIN_M) continue;
+      /*
+       * 어두운 덩어리는 가운데(WATCH_INNER_SEED_RATIO, 1.7.0 의 씨앗 자리) 안에서만 씨앗이 된다 — 어두워짐 감지는 그 자리에서 맞추고
+       * 확인했다. 넓힌 띠(0.45~0.7)는 투수의 글러브 · 몸이 걸리는 자리라 밝은 바닥 앞을 지나는 몸 그늘이 공처럼 작아지며 이어졌다
+       * (9f3f lowc=0.4 0.53 자리 3이음 · 819b sway=3 0.62 자리 4이음 — 둘 다 던지기 전에 걸려 진짜 공을 놓쳤다).
+       */
+      if (b.dark && off > WATCH_INNER_SEED_RATIO) continue;
       const stays = this.prevBlobs.some((frame) =>
         frame.some(
           (o) =>
@@ -642,7 +1095,11 @@ class BallWatch {
         )
       );
       if (stays) continue;
-      next.push([{ t, x: b.x, y: b.y, d: b.d }]);
+      next.push([
+        b.dark
+          ? { t, x: b.x, y: b.y, d: b.d, dark: true }
+          : { t, x: b.x, y: b.y, d: b.d },
+      ]);
     }
     /* 궤적이 너무 많으면(잡음) 최근 것 · 긴 것만 */
     if (next.length > 60) {
@@ -663,24 +1120,70 @@ class BallWatch {
   follow(t: number, reg: Float32Array, period: number): boolean {
     const chain = this.followed;
     if (!chain) return true;
-    const p = this.bestLink(
-      chain,
-      this.blobs(reg),
-      t,
-      maxLinkSec(period) * 2,
-      false,
-      period
-    );
+    const blobs = this.blobs(reg);
+    /* 따라가는 동안에도 덩어리를 쥔다 — 그 뒤 다시 찾을 때(step) '새로 나타났나'를 지금 장면들과 견주게 */
+    this.prevBlobs.push(blobs);
+    if (this.prevBlobs.length > WATCH_NEW_LOOKBACK) this.prevBlobs.shift();
+    const p = this.bestLink(chain, blobs, t, maxLinkSec(period) * 2, false, period);
     if (p) chain.push(p);
     const tail = chain[chain.length - 1];
     /* 느린 카메라(10fps 급)는 한 장만 놓쳐도 0.1초가 지나 — 적어도 한 간격 반은 기다린다(60 · 30fps 는 그대로) */
-    return t - tail.t > Math.max(WATCH_GONE_SEC, 1.5 * period) || tail.d < WATCH_GONE_D;
+    if (t - tail.t > Math.max(WATCH_GONE_SEC, 1.5 * period) || tail.d < WATCH_GONE_D)
+      return true;
+    /*
+     * 더 작아지지 않고 머물면 공이 아니다 — 멀어지는 공은 10m 밖(지름 7px)에서도 0.05초에 한 칸씩 준다. 글러브처럼 제자리에서
+     * 크기만 흔들리는 것을 따라가면 끝나지 않아(f43a7958 을 위로 150px 옮겨 흘리자 릴리스 0.5초 전부터) 담는 내내 다시 찾지
+     * 못했다. WATCH_STALL_SEC 동안 가장 작았던 지름보다 작아지지 않으면 사라진 것으로 본다.
+     */
+    let minD = Infinity;
+    let minT = chain[0].t;
+    for (const q of chain)
+      if (q.d < minD) {
+        minD = q.d;
+        minT = q.t;
+      }
+    return t - minT > Math.max(WATCH_STALL_SEC, 3 * period);
   }
 
   /** 따라간 공이 마지막으로 보인 시각 */
   lastSeen(): number | null {
     const c = this.followed;
     return c ? c[c.length - 1].t : null;
+  }
+
+  /**
+   * 따라간 것이 공답게 멀어졌나 — 지름이 처음의 WATCH_STRONG_SHRINK 배 밑까지 줄었으면 그렇다. 진짜 공은 0.1초 안에 거리가 두 배가
+   * 넘어 지름이 반 밑으로 준다(30m/s, 2.3 → 4.6m). 던지기 전 글러브 · 몸에서 이어진 헛궤적은 몇 장 만에 사라진다(9f3f2654 를
+   * 0.8배로 줄여 흘리자 글러브 무늬 14 → 13 → 11px 이 릴리스 0.34초 전에 걸렸다).
+   */
+  followedStrong(): boolean {
+    const all = this.followed;
+    if (!all || all.length < 3) return false;
+    /*
+     * 씨앗과 같은 극성으로 이어진 앞부분만 본다. 따라가기는 지평선을 넘는 공 때문에 두 극성을 다 잇는데, 던지기 전 헛것(밝은 덩어리)이
+     * 밝은 바닥 앞의 몸 그늘(어두운 덩어리)로 건너가 '공답게 멀어진' 것처럼 보이면 다시 찾지 않고 쉬어 버려 진짜 공을 놓쳤다
+     * (9f3f2654 를 위로 150px 옮겨 흘림 — 릴리스 0.44초 전의 28 → 24 → 19px). 진짜 공은 한 극성으로도 0.3초 안에 충분히 준다.
+     */
+    const flip = all.findIndex((q) => !!q.dark !== !!all[0].dark);
+    const c = flip < 0 ? all : all.slice(0, flip);
+    if (c.length < 3) return false;
+    /*
+     * 처음 WATCH_STRONG_WITHIN_SEC 안에 그만큼 줄어야 하고, 줄어드는 동안(처음 그 크기에 닿을 때까지) 깊이가 곧게 늘었어야 한다 —
+     * 따라가기(follow)는 너그러워 공이 아닌 것을 따라가다 근처의 작은 점으로 건너뛰곤 했다(글러브 조각 40 → 34 → 32 → 30 다음
+     * 14 → 11 … 5px 로 '멀어진' 것처럼 — a3df7d09 에 지나가는 사람을 더해 흘림). 닿은 뒤는 보지 않는다: 작은 공은 멀어지면 지름이
+     * 몇 칸에서 멈춰(9f3f · 7f8f 를 0.5배로 줄임: 20 → 16 → 13 → 11 → 9 → 8 → 8 → 8 → 7) 깊이가 곧지 않아 보인다. 곧은 깊이의 폭은
+     * confirmed 보다 너그럽게(WATCH_STRONG_DEPTH_TOL_*).
+     */
+    const reach = c.findIndex(
+      (q) =>
+        q.t - c[0].t <= WATCH_STRONG_WITHIN_SEC && q.d <= c[0].d * WATCH_STRONG_SHRINK
+    );
+    if (reach < 2) return false;
+    return this.depthSteady(
+      c.slice(0, reach + 1),
+      WATCH_STRONG_DEPTH_TOL_M,
+      WATCH_STRONG_DEPTH_TOL_D
+    );
   }
 
   clearFollow() {
@@ -705,10 +1208,64 @@ const WATCH_BG_SAMPLES = 7;
 const WATCH_BG_SKIP_SEC = 0.05;
 /** 배경을 만들려면 기록이 적어도 이만큼(장) */
 const WATCH_BG_MIN_SAMPLES = 4;
-/** 장면 사이 귀퉁이가 이만큼(픽셀) 넘게 바뀌면 카메라가 움직인 것 — 배경을 다시 만든다(validate.ts MAX_CAMERA_SHAKE_PX) */
+/** 장면 사이 귀퉁이가 이만큼(밝기) 넘게 바뀌면 카메라가 움직인 것 — 배경을 다시 만든다(validate.ts MAX_CAMERA_SHAKE_PX) */
 const SHAKE_RESET_PX = 6;
+
+/* ───────────────────────── 카메라가 움직였나(노출 변화는 빼고) ───────────────────────── */
+
+/**
+ * 노출로 볼 밝기 곱의 범위 — 자동 노출은 한 장 사이에 이만큼 넘게 바뀌지 않는다. 이 밖이면 노출이 아니라 장면이 바뀐 것으로
+ * 보고(맞춤이 무늬의 변화를 먹지 않게) 곱을 끝값에 묶는다.
+ */
+const EXPOSURE_GAIN_MIN = 0.8;
+const EXPOSURE_GAIN_MAX = 1.25;
+
+/**
+ * 장면 사이 귀퉁이가 얼마나 바뀌었나 — cornerShift(analyze-frames.ts)처럼 블록 평균끼리 견주되, 화면 전체의 밝기 곱 하나(노출)를
+ * 먼저 빼고 남은 차이의 평균으로 잰다. 두 번째로 적게 바뀐 귀퉁이의 값(투수 · 포수의 몸이 두 귀퉁이까지는 지나가도 된다 —
+ * cornerShift 와 같다).
+ *
+ * 밝기 곱은 귀퉁이마다 '지금 ≈ 곱 × 앞'으로 맞춘 곱의 가운데 값(넷 중 가운데 둘의 평균)이다. 노출이 바뀌면 네 귀퉁이가 같은 곱으로
+ * 오르내려 빼고 나면 남는 것이 없고, 카메라가 밀리면 무늬가 옮겨 가 블록마다 제멋대로 바뀌는데 평균 밝기는 거의 그대로라 곱이 1
+ * 근처 — cornerShift 와 같은 값이 남는다(귀퉁이마다 곱 · 더하기를 따로 맞추면 무늬가 옮겨 간 것까지 맞춤이 먹어 흔들림을 덜
+ * 쟀다 — ±2px 로 흔든 영상에서 계산이 흔들린 공을 받아 영상 파일 값과 4.5km/h 까지 벌어졌다).
+ *
+ * 왜: cornerShift 는 노출 변화도 '흔들림'으로 봐서, 팔이 들어오며 노출이 8% 바뀌자 배경을 버리고 다시 준비하느라(0.4초) 그 공을
+ * 18개 모두 놓쳤다(되돌려 보기 gain=jump 0/18, 2026-10-03). 야외는 해 · 구름 · 몸이 지나가며 자동 노출이 늘 움직인다.
+ */
+function cornerMotion(prev: Float64Array, cur: Float64Array): number {
+  /* 블록 평균은 analyze-frames.ts cornerMeans(귀퉁이 0 의 블록들, 1, 2, 3 — 귀퉁이마다 블록 수가 같다)를 그대로 쓴다 */
+  const per = Math.min(prev.length, cur.length) >> 2;
+  if (per === 0) return 0;
+  const gains: number[] = [];
+  for (let c = 0; c < 4; c++) {
+    let sab = 0;
+    let saa = 0;
+    for (let i = c * per; i < (c + 1) * per; i++) {
+      sab += prev[i] * cur[i];
+      saa += prev[i] * prev[i];
+    }
+    if (saa > 0) gains.push(sab / saa);
+  }
+  if (!gains.length) return 0;
+  gains.sort((x, y) => x - y);
+  const m = gains.length;
+  const mid = m % 2 ? gains[m >> 1] : (gains[m / 2 - 1] + gains[m / 2]) / 2;
+  const gain = Math.min(EXPOSURE_GAIN_MAX, Math.max(EXPOSURE_GAIN_MIN, mid));
+  const res: number[] = [];
+  for (let c = 0; c < 4; c++) {
+    let r = 0;
+    for (let i = c * per; i < (c + 1) * per; i++)
+      r += Math.abs(cur[i] - gain * prev[i]);
+    res.push(r / per);
+  }
+  res.sort((x, y) => x - y);
+  return res[1];
+}
 /** 계산 배경('history')은 첫 공보다 이만큼(초) 앞 장면까지만 — 손에 든 공 · 막 던진 팔이 들지 않게 */
 const HISTORY_BG_GAP_SEC = 0.15;
+/** 헛 알아챔 뒤 다시 찾기(captureBall) — 담는 동안 이만큼(번)까지 다른 공으로 옮겨 담는다 */
+const RETARGET_MAX = 2;
 
 type HistoryEntry = { t: number; luma: ArrayLike<number>; reg: Float32Array | null };
 
@@ -740,6 +1297,17 @@ export class LiveMeter {
   private cooldownUntil = 0;
   private seq = 0;
   private pendingBackground: Float32Array | null = null;
+  /**
+   * 앞 장면의 귀퉁이 블록 평균(카메라가 움직였나 — cornerMotion). 장면마다 한 번만 센다 — 같은 장면 버퍼 · 같은 시각일 때만 다시
+   * 쓴다(값은 새로 센 것과 똑같다).
+   */
+  private corners: { t: number; luma: ArrayLike<number>; means: Float64Array } | null =
+    null;
+  /** 담는 중 — 따라간 것이 공답지 않게 사라졌나, 다른 공으로 옮겨 담은 횟수(captureBall) */
+  private weakFollow = false;
+  private retargets = 0;
+  /** 마지막 일감의 공이 공답게 멀어지지 않았다(쉬는 시간을 걸지 않는다 — finish) */
+  private lastJobWeak = false;
 
   /* 매개변수 속성(constructor(readonly width …))은 쓰지 않는다 — 노드의 타입 지우기가 못 읽어 시험이 안 돈다 */
   constructor(
@@ -805,6 +1373,8 @@ export class LiveMeter {
     this.preBackground = [];
     this.captured = [];
     this.goneAt = null;
+    this.weakFollow = false;
+    this.retargets = 0;
     this.watch?.reset();
     this.bgBuiltAt = -Infinity;
   }
@@ -831,6 +1401,7 @@ export class LiveMeter {
     this.lastTimes = [];
     this.fpsTick = 0;
     this.history = [];
+    this.corners = null;
     return this.disarm();
   }
 
@@ -857,8 +1428,13 @@ export class LiveMeter {
     const background = this.pendingBackground;
     this.pendingBackground = null;
     this.background = background;
+    /*
+     * 쉬는 시간은 공을 따라가 멀어지는 것을 본 뒤에만 — 네트에서 튄 공 같은 뒤끝을 막으려는 것이라, 따라간 것이 공답지 않게 사라진
+     * 담기(헛 알아챔이었을 수 있다) 뒤에는 쉬지 않는다. 쉬면 그 1.5초 안에 던진 진짜 공을 놓친다.
+     */
     this.cooldownUntil =
-      (this.ring[this.ring.length - 1]?.t ?? 0) + this.config.cooldownSec;
+      (this.ring[this.ring.length - 1]?.t ?? 0) +
+      (this.lastJobWeak ? 0 : this.config.cooldownSec);
     if (manual) {
       this.resetArm();
       this.setStatus('idle', out);
@@ -897,15 +1473,27 @@ export class LiveMeter {
       this.record(frame, null);
       return;
     }
-    const reg = watch.region(frame.luma);
+    const reg = watch.regionNow(frame.luma);
     this.record(frame, reg);
-    /* 카메라가 움직였으면 배경을 버리고 다시 쌓는다(담는 중이면 그대로 — 계산이 흔들림을 따로 본다) */
-    if (
-      prev &&
-      status !== 'capturing' &&
-      cornerShift(prev.luma, frame.luma, this.width, this.height) > SHAKE_RESET_PX
-    ) {
-      this.history = [{ t: frame.t, luma: frame.luma, reg }];
+    /*
+     * 카메라가 움직였으면 배경을 버리고 다시 쌓는다(담는 중이면 그대로 — 계산이 흔들림을 따로 본다). 노출이 바뀐 것은 움직임으로
+     * 보지 않는다(cornerMotion). 귀퉁이 블록 평균(cornerMeans)은 장면마다 한 번만 센다 — 앞 장면 것을 쥐어 둔다.
+     */
+    let moved = false;
+    if (status !== 'capturing') {
+      const corners = cornerMeans(frame.luma, this.width, this.height);
+      const kept = this.corners;
+      const before =
+        prev && kept && kept.t === prev.t && kept.luma === prev.luma
+          ? kept.means
+          : prev
+            ? cornerMeans(prev.luma, this.width, this.height)
+            : null;
+      moved = !!before && cornerMotion(before, corners) > SHAKE_RESET_PX;
+      this.corners = { t: frame.t, luma: frame.luma, means: corners };
+    }
+    if (moved) {
+      this.history = [{ t: frame.t, luma: frame.luma, reg: reg.slice() }];
       watch.reset();
       this.bgBuiltAt = -Infinity;
       this.setStatus('settling', out);
@@ -934,9 +1522,18 @@ export class LiveMeter {
       watch.clearFollow();
       return;
     }
+    this.takeBall(found, this.ring);
+    this.retargets = 0;
+    this.setStatus('capturing', out);
+    /* 이미 담긴 장면들로도 공이 사라졌을 수 있다(30fps) — 다음 장면부터 본다 */
+  }
+
+  /** 알아챈 공(found)으로 담기를 맞춘다 — 공 앞 preSec 부터 frames 에서 담고, 던지기 전 배경을 고른다 */
+  private takeBall(found: WatchPoint[], frames: MeterFrame[]) {
+    const watch = this.watch!;
     const first = found[0];
-    const idx = this.ring.findIndex((f) => f.t >= first.t);
-    const prevT = idx > 0 ? this.ring[idx - 1].t : first.t;
+    const idx = frames.findIndex((f) => f.t >= first.t);
+    const prevT = idx > 0 ? frames[idx - 1].t : first.t;
     this.ball = {
       t: first.t,
       prevT,
@@ -951,23 +1548,64 @@ export class LiveMeter {
         y: Math.round(q.y),
         d: q.d,
       })),
+      offCenter:
+        Math.hypot(first.x - this.width / 2, first.y - this.height / 2) /
+          (Math.min(this.width, this.height) / 2) >
+        MAX_RELEASE_OFFSET_RATIO,
     };
     this.triggerT = first.t;
-    this.captured = this.ring.filter((f) => f.t >= first.t - this.config.preSec);
+    this.captured = frames.filter((f) => f.t >= first.t - this.config.preSec);
     this.preBackground = this.pickPreBackground(first.t);
     this.goneAt = null;
-    this.setStatus('capturing', out);
-    /* 이미 담긴 장면들로도 공이 사라졌을 수 있다(30fps) — 다음 장면부터 본다 */
   }
 
   private captureBall(frame: MeterFrame, reg: Float32Array, out: MeterEvent[]) {
     if (this.triggerT == null) return;
     this.captured.push(frame);
+    const watch = this.watch!;
+    const period = this.period();
     /* 공을 계속 따라가 언제 사라졌는지 안다 — 계산할 장면을 거기서 자른다(emitJob) */
-    if (this.goneAt == null && this.watch!.follow(frame.t, reg, this.period())) {
-      this.goneAt = this.watch!.lastSeen() ?? frame.t;
+    if (this.goneAt == null && watch.follow(frame.t, reg, period)) {
+      this.goneAt = watch.lastSeen() ?? frame.t;
+      this.weakFollow = !watch.followedStrong();
+    } else if (
+      this.goneAt == null &&
+      this.ball &&
+      frame.t - this.ball.t > WATCH_STRONG_WITHIN_SEC &&
+      !watch.followedStrong()
+    ) {
+      /* 그만큼 따라가도 공답게 멀어지지 않았으면(조금씩 작아지며 남는 글러브) 공이 아니다 — 놓고 다시 찾는다 */
+      this.goneAt = watch.lastSeen() ?? frame.t;
+      this.weakFollow = true;
     }
+    /*
+     * 따라간 것이 공답게 멀어지지 않고 금방 사라졌으면(던지기 전 글러브 · 몸에서 이어진 헛궤적) 담는 동안에도 다시 찾는다 — 진짜
+     * 공이 나타나면 그 공으로 옮겨 담는다(takeBall, 담은 장면에서 공 앞 preSec 부터 — 새 공은 처음 알아챈 것보다 뒤라 그 장면이
+     * 다 담겨 있다). 1.7.0 은 헛 알아챔 뒤 1초 가까이 담고 쉬느라 그 사이에 던진 공을 놓쳤다(흰 글러브가 앞으로 나가며 쪼개진
+     * 조각 58 → 40 → 34 → 32 → 30px 이 릴리스 0.7초 전에 걸린 a3df7d09). 진짜 공을 따라간 뒤에는 다시 찾지 않는다(뒤에 걸린
+     * 것이 진짜 공을 밀어내지 않게). 담기가 끝나도 못 찾았으면 쉬지 않고 바로 다시 기다린다(finish).
+     */
+    if (this.goneAt != null && this.weakFollow && this.retargets < RETARGET_MAX) {
+      const found = watch.step(frame.t, reg, period);
+      if (found) {
+        this.takeBall(found, this.captured);
+        this.retargets++;
+        this.weakFollow = false;
+      }
+    }
+    const early = this.config.goneEndSec;
+    const doneEarly =
+      early != null &&
+      this.goneAt != null &&
+      this.ball != null &&
+      frame.t >=
+        Math.max(
+          this.ball.t + this.config.analysisMinSec,
+          this.goneAt + this.config.analysisTailSec
+        ) +
+          early;
     if (
+      doneEarly ||
       frame.t - this.triggerT >= this.config.postSec ||
       this.captured.length >= this.config.maxFrames
     ) {
@@ -995,14 +1633,14 @@ export class LiveMeter {
     return picked;
   }
 
-  /** 배경 기록 — HISTORY_STEP_SEC 마다 한 장 */
+  /** 배경 기록 — HISTORY_STEP_SEC 마다 한 장. reg 는 이번 장면의 판(regionNow)이라 쥘 때 복사한다 */
   private record(frame: MeterFrame, reg: Float32Array | null) {
     const last = this.history[this.history.length - 1];
     if (last && frame.t - last.t < HISTORY_STEP_SEC) return;
     this.history.push({
       t: frame.t,
       luma: frame.luma,
-      reg: reg ?? this.watch?.region(frame.luma) ?? null,
+      reg: reg ? reg.slice() : (this.watch?.region(frame.luma) ?? null),
     });
     if (this.history.length > HISTORY_SIZE) this.history.shift();
   }
@@ -1122,7 +1760,10 @@ export class LiveMeter {
     let backgroundSamples: ArrayLike<number>[] = this.quietSamples;
     let analysisFrames = frames;
     let inWindow = this.config.inWindowBackground;
-    const ball = this.ball;
+    const ball = this.ball
+      ? { ...this.ball, strong: this.watch?.followedStrong() ?? false }
+      : null;
+    this.lastJobWeak = !!ball && !ball.strong;
     if (ball && frames.length > 3) {
       /*
        * 계산 배경 — 공보다 HISTORY_BG_GAP_SEC 넘게 앞선 기록 장면 몇 장 + 담은 구간 전체에서 고르게 뽑은 7장. 영상 파일의
@@ -1167,9 +1808,82 @@ export class LiveMeter {
     this.ball = null;
     this.preBackground = [];
     this.goneAt = null;
+    this.weakFollow = false;
+    this.retargets = 0;
     this.setStatus('analyzing', out);
     out.push({ kind: 'capture', job });
   }
+}
+
+/* ───────────────────────── 일감 넘기기(워커 사이) ───────────────────────── */
+
+/**
+ * 계산 워커로 넘길 일감 — 장면 밝기를 버퍼 하나에 모은 것. 버퍼는 넘기기(transfer)로 보내 복사가 없다.
+ *
+ * 왜(2026-10-03): 예전에는 일감을 그대로 postMessage 했다(structured clone). 장면 버퍼는 판단의 고리 · 배경 기록과 같은
+ * 것이라 넘길 수 없어 복사됐는데, 브라우저는 보낼 때 한 번(직렬화) · 받을 때 한 번 더 복사한다 — 공 하나에 30~60MB 를 두 번.
+ * 여기서 한 번만 복사해(TypedArray.set) 넘기면 받는 쪽은 복사 없이 그 버퍼를 본다. 같은 장면(구간 배경으로 뽑힌 계산 장면)은
+ * 한 번만 담는다. 노드 MessageChannel 로 보내고 받기: 공 하나(보정 영상 18개의 일감, 평균 41MB) 85~106 → 23~34ms(부하 걸린
+ * PC, 2026-10-03). 받은 쪽 계산은 한 바이트도 다르지 않다.
+ */
+export type PackedJob = Omit<CaptureJob, 'frames' | 'backgroundSamples'> & {
+  frames: { t: number; slot: number }[];
+  backgroundSlots: number[];
+  /** 칸 하나의 바이트 수(장면 크기를 4 의 배수로 올림 — 4픽셀씩 읽는 길이 맞게) · 장면 크기 */
+  slotBytes: number;
+  lumaLength: number;
+  buffer: ArrayBuffer;
+};
+
+/** 일감 → 버퍼 하나. 장면이 모두 같은 크기의 Uint8Array 가 아니면 null(그대로 보낸다) */
+export function packJob(job: CaptureJob): PackedJob | null {
+  const slotOf = new Map<ArrayLike<number>, number>();
+  const order: Uint8Array[] = [];
+  const first = job.frames[0]?.luma ?? job.backgroundSamples[0];
+  if (!first) return null;
+  const lumaLength = first.length;
+  const slot = (l: ArrayLike<number>): number => {
+    const got = slotOf.get(l);
+    if (got != null) return got;
+    if (!(l instanceof Uint8Array) || l.length !== lumaLength) return -1;
+    slotOf.set(l, order.length);
+    order.push(l);
+    return order.length - 1;
+  };
+  const frames = job.frames.map((f) => ({ t: f.t, slot: slot(f.luma) }));
+  const backgroundSlots = job.backgroundSamples.map(slot);
+  if (frames.some((f) => f.slot < 0) || backgroundSlots.some((s) => s < 0)) return null;
+  const slotBytes = (lumaLength + 3) & ~3;
+  const all = new Uint8Array(slotBytes * order.length);
+  order.forEach((l, i) => all.set(l, i * slotBytes));
+  return {
+    id: job.id,
+    triggerT: job.triggerT,
+    inWindowBackground: job.inWindowBackground,
+    fps: job.fps,
+    ball: job.ball,
+    timing: job.timing,
+    frames,
+    backgroundSlots,
+    slotBytes,
+    lumaLength,
+    buffer: all.buffer,
+  };
+}
+
+/** 버퍼 하나 → 일감(장면은 버퍼를 보는 창 — 복사 없음) */
+export function unpackJob(p: PackedJob): CaptureJob {
+  const view = (s: number) => new Uint8Array(p.buffer, s * p.slotBytes, p.lumaLength);
+  return {
+    id: p.id,
+    triggerT: p.triggerT,
+    inWindowBackground: p.inWindowBackground,
+    fps: p.fps,
+    ball: p.ball,
+    timing: p.timing,
+    frames: p.frames.map((f) => ({ t: f.t, luma: view(f.slot) })),
+    backgroundSamples: p.backgroundSlots.map(view),
+  };
 }
 
 /* ───────────────────────── 계산 — 카메라 · 촬영 조건 ───────────────────────── */
@@ -1314,7 +2028,8 @@ export type LiveNoteCode =
   | 'FOV_GUESS'
   | 'ZOOM'
   | 'HDR'
-  | 'BLUR';
+  | 'BLUR'
+  | 'DARK_BALL';
 export type LiveNote = { code: LiveNoteCode; text: string };
 
 /** 장면을 어디서 어떻게 받나 — 'worker-stream' 워커가 카메라 장면을 직접, 'worker-frames' 화면 스레드가 캔버스로, 'main' 워커 없이 */
@@ -1469,6 +2184,17 @@ export function liveReport(
       text: '공이 번져 찍혀 값이 크게 틀릴 수 있어요(대개 실제보다 높게 나와요). 밝은 곳이나 60fps 카메라에서 재면 나아져요.',
     });
   }
+  /*
+   * 밝은 배경(하늘 · 해 받은 벽) 앞에서 공이 배경보다 어둡게 찍혀 두 번째 길(극성)로 잰 공 — 그 윤곽 자리를 스피드건으로 확인하지
+   * 못했다(analyze-frames.ts DARK_POLARITY_SIGMA_REL — ± 는 analyzeFrames 가 이미 넓혔다).
+   */
+  const polarity = result?.diameter.polarity;
+  if (result?.measure.ok && (polarity === 'dark' || polarity === 'mixed')) {
+    notes.push({
+      code: 'DARK_BALL',
+      text: '밝은 하늘 · 벽 앞이라 공이 배경보다 어둡게 찍혀 다른 방법으로 쟀어요. 아직 스피드건으로 확인하지 못한 조건이라 값이 조금 어긋날 수 있어요.',
+    });
+  }
   for (const i of items) if (i.text) notes.push({ code: i.code, text: i.text });
   return {
     notes,
@@ -1490,12 +2216,18 @@ export function liveAnalysisInput(
   extra: Partial<AnalyzeFramesInput> = {}
 ): AnalyzeFramesInput {
   const { frames } = job;
+  /*
+   * 카메라 흔들림(계산이 CAMERA_SHAKE 로 거부하는 값) — 판단과 같이 노출 변화는 빼고 잰다(cornerMotion). cornerShift 로 재면 팔이
+   * 들어오며 노출이 8% 바뀐 공을 판단이 알아채도 계산이 '카메라가 움직였다'로 거부했다(되돌려 보기 gain=jump: 18개 중 14개).
+   * 귀퉁이 블록 평균은 장면마다 한 번만 세어 계산의 노출 치우침에도 넘긴다(frameCornerMeans — 값은 다시 센 것과 같다).
+   */
   let shakePx = 0;
-  for (let i = 1; i < frames.length; i++) {
-    shakePx = Math.max(
-      shakePx,
-      cornerShift(frames[i - 1].luma, frames[i].luma, camera.width, camera.height)
-    );
+  const frameCornerMeans: Float64Array[] = [];
+  for (let i = 0; i < frames.length; i++) {
+    const means = cornerMeans(frames[i].luma, camera.width, camera.height);
+    if (i > 0)
+      shakePx = Math.max(shakePx, cornerMotion(frameCornerMeans[i - 1], means));
+    frameCornerMeans.push(means);
   }
   const captured: CapturedFrame[] = frames.map((f) => ({ t: f.t, luma: f.luma }));
   const cond = liveConditionSigma(job.fps, camera, job.timing ?? null);
@@ -1514,6 +2246,8 @@ export function liveAnalysisInput(
      */
     focalPx: liveFocalPx(camera),
     shakePx,
+    /* 흔들림을 재며 센 귀퉁이 블록 평균 — 노출 치우침이 다시 세지 않는다(값은 같다) */
+    frameCornerMeans,
     approach: camera.approach,
     releaseDistanceM: camera.releaseDistanceM,
     /*
@@ -1544,6 +2278,29 @@ export function analyzeJob(
   camera: LiveCamera,
   extra: Partial<AnalyzeFramesInput> = {}
 ): LiveAnalyzeResult {
-  const result = analyzeFrames(liveAnalysisInput(job, camera, extra));
+  let result = analyzeFrames(liveAnalysisInput(job, camera, extra));
+  /*
+   * 판단은 가운데에서 꽤 벗어난 곳(WATCH_SEED_RATIO)에서 나타난 공도 알아채는데, 계산은 공을 가운데(MAX_RELEASE_OFFSET_RATIO)
+   * 에서만 찾는다 — 공이 끝내 가운데로 오지 않으면 '공을 충분히 잡지 못했다' 같은 까닭으로 끝난다. 판단이 따라간 것이 공답게
+   * 멀어졌으면(strong) 무엇을 고칠지 분명한 까닭(릴리스가 표적에서 벗어남)으로 바꿔 알린다.
+   */
+  if (
+    !result.measure.ok &&
+    job.ball?.offCenter &&
+    job.ball.strong &&
+    (OFF_CENTER_OVERRIDABLE.has(result.measure.code) ||
+      /* 가운데로 들어온 뒤의 먼 장면으로만 재서 '너무 멀다'가 된 것 — 판단이 본 첫 공은 가까웠다 */
+      (result.measure.code === 'TOO_FAR' && job.ball.seedZ <= MAX_RELEASE_DISTANCE_M))
+  ) {
+    result = { ...result, measure: { ok: false, ...reject('RELEASE_NOT_CENTERED') } };
+  }
   return { ...result, live: liveReport(job.fps, camera, result, job.timing ?? null) };
 }
+
+/** 공을 못 찾거나 못 이어 끝난 까닭들 — 릴리스가 표적에서 벗어난 공이면 그 까닭으로 바꿔 알린다(analyzeJob) */
+const OFF_CENTER_OVERRIDABLE = new Set([
+  'NOT_ENOUGH_FRAMES',
+  'TRAVEL_TOO_SHORT',
+  'UNSTABLE_TRACK',
+  'IMPLAUSIBLE_SPEED',
+]);

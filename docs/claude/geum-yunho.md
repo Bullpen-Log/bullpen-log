@@ -666,6 +666,20 @@
   `deleteVelocityRecording` · `saveRecordingMemo`. 막 표시한 공(임시 번호)을 그새 고치거나 지우면 서버 번호를 받은 뒤 이어서 한다
   (`afterCreate`). 사용자 보정식(loadCalibration)에는 섞지 않는다. 확인: 임시 화면에 캔버스 가짜 영상으로 재기(가짜라 '화질 낮음' 거부) ·
   프레임 이동 · 공 표시 · 휴대폰 375 넘침 0 · PC 두 칸. **실제 녹화로 편집 · 재기는 아직 — 로그인한 관리자로 한 번 볼 것.**
+- **구속 측정 모델 1.8.0 — 밖에서 실시간이 한 개도 안 잡힌 것(2026-10-03, 사용자: "실시간으로 바로바로 측정되게 엔진을 더 고도화 ·
+  정밀하게").** 밖 영상이 없어 워크플로(ultracode 켜짐)로 세 갈래를 각자 worktree 에서 실험 → 합치기 에이전트 → 내가 검토.
+  전체 표는 `lib/velocity-engine/version.ts` 1.8.0 줄. 요약: ① 극성 — 밝은 배경 앞 어두운 공도 감지(detect.ts darkMask ·
+  buildDarkBackground, 계산은 예전 길로 못 쟀을 때만 두 번째 길, limb.ts measureLimbPolar, dark · mixed 는 ±5% · '보통'까지 ·
+  `analysis.polarity` · **loadCalibration 이 짝에서 뺌**) ② 실시간 판단 — 옆 속도 상한을 깊이 속도에 비례(폰을 올려 들면 7m/s 넘게 흘러
+  막혔다) · 찾는 네모 0.85×1.1 · 씨앗 0.7/5.5m · 노출 뺀 흔들림 cornerMotion(노출 8% 뛰면 0/18 이던 것) · 담는 중 다시 찾기 ·
+  RELEASE_NOT_CENTERED, 어두운 씨앗은 가운데 0.45 · 세 이음부터(합칠 때 헛것이 늘어 더한 규칙) ③ 속도 — 구간 묶기 · 4픽셀씩 문턱 ·
+  일감 transfer, 계산 약 2배. 실내 값 · 합성 33개는 한 글자도 안 바뀜. 되돌려 보기 45조건: 알아챔 628 → 711/810, 헛 67 → 39.
+  시험: selftest 41 · detect 10 · video 59 · live 59(캐시 63) · accuracy(밖-1~5 새로). 도구 · 출력은 스크래치 `wf/`(reports.json ·
+  merge/ · trigger/runner.mjs · polarity · latency/tools). **남은 것**: 실제 밖 영상으로 확인 — '진단 표시'(관리자 설정)로 폰에서 길 ·
+  fps · 처리 시간 · 거부 까닭을 보고, '엔진 개발용 녹화'로 원본을 남길 것. 이 PC 내장 브라우저 창은 가짜 카메라 장면 처리가
+  50ms 넘게 나온다(예전 엔진도 같음 — 창 탓, 엔진 탓 아님). **함정: 워크플로 에이전트 셋이 4.6시간 CPU 100% 를 쓰는 동안 개발 서버가
+  꺼졌다(0xC0000409)** — 끝나면 서버를 다시 켠다. worktree 는 `.claude/worktrees/` 에 생겨 git 에 '??' 로 보인다 — 끝나면
+  `git worktree remove --force` · 가지 지우기.
 - **휴대폰 구속 측정 관리자(2026-10-03, 사용자: "모바일에서 구속 측정 관리자가 안 보인다 — 모바일은 업로드 최적화로 간략하게, 지난 영상도
   볼 수 있게").** 까닭: `app/(app)/videos/page.tsx` 가 앱 안에서는 관리자에게도 셋째 칸(구속 측정 관리자)을 뺐다(`!isNative`) → 관리자면
   늘 `/admin/velocity`. 관리자 화면(`overview-view.tsx`)은 CSS 로 가른다: 휴대폰(`desk:hidden`) = `mobile-admin.tsx` — 큰 [영상 올리기] ·

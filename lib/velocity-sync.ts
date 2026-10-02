@@ -100,6 +100,7 @@ const LIVE_NOTE_CODES = new Set([
   'ZOOM',
   'HDR',
   'BLUR',
+  'DARK_BALL',
 ]);
 const LIVE_PIPELINES = new Set(['worker-stream', 'worker-frames', 'main']);
 /** 잰 순간의 스트라이크 존(장면 비율 0~1) — 넷 다 0~1 이고 폭 · 높이가 있을 때만 */
@@ -186,6 +187,11 @@ export function sanitizeAnalysis(raw: unknown): Record<string, unknown> | null {
     v: a.v === 2 ? 2 : 1,
     /* v2(모델 1.6.0) — 어느 자로 쟀나 · 흐림 · SE(lib/velocity-analysis.ts) */
     ruler: a.ruler === 'limb' || a.ruler === 'area' ? a.ruler : null,
+    /* 밝은 배경 앞의 어두운 공(두 번째 길)으로 잰 공 — 자가 달라 보정 짝에 섞지 않으려고(lib/velocity-analysis.ts) */
+    polarity:
+      a.polarity === 'bright' || a.polarity === 'dark' || a.polarity === 'mixed'
+        ? a.polarity
+        : null,
     edgeWidthPx: n(a.edgeWidthPx),
     blurCorrectionPx: n(a.blurCorrectionPx),
     startSeKmh: n(a.startSeKmh),

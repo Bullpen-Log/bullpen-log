@@ -192,9 +192,32 @@ export function rgbaToLuma(
   return out;
 }
 
-/** 캔버스 getImageData 의 RGBA → 밝기(반올림). 1.6.0 은 버림(>> 8)이라 영상 파일 길(소수)보다 평균 0.5 낮았다 */
+/** 작은 끝(little-endian)인가 — 32비트로 읽은 RGBA 의 낮은 바이트가 R 인가 */
+const LITTLE_ENDIAN = new Uint8Array(new Uint32Array([1]).buffer)[0] === 1;
+
+/**
+ * 캔버스 getImageData 의 RGBA → 밝기(반올림). 1.6.0 은 버림(>> 8)이라 영상 파일 길(소수)보다 평균 0.5 낮았다.
+ *
+ * 화면 스레드 길(워커가 카메라 장면을 직접 못 받는 브라우저 — 직접 받기가 없는 아이폰 iOS 17 등)은 장면마다 이것을 화면 스레드에서
+ * 돈다. 픽셀마다 바이트 셋을 따로 읽던 것을 32비트 한 번으로 읽는다 — 값은 똑같고(무작위 · 모든 바이트 끝값 · 실제 장면)
+ * 노드에서 1.4배 빠르다(720×1280 한 장 5.3 → 3.7ms, 부하 걸린 PC, 2026-10-03).
+ */
 export function canvasLuma(px: ArrayLike<number>, n: number): Uint8Array {
   const luma = new Uint8Array(n);
+  if (
+    LITTLE_ENDIAN &&
+    px instanceof Uint8ClampedArray &&
+    (px.byteOffset & 3) === 0 &&
+    px.length >= n * 4
+  ) {
+    const u = new Uint32Array(px.buffer, px.byteOffset, n);
+    for (let i = 0; i < n; i++) {
+      const v = u[i];
+      luma[i] =
+        ((v & 255) * 77 + ((v >>> 8) & 255) * 150 + ((v >>> 16) & 255) * 29 + 128) >> 8;
+    }
+    return luma;
+  }
   for (let i = 0, j = 0; i < n; i++, j += 4) {
     luma[i] = (px[j] * 77 + px[j + 1] * 150 + px[j + 2] * 29 + 128) >> 8;
   }

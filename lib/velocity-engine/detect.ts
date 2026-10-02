@@ -79,6 +79,58 @@ export type Blob = {
   pixels: number;
   /** 닫힘 전(문턱값을 넘은) 픽셀 수 / 닫힘 뒤 픽셀 수 — 그물에 가려진 만큼 1 보다 작다 */
   visibleFrac: number;
+  /** 배경보다 어두워져 잡힌 픽셀 수(닫힘 전) — 어두워짐까지 볼 때(findMovedBlobs 의 dark)만 */
+  darkPixels?: number;
+};
+
+/**
+ * ── 밝은 배경 — 공이 배경보다 어두울 때(극성, 2026-10-03) ──
+ *
+ * 감지는 '배경보다 밝아진 곳'만 본다. 실내 터널(배경 20~150)에서는 흰 공이 늘 더 밝아 그것으로 됐는데, 밖에서 투수 뒤로
+ * 수평으로 찍으면 공은 하늘 앞에서 출발한다. 해를 마주하면 카메라 쪽 공 면이 그늘이라 하늘(200~255)보다 **어둡다** — 그러면
+ * 공이 처음부터 안 보여 실시간 측정이 하나도 안 잡힌다(2026-10-03 사용자 — 밖에서 한 개도 안 잡혔다, 영상은 없다. 합성
+ * 시험대 '밖-1~3'은 예전 감지로 6/6 거부).
+ *
+ * 그래서 '배경보다 DARK_THRESHOLD 넘게 어두워진 곳'도 본다 — 단 배경이 DARK_MIN_BACKGROUND 이상으로 밝고 가만한
+ * (DARK_MAX_SPREAD) 자리에서만. 흰 공이 배경보다 어두워질 수 있는 것은 배경이 밝을 때뿐이고, 어두운 배경(실내 · 그늘 · 숲)에서
+ * 어두워진 곳은 그림자 · 지나가는 몸이라 헛것만 는다.
+ *
+ * 어두워짐의 배경은 '가장 어두운 쪽'이 아니라 **중앙값**이다(buildDarkBackground). 가장 어두운 쪽(buildBackground)은
+ * 밝은 공을 지우려고 고른 값이라, 어두운 공이 몇 장에 머문 자리는 배경이 곧 공이 돼 공이 사라진다. 거꾸로 두 번째로 밝은
+ * 값을 쓰면 밝은 공이 머문 자리가 배경이 돼, 공이 없는 장면에 공 모양의 '어두운 유령'이 생긴다. 중앙값은 표본(던지기 전
+ * 3장 + 구간 7장)의 절반 밑에만 공이 있으면 두 쪽 모두 참 배경이다.
+ *
+ * 쓰는 곳: 계산(analyze-frames.ts)은 예전 길로 못 쟀을 때의 두 번째 길에서만(밝아짐과 한 마스크로 잇는다), 실시간 알아채기
+ * (live-meter.ts BallWatch)는 늘(밝아짐과 따로 잇고 한 극성으로만 궤적을 잇는다), 영상 파일의 던진 때 찾기(find-throw.ts)는 늘.
+ */
+/**
+ * 이 밝기(0~255, 중앙값 배경) 이상인 자리에서만 어두워짐을 본다. 흰 공의 그늘진 면은 밖에서도 대개 110~180 이라(노출을 하늘에
+ * 맞추면 어둡게) 그보다 DARK_THRESHOLD 넘게 밝은 배경 — 하늘 · 해 받은 벽 — 앞에서만 공이 '어두워진 곳'이 된다. 파란 하늘은
+ * 밝기 140~190 이라 그보다 높게 두지 않는다. 실내 보정 영상에서는 가운데 정사각형의 15~25% 가 이 위(밝은 바닥 · 흰 천 · 조명)다.
+ */
+export const DARK_MIN_BACKGROUND = 130;
+/** 어두워짐 문턱 — 밝아짐(DIFF_THRESHOLD)과 같다. 합성 시험대에서 하늘 230 앞 공 160 은 대비 70 이라 넉넉하다 */
+export const DARK_THRESHOLD = 28;
+/**
+ * 그 자리 배경이 스스로 밝기를 바꾸면(흔들리는 흰 과녁 천 · 움직이는 투수의 흰 옷) 어두워짐을 보지 않는다 — 배경 표본의 '두 번째로
+ * 밝은 값 − 중앙값'이 이보다 크면. 어두운 공은 표본의 아래쪽(어두운 쪽)만 끌어내리므로 이 폭을 바꾸지 않고, 밝은 공이 몇 장에 머문
+ * 자리(공이 지나간 뒤 '어두운 유령'이 생길 자리)는 위쪽이 공이라 이 폭이 커서 저절로 빠진다. 하늘 · 벽은 잡음뿐이라 몇 안 된다.
+ * 근거(실내 보정 영상의 거친 장면 18개, find-throw · 화각 62°): 문턱이 없으면 던진 공을 못 찾던 두 영상(3be4d460 · 675d2051)에서
+ * 흔들리는 천 · 몸 자리(이 폭 22~43)의 밝아짐 · 어두워짐을 이은 헛궤적을 공으로 믿었다. 20 이면 675d2051 의 헛궤적이 끊기고,
+ * 실제로 쓰는 화각(59.8°)으로는 18개 모두 구간 · 값이 예전과 같다.
+ */
+export const DARK_MAX_SPREAD = 20;
+
+/** 어두워짐까지 볼 때 findMovedBlobs 에 주는 것 */
+export type DarkDetect = {
+  /** 중앙값 배경(buildDarkBackground) */
+  background: Float32Array;
+  /** 배경 표본의 '두 번째로 밝은 값 − 중앙값'(buildDarkBackground) — DARK_MAX_SPREAD 보다 크면 그 자리는 보지 않는다 */
+  spread: Float32Array;
+  /** 이 장면이 중앙값 배경보다 전체적으로 밝아진 양(자동 노출) */
+  bias: number;
+  /** 배경이 이 밝기 이상인 자리에서만 — 기본 DARK_MIN_BACKGROUND */
+  minBackground?: number;
 };
 
 /**
@@ -99,62 +151,153 @@ const CLOSE_RADIUS = 2;
  * 장면 하나에 50ms 넘게 들었다 — 카메라로 잰 공 하나(44장)의 계산 4~6초 가운데 절반이 여기였다. 지금은 한 줄을 32픽셀씩
  * 비트로 묶어(Uint32) 밀기 · 논리합(팽창) · 논리곱(침식)으로 한 번에 32픽셀을 본다. 화면 밖은 팽창에서는 0, 침식에서는
  * 1 로 채워 '잘린 창'과 같게 한다. 결과는 예전과 한 픽셀도 다르지 않다(lab 의 무작위 · 실제 장면 비교, 셀프테스트).
+ *
+ * 더 빠르게(2026-10-03): 줄마다 켜진 칸(32픽셀 묶음)이 있는 범위[lo, hi]만 돈다. 팽창은 범위를 좌우 한 칸 · 위아래 radius 줄만큼
+ * 넓히고(그 밖은 0), 침식은 좁힌다(창 안 줄들의 범위가 겹치는 곳 밖은 0). 실제 장면은 움직인 픽셀이 투수 몸 · 공 · 잡음뿐이라
+ * 줄의 일부만 돈다. 줄 끝의 남는 비트(width 너머)는 예전에도 침식에서 쓰레기 값이 남았고 덩어리 찾기가 보지 않는다 — 화면 안의
+ * 비트는 예전과 한 비트도 다르지 않다(wf 시험: 실제 장면 · 무작위 마스크 비교).
  */
-function closeMask(bits: Uint32Array, width: number, height: number, radius: number): Uint32Array {
+function closeMask(
+  bits: Uint32Array,
+  width: number,
+  height: number,
+  radius: number
+): Uint32Array {
   const wpr = (width + 31) >>> 5;
-  return morphBits(morphBits(bits, width, height, wpr, radius, true), width, height, wpr, radius, false);
+  /* 줄마다 켜진 칸의 범위 — 빈 줄은 lo > hi */
+  const lo = new Int32Array(height).fill(wpr);
+  const hi = new Int32Array(height).fill(-1);
+  for (let y = 0; y < height; y++) {
+    const o = y * wpr;
+    let w = 0;
+    while (w < wpr && bits[o + w] === 0) w++;
+    if (w === wpr) continue;
+    lo[y] = w;
+    let e = wpr - 1;
+    while (bits[o + e] === 0) e--;
+    hi[y] = e;
+  }
+  const d = dilateBits(bits, width, height, wpr, radius, lo, hi);
+  return erodeBits(d.out, width, height, wpr, radius, d.lo, d.hi);
 }
 
-/** 비트로 묶은 마스크의 팽창(dilate: 창 안에 1 이 하나라도) 또는 침식(창 안이 모두 1) — 가로 다음 세로 */
-function morphBits(
+/** 팽창 — 창 안에 1 이 하나라도. 결과와 결과의 줄 범위(넉넉히) */
+function dilateBits(
   src: Uint32Array,
   width: number,
   height: number,
   wpr: number,
   r: number,
-  dilate: boolean
-): Uint32Array {
-  /* 화면 밖 · 줄 끝의 남는 비트 — 팽창은 0, 침식은 1(잘린 창은 화면 안만 본다) */
-  const fill = dilate ? 0 : 0xffffffff;
+  lo: Int32Array,
+  hi: Int32Array
+): { out: Uint32Array; lo: Int32Array; hi: Int32Array } {
   const tailBits = width & 31;
-  const tailMask = tailBits === 0 ? 0 : (0xffffffff << tailBits) >>> 0;
+  /* 줄 끝의 남는 비트는 0 으로 본다(화면 밖) */
+  const keepLast = tailBits === 0 ? -1 : ~((0xffffffff << tailBits) >>> 0);
+  const lastW = wpr - 1;
+  const word = (o: number, w: number) =>
+    w === lastW ? src[o + w] & keepLast : src[o + w];
   const tmp = new Uint32Array(src.length);
-  const word = (wrow: number, w: number): number => {
-    if (w < 0 || w >= wpr) return fill;
-    let v = src[wrow + w];
-    if (w === wpr - 1 && tailMask !== 0) v = dilate ? v & ~tailMask : v | tailMask;
-    return v;
-  };
+  const tlo = new Int32Array(height).fill(wpr);
+  const thi = new Int32Array(height).fill(-1);
   for (let y = 0; y < height; y++) {
-    const wrow = y * wpr;
-    for (let w = 0; w < wpr; w++) {
-      const cur = word(wrow, w);
-      if (dilate && cur === 0 && word(wrow, w - 1) === 0 && word(wrow, w + 1) === 0) continue;
-      if (!dilate && cur === 0) continue;
-      const prev = word(wrow, w - 1);
-      const next = word(wrow, w + 1);
+    if (lo[y] > hi[y]) continue;
+    const o = y * wpr;
+    const w0 = lo[y] > 0 ? lo[y] - 1 : 0;
+    const w1 = hi[y] < lastW ? hi[y] + 1 : lastW;
+    tlo[y] = w0;
+    thi[y] = w1;
+    let prev = w0 > 0 ? word(o, w0 - 1) : 0;
+    let cur = word(o, w0);
+    for (let w = w0; w <= w1; w++) {
+      const next = w < lastW ? word(o, w + 1) : 0;
+      if (cur !== 0 || prev !== 0 || next !== 0) {
+        let acc = cur;
+        for (let k = 1; k <= r; k++) {
+          /* x 는 x−k 의 값(왼쪽 이웃) · x+k 의 값(오른쪽 이웃)을 본다 */
+          acc |= (cur << k) | (prev >>> (32 - k)) | (cur >>> k) | (next << (32 - k));
+        }
+        tmp[o + w] = acc >>> 0;
+      }
+      prev = cur;
+      cur = next;
+    }
+  }
+  const out = new Uint32Array(src.length);
+  const olo = new Int32Array(height).fill(wpr);
+  const ohi = new Int32Array(height).fill(-1);
+  for (let y = 0; y < height; y++) {
+    const y0 = y - r > 0 ? y - r : 0;
+    const y1 = y + r < height - 1 ? y + r : height - 1;
+    /* 창 안 줄들의 범위를 합친 것 밖은 0 */
+    let L = wpr;
+    let H = -1;
+    for (let yy = y0; yy <= y1; yy++) {
+      if (tlo[yy] < L) L = tlo[yy];
+      if (thi[yy] > H) H = thi[yy];
+    }
+    if (L > H) continue;
+    olo[y] = L;
+    ohi[y] = H;
+    const o = y * wpr;
+    for (let w = L; w <= H; w++) {
+      let acc = tmp[y0 * wpr + w];
+      for (let yy = y0 + 1; yy <= y1; yy++) acc |= tmp[yy * wpr + w];
+      out[o + w] = acc >>> 0;
+    }
+  }
+  return { out, lo: olo, hi: ohi };
+}
+
+/** 침식 — 창 안이 모두 1. 화면 밖은 1 로 본다(잘린 창) */
+function erodeBits(
+  src: Uint32Array,
+  width: number,
+  height: number,
+  wpr: number,
+  r: number,
+  lo: Int32Array,
+  hi: Int32Array
+): Uint32Array {
+  const tailBits = width & 31;
+  /* 줄 끝의 남는 비트는 1 로 본다(화면 밖) */
+  const tailMask = tailBits === 0 ? 0 : (0xffffffff << tailBits) | 0;
+  const lastW = wpr - 1;
+  const word = (o: number, w: number) =>
+    w === lastW ? src[o + w] | tailMask : src[o + w];
+  const tmp = new Uint32Array(src.length);
+  for (let y = 0; y < height; y++) {
+    if (lo[y] > hi[y]) continue;
+    const o = y * wpr;
+    for (let w = lo[y]; w <= hi[y]; w++) {
+      const cur = word(o, w);
+      if (cur === 0) continue;
+      const prev = w > 0 ? word(o, w - 1) : -1;
+      const next = w < lastW ? word(o, w + 1) : -1;
       let acc = cur;
       for (let k = 1; k <= r; k++) {
-        /* x 는 x−k 의 값(왼쪽 이웃) · x+k 의 값(오른쪽 이웃)을 본다 */
-        const fromLeft = (cur << k) | (prev >>> (32 - k));
-        const fromRight = (cur >>> k) | (next << (32 - k));
-        acc = dilate ? acc | fromLeft | fromRight : acc & fromLeft & fromRight;
+        acc &= ((cur << k) | (prev >>> (32 - k))) & ((cur >>> k) | (next << (32 - k)));
       }
-      tmp[wrow + w] = acc >>> 0;
+      tmp[o + w] = acc >>> 0;
     }
   }
   const out = new Uint32Array(src.length);
   for (let y = 0; y < height; y++) {
-    const lo = Math.max(0, y - r);
-    const hi = Math.min(height - 1, y + r);
-    const wrow = y * wpr;
-    for (let w = 0; w < wpr; w++) {
-      let acc = tmp[lo * wpr + w];
-      for (let yy = lo + 1; yy <= hi; yy++) {
-        const v = tmp[yy * wpr + w];
-        acc = dilate ? acc | v : acc & v;
-      }
-      out[wrow + w] = acc >>> 0;
+    const y0 = y - r > 0 ? y - r : 0;
+    const y1 = y + r < height - 1 ? y + r : height - 1;
+    /* 창 안 줄들의 범위가 겹치는 곳 밖은 0(빈 줄이 하나라도 있으면 통째로 0) */
+    let L = 0;
+    let H = wpr - 1;
+    for (let yy = y0; yy <= y1; yy++) {
+      if (lo[yy] > L) L = lo[yy];
+      if (hi[yy] < H) H = hi[yy];
+    }
+    if (L > H) continue;
+    const o = y * wpr;
+    for (let w = L; w <= H; w++) {
+      let acc = tmp[y0 * wpr + w];
+      for (let yy = y0 + 1; yy <= y1; yy++) acc &= tmp[yy * wpr + w];
+      out[o + w] = acc >>> 0;
     }
   }
   return out;
@@ -193,6 +336,30 @@ export function buildBackground(samples: ArrayLike<number>[]): Float32Array {
   const size = samples[0].length;
   const rank = samples.length >= 4 ? 1 : 0;
   /*
+   * 카메라 장면(Uint8Array)만이면 바이트 표로 센다 — 처음 값을 무한대 대신 255 로 두어도 가장 어두운 두 값은 같다(값이
+   * 0~255 라 255 는 어느 장면 값보다 작지 않다. 장면이 둘 이상이면 둘째 값도 장면 값에서 나온다). 4분의 1 크기 표라
+   * 조금 빠르다(실시간 일감 10장 배경 171 → 140ms, 부하 걸린 노드 — 2026-10-03). 결과는 예전과 같은 Float32Array 값이다.
+   */
+  if (samples.every((s) => s instanceof Uint8Array)) {
+    const b1 = new Uint8Array(size).fill(255);
+    const b2 = new Uint8Array(size).fill(255);
+    for (const sample of samples as Uint8Array[]) {
+      for (let i = 0; i < size; i++) {
+        const v = sample[i];
+        const a = b1[i];
+        if (v < a) {
+          b2[i] = a;
+          b1[i] = v;
+        } else if (v < b2[i]) {
+          b2[i] = v;
+        }
+      }
+    }
+    const out = new Float32Array(size);
+    out.set(rank === 0 ? b1 : b2);
+    return out;
+  }
+  /*
    * 가장 어두운 값(m1)과 두 번째(m2)를 장면 차례로 한 번씩 훑어 센다 — 픽셀마다 배열을 정렬하던 것과 값이 똑같고(같은
    * 값이 둘이면 둘째도 그 값) 몇 배 빠르다(720×1280 × 12장이 0.8초 → 수십 ms, 실시간 측정의 계산 시간).
    */
@@ -213,10 +380,154 @@ export function buildBackground(samples: ArrayLike<number>[]): Float32Array {
 }
 
 /**
+ * 정수 배경표 — 카메라 장면(Uint8Array)으로 만든 배경은 값이 모두 0~255 정수다. 그러면 장면(정수)과의 차이도 정수라
+ * '밝기 − 배경 > 문턱' 이 '밝기 ≥ 배경 + ⌊문턱⌋ + 1' 과 같다(정수 d 에 대해 d > t ⇔ d > ⌊t⌋). 문턱(⌊문턱⌋)마다 '켜지려면
+ * 넘어야 할 밝기' 표를 한 번 만들어 두고, 장면은 4픽셀씩 한 번에 견준다(findMovedBlobs). 문턱은 장면마다 노출 치우침만큼
+ * 다르지만 정수로 내리면 한 공(40장 남짓)에 두세 가지뿐이다.
+ */
+export type BackgroundTable = {
+  /** 배경(정수) · 가장 밝은 값 */
+  u8: Uint8Array;
+  max: number;
+  /** ⌊문턱⌋ → 넘어야 할 밝기(0~255, 4픽셀씩 읽으려고 Uint32 로도) · 넘을 수 없는 픽셀(배경 + ⌊문턱⌋ + 1 > 255)의 비트 */
+  lims: Map<number, { c32: Uint32Array; never: Uint32Array | null }>;
+};
+
+/** 배경이 0~255 정수뿐이면 정수 배경표, 아니면 null(영상 파일 길 — 밝기가 소수) */
+export function backgroundTable(background: Float32Array): BackgroundTable | null {
+  const n = background.length;
+  const u8 = new Uint8Array(n);
+  let max = 0;
+  for (let i = 0; i < n; i++) {
+    const v = background[i];
+    /* v | 0 === v 는 정수인지(−0 · NaN · 무한대 · 소수는 걸린다) */
+    if (!(v >= 0 && v <= 255 && (v | 0) === v)) return null;
+    u8[i] = v;
+    if (v > max) max = v;
+  }
+  return { u8, max, lims: new Map() };
+}
+
+/** 표의 ⌊문턱⌋ 칸 — 없으면 만든다(넷 넘게 쌓이면 오래된 것을 버린다) */
+function limitsOf(
+  table: BackgroundTable,
+  T: number,
+  width: number,
+  height: number
+): { c32: Uint32Array; never: Uint32Array | null } {
+  const got = table.lims.get(T);
+  if (got) return got;
+  const n = width * height;
+  const c = new Uint8Array(n);
+  const wpr = (width + 31) >>> 5;
+  const bg = table.u8;
+  /* 배경 값 → 넘어야 할 밝기(0~255 로 자름) 표 하나로 */
+  const lut = new Uint8Array(256);
+  for (let v = 0; v < 256; v++) {
+    const t = v + T + 1;
+    lut[v] = t < 0 ? 0 : t > 255 ? 255 : t;
+  }
+  for (let i = 0; i < n; i++) c[i] = lut[bg[i]];
+  /*
+   * 배경 + ⌊문턱⌋ + 1 > 255 인 픽셀은 넘을 수 없다 — 255 로 두면 밝기 255 가 '넘었다'로 잘못 켜지므로 비트를 따로 지운다.
+   * 그런 배경이 없으면(대개) 건너뛴다.
+   */
+  let never: Uint32Array | null = null;
+  if (table.max + T + 1 > 255) {
+    never = new Uint32Array(wpr * height);
+    const limit = 255 - T - 1;
+    for (let y = 0; y < height; y++) {
+      const row = y * width;
+      for (let x = 0; x < width; x++)
+        if (bg[row + x] > limit) never[y * wpr + (x >>> 5)] |= 1 << (x & 31);
+    }
+  }
+  const entry = { c32: new Uint32Array(c.buffer, 0, n >>> 2), never };
+  if (table.lims.size >= 4) table.lims.delete(table.lims.keys().next().value as number);
+  table.lims.set(T, entry);
+  return entry;
+}
+
+const HI = 0x80808080 | 0;
+const LO7 = 0x7f7f7f7f;
+/** 작은 끝(little-endian)인가 — 4픽셀씩 읽을 때 바이트 0 이 왼쪽 픽셀이어야 한다. 아니면 픽셀마다 견주는 길로 */
+const LITTLE_ENDIAN = new Uint8Array(new Uint32Array([1]).buffer)[0] === 1;
+
+/**
+ * 장면(바이트) ≥ 넘어야 할 밝기(바이트)를 4픽셀씩 — 32비트 한 칸에 네 픽셀을 담아 바이트마다 빼기 · 견주기를 한 번에 한다
+ * (SWAR). 바이트 a ≥ c 의 높은 비트 = (a 의 높은 비트 > c 의 것) 또는 (둘이 같고 아래 7비트가 a ≥ c). 아래 7비트는
+ * (a | 0x80) − (c & 0x7f) 의 높은 비트로 안다 — 이 빼기는 1~255 라 옆 바이트로 빌림이 넘어가지 않는다. 네 높은 비트를
+ * 곱하기 한 번으로 모아(7 · 14 · 21 칸씩 밀어 겹치지 않게 더함) 마스크의 네 비트로 쓴다. 바이트를 하나씩 견준 것과 모든
+ * (a, c) 짝에서 같다(wf 시험: 256 × 256 전부 · 실제 장면). 휴대폰 · PC 는 모두 작은 끝(little-endian)이라 바이트 0 이 왼쪽 픽셀이다.
+ */
+function thresholdBytes(
+  luma: Uint8Array,
+  c32: Uint32Array,
+  never: Uint32Array | null,
+  width: number,
+  height: number,
+  raw: Uint32Array
+) {
+  const L = new Uint32Array(luma.buffer, luma.byteOffset, (width * height) >>> 2);
+  const wpr = (width + 31) >>> 5;
+  const qpr = width >>> 2;
+  for (let y = 0; y < height; y++) {
+    const q0 = y * qpr;
+    const qEnd = q0 + qpr;
+    const wrow = y * wpr;
+    for (let w = 0; w < wpr; w++) {
+      const qs = q0 + (w << 3);
+      const qe = qs + 8 < qEnd ? qs + 8 : qEnd;
+      let bits = 0;
+      for (let q = qs, sh = 0; q < qe; q++, sh += 4) {
+        const f = L[q];
+        const c = c32[q];
+        const d = ((f | HI) - (c & LO7)) | 0;
+        const ge = ((f & ~c) | (~(f ^ c) & d)) & HI;
+        if (ge !== 0) bits |= ((Math.imul(ge >>> 7, 0x204081) >>> 21) & 15) << sh;
+      }
+      if (never !== null && bits !== 0) bits &= ~never[wrow + w];
+      if (bits !== 0) raw[wrow + w] = bits;
+    }
+  }
+}
+
+/**
+ * 어두워짐을 볼 때의 배경(위 '밝은 배경' 설명) — 픽셀마다 장면들의 중앙값과, 그 자리가 스스로 밝기를 바꾸는 폭('두 번째로 밝은
+ * 값 − 중앙값', DARK_MAX_SPREAD). 표본이 짝수면 중앙값은 가운데 둘 가운데 위쪽(n/2 번째, 0 부터) — live-meter.ts BallWatch ·
+ * find-throw.ts 의 중앙값과 같은 정의다. 표본이 셋 밑이면 폭은 0.
+ */
+export function buildDarkBackground(samples: ArrayLike<number>[]): {
+  background: Float32Array;
+  spread: Float32Array;
+} {
+  if (samples.length === 0) throw new Error('배경을 만들 프레임이 없습니다.');
+  const size = samples[0].length;
+  const m = samples.length;
+  const background = new Float32Array(size);
+  const spread = new Float32Array(size);
+  const bucket = new Float32Array(m);
+  for (let i = 0; i < size; i++) {
+    /* 삽입 정렬 — 표본이 10장 안팎이라 typed array 의 sort 보다 빠르다 */
+    for (let s = 0; s < m; s++) {
+      const v = samples[s][i];
+      let j = s - 1;
+      while (j >= 0 && bucket[j] > v) {
+        bucket[j + 1] = bucket[j];
+        j--;
+      }
+      bucket[j + 1] = v;
+    }
+    background[i] = bucket[m >> 1];
+    spread[i] = m >= 3 ? bucket[m - 2] - bucket[m >> 1] : 0;
+  }
+  return { background, spread };
+}
+
+/**
  * 배경보다 밝아진 덩어리들을 찾는다.
  *
- * 흐름 채우기(flood fill)를 쓰되 재귀 대신 배열을 쓴다. 큰 덩어리에서
- * 재귀로 하면 브라우저가 멈춘다.
+ * 덩어리는 줄마다 켜진 구간을 이어 묶는다(blobsOf) — 예전의 흐름 채우기(flood fill)와 같은 덩어리 · 같은 차례다.
  */
 /*
  * 프레임 밝기는 숫자 배열이면 된다(ArrayLike). 영상 파일은 Float32Array 로, 카메라에서
@@ -229,7 +540,14 @@ export function findMovedBlobs(
   width: number,
   height: number,
   /** 이 프레임이 배경보다 전체적으로 밝아진 양(자동 노출) — 빼고 견준다(analyze-frames.ts) */
-  exposureBias = 0
+  exposureBias = 0,
+  /** 배경의 정수 배경표(backgroundTable) — 있고 장면이 Uint8Array 면 4픽셀씩 견준다(결과는 같다) */
+  table: BackgroundTable | null = null,
+  /**
+   * 어두워짐도 본다(위 '밝은 배경' 설명) — 밝은 배경 앞의 어두운 공. 비우면 예전처럼 밝아진 곳만(그림자를 거른다) — 실내
+   * 보정 영상 · 밝은 공은 이 길 그대로다.
+   */
+  dark?: DarkDetect
 ): Blob[] {
   /*
    * 마스크는 한 줄을 32픽셀씩 비트로 묶어 쥔다(closeMask 설명) — 문턱값을 넘은 픽셀(raw)과 닫힌 마스크(moved). 덩어리 찾기도
@@ -237,99 +555,302 @@ export function findMovedBlobs(
    * 차례 · 같은 덩어리가 나온다.
    */
   const wpr = (width + 31) >>> 5;
-  const raw = new Uint32Array(wpr * height);
-  const threshold = DIFF_THRESHOLD + exposureBias;
+  const raw = movedMask(background, currLuma, width, height, exposureBias, table);
+  /*
+   * 어두워진 곳(밝은 배경 앞에서만) — 따로 쥐어 덩어리마다 어두워짐 픽셀을 센다. 밝아짐과 합쳐 한 마스크로 잇는다:
+   * 지평선에 걸친 공은 위 반쪽이 하늘보다 어둡고 아래 반쪽이 땅보다 밝아, 따로 이으면 반원 둘이 되어 둥근 모양 검사에 걸린다
+   */
+  let darkRaw: Uint32Array | null = null;
+  if (dark) {
+    darkRaw = darkMask(currLuma, width, height, dark);
+    for (let i = 0; i < raw.length; i++) raw[i] |= darkRaw[i];
+  }
+  /* 그물코 · 실밥에 갈린 조각을 잇는다(CLOSE_RADIUS). 덩어리는 이은 마스크에서 찾고, 보이는 비율은 원본으로 센다 */
+  const moved = closeMask(raw, width, height, CLOSE_RADIUS);
+  return blobsOf(raw, moved, width, height, wpr, darkRaw);
+}
+
+/** 가만한 밝은 배경보다 문턱 넘게 어두워진 픽셀 — 한 줄을 32픽셀씩 비트로(findMovedBlobs 의 dark) */
+function darkMask(
+  currLuma: ArrayLike<number>,
+  width: number,
+  height: number,
+  dark: DarkDetect
+): Uint32Array {
+  const wpr = (width + 31) >>> 5;
+  const darkRaw = new Uint32Array(wpr * height);
+  const bgD = dark.background;
+  const spread = dark.spread;
+  const minBg = dark.minBackground ?? DARK_MIN_BACKGROUND;
+  const dTh = dark.bias - DARK_THRESHOLD;
   for (let y = 0; y < height; y++) {
     const row = y * width;
     const wrow = y * wpr;
     for (let x = 0; x < width; x++) {
-      // 공은 배경보다 밝게 찍히는 쪽이라 밝아진 곳만 본다. 그림자를 걸러준다.
-      if (currLuma[row + x] - background[row + x] > threshold) raw[wrow + (x >>> 5)] |= 1 << (x & 31);
+      const b = bgD[row + x];
+      if (b >= minBg && spread[row + x] <= DARK_MAX_SPREAD && currLuma[row + x] - b < dTh)
+        darkRaw[wrow + (x >>> 5)] |= 1 << (x & 31);
     }
   }
-  /* 그물코 · 실밥에 갈린 조각을 잇는다(CLOSE_RADIUS). 덩어리는 이은 마스크에서 찾고, 보이는 비율은 원본으로 센다 */
-  const moved = closeMask(raw, width, height, CLOSE_RADIUS);
-  const on = (bits: Uint32Array, x: number, y: number) => (bits[y * wpr + (x >>> 5)] >>> (x & 31)) & 1;
+  return darkRaw;
+}
 
-  const blobs: Blob[] = [];
-  const visited = new Uint8Array(width * height);
-  const stack: number[] = [];
-
-  for (let wy = 0; wy < height; wy++) {
-    for (let wi = 0; wi < wpr; wi++) {
-      let word = moved[wy * wpr + wi];
-      while (word !== 0) {
-        const low = word & -word;
-        word = (word ^ low) >>> 0;
-        const sx0 = (wi << 5) + (31 - Math.clz32(low));
-        if (sx0 >= width) break;
-        const start = wy * width + sx0;
-        if (visited[start]) continue;
-
-    stack.length = 0;
-    stack.push(start);
-    visited[start] = 1;
-
-    let minX = width;
-    let maxX = 0;
-    let minY = height;
-    let maxY = 0;
-    let sumX = 0;
-    let sumY = 0;
-    let count = 0;
-    let rawCount = 0;
-
-    while (stack.length > 0) {
-      const idx = stack.pop()!;
-      const x = idx % width;
-      const y = (idx - x) / width;
-
-      count++;
-      if (on(raw, x, y)) rawCount++;
-      sumX += x;
-      sumY += y;
-      if (x < minX) minX = x;
-      if (x > maxX) maxX = x;
-      if (y < minY) minY = y;
-      if (y > maxY) maxY = y;
-
-      // 상하좌우 이웃만 본다. 대각선까지 이으면 서로 다른 것이 붙는다.
-      if (x > 0 && !visited[idx - 1] && on(moved, x - 1, y)) {
-        visited[idx - 1] = 1;
-        stack.push(idx - 1);
-      }
-      if (x < width - 1 && !visited[idx + 1] && on(moved, x + 1, y)) {
-        visited[idx + 1] = 1;
-        stack.push(idx + 1);
-      }
-      if (y > 0 && !visited[idx - width] && on(moved, x, y - 1)) {
-        visited[idx - width] = 1;
-        stack.push(idx - width);
-      }
-      if (y < height - 1 && !visited[idx + width] && on(moved, x, y + 1)) {
-        visited[idx + width] = 1;
-        stack.push(idx + width);
+/** 배경보다 문턱 넘게 밝아진 픽셀 — 한 줄을 32픽셀씩 비트로. findMovedBlobs 의 첫 단계 */
+export function movedMask(
+  background: Float32Array,
+  currLuma: ArrayLike<number>,
+  width: number,
+  height: number,
+  exposureBias = 0,
+  table: BackgroundTable | null = null
+): Uint32Array {
+  const wpr = (width + 31) >>> 5;
+  const raw = new Uint32Array(wpr * height);
+  const threshold = DIFF_THRESHOLD + exposureBias;
+  if (
+    table &&
+    LITTLE_ENDIAN &&
+    currLuma instanceof Uint8Array &&
+    Number.isFinite(threshold) &&
+    (width & 3) === 0 &&
+    (currLuma.byteOffset & 3) === 0 &&
+    currLuma.length === width * height &&
+    table.u8.length === width * height
+  ) {
+    /* 카메라 장면 + 정수 배경 — 4픽셀씩(thresholdBytes) */
+    const lim = limitsOf(table, Math.floor(threshold), width, height);
+    thresholdBytes(currLuma, lim.c32, lim.never, width, height, raw);
+  } else {
+    /*
+     * 문턱값 넘은 픽셀 — 32픽셀을 지역 변수에 모아 한 번에 쓴다(예전에는 픽셀마다 배열을 읽고 써서 장면 하나의 계산에서
+     * 가장 무거운 곳이었다). 견주는 식(밝기 − 배경 > 문턱)은 예전 그대로라 결과가 한 비트도 다르지 않다.
+     */
+    for (let y = 0; y < height; y++) {
+      const row = y * width;
+      const wrow = y * wpr;
+      for (let w = 0; w < wpr; w++) {
+        const x0 = w << 5;
+        const x1 = x0 + 32 < width ? x0 + 32 : width;
+        let bits = 0;
+        for (let x = x0, b = 1; x < x1; x++, b <<= 1) {
+          // 공은 배경보다 밝게 찍히는 쪽이라 밝아진 곳만 본다. 그림자를 걸러준다.
+          if (currLuma[row + x] - background[row + x] > threshold) bits |= b;
+        }
+        if (bits !== 0) raw[wrow + w] = bits;
       }
     }
+  }
+  return raw;
+}
 
-    if (count < MIN_BLOB_PIXELS || count > MAX_BLOB_PIXELS) continue;
+/**
+ * 닫힌 마스크(moved)의 덩어리 — 줄마다 켜진 구간(run)을 뽑아 위 줄의 구간과 겹치면 같은 덩어리로 묶는다(구간 묶기).
+ *
+ * 왜(2026-10-03, 실시간 측정의 계산 시간): 예전에는 픽셀마다 쌓기에 넣고 빼며 흐름 채우기를 했다. 투수 몸이 움직이는 장면은
+ * 닫힌 마스크가 장면마다 8.8만 픽셀 남짓이라(실제 보정 영상 일감 185장 평균, 문턱 넘은 픽셀 5.6만) 계산에서 가장 무거운 곳이
+ * 됐다. 구간으로 묶으면 픽셀이 아니라 구간(장면마다 9천 개 남짓) 수만큼만 일한다.
+ *
+ * 같은가: 상하좌우로 이어진 픽셀 = 같은 줄에서 붙은 구간 + 위아래 줄에서 한 칸이라도 겹치는 구간(대각선은 잇지 않는다 — 예전과
+ * 같다). 덩어리의 픽셀 수 · 합 · 상자 · 원본 비트 수는 모두 정수 합이라 더하는 차례와 상관없이 같은 값이다. 덩어리의 차례는
+ * 예전(래스터 차례로 훑다 처음 만난 픽셀에서 채우기)과 같게 — 묶을 때 늘 앞선 구간을 뿌리로 두어, 덩어리의 뿌리가 그 덩어리의
+ * 래스터 첫 구간이 되고 뿌리 차례로 내보낸다.
+ */
+let runCap = 0;
+let runX0 = new Int32Array(0);
+let runX1 = new Int32Array(0);
+let runY = new Int32Array(0);
+let runParent = new Int32Array(0);
 
-    const w = maxX - minX + 1;
-    const h = maxY - minY + 1;
+function growRuns(need: number) {
+  if (need <= runCap) return;
+  const cap = Math.max(need, runCap * 2, 4096);
+  const grow = (a: Int32Array) => {
+    const b = new Int32Array(cap);
+    b.set(a);
+    return b;
+  };
+  runX0 = grow(runX0);
+  runX1 = grow(runX1);
+  runY = grow(runY);
+  runParent = grow(runParent);
+  runCap = cap;
+}
+
+function findRoot(i: number): number {
+  let r = i;
+  while (runParent[r] !== r) r = runParent[r];
+  /* 길 줄이기 */
+  while (runParent[i] !== r) {
+    const next = runParent[i];
+    runParent[i] = r;
+    i = next;
+  }
+  return r;
+}
+
+/** 32비트 안의 켜진 비트 수 */
+function popcount(v: number): number {
+  v = v - ((v >>> 1) & 0x55555555);
+  v = (v & 0x33333333) + ((v >>> 2) & 0x33333333);
+  return (Math.imul((v + (v >>> 4)) & 0x0f0f0f0f, 0x01010101) >>> 24) & 0xff;
+}
+
+/** 한 줄(wrow 부터)의 비트에서 x0 ~ x1(둘 다 포함) 사이 켜진 수 */
+function countBits(bits: Uint32Array, wrow: number, x0: number, x1: number): number {
+  const w0 = x0 >>> 5;
+  const w1 = x1 >>> 5;
+  let n = 0;
+  for (let w = w0; w <= w1; w++) {
+    let v = bits[wrow + w];
+    if (v === 0) continue;
+    if (w === w0) v &= ~((1 << (x0 & 31)) - 1);
+    if (w === w1 && (x1 & 31) !== 31) v &= (1 << ((x1 & 31) + 1)) - 1;
+    n += popcount(v);
+  }
+  return n;
+}
+
+function blobsOf(
+  raw: Uint32Array,
+  moved: Uint32Array,
+  width: number,
+  height: number,
+  wpr: number,
+  /** 어두워짐 비트(findMovedBlobs 의 dark) — 있으면 덩어리마다 darkPixels 를 센다 */
+  darkRaw: Uint32Array | null = null
+): Blob[] {
+  const tailBits = width & 31;
+  const tailKeep = tailBits === 0 ? -1 : (1 << tailBits) - 1;
+  let n = 0;
+  let prevStart = 0;
+  let prevEnd = 0;
+  for (let y = 0; y < height; y++) {
+    const wrow = y * wpr;
+    const rowStart = n;
+    /* 켜진 구간 뽑기 — 0 칸은 32픽셀씩 건너뛴다. 줄 끝 너머 비트(width 밖)는 보지 않는다 */
+    let open = -1;
+    for (let w = 0; w < wpr; w++) {
+      let v = moved[wrow + w];
+      if (w === wpr - 1) v &= tailKeep;
+      if (v === 0 && open < 0) continue;
+      let pos = 0;
+      while (pos < 32) {
+        const above = pos === 0 ? -1 : ~((1 << pos) - 1);
+        if (open < 0) {
+          const m = v & above;
+          if (m === 0) break;
+          const p = 31 - Math.clz32(m & -m);
+          open = (w << 5) + p;
+          pos = p + 1;
+        } else {
+          const z = ~v & above;
+          if (z === 0) break;
+          const p = 31 - Math.clz32(z & -z);
+          growRuns(n + 1);
+          runX0[n] = open;
+          runX1[n] = (w << 5) + p - 1;
+          runY[n] = y;
+          runParent[n] = n;
+          n++;
+          open = -1;
+          pos = p + 1;
+        }
+      }
+    }
+    if (open >= 0) {
+      growRuns(n + 1);
+      runX0[n] = open;
+      runX1[n] = width - 1;
+      runY[n] = y;
+      runParent[n] = n;
+      n++;
+    }
+    /* 위 줄 구간과 겹치면 묶는다 — 두 줄 다 x 차례라 한 번 훑으면 된다. 앞선(번호가 작은) 뿌리를 남긴다 */
+    let i = prevStart;
+    let j = rowStart;
+    while (i < prevEnd && j < n) {
+      if (runX0[i] <= runX1[j] && runX0[j] <= runX1[i]) {
+        const a = findRoot(i);
+        const b = findRoot(j);
+        if (a !== b) {
+          if (a < b) runParent[b] = a;
+          else runParent[a] = b;
+        }
+      }
+      if (runX1[i] < runX1[j]) i++;
+      else j++;
+    }
+    prevStart = rowStart;
+    prevEnd = n;
+  }
+
+  /* 덩어리마다 더한다(뿌리 번호로) */
+  const count = new Float64Array(n);
+  const sumX = new Float64Array(n);
+  const sumY = new Float64Array(n);
+  const rawCount = new Float64Array(n);
+  const minX = new Int32Array(n);
+  const maxX = new Int32Array(n);
+  const maxY = new Int32Array(n);
+  for (let r = 0; r < n; r++) {
+    const root = findRoot(r);
+    const x0 = runX0[r];
+    const x1 = runX1[r];
+    const y = runY[r];
+    const len = x1 - x0 + 1;
+    if (root === r) {
+      minX[r] = x0;
+      maxX[r] = x1;
+      maxY[r] = y;
+    } else {
+      if (x0 < minX[root]) minX[root] = x0;
+      if (x1 > maxX[root]) maxX[root] = x1;
+      if (y > maxY[root]) maxY[root] = y;
+    }
+    count[root] += len;
+    sumX[root] += ((x0 + x1) * len) / 2;
+    sumY[root] += y * len;
+  }
+
+  /* 거를 덩어리를 먼저 가린다(크기 · 모양) — 원본 비트 수(보이는 비율)는 남는 덩어리만 센다(투수 몸 같은 큰 덩어리는 안 센다) */
+  const keep = new Uint8Array(n);
+  for (let r = 0; r < n; r++) {
+    if (runParent[r] !== r) continue;
+    const c = count[r];
+    if (c < MIN_BLOB_PIXELS || c > MAX_BLOB_PIXELS) continue;
+    const w = maxX[r] - minX[r] + 1;
+    /* 뿌리는 덩어리의 첫 구간이라 그 줄이 맨 위 줄이다 */
+    const h = maxY[r] - runY[r] + 1;
     const aspect = w / h;
     if (aspect < MIN_ASPECT || aspect > MAX_ASPECT) continue;
-    if (count / (w * h) < MIN_FILL_RATIO) continue;
+    if (c / (w * h) < MIN_FILL_RATIO) continue;
+    keep[r] = 1;
+  }
+  const darkCount = darkRaw ? new Float64Array(n) : null;
+  for (let r = 0; r < n; r++) {
+    const root = runParent[r];
+    if (keep[root] !== 1) continue;
+    rawCount[root] += countBits(raw, runY[r] * wpr, runX0[r], runX1[r]);
+    if (darkRaw && darkCount)
+      darkCount[root] += countBits(darkRaw, runY[r] * wpr, runX0[r], runX1[r]);
+  }
 
-    blobs.push({
-      cx: sumX / count,
-      cy: sumY / count,
+  const blobs: Blob[] = [];
+  for (let r = 0; r < n; r++) {
+    if (keep[r] !== 1) continue;
+    const c = count[r];
+    const w = maxX[r] - minX[r] + 1;
+    const h = maxY[r] - runY[r] + 1;
+    const blob: Blob = {
+      cx: sumX[r] / c,
+      cy: sumY[r] / c,
       width: w,
       height: h,
-      pixels: count,
-      visibleFrac: rawCount / count,
-    });
-      }
-    }
+      pixels: c,
+      visibleFrac: rawCount[r] / c,
+    };
+    if (darkCount) blob.darkPixels = darkCount[r];
+    blobs.push(blob);
   }
 
   if (blobs.length > MAX_CANDIDATES_PER_FRAME) {

@@ -6,7 +6,7 @@
  * 측정 워커(live-meter.worker.ts)가 MessagePort 로 일감을 보내고, 결과는 화면 스레드(live-capture.ts)로 보낸다. 끝나면 측정
  * 워커에 'done' 을 돌려줘 쌓인 일감을 세게 한다(MAX_JOBS_IN_FLIGHT).
  */
-import { analyzeJob } from './live-meter.ts';
+import { analyzeJob, unpackJob } from './live-meter.ts';
 import type {
   AnalyzeWorkerDone,
   AnalyzeWorkerIn,
@@ -24,7 +24,8 @@ function run(m: AnalyzeWorkerIn, port: MessagePort) {
   const waitMs = performance.now() - m.postedAt;
   const a0 = performance.now();
   try {
-    const result = analyzeJob(m.job, m.camera);
+    const job = m.type === 'packed' ? unpackJob(m.job) : m.job;
+    const result = analyzeJob(job, m.camera);
     post({
       type: 'result',
       id: m.job.id,
@@ -52,7 +53,7 @@ scope.onmessage = (
   if (m.type === 'port') {
     const port = m.port;
     port.onmessage = (ev: MessageEvent<AnalyzeWorkerIn>) => {
-      if (ev.data?.type === 'job') run(ev.data, port);
+      if (ev.data?.type === 'job' || ev.data?.type === 'packed') run(ev.data, port);
     };
     post({ type: 'hello' });
   }

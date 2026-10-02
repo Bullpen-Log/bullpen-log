@@ -16,6 +16,12 @@ export type AnalysisJson = {
   v: 2;
   /** 거리 자 — 'limb'(윤곽, 1.6.0) · 'area'(면적, 1.5.0 까지와 시험용) */
   ruler: 'limb' | 'area' | null;
+  /**
+   * 밝은 배경(하늘 · 해 받은 벽) 앞에서 공이 배경보다 어두워 두 번째 길(극성)로 잰 공만 — 'dark' · 'mixed'(지평선에 걸침) ·
+   * 'bright'(넓힌 감지로 궤적만 이어짐). 다시 담은 덮임 자로 재 예전 윤곽 자와 다를 수 있어(확인 못 함) 보정 짝에 섞지 않는다.
+   * 예전 길이면 null.
+   */
+  polarity?: 'bright' | 'dark' | 'mixed' | null;
   /** 궤적의 가장자리 폭(분석 px) · 흐림 보정으로 지름에서 뺀 값(분석 px) — 흐린 영상 되짚기 */
   edgeWidthPx: number | null;
   blurCorrectionPx: number | null;
@@ -33,7 +39,7 @@ export type AnalysisJson = {
   frameCount: number;
   approach: Approach;
   /**
-   * 카메라 실시간의 촬영 조건(모델 1.7.0) — 알림 코드(LOW_FPS · TIMING · APPROACH · CROPPED · FOV_GUESS · ZOOM · HDR · LOW_RES · BLUR) ·
+   * 카메라 실시간의 촬영 조건(모델 1.7.0) — 알림 코드(LOW_FPS · TIMING · APPROACH · CROPPED · FOV_GUESS · ZOOM · HDR · LOW_RES · BLUR · DARK_BALL) ·
    * ± 에 더한 σ · 초점거리를 렌즈 보정으로 쟀나 · 장면 시각의 질 · 장면을 받은 길(워커 직접 · 캔버스 · 화면 스레드)과 워커가 본
    * 장면(형식 · 돌림 · 크기). 영상 파일로 잰 공은 null. 실제 폰(아이폰 웹뷰)에서 어떻게 도는지 되짚으려고.
    */
@@ -61,6 +67,7 @@ export function analysisOf(
   return {
     v: 2,
     ruler: d ? d.ruler : null,
+    polarity: d?.polarity ?? null,
     edgeWidthPx: d ? d.edgeWidthPx : null,
     blurCorrectionPx: d ? d.blurCorrectionPx : null,
     startSeKmh: m.ok && Number.isFinite(m.detail.startSeKmh) ? m.detail.startSeKmh : null,

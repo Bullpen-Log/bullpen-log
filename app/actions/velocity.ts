@@ -154,9 +154,18 @@ export async function loadCalibration(): Promise<{ fit: CalFit; pairs: CalPair[]
     },
     orderBy: { createdAt: 'desc' },
     take: CAL_PAIR_LIMIT,
-    select: { rawKmh: true, gunKmh: true },
+    select: { rawKmh: true, gunKmh: true, analysis: true },
   });
-  const pairs = rows.map((r) => ({ measured: r.rawKmh, gun: r.gunKmh as number }));
+  /*
+   * 밝은 배경 앞의 어두운 공(모델 1.8.0 의 두 번째 길 — analysis.polarity 'dark' · 'mixed')은 다른 자로 쟀다(확인 전) — 짝에서 뺀다.
+   * 밖에서 스피드건 짝이 쌓이면 이 공들만 따로 맞춰 본다.
+   */
+  const pairs = rows
+    .filter((r) => {
+      const pol = (r.analysis as { polarity?: unknown } | null)?.polarity;
+      return pol !== 'dark' && pol !== 'mixed';
+    })
+    .map((r) => ({ measured: r.rawKmh, gun: r.gunKmh as number }));
   return { fit: fitCalibration(pairs), pairs };
 }
 

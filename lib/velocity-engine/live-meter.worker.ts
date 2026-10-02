@@ -16,6 +16,7 @@ import {
   isCroppedAspect,
   liveFocalPx,
   LiveMeter,
+  packJob,
   type LiveCamera,
   type MeterEvent,
 } from './live-meter.ts';
@@ -131,16 +132,24 @@ function apply(events: MeterEvent[]) {
         post({ type: 'dropped', id: job.id, triggerT: job.triggerT });
       } else if (cam && analysisPort) {
         /*
-         * 버퍼는 넘기지 않고(transfer 없이) 복사해 보낸다 — 담은 장면은 판단의 고리 · 배경 기록과 같은 버퍼라, 넘기면 그쪽이 비어
-         * 다음 공을 망친다. 60장 남짓 복사는 0.2초 남짓(그동안 이 워커가 멈춘다).
+         * 담은 장면은 판단의 고리 · 배경 기록과 같은 버퍼라 그대로 넘기면(transfer) 그쪽이 비어 다음 공을 망친다. 그래서 버퍼
+         * 하나에 한 번 복사해 모으고(packJob) 그 버퍼를 넘긴다 — 예전(structured clone)은 보낼 때 · 받을 때 두 번 복사해
+         * 이 워커가 0.2초 남짓 멈췄다. 모을 수 없으면(장면 크기가 다름) 예전처럼 복사해 보낸다.
          */
-        const msg: AnalyzeWorkerIn = {
-          type: 'job',
-          job,
-          camera: cam,
-          postedAt: performance.now(),
-        };
-        analysisPort.postMessage(msg);
+        const postedAt = performance.now();
+        const packed = packJob(job);
+        if (packed) {
+          const msg: AnalyzeWorkerIn = {
+            type: 'packed',
+            job: packed,
+            camera: cam,
+            postedAt,
+          };
+          analysisPort.postMessage(msg, [packed.buffer]);
+        } else {
+          const msg: AnalyzeWorkerIn = { type: 'job', job, camera: cam, postedAt };
+          analysisPort.postMessage(msg);
+        }
         inFlight++;
         post({
           type: 'captured',
