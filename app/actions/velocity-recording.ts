@@ -1,6 +1,7 @@
 'use server';
 
-import type { Prisma } from '@prisma/client';
+import { Prisma } from '@prisma/client';
+import { revalidatePath } from 'next/cache';
 import { prisma } from '@/lib/prisma';
 import { getCurrentUser } from '@/lib/dal';
 import {
@@ -177,4 +178,174 @@ export async function finishVelocityRecording(
     data: { status: 'done', ...(durationSec != null ? { durationSec } : {}) },
   });
   return { ok: true, parts };
+}
+
+/* ───────── 관리자 편집기 — 공별 범위 · 스피드건 값 · 다시 잰 값 ───────── */
+
+export type RecordingCutInput = {
+  /** 없으면 새로 만든다 */
+  id?: string | null;
+  recordingId: string;
+  partId: string;
+  startSec: number;
+  endSec: number;
+  eventSec?: number | null;
+  gunKmh?: number | null;
+  pitchType?: string | null;
+  memo?: string | null;
+  excluded?: boolean;
+};
+
+const PITCH_TYPE_RE = /^[a-z-]{1,20}$/;
+
+/** 공 하나의 범위 · 적은 값을 남긴다. 범위가 바뀌면 지난 잰 값은 지운다(다른 장면이라) */
+export async function saveRecordingCut(
+  input: RecordingCutInput
+): Promise<RecordingResult<{ id: string }>> {
+  const user = await requireAdminUser();
+  if (!user) return { ok: false, error: '관리자만 고칠 수 있어요.' };
+  const part = await prisma.velocityRecordingPart.findFirst({
+    where: { id: String(input.partId), recordingId: String(input.recordingId) },
+    select: { id: true, durationSec: true },
+  });
+  if (!part) return { ok: false, error: '조각을 찾을 수 없어요.' };
+  const start = num(input.startSec, 0, 3600);
+  const end = num(input.endSec, 0, 3600);
+  if (start == null || end == null || end - start < 0.2 || end - start > 10)
+    return { ok: false, error: '범위는 0.2~10초여야 해요.' };
+  const gun = input.gunKmh == null ? null : num(input.gunKmh, 20, 200);
+  if (input.gunKmh != null && gun == null)
+    return { ok: false, error: '스피드건 값은 20~200km/h 예요.' };
+  const data = {
+    startSec: start,
+    endSec: end,
+    eventSec: input.eventSec == null ? null : num(input.eventSec, 0, 3600),
+    gunKmh: gun,
+    pitchType:
+      typeof input.pitchType === 'string' && PITCH_TYPE_RE.test(input.pitchType)
+        ? input.pitchType
+        : null,
+    memo:
+      typeof input.memo === 'string' && input.memo.trim()
+        ? input.memo.trim().slice(0, 300)
+        : null,
+    excluded: input.excluded === true,
+  };
+  if (input.id) {
+    const old = await prisma.velocityRecordingCut.findFirst({
+      where: { id: String(input.id), recordingId: String(input.recordingId) },
+      select: { startSec: true, endSec: true, partId: true },
+    });
+    if (!old) return { ok: false, error: '공을 찾을 수 없어요.' };
+    const moved =
+      old.partId !== part.id ||
+      Math.abs(old.startSec - start) > 1e-3 ||
+      Math.abs(old.endSec - end) > 1e-3;
+    await prisma.velocityRecordingCut.update({
+      where: { id: String(input.id) },
+      data: {
+        ...data,
+        partId: part.id,
+        ...(moved
+          ? {
+              ok: null,
+              rawKmh: null,
+              releaseKmh: null,
+              errorKmh: null,
+              reject: null,
+              engineVersion: null,
+              measuredAt: null,
+              analysis: Prisma.DbNull,
+            }
+          : {}),
+      },
+    });
+    return { ok: true, id: String(input.id) };
+  }
+  const row = await prisma.velocityRecordingCut.create({
+    data: { ...data, recordingId: String(input.recordingId), partId: part.id },
+    select: { id: true },
+  });
+  return { ok: true, id: row.id };
+}
+
+/** 지금 모델로 잰 결과를 공에 남긴다(관리자 브라우저가 잰다) */
+export async function saveRecordingCutResult(
+  cutId: string,
+  result: {
+    ok: boolean;
+    rawKmh: number | null;
+    releaseKmh: number | null;
+    errorKmh: number | null;
+    reject: string | null;
+    engineVersion: string;
+    analysis?: unknown;
+  }
+): Promise<RecordingResult> {
+  const user = await requireAdminUser();
+  if (!user) return { ok: false, error: '관리자만 고칠 수 있어요.' };
+  let analysis: Prisma.InputJsonValue | typeof Prisma.DbNull = Prisma.DbNull;
+  try {
+    const text = JSON.stringify(result.analysis ?? null);
+    if (
+      text &&
+      text.length <= 200_000 &&
+      result.analysis &&
+      typeof result.analysis === 'object'
+    )
+      analysis = JSON.parse(text) as Prisma.InputJsonValue;
+  } catch {
+    analysis = Prisma.DbNull;
+  }
+  const done = await prisma.velocityRecordingCut.updateMany({
+    where: { id: String(cutId) },
+    data: {
+      ok: result.ok === true,
+      rawKmh: result.ok ? num(result.rawKmh, 0, 300) : null,
+      releaseKmh: result.ok ? num(result.releaseKmh, 0, 300) : null,
+      errorKmh: result.ok ? num(result.errorKmh, 0, 100) : null,
+      reject: result.ok ? null : String(result.reject ?? 'UNKNOWN').slice(0, 40),
+      engineVersion: String(result.engineVersion ?? '').slice(0, 20) || null,
+      measuredAt: new Date(),
+      analysis,
+    },
+  });
+  return done.count > 0 ? { ok: true } : { ok: false, error: '공을 찾을 수 없어요.' };
+}
+
+export async function deleteRecordingCut(cutId: string): Promise<RecordingResult> {
+  const user = await requireAdminUser();
+  if (!user) return { ok: false, error: '관리자만 고칠 수 있어요.' };
+  await prisma.velocityRecordingCut.deleteMany({ where: { id: String(cutId) } });
+  return { ok: true };
+}
+
+/** 녹화를 통째로 지운다 — 저장소의 조각 파일도. 되돌릴 수 없다(화면이 한 번 묻는다) */
+export async function deleteVelocityRecording(
+  recordingId: string
+): Promise<RecordingResult> {
+  const user = await requireAdminUser();
+  if (!user) return { ok: false, error: '관리자만 지울 수 있어요.' };
+  const parts = await prisma.velocityRecordingPart.findMany({
+    where: { recordingId: String(recordingId) },
+    select: { path: true },
+  });
+  await prisma.velocityRecording.deleteMany({ where: { id: String(recordingId) } });
+  if (parts.length > 0) await deleteVideos(parts.map((p) => p.path));
+  revalidatePath('/admin/velocity/recordings');
+  return { ok: true };
+}
+
+/** 녹화 메모 */
+export async function saveRecordingMemo(
+  recordingId: string,
+  memo: string
+): Promise<RecordingResult> {
+  const user = await requireAdminUser();
+  if (!user) return { ok: false, error: '관리자만 고칠 수 있어요.' };
+  await prisma.velocityRecording.updateMany({
+    where: { id: String(recordingId) },
+    data: { memo: memo.trim() ? memo.trim().slice(0, 500) : null },
+  });
+  return { ok: true };
 }

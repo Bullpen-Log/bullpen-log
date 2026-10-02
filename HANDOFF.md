@@ -22,6 +22,8 @@ Claude 로 작업을 시작하면 저절로 읽힌다. 규칙은 `AGENTS.md` 6�
   켜면 측정 대기 화면의 시작 단추가 빨간 녹화 단추가 된다(조각은 `lib/velocity-recorder.ts`, 서버 `app/actions/velocity-recording.ts`).
   일반 설정의 '정확도 보정용 저장(관리자)'는 관리자 설정으로 옮겼다.
 - `app/api/pitch-log/discard/route.ts` 가 녹화 조각 경로도 '쓰는 중'으로 본다.
+- 찍은 녹화는 구속 측정 관리자 머리의 '엔진 개발용 녹화' 단추 → 목록 → 편집기에서 공마다 범위를 잡고 스피드건 값을 적어 지금 모델로
+  다시 잰다(`app/(app)/admin/velocity/recordings/`). 밖에서 안 잡힌 공들의 까닭을 같이 보자.
 
 ## 김민에게 — 2026-10-03 · 금윤호(Claude) — DualCamera 부품 고침: 기기 검사 · 화질 고르기 · 30fps 안 씀
 

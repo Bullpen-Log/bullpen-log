@@ -1,4 +1,4 @@
-import { Camera } from 'lucide-react';
+import { Camera, Clapperboard } from 'lucide-react';
 import type {
   AdminCalibRunView,
   AdminDay,
@@ -94,6 +94,15 @@ export function VelocityAdminView({
               <Badge className="tabular-nums">모델 v{data.engineVersion}</Badge>
             </span>
             <FileMeasureButton />
+            {/* 측정 없이 찍은 원본 영상 — 공마다 범위 · 스피드건 값을 적는 편집기(recordings/) */}
+            <ButtonLink
+              href="/admin/velocity/recordings"
+              variant="secondary"
+              className="inline-flex w-full items-center gap-2 sm:w-auto"
+            >
+              <Clapperboard aria-hidden className="h-4 w-4" />
+              엔진 개발용 녹화
+            </ButtonLink>
             <ButtonLink
               href="/velocity/measure"
               className="inline-flex w-full items-center gap-2 sm:w-auto"
