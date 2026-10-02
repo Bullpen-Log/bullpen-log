@@ -619,7 +619,13 @@
   네트 있음 = 초점 고정(lensPosition 1.0), 손떨림 보정 끔, 줌 1. 두 카메라 하드웨어 몫이 1 을 넘으면 광각부터 30fps 로. **맥이 없어 컴파일을
   못 해 봤다** — 올리면 ios.yml 이 굽고, 결과는 공개 Checks API 주석으로 본다. → **2026-10-03 올려서 굽기 성공**(9b5a364, 컴파일 OK ·
   시뮬레이터에서 켜짐 · TestFlight 올림). 순서를 바꿨다: 사이트가 아직 부품을 안 부르므로 **4(웹 연결) 다음 3(폰 시험)**. 3 TestFlight
-  로 폰 확인(애플 키 필요) — 60fps 유지 · 넘기기 속도 · 정확도. 4 웹 연결(앱 + 설정 켬 → 앱 카메라로 측정, 클립 둘 올리기). 설정이
+  로 폰 확인(애플 키 필요) — 60fps 유지 · 넘기기 속도 · 정확도. 4 **끝남** 웹 연결 — 앱 + 설정 켬 + 부품 있음이면 측정 화면이
+  `DualCapture`(`lib/velocity-engine/dual-capture.ts`, LiveCapture 와 같은 모양)를 쥔다: 앱 start · 뷰파인더 자리를 250ms 마다 setPreview ·
+  'throw' 알림 → clip → 일반 클립을 analyzeVideo(fps · 화각은 부품 값) → 잰 공에만 광각 클립(`attachWideClipToPitch`), 못 잰 공의 광각
+  파일은 읽지 않고 지움. 켜 있는 동안 `<html data-dualcam>` — globals.css 가 뷰파인더와 그 위 틀을 투명하게, 웹 video 숨김. 설정을 바꾸면
+  측정 중이 아닐 때 카메라를 다시 켬(앱 → 웹은 앱이 카메라를 놓을 때까지 기다림). 알림 받기는 `Capacitor.nativeCallback('addListener')` —
+  @capacitor/core 와 같은 길로 썼고 실제 앱에선 아직 안 돌려 봄. 렌즈 보정(snapshot)은 이 길에서 안 됨(웹 카메라로). 가짜 부품을 끼운 임시
+  화면으로 start · setPreview(375×688) · 투명까지 확인. 설정이
   꺼져 있으면 지금 길(getUserMedia) 그대로라 위험이 켤 때만 있다. `mobile/` 는 김민의 앱 틀 — 건드리면 HANDOFF.
 - **`NutritionProfile.sex` 칸 지우기 — 끝(2026-10-03).** 2단계 마이그레이션 `20261003100000_drop_nutrition_profile_sex` 적용(1단계 배포 뒤,
   백업 `db-2026-10-02-03-56.json`). 아래는 지난 설명.

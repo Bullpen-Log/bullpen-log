@@ -46,6 +46,8 @@ import {
   type PitchClip,
   type ResultMeta,
 } from '@/lib/velocity-engine/live-capture';
+import { DualCapture } from '@/lib/velocity-engine/dual-capture';
+import { dualCameraAvailable } from '@/lib/dual-camera';
 import { focalPxFromFov } from '@/lib/velocity-engine/geometry';
 import { liveFpsNote, type LiveReport } from '@/lib/velocity-engine/live-meter';
 import { readVideoLens, videoFovFor } from '@/lib/velocity-engine/video-lens';
@@ -287,7 +289,8 @@ export function VelocityScreen({
   /* 세션 중 정보 판 · 뷰파인더 위 둘째 줄(수평계 · 카메라 정보) — 판 전환을 곧바로 · 존이 둘째 줄 밑으로 못 가게 */
   const panelRef = useRef<HTMLDivElement>(null);
   const topRowRef = useRef<HTMLDivElement>(null);
-  const captureRef = useRef<LiveCapture | null>(null);
+  /* 웹 카메라(LiveCapture) 또는 앱의 일반 · 광각 동시 촬영(DualCapture — 앱 + 설정 '광각 영상도 같이 저장') */
+  const captureRef = useRef<LiveCapture | DualCapture | null>(null);
   /* 카메라를 켠 차례 — 결과 · 클립 번호를 켤 때마다 가른다(startCamera) */
   const captureGenRef = useRef(0);
   /* 공이 된 결과 번호 · 결과보다 먼저 온 클립(attachClipToPitch) — 이벤트 안에서만 만진다 */
@@ -305,6 +308,7 @@ export function VelocityScreen({
     focalRatio: null as number | null,
     releaseDistM: DEFAULT_SETUP.releaseDistM,
     autoMode: DEFAULT_SETUP.autoMode,
+    wideClip: DEFAULT_SETUP.wideClip,
   });
   /* 카메라를 저절로 켠 단계 — 한 단계에 한 번만(아래 안전장치 효과) */
   const autoStartedFor = useRef<Step | null>(null);
@@ -391,6 +395,7 @@ export function VelocityScreen({
       focalRatio,
       releaseDistM,
       autoMode,
+      wideClip,
     };
   });
   /*
@@ -601,7 +606,30 @@ export function VelocityScreen({
     const idBase = ++captureGenRef.current * 1_000_000;
     /* 설정은 방금 그린 값으로(cameraSettingsRef) — 이 함수가 옛 그림의 것이어도 */
     const now = cameraSettingsRef.current;
-    const capture = new LiveCapture(
+    const finder = finderRef.current;
+    /*
+     * 앱에 동시 촬영 부품이 있고 설정을 켰으면 앱이 두 카메라를 쥔다(웹 카메라는 켜지 않는다 — 같은 카메라를 둘이 못 쓴다).
+     * 결과는 던진 뒤 1~3초에 온다(앱이 자른 클립을 영상 파일 엔진으로 잰다).
+     */
+    const capture =
+      native && now.wideClip && finder && dualCameraAvailable()
+        ? new DualCapture(
+            finder,
+            {
+              onStatus: setStatus,
+              onResult: (r, meta) =>
+                addResultRef.current(r, 'camera', { ...meta, id: idBase + meta.id }),
+              onClip: (id, clip) => attachClipRef.current(idBase + id, clip),
+              onWideClip: (id, clip) => attachWideClipRef.current(idBase + id, clip),
+              onError: setError,
+              onNotice: setToast,
+              onFps: (f) => setFps(Math.round(f)),
+            },
+            now.fov,
+            now.approach,
+            now.net
+          )
+        : new LiveCapture(
       video,
       {
         onStatus: setStatus,
@@ -622,8 +650,12 @@ export function VelocityScreen({
     );
     capture.setManual(!now.autoMode);
     capture.setClips(true);
-    captureRef.current?.stop();
+    const prev = captureRef.current;
+    prev?.stop();
     captureRef.current = capture;
+    /* 앱 동시 촬영에서 웹 카메라로 바꿀 때 — 앱이 카메라를 놓은 뒤에 켠다 */
+    if (prev instanceof DualCapture) await prev.stopped;
+    if (captureRef.current !== capture) return;
     try {
       setCamera(await capture.start());
     } catch (e) {
@@ -726,6 +758,7 @@ export function VelocityScreen({
     (r: ScreenResult, s: LocalPitch['source'], m?: ResultMeta) => void
   >(() => undefined);
   const attachClipRef = useRef<(id: number, clip: PitchClip) => void>(() => undefined);
+  const attachWideClipRef = useRef<(id: number, clip: PitchClip) => void>(() => undefined);
   useEffect(() => {
     captureRef.current?.setManual(!autoMode);
   }, [autoMode]);
@@ -770,8 +803,29 @@ export function VelocityScreen({
       return next;
     });
   };
+  /* 광각 클립 — DualCapture 가 잰 공(결과 다음)에만 보낸다. 짝이 없으면 버린다 */
+  const attachWideClipToPitch = (id: number, clip: PitchClip) => {
+    if (!acceptedIdsRef.current.has(id)) return;
+    const url = URL.createObjectURL(clip.blob);
+    setPitches((prev) =>
+      prev.map((p) =>
+        p.captureId === id
+          ? {
+              ...p,
+              wideClip: {
+                url,
+                blob: clip.blob,
+                durationSec: clip.durationSec,
+                eventSec: clip.eventSec,
+              },
+            }
+          : p
+      )
+    );
+  };
   useEffect(() => {
     attachClipRef.current = attachClipToPitch;
+    attachWideClipRef.current = attachWideClipToPitch;
   });
 
   /* 세션 — 시작하면 카메라를 숨기고 알아서 잡는다(수동이면 공마다 단추). 종료하면 저장 시트 */
@@ -891,6 +945,19 @@ export function VelocityScreen({
     void startCamera();
     // eslint-disable-next-line react-hooks/exhaustive-deps -- 단계가 바뀔 때만 본다
   }, [step, showAsk]);
+  /*
+   * '광각 영상도 같이 저장'을 바꾸면 카메라를 쥔 쪽이 바뀐다(웹 카메라 ↔ 앱 동시 촬영) — 측정 중이 아니면 바로 다시 켠다.
+   * 측정 중이면 세션을 멈춘 뒤('카메라 다시 켜기') 바뀐다.
+   */
+  useEffect(() => {
+    const capture = captureRef.current;
+    if (!capture || live) return;
+    const wantsDual = native && wideClip && dualCameraAvailable();
+    if (wantsDual === capture instanceof DualCapture) return;
+    void startCamera();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- 설정이 바뀔 때만 본다
+  }, [wideClip]);
+
   useEffect(() => {
     const el = finderRef.current;
     if (!el || typeof ResizeObserver === 'undefined') return;
@@ -1216,7 +1283,11 @@ export function VelocityScreen({
 
   /* 뷰파인더 — 카메라 무대(수평 · 존 · 측정 · 렌즈)의 같은 자리에 하나. 단계가 바뀌어도 같은 <video> 다 */
   const finder = (
-    <div ref={finderRef} className="relative h-full w-full overflow-hidden bg-black">
+    <div
+      ref={finderRef}
+      data-finder
+      className="relative h-full w-full overflow-hidden bg-black"
+    >
       <video
         ref={videoRef}
         playsInline
