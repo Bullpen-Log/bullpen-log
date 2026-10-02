@@ -19,19 +19,109 @@ export function dualCameraAvailable(): boolean {
   return cap?.isPluginAvailable?.(DUAL_CAMERA_PLUGIN) === true;
 }
 
-const noSubscribe = () => () => undefined;
-
-/** 화면에서 읽기 — 서버에서 그릴 때는 false(앱인지 모른다) */
-export function useDualCameraAvailable(): boolean {
-  return useSyncExternalStore(noSubscribe, dualCameraAvailable, () => false);
-}
-
-/* ── 앱 부품과의 약속(mobile/ios/App/App/DualCameraPlugin.swift 머리말과 같다) — 4단계에서 측정 화면이 쓴다 ── */
+/* ── 이 기기에서 되나(2026-10-03 사용자: "동시에 못 쓰는 아이폰은 설정에서 보이되 못 켜게, 경고") ── */
 
 /** 볼 자리 · 미리보기 자리 */
 export type DualRect = { x: number; y: number; w: number; h: number };
 
-export type DualStatus = { supported: boolean; reason?: string };
+/** 일반 카메라로 고를 수 있는 화질(16:9) 하나 — 앱 부품 status 의 modes */
+export type DualMode = { short: number; long: number; maxFps: number };
+
+/**
+ * 되나 · 안 되면 까닭. 까닭(reason): web(앱이 아님) · old-app(부품이 없는 옛 앱) · multicam(두 카메라를 함께 못 켬) ·
+ * no-ultrawide(광각 없음) · pair(그 둘을 함께 못 켬) · fps(함께 켤 때 60fps 를 못 냄) · cost(켜 보니 하드웨어 몫이 넘침) ·
+ * error(검사 실패)
+ */
+export type DualStatus = { supported: boolean; reason?: string; modes?: DualMode[] };
+
+/** 상태 — 아직 모르면 null(검사 중) */
+let statusNow: DualStatus | null = null;
+let statusPromise: Promise<DualStatus> | null = null;
+const statusListeners = new Set<() => void>();
+const emitStatus = () => statusListeners.forEach((l) => l());
+
+const isAppShell = () =>
+  typeof window !== 'undefined' &&
+  ((
+    window as Window & { Capacitor?: { isNativePlatform?: () => boolean } }
+  ).Capacitor?.isNativePlatform?.() === true ||
+    navigator.userAgent.includes('BullpenLogApp'));
+
+/** 한 번만 묻고 기억한다(기기가 바뀌지 않으니). 켜 보다 안 되면 markDualUnsupported 로 덮는다 */
+export function dualCameraStatus(): Promise<DualStatus> {
+  if (statusNow) return Promise.resolve(statusNow);
+  if (statusPromise) return statusPromise;
+  const settle = (s: DualStatus) => {
+    statusNow = s;
+    emitStatus();
+    return s;
+  };
+  if (typeof window === 'undefined')
+    return Promise.resolve({ supported: false, reason: 'web' });
+  if (!dualCameraAvailable()) {
+    return Promise.resolve(
+      settle({ supported: false, reason: isAppShell() ? 'old-app' : 'web' })
+    );
+  }
+  statusPromise = callDualCamera<DualStatus>('status')
+    .then((s) =>
+      settle({
+        supported: s?.supported === true,
+        reason: s?.supported === true ? undefined : (s?.reason ?? 'error'),
+        modes: Array.isArray(s?.modes) ? s.modes : undefined,
+      })
+    )
+    .catch(() => settle({ supported: false, reason: 'error' }));
+  return statusPromise;
+}
+
+/** 지금 아는 상태(검사 전이면 null) */
+export const dualStatusNow = () => statusNow;
+
+/** 켜 보니 안 됐다(하드웨어 몫이 넘침 등) — 이 기기는 안 되는 것으로 기억한다(앱을 다시 열 때까지) */
+export function markDualUnsupported(reason: string) {
+  statusNow = { supported: false, reason, modes: statusNow?.modes };
+  statusPromise = Promise.resolve(statusNow);
+  emitStatus();
+}
+
+const subscribeStatus = (cb: () => void) => {
+  statusListeners.add(cb);
+  void dualCameraStatus();
+  return () => {
+    statusListeners.delete(cb);
+  };
+};
+
+/** 화면에서 읽기 — 검사 중이면 null. 서버에서 그릴 때는 null */
+export function useDualCameraStatus(): DualStatus | null {
+  return useSyncExternalStore(
+    subscribeStatus,
+    () => statusNow,
+    () => null
+  );
+}
+
+/** 안 되는 까닭을 사람 말로 */
+export function dualReasonText(reason: string | undefined): string {
+  switch (reason) {
+    case 'web':
+      return '아이폰 앱에서만 돼요 — 브라우저는 카메라를 한 번에 하나만 켤 수 있어요.';
+    case 'old-app':
+      return '앱을 최신으로 업데이트하면 쓸 수 있어요.';
+    case 'multicam':
+      return '이 아이폰은 두 카메라를 함께 켤 수 없어요(아이폰 XS · XR · SE 이전).';
+    case 'no-ultrawide':
+      return '이 아이폰에는 광각(0.5x) 카메라가 없어요.';
+    case 'pair':
+      return '이 아이폰은 일반 · 광각 카메라를 함께 켤 수 없어요.';
+    case 'fps':
+    case 'cost':
+      return '이 아이폰은 두 카메라를 함께 켜면 60fps 를 못 내요 — 측정 카메라는 60fps 이상이어야 해요.';
+    default:
+      return '이 아이폰에서는 일반 · 광각 동시 촬영을 쓸 수 없어요.';
+  }
+}
 
 export type DualStartInfo = {
   mainFps: number;

@@ -1,7 +1,7 @@
 'use client';
 
 import { useMemo, useState, useSyncExternalStore } from 'react';
-import { Settings2 } from 'lucide-react';
+import { AlertTriangle, Settings2 } from 'lucide-react';
 import { Segmented } from '@/components/segmented';
 import { Button } from '@/components/ui';
 import {
@@ -34,7 +34,7 @@ import {
 } from '@/lib/velocity-lens';
 import { applySpeedUnit, SPEED_UNITS } from '@/lib/units';
 import { useSpeedUnit } from '@/components/use-units';
-import { useDualCameraAvailable } from '@/lib/dual-camera';
+import { dualReasonText, useDualCameraStatus } from '@/lib/dual-camera';
 import { BottomSheet } from './pitch-editor';
 import { Panel, SectionLabel } from './kit';
 
@@ -81,8 +81,12 @@ export function VelocitySettingsFields({
 }) {
   /* 구속 단위 — 앱 전체의 단위 설정(내 정보 · 투구 기록)과 같은 값. 여기서 바꾸면 거기도 바뀐다 */
   const speedUnit = useSpeedUnit();
-  /* 일반 · 광각 동시 촬영 부품이 든 앱인가 — 아니면 '광각 영상도 같이 저장'은 켜 두기만 된다 */
-  const dualReady = useDualCameraAvailable();
+  /*
+   * 이 기기가 일반 · 광각을 함께 켤 수 있나(앱 부품에 묻는다 — 웹 · 옛 앱 · 못 하는 아이폰은 안 됨). 안 되면 '광각 영상도 같이
+   * 저장'을 보이되 못 켜게 잠그고 까닭을 경고로 띄운다(2026-10-03 사용자). 켜 둔 채 저장된 값이 있어도 꺼진 것으로 보인다.
+   */
+  const dual = useDualCameraStatus();
+  const dualOk = dual?.supported === true;
   return (
     <div className="space-y-5">
       <div>
@@ -133,11 +137,13 @@ export function VelocitySettingsFields({
           <ToggleRow
             title="광각 영상도 같이 저장"
             hint={
-              dualReady
-                ? '측정은 일반 카메라로 하고, 공마다 광각 카메라 영상도 함께 남겨요. 구속 측정 관리자에서 두 영상을 나란히 봐요.'
-                : '광각 카메라가 있는 아이폰 앱에서 돼요 — 다음 앱 업데이트부터 실제로 찍혀요. 지금은 켜 두기만 돼요.'
+              dual == null
+                ? '이 기기에서 되는지 확인하는 중이에요…'
+                : '측정은 일반 카메라로 하고, 공마다 광각 카메라 영상도 함께 남겨요. 구속 측정 관리자에서 두 영상을 나란히 봐요.'
             }
-            checked={values.wideClip}
+            warning={dual && !dualOk ? dualReasonText(dual.reason) : undefined}
+            checked={values.wideClip && dualOk}
+            disabled={!dualOk}
             onChange={(wideClip) => onChange({ wideClip })}
           />
           <ToggleRow
@@ -248,21 +254,39 @@ export function VelocitySettingsFields({
 function ToggleRow({
   title,
   hint,
+  warning,
   checked,
   disabled,
   onChange,
 }: {
   title: string;
   hint: string;
+  /** 켤 수 없는 까닭 — 있으면 경고 줄로 보인다(스위치는 disabled 로 함께 잠근다) */
+  warning?: string;
   checked: boolean;
   disabled?: boolean;
   onChange: (next: boolean) => void;
 }) {
   return (
-    <label className="flex min-h-14 items-center justify-between gap-3 px-4 py-3">
+    <label
+      className={`flex min-h-14 items-center justify-between gap-3 px-4 py-3 ${
+        disabled ? 'cursor-not-allowed' : ''
+      }`}
+    >
       <span className="min-w-0">
-        <span className="block text-sm text-ink">{title}</span>
+        <span className={`block text-sm ${disabled ? 'text-muted' : 'text-ink'}`}>
+          {title}
+        </span>
         <span className="block text-xs leading-snug text-muted">{hint}</span>
+        {warning && (
+          <span
+            role="alert"
+            className="mt-1.5 flex items-start gap-1.5 text-xs font-medium leading-snug text-warn"
+          >
+            <AlertTriangle aria-hidden className="mt-px h-3.5 w-3.5 shrink-0" />
+            {warning}
+          </span>
+        )}
       </span>
       <input
         type="checkbox"
@@ -393,6 +417,7 @@ export function VelocitySettingsButton({
         calibSave: base.calibSave,
         clipZone: base.clipZone,
         wideClip: base.wideClip,
+        camMode: base.camMode,
         ...rest,
       });
     }
@@ -438,6 +463,7 @@ export function VelocitySettingsButton({
                   calibSave: base.calibSave,
                   clipZone: base.clipZone,
                   wideClip: base.wideClip,
+                  camMode: base.camMode,
                 })
               }
             >

@@ -17,6 +17,7 @@ import { unstable_rethrow, useRouter } from 'next/navigation';
 import {
   Camera,
   Check,
+  ChevronDown,
   ChevronLeft,
   ChevronRight,
   ChevronUp,
@@ -46,8 +47,19 @@ import {
   type PitchClip,
   type ResultMeta,
 } from '@/lib/velocity-engine/live-capture';
-import { DualCapture } from '@/lib/velocity-engine/dual-capture';
-import { dualCameraAvailable } from '@/lib/dual-camera';
+import { DualCapture, DualUnsupportedError } from '@/lib/velocity-engine/dual-capture';
+import {
+  dualCameraStatus,
+  dualStatusNow,
+  markDualUnsupported,
+} from '@/lib/dual-camera';
+import {
+  camModeLabel,
+  fpsAllowed,
+  type CamMode,
+  type CamModeOption,
+} from '@/lib/velocity-camera-mode';
+import { CameraModeSheet } from '@/components/velocity/camera-mode-sheet';
 import { focalPxFromFov } from '@/lib/velocity-engine/geometry';
 import { liveFpsNote, type LiveReport } from '@/lib/velocity-engine/live-meter';
 import { readVideoLens, videoFovFor } from '@/lib/velocity-engine/video-lens';
@@ -309,6 +321,7 @@ export function VelocityScreen({
     releaseDistM: DEFAULT_SETUP.releaseDistM,
     autoMode: DEFAULT_SETUP.autoMode,
     wideClip: DEFAULT_SETUP.wideClip,
+    camMode: DEFAULT_SETUP.camMode,
   });
   /* 카메라를 저절로 켠 단계 — 한 단계에 한 번만(아래 안전장치 효과) */
   const autoStartedFor = useRef<Step | null>(null);
@@ -333,6 +346,15 @@ export function VelocityScreen({
   const [clipZone, setClipZone] = useState(DEFAULT_SETUP.clipZone);
   /* 광각 영상도 같이 저장(설정) — 앱의 동시 촬영 부품이 있을 때 공마다 wideClip 이 붙는다(2단계) */
   const [wideClip, setWideClip] = useState(DEFAULT_SETUP.wideClip);
+  /* 측정 카메라의 화질 · 프레임(오른쪽 위 카메라 정보를 눌러 고름) — null 이면 자동(1080p · 60fps) */
+  const [camMode, setCamMode] = useState<CamMode | null>(DEFAULT_SETUP.camMode);
+  /* 지금 카메라로 고를 수 있는 화질 — 켤 때마다 카메라가 알려 준다 */
+  const [camOptions, setCamOptions] = useState<CamModeOption[]>([]);
+  /*
+   * 화질 · 프레임을 바꾸기 직전 값 — 고른 조합이 30fps 이하로 켜지면 이리로 되돌린다(측정 카메라는 30fps 이하를 안 쓴다).
+   * undefined = 되돌릴 것 없음
+   */
+  const modeBeforeRef = useRef<CamMode | null | undefined>(undefined);
   /* 보정용 저장은 관리자만 효과가 있다 */
   const calibOn = isAdmin && calibSave;
   /* 세션 — 시작하면 카메라를 숨기고 정보 판을 보인다 */
@@ -387,6 +409,8 @@ export function VelocityScreen({
   const cameraOn = status !== 'off' && status !== 'starting';
   /* 삼각대에 세워 두고 손대지 않으니 화면이 저절로 꺼지지 않게 — 꺼지면 카메라도 멈춘다 */
   useWakeLock(cameraOn);
+  /* 측정 중인가 — 카메라를 다시 켤 때(화질 · 프레임 바꿈) 이어서 기다릴지 */
+  const liveRef = useRef(false);
   useLayoutEffect(() => {
     cameraSettingsRef.current = {
       fov,
@@ -396,8 +420,14 @@ export function VelocityScreen({
       releaseDistM,
       autoMode,
       wideClip,
+      camMode,
     };
+    liveRef.current = live;
   });
+  /* 이 아이폰이 일반 · 광각을 함께 켤 수 있나 — 미리 물어 둔다(설정 칸 · 카메라 켜기가 기다리지 않게) */
+  useEffect(() => {
+    if (native) void dualCameraStatus();
+  }, [native]);
   /*
    * 스트라이크 존 — 규격(모양 ZONE_ASPECT · 가로 범위 ZONE_WIDTH_RANGE)에 맞춘 것을 쓴다. 놓는 단계에서는 칸에 보이는 장면
    * 안으로 넣는다(칸 밖으로 나간 존은 손잡이를 못 잡는다).
@@ -425,7 +455,9 @@ export function VelocityScreen({
   const shown = (raw: number) =>
     useCal && fit.n > 0 ? applyCalibration(raw, fit) : raw;
 
-  const [sheet, setSheet] = useState<'none' | 'settings' | 'save' | 'pitch'>('none');
+  const [sheet, setSheet] = useState<'none' | 'settings' | 'save' | 'pitch' | 'camera'>(
+    'none'
+  );
   const [editing, setEditing] = useState<number | null>(null);
   /* 어떤 투구인가 — 첫 설정 단계에서 고르고, 저장할 때 투구 기록의 종류가 된다(저장 시트에서도 바꿀 수 있다) */
   const [sessionType, setSessionType] = useState<string>(DEFAULT_SETUP.sessionType);
@@ -484,6 +516,7 @@ export function VelocityScreen({
       calibSave,
       clipZone,
       wideClip,
+      camMode,
       ...patch,
     });
   };
@@ -604,15 +637,23 @@ export function VelocityScreen({
      * 옛 공에도 붙었다. 켤 때마다 다른 자리를 얹어 가른다.
      */
     const idBase = ++captureGenRef.current * 1_000_000;
+    const gen = captureGenRef.current;
     /* 설정은 방금 그린 값으로(cameraSettingsRef) — 이 함수가 옛 그림의 것이어도 */
     const now = cameraSettingsRef.current;
     const finder = finderRef.current;
     /*
-     * 앱에 동시 촬영 부품이 있고 설정을 켰으면 앱이 두 카메라를 쥔다(웹 카메라는 켜지 않는다 — 같은 카메라를 둘이 못 쓴다).
-     * 결과는 던진 뒤 1~3초에 온다(앱이 자른 클립을 영상 파일 엔진으로 잰다).
+     * 앱에 동시 촬영 부품이 있고, 이 아이폰이 일반 · 광각을 함께 켤 수 있고, 설정을 켰으면 앱이 두 카메라를 쥔다(웹 카메라는
+     * 켜지 않는다 — 같은 카메라를 둘이 못 쓴다). 결과는 던진 뒤 1~3초에 온다(앱이 자른 클립을 영상 파일 엔진으로 잰다).
+     * 기기 검사는 화면을 열 때 미리 해 둔다 — 아직이면 기다린다(앱 길만. 웹 카메라는 누름에 바로 붙여 켠다).
      */
+    let dualOk = false;
+    if (native && now.wideClip && finder) {
+      const s = dualStatusNow() ?? (await dualCameraStatus());
+      if (gen !== captureGenRef.current) return;
+      dualOk = s.supported;
+    }
     const capture =
-      native && now.wideClip && finder && dualCameraAvailable()
+      dualOk && finder
         ? new DualCapture(
             finder,
             {
@@ -650,6 +691,9 @@ export function VelocityScreen({
     );
     capture.setManual(!now.autoMode);
     capture.setClips(true);
+    capture.setMode(now.camMode);
+    /* 세션 중에 다시 켰으면(화질 · 프레임을 바꿈) 켜지는 대로 이어서 기다린다 */
+    if (liveRef.current) capture.arm();
     const prev = captureRef.current;
     prev?.stop();
     captureRef.current = capture;
@@ -657,10 +701,25 @@ export function VelocityScreen({
     if (prev instanceof DualCapture) await prev.stopped;
     if (captureRef.current !== capture) return;
     try {
-      setCamera(await capture.start());
+      const info = await capture.start();
+      if (captureRef.current !== capture) return;
+      setCamera(info);
+      setCamOptions(capture.getModeOptions());
+      checkCamMode(info, now.camMode);
     } catch (e) {
       /* 켜는 사이에 껐다(화면을 떠남 · 다시 켬) — 알릴 것 없다 */
       if (e instanceof DOMException && e.name === 'AbortError') return;
+      /*
+       * 앱이 켜 보고 '이 아이폰은 두 카메라를 함께 못 켬(60fps 를 못 냄 · 하드웨어 몫)'으로 끝냈다 — 기억해 두고(설정 칸이
+       * 잠긴다) 웹 카메라로 바꿔 켠다. 측정은 끊기지 않는다.
+       */
+      if (e instanceof DualUnsupportedError) {
+        markDualUnsupported(e.reason);
+        if (captureRef.current === capture) captureRef.current = null;
+        setToast('광각 동시 촬영이 안 되는 아이폰이라 일반 카메라로 재요');
+        void startCamera();
+        return;
+      }
       const message = e instanceof Error ? e.message : '카메라를 켜지 못했습니다.';
       /*
        * 앱에는 주소창이 없다 — 앱에서 막혔으면 아이폰이 카메라를 거절한 것이고, 아이폰은 앱 안에서 다시 묻지 않는다.
@@ -712,6 +771,7 @@ export function VelocityScreen({
       setCalibSave(stored.calibSave);
       setClipZone(stored.clipZone);
       setWideClip(stored.wideClip);
+      setCamMode(stored.camMode);
       setDecided(true);
       setStep('align');
     });
@@ -722,6 +782,7 @@ export function VelocityScreen({
     if (stored) {
       setClipZone(stored.clipZone);
       setWideClip(stored.wideClip);
+      setCamMode(stored.camMode);
     }
     setDecided(true);
     setStep('type');
@@ -952,11 +1013,45 @@ export function VelocityScreen({
   useEffect(() => {
     const capture = captureRef.current;
     if (!capture || live) return;
-    const wantsDual = native && wideClip && dualCameraAvailable();
+    const wantsDual = native && wideClip && dualStatusNow()?.supported === true;
     if (wantsDual === capture instanceof DualCapture) return;
     void startCamera();
     // eslint-disable-next-line react-hooks/exhaustive-deps -- 설정이 바뀔 때만 본다
   }, [wideClip]);
+
+  /*
+   * 화질 · 프레임 고르기(오른쪽 위 카메라 정보 → 시트). 고르면 남기고 카메라를 다시 켠다 — 세션 중이면 켜지는 대로 이어서
+   * 기다린다(startCamera 의 liveRef). remember 면 고르기 전 값을 쥐어, 고른 조합이 30fps 이하로 켜지면 되돌린다.
+   */
+  const applyCamMode = (next: CamMode | null, remember = true) => {
+    modeBeforeRef.current = remember ? camMode : undefined;
+    setCamMode(next);
+    persistSetup({ camMode: next });
+    cameraSettingsRef.current = { ...cameraSettingsRef.current, camMode: next };
+    void startCamera();
+  };
+  const applyCamModeRef = useRef(applyCamMode);
+  useEffect(() => {
+    applyCamModeRef.current = applyCamMode;
+  });
+  /*
+   * 고른 화질 · 프레임으로 켜졌나 — 카메라가 못 내는 조합이면 가까운 것으로 켜진다. 그 결과가 30fps 이하면(측정 카메라는
+   * 30fps 이하를 안 쓴다 — 2026-10-03 사용자) 고르기 전으로 되돌리고, 아니면 실제로 켜진 값을 알린다.
+   */
+  const checkCamMode = (info: CameraInfo, asked: CamMode | null) => {
+    const back = modeBeforeRef.current;
+    modeBeforeRef.current = undefined;
+    if (!asked || info.frameRate == null) return;
+    const gotFps = Math.round(info.frameRate);
+    const gotShort = Math.min(info.width, info.height);
+    if (!fpsAllowed(gotFps) && back !== undefined) {
+      setToast(`${camModeLabel(asked)} 는 이 카메라에서 ${gotFps}fps 라 원래대로 돌렸어요`);
+      applyCamModeRef.current(back, false);
+      return;
+    }
+    if (Math.abs(gotShort - asked.short) > 8 || Math.abs(gotFps - asked.fps) > 2)
+      setToast(`이 카메라는 ${camModeLabel(asked)} 를 못 내 ${gotShort}p · ${gotFps}fps 로 켰어요`);
+  };
 
   useEffect(() => {
     const el = finderRef.current;
@@ -1379,16 +1474,31 @@ export function VelocityScreen({
             {levelOn && <LevelBubble level={level} onRequest={requestPermission} />}
           </div>
           {camera && (
-            <span
-              className={`h-7 min-w-0 truncate rounded-full px-2.5 leading-7 tabular-nums backdrop-blur ${
-                lowFps ? 'bg-amber-600 text-white' : 'bg-black/55 text-white/80'
+            /*
+             * 누르면 화질 · 프레임 고르기(2026-10-03 사용자). 뷰파인더 위 손동작(존 끌기)이 이 누름을 가져가지 않게 pointerdown 을
+             * 여기서 멈춘다. 보이는 알약은 h-7 이지만 누르는 자리는 위아래로 넓힌다(before 로 44px).
+             */
+            <button
+              type="button"
+              onPointerDown={(e) => e.stopPropagation()}
+              onClick={() => setSheet('camera')}
+              aria-label="카메라 화질 · 프레임 바꾸기"
+              className={`pointer-events-auto relative inline-flex h-7 min-w-0 items-center gap-1 rounded-full pl-2.5 pr-2 tabular-nums backdrop-blur before:absolute before:-inset-y-2.5 before:inset-x-0 before:content-[''] motion-safe:transition-colors ${
+                lowFps
+                  ? 'bg-amber-600 text-white'
+                  : 'bg-black/55 text-white/80 active:bg-black/70'
               }`}
             >
-              {camera.width}×{camera.height}
-              {fps != null && ` · ${fps}fps`}
-              {camera.focus === 'manual' && ' · 수동초점'}
-              {camera.focus === 'auto' && ' · 자동초점'}
-            </span>
+              <span className="truncate">
+                {camera.width}×{camera.height}
+                {/* 실제로 들어오는 fps 가 오기 전에는 카메라가 약속한 값 */}
+                {(fps ?? camera.frameRate) != null &&
+                  ` · ${fps ?? Math.round(camera.frameRate ?? 0)}fps`}
+                {camera.focus === 'manual' && ' · 수동초점'}
+                {camera.focus === 'auto' && ' · 자동초점'}
+              </span>
+              <ChevronDown aria-hidden className="h-3.5 w-3.5 shrink-0 opacity-80" />
+            </button>
           )}
         </div>
       )}
@@ -2581,6 +2691,22 @@ export function VelocityScreen({
           </div>
         )}
       </BottomSheet>
+
+      {/* 카메라 화질 · 프레임 */}
+      <CameraModeSheet
+        open={sheet === 'camera'}
+        onClose={() => setSheet('none')}
+        mode={camMode}
+        options={camOptions}
+        current={
+          camera
+            ? { width: camera.width, height: camera.height, fps: fps ?? camera.frameRate }
+            : null
+        }
+        busy={status === 'starting'}
+        dual={camera?.label.startsWith('DualCamera') === true}
+        onPick={(next) => applyCamMode(next)}
+      />
 
       {/* 설정 */}
       <BottomSheet

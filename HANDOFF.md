@@ -11,6 +11,13 @@ Claude 로 작업을 시작하면 저절로 읽힌다. 규칙은 `AGENTS.md` 6�
 
 ---
 
+## 김민에게 — 2026-10-03 · 금윤호(Claude) — DualCamera 부품 고침: 기기 검사 · 화질 고르기 · 30fps 안 씀
+
+받은 뒤 할 일 없음(앱을 굽는 쪽만 바뀜). `mobile/ios/App/App/DualCameraPlugin.swift` 만 고쳤다 — `status()` 가 고를 수 있는 화질
+(`modes`)과 '함께 켤 때 60fps 를 못 냄'(`reason: 'fps'`)을 알려 주고, `start()` 가 `short`(짧은 변 화질)를 받고, 두 카메라가 버거우면
+일반 카메라를 30fps 로 떨어뜨리는 대신 광각부터 줄인다(사용자: 측정 카메라는 30프레임 이하 금지). 사이트 쪽은 구속 측정 화면 오른쪽 위
+카메라 정보를 누르면 화질 · 프레임을 고르고, 동시 촬영을 못 하는 아이폰은 설정 칸이 잠긴다.
+
 ## 김민에게 — 2026-10-03 · 금윤호(Claude) — 앱(mobile/ios)에 부품 하나 더함: 일반 · 광각 동시 촬영
 
 받은 뒤 할 일 없음(앱을 굽는 쪽만 바뀜). 네 앱 틀을 건드렸다 — 새 파일 `mobile/ios/App/App/DualCameraPlugin.swift`(Capacitor 부품

@@ -627,6 +627,19 @@
   @capacitor/core 와 같은 길로 썼고 실제 앱에선 아직 안 돌려 봄. 렌즈 보정(snapshot)은 이 길에서 안 됨(웹 카메라로). 가짜 부품을 끼운 임시
   화면으로 start · setPreview(375×688) · 투명까지 확인. 설정이
   꺼져 있으면 지금 길(getUserMedia) 그대로라 위험이 켤 때만 있다. `mobile/` 는 김민의 앱 틀 — 건드리면 HANDOFF.
+  - **못 하는 아이폰은 잠금 · 화질 · 프레임 고르기(2026-10-03, 사용자: "동시에 못 쓰는 아이폰은 설정에서 보이되 못 켜게 + 경고 ·
+    카메라 우측 상단 화질/프레임을 누르면 자유롭게 고르게 · 측정 카메라는 30프레임 이하 못 쓰게").** 모델 1.7.1.
+    - 기기 검사 `lib/dual-camera.ts` `dualCameraStatus`(한 번 묻고 기억) · `useDualCameraStatus` · `dualReasonText`. 까닭: web ·
+      old-app · multicam · no-ultrawide · pair · fps(함께 켤 때 60fps 못 냄) · cost(켜 보니 하드웨어 몫 초과 — `markDualUnsupported`).
+      설정 칸은 보이되 잠기고(checked 도 꺼짐) 노란 경고 줄. 켜 보다 cost/fps 로 끝나면 화면이 알림 뒤 웹 카메라로 바꿔 켠다.
+    - 화질 · 프레임: `lib/velocity-camera-mode.ts`(720p · 1080p · 4K × 30 · 60 · 120 · 240, `MIN_MEASURE_FPS` 59) · 시트
+      `components/velocity/camera-mode-sheet.tsx`(오른쪽 위 알약을 누름) · 설정 `camMode`(기기별, null = 자동 1080p · 60).
+      웹은 getCapabilities 의 최대값으로 칸을 짐작(조합은 브라우저가 안 알려 줌 — 켜 본 뒤 실제 값을 알림), 앱은 status.modes
+      (화질마다 최고 fps). 고른 조합이 30fps 이하로 켜지면 고르기 전으로 되돌림. 세션 중에 바꾸면 다시 켜고 이어서 기다림(liveRef).
+    - Swift: status 에 modes · reason 'fps', start 에 short, 일반 카메라는 30fps 로 안 떨어뜨림(광각 30 → 광각 가장 작은 화면 → 일반
+      작은 화면 같은 fps → 안 되면 'unsupported-cost'). **맥이 없어 컴파일 못 해 봄 — 올리면 ios.yml 이 굽는다.**
+    - **물어볼 것**: 60fps 를 아예 못 내는 카메라(옛 폰 · PC 웹캠)는 지금처럼 '부정확할 수 있다' 알림만 띄우고 재게 둘지(2026-09-30
+      규칙), 아예 막을지.
 - **`NutritionProfile.sex` 칸 지우기 — 끝(2026-10-03).** 2단계 마이그레이션 `20261003100000_drop_nutrition_profile_sex` 적용(1단계 배포 뒤,
   백업 `db-2026-10-02-03-56.json`). 아래는 지난 설명.
 - **(지난) `NutritionProfile.sex` 칸 지우기 — 1단계 끝, 2단계 대기(2026-10-03).** 1단계: 스키마에서만 뺌(DB 칸은 그대로, 백업

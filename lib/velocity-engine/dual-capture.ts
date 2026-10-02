@@ -2,10 +2,16 @@
 
 import {
   callDualCamera,
+  dualStatusNow,
   readDualClip,
   type DualClip,
   type DualStartInfo,
 } from '@/lib/dual-camera';
+import {
+  DEFAULT_CAM_MODE,
+  type CamMode,
+  type CamModeOption,
+} from '@/lib/velocity-camera-mode';
 import { analyzeVideo, type VideoAnalyzeResult } from './analyze-video';
 import type { Approach } from './validate';
 import type {
@@ -65,6 +71,17 @@ function listen(eventName: string, cb: (data: Record<string, unknown>) => void):
 /** 한 번에 쥐는 던짐 수 — 계산이 밀리면 그 뒤 던짐은 알리고 넘긴다 */
 const MAX_PENDING = 2;
 
+/** 앱이 '이 아이폰은 안 됨'으로 켜기를 끝냈다 — reason 은 lib/dual-camera.ts 의 DualStatus.reason(cost · fps …) */
+export class DualUnsupportedError extends Error {
+  constructor(readonly reason: string) {
+    super('이 아이폰은 일반 · 광각 카메라를 함께 켤 수 없어요.');
+    this.name = 'DualUnsupportedError';
+  }
+}
+
+/** 지금 앱 카메라를 맡은 것 — 앱 부품은 하나라, 옛 것이 끄면서 새 것의 카메라를 끄지 않게 */
+let owner: symbol | null = null;
+
 export class DualCapture {
   private status: LiveStatus = 'off';
   private armed = false;
@@ -80,6 +97,8 @@ export class DualCapture {
   private info: DualStartInfo | null = null;
   private focalPerLongSide: number | null = null;
   private releaseDistanceM: number | null = null;
+  /** 이 인스턴스의 표식 — 앱 카메라를 맡았는지(owner) 견줄 때 */
+  private readonly token = Symbol('dual-capture');
   /** 앱이 카메라를 놓을 때까지 — 웹 카메라로 바꿔 켤 때 기다린다(같은 카메라를 둘이 못 쓴다) */
   stopped: Promise<void> = Promise.resolve();
 
@@ -113,14 +132,37 @@ export class DualCapture {
     );
   };
 
+  /** 고른 화질 · 프레임 — 켜기 전에 건다. null 이면 1080p 쪽 60fps */
+  private mode: CamMode | null = null;
+  setMode(mode: CamMode | null) {
+    this.mode = mode;
+  }
+
+  /** 고를 수 있는 화질 — 앱 부품이 알려 준 것(status.modes). 옛 앱이면 지금 켠 것 하나 */
+  getModeOptions(): CamModeOption[] {
+    const modes = dualStatusNow()?.modes;
+    if (modes?.length) return modes.map((m) => ({ ...m }));
+    const info = this.info;
+    if (!info) return [];
+    return [
+      {
+        short: Math.min(info.mainWidth, info.mainHeight),
+        long: Math.max(info.mainWidth, info.mainHeight),
+        maxFps: info.mainFps,
+      },
+    ];
+  }
+
   async start(): Promise<CameraInfo> {
     const gen = ++this.gen;
+    owner = this.token;
     this.setStatus('starting');
     document.documentElement.dataset.dualcam = '';
     let info: DualStartInfo;
     try {
       info = await callDualCamera<DualStartInfo>('start', {
-        fps: 60,
+        fps: this.mode?.fps ?? DEFAULT_CAM_MODE.fps,
+        ...(this.mode ? { short: this.mode.short } : {}),
         net: this.net,
         preview: this.rect(),
         armed: false,
@@ -130,9 +172,17 @@ export class DualCapture {
         delete document.documentElement.dataset.dualcam;
         this.setStatus('off');
       }
+      /* 앱이 '이 아이폰은 안 됨'으로 끝냈다(두 카메라의 하드웨어 몫 · 60fps 못 냄) — 화면이 웹 카메라로 바꿔 켠다 */
+      const code = (e as { code?: unknown } | null)?.code;
+      if (typeof code === 'string' && code.startsWith('unsupported-'))
+        throw new DualUnsupportedError(code.slice('unsupported-'.length));
       throw e;
     }
-    if (gen !== this.gen) throw new DOMException('꺼짐', 'AbortError');
+    if (gen !== this.gen) {
+      /* 켜는 사이에 껐다 — 그 사이 새로 켠 쪽이 없으면 앱 카메라도 끈다(앱이 끄기보다 켜기를 늦게 마칠 수 있다) */
+      if (owner === this.token) void callDualCamera('stop').catch(() => undefined);
+      throw new DOMException('꺼짐', 'AbortError');
+    }
     this.info = info;
     this.running = true;
     this.lastRect = '';
@@ -266,12 +316,16 @@ export class DualCapture {
     if (this.previewTimer) clearInterval(this.previewTimer);
     this.previewTimer = null;
     window.removeEventListener('resize', this.syncPreview);
-    delete document.documentElement.dataset.dualcam;
-    if (wasRunning || this.status === 'starting')
-      this.stopped = callDualCamera('stop').then(
-        () => undefined,
-        () => undefined
-      );
+    /* 그 사이 다른 DualCapture 가 앱 카메라를 맡았으면 그것을 끄지 않는다(앱 부품은 하나다) */
+    if (owner === this.token) {
+      owner = null;
+      delete document.documentElement.dataset.dualcam;
+      if (wasRunning || this.status === 'starting')
+        this.stopped = callDualCamera('stop').then(
+          () => undefined,
+          () => undefined
+        );
+    }
     this.setStatus('off');
   }
 

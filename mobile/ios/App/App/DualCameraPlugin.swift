@@ -20,8 +20,9 @@ import WebKit
 /// 비워(투명) 존 · 안내만 위에 그린다. 사이트가 쓰던 웹 카메라(getUserMedia)는 start 전에 꺼야 한다(같은 카메라를 둘이 못 쓴다).
 ///
 /// 부르는 법(사이트, window.Capacitor.nativePromise('DualCamera', …)):
-///   status()                                    → { supported, reason? }
-///   start({ fps, net, preview, roi, armed })     → { mainFps, wideFps, mainWidth, mainHeight, wideWidth, wideHeight, mainFovDeg, wideFovDeg, hardwareCost }
+///   status()                                    → { supported, reason?, modes? }   modes = [{ short, long, maxFps }](일반 카메라, 16:9)
+///                                                  reason: multicam · no-ultrawide · pair · fps(함께 켤 때 60fps 를 못 냄)
+///   start({ fps, short?, net, preview, roi, armed }) → { mainFps, wideFps, mainWidth, mainHeight, wideWidth, wideHeight, mainFovDeg, wideFovDeg, hardwareCost }
 ///   setPreview({ x, y, w, h, visible })          미리보기 자리(뷰포트 CSS px)
 ///   setTrigger({ armed, roi })                   던짐 알아채기 켜기/끄기 · 볼 자리(세로 화면 0~1)
 ///   clip({ atSec, beforeSec, afterSec })         → { main: Clip, wide: Clip | null }   Clip = { path, eventSec, durationSec, bytes, fps, width, height, fovDeg }
@@ -82,7 +83,8 @@ public class DualCameraPlugin: CAPPlugin, CAPBridgedPlugin {
         /* 화면(UIKit)은 주 스레드에서만 — 부품 부름은 다른 줄에서 온다. 새 미리보기는 그 뒤 차례로 붙는다 */
         DispatchQueue.main.async { [weak self] in self?.detachPreview() }
         let config = DualCameraController.Config(
-            fps: Int32(max(24, min(120, call.getInt("fps") ?? 60))),
+            fps: Int32(max(24, min(240, call.getInt("fps") ?? 60))),
+            short: call.getInt("short").map { Int32($0) },
             net: call.getBool("net") ?? false,
             roi: DualCameraPlugin.rect(call.getObject("roi")) ?? MotionTrigger.defaultRoi,
             armed: call.getBool("armed") ?? true
@@ -315,6 +317,8 @@ struct DualClip {
 final class DualCameraController: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate {
     struct Config {
         var fps: Int32
+        /// 일반 카메라의 짧은 변(720 · 1080 · 2160 …) — 사용자가 고른 화질. nil 이면 1080p 쪽에서 알아서
+        var short: Int32?
         var net: Bool
         var roi: CGRect
         var armed: Bool
@@ -347,7 +351,8 @@ final class DualCameraController: NSObject, AVCaptureVideoDataOutputSampleBuffer
     private var wideFov: Double = 0
     private var observers: [NSObjectProtocol] = []
 
-    /// 이 아이폰이 일반 + 광각을 함께 켤 수 있나
+    /// 이 아이폰이 일반 + 광각을 함께 켤 수 있나 — 되면 일반 카메라로 고를 수 있는 화질(16:9)과 그 최고 fps 도 싣는다.
+    /// 측정 카메라는 30fps 이하를 쓰지 않는다(사용자 규칙 2026-10-03) — 함께 켤 때 60fps 를 못 내는 아이폰은 '안 됨'(fps).
     static func probe() -> [String: Any] {
         guard AVCaptureMultiCamSession.isMultiCamSupported else {
             return ["supported": false, "reason": "multicam"]
@@ -356,9 +361,39 @@ final class DualCameraController: NSObject, AVCaptureVideoDataOutputSampleBuffer
         guard let mainDevice, let wideDevice else {
             return ["supported": false, "reason": "no-ultrawide"]
         }
-        return pairSupported(mainDevice, wideDevice)
-            ? ["supported": true]
-            : ["supported": false, "reason": "pair"]
+        guard pairSupported(mainDevice, wideDevice) else {
+            return ["supported": false, "reason": "pair"]
+        }
+        let list = modes(mainDevice)
+        guard list.contains(where: { ($0["maxFps"] as? Int ?? 0) >= Int(MIN_MEASURE_FPS) }) else {
+            return ["supported": false, "reason": "fps"]
+        }
+        return ["supported": true, "modes": list]
+    }
+
+    /// 측정 카메라의 가장 낮은 fps — 이보다 낮으면 켜지 않는다(59.94 를 받게 59)
+    static let MIN_MEASURE_FPS: Int32 = 59
+
+    private static let pixelFormats: Set<FourCharCode> = [
+        kCVPixelFormatType_420YpCbCr8BiPlanarVideoRange,
+        kCVPixelFormatType_420YpCbCr8BiPlanarFullRange,
+    ]
+
+    /// 함께 켤 수 있는 16:9 모양을 짧은 변마다 하나씩 — [{ short, long, maxFps }], 짧은 변 순
+    static func modes(_ device: AVCaptureDevice) -> [[String: Any]] {
+        var best: [Int32: (long: Int32, fps: Double)] = [:]
+        for format in device.formats {
+            guard format.isMultiCamSupported,
+                  pixelFormats.contains(CMFormatDescriptionGetMediaSubType(format.formatDescription))
+            else { continue }
+            let d = CMVideoFormatDescriptionGetDimensions(format.formatDescription)
+            guard d.width >= 1280, Int(d.width) * 9 == Int(d.height) * 16 else { continue }
+            let fps = format.videoSupportedFrameRateRanges.map(\.maxFrameRate).max() ?? 0
+            if fps > (best[d.height]?.fps ?? 0) { best[d.height] = (d.width, fps) }
+        }
+        return best.keys.sorted().map { short in
+            ["short": Int(short), "long": Int(best[short]!.long), "maxFps": Int(best[short]!.fps.rounded(.down))]
+        }
     }
 
     static func devices() -> (AVCaptureDevice?, AVCaptureDevice?) {
@@ -477,8 +512,13 @@ final class DualCameraController: NSObject, AVCaptureVideoDataOutputSampleBuffer
             DualCameraController.portrait(previewConnection)
         }
 
-        /* 일반은 바라는 fps(보통 60), 광각도 같게 시도하고 — 두 카메라의 하드웨어 몫이 넘치면 광각부터 30 으로 낮춘다 */
-        var mainPick = try DualCameraController.pick(mainDevice, fps: config.fps)
+        /*
+         * 일반은 고른 화질 · fps(보통 1080p 60), 광각도 같게 시도한다. 두 카메라의 하드웨어 몫이 넘치면 광각부터 낮춘다
+         * (30fps → 가장 작은 화면 30fps). 그래도 넘치면 일반의 화면을 줄이되 fps 는 지킨다 — 측정 카메라는 30fps 이하를
+         * 쓰지 않는다(사용자 규칙 2026-10-03). 그래도 안 되면 '안 됨'(cost)으로 끝내고, 사이트가 웹 카메라로 잰다.
+         */
+        var mainPick = try DualCameraController.pick(mainDevice, fps: config.fps, short: config.short)
+        guard mainPick.fps >= DualCameraController.MIN_MEASURE_FPS else { throw DualCameraError.unsupported("fps") }
         var widePick = try DualCameraController.pick(wideDevice, fps: config.fps)
         try DualCameraController.apply(mainDevice, mainPick, lockFocus: config.net)
         try DualCameraController.apply(wideDevice, widePick, lockFocus: false)
@@ -487,8 +527,15 @@ final class DualCameraController: NSObject, AVCaptureVideoDataOutputSampleBuffer
             try DualCameraController.apply(wideDevice, widePick, lockFocus: false)
         }
         if session.hardwareCost > 1.0 {
-            mainPick = try DualCameraController.pick(mainDevice, fps: 30)
-            try DualCameraController.apply(mainDevice, mainPick, lockFocus: config.net)
+            widePick = try DualCameraController.pick(wideDevice, fps: 30, smallest: true)
+            try DualCameraController.apply(wideDevice, widePick, lockFocus: false)
+        }
+        if session.hardwareCost > 1.0 {
+            let smaller = try DualCameraController.pick(mainDevice, fps: mainPick.fps, smallest: true)
+            if smaller.fps >= DualCameraController.MIN_MEASURE_FPS {
+                mainPick = smaller
+                try DualCameraController.apply(mainDevice, mainPick, lockFocus: config.net)
+            }
         }
         guard session.hardwareCost <= 1.0 else { throw DualCameraError.unsupported("cost") }
 
@@ -510,25 +557,33 @@ final class DualCameraController: NSObject, AVCaptureVideoDataOutputSampleBuffer
         ]
     }
 
-    /// 두 카메라를 함께 켤 수 있는 모양 중 1080p 쪽, 8비트(HDR 아님), 바라는 fps 를 낼 수 있는 것
-    private static func pick(_ device: AVCaptureDevice, fps: Int32) throws -> Picked {
-        let wanted: Set<FourCharCode> = [
-            kCVPixelFormatType_420YpCbCr8BiPlanarVideoRange,
-            kCVPixelFormatType_420YpCbCr8BiPlanarFullRange,
-        ]
-        let candidates: [(AVCaptureDevice.Format, Int32, Int32, Double)] = device.formats.compactMap { format in
+    /// 두 카메라를 함께 켤 수 있는 모양 중 8비트(HDR 아님), 바라는 fps 를 낼 수 있는 것.
+    /// short 를 주면 그 짧은 변의 16:9 모양 중에서(사용자가 고른 화질), 아니면 1080p 쪽(긴 변 1280~1920)에서 가장 큰 것.
+    /// smallest 면 가장 작은 화면(두 카메라의 하드웨어 몫을 줄일 때).
+    private static func pick(
+        _ device: AVCaptureDevice, fps: Int32, short: Int32? = nil, smallest: Bool = false
+    ) throws -> Picked {
+        let all: [(AVCaptureDevice.Format, Int32, Int32, Double)] = device.formats.compactMap { format in
             guard format.isMultiCamSupported,
-                  wanted.contains(CMFormatDescriptionGetMediaSubType(format.formatDescription))
+                  pixelFormats.contains(CMFormatDescriptionGetMediaSubType(format.formatDescription))
             else { return nil }
             let d = CMVideoFormatDescriptionGetDimensions(format.formatDescription)
-            guard d.width >= 1280, d.width <= 1920 else { return nil }
+            guard d.width >= 1280 else { return nil }
             let maxFps = format.videoSupportedFrameRateRanges.map(\.maxFrameRate).max() ?? 0
             return (format, d.width, d.height, maxFps)
         }
-        /* fps 를 채우는 것 중 가장 큰 화면 → 없으면 fps 가 가장 높은 것 */
+        let sized = all.filter { c in
+            if let short { return c.2 == short && Int(c.1) * 9 == Int(c.2) * 16 }
+            return smallest || c.1 <= 1920
+        }
+        /* 고른 화질이 없으면(다른 아이폰에서 고른 설정) 1080p 쪽으로 */
+        let candidates = sized.isEmpty ? all.filter { $0.1 <= 1920 } : sized
+        /* fps 를 채우는 것 중 가장 큰(smallest 면 가장 작은) 화면 → 없으면 fps 가 가장 높은 것 */
         let enough = candidates.filter { $0.3 >= Double(fps) - 0.5 }
+        let area = { (c: (AVCaptureDevice.Format, Int32, Int32, Double)) in Int(c.1) * Int(c.2) }
         let best = (enough.isEmpty ? candidates : enough).max { a, b in
-            enough.isEmpty ? a.3 < b.3 : Int(a.1) * Int(a.2) < Int(b.1) * Int(b.2)
+            if enough.isEmpty { return a.3 < b.3 }
+            return smallest ? area(a) > area(b) : area(a) < area(b)
         }
         guard let best else { throw DualCameraError.unsupported("format") }
         let actual = Int32(min(Double(fps), best.3).rounded(.down))
