@@ -65,6 +65,11 @@ export type VelocitySetup = {
    * (lib/velocity-recorder.ts). 관리자가 아니면 켜져 있어도 효과가 없다.
    */
   recordMode: boolean;
+  /**
+   * 진단 표시(관리자) — 측정 화면 위에 장면 받는 길 · 실제 초당 장면 · 장면 하나 처리 시간 · 알아챔 · 잰 것 · 거부 까닭을 작게 띄운다.
+   * 밖에서 하나도 안 잡혔을 때 그 자리에서 까닭을 보려고(2026-10-03).
+   */
+  diagHud: boolean;
   savedAt: string;
 };
 
@@ -191,6 +196,7 @@ export const DEFAULT_SETUP: Omit<VelocitySetup, 'savedAt'> = {
   wideClip: false,
   camMode: null,
   recordMode: false,
+  diagHud: false,
 };
 
 export const isRect = (z: unknown): z is ZoneRect =>
@@ -234,6 +240,7 @@ export function loadSetup(): VelocitySetup | null {
       wideClip: p.wideClip === true,
       camMode: isCamMode(p.camMode) ? p.camMode : null,
       recordMode: p.recordMode === true,
+      diagHud: p.diagHud === true,
       savedAt: typeof p.savedAt === 'string' ? p.savedAt : '',
     };
   } catch {

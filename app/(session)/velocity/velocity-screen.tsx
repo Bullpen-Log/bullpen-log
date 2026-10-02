@@ -15,6 +15,7 @@ import { ConfirmDialog } from '@/components/confirm-delete';
 import { buzz } from '@/lib/haptics';
 import { unstable_rethrow, useRouter } from 'next/navigation';
 import {
+  Activity,
   Camera,
   Check,
   ChevronDown,
@@ -46,6 +47,7 @@ import {
 import {
   LiveCapture,
   type CameraInfo,
+  type LiveInfo,
   type LiveStatus,
   type PitchClip,
   type ResultMeta,
@@ -364,6 +366,19 @@ export function VelocityScreen({
   /* 엔진 개발용 녹화(관리자 설정) — 켜면 측정 대기 화면의 시작 단추가 녹화 단추 */
   const [recordMode, setRecordMode] = useState(DEFAULT_SETUP.recordMode);
   const recOn = isAdmin && recordMode;
+  /* 진단 표시(관리자 설정) — 장면 받는 길 · fps · 처리 시간 · 알아챔 수 · 거부 까닭 */
+  const [diagHud, setDiagHud] = useState(DEFAULT_SETUP.diagHud);
+  const [liveInfo, setLiveInfo] = useState<LiveInfo | null>(null);
+  const [diag, setDiag] = useState({ captures: 0, ok: 0, rejected: 0, last: '' });
+  /* 카메라가 낸 결과를 진단 수에 센다 — 화면이 걸러 버리는 잡음 거부까지(addResult 의 noise) */
+  const noteDiagRef = useRef((r: ScreenResult) => {
+    setDiag((d) => ({
+      captures: d.captures + 1,
+      ok: d.ok + (r.measure.ok ? 1 : 0),
+      rejected: d.rejected + (r.measure.ok ? 0 : 1),
+      last: r.measure.ok ? `${r.measure.kmh.toFixed(1)}km/h · 궤적 ${r.track.length}장` : `${r.measure.code} · 궤적 ${r.track.length}장`,
+    }));
+  });
   /* 녹화기 · 그 상태(찍는 시간 · 조각 · 올림) — 녹화 중이 아니면 null */
   const recorderRef = useRef<SegmentedRecorder | null>(null);
   const [rec, setRec] = useState<RecorderState | null>(null);
@@ -548,6 +563,7 @@ export function VelocityScreen({
       wideClip,
       camMode,
       recordMode,
+      diagHud,
       ...patch,
     });
   };
@@ -689,8 +705,10 @@ export function VelocityScreen({
             finder,
             {
               onStatus: setStatus,
-              onResult: (r, meta) =>
-                addResultRef.current(r, 'camera', { ...meta, id: idBase + meta.id }),
+              onResult: (r, meta) => {
+                noteDiagRef.current(r);
+                addResultRef.current(r, 'camera', { ...meta, id: idBase + meta.id });
+              },
               onClip: (id, clip) => attachClipRef.current(idBase + id, clip),
               onWideClip: (id, clip) => attachWideClipRef.current(idBase + id, clip),
               onError: setError,
@@ -705,8 +723,11 @@ export function VelocityScreen({
       video,
       {
         onStatus: setStatus,
-        onResult: (r, meta) =>
-          addResultRef.current(r, 'camera', meta && { ...meta, id: idBase + meta.id }),
+        onResult: (r, meta) => {
+          noteDiagRef.current(r);
+          addResultRef.current(r, 'camera', meta && { ...meta, id: idBase + meta.id });
+        },
+        onInfo: setLiveInfo,
         onClip: (id, clip) => attachClipRef.current(idBase + id, clip),
         onError: setError,
         onNotice: setToast,
@@ -805,6 +826,7 @@ export function VelocityScreen({
       setWideClip(stored.wideClip);
       setCamMode(stored.camMode);
       setRecordMode(stored.recordMode);
+      setDiagHud(stored.diagHud);
       setDecided(true);
       setStep('align');
     });
@@ -817,6 +839,7 @@ export function VelocityScreen({
       setWideClip(stored.wideClip);
       setCamMode(stored.camMode);
       setRecordMode(stored.recordMode);
+      setDiagHud(stored.diagHud);
     }
     setDecided(true);
     setStep('type');
@@ -1612,6 +1635,41 @@ export function VelocityScreen({
         </div>
       )}
 
+      {/*
+        진단 표시(관리자 설정) — 밖에서 하나도 안 잡힐 때 그 자리에서 까닭을 본다: 장면 받는 길(worker-stream 이 가장 가볍다) ·
+        실제로 들어오는 fps · 측정 워커가 장면 하나에 쓴 시간(16.7ms 를 넘으면 60fps 를 못 따라간다) · 계산이 밀려 버린 공 ·
+        알아챈 수 · 잰 수 · 거부 수와 마지막 결과. 정보 판이 올라와 있어도 보이게 위에 둔다.
+      */}
+      {isAdmin && diagHud && cameraOn && (
+        <div
+          aria-hidden
+          className="pointer-events-none absolute left-3 top-[calc(6.25rem+env(safe-area-inset-top))] z-30 max-w-[15rem] rounded-lg bg-black/70 px-2.5 py-1.5 text-xs leading-snug text-white/90 tabular-nums backdrop-blur"
+        >
+          <p>
+            {camera?.label.startsWith('DualCamera') ? 'dual(앱)' : (liveInfo?.pipeline ?? '—')}
+            {' · '}
+            {fps ?? '—'}fps
+            {liveInfo?.stats?.procAvgMs != null &&
+              ` · 처리 ${liveInfo.stats.procAvgMs.toFixed(1)}/${liveInfo.stats.procMaxMs.toFixed(0)}ms`}
+          </p>
+          <p>
+            알아챔 {diag.captures} · 잼 {diag.ok} · 거부 {diag.rejected}
+            {(liveInfo?.dropped ?? 0) > 0 && ` · 버림 ${liveInfo?.dropped}`}
+          </p>
+          {diag.last && <p className="truncate text-white/70">마지막 {diag.last}</p>}
+          {liveInfo?.frame && (
+            <p className="truncate text-white/60">
+              {liveInfo.frame.format} {liveInfo.frame.coded[0]}×{liveInfo.frame.coded[1]}
+              {liveInfo.rotationFix ? ` · 돌림 ${liveInfo.rotationFix}°` : ''}
+            </p>
+          )}
+          {liveInfo?.streamFailed && (
+            <p className="truncate text-amber-300">직접 받기 실패: {liveInfo.streamFailed}</p>
+          )}
+          <p className="text-white/60">상태 {STATUS_TEXT[status]}</p>
+        </div>
+      )}
+
       {fileBusy && (
         <div className="absolute inset-x-4 bottom-4 rounded-2xl bg-black/70 px-4 py-3 text-xs text-white/85 backdrop-blur">
           <p className="inline-flex items-center gap-2">
@@ -1663,6 +1721,17 @@ export function VelocityScreen({
               onChange: (next) => {
                 setCalibSave(next);
                 persistSetup({ calibSave: next });
+              },
+            },
+            {
+              key: 'diagHud',
+              label: '진단 표시',
+              hint: '카메라 위에 장면 받는 길 · 실제 fps · 처리 시간 · 알아챔 · 거부 까닭을 작게 띄워요.',
+              icon: Activity,
+              on: diagHud,
+              onChange: (next) => {
+                setDiagHud(next);
+                persistSetup({ diagHud: next });
               },
             },
             {

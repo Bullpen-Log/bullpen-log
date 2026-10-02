@@ -407,6 +407,7 @@ export function VelocitySettingsButton({
         wideClip: base.wideClip,
         camMode: base.camMode,
         recordMode: base.recordMode,
+        diagHud: base.diagHud,
         ...rest,
       });
     }
@@ -453,6 +454,7 @@ export function VelocitySettingsButton({
                   wideClip: base.wideClip,
                   camMode: base.camMode,
                   recordMode: base.recordMode,
+                  diagHud: base.diagHud,
                 })
               }
             >
