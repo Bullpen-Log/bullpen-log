@@ -27,12 +27,13 @@ export default async function VideosPage({
   const params = await searchParams;
   /*
    * 카메라 구속 측정(/velocity)은 앱 안에서만 — 폰의 고속 촬영이 있어야 해서(lib/app-env.ts). 관리자는
-   * 웹에서도. 고르개 옆 '구속 측정' 단추가 그리로 간다. 관리자가 웹에서 보면 셋째 칸이 구속 측정 관리자
-   * (/admin/velocity). 옛 주소 ?view=velocity 는 앱이면 구속 측정 모드로, 관리자 웹이면 관리자로 보낸다.
+   * 웹에서도. 고르개 옆 '구속 측정' 단추가 그리로 간다. 관리자는 셋째 칸이 구속 측정 관리자(/admin/velocity) —
+   * 앱 안에서도(2026-10-03 사용자: "모바일에서 구속 측정 관리자가 안 보인다", 휴대폰은 올리기 위주의 간단한 화면).
+   * 옛 주소 ?view=velocity 는 관리자면 관리자로, 앱이면 구속 측정 모드로 보낸다.
    */
   const isNative = isNativeUserAgent((await headers()).get('user-agent'));
   const canMeasure = user.role === 'ADMIN' || isNative;
-  const velocityHref = user.role === 'ADMIN' && !isNative ? '/admin/velocity' : null;
+  const velocityHref = user.role === 'ADMIN' ? '/admin/velocity' : null;
   if (params.view === 'velocity' && canMeasure) redirect(velocityHref ?? '/velocity');
   /* 캘린더의 '대표 바꾸기'로 들어오면 그 날짜의 달을 펴 둔다(?month=2026-08) */
   const month = readMonthParam(params.month);

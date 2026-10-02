@@ -222,3 +222,8 @@ export async function loadVelocityRecording(
       ),
   };
 }
+
+/** 녹화 수 — 구속 측정 관리자(휴대폰)의 단추에 */
+export async function countVelocityRecordings(): Promise<number> {
+  return prisma.velocityRecording.count();
+}

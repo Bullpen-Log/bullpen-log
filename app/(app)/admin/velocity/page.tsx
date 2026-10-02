@@ -4,6 +4,7 @@ import {
   loadVelocityAdminDay,
   loadVelocityAdminOverview,
 } from '@/lib/velocity-admin-load';
+import { countVelocityRecordings } from '@/lib/velocity-recording-load';
 import { parseExplorerPath, type ExplorerPath } from './explorer-path';
 import { VelocityAdminView } from './overview-view';
 
@@ -29,10 +30,11 @@ export default async function VelocityAdminPage({
 
   /* 날짜 폴더(원본 · 보정)와 차수 폴더는 그날 자료가 있어야 한다 — 보정 재측정 단추가 그날 클립을 쓴다 */
   const dayDate = path.level === 'day' || path.level === 'run' ? path.date : null;
-  const [data, day, run] = await Promise.all([
+  const [data, day, run, recordings] = await Promise.all([
     loadVelocityAdminOverview(),
     dayDate ? loadVelocityAdminDay(dayDate) : Promise.resolve(null),
     path.level === 'run' ? loadVelocityAdminCalibRun(path.runId) : Promise.resolve(null),
+    countVelocityRecordings(),
   ]);
 
   /* 지워졌거나 다른 날짜의 차수를 가리키는 주소면 그 날짜의 [보정] 폴더로 */
@@ -53,6 +55,7 @@ export default async function VelocityAdminPage({
       day={day}
       run={path.level === 'run' ? run : null}
       pick={one(sp.pick)}
+      recordings={recordings}
     />
   );
 }
