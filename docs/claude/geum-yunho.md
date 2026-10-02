@@ -184,7 +184,10 @@
   정리 `docs/ai-usage.md`, 스위치 `lib/ai/features.ts` 의 `AI_FEATURES`(homeReport · nutritionPhoto 둘 다 false). 트레이닝
   'AI 맞춤'은 김민 담당이라 켜 둔 채 HANDOFF 로 물었다 — 금윤호가 트레이닝 AI 를 끄거나 고치지 않는다. **회의 결과가 나오기 전에는
   새 AI 기능을 켜지 않는다**(사진 기록 7번은 만들어 두되 꺼 둔다). 결과가 나오면 이 줄과 `docs/ai-usage.md` 를 고친다.
-- **아이폰 앱 — 애플 키 대기, 다시 시작하면 앱 로고부터(2026-09-30).** 애플 키(`mobile/APPLE-SETUP.md` 의 넷)를
+- **아이폰 앱 — 애플 키가 들어와 TestFlight 에 올라간다(2026-10-03 확인: 9b5a364 를 올리자 ios.yml 이 굽기 · 시뮬레이터 ·
+  TestFlight 올리기까지 모두 성공, 빌드 20261002.42223).** 결과는 공개 Checks API 주석으로 본다(`gh` 없이 curl —
+  `/actions/runs?head_sha=<sha>` → `/actions/runs/<id>/jobs` → `/check-runs/<job>/annotations`). 노드 fetch 는 이 PC 에서 가끔
+  api.github.com 이름 찾기에 실패한다 — curl 을 쓴다. (아래는 지난 메모) 애플 키(`mobile/APPLE-SETUP.md` 의 넷)를
   아직 못 받아 앱 작업을 멈췄다. 사용자: "나중에 앱을 수정하게 되면 앱 로고를 불펜로그 로고로 바꿔야 한다" — 앱
   작업을 다시 열면 이것부터 챙긴다. 앱 아이콘 · 시작 화면 파일은 새 B 로고로 이미 다시 만들어 올렸다(7296b01,
   `cd mobile && npm run assets`). 남은 일: 첫 빌드(TestFlight)를 폰에 깔았을 때 홈 화면 아이콘 · 시작 화면이 새 B
@@ -614,7 +617,8 @@
   알려 줌 — fMP4 라 파일 머리에서 fps 를 못 읽으니 analyzeVideo 의 fps · fovDeg 로 넘길 것, 렌즈 메타가 없어 '보정 조건 밖'으로 ± 가
   넓어짐 → 4단계에서 calibrated 판단을 부품 값으로). 결과는 던진 뒤 1~3초. 미리보기는 웹뷰를 투명하게 하고 뒤에 그린다(setPreview).
   네트 있음 = 초점 고정(lensPosition 1.0), 손떨림 보정 끔, 줌 1. 두 카메라 하드웨어 몫이 1 을 넘으면 광각부터 30fps 로. **맥이 없어 컴파일을
-  못 해 봤다** — 올리면 ios.yml 이 굽고, 결과는 공개 Checks API 주석으로 본다. 3 TestFlight
+  못 해 봤다** — 올리면 ios.yml 이 굽고, 결과는 공개 Checks API 주석으로 본다. → **2026-10-03 올려서 굽기 성공**(9b5a364, 컴파일 OK ·
+  시뮬레이터에서 켜짐 · TestFlight 올림). 순서를 바꿨다: 사이트가 아직 부품을 안 부르므로 **4(웹 연결) 다음 3(폰 시험)**. 3 TestFlight
   로 폰 확인(애플 키 필요) — 60fps 유지 · 넘기기 속도 · 정확도. 4 웹 연결(앱 + 설정 켬 → 앱 카메라로 측정, 클립 둘 올리기). 설정이
   꺼져 있으면 지금 길(getUserMedia) 그대로라 위험이 켤 때만 있다. `mobile/` 는 김민의 앱 틀 — 건드리면 HANDOFF.
 - **`NutritionProfile.sex` 칸 지우기 — 끝(2026-10-03).** 2단계 마이그레이션 `20261003100000_drop_nutrition_profile_sex` 적용(1단계 배포 뒤,
