@@ -18,11 +18,9 @@ import {
 } from 'lucide-react';
 import {
   CAMERA_OPTIONS,
-  MODE_OPTIONS,
   NET_OPTIONS,
   setupSummary,
   type CameraPos,
-  type RecordMode,
   type VelocitySetup,
   type ZoneRect,
 } from '@/lib/velocity-setup';
@@ -147,7 +145,7 @@ export function AskPreviousStep({
 
 /* ───────────────────────── 2. 고르기 ───────────────────────── */
 
-export type Choices = { mode: RecordMode; cameraPos: CameraPos; net: boolean };
+export type Choices = { cameraPos: CameraPos; net: boolean };
 
 const NET_VALUES = [
   { value: 'yes', label: '네트 있음' },
@@ -167,8 +165,8 @@ export function ChoicesStep({
   return (
     <StepShell
       step={2}
-      total={6}
-      title="무엇을, 어디서 잴까요?"
+      total={5}
+      title="어디서 잴까요?"
       subtitle="고른 대로 계산 방향과 안내가 달라져요."
       footer={
         <PrimaryButton onClick={onNext}>
@@ -178,19 +176,6 @@ export function ChoicesStep({
       }
     >
       <div className="space-y-5">
-        <ChoiceRow
-          label="녹화 종류"
-          hint={MODE_OPTIONS.find((o) => o.key === value.mode)?.hint}
-        >
-          <Segmented
-            label="녹화 종류"
-            value={value.mode}
-            onChange={(mode) => onChange({ ...value, mode })}
-            options={MODE_OPTIONS.map((o) => ({ value: o.key, label: o.label }))}
-            size="md"
-            tone="raised"
-          />
-        </ChoiceRow>
         <ChoiceRow
           label="카메라 위치"
           hint={CAMERA_OPTIONS.find((o) => o.key === value.cameraPos)?.hint}
@@ -253,7 +238,7 @@ export type Tip = {
 /** 고른 설정에 맞는 주의사항 카드들 — 팝업(components/velocity/tips-popup.tsx)이 그린다 */
 export function tipsFor(c: Choices): Tip[] {
   const behind = c.cameraPos === 'behind-pitcher';
-  const who = c.mode === 'hit' ? '타자' : '투수';
+  const who = '투수';
   return [
     {
       key: 'tripod',

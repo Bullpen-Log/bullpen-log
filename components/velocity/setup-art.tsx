@@ -2,16 +2,10 @@
 
 import type { ReactNode } from 'react';
 import { isRestSession, SESSION_TYPES } from '@/lib/session-type';
-import {
-  CAMERA_OPTIONS,
-  MODE_OPTIONS,
-  NET_OPTIONS,
-  type CameraPos,
-  type RecordMode,
-} from '@/lib/velocity-setup';
+import { CAMERA_OPTIONS, NET_OPTIONS, type CameraPos } from '@/lib/velocity-setup';
 
 /**
- * 구속 측정 앞 설정의 그림 카드 — 어떤 투구 → 무엇을 재나 → 카메라 위치 → 네트.
+ * 구속 측정 앞 설정의 그림 카드 — 어떤 투구 → 카메라 위치 → 네트.
  *
  * 예전 설정 화면은 Segmented 한 줄에 설명 한 줄이라 "투수 뒤 · 포수 뒤"가 무슨 상황인지
  * 눈에 안 들어왔다(사용자: "뭐가 뭔지 모르겠다"). 단계마다 큰 카드에 그림 + 이름 + 설명 +
@@ -64,23 +58,8 @@ export function sessionTypeOptions(): SetupOption<string>[] {
   }));
 }
 
-/** 무엇을 재나 — 투구 · 타구. 설명은 lib/velocity-setup 의 MODE_OPTIONS 와 한곳 */
-export function modeOptions(): SetupOption<RecordMode>[] {
-  const when: Record<RecordMode, string> = {
-    pitch: '투수가 던진 공의 구속을 잴 때(보통 이것)',
-    hit: '방망이에 맞고 나가는 타구 속도를 잴 때',
-  };
-  return MODE_OPTIONS.map((o) => ({
-    value: o.key,
-    label: modeName(o.key),
-    hint: o.hint,
-    when: when[o.key],
-    art: o.key === 'hit' ? <ArtHit /> : <ArtPitch />,
-  }));
-}
-
-/** 카메라 위치 — 투수 뒤 · 포수 뒤. 그림의 공 방향은 무엇을 재나에 따라 뒤집힌다(투구는 투수 → 포수, 타구는 타자 → 밖) */
-export function cameraPosOptions(mode: RecordMode): SetupOption<CameraPos>[] {
+/** 카메라 위치 — 투수 뒤 · 포수 뒤. 그림의 공은 투수 → 포수 */
+export function cameraPosOptions(): SetupOption<CameraPos>[] {
   const when: Record<CameraPos, string> = {
     'behind-pitcher': '폰을 투수 바로 뒤 1m 안에 — 릴리스 포인트까지 잡혀요(가장 정확)',
     'behind-catcher':
@@ -91,7 +70,7 @@ export function cameraPosOptions(mode: RecordMode): SetupOption<CameraPos>[] {
     label: o.label,
     hint: o.hint,
     when: when[o.key],
-    art: <ArtCameraPos behind={o.key === 'behind-pitcher'} mode={mode} />,
+    art: <ArtCameraPos behind={o.key === 'behind-pitcher'} />,
   }));
 }
 
@@ -111,10 +90,6 @@ export function netOptions(): SetupOption<'yes' | 'no'>[] {
       art: <ArtNet net={o.key} />,
     };
   });
-}
-
-function modeName(mode: string) {
-  return mode === 'hit' ? '타구' : mode === 'pitch' ? '투구' : '—';
 }
 
 function cameraName(cameraPos: string) {
@@ -195,14 +170,11 @@ export function OptionCards<V extends string>({
  */
 export function SetupSummaryRow({
   sessionType,
-  mode,
   cameraPos,
   net,
   tone = 'light',
 }: {
   sessionType: string | null;
-  /** 'pitch' · 'hit' */
-  mode: string;
   /** 'behind-pitcher' · 'behind-catcher' */
   cameraPos: string;
   net: boolean;
@@ -217,7 +189,6 @@ export function SetupSummaryRow({
         value: sessionType ?? '',
         label: sessionType ?? '종류 —',
       },
-      { kind: 'mode', title: '재는 것', value: mode, label: modeName(mode) },
       {
         kind: 'camera',
         title: '카메라',
@@ -232,7 +203,7 @@ export function SetupSummaryRow({
       },
     ];
   return (
-    <ul className="grid grid-cols-4 gap-2">
+    <ul className="grid grid-cols-3 gap-2">
       {cells.map((c) => (
         <li
           key={c.kind}
@@ -259,7 +230,7 @@ export function SetupSummaryRow({
 
 /* ───────────────────────── 작은 아이콘 ───────────────────────── */
 
-export type SetupIconKind = 'type' | 'mode' | 'camera' | 'net';
+export type SetupIconKind = 'type' | 'camera' | 'net';
 
 /** 큰 그림의 작은 단색판(currentColor · 선 1.75 · 32×32). 모르는 값이면 빈 원 */
 export function SetupIcon({
@@ -326,23 +297,6 @@ function iconShape(kind: SetupIconKind, value: string): ReactNode {
           <path d="M7 25v4M25 25v4" />
           <path d="M9 17c3-9 11-9 14 0" strokeDasharray="2 3" />
           <circle cx="16" cy="10" r="2.5" fill="currentColor" stroke="none" />
-        </>
-      );
-    /* 투구 — 날아가는 공 */
-    case 'mode:pitch':
-      return (
-        <>
-          <circle cx="10" cy="16" r="6" fill={FILL} />
-          <path d="M19 16h10M25 12l4 4-4 4" />
-        </>
-      );
-    /* 타구 — 방망이를 떠나는 공 */
-    case 'mode:hit':
-      return (
-        <>
-          <path d="M4 28L16 16" strokeWidth="3" />
-          <circle cx="20" cy="12" r="4" fill={FILL} />
-          <path d="M25 8l5-5M26 3h4v4" />
         </>
       );
     /* 투수 뒤 — 폰 · 시야 · 투수 · 홈플레이트(위에서 본 것) */
@@ -564,46 +518,11 @@ function ArtCatch() {
   );
 }
 
-/** 투구 — 손에서 공이 떠나는 순간, 날아가는 방향 */
-function ArtPitch() {
-  return (
-    <Art>
-      <circle cx="38" cy="48" r="8" />
-      <path d="M40 56l-4 32" />
-      <path d="M39 62l17-12 14-10" />
-      <path d="M39 66l-12 12" />
-      <path d="M36 88l-10 20M36 88l18 16" />
-      <Ball cx={82} cy={36} r={7} />
-      <path d="M96 36h44" />
-      <path d="M132 29l8 7-8 7" />
-    </Art>
-  );
-}
-
-/** 타구 — 방망이에 맞아 나가는 공, 날아가는 방향 */
-function ArtHit() {
-  return (
-    <Art>
-      <circle cx="40" cy="42" r="8" />
-      <path d="M40 50v34" />
-      <path d="M40 84l-12 22M40 84l14 20" />
-      <path d="M40 58l18 4" />
-      <path d="M58 62l28-18" strokeWidth="4" />
-      <Ball cx={98} cy={38} r={7} />
-      {/* 맞는 순간 */}
-      <path d="M84 32l-4-6M90 28l-1-7" opacity="0.6" />
-      <path d="M110 33l34-12" />
-      <path d="M134 18l10 3-5 8" />
-    </Art>
-  );
-}
-
 /**
  * 카메라 위치 — 위에서 본 그림. 왼쪽이 마운드, 오른쪽이 홈플레이트. 폰과 시야각 부채꼴이
- * 투수 뒤(왼쪽 끝) 또는 포수 뒤(오른쪽 끝)에 놓인다. 공 화살표는 투구면 마운드 → 홈,
- * 타구면 홈 → 밖(왼쪽 위).
+ * 투수 뒤(왼쪽 끝) 또는 포수 뒤(오른쪽 끝)에 놓인다. 공 화살표는 마운드 → 홈.
  */
-function ArtCameraPos({ behind, mode }: { behind: boolean; mode: RecordMode }) {
+function ArtCameraPos({ behind }: { behind: boolean }) {
   return (
     <Art>
       {/* 파울선 — 홈에서 퍼지는 두 줄 */}
@@ -651,26 +570,13 @@ function ArtCameraPos({ behind, mode }: { behind: boolean; mode: RecordMode }) {
       {/* 마운드 · 홈플레이트 */}
       <circle cx="62" cy="60" r="9" />
       <path d="M118 55h6l5 5-5 5h-6z" fill={FILL} />
-      {/* 투수 · 포수 · (타구면) 타자 */}
+      {/* 투수 · 포수 */}
       <circle cx="62" cy="60" r="3" fill="currentColor" stroke="none" />
       <circle cx="136" cy="60" r="3" fill="currentColor" stroke="none" />
-      {mode === 'hit' && (
-        <circle cx="117" cy="49" r="3" fill="currentColor" stroke="none" />
-      )}
       {/* 공 방향 */}
-      {mode === 'hit' ? (
-        <>
-          <path d="M114 54L52 22" />
-          <path d="M62 20l-10 2 4 9" />
-          <Ball cx={83} cy={38} r={4} />
-        </>
-      ) : (
-        <>
-          <path d="M74 60h32" />
-          <path d="M100 54l7 6-7 6" />
-          <Ball cx={88} cy={60} r={4} />
-        </>
-      )}
+      <path d="M74 60h32" />
+      <path d="M100 54l7 6-7 6" />
+      <Ball cx={88} cy={60} r={4} />
     </Art>
   );
 }

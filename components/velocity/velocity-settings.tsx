@@ -17,7 +17,6 @@ import {
   DEFAULT_SETUP,
   defaultZone,
   loadSetup,
-  MODE_OPTIONS,
   NET_OPTIONS,
   saveSetup,
   SETUP_CHANGE_EVENT,
@@ -48,7 +47,6 @@ import { Panel, SectionLabel } from './kit';
 
 export type SettingsValues = Pick<
   VelocitySetup,
-  | 'mode'
   | 'cameraPos'
   | 'net'
   | 'voice'
@@ -117,7 +115,7 @@ export function VelocitySettingsFields({
           {isAdmin && (
             <ToggleRow
               title="정확도 보정용 저장(관리자)"
-              hint="켜고 재면 공마다 영상 클립 · 분석 자료가 구속 측정 관리자에 올라가요. 스피드건 값과 견줘 엔진을 맞추는 자료예요."
+              hint="켜고 잰 세션이 구속 측정 관리자에서 보정 자료로 표시돼요. 영상 클립 · 분석 자료는 이것과 상관없이 모든 세션에서 올라가요."
               checked={values.calibSave}
               onChange={(calibSave) => onChange({ calibSave })}
             />
@@ -205,15 +203,6 @@ export function VelocitySettingsFields({
         <div>
           <SectionLabel>촬영</SectionLabel>
           <Panel className="divide-y divide-line">
-            <ChoiceRow title="녹화 종류">
-              <Segmented
-                label="녹화 종류"
-                value={values.mode}
-                onChange={(mode) => onChange({ mode })}
-                options={MODE_OPTIONS.map((o) => ({ value: o.key, label: o.label }))}
-                size="sm"
-              />
-            </ChoiceRow>
             <ChoiceRow title="카메라 위치">
               <Segmented
                 label="카메라 위치"
@@ -355,7 +344,6 @@ export function VelocitySettingsButton({
   const [fov, setFov] = useState(() => loadFov(DEFAULT_FOV_DEG));
   const base = stored ?? { ...DEFAULT_SETUP, savedAt: '' };
   const values: SettingsValues = {
-    mode: base.mode,
     cameraPos: base.cameraPos,
     net: base.net,
     voice: base.voice,
@@ -376,7 +364,6 @@ export function VelocitySettingsButton({
     if (Object.keys(rest).length > 0) {
       saveSetup({
         sessionType: base.sessionType,
-        mode: base.mode,
         cameraPos: base.cameraPos,
         net: base.net,
         /* 카메라 위치를 바꾸면 존 크기 범위가 달라 그 자리의 기본 존으로 */
@@ -425,7 +412,6 @@ export function VelocitySettingsButton({
               onClick={() =>
                 saveSetup({
                   sessionType: base.sessionType,
-                  mode: base.mode,
                   cameraPos: base.cameraPos,
                   net: base.net,
                   zone: defaultZone(base.cameraPos),

@@ -231,7 +231,7 @@ export function SessionSummary({
                               {zoneLabel(p.zone) ?? '코스 —'}
                               {p.releaseKmh != null &&
                                 ` · 릴리스 ${speedNum(p.releaseKmh)}`}
-                              {p.gunKmh != null && ` · 건 ${p.gunKmh}`}
+                              {p.gunKmh != null && ` · 건 ${speedNum(p.gunKmh)}`}
                               {p.source === 'file' && ' · 파일'}
                             </span>
                           </span>

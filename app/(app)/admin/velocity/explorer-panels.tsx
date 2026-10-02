@@ -258,7 +258,6 @@ type Remeasure =
 /** 세션 설정에서 공이 멀어지나 · 다가오나 */
 function approachOfSession(s: AdminSessionRow) {
   return approachOf({
-    mode: s.mode === 'hit' ? 'hit' : 'pitch',
     cameraPos: s.cameraPos === 'behind-catcher' ? 'behind-catcher' : 'behind-pitcher',
   });
 }

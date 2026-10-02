@@ -77,14 +77,18 @@ export type SaveSessionInput = {
   fovDeg: number;
   source: 'camera' | 'file';
   device: string | null;
-  /** 무엇을 어디서 — 'pitch' · 'hit', 'behind-pitcher' · 'behind-catcher', 네트 유무 */
-  mode: string;
+  /** 어디서 — 'behind-pitcher' · 'behind-catcher', 네트 유무(타구 측정은 2026-10-03 뺐다 — DB 의 mode 칸은 늘 'pitch') */
   cameraPos: string;
   net: boolean;
-  /** 관리자의 '정확도 보정용 저장' — 켜면 공마다 영상 클립을 올릴 수 있다(관리자만 켜진다) */
+  /** 관리자의 '정확도 보정용 저장' — 보정 자료로 표시한다(관리자만 켜진다). 영상 클립은 이것과 상관없이 모든 세션에서 올린다 */
   forCalibration?: boolean;
   /** 자동 감지 모드였나 */
   autoMode?: boolean;
+  /**
+   * 스피드건 보정을 적용할까(측정 화면 설정). false 면 카메라 값 그대로 저장하고 세션의 보정식은 ×1 +0(짝 0) —
+   * 예전에는 설정을 꺼도 서버가 늘 보정해 저장했다(김민 2026-09-30). 없으면(관리자 영상 파일 · 옛 앱) 적용.
+   */
+  useCal?: boolean;
   /** 그때 쓴 초점거리(원본 긴 변 기준 픽셀) · 렌즈 보정 정보 · 포수 뒤 릴리스 거리 · 원본 프레임 크기 */
   focalPx?: number | null;
   lensCal?: unknown;
@@ -178,7 +182,7 @@ export async function saveVelocitySession(
   const fovDeg = num(input.fovDeg, 30, 120);
   if (fovDeg == null) return { ok: false, error: '화각이 올바르지 않습니다.' };
 
-  const mode = input.mode === 'hit' ? 'hit' : 'pitch';
+  const mode = 'pitch';
   const cameraPos =
     input.cameraPos === 'behind-catcher' ? 'behind-catcher' : 'behind-pitcher';
 
@@ -189,8 +193,9 @@ export async function saveVelocitySession(
     return { ok: false, error: `한 번에 ${MAX_PITCHES}구까지 저장할 수 있습니다.` };
   }
 
-  /* 보정식은 저장하는 순간의 짝으로 — 세션에 박아 두어 나중에 되짚는다 */
-  const { fit } = await loadCalibration();
+  /* 보정식은 저장하는 순간의 짝으로 — 세션에 박아 두어 나중에 되짚는다. 보정을 껐으면 ×1 +0 */
+  const { fit: learned } = await loadCalibration();
+  const fit = input.useCal === false ? { scale: 1, offset: 0, n: 0 } : learned;
 
   const pitches: Array<
     Omit<SavePitchInput, keyof PitchEdit | 'analysis' | 'autoDetected' | 'manual'> &
@@ -445,12 +450,9 @@ export async function createClipUpload(
   }
   const row = await prisma.velocityPitch.findFirst({
     where: { id: pitchId, userId: user.id },
-    select: { id: true, session: { select: { forCalibration: true } } },
+    select: { id: true },
   });
   if (!row) return { ok: false, error: '공을 찾을 수 없습니다.' };
-  if (!row.session.forCalibration) {
-    return { ok: false, error: '정확도 보정용 저장을 켠 세션이 아닙니다.' };
-  }
   const ext = /mp4/.test(mime) ? 'mp4' : /quicktime/.test(mime) ? 'mov' : 'webm';
   try {
     const target = await createUploadTarget(user.id, `clip.${ext}`);
@@ -484,13 +486,10 @@ export async function attachClip(
     select: {
       id: true,
       clipPath: true,
-      session: { select: { date: true, forCalibration: true } },
+      session: { select: { date: true } },
     },
   });
   if (!row) return { ok: false, error: '공을 찾을 수 없습니다.' };
-  if (!row.session.forCalibration) {
-    return { ok: false, error: '정확도 보정용 저장을 켠 세션이 아닙니다.' };
-  }
   await prisma.velocityPitch.update({
     where: { id: pitchId },
     data: {

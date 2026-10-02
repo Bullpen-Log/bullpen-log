@@ -7,7 +7,7 @@ import { quietRefresh } from '@/lib/quiet-refresh';
 import { ConfirmDialog } from '@/components/confirm-delete';
 import { formatSpeed, speedLabel, toSpeed } from '@/lib/units';
 import { useSpeedUnit } from '@/components/use-units';
-import { calibrationText } from '@/lib/velocity-calibration';
+import { applyCalibration, calibrationText } from '@/lib/velocity-calibration';
 import {
   CONFIDENCE_TEXT,
   pitchTypeLabel,
@@ -58,6 +58,25 @@ export function VelocitySection({ sessions }: { sessions: VelocitySessionView[] 
     { kind: 'pitch' } | { kind: 'session'; session: VelocitySessionView } | null
   >(null);
   const speedNum = (kmh: number) => Math.round(toSpeed(kmh, unit) * 10) / 10;
+  /*
+   * 릴리스 추정도 구속과 같은 보정식으로(그 세션에 박힌 식 — 보정을 껐던 세션은 ×1 +0). 예전에는 구속만 보정되고 릴리스는
+   * 보정 전 값이라 둘을 견줄 수 없었다(김민 2026-09-30).
+   */
+  const releaseOf =
+    (s: { calScale: number; calOffset: number; calPairs: number }) => (kmh: number) =>
+      s.calPairs > 0
+        ? applyCalibration(kmh, {
+            scale: s.calScale,
+            offset: s.calOffset,
+            n: s.calPairs,
+          })
+        : kmh;
+  const editingSession = editing
+    ? sessions.find((s) => s.pitches.some((p) => p.id === editing.id))
+    : undefined;
+  const editingRelease = editingSession
+    ? releaseOf(editingSession)
+    : (kmh: number) => kmh;
 
   if (sessions.length === 0) return null;
 
@@ -155,6 +174,7 @@ export function VelocitySection({ sessions }: { sessions: VelocitySessionView[] 
 
       {sessions.map((s) => {
         const stats = summarize(s.pitches);
+        const release = releaseOf(s);
         const at = new Date(s.createdAt);
         const cal = calibrationText({
           scale: s.calScale,
@@ -227,8 +247,8 @@ export function VelocitySection({ sessions }: { sessions: VelocitySessionView[] 
                         {zoneLabel(p.zone) ?? '코스 —'} ·{' '}
                         {CONFIDENCE_TEXT[p.confidence]}
                         {p.releaseKmh != null &&
-                          ` · 릴리스 추정 ${speedNum(p.releaseKmh)}`}
-                        {p.gunKmh != null && ` · 건 ${p.gunKmh}`}
+                          ` · 릴리스 추정 ${speedNum(release(p.releaseKmh))}`}
+                        {p.gunKmh != null && ` · 건 ${speedNum(p.gunKmh)}`}
                       </span>
                     </span>
                     <ZoneGrid value={p.zone} size="sm" />
@@ -261,12 +281,15 @@ export function VelocitySection({ sessions }: { sessions: VelocitySessionView[] 
               </p>
             )}
             <dl className="grid grid-cols-2 gap-x-4 gap-y-1.5 rounded-2xl bg-surface-2 px-4 py-3 text-xs">
-              <Row label="카메라 값(보정 전)" value={`${editing.rawKmh} km/h`} />
+              <Row
+                label="카메라 값(보정 전)"
+                value={`${speedNum(editing.rawKmh)} ${speedLabel(unit)}`}
+              />
               <Row
                 label="릴리스 구속 추정"
                 value={
                   editing.releaseKmh != null
-                    ? `${speedNum(editing.releaseKmh)} ${speedLabel(unit)}`
+                    ? `${speedNum(editingRelease(editing.releaseKmh))} ${speedLabel(unit)}`
                     : '—'
                 }
               />
@@ -292,7 +315,10 @@ export function VelocitySection({ sessions }: { sessions: VelocitySessionView[] 
                 label="프레임"
                 value={`${editing.frames ?? '?'}장${editing.fps != null ? ` · ${Math.round(editing.fps)}fps` : ''}`}
               />
-              <Row label="오차" value={`± ${editing.errorKmh} km/h`} />
+              <Row
+                label="오차"
+                value={`± ${speedNum(editing.errorKmh)} ${speedLabel(unit)}`}
+              />
             </dl>
             <div className="flex gap-2">
               <button

@@ -50,7 +50,6 @@ export function throwingHandOf(profile: string | null | undefined): ThrowingHand
 export const VELOCITY_SCREENS = [
   { key: 'ask', label: '지난 설정 묻기', hint: '저장된 설정이 있을 때 첫 화면' },
   { key: 'type', label: '어떤 투구', hint: '불펜 · 라이브 · 경기 · 캐치볼' },
-  { key: 'mode', label: '무엇을 재나', hint: '투구 · 타구' },
   { key: 'camera', label: '카메라 위치', hint: '투수 뒤 · 포수 뒤' },
   { key: 'net', label: '네트', hint: '있음 · 없음' },
   { key: 'tips', label: '주의사항 창', hint: '카메라 화면 위 팝업' },
@@ -76,7 +75,7 @@ export type VelocityHistoryItem = {
   createdAt: string;
   /** 같이 만든 투구 기록의 종류(불펜 · 라이브 · 경기 · 캐치볼). 없으면 null */
   sessionType: string | null;
-  /** 'pitch' · 'hit' */
+  /** 늘 'pitch' — 타구 측정('hit')은 2026-10-03 뺐다(DB 칸만 남음) */
   mode: string;
   /** 'behind-pitcher' · 'behind-catcher' */
   cameraPos: string;

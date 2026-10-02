@@ -71,7 +71,6 @@ export function VelocityHome({
               <p className="mb-2 text-xs font-medium text-muted">지난 설정 — 시작하면 그대로 쓸지 물어요</p>
               <SetupSummaryRow
                 sessionType={stored.sessionType}
-                mode={stored.mode}
                 cameraPos={stored.cameraPos}
                 net={stored.net}
               />

@@ -82,7 +82,6 @@ import {
   viewRectToFrame,
   visibleFrameRect,
   loadSetup,
-  modeLabel,
   saveSetup,
   SETUP_KEY,
   setupSummary,
@@ -111,7 +110,6 @@ import {
 } from '@/components/velocity/setup-steps';
 import {
   cameraPosOptions,
-  modeOptions,
   netOptions,
   OptionCards,
   sessionTypeOptions,
@@ -148,21 +146,21 @@ import {
 /**
  * 구속 측정 화면 — Smart Scout · PitchLab 의 흐름을 우리 모양(아이폰 느낌)으로.
  *
- *   지난 설정 그대로?  → 1 어떤 투구(불펜 · 라이브 · 경기 · 캐치볼)  → 2 무엇을 재나(투구 · 타구)
- *   → 3 카메라 위치(투수 뒤 · 포수 뒤)  → 4 네트  → [주의사항 팝업, 카메라 화면 위에]
- *   → 5 카메라: 수평계 · 릴리스 포인트를 표적에  → 6 반투명 스트라이크 존 놓기  → 측정
+ *   지난 설정 그대로?  → 1 어떤 투구(불펜 · 라이브 · 경기 · 캐치볼)
+ *   → 2 카메라 위치(투수 뒤 · 포수 뒤)  → 3 네트  → [주의사항 팝업, 카메라 화면 위에]
+ *   → 4 카메라: 수평계 · 릴리스 포인트를 표적에  → 5 반투명 스트라이크 존 놓기  → 측정
+ *   (타구 측정은 2026-10-03 사용자 요청으로 뺐다 — 투구만 잰다)
  *   (설정 단계마다 그림 카드로 어떤 상황에서 무엇을 고르는지 보인다 — components/velocity/setup-art.tsx)
  *   → 세션(측정 중 화면: 구속 · 구종 · 회전축 · 이전 공)  → 세션 종료 → 세션 요약(저장하기 · 계속 재기)
  *
- * 카메라는 4에서 켜져 6까지 같은 <video> 로 이어진다. 고른 것과 존 자리는 브라우저에 남겨
- * 다음에는 1에서 바로 4로 간다. 6의 설정에서 소리 안내 · 화각 · 보정 · 처음부터 다시.
+ * 카메라는 4에서 켜져 측정까지 같은 <video> 로 이어진다. 고른 것과 존 자리는 브라우저에 남겨
+ * 다음에는 '지난 설정'에서 바로 4로 간다. 측정 화면의 설정에서 소리 안내 · 화각 · 보정 · 처음부터 다시.
  *
  * PC 에서는 이 전체를 폰 크기 틀(390px) 안에 띄운다 — 폰이 기준이라 PC 화면에 맞춰 늘리지
  * 않는다. 잰 값은 '저장'을 누를 때 서버로 간다(app/actions/velocity.ts). 영상은 어디에도 안 올린다.
  */
 
-export type Step =
-  'type' | 'mode' | 'camera' | 'net' | 'align' | 'zone' | 'measure' | 'lens';
+export type Step = 'type' | 'camera' | 'net' | 'align' | 'zone' | 'measure' | 'lens';
 
 /** 카메라(뷰파인더)가 필요한 단계 — 들어오면 카메라를 켠다 */
 const CAMERA_STEPS: ReadonlySet<Step> = new Set<Step>([
@@ -174,8 +172,7 @@ const CAMERA_STEPS: ReadonlySet<Step> = new Set<Step>([
 
 /* 내비게이션 바의 뒤로 — 어느 단계에서 어디로, 무슨 이름으로. 없으면 '투구 기록'(나가기) */
 const BACK_OF: Partial<Record<Step, { to: Step; label: string }>> = {
-  mode: { to: 'type', label: '종류' },
-  camera: { to: 'mode', label: '무엇을' },
+  camera: { to: 'type', label: '종류' },
   net: { to: 'camera', label: '카메라 위치' },
   align: { to: 'net', label: '네트' },
   zone: { to: 'align', label: '수평' },
@@ -205,9 +202,6 @@ const SAMPLE_PITCHES: { kmh: number; type: string; zone: number; result: string 
   { kmh: 112.7, type: 'slider', zone: 9, result: 'strike' },
   { kmh: 118.9, type: 'changeup', zone: 8, result: 'strike' },
 ];
-
-/** 보정용 저장이 아닐 때 이 폰에 쥐고 있는 클립 수(메모리) — 넘으면 오래된 것부터 버린다 */
-const MAX_LOCAL_CLIPS = 30;
 
 /* 카메라 앱 모양의 단추 — 위 줄 동그라미 · 아래 보조 단추 · 라벨 */
 const CHROME_BTN =
@@ -316,7 +310,6 @@ export function VelocityScreen({
   const [decided, setDecided] = useState(initialStep !== 'type');
   const [step, setStep] = useState<Step>(initialStep);
   const [choices, setChoices] = useState<Choices>({
-    mode: DEFAULT_SETUP.mode,
     cameraPos: DEFAULT_SETUP.cameraPos,
     net: DEFAULT_SETUP.net,
   });
@@ -667,7 +660,7 @@ export function VelocityScreen({
   const usePrevious = () => {
     if (!stored) return;
     enterCameraStep('align', () => {
-      setChoices({ mode: stored.mode, cameraPos: stored.cameraPos, net: stored.net });
+      setChoices({ cameraPos: stored.cameraPos, net: stored.net });
       setSessionType(stored.sessionType);
       setZone(stored.zone);
       setVoice(stored.voice);
@@ -719,10 +712,6 @@ export function VelocityScreen({
     (r: ScreenResult, s: LocalPitch['source'], m?: ResultMeta) => void
   >(() => undefined);
   const attachClipRef = useRef<(id: number, clip: PitchClip) => void>(() => undefined);
-  const calibOnRef = useRef(false);
-  useEffect(() => {
-    calibOnRef.current = calibOn;
-  }, [calibOn]);
   useEffect(() => {
     captureRef.current?.setManual(!autoMode);
   }, [autoMode]);
@@ -732,7 +721,10 @@ export function VelocityScreen({
     return () => clearTimeout(t);
   }, [toast]);
 
-  /* 결과 뒤 1~3초 안에 오는 영상 클립을 그 공에 붙인다. 보정용 저장이 아니면 최근 몇 개만 쥔다(메모리) */
+  /*
+   * 결과 뒤 1~3초 안에 오는 영상 클립을 그 공에 붙인다. 모든 공의 클립을 쥐고 있다가 저장할 때 올린다(2026-10-03 사용자:
+   * "클립은 보정용이던 말던 모든 상황에서 녹화") — 예전에는 보정용 저장이 아니면 최근 30개만 쥐고 올리지 않았다.
+   */
   const attachClipToPitch = (id: number, clip: PitchClip) => {
     /*
      * 짝이 되는 공이 아직 없으면 붙들어 둔다 — 클립은 던진 뒤 1~3초에 오고, 계산이 밀리면 결과보다 먼저 온다(버리면 보정용
@@ -761,13 +753,7 @@ export function VelocityScreen({
             }
           : p
       );
-      if (calibOnRef.current) return next;
-      const withClip = next.filter((p) => p.clip);
-      const drop = withClip.slice(0, Math.max(0, withClip.length - MAX_LOCAL_CLIPS));
-      if (!drop.length) return next;
-      for (const d of drop) if (d.clip) URL.revokeObjectURL(d.clip.url);
-      const dropIds = new Set(drop.map((d) => d.id));
-      return next.map((p) => (dropIds.has(p.id) ? { ...p, clip: undefined } : p));
+      return next;
     });
   };
   useEffect(() => {
@@ -988,7 +974,6 @@ export function VelocityScreen({
           device: camera
             ? `${camera.label} ${camera.width}×${camera.height}`.trim()
             : null,
-          mode: choices.mode,
           cameraPos: choices.cameraPos,
           net: choices.net,
           forCalibration: calibOn,
@@ -1000,6 +985,7 @@ export function VelocityScreen({
             : null,
           lensCal: lensOk ? lens : null,
           releaseDistM: approach === 'approaching' ? releaseDistM : null,
+          useCal,
           frameW: camera?.width ?? null,
           frameH: camera?.height ?? null,
           pitches: pitches.map((p) => ({
@@ -1039,8 +1025,8 @@ export function VelocityScreen({
         setError(res.error);
         return;
       }
-      /* 보정용 저장이면 공마다 영상 클립을 올린다 — 실패해도 측정값은 이미 저장됐다 */
-      if (calibOn && res.pitchIds) {
+      /* 공마다 영상 클립을 올린다(모든 세션) — 실패해도 측정값은 이미 저장됐다 */
+      if (res.pitchIds) {
         const ids = res.pitchIds;
         const targets = pitches
           .map((p, i) => ({ p, id: ids[i] }))
@@ -1176,9 +1162,9 @@ export function VelocityScreen({
   /* 카메라 무대 위 가운데 — 단계 이름(측정은 세션 중 상태가 대신) */
   const stageTitle =
     step === 'align'
-      ? { n: '5/6', label: '수평 · 표적' }
+      ? { n: '4/5', label: '수평 · 표적' }
       : step === 'zone'
-        ? { n: '6/6', label: '스트라이크 존' }
+        ? { n: '5/5', label: '스트라이크 존' }
         : null;
   const fpsNote = liveFpsNote(fps);
   const lowFps = fpsNote != null;
@@ -1190,11 +1176,7 @@ export function VelocityScreen({
   const speedNum = (kmh: number) => Math.round(toSpeed(kmh, unit) * 10) / 10;
   const levelOk = !level.supported || level.ok;
   const targetText =
-    choices.mode === 'hit'
-      ? '배트에 맞는 지점'
-      : choices.cameraPos === 'behind-pitcher'
-        ? '릴리스 포인트'
-        : '미트가 오는 자리';
+    choices.cameraPos === 'behind-pitcher' ? '릴리스 포인트' : '미트가 오는 자리';
 
   /*
    * 스트라이크 존 — 장면 좌표를 지금 뷰파인더 칸에 맞춰 그린다(카메라가 꺼져 있으면 칸 = 장면으로 본다). 모양 · 크기는 규격
@@ -1391,23 +1373,23 @@ export function VelocityScreen({
               구속 측정
             </button>
           )}
-          <h1 className="text-heading text-base">{modeLabel(choices.mode)} 측정</h1>
+          <h1 className="text-heading text-base">구속 측정</h1>
           <span className="h-10 w-10" />
         </header>
       )}
 
-      {/* 지난 설정 → 1 어떤 투구 → 2 무엇을 → 3 카메라 위치 → 4 네트 — 카메라 앞 단계(그림 카드) */}
+      {/* 지난 설정 → 1 어떤 투구 → 2 카메라 위치 → 3 네트 — 카메라 앞 단계(그림 카드) */}
       {showAsk && stored && (
         <PreviousSetupStep setup={stored} onUse={usePrevious} onFresh={startFresh} />
       )}
       {!showAsk && step === 'type' && (
         <StepShell
           step={1}
-          total={6}
+          total={5}
           title="어떤 투구인가요?"
           subtitle="투구 기록에 이 종류로 남아요 — 나중에 돌아볼 때 무엇을 하다 던졌는지 갈려요."
           footer={
-            <PrimaryButton onClick={() => setStep('mode')}>
+            <PrimaryButton onClick={() => setStep('camera')}>
               다음
               <ChevronRight aria-hidden className="h-4 w-4" />
             </PrimaryButton>
@@ -1421,31 +1403,10 @@ export function VelocityScreen({
           />
         </StepShell>
       )}
-      {!showAsk && step === 'mode' && (
-        <StepShell
-          step={2}
-          total={6}
-          title="무엇을 잴까요?"
-          subtitle="던진 공의 구속인지, 방망이에 맞고 나가는 타구인지 — 공이 멀어지는 방향이 달라져요."
-          footer={
-            <PrimaryButton onClick={() => setStep('camera')}>
-              다음
-              <ChevronRight aria-hidden className="h-4 w-4" />
-            </PrimaryButton>
-          }
-        >
-          <OptionCards
-            label="무엇을 재나"
-            options={modeOptions()}
-            value={choices.mode}
-            onChange={(mode) => setChoices({ ...choices, mode })}
-          />
-        </StepShell>
-      )}
       {!showAsk && step === 'camera' && (
         <StepShell
-          step={3}
-          total={6}
+          step={2}
+          total={5}
           title="폰을 어디에 둘까요?"
           subtitle="공은 화면에서 작아지거나 커지는 걸로 재요. 뒤에서 정면으로 보게 두는 두 자리 중 하나."
           footer={
@@ -1457,7 +1418,7 @@ export function VelocityScreen({
         >
           <OptionCards
             label="카메라 위치"
-            options={cameraPosOptions(choices.mode)}
+            options={cameraPosOptions()}
             value={choices.cameraPos}
             onChange={(cameraPos) => {
               if (cameraPos !== choices.cameraPos) setZone(defaultZone(cameraPos));
@@ -1469,8 +1430,8 @@ export function VelocityScreen({
       )}
       {!showAsk && step === 'net' && (
         <StepShell
-          step={4}
-          total={6}
+          step={3}
+          total={5}
           title="카메라 앞에 네트가 있나요?"
           subtitle="그물이 있으면 초점을 고정해요 — 자동초점은 눈앞의 그물코에 초점을 맞춰 공이 흐려져요."
           footer={
@@ -1540,7 +1501,7 @@ export function VelocityScreen({
                         </span>
                       </p>
                       <p className="mt-2 text-xs text-white/70">
-                        ± {lastPitch.errorKmh} ·{' '}
+                        ± {speedNum(lastPitch.errorKmh)} ·{' '}
                         {
                           CONFIDENCE_TEXT[
                             lastPitch.confidence as keyof typeof CONFIDENCE_TEXT
@@ -1793,11 +1754,13 @@ export function VelocityScreen({
                           </span>
                         </p>
                         <p className="mt-1.5 text-xs text-white/75">
-                          ± {last.measure.errorKmh} ·{' '}
+                          ± {speedNum(last.measure.errorKmh)} ·{' '}
                           {CONFIDENCE_TEXT[last.measure.confidence]}
                           {last.release &&
                             ` · 릴리스 추정 ${speedNum(shown(last.release.releaseKmh))}`}
-                          {useCal && fit.n > 0 && ` · 보정 전 ${last.measure.kmh}`}
+                          {useCal &&
+                            fit.n > 0 &&
+                            ` · 보정 전 ${speedNum(last.measure.kmh)}`}
                         </p>
                         {last.live?.notes.slice(0, 2).map((note) => (
                           <p
@@ -1886,9 +1849,7 @@ export function VelocityScreen({
                   <ChevronLeft aria-hidden className="h-5 w-5" />
                   투구 기록
                 </button>
-                <span className="text-heading text-base">
-                  {modeLabel(choices.mode)} 측정
-                </span>
+                <span className="text-heading text-base">구속 측정</span>
                 <button
                   type="button"
                   onClick={() => setSheet('settings')}
@@ -2296,7 +2257,7 @@ export function VelocityScreen({
                       <span className="block truncate text-xs text-muted">
                         {zoneLabel(p.zone) ?? '코스 —'}
                         {p.releaseKmh != null && ` · 릴리스 ${speedNum(p.releaseKmh)}`}
-                        {p.gunKmh != null && ` · 건 ${p.gunKmh}`}
+                        {p.gunKmh != null && ` · 건 ${speedNum(p.gunKmh)}`}
                         {p.source === 'file' && ' · 파일'}
                       </span>
                     </span>
@@ -2320,8 +2281,8 @@ export function VelocityScreen({
             </ul>
           </Panel>
           <p className="text-xs leading-relaxed text-muted">
-            공을 누르면 구종 · 코스 · 결과 · 스피드건 값을 고쳐요. ▶ 는 그 공의 영상(이
-            폰에서만).
+            공을 누르면 구종 · 코스 · 결과 · 스피드건 값을 고쳐요. ▶ 는 그 공의
+            영상(세션을 저장하면 같이 올라가요).
           </p>
         </div>
       </BottomSheet>
@@ -2340,7 +2301,7 @@ export function VelocityScreen({
         }}
       />
 
-      {/* 공 하나의 영상 클립 — 이 폰에서만(보정용 저장이면 저장할 때 올라간다) */}
+      {/* 공 하나의 영상 클립 — 세션을 저장할 때 같이 올라간다 */}
       <BottomSheet
         open={clipPitch?.clip != null}
         onClose={() => setClipOpen(null)}
@@ -2360,10 +2321,7 @@ export function VelocityScreen({
             <p className="text-xs leading-relaxed text-muted">
               {formatSpeed(shown(clipPitch.rawKmh), unit)} · 던진 순간{' '}
               {clipPitch.clip.eventSec.toFixed(1)}초 · 길이{' '}
-              {clipPitch.clip.durationSec.toFixed(1)}초 ·{' '}
-              {calibOn
-                ? '저장하면 구속 측정 관리자에 올라가요'
-                : '이 폰에서만 보여요(저장 안 함)'}
+              {clipPitch.clip.durationSec.toFixed(1)}초 · 저장하면 같이 올라가요
             </p>
           </div>
         )}
@@ -2391,7 +2349,7 @@ export function VelocityScreen({
             <dl className="grid grid-cols-2 gap-x-4 gap-y-1.5 rounded-2xl bg-surface-2 px-4 py-3 text-xs">
               <Detail
                 label="카메라 값(보정 전)"
-                value={`${editingPitch.rawKmh} km/h`}
+                value={`${speedNum(editingPitch.rawKmh)} ${speedLabel(unit)}`}
               />
               <Detail
                 label="릴리스 구속 추정"
@@ -2509,14 +2467,14 @@ export function VelocityScreen({
               {saving && <Loader2 aria-hidden className="h-4 w-4 animate-spin" />}
               {uploading
                 ? `클립 올리는 중 ${uploading.done}/${uploading.total}`
-                : calibOn
+                : pitches.some((p) => p.clip)
                   ? `저장하고 클립 ${pitches.filter((p) => p.clip).length}개 올리기`
                   : '저장'}
             </button>
             {calibOn && (
               <p className="text-xs leading-relaxed text-warn">
-                정확도 보정용 저장이 켜져 있어요 — 공마다 영상 클립과 분석 자료가 구속
-                측정 관리자에 올라가요.
+                정확도 보정용 저장이 켜져 있어요 — 이 세션이 구속 측정 관리자에서 보정
+                자료로 표시돼요.
               </p>
             )}
             <p className="text-xs leading-relaxed text-muted">
@@ -2706,7 +2664,7 @@ function PreviousSetupStep({
   return (
     <StepShell
       step={1}
-      total={6}
+      total={5}
       title="지난 설정으로 바로 시작할까요?"
       subtitle="같은 자리에서 같은 방식으로 재면 카메라로 바로 가요."
       footer={
@@ -2725,7 +2683,6 @@ function PreviousSetupStep({
         <div className="px-4 pb-4 pt-4">
           <SetupSummaryRow
             sessionType={setup.sessionType}
-            mode={setup.mode}
             cameraPos={setup.cameraPos}
             net={setup.net}
           />
