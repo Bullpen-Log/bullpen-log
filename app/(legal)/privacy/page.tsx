@@ -21,7 +21,7 @@ export default function PrivacyPage() {
     <article>
       <LegalHeading
         title="개인정보 처리방침"
-        updatedAt="2026년 0월 0일"
+        updatedAt="2026년 10월 3일"
         summary={
           <>
             Bullpen Log는 <strong>안전한 투구량을 계산하는 데 필요한 만큼만</strong>{' '}

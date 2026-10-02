@@ -14,14 +14,14 @@ export const metadata: Metadata = {
  * 좋다. 다만 아무것도 없이 가입을 받는 것보다는 낫다 — 지금은 동의 절차 자체가
  * 없었다.
  *
- * 시행일은 아직 정하지 않았다. 정식 공개일에 맞춰 넣는다.
+ * 시행일은 2026년 10월 3일(사용자가 정함, 2026-10-03).
  */
 export default function TermsPage() {
   return (
     <article>
       <LegalHeading
         title="이용약관"
-        updatedAt="2026년 0월 0일"
+        updatedAt="2026년 10월 3일"
         summary={
           <>
             Bullpen Log는 투수의 투구량과 훈련을 기록하고, 그 기록을 바탕으로 참고할
