@@ -6,7 +6,7 @@ import { deleteGuide, setGuideThumbnail } from '@/app/actions/content';
 import { toggleDrillFavorite } from '@/app/actions/favorite';
 import { FavoriteButton } from '@/components/favorite-button';
 import { MECHANICS_CATEGORIES } from '@/lib/categories';
-import { DRILL_EQUIPMENT, FOCUS_POINTS } from '@/lib/exercise-meta';
+import { DRILL_EQUIPMENT, DRILL_STAGE_NAMES, FOCUS_POINTS } from '@/lib/exercise-meta';
 import { CategorySection } from '@/components/category-section';
 import { LibraryVideo } from '@/components/library-video';
 import { LibraryTile } from '@/components/exercise-tile';
@@ -22,8 +22,11 @@ export type GuideItem = {
   title: string;
   category: string;
   description: string;
+  /** 맨 앞이 주 요소, 뒤가 보조 */
   focusPoints: string[];
   equipment: string[];
+  /** 기초 · 연결 · 통합 — 아직 안 정했으면 null */
+  stage: string | null;
   /** 우리 저장소에 올린 영상 경로. 참고 영상이면 없다. */
   videoPath: string | null;
   /** OWN(직접 촬영) / REFERENCE(아직 촬영 전, 유튜브 참고 영상) */
@@ -38,8 +41,13 @@ export type GuideItem = {
   favorite: boolean;
 };
 
+/*
+ * 요소는 보조까지 걸린다 — '브레이크'를 고르면 브레이크가 주 요소인 드릴과, 다른 것이 주 요소지만
+ * 앞다리를 함께 쓰는 드릴이 같이 나온다. 주 요소인 드릴을 앞에 세운다(MechanicsClient 의 matched).
+ */
 const FILTER_GROUPS = [
-  { key: 'focusPoints', label: '교정 포인트', options: FOCUS_POINTS },
+  { key: 'focusPoints', label: '요소', options: FOCUS_POINTS },
+  { key: 'stage', label: '단계', options: DRILL_STAGE_NAMES },
   { key: 'equipment', label: '장비', options: DRILL_EQUIPMENT },
 ];
 
@@ -63,6 +71,7 @@ function GuideDetail({
       description: item.description,
       focusPoints: item.focusPoints,
       equipment: item.equipment,
+      stage: item.stage,
       sortOrder: item.sortOrder,
     };
     return (
@@ -159,7 +168,11 @@ function GuideDetail({
         </div>
 
         <div className="mt-3">
-          <DrillBadges focusPoints={item.focusPoints} equipment={item.equipment} />
+          <DrillBadges
+            focusPoints={item.focusPoints}
+            equipment={item.equipment}
+            stage={item.stage}
+          />
         </div>
 
         <p className="mt-4 flex-1 whitespace-pre-wrap text-sm leading-relaxed text-muted">
@@ -242,18 +255,26 @@ export function MechanicsClient({
   const favoriteCount = guides.filter((g) => g.favorite).length;
   const filtering = Object.values(filter).some((v) => v.length > 0) || onlyFavorites;
 
-  const matched = useMemo(
-    () =>
-      guides.filter(
-        (g) =>
-          (!onlyFavorites || g.favorite) &&
-          matchesFilter(filter, {
-            focusPoints: g.focusPoints,
-            equipment: g.equipment,
-          })
-      ),
-    [guides, filter, onlyFavorites]
-  );
+  const matched = useMemo(() => {
+    const hits = guides.filter(
+      (g) =>
+        (!onlyFavorites || g.favorite) &&
+        matchesFilter(filter, {
+          focusPoints: g.focusPoints,
+          stage: g.stage ? [g.stage] : [],
+          equipment: g.equipment,
+        })
+    );
+    /* 고른 요소가 주 요소인 드릴을 앞으로, 그 안에서는 쉬운 단계부터 */
+    const picked = filter.focusPoints ?? [];
+    const rank = (g: GuideItem) =>
+      (picked.length > 0 && !picked.includes(g.focusPoints[0]) ? 10 : 0) +
+      (g.stage ? DRILL_STAGE_NAMES.indexOf(g.stage as (typeof DRILL_STAGE_NAMES)[number]) : 3);
+    return hits
+      .map((g, i) => ({ g, i }))
+      .sort((a, b) => rank(a.g) - rank(b.g) || a.i - b.i)
+      .map(({ g }) => g);
+  }, [guides, filter, onlyFavorites]);
 
   const byCategory = useMemo(
     () =>

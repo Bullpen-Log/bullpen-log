@@ -95,27 +95,32 @@ export function ExerciseBadges({
 /**
  * 드릴 한 줄의 부가 정보.
  *
- * 교정 포인트는 드릴을 고르는 기준이라 남겨두고, 장비는 흐린 글자로 뒤에 붙인다.
+ * 요소는 드릴을 고르는 기준이라 남겨두고, 장비는 흐린 글자로 뒤에 붙인다. 맨 앞(주 요소)은 칠하고 보조는
+ * 옅게 — 요소별 목록에서 왜 이 드릴이 앞에 나왔는지 보인다(2026-10-04). 단계(기초 · 연결 · 통합)도 붙인다.
  */
 export function DrillBadges({
   focusPoints,
   equipment,
+  stage,
 }: {
   focusPoints: string[];
   equipment: string[];
+  stage?: string | null;
 }) {
   return (
     <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
-      {focusPoints.map((point) => (
+      {focusPoints.map((point, i) => (
         <span
           key={point}
-          className={`${chip} bg-sky/10 text-sky-strong`}
-          title="교정 포인트"
+          className={`${chip} ${i === 0 ? 'bg-sky/10 text-sky-strong' : 'bg-surface-2 text-muted'}`}
+          title={i === 0 ? '주 요소' : '보조 요소'}
         >
-          <Target aria-hidden className="h-3 w-3" />
+          {i === 0 && <Target aria-hidden className="h-3 w-3" />}
           {point}
         </span>
       ))}
+
+      {stage && <span className={`${chip} bg-surface-2 text-ink`}>{stage}</span>}
 
       {equipment.length > 0 && (
         <span className="inline-flex items-center gap-1 text-[11px] leading-none text-muted">

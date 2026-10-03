@@ -305,10 +305,17 @@ model MechanicsGuide {
   referenceVideoId String?
   /// 영상의 가로세로 비율. 운동 영상과 같은 규칙이다(ExerciseVideo.aspectRatio).
   aspectRatio      Float?
-  /// 이 드릴이 무엇을 교정하는지. 영상분석 결과와 이어지는 고리다.
+  /// 이 드릴이 투구의 어느 요소를 키우는지 — 드리프트 · 드롭 · 상하체 분리 · 브레이크 · 몸통 회전 · 스로잉
+  /// (lib/exercise-meta.ts FOCUS_POINTS, 2026-10-04). 맨 앞이 주 요소, 뒤는 보조(0~2개). 영상분석 결과와 이어지는 고리다.
   focusPoints      String[]
   /// 드릴에 필요한 도구
   equipment        String[]
+  /// 단계 — 기초 / 연결 / 통합(lib/exercise-meta.ts DRILL_STAGES, 2026-10-04). 메커니즘 프로그램이 쉬운 것부터
+  /// 고르는 기준이다. 비어 있으면 아직 안 정한 드릴.
+  stage            String?
+  /// 숨긴 시각. 비어 있으면 보이는 드릴이다. 운동(ExerciseVideo.hiddenAt)과 같은 까닭으로 지우지 않고 숨긴다 —
+  /// 지우면 회원의 '했다' 기록 · 별이 같이 사라진다. 처음 숨긴 것: 파트너가 있어야 하는 둘 · 상품 이름이 남은 둘(2026-10-04).
+  hiddenAt         DateTime?
   sortOrder        Int                 @default(0)
   createdAt        DateTime            @default(now())
   favorites        UserDrillFavorite[]
