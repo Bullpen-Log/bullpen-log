@@ -22,6 +22,7 @@ export function ClipPlayer({
   autoPlay = false,
   maxHeight = '60dvh',
   className = '',
+  onError,
 }: {
   src: string;
   /** 클립 안에서 던진 시각(초) — 이 조금 앞에서 시작 */
@@ -36,6 +37,8 @@ export function ClipPlayer({
   /** 영상 높이의 한계(CSS 길이) */
   maxHeight?: string;
   className?: string;
+  /** 영상을 못 불러왔을 때 — 서명 주소가 만료됐을 수 있다(그날 화면이 새 주소를 다시 받는다) */
+  onError?: () => void;
 }) {
   /* 영상 크기 — 어느 영상의 것인지 같이 쥔다(주소가 바뀌면 옛 비율 · 존을 쓰지 않게) */
   const [meta, setMeta] = useState<{ src: string; w: number; h: number } | null>(null);
@@ -73,6 +76,7 @@ export function ClipPlayer({
             v.currentTime = Number.isFinite(v.duration) ? Math.min(at, v.duration) : at;
           }
         }}
+        onError={onError}
         onSeeked={() => setShownFor(src)}
         onPlaying={() => setShownFor(src)}
         onLoadedData={() => {

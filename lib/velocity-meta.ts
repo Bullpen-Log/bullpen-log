@@ -6,6 +6,8 @@
  * 투수가 보는 대로다.
  */
 
+import type { ZoneRect } from '@/lib/velocity-setup';
+
 /**
  * 측정을 저장하며 같이 만든 투구 기록의 메모 머리. 이 표시가 있는 기록만 공을 지울 때 투구수 ·
  * 구속을 다시 맞추고, 세션을 지울 때 같이 지운다 — 사람이 따로 적은 기록은 건드리지 않는다.
@@ -80,6 +82,20 @@ export type VelocityPitchView = {
   result: string | null;
   gunKmh: number | null;
   memo: string | null;
+  /** 공 하나의 영상 — 서명 재생 주소(한 시간). 없으면(올리기 전에 끊김 · 옛 공) null */
+  clip?: PitchClipView | null;
+  /** 같은 공을 광각 카메라로 함께 찍은 영상(아이폰 앱 · 설정 '광각 영상도 같이 저장') */
+  wideClip?: PitchClipView | null;
+  /** 잰 순간의 스트라이크 존(카메라 장면 비율) — 영상 위에 겹친다. 옛 공 · 영상 파일은 없다 */
+  zoneRect?: ZoneRect | null;
+};
+
+/** 그날 화면이 받는 영상 하나 */
+export type PitchClipView = {
+  url: string;
+  /** 영상 안에서 던진 시각(초) — 재생기가 이 조금 앞에서 시작한다 */
+  eventSec: number | null;
+  sec: number | null;
 };
 
 export type VelocitySessionView = {

@@ -1,6 +1,8 @@
 import 'server-only';
 import { prisma } from '@/lib/prisma';
-import type { VelocitySessionView } from '@/lib/velocity-meta';
+import { createPlaybackUrls } from '@/lib/storage';
+import { isRect } from '@/lib/velocity-setup';
+import type { PitchClipView, VelocitySessionView } from '@/lib/velocity-meta';
 import type { VelocityHistoryItem } from '@/components/velocity/session-types';
 
 /**
@@ -12,7 +14,12 @@ import type { VelocityHistoryItem } from '@/components/velocity/session-types';
 
 const CONFIDENCES = ['high', 'medium', 'low'] as const;
 
-/** 그날의 측정 세션들 — 그날 화면(/pitch-log/<날짜>) */
+/**
+ * 그날의 측정 세션들 — 그날 화면(/pitch-log/<날짜>).
+ *
+ * 공마다 영상(일반 · 광각)의 재생 주소를 한 번에 만든다. 읽는 줄이 이 사람 것(userId)뿐이라 남의 영상 주소는 나가지 않는다.
+ * 저장소가 안 되면 영상만 빠지고 화면은 그대로 뜬다.
+ */
 export async function loadVelocityDay(
   userId: string,
   at: Date
@@ -22,6 +29,23 @@ export async function loadVelocityDay(
     orderBy: { createdAt: 'asc' },
     include: { pitches: { orderBy: { seq: 'asc' } } },
   });
+  const paths = rows.flatMap((s) =>
+    s.pitches.flatMap((p) => [p.clipPath, p.wideClipPath]).filter((p): p is string => !!p)
+  );
+  const urls = paths.length
+    ? await createPlaybackUrls(paths).catch((err: unknown) => {
+        console.error('[velocity] 그날 영상 주소를 만들지 못함', err);
+        return {} as Record<string, string>;
+      })
+    : {};
+  const clipOf = (
+    path: string | null,
+    eventSec: number | null,
+    sec: number | null
+  ): PitchClipView | null => {
+    const url = path ? urls[path] : undefined;
+    return url ? { url, eventSec, sec } : null;
+  };
   return rows.map((s) => ({
     id: s.id,
     date: s.date.toISOString().slice(0, 10),
@@ -58,8 +82,18 @@ export async function loadVelocityDay(
       result: p.result,
       gunKmh: p.gunKmh,
       memo: p.memo,
+      clip: clipOf(p.clipPath, p.clipEventSec, p.clipSec),
+      wideClip: clipOf(p.wideClipPath, p.wideClipEventSec, p.wideClipSec),
+      zoneRect: zoneRectOf(p.analysis),
     })),
   }));
+}
+
+/** 분석 JSON 에 실린 잰 순간의 스트라이크 존(analysis.zoneRect) — 꼴이 틀리면 null */
+function zoneRectOf(analysis: unknown) {
+  if (!analysis || typeof analysis !== 'object' || Array.isArray(analysis)) return null;
+  const z = (analysis as Record<string, unknown>).zoneRect;
+  return isRect(z) && z.w > 0 && z.h > 0 ? { x: z.x, y: z.y, w: z.w, h: z.h } : null;
 }
 
 /**
