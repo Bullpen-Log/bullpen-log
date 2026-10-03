@@ -47,7 +47,7 @@ const ZONE_CAP: Record<string, number> = {
   low: INTENSITY_CAP.ALL,
 };
 
-/** 부하 지수를 아직 못 낼 때는 보수적으로 간다. */
+/** 던진 날은 있는데 부하 지수를 아직 못 낼 때는 보수적으로 간다. */
 const UNKNOWN_ZONE_CAP = INTENSITY_CAP.MODERATE;
 
 /** 컨디션이 이 값 이하면 무게 드는 운동을 뺀다. */
@@ -148,10 +148,21 @@ export function selectCandidates<T extends ExerciseLike>({
   const capTo = (rule: string, cap: number) =>
     drop(rule, (ex) => intensityLevel(ex.intensity) <= cap);
 
-  // 2) 부하 구간에 따른 강도 상한
+  /*
+   * 2) 부하 구간에 따른 강도 상한
+   *
+   * 최근에 던진 날이 하루도 없으면(gather.ts 의 LOOKBACK_DAYS, 45일) 투구 부하로는 거르지 않는다.
+   * 지수를 못 내는 까닭이 '던진 것이 없어서'라, 걸러 낼 투구 부하도 없다. 예전에는 이때도 무게 드는
+   * 운동을 전부 뺐는데, 공을 쉬는 비시즌이 근력을 키우기 가장 좋은 때다(2026-10-03 사용자 결정:
+   * "투구 기록이 없을 때 무거운 운동을 허용하자"). 휴식(0구)만 적은 날도 던진 날로 치지 않는다.
+   * 던진 날은 있는데 기록이 짧아 지수를 못 내는 사람은 예전처럼 보수적으로 간다.
+   */
+  const noRecentThrows = facts.patterns.lastThrowDate == null;
   const zoneCap = facts.load.zone
     ? (ZONE_CAP[facts.load.zone] ?? UNKNOWN_ZONE_CAP)
-    : UNKNOWN_ZONE_CAP;
+    : noRecentThrows
+      ? INTENSITY_CAP.ALL
+      : UNKNOWN_ZONE_CAP;
 
   if (facts.load.zone === 'danger') {
     basis.push('부하 위험 구간 → 회복 수준까지만');
@@ -159,6 +170,8 @@ export function selectCandidates<T extends ExerciseLike>({
     basis.push('부하 주의 구간 → 무게 드는 운동 제외');
   } else if (facts.load.zone) {
     basis.push('부하가 적정 범위 → 강도 제한 없음');
+  } else if (noRecentThrows) {
+    basis.push('최근 투구 기록이 없음 → 투구 부하로는 거르지 않음');
   } else {
     basis.push('부하 지수를 아직 낼 수 없어 무게 드는 운동 제외');
   }

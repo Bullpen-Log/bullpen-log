@@ -514,13 +514,20 @@ export function decideTheme({
   if (lastLowerKey == null && lastUpperKey == null) {
     const [, m, d] = facts.asOf.split('-').map(Number);
     const lower = (m + d) % 2 === 0;
+    /*
+     * 최근에 던진 날이 없으면 부하 이야기를 하지 않는다 — 볼 투구 부하가 없다. 2026-10-03 부터 투구 기록이
+     * 없어도 일정을 만들 수 있게 되어(training/page.tsx), '부하가 적정 범위예요'가 사실과 다른 말이 됐다.
+     */
+    const noThrows = facts.patterns.lastThrowDate == null;
+    const loadNote = '최근 투구 기록이 없어 투구량은 따로 보지 않았어요. ';
     return lower
       ? {
           key: 'lower',
           label: '하체 스트렝스 데이',
           reason:
             todayNote +
-            '부하가 적정 범위예요. 투구의 힘은 하체에서 나와요.' +
+            (noThrows ? loadNote : '부하가 적정 범위예요. ') +
+            '투구의 힘은 하체에서 나와요.' +
             forcedNote,
         }
       : {
@@ -528,7 +535,9 @@ export function decideTheme({
           label: '상체 스트렝스 데이',
           reason:
             todayNote +
-            '부하가 적정 범위라 상체 근력을 훈련하기 좋은 날이에요.' +
+            (noThrows
+              ? loadNote + '상체 근력을 훈련하기 좋은 날이에요.'
+              : '부하가 적정 범위라 상체 근력을 훈련하기 좋은 날이에요.') +
             forcedNote,
         };
   }

@@ -1,5 +1,4 @@
 import { favoriteExerciseIds } from '@/lib/favorites';
-import Link from 'next/link';
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { Sparkles } from 'lucide-react';
@@ -17,7 +16,7 @@ import { summarizeSets, totalVolumeKg } from '@/lib/workout/summarize';
 import { recentAmounts } from '@/lib/report/exercise-recent';
 import { MIN_CANDIDATES } from '@/lib/report/prescription';
 import { DEFAULT_WORKOUT_MINUTES } from '@/lib/report/theme';
-import { Card, EmptyState, PageHeading } from '@/components/ui';
+import { Card, PageHeading } from '@/components/ui';
 import { PlanForm } from '@/components/training-forms';
 import type { AiReportBody } from '@/lib/ai/report-prompt';
 import { ExerciseChecklist, type TodayExercise } from './exercise-list';
@@ -38,7 +37,6 @@ import {
   TRAINING_PART_HREF,
   readTrainingPart,
 } from '@/lib/training-part';
-import { OPEN_POPUP_TYPES } from '@/lib/transition-types';
 
 /**
  * 트레이닝 — 오늘 할 운동과 암케어, 두 칸.
@@ -446,21 +444,6 @@ export default async function TrainingPage({
               통증이 아니면 체크인 고치기
             </OpenCheckinButton>
           </Card>
-        ) : !core.hasLogs ? (
-          <EmptyState
-            title="투구 기록이 있어야 운동을 고를 수 있어요"
-            description="투구량을 봐야 무리 없는 운동을 고를 수 있어요."
-            action={
-              /* 홈의 투구 상자가 알림(종)으로 옮겨 가서, 그날 투구 화면으로 바로 보낸다 */
-              <Link
-                href={`/pitch-log/${core.todayKey}`}
-                transitionTypes={OPEN_POPUP_TYPES}
-                className="rounded-xl bg-sky px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-sky-strong"
-              >
-                오늘 투구 기록하기
-              </Link>
-            }
-          />
         ) : savedPlan == null ? (
           /*
           아직 안 만든 날.
@@ -468,6 +451,10 @@ export default async function TrainingPage({
           예전에는 화면을 열면 일정이 이미 만들어져 있었다. 만든 적도 없는 것이
           떠 있으니 "이걸 하라는 건가" 싶고, 새로고침하면 내용이 달라지기도 했다.
           이제는 오늘 조건을 고르고 눌러야 생긴다.
+
+          투구 기록이 없어도 만들 수 있다(2026-10-03 사용자 결정). 예전에는 최근 45일에
+          투구 기록이 없으면 이 앞에서 막아, 공을 쉬는 비시즌에 운동을 못 골랐다. 기록이
+          없을 때 무엇을 거르는지는 lib/report/prescription.ts 의 '부하 구간에 따른 강도 상한'.
         */
           <Card className="space-y-4">
             <div className="space-y-1">

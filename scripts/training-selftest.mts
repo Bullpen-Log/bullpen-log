@@ -224,8 +224,10 @@ type Person = {
    * 이 값이 없으면 기록이 28일 쌓이기 전에는 부하 지수가 아예 안 나온다.
    * 처음에 빠뜨렸더니 부하 위험 구간 시험이 '구간을 못 냈으므로 통과'로
    * 조용히 넘어갔다. 시험이 아무것도 안 보면서 통과하는 것이 가장 나쁘다.
+   *
+   * 안 주면 100. null 을 주면 문진을 안 한 사람이다 — 기록이 28일 쌓이기 전에는 지수가 안 나온다.
    */
-  baselineDailyLoad?: number;
+  baselineDailyLoad?: number | null;
   /** 오늘 체크인에서 고른 운동 종류 — 파워 / 웨이트 / 회복 */
   wants?: string | null;
   /** 잔 느낌 — 충분 / 보통 / 부족. 안 주면 지금처럼 '보통' */
@@ -253,7 +255,7 @@ function factsFor(p: Person) {
     age: p.age === undefined ? 22 : p.age,
     heightCm: 180,
     trainingLevel: p.trainingLevel ?? null,
-    baselineDailyLoad: p.baselineDailyLoad ?? 100,
+    baselineDailyLoad: p.baselineDailyLoad === undefined ? 100 : p.baselineDailyLoad,
     today: TODAY,
     logs: pitches.map<PitchLogLike>((count, i) => ({
       date: dayBefore(i + 1),
@@ -451,6 +453,63 @@ console.log('\n[안전] 몸이 안 좋은 날 무거운 운동이 섞이지 않�
     `부하 ${facts.load.zone} 구간 → 무게 드는 운동이 남아 있음`,
     hasHeavy,
     `후보 ${picked.candidates.length}개`
+  );
+}
+{
+  /*
+   * 투구 기록이 없으면 투구 부하로는 거르지 않는다(2026-10-03 사용자 결정).
+   *
+   * 공을 쉬는 비시즌 · 처음 쓰는 사람이다. 예전에는 부하 지수를 못 낸다는 이유로 무게 드는 운동이
+   * 통째로 빠졌다 — 근력을 키우기 가장 좋은 때에 가장 가벼운 일정이 나온 셈이었다.
+   * 다른 안전 규칙(컨디션 · 나이 · 경력)은 그대로 걸려야 한다.
+   */
+  const { facts, picked, theme } = planFor({ person: { condition: 8, pitches: [] } });
+  check(
+    '투구 기록 없음 → 이유에 "부하가 적정 범위"라고 하지 않는다',
+    !theme.reason.includes('적정') && theme.reason.includes('투구 기록이 없어'),
+    theme.reason
+  );
+  check(
+    '투구 기록 없음 → 부하 지수도 없음',
+    facts.load.zone === null && facts.patterns.lastThrowDate === null,
+    String(facts.load.zone)
+  );
+  check(
+    '투구 기록 없음 → 무게 드는 운동이 남아 있음',
+    picked.candidates.some((e) => intensityLevel(e.intensity) >= 4),
+    `후보 ${picked.candidates.length}개`
+  );
+  check(
+    '투구 기록 없음 → 근거에 그렇게 적는다',
+    picked.basis.includes('최근 투구 기록이 없음 → 투구 부하로는 거르지 않음'),
+    picked.basis[0]
+  );
+
+  const tired = planFor({ person: { condition: 3, pitches: [] } }).picked;
+  check(
+    '투구 기록 없음이어도 컨디션 3/10 → 무게 드는 운동 없음',
+    !tired.candidates.some((e) => intensityLevel(e.intensity) > 3),
+    `후보 ${tired.candidates.length}개`
+  );
+
+  // 휴식(0구)만 적은 사람도 던진 날이 없는 것과 같다.
+  const restOnly = planFor({ person: { condition: 8, pitches: [0, 0, 0] } });
+  check(
+    '휴식(0구)만 적음 → 무게 드는 운동이 남아 있음',
+    restOnly.picked.candidates.some((e) => intensityLevel(e.intensity) >= 4),
+    String(restOnly.facts.load.zone)
+  );
+
+  /*
+   * 던진 날은 있는데 기록이 짧고 문진도 없어 지수를 못 내는 사람은 예전처럼 보수적으로 간다.
+   * 이 규칙이 '기록이 없으면'을 넘어 '지수가 없으면'으로 번지지 않았는지 본다.
+   */
+  const fresh = planFor({ person: { condition: 8, baselineDailyLoad: null } });
+  check(
+    '던진 날은 있는데 지수를 아직 못 냄 → 여전히 무게 드는 운동 제외',
+    fresh.facts.load.zone === null &&
+      !fresh.picked.candidates.some((e) => intensityLevel(e.intensity) >= 4),
+    `${fresh.facts.load.zone} · 마지막 투구 ${fresh.facts.patterns.lastThrowDate}`
   );
 }
 {
