@@ -5627,11 +5627,20 @@ console.log('\n[암케어] 부위·근육 · 오늘의 루틴 · 부하');
     band.items.length >= 5,
     `${band.items.length}개 · ${band.estimatedMinutes}분`
   );
+  /*
+   * 맨몸 · 밴드만으로는 어깨 상부가 비었었는데, 2026-10-03 '어깨 외전 등척성 밀기'(맨몸)가 들어와 채워진다.
+   * 조사를 보려고 그 부위 운동을 빼서 일부러 비운다.
+   */
+  const noTop = build('strength', {
+    candidates: bandsOnly.filter(
+      (ex) => !areasOf(ex.targetMuscles ?? []).some((a) => a.key === 'shoulder-top')
+    ),
+  });
   check(
     "빈 부위의 조사가 맞다 — '어깨 상부는' ('은' 아님)",
-    band.notes.some((n) => n.includes('어깨 상부는')) &&
-      !band.notes.some((n) => n.includes('상부은')),
-    band.notes.join(' / ')
+    noTop.notes.some((n) => n.includes('어깨 상부는')) &&
+      !noTop.notes.some((n) => n.includes('상부은')),
+    noTop.notes.join(' / ')
   );
   const dumbbellRecovery = build('recovery', {
     candidates: filterByEquipment(armcareLib, ['맨몸', '덤벨']).pool,
