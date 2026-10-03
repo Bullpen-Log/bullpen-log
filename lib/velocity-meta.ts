@@ -91,7 +91,16 @@ export type VelocityPitchView = {
 };
 
 /** 하루치 카메라 측정 한 줄 — 공 수 · 최고(km/h) · 영상이 남은 공 수(홈 캘린더 정보 · 투구 기록 캘린더) */
-export type VelocityDayFact = { n: number; max: number; clips: number };
+export type VelocityDayFact = {
+  n: number;
+  max: number;
+  clips: number;
+  /**
+   * 그날 공들의 지문(구종 · 코스 · 구속 · 클립) — 그날 화면에서 구종만 고쳐도 바뀐다. 홈이 이것으로 받아 둔 그날 클립 목록을
+   * 버리고 새로 받는다(공 수 · 최고만 보면 구종을 고친 것은 못 잡아 홈 칩에 옛 구종이 남았다).
+   */
+  sig: string;
+};
 
 /** 홈 캘린더 정보의 영상 칸이 받는 클립 하나 — 클립이 남은 공만, 일반 카메라 영상만 */
 export type DayClip = {

@@ -190,8 +190,8 @@ export function PitchLogPanel({
   }
 
   /*
-   * 구속 측정이 바뀐 날도 그렇다 — 그날 화면(팝업)에서 공을 지우면 홈 영상 칸의 칩이 지운 공을 그대로 보였다. 공 수 · 최고 ·
-   * 클립 수가 달라진 날만 버린다(구종만 고친 것은 못 잡는다 — 그 날을 다시 열 때까지 옛 구종).
+   * 구속 측정이 바뀐 날도 그렇다 — 그날 화면(팝업)에서 공을 지우면 홈 영상 칸의 칩이 지운 공을 그대로 보였다. 그날 요약의
+   * 지문(sig — 구종 · 코스 · 구속 · 클립)이 달라진 날만 버린다. 구종만 고쳐도 바뀐다.
    */
   const [seenVelocity, setSeenVelocity] = useState(velocityByDay);
   if (seenVelocity !== velocityByDay) {

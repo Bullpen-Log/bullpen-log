@@ -196,16 +196,31 @@ export async function loadVelocityByDate(
 ): Promise<Record<string, VelocityDayFact>> {
   const rows = await prisma.velocityPitch.findMany({
     where: { userId, ...(from ? { session: { date: { gte: from } } } : {}) },
-    select: { kmh: true, clipPath: true, session: { select: { date: true } } },
+    select: {
+      id: true,
+      kmh: true,
+      pitchType: true,
+      zone: true,
+      clipPath: true,
+      session: { select: { date: true } },
+    },
+    orderBy: { id: 'asc' },
   });
   const out: Record<string, VelocityDayFact> = {};
+  const hash: Record<string, number> = {};
   for (const r of rows) {
     const key = r.session.date.toISOString().slice(0, 10);
-    const cur = out[key] ?? { n: 0, max: 0, clips: 0 };
+    const cur = out[key] ?? { n: 0, max: 0, clips: 0, sig: '' };
     cur.n += 1;
     cur.max = Math.max(cur.max, r.kmh);
     if (r.clipPath) cur.clips += 1;
     out[key] = cur;
+    /* 지문 — 공마다 바뀌는 칸을 이어 붙여 짧게(FNV-1a 32비트). 차례는 id 로 고정 */
+    let h = hash[key] ?? 0x811c9dc5;
+    const line = `${r.id}|${r.pitchType ?? ''}|${r.zone ?? ''}|${r.kmh}|${r.clipPath ? 1 : 0};`;
+    for (let i = 0; i < line.length; i++) h = Math.imul(h ^ line.charCodeAt(i), 0x01000193);
+    hash[key] = h;
   }
+  for (const [key, h] of Object.entries(hash)) out[key].sig = (h >>> 0).toString(36);
   return out;
 }
