@@ -36,6 +36,8 @@ import {
   longestThrowStreak,
   summarize,
   stressFactor,
+  shiftDateKey,
+  toDateKey,
   MIN_STRESS_FACTOR,
   type PitchLogLike,
 } from '../lib/pitch-stats.ts';
@@ -131,6 +133,42 @@ import {
   guideFor,
   levelAdvice,
 } from '../lib/armcare/pain-guide.ts';
+import {
+  REHAB_AREAS,
+  afterBadSession,
+  allRehabExerciseNames,
+  atLeastConditionSeverity,
+  buildRehabSession,
+  conditionsFor,
+  judgeSession,
+  judgeStageTest,
+  judgeThrowingOpen,
+  rehabCardLine,
+  rehabEstimateDays,
+  rehabFacts,
+  rehabSeverity,
+  rehabStartBlock,
+  rehabStatus,
+  stageExercises,
+  stageMinDays,
+  stageTestFor,
+  startStage,
+  weeksText,
+  type RehabCheckinLike,
+  type RehabConditionKey,
+  type RehabFacts,
+  type RehabFeel,
+  type RehabLeftover,
+  type RehabLibraryExercise,
+  type RehabProgramLike,
+  type RehabResult,
+  type RehabSession,
+  type RehabSessionLike,
+  type RehabSeverity,
+  type RehabStage,
+  type StageTest,
+  type StageTestInput,
+} from '../lib/armcare/rehab.ts';
 import { BODY_PART_MAP } from '../lib/body-map.ts';
 import {
   MY_ROUTINE_MAX_ITEMS,
@@ -270,6 +308,8 @@ type Person = {
   sessionType?: string;
   /** 오늘 남긴 투구 기록 하나 — 세게 던진 '당일'을 만들려고 둔다 */
   todayLog?: { pitches: number; intensity: number; sessionType?: string };
+  /** 진행 중인 재활(재활 2편 — lib/armcare/rehab.ts 의 rehabFacts). 안 주면 없다 */
+  rehab?: RehabFacts | null;
 };
 
 function factsFor(p: Person) {
@@ -280,6 +320,7 @@ function factsFor(p: Person) {
     heightCm: 180,
     trainingLevel: p.trainingLevel ?? null,
     baselineDailyLoad: p.baselineDailyLoad === undefined ? 100 : p.baselineDailyLoad,
+    rehab: p.rehab ?? null,
     today: TODAY,
     logs: [
       ...pitches.map<PitchLogLike>((count, i) => ({
@@ -6101,6 +6142,839 @@ console.log('\n[목표별 횟수] 목표에 맞는 세트 · 횟수가 나오는
       .slice(0, 3)
       .map((ex) => ex.title)
       .join(', ')
+  );
+}
+
+console.log(
+  '\n[재활 2편] 부위 · 병명 재활 — 정도 · 기간 · 판정 · 단계 · 세션 · 웨이트 · 투구 계획'
+);
+{
+  /*
+   * 2026-10-04 재활 2편 ①(lib/armcare/rehab.ts) — 규칙의 근거와 숫자는 docs/rehab-guideline.md.
+   * 매주 확인 · 투구 복귀표 화면은 ②번이라 여기서는 그 판정 함수만 본다.
+   */
+
+  /* 1) 정도(가이드라인 3절) — 1편의 세 질문과 지난 일주일 가장 아팠을 때 중 더 심한 쪽 */
+  const sev = (
+    level: 1 | 2 | 3,
+    worst: number,
+    condition: RehabConditionKey | null = null
+  ) => rehabSeverity({ level, worst, condition });
+  check(
+    '정도 — 던질 때만 · 3 → 가벼움, 4 → 보통 (경계 3/4)',
+    sev(1, 3) === 'mild' && sev(1, 4) === 'moderate',
+    `${sev(1, 3)} · ${sev(1, 4)}`
+  );
+  check(
+    '정도 — 6 → 보통, 7 → 심함 (경계 6/7)',
+    sev(1, 6) === 'moderate' && sev(1, 7) === 'severe',
+    `${sev(1, 6)} · ${sev(1, 7)}`
+  );
+  check(
+    '정도 — 세 질문 조합: 평소에도 · 0 → 보통, 밤에도 · 0 → 심함, 평소에도 · 7 → 심함',
+    sev(2, 0) === 'moderate' && sev(3, 0) === 'severe' && sev(2, 7) === 'severe'
+  );
+  check(
+    'UCL 은 보통 이상 — 가벼움으로 나와도 보통(가벼운 캐치볼 없음)',
+    sev(1, 2, 'ucl') === 'moderate' &&
+      sev(3, 2, 'ucl') === 'severe' &&
+      atLeastConditionSeverity('mild', 'ucl') === 'moderate' &&
+      atLeastConditionSeverity('mild', 'slap') === 'mild'
+  );
+  check(
+    '시작 단계 — 가벼움 3 · 보통 2 · 심함 1',
+    startStage('mild') === 3 &&
+      startStage('moderate') === 2 &&
+      startStage('severe') === 1
+  );
+
+  /* 2) 기간 — 2026-10-04 다시 맞춘 표, 병명 바닥, 앞당기기 */
+  const minD = (
+    severity: RehabSeverity,
+    stage: RehabStage,
+    condition: RehabConditionKey | null = null,
+    shorten = 0
+  ) => stageMinDays({ severity, stage, condition, stageShortenDays: shorten });
+  const stages = [1, 2, 3, 4] as const;
+  const daysOf = (s: RehabSeverity) => stages.map((st) => minD(s, st)).join(',');
+  check(
+    '단계별 최소 기간 — 가벼움 –·–·3·4 · 보통 –·7·5·5 · 심함 7·10·7·7',
+    daysOf('mild') === '0,0,3,4' &&
+      daysOf('moderate') === '0,7,5,5' &&
+      daysOf('severe') === '7,10,7,7',
+    `${daysOf('mild')} / ${daysOf('moderate')} / ${daysOf('severe')}`
+  );
+  const est = (s: RehabSeverity, c: RehabConditionKey | null = null) =>
+    weeksText(rehabEstimateDays(s, c));
+  check(
+    '투구 복귀표까지 — 가벼움 약 1주 · 보통 약 2.5주 · 심함 약 4.5주',
+    est('mild') === '약 1주' &&
+      est('moderate') === '약 2.5주' &&
+      est('severe') === '약 4.5주',
+    `${est('mild')} · ${est('moderate')} · ${est('severe')}`
+  );
+  check(
+    '병명 바닥 — UCL 6주 · SLAP 8주 · 굴곡-회내근 2주 · 후방 충돌 2주(정도의 기간이 더 길면 그쪽)',
+    rehabEstimateDays('moderate', 'ucl') === 42 &&
+      rehabEstimateDays('mild', 'slap') === 56 &&
+      rehabEstimateDays('mild', 'flexor-pronator') === 14 &&
+      rehabEstimateDays('moderate', 'posterior-impingement') === 17 &&
+      rehabEstimateDays('severe', 'posterior-impingement') === 31
+  );
+  const uclDays = ([2, 3, 4] as const).map((st) => minD('moderate', st, 'ucl'));
+  check(
+    '병명 바닥 — 보통 UCL 은 2 · 3 · 4단계 최소 기간 합이 42일(단계 비율대로, 어느 단계도 정도의 기간보다 짧지 않다)',
+    uclDays.reduce((a, b) => a + b, 0) === 42 &&
+      uclDays.every((d, i) => d >= [7, 5, 5][i]),
+    uclDays.join(' · ')
+  );
+  check(
+    '기간 줄이기 — 그 단계 기간의 절반까지만(보통 2단계 7일: 2일 → 5일, 3일 → 4일, 10일 → 4일)',
+    minD('moderate', 2, null, 2) === 5 &&
+      minD('moderate', 2, null, 3) === 4 &&
+      minD('moderate', 2, null, 10) === 4
+  );
+  check(
+    '기간 줄이기 — 병명 바닥은 줄지 않는다(UCL 은 줄여도 그대로)',
+    minD('moderate', 2, 'ucl', 3) === minD('moderate', 2, 'ucl', 0)
+  );
+
+  /* 3) 시작 막기(가이드라인 2절) */
+  const block = (
+    age: number | null,
+    area: ArmcareAreaKey,
+    condition: RehabConditionKey | null = null
+  ) => rehabStartBlock({ age, area, condition })?.kind ?? null;
+  check(
+    '시작 — 만 14세는 막음(진료 먼저), 15세 · 나이 모름은 연다',
+    block(14, 'shoulder-back') === 'young' &&
+      block(15, 'shoulder-back') === null &&
+      block(null, 'elbow-outer') === null
+  );
+  check(
+    '시작 — 18세 미만 팔꿈치 바깥쪽 · 뒤쪽은 진단 없이 막음(X-ray), 진단이 있으면 · 18세 · 안쪽은 연다',
+    block(17, 'elbow-outer') === 'xray' &&
+      block(17, 'elbow-back') === 'xray' &&
+      block(17, 'elbow-back', 'posterior-impingement') === null &&
+      block(18, 'elbow-outer') === null &&
+      block(17, 'elbow-inner') === null
+  );
+
+  /* 4) 세션 판정(가이드라인 7절) — 허용 통증이 단계 · 부위 · 병명별 */
+  const judge = (
+    leftover: RehabLeftover,
+    pain: number,
+    feel: RehabFeel,
+    stage: RehabStage,
+    area: ArmcareAreaKey = 'shoulder-back',
+    condition: RehabConditionKey | null = null
+  ) => judgeSession({ leftover, pain, feel, stage, area, condition });
+  check(
+    '판정 — 어깨 뒤쪽 1 · 2단계 허용 3: 3 초록 · 4 노랑 · 5 빨강',
+    judge(0, 3, 'muscle', 2) === 'green' &&
+      judge(0, 4, 'muscle', 2) === 'yellow' &&
+      judge(0, 5, 'muscle', 2) === 'red'
+  );
+  check(
+    '판정 — 팔꿈치 안쪽(인대형) 1 · 2단계 허용 2: 2 초록 · 3 노랑',
+    judge(0, 2, 'muscle', 1, 'elbow-inner') === 'green' &&
+      judge(0, 3, 'muscle', 1, 'elbow-inner') === 'yellow'
+  );
+  check(
+    '판정 — 3 · 4단계는 어디든 2까지: 2 초록 · 3 노랑',
+    judge(0, 2, 'muscle', 3) === 'green' &&
+      judge(0, 3, 'muscle', 3) === 'yellow' &&
+      judge(0, 3, 'muscle', 4) === 'yellow'
+  );
+  check(
+    '판정 — 병명이 허용을 바꾼다: 회전근개 3 · SLAP 2 · 굴곡-회내근 3(팔꿈치 안쪽인데) · UCL 2',
+    judge(0, 3, 'muscle', 2, 'shoulder-top', 'cuff-tendinopathy') === 'green' &&
+      judge(0, 3, 'muscle', 2, 'shoulder-front', 'slap') === 'yellow' &&
+      judge(0, 3, 'muscle', 2, 'elbow-inner', 'flexor-pronator') === 'green' &&
+      judge(0, 3, 'muscle', 2, 'elbow-inner', 'ucl') === 'yellow'
+  );
+  check(
+    '판정 — 남은 통증: 하다 보니 사라짐 → 노랑, 계속 → 빨강',
+    judge(1, 0, 'muscle', 2) === 'yellow' && judge(2, 0, 'muscle', 2) === 'red'
+  );
+  check(
+    '판정 — 느낌: 찌르듯은 1 · 2단계 노랑 · 3 · 4단계 빨강, 저림 · 빠질 듯은 진료',
+    judge(0, 1, 'sharp', 2) === 'yellow' &&
+      judge(0, 1, 'sharp', 3) === 'red' &&
+      judge(0, 0, 'tingle', 1) === 'refer' &&
+      judge(0, 0, 'slip', 4) === 'refer'
+  );
+
+  /* 5) 빨강 뒤 — 남은 통증만이면 하루 쉬고 같은 것, 그 밖은 이틀 쉬고 한 칸 낮춤 */
+  const after = (
+    s: Pick<RehabSessionLike, 'result' | 'leftover' | 'pain' | 'feel' | 'stage'>
+  ) => {
+    const a = afterBadSession(s);
+    return a ? `${a.restDays}${a.lower ? '낮춤' : '같은것'}` : 'null';
+  };
+  check(
+    '빨강 뒤 — 남은 통증만 1일 · 5 이상 2일 낮춤 · 찌르듯(3단계) 2일 낮춤 · 진료 2일 낮춤 · 초록 없음',
+    after({ result: 'red', leftover: 2, pain: 2, feel: 'muscle', stage: 2 }) ===
+      '1같은것' &&
+      after({ result: 'red', leftover: 0, pain: 5, feel: 'muscle', stage: 2 }) ===
+        '2낮춤' &&
+      after({ result: 'red', leftover: 2, pain: 6, feel: 'muscle', stage: 2 }) ===
+        '2낮춤' &&
+      after({ result: 'red', leftover: 0, pain: 1, feel: 'sharp', stage: 3 }) ===
+        '2낮춤' &&
+      after({ result: 'refer', leftover: 0, pain: 0, feel: 'tingle', stage: 1 }) ===
+        '2낮춤' &&
+      after({ result: 'green', leftover: 0, pain: 0, feel: 'muscle', stage: 1 }) ===
+        'null'
+  );
+
+  /* 6) 지금 상태 — 쉬는 날 · 한 칸 낮춤과 복귀 · 하루 걸러 · 진료 · 체크인 연결 */
+  const prog = (over: Partial<RehabProgramLike> = {}): RehabProgramLike => ({
+    area: 'shoulder-back',
+    condition: null,
+    severity: 'moderate',
+    stage: 2,
+    stageStartedOn: '2026-06-01',
+    stageShortenDays: 0,
+    startedOn: '2026-06-01',
+    ...over,
+  });
+  const ses = (
+    date: string,
+    result: RehabResult,
+    extra: Partial<RehabSessionLike> = {}
+  ): RehabSessionLike => ({
+    date,
+    stage: 2,
+    leftover: 0,
+    pain: result === 'green' ? 1 : result === 'yellow' ? 3 : 6,
+    feel: 'muscle',
+    result,
+    lowered: false,
+    ...extra,
+  });
+  const status = (
+    sessions: RehabSessionLike[],
+    todayKey: string,
+    over: Partial<RehabProgramLike> = {},
+    checkins: RehabCheckinLike[] = []
+  ) => rehabStatus({ program: prog(over), sessions, checkins, todayKey });
+
+  const afterRed = [ses('2026-06-08', 'green'), ses('2026-06-10', 'red')];
+  check(
+    '쉬는 날 — 빨강(5 이상) 뒤 이틀 쉬고, 사흘째부터 한 칸 낮춘 운동',
+    status(afterRed, '2026-06-11').rest != null &&
+      status(afterRed, '2026-06-12').rest != null &&
+      status(afterRed, '2026-06-13').rest === null &&
+      status(afterRed, '2026-06-13').lowered,
+    `${status(afterRed, '2026-06-11').line?.text}`
+  );
+  const leftoverRed = [ses('2026-06-10', 'red', { leftover: 2, pain: 2 })];
+  check(
+    '쉬는 날 — 남은 통증만의 빨강은 하루만 쉬고 낮추지 않는다',
+    status(leftoverRed, '2026-06-11').rest != null &&
+      status(leftoverRed, '2026-06-12').rest === null &&
+      !status(leftoverRed, '2026-06-12').lowered
+  );
+  const lowSessions = [
+    ses('2026-06-10', 'red'),
+    ses('2026-06-13', 'green', { lowered: true }),
+    ses('2026-06-15', 'green', { lowered: true }),
+  ];
+  const backUp = [...lowSessions, ses('2026-06-17', 'green', { lowered: true })];
+  check(
+    '한 칸 낮춤 — 초록 둘이면 아직 낮춤, 셋이면 원래 단계로',
+    status(lowSessions, '2026-06-17').lowered && !status(backUp, '2026-06-19').lowered
+  );
+  check(
+    '한 칸 낮춤 — 낮춘 날의 초록은 깨끗한 세션으로 세지 않는다',
+    status(backUp, '2026-06-19').gate.clean === 0
+  );
+  check(
+    '하루 걸러 — 2단계는 어제 했으면 오늘 쉬는 날, 1단계는 매일',
+    (status([ses('2026-06-10', 'green')], '2026-06-11').rest ?? '').includes(
+      '하루 걸러'
+    ) &&
+      status([ses('2026-06-10', 'green', { stage: 1 })], '2026-06-11', {
+        stage: 1,
+        severity: 'severe',
+      }).rest === null
+  );
+  const threeReds = [
+    ses('2026-06-01', 'red'),
+    ses('2026-06-05', 'red'),
+    ses('2026-06-09', 'red'),
+  ];
+  check(
+    '진료 — 14일 안에 빨강 셋이면 진료 권유가 카드 맨 위',
+    status(threeReds, '2026-06-14').line?.kind === 'refer' &&
+      (status(threeReds, '2026-06-14').refer ?? '').includes('빨강이 세 번')
+  );
+  check(
+    '진료 — 빨강 셋이 14일을 넘겨 흩어지면 진료 아님',
+    status(
+      [ses('2026-05-25', 'red'), ses('2026-06-05', 'red'), ses('2026-06-09', 'red')],
+      '2026-06-14'
+    ).refer === null
+  );
+  check(
+    '진료 — 저림 · 빠질 듯 판정이 14일 안에 있으면 진료',
+    (
+      status([ses('2026-06-10', 'refer', { feel: 'tingle' })], '2026-06-20').refer ?? ''
+    ).includes('저리거나') &&
+      status([ses('2026-06-01', 'refer', { feel: 'tingle' })], '2026-06-20').refer ===
+        null
+  );
+  check(
+    '진료 — 1단계에서 낮추기 조건(빨강)이 오면 진료',
+    (
+      status([ses('2026-06-10', 'red', { stage: 1 })], '2026-06-13', {
+        stage: 1,
+        severity: 'severe',
+      }).refer ?? ''
+    ).includes('1단계')
+  );
+  const checkin = (
+    level: number | null,
+    shoulder = '통증',
+    elbow = '정상'
+  ): RehabCheckinLike[] => [
+    { date: '2026-06-15', shoulder, elbow, armPainLevel: level },
+  ];
+  const byCheckin = (level: number | null) =>
+    status([], '2026-06-15', {}, checkin(level));
+  check(
+    "체크인 — 그 관절 '통증' · 던질 때만 → 한 칸 낮춤, 평소에도 · 밤에도 · 모름 → 쉬기 + 진료",
+    byCheckin(1).lowered &&
+      byCheckin(1).rest === null &&
+      [2, 3, null].every(
+        (lv) => byCheckin(lv).rest != null && byCheckin(lv).refer != null
+      )
+  );
+  check(
+    '체크인 — 다른 관절(팔꿈치) 통증은 어깨 재활을 바꾸지 않는다',
+    status([], '2026-06-15', {}, checkin(2, '정상', '통증')).rest === null &&
+      !status([], '2026-06-15', {}, checkin(1, '정상', '통증')).lowered
+  );
+
+  /* 7) 단계 올리기 — 최소 기간 + 깨끗한 세션 수 + 최근 세 초록 (+ 심함 1단계 밤 통증 7일 없음) */
+  const greens = (
+    from: string,
+    n: number,
+    step = 2,
+    extra: Partial<RehabSessionLike> = {}
+  ) =>
+    Array.from({ length: n }, (_, i) =>
+      ses(shiftDateKey(from, i * step), 'green', extra)
+    );
+  const ready = status(greens('2026-06-01', 6), '2026-06-13');
+  check(
+    '단계 올리기 — 7일 지남 + 깨끗한 6 + 최근 셋 초록이면 시험 가능, 카드에 단계 시험 줄(쉬는 날이 아닐 때)',
+    ready.gate.ready &&
+      ready.line?.kind === 'stage-test' &&
+      status(greens('2026-06-01', 6), '2026-06-12').line?.kind === 'rest',
+    ready.gate.checks.map((c) => `${c.ok ? '✓' : '·'}${c.label}`).join(' / ')
+  );
+  check(
+    '단계 올리기 — 깨끗한 세션 수는 최소 기간 안에 할 수 있는 만큼: 보통 2단계(7일 · 하루 걸러) 4번, 3개면 아직',
+    status(greens('2026-06-01', 6), '2026-06-13').gate.cleanNeeded === 4 &&
+      !status(greens('2026-06-05', 3), '2026-06-12').gate.ready
+  );
+  check(
+    '단계 올리기 — 가벼움 3단계(3일)는 깨끗한 2번 · 최근 2번 초록, 심함 1단계(7일 · 매일)는 5번',
+    status(greens('2026-06-01', 2, 2, { stage: 3 }), '2026-06-04', {
+      severity: 'mild',
+      stage: 3,
+    }).gate.ready &&
+      status(greens('2026-06-01', 2, 1, { stage: 1 }), '2026-06-08', {
+        severity: 'severe',
+        stage: 1,
+      }).gate.cleanNeeded === 5
+  );
+  check(
+    '단계 올리기 — 최소 기간 전이면 아직(보통 2단계 7일, 6일째)',
+    !status(greens('2026-06-06', 6, 1), '2026-06-12', { stageStartedOn: '2026-06-06' })
+      .gate.ready
+  );
+  check(
+    '단계 올리기 — 최근 셋에 노랑이 있으면 아직, 빨강이 끼면 깨끗한 세션이 0부터',
+    !status([...greens('2026-06-01', 6), ses('2026-06-13', 'yellow')], '2026-06-15')
+      .gate.ready &&
+      status(
+        [
+          ...greens('2026-06-01', 6),
+          ses('2026-06-13', 'red'),
+          ...greens('2026-06-16', 3),
+        ],
+        '2026-06-22'
+      ).gate.clean === 3
+  );
+  check(
+    '단계 올리기 — 다른 단계의 세션은 세지 않는다(단계를 올리면 새로 센다)',
+    status(greens('2026-06-01', 6), '2026-06-14', {
+      stage: 3,
+      stageStartedOn: '2026-06-12',
+    }).gate.clean === 0
+  );
+  const nightPain: RehabCheckinLike[] = [
+    { date: '2026-06-10', shoulder: '통증', elbow: '정상', armPainLevel: 3 },
+  ];
+  const severe1 = (today: string) =>
+    status(
+      greens('2026-06-01', 5, 1, { stage: 1 }),
+      today,
+      { stage: 1, severity: 'severe' },
+      nightPain
+    );
+  check(
+    '심함 — 7일 안에 밤 · 쉴 때 통증(체크인 정도 3)이 있으면 1단계에 머묾, 7일 지나면 풀림',
+    !severe1('2026-06-12').gate.ready &&
+      severe1('2026-06-12').nightHold &&
+      severe1('2026-06-17').gate.ready &&
+      !severe1('2026-06-17').nightHold,
+    severe1('2026-06-12')
+      .gate.checks.map((c) => `${c.ok ? '✓' : '·'}${c.label}`)
+      .join(' / ')
+  );
+  const line = (input: Parameters<typeof rehabCardLine>[0]) =>
+    rehabCardLine(input)?.kind;
+  check(
+    '카드 한 줄 — 진료 > 쉬는 날 > 낮추기 > 단계 시험 > 매주 확인 > 정도 낮아짐',
+    line({ refer: '진료', rest: '쉬기', lowered: '낮춤', stageTest: true }) ===
+      'refer' &&
+      line({ refer: null, rest: '쉬기', lowered: '낮춤', stageTest: true }) ===
+        'rest' &&
+      line({ refer: null, rest: null, lowered: '낮춤', stageTest: true }) ===
+        'lowered' &&
+      line({
+        refer: null,
+        rest: null,
+        lowered: null,
+        stageTest: true,
+        weeklyDue: true,
+      }) === 'stage-test' &&
+      line({
+        refer: null,
+        rest: null,
+        lowered: null,
+        stageTest: false,
+        weeklyDue: true,
+        eased: true,
+      }) === 'weekly' &&
+      line({
+        refer: null,
+        rest: null,
+        lowered: null,
+        stageTest: false,
+        eased: true,
+      }) === 'eased'
+  );
+
+  /* 8) 단계 시험(가이드라인 9절 — 던지는 팔 기준) */
+  const t2 = stageTestFor('elbow-inner', 2)!;
+  const t3elbow = stageTestFor('elbow-inner', 3)!;
+  const t3shoulder = stageTestFor('shoulder-back', 3)!;
+  const pass = (t: StageTest, input: StageTestInput) => judgeStageTest(t, input).pass;
+  check(
+    '단계 시험 2→3 — 반대쪽 90%(89 실패 · 90 통과), 시험 중 통증 3이면 실패',
+    !pass(t2, { injured: 89, other: 100, pain: 0 }) &&
+      pass(t2, { injured: 90, other: 100, pain: 0 }) &&
+      pass(t2, { injured: 9, other: 10, pain: 2 }) &&
+      !pass(t2, { injured: 90, other: 100, pain: 3 })
+  );
+  check(
+    '단계 시험 3→4 팔꿈치 — 100%(99 실패 · 100 통과), 팔굽혀 터치는 안 봄',
+    !pass(t3elbow, { injured: 99, other: 100, pain: 0 }) &&
+      pass(t3elbow, { injured: 100, other: 100, pain: 0 }) &&
+      t3elbow.kind === 'strength' &&
+      !t3elbow.ckc
+  );
+  check(
+    '단계 시험 3→4 어깨 — 바깥 돌리기 95%(94 실패 · 95 통과) + 팔굽혀 터치가 첫 기록보다 늘어야',
+    t3shoulder.kind === 'strength' &&
+      t3shoulder.ckc &&
+      !pass(t3shoulder, {
+        injured: 94,
+        other: 100,
+        pain: 0,
+        ckcNow: 20,
+        ckcFirst: 18,
+      }) &&
+      pass(t3shoulder, {
+        injured: 95,
+        other: 100,
+        pain: 0,
+        ckcNow: 20,
+        ckcFirst: 18,
+      }) &&
+      !pass(t3shoulder, {
+        injured: 95,
+        other: 100,
+        pain: 0,
+        ckcNow: 18,
+        ckcFirst: 18,
+      }) &&
+      !pass(t3shoulder, {
+        injured: 95,
+        other: 100,
+        pain: 0,
+        ckcNow: 20,
+        ckcFirst: null,
+      })
+  );
+  const rom = stageTestFor('shoulder-top', 1)!;
+  check(
+    '단계 시험 1→2 — 아프지 않고 반대쪽과 비슷해야 통과',
+    rom.kind === 'rom' &&
+      pass(rom, { painFree: true, similar: true }) &&
+      !pass(rom, { painFree: true, similar: false }) &&
+      !pass(rom, { painFree: false, similar: true })
+  );
+  const exerciseOf = (area: ArmcareAreaKey) => {
+    const t = stageTestFor(area, 2);
+    return t?.kind === 'strength' ? t.exercise : '';
+  };
+  check(
+    '단계 시험 — 힘 비교 운동: 어깨 넷 사이드라잉 외회전 · 안쪽 · 뒤쪽 덤벨 전완 굴곡 · 바깥쪽 덤벨 전완 신전 · 앞쪽 덤벨 해머컬, 4단계는 없음',
+    (['shoulder-back', 'shoulder-front', 'shoulder-top', 'scapula'] as const).every(
+      (a) => exerciseOf(a) === '사이드라잉 외회전'
+    ) &&
+      exerciseOf('elbow-inner') === '덤벨 전완 굴곡' &&
+      exerciseOf('elbow-back') === '덤벨 전완 굴곡' &&
+      exerciseOf('elbow-outer') === '덤벨 전완 신전' &&
+      exerciseOf('elbow-front') === '덤벨 해머컬' &&
+      stageTestFor('elbow-inner', 4) === null
+  );
+  const open = (over: Partial<Parameters<typeof judgeThrowingOpen>[0]> = {}) =>
+    judgeThrowingOpen({
+      severity: 'severe',
+      painFreeBallDays: 7,
+      daysSinceStart: 30,
+      condition: null,
+      hasPlyo: true,
+      push: { injured: 100, other: 100 },
+      drop: { injured: 110, other: 100 },
+      wall: { injured: 115, other: 100 },
+      pain: 0,
+      normalPct: 90,
+      confidence: 7,
+      ...over,
+    }).pass;
+  check(
+    '투구 복귀표 열기 — 기준선 통과, 볼 드롭 109%(110 필요) · 벽 던지기 114%(115 필요) · 밀기 99% · 심함 6일(7 필요) · 정상 89% · 자신감 6 은 각각 실패, 가벼움은 4일이면 됨',
+    open() &&
+      !open({ drop: { injured: 109, other: 100 } }) &&
+      !open({ wall: { injured: 114, other: 100 } }) &&
+      !open({ push: { injured: 99, other: 100 } }) &&
+      !open({ painFreeBallDays: 6 }) &&
+      open({ severity: 'mild', painFreeBallDays: 4 }) &&
+      !open({ severity: 'mild', painFreeBallDays: 3 }) &&
+      !open({ normalPct: 89 }) &&
+      !open({ confidence: 6 })
+  );
+  check(
+    '투구 복귀표 열기 — 플라이오볼이 없으면 볼 드롭 · 벽 던지기는 건너뛰고 밀기로',
+    open({ hasPlyo: false, drop: null, wall: null }) &&
+      !open({
+        hasPlyo: false,
+        drop: null,
+        wall: null,
+        push: { injured: 99, other: 100 },
+      })
+  );
+  check(
+    '투구 복귀표 열기 — UCL 은 시작하고 6주(42일) 전이면 안 열림',
+    !open({ condition: 'ucl', daysSinceStart: 41 }) &&
+      open({ condition: 'ucl', daysSinceStart: 42 })
+  );
+
+  /* 9) 단계별 운동 · 병명 차이 */
+  check(
+    '부위 8곳 × 4단계 — 단계마다 운동 5개 이상',
+    REHAB_AREAS.length === 8 &&
+      REHAB_AREAS.every((a) =>
+        stages.every((st) => stageExercises(a, null, st).length >= 5)
+      )
+  );
+  check(
+    '병명 — 회전근개 건염 2단계에 시티드 외회전 과부하 내리기(가볍게)',
+    stageExercises('shoulder-top', 'cuff-tendinopathy', 2).some(
+      (m) => m.name === '시티드 외회전 과부하 내리기' && m.note === '가볍게'
+    ) &&
+      !stageExercises('shoulder-top', null, 2).some(
+        (m) => m.name === '시티드 외회전 과부하 내리기'
+      )
+  );
+  const slap2 = stageExercises('shoulder-front', 'slap', 2).map((m) => m.name);
+  check(
+    'SLAP — 2단계: 프론 로우 + 외회전(90/90 끝) 빼고 시티드 프레스업 · 크로스바디, 3단계 밴드 하이 이두컬(가볍게)',
+    !slap2.includes('프론 로우 + 외회전') &&
+      slap2.includes('시티드 프레스업') &&
+      slap2.includes('크로스바디 스트레칭') &&
+      stageExercises('shoulder-front', 'slap', 3).some(
+        (m) => m.name === '밴드 하이 이두컬' && m.note === '가볍게'
+      ),
+    slap2.join(' · ')
+  );
+  check(
+    '병명 — 고른 부위에 맞는 것만(팔꿈치 안쪽 → UCL · 굴곡-회내근, 바깥쪽 → 없음)',
+    conditionsFor('elbow-inner').join(',') === 'ucl,flexor-pronator' &&
+      conditionsFor('shoulder-top').join(',') === 'impingement,cuff-tendinopathy' &&
+      conditionsFor('elbow-outer').length === 0
+  );
+
+  /* 10) 오늘 세션 짜기 — 카테고리 상관없이 이름으로, 장비 바꿔 넣기 · 플라이오볼 · 심함 세트 */
+  const mk = (
+    title: string,
+    over: Partial<RehabLibraryExercise> = {}
+  ): RehabLibraryExercise => ({
+    id: title,
+    title,
+    category: '암케어',
+    intensity: '낮음',
+    equipment: ['밴드'],
+    targetMuscles: ['극하근'],
+    sets: 2,
+    reps: 10,
+    holdSeconds: null,
+    restSeconds: 30,
+    perSide: true,
+    ...over,
+  });
+  const ballOf = (title: string) =>
+    mk(title, {
+      category: '파워',
+      equipment: ['메디신볼'],
+      intensity: '중간',
+      targetMuscles: [],
+    });
+  const lib4 = [
+    mk('사이드라잉 외회전 리바운드', { equipment: ['덤벨'], intensity: '중간' }),
+    ballOf('톨 닐링 메디신볼 오버헤드 던지기'),
+    ballOf('톨 닐링 메디신볼 체스트 패스'),
+    mk('90/90 플라이오볼 벽 드리블', { equipment: ['플라이오볼'], intensity: '중간' }),
+    mk('프론 90/90 플라이오볼 드롭', { equipment: ['플라이오볼'], intensity: '중간' }),
+    mk('한 팔 90/90 플라이오볼 벽 던지기', {
+      equipment: ['플라이오볼'],
+      intensity: '중간',
+    }),
+    mk('튜빙 리버스 스로우'),
+    mk('밴드 외회전 0도'),
+    mk('케이블 외회전', { equipment: ['케이블'] }),
+    mk('밴드 외회전 무겁게', { intensity: '높음' }),
+    mk('상체 외회전 고립', { category: '상체 스트렝스' }),
+  ];
+  const session4 = (owned: string[]) =>
+    buildRehabSession({
+      area: 'shoulder-back',
+      condition: null,
+      severity: 'mild',
+      stage: 4,
+      lowered: false,
+      library: lib4,
+      ownedEquipment: owned,
+    });
+  const titles = (s: RehabSession) => s.items.map((it) => it.title);
+  const noPlyo = session4(['밴드', '메디신볼']);
+  check(
+    '세션 — 플라이오볼이 없으면 한 팔 공 운동을 두 손 메디신볼로(이미 든 오버헤드는 빼고 체스트 패스 하나), 남은 둘은 빼고 한 줄',
+    titles(noPlyo).includes('톨 닐링 메디신볼 체스트 패스') &&
+      noPlyo.items.find((it) => it.title === '톨 닐링 메디신볼 체스트 패스')
+        ?.replaces === '90/90 플라이오볼 벽 드리블' &&
+      !titles(noPlyo).some((t) => t.includes('플라이오볼')) &&
+      noPlyo.notes.some(
+        (n) =>
+          n.includes('프론 90/90 플라이오볼 드롭') &&
+          n.includes('한 팔 90/90 플라이오볼 벽 던지기')
+      ),
+    `${titles(noPlyo).join(' · ')} / ${noPlyo.notes.join(' / ')}`
+  );
+  check(
+    '세션 — 장비가 없으면 같은 주 근육 · 같거나 낮은 강도의 암케어 운동으로(덤벨 리바운드 → 밴드 외회전 0도 — 높음 · 케이블 · 다른 카테고리는 안 고름)',
+    noPlyo.items.find((it) => it.replaces === '사이드라잉 외회전 리바운드')?.title ===
+      '밴드 외회전 0도'
+  );
+  const bandOnly = session4(['밴드']);
+  check(
+    '세션 — 플라이오볼 · 메디신볼 둘 다 없으면 공 운동은 빼고 빠진 이름을 한 줄로',
+    titles(bandOnly).join(',') === '밴드 외회전 0도,튜빙 리버스 스로우' &&
+      bandOnly.notes.some(
+        (n) => n.includes('톨 닐링 메디신볼 오버헤드 던지기') && n.includes('뺐어요')
+      ),
+    `${titles(bandOnly).join(' · ')} / ${bandOnly.notes.join(' / ')}`
+  );
+  check(
+    '세션 — 카테고리와 상관없이 이름으로 찾는다(파워의 오버헤드 던지기), 장비를 안 골랐으면 아무것도 빼지 않는다',
+    session4([]).items.length === 6 &&
+      titles(session4([])).includes('톨 닐링 메디신볼 오버헤드 던지기')
+  );
+  const lib1 = stageExercises('shoulder-back', null, 1).map((m, i) =>
+    mk(m.name, { sets: i === 0 ? 1 : 3 })
+  );
+  const s1 = (severity: RehabSeverity) =>
+    buildRehabSession({
+      area: 'shoulder-back',
+      condition: null,
+      severity,
+      stage: 1,
+      lowered: false,
+      library: lib1,
+      ownedEquipment: [],
+    });
+  check(
+    '세션 — 심함은 1 · 2단계 세트 −1(최소 1), 보통은 라이브러리 그대로',
+    s1('severe')
+      .items.map((it) => it.sets)
+      .join(',') === '1,2,2,2,2' &&
+      s1('moderate')
+        .items.map((it) => it.sets)
+        .join(',') === '1,3,3,3,3'
+  );
+  const lib23 = [
+    ...stageExercises('shoulder-back', null, 2),
+    ...stageExercises('shoulder-back', null, 3),
+  ]
+    .map((m) => m.name)
+    .filter((name, i, all) => all.indexOf(name) === i)
+    .map((name) => mk(name));
+  const lowered = buildRehabSession({
+    area: 'shoulder-back',
+    condition: null,
+    severity: 'moderate',
+    stage: 3,
+    lowered: true,
+    library: lib23,
+    ownedEquipment: [],
+  });
+  check(
+    '세션 — 한 칸 낮춘 날은 아래 단계 운동(3단계 → 2단계) · 알림 한 줄',
+    lowered.stage === 2 &&
+      titles(lowered).join(',') ===
+        stageExercises('shoulder-back', null, 2)
+          .map((m) => m.name)
+          .join(',') &&
+      lowered.notes.some((n) => n.includes('한 칸 낮춰'))
+  );
+  check(
+    '세션 — 라이브러리에 없는 이름은 빼고 한 줄로 알린다',
+    buildRehabSession({
+      area: 'elbow-front',
+      condition: null,
+      severity: 'moderate',
+      stage: 2,
+      lowered: false,
+      library: lib23,
+      ownedEquipment: [],
+    }).notes.some(
+      (n) => n.includes('라이브러리에 아직 없어') && n.includes('덤벨 해머컬')
+    )
+  );
+
+  /* 11) 앱의 다른 곳 — 웨이트 · 투구 계획 · 암케어 */
+  const TODAY_KEY = toDateKey(TODAY);
+  const rf = (over: Partial<RehabProgramLike> = {}) =>
+    rehabFacts(prog({ startedOn: '2026-06-01', ...over }), TODAY_KEY);
+  const rehabPlan = buildPitchPlan(factsFor({ condition: 7, rehab: rf() }));
+  check(
+    '투구 계획 — 재활 중이면 멈춤 + rehab 표시 + 재활 문구',
+    rehabPlan.halted &&
+      rehabPlan.rehab?.stage === 2 &&
+      rehabPlan.rehab.throwing === 'none' &&
+      (rehabPlan.haltReason ?? '').includes('재활 중이에요(어깨 뒤쪽 · 2단계)'),
+    rehabPlan.haltReason ?? ''
+  );
+  const mildPlan = buildPitchPlan(
+    factsFor({ condition: 7, rehab: rf({ severity: 'mild', stage: 3 }) })
+  );
+  check(
+    '투구 계획 — 가벼움은 가벼운 캐치볼만(18m 안 · 25개 · 통증 2 이하)',
+    mildPlan.rehab?.throwing === 'light' &&
+      (mildPlan.haltReason ?? '').includes(
+        '가벼운 캐치볼만 해요(18m 안 · 25개 · 통증 2 이하)'
+      ),
+    mildPlan.haltReason ?? ''
+  );
+  const firstWeek = buildPitchPlan(
+    factsFor({
+      condition: 7,
+      rehab: rf({
+        severity: 'mild',
+        stage: 3,
+        area: 'elbow-inner',
+        startedOn: shiftDateKey(TODAY_KEY, -3),
+      }),
+    })
+  );
+  check(
+    '투구 계획 — 가벼워도 팔꿈치 안쪽 · 뒤쪽은 첫 주 던지지 않음, 7일째부터 캐치볼(어깨는 첫날부터)',
+    firstWeek.rehab?.throwing === 'none' &&
+      (firstWeek.haltReason ?? '').includes('첫 주') &&
+      rf({
+        severity: 'mild',
+        stage: 3,
+        area: 'elbow-back',
+        startedOn: shiftDateKey(TODAY_KEY, -7),
+      }).throwing === 'light' &&
+      rf({ severity: 'mild', stage: 3, area: 'shoulder-top', startedOn: TODAY_KEY })
+        .throwing === 'light',
+    firstWeek.haltReason ?? ''
+  );
+  const painDay = buildPitchPlan(factsFor({ condition: 7, pain: true, rehab: rf() }));
+  check(
+    '투구 계획 — 오늘 통증이면 통증 멈춤이 먼저(재활 표시 없음 — AI 맞춤도 예전처럼 안 부른다)',
+    painDay.halted && !painDay.rehab && (painDay.haltReason ?? '').includes('통증')
+  );
+  const partsOf = (over: Partial<RehabProgramLike>) =>
+    (factsFor({ condition: 7, rehab: rf(over) }).condition.rehabParts ?? []).join(',');
+  check(
+    '웨이트 — 재활 1~3단계 관절이 rehabParts(어깨 넷 → shoulder, 팔꿈치 넷 → elbow), 4단계는 빈 목록',
+    partsOf({}) === 'shoulder' &&
+      partsOf({ area: 'scapula' }) === 'shoulder' &&
+      partsOf({ area: 'elbow-front' }) === 'elbow' &&
+      partsOf({ stage: 4 }) === ''
+  );
+  const rehabbing = planFor({ person: { condition: 8, rehab: rf() } });
+  const shoulderRelatedParts = ['어깨', '견갑', '가슴', '등'];
+  check(
+    '웨이트 — 재활 중 어깨: 어깨 쪽 무거운 운동만 빠지고 다른 무게 운동은 남는다, 근거 줄 재활 중',
+    !rehabbing.picked.candidates.some(
+      (e) =>
+        intensityLevel(e.intensity) > 3 &&
+        e.bodyParts.some((p) => shoulderRelatedParts.includes(p))
+    ) &&
+      rehabbing.picked.candidates.some((e) => intensityLevel(e.intensity) >= 4) &&
+      rehabbing.picked.basis.some((b) => b.startsWith('재활 중(어깨)')),
+    rehabbing.picked.basis.filter((b) => b.includes('재활')).join(' / ')
+  );
+  check(
+    '웨이트 — 재활 중 어깨: 상체 날이 아니고, 이유에 그렇게 적는다',
+    rehabbing.theme.key !== 'upper' &&
+      rehabbing.theme.reason.startsWith('어깨 재활 중이라'),
+    `${rehabbing.theme.label} — ${rehabbing.theme.reason}`
+  );
+  const stage4 = planFor({ person: { condition: 8, rehab: rf({ stage: 4 }) } });
+  check(
+    '웨이트 — 4단계는 제한을 푼다(어깨 무거운 운동이 돌아오고 재활 근거 줄이 없다)',
+    stage4.picked.candidates.some(
+      (e) =>
+        intensityLevel(e.intensity) > 3 &&
+        e.bodyParts.some((p) => shoulderRelatedParts.includes(p))
+    ) && !stage4.picked.basis.some((b) => b.includes('재활'))
+  );
+  check(
+    '암케어 — 재활 때문에 멈춘 투구 계획은 통증 쉬기가 아니다(내 루틴 표시용 결정)',
+    decideArmcare({ facts: rehabbing.facts, plan: rehabbing.plan, armFatigue: null })
+      .kind !== 'rest'
+  );
+
+  /* 12) 실제 라이브러리 — 설계에 적힌 운동 이름이 모두 있다(숨기지 않은 것, 카테고리 상관없이) */
+  const titlesInLibrary = new Set(library.map((ex) => ex.title));
+  const designNames = allRehabExerciseNames();
+  const missingNames = designNames.filter((name) => !titlesInLibrary.has(name));
+  check(
+    `재활 운동 이름 ${designNames.length}개가 모두 라이브러리에 있다`,
+    missingNames.length === 0,
+    missingNames.join(', ')
   );
 }
 

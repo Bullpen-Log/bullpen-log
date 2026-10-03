@@ -301,6 +301,14 @@ export type PitchPlan = {
   basis: string[];
   /** 성장기 회원에게 덧붙일 주의 */
   youthNote: string | null;
+  /**
+   * 재활 때문에 멈춘 계획인가(lib/armcare/rehab.ts) — 그때만 있고, 아니면 없거나 null.
+   *
+   * 통증 멈춤과 가르는 표시다. 재활 중에는 투구 계획만 멈추고 웨이트 AI 맞춤은 그대로 부른다(app/actions/training-setup.ts),
+   * 암케어는 통증 쉬기로 보지 않는다(lib/armcare/routine.ts 의 decideArmcare). 오늘 체크인이 통증이면 통증 멈춤이 먼저라
+   * 이 표시가 없다. 이 칸이 생기기 전에 저장된 계획에는 없다.
+   */
+  rehab?: { area: string; stage: number; throwing: 'light' | 'none' } | null;
 };
 
 /**
@@ -383,6 +391,40 @@ export function buildPitchPlan(facts: ReportFacts): PitchPlan {
       needsPainCheck: false,
       basis: ['최근 통증 기록 + 오늘 체크인 없음 → 계획 중단'],
       youthNote,
+    };
+  }
+
+  /*
+   * 1-1) 재활 중 — 끝낼 때까지 투구 계획 대신 재활 문구(재활 2편, lib/armcare/rehab.ts 의 rehabFacts).
+   *
+   * 오늘 통증이면 위의 통증 멈춤이 먼저다. 가벼움은 가벼운 캐치볼을 이어 간다 — 운동 중 통증 2 이하 · 다음 날 아침
+   * 원래대로일 때(docs/rehab-guideline.md 3절). 팔꿈치 안쪽 · 뒤쪽은 첫 주 던지지 않는다(인대 · 뼈일 수 있다).
+   * 투구 복귀표(4단계 끝)는 재활 화면이 따로 안내한다.
+   */
+  if (condition.rehab) {
+    const rehab = condition.rehab;
+    const head = `재활 중이에요(${rehab.label} · ${rehab.stage}단계). 재활을 마칠 때까지 투구 계획은 쉬어요.`;
+    const tail =
+      rehab.throwing === 'light'
+        ? ' 가벼운 캐치볼만 해요(18m 안 · 25개 · 통증 2 이하).'
+        : rehab.firstWeekNoThrow
+          ? ' 팔꿈치 안쪽 · 뒤쪽은 첫 주에 던지지 않아요.'
+          : '';
+    return {
+      halted: true,
+      haltReason: head + tail,
+      today: restDay(
+        facts.asOf,
+        TODAY_LABEL,
+        rehab.throwing === 'light' ? '재활 중 — 가벼운 캐치볼만' : '재활 중'
+      ),
+      tomorrow: null,
+      threwToday: false,
+      recovering: false,
+      needsPainCheck: false,
+      basis: [`재활 중(${rehab.label} · ${rehab.stage}단계) → 투구 계획 중단`],
+      youthNote,
+      rehab: { area: rehab.area, stage: rehab.stage, throwing: rehab.throwing },
     };
   }
 

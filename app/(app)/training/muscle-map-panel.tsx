@@ -11,6 +11,7 @@ import {
   type ArmcareAreaKey,
 } from '@/lib/armcare/anatomy';
 import { ModelCredit } from '@/components/model-credit';
+import { GAP_BELOW } from '@/lib/armcare/coverage';
 import { Segmented } from '@/components/segmented';
 import { MuscleMap3D, type MapSelection, type MapStatus } from './muscle-map-3d';
 import { AddToRoutine } from './add-to-routine';
@@ -21,6 +22,22 @@ const SIDE_OPTIONS = [
   { value: 'right', label: '오른팔' },
   { value: 'left', label: '왼팔' },
 ] as const;
+
+/** 지도 보기 — 근육 설명(예전 그대로) · 최근 2주(내 팔 지도, 2026-10-04) */
+const MODE_OPTIONS = [
+  { value: 'mine', label: '최근 2주' },
+  { value: 'anatomy', label: '근육 설명' },
+] as const;
+
+/** 내 팔 지도 자료 — armcare-section.tsx 가 기록으로 셈해 넘긴다(lib/armcare/coverage.ts) */
+export type MapCoverage = {
+  /** 근육마다 진하기 0~1 */
+  heat: Record<string, number>;
+  /** 부위마다 그 부위가 주 부위인 운동을 한 수 — GAP_BELOW 아래면 '안 함'(lib/armcare/coverage.ts primary) */
+  areas: Record<string, number>;
+  /** 이 기간 기록 수 */
+  total: number;
+};
 
 /**
  * 부위별 보강 맨 위의 3D 근육 지도 — 캔버스와 부위 단추, 고른 것의 설명.
@@ -44,6 +61,7 @@ export function MuscleMapPanel({
   exercises,
   initial,
   onShowArea,
+  coverage = null,
 }: {
   /**
    * 볼 팔 — 처음은 계정의 던지는 손. 부모(armcare-guide.tsx)가 쥔다: 양투가 왼팔로 바꾸면
@@ -58,8 +76,14 @@ export function MuscleMapPanel({
   initial: MapSelection;
   /** 이 부위의 운동을 아래 목록에서 모두 보기 */
   onShowArea: (area: ArmcareAreaKey) => void;
+  /** 내 팔 지도 — 주면 [최근 2주 | 근육 설명] 고르개가 생기고, 근육을 짚어 들어온 게 아니면 최근 2주부터 */
+  coverage?: MapCoverage | null;
 }) {
   const [selection, setSelection] = useState<MapSelection>(initial);
+  const [mode, setMode] = useState<'mine' | 'anatomy'>(
+    coverage && !initial.area ? 'mine' : 'anatomy'
+  );
+  const mine = coverage != null && mode === 'mine';
   const [status, setStatus] = useState<MapStatus>('loading');
 
   const area = findArmcareArea(selection.area);
@@ -67,6 +91,23 @@ export function MuscleMapPanel({
 
   return (
     <section className="space-y-3" aria-label="3D 근육 지도">
+      {coverage && (
+        <div className="flex">
+          <Segmented
+            label="지도 보기"
+            value={mode}
+            onChange={(next) => {
+              setMode(next);
+              /* 최근 2주로 바꾸면 고른 것을 풀어 전체 진하기가 보이게 */
+              if (next === 'mine') setSelection({ area: null, muscle: null, part: null });
+            }}
+            options={MODE_OPTIONS}
+            layout="flow"
+            tone="raised"
+            itemClassName="px-3.5 py-1.5"
+          />
+        </div>
+      )}
       {status !== 'unavailable' && (
         <div className="h-[min(52vh,460px)] min-h-[320px] overflow-hidden rounded-3xl border border-line bg-gradient-to-b from-surface to-surface-2">
           <MuscleMap3D
@@ -74,8 +115,27 @@ export function MuscleMapPanel({
             selection={selection}
             onPick={pick}
             onStatus={setStatus}
+            heat={mine ? coverage.heat : null}
           />
         </div>
+      )}
+
+      {mine && (
+        <p className="flex flex-wrap items-center gap-x-3 gap-y-1 px-1 text-xs text-muted">
+          <span className="inline-flex items-center gap-1.5">
+            <span className="h-2.5 w-2.5 rounded-sm bg-[#0d8f7f]" />
+            많이
+          </span>
+          <span className="inline-flex items-center gap-1.5">
+            <span className="h-2.5 w-2.5 rounded-sm bg-[#a7e3d4]" />
+            조금
+          </span>
+          <span className="inline-flex items-center gap-1.5">
+            <span className="h-2.5 w-2.5 rounded-sm bg-[#f0b860]" />
+            2주째 안 함
+          </span>
+          <span>· 암케어 {coverage.total}번</span>
+        </p>
       )}
 
       {bothHands && (
@@ -95,6 +155,8 @@ export function MuscleMapPanel({
       <div className="flex flex-wrap gap-1.5" role="group" aria-label="부위 고르기">
         {ARMCARE_AREAS.map((a) => {
           const on = selection.area === a.key;
+          /* 최근 2주 보기에서 빈 부위(주로 키우는 운동을 안 함, lib/armcare/coverage.ts GAP_BELOW)는 호박색 점선 */
+          const empty = mine && (coverage.areas[a.key] ?? 0) < GAP_BELOW;
           return (
             <button
               key={a.key}
@@ -110,7 +172,9 @@ export function MuscleMapPanel({
               className={`rounded-full border px-3 py-1 text-xs font-semibold transition-colors ${
                 on
                   ? 'border-sky bg-sky-tint text-sky-strong'
-                  : 'border-line bg-surface text-ink hover:border-sky'
+                  : empty
+                    ? 'border-dashed border-warn-line bg-warn-bg text-warn hover:border-warn'
+                    : 'border-line bg-surface text-ink hover:border-sky'
               }`}
             >
               {a.label}

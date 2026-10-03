@@ -19,6 +19,7 @@ import { readDailyPlan } from '@/lib/report/daily-plan';
 import { formatPrescription } from '@/lib/exercise-meta';
 import { pickCheckinParts } from '@/lib/checkin';
 import { visibleExercises } from '@/lib/library-cache';
+import { loadRehabFacts } from '@/lib/armcare/rehab-store';
 
 export type AiReportState = { error?: string; success?: string } | undefined;
 
@@ -52,7 +53,7 @@ export async function generateAiReport(): Promise<AiReportState> {
   const since = new Date(today);
   since.setDate(since.getDate() - LOOKBACK_DAYS);
 
-  const [logs, checkins] = await Promise.all([
+  const [logs, checkins, rehab] = await Promise.all([
     prisma.pitchLog.findMany({
       where: { userId: user.id, date: { gte: since } },
       orderBy: { date: 'asc' },
@@ -61,6 +62,8 @@ export async function generateAiReport(): Promise<AiReportState> {
       where: { userId: user.id, date: { gte: since } },
       orderBy: { date: 'desc' },
     }),
+    /* 재활 중이면 투구 계획이 멈춘다 — 홈 · 트레이닝과 같은 계획(lib/report/gather.ts) */
+    loadRehabFacts(user.id, today),
   ]);
 
   if (logs.length === 0) {
@@ -94,6 +97,7 @@ export async function generateAiReport(): Promise<AiReportState> {
     heightCm: user.heightCm,
     trainingLevel: user.trainingLevel,
     baselineDailyLoad: estimateDailyLoad(user),
+    rehab,
     logs: logs.map((l) => ({
       date: l.date.toISOString(),
       sessionType: l.sessionType,

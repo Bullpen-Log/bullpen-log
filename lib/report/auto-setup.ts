@@ -28,7 +28,7 @@ import {
   workoutConflict,
   type SessionTheme,
 } from '@/lib/report/theme';
-import { painEasingParts } from '@/lib/report/prescription';
+import { painEasingParts, rehabEasingParts } from '@/lib/report/prescription';
 import type { TrainingLoad } from '@/lib/training-load';
 
 /**
@@ -385,10 +385,14 @@ export function decideAutoFence({
   }
 
   /*
-   * 부위는 근력 날에만, 뻐근한 곳으로 좁히지 않게. 최근 7일에 아팠던 곳도 막는다 — 그 부위의 무거운
-   * 운동이 빠지므로(prescription.ts) 그쪽으로 좁히면 본운동이 빈다.
+   * 부위는 근력 날에만, 뻐근한 곳으로 좁히지 않게. 최근 7일에 아팠던 곳 · 재활 중인 관절(1~3단계)도 막는다 —
+   * 그 부위의 무거운 운동이 빠지므로(prescription.ts) 그쪽으로 좁히면 본운동이 빈다.
    */
-  const blocked = blockedFocuses([...soreParts(today), ...painEasingParts(facts)]);
+  const blocked = blockedFocuses([
+    ...soreParts(today),
+    ...painEasingParts(facts),
+    ...rehabEasingParts(facts),
+  ]);
   const focuses: Record<string, GoalFocusKey[]> = {};
   for (const goal of goals) {
     focuses[goal] = strengthDay

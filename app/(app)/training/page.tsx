@@ -17,7 +17,7 @@ import { summarizeSets, totalVolumeKg } from '@/lib/workout/summarize';
 import { recentAmounts } from '@/lib/report/exercise-recent';
 import { MIN_CANDIDATES } from '@/lib/report/prescription';
 import { DEFAULT_WORKOUT_MINUTES } from '@/lib/report/theme';
-import { Card, PageHeading } from '@/components/ui';
+import { BackLink, Card, PageHeading } from '@/components/ui';
 import { PlanForm } from '@/components/training-forms';
 import type { AiReportBody } from '@/lib/ai/report-prompt';
 import { ExerciseChecklist, type TodayExercise } from './exercise-list';
@@ -25,7 +25,8 @@ import { AddExercise, type PickableExercise } from './add-exercise';
 import { TrainingNote } from './training-note';
 import { josa } from '@/lib/korean';
 import { TrainingSettingsButton } from './settings-button';
-import { TrainingViewSwitch, type TrainingView } from './view-switch';
+import { RememberTrainingApp } from './remember-app';
+import { TrainingHome } from './training-home';
 import { ArmcareTabs, type ArmcareTab } from './armcare-tabs';
 import { ArmcareSection } from './armcare-section';
 import { MechanicsTabs, type MechanicsTab } from './mechanics-tabs';
@@ -36,9 +37,11 @@ import { OpenCheckinButton } from '@/components/notice-bell';
 import { availableParts } from '@/lib/report/today-pick';
 import { exercisesByIds } from '@/lib/library-cache';
 import {
+  TRAINING_HOME_HREF,
   TRAINING_PART_COOKIE,
   TRAINING_PART_HREF,
   readTrainingPart,
+  type TrainingPart,
 } from '@/lib/training-part';
 
 /**
@@ -64,22 +67,24 @@ function now() {
 }
 
 /**
- * 탭 줄 — [트레이닝 | 암케어] 고르개(view-switch.tsx)와 트레이닝 설정.
+ * 앱의 머리 — '‹ 트레이닝'(트레이닝 홈으로) · 큰 제목 · 오른쪽 트레이닝 설정(2026-10-04).
  *
- * 오른쪽 끝에 트레이닝 설정을 붙인다. 홈에도 같은 것이 있지만, 설정을 고치고
- * 싶어지는 순간은 대개 여기다 — 운동 목록을 보다가 "이건 장비가 없어서 못
- * 하는데" 싶을 때. 그때 홈으로 건너갔다 돌아오게 하면 하던 일을 놓친다.
+ * 예전에는 [트레이닝 | 암케어 | 메커니즘] 고르개가 여기 있어 셋이 한 화면의 탭처럼 보였다. 이제 셋은 트레이닝 홈
+ * (training-home.tsx)의 앱 카드에서 들어가는 따로 된 앱이고, 머리에는 돌아가는 길만 둔다. 보고 있는 앱을 쿠키에
+ * 적어 홈이 그 카드를 맨 위에 둔다(remember-app.tsx).
  *
- * 두 탭 모두에 둔다. 지난 기록을 보다가도 "다음부터는 목표를 바꿔야겠다"가
- * 나올 수 있다.
+ * 트레이닝 설정은 운동 · 암케어에 둔다 — 운동 목록을 보다가 "이건 장비가 없어서 못 하는데" 싶을 때 여기서 고친다.
+ * 메커니즘은 장비 · 목표 설정을 읽지 않아 두지 않는다.
  */
-function ViewTabs({
-  current,
+function AppHead({
+  app,
+  title,
   settings,
   returnTo,
 }: {
-  current: TrainingView;
-  settings: {
+  app: TrainingPart;
+  title: string;
+  settings?: {
     trainingLevel: string | null;
     ownedEquipment: string[];
   };
@@ -87,15 +92,21 @@ function ViewTabs({
   returnTo: string;
 }) {
   return (
-    <div className="flex flex-wrap items-center gap-3">
-      <TrainingViewSwitch current={current} />
-      <div className="ml-auto">
-        <TrainingSettingsButton
-          trainingLevel={settings.trainingLevel}
-          ownedEquipment={settings.ownedEquipment}
-          returnTo={returnTo}
-        />
+    <div className="space-y-1">
+      <RememberTrainingApp part={app} />
+      <div className="flex min-h-11 items-center gap-3">
+        <BackLink href={TRAINING_HOME_HREF}>트레이닝</BackLink>
+        {settings && (
+          <div className="ml-auto">
+            <TrainingSettingsButton
+              trainingLevel={settings.trainingLevel}
+              ownedEquipment={settings.ownedEquipment}
+              returnTo={returnTo}
+            />
+          </div>
+        )}
       </div>
+      <PageHeading eyebrow="Training" title={title} />
     </div>
   );
 }
@@ -113,15 +124,20 @@ export default async function TrainingPage({
   /* 예전 [기록] 칸의 주소 — 지난 기록은 이제 홈 캘린더에 있다 */
   if (params.view === 'history') redirect('/today');
   /*
-   * 적힌 칸, 아니면 트레이닝. 아래 탭·메뉴(?view=last)만 마지막으로 본 칸을 연다 —
-   * 그냥 /training 은 늘 운동이다(lib/training-part.ts).
+   * 트레이닝 홈 — 아래 탭 · 메뉴(?view=home, 예전 ?view=last). 앱 카드 셋, 마지막으로 쓴 앱이 맨 위(training-home.tsx).
+   * 그냥 /training 은 늘 운동 앱이다(lib/training-part.ts).
    */
-  const view: TrainingView =
-    params.view === 'last'
-      ? (readTrainingPart((await cookies()).get(TRAINING_PART_COOKIE)?.value) ??
-        'today')
-      : (readTrainingPart(typeof params.view === 'string' ? params.view : null) ??
-        'today');
+  if (params.view === 'home' || params.view === 'last') {
+    return (
+      <TrainingHome
+        user={user}
+        today={today}
+        lastApp={readTrainingPart((await cookies()).get(TRAINING_PART_COOKIE)?.value)}
+      />
+    );
+  }
+  const view: TrainingPart =
+    readTrainingPart(typeof params.view === 'string' ? params.view : null) ?? 'today';
 
   /*
    * 암케어 — 운동 일정과 따로, 그날 몸 상태에 맞춘 루틴과 부위별 보강.
@@ -133,9 +149,9 @@ export default async function TrainingPage({
     const tab: ArmcareTab = params.tab === 'guide' ? 'guide' : 'today';
     return (
       <div className="stack-page">
-        <PageHeading eyebrow="Training" title="암케어" />
-        <ViewTabs
-          current="armcare"
+        <AppHead
+          app="armcare"
+          title="암케어"
           settings={user}
           returnTo={
             tab === 'today'
@@ -149,6 +165,7 @@ export default async function TrainingPage({
           tab={tab}
           today={today}
           focusMuscle={typeof params.muscle === 'string' ? params.muscle : null}
+          openRehab={params.rehab === 'start'}
         />
       </div>
     );
@@ -162,10 +179,9 @@ export default async function TrainingPage({
     const tab: MechanicsTab = params.tab === 'elements' ? 'elements' : 'program';
     return (
       <div className="stack-page">
-        <PageHeading eyebrow="Training" title="메커니즘" />
-        <ViewTabs
-          current="mechanics"
-          settings={user}
+        <AppHead
+          app="mechanics"
+          title="메커니즘"
           returnTo={
             tab === 'program'
               ? '/training?view=mechanics'
@@ -415,9 +431,12 @@ export default async function TrainingPage({
   return (
     <BodyPartsProvider>
       <div className="stack-page">
-        <PageHeading eyebrow="Training" title="트레이닝" />
-
-        <ViewTabs current="today" settings={user} returnTo={TRAINING_PART_HREF.today} />
+        <AppHead
+          app="today"
+          title="트레이닝"
+          settings={user}
+          returnTo={TRAINING_PART_HREF.today}
+        />
 
         {/*
         운동 시작.

@@ -12,7 +12,7 @@
  *   /training               트레이닝 칸 — 늘 운동이다
  *   /training?view=armcare  암케어 칸
  *   /training?view=mechanics 메커니즘 칸
- *   /training?view=last     마지막으로 본 칸 (쿠키, 없으면 트레이닝) — 아래 탭·메뉴만 쓴다
+ *   /training?view=home     트레이닝 홈 — 앱 셋을 카드로(아래 탭·메뉴). 예전 ?view=last 도 여기로
  *
  * 처음에는 그냥 /training 이 마지막 칸을 열게 했다. 그랬더니 운동을 뜻하는 길(운동 판을
  * 마치고 돌아오기, 홈 캘린더의 오늘 운동 …)마다 ?view=today 를 붙여야 했고, 앞으로 누가
@@ -37,8 +37,15 @@ export const TRAINING_PART_HREF: Record<TrainingPart, string> = {
   mechanics: '/training?view=mechanics',
 };
 
-/** 아래 탭·메뉴의 '트레이닝' — 마지막으로 본 칸 (lib/nav.ts) */
-export const TRAINING_LAST_HREF = '/training?view=last';
+/**
+ * 아래 탭·메뉴의 '트레이닝' — 트레이닝 홈(2026-10-04).
+ *
+ * 트레이닝 · 암케어 · 메커니즘을 앱 카드 셋으로 늘어놓고 카드마다 오늘 할 것과 [시작]을 둔다(training-home.tsx).
+ * 사용자분: "불펜로그라는 하나의 앱 안에 높은 퀄리티의 각각의 앱들이 들어 있는 느낌" — 예전에는 마지막으로 본 칸을
+ * 바로 열어 셋이 한 화면의 탭처럼 보였다. 마지막으로 쓴 앱은 홈에서 맨 위 카드가 된다(쿠키는 그대로 쓴다).
+ * 예전 주소 ?view=last 도 홈을 연다.
+ */
+export const TRAINING_HOME_HREF = '/training?view=home';
 
 /** 주소나 쿠키에서 온 값 — 칸 이름이 아니면 null */
 export function readTrainingPart(

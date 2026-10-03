@@ -34,6 +34,7 @@ import {
 } from '@/app/(app)/training/armcare-media';
 import { useAlarm } from '@/components/use-alarm';
 import { nativeCancelAlarm, nativeScheduleAlarm } from '@/lib/native-bridge';
+import { RehabSessionCheck, type RehabCheckInitial } from './rehab-check';
 
 /** 따라 할 운동 하나 — 서버(page.tsx)가 만들어 넘긴다 */
 export type PlayerItem = {
@@ -49,6 +50,8 @@ export type PlayerItem = {
   doneBefore: boolean;
   /** 지금 몸 상태에는 권하지 않는 운동 — 루틴 목록과 같은 규칙(lib/armcare/today.ts) */
   unsafe: boolean;
+  /** 이름 밑 한마디 — 재활 운동의 '가볍게' · '아프지 않은 높이까지'(재활 2편). 없으면 안 그린다 */
+  note?: string | null;
 };
 
 type Clock = { kind: 'hold' | 'rest'; endsAt: number; total: number };
@@ -178,6 +181,7 @@ export function ArmcarePlayer({
   dateKey,
   notice,
   items: initialItems,
+  rehabCheck = null,
 }: {
   title: string;
   backHref: string;
@@ -186,6 +190,11 @@ export function ArmcarePlayer({
   /** 위에 한 번 알릴 것 — 만든 뒤 바뀐 몸 상태, 통증을 남긴 날 */
   notice: string | null;
   items: PlayerItem[];
+  /**
+   * 재활 따라하기(/armcare/play/rehab)면 끝에 3문항을 묻는다(재활 2편 — rehab-check.tsx). 이미 남긴 답이 있으면
+   * initial 로 미리 골라 둔다. 맞춤 · 내 루틴은 null.
+   */
+  rehabCheck?: { initial: RehabCheckInitial } | null;
 }) {
   /*
    * 목록은 처음 받은 것으로 못박는다. 이 화면이 서버에서 새로 그려지면(다 마친 뒤 목록을
@@ -401,8 +410,15 @@ export function ArmcarePlayer({
     const all = count === items.length;
     return (
       <Shell {...shell}>
-        <div className="grid flex-1 place-items-center px-6 text-center">
-          <div className="space-y-4">
+        {/* 재활은 밑에 3문항이 붙어 길어진다 — 가운데 맞춤 대신 위에서부터 굴러가게 */}
+        <div
+          className={
+            rehabCheck
+              ? 'flex-1 overflow-y-auto px-5 py-8 text-center'
+              : 'grid flex-1 place-items-center px-6 text-center'
+          }
+        >
+          <div className={rehabCheck ? 'mx-auto max-w-md space-y-4' : 'space-y-4'}>
             {count > 0 && (
               <span className="finish-pop mx-auto grid h-20 w-20 place-items-center rounded-full bg-sky text-white">
                 <Check className="h-10 w-10" strokeWidth={3} />
@@ -422,6 +438,13 @@ export function ArmcarePlayer({
               {unsaved.length > 0 && unsent === 0 && ' · 기록에 남기는 중…'}
             </p>
             {notSaved}
+            {rehabCheck && count > 0 && (
+              <RehabSessionCheck
+                dateKey={dateKey}
+                settled={unsaved.length === 0}
+                initial={rehabCheck.initial}
+              />
+            )}
             <Link
               href={backHref}
               className="inline-flex rounded-xl bg-sky px-5 py-3 text-sm font-semibold text-white hover:bg-sky-strong"
@@ -487,6 +510,11 @@ export function ArmcarePlayer({
                 {amount}
                 {it.perSide && ' · 좌우 각각'} · {it.sets}세트
               </p>
+              {it.note && (
+                <p className="text-sm font-semibold break-keep text-ink/80">
+                  {it.note}
+                </p>
+              )}
               <SetDots total={it.sets} done={doneSets} />
               {it.unsafe && !done && (
                 <p className="flex items-start gap-1.5 pt-1 text-[13px] leading-relaxed break-keep text-warn">

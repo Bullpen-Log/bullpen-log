@@ -37,6 +37,13 @@ const COLOR = {
   bone: '#ece4d4',
 } as const;
 
+/** 내 팔 지도(최근 2주 기록)의 색 — 근육마다 진하기 0~1 */
+const HEAT = {
+  none: '#f0b860',
+  low: '#a7e3d4',
+  high: '#0d8f7f',
+} as const;
+
 /* 보는 방향 — 모델은 앞이 +Z, 사람의 왼쪽이 +X. 오른팔 기준으로 적고 왼팔이면 X 를 뒤집는다 */
 const VIEWS: Record<MapView, [number, number, number]> = {
   front: [-0.15, 0.12, 1],
@@ -80,20 +87,26 @@ export function MuscleMap3D({
   selection,
   onPick,
   onStatus,
+  heat = null,
 }: {
   side: 'right' | 'left';
   selection: MapSelection;
   onPick: (next: MapSelection) => void;
   onStatus: (status: MapStatus) => void;
+  /**
+   * 내 팔 지도 — 근육마다 최근 2주 기록의 진하기(0~1, lib/armcare/coverage.ts). 주면 아무것도 안 골랐을 때 근육을
+   * 그 진하기로 칠한다(0 은 '안 함' 색). 부위 · 근육을 고르면 예전처럼 고른 것만 켠다(2026-10-04).
+   */
+  heat?: Record<string, number> | null;
 }) {
   const holder = useRef<HTMLDivElement>(null);
   const engine = useRef<Engine | null>(null);
   const [status, setStatus] = useState<MapStatus>('loading');
 
   /* 콜백과 지금 값은 ref 로 든다 — 캔버스는 한 번만 만들고, 누를 때 최신 값을 본다 */
-  const latest = useRef({ selection, side, onPick, onStatus });
+  const latest = useRef({ selection, side, onPick, onStatus, heat });
   useEffect(() => {
-    latest.current = { selection, side, onPick, onStatus };
+    latest.current = { selection, side, onPick, onStatus, heat };
   });
 
   useEffect(() => {
@@ -243,6 +256,10 @@ export function MuscleMap3D({
       /* ── 칠하기 ── */
       const target = new THREE.Color();
       const black = new THREE.Color('#000000');
+      /* 내 팔 지도의 색 — 조금 했으면 옅은 청록, 많이 했으면 진한 청록, 안 했으면 호박색(globals.css --color-app-armcare 계열) */
+      const heatLow = new THREE.Color(HEAT.low);
+      const heatHigh = new THREE.Color(HEAT.high);
+      const heatNone = new THREE.Color(HEAT.none);
       let lastKey = '';
       const apply: Engine['apply'] = (s, arm, animate) => {
         const many = s.muscles?.length ? s.muscles : null;
@@ -274,6 +291,13 @@ export function MuscleMap3D({
            */
           if ((s.muscle || many) && !on && name) color = COLOR.context;
           target.set(color);
+          /* 내 팔 지도 — 아무것도 안 골랐을 때만 근육을 기록의 진하기로 */
+          const heatMap = latest.current.heat;
+          if (heatMap && name && !s.area && !s.muscle && !many) {
+            const v = heatMap[name] ?? 0;
+            if (v <= 0) target.copy(heatNone);
+            else target.copy(heatLow).lerp(heatHigh, Math.min(1, v));
+          }
           e.material.color.copy(target);
           e.material.emissive.copy(on && !ghost ? target : black);
           e.material.emissiveIntensity = on && !ghost
@@ -408,7 +432,7 @@ export function MuscleMap3D({
   /* 고른 것 · 팔이 바뀌면 칠을 다시 한다 */
   useEffect(() => {
     engine.current?.apply(selection, side, true);
-  }, [selection, side, status]);
+  }, [selection, side, status, heat]);
 
   return (
     <div ref={holder} className="relative h-full w-full">

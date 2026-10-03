@@ -1,12 +1,27 @@
 import type { ReactNode } from 'react';
 import { ChevronRight } from 'lucide-react';
-import { visibleExercises } from '@/lib/library-cache';
+import { visibleExercises, type CachedExercise } from '@/lib/library-cache';
 import { availableParts } from '@/lib/report/today-pick';
 import { ARMCARE_CATEGORY, primaryArea } from '@/lib/armcare/anatomy';
 import { throwingSide } from '@/lib/armcare/muscle-map';
 import { loadArmcareToday, notAdvised, type UserForArmcare } from '@/lib/armcare/today';
 import { armcareMinutes } from '@/lib/armcare/routine';
+import { loadArmcareCoverage } from '@/lib/armcare/coverage-load';
+import { toDateKey } from '@/lib/pitch-stats';
 import { loadMyRoutines } from '@/lib/armcare/my-routines-store';
+import {
+  REHAB_CONDITIONS,
+  REHAB_ENABLED,
+  REHAB_STAGES,
+  conditionsFor,
+  rehabAvoid,
+  rehabNotes,
+  rehabTitle,
+  sessionResultText,
+  severityLabel,
+  stageTestFor,
+} from '@/lib/armcare/rehab';
+import type { RehabToday } from '@/lib/armcare/today';
 import { Card } from '@/components/ui';
 import { OpenCheckinButton } from '@/components/notice-bell';
 import { ArmcareToday, WeekDots, type ArmcareTodayItem } from './armcare-today';
@@ -18,6 +33,8 @@ import { SendPendingChecks } from './pending-checks';
 import type { ArmcareTab } from './armcare-tabs';
 import { toArmcareViews } from './armcare-views';
 import { TrainingCheckin } from './training-checkin';
+import { RehabCard, type RehabCardView } from './rehab-card';
+import { RehabStartLine } from './rehab-start';
 
 /**
  * 트레이닝의 암케어 칸 — 서버에서 자료를 모아 두 화면 중 하나를 그린다.
@@ -35,21 +52,29 @@ export async function ArmcareSection({
   tab,
   today,
   focusMuscle = null,
+  openRehab = false,
 }: {
   user: UserForArmcare & { throwingHand: string | null };
   tab: ArmcareTab;
   today: Date;
   /** 루틴의 '근육 위치'로 들어오면 3D 근육 지도가 이 근육을 켠 채로 시작한다 */
   focusMuscle?: string | null;
+  /** 팔 통증 안내의 '재활 프로그램' 줄(?rehab=start)로 들어왔다 — 재활 중이 아니면 시작 시트를 연다 */
+  openRehab?: boolean;
 }) {
   if (tab === 'guide') {
     const [library, mine] = await Promise.all([
       visibleExercises(),
       loadMyRoutines(user.id),
     ]);
-    const views = await toArmcareViews(
-      library.filter((ex) => ex.category === ARMCARE_CATEGORY)
-    );
+    const armcareLib = library.filter((ex) => ex.category === ARMCARE_CATEGORY);
+    const views = await toArmcareViews(armcareLib);
+    /*
+     * 내 팔 지도(2026-10-04) — 최근 2주 암케어 기록으로 3D 를 칠하고, 비어 있는 부위 · 오늘이나 어제의 팔 통증을
+     * 맨 위에 보인다(lib/armcare/coverage-load.ts).
+     */
+    const todayKey = toDateKey(today);
+    const map = await loadArmcareCoverage(user.id, todayKey, library);
     const routines = mine.map((r) => ({
       id: r.id,
       name: r.name,
@@ -63,6 +88,15 @@ export async function ArmcareSection({
           side: throwingSide(user.throwingHand),
           bothHands: user.throwingHand === '양투',
           focusMuscle,
+        }}
+        coverage={{
+          heat: map.coverage.heat,
+          areas: map.coverage.primary,
+          total: map.coverage.total,
+          gaps: map.gaps,
+          allCovered: map.allCovered,
+          dateKey: todayKey,
+          pain: map.pain,
         }}
       />
     );
@@ -87,9 +121,11 @@ export async function ArmcareSection({
       }
     : null;
 
-  /* ── 맞춤 루틴 ── */
+  /* ── 맞춤 루틴 ── 재활 중이면 그 자리에 오늘 재활(재활 2편 — 내 루틴은 그대로) */
   let custom: ReactNode;
-  if (!data.hasCheckinToday) {
+  if (data.rehab) {
+    custom = <RehabCard view={await rehabCardView(data.rehab, data.todayKey, byId)} />;
+  } else if (!data.hasCheckinToday) {
     /*
      * 체크인 먼저 — 운동 일정과 같은 규칙이다. 던진 날·팔 피로·뻐근한 곳을 모르면
      * 회복을 해야 할 날에 강화를 줄 수 있다. 이 자리에서 바로 체크인 창을 연다.
@@ -224,8 +260,31 @@ export async function ArmcareSection({
       <SendPendingChecks />
       <div className="space-y-10">
         <section className="space-y-3">
-          <SectionHead title="맞춤 루틴" desc="몸 상태에 맞춰 앱이 짜 줘요" />
+          {data.rehab ? (
+            <SectionHead
+              title="오늘 재활"
+              desc="아픈 곳에 맞춰 단계별로 · 맞춤 루틴 대신"
+            />
+          ) : (
+            <SectionHead title="맞춤 루틴" desc="몸 상태에 맞춰 앱이 짜 줘요" />
+          )}
           {custom}
+          {/* 들어가는 작은 줄 — 재활 중이 아닐 때만(재활 2편). 오늘 체크인의 아픈 자리 · 정도를 미리 골라 둔다 */}
+          {REHAB_ENABLED && !data.rehab && (
+            <RehabStartLine
+              age={data.facts.profile.age}
+              defaults={{
+                area: data.armPain?.spots[0] ?? null,
+                level:
+                  data.armPain?.level === 1 ||
+                  data.armPain?.level === 2 ||
+                  data.armPain?.level === 3
+                    ? data.armPain.level
+                    : null,
+              }}
+              autoOpen={openRehab}
+            />
+          )}
         </section>
 
         <section className="space-y-3">
@@ -241,6 +300,62 @@ export async function ArmcareSection({
       </div>
     </ArmcareInfoProvider>
   );
+}
+
+/**
+ * 오늘 재활 카드에 그릴 것 — 규칙(lib/armcare/rehab.ts)이 낸 상태 · 세션을 화면 모양으로. 운동은 맞춤 루틴과 같은
+ * 그림(toArmcareViews)이고, 재활 운동은 카테고리가 여럿이라 체크는 rehab.doneToday 로 본다.
+ */
+async function rehabCardView(
+  rehab: RehabToday,
+  dateKey: string,
+  byId: Map<string, CachedExercise>
+): Promise<RehabCardView> {
+  const { program, status, session } = rehab;
+  const inSession = session.items.filter((it) => byId.has(it.exerciseId));
+  const views = await toArmcareViews(
+    inSession.map((it) => byId.get(it.exerciseId)!),
+    new Map(inSession.map((it) => [it.exerciseId, it.sets]))
+  );
+  const items: ArmcareTodayItem[] = inSession.map((it, i) => {
+    const ex = byId.get(it.exerciseId)!;
+    return {
+      area: primaryArea(ex.targetMuscles ?? [])?.key ?? program.area,
+      exercise: views[i],
+      done: rehab.doneToday.has(it.exerciseId),
+      unsafe: false,
+      note: it.note ?? (it.replaces ? `${it.replaces} 대신` : null),
+    };
+  });
+  const today = status.today;
+  return {
+    dateKey,
+    title: rehabTitle(program.area, program.condition),
+    stage: program.stage,
+    stageName: REHAB_STAGES[program.stage].name,
+    severityLabel: severityLabel(program.severity),
+    day: status.day,
+    line: status.line,
+    rest: status.rest != null && !today,
+    today: today ? { result: today.result, text: sessionResultText(today) } : null,
+    items,
+    estimatedMinutes: session.estimatedMinutes,
+    clean: status.gate.clean,
+    cleanNeeded: status.gate.cleanNeeded,
+    elapsed: status.elapsed,
+    minDays: status.minDays,
+    gate: { ready: status.gate.ready, checks: status.gate.checks },
+    goal: REHAB_STAGES[program.stage].goal,
+    notes: [...rehabNotes(program.area, program.condition), ...session.notes],
+    avoid: rehabAvoid(program.area, program.condition),
+    stageTest: stageTestFor(program.area, program.stage),
+    conditionChoices: program.condition
+      ? []
+      : conditionsFor(program.area).map((key) => ({
+          key,
+          label: REHAB_CONDITIONS[key].label,
+        })),
+  };
 }
 
 function SectionHead({ title, desc }: { title: string; desc: string }) {

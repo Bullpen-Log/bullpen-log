@@ -123,6 +123,14 @@
   --color-cat-armcare: #e11d48;
   --color-cat-recovery: #059669;
 
+  /*
+   * 트레이닝 안의 '앱' 셋의 얼굴색(2026-10-04 — 사용자분: "불펜로그 안에 높은 퀄리티의 앱들이 들어 있는 느낌").
+   * 트레이닝 홈의 앱 아이콘 · 시작 단추 · 진행 막대에만 쓴다. 앱 안쪽 화면은 늘 sky 하나다(10-01 '애플처럼').
+   */
+  --color-app-training: #0a84d6;
+  --color-app-armcare: #0d9488;
+  --color-app-mechanics: #7c3aed;
+
   --font-sans:
     'Pretendard Variable', Pretendard, system-ui, -apple-system, 'Malgun Gothic',
     sans-serif;
@@ -269,6 +277,10 @@
   --color-cat-core: #c4b5fd;
   --color-cat-armcare: #fda4af;
   --color-cat-recovery: #6ee7b7;
+
+  --color-app-training: #38a8f0;
+  --color-app-armcare: #2dd4bf;
+  --color-app-mechanics: #a78bfa;
 }
 
 /*

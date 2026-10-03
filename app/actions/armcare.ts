@@ -36,6 +36,10 @@ export async function makeArmcareRoutine(): Promise<{ ok: true } | { error: stri
   if (today.decision.kind === 'rest') {
     return { error: '통증이 기록된 날은 암케어도 쉽니다.' };
   }
+  /* 재활 중에는 맞춤 루틴 자리에 오늘 재활이 선다(재활 2편, lib/armcare/today.ts) — 루틴을 따로 짜지 않는다 */
+  if (today.rehab) {
+    return { error: '재활 중에는 맞춤 루틴 대신 오늘 재활을 해요.' };
+  }
 
   const routine = buildArmcareRoutine({
     decision: today.decision,
