@@ -98,8 +98,11 @@ export function decideArmcare({
    * 하나만 푼다 — 오늘 어깨 · 팔꿈치가 '통증'이고, 그 관절의 아픈 자리를 골랐고, '던질 때만' 아프고,
    * 만 15세 이상(나이를 모르면 그대로)이면 통증 루틴. 투구 계획은 그래도 멈춰 있다(던지지 않는다).
    * 자리는 오늘 '통증'인 관절의 것만 센다 — 허리만 아픈 날에 지난 팔꿈치 자리가 루틴을 열지 않게.
+   *
+   * 재활 때문에 멈춘 투구 계획(plan.rehab)은 통증 쉬기가 아니다 — 재활 중에는 맞춤 루틴 자리에 오늘 재활이 서고
+   * (lib/armcare/today.ts), 이 결정은 내 루틴의 '권하지 않는 운동' 표시에만 쓰인다.
    */
-  if (plan.halted) {
+  if (plan.halted && !plan.rehab) {
     const spots = armPainSpotsFor(facts.condition.today, armPain?.spots ?? []);
     const level = armPain?.level ?? null;
     if (canDoPainRoutine({ spots, level, age: facts.profile.age })) {

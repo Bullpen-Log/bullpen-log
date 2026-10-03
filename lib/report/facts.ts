@@ -22,6 +22,8 @@ import {
   type CheckinPartKey,
   type CheckinParts,
 } from '@/lib/checkin';
+/* 타입만 — 재활 규칙(운동 목록 등)은 리포트 쪽에 실리지 않게 값은 부르는 쪽(gather.ts)이 만들어 넘긴다 */
+import type { RehabFacts } from '@/lib/armcare/rehab';
 
 /**
  * 리포트에 쓰이는 모든 수치를 한곳에 모은다.
@@ -158,6 +160,16 @@ export type ReportFacts = {
      * today 에서 바로 읽는다. 이 칸이 생기기 전에 저장된 facts 에는 없다 — 없으면 빈 목록으로 본다.
      */
     painRecentParts?: CheckinPartKey[];
+    /**
+     * 진행 중인 재활(lib/armcare/rehab.ts 의 rehabFacts) — 없으면 null. 투구 계획이 이것을 보고 멈춘다(plan.ts).
+     * 이 칸이 생기기 전에 저장된 facts 에는 없다 — 없으면 재활이 없는 것으로 본다.
+     */
+    rehab?: RehabFacts | null;
+    /**
+     * 재활 1~3단계의 관절(어깨 넷 → shoulder, 팔꿈치 넷 → elbow). 웨이트가 '최근 통증 부위'와 같은 규칙으로
+     * 그 부위의 무거운 운동을 빼고 근력 날을 피한다(prescription.ts · theme.ts). 4단계는 풀어서 빈 목록이다.
+     */
+    rehabParts?: CheckinPartKey[];
     /** 최근 메모에서 통증으로 보이는 표현이 걸렸는가 */
     painWordsInMemo: string[];
     /** 최근 7일 평균 컨디션 (1~10, 높을수록 좋음) */
@@ -205,6 +217,7 @@ export function buildFacts({
   checkins,
   memos,
   baselineDailyLoad = null,
+  rehab = null,
   today = new Date(),
 }: {
   nickname: string;
@@ -216,6 +229,8 @@ export function buildFacts({
   memos: MemoNote[];
   /** 가입 문진으로 추정한 하루 평균 부하. 부하 지수의 시작점이 된다. */
   baselineDailyLoad?: number | null;
+  /** 진행 중인 재활 — 없으면 null(lib/armcare/rehab.ts 의 rehabFacts 로 만든다) */
+  rehab?: RehabFacts | null;
   today?: Date;
 }): ReportFacts {
   const asOf = toDateKey(today);
@@ -317,6 +332,8 @@ export function buildFacts({
       painRecentParts: CHECKIN_PARTS.filter((p) =>
         recentCheckins.some((c) => c.date !== asOf && c[p.key] === '통증')
       ).map((p) => p.key),
+      rehab,
+      rehabParts: rehab && rehab.stage <= 3 ? [rehab.joint] : [],
       painWordsInMemo: findPainKeywords(memos),
       avgCondition: conditions.length
         ? conditions.reduce((a, b) => a + b, 0) / conditions.length

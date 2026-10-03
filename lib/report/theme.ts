@@ -8,6 +8,7 @@ import {
   painEasingParts,
   painPartsToday,
   painStateUnknown,
+  rehabEasingParts,
 } from '@/lib/report/prescription';
 import {
   findFocus,
@@ -398,20 +399,34 @@ export function painRecoveryReason(facts: ReportFacts, plan: PitchPlan): string 
 /**
  * 통증 때문에 뺀 것을 일정 이유 맨 앞에 붙이는 말 — 아픈 곳이 없으면 빈 문자열.
  *
- * 오늘 아픈 곳이 있으면 그것을, 없으면 최근 7일에 아팠던 곳을 말한다. 날을 고르는 곳(steerAroundPain)과
- * 컨디셔닝 날의 이유(conditioningDay)가 같이 쓴다 — 이유를 새로 쓰는 곳에서 이 말이 빠지면 안 된다.
+ * 오늘 아픈 곳이 있으면 그것을, 없으면 최근 7일에 아팠던 곳과 재활 중인 관절(1~3단계)을 말한다. 날을 고르는 곳
+ * (steerAroundPain)과 컨디셔닝 날의 이유(conditioningDay)가 같이 쓴다 — 이유를 새로 쓰는 곳에서 이 말이 빠지면 안 된다.
  */
 function painNote(facts: ReportFacts): { parts: CheckinPartKey[]; note: string } {
   const today = painPartsToday(facts);
-  const parts = today.length > 0 ? today : painEasingParts(facts);
+  if (today.length > 0) {
+    const labels = today.map(checkinPartLabel).join('·');
+    return {
+      parts: today,
+      note: `${labels} 통증이 있어 그 부위를 쓰는 운동은 모두 뺐어요. 하다가 아프면 바로 멈추세요. `,
+    };
+  }
+  const recent = painEasingParts(facts);
+  const rehab = rehabEasingParts(facts).filter((key) => !recent.includes(key));
+  const parts = [...recent, ...rehab];
   if (parts.length === 0) return { parts, note: '' };
-  const labels = parts.map(checkinPartLabel).join('·');
+  const why = [
+    ...(recent.length > 0
+      ? [`최근 ${recent.map(checkinPartLabel).join('·')} 통증`]
+      : []),
+    ...(rehab.length > 0 ? [`${rehab.map(checkinPartLabel).join('·')} 재활 중`] : []),
+  ].join(' · ');
   return {
     parts,
     note:
-      today.length > 0
-        ? `${labels} 통증이 있어 그 부위를 쓰는 운동은 모두 뺐어요. 하다가 아프면 바로 멈추세요. `
-        : `최근 ${labels} 통증이 있어 그 부위의 무거운 운동은 뺐어요. `,
+      rehab.length > 0
+        ? `${why}이라 그 부위의 무거운 운동은 뺐어요. `
+        : `${why}이 있어 그 부위의 무거운 운동은 뺐어요. `,
   };
 }
 
