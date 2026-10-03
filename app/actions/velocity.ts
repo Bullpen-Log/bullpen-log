@@ -77,14 +77,18 @@ export type SaveSessionInput = {
   fovDeg: number;
   source: 'camera' | 'file';
   device: string | null;
-  /** 무엇을 어디서 — 'pitch' · 'hit', 'behind-pitcher' · 'behind-catcher', 네트 유무 */
-  mode: string;
+  /** 어디서 — 'behind-pitcher' · 'behind-catcher', 네트 유무(타구 측정은 2026-10-03 뺐다 — DB 의 mode 칸은 늘 'pitch') */
   cameraPos: string;
   net: boolean;
-  /** 관리자의 '정확도 보정용 저장' — 켜면 공마다 영상 클립을 올릴 수 있다(관리자만 켜진다) */
+  /** 관리자의 '정확도 보정용 저장' — 보정 자료로 표시한다(관리자만 켜진다). 영상 클립은 이것과 상관없이 모든 세션에서 올린다 */
   forCalibration?: boolean;
   /** 자동 감지 모드였나 */
   autoMode?: boolean;
+  /**
+   * 스피드건 보정을 적용할까(측정 화면 설정). false 면 카메라 값 그대로 저장하고 세션의 보정식은 ×1 +0(짝 0) —
+   * 예전에는 설정을 꺼도 서버가 늘 보정해 저장했다(김민 2026-09-30). 없으면(관리자 영상 파일 · 옛 앱) 적용.
+   */
+  useCal?: boolean;
   /** 그때 쓴 초점거리(원본 긴 변 기준 픽셀) · 렌즈 보정 정보 · 포수 뒤 릴리스 거리 · 원본 프레임 크기 */
   focalPx?: number | null;
   lensCal?: unknown;
@@ -150,9 +154,18 @@ export async function loadCalibration(): Promise<{ fit: CalFit; pairs: CalPair[]
     },
     orderBy: { createdAt: 'desc' },
     take: CAL_PAIR_LIMIT,
-    select: { rawKmh: true, gunKmh: true },
+    select: { rawKmh: true, gunKmh: true, analysis: true },
   });
-  const pairs = rows.map((r) => ({ measured: r.rawKmh, gun: r.gunKmh as number }));
+  /*
+   * 밝은 배경 앞의 어두운 공(모델 1.8.0 의 두 번째 길 — analysis.polarity 'dark' · 'mixed')은 다른 자로 쟀다(확인 전) — 짝에서 뺀다.
+   * 밖에서 스피드건 짝이 쌓이면 이 공들만 따로 맞춰 본다.
+   */
+  const pairs = rows
+    .filter((r) => {
+      const pol = (r.analysis as { polarity?: unknown } | null)?.polarity;
+      return pol !== 'dark' && pol !== 'mixed';
+    })
+    .map((r) => ({ measured: r.rawKmh, gun: r.gunKmh as number }));
   return { fit: fitCalibration(pairs), pairs };
 }
 
@@ -178,7 +191,7 @@ export async function saveVelocitySession(
   const fovDeg = num(input.fovDeg, 30, 120);
   if (fovDeg == null) return { ok: false, error: '화각이 올바르지 않습니다.' };
 
-  const mode = input.mode === 'hit' ? 'hit' : 'pitch';
+  const mode = 'pitch';
   const cameraPos =
     input.cameraPos === 'behind-catcher' ? 'behind-catcher' : 'behind-pitcher';
 
@@ -189,8 +202,9 @@ export async function saveVelocitySession(
     return { ok: false, error: `한 번에 ${MAX_PITCHES}구까지 저장할 수 있습니다.` };
   }
 
-  /* 보정식은 저장하는 순간의 짝으로 — 세션에 박아 두어 나중에 되짚는다 */
-  const { fit } = await loadCalibration();
+  /* 보정식은 저장하는 순간의 짝으로 — 세션에 박아 두어 나중에 되짚는다. 보정을 껐으면 ×1 +0 */
+  const { fit: learned } = await loadCalibration();
+  const fit = input.useCal === false ? { scale: 1, offset: 0, n: 0 } : learned;
 
   const pitches: Array<
     Omit<SavePitchInput, keyof PitchEdit | 'analysis' | 'autoDetected' | 'manual'> &
@@ -382,6 +396,7 @@ export async function deleteVelocityPitch(id: string): Promise<VelocityActionRes
       id: true,
       sessionId: true,
       clipPath: true,
+      wideClipPath: true,
       session: { select: { date: true } },
     },
   });
@@ -445,12 +460,9 @@ export async function createClipUpload(
   }
   const row = await prisma.velocityPitch.findFirst({
     where: { id: pitchId, userId: user.id },
-    select: { id: true, session: { select: { forCalibration: true } } },
+    select: { id: true },
   });
   if (!row) return { ok: false, error: '공을 찾을 수 없습니다.' };
-  if (!row.session.forCalibration) {
-    return { ok: false, error: '정확도 보정용 저장을 켠 세션이 아닙니다.' };
-  }
   const ext = /mp4/.test(mime) ? 'mp4' : /quicktime/.test(mime) ? 'mov' : 'webm';
   try {
     const target = await createUploadTarget(user.id, `clip.${ext}`);
@@ -463,7 +475,7 @@ export async function createClipUpload(
   }
 }
 
-/** 올린 클립의 경로 · 크기 · 길이 · 던진 시각을 공에 적는다. 이미 있던 클립은 지운다 */
+/** 올린 클립의 경로 · 크기 · 길이 · 던진 시각을 공에 적는다. 이미 있던 클립은 지운다. kind 'wide' 면 광각 영상 칸에 */
 export async function attachClip(
   pitchId: string,
   info: {
@@ -472,7 +484,8 @@ export async function attachClip(
     sec: number | null;
     mime: string;
     eventSec: number | null;
-  }
+  },
+  kind: 'main' | 'wide' = 'main'
 ): Promise<VelocityActionResult> {
   const user = await getCurrentUser();
   if (!user) return { ok: false, error: '로그인이 필요합니다.' };
@@ -484,25 +497,37 @@ export async function attachClip(
     select: {
       id: true,
       clipPath: true,
-      session: { select: { date: true, forCalibration: true } },
+      wideClipPath: true,
+      session: { select: { date: true } },
     },
   });
   if (!row) return { ok: false, error: '공을 찾을 수 없습니다.' };
-  if (!row.session.forCalibration) {
-    return { ok: false, error: '정확도 보정용 저장을 켠 세션이 아닙니다.' };
-  }
+  const bytes = Math.round(num(info.bytes, 0, MAX_VIDEO_BYTES) ?? 0);
+  const sec = optional(info.sec, 0, 600);
+  const mime = String(info.mime ?? '').slice(0, 80) || null;
+  const eventSec = optional(info.eventSec, 0, 600);
+  const wide = kind === 'wide';
   await prisma.velocityPitch.update({
     where: { id: pitchId },
-    data: {
-      clipPath: path,
-      clipBytes: Math.round(num(info.bytes, 0, MAX_VIDEO_BYTES) ?? 0),
-      clipSec: optional(info.sec, 0, 600),
-      clipMime: String(info.mime ?? '').slice(0, 80) || null,
-      clipEventSec: optional(info.eventSec, 0, 600),
-    },
+    data: wide
+      ? {
+          wideClipPath: path,
+          wideClipBytes: bytes,
+          wideClipSec: sec,
+          wideClipMime: mime,
+          wideClipEventSec: eventSec,
+        }
+      : {
+          clipPath: path,
+          clipBytes: bytes,
+          clipSec: sec,
+          clipMime: mime,
+          clipEventSec: eventSec,
+        },
   });
-  if (row.clipPath && row.clipPath !== path) {
-    await deleteVideos([row.clipPath]).catch(() => undefined);
+  const old = wide ? row.wideClipPath : row.clipPath;
+  if (old && old !== path) {
+    await deleteVideos([old]).catch(() => undefined);
   }
   revalidateDay(row.session.date.toISOString().slice(0, 10));
   return { ok: true };

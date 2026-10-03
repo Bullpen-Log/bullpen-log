@@ -157,6 +157,7 @@ export async function adminDeleteVelocityPitch(id: string): Promise<AdminActionR
       id: true,
       sessionId: true,
       clipPath: true,
+      wideClipPath: true,
       session: { select: { date: true } },
     },
   });
@@ -184,18 +185,24 @@ export async function adminDeleteVelocitySession(
   return { ok: true };
 }
 
-/** 공의 영상 클립만 지운다 — 공과 잰 값은 남긴다 */
+/** 공의 영상 클립만 지운다(일반 · 광각 둘 다) — 공과 잰 값은 남긴다 */
 export async function adminDeleteClip(pitchId: string): Promise<AdminActionResult> {
   if (!(await requireAdminUser())) return NOT_ADMIN;
 
   const row = await prisma.velocityPitch.findUnique({
     where: { id: pitchId },
-    select: { id: true, clipPath: true, session: { select: { date: true } } },
+    select: {
+      id: true,
+      clipPath: true,
+      wideClipPath: true,
+      session: { select: { date: true } },
+    },
   });
   if (!row) return { ok: false, error: '공을 찾을 수 없습니다.' };
-  if (!row.clipPath) return { ok: false, error: '이 공에는 클립이 없습니다.' };
+  const clips = [row.clipPath, row.wideClipPath].filter((p): p is string => !!p);
+  if (!clips.length) return { ok: false, error: '이 공에는 클립이 없습니다.' };
 
-  await deleteVideos([row.clipPath]).catch(() => undefined);
+  await deleteVideos(clips).catch(() => undefined);
   await prisma.velocityPitch.update({
     where: { id: pitchId },
     data: {
@@ -204,6 +211,11 @@ export async function adminDeleteClip(pitchId: string): Promise<AdminActionResul
       clipSec: null,
       clipMime: null,
       clipEventSec: null,
+      wideClipPath: null,
+      wideClipBytes: null,
+      wideClipSec: null,
+      wideClipMime: null,
+      wideClipEventSec: null,
     },
   });
   revalidateAll(row.session.date.toISOString().slice(0, 10));

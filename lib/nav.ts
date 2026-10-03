@@ -203,7 +203,7 @@ export const NAV_GROUPS: NavGroup[] = [
  *
  * 링크처럼 생겼지만 화면으로 넘어가지 않는다 — 누르면 PC 와 같은 사이드바가
  * 옆에서 나온다(components/app-shell.tsx 의 MobileTabs). 목록에서 이 자리를
- * 알아보는 표시로만 쓴다.
+ * 알아보는 표시로만 쓴다. /more 화면은 지웠다 — 그 주소로 오면 홈으로(next.config.ts).
  */
 export const MORE_HREF = '/more';
 
@@ -266,16 +266,3 @@ export function visibleGroups(isAdmin: boolean, isNative = false): NavGroup[] {
   })).filter((g) => g.items.length > 0);
 }
 
-/**
- * /more 화면용 목록.
- *
- * 하단 "더보기"는 이제 사이드바를 열어서 이 화면으로 오는 길은 없다. 주소를
- * 저장해 둔 사람을 위해 화면만 남겨 둔다. 하단 탭에 이미 있는 항목은 빼서
- * 같은 화면에 두 번 나오지 않게 한다.
- */
-export function moreGroups(isAdmin: boolean, isNative = false): NavGroup[] {
-  const inTabs = new Set(MOBILE_TABS.map((t) => t.href));
-  return visibleGroups(isAdmin, isNative)
-    .map((g) => ({ ...g, items: g.items.filter((i) => !inTabs.has(i.href)) }))
-    .filter((g) => g.items.length > 0);
-}

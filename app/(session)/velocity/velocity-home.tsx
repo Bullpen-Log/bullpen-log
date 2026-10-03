@@ -26,12 +26,10 @@ import type { VelocityHistoryItem } from '@/components/velocity/session-types';
 export function VelocityHome({
   history,
   calibration,
-  isAdmin,
   today,
 }: {
   history: VelocityHistoryItem[];
   calibration: CalFit;
-  isAdmin: boolean;
   today: string;
 }) {
   const unit = useSpeedUnit();
@@ -51,7 +49,6 @@ export function VelocityHome({
         <h1 className="text-heading text-base">구속 측정</h1>
         <VelocitySettingsButton
           calibration={calibration}
-          isAdmin={isAdmin}
           label="구속 측정 설정"
           className="inline-flex h-10 w-10 items-center justify-center rounded-lg text-sky transition-colors hover:bg-sky-tint [&>svg]:h-5 [&>svg]:w-5"
         />
@@ -71,7 +68,6 @@ export function VelocityHome({
               <p className="mb-2 text-xs font-medium text-muted">지난 설정 — 시작하면 그대로 쓸지 물어요</p>
               <SetupSummaryRow
                 sessionType={stored.sessionType}
-                mode={stored.mode}
                 cameraPos={stored.cameraPos}
                 net={stored.net}
               />

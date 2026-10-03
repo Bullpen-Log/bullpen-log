@@ -514,12 +514,19 @@ model VelocityPitch {
   /// 같이 잰 스피드건 값(km/h) — 보정 자료
   gunKmh       Float?
   memo         String?
-  /// 영상 클립(저장소 경로 · 바이트 · 길이(초) · MIME · 클립 안에서 공이 던져진 시각(초)) — 보정용 저장일 때만
+  /// 영상 클립(저장소 경로 · 바이트 · 길이(초) · MIME · 클립 안에서 공이 던져진 시각(초)) — 모든 세션(2026-10-03 부터)
   clipPath     String?
   clipBytes    Int?
   clipSec      Float?
   clipMime     String?
   clipEventSec Float?
+  /// 같은 공의 광각 카메라 영상 — 아이폰 앱이 일반 · 광각을 함께 찍을 때(설정 '광각 영상도 같이 저장'). 칸 뜻은 위 clip 과 같다.
+  /// 측정은 일반 카메라로 하고 광각은 넓게 보는 기록이라, 스트라이크 존을 겹치지 않는다(화각이 다르다).
+  wideClipPath String?
+  wideClipBytes Int?
+  wideClipSec Float?
+  wideClipMime String?
+  wideClipEventSec Float?
   /// 엔진이 본 자료(관측 궤적 · 분석 해상도 · 초점거리 · 맞음새 · 첫/끝 속도 …) — 영상 없이도 다시 맞춰 볼 수 있게
   analysis     Json?
   /// 자동 감지로 잡힌 공인가(false = 수동)
@@ -1013,11 +1020,9 @@ model PatchNote {
 model NutritionProfile {
   id           String   @id @default(uuid())
   userId       String   @unique
-  /// 더는 읽지도 쓰지도 않는다 — 성별은 계정(User.sex)으로 옮겼다(2026-09-26).
-  /// 옛 배포가 아직 이 칸을 읽을 수 있어 바로 지우지 않는다. 새 코드가 배포된 뒤
-  /// 따로 지운다(물 칸을 뺀 것과 같은 두 단계). 스키마에서 먼저 빼면 다음
-  /// migrate diff 가 DROP COLUMN 을 만들어 버리니, 지울 때까지 여기 둔다.
-  sex          String?
+  // 옛 성별 칸(sex)을 스키마에서 뺐다(2026-10-03, 1단계) — 성별은 계정(User.sex)에 있다. DB 의 칸은 아직 남아 있고,
+  // 이 코드가 배포된 뒤 마이그레이션으로 지운다(2단계). 그 사이 migrate diff 를 돌리면 DROP COLUMN "sex" 가 따라 나온다 —
+  // 그 줄은 금윤호가 2단계로 따로 올리니 빼고 쓴다(HANDOFF.md).
   /// 'gain' 증량 · 'maintain' 유지 · 'lose' 감량
   goal         String   @default("maintain")
   /// 운동을 뺀 평소 움직임: 'low' · 'mid' · 'high'. 운동은 그날 기록으로 따로 더한다.
@@ -1215,4 +1220,88 @@ model VelocityCalibResult {
 
   @@index([runId])
   @@index([pitchId])
+}
+
+/**
+ * 구속 측정 — 엔진 개발용 녹화(관리자). 측정 없이 찍은 원본 영상이다(2026-10-03 사용자: "밖에서 하나도 안 쟀다 — 왜 안 됐는지
+ * 알려면 측정이 안 돼도 영상을 찍게"). 저장소가 파일 하나 50MB 라 30초 남짓 조각(VelocityRecordingPart)으로 겹쳐 찍어 올린다.
+ * 관리자가 구속 측정 관리자에서 공마다 범위를 잡아 스피드건 값을 적는다(VelocityRecordingCut). 사용자 보정식에는 섞지 않는다.
+ */
+model VelocityRecording {
+  id          String   @id @default(uuid())
+  /// 찍은 관리자
+  userId      String
+  /// 찍은 날(한국 날짜) — 탐색기 폴더
+  date        DateTime @db.Date
+  /// 'recording'(찍는 중 · 끊김) · 'done'(멈춤 단추로 끝냄)
+  status      String   @default("recording")
+  /// 처음 조각 시작부터 마지막 조각 끝까지(초)
+  durationSec Float?
+  /// 카메라 · 설정(라벨 · 크기 · fps · 화각 · 렌즈 보정 · 카메라 위치 · 네트 · 존 · 형식 · 비트레이트 · 모델 버전)
+  meta        Json?
+  memo        String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  parts VelocityRecordingPart[]
+  cuts  VelocityRecordingCut[]
+
+  @@index([userId, date])
+  @@index([date])
+}
+
+/// 녹화 조각 하나 — 저장소 파일 하나. 앞 조각과 몇 초 겹친다(공 하나가 조각 사이에 걸려도 어느 한 조각에 다 들어가게)
+model VelocityRecordingPart {
+  id          String   @id @default(uuid())
+  recordingId String
+  /// 0부터
+  index       Int
+  path        String
+  bytes       Int
+  mime        String
+  /// 녹화 시작에서 이 조각이 시작한 때(초)
+  offsetSec   Float
+  durationSec Float?
+  createdAt   DateTime @default(now())
+
+  recording VelocityRecording      @relation(fields: [recordingId], references: [id], onDelete: Cascade)
+  cuts      VelocityRecordingCut[]
+
+  @@unique([recordingId, index])
+}
+
+/// 녹화에서 잘라 낸 공 하나 — 파일을 자르지 않고 조각 안의 범위(초)만 적는다. 다시 잴 때 그 범위만 엔진에 넘긴다
+model VelocityRecordingCut {
+  id          String    @id @default(uuid())
+  recordingId String
+  partId      String
+  /// 조각 파일 안의 시작 · 끝(초)
+  startSec    Float
+  endSec      Float
+  /// 손에서 떠난 때(초, 조각 파일 기준) — 표시한 자리
+  eventSec    Float?
+  /// 스피드건 값(km/h)
+  gunKmh      Float?
+  /// 구종 키(lib/velocity-meta.ts)
+  pitchType   String?
+  memo        String?
+  /// 보정 통계에서 뺄까
+  excluded    Boolean   @default(false)
+  /// 마지막으로 잰 값 — 재지 못했으면 ok false · reject 에 까닭
+  ok          Boolean?
+  rawKmh      Float?
+  releaseKmh  Float?
+  errorKmh    Float?
+  reject      String?
+  engineVersion String?
+  measuredAt  DateTime?
+  analysis    Json?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  recording VelocityRecording     @relation(fields: [recordingId], references: [id], onDelete: Cascade)
+  part      VelocityRecordingPart @relation(fields: [partId], references: [id], onDelete: Cascade)
+
+  @@index([recordingId])
+  @@index([partId])
 }

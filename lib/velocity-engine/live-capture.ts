@@ -16,6 +16,12 @@ import {
   type MeterStatus,
 } from './live-meter.ts';
 import { canvasLuma, rotateLuma } from './live-pixels.ts';
+import {
+  DEFAULT_CAM_MODE,
+  webCamOptions,
+  type CamMode,
+  type CamModeOption,
+} from '../velocity-camera-mode.ts';
 import type {
   AnalyzeWorkerOut,
   LiveSettings,
@@ -287,6 +293,23 @@ export class LiveCapture {
 
   setNet(net: boolean) {
     this.net = net;
+  }
+
+  /** 고른 화질 · 프레임(lib/velocity-camera-mode.ts) — 켜기 전에 건다. null 이면 1080p · 60fps 를 청한다 */
+  private mode: CamMode | null = null;
+  setMode(mode: CamMode | null) {
+    this.mode = mode;
+  }
+
+  /** 켜진 카메라의 영상 흐름 — 엔진 개발용 녹화(lib/velocity-recorder.ts)가 같은 흐름을 찍는다. 꺼져 있으면 null */
+  getStream(): MediaStream | null {
+    return this.stream;
+  }
+
+  /** 이 카메라로 고를 수 있는 화질 — 켠 뒤에 안다(브라우저가 알려 주는 범위로 짐작) */
+  private options: CamModeOption[] = [];
+  getModeOptions(): CamModeOption[] {
+    return this.options;
   }
 
   /** 수동 모드 — 공 하나를 재면 다시 기다리지 않고 '준비됨'으로 돌아간다(단추를 눌러야 다음 공) */
@@ -657,11 +680,14 @@ export class LiveCapture {
      * 1080×1080 이 와서 화각이 어긋나 96km/h 공이 52.5km/h 로 나왔다(2026-09-30 브라우저 시험대). 'none' 이면 카메라 고유
      * 크기(1080×1920) 그대로 준다. 모르는 브라우저는 이 제약을 무시한다.
      */
+    /* 고른 화질 · 프레임이 있으면 그것(측정 화면 오른쪽 위 카메라 정보에서 고름 — 2026-10-03 사용자) */
+    const mode = this.mode ?? DEFAULT_CAM_MODE;
+    const longSide = Math.round((mode.short * 16) / 9);
     const wanted = {
       facingMode: { ideal: 'environment' },
-      width: { ideal: 1920 },
-      height: { ideal: 1080 },
-      frameRate: { ideal: 60 },
+      width: { ideal: longSide },
+      height: { ideal: mode.short },
+      frameRate: { ideal: mode.fps },
       resizeMode: 'none',
     } as MediaTrackConstraints;
     let stream: MediaStream;
@@ -739,9 +765,9 @@ export class LiveCapture {
       try {
         await track.applyConstraints({
           facingMode: { ideal: 'environment' },
-          width: { ideal: portrait ? 1080 : 1920 },
-          height: { ideal: portrait ? 1920 : 1080 },
-          frameRate: { ideal: 60 },
+          width: { ideal: portrait ? mode.short : longSide },
+          height: { ideal: portrait ? longSide : mode.short },
+          frameRate: { ideal: mode.fps },
           resizeMode: 'none',
         } as MediaTrackConstraints);
         for (
@@ -788,6 +814,17 @@ export class LiveCapture {
     if (this.clipsOn) this.startClipLoop();
     const s = track?.getSettings?.() as
       (MediaTrackSettings & { frameRate?: number }) | undefined;
+    let caps: MediaTrackCapabilities | null = null;
+    try {
+      caps = track?.getCapabilities?.() ?? null;
+    } catch {
+      caps = null;
+    }
+    this.options = webCamOptions(caps, {
+      width: this.sourceWidth,
+      height: this.sourceHeight,
+      fps: typeof s?.frameRate === 'number' ? s.frameRate : null,
+    });
     return {
       width: this.sourceWidth,
       height: this.sourceHeight,

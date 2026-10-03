@@ -1,7 +1,10 @@
 import {
+  backgroundTable,
   buildBackground,
+  buildDarkBackground,
   findMovedBlobs,
   trackBall,
+  type BackgroundTable,
   type FrameBlobs,
 } from './detect.ts';
 import {
@@ -28,7 +31,7 @@ import {
   type MeasureResult,
   type MeasureSuccess,
 } from './measure.ts';
-import { measureLimb, blurCutPx, type LimbFailure, type LumaTransfer } from './limb.ts';
+import { measureLimb, measureLimbPolar, blurCutPx, type LimbFailure, type LumaTransfer } from './limb.ts';
 
 export type { LumaTransfer } from './limb.ts';
 
@@ -63,6 +66,10 @@ export type { Approach } from './measure.ts';
  *    빌린 대비 · 흰 천 때문에 장면마다 1.3~1.7% 흔들렸고, 윤곽은 0.6% 였다. 면적은 윤곽의 첫 어림과 검사에만
  *    쓴다 — 두 자는 배율이 달라(면적 ≈ 윤곽 × 0.92, 영상마다 0.91~0.95) 한 궤적에 섞지 않는다. 윤곽을 못 잰
  *    장면은 빼고, 모자라면 거부한다(말없이 면적으로 돌아가지 않는다).
+ * 5. (2026-10-03, 극성) 1~4 의 길(밝아진 곳만 보는 감지 · 밝은 공의 윤곽)로 못 쟀으면 **두 번째 길**로 한 번 더 잰다 —
+ *    밝은 하늘 · 해 받은 벽 앞에서는 공이 배경보다 어두울 수 있다(밖에서 투수 뒤로 찍으면 공이 하늘 앞에서 출발한다).
+ *    어두워진 곳도 보고(detect.ts '밝은 배경'), 지름은 화소마다 극성을 가려 '보정 밝기의 밝은 공이었다면'으로 다시 담아
+ *    잰다(limb.ts measureLimbPolar). 예전 길로 잰 공은 한 자리도 바뀌지 않는다('PolarBackground' 설명).
  */
 
 /** 아이폰 후면 메인 카메라의 대략적인 가로 화각(도) */
@@ -114,6 +121,11 @@ export type AnalyzeFramesInput = {
   focalPx?: number;
   /** 카메라가 얼마나 흔들렸는지(픽셀). 비우면 여기서 잰다 */
   shakePx?: number;
+  /**
+   * 장면마다 귀퉁이 블록 평균(cornerMeans) — frames 와 같은 차례. 흔들림을 재며 이미 셌으면(실시간, liveAnalysisInput) 넘겨
+   * 노출 치우침을 잴 때 다시 세지 않는다. 값은 같다.
+   */
+  frameCornerMeans?: Float64Array[];
   /** 공이 멀어지나(투수 뒤, 기본) 다가오나(포수 뒤) */
   approach?: Approach;
   /**
@@ -171,6 +183,11 @@ export type AnalyzeFramesInput = {
   exposureBlurSigmaPerPx?: number;
   /** 믿음의 상한 — 'low' 면 값은 내되 '낮음(참고용)'. 좋은 조건 밖의 카메라 실시간(live-meter.ts liveConditions) */
   confidenceCap?: 'medium' | 'low';
+  /**
+   * 밝은 배경 앞의 어두운 공도 찾나(아래 '두 번째 길 — 극성') — 기본 true. 예전 길(밝아진 곳만)로 못 쟀을 때만 돈다.
+   * 시험용으로 false 면 예전 길만.
+   */
+  polarity?: boolean;
 };
 
 /** 공기저항 상수 — 정의와 설명은 geometry.ts */
@@ -286,20 +303,60 @@ export function cornerShift(
   width: number,
   height: number
 ): number {
-  const sum = [0, 0, 0, 0];
-  const count = [0, 0, 0, 0];
-  eachCornerBlock(width, height, (x0, y0, corner) => {
-    sum[corner] += Math.abs(
-      blockMean(curr, width, x0, y0) - blockMean(prev, width, x0, y0)
-    );
-    count[corner]++;
-  });
-  const means = sum
-    .map((s, i) => (count[i] ? s / count[i] : null))
-    .filter((m): m is number => m != null)
-    .sort((a, b) => a - b);
-  if (means.length === 0) return 0;
-  return means[Math.min(1, means.length - 1)];
+  return cornerShiftOfMeans(
+    cornerMeans(prev, width, height),
+    cornerMeans(curr, width, height)
+  );
+}
+
+/**
+ * 귀퉁이 블록 평균들(eachCornerBlock 의 차례 — 귀퉁이 0 의 블록들, 1, 2, 3). 같은 장면을 여러 번 견줄 때(흔들림은 앞뒤 장면,
+ * 노출은 같은 배경과 장면마다) 한 번만 센다 — 블록 평균은 같은 식이라 값이 예전과 똑같다(2026-10-03, 실시간 계산 시간).
+ */
+export function cornerMeans(
+  a: ArrayLike<number>,
+  width: number,
+  height: number
+): Float64Array {
+  /* eachCornerBlock · blockMean 과 같은 차례 · 같은 덧셈 차례를 바로 돈다(함수를 블록마다 부르지 않게) — 값이 똑같다 */
+  const bw = Math.floor(width * CORNER_RATIO);
+  const bh = Math.floor(height * CORNER_RATIO);
+  const nx = bw >= BLOCK ? Math.floor((bw - BLOCK) / BLOCK) + 1 : 0;
+  const ny = bh >= BLOCK ? Math.floor((bh - BLOCK) / BLOCK) + 1 : 0;
+  const out = new Float64Array(4 * nx * ny);
+  const corners = [0, 0, width - bw, 0, 0, height - bh, width - bw, height - bh];
+  let k = 0;
+  for (let c = 0; c < 4; c++) {
+    const ox = corners[2 * c];
+    const oy = corners[2 * c + 1];
+    for (let by = 0; by < ny; by++) {
+      const y0 = oy + by * BLOCK;
+      for (let bx = 0; bx < nx; bx++) {
+        const x0 = ox + bx * BLOCK;
+        let s = 0;
+        for (let y = y0; y < y0 + BLOCK; y++) {
+          const row = y * width;
+          for (let x = x0; x < x0 + BLOCK; x++) s += a[row + x];
+        }
+        out[k++] = s / (BLOCK * BLOCK);
+      }
+    }
+  }
+  return out;
+}
+
+/** cornerShift 를 블록 평균(cornerMeans)으로 — 귀퉁이마다 블록 수가 같다(네 귀퉁이가 같은 크기) */
+export function cornerShiftOfMeans(prev: Float64Array, curr: Float64Array): number {
+  const per = curr.length >> 2;
+  if (per === 0) return 0;
+  const means: number[] = [];
+  for (let c = 0; c < 4; c++) {
+    let s = 0;
+    for (let k = c * per; k < (c + 1) * per; k++) s += Math.abs(curr[k] - prev[k]);
+    means.push(s / per);
+  }
+  means.sort((a, b) => a - b);
+  return means[1];
 }
 
 /**
@@ -312,11 +369,40 @@ export function exposureBias(
   width: number,
   height: number
 ): number {
+  return exposureBiasOfMeans(
+    cornerMeans(background, width, height),
+    luma,
+    width,
+    height
+  );
+}
+
+/** exposureBias 를 배경의 블록 평균(cornerMeans)으로 — 배경은 장면마다 같아 한 번만 센다 */
+export function exposureBiasOfMeans(
+  backgroundMeans: Float64Array,
+  luma: ArrayLike<number>,
+  width: number,
+  height: number
+): number {
   const diffs: number[] = [];
+  let k = 0;
   eachCornerBlock(width, height, (x0, y0) => {
-    diffs.push(blockMean(luma, width, x0, y0) - blockMean(background, width, x0, y0));
+    diffs.push(blockMean(luma, width, x0, y0) - backgroundMeans[k++]);
   });
   if (diffs.length === 0) return 0;
+  diffs.sort((a, b) => a - b);
+  return diffs[Math.floor(diffs.length / 2)];
+}
+
+/** exposureBias 를 장면 · 배경의 블록 평균 둘 다로(이미 센 것) — 블록마다 장면 − 배경, 중앙값. 같은 값이다 */
+export function exposureBiasOfBoth(
+  backgroundMeans: Float64Array,
+  frameMeans: Float64Array
+): number {
+  const n = Math.min(backgroundMeans.length, frameMeans.length);
+  if (n === 0) return 0;
+  const diffs: number[] = [];
+  for (let k = 0; k < n; k++) diffs.push(frameMeans[k] - backgroundMeans[k]);
   diffs.sort((a, b) => a - b);
   return diffs[Math.floor(diffs.length / 2)];
 }
@@ -570,6 +656,11 @@ export type DiameterReport = {
   blurred: boolean;
   /** 윤곽 원호가 좁아(limb.ts 'arc') 뺀 장면 수 — drops.limb 에 들어 있는 것 가운데 */
   arcDrops: number;
+  /**
+   * 두 번째 길(극성 — 밝은 배경 앞의 어두운 공)로 잰 것만: 'dark' 윤곽 광선이 거의 다(90% 이상) 공이 배경보다 어두운 것,
+   * 'mixed' 섞임(지평선에 걸친 공), 'bright' 다 밝은 것(두 번째 길의 넓힌 감지로 궤적만 이어졌다). 예전 길이면 없다.
+   */
+  polarity?: 'bright' | 'dark' | 'mixed';
 };
 
 function medianOf(vals: number[]): number {
@@ -617,6 +708,231 @@ function ballLevel(
   return { level: medianOf(levels), contrast: medianOf(contrasts) };
 }
 
+/* ───────────────────────── 두 번째 길 — 극성(밝은 배경 앞의 어두운 공) ───────────────────────── */
+
+/**
+ * 예전 길(밝아진 곳만 보는 감지 · 밝은 공의 윤곽)로 못 쟀을 때 한 번 더 — 밝은 배경 앞에서는 공이 배경보다 어두울 수 있다
+ * (detect.ts '밝은 배경'). 감지는 어두워짐도 보고(가만한 밝은 배경 자리에서만, 중앙값 배경), 지름은 화소마다 극성을 가린다:
+ * 배경(중앙값)이 공보다 밝은 화소는 어두운 공 — 중앙값 배경 · 그 노출 치우침, 아니면 밝은 공 — 예전 배경(두 번째로 어두운 값).
+ * 지평선에 걸친 공(위 반쪽 하늘 · 아래 반쪽 땅)은 한 장면 안에 두 극성이 섞인다. 거리 자는 이 길에서는 극성과 상관없이 한 가지 —
+ * 그 배경과의 선형 덮임을 '보정 밝기의 밝은 공'으로 다시 담아 예전 윤곽 규칙으로 잰다(limb.ts measureLimbPolar). 보정 밝기
+ * (공 210 · 배경 60) 근처의 밝은 공이면 예전 자와 같은 자리다.
+ *
+ * 왜 예전 길이 실패했을 때만: 실내 보정 영상(공이 늘 밝다)의 값은 예전 길로 얼려져 있다. 밝은 바닥 · 흰 천 · 흔들리는 그물이
+ * 있는 실제 영상에서 어두워짐까지 보면 덩어리가 늘어(보정 영상 한 장에 1,000~30,000 픽셀) 같은 공의 궤적이 바뀔 수 있다 —
+ * 예전 길로 잰 공은 한 자리도 바꾸지 않는다. 대신 예전 길이 잰 '밝은 하늘 앞 밝은 공'(합성 '밖-4')은 그대로다.
+ */
+type PolarBackground = {
+  /** 픽셀마다 표본의 중앙값과 그 자리가 스스로 밝기를 바꾸는 폭(detect.ts buildDarkBackground) */
+  med: Float32Array;
+  spread: Float32Array;
+  /** 장면마다 중앙값 배경에 대한 노출 치우침 */
+  biasAt: Map<number, number>;
+};
+
+/**
+ * 두 번째 길에서 공이 배경보다 어두운 광선으로 잰 값('dark' · 'mixed')의 ± 에 더하는 σ(비율) — 그 윤곽 자리(limb.ts
+ * measureLimbPolar)를 실제 카메라로 확인하지 못했다. 다시 담은 자는 합성 그림에서 밝은 공과 지름 0.3~0.7% 안이지만, 실제 카메라의
+ * 어두운 테두리(선명화 · 밖의 톤 매핑)가 그 전제를 따르는지 모른다 — 1px 이 구속 약 9% 라 반 px 를 1σ 로 본다.
+ */
+export const DARK_POLARITY_SIGMA_REL = 0.05;
+/**
+ * 두 번째 길에서 화소의 대비(공 − 배경, 부호값)가 이보다 작으면 공이 덮었는지 알 수 없다 — 첫 어림(면적)에서 그 화소는 감지기
+ * 원판(덮였으면 1)으로 채운다. 하늘 그라데이션처럼 공과 같은 밝기의 띠를 지날 때. 윤곽은 limb.ts MIN_RAY_CONTRAST(35)로 따로 본다.
+ */
+const POLAR_MIN_PX_CONTRAST = 20;
+
+/** 공 가운데(반지름의 절반 안)의 밝기 중앙값(노출 치우침을 뺀 부호값) — 배경과 무관하다. 표본이 모자라면 null */
+function coreLevel(o: BallObservation, luma: ArrayLike<number>, bias: number, width: number, height: number): number | null {
+  const r = Math.max(1, o.diameterPx / 4);
+  const vals: number[] = [];
+  for (let y = Math.max(0, Math.floor(o.y - r)); y <= Math.min(height - 1, Math.ceil(o.y + r)); y++) {
+    for (let x = Math.max(0, Math.floor(o.x - r)); x <= Math.min(width - 1, Math.ceil(o.x + r)); x++) {
+      if ((x - o.x) ** 2 + (y - o.y) ** 2 > r * r) continue;
+      vals.push(luma[y * width + x] - bias);
+    }
+  }
+  return vals.length >= 3 ? medianOf(vals) : null;
+}
+
+/** 궤적의 공 밝기 — 큰 장면(CORE_MIN_PX 이상)의 가운데 중앙값들의 중앙값. 큰 장면이 없으면 모든 장면으로 */
+function trackLevel(
+  track: BallObservation[],
+  lumaAt: Map<number, ArrayLike<number>>,
+  biasAt: Map<number, number>,
+  width: number,
+  height: number
+): number | null {
+  const pick = (minD: number) => {
+    const out: number[] = [];
+    for (const o of track) {
+      if (o.diameterPx < minD) continue;
+      const luma = lumaAt.get(o.t);
+      if (!luma) continue;
+      const v = coreLevel(o, luma, biasAt.get(o.t) ?? 0, width, height);
+      if (v != null) out.push(v);
+    }
+    return out;
+  };
+  const big = pick(CORE_MIN_PX);
+  const all = big.length ? big : pick(0);
+  return all.length ? medianOf(all) : null;
+}
+
+/**
+ * 한 장면의 화소 → 극성을 가린 (보정한 밝기 − 배경, 공 − 배경). level 은 예전 배경의 노출 치우침으로 잰 공 밝기(장면 하나).
+ * 중앙값 배경이 공보다 밝으면 어두운 공의 화소다.
+ */
+function polarPixel(
+  i: number,
+  luma: ArrayLike<number>,
+  bgLo: Float32Array,
+  biasLo: number,
+  pb: PolarBackground,
+  biasMed: number,
+  level: number
+): { diff: number; den: number } {
+  const levelMed = level + biasLo - biasMed;
+  const m = pb.med[i];
+  if (m > levelMed) return { diff: luma[i] - biasMed - m, den: levelMed - m };
+  return { diff: luma[i] - biasLo - bgLo[i], den: level - bgLo[i] };
+}
+
+/**
+ * refineTrack(밝기 총량 면적)의 극성판 — 화소마다 (밝기 − 배경) ÷ (공 − 배경)을 더한다(공이 고른 밝기면 그 화소의 덮임).
+ * 예전 판은 공 하나의 대비 C 로 나눴다 — 배경이 고르면 같고, 지평선처럼 배경이 공의 위아래로 다르면 화소마다 나눠야 한다.
+ * 대비가 모자란 화소(POLAR_MIN_PX_CONTRAST)는 감지기 원판으로 채운다.
+ */
+function refineTrackPolar(
+  track: BallObservation[],
+  lumaAt: Map<number, ArrayLike<number>>,
+  biasAt: Map<number, number>,
+  bgLo: Float32Array,
+  pb: PolarBackground,
+  level: number,
+  width: number,
+  height: number
+): BallObservation[] {
+  return track.map((o) => {
+    const luma = lumaAt.get(o.t);
+    if (!luma) return o;
+    const biasLo = biasAt.get(o.t) ?? 0;
+    const biasMed = pb.biasAt.get(o.t) ?? 0;
+    const own = o.diameterPx >= CORE_MIN_PX ? coreLevel(o, luma, biasLo, width, height) : null;
+    const L = own ?? level;
+    const R = Math.max(4, o.diameterPx * 0.9 + 3);
+    const Ro = R * RING_OUT;
+    const x0 = Math.max(0, Math.floor(o.x - Ro));
+    const x1 = Math.min(width - 1, Math.ceil(o.x + Ro));
+    const y0 = Math.max(0, Math.floor(o.y - Ro));
+    const y1 = Math.min(height - 1, Math.ceil(o.y + Ro));
+    const ring: number[] = [];
+    const rIn2 = (R * RING_IN) ** 2;
+    const rOut2 = Ro * Ro;
+    for (let y = y0; y <= y1; y++) {
+      for (let x = x0; x <= x1; x++) {
+        const d2 = (x - o.x) ** 2 + (y - o.y) ** 2;
+        if (d2 < rIn2 || d2 > rOut2) continue;
+        ring.push(polarPixel(y * width + x, luma, bgLo, biasLo, pb, biasMed, L).diff);
+      }
+    }
+    const local = ring.length >= 8 ? medianOf(ring) : 0;
+    const rDet2 = (o.diameterPx / 2) ** 2;
+    let area = 0;
+    let sx = 0;
+    let sy = 0;
+    let sw = 0;
+    const R2 = R * R;
+    for (let y = y0; y <= y1; y++) {
+      for (let x = x0; x <= x1; x++) {
+        const d2 = (x - o.x) ** 2 + (y - o.y) ** 2;
+        if (d2 > R2) continue;
+        const p = polarPixel(y * width + x, luma, bgLo, biasLo, pb, biasMed, L);
+        let c: number;
+        if (Math.abs(p.den) < POLAR_MIN_PX_CONTRAST) c = d2 <= rDet2 ? 1 : 0;
+        else {
+          c = (p.diff - local) / p.den;
+          if (c > 1.5) c = 1.5;
+          else if (c < -0.5) c = -0.5;
+        }
+        area += c;
+        if (c > 0) {
+          sx += c * x;
+          sy += c * y;
+          sw += c;
+        }
+      }
+    }
+    if (area < 3 || sw <= 0) return o;
+    const vis = o.visibleFrac ?? 1;
+    if (vis < 0.3) return o;
+    const d = 2 * Math.sqrt(area / vis / Math.PI);
+    if (d < o.diameterPx * 0.6 || d > o.diameterPx * 1.5) return o;
+    return { t: o.t, x: sx / sw, y: sy / sw, diameterPx: d, visibleFrac: o.visibleFrac };
+  });
+}
+
+/**
+ * 공의 보통 대비 — 큰 장면 가운데 화소의 |공 − 배경|(극성을 가린 배경) 중앙값들의 중앙값. brightFraction 의 극성판이 쓴다.
+ */
+function polarContrast(
+  track: BallObservation[],
+  lumaAt: Map<number, ArrayLike<number>>,
+  biasAt: Map<number, number>,
+  bgLo: Float32Array,
+  pb: PolarBackground,
+  level: number,
+  width: number,
+  height: number
+): number | null {
+  const out: number[] = [];
+  for (const o of track) {
+    if (o.diameterPx < CORE_MIN_PX) continue;
+    const luma = lumaAt.get(o.t);
+    if (!luma) continue;
+    const biasLo = biasAt.get(o.t) ?? 0;
+    const biasMed = pb.biasAt.get(o.t) ?? 0;
+    const L = coreLevel(o, luma, biasLo, width, height) ?? level;
+    const r = Math.max(1, o.diameterPx / 4);
+    const cv: number[] = [];
+    for (let y = Math.max(0, Math.floor(o.y - r)); y <= Math.min(height - 1, Math.ceil(o.y + r)); y++) {
+      for (let x = Math.max(0, Math.floor(o.x - r)); x <= Math.min(width - 1, Math.ceil(o.x + r)); x++) {
+        if ((x - o.x) ** 2 + (y - o.y) ** 2 > r * r) continue;
+        cv.push(Math.abs(polarPixel(y * width + x, luma, bgLo, biasLo, pb, biasMed, L).diff));
+      }
+    }
+    if (cv.length >= 3) out.push(medianOf(cv));
+  }
+  return out.length ? medianOf(out) : null;
+}
+
+/** brightFraction 의 극성판 — 공 원판 안에서 |공 − 배경| 이 보통 대비의 MIN_PIXEL_CONTRAST_RATIO 보다 작은 화소의 비율 */
+function lowContrastFraction(
+  o: BallObservation,
+  luma: ArrayLike<number>,
+  bgLo: Float32Array,
+  biasLo: number,
+  pb: PolarBackground,
+  biasMed: number,
+  level: number,
+  contrast: number,
+  width: number,
+  height: number
+): number {
+  const R = BRIGHT_DISC_K * o.diameterPx + 1;
+  const minDen = MIN_PIXEL_CONTRAST_RATIO * contrast;
+  let n = 0;
+  let low = 0;
+  for (let y = Math.max(0, Math.floor(o.y - R)); y <= Math.min(height - 1, Math.ceil(o.y + R)); y++) {
+    for (let x = Math.max(0, Math.floor(o.x - R)); x <= Math.min(width - 1, Math.ceil(o.x + R)); x++) {
+      if ((x - o.x) ** 2 + (y - o.y) ** 2 > R * R) continue;
+      n++;
+      if (Math.abs(polarPixel(y * width + x, luma, bgLo, biasLo, pb, biasMed, level).den) < minDen) low++;
+    }
+  }
+  return n ? low / n : 0;
+}
+
 /** 공 원판(첫 어림 중심, 반지름 BRIGHT_DISC_K·d + 1) 안에서 배경이 공만큼 밝은 화소의 비율 */
 function brightFraction(
   o: BallObservation,
@@ -657,35 +973,70 @@ function measureDiameters(
   width: number,
   height: number,
   minUsablePx: number,
-  transfer: LumaTransfer | undefined
+  transfer: LumaTransfer | undefined,
+  /** 두 번째 길(극성)이면 중앙값 배경 · 공 밝기 — 비우면 예전 그대로(밝은 공) */
+  polar: { pb: PolarBackground; level: number } | null = null
 ): { track: BallObservation[]; report: DiameterReport } {
   const drops: Record<DiameterDrop, number> = { bright: 0, limb: 0, guard: 0 };
   let brightUsable = 0;
   let arcDrops = 0;
+  let usedRays = 0;
+  let darkRays = 0;
   const seedD: number[] = [];
   const widths: number[] = [];
   const track: BallObservation[] = [];
-  const ball = ballLevel(seed, lumaAt, biasAt, background, width, height);
+  const ball = polar ? null : ballLevel(seed, lumaAt, biasAt, background, width, height);
+  const polarC = polar
+    ? polarContrast(seed, lumaAt, biasAt, background, polar.pb, polar.level, width, height)
+    : null;
   for (const o of seed) {
     const luma = lumaAt.get(o.t);
     if (!luma) continue;
     const bias = biasAt.get(o.t) ?? 0;
     /* 공 뒤가 공만큼 밝으면(흰 천 · 흰 벽) 테두리를 믿을 수 없다 — 그물(공 앞의 가림)은 빼고 본다 */
-    if (
-      ball &&
-      (o.visibleFrac ?? 1) >= NET_VISIBLE_FRAC &&
-      brightFraction(o, background, width, height, ball) > MAX_BRIGHT_FRAC
-    ) {
+    const lowBg = (() => {
+      if ((o.visibleFrac ?? 1) < NET_VISIBLE_FRAC) return false;
+      if (!polar) return ball != null && brightFraction(o, background, width, height, ball) > MAX_BRIGHT_FRAC;
+      if (polarC == null) return false;
+      /* 극성판 — 공이 배경보다 밝든 어둡든 |공 − 배경| 이 모자란 화소(공과 같은 밝기의 하늘 띠 · 흰 천) */
+      const biasMed = polar.pb.biasAt.get(o.t) ?? 0;
+      const L =
+        (o.diameterPx >= CORE_MIN_PX ? coreLevel(o, luma, bias, width, height) : null) ?? polar.level;
+      return (
+        lowContrastFraction(o, luma, background, bias, polar.pb, biasMed, L, polarC, width, height) >
+        MAX_BRIGHT_FRAC
+      );
+    })();
+    if (lowBg) {
       drops.bright++;
       if (o.diameterPx >= minUsablePx) brightUsable++;
       continue;
     }
     const why: { reason?: LimbFailure } = {};
-    const limb = measureLimb(
-      { luma, background, width, height, x: o.x, y: o.y, diameterPx: o.diameterPx, bias },
-      { transfer },
-      why
-    );
+    const limb = polar
+      ? measureLimbPolar(
+          {
+            luma,
+            width,
+            height,
+            x: o.x,
+            y: o.y,
+            diameterPx: o.diameterPx,
+            level:
+              (o.diameterPx >= CORE_MIN_PX ? coreLevel(o, luma, bias, width, height) : null) ?? polar.level,
+            background,
+            bias,
+            darkBackground: polar.pb.med,
+            darkBias: polar.pb.biasAt.get(o.t) ?? 0,
+          },
+          { transfer },
+          why
+        )
+      : measureLimb(
+          { luma, background, width, height, x: o.x, y: o.y, diameterPx: o.diameterPx, bias },
+          { transfer },
+          why
+        );
     if (!limb) {
       /* 대비가 모자라 광선 대부분을 못 쓴 것은 밝은 배경 탓이다(limb.ts 'contrast') */
       if (why.reason === 'contrast' && (o.visibleFrac ?? 1) >= NET_VISIBLE_FRAC) {
@@ -704,6 +1055,8 @@ function measureDiameters(
     }
     seedD.push(o.diameterPx);
     widths.push(limb.edgePx);
+    usedRays += limb.used;
+    darkRays += limb.darkRays ?? 0;
     track.push({
       t: o.t,
       x: limb.x,
@@ -724,21 +1077,23 @@ function measureDiameters(
     track[k] = { ...track[k], diameterPx: Math.max(1, d) };
     ratios.push(track[k].diameterPx / seedD[k]);
   }
-  return {
-    track,
-    report: {
-      ruler: 'limb',
-      seed: seed.length,
-      kept: track.length,
-      drops,
-      brightUsable,
-      limbPerArea: ratios.length ? Math.round(medianOf(ratios) * 1000) / 1000 : null,
-      edgeWidthPx: edgeWidth != null ? Math.round(edgeWidth * 1000) / 1000 : null,
-      blurCorrectionPx: Math.round(blurCut * 1000) / 1000,
-      blurred: edgeWidth != null && edgeWidth >= EDGE_LOW_PX,
-      arcDrops,
-    },
+  const report: DiameterReport = {
+    ruler: 'limb',
+    seed: seed.length,
+    kept: track.length,
+    drops,
+    brightUsable,
+    limbPerArea: ratios.length ? Math.round(medianOf(ratios) * 1000) / 1000 : null,
+    edgeWidthPx: edgeWidth != null ? Math.round(edgeWidth * 1000) / 1000 : null,
+    blurCorrectionPx: Math.round(blurCut * 1000) / 1000,
+    blurred: edgeWidth != null && edgeWidth >= EDGE_LOW_PX,
+    arcDrops,
   };
+  if (polar) {
+    report.polarity =
+      darkRays === 0 ? 'bright' : darkRays >= 0.9 * usedRays ? 'dark' : 'mixed';
+  }
+  return { track, report };
 }
 
 /* ───────────────────────── 릴리스 ───────────────────────── */
@@ -822,7 +1177,6 @@ export function analyzeFrames(input: AnalyzeFramesInput): AnalyzeResult {
     sourceWidth,
     sourceHeight,
     fovDeg = DEFAULT_FOV_DEG,
-    approach = 'receding',
   } = input;
 
   /*
@@ -875,11 +1229,22 @@ export function analyzeFrames(input: AnalyzeFramesInput): AnalyzeResult {
   /* 3) 프레임마다 노출 치우침을 재고, 배경과 견줘 움직인 덩어리를 찾고, 공을 이어붙인다. */
   const lumaAt = new Map<number, ArrayLike<number>>();
   const biasAt = new Map<number, number>();
-  const blobFrames: FrameBlobs[] = frames.map((f) => {
-    const bias = exposureBias(background, f.luma, width, height);
+  /* 배경의 귀퉁이 블록 평균은 장면마다 같다 — 한 번만 센다(값은 exposureBias 와 똑같다) */
+  const backgroundMeans = cornerMeans(background, width, height);
+  /* 카메라 장면(정수)이면 정수 배경표로 4픽셀씩 견준다 — 덩어리는 한 픽셀도 다르지 않다(detect.ts backgroundTable) */
+  const table = backgroundTable(background);
+  const givenMeans =
+    input.frameCornerMeans && input.frameCornerMeans.length === input.frames.length
+      ? new Map(input.frames.map((f, i) => [f.luma, input.frameCornerMeans![i]]))
+      : null;
+  const biasList = frames.map((f) => {
+    const fm = givenMeans?.get(f.luma);
+    const bias = fm
+      ? exposureBiasOfBoth(backgroundMeans, fm)
+      : exposureBiasOfMeans(backgroundMeans, f.luma, width, height);
     lumaAt.set(f.t, f.luma);
     biasAt.set(f.t, bias);
-    return { t: f.t, blobs: findMovedBlobs(background, f.luma, width, height, bias) };
+    return bias;
   });
   /*
    * 렌즈의 초점거리. 공으로 보정한 값(focalPx)이 있으면 그것, 없으면 화각 가정으로 구한다.
@@ -894,6 +1259,73 @@ export function analyzeFrames(input: AnalyzeFramesInput): AnalyzeResult {
     input.focalPx && input.focalPx > 0
       ? input.focalPx
       : focalPxFromFov(Math.max(sourceWidth, sourceHeight), fovDeg);
+
+  /* 3~6) 예전 길(밝아진 곳만) — 못 쟀으면 두 번째 길(극성, 'PolarBackground' 설명)로 한 번 더 */
+  const ctx: PassContext = {
+    input,
+    frames,
+    background,
+    table,
+    biasList,
+    lumaAt,
+    biasAt,
+    focalPx,
+    shakePx,
+    measuredFps,
+  };
+  const first = analyzePass(ctx, null);
+  if (first.measure.ok || input.polarity === false || input.limb === false) return first;
+  const { background: med, spread } = buildDarkBackground(samples);
+  const biasMedAt = new Map<number, number>();
+  /* 중앙값 배경의 귀퉁이 블록 평균도 한 번만 — 장면 쪽은 위에서 받은 것을 다시 쓴다(값은 exposureBias 와 같다) */
+  const medMeans = cornerMeans(med, width, height);
+  const biasMedList = frames.map((f) => {
+    const fm = givenMeans?.get(f.luma);
+    const bias = fm
+      ? exposureBiasOfBoth(medMeans, fm)
+      : exposureBiasOfMeans(medMeans, f.luma, width, height);
+    biasMedAt.set(f.t, bias);
+    return bias;
+  });
+  const second = analyzePass(ctx, { med, spread, biasAt: biasMedAt }, biasMedList);
+  return second.measure.ok ? second : first;
+}
+
+/** analyzeFrames 의 한 길(예전 길 · 두 번째 길)이 함께 쓰는 것 — 장면 · 배경 · 노출 치우침 · 초점거리 · 흔들림 */
+type PassContext = {
+  input: AnalyzeFramesInput;
+  frames: CapturedFrame[];
+  background: Float32Array;
+  /** 배경의 정수 배경표(detect.ts backgroundTable) — 카메라 장면이면 4픽셀씩 견준다 */
+  table: BackgroundTable | null;
+  biasList: number[];
+  lumaAt: Map<number, ArrayLike<number>>;
+  biasAt: Map<number, number>;
+  focalPx: number;
+  shakePx: number;
+  measuredFps: number | null;
+};
+
+/**
+ * 3~6) 감지 → 추적 → 첫 어림 → 거리 자 → 맞춤. polar 를 주면 두 번째 길(극성 — 'PolarBackground' 설명): 어두워짐도 보고
+ * 지름을 화소마다 극성을 가려 잰다. polarBias 는 장면마다 중앙값 배경에 대한 노출 치우침(장면 차례).
+ */
+function analyzePass(ctx: PassContext, polar: PolarBackground | null, polarBias: number[] = []): AnalyzeResult {
+  const { input, frames, background, table, biasList, lumaAt, biasAt, focalPx, shakePx, measuredFps } =
+    ctx;
+  const { width, height, sourceWidth, sourceHeight, approach = 'receding' } = input;
+  const blobFrames: FrameBlobs[] = frames.map((f, k) => ({
+    t: f.t,
+    blobs: findMovedBlobs(
+      background,
+      f.luma,
+      width,
+      height,
+      biasList[k],
+      table,
+      polar ? { background: polar.med, spread: polar.spread, bias: polarBias[k] ?? 0 } : undefined
+    ),
+  }));
   const rough = trackBall(blobFrames, {
     frameWidth: width,
     frameHeight: height,
@@ -902,8 +1334,14 @@ export function analyzeFrames(input: AnalyzeFramesInput): AnalyzeResult {
     focalDiameterPx: focalPx * (width / sourceWidth) * BALL_DIAMETER_M,
   });
 
+  /* 두 번째 길 — 공의 밝기(배경과 무관)로 화소마다 극성을 가린다. 궤적이 없으면 아래가 알아서 거부한다 */
+  const level = polar ? trackLevel(rough, lumaAt, biasAt, width, height) : null;
+  const polarFor = polar && level != null ? { pb: polar, level } : null;
+
   /* 4) 첫 어림 — 지름 · 중심을 밝기 총량(면적)으로. 윤곽을 어디서 찾을지 · 검사 · 릴리스 위치에만 쓴다 */
-  const seedTrack = refineTrack(rough, lumaAt, biasAt, background, width, height);
+  const seedTrack = polarFor
+    ? refineTrackPolar(rough, lumaAt, biasAt, background, polarFor.pb, polarFor.level, width, height)
+    : refineTrack(rough, lumaAt, biasAt, background, width, height);
   const scale = width / sourceWidth;
 
   /* 5) 거리 자 — 빛 받은 쪽 윤곽의 원(limb.ts). 시험용 limb:false 면 1.5.0 의 면적 */
@@ -932,7 +1370,8 @@ export function analyzeFrames(input: AnalyzeFramesInput): AnalyzeResult {
           width,
           height,
           MIN_USABLE_BALL_PX * scale,
-          input.transfer
+          input.transfer,
+          polarFor
         );
   const track = measured.track;
   const diameter: DiameterReport = measured.report;
@@ -1113,6 +1552,12 @@ export function measureTrack(input: TrackMeasureInput): {
   if (measure.ok && input.confidenceCap === 'medium' && measure.confidence === 'high') {
     measure = { ...measure, confidence: 'medium' };
   }
+  /*
+   * 밝은 배경 앞의 어두운 공(두 번째 길 — 'dark' · 'mixed') — 윤곽 자리를 실제 카메라로 확인하지 못했다(limb.ts '어두운 공의
+   * 윤곽'). 믿음은 '보통'까지, ± 에 DARK_POLARITY_SIGMA_REL 을 더한다(아래).
+   */
+  const darkBall = diameter.polarity === 'dark' || diameter.polarity === 'mixed';
+  if (measure.ok && darkBall && measure.confidence === 'high') measure = { ...measure, confidence: 'medium' };
   /* ± 에 잭나이프가 못 보는 σ(흐림 · 보정 조건 밖)를 더한다 — 구간 평균 · 릴리스 둘 다 */
   /*
    * σ 는 1.6px 부터 서서히 켠다(알림 · '낮음'은 문턱 exposureBlurPx 부터) — 문턱에서 계단처럼 켜면 그 바로 밑(1.65~1.8px, 1/30초에
@@ -1122,11 +1567,18 @@ export function measureTrack(input: TrackMeasureInput): {
     input.exposureBlurPx != null && diameter.edgeWidthPx != null && diameter.edgeWidthPx > BLUR_SIGMA_REF_PX
       ? (input.exposureBlurSigmaPerPx ?? 0) * (diameter.edgeWidthPx - BLUR_SIGMA_REF_PX)
       : 0;
-  const extraSigmaRel = Math.hypot(
-    blurSigmaRel(diameter.edgeWidthPx),
-    input.calibrated === true ? 0 : (input.domainSigmaRel ?? OUT_OF_DOMAIN_SIGMA_REL),
-    exposureSigma
-  );
+  const extraSigmaRel = darkBall
+    ? Math.hypot(
+        blurSigmaRel(diameter.edgeWidthPx),
+        input.calibrated === true ? 0 : (input.domainSigmaRel ?? OUT_OF_DOMAIN_SIGMA_REL),
+        exposureSigma,
+        DARK_POLARITY_SIGMA_REL
+      )
+    : Math.hypot(
+        blurSigmaRel(diameter.edgeWidthPx),
+        input.calibrated === true ? 0 : (input.domainSigmaRel ?? OUT_OF_DOMAIN_SIGMA_REL),
+        exposureSigma
+      );
   if (measure.ok && extraSigmaRel > 0) {
     measure = {
       ...measure,

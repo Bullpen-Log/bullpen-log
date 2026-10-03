@@ -1,4 +1,4 @@
-import { Camera } from 'lucide-react';
+import { Camera, Clapperboard } from 'lucide-react';
 import type {
   AdminCalibRunView,
   AdminDay,
@@ -10,6 +10,7 @@ import { PitchLogHeading, VelocityAdminViewSwitch } from '@/app/(app)/videos/pit
 import { BiasChart } from './overview-client';
 import { FileMeasureButton } from './file-measure-button';
 import { VelocityExplorer } from './explorer';
+import { MobileVelocityAdmin } from './mobile-admin';
 import { explorerHref, type ExplorerPath } from './explorer-path';
 import type { FolderStat } from './explorer-panels';
 import { mb, signed } from './format';
@@ -31,6 +32,7 @@ export function VelocityAdminView({
   day,
   run,
   pick,
+  recordings = 0,
 }: {
   data: AdminOverview;
   path: ExplorerPath;
@@ -39,6 +41,8 @@ export function VelocityAdminView({
   /** [보정] 차수 폴더일 때 그 차수(요약 + 결과 줄) */
   run: AdminCalibRunView | null;
   pick: string | null;
+  /** 엔진 개발용 녹화 수 — 휴대폰 화면의 단추에 */
+  recordings?: number;
 }) {
   const { totals, overall, fit } = data;
 
@@ -85,7 +89,8 @@ export function VelocityAdminView({
           </>
         }
         action={
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+          /* PC 에서만 — 휴대폰은 아래 MobileVelocityAdmin 이 큰 단추로 보인다 */
+          <div className="hidden gap-2 desk:flex desk:items-center">
             {/* 지금 배포된 구속 측정 모델 — 잰 값 · 보정 차수의 버전과 견준다(Badge 는 title 을 안 받아 감싼다) */}
             <span
               title="구속 측정 모델 버전 — lib/velocity-engine/version.ts"
@@ -94,6 +99,15 @@ export function VelocityAdminView({
               <Badge className="tabular-nums">모델 v{data.engineVersion}</Badge>
             </span>
             <FileMeasureButton />
+            {/* 측정 없이 찍은 원본 영상 — 공마다 범위 · 스피드건 값을 적는 편집기(recordings/) */}
+            <ButtonLink
+              href="/admin/velocity/recordings"
+              variant="secondary"
+              className="inline-flex w-full items-center gap-2 sm:w-auto"
+            >
+              <Clapperboard aria-hidden className="h-4 w-4" />
+              엔진 개발용 녹화
+            </ButtonLink>
             <ButtonLink
               href="/velocity/measure"
               className="inline-flex w-full items-center gap-2 sm:w-auto"
@@ -105,6 +119,15 @@ export function VelocityAdminView({
         }
       />
 
+      {/*
+        휴대폰 — 올리기 위주의 간단한 화면(mobile-admin.tsx). PC 화면(숫자 타일 · 탐색기 · 종합 분석)은 desk 에서만.
+        CSS 로 가른다(서버는 화면 크기를 모른다).
+      */}
+      <div className="desk:hidden">
+        <MobileVelocityAdmin data={data} path={path} day={day} recordings={recordings} />
+      </div>
+
+      <div className="hidden stack-page desk:block">
       <StatTiles tiles={tiles} />
 
       {/* 폴더가 바뀌면 새로 만든다 — 고른 파일 · 정렬 · 찾기가 초기화된다 */}
@@ -209,6 +232,7 @@ export function VelocityAdminView({
           편향과 p90 이 줄어드는지 이 화면에서 봐요.
         </p>
       </Card>
+      </div>
     </div>
   );
 }

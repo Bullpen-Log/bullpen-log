@@ -184,7 +184,10 @@
   정리 `docs/ai-usage.md`, 스위치 `lib/ai/features.ts` 의 `AI_FEATURES`(homeReport · nutritionPhoto 둘 다 false). 트레이닝
   'AI 맞춤'은 김민 담당이라 켜 둔 채 HANDOFF 로 물었다 — 금윤호가 트레이닝 AI 를 끄거나 고치지 않는다. **회의 결과가 나오기 전에는
   새 AI 기능을 켜지 않는다**(사진 기록 7번은 만들어 두되 꺼 둔다). 결과가 나오면 이 줄과 `docs/ai-usage.md` 를 고친다.
-- **아이폰 앱 — 애플 키 대기, 다시 시작하면 앱 로고부터(2026-09-30).** 애플 키(`mobile/APPLE-SETUP.md` 의 넷)를
+- **아이폰 앱 — 애플 키가 들어와 TestFlight 에 올라간다(2026-10-03 확인: 9b5a364 를 올리자 ios.yml 이 굽기 · 시뮬레이터 ·
+  TestFlight 올리기까지 모두 성공, 빌드 20261002.42223).** 결과는 공개 Checks API 주석으로 본다(`gh` 없이 curl —
+  `/actions/runs?head_sha=<sha>` → `/actions/runs/<id>/jobs` → `/check-runs/<job>/annotations`). 노드 fetch 는 이 PC 에서 가끔
+  api.github.com 이름 찾기에 실패한다 — curl 을 쓴다. (아래는 지난 메모) 애플 키(`mobile/APPLE-SETUP.md` 의 넷)를
   아직 못 받아 앱 작업을 멈췄다. 사용자: "나중에 앱을 수정하게 되면 앱 로고를 불펜로그 로고로 바꿔야 한다" — 앱
   작업을 다시 열면 이것부터 챙긴다. 앱 아이콘 · 시작 화면 파일은 새 B 로고로 이미 다시 만들어 올렸다(7296b01,
   `cd mobile && npm run assets`). 남은 일: 첫 빌드(TestFlight)를 폰에 깔았을 때 홈 화면 아이콘 · 시작 화면이 새 B
@@ -595,14 +598,103 @@
     (측정 화면 · 보기가 같이 씀, localStorage). 사용자가 홈 페이지 대신 탭 안의 보기를 원했다(2026-09-27).
   - 앱(UA 에 `BullpenLogApp`) 또는 관리자만 연다. 웹 카메라는 60fps 밑이라 엔진이 거부 — 웹은 흐름 확인용.
     다음에 손댈 후보: 던짐 감지 문턱값(`live-capture.ts` 상단 상수), 화각 기본값, 네이티브 고속 촬영 연결.
-- **사용자에게 물을 것 — 구속 측정(김민이 찾음, 2026-09-30)**: ① 설정 '스피드건 보정 적용'을 꺼도 서버는 늘 보정해 저장한다
-  (`app/actions/velocity.ts` 저장의 kmh) ② 타구 세션도 투구 기록(PitchLog)을 만들어 투구수 · 최고 구속에 섞인다 ③ 릴리스 구속은
-  보정 전 값 ④ mph 사용자에게 ± · 스피드건 값이 km/h. (⑤ 앱의 영어 확인 창은 d4c7969 에서 고침.)
-- **사용자 답 대기** — 약관 · 개인정보 처리방침의 빈칸: 시행일 `2026년 0월 0일`(`app/(legal)/terms` · `privacy`),
-  개인정보 보호책임자 `[이름]`(privacy). 그리고 `/more` 화면을 홈으로 넘기고 지울지.
-- **`NutritionProfile.sex` 칸 지우기(금윤호 몫).** 성별은 `User.sex` 로 옮겼고 이 칸은 안 쓴다. 지우는 마이그레이션은
-  맨몸 `DROP COLUMN` 으로 두지 않고, 먼저 `User.sex` 가 비어 있는 계정을 이 칸 값으로 채우는 UPDATE 를 넣는다.
-  DB 구조 변경이라 김민에게 먼저 알리고 `npm run backup` 부터(AGENTS.md 2번).
+- **구속 측정 결정(2026-10-03, e1060c3)** — 사용자: "타구측정은 아예 존재자체를 지워" → 설정 흐름 다섯 단계(종류 → 카메라 위치 →
+  네트 → 수평 → 존), `RecordMode` 없음(DB 의 mode 칸만 남고 늘 'pitch'). 보정 끄면 카메라 값 그대로(`useCal` → 세션 보정식 ×1 +0),
+  그날 화면 릴리스도 세션 보정식, mph 면 ± · 건 · 카메라 값 · 스피드건 입력까지 mph. **클립은 모든 세션에서 올린다**(사용자: "보정용이던
+  말던 모든 상황에서 녹화") — 폰 메모리에 세션의 모든 클립(2MB 남짓 × 공 수)을 쥐었다가 저장 때 올림, 저장소(Supabase) 사용량이 는다.
+  클립을 그날 화면(관리자 아닌 사람)에서 보는 ▶ 는 아직 없다 — 관리자 탐색기에서만.
+- **약관 · 개인정보 처리방침**: 시행일 2026년 10월 3일로 넣음(c76f59b). **개인정보 보호책임자 `[이름]` 은 아직 빈칸** — 사용자가 이름을 줄 때.
+  `/more` 화면은 지우고 홈으로 넘김(next.config.ts).
+- **광각 동시 클립(2026-10-03 시작, 사용자: "광각 카메라가 있으면 일반 카메라로 측정하면서 광각 클립도 동시에, 설정에서 껐다 켜기").**
+  사용자가 '앱에서 제대로'를 골랐다(웹은 아이폰 WebKit 이 카메라를 한 번에 하나만 켜서 안 됨 — 두 번째를 켜면 앞의 트랙이 muted).
+  단계: 1 **끝남** 설정 `wideClip`(기기별, 기본 끔) · DB 칸 `VelocityPitch.wideClip*`(백업 뒤 적용) · 올리기 `uploadClip(…, kind 'wide')` ·
+  `attachClip(…, kind)` · 지우기 흐름 · 관리자 미리보기에 '광각' 영상(존은 안 겹침), `lib/dual-camera.ts`(앱 부품 'DualCamera' 있나).
+  2 **코드 끝 · 컴파일 대기** 앱(Swift) `mobile/ios/App/App/DualCameraPlugin.swift`(부품 'DualCamera', MainViewController 에서 등록,
+  pbxproj 에 파일 추가). **설계를 바꿨다 — 장면을 웹으로 실시간 넘기지 않는다**: 두 카메라를 1초 fMP4 조각(AVAssetWriter
+  mpeg4AppleHLS)으로 이어 녹화해 최근 8초를 쥐고, 일반 카메라의 움직임(볼 자리 48×48 밝기 차, 0.35초 조용 → 평소 3배)으로 던짐을
+  알아채 'throw' { atSec } 를 알린다. 사이트가 clip({ atSec }) 하면 두 카메라 다 잘라(tfdt · sidx 를 0 으로 옮김) 파일로 주고, read 로
+  1MB 씩 base64 로 읽어 간다(`lib/dual-camera.ts` readDualClip). 사이트는 일반 클립을 **영상 파일 엔진**으로 잰다(fps · 화각은 부품이
+  알려 줌 — fMP4 라 파일 머리에서 fps 를 못 읽으니 analyzeVideo 의 fps · fovDeg 로 넘길 것, 렌즈 메타가 없어 '보정 조건 밖'으로 ± 가
+  넓어짐 → 4단계에서 calibrated 판단을 부품 값으로). 결과는 던진 뒤 1~3초. 미리보기는 웹뷰를 투명하게 하고 뒤에 그린다(setPreview).
+  네트 있음 = 초점 고정(lensPosition 1.0), 손떨림 보정 끔, 줌 1. 두 카메라 하드웨어 몫이 1 을 넘으면 광각부터 30fps 로. **맥이 없어 컴파일을
+  못 해 봤다** — 올리면 ios.yml 이 굽고, 결과는 공개 Checks API 주석으로 본다. → **2026-10-03 올려서 굽기 성공**(9b5a364, 컴파일 OK ·
+  시뮬레이터에서 켜짐 · TestFlight 올림). 순서를 바꿨다: 사이트가 아직 부품을 안 부르므로 **4(웹 연결) 다음 3(폰 시험)**. 3 TestFlight
+  로 폰 확인(애플 키 필요) — 60fps 유지 · 넘기기 속도 · 정확도. 4 **끝남** 웹 연결 — 앱 + 설정 켬 + 부품 있음이면 측정 화면이
+  `DualCapture`(`lib/velocity-engine/dual-capture.ts`, LiveCapture 와 같은 모양)를 쥔다: 앱 start · 뷰파인더 자리를 250ms 마다 setPreview ·
+  'throw' 알림 → clip → 일반 클립을 analyzeVideo(fps · 화각은 부품 값) → 잰 공에만 광각 클립(`attachWideClipToPitch`), 못 잰 공의 광각
+  파일은 읽지 않고 지움. 켜 있는 동안 `<html data-dualcam>` — globals.css 가 뷰파인더와 그 위 틀을 투명하게, 웹 video 숨김. 설정을 바꾸면
+  측정 중이 아닐 때 카메라를 다시 켬(앱 → 웹은 앱이 카메라를 놓을 때까지 기다림). 알림 받기는 `Capacitor.nativeCallback('addListener')` —
+  @capacitor/core 와 같은 길로 썼고 실제 앱에선 아직 안 돌려 봄. 렌즈 보정(snapshot)은 이 길에서 안 됨(웹 카메라로). 가짜 부품을 끼운 임시
+  화면으로 start · setPreview(375×688) · 투명까지 확인. 설정이
+  꺼져 있으면 지금 길(getUserMedia) 그대로라 위험이 켤 때만 있다. `mobile/` 는 김민의 앱 틀 — 건드리면 HANDOFF.
+  - **못 하는 아이폰은 잠금 · 화질 · 프레임 고르기(2026-10-03, 사용자: "동시에 못 쓰는 아이폰은 설정에서 보이되 못 켜게 + 경고 ·
+    카메라 우측 상단 화질/프레임을 누르면 자유롭게 고르게 · 측정 카메라는 30프레임 이하 못 쓰게").** 모델 1.7.1.
+    - 기기 검사 `lib/dual-camera.ts` `dualCameraStatus`(한 번 묻고 기억) · `useDualCameraStatus` · `dualReasonText`. 까닭: web ·
+      old-app · multicam · no-ultrawide · pair · fps(함께 켤 때 60fps 못 냄) · cost(켜 보니 하드웨어 몫 초과 — `markDualUnsupported`).
+      설정 칸은 보이되 잠기고(checked 도 꺼짐) 노란 경고 줄. 켜 보다 cost/fps 로 끝나면 화면이 알림 뒤 웹 카메라로 바꿔 켠다.
+    - 화질 · 프레임: `lib/velocity-camera-mode.ts`(720p · 1080p · 4K × 30 · 60 · 120 · 240, `MIN_MEASURE_FPS` 59) · 시트
+      `components/velocity/camera-mode-sheet.tsx`(오른쪽 위 알약을 누름) · 설정 `camMode`(기기별, null = 자동 1080p · 60).
+      웹은 getCapabilities 의 최대값으로 칸을 짐작(조합은 브라우저가 안 알려 줌 — 켜 본 뒤 실제 값을 알림), 앱은 status.modes
+      (화질마다 최고 fps). 고른 조합이 30fps 이하로 켜지면 고르기 전으로 되돌림. 세션 중에 바꾸면 다시 켜고 이어서 기다림(liveRef).
+    - Swift: status 에 modes · reason 'fps', start 에 short, 일반 카메라는 30fps 로 안 떨어뜨림(광각 30 → 광각 가장 작은 화면 → 일반
+      작은 화면 같은 fps → 안 되면 'unsupported-cost'). e86101f 굽기 · 시뮬레이터 · TestFlight 올리기 성공(빌드 20261002.55754).
+    - **물어볼 것**: 60fps 를 아예 못 내는 카메라(옛 폰 · PC 웹캠)는 지금처럼 '부정확할 수 있다' 알림만 띄우고 재게 둘지(2026-09-30
+      규칙), 아예 막을지.
+- **엔진 개발용 녹화 · 관리자 제어 센터(2026-10-03 시작 — 사용자가 "멈추고 이따 다시 해달라면 다시"로 멈춤).** 사용자: "밖에서 구속
+  측정이 하나도 안 됐다 — 엔진을 고치려면 왜 안 됐는지 알아야 하니 측정이 안 돼도 영상을 찍게, 구속 측정 관리자에 저장되고 공별로
+  클립을 나눠 구속을 적게. 관리자 설정은 왼쪽 작은 관리자 단추에서, 아이폰 제어센터 느낌으로, 관리자 이동과 관리자 설정은 따로."
+  단계: 1 **끝남(0930601)** 제어 센터 — `components/velocity/admin-jump.tsx`(손잡이 → 흐린 판 + 큰 타일 [화면 이동] [관리자 설정],
+  각각 따로 판; 설정은 스위치 타일 `toggles` · 도구 타일 `tools`), 일반 설정에서 관리자 줄 · isAdmin 을 뺌(홈 · 페이지까지). 휴대폰 375 ·
+  PC 1536×700 폰 틀 안 확인. 2 **끝남** 엔진 개발용 녹화 — DB 표 `VelocityRecording` · `VelocityRecordingPart` · `VelocityRecordingCut`
+  (마이그레이션 `20261003120000_velocity_recording`, 백업 `db-2026-10-02-15-15.json` 뒤 적용, User 관계 없음). 서버
+  `app/actions/velocity-recording.ts`(관리자만: start · 조각 서명 주소 · attach(같은 차례 다시 올리면 옛 파일 지움) · finish).
+  녹화기 `lib/velocity-recorder.ts` `SegmentedRecorder`: 저장소가 파일 하나 50MB(`MAX_VIDEO_BYTES`, 버킷 설정과 같음)라 MediaRecorder 를
+  조각마다 새로 켜(start() 한 번에 받기 — 클립 녹화기와 같은 길, 아이폰 timeslice 는 미확인) 30초 조각을 3초 겹치고, 목표 36MB 에 맞춰
+  실제 초당 크기로 다음 조각 길이를 줄임(10~30초), 끝나는 대로 한 번에 하나씩 올림(실패 두 번 더). 비트레이트 `recordingBitrate`
+  (1080p60 ≈ 10Mbps). 시험용으로 `api` 를 갈아 끼울 수 있다. 측정 화면: 관리자 설정 '엔진 개발용 녹화'(`recordMode`, 관리자만 효과) → 웹
+  카메라로(동시 촬영 길 안 씀) · 클립 녹화기 끔 · 시작 단추가 빨간 녹화(멈춤 네모, 왼쪽 올린 조각 · 오른쪽 시간, 위 알약 '녹화 중 m:ss').
+  녹화 중에는 나가기 · 화질 바꾸기 · 스위치 끄기를 막음, 화면을 떠나면 찍던 조각은 버림. meta 에 카메라 · 화각 · 렌즈 · 존 · 모델 버전.
+  시험: 가짜 카메라 · 가짜 서버로 70초 → 조각 0 · 27 · 54.3초 시작, 셋 다 재생되는 mp4. **주의: 파일 속 시간과 벽시계가 다를 수 있다**
+  (가려진 탭의 캔버스는 30초 조각이 22.8초 영상) — 편집기는 조각 파일 시간으로 자르고 offsetSec 은 차례 맞추기에만. **실제 아이폰 녹화 ·
+  올리기는 아직 안 해 봄.** 3 **끝남** 관리자 편집기 — 탐색기에 영역을 넣지 않고(1,759줄 탐색기를 깊이 건드리지 않게) 따로 쪽 둘:
+  구속 측정 관리자 머리 '엔진 개발용 녹화' 단추 → `/admin/velocity/recordings`(날짜별 목록 · 지우기는 한 번 묻고 조각 파일까지,
+  `recording-list.tsx`) → `/admin/velocity/recordings/<id>`(`recording-editor.tsx`). 편집기: 조각 고르기 · 영상 · 시간 막대(파란 띠 = 공
+  범위, 끌어 찾기) · 1프레임 · 1초 · 0.25/0.5/1× · '공 표시'(M, 앞 0.6 · 뒤 1.4초, 조각 끝이면 줄이고 알림) · 공마다 스피드건 · 구종 ·
+  시작/끝 ±0.1 · 시작=지금/끝=지금 · 되풀이 보기 · 재기(조각을 내려받아 그 범위만 analyzeVideo, fps · 화각 · 렌즈 · 카메라 위치는 녹화
+  meta) · 통계에서 빼기 · 지우기(두 번), 위에 공 · 잰 것 · 건과 평균 차이 · '모두 지금 모델로 재기'. 모든 관리자가 모든 녹화를 본다.
+  읽기 `lib/velocity-recording-load.ts`, 서버 `saveRecordingCut`(범위가 바뀌면 잰 값 지움) · `saveRecordingCutResult` · `deleteRecordingCut` ·
+  `deleteVelocityRecording` · `saveRecordingMemo`. 막 표시한 공(임시 번호)을 그새 고치거나 지우면 서버 번호를 받은 뒤 이어서 한다
+  (`afterCreate`). 사용자 보정식(loadCalibration)에는 섞지 않는다. 확인: 임시 화면에 캔버스 가짜 영상으로 재기(가짜라 '화질 낮음' 거부) ·
+  프레임 이동 · 공 표시 · 휴대폰 375 넘침 0 · PC 두 칸. **실제 녹화로 편집 · 재기는 아직 — 로그인한 관리자로 한 번 볼 것.**
+- **구속 측정 모델 1.8.0 — 밖에서 실시간이 한 개도 안 잡힌 것(2026-10-03, 사용자: "실시간으로 바로바로 측정되게 엔진을 더 고도화 ·
+  정밀하게").** 밖 영상이 없어 워크플로(ultracode 켜짐)로 세 갈래를 각자 worktree 에서 실험 → 합치기 에이전트 → 내가 검토.
+  전체 표는 `lib/velocity-engine/version.ts` 1.8.0 줄. 요약: ① 극성 — 밝은 배경 앞 어두운 공도 감지(detect.ts darkMask ·
+  buildDarkBackground, 계산은 예전 길로 못 쟀을 때만 두 번째 길, limb.ts measureLimbPolar, dark · mixed 는 ±5% · '보통'까지 ·
+  `analysis.polarity` · **loadCalibration 이 짝에서 뺌**) ② 실시간 판단 — 옆 속도 상한을 깊이 속도에 비례(폰을 올려 들면 7m/s 넘게 흘러
+  막혔다) · 찾는 네모 0.85×1.1 · 씨앗 0.7/5.5m · 노출 뺀 흔들림 cornerMotion(노출 8% 뛰면 0/18 이던 것) · 담는 중 다시 찾기 ·
+  RELEASE_NOT_CENTERED, 어두운 씨앗은 가운데 0.45 · 세 이음부터(합칠 때 헛것이 늘어 더한 규칙) ③ 속도 — 구간 묶기 · 4픽셀씩 문턱 ·
+  일감 transfer, 계산 약 2배. 실내 값 · 합성 33개는 한 글자도 안 바뀜. 되돌려 보기 45조건: 알아챔 628 → 711/810, 헛 67 → 39.
+  시험: selftest 41 · detect 10 · video 59 · live 59(캐시 63) · accuracy(밖-1~5 새로). 도구 · 출력은 스크래치 `wf/`(reports.json ·
+  merge/ · trigger/runner.mjs · polarity · latency/tools). **남은 것**: 실제 밖 영상으로 확인 — '진단 표시'(관리자 설정)로 폰에서 길 ·
+  fps · 처리 시간 · 거부 까닭을 보고, '엔진 개발용 녹화'로 원본을 남길 것. 이 PC 내장 브라우저 창은 가짜 카메라 장면 처리가
+  50ms 넘게 나온다(예전 엔진도 같음 — 창 탓, 엔진 탓 아님). **함정: 워크플로 에이전트 셋이 4.6시간 CPU 100% 를 쓰는 동안 개발 서버가
+  꺼졌다(0xC0000409)** — 끝나면 서버를 다시 켠다. worktree 는 `.claude/worktrees/` 에 생겨 git 에 '??' 로 보인다 — 끝나면
+  `git worktree remove --force` · 가지 지우기.
+- **휴대폰 구속 측정 관리자(2026-10-03, 사용자: "모바일에서 구속 측정 관리자가 안 보인다 — 모바일은 업로드 최적화로 간략하게, 지난 영상도
+  볼 수 있게").** 까닭: `app/(app)/videos/page.tsx` 가 앱 안에서는 관리자에게도 셋째 칸(구속 측정 관리자)을 뺐다(`!isNative`) → 관리자면
+  늘 `/admin/velocity`. 관리자 화면(`overview-view.tsx`)은 CSS 로 가른다: 휴대폰(`desk:hidden`) = `mobile-admin.tsx` — 큰 [영상 올리기] ·
+  녹화(수) · 측정 시작 · 숫자 셋(공 · 짝 · 편향) · 날짜별 지난 영상 → 그날(`?area=orig&at=날짜`, 탐색기와 같은 주소) 공 목록, 누르면 영상
+  (일반 · 광각)이 펼쳐짐(그때 받음). PC(`hidden desk:block`) = 예전 그대로, 머리 줄 단추도 PC 에서만. [영상 올리기] =
+  `mobile-upload.tsx`: 여러 영상 고르기 → 줄마다 스피드건 값(필수) · 구종 칩 → 세션 하나(영상 파일 · 보정용)에 '수기' 공들로 저장 뒤
+  영상을 하나씩 올림(실패한 줄만 다시), 50MB 넘는 영상은 고를 때 막음. 폰에서는 재지 않는다(느리고 뜨거움) — 카메라 값은 PC 에서
+  '다시 재기'. 확인: 가짜 자료 임시 화면으로 휴대폰 375(넘침 0, 구종 줄만 가로로 밈) · PC 1536 그대로. **실제 폰에서 올리기는 아직.**
+- **`NutritionProfile.sex` 칸 지우기 — 끝(2026-10-03).** 2단계 마이그레이션 `20261003100000_drop_nutrition_profile_sex` 적용(1단계 배포 뒤,
+  백업 `db-2026-10-02-03-56.json`). 아래는 지난 설명.
+- **(지난) `NutritionProfile.sex` 칸 지우기 — 1단계 끝, 2단계 대기(2026-10-03).** 1단계: 스키마에서만 뺌(DB 칸은 그대로, 백업
+  `db-2026-10-02-03-38.json`). 값은 1줄뿐이고 이미 `User.sex` 와 같아 옮길 것이 없었다. **2단계(1단계 배포가 끝난 뒤)**: 마이그레이션
+  `<날짜>_drop_nutrition_profile_sex` = `UPDATE "User" … SET "sex" = np."sex" WHERE u."sex" IS NULL`(안전용) + `ALTER TABLE
+  "NutritionProfile" DROP COLUMN "sex";` → `migrate deploy` → 커밋 · 올리기. 1단계와 같은 푸시에 싣지 않는 까닭: 빌드가 DB 칸을 먼저
+  지우면 새 배포가 뜨기 전 1~2분 동안 옛 배포(스키마에 sex 가 있는 클라이언트)가 영양 줄을 읽다 오류를 낸다.
 
 ## 5. 새 컴퓨터(노트북)에서 처음 열 때
 

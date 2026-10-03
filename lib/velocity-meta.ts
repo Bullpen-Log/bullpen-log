@@ -91,7 +91,7 @@ export type VelocitySessionView = {
   calOffset: number;
   calPairs: number;
   source: string;
-  /** 'pitch' · 'hit' */
+  /** 늘 'pitch' — 타구 측정('hit')은 2026-10-03 뺐다(DB 칸만 남음) */
   mode: string;
   /** 'behind-pitcher' · 'behind-catcher' */
   cameraPos: string;
@@ -102,9 +102,8 @@ export type VelocitySessionView = {
 };
 
 /** '투구 · 투수 뒤 · 네트 있음' — 세션 머리 한 줄 */
-export function sessionSetupText(s: { mode: string; cameraPos: string; net: boolean }) {
+export function sessionSetupText(s: { cameraPos: string; net: boolean }) {
   return [
-    s.mode === 'hit' ? '타구' : '투구',
     s.cameraPos === 'behind-catcher' ? '포수 뒤' : '투수 뒤',
     s.net ? '네트 있음' : '네트 없음',
   ].join(' · ');

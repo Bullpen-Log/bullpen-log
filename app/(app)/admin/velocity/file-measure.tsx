@@ -67,7 +67,7 @@ export function FileMeasure({
   const [stage, setStage] = useState<Stage>({ kind: 'idle' });
   const [error, setError] = useState<string | null>(null);
 
-  const approach = approachOf({ mode: 'pitch', cameraPos });
+  const approach = approachOf({ cameraPos });
   const busy =
     stage.kind === 'analyzing' || stage.kind === 'saving' || stage.kind === 'manual';
   /* 카메라로 잴 수 있나 — fps 를 읽었고 30 을 넘어야. 아니면 수기로만 올린다 */
@@ -185,7 +185,6 @@ export function FileMeasure({
       fovDeg: fov >= 30 && fov <= 120 ? fov : 69,
       source: 'file',
       device: file.name.slice(0, 200),
-      mode: 'pitch',
       cameraPos,
       net: false,
       forCalibration: true,
@@ -260,7 +259,6 @@ export function FileMeasure({
       fovDeg: fov,
       source: 'file',
       device: file.name.slice(0, 200),
-      mode: 'pitch',
       cameraPos,
       net: false,
       forCalibration: true,

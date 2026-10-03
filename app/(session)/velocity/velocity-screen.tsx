@@ -15,12 +15,17 @@ import { ConfirmDialog } from '@/components/confirm-delete';
 import { buzz } from '@/lib/haptics';
 import { unstable_rethrow, useRouter } from 'next/navigation';
 import {
+  Activity,
   Camera,
   Check,
+  ChevronDown,
   ChevronLeft,
   ChevronRight,
   ChevronUp,
+  Clapperboard,
+  Database,
   Film,
+  FlaskConical,
   Focus,
   Hand,
   Info,
@@ -42,14 +47,34 @@ import {
 import {
   LiveCapture,
   type CameraInfo,
+  type LiveInfo,
   type LiveStatus,
   type PitchClip,
   type ResultMeta,
 } from '@/lib/velocity-engine/live-capture';
+import { DualCapture, DualUnsupportedError } from '@/lib/velocity-engine/dual-capture';
+import {
+  dualCameraStatus,
+  dualStatusNow,
+  markDualUnsupported,
+} from '@/lib/dual-camera';
+import {
+  camModeLabel,
+  fpsAllowed,
+  type CamMode,
+  type CamModeOption,
+} from '@/lib/velocity-camera-mode';
+import { CameraModeSheet } from '@/components/velocity/camera-mode-sheet';
 import { focalPxFromFov } from '@/lib/velocity-engine/geometry';
 import { liveFpsNote, type LiveReport } from '@/lib/velocity-engine/live-meter';
 import { readVideoLens, videoFovFor } from '@/lib/velocity-engine/video-lens';
 import { analysisOf, type AnalysisJson } from '@/lib/velocity-analysis';
+import {
+  SegmentedRecorder,
+  recordingBitrate,
+  type RecorderState,
+} from '@/lib/velocity-recorder';
+import { VELOCITY_ENGINE_VERSION } from '@/lib/velocity-engine/version';
 import { uploadClip } from '@/lib/velocity-clip-upload';
 import {
   VelocityTutorial,
@@ -82,7 +107,6 @@ import {
   viewRectToFrame,
   visibleFrameRect,
   loadSetup,
-  modeLabel,
   saveSetup,
   SETUP_KEY,
   setupSummary,
@@ -111,7 +135,6 @@ import {
 } from '@/components/velocity/setup-steps';
 import {
   cameraPosOptions,
-  modeOptions,
   netOptions,
   OptionCards,
   sessionTypeOptions,
@@ -148,21 +171,21 @@ import {
 /**
  * 구속 측정 화면 — Smart Scout · PitchLab 의 흐름을 우리 모양(아이폰 느낌)으로.
  *
- *   지난 설정 그대로?  → 1 어떤 투구(불펜 · 라이브 · 경기 · 캐치볼)  → 2 무엇을 재나(투구 · 타구)
- *   → 3 카메라 위치(투수 뒤 · 포수 뒤)  → 4 네트  → [주의사항 팝업, 카메라 화면 위에]
- *   → 5 카메라: 수평계 · 릴리스 포인트를 표적에  → 6 반투명 스트라이크 존 놓기  → 측정
+ *   지난 설정 그대로?  → 1 어떤 투구(불펜 · 라이브 · 경기 · 캐치볼)
+ *   → 2 카메라 위치(투수 뒤 · 포수 뒤)  → 3 네트  → [주의사항 팝업, 카메라 화면 위에]
+ *   → 4 카메라: 수평계 · 릴리스 포인트를 표적에  → 5 반투명 스트라이크 존 놓기  → 측정
+ *   (타구 측정은 2026-10-03 사용자 요청으로 뺐다 — 투구만 잰다)
  *   (설정 단계마다 그림 카드로 어떤 상황에서 무엇을 고르는지 보인다 — components/velocity/setup-art.tsx)
  *   → 세션(측정 중 화면: 구속 · 구종 · 회전축 · 이전 공)  → 세션 종료 → 세션 요약(저장하기 · 계속 재기)
  *
- * 카메라는 4에서 켜져 6까지 같은 <video> 로 이어진다. 고른 것과 존 자리는 브라우저에 남겨
- * 다음에는 1에서 바로 4로 간다. 6의 설정에서 소리 안내 · 화각 · 보정 · 처음부터 다시.
+ * 카메라는 4에서 켜져 측정까지 같은 <video> 로 이어진다. 고른 것과 존 자리는 브라우저에 남겨
+ * 다음에는 '지난 설정'에서 바로 4로 간다. 측정 화면의 설정에서 소리 안내 · 화각 · 보정 · 처음부터 다시.
  *
  * PC 에서는 이 전체를 폰 크기 틀(390px) 안에 띄운다 — 폰이 기준이라 PC 화면에 맞춰 늘리지
  * 않는다. 잰 값은 '저장'을 누를 때 서버로 간다(app/actions/velocity.ts). 영상은 어디에도 안 올린다.
  */
 
-export type Step =
-  'type' | 'mode' | 'camera' | 'net' | 'align' | 'zone' | 'measure' | 'lens';
+export type Step = 'type' | 'camera' | 'net' | 'align' | 'zone' | 'measure' | 'lens';
 
 /** 카메라(뷰파인더)가 필요한 단계 — 들어오면 카메라를 켠다 */
 const CAMERA_STEPS: ReadonlySet<Step> = new Set<Step>([
@@ -174,14 +197,18 @@ const CAMERA_STEPS: ReadonlySet<Step> = new Set<Step>([
 
 /* 내비게이션 바의 뒤로 — 어느 단계에서 어디로, 무슨 이름으로. 없으면 '투구 기록'(나가기) */
 const BACK_OF: Partial<Record<Step, { to: Step; label: string }>> = {
-  mode: { to: 'type', label: '종류' },
-  camera: { to: 'mode', label: '무엇을' },
+  camera: { to: 'type', label: '종류' },
   net: { to: 'camera', label: '카메라 위치' },
   align: { to: 'net', label: '네트' },
   zone: { to: 'align', label: '수평' },
   lens: { to: 'measure', label: '측정' },
 };
 type LocalClip = { url: string; blob: Blob; durationSec: number; eventSec: number };
+/** 공의 영상 주소(일반 · 광각)를 푼다 — 저장했거나 화면을 떠날 때 */
+const revokeClips = (p: { clip?: LocalClip; wideClip?: LocalClip }) => {
+  if (p.clip) URL.revokeObjectURL(p.clip.url);
+  if (p.wideClip) URL.revokeObjectURL(p.wideClip.url);
+};
 type LocalPitch = SavePitchInput & {
   id: number;
   /** 엔진이 본 자료 — 잰 순간의 스트라이크 존(zoneRect)도 실려 영상에 겹쳐 그린다 */
@@ -190,6 +217,8 @@ type LocalPitch = SavePitchInput & {
   /** LiveCapture 결과 번호 — 뒤에 오는 영상 클립과 짝 */
   captureId?: number;
   clip?: LocalClip;
+  /** 같은 공의 광각 카메라 영상 — 앱이 일반 · 광각을 함께 찍을 때(설정 '광각 영상도 같이 저장') */
+  wideClip?: LocalClip;
   /** 관리자 점프 도구가 넣은 예시 공 — 화면 확인용, 저장은 막는다 */
   sample?: boolean;
   /** 카메라 실시간의 촬영 조건 알림(초당 장면 · 잘린 화면 · 짐작한 화각 · 번짐 …) — 화면에만 보인다 */
@@ -206,9 +235,6 @@ const SAMPLE_PITCHES: { kmh: number; type: string; zone: number; result: string 
   { kmh: 118.9, type: 'changeup', zone: 8, result: 'strike' },
 ];
 
-/** 보정용 저장이 아닐 때 이 폰에 쥐고 있는 클립 수(메모리) — 넘으면 오래된 것부터 버린다 */
-const MAX_LOCAL_CLIPS = 30;
-
 /* 카메라 앱 모양의 단추 — 위 줄 동그라미 · 아래 보조 단추 · 라벨 */
 const CHROME_BTN =
   'inline-flex h-10 w-10 items-center justify-center rounded-full bg-black/45 text-white backdrop-blur transition-colors hover:bg-black/60 disabled:opacity-40';
@@ -220,6 +246,15 @@ const CHROME_BTN_ON_PANEL = CHROME_BTN.replace('bg-black/45', 'bg-white/10').rep
 const SIDE_BTN =
   'inline-flex h-12 w-12 items-center justify-center rounded-full border border-white/25 bg-white/10 text-white transition-colors active:bg-white/25 disabled:opacity-40';
 const SIDE_LABEL = 'mt-1 text-xs text-white/70';
+
+/** 녹화 시간 — 분:초(한 시간이 넘으면 시:분:초) */
+const formatClock = (sec: number) => {
+  const t = Math.max(0, Math.floor(sec));
+  const h = Math.floor(t / 3600);
+  const m = Math.floor((t % 3600) / 60);
+  const s = String(t % 60).padStart(2, '0');
+  return h > 0 ? `${h}:${String(m).padStart(2, '0')}:${s}` : `${m}:${s}`;
+};
 
 const STATUS_TEXT: Record<LiveStatus, string> = {
   off: '카메라 꺼짐',
@@ -286,7 +321,8 @@ export function VelocityScreen({
   /* 세션 중 정보 판 · 뷰파인더 위 둘째 줄(수평계 · 카메라 정보) — 판 전환을 곧바로 · 존이 둘째 줄 밑으로 못 가게 */
   const panelRef = useRef<HTMLDivElement>(null);
   const topRowRef = useRef<HTMLDivElement>(null);
-  const captureRef = useRef<LiveCapture | null>(null);
+  /* 웹 카메라(LiveCapture) 또는 앱의 일반 · 광각 동시 촬영(DualCapture — 앱 + 설정 '광각 영상도 같이 저장') */
+  const captureRef = useRef<LiveCapture | DualCapture | null>(null);
   /* 카메라를 켠 차례 — 결과 · 클립 번호를 켤 때마다 가른다(startCamera) */
   const captureGenRef = useRef(0);
   /* 공이 된 결과 번호 · 결과보다 먼저 온 클립(attachClipToPitch) — 이벤트 안에서만 만진다 */
@@ -304,6 +340,9 @@ export function VelocityScreen({
     focalRatio: null as number | null,
     releaseDistM: DEFAULT_SETUP.releaseDistM,
     autoMode: DEFAULT_SETUP.autoMode,
+    wideClip: DEFAULT_SETUP.wideClip,
+    camMode: DEFAULT_SETUP.camMode,
+    recordMode: false,
   });
   /* 카메라를 저절로 켠 단계 — 한 단계에 한 번만(아래 안전장치 효과) */
   const autoStartedFor = useRef<Step | null>(null);
@@ -316,7 +355,6 @@ export function VelocityScreen({
   const [decided, setDecided] = useState(initialStep !== 'type');
   const [step, setStep] = useState<Step>(initialStep);
   const [choices, setChoices] = useState<Choices>({
-    mode: DEFAULT_SETUP.mode,
     cameraPos: DEFAULT_SETUP.cameraPos,
     net: DEFAULT_SETUP.net,
   });
@@ -325,8 +363,39 @@ export function VelocityScreen({
   const [releaseDistM, setReleaseDistM] = useState(DEFAULT_SETUP.releaseDistM);
   const [autoMode, setAutoMode] = useState(DEFAULT_SETUP.autoMode);
   const [calibSave, setCalibSave] = useState(DEFAULT_SETUP.calibSave);
+  /* 엔진 개발용 녹화(관리자 설정) — 켜면 측정 대기 화면의 시작 단추가 녹화 단추 */
+  const [recordMode, setRecordMode] = useState(DEFAULT_SETUP.recordMode);
+  const recOn = isAdmin && recordMode;
+  /* 진단 표시(관리자 설정) — 장면 받는 길 · fps · 처리 시간 · 알아챔 수 · 거부 까닭 */
+  const [diagHud, setDiagHud] = useState(DEFAULT_SETUP.diagHud);
+  const [liveInfo, setLiveInfo] = useState<LiveInfo | null>(null);
+  const [diag, setDiag] = useState({ captures: 0, ok: 0, rejected: 0, last: '' });
+  /* 카메라가 낸 결과를 진단 수에 센다 — 화면이 걸러 버리는 잡음 거부까지(addResult 의 noise) */
+  const noteDiagRef = useRef((r: ScreenResult) => {
+    setDiag((d) => ({
+      captures: d.captures + 1,
+      ok: d.ok + (r.measure.ok ? 1 : 0),
+      rejected: d.rejected + (r.measure.ok ? 0 : 1),
+      last: r.measure.ok ? `${r.measure.kmh.toFixed(1)}km/h · 궤적 ${r.track.length}장` : `${r.measure.code} · 궤적 ${r.track.length}장`,
+    }));
+  });
+  /* 녹화기 · 그 상태(찍는 시간 · 조각 · 올림) — 녹화 중이 아니면 null */
+  const recorderRef = useRef<SegmentedRecorder | null>(null);
+  const [rec, setRec] = useState<RecorderState | null>(null);
+  const recording = rec != null && (rec.phase === 'starting' || rec.phase === 'recording' || rec.phase === 'stopping');
   /* 저장된 공 영상에 스트라이크 존을 겹쳐 그릴까(설정) */
   const [clipZone, setClipZone] = useState(DEFAULT_SETUP.clipZone);
+  /* 광각 영상도 같이 저장(설정) — 앱의 동시 촬영 부품이 있을 때 공마다 wideClip 이 붙는다(2단계) */
+  const [wideClip, setWideClip] = useState(DEFAULT_SETUP.wideClip);
+  /* 측정 카메라의 화질 · 프레임(오른쪽 위 카메라 정보를 눌러 고름) — null 이면 자동(1080p · 60fps) */
+  const [camMode, setCamMode] = useState<CamMode | null>(DEFAULT_SETUP.camMode);
+  /* 지금 카메라로 고를 수 있는 화질 — 켤 때마다 카메라가 알려 준다 */
+  const [camOptions, setCamOptions] = useState<CamModeOption[]>([]);
+  /*
+   * 화질 · 프레임을 바꾸기 직전 값 — 고른 조합이 30fps 이하로 켜지면 이리로 되돌린다(측정 카메라는 30fps 이하를 안 쓴다).
+   * undefined = 되돌릴 것 없음
+   */
+  const modeBeforeRef = useRef<CamMode | null | undefined>(undefined);
   /* 보정용 저장은 관리자만 효과가 있다 */
   const calibOn = isAdmin && calibSave;
   /* 세션 — 시작하면 카메라를 숨기고 정보 판을 보인다 */
@@ -381,6 +450,8 @@ export function VelocityScreen({
   const cameraOn = status !== 'off' && status !== 'starting';
   /* 삼각대에 세워 두고 손대지 않으니 화면이 저절로 꺼지지 않게 — 꺼지면 카메라도 멈춘다 */
   useWakeLock(cameraOn);
+  /* 측정 중인가 — 카메라를 다시 켤 때(화질 · 프레임 바꿈) 이어서 기다릴지 */
+  const liveRef = useRef(false);
   useLayoutEffect(() => {
     cameraSettingsRef.current = {
       fov,
@@ -389,8 +460,16 @@ export function VelocityScreen({
       focalRatio,
       releaseDistM,
       autoMode,
+      wideClip,
+      camMode,
+      recordMode: recOn,
     };
+    liveRef.current = live;
   });
+  /* 이 아이폰이 일반 · 광각을 함께 켤 수 있나 — 미리 물어 둔다(설정 칸 · 카메라 켜기가 기다리지 않게) */
+  useEffect(() => {
+    if (native) void dualCameraStatus();
+  }, [native]);
   /*
    * 스트라이크 존 — 규격(모양 ZONE_ASPECT · 가로 범위 ZONE_WIDTH_RANGE)에 맞춘 것을 쓴다. 놓는 단계에서는 칸에 보이는 장면
    * 안으로 넣는다(칸 밖으로 나간 존은 손잡이를 못 잡는다).
@@ -418,7 +497,9 @@ export function VelocityScreen({
   const shown = (raw: number) =>
     useCal && fit.n > 0 ? applyCalibration(raw, fit) : raw;
 
-  const [sheet, setSheet] = useState<'none' | 'settings' | 'save' | 'pitch'>('none');
+  const [sheet, setSheet] = useState<'none' | 'settings' | 'save' | 'pitch' | 'camera'>(
+    'none'
+  );
   const [editing, setEditing] = useState<number | null>(null);
   /* 어떤 투구인가 — 첫 설정 단계에서 고르고, 저장할 때 투구 기록의 종류가 된다(저장 시트에서도 바꿀 수 있다) */
   const [sessionType, setSessionType] = useState<string>(DEFAULT_SETUP.sessionType);
@@ -442,11 +523,14 @@ export function VelocityScreen({
 
   useEffect(() => {
     return () => {
+      /* 녹화 중에 화면을 떠나면 찍던 조각은 버린다(이미 올린 조각은 남는다) */
+      recorderRef.current?.abort();
+      recorderRef.current = null;
       captureRef.current?.stop();
       captureRef.current = null;
       autoStartedFor.current = null;
       if (typeof speechSynthesis !== 'undefined') speechSynthesis.cancel();
-      for (const p of pitchesRef.current) if (p.clip) URL.revokeObjectURL(p.clip.url);
+      for (const p of pitchesRef.current) revokeClips(p);
     };
   }, []);
 
@@ -476,6 +560,10 @@ export function VelocityScreen({
       autoMode,
       calibSave,
       clipZone,
+      wideClip,
+      camMode,
+      recordMode,
+      diagHud,
       ...patch,
     });
   };
@@ -596,14 +684,50 @@ export function VelocityScreen({
      * 옛 공에도 붙었다. 켤 때마다 다른 자리를 얹어 가른다.
      */
     const idBase = ++captureGenRef.current * 1_000_000;
+    const gen = captureGenRef.current;
     /* 설정은 방금 그린 값으로(cameraSettingsRef) — 이 함수가 옛 그림의 것이어도 */
     const now = cameraSettingsRef.current;
-    const capture = new LiveCapture(
+    const finder = finderRef.current;
+    /*
+     * 앱에 동시 촬영 부품이 있고, 이 아이폰이 일반 · 광각을 함께 켤 수 있고, 설정을 켰으면 앱이 두 카메라를 쥔다(웹 카메라는
+     * 켜지 않는다 — 같은 카메라를 둘이 못 쓴다). 결과는 던진 뒤 1~3초에 온다(앱이 자른 클립을 영상 파일 엔진으로 잰다).
+     * 기기 검사는 화면을 열 때 미리 해 둔다 — 아직이면 기다린다(앱 길만. 웹 카메라는 누름에 바로 붙여 켠다).
+     */
+    let dualOk = false;
+    if (native && now.wideClip && !now.recordMode && finder) {
+      const s = dualStatusNow() ?? (await dualCameraStatus());
+      if (gen !== captureGenRef.current) return;
+      dualOk = s.supported;
+    }
+    const capture =
+      dualOk && finder
+        ? new DualCapture(
+            finder,
+            {
+              onStatus: setStatus,
+              onResult: (r, meta) => {
+                noteDiagRef.current(r);
+                addResultRef.current(r, 'camera', { ...meta, id: idBase + meta.id });
+              },
+              onClip: (id, clip) => attachClipRef.current(idBase + id, clip),
+              onWideClip: (id, clip) => attachWideClipRef.current(idBase + id, clip),
+              onError: setError,
+              onNotice: setToast,
+              onFps: (f) => setFps(Math.round(f)),
+            },
+            now.fov,
+            now.approach,
+            now.net
+          )
+        : new LiveCapture(
       video,
       {
         onStatus: setStatus,
-        onResult: (r, meta) =>
-          addResultRef.current(r, 'camera', meta && { ...meta, id: idBase + meta.id }),
+        onResult: (r, meta) => {
+          noteDiagRef.current(r);
+          addResultRef.current(r, 'camera', meta && { ...meta, id: idBase + meta.id });
+        },
+        onInfo: setLiveInfo,
         onClip: (id, clip) => attachClipRef.current(idBase + id, clip),
         onError: setError,
         onNotice: setToast,
@@ -618,14 +742,37 @@ export function VelocityScreen({
       now.approach === 'approaching' ? now.releaseDistM : null
     );
     capture.setManual(!now.autoMode);
-    capture.setClips(true);
-    captureRef.current?.stop();
+    /* 엔진 개발용 녹화 중에는 공마다 클립 녹화기를 끈다 — 긴 녹화와 녹화기 셋이 겹치면 장면이 밀린다 */
+    capture.setClips(!now.recordMode);
+    capture.setMode(now.camMode);
+    /* 세션 중에 다시 켰으면(화질 · 프레임을 바꿈) 켜지는 대로 이어서 기다린다 */
+    if (liveRef.current) capture.arm();
+    const prev = captureRef.current;
+    prev?.stop();
     captureRef.current = capture;
+    /* 앱 동시 촬영에서 웹 카메라로 바꿀 때 — 앱이 카메라를 놓은 뒤에 켠다 */
+    if (prev instanceof DualCapture) await prev.stopped;
+    if (captureRef.current !== capture) return;
     try {
-      setCamera(await capture.start());
+      const info = await capture.start();
+      if (captureRef.current !== capture) return;
+      setCamera(info);
+      setCamOptions(capture.getModeOptions());
+      checkCamMode(info, now.camMode);
     } catch (e) {
       /* 켜는 사이에 껐다(화면을 떠남 · 다시 켬) — 알릴 것 없다 */
       if (e instanceof DOMException && e.name === 'AbortError') return;
+      /*
+       * 앱이 켜 보고 '이 아이폰은 두 카메라를 함께 못 켬(60fps 를 못 냄 · 하드웨어 몫)'으로 끝냈다 — 기억해 두고(설정 칸이
+       * 잠긴다) 웹 카메라로 바꿔 켠다. 측정은 끊기지 않는다.
+       */
+      if (e instanceof DualUnsupportedError) {
+        markDualUnsupported(e.reason);
+        if (captureRef.current === capture) captureRef.current = null;
+        setToast('광각 동시 촬영이 안 되는 아이폰이라 일반 카메라로 재요');
+        void startCamera();
+        return;
+      }
       const message = e instanceof Error ? e.message : '카메라를 켜지 못했습니다.';
       /*
        * 앱에는 주소창이 없다 — 앱에서 막혔으면 아이폰이 카메라를 거절한 것이고, 아이폰은 앱 안에서 다시 묻지 않는다.
@@ -667,7 +814,7 @@ export function VelocityScreen({
   const usePrevious = () => {
     if (!stored) return;
     enterCameraStep('align', () => {
-      setChoices({ mode: stored.mode, cameraPos: stored.cameraPos, net: stored.net });
+      setChoices({ cameraPos: stored.cameraPos, net: stored.net });
       setSessionType(stored.sessionType);
       setZone(stored.zone);
       setVoice(stored.voice);
@@ -676,6 +823,10 @@ export function VelocityScreen({
       setAutoMode(stored.autoMode);
       setCalibSave(stored.calibSave);
       setClipZone(stored.clipZone);
+      setWideClip(stored.wideClip);
+      setCamMode(stored.camMode);
+      setRecordMode(stored.recordMode);
+      setDiagHud(stored.diagHud);
       setDecided(true);
       setStep('align');
     });
@@ -683,7 +834,13 @@ export function VelocityScreen({
   };
   const startFresh = () => {
     /* 새 설정이어도 보기 취향(영상에 존 표시)은 이어 간다 — 안 그러면 저장할 때 켜짐으로 되돌아간다 */
-    if (stored) setClipZone(stored.clipZone);
+    if (stored) {
+      setClipZone(stored.clipZone);
+      setWideClip(stored.wideClip);
+      setCamMode(stored.camMode);
+      setRecordMode(stored.recordMode);
+      setDiagHud(stored.diagHud);
+    }
     setDecided(true);
     setStep('type');
   };
@@ -719,10 +876,7 @@ export function VelocityScreen({
     (r: ScreenResult, s: LocalPitch['source'], m?: ResultMeta) => void
   >(() => undefined);
   const attachClipRef = useRef<(id: number, clip: PitchClip) => void>(() => undefined);
-  const calibOnRef = useRef(false);
-  useEffect(() => {
-    calibOnRef.current = calibOn;
-  }, [calibOn]);
+  const attachWideClipRef = useRef<(id: number, clip: PitchClip) => void>(() => undefined);
   useEffect(() => {
     captureRef.current?.setManual(!autoMode);
   }, [autoMode]);
@@ -732,7 +886,10 @@ export function VelocityScreen({
     return () => clearTimeout(t);
   }, [toast]);
 
-  /* 결과 뒤 1~3초 안에 오는 영상 클립을 그 공에 붙인다. 보정용 저장이 아니면 최근 몇 개만 쥔다(메모리) */
+  /*
+   * 결과 뒤 1~3초 안에 오는 영상 클립을 그 공에 붙인다. 모든 공의 클립을 쥐고 있다가 저장할 때 올린다(2026-10-03 사용자:
+   * "클립은 보정용이던 말던 모든 상황에서 녹화") — 예전에는 보정용 저장이 아니면 최근 30개만 쥐고 올리지 않았다.
+   */
   const attachClipToPitch = (id: number, clip: PitchClip) => {
     /*
      * 짝이 되는 공이 아직 없으면 붙들어 둔다 — 클립은 던진 뒤 1~3초에 오고, 계산이 밀리면 결과보다 먼저 온다(버리면 보정용
@@ -761,17 +918,32 @@ export function VelocityScreen({
             }
           : p
       );
-      if (calibOnRef.current) return next;
-      const withClip = next.filter((p) => p.clip);
-      const drop = withClip.slice(0, Math.max(0, withClip.length - MAX_LOCAL_CLIPS));
-      if (!drop.length) return next;
-      for (const d of drop) if (d.clip) URL.revokeObjectURL(d.clip.url);
-      const dropIds = new Set(drop.map((d) => d.id));
-      return next.map((p) => (dropIds.has(p.id) ? { ...p, clip: undefined } : p));
+      return next;
     });
+  };
+  /* 광각 클립 — DualCapture 가 잰 공(결과 다음)에만 보낸다. 짝이 없으면 버린다 */
+  const attachWideClipToPitch = (id: number, clip: PitchClip) => {
+    if (!acceptedIdsRef.current.has(id)) return;
+    const url = URL.createObjectURL(clip.blob);
+    setPitches((prev) =>
+      prev.map((p) =>
+        p.captureId === id
+          ? {
+              ...p,
+              wideClip: {
+                url,
+                blob: clip.blob,
+                durationSec: clip.durationSec,
+                eventSec: clip.eventSec,
+              },
+            }
+          : p
+      )
+    );
   };
   useEffect(() => {
     attachClipRef.current = attachClipToPitch;
+    attachWideClipRef.current = attachWideClipToPitch;
   });
 
   /* 세션 — 시작하면 카메라를 숨기고 알아서 잡는다(수동이면 공마다 단추). 종료하면 저장 시트 */
@@ -811,6 +983,69 @@ export function VelocityScreen({
     setPrevOpen(false);
     if (pitches.length > 0) setSummaryOpen(true);
   };
+  /*
+   * 엔진 개발용 녹화(관리자) — 측정 없이 카메라 영상을 계속 찍어 30초 남짓 조각으로 구속 측정 관리자에 올린다
+   * (lib/velocity-recorder.ts). 그때의 카메라 · 설정(meta)을 같이 남겨, 관리자 화면에서 공마다 범위를 잡아 같은 조건으로 다시 잰다.
+   */
+  const startRecording = async () => {
+    const capture = captureRef.current;
+    const stream = capture instanceof LiveCapture ? capture.getStream() : null;
+    if (!stream || !camera || recorderRef.current) {
+      setToast('카메라를 켠 뒤에 녹화할 수 있어요');
+      return;
+    }
+    const recorder = new SegmentedRecorder(stream, (s) => setRec({ ...s }));
+    recorderRef.current = recorder;
+    const frameFps = fps ?? camera.frameRate ?? 60;
+    await recorder.start({
+      date: today,
+      bitrate: recordingBitrate(camera.width, camera.height, frameFps),
+      meta: {
+        engineVersion: VELOCITY_ENGINE_VERSION,
+        app: native,
+        camera: {
+          label: camera.label,
+          width: camera.width,
+          height: camera.height,
+          frameRate: camera.frameRate,
+          measuredFps: fps,
+          focus: camera.focus,
+          zoom: camera.zoom,
+          cropped: camera.cropped,
+        },
+        camMode,
+        fovDeg: fov,
+        focalRatio,
+        cameraPos: choices.cameraPos,
+        net: choices.net,
+        zone: activeZone,
+        releaseDistM: approach === 'approaching' ? releaseDistM : null,
+      },
+    });
+    if (recorder.state.phase === 'error') {
+      setToast(recorder.state.error ?? '녹화를 시작하지 못했어요');
+      recorderRef.current = null;
+      setRec(null);
+      return;
+    }
+    buzz(20);
+  };
+  const stopRecording = async () => {
+    const recorder = recorderRef.current;
+    if (!recorder || recorder.state.phase !== 'recording') return;
+    const res = await recorder.stop();
+    recorderRef.current = null;
+    setRec(null);
+    buzz(20);
+    setToast(
+      res.ok
+        ? `녹화를 구속 측정 관리자에 올렸어요(조각 ${res.parts}개)`
+        : res.parts > 0
+          ? `조각 ${res.parts}개만 올렸어요 — ${res.error ?? '일부를 못 올렸어요'}`
+          : (res.error ?? '녹화를 올리지 못했어요')
+    );
+  };
+
   /* 요약에서 '구속 측정하기' — 같은 세션에 공을 더 잰다(카메라가 꺼져 있으면 대기 화면으로) */
   const continueSession = () => {
     setSummaryOpen(false);
@@ -821,6 +1056,10 @@ export function VelocityScreen({
   };
   /* 나가기 — 저장하지 않은 공이 있으면 한 번 묻는다(말없이 사라지지 않게) */
   const leave = () => {
+    if (recorderRef.current) {
+      setToast('녹화를 먼저 멈춰 주세요');
+      return;
+    }
     if (pitches.length > 0) {
       setAskLeave(true);
       return;
@@ -891,6 +1130,61 @@ export function VelocityScreen({
     void startCamera();
     // eslint-disable-next-line react-hooks/exhaustive-deps -- 단계가 바뀔 때만 본다
   }, [step, showAsk]);
+  /*
+   * '광각 영상도 같이 저장'을 바꾸면 카메라를 쥔 쪽이 바뀐다(웹 카메라 ↔ 앱 동시 촬영) — 측정 중이 아니면 바로 다시 켠다.
+   * 측정 중이면 세션을 멈춘 뒤('카메라 다시 켜기') 바뀐다.
+   */
+  useEffect(() => {
+    const capture = captureRef.current;
+    if (!capture || live || recorderRef.current) return;
+    const wantsDual =
+      native && wideClip && !recOn && dualStatusNow()?.supported === true;
+    if (wantsDual === capture instanceof DualCapture) {
+      capture.setClips(!recOn);
+      return;
+    }
+    void startCamera();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- 설정이 바뀔 때만 본다
+  }, [wideClip, recOn]);
+
+  /*
+   * 화질 · 프레임 고르기(오른쪽 위 카메라 정보 → 시트). 고르면 남기고 카메라를 다시 켠다 — 세션 중이면 켜지는 대로 이어서
+   * 기다린다(startCamera 의 liveRef). remember 면 고르기 전 값을 쥐어, 고른 조합이 30fps 이하로 켜지면 되돌린다.
+   */
+  const applyCamMode = (next: CamMode | null, remember = true) => {
+    if (recorderRef.current) {
+      setToast('녹화 중에는 화질을 바꿀 수 없어요');
+      return;
+    }
+    modeBeforeRef.current = remember ? camMode : undefined;
+    setCamMode(next);
+    persistSetup({ camMode: next });
+    cameraSettingsRef.current = { ...cameraSettingsRef.current, camMode: next };
+    void startCamera();
+  };
+  const applyCamModeRef = useRef(applyCamMode);
+  useEffect(() => {
+    applyCamModeRef.current = applyCamMode;
+  });
+  /*
+   * 고른 화질 · 프레임으로 켜졌나 — 카메라가 못 내는 조합이면 가까운 것으로 켜진다. 그 결과가 30fps 이하면(측정 카메라는
+   * 30fps 이하를 안 쓴다 — 2026-10-03 사용자) 고르기 전으로 되돌리고, 아니면 실제로 켜진 값을 알린다.
+   */
+  const checkCamMode = (info: CameraInfo, asked: CamMode | null) => {
+    const back = modeBeforeRef.current;
+    modeBeforeRef.current = undefined;
+    if (!asked || info.frameRate == null) return;
+    const gotFps = Math.round(info.frameRate);
+    const gotShort = Math.min(info.width, info.height);
+    if (!fpsAllowed(gotFps) && back !== undefined) {
+      setToast(`${camModeLabel(asked)} 는 이 카메라에서 ${gotFps}fps 라 원래대로 돌렸어요`);
+      applyCamModeRef.current(back, false);
+      return;
+    }
+    if (Math.abs(gotShort - asked.short) > 8 || Math.abs(gotFps - asked.fps) > 2)
+      setToast(`이 카메라는 ${camModeLabel(asked)} 를 못 내 ${gotShort}p · ${gotFps}fps 로 켰어요`);
+  };
+
   useEffect(() => {
     const el = finderRef.current;
     if (!el || typeof ResizeObserver === 'undefined') return;
@@ -929,6 +1223,11 @@ export function VelocityScreen({
   };
 
   const shownPitches = pitches.map((p) => ({ ...p, kmh: shown(p.rawKmh) }));
+  /* 저장 때 올릴 영상 수 — 일반 + 광각 */
+  const clipCount = pitches.reduce(
+    (n, p) => n + (p.clip ? 1 : 0) + (p.wideClip ? 1 : 0),
+    0
+  );
   const stats = summarize(shownPitches);
   /* 세션 화면 · 요약 · 이전 공 시트가 받는 모양(components/velocity/session-types.ts) */
   const sessionPitches: SessionPitch[] = shownPitches.map((p, i) => ({
@@ -988,7 +1287,6 @@ export function VelocityScreen({
           device: camera
             ? `${camera.label} ${camera.width}×${camera.height}`.trim()
             : null,
-          mode: choices.mode,
           cameraPos: choices.cameraPos,
           net: choices.net,
           forCalibration: calibOn,
@@ -1000,6 +1298,7 @@ export function VelocityScreen({
             : null,
           lensCal: lensOk ? lens : null,
           releaseDistM: approach === 'approaching' ? releaseDistM : null,
+          useCal,
           frameW: camera?.width ?? null,
           frameH: camera?.height ?? null,
           pitches: pitches.map((p) => ({
@@ -1039,24 +1338,30 @@ export function VelocityScreen({
         setError(res.error);
         return;
       }
-      /* 보정용 저장이면 공마다 영상 클립을 올린다 — 실패해도 측정값은 이미 저장됐다 */
-      if (calibOn && res.pitchIds) {
+      /* 공마다 영상 클립을 올린다(모든 세션) — 실패해도 측정값은 이미 저장됐다 */
+      if (res.pitchIds) {
         const ids = res.pitchIds;
-        const targets = pitches
-          .map((p, i) => ({ p, id: ids[i] }))
-          .filter(
-            (t): t is { p: LocalPitch & { clip: LocalClip }; id: string } =>
-              !!t.p.clip && !!t.id
-          );
+        /* 공마다 일반 영상 · (있으면) 광각 영상 */
+        const targets = pitches.flatMap((p, i) => {
+          const id = ids[i];
+          if (!id) return [];
+          const jobs: { id: string; clip: LocalClip; kind: 'main' | 'wide' }[] = [];
+          if (p.clip) jobs.push({ id, clip: p.clip, kind: 'main' });
+          if (p.wideClip) jobs.push({ id, clip: p.wideClip, kind: 'wide' });
+          return jobs;
+        });
         if (targets.length) {
           setUploading({ done: 0, total: targets.length });
           let failed = 0;
           for (let i = 0; i < targets.length; i++) {
-            const { p, id } = targets[i];
-            const r = await uploadClip(id, p.clip.blob, {
-              sec: p.clip.durationSec,
-              eventSec: p.clip.eventSec,
-            });
+            const { id, clip, kind } = targets[i];
+            const r = await uploadClip(
+              id,
+              clip.blob,
+              { sec: clip.durationSec, eventSec: clip.eventSec },
+              undefined,
+              kind
+            );
             if (!r.ok) failed++;
             setUploading({ done: i + 1, total: targets.length });
           }
@@ -1065,7 +1370,7 @@ export function VelocityScreen({
             setError(`클립 ${failed}개를 올리지 못했어요(측정값은 저장됐어요).`);
         }
       }
-      for (const p of pitches) if (p.clip) URL.revokeObjectURL(p.clip.url);
+      for (const p of pitches) revokeClips(p);
       setSaved(true);
       setPitches([]);
       setClipOpen(null);
@@ -1164,7 +1469,7 @@ export function VelocityScreen({
   };
   const clearSamplePitches = () => {
     setPitches((prev) => {
-      for (const p of prev) if (p.sample && p.clip) URL.revokeObjectURL(p.clip.url);
+      for (const p of prev) if (p.sample) revokeClips(p);
       return prev.filter((p) => !p.sample);
     });
   };
@@ -1176,9 +1481,9 @@ export function VelocityScreen({
   /* 카메라 무대 위 가운데 — 단계 이름(측정은 세션 중 상태가 대신) */
   const stageTitle =
     step === 'align'
-      ? { n: '5/6', label: '수평 · 표적' }
+      ? { n: '4/5', label: '수평 · 표적' }
       : step === 'zone'
-        ? { n: '6/6', label: '스트라이크 존' }
+        ? { n: '5/5', label: '스트라이크 존' }
         : null;
   const fpsNote = liveFpsNote(fps);
   const lowFps = fpsNote != null;
@@ -1190,11 +1495,7 @@ export function VelocityScreen({
   const speedNum = (kmh: number) => Math.round(toSpeed(kmh, unit) * 10) / 10;
   const levelOk = !level.supported || level.ok;
   const targetText =
-    choices.mode === 'hit'
-      ? '배트에 맞는 지점'
-      : choices.cameraPos === 'behind-pitcher'
-        ? '릴리스 포인트'
-        : '미트가 오는 자리';
+    choices.cameraPos === 'behind-pitcher' ? '릴리스 포인트' : '미트가 오는 자리';
 
   /*
    * 스트라이크 존 — 장면 좌표를 지금 뷰파인더 칸에 맞춰 그린다(카메라가 꺼져 있으면 칸 = 장면으로 본다). 모양 · 크기는 규격
@@ -1209,7 +1510,11 @@ export function VelocityScreen({
 
   /* 뷰파인더 — 카메라 무대(수평 · 존 · 측정 · 렌즈)의 같은 자리에 하나. 단계가 바뀌어도 같은 <video> 다 */
   const finder = (
-    <div ref={finderRef} className="relative h-full w-full overflow-hidden bg-black">
+    <div
+      ref={finderRef}
+      data-finder
+      className="relative h-full w-full overflow-hidden bg-black"
+    >
       <video
         ref={videoRef}
         playsInline
@@ -1301,17 +1606,67 @@ export function VelocityScreen({
             {levelOn && <LevelBubble level={level} onRequest={requestPermission} />}
           </div>
           {camera && (
-            <span
-              className={`h-7 min-w-0 truncate rounded-full px-2.5 leading-7 tabular-nums backdrop-blur ${
-                lowFps ? 'bg-amber-600 text-white' : 'bg-black/55 text-white/80'
+            /*
+             * 누르면 화질 · 프레임 고르기(2026-10-03 사용자). 뷰파인더 위 손동작(존 끌기)이 이 누름을 가져가지 않게 pointerdown 을
+             * 여기서 멈춘다. 보이는 알약은 h-7 이지만 누르는 자리는 위아래로 넓힌다(before 로 44px).
+             */
+            <button
+              type="button"
+              onPointerDown={(e) => e.stopPropagation()}
+              onClick={() => setSheet('camera')}
+              aria-label="카메라 화질 · 프레임 바꾸기"
+              className={`pointer-events-auto relative inline-flex h-7 min-w-0 items-center gap-1 rounded-full pl-2.5 pr-2 tabular-nums backdrop-blur before:absolute before:-inset-y-2.5 before:inset-x-0 before:content-[''] motion-safe:transition-colors ${
+                lowFps
+                  ? 'bg-amber-600 text-white'
+                  : 'bg-black/55 text-white/80 active:bg-black/70'
               }`}
             >
-              {camera.width}×{camera.height}
-              {fps != null && ` · ${fps}fps`}
-              {camera.focus === 'manual' && ' · 수동초점'}
-              {camera.focus === 'auto' && ' · 자동초점'}
-            </span>
+              <span className="truncate">
+                {camera.width}×{camera.height}
+                {/* 실제로 들어오는 fps 가 오기 전에는 카메라가 약속한 값 */}
+                {(fps ?? camera.frameRate) != null &&
+                  ` · ${fps ?? Math.round(camera.frameRate ?? 0)}fps`}
+                {camera.focus === 'manual' && ' · 수동초점'}
+                {camera.focus === 'auto' && ' · 자동초점'}
+              </span>
+              <ChevronDown aria-hidden className="h-3.5 w-3.5 shrink-0 opacity-80" />
+            </button>
           )}
+        </div>
+      )}
+
+      {/*
+        진단 표시(관리자 설정) — 밖에서 하나도 안 잡힐 때 그 자리에서 까닭을 본다: 장면 받는 길(worker-stream 이 가장 가볍다) ·
+        실제로 들어오는 fps · 측정 워커가 장면 하나에 쓴 시간(16.7ms 를 넘으면 60fps 를 못 따라간다) · 계산이 밀려 버린 공 ·
+        알아챈 수 · 잰 수 · 거부 수와 마지막 결과. 정보 판이 올라와 있어도 보이게 위에 둔다.
+      */}
+      {isAdmin && diagHud && cameraOn && (
+        <div
+          aria-hidden
+          className="pointer-events-none absolute left-3 top-[calc(6.25rem+env(safe-area-inset-top))] z-30 max-w-[15rem] rounded-lg bg-black/70 px-2.5 py-1.5 text-xs leading-snug text-white/90 tabular-nums backdrop-blur"
+        >
+          <p>
+            {camera?.label.startsWith('DualCamera') ? 'dual(앱)' : (liveInfo?.pipeline ?? '—')}
+            {' · '}
+            {fps ?? '—'}fps
+            {liveInfo?.stats?.procAvgMs != null &&
+              ` · 처리 ${liveInfo.stats.procAvgMs.toFixed(1)}/${liveInfo.stats.procMaxMs.toFixed(0)}ms`}
+          </p>
+          <p>
+            알아챔 {diag.captures} · 잼 {diag.ok} · 거부 {diag.rejected}
+            {(liveInfo?.dropped ?? 0) > 0 && ` · 버림 ${liveInfo?.dropped}`}
+          </p>
+          {diag.last && <p className="truncate text-white/70">마지막 {diag.last}</p>}
+          {liveInfo?.frame && (
+            <p className="truncate text-white/60">
+              {liveInfo.frame.format} {liveInfo.frame.coded[0]}×{liveInfo.frame.coded[1]}
+              {liveInfo.rotationFix ? ` · 돌림 ${liveInfo.rotationFix}°` : ''}
+            </p>
+          )}
+          {liveInfo?.streamFailed && (
+            <p className="truncate text-amber-300">직접 받기 실패: {liveInfo.streamFailed}</p>
+          )}
+          <p className="text-white/60">상태 {STATUS_TEXT[status]}</p>
         </div>
       )}
 
@@ -1356,12 +1711,52 @@ export function VelocityScreen({
         <AdminJump
           current={currentScreen}
           onJump={jumpTo}
+          toggles={[
+            {
+              key: 'calibSave',
+              label: '정확도 보정용 저장',
+              hint: '켜고 잰 세션을 구속 측정 관리자에서 보정 자료로 표시해요.',
+              icon: Database,
+              on: calibSave,
+              onChange: (next) => {
+                setCalibSave(next);
+                persistSetup({ calibSave: next });
+              },
+            },
+            {
+              key: 'diagHud',
+              label: '진단 표시',
+              hint: '카메라 위에 장면 받는 길 · 실제 fps · 처리 시간 · 알아챔 · 거부 까닭을 작게 띄워요.',
+              icon: Activity,
+              on: diagHud,
+              onChange: (next) => {
+                setDiagHud(next);
+                persistSetup({ diagHud: next });
+              },
+            },
+            {
+              key: 'recordMode',
+              label: '엔진 개발용 녹화',
+              hint: '측정 대기 화면의 시작 단추가 녹화 단추가 돼요. 측정 없이 찍어 구속 측정 관리자에 올려요.',
+              icon: Clapperboard,
+              on: recordMode,
+              onChange: (next) => {
+                if (recorderRef.current) {
+                  setToast('녹화를 먼저 멈춰 주세요');
+                  return;
+                }
+                setRecordMode(next);
+                persistSetup({ recordMode: next });
+              },
+            },
+          ]}
           tools={[
             {
               label: `예시 공 ${SAMPLE_PITCHES.length}개 넣기`,
               onClick: addSamplePitches,
+              icon: FlaskConical,
             },
-            { label: '예시 공 지우기', onClick: clearSamplePitches },
+            { label: '예시 공 지우기', onClick: clearSamplePitches, icon: Trash2 },
           ]}
           className="absolute left-0 top-1/2 z-30 -translate-y-1/2"
         />
@@ -1391,23 +1786,23 @@ export function VelocityScreen({
               구속 측정
             </button>
           )}
-          <h1 className="text-heading text-base">{modeLabel(choices.mode)} 측정</h1>
+          <h1 className="text-heading text-base">구속 측정</h1>
           <span className="h-10 w-10" />
         </header>
       )}
 
-      {/* 지난 설정 → 1 어떤 투구 → 2 무엇을 → 3 카메라 위치 → 4 네트 — 카메라 앞 단계(그림 카드) */}
+      {/* 지난 설정 → 1 어떤 투구 → 2 카메라 위치 → 3 네트 — 카메라 앞 단계(그림 카드) */}
       {showAsk && stored && (
         <PreviousSetupStep setup={stored} onUse={usePrevious} onFresh={startFresh} />
       )}
       {!showAsk && step === 'type' && (
         <StepShell
           step={1}
-          total={6}
+          total={5}
           title="어떤 투구인가요?"
           subtitle="투구 기록에 이 종류로 남아요 — 나중에 돌아볼 때 무엇을 하다 던졌는지 갈려요."
           footer={
-            <PrimaryButton onClick={() => setStep('mode')}>
+            <PrimaryButton onClick={() => setStep('camera')}>
               다음
               <ChevronRight aria-hidden className="h-4 w-4" />
             </PrimaryButton>
@@ -1421,31 +1816,10 @@ export function VelocityScreen({
           />
         </StepShell>
       )}
-      {!showAsk && step === 'mode' && (
-        <StepShell
-          step={2}
-          total={6}
-          title="무엇을 잴까요?"
-          subtitle="던진 공의 구속인지, 방망이에 맞고 나가는 타구인지 — 공이 멀어지는 방향이 달라져요."
-          footer={
-            <PrimaryButton onClick={() => setStep('camera')}>
-              다음
-              <ChevronRight aria-hidden className="h-4 w-4" />
-            </PrimaryButton>
-          }
-        >
-          <OptionCards
-            label="무엇을 재나"
-            options={modeOptions()}
-            value={choices.mode}
-            onChange={(mode) => setChoices({ ...choices, mode })}
-          />
-        </StepShell>
-      )}
       {!showAsk && step === 'camera' && (
         <StepShell
-          step={3}
-          total={6}
+          step={2}
+          total={5}
           title="폰을 어디에 둘까요?"
           subtitle="공은 화면에서 작아지거나 커지는 걸로 재요. 뒤에서 정면으로 보게 두는 두 자리 중 하나."
           footer={
@@ -1457,7 +1831,7 @@ export function VelocityScreen({
         >
           <OptionCards
             label="카메라 위치"
-            options={cameraPosOptions(choices.mode)}
+            options={cameraPosOptions()}
             value={choices.cameraPos}
             onChange={(cameraPos) => {
               if (cameraPos !== choices.cameraPos) setZone(defaultZone(cameraPos));
@@ -1469,8 +1843,8 @@ export function VelocityScreen({
       )}
       {!showAsk && step === 'net' && (
         <StepShell
-          step={4}
-          total={6}
+          step={3}
+          total={5}
           title="카메라 앞에 네트가 있나요?"
           subtitle="그물이 있으면 초점을 고정해요 — 자동초점은 눈앞의 그물코에 초점을 맞춰 공이 흐려져요."
           footer={
@@ -1540,7 +1914,7 @@ export function VelocityScreen({
                         </span>
                       </p>
                       <p className="mt-2 text-xs text-white/70">
-                        ± {lastPitch.errorKmh} ·{' '}
+                        ± {speedNum(lastPitch.errorKmh)} ·{' '}
                         {
                           CONFIDENCE_TEXT[
                             lastPitch.confidence as keyof typeof CONFIDENCE_TEXT
@@ -1793,11 +2167,13 @@ export function VelocityScreen({
                           </span>
                         </p>
                         <p className="mt-1.5 text-xs text-white/75">
-                          ± {last.measure.errorKmh} ·{' '}
+                          ± {speedNum(last.measure.errorKmh)} ·{' '}
                           {CONFIDENCE_TEXT[last.measure.confidence]}
                           {last.release &&
                             ` · 릴리스 추정 ${speedNum(shown(last.release.releaseKmh))}`}
-                          {useCal && fit.n > 0 && ` · 보정 전 ${last.measure.kmh}`}
+                          {useCal &&
+                            fit.n > 0 &&
+                            ` · 보정 전 ${speedNum(last.measure.kmh)}`}
                         </p>
                         {last.live?.notes.slice(0, 2).map((note) => (
                           <p
@@ -1886,9 +2262,7 @@ export function VelocityScreen({
                   <ChevronLeft aria-hidden className="h-5 w-5" />
                   투구 기록
                 </button>
-                <span className="text-heading text-base">
-                  {modeLabel(choices.mode)} 측정
-                </span>
+                <span className="text-heading text-base">구속 측정</span>
                 <button
                   type="button"
                   onClick={() => setSheet('settings')}
@@ -2000,14 +2374,16 @@ export function VelocityScreen({
                 >
                   <span
                     className={`h-2 w-2 shrink-0 rounded-full ${
-                      status === 'armed'
+                      recording || status === 'armed'
                         ? 'animate-pulse bg-danger'
                         : status === 'capturing' || status === 'analyzing'
                           ? 'bg-amber-400'
                           : 'bg-white/60'
                     }`}
                   />
-                  <span className="truncate">{STATUS_TEXT[status]}</span>
+                  <span className="truncate">
+                    {recording ? `녹화 중 ${formatClock(rec?.elapsedSec ?? 0)}` : STATUS_TEXT[status]}
+                  </span>
                 </span>
               )}
               <div className="pointer-events-auto flex items-center gap-1">
@@ -2109,6 +2485,79 @@ export function VelocityScreen({
                     </span>
                   </div>
                   <div aria-hidden className="w-20" />
+                </>
+              ) : !live && recOn ? (
+                /*
+                 * 엔진 개발용 녹화(관리자 설정) — 시작 단추 자리가 녹화 단추. 왼쪽은 조각 · 올림, 오른쪽은 찍은 시간.
+                 * 멈추면 남은 조각을 다 올린 뒤 끝난다(그동안 단추는 도는 표시).
+                 */
+                <>
+                  <div className="flex w-20 flex-col items-center">
+                    <span
+                      className={`${SIDE_BTN} pointer-events-none flex-col text-xs leading-tight tabular-nums`}
+                    >
+                      <span className="font-semibold">
+                        {rec ? `${rec.uploaded}/${rec.parts}` : '0/0'}
+                      </span>
+                    </span>
+                    <span className={SIDE_LABEL}>
+                      {rec?.progress != null ? `올리는 중 ${rec.progress}%` : '올린 조각'}
+                    </span>
+                  </div>
+                  <div className="flex flex-col items-center">
+                    <button
+                      type="button"
+                      onClick={
+                        recording
+                          ? () => void stopRecording()
+                          : cameraOn
+                            ? () => void startRecording()
+                            : startCamera
+                      }
+                      disabled={
+                        status === 'starting' ||
+                        rec?.phase === 'starting' ||
+                        rec?.phase === 'stopping'
+                      }
+                      aria-label={
+                        recording ? '녹화 멈춤' : cameraOn ? '녹화 시작' : '카메라 켜기'
+                      }
+                      className="group flex h-[4.75rem] w-[4.75rem] items-center justify-center rounded-full border-4 border-white/90 disabled:opacity-60"
+                    >
+                      {rec?.phase === 'starting' || rec?.phase === 'stopping' ? (
+                        <Loader2 aria-hidden className="h-7 w-7 animate-spin text-white" />
+                      ) : recording ? (
+                        <span className="h-8 w-8 rounded-lg bg-red-500 transition-transform group-active:scale-90" />
+                      ) : cameraOn ? (
+                        <span className="h-16 w-16 rounded-full bg-red-500 transition-transform group-active:scale-90" />
+                      ) : (
+                        <span className="flex h-16 w-16 items-center justify-center rounded-full bg-white text-black">
+                          <Camera aria-hidden className="h-6 w-6" />
+                        </span>
+                      )}
+                    </button>
+                    <span className={SIDE_LABEL}>
+                      {rec?.phase === 'stopping'
+                        ? '남은 조각 올리는 중'
+                        : recording
+                          ? '녹화 멈춤'
+                          : cameraOn
+                            ? '엔진 개발용 녹화'
+                            : '카메라 켜기'}
+                    </span>
+                  </div>
+                  <div className="flex w-20 flex-col items-center">
+                    <span
+                      className={`${SIDE_BTN} pointer-events-none text-xs font-semibold tabular-nums ${
+                        recording ? 'text-red-400' : ''
+                      }`}
+                    >
+                      {formatClock(rec?.elapsedSec ?? 0)}
+                    </span>
+                    <span className={SIDE_LABEL}>
+                      {rec?.failed ? `실패 ${rec.failed}` : recording ? '녹화 중' : '대기'}
+                    </span>
+                  </div>
                 </>
               ) : !live ? (
                 <>
@@ -2296,7 +2745,7 @@ export function VelocityScreen({
                       <span className="block truncate text-xs text-muted">
                         {zoneLabel(p.zone) ?? '코스 —'}
                         {p.releaseKmh != null && ` · 릴리스 ${speedNum(p.releaseKmh)}`}
-                        {p.gunKmh != null && ` · 건 ${p.gunKmh}`}
+                        {p.gunKmh != null && ` · 건 ${speedNum(p.gunKmh)}`}
                         {p.source === 'file' && ' · 파일'}
                       </span>
                     </span>
@@ -2320,8 +2769,8 @@ export function VelocityScreen({
             </ul>
           </Panel>
           <p className="text-xs leading-relaxed text-muted">
-            공을 누르면 구종 · 코스 · 결과 · 스피드건 값을 고쳐요. ▶ 는 그 공의 영상(이
-            폰에서만).
+            공을 누르면 구종 · 코스 · 결과 · 스피드건 값을 고쳐요. ▶ 는 그 공의
+            영상(세션을 저장하면 같이 올라가요).
           </p>
         </div>
       </BottomSheet>
@@ -2340,7 +2789,7 @@ export function VelocityScreen({
         }}
       />
 
-      {/* 공 하나의 영상 클립 — 이 폰에서만(보정용 저장이면 저장할 때 올라간다) */}
+      {/* 공 하나의 영상 클립 — 세션을 저장할 때 같이 올라간다 */}
       <BottomSheet
         open={clipPitch?.clip != null}
         onClose={() => setClipOpen(null)}
@@ -2360,10 +2809,7 @@ export function VelocityScreen({
             <p className="text-xs leading-relaxed text-muted">
               {formatSpeed(shown(clipPitch.rawKmh), unit)} · 던진 순간{' '}
               {clipPitch.clip.eventSec.toFixed(1)}초 · 길이{' '}
-              {clipPitch.clip.durationSec.toFixed(1)}초 ·{' '}
-              {calibOn
-                ? '저장하면 구속 측정 관리자에 올라가요'
-                : '이 폰에서만 보여요(저장 안 함)'}
+              {clipPitch.clip.durationSec.toFixed(1)}초 · 저장하면 같이 올라가요
             </p>
           </div>
         )}
@@ -2391,7 +2837,7 @@ export function VelocityScreen({
             <dl className="grid grid-cols-2 gap-x-4 gap-y-1.5 rounded-2xl bg-surface-2 px-4 py-3 text-xs">
               <Detail
                 label="카메라 값(보정 전)"
-                value={`${editingPitch.rawKmh} km/h`}
+                value={`${speedNum(editingPitch.rawKmh)} ${speedLabel(unit)}`}
               />
               <Detail
                 label="릴리스 구속 추정"
@@ -2509,14 +2955,14 @@ export function VelocityScreen({
               {saving && <Loader2 aria-hidden className="h-4 w-4 animate-spin" />}
               {uploading
                 ? `클립 올리는 중 ${uploading.done}/${uploading.total}`
-                : calibOn
-                  ? `저장하고 클립 ${pitches.filter((p) => p.clip).length}개 올리기`
+                : clipCount > 0
+                  ? `저장하고 클립 ${clipCount}개 올리기`
                   : '저장'}
             </button>
             {calibOn && (
               <p className="text-xs leading-relaxed text-warn">
-                정확도 보정용 저장이 켜져 있어요 — 공마다 영상 클립과 분석 자료가 구속
-                측정 관리자에 올라가요.
+                정확도 보정용 저장이 켜져 있어요 — 이 세션이 구속 측정 관리자에서 보정
+                자료로 표시돼요.
               </p>
             )}
             <p className="text-xs leading-relaxed text-muted">
@@ -2527,6 +2973,22 @@ export function VelocityScreen({
           </div>
         )}
       </BottomSheet>
+
+      {/* 카메라 화질 · 프레임 */}
+      <CameraModeSheet
+        open={sheet === 'camera'}
+        onClose={() => setSheet('none')}
+        mode={camMode}
+        options={camOptions}
+        current={
+          camera
+            ? { width: camera.width, height: camera.height, fps: fps ?? camera.frameRate }
+            : null
+        }
+        busy={status === 'starting'}
+        dual={camera?.label.startsWith('DualCamera') === true}
+        onPick={(next) => applyCamMode(next)}
+      />
 
       {/* 설정 */}
       <BottomSheet
@@ -2545,9 +3007,9 @@ export function VelocityScreen({
               autoMode,
               calibSave,
               clipZone,
+              wideClip,
             }}
             showChoices={false}
-            isAdmin={isAdmin}
             calibration={fit}
             onChange={(patch) => {
               if (patch.fovDeg != null) changeFov(patch.fovDeg);
@@ -2574,6 +3036,10 @@ export function VelocityScreen({
               if (patch.clipZone != null) {
                 setClipZone(patch.clipZone);
                 persistSetup({ clipZone: patch.clipZone });
+              }
+              if (patch.wideClip != null) {
+                setWideClip(patch.wideClip);
+                persistSetup({ wideClip: patch.wideClip });
               }
             }}
           />
@@ -2706,7 +3172,7 @@ function PreviousSetupStep({
   return (
     <StepShell
       step={1}
-      total={6}
+      total={5}
       title="지난 설정으로 바로 시작할까요?"
       subtitle="같은 자리에서 같은 방식으로 재면 카메라로 바로 가요."
       footer={
@@ -2725,7 +3191,6 @@ function PreviousSetupStep({
         <div className="px-4 pb-4 pt-4">
           <SetupSummaryRow
             sessionType={setup.sessionType}
-            mode={setup.mode}
             cameraPos={setup.cameraPos}
             net={setup.net}
           />

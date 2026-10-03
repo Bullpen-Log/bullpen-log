@@ -1,7 +1,7 @@
 'use client';
 
 import { useMemo, useState, useSyncExternalStore } from 'react';
-import { Settings2 } from 'lucide-react';
+import { AlertTriangle, Settings2 } from 'lucide-react';
 import { Segmented } from '@/components/segmented';
 import { Button } from '@/components/ui';
 import {
@@ -17,7 +17,6 @@ import {
   DEFAULT_SETUP,
   defaultZone,
   loadSetup,
-  MODE_OPTIONS,
   NET_OPTIONS,
   saveSetup,
   SETUP_CHANGE_EVENT,
@@ -35,6 +34,7 @@ import {
 } from '@/lib/velocity-lens';
 import { applySpeedUnit, SPEED_UNITS } from '@/lib/units';
 import { useSpeedUnit } from '@/components/use-units';
+import { dualReasonText, useDualCameraStatus } from '@/lib/dual-camera';
 import { BottomSheet } from './pitch-editor';
 import { Panel, SectionLabel } from './kit';
 
@@ -48,7 +48,6 @@ import { Panel, SectionLabel } from './kit';
 
 export type SettingsValues = Pick<
   VelocitySetup,
-  | 'mode'
   | 'cameraPos'
   | 'net'
   | 'voice'
@@ -57,6 +56,7 @@ export type SettingsValues = Pick<
   | 'autoMode'
   | 'calibSave'
   | 'clipZone'
+  | 'wideClip'
 > & { fovDeg: number };
 
 const NET_VALUES = [
@@ -69,18 +69,21 @@ export function VelocitySettingsFields({
   onChange,
   calibration,
   showChoices = true,
-  isAdmin = false,
 }: {
   values: SettingsValues;
   onChange: (patch: Partial<SettingsValues>) => void;
   calibration: CalFit;
-  /** 관리자에게만 '정확도 보정용 저장' 줄을 보인다 */
-  isAdmin?: boolean;
   /** 녹화 종류 · 카메라 위치 · 네트도 여기서 바꿀까 — 측정 중에는 숨긴다 */
   showChoices?: boolean;
 }) {
   /* 구속 단위 — 앱 전체의 단위 설정(내 정보 · 투구 기록)과 같은 값. 여기서 바꾸면 거기도 바뀐다 */
   const speedUnit = useSpeedUnit();
+  /*
+   * 이 기기가 일반 · 광각을 함께 켤 수 있나(앱 부품에 묻는다 — 웹 · 옛 앱 · 못 하는 아이폰은 안 됨). 안 되면 '광각 영상도 같이
+   * 저장'을 보이되 못 켜게 잠그고 까닭을 경고로 띄운다(2026-10-03 사용자). 켜 둔 채 저장된 값이 있어도 꺼진 것으로 보인다.
+   */
+  const dual = useDualCameraStatus();
+  const dualOk = dual?.supported === true;
   return (
     <div className="space-y-5">
       <div>
@@ -114,19 +117,24 @@ export function VelocitySettingsFields({
             checked={values.autoMode}
             onChange={(autoMode) => onChange({ autoMode })}
           />
-          {isAdmin && (
-            <ToggleRow
-              title="정확도 보정용 저장(관리자)"
-              hint="켜고 재면 공마다 영상 클립 · 분석 자료가 구속 측정 관리자에 올라가요. 스피드건 값과 견줘 엔진을 맞추는 자료예요."
-              checked={values.calibSave}
-              onChange={(calibSave) => onChange({ calibSave })}
-            />
-          )}
+          {/* 관리자 스위치(정확도 보정용 저장 · 엔진 개발용 녹화)는 측정 화면 왼쪽 관리자 단추의 '관리자 설정'으로 옮겼다(2026-10-03) */}
           <ToggleRow
             title="영상에 스트라이크 존 표시"
             hint="저장된 공 영상(▶ · 구속 측정 관리자)을 볼 때 잰 순간의 스트라이크 존과 짐작한 코스 칸을 겹쳐 보여요. 영상 파일은 그대로예요."
             checked={values.clipZone}
             onChange={(clipZone) => onChange({ clipZone })}
+          />
+          <ToggleRow
+            title="광각 영상도 같이 저장"
+            hint={
+              dual == null
+                ? '이 기기에서 되는지 확인하는 중이에요…'
+                : '측정은 일반 카메라로 하고, 공마다 광각 카메라 영상도 함께 남겨요. 구속 측정 관리자에서 두 영상을 나란히 봐요.'
+            }
+            warning={dual && !dualOk ? dualReasonText(dual.reason) : undefined}
+            checked={values.wideClip && dualOk}
+            disabled={!dualOk}
+            onChange={(wideClip) => onChange({ wideClip })}
           />
           <ToggleRow
             title="스피드건 보정 적용"
@@ -205,15 +213,6 @@ export function VelocitySettingsFields({
         <div>
           <SectionLabel>촬영</SectionLabel>
           <Panel className="divide-y divide-line">
-            <ChoiceRow title="녹화 종류">
-              <Segmented
-                label="녹화 종류"
-                value={values.mode}
-                onChange={(mode) => onChange({ mode })}
-                options={MODE_OPTIONS.map((o) => ({ value: o.key, label: o.label }))}
-                size="sm"
-              />
-            </ChoiceRow>
             <ChoiceRow title="카메라 위치">
               <Segmented
                 label="카메라 위치"
@@ -245,21 +244,39 @@ export function VelocitySettingsFields({
 function ToggleRow({
   title,
   hint,
+  warning,
   checked,
   disabled,
   onChange,
 }: {
   title: string;
   hint: string;
+  /** 켤 수 없는 까닭 — 있으면 경고 줄로 보인다(스위치는 disabled 로 함께 잠근다) */
+  warning?: string;
   checked: boolean;
   disabled?: boolean;
   onChange: (next: boolean) => void;
 }) {
   return (
-    <label className="flex min-h-14 items-center justify-between gap-3 px-4 py-3">
+    <label
+      className={`flex min-h-14 items-center justify-between gap-3 px-4 py-3 ${
+        disabled ? 'cursor-not-allowed' : ''
+      }`}
+    >
       <span className="min-w-0">
-        <span className="block text-sm text-ink">{title}</span>
+        <span className={`block text-sm ${disabled ? 'text-muted' : 'text-ink'}`}>
+          {title}
+        </span>
         <span className="block text-xs leading-snug text-muted">{hint}</span>
+        {warning && (
+          <span
+            role="alert"
+            className="mt-1.5 flex items-start gap-1.5 text-xs font-medium leading-snug text-warn"
+          >
+            <AlertTriangle aria-hidden className="mt-px h-3.5 w-3.5 shrink-0" />
+            {warning}
+          </span>
+        )}
       </span>
       <input
         type="checkbox"
@@ -343,19 +360,16 @@ export function VelocitySettingsButton({
   calibration,
   className = '',
   label = '불펜 벨로시티 설정',
-  isAdmin = false,
 }: {
   calibration: CalFit;
   className?: string;
   label?: string;
-  isAdmin?: boolean;
 }) {
   const stored = useStoredSetup();
   const [open, setOpen] = useState(false);
   const [fov, setFov] = useState(() => loadFov(DEFAULT_FOV_DEG));
   const base = stored ?? { ...DEFAULT_SETUP, savedAt: '' };
   const values: SettingsValues = {
-    mode: base.mode,
     cameraPos: base.cameraPos,
     net: base.net,
     voice: base.voice,
@@ -364,6 +378,7 @@ export function VelocitySettingsButton({
     autoMode: base.autoMode,
     calibSave: base.calibSave,
     clipZone: base.clipZone,
+    wideClip: base.wideClip,
     fovDeg: fov,
   };
   const change = (patch: Partial<SettingsValues>) => {
@@ -376,7 +391,6 @@ export function VelocitySettingsButton({
     if (Object.keys(rest).length > 0) {
       saveSetup({
         sessionType: base.sessionType,
-        mode: base.mode,
         cameraPos: base.cameraPos,
         net: base.net,
         /* 카메라 위치를 바꾸면 존 크기 범위가 달라 그 자리의 기본 존으로 */
@@ -390,6 +404,10 @@ export function VelocitySettingsButton({
         autoMode: base.autoMode,
         calibSave: base.calibSave,
         clipZone: base.clipZone,
+        wideClip: base.wideClip,
+        camMode: base.camMode,
+        recordMode: base.recordMode,
+        diagHud: base.diagHud,
         ...rest,
       });
     }
@@ -416,7 +434,6 @@ export function VelocitySettingsButton({
             values={values}
             onChange={change}
             calibration={calibration}
-            isAdmin={isAdmin}
           />
           <div className="flex flex-wrap gap-2">
             <Button
@@ -425,7 +442,6 @@ export function VelocitySettingsButton({
               onClick={() =>
                 saveSetup({
                   sessionType: base.sessionType,
-                  mode: base.mode,
                   cameraPos: base.cameraPos,
                   net: base.net,
                   zone: defaultZone(base.cameraPos),
@@ -435,6 +451,10 @@ export function VelocitySettingsButton({
                   autoMode: base.autoMode,
                   calibSave: base.calibSave,
                   clipZone: base.clipZone,
+                  wideClip: base.wideClip,
+                  camMode: base.camMode,
+                  recordMode: base.recordMode,
+                  diagHud: base.diagHud,
                 })
               }
             >

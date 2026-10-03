@@ -58,11 +58,13 @@ export async function deleteVelocitySessionRows(sessionId: string) {
     select: {
       pitchLogId: true,
       pitchLog: { select: { memo: true } },
-      pitches: { select: { clipPath: true } },
+      pitches: { select: { clipPath: true, wideClipPath: true } },
     },
   });
   if (!session) return null;
-  const clips = session.pitches.map((p) => p.clipPath).filter((p): p is string => !!p);
+  const clips = session.pitches
+    .flatMap((p) => [p.clipPath, p.wideClipPath])
+    .filter((p): p is string => !!p);
   await prisma.$transaction(async (tx) => {
     await tx.velocitySession.delete({ where: { id: sessionId } });
     if (session.pitchLogId && session.pitchLog?.memo?.startsWith(VELOCITY_MEMO_MARK)) {
@@ -78,9 +80,12 @@ export async function deleteVelocityPitchRow(pitch: {
   id: string;
   sessionId: string;
   clipPath: string | null;
+  /** 같은 공의 광각 영상 — 없으면 null */
+  wideClipPath?: string | null;
 }) {
   await prisma.velocityPitch.delete({ where: { id: pitch.id } });
-  if (pitch.clipPath) await deleteVideos([pitch.clipPath]).catch(() => undefined);
+  const clips = [pitch.clipPath, pitch.wideClipPath].filter((p): p is string => !!p);
+  if (clips.length) await deleteVideos(clips).catch(() => undefined);
   await syncVelocitySession(pitch.sessionId);
 }
 
@@ -95,6 +100,7 @@ const LIVE_NOTE_CODES = new Set([
   'ZOOM',
   'HDR',
   'BLUR',
+  'DARK_BALL',
 ]);
 const LIVE_PIPELINES = new Set(['worker-stream', 'worker-frames', 'main']);
 /** 잰 순간의 스트라이크 존(장면 비율 0~1) — 넷 다 0~1 이고 폭 · 높이가 있을 때만 */
@@ -181,6 +187,11 @@ export function sanitizeAnalysis(raw: unknown): Record<string, unknown> | null {
     v: a.v === 2 ? 2 : 1,
     /* v2(모델 1.6.0) — 어느 자로 쟀나 · 흐림 · SE(lib/velocity-analysis.ts) */
     ruler: a.ruler === 'limb' || a.ruler === 'area' ? a.ruler : null,
+    /* 밝은 배경 앞의 어두운 공(두 번째 길)으로 잰 공 — 자가 달라 보정 짝에 섞지 않으려고(lib/velocity-analysis.ts) */
+    polarity:
+      a.polarity === 'bright' || a.polarity === 'dark' || a.polarity === 'mixed'
+        ? a.polarity
+        : null,
     edgeWidthPx: n(a.edgeWidthPx),
     blurCorrectionPx: n(a.blurCorrectionPx),
     startSeKmh: n(a.startSeKmh),

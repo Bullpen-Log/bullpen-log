@@ -9,6 +9,8 @@ import {
   type PitchEdit,
 } from '@/lib/velocity-meta';
 import { CHIP_BASE, CHIP_ON } from './kit';
+import { fromSpeed, round1, speedLabel, toSpeed, type SpeedUnit } from '@/lib/units';
+import { useSpeedUnit } from '@/components/use-units';
 
 /* 스피드건 칸의 글자 → 값. 다 적기 전('138.')도 읽는다(138) */
 function parseGun(text: string): number | null {
@@ -16,6 +18,17 @@ function parseGun(text: string): number | null {
   const n = Number(text);
   return Number.isFinite(n) ? n : null;
 }
+
+/*
+ * 스피드건 칸은 보는 단위로 적는다(mph 로 쓰는 사람은 mph 스피드건을 쓴다 — 김민 2026-09-30). 저장은 늘 km/h(소수 1자리).
+ * 90mph → 144.8km/h → 다시 보면 90 — 단위를 오가도 적은 숫자가 그대로 보인다.
+ */
+const gunToText = (kmh: number | null, unit: SpeedUnit) =>
+  kmh == null ? '' : String(round1(toSpeed(kmh, unit)));
+const textToGun = (text: string, unit: SpeedUnit) => {
+  const v = parseGun(text);
+  return v == null ? null : round1(fromSpeed(v, unit));
+};
 
 /**
  * 공 하나를 고치는 칸들 — 구종 · 코스 · 결과 · 스피드건 값 · 메모.
@@ -35,14 +48,13 @@ export function PitchEditorFields({
    * 스피드건 칸은 적는 글자 그대로 쥔다 — 숫자로만 쥐면 '138.' 의 점이 그 자리에서 사라져, 138.5 를 적으면 1385 가 됐다
    * (서버가 범위 밖이라 세션 저장을 통째로 거절했다). 값이 밖에서 바뀌면(다른 공을 열었을 때) 글자를 다시 맞춘다.
    */
-  const [gunText, setGunText] = useState(
-    value.gunKmh == null ? '' : String(value.gunKmh)
-  );
+  const unit = useSpeedUnit();
+  const [gunText, setGunText] = useState(gunToText(value.gunKmh, unit));
   const [gunSeen, setGunSeen] = useState(value.gunKmh);
   if (value.gunKmh !== gunSeen) {
     setGunSeen(value.gunKmh);
-    if (parseGun(gunText) !== value.gunKmh)
-      setGunText(value.gunKmh == null ? '' : String(value.gunKmh));
+    if (textToGun(gunText, unit) !== value.gunKmh)
+      setGunText(gunToText(value.gunKmh, unit));
   }
   return (
     <div className="space-y-4">
@@ -93,13 +105,13 @@ export function PitchEditorFields({
               const [whole, ...rest] = e.target.value.replace(/[^\d.]/g, '').split('.');
               const t = rest.length ? `${whole}.${rest.join('')}` : whole;
               setGunText(t);
-              set({ gunKmh: parseGun(t) });
+              set({ gunKmh: textToGun(t, unit) });
             }}
-            placeholder="예) 138"
+            placeholder={unit === 'mph' ? '예) 86' : '예) 138'}
             className="h-11 w-full rounded-xl border border-line bg-surface-2 px-4 pr-14 text-base tabular-nums text-ink placeholder:text-muted/60 focus:border-sky focus:outline-none"
           />
           <span className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-xs text-muted">
-            km/h
+            {speedLabel(unit)}
           </span>
         </div>
       </Field>

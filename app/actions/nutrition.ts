@@ -714,7 +714,7 @@ export async function markComboUsed(id: string): Promise<NutritionResult> {
 
 /*
  * 성별은 여기서 고르지 않는다 — 계정(User.sex)에 있고 내 정보에서 고친다.
- * NutritionProfile.sex 칸은 더 쓰지 않는다(나중에 지운다).
+ * NutritionProfile.sex 칸은 스키마에서 뺐다(2026-10-03) — DB 칸도 곧 지운다.
  *
  * 다만 배포 전에 열어 둔 영양 화면은 아직 성별 칸을 보낸다(legacySex). 계정의
  * 성별이 비어 있을 때만 그 값으로 채운다 — 버리면 고른 것이 사라지고, 비어 있지

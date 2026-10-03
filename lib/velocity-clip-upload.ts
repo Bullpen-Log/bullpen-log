@@ -15,7 +15,9 @@ export async function uploadClip(
   pitchId: string,
   blob: Blob,
   info: { sec: number | null; eventSec: number | null },
-  onProgress?: (percent: number) => void
+  onProgress?: (percent: number) => void,
+  /** 'wide' 면 같은 공의 광각 카메라 영상 칸에 적는다 */
+  kind: 'main' | 'wide' = 'main'
 ): Promise<{ ok: true; path: string } | { ok: false; error: string }> {
   const mime = blob.type || 'video/webm';
   let target: Awaited<ReturnType<typeof createClipUpload>>;
@@ -52,13 +54,17 @@ export async function uploadClip(
 
   let attached: Awaited<ReturnType<typeof attachClip>>;
   try {
-    attached = await attachClip(pitchId, {
-      path: target.path,
-      bytes: blob.size,
-      sec: info.sec,
-      mime,
-      eventSec: info.eventSec,
-    });
+    attached = await attachClip(
+      pitchId,
+      {
+        path: target.path,
+        bytes: blob.size,
+        sec: info.sec,
+        mime,
+        eventSec: info.eventSec,
+      },
+      kind
+    );
   } catch (err) {
     unstable_rethrow(err);
     return OFFLINE;

@@ -7,6 +7,7 @@ import type {
   LiveAnalyzeResult,
   LiveCamera,
   MeterStatus,
+  PackedJob,
 } from './live-meter.ts';
 
 /** 화면 스레드가 정하는 측정 설정 — 장면 크기는 워커가 장면에서 안다 */
@@ -90,12 +91,20 @@ export type MeterWorkerOut =
 /** 계산 워커 → 측정 워커(MessagePort): 공 하나 계산이 끝났다(대기열 세기) */
 export type AnalyzeWorkerDone = { type: 'done'; id: number };
 
-export type AnalyzeWorkerIn = {
-  type: 'job';
-  job: CaptureJob;
-  camera: LiveCamera;
-  postedAt: number;
-};
+export type AnalyzeWorkerIn =
+  | {
+      type: 'job';
+      job: CaptureJob;
+      camera: LiveCamera;
+      postedAt: number;
+    }
+  /** 장면을 버퍼 하나에 모아 넘긴 일감(live-meter.ts packJob) — 버퍼는 transfer 로 와서 복사가 없다 */
+  | {
+      type: 'packed';
+      job: PackedJob;
+      camera: LiveCamera;
+      postedAt: number;
+    };
 
 export type AnalyzeWorkerOut =
   | { type: 'hello' }

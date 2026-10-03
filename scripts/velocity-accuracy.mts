@@ -70,6 +70,18 @@ type Scenario = {
   /** 배경 밝기(기본 90~120 회색) — 흰 망이 뒤에 있을 때는 220 쯤 */
   bgLevel?: number;
   /**
+   * 밖 — 하늘(공 뒤가 공보다 밝을 수 있다). 하늘 밝기 = mid + slope × (화면 가운데 줄 − y)(분석 px, 위로 갈수록 밝다)에
+   * 잔무늬 ±2(하늘은 매끈하다), 255 를 넘으면 포화(잡음 뒤에도 255 — 하얗게 날아간 하늘). horizonY 를 주면 그 줄(분석 y)
+   * 밑은 땅(ground + 보통 배경 무늬). 투수 뒤 1.5m 높이에서 수평으로 찍으면 지평선이 화면 가운데에 오고, 공은 그 위
+   * (하늘)에서 출발해 과녁(가운데 조금 밑)으로 간다 — 공이 날아가며 하늘과 땅에 걸친다.
+   */
+  sky?: { mid: number; slope?: number; horizonY?: number; ground?: number };
+  /**
+   * 공의 그늘 — 원판 위쪽이 이만큼 밝고 아래쪽이 이만큼 어둡다(세로로 곧게, 선형 빛이 아니라 부호값으로). 해가 위에서 비추면
+   * 아래 반쪽이 그늘이다. 0 이면 예전 그림(고른 밝기) 그대로.
+   */
+  shade?: number;
+  /**
    * 카메라처럼 담는다 — 공과 배경을 선형 빛에서 섞은 뒤 sRGB 로 눌러 담는다(실제 폰 영상 · 카메라가 그렇다:
    * 반쯤 덮인 테두리 화소가 부호값으로는 더 밝다). 끄면 예전 그림(부호값을 그대로 섞음 — 선형 카메라).
    */
@@ -229,6 +241,26 @@ const SCENARIOS: Scenario[] = [
    */
   realThrow('G5 감마 · 실제 번짐(이상적 윤곽)', 120, 60, 2.5, { cameraEdgeSrcPx: 0 }),
   realThrow('G6 선형 · 실제 번짐(이상적 윤곽)', 120, 60, 2.5, { cameraEdgeSrcPx: 0, gamma: false }),
+  /*
+   * ── 밖 · 밝은 배경(2026-10-03, 극성) ──
+   * 사용자가 밖에서 던졌는데 실시간 측정이 한 개도 안 잡혔다(영상은 없다). 투수 뒤에서 수평으로 찍으면 공은 하늘 앞에서
+   * 출발한다 — 해를 마주하면(역광) 카메라 쪽 공 면이 그늘이라 하늘보다 **어둡다**. 감지가 '배경보다 밝아진 곳'만 보면
+   * 이런 공은 처음부터 안 보인다. 공의 화면 길(분석 y): 릴리스 566 → 과녁 663(가운데 640).
+   * 밖-1: 고른 하늘 230 앞 그늘진 공 160 — 공이 하늘보다 70 어둡다.
+   * 밖-2: 하늘 그라데이션 — 가운데 215, 위로 0.6/px 밝아져 출발 자리는 하얗게 날아감(255), 끝은 201. 공 170(대비 31~85).
+   * 밖-3: 지평선 610 — 위 하늘 235 · 아래 땅 90, 공 175. 하늘 앞(어두운 공, 대비 60) → 걸침 → 땅 앞(밝은 공, 대비 85).
+   * 밖-4: 해를 등진 밝은 공 245 · 하늘 200 — 공이 하늘보다 밝다(대비 45). 예전 감지로도 보여야 한다.
+   * 밖-5: 공의 그늘(위 +40 · 아래 −40, 가운데 190) · 하늘 205 — 위 반쪽은 하늘과 거의 같아 안 보이고 아래 반쪽만 어둡다.
+   *       지름을 반쪽으로 잴 수는 없다 — 값을 내면 맞아야 하고, 못 재면 거부가 옳다(헛값을 내지 않는지 본다).
+   */
+  realThrow('밖-1 하늘 230 앞 그늘진 공 160', 110, 60, 2.5, { sky: { mid: 230 }, ball: 160 }),
+  realThrow('밖-2 하늘 그라데이션 · 위 포화(공 170)', 110, 60, 2.5, { sky: { mid: 215, slope: 0.6 }, ball: 170 }),
+  realThrow('밖-3 지평선 걸침(하늘 235 · 땅 90 · 공 175)', 110, 60, 2.5, {
+    sky: { mid: 235, horizonY: 610, ground: 90 },
+    ball: 175,
+  }),
+  realThrow('밖-4 해를 등진 밝은 공 245 · 하늘 200', 110, 60, 2.5, { sky: { mid: 200 }, ball: 245 }),
+  realThrow('밖-5 반쪽 그늘 공(190 ±40) · 하늘 205', 110, 60, 2.5, { sky: { mid: 205 }, ball: 190, shade: 40 }),
 ];
 
 /**
@@ -332,6 +364,35 @@ function backgroundRaw(
   return out;
 }
 
+/**
+ * 밖의 하늘(+ 땅) 배경 — Scenario.sky 설명. 255 를 넘는 값은 그대로 둔다(잡음을 더한 뒤 255 로 잘려 포화가 잡음 없이 남는다).
+ * 흔들림(shiftX)은 무늬만 민다.
+ */
+const SKY_CACHE = new Map<string, Float32Array>();
+function skyBackground(
+  width: number,
+  height: number,
+  shiftX: number,
+  sky: NonNullable<Scenario['sky']>
+): Float32Array {
+  const key = `${width}x${height}@${shiftX.toFixed(2)}/${JSON.stringify(sky)}`;
+  const cached = SKY_CACHE.get(key);
+  if (cached) return new Float32Array(cached);
+  const out = new Float32Array(width * height);
+  const cy = height / 2;
+  for (let y = 0; y < height; y++) {
+    const ground = sky.horizonY != null && y >= sky.horizonY;
+    for (let x = 0; x < width; x++) {
+      const sx = x + shiftX;
+      out[y * width + x] = ground
+        ? (sky.ground ?? 90) + ((sx * 7 + y * 13) % 25) + 4 * Math.sin(sx / 17) * Math.cos(y / 23)
+        : sky.mid + (sky.slope ?? 0) * (cy - y) + 2 * Math.sin(sx / 29) * Math.cos(y / 31);
+    }
+  }
+  if (shiftX === 0) SKY_CACHE.set(key, out);
+  return new Float32Array(out);
+}
+
 /** 카메라 앞 흰 그물 — 가로 · 세로 실을 공 위에 덮어 그린다(정지해 있어 배경 표본에도 같은 자리) */
 function drawMesh(
   luma: Float32Array,
@@ -376,7 +437,9 @@ function drawBall(
   /** 원근 타원 — 화면 중심(분석 픽셀)과 초점거리(분석 픽셀). 가운데서 벗어난 공은 시선 방향으로 1/cosθ 늘어난다 */
   ellipse: { cx: number; cy: number; focalPx: number } | null = null,
   gamma = false,
-  edgeInPx = 0
+  edgeInPx = 0,
+  /** 공의 그늘(Scenario.shade) — 0 이면 고른 밝기(예전 그림 그대로) */
+  shade = 0
 ) {
   const shapes = poses.map((p) => {
     const r = Math.max(0.3, p.d / 2 - edgeInPx);
@@ -423,25 +486,36 @@ function drawBall(
   const w = x1 - x0 + 1;
   const h = y1 - y0 + 1;
   const cover = new Float32Array(w * h);
+  /* 그늘이 있으면 덮임 × 공 밝기(감마면 선형 빛)를 따로 모은다 — 화소마다 공의 어느 쪽이 덮었는지가 다르다 */
+  const light = shade ? new Float32Array(w * h) : null;
+  const levelAt = (py: number, sh: (typeof shapes)[number]) => {
+    const v = Math.min(255, Math.max(0, brightness - (shade * (py - sh.oy)) / Math.max(0.3, sh.r)));
+    return gamma ? srgbToLinear(v) : v;
+  };
 
   for (const sh of shapes) {
     for (let y = y0; y <= y1; y++) {
       for (let x = x0; x <= x1; x++) {
         let insideN = 0;
+        let lightSum = 0;
         for (let sy = 0; sy < 3; sy++) {
           for (let sx = 0; sx < 3; sx++) {
             const px = x + (sx + 0.5) / 3 - 0.5;
             const py = y + (sy + 0.5) / 3 - 0.5;
-            if (inside(px, py, sh)) insideN++;
+            if (inside(px, py, sh)) {
+              insideN++;
+              if (light) lightSum += levelAt(py, sh);
+            }
           }
         }
         cover[(y - y0) * w + (x - x0)] += insideN / 9 / shapes.length;
+        if (light) light[(y - y0) * w + (x - x0)] += lightSum / 9 / shapes.length;
       }
     }
   }
 
-  let field = cover;
-  if (blurSigma > 0) {
+  const blurred = (src: Float32Array): Float32Array => {
+    if (!(blurSigma > 0)) return src;
     const k = Math.ceil(3 * blurSigma);
     const kernel: number[] = [];
     let sum = 0;
@@ -456,11 +530,11 @@ function drawBall(
         let acc = 0;
         for (let i = -k; i <= k; i++) {
           const xx = Math.min(w - 1, Math.max(0, x + i));
-          acc += cover[y * w + xx] * kernel[i + k];
+          acc += src[y * w + xx] * kernel[i + k];
         }
         tmp[y * w + x] = acc / sum;
       }
-    field = new Float32Array(w * h);
+    const out = new Float32Array(w * h);
     for (let y = 0; y < h; y++)
       for (let x = 0; x < w; x++) {
         let acc = 0;
@@ -468,9 +542,12 @@ function drawBall(
           const yy = Math.min(h - 1, Math.max(0, y + i));
           acc += tmp[yy * w + x] * kernel[i + k];
         }
-        field[y * w + x] = acc / sum;
+        out[y * w + x] = acc / sum;
       }
-  }
+    return out;
+  };
+  const field = blurred(cover);
+  const lightField = light ? blurred(light) : null;
 
   const ballLin = srgbToLinear(brightness);
   for (let y = y0; y <= y1; y++) {
@@ -478,6 +555,11 @@ function drawBall(
       const c = field[(y - y0) * w + (x - x0)];
       if (c <= 0) continue;
       const i = y * width + x;
+      if (lightField) {
+        const L = lightField[(y - y0) * w + (x - x0)];
+        luma[i] = gamma ? linearToSrgb(srgbToLinear(luma[i]) * (1 - c) + L) : luma[i] * (1 - c) + L;
+        continue;
+      }
       luma[i] = gamma
         ? linearToSrgb(srgbToLinear(luma[i]) * (1 - c) + ballLin * c)
         : luma[i] * (1 - c) + brightness * c;
@@ -556,7 +638,7 @@ function throwOnce(sc: Scenario, seed: number): Outcome {
 
   /* 던지기 전 잠잠한 프레임 넷 — 배경 표본 */
   for (let i = 0; i < 4; i++) {
-    const luma = background(width, height, 0, sc.bgLevel);
+    const luma = sc.sky ? skyBackground(width, height, 0, sc.sky) : background(width, height, 0, sc.bgLevel);
     paintTarget(luma);
     if (sc.mesh) drawMesh(luma, width, height, sc.mesh);
     addNoise(luma, noise, Math.floor(rand() * 65536));
@@ -580,7 +662,9 @@ function throwOnce(sc: Scenario, seed: number): Outcome {
     const cx = (sw / 2 + off.x + lx) * scale;
     const cy = (sh / 2 + off.y + ly) * scale;
     const shift = sc.shakePx ? (rand() - 0.5) * 2 * sc.shakePx : 0;
-    const luma = background(width, height, shift, sc.bgLevel);
+    const luma = sc.sky
+      ? skyBackground(width, height, shift, sc.sky)
+      : background(width, height, shift, sc.bgLevel);
     paintTarget(luma);
     exposure += sc.exposureDrift ?? 0;
     if (exposure) for (let k = 0; k < luma.length; k++) luma[k] += exposure;
@@ -613,7 +697,8 @@ function throwOnce(sc: Scenario, seed: number): Outcome {
       blur,
       { cx: (sw / 2) * scale, cy: (sh / 2) * scale, focalPx: trueFocal * scale },
       sc.gamma === true,
-      (sc.cameraEdgeSrcPx ?? 0) * scale
+      (sc.cameraEdgeSrcPx ?? 0) * scale,
+      sc.shade ?? 0
     );
     /* 그물은 공 앞에 있다 — 공을 그린 뒤 덮는다 */
     if (sc.mesh) drawMesh(luma, width, height, sc.mesh);

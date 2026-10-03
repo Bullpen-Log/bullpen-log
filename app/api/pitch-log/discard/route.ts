@@ -33,19 +33,30 @@ export async function POST(req: Request) {
     );
   if (own.length === 0) return NextResponse.json({ deleted: 0 });
 
-  const [logs, clips] = await Promise.all([
+  const [logs, clips, parts] = await Promise.all([
     prisma.pitchLog.findMany({
       where: { userId: user.id, videoPaths: { hasSome: own } },
       select: { videoPaths: true },
     }),
     prisma.velocityPitch.findMany({
-      where: { userId: user.id, clipPath: { in: own } },
-      select: { clipPath: true },
+      where: {
+        userId: user.id,
+        OR: [{ clipPath: { in: own } }, { wideClipPath: { in: own } }],
+      },
+      select: { clipPath: true, wideClipPath: true },
+    }),
+    /* 엔진 개발용 녹화 조각(관리자) — 같은 폴더에 있다 */
+    prisma.velocityRecordingPart.findMany({
+      where: { path: { in: own } },
+      select: { path: true },
     }),
   ]);
   const used = new Set<string>([
     ...logs.flatMap((l) => l.videoPaths),
-    ...clips.map((c) => c.clipPath).filter((p): p is string => p != null),
+    ...parts.map((p) => p.path),
+    ...clips
+      .flatMap((c) => [c.clipPath, c.wideClipPath])
+      .filter((p): p is string => p != null),
   ]);
   const orphans = own.filter((p) => !used.has(p));
   if (orphans.length > 0) await deleteVideos(orphans);

@@ -1,5 +1,6 @@
 import { BALL_DIAMETER_M } from './geometry.ts';
 import { MAX_RELEASE_DISTANCE_M } from './validate.ts';
+import { DARK_MAX_SPREAD, DARK_MIN_BACKGROUND, DARK_THRESHOLD } from './detect.ts';
 
 /**
  * 영상 파일에서 공을 던진 때를 찾는다 — 거친 훑기(장면 사이 0.05~0.07초, analyze-video.ts)로 꺼낸 작은
@@ -27,6 +28,11 @@ import { MAX_RELEASE_DISTANCE_M } from './validate.ts';
  *
  * 계산은 가운데 정사각형(짧은 변 × 짧은 변)만 — 릴리스는 가운데(validate.ts)이고 공은 소실점 쪽으로 모인다.
  * 가로 320 · 48장에서 80~160ms(노드 기준, 다른 계산과 CPU 를 나눠 쓰며 잰 값).
+ *
+ * 밝은 배경(2026-10-03): 가만한 밝은 배경(하늘) 앞에서 배경보다 어두워진 곳도 움직인 것으로 본다(detect.ts '밝은 배경' —
+ * live-meter.ts BallWatch 와 같은 규칙). 실내 보정 영상 18개는 실제로 쓰는 화각(59.8°)으로 구간 · 값이 그대로였다(화각 62°
+ * 로 보면 공을 잴 수 없는 3be4d460 에 공 구간이 하나 먼저 생기고 — 분석이 거부해 예전 구간으로 간다 — 흰 천 앞 공 둘은 같은
+ * 때에 이음만 늘었다).
  */
 
 /** 공의 깊이 속도 범위(m/s) — 약 29~234km/h(detect.ts 의 MIN_TRACK_SPEED_MPS · MAX_SPEED_MPS 와 같다) */
@@ -136,6 +142,8 @@ export function findThrow(
     pick.push(samples[Math.round((i * (samples.length - 1)) / Math.max(1, m - 1))].luma);
   }
   const background = new Float32Array(n);
+  /* 그 자리가 스스로 밝기를 바꾸는 폭('두 번째로 밝은 값 − 중앙값') — 어두워짐은 가만한 밝은 배경에서만(detect.ts DARK_MAX_SPREAD) */
+  const spread = new Float32Array(n);
   const bucket = new Float32Array(m);
   for (let y = 0; y < side; y++) {
     for (let x = 0; x < side; x++) {
@@ -151,6 +159,7 @@ export function findThrow(
         bucket[j + 1] = v;
       }
       background[y * side + x] = bucket[m >> 1];
+      spread[y * side + x] = m >= 3 ? bucket[m - 2] - bucket[m >> 1] : 0;
     }
   }
 
@@ -178,11 +187,18 @@ export function findThrow(
       }
     }
     const threshold = DIFF_THRESHOLD + median;
+    /* 밝은 배경(하늘) 앞의 어두운 공도 — live-meter.ts BallWatch 와 같은 규칙(detect.ts '밝은 배경') */
+    const darkTh = median - DARK_THRESHOLD;
     for (let y = 0; y < side; y++) {
       const row = (y + y0) * width + x0;
       for (let x = 0; x < side; x++) {
         const i = y * side + x;
-        mask[i] = luma[row + x] - background[i] > threshold ? 1 : 0;
+        const d = luma[row + x] - background[i];
+        mask[i] =
+          d > threshold ||
+          (d < darkTh && background[i] >= DARK_MIN_BACKGROUND && spread[i] <= DARK_MAX_SPREAD)
+            ? 1
+            : 0;
       }
     }
     const out: CoarseBlob[] = [];

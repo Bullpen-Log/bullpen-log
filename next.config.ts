@@ -46,6 +46,11 @@ const nextConfig: NextConfig = {
        * 새 화면이 열리지 않고 영상 목록으로 튕긴다 — 실제로 그렇게 됐었다.
        */
       { source: '/mechanics', destination: '/library/mechanics', permanent: false },
+      /*
+       * '더보기' 화면은 지웠다(2026-10-03 사용자) — 하단 '더보기'는 사이드바를 열어 이 화면으로 오는 길이 없었다.
+       * 저장해 둔 주소는 홈으로.
+       */
+      { source: '/more', destination: '/today', permanent: false },
     ];
   },
 };

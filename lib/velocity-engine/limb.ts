@@ -180,6 +180,8 @@ export type LimbResult = {
    * 0.5 가 아니라서 윤곽이 번짐 폭만큼 밖으로 가므로(파일 머리 '알고 쓰는 약점'), 흐린 영상을 알아보는 데 쓴다.
    */
   edgePx: number;
+  /** 맞춤에 쓴 광선 가운데 공이 배경보다 어두운 것 — measureLimbPolar 만 */
+  darkRays?: number;
 };
 
 /** 못 잰 까닭(진단용) — 'contrast': 대비가 모자란 광선이 대부분(밝은 배경 · 그늘), 'arc': 원호가 좁음(번짐 · 가림) */
@@ -420,6 +422,17 @@ export function measureLimb(
     const qi15 = al(qLo) <= 0.15 && qLo - 1 >= qc ? qLo - 1 + (al(qLo - 1) - 0.15) / Math.max(1e-9, al(qLo - 1) - al(qLo)) : qLo;
     rays.push({ x: xs + rc * ca, y: ys + rc * sa, w: (qLo - qHi) * STEP, wi: (qi15 - qi85) * STEP });
   }
+  return fitLimbRays(rays, tried, lowContrast, minArc, fail);
+}
+
+/** 광선마다 찾은 윤곽 점 → 원(날카로운 광선만 · 원호 검사). measureLimb · measureLimbPolar 가 같이 쓴다 */
+function fitLimbRays(
+  rays: (Pt & { w: number; wi: number })[],
+  tried: number,
+  lowContrast: number,
+  minArc: number,
+  fail: (reason: LimbFailure) => null
+): LimbResult | null {
   if (rays.length < MIN_RAYS_USED) {
     /* 대비가 모자라 빠진 광선이 절반을 넘으면 밝은 배경(흰 천 · 흰 벽) 탓으로 본다 */
     return fail(tried > 0 && lowContrast >= tried / 2 ? 'contrast' : 'rays');
@@ -454,6 +467,241 @@ export function measureLimb(
     rms: fit.rms,
     edgePx: Math.round(median(good.map((r) => r.wi)) * 1000) / 1000,
   };
+}
+
+/* ───────────────────────── 극성 — 밝은 배경 앞의 어두운 공(2026-10-03) ───────────────────────── */
+
+/**
+ * LIMB_ALPHA 0.3 은 밝은 공(실내 보정 영상: 공 ≈ 210 · 배경 ≈ 60)의 부호값에서 맞췄다 — 선형 빛으로는 공이 화소를 16% 덮은
+ * 자리다(파일 머리: '계단의 18%'). 공이 배경보다 어두우면(밝은 하늘 앞 그늘진 공) 부호값 α 0.3 은 감마 때문에 전혀 다른 자리
+ * (하늘 230 · 공 160 이면 선형 37% — 반지름이 약 0.4px 안쪽, 구속이 몇 % 틀린다)라 그대로 쓸 수 없다.
+ *
+ * 그래서 공 둘레를 **'같은 덮임이 보정 밝기의 밝은 공이었다면 찍혔을 값'으로 다시 담아**(refEncode) 예전 밝은 공의 규칙
+ * 그대로 잰다: 화소마다 선형 빛의 덮임 κ = (lin(값) − lin(배경)) ÷ (lin(공) − lin(배경))를 구해 부호값 enc(lin(60)·(1−κ) +
+ * lin(210)·κ) 로 바꾸고, 그 그림에서 α 0.3 · 0.85 · 0.15 와 날카로움 · 원호 규칙을 그대로 쓴다. 공보다 어두운 배경 화소(밝은 공
+ * 쪽)도 같은 식이라, 지평선에 걸친 공(위 반쪽 하늘 · 아래 반쪽 땅)도 한 그림에서 한 자로 잰다.
+ *
+ * 화소에서 다시 담은 뒤 쌍선형으로 표본을 뜬다 — 처음에는 표본(부호값을 쌍선형으로 뜬 것)을 선형으로 바꿔 κ 0.16 을 찾았는데,
+ * 부호값 사이의 보간이 감마 때문에 공 쪽으로 치우쳐 지름이 밝은 공보다 1.5~4% 크게 나왔다(합성 '밖-1' −3.7km/h, 같은 그림의
+ * 밝은 공은 −0.8). 밝은 공의 α 0.3 은 바로 '부호값에서 보간한' 그 길로 맞춘 값이라 그 길을 따라야 같은 자리가 나온다 — 다시
+ * 담자 밝은 공과 0.3~0.7% 안으로 같아졌다(합성, 씨앗 1: 하늘 210 앞 공 60 — 보정 밝기를 뒤집은 그림 — 지름 치우침 +3.3 · +2.2 ·
+ * −0.7%, 같은 자리의 밝은 공 210 · 배경 60 은 +2.8 · +1.9 · −1.4%; 씨앗 6개 구속 −2.6 대 −1.1km/h).
+ *
+ * 가려진 표본(|공 − 배경| < MIN_RAY_CONTRAST)과 '윤곽 밖은 배경' 검사는 실제 부호값으로 본다 — 다시 담은 그림은 밝은 하늘의
+ * 잡음을 몇 배로 키운다(감마가 밝은 쪽을 눌러 담았으므로 같은 덮임 차이가 부호값으로는 작다).
+ *
+ * 전제: 카메라 윤곽(파일 머리 — 선형 50% 보다 원본 0.93px 바깥)이 극성 · 밝기와 상관없이 같은 덮임 자리라는 것. 합성 시험대의
+ * 카메라 모형은 그렇게 그려져 있어 맞는 것을 보이지만, 실제 카메라에서는 **확인하지 못했다**(밝은 하늘 앞 공의 스피드건 짝이
+ * 없다 — 선명화 · 밖의 톤 매핑이 어두운 테두리에 다르게 들 수 있다). 그래서 이 자로 잰 값은 ± 를 넓히고 믿음을 낮춘다
+ * (analyze-frames.ts DARK_POLARITY_SIGMA_REL). 밝은 공의 예전 길(measureLimb)은 한 자리도 바꾸지 않는다 — 보정이 그 길로
+ * 얼려져 있다. 이 자는 예전 길로 못 잰 궤적(analyze-frames.ts 두 번째 길)에만 쓴다.
+ */
+/** 보정 밝기(공 210 · 배경 60, 부호값) */
+const REF_BALL = 210;
+const REF_BG = 60;
+function srgbLin(v: number): number {
+  const e = Math.min(1, Math.max(0, v / 255));
+  return e <= 0.04045 ? e / 12.92 : Math.pow((e + 0.055) / 1.055, 2.4);
+}
+function srgbEnc(l: number): number {
+  const x = Math.min(1, Math.max(0, l));
+  return 255 * (x <= 0.0031308 ? 12.92 * x : 1.055 * Math.pow(x, 1 / 2.4) - 0.055);
+}
+const REF_LIN_BALL = srgbLin(REF_BALL);
+const REF_LIN_BG = srgbLin(REF_BG);
+/** 선형 덮임 κ → 보정 밝기의 밝은 공이었다면 찍혔을 부호값 */
+function refEncode(kappa: number): number {
+  return srgbEnc(REF_LIN_BG * (1 - kappa) + REF_LIN_BALL * kappa);
+}
+
+export type LimbPolarInput = {
+  luma: ArrayLike<number>;
+  width: number;
+  height: number;
+  /** 첫 어림 — 중심 · 지름(분석 픽셀) */
+  x: number;
+  y: number;
+  diameterPx: number;
+  /** 공의 밝기(노출 치우침을 뺀 부호값 — 예전 배경의 치우침 기준) */
+  level: number;
+  /** 밝은 공 쪽 배경(두 번째로 어두운 값)과 그 노출 치우침 */
+  background: ArrayLike<number>;
+  bias: number;
+  /** 어두운 공 쪽 배경(중앙값)과 그 노출 치우침 — 이 배경이 공보다 밝은 화소는 이것으로 */
+  darkBackground: ArrayLike<number>;
+  darkBias: number;
+};
+
+/**
+ * 극성을 가리는 윤곽 원(위 설명) — 공 둘레를 다시 담은 그림에서 measureLimb 와 같은 규칙으로. 광선의 극성은 그 윤곽 자리 배경이
+ * 공보다 밝으면 어두움(결과의 darkRays).
+ */
+export function measureLimbPolar(
+  input: LimbPolarInput,
+  opts: { transfer?: LumaTransfer; minArcDeg?: number } = {},
+  why?: { reason?: LimbFailure }
+): LimbResult | null {
+  const { luma, width, height, x: xs, y: ys } = input;
+  const alpha = LIMB_ALPHA;
+  const minArc = opts.minArcDeg ?? LIMB_MIN_ARC_DEG;
+  const canon = toSrgbEncoded(opts.transfer);
+  const enc = (v: number) => (canon ? canon(v) : v);
+  const R = Math.max(2, input.diameterPx / 2);
+  const fail = (reason: LimbFailure) => {
+    if (why) why.reason = reason;
+    return null;
+  };
+
+  /* 그 자리의 남은 배경 치우침 — 공 밖 고리의 중앙값, 배경마다 따로(measureLimb 와 같은 고리) */
+  const rIn = 1.35 * R + 2;
+  const rOut = rIn + Math.max(3, 0.5 * R);
+  const ringLo: number[] = [];
+  const ringMed: number[] = [];
+  for (let y = Math.max(0, Math.floor(ys - rOut)); y <= Math.min(height - 1, Math.ceil(ys + rOut)); y++) {
+    for (let x = Math.max(0, Math.floor(xs - rOut)); x <= Math.min(width - 1, Math.ceil(xs + rOut)); x++) {
+      const d = Math.hypot(x - xs, y - ys);
+      if (d < rIn || d > rOut) continue;
+      const i = y * width + x;
+      ringLo.push(luma[i] - input.background[i] - input.bias);
+      ringMed.push(luma[i] - input.darkBackground[i] - input.darkBias);
+    }
+  }
+  const offLo = median(ringLo) + input.bias;
+  const offMed = median(ringMed) + input.darkBias;
+  /* 이 장면에 찍힌 공 밝기(부호값) — 배경도 이 장면의 노출로 옮겨(+ 고리 치우침) 견준다 */
+  const ballV = enc(input.level + input.bias);
+
+  /* 공 둘레 화소 — 실제 부호값의 배경(극성을 가림)과 다시 담은 값 */
+  const ext = 1.7 * R + 4;
+  const px0 = Math.max(0, Math.floor(xs - ext));
+  const px1 = Math.min(width - 1, Math.ceil(xs + ext));
+  const py0 = Math.max(0, Math.floor(ys - ext));
+  const py1 = Math.min(height - 1, Math.ceil(ys + ext));
+  const pw = px1 - px0 + 1;
+  const ph = py1 - py0 + 1;
+  const reData = new Float64Array(pw * ph);
+  const bgData = new Float64Array(pw * ph);
+  const lumaData = new Float64Array(pw * ph);
+  const darkData = new Uint8Array(pw * ph);
+  for (let y = py0; y <= py1; y++) {
+    for (let x = px0; x <= px1; x++) {
+      const i = y * width + x;
+      const k = (y - py0) * pw + (x - px0);
+      const bMed = enc(input.darkBackground[i] + offMed);
+      const isDark = bMed > ballV;
+      const b = isDark ? bMed : enc(input.background[i] + offLo);
+      const v = enc(luma[i]);
+      const lb = srgbLin(b);
+      const den = srgbLin(ballV) - lb;
+      reData[k] = refEncode(den !== 0 ? (srgbLin(v) - lb) / den : 0);
+      bgData[k] = b;
+      lumaData[k] = v;
+      darkData[k] = isDark ? 1 : 0;
+    }
+  }
+  const at = (a: Float64Array, px: number, py: number) => bilinear(a, pw, ph, px - px0, py - py0);
+
+  type Ray = Pt & { w: number; wi: number; dark: boolean };
+  const rays: Ray[] = [];
+  let lowContrast = 0;
+  let tried = 0;
+  const nS = Math.floor((1.7 * R + 3) / STEP) + 1;
+  const rv = new Float64Array(nS);
+  const cv = new Float64Array(nS);
+  const bv = new Float64Array(nS);
+  const q0 = Math.round((0.2 * R) / STEP);
+  const q1 = Math.round((0.85 * R) / STEP);
+  for (let a = 0; a < RAYS; a++) {
+    const ang = (2 * Math.PI * a) / RAYS;
+    const ca = Math.cos(ang);
+    const sa = Math.sin(ang);
+    let n = 0;
+    for (let q = 0; q < nS; q++) {
+      const px = xs + q * STEP * ca;
+      const py = ys + q * STEP * sa;
+      const r = at(reData, px, py);
+      if (!Number.isFinite(r)) break;
+      rv[q] = r;
+      cv[q] = at(lumaData, px, py);
+      bv[q] = at(bgData, px, py);
+      n = q + 1;
+    }
+    if (n < q1 + 4) continue;
+    /* 공 밝기 — 다시 담은 그림에서 반지름 0.2~0.85 안의 최대(measureLimb 와 같은 뜻) */
+    let ball = -Infinity;
+    let qb = -1;
+    for (let q = q0; q <= q1; q++) {
+      if (rv[q] > ball) {
+        ball = rv[q];
+        qb = q;
+      }
+    }
+    if (qb < 0 || !(ball > REF_BG)) continue;
+    tried++;
+    const al = (q: number) => (rv[q] - REF_BG) / (ball - REF_BG);
+    /* 가려진 표본 · 윤곽 밖은 실제 부호값으로(위 설명) — 공과 배경의 차가 모자라면 덮였는지 알 수 없다 */
+    const masked = (q: number) => Math.abs(ballV - bv[q]) < MIN_RAY_CONTRAST;
+    const outside = (q: number) => (cv[q] - bv[q]) / (ballV - bv[q]);
+    let qc = -1;
+    let sawMask = false;
+    for (let q = qb; q < n - 1; q++) {
+      if (masked(q) || masked(q + 1)) {
+        sawMask = true;
+        continue;
+      }
+      if (al(q) >= alpha && al(q + 1) < alpha) {
+        qc = q;
+        break;
+      }
+    }
+    if (qc < 0) {
+      if (sawMask) lowContrast++;
+      continue;
+    }
+    const a0 = al(qc);
+    const a1 = al(qc + 1);
+    const rc = (qc + (a0 - alpha) / (a0 - a1)) * STEP;
+    let qHi = qc;
+    let qLo = qc;
+    let broken = false;
+    while (qHi > qb && al(qHi) < 0.85) {
+      qHi--;
+      if (masked(qHi)) broken = true;
+    }
+    while (qLo < n - 1 && al(qLo) > 0.15) {
+      qLo++;
+      if (masked(qLo)) broken = true;
+    }
+    if (broken) continue;
+    const qOut0 = qLo + 1;
+    const qOut1 = Math.min(n - 1, qOut0 + Math.max(Math.round(2 / STEP), Math.round((0.3 * R) / STEP)));
+    if (qOut1 <= qOut0) continue;
+    let clean = true;
+    let seen = 0;
+    for (let q = qOut0; q <= qOut1 && clean; q++) {
+      if (masked(q)) continue;
+      seen++;
+      if (Math.abs(outside(q)) > EXTERIOR_TOL) clean = false;
+    }
+    if (!clean || seen * 2 < qOut1 - qOut0 + 1) continue;
+    const qi85 = al(qHi) >= 0.85 && qHi + 1 <= qc ? qHi + (al(qHi) - 0.85) / Math.max(1e-9, al(qHi) - al(qHi + 1)) : qHi;
+    const qi15 = al(qLo) <= 0.15 && qLo - 1 >= qc ? qLo - 1 + (al(qLo - 1) - 0.15) / Math.max(1e-9, al(qLo - 1) - al(qLo)) : qLo;
+    const ex = xs + rc * ca;
+    const ey = ys + rc * sa;
+    rays.push({
+      x: ex,
+      y: ey,
+      w: (qLo - qHi) * STEP,
+      wi: (qi15 - qi85) * STEP,
+      dark: bv[n - 1] > ballV,
+    });
+  }
+  const res = fitLimbRays(rays, tried, lowContrast, minArc, fail);
+  if (!res) return null;
+  /* 맞춤에 쓴 광선(날카로운 것) 가운데 어두운 것 — fitLimbRays 와 같은 거르기로 센다 */
+  const w25 = [...rays.map((r) => r.w)].sort((a, b) => a - b)[Math.floor(rays.length * 0.25)];
+  res.darkRays = rays.filter((r) => r.dark && r.w <= Math.max(SHARP_MIN_PX, SHARP_RATIO * w25)).length;
+  return res;
 }
 
 /**

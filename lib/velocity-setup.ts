@@ -7,12 +7,12 @@
 
 import type { Approach } from '@/lib/velocity-engine/analyze-frames';
 import { DEFAULT_SESSION_TYPE, isRestSession, isSessionType } from '@/lib/session-type';
+import { isCamMode, type CamMode } from '@/lib/velocity-camera-mode';
 
 export const SETUP_KEY = 'bullpen-velocity-setup';
 /** 같은 탭 안에서 설정이 바뀌었다고 알리는 신호 — storage 이벤트는 다른 탭에만 간다 */
 export const SETUP_CHANGE_EVENT = 'bullpen:velocity-setup';
 
-export type RecordMode = 'pitch' | 'hit';
 export type CameraPos = 'behind-pitcher' | 'behind-catcher';
 
 /**
@@ -28,7 +28,6 @@ export type ZoneRect = { x: number; y: number; w: number; h: number };
 export type VelocitySetup = {
   /** 어떤 투구인가 — 투구 기록의 종류(불펜 · 라이브 · 경기 · 캐치볼). 저장할 때 그 기록의 종류가 된다 */
   sessionType: string;
-  mode: RecordMode;
   cameraPos: CameraPos;
   net: boolean;
   zone: ZoneRect;
@@ -44,23 +43,38 @@ export type VelocitySetup = {
   releaseDistM: number;
   /** 자동 측정 — 켜 두면 공마다 알아서 잡는다. 끄면 공마다 단추를 눌러 기다린다 */
   autoMode: boolean;
-  /** 관리자의 '정확도 보정용 저장' — 켜고 재면 공마다 영상 클립 · 분석 자료를 올린다(관리자만 효과) */
+  /**
+   * 관리자의 '정확도 보정용 저장' — 켜고 잰 세션을 보정용으로 표시한다(관리자만 효과). 영상 클립 · 분석 자료는 이것과
+   * 상관없이 모든 세션에서 올린다(2026-10-03 사용자: "클립은 보정용이던 말던 모든 상황에서 녹화").
+   */
   calibSave: boolean;
   /**
    * 저장된 공 영상(▶ · 구속 측정 관리자)에 스트라이크 존과 짐작한 코스 칸을 겹쳐 그릴까. 영상 파일에 새기지 않고 볼 때
    * 겹친다 — 그래서 언제든 켜고 끌 수 있다. 존 자리는 공마다 잰 순간의 것(analysis.zoneRect).
    */
   clipZone: boolean;
+  /**
+   * 광각 영상도 같이 저장 — 광각 카메라가 있는 아이폰 앱에서, 측정은 일반 카메라로 하면서 공마다 광각 카메라 영상도 함께 남긴다
+   * (2026-10-03 사용자). 웹 화면은 카메라를 하나만 켤 수 있어 앱의 'DualCamera' 부품이 있어야 실제로 찍힌다(lib/dual-camera.ts).
+   */
+  wideClip: boolean;
+  /** 측정 카메라의 화질 · 프레임(lib/velocity-camera-mode.ts) — null 이면 자동(1080p · 60fps) */
+  camMode: CamMode | null;
+  /**
+   * 엔진 개발용 녹화(관리자) — 켜면 측정 대기 화면의 시작 단추가 녹화 단추가 되어 측정 없이 찍어 구속 측정 관리자로 올린다
+   * (lib/velocity-recorder.ts). 관리자가 아니면 켜져 있어도 효과가 없다.
+   */
+  recordMode: boolean;
+  /**
+   * 진단 표시(관리자) — 측정 화면 위에 장면 받는 길 · 실제 초당 장면 · 장면 하나 처리 시간 · 알아챔 · 잰 것 · 거부 까닭을 작게 띄운다.
+   * 밖에서 하나도 안 잡혔을 때 그 자리에서 까닭을 보려고(2026-10-03).
+   */
+  diagHud: boolean;
   savedAt: string;
 };
 
 export const RELEASE_DIST_MIN = 3;
 export const RELEASE_DIST_MAX = 40;
-
-export const MODE_OPTIONS: { key: RecordMode; label: string; hint: string }[] = [
-  { key: 'pitch', label: '투구 녹화', hint: '투수가 던진 공의 구속' },
-  { key: 'hit', label: '타격 녹화', hint: '방망이에 맞고 나가는 타구 속도' },
-];
 
 export const CAMERA_OPTIONS: { key: CameraPos; label: string; hint: string }[] = [
   {
@@ -170,7 +184,6 @@ export function zoneCellOnScreen(
 
 export const DEFAULT_SETUP: Omit<VelocitySetup, 'savedAt'> = {
   sessionType: DEFAULT_SESSION_TYPE,
-  mode: 'pitch',
   cameraPos: 'behind-pitcher',
   net: true,
   zone: DEFAULT_ZONE,
@@ -180,6 +193,10 @@ export const DEFAULT_SETUP: Omit<VelocitySetup, 'savedAt'> = {
   autoMode: true,
   calibSave: false,
   clipZone: true,
+  wideClip: false,
+  camMode: null,
+  recordMode: false,
+  diagHud: false,
 };
 
 export const isRect = (z: unknown): z is ZoneRect =>
@@ -196,7 +213,6 @@ export function loadSetup(): VelocitySetup | null {
     const raw = localStorage.getItem(SETUP_KEY);
     if (!raw) return null;
     const p = JSON.parse(raw) as Partial<VelocitySetup>;
-    if (p.mode !== 'pitch' && p.mode !== 'hit') return null;
     if (p.cameraPos !== 'behind-pitcher' && p.cameraPos !== 'behind-catcher')
       return null;
     return {
@@ -206,7 +222,6 @@ export function loadSetup(): VelocitySetup | null {
         !isRestSession(p.sessionType)
           ? p.sessionType
           : DEFAULT_SESSION_TYPE,
-      mode: p.mode,
       cameraPos: p.cameraPos,
       net: p.net !== false,
       /* 예전(모양 · 크기가 자유롭던 때)에 놓은 존도 규격에 맞춘다 */
@@ -222,6 +237,10 @@ export function loadSetup(): VelocitySetup | null {
       autoMode: p.autoMode !== false,
       calibSave: p.calibSave === true,
       clipZone: p.clipZone !== false,
+      wideClip: p.wideClip === true,
+      camMode: isCamMode(p.camMode) ? p.camMode : null,
+      recordMode: p.recordMode === true,
+      diagHud: p.diagHud === true,
       savedAt: typeof p.savedAt === 'string' ? p.savedAt : '',
     };
   } catch {
@@ -252,22 +271,14 @@ export function clearSetup() {
 
 /**
  * 공이 카메라에서 멀어지나 다가오나 — 엔진이 크기 변화 방향을 정하는 데 쓴다.
- *
- * 투구를 투수 뒤에서 찍으면 멀어지고, 포수 뒤에서 찍으면 다가온다. 타구는 반대다 — 포수 뒤에서
- * 찍으면 맞고 나가는 공이 멀어지고, 투수 뒤(마운드 뒤)에서 찍으면 다가온다.
+ * 투수 뒤에서 찍으면 멀어지고, 포수 뒤에서 찍으면 다가온다. (타구 측정은 2026-10-03 사용자 요청으로 뺐다.)
  */
-export function approachOf(setup: Pick<VelocitySetup, 'mode' | 'cameraPos'>): Approach {
-  const away = setup.mode === 'pitch' ? 'behind-pitcher' : 'behind-catcher';
-  return setup.cameraPos === away ? 'receding' : 'approaching';
+export function approachOf(setup: Pick<VelocitySetup, 'cameraPos'>): Approach {
+  return setup.cameraPos === 'behind-pitcher' ? 'receding' : 'approaching';
 }
 
-export function modeLabel(mode: RecordMode) {
-  return mode === 'hit' ? '타구' : '구속';
-}
-
-export function setupSummary(s: Pick<VelocitySetup, 'mode' | 'cameraPos' | 'net'>) {
+export function setupSummary(s: Pick<VelocitySetup, 'cameraPos' | 'net'>) {
   return [
-    MODE_OPTIONS.find((o) => o.key === s.mode)?.label,
     CAMERA_OPTIONS.find((o) => o.key === s.cameraPos)?.label,
     s.net ? '네트 있음' : '네트 없음',
   ].join(' · ');

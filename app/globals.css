@@ -2224,3 +2224,17 @@ html:has(dialog:modal) {
     display: none;
   }
 }
+
+/*
+ * 구속 측정 — 아이폰 앱의 일반 · 광각 동시 촬영(lib/velocity-engine/dual-capture.ts). 미리보기는 앱이 웹뷰 뒤에 그리므로
+ * 뷰파인더([data-finder])와 그 위의 모든 틀을 투명하게 비우고 웹 <video> 는 숨긴다. 켜 있는 동안만 <html data-dualcam>.
+ */
+html[data-dualcam],
+html[data-dualcam] body,
+html[data-dualcam] :has([data-finder]),
+html[data-dualcam] [data-finder] {
+  background: transparent !important;
+}
+html[data-dualcam] [data-finder] > video {
+  visibility: hidden;
+}
