@@ -68,7 +68,7 @@ export function MetaFilter({
                   onClick={() => toggle(group.key, option)}
                   aria-pressed={on}
                   /* 휴대폰은 테두리 없는 알약(고른 것은 파랑으로 두름), PC 는 예전 네모 칩 */
-                  className={`min-h-9 rounded-full border px-3.5 text-[13px] transition-colors desk:min-h-0 desk:rounded-lg desk:px-2.5 desk:py-1.5 desk:text-xs ${
+                  className={`min-h-10 rounded-full border px-3.5 text-[13px] transition-colors desk:min-h-0 desk:rounded-lg desk:px-2.5 desk:py-1.5 desk:text-xs ${
                     on
                       ? 'border-sky bg-sky/10 font-semibold text-sky desk:font-medium'
                       : 'border-transparent bg-ink/6 text-ink/80 desk:border-line desk:bg-surface-2 desk:text-muted desk:hover:border-sky-soft desk:hover:text-ink'

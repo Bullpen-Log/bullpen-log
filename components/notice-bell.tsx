@@ -196,6 +196,7 @@ export function NoticePanel({
           </div>
         </div>
       ) : (
+        /* 할 일 단추 · 맨 밑 고치기 줄은 휴대폰에서 높이 44px(2026-10-03 아이폰 점검 — 28~36px 라 잘 안 눌렸다). PC 는 예전 크기 */
         <ul className="mt-2 space-y-1.5">
           {!checkinDone && (
             <li className="rounded-xl border border-line p-3">
@@ -209,7 +210,7 @@ export function NoticePanel({
               <button
                 type="button"
                 onClick={(e) => onCheckin(e.currentTarget)}
-                className="mt-2.5 inline-flex min-h-9 items-center gap-1 rounded-lg bg-sky px-3 text-xs font-semibold text-white transition-colors hover:bg-sky-strong"
+                className="mt-2.5 inline-flex min-h-11 items-center gap-1 rounded-lg bg-sky px-3 text-xs font-semibold text-white desk:min-h-9 transition-colors hover:bg-sky-strong"
               >
                 체크인하기
                 <ChevronRight aria-hidden className="h-3.5 w-3.5" />
@@ -231,7 +232,7 @@ export function NoticePanel({
                   href={`/pitch-log/${day}`}
                   transitionTypes={OPEN_POPUP_TYPES}
                   onClick={onNavigate}
-                  className="inline-flex min-h-9 items-center gap-1 rounded-lg bg-sky px-3 text-xs font-semibold text-white transition-colors hover:bg-sky-strong"
+                  className="inline-flex min-h-11 items-center gap-1 rounded-lg bg-sky px-3 text-xs font-semibold text-white desk:min-h-9 transition-colors hover:bg-sky-strong"
                 >
                   기록하기
                   <LinkPending className="h-3.5 w-3.5">
@@ -242,7 +243,7 @@ export function NoticePanel({
                   type="button"
                   onClick={rest}
                   disabled={resting}
-                  className="inline-flex min-h-9 items-center rounded-lg border border-line-strong px-3 text-xs font-medium text-ink transition-colors hover:bg-surface-2 disabled:opacity-50"
+                  className="inline-flex min-h-11 items-center rounded-lg border border-line-strong px-3 desk:min-h-9 text-xs font-medium text-ink transition-colors hover:bg-surface-2 disabled:opacity-50"
                 >
                   {resting ? '남기는 중…' : '오늘 안 던졌어요'}
                 </button>
@@ -267,7 +268,7 @@ export function NoticePanel({
             <button
               type="button"
               onClick={(e) => onCheckin(e.currentTarget)}
-              className="rounded-lg px-2 py-1.5 text-xs font-medium text-muted transition-colors hover:bg-ink/6 hover:text-ink"
+              className="inline-flex min-h-11 items-center rounded-lg px-2 py-1.5 text-xs font-medium text-muted transition-colors hover:bg-ink/6 hover:text-ink desk:min-h-0"
             >
               체크인 고치기
             </button>
@@ -277,7 +278,7 @@ export function NoticePanel({
               href={`/pitch-log/${day}`}
               transitionTypes={OPEN_POPUP_TYPES}
               onClick={onNavigate}
-              className="rounded-lg px-2 py-1.5 text-xs font-medium text-muted transition-colors hover:bg-ink/6 hover:text-ink"
+              className="inline-flex min-h-11 items-center rounded-lg px-2 py-1.5 text-xs font-medium text-muted transition-colors hover:bg-ink/6 hover:text-ink desk:min-h-0"
             >
               오늘 투구 기록 보기
             </Link>

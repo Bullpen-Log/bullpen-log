@@ -2,6 +2,7 @@
 
 import { useEffect } from 'react';
 import { DEFAULT_THEME, THEME_STORAGE_KEY } from '@/lib/theme';
+import { APP_INIT_SCRIPT } from '@/lib/native-app';
 
 /**
  * 맨 바깥 레이아웃까지 터졌을 때 — 마지막 방어선.
@@ -63,17 +64,27 @@ export default function GlobalError({
   return (
     <html lang="ko">
       <head>
+        {/* 문서를 직접 만들므로 폰 화면 폭도 직접 — 없으면 아이폰이 PC 폭(980px)으로 그려 글자가 작아진다 */}
+        <meta
+          name="viewport"
+          content="width=device-width, initial-scale=1, viewport-fit=cover"
+        />
         <style dangerouslySetInnerHTML={{ __html: THEME_STYLE }} />
         <script dangerouslySetInnerHTML={{ __html: THEME_SCRIPT }} />
+        {/* 아이폰 앱이면 시작 연출 판을 걷고 상태바를 맞춘다 — 안 알리면 연출 판이 10초 동안 이 화면을 덮었다 */}
+        <script dangerouslySetInnerHTML={{ __html: APP_INIT_SCRIPT }} />
       </head>
       <body>
         <div
           style={{
-            minHeight: '100vh',
+            /* 100vh 는 사파리 주소창이 펴진 높이까지 쳐서 가운데가 아래로 밀렸다 */
+            minHeight: '100dvh',
+            boxSizing: 'border-box',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            padding: '48px 16px',
+            padding:
+              'max(48px, env(safe-area-inset-top)) 16px max(48px, env(safe-area-inset-bottom))',
           }}
         >
           <div style={{ maxWidth: 420, textAlign: 'center' }}>

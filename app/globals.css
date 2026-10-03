@@ -447,6 +447,34 @@ summary,
 label {
   -webkit-tap-highlight-color: transparent;
 }
+
+/*
+ * 빠르게 두 번 누르면 확대되지 않게 — 운동 숫자 패드 '0' '0', 무게 + 두 번처럼 손가락이 같은 자리를 연달아
+ * 누르면 아이폰이 화면을 키웠다(2026-10-03 아이폰 점검). manipulation 은 굴리기 · 두 손가락 확대는 그대로 두고
+ * 두 번 눌러 확대만 끈다. 끌기를 스스로 하는 곳(touch-none · touch-pan-y 클래스)은 그 값이 이긴다 — 이 규칙이
+ * @layer base 라 utilities 보다 약하다.
+ */
+@layer base {
+  :where(a, button, [role='button'], summary, label, input, select, textarea) {
+    touch-action: manipulation;
+  }
+}
+
+/*
+ * 아이폰 앱 안에서는 링크 · 그림을 길게 눌러도 주소 미리보기 · '이미지 저장' 메뉴가 뜨지 않게 — 탭 · 메뉴 · 카드를
+ * 길게 누르면 bullpen-log.vercel.app 주소가 보여 웹사이트처럼 느껴졌다. 앱 설정의 allowsLinkPreview: false 와
+ * 짝이다(mobile/capacitor.config.json). 사파리는 그대로 둔다(주소를 복사하는 것이 쓸모 있다).
+ */
+html[data-app='native'] :is(a, img, button, [role='button']) {
+  -webkit-touch-callout: none;
+}
+
+/* 검색칸의 웹킷 ✕ 를 숨긴다 — 화면마다 제 ✕ 단추를 두므로 아이폰에서 ✕ 가 둘 보였다 */
+input[type='search']::-webkit-search-cancel-button,
+input[type='search']::-webkit-search-decoration {
+  -webkit-appearance: none;
+  appearance: none;
+}
 @layer base {
   [data-pressed] {
     opacity: 0.55;
@@ -598,6 +626,18 @@ input[type='date']::-webkit-calendar-picker-indicator {
 }
 .range:active::-webkit-slider-thumb {
   transform: scale(1.15);
+}
+/* 손가락 화면은 손잡이를 28px 로 — 아이폰의 범위 입력은 트랙을 눌러도 그 자리로 가지 않아 손잡이를 잡아
+   끌어야 하는데, 20px 는 잘 안 잡혔다(2026-10-03 점검). 칸 높이도 손잡이만큼 */
+@media (pointer: coarse) {
+  .range {
+    height: 2.25rem;
+  }
+  .range::-webkit-slider-thumb {
+    height: 28px;
+    width: 28px;
+    margin-top: -11px;
+  }
 }
 .range:focus-visible::-webkit-slider-thumb {
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-sky) 35%, transparent);
@@ -752,17 +792,27 @@ input[type='date']::-webkit-calendar-picker-indicator {
  * 시간에 이 0.31초가 더해져 '누른 뒤 한참 있다 바뀐다'로 느껴졌다. 움직임은 그대로
  * 두고 기다림만 걷어, 새 화면이 0.19초 안에 다 들어온다.
  */
-::view-transition-old(app-main),
+/*
+ * 이름 규칙과 딱지 규칙은 따로 적는다(2026-10-03). 사파리 18.0~18.1 은 딱지 고르기((.page))를 몰라서, 한 목록에
+ * 같이 적으면 그 규칙을 통째로 버려 이름(app-main) 쪽까지 안 걸렸다.
+ */
+::view-transition-old(app-main) {
+  animation: 80ms ease-in both page-fade reverse;
+}
 ::view-transition-old(.page) {
   animation: 80ms ease-in both page-fade reverse;
 }
-::view-transition-new(app-main),
+::view-transition-new(app-main) {
+  animation: 150ms ease-out 40ms both page-fade;
+}
 ::view-transition-new(.page) {
   animation: 150ms ease-out 40ms both page-fade;
 }
 /* 틀(group)은 움직이지 않는다 — 멀리 내려간 화면에서 탭을 바꾸면 Next 가 이 전환 안에서 맨 위로
    굴려, 틀이 옛 자리(위로 수천 px)에서 날아 내려왔다. 옛 · 새 그림의 옅어지기만 남긴다. */
-::view-transition-group(app-main),
+::view-transition-group(app-main) {
+  animation: none;
+}
 ::view-transition-group(.page) {
   animation: none;
 }
@@ -1162,6 +1212,40 @@ dialog {
  */
 dialog:not([open]) {
   display: none;
+}
+
+/*
+ * 사파리(아이폰)에서 닫히는 창이 제자리를 지키게(2026-10-03 아이폰 점검).
+ *
+ * 닫는 움직임은 위의 overlay allow-discrete 가 창을 맨 위 칸(top layer)에 붙들어 두는 것에 기대는데, 사파리는
+ * overlay 를 모른다. 그래서 닫는 순간 창이 맨 위 칸에서 내려와 화면에 붙은 자리(fixed · 위아래 0)를 잃고, 내려가는
+ * 0.1~0.3초 동안 문서 맨 위(굴린 화면이면 화면 밖)로 튀었다가 사라졌고, 뒤 어둠(::backdrop)도 맨 위 칸에만 있어서
+ * 그 순간 뚝 꺼졌다.
+ *
+ * overlay 를 모르는 브라우저에서만 닫히는 창에 제 자리를 준다 — 화면에 붙고(fixed · inset 0, 창의 margin 이
+ * 가운데 · 바닥 · 오른쪽을 그대로 정한다) 본문 위에 선다(z-index). @layer base 라서 제 자리를 따로 적은
+ * 창(구속 측정 주의사항의 left-3 · top-… 같은 클래스)은 그쪽이 이긴다. 뒤 어둠은 창 둘레의 큰 그림자로
+ * 대신해 옅어지게 한다(앱의 창은 거의 다 backdrop:bg-black/40). 열린 동안에는 아무것도 바뀌지 않는다.
+ */
+@supports not (overlay: auto) {
+  @layer base {
+    dialog:not([open]) {
+      position: fixed;
+      inset: 0;
+      z-index: 2147483000;
+    }
+  }
+  dialog:not([open]) {
+    animation: dialog-shade-out 200ms ease-in both;
+  }
+}
+@keyframes dialog-shade-out {
+  from {
+    box-shadow: 0 0 0 100vmax rgb(0 0 0 / 0.4);
+  }
+  to {
+    box-shadow: 0 0 0 100vmax rgb(0 0 0 / 0);
+  }
 }
 
 /*
@@ -1939,6 +2023,34 @@ dialog[data-gate][open]::backdrop {
     transform: none;
     transition: none;
     animation: sheet-in 460ms cubic-bezier(0.32, 0.72, 0, 1);
+  }
+}
+
+/*
+ * 휴대폰의 아래 시트 셋(Modal 의 data-sheet · 체크인 관문 · 더보기) 공통 — 2026-10-03 아이폰 점검.
+ */
+@media (max-width: 63.999rem) and (max-width: 35.999rem),
+  (max-width: 63.999rem) and (hover: none),
+  (max-width: 63.999rem) and (pointer: coarse) {
+  /*
+   * 가로로 돌린 사파리에서 시트의 글 · 단추가 노치 밑에 들어가지 않게 양옆을 그만큼 비운다. 시트 바탕은 화면 끝까지
+   * 그대로다. 세로 화면은 그 값이 0 이라 예전과 같다(앱은 세로로만 돈다).
+   */
+  dialog[data-sheet],
+  dialog[data-gate],
+  dialog[data-drawer] {
+    padding-left: env(safe-area-inset-left);
+    padding-right: env(safe-area-inset-right);
+  }
+  /*
+   * 자판이 올라온 동안에는 시트를 자판 위로 올리고 보이는 높이만큼만 쓴다. 아이폰은 자판이 떠도 화면 높이가 그대로라,
+   * 바닥에 붙은 시트의 아래쪽(입력칸 · 저장 단추)이 자판 뒤에 숨었다. --kb · --vvh 는 components/viewport-vars.tsx 가
+   * 자판이 있을 때만 적는다 — 없으면 이 규칙이 안 걸려 예전 모양 그대로다.
+   */
+  html[data-keyboard] dialog[data-sheet],
+  html[data-keyboard] dialog[data-gate] {
+    margin-bottom: var(--kb, 0px);
+    max-height: calc(var(--vvh, 100dvh) - env(safe-area-inset-top) - 0.75rem);
   }
 }
 

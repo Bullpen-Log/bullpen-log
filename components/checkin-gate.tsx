@@ -356,8 +356,9 @@ export function CheckinGate({
         가장 가까운 '자리 잡힌' 조상인데, 이것이 없으면 그 기준이 창 전체가 된다. 그러면
         아래쪽 라디오들이 창의 스크롤 길이를 늘리고, 초점이 거기로 가는 순간 창
         전체가 위로 밀려 올라가 제목이 화면 밖으로 사라진다(실제로 400px 넘게 밀렸다).
+        overscroll-contain — 끝까지 굴린 뒤 더 밀어도 뒤 화면이 따라 굴러가지 않게(2026-10-03 아이폰 점검).
       */}
-      <div className="no-scrollbar relative min-h-0 flex-auto overflow-y-auto px-5 pt-4 pb-5 desk:py-5">
+      <div className="no-scrollbar relative min-h-0 flex-auto overflow-y-auto overscroll-contain px-5 pt-4 pb-5 desk:py-5">
         {showDone ? (
           <CheckinDone today={today} days={[...streakDays, ...checkedDays]} />
         ) : (
