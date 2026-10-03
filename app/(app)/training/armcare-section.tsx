@@ -7,11 +7,16 @@ import { throwingSide } from '@/lib/armcare/muscle-map';
 import { loadArmcareToday, notAdvised, type UserForArmcare } from '@/lib/armcare/today';
 import { armcareMinutes } from '@/lib/armcare/routine';
 import { loadMyRoutines } from '@/lib/armcare/my-routines-store';
+import { shiftDateKey } from '@/lib/pitch-stats';
 import {
   REHAB_CONDITIONS,
   REHAB_ENABLED,
   REHAB_STAGES,
+  WEEKLY_EVERY_DAYS,
   conditionsFor,
+  daysBetween,
+  firstCkcRecord,
+  hasPlyoBall,
   rehabAvoid,
   rehabNotes,
   rehabTitle,
@@ -108,7 +113,11 @@ export async function ArmcareSection({
   /* ── 맞춤 루틴 ── 재활 중이면 그 자리에 오늘 재활(재활 2편 — 내 루틴은 그대로) */
   let custom: ReactNode;
   if (data.rehab) {
-    custom = <RehabCard view={await rehabCardView(data.rehab, data.todayKey, byId)} />;
+    custom = (
+      <RehabCard
+        view={await rehabCardView(data.rehab, data.todayKey, byId, user.ownedEquipment)}
+      />
+    );
   } else if (!data.hasCheckinToday) {
     /*
      * 체크인 먼저 — 운동 일정과 같은 규칙이다. 던진 날·팔 피로·뻐근한 곳을 모르면
@@ -293,7 +302,8 @@ export async function ArmcareSection({
 async function rehabCardView(
   rehab: RehabToday,
   dateKey: string,
-  byId: Map<string, CachedExercise>
+  byId: Map<string, CachedExercise>,
+  ownedEquipment: string[]
 ): Promise<RehabCardView> {
   const { program, status, session } = rehab;
   const inSession = session.items.filter((it) => byId.has(it.exerciseId));
@@ -312,6 +322,12 @@ async function rehabCardView(
     };
   });
   const today = status.today;
+  /* 매주 확인 — 지난 7일 안의 확인은 투구 복귀표 열기 시트가 그 % · 자신감을 쓴다 */
+  const { weekly } = status;
+  const recent =
+    weekly.last && daysBetween(weekly.last.date, dateKey) < WEEKLY_EVERY_DAYS
+      ? weekly.last
+      : null;
   return {
     dateKey,
     title: rehabTitle(program.area, program.condition),
@@ -339,6 +355,30 @@ async function rehabCardView(
           key,
           label: REHAB_CONDITIONS[key].label,
         })),
+    activities: rehab.activities,
+    weekly: {
+      due: weekly.due,
+      allowed: weekly.allowed,
+      last: weekly.last
+        ? { date: weekly.last.date, normalPct: weekly.last.normalPct }
+        : null,
+      recent: recent
+        ? { normalPct: recent.normalPct, confidence: recent.confidence }
+        : null,
+      nextOn: weekly.allowed
+        ? null
+        : shiftDateKey(weekly.last?.date ?? program.startedOn, WEEKLY_EVERY_DAYS),
+    },
+    ckcFirst: firstCkcRecord(rehab.weeklies),
+    throwing: status.throwing
+      ? {
+          ...status.throwing,
+          hasPlyo: hasPlyoBall(ownedEquipment),
+          severity: program.severity,
+          condition: program.condition,
+          daysSinceStart: daysBetween(program.startedOn, dateKey),
+        }
+      : null,
   };
 }
 

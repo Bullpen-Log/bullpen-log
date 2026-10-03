@@ -18,24 +18,196 @@ import {
 import { changeRehabStage, setRehabCondition } from '@/app/actions/rehab';
 import { RehabChips, PAIN_OPTIONS } from './rehab-chips';
 
-const YES_NO = [
+export const YES_NO = [
   { value: 'yes', label: '예' },
   { value: 'no', label: '아니요' },
 ] as const;
 
 /** 숫자 칸 → 숫자(비었거나 숫자가 아니면 null) */
-function num(text: string): number | null {
+export function num(text: string): number | null {
   const t = text.trim();
   if (t === '') return null;
   const n = Number(t);
   return Number.isFinite(n) && n >= 0 ? n : null;
 }
 
+/** 단계 시험에 적는 것 — 칸은 글자 그대로 쥐고, 판정할 때 숫자로 바꾼다 */
+export type StageTestDraft = {
+  painFree: string | null;
+  similar: string | null;
+  injured: string;
+  other: string;
+  pain: number | null;
+  ckcFirst: string;
+  ckcNow: string;
+};
+
+export function emptyStageTestDraft(ckcFirst: number | null = null): StageTestDraft {
+  return {
+    painFree: null,
+    similar: null,
+    injured: '',
+    other: '',
+    pain: null,
+    ckcFirst: ckcFirst == null ? '' : String(ckcFirst),
+    ckcNow: '',
+  };
+}
+
+/** 적은 것 → 판정 입력 */
+export function stageTestInput(test: StageTest, d: StageTestDraft): StageTestInput {
+  return test.kind === 'rom'
+    ? {
+        painFree: d.painFree == null ? undefined : d.painFree === 'yes',
+        similar: d.similar == null ? undefined : d.similar === 'yes',
+      }
+    : {
+        injured: num(d.injured) ?? undefined,
+        other: num(d.other) ?? undefined,
+        pain: d.pain ?? undefined,
+        ckcNow: num(d.ckcNow),
+        ckcFirst: num(d.ckcFirst),
+      };
+}
+
+/** 판정할 만큼 적었나 — 팔굽혀 터치는 없어도 된다(처음이면 오늘 기록만) */
+export function stageTestFilled(test: StageTest, d: StageTestDraft): boolean {
+  return test.kind === 'rom'
+    ? d.painFree != null && d.similar != null
+    : num(d.injured) != null && num(d.other) != null && d.pain != null;
+}
+
 /**
- * 단계 올리기 시트 — 그 단계의 시험(가이드라인 9절)을 적으면 그 자리에서 판정하고, 통과면 [N단계로].
+ * 단계 시험 칸(가이드라인 9절) — 단계 올리기 시트와 매주 확인의 ⑤가 같이 쓴다.
  *   1→2  양쪽 움직임 비교 — 예/아니요 둘
  *   2→3  양쪽 힘 횟수(90%) · 시험 중 통증
  *   3→4  같은 힘 횟수(100%, 어깨 95%) + 어깨 부위는 팔굽혀 터치 15초(첫 기록보다 늘었나)
+ * 팔굽혀 터치의 '처음' 칸은 이 재활의 첫 기록(매주 확인에 남은 것)으로 미리 채운다. 매주 확인에서는 처음 기록을 고치지
+ * 않는다(firstEditable false) — 오늘 기록이 남고, 첫 기록이 없으면 오늘 것이 '내 첫 기록'이 된다.
+ */
+export function StageTestFields({
+  test,
+  draft,
+  onChange,
+  firstEditable = true,
+}: {
+  test: StageTest;
+  draft: StageTestDraft;
+  onChange: (next: StageTestDraft) => void;
+  firstEditable?: boolean;
+}) {
+  const set = (patch: Partial<StageTestDraft>) => onChange({ ...draft, ...patch });
+  if (test.kind === 'rom') {
+    return (
+      <>
+        <Ask title="다친 쪽을 움직일 때 아프지 않았어요?">
+          <RehabChips
+            label="아프지 않았어요"
+            options={YES_NO}
+            value={draft.painFree}
+            onChange={(v) => set({ painFree: v })}
+          />
+        </Ask>
+        <Ask title="반대쪽과 비슷하게 움직여요?">
+          <RehabChips
+            label="반대쪽과 비슷해요"
+            options={YES_NO}
+            value={draft.similar}
+            onChange={(v) => set({ similar: v })}
+          />
+        </Ask>
+      </>
+    );
+  }
+  const first = num(draft.ckcFirst);
+  return (
+    <>
+      <Ask title={`${test.exercise} — 지칠 때까지 몇 번?`}>
+        <div className="grid grid-cols-2 gap-2">
+          <NumberField
+            label="다친 쪽"
+            value={draft.injured}
+            onChange={(v) => set({ injured: v })}
+          />
+          <NumberField
+            label="반대쪽"
+            value={draft.other}
+            onChange={(v) => set({ other: v })}
+          />
+        </div>
+        <p className="text-xs text-muted">
+          다친 쪽이 반대쪽의 {test.percent}% 이상이면 통과예요.
+        </p>
+      </Ask>
+      <Ask title="시험 중 가장 아팠던 정도 (0~10)">
+        <RehabChips
+          label="시험 중 통증"
+          options={PAIN_OPTIONS}
+          value={draft.pain}
+          onChange={(v) => set({ pain: v })}
+        />
+      </Ask>
+      {test.ckc && (
+        <Ask title="팔굽혀 터치 15초 (3번 평균)">
+          <p className="text-xs text-muted">{CKCUEST_METHOD}</p>
+          {firstEditable ? (
+            <div className="grid grid-cols-2 gap-2">
+              <NumberField
+                label="처음 쟀을 때"
+                value={draft.ckcFirst}
+                onChange={(v) => set({ ckcFirst: v })}
+                decimal
+              />
+              <NumberField
+                label="오늘"
+                value={draft.ckcNow}
+                onChange={(v) => set({ ckcNow: v })}
+                decimal
+              />
+            </div>
+          ) : (
+            <NumberField
+              label={first == null ? '오늘 (처음이에요)' : `오늘 (내 첫 기록 ${first})`}
+              value={draft.ckcNow}
+              onChange={(v) => set({ ckcNow: v })}
+              decimal
+            />
+          )}
+          <p className="text-xs text-muted">
+            {first == null
+              ? '처음이면 오늘 기록이 내 첫 기록이 돼요. 다음부터 늘었는지 견줘요.'
+              : '아프지 않게, 처음보다 늘었으면 통과예요.'}
+          </p>
+        </Ask>
+      )}
+    </>
+  );
+}
+
+/** 판정 한 칸 — 통과면 체크, 아니면 못 넘은 까닭을 한 줄씩 */
+export function JudgedBox({ pass, fails }: { pass: boolean; fails: string[] }) {
+  return (
+    <div
+      className={`rounded-xl px-3.5 py-2.5 ${pass ? 'bg-sky-tint text-ink' : 'bg-surface-2 text-ink/85'}`}
+    >
+      {pass ? (
+        <p className="flex items-center gap-2 font-semibold">
+          <Check aria-hidden className="h-4 w-4 text-sky-strong" strokeWidth={3} />
+          통과했어요
+        </p>
+      ) : (
+        <ul className="list-disc space-y-1 pl-5 marker:text-muted">
+          {fails.map((f) => (
+            <li key={f}>{f}</li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+/**
+ * 단계 올리기 시트 — 그 단계의 시험(가이드라인 9절)을 적으면 그 자리에서 판정하고, 통과면 [N단계로].
  * 서버가 올리는 조건과 시험을 한 번 더 본다(app/actions/rehab.ts 의 changeRehabStage).
  */
 export function StageTestSheet({
@@ -44,6 +216,7 @@ export function StageTestSheet({
   test,
   stage,
   ready,
+  ckcFirst = null,
 }: {
   open: boolean;
   onClose: () => void;
@@ -51,36 +224,17 @@ export function StageTestSheet({
   stage: RehabStage;
   /** 올리는 조건이 다 찼나 — 아니면 시험을 적어도 올리지 못한다 */
   ready: boolean;
+  /** 팔굽혀 터치 내 첫 기록(매주 확인에 남은 것) — '처음' 칸을 미리 채운다 */
+  ckcFirst?: number | null;
 }) {
-  const [painFree, setPainFree] = useState<string | null>(null);
-  const [similar, setSimilar] = useState<string | null>(null);
-  const [injured, setInjured] = useState('');
-  const [other, setOther] = useState('');
-  const [pain, setPain] = useState<number | null>(null);
-  const [ckcFirst, setCkcFirst] = useState('');
-  const [ckcNow, setCkcNow] = useState('');
+  const [draft, setDraft] = useState(() => emptyStageTestDraft(ckcFirst));
   const [pending, startPending] = useTransition();
   const [error, setError] = useState<string>();
   const [fails, setFails] = useState<string[]>([]);
 
   const next = (stage + 1) as RehabStage;
-  const input: StageTestInput =
-    test.kind === 'rom'
-      ? {
-          painFree: painFree == null ? undefined : painFree === 'yes',
-          similar: similar == null ? undefined : similar === 'yes',
-        }
-      : {
-          injured: num(injured) ?? undefined,
-          other: num(other) ?? undefined,
-          pain: pain ?? undefined,
-          ckcNow: num(ckcNow),
-          ckcFirst: num(ckcFirst),
-        };
-  const filled =
-    test.kind === 'rom'
-      ? painFree != null && similar != null
-      : num(injured) != null && num(other) != null && pain != null;
+  const input = stageTestInput(test, draft);
+  const filled = stageTestFilled(test, draft);
   const judged = judgeStageTest(test, input);
 
   const submit = () => {
@@ -110,92 +264,9 @@ export function StageTestSheet({
           {test.method}
         </p>
 
-        {test.kind === 'rom' ? (
-          <>
-            <Ask title="다친 쪽을 움직일 때 아프지 않았어요?">
-              <RehabChips
-                label="아프지 않았어요"
-                options={YES_NO}
-                value={painFree}
-                onChange={setPainFree}
-              />
-            </Ask>
-            <Ask title="반대쪽과 비슷하게 움직여요?">
-              <RehabChips
-                label="반대쪽과 비슷해요"
-                options={YES_NO}
-                value={similar}
-                onChange={setSimilar}
-              />
-            </Ask>
-          </>
-        ) : (
-          <>
-            <Ask title={`${test.exercise} — 지칠 때까지 몇 번?`}>
-              <div className="grid grid-cols-2 gap-2">
-                <NumberField label="다친 쪽" value={injured} onChange={setInjured} />
-                <NumberField label="반대쪽" value={other} onChange={setOther} />
-              </div>
-              <p className="text-xs text-muted">
-                다친 쪽이 반대쪽의 {test.percent}% 이상이면 통과예요.
-              </p>
-            </Ask>
-            <Ask title="시험 중 가장 아팠던 정도 (0~10)">
-              <RehabChips
-                label="시험 중 통증"
-                options={PAIN_OPTIONS}
-                value={pain}
-                onChange={setPain}
-              />
-            </Ask>
-            {test.ckc && (
-              <Ask title="팔굽혀 터치 15초 (3번 평균)">
-                <p className="text-xs text-muted">{CKCUEST_METHOD}</p>
-                <div className="grid grid-cols-2 gap-2">
-                  <NumberField
-                    label="처음 쟀을 때"
-                    value={ckcFirst}
-                    onChange={setCkcFirst}
-                    decimal
-                  />
-                  <NumberField
-                    label="오늘"
-                    value={ckcNow}
-                    onChange={setCkcNow}
-                    decimal
-                  />
-                </div>
-                <p className="text-xs text-muted">
-                  아프지 않게, 처음보다 늘었으면 통과예요. 처음이면 오늘 기록을 적어
-                  두세요.
-                </p>
-              </Ask>
-            )}
-          </>
-        )}
+        <StageTestFields test={test} draft={draft} onChange={setDraft} />
 
-        {filled && (
-          <div
-            className={`rounded-xl px-3.5 py-2.5 ${judged.pass ? 'bg-sky-tint text-ink' : 'bg-surface-2 text-ink/85'}`}
-          >
-            {judged.pass ? (
-              <p className="flex items-center gap-2 font-semibold">
-                <Check
-                  aria-hidden
-                  className="h-4 w-4 text-sky-strong"
-                  strokeWidth={3}
-                />
-                통과했어요
-              </p>
-            ) : (
-              <ul className="list-disc space-y-1 pl-5 marker:text-muted">
-                {judged.fails.map((f) => (
-                  <li key={f}>{f}</li>
-                ))}
-              </ul>
-            )}
-          </div>
-        )}
+        {filled && <JudgedBox pass={judged.pass} fails={judged.fails} />}
         {!ready && (
           <p className="text-xs text-muted">
             올리는 조건(기간 · 깨끗한 세션)이 다 차면 올릴 수 있어요.
@@ -348,7 +419,7 @@ export function StageChangeSheet({
   );
 }
 
-function Ask({ title, children }: { title: string; children: React.ReactNode }) {
+export function Ask({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <section className="space-y-2">
       <p className="font-semibold text-ink">{title}</p>
@@ -357,7 +428,7 @@ function Ask({ title, children }: { title: string; children: React.ReactNode }) 
   );
 }
 
-function NumberField({
+export function NumberField({
   label,
   value,
   onChange,
