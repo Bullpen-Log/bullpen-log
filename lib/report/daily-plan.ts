@@ -7,6 +7,7 @@ import {
   validFocus,
 } from '@/lib/report/personalize';
 import { selectCandidates, type ExerciseLike } from '@/lib/report/prescription';
+import { goalPrescription } from '@/lib/report/goal-prescription';
 import {
   CONDITIONING_GOAL,
   decideTheme,
@@ -222,7 +223,8 @@ export function buildDailyPlan<T extends ExerciseLike>({
   const goal = findGoal(goalName);
 
   const themed = pickForTheme({
-    candidates: picked.candidates,
+    /* 목표에 맞춘 횟수로 시간을 센다 — 화면 · 운동 화면도 같은 값을 쓴다(goal-prescription.ts) */
+    candidates: picked.candidates.map((ex) => goalPrescription(ex, goal.name)),
     theme: theme.key,
     minutes,
     // 만드는 시점에는 아직 아무것도 안 했다.

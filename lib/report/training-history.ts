@@ -4,6 +4,7 @@ import { shiftDateKey, toDateKey } from '@/lib/pitch-stats';
 import { formatPrescription } from '@/lib/exercise-meta';
 import { exercisesByIds } from '@/lib/library-cache';
 import { readDailyPlan } from '@/lib/report/daily-plan';
+import { goalPrescription } from '@/lib/report/goal-prescription';
 import { SLOT_LABELS, SLOT_ORDER } from '@/lib/report/theme';
 
 /**
@@ -203,6 +204,8 @@ export async function trainingDay(
           select: {
             title: true,
             category: true,
+            /* 목표에 맞춘 횟수를 고르는 데 쓴다(goal-prescription.ts) */
+            intensity: true,
             sets: true,
             reps: true,
             holdSeconds: true,
@@ -236,6 +239,8 @@ export async function trainingDay(
   const plannedIds = readPlanExerciseIds(setup?.plan).filter((id) => !doneIds.has(id));
   /* 이미 들고 있는 목록에서 고른다 — 몇 개 찾자고 DB 를 한 번 더 묻지 않는다 */
   const missed = await exercisesByIds(plannedIds);
+  /* '계획'은 그날 목표에 맞춘 세트 · 횟수로 적는다 — 그날 트레이닝 화면에 보였던 값(goal-prescription.ts) */
+  const dayGoal = readDailyPlan(setup?.plan)?.goal;
 
   const todayKey = toDateKey(new Date());
 
@@ -248,7 +253,7 @@ export async function trainingDay(
         id: l.exerciseId,
         title: l.exercise.title,
         category: l.exercise.category,
-        planned: formatPrescription(l.exercise),
+        planned: formatPrescription(goalPrescription(l.exercise, dayGoal)),
         done: true,
         setsDone: l.setsDone,
         repsDone: l.repsDone,
@@ -259,7 +264,7 @@ export async function trainingDay(
         id: ex.id,
         title: ex.title,
         category: ex.category,
-        planned: formatPrescription(ex),
+        planned: formatPrescription(goalPrescription(ex, dayGoal)),
         done: false,
         setsDone: null,
         repsDone: null,

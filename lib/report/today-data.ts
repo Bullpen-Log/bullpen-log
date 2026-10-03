@@ -10,6 +10,7 @@ import { readArmcareRoutine } from '@/lib/armcare/routine';
 import { readRoutineItems } from '@/lib/armcare/my-routines';
 import { visibleExercises } from '@/lib/library-cache';
 import { closeAbandonedSessions } from '@/lib/workout/close-stale';
+import { goalPrescription } from '@/lib/report/goal-prescription';
 import {
   estimateMinutes,
   painRecoveryReason,
@@ -264,7 +265,8 @@ export async function loadTodayCore(user: UserForToday, today: Date) {
     shownPicks.reduce((sum, p) => {
       const ex = byId.get(p.exerciseId);
       if (!ex) return sum;
-      return sum + estimateMinutes(ex);
+      /* 일정을 짤 때와 같은 횟수로 센다(goal-prescription.ts) */
+      return sum + estimateMinutes(goalPrescription(ex, savedPlan?.goal));
     }, 0)
   );
 

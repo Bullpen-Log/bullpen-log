@@ -1,6 +1,7 @@
 import 'server-only';
 import { needsWeight } from '@/lib/exercise-meta';
 import { formatPrescription } from '@/lib/exercise-meta';
+import { goalPrescription } from '@/lib/report/goal-prescription';
 import { SLOT_ORDER, type SlotKey, type ThemeKey } from '@/lib/report/theme';
 
 /**
@@ -47,6 +48,11 @@ export type FrozenExercise = {
 export type FrozenPlan = {
   themeKey: ThemeKey;
   themeLabel: string;
+  /**
+   * 오늘 목표(근력 향상 …) — 운동 중에 바꿔 넣는 운동도 같은 횟수로 찍으려고 둔다(goal-prescription.ts).
+   * 2026-10-03 에 더했다. 그 앞에 찍은 판에는 없다(null) — 그때는 오늘 일정의 목표를 쓴다.
+   */
+  goal?: string | null;
   exercises: FrozenExercise[];
 };
 
@@ -104,7 +110,9 @@ export function freezePlan(
   themeKey: ThemeKey,
   themeLabel: string,
   picks: readonly { exerciseId: string; slot: SlotKey }[],
-  byId: Map<string, SourceExercise>
+  byId: Map<string, SourceExercise>,
+  /** 오늘 목표 — 세트 · 횟수를 목표에 맞춰 찍는다(트레이닝 화면 목록과 같은 값) */
+  goal: string | null = null
 ): FrozenPlan {
   const order = new Map(SLOT_ORDER.map((s, i) => [s, i]));
 
@@ -112,9 +120,9 @@ export function freezePlan(
     .map((p) => ({ slot: p.slot, ex: byId.get(p.exerciseId) }))
     .filter((p): p is { slot: SlotKey; ex: SourceExercise } => p.ex != null)
     .sort((a, b) => (order.get(a.slot) ?? 99) - (order.get(b.slot) ?? 99))
-    .map(({ slot, ex }) => freezeExercise(ex, slot));
+    .map(({ slot, ex }) => freezeExercise(goalPrescription(ex, goal), slot));
 
-  return { themeKey, themeLabel, exercises };
+  return { themeKey, themeLabel, goal, exercises };
 }
 
 /** 찍어 둔 것을 다시 읽는다. 모양이 아니면 null — 옛 세션일 수 있다. */
@@ -125,6 +133,7 @@ export function readFrozenPlan(value: unknown): FrozenPlan | null {
   return {
     themeKey: v.themeKey as ThemeKey,
     themeLabel: typeof v.themeLabel === 'string' ? v.themeLabel : '오늘의 운동',
+    goal: typeof v.goal === 'string' ? v.goal : null,
     exercises: v.exercises as FrozenExercise[],
   };
 }

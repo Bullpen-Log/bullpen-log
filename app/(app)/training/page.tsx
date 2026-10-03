@@ -7,6 +7,7 @@ import { requireUser } from '@/lib/dal';
 import { createPlaybackUrls } from '@/lib/storage';
 import { referenceThumbUrl } from '@/lib/reference-video';
 import { formatPrescription } from '@/lib/exercise-meta';
+import { goalPrescription } from '@/lib/report/goal-prescription';
 import { loadTodayCore } from '@/lib/report/today-data';
 import { StartWorkout } from './start-workout';
 import { DoneCard, DoneFold, type DoneLine } from './done-card';
@@ -288,8 +289,10 @@ export default async function TrainingPage({
      * 지나가는 것이라, 숫자를 적어 두면 지켜야 할 것처럼 읽혔다. 워밍업을 아예
      * 안 뽑게 된 지금 남은 것은 회복 데이의 가동성뿐이고, 그것은 그날의 운동
      * 자체라 몇 세트 몇 회인지가 필요하다.
+     *
+     * 횟수는 오늘 목표에 맞춘다(lib/report/goal-prescription.ts — 근력 향상이면 무거운 운동 4세트 × 5회).
      */
-    prescription: formatPrescription(ex),
+    prescription: formatPrescription(goalPrescription(ex, savedPlan?.goal)),
     /*
      * 아직 촬영하지 않은 운동은 유튜브 참고 영상의 미리보기를 그대로 쓴다.
      * 우리 저장소에 담아 둔 것이 없어 발급받을 주소도 없다.
@@ -326,21 +329,25 @@ export default async function TrainingPage({
    * 본인이 정한다. 설명 글과 영상 경로는 빼고 부른 목록(core.library)이라
    * 400개를 넘겨도 화면이 무겁지 않다.
    */
-  const pickable: PickableExercise[] = core.library.map((ex) => ({
-    favorite: favExercises.has(ex.id),
-    id: ex.id,
-    title: ex.title,
-    category: ex.category,
-    bodyParts: ex.bodyParts,
-    intensity: ex.intensity,
-    difficulty: ex.difficulty,
-    equipment: ex.equipment,
-    sets: ex.sets,
-    reps: ex.reps,
-    holdSeconds: ex.holdSeconds,
-    restSeconds: ex.restSeconds,
-    perSide: ex.perSide,
-  }));
+  const pickable: PickableExercise[] = core.library.map((raw) => {
+    /* 더하고 나서 목록에 보일 횟수와 같게 — 오늘 목표에 맞춘다(goal-prescription.ts) */
+    const ex = goalPrescription(raw, savedPlan?.goal);
+    return {
+      favorite: favExercises.has(ex.id),
+      id: ex.id,
+      title: ex.title,
+      category: ex.category,
+      bodyParts: ex.bodyParts,
+      intensity: ex.intensity,
+      difficulty: ex.difficulty,
+      equipment: ex.equipment,
+      sets: ex.sets,
+      reps: ex.reps,
+      holdSeconds: ex.holdSeconds,
+      restSeconds: ex.restSeconds,
+      perSide: ex.perSide,
+    };
+  });
 
   /** 홈과 트레이닝 둘 다에서 만들 수 있다. 여기서 만들면 여기로 돌아온다. */
   const planForm = (generated: boolean, minutes: number) => (

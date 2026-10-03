@@ -47,6 +47,7 @@ import {
   HIGH_VOLUME_MIN_REST,
 } from '../lib/report/plan.ts';
 import { selectCandidates } from '../lib/report/prescription.ts';
+import { goalPrescription } from '../lib/report/goal-prescription.ts';
 import { equipmentForToday, filterByEquipment } from '../lib/report/equipment.ts';
 import {
   GOAL_FOCUSES,
@@ -5714,6 +5715,88 @@ console.log('\n[암케어] 부위·근육 · 오늘의 루틴 · 부하');
       lightDay.reason.includes('90구') &&
       !lightDay.reason.includes('20구'),
     `${lightDay.label} — ${lightDay.reason}`
+  );
+}
+
+console.log('\n[목표별 횟수] 목표에 맞는 세트 · 횟수가 나오는가');
+{
+  /*
+   * 2026-10-03 사용자 결정 — 목표에 맞는 횟수를 숫자 하나로(lib/report/goal-prescription.ts).
+   * 라이브러리 값은 그대로 두고 일정 · 화면 · 운동 화면에 담을 때 바꾼다. 바꿀 것이 없으면 받은 그대로다.
+   */
+  const heavy = { category: '하체 스트렝스', intensity: '높음', sets: 4, reps: 10 };
+  const max = { category: '상체 스트렝스', intensity: '매우 높음', sets: 4, reps: 10 };
+  const mid = { category: '하체 스트렝스', intensity: '중간', sets: 3, reps: 10 };
+  const light = { category: '상체 스트렝스', intensity: '낮음', sets: 3, reps: 12 };
+  const power = { category: '파워', intensity: '매우 높음', sets: 3, reps: 5 };
+  const core = { category: '코어', intensity: '중간', sets: 3, reps: 10 };
+  const hold = { category: '코어', intensity: '중간', sets: 3, reps: null };
+  const show = (e: { sets?: number | null; reps?: number | null }) =>
+    `${e.sets}×${e.reps}`;
+
+  check(
+    '근력 향상 · 무거운 운동 → 4세트 × 5회',
+    show(goalPrescription(heavy, '근력 향상')) === '4×5',
+    show(goalPrescription(heavy, '근력 향상'))
+  );
+  check(
+    "근력 향상 · '매우 높음'도 4세트 × 5회",
+    show(goalPrescription(max, '근력 향상')) === '4×5',
+    show(goalPrescription(max, '근력 향상'))
+  );
+  check(
+    "근력 향상 · '중간' → 8회(세트 그대로)",
+    show(goalPrescription(mid, '근력 향상')) === '3×8',
+    show(goalPrescription(mid, '근력 향상'))
+  );
+  check(
+    "근력 향상 · '낮음' → 그대로",
+    goalPrescription(light, '근력 향상') === light,
+    show(goalPrescription(light, '근력 향상'))
+  );
+  check(
+    '파워 향상 · 무거운 운동 → 3세트 × 4회',
+    show(goalPrescription(heavy, '파워 향상')) === '3×4',
+    show(goalPrescription(heavy, '파워 향상'))
+  );
+  check(
+    '파워 향상 · 파워 운동은 그대로(3세트 × 5회)',
+    goalPrescription(power, '파워 향상') === power,
+    show(goalPrescription(power, '파워 향상'))
+  );
+  check(
+    '컨디셔닝 · 코어 → 15회(세트 그대로)',
+    show(goalPrescription(core, '컨디셔닝')) === '3×15',
+    show(goalPrescription(core, '컨디셔닝'))
+  );
+  check(
+    '버티기(횟수 없음)는 어느 목표든 그대로',
+    goalPrescription(hold, '컨디셔닝') === hold &&
+      goalPrescription(hold, '근력 향상') === hold
+  );
+  check(
+    '목표가 없거나 모르는 목표 → 그대로',
+    goalPrescription(heavy, null) === heavy &&
+      goalPrescription(heavy, '없는 목표') === heavy
+  );
+
+  /* 실제 라이브러리 — 근력 향상이면 일정에 담길 무거운 근력 운동은 모두 5회다 */
+  const heavyLifts = library.filter(
+    (ex) =>
+      (ex.category === '하체 스트렝스' || ex.category === '상체 스트렝스') &&
+      intensityLevel(ex.intensity) >= 4 &&
+      ex.reps != null
+  );
+  const off = heavyLifts
+    .map((ex) => goalPrescription(ex, '근력 향상'))
+    .filter((ex) => ex.reps !== 5 || ex.sets !== 4);
+  check(
+    `근력 향상 · 라이브러리의 무거운 근력 운동 ${heavyLifts.length}개가 모두 4세트 × 5회`,
+    heavyLifts.length > 0 && off.length === 0,
+    off
+      .slice(0, 3)
+      .map((ex) => ex.title)
+      .join(', ')
   );
 }
 

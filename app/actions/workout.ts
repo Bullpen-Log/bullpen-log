@@ -8,6 +8,7 @@ import { requireUser } from '@/lib/dal';
 import { exercisesByIds, type CachedExercise } from '@/lib/library-cache';
 import { loadTodayCore } from '@/lib/report/today-data';
 import { selectCandidates } from '@/lib/report/prescription';
+import { goalPrescription } from '@/lib/report/goal-prescription';
 import { slotForTheme } from '@/lib/report/theme';
 import { recentExerciseIds } from '@/lib/report/exercise-recent';
 import { favoriteExerciseIds } from '@/lib/favorites';
@@ -75,7 +76,9 @@ export async function startWorkout() {
     theme.key,
     theme.label,
     core.shownPicks,
-    new Map(details.map((ex) => [ex.id, ex]))
+    new Map(details.map((ex) => [ex.id, ex])),
+    /* 세트 · 횟수는 오늘 목표에 맞춰 찍는다 — 트레이닝 화면 목록과 같은 값(goal-prescription.ts) */
+    core.savedPlan?.goal ?? null
   );
 
   if (plan.exercises.length === 0) redirect('/training');
@@ -667,7 +670,12 @@ export async function swapChoices(input: {
     blockedIds: core.library.filter((ex) => !safeIds.has(ex.id)).map((ex) => ex.id),
     favoriteIds: [...favorites],
     recentIds,
-    library: input.withLibrary ? core.library.map(toSwapPick) : null,
+    /* 넣은 뒤 운동 화면에 보일 횟수와 같게 — 오늘 목표에 맞춘다 */
+    library: input.withLibrary
+      ? core.library.map((ex) =>
+          toSwapPick(goalPrescription(ex, plan.goal ?? core.savedPlan?.goal))
+        )
+      : null,
   };
 }
 
@@ -726,7 +734,8 @@ export async function changeSessionExercise(input: {
    * 어울리는 구간을 따른다 — 트레이닝의 '운동 추가'와 같다(slotForTheme).
    */
   const entry = freezeExercise(
-    to,
+    /* 처음 찍은 목록과 같은 목표로 — 옛 판(목표 없음)은 오늘 일정의 목표 */
+    goalPrescription(to, plan.goal ?? core.savedPlan?.goal),
     mode === 'replace' ? from.slot : slotForTheme(to, plan.themeKey)
   );
   const next = placeExercise(plan.exercises, from.id, entry, mode);
