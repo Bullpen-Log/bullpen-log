@@ -5,11 +5,13 @@ import { visibleExercises } from '@/lib/library-cache';
 import { FALLBACK_REST_SECONDS } from '@/lib/exercise-meta';
 import { ARMCARE_CATEGORY } from '@/lib/armcare/anatomy';
 import { ARMCARE_KIND_TEXT } from '@/lib/armcare/routine';
+import { REHAB_STAGES } from '@/lib/armcare/rehab';
 import { loadArmcareToday, notAdvised } from '@/lib/armcare/today';
 import { isRoutineId } from '@/lib/armcare/my-routines';
 import { loadMyRoutine } from '@/lib/armcare/my-routines-store';
 import { toArmcareViews } from '@/app/(app)/training/armcare-views';
 import { ArmcarePlayer, type PlayerItem } from './armcare-player';
+import type { RehabCheckInitial } from './rehab-check';
 
 const BACK = '/training?view=armcare';
 
@@ -28,7 +30,8 @@ function playDay(d: unknown, todayKey: string): string {
 }
 
 /**
- * 루틴 따라하기 — /armcare/play/today (그날의 맞춤 루틴), /armcare/play/<내 루틴 id>.
+ * 루틴 따라하기 — /armcare/play/today (그날의 맞춤 루틴), /armcare/play/<내 루틴 id>,
+ * /armcare/play/rehab (오늘 재활 — 재활 2편: 위에 '아프면 바로 멈추세요', 끝에 3문항).
  *
  * 운동 판(/workout/run)처럼 메뉴가 없는 전체 화면이다((session) 틀). 루틴 목록을 읽지
  * 않고 한 운동씩 따라 하게 한다(2026-09-26, armcare-player.tsx).
@@ -48,8 +51,9 @@ export default async function ArmcarePlayPage({
 }) {
   const user = await requireUser();
   const [{ id }, { d }] = await Promise.all([params, searchParams]);
-  if (id !== 'today' && !isRoutineId(id)) notFound();
-  const mine = id !== 'today';
+  if (id !== 'today' && id !== 'rehab' && !isRoutineId(id)) notFound();
+  const rehabPlay = id === 'rehab';
+  const mine = id !== 'today' && !rehabPlay;
 
   const now = new Date();
   const todayKey = toDateKey(now);
@@ -64,10 +68,41 @@ export default async function ArmcarePlayPage({
   ]);
 
   let title: string;
-  let picks: { exerciseId: string; sets: number }[];
+  let picks: { exerciseId: string; sets: number; note?: string | null }[];
   let notice: string | null = null;
+  /* 그날 이미 체크한 것 — 재활 운동은 카테고리가 여럿이라 따로 읽어 둔 것(lib/armcare/today.ts) */
+  let doneBefore = data.doneToday;
+  let rehabCheck: { initial: RehabCheckInitial } | null = null;
 
-  if (!mine) {
+  if (rehabPlay) {
+    /*
+     * 재활 — 진행 중인 재활이 없거나 쉬는 날(아직 세션을 안 남긴 날)이면 카드가 그 까닭을 보여 준다. 오늘 이미 남겼으면
+     * 다시 답할 수 있게 연다(3문항을 미리 골라 둔다). 운동은 카테고리와 상관없이 세션에 든 그대로.
+     */
+    const rehab = data.rehab;
+    if (!rehab || (rehab.status.rest && !rehab.status.today)) redirect(BACK);
+    title = `오늘 재활 · ${rehab.session.stage}단계 ${REHAB_STAGES[rehab.session.stage].name}`;
+    picks = rehab.session.items.map((it) => ({
+      exerciseId: it.exerciseId,
+      sets: it.sets,
+      note: it.note ?? (it.replaces ? `${it.replaces} 대신` : null),
+    }));
+    notice = '아프면 바로 멈추세요(통증 5 이상).';
+    doneBefore = rehab.doneToday;
+    const saved = rehab.status.today;
+    rehabCheck = {
+      initial: saved
+        ? {
+            leftover: saved.leftover === 1 || saved.leftover === 2 ? saved.leftover : 0,
+            pain: saved.pain,
+            feel:
+              saved.feel === 'sharp' || saved.feel === 'tingle' || saved.feel === 'slip'
+                ? saved.feel
+                : 'muscle',
+          }
+        : null,
+    };
+  } else if (!mine) {
     /* 아직 안 만들었거나 통증인 날 — 루틴 칸이 그 까닭을 보여 준다 */
     if (!data.routine || data.decision.kind === 'rest') redirect(BACK);
     title = `오늘의 ${ARMCARE_KIND_TEXT[data.routine.kind].label}`;
@@ -94,7 +129,7 @@ export default async function ArmcarePlayPage({
   );
   const items: PlayerItem[] = usable.map((p, i) => {
     const ex = byId.get(p.exerciseId)!;
-    const doneBefore = data.doneToday.has(p.exerciseId);
+    const done = doneBefore.has(p.exerciseId);
     return {
       exercise: views[i],
       sets: p.sets,
@@ -103,8 +138,10 @@ export default async function ArmcarePlayPage({
       /* 처방이 비었으면 걸리는 시간을 셀 때와 같은 값으로(lib/exercise-meta.ts) */
       restSeconds: ex.restSeconds ?? FALLBACK_REST_SECONDS,
       perSide: ex.perSide,
-      doneBefore,
-      unsafe: !doneBefore && notAdvised(data, ex, mine),
+      doneBefore: done,
+      /* 재활은 그 단계 규칙으로 고른 운동이라 맞춤 루틴의 몸 상태 표시를 달지 않는다 */
+      unsafe: !done && !rehabPlay && notAdvised(data, ex, mine),
+      note: p.note ?? null,
     };
   });
 
@@ -115,6 +152,7 @@ export default async function ArmcarePlayPage({
       dateKey={dateKey}
       notice={notice}
       items={items}
+      rehabCheck={rehabCheck}
     />
   );
 }
