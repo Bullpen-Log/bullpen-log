@@ -103,6 +103,7 @@ model User {
   trainingSetups    DailyTrainingSetup[]
   armcareRoutines   DailyArmcare[]
   myArmcareRoutines UserArmcareRoutine[]
+  rehabPrograms     UserRehabProgram[]
   trainingNotes     DailyTrainingNote[]
   featuredVideos    DailyFeaturedVideo[]
   nutritionProfile  NutritionProfile?
@@ -218,6 +219,91 @@ model UserArmcareRoutine {
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
+}
+
+/**
+ * 재활 프로그램 — 아픈 부위(진단 없음) 또는 병명으로 시작한다(2026-10 재활 2편).
+ *
+ * 진행 중인 것은 한 사람에 하나다(endedAt 이 빈 줄). 규칙은 lib/armcare/rehab.ts, 근거는 docs/rehab-guideline.md.
+ * 세션마다 3문항(UserRehabSession) · 매주 확인(UserRehabWeekly)이 단계와 속도를 바꾼다. 운동 체크는 여기 두지 않고
+ * 운동 기록(UserExerciseLog)에 남는다 — 암케어와 같다.
+ */
+model UserRehabProgram {
+  id               String             @id @default(uuid())
+  userId           String
+  /// 아픈 부위 — lib/armcare/anatomy.ts 의 ArmcareAreaKey
+  area             String
+  /// 병명(lib/armcare/rehab.ts 의 REHAB_CONDITIONS 키) — 진단을 받았을 때만
+  condition        String?
+  /// 'mild' | 'moderate' | 'severe' — 매주 확인으로 바뀐다
+  severity         String
+  stage            Int                @default(1)
+  stageStartedAt   DateTime           @db.Date
+  /// 앞당기기로 줄인 날(그 단계 최소 기간의 절반까지). 단계를 바꾸면 0
+  stageShortenDays Int                @default(0)
+  /// 내 활동 두 개 [{ label }] — 매주 확인에서 몇 점인지 묻는다
+  activities       Json
+  startedAt        DateTime           @default(now())
+  endedAt          DateTime?
+  /// 'done' | 'stopped'
+  endReason        String?
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+  user             User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  sessions         UserRehabSession[]
+  weeklies         UserRehabWeekly[]
+
+  @@index([userId])
+}
+
+/// 재활 세션 하나 — 하루 한 줄. 운동 체크는 UserExerciseLog.
+model UserRehabSession {
+  id        String           @id @default(uuid())
+  programId String
+  userId    String
+  date      DateTime         @db.Date
+  stage     Int
+  /// 지난번 뒤 남은 통증 — 0 없었음 · 1 하다 보니 사라짐 · 2 계속 있었음
+  leftover  Int
+  /// 오늘 운동 중 가장 아팠던 정도 0~10
+  pain      Int
+  /// 'muscle' | 'sharp' | 'tingle' | 'slip'
+  feel      String
+  /// 그날 재활 운동 중 체크한 비율 0~1
+  done      Float
+  /// 'green' | 'yellow' | 'red' | 'refer'
+  result    String
+  /// 한 칸 낮춘 운동(아래 단계)으로 했나
+  lowered   Boolean          @default(false)
+  createdAt DateTime         @default(now())
+  program   UserRehabProgram @relation(fields: [programId], references: [id], onDelete: Cascade)
+
+  @@unique([programId, date])
+  @@index([userId])
+}
+
+/// 재활 매주 확인 한 번.
+model UserRehabWeekly {
+  id         String           @id @default(uuid())
+  programId  String
+  userId     String
+  date       DateTime         @db.Date
+  stage      Int
+  /// 정상 대비 % 0~100
+  normalPct  Int
+  /// 이번 주 가장 아팠던 정도 0~10
+  worstPain  Int
+  nightPain  Boolean
+  /// 내 활동 두 개의 점수 [0~10, 0~10]
+  activities Json
+  /// 세게 던질 자신감 0~10
+  confidence Int
+  /// 단계 시험 결과 { kind, injured, other } — 안 했으면 null
+  test       Json?
+  createdAt  DateTime         @default(now())
+  program    UserRehabProgram @relation(fields: [programId], references: [id], onDelete: Cascade)
+
+  @@index([programId])
 }
 
 model DailyCheckin {
