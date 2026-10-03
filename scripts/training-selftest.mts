@@ -244,8 +244,17 @@ type Person = {
   /**
    * 어제 체크인에 어깨 통증을 남겼는가.
    * '최근에 아팠지만 오늘은 괜찮다'(plan.recovering)를 만들려고 둔다 — 오늘 통증(pain)과 다르다.
+   * condition 을 안 주면 오늘 체크인 없이 이 체크인만 남는다 — '나았는지 모르는 날'이다.
    */
   painYesterday?: boolean;
+  /** 오늘 체크인에서 하체도 통증인가 — 상체 · 하체가 함께 아픈 날을 만들려고 둔다 */
+  lowerPain?: boolean;
+  /** 모든 투구 기록의 체감 강도(1~10). 안 주면 7 */
+  intensity?: number;
+  /** 모든 투구 기록의 종류(경기 · 불펜 …). 안 주면 칸이 없다 */
+  sessionType?: string;
+  /** 오늘 남긴 투구 기록 하나 — 세게 던진 '당일'을 만들려고 둔다 */
+  todayLog?: { pitches: number; intensity: number; sessionType?: string };
 };
 
 function factsFor(p: Person) {
@@ -257,16 +266,33 @@ function factsFor(p: Person) {
     trainingLevel: p.trainingLevel ?? null,
     baselineDailyLoad: p.baselineDailyLoad === undefined ? 100 : p.baselineDailyLoad,
     today: TODAY,
-    logs: pitches.map<PitchLogLike>((count, i) => ({
-      date: dayBefore(i + 1),
-      pitchCount: count,
-      // 강도는 1~10 숫자다. 부하 지수가 여기서 나오므로 값이 어긋나면 안 된다.
-      intensity: 7,
-      maxVelocity: 130,
-      avgVelocity: 120,
-    })),
-    checkins:
-      p.condition == null
+    logs: [
+      ...pitches.map<PitchLogLike>((count, i) => ({
+        date: dayBefore(i + 1),
+        pitchCount: count,
+        // 강도는 1~10 숫자다. 부하 지수가 여기서 나오므로 값이 어긋나면 안 된다.
+        intensity: p.intensity ?? 7,
+        ...(p.sessionType ? { sessionType: p.sessionType } : {}),
+        maxVelocity: 130,
+        avgVelocity: 120,
+      })),
+      ...(p.todayLog
+        ? [
+            {
+              date: dayBefore(0),
+              pitchCount: p.todayLog.pitches,
+              intensity: p.todayLog.intensity,
+              ...(p.todayLog.sessionType
+                ? { sessionType: p.todayLog.sessionType }
+                : {}),
+              maxVelocity: 130,
+              avgVelocity: 120,
+            } satisfies PitchLogLike,
+          ]
+        : []),
+    ],
+    checkins: [
+      ...(p.condition == null
         ? []
         : [
             {
@@ -277,30 +303,31 @@ function factsFor(p: Person) {
               elbow: '괜찮음',
               wrist: '괜찮음',
               lowerBack: '괜찮음',
-              lowerBody: '괜찮음',
+              lowerBody: p.lowerPain ? '통증' : '괜찮음',
               preferredParts: [],
               preferredWorkout: p.wants ?? null,
               /* 준 것만 칸을 만든다 — 안 준 사람의 체크인은 예전과 글자 하나 안 다르다 */
               ...(p.sleepHours !== undefined ? { sleepHours: p.sleepHours } : {}),
               ...(p.soreness !== undefined ? { soreness: p.soreness } : {}),
             } satisfies CheckinLike,
-            ...(p.painYesterday
-              ? [
-                  {
-                    date: dayBefore(1).slice(0, 10),
-                    condition: 6,
-                    sleep: '보통',
-                    shoulder: '통증',
-                    elbow: '괜찮음',
-                    wrist: '괜찮음',
-                    lowerBack: '괜찮음',
-                    lowerBody: '괜찮음',
-                    preferredParts: [],
-                    preferredWorkout: null,
-                  } satisfies CheckinLike,
-                ]
-              : []),
-          ],
+          ]),
+      ...(p.painYesterday
+        ? [
+            {
+              date: dayBefore(1).slice(0, 10),
+              condition: 6,
+              sleep: '보통',
+              shoulder: '통증',
+              elbow: '괜찮음',
+              wrist: '괜찮음',
+              lowerBack: '괜찮음',
+              lowerBody: '괜찮음',
+              preferredParts: [],
+              preferredWorkout: null,
+            } satisfies CheckinLike,
+          ]
+        : []),
+    ],
     memos: [],
   });
 }
@@ -360,44 +387,133 @@ console.log('\n[안전] 몸이 안 좋은 날 무거운 운동이 섞이지 않�
   check('컨디션 3/10 → 회복 테마', theme.key === 'recovery', theme.label);
 }
 {
-  const { picked, plan } = planFor({ person: { condition: 6, pain: true } });
+  /*
+   * 오늘 통증 — 2026-10-03 부터 아픈 곳을 피해서 짠다(사용자 결정, 예전에는 처방을 통째로 멈췄다).
+   * 투구 계획은 그대로 멈추고, 운동은 아픈 부위를 쓰는 것을 가벼운 것까지 모두 뺀다.
+   */
+  const { picked, plan, theme } = planFor({ person: { condition: 6, pain: true } });
+  const shoulderParts = ['어깨', '견갑', '가슴', '등', '전신'];
+  const touching = picked.candidates.filter((e) =>
+    e.bodyParts.some((p) => shoulderParts.includes(p))
+  );
+  check('오늘 어깨 통증 → 투구 계획은 멈춘다', plan.halted);
   check(
-    '오늘 통증 → 처방 자체를 멈춤',
-    plan.halted && picked.halted && picked.candidates.length === 0
+    '오늘 어깨 통증 → 운동 처방은 멈추지 않는다',
+    !picked.halted && picked.candidates.length > 0,
+    `후보 ${picked.candidates.length}개`
+  );
+  check(
+    '오늘 어깨 통증 → 어깨를 쓰는 운동은 가벼운 것까지 모두 빠진다',
+    touching.length === 0,
+    touching
+      .slice(0, 3)
+      .map((e) => e.title)
+      .join(', ')
+  );
+  check(
+    '오늘 어깨 통증 → 근거에 그렇게 적는다',
+    picked.basis.some((b) => b.startsWith('어깨 통증 →')),
+    picked.basis[0]
+  );
+  check(
+    '오늘 어깨 통증 → 상체 날이 아니고, 이유가 통증으로 시작한다',
+    theme.key !== 'upper' && theme.reason.startsWith('어깨 통증이 있어'),
+    `${theme.label} — ${theme.reason}`
+  );
+
+  // 상체 · 하체가 함께 아프면 피해서 할 쪽이 없다 — 회복·재생 데이.
+  const both = planFor({ person: { condition: 6, pain: true, lowerPain: true } });
+  check(
+    '어깨 · 하체가 함께 통증 → 회복·재생 데이',
+    both.theme.key === 'recovery' && both.theme.reason.includes('어깨·하체 통증'),
+    both.theme.reason
+  );
+
+  // 최근에 아팠는데 오늘 체크인이 없으면 나았는지 모른다 — 그때만 예전처럼 멈추고 체크인을 청한다.
+  const unknown = planFor({ person: { painYesterday: true } });
+  check(
+    '어제 통증 + 오늘 체크인 없음 → 처방이 멈춘다',
+    unknown.picked.halted && unknown.picked.candidates.length === 0
+  );
+  check(
+    '어제 통증 + 오늘 체크인 없음 → 회복·재생 데이, 체크인을 청한다',
+    unknown.theme.key === 'recovery' && unknown.theme.reason.includes('체크인'),
+    unknown.theme.reason
   );
 }
 {
   /*
-   * 던지고 난 다음 며칠 — 등판 여파가 훈련을 가볍게 만드는가.
+   * 세게 던진 날의 여파 — 2026-10-03 사용자분과 다시 정했다.
    *
-   * 부하 지수만으로는 부족하다. 그건 4주 평균에 견주는 값이라 어제 90구를
-   * 던진 것이 바로 반영되지 않는다. 실제로 어제 완투하고 온 사람에게 하체
-   * 스트렝스 데이가 그대로 나왔다.
+   * 경기, 또는 강도 9~10으로 그날 30구 이상 던진 날은 그날과 다음 날 가볍게(회복·재생 데이),
+   * 이틀 뒤부터 무게를 다시 든다. 예전에는 투구 휴식표를 따라 90구 뒤 나흘째에야 무게가 나왔다 —
+   * 5일 로테이션이면 다음 등판 전날이다.
    *
-   * 날짜를 하나씩 밀어가며 테마가 무거운 쪽으로 돌아오는지 본다.
+   * 평소 부하(문진)를 넉넉히 둔다. 그래야 부하 지수(주의 · 위험 구간)가 아니라 이 규칙만 본다.
    */
-  const outing = (daysAgo: number) => {
+  const outing = (daysAgo: number, intensity = 9, count = 90) => {
     const pitches = [0, 0, 0, 0, 0, 0, 0];
-    // pitches[0] 이 어제다. 오늘 던진 경우는 여기서 다루지 않는다.
-    if (daysAgo >= 1) pitches[daysAgo - 1] = 90;
-    const { theme } = planFor({ person: { condition: 8, pitches } });
-    return theme.key;
+    // pitches[0] 이 어제다. 오늘 던진 것은 todayLog 로 넣는다.
+    if (daysAgo >= 1) pitches[daysAgo - 1] = count;
+    return planFor({
+      person: {
+        condition: 8,
+        pitches,
+        intensity,
+        baselineDailyLoad: 300,
+        ...(daysAgo === 0 ? { todayLog: { pitches: count, intensity } } : {}),
+      },
+    }).theme;
   };
+  const strength = (key: string) => key === 'lower' || key === 'upper';
 
-  check('어제 90구 → 회복 데이', outing(1) === 'recovery', outing(1));
-  check('이틀 전 90구 → 아직 회복 데이', outing(2) === 'recovery', outing(2));
-  check('사흘 전 90구 → 보조·코어 데이', outing(3) === 'assist', outing(3));
   check(
-    '닷새 전 90구 → 평소대로 스트렝스',
-    outing(5) === 'lower' || outing(5) === 'upper',
-    outing(5)
+    '오늘 강도 9로 90구 → 회복·재생 데이',
+    outing(0).key === 'recovery',
+    outing(0).reason
+  );
+  check(
+    '어제 강도 9로 90구 → 회복·재생 데이',
+    outing(1).key === 'recovery',
+    outing(1).key
+  );
+  check(
+    '이틀 전 강도 9로 90구 → 평소대로 스트렝스',
+    strength(outing(2).key),
+    outing(2).key
+  );
+  check(
+    '어제 강도 9로 90구 → 이유에 언제부터 무게를 드는지 말한다',
+    outing(1).reason ===
+      '어제 거의 전력으로 90구를 던지셨어요. 오늘은 가볍게 풀고, 내일부터 무게를 다시 올려요.',
+    outing(1).reason
+  );
+  check(
+    '어제 강도 9로 25구 → 평소대로(30구 미만은 막지 않는다)',
+    strength(outing(1, 9, 25).key),
+    outing(1, 9, 25).key
+  );
+  check(
+    '어제 강도 7로 90구 → 평소대로(세게 던진 날이 아니다)',
+    strength(outing(1, 7).key),
+    outing(1, 7).key
   );
 
-  // 가볍게 던진 날은 다음 날을 막지 않는다.
-  const light = planFor({
-    person: { condition: 8, pitches: [25, 0, 0, 0, 0, 0, 0] },
-  }).theme.key;
-  check('어제 25구 → 평소대로', light === 'lower' || light === 'upper', light);
+  // 경기는 강도와 상관없이 전력으로 본다.
+  const game = planFor({
+    person: {
+      condition: 8,
+      pitches: [40, 0, 0, 0, 0, 0, 0],
+      intensity: 5,
+      sessionType: '경기',
+      baselineDailyLoad: 300,
+    },
+  }).theme;
+  check(
+    '어제 경기 40구(강도 5로 적음) → 회복·재생 데이',
+    game.key === 'recovery',
+    game.key
+  );
 }
 {
   /*
@@ -407,8 +523,11 @@ console.log('\n[안전] 몸이 안 좋은 날 무거운 운동이 섞이지 않�
    * 마지막 등판이 0구로 덮였다. 필요한 휴식일이 0이 되어, 그저께 90구를
    * 던졌어도 오늘 아무 제한 없이 계획이 나왔다 — 휴식을 성실히 적을수록
    * 안전장치가 꺼지는 셈이었다.
+   *
+   * 2026-10-03 부터 운동 일정은 휴식표를 안 따른다(세게 던진 날 규칙 — 위). 휴식표로 쉬는 것은
+   * 투구 계획이라, 그쪽이 지워지지 않는지 본다.
    */
-  const { facts, theme } = planFor({
+  const { facts, plan } = planFor({
     person: { condition: 8, pitches: [0, 90, 0, 0, 0, 0, 0] },
   });
   check(
@@ -416,7 +535,11 @@ console.log('\n[안전] 몸이 안 좋은 날 무거운 운동이 섞이지 않�
     facts.patterns.lastOutingPitches === 90,
     `${facts.patterns.lastOutingPitches}구`
   );
-  check('그제 90구 → 오늘은 아직 가볍게', theme.key === 'recovery', theme.key);
+  check(
+    '그제 90구 → 투구 계획은 오늘 아직 쉬는 날',
+    plan.today != null && !plan.today.throwing,
+    plan.today?.reason ?? 'null'
+  );
 }
 {
   // 평소 조금만 던지던 사람이 갑자기 많이 던지면 부하가 위험 구간으로 간다.
@@ -672,41 +795,77 @@ console.log('\n[안전] 몸이 안 좋은 날 무거운 운동이 섞이지 않�
     );
   }
 
-  /* ── 통증이 앞선다 ── */
+  /*
+   * ── 통증이 앞선다 ──
+   *
+   * 2026-10-03 부터 통증은 처방을 멈추지 않고 아픈 부위를 뺀다(사용자 결정). 근육통 '심함'이 겹치면 두
+   * 규칙이 함께 걸린다 — 아픈 부위를 쓰는 운동은 모두 빠지고, 남은 것에서 무게 드는 것도 빠진다.
+   * 테마 이유는 통증 문장이 맨 앞이다.
+   */
   const hurt = planFor({ person: { condition: 8, pain: true, soreness: 5 } });
   check(
-    "근육통 '심함' + 오늘 통증 → 처방이 멈추고, 근거는 통증 한 줄뿐",
+    "근육통 '심함' + 오늘 어깨 통증 → 멈추지 않고 두 규칙이 함께 걸린다",
     hurt.plan.halted &&
-      hurt.picked.halted &&
-      hurt.picked.candidates.length === 0 &&
-      JSON.stringify(hurt.picked.basis) ===
-        JSON.stringify(['통증 신호 → 운동 처방 중단']),
+      !hurt.picked.halted &&
+      hurt.picked.basis.some((b) => b.startsWith('어깨 통증 →')) &&
+      hurt.picked.basis.some(
+        (b) => b.startsWith('전신 근육통') && b.endsWith('무게 드는 운동 제외')
+      ) &&
+      levels(hurt).length > 0 &&
+      levels(hurt).every((l) => l <= 3),
     hurt.picked.basis.join(' / ')
   );
+  check(
+    "근육통 '심함' + 오늘 어깨 통증 → 회복·재생 데이, 이유는 통증 문장부터",
+    hurt.theme.key === 'recovery' &&
+      hurt.theme.reason.startsWith('어깨 통증이 있어') &&
+      hurt.theme.reason.includes('근육통'),
+    hurt.theme.reason
+  );
 
+  /*
+   * 어제 아팠고 오늘은 괜찮은 사람 — 그 부위의 무거운 운동만 빠지고 다른 무게 운동은 남는다.
+   * 예전에는 지난 통증 하나로 몸 전체가 회복 수준까지만 남았다.
+   */
   const healing = planFor({ person: { condition: 8, painYesterday: true } });
   const healingSore = planFor({
     person: { condition: 8, painYesterday: true, soreness: 5 },
   });
+  const shoulderRelated = ['어깨', '견갑', '가슴', '등'];
   check(
     '(기준) 어제 통증 · 오늘 괜찮음 → 회복 중(멈추지는 않는다)',
     healing.plan.recovering && !healing.plan.halted && levels(healing).length > 0,
     `후보 ${healing.picked.candidates.length}개`
   );
   check(
-    "근육통 '심함' + 통증 회복 중 → 테마 이유는 통증 문장",
-    healingSore.theme.key === 'recovery' &&
-      healingSore.theme.reason === healing.theme.reason &&
-      healingSore.theme.reason.includes('최근 통증 기록') &&
-      !healingSore.theme.reason.includes('근육통'),
-    healingSore.theme.reason
+    '어제 어깨 통증 · 오늘 괜찮음 → 어깨 쪽 무거운 운동만 빠지고 다른 무게 운동은 남는다',
+    !healing.picked.candidates.some(
+      (e) =>
+        intensityLevel(e.intensity) > 3 &&
+        e.bodyParts.some((p) => shoulderRelated.includes(p))
+    ) && healing.picked.candidates.some((e) => intensityLevel(e.intensity) >= 4),
+    `후보 ${healing.picked.candidates.length}개`
   );
   check(
-    "근육통 '심함' + 통증 회복 중 → 후보는 강도 2 까지 (더 낮은 상한이 이긴다)",
+    '어제 어깨 통증 · 오늘 괜찮음 → 상체 날이 아니고, 이유에 그렇게 적는다',
+    healing.theme.key !== 'upper' &&
+      healing.theme.reason.startsWith('최근 어깨 통증이 있어'),
+    healing.theme.reason
+  );
+  const healingIds = new Set(healing.picked.candidates.map((e) => e.id));
+  check(
+    "근육통 '심함' + 어제 어깨 통증 → 더 낮은 상한이 이긴다 (후보가 늘지 않고 무게 드는 것은 빠진다)",
     levels(healingSore).length > 0 &&
-      levels(healingSore).every((l) => l <= 2) &&
-      idsOf(healingSore) === idsOf(healing),
+      levels(healingSore).every((l) => l <= 3) &&
+      healingSore.picked.candidates.every((e) => healingIds.has(e.id)),
     `후보 ${healingSore.picked.candidates.length}개`
+  );
+  check(
+    "근육통 '심함' + 어제 어깨 통증 → 회복·재생 데이, 이유에 둘 다",
+    healingSore.theme.key === 'recovery' &&
+      healingSore.theme.reason.startsWith('최근 어깨 통증이 있어') &&
+      healingSore.theme.reason.includes('근육통'),
+    healingSore.theme.reason
   );
 
   /* 회복으로 가는 까닭이 여럿이면 이유 글은 사다리에서 먼저 걸린 것 */
@@ -801,11 +960,15 @@ console.log('\n[안전] 몸이 안 좋은 날 무거운 운동이 섞이지 않�
     pitches: [200, 190, 180, 170, 190, 180, 200],
     baselineDailyLoad: 20,
   };
-  const capped: [string, Person][] = [
-    ['부하 위험 구간', spike],
-    ['통증 회복 중', { condition: 8, painYesterday: true }],
+  /*
+   * 셋째 칸은 더한 뒤의 강도 상한이다. 위험 구간은 회복 수준(2)까지, 어제 아팠던 사람은 근육통 '많이' ·
+   * 짧은 밤이 매우 높음(5)만 뺀다(4) — 2026-10-03 부터 지난 통증은 몸 전체가 아니라 그 부위만 낮춘다.
+   */
+  const capped: [string, Person, number][] = [
+    ['부하 위험 구간', spike, 2],
+    ['어제 어깨 통증', { condition: 8, painYesterday: true }, 4],
   ];
-  for (const [label, person] of capped) {
+  for (const [label, person, ceiling] of capped) {
     const before = planFor({ person });
     const after = planFor({ person: { ...person, ...extra } });
     const allowed = new Set(before.picked.candidates.map((e) => e.id));
@@ -818,7 +981,7 @@ console.log('\n[안전] 몸이 안 좋은 날 무거운 운동이 섞이지 않�
         before.picked.candidates.length > 0 &&
         after.picked.candidates.length > 0 &&
         leaked.length === 0 &&
-        levels(after).every((l) => l <= 2),
+        levels(after).every((l) => l <= ceiling),
       `더하기 전 ${before.picked.candidates.length}개 → 뒤 ${after.picked.candidates.length}개`
     );
   }
@@ -1885,17 +2048,38 @@ console.log('\n[오늘 하고 싶은 운동] 고른 대로 가되, 몸 상태는
   );
 }
 {
-  // 통증만은 예외다. 무엇을 골랐든, 밀고 나가겠다고 해도 회복이다.
+  /*
+   * 통증만은 예외다. 무엇을 골랐든, 밀고 나가겠다고 해도 아픈 곳은 피한다(2026-10-03 부터 — 예전에는
+   * 늘 회복이었다). 어깨가 아프면 상체 날은 안 나오고, 어깨를 쓰는 운동은 후보에 없다.
+   */
   const forced = planFor({
     person: { condition: 8, pain: true, wants: '파워' },
     override: true,
   });
+  const shoulderParts = ['어깨', '견갑', '가슴', '등', '전신'];
   check(
-    '통증이 있으면 밀고 나갈 수 없다',
-    forced.theme.key === 'recovery',
-    forced.theme.label
+    '통증이 있으면 밀고 나가도 아픈 쪽 날은 안 나온다',
+    forced.theme.key !== 'upper' && forced.theme.reason.startsWith('어깨 통증이 있어'),
+    `${forced.theme.label} — ${forced.theme.reason}`
   );
-  check('통증이 있으면 처방 자체가 멈춘다', forced.picked.halted);
+  check(
+    '통증이 있으면 밀고 나가도 아픈 부위 운동은 후보에 없다',
+    !forced.picked.halted &&
+      forced.picked.candidates.length > 0 &&
+      !forced.picked.candidates.some((e) =>
+        e.bodyParts.some((p) => shoulderParts.includes(p))
+      )
+  );
+
+  const both = planFor({
+    person: { condition: 8, pain: true, lowerPain: true, wants: '파워' },
+    override: true,
+  });
+  check(
+    '상체 · 하체가 함께 아프면 밀고 나가도 회복',
+    both.theme.key === 'recovery',
+    both.theme.label
+  );
 }
 {
   /*
@@ -2641,9 +2825,30 @@ console.log('\n[일정 만들기] 눌러야 생기고, 만든 것은 그대로 �
         again.picks.map((p) => p.exerciseId).join(',')
   );
 
-  // 통증인 날에는 만들어지지 않는다. 빈 일정을 남기면 '이미 만든 날'이 된다.
+  /*
+   * 통증인 날도 아픈 곳을 피해서 만든다(2026-10-03 — 예전에는 만들지 않았다). 담긴 운동에 아픈 부위를
+   * 쓰는 것이 없어야 한다.
+   */
   const painDay = make({ condition: 6, pain: true });
-  check('통증인 날에는 일정이 만들어지지 않는다', isHalted(painDay));
+  const byId = new Map(library.map((ex) => [ex.id, ex]));
+  const painParts = ['어깨', '견갑', '가슴', '등', '전신'];
+  check(
+    '어깨가 아픈 날도 일정이 만들어지고, 어깨를 쓰는 운동은 안 담긴다',
+    !isHalted(painDay) &&
+      painDay.picks.length > 0 &&
+      painDay.picks.every(
+        (p) =>
+          !(byId.get(p.exerciseId)?.bodyParts ?? []).some((b) => painParts.includes(b))
+      ),
+    isHalted(painDay) ? '멈춤' : `${painDay.picks.length}개 · ${painDay.theme.label}`
+  );
+
+  // 나았는지 모르는 날(어제 통증 + 오늘 체크인 없음)은 만들어지지 않는다. 빈 일정을 남기면 '이미 만든 날'이 된다.
+  const unknownDay = make({ painYesterday: true });
+  check(
+    '어제 통증 + 오늘 체크인 없음 → 일정이 만들어지지 않는다',
+    isHalted(unknownDay)
+  );
 
   // 모양이 아닌 것은 없는 것으로 본다 — 옛 기록을 억지로 읽으면 화면이 터진다.
   check('모양이 다른 기록은 없는 것으로 본다', readDailyPlan({ version: 0 }) === null);
@@ -3217,6 +3422,8 @@ console.log('\n[AI 맞춤] 규칙이 울타리를 치고, 그 밖의 답은 받�
     wants = null as string | null,
     lowerBody = '정상',
     pitches = [40, 0, 35, 0, 40, 0, 30],
+    /* 투구 기록의 체감 강도(1~10) — 세게 던진 날(9 이상)을 만들려고 둔다 */
+    intensity = 7,
     /* 오늘의 잔 시간 · 전신 근육통. 안 주면 칸을 안 만든다(factsFor 와 같은 방식) */
     sleepHours = undefined as number | null | undefined,
     soreness = undefined as number | null | undefined,
@@ -3237,7 +3444,7 @@ console.log('\n[AI 맞춤] 규칙이 울타리를 치고, 그 밖의 답은 받�
       logs: pitches.map<PitchLogLike>((count, i) => ({
         date: dayBefore(i + 1),
         pitchCount: count,
-        intensity: 7,
+        intensity,
         maxVelocity: 130,
         avgVelocity: 120,
       })),
@@ -3440,12 +3647,12 @@ console.log('\n[AI 맞춤] 규칙이 울타리를 치고, 그 밖의 답은 받�
   const weight = fenceFor(factsWith({ wants: '웨이트' }));
   check('체크인에서 웨이트 → 근력 향상으로 고정', weight.fixedGoal === '근력 향상');
 
-  /* 어제 90구 + 파워 — 몸 상태에 맞춰 가고, 이유에 그 이야기가 있어야 한다 */
+  /* 어제 세게(강도 9) 90구 + 파워 — 몸 상태에 맞춰 가고, 이유에 그 이야기가 있어야 한다 */
   const clashed = fenceFor(
-    factsWith({ wants: '파워', pitches: [90, 0, 0, 0, 0, 0, 0] })
+    factsWith({ wants: '파워', pitches: [90, 0, 0, 0, 0, 0, 0], intensity: 9 })
   );
   check(
-    '파워를 골랐지만 어제 90구 → 회복날, 컨디셔닝으로 고정',
+    '파워를 골랐지만 어제 강도 9로 90구 → 회복날, 컨디셔닝으로 고정',
     !clashed.strengthDay && clashed.fixedGoal === CONDITIONING_GOAL,
     clashed.day.label
   );
@@ -5485,17 +5692,28 @@ console.log('\n[암케어] 부위·근육 · 오늘의 루틴 · 부하');
     fallbackLeaks.length === 0,
     fallbackLeaks.join(', ')
   );
-  const afterCatch = factsFor({ condition: 8, pitches: [0, 20, 90, 0, 0, 0, 0] });
-  const assistDay = decideTheme({
+  /*
+   * 세게 던진 다음 날 가볍게 캐치볼을 해도, 일정의 까닭은 세게 던진 그 등판이다(2026-10-03 부터 운동 일정은
+   * '세게 던진 날' 규칙을 따른다 — 강도가 낮은 캐치볼은 그 목록에 안 든다).
+   */
+  const afterCatch = factsFor({
+    condition: 8,
+    pitches: [90, 0, 0, 0, 0, 0, 0],
+    intensity: 9,
+    todayLog: { pitches: 20, intensity: 3 },
+  });
+  const lightDay = decideTheme({
     facts: afterCatch,
     plan: buildPitchPlan(afterCatch),
     lastLowerKey: null,
     lastUpperKey: null,
   });
   check(
-    '사흘 전 90구 뒤 이틀 전 캐치볼 20개 → 일정의 까닭도 90구 (암케어와 같은 말)',
-    assistDay.reason.includes('90구') && !assistDay.reason.includes('20구'),
-    `${assistDay.label} — ${assistDay.reason}`
+    '어제 세게 90구 뒤 오늘 캐치볼 20개 → 회복·재생 데이, 일정의 까닭은 90구',
+    lightDay.key === 'recovery' &&
+      lightDay.reason.includes('90구') &&
+      !lightDay.reason.includes('20구'),
+    `${lightDay.label} — ${lightDay.reason}`
   );
 }
 

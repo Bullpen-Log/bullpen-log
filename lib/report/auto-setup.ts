@@ -24,9 +24,11 @@ import {
   conditioningDay,
   minutesChoicesFor,
   nearestMinutesChoice,
+  painRecoveryReason,
   workoutConflict,
   type SessionTheme,
 } from '@/lib/report/theme';
+import { painEasingParts } from '@/lib/report/prescription';
 import type { TrainingLoad } from '@/lib/training-load';
 
 /**
@@ -258,10 +260,10 @@ export function decideAutoFence({
   const strengthDay = day.key === 'lower' || day.key === 'upper';
 
   /*
-   * 통증 회복 중에는 부딪힘을 따지지 않는다. 그날은 무엇을 골랐든 회복이고,
-   * 까닭도 통증이지 투구량이 아니다 (lib/report/today-data.ts 와 같은 판단).
+   * 통증 때문에 회복으로 정해진 날에는 부딪힘을 따지지 않는다. 그날은 무엇을 골랐든 회복이고,
+   * 까닭도 통증이지 투구량이 아니다 (lib/report/today-data.ts 와 같은 판단 — theme.ts 의 painRecoveryReason).
    */
-  const conflict = plan.recovering
+  const conflict = painRecoveryReason(facts, plan)
     ? null
     : workoutConflict({ facts, preferredWorkout: preferred });
   const clash =
@@ -382,8 +384,11 @@ export function decideAutoFence({
     minutes[goal] = minutesChoicesFor(goal).filter((m) => m <= cap);
   }
 
-  /* 부위는 근력 날에만, 뻐근한 곳으로 좁히지 않게 */
-  const blocked = blockedFocuses(soreParts(today));
+  /*
+   * 부위는 근력 날에만, 뻐근한 곳으로 좁히지 않게. 최근 7일에 아팠던 곳도 막는다 — 그 부위의 무거운
+   * 운동이 빠지므로(prescription.ts) 그쪽으로 좁히면 본운동이 빈다.
+   */
+  const blocked = blockedFocuses([...soreParts(today), ...painEasingParts(facts)]);
   const focuses: Record<string, GoalFocusKey[]> = {};
   for (const goal of goals) {
     focuses[goal] = strengthDay

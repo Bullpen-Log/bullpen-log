@@ -600,7 +600,9 @@ const toSwapPick = (ex: CachedExercise): SwapPick => ({
   prescription: formatPrescription(ex),
 });
 
-const HALTED_MESSAGE = '오늘은 통증 신호가 있어 운동을 더하거나 바꿀 수 없습니다.';
+/* 처방이 멈추는 것은 최근에 아팠는데 오늘 체크인이 없는 날뿐이다(2026-10-03 — prescription.ts) */
+const HALTED_MESSAGE =
+  '최근 통증 기록이 있는데 오늘 체크인이 없어 운동을 더하거나 바꿀 수 없어요. 체크인을 먼저 남겨 주세요.';
 
 /**
  * 운동 화면의 [교체] 창에 늘어놓을 것.

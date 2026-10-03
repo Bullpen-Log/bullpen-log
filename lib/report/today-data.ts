@@ -12,6 +12,7 @@ import { visibleExercises } from '@/lib/library-cache';
 import { closeAbandonedSessions } from '@/lib/workout/close-stale';
 import {
   estimateMinutes,
+  painRecoveryReason,
   slotForTheme,
   workoutConflict,
   type ThemeKey,
@@ -162,10 +163,11 @@ export async function loadTodayCore(user: UserForToday, today: Date) {
    * 화면은 이 값을 보고 경고와 '그래도 하겠다'를 그린다.
    *
    * 통증이 있어 이미 회복으로 정해진 날에는 아무것도 안 내놓는다. 그날은
-   * 무엇을 눌러도 회복이라, 되돌릴 수 있는 것처럼 보이면 거짓말이 된다.
+   * 무엇을 눌러도 회복이라, 되돌릴 수 있는 것처럼 보이면 거짓말이 된다
+   * (theme.ts 의 painRecoveryReason — 아픈 곳을 피해서 짜는 날은 여기 안 걸린다).
    */
   const preferredWorkout = facts.condition.today?.preferredWorkout ?? null;
-  const conflict = plan.recovering
+  const conflict = painRecoveryReason(facts, plan)
     ? null
     : workoutConflict({ facts, preferredWorkout });
   const workoutClash =

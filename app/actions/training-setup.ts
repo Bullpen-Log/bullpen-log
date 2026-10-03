@@ -265,8 +265,9 @@ export async function generateTodayPlan(formData: FormData) {
   /*
    * AI 맞춤이면 여기서 목표·시간·부위를 정한다.
    *
-   * 통증인 날은 묻지 않는다. 어차피 일정을 만들지 않고(buildDailyPlan 이
-   * 멈춘다), 묻는 순간 AI 비용만 나간다.
+   * 통증인 날(투구 계획이 멈춘 날 — plan.halted)은 묻지 않는다. 2026-10-03 부터 그런 날도 아픈 곳을
+   * 피해서 일정을 만드는데(prescription.ts · theme.ts), 무엇을 피할지는 규칙이 정하고 AI 는 그런 날을
+   * 다뤄 본 적이 없다. 고른 목표 · 시간으로 규칙대로 만든다.
    */
   const made =
     auto && !plan.halted

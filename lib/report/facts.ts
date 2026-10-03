@@ -15,7 +15,13 @@ import {
   type PeriodSummary,
   type PitchLogLike,
 } from '@/lib/pitch-stats';
-import { hasPain, isShortSleep, type CheckinParts } from '@/lib/checkin';
+import {
+  CHECKIN_PARTS,
+  hasPain,
+  isShortSleep,
+  type CheckinPartKey,
+  type CheckinParts,
+} from '@/lib/checkin';
 
 /**
  * 리포트에 쓰이는 모든 수치를 한곳에 모은다.
@@ -130,6 +136,14 @@ export type ReportFacts = {
      * 성실히 한 사람일수록 안전장치가 꺼지는 셈이었다.
      */
     recentOutings: { daysAgo: number; pitches: number; adjusted: number }[];
+    /**
+     * 거의 최대 강도로 던진 공 — 날마다, 가까운 것부터(이레 안).
+     *
+     * 경기는 강도와 상관없이 전력으로 보고(lib/pitch-stats.ts 의 stressFactor 와 같은 판단), 그 밖은
+     * 강도 NEAR_MAX_INTENSITY 이상으로 던진 공만 센다. 몇 구부터 '세게 던진 날'인지는 theme.ts 가 정한다.
+     * 이 칸이 생기기 전에 저장된 facts 에는 없다 — 읽는 쪽은 없으면 빈 목록으로 본다.
+     */
+    hardOutings?: { daysAgo: number; pitches: number }[];
   };
   condition: {
     today: CheckinLike | null;
@@ -137,6 +151,13 @@ export type ReportFacts = {
     painToday: boolean;
     /** 최근 7일 체크인 중 통증을 표시한 날이 있는가 */
     painRecently: boolean;
+    /**
+     * 오늘을 뺀 최근 7일 체크인에서 '통증'이라고 한 부위(중복 없이).
+     *
+     * 오늘은 괜찮다고 했어도 그 부위의 무거운 운동은 며칠 빼려고 둔다(prescription.ts). 오늘 아픈 부위는
+     * today 에서 바로 읽는다. 이 칸이 생기기 전에 저장된 facts 에는 없다 — 없으면 빈 목록으로 본다.
+     */
+    painRecentParts?: CheckinPartKey[];
     /** 최근 메모에서 통증으로 보이는 표현이 걸렸는가 */
     painWordsInMemo: string[];
     /** 최근 7일 평균 컨디션 (1~10, 높을수록 좋음) */
@@ -163,6 +184,11 @@ function changeRate(current: number, previous: number): number | null {
  * 않고, 짧으면 큰 등판이 목록에서 빠져 창이 사라진다.
  */
 const OUTING_MEMORY_DAYS = 7;
+
+/**
+ * 거의 최대 강도로 본다 — 체감 강도(1~10) 이 값 이상(2026-10-03 사용자분과 정함: 경기, 또는 강도 9~10).
+ */
+export const NEAR_MAX_INTENSITY = 9;
 
 function daysBetween(fromKey: string, toKey: string) {
   const [fy, fm, fd] = fromKey.split('-').map(Number);
@@ -218,6 +244,21 @@ export function buildFacts({
       .sort()
       .at(-1) ?? null;
 
+  /*
+   * 거의 최대 강도로 던진 공 — 날마다 더한다(theme.ts 의 '세게 던진 날' 규칙이 읽는다).
+   * 세션마다 가린다. 하루 평균 강도로 보면 경기 뒤 가벼운 캐치볼이 그날을 '세게 던진 날'에서 빼 버린다.
+   * 날짜는 groupByDay 와 같은 방식(앞 10자리)으로 센다.
+   */
+  const nearMaxByDay = new Map<string, number>();
+  for (const log of logs) {
+    if (log.pitchCount <= 0) continue;
+    if (log.sessionType !== '경기' && Math.round(log.intensity) < NEAR_MAX_INTENSITY) {
+      continue;
+    }
+    const key = log.date.slice(0, 10);
+    nearMaxByDay.set(key, (nearMaxByDay.get(key) ?? 0) + log.pitchCount);
+  }
+
   // 최근 7일 체크인만 컨디션 요약에 쓴다.
   const recentCheckins = checkins.filter((c) => last7.includes(c.date));
   const conditions = recentCheckins.map((c) => c.condition);
@@ -264,11 +305,18 @@ export function buildFacts({
         }))
         .filter((o) => o.daysAgo >= 0 && o.daysAgo <= OUTING_MEMORY_DAYS)
         .sort((a, b) => a.daysAgo - b.daysAgo),
+      hardOutings: [...nearMaxByDay]
+        .map(([key, pitches]) => ({ daysAgo: daysBetween(key, asOf), pitches }))
+        .filter((o) => o.daysAgo >= 0 && o.daysAgo <= OUTING_MEMORY_DAYS)
+        .sort((a, b) => a.daysAgo - b.daysAgo),
     },
     condition: {
       today: todayCheckin,
       painToday: todayCheckin ? hasPain(todayCheckin) : false,
       painRecently: recentCheckins.some(hasPain),
+      painRecentParts: CHECKIN_PARTS.filter((p) =>
+        recentCheckins.some((c) => c.date !== asOf && c[p.key] === '통증')
+      ).map((p) => p.key),
       painWordsInMemo: findPainKeywords(memos),
       avgCondition: conditions.length
         ? conditions.reduce((a, b) => a + b, 0) / conditions.length

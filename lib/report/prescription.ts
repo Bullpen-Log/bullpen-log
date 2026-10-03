@@ -76,6 +76,44 @@ const RELATED_PARTS: Record<CheckinPartKey, BodyPart[]> = {
   lowerBody: ['고관절', '햄스트링·둔근', '전신'],
 };
 
+/**
+ * 오늘 아픈 부위가 있을 때 통째로 피하는 부위들 — 강도와 상관없이 뺀다.
+ *
+ * 뻐근할 때(RELATED_PARTS)보다 넓다. 하체에 종아리·발목을 넣고, 전신 운동은 어디가 아프든 뺀다 —
+ * 전신 운동은 아픈 곳도 같이 쓴다. 한계: 부위 꼬리표로만 가른다. 바벨을 어깨에 메는 스쿼트처럼
+ * 꼬리표에 없는 부위를 쓰는 운동은 남는다 — 그래서 일정 이유에 '하다가 아프면 바로 멈추라'를 붙인다.
+ */
+const PAIN_PARTS: Record<CheckinPartKey, BodyPart[]> = {
+  shoulder: ['어깨', '견갑', '가슴', '등', '전신'],
+  elbow: ['팔꿈치', '손목·전완', '이두', '삼두', '전신'],
+  wrist: ['손목·전완', '팔꿈치', '전신'],
+  lowerBack: ['코어', '등', '고관절', '전신'],
+  lowerBody: ['고관절', '햄스트링·둔근', '종아리·발목', '전신'],
+};
+
+/** 체크인 부위 이름 — '어깨', '허리' … */
+export function checkinPartLabel(key: CheckinPartKey): string {
+  return CHECKIN_PARTS.find((p) => p.key === key)?.label ?? key;
+}
+
+/** 오늘 체크인에서 '통증'이라고 한 부위 */
+export function painPartsToday(facts: ReportFacts): CheckinPartKey[] {
+  const today = facts.condition.today;
+  if (!today) return [];
+  return CHECKIN_PARTS.filter((p) => today[p.key] === '통증').map((p) => p.key);
+}
+
+/** 최근 7일에 아팠는데 오늘은 통증이라고 하지 않은 부위 */
+export function painEasingParts(facts: ReportFacts): CheckinPartKey[] {
+  const today = painPartsToday(facts);
+  return (facts.condition.painRecentParts ?? []).filter((key) => !today.includes(key));
+}
+
+/** 최근에 아팠는데 오늘 체크인이 없어, 지금 아픈지 모르는가 */
+export function painStateUnknown(facts: ReportFacts): boolean {
+  return facts.condition.painRecently && facts.condition.today == null;
+}
+
 export type ExclusionReason = {
   rule: string;
   count: number;
@@ -117,14 +155,21 @@ export function selectCandidates<T extends ExerciseLike>({
    */
   caution?: { part: CheckinPartKey; why: string }[];
 }): PrescriptionCandidates<T> {
-  // 1) 통증이면 운동 처방을 아예 하지 않는다. 투구 계획과 같은 기준이다.
-  if (plan.halted) {
+  /*
+   * 1) 통증.
+   *
+   * 2026-10-03 부터 아픈 곳을 피해서 짠다(사용자 결정). 예전에는 통증이 한 곳이라도 있으면 운동 처방을
+   * 통째로 멈췄다. 투구 계획은 그대로 멈춘다(plan.ts) — 공은 팔 하나로 던지는 것이 아니다.
+   *
+   * 최근에 아팠는데 오늘 체크인이 없으면 나았는지 알 수 없다. 그때만 예전처럼 멈추고 체크인을 청한다.
+   */
+  if (painStateUnknown(facts)) {
     return {
       halted: true,
       haltReason: plan.haltReason,
       candidates: [],
       excluded: [],
-      basis: ['통증 신호 → 운동 처방 중단'],
+      basis: ['최근 통증 기록 + 오늘 체크인 없음 → 체크인 전까지 처방 중단'],
       tooFew: false,
     };
   }
@@ -139,6 +184,14 @@ export function selectCandidates<T extends ExerciseLike>({
     const removed = before - pool.length;
     if (removed > 0) excluded.push({ rule, count: removed });
   };
+
+  /* 1-1) 오늘 아픈 부위는 그 부위를 쓰는 운동을 가벼운 것까지 모두 뺀다. */
+  for (const key of painPartsToday(facts)) {
+    const label = checkinPartLabel(key);
+    const parts: readonly string[] = PAIN_PARTS[key];
+    basis.push(`${label} 통증 → ${parts.join('·')} 쓰는 운동 모두 제외`);
+    drop(`${label} 통증`, (ex) => !ex.bodyParts.some((p) => parts.includes(p)));
+  }
 
   /*
    * 규칙마다 "여기까지만 허용" 하는 상한이 있고, 가장 낮은 것이 이긴다.
@@ -178,18 +231,13 @@ export function selectCandidates<T extends ExerciseLike>({
   capTo('부하 구간에 맞지 않는 강도', zoneCap);
 
   /*
-   * 2-1) 최근 통증이 있었지만 오늘은 괜찮다고 한 경우.
-   *
-   * 계획을 아예 멈추지는 않되(그러면 지난 통증 기록 하나로 며칠이 잠긴다),
-   * 무게를 다루는 운동은 빼고 회복·가동성 수준부터 다시 올린다.
+   * 2-1) 메모에 통증으로 보이는 말이 있는데 오늘 체크인이 없으면(plan.needsPainCheck) 어디가 아픈지
+   *      모른다. 확인될 때까지 몸 전체를 회복 수준까지만 남긴다. 최근 체크인에서 아팠던 부위는
+   *      어디인지 아니까 그 부위만 뺀다 — 아래 4-3).
    */
-  if (plan.recovering) {
-    basis.push(
-      plan.needsPainCheck
-        ? '메모의 통증 표현 확인 전 → 회복 수준 운동까지만'
-        : '최근 통증 기록 → 회복 수준 운동까지만'
-    );
-    capTo('통증 회복 중', INTENSITY_CAP.RECOVERY);
+  if (plan.needsPainCheck) {
+    basis.push('메모의 통증 표현 확인 전 → 회복 수준 운동까지만');
+    capTo('통증 확인 전', INTENSITY_CAP.RECOVERY);
   }
 
   // 3) 성장기는 최대 강도를 뺀다.
@@ -278,6 +326,25 @@ export function selectCandidates<T extends ExerciseLike>({
     capTo('수면 부족', INTENSITY_CAP.STRENGTH);
   } else if (sleepHours != null) {
     basis.push(`어젯밤 ${formatSleepHours(sleepHours)} 수면 → 제한 없음`);
+  }
+
+  /*
+   * 4-3) 최근 7일에 아팠지만 오늘은 통증이라고 하지 않은 부위 — 그 부위의 무거운 운동만 뺀다(뻐근과 같은 방식).
+   *
+   * 예전에는 지난 통증 하나로 몸 전체를 회복 수준까지만 남겼다(2026-10-03 사용자 결정으로 그 부위만).
+   * 오늘 뻐근이라고 한 부위는 바로 아래 5) 가 같은 일을 하므로 건너뛴다.
+   */
+  for (const key of painEasingParts(facts)) {
+    if (today?.[key] === '뻐근') continue;
+    const label = checkinPartLabel(key);
+    const parts: readonly string[] = RELATED_PARTS[key];
+    basis.push(`최근 ${label} 통증 → ${parts.join('·')} 부위 고강도 제외`);
+    drop(
+      `최근 ${label} 통증`,
+      (ex) =>
+        intensityLevel(ex.intensity) <= INTENSITY_CAP.MODERATE ||
+        !ex.bodyParts.some((p) => parts.includes(p))
+    );
   }
 
   /*

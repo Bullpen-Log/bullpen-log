@@ -1,6 +1,7 @@
 import { equipmentForToday, filterByEquipment } from '@/lib/report/equipment';
 import {
   filterByLevel,
+  findFocus,
   findGoal,
   goalForUnchosen,
   validFocus,
@@ -202,7 +203,7 @@ export function buildDailyPlan<T extends ExerciseLike>({
   /* 목표를 안 고른 날은 오늘 고른 운동 종류를 따른다(goalForUnchosen) */
   const goalName = trainingGoal ?? goalForUnchosen(preferredWorkout);
   /* 목표에 없는 부위는 여기서 걸러 둔다 — 아래로는 유효한 값만 흐른다 */
-  const focus = validFocus(goalName, trainingFocus);
+  const chosenFocus = validFocus(goalName, trainingFocus);
   const theme = decideTheme({
     facts,
     plan,
@@ -210,8 +211,13 @@ export function buildDailyPlan<T extends ExerciseLike>({
     lastUpperKey,
     preferredWorkout,
     override,
-    focus,
+    focus: chosenFocus,
   });
+  /*
+   * 고른 부위가 오늘의 날과 맞을 때만 쓴다. 통증 때문에 날이 바뀌면(theme.ts 의 steerAroundPain —
+   * '상체 밀기'를 골랐는데 어깨가 아파 하체 날) 그 부위로 좁히면 본운동이 통째로 빈다.
+   */
+  const focus = findFocus(chosenFocus)?.theme === theme.key ? chosenFocus : null;
   const minutes = effectiveMinutes(theme.key, requestedMinutes);
   const goal = findGoal(goalName);
 

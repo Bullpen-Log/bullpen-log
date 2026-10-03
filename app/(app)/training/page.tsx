@@ -440,8 +440,12 @@ export default async function TrainingPage({
             <p className="text-sm leading-relaxed text-warn">
               {picked.haltReason ?? '통증 신호가 있어 훈련 조언을 만들지 않았어요.'}
             </p>
+            {/*
+            2026-10-03 부터 통증이 있는 날도 아픈 곳을 피해서 일정을 만든다. 여기 오는 것은 최근에 아팠는데
+            오늘 체크인이 없어 나았는지 모르는 날뿐이라, 할 일은 체크인을 남기는 것이다.
+          */}
             <OpenCheckinButton className="text-sm font-semibold text-warn underline">
-              통증이 아니면 체크인 고치기
+              오늘 체크인 남기기
             </OpenCheckinButton>
           </Card>
         ) : savedPlan == null ? (

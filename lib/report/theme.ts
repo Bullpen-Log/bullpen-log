@@ -1,8 +1,14 @@
-import { SEVERE_SORENESS, sorenessWord } from '@/lib/checkin';
+import { SEVERE_SORENESS, sorenessWord, type CheckinPartKey } from '@/lib/checkin';
 import { intensityLevel, minutesForSets, type Prescription } from '@/lib/exercise-meta';
 import { withJosa } from '@/lib/korean';
 import type { ReportFacts } from '@/lib/report/facts';
-import { pendingOuting, type PitchPlan } from '@/lib/report/plan';
+import type { PitchPlan } from '@/lib/report/plan';
+import {
+  checkinPartLabel,
+  painEasingParts,
+  painPartsToday,
+  painStateUnknown,
+} from '@/lib/report/prescription';
 import {
   findFocus,
   findGoal,
@@ -182,49 +188,42 @@ export type SessionTheme = {
 const LOW_CONDITION_THRESHOLD = 4;
 
 /**
- * 마지막 등판의 여파가 오늘 훈련에 어떻게 걸리는가.
- *
- * 예전에는 던진 것이 훈련에 거의 안 걸렸다. 부하 지수(ACWR)가 강도 상한을
- * 낮추기는 했지만, 그건 4주 평균에 견주는 값이라 어제 82구를 던진 것이
- * 바로 반영되지 않는다. 그래서 어제 완투하고 온 사람에게 오늘 하체
- * 스트렝스 데이가 그대로 나왔다.
- *
- * 남은 휴식일로 센다. 투구 계획이 "오늘은 쉬세요"라고 말하는 그 값과 같은
- * 것을 본다(lib/report/plan.ts 의 pendingOuting). 각자 계산하면 언젠가
- * 어긋난다 — 투구는 쉬라는데 훈련은 데드리프트를 내주는 식이다.
- *
- *   2일 이상 남음  큰 등판 직후 — 회복만
- *   1일 남음       코어·보강까지 (보조·코어 데이)
- *   0일            평소대로
+ * 세게 던진 날로 치는 최소 투구수(그날 거의 최대 강도로 던진 공의 합).
+ * 짧게 몇 개만 세게 던진 날은 다음 날을 막지 않는다(2026-10-03 사용자분과 정함).
  */
-function outingStrain(facts: ReportFacts): {
-  level: 0 | 1 | 2;
-  pitches: number;
-  daysAgo: number;
-} {
-  /*
-   * 까닭에는 쉬게 만든 그 등판을 적는다. 마지막 투구를 적었더니, 사흘 전 90구 뒤
-   * 이틀 전에 캐치볼 20개를 한 날 '2일 전 20구를 던지셨습니다'가 됐다 — 쉬는 까닭은
-   * 90구다. 오늘의 암케어도 같은 등판을 말한다(lib/armcare/routine.ts).
-   */
-  const owed = pendingOuting(facts.patterns);
-  const remaining = owed?.left ?? 0;
-  return {
-    level: remaining >= 2 ? 2 : remaining >= 1 ? 1 : 0,
-    pitches: owed?.pitches ?? facts.patterns.lastOutingPitches ?? 0,
-    daysAgo: owed?.elapsed ?? facts.patterns.restDays ?? 0,
-  };
+export const HARD_OUTING_MIN_PITCHES = 30;
+
+/**
+ * 세게 던진 날의 여파 — 그날과 다음 날은 가벼운 컨디셔닝(회복·재생 데이), 이틀 뒤부터 무거운 웨이트 · 파워.
+ *
+ * 2026-10-03 사용자분과 다시 정했다. 예전에는 투구 계획의 남은 휴식일(Pitch Smart 표, plan.ts 의
+ * pendingOuting)을 그대로 따라 90구 다음 날부터 이틀은 회복, 사흘째는 보조, 나흘째에야 무게가 나왔다.
+ * 그 표는 '공을 언제 다시 던져도 되나'의 기준이라 웨이트까지 그만큼 막을 까닭이 없었고, 5일
+ * 로테이션이면 첫 무거운 날이 다음 등판 전날이 됐다. 다음 등판이 며칠 뒤인지는 앱이 모른다.
+ *
+ * '세게 던진 날' = 경기, 또는 강도 9~10으로 그날 합쳐 30구 이상(facts.patterns.hardOutings).
+ * 그보다 가볍게 던진 날은 다음 날을 막지 않는다. 공을 쉬어야 하는 날은 투구 계획이 따로 말하고,
+ * 쌓인 부하는 부하 지수(주의 · 위험 구간)가 따로 본다.
+ */
+function hardOuting(facts: ReportFacts): { daysAgo: number; pitches: number } | null {
+  return (
+    (facts.patterns.hardOutings ?? []).find(
+      (o) => o.daysAgo <= 1 && o.pitches >= HARD_OUTING_MIN_PITCHES
+    ) ?? null
+  );
 }
 
-/** '오늘 82구를 던지셨습니다' / '어제 82구를 던지셨습니다' */
-function outingPhrase(strain: { pitches: number; daysAgo: number }): string {
-  const when =
-    strain.daysAgo === 0
-      ? '오늘'
-      : strain.daysAgo === 1
-        ? '어제'
-        : `${strain.daysAgo}일 전`;
-  return `${when} ${strain.pitches}구를 던지셨어요`;
+/** '오늘 거의 전력으로 82구를 던지셨어요' / '어제 …' */
+function outingPhrase(outing: { pitches: number; daysAgo: number }): string {
+  const when = outing.daysAgo === 0 ? '오늘' : '어제';
+  return `${when} 거의 전력으로 ${outing.pitches}구를 던지셨어요`;
+}
+
+/** 세게 던진 날의 회복·재생 데이 이유 — 언제부터 다시 무게를 드는지까지 말한다 */
+function hardOutingReason(outing: { pitches: number; daysAgo: number }): string {
+  return outing.daysAgo === 0
+    ? `${outingPhrase(outing)}. 오늘과 내일은 가볍게 풀고, 모레부터 무게를 다시 올려요.`
+    : `${outingPhrase(outing)}. 오늘은 가볍게 풀고, 내일부터 무게를 다시 올려요.`;
 }
 
 /**
@@ -253,9 +252,9 @@ export function workoutConflict({
    * 평균에 견준 값이라 "위험 구간"이라고만 하면 왜 그런지 알 수 없다.
    * "어제 90구를 던지셨습니다"는 원인을 그대로 말한다.
    */
-  const strain = outingStrain(facts);
-  if (strain.level === 2) {
-    return { reason: outingPhrase(strain), fallback: 'recovery' };
+  const outing = hardOuting(facts);
+  if (outing) {
+    return { reason: outingPhrase(outing), fallback: 'recovery' };
   }
   if (facts.load.zone === 'danger') {
     return { reason: '투구 부하가 위험 구간이에요', fallback: 'recovery' };
@@ -280,9 +279,6 @@ export function workoutConflict({
   }
   if (facts.load.zone === 'caution') {
     return { reason: '투구 부하가 주의 구간이에요', fallback: 'assist' };
-  }
-  if (strain.level === 1) {
-    return { reason: outingPhrase(strain), fallback: 'assist' };
   }
   return null;
 }
@@ -342,20 +338,96 @@ export function conditioningDay(
     key: theme.key,
     label: CONDITIONING_DAY_LABEL,
     reason:
+      painNote(facts).note +
       threwTodayNote(facts) +
       `목표가 컨디셔닝이라 무게 드는 운동 대신 ${withJosa(filled, '으로/로')} 채웠어요. ${part} 근력은 다음 근력 날로 넘어가요.`,
   };
 }
 
-export function decideTheme({
-  facts,
-  plan,
-  lastLowerKey,
-  lastUpperKey,
-  preferredWorkout = null,
-  override = false,
-  focus = null,
-}: {
+/** 상체 쪽 · 하체 쪽 체크인 부위 — 아픈 쪽을 피해 근력 날을 고를 때 쓴다 */
+const UPPER_PAIN_PARTS: readonly CheckinPartKey[] = ['shoulder', 'elbow', 'wrist'];
+const LOWER_PAIN_PARTS: readonly CheckinPartKey[] = ['lowerBack', 'lowerBody'];
+
+/**
+ * 통증 때문에 무엇을 골랐든 회복·재생 데이로 가는 날이면 그 까닭, 아니면 null.
+ *
+ * 2026-10-03 부터 통증은 아픈 곳을 피해서 짠다(사용자 결정 — prescription.ts 가 그 부위 운동을 뺀다).
+ * 그래도 회복으로 가는 날이 셋 있다.
+ *   최근에 아팠는데 오늘 체크인이 없다 — 나았는지 모른다(처방도 멈춘다).
+ *   메모에 통증으로 보이는 말이 있는데 오늘 체크인이 없다 — 어디가 아픈지 모른다.
+ *   상체(어깨·팔꿈치·손목)와 하체 쪽(허리·하체)이 함께 아프다 — 피해서 할 쪽이 없다.
+ *
+ * 통증만은 '그래도 하겠다'(override)로 넘길 수 없다. 그래서 오늘 데이터(today-data.ts) · AI 맞춤의
+ * 울타리(auto-setup.ts)도 이 값이 있는 날에는 부딪힘(workoutConflict)을 따지지 않는다.
+ */
+export function painRecoveryReason(facts: ReportFacts, plan: PitchPlan): string | null {
+  if (painStateUnknown(facts)) {
+    return '최근 통증 기록이 있는데 오늘 상태를 몰라 가볍게만 구성했어요. 체크인을 남기면 아픈 곳을 피해서 다시 짜요.';
+  }
+  if (plan.needsPainCheck) {
+    return '메모에 통증으로 보이는 말이 있어 확인 전까지 가볍게 구성했어요.';
+  }
+  const parts = painPartsToday(facts);
+  if (
+    parts.some((p) => UPPER_PAIN_PARTS.includes(p)) &&
+    parts.some((p) => LOWER_PAIN_PARTS.includes(p))
+  ) {
+    return `${parts.map(checkinPartLabel).join('·')} 통증이 있어 그 부위를 쓰는 운동은 모두 빼고 가볍게 구성했어요. 통증이 이어지면 진료를 받아보세요.`;
+  }
+  return null;
+}
+
+/**
+ * 통증 때문에 뺀 것을 일정 이유 맨 앞에 붙이는 말 — 아픈 곳이 없으면 빈 문자열.
+ *
+ * 오늘 아픈 곳이 있으면 그것을, 없으면 최근 7일에 아팠던 곳을 말한다. 날을 고르는 곳(steerAroundPain)과
+ * 컨디셔닝 날의 이유(conditioningDay)가 같이 쓴다 — 이유를 새로 쓰는 곳에서 이 말이 빠지면 안 된다.
+ */
+function painNote(facts: ReportFacts): { parts: CheckinPartKey[]; note: string } {
+  const today = painPartsToday(facts);
+  const parts = today.length > 0 ? today : painEasingParts(facts);
+  if (parts.length === 0) return { parts, note: '' };
+  const labels = parts.map(checkinPartLabel).join('·');
+  return {
+    parts,
+    note:
+      today.length > 0
+        ? `${labels} 통증이 있어 그 부위를 쓰는 운동은 모두 뺐어요. 하다가 아프면 바로 멈추세요. `
+        : `최근 ${labels} 통증이 있어 그 부위의 무거운 운동은 뺐어요. `,
+  };
+}
+
+/**
+ * 아픈 쪽을 피해 근력 날을 고른다 — 상체가 아프면 하체 날, 허리·하체가 아프면 상체 날.
+ *
+ * 오늘 아픈 곳이 없으면 최근 7일에 아팠던 곳을 본다. 그 부위의 무거운 운동이 빠지므로(prescription.ts)
+ * 그쪽 근력 날이면 본운동이 비어 버린다. 근력 날이 아니면(회복·보조) 날은 그대로 두고 까닭만 앞에 붙인다.
+ */
+function steerAroundPain(day: SessionTheme, facts: ReportFacts): SessionTheme {
+  const { parts, note } = painNote(facts);
+  if (parts.length === 0) return day;
+
+  const upper = parts.some((p) => UPPER_PAIN_PARTS.includes(p));
+  const lower = parts.some((p) => LOWER_PAIN_PARTS.includes(p));
+
+  if (day.key === 'upper' && upper && !lower) {
+    return {
+      key: 'lower',
+      label: '하체 스트렝스 데이',
+      reason: note + '오늘은 하체 위주로 해요.',
+    };
+  }
+  if (day.key === 'lower' && lower && !upper) {
+    return {
+      key: 'upper',
+      label: '상체 스트렝스 데이',
+      reason: note + '오늘은 상체 위주로 해요.',
+    };
+  }
+  return { ...day, reason: note + day.reason };
+}
+
+type DecideThemeInput = {
   facts: ReportFacts;
   plan: PitchPlan;
   /** 최근 2주 안에 하체 스트렝스를 완료한 마지막 날 (없으면 null) */
@@ -379,27 +451,29 @@ export function decideTheme({
    * '웨이트를 한다면 어디를'이지 '무슨 일이 있어도 웨이트를'이 아니다.
    */
   focus?: GoalFocusKey | null;
-}): SessionTheme {
-  /*
-   * 1) 통증은 고를 수 있는 것이 아니다. 무엇을 골랐든, 밀고 나가겠다고 해도
-   *    여기서 멈춘다.
-   *
-   * halted 는 통증 때문에만 켜진다 — 오늘 통증이 있거나, 최근 통증이 있었는데
-   * 오늘 상태를 모르거나. 처음에는 recovering 만 봤는데, 그러면 '오늘 통증'인
-   * 사람에게 상체 스트렝스 데이가 나왔다. 실제로는 그 앞에서 처방이 멈춰
-   * 아무것도 안 나오지만, 이 함수가 혼자 불려도 맞는 답을 내야 한다.
-   * (자가 시험이 잡았다.)
-   */
-  if (plan.halted || plan.recovering) {
-    return {
-      key: 'recovery',
-      label: '회복·재생 데이',
-      reason: plan.halted
-        ? '통증 기록이 있어 재생과 가동성 외에는 권하지 않아요.'
-        : '최근 통증 기록이 있어 재생과 가동성 위주로 구성했어요.',
-    };
-  }
+};
 
+export function decideTheme(input: DecideThemeInput): SessionTheme {
+  /*
+   * 1) 통증은 고를 수 있는 것이 아니다. 무엇을 골랐든, 밀고 나가겠다고 해도 여기서 정한다.
+   *
+   * 예전에는 통증이면 무조건 회복·재생 데이였다. 2026-10-03 부터는 아픈 쪽을 피해 근력 날을 고르고
+   * (steerAroundPain), 피할 쪽이 없거나 상태를 모를 때만 회복으로 간다(painRecoveryReason).
+   */
+  const forced = painRecoveryReason(input.facts, input.plan);
+  if (forced) return { key: 'recovery', label: '회복·재생 데이', reason: forced };
+  return steerAroundPain(decideThemeForBody(input), input.facts);
+}
+
+/** 통증을 뺀 몸 상태 · 고른 것 · 번갈아 가는 차례로 오늘의 날을 정한다 */
+function decideThemeForBody({
+  facts,
+  lastLowerKey,
+  lastUpperKey,
+  preferredWorkout = null,
+  override = false,
+  focus = null,
+}: DecideThemeInput): SessionTheme {
   // 2) 회복을 골랐으면 몸이 좋아도 회복으로 간다. 쉬겠다는데 말릴 이유가 없다.
   if (preferredWorkout === '회복') {
     return {
@@ -420,18 +494,18 @@ export function decideTheme({
 
   if (!forcing) {
     /*
-     * 등판 여파를 맨 앞에 본다.
+     * 세게 던진 날의 여파를 맨 앞에 본다(그날 · 다음 날은 가볍게 — hardOuting).
      *
      * 부하 지수는 4주 평균에 견주는 값이라 어제 90구가 바로 반영되지 않고,
      * 반영되더라도 "위험 구간"이라고만 하면 왜 그런지 알 수 없다. 던진 것이
      * 원인이면 그것을 그대로 말하는 편이 낫다.
      */
-    const strain = outingStrain(facts);
-    if (strain.level === 2) {
+    const outing = hardOuting(facts);
+    if (outing) {
       return {
         key: 'recovery',
         label: '회복·재생 데이',
-        reason: `${outingPhrase(strain)}. 아직 회복할 시간이 필요해 가볍게만 구성했어요.`,
+        reason: hardOutingReason(outing),
       };
     }
     if (facts.load.zone === 'danger') {
@@ -470,13 +544,6 @@ export function decideTheme({
         key: 'assist',
         label: '보조·코어 데이',
         reason: '투구 부하가 주의 구간이라 무게 대신 코어와 보강에 집중해요.',
-      };
-    }
-    if (strain.level === 1) {
-      return {
-        key: 'assist',
-        label: '보조·코어 데이',
-        reason: `${outingPhrase(strain)}. 무게는 빼고 코어와 보강 위주로 잡았어요.`,
       };
     }
   }
