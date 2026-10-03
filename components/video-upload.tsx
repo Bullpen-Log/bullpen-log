@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Film, Loader2, Upload, X } from 'lucide-react';
 import { captureThumbnail } from '@/lib/capture-thumbnail';
+import { useWakeLock } from '@/components/use-wake-lock';
 
 export const MAX_VIDEO_MB = 50;
 const MAX_VIDEO_BYTES = MAX_VIDEO_MB * 1024 * 1024;
@@ -50,23 +51,57 @@ async function uploadToStorage(
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(data.error ?? '업로드 주소를 받지 못했어요.');
 
-  await new Promise<void>((resolve, reject) => {
+  /*
+   * 신호가 잠깐 끊겨 실패하면 한 번 더 올린다(2026-10-03 아이폰 점검 — 와이파이 · 데이터가 바뀌는 순간 끊겼다).
+   * 받은 주소(Supabase 서명 주소)는 두 시간 쓸 수 있어 같은 주소로 다시 보낸다. 다만 앞의 것이 실제로는 다
+   * 올라갔는데 대답만 못 받았으면, 같은 경로라 저장소가 '이미 있어요'(409 · Duplicate)라고 한다 — 그때는 올라간
+   * 것이다(이 경로는 방금 이 파일에 받은 새 이름이라 남의 것이 있을 수 없다).
+   */
+  try {
+    await putFile(data.signedUrl, file, onProgress, false);
+  } catch (err) {
+    if (!(err instanceof NetworkError)) throw err;
+    await new Promise((r) => setTimeout(r, 1500));
+    onProgress(0);
+    await putFile(data.signedUrl, file, onProgress, true);
+  }
+
+  return data.path as string;
+}
+
+/** 신호가 끊겨 대답을 못 받은 실패 — 이것만 다시 해 본다(서버가 거절한 것은 다시 해도 같다) */
+class NetworkError extends Error {}
+
+function putFile(
+  url: string,
+  file: Blob,
+  onProgress: (percent: number) => void,
+  retry: boolean
+) {
+  return new Promise<void>((resolve, reject) => {
     const xhr = new XMLHttpRequest();
-    xhr.open('PUT', data.signedUrl);
+    xhr.open('PUT', url);
     xhr.setRequestHeader('Content-Type', file.type);
 
     xhr.upload.onprogress = (e) => {
       if (e.lengthComputable) onProgress(Math.round((e.loaded / e.total) * 100));
     };
-    xhr.onload = () =>
-      xhr.status >= 200 && xhr.status < 300
-        ? resolve()
-        : reject(new Error('업로드에 실패했어요.'));
-    xhr.onerror = () => reject(new Error('네트워크 오류로 업로드에 실패했어요.'));
+    xhr.onload = () => {
+      if (xhr.status >= 200 && xhr.status < 300) return resolve();
+      /* 다시 보낸 것인데 '이미 있어요' — 앞의 것이 다 올라갔다(위 설명) */
+      const duplicate =
+        xhr.status === 409 || /duplicate|already exists/i.test(xhr.responseText ?? '');
+      if (retry && duplicate) return resolve();
+      reject(new Error('업로드에 실패했어요.'));
+    };
+    xhr.onerror = () =>
+      reject(
+        new NetworkError(
+          '신호가 끊겨 업로드에 실패했어요. 연결을 확인하고 다시 골라 주세요.'
+        )
+      );
     xhr.send(file);
   });
-
-  return data.path as string;
 }
 
 export function VideoUpload({
@@ -129,6 +164,12 @@ export function VideoUpload({
     latestVideos.current = videos;
   }, [videos]);
 
+  /*
+   * 올리는 동안 화면을 켜 둔다 — 아이폰은 화면이 꺼지면(30초~) 곧 사이트를 멈춰 올리던 것이 끊겼다. 큰 영상은
+   * 데이터로 1분 넘게 걸린다(2026-10-03 점검). 끝나면 놓는다.
+   */
+  useWakeLock(uploading);
+
   const setBusy = (value: boolean) => {
     setUploading(value);
     onUploadingChange?.(value);
@@ -147,8 +188,12 @@ export function VideoUpload({
       return;
     }
     if (file.size > MAX_VIDEO_BYTES) {
+      /*
+       * 무엇을 하면 되는지까지 — 아이폰 카메라는 4K · 60fps 가 기본이라 몇 초짜리도 50MB 를 넘는다(2026-10-03).
+       * 사진 앱의 '편집'으로 던지는 부분만 남기거나, 설정 › 카메라 › 비디오 녹화를 1080p 로 바꾸면 된다.
+       */
       setError(
-        `${MAX_VIDEO_MB}MB 이하만 올릴 수 있어요. (선택한 파일 ${formatSize(file.size)})`
+        `${MAX_VIDEO_MB}MB 이하만 올릴 수 있어요(고른 영상 ${formatSize(file.size)}). 사진 앱의 '편집'에서 던지는 부분만 남기고 잘라 주세요. 다음부터는 설정 › 카메라 › 비디오 녹화를 1080p 로 찍으면 작아져요.`
       );
       return;
     }

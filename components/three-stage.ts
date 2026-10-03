@@ -134,8 +134,9 @@ export async function createStage(
   let dirty = true;
 
   const scene = new THREE.Scene();
-  const pmrem = new THREE.PMREMGenerator(renderer);
-  const envMap = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+  /* 주변 빛(환경 지도) — GPU 에서 그려 만든 것이라 연결을 잃으면 사라진다. 다시 만들 수 있게 let 으로(아래 restored) */
+  let pmrem = new THREE.PMREMGenerator(renderer);
+  let envMap = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
   scene.environment = envMap;
   scene.environmentIntensity = 0.45;
 
@@ -304,6 +305,27 @@ export async function createStage(
   });
   seen.observe(el);
 
+  /*
+   * WebGL 연결이 끊겼다 돌아왔을 때 — 아이폰은 다른 앱에 다녀오거나 메모리가 모자라면 연결을 거뒀다가 돌려준다.
+   * three 는 모양 · 그림(꼭짓점 · 텍스처)을 손에 든 자료로 다시 올리지만, GPU 에서 그려 만든 환경 지도는 빈
+   * 것으로 남고, 그릴 일(dirty)도 없어 3D 지도가 빈 칸 · 검은 몸으로 멈춰 있었다(2026-10-03 아이폰 점검).
+   * three 가 먼저 연결을 다시 차린 뒤(그쪽 리스너가 먼저 붙었다) 환경 지도를 새로 만들고 한 번 다시 그린다.
+   */
+  const onRestored = () => {
+    try {
+      envMap.dispose();
+      pmrem.dispose();
+    } catch {
+      /* 잃은 연결의 것 — 못 지워도 새로 만들면 된다 */
+    }
+    pmrem = new THREE.PMREMGenerator(renderer);
+    envMap = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+    scene.environment = envMap;
+    resize();
+    dirty = true;
+  };
+  renderer.domElement.addEventListener('webglcontextrestored', onRestored);
+
   return {
     THREE,
     root,
@@ -315,6 +337,7 @@ export async function createStage(
     fit,
     moveTo,
     dispose: () => {
+      renderer.domElement.removeEventListener('webglcontextrestored', onRestored);
       seen.disconnect();
       sizer.disconnect();
       renderer.setAnimationLoop(null);

@@ -1,6 +1,7 @@
 'use client';
 
 import { CORE_LANDMARKS, type PoseFrame, type PoseTrack } from '@/lib/pose/types';
+import { prepareDetachedVideo, waitForFirstFrame } from '@/lib/capture-thumbnail';
 
 /**
  * 브라우저에서 영상을 프레임 단위로 훑으며 관절 좌표를 뽑는다.
@@ -357,37 +358,23 @@ export async function extractPoseTrack(
 ): Promise<PoseTrack> {
   const video = document.createElement('video');
   video.crossOrigin = 'anonymous';
-  video.muted = true;
-  video.playsInline = true;
-  video.preload = 'auto';
+  /* 소리 없음 · playsinline 속성까지 — 아이폰이 누름 없이 받고 틀게(lib/capture-thumbnail.ts) */
+  prepareDetachedVideo(video);
   video.src = src;
 
   try {
     /*
      * 영상이 열릴 때까지 — 끝없이 기다리지 않는다. 아이폰은 화면에 없는 영상을 누름 없이 안 받기도 하고 신호가 끊기면
      * loadeddata 도 error 도 안 와서, 예전에는 '분석 중'이 영영 돌았다(취소도 안 먹었다).
+     * 아이폰은 preload='auto' 여도 길이(metadata)까지만 받고 멈춰 첫 장면 알림이 안 왔다 — 재생을 한 번 걸어 깨운다
+     * (waitForFirstFrame, 2026-10-03).
      */
-    await new Promise<void>((resolve, reject) => {
-      const timer = setTimeout(
-        () =>
-          finish(() =>
-            reject(
-              new Error('영상을 불러오지 못했어요. 연결을 확인하고 다시 해 주세요.')
-            )
-          ),
-        LOAD_TIMEOUT_MS
-      );
-      const onAbort = () => finish(() => reject(new Error('분석이 취소됐어요.')));
-      const finish = (next: () => void) => {
-        clearTimeout(timer);
-        signal?.removeEventListener('abort', onAbort);
-        next();
-      };
-      video.onloadeddata = () => finish(resolve);
-      video.onerror = () => finish(() => reject(new Error('영상을 열 수 없어요.')));
-      if (signal?.aborted) onAbort();
-      else signal?.addEventListener('abort', onAbort, { once: true });
-    });
+    const opened = await waitForFirstFrame(video, LOAD_TIMEOUT_MS, signal);
+    if (opened === 'aborted') throw new Error('분석이 취소됐어요.');
+    if (opened === 'error') throw new Error('영상을 열 수 없어요.');
+    if (opened === 'timeout') {
+      throw new Error('영상을 불러오지 못했어요. 연결을 확인하고 다시 해 주세요.');
+    }
 
     const duration = Math.min(
       Number.isFinite(video.duration) ? video.duration : 0,

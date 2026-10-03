@@ -33,6 +33,7 @@ import { ExerciseHistoryPanel } from '@/components/exercise-history';
 import { useWakeLock } from '@/components/use-wake-lock';
 import { useAlarm } from '@/components/use-alarm';
 import { buzz } from '@/lib/haptics';
+import { nativeCancelAlarm, nativeScheduleAlarm } from '@/lib/native-bridge';
 import { newRecord } from '@/lib/workout/bests';
 import {
   deleteSet,
@@ -152,6 +153,12 @@ function clockText(seconds: number) {
   const s = seconds % 60;
   return `${m}:${String(s).padStart(2, '0')}`;
 }
+
+/** 쉬는 시간 끝 앱 알림의 이름 — 같은 이름으로 걸면 앞의 것을 바꾼다(lib/native-bridge.ts) */
+const REST_ALARM_ID = 'workout-rest';
+
+/** 지금 보던 운동을 이 판 번호로 적어 두는 곳(sessionStorage) — 아래 at 설명 */
+const atKey = (sessionId: string) => `bullpen-workout-at:${sessionId}`;
 
 /** 링 한 바퀴의 길이 — 반지름 9 */
 const RING = 2 * Math.PI * 9;
@@ -301,7 +308,8 @@ function NumberPad({
           type="button"
           onClick={() => press(k)}
           disabled={k === '.' && !allowDecimal}
-          className="h-12 rounded-xl bg-raised text-xl font-medium text-ink shadow-[0_1px_0_rgb(0_0_0/0.14)] transition active:bg-ink/10 disabled:opacity-25 motion-safe:active:scale-95"
+          /* 낮은 화면(아이폰 SE)은 한 칸 40px — 판 · 무게 · 횟수 · [세트 완료]가 한 화면에 들어오게 */
+          className="h-12 rounded-xl bg-raised text-xl font-medium text-ink shadow-[0_1px_0_rgb(0_0_0/0.14)] transition active:bg-ink/10 disabled:opacity-25 short:h-10 motion-safe:active:scale-95"
         >
           {k}
         </button>
@@ -310,7 +318,7 @@ function NumberPad({
         type="button"
         onClick={() => onChange((prev) => prev.slice(0, -1))}
         aria-label="한 글자 지우기"
-        className="flex h-12 items-center justify-center rounded-xl text-ink transition active:bg-ink/10 motion-safe:active:scale-95"
+        className="flex h-12 items-center justify-center rounded-xl text-ink transition active:bg-ink/10 short:h-10 motion-safe:active:scale-95"
       >
         <Delete className="h-5 w-5" />
       </button>
@@ -368,6 +376,14 @@ export function SessionClient({
    * (세트 저장이 화면을 안 건드린다) 처음 받은 것에서 출발해 여기서만 고친다.
    */
   const [list, setList] = useState<RunExercise[]>(exercises);
+  /*
+   * 지금 보는 운동(목록의 몇 번째).
+   *
+   * 폰에도 적어 둔다(sessionStorage, 이 판 번호로). 아이폰은 다른 앱에 오래 있거나 메모리가 모자라면 이 화면을
+   * 통째로 다시 불러오는데, 그러면 0 에서 시작해 다섯 번째 운동을 하던 사람이 첫 운동으로 튕겼다(2026-10-03
+   * 점검). 세트는 서버 · 폰에 남아 있으니 보던 자리만 되찾으면 된다. 번호가 아니라 운동 id 로 적는다 — 그사이
+   * 순서를 바꿨어도 같은 운동으로 돌아간다. 처음 그림은 서버와 같아야 해서(맞추기) 그린 뒤에 되찾는다(아래 효과).
+   */
   const [at, setAt] = useState(0);
   /*
    * 운동별 내 메모 (운동 id → 메모).
@@ -457,7 +473,35 @@ export function SessionClient({
   const [ending, startEnding] = useTransition();
   const topRef = useRef<HTMLDivElement>(null);
 
+  /*
+   * 다시 불러온 화면이면 보던 운동으로 — 적기(아래)보다 먼저 읽는다(효과는 적은 차례로 돈다). 처음 한 번만:
+   * 그 뒤로는 목록(list)이 처음 받은 것(exercises)과 달라질 수 있어 번호가 어긋난다.
+   */
+  const restored = useRef(false);
+  useEffect(() => {
+    if (restored.current) return;
+    restored.current = true;
+    let id: string | null = null;
+    try {
+      id = sessionStorage.getItem(atKey(sessionId));
+    } catch {
+      return;
+    }
+    const i = id ? exercises.findIndex((e) => e.id === id) : -1;
+    if (i <= 0) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- 폰에 적어 둔 자리를 한 번 되찾는다(맞추기 뒤라 효과에서)
+    setAt(i);
+    setField(exercises[i].needsWeight ? 'weight' : 'count');
+  }, [sessionId, exercises]);
+
   const ex = list[at];
+  useEffect(() => {
+    try {
+      sessionStorage.setItem(atKey(sessionId), ex.id);
+    } catch {
+      /* 못 적어도 이번 화면은 그대로 — 다시 불러오면 첫 운동부터일 뿐 */
+    }
+  }, [sessionId, ex.id]);
   /* 자세 설명이나 영상이 있는 운동인가 — 없으면 [내 기록]이 한 줄을 다 쓴다 */
   const hasForm = Boolean(ex.description || ex.videoPath || ex.referenceVideoId);
   /* 시간형 운동의 칸 이름 — 유산소는 '운동 시간', 버티기는 '버틴 시간' */
@@ -518,6 +562,29 @@ export function SessionClient({
     alarmed.current = lastAt;
     if (rest - restTarget <= 3) ring('rest');
   }, [rest, restTarget, lastAt, ring]);
+
+  /*
+   * 아이폰 앱이면 쉬는 시간이 끝날 시각에 알림도 걸어 둔다 — 폰을 잠그고 주머니에 넣거나 다른 앱에 가 있으면 위의
+   * 시계 · 소리가 멈춰, 쉬는 시간이 끝나도 조용했다(2026-10-03 점검). 다음 세트를 남기면(마지막 세트가 바뀌면) 새
+   * 시각으로 바꿔 걸고, 세트를 지워 이미 지난 시각이 되거나 화면을 나가면 거둔다. 앱이 앞에 떠 있는 동안에는 알림이
+   * 안 뜨고 위의 소리가 알린다. 사파리 · PC 에서는 아무 일도 안 한다(lib/native-bridge.ts).
+   */
+  const restEndsAt =
+    lastAt != null && restTarget != null
+      ? Date.parse(lastAt) + restTarget * 1000
+      : null;
+  useEffect(() => {
+    if (restEndsAt == null || restEndsAt <= Date.now()) return;
+    nativeScheduleAlarm(
+      REST_ALARM_ID,
+      restEndsAt,
+      '쉬는 시간 끝',
+      '다음 세트를 시작할 차례예요'
+    );
+    return () => {
+      nativeCancelAlarm(REST_ALARM_ID);
+    };
+  }, [restEndsAt]);
 
   /* 운동마다 남긴 세트 수 — 위 막대의 칸이 이만큼 찬다 */
   const setCounts = useMemo(() => {
@@ -1110,6 +1177,8 @@ export function SessionClient({
           <div className="mt-2 space-y-3 rounded-2xl bg-surface p-3">
             {(ex.videoPath || ex.referenceVideoId) && (
               <LibraryVideo
+                /* 운동마다 새 재생기 — 같은 자리라 앞 운동의 영상(받아 둔 주소)이 다음 운동에서도 돌았다 */
+                key={ex.id}
                 path={ex.videoPath}
                 referenceVideoId={ex.referenceVideoId}
                 title={ex.title}
@@ -1230,13 +1299,27 @@ export function SessionClient({
         </div>
       </div>
 
-      {/* ─────────── 아래: 누르는 곳 ─────────── */}
-      <div className="shrink-0 space-y-2 border-t border-line bg-surface px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3">
+      {/*
+        ─────────── 아래: 누르는 곳 ───────────
+
+        자판(메모 쓰기)이 떠 있는 동안은 감춘다 — 이 막대에는 자판으로 넣는 칸이 없고(숫자는 앱이 그린 판), 아이폰
+        SE 에서는 자판 위 남는 400px 가운데 이 막대가 340px 를 차지해 쓰는 메모가 안 보였다(2026-10-03 점검).
+        메모 상자에 저장 · 취소가 따로 있다.
+
+        min-h-0 · overflow-y-auto — 낮은 화면에서 숫자판까지 열어 이 막대가 틀보다 길어지면, 예전에는 틀 밖으로
+        밀려나 [세트 완료]가 화면 밑으로 사라졌다. 이제 막대 안에서 굴러간다(가운데 칸은 먼저 0 까지 줄어든다).
+      */}
+      <div className="min-h-0 shrink space-y-2 overflow-y-auto border-t border-line bg-surface px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3 [html[data-keyboard]_&]:hidden">
         {/*
           쉬는 시간 — 엄지가 닿는 곳, 언제나 보이는 자리. 예전에는 세트 목록 밑(굴러가는 칸)이라 세트가
           쌓이면 화면 밖으로 밀려났다. 처방에 쉬는 시간이 있으면 링이 그만큼에서 다 차고 한 번 알린다.
         */}
-        {rest != null && <RestPill seconds={rest} target={restTarget} />}
+        {/* 낮은 화면(short, 아이폰 SE)에서 숫자판을 연 동안은 감춘다 — 숫자를 넣는 몇 초라 [세트 완료]가 먼저다 */}
+        {rest != null && (
+          <div className={pad ? 'short:hidden' : undefined}>
+            <RestPill seconds={rest} target={restTarget} />
+          </div>
+        )}
         {error && (
           <p className="rounded-lg bg-warn-bg px-3 py-2 text-center text-xs text-warn">
             {error}
@@ -1336,7 +1419,7 @@ export function SessionClient({
                 if (field === 'weight') setField('count');
                 else setPad(false);
               }}
-              className="h-12 w-full rounded-xl bg-sky/15 text-sm font-bold text-sky transition-transform motion-safe:active:scale-[0.98]"
+              className="h-12 w-full rounded-xl bg-sky/15 text-sm font-bold text-sky transition-transform short:h-10 motion-safe:active:scale-[0.98]"
             >
               {field === 'weight'
                 ? `다음 · ${ex.isHold ? timeLabel : '횟수'} →`
@@ -1385,7 +1468,10 @@ export function SessionClient({
         <button
           type="button"
           onClick={save}
-          className="flex h-[72px] w-full items-center justify-center gap-2 rounded-full bg-sky text-lg font-bold text-white transition-transform motion-safe:active:scale-[0.98]"
+          /* 낮은 화면에서 숫자판을 연 동안만 64px — 판과 같이 한 화면에 들어오게 */
+          className={`flex h-[72px] w-full shrink-0 items-center justify-center gap-2 rounded-full bg-sky text-lg font-bold text-white transition-transform motion-safe:active:scale-[0.98] ${
+            pad ? 'short:h-16' : ''
+          }`}
         >
           {editIndex >= 0 ? (
             <>
