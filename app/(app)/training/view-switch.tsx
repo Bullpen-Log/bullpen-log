@@ -10,7 +10,7 @@ import {
 } from '@/lib/training-part';
 
 /**
- * 트레이닝과 암케어를 오가는 두 칸.
+ * 트레이닝 · 암케어 · 메커니즘을 오가는 칸(메커니즘은 2026-10-04 — 투구 드릴로 투구 동작을 키운다).
  *
  * 주소로 나눈다(?view=armcare). 화면 안에서 접었다 폈다 하면 두 칸을 다 그려서
  * 내려보내야 하는데, 서로 읽는 자료가 다르다. 주소로 나누면 보는 쪽만 그린다.
@@ -22,6 +22,7 @@ import {
 const VIEWS = [
   { value: 'today', label: '트레이닝', href: TRAINING_PART_HREF.today },
   { value: 'armcare', label: '암케어', href: TRAINING_PART_HREF.armcare },
+  { value: 'mechanics', label: '메커니즘', href: TRAINING_PART_HREF.mechanics },
 ] as const satisfies readonly { value: TrainingPart; label: string; href: string }[];
 
 export type TrainingView = TrainingPart;
@@ -71,8 +72,8 @@ export function TrainingViewSwitch({ current }: { current: TrainingView }) {
       size="md"
       /* 새 화면이 붙는 순간 알약이 제자리에 있게 — 화면 전환이 그 모습을 찍는다 */
       settleKey={current}
-      /* 칸이 둘이라 설정 단추와 한 줄에 넉넉히 들어간다 */
-      itemClassName="px-5 py-2 sm:px-8"
+      /* 칸이 셋이라 휴대폰은 좁게 — 설정 단추와 한 줄에 들어가게(375px) */
+      itemClassName="px-3 py-2 sm:px-8"
     />
   );
 }

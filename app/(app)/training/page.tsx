@@ -28,6 +28,8 @@ import { TrainingSettingsButton } from './settings-button';
 import { TrainingViewSwitch, type TrainingView } from './view-switch';
 import { ArmcareTabs, type ArmcareTab } from './armcare-tabs';
 import { ArmcareSection } from './armcare-section';
+import { MechanicsTabs, type MechanicsTab } from './mechanics-tabs';
+import { MechanicsSection } from './mechanics-section';
 import { BodyPartsProvider } from '@/components/body-parts';
 import { TrainingCheckin } from './training-checkin';
 import { OpenCheckinButton } from '@/components/notice-bell';
@@ -147,6 +149,34 @@ export default async function TrainingPage({
           tab={tab}
           today={today}
           focusMuscle={typeof params.muscle === 'string' ? params.muscle : null}
+        />
+      </div>
+    );
+  }
+
+  /*
+   * 메커니즘 — 투구 드릴로 투구 동작을 키운다(2026-10-04). 암케어처럼 운동 일정과 따로다(사용자분).
+   * [프로그램 | 요소별 드릴], 요소 카드는 ?el= 로 열어 둘 수 있다.
+   */
+  if (view === 'mechanics') {
+    const tab: MechanicsTab = params.tab === 'elements' ? 'elements' : 'program';
+    return (
+      <div className="stack-page">
+        <PageHeading eyebrow="Training" title="메커니즘" />
+        <ViewTabs
+          current="mechanics"
+          settings={user}
+          returnTo={
+            tab === 'program'
+              ? '/training?view=mechanics'
+              : '/training?view=mechanics&tab=elements'
+          }
+        />
+        <MechanicsTabs current={tab} />
+        <MechanicsSection
+          user={user}
+          tab={tab}
+          focus={typeof params.el === 'string' ? params.el : null}
         />
       </div>
     );
