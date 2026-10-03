@@ -107,23 +107,24 @@ export function AdminJump({
       )}
 
       {open && (
+        /*
+          작은 팝업(2026-10-03 사용자: "지금 디자인 그대로 작게 팝업 형태로") — 뒤 화면은 옅게만 가리고(흐리지 않음) 바깥을 누르면
+          닫힌다. 창은 왼쪽 손잡이 옆 세로 가운데에서 열리고, 넘치면 창 안에서 굴린다.
+        */
         <div
-          role="dialog"
-          aria-modal="true"
-          aria-label="관리자"
-          className="absolute inset-0 z-40 flex flex-col bg-black/55 text-white backdrop-blur-xl motion-safe:animate-fade-in"
+          className="absolute inset-0 z-40 bg-black/25 motion-safe:animate-fade-in"
           onClick={(e) => {
             if (e.target === e.currentTarget) close();
           }}
         >
           <div
-            className="mx-auto flex w-full max-w-sm flex-1 flex-col overflow-y-auto overscroll-contain px-4 pb-[calc(1.5rem+env(safe-area-inset-bottom))] pt-[calc(1rem+env(safe-area-inset-top))]"
-            onClick={(e) => {
-              if (e.target === e.currentTarget) close();
-            }}
+            role="dialog"
+            aria-modal="true"
+            aria-label="관리자"
+            className="absolute left-3 top-1/2 flex max-h-[min(34rem,calc(100%-6rem))] w-[19.5rem] max-w-[calc(100%-1.5rem)] origin-left -translate-y-1/2 flex-col overflow-y-auto overscroll-contain rounded-3xl bg-black/80 p-3.5 text-white shadow-2xl ring-1 ring-white/10 backdrop-blur-xl motion-safe:animate-fade-in"
           >
             {/* 머리 줄 — 안쪽 판이면 ‹ 관리자, 첫 판이면 제목 · 닫기 */}
-            <div className="flex h-12 items-center justify-between">
+            <div className="flex h-10 shrink-0 items-center justify-between">
               {view === 'home' ? (
                 <p className="text-sm font-semibold text-white/70">관리자</p>
               ) : (
@@ -148,7 +149,7 @@ export function AdminJump({
             </div>
 
             {view === 'home' && (
-              <div className="mt-2 grid grid-cols-2 gap-3">
+              <div className="mt-1.5 grid grid-cols-2 gap-2.5">
                 <BigTile
                   icon={LayoutGrid}
                   title="화면 이동"
@@ -177,8 +178,8 @@ export function AdminJump({
 
             {view === 'screens' && (
               <>
-                <h2 className="mt-1 text-xl font-semibold">화면 이동</h2>
-                <ul aria-label="화면" className="mt-3 grid grid-cols-2 gap-2">
+                <h2 className="mt-0.5 text-base font-semibold">화면 이동</h2>
+                <ul aria-label="화면" className="mt-2.5 grid grid-cols-2 gap-1.5">
                   {VELOCITY_SCREENS.map((s, i) => {
                     const on = s.key === current;
                     return (
@@ -192,7 +193,7 @@ export function AdminJump({
                           }}
                           style={{ '--row': i } as CSSProperties}
                           className={join(
-                            'flex min-h-16 w-full flex-col justify-center rounded-2xl px-3.5 py-2.5 text-left transition-colors motion-safe:animate-row-in',
+                            'flex min-h-14 w-full flex-col justify-center rounded-2xl px-3 py-2 text-left transition-colors motion-safe:animate-row-in',
                             on
                               ? 'bg-white text-black'
                               : 'bg-white/12 text-white hover:bg-white/20'
@@ -209,7 +210,7 @@ export function AdminJump({
                           </span>
                           <span
                             className={join(
-                              'mt-0.5 line-clamp-2 text-xs leading-snug',
+                              'mt-0.5 line-clamp-1 text-xs leading-snug',
                               on ? 'text-black/55' : 'text-white/55'
                             )}
                           >
@@ -225,9 +226,9 @@ export function AdminJump({
 
             {view === 'settings' && (
               <>
-                <h2 className="mt-1 text-xl font-semibold">관리자 설정</h2>
+                <h2 className="mt-0.5 text-base font-semibold">관리자 설정</h2>
                 {toggleList.length > 0 && (
-                  <div className="mt-3 grid grid-cols-2 gap-3">
+                  <div className="mt-2.5 grid grid-cols-2 gap-2">
                     {toggleList.map((t, i) => {
                       const Icon = t.icon;
                       return (
@@ -239,7 +240,7 @@ export function AdminJump({
                           onClick={() => t.onChange(!t.on)}
                           style={{ '--row': i } as CSSProperties}
                           className={join(
-                            'flex min-h-36 flex-col items-start rounded-3xl p-4 text-left transition-colors motion-safe:animate-row-in',
+                            'flex min-h-28 flex-col items-start rounded-2xl p-3 text-left transition-colors motion-safe:animate-row-in',
                             t.on
                               ? 'bg-white text-black'
                               : 'bg-white/12 text-white hover:bg-white/20'
@@ -247,13 +248,13 @@ export function AdminJump({
                         >
                           <span
                             className={join(
-                              'inline-flex h-11 w-11 items-center justify-center rounded-full transition-colors',
+                              'inline-flex h-9 w-9 items-center justify-center rounded-full transition-colors',
                               t.on ? 'bg-sky text-white' : 'bg-white/20 text-white'
                             )}
                           >
                             <Icon aria-hidden className="h-5 w-5" />
                           </span>
-                          <span className="mt-3 text-sm font-semibold leading-tight">
+                          <span className="mt-2.5 text-sm font-semibold leading-tight">
                             {t.label}
                           </span>
                           <span
@@ -266,7 +267,7 @@ export function AdminJump({
                           </span>
                           <span
                             className={join(
-                              'mt-1.5 text-xs leading-snug',
+                              'mt-1.5 line-clamp-3 text-xs leading-snug',
                               t.on ? 'text-black/55' : 'text-white/55'
                             )}
                           >
@@ -280,7 +281,7 @@ export function AdminJump({
 
                 {toolList.length > 0 && (
                   <>
-                    <p className="mt-5 text-xs font-semibold text-white/60">도구</p>
+                    <p className="mt-4 text-xs font-semibold text-white/60">도구</p>
                     <div className="mt-2 grid grid-cols-2 gap-2">
                       {toolList.map((t, i) => {
                         const Icon = t.icon;
@@ -289,7 +290,7 @@ export function AdminJump({
                             key={`${i}-${t.label}`}
                             type="button"
                             onClick={t.onClick}
-                            className="flex min-h-14 items-center gap-2.5 rounded-2xl bg-white/12 px-3.5 text-left text-sm font-medium text-white transition-colors hover:bg-white/20 active:bg-white/25"
+                            className="flex min-h-12 items-center gap-2 rounded-2xl bg-white/12 px-3 text-left text-sm font-medium text-white transition-colors hover:bg-white/20 active:bg-white/25"
                           >
                             {Icon && (
                               <Icon
@@ -336,21 +337,21 @@ function BigTile({
       type="button"
       onClick={onClick}
       style={{ '--row': row } as CSSProperties}
-      className="flex aspect-square flex-col justify-between rounded-3xl bg-white/12 p-4 text-left transition-colors hover:bg-white/20 active:bg-white/25 motion-safe:animate-row-in"
+      className="flex aspect-square flex-col justify-between rounded-2xl bg-white/12 p-3.5 text-left transition-colors hover:bg-white/20 active:bg-white/25 motion-safe:animate-row-in"
     >
       <span className="flex items-start justify-between">
         <span
           className={join(
-            'inline-flex h-12 w-12 items-center justify-center rounded-full',
+            'inline-flex h-10 w-10 items-center justify-center rounded-full',
             lit ? 'bg-sky text-white' : 'bg-white/20 text-white'
           )}
         >
-          <Icon aria-hidden className="h-6 w-6" />
+          <Icon aria-hidden className="h-5 w-5" />
         </span>
         <ChevronRight aria-hidden className="h-5 w-5 text-white/40" />
       </span>
       <span>
-        <span className="block text-base font-semibold">{title}</span>
+        <span className="block text-sm font-semibold">{title}</span>
         <span className="mt-0.5 block truncate text-xs text-white/60">{sub}</span>
       </span>
     </button>
