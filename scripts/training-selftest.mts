@@ -536,9 +536,10 @@ console.log('\n[안전] 몸이 안 좋은 날 무거운 운동이 섞이지 않�
     facts.patterns.lastOutingPitches === 90,
     `${facts.patterns.lastOutingPitches}구`
   );
+  /* 투구 계획은 큰 등판 다음 날 쉬고, 그 뒤 며칠은 가볍게 던지며 푼다(plan.ts) — 평소 투구가 아니면 된다 */
   check(
-    '그제 90구 → 투구 계획은 오늘 아직 쉬는 날',
-    plan.today != null && !plan.today.throwing,
+    '그제 90구 → 투구 계획은 오늘 아직 회복 중(평소 투구가 아니다)',
+    plan.today != null && (!plan.today.throwing || plan.today.recovery),
     plan.today?.reason ?? 'null'
   );
 }
