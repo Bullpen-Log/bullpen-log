@@ -234,6 +234,8 @@ export function AppNav({
     pitchDays: string[];
     recentCheckins: CheckinData[];
     parts: string[];
+    /** 만 나이 — 체크인 요약의 팔 통증 안내가 쓴다(만 15세 미만은 루틴 대신 진료). 모르면 null */
+    age: number | null;
   };
 }) {
   const isActive = useIsActive();
@@ -1307,6 +1309,9 @@ export function AppNav({
           <CheckinForm
             recent={todo.recentCheckins}
             parts={todo.parts}
+            age={todo.age}
+            /* 팔 통증 안내의 [통증 루틴 하기]로 트레이닝에 갈 때 이 창도 닫는다 */
+            onLeave={() => setCheckinOpen(false)}
             onSaved={(d) => {
               /* 지금 받아 둔 목록을 기준으로 적어 둔다 — 새 목록이 오면 그것을 믿는다 */
               setCheckedHere({ day: d, basis: todo.checkinDays });

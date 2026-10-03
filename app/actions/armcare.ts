@@ -49,12 +49,16 @@ export async function makeArmcareRoutine(): Promise<{ ok: true } | { error: stri
     seed: today.routine
       ? `${today.todayKey}:${today.routine.items.map((it) => it.exerciseId).join(',')}`
       : today.todayKey,
+    /* 통증 루틴의 아픈 자리 — 오늘 '통증'인 관절의 것만(lib/armcare/today.ts) */
+    painSpots: today.armPain?.spots ?? [],
   });
 
   if (routine.items.length === 0) {
     return {
       error:
-        '가진 장비로 할 수 있는 암케어 운동이 없습니다. 트레이닝 설정에서 가진 장비를 확인해 주세요.',
+        today.decision.kind === 'pain'
+          ? '아픈 날에 할 만한 가벼운 암케어 운동이 없어요. 오늘은 팔을 쉬어 주세요.'
+          : '가진 장비로 할 수 있는 암케어 운동이 없습니다. 트레이닝 설정에서 가진 장비를 확인해 주세요.',
     };
   }
 

@@ -5,6 +5,7 @@ import { prisma } from '@/lib/prisma';
 import { getCurrentUser } from '@/lib/dal';
 import {
   CHECKIN_PARTS,
+  parseArmPain,
   parseCheckinBody,
   parseCheckinDetail,
   pickCheckinParts,
@@ -96,6 +97,19 @@ async function trySaveCheckin(formData: FormData): Promise<CheckinState> {
       : {};
 
   /*
+   * 팔 통증 자리 · 정도 — 어깨 · 팔꿈치가 '통증'인 날 그 줄 밑에서 고른다. 폼이 표시(armpain=1)를 보냈을
+   * 때만 쓴다. body=1 과 같은 까닭이다 — 배포 전에 열려 있던 옛 화면에는 이 칸이 없어, 아침에 고른 자리를
+   * 빈 값으로 덮지 않게 건드리지 않는다.
+   *
+   * 표시가 오면 늘 쓴다. 어깨 · 팔꿈치가 '통증'이 아니면 [] · null 이라 지난 값이 남지 않는다
+   * (lib/checkin.ts 의 parseArmPain). 고르지 않아도 저장은 막지 않는다.
+   */
+  const armPain =
+    formData.get('armpain') === '1'
+      ? parseArmPain((name) => formData.getAll(name).map(String), checked.value)
+      : {};
+
+  /*
    * 상세 쪽(운동 선호 · 상세 기록)은 폼이 담아 보냈을 때만(detail=1) 바꾼다.
    *
    * 간편 체크인에는 그 칸들이 아예 없다. 그때도 값을 쓰면, 아침에 상세로 적어
@@ -118,8 +132,16 @@ async function trySaveCheckin(formData: FormData): Promise<CheckinState> {
 
   await prisma.dailyCheckin.upsert({
     where: { userId_date: { userId: user.id, date } },
-    update: { ...quick, ...body, ...detail },
-    create: { userId: user.id, date, preferredParts: [], ...quick, ...body, ...detail },
+    update: { ...quick, ...body, ...armPain, ...detail },
+    create: {
+      userId: user.id,
+      date,
+      preferredParts: [],
+      ...quick,
+      ...body,
+      ...armPain,
+      ...detail,
+    },
   });
 
   // 통증·뻐근함 · 근육통 · 잔 시간은 오늘의 운동 후보를 바꾼다.
