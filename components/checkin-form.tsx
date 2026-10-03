@@ -876,9 +876,12 @@ export function CheckinForm({
 
               {painToday && (
                 <p className="mt-4 rounded-xl border border-danger-line bg-danger-bg px-4 py-3 text-xs leading-relaxed text-danger">
-                  통증이 있는 날은 던지거나 무리한 운동을 하지 마세요. 통증이 이어지면
-                  전문의 진료를 받아보는 것이 좋아요. 통증이 있는 동안에는 운동 추천도
-                  하지 않아요.
+                  {/*
+                    2026-10-03 부터 통증이 있는 날도 운동은 아픈 곳을 피해서 추천한다(lib/report/prescription.ts).
+                    예전 문구('운동 추천도 하지 않아요')가 사실과 달라져 바꿨다. 던지기는 그대로 멈춘다.
+                  */}
+                  통증이 있는 날은 던지지 마세요. 운동은 아픈 곳을 피해서 추천해요.
+                  통증이 이어지면 전문의 진료를 받아보세요.
                 </p>
               )}
             </div>
