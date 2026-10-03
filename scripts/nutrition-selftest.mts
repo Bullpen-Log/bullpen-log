@@ -2772,7 +2772,10 @@ console.log('\n■ 식단 짜기');
     for (const b of AVOIDS.slice(i + 1)) avoidSets.push([a.key, b.key]);
   });
 
-  /* ── 못 먹는 것 0~2개 × 끼니 구성 × 스타일, 하나도 빠짐없이(46 × 4 × 3 = 552가지) ── */
+  /*
+   * ── 못 먹는 것 0~2개 × 끼니 구성 × 스타일, 하나도 빠짐없이(46 × 4 × 3 = 552가지) ──
+   * 날짜 · 사람을 세 벌로 바꿔 돌린다 — 한 벌만 보면 뽑기 운으로 통과하는 조합이 있었다(두부 점심이 뽑힌 날만 단백질이 모자람).
+   */
   const MEALS_OF = { '3': 3, '3+1': 4, '3+2': 5, '2+1': 3 } as const;
   let combos = 0;
   const comboBad = {
@@ -2782,64 +2785,68 @@ console.log('\n■ 식단 짜기');
   };
   const comboMissing: string[] = [];
   const comboSupp: string[] = [];
-  avoidSets.forEach((avoid, ai) => {
-    for (const mealPattern of pats) {
-      for (const dietStyle of styles) {
-        const i = combos++;
-        const band = (['adult', 'teen', 'child'] as const)[i % 3];
-        const kg =
-          band === 'child'
-            ? 32 + (i % 15)
-            : band === 'teen'
-              ? 52 + (i % 20)
-              : 68 + (i % 30);
-        const protein = Math.round(
-          kg * (band === 'child' ? 1.2 : band === 'teen' ? 1.5 : 1.8)
-        );
-        const kcal = Math.round(
-          kg * (band === 'child' ? 60 : band === 'teen' ? 48 : 38) + (i % 4) * 150
-        );
-        const lowAppetite = i % 7 === 0;
-        const r = buildMealPlan({
-          ...base,
-          date: `2026-11-${String(1 + (i % 28)).padStart(2, '0')}`,
-          seed: 'a' + ai,
-          variant: i % 3,
-          targets: { kcal, protein },
-          goal: (['gain', 'maintain', 'lose'] as const)[i % 3],
-          ageBand: band,
-          prefs: {
-            ...DEFAULT_PREFS,
-            mealPattern,
-            dietStyle,
-            avoid,
-            /* 성장기 · 어린이는 켜 둬도 안 들어가야 한다 */
-            supplements: true,
-            seasonPhase: (['off', 'pre', 'in', 'rehab', null] as const)[i % 5],
-          },
-          place: places[i % 4],
-          hot: i % 5 === 0,
-          throwKind: kinds[i % 4],
-          appetite: lowAppetite ? 1 : null,
-          soreness: i % 11 === 0 ? 5 : null,
-        });
-        const label = `${avoid.join('+') || '없음'}/${mealPattern}/${dietStyle}/${band}`;
-        const m = planMacros(r.items);
-        if (Math.abs(m.kcal - kcal) > kcal * 0.1)
-          comboBad.kcal.push(`${label} ${Math.round(m.kcal)}/${kcal}`);
-        if (m.protein < protein * 0.85)
-          comboBad.protein.push(`${label} ${Math.round(m.protein)}/${protein}`);
-        if (r.items.some((it) => avoidsOf(it.sourceId).some((a) => avoid.includes(a))))
-          comboBad.avoid.push(label);
-        if (band !== 'adult' && r.items.some((it) => SUPPLEMENTS.has(it.sourceId)))
-          comboSupp.push(label);
-        const expected =
-          MEALS_OF[mealPattern] + (lowAppetite && mealPattern === '3' ? 1 : 0);
-        if (r.meals.length !== expected)
-          comboMissing.push(`${label} ${r.meals.length}/${expected}`);
+  for (const shift of [0, 9, 17]) {
+    avoidSets.forEach((avoid, ai) => {
+      for (const mealPattern of pats) {
+        for (const dietStyle of styles) {
+          const i = combos++;
+          const band = (['adult', 'teen', 'child'] as const)[i % 3];
+          const kg =
+            band === 'child'
+              ? 32 + (i % 15)
+              : band === 'teen'
+                ? 52 + (i % 20)
+                : 68 + (i % 30);
+          const protein = Math.round(
+            kg * (band === 'child' ? 1.2 : band === 'teen' ? 1.5 : 1.8)
+          );
+          const kcal = Math.round(
+            kg * (band === 'child' ? 60 : band === 'teen' ? 48 : 38) + (i % 4) * 150
+          );
+          const lowAppetite = i % 7 === 0;
+          const r = buildMealPlan({
+            ...base,
+            date: `2026-11-${String(1 + ((i + shift) % 28)).padStart(2, '0')}`,
+            seed: `a${ai}-${shift}`,
+            variant: i % 3,
+            targets: { kcal, protein },
+            goal: (['gain', 'maintain', 'lose'] as const)[i % 3],
+            ageBand: band,
+            prefs: {
+              ...DEFAULT_PREFS,
+              mealPattern,
+              dietStyle,
+              avoid,
+              /* 성장기 · 어린이는 켜 둬도 안 들어가야 한다 */
+              supplements: true,
+              seasonPhase: (['off', 'pre', 'in', 'rehab', null] as const)[i % 5],
+            },
+            place: places[i % 4],
+            hot: i % 5 === 0,
+            throwKind: kinds[i % 4],
+            appetite: lowAppetite ? 1 : null,
+            soreness: i % 11 === 0 ? 5 : null,
+          });
+          const label = `${avoid.join('+') || '없음'}/${mealPattern}/${dietStyle}/${band}`;
+          const m = planMacros(r.items);
+          if (Math.abs(m.kcal - kcal) > kcal * 0.1)
+            comboBad.kcal.push(`${label} ${Math.round(m.kcal)}/${kcal}`);
+          if (m.protein < protein * 0.85)
+            comboBad.protein.push(`${label} ${Math.round(m.protein)}/${protein}`);
+          if (
+            r.items.some((it) => avoidsOf(it.sourceId).some((a) => avoid.includes(a)))
+          )
+            comboBad.avoid.push(label);
+          if (band !== 'adult' && r.items.some((it) => SUPPLEMENTS.has(it.sourceId)))
+            comboSupp.push(label);
+          const expected =
+            MEALS_OF[mealPattern] + (lowAppetite && mealPattern === '3' ? 1 : 0);
+          if (r.meals.length !== expected)
+            comboMissing.push(`${label} ${r.meals.length}/${expected}`);
+        }
       }
-    }
-  });
+    });
+  }
   check(
     `못 먹는 것 0~2개 × 끼니 구성 × 스타일 ${combos}가지 — 하루 kcal 이 목표의 ±10% 안`,
     comboBad.kcal.length === 0,
@@ -2856,7 +2863,7 @@ console.log('\n■ 식단 짜기');
     comboBad.avoid.slice(0, 4).join(' · ')
   );
   check(
-    '성장기 · 어린이는 보충식품을 켜 둬도 안 들어간다(552가지)',
+    `성장기 · 어린이는 보충식품을 켜 둬도 안 들어간다(${combos}가지)`,
     comboSupp.length === 0,
     comboSupp.slice(0, 4).join(' · ')
   );
@@ -2956,9 +2963,10 @@ console.log('\n■ 식단 짜기');
     };
     const bySlotDay = new Map<string, string[]>();
     for (let d = 0; d < 7; d++) {
+      /* 시작 요일을 사람마다 바꿔 이레가 월요일(이어 짜기를 새로 시작하는 날)을 걸치게 */
       const r = buildMealPlan({
         ...input,
-        date: `2026-11-${String(9 + d).padStart(2, '0')}`,
+        date: `2026-11-${String(9 + (i % 7) + d).padStart(2, '0')}`,
       });
       const nth: Record<string, number> = {};
       for (const meal of r.meals) {
