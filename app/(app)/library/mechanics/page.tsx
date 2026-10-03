@@ -3,14 +3,14 @@ import { favoriteDrillIds } from '@/lib/favorites';
 import { createPlaybackUrls } from '@/lib/storage';
 import { referenceThumbUrl } from '@/lib/reference-video';
 import { MechanicsClient, type GuideItem } from './mechanics-client';
-import { allGuides } from '@/lib/library-cache';
+import { visibleGuides } from '@/lib/library-cache';
 
 export default async function MechanicsPage() {
   const user = await requireUser();
 
   const [guides, favoriteIds] = await Promise.all([
-    /* 누가 보든 같은 목록이라 캐시에서 꺼낸다 (lib/library-cache.ts) */
-    allGuides(),
+    /* 누가 보든 같은 목록이라 캐시에서 꺼낸다 (lib/library-cache.ts). 숨긴 드릴은 뺀다 */
+    visibleGuides(),
     favoriteDrillIds(user.id),
   ]);
 
@@ -25,6 +25,7 @@ export default async function MechanicsPage() {
     description: g.description,
     focusPoints: g.focusPoints,
     equipment: g.equipment,
+    stage: g.stage,
     videoPath: g.videoPath,
     source: g.source,
     referenceVideoId: g.referenceVideoId,

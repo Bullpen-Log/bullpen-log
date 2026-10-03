@@ -10,6 +10,7 @@ import {
   BODY_PARTS,
   DIFFICULTY_NAMES,
   DRILL_EQUIPMENT,
+  DRILL_STAGE_NAMES,
   EXERCISE_EQUIPMENT,
   FOCUS_POINTS,
   INTENSITY_NAMES,
@@ -351,13 +352,11 @@ async function tryCreateGuide(formData: FormData): Promise<ActionState> {
     return { error: '순서는 숫자로 입력해주세요.' };
   }
 
-  const focusPoints = pickMany(
-    formData.getAll('focusPoints').map(String),
-    FOCUS_POINTS
-  );
+  const focusPoints = readFocusPoints(formData);
   if (focusPoints.length === 0) {
-    return { error: '교정 포인트를 하나 이상 선택해주세요.' };
+    return { error: '주 요소를 선택해주세요.' };
   }
+  const stage = pickOne(String(formData.get('stage') ?? ''), DRILL_STAGE_NAMES);
 
   const equipment = pickMany(formData.getAll('equipment').map(String), DRILL_EQUIPMENT);
 
@@ -370,6 +369,7 @@ async function tryCreateGuide(formData: FormData): Promise<ActionState> {
       thumbPath,
       focusPoints,
       equipment,
+      stage,
       sortOrder,
     },
   });
@@ -377,6 +377,21 @@ async function tryCreateGuide(formData: FormData): Promise<ActionState> {
   clearLibraryCache();
   revalidatePath('/library/mechanics');
   return { success: '가이드가 등록되었습니다.' };
+}
+
+/**
+ * 드릴의 요소 — 주 요소를 맨 앞에, 보조는 그 뒤로 두 개까지(요소 목록 차례).
+ *
+ * 한 칸(focusPoints)에 담되 맨 앞이 주 요소라는 약속이다(schema.prisma). 체크 칸 하나로 받으면 고른 차례가
+ * 요소 목록 차례로 바뀌어 무엇이 주 요소였는지 잃는다 — 그래서 폼이 주 요소(focusMain)를 따로 보낸다.
+ */
+function readFocusPoints(formData: FormData): string[] {
+  const main = pickOne(String(formData.get('focusMain') ?? ''), FOCUS_POINTS);
+  if (!main) return [];
+  const subs = pickMany(formData.getAll('focusPoints').map(String), FOCUS_POINTS)
+    .filter((p) => p !== main)
+    .slice(0, 2);
+  return [main, ...subs];
 }
 
 export async function deleteGuide(formData: FormData) {
@@ -439,13 +454,11 @@ async function tryUpdateGuide(formData: FormData): Promise<ActionState> {
     return { error: '순서는 숫자로 입력해주세요.' };
   }
 
-  const focusPoints = pickMany(
-    formData.getAll('focusPoints').map(String),
-    FOCUS_POINTS
-  );
+  const focusPoints = readFocusPoints(formData);
   if (focusPoints.length === 0) {
-    return { error: '교정 포인트를 하나 이상 선택해주세요.' };
+    return { error: '주 요소를 선택해주세요.' };
   }
+  const stage = pickOne(String(formData.get('stage') ?? ''), DRILL_STAGE_NAMES);
 
   const equipment = pickMany(formData.getAll('equipment').map(String), DRILL_EQUIPMENT);
 
@@ -459,6 +472,7 @@ async function tryUpdateGuide(formData: FormData): Promise<ActionState> {
       thumbPath,
       focusPoints,
       equipment,
+      stage,
       sortOrder,
       // 운동과 같은 이유 — updateExercise 주석 참고.
       ...(replacing ? { source: 'OWN' as const, referenceVideoId: null } : {}),

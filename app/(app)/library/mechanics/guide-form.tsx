@@ -6,10 +6,18 @@ import { Film, RefreshCw } from 'lucide-react';
 import { createGuide, updateGuide, type ActionState } from '@/app/actions/content';
 import { guardFormAction } from '@/lib/action-offline';
 import { Button, Field, FormError, Input, Textarea } from '@/components/ui';
-import { CheckboxGroup } from '@/components/choice-inputs';
+import { CheckboxGroup, RadioGroup } from '@/components/choice-inputs';
 import { kept, keptAll } from '@/lib/form-values';
 import { VideoUpload, type UploadedVideo } from '@/components/video-upload';
-import { DRILL_EQUIPMENT, FOCUS_POINTS } from '@/lib/exercise-meta';
+import {
+  DRILL_EQUIPMENT,
+  DRILL_STAGES,
+  FOCUS_POINT_DESC,
+  FOCUS_POINTS,
+} from '@/lib/exercise-meta';
+
+/** 주 요소 고르기 칸 — 요소마다 한 줄 뜻을 붙인다 */
+const FOCUS_OPTIONS = FOCUS_POINTS.map((name) => ({ name, desc: FOCUS_POINT_DESC[name] }));
 
 /** 수정할 때 폼에 채워 넣을 기존 값 */
 export type GuideDraft = {
@@ -17,8 +25,11 @@ export type GuideDraft = {
   title: string;
   category: string;
   description: string;
+  /** 맨 앞이 주 요소, 뒤가 보조 */
   focusPoints: string[];
   equipment: string[];
+  /** 기초 · 연결 · 통합 — 아직 안 정했으면 null */
+  stage: string | null;
   sortOrder: number;
 };
 
@@ -173,12 +184,33 @@ export function GuideForm({
 
       {/* 나중에 영상분석에서 찾은 문제와 드릴을 이어주는 항목이다. */}
       <div className="space-y-5 border-t border-sky-soft/30 pt-5">
+        {/*
+          주 요소와 보조 요소를 따로 받는다 — 서버가 주 요소를 맨 앞에 두고 보조를 두 개까지 잇는다
+          (app/actions/content.ts readFocusPoints). 보조에서 주 요소와 같은 것을 골라도 한 번만 들어간다.
+        */}
+        <RadioGroup
+          name="focusMain"
+          label="주 요소 · 필수"
+          hint="이 드릴이 투구의 어느 부분을 가장 키우는지 고르세요."
+          options={FOCUS_OPTIONS}
+          selected={String(pick('focusMain', initial?.focusPoints[0]) ?? '') || null}
+          required
+        />
+
         <CheckboxGroup
           name="focusPoints"
-          label="교정 포인트 · 필수"
-          hint="이 드릴이 무엇을 고치는 드릴인지 고르세요."
+          label="보조 요소 · 두 개까지"
+          hint="함께 쓰는 요소가 있으면 고르세요. 두 개를 넘으면 앞의 두 개만 저장돼요."
           options={FOCUS_POINTS}
-          selected={pickAll('focusPoints', initial?.focusPoints)}
+          selected={pickAll('focusPoints', initial?.focusPoints.slice(1))}
+        />
+
+        <RadioGroup
+          name="stage"
+          label="단계"
+          hint="메커니즘 프로그램이 쉬운 단계부터 고를 때 써요."
+          options={DRILL_STAGES}
+          selected={String(pick('stage', initial?.stage) ?? '') || null}
         />
 
         <CheckboxGroup

@@ -41,8 +41,9 @@ export type CachedExercise = Omit<
 };
 
 /** 날짜를 문자열로 바꾼 드릴 한 줄 */
-export type CachedGuide = Omit<MechanicsGuide, 'createdAt'> & {
+export type CachedGuide = Omit<MechanicsGuide, 'createdAt' | 'hiddenAt'> & {
   createdAt: string;
+  hiddenAt: string | null;
 };
 
 const iso = (d: Date | null) => (d ? d.toISOString() : null);
@@ -95,11 +96,24 @@ export const allGuides = unstable_cache(
     const rows = await prisma.mechanicsGuide.findMany({
       orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }],
     });
-    return rows.map((r) => ({ ...r, createdAt: r.createdAt.toISOString() }));
+    return rows.map((r) => ({
+      ...r,
+      createdAt: r.createdAt.toISOString(),
+      hiddenAt: iso(r.hiddenAt),
+    }));
   },
-  ['library:guides'],
+  /*
+   * :v2 — 2026-10-04 단계(stage) · 숨김(hiddenAt) 칸이 생기고 요소가 6가지로 바뀌었다
+   * (scripts/mechanics-classify-2026-10-04.mjs). 이름이 같으면 새 칸 없는 옛 줄이 남아 숨긴 드릴이 계속 나온다.
+   */
+  ['library:guides:v2'],
   { tags: [LIBRARY_TAG] }
 );
+
+/** 숨기지 않은 드릴만 — 투구 드릴 화면 · 메커니즘이 보는 목록 */
+export async function visibleGuides(): Promise<CachedGuide[]> {
+  return (await allGuides()).filter((g) => g.hiddenAt == null);
+}
 
 /** 숨기지 않은 운동만. 새 일정에 나갈 수 있는 것들이다. */
 export async function visibleExercises(): Promise<CachedExercise[]> {

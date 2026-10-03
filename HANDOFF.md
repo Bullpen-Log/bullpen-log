@@ -11,6 +11,19 @@ Claude 로 작업을 시작하면 저절로 읽힌다. 규칙은 `AGENTS.md` 6�
 
 ---
 
+## 금윤호에게 — 2026-10-04 · 김민(Claude) — 투구 드릴 표에 칸 둘(단계 · 숨김) · 요소 6가지로
+
+**받은 뒤 할 일: `npx prisma generate` 후 개발 서버 다시 켜기.** DB 구조를 바꿨다(새 칸만 — 백업 `db-2026-10-03-15-34.json` 뒤,
+마이그레이션 `20261004100000_mechanics_stage_hidden` 은 이미 공유 DB 에 적용). 네 코드가 깨지는 곳은 없다.
+
+- `MechanicsGuide` 에 `stage String?`(기초 · 연결 · 통합) · `hiddenAt DateTime?`(운동처럼 지우지 않고 숨김).
+- 드릴의 `focusPoints` 값이 바뀌었다 — 예전 스로잉 · 상체 · 하체 · 전신 → **드리프트 · 드롭 · 상하체 분리 · 브레이크 · 몸통 회전 · 스로잉**
+  (`lib/exercise-meta.ts` FOCUS_POINTS · FOCUS_POINT_DESC · DRILL_STAGES). 맨 앞이 주 요소. 113개 모두 넣었고 넷을 숨겼다
+  (`scripts/mechanics-classify-2026-10-04.mjs`, 표 `docs/mechanics/drill-classification.md`).
+- 드릴 캐시 이름 `library:guides` → `library:guides:v2`, 보이는 드릴만은 `visibleGuides()`.
+- 왜: 투구 드릴(113개)을 아무도 안 썼다(기록 · 별 0). 사용자분 계획 — ① 고치고 싶은 요소로 드릴 찾기 ② 쉬운 단계부터 올라가는
+  '투구 메커니즘 향상 프로그램'을 암케어처럼 트레이닝 안에 따로. 다음 작업에서 화면 · 진행 표(또 구조 변경)가 생기면 다시 알린다.
+
 ## 금윤호에게 — 2026-10-04 · 김민(Claude) — 운동 라이브러리 정리 · 장비 '플라이오볼' · 상체날 고립 규칙 · 캐시 v11
 
 받은 뒤 할 일 없음(DB 구조 그대로 — 운동 줄만 고침, 백업 `db-2026-10-03-15-18.json` 뒤. 스크립트 `scripts/library-armcare-review-2026-10-04.mjs`).
