@@ -234,9 +234,9 @@ export function RehabCard({ view }: { view: RehabCardView }) {
               </ul>
             ) : (
               <p className="text-sm leading-relaxed break-keep text-ink/85">
-                4단계 공 운동을 2주 통증 없이 하고, 밀기 · 공 던지기 힘 비교와 팔
-                상태(다치기 전의 90% 이상) · 던질 자신감(7 이상)을 봐요. 가능하면 진료
-                때 투구 복귀를 물어보세요.
+                4단계 공 운동을 며칠 통증 없이 하고(가벼움 4 · 보통 5 · 심함 7일), 밀기
+                · 공 던지기 힘 비교와 팔 상태(다치기 전의 90% 이상) · 던질 자신감(7
+                이상)을 봐요. 가능하면 진료 때 투구 복귀를 물어보세요.
               </p>
             )}
             {view.stageTest && (

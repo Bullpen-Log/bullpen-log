@@ -636,8 +636,24 @@ export const STAGE_DAYS: Record<
   severe: [7, 10, 7, 7],
 };
 
-/** 단계를 올리는 데 필요한 깨끗한(초록) 세션 수 — 1단계 5 · 2단계 6 · 3단계 6 */
-export const CLEAN_SESSIONS_NEEDED: Record<1 | 2 | 3, number> = { 1: 5, 2: 6, 3: 6 };
+/**
+ * 단계를 올리는 데 필요한 깨끗한(초록) 세션 수 — 그 단계의 최소 기간 안에 할 수 있는 만큼(1단계 매일, 2~4단계 하루 걸러), 2~5번.
+ *
+ * 2026-10-04 고침: 처음 설계는 1단계 5 · 2단계 6 · 3단계 6 이었는데, 하루 걸러 하면 6번에 11일이 걸려 정도별 기간 표
+ * (가벼움 3단계 3일 · 보통 2단계 7일)와 어긋났다 — '가벼움 약 1주'가 실제로는 3주 넘게 걸렸다. 기간이 시간을, 이 수가
+ * 그 기간 동안 꾸준히 했는지를 본다. 최소 기간이 0 인 단계(그 정도는 이 단계부터 시작하지 않는다 — 낮춰 내려왔을 때)는 3번.
+ */
+export function cleanSessionsNeeded(
+  program: Pick<
+    RehabProgramLike,
+    'severity' | 'condition' | 'stage' | 'stageShortenDays'
+  >
+): number {
+  const days = stageMinDays(program);
+  if (days === 0) return 3;
+  const possible = program.stage === 1 ? days : Math.ceil(days / 2);
+  return Math.min(5, Math.max(2, possible));
+}
 
 /** 병명 바닥(일) — 없으면 0 */
 export function conditionFloorDays(condition: RehabConditionKey | null): number {
@@ -1350,8 +1366,8 @@ export function rehabStatus({
 }
 
 /**
- * 단계를 올려도 되는가(시험을 해 볼 수 있는가) — 최소 기간 + 깨끗한 세션 수(1단계 5 · 2단계 6 · 3단계 6) + 최근 세 세션
- * 초록 + (심함 1단계) 밤 · 쉴 때 통증 7일 없음. 낮춘 날 · 진료를 권하는 날은 올리지 않는다. 4단계 다음은 투구 복귀표(②번).
+ * 단계를 올려도 되는가(시험을 해 볼 수 있는가) — 최소 기간 + 깨끗한 세션 수(cleanSessionsNeeded) + 최근 세 세션(필요한 수가
+ * 셋보다 적으면 그만큼) 초록 + (심함 1단계) 밤 · 쉴 때 통증 7일 없음. 낮춘 날 · 진료를 권하는 날은 올리지 않는다. 4단계 다음은 투구 복귀표(②번).
  */
 export function stageGate({
   program,
@@ -1373,7 +1389,7 @@ export function stageGate({
   if (program.stage === 4) {
     return { ready: false, checks: [], minDays, elapsed, clean: 0, cleanNeeded: 0 };
   }
-  const cleanNeeded = CLEAN_SESSIONS_NEEDED[program.stage];
+  const cleanNeeded = cleanSessionsNeeded(program);
   let lastBad = -1;
   inStage.forEach((s, i) => {
     if (s.result === 'red' || s.result === 'refer') lastBad = i;
@@ -1381,10 +1397,11 @@ export function stageGate({
   const clean = inStage
     .slice(lastBad + 1)
     .filter((s) => s.result === 'green' && !s.lowered).length;
-  const lastThree = inStage.slice(-3);
+  const recentNeeded = Math.min(3, cleanNeeded);
+  const recent = inStage.slice(-recentNeeded);
   const threeGreen =
-    lastThree.length === 3 &&
-    lastThree.every((s) => s.result === 'green' && !s.lowered);
+    recent.length === recentNeeded &&
+    recent.every((s) => s.result === 'green' && !s.lowered);
 
   const checks: GateCheck[] = [
     { label: `이 단계 ${minDays}일 이상 (지금 ${elapsed}일)`, ok: elapsed >= minDays },
@@ -1392,7 +1409,7 @@ export function stageGate({
       label: `깨끗한(초록) 세션 ${cleanNeeded}번 (지금 ${Math.min(clean, cleanNeeded)}번)`,
       ok: clean >= cleanNeeded,
     },
-    { label: '최근 세 번 모두 초록', ok: threeGreen },
+    { label: `최근 ${recentNeeded}번 모두 초록`, ok: threeGreen },
   ];
   if (program.severity === 'severe' && program.stage === 1) {
     checks.push({
@@ -1530,17 +1547,24 @@ export function judgeStageTest(
 
 /* ─────────────────────────────── 투구 복귀표 열기 ─────────────────────────────── */
 
-/** 4단계 공 운동을 이만큼 통증 없이 해야 한다(일) */
-export const BALL_WORK_PAIN_FREE_DAYS = 14;
+/**
+ * 4단계 공 운동을 이만큼 통증 없이 해야 한다(일) — 정도의 4단계 최소 기간(가벼움 4 · 보통 5 · 심함 7일).
+ * 2026-10-04 고침: 처음에는 Wilk 의 '공 운동 2주'를 그대로 14일로 두었는데, 정도별 기간 표(사용자 "너무 보수적")와
+ * 어긋났다. 진단받은 병은 병명 바닥(시작부터 UCL 6주 등)이 따로 지킨다.
+ */
+export function ballWorkPainFreeDays(severity: RehabSeverity): number {
+  return STAGE_DAYS[severity][3];
+}
 
 /**
  * 투구 복귀표를 여는가(가이드라인 9절 마지막 줄 — 화면은 ②번).
- *   4단계 공 운동 2주 통증 없이 + 병명 바닥(시작부터) + 앉아서 한 팔 메디신볼 밀기 ≥ 100% +
+ *   4단계 공 운동을 정도의 4단계 기간만큼 통증 없이 + 병명 바닥(시작부터) + 앉아서 한 팔 메디신볼 밀기 ≥ 100% +
  *   (플라이오볼이 있으면) 프론 볼 드롭 30초 ≥ 110% · 한 팔 90/90 벽 던지기 30초 ≥ 115% + 시험 중 통증 없이 +
  *   정상 대비 90% 이상 + 던질 자신감 7 이상
  * 플라이오볼이 없으면 볼 드롭 · 벽 던지기는 건너뛰고 밀기 · 힘 비교로 본다.
  */
 export function judgeThrowingOpen(input: {
+  severity: RehabSeverity;
   painFreeBallDays: number;
   daysSinceStart: number;
   condition: RehabConditionKey | null;
@@ -1553,8 +1577,9 @@ export function judgeThrowingOpen(input: {
   confidence: number;
 }): { pass: boolean; fails: string[] } {
   const fails: string[] = [];
-  if (input.painFreeBallDays < BALL_WORK_PAIN_FREE_DAYS) {
-    fails.push(`4단계 공 운동을 ${BALL_WORK_PAIN_FREE_DAYS}일 통증 없이 해야 해요.`);
+  const ballDays = ballWorkPainFreeDays(input.severity);
+  if (input.painFreeBallDays < ballDays) {
+    fails.push(`4단계 공 운동을 ${ballDays}일 통증 없이 해야 해요.`);
   }
   const floor = conditionFloorDays(input.condition);
   if (input.condition && input.daysSinceStart < floor) {

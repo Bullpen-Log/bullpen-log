@@ -6476,8 +6476,20 @@ console.log(
     ready.gate.checks.map((c) => `${c.ok ? '✓' : '·'}${c.label}`).join(' / ')
   );
   check(
-    '단계 올리기 — 깨끗한 세션 5개면 아직',
-    !status(greens('2026-06-01', 5), '2026-06-12').gate.ready
+    '단계 올리기 — 깨끗한 세션 수는 최소 기간 안에 할 수 있는 만큼: 보통 2단계(7일 · 하루 걸러) 4번, 3개면 아직',
+    status(greens('2026-06-01', 6), '2026-06-13').gate.cleanNeeded === 4 &&
+      !status(greens('2026-06-05', 3), '2026-06-12').gate.ready
+  );
+  check(
+    '단계 올리기 — 가벼움 3단계(3일)는 깨끗한 2번 · 최근 2번 초록, 심함 1단계(7일 · 매일)는 5번',
+    status(greens('2026-06-01', 2, 2, { stage: 3 }), '2026-06-04', {
+      severity: 'mild',
+      stage: 3,
+    }).gate.ready &&
+      status(greens('2026-06-01', 2, 1, { stage: 1 }), '2026-06-08', {
+        severity: 'severe',
+        stage: 1,
+      }).gate.cleanNeeded === 5
   );
   check(
     '단계 올리기 — 최소 기간 전이면 아직(보통 2단계 7일, 6일째)',
@@ -6635,7 +6647,8 @@ console.log(
   );
   const open = (over: Partial<Parameters<typeof judgeThrowingOpen>[0]> = {}) =>
     judgeThrowingOpen({
-      painFreeBallDays: 14,
+      severity: 'severe',
+      painFreeBallDays: 7,
       daysSinceStart: 30,
       condition: null,
       hasPlyo: true,
@@ -6648,12 +6661,14 @@ console.log(
       ...over,
     }).pass;
   check(
-    '투구 복귀표 열기 — 기준선 통과, 볼 드롭 109%(110 필요) · 벽 던지기 114%(115 필요) · 밀기 99% · 13일 · 정상 89% · 자신감 6 은 각각 실패',
+    '투구 복귀표 열기 — 기준선 통과, 볼 드롭 109%(110 필요) · 벽 던지기 114%(115 필요) · 밀기 99% · 심함 6일(7 필요) · 정상 89% · 자신감 6 은 각각 실패, 가벼움은 4일이면 됨',
     open() &&
       !open({ drop: { injured: 109, other: 100 } }) &&
       !open({ wall: { injured: 114, other: 100 } }) &&
       !open({ push: { injured: 99, other: 100 } }) &&
-      !open({ painFreeBallDays: 13 }) &&
+      !open({ painFreeBallDays: 6 }) &&
+      open({ severity: 'mild', painFreeBallDays: 4 }) &&
+      !open({ severity: 'mild', painFreeBallDays: 3 }) &&
       !open({ normalPct: 89 }) &&
       !open({ confidence: 6 })
   );
