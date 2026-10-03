@@ -22,6 +22,8 @@ export type ArmcareTodayItem = {
   done: boolean;
   /** 만든 뒤 몸 상태가 바뀌어 지금은 권하지 않는 운동인가 (아직 안 한 것만) */
   unsafe: boolean;
+  /** 이름 옆 한마디 — 재활 운동의 '가볍게' · '아프지 않은 높이까지'(재활 2편). 없으면 안 그린다 */
+  note?: string | null;
 };
 
 /**
@@ -411,7 +413,7 @@ export function Checklist({
               </div>
             )}
             <ul className="space-y-2.5">
-              {group.items.map(({ exercise: ex, done, unsafe }) => (
+              {group.items.map(({ exercise: ex, done, unsafe, note }) => (
                 <li
                   key={ex.id}
                   className={`overflow-hidden rounded-2xl border transition-colors ${
@@ -424,11 +426,18 @@ export function Checklist({
                     onToggle={() => toggle(ex.id)}
                     title={ex.title}
                     badges={
-                      ex.isReference && (
-                        <span className="text-[10px] font-medium text-muted">
-                          참고 영상
-                        </span>
-                      )
+                      <>
+                        {note && (
+                          <span className="text-xs font-semibold text-sky-strong">
+                            {note}
+                          </span>
+                        )}
+                        {ex.isReference && (
+                          <span className="text-[10px] font-medium text-muted">
+                            참고 영상
+                          </span>
+                        )}
+                      </>
                     }
                     prescription={ex.prescription}
                     warning={

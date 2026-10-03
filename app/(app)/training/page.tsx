@@ -149,6 +149,7 @@ export default async function TrainingPage({
           tab={tab}
           today={today}
           focusMuscle={typeof params.muscle === 'string' ? params.muscle : null}
+          openRehab={params.rehab === 'start'}
         />
       </div>
     );

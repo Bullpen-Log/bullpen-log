@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { ChevronDown, Play, TriangleAlert } from 'lucide-react';
+import { ChevronDown, ChevronRight, Play, TriangleAlert } from 'lucide-react';
 import {
   DISCLAIMER,
   RED_FLAGS,
@@ -10,6 +10,7 @@ import {
   levelAdvice,
   type PainGuide,
 } from '@/lib/armcare/pain-guide';
+import { REHAB_ENABLED } from '@/lib/armcare/rehab';
 import type { ArmPainView } from './arm-pain-guide';
 
 /**
@@ -62,6 +63,26 @@ export function ArmPainGuideBody({
       </section>
 
       <p className="border-t border-line pt-3 text-xs text-muted">{DISCLAIMER}</p>
+
+      {/*
+        재활 2편 — 몇 주에 걸친 단계별 재활로 가는 줄. 암케어 [루틴] 칸에서 시작 시트가 열린다(?rehab=start —
+        재활 중이면 그 카드로). 체크인 창 안에서 열었으면 그 창까지 닫는다(onGo).
+      */}
+      {REHAB_ENABLED && (
+        <Link
+          href="/training?view=armcare&rehab=start"
+          onClick={onGo}
+          className="flex min-h-11 items-center gap-2 rounded-2xl bg-surface-2 px-4 py-2.5 text-sm text-ink transition-colors hover:bg-sky-tint"
+        >
+          <span className="min-w-0 flex-1">
+            <b className="block font-semibold">재활 프로그램</b>
+            <span className="block text-xs text-muted">
+              아픈 곳과 정도에 맞춰 몇 주에 걸쳐 단계별로 해요
+            </span>
+          </span>
+          <ChevronRight aria-hidden className="h-4 w-4 shrink-0 text-muted" />
+        </Link>
+      )}
     </div>
   );
 }
@@ -110,9 +131,9 @@ function SpotGuide({ guide }: { guide: PainGuide }) {
 
 /**
  * 이런 게 있으면 바로 진료 — 체크 칸 없이 글로만(2026-10-03 정함). 빨간 상자는 접혀 있어도 다섯을 줄인
- * 한 줄이 보이고, 누르면 한 줄씩 펼쳐진다. 빨강은 이 상자만 쓴다(경고색).
+ * 한 줄이 보이고, 누르면 한 줄씩 펼쳐진다. 빨강은 이 상자만 쓴다(경고색). 재활 카드 · 시작 시트도 이것을 쓴다(재활 2편).
  */
-function RedFlags() {
+export function RedFlags() {
   return (
     <details className="group rounded-2xl border border-danger-line bg-danger-bg text-danger">
       <summary className="flex min-h-11 cursor-pointer list-none items-start gap-2 px-4 py-3">

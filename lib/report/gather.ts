@@ -10,6 +10,7 @@ import { RECENT_DAYS } from '@/lib/report/today-pick';
 import { shiftDateKey, toDateKey } from '@/lib/pitch-stats';
 import { readDailyPlan } from '@/lib/report/daily-plan';
 import type { RecentTrainingDay } from '@/lib/ai/auto-setup-prompt';
+import { loadRehabFacts } from '@/lib/armcare/rehab-store';
 
 /** 부하 계산에 필요한 기간. 4주 만성 부하에 여유를 둔다. */
 export const LOOKBACK_DAYS = 45;
@@ -77,7 +78,14 @@ export async function gatherFactsAndPlan(
   const since = new Date(today);
   since.setDate(since.getDate() - LOOKBACK_DAYS);
 
-  const [logs, checkins] = await recentRecords(user.id, since.toISOString());
+  /*
+   * 진행 중인 재활(재활 2편) — 투구 계획이 멈추고 웨이트가 그 관절의 무거운 운동을 뺀다(facts.condition.rehab).
+   * 스위치(REHAB_ENABLED)를 끄면 읽지 않아 null 이다.
+   */
+  const [[logs, checkins], rehab] = await Promise.all([
+    recentRecords(user.id, since.toISOString()),
+    loadRehabFacts(user.id, today),
+  ]);
 
   const todayKey = toDateKey(today);
   const usedLogs = options?.excludeToday
@@ -90,6 +98,7 @@ export async function gatherFactsAndPlan(
     heightCm: user.heightCm,
     trainingLevel: user.trainingLevel,
     baselineDailyLoad: estimateDailyLoad(user),
+    rehab,
     logs: usedLogs.map((l) => ({
       date: l.date.toISOString(),
       sessionType: l.sessionType,

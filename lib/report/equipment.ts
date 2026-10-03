@@ -47,8 +47,8 @@ export function equipmentForToday(
 
 type WithEquipment = { equipment: string[] };
 
-/** 이 운동을 가진 장비로 할 수 있는가 */
-function canDo(ex: WithEquipment, owned: Set<string>): boolean {
+/** 이 운동을 가진 장비로 할 수 있는가 — 재활 세션의 장비 바꿔 넣기(lib/armcare/rehab.ts)도 쓴다 */
+export function canDo(ex: WithEquipment, owned: Set<string>): boolean {
   return ex.equipment.every((name) => name === ALWAYS_OWNED || owned.has(name));
 }
 

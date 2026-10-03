@@ -13,6 +13,19 @@ import {
   decideArmcare,
   readArmcareRoutine,
 } from '@/lib/armcare/routine';
+import {
+  buildRehabSession,
+  rehabStatus,
+  type RehabProgramLike,
+  type RehabSession,
+  type RehabStatus,
+} from '@/lib/armcare/rehab';
+import {
+  loadActiveRehab,
+  loadDoneOn,
+  loadRehabRecords,
+  toRehabLibrary,
+} from '@/lib/armcare/rehab-store';
 
 /**
  * 오늘의 암케어 화면과 '만들기'가 함께 읽는 자료.
@@ -38,11 +51,51 @@ export type UserForArmcare = {
 /** 오래 안 한 것부터 돌리려고 보는 기간(일) */
 const HISTORY_DAYS = 45;
 
+/**
+ * 진행 중인 재활의 오늘 — 재활 중이면 맞춤 루틴을 짜지 않고 이것을 낸다(재활 2편). 내 루틴은 그대로다.
+ *
+ *   status   쉬는 날 · 낮춘 날 · 진료 권유 · 단계 올리기 조건 · 카드 한 줄(lib/armcare/rehab.ts 의 rehabStatus)
+ *   session  오늘 할 운동(낮춘 날은 아래 단계, 가진 장비로 바꿔 넣음 — buildRehabSession)
+ *   doneToday 오늘 체크한 재활 운동 — 재활 운동은 카테고리가 여럿이라 암케어 기록과 따로 읽는다
+ */
+export type RehabToday = {
+  id: string;
+  program: RehabProgramLike;
+  activities: string[];
+  status: RehabStatus;
+  session: RehabSession;
+  doneToday: Set<string>;
+};
+
+async function loadRehabToday(
+  user: UserForArmcare,
+  todayKey: string,
+  library: CachedExercise[]
+): Promise<RehabToday | null> {
+  const active = await loadActiveRehab(user.id);
+  if (!active) return null;
+  const { sessions, checkins } = await loadRehabRecords(user.id, active.id, todayKey);
+  const status = rehabStatus({ program: active.program, sessions, checkins, todayKey });
+  const session = buildRehabSession({
+    ...active.program,
+    /* 오늘 이미 남겼으면 그때의 운동 그대로 — 오늘 빨강이 나왔다고 한 운동 목록이 바뀌지 않게 */
+    lowered: status.today ? status.today.lowered : status.lowered,
+    library: toRehabLibrary(library),
+    ownedEquipment: user.ownedEquipment,
+  });
+  const doneToday = await loadDoneOn(
+    user.id,
+    todayKey,
+    session.items.map((it) => it.exerciseId)
+  );
+  return { ...active, status, session, doneToday };
+}
+
 export async function loadArmcareToday(user: UserForArmcare, today: Date) {
   const todayKey = toDateKey(today);
   const midnight = new Date(`${todayKey}T00:00:00.000Z`);
 
-  const [{ facts, plan }, library, saved, checkin, logs] = await Promise.all([
+  const [{ facts, plan }, library, saved, checkin, logs, rehab] = await Promise.all([
     gatherFactsAndPlan(user, today),
     visibleExercises(),
     prisma.dailyArmcare.findUnique({
@@ -70,6 +123,7 @@ export async function loadArmcareToday(user: UserForArmcare, today: Date) {
       select: { exerciseId: true, date: true },
       orderBy: { date: 'desc' },
     }),
+    visibleExercises().then((all) => loadRehabToday(user, todayKey, all)),
   ]);
 
   /*
@@ -145,6 +199,8 @@ export async function loadArmcareToday(user: UserForArmcare, today: Date) {
     lastDone,
     doneToday,
     week,
+    /** 진행 중인 재활의 오늘 — 있으면 맞춤 루틴 자리에 재활 카드가 선다. 없으면 null */
+    rehab,
   };
 }
 

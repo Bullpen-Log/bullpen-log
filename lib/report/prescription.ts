@@ -109,6 +109,15 @@ export function painEasingParts(facts: ReportFacts): CheckinPartKey[] {
   return (facts.condition.painRecentParts ?? []).filter((key) => !today.includes(key));
 }
 
+/**
+ * 재활 1~3단계의 관절(facts.condition.rehabParts) — 오늘 통증이라고 한 부위는 뺀다(그 부위는 1-1) 이 가벼운 것까지 다 뺀다).
+ * '최근 통증 부위'와 똑같이 다룬다(재활 2편 — 무거운 것 빼기 · 근력 날 피하기). 4단계 · 재활을 끝내면 빈 목록.
+ */
+export function rehabEasingParts(facts: ReportFacts): CheckinPartKey[] {
+  const today = painPartsToday(facts);
+  return (facts.condition.rehabParts ?? []).filter((key) => !today.includes(key));
+}
+
 /** 최근에 아팠는데 오늘 체크인이 없어, 지금 아픈지 모르는가 */
 export function painStateUnknown(facts: ReportFacts): boolean {
   return facts.condition.painRecently && facts.condition.today == null;
@@ -333,14 +342,18 @@ export function selectCandidates<T extends ExerciseLike>({
    *
    * 예전에는 지난 통증 하나로 몸 전체를 회복 수준까지만 남겼다(2026-10-03 사용자 결정으로 그 부위만).
    * 오늘 뻐근이라고 한 부위는 바로 아래 5) 가 같은 일을 하므로 건너뛴다.
+   *
+   * 재활 1~3단계의 관절도 같은 규칙이다(재활 2편) — 근거 줄만 '재활 중'. 둘 다면 재활 쪽 말을 쓴다.
    */
-  for (const key of painEasingParts(facts)) {
+  const rehabParts = rehabEasingParts(facts);
+  for (const key of new Set([...painEasingParts(facts), ...rehabParts])) {
     if (today?.[key] === '뻐근') continue;
     const label = checkinPartLabel(key);
     const parts: readonly string[] = RELATED_PARTS[key];
-    basis.push(`최근 ${label} 통증 → ${parts.join('·')} 부위 고강도 제외`);
+    const why = rehabParts.includes(key) ? `재활 중(${label})` : `최근 ${label} 통증`;
+    basis.push(`${why} → ${parts.join('·')} 부위 고강도 제외`);
     drop(
-      `최근 ${label} 통증`,
+      why,
       (ex) =>
         intensityLevel(ex.intensity) <= INTENSITY_CAP.MODERATE ||
         !ex.bodyParts.some((p) => parts.includes(p))
