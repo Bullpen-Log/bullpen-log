@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { Article, Blank, DataTable, Item, Items, LegalHeading } from '../_parts';
+import { Article, DataTable, Item, Items, LegalHeading } from '../_parts';
 
 /**
  * 개인정보 처리방침.
@@ -170,9 +170,8 @@ export function PrivacyContent() {
 
       <Article no={8} title="문의">
         <Items>
-          <Item>
-            개인정보 보호책임자: <Blank>[이름]</Blank>
-          </Item>
+          {/* 임시(2026-10-04 사용자) — 정식 출시 전에 둘이 다시 정한다. docs/claude/geum-yunho.md '정식 출시 전에 물을 것' */}
+          <Item>개인정보 보호책임자: 김민, 금윤호</Item>
           <Item>
             연락처:{' '}
             <a
