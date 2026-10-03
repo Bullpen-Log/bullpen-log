@@ -97,9 +97,12 @@ import {
   type MealTemplate,
 } from '../lib/nutrition/meal-templates.ts';
 import {
+  KCAL_BOOST,
   MAX_PER_MEAL,
+  PROTEIN_BOOST,
   amountStep,
   buildMealPlan,
+  dropAvoided,
   parsePlanContext,
   parsePlanItems,
   planMacros,
@@ -2755,6 +2758,167 @@ console.log('\n■ 식단 짜기');
   check(
     '까닭은 넷까지',
     [one, ate, appetite].every((p) => p.reasons.length >= 1 && p.reasons.length <= 4)
+  );
+
+  /*
+   * ── 못 먹는 것 기대표 — 사람이 음식마다 따로 적은 것(2026-10-04 메인 검토) ──
+   * 식단이 쓰는 모든 음식(틀 · 바꿔 넣기 · 단백질 · kcal 보충)의 '들어 있는 것'을 meal-templates.ts 의 표와 따로 적어 둔다. 예전 시험은
+   * 같은 표(avoidsOf)로 기대값을 다시 셈해 늘 참이라, 표에서 빠진 재료(삼계탕의 잣 · 돼지국밥의 새우젓 · 소면)를 못 잡았다. 이제 표를
+   * 고치거나 새 음식을 틀에 넣으면 이 기대표도 같이 고쳐야 통과한다 — 알레르기일 수 있어 사람이 한 번 더 본다.
+   */
+  const EXPECTED_AVOIDS: Record<string, string> = {
+    almond: 'nuts',
+    anchovy: 'seafood nuts',
+    apple: '',
+    bagel: 'wheat',
+    banana: '',
+    'banana-milk': 'dairy',
+    'beef-lean': 'beef',
+    'beef-sirloin': 'beef',
+    bibimbap: 'egg beef spicy',
+    blueberry: '',
+    'braised-tofu': 'spicy',
+    broccoli: '',
+    'brown-rice': '',
+    bulgogi: 'beef',
+    'cheese-slice': 'dairy',
+    'cherry-tomato': '',
+    'chicken-breast': 'chicken',
+    'chicken-breast-pack': 'chicken',
+    'chicken-salad': 'dairy egg chicken nuts',
+    'chicken-thigh': 'chicken',
+    'choco-milk': 'dairy',
+    corn: '',
+    'curry-rice': 'dairy pork beef wheat',
+    dakbokkeumtang: 'chicken spicy',
+    'doenjang-jjigae': 'seafood',
+    dumplings: 'egg pork beef chicken wheat',
+    egg: 'egg',
+    'egg-fried': 'egg',
+    'egg-roll': 'egg',
+    'egg-white': 'egg',
+    galbitang: 'egg beef',
+    garaetteok: '',
+    gimbap: 'egg seafood pork wheat',
+    'greek-yogurt': 'dairy',
+    honey: '',
+    japchae: 'egg pork beef',
+    jeyuk: 'pork spicy',
+    'jeyuk-deopbap': 'pork spicy',
+    kalguksu: 'seafood wheat',
+    kimchi: 'seafood spicy',
+    'kimchi-jjigae': 'seafood pork spicy',
+    kiwi: '',
+    lunchbox: 'dairy egg seafood pork beef chicken wheat nuts spicy',
+    mackerel: 'seafood',
+    mandarin: '',
+    milk: 'dairy',
+    'milk-lowfat': 'dairy',
+    'mixed-nuts': 'nuts',
+    miyeokguk: 'beef',
+    'multigrain-rice': '',
+    naengmyeon: 'egg beef wheat',
+    oatmeal: '',
+    omurice: 'dairy egg pork wheat',
+    orange: '',
+    'orange-juice': '',
+    'pasta-tomato': 'dairy wheat',
+    'peanut-butter': 'nuts',
+    'pork-gukbap': 'seafood pork wheat',
+    'pork-neck': 'pork',
+    'pork-tenderloin': 'pork',
+    potato: '',
+    'protein-bar': 'dairy wheat nuts',
+    'protein-shake': 'dairy',
+    rice: '',
+    salad: 'dairy egg nuts',
+    salmon: 'seafood',
+    samgyetang: 'chicken nuts',
+    sandwich: 'dairy egg pork wheat',
+    seolleongtang: 'beef wheat',
+    'soy-milk': '',
+    spinach: '',
+    'sports-drink': '',
+    strawberry: '',
+    'sundubu-jjigae': 'egg seafood pork spicy',
+    'sweet-potato': '',
+    tofu: '',
+    tonkatsu: 'dairy egg pork wheat',
+    'triangle-gimbap': 'egg seafood',
+    tteokguk: 'egg beef',
+    'tuna-can': 'seafood',
+    'tuna-gimbap': 'egg seafood pork wheat',
+    udon: 'seafood wheat',
+    watermelon: '',
+    'white-bread': 'dairy egg wheat',
+    yogurt: 'dairy',
+    yukgaejang: 'egg beef spicy',
+  };
+  const usedIds = new Set<string>([
+    ...MEAL_TEMPLATES.flatMap((t) => t.items.map((i) => i.food.id!)),
+    ...Object.entries(SUBSTITUTES).flatMap(([k, v]) => [k, ...v]),
+    ...PROTEIN_BOOST,
+    ...KCAL_BOOST,
+  ]);
+  const norm = (xs: readonly string[]) => [...xs].sort().join(' ');
+  const avoidDiff = [...usedIds].flatMap((id) => {
+    const want = EXPECTED_AVOIDS[id];
+    if (want === undefined) return [`${id}: 기대표에 없음`];
+    const got = norm(avoidsOf(id));
+    const exp = norm(want.split(' ').filter(Boolean));
+    return got === exp ? [] : [`${id}: 표 [${got}] ≠ 기대 [${exp}]`];
+  });
+  check(
+    '못 먹는 것 기대표 — 식단이 쓰는 음식마다 표와 사람이 적은 것이 같다(새 음식은 기대표에 먼저)',
+    avoidDiff.length === 0,
+    avoidDiff.slice(0, 6).join(' · ')
+  );
+  /* 검토에서 새던 것 — 견과류만 · 해산물만 · 밀가루만 · 돼지고기만 · 매운 것만 고른 사람에게 그 음식이 안 나간다 */
+  const leakOf = (avoid: (typeof AVOIDS)[number]['key'], food: string) => {
+    let hit = 0;
+    for (let i = 0; i < 240; i++) {
+      const r = buildMealPlan({
+        ...base,
+        seed: `leak${i}`,
+        date: `2026-12-${String(1 + (i % 28)).padStart(2, '0')}`,
+        place: places[i % 4],
+        prefs: { ...DEFAULT_PREFS, avoid: [avoid], dietStyle: styles[i % 3] },
+      });
+      if (r.items.some((it) => it.sourceId === food)) hit++;
+    }
+    return hit;
+  };
+  const leaks = [
+    ['nuts', 'samgyetang'],
+    ['seafood', 'pork-gukbap'],
+    ['wheat', 'pork-gukbap'],
+    ['pork', 'omurice'],
+    ['spicy', 'braised-tofu'],
+    ['egg', 'salad'],
+  ] as const;
+  const leakHits = leaks.map(([a, f]) => `${a}→${f} ${leakOf(a, f)}`);
+  check(
+    '검토에서 새던 음식 — 삼계탕(견과) · 돼지국밥(해산물 · 밀) · 오므라이스(돼지) · 두부조림(매운 것) · 샐러드(달걀)가 안 나간다',
+    leakHits.every((x) => x.endsWith(' 0')),
+    leakHits.join(' · ')
+  );
+  /* 식단 취향을 바꾸면 오늘 계획에서 못 먹는 것을 뺀다 — 먹은 줄 · 직접 바꿔 넣은 줄은 둔다 */
+  const dropBase = one.items[0];
+  const dropped = dropAvoided(
+    [
+      { ...dropBase, key: 'a', sourceId: 'samgyetang', name: '삼계탕', done: false },
+      { ...dropBase, key: 'b', sourceId: 'mixed-nuts', name: '견과류 믹스', done: true },
+      { ...dropBase, key: 'c', sourceId: 'rice', name: '쌀밥', done: false },
+      { ...dropBase, key: 'd', source: 'mfds', sourceId: 'X1', name: '땅콩', done: false },
+      { ...dropBase, key: 'e', sourceId: 'protein-shake', name: '단백질 쉐이크', done: false },
+    ],
+    { avoid: ['nuts'], supplements: false }
+  );
+  check(
+    '취향을 바꾸면 계획에서 뺀다 — 안 먹은 못 먹는 것 · 끈 보충식품만(먹은 줄 · 식약처로 바꿔 넣은 줄은 그대로)',
+    dropped.removed.map((r) => r.key).join('') === 'ae' &&
+      dropped.kept.map((r) => r.key).join('') === 'bcd',
+    JSON.stringify(dropped.removed.map((r) => r.key))
   );
 
   check(

@@ -242,6 +242,9 @@ const ROWS: Row[] = [
  * 지단, 설렁탕의 소면, 삼각김밥 참치마요의 마요네즈(달걀), 카레 루의 분유, 멸치볶음의 견과. 밀가루는 밀가루 음식(빵 · 면 ·
  * 튀김옷 · 만두피 · 카레 루)과 주재료로 든 어묵 · 맛살(김밥)로 센다 — 간장 · 고추장에 든 밀까지 치면 한식을 거의 못 짠다.
  * 무엇이 든지 정해지지 않은 묶음(편의점 도시락)은 흔한 구성(돈가스 · 치킨 · 불고기 · 어묵 · 볶음김치)을 모두 센다.
+ * 2026-10-04 메인 검토로 더함: 삼계탕의 잣 · 밤, 돼지국밥의 새우젓 · 소면, 오므라이스 볶음밥의 햄 · 소스의 밀가루 · 버터, 두부조림의
+ * 고춧가루, 샐러드 드레싱(마요 · 시저 · 요거트 · 견과 토핑), 만두소, 돈가스 튀김옷 · 토마토 파스타 치즈의 우유, 식빵의 달걀, 도시락의
+ * 치즈 · 견과 멸치볶음. 이 표는 시험(nutrition-selftest '못 먹는 것 기대표')이 사람이 따로 적은 표와 하나하나 맞춰 본다.
  */
 const CONTAINS: Partial<Record<AvoidKey, string[]>> = {
   dairy: [
@@ -261,6 +264,12 @@ const CONTAINS: Partial<Record<AvoidKey, string[]>> = {
     'protein-bar',
     'white-bread',
     'curry-rice',
+    'omurice',
+    'salad',
+    'chicken-salad',
+    'tonkatsu',
+    'pasta-tomato',
+    'lunchbox',
   ],
   egg: [
     'egg',
@@ -282,6 +291,10 @@ const CONTAINS: Partial<Record<AvoidKey, string[]>> = {
     'japchae',
     'lunchbox',
     'galbitang',
+    'salad',
+    'chicken-salad',
+    'dumplings',
+    'white-bread',
   ],
   seafood: [
     'tuna-can',
@@ -299,6 +312,7 @@ const CONTAINS: Partial<Record<AvoidKey, string[]>> = {
     'kalguksu',
     'gimbap',
     'lunchbox',
+    'pork-gukbap',
   ],
   pork: [
     'jeyuk',
@@ -322,6 +336,8 @@ const CONTAINS: Partial<Record<AvoidKey, string[]>> = {
     'sundubu-jjigae',
     'japchae',
     'tuna-gimbap',
+    'omurice',
+    'fried-rice',
   ],
   beef: [
     'bulgogi',
@@ -338,6 +354,7 @@ const CONTAINS: Partial<Record<AvoidKey, string[]>> = {
     'bibimbap',
     'curry-rice',
     'lunchbox',
+    'dumplings',
   ],
   chicken: [
     'chicken-breast',
@@ -348,6 +365,7 @@ const CONTAINS: Partial<Record<AvoidKey, string[]>> = {
     'samgyetang',
     'dakbokkeumtang',
     'lunchbox',
+    'dumplings',
   ],
   wheat: [
     'white-bread',
@@ -375,8 +393,20 @@ const CONTAINS: Partial<Record<AvoidKey, string[]>> = {
     'gimbap',
     'tuna-gimbap',
     'seolleongtang',
+    'pork-gukbap',
+    'omurice',
   ],
-  nuts: ['almond', 'mixed-nuts', 'peanut-butter', 'protein-bar', 'anchovy'],
+  nuts: [
+    'almond',
+    'mixed-nuts',
+    'peanut-butter',
+    'protein-bar',
+    'anchovy',
+    'samgyetang',
+    'salad',
+    'chicken-salad',
+    'lunchbox',
+  ],
   spicy: [
     'kimchi',
     'kimchi-jjigae',
@@ -390,6 +420,7 @@ const CONTAINS: Partial<Record<AvoidKey, string[]>> = {
     'sundubu-jjigae',
     'bibimbap',
     'lunchbox',
+    'braised-tofu',
   ],
 };
 
@@ -410,17 +441,17 @@ export const SUBSTITUTES: Record<string, string[]> = {
   'banana-milk': ['soy-milk'],
   egg: ['tofu', 'chicken-breast-pack', 'tuna-can'],
   'egg-fried': ['tofu'],
-  'egg-roll': ['braised-tofu'],
+  'egg-roll': ['braised-tofu', 'tofu'],
   'chicken-breast': ['beef-lean', 'pork-tenderloin', 'tofu'],
   'chicken-breast-pack': ['tuna-can', 'beef-lean', 'tofu'],
   'chicken-thigh': ['pork-tenderloin', 'beef-lean', 'tofu'],
   salmon: ['chicken-breast', 'beef-lean', 'tofu'],
-  mackerel: ['chicken-thigh', 'pork-tenderloin', 'braised-tofu'],
+  mackerel: ['chicken-thigh', 'pork-tenderloin', 'braised-tofu', 'tofu'],
   'tuna-can': ['chicken-breast-pack', 'tofu'],
   'beef-lean': ['pork-tenderloin', 'chicken-breast', 'tofu'],
   'beef-sirloin': ['pork-neck', 'chicken-thigh', 'tofu'],
-  bulgogi: ['jeyuk', 'chicken-thigh', 'braised-tofu'],
-  jeyuk: ['bulgogi', 'chicken-thigh', 'braised-tofu'],
+  bulgogi: ['jeyuk', 'chicken-thigh', 'braised-tofu', 'tofu'],
+  jeyuk: ['bulgogi', 'chicken-thigh', 'braised-tofu', 'tofu'],
   'pork-tenderloin': ['beef-lean', 'chicken-breast', 'tofu'],
   'pork-neck': ['beef-sirloin', 'chicken-thigh', 'tofu'],
   'braised-tofu': ['tofu'],
@@ -429,6 +460,9 @@ export const SUBSTITUTES: Record<string, string[]> = {
   'pasta-tomato': ['rice', 'brown-rice'],
   'triangle-gimbap': ['sweet-potato', 'banana'],
   kimchi: ['spinach'],
+  /* 드레싱이 든 샐러드 → 맨 채소(곁들이가 통째로 빠지지 않게) · 닭가슴살 샐러드 → 단백질 */
+  salad: ['broccoli', 'cherry-tomato'],
+  'chicken-salad': ['chicken-breast', 'tofu'],
   'kimchi-jjigae': ['doenjang-jjigae', 'miyeokguk'],
   'sundubu-jjigae': ['doenjang-jjigae', 'tofu'],
   miyeokguk: ['doenjang-jjigae'],

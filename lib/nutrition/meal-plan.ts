@@ -633,7 +633,7 @@ function fitMeal(lines: Line[], kcal: number, protein: number) {
  * 하루 단백질이 모자랄 때 더하는 것 — 앞에서부터 쓸 수 있는 것. 간식(없으면 저녁)에 더하고, 고기 · 생선(MEAT_BOOST)은 저녁에.
  * 유제품 · 닭고기를 못 먹으면 달걀 · 두부 · 두유뿐이라, 그것들이 이미 식단에 있으면 단백질이 목표의 8할에서 멈췄다.
  */
-const PROTEIN_BOOST = [
+export const PROTEIN_BOOST = [
   'greek-yogurt',
   'milk',
   'egg',
@@ -647,7 +647,7 @@ const PROTEIN_BOOST = [
 ];
 const MEAT_BOOST = new Set(['tuna-can', 'beef-lean', 'pork-tenderloin']);
 /** 하루 kcal 이 모자랄 때(탄수화물을 더 못 늘릴 때) */
-const KCAL_BOOST = ['banana', 'sweet-potato', 'rice', 'garaetteok', 'oatmeal'];
+export const KCAL_BOOST = ['banana', 'sweet-potato', 'rice', 'garaetteok', 'oatmeal'];
 
 /* ─────────────────────────── 짜기 ─────────────────────────── */
 
@@ -1068,6 +1068,29 @@ export function parsePlanItems(raw: unknown): PlanItem[] {
     });
   }
   return out;
+}
+
+/**
+ * 식단 취향이 바뀌었을 때 오늘 계획에서 이제 못 먹는 음식 · 끈 보충식품을 뺀다(app/actions/nutrition.ts saveDietPrefs).
+ * 계획 줄은 '먹었어요'를 누르면 그대로 기록되는 길이라, 취향을 바꾼 뒤에도 남아 있으면 못 먹는 것이 기록까지 간다(2026-10-04 검토).
+ * 먹은 줄은 둔다(이미 기록됐다). 기본 목록 음식만 안다 — 사용자가 직접 바꿔 넣은 식약처 · 내 음식은 그대로.
+ */
+export function dropAvoided(
+  items: PlanItem[],
+  prefs: Pick<DietPrefs, 'avoid' | 'supplements'>
+): { kept: PlanItem[]; removed: PlanItem[] } {
+  const avoid = new Set(prefs.avoid);
+  const kept: PlanItem[] = [];
+  const removed: PlanItem[] = [];
+  for (const it of items) {
+    const bad =
+      !it.done &&
+      it.source === 'basic' &&
+      (avoidsOf(it.sourceId).some((a) => avoid.has(a)) ||
+        (!prefs.supplements && SUPPLEMENTS.has(it.sourceId)));
+    (bad ? removed : kept).push(it);
+  }
+  return { kept, removed };
 }
 
 /**
