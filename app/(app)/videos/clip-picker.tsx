@@ -10,6 +10,18 @@ export function shortDate(dateKey: string) {
   return `${Number(m)}/${Number(d)}`;
 }
 
+/** 누른 단추 밑(모자라면 위)의 화면 기준 자리. 폭은 적어도 240px */
+function placeUnder(button: HTMLElement | null): React.CSSProperties | null {
+  const r = button?.getBoundingClientRect();
+  if (!r) return null;
+  const width = Math.min(Math.max(r.width, 240), window.innerWidth - 16);
+  const left = Math.min(Math.max(8, r.left), window.innerWidth - width - 8);
+  const below = window.innerHeight - r.bottom;
+  return below < 320 && r.top > below
+    ? { left, width, bottom: window.innerHeight - r.top + 4 }
+    : { left, width, top: r.bottom + 4 };
+}
+
 /**
  * 영상이 많아지면 목록에서 고르기 어려워지므로,
  * 검색과 월별 묶음을 갖춘 선택창을 쓴다.
@@ -35,28 +47,38 @@ export function ClipPicker({
   const [place, setPlace] = useState<React.CSSProperties>({});
   const toggle = () => {
     if (open) return setOpen(false);
-    const r = buttonRef.current?.getBoundingClientRect();
-    if (r) {
-      const width = Math.min(Math.max(r.width, 240), window.innerWidth - 16);
-      const left = Math.min(Math.max(8, r.left), window.innerWidth - width - 8);
-      const below = window.innerHeight - r.bottom;
-      setPlace(
-        below < 320 && r.top > below
-          ? { left, width, bottom: window.innerHeight - r.top + 4 }
-          : { left, width, top: r.bottom + 4 }
-      );
-    }
+    const next = placeUnder(buttonRef.current);
+    if (next) setPlace(next);
     setOpen(true);
   };
-  /* 떠 있는 목록은 굴리면 단추에서 떨어지므로 닫는다 */
+  /*
+   * 굴리거나 화면 크기가 바뀌면 단추를 따라 자리만 다시 잡는다. 예전에는 닫았는데, 아이폰은 찾는 칸을 누르면
+   * 자판이 올라오며 화면을 굴리고 크기를 바꿔서 누르자마자 닫혔다(2026-10-03). 닫기는 바깥 누름(아래 판) · Esc.
+   */
   useEffect(() => {
     if (!open) return;
-    const close = () => setOpen(false);
-    window.addEventListener('scroll', close, { passive: true });
-    window.addEventListener('resize', close);
+    let frame = 0;
+    const follow = () => {
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(() => {
+        const next = placeUnder(buttonRef.current);
+        if (next) setPlace(next);
+      });
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setOpen(false);
+    };
+    const vv = window.visualViewport;
+    window.addEventListener('scroll', follow, { passive: true });
+    window.addEventListener('resize', follow);
+    vv?.addEventListener('resize', follow);
+    window.addEventListener('keydown', onKey);
     return () => {
-      window.removeEventListener('scroll', close);
-      window.removeEventListener('resize', close);
+      cancelAnimationFrame(frame);
+      window.removeEventListener('scroll', follow);
+      window.removeEventListener('resize', follow);
+      vv?.removeEventListener('resize', follow);
+      window.removeEventListener('keydown', onKey);
     };
   }, [open]);
 

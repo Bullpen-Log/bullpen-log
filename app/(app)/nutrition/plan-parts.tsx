@@ -421,18 +421,19 @@ export function PlanEditRow<D extends { amount: number; remove: boolean }>({
         <button
           type="button"
           onClick={() => onChange({ ...draft, remove: false })}
-          className="motion-safe:animate-fade-in inline-flex h-9 shrink-0 items-center rounded-lg px-3 text-xs font-semibold text-sky transition-colors hover:bg-sky-tint"
+          className="motion-safe:animate-fade-in inline-flex h-11 shrink-0 items-center rounded-lg px-3 text-xs font-semibold text-sky transition-colors hover:bg-sky-tint desk:h-9"
         >
           되살리기
         </button>
       ) : (
         <>
+          {/* 휴대폰은 누르는 칸을 44px 로(PC 는 그대로, 2026-10-03) */}
           <div className="flex shrink-0 items-center rounded-xl border border-line bg-surface-2">
             <button
               type="button"
               onClick={() => move(-1)}
               aria-label={`${item.name} 줄이기`}
-              className="flex h-9 w-9 items-center justify-center rounded-l-xl text-muted transition-colors hover:text-ink motion-safe:active:scale-90"
+              className="flex h-11 w-11 desk:h-9 desk:w-9 items-center justify-center rounded-l-xl text-muted transition-colors hover:text-ink motion-safe:active:scale-90"
             >
               <Minus aria-hidden className="h-4 w-4" />
             </button>
@@ -446,7 +447,7 @@ export function PlanEditRow<D extends { amount: number; remove: boolean }>({
               type="button"
               onClick={() => move(1)}
               aria-label={`${item.name} 늘리기`}
-              className="flex h-9 w-9 items-center justify-center rounded-r-xl text-muted transition-colors hover:text-ink motion-safe:active:scale-90"
+              className="flex h-11 w-11 desk:h-9 desk:w-9 items-center justify-center rounded-r-xl text-muted transition-colors hover:text-ink motion-safe:active:scale-90"
             >
               <Plus aria-hidden className="h-4 w-4" />
             </button>
@@ -455,7 +456,7 @@ export function PlanEditRow<D extends { amount: number; remove: boolean }>({
             type="button"
             onClick={() => onChange({ ...draft, remove: true })}
             aria-label={`${item.name} 식단에서 빼기`}
-            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-muted transition-colors hover:bg-danger-bg hover:text-danger"
+            className="flex h-11 w-11 shrink-0 desk:h-9 desk:w-9 items-center justify-center rounded-lg text-muted transition-colors hover:bg-danger-bg hover:text-danger"
           >
             <Trash2 aria-hidden className="h-4 w-4" />
           </button>

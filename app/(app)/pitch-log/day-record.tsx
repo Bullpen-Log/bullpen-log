@@ -126,12 +126,13 @@ export function DayRecord({
               )}
             </div>
           </div>
-          <div className="flex shrink-0 items-center gap-1">
+          {/* 휴대폰은 두 단추를 44px 로 키우고 사이를 띄운다 — 32px 가 붙어 있어 연필을 누르려다 휴지통을 눌렀다(PC 는 그대로, 2026-10-03) */}
+          <div className="flex shrink-0 items-center gap-3 desk:gap-1">
             <button
               type="button"
               onClick={() => onEdit(log)}
               aria-label="기록 수정"
-              className="rounded-lg p-2 text-muted transition-colors hover:bg-surface-2 hover:text-sky"
+              className="flex h-11 w-11 items-center justify-center rounded-lg text-muted transition-colors hover:bg-surface-2 hover:text-sky desk:h-8 desk:w-8"
             >
               <Pencil className="h-4 w-4" />
             </button>
@@ -163,7 +164,7 @@ export function DayRecord({
                   </p>
                 </div>
               }
-              className="rounded-lg p-2 text-muted transition-colors hover:bg-danger-bg hover:text-danger"
+              className="flex h-11 w-11 items-center justify-center rounded-lg text-muted transition-colors hover:bg-danger-bg hover:text-danger desk:h-8 desk:w-8"
             >
               <Trash2 className="h-4 w-4" />
             </ConfirmDelete>

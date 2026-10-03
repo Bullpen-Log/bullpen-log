@@ -503,7 +503,12 @@ export function GoalSheet({
                               inputMode="decimal"
                               value={targetText}
                               onChange={(e) =>
-                                setTargetText(e.target.value.replace(/[^\d.]/g, ''))
+                                /* '72,5' 처럼 쉼표 소수점도 점으로(2026-10-03) */
+                                setTargetText(
+                                  e.target.value
+                                    .replace(/,/g, '.')
+                                    .replace(/[^\d.]/g, '')
+                                )
                               }
                               placeholder={`예) ${round1(toWeight(range.max, unit))}`}
                               aria-invalid={!targetCheck.ok}

@@ -20,6 +20,11 @@ class MainViewController: CAPBridgeViewController {
         webView?.configuration.userContentController.add(self, name: IntroOverlay.messageName)
         // 구속 측정의 일반 · 광각 동시 촬영(DualCameraPlugin.swift) — 앱 안 부품이라 여기서 등록한다
         bridge?.registerPluginInstance(DualCameraPlugin())
+        // 화면 켜 두기 · 휴식 끝 알림(BullpenNativePlugin.swift, 사이트 lib/native-bridge.ts)
+        bridge?.registerPluginInstance(BullpenNativePlugin())
+        // 화면 왼쪽 끝을 밀어 뒤로 — 앱에는 브라우저의 뒤로 단추가 없어, 약관 같은 화면에서 돌아갈 길이 화면 속 단추뿐이었다
+        // (2026-10-03 아이폰 점검). 사파리 · 다른 아이폰 앱과 같은 손동작이다
+        webView?.allowsBackForwardNavigationGestures = true
     }
 
     override func viewDidLoad() {

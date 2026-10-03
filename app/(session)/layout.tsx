@@ -19,7 +19,10 @@ export const viewport: Viewport = {
    * 그래서 이 화면의 단추들은 최소값을 함께 준다.
    */
   viewportFit: 'cover',
-  /* 숫자판이 올라올 때 화면을 줄인다. 단추가 가려지지 않게 */
+  /*
+   * 자판이 올라올 때 화면을 줄인다 — 크롬(안드로이드)만 듣는다. 아이폰(웹킷)은 이 설정을 무시해서, 아래 틀이
+   * 보이는 높이(--vvh)를 직접 따른다(2026-10-03).
+   */
   interactiveWidget: 'resizes-content',
 };
 
@@ -42,6 +45,9 @@ export default async function SessionLayout({
    *
    * 100vh 가 아니라 100dvh 다. 휴대폰 브라우저의 주소창이 접혔다 펴질 때
    * 100vh 는 안 바뀌어서 아래 단추가 주소창 뒤로 숨는다.
+   *
+   * 자판이 떠 있는 동안은 보이는 높이(--vvh, components/viewport-vars.tsx)다. 아이폰은 자판이 올라와도 100dvh 가
+   * 그대로라, 메모를 쓰는 동안 틀의 아래쪽이 자판 뒤에 깔렸다(2026-10-03 점검). 자판이 없으면 --vvh 가 없어 100dvh.
    */
   /*
    * data-safe-area — 이 화면들은 시계 · 홈 막대 여백을 스스로 비운다(env(safe-area-inset-*)).
@@ -49,7 +55,7 @@ export default async function SessionLayout({
    * 이 표시를 보고 빠진다. 없으면 여백이 두 번 들어간다.
    */
   return (
-    <div data-safe-area className="flex h-[100dvh] flex-col bg-page">
+    <div data-safe-area className="flex h-[var(--vvh,100dvh)] flex-col bg-page">
       {children}
     </div>
   );

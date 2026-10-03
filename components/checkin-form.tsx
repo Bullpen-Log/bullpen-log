@@ -72,10 +72,10 @@ function feelingChipClass(value: string) {
 
 /*
  * 칩 — 휴대폰은 테두리 없는 회색 알약(아이폰), 고른 것은 파랑으로 두르고 옅게 칠한다. PC 는 예전 네모 칩
- * (2026-10-01 '애플처럼').
+ * (2026-10-01 '애플처럼'). 휴대폰은 높이 40px 를 채운다(칩 규칙) — 37px 라 옆 칩을 잘못 누르곤 했다(2026-10-03).
  */
 const chipBase =
-  'cursor-pointer select-none rounded-full border border-transparent bg-ink/6 px-3.5 py-2 text-[13px] text-ink/80 transition-colors hover:text-ink peer-checked:font-semibold desk:rounded-lg desk:border-line desk:bg-surface-2 desk:px-3 desk:text-xs desk:text-muted desk:hover:border-sky-soft desk:peer-checked:font-medium';
+  'inline-flex min-h-10 items-center cursor-pointer select-none rounded-full border border-transparent bg-ink/6 px-3.5 py-2 text-[13px] text-ink/80 transition-colors hover:text-ink peer-checked:font-semibold desk:rounded-lg desk:border-line desk:bg-surface-2 desk:px-3 desk:min-h-0 desk:text-xs desk:text-muted desk:hover:border-sky-soft desk:peer-checked:font-medium';
 
 function ChipRadio({
   name,
@@ -579,7 +579,7 @@ function ModeSwitch({ mode, onChange }: { mode: Mode; onChange: (m: Mode) => voi
           role="radio"
           aria-checked={mode === m}
           onClick={() => onChange(m)}
-          className={`relative min-h-9 px-4 transition-colors duration-200 desk:min-h-0 desk:py-1.5 ${
+          className={`relative min-h-10 px-4 transition-colors duration-200 desk:min-h-0 desk:py-1.5 ${
             mode === m ? 'text-ink' : 'font-medium text-ink/60 hover:text-ink'
           }`}
         >
@@ -942,7 +942,7 @@ export function CheckinForm({
                       type="button"
                       onClick={() => setPartsOpen((v) => !v)}
                       aria-expanded={partsExpanded}
-                      className="ml-auto inline-flex min-h-8 items-center gap-1 rounded-full bg-surface px-3 text-xs font-medium text-ink transition-colors desk:min-h-0 desk:rounded-lg desk:border desk:border-line desk:bg-transparent desk:px-2.5 desk:py-1 desk:font-normal desk:text-muted desk:hover:border-sky desk:hover:text-sky"
+                      className="ml-auto inline-flex min-h-10 items-center gap-1 rounded-full bg-surface px-3 text-xs font-medium text-ink transition-colors desk:min-h-0 desk:rounded-lg desk:border desk:border-line desk:bg-transparent desk:px-2.5 desk:py-1 desk:font-normal desk:text-muted desk:hover:border-sky desk:hover:text-sky"
                     >
                       <ChevronDown
                         aria-hidden

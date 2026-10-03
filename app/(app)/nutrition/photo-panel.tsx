@@ -121,8 +121,8 @@ export function PhotoCapture({
       ref={input}
       type="file"
       accept="image/*"
-      /* 폰은 바로 뒤 카메라 — 앨범에서 고르는 것도 같은 창에서 된다 */
-      capture="environment"
+      /* capture 를 두지 않는다 — 두면 아이폰이 카메라만 열어 앨범에서 고를 수 없었다.
+         없으면 아이폰이 [사진 보관함 | 사진 찍기 | 파일 선택] 을 묻는다(2026-10-03) */
       className="sr-only"
       tabIndex={-1}
       aria-hidden
@@ -147,7 +147,7 @@ export function PhotoCapture({
           <span className="min-w-0 flex-1">
             <span className="block text-sm font-medium text-ink">사진으로 담기</span>
             <span className="block truncate text-xs text-muted">
-              밥 사진을 찍으면 음식과 양을 알아봐요 · AI · 사진은 저장하지 않아요
+              밥 사진을 찍거나 고르면 음식과 양을 알아봐요 · AI · 사진은 저장하지 않아요
             </span>
           </span>
         </button>

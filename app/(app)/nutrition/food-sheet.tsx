@@ -5,6 +5,7 @@ import {
   useCallback,
   useContext,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -239,17 +240,15 @@ export function FoodSheet({
   /*
    * 바꾸기는 찾으러 온 것 — 창이 열리면 찾는 칸에 커서를 둔다. 창(dialog)은 열릴 때 닫기 단추에 먼저 초점을 주므로
    * 그 뒤에 옮긴다(autoFocus 는 창이 열리기 전에 돌아 덮인다).
+   * 타이머 없이 useLayoutEffect 에서 바로 한다 — 아이폰은 누른 그 순간(손가락 이벤트 안)에 준 초점에만 자판을 올린다.
+   * 영양 화면이 바꾸기 창을 flushSync 로 열어, 창(자식 Modal)의 showModal 다음 이 자리까지 누른 손 안에서 돈다(2026-10-03).
    */
   const searchRef = useRef<HTMLInputElement>(null);
   /* 이름으로 본다 — 영양 화면이 다시 그려질 때마다 새 객체가 와서, 객체를 보면 그때마다 커서를 찾는 칸으로 빼앗았다 */
   const replacingName = replacing?.name ?? null;
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!open || replacingName === null) return;
-    const timer = window.setTimeout(
-      () => searchRef.current?.focus({ preventScroll: true }),
-      80
-    );
-    return () => window.clearTimeout(timer);
+    searchRef.current?.focus({ preventScroll: true });
   }, [open, replacingName]);
   /* 바코드로 찾기 칸(barcode-panel.tsx)을 폈나 */
   const [scan, setScan] = useState(false);
@@ -898,7 +897,7 @@ function ComboRow({
           type="button"
           onClick={onRemove}
           onBlur={() => setConfirm(false)}
-          className="shrink-0 rounded-lg bg-danger-bg px-2.5 py-2 text-xs font-semibold text-danger"
+          className="min-h-11 shrink-0 rounded-lg bg-danger-bg px-2.5 py-2 text-xs font-semibold text-danger desk:min-h-0"
         >
           지우기
         </button>
@@ -907,7 +906,7 @@ function ComboRow({
           type="button"
           onClick={() => setConfirm(true)}
           aria-label={`${combo.name} 조합 지우기`}
-          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-muted transition-colors hover:bg-danger-bg hover:text-danger"
+          className="flex h-11 w-11 shrink-0 desk:h-9 desk:w-9 items-center justify-center rounded-lg text-muted transition-colors hover:bg-danger-bg hover:text-danger"
         >
           <Trash2 aria-hidden className="h-4 w-4" />
         </button>
@@ -916,7 +915,7 @@ function ComboRow({
         type="button"
         onClick={put}
         aria-label={`${combo.name} 한 번에 담기`}
-        className="relative flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-sky transition-[background-color,transform] duration-150 hover:bg-sky-tint motion-safe:active:scale-90"
+        className="relative flex h-11 w-11 shrink-0 desk:h-9 desk:w-9 items-center justify-center rounded-lg text-sky transition-[background-color,transform] duration-150 hover:bg-sky-tint motion-safe:active:scale-90"
       >
         {flash > 0 ? (
           <Check
@@ -1489,7 +1488,7 @@ function FoodRow({
               type="button"
               onClick={onRemove}
               onBlur={() => setConfirm(false)}
-              className="shrink-0 rounded-lg bg-danger-bg px-2.5 py-2 text-xs font-semibold text-danger"
+              className="min-h-11 shrink-0 rounded-lg bg-danger-bg px-2.5 py-2 text-xs font-semibold text-danger desk:min-h-0"
             >
               지우기
             </button>
@@ -1498,11 +1497,12 @@ function FoodRow({
               type="button"
               onClick={() => setConfirm(true)}
               aria-label={`${food.name} 내 음식에서 지우기`}
-              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-muted transition-colors hover:bg-danger-bg hover:text-danger"
+              className="flex h-11 w-11 shrink-0 desk:h-9 desk:w-9 items-center justify-center rounded-lg text-muted transition-colors hover:bg-danger-bg hover:text-danger"
             >
               <Trash2 aria-hidden className="h-4 w-4" />
             </button>
           ))}
+        {/* 담기 · 지우기는 휴대폰에서 44px — 36px 는 옆 줄 · 옆 단추를 잘못 눌렀다(PC 는 그대로, 2026-10-03) */}
         <button
           type="button"
           onClick={() => put(1)}
@@ -1510,7 +1510,7 @@ function FoodRow({
           aria-label={
             replacing ? `${withTo(food.name)} 바꾸기` : `${food.name} 1인분 담기`
           }
-          className="relative flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-sky transition-[background-color,transform,opacity] duration-150 hover:bg-sky-tint disabled:opacity-40 motion-safe:active:scale-90"
+          className="relative flex h-11 w-11 shrink-0 desk:h-9 desk:w-9 items-center justify-center rounded-lg text-sky transition-[background-color,transform,opacity] duration-150 hover:bg-sky-tint disabled:opacity-40 motion-safe:active:scale-90"
         >
           {flash > 0 ? (
             <Check
@@ -1675,7 +1675,8 @@ function PickFood({ food, onAdd }: { food: Food; onAdd: (amount: number) => void
   }
 
   function typeGrams(text: string) {
-    const clean = text.replace(/[^\d.]/g, '');
+    /* '72,5' 처럼 쉼표 소수점도 점으로 — 그냥 지우면 725 가 됐다(2026-10-03) */
+    const clean = text.replace(/,/g, '.').replace(/[^\d.]/g, '');
     setGrams(clean);
     const g = Number(clean);
     if (food.servingGrams && g > 0) {
@@ -1927,7 +1928,9 @@ function CustomFood({
             <input
               inputMode="decimal"
               value={f.value}
-              onChange={(e) => f.set(e.target.value.replace(/[^\d.]/g, ''))}
+              onChange={(e) =>
+                f.set(e.target.value.replace(/,/g, '.').replace(/[^\d.]/g, ''))
+              }
               className={numField}
             />
           </label>

@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import { hasNativeBridge, nativeKeepAwake } from '@/lib/native-bridge';
 
 /**
  * 운동하는 동안 화면이 꺼지지 않게 잡아 둔다.
@@ -24,14 +25,37 @@ import { useEffect, useRef, useState } from 'react';
  * 것이 아니고, 원래 하던 대로 폰이 꺼질 뿐이다.
  *
  * 돌려주는 값은 '지금 잡고 있는가'다. 화면에 표시하고 싶을 때만 쓰면 된다.
+ *
+ * ■ 아이폰 앱은 앱이 잡는다
+ *
+ * iOS 18.4 전의 앱 웹뷰에서는 navigator.wakeLock 이 잡힌 척만 하고 화면이 꺼졌다(WebKit 254545,
+ * 2026-10-03 점검). 앱에 '불펜로그 앱 기능' 부품이 있으면(lib/native-bridge.ts) 그쪽에 맡긴다 — 앱이
+ * 뒤로 가면 놓고 돌아오면 다시 잡는 일도 앱이 한다. 운동 화면 · 업로드 · 구속 측정이 같이 쓸 수 있어,
+ * 잡은 수를 세어 마지막 하나가 놓을 때만 끈다.
  */
+let nativeHolders = 0;
+
 export function useWakeLock(active = true): boolean {
   const [held, setHeld] = useState(false);
   /* 여러 번 잡지 않게 들고 있는 것을 기억한다 */
   const lockRef = useRef<WakeLockSentinel | null>(null);
 
   useEffect(() => {
+    if (!active || !hasNativeBridge()) return;
+    nativeHolders += 1;
+    nativeKeepAwake(true);
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- 앱 부품에 맡긴 결과를 알린다
+    setHeld(true);
+    return () => {
+      nativeHolders = Math.max(0, nativeHolders - 1);
+      if (nativeHolders === 0) nativeKeepAwake(false);
+      setHeld(false);
+    };
+  }, [active]);
+
+  useEffect(() => {
     if (!active || typeof navigator === 'undefined' || !navigator.wakeLock) return;
+    if (hasNativeBridge()) return;
 
     let done = false;
 

@@ -12,6 +12,7 @@ import {
   type CSSProperties,
   type MouseEvent,
 } from 'react';
+import { flushSync } from 'react-dom';
 import {
   ArrowRightLeft,
   CalendarDays,
@@ -504,13 +505,16 @@ export function NutritionView({ day, today }: { day: NutritionDay; today: string
                   })
                 }
                 onReplace={(target, e) =>
-                  setSheet({
-                    meal: m.key,
-                    origin: originOf(e),
-                    n: (sheet?.n ?? 0) + 1,
-                    open: true,
-                    replace: target,
-                  })
+                  /* 누른 손 안에서 창을 다 연다 — 그래야 찾는 칸의 초점에 아이폰이 자판을 올린다(food-sheet.tsx, 2026-10-03) */
+                  flushSync(() =>
+                    setSheet({
+                      meal: m.key,
+                      origin: originOf(e),
+                      n: (sheet?.n ?? 0) + 1,
+                      open: true,
+                      replace: target,
+                    })
+                  )
                 }
                 onEdit={editEntries}
                 plan={plan.filter((i) => i.meal === m.key && !i.done)}
@@ -1269,12 +1273,17 @@ function SummaryCard({
                 <dd className="text-xs tabular-nums text-muted">
                   <b className="text-sm font-semibold text-ink">{Math.round(got)}</b>
                   {/* 정보가 빠진 음식이 있으면 '+' — 적어도 이만큼, 실제로는 더 먹었다 */}
+                  {/* 손가락 화면은 title 풍선이 안 뜬다 — 뜻은 카드 밑 한 줄('+ 표시한 양은…')이 늘 말하고, 낭독기는 숨은 글로(2026-10-03) */}
                   {gaps[m.key] > 0 && (
                     <b
                       className="font-semibold text-warn"
                       title="정보가 없는 음식이 있어 실제로는 더 먹었어요"
                     >
-                      +
+                      <span aria-hidden>+</span>
+                      <span className="sr-only">
+                        {' '}
+                        이상 — 정보가 없는 음식이 있어 실제로는 더 먹었어요
+                      </span>
                     </b>
                   )}{' '}
                   / {goal}g
@@ -1522,7 +1531,8 @@ function MealSection({
                 )}
                 단백질 {p.protein}
                 {p.unknown ? '+' : ''}
-                {p.goal !== null && <> / {p.goal}</>}g
+                {/* '/ 35' 만으로는 손가락 화면(title 풍선 없음)에서 무슨 숫자인지 몰랐다 — '목표'를 붙인다(2026-10-03) */}
+                {p.goal !== null && <> / 목표 {p.goal}</>}g
               </span>
             </p>
             {p.goal !== null && (
@@ -1786,18 +1796,19 @@ function EditRow({
         <button
           type="button"
           onClick={() => onChange({ ...draft, remove: false })}
-          className="motion-safe:animate-fade-in inline-flex h-9 shrink-0 items-center rounded-lg px-3 text-xs font-semibold text-sky transition-colors hover:bg-sky-tint"
+          className="motion-safe:animate-fade-in inline-flex h-11 shrink-0 items-center rounded-lg px-3 text-xs font-semibold text-sky desk:h-9 transition-colors hover:bg-sky-tint"
         >
           되살리기
         </button>
       ) : (
         <>
+          {/* 휴대폰은 누르는 칸을 44px 로 — 36px 는 손가락으로 옆 칸을 잘못 눌렀다(PC 는 그대로, 2026-10-03) */}
           <div className="flex shrink-0 items-center rounded-xl border border-line bg-surface-2">
             <button
               type="button"
               onClick={() => onChange({ ...draft, amount: step(draft.amount, -1) })}
               aria-label={`${entry.name} 줄이기`}
-              className="flex h-9 w-9 items-center justify-center rounded-l-xl text-muted transition-colors hover:text-ink motion-safe:active:scale-90"
+              className="flex h-11 w-11 items-center justify-center rounded-l-xl desk:h-9 desk:w-9 text-muted transition-colors hover:text-ink motion-safe:active:scale-90"
             >
               <Minus aria-hidden className="h-4 w-4" />
             </button>
@@ -1811,14 +1822,14 @@ function EditRow({
               type="button"
               onClick={() => onChange({ ...draft, amount: step(draft.amount, 1) })}
               aria-label={`${entry.name} 늘리기`}
-              className="flex h-9 w-9 items-center justify-center rounded-r-xl text-muted transition-colors hover:text-ink motion-safe:active:scale-90"
+              className="flex h-11 w-11 items-center justify-center rounded-r-xl desk:h-9 desk:w-9 text-muted transition-colors hover:text-ink motion-safe:active:scale-90"
             >
               <Plus aria-hidden className="h-4 w-4" />
             </button>
           </div>
           <label
             title="다른 끼니로 옮기기"
-            className={`relative flex h-9 w-9 shrink-0 cursor-pointer items-center justify-center rounded-lg transition-colors hover:bg-surface-2 ${
+            className={`relative flex h-11 w-11 shrink-0 cursor-pointer desk:h-9 desk:w-9 items-center justify-center rounded-lg transition-colors hover:bg-surface-2 ${
               moved ? 'text-sky' : 'text-muted hover:text-ink'
             }`}
           >
@@ -1843,7 +1854,7 @@ function EditRow({
             type="button"
             onClick={() => onChange({ ...draft, remove: true })}
             aria-label={`${entry.name} 지우기`}
-            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-muted transition-colors hover:bg-danger-bg hover:text-danger"
+            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-muted transition-colors hover:bg-danger-bg desk:h-9 desk:w-9 hover:text-danger"
           >
             <Trash2 aria-hidden className="h-4 w-4" />
           </button>
@@ -2066,7 +2077,10 @@ function WeightCard({
           <input
             inputMode="decimal"
             value={text}
-            onChange={(e) => setText(e.target.value.replace(/[^\d.]/g, ''))}
+            /* 쉼표를 소수점으로 쓰는 자판(유럽 등)은 '72,5' 를 보낸다 — 쉼표를 지우면 725 가 됐다(2026-10-03) */
+            onChange={(e) =>
+              setText(e.target.value.replace(/,/g, '.').replace(/[^\d.]/g, ''))
+            }
             placeholder={
               day.targets.weightKg ? shown(day.targets.weightKg) : '예) 78.5'
             }
