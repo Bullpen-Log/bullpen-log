@@ -3,7 +3,7 @@
 import { useState, useTransition } from 'react';
 import Link from 'next/link';
 import { unstable_rethrow } from 'next/navigation';
-import { Check, Play, RefreshCw } from 'lucide-react';
+import { Check, ChevronRight, Play, RefreshCw } from 'lucide-react';
 import { setExerciseDone } from '@/app/actions/exercise-log';
 import { makeArmcareRoutine } from '@/app/actions/armcare';
 import { CHECK_CONNECTION } from '@/lib/offline';
@@ -12,6 +12,7 @@ import { findArmcareArea, type ArmcareAreaKey } from '@/lib/armcare/anatomy';
 import { ARMCARE_KIND_TEXT, type ArmcareKind } from '@/lib/armcare/routine';
 import { MuscleChips } from '@/components/muscle-chips';
 import { ExerciseMedia, type ArmcareExerciseView } from './armcare-media';
+import { ArmPainGuideButton, type ArmPainView } from './arm-pain-guide';
 import { CheckRow } from './check-row';
 import { buzz } from '@/lib/haptics';
 
@@ -38,6 +39,7 @@ export function ArmcareToday({
   dateKey,
   decision,
   routine,
+  painGuide = null,
 }: {
   /** 이 화면이 보여 주는 날(YYYY-MM-DD) — 체크와 따라하기가 이 날에 남긴다 */
   dateKey: string;
@@ -51,9 +53,28 @@ export function ArmcareToday({
     estimatedMinutes: number;
     items: ArmcareTodayItem[];
   } | null;
+  /**
+   * 오늘 팔 통증(어깨 · 팔꿈치가 '통증'인 날) — 통증 루틴 카드에 [통증 안내 보기]를 붙인다. 없으면 null.
+   * 쉬는 날의 카드는 이 화면이 아니라 armcare-section.tsx 가 그린다(거기에도 같은 단추).
+   */
+  painGuide?: ArmPainView | null;
 }) {
   const [making, startMaking] = useTransition();
   const [error, setError] = useState<string>();
+
+  /*
+   * 통증 루틴 날 — 까닭 줄 밑에 팔 통증 안내를 연다(참고 부상 · 위험 신호 · 오늘 할 일). [통증 루틴 하기]는
+   * 내지 않는다 — 루틴이 바로 이 카드에 있다.
+   */
+  const guide =
+    painGuide && (decision.kind === 'pain' || routine?.kind === 'pain') ? (
+      <div>
+        <ArmPainGuideButton pain={painGuide} className={PAIN_GUIDE_PILL}>
+          통증 안내 보기
+          <ChevronRight aria-hidden className="h-4 w-4" />
+        </ArmPainGuideButton>
+      </div>
+    ) : null;
 
   const make = () => {
     setError(undefined);
@@ -81,6 +102,7 @@ export function ArmcareToday({
           <p className="text-sm font-semibold break-keep text-sky-strong">
             {decision.reason}
           </p>
+          {guide}
           <button
             type="button"
             onClick={make}
@@ -124,6 +146,7 @@ export function ArmcareToday({
         <p className="text-sm font-semibold break-keep text-sky-strong">
           {routine.reason}
         </p>
+        {guide}
         {/* 빠진 부위 같은 안내는 접어 둔다 — 늘 보일 만큼 급하지 않다 */}
         {routine.notes.length > 0 && (
           <details className="group text-xs text-muted">
@@ -177,6 +200,10 @@ export function ArmcareToday({
     </div>
   );
 }
+
+/** [통증 안내 보기] — 휴대폰에서 누르는 자리 44px. 색은 이 카드의 강조색(sky) 하나 */
+const PAIN_GUIDE_PILL =
+  'inline-flex min-h-11 items-center gap-0.5 rounded-full border border-sky-soft bg-sky-tint px-4 text-sm font-semibold text-sky-strong transition-colors hover:bg-sky hover:text-white';
 
 const WEEKDAYS = ['일', '월', '화', '수', '목', '금', '토'];
 

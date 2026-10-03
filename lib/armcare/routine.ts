@@ -1,4 +1,11 @@
-import { SEVERE_SORENESS, sorenessWord } from '@/lib/checkin';
+import {
+  SEVERE_SORENESS,
+  armPainLevelLabel,
+  armPainSpotLabel,
+  armPainSpotsFor,
+  canDoPainRoutine,
+  sorenessWord,
+} from '@/lib/checkin';
 import { intensityLevel, minutesForSets } from '@/lib/exercise-meta';
 import type { ReportFacts } from '@/lib/report/facts';
 import { pendingOuting, type PitchPlan } from '@/lib/report/plan';
@@ -16,20 +23,28 @@ import {
  *
  * 2026-09-25 사용자분과 정했다. 암케어는 운동 일정에서 빠져 트레이닝 안의 따로
  * 들어가는 화면이 됐고, 그 첫 기능이 이것이다. 투구 강도·팔 피로 같은 오늘
- * 상태를 보고 세 가지 중 하나를 낸다.
+ * 상태를 보고 네 가지 중 하나를 낸다(통증 루틴은 2026-10-03 에 더했다).
  *
  *   쉬기   통증이 있는 날 — 루틴 대신 진료 안내
+ *   통증   팔(어깨 · 팔꿈치)이 '던질 때만' 아프고 자리를 고른 날 — 아픈 자리는 버티기 · 가벼운 것, 견갑 · 주변 보강, 1세트
  *   회복   던진 날·다음 날, 팔 피로가 높은 날, 부하가 높은 날, 온몸 근육통이 심한 날 — 가볍게, 피가 돌 만큼
  *   강화   그 밖의 날(던진 지 이틀이 넘은 날) — 부위를 고르게, 제대로
  *
  * 투수 표준 프로그램(Thrower's Ten)과 투구 뒤 48~72시간 회복 원칙을 따랐다.
  * 체크만 한다 — 실시간 기록과 AI 설명은 넣지 않는다(사용자분과 정함).
  *
+ * 통증 루틴은 2026-10-03 팔 통증 안내(재활 1편)로 더했다 — 아픈 날 '오늘은 쉬어요'로 끝나지 않고, 가볍게
+ * 아픈 날(던질 때만)에는 할 수 있는 것을 준다. 평소에도 아프거나 밤에도 아프면, 정도를 안 골랐으면,
+ * 만 15세 미만이면 지금처럼 쉬기다(lib/checkin.ts 의 canDoPainRoutine).
+ *
  * 이 파일은 DB 를 모른다. 읽는 쪽은 lib/armcare/today.ts, 저장하는 쪽은
  * app/actions/armcare.ts 다. 그래서 시험에서 그대로 돌려 볼 수 있다.
  */
 
-export type ArmcareKind = 'recovery' | 'strength';
+export type ArmcareKind = 'recovery' | 'strength' | 'pain';
+
+/** 자리가 정해진 루틴 — 통증 루틴은 아픈 자리에 따라 자리를 그때그때 만든다(painSlots) */
+type FixedKind = Exclude<ArmcareKind, 'pain'>;
 
 /** 루틴을 고르는 까닭 — 쉬는 날에는 루틴이 없다 */
 export type ArmcareDecision =
@@ -64,17 +79,35 @@ export function decideArmcare({
   facts,
   plan,
   armFatigue,
+  armPain = null,
 }: {
   facts: ReportFacts;
   plan: PitchPlan;
   /** 오늘 상세 체크인의 팔 피로(1~5). 간편 체크인이면 null */
   armFatigue: number | null;
+  /**
+   * 오늘 체크인의 팔 통증 자리 · 정도(lib/checkin.ts 의 ArmPain). 안 주면(칸이 생기기 전의 기록) 모르는
+   * 것으로 보고 쉬기 — 모르면 보수적으로.
+   */
+  armPain?: { spots: readonly string[]; level: number | null } | null;
 }): ArmcareDecision {
   /*
    * 통증은 고를 수 있는 것이 아니다. 운동 일정이 멈추는 것과 같은 조건이고
    * (plan.halted), 까닭도 같은 말을 쓴다 — 두 화면이 다른 말을 하면 안 된다.
+   *
+   * 하나만 푼다 — 오늘 어깨 · 팔꿈치가 '통증'이고, 그 관절의 아픈 자리를 골랐고, '던질 때만' 아프고,
+   * 만 15세 이상(나이를 모르면 그대로)이면 통증 루틴. 투구 계획은 그래도 멈춰 있다(던지지 않는다).
+   * 자리는 오늘 '통증'인 관절의 것만 센다 — 허리만 아픈 날에 지난 팔꿈치 자리가 루틴을 열지 않게.
    */
   if (plan.halted) {
+    const spots = armPainSpotsFor(facts.condition.today, armPain?.spots ?? []);
+    const level = armPain?.level ?? null;
+    if (canDoPainRoutine({ spots, level, age: facts.profile.age })) {
+      return {
+        kind: 'pain',
+        reason: `${painSpotsText(spots)} · ${armPainLevelLabel(level)} → 통증 루틴`,
+      };
+    }
     return {
       kind: 'rest',
       reason:
@@ -141,6 +174,16 @@ export function decideArmcare({
   };
 }
 
+/**
+ * '팔꿈치 안쪽' · '어깨 뒤쪽 · 팔꿈치 안쪽' — 셋 이상이면 앞의 둘과 '외 N곳'. 까닭은 한 줄이라 다 늘어놓지 않는다
+ * (자리는 안내 시트에 다 나온다).
+ */
+function painSpotsText(spots: readonly string[]): string {
+  const labels = spots.map((s) => armPainSpotLabel(s) ?? s);
+  const head = labels.slice(0, 2).join(' · ');
+  return labels.length > 2 ? `${head} 외 ${labels.length - 2}곳` : head;
+}
+
 /* --------------------------------- 루틴 짜기 --------------------------------- */
 
 /** 루틴에 넣을 수 있는 운동 — 라이브러리 줄에서 이만큼만 본다 */
@@ -195,7 +238,7 @@ export type ArmcareRoutine = {
  * 루틴에만 번갈아 넣는 안도 여쭸는데, 부위별 보강에서만 보이게 두기로 했다
  * (2026-09-25 사용자분과 정함).
  */
-const SLOTS: Record<ArmcareKind, readonly ArmcareAreaKey[]> = {
+const SLOTS: Record<FixedKind, readonly ArmcareAreaKey[]> = {
   strength: [
     'shoulder-back',
     'scapula',
@@ -229,7 +272,7 @@ const SLOT_MUSCLES: Partial<Record<ArmcareAreaKey, readonly string[]>> = {
  * 짧은 견갑 운동이 대신 들어갔다 — 부위를 고르게 담는 것이 이 루틴의 알맹이인데
  * 한 부위가 통째로 빠졌다. 뒤의 덤 자리는 한도 안에서만 넣는다.
  */
-const CORE_SLOTS: Record<ArmcareKind, number> = { strength: 6, recovery: 5 };
+const CORE_SLOTS: Record<FixedKind, number> = { strength: 6, recovery: 5 };
 /** 필수 자리가 넘겨도 되는 시간 */
 const CORE_SLACK_MINUTES = 5;
 
@@ -242,9 +285,15 @@ const CORE_SLACK_MINUTES = 5;
  * 맞췄다.
  *
  * 회복은 1세트 — 피가 돌 만큼만. 다섯 개에 10분이 안 된다.
+ *
+ * 통증 루틴도 1세트 · 약 10분이다(2026-10-03 정함). 아픈 날은 많이 하는 날이 아니다.
  */
-const BUDGET_MINUTES: Record<ArmcareKind, number> = { strength: 20, recovery: 9 };
-const SETS: Record<ArmcareKind, number> = { strength: 2, recovery: 1 };
+const BUDGET_MINUTES: Record<ArmcareKind, number> = {
+  strength: 20,
+  recovery: 9,
+  pain: 10,
+};
+const SETS: Record<ArmcareKind, number> = { strength: 2, recovery: 1, pain: 1 };
 /** 넘겨도 되는 시간 — 딱 맞아떨어지는 일이 거의 없다 */
 const SLACK_MINUTES = 2;
 /** 운동을 바꾸는 데 드는 시간. 밴드를 옮겨 거는 정도라 일정(3분)보다 짧다. */
@@ -252,6 +301,21 @@ const SWITCH_MINUTES = 0.5;
 
 /** 회복날에 빼는 장비 — 무게를 싣는 것 (lib/report/theme.ts 의 isRecoveryLight 와 같다) */
 const HEAVY_EQUIPMENT = ['덤벨', '바벨', '케틀벨', '원판', '케이블'];
+
+/**
+ * 통증 루틴에서 더 빼는 장비 — 철봉. 매달리기(데드행)는 버티기지만 몸무게가 통째로 팔에 걸린다.
+ * 팔꿈치 안쪽이 아픈 날 그 자리의 버티기로 데드행이 들어오면 안 된다(회복날 팔꿈치 자리에서 데드행을
+ * 앞세우지 않은 것과 같은 까닭 — 아래 order).
+ */
+const PAIN_BLOCKED_EQUIPMENT = [...HEAVY_EQUIPMENT, '철봉'];
+
+/**
+ * 버티기 — 시간으로 버티고 횟수가 없는 운동. 통증 루틴은 아픈 자리에 이것을 먼저 넣는다(관절을 움직이지
+ * 않고 힘을 쓰니 아픈 날에도 하기 쉽다).
+ */
+function isHold(ex: { holdSeconds?: number | null; reps?: number | null }) {
+  return ex.holdSeconds != null && ex.reps == null;
+}
 
 /**
  * 루틴에 넣지 않는 운동 — 주 근육이 이 셋이면 컬·푸시다운 같은 팔 근력 운동이다.
@@ -281,9 +345,9 @@ type TodayParts =
  * 운동이 몸 상태가 바뀐 뒤에도 말없이 남는다.
  *
  *   arm-strength  컬·푸시다운 같은 팔 근력 운동 (ARM_STRENGTH_MUSCLES)
- *   intensity     강화는 '중간'까지, 회복은 '낮음'까지
+ *   intensity     강화는 '중간'까지, 회복은 '낮음'까지, 통증은 버티기면 '중간'까지 · 아니면 '낮음'까지
  *   heavy         회복날에 덤벨·케이블처럼 무게를 싣는 장비 — 90구를 던진 다음 날
- *                 팔꿈치에 덤벨을 드는 운동이 나오면 안 된다
+ *                 팔꿈치에 덤벨을 드는 운동이 나오면 안 된다. 통증 루틴은 철봉까지 뺀다
  *   stiff         뻐근한 관절을 쓰는, '낮음'을 넘는 운동
  *
  * 뻐근함은 운동이 들어갈 자리가 아니라 운동이 쓰는 관절로 본다. 자리로 봤더니
@@ -314,12 +378,15 @@ export function armcareBlock(
  *   · 강화날의 '높음' 한도(맞춤 루틴이 정한 것)가 몸 상태처럼 읽혀, 과부하 내리기를 담아 둔
  *     사람에게 아무 일 없는 날에도 매일 '권하지 않는 운동'이 붙었다.
  *
- *   intensity  회복날에 '낮음'을 넘는 운동
- *   heavy      회복날에 덤벨·케이블처럼 무게를 싣는 장비
+ *   intensity  회복날에 '낮음'을 넘는 운동. 통증 루틴 날에 버티기가 아니면서 '낮음'을 넘는 운동
+ *   heavy      회복날에 덤벨·케이블처럼 무게를 싣는 장비. 통증 루틴 날에는 철봉까지
  *   stiff      뻐근한 관절을 쓰는, '낮음'을 넘는 운동
+ *
+ * 버티기인지는 횟수 · 버티는 시간으로 본다 — 둘을 안 준 운동은 버티기가 아닌 것으로 본다(가벼운 것만 남는다).
  */
 export function bodyStateBlock(
-  ex: Pick<ArmcareCandidate, 'intensity' | 'equipment' | 'targetMuscles'>,
+  ex: Pick<ArmcareCandidate, 'intensity' | 'equipment' | 'targetMuscles'> &
+    Partial<Pick<ArmcareCandidate, 'holdSeconds' | 'reps'>>,
   kind: ArmcareKind,
   today: TodayParts
 ): 'intensity' | 'heavy' | 'stiff' | null {
@@ -328,6 +395,14 @@ export function bodyStateBlock(
   if (kind === 'recovery') {
     if (level > light) return 'intensity';
     if (ex.equipment.some((q) => HEAVY_EQUIPMENT.includes(q))) return 'heavy';
+  }
+  /*
+   * 통증 루틴 — 버티기이거나 '낮음' 이하, 그리고 무게를 싣는 장비 없음(2026-10-03 정함). 버티기의 위 한도
+   * ('중간')는 armcareBlock 이 강화날과 같이 막는다.
+   */
+  if (kind === 'pain') {
+    if (ex.equipment.some((q) => PAIN_BLOCKED_EQUIPMENT.includes(q))) return 'heavy';
+    if (level > light && !isHold(ex)) return 'intensity';
   }
   if (level > light) {
     const joints = areasOf(ex.targetMuscles).map((a) => a.joint);
@@ -358,6 +433,50 @@ function mix(id: string, seed: string): number {
   return h;
 }
 
+/** 루틴의 자리 하나 — 채우는 차례대로 늘어놓는다 */
+type Slot = {
+  area: ArmcareAreaKey;
+  /** 필수 자리 — 시간을 조금 넘겨서라도 채운다(CORE_SLACK_MINUTES) */
+  core: boolean;
+  /** '낮음' 이하만 — 통증 루틴의 견갑 · 주변 자리 */
+  lightOnly: boolean;
+};
+
+/**
+ * 통증 루틴의 자리 — 아픈 자리에 따라 그때그때 만든다(2026-10-03 정함).
+ *
+ *   ① 견갑 하나 + 아픈 자리마다 하나        필수 — 시간을 조금 넘겨도 채운다
+ *   ② 아픈 자리마다 하나 더 + 견갑 하나 더   아픈 자리는 최대 둘, 견갑도 둘
+ *   ③ 주변 하나 — 어깨가 아프면 어깨의 다른 자리(후방 → 전방 → 상부 중 안 아픈 곳),
+ *      팔꿈치가 아프면 어깨 후방. 둘이 같으면 하나만
+ *
+ * 견갑은 아픈 곳의 부담을 나눠 받는 자리라 맨 앞에 둔다 — 아픈 자리를 여럿 골라 시간이 모자라도
+ * 견갑은 빠지지 않는다. 견갑 · 주변은 '낮음' 이하만(lightOnly), 아픈 자리는 버티기면 '중간'까지.
+ * 견갑이 아픈 자리면 견갑 자리를 따로 두지 않는다(아픈 자리 몫으로 이미 둘). 시간은 약 10분이라
+ * 아픈 자리를 많이 고르면 뒤의 것부터 빠진다. 운동이 모자라면 있는 만큼만 — 무거운 것으로 채우지 않는다.
+ */
+function painSlots(spots: readonly ArmcareAreaKey[]): Slot[] {
+  const pain = ARMCARE_AREAS.filter((a) => spots.includes(a.key));
+  const keys = pain.map((a) => a.key);
+  const scapula = !keys.includes('scapula');
+  const slots: Slot[] = [];
+  if (scapula) slots.push({ area: 'scapula', core: true, lightOnly: true });
+  for (const area of keys) slots.push({ area, core: true, lightOnly: false });
+  for (const area of keys) slots.push({ area, core: false, lightOnly: false });
+  if (scapula) slots.push({ area: 'scapula', core: false, lightOnly: true });
+
+  const around = new Set<ArmcareAreaKey>();
+  if (pain.some((a) => a.joint === '어깨')) {
+    const other = SHOULDER_AREAS.find((key) => !keys.includes(key));
+    if (other) around.add(other);
+  }
+  if (pain.some((a) => a.joint === '팔꿈치') && !keys.includes('shoulder-back')) {
+    around.add('shoulder-back');
+  }
+  for (const area of around) slots.push({ area, core: false, lightOnly: true });
+  return slots;
+}
+
 export function buildArmcareRoutine({
   decision,
   candidates,
@@ -367,6 +486,7 @@ export function buildArmcareRoutine({
   known,
   previous = null,
   seed,
+  painSpots = [],
 }: {
   decision: Extract<ArmcareDecision, { kind: ArmcareKind }>;
   /** 장비·경력을 거른 암케어 운동 */
@@ -388,6 +508,11 @@ export function buildArmcareRoutine({
   previous?: ArmcareRoutine | null;
   /** 순서를 섞는 씨앗. 보통은 날짜, 다시 만들 때는 지금 목록을 섞어 넣는다. */
   seed: string;
+  /**
+   * 통증 루틴의 아픈 자리 — 오늘 체크인에서 고른 것(lib/checkin.ts 의 armPainSpotsFor 로 거른 것).
+   * 다른 루틴은 보지 않는다.
+   */
+  painSpots?: readonly ArmcareAreaKey[];
 }): ArmcareRoutine {
   const kind = decision.kind;
   const notes: string[] = [];
@@ -409,15 +534,21 @@ export function buildArmcareRoutine({
    * 철봉 매달리기(데드행)가 들어왔다 — 버티기이긴 하지만 가벼운 밴드 손목 굽히기가
    * 그 자리의 뜻에 맞다.
    *
+   * 통증 루틴은 모든 자리에서 버티기(횟수 없이 시간만)를 앞세운다 — 아픈 날에는 관절을 움직이지 않고
+   * 힘을 쓰는 편이 하기 쉽다. 데드행은 철봉이라 이 루틴에 아예 안 들어온다(PAIN_BLOCKED_EQUIPMENT).
+   *
    * 같은 날에는 늘 같은 순서다(씨앗이 날짜). 새로고침에 루틴이 바뀌면 안 된다.
    */
   const preferHold = (area: ArmcareAreaKey) =>
-    SHOULDER_AREAS.includes(area) && (kind === 'recovery' || stiffShoulder);
+    kind === 'pain' ||
+    (SHOULDER_AREAS.includes(area) && (kind === 'recovery' || stiffShoulder));
+  const holds = (ex: ArmcareCandidate) =>
+    kind === 'pain' ? isHold(ex) : ex.holdSeconds != null;
   const order =
     (area: ArmcareAreaKey) => (a: ArmcareCandidate, b: ArmcareCandidate) => {
       if (preferHold(area)) {
-        const holdA = a.holdSeconds != null ? 0 : 1;
-        const holdB = b.holdSeconds != null ? 0 : 1;
+        const holdA = holds(a) ? 0 : 1;
+        const holdB = holds(b) ? 0 : 1;
         if (holdA !== holdB) return holdA - holdB;
       }
       const lastA = lastDone.get(a.id) ?? '';
@@ -458,7 +589,14 @@ export function buildArmcareRoutine({
     const muscles = SLOT_MUSCLES[area];
     return !muscles || muscles.includes(ex.targetMuscles[0] ?? '');
   };
-  const slots = SLOTS[kind].map((area, i) => ({ area, core: i < CORE_SLOTS[kind] }));
+  const slots: Slot[] =
+    kind === 'pain'
+      ? painSlots(painSpots)
+      : SLOTS[kind].map((area, i) => ({
+          area,
+          core: i < CORE_SLOTS[kind],
+          lightOnly: false,
+        }));
   for (const id of doneToday) {
     const ex = byId.get(id);
     const area = ex ? (areaOf(ex) ?? previousArea.get(id) ?? null) : null;
@@ -476,14 +614,21 @@ export function buildArmcareRoutine({
    */
   const noGear = new Set<ArmcareAreaKey>();
   const byRule = new Set<ArmcareAreaKey>();
-  for (const { area, core } of slots) {
+  for (const { area, core, lightOnly } of slots) {
     /* 팔꿈치가 뻐근하면 전완은 하나만 */
     if (stiffElbow && ELBOW_AREAS.includes(area) && elbowCount >= 1) continue;
 
     const inArea = candidates.filter(
       (ex) => !taken.has(ex.id) && areaOf(ex) === area && fitsSlot(ex, area)
     );
-    const pool = inArea.filter(allowed).sort(order(area));
+    /* 통증 루틴의 견갑 · 주변 자리는 버티기여도 '낮음' 이하만(painSlots) */
+    const pool = inArea
+      .filter(
+        (ex) =>
+          allowed(ex) &&
+          (!lightOnly || intensityLevel(ex.intensity) <= intensityLevel('낮음'))
+      )
+      .sort(order(area));
     if (pool.length === 0) {
       (inArea.length === 0 ? noGear : byRule).add(area);
       continue;
@@ -500,6 +645,11 @@ export function buildArmcareRoutine({
     if (next) put(next, area);
   }
 
+  if (kind === 'pain') {
+    notes.push(
+      '아픈 자리는 버티기와 가벼운 운동만, 모두 1세트예요. 통증 없는 범위에서 하고, 하다가 아프면 바로 멈추세요.'
+    );
+  }
   if (stiffShoulder) {
     notes.push(
       '어깨가 뻐근해서 어깨를 쓰는 운동은 가벼운 것과 버티기 위주로 골랐어요.'
@@ -525,7 +675,9 @@ export function buildArmcareRoutine({
     notes.push(
       kind === 'recovery'
         ? `회복날에는 무게를 싣지 않는 가벼운 운동만 넣어서 ${list} 뺐어요.`
-        : `오늘 몸 상태에 맞는 가벼운 운동이 없어 ${list} 뺐어요.`
+        : kind === 'pain'
+          ? `아픈 날에 맞는 버티기 · 가벼운 운동이 없어 ${list} 뺐어요.`
+          : `오늘 몸 상태에 맞는 가벼운 운동이 없어 ${list} 뺐어요.`
     );
   }
 
@@ -556,7 +708,13 @@ export function readArmcareRoutine(value: unknown): ArmcareRoutine | null {
   if (!value || typeof value !== 'object') return null;
   const routine = value as Partial<ArmcareRoutine>;
   if (routine.version !== 1 || !Array.isArray(routine.items)) return null;
-  if (routine.kind !== 'recovery' && routine.kind !== 'strength') return null;
+  if (
+    routine.kind !== 'recovery' &&
+    routine.kind !== 'strength' &&
+    routine.kind !== 'pain'
+  ) {
+    return null;
+  }
   return routine as ArmcareRoutine;
 }
 
@@ -569,4 +727,5 @@ export function readArmcareRoutine(value: unknown): ArmcareRoutine | null {
 export const ARMCARE_KIND_TEXT: Record<ArmcareKind, { label: string }> = {
   recovery: { label: '회복 루틴' },
   strength: { label: '강화 루틴' },
+  pain: { label: '통증 루틴' },
 };

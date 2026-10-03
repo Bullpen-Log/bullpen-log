@@ -7,6 +7,8 @@
  */
 
 import { toDateKey } from '@/lib/pitch-stats';
+/* 타입만 읽는다 — 체크인 폼이 모든 화면에 실려서, 부위 설명 글까지 따라 들어오지 않게(아래 '팔 통증') */
+import type { ArmcareAreaKey } from '@/lib/armcare/anatomy';
 
 export const BODY_FEELINGS = ['정상', '뻐근', '통증'] as const;
 export const SLEEP_LEVELS = ['충분', '보통', '부족'] as const;
@@ -304,6 +306,157 @@ export function parseCheckinBody(get: (name: string) => string): CheckinBody {
 /** DB 행에서 두 칸만 뽑는다. 예전 기록처럼 비어 있으면 null */
 export function pickCheckinBody(row: Partial<CheckinBody>): CheckinBody {
   return { sleepHours: row.sleepHours ?? null, soreness: row.soreness ?? null };
+}
+
+/* ─────────────────────── 팔 통증 — 아픈 자리 · 정도 ─────────────────────── */
+
+/*
+ * 팔 통증 안내(2026-10-03, 재활 1편). 어깨 · 팔꿈치를 '통증'으로 고른 날만 그 줄 밑에 두 줄이 더 열린다 —
+ * '어디가 아파요?'(그 관절의 자리 넷, 여러 개)와 '얼마나 아파요?'(셋 중 하나). 둘 다 안 골라도 저장된다.
+ *
+ * 읽는 곳: 암케어(lib/armcare/routine.ts 의 decideArmcare — 정도 1 + 자리 있음 + 만 15세 이상이면 '통증 루틴',
+ * 그 밖은 지금처럼 쉬기)와 안내 시트(app/(app)/training/arm-pain-guide.tsx). 자리 값은 암케어 부위 키
+ * (lib/armcare/anatomy.ts)라 부위의 흔한 부상 · 증상을 그대로 꺼내 쓴다.
+ *
+ * 정도를 안 고른 날은 쉬는 쪽으로 본다 — 모르면 보수적으로. 트레이닝 일정 · 투구 계획은 이 두 칸을 읽지 않는다
+ * (통증이면 지금처럼 관절 단위로 피하고 멈춘다).
+ */
+
+/** 정도 셋 — 클수록 심하다. 저장은 숫자(1~3) */
+export const ARM_PAIN_LEVELS = [
+  { value: 1, label: '던질 때만' },
+  { value: 2, label: '평소 움직일 때도' },
+  { value: 3, label: '가만히 있어도 · 밤에도' },
+] as const;
+
+/**
+ * 관절마다 고를 수 있는 자리 — 부위별 보강의 여덟 부위 그대로, 이름만 쉬운 말로.
+ *   chip   그 관절 줄 밑의 칩 글('안쪽')
+ *   label  안내 시트 · 암케어 까닭에 쓰는 이름('팔꿈치 안쪽')
+ * 부위 이름('팔꿈치 내측')을 그대로 쓰지 않는다 — 아픈 곳을 짚는 자리라 몸에서 바로 찾을 말이 낫다.
+ */
+export const ARM_PAIN_SPOTS = {
+  shoulder: [
+    { key: 'shoulder-back', chip: '뒤쪽', label: '어깨 뒤쪽' },
+    { key: 'shoulder-front', chip: '앞쪽', label: '어깨 앞쪽' },
+    { key: 'shoulder-top', chip: '위쪽', label: '어깨 위쪽' },
+    { key: 'scapula', chip: '날개뼈', label: '날개뼈(견갑)' },
+  ],
+  elbow: [
+    { key: 'elbow-inner', chip: '안쪽', label: '팔꿈치 안쪽' },
+    { key: 'elbow-outer', chip: '바깥쪽', label: '팔꿈치 바깥쪽' },
+    { key: 'elbow-back', chip: '뒤쪽', label: '팔꿈치 뒤쪽' },
+    { key: 'elbow-front', chip: '앞쪽', label: '팔꿈치 앞쪽' },
+  ],
+} as const satisfies Record<
+  'shoulder' | 'elbow',
+  readonly { key: ArmcareAreaKey; chip: string; label: string }[]
+>;
+
+export type ArmPainJoint = keyof typeof ARM_PAIN_SPOTS;
+
+/**
+ * 이 나이(만) 밑이면 통증 루틴을 주지 않고 진료만 권한다 — 성장판 부상이 섞여 있어 운동으로 다룰 일이
+ * 아니다. 투구 계획이 성장기로 보는 선(lib/report/plan.ts 의 YOUTH_AGE_THRESHOLD)과 같다.
+ */
+export const ARM_PAIN_ROUTINE_MIN_AGE = 15;
+
+export type ArmPain = {
+  /** 아픈 자리 — '통증'인 관절의 자리만, ARM_PAIN_SPOTS 차례로 */
+  armPainSpots: ArmcareAreaKey[];
+  /** 정도 1~3. 안 골랐으면 null */
+  armPainLevel: number | null;
+};
+
+const ARM_PAIN_SPOT_LIST = [...ARM_PAIN_SPOTS.shoulder, ...ARM_PAIN_SPOTS.elbow];
+
+/** '팔꿈치 안쪽' — 모르는 값이면 null */
+export function armPainSpotLabel(key: string): string | null {
+  return ARM_PAIN_SPOT_LIST.find((s) => s.key === key)?.label ?? null;
+}
+
+/** '던질 때만' — 1~3 밖이면 null */
+export function armPainLevelLabel(level: number | null | undefined): string | null {
+  return ARM_PAIN_LEVELS.find((l) => l.value === level)?.label ?? null;
+}
+
+/** 정도는 1~3 정수만 — 그 밖(빈 값 · 글자 · 소수)은 안 고른 것 */
+function pickArmPainLevel(value: unknown): number | null {
+  const n = Number(value);
+  return Number.isInteger(n) && n >= 1 && n <= ARM_PAIN_LEVELS.length ? n : null;
+}
+
+/**
+ * 오늘 '통증'인 관절의 자리만 남긴다. 목록에 없는 값 · 겹친 값은 버리고, 차례는 ARM_PAIN_SPOTS(어깨 → 팔꿈치).
+ *
+ * 저장할 때(parseArmPain)와 읽을 때(lib/armcare/today.ts) 같은 규칙이다. 읽을 때도 거르는 것은, 이 칸을
+ * 모르는 옛 화면으로 팔꿈치를 '정상'으로 고쳐 저장하면 자리 칸은 그대로 남기 때문이다.
+ */
+export function armPainSpotsFor(
+  parts: { shoulder?: string; elbow?: string } | null | undefined,
+  raw: readonly string[]
+): ArmcareAreaKey[] {
+  const picked = new Set(raw.map((s) => s.trim()));
+  const out: ArmcareAreaKey[] = [];
+  for (const joint of ['shoulder', 'elbow'] as const) {
+    if (parts?.[joint] !== '통증') continue;
+    for (const spot of ARM_PAIN_SPOTS[joint]) {
+      if (picked.has(spot.key)) out.push(spot.key);
+    }
+  }
+  return out;
+}
+
+/**
+ * 폼에서 온 두 칸 — 오류를 내지 않는다(목록 · 범위 밖은 안 고른 것으로). 체크박스라 값이 여럿이어서
+ * 한 이름의 값을 모두 받는다(getAll).
+ *
+ * 어깨 · 팔꿈치 둘 다 '통증'이 아니면 빈 값이다 — 어제 고른 자리가 오늘 저장에 남지 않게 지운다.
+ */
+export function parseArmPain(
+  getAll: (name: string) => string[],
+  parts: { shoulder?: string; elbow?: string }
+): ArmPain {
+  if (parts.shoulder !== '통증' && parts.elbow !== '통증') {
+    return { armPainSpots: [], armPainLevel: null };
+  }
+  return {
+    armPainSpots: armPainSpotsFor(parts, getAll('armPainSpots')),
+    armPainLevel: pickArmPainLevel(getAll('armPainLevel')[0] ?? ''),
+  };
+}
+
+/** DB 행에서 두 칸만 뽑는다. 칸이 생기기 전의 기록처럼 비어 있으면 [] · null */
+export function pickArmPain(row: {
+  armPainSpots?: readonly string[] | null;
+  armPainLevel?: number | null;
+}): ArmPain {
+  const known = new Set(row.armPainSpots ?? []);
+  return {
+    armPainSpots: ARM_PAIN_SPOT_LIST.filter((s) => known.has(s.key)).map((s) => s.key),
+    armPainLevel: pickArmPainLevel(row.armPainLevel ?? ''),
+  };
+}
+
+/**
+ * 오늘 통증 루틴을 해도 되는가 — 자리를 하나 이상 골랐고, 정도가 1(던질 때만)이고, 나이를 알면 만 15세 이상.
+ *
+ * 암케어의 결정(decideArmcare)과 안내 시트의 '오늘은'이 이 함수 하나를 본다. 둘이 따로 따지면 시트는
+ * '가벼운 루틴을 해요'라는데 암케어 탭은 쉬라고 하는 날이 생긴다. 나이를 모르면 막지 않는다(대상이 고등학생
+ * 이상이고, 생년월일은 안 적어도 되는 칸이다).
+ */
+export function canDoPainRoutine({
+  spots,
+  level,
+  age,
+}: {
+  spots: readonly string[];
+  level: number | null;
+  age: number | null;
+}): boolean {
+  return (
+    spots.length > 0 && level === 1 && (age == null || age >= ARM_PAIN_ROUTINE_MIN_AGE)
+  );
 }
 
 /* ─────────────────────────── 상세 체크인 ─────────────────────────── */

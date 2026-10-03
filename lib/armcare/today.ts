@@ -6,6 +6,7 @@ import { filterByEquipment } from '@/lib/report/equipment';
 import { filterByLevel } from '@/lib/report/personalize';
 import { visibleExercises, type CachedExercise } from '@/lib/library-cache';
 import { ARMCARE_CATEGORY } from '@/lib/armcare/anatomy';
+import { armPainSpotsFor, pickArmPain } from '@/lib/checkin';
 import {
   armcareBlock,
   bodyStateBlock,
@@ -48,10 +49,13 @@ export async function loadArmcareToday(user: UserForArmcare, today: Date) {
       where: { userId_date: { userId: user.id, date: midnight } },
       select: { plan: true },
     }),
-    /* 팔 피로는 상세 체크인에만 있어 리포트 자료(facts)에 없다. 오늘 줄만 읽는다. */
+    /*
+     * 팔 피로는 상세 체크인에만 있어 리포트 자료(facts)에 없다. 팔 통증 자리 · 정도도 같다(통증 루틴 ·
+     * 안내 시트만 읽는다). 오늘 줄만 읽는다.
+     */
     prisma.dailyCheckin.findUnique({
       where: { userId_date: { userId: user.id, date: midnight } },
-      select: { armFatigue: true },
+      select: { armFatigue: true, armPainSpots: true, armPainLevel: true },
     }),
     prisma.userExerciseLog.findMany({
       where: {
@@ -98,6 +102,20 @@ export async function loadArmcareToday(user: UserForArmcare, today: Date) {
     return { key, done: doneDates.has(key) };
   });
 
+  /*
+   * 오늘 팔(어깨 · 팔꿈치) 통증 — 그 관절이 오늘 '통증'인 날만 있다. 자리는 오늘 '통증'인 관절의 것만 센다
+   * (옛 화면으로 고쳐 저장해 남은 자리를 버린다 — lib/checkin.ts 의 armPainSpotsFor).
+   */
+  const todayParts = facts.condition.today;
+  const savedPain = pickArmPain(checkin ?? {});
+  const armPain =
+    todayParts?.shoulder === '통증' || todayParts?.elbow === '통증'
+      ? {
+          spots: armPainSpotsFor(todayParts, savedPain.armPainSpots),
+          level: savedPain.armPainLevel,
+        }
+      : null;
+
   return {
     todayKey,
     midnight,
@@ -105,7 +123,17 @@ export async function loadArmcareToday(user: UserForArmcare, today: Date) {
     plan,
     /** 오늘 체크인을 남겼는가. 없으면 만들지 않는다 — 운동 일정과 같은 규칙. */
     hasCheckinToday: facts.condition.today != null,
-    decision: decideArmcare({ facts, plan, armFatigue: checkin?.armFatigue ?? null }),
+    decision: decideArmcare({
+      facts,
+      plan,
+      armFatigue: checkin?.armFatigue ?? null,
+      armPain,
+    }),
+    /**
+     * 오늘 팔 통증 자리 · 정도 — 어깨 · 팔꿈치가 '통증'인 날만, 아니면 null. 통증 루틴(만들기)과 안내 시트가
+     * 같은 값을 본다.
+     */
+    armPain,
     /** 오늘 만들어 둔 루틴. 없으면 아직 안 만든 날이다. */
     routine: readArmcareRoutine(saved?.plan),
     /** 루틴에 넣을 수 있는 것 — 장비·경력을 통과한 암케어 운동 */

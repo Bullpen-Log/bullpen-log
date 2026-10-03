@@ -2,7 +2,7 @@ import { ViewTransition } from 'react';
 import { headers } from 'next/headers';
 import { requireUser } from '@/lib/dal';
 import { isNativeUserAgent } from '@/lib/app-env';
-import { isSex, toDateInputValue } from '@/lib/profile';
+import { ageFromBirthDate, isSex, toDateInputValue } from '@/lib/profile';
 import { toDateKey } from '@/lib/pitch-stats';
 import { createAvatarUrl } from '@/lib/storage';
 import { MOBILE_TABS, quickTabs, visibleGroups } from '@/lib/nav';
@@ -12,7 +12,12 @@ import { RefreshOnReturn } from '@/components/refresh-on-return';
 import { SendPendingSets } from '@/components/send-pending-sets';
 import type { CheckinData } from '@/components/checkin-form';
 import { prisma } from '@/lib/prisma';
-import { pickCheckinBody, pickCheckinDetail, pickCheckinParts } from '@/lib/checkin';
+import {
+  pickArmPain,
+  pickCheckinBody,
+  pickCheckinDetail,
+  pickCheckinParts,
+} from '@/lib/checkin';
 import { visibleExercises } from '@/lib/library-cache';
 import { availableParts } from '@/lib/report/today-pick';
 import { OPEN_POPUP, QUIET_REFRESH } from '@/lib/transition-types';
@@ -95,6 +100,8 @@ export default async function AppLayout({
     /* 근육통 · 잔 시간 — 간편 쪽 선택 칸. 체크인 창이 저장된 값으로 다시 채운다 */
     ...pickCheckinBody(c),
     ...pickCheckinDetail(c),
+    /* 팔 통증 자리 · 정도 — 어깨 · 팔꿈치 '통증'인 날 고른 것. 체크인 창과 요약의 통증 안내가 쓴다 */
+    ...pickArmPain(c),
   }));
 
   return (
@@ -150,6 +157,8 @@ export default async function AppLayout({
           pitchDays: recentPitchDays.map((p) => p.date.toISOString().slice(0, 10)),
           recentCheckins: gateCheckins,
           parts: availableParts(library),
+          /* 만 나이 — 체크인 요약의 팔 통증 안내가 쓴다(만 15세 미만은 루틴 대신 진료). 모르면 null */
+          age: user.birthDate ? ageFromBirthDate(user.birthDate) : null,
         }}
       />
 
