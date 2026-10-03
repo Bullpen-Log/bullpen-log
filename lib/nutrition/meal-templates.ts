@@ -61,7 +61,7 @@ const ROWS: Row[] = [
   ['b-oat-honey', '오트밀 · 그릭요거트 · 꿀 · 블루베리', 'B', 'w', 'h', 'pre', 'oatmeal:1:c greek-yogurt:1:p honey:1:s blueberry:1:s'],
   ['b-greek-bowl', '그릭요거트 · 블루베리 · 아몬드', 'BS', 'w', 'hg', 'lean bed', 'greek-yogurt:1.5:p blueberry:1:s almond:0.5:s'],
   ['b-toast-egg', '식빵 · 달걀프라이 · 우유', 'B', 'w', 'h', '', 'white-bread:2:c egg-fried:2:p milk:1:s'],
-  ['b-bagel', '베이글 · 슬라이스 치즈 · 삶은 달걀 · 오렌지주스', 'B', 'w', 'h', 'pre', 'bagel:1:c egg:2:p cheese-slice:1:s orange-juice:1:s'],
+  ['b-bagel', '베이글 · 슬라이스 치즈 · 삶은 달걀 · 오렌지주스', 'B', 'w', 'h', 'pre', 'bagel:1:c egg:1:p cheese-slice:1:s orange-juice:1:s'],
   ['b-pb-toast', '식빵 · 땅콩버터 · 바나나 · 우유', 'BS', 'w', 'h', 'dense', 'white-bread:2:c peanut-butter:1:s banana:1:s milk:1:p'],
   ['b-sweetpotato', '고구마 · 삶은 달걀 · 우유', 'BS', 'k', 'hgt', '', 'sweet-potato:1:c egg:2:p milk:1:s'],
   ['b-potato', '찐 감자 · 삶은 달걀 · 사과', 'B', 'k', 'h', 'lean', 'potato:1.5:c egg:2:p apple:1:s'],
@@ -106,7 +106,7 @@ const ROWS: Row[] = [
   ['l-bulgogi-set', '소불고기 · 잡곡밥 · 시금치나물 · 미역국', 'LD', 'k', 'ht', 'rec', 'bulgogi:1:p multigrain-rice:1:c spinach:1:s miyeokguk:1:s'],
   ['l-curry', '카레라이스 · 삶은 달걀', 'L', 'k', 'ht', '', 'curry-rice:1:d egg:1:p'],
   ['l-omurice', '오므라이스 · 샐러드', 'L', 'w', 'ho', '', 'omurice:1:d salad:1:s'],
-  ['l-pasta-chicken', '토마토 파스타 · 닭가슴살', 'LD', 'w', 'ho', 'pre', 'pasta-tomato:1:c chicken-breast:1:p'],
+  ['l-pasta-chicken', '토마토 파스타 · 닭가슴살', 'LD', 'w', 'ho', 'pre', 'pasta-tomato:1:c chicken-breast:0.75:p'],
   ['l-kalguksu', '칼국수 · 찐만두', 'L', 'k', 'o', 'light', 'kalguksu:1:d dumplings:1:p'],
   ['l-naengmyeon', '물냉면 · 찐만두', 'L', 'k', 'ho', 'heat', 'naengmyeon:1:d dumplings:1:p'],
   ['l-udon-gimbap', '우동 · 삼각김밥 · 삶은 달걀', 'L', 's', 'o', 'pre light', 'udon:1:d triangle-gimbap:1:c egg:2:p'],
@@ -140,6 +140,13 @@ const ROWS: Row[] = [
   ['l-chicken-kor', '현미밥 · 닭가슴살 · 시금치나물 · 된장찌개', 'L', 'k', 'ht', 'lean rec', 'brown-rice:1:c chicken-breast:0.75:p spinach:1:s doenjang-jjigae:1:s'],
   ['l-thigh-watermelon', '잡곡밥 · 닭다리살 · 미역국 · 수박', 'L', 'k', 'ht', 'heat rec', 'multigrain-rice:1:c chicken-thigh:1:p miyeokguk:1:s watermelon:1:s'],
   ['l-tuna-salad', '고구마 · 참치캔 · 샐러드', 'L', 'ws', 'hgo', 'lean', 'sweet-potato:1.5:c tuna-can:1:p salad:1:s'],
+  ['l-gym-heat-chicken', '즉석밥 · 닭가슴살 팩 · 이온음료', 'L', 's', 'gto', 'heat pre', 'rice:1:c chicken-breast-pack:1:p sports-drink:1:s'],
+  ['l-gym-heat-tuna', '즉석밥 · 참치캔 · 오렌지주스', 'L', 's', 'gto', 'heat pre', 'rice:1:c tuna-can:1:p orange-juice:1:s'],
+  ['l-gym-heat-tofu', '즉석밥 · 두부 · 이온음료 · 귤', 'L', 's', 'gto', 'heat pre', 'rice:1:c tofu:1:p sports-drink:1:s mandarin:1:s'],
+  ['l-tofu-doenjang', '쌀밥 · 두부조림 · 된장찌개', 'LD', 'k', 'hto', 'light', 'rice:1:c braised-tofu:1:p doenjang-jjigae:1:s'],
+  ['l-soy-sweet', '고구마 · 두유 · 바나나', 'L', 's', 'gto', 'light pre', 'sweet-potato:1:c soy-milk:2:p banana:1:s'],
+  ['l-team-heat-beef', '쌀밥 · 소불고기 · 미역국 · 수박', 'L', 'k', 'ht', 'heat', 'rice:1:c bulgogi:1:p miyeokguk:1:s watermelon:1:s'],
+  ['l-team-heat-tofu', '잡곡밥 · 두부조림 · 된장찌개 · 수박', 'L', 'k', 'ht', 'heat light', 'multigrain-rice:1:c braised-tofu:1:p doenjang-jjigae:1:s watermelon:1:s'],
 
   // ── 저녁 ──
   ['d-beef-lean', '소고기 우둔 · 현미밥 · 브로콜리 · 된장찌개', 'D', 'k', 'h', 'lean rec', 'beef-lean:1.5:p brown-rice:1:c broccoli:1:s doenjang-jjigae:1:s'],
@@ -177,6 +184,11 @@ const ROWS: Row[] = [
   ['d-cvs-tri-salad', '삼각김밥 둘 · 닭가슴살 샐러드', 'D', 's', 'ho', 'rec', 'triangle-gimbap:2:c chicken-salad:1:p'],
   ['d-eggroll-doenjang', '쌀밥 · 계란말이 · 된장찌개 · 시금치나물', 'D', 'k', 'h', 'light', 'rice:1:c egg-roll:1:p doenjang-jjigae:1:s spinach:1:s'],
   ['d-chicken-doenjang', '잡곡밥 · 닭가슴살 · 된장찌개 · 김치', 'D', 'k', 'h', 'lean rec', 'multigrain-rice:1:c chicken-breast:0.75:p doenjang-jjigae:1:s kimchi:1:s'],
+  ['d-cvs-egg-rice', '즉석밥 · 삶은 달걀 · 두유 · 방울토마토', 'D', 's', 'ho', 'rec', 'rice:1:c egg:2:p soy-milk:1:s cherry-tomato:1:s'],
+  ['d-out-pre-beef', '쌀밥 · 소고기 우둔 · 된장찌개 · 귤', 'D', 'k', 'ho', 'pre', 'rice:1.5:c beef-lean:1:p doenjang-jjigae:1:s mandarin:1:s'],
+  ['d-out-pre-chicken', '쌀밥 · 닭가슴살 · 미역국', 'D', 'k', 'ho', 'pre', 'rice:1.5:c chicken-breast:1:p miyeokguk:1:s'],
+  ['d-heat-pork', '쌀밥 · 돼지 안심 · 미역국 · 수박', 'D', 'k', 'h', 'heat rec', 'rice:1:c pork-tenderloin:1:p miyeokguk:1:s watermelon:1:s'],
+  ['d-heat-tofu', '잡곡밥 · 두부 · 미역국 · 수박', 'D', 'k', 'h', 'heat light', 'multigrain-rice:1:c tofu:1:p miyeokguk:1:s watermelon:1:s'],
 
   // ── 간식 ──
   ['s-banana-milk', '바나나 · 우유', 'S', 'k', 'hgto', 'rec', 'banana:1:c milk:1:p'],
@@ -219,13 +231,17 @@ const ROWS: Row[] = [
   ['s-toast-cheese', '식빵 · 슬라이스 치즈 · 저지방우유', 'S', 'w', 'h', 'rec', 'white-bread:2:c cheese-slice:1:s milk-lowfat:1:p'],
   ['s-strawberry-milk', '딸기 · 저지방우유', 'S', 'k', 'h', 'light lean', 'strawberry:1.5:c milk-lowfat:1:p'],
 
+  ['s-soy-banana', '두유 · 바나나', 'S', 'ks', 'hgto', 'light bed', 'soy-milk:1:p banana:1:c'],
+  ['s-soy-mandarin', '두유 · 귤', 'S', 'k', 'hgto', 'light', 'soy-milk:1:p mandarin:2:c'],
+  ['s-sports-sweetpotato', '고구마 · 이온음료', 'S', 'ks', 'hgt', 'heat pre', 'sweet-potato:1:c sports-drink:1:s'],
 ];
 
 /*
  * ── 못 먹는 것 — 음식마다 무엇이 들었나(빠진 것이 없게 넉넉히: 재료로 흔히 들어가는 것까지) ──
- * 국물 · 양념 · 고명도 센다 — 김치의 젓갈, 된장찌개 · 우동 · 칼국수의 멸치 · 해물 육수, 물냉면의 달걀 · 소고기 육수, 삼각김밥
- * 참치마요의 마요네즈(달걀), 카레 루의 분유. 밀가루만은 밀가루 음식(빵 · 면 · 튀김옷 · 만두피 · 카레 루)으로 센다 — 간장 ·
- * 고추장에 든 밀까지 치면 한식을 거의 못 짠다.
+ * 국물 · 양념 · 고명도 센다 — 김치의 젓갈, 된장찌개 · 우동 · 칼국수의 멸치 · 해물 육수, 물냉면의 달걀 · 소고기 육수, 갈비탕의
+ * 지단, 설렁탕의 소면, 삼각김밥 참치마요의 마요네즈(달걀), 카레 루의 분유, 멸치볶음의 견과. 밀가루는 밀가루 음식(빵 · 면 ·
+ * 튀김옷 · 만두피 · 카레 루)과 주재료로 든 어묵 · 맛살(김밥)로 센다 — 간장 · 고추장에 든 밀까지 치면 한식을 거의 못 짠다.
+ * 무엇이 든지 정해지지 않은 묶음(편의점 도시락)은 흔한 구성(돈가스 · 치킨 · 불고기 · 어묵 · 볶음김치)을 모두 센다.
  */
 const CONTAINS: Partial<Record<AvoidKey, string[]>> = {
   dairy: [
@@ -265,6 +281,7 @@ const CONTAINS: Partial<Record<AvoidKey, string[]>> = {
     'yukgaejang',
     'japchae',
     'lunchbox',
+    'galbitang',
   ],
   seafood: [
     'tuna-can',
@@ -281,6 +298,7 @@ const CONTAINS: Partial<Record<AvoidKey, string[]>> = {
     'udon',
     'kalguksu',
     'gimbap',
+    'lunchbox',
   ],
   pork: [
     'jeyuk',
@@ -303,6 +321,7 @@ const CONTAINS: Partial<Record<AvoidKey, string[]>> = {
     'curry-rice',
     'sundubu-jjigae',
     'japchae',
+    'tuna-gimbap',
   ],
   beef: [
     'bulgogi',
@@ -318,6 +337,7 @@ const CONTAINS: Partial<Record<AvoidKey, string[]>> = {
     'naengmyeon',
     'bibimbap',
     'curry-rice',
+    'lunchbox',
   ],
   chicken: [
     'chicken-breast',
@@ -327,6 +347,7 @@ const CONTAINS: Partial<Record<AvoidKey, string[]>> = {
     'chicken-salad',
     'samgyetang',
     'dakbokkeumtang',
+    'lunchbox',
   ],
   wheat: [
     'white-bread',
@@ -350,8 +371,12 @@ const CONTAINS: Partial<Record<AvoidKey, string[]>> = {
     'budae-jjigae',
     'protein-bar',
     'curry-rice',
+    'lunchbox',
+    'gimbap',
+    'tuna-gimbap',
+    'seolleongtang',
   ],
-  nuts: ['almond', 'mixed-nuts', 'peanut-butter', 'protein-bar'],
+  nuts: ['almond', 'mixed-nuts', 'peanut-butter', 'protein-bar', 'anchovy'],
   spicy: [
     'kimchi',
     'kimchi-jjigae',
@@ -364,6 +389,7 @@ const CONTAINS: Partial<Record<AvoidKey, string[]>> = {
     'dakbokkeumtang',
     'sundubu-jjigae',
     'bibimbap',
+    'lunchbox',
   ],
 };
 
