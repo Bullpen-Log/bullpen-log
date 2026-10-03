@@ -11,6 +11,16 @@ Claude 로 작업을 시작하면 저절로 읽힌다. 규칙은 `AGENTS.md` 6�
 
 ---
 
+## 금윤호에게 — 2026-10-04 · 김민(Claude) — 트레이닝에 '메커니즘' 칸 · 새 표 MechanicsProgram
+
+**받은 뒤 할 일: `npx prisma generate` 후 개발 서버 다시 켜기.** 새 표 하나를 더했다(백업 `db-2026-10-03-16-09.json` 뒤,
+마이그레이션 `20261004120000_mechanics_program` 은 이미 공유 DB 에 적용, User 에는 관계 칸 `mechanicsProgram` 만 — SQL 변화 없음).
+
+- 트레이닝 고르개가 **[트레이닝 | 암케어 | 메커니즘]**(`lib/training-part.ts` 에 'mechanics', 주소 `?view=mechanics`). 메커니즘 안은
+  [프로그램 | 요소별 드릴]. 네 영역은 안 건드렸고, 트레이닝 page.tsx 에 칸 하나 · view-switch 에 칸 하나를 더했다.
+- 따라 하기 화면 `/mechanics/play`(`app/(session)` 틀). 프로그램 규칙 `lib/mechanics/program.ts`(시험 `npm run mechanics:test`),
+  설명글 `lib/mechanics/elements.ts`, '했다'는 그동안 비어 있던 `UserDrillLog` 에 처음 쓴다.
+
 ## 금윤호에게 — 2026-10-04 · 김민(Claude) — 투구 드릴 표에 칸 둘(단계 · 숨김) · 요소 6가지로
 
 **받은 뒤 할 일: `npx prisma generate` 후 개발 서버 다시 켜기.** DB 구조를 바꿨다(새 칸만 — 백업 `db-2026-10-03-15-34.json` 뒤,

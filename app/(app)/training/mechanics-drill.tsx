@@ -7,28 +7,9 @@ import { LibraryVideo } from '@/components/library-video';
 import { FavoriteButton } from '@/components/favorite-button';
 import { guideDescription } from '@/app/actions/content';
 import { toggleDrillFavorite } from '@/app/actions/favorite';
+import type { MechanicsDrillView } from '@/lib/mechanics/drills';
 
-/** 같은 동작의 도구 하나 — 야구공 · 작은 메디신볼 · 큰 메디신볼 … */
-export type MechanicsVariant = {
-  id: string;
-  tool: string;
-  equipment: string[];
-  referenceVideoId: string | null;
-  videoPath: string | null;
-  aspectRatio: number | null;
-  thumbUrl: string | null;
-  isReference: boolean;
-  favorite: boolean;
-};
-
-/** 메커니즘 칸의 드릴 한 줄 — 도구만 다른 드릴을 한 동작으로 묶었다(mechanics-section.tsx) */
-export type MechanicsDrillView = {
-  title: string;
-  /** 맨 앞이 주 요소, 뒤가 보조 */
-  focusPoints: string[];
-  stage: string | null;
-  variants: MechanicsVariant[];
-};
+export type { MechanicsDrillView, MechanicsVariant } from '@/lib/mechanics/drills';
 
 /**
  * 설명은 펼칠 때 받는다(app/actions/content.ts guideDescription) — 암케어 운동 설명과 같은 방식(armcare-media.tsx).

@@ -1,10 +1,8 @@
 'use client';
 
 import { useState, type ReactNode } from 'react';
-import Link from 'next/link';
 import { ChevronDown, ChevronRight } from 'lucide-react';
 import { Modal, useModalState } from '@/components/modal';
-import { Card } from '@/components/ui';
 import { DRILL_STAGES } from '@/lib/exercise-meta';
 import {
   MECHANICS_ELEMENTS,
@@ -366,7 +364,7 @@ function ElementDetail({ name, hand }: { name: string; hand: string | null }) {
 }
 
 /** 투구 한눈에 — 힘이 넘어가는 차례 · 왜 순서가 중요한가 · 쓰는 법 */
-function OverviewDetail() {
+export function OverviewDetail() {
   return (
     <div className="space-y-5">
       <p className={PROSE}>{MECHANICS_OVERVIEW.lead}</p>
@@ -393,35 +391,6 @@ function OverviewDetail() {
           ))}
         </ol>
       </Section>
-    </div>
-  );
-}
-
-/**
- * 프로그램 칸 — 아직 과정이 없어 투구 한눈에와 요소별 드릴로 가는 길만 둔다(2026-10-04).
- * 다음 작업에서 쉬운 단계부터 올라가는 과정이 이 자리에 선다.
- */
-export function MechanicsProgramIntro() {
-  return (
-    <div className="space-y-5">
-      <Card className="space-y-4">
-        <h2 className="text-heading text-lg text-ink">투구 한눈에</h2>
-        <OverviewDetail />
-      </Card>
-      <Card className="space-y-3">
-        <h2 className="text-base font-bold text-ink">단계별 프로그램을 준비하고 있어요</h2>
-        <p className="text-sm leading-relaxed break-keep text-muted">
-          기초부터 한 단계씩 올라가는 과정이 곧 여기에 생겨요. 그동안은 요소별 드릴에서 고치고 싶은
-          요소의 기초 드릴부터 해 보세요.
-        </p>
-        <Link
-          href="/training?view=mechanics&tab=elements"
-          className="inline-flex min-h-11 items-center gap-1 rounded-full bg-sky px-5 text-sm font-semibold text-white transition-colors hover:bg-sky-strong"
-        >
-          요소별 드릴 보기
-          <ChevronRight aria-hidden className="h-4 w-4" />
-        </Link>
-      </Card>
     </div>
   );
 }
