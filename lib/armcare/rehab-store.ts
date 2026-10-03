@@ -4,7 +4,13 @@ import { prisma } from '@/lib/prisma';
 import { shiftDateKey, toDateKey } from '@/lib/pitch-stats';
 import type { CachedExercise } from '@/lib/library-cache';
 import {
+  REHAB_CONDITIONS,
   REHAB_ENABLED,
+  buildRehabSession,
+  isRehabArea,
+  isRehabCondition,
+  rehabExerciseNames,
+  type RehabPeriod,
   readRehabActivities,
   readRehabProgram,
   readRehabWeekly,
@@ -154,6 +160,61 @@ export async function loadRehabWeeklies(
   });
   return rows.map((w) =>
     readRehabWeekly({ ...w, date: w.date.toISOString().slice(0, 10) })
+  );
+}
+
+/**
+ * 이날 뒤로 걸친 재활 기간들(진행 중 + 끝낸 것) — 트레이닝 회전 · 운동 부하가 재활 체크를 뺀다(isRehabCheck).
+ * 스위치(REHAB_ENABLED)를 끄면 빈 목록이다(그러면 예전처럼 다 센다).
+ */
+export const loadRehabPeriods = cache(
+  async (userId: string, sinceKey: string): Promise<RehabPeriod[]> => {
+    if (!REHAB_ENABLED) return [];
+    const rows = await prisma.userRehabProgram.findMany({
+      where: {
+        userId,
+        OR: [{ endedAt: null }, { endedAt: { gte: dayStart(sinceKey) } }],
+      },
+      select: { area: true, condition: true, startedAt: true, endedAt: true },
+    });
+    return rows.flatMap((r) => {
+      if (!isRehabArea(r.area)) return [];
+      const condition =
+        isRehabCondition(r.condition) && REHAB_CONDITIONS[r.condition].area === r.area
+          ? r.condition
+          : null;
+      return [
+        {
+          from: toDateKey(r.startedAt),
+          to: r.endedAt ? toDateKey(r.endedAt) : null,
+          names: rehabExerciseNames(r.area, condition),
+        },
+      ];
+    });
+  }
+);
+
+/**
+ * 오늘 재활 세션에 들 수 있는 운동 id — 낮춘 날 · 아닌 날 둘 다(가진 장비로 바꿔 넣은 암케어 운동까지). 재활 중이 아니면 빈 집합.
+ * 트레이닝 '오늘 운동'이 재활에서 한 체크를 '직접 넣음'으로 도로 끼우지 않게 한다(lib/report/today-data.ts 의 strays).
+ */
+export async function loadRehabExerciseIds(
+  userId: string,
+  library: readonly CachedExercise[],
+  ownedEquipment: readonly string[]
+): Promise<Set<string>> {
+  const active = await loadActiveRehab(userId);
+  if (!active) return new Set();
+  const lib = toRehabLibrary(library);
+  return new Set(
+    [false, true].flatMap((lowered) =>
+      buildRehabSession({
+        ...active.program,
+        lowered,
+        library: lib,
+        ownedEquipment,
+      }).items.map((it) => it.exerciseId)
+    )
   );
 }
 

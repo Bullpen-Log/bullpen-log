@@ -8,6 +8,7 @@ import { filterByLevel } from '@/lib/report/personalize';
 import { readDailyPlan } from '@/lib/report/daily-plan';
 import { readArmcareRoutine } from '@/lib/armcare/routine';
 import { readRoutineItems } from '@/lib/armcare/my-routines';
+import { loadRehabExerciseIds } from '@/lib/armcare/rehab-store';
 import { visibleExercises } from '@/lib/library-cache';
 import { closeAbandonedSessions } from '@/lib/workout/close-stale';
 import { goalPrescription } from '@/lib/report/goal-prescription';
@@ -238,12 +239,23 @@ export async function loadTodayCore(user: UserForToday, today: Date) {
     ...(readArmcareRoutine(armcareToday?.plan)?.items.map((it) => it.exerciseId) ?? []),
     ...myRoutines.flatMap((r) => readRoutineItems(r.items).map((it) => it.exerciseId)),
   ]);
+  /*
+   * 오늘 재활(재활 2편)에서 한 체크도 같다 — 재활 중에는 맞춤 암케어 루틴 대신 재활 카드라 위 목록에 없어서, 재활 운동이
+   * 트레이닝 목록에 '직접 넣음'으로 끼었다. 재활 운동은 카테고리가 여럿(모빌리티 · 파워 · 상체 스트렝스)이라 카테고리와
+   * 상관없이 오늘 재활 세션에 들 수 있는 것을 뺀다. 재활 중이 아니면 빈 집합.
+   */
+  const rehabIds = await loadRehabExerciseIds(user.id, library, user.ownedEquipment);
   const inPlan = new Set(planned.map((p) => p.exerciseId));
   const strays = [...doneIds]
     .filter((id) => !inPlan.has(id))
     .flatMap((exerciseId) => {
       const ex = library.find((e) => e.id === exerciseId);
-      if (!ex || (ex.category === '암케어' && armcareIds.has(exerciseId))) return [];
+      if (
+        !ex ||
+        (ex.category === '암케어' && armcareIds.has(exerciseId)) ||
+        rehabIds.has(exerciseId)
+      )
+        return [];
       return [
         {
           exerciseId,

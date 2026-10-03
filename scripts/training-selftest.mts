@@ -143,6 +143,7 @@ import {
   buildRehabSession,
   conditionsFor,
   firstCkcRecord,
+  isRehabCheck,
   judgeSession,
   judgeStageTest,
   judgeThrowingOpen,
@@ -150,6 +151,7 @@ import {
   readRehabWeeklyTest,
   rehabCardLine,
   rehabEstimateDays,
+  rehabExerciseNames,
   rehabFacts,
   rehabSeverity,
   rehabStartBlock,
@@ -7404,6 +7406,25 @@ console.log(
       throwingFrequency('moderate').includes('두 번') &&
       throwingFrequency('severe').includes('사흘') &&
       THROWING_PAIN_RULES.length === 4
+  );
+
+  /* 재활 체크 가려내기 — 트레이닝 회전 · 운동 부하가 뺀다 */
+  const shoulderNames = rehabExerciseNames('shoulder-back', null);
+  const periods = [
+    { from: '2026-06-01', to: '2026-06-20', names: shoulderNames },
+    { from: '2026-07-01', to: null, names: rehabExerciseNames('elbow-front', null) },
+  ];
+  check(
+    '재활 체크 — 재활 기간 안의 그 재활 운동 이름만(모빌리티 크로스바디 · 파워 메디신볼 · 상체 조트만 컬), 기간 밖 · 다른 운동은 아님',
+    shoulderNames.has('크로스바디 스트레칭') &&
+      shoulderNames.has('톨 닐링 메디신볼 체스트 패스') &&
+      isRehabCheck('크로스바디 스트레칭', '2026-06-10', periods) &&
+      isRehabCheck('크로스바디 스트레칭', '2026-06-20', periods) &&
+      !isRehabCheck('크로스바디 스트레칭', '2026-06-21', periods) &&
+      !isRehabCheck('크로스바디 스트레칭', '2026-05-31', periods) &&
+      !isRehabCheck('바벨 백스쿼트', '2026-06-10', periods) &&
+      isRehabCheck('조트만 컬', '2026-08-01', periods) &&
+      !isRehabCheck('조트만 컬', '2026-06-10', periods)
   );
 
   /* 11) 앱의 다른 곳 — 웨이트 · 투구 계획 · 암케어 */

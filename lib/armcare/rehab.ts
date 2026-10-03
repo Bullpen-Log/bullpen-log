@@ -831,6 +831,45 @@ export function allRehabExerciseNames(): string[] {
   return [...names];
 }
 
+/* ─────────────────────── 운동 기록 중 재활 체크 가려내기 ─────────────────────── */
+
+/** 이 재활의 운동 이름 전부 — 네 단계 + 병명 차이 + 플라이오볼 대신 넣는 두 손 메디신볼 */
+export function rehabExerciseNames(
+  area: ArmcareAreaKey,
+  condition: RehabConditionKey | null
+): Set<string> {
+  const names = new Set<string>();
+  for (const stage of [1, 2, 3, 4] as const) {
+    for (const m of stageExercises(area, condition, stage)) names.add(m.name);
+  }
+  for (const name of TWO_HAND_MEDBALL) names.add(name);
+  return names;
+}
+
+/** 재활 한 번의 기간(시작한 날 ~ 끝낸 날, 진행 중이면 to null)과 그 재활의 운동 이름 */
+export type RehabPeriod = {
+  from: string;
+  to: string | null;
+  names: ReadonlySet<string>;
+};
+
+/**
+ * 재활 체크로 보이는 운동 기록인가 — 재활 기간 안의, 그 재활의 운동 이름인 기록(UserExerciseLog 에는 어디서 체크했는지
+ * 칸이 없어 이름과 날로 가린다). 트레이닝 회전(exerciseSessionsAgo · lastStrengthDates)과 운동 부하가 이것을 뺀다 —
+ * 암케어 카테고리처럼(lib/report/gather.ts · lib/training-load.ts). 재활 운동은 카테고리가 여럿이라(모빌리티 크로스바디
+ * 스트레칭 · 파워 메디신볼 던지기 · 상체 스트렝스 조트만 컬) 암케어 거름에 안 걸렸다. 그 기간에 같은 날 같은 운동을
+ * 트레이닝에서도 했으면 함께 빠진다(기록이 하루 한 줄이라 가를 수 없다 — 재활 중에는 드물다).
+ */
+export function isRehabCheck(
+  title: string,
+  dateKey: string,
+  periods: readonly RehabPeriod[]
+): boolean {
+  return periods.some(
+    (p) => dateKey >= p.from && (p.to == null || dateKey <= p.to) && p.names.has(title)
+  );
+}
+
 /* ─────────────────────────────── 오늘 세션 짜기 ─────────────────────────────── */
 
 /** 재활 세션에 쓰는 라이브러리 줄 — 이만큼만 본다 */
