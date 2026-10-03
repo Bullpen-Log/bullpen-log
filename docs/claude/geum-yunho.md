@@ -165,6 +165,14 @@
     (`<html data-theme-choice>`, 칠한 값은 그대로 `data-theme`).
   - 운동 라이브러리의 장비 목록은 **'모두 있어야 함'**(`lib/report/equipment.ts` canDo) — '덤벨 또는 케틀벨'을 [덤벨, 케틀벨]로 적지 말 것.
     운동을 마치면 `/workout/done`(축하) → 트레이닝. 체크인 완료 축하 · 연속 일수는 `(app)/layout.tsx` 의 `streakDays`.
+- **김민의 아이폰 정리(2026-10-03, HANDOFF 에서 옮김) — 새 화면에서 지킬 것.** 아이폰은 자판이 올라와도 `100dvh` 가 그대로라
+  바닥 단추가 숨는다 — `components/viewport-vars.tsx` 가 `<html>` 에 `--kb`(자판 높이) · `--vvh`(보이는 높이) · `[data-keyboard]` 를 단다.
+  **바닥에 붙는 새 단추 · 시트는 `bottom: var(--kb,0px)` · `height: var(--vvh,100dvh)`**. 버튼 · 입력칸은 `touch-action: manipulation`
+  (globals.css), 앱의 화면 켜 두기 · 로컬 알림은 `lib/native-bridge.ts`, `<meta name="theme-color">` 는 `lib/theme.ts` 가 고른 테마로.
+  투구 기록 영상의 검은 상자는 `#t=0.001`. 앱 최소 iOS 16.4. 누르는 자리 44px.
+- **React 는 화면에 붙기 전에 온 영상 알림을 버린다.** `<video>` 가 커밋되기 전에 머리를 다 받으면(Suspense · dynamic 이 내용을
+  늦게 드러낼 때, 캐시된 영상) `onLoadedMetadata` 가 안 불린다 — 붙지 않은 fiber 의 알림은 버리기 때문. `ClipPlayer` 는 ref 콜백에서
+  `readyState` 를 보고 그때 처리한다(홈 캘린더 정보의 클립이 세로 비율 · 던진 순간을 놓쳤던 까닭).
 - **카메라 <video> 는 늘 같은 자리에 그린다.** 같은 JSX 조각이라도 부모가 다르면(단계마다 다른 틀) React 가 새 <video> 를
   만들어 카메라 스트림이 끊긴다(측정 화면이 까맸던 까닭). 구속 측정은 카메라 단계를 '카메라 무대' 하나로 두어 뷰파인더를
   같은 자리에 둔다. LiveCapture 는 처음 받은 <video> 를 붙들고 있어 캔버스 길 · 렌즈 보정 사진도 같이 죽는다.
@@ -624,6 +632,11 @@
   싣고, `velocity-section.tsx` 줄 오른쪽 ▶ = 공 창을 열며 자동 재생(줄을 누르면 멈춘 채 맨 위, 고르는 코스 칸이 영상 위에서 밝아짐).
   광각은 펼칠 때만 그린다(접힌 details 안의 video 도 받기 시작한다). 못 불러온 영상은 주소로 쥐고 '다시 불러오기'가 조용히 새로 받아
   같은 전환에서 풀린다(공 id 로 쥐면 옛 주소로 먼저 붙어 곧바로 또 실패했다). 실제 계정 · 실제 클립으로는 아직 안 봄.
+  **홈 캘린더 정보(2026-10-03)**: 홈이 `loadVelocityByDate(user.id, initialFrom)` 로 날짜별 { n · max · clips } 를 읽어 `DayFacts.velocity` 로 —
+  그날 칸 투구 아이콘 '카메라 N구'(측정만 남은 날도 칠함) · 영상 아이콘과 캘린더 영상 점이 클립도 셈. 밑 칸 영상 = 공 칩 + 클립
+  (`app/(app)/today/velocity-clips.tsx`, dynamic — 재생기가 setup-steps 를 끌고 와서 클립 있는 날만). 클립 주소는 `/api/day-detail?clips=1`
+  (`loadVelocityClipsDay` — 클립 있는 공 · 일반 영상만 서명)로, 캘린더가 그날 클립이 있다고 알 때만 청한다(홈 맨 위 링은 `loadDayDetail` 을
+  클립 없이). 측정 수가 바뀐 날은 받아 둔 요약을 버린다(구종만 고친 것은 못 잡음).
 - **약관 · 개인정보 처리방침**: 시행일 2026년 10월 3일로 넣음(c76f59b). **개인정보 보호책임자 `[이름]` 은 아직 빈칸** — 사용자가 이름을 줄 때.
   `/more` 화면은 지우고 홈으로 넘김(next.config.ts).
 - **광각 동시 클립(2026-10-03 시작, 사용자: "광각 카메라가 있으면 일반 카메라로 측정하면서 광각 클립도 동시에, 설정에서 껐다 켜기").**

@@ -90,6 +90,22 @@ export type VelocityPitchView = {
   zoneRect?: ZoneRect | null;
 };
 
+/** 하루치 카메라 측정 한 줄 — 공 수 · 최고(km/h) · 영상이 남은 공 수(홈 캘린더 정보 · 투구 기록 캘린더) */
+export type VelocityDayFact = { n: number; max: number; clips: number };
+
+/** 홈 캘린더 정보의 영상 칸이 받는 클립 하나 — 클립이 남은 공만, 일반 카메라 영상만 */
+export type DayClip = {
+  id: string;
+  seq: number;
+  kmh: number;
+  pitchType: string | null;
+  zone: number | null;
+  zoneRect: ZoneRect | null;
+  clip: PitchClipView;
+  /** 'behind-pitcher' · 'behind-catcher' — 존 칸을 어느 쪽에서 보는가 */
+  cameraPos: string;
+};
+
 /** 그날 화면이 받는 영상 하나 */
 export type PitchClipView = {
   url: string;

@@ -8,6 +8,7 @@ import { REST_SESSION_TYPE } from '@/lib/session-type';
 import { Baseball } from '@/components/baseball-icon';
 import type { Log } from '@/app/(app)/pitch-log/types';
 import type { PlanDaySummary, TrainingDaySummary } from '@/lib/report/training-history';
+import type { VelocityDayFact } from '@/lib/velocity-meta';
 
 /** 그날 먹은 것 — 칼로리·단백질 합 */
 export type NutritionDay = { kcal: number; protein: number };
@@ -29,6 +30,8 @@ export type DayFacts = {
   plan: PlanDaySummary | undefined;
   nutrition: NutritionDay | undefined;
   checkin: CheckinDay | undefined;
+  /** 그날 카메라로 잰 공 — 공 수 · 최고 · 영상이 남은 공 수 */
+  velocity: VelocityDayFact | undefined;
 };
 
 const ORDER: DayFocus[] = ['pitch', 'training', 'nutrition', 'checkin', 'video'];
@@ -36,13 +39,15 @@ const ORDER: DayFocus[] = ['pitch', 'training', 'nutrition', 'checkin', 'video']
 /** 아이콘마다 남긴 것이 있나 */
 export function dayHas(f: DayFacts): Record<DayFocus, boolean> {
   return {
-    pitch: f.logs.length > 0,
+    /* 같이 만든 투구 기록을 지워 측정 세션만 남은 날도 던진 날이다 */
+    pitch: f.logs.length > 0 || (f.velocity?.n ?? 0) > 0,
     training: Boolean(
       f.plan || (f.training && (f.training.count > 0 || f.training.intensity != null))
     ),
     nutrition: Boolean(f.nutrition && f.nutrition.kcal > 0),
     checkin: f.checkin != null,
-    video: f.logs.some((l) => l.videoPaths.length > 0),
+    /* 투구 기록에 올린 영상 + 구속 측정이 공마다 남긴 클립 */
+    video: f.logs.some((l) => l.videoPaths.length > 0) || (f.velocity?.clips ?? 0) > 0,
   };
 }
 
@@ -107,7 +112,7 @@ export function DaySummary({
 }) {
   /* 구속을 보여줄 단위. 저장은 늘 km/h 다(lib/units.ts). */
   const speedUnit = useSpeedUnit();
-  const { logs, training, plan, nutrition, checkin } = facts;
+  const { logs, training, plan, nutrition, checkin, velocity } = facts;
 
   /*
    * 하루에 여러 건이면 합쳐서 본다.
@@ -126,6 +131,7 @@ export function DaySummary({
   /* 종류는 중복을 걷어내고 적는다 — '불펜 · 불펜'은 알려주는 것이 없다 */
   const kinds = [...new Set(thrown.map((l) => l.sessionType))];
   const videos = logs.reduce((n, l) => n + l.videoPaths.length, 0);
+  const clips = velocity?.clips ?? 0;
   const has = dayHas(facts);
 
   const rows: Row[] = [
@@ -138,12 +144,17 @@ export function DaySummary({
         ? '쉬는 날'
         : logs.length > 0
           ? `${kinds.join(' · ')} ${pitches}구`
-          : null,
+          : velocity && velocity.n > 0
+            ? `카메라 ${velocity.n}구`
+            : null,
       sub: rested
         ? '쉬는 날로 남김'
         : [
             intensity > 0 ? `강도 ${intensity}` : null,
             topVelocity != null ? `최고 ${formatSpeed(topVelocity, speedUnit)}` : null,
+            logs.length > 0 && velocity && velocity.n > 0
+              ? `카메라 ${velocity.n}구`
+              : null,
           ]
             .filter(Boolean)
             .join(' · ') || undefined,
@@ -191,7 +202,8 @@ export function DaySummary({
       icon: Film,
       tone: TONES.video,
       label: '영상',
-      value: videos > 0 ? `${videos}개` : null,
+      value: videos + clips > 0 ? `${videos + clips}개` : null,
+      sub: clips > 0 ? `구속 측정 ${clips}개` : undefined,
     },
   ];
 

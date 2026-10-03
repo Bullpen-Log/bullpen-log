@@ -1,8 +1,9 @@
 'use client';
 
 import Link from 'next/link';
-import type { CSSProperties, ReactNode } from 'react';
-import { ArrowRight, Check, Circle, Film, StickyNote } from 'lucide-react';
+import dynamic from 'next/dynamic';
+import { useState, type CSSProperties, type ReactNode } from 'react';
+import { ArrowRight, Camera, Check, Circle, Film, StickyNote } from 'lucide-react';
 import { formatSpeed } from '@/lib/units';
 import { useSpeedUnit } from '@/components/use-units';
 import { usePlaybackUrls } from '@/components/use-playback-urls';
@@ -14,6 +15,12 @@ import type { DayDetail } from '@/lib/day-detail';
 import { dayHas, spokenDay, type DayFacts, type DayFocus } from './day-summary';
 import { OPEN_POPUP_TYPES } from '@/lib/transition-types';
 import { LinkPending } from '@/components/link-pending';
+import type { VelocityDayFact } from '@/lib/velocity-meta';
+
+/* 구속 측정 클립 — 클립이 있는 날에만 불러온다(재생기가 스트라이크 존 그림까지 끌고 와 홈을 무겁게 하지 않게) */
+const VelocityClips = dynamic(() => import('./velocity-clips'), {
+  loading: () => <Waiting />,
+});
 
 /**
  * 캘린더 밑 칸 — 옆 요약에서 누른 아이콘을 조금 더 자세히.
@@ -22,7 +29,7 @@ import { LinkPending } from '@/components/link-pending';
  * 분석 도구, 세트 고치기, 음식 담기)은 각 탭에 있다. 그래서 칸 위쪽에 늘 그 탭으로
  * 가는 길을 둔다 — 그 날짜를 그대로 들고 간다.
  *
- * 투구·영상은 캘린더가 이미 들고 있는 기록으로 바로 그린다. 트레이닝·영양·컨디션은
+ * 투구·영상은 캘린더가 이미 들고 있는 기록으로 바로 그린다. 트레이닝·영양·컨디션과 구속 측정 클립은
  * 날짜를 고를 때 그날 것만 받아 온다(/api/day-detail) — 받는 동안 자리를 잡아 둔다.
  *
  * 분석은 여기 없다 — 이 밑의 분석 칸이 늘 떠 있고 고른 날을 따라 바뀐다.
@@ -41,7 +48,7 @@ function tabLink(
   focus: DayFocus,
   date: string,
   today: string,
-  opts: { empty: boolean }
+  opts: { empty: boolean; clipsOnly: boolean }
 ): { href: string; label: string } | null {
   const isToday = date === today;
   switch (focus) {
@@ -65,6 +72,9 @@ function tabLink(
         label: opts.empty ? '식단 기록하러 가기' : '영양 탭에서 자세히',
       };
     case 'video':
+      /* 구속 측정 클립만 있는 날 — 공마다 보고 고치는 곳은 그날 화면이다 */
+      if (opts.clipsOnly)
+        return { href: `/pitch-log/${date}`, label: '그날 화면에서 공마다 보기' };
       /* 영상 캘린더가 그날을 열어 둔 채로 시작한다 */
       return {
         href: `/videos?date=${date}`,
@@ -85,6 +95,7 @@ export function DayDetailBlock({
   detail,
   failed,
   onRetry,
+  onReload,
 }: {
   date: string;
   today: string;
@@ -98,18 +109,26 @@ export function DayDetailBlock({
   failed: boolean;
   /** 받아 오지 못한 날을 다시 받는다 */
   onRetry: () => void;
+  /** 받아 둔 그날 요약을 버리고 새로 받는다 — 클립 주소가 만료됐을 때 */
+  onReload: () => void;
 }) {
-  const { logs, plan } = facts;
+  const { logs, plan, velocity } = facts;
   const needsDetail =
     focus === 'training' || focus === 'nutrition' || focus === 'checkin';
   const videos = logs.flatMap((l) => l.videoPaths);
+  const clips = velocity?.clips ?? 0;
+  /* 영상 칸에서 고른 구속 측정 공 — 주소를 다시 받아도 그 공에 머물게 여기서 쥔다 */
+  const [clipPick, setClipPick] = useState<string | null>(null);
   /*
    * 남긴 것이 있나는 오른쪽 요약과 같은 기준(dayHas)으로 본다. 받아 온 내용으로 보면
    * 받는 동안이나 못 받았을 때 '기록하러 가기'로 잘못 적히고, 요약 아이콘은 칠해졌는데
    * 밑 칸 링크는 '기록하러 가기'인 식으로 둘이 어긋난다.
    */
   const empty = !dayHas(facts)[focus];
-  const link = tabLink(focus, date, today, { empty });
+  const link = tabLink(focus, date, today, {
+    empty,
+    clipsOnly: videos.length === 0 && clips > 0,
+  });
 
   return (
     <section
@@ -124,7 +143,9 @@ export function DayDetailBlock({
         {link && (
           <Link
             href={link.href}
-            transitionTypes={focus === 'pitch' ? OPEN_POPUP_TYPES : undefined}
+            transitionTypes={
+              link.href.startsWith('/pitch-log/') ? OPEN_POPUP_TYPES : undefined
+            }
             className="group inline-flex items-center gap-1 rounded-lg px-2 py-1 text-sm font-semibold text-sky transition-colors hover:bg-sky-tint hover:text-sky-strong"
           >
             {link.label}
@@ -140,9 +161,27 @@ export function DayDetailBlock({
 
       {/* 줄이나 날짜가 바뀔 때마다 새로 그려, 내용이 옅게 떠오르며 바뀐다 */}
       <div key={`${date}-${focus}`} className="motion-safe:animate-fade-in px-5 py-4">
-        {focus === 'pitch' && <PitchDetail logs={logs} />}
+        {focus === 'pitch' && <PitchDetail logs={logs} velocity={velocity} />}
         {focus === 'video' && (
-          <VideoDetail videos={videos} featured={featuredVideo ?? null} />
+          <div className="space-y-5">
+            {(videos.length > 0 || clips === 0) && (
+              <VideoDetail videos={videos} featured={featuredVideo ?? null} />
+            )}
+            {/* 구속 측정 클립 — 주소는 그날 요약과 함께 온다 */}
+            {clips > 0 &&
+              (detail ? (
+                <VelocityClips
+                  clips={detail.clips}
+                  pickedId={clipPick}
+                  onPick={setClipPick}
+                  onReload={onReload}
+                />
+              ) : failed ? (
+                <Failed onRetry={onRetry} />
+              ) : (
+                <Waiting />
+              ))}
+          </div>
         )}
         {needsDetail &&
           !detail &&
@@ -225,58 +264,85 @@ function Fact({
 
 /* ─────────────────────────── 투구 ─────────────────────────── */
 
-function PitchDetail({ logs }: { logs: Log[] }) {
+function PitchDetail({
+  logs,
+  velocity,
+}: {
+  logs: Log[];
+  velocity: VelocityDayFact | undefined;
+}) {
   const speedUnit = useSpeedUnit();
-  if (logs.length === 0) return <Empty>이 날 남긴 투구가 없어요.</Empty>;
+  /* 같이 만든 투구 기록을 지우면 측정 세션만 남는다 — 그래도 카메라 줄은 보인다 */
+  const camera = velocity && velocity.n > 0 && (
+    <p className="flex items-center gap-1.5 text-xs text-muted">
+      <Camera aria-hidden className="h-3.5 w-3.5 shrink-0 text-sky" />
+      <span>
+        카메라로 잰 공 {velocity.n}구 · 최고 {formatSpeed(velocity.max, speedUnit)}
+        {velocity.clips > 0 &&
+          ` — 영상 ${velocity.clips}개는 영상 아이콘에서 바로 봐요`}
+      </span>
+    </p>
+  );
+  if (logs.length === 0)
+    return (
+      <div className="space-y-3">
+        <Empty>이 날 남긴 투구가 없어요.</Empty>
+        {camera}
+      </div>
+    );
 
   return (
-    <ul className="space-y-3">
-      {logs.map((l, i) => {
-        const rest = l.sessionType === REST_SESSION_TYPE;
-        return (
-          <li
-            key={l.id}
-            className="motion-safe:animate-row-in rounded-xl bg-surface-2 px-4 py-3"
-            style={{ '--row': i } as CSSProperties}
-          >
-            <p className="text-sm font-bold text-ink">
-              {rest ? '쉬는 날' : `${l.sessionType} · ${l.pitchCount}구`}
-            </p>
-            {!rest && (
-              <dl className="mt-2 grid grid-cols-3 gap-2">
-                <Fact
-                  label="강도"
-                  value={l.intensity > 0 ? String(l.intensity) : '—'}
-                />
-                <Fact
-                  label="최고 구속"
-                  value={formatSpeed(l.maxVelocity, speedUnit) ?? '—'}
-                />
-                <Fact
-                  label="평균 구속"
-                  value={formatSpeed(l.avgVelocity, speedUnit) ?? '—'}
-                />
-              </dl>
-            )}
-            {l.memo?.trim() && (
-              <p className="mt-2 flex gap-1.5 text-[13px] leading-relaxed break-keep text-ink/80">
-                <StickyNote
-                  aria-hidden
-                  className="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted"
-                />
-                <span className="line-clamp-3">{l.memo}</span>
+    <div className="space-y-3">
+      <ul className="space-y-3">
+        {logs.map((l, i) => {
+          const rest = l.sessionType === REST_SESSION_TYPE;
+          return (
+            <li
+              key={l.id}
+              className="motion-safe:animate-row-in rounded-xl bg-surface-2 px-4 py-3"
+              style={{ '--row': i } as CSSProperties}
+            >
+              <p className="text-sm font-bold text-ink">
+                {rest ? '쉬는 날' : `${l.sessionType} · ${l.pitchCount}구`}
               </p>
-            )}
-            {l.videoPaths.length > 0 && (
-              <p className="mt-2 inline-flex items-center gap-1 text-xs text-muted">
-                <Film aria-hidden className="h-3.5 w-3.5" />
-                영상 {l.videoPaths.length}개 — 영상 아이콘을 누르면 바로 봐요
-              </p>
-            )}
-          </li>
-        );
-      })}
-    </ul>
+              {!rest && (
+                <dl className="mt-2 grid grid-cols-3 gap-2">
+                  <Fact
+                    label="강도"
+                    value={l.intensity > 0 ? String(l.intensity) : '—'}
+                  />
+                  <Fact
+                    label="최고 구속"
+                    value={formatSpeed(l.maxVelocity, speedUnit) ?? '—'}
+                  />
+                  <Fact
+                    label="평균 구속"
+                    value={formatSpeed(l.avgVelocity, speedUnit) ?? '—'}
+                  />
+                </dl>
+              )}
+              {l.memo?.trim() && (
+                <p className="mt-2 flex gap-1.5 text-[13px] leading-relaxed break-keep text-ink/80">
+                  <StickyNote
+                    aria-hidden
+                    className="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted"
+                  />
+                  <span className="line-clamp-3">{l.memo}</span>
+                </p>
+              )}
+              {l.videoPaths.length > 0 && (
+                <p className="mt-2 inline-flex items-center gap-1 text-xs text-muted">
+                  <Film aria-hidden className="h-3.5 w-3.5" />
+                  영상 {l.videoPaths.length}개 — 영상 아이콘을 누르면 바로 봐요
+                </p>
+              )}
+            </li>
+          );
+        })}
+      </ul>
+      {/* 카메라로 잰 공 — 공 하나하나 · 클립은 그날 화면과 영상 아이콘에 */}
+      {camera}
+    </div>
   );
 }
 

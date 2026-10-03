@@ -100,7 +100,9 @@ export function VelocitySection({ sessions }: { sessions: VelocitySessionView[] 
     ? (editingSession?.pitches.find((p) => p.id === editing.id) ?? editing)
     : null;
   const editingCameraPos: CameraPos =
-    editingSession?.cameraPos === 'behind-catcher' ? 'behind-catcher' : 'behind-pitcher';
+    editingSession?.cameraPos === 'behind-catcher'
+      ? 'behind-catcher'
+      : 'behind-pitcher';
   const hasClips = sessions.some((s) => s.pitches.some((p) => p.clip));
   const editingRelease = editingSession
     ? releaseOf(editingSession)

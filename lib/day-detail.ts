@@ -20,6 +20,8 @@ import {
 import { ageOn, computeTargets } from '@/lib/nutrition/targets';
 import { pitchingBurn, totalBurn, trainingBurn } from '@/lib/nutrition/burn';
 import { recentWeightKg, toProfile } from '@/lib/nutrition/load';
+import { loadVelocityClipsDay } from '@/lib/velocity-load';
+import type { DayClip } from '@/lib/velocity-meta';
 
 /**
  * 홈 캘린더에서 고른 날의 '조금 더 자세한' 요약 — 캘린더 밑 칸이 보여 준다.
@@ -63,6 +65,11 @@ export type DayDetail = {
     details: { label: string; value: string }[];
     note: string | null;
   };
+  /**
+   * 그날 카메라로 잰 공의 클립 — 영상 칸이 공마다 튼다. 청할 때만 읽는다(opts.clips — 서명 왕복이 들어서, 홈 맨 위 링처럼
+   * 안 쓰는 곳은 빼고). 서명 주소는 한 시간이라 오래 들고 있으면 만료된다 — 영상 칸이 못 불러오면 이 날을 다시 받는다.
+   */
+  clips: DayClip[];
 };
 
 type UserBody = {
@@ -74,11 +81,15 @@ type UserBody = {
   weightKg: number | null;
 };
 
-export async function loadDayDetail(user: UserBody, date: string): Promise<DayDetail> {
+export async function loadDayDetail(
+  user: UserBody,
+  date: string,
+  opts: { clips?: boolean } = {}
+): Promise<DayDetail> {
   const day = dbDate(date);
   const where = { userId: user.id, date: day };
 
-  const [training, meals, profileRow, checkin, sessions, pitches, recentKg] =
+  const [training, meals, profileRow, checkin, sessions, pitches, recentKg, clips] =
     await Promise.all([
       trainingDay(user.id, date),
       prisma.mealEntry.findMany({ where, orderBy: { createdAt: 'asc' } }),
@@ -93,6 +104,7 @@ export async function loadDayDetail(user: UserBody, date: string): Promise<DayDe
       }),
       /* 목표의 체중 — 영양 탭과 같은 규칙(그날 → 30일 안 가장 최근 → 가입 때) */
       recentWeightKg(user.id, date),
+      opts.clips ? loadVelocityClipsDay(user.id, day) : Promise.resolve([]),
     ]);
 
   /* ── 영양: 합과 그날 목표 ── */
@@ -198,5 +210,6 @@ export async function loadDayDetail(user: UserBody, date: string): Promise<DayDe
         .map((m) => ({ ...m, kcal: Math.round(m.kcal) })),
     },
     checkin: checkinOut,
+    clips,
   };
 }

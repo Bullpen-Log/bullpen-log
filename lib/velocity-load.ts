@@ -2,7 +2,12 @@ import 'server-only';
 import { prisma } from '@/lib/prisma';
 import { createPlaybackUrls } from '@/lib/storage';
 import { isRect } from '@/lib/velocity-setup';
-import type { PitchClipView, VelocitySessionView } from '@/lib/velocity-meta';
+import type {
+  DayClip,
+  PitchClipView,
+  VelocityDayFact,
+  VelocitySessionView,
+} from '@/lib/velocity-meta';
 import type { VelocityHistoryItem } from '@/components/velocity/session-types';
 
 /**
@@ -89,6 +94,50 @@ export async function loadVelocityDay(
   }));
 }
 
+/**
+ * 그날 클립만 — 홈 캘린더 정보의 영상 칸(/api/day-detail?clips=1). 그날 화면의 loadVelocityDay 보다 가볍게: 클립이 남은 공만,
+ * 일반 카메라 영상만 서명한다(광각은 그날 화면에서). 서명이 안 되면 그 공은 빠진다.
+ */
+export async function loadVelocityClipsDay(userId: string, at: Date): Promise<DayClip[]> {
+  const rows = await prisma.velocityPitch.findMany({
+    where: { userId, clipPath: { not: null }, session: { date: at } },
+    orderBy: [{ session: { createdAt: 'asc' } }, { seq: 'asc' }],
+    select: {
+      id: true,
+      seq: true,
+      kmh: true,
+      pitchType: true,
+      zone: true,
+      clipPath: true,
+      clipEventSec: true,
+      clipSec: true,
+      analysis: true,
+      session: { select: { cameraPos: true } },
+    },
+  });
+  if (rows.length === 0) return [];
+  const urls = await createPlaybackUrls(rows.map((r) => r.clipPath!)).catch((err: unknown) => {
+    console.error('[velocity] 그날 클립 주소를 만들지 못함', err);
+    return {} as Record<string, string>;
+  });
+  return rows.flatMap((r) => {
+    const url = urls[r.clipPath!];
+    if (!url) return [];
+    return [
+      {
+        id: r.id,
+        seq: r.seq,
+        kmh: r.kmh,
+        pitchType: r.pitchType,
+        zone: r.zone,
+        zoneRect: zoneRectOf(r.analysis),
+        clip: { url, eventSec: r.clipEventSec, sec: r.clipSec },
+        cameraPos: r.session.cameraPos,
+      },
+    ];
+  });
+}
+
 /** 분석 JSON 에 실린 잰 순간의 스트라이크 존(analysis.zoneRect) — 꼴이 틀리면 null */
 function zoneRectOf(analysis: unknown) {
   if (!analysis || typeof analysis !== 'object' || Array.isArray(analysis)) return null;
@@ -137,20 +186,25 @@ export async function loadVelocityHistory(userId: string): Promise<VelocityHisto
     });
 }
 
-/** 날짜별 요약(공 수 · 최고) — 투구 기록 캘린더의 그날 칸 */
+/**
+ * 날짜별 요약(공 수 · 최고 · 영상 수) — 투구 기록 캘린더의 그날 칸 · 홈 캘린더 정보.
+ * from 을 주면 그날부터(홈은 캘린더가 처음 받는 범위만).
+ */
 export async function loadVelocityByDate(
-  userId: string
-): Promise<Record<string, { n: number; max: number }>> {
+  userId: string,
+  from?: Date
+): Promise<Record<string, VelocityDayFact>> {
   const rows = await prisma.velocityPitch.findMany({
-    where: { userId },
-    select: { kmh: true, session: { select: { date: true } } },
+    where: { userId, ...(from ? { session: { date: { gte: from } } } : {}) },
+    select: { kmh: true, clipPath: true, session: { select: { date: true } } },
   });
-  const out: Record<string, { n: number; max: number }> = {};
+  const out: Record<string, VelocityDayFact> = {};
   for (const r of rows) {
     const key = r.session.date.toISOString().slice(0, 10);
-    const cur = out[key] ?? { n: 0, max: 0 };
+    const cur = out[key] ?? { n: 0, max: 0, clips: 0 };
     cur.n += 1;
     cur.max = Math.max(cur.max, r.kmh);
+    if (r.clipPath) cur.clips += 1;
     out[key] = cur;
   }
   return out;

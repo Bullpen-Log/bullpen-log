@@ -10,6 +10,7 @@ import { trainingLoad } from '@/lib/report/training-acwr';
 import { planSummaries, trainingSummaries } from '@/lib/report/training-history';
 import { SummaryPanel, type RecentLog } from './summary-panel';
 import { PitchLogPanel } from './pitch-log-panel';
+import { loadVelocityByDate } from '@/lib/velocity-load';
 import { AnalysisSkeleton } from './analysis-block';
 import { AnalysisView } from './analysis-view';
 import { readAnalysisTab, type AnalysisTab } from './analysis-tabs';
@@ -183,46 +184,57 @@ async function PitchLogSection({
    * 날짜를 누를 때마다 받아 오면 칸을 옮길 때마다 기다리므로 여기서 같이 읽는다.
    * 모두 하루 한 줄로 줄여서 넘긴다(영양은 칼로리·단백질 합, 체크인은 컨디션·통증).
    */
-  const [logs, training, plans, featured, meals, checkins, reports, dailyWeights] =
-    await Promise.all([
-      prisma.pitchLog.findMany({
-        where: { userId: user.id, date: { gte: initialFrom } },
-        orderBy: [{ date: 'asc' }, { createdAt: 'asc' }],
-      }),
-      trainingSummaries(user.id),
-      planSummaries(user.id),
-      prisma.dailyFeaturedVideo.findMany({
-        where: { userId: user.id, date: { gte: initialFrom } },
-        select: { date: true, videoPath: true },
-      }),
-      prisma.mealEntry.findMany({
-        where: { userId: user.id, date: { gte: initialFrom } },
-        select: { date: true, kcal: true, protein: true, amount: true },
-      }),
-      prisma.dailyCheckin.findMany({
-        where: { userId: user.id, date: { gte: initialFrom } },
-        select: {
-          date: true,
-          condition: true,
-          shoulder: true,
-          elbow: true,
-          wrist: true,
-          lowerBack: true,
-          lowerBody: true,
-          /* 밑의 '기록 추이' 체중 그래프 */
-          bodyWeightKg: true,
-        },
-      }),
-      prisma.aiReport.findMany({
-        where: { userId: user.id, asOf: { gte: initialFrom } },
-        select: { asOf: true },
-      }),
-      /* 영양 탭에 적은 체중 — '기록 추이'의 체중 그래프 */
-      prisma.dailyNutrition.findMany({
-        where: { userId: user.id, date: { gte: initialFrom }, weightKg: { not: null } },
-        select: { date: true, weightKg: true },
-      }),
-    ]);
+  const [
+    logs,
+    training,
+    plans,
+    featured,
+    meals,
+    checkins,
+    reports,
+    dailyWeights,
+    velocityByDay,
+  ] = await Promise.all([
+    prisma.pitchLog.findMany({
+      where: { userId: user.id, date: { gte: initialFrom } },
+      orderBy: [{ date: 'asc' }, { createdAt: 'asc' }],
+    }),
+    trainingSummaries(user.id),
+    planSummaries(user.id),
+    prisma.dailyFeaturedVideo.findMany({
+      where: { userId: user.id, date: { gte: initialFrom } },
+      select: { date: true, videoPath: true },
+    }),
+    prisma.mealEntry.findMany({
+      where: { userId: user.id, date: { gte: initialFrom } },
+      select: { date: true, kcal: true, protein: true, amount: true },
+    }),
+    prisma.dailyCheckin.findMany({
+      where: { userId: user.id, date: { gte: initialFrom } },
+      select: {
+        date: true,
+        condition: true,
+        shoulder: true,
+        elbow: true,
+        wrist: true,
+        lowerBack: true,
+        lowerBody: true,
+        /* 밑의 '기록 추이' 체중 그래프 */
+        bodyWeightKg: true,
+      },
+    }),
+    prisma.aiReport.findMany({
+      where: { userId: user.id, asOf: { gte: initialFrom } },
+      select: { asOf: true },
+    }),
+    /* 영양 탭에 적은 체중 — '기록 추이'의 체중 그래프 */
+    prisma.dailyNutrition.findMany({
+      where: { userId: user.id, date: { gte: initialFrom }, weightKg: { not: null } },
+      select: { date: true, weightKg: true },
+    }),
+    /* 카메라로 잰 공 — 그날 칸의 투구 · 영상 아이콘(공 수 · 최고 · 영상 수) */
+    loadVelocityByDate(user.id, initialFrom),
+  ]);
 
   /* 체중 — 체크인에 적은 것 위에 영양 탭에 적은 것을 덮는다(영양 탭과 같은 차례) */
   const weightByDay: Record<string, number> = {};
@@ -268,6 +280,7 @@ async function PitchLogSection({
         featured.map((f) => [toDateKey(f.date), f.videoPath])
       )}
       nutritionByDay={nutritionByDay}
+      velocityByDay={velocityByDay}
       checkinByDay={Object.fromEntries(
         checkins.map((c) => [
           toDateKey(c.date),

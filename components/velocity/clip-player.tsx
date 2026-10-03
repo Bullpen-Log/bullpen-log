@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useCallback, useState } from 'react';
 import { zoneCellOnScreen, type CameraPos, type ZoneRect } from '@/lib/velocity-setup';
 import { ZoneOverlay } from './setup-steps';
 
@@ -12,6 +12,13 @@ import { ZoneOverlay } from './setup-steps';
  * 줄어들어(object-contain) 위아래나 양옆이 빈다 — 그래서 영상 크기를 알면 틀의 비율을 영상 비율로 맞춰 빈 곳을 없앤다.
  * 파일에 새기지 않으니 설정을 끄면 곧바로 사라진다.
  */
+
+/** 던진 순간 조금 앞으로 — 크롬 녹화(webm)는 길이가 Infinity 로 와도 그대로 옮긴다 */
+function seekToEvent(v: HTMLVideoElement, eventSec: number) {
+  const at = Math.max(0, eventSec - 0.4);
+  v.currentTime = Number.isFinite(v.duration) ? Math.min(at, v.duration) : at;
+}
+
 export function ClipPlayer({
   src,
   eventSec,
@@ -46,6 +53,21 @@ export function ClipPlayer({
   /* 영상 그림이 뜬 뒤에 존을 드러낸다 — 던진 때로 찾아가는 동안(검은 화면) 존만 떠 있지 않게 */
   const [shownFor, setShownFor] = useState<string | null>(null);
   const zoneOn = showZone && zoneRect != null && dims != null && shownFor === src;
+  /*
+   * 영상이 화면에 붙기(커밋) 전에 머리를 다 받으면 React 가 그 알림(loadedmetadata)을 버린다 — 붙지 않은 요소의 알림은
+   * 버리기 때문이다. Suspense 가 내용을 늦게 드러낼 때(캘린더 정보의 dynamic) 캐시된 영상에서 일어나, 비율 맞추기 · 던진
+   * 순간으로 가기가 빠졌다. 붙는 순간 이미 받았으면 그때 한다(아직이면 아래 알림이 한다).
+   */
+  const attach = useCallback(
+    (v: HTMLVideoElement | null) => {
+      if (!v || v.readyState < HTMLMediaElement.HAVE_METADATA) return;
+      if (v.videoWidth && v.videoHeight)
+        setMeta({ src, w: v.videoWidth, h: v.videoHeight });
+      if (eventSec != null) seekToEvent(v, eventSec);
+      else if (v.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA) setShownFor(src);
+    },
+    [src, eventSec]
+  );
   return (
     <div
       className={`relative mx-auto overflow-hidden rounded-2xl bg-black ${className}`}
@@ -60,6 +82,7 @@ export function ClipPlayer({
     >
       <video
         key={src}
+        ref={attach}
         src={src}
         controls
         playsInline
@@ -70,11 +93,7 @@ export function ClipPlayer({
           const v = e.currentTarget;
           if (v.videoWidth && v.videoHeight)
             setMeta({ src, w: v.videoWidth, h: v.videoHeight });
-          /* 크롬 녹화(webm)는 길이가 Infinity 로 온다 — 그래도 던진 때로 */
-          if (eventSec != null) {
-            const at = Math.max(0, eventSec - 0.4);
-            v.currentTime = Number.isFinite(v.duration) ? Math.min(at, v.duration) : at;
-          }
+          if (eventSec != null) seekToEvent(v, eventSec);
         }}
         onError={onError}
         onSeeked={() => setShownFor(src)}
