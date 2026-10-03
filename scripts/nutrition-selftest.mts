@@ -90,8 +90,10 @@ import {
 } from '../lib/nutrition/photo-match.ts';
 import {
   MEAL_TEMPLATES,
+  SUPPLEMENTS,
   TEMPLATE_PROBLEMS,
   avoidsOf,
+  type MealTemplate,
 } from '../lib/nutrition/meal-templates.ts';
 import {
   MAX_PER_MEAL,
@@ -2750,6 +2752,244 @@ console.log('\n■ 식단 짜기');
   check(
     '까닭은 넷까지',
     [one, ate, appetite].every((p) => p.reasons.length >= 1 && p.reasons.length <= 4)
+  );
+
+  check(
+    '못 먹는 것은 국물 · 양념 · 고명까지 센다 — 김치 젓갈 · 된장찌개 육수 · 물냉면 고명 · 참치마요',
+    avoidsOf('kimchi').includes('seafood') &&
+      avoidsOf('doenjang-jjigae').includes('seafood') &&
+      avoidsOf('naengmyeon').includes('egg') &&
+      avoidsOf('naengmyeon').includes('beef') &&
+      avoidsOf('triangle-gimbap').includes('egg') &&
+      avoidsOf('curry-rice').includes('dairy')
+  );
+
+  /* 못 먹는 것 0~2개 — 아무것도 안 고른 사람 1 + 하나 9 + 둘 36 = 46가지 */
+  type AvoidList = PlanInput['prefs']['avoid'];
+  const avoidSets: AvoidList[] = [[]];
+  AVOIDS.forEach((a, i) => {
+    avoidSets.push([a.key]);
+    for (const b of AVOIDS.slice(i + 1)) avoidSets.push([a.key, b.key]);
+  });
+
+  /* ── 못 먹는 것 0~2개 × 끼니 구성 × 스타일, 하나도 빠짐없이(46 × 4 × 3 = 552가지) ── */
+  const MEALS_OF = { '3': 3, '3+1': 4, '3+2': 5, '2+1': 3 } as const;
+  let combos = 0;
+  const comboBad = {
+    kcal: [] as string[],
+    protein: [] as string[],
+    avoid: [] as string[],
+  };
+  const comboMissing: string[] = [];
+  const comboSupp: string[] = [];
+  avoidSets.forEach((avoid, ai) => {
+    for (const mealPattern of pats) {
+      for (const dietStyle of styles) {
+        const i = combos++;
+        const band = (['adult', 'teen', 'child'] as const)[i % 3];
+        const kg =
+          band === 'child'
+            ? 32 + (i % 15)
+            : band === 'teen'
+              ? 52 + (i % 20)
+              : 68 + (i % 30);
+        const protein = Math.round(
+          kg * (band === 'child' ? 1.2 : band === 'teen' ? 1.5 : 1.8)
+        );
+        const kcal = Math.round(
+          kg * (band === 'child' ? 60 : band === 'teen' ? 48 : 38) + (i % 4) * 150
+        );
+        const lowAppetite = i % 7 === 0;
+        const r = buildMealPlan({
+          ...base,
+          date: `2026-11-${String(1 + (i % 28)).padStart(2, '0')}`,
+          seed: 'a' + ai,
+          variant: i % 3,
+          targets: { kcal, protein },
+          goal: (['gain', 'maintain', 'lose'] as const)[i % 3],
+          ageBand: band,
+          prefs: {
+            ...DEFAULT_PREFS,
+            mealPattern,
+            dietStyle,
+            avoid,
+            /* 성장기 · 어린이는 켜 둬도 안 들어가야 한다 */
+            supplements: true,
+            seasonPhase: (['off', 'pre', 'in', 'rehab', null] as const)[i % 5],
+          },
+          place: places[i % 4],
+          hot: i % 5 === 0,
+          throwKind: kinds[i % 4],
+          appetite: lowAppetite ? 1 : null,
+          soreness: i % 11 === 0 ? 5 : null,
+        });
+        const label = `${avoid.join('+') || '없음'}/${mealPattern}/${dietStyle}/${band}`;
+        const m = planMacros(r.items);
+        if (Math.abs(m.kcal - kcal) > kcal * 0.1)
+          comboBad.kcal.push(`${label} ${Math.round(m.kcal)}/${kcal}`);
+        if (m.protein < protein * 0.85)
+          comboBad.protein.push(`${label} ${Math.round(m.protein)}/${protein}`);
+        if (r.items.some((it) => avoidsOf(it.sourceId).some((a) => avoid.includes(a))))
+          comboBad.avoid.push(label);
+        if (band !== 'adult' && r.items.some((it) => SUPPLEMENTS.has(it.sourceId)))
+          comboSupp.push(label);
+        const expected =
+          MEALS_OF[mealPattern] + (lowAppetite && mealPattern === '3' ? 1 : 0);
+        if (r.meals.length !== expected)
+          comboMissing.push(`${label} ${r.meals.length}/${expected}`);
+      }
+    }
+  });
+  check(
+    `못 먹는 것 0~2개 × 끼니 구성 × 스타일 ${combos}가지 — 하루 kcal 이 목표의 ±10% 안`,
+    comboBad.kcal.length === 0,
+    comboBad.kcal.slice(0, 4).join(' · ')
+  );
+  check(
+    `못 먹는 것 0~2개 × 끼니 구성 × 스타일 ${combos}가지 — 단백질이 목표의 85% 넘게`,
+    comboBad.protein.length === 0,
+    comboBad.protein.slice(0, 4).join(' · ')
+  );
+  check(
+    `못 먹는 것 0~2개 × 끼니 구성 × 스타일 ${combos}가지 — 못 먹는 것은 하나도 안 들어간다`,
+    comboBad.avoid.length === 0,
+    comboBad.avoid.slice(0, 4).join(' · ')
+  );
+  check(
+    '성장기 · 어린이는 보충식품을 켜 둬도 안 들어간다(552가지)',
+    comboSupp.length === 0,
+    comboSupp.slice(0, 4).join(' · ')
+  );
+  check(
+    '못 먹는 것이 둘이어도 끼니 구성의 끼니를 모두 짠다',
+    comboMissing.length === 0,
+    comboMissing.slice(0, 4).join(' · ')
+  );
+
+  /*
+   * ── 바꿔 넣기 없이 고를 틀 — 못 먹는 것을 둘 골라도, 보충식품 없이(성장기)도 셋 넘게 ──
+   * 바꿔 넣기(SUBSTITUTES)는 모자랄 때의 길이라 '식빵 · 달걀프라이' 가 '고구마 · 두부'로 바뀌는 식이 된다. 틀 그대로 쓸 수 있는
+   * 것이 끼니가 놓이는 장소마다 · 스타일마다 · 던지기 전 · 회복 · 입맛 없을 때마다 남아 있어야 한다. 아침은 늘 집, 저녁은 집이나
+   * 밖에서 먹는다(meal-plan.ts placeFor).
+   */
+  const REACH: Record<string, readonly string[]> = {
+    breakfast: ['home'],
+    lunch: places,
+    dinner: ['home', 'out'],
+    snack: places,
+  };
+  const asIs = (t: MealTemplate, avoid: AvoidList) =>
+    t.items.every(
+      (i) =>
+        i.role === 'side' ||
+        (!SUPPLEMENTS.has(i.food.id!) &&
+          !avoidsOf(i.food.id!).some((a) => avoid.includes(a)))
+    );
+  const short: string[] = [];
+  for (const [slot, reach] of Object.entries(REACH)) {
+    const pool = bySlot(slot);
+    const there = (t: MealTemplate) => t.places.some((p) => reach.includes(p));
+    const needs: [string, (t: MealTemplate) => boolean, number][] = [
+      ...reach.map(
+        (p) =>
+          [`장소 ${p}`, (t: MealTemplate) => t.places.includes(p as never), 3] as [
+            string,
+            (t: MealTemplate) => boolean,
+            number,
+          ]
+      ),
+      ['한식', (t) => there(t) && t.styles.includes('korean'), 3],
+      ['간편식', (t) => there(t) && t.styles.includes('simple'), 3],
+      ['던지기 전', (t) => there(t) && t.tags.includes('pre'), 3],
+      ['회복', (t) => there(t) && t.tags.includes('rec'), slot === 'breakfast' ? 2 : 3],
+      ['입맛 없을 때', (t) => there(t) && t.tags.includes('light'), 3],
+    ];
+    for (const avoid of avoidSets) {
+      for (const [label, fits, need] of needs) {
+        const n = pool.filter((t) => asIs(t, avoid) && fits(t)).length;
+        if (n < need)
+          short.push(`${slot} ${label} [${avoid.join('+') || '없음'}] ${n}`);
+      }
+    }
+  }
+  check(
+    '못 먹는 것 0~2개 · 보충식품 없이도 끼니 · 장소 · 스타일 · 꼬리표마다 바꿔 넣기 없이 고를 틀이 셋 넘게',
+    short.length === 0,
+    `${short.length}곳 — ${short.slice(0, 5).join(' · ')}`
+  );
+
+  /* ── 이레 연속 — 같은 조건으로 날마다 짜도 한 틀이 몰리지 않는다 ── */
+  let weekSlots = 0,
+    weekOver = 0,
+    nextDays = 0,
+    nextSame = 0;
+  const weekWorst: string[] = [];
+  for (let i = 0; i < 240; i++) {
+    const avoid = avoidSets[(i * 5) % avoidSets.length];
+    const band = (['adult', 'teen', 'child'] as const)[i % 3];
+    const kg =
+      band === 'child'
+        ? 32 + (i % 15)
+        : band === 'teen'
+          ? 52 + (i % 20)
+          : 68 + (i % 30);
+    const input: PlanInput = {
+      ...base,
+      seed: 'w' + i,
+      targets: {
+        kcal: Math.round(kg * (band === 'child' ? 60 : band === 'teen' ? 48 : 38)),
+        protein: Math.round(
+          kg * (band === 'child' ? 1.2 : band === 'teen' ? 1.5 : 1.8)
+        ),
+      },
+      goal: (['gain', 'maintain', 'lose'] as const)[i % 3],
+      ageBand: band,
+      prefs: {
+        ...DEFAULT_PREFS,
+        mealPattern: pats[i % 4],
+        dietStyle: styles[(i >> 2) % 3],
+        avoid,
+        supplements: i % 2 === 0,
+        seasonPhase: (['off', 'pre', 'in', 'rehab', null] as const)[i % 5],
+      },
+      place: places[(i >> 1) % 4],
+    };
+    const bySlotDay = new Map<string, string[]>();
+    for (let d = 0; d < 7; d++) {
+      const r = buildMealPlan({
+        ...input,
+        date: `2026-11-${String(9 + d).padStart(2, '0')}`,
+      });
+      const nth: Record<string, number> = {};
+      for (const meal of r.meals) {
+        const k = `${meal.meal}${(nth[meal.meal] = (nth[meal.meal] ?? -1) + 1)}`;
+        bySlotDay.set(k, [...(bySlotDay.get(k) ?? []), meal.template]);
+      }
+    }
+    for (const [k, list] of bySlotDay) {
+      weekSlots++;
+      const counts = new Map<string, number>();
+      for (const t of list) counts.set(t, (counts.get(t) ?? 0) + 1);
+      const most = Math.max(...counts.values());
+      if (most > 3) {
+        weekOver++;
+        weekWorst.push(`${input.seed} ${k} ${most}번`);
+      }
+      for (let d = 1; d < list.length; d++) {
+        nextDays++;
+        if (list[d] === list[d - 1]) nextSame++;
+      }
+    }
+  }
+  check(
+    '이레 동안 한 끼니에 같은 틀은 세 번까지',
+    weekOver === 0,
+    `${weekOver}/${weekSlots} — ${weekWorst.slice(0, 4).join(' · ')}`
+  );
+  check(
+    '이틀 잇달아 같은 틀이 나오는 일은 드물다(2% 밑)',
+    nextSame <= nextDays * 0.02,
+    `${nextSame}/${nextDays}`
   );
 
   const parsed = parsePlanItems([

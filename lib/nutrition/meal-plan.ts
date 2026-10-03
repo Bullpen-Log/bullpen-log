@@ -39,8 +39,9 @@ import {
  *   1. 끼니 칸   끼니 구성대로(세 끼 · +간식 …). 이미 먹은 끼니는 짜지 않고, 남은 양을 남은 끼니에 나눈다.
  *               던지는 날은 던지기 전 끼니(점심)에, 등판 전날은 저녁에 몫을 조금 더.
  *   2. 틀 고르기 식단 틀(meal-templates.ts) 가운데 그 끼니 · 장소에 맞고 못 먹는 것이 없는(바꿔 넣을 수 있는) 것에 점수를 매겨
- *               위에서 몇 개 중 하나를 고른다. 날짜 · 사람 · '다른 식단으로' 횟수로 정해서, 같은 날 다시 열면 같은 식단이고
- *               다른 날은 다르다. 하루 안에서 같은 주재료를 되풀이하지 않는다.
+ *               위에서 몇 개 중 하나를 고른다. 사람 · 끼니 · '다른 식단으로' 횟수로 정한 점을 날마다 황금비만큼 옮겨 고르고,
+ *               그 주 월요일부터 이어 짜서 어제 · 그제 고른 틀은 피한다 — 같은 날 다시 열면 같은 식단이고, 이레 동안 한
+ *               틀이 몰리지 않는다. 하루 안에서 같은 주재료를 되풀이하지 않는다.
  *   3. 양 맞추기 단백질 몫은 단백질 재료로, kcal 몫은 밥 · 면 같은 탄수화물로 맞춘다(0.25 · 0.5 · 1 단위, 너무 많거나 적지 않게).
  *   4. 하루 맞추기 합이 목표의 ±8% 밖이면 탄수화물을 늘리고 줄이고, 단백질이 9할 밑이면 간식에 단백질 음식을 더한다.
  *   5. 까닭     왜 이렇게 짰는지 몇 줄(해요체).
@@ -188,6 +189,12 @@ function blocked(foodId: string, input: PlanInput) {
   return avoidsOf(foodId).some((a) => input.prefs.avoid.includes(a));
 }
 
+/**
+ * 단백질 재료를 바꿔 넣을 때 1인분에 이만큼은 있어야 한다. 닭가슴살 샐러드(35g)를 그냥 샐러드(3g)로 바꾸면 단백질을 맞추려고
+ * 샐러드를 스무 접시(3,000kcal)까지 늘렸다.
+ */
+const MIN_SUB_PROTEIN = 5;
+
 /** 못 먹는 것 · 보충식품을 바꿔 넣은 틀. 바꿀 수 없는 주재료가 있으면 null */
 function prepare(template: MealTemplate, input: PlanInput): Prepared | null {
   const items: Prepared['items'] = [];
@@ -196,9 +203,14 @@ function prepare(template: MealTemplate, input: PlanInput): Prepared | null {
       items.push({ ...it });
       continue;
     }
-    const subId = (SUBSTITUTES[it.food.id!] ?? []).find(
-      (s) => basicFood(s) && !blocked(s, input)
-    );
+    const subId = (SUBSTITUTES[it.food.id!] ?? []).find((s) => {
+      const food = basicFood(s);
+      return (
+        food &&
+        !blocked(s, input) &&
+        (it.role !== 'protein' || (food.protein ?? 0) >= MIN_SUB_PROTEIN)
+      );
+    });
     const sub = subId ? basicFood(subId) : null;
     if (sub) {
       /* 같은 역할의 몫이 비슷하게 — 단백질 재료는 단백질로, 그 밖은 kcal 로 양을 맞춘다 */
@@ -317,6 +329,18 @@ function unit(text: string) {
 
 const TOP_K = 6;
 
+/** 1970-01-01 부터 며칠째인가 — 날짜가 틀렸으면 0 */
+function dayNumber(date: string) {
+  const t = Date.parse(`${date}T00:00:00Z`);
+  return Number.isFinite(t) ? Math.round(t / 86_400_000) : 0;
+}
+
+/** 황금비의 소수 부분 — 날마다 이만큼 건너뛰면 이레 동안 0~1 이 고르게 채워진다 */
+const GOLDEN = 0.6180339887498949;
+
+/** 그날의 주재료 · 어제 · 그제 고른 틀을 피하다 가장 좋은 틀보다 점수가 이만큼 넘게 낮아지면 피하지 않는다 */
+const RECENT_SLACK = 2;
+
 /**
  * 틀의 크기가 이 끼니 몫과 맞나 — 처음 양으로 셈한 kcal · 단백질이 몫에서 멀수록 점수를 뺀다. 양을 늘리고 줄여 맞추긴 하지만,
  * 어린이 간식에 닭가슴살 팩이나 1,600kcal 하루에 돼지국밥이 뽑히면 맞추다 끝내 넘친다. 단백질은 넘칠 때만 뺀다(모자라면 더해 채운다).
@@ -336,43 +360,81 @@ function pickTemplate(
   /** 이 끼니의 몫 */
   aim: { kcal: number; protein: number },
   /** 같은 끼니에 이미 담은 음식(간식 둘) — 겹치는 틀은 안 고른다 */
-  taken: Set<string>
+  taken: Set<string>,
+  /** 어제 · 그제 고른 틀 — 되도록 피한다 */
+  recent: Set<string>[]
 ): Prepared | null {
   const want = wants(slot, input, snackIndex);
   const place = placeFor(slot, input);
-  const pool = MEAL_TEMPLATES.filter(
-    (t) => t.slots.includes(slot) && !used.templates.has(t.key)
-  )
+  const pool = MEAL_TEMPLATES.filter((t) => t.slots.includes(slot))
     .map((t) => prepare(t, input))
-    .filter((p): p is Prepared => p !== null)
-    .filter((p) => !p.items.some((i) => taken.has(i.food.id!)));
+    .filter((p): p is Prepared => p !== null);
   /* 그 장소에서 먹을 수 있는 것 — 없으면(못 먹는 것이 많아서) 장소를 풀어 준다 */
   const atPlace = pool.filter((p) => p.template.places.includes(place));
   const choices = atPlace.length > 0 ? atPlace : pool;
   if (choices.length === 0) return null;
 
-  const scored = choices
-    .map((p) => {
-      let score = 1 + styleScore(p.template, input);
-      for (const tag of p.template.tags) score += want[tag] ?? 0;
-      if (mainsOf(p).some((m) => used.mains.has(m))) score -= 3;
-      score -= sizePenalty(p, aim.kcal, aim.protein);
-      return { p, score };
-    })
-    .sort(
-      (a, b) => b.score - a.score || a.p.template.key.localeCompare(b.p.template.key)
-    )
-    .slice(0, TOP_K);
-  const floor = Math.min(...scored.map((s) => s.score));
-  const weights = scored.map((s) => s.score - floor + 1);
-  const total = weights.reduce((a, b) => a + b, 0);
-  let r =
-    unit(`${input.seed}|${input.date}|${input.variant}|${slot}|${snackIndex}`) * total;
-  for (let i = 0; i < scored.length; i++) {
-    r -= weights[i];
-    if (r < 0) return scored[i].p;
-  }
-  return scored[scored.length - 1].p;
+  /*
+   * 점수는 그날 다른 끼니에 무엇을 골랐는지와 상관없이 매긴다 — 같은 조건이면 날마다 같은 차례여야 아래의 점이 고루 퍼진다
+   * (아침에 고른 주재료로 저녁의 차례가 날마다 바뀌면 같은 저녁이 나흘씩 나왔다). 그날 이미 고른 틀 · 주재료와 겹치는 것은
+   * 고른 뒤에 건너뛴다.
+   */
+  const rank = (list: Prepared[]) =>
+    list
+      .map((p) => {
+        let score = 1 + styleScore(p.template, input);
+        for (const tag of p.template.tags) score += want[tag] ?? 0;
+        score -= sizePenalty(p, aim.kcal, aim.protein);
+        return { p, score };
+      })
+      .sort(
+        (a, b) => b.score - a.score || a.p.template.key.localeCompare(b.p.template.key)
+      );
+  const ranked = rank(choices);
+  /*
+   * 0~1 의 점 하나로 고른다. 사람 · 끼니 · '다른 식단으로' 횟수로 출발점을 정하고, 날마다 황금비만큼 옮긴다 — 같은 조건이
+   * 이어지는 이레 동안 점이 고루 퍼져서 한 틀만 되풀이되지 않는다(날마다 따로 뽑으면 같은 틀이 사흘 넘게 이어지곤 했다).
+   */
+  const start = unit(`${input.seed}|${input.variant}|${slot}|${snackIndex}`);
+  const point = (start + dayNumber(input.date) * GOLDEN) % 1;
+  const draw = (list: { p: Prepared; score: number }[]) => {
+    const top = list.slice(0, TOP_K);
+    if (top.length === 0) return null;
+    const floor = Math.min(...top.map((s) => s.score));
+    const weights = top.map((s) => s.score - floor + 1);
+    let r = point * weights.reduce((a, b) => a + b, 0);
+    for (let i = 0; i < top.length; i++) {
+      r -= weights[i];
+      if (r < 0) return top[i].p;
+    }
+    return top[top.length - 1].p;
+  };
+
+  /*
+   * 겹치지 않는 틀 가운데서 같은 점으로 — 겹친 틀만 빼고 다시 나누면 몫이 고르게 늘어난다(겹칠 때마다 바로 다음 틀로 넘기면
+   * 그 틀에 몰렸다). 먼저 그날 고른 주재료와도, 어제 · 그제 고른 틀과도 안 겹치는 것. 모자라면 그제 것 → 어제 것 → 주재료
+   * 순으로 푼다. 피하느라 가장 좋은 틀보다 점수가 RECENT_SLACK 넘게 낮아지면 그 단계는 건너뛴다 — 던지는 날 점심의
+   * 던지기 전 끼니처럼 꼭 맞는 틀을 '아침에 달걀을 먹었다' · '어제 먹었다'로 놓치지 않게.
+   */
+  const free = (p: Prepared) =>
+    !used.templates.has(p.template.key) && !p.items.some((i) => taken.has(i.food.id!));
+  const fresh = (p: Prepared) => !mainsOf(p).some((m) => used.mains.has(m));
+  const notWithin = (days: number) => (p: Prepared) =>
+    recent.slice(0, days).every((keys) => !keys.has(p.template.key));
+  const open = ranked.filter((s) => free(s.p));
+  const best = open[0]?.score ?? -Infinity;
+  const near = (keep: (p: Prepared) => boolean) => {
+    const list = open.filter((s) => keep(s.p));
+    return list.length > 0 && list[0].score >= best - RECENT_SLACK ? draw(list) : null;
+  };
+  return (
+    near((p) => fresh(p) && notWithin(2)(p)) ??
+    near((p) => fresh(p) && notWithin(1)(p)) ??
+    near(fresh) ??
+    near(notWithin(1)) ??
+    draw(open) ??
+    draw(rank(pool.filter(free)))
+  );
 }
 
 /* ─────────────────────────── 양 맞추기 ─────────────────────────── */
@@ -508,7 +570,37 @@ const PRE_MEAL: Partial<Record<NonNullable<ThrowKind>, Slot>> = {
   eve: 'dinner',
 };
 
+/**
+ * 이레를 한 줄로 이어 짠다 — 그 주 월요일부터 어제까지를 짜 보고, 어제 · 그제 고른 틀을 오늘은 피한다. 늘 월요일부터 다시
+ * 셈하므로 같은 날을 다시 열어도 같은 식단이다. 지난 날은 보통 날로 짠다 — 목표 · 취향 · 장소는 오늘 그대로, 던지는 일정 ·
+ * 더위 · 식욕 · 근육통 · 먹은 것 · '다른 식단으로'는 없이(지난 날도 던지는 날로 짜 보면 얼마 없는 던지기 전 점심을 지난
+ * 날이 다 써 버려 정작 오늘 못 골랐다).
+ */
 export function buildMealPlan(input: PlanInput): MealPlanResult {
+  const day = dayNumber(input.date);
+  /* 1970-01-01 은 목요일 — (날 수 + 3) 을 7 로 나눈 나머지가 월요일부터 며칠째인가 */
+  const monday = day - ((day + 3) % 7);
+  let recent: Set<string>[] = [];
+  for (let d = monday; d < day; d++) {
+    const past = planDay(
+      {
+        ...input,
+        date: new Date(d * 86_400_000).toISOString().slice(0, 10),
+        variant: 0,
+        hot: false,
+        throwKind: null,
+        appetite: null,
+        soreness: null,
+        eaten: [],
+      },
+      recent
+    );
+    recent = [new Set(past.meals.map((m) => m.template)), ...recent].slice(0, 2);
+  }
+  return planDay(input, recent);
+}
+
+function planDay(input: PlanInput, recent: Set<string>[]): MealPlanResult {
   const eatenMeals = new Set(input.eaten.filter((e) => e.kcal > 0).map((e) => e.meal));
   const eatenTotal = input.eaten.reduce(
     (a, e) => ({ kcal: a.kcal + e.kcal, protein: a.protein + e.protein }),
@@ -565,7 +657,8 @@ export function buildMealPlan(input: PlanInput): MealPlanResult {
       used,
       slot === 'snack' ? snackIndex : 0,
       { kcal, protein },
-      taken
+      taken,
+      recent
     );
     if (slot === 'snack') snackIndex++;
     if (!picked) continue;

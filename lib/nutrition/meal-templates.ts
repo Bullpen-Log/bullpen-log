@@ -146,7 +146,12 @@ const ROWS: Row[] = [
   ['s-milk-bed', '따뜻한 우유', 'S', 'k', 'h', 'bed light', 'milk:1:p'],
 ];
 
-/* ── 못 먹는 것 — 음식마다 무엇이 들었나(빠진 것이 없게 넉넉히: 재료로 흔히 들어가는 것까지) ── */
+/*
+ * ── 못 먹는 것 — 음식마다 무엇이 들었나(빠진 것이 없게 넉넉히: 재료로 흔히 들어가는 것까지) ──
+ * 국물 · 양념 · 고명도 센다 — 김치의 젓갈, 된장찌개 · 우동 · 칼국수의 멸치 · 해물 육수, 물냉면의 달걀 · 소고기 육수, 삼각김밥
+ * 참치마요의 마요네즈(달걀), 카레 루의 분유. 밀가루만은 밀가루 음식(빵 · 면 · 튀김옷 · 만두피 · 카레 루)으로 센다 — 간장 ·
+ * 고추장에 든 밀까지 치면 한식을 거의 못 짠다.
+ */
 const CONTAINS: Partial<Record<AvoidKey, string[]>> = {
   dairy: [
     'milk',
@@ -163,6 +168,8 @@ const CONTAINS: Partial<Record<AvoidKey, string[]>> = {
     'protein-shake',
     'croissant',
     'protein-bar',
+    'white-bread',
+    'curry-rice',
   ],
   egg: [
     'egg',
@@ -177,6 +184,12 @@ const CONTAINS: Partial<Record<AvoidKey, string[]>> = {
     'sandwich',
     'tonkatsu',
     'tteokguk',
+    'triangle-gimbap',
+    'naengmyeon',
+    'sundubu-jjigae',
+    'yukgaejang',
+    'japchae',
+    'lunchbox',
   ],
   seafood: [
     'tuna-can',
@@ -186,6 +199,13 @@ const CONTAINS: Partial<Record<AvoidKey, string[]>> = {
     'anchovy',
     'jjamppong',
     'triangle-gimbap',
+    'kimchi',
+    'kimchi-jjigae',
+    'doenjang-jjigae',
+    'sundubu-jjigae',
+    'udon',
+    'kalguksu',
+    'gimbap',
   ],
   pork: [
     'jeyuk',
@@ -205,6 +225,9 @@ const CONTAINS: Partial<Record<AvoidKey, string[]>> = {
     'gimbap',
     'sandwich',
     'lunchbox',
+    'curry-rice',
+    'sundubu-jjigae',
+    'japchae',
   ],
   beef: [
     'bulgogi',
@@ -217,6 +240,9 @@ const CONTAINS: Partial<Record<AvoidKey, string[]>> = {
     'hamburger',
     'tteokguk',
     'japchae',
+    'naengmyeon',
+    'bibimbap',
+    'curry-rice',
   ],
   chicken: [
     'chicken-breast',
@@ -287,7 +313,6 @@ export const SUBSTITUTES: Record<string, string[]> = {
   'chicken-breast': ['beef-lean', 'pork-tenderloin', 'tofu'],
   'chicken-breast-pack': ['tuna-can', 'beef-lean', 'tofu'],
   'chicken-thigh': ['pork-tenderloin', 'beef-lean', 'tofu'],
-  'chicken-salad': ['salad'],
   salmon: ['chicken-breast', 'beef-lean', 'tofu'],
   mackerel: ['chicken-thigh', 'pork-tenderloin', 'braised-tofu'],
   'tuna-can': ['chicken-breast-pack', 'tofu'],
