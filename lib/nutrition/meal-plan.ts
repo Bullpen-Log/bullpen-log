@@ -1070,6 +1070,26 @@ export function parsePlanItems(raw: unknown): PlanItem[] {
   return out;
 }
 
+/**
+ * 어제 · 그제 저장한 식단의 틀 열쇠 → PlanInput.recent(0 이 어제). 그날 계획이 없거나 틀 열쇠가 하나도 없으면 null(식단 짜기가
+ * 같은 조건의 보통 날로 짜 본 것으로 대신한다). 서버 동작(makeMealPlan)이 DB 에서 읽은 줄을 넘긴다 — 날짜는 'YYYY-MM-DD'.
+ */
+export function recentTemplates(
+  date: string,
+  rows: { date: string; context: unknown }[]
+): (string[] | null)[] {
+  const day = Date.parse(`${date}T00:00:00.000Z`);
+  return [1, 2].map((n) => {
+    const key = new Date(day - n * 86_400_000).toISOString().slice(0, 10);
+    const row = rows.find((r) => r.date === key);
+    if (!row) return null;
+    const keys = parsePlanContext(row.context)
+      .meals.map((m) => m.template)
+      .filter((k) => k.length > 0);
+    return keys.length > 0 ? keys : null;
+  });
+}
+
 export function parsePlanContext(raw: unknown): PlanContext {
   const o = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>;
   const meals = Array.isArray(o.meals)

@@ -103,6 +103,7 @@ import {
   parsePlanContext,
   parsePlanItems,
   planMacros,
+  recentTemplates,
   type PlanInput,
 } from '../lib/nutrition/meal-plan.ts';
 import { AVOIDS } from '../lib/nutrition/diet-prefs.ts';
@@ -3296,6 +3297,50 @@ console.log('\n■ 식단 짜기');
     '저장한 계획을 다시 본다 — 틀린 줄은 버리고 음수 영양소는 비운다',
     parsed.length === 2 && parsed[1].done && parsed[1].protein === null
   );
+  /* 서버가 DB 의 어제 · 그제 계획(context)을 recent 로 바꾸는 길 — 저장한 모양 그대로 */
+  const saved = (keys: string[]) => ({
+    place: 'home',
+    meals: keys.map((t, i) => ({ meal: i ? 'lunch' : 'breakfast', title: t, template: t })),
+  });
+  const rec = recentTemplates('2026-11-10', [
+    { date: '2026-11-09', context: saved(['a-1', 'b-2']) },
+    { date: '2026-11-07', context: saved(['old']) },
+  ]);
+  const recEmpty = recentTemplates('2026-11-01', [
+    { date: '2026-10-31', context: { meals: [{ meal: 'lunch', title: 'x', template: '' }] } },
+    { date: '2026-10-30', context: 'junk' },
+  ]);
+  check(
+    '어제 · 그제 저장한 계획 → recent — 어제는 틀 열쇠, 계획이 없는 그제 · 사흘 전 것은 null, 달을 넘어도',
+    JSON.stringify(rec) === JSON.stringify([['a-1', 'b-2'], null]) &&
+      JSON.stringify(recEmpty) === JSON.stringify([null, null]),
+    JSON.stringify([rec, recEmpty])
+  );
+  /* 실제로 넘긴 어제를 피한다 — 어제 '다른 식단으로'(variant 1)로 바꾼 식단을 넘기면 오늘 같은 끼니에 같은 틀이 거의 없다 */
+  let avoidAll = 0,
+    avoidSame = 0;
+  for (let i = 0; i < 120; i++) {
+    const y = buildMealPlan({ ...base, seed: `r${i}`, date: '2026-11-09', variant: 1 });
+    const t = buildMealPlan({
+      ...base,
+      seed: `r${i}`,
+      date: '2026-11-10',
+      variant: 0,
+      recent: recentTemplates('2026-11-10', [
+        { date: '2026-11-09', context: { meals: y.meals } },
+      ]),
+    });
+    for (const m of t.meals) {
+      avoidAll++;
+      if (y.meals.some((x) => x.meal === m.meal && x.template === m.template)) avoidSame++;
+    }
+  }
+  check(
+    '서버 길 그대로(저장한 어제 → recentTemplates → 식단 짜기) 어제와 같은 끼니 · 같은 틀이 드물다(2% 밑)',
+    avoidSame <= avoidAll * 0.02,
+    `${avoidSame}/${avoidAll}`
+  );
+
   const ctx = parsePlanContext({ place: 'mars', hot: 'yes', reasons: ['a', 3] });
   check(
     '저장한 조건을 다시 본다 — 모르는 값은 기본값',

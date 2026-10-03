@@ -4,7 +4,7 @@ import { revalidatePath } from 'next/cache';
 import { prisma } from '@/lib/prisma';
 import { getCurrentUser } from '@/lib/dal';
 import { toDateKey } from '@/lib/pitch-stats';
-import { dbDate, isNutritionDate } from '@/lib/nutrition/days';
+import { dbDate, isNutritionDate, keyOfDbDate } from '@/lib/nutrition/days';
 import {
   effectiveGoal,
   effectiveRate,
@@ -15,7 +15,12 @@ import { loadNutritionDay, recentWeightKg } from '@/lib/nutrition/load';
 import { ageOn } from '@/lib/nutrition/targets';
 import { STEP_KCAL, checkTargetWeight, planOnSave } from '@/lib/nutrition/weight-goal';
 import { cleanDietPrefs } from '@/lib/nutrition/diet-prefs';
-import { buildMealPlan, isPlace, parsePlanItems } from '@/lib/nutrition/meal-plan';
+import {
+  buildMealPlan,
+  isPlace,
+  parsePlanItems,
+  recentTemplates,
+} from '@/lib/nutrition/meal-plan';
 import {
   COMBO_ITEMS_MAX,
   COMBO_MAX,
@@ -391,7 +396,24 @@ export async function makeMealPlan(
       : 0;
   const hot = options.hot === true;
 
-  const day = await loadNutritionDay(user, date);
+  /*
+   * 어제 · 그제 실제로 짠 식단 — 그 틀을 피해서 짠다. 안 넘기면 어제 '다른 식단으로'를 눌렀거나 던지는 날이었던 다음 날, 짜 본
+   * 어제와 실제 어제가 달라 약 12% 가 어제와 같은 틀이었다(클라우드 식단 작업의 남은 일, 2026-10-04).
+   */
+  const today0 = dbDate(date);
+  const [day, pastPlans] = await Promise.all([
+    loadNutritionDay(user, date),
+    prisma.mealPlan.findMany({
+      where: {
+        userId: user.id,
+        date: {
+          gte: new Date(today0.getTime() - 2 * 86_400_000),
+          lt: today0,
+        },
+      },
+      select: { date: true, context: true },
+    }),
+  ]);
   const eaten = new Map<string, { kcal: number; protein: number }>();
   for (const e of day.entries) {
     const sum = eaten.get(e.meal) ?? { kcal: 0, protein: 0 };
@@ -413,6 +435,10 @@ export async function makeMealPlan(
     appetite: day.planSignals?.appetite ?? null,
     soreness: day.planSignals?.soreness ?? null,
     eaten: [...eaten].flatMap(([meal, v]) => (isMealKey(meal) ? [{ meal, ...v }] : [])),
+    recent: recentTemplates(
+      date,
+      pastPlans.map((p) => ({ date: keyOfDbDate(p.date), context: p.context }))
+    ),
   });
   const context = {
     place: options.place,
