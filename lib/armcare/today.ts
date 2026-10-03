@@ -19,6 +19,7 @@ import {
   type RehabProgramLike,
   type RehabSession,
   type RehabStatus,
+  type RehabWeeklyLike,
 } from '@/lib/armcare/rehab';
 import {
   loadActiveRehab,
@@ -57,6 +58,7 @@ const HISTORY_DAYS = 45;
  *   status   쉬는 날 · 낮춘 날 · 진료 권유 · 단계 올리기 조건 · 카드 한 줄(lib/armcare/rehab.ts 의 rehabStatus)
  *   session  오늘 할 운동(낮춘 날은 아래 단계, 가진 장비로 바꿔 넣음 — buildRehabSession)
  *   doneToday 오늘 체크한 재활 운동 — 재활 운동은 카테고리가 여럿이라 암케어 기록과 따로 읽는다
+ *   weeklies  매주 확인 전부 — 팔굽혀 터치 첫 기록 · 지난 확인 한 줄 · 투구 복귀표 열기 시트가 본다
  */
 export type RehabToday = {
   id: string;
@@ -65,6 +67,7 @@ export type RehabToday = {
   status: RehabStatus;
   session: RehabSession;
   doneToday: Set<string>;
+  weeklies: RehabWeeklyLike[];
 };
 
 async function loadRehabToday(
@@ -74,8 +77,18 @@ async function loadRehabToday(
 ): Promise<RehabToday | null> {
   const active = await loadActiveRehab(user.id);
   if (!active) return null;
-  const { sessions, checkins } = await loadRehabRecords(user.id, active.id, todayKey);
-  const status = rehabStatus({ program: active.program, sessions, checkins, todayKey });
+  const { sessions, checkins, weeklies } = await loadRehabRecords(
+    user.id,
+    active.id,
+    todayKey
+  );
+  const status = rehabStatus({
+    program: active.program,
+    sessions,
+    checkins,
+    weeklies,
+    todayKey,
+  });
   const session = buildRehabSession({
     ...active.program,
     /* 오늘 이미 남겼으면 그때의 운동 그대로 — 오늘 빨강이 나왔다고 한 운동 목록이 바뀌지 않게 */
@@ -88,7 +101,7 @@ async function loadRehabToday(
     todayKey,
     session.items.map((it) => it.exerciseId)
   );
-  return { ...active, status, session, doneToday };
+  return { ...active, status, session, doneToday, weeklies };
 }
 
 export async function loadArmcareToday(user: UserForArmcare, today: Date) {

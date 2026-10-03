@@ -135,14 +135,19 @@ import {
 } from '../lib/armcare/pain-guide.ts';
 import {
   REHAB_AREAS,
+  THROWING_PAIN_RULES,
+  THROWING_STEPS,
   afterBadSession,
   allRehabExerciseNames,
   atLeastConditionSeverity,
   buildRehabSession,
   conditionsFor,
+  firstCkcRecord,
   judgeSession,
   judgeStageTest,
   judgeThrowingOpen,
+  painFreeBallDays,
+  readRehabWeeklyTest,
   rehabCardLine,
   rehabEstimateDays,
   rehabFacts,
@@ -153,7 +158,15 @@ import {
   stageMinDays,
   stageTestFor,
   startStage,
+  throwingFrequency,
+  throwingOpenedOn,
+  weeklyDueState,
+  weeklyImproved,
+  weeklyOutcome,
   weeksText,
+  type RehabWeeklyLike,
+  type RehabWeeklyTest,
+  type WeeklyOutcome,
   type RehabCheckinLike,
   type RehabConditionKey,
   type RehabFacts,
@@ -6868,6 +6881,529 @@ console.log(
     }).notes.some(
       (n) => n.includes('라이브러리에 아직 없어') && n.includes('덤벨 해머컬')
     )
+  );
+
+  /* 10-2) 매주 확인 · 매주 결과 · 투구 복귀표(재활 2편 ② — 가이드라인 8 · 10 · 11절) */
+  const wk = (date: string, over: Partial<RehabWeeklyLike> = {}): RehabWeeklyLike => ({
+    date,
+    stage: 2,
+    normalPct: 50,
+    worstPain: 2,
+    nightPain: false,
+    activities: [5, 5],
+    confidence: 5,
+    test: null,
+    ...over,
+  });
+  /** 서버(saveRehabWeekly)처럼 한 줄씩 결과를 그 줄에 붙이고 프로그램을 고쳐 간다 */
+  const runWeeklies = (
+    start: RehabProgramLike,
+    list: RehabWeeklyLike[],
+    sessions: RehabSessionLike[] = [],
+    checkins: RehabCheckinLike[] = []
+  ) => {
+    let program = start;
+    const done: RehabWeeklyLike[] = [];
+    const outcomes: WeeklyOutcome[] = [];
+    for (const w of list) {
+      const weekly = { ...w, stage: program.stage };
+      const out = weeklyOutcome({
+        program,
+        weekly,
+        previous: done,
+        sessions,
+        checkins,
+      });
+      done.push({
+        ...weekly,
+        test: { ...(weekly.test ?? { kind: null, pass: false }), outcome: out.record },
+      });
+      outcomes.push(out);
+      program = {
+        ...program,
+        stage: out.next.stage,
+        severity: out.next.severity,
+        stageShortenDays: out.next.stageShortenDays,
+        ...(out.next.stageChanged ? { stageStartedOn: w.date } : {}),
+      };
+    }
+    return { program, outcomes, weeklies: done };
+  };
+  const statusW = (
+    sessions: RehabSessionLike[],
+    todayKey: string,
+    weeklies: RehabWeeklyLike[],
+    over: Partial<RehabProgramLike> = {}
+  ) => rehabStatus({ program: prog(over), sessions, weeklies, todayKey });
+
+  const dueOf = (last: string | null, today: string, stage = 2) =>
+    weeklyDueState({
+      startedOn: '2026-06-01',
+      lastWeeklyOn: last,
+      stage,
+      todayKey: today,
+    });
+  check(
+    '매주 확인 때 — 시작 7일 뒤(06-08)부터 · 마지막 확인 7일 뒤부터, 미리는 안 받음(4단계에서 한 번도 안 했으면 언제든)',
+    !dueOf(null, '2026-06-07').due &&
+      dueOf(null, '2026-06-08').due &&
+      !dueOf('2026-06-08', '2026-06-14').due &&
+      dueOf('2026-06-08', '2026-06-15').due &&
+      !dueOf(null, '2026-06-03').allowed &&
+      dueOf(null, '2026-06-03', 4).allowed &&
+      !dueOf('2026-06-02', '2026-06-05', 4).allowed
+  );
+  const imp = (a: [number, number[]], b: [number, number[]]) =>
+    weeklyImproved(
+      { normalPct: a[0], activities: a[1] },
+      { normalPct: b[0], activities: b[1] }
+    );
+  check(
+    '나아짐(흔들림 선) — 정상 대비 9점은 흔들림 · 10점은 나아짐, 내 활동 평균 1.1은 흔들림 · 1.2는 나아짐',
+    !imp([50, [5, 5]], [59, [5, 5]]) &&
+      imp([50, [5, 5]], [60, [5, 5]]) &&
+      !imp([50, [5, 5]], [50, [6.1, 6.1]]) &&
+      imp([50, [5, 5]], [50, [6.2, 6.2]]) &&
+      imp([50, [5, 5]], [50, [5, 7.4]])
+  );
+
+  /* 정도 낮추기 — 두 번 이어서(경계 3/4) · 밤 통증 · 생활 통증 · 병명 바닥 · 이어진 간격 */
+  const P2 = prog();
+  const calm2 = runWeeklies(P2, [
+    wk('2026-06-08', { worstPain: 3 }),
+    wk('2026-06-15', { worstPain: 3, normalPct: 60 }),
+  ]);
+  check(
+    '정도 낮추기 — 두 번 이어 최고 통증 3 이하면 보통 → 가벼움(첫 번만으로는 안 함), 낮추면 이어진 수를 0으로',
+    calm2.outcomes[0].next.severity === 'moderate' &&
+      calm2.outcomes[0].record.calmStreak === 1 &&
+      calm2.outcomes[1].next.severity === 'mild' &&
+      calm2.outcomes[1].record.eased &&
+      calm2.outcomes[1].record.calmStreak === 0 &&
+      !calm2.outcomes[1].next.stageChanged,
+    calm2.outcomes.map((o) => o.lines.join(' ')).join(' / ')
+  );
+  check(
+    '정도 낮추기 — 둘째 주 최고 통증 4 면 안 함(경계 3/4)',
+    runWeeklies(P2, [
+      wk('2026-06-08', { worstPain: 3 }),
+      wk('2026-06-15', { worstPain: 4, normalPct: 60 }),
+    ]).program.severity === 'moderate'
+  );
+  const pain2 = (date: string, level: number, elbow = '정상'): RehabCheckinLike => ({
+    date,
+    shoulder: elbow === '정상' ? '통증' : '정상',
+    elbow,
+    armPainLevel: level,
+  });
+  const easeWith = (checkins: RehabCheckinLike[], night = false) =>
+    runWeeklies(
+      P2,
+      [wk('2026-06-08'), wk('2026-06-15', { normalPct: 60, nightPain: night })],
+      [],
+      checkins
+    ).program.severity;
+  check(
+    '정도 낮추기 — 밤 · 쉴 때 통증, 그 주 체크인의 생활 통증(정도 2 · 3)이 있으면 안 함 · 던질 때만(1) · 그 주 밖 체크인은 상관없음',
+    easeWith([], true) === 'moderate' &&
+      easeWith([pain2('2026-06-12', 2)]) === 'moderate' &&
+      easeWith([pain2('2026-06-12', 3, '통증')]) === 'moderate' &&
+      easeWith([pain2('2026-06-12', 1)]) === 'mild' &&
+      easeWith([pain2('2026-06-01', 3)]) === 'mild'
+  );
+  const severeChain = runWeeklies(prog({ severity: 'severe', stage: 1 }), [
+    wk('2026-06-08', { normalPct: 40 }),
+    wk('2026-06-15', { normalPct: 50 }),
+    wk('2026-06-22', { normalPct: 60 }),
+    wk('2026-06-29', { normalPct: 70 }),
+  ]);
+  check(
+    '정도 낮추기 — 낮춘 뒤엔 두 번을 다시 센다(심함 → 2주째 보통 → 3주째 그대로 → 4주째 가벼움)',
+    severeChain.outcomes.map((o) => o.next.severity).join(',') ===
+      'severe,moderate,moderate,mild',
+    severeChain.outcomes.map((o) => o.next.severity).join(',')
+  );
+  check(
+    '정도 낮추기 — UCL 은 보통 아래로 안 간다',
+    runWeeklies(prog({ area: 'elbow-inner', condition: 'ucl' }), [
+      wk('2026-06-08', { normalPct: 40 }),
+      wk('2026-06-15', { normalPct: 50 }),
+    ]).program.severity === 'moderate'
+  );
+  check(
+    '정도 낮추기 — 두 확인이 14일 넘게 떨어지면 이어진 것으로 안 본다(14일은 이어짐)',
+    runWeeklies(P2, [wk('2026-06-08'), wk('2026-06-23', { normalPct: 60 })]).program
+      .severity === 'moderate' &&
+      runWeeklies(P2, [wk('2026-06-08'), wk('2026-06-22', { normalPct: 60 })]).program
+        .severity === 'mild'
+  );
+
+  /* 낮추기 · 한 단계 내림 */
+  const low = runWeeklies(P2, [wk('2026-06-08', { worstPain: 5 })]);
+  check(
+    '한 칸 낮춤 — 이번 주 최고 통증 5 이상이면 기록에 낮춤 · 프로그램은 그대로(4 는 아님)',
+    low.outcomes[0].record.lowered &&
+      !low.outcomes[0].next.stageChanged &&
+      low.program.stage === 2 &&
+      !runWeeklies(P2, [wk('2026-06-08', { worstPain: 4 })]).outcomes[0].record.lowered,
+    low.outcomes[0].lines.join(' ')
+  );
+  const beforeLow = [
+    ses('2026-06-02', 'green'),
+    ses('2026-06-04', 'green'),
+    ses('2026-06-06', 'green'),
+  ];
+  const afterLow = [...beforeLow, ...greens('2026-06-10', 3, 2, { lowered: true })];
+  check(
+    '한 칸 낮춤 — 그 확인 뒤 초록 셋 전까지 아래 단계 운동(①의 낮춤과 같게), 그날까지의 깨끗한 세션은 새로 센다',
+    statusW(beforeLow, '2026-06-10', low.weeklies).lowered &&
+      statusW(beforeLow, '2026-06-10', low.weeklies).gate.clean === 0 &&
+      statusW(beforeLow, '2026-06-10', []).gate.clean === 3 &&
+      statusW(afterLow.slice(0, 5), '2026-06-14', low.weeklies).lowered &&
+      !statusW(afterLow, '2026-06-16', low.weeklies).lowered
+  );
+  const P3 = prog({ stage: 3 });
+  const step = runWeeklies(
+    P3,
+    [wk('2026-06-08', { worstPain: 5 })],
+    [ses('2026-06-05', 'red', { stage: 3 })]
+  );
+  check(
+    '한 단계 내림 — 14일 안에 한 칸 낮춤 두 번(빨강 + 최고 통증 5) → 3단계 → 2단계 · 보통 → 심함, 그 단계 날은 오늘 · 줄인 날 0',
+    step.program.stage === 2 &&
+      step.program.severity === 'severe' &&
+      step.program.stageStartedOn === '2026-06-08' &&
+      step.program.stageShortenDays === 0 &&
+      step.outcomes[0].record.steppedDown &&
+      !step.outcomes[0].record.lowered,
+    step.outcomes[0].lines.join(' / ')
+  );
+  const stepWith = (redOn: string) =>
+    runWeeklies(
+      prog({ stage: 3, stageStartedOn: '2026-05-20', startedOn: '2026-05-20' }),
+      [wk('2026-06-08', { worstPain: 5 })],
+      [ses(redOn, 'red', { stage: 3 })]
+    ).program.stage;
+  check(
+    '한 단계 내림 — 빨강이 13일 전이면 내림, 14일 전이면 한 칸 낮춤만 · 남은 통증만의 빨강(낮추지 않음)은 세지 않음',
+    stepWith('2026-05-26') === 2 &&
+      stepWith('2026-05-25') === 3 &&
+      runWeeklies(
+        P3,
+        [wk('2026-06-08', { worstPain: 5 })],
+        [ses('2026-06-05', 'red', { stage: 3, leftover: 2, pain: 2 })]
+      ).program.stage === 3
+  );
+  const dropBy = (n: number) =>
+    runWeeklies(P3, [
+      wk('2026-06-08', { normalPct: 70 }),
+      wk('2026-06-15', { normalPct: 70 - n }),
+    ]).program.stage;
+  check(
+    '한 단계 내림 — 정상 대비 %가 지난 확인보다 15점 떨어지면(14점은 아님)',
+    dropBy(15) === 2 && dropBy(14) === 3
+  );
+  const s1Low = runWeeklies(prog({ stage: 1, severity: 'moderate' }), [
+    wk('2026-06-08', { worstPain: 6 }),
+  ]);
+  const s1Step = runWeeklies(
+    prog({ stage: 1, severity: 'moderate' }),
+    [wk('2026-06-08', { worstPain: 6 })],
+    [ses('2026-06-06', 'red', { stage: 1 })]
+  );
+  check(
+    '1단계 — 낮추기 조건이면 진료 권유, 한 단계 내림 조건이면 정도만 한 칸 올림(단계는 1 그대로)',
+    (s1Low.outcomes[0].record.refer ?? '').includes('1단계') &&
+      s1Low.program.severity === 'moderate' &&
+      s1Step.program.stage === 1 &&
+      s1Step.program.severity === 'severe' &&
+      (s1Step.outcomes[0].record.refer ?? '').includes('1단계')
+  );
+
+  /* 진료 권유 — 2주째 · 6주째 · 세 번 이어 · 밤 통증이 새로 */
+  const twoWeeks = (n: number, acts = [5, 5], d = '2026-06-15', first = 50) =>
+    runWeeklies(P2, [
+      wk('2026-06-08', { normalPct: first }),
+      wk(d, { normalPct: n, activities: acts, worstPain: 4 }),
+    ]).outcomes[1].record.refer ?? '';
+  check(
+    '진료 — 2주째(14일 뒤 첫 확인)에 전혀 나아지지 않음: 같거나 낮으면 권유, 조금이라도 오르면 아님, 13일째는 아직',
+    twoWeeks(50).includes('2주') &&
+      twoWeeks(45).includes('2주') &&
+      twoWeeks(51) === '' &&
+      twoWeeks(50, [6, 5]) === '' &&
+      twoWeeks(50, [5, 5], '2026-06-14') === ''
+  );
+  check(
+    '진료 — 이미 다치기 전의 90% 이상이면 나아짐 없음으로 권하지 않는다',
+    twoWeeks(90, [5, 5], '2026-06-15', 90) === ''
+  );
+  const sixWeeks = (n: number) =>
+    runWeeklies(P2, [
+      wk('2026-06-08', { normalPct: 50 }),
+      wk('2026-06-30', { normalPct: 55, worstPain: 4 }),
+      wk('2026-07-13', { normalPct: n, worstPain: 4 }),
+    ]).outcomes[2].record.refer ?? '';
+  check(
+    '진료 — 6주째(42일 뒤 첫 확인)에 뚜렷이 나아지지 않음: 첫 확인보다 9점이면 권유, 10점이면 아님',
+    sixWeeks(59).includes('6주') && sixWeeks(60) === '',
+    `${sixWeeks(59)} | ${sixWeeks(60)}`
+  );
+  const stall = (values: number[]) =>
+    runWeeklies(
+      P2,
+      values.map((n, i) =>
+        wk(shiftDateKey('2026-06-08', i * 7), { normalPct: n, worstPain: 4 })
+      )
+    ).outcomes.at(-1)!.record.refer ?? '';
+  check(
+    '진료 — 매주 확인 세 번 이어 나아짐 없음(세 번 전보다 9점 · 올랐다 내림) → 권유, 10점 오르면 아님, 세 번이 안 됐으면 아직',
+    stall([50, 55, 58, 59]).includes('세 번') &&
+      stall([50, 65, 52, 55]).includes('세 번') &&
+      stall([50, 55, 58, 60]) === '' &&
+      stall([50, 55, 56]) === ''
+  );
+  check(
+    '진료 — 밤 · 쉴 때 통증이 새로 생김(지난 확인엔 없음), 심함으로 시작한 첫 확인의 밤 통증은 새것이 아님',
+    (
+      runWeeklies(P2, [
+        wk('2026-06-08'),
+        wk('2026-06-15', { nightPain: true, normalPct: 60 }),
+      ]).outcomes[1].record.refer ?? ''
+    ).includes('밤') &&
+      (
+        runWeeklies(P2, [wk('2026-06-08', { nightPain: true })]).outcomes[0].record
+          .refer ?? ''
+      ).includes('밤') &&
+      runWeeklies(prog({ severity: 'severe', stage: 1 }), [
+        wk('2026-06-08', { nightPain: true }),
+      ]).outcomes[0].record.refer === null
+  );
+  check(
+    '진료를 권하는 주에는 정도를 낮추지 않는다',
+    runWeeklies(P2, [wk('2026-06-08'), wk('2026-06-15')]).program.severity ===
+      'moderate'
+  );
+
+  /* 단계 기간 줄이기 — 깨끗한 세션 이어서 + 두 번 이어 그 단계 시험 통과, 절반까지, 병명 바닥은 그대로 */
+  const PS = prog({ severity: 'severe' });
+  const pass2: RehabWeeklyTest = {
+    kind: 'strength',
+    pass: true,
+    injured: 9,
+    other: 10,
+    pain: 0,
+  };
+  const fail2: RehabWeeklyTest = { ...pass2, pass: false, injured: 8 };
+  const shortenRun = (
+    tests: [RehabWeeklyTest, RehabWeeklyTest],
+    sessions: RehabSessionLike[] = greens('2026-06-01', 5),
+    start = PS
+  ) =>
+    runWeeklies(
+      start,
+      [
+        wk('2026-06-03', { test: tests[0], worstPain: 4 }),
+        wk('2026-06-10', { test: tests[1], worstPain: 4, normalPct: 60 }),
+      ],
+      sessions
+    );
+  const shortened = shortenRun([pass2, pass2]);
+  check(
+    '기간 줄이기 — 심함 2단계(10일): 깨끗한 5번 이어서 + 두 번 이어 시험 통과 → 절반(5일)까지',
+    shortened.program.stageShortenDays === 5 &&
+      shortened.outcomes[1].record.shortened &&
+      stageMinDays(shortened.program) === 5,
+    shortened.outcomes[1].lines.join(' ')
+  );
+  check(
+    '기간 줄이기 — 한 번만 통과 · 마지막 세션이 노랑 · 깨끗한 세션이 모자라면 안 함',
+    shortenRun([fail2, pass2]).program.stageShortenDays === 0 &&
+      shortenRun(
+        [pass2, pass2],
+        [...greens('2026-06-01', 4), ses('2026-06-09', 'yellow')]
+      ).program.stageShortenDays === 0 &&
+      shortenRun([pass2, pass2], greens('2026-06-03', 4)).program.stageShortenDays === 0
+  );
+  const uclShort = shortenRun(
+    [pass2, pass2],
+    greens('2026-06-01', 5),
+    prog({ area: 'elbow-inner', condition: 'ucl' })
+  );
+  check(
+    '기간 줄이기 — 병명 바닥은 줄지 않는다(보통 UCL 2단계: 줄인 날 3 이 남아도 최소 기간 그대로)',
+    uclShort.program.stageShortenDays === 3 &&
+      stageMinDays(uclShort.program) ===
+        stageMinDays({ ...uclShort.program, stageShortenDays: 0 }),
+    `${uclShort.program.stageShortenDays}일 · 최소 ${stageMinDays(uclShort.program)}일`
+  );
+  check(
+    '기간 줄이기 — 4단계는 줄이지 않는다(다음은 투구 복귀표)',
+    shortenRun(
+      [pass2, pass2],
+      greens('2026-06-01', 5, 2, { stage: 4 }),
+      prog({ stage: 4 })
+    ).program.stageShortenDays === 0
+  );
+
+  /* 공 운동을 통증 없이 한 날 · 투구 복귀표 연 날 */
+  const P4 = { stage: 4 as const, stageStartedOn: '2026-06-01' };
+  const g4 = (d: string, extra: Partial<RehabSessionLike> = {}) =>
+    ses(d, 'green', { stage: 4, ...extra });
+  const ball = (list: RehabSessionLike[], today: string) =>
+    painFreeBallDays({ program: P4, sessions: list, todayKey: today });
+  check(
+    '공 운동 날 수 — 4단계 초록이 이어진 첫날부터 오늘까지(06-01 · 03 · 05 → 06-05 에 4일), 노랑 · 빨강 · 낮춘 초록이 끼면 새로',
+    ball([g4('2026-06-01'), g4('2026-06-03'), g4('2026-06-05')], '2026-06-05') === 4 &&
+      ball(
+        [g4('2026-06-01'), ses('2026-06-03', 'yellow', { stage: 4 }), g4('2026-06-05')],
+        '2026-06-07'
+      ) === 2 &&
+      ball(
+        [g4('2026-06-01'), g4('2026-06-03', { lowered: true }), g4('2026-06-05')],
+        '2026-06-05'
+      ) === 0 &&
+      ball([g4('2026-06-01'), ses('2026-06-03', 'red', { stage: 4 })], '2026-06-09') ===
+        0 &&
+      ball(
+        [ses('2026-05-28', 'green', { stage: 3 }), g4('2026-06-03')],
+        '2026-06-05'
+      ) === 2 &&
+      painFreeBallDays({
+        program: { stage: 3, stageStartedOn: '2026-06-01' },
+        sessions: [g4('2026-06-01')],
+        todayKey: '2026-06-09',
+      }) === 0
+  );
+  check(
+    '공 운동 날 수 → 투구 복귀표 열기 — 가벼움은 4일째에 열림 · 3일째는 아직',
+    judgeThrowingOpen({
+      severity: 'mild',
+      painFreeBallDays: ball([g4('2026-06-01'), g4('2026-06-03')], '2026-06-05'),
+      daysSinceStart: 10,
+      condition: null,
+      hasPlyo: false,
+      push: { injured: 3, other: 3 },
+      pain: 0,
+      normalPct: 90,
+      confidence: 7,
+    }).pass &&
+      !judgeThrowingOpen({
+        severity: 'mild',
+        painFreeBallDays: ball([g4('2026-06-01'), g4('2026-06-03')], '2026-06-04'),
+        daysSinceStart: 10,
+        condition: null,
+        hasPlyo: false,
+        push: { injured: 3, other: 3 },
+        pain: 0,
+        normalPct: 90,
+        confidence: 7,
+      }).pass
+  );
+  const thr = (on: string, passed = true): RehabWeeklyTest => ({
+    kind: 'throwing',
+    pass: passed,
+    throwing: {
+      pass: passed,
+      push: { injured: 3, other: 3 },
+      drop: null,
+      wall: null,
+      pain: 0,
+      on,
+    },
+  });
+  check(
+    '투구 복귀표 연 날 — 이 4단계에서 통과한 열기 시험의 가장 이른 날, 실패 · 4단계 전 · 4단계가 아니면 없음',
+    throwingOpenedOn(P4, [
+      wk('2026-06-06', { test: thr('2026-06-06') }),
+      wk('2026-06-13', { test: thr('2026-06-13') }),
+    ]) === '2026-06-06' &&
+      throwingOpenedOn(P4, [wk('2026-06-06', { test: thr('2026-06-06', false) })]) ===
+        null &&
+      throwingOpenedOn(P4, [wk('2026-05-30', { test: thr('2026-05-30') })]) === null &&
+      throwingOpenedOn({ stage: 3, stageStartedOn: '2026-06-01' }, [
+        wk('2026-06-06', { test: thr('2026-06-06') }),
+      ]) === null
+  );
+
+  /* 지금 상태에 이어진 것 — 카드 한 줄 · 밤 통증 · 4단계 */
+  const referW = runWeeklies(P2, [
+    wk('2026-06-08'),
+    wk('2026-06-15', { worstPain: 4 }),
+  ]).weeklies;
+  check(
+    '카드 한 줄 — 시작 7일 뒤 다른 줄이 없으면 이번 주 확인, 정도를 낮춘 확인 뒤 7일은 정도 낮아짐, 진료를 권한 확인 뒤 7일은 진료',
+    statusW([], '2026-06-07', []).line === null &&
+      statusW([], '2026-06-08', []).line?.kind === 'weekly' &&
+      statusW([], '2026-06-16', calm2.weeklies).line?.kind === 'eased' &&
+      statusW([], '2026-06-22', calm2.weeklies).line?.kind === 'weekly' &&
+      statusW([], '2026-06-16', referW).line?.kind === 'refer' &&
+      statusW([], '2026-06-22', referW).refer === null
+  );
+  const severe1W = (today: string) =>
+    statusW(
+      greens('2026-06-01', 5, 1, { stage: 1 }),
+      today,
+      [wk('2026-06-08', { nightPain: true, stage: 1 })],
+      { stage: 1, severity: 'severe' }
+    ).nightHold;
+  check(
+    '심함 1단계 — 지난 7일 안의 확인에서 밤 · 쉴 때 아팠으면 머묾, 8일 뒤엔 풀림',
+    severe1W('2026-06-12') && !severe1W('2026-06-16')
+  );
+  const st4 = statusW(
+    [g4('2026-06-01'), g4('2026-06-03')],
+    '2026-06-05',
+    [wk('2026-06-04', { stage: 4, test: thr('2026-06-04') })],
+    { stage: 4, severity: 'mild' }
+  );
+  check(
+    '4단계 상태 — 공 운동 날 수 · 필요한 날(가벼움 4) · 연 날, 4단계가 아니면 없음',
+    st4.throwing?.painFreeBallDays === 4 &&
+      st4.throwing.needed === 4 &&
+      st4.throwing.openedOn === '2026-06-04' &&
+      statusW([], '2026-06-05', []).throwing === null
+  );
+
+  /* 기록 읽기 · 팔굽혀 터치 첫 기록 · 투구 복귀표 글 */
+  check(
+    '확인 줄 읽기 — 모르는 모양은 null · 숫자가 아닌 칸은 버림 · kind 가 없으면 pass 는 false',
+    readRehabWeeklyTest(null) === null &&
+      readRehabWeeklyTest('x') === null &&
+      readRehabWeeklyTest({ kind: 'strength', pass: true, injured: '9', other: 10 })
+        ?.injured === undefined &&
+      readRehabWeeklyTest({ pass: true })?.pass === false &&
+      readRehabWeeklyTest({
+        kind: 'rom',
+        pass: true,
+        outcome: { calmStreak: 2, refer: 1 },
+      })?.outcome?.refer === null &&
+      readRehabWeeklyTest({
+        kind: 'throwing',
+        pass: true,
+        throwing: {
+          pass: true,
+          push: { injured: 3, other: 3 },
+          pain: 0,
+          on: '2026-06-04',
+        },
+      })?.throwing?.drop === null
+  );
+  check(
+    '팔굽혀 터치 첫 기록 — 가장 이른 확인의 기록(없는 확인은 건너뜀)',
+    firstCkcRecord([
+      wk('2026-06-15', { test: { kind: 'strength', pass: false, ckc: 20 } }),
+      wk('2026-06-01'),
+      wk('2026-06-08', { test: { kind: 'strength', pass: false, ckc: 18 } }),
+    ]) === 18 && firstCkcRecord([wk('2026-06-01')]) === null
+  );
+  check(
+    '투구 복귀표 — 여섯 칸(14 · 18 · 27 · 37 · 46m · 마운드) · 정도별 빈도 · 던지기 통증 규칙 넷',
+    THROWING_STEPS.map((s) => s.distance).join(',') === '14m,18m,27m,37m,46m,마운드' &&
+      throwingFrequency('mild').includes('한 번') &&
+      throwingFrequency('moderate').includes('두 번') &&
+      throwingFrequency('severe').includes('사흘') &&
+      THROWING_PAIN_RULES.length === 4
   );
 
   /* 11) 앱의 다른 곳 — 웨이트 · 투구 계획 · 암케어 */
