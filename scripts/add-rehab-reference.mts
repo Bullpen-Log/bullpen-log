@@ -20,20 +20,28 @@
  * 아무것도 저장하지 않고 멈추고, 다른 사이트에서 못 트는 영상은 빼고, 같은 이름이 있으면 건너뛴다.
  * DB 를 바꾸는 작업이니 저장하기 전에 npm run backup 부터 한다. 저장한 뒤에는 lib/library-cache.ts 의
  * 캐시 이름을 올려야 화면에 보인다.
+ *
+ * 2026-10-04 검토로 바뀐 것도 이 파일에 맞춰 두었다(실제 고침은 scripts/library-armcare-review-2026-10-04.mjs) —
+ * 공 운동 넷은 플라이오볼로 이름 · 장비를 바꾸고(벽 드리블 · 손목 플립은 동작만 나오는 영상으로), 톨 닐링 오버헤드
+ * 던지기는 상체 파워라 파워 카테고리로. 다시 돌려도 옛 이름으로 또 들어가지 않게 이름을 새것으로 적어 둔다.
  */
 import { readFileSync } from 'node:fs';
 import { PrismaClient } from '@prisma/client';
 import { PrismaPg } from '@prisma/adapter-pg';
 import { probeAspect } from './youtube-aspect.mjs';
 import {
+  BODY_PARTS,
   DIFFICULTY_LEVELS,
   EXERCISE_EQUIPMENT,
   INTENSITY_LEVELS,
+  MOVEMENT_PATTERNS,
 } from '../lib/exercise-meta.ts';
 import { ARMCARE_MUSCLE_NAMES } from '../lib/armcare/anatomy.ts';
 
 type Row = {
-  category: '암케어' | '모빌리티';
+  category: '암케어' | '모빌리티' | '파워';
+  /** 파워 · 스트렝스만 — 하루 구성을 짤 때 계열이 겹치나 본다 */
+  movementPattern?: string;
   title: string;
   videoId: string;
   bodyParts: string[];
@@ -51,7 +59,10 @@ type Row = {
 
 /** 이번에 받는 부위 — 어깨·팔꿈치·이두·삼두와 거기 딸린 견갑·전완 */
 const ALLOWED_PARTS = ['어깨', '견갑', '이두', '삼두', '팔꿈치', '손목·전완'];
-const CATEGORIES = ['암케어', '모빌리티'];
+const CATEGORIES = ['암케어', '모빌리티', '파워'];
+/** 파워 운동은 팔만 쓰지 않는다 — 앱의 부위 목록 전체에서 받는다 */
+const ALL_PARTS: readonly string[] = BODY_PARTS;
+const PATTERNS: readonly string[] = MOVEMENT_PATTERNS.map((p) => p.name);
 const INTENSITIES: readonly string[] = INTENSITY_LEVELS.map((l) => l.name);
 const DIFFICULTIES: readonly string[] = DIFFICULTY_LEVELS.map((l) => l.name);
 const EQUIPMENT: readonly string[] = EXERCISE_EQUIPMENT;
@@ -70,7 +81,10 @@ for (const r of rows) {
   titles.add(r.title);
   if (!CATEGORIES.includes(r.category)) bad('카테고리', r.category);
   if (!/^[A-Za-z0-9_-]{11}$/.test(r.videoId)) bad('영상 ID', r.videoId);
-  for (const p of r.bodyParts) if (!ALLOWED_PARTS.includes(p)) bad('부위', p);
+  const parts = r.category === '파워' ? ALL_PARTS : ALLOWED_PARTS;
+  for (const p of r.bodyParts) if (!parts.includes(p)) bad('부위', p);
+  if (r.category === '파워' && !PATTERNS.includes(r.movementPattern ?? ''))
+    bad('계열', r.movementPattern ?? '없음');
   /* 근육은 암케어 운동에만 쓴다(prisma/schema.prisma 의 targetMuscles) */
   if (r.category === '암케어' && r.targetMuscles.length === 0) bad('근육', '비어 있음');
   if (r.category !== '암케어' && r.targetMuscles.length > 0) bad('근육', '암케어만');
@@ -134,6 +148,7 @@ if (!apply) {
       data: {
         title: t.title,
         category: t.category,
+        movementPattern: t.movementPattern ?? null,
         description: t.description,
         source: 'REFERENCE',
         referenceVideoId: t.videoId,

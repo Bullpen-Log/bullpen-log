@@ -123,6 +123,24 @@ export const RECOVERY_MAX_MINUTES = 40;
  * 여기서 함께 먹는다.
  */
 const HEAVY_CATEGORIES = ['상체 스트렝스', '하체 스트렝스', '파워'];
+
+/**
+ * 하루에 하나만 넣는 계열 — 고립(컬 · 레이즈 · 삼두 익스텐션, 2026-10-04 암케어에서 옮겨 옴).
+ *
+ * 계열 겹침은 겹치지 않는 것이 다 떨어지면 겹쳐도 넣는다(구간이 비는 것이 더 나쁘다). 그런데 고립까지 그렇게 채우니
+ * 상체날 본운동에 고립이 매일 들어가 많은 날은 다섯이었다(180일 모의 — 평균 2.2개). 보조 운동은 하루 하나면 된다.
+ */
+const ONCE_PER_DAY_PATTERNS: ReadonlySet<string> = new Set(['고립']);
+/** 보조(고립) 운동인가 — 본운동 밀기 · 당기기를 다 고른 뒤에 넣는다 */
+function isAccessory(ex: { movementPattern?: string | null }): boolean {
+  return ex.movementPattern != null && ONCE_PER_DAY_PATTERNS.has(ex.movementPattern);
+}
+function onceTaken(
+  ex: { movementPattern?: string | null },
+  usedPatterns: ReadonlySet<string>
+): boolean {
+  return isAccessory(ex) && usedPatterns.has(ex.movementPattern!);
+}
 /** 무게를 드는 운동 */
 export const HEAVY_TRANSITION_MINUTES = 4;
 /** 나머지 — 매트를 옮기고 밴드를 바꾸는 정도 */
@@ -1560,7 +1578,8 @@ export function pickForTheme<T extends ThemedExercise>({
     const remaining = pool.filter((ex) => !taken.has(ex.id));
     while (chosen.length < spec.maxCount) {
       const free = (ex: T) => !taken.has(ex.id);
-      const canTake = (ex: T) => free(ex) && fits(costOf(ex)) && mixAllows(ex);
+      const canTake = (ex: T) =>
+        free(ex) && fits(costOf(ex)) && mixAllows(ex) && !onceTaken(ex, usedPatterns);
       /*
        * 시간 안에 드는 것 중에서 계열이 안 겹치는 것 → 시간 안에 드는 것 →
        * (구간이 비었을 때만) 시간을 넘겨서라도 하나.
@@ -1594,9 +1613,14 @@ export function pickForTheme<T extends ThemedExercise>({
             remaining.find((ex) => canTake(ex) && isPower(ex)))
           : undefined) ??
         (shortOnStrength()
-          ? (remaining.find((ex) => canTake(ex) && !isPower(ex) && !clashes(ex)) ??
+          ? (remaining.find(
+              (ex) => canTake(ex) && !isPower(ex) && !clashes(ex) && !isAccessory(ex)
+            ) ??
+            remaining.find((ex) => canTake(ex) && !isPower(ex) && !clashes(ex)) ??
             remaining.find((ex) => canTake(ex) && !isPower(ex)))
           : undefined) ??
+        /* 고립(보조)은 겹치지 않는 본운동을 다 고른 뒤에 — 짧은 날 밀기 · 당기기 자리를 가져가지 않게 */
+        remaining.find((ex) => canTake(ex) && !clashes(ex) && !isAccessory(ex)) ??
         remaining.find((ex) => canTake(ex) && !clashes(ex)) ??
         remaining.find(canTake) ??
         /* 빈 구간은 하나라도 억지로 넣는다 — 곁가지 구간만 빼고 (SlotSpec.optional) */
@@ -1699,7 +1723,8 @@ export function pickForTheme<T extends ThemedExercise>({
             ex.category === '파워' ||
             ex.movementPattern == null ||
             !usedPatterns.has(ex.movementPattern)
-        ) ?? free[0];
+        ) ?? free.find((ex) => !onceTaken(ex, usedPatterns));
+      if (next == null) break;
       mainPicks.push(next);
       taken.add(next.id);
       totalUsed += estimateMinutes(next);
