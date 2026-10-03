@@ -1,8 +1,5 @@
-import type {
-  ReviewDay,
-  ReviewWeek,
-  TrainingReview,
-} from '@/lib/report/training-review';
+import type { ReviewWeek, TrainingReview } from '@/lib/report/training-review';
+import { TrainingDayGrid } from './training-day-grid';
 
 /**
  * 트레이닝 돌아보기 — 주별 흐름 · 투구와 운동.
@@ -87,38 +84,6 @@ function WeekRow({ week, busiest }: { week: ReviewWeek; busiest: number }) {
 /** 던진 날이 이만큼 되는데 암케어가 하나도 없으면 짚어 준다 */
 const ARM_CARE_ALERT_DAYS = 3;
 
-/** 한 줄 — 스물여덟 칸을 주마다 끊어 놓는다 */
-function DayStrip({
-  label,
-  weeks,
-  isOn,
-  describe,
-}: {
-  label: string;
-  weeks: ReviewDay[][];
-  isOn: (day: ReviewDay) => boolean;
-  describe: (day: ReviewDay) => string;
-}) {
-  return (
-    <div className="flex items-center gap-2">
-      <span className="w-11 shrink-0 text-[11px] font-semibold text-ink">{label}</span>
-      {weeks.map((week, i) => (
-        <span key={i} className="flex flex-1 gap-0.5">
-          {week.map((day) => (
-            <span
-              key={day.date}
-              title={`${day.date} — ${describe(day)}`}
-              className={`h-4 flex-1 rounded-sm ${
-                isOn(day) ? 'bg-sky' : 'bg-surface-2'
-              }`}
-            />
-          ))}
-        </span>
-      ))}
-    </div>
-  );
-}
-
 function PitchTraining({
   review,
   weeks: weekCount,
@@ -179,44 +144,8 @@ function PitchTraining({
         </p>
       )}
 
-      {/* 격자 — 언제 던지고 언제 챙겼는지 */}
-      <div className="space-y-1.5">
-        <div className="flex items-center gap-2">
-          <span className="w-11 shrink-0" />
-          {weeks.map((_, i) => {
-            const ago = weekCount - 1 - i;
-            return (
-              <span
-                key={i}
-                className={`flex-1 text-center text-[10px] ${
-                  ago === 0 ? 'text-sky' : 'text-muted'
-                }`}
-              >
-                {ago === 0 ? '이번 주' : `${ago}주 전`}
-              </span>
-            );
-          })}
-        </div>
-
-        <DayStrip
-          label="투구"
-          weeks={weeks}
-          isOn={(d) => d.pitches > 0}
-          describe={(d) => (d.pitches > 0 ? `${d.pitches}구` : '안 던짐')}
-        />
-        <DayStrip
-          label="운동"
-          weeks={weeks}
-          isOn={(d) => d.trained}
-          describe={(d) => (d.trained ? '운동함' : '운동 안 함')}
-        />
-        <DayStrip
-          label="암케어"
-          weeks={weeks}
-          isOn={(d) => d.armCare}
-          describe={(d) => (d.armCare ? '암케어함' : '암케어 안 함')}
-        />
-      </div>
+      {/* 격자 — 언제 던지고 언제 챙겼는지. 칸을 누르면 그날을 한 줄로 보인다(training-day-grid.tsx) */}
+      <TrainingDayGrid weeks={weeks} weekCount={weekCount} />
     </div>
   );
 }

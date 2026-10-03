@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import dynamic from 'next/dynamic';
 import {
   useActionState,
   useCallback,
@@ -12,8 +13,9 @@ import {
   type ReactNode,
 } from 'react';
 import { createPortal, useFormStatus } from 'react-dom';
-import { CalendarDays, CircleAlert } from 'lucide-react';
+import { CalendarDays, CircleAlert, Info } from 'lucide-react';
 import { MiniCalendar } from '@/components/mini-calendar';
+import { Modal, useModalState } from '@/components/modal';
 import { checkSignupEmail, login, signup, type AuthState } from '@/app/actions/auth';
 import { guardFormAction } from '@/lib/action-offline';
 import { Button, Field, FormError, Input } from '@/components/ui';
@@ -52,6 +54,16 @@ import { TRAINING_LEVELS } from '@/lib/report/personalize';
  */
 
 const inputLarge = 'py-3.5 text-[15px] aria-invalid:border-danger';
+
+/*
+ * 이메일 · 비밀번호 칸은 아이폰이 손대지 않게 한다(2026-10-03). '비밀번호 표시'를 켜면 칸이 type="text" 가 되는데,
+ * 그러면 아이폰이 첫 글자를 대문자로 바꾸고 맞춤법 고치기까지 해 — 친 것과 다른 비밀번호로 가입됐다.
+ */
+const noAutoFix = {
+  autoCapitalize: 'none',
+  autoCorrect: 'off',
+  spellCheck: false,
+} as const;
 
 /* ─────────────────────────── 공통 틀 ─────────────────────────── */
 
@@ -215,7 +227,11 @@ function CheckLine({
   onChange: (checked: boolean) => void;
 }) {
   return (
-    <label className="inline-flex cursor-pointer items-center gap-2" title={title}>
+    /* 휴대폰은 누르는 줄을 44px 로 — 글자 높이(20px)뿐이라 잘 안 눌렸다(2026-10-03) */
+    <label
+      className="inline-flex min-h-11 cursor-pointer items-center gap-2 desk:min-h-0"
+      title={title}
+    >
       <input
         ref={ref}
         type="checkbox"
@@ -227,6 +243,10 @@ function CheckLine({
     </label>
   );
 }
+
+const STAY_HINT =
+  '브라우저를 닫아도 30일 동안 로그인이 유지돼요. 공용 컴퓨터에서는 꺼주세요.';
+const REMEMBER_HINT = '다음에 올 때 이메일 칸을 채워 둬요. 비밀번호는 저장하지 않아요.';
 
 function LoginForm({
   onSignup,
@@ -259,6 +279,7 @@ function LoginForm({
    * (같은 그림 안) 저장해 둔 값으로 다시 켠다.
    */
   const emailRef = useRef<HTMLInputElement>(null);
+  const [showHints, setShowHints] = useState(false);
   const rememberRef = useRef<HTMLInputElement>(null);
   const stayRef = useRef<HTMLInputElement>(null);
 
@@ -300,6 +321,7 @@ function LoginForm({
               name="email"
               type="email"
               autoComplete="email"
+              {...noAutoFix}
               defaultValue={kept(before, 'email')}
               onBlur={() => {
                 if (rememberRef.current?.checked) rememberNow(true);
@@ -315,26 +337,58 @@ function LoginForm({
               name="password"
               type="password"
               autoComplete="current-password"
+              {...noAutoFix}
               placeholder="••••••••"
               required
               className={inputLarge}
             />
           </Field>
 
-          <div className="flex flex-wrap items-center gap-x-6 gap-y-2 pt-1">
-            <CheckLine
-              ref={stayRef}
-              name="stayLoggedIn"
-              label="자동 로그인"
-              title="브라우저를 닫아도 30일 동안 로그인이 유지돼요. 공용 컴퓨터에서는 꺼주세요."
-              onChange={(on) => saveLoginPrefs({ stayLoggedIn: on })}
-            />
-            <CheckLine
-              ref={rememberRef}
-              label="아이디 기억하기"
-              title="다음에 올 때 이메일 칸을 채워 둬요. 비밀번호는 저장하지 않아요."
-              onChange={rememberNow}
-            />
+          <div>
+            <div className="flex flex-wrap items-center gap-x-6 gap-y-0 pt-1 desk:gap-y-2">
+              <CheckLine
+                ref={stayRef}
+                name="stayLoggedIn"
+                label="자동 로그인"
+                title={STAY_HINT}
+                onChange={(on) => saveLoginPrefs({ stayLoggedIn: on })}
+              />
+              <CheckLine
+                ref={rememberRef}
+                label="아이디 기억하기"
+                title={REMEMBER_HINT}
+                onChange={rememberNow}
+              />
+              {/*
+                두 체크박스의 설명 — 예전에는 title(마우스를 올려야 뜨는 말풍선)에만 있어 아이폰에서는 볼 길이
+                없었다(2026-10-03). 늘 펴 두면 로그인 화면이 어수선해서, 누르면 밑에 두 줄로 편다.
+              */}
+              <button
+                type="button"
+                onClick={() => setShowHints((v) => !v)}
+                aria-expanded={showHints}
+                aria-controls="login-pref-hints"
+                aria-label="자동 로그인 · 아이디 기억하기 설명"
+                className="-ml-3 grid h-11 w-11 place-items-center rounded-full text-muted transition-colors hover:text-sky desk:h-7 desk:w-7"
+              >
+                <Info aria-hidden className="h-4 w-4" />
+              </button>
+            </div>
+            {showHints && (
+              <ul
+                id="login-pref-hints"
+                className="motion-safe:animate-fade-in mt-1 space-y-1 text-xs leading-relaxed break-keep text-muted"
+              >
+                <li>
+                  <span className="font-semibold text-ink">자동 로그인</span> ·{' '}
+                  {STAY_HINT}
+                </li>
+                <li>
+                  <span className="font-semibold text-ink">아이디 기억하기</span> ·{' '}
+                  {REMEMBER_HINT}
+                </li>
+              </ul>
+            )}
           </div>
         </div>
       </AuthCard>
@@ -601,6 +655,101 @@ function Choices({
   );
 }
 
+/*
+ * 약관 · 개인정보 글 — 약관 화면(app/(legal))과 같은 글을 창으로 띄운다(2026-10-03).
+ *
+ * 예전에는 새 탭 링크(target="_blank")였다. 아이폰 앱은 새 탭 링크를 사파리로 넘겨서, 가입하던 사람이 앱 밖으로
+ * 튕겨 나갔다. 창으로 띄우면 적던 칸이 그대로 남는다. 글은 창을 처음 열 때 받는다 — 로그인 화면을 무겁게 하지 않게.
+ */
+const TermsContent = dynamic(
+  () => import('@/app/(legal)/terms/terms-content').then((m) => m.TermsContent),
+  { loading: () => <p className="py-8 text-center text-sm text-muted">불러오는 중…</p> }
+);
+const PrivacyContent = dynamic(
+  () => import('@/app/(legal)/privacy/privacy-content').then((m) => m.PrivacyContent),
+  { loading: () => <p className="py-8 text-center text-sm text-muted">불러오는 중…</p> }
+);
+
+type LegalDoc = 'terms' | 'privacy';
+const LEGAL_TITLE: Record<LegalDoc, string> = {
+  terms: '이용약관',
+  privacy: '개인정보 처리방침',
+};
+
+/** 새 탭으로 열려는 누름인가(⌘ · Ctrl · 가운데 단추) — 그건 브라우저에 맡긴다(PC) */
+function wantsNewTab(e: React.MouseEvent) {
+  return e.metaKey || e.ctrlKey || e.shiftKey || e.button === 1;
+}
+
+/** 동의 줄 안의 글 이름 링크 — 누르면 창으로 연다. 주소는 그대로 둬 길게 눌러 복사 · 새 탭도 된다 */
+function LegalLink({
+  doc,
+  onOpen,
+  children,
+}: {
+  doc: LegalDoc;
+  onOpen: (doc: LegalDoc, e: React.MouseEvent<HTMLAnchorElement>) => void;
+  children: ReactNode;
+}) {
+  return (
+    <a
+      href={`/${doc}`}
+      onClick={(e) => {
+        if (wantsNewTab(e)) return;
+        e.preventDefault();
+        onOpen(doc, e);
+      }}
+      className="font-medium text-sky-strong underline"
+    >
+      {children}
+    </a>
+  );
+}
+
+function LegalSheet({
+  doc,
+  open,
+  origin,
+  onClose,
+  onSwitch,
+}: {
+  doc: LegalDoc | null;
+  open: boolean;
+  origin: { x: number; y: number } | null;
+  onClose: () => void;
+  onSwitch: (doc: LegalDoc) => void;
+}) {
+  return (
+    <Modal
+      open={open}
+      onClose={onClose}
+      title={doc ? LEGAL_TITLE[doc] : ''}
+      origin={origin}
+    >
+      {/*
+        글 끝의 '개인정보 처리방침 · 이용약관' 링크는 페이지로 넘어가지 않고 창 안에서 바꿔 보인다 —
+        넘어가면 적던 가입 칸이 사라진다.
+      */}
+      <div
+        onClickCapture={(e) => {
+          const a = (e.target as Element).closest('a');
+          const path = a?.getAttribute('href');
+          if (path !== '/terms' && path !== '/privacy') return;
+          if (wantsNewTab(e)) return;
+          e.preventDefault();
+          onSwitch(path.slice(1) as LegalDoc);
+        }}
+      >
+        {doc === 'terms' ? (
+          <TermsContent />
+        ) : doc === 'privacy' ? (
+          <PrivacyContent />
+        ) : null}
+      </div>
+    </Modal>
+  );
+}
+
 /** 약관 동의 한 줄 — 켜고 끄는 것은 부모가 쥔다(모두 동의와 함께 움직인다) */
 function AgreeLine({
   name,
@@ -813,6 +962,13 @@ function SignupWizard({
   const [agreePrivacy, setAgreePrivacy] = useState(false);
   /* 생년월일 — 달력으로 고른다(BirthDateField). 비밀번호처럼 되돌려도 남게 상태로 쥔다. */
   const [birthDate, setBirthDate] = useState('');
+  /* 약관 · 개인정보 창(LegalSheet) */
+  const legal = useModalState<LegalDoc>();
+  /*
+   * 비밀번호 단계에 같이 싣는 이메일(숨은 username 칸) — 아이폰 키체인은 새 비밀번호를 저장할 때 같은 폼의
+   * username 칸을 계정 이름으로 쓴다. 이메일은 첫 단계에 숨어 있어, 이것 없이는 이름 없는 비밀번호로 저장됐다.
+   */
+  const [signupEmail, setSignupEmail] = useState('');
 
   function show(p: Problem) {
     setProblem((prev) => ({ ...p, seq: (prev?.seq ?? 0) + 1 }));
@@ -900,6 +1056,7 @@ function SignupWizard({
     /* 첫 단계에서 이메일이 이미 가입된 것인지 미리 본다 — 끝까지 가서 막히지 않게 */
     if (STEPS[step].key === 'basic') {
       const email = String(new FormData(form).get('email') ?? '').trim();
+      setSignupEmail(email);
       setChecking(true);
       try {
         const res = await checkSignupEmail(email);
@@ -1025,6 +1182,7 @@ function SignupWizard({
                 name="email"
                 type="email"
                 autoComplete="email"
+                {...noAutoFix}
                 required
                 /* 이미 가입된 이메일인지 보는 동안에는 고칠 수 없게 — 본 것과 넘어간 것이 같게 */
                 readOnly={checking}
@@ -1072,6 +1230,20 @@ function SignupWizard({
           </div>
         )}
 
+        {/*
+          키체인에게 알려 주는 계정 이름(signupEmail) — 보이지 않고, 누르거나 초점이 갈 일도 없고, 서버로도 안 간다(name 없음).
+          display:none 으로 숨기면 키체인이 못 본다고 해서 sr-only 로 둔다. 단계 칸(data-step) 밖이라 단계의 첫 칸이 되지 않는다.
+        */}
+        <input
+          type="text"
+          autoComplete="username"
+          value={signupEmail}
+          readOnly
+          tabIndex={-1}
+          aria-hidden
+          className="sr-only"
+        />
+
         {panel(
           1,
           <div className="space-y-4 md:space-y-5">
@@ -1080,6 +1252,7 @@ function SignupWizard({
                 name="password"
                 type={showPassword ? 'text' : 'password'}
                 autoComplete="new-password"
+                {...noAutoFix}
                 required
                 minLength={8}
                 value={password}
@@ -1094,6 +1267,7 @@ function SignupWizard({
                 name="passwordConfirm"
                 type={showPassword ? 'text' : 'password'}
                 autoComplete="new-password"
+                {...noAutoFix}
                 required
                 value={passwordConfirm}
                 onChange={(e) => setPasswordConfirm(e.target.value)}
@@ -1145,13 +1319,9 @@ function SignupWizard({
               onChange={setAgreeTerms}
               invalid={invalid('agreeTerms')}
             >
-              <Link
-                href="/terms"
-                target="_blank"
-                className="font-medium text-sky-strong underline"
-              >
+              <LegalLink doc="terms" onOpen={legal.show}>
                 이용약관
-              </Link>
+              </LegalLink>
               에 동의합니다. <span className="text-muted">(필수)</span>
             </AgreeLine>
             <AgreeLine
@@ -1160,13 +1330,9 @@ function SignupWizard({
               onChange={setAgreePrivacy}
               invalid={invalid('agreePrivacy')}
             >
-              <Link
-                href="/privacy"
-                target="_blank"
-                className="font-medium text-sky-strong underline"
-              >
+              <LegalLink doc="privacy" onOpen={legal.show}>
                 개인정보 처리방침
-              </Link>
+              </LegalLink>
               에 동의합니다. 여기에는 어깨·팔꿈치 통증 같은{' '}
               <strong>건강에 관한 정보</strong>가 들어가요.{' '}
               <span className="text-muted">(필수)</span>
@@ -1298,6 +1464,14 @@ function SignupWizard({
           </p>
         )}
       </AuthCard>
+      {/* 약관 · 개인정보 창 — 안에 칸이 없어 폼의 onChange · Enter 처리와 엮이지 않는다 */}
+      <LegalSheet
+        doc={legal.content}
+        open={legal.open}
+        origin={legal.origin}
+        onClose={legal.close}
+        onSwitch={legal.setContent}
+      />
     </form>
   );
 }

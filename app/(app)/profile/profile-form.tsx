@@ -4,6 +4,8 @@ import Link from 'next/link';
 
 import { useActionState, useState, useSyncExternalStore } from 'react';
 import { useFormStatus } from 'react-dom';
+import { CalendarDays } from 'lucide-react';
+import { MiniCalendar } from '@/components/mini-calendar';
 import { updateProfile, type ProfileState } from '@/app/actions/profile';
 import { guardFormAction } from '@/lib/action-offline';
 import { Button, Field, FormError, Input } from '@/components/ui';
@@ -26,9 +28,11 @@ import {
   toWeight,
 } from '@/lib/units';
 import {
+  MAX_AGE,
   MAX_HEIGHT_CM,
   MAX_WEIGHT_KG,
   MAX_WINGSPAN_CM,
+  MIN_AGE,
   MIN_HEIGHT_CM,
   MIN_WEIGHT_KG,
   MIN_WINGSPAN_CM,
@@ -212,6 +216,79 @@ function TargetVelocityField({ base }: { base: string }) {
   );
 }
 
+/**
+ * 생년월일 — 가입 화면과 같은 작은 달력(components/mini-calendar.tsx)으로 고른다(2026-10-03).
+ *
+ * 예전에는 브라우저의 날짜 칸(type="date")이었다. 아이폰은 max 를 무시해 앞날도 골라졌고(저장할 때에야 막혔다),
+ * 비어 있으면 납작한 빈 상자만 보였다. 이제 칸을 누르면 바로 밑에 달력이 펴진다 — 이 칸은 창(시트) 안이라
+ * 가입처럼 화면 위에 띄우면 창 뒤에 깔린다. 고를 수 있는 날은 서버와 같다(만 5세 ~ 100세, lib/profile.ts).
+ *
+ * Field(<label>)로 감싸지 않는다. 라벨 안에 달력을 펴면 빈 곳(요일 줄)을 누를 때마다 라벨이 첫 단추(여닫기)를
+ * 대신 눌러 달력이 닫혔다.
+ */
+function BirthDatePicker({
+  value,
+  onChange,
+  today,
+}: {
+  value: string;
+  onChange: (next: string) => void;
+  today: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const year = Number(today.slice(0, 4));
+  const monthDay = today.slice(4);
+  const min = `${year - MAX_AGE}${monthDay}`;
+  const max = `${year - MIN_AGE}${monthDay}`;
+  const [y, m, d] = value ? value.split('-').map(Number) : [];
+
+  return (
+    <div className="space-y-2">
+      <span
+        id="profile-birth-label"
+        className="block text-xs font-medium tracking-normal text-muted"
+      >
+        생년월일
+      </span>
+      <input type="hidden" name="birthDate" value={value} />
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        aria-expanded={open}
+        aria-labelledby="profile-birth-label profile-birth-value"
+        className={`flex min-h-11 w-full items-center justify-between gap-2 rounded-xl border bg-ink/5 px-4 py-3 text-left text-sm transition-colors focus:outline-none desk:min-h-0 desk:bg-surface-2 ${
+          open ? 'border-sky' : 'border-transparent desk:border-line'
+        }`}
+      >
+        <span id="profile-birth-value" className={value ? 'text-ink' : 'text-muted/60'}>
+          {value ? `${y}년 ${m}월 ${d}일` : '날짜 고르기'}
+        </span>
+        <CalendarDays aria-hidden className="h-4 w-4 shrink-0 text-muted" />
+      </button>
+      {open && (
+        <div className="motion-safe:animate-fade-in rounded-2xl border border-line bg-surface p-3">
+          <MiniCalendar
+            value={value}
+            today={today}
+            min={min}
+            max={max}
+            viewFrom={`${year - 15}-01-01`}
+            pickYear
+            marked={() => false}
+            onPick={(key) => {
+              onChange(key);
+              setOpen(false);
+            }}
+          />
+        </div>
+      )}
+      <span className="block text-xs text-muted/70">
+        나이에 따라 안전한 투구수 한도와 영양 기준이 달라져요.
+      </span>
+    </div>
+  );
+}
+
 export function ProfileForm({
   nickname,
   birthDate,
@@ -289,19 +366,7 @@ export function ProfileForm({
           />
         </Field>
 
-        <Field
-          label="생년월일"
-          hint="나이에 따라 안전한 투구수 한도와 영양 기준이 달라져요."
-        >
-          <Input
-            name="birthDate"
-            type="date"
-            defaultValue={pick('birthDate', birthDate)}
-            onChange={(e) => setBirth(e.target.value)}
-            max={today}
-            required
-          />
-        </Field>
+        <BirthDatePicker value={birth} onChange={setBirth} today={today} />
 
         <BodyField
           name="heightCm"

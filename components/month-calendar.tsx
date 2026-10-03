@@ -599,16 +599,20 @@ function MonthJump({
 
   useEffect(() => {
     if (!open) return;
-    const onDown = (e: MouseEvent) => {
+    /*
+     * 바깥을 누르면 닫는다 — mousedown 이 아니라 pointerdown 으로 듣는다(2026-10-03). 아이폰은 누를 수 없는 곳
+     * (빈 바탕 · 글자)을 손가락으로 누르면 마우스 이벤트를 안 보내서, 판이 안 닫히고 남았다.
+     */
+    const onDown = (e: PointerEvent) => {
       if (boxRef.current && !boxRef.current.contains(e.target as Node)) setOpen(false);
     };
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') setOpen(false);
     };
-    document.addEventListener('mousedown', onDown);
+    document.addEventListener('pointerdown', onDown);
     document.addEventListener('keydown', onKey);
     return () => {
-      document.removeEventListener('mousedown', onDown);
+      document.removeEventListener('pointerdown', onDown);
       document.removeEventListener('keydown', onKey);
     };
   }, [open]);
@@ -618,8 +622,11 @@ function MonthJump({
     setOpen(false);
   };
 
+  /*
+   * 휴대폰은 판 안의 누르는 칸을 모두 44px 로(2026-10-03) — 달 · 해 칸이 28px 라 옆 칸이 잘못 눌렸다. PC 는 예전 크기.
+   */
   const arrowClass =
-    'rounded-lg p-1.5 text-muted transition-colors hover:bg-surface-2 hover:text-sky disabled:pointer-events-none disabled:opacity-30';
+    'grid min-h-11 min-w-11 place-items-center rounded-lg p-1.5 text-muted transition-colors hover:bg-surface-2 hover:text-sky disabled:pointer-events-none disabled:opacity-30 desk:min-h-0 desk:min-w-0';
 
   return (
     <div ref={boxRef} className="relative">
@@ -684,7 +691,7 @@ function MonthJump({
                       setView('year');
                     }}
                     aria-label={`${pickYear}년, 해 고르기`}
-                    className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-sm font-semibold text-ink transition-colors hover:bg-surface-2 hover:text-sky"
+                    className="inline-flex min-h-11 items-center gap-1 rounded-lg px-2 py-1 text-sm font-semibold text-ink transition-colors hover:bg-surface-2 hover:text-sky desk:min-h-0"
                   >
                     {pickYear}년
                     <ChevronDown aria-hidden className="h-3.5 w-3.5 text-muted" />
@@ -712,7 +719,7 @@ function MonthJump({
                         aria-pressed={on}
                         disabled={future}
                         onClick={() => pick(new Date(pickYear, i, 1))}
-                        className={`rounded-lg py-1.5 text-xs font-medium transition-colors disabled:pointer-events-none disabled:text-muted/35 ${
+                        className={`min-h-11 rounded-lg py-1.5 text-sm font-medium transition-colors disabled:pointer-events-none disabled:text-muted/35 desk:min-h-0 desk:text-xs ${
                           on ? 'bg-sky text-white' : 'text-ink hover:bg-surface-2'
                         }`}
                       >
@@ -760,7 +767,7 @@ function MonthJump({
                           setPickYear(year);
                           setView('month');
                         }}
-                        className={`rounded-lg py-1.5 text-xs font-medium transition-colors disabled:pointer-events-none disabled:text-muted/35 ${
+                        className={`min-h-11 rounded-lg py-1.5 text-sm font-medium transition-colors disabled:pointer-events-none disabled:text-muted/35 desk:min-h-0 desk:text-xs ${
                           on
                             ? 'bg-sky text-white'
                             : year === thisYear
@@ -780,7 +787,7 @@ function MonthJump({
           <button
             type="button"
             onClick={() => pick(new Date(thisYear, thisMonth, 1))}
-            className="mt-2 w-full rounded-lg border border-line py-1.5 text-xs font-medium text-muted transition-colors hover:border-sky hover:text-sky"
+            className="mt-2 min-h-11 w-full rounded-lg border border-line py-1.5 text-sm font-medium text-muted transition-colors hover:border-sky hover:text-sky desk:min-h-0 desk:text-xs"
           >
             오늘로
           </button>
