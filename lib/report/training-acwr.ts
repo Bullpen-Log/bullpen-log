@@ -2,6 +2,10 @@ import 'server-only';
 import { prisma } from '@/lib/prisma';
 import { buildTrainingLoad, type TrainingLoad } from '@/lib/training-load';
 import { estimateTrainingDailyLoad } from '@/lib/baseline';
+import { toDateKey } from '@/lib/pitch-stats';
+import { ARM_CARE_CATEGORY } from '@/lib/training-volume';
+import { isRehabCheck } from '@/lib/armcare/rehab';
+import { loadRehabPeriods } from '@/lib/armcare/rehab-store';
 
 /**
  * 운동 부하 지수.
@@ -44,7 +48,7 @@ export async function trainingLoad(
   const since = new Date(today);
   since.setDate(since.getDate() - LOOKBACK_DAYS);
 
-  const [logs, notes] = await Promise.all([
+  const [all, notes, rehab] = await Promise.all([
     prisma.userExerciseLog.findMany({
       where: { userId, completed: true, date: { gte: since } },
       select: {
@@ -54,6 +58,7 @@ export async function trainingLoad(
         exerciseId: true,
         exercise: {
           select: {
+            title: true,
             category: true,
             intensity: true,
             bodyParts: true,
@@ -70,7 +75,17 @@ export async function trainingLoad(
       where: { userId, date: { gte: since } },
       select: { date: true, intensity: true },
     }),
+    loadRehabPeriods(userId, toDateKey(since)),
   ]);
+  /*
+   * 재활(재활 2편)에서 한 체크 중 암케어가 아닌 것(모빌리티 스트레칭 · 파워 메디신볼 던지기 · 상체 스트렝스 컬)은 뺀다 —
+   * 암케어를 부하에서 빼는 것과 같은 까닭(lib/training-load.ts). 재활의 암케어 운동은 그대로 두어 암케어 세트로 센다.
+   */
+  const logs = all.filter(
+    (l) =>
+      l.exercise.category === ARM_CARE_CATEGORY ||
+      !isRehabCheck(l.exercise.title, toDateKey(l.date), rehab)
+  );
 
   /*
    * 가입 문진으로 평소 운동량을 추정해 첫날부터 지수를 낸다.

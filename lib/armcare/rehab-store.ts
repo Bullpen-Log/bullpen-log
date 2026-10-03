@@ -4,9 +4,16 @@ import { prisma } from '@/lib/prisma';
 import { shiftDateKey, toDateKey } from '@/lib/pitch-stats';
 import type { CachedExercise } from '@/lib/library-cache';
 import {
+  REHAB_CONDITIONS,
   REHAB_ENABLED,
+  buildRehabSession,
+  isRehabArea,
+  isRehabCondition,
+  rehabExerciseNames,
+  type RehabPeriod,
   readRehabActivities,
   readRehabProgram,
+  readRehabWeekly,
   rehabFacts,
   type RehabCheckinLike,
   type RehabFacts,
@@ -14,6 +21,7 @@ import {
   type RehabProgramLike,
   type RehabResult,
   type RehabSessionLike,
+  type RehabWeeklyLike,
 } from '@/lib/armcare/rehab';
 
 /**
@@ -73,15 +81,20 @@ export async function loadRehabFacts(
 const RESULTS: readonly RehabResult[] = ['green', 'yellow', 'red', 'refer'];
 
 /**
- * 상태 계산에 쓰는 기록 — 이 재활의 세션 전부와 최근 7일(그날 포함) 체크인.
- * 세션은 몇 주치라 다 읽는다(빨강 셋 · 낮춤 · 깨끗한 세션을 세는 데 이 단계 것 전부가 필요하다).
+ * 상태 계산에 쓰는 기록 — 이 재활의 세션 · 매주 확인 전부와 최근 7일(그날 포함) 체크인.
+ * 세션은 몇 주치라 다 읽는다(빨강 셋 · 낮춤 · 깨끗한 세션을 세는 데 이 단계 것 전부가 필요하다). 매주 확인은 일주일에
+ * 한 줄이라 다 읽어도 몇 줄이다(이어진 수 · 2주째 · 6주째를 첫 확인부터 본다).
  */
 export async function loadRehabRecords(
   userId: string,
   programId: string,
   todayKey: string
-): Promise<{ sessions: RehabSessionLike[]; checkins: RehabCheckinLike[] }> {
-  const [sessions, checkins] = await Promise.all([
+): Promise<{
+  sessions: RehabSessionLike[];
+  checkins: RehabCheckinLike[];
+  weeklies: RehabWeeklyLike[];
+}> {
+  const [sessions, checkins, weeklies] = await Promise.all([
     prisma.userRehabSession.findMany({
       where: { programId, userId },
       orderBy: { date: 'asc' },
@@ -102,6 +115,7 @@ export async function loadRehabRecords(
       },
       select: { date: true, shoulder: true, elbow: true, armPainLevel: true },
     }),
+    loadRehabWeeklies(userId, programId),
   ]);
   return {
     sessions: sessions
@@ -121,16 +135,87 @@ export async function loadRehabRecords(
       elbow: c.elbow,
       armPainLevel: c.armPainLevel,
     })),
+    weeklies,
   };
 }
 
-/** 매주 확인 줄 — 오래된 것부터(②번 매주 확인 화면이 쓴다) */
-export async function loadRehabWeeklies(userId: string, programId: string) {
+/** 매주 확인 줄 — 오래된 것부터, test 칸(Json)은 읽어 맞춘 모양으로 */
+export async function loadRehabWeeklies(
+  userId: string,
+  programId: string
+): Promise<RehabWeeklyLike[]> {
   const rows = await prisma.userRehabWeekly.findMany({
     where: { programId, userId },
     orderBy: { date: 'asc' },
+    select: {
+      date: true,
+      stage: true,
+      normalPct: true,
+      worstPain: true,
+      nightPain: true,
+      activities: true,
+      confidence: true,
+      test: true,
+    },
   });
-  return rows.map((w) => ({ ...w, date: w.date.toISOString().slice(0, 10) }));
+  return rows.map((w) =>
+    readRehabWeekly({ ...w, date: w.date.toISOString().slice(0, 10) })
+  );
+}
+
+/**
+ * 이날 뒤로 걸친 재활 기간들(진행 중 + 끝낸 것) — 트레이닝 회전 · 운동 부하가 재활 체크를 뺀다(isRehabCheck).
+ * 스위치(REHAB_ENABLED)를 끄면 빈 목록이다(그러면 예전처럼 다 센다).
+ */
+export const loadRehabPeriods = cache(
+  async (userId: string, sinceKey: string): Promise<RehabPeriod[]> => {
+    if (!REHAB_ENABLED) return [];
+    const rows = await prisma.userRehabProgram.findMany({
+      where: {
+        userId,
+        OR: [{ endedAt: null }, { endedAt: { gte: dayStart(sinceKey) } }],
+      },
+      select: { area: true, condition: true, startedAt: true, endedAt: true },
+    });
+    return rows.flatMap((r) => {
+      if (!isRehabArea(r.area)) return [];
+      const condition =
+        isRehabCondition(r.condition) && REHAB_CONDITIONS[r.condition].area === r.area
+          ? r.condition
+          : null;
+      return [
+        {
+          from: toDateKey(r.startedAt),
+          to: r.endedAt ? toDateKey(r.endedAt) : null,
+          names: rehabExerciseNames(r.area, condition),
+        },
+      ];
+    });
+  }
+);
+
+/**
+ * 오늘 재활 세션에 들 수 있는 운동 id — 낮춘 날 · 아닌 날 둘 다(가진 장비로 바꿔 넣은 암케어 운동까지). 재활 중이 아니면 빈 집합.
+ * 트레이닝 '오늘 운동'이 재활에서 한 체크를 '직접 넣음'으로 도로 끼우지 않게 한다(lib/report/today-data.ts 의 strays).
+ */
+export async function loadRehabExerciseIds(
+  userId: string,
+  library: readonly CachedExercise[],
+  ownedEquipment: readonly string[]
+): Promise<Set<string>> {
+  const active = await loadActiveRehab(userId);
+  if (!active) return new Set();
+  const lib = toRehabLibrary(library);
+  return new Set(
+    [false, true].flatMap((lowered) =>
+      buildRehabSession({
+        ...active.program,
+        lowered,
+        library: lib,
+        ownedEquipment,
+      }).items.map((it) => it.exerciseId)
+    )
+  );
 }
 
 /** 라이브러리 줄 → 재활 세션이 보는 모양(근육 칸이 생기기 전에 캐시에 담긴 줄도 받는다) */
