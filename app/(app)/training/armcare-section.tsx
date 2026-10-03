@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import { ChevronRight } from 'lucide-react';
 import { visibleExercises } from '@/lib/library-cache';
 import { availableParts } from '@/lib/report/today-pick';
 import { ARMCARE_CATEGORY, primaryArea } from '@/lib/armcare/anatomy';
@@ -9,6 +10,7 @@ import { loadMyRoutines } from '@/lib/armcare/my-routines-store';
 import { Card } from '@/components/ui';
 import { OpenCheckinButton } from '@/components/notice-bell';
 import { ArmcareToday, WeekDots, type ArmcareTodayItem } from './armcare-today';
+import { ArmPainGuideButton } from './arm-pain-guide';
 import { ArmcareGuide } from './armcare-guide';
 import { ArmcareInfoProvider } from './armcare-info';
 import { MyRoutines, type MyRoutineView } from './my-routines';
@@ -73,6 +75,18 @@ export async function ArmcareSection({
   ]);
   const byId = new Map(library.map((ex) => [ex.id, ex]));
 
+  /*
+   * 오늘 팔 통증 — 어깨 · 팔꿈치가 '통증'인 날만. 쉬기 카드와 통증 루틴 카드에 [통증 안내 보기]를 붙인다
+   * (2026-10-03 팔 통증 안내). 나이는 '오늘은'이 만 15세 미만에게 진료를 권하는 데 쓴다.
+   */
+  const painGuide = data.armPain
+    ? {
+        spots: data.armPain.spots,
+        level: data.armPain.level,
+        age: data.facts.profile.age,
+      }
+    : null;
+
   /* ── 맞춤 루틴 ── */
   let custom: ReactNode;
   if (!data.hasCheckinToday) {
@@ -97,6 +111,18 @@ export async function ArmcareSection({
         <p className="text-sm leading-relaxed break-keep text-warn">
           {data.decision.reason}
         </p>
+        {/* 팔이 아픈 날 — 왜 아플 수 있는지 · 바로 진료할 신호 · 오늘 할 일(정도 2 · 3 · 모름은 진료 권유) */}
+        {painGuide && (
+          <div>
+            <ArmPainGuideButton
+              pain={painGuide}
+              className="inline-flex min-h-11 items-center gap-0.5 rounded-full bg-surface px-4 text-sm font-semibold text-warn transition-colors hover:bg-surface-2"
+            >
+              통증 안내 보기
+              <ChevronRight aria-hidden className="h-4 w-4" />
+            </ArmPainGuideButton>
+          </div>
+        )}
         <OpenCheckinButton className="text-sm font-semibold text-warn underline">
           통증이 아니면 체크인 고치기
         </OpenCheckinButton>
@@ -133,6 +159,7 @@ export async function ArmcareSection({
       <ArmcareToday
         dateKey={data.todayKey}
         decision={data.decision}
+        painGuide={painGuide}
         routine={
           data.routine
             ? {

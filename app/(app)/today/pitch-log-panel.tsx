@@ -18,6 +18,7 @@ import { LogList } from '@/app/(app)/pitch-log/log-list';
 import type { Log } from '@/app/(app)/pitch-log/types';
 import type { PlanDaySummary, TrainingDaySummary } from '@/lib/report/training-history';
 import type { DayDetail } from '@/lib/day-detail';
+import type { VelocityDayFact } from '@/lib/velocity-meta';
 import {
   DaySummary,
   firstFocus,
@@ -69,6 +70,7 @@ export function PitchLogPanel({
   planByDay,
   featuredByDay,
   nutritionByDay,
+  velocityByDay,
   checkinByDay,
   reportDays,
   weightByDay,
@@ -95,6 +97,8 @@ export function PitchLogPanel({
   featuredByDay: Record<string, string>;
   /** 날짜별로 먹은 칼로리·단백질 합 */
   nutritionByDay: Record<string, NutritionDay>;
+  /** 날짜별 카메라로 잰 공(공 수 · 최고 · 영상 수) */
+  velocityByDay: Record<string, VelocityDayFact>;
   /** 날짜별 체크인 — 컨디션과 통증 여부 */
   checkinByDay: Record<string, CheckinDay>;
   /** AI 리포트가 있는 날들 — 캘린더 칸 왼쪽 위에 그래프 표시를 붙인다 */
@@ -185,11 +189,32 @@ export function PitchLogPanel({
     }
   }
 
+  /*
+   * 구속 측정이 바뀐 날도 그렇다 — 그날 화면(팝업)에서 공을 지우면 홈 영상 칸의 칩이 지운 공을 그대로 보였다. 공 수 · 최고 ·
+   * 클립 수가 달라진 날만 버린다(구종만 고친 것은 못 잡는다 — 그 날을 다시 열 때까지 옛 구종).
+   */
+  const [seenVelocity, setSeenVelocity] = useState(velocityByDay);
+  if (seenVelocity !== velocityByDay) {
+    setSeenVelocity(velocityByDay);
+    const changed = new Set(
+      [...Object.keys(seenVelocity), ...Object.keys(velocityByDay)].filter(
+        (d) => JSON.stringify(seenVelocity[d]) !== JSON.stringify(velocityByDay[d])
+      )
+    );
+    if (changed.size > 0) {
+      setDetails((prev) =>
+        Object.fromEntries(Object.entries(prev).filter(([d]) => !changed.has(d)))
+      );
+    }
+  }
+
   useEffect(() => {
     if (!selectedDate || details[selectedDate] || failed[selectedDate]) return;
     const date = selectedDate;
     let cancelled = false;
-    fetch(`/api/day-detail?date=${date}`)
+    /* 클립은 그날 클립이 있을 때만 청한다 */
+    const clips = (velocityByDay[date]?.clips ?? 0) > 0 ? '&clips=1' : '';
+    fetch(`/api/day-detail?date=${date}${clips}`)
       .then((res) =>
         res.ok ? res.json() : Promise.reject(new Error(String(res.status)))
       )
@@ -202,7 +227,7 @@ export function PitchLogPanel({
     return () => {
       cancelled = true;
     };
-  }, [selectedDate, details, failed]);
+  }, [selectedDate, details, failed, velocityByDay]);
 
   /*
    * 좁은 화면에서는 그날 칸이 달력 밑에서 펴진다. 달력이 화면을 거의 채우고 있어서,
@@ -236,8 +261,9 @@ export function PitchLogPanel({
       plan: planByDay[date],
       nutrition: nutritionByDay[date],
       checkin: checkinByDay[date],
+      velocity: velocityByDay[date],
     }),
-    [logs, trainingByDay, planByDay, nutritionByDay, checkinByDay]
+    [logs, trainingByDay, planByDay, nutritionByDay, checkinByDay, velocityByDay]
   );
 
   /*
@@ -377,20 +403,22 @@ export function PitchLogPanel({
 
     const out: Record<string, DayMark> = {};
     for (const [key, d] of Object.entries(byDay)) {
+      /* 영상 점 — 투구 기록 영상 + 구속 측정 클립(그날 칸의 영상 아이콘과 같은 기준, dayHas) */
+      const video = d.video || (velocityByDay[key]?.clips ?? 0) > 0;
       out[key] = {
         intensity: d.rested ? null : d.intensity,
         label: d.rested ? '휴식' : `${d.pitches}구`,
-        dot: d.video,
+        dot: video,
         spoken: [
           d.rested ? '쉬는 날로 남김' : `${d.pitches}구`,
-          d.video ? '영상 있음' : null,
+          video ? '영상 있음' : null,
         ]
           .filter(Boolean)
           .join(', '),
       };
     }
     return out;
-  }, [logs]);
+  }, [logs, velocityByDay]);
 
   /*
    * 고른 날에 대해 이미 아는 것 — 옆 칸과 밑 칸이 같이 쓴다.
@@ -539,6 +567,13 @@ export function PitchLogPanel({
                 detail={details[shownDate] ?? null}
                 failed={failed[shownDate] ?? false}
                 onRetry={() => setFailed((prev) => ({ ...prev, [shownDate]: false }))}
+                onReload={() =>
+                  setDetails((prev) =>
+                    Object.fromEntries(
+                      Object.entries(prev).filter(([d]) => d !== shownDate)
+                    )
+                  )
+                }
               />
             </div>
           </div>

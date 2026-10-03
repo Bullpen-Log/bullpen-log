@@ -1,9 +1,10 @@
 'use client';
 
-import { useState, useTransition } from 'react';
+import { addTransitionType, useState, useTransition, type ComponentProps } from 'react';
 import { unstable_rethrow, useRouter } from 'next/navigation';
-import { Camera, ChevronRight, Loader2, Trash2 } from 'lucide-react';
+import { Camera, ChevronRight, Loader2, Play, RotateCw, Trash2 } from 'lucide-react';
 import { quietRefresh } from '@/lib/quiet-refresh';
+import { QUIET_REFRESH } from '@/lib/transition-types';
 import { ConfirmDialog } from '@/components/confirm-delete';
 import { formatSpeed, speedLabel, toSpeed } from '@/lib/units';
 import { useSpeedUnit } from '@/components/use-units';
@@ -14,6 +15,7 @@ import {
   sessionSetupText,
   summarize,
   zoneLabel,
+  type PitchClipView,
   type PitchEdit,
   type VelocityPitchView,
   type VelocitySessionView,
@@ -23,6 +25,9 @@ import {
   PitchEditorFields,
   ZoneGrid,
 } from '@/components/velocity/pitch-editor';
+import { ClipPlayer } from '@/components/velocity/clip-player';
+import { useStoredSetup } from '@/components/velocity/velocity-settings';
+import { DEFAULT_SETUP, type CameraPos } from '@/lib/velocity-setup';
 import {
   deleteVelocityPitch,
   deleteVelocitySession,
@@ -34,6 +39,9 @@ import {
  *
  * 투구 기록 한 건(투구수 · 최고 · 평균)은 위의 기록 카드에 있고, 여기는 그 안의 공 하나하나다.
  * 공을 지우면 서버가 그 기록의 투구수 · 구속도 다시 맞춘다(app/actions/velocity.ts).
+ *
+ * 영상이 남은 공은 줄 오른쪽에 ▶ — 누르면 공 창이 열리며 영상이 바로 돈다(줄을 누르면 영상은 멈춘 채 맨 위에).
+ * 설정 '영상에 스트라이크 존 표시'(기기별)가 켜져 있으면 잰 순간의 존과 고르는 중인 코스 칸을 겹친다.
  */
 /*
  * 세션 시각 — 한국 시간으로 적는다. 이 칸은 서버(UTC)에서도 그려져, 기기 시각(getHours)을 쓰면 서버 글자와 폰 글자가
@@ -50,6 +58,19 @@ export function VelocitySection({ sessions }: { sessions: VelocitySessionView[] 
   const router = useRouter();
   const unit = useSpeedUnit();
   const [editing, setEditing] = useState<VelocityPitchView | null>(null);
+  /* ▶ 로 열었으면 영상을 바로 돌린다 */
+  const [autoPlay, setAutoPlay] = useState(false);
+  /*
+   * 못 불러온 영상 주소(서명 주소는 한 시간짜리 — 화면을 오래 켜 두면 만료된다). 공이 아니라 주소로 쥔다 — '다시 불러오기'가
+   * 새 주소를 받아 오면 저절로 풀려 새 주소로 붙는다(공으로 쥐면 옛 주소로 먼저 다시 붙어 곧바로 또 실패했다).
+   */
+  const [failedUrls, setFailedUrls] = useState<string[]>([]);
+  /* 같은 주소가 다시 오면(잠깐 끊긴 것) 재생기를 새로 붙이려고 — 영상 key 에 섞는다 */
+  const [retry, setRetry] = useState(0);
+  const [reloading, startReload] = useTransition();
+  /* 광각 영상은 펼쳤을 때만 그린다 — 접혀 있어도 video 가 붙어 있으면 받기 시작한다 */
+  const [wideOpen, setWideOpen] = useState(false);
+  const clipZone = useStoredSetup()?.clipZone ?? DEFAULT_SETUP.clipZone;
   const [draft, setDraft] = useState<PitchEdit | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [pending, start] = useTransition();
@@ -74,6 +95,15 @@ export function VelocitySection({ sessions }: { sessions: VelocitySessionView[] 
   const editingSession = editing
     ? sessions.find((s) => s.pitches.some((p) => p.id === editing.id))
     : undefined;
+  /* 영상은 지금 자료에서 읽는다 — 주소가 만료돼 다시 받으면 새 주소로 바뀐다(editing 은 연 때의 사본) */
+  const editingClip = editing
+    ? (editingSession?.pitches.find((p) => p.id === editing.id) ?? editing)
+    : null;
+  const editingCameraPos: CameraPos =
+    editingSession?.cameraPos === 'behind-catcher'
+      ? 'behind-catcher'
+      : 'behind-pitcher';
+  const hasClips = sessions.some((s) => s.pitches.some((p) => p.clip));
   const editingRelease = editingSession
     ? releaseOf(editingSession)
     : (kmh: number) => kmh;
@@ -89,8 +119,10 @@ export function VelocitySection({ sessions }: { sessions: VelocitySessionView[] 
     };
   };
 
-  const open = (p: VelocityPitchView) => {
+  const open = (p: VelocityPitchView, play = false) => {
     setEditing(p);
+    setAutoPlay(play);
+    setWideOpen(false);
     setDraft({
       pitchType: p.pitchType,
       zone: p.zone,
@@ -151,6 +183,55 @@ export function VelocitySection({ sessions }: { sessions: VelocitySessionView[] 
     });
   };
 
+  /*
+   * 영상 주소를 다시 받는다 — 화면 자료를 조용히 새로 받으며, 같은 전환 안에서 실패 표시를 지워 새 주소와 함께 한 번에 그린다.
+   * 받는 동안 단추가 돈다.
+   */
+  const reloadClips = () => {
+    startReload(() => {
+      addTransitionType(QUIET_REFRESH);
+      router.refresh();
+      setFailedUrls([]);
+      setRetry((n) => n + 1);
+    });
+  };
+
+  /* 영상 하나 — 못 불러왔으면 그 자리에 '다시 불러오기' */
+  const clipBox = (
+    clip: PitchClipView,
+    player: Omit<ComponentProps<typeof ClipPlayer>, 'src' | 'eventSec' | 'onError'>
+  ) =>
+    failedUrls.includes(clip.url) ? (
+      <div className="flex flex-col items-center gap-3 rounded-2xl bg-surface-2 px-4 py-6 text-center">
+        <p role="status" className="text-xs leading-relaxed text-muted">
+          영상을 불러오지 못했어요. 화면을 오래 켜 두면 영상 주소가 만료돼요.
+        </p>
+        <button
+          type="button"
+          onClick={reloadClips}
+          disabled={reloading}
+          className="inline-flex h-10 items-center gap-1.5 rounded-full bg-surface px-4 text-sm font-semibold text-ink transition-colors hover:bg-line disabled:opacity-60"
+        >
+          {reloading ? (
+            <Loader2 aria-hidden className="h-4 w-4 animate-spin" />
+          ) : (
+            <RotateCw aria-hidden className="h-4 w-4" />
+          )}
+          다시 불러오기
+        </button>
+      </div>
+    ) : (
+      <ClipPlayer
+        key={`${clip.url}#${retry}`}
+        src={clip.url}
+        eventSec={clip.eventSec}
+        onError={() =>
+          setFailedUrls((u) => (u.includes(clip.url) ? u : [...u, clip.url]))
+        }
+        {...player}
+      />
+    );
+
   return (
     <section className="space-y-3">
       <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
@@ -159,7 +240,9 @@ export function VelocitySection({ sessions }: { sessions: VelocitySessionView[] 
           구속 측정
         </h2>
         <span className="text-xs text-muted">
-          카메라로 잰 공 — 누르면 구종 · 코스 · 결과를 고쳐요
+          {hasClips
+            ? '카메라로 잰 공 — ▶ 는 영상, 줄을 누르면 구종 · 코스 · 결과를 고쳐요'
+            : '카메라로 잰 공 — 누르면 구종 · 코스 · 결과를 고쳐요'}
         </span>
       </div>
 
@@ -218,11 +301,13 @@ export function VelocitySection({ sessions }: { sessions: VelocitySessionView[] 
 
             <ul className="divide-y divide-line">
               {s.pitches.map((p) => (
-                <li key={p.id}>
+                <li key={p.id} className="flex items-stretch">
                   <button
                     type="button"
                     onClick={() => open(p)}
-                    className="flex min-h-12 w-full items-center gap-3 px-4 py-2 text-left transition-colors hover:bg-surface-2"
+                    className={`flex min-h-12 min-w-0 flex-1 items-center gap-3 py-2 pl-4 text-left transition-colors hover:bg-surface-2 ${
+                      p.clip ? 'pr-2' : 'pr-4'
+                    }`}
                   >
                     <span className="w-5 text-xs text-muted tabular-nums">{p.seq}</span>
                     <span className="text-display w-16 text-xl leading-none tabular-nums text-ink">
@@ -252,8 +337,23 @@ export function VelocitySection({ sessions }: { sessions: VelocitySessionView[] 
                       </span>
                     </span>
                     <ZoneGrid value={p.zone} size="sm" />
-                    <ChevronRight aria-hidden className="h-4 w-4 text-line-strong" />
+                    {/* 영상이 있는 줄은 › 대신 ▶ 가 그 자리 — 휴대폰에서 글 칸이 좁아지지 않게 */}
+                    {!p.clip && (
+                      <ChevronRight aria-hidden className="h-4 w-4 text-line-strong" />
+                    )}
                   </button>
+                  {p.clip && (
+                    <button
+                      type="button"
+                      onClick={() => open(p, true)}
+                      aria-label={`${p.seq}번째 공 영상 보기`}
+                      className="group flex w-13 shrink-0 items-center justify-center pr-1 transition-colors hover:bg-surface-2"
+                    >
+                      <span className="flex h-9 w-9 items-center justify-center rounded-full bg-sky/10 text-sky transition-colors group-hover:bg-sky group-hover:text-white">
+                        <Play aria-hidden className="ml-0.5 h-4 w-4 fill-current" />
+                      </span>
+                    </button>
+                  )}
                 </li>
               ))}
             </ul>
@@ -270,6 +370,16 @@ export function VelocitySection({ sessions }: { sessions: VelocitySessionView[] 
       >
         {editing && draft && (
           <div className="space-y-5">
+            {/* 영상 — 고르는 중인 코스 칸이 바로 밝아진다 */}
+            {editingClip?.clip &&
+              clipBox(editingClip.clip, {
+                zoneRect: editingClip.zoneRect,
+                zone: draft.zone,
+                cameraPos: editingCameraPos,
+                showZone: clipZone,
+                autoPlay,
+                maxHeight: '40dvh',
+              })}
             <PitchEditorFields value={draft} onChange={setDraft} />
             {/* 저장 · 지우기 실패 — 시트가 위의 오류 줄을 덮으니 여기에도 */}
             {error && (
@@ -279,6 +389,33 @@ export function VelocitySection({ sessions }: { sessions: VelocitySessionView[] 
               >
                 {error}
               </p>
+            )}
+            {/* 광각 — 같은 공을 앱이 광각 카메라로 함께 찍은 것. 화각이 달라 존은 안 겹친다. 펼칠 때 받는다 */}
+            {editingClip?.wideClip && (
+              <details
+                open={wideOpen}
+                onToggle={(e) => setWideOpen(e.currentTarget.open)}
+                className="group rounded-2xl bg-surface-2"
+              >
+                <summary className="flex min-h-12 cursor-pointer list-none items-center gap-2 px-4 text-sm font-semibold text-ink [&::-webkit-details-marker]:hidden">
+                  <Play aria-hidden className="h-3.5 w-3.5 fill-current text-sky" />
+                  광각 영상
+                  <ChevronRight
+                    aria-hidden
+                    className="ml-auto h-4 w-4 text-muted transition-transform duration-200 motion-safe:group-open:rotate-90"
+                  />
+                </summary>
+                {wideOpen && (
+                  <div className="px-3 pb-3">
+                    {clipBox(editingClip.wideClip, {
+                      zoneRect: null,
+                      cameraPos: editingCameraPos,
+                      showZone: false,
+                      maxHeight: '40dvh',
+                    })}
+                  </div>
+                )}
+              </details>
             )}
             <dl className="grid grid-cols-2 gap-x-4 gap-y-1.5 rounded-2xl bg-surface-2 px-4 py-3 text-xs">
               <Row

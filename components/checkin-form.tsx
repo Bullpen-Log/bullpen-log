@@ -1,6 +1,7 @@
 'use client';
 
 import {
+  Fragment,
   useActionState,
   useEffect,
   useRef,
@@ -8,9 +9,19 @@ import {
   useSyncExternalStore,
 } from 'react';
 import { useFormStatus } from 'react-dom';
-import { CheckCircle2, ChevronDown, Minus, Pencil, Plus } from 'lucide-react';
-import { saveCheckin, type CheckinState } from '@/app/actions/checkin';
 import {
+  CheckCircle2,
+  ChevronDown,
+  ChevronRight,
+  Minus,
+  Pencil,
+  Plus,
+} from 'lucide-react';
+import { saveCheckin, type CheckinState } from '@/app/actions/checkin';
+import { ArmPainGuideButton } from '@/app/(app)/training/arm-pain-guide';
+import {
+  ARM_PAIN_LEVELS,
+  ARM_PAIN_SPOTS,
   BODY_FEELINGS,
   CHECKIN_NOTE_MAX,
   CHECKIN_PARTS,
@@ -30,9 +41,14 @@ import {
   SLEEP_LEVELS,
   SORENESS_LEVELS,
   WORKOUT_KINDS,
+  type ArmPain,
+  type ArmPainJoint,
   type CheckinBody,
   type CheckinDetail,
   type CheckinParts,
+  armPainLevelLabel,
+  armPainSpotLabel,
+  armPainSpotsFor,
   clampSleepHours,
   formatSleepHours,
   hasDetail,
@@ -49,7 +65,9 @@ import { useWeightUnit } from '@/components/use-units';
 
 export type CheckinData = CheckinParts &
   CheckinBody &
-  CheckinDetail & {
+  CheckinDetail &
+  /* 팔 통증 자리 · 정도 — 어깨 · 팔꿈치 '통증'인 날 그 줄 밑에서 고른 것(lib/checkin.ts) */
+  ArmPain & {
     /** YYYY-MM-DD */
     date: string;
     condition: number;
@@ -72,10 +90,16 @@ function feelingChipClass(value: string) {
 
 /*
  * 칩 — 휴대폰은 테두리 없는 회색 알약(아이폰), 고른 것은 파랑으로 두르고 옅게 칠한다. PC 는 예전 네모 칩
- * (2026-10-01 '애플처럼').
+ * (2026-10-01 '애플처럼'). 휴대폰은 높이 40px 를 채운다(칩 규칙) — 37px 라 옆 칩을 잘못 누르곤 했다(2026-10-03).
  */
 const chipBase =
-  'cursor-pointer select-none rounded-full border border-transparent bg-ink/6 px-3.5 py-2 text-[13px] text-ink/80 transition-colors hover:text-ink peer-checked:font-semibold desk:rounded-lg desk:border-line desk:bg-surface-2 desk:px-3 desk:text-xs desk:text-muted desk:hover:border-sky-soft desk:peer-checked:font-medium';
+  'inline-flex min-h-10 items-center cursor-pointer select-none rounded-full border border-transparent bg-ink/6 px-3.5 py-2 text-[13px] text-ink/80 transition-colors hover:text-ink peer-checked:font-semibold desk:rounded-lg desk:border-line desk:bg-surface-2 desk:px-3 desk:min-h-0 desk:text-xs desk:text-muted desk:hover:border-sky-soft desk:peer-checked:font-medium';
+
+/**
+ * 누르는 자리만 44px 로 키운 칩(휴대폰) — 보이는 칩(span)은 그대로 두고 감싸는 라벨의 높이만 늘린다. 라벨 어디를
+ * 눌러도 칩이 눌린다. 팔 통증 자리 · 정도 칩이 쓴다(2026-10-03, 누르는 것 44pt). PC 는 마우스라 예전 그대로.
+ */
+const CHIP_TALL = 'inline-flex min-h-11 items-center desk:min-h-0';
 
 function ChipRadio({
   name,
@@ -87,6 +111,7 @@ function ChipRadio({
   required,
   onPick,
   toggleable,
+  tall,
 }: {
   name: string;
   value: string;
@@ -111,10 +136,12 @@ function ChipRadio({
    * 돌아가게 한다.
    */
   toggleable?: boolean;
+  /** 누르는 자리를 휴대폰에서 44px 로(CHIP_TALL) — 칩 모양은 그대로 */
+  tall?: boolean;
 }) {
   return (
     <label
-      className="inline-flex"
+      className={tall ? CHIP_TALL : 'inline-flex'}
       /*
        * 누르기 직전에 이미 골라져 있었는지를 적어 둔다 — 누른 뒤에는 늘 골라져 있다.
        *
@@ -184,15 +211,18 @@ function ChipCheckbox({
   name,
   value,
   defaultChecked,
+  tall,
   children,
 }: {
   name: string;
   value: string;
   defaultChecked?: boolean;
+  /** 누르는 자리를 휴대폰에서 44px 로(CHIP_TALL) */
+  tall?: boolean;
   children: React.ReactNode;
 }) {
   return (
-    <label className="inline-flex">
+    <label className={tall ? CHIP_TALL : 'inline-flex'}>
       <input
         type="checkbox"
         name={name}
@@ -255,6 +285,86 @@ function Section({ title, children }: { title: string; children: React.ReactNode
     <div className="space-y-3">
       <p className="text-[11px] font-semibold tracking-normal text-muted/80">{title}</p>
       {children}
+    </div>
+  );
+}
+
+/*
+ * 팔 통증 — 어깨 · 팔꿈치 줄이 '통증'이면 그 줄 바로 밑에 열린다(2026-10-03 팔 통증 안내, lib/checkin.ts).
+ *
+ *   어디가 아파요?   그 관절의 자리 넷, 여러 개 — 관절마다 한 줄
+ *   얼마나 아파요?   셋 중 하나, 다시 누르면 풀림 — 한 번만(마지막으로 '통증'인 관절 밑)
+ *
+ * 둘 다 안 골라도 저장된다 — 모르면 암케어는 쉬는 쪽으로 본다. 고른 것은 암케어(통증 루틴 · 쉬기)와
+ * 안내 시트가 읽는다. 트레이닝 일정 · 투구 계획은 읽지 않는다.
+ */
+function ArmPainSpotsRow({
+  joint,
+  picked,
+}: {
+  joint: ArmPainJoint;
+  picked: readonly string[];
+}) {
+  const spots: readonly { key: string; chip: string }[] = ARM_PAIN_SPOTS[joint];
+  return (
+    <Row label="어디가 아파요?">
+      {spots.map((spot) => (
+        <ChipCheckbox
+          key={spot.key}
+          name="armPainSpots"
+          value={spot.key}
+          defaultChecked={picked.includes(spot.key)}
+          tall
+        >
+          {spot.chip}
+        </ChipCheckbox>
+      ))}
+      <span className="ml-1 self-center text-[10px] text-muted/60">
+        여러 개 · 몰라도 돼요
+      </span>
+    </Row>
+  );
+}
+
+/**
+ * 정도 줄. 어깨만 아프다가 팔꿈치도 '통증'으로 고르면 이 줄이 팔꿈치 밑으로 옮겨 가며 새로 그려진다 —
+ * 그때 방금 고른 것이 풀리지 않게, 고를 때마다(풀 때도) 부모에게 알려 그 값으로 다시 그린다(onChange).
+ * 고른 라디오를 다시 누르면 풀리는 것(toggleable)은 change 가 오지 않아, 누른 뒤 실제로 골라진 것을 읽는다.
+ */
+function ArmPainLevelRow({
+  picked,
+  onChange,
+}: {
+  picked: string | undefined;
+  onChange: (value: string) => void;
+}) {
+  return (
+    <div
+      onClick={(e) => {
+        if (!(e.target instanceof HTMLInputElement)) return;
+        const on = e.currentTarget.querySelector<HTMLInputElement>(
+          'input[name="armPainLevel"]:checked'
+        );
+        onChange(on?.value ?? '');
+      }}
+    >
+      <Row label="얼마나 아파요?" radios>
+        {ARM_PAIN_LEVELS.map((level) => (
+          <ChipRadio
+            key={level.value}
+            name="armPainLevel"
+            value={String(level.value)}
+            toggleable
+            tall
+            defaultChecked={picked === String(level.value)}
+          >
+            {level.label}
+          </ChipRadio>
+        ))}
+        <span className="ml-1 self-center text-[10px] text-muted/60">
+          다시 누르면 풀려요
+        </span>
+      </Row>
     </div>
   );
 }
@@ -579,7 +689,7 @@ function ModeSwitch({ mode, onChange }: { mode: Mode; onChange: (m: Mode) => voi
           role="radio"
           aria-checked={mode === m}
           onClick={() => onChange(m)}
-          className={`relative min-h-9 px-4 transition-colors duration-200 desk:min-h-0 desk:py-1.5 ${
+          className={`relative min-h-10 px-4 transition-colors duration-200 desk:min-h-0 desk:py-1.5 ${
             mode === m ? 'text-ink' : 'font-medium text-ink/60 hover:text-ink'
           }`}
         >
@@ -644,12 +754,21 @@ export function CheckinForm({
   recent,
   parts,
   onSaved,
+  age = null,
+  onLeave,
 }: {
   recent: CheckinData[];
   /** 고를 수 있는 운동 부위 — 라이브러리에서 뽑아 넘어온다 */
   parts: string[];
   /** 저장에 성공했을 때. 저장한 날짜를 준다. 체크인 관문이 이것을 보고 닫힌다. */
   onSaved?: (dateKey: string) => void;
+  /**
+   * 만 나이 — 요약의 팔 통증 안내가 쓴다(만 15세 미만은 루틴 대신 진료). 모르면 null(안 막는다 —
+   * 암케어와 같은 규칙, lib/checkin.ts 의 canDoPainRoutine).
+   */
+  age?: number | null;
+  /** 팔 통증 안내의 [통증 루틴 하기]로 다른 화면에 갈 때 — 감싸는 창을 닫는 데 쓴다 */
+  onLeave?: () => void;
 }) {
   // 서버(UTC)와 한국 시간의 날짜가 다른 시간대가 있어,
   // '오늘'은 화면이 뜬 뒤 사용자 시간 기준으로 정한다.
@@ -666,6 +785,11 @@ export function CheckinForm({
    */
   const [partsOpen, setPartsOpen] = useState(false);
   const [partEdits, setPartEdits] = useState<Record<string, string> | null>(null);
+  /*
+   * 팔 통증 정도를 고를 때마다 적어 둔다 — 정도 줄이 어깨 밑에서 팔꿈치 밑으로 옮겨 가며 새로 그려져도
+   * 방금 고른 것이 남게(ArmPainLevelRow). 저장하거나 고치기를 새로 열면 비운다(저장된 값으로 시작).
+   */
+  const [painLevelDraft, setPainLevelDraft] = useState<string | null>(null);
   /*
    * 간편·상세 중 무엇으로 적는가. 지난번에 고른 쪽에서 시작한다 — 늘 상세로 적는
    * 사람에게 매번 상세를 누르게 할 까닭이 없다. 폼은 화면이 뜬 뒤에만 그리므로
@@ -692,6 +816,7 @@ export function CheckinForm({
     if (state?.success) setEditing(false);
     // 저장에 실패해 돌아오면 서버가 준 값으로 다시 시작한다
     setPartEdits(null);
+    setPainLevelDraft(null);
   }
 
   /*
@@ -728,6 +853,21 @@ export function CheckinForm({
 
   const today = todayKey ? (recent.find((c) => c.date === todayKey) ?? null) : null;
   const painToday = today ? hasPain(today) : false;
+  /*
+   * 팔(어깨 · 팔꿈치) 통증 — 요약의 통증 카드에 고른 자리 · 정도 한 줄과 [통증 안내 보기]가 붙는다.
+   * 허리 · 하체만 아픈 날에는 없다(팔 통증 안내만 있다). 자리는 오늘 '통증'인 관절의 것만.
+   */
+  const armPainToday =
+    today != null && (today.shoulder === '통증' || today.elbow === '통증');
+  const armPainSpots = today ? armPainSpotsFor(today, today.armPainSpots) : [];
+  const armPainLine = today
+    ? [
+        armPainSpots.map((s) => armPainSpotLabel(s) ?? s).join(' · '),
+        armPainLevelLabel(today.armPainLevel),
+      ]
+        .filter(Boolean)
+        .join(' · ')
+    : '';
 
   /*
    * 오류로 되돌아왔을 때 방금 고른 것들을 그대로 다시 보여준다.
@@ -747,6 +887,11 @@ export function CheckinForm({
   const pickedWorkout = before
     ? (kept(before, 'preferredWorkout') ?? '')
     : (today?.preferredWorkout ?? '');
+  /* 팔 통증 자리 · 정도 — 오류로 돌아오면 방금 고른 것, 아니면 저장된 것 */
+  const pickedPainSpots = before
+    ? (keptAll(before, 'armPainSpots') ?? [])
+    : (today?.armPainSpots ?? []);
+  const pickedPainLevel = painLevelDraft ?? pick('armPainLevel', today?.armPainLevel);
 
   /*
    * 지금 몸 상태. 손댄 것이 있으면 그것을, 없으면 서버가 준 값을 본다.
@@ -758,6 +903,10 @@ export function CheckinForm({
     (p) => partNow(p.key, today?.[p.key] ?? '정상') !== '정상'
   );
   const partsExpanded = partsOpen || hurting.length > 0;
+  /* 지금 '통증'인 팔 관절 — 그 줄 밑에 아픈 자리 · 정도 줄이 열린다(ArmPainSpotsRow · ArmPainLevelRow) */
+  const painJoints = (['shoulder', 'elbow'] as const).filter(
+    (joint) => partNow(joint, today?.[joint] ?? '정상') === '통증'
+  );
   const partsSummary =
     hurting.length === 0
       ? null
@@ -800,7 +949,10 @@ export function CheckinForm({
           </span>
           <button
             type="button"
-            onClick={() => setEditing(true)}
+            onClick={() => {
+              setPainLevelDraft(null);
+              setEditing(true);
+            }}
             className="ml-auto inline-flex min-h-9 items-center gap-1 rounded-full bg-ink/6 px-3 text-xs font-medium text-ink transition-colors desk:min-h-0 desk:rounded-lg desk:border desk:border-line desk:bg-transparent desk:px-2.5 desk:py-1.5 desk:font-normal desk:text-muted desk:hover:border-sky desk:hover:text-sky"
           >
             <Pencil className="h-3 w-3" />
@@ -875,11 +1027,40 @@ export function CheckinForm({
               )}
 
               {painToday && (
-                <p className="mt-4 rounded-xl border border-danger-line bg-danger-bg px-4 py-3 text-xs leading-relaxed text-danger">
-                  통증이 있는 날은 던지거나 무리한 운동을 하지 마세요. 통증이 이어지면
-                  전문의 진료를 받아보는 것이 좋아요. 통증이 있는 동안에는 운동 추천도
-                  하지 않아요.
-                </p>
+                <div className="mt-4 rounded-xl border border-danger-line bg-danger-bg px-4 py-3 text-xs leading-relaxed text-danger">
+                  {/*
+                    2026-10-03 부터 통증이 있는 날도 운동은 아픈 곳을 피해서 추천한다(lib/report/prescription.ts).
+                    예전 문구('운동 추천도 하지 않아요')가 사실과 달라져 바꿨다. 던지기는 그대로 멈춘다.
+                  */}
+                  <p>
+                    통증이 있는 날은 던지지 마세요. 운동은 아픈 곳을 피해서 추천해요.
+                    통증이 이어지면 전문의 진료를 받아보세요.
+                  </p>
+                  {/*
+                    팔 통증 안내(2026-10-03) — 어깨 · 팔꿈치가 아픈 날만. 고른 자리 · 정도를 한 줄로 보여
+                    저장된 것을 알 수 있게 하고, 자세한 것(참고 부상 · 위험 신호 · 오늘 할 일)은 시트에서.
+                  */}
+                  {armPainToday && (
+                    <>
+                      {armPainLine && (
+                        <p className="mt-1.5 font-semibold">아픈 곳 · {armPainLine}</p>
+                      )}
+                      <ArmPainGuideButton
+                        pain={{
+                          spots: armPainSpots,
+                          level: today.armPainLevel,
+                          age,
+                        }}
+                        routineHref="/training?view=armcare"
+                        onGo={onLeave}
+                        className="mt-2.5 inline-flex min-h-11 items-center gap-1 rounded-full bg-surface px-4 text-sm font-semibold text-danger transition-colors hover:bg-surface-2"
+                      >
+                        통증 안내 보기
+                        <ChevronRight aria-hidden className="h-4 w-4" />
+                      </ArmPainGuideButton>
+                    </>
+                  )}
+                </div>
               )}
             </div>
           ) : (
@@ -891,6 +1072,12 @@ export function CheckinForm({
                * 빈 값으로 덮지 않는다(app/actions/checkin.ts). 상세 fieldset 밖이라 간편에서도 간다.
                */}
               <input type="hidden" name="body" value="1" />
+              {/*
+               * 팔 통증 자리 · 정도를 담아 보낸다는 표시(armpain=1). 서버는 이것이 왔을 때만 두 칸을 쓴다 —
+               * 어깨 · 팔꿈치가 '통증'이 아니면 [] · null 로 지운다. 옛 화면에는 이 표시가 없어 값을 지우지
+               * 않는다(app/actions/checkin.ts). body=1 과 같은 방식이다.
+               */}
+              <input type="hidden" name="armpain" value="1" />
 
               <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
                 <ModeSwitch mode={mode} onChange={pickMode} />
@@ -939,7 +1126,7 @@ export function CheckinForm({
                       type="button"
                       onClick={() => setPartsOpen((v) => !v)}
                       aria-expanded={partsExpanded}
-                      className="ml-auto inline-flex min-h-8 items-center gap-1 rounded-full bg-surface px-3 text-xs font-medium text-ink transition-colors desk:min-h-0 desk:rounded-lg desk:border desk:border-line desk:bg-transparent desk:px-2.5 desk:py-1 desk:font-normal desk:text-muted desk:hover:border-sky desk:hover:text-sky"
+                      className="ml-auto inline-flex min-h-10 items-center gap-1 rounded-full bg-surface px-3 text-xs font-medium text-ink transition-colors desk:min-h-0 desk:rounded-lg desk:border desk:border-line desk:bg-transparent desk:px-2.5 desk:py-1 desk:font-normal desk:text-muted desk:hover:border-sky desk:hover:text-sky"
                     >
                       <ChevronDown
                         aria-hidden
@@ -952,34 +1139,47 @@ export function CheckinForm({
 
                 <div className={partsExpanded ? 'mt-3 space-y-3' : 'hidden'}>
                   {CHECKIN_PARTS.map((part) => (
-                    <Row key={part.key} label={part.label} radios>
-                      {BODY_FEELINGS.map((v) => (
-                        <ChipRadio
-                          key={v}
-                          name={part.key}
-                          value={v}
-                          required
-                          defaultChecked={
-                            pick(part.key, today?.[part.key] ?? '정상') === v
-                          }
-                          className={feelingChipClass(v)}
-                          onPick={(v) =>
-                            setPartEdits((prev) => ({
-                              ...(prev ??
-                                Object.fromEntries(
-                                  CHECKIN_PARTS.map((q) => [
-                                    q.key,
-                                    partNow(q.key, today?.[q.key] ?? '정상'),
-                                  ])
-                                )),
-                              [part.key]: v,
-                            }))
-                          }
-                        >
-                          {v}
-                        </ChipRadio>
-                      ))}
-                    </Row>
+                    <Fragment key={part.key}>
+                      <Row label={part.label} radios>
+                        {BODY_FEELINGS.map((v) => (
+                          <ChipRadio
+                            key={v}
+                            name={part.key}
+                            value={v}
+                            required
+                            defaultChecked={
+                              pick(part.key, today?.[part.key] ?? '정상') === v
+                            }
+                            className={feelingChipClass(v)}
+                            onPick={(v) =>
+                              setPartEdits((prev) => ({
+                                ...(prev ??
+                                  Object.fromEntries(
+                                    CHECKIN_PARTS.map((q) => [
+                                      q.key,
+                                      partNow(q.key, today?.[q.key] ?? '정상'),
+                                    ])
+                                  )),
+                                [part.key]: v,
+                              }))
+                            }
+                          >
+                            {v}
+                          </ChipRadio>
+                        ))}
+                      </Row>
+                      {/* 팔 통증 — 어깨 · 팔꿈치가 '통증'이면 그 줄 바로 밑에(관절마다 자리, 정도는 한 번) */}
+                      {(part.key === 'shoulder' || part.key === 'elbow') &&
+                        painJoints.includes(part.key) && (
+                          <ArmPainSpotsRow joint={part.key} picked={pickedPainSpots} />
+                        )}
+                      {part.key === painJoints.at(-1) && (
+                        <ArmPainLevelRow
+                          picked={pickedPainLevel}
+                          onChange={setPainLevelDraft}
+                        />
+                      )}
+                    </Fragment>
                   ))}
                 </div>
               </div>

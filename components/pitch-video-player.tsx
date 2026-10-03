@@ -171,7 +171,11 @@ export function PitchVideoPlayer({ src, label }: { src: string; label: string })
       <div className={expanded ? 'relative min-h-0 flex-1' : 'relative'}>
         <video
           ref={videoRef}
-          src={src}
+          /*
+           * 주소 끝의 #t=0.001 — 아이폰은 preload="metadata" 면 첫 장면을 그리지 않아, 누르기 전까지 검은 네모였다
+           * (2026-10-03 점검). 아주 조금 뒤에서 시작하라고 하면 그 장면을 받아 그려 둔다. 이미 # 이 있으면 그대로.
+           */
+          src={src.includes('#') ? src : `${src}#t=0.001`}
           playsInline
           preload="metadata"
           onClick={() => {

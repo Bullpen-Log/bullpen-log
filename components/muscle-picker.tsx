@@ -23,10 +23,19 @@ export function MusclePicker({
 }) {
   const [picked, setPicked] = useState<string[]>([...initial]);
 
-  const toggle = (muscle: string) =>
+  /*
+   * 방금 누른 근육 — 그 부위 칩 밑에 무슨 일을 하는 근육인지 한 줄로 보인다(2026-10-03). 예전에는 title(마우스를
+   * 올려야 뜨는 말풍선)에만 있어 아이폰에서는 볼 길이 없었다.
+   */
+  const [lastTapped, setLastTapped] = useState<string | null>(null);
+  const tapped = ARMCARE_MUSCLES.find((m) => m.name === lastTapped);
+
+  const toggle = (muscle: string) => {
+    setLastTapped(muscle);
     setPicked((prev) =>
       prev.includes(muscle) ? prev.filter((m) => m !== muscle) : [...prev, muscle]
     );
+  };
 
   return (
     <fieldset className="space-y-2">
@@ -55,7 +64,8 @@ export function MusclePicker({
                       onClick={() => toggle(m.name)}
                       aria-pressed={on}
                       title={m.does}
-                      className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs font-medium transition-colors ${
+                      /* 휴대폰은 칩 40px(이 저장소의 칩 규칙) — 26px 라 옆 칩이 잘못 눌렸다. PC 는 예전 크기 */
+                      className={`inline-flex min-h-10 items-center gap-1 rounded-full border px-3 py-1 text-sm font-medium transition-colors desk:min-h-0 desk:px-2.5 desk:text-xs ${
                         on
                           ? 'border-sky bg-sky-tint text-sky-strong'
                           : 'border-line text-muted hover:border-sky hover:text-sky'
@@ -71,6 +81,15 @@ export function MusclePicker({
                   );
                 })}
               </div>
+              {tapped?.area === area.key && (
+                <p
+                  aria-live="polite"
+                  className="text-xs leading-relaxed break-keep text-muted"
+                >
+                  <span className="font-semibold text-ink">{tapped.name}</span> ·{' '}
+                  {tapped.does}
+                </p>
+              )}
             </div>
           );
         })}

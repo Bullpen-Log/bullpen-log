@@ -2,7 +2,7 @@ import { ViewTransition } from 'react';
 import { headers } from 'next/headers';
 import { requireUser } from '@/lib/dal';
 import { isNativeUserAgent } from '@/lib/app-env';
-import { isSex, toDateInputValue } from '@/lib/profile';
+import { ageFromBirthDate, isSex, toDateInputValue } from '@/lib/profile';
 import { toDateKey } from '@/lib/pitch-stats';
 import { createAvatarUrl } from '@/lib/storage';
 import { MOBILE_TABS, quickTabs, visibleGroups } from '@/lib/nav';
@@ -12,7 +12,12 @@ import { RefreshOnReturn } from '@/components/refresh-on-return';
 import { SendPendingSets } from '@/components/send-pending-sets';
 import type { CheckinData } from '@/components/checkin-form';
 import { prisma } from '@/lib/prisma';
-import { pickCheckinBody, pickCheckinDetail, pickCheckinParts } from '@/lib/checkin';
+import {
+  pickArmPain,
+  pickCheckinBody,
+  pickCheckinDetail,
+  pickCheckinParts,
+} from '@/lib/checkin';
 import { visibleExercises } from '@/lib/library-cache';
 import { availableParts } from '@/lib/report/today-pick';
 import { OPEN_POPUP, QUIET_REFRESH } from '@/lib/transition-types';
@@ -95,6 +100,8 @@ export default async function AppLayout({
     /* 근육통 · 잔 시간 — 간편 쪽 선택 칸. 체크인 창이 저장된 값으로 다시 채운다 */
     ...pickCheckinBody(c),
     ...pickCheckinDetail(c),
+    /* 팔 통증 자리 · 정도 — 어깨 · 팔꿈치 '통증'인 날 고른 것. 체크인 창과 요약의 통증 안내가 쓴다 */
+    ...pickArmPain(c),
   }));
 
   return (
@@ -150,6 +157,8 @@ export default async function AppLayout({
           pitchDays: recentPitchDays.map((p) => p.date.toISOString().slice(0, 10)),
           recentCheckins: gateCheckins,
           parts: availableParts(library),
+          /* 만 나이 — 체크인 요약의 팔 통증 안내가 쓴다(만 15세 미만은 루틴 대신 진료). 모르면 null */
+          age: user.birthDate ? ageFromBirthDate(user.birthDate) : null,
         }}
       />
 
@@ -201,7 +210,8 @@ export default async function AppLayout({
       */}
       <div className="flex flex-1 flex-col">
         {/* 밑 여백은 본문과 맨 밑 정보 사이의 틈이다. 휴대폰 하단 탭만큼 비우는 일은 SiteFooter 가 한다. */}
-        <main className="mx-auto w-full max-w-5xl flex-1 px-4 py-6 pb-10 sm:px-6 sm:pt-6 xl:max-w-6xl 2xl:max-w-7xl desk:pt-(--page-top) desk:pb-12">
+        {/* 양옆은 노치 자리와 견줘 큰 쪽 — 가로로 돌린 사파리에서 글이 노치 밑에 들어갔다(2026-10-03). 세로 · PC 는 그 값이 0 이라 예전 여백 그대로 */}
+        <main className="mx-auto w-full max-w-5xl flex-1 py-6 pb-10 pl-[max(calc(var(--spacing)*4),env(safe-area-inset-left))] pr-[max(calc(var(--spacing)*4),env(safe-area-inset-right))] sm:pl-[max(calc(var(--spacing)*6),env(safe-area-inset-left))] sm:pr-[max(calc(var(--spacing)*6),env(safe-area-inset-right))] sm:pt-6 xl:max-w-6xl 2xl:max-w-7xl desk:pt-(--page-top) desk:pb-12">
           {/*
            * 탭을 옮길 때 본문만 부드럽게 바뀐다.
            *

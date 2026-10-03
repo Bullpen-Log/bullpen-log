@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Loader2, Play } from 'lucide-react';
 import {
   referenceEmbedUrl,
@@ -54,6 +54,22 @@ export function LibraryVideo({
   const [url, setUrl] = useState<string>();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string>();
+  /*
+   * 저절로 틀기가 막혔나 — 아이폰 저전력 모드는 소리 없는 영상의 자동 재생도 막는다. 관리자가 아니면 재생 막대가
+   * 없어서 멈춘 첫 장면(또는 검은 네모)만 남고 틀 길이 없었다(2026-10-03 점검). 막히면 가운데 재생 단추를 띄운다.
+   */
+  const [blocked, setBlocked] = useState(false);
+  const videoRef = useRef<HTMLVideoElement>(null);
+
+  useEffect(() => {
+    const v = videoRef.current;
+    if (!url || !v || isAdmin) return;
+    /* autoPlay 와 같은 일을 한 번 더 — 거절되면 그것이 '막혔다'는 알림이다 */
+    v.play().catch((err: unknown) => {
+      if (err instanceof DOMException && err.name === 'NotAllowedError')
+        setBlocked(true);
+    });
+  }, [url, isAdmin]);
 
   /*
    * 참고 영상은 유튜브 재생기를 그대로 띄운다.
@@ -139,32 +155,57 @@ export function LibraryVideo({
   };
 
   if (url) {
+    /* 재생 막대가 없는 사람은 영상을 눌러 튼다 — 멈춰 있을 때만(돌고 있으면 그대로 둔다) */
+    const tapToPlay = () => {
+      const v = videoRef.current;
+      if (isAdmin || !v || !v.paused) return;
+      v.play()
+        .then(() => setBlocked(false))
+        .catch(() => {});
+    };
     return (
-      <video
-        src={url}
-        // 미리보기 이미지가 있으면 첫 프레임을 받기 전에도 화면이 비지 않는다.
-        poster={thumbUrl ?? undefined}
-        // 관리자만 재생 막대(=음량 버튼)를 본다. 위 isAdmin 설명 참고.
-        controls={isAdmin}
-        // 막대가 없으면 멈출 방법도 없으므로, 짧은 시연 영상처럼 계속 돌린다.
-        loop={!isAdmin}
-        autoPlay
-        /*
-         * 라이브러리 영상은 소리 없이 튼다.
-         *
-         * 동작을 보여주는 시연 영상이라 소리가 필요 없고, 촬영할 때 들어간
-         * 주변 소음이 그대로 나가면 곤란하다. 헬스장에서 폰으로 열었을 때
-         * 갑자기 소리가 나는 것도 막는다.
-         *
-         * 더불어 브라우저는 소리 있는 영상의 자동 재생을 막는다.
-         * 음소거로 두면 autoPlay 가 실제로 동작한다.
-         * 소리를 듣고 싶으면 재생기의 음량 버튼으로 켤 수 있다.
-         */
-        muted
-        playsInline
-        aria-label={title}
-        className={`${frame} rounded-xl border border-line bg-black object-contain`}
-      />
+      <div className={`relative ${frame}`}>
+        <video
+          ref={videoRef}
+          src={url}
+          // 미리보기 이미지가 있으면 첫 프레임을 받기 전에도 화면이 비지 않는다.
+          poster={thumbUrl ?? undefined}
+          // 관리자만 재생 막대(=음량 버튼)를 본다. 위 isAdmin 설명 참고.
+          controls={isAdmin}
+          // 막대가 없으면 멈출 방법도 없으므로, 짧은 시연 영상처럼 계속 돌린다.
+          loop={!isAdmin}
+          autoPlay
+          /*
+           * 라이브러리 영상은 소리 없이 튼다.
+           *
+           * 동작을 보여주는 시연 영상이라 소리가 필요 없고, 촬영할 때 들어간
+           * 주변 소음이 그대로 나가면 곤란하다. 헬스장에서 폰으로 열었을 때
+           * 갑자기 소리가 나는 것도 막는다.
+           *
+           * 더불어 브라우저는 소리 있는 영상의 자동 재생을 막는다.
+           * 음소거로 두면 autoPlay 가 실제로 동작한다.
+           * 소리를 듣고 싶으면 재생기의 음량 버튼으로 켤 수 있다.
+           */
+          muted
+          playsInline
+          onClick={tapToPlay}
+          onPlaying={() => setBlocked(false)}
+          aria-label={title}
+          className="h-full w-full rounded-xl border border-line bg-black object-contain"
+        />
+        {blocked && !isAdmin && (
+          <button
+            type="button"
+            onClick={tapToPlay}
+            aria-label={`${title} 재생`}
+            className="absolute inset-0 grid place-items-center rounded-xl"
+          >
+            <span className="flex h-14 w-14 items-center justify-center rounded-full bg-sky text-white shadow-lg">
+              <Play className="ml-0.5 h-6 w-6 fill-current" />
+            </span>
+          </button>
+        )}
+      </div>
     );
   }
 

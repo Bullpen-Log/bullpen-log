@@ -3,6 +3,7 @@ import { Bebas_Neue } from 'next/font/google';
 import { THEME_INIT_SCRIPT } from '@/lib/theme';
 import { APP_INIT_SCRIPT } from '@/lib/native-app';
 import { PressFeedback } from '@/components/press-feedback';
+import { ViewportVars } from '@/components/viewport-vars';
 import './globals.css';
 
 /**
@@ -37,8 +38,9 @@ export const metadata: Metadata = {
  * 주소창·상태바 색을 화면 바탕색에 맞춘다 (app/globals.css 의 --color-page).
  * 앱으로 열었을 때 위쪽 띠가 파랗거나 하얗게 따로 놀지 않게 한다.
  *
- * 폰의 밝기 설정을 따른다. 앱 안에서 테마를 따로 바꿨으면 띠만 폰 설정대로
- * 남는다 — 이 태그는 폰 설정밖에 읽지 못한다.
+ * 여기 값은 처음 한 번의 짐작(폰의 밝기 설정)이다. 테마 스크립트(lib/theme.ts)가 첫 페인트 전에
+ * 고른 테마의 바탕색 하나로 바꾸고, 테마를 바꿀 때마다 다시 칠한다(2026-10-03 — 예전엔 폰 설정만
+ * 따라서 앱을 라이트로 둔 채 폰이 다크면 띠만 검었다).
  *
  * 운동 화면은 자기 viewport(노치까지 쓰기 등)를 따로 내는데, Next.js 가 칸별로
  * 합치므로 이 색은 거기서도 그대로 산다.
@@ -53,7 +55,7 @@ export const viewport: Viewport = {
   viewportFit: 'cover',
   themeColor: [
     { media: '(prefers-color-scheme: light)', color: '#f2f2f7' },
-    { media: '(prefers-color-scheme: dark)', color: '#0b1220' },
+    { media: '(prefers-color-scheme: dark)', color: '#000000' },
   ],
 };
 
@@ -103,6 +105,8 @@ export default function RootLayout({
         {children}
         {/* 손가락으로 누른 것을 옅게 — 아이폰 단추처럼(globals.css '손가락으로 눌렀을 때') */}
         <PressFeedback />
+        {/* 자판 높이를 --kb · --vvh 로 — 아이폰은 자판이 올라와도 화면 높이가 그대로라 바닥 단추가 숨었다 */}
+        <ViewportVars />
       </body>
     </html>
   );

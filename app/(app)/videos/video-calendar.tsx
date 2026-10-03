@@ -690,11 +690,14 @@ function DayPanel({
                 /*
                   crossOrigin — 멈춘 장면을 그대로 뜨려면(frameOf) 다른 주소의 영상이라도
                   캔버스에 그릴 수 있어야 한다. 저장소는 그것을 허락한다.
+                  '#t=0.001' · poster — 아이폰은 preload 를 무시해 누르기 전까지 검은 칸이었다.
+                  저장해 둔 그림이 있으면 그것을, 없으면 첫 장면을 미리 그린다(2026-10-03).
                 */
                 <video
                   key={url}
                   ref={player}
-                  src={url}
+                  src={url.includes('#') ? url : `${url}#t=0.001`}
+                  poster={(playing && thumbs[playing]) || undefined}
                   crossOrigin="anonymous"
                   controls
                   playsInline

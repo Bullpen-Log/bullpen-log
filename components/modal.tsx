@@ -397,8 +397,11 @@ export function Modal({
         막대는 감춘다(no-scrollbar). 창은 화면의 일부를 덮는 물건이라 그 안에
         또 막대가 서면 테두리가 두 줄로 보인다. 굴리는 것은 그대로 된다 —
         휠·손가락·키보드 모두 평소와 같다.
+
+        overscroll-contain — 끝까지 굴린 뒤 더 밀어도 뒤 화면이 따라 굴러가거나 고무줄처럼 튕기지 않게(2026-10-03
+        아이폰 점검).
       */}
-      <div className="no-scrollbar relative min-h-0 flex-auto overflow-y-auto px-5 pt-3 pb-[calc(1.25rem+env(safe-area-inset-bottom))] desk:py-5">
+      <div className="no-scrollbar relative min-h-0 flex-auto overflow-y-auto overscroll-contain px-5 pt-3 pb-[calc(1.25rem+env(safe-area-inset-bottom))] desk:py-5">
         {/* 내용의 제 높이를 재는 자리(위 'page' 창의 높이 잇기) */}
         <div ref={contentRef}>{children}</div>
       </div>

@@ -1,11 +1,12 @@
 'use client';
 
-import { useEffect, useMemo, useState, useTransition } from 'react';
+import { useEffect, useMemo, useRef, useState, useTransition } from 'react';
 import { formatSpeed } from '@/lib/units';
 import { useSpeedUnit } from '@/components/use-units';
 import Link from 'next/link';
 import { ChevronDown, Film, Star, X } from 'lucide-react';
 import { usePlaybackUrls } from '@/components/use-playback-urls';
+import { fetchPitchThumbs } from '@/lib/pitch-thumbs';
 import { intensityClass } from '@/components/month-calendar';
 import { REST_SESSION_TYPE, SESSION_TYPES } from '@/lib/session-type';
 import { VELOCITY_MEMO_MARK } from '@/lib/velocity-meta';
@@ -279,7 +280,31 @@ export function VideoGallery({
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [months, toggled, openByDefault]
   );
-  const { urls } = usePlaybackUrls(visiblePaths);
+  /*
+   * 칸의 그림은 저장해 둔 미리보기(JPEG, lib/pitch-thumbs.ts)부터 — 칸마다 <video> 를 두면 영상 머리를 여럿 받아
+   * 휴대폰 데이터를 먹고, 아이폰은 재생 전 장면을 안 그려 검은 칸으로 남았다(2026-10-03).
+   * 그림이 없는 것(null)만 예전처럼 영상의 한 장면을 쓴다. 아직 묻는 중(undefined)이면 필름 그림.
+   */
+  const [thumbs, setThumbs] = useState<Record<string, string | null>>({});
+  const askedThumbs = useRef(new Set<string>());
+  useEffect(() => {
+    const ask = visiblePaths.filter((p) => !askedThumbs.current.has(p));
+    if (ask.length === 0) return;
+    for (const p of ask) askedThumbs.current.add(p);
+    const settle = (got: Record<string, string>) =>
+      setThumbs((prev) => {
+        const next = { ...prev };
+        for (const p of ask) next[p] = got[p] ?? null;
+        return next;
+      });
+    /* 못 물으면 영상으로 — 다시 묻느라 칸이 필름 그림에 머물지 않게 */
+    fetchPitchThumbs(ask).then(settle, () => settle({}));
+  }, [visiblePaths]);
+  const noThumbPaths = useMemo(
+    () => visiblePaths.filter((p) => thumbs[p] === null),
+    [visiblePaths, thumbs]
+  );
+  const { urls } = usePlaybackUrls(noThumbPaths);
 
   const pick = (clip: Clip) => {
     if (!clip.path) return;
@@ -424,6 +449,7 @@ export function VideoGallery({
                 {group.items.map((clip) => {
                   const slot = slotOf(clip.id);
                   const url = clip.path ? urls[clip.path] : undefined;
+                  const thumb = clip.path ? thumbs[clip.path] : undefined;
 
                   /* 썸네일과 설명 — 링크에도 단추에도 같은 속이 들어간다 */
                   const body = (
@@ -449,10 +475,24 @@ export function VideoGallery({
                             </span>
                           )}
                         </span>
+                      ) : thumb ? (
+                        // eslint-disable-next-line @next/next/no-img-element -- 저장소의 서명 주소라 next/image 최적화를 거치지 않는다
+                        <img
+                          src={thumb}
+                          alt=""
+                          loading="lazy"
+                          decoding="async"
+                          /* 주소가 낡았거나 지워졌으면 영상의 한 장면으로 */
+                          onError={() => {
+                            const p = clip.path;
+                            if (p) setThumbs((prev) => ({ ...prev, [p]: null }));
+                          }}
+                          className="aspect-video w-full bg-shade object-contain"
+                        />
                       ) : url ? (
                         /*
-                          영상의 한 프레임을 그대로 쓴다. preload="metadata" 라
-                          머리 부분만 받으므로 목록이 무거워지지 않는다.
+                          미리보기 그림이 없는 영상만 — 영상의 한 프레임을 그대로 쓴다. preload="metadata" 라
+                          머리 부분만 받는다.
                         */
                         <video
                           src={`${url}#t=0.5`}

@@ -276,6 +276,13 @@ model DailyCheckin {
   /// 그날 남기고 싶은 말
   note         String? @db.Text
 
+  /// ── 팔 통증 안내 (2026-10 추가) ─────────────────────────────────
+  /// 팔 통증 자리 — 어깨 · 팔꿈치가 '통증'인 날만. lib/armcare/anatomy.ts 의 ArmcareAreaKey 값.
+  /// 그 관절이 '통증'이 아니면 저장할 때 버린다(lib/checkin.ts 의 parseArmPain).
+  armPainSpots String[] @default([])
+  /// 팔 통증 정도 1 던질 때만 / 2 평소 움직일 때도 / 3 가만히 있어도·밤에도. 안 고르면 null
+  armPainLevel Int?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)

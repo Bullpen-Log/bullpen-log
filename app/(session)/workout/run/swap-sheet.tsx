@@ -275,7 +275,12 @@ export function SwapSheetView({
   const recentPicks = pickable(choices?.recentIds ?? []);
 
   return (
-    <div className="fixed inset-0 z-50 flex flex-col justify-end">
+    /*
+     * 자판이 떠 있으면 보이는 자리(--vvh · --kb, components/viewport-vars.tsx)에 맞춘다 — 아이폰은 자판이 올라와도
+     * 화면에 붙인 창이 그대로라, 메모 · 찾기를 쓰는 동안 시트 아래쪽이 자판 뒤에 숨었다(2026-10-03 점검).
+     * 자판이 없으면 예전처럼 화면 전체(--kb 0, --vvh 없음).
+     */
+    <div className="fixed inset-x-0 bottom-[var(--kb,0px)] z-50 flex h-[var(--vvh,100dvh)] flex-col justify-end">
       {/* 바깥을 눌러도 닫힌다 */}
       <button
         type="button"
@@ -338,7 +343,8 @@ export function SwapSheetView({
           )}
         </div>
 
-        <div className="min-h-0 flex-1 overflow-y-auto px-3 pt-3 pb-[max(1rem,env(safe-area-inset-bottom))]">
+        {/* 아래 여백은 홈 막대만큼 — 자판이 떠 있으면(--kb) 홈 막대는 자판 뒤라 더하지 않는다 */}
+        <div className="min-h-0 flex-1 overflow-y-auto px-3 pt-3 pb-[max(1rem,calc(env(safe-area-inset-bottom)-var(--kb,0px)))]">
           {(error || halted) && (
             <p
               role="alert"

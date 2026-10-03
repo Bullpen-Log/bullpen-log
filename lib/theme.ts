@@ -52,6 +52,20 @@ function normalizeTheme(value: unknown): ThemeChoice {
 export const DEFAULT_THEME: ThemeChoice = 'light';
 
 /**
+ * 테마마다 바탕색(app/globals.css 의 --color-page) — 사파리 주소창 · 홈 화면 앱의 상태바 띠(<meta name="theme-color">)를
+ * 이 색으로 칠한다. 메타 태그는 폰의 밝기 설정만 읽어서, 앱을 라이트로 둔 채 폰이 다크면 흰 화면 위에 검은 띠가
+ * 따로 놀았다(2026-10-03 아이폰 점검). 고른 테마를 칠할 때마다 메타의 색을 같이 바꾼다.
+ */
+const PAGE_COLORS: Record<Exclude<ThemeChoice, 'system'>, string> = {
+  light: '#f2f2f7',
+  dark: '#000000',
+  navy: '#0b1220',
+};
+
+/** <meta name="theme-color"> 를 그 테마의 바탕색 하나로 — 폰 설정별(media) 갈래는 지운다 */
+const THEME_COLOR_JS = `function(t){var c=${JSON.stringify(PAGE_COLORS)}[t]||'#f2f2f7';var m=document.querySelectorAll('meta[name="theme-color"]');for(var i=0;i<m.length;i++){m[i].removeAttribute('media');m[i].setAttribute('content',c);}}`;
+
+/**
  * 첫 페인트 전에 실행되는 스크립트.
  *
  * 이게 없으면 리액트가 올라오기 전까지 밝은 화면이 한 번 번쩍인다.
@@ -74,6 +88,11 @@ export const THEME_INIT_SCRIPT = `
         : window.matchMedia('${DARK_QUERY}').matches
           ? 'dark'
           : 'light';
+    var paintBar = ${THEME_COLOR_JS};
+    var theme = document.documentElement.dataset.theme;
+    /* 메타 태그는 <head> 에서 이 스크립트보다 뒤에 온다 — 다 읽은 뒤에 칠한다 */
+    paintBar(theme);
+    document.addEventListener('DOMContentLoaded', function () { paintBar(theme); });
   } catch (e) {
     document.documentElement.dataset.theme = 'light';
   }
@@ -96,7 +115,13 @@ export function readTheme(): ThemeChoice {
 function paint(choice: ThemeChoice) {
   const root = document.documentElement;
   root.dataset.themeChoice = choice;
-  root.dataset.theme = resolveTheme(choice);
+  const theme = resolveTheme(choice);
+  root.dataset.theme = theme;
+  const color = PAGE_COLORS[theme];
+  document.querySelectorAll('meta[name="theme-color"]').forEach((m) => {
+    m.removeAttribute('media');
+    m.setAttribute('content', color);
+  });
 }
 
 /**

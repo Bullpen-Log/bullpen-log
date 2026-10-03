@@ -349,6 +349,20 @@ export function EntryForm({
                     max="10"
                     value={form.intensity}
                     onChange={(e) => setForm({ ...form, intensity: e.target.value })}
+                    /*
+                      아이폰은 트랙을 눌러도 손잡이가 안 온다(손잡이를 잡아 끌어야만 움직인다) — 손가락으로 누른 자리의
+                      값으로 바로 옮긴다. 마우스는 브라우저가 이미 해 준다(2026-10-03).
+                    */
+                    onPointerDown={(e) => {
+                      if (e.pointerType === 'mouse') return;
+                      const r = e.currentTarget.getBoundingClientRect();
+                      if (r.width <= 0) return;
+                      const pct = Math.min(
+                        1,
+                        Math.max(0, (e.clientX - r.left) / r.width)
+                      );
+                      setForm({ ...form, intensity: String(Math.round(1 + pct * 9)) });
+                    }}
                     /* 채워진 길이를 CSS 로 넘긴다 — .range 안에서 트랙을 여기서 끊는다 */
                     style={
                       {

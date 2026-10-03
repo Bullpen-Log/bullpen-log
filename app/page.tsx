@@ -79,7 +79,8 @@ export default async function LandingPage() {
         단추 — 휴대폰은 화면 바닥에 붙는다(아이폰 환영 화면처럼). 밑은 홈 막대 자리만큼 비운다.
         '계정 만들기'는 로그인 화면 안에 있다(로그인 화면은 미리 만들어 둔 화면이라 주소로 모드를 고르지 않는다).
       */}
-      <div className="sticky bottom-0 bg-linear-to-t from-page via-page/95 to-page/0 pt-6 pb-[max(1.25rem,env(safe-area-inset-bottom))] sm:static sm:bg-none">
+      {/* 아이폰 앱은 몸 전체가 이미 홈 막대 여백을 둔다(globals.css '아이폰 앱 안') — 두 번 비지 않게 앱에서는 1.25rem 만 */}
+      <div className="sticky bottom-0 bg-linear-to-t from-page via-page/95 to-page/0 pt-6 pb-[max(1.25rem,env(safe-area-inset-bottom))] in-data-[app=native]:pb-5 sm:static sm:bg-none">
         <div className="mx-auto flex w-full max-w-md flex-col items-stretch gap-1 px-6">
           {user ? (
             <ButtonLink href="/today" className="min-h-13 text-base">

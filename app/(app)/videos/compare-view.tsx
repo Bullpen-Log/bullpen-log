@@ -33,6 +33,34 @@ import { ClipPicker } from './clip-picker';
 
 const SPEEDS = [0.25, 0.5, 1] as const;
 
+/**
+ * 재생 전에도 첫 화면이 보이게 '#t=0.001' 을 붙인다 — 아이폰은 preload 를 무시해 누르기 전까지
+ * 검은 칸이었다. 이미 '#…' 가 있으면 그대로 둔다(2026-10-03).
+ */
+function firstFrameSrc(url: string | undefined) {
+  if (!url || url.includes('#')) return url;
+  return `${url}#t=0.001`;
+}
+
+/**
+ * 한 번도 재생하지 않은 영상의 자리 옮기기. 길이(메타데이터)를 받기 전에 currentTime 을 주면
+ * 아이폰은 그냥 버려서, 재생 전 프레임 이동 · 기준점 되돌리기가 안 먹었다 — 받은 뒤에 옮긴다(2026-10-03).
+ */
+function seekTo(video: HTMLVideoElement, time: number) {
+  if (video.readyState >= HTMLMediaElement.HAVE_METADATA) {
+    video.currentTime = time;
+    return;
+  }
+  video.addEventListener(
+    'loadedmetadata',
+    () => {
+      video.currentTime = time;
+    },
+    { once: true }
+  );
+  if (video.networkState !== HTMLMediaElement.NETWORK_LOADING) video.load();
+}
+
 export type ClipOption = {
   id: string;
   date: string;
@@ -94,7 +122,7 @@ function ComparePane({
       Math.max(video.currentTime + frameDurationRef.current * direction, 0),
       video.duration || Infinity
     );
-    video.currentTime = next;
+    seekTo(video, next);
     setCurrent(next);
   };
 
@@ -120,7 +148,7 @@ function ComparePane({
       <div className={expanded ? 'relative min-h-0 flex-1' : 'relative'}>
         <video
           ref={videoRef}
-          src={url}
+          src={firstFrameSrc(url)}
           playsInline
           preload="metadata"
           onTimeUpdate={(e) => setCurrent(e.currentTarget.currentTime)}
@@ -179,13 +207,13 @@ function ComparePane({
         </p>
       )}
 
-      {/* 기준점 맞추기 — 좁은 화면에서는 아이콘만 */}
+      {/* 기준점 맞추기 — 좁은 화면에서는 아이콘만. 휴대폰은 누르는 칸 44px(PC 는 36px 그대로, 2026-10-03) */}
       <div className="flex items-center gap-1 border-t border-line p-1.5">
         <button
           type="button"
           onClick={() => nudge(-1)}
           aria-label={`${side}면 한 프레임 뒤로`}
-          className="flex h-9 w-9 items-center justify-center rounded-lg border border-line text-muted transition-colors hover:border-sky hover:text-sky"
+          className="flex h-11 w-11 desk:h-9 desk:w-9 items-center justify-center rounded-lg border border-line text-muted transition-colors hover:border-sky hover:text-sky"
         >
           <ChevronLeft className="h-4 w-4" />
         </button>
@@ -193,7 +221,7 @@ function ComparePane({
           type="button"
           onClick={() => nudge(1)}
           aria-label={`${side}면 한 프레임 앞으로`}
-          className="flex h-9 w-9 items-center justify-center rounded-lg border border-line text-muted transition-colors hover:border-sky hover:text-sky"
+          className="flex h-11 w-11 desk:h-9 desk:w-9 items-center justify-center rounded-lg border border-line text-muted transition-colors hover:border-sky hover:text-sky"
         >
           <ChevronRight className="h-4 w-4" />
         </button>
@@ -202,7 +230,7 @@ function ComparePane({
           onClick={onMark}
           title="지금 화면을 기준점으로 지정"
           aria-label={`${side}면 기준점 지정`}
-          className="flex h-9 min-w-0 flex-1 items-center justify-center gap-1 rounded-lg border border-line text-[11px] text-muted transition-colors hover:border-sky hover:text-sky"
+          className="flex h-11 min-w-0 flex-1 items-center justify-center gap-1 rounded-lg border border-line text-[11px] desk:h-9 text-muted transition-colors hover:border-sky hover:text-sky"
         >
           <Flag className="h-3.5 w-3.5 shrink-0" />
           <span className="truncate">기준점</span>
@@ -322,7 +350,7 @@ export function CompareView({
         Math.max(video.currentTime + frame.current * direction, 0),
         video.duration || Infinity
       );
-      video.currentTime = next;
+      seekTo(video, next);
     }
     setPlaying(false);
   };
@@ -331,11 +359,11 @@ export function CompareView({
   const resetToMarks = () => {
     if (videoA.current) {
       videoA.current.pause();
-      videoA.current.currentTime = markA;
+      seekTo(videoA.current, markA);
     }
     if (videoB.current) {
       videoB.current.pause();
-      videoB.current.currentTime = markB;
+      seekTo(videoB.current, markB);
     }
     setPlaying(false);
   };
@@ -472,11 +500,13 @@ export function CompareView({
           <button
             type="button"
             onClick={resetToMarks}
-            aria-label="두 영상을 기준점으로"
+            aria-label="두 영상을 각자의 기준점으로"
             title="두 영상을 각자의 기준점으로"
-            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border border-line text-muted transition-colors hover:border-sky hover:text-sky"
+            /* 손가락 화면은 title 풍선이 안 뜬다 — 아이콘만으로는 뜻을 몰라 짧은 글을 늘 붙인다(2026-10-03) */
+            className="flex h-11 shrink-0 items-center justify-center gap-1.5 rounded-lg border border-line px-3 text-xs text-muted transition-colors hover:border-sky hover:text-sky"
           >
-            <RotateCcw className="h-4 w-4" />
+            <RotateCcw aria-hidden className="h-4 w-4" />
+            <span>기준점</span>
           </button>
 
           <button
@@ -518,6 +548,7 @@ export function CompareView({
             type="button"
             onClick={() => setDrawing((v) => !v)}
             aria-pressed={drawing}
+            aria-label="측정 — 영상 위에 기준선·각도 긋기"
             title="영상 위에 기준선·각도 긋기"
             className={`flex h-11 shrink-0 items-center gap-1.5 rounded-lg border px-3 text-xs transition-colors ${
               drawing
@@ -525,8 +556,8 @@ export function CompareView({
                 : 'border-line text-muted hover:border-sky hover:text-sky'
             }`}
           >
-            <Ruler className="h-4 w-4" />
-            <span className="hidden sm:inline">측정</span>
+            <Ruler aria-hidden className="h-4 w-4" />
+            <span>측정</span>
           </button>
 
           <button

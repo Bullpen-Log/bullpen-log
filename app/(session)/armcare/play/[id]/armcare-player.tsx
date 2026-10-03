@@ -33,6 +33,7 @@ import {
   type ArmcareExerciseView,
 } from '@/app/(app)/training/armcare-media';
 import { useAlarm } from '@/components/use-alarm';
+import { nativeCancelAlarm, nativeScheduleAlarm } from '@/lib/native-bridge';
 
 /** 따라 할 운동 하나 — 서버(page.tsx)가 만들어 넘긴다 */
 export type PlayerItem = {
@@ -151,6 +152,9 @@ function initState(list: PlayerItem[]): State {
     justDone: null,
   };
 }
+
+/** 버티기 · 쉬기 시계의 앱 알림 이름 — 같은 이름으로 걸면 앞의 것을 바꾼다(lib/native-bridge.ts) */
+const CLOCK_ALARM_ID = 'armcare-clock';
 
 /** 이만큼 아무것도 안 누르면 화면 잠금을 놓는다 — 운동 화면이 쉬는 시계를 거두는 10분 */
 const IDLE_MS = REST_CLOCK_LIMIT_SECONDS * 1000;
@@ -325,9 +329,23 @@ export function ArmcarePlayer({
       if (document.visibilityState === 'visible' && Date.now() >= clock.endsAt) end();
     };
     document.addEventListener('visibilitychange', onVisible);
+    /*
+     * 아이폰 앱이면 끝날 시각에 알림도 걸어 둔다 — 폰을 잠그거나 다른 앱에 가 있으면 위 시계 · 소리가 멈춰, 버티기 ·
+     * 쉬기가 끝나도 조용했다(2026-10-03 점검). 시계가 바뀌거나(끝남 · 건너뛰기 · 다른 운동) 화면을 나가면 거둔다.
+     * 앱이 앞에 떠 있는 동안에는 알림이 안 뜨고 위 소리가 알린다. 사파리 · PC 에서는 아무 일도 안 한다.
+     */
+    nativeScheduleAlarm(
+      CLOCK_ALARM_ID,
+      clock.endsAt,
+      clock.kind === 'hold' ? '버티기 끝' : '쉬는 시간 끝',
+      clock.kind === 'hold'
+        ? '다 버텼어요. 돌아와서 이어 가요'
+        : '다음 세트를 시작할 차례예요'
+    );
     return () => {
       clearTimeout(id);
       document.removeEventListener('visibilitychange', onVisible);
+      nativeCancelAlarm(CLOCK_ALARM_ID);
     };
   }, [state.clock, ring]);
 

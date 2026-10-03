@@ -18,5 +18,7 @@ export async function GET(req: NextRequest) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || isFutureDateKey(date)) {
     return NextResponse.json({ error: '날짜가 올바르지 않습니다.' }, { status: 400 });
   }
-  return NextResponse.json(await loadDayDetail(user, date));
+  /* 구속 측정 클립 — 그날 클립이 있다고 캘린더가 알 때만 청한다(서명 왕복이 든다) */
+  const clips = req.nextUrl.searchParams.get('clips') === '1';
+  return NextResponse.json(await loadDayDetail(user, date, { clips }));
 }

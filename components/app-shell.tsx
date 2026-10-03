@@ -234,6 +234,8 @@ export function AppNav({
     pitchDays: string[];
     recentCheckins: CheckinData[];
     parts: string[];
+    /** 만 나이 — 체크인 요약의 팔 통증 안내가 쓴다(만 15세 미만은 루틴 대신 진료). 모르면 null */
+    age: number | null;
   };
 }) {
   const isActive = useIsActive();
@@ -1307,6 +1309,9 @@ export function AppNav({
           <CheckinForm
             recent={todo.recentCheckins}
             parts={todo.parts}
+            age={todo.age}
+            /* 팔 통증 안내의 [통증 루틴 하기]로 트레이닝에 갈 때 이 창도 닫는다 */
+            onLeave={() => setCheckinOpen(false)}
             onSaved={(d) => {
               /* 지금 받아 둔 목록을 기준으로 적어 둔다 — 새 목록이 오면 그것을 믿는다 */
               setCheckedHere({ day: d, basis: todo.checkinDays });
@@ -1930,8 +1935,50 @@ function DetailMenu({
     const el = ref.current;
     if (!el) return;
     if (open && !el.open) el.showModal();
-    if (!open && el.open) el.close();
+    if (!open && el.open) {
+      /* 끌어내리다 놓아 닫을 때 — 남은 자리(인라인 transform)를 지워야 닫히는 움직임이 거기서 이어진다 */
+      el.style.transform = '';
+      el.close();
+    }
   }, [open]);
+
+  /*
+   * 휴대폰 시트를 끌어내려 닫기 — 손잡이 · '메뉴' 줄을 잡고 아래로 끌면 따라 내려오고, 충분히(110px) 내리거나
+   * 빠르게 튕기면 닫힌다. 덜 내리면 제자리로 돌아간다. 손잡이를 달아 두고 끌리지 않아 고장 난 것처럼 보였다
+   * (2026-10-03 아이폰 점검). 앱의 다른 시트(components/modal.tsx)와 같은 숫자 · 같은 몸짓. 단추를 잡은 것은
+   * 끌기가 아니다. PC 오른쪽 판은 끌지 않는다.
+   */
+  const drag = useRef<{ id: number; y: number; t: number; dy: number } | null>(null);
+  const startDrag = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (window.matchMedia(DESK_MEDIA).matches || (e.target as HTMLElement).closest('button, a')) return;
+    drag.current = { id: e.pointerId, y: e.clientY, t: performance.now(), dy: 0 };
+    e.currentTarget.setPointerCapture(e.pointerId);
+  };
+  const moveDrag = (e: React.PointerEvent<HTMLDivElement>) => {
+    const d = drag.current;
+    const el = ref.current;
+    if (!d || !el || e.pointerId !== d.id) return;
+    d.dy = Math.max(0, e.clientY - d.y);
+    el.style.transform = `translateY(${d.dy}px)`;
+  };
+  const endDrag = (e: React.PointerEvent<HTMLDivElement>) => {
+    const d = drag.current;
+    const el = ref.current;
+    if (!d || !el || e.pointerId !== d.id) return;
+    drag.current = null;
+    const speed = d.dy / Math.max(1, performance.now() - d.t);
+    if (d.dy > 110 || (d.dy > 30 && speed > 0.6)) {
+      onClose();
+      return;
+    }
+    if (d.dy > 0) {
+      el.animate([{ transform: `translateY(${d.dy}px)` }, { transform: 'translateY(0)' }], {
+        duration: 220,
+        easing: 'cubic-bezier(0.32, 0.72, 0, 1)',
+      });
+    }
+    el.style.transform = '';
+  };
 
   return (
     <dialog
@@ -1987,6 +2034,14 @@ function DetailMenu({
         시계 자리 밑에서 멈추므로 내릴 것이 없고, 대신 손잡이를 단다.
       */}
       <div className="flex max-h-[calc(100dvh-env(safe-area-inset-top)-0.75rem)] flex-col desk:h-full desk:max-h-none desk:pt-[env(safe-area-inset-top)]">
+        {/* 손잡이 · '메뉴' 줄 — 휴대폰은 여기를 잡고 끌어내려 닫는다(startDrag) */}
+        <div
+          className="shrink-0 touch-none desk:touch-auto"
+          onPointerDown={startDrag}
+          onPointerMove={moveDrag}
+          onPointerUp={endDrag}
+          onPointerCancel={endDrag}
+        >
         <div aria-hidden className="mx-auto mt-2 h-[5px] w-9 shrink-0 rounded-full bg-ink/15 desk:hidden" />
         <div className="flex h-12 shrink-0 items-center justify-between px-4 desk:border-b desk:border-line">
           <span className="text-heading text-lg text-ink desk:text-sm">메뉴</span>
@@ -2001,8 +2056,9 @@ function DetailMenu({
             </span>
           </button>
         </div>
+        </div>
 
-        <nav className="flex-1 overflow-y-auto px-2.5 py-2.5">
+        <nav className="flex-1 overflow-y-auto overscroll-contain px-2.5 py-2.5">
           {groups.map((group, gi) => (
             <div
               key={group.title ?? `g${gi}`}
@@ -2206,14 +2262,17 @@ function MobileTopBar({
          * 뒤 흐림(backdrop-blur)은 뺐다. 바탕이 95% 불투명이라 흐림은 거의 안
          * 보이는데, 아이폰 사파리는 그 위로 무언가 움직일 때마다 흐림을 매번 다시
          * 계산하다 깜빡인다. 설정·내 정보 창이 바로 이 바에서 튀어나오므로 창을
-         * 열 때마다 바가 깜빡였다. 하단 탭도 같은 이유로 뺐다.
+         * 열 때마다 바가 깜빡였다. (하단 탭도 그때 같은 이유로 뺐다가, 2026-10-01 앱스토어처럼 비치는
+         * 알약으로 바꾸며 흐림을 다시 넣었다 — MobileTabs. 깜빡이면 그쪽부터 본다.)
+         *
+         * 양옆 여백은 노치 자리와 견줘 큰 쪽 — 가로로 돌린 사파리에서 로고 · 단추가 노치 밑에 들어갔다(2026-10-03).
          *
          * 스크롤을 내리면 위로 숨고 올리면 다시 나온다(useHideOnScroll) — 숨을 때는 시계 자리의
          * 채움(z-45) 밑으로 들어간다. 움직임을 줄여 쓰는 사람에게는 미끄러지지 않고 곧바로 바뀐다.
          */
         ref={headerRef}
         style={{ viewTransitionName: 'shell-topbar' }}
-        className={`sticky top-[env(safe-area-inset-top)] z-40 flex h-14 items-center gap-2 border-b px-4 transition-colors duration-200 motion-safe:transition-[transform,background-color,border-color] motion-safe:duration-200 motion-safe:ease-out desk:hidden ${
+        className={`sticky top-[env(safe-area-inset-top)] z-40 flex h-14 items-center gap-2 border-b pl-[max(1rem,env(safe-area-inset-left))] pr-[max(1rem,env(safe-area-inset-right))] transition-colors duration-200 motion-safe:transition-[transform,background-color,border-color] motion-safe:duration-200 motion-safe:ease-out desk:hidden ${
           hidden ? '-translate-y-full' : 'translate-y-0'
         } ${scrolled ? 'border-line bg-surface' : 'border-transparent bg-page'}`}
       >
@@ -2238,7 +2297,8 @@ function MobileTopBar({
           aria-haspopup="dialog"
           aria-expanded={settingsOpen}
           aria-label="설정"
-          className="flex h-9 w-9 items-center justify-center rounded-full text-muted transition-colors duration-75 active:bg-surface-2 active:text-ink"
+          /* 보이는 동그라미는 36px 그대로, 누르는 자리만 44px(before) — 종과 같은 방법(2026-10-03 아이폰 점검) */
+          className="relative flex h-9 w-9 items-center justify-center rounded-full text-muted transition-colors duration-75 before:absolute before:-inset-1 before:rounded-full active:bg-surface-2 active:text-ink"
         >
           <Cog
             aria-hidden
@@ -2254,7 +2314,8 @@ function MobileTopBar({
           aria-haspopup="dialog"
           aria-expanded={profileOpen}
           aria-label="내 정보"
-          className="rounded-full transition-opacity duration-75 active:opacity-70"
+          /* 사진은 36px 그대로, 누르는 자리만 44px(before) */
+          className="relative rounded-full transition-opacity duration-75 before:absolute before:-inset-1 before:rounded-full active:opacity-70"
         >
           <Avatar nickname={nickname} avatarUrl={avatarUrl} />
         </button>
@@ -2401,11 +2462,12 @@ function MobileTabs({
       /* 본문이 바뀌는 동안 탭바는 움직이지 않는다. */
       style={{ viewTransitionName: 'shell-tabbar' }}
       data-mobile-tabs
-      className="pointer-events-none fixed inset-x-0 bottom-0 z-50 px-5 pb-(--tab-bar-gap) desk:hidden"
+      className="pointer-events-none fixed inset-x-0 bottom-0 z-50 pb-(--tab-bar-gap) pl-[max(1.25rem,env(safe-area-inset-left))] pr-[max(1.25rem,env(safe-area-inset-right))] desk:hidden"
     >
       {/*
         알약만 누를 수 있다 — 양옆 빈 곳을 누르면 밑의 본문으로 간다. 뒤의 본문이 살짝만 비치는 유리 — 앱스토어를 재 보니
         바탕이 흰색 약 80%(뒤의 진한 것이 20% 남짓 비침)였고, 70% 일 때 사용자가 "너무 투명하다"고 해 88% 로 올렸다.
+        양옆 여백(nav)은 노치 자리와 견줘 큰 쪽 — 가로로 돌린 사파리에서 알약 끝이 노치 밑에 들어갔다(2026-10-03).
       */}
       <div className="pointer-events-auto mx-auto flex max-w-md rounded-full border border-line/60 bg-surface/88 p-1 shadow-[0_8px_32px_-12px_rgba(15,23,42,0.3)] backdrop-blur-2xl backdrop-saturate-150">
         {tabs.map((tab) => {

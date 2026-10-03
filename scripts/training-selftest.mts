@@ -19,9 +19,12 @@ import { PrismaPg } from '@prisma/adapter-pg';
 import { buildFacts, type CheckinLike } from '../lib/report/facts.ts';
 import {
   isShortSleep,
+  parseArmPain,
   parseCheckinBody,
+  pickArmPain,
   pickCheckinBody,
   sleepLevelFromHours,
+  type CheckinPartKey,
 } from '../lib/checkin.ts';
 import {
   countMissingDays,
@@ -122,6 +125,12 @@ import {
 import { ARMCARE_METHODS, methodOf } from '../lib/armcare/methods.ts';
 import { visibleChips } from '../lib/armcare/chips.ts';
 import { AREA_DETAILS, MUSCLE_DETAILS } from '../lib/armcare/details.ts';
+import {
+  DISCLAIMER,
+  RED_FLAGS,
+  guideFor,
+  levelAdvice,
+} from '../lib/armcare/pain-guide.ts';
 import { BODY_PART_MAP } from '../lib/body-map.ts';
 import {
   MY_ROUTINE_MAX_ITEMS,
@@ -250,6 +259,11 @@ type Person = {
   painYesterday?: boolean;
   /** 오늘 체크인에서 하체도 통증인가 — 상체 · 하체가 함께 아픈 날을 만들려고 둔다 */
   lowerPain?: boolean;
+  /**
+   * 오늘 체크인의 부위 값을 덮는다 — 팔꿈치만 아픈 날 · 허리만 아픈 날을 만들려고 둔다(팔 통증 안내).
+   * pain · lowerPain 보다 뒤에 덮는다. condition 을 안 주면 오늘 체크인이 없어 아무 일도 안 한다.
+   */
+  parts?: Partial<Record<CheckinPartKey, string>>;
   /** 모든 투구 기록의 체감 강도(1~10). 안 주면 7 */
   intensity?: number;
   /** 모든 투구 기록의 종류(경기 · 불펜 …). 안 주면 칸이 없다 */
@@ -305,6 +319,7 @@ function factsFor(p: Person) {
               wrist: '괜찮음',
               lowerBack: '괜찮음',
               lowerBody: p.lowerPain ? '통증' : '괜찮음',
+              ...p.parts,
               preferredParts: [],
               preferredWorkout: p.wants ?? null,
               /* 준 것만 칸을 만든다 — 안 준 사람의 체크인은 예전과 글자 하나 안 다르다 */
@@ -5612,11 +5627,20 @@ console.log('\n[암케어] 부위·근육 · 오늘의 루틴 · 부하');
     band.items.length >= 5,
     `${band.items.length}개 · ${band.estimatedMinutes}분`
   );
+  /*
+   * 맨몸 · 밴드만으로는 어깨 상부가 비었었는데, 2026-10-03 '어깨 외전 등척성 밀기'(맨몸)가 들어와 채워진다.
+   * 조사를 보려고 그 부위 운동을 빼서 일부러 비운다.
+   */
+  const noTop = build('strength', {
+    candidates: bandsOnly.filter(
+      (ex) => !areasOf(ex.targetMuscles ?? []).some((a) => a.key === 'shoulder-top')
+    ),
+  });
   check(
     "빈 부위의 조사가 맞다 — '어깨 상부는' ('은' 아님)",
-    band.notes.some((n) => n.includes('어깨 상부는')) &&
-      !band.notes.some((n) => n.includes('상부은')),
-    band.notes.join(' / ')
+    noTop.notes.some((n) => n.includes('어깨 상부는')) &&
+      !noTop.notes.some((n) => n.includes('상부은')),
+    noTop.notes.join(' / ')
   );
   const dumbbellRecovery = build('recovery', {
     candidates: filterByEquipment(armcareLib, ['맨몸', '덤벨']).pool,
@@ -5716,6 +5740,276 @@ console.log('\n[암케어] 부위·근육 · 오늘의 루틴 · 부하');
       lightDay.reason.includes('90구') &&
       !lightDay.reason.includes('20구'),
     `${lightDay.label} — ${lightDay.reason}`
+  );
+
+  /*
+   * 7) 팔 통증 안내(2026-10-03, 재활 1편) — 체크인에서 어깨 · 팔꿈치 '통증'인 날 아픈 자리 · 정도를 받아,
+   * 정도 1(던질 때만) + 자리 있음 + 만 15세 이상이면 '통증 루틴', 그 밖은 지금처럼 쉬기.
+   */
+
+  /* 7-1) 폼에서 온 두 칸을 거른다(lib/checkin.ts 의 parseArmPain · pickArmPain) */
+  const formOf =
+    (values: Record<string, string[]>) =>
+    (name: string): string[] =>
+      values[name] ?? [];
+  const shoulderOnly = parseArmPain(
+    formOf({ armPainSpots: ['shoulder-back', 'elbow-inner'], armPainLevel: ['1'] }),
+    { shoulder: '통증', elbow: '정상' }
+  );
+  check(
+    '팔 통증 — 어깨만 통증이면 팔꿈치 자리는 버린다',
+    shoulderOnly.armPainSpots.join(',') === 'shoulder-back' &&
+      shoulderOnly.armPainLevel === 1,
+    JSON.stringify(shoulderOnly)
+  );
+  const unknownSpots = parseArmPain(
+    formOf({ armPainSpots: ['wrist', '<b>', 'elbow-outer', ''] }),
+    { shoulder: '정상', elbow: '통증' }
+  );
+  check(
+    '팔 통증 — 목록에 없는 자리는 버린다',
+    unknownSpots.armPainSpots.join(',') === 'elbow-outer',
+    JSON.stringify(unknownSpots)
+  );
+  const dupSpots = parseArmPain(
+    formOf({ armPainSpots: ['elbow-inner', 'shoulder-top', 'elbow-inner'] }),
+    { shoulder: '통증', elbow: '통증' }
+  );
+  check(
+    '팔 통증 — 겹친 자리는 하나만, 차례는 어깨 → 팔꿈치',
+    dupSpots.armPainSpots.join(',') === 'shoulder-top,elbow-inner',
+    JSON.stringify(dupSpots)
+  );
+  const levelOf = (raw: string) =>
+    parseArmPain(formOf({ armPainLevel: [raw] }), { shoulder: '통증' }).armPainLevel;
+  const badLevels = ['0', '4', '1.5', '-1', 'abc', ''].filter(
+    (v) => levelOf(v) !== null
+  );
+  check(
+    '팔 통증 — 정도는 1~3 정수만, 그 밖은 안 고른 것(null)',
+    badLevels.length === 0 && levelOf('1') === 1 && levelOf('3') === 3,
+    badLevels.join(',')
+  );
+  const notArm = parseArmPain(
+    formOf({ armPainSpots: ['shoulder-back'], armPainLevel: ['2'] }),
+    { shoulder: '뻐근', elbow: '정상' }
+  );
+  check(
+    "팔 통증 — 어깨 · 팔꿈치 둘 다 '통증'이 아니면 [] · null (지난 값이 남지 않게)",
+    notArm.armPainSpots.length === 0 && notArm.armPainLevel === null,
+    JSON.stringify(notArm)
+  );
+  const oldRow = pickArmPain({});
+  const oddRow = pickArmPain({ armPainSpots: ['x', 'elbow-outer'], armPainLevel: 7 });
+  check(
+    '팔 통증 — 칸이 생기기 전의 기록 · 모르는 값은 [] · null 로 읽는다',
+    oldRow.armPainSpots.length === 0 &&
+      oldRow.armPainLevel === null &&
+      oddRow.armPainSpots.join(',') === 'elbow-outer' &&
+      oddRow.armPainLevel === null,
+    `${JSON.stringify(oldRow)} / ${JSON.stringify(oddRow)}`
+  );
+
+  /* 7-2) 암케어 결정 — 통증 루틴 또는 쉬기 */
+  const elbowPain: Person = { condition: 7, pitches: rested, parts: { elbow: '통증' } };
+  const decidePain = (
+    person: Person,
+    armPain: { spots: string[]; level: number | null } | null
+  ) => {
+    const f = factsFor(person);
+    return decideArmcare({
+      facts: f,
+      plan: buildPitchPlan(f),
+      armFatigue: null,
+      armPain,
+    });
+  };
+  const inner1 = decidePain(elbowPain, { spots: ['elbow-inner'], level: 1 });
+  check(
+    '팔 통증 — 팔꿈치 안쪽 · 던질 때만 → 통증 루틴, 까닭에 자리 · 정도를 적는다',
+    inner1.kind === 'pain' && inner1.reason === '팔꿈치 안쪽 · 던질 때만 → 통증 루틴',
+    `${inner1.kind} — ${inner1.reason}`
+  );
+  const level2 = decidePain(elbowPain, { spots: ['elbow-inner'], level: 2 });
+  check(
+    '팔 통증 — 평소 움직일 때도 아프면(정도 2) 쉬기',
+    level2.kind === 'rest',
+    level2.kind
+  );
+  const level3 = decidePain(elbowPain, { spots: ['elbow-inner'], level: 3 });
+  check(
+    '팔 통증 — 가만히 있어도 · 밤에도 아프면(정도 3) 쉬기',
+    level3.kind === 'rest',
+    level3.kind
+  );
+  const noLevel = decidePain(elbowPain, { spots: ['elbow-inner'], level: null });
+  check(
+    '팔 통증 — 정도를 안 골랐으면 쉬기 (모르면 보수적으로)',
+    noLevel.kind === 'rest' && decidePain(elbowPain, null).kind === 'rest',
+    noLevel.kind
+  );
+  const noSpot = decidePain(elbowPain, { spots: [], level: 1 });
+  check('팔 통증 — 자리를 안 골랐으면 쉬기', noSpot.kind === 'rest', noSpot.kind);
+  const ageKinds = [14, 15, null].map(
+    (age) =>
+      decidePain({ ...elbowPain, age }, { spots: ['elbow-inner'], level: 1 }).kind
+  );
+  check(
+    '팔 통증 — 만 14세는 쉬기(성장판), 15세 · 나이 모름은 통증 루틴',
+    ageKinds.join(',') === 'rest,pain,pain',
+    ageKinds.join(',')
+  );
+  const backOnly = decidePain(
+    { condition: 7, pitches: rested, parts: { lowerBack: '통증' } },
+    { spots: ['elbow-inner'], level: 1 }
+  );
+  check(
+    '팔 통증 — 허리만 통증인 날은 남은 팔꿈치 자리가 있어도 쉬기',
+    backOnly.kind === 'rest',
+    backOnly.kind
+  );
+
+  /* 7-3) 통증 루틴 — 여러 자리 · 여러 날로 돌려 본다(실제 라이브러리) */
+  const painFacts = factsFor(elbowPain);
+  const buildPain = (
+    spots: ArmcareAreaKey[],
+    over: Partial<Parameters<typeof buildArmcareRoutine>[0]> = {}
+  ) =>
+    buildArmcareRoutine({
+      decision: { kind: 'pain', reason: '시험' },
+      candidates: armcareLib,
+      facts: painFacts,
+      seed: '2026-06-15',
+      painSpots: spots,
+      ...over,
+    });
+  const SPOT_SETS: ArmcareAreaKey[][] = [
+    ['elbow-inner'],
+    ['elbow-outer'],
+    ['shoulder-back'],
+    ['shoulder-front', 'shoulder-top'],
+    ['scapula'],
+    ['shoulder-back', 'elbow-inner'],
+    ['elbow-back', 'elbow-front'],
+  ];
+  const painRuns = SPOT_SETS.flatMap((spots) =>
+    Array.from({ length: 10 }, (_, d) => ({
+      spots,
+      routine: buildPain(spots, { seed: `2026-06-${String(d + 1).padStart(2, '0')}` }),
+    }))
+  );
+  const painItems = painRuns.flatMap((run) => run.routine.items);
+  check(
+    '통증 루틴 — 모두 1세트',
+    painItems.length > 0 && painItems.every((it) => it.sets === 1),
+    `${painItems.length}개`
+  );
+  const notLight = painItems.filter((it) => {
+    const ex = exOf.get(it.exerciseId)!;
+    const level = intensityLevel(ex.intensity);
+    const hold = ex.holdSeconds != null && ex.reps == null;
+    return !(
+      level <= intensityLevel('낮음') ||
+      (hold && level <= intensityLevel('중간'))
+    );
+  });
+  check(
+    "통증 루틴 — 버티기('중간'까지)이거나 '낮음' 이하만",
+    notLight.length === 0,
+    [...new Set(notLight.map((it) => titleOf(it.exerciseId)))].join(', ')
+  );
+  const PAIN_HEAVY = ['덤벨', '바벨', '케틀벨', '원판', '케이블', '철봉'];
+  const heavyOrStretch = painItems.filter((it) => {
+    const ex = exOf.get(it.exerciseId)!;
+    return (
+      ex.equipment.some((q) => PAIN_HEAVY.includes(q)) ||
+      ex.category !== ARMCARE_CATEGORY ||
+      /스트레칭|스트레치/.test(ex.title)
+    );
+  });
+  check(
+    '통증 루틴 — 무게 장비(철봉 포함) 0 · 스트레칭 없음',
+    heavyOrStretch.length === 0,
+    [...new Set(heavyOrStretch.map((it) => titleOf(it.exerciseId)))].join(', ')
+  );
+  const noScapula = painRuns.filter(
+    (run) => !run.routine.items.some((it) => it.area === 'scapula')
+  );
+  check(
+    '통증 루틴 — 견갑 운동이 늘 1개 이상',
+    noScapula.length === 0,
+    noScapula.map((run) => run.spots.join('+')).join(', ')
+  );
+  const overTwo = painRuns.filter((run) =>
+    run.spots.some(
+      (spot) => run.routine.items.filter((it) => it.area === spot).length > 2
+    )
+  );
+  check(
+    '통증 루틴 — 아픈 자리마다 운동은 2개까지',
+    overTwo.length === 0,
+    overTwo.map((run) => run.spots.join('+')).join(', ')
+  );
+  /* 운동이 모자라면 있는 만큼만 — 무거운 것 · 철봉 · 버티기 아닌 '중간'으로 채우지 않는다 */
+  const fakeEx = (
+    id: string,
+    muscle: string,
+    intensity: string,
+    equipment: string[],
+    hold = false
+  ) => ({
+    id,
+    category: ARMCARE_CATEGORY,
+    intensity,
+    equipment,
+    targetMuscles: [muscle],
+    sets: 2,
+    reps: hold ? null : 10,
+    holdSeconds: hold ? 20 : null,
+    restSeconds: 30,
+    perSide: false,
+  });
+  const scarce = buildPain(['elbow-inner'], {
+    candidates: [
+      fakeEx('heavy-curl', '손목 굴곡근', '낮음', ['덤벨']),
+      fakeEx('mid-band', '손목 굴곡근', '중간', ['밴드']),
+      fakeEx('dead-hang', '얕은 손가락 굴곡근', '낮음', ['철봉'], true),
+      fakeEx('scap-light', '하부 승모근', '낮음', ['밴드']),
+    ],
+  });
+  check(
+    '통증 루틴 — 운동이 모자라면 있는 만큼만(무거운 것으로 안 채움), 빠진 자리를 알린다',
+    scarce.items.map((it) => it.exerciseId).join(',') === 'scap-light' &&
+      scarce.notes.some((n) => n.includes('팔꿈치 내측')),
+    `${scarce.items.map((it) => it.exerciseId).join(',')} / ${scarce.notes.join(' / ')}`
+  );
+
+  /* 7-4) 안내 시트의 글(lib/armcare/pain-guide.ts) */
+  const thinGuides = ARMCARE_AREAS.filter((a) => {
+    const g = guideFor(a.key);
+    return g.injuries.length < 1 || g.signs.length < 1 || !g.title.endsWith(' 통증');
+  });
+  check(
+    '안내 시트 — 여덟 자리 모두 흔한 부상 1개 이상 · 확인할 증상 1개 이상',
+    thinGuides.length === 0,
+    thinGuides.map((a) => a.label).join(', ')
+  );
+  const advices = [
+    levelAdvice(1, { spots: ['elbow-inner'], age: 22 }),
+    levelAdvice(2, { spots: ['elbow-inner'], age: 22 }),
+    levelAdvice(3, { spots: ['elbow-inner'], age: 22 }),
+    levelAdvice(null, { spots: ['elbow-inner'], age: 22 }),
+    levelAdvice(1, { spots: [], age: 22 }),
+    levelAdvice(1, { spots: ['elbow-inner'], age: 14 }),
+  ];
+  check(
+    "안내 시트 — '오늘은'은 정도 1 + 자리 + 15세 이상만 루틴, 그 밖은 진료 권유 · 위험 신호 5 · 맺음말",
+    advices[0].routine &&
+      advices.slice(1).every((a) => !a.routine && a.text.includes('진료')) &&
+      RED_FLAGS.length === 5 &&
+      DISCLAIMER.includes('참고용') &&
+      DISCLAIMER.includes('병원'),
+    advices.map((a) => `${a.routine ? '루틴' : '쉬기'}:${a.text}`).join(' / ')
   );
 }
 
