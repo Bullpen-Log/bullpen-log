@@ -44,3 +44,15 @@ Claude 로 작업을 시작하면 저절로 읽힌다. 규칙은 `AGENTS.md` 6�
   상체날 본운동에 고립은 하루 하나, 밀기 · 당기기를 고른 뒤에만(`lib/report/theme.ts` 의 `ONCE_PER_DAY_PATTERNS`).
   고무줄 손가락 둘 숨김, 공 운동 넷 이름 '플라이오볼 …', 톨 닐링 메디신볼 오버헤드 던지기는 파워로.
 - 캐시 이름 `library:exercises:v11`.
+
+## 금윤호에게 — 2026-10-04 · 김민(Claude) — DB 표 셋 추가(재활 2편) · 재활 중이면 투구 계획이 멈춤
+
+**받은 뒤 할 일: `npx prisma generate` 후 개발 서버 다시 켜기.** 새 표 셋을 더했다(백업 `db-2026-10-03-16-33.json` 뒤,
+마이그레이션 `20261004150000_rehab_programs` 은 이미 공유 DB 에 적용 — 추가만이라 네 코드는 그대로 돈다).
+
+- **새 표:** `UserRehabProgram`(진행 중인 재활 — 한 사람에 하나) · `UserRehabSession`(하루 한 줄 · 운동 끝 3문항 판정) ·
+  `UserRehabWeekly`(매주 확인 — 다음 작업에서 쓴다), `User.rehabPrograms`. 규칙 `lib/armcare/rehab.ts`, 근거 `docs/rehab-guideline.md`.
+- **네가 알아 둘 것:** 재활 중이면 `buildPitchPlan` 이 `halted: true` + `rehab` 표시를 낸다(`lib/report/plan.ts`) — 그래서
+  `app/(app)/pitch-log/[date]/load.ts` 의 오늘 계획 비교(`!plan.halted`)가 재활 중에는 안 보인다. 통증 멈춤과 가르려면 `plan.rehab` 을 본다.
+  `gatherFactsAndPlan` 이 진행 중인 재활을 함께 읽는다(`facts.condition.rehab`).
+- 같이 쓰는 파일은 안 건드렸다(`components/` · `app/(app)/layout.tsx`). 암케어 · 트레이닝(김민 영역)만.
