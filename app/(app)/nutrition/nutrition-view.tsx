@@ -1508,14 +1508,16 @@ function MealSection({
    */
   return (
     <li className="flex flex-col gap-1.5 bg-surface px-4 py-3 sm:px-5">
-      <div className="flex min-h-9 items-center gap-2">
+      <div className="flex min-h-9 flex-wrap items-center gap-x-2 gap-y-1 desk:flex-nowrap">
         <h2 className="shrink-0 text-[15px] font-bold text-ink">{label}</h2>
         {/*
           끼니별 단백질 — 세 끼는 한 끼 목표와 견주어 숫자 밑에 가는 막대를 둔다(머리 줄 높이 36px 안이라
           칸이 커지지 않는다). 목표의 8할을 넘기면 초록 + 체크. 간식은 숫자만.
+          휴대폰 · 태블릿은 이름 밑 한 줄로 내린다 — 이름 · 편집 · 담기 사이에 끼우면 '단백질 50 / 목표 35g'의 끝이
+          잘렸다(375px 에서 174px 글이 170px 칸, 2026-10-04 사용자 '각 식단 부분이 짤린다'). PC 는 그대로 한 줄.
         */}
         {entries.length > 0 && (
-          <div className="min-w-0">
+          <div className="order-last min-w-0 basis-full desk:order-none desk:basis-auto">
             <p className="truncate text-xs tabular-nums text-muted">
               {kcalText(total.kcal)}kcal ·{' '}
               <span

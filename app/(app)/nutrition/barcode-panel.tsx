@@ -5,14 +5,15 @@ import { Camera, CameraOff, Loader2, ScanBarcode, X } from 'lucide-react';
 import { ErrorLine } from '@/components/error-line';
 import { buzz } from '@/lib/haptics';
 import { cleanBarcode, expandUpcE } from '@/lib/nutrition/barcode';
+import { canUseCamera, makeBarcodeReader } from '@/lib/nutrition/barcode-reader';
 import type { Food } from '@/lib/nutrition/meta';
 
 /**
  * 바코드로 담기(영양 로드맵 8번) — 음식 창의 찾는 칸 옆 단추로 연다.
  *
- * 카메라로 읽기는 브라우저의 BarcodeDetector 로 한다(안드로이드 크롬 · 데스크톱 크롬 · 엣지). 아이폰 사파리에는 없어
- * 밑의 숫자를 적는 칸이 늘 같이 있다 — 새 묶음(라이브러리)을 넣지 않으려고 고른 길이다. 아이폰 앱이 나오면 앱의
- * 카메라로 읽어 같은 경로(/api/nutrition/barcode)에 물으면 된다.
+ * 카메라로 읽기는 브라우저의 BarcodeDetector(안드로이드 · 데스크톱 크롬 · 엣지), 없으면 ZXing(아이폰 사파리 · 아이폰 앱) —
+ * lib/nutrition/barcode-reader.ts. 예전에는 아이폰에서 카메라 단추가 숨어 숫자만 적었다(2026-10-04 사용자: "카메라로 읽는
+ * 기능이 무조건 필요하다"). 숫자를 적는 칸은 그대로 같이 있다(바코드가 구겨지거나 카메라를 허락하지 않은 때).
  *
  * 찾으면 다른 목록과 같은 음식 줄(renderFood — 양 고르기 · 담기 · ★)이, 못 찾으면 직접 입력 칸(renderCustom)이
  * 뜬다. 직접 적은 바코드 음식은 내 음식에 바코드째 저장되어 다음부터 읽자마자 나온다.
@@ -25,23 +26,8 @@ type Look =
   | { kind: 'missing'; code: string; name: string }
   | { kind: 'error'; message: string };
 
-type Detector = {
-  detect: (
-    source: HTMLVideoElement
-  ) => Promise<{ rawValue: string; format?: string }[]>;
-};
-type DetectorClass = {
-  new (options: { formats: string[] }): Detector;
-  getSupportedFormats?: () => Promise<string[]>;
-};
-
 /* 먹거리 포장에 찍히는 것 — EAN-13(한국 880…) · EAN-8 · UPC */
 const FORMATS = ['ean_13', 'ean_8', 'upc_a', 'upc_e'];
-
-const detectorClass = () =>
-  typeof window === 'undefined'
-    ? undefined
-    : (window as unknown as { BarcodeDetector?: DetectorClass }).BarcodeDetector;
 
 /** 물음 하나 — 앞 물음은 끊는다(카메라가 연달아 읽어도 마지막 것만) */
 function startLookup(
@@ -95,13 +81,9 @@ export function BarcodePanel({
 }) {
   const [typed, setTyped] = useState('');
   const [look, setLook] = useState<Look>({ kind: 'idle' });
-  /* 카메라 — none: 이 브라우저는 못 읽음(아이폰 사파리) · off · on · denied: 허락이 안 됨 */
+  /* 카메라 — none: 카메라를 켤 수 없는 브라우저 · off · on · denied: 허락이 안 됨 */
   const [cam, setCam] = useState<'none' | 'off' | 'on' | 'denied'>(() =>
-    detectorClass() &&
-    typeof navigator !== 'undefined' &&
-    typeof navigator.mediaDevices?.getUserMedia === 'function'
-      ? 'off'
-      : 'none'
+    canUseCamera() ? 'off' : 'none'
   );
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -129,17 +111,18 @@ export function BarcodePanel({
     if (cam !== 'on') return;
     const video = videoRef.current;
     const stream = streamRef.current;
-    const Detector = detectorClass();
-    if (!video || !stream || !Detector) return;
+    if (!video || !stream) return;
     video.srcObject = stream;
     void video.play().catch(() => {});
     let stopped = false;
     let timer = 0;
     void (async () => {
-      const supported =
-        (await Detector.getSupportedFormats?.().catch(() => null)) ?? FORMATS;
-      const formats = FORMATS.filter((f) => supported.includes(f));
-      const detector = new Detector({ formats: formats.length ? formats : FORMATS });
+      /* 브라우저 기능이 없으면 ZXing 을 이때 불러온다(못 불러오면 숫자 칸으로) */
+      const detector = await makeBarcodeReader(FORMATS).catch(() => null);
+      if (!detector) {
+        if (!stopped) setCam('none');
+        return;
+      }
       const tick = async () => {
         if (stopped) return;
         if (video.readyState >= 2) {
@@ -282,8 +265,7 @@ export function BarcodePanel({
       )}
       {cam === 'none' && (
         <p className="text-xs leading-relaxed text-muted">
-          이 브라우저는 카메라로 바코드를 못 읽어요(아이폰 사파리 등). 막대 밑의 숫자를
-          적어 주세요.
+          이 브라우저는 카메라를 켤 수 없어요. 막대 밑의 숫자를 적어 주세요.
         </p>
       )}
       {cam === 'denied' && (
