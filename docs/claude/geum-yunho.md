@@ -118,6 +118,7 @@
   남던 흐린 네모, 사이드바를 열 때 먼저 흐려지던 오른쪽 띠가 이것이었다(2026-09-28). 흐림이 있는 것은 옅어지기 · 밀기를
   틀(group)에 건다. 틀의 자리는 브라우저가 transform 으로 잡으므로 틀에는 opacity · translate 만(scale 은 자리까지
   끌고 간다), 모서리는 border-radius 로 요소와 맞춘다(globals.css 의 nav-dock · nav-sheet).
+- 운동 라이브러리에 스크립트로 운동을 넣으면 `lib/library-cache.ts` 의 캐시 이름을 하나 올린다(김민 2026-10-03 에 `library:exercises:v10`).
 - 셀프테스트는 `npm run nutrition:test` 처럼 npm 으로 돌린다. `node scripts/…mts` 로 바로 돌리면 `@/` 경로를 못 찾는다.
 - 첫 페인트 전에 돌아야 하는 코드는 `next/script` `beforeInteractive` 가 아니라 `<head>` 의 평범한
   `<script dangerouslySetInnerHTML>` 로 둔다(App Router 에서는 첫 페인트 전에 안 돈다).
@@ -215,6 +216,15 @@
     `npx tsc --noEmit` · 바꾼 파일 `npx eslint` 깨끗하게.
   - **끝내는 법**: 커밋 메시지는 한국어로 사용자가 읽을 말(무엇을 · 왜 · 틀 수 전후 · 시험 수 전후). 이 메모 줄 밑에 '클라우드 결과:'
     한 줄(가지 · 마지막 커밋 · 시험 결과 · 남은 것)을 같은 가지에 적는다. 클라우드는 메인에게 말을 못 보내므로 여기가 연락 창구다.
+  - **클라우드 결과(2026-10-03, 사용자: "메인으로 올려줘" — 화면 확인 전에 main 에 합침):** 가지 `cloud/nutrition-templates`, 코드 커밋 셋(8e1fbd5 · 46cc794 · 96dae5d — 무엇을 왜는 커밋 본문).
+    틀 85 → 167(아침 37 · 점심 53 · 저녁 56 · 간식 46), `npm run nutrition:test` 363 → 382 모두 통과(13초 — 식단 짜기 시험이 크다).
+    고친 파일 셋만 · DB 그대로. 바뀐 동작: 그 주 앞(지난주 월요일)부터 이어 짜서 어제 · 그제 틀을 피함, 그날 조건(던지는 일정 ·
+    입맛 · 더위)에 맞는 틀은 장소마다 99~100%, 못 먹는 것 표 보강(김치 젓갈 · 육수 · 고명 · 편의점 도시락 · 김밥 어묵 등 —
+    이제 그런 사람에게 안 나간다), 목표가 낮은 날 넘침 1,121 → 72/26,496. **남은 것(메인):** ① 화면 확인 — 식단 짜기 · 다른
+    식단으로 · 끼니 칸 계획 줄(로그인한 계정) ② `app/actions/nutrition.ts` makeMealPlan 이 어제 · 그제 저장된
+    `MealPlan.context.meals[].template` 을 `PlanInput.recent`(0 이 어제)로 넘기기 — 안 넘기면 '다른 식단으로'를 누른 다음 날
+    약 12% 가 어제와 같은 틀 ③ 1,250kcal · 단백질 120g 같은 목표는 둘을 다 못 맞출 때가 있다(kcal ±10% 밖 0.3%, 단백질을
+    86% 까지 내리고 kcal 을 지킴) ④ 클라우드는 `.env` 가 없어 패치노트를 못 맞췄다 — 데스크톱에서 `npm run patch:sync`.
 
 - **AI — 김민과 회의 전까지 홈 분석 · 영양 사진 멈춤(2026-10-02, 사용자: "우리의 돈과 관련해서 굉장히 중요 — 회의로 정한다").**
   정리 `docs/ai-usage.md`, 스위치 `lib/ai/features.ts` 의 `AI_FEATURES`(homeReport · nutritionPhoto 둘 다 false). 트레이닝
