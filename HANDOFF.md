@@ -45,4 +45,17 @@ Claude 로 작업을 시작하면 저절로 읽힌다. 규칙은 `AGENTS.md` 6�
 - 통증이 있는 날도 트레이닝 일정을 만든다 — 아픈 부위 운동만 빼고 아픈 쪽을 피해 근력 날을 고른다. 투구 계획(plan.halted)은 예전처럼 멈춘다.
 - 운동 일정은 이제 투구 휴식표를 안 따른다 — 경기 또는 강도 9~10으로 30구 이상 던진 날과 다음 날만 회복·재생 데이. 휴식표는 투구 계획에만.
 - `ReportFacts` 에 칸 둘(`patterns.hardOutings` · `condition.painRecentParts`, 둘 다 없을 수 있음)이 더해졌다 — 리포트 쪽은 안 읽어도 된다.
-- 다음 작업 예고: 팔 통증 안내(체크인에서 어깨 · 팔꿈치 '통증'이면 아픈 자리 · 정도를 고르게). `DailyCheckin` 에 칸이 더해지고 체크인 화면을 고친다 — 시작 전에 다시 알린다.
+
+## 금윤호에게 — 2026-10-03 · 김민(Claude) — DB 칸 둘 추가(DailyCheckin 팔 통증) · 체크인 화면 · 팔 통증 안내
+
+받은 뒤 할 일: `npx prisma generate` 하고 개발 서버를 다시 켠다(백업 `db-2026-10-03-12-58.json` 뒤 DB 에 이미 적용 — 마이그레이션
+`20261003130000_checkin_arm_pain`, 추가만이라 네 코드는 그대로 돈다).
+
+- **새 칸**: `DailyCheckin.armPainSpots String[] @default([])`(아픈 자리 — `lib/armcare/anatomy.ts` 의 ArmcareAreaKey) ·
+  `armPainLevel Int?`(1 던질 때만 / 2 평소 움직일 때도 / 3 가만히 있어도·밤에도).
+- **같이 쓰는 파일**: `components/checkin-form.tsx` — 어깨 · 팔꿈치가 '통증'이면 그 줄 밑에 자리 · 정도 칩, 저장 뒤 요약의 통증 카드에
+  [통증 안내 보기](시트). 폼은 `armpain=1` 표시를 보낼 때만 두 칸을 쓴다(body=1 과 같은 방식). `app/(app)/layout.tsx` 는 체크인 줄에
+  `pickArmPain` · 나이를 더 넘기고, `components/app-shell.tsx` 는 CheckinForm 에 `age` · `onLeave`(안내에서 트레이닝으로 갈 때 창 닫기)를 넘긴다.
+  같은 날 올라간 아이폰 정리(44px 칩 · 자판 시트)와 자동으로 합쳐졌다.
+- 암케어: 팔이 '던질 때만' 아프고 자리를 고른 날은 쉬기 대신 '통증 루틴'(버티기 · 가벼운 것 + 견갑 · 주변, 1세트, 약 10분). 그 밖의 통증 날은 예전처럼 쉬기.
+  투구 계획(plan.halted)은 그대로 멈춘다.
