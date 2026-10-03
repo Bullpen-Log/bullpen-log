@@ -8,7 +8,8 @@ import { OpenCheckinButton } from '@/components/notice-bell';
 import { loadTodayCore, type UserForToday } from '@/lib/report/today-data';
 import { loadArmcareToday, type UserForArmcare } from '@/lib/armcare/today';
 import { ARMCARE_KIND_TEXT } from '@/lib/armcare/routine';
-import { ARMCARE_CATEGORY } from '@/lib/armcare/anatomy';
+import { ARMCARE_AREAS, ARMCARE_CATEGORY } from '@/lib/armcare/anatomy';
+import { loadArmcareCoverage } from '@/lib/armcare/coverage-load';
 import { visibleExercises } from '@/lib/library-cache';
 import { loadMechanicsProgram } from '@/lib/mechanics/load';
 import { MECHANICS_ELEMENTS } from '@/lib/mechanics/elements';
@@ -252,9 +253,24 @@ async function WorkoutCard({ user, today }: { user: HomeUser; today: Date }) {
   );
 }
 
-/** 암케어 — 오늘 루틴(재활 중이면 재활) 한 줄과 [시작](따라 하기로 곧장) */
+/**
+ * 암케어 — 오늘 루틴(재활 중이면 재활) 한 줄과 [시작](따라 하기로 곧장). 밑에 내 팔 지도의 '2주째 안 한 곳'을 한 줄
+ * 띄우고 누르면 부위별 보강(내 팔 지도)으로 간다(lib/armcare/coverage-load.ts — 아픈 곳은 뺀다).
+ */
 async function ArmcareCard({ user, today }: { user: HomeUser; today: Date }) {
   const data = await loadArmcareToday(user, today);
+  const map = await loadArmcareCoverage(user.id, data.todayKey, await visibleExercises());
+  const gapLine =
+    map.gaps.length > 0 && data.decision.kind !== 'rest' ? (
+      <Link
+        href="/training?view=armcare&tab=guide"
+        className={`relative z-10 inline-flex min-h-8 items-center gap-0.5 text-xs font-semibold ${APPS.armcare.ink}`}
+      >
+        {map.coverage.total === 0 ? '여기부터 해 보세요' : '2주째 안 한 곳'}:{' '}
+        {map.gaps.map((key) => ARMCARE_AREAS.find((a) => a.key === key)?.label ?? key).join(' · ')}
+        <ChevronRight aria-hidden className="h-3.5 w-3.5" />
+      </Link>
+    ) : null;
 
   if (data.rehab) {
     return <AppCard app="armcare" status="재활 중이에요 — 오늘 재활 보기" />;
@@ -271,20 +287,30 @@ async function ArmcareCard({ user, today }: { user: HomeUser; today: Date }) {
             체크인
           </OpenCheckinButton>
         }
-      />
+      >
+        {gapLine}
+      </AppCard>
     );
   }
   if (data.decision.kind === 'rest') {
     return <AppCard app="armcare" tone="warn" status="오늘은 팔을 쉬는 날이에요" />;
   }
   if (!data.routine) {
-    return <AppCard app="armcare" status="오늘 루틴을 아직 안 만들었어요" />;
+    return (
+      <AppCard app="armcare" status="오늘 루틴을 아직 안 만들었어요">
+        {gapLine}
+      </AppCard>
+    );
   }
   const items = data.routine.items;
   const done = items.filter((it) => data.doneToday.has(it.exerciseId)).length;
   const label = ARMCARE_KIND_TEXT[data.routine.kind].label;
   if (items.length > 0 && done >= items.length) {
-    return <AppCard app="armcare" tone="done" status={`오늘 ${label}를 마쳤어요`} />;
+    return (
+      <AppCard app="armcare" tone="done" status={`오늘 ${label}를 마쳤어요`}>
+        {gapLine}
+      </AppCard>
+    );
   }
   return (
     <AppCard
@@ -297,7 +323,9 @@ async function ArmcareCard({ user, today }: { user: HomeUser; today: Date }) {
           label={done > 0 ? '이어서' : '시작'}
         />
       }
-    />
+    >
+      {gapLine}
+    </AppCard>
   );
 }
 

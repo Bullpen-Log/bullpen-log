@@ -3,7 +3,10 @@ import { requireUser } from '@/lib/dal';
 import { shiftDateKey, toDateKey } from '@/lib/pitch-stats';
 import { visibleExercises } from '@/lib/library-cache';
 import { FALLBACK_REST_SECONDS } from '@/lib/exercise-meta';
-import { ARMCARE_CATEGORY } from '@/lib/armcare/anatomy';
+import { ARMCARE_AREAS, ARMCARE_CATEGORY } from '@/lib/armcare/anatomy';
+import { buildFocusRoutine, parseAreas } from '@/lib/armcare/coverage';
+import { filterByEquipment } from '@/lib/report/equipment';
+import { prisma } from '@/lib/prisma';
 import { ARMCARE_KIND_TEXT } from '@/lib/armcare/routine';
 import { REHAB_STAGES } from '@/lib/armcare/rehab';
 import { loadArmcareToday, notAdvised } from '@/lib/armcare/today';
@@ -14,6 +17,8 @@ import { ArmcarePlayer, type PlayerItem } from './armcare-player';
 import type { RehabCheckInitial } from './rehab-check';
 
 const BACK = '/training?view=armcare';
+/** 빈 곳 보강(/armcare/play/focus)은 내 팔 지도에서 들어온다 — 끝나면 그리로 */
+const FOCUS_BACK = '/training?view=armcare&tab=guide';
 
 /**
  * 따라하기가 어느 날의 것인가 — 연 링크가 적어 준 날(?d=), 없거나 이상하면 오늘.
@@ -50,10 +55,17 @@ export default async function ArmcarePlayPage({
   searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
 }) {
   const user = await requireUser();
-  const [{ id }, { d }] = await Promise.all([params, searchParams]);
-  if (id !== 'today' && id !== 'rehab' && !isRoutineId(id)) notFound();
+  const [{ id }, { d, areas: areasParam }] = await Promise.all([params, searchParams]);
+  if (id !== 'today' && id !== 'rehab' && id !== 'focus' && !isRoutineId(id)) notFound();
   const rehabPlay = id === 'rehab';
-  const mine = id !== 'today' && !rehabPlay;
+  /*
+   * 빈 곳 보강 — 내 팔 지도의 '2주째 비어 있어요'에서 고른 부위(?areas=)로 그 자리에서 짠 10분 루틴(2026-10-04,
+   * lib/armcare/coverage.ts). 저장하지 않는다 — 열 때마다 오래 안 한 운동부터 다시 고른다.
+   */
+  const focusPlay = id === 'focus';
+  const focusAreas = focusPlay ? parseAreas(areasParam) : [];
+  if (focusPlay && focusAreas.length === 0) redirect(FOCUS_BACK);
+  const mine = id !== 'today' && !rehabPlay && !focusPlay;
 
   const now = new Date();
   const todayKey = toDateKey(now);
@@ -102,6 +114,42 @@ export default async function ArmcarePlayPage({
           }
         : null,
     };
+  } else if (focusPlay) {
+    const armcare = library
+      .filter((ex) => ex.category === ARMCARE_CATEGORY)
+      .map((ex) => ({ ...ex, targetMuscles: ex.targetMuscles ?? [] }));
+    /*
+     * 오래 안 한 것부터 — 최근 45일 기록에서 운동마다 마지막 날(맞춤 루틴과 같은 기간). 그날 기록은 빼고 본다: 따라 하기는
+     * 체크할 때마다 이 화면을 다시 그리는데, 방금 한 운동이 '최근'이 되면 루틴 차례가 도중에 바뀐다.
+     */
+    const recent = await prisma.userExerciseLog.findMany({
+      where: {
+        userId: user.id,
+        completed: true,
+        date: {
+          gte: new Date(`${shiftDateKey(dateKey, -45)}T00:00:00.000Z`),
+          lt: new Date(`${dateKey}T00:00:00.000Z`),
+        },
+        exerciseId: { in: armcare.map((ex) => ex.id) },
+      },
+      orderBy: { date: 'desc' },
+      select: { exerciseId: true, date: true },
+    });
+    const lastDone = new Map<string, string>();
+    for (const log of recent) {
+      if (!lastDone.has(log.exerciseId)) lastDone.set(log.exerciseId, toDateKey(log.date));
+    }
+    const focusItems = buildFocusRoutine({
+      areas: focusAreas,
+      candidates: filterByEquipment(armcare, user.ownedEquipment).pool,
+      lastDone,
+    });
+    if (focusItems.length === 0) redirect(FOCUS_BACK);
+    title = `빈 곳 보강 · ${focusAreas
+      .map((key) => ARMCARE_AREAS.find((a) => a.key === key)?.label ?? key)
+      .join(' · ')}`;
+    picks = focusItems.map((it) => ({ exerciseId: it.exerciseId, sets: it.sets }));
+    if (data.decision.kind === 'rest') notice = '오늘 통증을 남기셨어요 — 쉬는 걸 권해요.';
   } else if (!mine) {
     /* 아직 안 만들었거나 통증인 날 — 루틴 칸이 그 까닭을 보여 준다 */
     if (!data.routine || data.decision.kind === 'rest') redirect(BACK);
@@ -121,7 +169,7 @@ export default async function ArmcarePlayPage({
   const byId = new Map(library.map((ex) => [ex.id, ex]));
   const usable = picks.filter((p) => {
     const ex = byId.get(p.exerciseId);
-    return ex != null && (!mine || ex.category === ARMCARE_CATEGORY);
+    return ex != null && (!(mine || focusPlay) || ex.category === ARMCARE_CATEGORY);
   });
   const views = await toArmcareViews(
     usable.map((p) => byId.get(p.exerciseId)!),
@@ -140,7 +188,7 @@ export default async function ArmcarePlayPage({
       perSide: ex.perSide,
       doneBefore: done,
       /* 재활은 그 단계 규칙으로 고른 운동이라 맞춤 루틴의 몸 상태 표시를 달지 않는다 */
-      unsafe: !done && !rehabPlay && notAdvised(data, ex, mine),
+      unsafe: !done && !rehabPlay && notAdvised(data, ex, mine || focusPlay),
       note: p.note ?? null,
     };
   });
@@ -148,7 +196,7 @@ export default async function ArmcarePlayPage({
   return (
     <ArmcarePlayer
       title={title}
-      backHref={BACK}
+      backHref={focusPlay ? FOCUS_BACK : BACK}
       dateKey={dateKey}
       notice={notice}
       items={items}

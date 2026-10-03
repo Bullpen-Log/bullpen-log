@@ -6,6 +6,8 @@ import { ARMCARE_CATEGORY, primaryArea } from '@/lib/armcare/anatomy';
 import { throwingSide } from '@/lib/armcare/muscle-map';
 import { loadArmcareToday, notAdvised, type UserForArmcare } from '@/lib/armcare/today';
 import { armcareMinutes } from '@/lib/armcare/routine';
+import { loadArmcareCoverage } from '@/lib/armcare/coverage-load';
+import { toDateKey } from '@/lib/pitch-stats';
 import { loadMyRoutines } from '@/lib/armcare/my-routines-store';
 import {
   REHAB_CONDITIONS,
@@ -65,9 +67,14 @@ export async function ArmcareSection({
       visibleExercises(),
       loadMyRoutines(user.id),
     ]);
-    const views = await toArmcareViews(
-      library.filter((ex) => ex.category === ARMCARE_CATEGORY)
-    );
+    const armcareLib = library.filter((ex) => ex.category === ARMCARE_CATEGORY);
+    const views = await toArmcareViews(armcareLib);
+    /*
+     * 내 팔 지도(2026-10-04) — 최근 2주 암케어 기록으로 3D 를 칠하고, 비어 있는 부위 · 오늘이나 어제의 팔 통증을
+     * 맨 위에 보인다(lib/armcare/coverage-load.ts).
+     */
+    const todayKey = toDateKey(today);
+    const map = await loadArmcareCoverage(user.id, todayKey, library);
     const routines = mine.map((r) => ({
       id: r.id,
       name: r.name,
@@ -81,6 +88,15 @@ export async function ArmcareSection({
           side: throwingSide(user.throwingHand),
           bothHands: user.throwingHand === '양투',
           focusMuscle,
+        }}
+        coverage={{
+          heat: map.coverage.heat,
+          areas: map.coverage.primary,
+          total: map.coverage.total,
+          gaps: map.gaps,
+          allCovered: map.allCovered,
+          dateKey: todayKey,
+          pain: map.pain,
         }}
       />
     );
