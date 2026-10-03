@@ -518,7 +518,14 @@ final class DualCameraController: NSObject, AVCaptureVideoDataOutputSampleBuffer
          * 쓰지 않는다(사용자 규칙 2026-10-03). 그래도 안 되면 '안 됨'(cost)으로 끝내고, 사이트가 웹 카메라로 잰다.
          */
         var mainPick = try DualCameraController.pick(mainDevice, fps: config.fps, short: config.short)
-        guard mainPick.fps >= DualCameraController.MIN_MEASURE_FPS else { throw DualCameraError.unsupported("fps") }
+        /*
+         * 자동(고른 화질 없음)이면 60fps 를 못 낼 때 '안 됨' — 사이트가 웹 카메라로 잰다. 사용자가 화질을 골랐으면 60fps 아래도
+         * 켠다 — 화면이 주황으로 경고한다(사용자 2026-10-04: "경고는 띄우되 막지는 않게"). 예전에는 여기서 끝내 사이트가
+         * 동시 촬영을 잠갔다.
+         */
+        if config.short == nil {
+            guard mainPick.fps >= DualCameraController.MIN_MEASURE_FPS else { throw DualCameraError.unsupported("fps") }
+        }
         var widePick = try DualCameraController.pick(wideDevice, fps: config.fps)
         try DualCameraController.apply(mainDevice, mainPick, lockFocus: config.net)
         try DualCameraController.apply(wideDevice, widePick, lockFocus: false)
@@ -530,7 +537,11 @@ final class DualCameraController: NSObject, AVCaptureVideoDataOutputSampleBuffer
             widePick = try DualCameraController.pick(wideDevice, fps: 30, smallest: true)
             try DualCameraController.apply(wideDevice, widePick, lockFocus: false)
         }
-        if session.hardwareCost > 1.0 {
+        /*
+         * 일반 카메라의 화면 줄이기는 자동일 때만 — 사용자가 화질을 골랐으면 몰래 줄이지 않고 '안 됨'(cost)으로 끝낸다. 그러면
+         * 사이트가 이번만 웹 카메라로 고른 화질을 켜고 알린다(예전에는 1080p 60 을 골라도 조용히 720p 60 이 됐다, 2026-10-04).
+         */
+        if session.hardwareCost > 1.0, config.short == nil {
             let smaller = try DualCameraController.pick(mainDevice, fps: mainPick.fps, smallest: true)
             if smaller.fps >= DualCameraController.MIN_MEASURE_FPS {
                 mainPick = smaller

@@ -784,6 +784,8 @@ export class LiveCapture {
     }
 
     checkAborted();
+    await this.rescueFrameRate(track, mode, longSide, this.mode != null);
+    checkAborted();
     const focus = await applyFocus(track, this.net, this.approach);
     /*
      * 줌은 1 로 건다 — 디지털 줌 · 초광각(0.5x) · 망원은 초점거리를 배율만큼 바꿔 구속이 그 역수로 밀린다(1.2x 면
@@ -835,6 +837,79 @@ export class LiveCapture {
         typeof s?.frameRate === 'number' ? Math.round(s.frameRate * 10) / 10 : null,
       cropped: this.cropped,
     };
+  }
+
+  /**
+   * 고른 fps 를 못 받았으면 그 fps 를 '최소'로 걸어 한 번 더 청한다. ideal 만 걸면 브라우저가 화질을 맞추느라 fps 를 버릴 수
+   * 있다 — 실제로 1080p 60 을 고르면 1080p 30 으로 켜졌다(2026-10-04 사용자). min 을 걸면 그 fps 를 내는 모양으로 바꾸거나,
+   * 못 내면 거절한다(거절이면 트랙은 그대로 — 명세). 가로 · 세로 두 방향으로 해 본다(폰 브라우저마다 세로 화면의 가로 · 세로를
+   * 다르게 읽는다).
+   *
+   * keepSize(사용자가 화질을 골랐다)면 그 화질에서 fps 를 채워야 성공이고, 못 채우면 이 앞의 제약(잘림을 고친 것까지 그대로)으로
+   * 되돌려 고른 화질을 지킨다 — fps 는 화면이 경고한다(막지 않는다, 2026-10-04 사용자). 자동이면 fps 가 먼저다 — 1080p 30 보다
+   * 720p 60 이 잰다(엔진은 어차피 짧은 변 720 으로 줄여 잰다).
+   */
+  private async rescueFrameRate(
+    track: MediaStreamTrack | undefined,
+    mode: CamMode,
+    longSide: number,
+    keepSize: boolean
+  ) {
+    if (!track?.applyConstraints || !track.getSettings) return;
+    const fpsNow = () => (track.getSettings() as MediaTrackSettings).frameRate ?? null;
+    const sizeNow = () => `${this.video.videoWidth}x${this.video.videoHeight}`;
+    const shortNow = () => Math.min(this.video.videoWidth, this.video.videoHeight);
+    const before = fpsNow();
+    if (before == null || before >= mode.fps - 2) return;
+    const shortBefore = shortNow();
+    /* 되돌릴 자리 — 이 앞에 건 제약 그대로(잘려 와서 방향을 바꿔 청한 것까지) */
+    const prev = track.getConstraints?.() ?? null;
+    /* 화면 크기나 fps 가 바뀔 때까지(최대 1초) — 같은 화질의 60fps 모양으로 바뀌면 크기는 그대로라 fps 로 안다 */
+    const settle = async (size: string, fps: number | null) => {
+      for (let i = 0; i < 20; i++) {
+        if (sizeNow() !== size || fpsNow() !== fps) break;
+        await new Promise((r) => setTimeout(r, 50));
+      }
+      await this.readVideoSize();
+    };
+    for (const [w, h] of [
+      [longSide, mode.short],
+      [mode.short, longSide],
+    ]) {
+      const size = sizeNow();
+      const fps = fpsNow();
+      try {
+        await track.applyConstraints({
+          facingMode: { ideal: 'environment' },
+          width: { ideal: w },
+          height: { ideal: h },
+          frameRate: { min: mode.fps - 1, ideal: mode.fps },
+          resizeMode: 'none',
+        } as MediaTrackConstraints);
+      } catch {
+        continue;
+      }
+      await settle(size, fps);
+      const got = fpsNow();
+      const fpsOk = got != null && got >= mode.fps - 2;
+      if (fpsOk && (!keepSize || Math.abs(shortNow() - mode.short) <= 8)) return;
+    }
+    /* 고른 화질과 fps 를 함께 못 낸다 — 처음엔 고른 화질이 나왔으면 그리로 돌아간다(fps 는 낮은 대로, 화면이 경고) */
+    if (
+      keepSize &&
+      prev &&
+      Math.abs(shortBefore - mode.short) <= 8 &&
+      Math.abs(shortNow() - mode.short) > 8
+    ) {
+      const size = sizeNow();
+      const fps = fpsNow();
+      try {
+        await track.applyConstraints(prev);
+        await settle(size, fps);
+      } catch {
+        /* 못 되돌리면 지금 것 그대로 */
+      }
+    }
   }
 
   /* ── 장면 받는 길 ── */

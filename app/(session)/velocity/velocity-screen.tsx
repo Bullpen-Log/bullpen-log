@@ -59,8 +59,11 @@ import {
   markDualUnsupported,
 } from '@/lib/dual-camera';
 import {
+  DEFAULT_CAM_MODE,
   camModeLabel,
-  fpsAllowed,
+  fpsGood,
+  noteCamLimit,
+  withCamLimits,
   type CamMode,
   type CamModeOption,
 } from '@/lib/velocity-camera-mode';
@@ -392,10 +395,12 @@ export function VelocityScreen({
   /* 지금 카메라로 고를 수 있는 화질 — 켤 때마다 카메라가 알려 준다 */
   const [camOptions, setCamOptions] = useState<CamModeOption[]>([]);
   /*
-   * 화질 · 프레임을 바꾸기 직전 값 — 고른 조합이 30fps 이하로 켜지면 이리로 되돌린다(측정 카메라는 30fps 이하를 안 쓴다).
-   * undefined = 되돌릴 것 없음
+   * 이번 한 번은 앱의 동시 촬영 말고 웹 카메라로 켠다 — 고른 화질 · 프레임을 두 카메라를 함께 켜서는 못 낼 때(그 화질만의 일이라
+   * 이 아이폰의 동시 촬영을 잠그지 않는다. 예전에는 잠가서, 1080p 하나를 고른 뒤로 광각 동시 촬영이 영영 꺼졌다).
    */
-  const modeBeforeRef = useRef<CamMode | null | undefined>(undefined);
+  const skipDualOnceRef = useRef(false);
+  /* 고른 화질 때문에 광각 동시 촬영을 건너뛰고 있다 — 시트가 '광각 영상 없음'을 계속 보인다 */
+  const [dualSkipped, setDualSkipped] = useState<CamMode | null>(null);
   /* 보정용 저장은 관리자만 효과가 있다 */
   const calibOn = isAdmin && calibSave;
   /* 세션 — 시작하면 카메라를 숨기고 정보 판을 보인다 */
@@ -671,6 +676,9 @@ export function VelocityScreen({
 
   const startCamera = async () => {
     const video = videoRef.current;
+    /* 이번 한 번만 웹 카메라 — 맨 앞에서 읽고 지운다(아래에서 일찍 끝나도 다음 켜기로 새지 않게) */
+    const skipDual = skipDualOnceRef.current;
+    skipDualOnceRef.current = false;
     /*
      * 뷰파인더(<video>)는 카메라 단계(수평 · 존 · 측정 · 렌즈)에서만 그려진다. 단계를 바꾸는 누름 안에서 부를 때는
      * flushSync 로 먼저 그린 뒤 부른다(enterCameraStep) — 예전에는 그리기 전에 불려 여기서 조용히 끝나, 카메라가
@@ -679,6 +687,8 @@ export function VelocityScreen({
     if (!video) return;
     setError(null);
     setLast(null);
+    /* 옛 카메라의 실제 fps — 새 카메라가 첫 값을 보내기 전까지 시트가 옛 값으로 '못 냈어요'를 띄웠다 */
+    setFps(null);
     /*
      * 결과 번호는 LiveCapture 가 켤 때마다 1부터 다시 센다 — 세션 중에 카메라를 다시 켜면 새 공의 클립이 같은 번호의
      * 옛 공에도 붙었다. 켤 때마다 다른 자리를 얹어 가른다.
@@ -694,7 +704,7 @@ export function VelocityScreen({
      * 기기 검사는 화면을 열 때 미리 해 둔다 — 아직이면 기다린다(앱 길만. 웹 카메라는 누름에 바로 붙여 켠다).
      */
     let dualOk = false;
-    if (native && now.wideClip && !now.recordMode && finder) {
+    if (native && now.wideClip && !now.recordMode && finder && !skipDual) {
       const s = dualStatusNow() ?? (await dualCameraStatus());
       if (gen !== captureGenRef.current) return;
       dualOk = s.supported;
@@ -757,7 +767,16 @@ export function VelocityScreen({
       const info = await capture.start();
       if (captureRef.current !== capture) return;
       setCamera(info);
-      setCamOptions(capture.getModeOptions());
+      if (capture instanceof DualCapture) setDualSkipped(null);
+      /* 켜 보고 안 그 카메라의 화질별 한계를 적고, 고르는 칸에 덧씌운다(다음에 고를 때부터 주황) */
+      if (info.frameRate != null)
+        noteCamLimit(
+          info.label,
+          Math.min(info.width, info.height),
+          (now.camMode ?? DEFAULT_CAM_MODE).fps,
+          info.frameRate
+        );
+      setCamOptions(withCamLimits(info.label, capture.getModeOptions()));
       checkCamMode(info, now.camMode);
     } catch (e) {
       /* 켜는 사이에 껐다(화면을 떠남 · 다시 켬) — 알릴 것 없다 */
@@ -767,6 +786,22 @@ export function VelocityScreen({
        * 잠긴다) 웹 카메라로 바꿔 켠다. 측정은 끊기지 않는다.
        */
       if (e instanceof DualUnsupportedError) {
+        /* 그사이 다른 켜기로 바뀌었으면(설정을 끔 · 뒤로) 늦게 온 거절은 아무것도 하지 않는다 */
+        if (captureRef.current !== capture) return;
+        /*
+         * 고른 화질 · 프레임 때문이면(그 화질은 함께 켜서 60fps 를 못 냄 · 하드웨어 몫) 이번만 웹 카메라로 — 동시 촬영은 잠그지 않는다.
+         * 고른 것이 없을 때(기본 1080p · 60)도 안 되면 이 아이폰이 못 하는 것이라 잠근다.
+         */
+        if (now.camMode && (e.reason === 'fps' || e.reason === 'cost')) {
+          if (captureRef.current === capture) captureRef.current = null;
+          setToast(
+            `광각 동시 촬영으로는 ${camModeLabel(now.camMode)} 를 못 켜요 — 이번엔 일반 카메라로 재요(광각 영상 없음)`
+          );
+          skipDualOnceRef.current = true;
+          setDualSkipped(now.camMode);
+          void startCamera();
+          return;
+        }
         markDualUnsupported(e.reason);
         if (captureRef.current === capture) captureRef.current = null;
         setToast('광각 동시 촬영이 안 되는 아이폰이라 일반 카메라로 재요');
@@ -1149,40 +1184,37 @@ export function VelocityScreen({
 
   /*
    * 화질 · 프레임 고르기(오른쪽 위 카메라 정보 → 시트). 고르면 남기고 카메라를 다시 켠다 — 세션 중이면 켜지는 대로 이어서
-   * 기다린다(startCamera 의 liveRef). remember 면 고르기 전 값을 쥐어, 고른 조합이 30fps 이하로 켜지면 되돌린다.
+   * 기다린다(startCamera 의 liveRef). 같은 값을 다시 골라도 다시 켠다(카메라가 다르게 켜졌을 때 한 번 더 해 보기).
    */
-  const applyCamMode = (next: CamMode | null, remember = true) => {
+  const applyCamMode = (next: CamMode | null) => {
     if (recorderRef.current) {
       setToast('녹화 중에는 화질을 바꿀 수 없어요');
       return;
     }
-    modeBeforeRef.current = remember ? camMode : undefined;
     setCamMode(next);
     persistSetup({ camMode: next });
     cameraSettingsRef.current = { ...cameraSettingsRef.current, camMode: next };
     void startCamera();
   };
-  const applyCamModeRef = useRef(applyCamMode);
-  useEffect(() => {
-    applyCamModeRef.current = applyCamMode;
-  });
   /*
-   * 고른 화질 · 프레임으로 켜졌나 — 카메라가 못 내는 조합이면 가까운 것으로 켜진다. 그 결과가 30fps 이하면(측정 카메라는
-   * 30fps 이하를 안 쓴다 — 2026-10-03 사용자) 고르기 전으로 되돌리고, 아니면 실제로 켜진 값을 알린다.
+   * 고른 화질 · 프레임으로 켜졌나 — 카메라가 못 내는 조합이면 가까운 것으로 켜진다. 되돌리지 않고(예전에는 30fps 로 켜지면
+   * 고르기 전으로 되돌려 '1080 으로 안 넘어간다'로 보였다) 실제로 켜진 값을 알리고, 60fps 아래면 측정이 잘 안 된다고 경고한다
+   * (막지 않는다 — 2026-10-04 사용자). 같은 경고가 오른쪽 위 알약(주황)과 시트에도 남는다.
    */
   const checkCamMode = (info: CameraInfo, asked: CamMode | null) => {
-    const back = modeBeforeRef.current;
-    modeBeforeRef.current = undefined;
-    if (!asked || info.frameRate == null) return;
+    if (info.frameRate == null) return;
     const gotFps = Math.round(info.frameRate);
     const gotShort = Math.min(info.width, info.height);
-    if (!fpsAllowed(gotFps) && back !== undefined) {
-      setToast(`${camModeLabel(asked)} 는 이 카메라에서 ${gotFps}fps 라 원래대로 돌렸어요`);
-      applyCamModeRef.current(back, false);
+    const low = !fpsGood(gotFps);
+    if (asked && (Math.abs(gotShort - asked.short) > 8 || Math.abs(gotFps - asked.fps) > 2)) {
+      setToast(
+        `이 카메라는 ${camModeLabel(asked)} 를 못 내 ${gotShort}p · ${gotFps}fps 로 켰어요${
+          low ? ' — 60fps 아래라 측정이 잘 안 돼요' : ''
+        }`
+      );
       return;
     }
-    if (Math.abs(gotShort - asked.short) > 8 || Math.abs(gotFps - asked.fps) > 2)
-      setToast(`이 카메라는 ${camModeLabel(asked)} 를 못 내 ${gotShort}p · ${gotFps}fps 로 켰어요`);
+    if (low) setToast(`지금 ${gotFps}fps 예요 — 60fps 아래라 측정이 잘 안 돼요`);
   };
 
   useEffect(() => {
@@ -1486,7 +1518,9 @@ export function VelocityScreen({
         ? { n: '5/5', label: '스트라이크 존' }
         : null;
   const fpsNote = liveFpsNote(fps);
-  const lowFps = fpsNote != null;
+  /* 오른쪽 위 알약을 주황으로 — 실제로 들어오는 fps 가 낮거나(50 아래), 카메라가 60fps 아래로 켜졌거나(시트와 같은 기준) */
+  const lowFps =
+    fpsNote != null || (camera?.frameRate != null && !fpsGood(camera.frameRate));
   /* 카메라가 잘려 왔으면(원래 비율이 아니면) 화각을 짐작한다 — 막지 않고 알린다 */
   const cropNote =
     camera?.cropped === true
@@ -2982,11 +3016,28 @@ export function VelocityScreen({
         options={camOptions}
         current={
           camera
-            ? { width: camera.width, height: camera.height, fps: fps ?? camera.frameRate }
+            ? {
+                width: camera.width,
+                height: camera.height,
+                /* 카메라가 약속한 값(고른 값과 견줌) · 실제로 들어오는 값(따로 경고) */
+                fps: camera.frameRate,
+                liveFps: fps,
+              }
             : null
         }
         busy={status === 'starting'}
         dual={camera?.label.startsWith('DualCamera') === true}
+        dualSkipped={
+          dualSkipped != null &&
+          camMode != null &&
+          dualSkipped.short === camMode.short &&
+          dualSkipped.fps === camMode.fps
+        }
+        locked={
+          rec && (rec.phase === 'starting' || rec.phase === 'recording' || rec.phase === 'stopping')
+            ? '녹화 중에는 화질 · 프레임을 바꿀 수 없어요 — 녹화를 멈춘 뒤 바꿔요.'
+            : null
+        }
         onPick={(next) => applyCamMode(next)}
       />
 
