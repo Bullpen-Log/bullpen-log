@@ -118,7 +118,7 @@
   남던 흐린 네모, 사이드바를 열 때 먼저 흐려지던 오른쪽 띠가 이것이었다(2026-09-28). 흐림이 있는 것은 옅어지기 · 밀기를
   틀(group)에 건다. 틀의 자리는 브라우저가 transform 으로 잡으므로 틀에는 opacity · translate 만(scale 은 자리까지
   끌고 간다), 모서리는 border-radius 로 요소와 맞춘다(globals.css 의 nav-dock · nav-sheet).
-- 운동 라이브러리에 스크립트로 운동을 넣으면 `lib/library-cache.ts` 의 캐시 이름을 하나 올린다(김민 2026-10-03 에 `library:exercises:v10`).
+- 운동 라이브러리에 스크립트로 운동을 넣으면 `lib/library-cache.ts` 의 캐시 이름을 하나 올린다(지금 `library:exercises:v11` — 김민 2026-10-04).
 - 셀프테스트는 `npm run nutrition:test` 처럼 npm 으로 돌린다. `node scripts/…mts` 로 바로 돌리면 `@/` 경로를 못 찾는다.
 - 첫 페인트 전에 돌아야 하는 코드는 `next/script` `beforeInteractive` 가 아니라 `<head>` 의 평범한
   `<script dangerouslySetInnerHTML>` 로 둔다(App Router 에서는 첫 페인트 전에 안 돈다).

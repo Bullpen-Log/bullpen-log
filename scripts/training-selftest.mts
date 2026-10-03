@@ -4858,18 +4858,27 @@ console.log('\n[암케어] 부위·근육 · 오늘의 루틴 · 부하');
   /*
    * 같은 날 넷을 더 더했다 — 3D 에서 회색으로 남아 빠진 것처럼 보이던 어깨 앞(전면 삼각근·
    * 대흉근) · 목 쪽 어깨 위(상부 승모근) · 아래팔 등(손가락 신전근). 근육 칸이 비지 않게
-   * 넷 다 주로 키우는 운동이 하나 이상 있어야 하고, 넷 다 예방 주장은 하지 않는다.
+   * 넷 다 그 근육을 쓰는 운동이 하나 이상 있어야 하고, 넷 다 예방 주장은 하지 않는다.
+   *
+   * 2026-10-04 암케어 검토로 전면 삼각근의 밴드 프론트 레이즈는 상체 스트렝스로, 손가락 신전근의 고무줄 손가락 펴기는
+   * 숨김(손가락용 고무줄이 필요)이 됐다(scripts/library-armcare-review-2026-10-04.mjs). 그 둘은 이제 주로 키우는 운동은
+   * 없고 함께 쓰는 운동(스플릿 스탠스 크로스바디 인 · 덤벨/튜빙 전완 신전)만 있다 — 칸이 비지 않는 것은 그대로 본다.
    */
   const addedFour = ['전면 삼각근', '대흉근', '상부 승모근', '손가락 신전근'];
-  const noPrimary = addedFour.filter(
+  const primaryKept = ['대흉근', '상부 승모근'];
+  const noExercise = addedFour.filter(
     (m) =>
       !ARMCARE_MUSCLE_NAMES.includes(m) ||
-      !armcareLib.some((ex) => ex.targetMuscles[0] === m)
+      !armcareLib.some((ex) =>
+        primaryKept.includes(m)
+          ? ex.targetMuscles[0] === m
+          : ex.targetMuscles.includes(m)
+      )
   );
   check(
-    '더한 근육 넷이 목록에 있고, 주로 키우는 운동이 하나 이상 있다',
-    noPrimary.length === 0,
-    noPrimary.join(', ')
+    '더한 근육 넷이 목록에 있고, 그 근육을 쓰는 운동이 하나 이상 있다(대흉근 · 상부 승모근은 주로 키우는 운동)',
+    noExercise.length === 0,
+    noExercise.join(', ')
   );
   check(
     '더한 넷도 예방 주장은 하지 않는다 (이름만)',
