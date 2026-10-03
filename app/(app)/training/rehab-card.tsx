@@ -6,14 +6,17 @@ import {
   Check,
   ChevronDown,
   CircleCheck,
+  ClipboardCheck,
   FlaskConical,
   Moon,
   Play,
+  Sprout,
   Stethoscope,
   TrendingDown,
 } from 'lucide-react';
 import { ConfirmDialog } from '@/components/confirm-delete';
 import { ErrorLine } from '@/components/error-line';
+import { Modal, useModalState } from '@/components/modal';
 import { OFFLINE_MESSAGE, orOffline } from '@/lib/action-offline';
 import type {
   GateCheck,
@@ -27,6 +30,12 @@ import { endRehab } from '@/app/actions/rehab';
 import { Checklist, type ArmcareTodayItem } from './armcare-today';
 import { RedFlags } from './arm-pain-guide-body';
 import { DiagnosisSheet, StageChangeSheet, StageTestSheet } from './rehab-sheets';
+import {
+  ThrowingOpenFlow,
+  ThrowingProgram,
+  type RehabThrowingView,
+} from './rehab-throwing';
+import { WeeklyFlow } from './rehab-weekly';
 
 /** 재활 카드가 그리는 것 — 서버(armcare-section.tsx)가 규칙(lib/armcare/rehab.ts)으로 만들어 넘긴다 */
 export type RehabCardView = {
@@ -56,10 +65,29 @@ export type RehabCardView = {
   /** 부위 · 병명 · 오늘 세션의 안내(낮춤 · 바꿔 넣기 · 뺀 것) */
   notes: string[];
   avoid: string[];
-  /** 이 단계에서 다음으로 가는 시험 — 4단계는 null(투구 복귀표는 ②번) */
+  /** 이 단계에서 다음으로 가는 시험 — 4단계는 null(투구 복귀표 열기는 throwing) */
   stageTest: StageTest | null;
   /** [진단 받았어요]에서 고를 병명 — 이미 진단이 있거나 이 부위에 병명이 없으면 빈 목록 */
   conditionChoices: { key: RehabConditionKey; label: string }[];
+  /** 시작 때 고른 내 활동 — 매주 확인 ③ */
+  activities: string[];
+  /** 매주 확인 — 때가 됐나 · 지금 할 수 있나 · 마지막 확인 · 지난 7일 안의 확인 */
+  weekly: RehabWeeklyView;
+  /** 팔굽혀 터치(CKCUEST) 내 첫 기록 — 단계 시험의 '처음' 칸을 미리 채운다 */
+  ckcFirst: number | null;
+  /** 4단계 — 공 운동 날 수 · 투구 복귀표 열기. 4단계가 아니면 null */
+  throwing: RehabThrowingView | null;
+};
+
+export type RehabWeeklyView = {
+  due: boolean;
+  allowed: boolean;
+  /** 마지막 확인 — '지난 확인 10월 2일 · 다치기 전의 70%' */
+  last: { date: string; normalPct: number } | null;
+  /** 지난 7일 안의 확인 — 투구 복귀표 열기 시트가 이 % · 자신감을 쓴다 */
+  recent: { normalPct: number; confidence: number } | null;
+  /** 다음 확인 날(YYYY-MM-DD) — 지금 할 수 있으면 null */
+  nextOn: string | null;
 };
 
 const RESULT_LABEL: Record<RehabResult, string> = {
@@ -73,9 +101,9 @@ const RESULT_LABEL: Record<RehabResult, string> = {
  * 오늘 재활 — 암케어 [루틴] 칸 맨 위, 맞춤 루틴 자리(재활 2편). 내 루틴은 그대로 아래에 선다.
  *
  * 겉은 세 줄(설계 4-2): 무엇 · 몇 단계 · 정도 / 오늘 몇 개 · 약 몇 분 [시작] / 진행(깨끗한 세션 · 이 단계 며칠째), 그리고
- * 위에 뜨는 한 줄 하나(진료 > 쉬는 날 > 낮추기 > 단계 시험). [자세히]를 누르면 단계 목표 · 운동(체크) · 피할 것 · 위험 신호 ·
- * 올리는 조건 · [진단 받았어요] · [단계 직접 바꾸기] · [그만두기]가 펼쳐진다(사용자: 겉은 단순, 누르면 자세히).
- * 강조색은 sky 하나, 진료 · 위험 신호만 경고색.
+ * 위에 뜨는 한 줄 하나(진료 > 쉬는 날 > 낮추기 > 단계 시험 > 매주 확인 > 정도 낮아짐). [자세히]를 누르면 단계 목표 ·
+ * 운동(체크) · 피할 것 · 위험 신호 · 올리는 조건(4단계는 투구 복귀표) · 매주 확인 · [진단 받았어요] · [단계 직접 바꾸기] ·
+ * [그만두기]가 펼쳐진다(사용자: 겉은 단순, 누르면 자세히). 강조색은 sky 하나, 진료 · 위험 신호만 경고색.
  */
 export function RehabCard({ view }: { view: RehabCardView }) {
   const [open, setOpen] = useState(false);
@@ -83,9 +111,18 @@ export function RehabCard({ view }: { view: RehabCardView }) {
   const [ending, setEnding] = useState<'stopped' | 'done' | null>(null);
   const [pending, startPending] = useTransition();
   const [error, setError] = useState<string>();
+  /* 매주 확인 · 투구 복귀표 열기 — 닫으면 내용을 비워 다음에 새로 시작한다 */
+  const weekly = useModalState<true>();
+  const opening = useModalState<true>();
 
   const doneCount = view.items.filter((it) => it.done).length;
   const playHref = `/armcare/play/rehab?d=${view.dateKey}`;
+  const opened = view.throwing?.openedOn != null;
+  /* 투구 복귀표 열기 — 지난 7일 안의 확인이 있으면 시험만, 없으면 매주 확인부터(4단계 확인의 ⑤가 같은 시험이다) */
+  const openThrowing = (e: { currentTarget: Element }) => {
+    if (view.weekly.recent) opening.show(true, e);
+    else if (view.weekly.allowed) weekly.show(true, e);
+  };
 
   const end = (reason: 'stopped' | 'done') => {
     setError(undefined);
@@ -108,7 +145,13 @@ export function RehabCard({ view }: { view: RehabCardView }) {
         </h3>
       </div>
 
-      {view.line && <TopLine line={view.line} onTest={() => setSheet('test')} />}
+      {view.line && (
+        <TopLine
+          line={view.line}
+          onTest={() => setSheet('test')}
+          onWeekly={(e) => weekly.show(true, e)}
+        />
+      )}
 
       {/* 오늘 — 끝났으면 판정, 쉬는 날이면 시작 단추 없이, 아니면 몇 개 · 약 몇 분 [시작] */}
       {view.today ? (
@@ -203,52 +246,75 @@ export function RehabCard({ view }: { view: RehabCardView }) {
 
           <RedFlags />
 
-          <Part
-            title={view.stage < 4 ? '다음 단계로 가는 조건' : '투구 복귀표를 여는 조건'}
-          >
-            {view.stage < 4 ? (
+          {view.stage < 4 || !view.throwing ? (
+            <Part title="다음 단계로 가는 조건">
               <ul className="space-y-1.5 text-sm">
                 {view.gate.checks.map((c) => (
-                  <li key={c.label} className="flex items-start gap-2">
-                    <span
-                      aria-hidden
-                      className={`mt-0.5 grid h-5 w-5 shrink-0 place-items-center rounded-full ${
-                        c.ok ? 'bg-sky text-white' : 'border-2 border-line-strong'
-                      }`}
-                    >
-                      {c.ok && <Check className="h-3 w-3" strokeWidth={3} />}
-                    </span>
-                    <span className={c.ok ? 'text-ink' : 'text-muted'}>
-                      {c.label}
-                      <span className="sr-only">{c.ok ? ' — 됨' : ' — 아직'}</span>
-                    </span>
-                  </li>
+                  <CheckRow key={c.label} ok={c.ok}>
+                    {c.label}
+                  </CheckRow>
                 ))}
-                <li className="flex items-start gap-2 text-muted">
-                  <span
-                    aria-hidden
-                    className="mt-0.5 h-5 w-5 shrink-0 rounded-full border-2 border-line-strong"
-                  />
-                  단계 시험 통과
-                </li>
+                <CheckRow ok={false}>단계 시험 통과</CheckRow>
               </ul>
-            ) : (
-              <p className="text-sm leading-relaxed break-keep text-ink/85">
-                4단계 공 운동을 며칠 통증 없이 하고(가벼움 4 · 보통 5 · 심함 7일), 밀기
-                · 공 던지기 힘 비교와 팔 상태(다치기 전의 90% 이상) · 던질 자신감(7
-                이상)을 봐요. 가능하면 진료 때 투구 복귀를 물어보세요.
+              {view.stageTest && (
+                <AccentButton
+                  onClick={() => setSheet('test')}
+                  disabled={!view.gate.ready}
+                >
+                  <FlaskConical aria-hidden className="h-4 w-4" />
+                  단계 시험 하기
+                </AccentButton>
+              )}
+            </Part>
+          ) : opened ? (
+            <Part title="투구 복귀표">
+              <ThrowingProgram severity={view.throwing.severity} />
+              <p className="text-xs text-muted">
+                가능하면 진료 때 투구 복귀를 물어보세요. 마운드 칸까지 통증 없이 마치면
+                재활을 끝내요.
               </p>
-            )}
-            {view.stageTest && (
-              <button
-                type="button"
-                onClick={() => setSheet('test')}
-                disabled={!view.gate.ready}
-                className="inline-flex min-h-11 items-center gap-1.5 rounded-full border border-sky-soft bg-sky-tint px-4 text-sm font-semibold text-sky-strong transition-colors hover:bg-sky hover:text-white disabled:pointer-events-none disabled:opacity-50"
+              <AccentButton onClick={() => setEnding('done')}>재활 끝내기</AccentButton>
+            </Part>
+          ) : (
+            <Part title="투구 복귀표를 여는 조건">
+              <ul className="space-y-1.5 text-sm">
+                <CheckRow ok={view.throwing.painFreeBallDays >= view.throwing.needed}>
+                  공 운동을 통증 없이 {view.throwing.needed}일 (지금{' '}
+                  {Math.min(view.throwing.painFreeBallDays, view.throwing.needed)}일)
+                </CheckRow>
+                <CheckRow ok={false}>
+                  밀기 · 공 던지기 힘 비교 · 팔 상태 90% 이상 · 던질 자신감 7 이상
+                </CheckRow>
+              </ul>
+              <p className="text-xs text-muted">
+                가능하면 진료 때 투구 복귀를 물어보세요.
+              </p>
+              <AccentButton
+                onClick={openThrowing}
+                disabled={!view.weekly.recent && !view.weekly.allowed}
               >
                 <FlaskConical aria-hidden className="h-4 w-4" />
-                단계 시험 하기
-              </button>
+                {view.weekly.recent ? '투구 복귀표 열기' : '이번 주 확인부터'}
+              </AccentButton>
+            </Part>
+          )}
+
+          <Part title="매주 확인">
+            <p className="text-sm leading-relaxed break-keep text-ink/85">
+              {view.weekly.last
+                ? `지난 확인 ${shortDate(view.weekly.last.date)} · 다치기 전의 ${view.weekly.last.normalPct}%`
+                : '일주일마다 팔 상태 · 통증 · 내 활동을 1분 동안 확인해요.'}
+              {view.weekly.nextOn && (
+                <span className="block text-xs text-muted">
+                  다음 확인 {shortDate(view.weekly.nextOn)}
+                </span>
+              )}
+            </p>
+            {view.weekly.allowed && (
+              <AccentButton onClick={(e) => weekly.show(true, e)}>
+                <ClipboardCheck aria-hidden className="h-4 w-4" />
+                이번 주 확인
+              </AccentButton>
             )}
           </Part>
 
@@ -265,7 +331,7 @@ export function RehabCard({ view }: { view: RehabCardView }) {
             <SmallButton onClick={() => setSheet('stage')}>
               단계 직접 바꾸기
             </SmallButton>
-            {view.stage === 4 && (
+            {view.stage === 4 && !opened && (
               <SmallButton onClick={() => setEnding('done')}>재활 끝내기</SmallButton>
             )}
             <SmallButton onClick={() => setEnding('stopped')} muted>
@@ -277,12 +343,49 @@ export function RehabCard({ view }: { view: RehabCardView }) {
 
       {view.stageTest && (
         <StageTestSheet
+          key={view.ckcFirst ?? 'none'}
           open={sheet === 'test'}
           onClose={() => setSheet(null)}
           test={view.stageTest}
           stage={view.stage}
           ready={view.gate.ready}
+          ckcFirst={view.ckcFirst}
         />
+      )}
+      <Modal
+        open={weekly.open}
+        onClose={weekly.close}
+        title="이번 주 확인"
+        description="약 1분 · 지난주와 견줘 속도를 맞춰요"
+        origin={weekly.origin}
+      >
+        {weekly.content && (
+          <WeeklyFlow
+            stage={view.stage}
+            activities={view.activities}
+            stageTest={view.stageTest}
+            throwing={view.throwing}
+            ckcFirst={view.ckcFirst}
+            onDone={weekly.close}
+          />
+        )}
+      </Modal>
+      {view.throwing && view.weekly.recent && (
+        <Modal
+          open={opening.open}
+          onClose={opening.close}
+          title="투구 복귀표 열기"
+          description="공 던지기 힘을 양쪽으로 견줘요"
+          origin={opening.origin}
+        >
+          {opening.content && (
+            <ThrowingOpenFlow
+              view={view.throwing}
+              recent={view.weekly.recent}
+              onDone={opening.close}
+            />
+          )}
+        </Modal>
       )}
       <DiagnosisSheet
         open={sheet === 'diagnosis'}
@@ -313,7 +416,15 @@ export function RehabCard({ view }: { view: RehabCardView }) {
 }
 
 /** 위에 뜨는 한 줄 — 진료만 경고색, 나머지는 옅은 면 */
-function TopLine({ line, onTest }: { line: RehabLine; onTest: () => void }) {
+function TopLine({
+  line,
+  onTest,
+  onWeekly,
+}: {
+  line: RehabLine;
+  onTest: () => void;
+  onWeekly: (e: { currentTarget: Element }) => void;
+}) {
   if (line.kind === 'refer') {
     return (
       <p className="flex items-start gap-2 rounded-xl border border-warn-line bg-warn-bg px-3.5 py-2.5 text-sm leading-relaxed break-keep text-warn">
@@ -322,30 +433,49 @@ function TopLine({ line, onTest }: { line: RehabLine; onTest: () => void }) {
       </p>
     );
   }
-  const Icon =
-    line.kind === 'rest' ? Moon : line.kind === 'lowered' ? TrendingDown : FlaskConical;
+  const Icon = {
+    rest: Moon,
+    lowered: TrendingDown,
+    'stage-test': FlaskConical,
+    weekly: ClipboardCheck,
+    eased: Sprout,
+  }[line.kind];
+  const action =
+    line.kind === 'stage-test'
+      ? { label: '시험하기', onClick: onTest }
+      : line.kind === 'weekly'
+        ? { label: '확인하기', onClick: onWeekly }
+        : null;
   return (
     <div className="flex items-center gap-2 rounded-xl bg-surface-2 px-3.5 py-2.5 text-sm leading-relaxed break-keep text-ink">
       <Icon aria-hidden className="h-4 w-4 shrink-0 text-sky-strong" />
       <span className="min-w-0 flex-1">{line.text}</span>
-      {line.kind === 'stage-test' && (
+      {action && (
         <button
           type="button"
-          onClick={onTest}
+          onClick={action.onClick}
           className="inline-flex min-h-11 shrink-0 items-center rounded-full px-2 text-sm font-semibold text-sky-strong hover:underline"
         >
-          시험하기
+          {action.label}
         </button>
       )}
     </div>
   );
 }
 
-/** 진행 — 깨끗한 세션 점 · 이 단계 며칠째 */
+/** 진행 — 깨끗한 세션 점 · 이 단계 며칠째(4단계는 공 운동 날 수 · 투구 복귀표) */
 function Progress({ view }: { view: RehabCardView }) {
   if (view.stage === 4) {
+    const t = view.throwing;
     return (
-      <p className="text-xs text-muted">4단계 {view.elapsed + 1}일째 · 던지기 준비</p>
+      <p className="text-xs text-muted">
+        4단계 {view.elapsed + 1}일째 ·{' '}
+        {!t
+          ? '던지기 준비'
+          : t.openedOn
+            ? '투구 복귀표를 열었어요 — 자세히에서 봐요'
+            : `공 운동 통증 없이 ${Math.min(t.painFreeBallDays, t.needed)}/${t.needed}일`}
+      </p>
     );
   }
   const shown = Math.min(view.clean, view.cleanNeeded);
@@ -368,6 +498,54 @@ function Progress({ view }: { view: RehabCardView }) {
         </span>
       )}
     </div>
+  );
+}
+
+/** '10월 4일' — 'YYYY-MM-DD' 를 그대로 읽는다(시간대와 상관없이) */
+function shortDate(key: string): string {
+  const [, m, d] = key.split('-').map(Number);
+  return `${m}월 ${d}일`;
+}
+
+/** 조건 한 줄 — 됐으면 파란 동그라미에 체크 */
+function CheckRow({ ok, children }: { ok: boolean; children: React.ReactNode }) {
+  return (
+    <li className="flex items-start gap-2">
+      <span
+        aria-hidden
+        className={`mt-0.5 grid h-5 w-5 shrink-0 place-items-center rounded-full ${
+          ok ? 'bg-sky text-white' : 'border-2 border-line-strong'
+        }`}
+      >
+        {ok && <Check className="h-3 w-3" strokeWidth={3} />}
+      </span>
+      <span className={ok ? 'text-ink' : 'text-muted'}>
+        {children}
+        <span className="sr-only">{ok ? ' — 됨' : ' — 아직'}</span>
+      </span>
+    </li>
+  );
+}
+
+/** 펼친 카드 안의 파란 알약 단추(단계 시험 · 매주 확인 · 투구 복귀표) */
+function AccentButton({
+  onClick,
+  disabled = false,
+  children,
+}: {
+  onClick: (e: React.MouseEvent<HTMLButtonElement>) => void;
+  disabled?: boolean;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      className="inline-flex min-h-11 items-center gap-1.5 rounded-full border border-sky-soft bg-sky-tint px-4 text-sm font-semibold text-sky-strong transition-colors hover:bg-sky hover:text-white disabled:pointer-events-none disabled:opacity-50"
+    >
+      {children}
+    </button>
   );
 }
 

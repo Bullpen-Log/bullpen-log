@@ -10,7 +10,8 @@ import { RECENT_DAYS } from '@/lib/report/today-pick';
 import { shiftDateKey, toDateKey } from '@/lib/pitch-stats';
 import { readDailyPlan } from '@/lib/report/daily-plan';
 import type { RecentTrainingDay } from '@/lib/ai/auto-setup-prompt';
-import { loadRehabFacts } from '@/lib/armcare/rehab-store';
+import { loadRehabFacts, loadRehabPeriods } from '@/lib/armcare/rehab-store';
+import { isRehabCheck } from '@/lib/armcare/rehab';
 
 /** 부하 계산에 필요한 기간. 4주 만성 부하에 여유를 둔다. */
 export const LOOKBACK_DAYS = 45;
@@ -184,24 +185,35 @@ export async function exerciseSessionsAgo(
   today: Date
 ): Promise<Map<string, number>> {
   const todayKey = toDateKey(today);
-  const logs = await prisma.userExerciseLog.findMany({
-    where: {
-      userId,
-      completed: true,
-      date: {
-        gte: new Date(`${shiftDateKey(todayKey, -HISTORY_DAYS)}T00:00:00.000Z`),
-        lte: new Date(`${todayKey}T00:00:00.000Z`),
+  const sinceKey = shiftDateKey(todayKey, -HISTORY_DAYS);
+  const [all, rehab] = await Promise.all([
+    prisma.userExerciseLog.findMany({
+      where: {
+        userId,
+        completed: true,
+        date: {
+          gte: new Date(`${sinceKey}T00:00:00.000Z`),
+          lte: new Date(`${todayKey}T00:00:00.000Z`),
+        },
+        /*
+         * 암케어는 뺀다. 2026-09-25 부터 암케어는 운동 일정과 따로 매일 하는 루틴이라,
+         * 넣으면 밴드 몇 개만 한 날도 '세션'이 되어 본운동이 돌아오는 차례(여섯 세션)가
+         * 날로 치면 훨씬 빨리 온다. 암케어 운동은 일정에 안 나오니 셀 까닭도 없다.
+         */
+        exercise: { category: { not: '암케어' } },
       },
-      /*
-       * 암케어는 뺀다. 2026-09-25 부터 암케어는 운동 일정과 따로 매일 하는 루틴이라,
-       * 넣으면 밴드 몇 개만 한 날도 '세션'이 되어 본운동이 돌아오는 차례(여섯 세션)가
-       * 날로 치면 훨씬 빨리 온다. 암케어 운동은 일정에 안 나오니 셀 까닭도 없다.
-       */
-      exercise: { category: { not: '암케어' } },
-    },
-    select: { exerciseId: true, date: true },
-    orderBy: { date: 'desc' },
-  });
+      select: { exerciseId: true, date: true, exercise: { select: { title: true } } },
+      orderBy: { date: 'desc' },
+    }),
+    loadRehabPeriods(userId, sinceKey),
+  ]);
+  /*
+   * 재활(재활 2편)에서 한 체크도 같은 까닭으로 뺀다 — 재활 운동은 카테고리가 여럿이라(모빌리티 크로스바디 스트레칭 ·
+   * 파워 메디신볼 던지기) 암케어 거름에 안 걸려, 1단계(매일)에는 스트레칭 하나로 날마다 '세션'이 됐다.
+   */
+  const logs = all.filter(
+    (l) => !isRehabCheck(l.exercise.title, toDateKey(l.date), rehab)
+  );
 
   /*
    * 운동한 날을 최근 순으로 늘어놓고 번호를 매긴다.
@@ -283,24 +295,28 @@ export async function lastStrengthDates(
   today: Date
 ): Promise<{ lower: string | null; upper: string | null }> {
   const todayKey = toDateKey(today);
-  const logs = await prisma.userExerciseLog.findMany({
-    where: {
-      userId,
-      completed: true,
-      date: {
-        gte: new Date(
-          `${shiftDateKey(todayKey, -ROTATION_LOOKBACK_DAYS)}T00:00:00.000Z`
-        ),
-        lt: new Date(`${todayKey}T00:00:00.000Z`),
+  const sinceKey = shiftDateKey(todayKey, -ROTATION_LOOKBACK_DAYS);
+  const [logs, rehab] = await Promise.all([
+    prisma.userExerciseLog.findMany({
+      where: {
+        userId,
+        completed: true,
+        date: {
+          gte: new Date(`${sinceKey}T00:00:00.000Z`),
+          lt: new Date(`${todayKey}T00:00:00.000Z`),
+        },
       },
-    },
-    select: { date: true, exercise: { select: { category: true } } },
-  });
+      select: { date: true, exercise: { select: { category: true, title: true } } },
+    }),
+    loadRehabPeriods(userId, sinceKey),
+  ]);
 
   let lower: string | null = null;
   let upper: string | null = null;
   for (const log of logs) {
     const key = log.date.toISOString().slice(0, 10);
+    /* 재활에서 한 컬(조트만 컬 — 상체 스트렝스)이 '상체 날을 했다'로 테마를 뒤집지 않게 */
+    if (isRehabCheck(log.exercise.title, key, rehab)) continue;
     if (log.exercise.category === '하체 스트렝스' && (!lower || key > lower)) {
       lower = key;
     }
