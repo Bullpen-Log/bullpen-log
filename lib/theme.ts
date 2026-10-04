@@ -56,7 +56,7 @@ export const DEFAULT_THEME: ThemeChoice = 'light';
  * 이 색으로 칠한다. 메타 태그는 폰의 밝기 설정만 읽어서, 앱을 라이트로 둔 채 폰이 다크면 흰 화면 위에 검은 띠가
  * 따로 놀았다(2026-10-03 아이폰 점검). 고른 테마를 칠할 때마다 메타의 색을 같이 바꾼다.
  */
-const PAGE_COLORS: Record<Exclude<ThemeChoice, 'system'>, string> = {
+export const PAGE_COLORS: Record<Exclude<ThemeChoice, 'system'>, string> = {
   light: '#f2f2f7',
   dark: '#000000',
   navy: '#0b1220',

@@ -56,6 +56,18 @@ export function dateKeyOf(year: number, monthIndex: number, day: number) {
   return `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())}`;
 }
 
+/**
+ * 날짜 키(YYYY-MM-DD)를 화면 글로 — '10월 4일', 올해가 아니면 '2025년 10월 4일'.
+ *
+ * 리포트 '2026-10-03 기준'처럼 키를 그대로 찍으면 웹 표기 같았다(2026-10-04 '앱 느낌' 점검). 연도는 한국 시간의 올해와 견준다.
+ */
+export function dateKeyLabel(dateKey: string) {
+  const [y, m, d] = dateKey.split('-').map(Number);
+  if (!y || !m || !d) return dateKey;
+  const md = `${m}월 ${d}일`;
+  return String(y) === toDateKey(new Date()).slice(0, 4) ? md : `${y}년 ${md}`;
+}
+
 export function shiftDateKey(dateKey: string, offset: number) {
   const [y, m, d] = dateKey.split('-').map(Number);
   return dateKeyOf(y, m - 1, d + offset);

@@ -24,7 +24,8 @@ const bebas = Bebas_Neue({
 });
 
 export const metadata: Metadata = {
-  title: 'Bullpen Log — 투수를 위한 트레이닝 & 기록 플랫폼',
+  /* 이름만 — 공유 미리보기 · 앱 전환 화면에 '…트레이닝 & 기록 플랫폼'이 붙어 웹사이트 같았다(2026-10-04). 소개는 description */
+  title: 'Bullpen Log',
   description:
     '투수 전용 운동 가이드, 투구 메커니즘 분석, 날짜별 투구 기록 관리와 스포츠 과학 자료실을 한 곳에서.',
   /*

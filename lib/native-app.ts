@@ -1,3 +1,5 @@
+import { PAGE_COLORS } from '@/lib/theme';
+
 /**
  * 아이폰 앱(mobile/ 의 Capacitor 껍데기) 안에서 여는 화면만을 위한 첫 스크립트.
  *
@@ -30,6 +32,9 @@ export const APP_INIT_SCRIPT = `(function () {
     var bars = function () {
       var theme = root.getAttribute('data-theme') || 'light';
       call('SystemBars', 'setStyle', { style: theme === 'light' ? 'LIGHT' : 'DARK' });
+      /* 앱이 웹뷰 바탕을 이 색으로 칠해 둔다 — 오래 뒤에 있다 돌아와 사이트를 다시 그리는 동안 흰 화면이 번쩍이지 않게(새 앱만) */
+      var page = window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.bullpenTheme;
+      if (page) page.postMessage(${JSON.stringify(PAGE_COLORS)}[theme] || '#f2f2f7');
     };
     bars();
     new MutationObserver(bars).observe(root, { attributes: true, attributeFilter: ['data-theme'] });

@@ -6,6 +6,7 @@ import { AlertTriangle, ChevronDown, Minus, Moon, Sparkles, Sun } from 'lucide-r
 import { generateAiReport, type AiReportState } from '@/app/actions/ai-report';
 import { OFFLINE_MESSAGE, orOffline } from '@/lib/action-offline';
 import { type ReportReadiness } from '@/lib/report/cadence';
+import { dateKeyLabel } from '@/lib/pitch-stats';
 import type { AiReportBody } from '@/lib/ai/report-prompt';
 import {
   intensityRangeText,
@@ -308,7 +309,7 @@ export function AiReportCard({
           <h2 className="text-sm font-bold text-ink">리포트</h2>
           <p className="mt-0.5 text-xs text-muted">
             {report
-              ? `${report.asOf} 기준 · 다시 만들기 전까지 내용이 바뀌지 않아요`
+              ? `${dateKeyLabel(report.asOf)} 기준 · 다시 만들기 전까지 내용이 바뀌지 않아요`
               : '기록을 바탕으로 앞으로 3일 투구 계획을 만들어요'}
           </p>
         </div>
