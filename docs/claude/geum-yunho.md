@@ -118,7 +118,7 @@
   남던 흐린 네모, 사이드바를 열 때 먼저 흐려지던 오른쪽 띠가 이것이었다(2026-09-28). 흐림이 있는 것은 옅어지기 · 밀기를
   틀(group)에 건다. 틀의 자리는 브라우저가 transform 으로 잡으므로 틀에는 opacity · translate 만(scale 은 자리까지
   끌고 간다), 모서리는 border-radius 로 요소와 맞춘다(globals.css 의 nav-dock · nav-sheet).
-- 운동 라이브러리에 스크립트로 운동을 넣으면 `lib/library-cache.ts` 의 캐시 이름을 하나 올린다(지금 `library:exercises:v11` — 김민 2026-10-04).
+- 운동 라이브러리에 스크립트로 운동을 넣으면 `lib/library-cache.ts` 의 캐시 이름을 하나 올린다(지금 `library:exercises:v12` — 김민 2026-10-04).
 - 셀프테스트는 `npm run nutrition:test` 처럼 npm 으로 돌린다. `node scripts/…mts` 로 바로 돌리면 `@/` 경로를 못 찾는다.
 - 첫 페인트 전에 돌아야 하는 코드는 `next/script` `beforeInteractive` 가 아니라 `<head>` 의 평범한
   `<script dangerouslySetInnerHTML>` 로 둔다(App Router 에서는 첫 페인트 전에 안 돈다).
@@ -187,10 +187,40 @@
   잰다(`lib/use-device-level.ts` gravityOf · tiltOf). **크롬에도 `DeviceOrientationEvent.requestPermission` 이 있다**(묻지 않고
   허락) — 그것만 보고 '아이폰'이라 여기면 틀린다. 누름 밖에서 한 번 청해 보면 크롬 · 이미 허락한 아이폰은 곧바로 허락된다.
 - **헤드리스 크롬을 여러 개 같이 돌려 영상을 재면 값이 흔들린다**(2026-10-04) — 되감기가 앞 장면을 다시 내줘 장면이 겹친다(같은 엔진인데
-  실내 18개 중 7개가 다르게 나옴). 차례로 돌리고 결과의 `video.duplicatesDropped` 가 0 인지 본다. 밖 영상 다시 재기 도구는 스크래치
-  `re1003/`(run.mjs · sheet.mjs · cdp.mjs — 저장소 엔진을 blob 모듈로 올려 임시 경로 · 개발 서버 없이 잰다).
+  실내 18개 중 7개가 다르게 나옴). 차례로 돌리고 결과의 `video.duplicatesDropped` 가 0 인지 본다. 영상 다시 재기 도구는 저장소
+  `scripts/velocity-lab/`(README — 내려받기 · 재기 · 장면 모음. 저장소 엔진을 blob 모듈로 올려 임시 경로 · 개발 서버 없이 잰다).
+- **김민의 '앱 느낌' 정리(2026-10-04, HANDOFF 에서 옮김) — 새 화면에서 쓸 것.** 휴대폰 모양만 바뀌고 PC 는 거의 그대로.
+  - 저장 알림 `toast('저장했어요')`(`components/toast.tsx`, 창 위에도 뜬다) · redirect 로 끝나는 폼은 `SafeForm` 의 `doneToast`.
+  - 켜고 끄기 `Switch` · `SwitchRow`(`components/switch.tsx`), 설정 목록 `ListGroup` · `ListRow` · `SelectRow`(`components/settings-list.tsx`),
+    밀어서 하기 `SwipeRow`(`components/swipe-row.tsx`).
+  - 떨림은 저절로(체크 상자 · 라디오 · select · role radio/tab/switch — `components/haptic-feedback.tsx`), 빼려면 `data-haptic="none"`,
+    뜻으로 부를 때 `haptic('success' | 'medium' …)`(`lib/haptics.ts`).
+  - 하위 화면의 '‹ 뒤로'는 `BackLink`(진짜 뒤로, 휴대폰은 위 막대에), 큰 제목은 `PageHeading`(스크롤하면 막대 제목으로 접힘, 제목 옆
+    단추는 `inlineAction`). 휴대폰 위 막대는 아이폰 내비 막대(뒤로 · 가운데 제목 · 종 · 설정 · 내 정보), 종은 아래 시트.
+  - 글자는 11px 아래로 쓰지 않는다. 날짜 키를 화면에 쓸 때 `dateKeyLabel`('10월 4일', `lib/pitch-stats.ts`). 앱 안은 글자 선택이 꺼져
+    있다 — 고를 수 있어야 하는 글은 `.selectable`, 당겨서 새로고침에 끼면 안 되는 칸은 `data-no-ptr`.
+  - 그래프(홈 · 부하 지수 · 운동 볼륨 · 영양 둘)는 건강 앱 모양 — 누르고 훑으면 숫자가 그날 값으로(`lib/smooth-path.ts` ·
+    `components/use-box-size.ts`). `next.config.ts` 의 `staleTimes.dynamic: 30`(30초 안에 돌아온 탭은 서버를 다시 안 다녀온다).
+  - 셀프테스트의 `scripts/alias-loader.mjs` 는 `lib/workout/session-plan.ts` 의 `import 'server-only'` 만 빈 모듈로 바꾼다(다른 파일은
+    예전처럼 던진다). 운동 라이브러리 캐시 이름은 지금 `library:exercises:v12`.
 
 ## 4. 진행 중인 일
+
+- **데스크톱에서 이어 하기(2026-10-04 낮, 노트북에서 넘김 — 사용자: "나머지는 데스크톱에서 할 거니까 메모 남겨줘").** 10-03~04 의
+  작업은 모두 **노트북**에서 했다(이 메모의 옛 줄에 '데스크톱'이라 적힌 것은 틀렸다). 데스크톱의 Claude 가 처음 할 일:
+  1. **받기**: `git pull` → `npm ci`(package-lock 이 바뀌었다 — `@zxing/library` 등) → `npx prisma generate` · `npx prisma migrate status`
+     (김민이 DB 표 · 칸을 여럿 더했다 — 이미 운영 DB 에 적용, 읽기만) → 서버 켜기. `.next/types` 가 옛 경로를 붙들면 3절대로 지운다.
+  2. **남은 번호**는 바로 아래 '메인 추천 작업'의 7 · 8번. 사용자가 번호로 시킨다. 끝내면 남은 번호를 한 줄씩 알려 준다.
+  3. **8번(구속 엔진 대비 길)에 필요한 것은 저장소에 다 있다**: 도구 `scripts/velocity-lab/`(README), 진단 · 처방 · 시험판 차이
+     `docs/velocity/outdoor-2026-10-03.md`. 영상은 데스크톱에서 다시 받는다 — `node --env-file=.env scripts/velocity-lab/download.mjs
+     --date=2026-10-03 --manual`(밖 13개) · `--date=2026-09-28`(실내 18개), 받는 곳 `~/bullpen-velocity-lab`. 먼저 지금 엔진으로
+     돌려 기록과 같은지 본다(밖 1/13 — 100 → 97.0, 실내 15/18).
+  4. **노트북에만 있는 것**(못 옮김 · 없어도 됨): 스크래치의 9GB 장면 캐시 · `lab/` · `wf/` · `re1003/`(엔진 복사본 스물여 개 — 필요한
+     차이는 위 문서에 적었다). `npm run velocity:live-test` 는 캐시가 없으면 캐시 시험만 건너뛴다.
+  5. **사용자 확인 대기**(폰): 실계정 점검의 ✗ 넷을 고친 뒤 다시 보기 — 그날 화면 ▶ · 홈 캘린더 클립(금윤호 계정 10-03 에 시험용 세션이
+     있다. 다 보면 그날 화면의 세션 휴지통으로 지운다 — 사용자에게 물어보고) · 끼니 칸 머리 · 아이폰 바코드 카메라. 새 TestFlight 빌드로
+     화질 · 프레임(1080p 60) 고르기. 체크리스트는 claude.ai 아티팩트 "불펜로그 실계정 점검"(같은 계정이라 데스크톱에서도 열린다).
+  6. 이 줄은 데스크톱에서 다 읽고 받은 뒤 지운다.
 
 - **정식 출시 전에 물을 것(사용자 2026-10-04: "정식 출시 전에 한 번 더 얘기해줘, 출시할 때쯤 따로 말해 줄게").** 사용자가
   출시 이야기를 꺼내거나 출시 준비 작업을 할 때 먼저 묻는다.
@@ -221,11 +251,11 @@
   7. 클라우드 식단 정확도 2차 받아 합치기 — 클라우드가 `cloud/meal-plan-accuracy` 에 '클라우드 결과:' 를 올리면 시험 · 화면 확인 뒤
      main 에. 20~30분. (클라우드 1차 검토 결과: 못 먹는 것 새던 6가지는 메인이 고침 — 기대표 · 시험 387.)
   8. **구속 엔진 — 밖 · 그물 앞에서 재지게(대비 길), 가운데 자리 1.9.0.** `docs/velocity/outdoor-2026-10-03.md` 의 처방 다섯:
-     ① 지금 길이 거부됐을 때만 닫힘 0 으로 다시(스크래치 `re1003/eng-fallback` 에 구현 · 실내 18개 값 그대로 · 밖 1 → 8) ② 그래도
+     ① 지금 길이 거부됐을 때만 닫힘 0 으로 다시(시험판 차이가 그 문서에 있다 · 실내 18개 값 그대로 · 밖 1 → 8) ② 그래도
      거부면 가운데 조건 없이 한 번 더(밖 12개까지 — 대비 길로는 아직 안 돌려 봄) ③ 밝은 배경 문턱 0.4(13개 전부) ④ 실시간 화면이
      조용히 버리던 거부를 '공은 봤는데 못 쟀어요 + 까닭'으로 ⑤ 대비 길로 잰 공은 분석 JSON 에 표시 · 보정 짝에서 뺌. 끝나면 13개를 다시
      재서 보여 주고 허락받아 원본 공에 채운다(3차 보정 차수). 시험: selftest · detect · video · live · accuracy + 실내 18 · 밖 13.
-     2~3시간. 메인만 할 수 있다(영상 · 캐시 · 스크래치 도구).
+     2~3시간. 도구는 `scripts/velocity-lab/`(어느 컴퓨터에서든 — 영상은 내려받는다). 클라우드는 못 한다(.env · 크롬이 없다).
 
 - **클라우드 세션 할 일 — 식단 짜기 정확도 2차(2026-10-04, 메인 세션이 맡김).** 사용자가 클라우드 세션을 열어 "메모대로 해 줘"라고
   하면 이것을 한다. 지난 클라우드 작업(틀 85 → 167 · 시험 382, 커밋 8e1fbd5 · 46cc794 · 96dae5d)을 메인이 세 갈래로 검토했고,
