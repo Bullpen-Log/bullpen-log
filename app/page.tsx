@@ -27,17 +27,17 @@ const FEATURES: { icon: LucideIcon; title: string; desc: string }[] = [
   {
     icon: Dumbbell,
     title: '오늘에 맞춘 트레이닝',
-    desc: '몸 상태와 던진 양을 보고 오늘 할 운동을 골라 줘요. 암케어도 따라 하기로.',
+    desc: '체크인한 몸 상태와 던진 양을 보고 오늘 할 운동을 골라 줘요. 암케어도 화면을 보며 따라 해요.',
   },
   {
     icon: ChartLine,
     title: '리포트',
-    desc: '최근 7일 · 30일 투구량과 구속을 정리하고 짚을 점을 알려 줘요.',
+    desc: '최근 7일 · 30일 투구량과 구속을 보여 주고, 무리하게 던진 때를 알려 줘요.',
   },
   {
     icon: BookOpen,
     title: '메커니즘 · 자료실',
-    desc: '스로잉 · 메디신볼 드릴과 투구 역학 자료를 한곳에서 봐요.',
+    desc: '스로잉 · 메디신볼 드릴과 투구 역학 자료를 찾아봐요.',
   },
 ];
 
@@ -63,7 +63,7 @@ export default async function LandingPage() {
           <Wordmark className="text-5xl text-ink" />
         </h1>
         <p className="mt-3 text-center text-base leading-relaxed break-keep text-muted">
-          투수를 위한 기록과 트레이닝, 한곳에서.
+          던진 공을 기록하고, 오늘 할 운동을 받아요.
         </p>
 
         <ul className="mt-12 space-y-7">

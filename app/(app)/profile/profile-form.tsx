@@ -348,7 +348,7 @@ export function ProfileForm({
 
       <ListGroup
         title="기본 정보"
-        footer="생년월일에 따라 안전한 투구수 한도와 영양 기준이 달라져요. 성별은 영양 목표(기초대사량)를 계산하는 데 써요."
+        footer="생년월일로 안전한 투구수 한도와 영양 기준을, 성별로 영양 목표를 정해요."
       >
         <ListRow label="닉네임">
           <input
@@ -376,7 +376,7 @@ export function ProfileForm({
 
       <ListGroup
         title="몸"
-        footer="키는 영상에서 잰 보폭을 몸 크기로 견줄 때 써요. 윙스팬은 양팔을 벌린 길이로, 보통 키와 비슷하거나 조금 길어요. 목표 구속은 비워 두면 지워요."
+        footer="키는 영상에서 잰 보폭을 견줄 때 써요. 윙스팬은 양팔을 벌린 길이예요. 목표 구속은 비워 두면 지워져요."
       >
         <BodyField
           name="heightCm"
@@ -408,7 +408,7 @@ export function ProfileForm({
 
       <ListGroup
         title="운동"
-        footer="하루 운동 시간에 맞춰 트레이닝 운동 개수를 정해요(몸 상태가 안 좋은 날은 저절로 줄어요). 던지는 손은 투구폼 분석에서 볼 팔이에요. 웨이트 경력 · 가진 장비는 설정 › 트레이닝에서 골라요."
+        footer="하루 운동 시간에 맞춰 운동 개수를 정해요. 웨이트 경력 · 장비는 설정 › 트레이닝에서 골라요."
       >
         <SelectRow
           label="하루 운동 시간"

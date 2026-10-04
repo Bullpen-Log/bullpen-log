@@ -122,7 +122,7 @@ export function StageTestFields({
   const first = num(draft.ckcFirst);
   return (
     <>
-      <Ask title={`${test.exercise} — 지칠 때까지 몇 번?`}>
+      <Ask title={`${test.exercise}, 지칠 때까지 몇 번?`}>
         <div className="grid grid-cols-2 gap-2">
           <NumberField
             label="다친 쪽"

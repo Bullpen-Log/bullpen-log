@@ -525,7 +525,7 @@ export default async function TrainingPage({
               <p className="text-lg font-bold text-ink">
                 오늘 운동 일정을 만들어보세요
               </p>
-              <p className="text-sm text-muted">투구량과 몸 상태에 맞춰 골라 드려요.</p>
+              <p className="text-sm text-muted">투구량과 몸 상태에 맞춰 골라요.</p>
             </div>
             {planForm(false, savedMinutes)}
           </Card>
@@ -612,9 +612,8 @@ export default async function TrainingPage({
           */}
             {user.ownedEquipment.length === 0 && (
               <p className="rounded-lg border border-warn-line bg-warn-bg px-4 py-3 text-[13px] text-warn">
-                장비를 안 골라 <b>전부 있다고 보고</b> 골랐어요 — 위{' '}
-                <b>트레이닝 설정</b>
-                에서 고르세요.
+                장비를 안 골라 전부 있다고 보고 골랐어요. 위 ‘트레이닝 설정’에서
+                고르세요.
               </p>
             )}
 
@@ -712,7 +711,7 @@ export default async function TrainingPage({
                     className="flex gap-2 text-[13px] leading-relaxed text-muted"
                   >
                     <span aria-hidden className="text-sky">
-                      —
+                      ·
                     </span>
                     {line}
                   </li>

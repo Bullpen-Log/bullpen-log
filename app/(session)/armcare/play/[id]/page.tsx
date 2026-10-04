@@ -149,21 +149,21 @@ export default async function ArmcarePlayPage({
       .map((key) => ARMCARE_AREAS.find((a) => a.key === key)?.label ?? key)
       .join(' · ')}`;
     picks = focusItems.map((it) => ({ exerciseId: it.exerciseId, sets: it.sets }));
-    if (data.decision.kind === 'rest') notice = '오늘 통증을 남기셨어요 — 쉬는 걸 권해요.';
+    if (data.decision.kind === 'rest') notice = '오늘 통증을 남기셨어요. 쉬는 걸 권해요.';
   } else if (!mine) {
     /* 아직 안 만들었거나 통증인 날 — 루틴 칸이 그 까닭을 보여 준다 */
     if (!data.routine || data.decision.kind === 'rest') redirect(BACK);
     title = `오늘의 ${ARMCARE_KIND_TEXT[data.routine.kind].label}`;
     picks = data.routine.items.map((it) => ({ exerciseId: it.exerciseId, sets: it.sets }));
     if (data.routine.kind !== data.decision.kind) {
-      notice = `몸 상태가 바뀌었어요 — ${data.decision.reason}`;
+      notice = `몸 상태가 바뀌었어요. ${data.decision.reason}`;
     }
   } else {
     if (!routine) notFound();
     title = routine.name;
     picks = routine.items;
     /* 내 루틴은 막지 않는다 — 내가 짠 루틴이다. 목록처럼 위에 한 번 알린다 */
-    if (data.decision.kind === 'rest') notice = '오늘 통증을 남기셨어요 — 쉬는 걸 권해요.';
+    if (data.decision.kind === 'rest') notice = '오늘 통증을 남기셨어요. 쉬는 걸 권해요.';
   }
 
   const byId = new Map(library.map((ex) => [ex.id, ex]));

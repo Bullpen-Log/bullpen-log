@@ -709,7 +709,7 @@ function DateNav({
           onClick={() => (picker === 'open' ? close() : setPicker('open'))}
           aria-expanded={picker === 'open'}
           aria-haspopup="dialog"
-          aria-label={`${dayTitle(date)} — 다른 날짜 고르기`}
+          aria-label={`${dayTitle(date)}, 다른 날짜 고르기`}
           className={`inline-flex min-w-[7.5rem] items-center justify-center gap-1.5 rounded-lg px-2 py-1.5 text-sm font-semibold text-ink tabular-nums transition-colors sm:min-w-[8.5rem] ${
             picker === 'open' ? 'bg-surface-2' : 'hover:bg-surface-2'
           }`}
@@ -903,7 +903,7 @@ function WeekStrip({
                   href={hrefOf(d.date, today)}
                   scroll={false}
                   aria-current={selected ? 'date' : undefined}
-                  aria-label={`${dayTitle(d.date)} — ${
+                  aria-label={`${dayTitle(d.date)}, ${
                     d.kcal > 0 ? `${kcalText(d.kcal)}kcal 먹음` : '기록 없음'
                   }`}
                   className={`${cell} ${
@@ -1283,7 +1283,7 @@ function SummaryCard({
                       <span aria-hidden>+</span>
                       <span className="sr-only">
                         {' '}
-                        이상 — 정보가 없는 음식이 있어 실제로는 더 먹었어요
+                        이상, 정보가 없는 음식이 있어 실제로는 더 먹었어요
                       </span>
                     </b>
                   )}{' '}
@@ -1524,7 +1524,7 @@ function MealSection({
               <span
                 title={
                   p.goal !== null
-                    ? `한 끼 단백질 목표 ${p.goal}g — 하루 ${dailyProtein}g 을 세 끼와 간식에 고르게 나눈 양`
+                    ? `한 끼 단백질 목표 ${p.goal}g (하루 ${dailyProtein}g 을 세 끼와 간식에 나눈 양)`
                     : undefined
                 }
                 className={`transition-colors duration-300 ${p.done ? 'font-semibold text-ok' : ''}`}
@@ -1776,7 +1776,7 @@ function EditRow({
         type="button"
         onClick={onReplace}
         disabled={draft.remove}
-        aria-label={`${entry.name} — 다른 음식으로 바꾸기`}
+        aria-label={`${entry.name} 다른 음식으로 바꾸기`}
         className={`-my-1 -ml-1 min-w-0 flex-1 rounded-lg px-1 py-1 text-left transition-[opacity,background-color] duration-200 hover:bg-surface-2 disabled:cursor-default disabled:hover:bg-transparent ${draft.remove ? 'opacity-45' : ''}`}
       >
         <span

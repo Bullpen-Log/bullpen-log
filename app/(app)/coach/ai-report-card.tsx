@@ -147,7 +147,7 @@ export function ReportBody({ report }: { report: StoredReport }) {
         <div className="rounded-xl border border-danger-line bg-danger-bg p-5">
           <p className="flex items-center gap-2 text-sm font-bold text-danger">
             <AlertTriangle className="h-4 w-4" />
-            투구 계획을 제공하지 않았어요
+            투구 계획을 내지 않았어요
           </p>
           <p className="mt-2 text-sm leading-relaxed text-danger/80">
             {report.haltReason}
@@ -166,7 +166,7 @@ export function ReportBody({ report }: { report: StoredReport }) {
             해석은 접는다. 한 줄 요약(headline)이 위에 있고, 오늘 무엇을
             할지는 아래 계획에 있다. 왜 그런지가 궁금할 때만 열면 된다.
           */}
-          <Section title="지금 상태 해석">
+          <Section title="지금 몸 상태">
             <p className="whitespace-pre-wrap text-sm leading-relaxed text-ink/80">
               {report.body.assessment}
             </p>
@@ -196,9 +196,7 @@ export function ReportBody({ report }: { report: StoredReport }) {
 
           {/* 실행 항목 */}
           <div className="space-y-3">
-            <p className="text-[11px] font-medium tracking-normal text-muted">
-              실행 항목
-            </p>
+            <p className="text-[11px] font-medium tracking-normal text-muted">할 일</p>
             {/*
               제목은 늘 보이고 이유만 접는다. 무엇을 할지는 한눈에 들어와야
               하고, 왜 그런지는 물음이 생겼을 때 열면 된다.

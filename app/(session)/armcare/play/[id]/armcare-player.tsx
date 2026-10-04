@@ -389,7 +389,7 @@ export function ArmcarePlayer({
       {unsent > 0 && <Unsent count={unsent} onRetry={resend} />}
       {refusedHere.length > 0 && refused && (
         <p className="rounded-xl border border-danger-line bg-danger-bg px-3.5 py-2.5 text-[13px] leading-relaxed break-keep text-danger">
-          체크 {refusedHere.length}개를 남기지 못했어요 — {refused.message}
+          체크 {refusedHere.length}개를 남기지 못했어요. {refused.message}
         </p>
       )}
     </>
@@ -519,7 +519,7 @@ export function ArmcarePlayer({
               {it.unsafe && !done && (
                 <p className="flex items-start gap-1.5 pt-1 text-[13px] leading-relaxed break-keep text-warn">
                   <AlertTriangle aria-hidden className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-                  지금 몸 상태에는 권하지 않는 운동이에요 — 건너뛰어도 돼요.
+                  지금 몸 상태에는 권하지 않는 운동이에요. 건너뛰어도 돼요.
                 </p>
               )}
             </div>

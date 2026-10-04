@@ -467,7 +467,7 @@ function Progress({ view }: { view: RehabCardView }) {
         {!t
           ? '던지기 준비'
           : t.openedOn
-            ? '투구 복귀표를 열었어요 — 자세히에서 봐요'
+            ? '투구 복귀표를 열었어요. 자세히에서 봐요'
             : `공 운동 통증 없이 ${Math.min(t.painFreeBallDays, t.needed)}/${t.needed}일`}
       </p>
     );
@@ -515,7 +515,7 @@ function CheckRow({ ok, children }: { ok: boolean; children: React.ReactNode }) 
       </span>
       <span className={ok ? 'text-ink' : 'text-muted'}>
         {children}
-        <span className="sr-only">{ok ? ' — 됨' : ' — 아직'}</span>
+        <span className="sr-only">{ok ? ', 됨' : ', 아직'}</span>
       </span>
     </li>
   );

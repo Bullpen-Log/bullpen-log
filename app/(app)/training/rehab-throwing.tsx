@@ -237,7 +237,7 @@ export function ThrowingOpenFlow({
   return (
     <div className="space-y-5 text-sm leading-relaxed break-keep">
       <p className="rounded-xl bg-surface-2 px-3.5 py-2.5 text-ink/85">
-        이번 주 확인 — 다치기 전의{' '}
+        이번 주 확인 · 다치기 전의{' '}
         <b className="text-numeric font-semibold">{recent.normalPct}%</b> · 던질 자신감{' '}
         <b className="text-numeric font-semibold">{recent.confidence}</b>
         <span className="block text-xs text-muted">
@@ -292,7 +292,7 @@ export function ThrowingProgram({ severity }: { severity: RehabSeverity }) {
           {THROWING_PAIN_RULES.map((r) => (
             <li key={r.when}>
               <b className="font-semibold text-ink">{r.when}</b>
-              <span className="text-ink/85"> — {r.then}</span>
+              <span className="text-ink/85">, {r.then}</span>
             </li>
           ))}
         </ul>

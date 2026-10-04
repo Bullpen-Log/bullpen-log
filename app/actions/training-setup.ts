@@ -461,7 +461,7 @@ async function decideAutoSetup({
   if ((previous?.aiCalls ?? 0) >= AI_CALLS_PER_DAY) {
     return {
       record: byRules(
-        `오늘 AI 판단을 ${AI_CALLS_PER_DAY}번 받아서, 이번에는 규칙대로 정했습니다.`
+        `오늘 AI 판단을 ${AI_CALLS_PER_DAY}번 받아서, 이번에는 규칙대로 정했어요.`
       ),
       called: false,
     };
@@ -494,8 +494,8 @@ async function decideAutoSetup({
       record: {
         ...byRules(
           asked.called
-            ? 'AI 답을 받지 못해 규칙대로 정했습니다.'
-            : 'AI가 아직 연결되지 않아 규칙대로 정했습니다.',
+            ? 'AI 답을 받지 못해 규칙대로 정했어요.'
+            : 'AI가 아직 연결되지 않아 규칙대로 정했어요.',
           asked.reason
         ),
         ...cost,

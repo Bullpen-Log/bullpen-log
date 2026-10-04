@@ -715,7 +715,7 @@ function planDay(memo: Memo, input: PlanInput, recent: Set<string>[]): MealPlanR
     return {
       items: [],
       meals: [],
-      reasons: [...reasons, '오늘 목표를 거의 채웠어요 — 더 짤 끼니가 없어요.'],
+      reasons: [...reasons, '오늘 목표를 거의 채웠어요. 더 짤 끼니가 없어요.'],
       skipped,
       target: left,
     };

@@ -206,8 +206,7 @@ export function AvatarPicker({
 
       <FormError>{error}</FormError>
       <p className="text-xs leading-relaxed text-muted/70">
-        사진은 작게 줄여서 올려요. 본인만 볼 수 있는 저장소에 들어가고, 화면에 보일
-        때만 잠깐 쓰는 주소가 만들어져요.
+        사진은 작게 줄여서 올리고, 나만 볼 수 있게 저장해요.
       </p>
     </div>
   );

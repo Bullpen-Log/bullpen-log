@@ -13,7 +13,7 @@ import { Camera, Check, ChevronDown, Smartphone } from 'lucide-react';
 
 const CHECKLIST = [
   {
-    title: '옆에서 찍기 — 항상 같은 쪽',
+    title: '항상 같은 쪽 옆에서 찍기',
     detail:
       '1루 또는 3루 쪽에서 옆모습이 나오게 찍어요. 매번 같은 쪽에서 찍어야 지난 영상과 비교할 수 있어요.',
   },
@@ -302,12 +302,12 @@ export function FilmingGuide({ defaultOpen = false }: { defaultOpen?: boolean })
             </p>
             <div className="mt-3 space-y-2.5 text-xs leading-relaxed text-muted">
               <p>
-                <span className="text-ink">슬로우모션 프레임</span> — 설정 → 카메라 →
+                <span className="block text-ink">슬로우모션 프레임</span>설정 → 카메라 →
                 슬로모 촬영 → <span className="text-sky">1080p / 240fps</span> 권장
               </p>
               <p>
-                <span className="text-ink">화질 저하 방지</span> — 설정 → 카메라 → 포맷
-                → <span className="text-sky">높은 호환성</span>
+                <span className="block text-ink">화질 저하 방지</span>설정 → 카메라 →
+                포맷 → <span className="text-sky">높은 호환성</span>
                 <span className="block text-muted/70">
                   이 설정이 아니면 업로드할 때 영상이 다시 변환되면서 화질과 프레임이
                   떨어져요.
@@ -317,10 +317,8 @@ export function FilmingGuide({ defaultOpen = false }: { defaultOpen?: boolean })
           </div>
 
           <p className="rounded-xl empty-well px-4 py-3 text-xs leading-relaxed text-muted/80">
-            <span className="text-ink">왜 이렇게까지 하냐면</span> — 나중에 영상에서
-            몸통 기울기나 보폭 같은 수치를 자동으로 재려고 해요. 그때 각도와 거리가 매번
-            다르면 지난 영상과 비교할 수가 없어요. 지금부터 조건을 맞춰 찍어두시면 그
-            영상들이 그대로 분석 자료가 돼요.
+            각도와 거리가 매번 같아야 나중에 몸통 기울기나 보폭을 재서 지난 영상과
+            비교할 수 있어요.
           </p>
         </div>
       )}

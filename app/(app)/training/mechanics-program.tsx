@@ -94,7 +94,7 @@ export function MechanicsProgram({
 
       <details className="group rounded-2xl bg-surface">
         <summary className="flex min-h-12 cursor-pointer list-none items-center justify-between gap-3 px-(--block-pad) text-sm font-bold text-ink [&::-webkit-details-marker]:hidden">
-          투구 한눈에 · 왜 순서가 중요한가요
+          투구의 흐름 · 왜 순서가 중요한가요
           <ChevronDown aria-hidden className="h-4 w-4 text-muted transition-transform group-open:rotate-180" />
         </summary>
         <div className="px-(--block-pad) pb-(--block-pad)">
@@ -148,7 +148,7 @@ function ProgressBoard({ program }: { program: MechanicsProgramView }) {
           );
         })}
       </ul>
-      <p className="text-xs text-muted">칸이 채워질수록 다음 단계예요 — 기초 · 연결 · 통합.</p>
+      <p className="text-xs text-muted">칸이 채워지면 다음 단계로 가요(기초 · 연결 · 통합).</p>
     </Card>
   );
 }
@@ -225,7 +225,7 @@ function StartCard() {
         </Button>
       </Card>
       <Card className="space-y-4">
-        <h2 className="text-heading text-lg text-ink">투구 한눈에</h2>
+        <h2 className="text-heading text-lg text-ink">투구의 흐름</h2>
         <OverviewDetail />
       </Card>
     </div>

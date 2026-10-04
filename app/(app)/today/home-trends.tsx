@@ -625,7 +625,7 @@ function RangeEnd({
         }}
         aria-expanded={open}
         aria-haspopup="dialog"
-        aria-label={`${label} ${spokenDay(value)} — 다른 날 고르기`}
+        aria-label={`${label} ${spokenDay(value)}, 다른 날 고르기`}
         className={`inline-flex min-h-9 items-center gap-1.5 rounded-lg border px-3 text-sm font-semibold tabular-nums text-ink transition-colors ${
           open
             ? 'border-sky bg-sky-tint'
@@ -777,7 +777,7 @@ function TrendCell({
         tone={tone}
         slots={slots}
         points={points}
-        spoken={`${label} — ${value ? value.join('') : '기록 없음'}${note ? `, ${note}` : ''}${change ? `, ${change.spoken}` : ''}`}
+        spoken={`${label}, ${value ? value.join('') : '기록 없음'}${note ? `, ${note}` : ''}${change ? `, ${change.spoken}` : ''}`}
         fixedDomain={fixedDomain}
         daily={daily}
         endsToday={endsToday}

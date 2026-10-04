@@ -22,7 +22,7 @@ type Result = { favorite: boolean } | { error: string };
 
 export async function toggleExerciseFavorite(exerciseId: string): Promise<Result> {
   const user = await requireUser();
-  if (!exerciseId) return { error: '운동을 찾을 수 없습니다.' };
+  if (!exerciseId) return { error: '운동을 찾을 수 없어요.' };
 
   const where = { userId_exerciseId: { userId: user.id, exerciseId } };
   const existing = await prisma.userExerciseFavorite.findUnique({ where });
@@ -38,7 +38,7 @@ export async function toggleExerciseFavorite(exerciseId: string): Promise<Result
       where: { id: exerciseId, hiddenAt: null },
       select: { id: true },
     });
-    if (!exercise) return { error: '운동을 찾을 수 없습니다.' };
+    if (!exercise) return { error: '운동을 찾을 수 없어요.' };
     await prisma.userExerciseFavorite.create({ data: { userId: user.id, exerciseId } });
   }
 
@@ -63,7 +63,7 @@ export async function setExerciseFavorite(
   favorite: boolean
 ): Promise<Result> {
   const user = await requireUser();
-  if (!exerciseId) return { error: '운동을 찾을 수 없습니다.' };
+  if (!exerciseId) return { error: '운동을 찾을 수 없어요.' };
 
   if (favorite) {
     /* 숨긴 운동에는 달지 않는다 — toggleExerciseFavorite 와 같은 까닭 */
@@ -71,7 +71,7 @@ export async function setExerciseFavorite(
       where: { id: exerciseId, hiddenAt: null },
       select: { id: true },
     });
-    if (!exercise) return { error: '운동을 찾을 수 없습니다.' };
+    if (!exercise) return { error: '운동을 찾을 수 없어요.' };
     await prisma.userExerciseFavorite.upsert({
       where: { userId_exerciseId: { userId: user.id, exerciseId } },
       create: { userId: user.id, exerciseId },
@@ -90,7 +90,7 @@ export async function setExerciseFavorite(
 
 export async function toggleDrillFavorite(guideId: string): Promise<Result> {
   const user = await requireUser();
-  if (!guideId) return { error: '드릴을 찾을 수 없습니다.' };
+  if (!guideId) return { error: '드릴을 찾을 수 없어요.' };
 
   const where = { userId_guideId: { userId: user.id, guideId } };
   const existing = await prisma.userDrillFavorite.findUnique({ where });
@@ -102,7 +102,7 @@ export async function toggleDrillFavorite(guideId: string): Promise<Result> {
       where: { id: guideId },
       select: { id: true },
     });
-    if (!guide) return { error: '드릴을 찾을 수 없습니다.' };
+    if (!guide) return { error: '드릴을 찾을 수 없어요.' };
     await prisma.userDrillFavorite.create({ data: { userId: user.id, guideId } });
   }
 

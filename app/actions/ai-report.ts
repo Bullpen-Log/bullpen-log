@@ -45,7 +45,7 @@ export async function generateAiReport(): Promise<AiReportState> {
   }
 
   if (!isAiConfigured()) {
-    return { error: 'AI가 아직 설정되지 않았습니다. 관리자에게 문의해주세요.' };
+    return { error: 'AI가 아직 설정되지 않았어요. 관리자에게 문의해 주세요.' };
   }
 
   const today = new Date();
@@ -67,7 +67,7 @@ export async function generateAiReport(): Promise<AiReportState> {
   ]);
 
   if (logs.length === 0) {
-    return { error: '투구 기록이 있어야 리포트를 만들 수 있습니다.' };
+    return { error: '투구 기록이 있어야 리포트를 만들 수 있어요.' };
   }
 
   /*
@@ -158,7 +158,7 @@ export async function generateAiReport(): Promise<AiReportState> {
     });
     // 예전 훈련 설명이 화면에 남아 있으면 안 된다.
     revalidatePath('/today');
-    return { success: '통증 신호가 있어 휴식 안내를 저장했습니다.' };
+    return { success: '통증 신호가 있어 휴식 안내를 저장했어요.' };
   }
 
   /*
@@ -259,5 +259,5 @@ export async function generateAiReport(): Promise<AiReportState> {
   });
 
   revalidatePath('/today');
-  return { success: '리포트를 만들었습니다.' };
+  return { success: '리포트를 만들었어요.' };
 }

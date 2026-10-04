@@ -346,8 +346,7 @@ export function CheckinGate({
           오늘 몸 상태부터 남겨주세요
         </h2>
         <p className="mt-1 text-xs leading-relaxed text-muted">
-          체크인을 해야 오늘에 맞춘 운동 추천과 리포트가 나와요. 간편 체크인은 몇 초면
-          끝나고, 더 적고 싶으면 상세 체크인으로 바꾸면 돼요.
+          체크인을 하면 오늘에 맞춘 운동과 리포트가 나와요. 몇 초면 끝나요.
         </p>
       </div>
 
@@ -369,9 +368,7 @@ export function CheckinGate({
 
       {!showDone && (
         <div className="flex shrink-0 flex-wrap items-center justify-between gap-x-3 gap-y-1 px-5 pt-1 pb-[max(0.75rem,env(safe-area-inset-bottom))] desk:border-t desk:border-line desk:py-3">
-          <p className="text-[11px] text-muted">
-            건너뛰면 다음에 접속할 때 다시 물어요.
-          </p>
+          <p className="text-[11px] text-muted">건너뛰면 다음에 열 때 다시 물어요.</p>
           <button
             type="button"
             onClick={skip}

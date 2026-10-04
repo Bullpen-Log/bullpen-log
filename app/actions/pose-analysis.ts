@@ -22,9 +22,9 @@ export async function savePoseAnalysis(
     where: { id: input.pitchLogId },
     select: { userId: true, videoPaths: true },
   });
-  if (!log || log.userId !== user.id) return { error: '기록을 찾을 수 없습니다.' };
+  if (!log || log.userId !== user.id) return { error: '기록을 찾을 수 없어요.' };
   if (!log.videoPaths.includes(input.videoPath))
-    return { error: '이 기록의 영상이 아닙니다.' };
+    return { error: '이 기록의 영상이 아니에요.' };
 
   const data = {
     userId: user.id,

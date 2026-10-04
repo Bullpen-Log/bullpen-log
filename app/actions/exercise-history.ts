@@ -29,7 +29,7 @@ export async function exerciseHistory(input: {
 }): Promise<{ history: ExerciseHistory; note: string | null } | { error: string }> {
   const user = await requireUser();
   const exerciseId = typeof input?.exerciseId === 'string' ? input.exerciseId : '';
-  if (!exerciseId) return { error: '운동을 찾을 수 없습니다.' };
+  if (!exerciseId) return { error: '운동을 찾을 수 없어요.' };
 
   const todayKey = toDateKey(new Date());
   const from = new Date(`${todayKey}T00:00:00.000Z`);

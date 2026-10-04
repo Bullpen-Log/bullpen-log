@@ -9,17 +9,21 @@
 
 /** 시즌 단계 — 탄수화물 · 회복의 비중을 바꾼다 */
 export const SEASON_PHASES = [
-  { key: 'off', label: '비시즌', hint: '몸을 만드는 때 — 목표 칼로리를 꾸준히 채워요' },
-  { key: 'pre', label: '시즌 준비', hint: '훈련량이 느는 때 — 탄수화물을 넉넉히' },
+  { key: 'off', label: '비시즌', hint: '몸을 만드는 때라 목표 칼로리를 꾸준히 채워요' },
+  {
+    key: 'pre',
+    label: '시즌 준비',
+    hint: '훈련량이 느는 때라 탄수화물을 넉넉히 넣어요',
+  },
   {
     key: 'in',
     label: '시즌 중',
-    hint: '경기에 맞춰 — 익숙한 음식, 던지는 날 탄수화물',
+    hint: '경기에 맞춰 익숙한 음식, 던지는 날엔 탄수화물을 넣어요',
   },
   {
     key: 'rehab',
     label: '재활',
-    hint: '덜 움직이는 때 — 단백질은 그대로, 단 음식은 줄여요',
+    hint: '덜 움직이는 때라 단백질은 그대로, 단 음식은 줄여요',
   },
 ] as const;
 export type SeasonPhase = (typeof SEASON_PHASES)[number]['key'];
@@ -122,12 +126,12 @@ export function toDietPrefs(
  */
 export function cleanDietPrefs(raw: unknown, todayKey: string): DietPrefs | string {
   const o = (raw ?? {}) as Record<string, unknown>;
-  if (typeof raw !== 'object' || raw === null) return '식단 취향이 올바르지 않습니다.';
+  if (typeof raw !== 'object' || raw === null) return '식단 취향이 올바르지 않아요.';
 
   let goalEndDate: string | null = null;
   if (o.goalEndDate !== null && o.goalEndDate !== undefined) {
     if (typeof o.goalEndDate !== 'string' || !DATE_KEY.test(o.goalEndDate)) {
-      return '목표 날짜가 올바르지 않습니다.';
+      return '목표 날짜가 올바르지 않아요.';
     }
     const days = dayNumber(o.goalEndDate) - dayNumber(todayKey);
     if (!Number.isFinite(days) || days < 1 || days > GOAL_END_MAX_DAYS) {
@@ -151,7 +155,7 @@ export function cleanDietPrefs(raw: unknown, todayKey: string): DietPrefs | stri
   ) {
     return '못 먹는 것을 다시 골라 주세요.';
   }
-  if (typeof o.supplements !== 'boolean') return '보충식품 설정이 올바르지 않습니다.';
+  if (typeof o.supplements !== 'boolean') return '보충식품 설정이 올바르지 않아요.';
 
   return {
     goalEndDate,

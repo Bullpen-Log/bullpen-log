@@ -46,7 +46,7 @@ export function SiteFooter({
               <Wordmark className="text-lg text-ink" />
             </p>
             <p className="mt-1.5 text-xs text-muted">
-              투수를 위한 트레이닝 &amp; 기록 플랫폼
+              투수를 위한 투구 기록과 트레이닝
             </p>
           </div>
 

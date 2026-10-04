@@ -66,8 +66,8 @@ export const AGE_RULES: Record<AgeBand, AgeRule> = {
     goalDelta: { gain: 200, maintain: 0, lose: null },
     goalHint: {
       gain: '잘 자라게 조금 더 · 하루 +200kcal',
-      maintain: '자라는 만큼 먹는다',
-      lose: '어린이는 감량을 고를 수 없어요 — 필요하면 소아청소년과와 상의하세요',
+      maintain: '자라는 만큼 먹어요',
+      lose: '어린이는 감량을 고를 수 없어요. 필요하면 소아청소년과와 상의하세요',
     },
     bmrName: 'Schofield 식 · 어린이와 청소년용',
     paces: { gain: [], maintain: [], lose: [] },
@@ -79,8 +79,8 @@ export const AGE_RULES: Record<AgeBand, AgeRule> = {
     proteinDefault: 1.5,
     goalDelta: { gain: 300, maintain: 0, lose: -200 },
     goalHint: {
-      gain: '몸을 키운다 · 하루 +300kcal',
-      maintain: '자라는 만큼 먹으며 시즌을 버틴다',
+      gain: '몸을 키워요 · 하루 +300kcal',
+      maintain: '자라는 만큼 먹으며 시즌을 버텨요',
       lose: '성장기라 아주 천천히 · 하루 −200kcal',
     },
     bmrName: 'Schofield 식 · 어린이와 청소년용',
@@ -98,9 +98,9 @@ export const AGE_RULES: Record<AgeBand, AgeRule> = {
     goalDelta: { gain: 300, maintain: 0, lose: -400 },
     /* 성인은 kcal 을 여기 적지 않는다 — 바로 아래 '일주일 속도' 줄이 말한다(속도마다 다르다) */
     goalHint: {
-      gain: '몸을 키운다',
-      maintain: '지금 몸으로 시즌을 버틴다',
-      lose: '천천히 뺀다',
+      gain: '몸을 키워요',
+      maintain: '지금 몸으로 시즌을 버텨요',
+      lose: '천천히 빼요',
     },
     bmrName: 'Mifflin-St Jeor 식',
     paces: {

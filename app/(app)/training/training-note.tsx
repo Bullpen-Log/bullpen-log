@@ -102,7 +102,7 @@ export function TrainingNote({
 
       <div className="space-y-2">
         <label htmlFor="training-intensity" className="text-sm font-medium text-ink">
-          운동 강도 — {value} / 10
+          운동 강도 · {value} / 10
         </label>
         <input
           id="training-intensity"

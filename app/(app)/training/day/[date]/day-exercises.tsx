@@ -162,7 +162,7 @@ export function DayExercises({
       {exercises.length > 0 && (
         <p className="px-1 text-[11px] leading-relaxed text-muted/70">
           {detail.editable
-            ? '눌러서 켜고 끌 수 있어요. 세트·횟수·무게는 오늘 것만 적을 수 있어요 — 지난 날의 숫자는 정확히 기억하기 어려워요.'
+            ? '눌러서 켜고 끌 수 있어요. 세트·횟수·무게는 오늘 것만 적을 수 있어요.'
             : '일주일이 지난 기록은 고칠 수 없어요.'}{' '}
           오른쪽 그래프 단추로 그 운동의 지난 기록을 볼 수 있어요.
         </p>

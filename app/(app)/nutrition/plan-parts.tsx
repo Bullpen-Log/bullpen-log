@@ -251,7 +251,7 @@ export function PlanCard({
                   <span aria-hidden className="text-sky">
                     ·
                   </span>
-                  성장기에는 단백질이 목표보다 조금 많아도 괜찮아요 — 밥 · 반찬을 골고루
+                  성장기에는 단백질이 목표보다 조금 많아도 괜찮아요. 밥 · 반찬을 골고루
                   먹는 것이 먼저예요.
                 </li>
               )}
@@ -350,7 +350,7 @@ export function PlanBlock({
             <button
               type="button"
               onClick={(e) => onReplace(item, e)}
-              aria-label={`${item.name} — 다른 음식으로 바꾸기`}
+              aria-label={`${item.name} 다른 음식으로 바꾸기`}
               className="-my-1 flex min-w-0 flex-1 items-center gap-2 rounded-lg px-1 py-1.5 text-left transition-colors hover:bg-sky/10"
             >
               <span className="min-w-0 flex-1 truncate text-sm text-ink/70">
@@ -403,7 +403,7 @@ export function PlanEditRow<D extends { amount: number; remove: boolean }>({
         type="button"
         onClick={onReplace}
         disabled={draft.remove}
-        aria-label={`${item.name} — 다른 음식으로 바꾸기`}
+        aria-label={`${item.name} 다른 음식으로 바꾸기`}
         className={`-my-1 -ml-1 min-w-0 flex-1 rounded-lg px-1 py-1 text-left transition-[opacity,background-color] duration-200 hover:bg-surface-2 disabled:cursor-default disabled:hover:bg-transparent ${draft.remove ? 'opacity-45' : ''}`}
       >
         <span

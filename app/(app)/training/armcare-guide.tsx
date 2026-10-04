@@ -134,7 +134,7 @@ export function ArmcareGuide({
           ))}
 
           <p className="px-1 text-xs break-keep text-muted">
-            운동이 부상을 막아 준다는 보장은 없어요 — 아프면 쉬고 진료를 받으세요.
+            운동이 부상을 막아 준다는 보장은 없어요. 아프면 쉬고 진료를 받으세요.
           </p>
 
           {untagged > 0 && (
@@ -217,7 +217,7 @@ function GapCard({
         </p>
         <p className="text-sm break-keep text-muted">
           {labels.join(' · ')}
-          {decel ? ' — 던질 때 팔을 멈춰 주는 곳이에요' : ''}
+          {decel ? ', 던질 때 팔을 멈춰 주는 곳이에요' : ''}
           {coverage.total === 0 ? '. 여기부터 시작해 보세요.' : ''}
         </p>
       </div>

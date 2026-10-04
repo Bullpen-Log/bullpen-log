@@ -24,11 +24,11 @@ const MAX_PATHS = 40;
 export async function POST(req: Request) {
   const user = await getCurrentUser();
   if (!user) {
-    return NextResponse.json({ error: '로그인이 필요합니다' }, { status: 401 });
+    return NextResponse.json({ error: '로그인이 필요해요' }, { status: 401 });
   }
   if (!isStorageConfigured()) {
     return NextResponse.json(
-      { error: '영상 저장소가 설정되지 않았습니다' },
+      { error: '영상 저장소가 설정되지 않았어요' },
       { status: 503 }
     );
   }
@@ -42,12 +42,12 @@ export async function POST(req: Request) {
     if (requested.length === 0) return NextResponse.json({ thumbs: {} });
     if (requested.length > MAX_PATHS) {
       return NextResponse.json(
-        { error: `한 번에 ${MAX_PATHS}개까지만 요청할 수 있습니다` },
+        { error: `한 번에 ${MAX_PATHS}개까지만 요청할 수 있어요` },
         { status: 400 }
       );
     }
     if (requested.some((p) => !isOwnedBy(p, user.id))) {
-      return NextResponse.json({ error: '접근할 수 없는 영상입니다' }, { status: 403 });
+      return NextResponse.json({ error: '접근할 수 없는 영상이에요' }, { status: 403 });
     }
 
     /* 경로 모양만 보지 않고, 실제로 본인 기록에 붙은 영상인지 DB 로 다시 본다 */
@@ -73,7 +73,7 @@ export async function POST(req: Request) {
   } catch (error) {
     console.error('[POST /api/pitch-log/thumb-url]', error);
     return NextResponse.json(
-      { error: '미리보기 주소를 만들지 못했습니다' },
+      { error: '미리보기 주소를 만들지 못했어요' },
       { status: 500 }
     );
   }

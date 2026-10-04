@@ -36,7 +36,7 @@ export default function RootError({
       <FallbackTitle>{online ? '화면을 불러오지 못했어요' : '인터넷 연결이 없어요'}</FallbackTitle>
       <FallbackText>
         {online
-          ? '잠깐 문제가 생겼어요. 다시 시도해 보시고, 계속 같은 화면이 나오면 조금 뒤에 열어 주세요.'
+          ? '잠깐 문제가 생겼어요. 다시 시도해 보고, 안 되면 조금 뒤에 열어 주세요.'
           : '연결되면 다시 시도해 주세요.'}
       </FallbackText>
       <FallbackActions>

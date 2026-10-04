@@ -25,7 +25,7 @@ export async function POST(req: NextRequest) {
   const user = await getCurrentUser();
   if (!user)
     return NextResponse.json(
-      { ok: false, error: '로그인이 필요합니다.' },
+      { ok: false, error: '로그인이 필요해요.' },
       { status: 401 }
     );
   /* 키가 없거나 잠시 멈춤(lib/ai/features.ts — AI 비용을 정하기 전까지) */

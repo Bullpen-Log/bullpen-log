@@ -13,12 +13,12 @@ import {
 export async function POST(req: Request) {
   const user = await getCurrentUser();
   if (!user) {
-    return NextResponse.json({ error: '로그인이 필요합니다' }, { status: 401 });
+    return NextResponse.json({ error: '로그인이 필요해요' }, { status: 401 });
   }
 
   if (!isStorageConfigured()) {
     return NextResponse.json(
-      { error: '영상 저장소가 아직 설정되지 않았습니다. 관리자에게 문의해주세요.' },
+      { error: '영상 저장소가 아직 설정되지 않았어요. 관리자에게 문의해주세요.' },
       { status: 503 }
     );
   }
@@ -27,12 +27,12 @@ export async function POST(req: Request) {
     const { fileName, fileSize, fileType } = await req.json();
 
     if (!fileName || typeof fileName !== 'string') {
-      return NextResponse.json({ error: '파일 이름이 필요합니다' }, { status: 400 });
+      return NextResponse.json({ error: '파일 이름이 필요해요' }, { status: 400 });
     }
 
     if (typeof fileType !== 'string' || !fileType.startsWith('video/')) {
       return NextResponse.json(
-        { error: '영상 파일만 올릴 수 있습니다' },
+        { error: '영상 파일만 올릴 수 있어요' },
         { status: 400 }
       );
     }
@@ -40,7 +40,7 @@ export async function POST(req: Request) {
     const size = Number(fileSize);
     if (!Number.isFinite(size) || size <= 0) {
       return NextResponse.json(
-        { error: '파일 크기를 확인할 수 없습니다' },
+        { error: '파일 크기를 확인할 수 없어요' },
         { status: 400 }
       );
     }
@@ -48,7 +48,7 @@ export async function POST(req: Request) {
     if (size > MAX_VIDEO_BYTES) {
       const mb = Math.round(MAX_VIDEO_BYTES / 1024 / 1024);
       return NextResponse.json(
-        { error: `영상은 ${mb}MB 이하만 올릴 수 있습니다` },
+        { error: `영상은 ${mb}MB 이하만 올릴 수 있어요` },
         { status: 400 }
       );
     }
@@ -58,7 +58,7 @@ export async function POST(req: Request) {
   } catch (error) {
     console.error('[POST /api/pitch-log/upload-url]', error);
     return NextResponse.json(
-      { error: '업로드 주소를 만들지 못했습니다' },
+      { error: '업로드 주소를 만들지 못했어요' },
       { status: 500 }
     );
   }

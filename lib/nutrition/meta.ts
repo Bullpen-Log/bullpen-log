@@ -42,9 +42,9 @@ export type EntryEdit = {
  * 회복이 먼저 떨어진다.
  */
 export const GOALS = [
-  { key: 'gain', label: '증량', hint: '몸을 키운다 · 하루 +300kcal', kcalDelta: 300 },
-  { key: 'maintain', label: '유지', hint: '지금 몸으로 시즌을 버틴다', kcalDelta: 0 },
-  { key: 'lose', label: '감량', hint: '천천히 뺀다 · 하루 −400kcal', kcalDelta: -400 },
+  { key: 'gain', label: '증량', hint: '몸을 키워요 · 하루 +300kcal', kcalDelta: 300 },
+  { key: 'maintain', label: '유지', hint: '지금 몸으로 시즌을 버텨요', kcalDelta: 0 },
+  { key: 'lose', label: '감량', hint: '천천히 빼요 · 하루 −400kcal', kcalDelta: -400 },
 ] as const;
 
 export type GoalKey = (typeof GOALS)[number]['key'];
@@ -61,7 +61,7 @@ export function isGoalKey(v: unknown): v is GoalKey {
  * 적어 둔 운동을 두 번 세게 된다.
  */
 export const ACTIVITIES = [
-  { key: 'low', label: '적음', hint: '주로 앉아서 지낸다 · 팀 훈련 없음', factor: 1.3 },
+  { key: 'low', label: '적음', hint: '주로 앉아서 지내요 · 팀 훈련 없음', factor: 1.3 },
   { key: 'mid', label: '보통', hint: '주 3~4일 팀 훈련', factor: 1.5 },
   { key: 'high', label: '많음', hint: '거의 매일 팀 훈련', factor: 1.7 },
 ] as const;

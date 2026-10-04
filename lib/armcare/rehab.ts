@@ -1037,7 +1037,7 @@ export function buildRehabSession({
     );
   }
   if (swapped.length > 0) {
-    notes.push(`장비가 없어 바꿔 넣었어요 — ${swapped.join(' · ')}`);
+    notes.push(`장비가 없어 바꿔 넣었어요(${swapped.join(' · ')}).`);
   }
   if (dropped.length > 0) {
     notes.push(`장비가 없어 ${withJosa(dropped.join(' · '), '은/는')} 뺐어요.`);
@@ -1149,17 +1149,17 @@ export function sessionResultText(
   const after = afterBadSession(s);
   switch (s.result) {
     case 'green':
-      return '초록 — 잘했어요. 다음에도 이대로 해요.';
+      return '초록이에요. 잘했어요. 다음에도 이대로 해요.';
     case 'yellow':
-      return '노랑 — 다음에도 같은 운동을 다시 해요. 아직 올리지 않아요.';
+      return '노랑이에요. 다음에도 같은 운동을 다시 해요. 아직 올리지 않아요.';
     case 'refer':
-      return '진료 — 저리거나 빠질 것 같은 느낌은 진료를 받아보세요. 이틀은 팔을 쉬어요.';
+      return '저리거나 빠질 것 같은 느낌은 진료를 받아보세요. 이틀은 팔을 쉬어요.';
     case 'red':
       if (after && !after.lower)
-        return '빨강 — 내일은 쉬고, 그다음에 같은 운동을 해요.';
+        return '빨강이에요. 내일은 쉬고, 그다음에 같은 운동을 해요.';
       return s.stage <= 1
-        ? '빨강 — 이틀 쉬어요. 1단계에서도 아프면 진료를 받아보세요.'
-        : '빨강 — 이틀 쉬고, 한 칸 낮춘 운동으로 해요.';
+        ? '빨강이에요. 이틀 쉬어요. 1단계에서도 아프면 진료를 받아보세요.'
+        : '빨강이에요. 이틀 쉬고, 한 칸 낮춘 운동으로 해요.';
   }
 }
 
@@ -1343,11 +1343,10 @@ export function rehabCardLine({
   if (stageTest)
     return {
       kind: 'stage-test',
-      text: '다음 단계로 갈 준비가 됐어요 — 단계 시험을 해 보세요.',
+      text: '다음 단계로 갈 준비가 됐어요. 단계 시험을 해 보세요.',
     };
   if (weeklyDue) return { kind: 'weekly', text: '이번 주 확인(1분)을 해 주세요.' };
-  if (eased)
-    return { kind: 'eased', text: '통증 정도가 낮아졌어요 — 기간이 짧아져요.' };
+  if (eased) return { kind: 'eased', text: '통증 정도가 낮아졌어요. 기간이 짧아져요.' };
   return null;
 }
 
@@ -1422,17 +1421,17 @@ export function rehabStatus({
     if (gap >= 1 && gap <= after.restDays) {
       rest =
         s.result === 'refer'
-          ? '오늘은 쉬는 날이에요 — 저리거나 빠질 것 같은 느낌이 있었어요.'
-          : `오늘은 쉬는 날이에요 — 지난번이 빨강이었어요(${after.restDays === 1 ? '하루' : '이틀'} 쉬기).`;
+          ? '오늘은 쉬는 날이에요. 저리거나 빠질 것 같은 느낌이 있었어요.'
+          : `오늘은 쉬는 날이에요. 지난번이 빨강이었어요(${after.restDays === 1 ? '하루' : '이틀'} 쉬기).`;
     }
   }
   const last = past.at(-1) ?? null;
   if (!rest && program.stage >= 2 && last && daysBetween(last.date, todayKey) === 1) {
-    rest = '오늘은 쉬는 날이에요 — 2단계부터는 하루 걸러 해요.';
+    rest = '오늘은 쉬는 날이에요. 2단계부터는 하루 걸러 해요.';
   }
   let refer: string | null = null;
   if (jointPainToday && todayCheckin?.armPainLevel !== 1) {
-    rest = '오늘 체크인에 평소에도 아프다고 하셨어요 — 오늘은 쉬어요.';
+    rest = '오늘 체크인에 평소에도 아프다고 하셨어요. 오늘은 쉬어요.';
     refer = '평소에도 아프거나 밤에도 아프면 진료를 받아보세요.';
   }
 
@@ -1453,10 +1452,10 @@ export function rehabStatus({
   const lowered = loweredBySession || loweredByCheckin;
   const loweredReason = loweredBySession
     ? program.stage === 1
-      ? '1단계에서도 아팠어요 — 아프지 않은 범위에서만 해요.'
-      : `한 칸 낮춰 하는 중이에요 — 초록 ${RETURN_GREENS - greensSince}번 더면 돌아가요.`
+      ? '1단계에서도 아팠어요. 아프지 않은 범위에서만 해요.'
+      : `한 칸 낮춰 하는 중이에요. 초록 ${RETURN_GREENS - greensSince}번 더면 돌아가요.`
     : loweredByCheckin
-      ? '오늘 체크인에 던질 때 아프다고 하셨어요 — 한 칸 낮춰 해요.'
+      ? '오늘 체크인에 던질 때 아프다고 하셨어요. 한 칸 낮춰 해요.'
       : null;
 
   /* 진료 권유 */
@@ -1466,14 +1465,14 @@ export function rehabStatus({
   });
   if (!refer) {
     if (recent.some((s) => s.result === 'refer')) {
-      refer = '저리거나 빠질 것 같은 느낌이 있었어요 — 진료를 받아보세요.';
+      refer = '저리거나 빠질 것 같은 느낌이 있었어요. 진료를 받아보세요.';
     } else if (
       recent.filter((s) => s.result === 'red' || s.result === 'refer').length >=
       REFER_RED_COUNT
     ) {
-      refer = '2주 안에 빨강이 세 번 나왔어요 — 진료를 받아보세요.';
+      refer = '2주 안에 빨강이 세 번 나왔어요. 진료를 받아보세요.';
     } else if (loweredBySession && program.stage === 1) {
-      refer = '1단계에서도 아파요 — 진료를 받아보세요.';
+      refer = '1단계에서도 아파요. 진료를 받아보세요.';
     } else if (recentWeekly?.test?.outcome?.refer) {
       refer = recentWeekly.test.outcome.refer;
     }
@@ -2088,9 +2087,9 @@ export function weeklyOutcome({
   const stallable = weekly.normalPct < NEAR_NORMAL_PCT;
   let refer: string | null = null;
   if (weekly.nightPain && (prev ? !prev.nightPain : program.severity !== 'severe')) {
-    refer = '밤이나 쉴 때 아픈 것이 새로 생겼어요 — 진료를 받아보세요.';
+    refer = '밤이나 쉴 때 아픈 것이 새로 생겼어요. 진료를 받아보세요.';
   } else if (program.stage === 1 && (stepDown || thisLower)) {
-    refer = '1단계에서도 아파요 — 진료를 받아보세요.';
+    refer = '1단계에서도 아파요. 진료를 받아보세요.';
   } else if (
     stallable &&
     first &&
@@ -2098,7 +2097,7 @@ export function weeklyOutcome({
     !reachedBefore(14) &&
     notImprovedAtAll(first, weekly)
   ) {
-    refer = '2주가 지났는데 전혀 나아지지 않았어요 — 진료를 받아보세요.';
+    refer = '2주가 지났는데 전혀 나아지지 않았어요. 진료를 받아보세요.';
   } else if (
     stallable &&
     first &&
@@ -2106,13 +2105,13 @@ export function weeklyOutcome({
     !reachedBefore(42) &&
     !weeklyImproved(first, weekly)
   ) {
-    refer = '6주가 지났는데 뚜렷이 나아지지 않았어요 — 진료를 받아보세요.';
+    refer = '6주가 지났는데 뚜렷이 나아지지 않았어요. 진료를 받아보세요.';
   } else if (
     stallable &&
     prevs.length >= 3 &&
     !weeklyImproved(prevs[prevs.length - 3], weekly)
   ) {
-    refer = '매주 확인 세 번 동안 나아지지 않았어요 — 진료를 받아보세요.';
+    refer = '매주 확인 세 번 동안 나아지지 않았어요. 진료를 받아보세요.';
   }
 
   let stage = program.stage;
@@ -2131,16 +2130,16 @@ export function weeklyOutcome({
       stageChanged = true;
       stageShortenDays = 0;
       lines.push(
-        `한 단계 내려가요 — ${stage}단계 ${REHAB_STAGES[stage].name}${raised ? `, 정도는 ${severityLabel(severity)}` : ''}.`
+        `한 단계 내려가요(${stage}단계 ${REHAB_STAGES[stage].name}${raised ? `, 정도는 ${severityLabel(severity)}` : ''}).`
       );
     } else if (raised) {
       lines.push(
-        `정도를 ${withJosa(severityLabel(severity), '으로/로')} 올려요 — 1단계에 머물러요.`
+        `정도를 ${withJosa(severityLabel(severity), '으로/로')} 올려요. 1단계에 머물러요.`
       );
     }
   } else if (thisLower && program.stage > 1) {
     lines.push(
-      `이번 주 가장 아팠던 정도가 ${RED_PAIN} 이상이에요 — 한 칸 낮춘 운동으로 해요. 초록이 ${RETURN_GREENS}번 나오면 돌아가요.`
+      `이번 주 가장 아팠던 정도가 ${RED_PAIN} 이상이에요. 한 칸 낮춘 운동으로 해요. 초록이 ${RETURN_GREENS}번 나오면 돌아가요.`
     );
   } else if (!thisLower && !refer) {
     if (calmStreak >= 2) {
@@ -2150,7 +2149,7 @@ export function weeklyOutcome({
         eased = true;
         calmStreak = 0;
         lines.push(
-          `통증 정도가 ${withJosa(severityLabel(lower), '으로/로')} 낮아졌어요 — 남은 기간이 짧아져요.`
+          `통증 정도가 ${withJosa(severityLabel(lower), '으로/로')} 낮아졌어요. 남은 기간이 짧아져요.`
         );
       }
     }
@@ -2181,10 +2180,10 @@ export function weeklyOutcome({
     const yellowThisWeek = sessions.some(
       (s) => within(s.date, 7) && s.result === 'yellow'
     );
-    if (!prev) lines.push('첫 확인이에요 — 다음 주부터 견줘요.');
+    if (!prev) lines.push('첫 확인이에요. 다음 주부터 견줘요.');
     else if (weeklyImproved(prev, weekly) && !yellowThisWeek)
-      lines.push('나아지고 있어요 — 이대로 해요.');
-    else lines.push('변화가 아직 작아요 — 이 단계에 머물러요.');
+      lines.push('나아지고 있어요. 이대로 해요.');
+    else lines.push('변화가 아직 작아요. 이 단계에 머물러요.');
   }
 
   return {

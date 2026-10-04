@@ -196,7 +196,7 @@ function DrillView({ item, isAdmin }: { item: SessionDrillView; isAdmin: boolean
 
       {element && (
         <p className="text-xs leading-relaxed break-keep text-muted">
-          {item.element} — {element.line}
+          {item.element} · {element.line}
         </p>
       )}
     </div>
@@ -301,7 +301,7 @@ function FinishView({
               </p>
               {desc && (
                 <p className="text-sm break-keep text-muted">
-                  다음 세션부터 {stage} 드릴이 나와요 — {desc}.
+                  다음 세션부터 {stage} 드릴이 나와요({desc}).
                 </p>
               )}
               {el && el.cues[0] && (

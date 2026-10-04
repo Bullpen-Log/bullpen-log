@@ -147,7 +147,7 @@ export function PhotoCapture({
           <span className="min-w-0 flex-1">
             <span className="block text-sm font-medium text-ink">사진으로 담기</span>
             <span className="block truncate text-xs text-muted">
-              밥 사진을 찍거나 고르면 음식과 양을 알아봐요 · AI · 사진은 저장하지 않아요
+              AI가 음식과 양을 알아봐요 · 사진은 저장하지 않아요
             </span>
           </span>
         </button>

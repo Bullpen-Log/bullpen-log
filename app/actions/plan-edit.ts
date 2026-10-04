@@ -57,10 +57,10 @@ async function savePicks(
  */
 export async function removeFromTodayPlan(exerciseId: string): Promise<Result> {
   const user = await getCurrentUser();
-  if (!user) return { error: '로그인이 필요합니다.' };
+  if (!user) return { error: '로그인이 필요해요.' };
 
   const { date, plan } = await loadToday(user.id);
-  if (!plan) return { error: '오늘 만들어 둔 일정이 없습니다.' };
+  if (!plan) return { error: '오늘 만들어 둔 일정이 없어요.' };
 
   const picks = plan.picks.filter((p) => p.exerciseId !== exerciseId);
   const inPicks = picks.length !== plan.picks.length;
@@ -92,11 +92,11 @@ export async function removeFromTodayPlan(exerciseId: string): Promise<Result> {
    * 예전에는 일정에 없다고 '오늘 목록에 없는 운동입니다'만 떠서 ✕ 가 늘 안 먹었다.
    */
   if (!inPicks) {
-    if (inArmcare) return { error: '암케어에서 한 체크라 여기서는 뺄 수 없습니다.' };
+    if (inArmcare) return { error: '암케어에서 한 체크라 여기서는 뺄 수 없어요.' };
     const res = await prisma.userExerciseLog.deleteMany({
       where: { userId: user.id, date, exerciseId },
     });
-    if (res.count === 0) return { error: '오늘 목록에 없는 운동입니다.' };
+    if (res.count === 0) return { error: '오늘 목록에 없는 운동이에요.' };
     revalidatePath('/training');
     revalidatePath('/today');
     return { ok: true };
@@ -120,19 +120,19 @@ export async function removeFromTodayPlan(exerciseId: string): Promise<Result> {
  */
 export async function addToTodayPlan(exerciseId: string): Promise<Result> {
   const user = await getCurrentUser();
-  if (!user) return { error: '로그인이 필요합니다.' };
+  if (!user) return { error: '로그인이 필요해요.' };
 
   const { date, plan } = await loadToday(user.id);
-  if (!plan) return { error: '오늘 만들어 둔 일정이 없습니다.' };
+  if (!plan) return { error: '오늘 만들어 둔 일정이 없어요.' };
   if (plan.picks.some((p) => p.exerciseId === exerciseId)) {
-    return { error: '이미 오늘 목록에 있습니다.' };
+    return { error: '이미 오늘 목록에 있어요.' };
   }
 
   const exercise = await prisma.exerciseVideo.findUnique({
     where: { id: exerciseId },
     select: { id: true, category: true, intensity: true, bodyParts: true },
   });
-  if (!exercise) return { error: '없는 운동입니다.' };
+  if (!exercise) return { error: '없는 운동이에요.' };
 
   /*
    * 자기 구간에 넣는다. 맨 뒤에 붙이면 워밍업을 더했는데 암케어 뒤에 오게

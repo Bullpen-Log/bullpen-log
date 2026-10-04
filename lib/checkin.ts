@@ -577,7 +577,7 @@ export function parseCheckinDetail(
 
   const note = get('note').trim();
   if (note.length > CHECKIN_NOTE_MAX) {
-    return { error: `메모는 ${CHECKIN_NOTE_MAX}자까지 적을 수 있습니다.` };
+    return { error: `메모는 ${CHECKIN_NOTE_MAX}자까지 적을 수 있어요.` };
   }
 
   return {

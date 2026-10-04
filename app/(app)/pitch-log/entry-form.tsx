@@ -343,7 +343,7 @@ export function EntryForm({
                     required
                   />
                 </Field>
-                <Field label={`투구 강도 — ${form.intensity} / 10`}>
+                <Field label={`투구 강도 ${form.intensity} / 10`}>
                   <input
                     type="range"
                     min="1"

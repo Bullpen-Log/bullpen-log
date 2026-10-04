@@ -367,14 +367,13 @@ async function TodayBody({ user }: { user: Awaited<ReturnType<typeof requireUser
         <Card className="space-y-2 border-warn-line bg-warn-bg">
           <p className="text-sm font-bold text-warn">지금 통증이 있으신가요?</p>
           <p className="text-sm leading-relaxed text-warn">
-            최근 투구 일지 메모에{' '}
-            <strong>{facts.condition.painWordsInMemo.join(', ')}</strong> 같은 표현이
-            있었어요. 실제로 통증이 있는지 알 수 없어, 확인될 때까지 투구는 휴식으로
-            두고 운동은 회복·가동성 수준만 골랐어요.
+            최근 투구 일지 메모에 {`‘${facts.condition.painWordsInMemo.join(', ')}’`}{' '}
+            같은 말이 있었어요. 통증인지 알 수 없어서, 확인될 때까지 투구는 쉬고 운동은
+            회복 · 가동성만 골랐어요.
           </p>
           <p className="text-sm leading-relaxed text-warn">
             통증이 있다면 던지지 말고 전문의와 상담하세요. 통증이 아니라면 오른쪽 위
-            알림(종)에서 오늘 체크인을 남겨주시면 바로 평소 계획으로 돌아가요.
+            알림(종)에서 오늘 체크인을 남겨 주세요. 바로 평소 계획으로 돌아가요.
           </p>
         </Card>
       )}
@@ -382,11 +381,10 @@ async function TodayBody({ user }: { user: Awaited<ReturnType<typeof requireUser
       {/* 최근 체크인에 통증이 있었던 경우. */}
       {plan.recovering && !plan.needsPainCheck && !picked.halted && (
         <Card className="space-y-1 border-warn-line bg-warn-bg">
-          <p className="text-sm font-bold text-warn">회복 수준으로 낮춰 배정했어요</p>
+          <p className="text-sm font-bold text-warn">오늘은 회복 운동만 골랐어요</p>
           <p className="text-sm leading-relaxed text-warn">
-            최근 체크인에 통증 기록이 있어, 오늘은 무게를 다루는 운동을 빼고 회복·가동성
-            운동만 골랐어요. 통증이 다시 느껴지면 오른쪽 위 알림(종)에서 오늘 체크인에
-            그대로 남겨주세요.
+            최근 체크인에 통증이 있어서 무게 운동은 빼고 회복 · 가동성 운동만 골랐어요.
+            다시 아프면 오른쪽 위 알림(종)에서 오늘 체크인에 남겨 주세요.
           </p>
         </Card>
       )}
@@ -402,10 +400,9 @@ async function TodayBody({ user }: { user: Awaited<ReturnType<typeof requireUser
         <div className="rounded-2xl border border-sky-soft/60 bg-sky-tint p-(--block-pad)">
           <p className="text-sm font-bold text-sky-strong">여기부터 시작하세요</p>
           <p className="mt-1.5 text-sm leading-relaxed text-ink/80">
-            오른쪽 위 <strong className="text-ink">알림(종)</strong>을 눌러{' '}
-            <strong className="text-ink">오늘 투구</strong>를 먼저 남겨주세요. 던진 양을
-            알아야 부하를 재고 무리가 안 되는 운동을 고를 수 있어요. 오늘 안 던지셨다면{' '}
-            <strong className="text-ink">‘오늘 안 던졌어요’</strong>를 눌러주시면 돼요.
+            오른쪽 위 알림(종)을 눌러 &lsquo;오늘 투구&rsquo;부터 남겨 주세요. 던진 양을
+            알아야 무리 없는 운동을 고를 수 있어요. 안 던졌으면 &lsquo;오늘 안
+            던졌어요&rsquo;를 누르면 돼요.
           </p>
         </div>
       )}

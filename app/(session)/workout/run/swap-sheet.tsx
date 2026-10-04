@@ -315,7 +315,7 @@ export function SwapSheetView({
           <p className="mt-0.5 text-[11px] leading-relaxed break-keep text-muted">
             {mode === 'replace'
               ? `‘${current.title}’ 대신 할 운동을 고르세요.`
-              : `‘${current.title}’ — 이미 세트를 남긴 운동이라 그대로 두고, 고른 운동을 바로 다음에 더해요.`}
+              : `이미 세트를 남긴 운동이라 그대로 두고, 고른 운동을 ‘${current.title}’ 바로 다음에 더해요.`}
           </p>
           <Segmented
             role="tablist"

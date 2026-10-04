@@ -47,7 +47,7 @@ export function WeekChart({
               key={d.date}
               href={`/nutrition?date=${d.date}`}
               scroll={false}
-              aria-label={`${d.date} — ${kcalText(d.kcal)}kcal 먹음, 목표 ${kcalText(d.target)}kcal`}
+              aria-label={`${d.date}, ${kcalText(d.kcal)}kcal 먹음, 목표 ${kcalText(d.target)}kcal`}
               className="group relative flex h-full flex-1 items-end rounded-md focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky"
             >
               <span
@@ -230,8 +230,8 @@ export function WeightTrend({
         role="img"
         aria-label={[
           trend.ok && line
-            ? `체중 흐름 — ${r1(line.from)}${unit}에서 ${r1(line.to)}${unit}, ${fmtRate(trend.rate20, unit)}`
-            : `체중 기록 — ${r1(values[0])}${unit}에서 ${r1(values[lastIndex])}${unit}`,
+            ? `체중 흐름 ${r1(line.from)}${unit}에서 ${r1(line.to)}${unit}, ${fmtRate(trend.rate20, unit)}`
+            : `체중 기록 ${r1(values[0])}${unit}에서 ${r1(values[lastIndex])}${unit}`,
           target !== null ? `목표 ${r1(target)}${unit}` : '',
           dropped.size > 0 ? `흐름 계산에서 뺀 값 ${dropped.size}개` : '',
         ]

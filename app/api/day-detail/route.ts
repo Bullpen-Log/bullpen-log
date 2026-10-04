@@ -12,11 +12,11 @@ import { loadDayDetail } from '@/lib/day-detail';
 export async function GET(req: NextRequest) {
   const user = await getCurrentUser();
   if (!user)
-    return NextResponse.json({ error: '로그인이 필요합니다.' }, { status: 401 });
+    return NextResponse.json({ error: '로그인이 필요해요.' }, { status: 401 });
 
   const date = req.nextUrl.searchParams.get('date') ?? '';
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || isFutureDateKey(date)) {
-    return NextResponse.json({ error: '날짜가 올바르지 않습니다.' }, { status: 400 });
+    return NextResponse.json({ error: '날짜가 올바르지 않아요.' }, { status: 400 });
   }
   /* 구속 측정 클립 — 그날 클립이 있다고 캘린더가 알 때만 청한다(서명 왕복이 든다) */
   const clips = req.nextUrl.searchParams.get('clips') === '1';

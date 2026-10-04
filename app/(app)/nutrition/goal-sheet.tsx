@@ -400,12 +400,12 @@ export function GoalSheet({
   ];
   const periodHint =
     endDate === null || needed === null || pickedRate === null
-      ? '날짜를 정하면 거기에 맞는 속도를 골라 드려요. 체중 카드가 이 날짜까지의 흐름을 보여 줘요.'
+      ? '날짜를 정하면 거기에 맞는 속도를 골라 드려요.'
       : pickedRate >= needed - 0.005
-        ? `${dateText(endDate)}까지 ${kgText(remaining ?? 0, unit)} — ${rateText(Math.round(needed * 100) / 100, unit)}이면 닿아요.${
+        ? `${dateText(endDate)}까지 ${kgText(remaining ?? 0, unit)}, ${rateText(Math.round(needed * 100) / 100, unit)}이면 닿아요.${
             manual ? ' 칼로리를 직접 정해서 속도는 비교에만 써요.' : ''
           }`
-        : `${dateText(endDate)}까지는 ${rateText(Math.round(needed * 100) / 100, unit)}이 필요해요 — ${
+        : `${dateText(endDate)}까지는 ${rateText(Math.round(needed * 100) / 100, unit)}이 필요해요. ${
             pickedRate < (paces.length > 0 ? paces[paces.length - 1] : pickedRate)
               ? `지금 속도(${rateText(pickedRate, unit)})로는 약 ${etaWeeks(remaining ?? 0, pickedRate) ?? '?'}주, 가장 빠른 속도(${rateText(paces.length > 0 ? paces[paces.length - 1] : pickedRate, unit)})로도 약 ${etaWeeks(remaining ?? 0, paces.length > 0 ? paces[paces.length - 1] : pickedRate) ?? '?'}주 걸려요.`
               : `몸에 무리 없는 가장 빠른 속도(${rateText(pickedRate, unit)})로도 약 ${etaWeeks(remaining ?? 0, pickedRate) ?? '?'}주 걸려요.`
@@ -557,7 +557,7 @@ export function GoalSheet({
               label="단백질 (체중 1kg 당)"
               hint={
                 proteinManual
-                  ? '아래에서 하루 단백질을 직접 정했어요 — 그 숫자가 먼저예요.'
+                  ? '아래에서 정한 하루 단백질이 먼저예요.'
                   : rule.band === 'adult'
                     ? '선수에게 권하는 범위는 1.6~2.2g 이에요. 감량 중이면 높게 잡으세요.'
                     : `${rule.label} 선수에게 권하는 범위는 ${lo}~${hi}g 이에요. 더 먹는다고 더 자라지 않고, 그만큼 탄수화물 자리가 줄어요.`
@@ -609,7 +609,7 @@ export function GoalSheet({
                       placeholder={String(auto.base)}
                       className="h-12 w-32 rounded-xl border border-line bg-surface-2 px-3 text-right text-base tabular-nums text-ink transition-colors focus:border-sky focus:outline-none"
                     />
-                    kcal (운동 전) — 계산으로는 {kcalText(auto.base)}
+                    kcal (운동 전) · 계산으로는 {kcalText(auto.base)}
                   </label>
                 </div>
               </div>
@@ -658,7 +658,7 @@ export function GoalSheet({
                       placeholder={String(auto.proteinAuto)}
                       className="h-12 w-32 rounded-xl border border-line bg-surface-2 px-3 text-right text-base tabular-nums text-ink transition-colors focus:border-sky focus:outline-none"
                     />
-                    g — 계산으로는 {auto.proteinAuto}g (체중 × {protein.toFixed(1)}g)
+                    g · 계산으로는 {auto.proteinAuto}g (체중 × {protein.toFixed(1)}g)
                   </label>
                 </div>
               </div>
@@ -681,7 +681,7 @@ export function GoalSheet({
               {/* 끼니별 단백질(lib/nutrition/meal-protein.ts) — 끼니 칸의 '단백질 18 / 35g' 이 어디서 왔는지 여기서 말한다 */}
               <p className="text-xs text-muted">
                 단백질은 세 끼에 {mealProteinGoal(preview.protein, preview.ageBand)}g
-                쯤씩 나눠 먹어요 — 한 번에 몰아 먹는 것보다 근육이 잘 써요.
+                쯤씩 나눠 먹어요. 몰아 먹는 것보다 근육에 잘 쓰여요.
               </p>
               {/* 체중 카드에서 받아들인 조정 — 얹혀 있으면 말하고, 저장으로 사라지면 그것도 말한다 */}
               {preview.adjust !== 0 ? (
@@ -712,10 +712,10 @@ export function GoalSheet({
                 기초대사량 {kcalText(preview.bmr)}kcal ({rule.bmrName})
                 <br />
                 나이 기준: {rule.label}
-                {rule.band !== 'adult' && ' — 자라는 몸에 맞춰 셈해요'}
+                {rule.band !== 'adult' && ' · 자라는 몸에 맞춰 셈해요'}
                 <br />
                 계산에 쓴 몸: {bodyLine}
-                {assumed.length > 0 && ' — 내 정보에서 채우면 더 정확해져요.'}
+                {assumed.length > 0 && '. 내 정보에서 채우면 더 정확해져요.'}
                 <br />
                 성별·키·몸무게·생년월일은 내 정보(오른쪽 위 내 사진)에서 바꿔요.
               </p>
@@ -840,8 +840,8 @@ function DietPanel({
   return (
     <div key="diet" role="tabpanel" className="motion-safe:animate-fade-in space-y-6">
       <p className="text-xs leading-relaxed text-muted">
-        영양 탭의 &lsquo;오늘 식단 짜기&rsquo;가 여기 정한 대로 끼니를 짜요. 칼로리 ·
-        단백질 숫자는 [목표] 칸에서 정해요.
+        &lsquo;오늘 식단 짜기&rsquo;가 여기 정한 대로 끼니를 짜요. 칼로리 · 단백질은
+        [목표] 칸에서 정해요.
       </p>
 
       <Row

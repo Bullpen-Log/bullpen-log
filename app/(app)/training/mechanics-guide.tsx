@@ -66,7 +66,7 @@ export function MechanicsGuide({
     <div className="space-y-6">
       <section className="space-y-3">
         <div className="flex items-center justify-between gap-3 px-1">
-          <h2 className="text-heading text-lg text-ink">투구 한눈에</h2>
+          <h2 className="text-heading text-lg text-ink">투구의 흐름</h2>
           <button
             type="button"
             onClick={(e) => modal.show({ kind: 'overview' }, e)}
@@ -119,7 +119,7 @@ export function MechanicsGuide({
         open={modal.open}
         onClose={modal.close}
         title={
-          modal.content?.kind === 'element' ? modal.content.name : '투구 한눈에'
+          modal.content?.kind === 'element' ? modal.content.name : '투구의 흐름'
         }
         description={
           modal.content?.kind === 'element'
@@ -241,7 +241,7 @@ function ElementCard({
         <div className="space-y-4 border-t border-line px-4 py-4">
           {via && via.also.length > 0 && (
             <p className="rounded-xl bg-sky-tint/60 px-3.5 py-2.5 text-xs leading-relaxed break-keep text-ink/85">
-              ‘{via.text}’ — {el.name}부터 보고, 함께{' '}
+              ‘{via.text}’라면 {el.name}부터 보고, 함께{' '}
               {via.also.map((name, i) => (
                 <span key={name}>
                   {i > 0 && ' · '}
@@ -301,9 +301,9 @@ function ElementCard({
   );
 }
 
-/** 칩에는 첫 문장만 — '몸이 일찍 열려요 — 앞발이 …' 의 줄표 앞, 마침표 없이 */
+/** 칩에는 첫 문장만 — '몸이 일찍 열려요. 앞발이 …' 의 첫 마침표 앞, 마침표 없이 */
 function shortFault(text: string) {
-  return text.split(' — ')[0].replace(/\.$/, '');
+  return text.split('. ')[0].replace(/\.$/, '');
 }
 
 function Section({ title, children }: { title: string; children: ReactNode }) {

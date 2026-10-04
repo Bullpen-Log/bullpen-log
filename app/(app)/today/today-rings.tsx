@@ -134,7 +134,7 @@ export function RingsCard({
           <OpenCheckinButton key={it.key} className={cls}>
             {face}
             <span className="sr-only">
-              {checkinDone ? ' — 고치기' : ' — 지금 남기기'}
+              {checkinDone ? ', 고치기' : ', 지금 남기기'}
             </span>
           </OpenCheckinButton>
         );

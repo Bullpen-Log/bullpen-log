@@ -111,7 +111,7 @@ function Primary({ view }: { view: LoadView }) {
             {view.estimated && (
               <p className="mt-2 inline-flex items-center gap-1.5 rounded-full border border-line-strong bg-surface-2 px-2.5 py-1 text-[11px] text-muted">
                 문진 추정 기준 · 실측 반영 {Math.round(view.realWeight * 100)}%
-                <span className="text-muted/60">— 기록할수록 정확해져요</span>
+                <span className="text-muted/60">· 기록할수록 정확해져요</span>
               </p>
             )}
           </div>
@@ -207,12 +207,12 @@ export function LoadPanel({
         missingWarningAt != null &&
         missingDays >= missingWarningAt && (
           <p className="border-t border-warn-line bg-warn-bg px-6 py-3 text-[11px] leading-relaxed text-warn sm:px-8">
-            최근 {CHRONIC_WINDOW_DAYS}일 중 <strong>{missingDays}일</strong>은 투구
-            기록이 없어 안 던진 날로 계산했어요. 실제로 던진 날이 있으면{' '}
+            최근 {CHRONIC_WINDOW_DAYS}일 중 {missingDays}일은 기록이 없어 안 던진 날로
+            셌어요. 그래서 지수가 낮게 나올 수 있어요. 던진 날이 있으면{' '}
             <Link href="/today" className="font-semibold text-sky-strong">
               투구 일지
             </Link>
-            에서 추가해주세요. 지수가 실제보다 낮게 나오고 있을 수 있어요.
+            에 남겨 주세요.
           </p>
         )}
 
@@ -224,9 +224,8 @@ export function LoadPanel({
       */}
       {isPitching && throwStreak != null && throwStreak >= STREAK_WARNING && (
         <p className="border-t border-warn-line bg-warn-bg px-6 py-3 text-[11px] leading-relaxed text-warn sm:px-8">
-          최근 4주에 <strong>{throwStreak}일 연속</strong>으로 던진 구간이 있어요.
-          지수는 평소와 견준 값이라 늘 많이 던져온 사람은 높게 나오지 않아요 — 숫자와
-          별개로 쉬는 날을 넣는 것이 좋아요.
+          최근 4주에 {throwStreak}일 연속으로 던진 구간이 있어요. 지수가 높지 않아도
+          쉬는 날을 넣어 주세요.
         </p>
       )}
 

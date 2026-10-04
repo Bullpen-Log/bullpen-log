@@ -109,7 +109,7 @@ export function LoadTrend({ trend }: { trend: AcwrTrendPoint[] }) {
           <>
             <p className="text-xs font-semibold text-ink">최근 2주 흐름</p>
             <p className="text-[11px] tabular-nums text-muted">
-              {formatShortDate(trend[0].dateKey)} — {formatShortDate(last.dateKey)}
+              {formatShortDate(trend[0].dateKey)} ~ {formatShortDate(last.dateKey)}
             </p>
           </>
         )}
@@ -225,8 +225,8 @@ export function LoadTrend({ trend }: { trend: AcwrTrendPoint[] }) {
       </div>
 
       <p className="mt-2 text-xs leading-relaxed break-keep text-muted">
-        파란 띠가 적정 구간(0.8~1.3)이에요. 요일에 따라 오르내려요 — 훈련이 그대로여도
-        던진 다음 날은 높고 이틀 쉰 날은 낮게 나와요. 하루 값보다 흐름을 보세요.
+        파란 띠가 적정 구간(0.8~1.3)이에요. 던진 다음 날은 오르고 쉰 날은 내려가니 하루
+        값보다 흐름을 보세요.
       </p>
     </div>
   );

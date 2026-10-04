@@ -15,19 +15,19 @@ import {
 export async function POST(req: Request) {
   const user = await getCurrentUser();
   if (!user) {
-    return NextResponse.json({ error: '로그인이 필요합니다' }, { status: 401 });
+    return NextResponse.json({ error: '로그인이 필요해요' }, { status: 401 });
   }
   // 화면에서 버튼을 숨기는 것과 별개로 서버에서도 반드시 막는다.
   if (user.role !== 'ADMIN') {
     return NextResponse.json(
-      { error: '관리자만 라이브러리 영상을 올릴 수 있습니다' },
+      { error: '관리자만 라이브러리 영상을 올릴 수 있어요' },
       { status: 403 }
     );
   }
 
   if (!isStorageConfigured()) {
     return NextResponse.json(
-      { error: '영상 저장소가 아직 설정되지 않았습니다.' },
+      { error: '영상 저장소가 아직 설정되지 않았어요.' },
       { status: 503 }
     );
   }
@@ -36,7 +36,7 @@ export async function POST(req: Request) {
     const { fileName, fileSize, fileType, kind } = await req.json();
 
     if (!fileName || typeof fileName !== 'string') {
-      return NextResponse.json({ error: '파일 이름이 필요합니다' }, { status: 400 });
+      return NextResponse.json({ error: '파일 이름이 필요해요' }, { status: 400 });
     }
 
     // 영상과, 재생 전에 보여줄 미리보기 이미지 두 가지만 받는다.
@@ -46,8 +46,8 @@ export async function POST(req: Request) {
       return NextResponse.json(
         {
           error: isThumb
-            ? '이미지 파일만 올릴 수 있습니다'
-            : '영상 파일만 올릴 수 있습니다',
+            ? '이미지 파일만 올릴 수 있어요'
+            : '영상 파일만 올릴 수 있어요',
         },
         { status: 400 }
       );
@@ -56,7 +56,7 @@ export async function POST(req: Request) {
     const size = Number(fileSize);
     if (!Number.isFinite(size) || size <= 0) {
       return NextResponse.json(
-        { error: '파일 크기를 확인할 수 없습니다' },
+        { error: '파일 크기를 확인할 수 없어요' },
         { status: 400 }
       );
     }
@@ -68,7 +68,7 @@ export async function POST(req: Request) {
         {
           error: (() => {
             const kind = isThumb ? '이미지' : '영상';
-            return `${withJosa(kind, '은/는')} ${mb}MB 이하만 올릴 수 있습니다`;
+            return `${withJosa(kind, '은/는')} ${mb}MB 이하만 올릴 수 있어요`;
           })(),
         },
         { status: 400 }
@@ -81,7 +81,7 @@ export async function POST(req: Request) {
   } catch (error) {
     console.error('[POST /api/library/upload-url]', error);
     return NextResponse.json(
-      { error: '업로드 주소를 만들지 못했습니다' },
+      { error: '업로드 주소를 만들지 못했어요' },
       { status: 500 }
     );
   }

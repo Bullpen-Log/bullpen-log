@@ -364,7 +364,7 @@ export function FoodSheet({
     done.then((res) => {
       if (res.ok) return;
       setAdded((a) => a.filter((x) => x !== label));
-      setError(`${label} — 담지 못했어요. ${res.error}`);
+      setError(`${label} 담지 못했어요. ${res.error}`);
     });
   }
 
@@ -381,7 +381,7 @@ export function FoodSheet({
       replaceLock.current = false;
       setReplaceBusy(false);
       if (res.ok) onClose();
-      else setError(`${food.name} — 바꾸지 못했어요. ${res.error}`);
+      else setError(`${food.name} 바꾸지 못했어요. ${res.error}`);
       return res.ok;
     });
   }
@@ -521,7 +521,7 @@ export function FoodSheet({
         if (!res.ok) {
           setError(res.error);
           /* 바꾸기는 저장 전에 창을 닫는다 — 영양 화면에도 남겨야 보인다 */
-          onError?.(`${food.name} — 내 음식에 저장하지 못했어요. ${res.error}`);
+          onError?.(`${food.name} 내 음식에 저장하지 못했어요. ${res.error}`);
         }
       });
     if (replacing && onReplace) {
@@ -577,7 +577,7 @@ export function FoodSheet({
                   /* 찾는 말이 바뀌면 목록이 바뀌므로 펴 둔 줄도 접는다 */
                   setOpenKey(null);
                 }}
-                placeholder="음식 이름 — 초성도 돼요 (ㄷㄱㅅㅅ)"
+                placeholder="음식 이름이나 초성 (ㄷㄱㅅㅅ)"
                 enterKeyHint="search"
                 ref={searchRef}
                 className="w-full rounded-xl border border-line bg-surface-2 py-3 pl-10 pr-10 text-sm text-ink placeholder:text-muted/60 transition-colors focus:border-sky focus:outline-none"
@@ -725,7 +725,7 @@ export function FoodSheet({
                   ))}
                 {tab === 'mine' &&
                   (myFoods.length === 0 && (replacing || comboList.length === 0) ? (
-                    <Empty text="자주 먹는 것은 음식을 펴서 ★ 로 여기에 모아 두세요. 직접 만든 음식도, 두 가지 넘게 담은 끼니를 저장한 조합도 여기에 들어와요." />
+                    <Empty text="음식을 펴서 ★ 를 누르면 여기에 모여요. 직접 만든 음식과 저장한 조합도 여기 있어요." />
                   ) : (
                     <div className="space-y-3">
                       {!replacing && comboList.length > 0 && (
@@ -791,7 +791,7 @@ export function FoodSheet({
               >
                 {added.length === 1
                   ? `${added[0]} 담았어요`
-                  : `${added.length}번 담았어요 — ${added.at(-1)}`}
+                  : `${added.length}번 담았어요 · ${added.at(-1)}`}
               </p>
               {canSaveCombo && !savedName && (
                 <button
@@ -994,7 +994,7 @@ function SaveCombo({
             이 {label}을 조합으로 저장
           </span>
           <span className="block truncate text-xs text-muted">
-            {items.map((i) => i.name).join(', ')} — 다음부터 한 번에 담아요
+            {items.map((i) => i.name).join(', ')} · 다음부터 한 번에 담아요
           </span>
         </span>
         <ChevronDown
@@ -1634,7 +1634,7 @@ function SearchResults({
 
       <p className="px-1 text-[11px] leading-relaxed text-muted/80">
         {mfds
-          ? '식약처 자료는 식품의약품안전처 식품영양성분 데이터베이스(공공데이터포털)에서 가져옵니다.'
+          ? '식약처 자료는 식품의약품안전처 식품영양성분 데이터베이스(공공데이터포털)에서 가져와요.'
           : '식약처 음식 검색은 아직 연결 전이에요. 목록에 없는 음식은 직접 입력으로 담아 주세요.'}
       </p>
     </div>

@@ -188,9 +188,8 @@ export function ExerciseChecklist({
         */}
         {doneCount === 0 && items.length > 0 && (
           <p className="mt-3 text-[11px] leading-relaxed text-muted">
-            마친 운동은 눌러서 표시해주세요. 이 표시로 <b>운동 부하</b>를 재고, 다음
-            일정에서 <b>같은 부위가 겹치지 않게</b> 골라요 — 표시가 없으면 앱은 안 한
-            것으로 봐요.
+            마친 운동은 눌러서 표시해주세요. 표시해야 운동 부하에 들어가고 다음 일정에서
+            같은 부위가 겹치지 않아요.
           </p>
         )}
       </div>

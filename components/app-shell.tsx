@@ -1248,7 +1248,7 @@ export function AppNav({
               aria-haspopup="dialog"
               aria-expanded={profileOpen}
               aria-label="내 정보"
-              title={`${nickname} — 내 정보`}
+              title={`${nickname} · 내 정보`}
               className="ml-1 rounded-full ring-offset-2 ring-offset-page transition-[opacity,box-shadow] duration-75 hover:opacity-80 hover:ring-2 hover:ring-line-strong"
             >
               <Avatar nickname={nickname} avatarUrl={avatarUrl} />

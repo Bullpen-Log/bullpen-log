@@ -320,9 +320,8 @@ export function PlanForm({
                 {clash.kind} 운동을 하고 싶다고 하셨는데, {clash.reason}.
               </p>
               <p className="text-[13px] leading-relaxed text-warn">
-                AI 맞춤은 몸 상태에 맞춰 {clash.fallbackLabel} 위주로 만들고, 그 이유를
-                함께 알려드려요. 그래도 {clash.kind} 운동을 하고 싶으시면 ‘직접
-                고르기’에서 만들 수 있어요.
+                AI 맞춤은 몸 상태에 맞춰 {clash.fallbackLabel} 위주로 만들어요.{' '}
+                {clash.kind} 운동을 하고 싶으면 ‘직접 고르기’에서 만들 수 있어요.
               </p>
             </div>
           )}
@@ -335,8 +334,8 @@ export function PlanForm({
                 {clash.kind} 운동을 하고 싶다고 하셨는데, {clash.reason}.
               </p>
               <p className="text-[13px] leading-relaxed text-warn">
-                그래서 기본은 {clash.fallbackLabel} 위주로 만들어 드려요. 몸이 괜찮다고
-                느끼시면 원하신 대로 만들어 드릴 수도 있어요 — 정하는 것은 본인이에요.
+                그래서 기본은 {clash.fallbackLabel} 위주로 만들어요. 몸이 괜찮으면
+                원하는 대로 만들어도 돼요.
               </p>
               <label className="flex items-start gap-2.5 text-[13px] font-medium leading-relaxed text-warn">
                 <input
@@ -380,7 +379,7 @@ export function PlanForm({
               key={`focus-${pickedGoal}`}
               name="trainingFocus"
               label="오늘 할 부위"
-              hint="안 고르면 최근에 한 것을 보고 상체·하체를 번갈아 골라드려요. 몸 상태가 안 좋은 날에는 부위와 상관없이 회복이 먼저예요."
+              hint="안 고르면 최근 기록을 보고 상체·하체를 번갈아 골라요. 몸 상태가 안 좋은 날은 회복이 먼저예요."
               options={focusChoices.map((f) => ({
                 name: f.label,
                 value: f.key,
@@ -398,7 +397,7 @@ export function PlanForm({
             label="오늘 운동 시간"
             hint={
               pickedGoal === CONDITIONING_GOAL
-                ? '몸을 다지는 날이라 길게 끌지 않아요 — 75분까지 고를 수 있어요.'
+                ? '몸을 다지는 날이라 길게 끌지 않아요. 75분까지 고를 수 있어요.'
                 : undefined
             }
             options={minuteChoices.map((m) => ({
@@ -529,7 +528,7 @@ export function TrainingSettingsForm({
           hint={
             hasChosenEquipment
               ? '여기서 고른 것 중에 오늘 쓸 수 있는 것을 일정을 만들 때 다시 골라요.'
-              : '아직 고르신 적이 없어 전부 켜 두었어요. 없는 것을 꺼주세요 — 그래야 못 하는 운동이 안 나와요.'
+              : '아직 고른 적이 없어 전부 켜 두었어요. 없는 것을 꺼야 못 하는 운동이 안 나와요.'
           }
           options={SELECTABLE_EQUIPMENT}
           selected={equipmentSelected}

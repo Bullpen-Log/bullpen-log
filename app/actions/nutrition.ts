@@ -63,10 +63,10 @@ import { cleanBarcode } from '@/lib/nutrition/barcode';
 export type NutritionResult = { ok: true } | { ok: false; error: string };
 
 const PATH = '/nutrition';
-const NEED_LOGIN: NutritionResult = { ok: false, error: '로그인이 필요합니다.' };
+const NEED_LOGIN: NutritionResult = { ok: false, error: '로그인이 필요해요.' };
 const BAD_DATE: NutritionResult = {
   ok: false,
-  error: '날짜가 올바르지 않습니다. 새로고침 후 다시 시도해 주세요.',
+  error: '날짜가 올바르지 않아요. 새로고침한 뒤 다시 해 주세요.',
 };
 
 const SOURCES: EntrySource[] = ENTRY_SOURCES;
@@ -94,19 +94,19 @@ function optMacro(v: unknown): number | null | undefined {
 /** 화면에서 온 음식 값을 믿지 않고 하나씩 본다. 틀리면 까닭을 글로 돌려준다. */
 function cleanFood(raw: unknown): FoodInput | string {
   const f = raw as Partial<FoodInput> | null;
-  if (!f || typeof f !== 'object') return '음식 정보가 없습니다.';
+  if (!f || typeof f !== 'object') return '음식 정보가 없어요.';
 
   const name = typeof f.name === 'string' ? f.name.trim() : '';
   if (!name) return '음식 이름을 적어 주세요.';
   if (name.length > FOOD_NAME_MAX)
-    return `음식 이름은 ${FOOD_NAME_MAX}자까지 적을 수 있습니다.`;
+    return `음식 이름은 ${FOOD_NAME_MAX}자까지 적을 수 있어요.`;
 
-  if (!f.source || !SOURCES.includes(f.source)) return '음식 출처가 올바르지 않습니다.';
+  if (!f.source || !SOURCES.includes(f.source)) return '음식 출처가 올바르지 않아요.';
   const sourceId =
     typeof f.sourceId === 'string' && f.sourceId.length <= 80 ? f.sourceId : null;
   /* 바코드 음식의 열쇠는 바코드 숫자 — 내 음식에서 같은 바코드를 다시 찾는 데 쓰므로 검사 숫자까지 맞아야 */
   if (f.source === 'barcode' && cleanBarcode(sourceId) !== sourceId)
-    return '바코드 숫자가 맞지 않습니다.';
+    return '바코드 숫자가 맞지 않아요.';
 
   if (!isNum(f.kcal) || f.kcal < 0 || f.kcal > KCAL_MAX) {
     return `칼로리는 0~${KCAL_MAX.toLocaleString('ko-KR')} 사이로 적어 주세요.`;
@@ -156,9 +156,9 @@ export async function addMealEntries(
   const user = await getCurrentUser();
   if (!user) return NEED_LOGIN;
   if (!isNutritionDate(date)) return BAD_DATE;
-  if (!isMealKey(meal)) return { ok: false, error: '끼니가 올바르지 않습니다.' };
+  if (!isMealKey(meal)) return { ok: false, error: '끼니가 올바르지 않아요.' };
   if (!Array.isArray(items) || items.length === 0 || items.length > 40) {
-    return { ok: false, error: '담을 음식이 없습니다.' };
+    return { ok: false, error: '담을 음식이 없어요.' };
   }
 
   const rows = [];
@@ -197,7 +197,7 @@ export async function updateMealAmount(
     where: { id: String(id), userId: user.id },
     data: { amount: clean },
   });
-  if (count === 0) return { ok: false, error: '이미 지워진 기록입니다.' };
+  if (count === 0) return { ok: false, error: '이미 지워진 기록이에요.' };
   revalidatePath(PATH);
   return { ok: true };
 }
@@ -210,13 +210,13 @@ export async function editMealEntries(edits: unknown): Promise<NutritionResult> 
   const user = await getCurrentUser();
   if (!user) return NEED_LOGIN;
   if (!Array.isArray(edits) || edits.length === 0 || edits.length > 60) {
-    return { ok: false, error: '고칠 것이 없습니다.' };
+    return { ok: false, error: '고칠 것이 없어요.' };
   }
   const ops = [];
   for (const raw of edits) {
     const e = (raw ?? {}) as Record<string, unknown>;
     const id = typeof e.id === 'string' ? e.id : '';
-    if (!id) return { ok: false, error: '고칠 기록을 찾지 못했습니다.' };
+    if (!id) return { ok: false, error: '고칠 기록을 찾지 못했어요.' };
     if (e.remove === true) {
       ops.push(prisma.mealEntry.deleteMany({ where: { id, userId: user.id } }));
       continue;
@@ -233,7 +233,7 @@ export async function editMealEntries(edits: unknown): Promise<NutritionResult> 
       data.amount = amount;
     }
     if (e.meal !== undefined) {
-      if (!isMealKey(e.meal)) return { ok: false, error: '끼니가 올바르지 않습니다.' };
+      if (!isMealKey(e.meal)) return { ok: false, error: '끼니가 올바르지 않아요.' };
       data.meal = e.meal;
     }
     if (data.amount !== undefined || data.meal !== undefined) {
@@ -269,7 +269,7 @@ export async function replaceMealEntry(
     where: { id: String(id), userId: user.id },
     data: { ...food, amount: clean },
   });
-  if (count === 0) return { ok: false, error: '이미 지워진 기록입니다.' };
+  if (count === 0) return { ok: false, error: '이미 지워진 기록이에요.' };
   revalidatePath(PATH);
   return { ok: true };
 }
@@ -329,7 +329,7 @@ export async function saveUserFood(raw: unknown): Promise<NutritionResult> {
   if (count >= 300) {
     return {
       ok: false,
-      error: '내 음식은 300개까지 둘 수 있습니다. 안 쓰는 것을 지워 주세요.',
+      error: '내 음식은 300개까지 둘 수 있어요. 안 쓰는 것을 지워 주세요.',
     };
   }
 
@@ -367,7 +367,7 @@ export async function unfavoriteFood(
   const user = await getCurrentUser();
   if (!user) return NEED_LOGIN;
   if (source !== 'basic' && source !== 'mfds' && source !== 'barcode')
-    return { ok: false, error: '잘못된 요청입니다.' };
+    return { ok: false, error: '잘못된 요청이에요.' };
   await prisma.userFood.deleteMany({
     where: { userId: user.id, source, sourceId: String(sourceId) },
   });
@@ -575,7 +575,7 @@ export async function editPlanItems(
   if (!user) return NEED_LOGIN;
   if (!isNutritionDate(date)) return BAD_DATE;
   if (!Array.isArray(edits) || edits.length === 0 || edits.length > 80) {
-    return { ok: false, error: '고칠 것이 없습니다.' };
+    return { ok: false, error: '고칠 것이 없어요.' };
   }
   const where = { userId_date: { userId: user.id, date: dbDate(date) } };
   const row = await prisma.mealPlan.findUnique({ where, select: { items: true } });
@@ -657,7 +657,7 @@ export async function saveDietPrefs(raw: unknown): Promise<NutritionResult> {
       const names = [...new Set(removed.map((r) => r.name))];
       const note = `식단 취향이 바뀌어 ${names.slice(0, 3).join(' · ')}${
         names.length > 3 ? ` 외 ${names.length - 3}가지` : ''
-      }를 뺐어요 — '다른 식단으로'를 누르면 새로 짜요.`;
+      }를 뺐어요. '다른 식단으로'를 누르면 새로 짜요.`;
       const ctx = parsePlanContext(plan.context);
       await prisma.mealPlan.update({
         where: { id: plan.id },
@@ -683,25 +683,25 @@ export async function saveMealCombo(input: {
   items: unknown;
 }): Promise<ComboResult> {
   const user = await getCurrentUser();
-  if (!user) return { ok: false, error: '로그인이 필요합니다.' };
+  if (!user) return { ok: false, error: '로그인이 필요해요.' };
 
   const name = typeof input?.name === 'string' ? input.name.trim() : '';
   if (!name) return { ok: false, error: '조합 이름을 적어 주세요.' };
   if (name.length > COMBO_NAME_MAX) {
     return {
       ok: false,
-      error: `조합 이름은 ${COMBO_NAME_MAX}자까지 적을 수 있습니다.`,
+      error: `조합 이름은 ${COMBO_NAME_MAX}자까지 적을 수 있어요.`,
     };
   }
   const meal = isMealKey(input.meal) ? input.meal : null;
   const raw = input.items;
   if (!Array.isArray(raw) || raw.length === 0) {
-    return { ok: false, error: '조합에 넣을 음식이 없습니다.' };
+    return { ok: false, error: '조합에 넣을 음식이 없어요.' };
   }
   if (raw.length > COMBO_ITEMS_MAX) {
     return {
       ok: false,
-      error: `조합에는 음식을 ${COMBO_ITEMS_MAX}가지까지 넣을 수 있습니다.`,
+      error: `조합에는 음식을 ${COMBO_ITEMS_MAX}가지까지 넣을 수 있어요.`,
     };
   }
   const items: ComboItem[] = [];
@@ -728,7 +728,7 @@ export async function saveMealCombo(input: {
   if (existing.length >= COMBO_MAX) {
     return {
       ok: false,
-      error: `조합은 ${COMBO_MAX}개까지 둘 수 있습니다. 안 쓰는 것을 지워 주세요.`,
+      error: `조합은 ${COMBO_MAX}개까지 둘 수 있어요. 안 쓰는 것을 지워 주세요.`,
     };
   }
 
@@ -947,7 +947,7 @@ export async function applyWeightStep(step: number): Promise<NutritionResult> {
   const user = await getCurrentUser();
   if (!user) return NEED_LOGIN;
   if (step !== STEP_KCAL && step !== -STEP_KCAL) {
-    return { ok: false, error: '잘못된 요청입니다.' };
+    return { ok: false, error: '잘못된 요청이에요.' };
   }
   const today = toDateKey(new Date());
   const day = await loadNutritionDay(user, today);

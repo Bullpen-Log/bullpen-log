@@ -388,7 +388,7 @@ export function CompareView({
     return (
       <EmptyState
         title="비교하려면 영상이 2개 이상 필요해요"
-        description="서로 다른 날짜에 투구 영상을 하나씩 더 올리면, 예전 폼과 지금 폼을 나란히 놓고 비교할 수 있어요."
+        description="다른 날짜의 투구 영상을 하나 더 올리면 예전 폼과 나란히 볼 수 있어요."
       />
     );
   }
@@ -548,7 +548,7 @@ export function CompareView({
             type="button"
             onClick={() => setDrawing((v) => !v)}
             aria-pressed={drawing}
-            aria-label="측정 — 영상 위에 기준선·각도 긋기"
+            aria-label="측정, 영상 위에 기준선·각도 긋기"
             title="영상 위에 기준선·각도 긋기"
             className={`flex h-11 shrink-0 items-center gap-1.5 rounded-lg border px-3 text-xs transition-colors ${
               drawing
@@ -608,10 +608,9 @@ export function CompareView({
       >
         <summary className="cursor-pointer font-medium text-ink">쓰는 법</summary>
         <p className="mt-2 leading-relaxed">
-          각 화면의 <strong className="text-ink">◀ ▶</strong>로 두 영상을 같은 동작(예:
-          앞발 착지 순간)에 맞춘 뒤 <strong className="text-ink">기준점</strong>을
-          누르세요. 그다음 아래 공용 버튼으로 함께 넘기면 같은 시점끼리 비교돼요. 폰을
-          가로로 눕히면 더 크게 볼 수 있어요.
+          각 화면의 ◀ ▶로 두 영상을 같은 동작(예: 앞발 착지)에 맞추고 &lsquo;기준점&rsquo;을
+          누르세요. 그다음 아래 버튼으로 함께 넘기면 같은 순간끼리 견줘 볼 수 있어요.
+          폰을 가로로 눕히면 더 크게 보여요.
         </p>
       </details>
     </div>

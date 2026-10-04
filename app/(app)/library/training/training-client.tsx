@@ -218,8 +218,8 @@ function ExerciseDetail({
                     }
                     title={
                       item.hiddenAt
-                        ? '다시 보이기 — 새 일정에 다시 나와요'
-                        : '숨기기 — 새 일정에 안 나오고, 지난 기록은 남아요'
+                        ? '다시 보이기(새 일정에 다시 나와요)'
+                        : '숨기기(새 일정에 안 나오고, 지난 기록은 남아요)'
                     }
                     className="rounded-lg p-2 text-muted transition-colors hover:bg-surface-2 hover:text-sky"
                   >
@@ -244,8 +244,8 @@ function ExerciseDetail({
                       {item.usedCount > 0 ? (
                         <p className="text-warn">
                           회원들이 이 운동을 한 기록 <strong>{item.usedCount}건</strong>
-                          이 함께 지워져요. 지나간 운동 부하 지수도 그만큼 다시 계산돼요
-                          — 본인은 아무것도 안 했는데 어제와 다른 숫자를 보게 돼요.
+                          이 함께 지워져요. 지나간 운동 부하 지수도 다시 계산돼서,
+                          회원이 어제와 다른 숫자를 보게 돼요.
                         </p>
                       ) : (
                         <p className="text-muted">
@@ -253,8 +253,8 @@ function ExerciseDetail({
                         </p>
                       )}
                       <p className="text-muted">
-                        되돌릴 수 없어요. 새 일정에만 안 나오게 하려면 옆의{' '}
-                        <strong>숨기기</strong>를 쓰세요 — 지난 기록이 그대로 남아요.
+                        되돌릴 수 없어요. 새 일정에만 안 나오게 하려면 옆의 숨기기를
+                        쓰세요. 지난 기록은 그대로 남아요.
                       </p>
                     </div>
                   }

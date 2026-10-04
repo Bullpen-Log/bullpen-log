@@ -682,7 +682,7 @@ export async function endRehab(reason: 'done' | 'stopped'): Promise<Result> {
 
   const active = await loadActiveRehab(user.id);
   if (!active) return { error: NOT_ACTIVE };
-  if (reason !== 'done' && reason !== 'stopped') return { error: '잘못된 요청입니다.' };
+  if (reason !== 'done' && reason !== 'stopped') return { error: '잘못된 요청이에요.' };
   if (reason === 'done' && active.program.stage !== 4) {
     return {
       error: '재활은 4단계에서 끝낼 수 있어요. 그만두려면 [그만두기]를 눌러 주세요.',

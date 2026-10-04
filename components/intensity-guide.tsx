@@ -155,9 +155,8 @@ export function IntensityGuide({ kind }: { kind: IntensityKind }) {
               아니라서 경고 색이 아니라 안내 색으로 둔다.
             */
             <p className="rounded-lg border border-sky-soft/60 bg-sky-tint px-3 py-2 text-[11px] leading-relaxed text-sky-strong">
-              <strong>오늘 운동 전체를 합쳐서 떠올려 주세요.</strong> 가장 힘들었던 한
-              세트나 방금 끝낸 운동이 아니라, 처음부터 끝까지 해 보니 얼마나
-              힘들었는지가 기준이에요.
+              <strong>오늘 운동 전체를 합쳐서 떠올려 주세요.</strong> 마지막 운동이
+              아니라 처음부터 끝까지 합친 느낌이 기준이에요.
             </p>
           )}
         </div>

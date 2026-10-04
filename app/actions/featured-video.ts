@@ -22,7 +22,7 @@ export async function setFeaturedVideo(
 ): Promise<Result> {
   const user = await requireUser();
   if (!/^\d{4}-\d{2}-\d{2}$/.test(dateKey) || !videoPath) {
-    return { error: '영상을 찾을 수 없습니다.' };
+    return { error: '영상을 찾을 수 없어요.' };
   }
   const date = new Date(`${dateKey}T00:00:00.000Z`);
 
@@ -34,7 +34,7 @@ export async function setFeaturedVideo(
     where: { userId: user.id, date, videoPaths: { has: videoPath } },
     select: { id: true },
   });
-  if (!owned) return { error: '이 날 올린 영상이 아닙니다.' };
+  if (!owned) return { error: '이 날 올린 영상이 아니에요.' };
 
   await prisma.dailyFeaturedVideo.upsert({
     where: { userId_date: { userId: user.id, date } },

@@ -1084,7 +1084,7 @@ export function CheckinForm({
                 <span className="text-[11px] leading-relaxed text-muted">
                   {detailed
                     ? '더 적을수록 추천이 오늘에 맞춰져요. 비워 둔 칸은 저장하지 않아요.'
-                    : '몸 상태 · 근육통 · 컨디션 · 수면 — 몇 초면 끝나요.'}
+                    : '몸 상태 · 근육통 · 컨디션 · 수면. 몇 초면 끝나요.'}
                 </span>
               </div>
 

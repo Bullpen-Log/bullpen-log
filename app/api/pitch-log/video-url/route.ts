@@ -13,12 +13,12 @@ const MAX_PATHS = 10;
 export async function POST(req: Request) {
   const user = await getCurrentUser();
   if (!user) {
-    return NextResponse.json({ error: '로그인이 필요합니다' }, { status: 401 });
+    return NextResponse.json({ error: '로그인이 필요해요' }, { status: 401 });
   }
 
   if (!isStorageConfigured()) {
     return NextResponse.json(
-      { error: '영상 저장소가 설정되지 않았습니다' },
+      { error: '영상 저장소가 설정되지 않았어요' },
       { status: 503 }
     );
   }
@@ -35,14 +35,14 @@ export async function POST(req: Request) {
     }
     if (requested.length > MAX_PATHS) {
       return NextResponse.json(
-        { error: `한 번에 ${MAX_PATHS}개까지만 요청할 수 있습니다` },
+        { error: `한 번에 ${MAX_PATHS}개까지만 요청할 수 있어요` },
         { status: 400 }
       );
     }
 
     // 경로 형태만으로 1차 확인한 뒤, 실제 본인 기록에 속하는지 DB로 다시 확인한다.
     if (requested.some((p) => !isOwnedBy(p, user.id))) {
-      return NextResponse.json({ error: '접근할 수 없는 영상입니다' }, { status: 403 });
+      return NextResponse.json({ error: '접근할 수 없는 영상이에요' }, { status: 403 });
     }
 
     const owned = await prisma.pitchLog.findMany({
@@ -54,14 +54,14 @@ export async function POST(req: Request) {
     const allowed = requested.filter((p) => ownedSet.has(p));
 
     if (allowed.length === 0) {
-      return NextResponse.json({ error: '접근할 수 없는 영상입니다' }, { status: 403 });
+      return NextResponse.json({ error: '접근할 수 없는 영상이에요' }, { status: 403 });
     }
 
     return NextResponse.json({ urls: await createPlaybackUrls(allowed) });
   } catch (error) {
     console.error('[POST /api/pitch-log/video-url]', error);
     return NextResponse.json(
-      { error: '재생 주소를 만들지 못했습니다' },
+      { error: '재생 주소를 만들지 못했어요' },
       { status: 500 }
     );
   }

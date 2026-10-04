@@ -326,7 +326,7 @@ export function VideoGallery({
       <p className="rounded-2xl empty-well px-4 py-10 text-center text-sm leading-relaxed text-muted">
         아직 남긴 투구 기록이 없어요.
         <br />
-        위의 &apos;오늘 기록 남기기&apos;로 시작하세요. 영상도 그때 함께 올릴 수 있어요.
+        위의 &apos;오늘 기록 남기기&apos;로 시작해요. 영상도 같이 올릴 수 있어요.
       </p>
     );
   }
@@ -559,7 +559,7 @@ export function VideoGallery({
                           aria-pressed={isFeatured}
                           aria-label={
                             isFeatured
-                              ? `${spokenDate(clip.date)} 대표 영상 — 캘린더에 이 영상이 떠요`
+                              ? `${spokenDate(clip.date)} 대표 영상, 캘린더에 이 영상이 떠요`
                               : `${spokenDate(clip.date)} 대표 영상으로 고르기`
                           }
                           title={

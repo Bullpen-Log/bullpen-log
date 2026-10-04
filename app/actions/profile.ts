@@ -38,11 +38,11 @@ export async function updateProfile(
 
 async function tryUpdateProfile(formData: FormData): Promise<ProfileState> {
   const user = await getCurrentUser();
-  if (!user) return { error: '로그인이 필요합니다.' };
+  if (!user) return { error: '로그인이 필요해요.' };
 
   const nickname = String(formData.get('nickname') ?? '').trim();
   if (nickname.length < 2) {
-    return { error: '닉네임은 2자 이상이어야 합니다.' };
+    return { error: '닉네임은 2자 이상이어야 해요.' };
   }
 
   const checked = validateProfile(
@@ -151,7 +151,7 @@ async function tryUpdateProfile(formData: FormData): Promise<ProfileState> {
   // 헤더의 닉네임과 대시보드 안내 문구가 바로 반영되게 한다(성별이 바뀌면 영양 목표도).
   revalidatePath('/', 'layout');
 
-  return { success: '저장했습니다.' };
+  return { success: '저장했어요.' };
 }
 
 /**
@@ -170,10 +170,10 @@ async function tryUpdateProfile(formData: FormData): Promise<ProfileState> {
  */
 export async function saveAvatar(path: string | null): Promise<ProfileState> {
   const user = await getCurrentUser();
-  if (!user) return { error: '로그인이 필요합니다.' };
+  if (!user) return { error: '로그인이 필요해요.' };
 
   if (path != null && !isOwnAvatarPath(path, user.id)) {
-    return { error: '올린 사진을 찾지 못했습니다. 다시 시도해주세요.' };
+    return { error: '올린 사진을 찾지 못했어요. 다시 해 주세요.' };
   }
 
   const before = user.avatarPath;
@@ -183,7 +183,7 @@ export async function saveAvatar(path: string | null): Promise<ProfileState> {
      * 탭이 옛것으로 들고 있으면, 여기서 새로 그려야 막대의 사진까지 맞춰진다.
      */
     revalidatePath('/', 'layout');
-    return { success: '저장했습니다.' };
+    return { success: '저장했어요.' };
   }
 
   await prisma.user.update({
@@ -205,5 +205,5 @@ export async function saveAvatar(path: string | null): Promise<ProfileState> {
   // 막대와 상단 바의 아바타가 바로 바뀌게 한다.
   revalidatePath('/', 'layout');
 
-  return { success: path ? '사진을 바꿨습니다.' : '사진을 지웠습니다.' };
+  return { success: path ? '사진을 바꿨어요.' : '사진을 지웠어요.' };
 }

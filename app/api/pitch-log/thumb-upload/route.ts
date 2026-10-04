@@ -18,11 +18,11 @@ import {
 export async function POST(req: Request) {
   const user = await getCurrentUser();
   if (!user) {
-    return NextResponse.json({ error: '로그인이 필요합니다' }, { status: 401 });
+    return NextResponse.json({ error: '로그인이 필요해요' }, { status: 401 });
   }
   if (!isStorageConfigured()) {
     return NextResponse.json(
-      { error: '영상 저장소가 설정되지 않았습니다' },
+      { error: '영상 저장소가 설정되지 않았어요' },
       { status: 503 }
     );
   }
@@ -32,16 +32,16 @@ export async function POST(req: Request) {
     const path = typeof videoPath === 'string' ? videoPath.trim() : '';
     const thumbPath = path && isOwnedBy(path, user.id) ? pitchThumbPath(path) : null;
     if (!thumbPath) {
-      return NextResponse.json({ error: '접근할 수 없는 영상입니다' }, { status: 403 });
+      return NextResponse.json({ error: '접근할 수 없는 영상이에요' }, { status: 403 });
     }
 
     if (fileType !== 'image/jpeg') {
-      return NextResponse.json({ error: '미리보기는 JPEG 만 됩니다' }, { status: 400 });
+      return NextResponse.json({ error: '미리보기는 JPEG 만 돼요' }, { status: 400 });
     }
     const size = Number(fileSize);
     if (!Number.isFinite(size) || size <= 0 || size > MAX_THUMB_BYTES) {
       return NextResponse.json(
-        { error: '미리보기 크기가 올바르지 않습니다' },
+        { error: '미리보기 크기가 올바르지 않아요' },
         { status: 400 }
       );
     }
@@ -50,7 +50,7 @@ export async function POST(req: Request) {
   } catch (error) {
     console.error('[POST /api/pitch-log/thumb-upload]', error);
     return NextResponse.json(
-      { error: '업로드 주소를 만들지 못했습니다' },
+      { error: '업로드 주소를 만들지 못했어요' },
       { status: 500 }
     );
   }

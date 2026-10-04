@@ -43,7 +43,7 @@ export function MyRoutines({
     <div className="space-y-3">
       {painToday && routines.length > 0 && (
         <p className="rounded-lg border border-warn-line bg-warn-bg px-4 py-3 text-[13px] leading-relaxed break-keep text-warn">
-          오늘 통증을 남기셨어요 — 쉬는 걸 권해요.
+          오늘 통증을 남기셨어요. 쉬는 걸 권해요.
         </p>
       )}
 

@@ -416,7 +416,7 @@ export const FOCUS_POINT_DESC: Record<(typeof FOCUS_POINTS)[number], string> = {
  * P3 뎁스 드롭 힌지 스로우는 어렵다.
  */
 export const DRILL_STAGES = [
-  { name: '기초', desc: '제자리에서 한 구간만 — 맨몸 · 밴드 · 짚고 하기' },
+  { name: '기초', desc: '제자리에서 한 구간만, 맨몸 · 밴드 · 짚고 하기' },
   { name: '연결', desc: '두 구간을 이어서, 또는 한 번 움직였다가 던지기' },
   { name: '통합', desc: '앞으로 나가는 힘을 받아 전체 동작으로 던지기' },
 ] as const;

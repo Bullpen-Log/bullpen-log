@@ -16,6 +16,10 @@ Claude 로 작업을 시작하면 저절로 읽힌다. 규칙은 `AGENTS.md` 6�
 **받은 뒤 할 일 없음**(DB · 패키지 그대로). 사용자 요청 "웹사이트 같은 요소를 전부 완전한 앱 느낌으로". 휴대폰 모양만 바뀌고
 PC 는 거의 그대로다. 아이폰 앱 쪽(자판 막대 · 바탕색)은 앱을 새로 구워야 들어가고, 이미 올려서 TestFlight 빌드가 돈다.
 
+**AI 티 줄이기 1단계 — 화면 글(2026-10-04 저녁)**: 화면 글의 줄표(—) 170여 곳을 마침표 · 쉼표로, 긴 설명을 한두 줄로, 문장 속 굵게를
+뺐다. 서버 동작 · API 오류 메시지는 해요체로('로그인이 필요해요.'). 네 영역(영양 화면 · `lib/nutrition` 가이드 · 식단 까닭)도 글만 바뀌었고
+값 · 키는 그대로다(nutrition:test 387 통과). **새 글은 줄표 없이, 짧게, 해요체로.** 메커니즘 흔한 실수 칩은 이제 첫 마침표로 자른다.
+
 **새 화면을 만들 때 쓰는 것**
 - 저장 알림은 `toast('저장했어요')`(`components/toast.tsx`, 창 위에도 뜬다). redirect 로 끝나는 폼은 `SafeForm` 의 `doneToast`.
 - 켜고 끄기는 `Switch` · `SwitchRow`(`components/switch.tsx`), 설정 목록은 `ListGroup` · `ListRow` · `SelectRow`(`components/settings-list.tsx`),

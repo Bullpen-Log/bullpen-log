@@ -381,17 +381,17 @@ const LOWER_PAIN_PARTS: readonly CheckinPartKey[] = ['lowerBack', 'lowerBody'];
  */
 export function painRecoveryReason(facts: ReportFacts, plan: PitchPlan): string | null {
   if (painStateUnknown(facts)) {
-    return '최근 통증 기록이 있는데 오늘 상태를 몰라 가볍게만 구성했어요. 체크인을 남기면 아픈 곳을 피해서 다시 짜요.';
+    return '최근 통증 기록이 있는데 오늘 상태를 몰라 가볍게만 짰어요. 체크인을 남기면 아픈 곳을 피해서 다시 짜요.';
   }
   if (plan.needsPainCheck) {
-    return '메모에 통증으로 보이는 말이 있어 확인 전까지 가볍게 구성했어요.';
+    return '메모에 통증으로 보이는 말이 있어 확인 전까지 가볍게 짰어요.';
   }
   const parts = painPartsToday(facts);
   if (
     parts.some((p) => UPPER_PAIN_PARTS.includes(p)) &&
     parts.some((p) => LOWER_PAIN_PARTS.includes(p))
   ) {
-    return `${parts.map(checkinPartLabel).join('·')} 통증이 있어 그 부위를 쓰는 운동은 모두 빼고 가볍게 구성했어요. 통증이 이어지면 진료를 받아보세요.`;
+    return `${parts.map(checkinPartLabel).join('·')} 통증이 있어 그 부위를 쓰는 운동은 모두 빼고 가볍게 짰어요. 통증이 이어지면 진료를 받아 보세요.`;
   }
   return null;
 }
@@ -512,7 +512,7 @@ function decideThemeForBody({
     return {
       key: 'recovery',
       label: '회복·재생 데이',
-      reason: '오늘은 회복 위주로 하고 싶다고 하셔서 그렇게 구성했어요.',
+      reason: '오늘은 회복 위주로 하고 싶다고 하셔서 그렇게 짰어요.',
     };
   }
 
@@ -545,7 +545,7 @@ function decideThemeForBody({
       return {
         key: 'recovery',
         label: '회복·재생 데이',
-        reason: '투구 부하가 위험 구간이라 회복 위주로 구성했어요.',
+        reason: '투구 부하가 위험 구간이라 회복 위주로 짰어요.',
       };
     }
     const condition = facts.condition.today?.condition;
@@ -553,7 +553,7 @@ function decideThemeForBody({
       return {
         key: 'recovery',
         label: '회복·재생 데이',
-        reason: `오늘 컨디션이 ${condition}/10이라 회복 위주로 구성했어요.`,
+        reason: `오늘 컨디션이 ${condition}/10이라 회복 위주로 짰어요.`,
       };
     }
     /*
@@ -569,14 +569,14 @@ function decideThemeForBody({
       return {
         key: 'recovery',
         label: '회복·재생 데이',
-        reason: `전신 근육통이 '${soreWord}'이라 가볍게 움직이는 회복 위주로 구성했어요. 가만히 쉬는 것보다 가볍게 움직이는 편이 풀리는 데 도움이 될 수 있어요.`,
+        reason: `전신 근육통이 '${soreWord}'이라 가볍게 움직이며 푸는 회복 위주로 짰어요.`,
       };
     }
     if (facts.load.zone === 'caution') {
       return {
         key: 'assist',
         label: '보조·코어 데이',
-        reason: '투구 부하가 주의 구간이라 무게 대신 코어와 보강에 집중해요.',
+        reason: '투구 부하가 주의 구간이라 무게 대신 코어와 보강을 해요.',
       };
     }
   }

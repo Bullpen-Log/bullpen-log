@@ -423,7 +423,7 @@ function Summary({
           {rehabTitle(area, condition)} · {severityLabel(severity)} · {stage}단계부터
         </p>
         <p className="font-semibold text-sky-strong">
-          투구 복귀표까지 {weeksText(rehabEstimateDays(severity, condition))} — 빨리
+          투구 복귀표까지 {weeksText(rehabEstimateDays(severity, condition))}, 빨리
           나으면 앞당겨져요
         </p>
         <p className="text-muted">

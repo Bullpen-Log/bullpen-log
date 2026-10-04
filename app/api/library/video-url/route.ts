@@ -16,7 +16,7 @@ const MAX_PATHS = 20;
 export async function POST(req: Request) {
   const user = await getCurrentUser();
   if (!user) {
-    return NextResponse.json({ error: '로그인이 필요합니다' }, { status: 401 });
+    return NextResponse.json({ error: '로그인이 필요해요' }, { status: 401 });
   }
 
   try {
@@ -27,7 +27,7 @@ export async function POST(req: Request) {
     }
     if (paths.length > MAX_PATHS) {
       return NextResponse.json(
-        { error: `한 번에 ${MAX_PATHS}개까지만 요청할 수 있습니다` },
+        { error: `한 번에 ${MAX_PATHS}개까지만 요청할 수 있어요` },
         { status: 400 }
       );
     }
@@ -47,7 +47,7 @@ export async function POST(req: Request) {
   } catch (error) {
     console.error('[POST /api/library/video-url]', error);
     return NextResponse.json(
-      { error: '재생 주소를 만들지 못했습니다' },
+      { error: '재생 주소를 만들지 못했어요' },
       { status: 500 }
     );
   }

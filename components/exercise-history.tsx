@@ -215,7 +215,7 @@ function VolumeTrend({
                 : kind === 'reps'
                   ? '횟수 합'
                   : '버틴 시간 합'}{' '}
-              — 최근 {n}번
+              · 최근 {n}번
             </span>
             <span className="tabular-nums">
               가장 많이 {volumeText(kind, peak.value, unit)}

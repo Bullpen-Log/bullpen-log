@@ -199,7 +199,7 @@ export function BarcodePanel({
       setLook({
         kind: 'error',
         message:
-          '바코드 숫자가 맞지 않아요 — 막대 밑의 8 · 12 · 13자리 숫자를 그대로 적어 주세요.',
+          '바코드 숫자가 맞지 않아요. 막대 밑의 8 · 12 · 13자리 숫자를 그대로 적어 주세요.',
       });
       return;
     }
@@ -317,7 +317,7 @@ export function BarcodePanel({
           <p className="text-xs text-muted">
             {look.from === 'mine'
               ? '전에 적어 둔 바코드예요.'
-              : '공개 자료(Open Food Facts)에서 찾았어요 — 이름 · 값이 포장과 다를 수 있어요.'}
+              : '공개 자료(Open Food Facts)에서 찾았어요. 이름 · 값이 포장과 다를 수 있어요.'}
           </p>
           <ul>{renderFood(look.food)}</ul>
         </div>

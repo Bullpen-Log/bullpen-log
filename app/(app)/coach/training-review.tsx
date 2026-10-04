@@ -181,19 +181,16 @@ export function TrainingReviewCards({
           </ul>
         ) : (
           <p className="mt-4 rounded-xl empty-well px-4 py-8 text-center text-sm leading-relaxed text-muted">
-            최근 {weekCount}주 동안 마쳤다고 표시한 운동(암케어 제외)이 없어요.
+            최근 {weekCount}주 동안 마친 운동(암케어 제외)이 없어요.
             <br />
-            트레이닝에서 운동을 마치고 눌러주시면 여기에 쌓여요. 암케어는 아래
-            &lsquo;투구와 운동&rsquo;에서 따로 세어요.
+            트레이닝에서 운동을 마치고 눌러 주면 여기에 쌓여요.
           </p>
         )}
 
         {/* 어떻게 나온 숫자인지 — 안 적어두면 그냥 믿거나 그냥 무시한다 */}
         <p className="mt-3 text-[11px] leading-relaxed text-muted/70">
-          날 수는 암케어를 뺀 운동을 하나라도 마쳤다고 표시한 날이에요(암케어는 아래에서
-          따로 세어요). 시간은 운동마다 정해진 세트당 시간(수행 + 세트 사이 휴식)에
-          실제로 한 세트를 곱해 더한 값이고, 강도는 그 주에 적은 값의 평균이에요. 부하
-          지수는 시간이 아니라 세트로 세므로 이 시간과는 다른 숫자예요.
+          암케어를 뺀 운동을 마친 날만 세어요. 시간은 세트마다 정해진 시간(쉬는 시간
+          포함)을 더한 값이고, 강도는 그 주의 평균이에요.
         </p>
       </section>
 
@@ -209,10 +206,7 @@ export function TrainingReviewCards({
         </div>
 
         <p className="mt-3 text-[11px] leading-relaxed text-muted/70">
-          칸 하나가 하루예요. 짚으면 그날 몇 구를 던졌는지 나와요. 운동은
-          &lsquo;마침&rsquo;을 누른 날만 세어요 — 했는데 안 눌렀으면 빈칸으로 남아요.
-          암케어를 따로 뺀 것은 던지는 사람에게 어깨·팔꿈치 관리가 다른 운동으로
-          대신되지 않기 때문이에요.
+          칸 하나가 하루예요. 운동은 &lsquo;마침&rsquo;을 누른 날만 칠해져요.
         </p>
       </section>
     </>

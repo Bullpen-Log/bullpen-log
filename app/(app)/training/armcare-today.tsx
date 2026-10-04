@@ -171,7 +171,7 @@ export function ArmcareToday({
         {(kindChanged || unsafeCount > 0) && (
           <p className="rounded-lg border border-warn-line bg-warn-bg px-3 py-2 text-xs leading-relaxed break-keep text-warn">
             {kindChanged
-              ? `몸 상태가 바뀌었어요 — ${decision.reason}.`
+              ? `몸 상태가 바뀌었어요. ${decision.reason}.`
               : `몸 상태가 바뀌어 무리인 운동이 ${unsafeCount}개 있어요.`}{' '}
             다시 만들어도 체크한 것은 남아요.
           </p>
@@ -385,7 +385,7 @@ export function Checklist({
 
       {dayChanged && (
         <p className="rounded-lg border border-warn-line bg-warn-bg px-4 py-3 text-sm leading-relaxed break-keep text-warn">
-          날짜가 바뀌었어요 — 이 목록의 체크는 {monthDay(shownDate)} 기록으로 남아요.{' '}
+          날짜가 바뀌었어요. 이 목록의 체크는 {monthDay(shownDate)} 기록으로 남아요.{' '}
           <button type="button" onClick={showToday} className="font-semibold text-sky-strong">
             오늘 목록 보기
           </button>

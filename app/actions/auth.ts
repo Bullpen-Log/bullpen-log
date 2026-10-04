@@ -38,12 +38,12 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 export async function checkSignupEmail(raw: string): Promise<{ error?: string }> {
   const email = raw.trim().toLowerCase();
   if (!email) return { error: '이메일을 입력해주세요.' };
-  if (!EMAIL_RE.test(email)) return { error: '올바른 이메일 형식이 아닙니다.' };
+  if (!EMAIL_RE.test(email)) return { error: '올바른 이메일 형식이 아니에요.' };
   const existing = await prisma.user.findUnique({
     where: { email },
     select: { id: true },
   });
-  if (existing) return { error: '이미 가입된 이메일입니다. 로그인해 주세요.' };
+  if (existing) return { error: '이미 가입된 이메일이에요. 로그인해 주세요.' };
   return {};
 }
 
@@ -68,19 +68,19 @@ async function trySignup(formData: FormData): Promise<AuthState> {
   if (!nickname) return { error: '닉네임을 입력해주세요.', field: 'nickname' };
   if (!password) return { error: '비밀번호를 입력해주세요.', field: 'password' };
   if (!EMAIL_RE.test(email)) {
-    return { error: '올바른 이메일 형식이 아닙니다.', field: 'email' };
+    return { error: '올바른 이메일 형식이 아니에요.', field: 'email' };
   }
   if (nickname.length < 2) {
-    return { error: '닉네임은 2자 이상이어야 합니다.', field: 'nickname' };
+    return { error: '닉네임은 2자 이상이어야 해요.', field: 'nickname' };
   }
   if (password.length < 8) {
-    return { error: '비밀번호는 8자 이상이어야 합니다.', field: 'password' };
+    return { error: '비밀번호는 8자 이상이어야 해요.', field: 'password' };
   }
   if (!passwordConfirm) {
     return { error: '비밀번호를 한 번 더 입력해주세요.', field: 'passwordConfirm' };
   }
   if (password !== passwordConfirm) {
-    return { error: '비밀번호가 일치하지 않습니다.', field: 'passwordConfirm' };
+    return { error: '비밀번호가 일치하지 않아요.', field: 'passwordConfirm' };
   }
 
   /*
@@ -157,7 +157,7 @@ async function trySignup(formData: FormData): Promise<AuthState> {
 
   const existing = await prisma.user.findUnique({ where: { email } });
   if (existing) {
-    return { error: '이미 가입된 이메일입니다.', field: 'email' };
+    return { error: '이미 가입된 이메일이에요.', field: 'email' };
   }
 
   const adminEmail = process.env.ADMIN_EMAIL?.trim().toLowerCase();
@@ -207,7 +207,7 @@ async function tryLogin(formData: FormData): Promise<AuthState> {
 
   // 이메일이 없는 경우와 비밀번호가 틀린 경우를 구분하지 않는다.
   if (!user || !(await bcrypt.compare(password, user.password))) {
-    return { error: '이메일 또는 비밀번호가 올바르지 않습니다.' };
+    return { error: '이메일 또는 비밀번호가 올바르지 않아요.' };
   }
 
   /*
@@ -255,7 +255,7 @@ export async function changePassword(
   formData: FormData
 ): Promise<AccountState> {
   const user = await getCurrentUser();
-  if (!user) return { error: '로그인이 필요합니다.' };
+  if (!user) return { error: '로그인이 필요해요.' };
 
   const current = String(formData.get('currentPassword') ?? '');
   const next = String(formData.get('newPassword') ?? '');
@@ -265,13 +265,13 @@ export async function changePassword(
     return { error: '지금 비밀번호와 새 비밀번호를 모두 입력해주세요.' };
   }
   if (next.length < MIN_PASSWORD) {
-    return { error: `새 비밀번호는 ${MIN_PASSWORD}자 이상이어야 합니다.` };
+    return { error: `새 비밀번호는 ${MIN_PASSWORD}자 이상이어야 해요.` };
   }
   if (next !== confirm) {
-    return { error: '새 비밀번호가 서로 다릅니다.' };
+    return { error: '새 비밀번호가 서로 달라요.' };
   }
   if (next === current) {
-    return { error: '지금 쓰는 비밀번호와 같습니다. 다른 것으로 정해주세요.' };
+    return { error: '지금 쓰는 비밀번호와 같아요. 다른 것으로 정해 주세요.' };
   }
 
   const row = await prisma.user.findUnique({
@@ -279,7 +279,7 @@ export async function changePassword(
     select: { password: true },
   });
   if (!row || !(await bcrypt.compare(current, row.password))) {
-    return { error: '지금 비밀번호가 맞지 않습니다.' };
+    return { error: '지금 비밀번호가 맞지 않아요.' };
   }
 
   const nextHash = await bcrypt.hash(next, 10);
@@ -297,7 +297,7 @@ export async function changePassword(
     session?.persistent ?? true
   );
 
-  return { success: '비밀번호를 바꿨습니다. 다른 기기의 로그인은 풀립니다.' };
+  return { success: '비밀번호를 바꿨어요. 다른 기기의 로그인은 풀려요.' };
 }
 
 /**
@@ -316,7 +316,7 @@ export async function deleteAccount(
   formData: FormData
 ): Promise<AccountState> {
   const user = await getCurrentUser();
-  if (!user) return { error: '로그인이 필요합니다.' };
+  if (!user) return { error: '로그인이 필요해요.' };
 
   const password = String(formData.get('password') ?? '');
   const typed = String(formData.get('confirmWord') ?? '').trim();
@@ -333,7 +333,7 @@ export async function deleteAccount(
     select: { password: true },
   });
   if (!row || !(await bcrypt.compare(password, row.password))) {
-    return { error: '비밀번호가 맞지 않습니다.' };
+    return { error: '비밀번호가 맞지 않아요.' };
   }
 
   /*

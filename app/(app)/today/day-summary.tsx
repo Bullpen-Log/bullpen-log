@@ -330,7 +330,7 @@ function SummaryTile({
         type="button"
         onClick={onSelect}
         aria-pressed={selected}
-        aria-label={`${row.label} — ${row.value ?? '기록 없음'}${row.sub ? `, ${row.sub}` : ''}`}
+        aria-label={`${row.label}, ${row.value ?? '기록 없음'}${row.sub ? `, ${row.sub}` : ''}`}
         className="group flex w-full flex-col items-center gap-1.5 rounded-xl py-1 outline-offset-2 focus-visible:outline-2 focus-visible:outline-sky lg:gap-2"
       >
         <span

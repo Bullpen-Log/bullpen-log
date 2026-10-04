@@ -103,7 +103,7 @@ export function GuideForm({
         </p>
       )}
 
-      <Field label={`드릴 이름 — ${initial?.category ?? category}`}>
+      <Field label={`드릴 이름 · ${initial?.category ?? category}`}>
         <Input
           name="title"
           defaultValue={pick('title', initial?.title)}
@@ -156,7 +156,7 @@ export function GuideForm({
                 }}
                 className="text-xs text-muted transition-colors hover:text-ink"
               >
-                교체 취소 — 기존 영상 그대로 두기
+                교체 취소(지금 영상 그대로)
               </button>
             )}
           </div>

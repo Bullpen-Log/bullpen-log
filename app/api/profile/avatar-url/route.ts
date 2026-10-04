@@ -19,12 +19,12 @@ import {
 export async function POST(req: Request) {
   const user = await getCurrentUser();
   if (!user) {
-    return NextResponse.json({ error: '로그인이 필요합니다' }, { status: 401 });
+    return NextResponse.json({ error: '로그인이 필요해요' }, { status: 401 });
   }
 
   if (!isStorageConfigured()) {
     return NextResponse.json(
-      { error: '저장소가 아직 설정되지 않았습니다. 관리자에게 문의해주세요.' },
+      { error: '저장소가 아직 설정되지 않았어요. 관리자에게 문의해주세요.' },
       { status: 503 }
     );
   }
@@ -34,7 +34,7 @@ export async function POST(req: Request) {
 
     if (typeof fileType !== 'string' || !AVATAR_TYPES.includes(fileType)) {
       return NextResponse.json(
-        { error: '사진은 JPG·PNG·WebP·GIF 만 올릴 수 있습니다' },
+        { error: '사진은 JPG·PNG·WebP·GIF 만 올릴 수 있어요' },
         { status: 400 }
       );
     }
@@ -42,7 +42,7 @@ export async function POST(req: Request) {
     const size = Number(fileSize);
     if (!Number.isFinite(size) || size <= 0) {
       return NextResponse.json(
-        { error: '파일 크기를 확인할 수 없습니다' },
+        { error: '파일 크기를 확인할 수 없어요' },
         { status: 400 }
       );
     }
@@ -50,7 +50,7 @@ export async function POST(req: Request) {
     if (size > MAX_AVATAR_BYTES) {
       const mb = Math.round(MAX_AVATAR_BYTES / 1024 / 1024);
       return NextResponse.json(
-        { error: `사진은 ${mb}MB 이하만 올릴 수 있습니다` },
+        { error: `사진은 ${mb}MB 이하만 올릴 수 있어요` },
         { status: 400 }
       );
     }
@@ -59,7 +59,7 @@ export async function POST(req: Request) {
   } catch (error) {
     console.error('[POST /api/profile/avatar-url]', error);
     return NextResponse.json(
-      { error: '업로드 주소를 만들지 못했습니다' },
+      { error: '업로드 주소를 만들지 못했어요' },
       { status: 500 }
     );
   }

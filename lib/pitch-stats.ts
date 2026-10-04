@@ -515,13 +515,13 @@ export function buildReportFindings({
     findings.push({
       tone: 'warn',
       title: '이틀 연속 부하가 높았던 구간이 있어요',
-      detail: `${label} 동안 ${fatigueCount}번 나왔어요. 연속한 이틀의 강도 합이 ${TWO_DAY_INTENSITY_LIMIT}을 넘으면 어깨·팔꿈치에 피로가 쌓이기 쉬워요. 다음 날은 강도를 낮추거나 쉬는 편이 좋아요.`,
+      detail: `${label} 동안 ${fatigueCount}번 나왔어요. 이어진 이틀의 강도 합이 ${TWO_DAY_INTENSITY_LIMIT}을 넘으면 어깨 · 팔꿈치에 피로가 쌓여요. 다음 날은 강도를 낮추거나 쉬세요.`,
     });
   } else if (current.activeDays > 0) {
     findings.push({
       tone: 'good',
-      title: '연속 부하 관리가 잘 되고 있어요',
-      detail: `${label} 동안 이틀 합산 강도가 ${TWO_DAY_INTENSITY_LIMIT}을 넘은 구간이 없어요.`,
+      title: '이틀 연속 무리한 날이 없어요',
+      detail: `${label} 동안 이틀 강도 합이 ${TWO_DAY_INTENSITY_LIMIT}을 넘은 적이 없어요.`,
     });
   }
 
@@ -533,7 +533,7 @@ export function buildReportFindings({
       findings.push({
         tone: 'warn',
         title: `투구량이 직전 ${days}일보다 ${rounded}% 늘었어요`,
-        detail: `${previous.totalPitches}구 → ${current.totalPitches}구. 갑작스러운 증가는 부상 위험을 높여요. 주당 증가폭을 완만하게 가져가세요.`,
+        detail: `${previous.totalPitches}구 → ${current.totalPitches}구. 갑자기 늘리면 다칠 위험이 커져요. 한 주에 조금씩만 늘리세요.`,
       });
     } else if (volumeChange <= -30) {
       findings.push({
@@ -544,7 +544,7 @@ export function buildReportFindings({
     } else {
       findings.push({
         tone: 'good',
-        title: '투구량이 안정적으로 유지되고 있어요',
+        title: '투구량이 고르게 이어지고 있어요',
         detail: `직전 ${days}일 대비 ${rounded >= 0 ? '+' : ''}${rounded}% (${previous.totalPitches}구 → ${current.totalPitches}구).`,
       });
     }
@@ -564,7 +564,7 @@ export function buildReportFindings({
       findings.push({
         tone: 'info',
         title: `최고 구속이 ${Math.abs(rounded)}km/h 떨어졌어요`,
-        detail: `직전 ${days}일 ${previous.maxVelocity}km/h → ${label} ${current.maxVelocity}km/h. 피로가 쌓였는지, 폼이 달라졌는지 영상 분석에서 확인해보세요.`,
+        detail: `직전 ${days}일 ${previous.maxVelocity}km/h → ${label} ${current.maxVelocity}km/h. 피로가 쌓였는지, 폼이 달라졌는지 영상으로 확인해 보세요.`,
       });
     }
   }
@@ -610,8 +610,8 @@ export function buildReportFindings({
         ? '경기가 시작됐는데 연습량은 그대로예요'
         : '경기가 늘었는데 연습량은 그대로예요',
       detail: gameStarted
-        ? `${label} 경기 부하가 전체의 ${share}%인데, 연습량은 직전 기간과 비슷해요. 경기는 던질 양을 내가 정할 수 없으므로, 그만큼 불펜이나 캐치볼을 줄여 균형을 맞추는 편이 좋아요.`
-        : `${label} 경기에서 온 부하가 직전 기간보다 늘어 전체의 ${share}%가 됐어요. 경기는 던질 양을 내가 정할 수 없으므로, 늘어난 만큼 불펜이나 캐치볼을 줄여 균형을 맞추는 편이 좋아요.`,
+        ? `${label} 경기 부하가 전체의 ${share}%인데 연습량은 그대로예요. 경기 투구는 줄일 수 없으니 그만큼 불펜이나 캐치볼을 줄이세요.`
+        : `${label} 경기 부하가 늘어 전체의 ${share}%가 됐어요. 경기 투구는 줄일 수 없으니 늘어난 만큼 불펜이나 캐치볼을 줄이세요.`,
     });
   }
 
@@ -666,7 +666,7 @@ export const ACWR_ZONES: Record<
     tone: 'info',
     meaning: '평소보다 적게 던지고 있어요.',
     advice:
-      '최근 부하가 평소보다 적어요. 회복 중이라면 정상이며, 복귀할 때는 한 번에 늘리지 말고 조금씩 올리세요.',
+      '최근 부하가 평소보다 적어요. 회복 중이라면 괜찮고, 다시 늘릴 때는 조금씩 올리세요.',
   },
   optimal: {
     short: '적정',

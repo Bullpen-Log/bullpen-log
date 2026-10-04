@@ -167,7 +167,7 @@ function commonNotes(s: GuideSignals, body: GuideBody) {
   const notes: string[] = [];
   if (s.appetite != null && s.appetite <= LOW_APPETITE) {
     notes.push(
-      '입맛이 없는 날이에요. 한 번에 많이 먹기보다 조금씩 자주 — 바나나 · 우유 · 요구르트처럼 평소 잘 넘어가던 것부터 드세요.'
+      '입맛이 없는 날이에요. 바나나 · 우유 · 요구르트처럼 잘 넘어가는 것을 조금씩 자주 드세요.'
     );
   }
   if (body.goal === 'lose') {
@@ -190,7 +190,7 @@ export function throwDayGuide(s: GuideSignals, body: GuideBody): ThrowGuide | nu
       badge: PLAN_TOMORROW,
       title: '저녁 탄수화물 넉넉히',
       lines: [
-        '밥 · 면 · 감자처럼 익숙한 탄수화물을 평소보다 조금 넉넉히 드세요. 크게 늘릴 필요는 없어요 — 오늘 목표를 채우는 것이 먼저예요.',
+        '밥 · 면 · 감자처럼 익숙한 탄수화물을 평소보다 조금 넉넉히 드세요. 크게 늘리기보다 오늘 목표를 채우는 게 먼저예요.',
         '기름진 음식과 처음 먹는 음식, 늦은 야식은 피하는 편이 좋아요.',
       ],
     };
@@ -211,7 +211,7 @@ export function throwDayGuide(s: GuideSignals, body: GuideBody): ThrowGuide | nu
       title: '3~4시간 전에 든든히',
       lines: [
         carbs
-          ? `식사는 던지기 3~4시간 전에, 탄수화물 ${carbs}g 안팎 — 쌀밥 ${riceBowls(carbs)}쯤에 반찬을 곁들이면 돼요.`
+          ? `식사는 던지기 3~4시간 전에 하세요. 탄수화물 ${carbs}g 안팎, 쌀밥 ${riceBowls(carbs)}쯤에 반찬을 곁들이면 돼요.`
           : '식사는 던지기 3~4시간 전에, 밥을 평소보다 조금 넉넉히 드세요.',
         '1시간 전에는 바나나나 식빵처럼 가벼운 것으로 드세요. 기름진 음식과 처음 먹는 음식은 피하는 편이 좋아요.',
         '던진 뒤에는 투구 기록을 남기면 회복식 안내로 바뀌어요.',
@@ -255,7 +255,7 @@ export function throwDayGuide(s: GuideSignals, body: GuideBody): ThrowGuide | nu
   }
   if (body.ageBand !== 'adult') {
     notes.unshift(
-      '보충제 없이 음식으로 대개 충분해요 — 우유 · 달걀 · 고기 · 밥처럼 평소 먹던 것으로요.'
+      '보충제 없이 우유 · 달걀 · 고기 · 밥처럼 평소 먹던 음식으로 대개 충분해요.'
     );
   }
   return {

@@ -128,7 +128,7 @@ export function ExerciseForm({
         </p>
       )}
 
-      <Field label={`운동 이름 — ${initial?.category ?? category}`}>
+      <Field label={`운동 이름 · ${initial?.category ?? category}`}>
         <Input
           name="title"
           defaultValue={pick('title', initial?.title)}
@@ -186,7 +186,7 @@ export function ExerciseForm({
                 }}
                 className="text-xs text-muted transition-colors hover:text-ink"
               >
-                교체 취소 — 기존 영상 그대로 두기
+                교체 취소(지금 영상 그대로)
               </button>
             )}
           </div>
@@ -274,7 +274,7 @@ export function ExerciseForm({
               defaultValue={pick('reps', num(initial?.reps))}
             />
           </Field>
-          <Field label={cardio ? '운동 시간(초) — 10분이면 600' : '버티는 시간(초)'}>
+          <Field label={cardio ? '운동 시간(초, 10분이면 600)' : '버티는 시간(초)'}>
             <Input
               name="holdSeconds"
               type="number"

@@ -40,8 +40,8 @@ export function ArmPainGuideBody({
         guides.map((guide) => <SpotGuide key={guide.key} guide={guide} />)
       ) : (
         <p className="text-muted">
-          어디가 아픈지 고르면 그 자리에 흔한 부상과 확인해 볼 증상을 알려 드려요.
-          체크인의 몸 상태에서 고를 수 있어요.
+          어디가 아픈지 고르면 흔한 부상과 확인해 볼 증상이 나와요. 체크인의 몸 상태에서
+          고를 수 있어요.
         </p>
       )}
 

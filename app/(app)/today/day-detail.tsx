@@ -278,8 +278,7 @@ function PitchDetail({
       <Camera aria-hidden className="h-3.5 w-3.5 shrink-0 text-sky" />
       <span>
         카메라로 잰 공 {velocity.n}구 · 최고 {formatSpeed(velocity.max, speedUnit)}
-        {velocity.clips > 0 &&
-          ` — 영상 ${velocity.clips}개는 영상 아이콘에서 바로 봐요`}
+        {velocity.clips > 0 && ` · 영상 ${velocity.clips}개는 영상 아이콘에서 봐요`}
       </span>
     </p>
   );
@@ -333,7 +332,7 @@ function PitchDetail({
               {l.videoPaths.length > 0 && (
                 <p className="mt-2 inline-flex items-center gap-1 text-xs text-muted">
                   <Film aria-hidden className="h-3.5 w-3.5" />
-                  영상 {l.videoPaths.length}개 — 영상 아이콘을 누르면 바로 봐요
+                  영상 {l.videoPaths.length}개 · 영상 아이콘을 누르면 봐요
                 </p>
               )}
             </li>

@@ -12,7 +12,7 @@ export async function GET(req: NextRequest) {
   const user = await getCurrentUser();
   if (!user)
     return NextResponse.json(
-      { ok: false, error: '로그인이 필요합니다.' },
+      { ok: false, error: '로그인이 필요해요.' },
       { status: 401 }
     );
   const code = cleanBarcode(req.nextUrl.searchParams.get('code'));

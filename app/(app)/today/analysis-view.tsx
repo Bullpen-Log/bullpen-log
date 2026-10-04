@@ -160,15 +160,14 @@ async function PastReport({ user, date }: { user: User; date: string }) {
       <div className="rounded-2xl empty-well px-5 py-8 text-center">
         <p className="text-sm text-ink">{spokenDate(date)}에는 만든 리포트가 없어요.</p>
         <p className="mt-1 text-xs leading-relaxed text-muted">
-          리포트가 있는 날은 캘린더 칸 왼쪽 위에 그래프 표시가 있어요. 투구·트레이닝
-          칸에서는 이 날까지의 부하와 추이를 볼 수 있어요.
+          리포트가 있는 날은 캘린더 칸 왼쪽 위에 그래프 표시가 있어요.
         </p>
         {earlierKey && (
           <JumpToDate
             date={earlierKey}
             className="mt-3 inline-flex items-center gap-1 rounded-lg px-2 py-1 text-sm font-semibold text-sky transition-colors hover:bg-sky-tint hover:text-sky-strong"
           >
-            가장 가까운 이전 리포트 — {spokenDate(earlierKey)}
+            {spokenDate(earlierKey)} 리포트 보기
             <ChevronRight aria-hidden className="h-4 w-4" />
           </JumpToDate>
         )}

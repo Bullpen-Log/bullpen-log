@@ -38,13 +38,13 @@ export async function saveCheckin(
 
 async function trySaveCheckin(formData: FormData): Promise<CheckinState> {
   const user = await getCurrentUser();
-  if (!user) return { error: '로그인이 필요합니다.' };
+  if (!user) return { error: '로그인이 필요해요.' };
 
   // 날짜는 사용자 시간대 기준의 오늘을 폼에서 받는다.
   // 서버(UTC) 기준 자정 근처에 한국은 이미 다음 날이기 때문이다.
   const dateKey = String(formData.get('date') ?? '');
   if (!validateCheckinDate(dateKey)) {
-    return { error: '체크인 날짜가 올바르지 않습니다. 새로고침 후 다시 시도해주세요.' };
+    return { error: '체크인 날짜가 올바르지 않아요. 새로고침한 뒤 다시 해 주세요.' };
   }
 
   const parts = Object.fromEntries(
@@ -149,5 +149,5 @@ async function trySaveCheckin(formData: FormData): Promise<CheckinState> {
   revalidatePath('/training');
   /* 체크인 관문은 모든 화면의 틀(레이아웃)에 있다. 거기도 오늘 체크인을 알아야 한다. */
   revalidatePath('/', 'layout');
-  return { success: '오늘 체크인을 저장했습니다.', savedDate: dateKey };
+  return { success: '오늘 체크인을 저장했어요.', savedDate: dateKey };
 }

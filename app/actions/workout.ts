@@ -302,13 +302,13 @@ export async function logSet(input: SetInput): Promise<SetResult> {
   const session =
     (await sessionForSet(user.id, input.sessionId)) ??
     (await abandonedSessionForSet(user.id, input.sessionId));
-  if (!session) return { error: '이미 마친 운동이라 이 세트는 저장하지 못했습니다.' };
+  if (!session) return { error: '이미 마친 운동이라 이 세트는 저장하지 못했어요.' };
   /* 저절로 닫힌 뒤에 늦게 온 세트(위 abandonedSessionForSet) */
   const late = session.status === 'ABANDONED';
 
   const plan = readFrozenPlan(session.plan);
   const ex = plan?.exercises.find((e) => e.id === input.exerciseId);
-  if (!ex) return { error: '오늘 목록에 없는 운동입니다.' };
+  if (!ex) return { error: '오늘 목록에 없는 운동이에요.' };
 
   const w = weight(input.weightKg);
   const reps = whole(input.reps, AMOUNT_LIMITS.reps);
@@ -328,7 +328,7 @@ export async function logSet(input: SetInput): Promise<SetResult> {
       select: { setNo: true },
     });
     setNo = (last?.setNo ?? 0) + 1;
-    if (setNo > AMOUNT_LIMITS.sets) return { error: '세트가 너무 많습니다.' };
+    if (setNo > AMOUNT_LIMITS.sets) return { error: '세트가 너무 많아요.' };
   }
 
   const at = clampRecordedAt(input.recordedAt, session.startedAt);
@@ -340,7 +340,7 @@ export async function logSet(input: SetInput): Promise<SetResult> {
     late &&
     at.getTime() > (session.endedAt ?? session.startedAt).getTime() + STALE_AFTER_MS
   ) {
-    return { error: '이미 마친 운동이라 이 세트는 저장하지 못했습니다.' };
+    return { error: '이미 마친 운동이라 이 세트는 저장하지 못했어요.' };
   }
 
   /*
@@ -360,7 +360,7 @@ export async function logSet(input: SetInput): Promise<SetResult> {
       await closeAbandoned(user.id, session, last, new Date());
       return {
         error:
-          '지난번 운동은 종료를 누르지 않은 채 남아 있어서 닫아 두었습니다. 오늘 운동은 트레이닝에서 새로 시작해 주세요.',
+          '지난번 운동은 종료를 누르지 않은 채 남아 있어서 닫아 두었어요. 오늘 운동은 트레이닝에서 새로 시작해 주세요.',
       };
     }
   }
@@ -416,7 +416,7 @@ export async function deleteSet(input: {
 }): Promise<SetResult> {
   const user = await requireUser();
   const session = await sessionForSet(user.id, input.sessionId);
-  if (!session) return { error: '이미 마친 운동이라 지울 수 없습니다.' };
+  if (!session) return { error: '이미 마친 운동이라 지울 수 없어요.' };
 
   await prisma.userExerciseSet.deleteMany({
     where: {
@@ -521,10 +521,10 @@ export async function reorderSession(
 ): Promise<{ ids: string[] } | { error: string }> {
   const user = await requireUser();
   const session = await sessionForSet(user.id, sessionId);
-  if (!session) return { error: '열려 있는 운동이 없습니다.' };
+  if (!session) return { error: '열려 있는 운동이 없어요.' };
 
   const plan = readFrozenPlan(session.plan);
-  if (!plan) return { error: '오늘 목록을 읽지 못했습니다.' };
+  if (!plan) return { error: '오늘 목록을 읽지 못했어요.' };
 
   /* 중복은 버리고, 목록에 실제로 있는 것만 남긴다 */
   const want = exerciseIds.filter((id, i) => exerciseIds.indexOf(id) === i);
@@ -534,7 +534,7 @@ export async function reorderSession(
     return found ? [found] : [];
   });
 
-  if (next.length === 0) return { error: '운동을 모두 뺄 수는 없습니다.' };
+  if (next.length === 0) return { error: '운동을 모두 뺄 수는 없어요.' };
 
   /*
    * 이미 세트를 남긴 운동은 못 뺀다.
@@ -548,7 +548,7 @@ export async function reorderSession(
       where: { sessionId: session.id, exerciseId: { in: dropped } },
       select: { exerciseId: true },
     });
-    if (has) return { error: '이미 기록을 남긴 운동은 뺄 수 없습니다.' };
+    if (has) return { error: '이미 기록을 남긴 운동은 뺄 수 없어요.' };
   }
 
   await prisma.trainingSession.update({
@@ -625,11 +625,11 @@ export async function swapChoices(input: {
 }): Promise<SwapChoices | { error: string }> {
   const user = await requireUser();
   const session = await sessionForSet(user.id, input.sessionId);
-  if (!session) return { error: '이미 마친 운동이라 바꿀 수 없습니다.' };
+  if (!session) return { error: '이미 마친 운동이라 바꿀 수 없어요.' };
 
   const plan = readFrozenPlan(session.plan);
   const target = plan?.exercises.find((e) => e.id === input.exerciseId);
-  if (!plan || !target) return { error: '오늘 목록에 없는 운동입니다.' };
+  if (!plan || !target) return { error: '오늘 목록에 없는 운동이에요.' };
 
   const now = new Date();
   const [core, favorites, recentIds] = await Promise.all([
@@ -697,20 +697,20 @@ export async function changeSessionExercise(input: {
 }): Promise<{ exercise: RunExercise; mode: SwapMode } | { error: string }> {
   const user = await requireUser();
   const session = await sessionForSet(user.id, input.sessionId);
-  if (!session) return { error: '이미 마친 운동이라 바꿀 수 없습니다.' };
+  if (!session) return { error: '이미 마친 운동이라 바꿀 수 없어요.' };
 
   const plan = readFrozenPlan(session.plan);
-  if (!plan) return { error: '오늘 목록을 읽지 못했습니다.' };
+  if (!plan) return { error: '오늘 목록을 읽지 못했어요.' };
   const from = plan.exercises.find((e) => e.id === input.fromId);
-  if (!from) return { error: '오늘 목록에 없는 운동입니다.' };
+  if (!from) return { error: '오늘 목록에 없는 운동이에요.' };
   if (plan.exercises.some((e) => e.id === input.toId)) {
-    return { error: '이미 오늘 목록에 있는 운동입니다.' };
+    return { error: '이미 오늘 목록에 있는 운동이에요.' };
   }
 
   const core = await loadTodayCore(user, new Date());
   /* 숨긴 운동은 새로 넣지 않는다 — 라이브러리에서 안 보이는 운동이다 */
   const to = core.library.find((ex) => ex.id === input.toId);
-  if (!to) return { error: '운동을 찾을 수 없습니다.' };
+  if (!to) return { error: '운동을 찾을 수 없어요.' };
 
   /* 몸 상태는 서버가 다시 본다 — 창을 연 뒤에 체크인을 고쳤을 수 있다 */
   const safety = selectCandidates({
@@ -720,7 +720,7 @@ export async function changeSessionExercise(input: {
   });
   if (safety.halted) return { error: HALTED_MESSAGE };
   if (safety.candidates.length === 0) {
-    return { error: '오늘 몸 상태에는 권하지 않는 운동이라 넣지 않았습니다.' };
+    return { error: '오늘 몸 상태에는 권하지 않는 운동이라 넣지 않았어요.' };
   }
 
   const hasSets = await prisma.userExerciseSet.findFirst({
@@ -739,7 +739,7 @@ export async function changeSessionExercise(input: {
     mode === 'replace' ? from.slot : slotForTheme(to, plan.themeKey)
   );
   const next = placeExercise(plan.exercises, from.id, entry, mode);
-  if (!next) return { error: '운동을 넣지 못했습니다. 목록을 다시 열어 주세요.' };
+  if (!next) return { error: '운동을 넣지 못했어요. 목록을 다시 열어 주세요.' };
 
   await prisma.trainingSession.update({
     where: { id: session.id },

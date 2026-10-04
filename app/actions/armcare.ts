@@ -31,10 +31,10 @@ export async function makeArmcareRoutine(): Promise<{ ok: true } | { error: stri
   const today = await loadArmcareToday(user, new Date());
 
   if (!today.hasCheckinToday) {
-    return { error: '오늘 체크인을 먼저 남겨주세요. 몸 상태를 보고 루틴을 짭니다.' };
+    return { error: '오늘 체크인을 먼저 남겨 주세요. 몸 상태를 보고 루틴을 짜요.' };
   }
   if (today.decision.kind === 'rest') {
-    return { error: '통증이 기록된 날은 암케어도 쉽니다.' };
+    return { error: '통증이 기록된 날은 암케어도 쉬어요.' };
   }
   /* 재활 중에는 맞춤 루틴 자리에 오늘 재활이 선다(재활 2편, lib/armcare/today.ts) — 루틴을 따로 짜지 않는다 */
   if (today.rehab) {
@@ -62,7 +62,7 @@ export async function makeArmcareRoutine(): Promise<{ ok: true } | { error: stri
       error:
         today.decision.kind === 'pain'
           ? '아픈 날에 할 만한 가벼운 암케어 운동이 없어요. 오늘은 팔을 쉬어 주세요.'
-          : '가진 장비로 할 수 있는 암케어 운동이 없습니다. 트레이닝 설정에서 가진 장비를 확인해 주세요.',
+          : '가진 장비로 할 수 있는 암케어 운동이 없어요. 트레이닝 설정에서 가진 장비를 확인해 주세요.',
     };
   }
 
@@ -109,19 +109,18 @@ export async function saveMyArmcareRoutine(input: {
   const unknown = clean.items.filter((it) => !known.has(it.exerciseId));
   if (unknown.length) {
     return {
-      error:
-        '담을 수 없는 운동이 섞여 있습니다. 화면을 새로고침한 뒤 다시 담아 주세요.',
+      error: '담을 수 없는 운동이 섞여 있어요. 화면을 새로고침한 뒤 다시 담아 주세요.',
     };
   }
   const items = clean.items as unknown as Prisma.InputJsonValue;
 
   if (input.id) {
-    if (!isRoutineId(input.id)) return { error: '잘못된 요청입니다.' };
+    if (!isRoutineId(input.id)) return { error: '잘못된 요청이에요.' };
     const res = await prisma.userArmcareRoutine.updateMany({
       where: { id: input.id, userId: user.id },
       data: { name: clean.name, items },
     });
-    if (res.count === 0) return { error: '루틴을 찾을 수 없습니다.' };
+    if (res.count === 0) return { error: '루틴을 찾을 수 없어요.' };
     revalidatePath('/training', 'layout');
     return { ok: true, id: input.id };
   }
@@ -145,13 +144,13 @@ export async function saveMyArmcareRoutine(input: {
     );
   } catch (e) {
     if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2034') {
-      return { error: '다른 곳에서 동시에 루틴을 만들고 있습니다. 다시 눌러 주세요.' };
+      return { error: '다른 곳에서 동시에 루틴을 만들고 있어요. 다시 눌러 주세요.' };
     }
     throw e;
   }
   if (!created) {
     return {
-      error: `내 루틴은 ${MY_ROUTINE_MAX}개까지 둘 수 있습니다. 안 쓰는 루틴을 지우고 만들어 주세요.`,
+      error: `내 루틴은 ${MY_ROUTINE_MAX}개까지 둘 수 있어요. 안 쓰는 루틴을 지우고 만들어 주세요.`,
     };
   }
   revalidatePath('/training', 'layout');
@@ -163,11 +162,11 @@ export async function deleteMyArmcareRoutine(
   id: string
 ): Promise<{ ok: true } | { error: string }> {
   const user = await requireUser();
-  if (!isRoutineId(id)) return { error: '잘못된 요청입니다.' };
+  if (!isRoutineId(id)) return { error: '잘못된 요청이에요.' };
   const res = await prisma.userArmcareRoutine.deleteMany({
     where: { id, userId: user.id },
   });
-  if (res.count === 0) return { error: '루틴을 찾을 수 없습니다.' };
+  if (res.count === 0) return { error: '루틴을 찾을 수 없어요.' };
   revalidatePath('/training', 'layout');
   return { ok: true };
 }
@@ -183,10 +182,10 @@ export async function addToMyArmcareRoutine(
   exerciseId: string
 ): Promise<{ ok: true; added: boolean } | { error: string }> {
   const user = await requireUser();
-  if (!isRoutineId(routineId)) return { error: '잘못된 요청입니다.' };
+  if (!isRoutineId(routineId)) return { error: '잘못된 요청이에요.' };
   const known = await armcareIds();
   const exercise = known.get(exerciseId);
-  if (!exercise) return { error: '담을 수 없는 운동입니다.' };
+  if (!exercise) return { error: '담을 수 없는 운동이에요.' };
 
   /*
    * 읽은 때와 쓰는 때 사이에 누가 고쳤으면 다시 읽고 다시 더한다(updatedAt 으로 본다).
@@ -198,7 +197,7 @@ export async function addToMyArmcareRoutine(
       where: { id: routineId, userId: user.id },
       select: { name: true, items: true, updatedAt: true },
     });
-    if (!row) return { error: '루틴을 찾을 수 없습니다.' };
+    if (!row) return { error: '루틴을 찾을 수 없어요.' };
     const items = readRoutineItems(row.items);
     if (items.some((it) => it.exerciseId === exerciseId)) {
       return { ok: true, added: false };
@@ -222,6 +221,6 @@ export async function addToMyArmcareRoutine(
     }
   }
   return {
-    error: '이 루틴이 다른 곳에서 고쳐지는 중입니다. 잠시 뒤 다시 담아 주세요.',
+    error: '이 루틴이 다른 곳에서 고쳐지는 중이에요. 잠시 뒤 다시 담아 주세요.',
   };
 }

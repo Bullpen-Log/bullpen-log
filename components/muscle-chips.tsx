@@ -53,7 +53,7 @@ export function MuscleChips({
             key={m}
             type="button"
             onClick={(e) => info({ kind: 'muscle', name: m }, e)}
-            aria-label={`${m} — 위치와 설명 보기`}
+            aria-label={`${m}, 위치와 설명 보기`}
             className={`${look} min-h-6 ring-sky transition-shadow hover:ring-1 relative before:absolute before:-inset-x-0.5 before:-inset-y-2`}
           >
             {m}

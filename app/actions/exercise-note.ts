@@ -22,7 +22,7 @@ export async function saveExerciseNote(input: {
 }): Promise<{ note: string | null } | { error: string }> {
   const user = await requireUser();
   const exerciseId = typeof input?.exerciseId === 'string' ? input.exerciseId : '';
-  if (!exerciseId) return { error: '운동을 찾을 수 없습니다.' };
+  if (!exerciseId) return { error: '운동을 찾을 수 없어요.' };
 
   const body = cleanExerciseNote(input.body);
 
@@ -44,7 +44,7 @@ export async function saveExerciseNote(input: {
     where: { id: exerciseId },
     select: { id: true },
   });
-  if (!exercise) return { error: '운동을 찾을 수 없습니다.' };
+  if (!exercise) return { error: '운동을 찾을 수 없어요.' };
 
   await prisma.userExerciseNote.upsert({
     where: { userId_exerciseId: { userId: user.id, exerciseId } },

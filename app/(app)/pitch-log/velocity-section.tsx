@@ -241,8 +241,8 @@ export function VelocitySection({ sessions }: { sessions: VelocitySessionView[] 
         </h2>
         <span className="text-xs text-muted">
           {hasClips
-            ? '카메라로 잰 공 — ▶ 는 영상, 줄을 누르면 구종 · 코스 · 결과를 고쳐요'
-            : '카메라로 잰 공 — 누르면 구종 · 코스 · 결과를 고쳐요'}
+            ? '▶ 는 영상, 줄을 누르면 구종 · 코스 · 결과를 고쳐요'
+            : '줄을 누르면 구종 · 코스 · 결과를 고쳐요'}
         </span>
       </div>
 

@@ -166,7 +166,7 @@ function NavRow({
         <button
           type="button"
           onClick={back.onBack}
-          aria-label={`돌아가기 — ${back.label}`}
+          aria-label={`돌아가기, ${back.label}`}
           className="inline-flex min-w-0 items-center gap-0.5"
         >
           <ChevronLeft aria-hidden className="h-3.5 w-3.5 shrink-0" />

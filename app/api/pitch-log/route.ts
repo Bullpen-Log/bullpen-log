@@ -69,7 +69,7 @@ function checkEntry(body: Record<string, unknown>): { error: string } | CheckedE
     }
     if (pitchCount > MAX_PITCH_COUNT) {
       return {
-        error: `투구수가 ${MAX_PITCH_COUNT}구를 넘습니다. 자릿수를 잘못 누르지 않았는지 확인해주세요. 나눠 던졌다면 세션을 나눠 남기시면 됩니다`,
+        error: `투구수가 ${MAX_PITCH_COUNT}구를 넘어요. 자릿수를 잘못 누르지 않았는지 확인해 주세요. 나눠 던졌다면 따로 나눠 남겨 주세요`,
       };
     }
     if (intensity < 1 || intensity > 10) {
@@ -111,7 +111,7 @@ function checkEntry(body: Record<string, unknown>): { error: string } | CheckedE
 
   // 최고 구속이 없으면 견줄 대상이 없으므로 이 검사도 건너뛴다.
   if (maxVelocity != null && avgVelocity != null && avgVelocity > maxVelocity) {
-    return { error: '평균 구속이 최고 구속보다 클 수 없습니다' };
+    return { error: '평균 구속이 최고 구속보다 클 수 없어요' };
   }
 
   return {
@@ -139,12 +139,12 @@ function checkVideoPaths(
     : [];
 
   if (paths.length > MAX_VIDEOS) {
-    return { error: `영상은 최대 ${MAX_VIDEOS}개까지 첨부할 수 있습니다` };
+    return { error: `영상은 최대 ${MAX_VIDEOS}개까지 첨부할 수 있어요` };
   }
 
   // 다른 사람 폴더의 경로를 끼워 넣지 못하게 막는다.
   if (paths.some((p) => !isOwnedBy(p, userId))) {
-    return { error: '올바르지 않은 영상 경로입니다' };
+    return { error: '올바르지 않은 영상 경로예요' };
   }
 
   return { paths };
@@ -162,7 +162,7 @@ function checkVideoPaths(
 export async function GET(req: Request) {
   const user = await getCurrentUser();
   if (!user) {
-    return NextResponse.json({ error: '로그인이 필요합니다' }, { status: 401 });
+    return NextResponse.json({ error: '로그인이 필요해요' }, { status: 401 });
   }
 
   const month = new URL(req.url).searchParams.get('month');
@@ -209,7 +209,7 @@ function nextMonthStart(month: string) {
 export async function POST(req: Request) {
   const user = await getCurrentUser();
   if (!user) {
-    return NextResponse.json({ error: '로그인이 필요합니다' }, { status: 401 });
+    return NextResponse.json({ error: '로그인이 필요해요' }, { status: 401 });
   }
 
   try {
@@ -217,12 +217,12 @@ export async function POST(req: Request) {
     const { date, videoPaths } = body;
 
     if (!date) {
-      return NextResponse.json({ error: '날짜는 필수입니다' }, { status: 400 });
+      return NextResponse.json({ error: '날짜가 필요해요' }, { status: 400 });
     }
 
     const parsedDate = new Date(date);
     if (Number.isNaN(parsedDate.getTime())) {
-      return NextResponse.json({ error: '날짜가 올바르지 않습니다' }, { status: 400 });
+      return NextResponse.json({ error: '날짜가 올바르지 않아요' }, { status: 400 });
     }
 
     /*
@@ -235,7 +235,7 @@ export async function POST(req: Request) {
      */
     if (isFutureDateKey(toDateKey(parsedDate))) {
       return NextResponse.json(
-        { error: '아직 오지 않은 날짜에는 기록할 수 없습니다.' },
+        { error: '아직 오지 않은 날짜에는 기록할 수 없어요.' },
         { status: 400 }
       );
     }
@@ -300,14 +300,14 @@ export async function POST(req: Request) {
 export async function PATCH(req: Request) {
   const user = await getCurrentUser();
   if (!user) {
-    return NextResponse.json({ error: '로그인이 필요합니다' }, { status: 401 });
+    return NextResponse.json({ error: '로그인이 필요해요' }, { status: 401 });
   }
 
   try {
     const body = await req.json();
     const id = String(body.id ?? '');
     if (!id) {
-      return NextResponse.json({ error: 'id가 필요합니다' }, { status: 400 });
+      return NextResponse.json({ error: 'id가 필요해요' }, { status: 400 });
     }
 
     // 남의 기록을 고치지 못하게 본인 것인지 먼저 확인한다.
@@ -317,7 +317,7 @@ export async function PATCH(req: Request) {
     });
 
     if (!target) {
-      return NextResponse.json({ error: '기록을 찾을 수 없습니다' }, { status: 404 });
+      return NextResponse.json({ error: '기록을 찾을 수 없어요' }, { status: 404 });
     }
 
     const checked = checkEntry(body);
@@ -358,7 +358,7 @@ export async function PATCH(req: Request) {
         return NextResponse.json(
           {
             error:
-              '그사이 다른 곳에서 영상이 더해져 개수를 넘었습니다. 기록을 다시 열어 고쳐주세요.',
+              '그사이 다른 곳에서 영상이 더해져 개수를 넘었어요. 기록을 다시 열어 고쳐주세요.',
           },
           { status: 409 }
         );
@@ -403,13 +403,13 @@ export async function PATCH(req: Request) {
 export async function DELETE(req: Request) {
   const user = await getCurrentUser();
   if (!user) {
-    return NextResponse.json({ error: '로그인이 필요합니다' }, { status: 401 });
+    return NextResponse.json({ error: '로그인이 필요해요' }, { status: 401 });
   }
 
   try {
     const { id } = await req.json();
     if (!id) {
-      return NextResponse.json({ error: 'id가 필요합니다' }, { status: 400 });
+      return NextResponse.json({ error: 'id가 필요해요' }, { status: 400 });
     }
 
     // 본인 기록인지 먼저 확인하고, 저장된 영상 경로를 챙겨둔다.
@@ -419,7 +419,7 @@ export async function DELETE(req: Request) {
     });
 
     if (!target) {
-      return NextResponse.json({ error: '기록을 찾을 수 없습니다' }, { status: 404 });
+      return NextResponse.json({ error: '기록을 찾을 수 없어요' }, { status: 404 });
     }
 
     await prisma.pitchLog.delete({ where: { id: target.id } });

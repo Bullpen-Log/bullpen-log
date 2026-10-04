@@ -84,7 +84,7 @@ export function TrainingDayGrid({
                   onClick={() => setPicked((p) => (p === d.date ? null : d.date))}
                   aria-pressed={picked === d.date}
                   aria-label={`${dayLabel(d.date)} ${strip.describe(d)}`}
-                  title={`${d.date} — ${strip.describe(d)}`}
+                  title={`${d.date} · ${strip.describe(d)}`}
                   /* 누르는 자리만 위아래로 3px 씩 넓힌다(줄 사이 틈만큼) — 그림은 그대로 */
                   className={`relative h-4 flex-1 rounded-sm before:absolute before:inset-x-0 before:-inset-y-[3px] before:content-[''] ${
                     strip.isOn(d) ? 'bg-sky' : 'bg-surface-2'

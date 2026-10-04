@@ -360,7 +360,7 @@ function MuscleDetail({
               <button
                 type="button"
                 onClick={onShowArea}
-                aria-label={`${areaLabel} 운동 모두 보기 — ${more}개 더`}
+                aria-label={`${areaLabel} 운동 모두 보기, ${more}개 더`}
                 className="grid aspect-video w-full place-items-center rounded-lg bg-surface-2 text-sm font-bold text-sky-strong ring-1 ring-line transition-colors hover:bg-sky-tint"
               >
                 +{more}

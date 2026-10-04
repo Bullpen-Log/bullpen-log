@@ -218,7 +218,7 @@ export const BODY_PART_MAP: Record<BodyPart, BodyPartMap> = {
     view: 'back',
     muscles: '대둔근 · 중둔근 · 햄스트링',
     about:
-      '엉덩이와 허벅지 뒤 — 몸을 앞으로 밀어내고, 앞다리로 디딜 때 몸을 받아 세우는 힘이에요.',
+      '엉덩이와 허벅지 뒤 근육이에요. 몸을 앞으로 밀어내고, 앞다리로 디딜 때 몸을 받아 세워요.',
   },
   '종아리·발목': {
     keys: [
@@ -262,6 +262,6 @@ export const BODY_PART_MAP: Record<BodyPart, BodyPartMap> = {
     view: 'front',
     muscles: '하체 · 몸통 · 상체를 함께',
     about:
-      '하체에서 만든 힘을 몸통을 거쳐 팔까지 잇는 운동이에요 — 투구와 같은 흐름이에요.',
+      '하체에서 만든 힘을 몸통을 거쳐 팔까지 잇는 운동이에요. 투구와 같은 흐름이에요.',
   },
 };

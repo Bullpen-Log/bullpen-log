@@ -217,7 +217,7 @@ async function SafeCard({
   } catch (err) {
     unstable_rethrow(err);
     console.error(`[트레이닝 홈] ${APPS[app].name} 카드`, err);
-    return <AppCard app={app} tone="warn" status="지금은 불러오지 못했어요 — 눌러서 열기" />;
+    return <AppCard app={app} tone="warn" status="지금은 불러오지 못했어요. 눌러서 열어 보세요" />;
   }
 }
 
@@ -273,13 +273,13 @@ async function ArmcareCard({ user, today }: { user: HomeUser; today: Date }) {
     ) : null;
 
   if (data.rehab) {
-    return <AppCard app="armcare" status="재활 중이에요 — 오늘 재활 보기" />;
+    return <AppCard app="armcare" status="재활 중이에요 · 오늘 재활 보기" />;
   }
   if (!data.hasCheckinToday) {
     return (
       <AppCard
         app="armcare"
-        status="체크인을 남기면 오늘 루틴을 짜 드려요"
+        status="체크인을 남기면 오늘 루틴을 짜요"
         action={
           <OpenCheckinButton
             className={`inline-flex min-h-10 items-center rounded-full px-4 text-sm font-bold text-white ${APPS.armcare.button}`}

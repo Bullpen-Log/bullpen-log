@@ -229,7 +229,7 @@ export function VideosClient({
                 <button
                   type="button"
                   onClick={() => setMoreOpen(true)}
-                  aria-label="더 보기 — 2분할 비교 · 구속 측정"
+                  aria-label="더 보기, 2분할 비교 · 구속 측정"
                   className="flex h-11 w-11 items-center justify-center rounded-full bg-ink/6 text-ink transition-opacity active:opacity-60"
                 >
                   <Ellipsis aria-hidden className="h-5 w-5" />

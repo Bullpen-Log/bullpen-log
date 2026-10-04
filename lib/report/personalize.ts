@@ -223,7 +223,7 @@ export const DEFAULT_GOAL_NAME = '근력 향상';
 export const TRAINING_GOALS = [
   {
     name: '근력 향상',
-    desc: '무게 드는 운동 위주에 코어를 조금 — 점프·던지기는 빼고',
+    desc: '무게 드는 운동 위주에 코어를 조금 더해요. 점프·던지기는 빼요',
     weights: { mobility: 0.85, main: 1.2, core: 0.9, prehab: 0.8 },
     prefer: ['하체 스트렝스', '상체 스트렝스'],
     /*
@@ -254,7 +254,7 @@ export const TRAINING_GOALS = [
      * 약속을 어긴 것이 된다.
      */
     name: '파워 향상',
-    desc: '빠르게 힘을 내는 훈련과 하체에 시간을 더 씁니다',
+    desc: '빠르게 힘을 내는 훈련과 하체에 시간을 더 써요',
     weights: { mobility: 1, main: 1.15, core: 0.9, prehab: 0.8 },
     prefer: ['파워'],
     /*
@@ -290,7 +290,7 @@ export const TRAINING_GOALS = [
      * 트레이닝의 암케어 화면에서 따로 한다(2026-09-25). 그 자리에 가동성이 들어왔다.
      */
     name: '컨디셔닝',
-    desc: '가동성·코어·보강 위주로 몸을 다지는 날 — 무게·점프·던지기는 빼고',
+    desc: '가동성·코어·보강 위주로 몸을 다져요. 무게·점프·던지기는 빼요',
     weights: { mobility: 1.3, main: 0.7, core: 1, prehab: 1.7 },
     prefer: [],
     /*

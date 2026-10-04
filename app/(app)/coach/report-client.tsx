@@ -244,8 +244,7 @@ export function ReportClient({
             )}
           </span>
           <span className="mt-1 block text-sm leading-relaxed text-muted">
-            7일·30일 기록과 코멘트. 위쪽 지수가 &lsquo;지금&rsquo;을 본다면 여기는
-            &lsquo;그동안&rsquo;을 봐요.
+            지난 7일 · 30일 기록과 코멘트예요.
           </span>
         </span>
       </summary>

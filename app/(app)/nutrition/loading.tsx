@@ -7,7 +7,7 @@ import { Skeleton } from '@/components/fallback';
 export default function Loading() {
   return (
     <div className="stack-page" aria-busy="true" aria-live="polite">
-      <span className="sr-only">영양 기록을 불러오는 중입니다</span>
+      <span className="sr-only">영양 기록을 불러오는 중이에요</span>
       <div className="flex items-center gap-4">
         <Skeleton className="h-7 w-14" />
         <Skeleton className="h-6 w-44" />

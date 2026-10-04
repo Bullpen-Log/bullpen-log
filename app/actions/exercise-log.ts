@@ -93,26 +93,26 @@ async function saveDone(
   dateKey?: string
 ): Promise<{ ok: true } | { error: string }> {
   if (typeof exerciseId !== 'string' || !exerciseId) {
-    return { error: '잘못된 요청입니다.' };
+    return { error: '잘못된 요청이에요.' };
   }
 
   const exercise = await prisma.exerciseVideo.findUnique({
     where: { id: exerciseId },
     select: { id: true },
   });
-  if (!exercise) return { error: '운동을 찾을 수 없습니다.' };
+  if (!exercise) return { error: '운동을 찾을 수 없어요.' };
 
   const todayKey = toDateKey(new Date());
   const target = dateKey ?? todayKey;
   if (!/^\d{4}-\d{2}-\d{2}$/.test(target)) {
-    return { error: '날짜가 올바르지 않습니다.' };
+    return { error: '날짜가 올바르지 않아요.' };
   }
   if (target > todayKey) {
-    return { error: '아직 오지 않은 날짜에는 남길 수 없습니다.' };
+    return { error: '아직 오지 않은 날짜에는 남길 수 없어요.' };
   }
   if (target < shiftDateKey(todayKey, -BACKFILL_DAYS)) {
     return {
-      error: `${BACKFILL_DAYS}일이 지난 기록은 고칠 수 없습니다. 그쯤이면 무엇을 했는지 정확히 기억하기 어렵습니다.`,
+      error: `${BACKFILL_DAYS}일이 지난 기록은 고칠 수 없어요.`,
     };
   }
   const date = new Date(`${target}T00:00:00.000Z`);
@@ -193,10 +193,10 @@ export async function saveTrainingNote(
   const todayKey = toDateKey(new Date());
   const key = dateKey ?? todayKey;
   if (!/^\d{4}-\d{2}-\d{2}$/.test(key) || key > todayKey) {
-    return { error: '날짜가 올바르지 않습니다.' };
+    return { error: '날짜가 올바르지 않아요.' };
   }
   if (key < shiftDateKey(todayKey, -BACKFILL_DAYS)) {
-    return { error: `${BACKFILL_DAYS}일이 지난 기록은 고칠 수 없습니다.` };
+    return { error: `${BACKFILL_DAYS}일이 지난 기록은 고칠 수 없어요.` };
   }
   const date = new Date(`${key}T00:00:00.000Z`);
 

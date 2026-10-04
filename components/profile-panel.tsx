@@ -78,8 +78,7 @@ export function ProfilePanel({
         </div>
         {data.isAdmin && (
           <p className="text-xs text-muted">
-            관리자 계정이에요 — 트레이닝 영상과 메커니즘 가이드를 등록 · 삭제할 수
-            있어요.
+            관리자 계정이에요. 트레이닝 영상과 메커니즘 가이드를 올리고 지울 수 있어요.
           </p>
         )}
         <AccountActions />

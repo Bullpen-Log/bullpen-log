@@ -40,8 +40,8 @@ export default function SessionError({
     <FallbackShell>
       <FallbackTitle>{online ? '운동 화면에 문제가 생겼어요' : '인터넷 연결이 없어요'}</FallbackTitle>
       <FallbackText>
-        남긴 세트는 지워지지 않았어요. 신호가 없을 때 남긴 세트도 이 폰에 보관돼 있다가,
-        화면이 다시 뜨면 저절로 보내져요.
+        남긴 세트는 지워지지 않았어요. 신호가 없을 때 남긴 세트도 폰에 있다가 저절로
+        보내져요.
       </FallbackText>
       <FallbackActions>
         <FallbackButton onClick={() => retry()} primary>

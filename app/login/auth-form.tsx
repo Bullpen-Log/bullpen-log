@@ -1282,7 +1282,7 @@ function SignupWizard({
               required
               invalid={invalid('throwingHand')}
             />
-            <Field label="키 (cm)" hint="선택 — 나중에 적어도 돼요.">
+            <Field label="키 (cm)" hint="선택이에요. 나중에 적어도 돼요.">
               <Input
                 name="heightCm"
                 type="number"
