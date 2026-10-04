@@ -13,6 +13,7 @@ import {
   isElementName,
   isFeel,
   readProgress,
+  stepDown,
   type DrillStage,
 } from '@/lib/mechanics/program';
 
@@ -57,7 +58,9 @@ export async function recordMechanicsDrill(input: {
   guideId: string;
   element: string;
   feel: string;
-}): Promise<{ ok: true; leveled: DrillStage | null } | { error: string }> {
+}): Promise<
+  { ok: true; leveled: DrillStage | null; struggling: boolean } | { error: string }
+> {
   const user = await requireUser();
   const { guideId, element, feel } = input;
   if (!isElementName(element) || !isFeel(feel)) return { error: '알 수 없는 값이에요.' };
@@ -67,8 +70,14 @@ export async function recordMechanicsDrill(input: {
   const program = await prisma.mechanicsProgram.findUnique({ where: { userId: user.id } });
   if (!program) return { error: '프로그램을 먼저 시작해 주세요.' };
 
-  const { progress, leveled } = applyFeel(readProgress(program.progress), element, feel);
-  const date = dbDate(toDateKey(new Date()));
+  const today = toDateKey(new Date());
+  const { progress, leveled, struggling } = applyFeel(
+    readProgress(program.progress),
+    element,
+    feel,
+    today
+  );
+  const date = dbDate(today);
   await prisma.$transaction([
     prisma.mechanicsProgram.update({
       where: { userId: user.id },
@@ -80,7 +89,25 @@ export async function recordMechanicsDrill(input: {
       update: { done: true },
     }),
   ]);
-  return { ok: true, leveled };
+  return { ok: true, leveled, struggling };
+}
+
+/**
+ * 한 단계 내려간다 — 따라 하기 끝 화면에서 '어려움'이 이어진 요소에 '내려가기'를 눌렀을 때(2026-10-04 검토).
+ * 자동으로 내리지 않고 묻는다 — 한두 날 어려운 것은 새 단계에서 흔하다.
+ */
+export async function stepDownMechanicsElement(element: string): Promise<Result> {
+  const user = await requireUser();
+  if (!isElementName(element)) return { error: '알 수 없는 값이에요.' };
+  const program = await prisma.mechanicsProgram.findUnique({ where: { userId: user.id } });
+  if (!program) return { error: '프로그램을 먼저 시작해 주세요.' };
+  const progress = stepDown(readProgress(program.progress), element);
+  await prisma.mechanicsProgram.update({
+    where: { userId: user.id },
+    data: { progress: progress as unknown as Prisma.InputJsonValue },
+  });
+  revalidatePath(PROGRAM_PATH);
+  return { ok: true };
 }
 
 /** 세션을 마쳤다 — 다음 세션은 다른 요소로 짠다(sessionElements) */

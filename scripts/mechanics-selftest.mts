@@ -13,6 +13,7 @@ import { MECHANICS_ELEMENTS, type MechanicsElementName } from '@/lib/mechanics/e
 import {
   EASY_TO_ADVANCE,
   applyFeel,
+  stepDown,
   buildSession,
   freshProgress,
   isMastered,
@@ -69,53 +70,97 @@ ok(odd['드롭'].stage === '연결' && odd['드롭'].easy === EASY_TO_ADVANCE, '
 ok(odd['브레이크'].stage === '기초' && odd['브레이크'].easy === 0, '모르는 단계 · 음수는 기초 · 0');
 ok(readProgress(null)['스로잉'].stage === '기초', 'null 이어도 여섯 요소');
 
-/* ── 느낌 ── */
+/* ── 느낌(하루 한 번 세기 · 내려가기) ── */
 {
+  const D = (k: number) => `2026-10-${String(k).padStart(2, '0')}`;
   let p = freshProgress();
-  let r = applyFeel(p, '드롭', 'easy');
+  let r = applyFeel(p, '드롭', 'easy', D(1));
   ok(r.progress['드롭'].easy === 1 && !r.leveled, '쉬움 한 번은 셈만');
   p = r.progress;
-  r = applyFeel(p, '드롭', 'ok');
+  r = applyFeel(p, '드롭', 'easy', D(1));
+  ok(r.progress['드롭'].easy === 1, '같은 날 쉬움은 한 번만');
+  p = r.progress;
+  r = applyFeel(p, '드롭', 'ok', D(2));
   ok(r.progress['드롭'].easy === 1, '적당은 그대로');
   p = r.progress;
-  r = applyFeel(p, '드롭', 'hard');
-  ok(r.progress['드롭'].easy === 0, '어려움은 처음부터');
+  r = applyFeel(p, '드롭', 'hard', D(3));
+  ok(r.progress['드롭'].easy === 0 && !r.struggling, '어려움은 처음부터 · 기초에서는 내려가기 안 물음');
   p = r.progress;
+  let day = 4;
   for (let i = 0; i < EASY_TO_ADVANCE; i++) {
-    r = applyFeel(p, '드롭', 'easy');
+    r = applyFeel(p, '드롭', 'easy', D(day++));
     p = r.progress;
   }
-  ok(p['드롭'].stage === '연결' && p['드롭'].easy === 0 && r.leveled === '연결', '쉬움 세 번이면 연결로');
+  ok(p['드롭'].stage === '연결' && p['드롭'].easy === 0 && r.leveled === '연결', '다른 날 쉬움 세 번이면 연결로');
+  r = applyFeel(p, '드롭', 'easy', D(day - 1));
+  ok(r.progress['드롭'].easy === 0 && !r.leveled, '오른 날에는 새 단계 쉬움을 안 셈');
   ok(p['드리프트'].stage === '기초', '다른 요소는 그대로');
-  for (let i = 0; i < EASY_TO_ADVANCE; i++) p = applyFeel(p, '드롭', 'easy').progress;
-  ok(p['드롭'].stage === '통합', '또 세 번이면 통합');
+  /* 하루에 두 세션(강조라 드릴 둘씩)을 해도 그날 오르지 않는다 */
+  {
+    let q = freshProgress();
+    let up = null as DrillStage | null;
+    for (let k = 0; k < 4; k++) {
+      const x = applyFeel(q, '브레이크', 'easy', D(20));
+      q = x.progress;
+      up = x.leveled ?? up;
+    }
+    ok(q['브레이크'].stage === '기초' && q['브레이크'].easy === 1 && up === null, '하루에 쉬움 네 번이어도 하나');
+  }
+  /* 어려움이 다른 날 두 번 이어지면 내려갈지 묻는다(같은 날 두 번은 하나) */
+  r = applyFeel(p, '드롭', 'hard', D(day));
+  ok(!r.struggling && r.progress['드롭'].hard === 1, '어려움 첫날은 안 물음');
+  r = applyFeel(r.progress, '드롭', 'hard', D(day));
+  ok(!r.struggling && r.progress['드롭'].hard === 1, '같은 날 어려움 두 번은 하나');
+  r = applyFeel(r.progress, '드롭', 'hard', D(day + 1));
+  ok(r.struggling && r.progress['드롭'].hard === 2, '다른 날 어려움 두 번이면 물음');
+  const okBreak = applyFeel(r.progress, '드롭', 'ok', D(day + 2));
+  ok(okBreak.progress['드롭'].hard === 0, '적당이면 어려움 줄이 끊김');
+  const down = stepDown(r.progress, '드롭');
+  ok(down['드롭'].stage === '기초' && down['드롭'].easy === 0 && down['드롭'].hard === 0, '내려가기는 한 단계 아래 · 처음부터');
+  ok(stepDown(freshProgress(), '드롭')['드롭'].stage === '기초', '기초에서 내려가기는 그대로');
+  /* 통합 위로는 안 오른다 */
+  let t = readProgress({ 드롭: { stage: '통합', easy: 0 } });
   let last = null as DrillStage | null;
   for (let i = 0; i < EASY_TO_ADVANCE + 2; i++) {
-    const x = applyFeel(p, '드롭', 'easy');
-    p = x.progress;
+    const x = applyFeel(t, '드롭', 'easy', D(10 + i));
+    t = x.progress;
     last = x.leveled ?? last;
   }
-  ok(p['드롭'].stage === '통합' && last === null && isMastered(p['드롭']), '통합 위로는 안 오르고 다 익힘');
+  ok(t['드롭'].stage === '통합' && last === null && isMastered(t['드롭']), '통합 위로는 안 오르고 다 익힘');
+  /* 옛 줄(stage · easy 만)도 읽는다 */
+  const old = readProgress({ 드롭: { stage: '연결', easy: 2 } });
+  ok(old['드롭'].easyOn === null && old['드롭'].hard === 0, '옛 줄은 날짜 없음 · 어려움 0');
 }
 
-/* ── 세션의 요소 ── */
-ok(
-  sessionElements(null, 0).join() === '드리프트,드롭,상하체 분리' &&
-    sessionElements(null, 1).join() === '브레이크,몸통 회전,스로잉',
-  '강조 없으면 반씩 번갈아'
-);
+/* ── 세션의 요소 — 세 묶음(하체 · 가운데 · 상체)에서 하나씩 ── */
+const GROUPS = [NAMES.slice(0, 2), NAMES.slice(2, 4), NAMES.slice(4, 6)];
+const chained = (els: MechanicsElementName[]) => els.length === 3 && GROUPS.every((g, i) => g.includes(els[i]));
+{
+  const seen = new Map<string, number>();
+  const combos = new Set<string>();
+  let chain = true;
+  for (let s = 0; s < 4; s++) {
+    const els = sessionElements(null, s);
+    if (!chained(els)) chain = false;
+    combos.add(els.join());
+    for (const e of els) seen.set(e, (seen.get(e) ?? 0) + 1);
+  }
+  ok(chain, '강조 없으면 세션마다 하체 · 가운데 · 상체에서 하나씩');
+  ok(seen.size === 6 && [...seen.values()].every((v) => v === 2), '강조 없으면 네 번에 모두 두 번씩', JSON.stringify(Object.fromEntries(seen)));
+  ok(combos.size === 4, '네 번의 조합이 모두 다름');
+}
 for (const focus of NAMES) {
   const seen = new Map<string, number>();
   let always = true;
-  for (let s = 0; s < 5; s++) {
+  for (let s = 0; s < 4; s++) {
     const els = sessionElements(focus, s);
-    if (!els.includes(focus) || els.length !== 3) always = false;
+    if (!els.includes(focus) || !chained(els)) always = false;
     for (const e of els) if (e !== focus) seen.set(e, (seen.get(e) ?? 0) + 1);
   }
-  ok(always, `강조 ${focus}는 세션마다`);
+  ok(always, `강조 ${focus}는 세션마다 · 사슬 그대로`);
   ok(
-    seen.size === 5 && [...seen.values()].every((v) => v === 2),
-    `강조 ${focus}: 다섯 번이면 나머지가 두 번씩`,
+    seen.size === 4 && [...seen.values()].every((v) => v === 2),
+    `강조 ${focus}: 다른 두 묶음 넷이 네 번에 두 번씩`,
     JSON.stringify(Object.fromEntries(seen))
   );
 }
@@ -194,7 +239,7 @@ console.log(
     Object.fromEntries(categoryKinds)
   )}`
 );
-ok(withThrow / sessions >= 0.6, '스로잉 드릴이 든 세션이 6할 넘음', `${withThrow}/${sessions}`);
+ok(withThrow / sessions >= 0.8, '스로잉 드릴이 든 세션이 8할 넘음', `${withThrow}/${sessions}`);
 ok(withMovement / sessions >= 0.6, '무브먼트가 든 세션이 6할 넘음', `${withMovement}/${sessions}`);
 
 console.log(`\n${pass}개 통과, ${fail}개 실패`);

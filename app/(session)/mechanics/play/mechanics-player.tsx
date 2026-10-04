@@ -10,9 +10,13 @@ import { useWakeLock } from '@/components/use-wake-lock';
 import { OFFLINE_MESSAGE, orOffline } from '@/lib/action-offline';
 import { DRILL_STAGES } from '@/lib/exercise-meta';
 import { mechanicsElement } from '@/lib/mechanics/elements';
-import { FEELS, type DrillFeel, type DrillStage } from '@/lib/mechanics/program';
+import { EASY_TO_ADVANCE, FEELS, type DrillFeel, type DrillStage } from '@/lib/mechanics/program';
 import type { SessionDrillView } from '@/lib/mechanics/load';
-import { finishMechanicsSession, recordMechanicsDrill } from '@/app/actions/mechanics';
+import {
+  finishMechanicsSession,
+  recordMechanicsDrill,
+  stepDownMechanicsElement,
+} from '@/app/actions/mechanics';
 import { guideDescription } from '@/app/actions/content';
 import { josa } from '@/lib/korean';
 
@@ -38,7 +42,11 @@ export function MechanicsPlayer({
   const [index, setIndex] = useState(startAt);
   const [done, setDone] = useState<boolean[]>(() => items.map((_, i) => i < startAt));
   const [leveled, setLeveled] = useState<{ element: string; stage: DrillStage }[]>([]);
+  /* '어려움'이 다른 날 두 번 이어진 요소 — 끝 화면에서 한 단계 내려갈지 묻는다 */
+  const [struggling, setStruggling] = useState<string[]>([]);
   const [finished, setFinished] = useState(false);
+  /* 마치기 저장이 실패했나 — 끝 화면 대신 다시 저장 단추를 둔다(안 그러면 세션 수가 안 올라 같은 세션이 또 나왔다) */
+  const [finishFailed, setFinishFailed] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
   const scroller = useRef<HTMLDivElement>(null);
@@ -59,20 +67,40 @@ export function MechanicsPlayer({
       }
       const up = res.leveled;
       if (up) setLeveled((l) => [...l, { element: item.element, stage: up }]);
+      if (res.struggling) {
+        setStruggling((l) => (l.includes(item.element) ? l : [...l, item.element]));
+      }
       setDone((d) => d.map((v, i) => (i === index ? true : v)));
       if (index + 1 < items.length) {
         setIndex(index + 1);
         scroller.current?.scrollTo({ top: 0 });
       } else {
-        await orOffline(finishMechanicsSession(), { error: OFFLINE_MESSAGE });
-        setFinished(true);
+        await finish();
       }
     });
 
+  /** 세션을 마친다 — 실패하면 끝 화면으로 넘어가지 않고 다시 저장하게 한다 */
+  const finish = async () => {
+    const res = await orOffline(finishMechanicsSession(), { error: OFFLINE_MESSAGE });
+    if ('error' in res) {
+      setError(res.error);
+      setFinishFailed(true);
+      return;
+    }
+    setFinishFailed(false);
+    setFinished(true);
+  };
+
+  /* 건너뛰기 — 마지막 드릴이면 건너뛰고 마친다(예전엔 마지막 드릴은 건너뛸 수 없었다) */
   const skip = () => {
     if (index + 1 < items.length) {
       setIndex(index + 1);
       scroller.current?.scrollTo({ top: 0 });
+    } else {
+      startTransition(async () => {
+        setError(null);
+        await finish();
+      });
     }
   };
 
@@ -107,7 +135,12 @@ export function MechanicsPlayer({
       </header>
 
       {finished ? (
-        <FinishView leveled={leveled} backHref={backHref} count={items.length} />
+        <FinishView
+          leveled={leveled}
+          struggling={struggling}
+          backHref={backHref}
+          count={done.filter(Boolean).length}
+        />
       ) : (
         <>
           <div ref={scroller} className="flex-1 overflow-y-auto">
@@ -124,32 +157,40 @@ export function MechanicsPlayer({
                     type="button"
                     disabled={pending}
                     onClick={() => record(f.value)}
-                    className={`flex min-h-14 flex-col items-center justify-center rounded-2xl px-1 transition-colors disabled:opacity-60 ${
-                      f.value === 'easy'
-                        ? 'bg-sky text-white hover:bg-sky-strong'
-                        : 'bg-surface-2 text-ink hover:bg-sky-tint'
-                    }`}
+                    /*
+                      셋 다 같은 모양 — 예전엔 '쉬움'만 파랗게 칠해 무심코 누르기 쉬웠고, 그만큼 단계가 부풀어 올랐다
+                      (2026-10-04 검토). 정직하게 고른 느낌이 진도의 전부다.
+                    */
+                    className="flex min-h-14 flex-col items-center justify-center rounded-2xl bg-surface-2 px-1 text-ink transition-colors hover:bg-sky-tint active:bg-sky-tint disabled:opacity-60"
                   >
                     <span className="text-base font-bold">{f.label}</span>
-                    <span
-                      className={`text-xs leading-tight break-keep ${
-                        f.value === 'easy' ? 'text-white/85' : 'text-muted'
-                      }`}
-                    >
-                      {f.hint}
-                    </span>
+                    <span className="text-xs leading-tight break-keep text-muted">{f.hint}</span>
                   </button>
                 ))}
               </div>
               {error && <ErrorLine>{error}</ErrorLine>}
-              {index + 1 < items.length && (
+              {finishFailed ? (
+                <button
+                  type="button"
+                  onClick={() =>
+                    startTransition(async () => {
+                      setError(null);
+                      await finish();
+                    })
+                  }
+                  disabled={pending}
+                  className="mx-auto flex min-h-11 items-center px-3 text-sm font-semibold text-sky-strong"
+                >
+                  세션 마치기 다시 저장
+                </button>
+              ) : (
                 <button
                   type="button"
                   onClick={skip}
                   disabled={pending}
                   className="mx-auto flex min-h-11 items-center px-3 text-xs font-semibold text-muted hover:text-ink"
                 >
-                  이번 드릴은 건너뛰기
+                  {index + 1 < items.length ? '이번 드릴은 건너뛰기' : '건너뛰고 세션 마치기'}
                 </button>
               )}
             </div>
@@ -268,10 +309,12 @@ function Description({ guideId }: { guideId: string }) {
 /** 세션 끝 — 오른 단계가 있으면 그 단계 설명 한 장씩 */
 function FinishView({
   leveled,
+  struggling,
   backHref,
   count,
 }: {
   leveled: { element: string; stage: DrillStage }[];
+  struggling: string[];
   backHref: string;
   count: number;
 }) {
@@ -313,6 +356,10 @@ function FinishView({
           );
         })}
 
+        {struggling.map((element) => (
+          <StepDownOffer key={element} element={element} />
+        ))}
+
         <Link
           href={backHref}
           className="flex min-h-12 w-full items-center justify-center rounded-full bg-sky text-base font-bold text-white transition-colors hover:bg-sky-strong"
@@ -320,6 +367,65 @@ function FinishView({
           완료
         </Link>
       </div>
+    </div>
+  );
+}
+
+/**
+ * '어려움'이 서로 다른 날 두 번 이어진 요소 — 한 단계 내려갈지 묻는다(2026-10-04 검토). 저절로 내리지 않는다:
+ * 새 단계에서 한두 날 어려운 것은 흔하고, 버티며 익히는 사람도 있다.
+ */
+function StepDownOffer({ element }: { element: string }) {
+  const [state, setState] = useState<'ask' | 'down' | 'keep'>('ask');
+  const [error, setError] = useState<string | null>(null);
+  const [pending, startTransition] = useTransition();
+  if (state === 'keep') return null;
+  return (
+    <div className="space-y-3 rounded-2xl bg-surface px-4 py-4">
+      {state === 'down' ? (
+        <p className="text-sm font-semibold break-keep text-ink">
+          {element}
+          {josa(element, '을/를')} 한 단계 내렸어요. 다음 세션부터 쉬운 드릴이 나와요.
+        </p>
+      ) : (
+        <>
+          <p className="text-base font-bold break-keep text-ink">
+            {element}
+            {josa(element, '이/가')} 요즘 계속 어려웠어요
+          </p>
+          <p className="text-sm break-keep text-muted">
+            한 단계 내려서 자세를 다시 다져도 돼요. 서로 다른 날 ‘쉬움’을 다시 {EASY_TO_ADVANCE}번 넘기면 또 올라가요.
+          </p>
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              type="button"
+              disabled={pending}
+              onClick={() =>
+                startTransition(async () => {
+                  setError(null);
+                  const res = await orOffline(stepDownMechanicsElement(element), {
+                    error: OFFLINE_MESSAGE,
+                  });
+                  if ('error' in res) setError(res.error);
+                  else setState('down');
+                })
+              }
+              className="min-h-11 rounded-full bg-sky text-sm font-bold text-white disabled:opacity-60"
+            >
+              {pending ? '내리는 중…' : '한 단계 내려가기'}
+            </button>
+            <button
+              type="button"
+              disabled={pending}
+              onClick={() => setState('keep')}
+              className="min-h-11 rounded-full bg-surface-2 text-sm font-semibold text-ink"
+            >
+              그대로 하기
+            </button>
+          </div>
+          {error && <ErrorLine>{error}</ErrorLine>}
+        </>
+      )}
     </div>
   );
 }

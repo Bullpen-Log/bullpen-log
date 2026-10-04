@@ -83,8 +83,8 @@ export function MechanicsProgram({
           {started ? '이어서 하기' : '세션 시작'}
         </Link>
         <p className="text-xs leading-relaxed break-keep text-muted">
-          드릴마다 느낌을 눌러요. 같은 요소를 ‘쉬움’으로 {EASY_TO_ADVANCE}번 넘기면 다음 단계로 올라가요. 일주일에 2~3번이
-          알맞아요.
+          드릴마다 느낌을 눌러요. 같은 요소를 서로 다른 날 ‘쉬움’으로 {EASY_TO_ADVANCE}번 넘기면 다음 단계로 올라가요.
+          일주일에 2~3번이 알맞아요.
         </p>
       </Card>
 
@@ -208,8 +208,8 @@ function StartCard() {
           <li>투구의 여섯 요소를 기초 → 연결 → 통합 차례로 하나씩 올려요.</li>
           <li>한 번에 드릴 3~4개, 15~20분이에요. 일주일에 2~3번이 알맞아요.</li>
           <li>
-            드릴을 마칠 때마다 느낌(어려움 · 적당 · 쉬움)을 눌러요. 같은 요소를 ‘쉬움’으로 {EASY_TO_ADVANCE}번
-            넘기면 다음 단계로 올라가요.
+            드릴을 마칠 때마다 느낌(어려움 · 적당 · 쉬움)을 눌러요. 같은 요소를 서로 다른 날 ‘쉬움’으로{' '}
+            {EASY_TO_ADVANCE}번 넘기면 다음 단계로 올라가요.
           </li>
         </ul>
         <div className="space-y-2">
