@@ -349,6 +349,10 @@ export default async function TrainingPage({
         ? (thumbUrls[ex.thumbPath] ?? null)
         : null,
     isReference: ex.source === 'REFERENCE',
+    /* '영상 보기'가 펼칠 영상(exercise-list.tsx) — 누르기 전에는 받지 않는다 */
+    videoPath: ex.videoPath,
+    referenceVideoId: ex.referenceVideoId,
+    aspectRatio: ex.aspectRatio ?? null,
     done: doneIds.has(ex.id),
     slot,
     manual,
