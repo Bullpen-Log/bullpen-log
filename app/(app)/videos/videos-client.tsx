@@ -2,10 +2,9 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Columns2, Ellipsis, Plus, Radar } from 'lucide-react';
+import { Columns2, Plus, Radar } from 'lucide-react';
 import Link from 'next/link';
 import { ButtonLink, PageHeading } from '@/components/ui';
-import { Modal } from '@/components/modal';
 import { useTodayKey } from '@/components/use-today-key';
 import {
   PITCH_VIEW_OPTIONS,
@@ -34,6 +33,10 @@ export type VideoLog = {
   memo: string | null;
   videoPaths: string[];
 };
+
+/* 휴대폰 고르개 밑 줄의 단추(2분할 비교 · 구속 측정) — 반씩 나눠 서는 알약 */
+const PHONE_PILL =
+  'order-2 inline-flex min-h-11 flex-1 items-center justify-center gap-1.5 rounded-full bg-surface px-4 text-sm font-semibold text-sky-strong transition-opacity active:opacity-60';
 
 /* 보기 칸 [캘린더 | 목록 | 구속 측정]은 투구 기록 머리와 같이 둔다(pitch-log-heading.tsx) */
 type View = PitchView;
@@ -99,8 +102,6 @@ export function VideosClient({
   const [preset, setPreset] = useState<{ a: string; b: string } | null>(null);
   /* 목록에서 비교할 둘을 고르는 중인가 */
   const [selecting, setSelecting] = useState(false);
-  /* 휴대폰 ⋯ 시트 — 2분할 비교 · 구속 측정 */
-  const [moreOpen, setMoreOpen] = useState(false);
 
   /** 비교 화면에서 고를 수 있는 영상 목록 */
   const clips = useMemo<ClipOption[]>(
@@ -146,7 +147,6 @@ export function VideosClient({
 
   /* 견주기로 곧장 — 목록으로 넘어가 둘을 고르는 자리를 연다 */
   const startCompare = () => {
-    setMoreOpen(false);
     setView('list');
     setSelecting(true);
   };
@@ -154,20 +154,23 @@ export function VideosClient({
   /* 보기 고르개 줄 — 세로가 낮은 PC 에서는 제목 줄 오른쪽으로 올라간다(아래) */
   const viewControls = (
     <>
-      {/* 캘린더에서도 견주기로 곧장 — 목록으로 넘어가 둘을 고르는 자리를 연다 */}
-      {/* 휴대폰에서는 ⋯ 시트 안에(아래 moreSheet) — 머리가 네 줄로 쌓였다 */}
+      {/*
+        캘린더에서도 견주기로 곧장 — 목록으로 넘어가 둘을 고르는 자리를 연다. 휴대폰은 고르개 밑 줄에 구속 측정과 나란히
+        (order-2 · 반씩), PC 는 예전 자리(왼쪽 끝). 한때 ⋯ 시트 안에 넣었더니 둘 다 찾기 어려웠다(2026-10-04 사용자).
+      */}
       {view === 'calendar' && clips.length >= 2 ? (
         <button
           type="button"
           onClick={startCompare}
-          className="hidden rounded-lg border border-sky bg-sky-tint px-3 py-1.5 text-xs font-semibold text-sky-strong transition-colors hover:bg-sky-tint/70 desk:block"
+          className={`${PHONE_PILL} desk:order-none desk:flex-none desk:min-h-0 desk:rounded-lg desk:border desk:border-sky desk:bg-sky-tint desk:px-3 desk:py-1.5 desk:text-xs desk:hover:bg-sky-tint/70`}
         >
+          <Columns2 aria-hidden className="h-4 w-4 desk:hidden" />
           2분할 비교
         </button>
       ) : (
         <span className="hidden desk:block" />
       )}
-      <div className="flex w-full items-center gap-2 desk:w-auto">
+      <div className="order-1 flex w-full items-center gap-2 desk:order-none desk:w-auto">
         <PitchViewSwitch
           className="w-full desk:w-auto"
           value={view}
@@ -197,14 +200,21 @@ export function VideosClient({
           </button>
         )}
       </div>
+      {/* 휴대폰의 구속 측정 — 고르개 밑 줄(2분할 비교 옆) */}
+      {canMeasure && (
+        <button type="button" onClick={() => router.push('/velocity')} className={`${PHONE_PILL} desk:hidden`}>
+          <Radar aria-hidden className="h-4 w-4" />
+          구속 측정
+        </button>
+      )}
     </>
   );
 
   return (
     <div className="stack-page">
       {/*
-        머리 — 휴대폰은 아이폰 큰 제목처럼 제목 오른쪽에 둥근 [⋯] [+] 둘, 그 밑에 꽉 찬 고르개 한 줄(2026-10-04 '앱 느낌'
-        4단계). 예전엔 제목 · 기록 남기기 · 2분할 비교 · 구속 측정 · 고르개가 네 줄로 쌓였다. PC 는 예전 그대로.
+        머리 — 휴대폰은 제목 오른쪽에 둥근 [+], 그 밑에 꽉 찬 고르개, 그 밑에 [2분할 비교 | 구속 측정](2026-10-04). 둘을
+        ⋯ 시트에 넣었더니 찾기 어려워(사용자) 다시 꺼냈다. PC 는 예전 그대로.
       */}
       <PitchLogHeading
         controls={viewControls}
@@ -225,16 +235,6 @@ export function VideosClient({
               </ButtonLink>
             </span>
             <div className="flex items-center gap-2 desk:hidden">
-              {(clips.length >= 2 || canMeasure) && (
-                <button
-                  type="button"
-                  onClick={() => setMoreOpen(true)}
-                  aria-label="더 보기, 2분할 비교 · 구속 측정"
-                  className="flex h-11 w-11 items-center justify-center rounded-full bg-ink/6 text-ink transition-opacity active:opacity-60"
-                >
-                  <Ellipsis aria-hidden className="h-5 w-5" />
-                </button>
-              )}
               <Link
                 href={`/pitch-log/${todayKey}`}
                 transitionTypes={OPEN_POPUP_TYPES}
@@ -250,40 +250,6 @@ export function VideosClient({
         }
       />
 
-      {/* 휴대폰 ⋯ — 아이폰 동작 시트처럼 할 수 있는 것을 줄로 */}
-      <Modal open={moreOpen} onClose={() => setMoreOpen(false)} title="투구 기록">
-        <div className="divide-y divide-line overflow-hidden rounded-2xl bg-surface-2">
-          {clips.length >= 2 && (
-            <button
-              type="button"
-              onClick={startCompare}
-              className="flex min-h-12 w-full items-center gap-3 px-4 text-left text-sm text-ink active:bg-ink/6"
-            >
-              <Columns2 aria-hidden className="h-5 w-5 text-sky" />
-              <span className="flex-1">
-                2분할 비교
-                <span className="block text-xs text-muted">영상 두 개를 골라 나란히 봐요</span>
-              </span>
-            </button>
-          )}
-          {canMeasure && (
-            <button
-              type="button"
-              onClick={() => {
-                setMoreOpen(false);
-                router.push('/velocity');
-              }}
-              className="flex min-h-12 w-full items-center gap-3 px-4 py-2 text-left text-sm text-ink active:bg-ink/6"
-            >
-              <Radar aria-hidden className="h-5 w-5 text-sky" />
-              <span className="flex-1">
-                구속 측정
-                <span className="block text-xs text-muted">폰 카메라로 공 빠르기를 재요</span>
-              </span>
-            </button>
-          )}
-        </div>
-      </Modal>
 
       {/* 두 방식을 오갈 때 살짝 떠오르며 바뀐다 */}
       <div key={view} className="motion-safe:animate-fade-in">
