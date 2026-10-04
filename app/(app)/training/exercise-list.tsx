@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from 'react';
 import { unstable_rethrow } from 'next/navigation';
-import { ChevronDown, History, X } from 'lucide-react';
+import { ChevronDown, History, Play, X } from 'lucide-react';
 import { setExerciseDone } from '@/app/actions/exercise-log';
 import { CHECK_CONNECTION } from '@/lib/offline';
 import { removeFromTodayPlan } from '@/app/actions/plan-edit';
@@ -14,6 +14,7 @@ import { ExerciseBadges } from '@/components/meta-badges';
 import { CategoryBadge } from '@/components/category-badge';
 import { FavoriteButton } from '@/components/favorite-button';
 import { toggleExerciseFavorite } from '@/app/actions/favorite';
+import { LibraryVideo } from '@/components/library-video';
 import { CheckRow } from './check-row';
 
 export type TodayExercise = {
@@ -30,6 +31,12 @@ export type TodayExercise = {
   thumbUrl: string | null;
   /** 아직 촬영 전이라 유튜브 참고 영상으로 대신하고 있는가 */
   isReference: boolean;
+  /** 우리 저장소에 올린 영상 경로 — 참고 영상이면 없다 */
+  videoPath: string | null;
+  /** 참고 영상의 유튜브 영상 ID */
+  referenceVideoId: string | null;
+  /** 영상의 가로 ÷ 세로 — 없으면 가로(16:9)로 본다 */
+  aspectRatio: number | null;
   done: boolean;
   /** 세션 안에서 이 운동이 놓이는 구간 (워밍업·본운동·코어·암케어) */
   slot: SlotKey;
@@ -303,6 +310,52 @@ function PastRecord({ title, past }: { title: string; past: PastAmount[] }) {
   );
 }
 
+/**
+ * '영상 보기' — 누르면 그 운동의 영상(참고 영상이면 유튜브)과 설명이 펼쳐진다.
+ *
+ * 2026-10-04 사용자분: "생성된 운동 일정에서 참고 영상을 클릭해도 안 나오고, 버튼이 너무 작다". 예전에는 제목 옆에 10px
+ * 글자 '참고 영상'만 있었는데, 줄 전체가 체크 단추(check-row.tsx)라 그 글자를 누르면 영상 대신 체크가 됐다 — 목록에는
+ * 영상을 여는 길이 아예 없었다. 그래서 체크 줄 밖에 따로 누르는 줄(44px)을 두고, 참고 영상인지는 단추 이름으로 알린다.
+ *
+ * 영상은 누르기 전에는 받지 않고(LibraryVideo), 펼친 동안에만 심는다 — 접은 뒤에도 재생기가 남아 있으면 소리 없이 계속
+ * 돈다(암케어 '자세·영상 보기'와 같은 방식, armcare-media.tsx).
+ */
+function ExerciseVideo({ ex }: { ex: TodayExercise }) {
+  const [open, setOpen] = useState(false);
+  if (!ex.videoPath && !ex.referenceVideoId) return null;
+  const label = ex.isReference ? '참고 영상' : '영상';
+  return (
+    <div className="border-t border-line">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
+        aria-label={`${ex.title} ${label} ${open ? '접기' : '보기'}`}
+        className="flex min-h-11 w-full items-center justify-center gap-2 px-4 py-2.5 text-sm font-semibold text-sky-strong transition-colors hover:bg-surface-2"
+      >
+        <Play aria-hidden className="h-4 w-4 shrink-0" />
+        {open ? `${label} 접기` : `${label} 보기`}
+      </button>
+      {open && (
+        <div className="space-y-3 px-4 pb-4">
+          <LibraryVideo
+            path={ex.videoPath}
+            referenceVideoId={ex.referenceVideoId}
+            title={ex.title}
+            thumbUrl={ex.thumbUrl}
+            aspectRatio={ex.aspectRatio}
+          />
+          {ex.description && (
+            <p className="whitespace-pre-wrap break-keep text-sm leading-relaxed text-ink/85">
+              {ex.description}
+            </p>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function ExerciseList({
   items,
   onToggle,
@@ -341,12 +394,7 @@ function ExerciseList({
                 badges={
                   <>
                     <CategoryBadge name={ex.category} />
-                    {/* 출처 표시. 상자를 씌우면 카테고리 배지와 같은 무게가 되어 글자만 남긴다. */}
-                    {ex.isReference && (
-                      <span className="text-[10px] font-medium text-muted">
-                        참고 영상
-                      </span>
-                    )}
+                    {/* 참고 영상인지는 밑의 '참고 영상 보기' 단추가 알린다(ExerciseVideo) */}
                     {ex.manual && (
                       <span className="text-[10px] font-medium text-muted">
                         직접 넣음
@@ -367,6 +415,7 @@ function ExerciseList({
                 />
               </CheckRow>
 
+              <ExerciseVideo ex={ex} />
               <PastRecord title={ex.title} past={ex.past} />
             </div>
 
