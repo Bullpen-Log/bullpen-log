@@ -1,4 +1,3 @@
-import { Sparkles } from 'lucide-react';
 import { cautionLabel, type AutoRecord } from '@/lib/report/auto-setup';
 import { GOAL_FOCUSES } from '@/lib/report/personalize';
 import { OpenCheckinButton } from '@/components/notice-bell';
@@ -20,7 +19,6 @@ export function AutoNote({ auto }: { auto: AutoRecord }) {
       <details className="group">
         <summary className="flex cursor-pointer list-none flex-wrap items-center gap-x-2 gap-y-1 text-xs font-medium">
           <span className="flex items-center gap-1 text-sky-strong">
-            <Sparkles className="h-3.5 w-3.5" />
             {auto.by === 'ai' ? 'AI 맞춤' : 'AI 맞춤 · 규칙대로'}
           </span>
           <span className="text-ink/70">

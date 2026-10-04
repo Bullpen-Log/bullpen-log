@@ -1,7 +1,6 @@
 import { favoriteExerciseIds } from '@/lib/favorites';
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
-import { Sparkles } from 'lucide-react';
 import { prisma } from '@/lib/prisma';
 import { requireUser } from '@/lib/dal';
 import { createPlaybackUrls } from '@/lib/storage';
@@ -470,10 +469,6 @@ export default async function TrainingPage({
         {aiTraining && (
           <details className="group rounded-2xl border border-sky-soft/60 bg-sky-tint p-(--block-pad)">
             <summary className="flex cursor-pointer list-none items-start gap-2">
-              <Sparkles
-                aria-hidden
-                className="mt-1 h-3.5 w-3.5 shrink-0 text-sky-strong"
-              />
               <span className="min-w-0 flex-1 text-[15px] font-bold leading-snug break-keep text-ink">
                 {aiTraining.focus}
               </span>

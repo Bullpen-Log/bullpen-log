@@ -195,7 +195,8 @@ export function LoadPanel({
   const isPitching = which === 'pitching';
 
   return (
-    <section className="bg-spotlight overflow-hidden rounded-3xl border border-line bg-surface">
+    /* 평평한 흰 면 — 은은한 빛 그라데이션(bg-spotlight)은 AI 템플릿의 카드 같았다(2026-10-04) */
+    <section className="overflow-hidden rounded-3xl border border-line bg-surface">
       <Primary view={view} />
 
       {/*

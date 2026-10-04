@@ -2,7 +2,7 @@
 
 import { useRef, useState } from 'react';
 import { useFormStatus } from 'react-dom';
-import { RefreshCw, Sparkles } from 'lucide-react';
+import { RefreshCw } from 'lucide-react';
 import { CheckboxGroup, RadioGroup } from '@/components/choice-inputs';
 import { Segmented } from '@/components/segmented';
 import { OpenCheckinButton } from '@/components/notice-bell';
@@ -46,7 +46,7 @@ import { SwitchRow } from '@/components/switch';
 
 /** 일정을 만드는 두 방식 */
 const PLAN_MODES = [
-  { value: 'auto', label: 'AI 맞춤', icon: Sparkles },
+  { value: 'auto', label: 'AI 맞춤' },
   { value: 'manual', label: '직접 고르기' },
 ] as const;
 

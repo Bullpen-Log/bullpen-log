@@ -2,7 +2,7 @@
 
 import { useActionState, useState } from 'react';
 import { useFormStatus } from 'react-dom';
-import { AlertTriangle, ChevronDown, Minus, Moon, Sparkles, Sun } from 'lucide-react';
+import { AlertTriangle, ChevronDown, Minus } from 'lucide-react';
 import { generateAiReport, type AiReportState } from '@/app/actions/ai-report';
 import { OFFLINE_MESSAGE, orOffline } from '@/lib/action-offline';
 import { type ReportReadiness } from '@/lib/report/cadence';
@@ -38,7 +38,6 @@ function GenerateButton({ label }: { label: string }) {
       disabled={pending}
       className="inline-flex items-center gap-2 rounded-xl bg-sky px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-sky-strong disabled:cursor-not-allowed disabled:opacity-50"
     >
-      <Sparkles className={`h-4 w-4 ${pending ? 'animate-pulse' : ''}`} />
       {pending ? '분석 중… (10초쯤 걸려요)' : label}
     </button>
   );
@@ -56,7 +55,7 @@ function DayRow({ day }: { day: DayPlan }) {
     >
       <span className="w-12 shrink-0 text-sm font-bold text-ink">{day.label}</span>
       <span className="shrink-0 text-[11px] tabular-nums text-muted/70">
-        {day.dateKey.slice(5)}
+        {dateKeyLabel(day.dateKey)}
       </span>
 
       {/*
@@ -71,7 +70,6 @@ function DayRow({ day }: { day: DayPlan }) {
 
       {day.throwing ? (
         <span className="flex items-baseline gap-1.5">
-          <Sun className="h-3.5 w-3.5 self-center text-sky" />
           <span className="text-numeric text-xl leading-none text-sky tabular-nums">
             {pitchRangeText(day)}
           </span>
@@ -80,7 +78,6 @@ function DayRow({ day }: { day: DayPlan }) {
         </span>
       ) : (
         <span className="flex items-center gap-1.5 text-sm font-medium text-sky-strong">
-          <Moon className="h-3.5 w-3.5" />
           휴식
         </span>
       )}
@@ -296,9 +293,7 @@ export function AiReportCard({
     <section className="overflow-hidden rounded-2xl border border-line bg-surface">
       {/* 머리말 */}
       <div className="flex flex-wrap items-center gap-3 border-b border-line px-5 py-4 sm:px-6">
-        <span className="flex h-9 w-9 items-center justify-center rounded-xl border border-sky-soft/50 bg-sky/10 text-sky">
-          <Sparkles className="h-4 w-4" />
-        </span>
+        {/* 반짝이(✨) 네모는 뺐다 — 모든 앱이 'AI' 에 붙이는 기본 그림이라 우리 앱의 얼굴이 아니었다(2026-10-04) */}
         <div className="min-w-0 flex-1">
           {/*
             이름에서는 'AI'를 뺐지만, 여기서는 AI를 실제로 부른다.

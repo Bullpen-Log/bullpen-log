@@ -47,13 +47,16 @@ export function todayKicker(now: Date = new Date()): string {
 }
 
 export function PageHeading({
-  eyebrow,
   kicker,
   title,
   description,
   action,
   inlineAction = false,
 }: {
+  /**
+   * 예전 PC 머리글(영어 대문자 · 넓은 자간 'PITCH LOG')— 더는 보이지 않는다. 웹 템플릿의 머리글이라 AI 가 만든 화면처럼
+   * 보였다(2026-10-04 'AI 티 줄이기'). 부르는 곳이 많아 자리만 남긴다.
+   */
   eyebrow?: string;
   /** 휴대폰에서 큰 제목 위에 회색 작은 글씨로 — 앱스토어 '투데이' 위의 날짜처럼(예: '10월 1일 수요일') */
   kicker?: string;
@@ -82,11 +85,6 @@ export function PageHeading({
     >
       <div className="space-y-1">
         {kicker && <p className="text-sm font-medium text-muted desk:hidden">{kicker}</p>}
-        {eyebrow && (
-          <span className="hidden desk:block">
-            <Eyebrow>{eyebrow}</Eyebrow>
-          </span>
-        )}
         <h1 className="text-heading page-title text-ink">{title}</h1>
         {/* 큰 제목이 스크롤로 가려지면 위 막대 가운데에 작은 제목이 나온다(아이폰처럼, components/nav-title.tsx) */}
         <NavTitle title={title} />

@@ -35,7 +35,7 @@ export function LibraryTile({
         격자 전체가 노란 상자 밭이 됐다 — 표시는 모서리 딱지 하나로 충분하다.
         대신 올려놨을 때 살짝 떠오르게 해서 누를 수 있는 것으로 보이게 한다.
       */
-      className="group flex flex-col overflow-hidden rounded-2xl border border-line bg-surface text-left transition-all duration-200 hover:-translate-y-0.5 hover:border-sky hover:shadow-lg hover:shadow-sky/10"
+      className="group flex flex-col overflow-hidden rounded-2xl border border-line bg-surface text-left transition-all duration-200 hover:-translate-y-0.5 hover:border-sky hover:shadow-md"
     >
       <span className="relative flex aspect-video w-full items-center justify-center overflow-hidden bg-surface-2">
         {thumbUrl && (

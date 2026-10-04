@@ -8,7 +8,7 @@ import {
   useTransition,
   type ReactNode,
 } from 'react';
-import { ChartLine, Loader2, RotateCcw } from 'lucide-react';
+import { Loader2, RotateCcw } from 'lucide-react';
 import { Segmented } from '@/components/segmented';
 import { Skeleton } from '@/components/fallback';
 import { analysisFor } from '@/app/actions/analysis';
@@ -171,7 +171,6 @@ export function AnalysisBlock({
               id="analysis-title"
               className="text-heading flex items-center gap-2 text-xl text-ink"
             >
-              <ChartLine aria-hidden className="h-5 w-5 text-sky" />
               분석
             </h2>
             <p className="mt-1 text-sm text-muted">

@@ -118,8 +118,9 @@ function AppIcon({ app }: { app: TrainingPart }) {
   const a = APPS[app];
   const Icon = a.icon;
   return (
-    <span className={`grid h-11 w-11 shrink-0 place-items-center rounded-[14px] ${a.tile}`}>
-      <Icon aria-hidden className={`h-6 w-6 ${a.ink}`} strokeWidth={2.1} />
+    /* 칠한 네모 + 흰 그림 — 아이폰 앱 아이콘처럼. 옅은 색 네모 위 색 그림은 AI 템플릿의 기능 카드 같았다(2026-10-04) */
+    <span className={`grid h-11 w-11 shrink-0 place-items-center rounded-[14px] text-white ${a.button}`}>
+      <Icon aria-hidden className="h-6 w-6" strokeWidth={2.1} />
     </span>
   );
 }
@@ -409,20 +410,30 @@ async function WeekStrip({ userId, today }: { userId: string; today: Date }) {
     { app: 'armcare', value: days(armcareLogs), unit: '일' },
     { app: 'mechanics', value: days(drillLogs), unit: '일' },
   ];
+  /*
+   * 한 줄 요약 — 예전엔 똑같은 칸 셋('0번 · 0일 · 0일')이 나란했다. 대시보드 템플릿처럼 보였고, 다 0 인 주에는 큰 0 셋이
+   * 먼저 눈에 들어왔다(2026-10-04 'AI 티 줄이기'). 한 줄 글로 쓰고, 아무것도 안 한 주는 그렇게 말한다.
+   */
+  const none = cells.every((c) => c.value === 0);
   return (
-    <section className="space-y-2">
-      <h2 className="px-1 text-sm font-semibold text-muted">이번 주</h2>
-      <div className="grid grid-cols-3 gap-2">
-        {cells.map((c) => (
-          <div key={c.app} className="rounded-2xl bg-surface px-3 py-3 text-center">
-            <p className={`text-numeric text-2xl leading-none ${APPS[c.app].ink}`}>
-              {c.value}
-              <span className="ml-0.5 text-sm font-semibold">{c.unit}</span>
-            </p>
-            <p className="mt-1.5 text-xs text-muted">{APPS[c.app].name}</p>
-          </div>
-        ))}
-      </div>
+    <section className="rounded-2xl bg-surface px-(--block-pad) py-3.5 text-sm text-muted">
+      <h2 className="sr-only">이번 주</h2>
+      {none ? (
+        '이번 주는 아직 기록이 없어요.'
+      ) : (
+        <p className="flex flex-wrap gap-x-3 gap-y-1">
+          <span className="font-semibold text-ink">이번 주</span>
+          {cells.map((c) => (
+            <span key={c.app}>
+              {APPS[c.app].name}{' '}
+              <span className="font-semibold tabular-nums text-ink">
+                {c.value}
+                {c.unit}
+              </span>
+            </span>
+          ))}
+        </p>
+      )}
     </section>
   );
 }

@@ -13,7 +13,6 @@ import {
   ArrowDownRight,
   ArrowUpRight,
   CalendarDays,
-  ChartColumn,
   Dumbbell,
   Flame,
   Gauge,
@@ -448,7 +447,6 @@ export function HomeTrends({
             id="trends-title"
             className="text-heading flex items-center gap-2 text-xl text-ink"
           >
-            <ChartColumn aria-hidden className="h-5 w-5 text-sky" />
             그래프
           </h2>
           <p className="mt-1 text-sm text-muted">

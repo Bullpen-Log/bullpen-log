@@ -29,7 +29,6 @@ import {
   X,
 } from 'lucide-react';
 import { MiniCalendar } from '@/components/mini-calendar';
-import { Eyebrow } from '@/components/ui';
 import { useWeightUnit } from '@/components/use-units';
 import { fromWeight, toWeight } from '@/lib/units';
 import { shiftDateKey } from '@/lib/pitch-stats';
@@ -387,10 +386,6 @@ export function NutritionView({ day, today }: { day: NutritionDay; today: string
       <header className="flex flex-wrap items-end gap-x-3 gap-y-3 pb-1 sm:gap-x-4 desk:border-b desk:border-line desk:pb-4">
         {/* 머리글은 휴대폰에서 뺀다 — 제목 줄에 날짜 · 목표가 같이 서서, 넣으면 목표 단추가 밑줄로 밀린다 */}
         <div className="space-y-2 desk:space-y-1">
-          {/* PC 에서만 — 다른 탭의 쪽 머리(PageHeading)와 같다. 가로로 돌린 휴대폰에 영어 'Nutrition' 이 떴다(2026-10-04) */}
-          <span className="hidden desk:block">
-            <Eyebrow>Nutrition</Eyebrow>
-          </span>
           <h1 className="text-heading page-title text-ink">영양</h1>
         </div>
         <DateNav date={day.date} today={today} calendar={day.calendar} />

@@ -129,7 +129,8 @@
    */
   --color-app-training: #0a84d6;
   --color-app-armcare: #0d9488;
-  --color-app-mechanics: #7c3aed;
+  /* 메커니즘은 깊은 파랑 — 예전 보라(#7c3aed)는 'AI 앱 보라'로 통하는 기본색이었다(2026-10-04 'AI 티 줄이기') */
+  --color-app-mechanics: #1f5fa8;
 
   --font-sans:
     'Pretendard Variable', Pretendard, system-ui, -apple-system, 'Malgun Gothic',
@@ -1025,18 +1026,20 @@ html[data-nav='none']::view-transition-new(.page) {
 }
 
 /* 새로 온 것이 조용히 나타난다 — 프로필 사진처럼 자리가 이미 잡혀 있는 곳에 쓴다 */
+/*
+ * 나타나기 — 옅어지기만 짧게(2026-10-04 'AI 티 줄이기'). 예전엔 0.96배에서 커지며 나타나 97곳의 모든 칸이 '톡 튀어나와',
+ * 템플릿으로 만든 화면처럼 들썩였다. 움직임은 화면 이동 · 시트처럼 뜻이 있는 곳에만 남긴다.
+ */
 @utility animate-fade-in {
-  animation: fade-in 220ms ease-out;
+  animation: fade-in 160ms ease-out;
 }
 
 @keyframes fade-in {
   from {
     opacity: 0;
-    scale: 0.96;
   }
   to {
     opacity: 1;
-    scale: 1;
   }
 }
 
