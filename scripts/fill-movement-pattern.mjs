@@ -115,6 +115,11 @@ const missed = [];
 
 for (const ex of target) {
   if (ex.movementPattern && !force) continue;
+  /*
+   * '고립'은 사람이 고른 값이다(한 근육 운동 — 2026-10-04 암케어 검토 · 하는 차례 검토). 이름 규칙은 컬 · 노르딕을 당기기 · 힌지로
+   * 보니, --force 로도 덮지 않는다.
+   */
+  if (ex.movementPattern === '고립') continue;
   const p = patternOf(ex.title);
   if (p) filled.push({ ...ex, pattern: p });
   else missed.push(ex);

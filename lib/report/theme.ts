@@ -1,3 +1,4 @@
+import { orderWithinSlot } from '@/lib/report/exercise-order';
 import { SEVERE_SORENESS, sorenessWord, type CheckinPartKey } from '@/lib/checkin';
 import { intensityLevel, minutesForSets, type Prescription } from '@/lib/exercise-meta';
 import { withJosa } from '@/lib/korean';
@@ -1323,16 +1324,20 @@ export function pickForTheme<T extends ThemedExercise>({
    * 날에도 다른 목록이 나오게 한다.
    */
   rotationSeed?: string;
-  /** 오늘 하고 싶다고 고른 부위 — 본운동 안에서 앞으로 당긴다 */
+  /**
+   * 오늘 하고 싶다고 고른 부위 — 본운동 후보에서 먼저 고른다(시간이 모자라면 이쪽이 남는다).
+   * 화면에서 하는 차례는 lib/report/exercise-order.ts 가 따로 정한다.
+   */
   preferredParts?: string[];
   /**
    * 오늘 하고 싶다고 고른 운동 종류 — 파워 / 웨이트.
    *
-   * 본운동은 스트렝스와 파워가 섞인 자리라, 고른 쪽을 앞으로 당긴다.
+   * 본운동은 스트렝스와 파워가 섞인 자리라, 고른 쪽을 후보에서 먼저 고른다. 하는 차례는
+   * exercise-order.ts 가 정한다 — 파워가 있으면 늘 맨 앞(지치기 전에 하는 운동이라).
    * '회복'은 여기 오지 않는다 — 그건 테마 자체를 회복으로 바꾼다.
    */
   preferredWorkout?: string | null;
-  /** 훈련 목표 — 구간별 시간 배분과 본운동 순서를 바꾼다 */
+  /** 훈련 목표 — 구간별 시간 배분과 본운동에서 먼저 고를 것을 바꾼다 */
   goal?: string | null;
   /** 목표 안에서 좁힌 부위 — 본운동의 스트렝스를 한 계열로 줄인다 */
   focus?: GoalFocusKey | null;
@@ -1446,7 +1451,7 @@ export function pickForTheme<T extends ThemedExercise>({
     const costOf = (ex: T) => estimateMinutes(ex);
 
     /*
-     * 본운동 안의 순서를 정한다. 목표를 먼저 반영하고, 그 위에 오늘 고른
+     * 본운동 후보에서 먼저 고를 차례를 정한다(화면의 하는 차례는 아래 orderWithinSlot 이 따로 정한다). 목표를 먼저 반영하고, 그 위에 오늘 고른
      * 부위를 얹는다. 둘 다 나누기만 하고 순서를 뒤섞지 않으므로(안정 분할),
      * 오늘 고른 부위 안에서도 목표에 맞는 것이 앞에 남는다.
      *
@@ -1468,7 +1473,7 @@ export function pickForTheme<T extends ThemedExercise>({
     /*
      * 마지막으로 오늘 고른 운동 종류를 얹는다.
      *
-     * 제일 나중에 얹는 것이 제일 앞에 온다(안정 분할이라 앞의 순서는 그 안에서
+     * 제일 나중에 얹는 것을 제일 먼저 고른다(안정 분할이라 앞의 순서는 그 안에서
      * 유지된다). 종류는 부위보다 큰 결정이다 — "오늘 하체"보다 "오늘 파워"가
      * 몸에 걸리는 부담을 더 크게 가른다.
      */
@@ -1749,9 +1754,15 @@ export function pickForTheme<T extends ThemedExercise>({
     }
   }
 
+  /*
+   * 구간 안의 차례는 고른 차례가 아니라 하는 차례로(lib/report/exercise-order.ts — 파워(가벼운 것부터) → 본 운동(센 것부터) → 보조,
+   * 가동성은 가벼운 것부터). 고른 차례는 '오래 안 한 것 먼저'라 강도가 뒤섞였다(2026-10-04 사용자분).
+   */
   const picks: ThemedPick<T>[] = [];
   for (const slot of SLOT_ORDER) {
-    for (const ex of bySlot.get(slot) ?? []) picks.push({ exercise: ex, slot });
+    for (const ex of orderWithinSlot(slot, bySlot.get(slot) ?? [])) {
+      picks.push({ exercise: ex, slot });
+    }
   }
 
   const estimatedMinutes = Math.round(

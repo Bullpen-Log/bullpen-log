@@ -11,6 +11,16 @@ Claude 로 작업을 시작하면 저절로 읽힌다. 규칙은 `AGENTS.md` 6�
 
 ---
 
+## 금윤호에게 — 2026-10-04 · 김민(Claude) — 시험 도구 한 줄 · 운동 라이브러리 계열 셋 · 캐시 v12
+
+받은 뒤 할 일 없음(DB 구조 · 패키지 그대로). 트레이닝 일정의 하는 차례를 정하면서(`lib/report/exercise-order.ts`) 같이 쓰는 것을 둘 건드렸다.
+
+- **`scripts/alias-loader.mjs`**: `lib/workout/session-plan.ts` 가 부르는 `import 'server-only'` 만 빈 모듈로 바꾼다(운동 시작 목록을
+  셀프테스트하려고). 다른 파일의 'server-only' 는 예전처럼 던진다 — 스크립트가 DB 에 쓰는 서버 코드를 실수로 부르지 않게.
+- **운동 라이브러리 줄 셋의 계열**: 노르딕 햄스트링 · 리버스 노르딕 · 사이드 레터럴 레이즈를 `movementPattern` '고립'으로
+  (`scripts/library-isolation-retag-2026-10-04.mjs`, 백업 뒤). 캐시 이름 `library:exercises:v12`. `fill-movement-pattern.mjs` 는 이제
+  '고립'을 `--force` 로도 덮지 않는다(셀프테스트가 셋을 지킨다). 운동 바꾸기(`lib/workout/swap.ts`)는 '고립'끼리 부위가 겹칠 때만 같은 계열로 친다.
+
 ## 금윤호에게 — 2026-10-04 · 김민(Claude) — 앱 안에 머물기(2단계): 약관 창 · 오류 화면 · 참고 영상 표시
 
 받은 뒤 할 일 없음(DB · 패키지 그대로). '앱 느낌' 2단계 — 앱 안에서 웹페이지로 튕기거나 웹 같은 글이 보이던 것.

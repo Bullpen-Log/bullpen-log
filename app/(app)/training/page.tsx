@@ -16,7 +16,8 @@ import { readFrozenPlan } from '@/lib/workout/session-plan';
 import { summarizeSets, totalVolumeKg } from '@/lib/workout/summarize';
 import { recentAmounts } from '@/lib/report/exercise-recent';
 import { MIN_CANDIDATES } from '@/lib/report/prescription';
-import { DEFAULT_WORKOUT_MINUTES } from '@/lib/report/theme';
+import { DEFAULT_WORKOUT_MINUTES, SLOT_ORDER } from '@/lib/report/theme';
+import { orderSession } from '@/lib/report/exercise-order';
 import { BackLink, Card, PageHeading } from '@/components/ui';
 import { PlanForm } from '@/components/training-forms';
 import type { AiReportBody } from '@/lib/ai/report-prompt';
@@ -312,65 +313,65 @@ export default async function TrainingPage({
     };
   })();
 
-  const exercises: TodayExercise[] = full.map(({ slot, manual, unsafe, ex }) => ({
-    favorite: favExercises.has(ex.id),
-    id: ex.id,
-    title: ex.title,
-    category: ex.category,
-    description: ex.description,
-    bodyParts: ex.bodyParts,
-    intensity: ex.intensity,
-    difficulty: ex.difficulty,
-    equipment: ex.equipment,
-    /*
-     * 아직 세트·횟수를 안 채운 운동은 null 이라 화면에 아무것도 안 나온다.
-     *
-     * 워밍업에는 아예 안 적는다. 워밍업은 세트를 세며 하는 것이 아니라 오늘 쓸
-     * 관절을 한 번씩 지나가는 것이라, 숫자를 적어 두면 지켜야 할 것처럼 읽힌다.
-     */
-    /*
-     * 처방은 이제 모든 구간에 적는다.
-     *
-     * 예전에는 워밍업에만 숨겼다 — 세트를 세며 하는 것이 아니라 관절을 한 번씩
-     * 지나가는 것이라, 숫자를 적어 두면 지켜야 할 것처럼 읽혔다. 워밍업을 아예
-     * 안 뽑게 된 지금 남은 것은 회복 데이의 가동성뿐이고, 그것은 그날의 운동
-     * 자체라 몇 세트 몇 회인지가 필요하다.
-     *
-     * 횟수는 오늘 목표에 맞춘다(lib/report/goal-prescription.ts — 근력 향상이면 무거운 운동 4세트 × 5회).
-     */
-    prescription: formatPrescription(goalPrescription(ex, savedPlan?.goal)),
-    /*
-     * 아직 촬영하지 않은 운동은 유튜브 참고 영상의 미리보기를 그대로 쓴다.
-     * 우리 저장소에 담아 둔 것이 없어 발급받을 주소도 없다.
-     */
-    thumbUrl: ex.referenceVideoId
-      ? referenceThumbUrl(ex.referenceVideoId)
-      : ex.thumbPath
-        ? (thumbUrls[ex.thumbPath] ?? null)
-        : null,
-    isReference: ex.source === 'REFERENCE',
-    /* '영상 보기'가 펼칠 영상(exercise-list.tsx) — 누르기 전에는 받지 않는다 */
-    videoPath: ex.videoPath,
-    referenceVideoId: ex.referenceVideoId,
-    aspectRatio: ex.aspectRatio ?? null,
-    done: doneIds.has(ex.id),
-    slot,
-    manual,
-    /*
-     * 직접 넣은 운동만 여기 걸릴 수 있다. 우리가 고른 것 중 지금 기준을
-     * 통과 못 하는 것은 이미 목록에서 빠진 뒤다.
-     */
-    unsafe,
-    /*
-     * 시간형(버티기)이면 횟수 대신 초를 적게 한다. 30초 플랭크에
-     * "몇 회 했나요"를 물으면 답할 수가 없다.
-     */
-    isHold: ex.holdSeconds != null,
-    /*
-     * 지난번에 얼마나 했는지. 처음 하는 운동이면 빈 목록이라 아무것도 안 나온다.
-     */
-    past: pastAmounts.get(ex.id) ?? [],
-  }));
+  /*
+   * 하는 차례로 줄 세운다(lib/report/exercise-order.ts — 파워(가벼운 것부터) → 본 운동(센 것부터) → 보조, 가동성은 가벼운 것부터).
+   * 저장해 둔 일정은 고른 차례 그대로라, 이미 만든 일정도 열 때 이 차례로 보이게 여기서 한 번 더 세운다.
+   */
+  const exercises: TodayExercise[] = orderSession(full, SLOT_ORDER).map(
+    ({ slot, manual, unsafe, ex }) => ({
+      favorite: favExercises.has(ex.id),
+      id: ex.id,
+      title: ex.title,
+      category: ex.category,
+      description: ex.description,
+      bodyParts: ex.bodyParts,
+      intensity: ex.intensity,
+      difficulty: ex.difficulty,
+      equipment: ex.equipment,
+      /*
+       * 처방은 이제 모든 구간에 적는다. 아직 세트·횟수를 안 채운 운동은 null 이라 화면에 아무것도 안 나온다.
+       *
+       * 예전에는 워밍업에만 숨겼다 — 세트를 세며 하는 것이 아니라 관절을 한 번씩
+       * 지나가는 것이라, 숫자를 적어 두면 지켜야 할 것처럼 읽혔다. 워밍업을 아예
+       * 안 뽑게 된 지금 남은 것은 회복 데이의 가동성뿐이고, 그것은 그날의 운동
+       * 자체라 몇 세트 몇 회인지가 필요하다.
+       *
+       * 횟수는 오늘 목표에 맞춘다(lib/report/goal-prescription.ts — 근력 향상이면 무거운 운동 4세트 × 5회).
+       */
+      prescription: formatPrescription(goalPrescription(ex, savedPlan?.goal)),
+      /*
+       * 아직 촬영하지 않은 운동은 유튜브 참고 영상의 미리보기를 그대로 쓴다.
+       * 우리 저장소에 담아 둔 것이 없어 발급받을 주소도 없다.
+       */
+      thumbUrl: ex.referenceVideoId
+        ? referenceThumbUrl(ex.referenceVideoId)
+        : ex.thumbPath
+          ? (thumbUrls[ex.thumbPath] ?? null)
+          : null,
+      isReference: ex.source === 'REFERENCE',
+      /* '영상 보기'가 펼칠 영상(exercise-list.tsx) — 누르기 전에는 받지 않는다 */
+      videoPath: ex.videoPath,
+      referenceVideoId: ex.referenceVideoId,
+      aspectRatio: ex.aspectRatio ?? null,
+      done: doneIds.has(ex.id),
+      slot,
+      manual,
+      /*
+       * 직접 넣은 운동만 여기 걸릴 수 있다. 우리가 고른 것 중 지금 기준을
+       * 통과 못 하는 것은 이미 목록에서 빠진 뒤다.
+       */
+      unsafe,
+      /*
+       * 시간형(버티기)이면 횟수 대신 초를 적게 한다. 30초 플랭크에
+       * "몇 회 했나요"를 물으면 답할 수가 없다.
+       */
+      isHold: ex.holdSeconds != null,
+      /*
+       * 지난번에 얼마나 했는지. 처음 하는 운동이면 빈 목록이라 아무것도 안 나온다.
+       */
+      past: pastAmounts.get(ex.id) ?? [],
+    })
+  );
 
   /*
    * 목록에 더할 수 있는 운동.

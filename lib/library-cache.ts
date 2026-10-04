@@ -79,14 +79,16 @@ export const allExercises = unstable_cache(
    * 영상과 다른 동작을 말하던 설명 70개를 영상에 맞춤, scripts/library-fixes-2026-10-02.mjs,
    * :v10 — 2026-10-03 팔 재활에 필요한 참고 영상 17개(암케어 14 · 모빌리티 스트레칭 3),
    * scripts/add-rehab-reference.mts, :v11 — 2026-10-04 암케어 검토: 고립 운동 20개를 상체 스트렝스(계열 고립)로 ·
-   * 고무줄 둘 숨김 · 공 운동 넷을 플라이오볼로 · 톨 닐링 오버헤드 던지기를 파워로, scripts/library-armcare-review-2026-10-04.mjs).
+   * 고무줄 둘 숨김 · 공 운동 넷을 플라이오볼로 · 톨 닐링 오버헤드 던지기를 파워로, scripts/library-armcare-review-2026-10-04.mjs,
+   * :v12 — 같은 날 노르딕 햄스트링 · 리버스 노르딕 · 사이드 레터럴 레이즈를 계열 고립으로(하는 차례 검토),
+   * scripts/library-isolation-retag-2026-10-04.mjs).
    *
    * 캐시는 시간으로 비워지지 않고, 배포해도 남는다 — 이름(과 함수 모양)이 같으면
    * 새 칸이 없는 옛 줄이 계속 나온다. 그대로 두면 암케어의 부위별 보강이 텅 비고
    * 오늘의 암케어가 루틴을 못 짠다. 관리자가 운동을 하나 저장해야(clearLibraryCache)
    * 풀리는데, 그것을 기다릴 일이 아니다.
    */
-  ['library:exercises:v11'],
+  ['library:exercises:v12'],
   { tags: [LIBRARY_TAG] }
 );
 

@@ -52,6 +52,8 @@ import {
   HIGH_VOLUME_MIN_REST,
 } from '../lib/report/plan.ts';
 import { selectCandidates } from '../lib/report/prescription.ts';
+import { orderSession, orderWithinSlot } from '../lib/report/exercise-order.ts';
+import { freezePlan } from '../lib/workout/session-plan.ts';
 import { goalPrescription } from '../lib/report/goal-prescription.ts';
 import { equipmentForToday, filterByEquipment } from '../lib/report/equipment.ts';
 import {
@@ -2217,21 +2219,28 @@ console.log('\n[오늘 하고 싶은 운동] 고른 대로 가되, 몸 상태는
 }
 {
   /*
-   * 고른 종류가 본운동 순서에 실제로 반영되는가.
-   * 테마는 그대로 두고 무엇이 먼저 오는지만 본다.
+   * 고른 종류가 본운동 구성에 실제로 반영되는가.
+   *
+   * 예전에는 '첫 자리'를 봤다. 2026-10-04 부터 하는 차례는 exercise-order.ts 가 정해 파워가 있으면 늘 맨 앞이라,
+   * 첫 자리로는 고른 것을 가를 수 없다(검토에서 두 시험이 아무것도 안 재고 있었다). 목표를 안 정한 사람의 고른 종류는
+   * 목표로 이어진다(goalForUnchosen) — 그 결과인 구성을 본다.
    */
-  const firstMain = (wants: string | null) => {
+  const mainCats = (wants: string | null) => {
     const { themed } = planFor({ person: { condition: 8, wants }, minutes: 90 });
-    return themed.picks.find((p) => p.slot === 'main')?.exercise.category ?? null;
+    return themed.picks
+      .filter((p) => p.slot === 'main')
+      .map((p) => p.exercise.category);
   };
-  const power = firstMain('파워');
-  const weight = firstMain('웨이트');
-  check('파워를 고름 → 본운동 첫 자리가 파워', power === '파워', String(power));
+  const power = mainCats('파워');
   check(
-    '웨이트를 고름 → 본운동 첫 자리가 스트렝스',
-    (weight ?? '').includes('스트렝스'),
-    String(weight)
+    '파워를 고름 → 본운동에 파워가 들어가고 맨 앞에 온다',
+    power.includes('파워') && power[0] === '파워',
+    power.join(', ')
   );
+  /*
+   * '웨이트를 고름'은 따로 재지 않는다 — 목표를 안 정한 날의 '웨이트'는 근력 향상으로 이어져, 아래의 '근력 향상 90분 —
+   * 본운동이 파워 없이 스트렝스로만'과 goalForUnchosen('웨이트') 시험이 같은 것을 잰다(2026-10-04 검토).
+   */
 }
 
 console.log('\n[목표] 고른 목표가 실제로 배분을 바꾸는가');
@@ -4628,6 +4637,28 @@ console.log('\n[운동 교체] 비슷한 운동을 고르고, 바꾸거나 더�
     '이유 한 줄 모양',
     ranked[0].reason === '같은 힌지 · 햄스트링·둔근 · 덤벨',
     ranked[0].reason
+  );
+  /* '고립'끼리는 부위가 겹쳐야 같은 계열 — 노르딕 햄스트링 자리에 리버스 노르딕(넙다리 앞)이 맨 앞에 오지 않는다 */
+  const nordic = {
+    id: 'nordic',
+    category: '하체 스트렝스',
+    bodyParts: ['햄스트링·둔근'],
+    equipment: ['맨몸'],
+    intensity: '매우 높음',
+    movementPattern: '고립',
+  };
+  const isoPool = [
+    { ...nordic, id: 'reverse-nordic', bodyParts: ['대퇴사두'] },
+    { ...nordic, id: 'rdl', movementPattern: '힌지', intensity: '높음' },
+    { ...nordic, id: 'ham-curl', intensity: '높음' },
+  ];
+  const isoRanked = similarExercises(nordic, isoPool, new Set()).map(
+    (s) => s.exercise.id
+  );
+  check(
+    '고립 운동 바꾸기 — 같은 부위의 고립 · 같은 부위 운동만, 다른 부위 고립은 빠진다',
+    isoRanked.join(',') === 'ham-curl,rdl',
+    isoRanked.join(',')
   );
   check(
     '맨몸은 다른 장비가 없을 때만 적는다',
@@ -7532,6 +7563,294 @@ console.log(
     `재활 운동 이름 ${designNames.length}개가 모두 라이브러리에 있다`,
     missingNames.length === 0,
     missingNames.join(', ')
+  );
+}
+
+console.log(
+  '\n[운동 순서] 하는 차례 — 파워(가벼운 것부터) → 본 운동(센 것부터) → 보조, 준비는 가벼운 것부터(2026-10-04)'
+);
+{
+  const ex = (
+    title: string,
+    category: string,
+    intensity: string,
+    movementPattern: string | null = null,
+    perSide = false
+  ) => ({ title, category, intensity, movementPattern, perSide });
+  const main = orderWithinSlot('main', [
+    ex('덤벨컬', '상체 스트렝스', '중간', '고립'),
+    ex('리버스 런지', '하체 스트렝스', '높음', '런지'),
+    ex('뎁스 드롭', '파워', '매우 높음', '스쿼트'),
+    ex('고블렛 스쿼트', '하체 스트렝스', '중간', '스쿼트'),
+    ex('막대 RDL', '하체 스트렝스', '낮음', '힌지'),
+    ex('스냅다운', '파워', '중간', '힌지'),
+    ex('싱글렉 RDL', '하체 스트렝스', '높음', '힌지', true),
+    ex('바벨 스쿼트', '하체 스트렝스', '매우 높음', '스쿼트'),
+    ex('박스 점프', '파워', '높음', '스쿼트'),
+    ex('바벨 RDL', '하체 스트렝스', '높음', '힌지'),
+    ex('카프 레이즈', '하체 스트렝스', '낮음', '카프'),
+  ]).map((e) => e.title);
+  check(
+    '본운동 — 파워(가벼운 것 → 센 것) → 본 운동(센 것 → 가벼운 것, 같으면 양발 먼저) → 보조',
+    main.join(',') ===
+      '스냅다운,박스 점프,뎁스 드롭,바벨 스쿼트,바벨 RDL,리버스 런지,싱글렉 RDL,고블렛 스쿼트,덤벨컬,막대 RDL,카프 레이즈',
+    main.join(' → ')
+  );
+  /*
+   * 하체 · 상체 날에 직접 더한 코어 · 스트레칭은 본운동 칸에 들어간다 — 스트렝스 운동을 다 한 뒤에 온다.
+   * 코어는 계열이 붙은 것(회전 · 높음)으로 — 스트렝스가 아닌 운동을 거르는 줄이 빠지면 이것이 스쿼트 앞으로 온다.
+   */
+  const added = orderWithinSlot('main', [
+    ex('고블렛 스쿼트', '하체 스트렝스', '중간', '스쿼트'),
+    ex('팔로프 프레스', '코어', '높음', '회전'),
+    ex('리버스 런지', '하체 스트렝스', '중간', '런지'),
+    ex('90/90 스트레칭', '모빌리티', '매우 낮음'),
+  ]).map((e) => e.title);
+  check(
+    '본운동 — 직접 더한 코어 · 스트레칭은 스트렝스 뒤로(강도가 높아도)',
+    added.join(',') === '고블렛 스쿼트,리버스 런지,팔로프 프레스,90/90 스트레칭',
+    added.join(' → ')
+  );
+  const assistMain = orderWithinSlot('main', [
+    ex('데드버그', '코어', '낮음'),
+    ex('케이블 찹', '코어', '중간'),
+  ]).map((e) => e.title);
+  check(
+    '보조 데이 본운동(코어만) — 강도 높은 것 먼저',
+    assistMain.join(',') === '케이블 찹,데드버그',
+    assistMain.join(' → ')
+  );
+  const warm = orderWithinSlot('mobility', [
+    ex('A-스킵', '모빌리티', '낮음'),
+    ex('캣-카멜', '모빌리티', '매우 낮음'),
+  ]).map((e) => e.title);
+  check(
+    '가동성 — 가벼운 것부터',
+    warm.join(',') === '캣-카멜,A-스킵',
+    warm.join(' → ')
+  );
+  const cardio = orderWithinSlot('cardio', [
+    ex('셔틀 런 인터벌', '유산소', '중간'),
+    ex('빠르게 걷기', '유산소', '낮음'),
+  ]).map((e) => e.title);
+  check(
+    '유산소 — 가벼운 것부터',
+    cardio.join(',') === '빠르게 걷기,셔틀 런 인터벌',
+    cardio.join(' → ')
+  );
+  const core = orderWithinSlot('core', [
+    ex('데드버그', '코어', '낮음'),
+    ex('케이블 찹', '코어', '중간'),
+    ex('버드독', '코어', '낮음'),
+  ]).map((e) => e.title);
+  check(
+    '코어 — 강도 높은 것 먼저, 같은 강도는 들어온 차례 그대로',
+    core.join(',') === '케이블 찹,데드버그,버드독',
+    core.join(' → ')
+  );
+  const prehab = orderWithinSlot('prehab', [
+    ex('밴드 풀 어파트', '회복 및 보강', '낮음'),
+    ex('코펜하겐 플랭크', '회복 및 보강', '중간'),
+  ]).map((e) => e.title);
+  check(
+    '보강 — 강도 높은 것 먼저',
+    prehab.join(',') === '코펜하겐 플랭크,밴드 풀 어파트',
+    prehab.join(' → ')
+  );
+  const arm = orderWithinSlot('armcare', [
+    ex('밴드 외회전', '암케어', '낮음'),
+    ex('플라이오볼 던지기', '암케어', '중간'),
+  ]).map((e) => e.title);
+  check(
+    '암케어 — 강도 높은 것 먼저',
+    arm.join(',') === '플라이오볼 던지기,밴드 외회전',
+    arm.join(' → ')
+  );
+  check(
+    '빈 목록 — 그대로 빈 목록',
+    orderWithinSlot('main', []).length === 0 &&
+      orderSession([], SLOT_ORDER).length === 0
+  );
+  const session = orderSession(
+    [
+      { slot: 'core' as const, ex: ex('데드버그', '코어', '낮음') },
+      { slot: 'main' as const, ex: ex('덤벨컬', '상체 스트렝스', '중간', '고립') },
+      { slot: 'mobility' as const, ex: ex('캣-카멜', '모빌리티', '매우 낮음') },
+      { slot: 'main' as const, ex: ex('벤치프레스', '상체 스트렝스', '높음', '밀기') },
+    ],
+    SLOT_ORDER
+  ).map((it) => it.ex.title);
+  check(
+    '일정 전체 — 구간 차례(가동성 → 본운동 → 코어) 다음 구간 안의 차례',
+    session.join(',') === '캣-카멜,벤치프레스,덤벨컬,데드버그',
+    session.join(' → ')
+  );
+
+  /* 운동 시작(freezePlan)도 같은 차례 — 화면 목록과 실시간 운동이 어긋나지 않는다 */
+  const row = (
+    id: string,
+    category: string,
+    intensity: string,
+    movementPattern: string | null
+  ) => ({
+    id,
+    title: id,
+    category,
+    intensity,
+    movementPattern,
+    bodyParts: [] as string[],
+    equipment: [] as string[],
+    sets: 3,
+    reps: 8,
+    holdSeconds: null,
+    restSeconds: 90,
+    perSide: false,
+    thumbPath: null,
+  });
+  const rows = [
+    row('컬', '상체 스트렝스', '중간', '고립'),
+    row('밴드 외회전', '암케어', '낮음', null),
+    row('벤치', '상체 스트렝스', '높음', '밀기'),
+    row('메디신볼 슬램', '파워', '높음', '회전'),
+    row('체스트 패스', '파워', '중간', '밀기'),
+  ];
+  const frozen = freezePlan(
+    'upper',
+    '상체',
+    [
+      { exerciseId: '컬', slot: 'main' },
+      { exerciseId: '밴드 외회전', slot: 'armcare' },
+      { exerciseId: '벤치', slot: 'main' },
+      { exerciseId: '메디신볼 슬램', slot: 'main' },
+      { exerciseId: '체스트 패스', slot: 'main' },
+    ],
+    new Map(rows.map((r) => [r.id, r]))
+  )
+    .exercises.map((e) => e.id)
+    .join(',');
+  check(
+    '운동 시작 목록 — 트레이닝 화면과 같은 하는 차례',
+    frozen === '체스트 패스,메디신볼 슬램,벤치,컬,밴드 외회전',
+    frozen
+  );
+
+  /*
+   * 한 근육만 쓰는 운동은 계열 '고립'이라야 큰 운동 뒤로 간다. 이름으로 계열을 채운 스크립트(fill-movement-pattern.mjs
+   * --force)를 다시 돌리면 '힌지 · 밀기'로 돌아갈 수 있어 라이브러리 값을 지킨다(2026-10-04 고침,
+   * scripts/library-isolation-retag-2026-10-04.mjs).
+   */
+  const isoTitles = ['노르딕 햄스트링', '리버스 노르딕', '사이드 레터럴 레이즈'];
+  const notIso = isoTitles.filter(
+    (t) => library.find((e) => e.title === t)?.movementPattern !== '고립'
+  );
+  check(
+    '한 근육 운동 셋(노르딕 · 리버스 노르딕 · 사이드 레터럴 레이즈)은 계열 고립',
+    notIso.length === 0,
+    notIso.join(', ')
+  );
+
+  /*
+   * 실제 라이브러리로 만든 일정 — 일정을 만드는 길(pickForTheme)이 구간마다 이 차례를 그대로 쓴다.
+   * 규칙 표를 시험에 베끼지 않는다(베끼면 규칙이 틀려도 같이 틀린다) — 규칙 자체는 위의 손으로 적은 표가 지킨다.
+   */
+  let broken = '';
+  let mainCount = 0;
+  for (const themeKey of ['upper', 'lower', 'assist', 'recovery'] as const) {
+    for (const goal of ['근력 향상', '파워 향상', '컨디셔닝']) {
+      for (let d = 0; d < 10 && !broken; d++) {
+        const { picks } = pickForTheme({
+          candidates: library,
+          theme: themeKey,
+          minutes: 60,
+          doneIds: new Set<string>(),
+          rotationSeed: `order-${themeKey}-${goal}-${d}`,
+          goal,
+        });
+        mainCount += picks.filter((p) => p.slot === 'main').length;
+        for (const slot of SLOT_ORDER) {
+          const inSlot = picks.filter((p) => p.slot === slot).map((p) => p.exercise);
+          const again = orderWithinSlot(slot, inSlot);
+          if (!broken && again.some((e, i) => e !== inSlot[i])) {
+            broken = `${themeKey} ${goal} ${d} ${slot}: ${inSlot
+              .map((e) => `${e.title}(${e.intensity})`)
+              .join(' → ')}`;
+          }
+        }
+      }
+    }
+  }
+  check(
+    '실제 일정 120개 — 모든 구간이 하는 차례대로 나온다',
+    broken === '' && mainCount > 0,
+    broken || `본운동 ${mainCount}개`
+  );
+  /*
+   * 사용자분이 짚은 것 그대로 잰다 — 큰 운동(여러 관절을 쓰는 스트렝스)끼리 강도가 다시 올라가는 날이 있나. 처음 판
+   * (종류 먼저)은 근력 날 120개 중 58개였다. 이제 0 이라야 한다. 큰 운동 뒤의 보조(노르딕 햄스트링 '매우 높음' ·
+   * 디피싯 카프 레이즈 '높음')는 센 것이어도 큰 운동을 다 한 뒤에 오는 것이 맞아(NSCA — 한 관절은 여러 관절 뒤)
+   * 여기서 세지 않고 몇 날인지만 적는다. 파워끼리는 가벼운 것부터 올라간다.
+   */
+  let days = 0;
+  let upDays = 0;
+  let bigUpDays = 0;
+  /* 잴 것이 실제로 있었는지 — 없으면 아무것도 안 재고 통과한다 */
+  let multiDays = 0;
+  let powerDays = 0;
+  let powerBroken = '';
+  for (const themeKey of ['lower', 'upper'] as const) {
+    for (const goal of ['근력 향상', '파워 향상', '컨디셔닝']) {
+      for (const minutes of [45, 60, 90]) {
+        for (let d = 0; d < 10; d++) {
+          const { picks } = pickForTheme({
+            candidates: library,
+            theme: themeKey,
+            minutes,
+            doneIds: new Set<string>(),
+            rotationSeed: `flow-${themeKey}-${goal}-${minutes}-${d}`,
+            goal,
+          });
+          const mainEx = picks.filter((p) => p.slot === 'main').map((p) => p.exercise);
+          const levels = mainEx
+            .filter((e) => e.category !== '파워')
+            .map((e) => intensityLevel(e.intensity));
+          const bigLevels = mainEx
+            .filter(
+              (e) =>
+                e.category.endsWith('스트렝스') &&
+                ['스쿼트', '힌지', '밀기', '당기기', '런지', '회전', '운반'].includes(
+                  e.movementPattern ?? ''
+                )
+            )
+            .map((e) => intensityLevel(e.intensity));
+          days++;
+          if (bigLevels.length >= 2) multiDays++;
+          if (bigLevels.some((l, i) => i > 0 && l > bigLevels[i - 1])) bigUpDays++;
+          if (levels.some((l, i) => i > 0 && l > levels[i - 1])) upDays++;
+          const power = mainEx.filter((e) => e.category === '파워');
+          if (power.length >= 2) powerDays++;
+          if (
+            !powerBroken &&
+            power.some(
+              (e, i) =>
+                i > 0 &&
+                intensityLevel(e.intensity) < intensityLevel(power[i - 1].intensity)
+            )
+          ) {
+            powerBroken = power.map((e) => `${e.title}(${e.intensity})`).join(' → ');
+          }
+        }
+      }
+    }
+  }
+  check(
+    `하체 · 상체 날 ${days}개 — 큰 운동끼리는 강도가 오르지 않는다`,
+    multiDays > 0 && bigUpDays === 0,
+    `오른 날 ${bigUpDays}일 · 견줄 수 있는 날 ${multiDays}일 (보조까지 넣으면 오른 날 ${upDays}일)`
+  );
+  check(
+    '파워끼리는 가벼운 것부터',
+    powerDays > 0 && powerBroken === '',
+    powerBroken || `파워 2개 이상인 날 ${powerDays}일`
   );
 }
 
