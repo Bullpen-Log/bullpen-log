@@ -248,7 +248,7 @@ function ElementCard({
                   <button
                     type="button"
                     onClick={() => onElement(name)}
-                    className="font-semibold text-sky-strong underline underline-offset-2"
+                    className="font-semibold text-sky-strong"
                   >
                     {name}
                   </button>

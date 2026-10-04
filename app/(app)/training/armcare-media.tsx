@@ -80,7 +80,7 @@ export function DescriptionText({
         <button
           type="button"
           onClick={desc.load}
-          className="font-semibold text-sky-strong underline underline-offset-2"
+          className="font-semibold text-sky-strong"
         >
           다시 받기
         </button>

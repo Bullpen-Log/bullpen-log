@@ -111,7 +111,7 @@ export function DoneCard({
         <SafeForm action={startWorkout}>
           <button
             type="submit"
-            className="w-full py-1 text-xs font-medium text-muted underline underline-offset-2 transition-colors hover:text-sky"
+            className="min-h-11 w-full text-sm font-semibold text-sky-strong transition-opacity active:opacity-60 desk:min-h-0 desk:py-1 desk:text-xs"
           >
             운동 더 하기
           </button>

@@ -47,7 +47,7 @@ export function AutoNote({ auto }: { auto: AutoRecord }) {
       {auto.painSuspected && (
         <p className="rounded-lg border border-warn-line bg-warn-bg px-3 py-2 text-xs leading-relaxed text-warn">
           메모에 통증 같은 말이 있어요.{' '}
-          <OpenCheckinButton className="font-semibold underline">
+          <OpenCheckinButton className="font-semibold text-sky-strong">
             통증이면 체크인 고치기
           </OpenCheckinButton>
         </p>

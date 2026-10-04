@@ -81,7 +81,7 @@ export default async function TrainingDayPage({
           {date === todayKey && (
             <>
               <br />
-              <Link href="/training" className="font-semibold text-sky underline">
+              <Link href="/training" className="font-semibold text-sky-strong">
                 트레이닝
               </Link>
               에서 남길 수 있어요.

@@ -719,7 +719,7 @@ function Unsent({ count, onRetry }: { count: number; onRetry: () => void }) {
     <p className="rounded-xl border border-warn-line bg-warn-bg px-3.5 py-2.5 text-[13px] leading-relaxed break-keep text-warn">
       인터넷이 끊겨 체크 {count}개를 아직 못 남겼어요. 폰에 담아 뒀다가 신호가 돌아오면
       보내요.{' '}
-      <button type="button" onClick={onRetry} className="font-semibold underline">
+      <button type="button" onClick={onRetry} className="font-semibold text-sky-strong">
         다시 보내기
       </button>
     </p>
