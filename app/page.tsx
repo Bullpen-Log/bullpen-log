@@ -1,44 +1,47 @@
 import Link from 'next/link';
-import { BookOpen, ChartLine, Dumbbell, type LucideIcon } from 'lucide-react';
 import { ButtonLink } from '@/components/ui';
 import { SiteFooter } from '@/components/site-footer';
-import { BullpenMark, Wordmark } from '@/components/logo';
-import { Baseball } from '@/components/baseball-icon';
+import { Wordmark } from '@/components/logo';
 import { getCurrentUser } from '@/lib/dal';
 import { headers } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { isNativeUserAgent } from '@/lib/app-env';
 
 /**
- * 소개 — 처음 온 사람이 보는 첫 화면(아이폰 앱이 로그인 전에 여는 화면이기도 하다).
+ * 소개 — 처음 온 사람이 보는 첫 화면(웹만. 아이폰 앱은 곧장 홈 · 로그인으로 간다).
  *
- * 아이폰 앱의 환영 화면처럼 짰다(2026-10-01 사용자 '애플처럼 깔끔하고 감성있게'): 앱 아이콘 · 이름 · 한 줄,
- * 그 밑에 할 수 있는 것 넷을 아이콘과 한 줄씩, 맨 밑에 큰 [시작하기]. 예전에는 영어 머리글('For Pitchers') ·
- * 화면을 다 채우는 큰 글씨 · 번호 붙은 여섯 칸(01~06)이라, 읽을 것은 많고 무엇을 누를지는 늦게 보였다.
+ * 2026-10-04 'AI 티 줄이기'로 다시 짰다. 예전에는 빛나는 앱 아이콘 → 가운데 이름 → '투수를 위한 기록과 트레이닝,
+ * 한곳에서.' → 아이콘 + 제목 + 설명 네 줄 → 큰 단추였다. AI 가 만드는 소개 화면의 틀 그대로라, 무슨 앱인지보다
+ * '또 그 화면'이 먼저 보였다. 이제 하는 일을 말하는 제목, 앱 안 화면과 같은 모양의 예시 카드, 실제로 하는 일을 숫자로
+ * 쓴 세 줄. 아이콘과 빛 그라데이션은 뺐다.
  *
+ * 예시 카드의 숫자는 예시다(그렇게 적어 둔다). 모양은 홈 리포트의 '오늘 · 내일' 줄과 투구 기록 달력의 칸을 따른다.
  * 휴대폰에서는 단추가 화면 바닥에 붙어 있다 — 소개를 다 읽기 전에도 엄지 밑에 있다.
  */
-const FEATURES: { icon: LucideIcon; title: string; desc: string }[] = [
+const POINTS: { title: string; body: string }[] = [
   {
-    icon: Baseball,
-    title: '투구 기록 · 영상',
-    desc: '투구수 · 강도 · 구속과 그날 던진 영상을 날짜별로 남겨요.',
+    title: '어제 72구 던졌으면, 오늘은 35~50구',
+    body: '최근 7일과 28일 투구량을 견줘서 오늘과 내일 던질 양을 정해요.',
   },
   {
-    icon: Dumbbell,
-    title: '오늘에 맞춘 트레이닝',
-    desc: '체크인한 몸 상태와 던진 양을 보고 오늘 할 운동을 골라 줘요. 암케어도 화면을 보며 따라 해요.',
+    title: '어깨가 아프다고 남기면, 그 부위 운동은 빼요',
+    body: '아침에 남긴 몸 상태로 오늘 할 운동을 골라요. 암케어는 화면을 보며 따라 해요.',
   },
   {
-    icon: ChartLine,
-    title: '리포트',
-    desc: '최근 7일 · 30일 투구량과 구속을 보여 주고, 무리하게 던진 때를 알려 줘요.',
+    title: '던진 날 영상은 날짜별로, 두 개를 나란히',
+    body: '지난달 폼과 오늘 폼을 한 화면에서 견줘 봐요.',
   },
-  {
-    icon: BookOpen,
-    title: '메커니즘 · 자료실',
-    desc: '스로잉 · 메디신볼 드릴과 투구 역학 자료를 찾아봐요.',
-  },
+];
+
+/** 예시 카드의 이번 주 — 월요일부터, 0 은 안 던진 날 */
+const WEEK: { day: string; pitches: number }[] = [
+  { day: '월', pitches: 0 },
+  { day: '화', pitches: 45 },
+  { day: '수', pitches: 0 },
+  { day: '목', pitches: 72 },
+  { day: '금', pitches: 0 },
+  { day: '토', pitches: 0 },
+  { day: '일', pitches: 0 },
 ];
 
 export default async function LandingPage() {
@@ -52,45 +55,69 @@ export default async function LandingPage() {
   }
 
   return (
-    <main className="bg-spotlight flex min-h-[calc(100dvh-env(safe-area-inset-top)-env(safe-area-inset-bottom))] flex-col">
-      <div className="mx-auto w-full max-w-md flex-1 px-6 pt-16 pb-8 sm:pt-24">
-        {/* 앱 아이콘 — 홈 화면의 아이콘과 같은 B */}
-        <div className="motion-safe:animate-fade-in mx-auto grid h-20 w-20 place-items-center rounded-[22px] bg-surface shadow-[0_10px_30px_-12px_rgb(2_151_228/0.45)] ring-1 ring-line">
-          <BullpenMark className="h-11" />
-        </div>
+    <main className="flex min-h-[calc(100dvh-env(safe-area-inset-top)-env(safe-area-inset-bottom))] flex-col bg-page">
+      <div className="mx-auto w-full max-w-md flex-1 px-6 pt-10 pb-8 sm:pt-16">
+        <Wordmark className="text-2xl text-ink" />
 
-        <h1 className="mt-6 text-center">
-          <Wordmark className="text-5xl text-ink" />
+        <h1 className="mt-10 text-[28px] leading-snug font-bold break-keep text-ink">
+          던진 만큼 적으면,
+          <br />
+          오늘 할 일을 정해 줘요.
         </h1>
-        <p className="mt-3 text-center text-base leading-relaxed break-keep text-muted">
-          던진 공을 기록하고, 오늘 할 운동을 받아요.
+        <p className="mt-3 text-base leading-relaxed break-keep text-muted">
+          투수를 위한 훈련 일지예요. 투구수 · 강도 · 몸 상태를 남기면 던질 양과 운동을 골라 줘요.
         </p>
 
-        <ul className="mt-12 space-y-7">
-          {FEATURES.map(({ icon: Icon, title, desc }) => (
-            <li key={title} className="flex items-start gap-4">
-              <Icon
-                aria-hidden
-                className="mt-0.5 h-7 w-7 shrink-0 text-sky"
-                strokeWidth={1.9}
-              />
-              <div className="min-w-0">
-                <p className="text-[15px] font-semibold text-ink">{title}</p>
-                <p className="mt-0.5 text-sm leading-relaxed break-keep text-muted">
-                  {desc}
-                </p>
-              </div>
+        {/* 예시 카드 — 앱 안 화면과 같은 모양(홈 리포트의 오늘 · 내일 줄, 투구 기록 달력 칸) */}
+        <figure className="mt-8 rounded-2xl bg-surface p-4">
+          <div className="flex items-center justify-between">
+            <p className="text-sm font-bold text-ink">이번 주</p>
+            <p className="text-xs tabular-nums text-muted">117구</p>
+          </div>
+          <ol className="mt-3 grid grid-cols-7 gap-1.5 text-center">
+            {WEEK.map((d) => (
+              <li key={d.day} className="space-y-1">
+                <span className="block text-xs text-muted">{d.day}</span>
+                <span
+                  className={`flex h-10 items-center justify-center rounded-lg text-xs font-semibold tabular-nums ${
+                    d.pitches ? 'bg-sky/15 text-sky-strong' : 'bg-surface-2 text-muted/60'
+                  }`}
+                >
+                  {d.pitches || ''}
+                </span>
+              </li>
+            ))}
+          </ol>
+          <div className="mt-4 space-y-2">
+            <div className="flex items-center gap-3 rounded-xl bg-surface-2 px-4 py-3">
+              <span className="w-10 text-sm font-bold text-ink">오늘</span>
+              <span className="text-numeric text-xl leading-none text-sky tabular-nums">35~50구</span>
+              <span className="text-xs text-muted">강도 6~8</span>
+            </div>
+            <div className="flex items-center gap-3 rounded-xl bg-surface-2 px-4 py-3">
+              <span className="w-10 text-sm font-bold text-ink">내일</span>
+              <span className="text-sm font-medium text-sky-strong">휴식</span>
+              <span className="ml-auto text-xs text-muted">이틀 연속은 쉬어요</span>
+            </div>
+          </div>
+          <figcaption className="mt-3 text-xs text-muted/70">예시 화면이에요.</figcaption>
+        </figure>
+
+        <ul className="mt-8 divide-y divide-line">
+          {POINTS.map((p) => (
+            <li key={p.title} className="py-4 first:pt-0">
+              <p className="text-[15px] font-semibold break-keep text-ink">{p.title}</p>
+              <p className="mt-1 text-sm leading-relaxed break-keep text-muted">{p.body}</p>
             </li>
           ))}
         </ul>
       </div>
 
       {/*
-        단추 — 휴대폰은 화면 바닥에 붙는다(아이폰 환영 화면처럼). 밑은 홈 막대 자리만큼 비운다.
+        단추 — 휴대폰은 화면 바닥에 붙는다. 밑은 홈 막대 자리만큼 비운다.
         '계정 만들기'는 로그인 화면 안에 있다(로그인 화면은 미리 만들어 둔 화면이라 주소로 모드를 고르지 않는다).
       */}
-      {/* 아이폰 앱은 몸 전체가 이미 홈 막대 여백을 둔다(globals.css '아이폰 앱 안') — 두 번 비지 않게 앱에서는 1.25rem 만 */}
-      <div className="sticky bottom-0 bg-linear-to-t from-page via-page/95 to-page/0 pt-6 pb-[max(1.25rem,env(safe-area-inset-bottom))] in-data-[app=native]:pb-5 sm:static sm:bg-none">
+      <div className="sticky bottom-0 bg-linear-to-t from-page via-page/95 to-page/0 pt-6 pb-[max(1.25rem,env(safe-area-inset-bottom))] sm:static sm:bg-none">
         <div className="mx-auto flex w-full max-w-md flex-col items-stretch gap-1 px-6">
           {user ? (
             <ButtonLink href="/today" className="min-h-13 text-base">

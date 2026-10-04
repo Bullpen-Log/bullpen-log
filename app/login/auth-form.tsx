@@ -109,7 +109,7 @@ function AuthCard({
      * 단계마다 높이가 달라 로고 · 막대 · 단추가 매번 위아래로 튀었다. 이제 제목 묶음은 위에,
      * 단추 줄은 아래에 붙는다(칸 묶음이 남는 높이를 가진다).
      */
-    <section className="relative flex flex-col max-md:min-h-full max-md:flex-1 md:overflow-hidden md:rounded-[28px] md:border md:border-line md:bg-surface md:shadow-[0_1px_2px_rgb(15_23_42/0.04),0_18px_48px_-24px_rgb(15_23_42/0.18)]">
+    <section className="relative flex flex-col max-md:min-h-full max-md:flex-1 md:overflow-hidden md:rounded-[28px] md:border md:border-line md:bg-surface md:shadow-[0_1px_2px_rgb(15_23_42/0.04)]">
       {progress != null && (
         <div
           aria-hidden
