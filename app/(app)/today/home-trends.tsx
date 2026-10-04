@@ -3,13 +3,11 @@
 import {
   useEffect,
   useId,
-  useLayoutEffect,
   useMemo,
   useRef,
   useState,
   useSyncExternalStore,
   type PointerEvent,
-  type RefObject,
 } from 'react';
 import {
   ArrowDownRight,
@@ -26,6 +24,8 @@ import {
 } from 'lucide-react';
 import { Baseball } from '@/components/baseball-icon';
 import { haptic } from '@/lib/haptics';
+import { smoothPath } from '@/lib/smooth-path';
+import { useBoxSize } from '@/components/use-box-size';
 import { MiniCalendar } from '@/components/mini-calendar';
 import { Segmented } from '@/components/segmented';
 import { useSpeedUnit, useWeightUnit } from '@/components/use-units';
@@ -829,72 +829,6 @@ function lineDomain(min: number, max: number): Domain {
 function tickText(v: number) {
   const r = round1(v);
   return Number.isInteger(r) ? r.toLocaleString('ko-KR') : String(r);
-}
-
-/**
- * 점들을 잇는 부드러운 곡선(단조 3차) — 점과 점 사이에서 위아래로 넘치지 않는다.
- * 그냥 곡선으로 이으면 오르다 내리는 자리에서 실제로 없던 봉우리가 생긴다.
- */
-function smoothPath(p: [number, number][]) {
-  if (p.length === 0) return '';
-  const f = (n: number) => Math.round(n * 10) / 10;
-  if (p.length === 1) return `M${f(p[0][0])},${f(p[0][1])}`;
-  const n = p.length;
-  const m: number[] = [];
-  for (let i = 0; i < n - 1; i++) {
-    m.push((p[i + 1][1] - p[i][1]) / (p[i + 1][0] - p[i][0]));
-  }
-  const t: number[] = [m[0]];
-  for (let i = 1; i < n - 1; i++) {
-    t.push(m[i - 1] * m[i] <= 0 ? 0 : (m[i - 1] + m[i]) / 2);
-  }
-  t.push(m[n - 2]);
-  for (let i = 0; i < n - 1; i++) {
-    if (m[i] === 0) {
-      t[i] = 0;
-      t[i + 1] = 0;
-      continue;
-    }
-    const a = t[i] / m[i];
-    const b = t[i + 1] / m[i];
-    const s = a * a + b * b;
-    if (s > 9) {
-      const k = 3 / Math.sqrt(s);
-      t[i] = k * a * m[i];
-      t[i + 1] = k * b * m[i];
-    }
-  }
-  let d = `M${f(p[0][0])},${f(p[0][1])}`;
-  for (let i = 0; i < n - 1; i++) {
-    const h = (p[i + 1][0] - p[i][0]) / 3;
-    d += ` C${f(p[i][0] + h)},${f(p[i][1] + t[i] * h)} ${f(p[i + 1][0] - h)},${f(
-      p[i + 1][1] - t[i + 1] * h
-    )} ${f(p[i + 1][0])},${f(p[i + 1][1])}`;
-  }
-  return d;
-}
-
-/**
- * 그래프 칸의 실제 크기(px). 그래프를 화면 픽셀 그대로 그려야 점이 찌그러지지 않고 글자
- * 크기가 칸마다 같다. 처음 크기는 그리기 전에 바로 재고(칸이 비어 보이는 틈이 없다),
- * 그 뒤로는 칸이 달라질 때마다(창 크기, 옆 분석의 길이) 다시 잰다.
- */
-function useBoxSize(ref: RefObject<HTMLElement | null>) {
-  const [size, setSize] = useState<{ w: number; h: number } | null>(null);
-  useLayoutEffect(() => {
-    const el = ref.current;
-    if (!el) return;
-    const read = () => {
-      const w = el.clientWidth;
-      const h = el.clientHeight;
-      setSize((prev) => (prev && prev.w === w && prev.h === h ? prev : { w, h }));
-    };
-    read();
-    const observer = new ResizeObserver(read);
-    observer.observe(el);
-    return () => observer.disconnect();
-  }, [ref]);
-  return size;
 }
 
 function Chart({
