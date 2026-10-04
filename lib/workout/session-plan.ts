@@ -3,6 +3,7 @@ import { needsWeight } from '@/lib/exercise-meta';
 import { formatPrescription } from '@/lib/exercise-meta';
 import { goalPrescription } from '@/lib/report/goal-prescription';
 import { SLOT_ORDER, type SlotKey, type ThemeKey } from '@/lib/report/theme';
+import { orderSession } from '@/lib/report/exercise-order';
 
 /**
  * 세션을 시작할 때 찍어 두는 오늘 목록.
@@ -62,6 +63,8 @@ type SourceExercise = {
   category: string;
   bodyParts: string[];
   intensity: string;
+  /** 하는 차례를 정할 때 본다(lib/report/exercise-order.ts) — 없으면 보조 운동으로 친다 */
+  movementPattern?: string | null;
   equipment: string[];
   sets: number | null;
   reps: number | null;
@@ -104,7 +107,8 @@ export function freezeExercise(ex: SourceExercise, slot: SlotKey): FrozenExercis
  * 오늘 목록을 세션이 쓸 모양으로 찍는다.
  *
  * 구간 순서(SLOT_ORDER)로 다시 줄을 세운다. 직접 더한 운동은 배열 맨 뒤에
- * 붙기 때문에, 그대로 두면 암케어를 하고 나서 본운동을 하게 된다.
+ * 붙기 때문에, 그대로 두면 암케어를 하고 나서 본운동을 하게 된다. 구간 안은
+ * 하는 차례(lib/report/exercise-order.ts)로 — 트레이닝 화면 목록과 같다.
  */
 export function freezePlan(
   themeKey: ThemeKey,
@@ -114,13 +118,13 @@ export function freezePlan(
   /** 오늘 목표 — 세트 · 횟수를 목표에 맞춰 찍는다(트레이닝 화면 목록과 같은 값) */
   goal: string | null = null
 ): FrozenPlan {
-  const order = new Map(SLOT_ORDER.map((s, i) => [s, i]));
-
-  const exercises = picks
+  /* 구간 차례 다음 구간 안의 하는 차례 — 트레이닝 화면 목록과 같은 차례(lib/report/exercise-order.ts) */
+  const found = picks
     .map((p) => ({ slot: p.slot, ex: byId.get(p.exerciseId) }))
-    .filter((p): p is { slot: SlotKey; ex: SourceExercise } => p.ex != null)
-    .sort((a, b) => (order.get(a.slot) ?? 99) - (order.get(b.slot) ?? 99))
-    .map(({ slot, ex }) => freezeExercise(goalPrescription(ex, goal), slot));
+    .filter((p): p is { slot: SlotKey; ex: SourceExercise } => p.ex != null);
+  const exercises = orderSession(found, SLOT_ORDER).map(({ slot, ex }) =>
+    freezeExercise(goalPrescription(ex, goal), slot)
+  );
 
   return { themeKey, themeLabel, goal, exercises };
 }

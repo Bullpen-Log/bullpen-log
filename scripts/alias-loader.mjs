@@ -24,6 +24,17 @@ function isFile(p) {
 }
 
 export function resolve(specifier, context, next) {
+  /*
+   * 'server-only' 는 브라우저 묶음에 서버 코드가 섞이지 않게 막는 표시라, node 로 그냥 부르면 바로 던진다.
+   * 운동 시작 목록(lib/workout/session-plan.ts — 순수 계산뿐)을 시험하려고 그 파일에서만 빈 모듈로 바꾼다(2026-10-04).
+   * 모든 파일에 풀면 DB 에 쓰는 서버 코드(예: today-data.ts)까지 스크립트에서 불려 운영 DB 를 건드릴 수 있다.
+   */
+  if (
+    specifier === 'server-only' &&
+    context.parentURL?.endsWith('/lib/workout/session-plan.ts')
+  ) {
+    return { url: 'data:text/javascript,', shortCircuit: true };
+  }
   if (!specifier.startsWith('@/')) return next(specifier, context);
 
   const base = path.join(root, specifier.slice(2));

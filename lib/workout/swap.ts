@@ -56,9 +56,15 @@ export function similarExercises<T extends SwapSource>(
     if (ex.id === target.id || exclude.has(ex.id)) return [];
     if (ex.category !== target.category) return [];
 
-    const samePattern =
-      target.movementPattern != null && ex.movementPattern === target.movementPattern;
     const shared = ex.bodyParts.filter((p) => target.bodyParts.includes(p));
+    /*
+     * '고립'은 움직임이 아니라 '한 근육만'이라는 뜻이라, 같은 고립이어도 부위가 겹칠 때만 같은 계열로 친다 — 노르딕
+     * 햄스트링에 리버스 노르딕(넙다리 앞쪽)이, 컬에 삼두 익스텐션이 '같은 고립'으로 맨 앞에 오던 것(2026-10-04 검토).
+     */
+    const samePattern =
+      target.movementPattern != null &&
+      ex.movementPattern === target.movementPattern &&
+      (target.movementPattern !== '고립' || shared.length > 0);
     if (!samePattern && shared.length === 0) return [];
 
     const levelGap = intensityLevel(ex.intensity) - targetLevel;
