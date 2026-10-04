@@ -24,3 +24,10 @@ Claude 로 작업을 시작하면 저절로 읽힌다. 규칙은 `AGENTS.md` 6�
 - **첫인상**: 소개 화면(`app/page.tsx`)을 새로 짰다 — 구체적인 제목 · 앱 모양 예시 카드 · 숫자로 쓴 세 줄. 로그인 화면 빛 그라데이션 걷음.
 - **불펜로그다움 = 실밥 무늬**(사용자가 고름): `seam-corner`(EmptyState 귀퉁이) · `seam-hero`(소개 · 로그인) · `stitch-rule`(PC 쪽 머리 밑줄,
   실선 대신 바느질 땀 — 영양 머리도) — globals.css 의 `--seam` · `--stitch`(다크 · 네이비는 흰빛). 낮은 글 상자(`empty-well`)에는 안 깐다.
+
+## 금윤호에게 — 2026-10-04 · 김민(Claude) — 메커닉 프로그램 손질(74ac438 ~ 56bdd3f)
+
+받은 뒤 할 일 없음(DB · 패키지 그대로). 네 영역은 투구 기록 한 곳만 건드렸다.
+- **투구 기록 `/videos?compare=1`**(videos/page.tsx · videos-client.tsx `initialCompare`): 목록에서 비교할 둘을 고르는 자리로 바로 연다.
+  메커닉 프로그램이 세션 6번마다 '찍어서 2분할 비교로 견줘 보세요'에서 여기로 보낸다.
+- 메커닉 화면은 드릴 이름 앞의 P1~P5 를 떼고 보인다(`lib/mechanics/drills.ts` familyTitle) — 라이브러리 DB 이름은 그대로.
