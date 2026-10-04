@@ -12,6 +12,17 @@ const nextConfig: NextConfig = {
    *
    * 브라우저가 못 받아주면 애니메이션만 건너뛰고 화면은 그대로 바뀐다.
    */
+  /*
+   * 탭을 오갈 때 30초 안이면 서버에 다시 묻지 않고 받아 둔 화면을 보인다(2026-10-04 '앱 틀을 네이티브처럼').
+   *
+   * 기본값(0초)이면 하단 탭을 누를 때마다 서버를 다녀와 회색 뼈대가 번쩍이고 맨 위로 돌아갔다 — 앱의 탭은 곧바로
+   * 바뀐다. 30초면 '방금 본 탭으로 돌아가기'만 빨라지고 오래된 화면이 남지 않는다. 저장 · 체크는 서버 동작이
+   * revalidatePath 로 받아 둔 화면을 비우고, 자료만 새로 받는 곳은 quietRefresh(router.refresh)라 이 값과 상관없다.
+   * (node_modules/next/dist/docs/01-app/03-api-reference/05-config/01-next-config-js/staleTimes.md)
+   */
+  experimental: {
+    staleTimes: { dynamic: 30 },
+  },
   images: {
     remotePatterns: [
       // 유튜브 영상 썸네일

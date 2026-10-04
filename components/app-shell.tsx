@@ -7,13 +7,22 @@ import {
   useLayoutEffect,
   useRef,
   useState,
+  useSyncExternalStore,
   type CSSProperties,
   type PointerEvent as ReactPointerEvent,
   type RefObject,
 } from 'react';
 import { flushSync } from 'react-dom';
 import Link, { useLinkStatus } from 'next/link';
-import { X } from 'lucide-react';
+import { ChevronLeft, X } from 'lucide-react';
+import { goBack } from '@/components/back-link';
+import {
+  barSnapshot,
+  currentUrl,
+  sameScreen,
+  serverBarSnapshot,
+  subscribeBar,
+} from '@/lib/nav-state';
 import { NAV_ICONS } from '@/components/nav-icons';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { quietRefresh } from '@/lib/quiet-refresh';
@@ -1291,7 +1300,6 @@ export function AppNav({
               )
             : null
         }
-        onHome={() => setBellOpen(false)}
       />
 
       {/*
@@ -2207,7 +2215,6 @@ function MobileTopBar({
   headerRef,
   bell,
   panel,
-  onHome,
 }: {
   nickname: string;
   avatarUrl: string | null;
@@ -2221,29 +2228,32 @@ function MobileTopBar({
   bell: React.ReactNode;
   /** 알림 창. 닫혀 있으면 null */
   panel: React.ReactNode;
-  /** 로고를 눌러 홈으로 간다 — 알림 창을 닫는다(홈에 있으면 주소가 안 바뀌어 저절로 안 닫힌다) */
-  onHome: () => void;
 }) {
   const Cog = NAV_ICONS.settings;
+  const router = useRouter();
   /*
    * 톱니가 한 바퀴 돈다 — PC 막대의 톱니와 같다(SettingsCog).
    * 화면 폭이 바뀌었다고 같은 버튼이 다르게 대답하면 다른 버튼인 줄 안다.
    */
   const [spinning, setSpinning] = useState(false);
-  /* 알림 창 · 설정 · 내 정보를 열어 둔 동안은 숨지 않는다 — 알림 창은 이 막대에 붙어 있다 */
-  const hidden = useHideOnScroll(panel != null || settingsOpen || profileOpen);
   /*
    * 맨 위에서는 막대가 바탕과 같은 색이고 밑 선이 없다 — 아이폰의 큰 제목 화면처럼 막대와 제목이 한 면이다.
    * 굴리면 흰 막대와 가는 선이 나타나 본문과 갈린다(2026-10-01 사용자 '애플처럼').
    */
   const scrolled = useScrolledFromTop();
+  /*
+   * 이 화면의 제목 · '‹ 뒤로' — 화면의 큰 제목(PageHeading → components/nav-title.tsx)과 '‹ 뒤로'(components/back-link.tsx)가
+   * 적어 둔 것(lib/nav-state.ts). 큰 제목이 막대 밑으로 가려지면 가운데에 작은 제목이 나온다.
+   */
+  const bar = useSyncExternalStore(subscribeBar, barSnapshot, serverBarSnapshot);
+  const back = bar.back;
 
   return (
     <>
       {/*
         시계 · 배터리 자리를 막대 색으로 채운다 — 높이는 env(safe-area-inset-top)이라 아이폰 앱에서만
         생긴다(사파리 세로 화면은 0). 예전에는 이 자리가 비어 스크롤하면 그 틈으로 내용이 지나가
-        막대만 떠 있어 보였다(2026-09-30 사용자 "매우 부자연스럽다"). 막대가 숨을 때 이 밑으로 들어간다.
+        막대만 떠 있어 보였다(2026-09-30 사용자 "매우 부자연스럽다").
         data-safe-area — 이 틀이 시계 · 홈 막대 여백을 스스로 비운다는 표시(globals.css '아이폰 앱 안').
       */}
       <div
@@ -2257,68 +2267,88 @@ function MobileTopBar({
       <div aria-hidden className="h-[env(safe-area-inset-top)] shrink-0 desk:hidden" />
       <header
         /*
-         * 본문이 바뀌는 동안 상단 바는 움직이지 않는다.
+         * 아이폰 앱의 내비게이션 막대(2026-10-04 '앱 틀을 네이티브처럼') — 왼쪽 '‹ 뒤로', 가운데 화면 제목(큰 제목이 가려졌을
+         * 때만), 오른쪽 종 · 설정 · 내 정보. 늘 그 자리에 있다.
          *
-         * 뒤 흐림(backdrop-blur)은 뺐다. 바탕이 95% 불투명이라 흐림은 거의 안
-         * 보이는데, 아이폰 사파리는 그 위로 무언가 움직일 때마다 흐림을 매번 다시
-         * 계산하다 깜빡인다. 설정·내 정보 창이 바로 이 바에서 튀어나오므로 창을
-         * 열 때마다 바가 깜빡였다. (하단 탭도 그때 같은 이유로 뺐다가, 2026-10-01 앱스토어처럼 비치는
-         * 알약으로 바꾸며 흐림을 다시 넣었다 — MobileTabs. 깜빡이면 그쪽부터 본다.)
+         * 예전에는 왼쪽에 로고가 있는 웹사이트 머리였고, 스크롤을 내리면 막대가 통째로 위로 숨었다 — 화면 중간에서는 지금
+         * 어느 화면인지, 어디로 돌아가는지가 보이지 않았다(점검: "가장 웹사이트 같은 곳"). 로고는 뺐다 — 홈은 아래 탭에 있다.
          *
-         * 양옆 여백은 노치 자리와 견줘 큰 쪽 — 가로로 돌린 사파리에서 로고 · 단추가 노치 밑에 들어갔다(2026-10-03).
+         * 본문이 바뀌는 동안 막대는 움직이지 않는다(이름표 shell-topbar). 뒤 흐림(backdrop-blur)은 뺐다 — 바탕이 거의
+         * 불투명이라 흐림은 안 보이는데, 아이폰 사파리는 그 위로 무언가 움직일 때마다 흐림을 다시 계산하다 깜빡인다.
          *
-         * 스크롤을 내리면 위로 숨고 올리면 다시 나온다(useHideOnScroll) — 숨을 때는 시계 자리의
-         * 채움(z-45) 밑으로 들어간다. 움직임을 줄여 쓰는 사람에게는 미끄러지지 않고 곧바로 바뀐다.
+         * 양옆 여백은 노치 자리와 견줘 큰 쪽 — 가로로 돌린 사파리에서 단추가 노치 밑에 들어갔다(2026-10-03).
          */
         ref={headerRef}
+        data-mobile-topbar
         style={{ viewTransitionName: 'shell-topbar' }}
-        className={`sticky top-[env(safe-area-inset-top)] z-40 flex h-14 items-center gap-2 border-b pl-[max(1rem,env(safe-area-inset-left))] pr-[max(1rem,env(safe-area-inset-right))] transition-colors duration-200 motion-safe:transition-[transform,background-color,border-color] motion-safe:duration-200 motion-safe:ease-out desk:hidden ${
-          hidden ? '-translate-y-full' : 'translate-y-0'
-        } ${scrolled ? 'border-line bg-surface' : 'border-transparent bg-page'}`}
+        className={`sticky top-[env(safe-area-inset-top)] z-40 flex h-14 items-center gap-2 border-b pl-[max(0.5rem,env(safe-area-inset-left))] pr-[max(1rem,env(safe-area-inset-right))] transition-colors duration-200 desk:hidden ${
+          scrolled ? 'border-line bg-surface' : 'border-transparent bg-page'
+        }`}
       >
-        <Link href="/today" onClick={onHome} className="flex items-center gap-2">
-          <Wordmark className="text-2xl text-ink" />
-        </Link>
+        <div className="flex min-w-0 flex-1 items-center">
+          {back && (
+            <button
+              type="button"
+              onClick={() => goBack(router, back.href)}
+              className="inline-flex min-h-11 max-w-[34vw] items-center gap-0.5 text-base text-sky transition-opacity active:opacity-60"
+            >
+              <ChevronLeft aria-hidden className="h-6 w-6 shrink-0" strokeWidth={2.2} />
+              <span className="truncate">{back.label || '뒤로'}</span>
+            </button>
+          )}
+        </div>
+
+        {/* 가운데 제목 — 큰 제목이 막대 밑으로 가려졌을 때만(아이폰처럼). 화면 읽기 프로그램은 큰 제목을 읽는다 */}
+        <p
+          aria-hidden
+          className={`pointer-events-none absolute top-1/2 left-1/2 max-w-[44%] -translate-x-1/2 -translate-y-1/2 truncate text-base font-semibold text-ink transition-opacity duration-200 ${
+            bar.title && bar.collapsed ? 'opacity-100' : 'opacity-0'
+          }`}
+        >
+          {bar.title}
+        </p>
 
         {/* 종은 설정 왼쪽 — PC 막대와 같은 차례 */}
-        <div className="ml-auto">{bell}</div>
-        {/*
-          창은 종 바로 뒤에 둔다 — 키보드로 종을 열면 Tab 한 번에 창 안으로 들어간다.
-          맨 끝에 두면 톱니·사진을 먼저 거쳐야 했다. 자리는 막대에 붙여 잡는다(absolute).
-        */}
-        {panel}
+        <div className="flex shrink-0 items-center gap-2">
+          {bell}
+          {/*
+            창은 종 바로 뒤에 둔다 — 키보드로 종을 열면 Tab 한 번에 창 안으로 들어간다.
+            맨 끝에 두면 톱니·사진을 먼저 거쳐야 했다. 자리는 막대에 붙여 잡는다(absolute).
+          */}
+          {panel}
 
-        <button
-          type="button"
-          onClick={(e) => {
-            setSpinning(true);
-            onSettings(e.currentTarget);
-          }}
-          aria-haspopup="dialog"
-          aria-expanded={settingsOpen}
-          aria-label="설정"
-          /* 보이는 동그라미는 36px 그대로, 누르는 자리만 44px(before) — 종과 같은 방법(2026-10-03 아이폰 점검) */
-          className="relative flex h-9 w-9 items-center justify-center rounded-full text-muted transition-colors duration-75 before:absolute before:-inset-1 before:rounded-full active:bg-surface-2 active:text-ink"
-        >
-          <Cog
-            aria-hidden
-            className={spinning ? 'h-5 w-5 motion-safe:animate-cog' : 'h-5 w-5'}
-            strokeWidth={1.9}
-            onAnimationEnd={() => setSpinning(false)}
-          />
-        </button>
+          <button
+            type="button"
+            onClick={(e) => {
+              setSpinning(true);
+              onSettings(e.currentTarget);
+            }}
+            aria-haspopup="dialog"
+            aria-expanded={settingsOpen}
+            aria-label="설정"
+            /* 보이는 동그라미는 36px 그대로, 누르는 자리만 44px(before) — 종과 같은 방법(2026-10-03 아이폰 점검) */
+            className="relative flex h-9 w-9 items-center justify-center rounded-full text-muted transition-colors duration-75 before:absolute before:-inset-1 before:rounded-full active:bg-surface-2 active:text-ink"
+          >
+            <Cog
+              aria-hidden
+              className={spinning ? 'h-5 w-5 motion-safe:animate-cog' : 'h-5 w-5'}
+              strokeWidth={1.9}
+              onAnimationEnd={() => setSpinning(false)}
+            />
+          </button>
 
-        <button
-          type="button"
-          onClick={(e) => onProfile(e.currentTarget)}
-          aria-haspopup="dialog"
-          aria-expanded={profileOpen}
-          aria-label="내 정보"
-          /* 사진은 36px 그대로, 누르는 자리만 44px(before) */
-          className="relative rounded-full transition-opacity duration-75 before:absolute before:-inset-1 before:rounded-full active:opacity-70"
-        >
-          <Avatar nickname={nickname} avatarUrl={avatarUrl} />
-        </button>
+          <button
+            type="button"
+            onClick={(e) => onProfile(e.currentTarget)}
+            aria-haspopup="dialog"
+            aria-expanded={profileOpen}
+            aria-label="내 정보"
+            /* 사진은 36px 그대로, 누르는 자리만 44px(before) */
+            className="relative rounded-full transition-opacity duration-75 before:absolute before:-inset-1 before:rounded-full active:opacity-70"
+          >
+            <Avatar nickname={nickname} avatarUrl={avatarUrl} />
+          </button>
+        </div>
       </header>
     </>
   );
@@ -2344,58 +2374,6 @@ function useScrolledFromTop() {
     };
   }, []);
   return scrolled;
-}
-
-/**
- * 스크롤을 내리면 위 막대를 숨기고, 올리면 다시 보인다 — 인스타그램 · 사파리처럼(2026-09-30 사용자).
- *
- * 맨 위 근처(막대 높이 56px 안)에서는 늘 보인다. 손가락이 조금 떨려 오르내리는 것(6px 밑)은
- * 무시한다. 한 화면에 한 번씩만 계산한다(requestAnimationFrame).
- *
- * 잠겨 있으면(창을 열어 둔 동안) 늘 보인다. 창은 막대의 단추로만 열리므로 열 때는 이미 보이는
- * 중이고, 잠긴 동안은 스크롤을 따라가지 않아 닫은 뒤에도 그대로 보인다.
- */
-function useHideOnScroll(locked: boolean) {
-  const [hidden, setHidden] = useState(false);
-  /* 다른 화면으로 가면 다시 보인다 — 새 화면이 굴린 자리(56~80px)를 그대로 받으면 스크롤이 안 일어나
-     숨은 채 남고 첫 줄이 잘렸다 */
-  const pathname = usePathname();
-  const [shownFor, setShownFor] = useState(pathname);
-  if (shownFor !== pathname) {
-    setShownFor(pathname);
-    setHidden(false);
-  }
-
-  useEffect(() => {
-    if (locked) return;
-    let last = window.scrollY;
-    let frame = 0;
-    const onScroll = () => {
-      if (frame) return;
-      frame = requestAnimationFrame(() => {
-        frame = 0;
-        /* 끝에서 튕겼다 돌아오는 것(사파리 고무줄)을 올림으로 읽지 않게 굴릴 수 있는 범위로 자른다 */
-        const max = document.documentElement.scrollHeight - window.innerHeight;
-        const y = Math.min(Math.max(window.scrollY, 0), Math.max(max, 0));
-        if (y < 56) {
-          setHidden(false);
-          last = y;
-          return;
-        }
-        const dy = y - last;
-        if (Math.abs(dy) < 6) return;
-        setHidden(dy > 0);
-        last = y;
-      });
-    };
-    window.addEventListener('scroll', onScroll, { passive: true });
-    return () => {
-      window.removeEventListener('scroll', onScroll);
-      cancelAnimationFrame(frame);
-    };
-  }, [locked]);
-
-  return hidden && !locked;
 }
 
 /**
@@ -2512,6 +2490,16 @@ function MobileTabs({
             <Link
               key={tab.href}
               href={tab.href}
+              /*
+               * 지금 탭을 한 번 더 누르면 — 그 탭의 첫 화면이면 맨 위로 올라가고, 하위 화면이면 첫 화면으로 간다(아이폰 탭
+               * 바처럼, 2026-10-04). 예전에는 아무 일도 없었다.
+               */
+              onClick={(e) => {
+                if (!active || !sameScreen(currentUrl(), tab.href)) return;
+                e.preventDefault();
+                const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+                window.scrollTo({ top: 0, behavior: reduce ? 'auto' : 'smooth' });
+              }}
               /*
                * 휴대폰에서 가장 많이 눌리는 자리다. 눌렀을 때 살짝 작아지고
                * 색이 바뀌게 해서, 화면이 바뀌기 전에 먼저 대답하게 한다.
