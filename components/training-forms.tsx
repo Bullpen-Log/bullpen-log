@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useFormStatus } from 'react-dom';
 import { RefreshCw, Sparkles } from 'lucide-react';
 import { CheckboxGroup, RadioGroup } from '@/components/choice-inputs';
@@ -487,6 +487,7 @@ export function TrainingSettingsForm({
    * 안내에 적어 둔다. 예전에는 이 상태로 다른 것과 한 폼에 묶여 있어서,
    * 경력만 고치고 저장해도 장비 열여섯 개가 통째로 저장됐다.
    */
+  const levelBox = useRef<HTMLDivElement>(null);
   const hasChosenEquipment = ownedEquipment.length > 0;
   const equipmentSelected = hasChosenEquipment
     ? ownedEquipment
@@ -494,16 +495,22 @@ export function TrainingSettingsForm({
 
   return (
     <div className="space-y-6">
-      <SafeForm action={saveTrainingSettings} className="space-y-5" doneToast="경력을 저장했어요">
+      {/*
+        경력은 고르면 바로 저장된다 — 아이폰 설정처럼(2026-10-04 '앱 느낌' 4단계). 예전에는 고른 뒤 밑의 '경력 저장'을 따로
+        눌러야 했고, 안 누르고 창을 닫으면 고른 것이 사라졌다. 저장되면 토스트로 알린다(SafeForm doneToast).
+      */}
+      <SafeForm action={saveTrainingSettings} doneToast="경력을 저장했어요">
         <input type="hidden" name="returnTo" value={returnTo} />
-        <RadioGroup
-          name="trainingLevel"
-          label="웨이트 트레이닝 경력"
-          hint="경력에 비해 이른 운동을 빼는 기준이에요. 안 고르면 아무것도 빼지 않아요."
-          options={TRAINING_LEVELS.map((l) => ({ name: l.name, desc: l.desc }))}
-          selected={trainingLevel}
-        />
-        <SubmitButton label="경력 저장" busy="저장 중…" />
+        <div ref={levelBox}>
+          <RadioGroup
+            name="trainingLevel"
+            label="웨이트 트레이닝 경력"
+            hint="경력에 비해 이른 운동을 빼는 기준이에요. 고르면 바로 저장돼요."
+            options={TRAINING_LEVELS.map((l) => ({ name: l.name, desc: l.desc }))}
+            selected={trainingLevel}
+            onChange={() => levelBox.current?.closest('form')?.requestSubmit()}
+          />
+        </div>
       </SafeForm>
 
       {/*
