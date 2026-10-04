@@ -2,8 +2,10 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Plus, Radar } from 'lucide-react';
+import { Columns2, Ellipsis, Plus, Radar } from 'lucide-react';
+import Link from 'next/link';
 import { ButtonLink, PageHeading } from '@/components/ui';
+import { Modal } from '@/components/modal';
 import { useTodayKey } from '@/components/use-today-key';
 import {
   PITCH_VIEW_OPTIONS,
@@ -97,6 +99,8 @@ export function VideosClient({
   const [preset, setPreset] = useState<{ a: string; b: string } | null>(null);
   /* 목록에서 비교할 둘을 고르는 중인가 */
   const [selecting, setSelecting] = useState(false);
+  /* 휴대폰 ⋯ 시트 — 2분할 비교 · 구속 측정 */
+  const [moreOpen, setMoreOpen] = useState(false);
 
   /** 비교 화면에서 고를 수 있는 영상 목록 */
   const clips = useMemo<ClipOption[]>(
@@ -140,26 +144,32 @@ export function VideosClient({
     );
   }
 
+  /* 견주기로 곧장 — 목록으로 넘어가 둘을 고르는 자리를 연다 */
+  const startCompare = () => {
+    setMoreOpen(false);
+    setView('list');
+    setSelecting(true);
+  };
+
   /* 보기 고르개 줄 — 세로가 낮은 PC 에서는 제목 줄 오른쪽으로 올라간다(아래) */
   const viewControls = (
     <>
       {/* 캘린더에서도 견주기로 곧장 — 목록으로 넘어가 둘을 고르는 자리를 연다 */}
+      {/* 휴대폰에서는 ⋯ 시트 안에(아래 moreSheet) — 머리가 네 줄로 쌓였다 */}
       {view === 'calendar' && clips.length >= 2 ? (
         <button
           type="button"
-          onClick={() => {
-            setView('list');
-            setSelecting(true);
-          }}
-          className="rounded-lg border border-sky bg-sky-tint px-3 py-1.5 text-xs font-semibold text-sky-strong transition-colors hover:bg-sky-tint/70"
+          onClick={startCompare}
+          className="hidden rounded-lg border border-sky bg-sky-tint px-3 py-1.5 text-xs font-semibold text-sky-strong transition-colors hover:bg-sky-tint/70 desk:block"
         >
           2분할 비교
         </button>
       ) : (
-        <span />
+        <span className="hidden desk:block" />
       )}
-      <div className="flex items-center gap-2">
+      <div className="flex w-full items-center gap-2 desk:w-auto">
         <PitchViewSwitch
+          className="w-full desk:w-auto"
           value={view}
           onChange={(next) => {
             /* 관리자 웹의 세 번째 칸은 보기가 아니라 관리자 화면으로 가는 길 */
@@ -180,7 +190,7 @@ export function VideosClient({
           <button
             type="button"
             onClick={() => router.push('/velocity')}
-            className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-sky bg-sky-tint px-3 text-xs font-semibold text-sky-strong transition-colors hover:bg-sky-tint/70"
+            className="hidden h-9 items-center gap-1.5 rounded-lg border border-sky bg-sky-tint px-3 text-xs font-semibold text-sky-strong transition-colors hover:bg-sky-tint/70 desk:inline-flex"
           >
             <Radar aria-hidden className="h-4 w-4" />
             구속 측정
@@ -192,22 +202,88 @@ export function VideosClient({
 
   return (
     <div className="stack-page">
+      {/*
+        머리 — 휴대폰은 아이폰 큰 제목처럼 제목 오른쪽에 둥근 [⋯] [+] 둘, 그 밑에 꽉 찬 고르개 한 줄(2026-10-04 '앱 느낌'
+        4단계). 예전엔 제목 · 기록 남기기 · 2분할 비교 · 구속 측정 · 고르개가 네 줄로 쌓였다. PC 는 예전 그대로.
+      */}
       <PitchLogHeading
         controls={viewControls}
+        inlineAction
         action={
-          /* 기록을 남기는 곳은 날짜 화면이다 — 이 탭에서 곧장 오늘로 */
-          <ButtonLink
-            href={`/pitch-log/${todayKey}`}
-            transitionTypes={OPEN_POPUP_TYPES}
-            className="gap-1.5"
-          >
-            <LinkPending>
-              <Plus aria-hidden className="h-4 w-4" />
-            </LinkPending>
-            오늘 기록 남기기
-          </ButtonLink>
+          <>
+            {/* 기록을 남기는 곳은 날짜 화면이다 — 이 탭에서 곧장 오늘로(PC). 단추 기본 모양이 inline-flex 라 감싸서 숨긴다 */}
+            <span className="hidden desk:inline-flex">
+              <ButtonLink
+                href={`/pitch-log/${todayKey}`}
+                transitionTypes={OPEN_POPUP_TYPES}
+                className="gap-1.5"
+              >
+                <LinkPending>
+                  <Plus aria-hidden className="h-4 w-4" />
+                </LinkPending>
+                오늘 기록 남기기
+              </ButtonLink>
+            </span>
+            <div className="flex items-center gap-2 desk:hidden">
+              {(clips.length >= 2 || canMeasure) && (
+                <button
+                  type="button"
+                  onClick={() => setMoreOpen(true)}
+                  aria-label="더 보기 — 2분할 비교 · 구속 측정"
+                  className="flex h-11 w-11 items-center justify-center rounded-full bg-ink/6 text-ink transition-opacity active:opacity-60"
+                >
+                  <Ellipsis aria-hidden className="h-5 w-5" />
+                </button>
+              )}
+              <Link
+                href={`/pitch-log/${todayKey}`}
+                transitionTypes={OPEN_POPUP_TYPES}
+                aria-label="오늘 기록 남기기"
+                className="flex h-11 w-11 items-center justify-center rounded-full bg-sky text-white transition-opacity active:opacity-60"
+              >
+                <LinkPending className="h-5 w-5">
+                  <Plus aria-hidden className="h-5 w-5" strokeWidth={2.4} />
+                </LinkPending>
+              </Link>
+            </div>
+          </>
         }
       />
+
+      {/* 휴대폰 ⋯ — 아이폰 동작 시트처럼 할 수 있는 것을 줄로 */}
+      <Modal open={moreOpen} onClose={() => setMoreOpen(false)} title="투구 기록">
+        <div className="divide-y divide-line overflow-hidden rounded-2xl bg-surface-2">
+          {clips.length >= 2 && (
+            <button
+              type="button"
+              onClick={startCompare}
+              className="flex min-h-12 w-full items-center gap-3 px-4 text-left text-sm text-ink active:bg-ink/6"
+            >
+              <Columns2 aria-hidden className="h-5 w-5 text-sky" />
+              <span className="flex-1">
+                2분할 비교
+                <span className="block text-xs text-muted">영상 두 개를 골라 나란히 봐요</span>
+              </span>
+            </button>
+          )}
+          {canMeasure && (
+            <button
+              type="button"
+              onClick={() => {
+                setMoreOpen(false);
+                router.push('/velocity');
+              }}
+              className="flex min-h-12 w-full items-center gap-3 px-4 py-2 text-left text-sm text-ink active:bg-ink/6"
+            >
+              <Radar aria-hidden className="h-5 w-5 text-sky" />
+              <span className="flex-1">
+                구속 측정
+                <span className="block text-xs text-muted">폰 카메라로 공 빠르기를 재요</span>
+              </span>
+            </button>
+          )}
+        </div>
+      </Modal>
 
       {/* 두 방식을 오갈 때 살짝 떠오르며 바뀐다 */}
       <div key={view} className="motion-safe:animate-fade-in">

@@ -7,6 +7,7 @@ import { usePlaybackUrls } from '@/components/use-playback-urls';
 import { FilmingGuide } from '@/components/filming-guide';
 import { IntensityGuide } from '@/components/intensity-guide';
 import { makePitchThumb } from '@/lib/pitch-thumbs';
+import { dateKeyLabel } from '@/lib/pitch-stats';
 import { DEFAULT_SESSION_TYPE, SESSION_TYPES, isRestSession } from '@/lib/session-type';
 import {
   fromSpeed,
@@ -475,13 +476,14 @@ export function EntryForm({
               ? '영상 올리는 중… 끝나면 저장할 수 있어요'
               : editing
                 ? '수정 저장'
-                : `${date} 기록 저장`}
+                : /* '2026-10-04 기록 저장' 은 웹 표기 같았다 — '10월 4일 기록 저장'(2026-10-04 '앱 느낌') */
+                  `${dateKeyLabel(date)} 기록 저장`}
         </Button>
         {editing && onCancel && (
           <button
             type="button"
             onClick={onCancel}
-            className="text-sm text-muted transition-colors hover:text-ink"
+            className="min-h-11 w-full rounded-full bg-ink/6 px-5 text-sm font-medium text-ink transition-colors active:bg-ink/10 sm:w-auto desk:min-h-0 desk:bg-transparent desk:px-0 desk:font-normal desk:text-muted desk:hover:text-ink"
           >
             취소
           </button>
