@@ -224,11 +224,21 @@ const DOSES: Record<string, Record<DrillStage, Dose>> = {
   [THROWING]: { 기초: TREAD_DOSE, 연결: TREAD_DOSE, 통합: TREAD_DOSE },
 };
 
-/** 단계마다 어떻게 할지 — 따라 하기의 처방 밑 한 줄([T7] 의 세 걸음) */
+/** 단계마다 어떻게 할지 — 따라 하기의 처방 밑 한 줄. 스로잉은 [T7] 의 세 걸음 */
 export const STAGE_TEMPO: Record<DrillStage, string> = {
   기초: '처음 몇 번은 느린 동작으로 감을 잡고, 50~60% 힘으로 해요',
   연결: '60~70% 힘으로, 느리게 몇 번 한 뒤 속도를 올려요',
   통합: '60~75% 힘으로, 전체 동작에서도 같은 타이밍을 지켜요',
+};
+
+/**
+ * 스로잉이 아닌 드릴의 한 줄 — 메디신볼은 트레드가 일 년 내내 넣고 거리 · 속도로 힘을 보는 운동이라 몸에 익으면 빠르게,
+ * 무브먼트는 [T7] 처럼 느린 동작으로 감을 잡은 뒤 속도를 올린다. 드릴 자세 설명의 '세기'와 같은 말이다
+ * (scripts/mechanics-descriptions-2026-10-04.mts).
+ */
+const CATEGORY_TEMPO: Record<string, string> = {
+  [MEDBALL]: '처음 몇 번은 동작을 익히고, 몸에 익으면 빠르게 던져요',
+  [MOVEMENT]: '처음에는 천천히 정확하게, 익숙해지면 속도를 올려요',
 };
 
 /** 이만큼 세션마다 영상을 찍어 처음과 견주게 한다(2분할 비교) */
@@ -350,7 +360,7 @@ export const doseText = (d: Dose) => `${d.sets}세트 × ${d.reps}회`;
 /** 세션 한 줄의 처방 칸 — dose · sets · tempo */
 export function doseFields(category: string, stage: DrillStage) {
   const d = doseOf(category, stage);
-  return { dose: doseText(d), sets: d.sets, tempo: STAGE_TEMPO[stage] };
+  return { dose: doseText(d), sets: d.sets, tempo: CATEGORY_TEMPO[category] ?? STAGE_TEMPO[stage] };
 }
 
 type Pick = {
