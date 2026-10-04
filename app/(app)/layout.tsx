@@ -1,4 +1,3 @@
-import { ViewTransition } from 'react';
 import { headers } from 'next/headers';
 import { requireUser } from '@/lib/dal';
 import { isNativeUserAgent } from '@/lib/app-env';
@@ -20,7 +19,7 @@ import {
 } from '@/lib/checkin';
 import { visibleExercises } from '@/lib/library-cache';
 import { availableParts } from '@/lib/report/today-pick';
-import { OPEN_POPUP, QUIET_REFRESH } from '@/lib/transition-types';
+import { MainTransition } from '@/components/nav-motion';
 import { SiteFooter } from '@/components/site-footer';
 import { PullToRefresh } from '@/components/pull-to-refresh';
 
@@ -217,38 +216,10 @@ export default async function AppLayout({
         {/* 양옆은 노치 자리와 견줘 큰 쪽 — 가로로 돌린 사파리에서 글이 노치 밑에 들어갔다(2026-10-03). 세로 · PC 는 그 값이 0 이라 예전 여백 그대로 */}
         <main data-ptr-target className="mx-auto w-full max-w-5xl flex-1 py-6 pb-10 pl-[max(calc(var(--spacing)*4),env(safe-area-inset-left))] pr-[max(calc(var(--spacing)*4),env(safe-area-inset-right))] sm:pl-[max(calc(var(--spacing)*6),env(safe-area-inset-left))] sm:pr-[max(calc(var(--spacing)*6),env(safe-area-inset-right))] sm:pt-6 xl:max-w-6xl 2xl:max-w-7xl desk:pt-(--page-top) desk:pb-12">
           {/*
-           * 탭을 옮길 때 본문만 부드럽게 바뀐다.
-           *
-           * 방향을 주는 슬라이드(왼쪽으로 밀기 등)는 일부러 쓰지 않았다. 하단
-           * 탭은 여섯 칸이 나란해서 어디로 가든 '옆으로 간다'는 느낌이라
-           * 앞/뒤를 나눌 기준이 없고, 기준을 억지로 만들면 탭 순서를 바꿀 때마다
-           * 애니메이션 방향이 같이 틀어진다. 같은 자리에서 내용만 갈리는
-           * 크로스페이드가 이 화면 구조에 맞는다.
-           *
-           * 셸(사이드바·상단바·탭바)은 components/app-shell.tsx 에서 각자
-           * 이름표를 달아 이 전환에서 빠진다. 그래야 내용만 바뀌고 틀은 가만히
-           * 있는 것으로 읽힌다.
-           *
-           * default="none" 을 주면 안 된다. 관계없는 전환에서 빠지라는 뜻인데,
-           * 탭 이동에는 따로 붙인 표시(transitionTypes)가 없어서 이 이동까지
-           * '관계없는 것'으로 걸러진다. 실제로 그렇게 두었더니 리액트가
-           * startViewTransition 을 아예 부르지 않아 아무 일도 일어나지 않았다.
-           * 세어 보니 default 를 뺀 쪽만 한 번 불렸다.
-           *
-           * 거꾸로 자료만 새로 받는 전환(router.refresh)에는 표시를 붙여 여기서 뺀다
-           * (update 의 QUIET_REFRESH → none, lib/quiet-refresh.ts). 같은 화면에서 새로
-           * 받을 뿐인데 본문 전체가 페이드해, 알림(종)을 누를 때마다 깜빡였다. 표시가
-           * 없는 전환(탭 이동)은 default 로 예전처럼 페이드한다.
+           * 탭을 옮길 때 본문만 바뀐다. 틀(사이드바 · 상단바 · 탭바)은 components/app-shell.tsx 에서 각자 이름표를 달아
+           * 이 전환에서 빠진다 — 내용만 바뀌고 틀은 가만히 있는 것으로 읽힌다. 언제 · 어떻게 움직이는지는 MainTransition.
            */}
-          <ViewTransition
-            name="app-main"
-            share="page"
-            enter="page"
-            exit="page"
-            update={{ [QUIET_REFRESH]: 'none', [OPEN_POPUP]: 'none', default: 'auto' }}
-          >
-            {children}
-          </ViewTransition>
+          <MainTransition>{children}</MainTransition>
         </main>
 
         <SiteFooter tabBar />

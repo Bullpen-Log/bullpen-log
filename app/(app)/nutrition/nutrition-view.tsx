@@ -688,6 +688,7 @@ function DateNav({
         <Link
           href={hrefOf(prev, today)}
           scroll={false}
+          data-nav="none"
           aria-label="전날"
           className={arrow}
         >
@@ -744,6 +745,7 @@ function DateNav({
         <Link
           href={hrefOf(next, today)}
           scroll={false}
+          data-nav="none"
           aria-label="다음날"
           className={arrow}
         >
@@ -758,6 +760,7 @@ function DateNav({
         <Link
           href="/nutrition"
           scroll={false}
+          data-nav="none"
           className="ml-1 rounded-lg px-2 py-1 text-xs font-medium text-sky transition-colors hover:bg-sky-tint"
         >
           오늘로
@@ -835,6 +838,7 @@ function WeekStrip({
         <Link
           href={hrefOf(prevWeek, today)}
           scroll={false}
+          data-nav="none"
           aria-label="한 주 전"
           className={edge}
         >
@@ -897,6 +901,7 @@ function WeekStrip({
                 <Link
                   href={hrefOf(d.date, today)}
                   scroll={false}
+                  data-nav="none"
                   aria-current={selected ? 'date' : undefined}
                   aria-label={`${dayTitle(d.date)}, ${
                     d.kcal > 0 ? `${kcalText(d.kcal)}kcal 먹음` : '기록 없음'
@@ -921,6 +926,7 @@ function WeekStrip({
         <Link
           href={hrefOf(nextWeek, today)}
           scroll={false}
+          data-nav="none"
           aria-label={nextWeek === today ? '오늘로' : '한 주 뒤'}
           className={edge}
         >

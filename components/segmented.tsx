@@ -223,6 +223,7 @@ export function Segmented<V extends string>({
               aria-current={selected ? 'page' : undefined}
               title={option.hint}
               data-thumb-key={option.value}
+              data-nav="fade"
               onClick={(e) => follow(e, option.value)}
               className={cls}
             >
