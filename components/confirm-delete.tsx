@@ -2,6 +2,7 @@
 
 import { useRef, useState, type ReactNode } from 'react';
 import { Modal } from '@/components/modal';
+import { haptic } from '@/lib/haptics';
 
 /**
  * 지우기 전에 한 번 묻는 창.
@@ -61,7 +62,11 @@ export function ConfirmDialog({
           </button>
           <button
             type="button"
-            onClick={onConfirm}
+            onClick={() => {
+              /* 무게 있는 것을 확정했다는 '툭'(아이폰 앱처럼, lib/haptics.ts) */
+              haptic('medium');
+              onConfirm();
+            }}
             disabled={pending}
             className="min-h-12 w-full rounded-full bg-danger-bg px-4 py-2.5 text-base font-semibold text-danger transition-colors active:opacity-70 disabled:opacity-50 desk:min-h-0 desk:w-auto desk:rounded-xl desk:border desk:border-danger-line desk:text-sm desk:hover:bg-danger-bg/70"
           >

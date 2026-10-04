@@ -2,13 +2,14 @@
 
 import Link from 'next/link';
 
-import { useActionState, useState, useSyncExternalStore } from 'react';
+import { useActionState, useEffect, useState, useSyncExternalStore } from 'react';
 import { useFormStatus } from 'react-dom';
 import { CalendarDays } from 'lucide-react';
 import { MiniCalendar } from '@/components/mini-calendar';
 import { updateProfile, type ProfileState } from '@/app/actions/profile';
 import { guardFormAction } from '@/lib/action-offline';
 import { Button, Field, FormError, Input } from '@/components/ui';
+import { toast } from '@/components/toast';
 import { kept } from '@/lib/form-values';
 import {
   fromLength,
@@ -326,6 +327,13 @@ export function ProfileForm({
     guardFormAction(updateProfile),
     undefined
   );
+  /*
+   * 저장되면 잠깐 뜨는 한 줄로 알린다(components/toast.tsx). 예전에는 폼 맨 위의 하늘색 상자였는데, 단추는 폼 맨 밑이라
+   * 상자가 화면 밖에 생겨 저장된 줄 몰랐다.
+   */
+  useEffect(() => {
+    if (state?.success) toast('저장했어요');
+  }, [state]);
 
   /*
    * 오류로 되돌아왔을 때 고치던 내용을 그대로 다시 보여준다.
@@ -340,12 +348,6 @@ export function ProfileForm({
   return (
     <form action={formAction} className="space-y-5">
       <FormError>{state?.error}</FormError>
-
-      {state?.success && (
-        <p className="rounded-lg border border-sky-soft/60 bg-sky/10 px-4 py-3 text-sm text-sky">
-          {state.success}
-        </p>
-      )}
 
       {/*
         네 칸을 두 줄로 눕힌다.

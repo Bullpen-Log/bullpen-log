@@ -40,9 +40,43 @@ export function ViewportVars() {
     apply();
     vv.addEventListener('resize', schedule);
     vv.addEventListener('scroll', schedule);
+
+    /*
+     * 자판이 떠 있는 동안 화면을 끌면 자판을 내린다 — 아이폰 앱만(2026-10-04 '앱 느낌' 3단계).
+     *
+     * 앱은 자판 위의 '⌃ ⌄ 완료' 막대를 숨긴다(mobile/ios/App/App/MainViewController.swift — 사파리 막대라 웹페이지
+     * 같았다). 그러면 숫자 자판에는 닫는 단추가 없어서, 아이폰 앱(메모 · 앱스토어 검색)처럼 끌면 내려가게 한다. 끈 곳이
+     * 창 안의 목록이든 화면이든 같다. 입력칸 · [data-keep-keyboard] 안에서 시작한 손가락(글자 고르기 · 칸 안 굴리기)은 뺀다.
+     */
+    const EDITABLE = 'input, textarea, select, [contenteditable="true"]';
+    let watching = false;
+    let x0 = 0;
+    let y0 = 0;
+    const onTouchStart = (e: TouchEvent) => {
+      watching = false;
+      if (root.dataset.app !== 'native' || !root.hasAttribute('data-keyboard')) return;
+      if ((e.target as Element | null)?.closest?.(`${EDITABLE}, [data-keep-keyboard]`)) return;
+      x0 = e.touches[0].clientX;
+      y0 = e.touches[0].clientY;
+      watching = true;
+    };
+    const onTouchMove = (e: TouchEvent) => {
+      if (!watching) return;
+      const dx = e.touches[0].clientX - x0;
+      const dy = e.touches[0].clientY - y0;
+      if (Math.abs(dy) < 24 || Math.abs(dy) < Math.abs(dx)) return;
+      watching = false;
+      const active = document.activeElement;
+      if (active instanceof HTMLElement && active.matches(EDITABLE)) active.blur();
+    };
+    document.addEventListener('touchstart', onTouchStart, { passive: true });
+    document.addEventListener('touchmove', onTouchMove, { passive: true });
+
     return () => {
       vv.removeEventListener('resize', schedule);
       vv.removeEventListener('scroll', schedule);
+      document.removeEventListener('touchstart', onTouchStart);
+      document.removeEventListener('touchmove', onTouchMove);
       if (raf) cancelAnimationFrame(raf);
     };
   }, []);

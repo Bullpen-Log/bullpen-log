@@ -3,6 +3,8 @@ import { Bebas_Neue } from 'next/font/google';
 import { THEME_INIT_SCRIPT } from '@/lib/theme';
 import { APP_INIT_SCRIPT } from '@/lib/native-app';
 import { PressFeedback } from '@/components/press-feedback';
+import { HapticFeedback } from '@/components/haptic-feedback';
+import { Toaster } from '@/components/toast';
 import { ViewportVars } from '@/components/viewport-vars';
 import { NavMotion } from '@/components/nav-motion';
 import { Suspense } from 'react';
@@ -107,6 +109,10 @@ export default function RootLayout({
         {children}
         {/* 손가락으로 누른 것을 옅게 — 아이폰 단추처럼(globals.css '손가락으로 눌렀을 때') */}
         <PressFeedback />
+        {/* 고르면 손에 '톡' — 고르개 · 스위치 · 칩(components/haptic-feedback.tsx) */}
+        <HapticFeedback />
+        {/* '저장했어요' 같은 잠깐 뜨는 알림 — 어디서든 toast('…')(components/toast.tsx) */}
+        <Toaster />
         {/* 자판 높이를 --kb · --vvh 로 — 아이폰은 자판이 올라와도 화면 높이가 그대로라 바닥 단추가 숨었다 */}
         <ViewportVars />
         {/* 화면 이동 방향(들어가기 · 뒤로) · 지나온 화면 — 앱처럼 밀려 들어오고 나간다(components/nav-motion.tsx) */}

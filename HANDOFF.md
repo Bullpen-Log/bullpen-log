@@ -25,6 +25,21 @@ Claude 로 작업을 시작하면 저절로 읽힌다. 규칙은 `AGENTS.md` 6�
   휴대폰 알약. (app) 안의 notFound() 는 새 `app/(app)/not-found.tsx` 가 앱 틀 안에서 받는다. 앱에서 `/`(소개)를 열면 홈 · 로그인으로 보낸다.
 - 자료실 글의 첨부는 주소 전체 대신 '원문 보기 + 사이트 이름' 줄.
 
+## 금윤호에게 — 2026-10-04 · 김민(Claude) — 손맛(3단계): 떨림 · 토스트 · 스위치 · 당겨서 새로고침 · 자판 막대
+
+받은 뒤 할 일 없음(DB · 패키지 그대로). 새 화면을 만들 때 쓰면 되는 공용 부품이 생겼다.
+
+- **떨림은 저절로**(`components/haptic-feedback.tsx`, 뿌리 layout): 체크 상자 · 라디오 · select 의 change, role radio/tab/switch 단추를
+  누르면 가벼운 '톡'. 따로 달 필요 없다 — 빼려면 `data-haptic="none"`. 뜻으로 부를 때는 `haptic('success' | 'medium' …)`(`lib/haptics.ts`,
+  `buzz` 는 그대로). 지우기 확정(ConfirmDialog)은 'medium'.
+- **토스트** `toast('저장했어요')`(`components/toast.tsx`, 뿌리 layout 에 `<Toaster />`): popover 라 창 위에도 뜬다. `SafeForm` 에
+  `doneToast` — redirect 로 끝나는 저장도 뜬다(설정의 경력 · 장비). 내 정보 · 사진 저장의 하늘색 상자는 토스트로 바꿨다.
+- **스위치** `Switch` · `SwitchRow`(`components/switch.tsx`): 영양 음식 창의 '내 음식에 저장' 체크 상자를 이것으로 바꿨다(food-sheet.tsx 한 곳).
+- **당겨서 새로고침**(`components/pull-to-refresh.tsx`, (app) layout · `<main data-ptr-target>`): 아이폰 앱에서만, /today · /videos ·
+  /training · /nutrition 맨 위에서. 조용한 새로고침(QUIET_REFRESH). 끼면 안 되는 칸은 `data-no-ptr`.
+- **자판**: 앱에서 자판 위 '⌃ ⌄ 완료' 막대를 숨기고(`MainViewController.swift` 의 `KeyboardAccessoryBar` — **앱을 새로 구워야** 들어간다),
+  자판이 떠 있을 때 화면을 끌면 자판이 내려간다(`components/viewport-vars.tsx`, 앱만). 입력칸 안에서 시작한 손가락은 그대로.
+
 ## 금윤호에게 — 2026-10-04 · 김민(Claude) — 앱 틀을 네이티브처럼: 위 막대 · 화면 이동 방향 · 진짜 뒤로 · 탭 · 글자 선택
 
 받은 뒤 할 일 없음(DB · 패키지 그대로). 사용자 요청 "웹사이트 같은 요소를 전부 완전한 앱 느낌으로" — 점검 뒤 1단계(앱 틀)다.

@@ -25,6 +25,9 @@ class MainViewController: CAPBridgeViewController {
         // 화면 왼쪽 끝을 밀어 뒤로 — 앱에는 브라우저의 뒤로 단추가 없어, 약관 같은 화면에서 돌아갈 길이 화면 속 단추뿐이었다
         // (2026-10-03 아이폰 점검). 사파리 · 다른 아이폰 앱과 같은 손동작이다
         webView?.allowsBackForwardNavigationGestures = true
+        // 자판 위 '⌃ ⌄ 완료' 막대를 숨긴다 — 사파리의 폼 막대라 앱 안에서 웹페이지 같았다(2026-10-04 '앱 느낌' 3단계).
+        // 자판은 화면을 끌면 내려간다(사이트 components/viewport-vars.tsx)
+        KeyboardAccessoryBar.hide()
     }
 
     override func viewDidLoad() {
@@ -52,6 +55,25 @@ class MainViewController: CAPBridgeViewController {
     /// 연출 판은 늘 밝다 — 앱 테마가 어두워 사이트가 흰 시계 글자를 청해도 판이 걷힐 때까지는 검은 글자
     override var preferredStatusBarStyle: UIStatusBarStyle {
         return introShowing ? .darkContent : super.preferredStatusBarStyle
+    }
+}
+
+/// 자판 위 막대(inputAccessoryView) 끄기 — 웹뷰의 글 칸(WKContentView)이 막대를 내주는 곳을 '없음'으로 바꾼다.
+///
+/// WebKit 이 이것을 끄는 설정을 따로 두지 않아, @capacitor/keyboard 의 hideFormAccessoryBar 와 같은 방법(메서드 갈아 끼우기)을
+/// 쓴다 — 패키지 하나를 더 들이지 않으려고 그 몇 줄만 옮겼다. 그 클래스가 없으면(웹킷이 이름을 바꾸면) 아무 일도 안 한다.
+enum KeyboardAccessoryBar {
+    private static var done = false
+
+    static func hide() {
+        guard !done else { return }
+        done = true
+        let selector = #selector(getter: UIResponder.inputAccessoryView)
+        let name = ["WK", "Content", "View"].joined()
+        guard let cls = NSClassFromString(name),
+              let method = class_getInstanceMethod(cls, selector) else { return }
+        let none: @convention(block) (AnyObject) -> UIView? = { _ in nil }
+        method_setImplementation(method, imp_implementationWithBlock(none))
     }
 }
 

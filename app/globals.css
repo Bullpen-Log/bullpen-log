@@ -2327,6 +2327,54 @@ html[data-gate-up] *::after {
  * 뿌리 레이아웃의 viewportFit 'cover'). 사파리에는 걸리지 않는다.
  */
 
+/*
+ * 당겨서 새로고침 — 탭 첫 화면 맨 위에서 당기면 본문이 따라 내려오고, 위 막대와 본문 사이 틈에 아이폰 돌개가 선다
+ * (components/pull-to-refresh.tsx, 2026-10-04 '앱 느낌' 3단계). 아이폰 앱만 — <html data-ptr> 가 붙은 동안만 움직인다.
+ *   pull        손가락을 따라 — 움직임 없이 그대로(--ptr-y)
+ *   refreshing  틈을 조금 남기고 돌개가 돈다
+ *   settle      틈이 닫히며 돌개가 옅어진다
+ * 돌개의 살은 당기는 만큼 하나씩 나타나고(--ptr-p 0~1), 돌 때는 끝으로 갈수록 옅어진 살이 한 칸씩 돈다.
+ */
+html[data-ptr] [data-ptr-target] {
+  translate: 0 var(--ptr-y, 0px);
+}
+html[data-ptr='refreshing'] [data-ptr-target],
+html[data-ptr='settle'] [data-ptr-target] {
+  transition: translate 320ms cubic-bezier(0.32, 0.72, 0, 1);
+}
+[data-ptr-spinner] {
+  top: calc(var(--ptr-top, 0px) + var(--ptr-y, 0px) / 2 - 14px);
+  translate: -50% 0;
+  opacity: 0;
+}
+html[data-ptr] [data-ptr-spinner] {
+  opacity: var(--ptr-p, 0);
+}
+html[data-ptr='refreshing'] [data-ptr-spinner] {
+  opacity: 1;
+}
+html[data-ptr='refreshing'] [data-ptr-spinner],
+html[data-ptr='settle'] [data-ptr-spinner] {
+  transition:
+    top 320ms cubic-bezier(0.32, 0.72, 0, 1),
+    opacity 200ms ease-out;
+}
+[data-ptr-spinner] line {
+  opacity: clamp(0, calc(var(--ptr-p, 0) * 8 - var(--i)), 1);
+}
+html[data-ptr='refreshing'] [data-ptr-spinner] line,
+html[data-ptr='settle'] [data-ptr-spinner] line {
+  opacity: calc(1 - var(--i) * 0.1);
+}
+html[data-ptr='refreshing'] [data-ptr-spinner] svg {
+  animation: ptr-spin 0.8s steps(8) infinite;
+}
+@keyframes ptr-spin {
+  to {
+    rotate: 360deg;
+  }
+}
+
 /* 화면 전체가 고무줄처럼 튕기지 않게 — 튕길 때 위아래 막대만 떠 있어 앱 같지 않았다(2026-09-30 사용자).
    사파리는 그대로 둔다(당겨서 새로고침이 이것을 쓴다). 창 안에서 굴러가는 칸은 제 설정 그대로다. */
 html[data-app='native'],
