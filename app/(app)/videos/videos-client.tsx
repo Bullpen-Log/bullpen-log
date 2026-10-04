@@ -59,6 +59,7 @@ export function VideosClient({
   velocityHref,
   measured,
   initialView,
+  initialCompare = false,
 }: {
   logs: VideoLog[];
   /** 날짜(YYYY-MM-DD)별로 고른 대표 영상. 안 고른 날은 없다. */
@@ -77,6 +78,8 @@ export function VideosClient({
   measured: Record<string, { n: number; max: number }>;
   /** 처음 보일 칸 — ?view=velocity 로 들어오면 구속 측정 */
   initialView: View;
+  /** 처음부터 비교할 둘을 고르는 자리로(?compare=1) — 영상이 둘 넘게 있을 때만 */
+  initialCompare?: boolean;
 }) {
   const router = useRouter();
   const todayKey = useTodayKey(today);
@@ -101,7 +104,9 @@ export function VideosClient({
   /* 목록에서 고른 둘. 비교 화면이 이 둘로 열린다. */
   const [preset, setPreset] = useState<{ a: string; b: string } | null>(null);
   /* 목록에서 비교할 둘을 고르는 중인가 */
-  const [selecting, setSelecting] = useState(false);
+  const [selecting, setSelecting] = useState(
+    () => initialCompare && logs.reduce((n, log) => n + log.videoPaths.length, 0) >= 2
+  );
 
   /** 비교 화면에서 고를 수 있는 영상 목록 */
   const clips = useMemo<ClipOption[]>(

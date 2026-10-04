@@ -17,6 +17,8 @@ import {
   buildSession,
   canUseVariant,
   doseOf,
+  FILM_EVERY,
+  filmPrompt,
   freshProgress,
   isMastered,
   readProgress,
@@ -357,6 +359,18 @@ ok(canUseVariant({ equipment: ['맨몸', '야구공'] }, new Set()), '맨몸 · 
 ok(!canUseVariant({ equipment: ['메디신볼'] }, new Set(['밴드'])), '없는 장비는 못 함');
 ok(canUseVariant({ equipment: ['메디신볼'] }, null), '장비를 안 고르면 다 됨');
 ok(canUseVariant({}, new Set()), '장비 칸이 없으면 맨몸');
+
+/* ── 영상으로 확인 ── 첫 세션 전 · 여섯 번째마다 */
+ok(filmPrompt(0) === 'baseline', '첫 세션 전에는 처음 모습 찍기');
+ok(
+  [1, 2, 3, 4, 5, 7, 11, 13].every((n) => filmPrompt(n) === null),
+  '그 밖에는 말하지 않음'
+);
+ok(
+  [FILM_EVERY, FILM_EVERY * 2, FILM_EVERY * 5].every((n) => filmPrompt(n) === 'compare'),
+  `${FILM_EVERY}번째마다 견주기`
+);
+ok(filmPrompt(-3) === 'baseline' && filmPrompt(6.4) === 'compare', '이상한 값도 받음');
 
 console.log(`\n${pass}개 통과, ${fail}개 실패`);
 if (fail > 0) process.exit(1);

@@ -91,7 +91,9 @@ export default async function VideosPage({
       velocityHref={velocityHref}
       measured={measured}
       /* ?view=list 는 구속 측정 관리자의 고르개에서 '목록'을 눌러 돌아올 때(pitch-log-heading.tsx) */
-      initialView={params.view === 'list' ? 'list' : 'calendar'}
+      initialView={params.view === 'list' || params.compare === '1' ? 'list' : 'calendar'}
+      /* ?compare=1 — 메커닉 프로그램의 '찍어서 견줘 보세요'에서 곧장 둘을 고르는 자리로 */
+      initialCompare={params.compare === '1'}
     />
   );
 }

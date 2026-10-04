@@ -3,15 +3,15 @@
 import { useState, useTransition } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Check, ChevronDown, Play, RotateCcw } from 'lucide-react';
-import { Button, Card } from '@/components/ui';
+import { Check, ChevronDown, Play, RotateCcw, Video } from 'lucide-react';
+import { Button, ButtonLink, Card } from '@/components/ui';
 import { ConfirmDialog } from '@/components/confirm-delete';
 import { ErrorLine } from '@/components/error-line';
 import { OFFLINE_MESSAGE, orOffline } from '@/lib/action-offline';
 import { quietRefresh } from '@/lib/quiet-refresh';
 import { DRILL_STAGE_NAMES } from '@/lib/exercise-meta';
 import { MECHANICS_ELEMENTS, type MechanicsElementName } from '@/lib/mechanics/elements';
-import { EASY_TO_ADVANCE, isMastered } from '@/lib/mechanics/program';
+import { EASY_TO_ADVANCE, FILM_EVERY, filmPrompt, isMastered } from '@/lib/mechanics/program';
 import type { MechanicsProgramView, SessionDrillView } from '@/lib/mechanics/load';
 import { resetMechanicsProgram, startMechanicsProgram } from '@/app/actions/mechanics';
 import { josa } from '@/lib/korean';
@@ -94,6 +94,8 @@ export function MechanicsProgram({
           일주일에 2~3번이 알맞아요.
         </p>
       </Card>
+
+      <FilmCard sessionsDone={program.sessionsDone} />
 
       <ProgressBoard program={program} />
 
@@ -290,6 +292,41 @@ function ProgramSettings({ focus }: { focus: MechanicsElementName | null }) {
         pending={pending}
         pendingLabel="되돌리는 중…"
       />
+    </Card>
+  );
+}
+
+/**
+ * 영상으로 확인 — 첫 세션 전에는 처음 모습을 찍어 두고, {FILM_EVERY}번째 세션마다 다시 찍어 2분할 비교로 견준다
+ * (lib/mechanics/program.ts filmPrompt). 그 밖의 때에는 아무것도 안 그린다.
+ */
+function FilmCard({ sessionsDone }: { sessionsDone: number }) {
+  const kind = filmPrompt(sessionsDone);
+  if (!kind) return null;
+  return (
+    <Card className="space-y-3">
+      <div className="flex items-start gap-3">
+        <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-sky-tint text-sky-strong">
+          <Video aria-hidden className="h-4 w-4" />
+        </span>
+        <div className="min-w-0 space-y-1">
+          <h3 className="text-base font-bold break-keep text-ink">
+            {kind === 'baseline' ? '시작 전에 한 번 찍어 두세요' : '찍어서 처음과 견줘 볼 때예요'}
+          </h3>
+          <p className="text-sm leading-relaxed break-keep text-muted">
+            {kind === 'baseline'
+              ? `옆에서 평소처럼 몇 개 던지는 모습을 찍어 투구 기록에 남겨요. 세션 ${FILM_EVERY}번 뒤에 그 영상과 나란히 견줘 봐요.`
+              : `세션 ${sessionsDone}번을 했어요. 같은 자리에서 다시 찍어 남기고, 처음 영상과 나란히 놓고 앞발이 닿는 장면을 멈춰 보세요.`}
+          </p>
+        </div>
+      </div>
+      <ButtonLink
+        variant="secondary"
+        href={kind === 'baseline' ? '/videos' : '/videos?compare=1'}
+        className="min-h-11 w-full rounded-full text-sm"
+      >
+        {kind === 'baseline' ? '투구 기록 열기' : '2분할 비교 열기'}
+      </ButtonLink>
     </Card>
   );
 }

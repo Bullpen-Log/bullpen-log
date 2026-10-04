@@ -1,3 +1,4 @@
+import { prisma } from '@/lib/prisma';
 import { favoriteDrillIds } from '@/lib/favorites';
 import { visibleGuides } from '@/lib/library-cache';
 import { createPlaybackUrls } from '@/lib/storage';
@@ -30,7 +31,12 @@ export async function MechanicsSection({
     return <MechanicsProgram program={program} session={session} doneToday={doneToday} />;
   }
 
-  const [guides, favorites] = await Promise.all([visibleGuides(), favoriteDrillIds(user.id)]);
+  const [guides, favorites, program] = await Promise.all([
+    visibleGuides(),
+    favoriteDrillIds(user.id),
+    /* 요소 카드의 '프로그램에서 강조' 단추가 지금 강조를 안다 */
+    prisma.mechanicsProgram.findUnique({ where: { userId: user.id }, select: { focus: true } }),
+  ]);
   const ownThumbs = await createPlaybackUrls(
     guides.filter((g) => !g.referenceVideoId && g.thumbPath).map((g) => g.thumbPath as string)
   );
@@ -41,6 +47,7 @@ export async function MechanicsSection({
       hand={user.throwingHand}
       isAdmin={user.role === 'ADMIN'}
       focus={focus}
+      program={program ? { focus: program.focus } : null}
     />
   );
 }

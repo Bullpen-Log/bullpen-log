@@ -10,7 +10,14 @@ import { useWakeLock } from '@/components/use-wake-lock';
 import { OFFLINE_MESSAGE, orOffline } from '@/lib/action-offline';
 import { DRILL_STAGES } from '@/lib/exercise-meta';
 import { mechanicsElement } from '@/lib/mechanics/elements';
-import { EASY_TO_ADVANCE, FEELS, doseOf, type DrillFeel, type DrillStage } from '@/lib/mechanics/program';
+import {
+  EASY_TO_ADVANCE,
+  FEELS,
+  doseOf,
+  filmPrompt,
+  type DrillFeel,
+  type DrillStage,
+} from '@/lib/mechanics/program';
 import type { PlayerVariant, SessionDrillView } from '@/lib/mechanics/load';
 import {
   finishMechanicsSession,
@@ -143,6 +150,7 @@ export function MechanicsPlayer({
         <FinishView
           leveled={leveled}
           struggling={struggling}
+          sessionNumber={sessionNumber}
           backHref={backHref}
           count={done.filter(Boolean).length}
         />
@@ -416,11 +424,14 @@ function Description({ guideId }: { guideId: string }) {
 function FinishView({
   leveled,
   struggling,
+  sessionNumber,
   backHref,
   count,
 }: {
   leveled: { element: string; stage: DrillStage }[];
   struggling: string[];
+  /** 방금 마친 세션이 몇 번째인가 — 여섯 번째마다 찍어서 견주라고 한다 */
+  sessionNumber: number;
   backHref: string;
   count: number;
 }) {
@@ -465,6 +476,21 @@ function FinishView({
         {struggling.map((element) => (
           <StepDownOffer key={element} element={element} />
         ))}
+
+        {filmPrompt(sessionNumber) === 'compare' && (
+          <div className="space-y-3 rounded-2xl bg-surface px-4 py-4">
+            <p className="text-base font-bold break-keep text-ink">세션 {sessionNumber}번 — 찍어서 견줘 볼 때예요</p>
+            <p className="text-sm break-keep text-muted">
+              같은 자리에서 다시 찍어 투구 기록에 남기고, 처음 영상과 2분할 비교로 나란히 놓아 보세요.
+            </p>
+            <Link
+              href="/videos?compare=1"
+              className="flex min-h-11 w-full items-center justify-center rounded-full bg-surface-2 text-sm font-semibold text-ink"
+            >
+              2분할 비교 열기
+            </Link>
+          </div>
+        )}
 
         <Link
           href={backHref}

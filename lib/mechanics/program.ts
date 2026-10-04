@@ -214,6 +214,20 @@ export const DOSE: Record<string, string> = {
   [THROWING]: '2세트 × 8회',
 };
 
+/** 이만큼 세션마다 영상을 찍어 처음과 견주게 한다(2분할 비교) */
+export const FILM_EVERY = 6;
+
+/**
+ * 영상으로 확인할 때인가 — 첫 세션 전에는 처음 모습을 찍어 두고(baseline), {FILM_EVERY}번째 세션을 마칠 때마다 다시 찍어
+ * 처음 영상과 나란히 견준다(compare). 느낌과 실제 동작은 자주 달라서, 드릴만 하고 확인하지 않으면 무엇이 바뀌었는지
+ * 모른다(2026-10-04 검토).
+ */
+export function filmPrompt(sessionsDone: number): 'baseline' | 'compare' | null {
+  const n = Math.max(0, Math.floor(sessionsDone));
+  if (n === 0) return 'baseline';
+  return n % FILM_EVERY === 0 ? 'compare' : null;
+}
+
 /** 투구의 세 묶음 — 하체(드리프트 · 드롭) · 가운데(상하체 분리 · 브레이크) · 상체(몸통 회전 · 스로잉) */
 const CHAIN: MechanicsElementName[][] = [
   ELEMENT_NAMES.slice(0, 2),
