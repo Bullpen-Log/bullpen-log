@@ -52,6 +52,7 @@ export default async function RunPage() {
         reps: true,
         holdSeconds: true,
         recordedAt: true,
+        rir: true,
       },
     }),
     /*
@@ -70,6 +71,8 @@ export default async function RunPage() {
     <SessionClient
       sessionId={session.id}
       themeLabel={plan.themeLabel}
+      /* 근력 · 파워 프로그램 날이면 그 일차 — 끝내기 창이 '다음 일차로 가려면'을 말한다 */
+      programDay={plan.program?.day ?? null}
       exercises={exercises}
       initialSets={saved}
       /*

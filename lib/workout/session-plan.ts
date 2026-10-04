@@ -4,6 +4,15 @@ import { formatPrescription } from '@/lib/exercise-meta';
 import { goalPrescription } from '@/lib/report/goal-prescription';
 import { SLOT_ORDER, type SlotKey, type ThemeKey } from '@/lib/report/theme';
 import { orderSession } from '@/lib/report/exercise-order';
+import {
+  prescriptionLine,
+  readSessionProgram,
+  type SessionProgramTag,
+  type SlotKind,
+  type SlotRx,
+  type VariantKey,
+  slotPrescription,
+} from '@/lib/program/program';
 
 /**
  * 세션을 시작할 때 찍어 두는 오늘 목록.
@@ -44,6 +53,25 @@ export type FrozenExercise = {
   bodyParts: string[];
   intensity: string;
   thumbPath: string | null;
+  /**
+   * 근력 · 파워 프로그램의 칸(lib/program/program.ts) — 프로그램 날에 얼린 운동과, 그날 [교체]로 바꿔 넣은 운동(U3)에만 있다.
+   * 일차 넘기기의 '처방 세트 절반' 셈과 '몇 개 더?' 물음이 이것을 본다. 프로그램이 아닌 날에는 없다(undefined).
+   */
+  programSlot?: FrozenProgramSlot | null;
+  /** 운동 시작 때 얼린 추천 무게(kg) — 세트 기록의 '추천 담기'와 '추천 vs 실제'에 쓴다. 숫자 없이 안내하는 날은 null */
+  suggestedKg?: number | null;
+};
+
+export type FrozenProgramSlot = {
+  slot: SlotKind;
+  variant: VariantKey;
+  /** 그 주 목표 여유(T). 파워 · 몸통은 null */
+  reserve: number | null;
+  light: boolean;
+  /** 고정 운동 대신 그날 대체한 운동인가 — 고정 운동의 무게 흐름에 넣지 않는다(§3) */
+  substitute?: boolean;
+  /** 그날 −10% · 세트 −1 조정(D19)을 했는가 — 다음 추천의 기준에서 뺀다(U1.4) */
+  adjusted?: boolean;
 };
 
 export type FrozenPlan = {
@@ -54,6 +82,11 @@ export type FrozenPlan = {
    * 2026-10-03 에 더했다. 그 앞에 찍은 판에는 없다(null) — 그때는 오늘 일정의 목표를 쓴다.
    */
   goal?: string | null;
+  /**
+   * 근력 · 파워 프로그램 날이면 그 일차(U2). 다시 열기 · 운동 중 바꾸기에서도 지켜야 일차를 한 번만 넘긴다.
+   * 프로그램이 아닌 날은 없다(null).
+   */
+  program?: SessionProgramTag | null;
   exercises: FrozenExercise[];
 };
 
@@ -134,10 +167,104 @@ export function readFrozenPlan(value: unknown): FrozenPlan | null {
   if (!value || typeof value !== 'object') return null;
   const v = value as Partial<FrozenPlan>;
   if (typeof v.themeKey !== 'string' || !Array.isArray(v.exercises)) return null;
+  const program = readSessionProgram(v.program);
   return {
     themeKey: v.themeKey as ThemeKey,
     themeLabel: typeof v.themeLabel === 'string' ? v.themeLabel : '오늘의 운동',
     goal: typeof v.goal === 'string' ? v.goal : null,
     exercises: v.exercises as FrozenExercise[],
+    /* 프로그램 날만 붙인다 — 프로그램이 아닌 판은 예전과 똑같은 모양으로 읽는다(회귀 시험 RG) */
+    ...(program ? { program } : {}),
   };
+}
+
+/**
+ * 프로그램 날의 운동 하나.
+ *
+ * 세트 · 횟수 · 휴식은 그 칸 · 그 주의 처방(lib/program/program.ts), 처방 줄은 '4세트 × 5회 · 2개 남기고'.
+ * 버티기(초)로 하는 운동은 처방 횟수 대신 그 운동의 시간을 그대로 쓰고 세트만 맞춘다.
+ * 시작할 때(app/actions/program.ts)와 운동 중 [교체](U3)가 같이 쓴다 — 둘이 따로 찍으면 바꾼 운동만 처방이 달라진다.
+ */
+export function freezeProgramExercise(
+  ex: SourceExercise,
+  rx: SlotRx,
+  opts: {
+    substitute?: boolean;
+    adjusted?: boolean;
+    suggestedKg: number | null;
+    /** 세트 수를 정해서 줄 때(운동 중 [교체]로 남은 세트만 이어 할 때) — 안 주면 처방 세트(조정이면 −1) */
+    sets?: number;
+  }
+): FrozenExercise {
+  const sets = opts.sets ?? (opts.adjusted ? Math.max(1, rx.sets - 1) : rx.sets);
+  const isHold = ex.holdSeconds != null && ex.reps == null;
+  const base = freezeExercise(
+    {
+      ...ex,
+      sets,
+      reps: isHold ? null : rx.reps,
+      restSeconds: rx.restSeconds,
+    },
+    rx.slot === 'core' ? 'core' : 'main'
+  );
+  return {
+    ...base,
+    /* 좌우 각각은 운동 화면이 따로 붙인다(perSide) — 여기 넣으면 두 번 나온다 */
+    prescription: isHold ? base.prescription : prescriptionLine({ ...rx, sets }),
+    programSlot: {
+      slot: rx.slot,
+      variant: rx.variant,
+      reserve: rx.reserve,
+      light: rx.light,
+      ...(opts.substitute ? { substitute: true } : {}),
+      ...(opts.adjusted ? { adjusted: true } : {}),
+    },
+    suggestedKg: opts.suggestedKg,
+  };
+}
+
+/**
+ * 다시 여는 판의 목록 — 그 판이 쓰던 목록을 지키고, 오늘 목록에 새로 들어온 운동만 뒤에 붙인다.
+ *
+ * 예전에는 오늘 일정으로 새로 찍어, 바꿔 넣은 운동(과 그 세트)이 목록에서 빠져 고치지도 지우지도 못했다
+ * ('오늘 목록에 없는 운동'). 쓰던 판의 program(프로그램 일차)도 그대로 남는다(U2 — 다시 열고 다시 마쳐도 일차는 한 번).
+ */
+export function mergeReopened(kept: FrozenPlan | null, plan: FrozenPlan): FrozenPlan {
+  if (!kept || kept.exercises.length === 0) return plan;
+  return {
+    ...kept,
+    exercises: [
+      ...kept.exercises,
+      ...plan.exercises.filter((e) => !kept.exercises.some((k) => k.id === e.id)),
+    ],
+  };
+}
+
+/**
+ * 운동 중 [교체]로 넣는 운동의 처방 — 프로그램 날의 프로그램 칸에서 바꾸면 그 칸 · 그 주의 처방을 이어받는다(U3).
+ * 세트를 남긴 뒤 바꾸면(서버가 '더하기'로 넣는다) 남은 세트만 이어 하고, 바뀐 운동의 처방 세트는 남긴 만큼으로 줄인다 —
+ * 그래야 '처방 세트 절반' 셈이 늘지 않는다(§13-17). 프로그램이 아닌 날 · 프로그램 칸이 아닌 운동은 null(지금 그대로).
+ */
+export function programSwapEntry(
+  plan: FrozenPlan,
+  from: FrozenExercise,
+  to: SourceExercise,
+  loggedFromSets: number,
+  suggestedKg: number | null
+): { entry: FrozenExercise; fromPlannedSets: number | null } | null {
+  if (!plan.program || !from.programSlot) return null;
+  const rx = slotPrescription(
+    from.programSlot.slot,
+    from.programSlot.variant,
+    plan.program.week
+  );
+  const planned = from.plannedSets ?? rx.sets;
+  const sets = loggedFromSets > 0 ? Math.max(1, planned - loggedFromSets) : planned;
+  const entry = freezeProgramExercise(to, rx, {
+    substitute: true,
+    adjusted: from.programSlot.adjusted,
+    suggestedKg,
+    sets,
+  });
+  return { entry, fromPlannedSets: loggedFromSets > 0 ? loggedFromSets : null };
 }

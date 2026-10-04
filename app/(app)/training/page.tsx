@@ -36,6 +36,21 @@ import { TrainingCheckin } from './training-checkin';
 import { OpenCheckinButton } from '@/components/notice-bell';
 import { availableParts } from '@/lib/report/today-pick';
 import { exercisesByIds } from '@/lib/library-cache';
+import { PROGRAMS_ENABLED } from '@/lib/program/program';
+import {
+  activeProgram,
+  buildProgramDay,
+  programCardProps,
+  programResult,
+  recentlyDoneProgram,
+} from '@/lib/program/load';
+import { ageFromBirthDate } from '@/lib/profile';
+import { TRAINING_LEVELS } from '@/lib/report/personalize';
+import { SELECTABLE_EQUIPMENT } from '@/lib/report/equipment';
+import { isSeasonPhase } from '@/lib/nutrition/diet-prefs';
+import { ProgramCard } from './program-card';
+import { ProgramDone } from './program-done';
+import { ProgramStart, type ProgramStartProps } from './program-start';
 import {
   TRAINING_HOME_HREF,
   TRAINING_PART_COOKIE,
@@ -230,6 +245,55 @@ export default async function TrainingPage({
       select: { id: true, status: true, plan: true, activeSeconds: true },
     }),
   ]);
+  /*
+   * 근력 · 파워 프로그램(lib/program) — 진행 중이면 맨 위 카드, 끝난 지 사흘 안이면 결과 카드, 아니면 입구 한 줄(설계 §13-1).
+   * 카드의 목록 · 무게는 운동 시작(app/actions/program.ts)이 얼리는 것과 같은 함수에서 나온다.
+   */
+  const programRow = PROGRAMS_ENABLED ? await activeProgram(user.id) : null;
+  const [programView, doneProgram, nutritionSeason] = await Promise.all([
+    programRow ? buildProgramDay(core, programRow, user) : Promise.resolve(null),
+    PROGRAMS_ENABLED && !programRow
+      ? recentlyDoneProgram(user.id, today)
+      : Promise.resolve(null),
+    PROGRAMS_ENABLED && !programRow
+      ? prisma.nutritionProfile.findUnique({
+          where: { userId: user.id },
+          select: { seasonPhase: true },
+        })
+      : Promise.resolve(null),
+  ]);
+  const programCard = programView ? programCardProps(programView, core.library) : null;
+  const doneResult = doneProgram
+    ? await programResult(doneProgram, core.library)
+    : null;
+  const programAge = user.birthDate ? ageFromBirthDate(user.birthDate, today) : null;
+  const programStart: ProgramStartProps | null =
+    PROGRAMS_ENABLED && !programRow
+      ? {
+          needBirth: user.birthDate == null,
+          level: user.trainingLevel,
+          levels: TRAINING_LEVELS.map((l) => ({ name: l.name, desc: l.desc })),
+          owned: user.ownedEquipment,
+          equipment: [...SELECTABLE_EQUIPMENT],
+          season:
+            nutritionSeason?.seasonPhase && isSeasonPhase(nutritionSeason.seasonPhase)
+              ? nutritionSeason.seasonPhase
+              : null,
+          blocked:
+            programAge != null && programAge < 18
+              ? {
+                  reason: '이 프로그램은 만 18세부터 해요.',
+                  action: '직접 고르기의 가벼운 운동으로 자세부터 익혀요.',
+                }
+              : user.trainingLevel === '입문'
+                ? {
+                    reason: '웨이트를 6개월 넘게 한 사람에게 맞춘 프로그램이에요.',
+                    action: '직접 고르기로 기본 동작을 먼저 익혀요.',
+                  }
+                : null,
+        }
+      : null;
+
   const resume = todaySession?.status === 'ACTIVE';
   const finished = todaySession?.status === 'FINISHED';
 
@@ -442,6 +506,9 @@ export default async function TrainingPage({
           returnTo={TRAINING_PART_HREF.today}
         />
 
+        {programCard && <ProgramCard props={programCard} />}
+        {doneResult && <ProgramDone result={doneResult} />}
+
         {/*
         운동 시작.
         목록이 있는 날에만 낸다 — 통증인 날과 아직 안 만든 날에는 시작할 것이
@@ -459,8 +526,13 @@ export default async function TrainingPage({
             canResume={!picked.halted && shownPicks.length > 0}
           />
         ) : (
-          !picked.halted && shownPicks.length > 0 && <StartWorkout resume={resume} />
+          !picked.halted &&
+          shownPicks.length > 0 &&
+          /* 프로그램 판이 열려 있으면 이어 하기는 프로그램 카드가 한다 */
+          programView?.todayState !== 'active' && <StartWorkout resume={resume} />
         )}
+
+        {programStart && <ProgramStart props={programStart} />}
 
         {/* 왜 오늘 이런 구성인지 — 고르는 건 코드, 설명은 AI가 한다 */}
         {/*

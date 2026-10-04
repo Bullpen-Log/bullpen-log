@@ -66,6 +66,13 @@ import {
   storedKg,
 } from '@/lib/exercise-meta';
 import type { RunExercise } from '@/lib/workout/run-exercises';
+import {
+  WEIGHTED_SLOTS,
+  finishLine,
+  setsNeeded,
+  warmupLine,
+} from '@/lib/program/program';
+import { UNIT_KG, roundForDisplay, weightKindOf } from '@/lib/program/next-weight';
 
 /**
  * 운동하는 동안의 화면.
@@ -335,10 +342,13 @@ export function SessionClient({
   initialSets,
   openedAt,
   priorSeconds,
+  programDay = null,
 }: {
   /** 이 판의 번호. 폰에 담아 두는 세트가 다른 판으로 새지 않게 붙여 둔다. */
   sessionId: string;
   themeLabel: string;
+  /** 근력 · 파워 프로그램 날이면 그 일차(없으면 null) — 끝내기 창의 '다음 일차로' 한 줄 */
+  programDay?: number | null;
   exercises: RunExercise[];
   initialSets: RunSet[];
   /** 이 판을 연 시각. 휴식 시계는 이 뒤에 남긴 세트만 센다. */
@@ -426,6 +436,10 @@ export function SessionClient({
    * 키보드 닫기로 먹히는 일이 있어서다.
    */
   const [pad, setPad] = useState(false);
+  /** 처방 마지막 세트 뒤 '몇 개 더?'를 묻는 중인 세트(설계 §13-7) — 아래 입력 자리가 물음 하나로 바뀐다 */
+  const [askRir, setAskRir] = useState<{ exerciseId: string; setNo: number } | null>(
+    null
+  );
   const [listError, setListError] = useState<string | null>(null);
   /*
    * 무게를 어떤 단위로 보여줄지. 저장은 언제나 kg 이다(lib/units.ts).
@@ -592,6 +606,29 @@ export function SessionClient({
     for (const s of sets) counts.set(s.exerciseId, (counts.get(s.exerciseId) ?? 0) + 1);
     return counts;
   }, [sets]);
+  /* 프로그램 날의 끝내기 한 줄 — 처방 세트 절반 · 아직 안 답한 '몇 개 더?'(설계 §13-9) */
+  const programFinish = useMemo(() => {
+    if (programDay == null) return null;
+    const slotted = list.filter((e) => e.programSlot);
+    const planned = slotted.reduce((n, e) => n + (e.plannedSets ?? 0), 0);
+    const logged = sets.filter((x) =>
+      slotted.some((e) => e.id === x.exerciseId)
+    ).length;
+    const unanswered = slotted
+      .filter(
+        (e) =>
+          asksReserve(e) &&
+          sets.some(
+            (x) => x.exerciseId === e.id && x.setNo === e.plannedSets && x.rir == null
+          )
+      )
+      .map((e) => e.title);
+    return {
+      line: finishLine(programDay, planned, logged),
+      reached: logged >= setsNeeded(planned),
+      unanswered,
+    };
+  }, [programDay, list, sets]);
   /* 오늘 이 운동에서 지난 최고를 넘은 세트 — 그 줄에 '새 최고'(lib/workout/bests.ts) */
   const record = useMemo(() => newRecord(ex, mine, ex.best), [ex, mine]);
 
@@ -878,6 +915,11 @@ export function SessionClient({
       recordedAt: fixing?.recordedAt ?? new Date().toISOString(),
     });
 
+    /* 프로그램 날, 무게 추천 칸의 처방 마지막 세트 — 아래 자리가 '몇 개 더?' 물음으로 바뀐다(설계 §13-7) */
+    if (!fixing && asksReserve(ex) && setNo === ex.plannedSets) {
+      setAskRir({ exerciseId: ex.id, setNo });
+    }
+
     if (fixing) {
       /* 고치기 전에 넣고 있던 값으로 돌아간다 */
       endEdit();
@@ -894,6 +936,41 @@ export function SessionClient({
     /* 남기고 나면 접는다 — 쉬는 동안에는 시계와 기록이 보여야 한다 */
     setPad(false);
     void flush();
+  };
+
+  /**
+   * '몇 개 더?' 답 — 그 세트를 같은 번호로 다시 담아 붙인다(신호가 없어도 폰에 남았다가 보내진다).
+   * 건너뛰면(null) 묻기만 닫는다. 안 답한 것은 끝내기 창이 모아 보인다.
+   */
+  const answerRir = (n: number | null) => {
+    const q = askRir;
+    setAskRir(null);
+    if (!q || n == null) return;
+    const target = sets.find(
+      (x) => x.exerciseId === q.exerciseId && x.setNo === q.setNo
+    );
+    if (!target) return;
+    buzz(12);
+    outbox.add({
+      sessionId,
+      exerciseId: target.exerciseId,
+      setNo: target.setNo,
+      weightKg: target.weightKg,
+      reps: target.reps,
+      holdSeconds: target.holdSeconds,
+      recordedAt: target.recordedAt,
+      rir: n,
+    });
+    void flush();
+  };
+
+  /** 프로그램 날 '추천 95kg 담기' — 무게만 채운다(횟수는 본인이). 칸을 미리 채우지는 않는다(맨 위 설명). */
+  const fillSuggested = () => {
+    if (ex.suggestedKg == null) return;
+    setWeight(
+      String(wUnit === 'lb' ? roundForDisplay(ex.suggestedKg, 'lb') : ex.suggestedKg)
+    );
+    setError(null);
   };
 
   const drop = (target: ShownSet) => {
@@ -946,7 +1023,13 @@ export function SessionClient({
        * 한 번에 움직이는 폭도 단위를 따른다. kg 은 2.5, lb 는 5 다 —
        * 원판이 그렇게 생겼다. lb 에서 2.5씩 올리면 있지도 않은 무게가 된다.
        */
-      const step = wUnit === 'lb' ? 5 : WEIGHT_STEP;
+      /* 프로그램 날의 덤벨 · 케틀벨은 한 손 2kg 씩 — 추천 무게와 같은 단위(설계 §13-20) */
+      const step =
+        wUnit === 'lb'
+          ? 5
+          : ex.programSlot && weightKindOf(ex.equipment) === 'dumbbell'
+            ? UNIT_KG.dumbbell
+            : WEIGHT_STEP;
       const next = Math.max(0, (Number(weight) || 0) + delta * step);
       setWeight(next === 0 ? '' : String(Number(next.toFixed(1))));
     } else {
@@ -1121,6 +1204,11 @@ export function SessionClient({
             {ex.perSide && ' (좌우 각각)'}
           </p>
         )}
+        {ex.programSlot?.slot === 'bigLower' &&
+          wUnit === 'kg' &&
+          warmupLine(ex.suggestedKg) && (
+            <p className="mt-0.5 text-xs text-muted">{warmupLine(ex.suggestedKg)}</p>
+          )}
         {ex.plannedSets != null && ex.plannedSets > 0 && (
           <SetDots planned={ex.plannedSets} done={mine.length} />
         )}
@@ -1263,6 +1351,11 @@ export function SessionClient({
                           새 최고
                         </span>
                       )}
+                      {s.rir != null && (
+                        <span className="shrink-0 rounded-full bg-ink/6 px-2 py-0.5 text-[11px] text-muted">
+                          여유 {s.rir >= 4 ? '4+' : s.rir}
+                        </span>
+                      )}
                       {s.pending && (
                         <span
                           title="아직 서버에 보내지 못했어요. 신호가 잡히면 저절로 보내요."
@@ -1337,154 +1430,177 @@ export function SessionClient({
           ± 는 늘 보인다. 지난 세트에서 2.5kg 만 올리는 것처럼 흔한 경우는
           자판을 열 것도 없다.
         */}
-        {[
-          {
-            key: 'weight' as const,
-            label: `무게${!ex.needsWeight ? ' (없으면 비워두세요)' : ''}`,
-            value: weight,
-            unit: wUnit,
-          },
-          {
-            key: 'count' as const,
-            label: ex.isHold ? timeLabel : '횟수',
-            value: count,
-            unit: countLabel,
-          },
-        ].map((f) => (
-          <div key={f.key} className="flex items-center gap-1.5">
-            <button
-              type="button"
-              onClick={() => {
-                setField(f.key);
-                bump(f.key, -1);
-              }}
-              aria-label={`${f.label} 줄이기`}
-              className="h-14 w-14 shrink-0 rounded-2xl bg-ink/6 text-2xl text-ink transition active:bg-ink/12 motion-safe:active:scale-95"
-            >
-              −
-            </button>
-            <button
-              type="button"
-              onClick={() => openPad(f.key)}
-              className={`flex h-14 min-w-0 flex-1 items-center justify-between gap-2 rounded-2xl px-4 transition-colors ${
-                pad && field === f.key
-                  ? 'bg-sky/10 ring-2 ring-sky ring-inset'
-                  : 'bg-ink/6'
-              }`}
-            >
-              <span className="min-w-0 truncate text-xs text-muted">{f.label}</span>
-              {/* 지금 넣는 숫자는 크게 — 기구를 든 채 팔 길이에서 읽힌다 */}
-              <span className="text-numeric shrink-0 text-2xl leading-none text-ink">
-                {f.value === '' ? (
-                  <span className="font-sans font-normal text-muted/50">—</span>
-                ) : (
-                  f.value
-                )}
-                <span className="ml-1 font-sans text-sm font-medium text-muted">
-                  {f.unit}
-                </span>
-              </span>
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setField(f.key);
-                bump(f.key, 1);
-              }}
-              aria-label={`${f.label} 늘리기`}
-              className="h-14 w-14 shrink-0 rounded-2xl bg-ink/6 text-2xl text-ink transition active:bg-ink/12 motion-safe:active:scale-95"
-            >
-              +
-            </button>
-          </div>
-        ))}
+        {askRir && askRir.exerciseId === ex.id && editIndex < 0 ? (
+          <RirQuestion
+            setNo={askRir.setNo}
+            reserve={ex.programSlot?.reserve ?? null}
+            onAnswer={answerRir}
+          />
+        ) : (
+          <>
+            {[
+              {
+                key: 'weight' as const,
+                label: `무게${!ex.needsWeight ? ' (없으면 비워두세요)' : ''}`,
+                value: weight,
+                unit: wUnit,
+              },
+              {
+                key: 'count' as const,
+                label: ex.isHold ? timeLabel : '횟수',
+                value: count,
+                unit: countLabel,
+              },
+            ].map((f) => (
+              <div key={f.key} className="flex items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setField(f.key);
+                    bump(f.key, -1);
+                  }}
+                  aria-label={`${f.label} 줄이기`}
+                  className="h-14 w-14 shrink-0 rounded-2xl bg-ink/6 text-2xl text-ink transition active:bg-ink/12 motion-safe:active:scale-95"
+                >
+                  −
+                </button>
+                <button
+                  type="button"
+                  onClick={() => openPad(f.key)}
+                  className={`flex h-14 min-w-0 flex-1 items-center justify-between gap-2 rounded-2xl px-4 transition-colors ${
+                    pad && field === f.key
+                      ? 'bg-sky/10 ring-2 ring-sky ring-inset'
+                      : 'bg-ink/6'
+                  }`}
+                >
+                  <span className="min-w-0 truncate text-xs text-muted">{f.label}</span>
+                  {/* 지금 넣는 숫자는 크게 — 기구를 든 채 팔 길이에서 읽힌다 */}
+                  <span className="text-numeric shrink-0 text-2xl leading-none text-ink">
+                    {f.value === '' ? (
+                      <span className="font-sans font-normal text-muted/50">—</span>
+                    ) : (
+                      f.value
+                    )}
+                    <span className="ml-1 font-sans text-sm font-medium text-muted">
+                      {f.unit}
+                    </span>
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setField(f.key);
+                    bump(f.key, 1);
+                  }}
+                  aria-label={`${f.label} 늘리기`}
+                  className="h-14 w-14 shrink-0 rounded-2xl bg-ink/6 text-2xl text-ink transition active:bg-ink/12 motion-safe:active:scale-95"
+                >
+                  +
+                </button>
+              </div>
+            ))}
 
-        {/* 자판은 숫자를 누를 때만. 접으면 그만큼 위쪽이 넓어진다. */}
-        {pad && (
-          <div className="space-y-1.5 rounded-2xl bg-ink/6 p-1.5">
-            <NumberPad
-              onChange={field === 'weight' ? setWeight : setCount}
-              allowDecimal={field === 'weight'}
-            />
-            {/*
+            {/* 자판은 숫자를 누를 때만. 접으면 그만큼 위쪽이 넓어진다. */}
+            {pad && (
+              <div className="space-y-1.5 rounded-2xl bg-ink/6 p-1.5">
+                <NumberPad
+                  onChange={field === 'weight' ? setWeight : setCount}
+                  allowDecimal={field === 'weight'}
+                />
+                {/*
               다 넣었으면 누른다.
 
               숫자만 있으면 다 넣고 나서 무엇을 눌러야 할지 알 수 없다. 무게를
               넣는 중이면 다음 칸으로 넘기고, 횟수까지 넣었으면 자판을 접는다 —
               한 번 누를 것을 두 번 누르게 하지 않는다.
             */}
-            <button
-              type="button"
-              onClick={() => {
-                if (field === 'weight') setField('count');
-                else setPad(false);
-              }}
-              className="h-12 w-full rounded-xl bg-sky/15 text-sm font-bold text-sky transition-transform short:h-10 motion-safe:active:scale-[0.98]"
-            >
-              {field === 'weight'
-                ? `다음 · ${ex.isHold ? timeLabel : '횟수'} →`
-                : '확인'}
-            </button>
-          </div>
-        )}
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (field === 'weight') setField('count');
+                    else setPad(false);
+                  }}
+                  className="h-12 w-full rounded-xl bg-sky/15 text-sm font-bold text-sky transition-transform short:h-10 motion-safe:active:scale-[0.98]"
+                >
+                  {field === 'weight'
+                    ? `다음 · ${ex.isHold ? timeLabel : '횟수'} →`
+                    : '확인'}
+                </button>
+              </div>
+            )}
 
-        {/*
+            {/*
           고치는 중이면 무엇을 고치는지와 그만두는 길을 큰 단추 바로 위에 둔다.
           '지난번 그대로 담기'는 새 세트를 넣을 때 쓰는 것이라 그동안 감춘다.
         */}
-        {!pad &&
-          (editIndex >= 0 ? (
-            <div className="flex items-center gap-2 rounded-xl bg-sky/10 px-3.5 py-1 text-xs text-sky">
-              <Pencil aria-hidden className="h-3.5 w-3.5 shrink-0" />
-              <span className="flex-1">
-                <b>{editIndex + 1}세트</b>를 고치는 중이에요
-              </span>
-              <button
-                type="button"
-                onClick={endEdit}
-                className="-mr-1.5 min-h-9 shrink-0 px-1.5 font-semibold transition-opacity active:opacity-60"
-              >
-                그만두기
-              </button>
-            </div>
-          ) : (
-            ex.last && (
-              <button
-                type="button"
-                onClick={fillLast}
-                className="mx-auto flex min-h-9 w-fit items-center gap-1.5 rounded-full px-3 text-[13px] font-semibold text-sky transition-opacity active:opacity-60"
-              >
-                <RotateCcw aria-hidden className="h-3.5 w-3.5" strokeWidth={2.4} />
-                지난번 그대로 담기
-              </button>
-            )
-          ))}
+            {!pad &&
+              (editIndex >= 0 ? (
+                <div className="flex items-center gap-2 rounded-xl bg-sky/10 px-3.5 py-1 text-xs text-sky">
+                  <Pencil aria-hidden className="h-3.5 w-3.5 shrink-0" />
+                  <span className="flex-1">
+                    <b>{editIndex + 1}세트</b>를 고치는 중이에요
+                  </span>
+                  <button
+                    type="button"
+                    onClick={endEdit}
+                    className="-mr-1.5 min-h-9 shrink-0 px-1.5 font-semibold transition-opacity active:opacity-60"
+                  >
+                    그만두기
+                  </button>
+                </div>
+              ) : ex.suggestedKg != null ? (
+                <button
+                  type="button"
+                  onClick={fillSuggested}
+                  className="mx-auto flex min-h-9 w-fit items-center gap-1.5 rounded-full px-3 text-[13px] font-semibold text-sky transition-opacity active:opacity-60"
+                >
+                  <RotateCcw aria-hidden className="h-3.5 w-3.5" strokeWidth={2.4} />
+                  추천{' '}
+                  {wUnit === 'lb'
+                    ? roundForDisplay(ex.suggestedKg, 'lb')
+                    : ex.suggestedKg}
+                  {wUnit} 담기
+                </button>
+              ) : (
+                ex.last && (
+                  <button
+                    type="button"
+                    onClick={fillLast}
+                    className="mx-auto flex min-h-9 w-fit items-center gap-1.5 rounded-full px-3 text-[13px] font-semibold text-sky transition-opacity active:opacity-60"
+                  >
+                    <RotateCcw aria-hidden className="h-3.5 w-3.5" strokeWidth={2.4} />
+                    지난번 그대로 담기
+                  </button>
+                )
+              ))}
 
-        {/*
+            {/*
           서버를 기다리지 않는다 — 폰에 담는 순간 끝난다. 예전에는 보내는 동안
           '남기는 중'으로 꺼져 있어, 신호가 약한 곳에서는 몇 초씩 눌리지 않았다.
           고치기도 같다 — 같은 번호로 폰에 담고 뒤에서 보낸다.
         */}
-        <button
-          type="button"
-          onClick={save}
-          /* 낮은 화면에서 숫자판을 연 동안만 64px — 판과 같이 한 화면에 들어오게 */
-          className={`flex h-[72px] w-full shrink-0 items-center justify-center gap-2 rounded-full bg-sky text-lg font-bold text-white transition-transform motion-safe:active:scale-[0.98] ${
-            pad ? 'short:h-16' : ''
-          }`}
-        >
-          {editIndex >= 0 ? (
-            <>
-              <Pencil className="h-5 w-5" />
-              {`${editIndex + 1}세트 고치기`}
-            </>
-          ) : (
-            <>
-              <Check className="h-6 w-6" strokeWidth={2.6} />
-              {`${mine.length + 1}세트 완료`}
-            </>
-          )}
-        </button>
+            <button
+              type="button"
+              onClick={save}
+              /* 낮은 화면에서 숫자판을 연 동안만 64px — 판과 같이 한 화면에 들어오게 */
+              className={`flex h-[72px] w-full shrink-0 items-center justify-center gap-2 rounded-full bg-sky text-lg font-bold text-white transition-transform motion-safe:active:scale-[0.98] ${
+                pad ? 'short:h-16' : ''
+              }`}
+            >
+              {editIndex >= 0 ? (
+                <>
+                  <Pencil className="h-5 w-5" />
+                  {`${editIndex + 1}세트 고치기`}
+                </>
+              ) : (
+                <>
+                  <Check className="h-6 w-6" strokeWidth={2.6} />
+                  {`${mine.length + 1}세트 완료`}
+                </>
+              )}
+            </button>
+          </>
+        )}
 
         {/* 자판이 열려 있으면 운동 이동은 감춘다 — 지금 할 일은 숫자 넣기다 */}
         {!pad && (
@@ -1517,6 +1633,7 @@ export function SessionClient({
           startedAt={openedAt}
           priorSeconds={priorSeconds}
           pendingCount={pending.length}
+          program={programFinish}
           busy={ending}
           error={finishError}
           onClose={() => {
@@ -1573,5 +1690,74 @@ export function SessionClient({
         />
       )}
     </>
+  );
+}
+
+/** 프로그램 날, 무게 추천 칸의 처방 마지막 세트 뒤에 '몇 개 더?'를 묻는가(파워 · 몸통 · 가벼운 주는 안 묻는다) */
+function asksReserve(ex: RunExercise): boolean {
+  return (
+    ex.programSlot != null &&
+    WEIGHTED_SLOTS.includes(ex.programSlot.slot) &&
+    !ex.programSlot.light &&
+    ex.plannedSets != null
+  );
+}
+
+/**
+ * '몇 개 더 할 수 있었나요?'(설계 §13-7) — 숫자 다섯 칸(56px), 0 = 더는 못 함, 4+ = 넉넉. 건너뛰기도 있다.
+ * 다음 무게 추천에 쓴다(lib/program/next-weight.ts — 목표보다 하나라도 더 남으면 올린다).
+ */
+function RirQuestion({
+  setNo,
+  reserve,
+  onAnswer,
+}: {
+  setNo: number;
+  reserve: number | null;
+  onAnswer: (n: number | null) => void;
+}) {
+  const options = [
+    { n: 0, label: '0', hint: '더는 못 함', aria: '0개, 더는 못 함' },
+    { n: 1, label: '1', hint: '', aria: '1개' },
+    { n: 2, label: '2', hint: '', aria: '2개' },
+    { n: 3, label: '3', hint: '', aria: '3개' },
+    { n: 4, label: '4+', hint: '넉넉', aria: '4개 이상, 넉넉' },
+  ];
+  return (
+    <div className="space-y-2 motion-safe:animate-fade-in">
+      <p className="text-center text-base font-bold text-ink">
+        {setNo}세트, 몇 개 더 할 수 있었나요?
+      </p>
+      {reserve != null && (
+        <p className="text-center text-xs text-muted">
+          목표는 {reserve}개 남기기예요. 다음 무게에 써요.
+        </p>
+      )}
+      <div
+        role="group"
+        aria-label="몇 개 더 할 수 있었나요"
+        className="grid grid-cols-5 gap-1.5"
+      >
+        {options.map((o) => (
+          <button
+            key={o.n}
+            type="button"
+            aria-label={o.aria}
+            onClick={() => onAnswer(o.n)}
+            className="flex min-h-14 flex-col items-center justify-center rounded-2xl bg-ink/6 text-xl font-bold text-ink transition active:bg-sky active:text-white"
+          >
+            {o.label}
+            <span className="h-4 text-[11px] font-medium text-muted">{o.hint}</span>
+          </button>
+        ))}
+      </div>
+      <button
+        type="button"
+        onClick={() => onAnswer(null)}
+        className="mx-auto flex min-h-11 items-center px-3 text-sm font-semibold text-muted"
+      >
+        건너뛰기
+      </button>
+    </div>
   );
 }

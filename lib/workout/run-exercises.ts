@@ -8,7 +8,7 @@ import { priorBests } from '@/lib/workout/prior-bests';
 import type { PriorBest } from '@/lib/workout/bests';
 import type { DoneAmount } from '@/lib/exercise-meta';
 import type { SlotKey } from '@/lib/report/theme';
-import type { FrozenExercise } from '@/lib/workout/session-plan';
+import type { FrozenExercise, FrozenProgramSlot } from '@/lib/workout/session-plan';
 
 /** 운동 화면(app/(session)/workout/run)이 그리는 운동 하나 */
 export type RunExercise = {
@@ -44,6 +44,10 @@ export type RunExercise = {
   favorite: boolean;
   /** 오늘 앞의 최고 기록 — 세트가 이것을 넘으면 '새 최고'(lib/workout/bests.ts). 처음 하는 운동은 null */
   best: PriorBest | null;
+  /** 근력 · 파워 프로그램 날의 칸(session-plan.ts) — 프로그램이 아닌 날은 null */
+  programSlot: FrozenProgramSlot | null;
+  /** 프로그램 날 얼린 추천 무게(kg). '추천 담기'와 '몇 개 더?'가 쓴다. 숫자 없이 안내하는 날은 null */
+  suggestedKg: number | null;
 };
 
 /**
@@ -110,6 +114,8 @@ export async function runExercises(
       note: notes.get(e.id) ?? null,
       favorite: favorites.has(e.id),
       best: bests.get(e.id) ?? null,
+      programSlot: e.programSlot ?? null,
+      suggestedKg: e.suggestedKg ?? null,
     };
   });
 }

@@ -154,6 +154,7 @@ export function selectCandidates<T extends ExerciseLike>({
   plan,
   library,
   caution = [],
+  partsOnly = false,
 }: {
   facts: ReportFacts;
   plan: PitchPlan;
@@ -163,6 +164,12 @@ export function selectCandidates<T extends ExerciseLike>({
    * 체크인의 '뻐근'과 똑같이 다룬다. 조심을 더하기만 하고 빼지는 못한다.
    */
   caution?: { part: CheckinPartKey; why: string }[];
+  /**
+   * 부위 규칙만 쓴다 — 몸 전체 강도 상한(부하 구간 · 통증 확인 전 · 성장기 · 경력 · 컨디션 · 근육통 · 수면)은 건너뛴다.
+   * 근력 · 파워 프로그램이 쓴다(lib/program/load.ts). 프로그램은 그런 날에도 진행하고 주의 한 줄 · 칸 조정으로
+   * 스스로 가볍게 하므로(설계 D22~D25), 여기서 무거운 운동을 통째로 빼면 고정 운동이 날마다 대체된다.
+   */
+  partsOnly?: boolean;
 }): PrescriptionCandidates<T> {
   /*
    * 1) 통증.
@@ -207,8 +214,10 @@ export function selectCandidates<T extends ExerciseLike>({
    * 이름 비교가 아니라 단계 숫자라서, 강도 단계를 더 늘려도 새 이름이
    * 조건을 빠져나가는 일이 없다.
    */
-  const capTo = (rule: string, cap: number) =>
+  const capTo = (rule: string, cap: number) => {
+    if (partsOnly) return;
     drop(rule, (ex) => intensityLevel(ex.intensity) <= cap);
+  };
 
   /*
    * 2) 부하 구간에 따른 강도 상한

@@ -25,8 +25,14 @@ export function FinishSheet({
   onClose,
   busy,
   error,
+  program = null,
 }: {
   sets: RunSet[];
+  /**
+   * 근력 · 파워 프로그램 날이면 — 다음 일차로 가는지(처방 세트 절반) 한 줄과 아직 안 답한 '몇 개 더?'(설계 §13-7 · 9).
+   * 절반이 안 되면 조용히 안 넘어가는 대신 여기서 숫자로 미리 말한다.
+   */
+  program?: { line: string; reached: boolean; unanswered: string[] } | null;
   /** 본운동을 시작한 시각. 워밍업에 쓴 시간은 여기 안 들어간다. */
   startedAt: string;
   /** 다시 연 판이면 앞서 마친 구간들의 시간(초). 운동 시간에 더한다. */
@@ -108,6 +114,18 @@ export function FinishSheet({
         </div>
 
         <div className="flex-1 overflow-y-auto px-5 pt-4 pb-4">
+          {program && (
+            <div className="mb-5 space-y-1 rounded-2xl bg-ink/6 px-4 py-3 text-sm leading-relaxed">
+              <p className={program.reached ? 'font-semibold text-ink' : 'text-ink'}>
+                {program.line}
+              </p>
+              {program.unanswered.length > 0 && (
+                <p className="text-muted">
+                  아직 안 답한 &lsquo;몇 개 더?&rsquo;: {program.unanswered.join(', ')}
+                </p>
+              )}
+            </div>
+          )}
           {sets.length === 0 && (
             <p className="mb-5 rounded-2xl bg-ink/6 px-4 py-3 text-sm leading-relaxed text-muted">
               남긴 세트가 없어요. 이대로 마치면 오늘은 기록이 남지 않아요.
