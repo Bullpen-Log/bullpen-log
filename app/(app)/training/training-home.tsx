@@ -12,9 +12,7 @@ import { ARMCARE_AREAS, ARMCARE_CATEGORY } from '@/lib/armcare/anatomy';
 import { loadArmcareCoverage } from '@/lib/armcare/coverage-load';
 import { visibleExercises } from '@/lib/library-cache';
 import { loadMechanicsProgram } from '@/lib/mechanics/load';
-import { MECHANICS_ELEMENTS } from '@/lib/mechanics/elements';
-import { isMastered } from '@/lib/mechanics/program';
-import { DRILL_STAGE_NAMES } from '@/lib/exercise-meta';
+import { mechanicsLevel } from '@/lib/mechanics/levels';
 import { shiftDateKey, toDateKey } from '@/lib/pitch-stats';
 import { dbDate, keyOfDbDate } from '@/lib/nutrition/days';
 import { TRAINING_PART_HREF, type TrainingPart } from '@/lib/training-part';
@@ -330,39 +328,38 @@ async function ArmcareCard({ user, today }: { user: HomeUser; today: Date }) {
   );
 }
 
-/** 메커니즘 — 다음 세션과 요소 여섯의 진행 막대 */
+/** 메커니즘 — 고른 수준의 다음 세션과 12칸 진행(수준을 안 골랐으면 고르라고) */
 async function MechanicsCard({ userId }: { userId: string }) {
   const { program, session, doneToday } = await loadMechanicsProgram(userId);
-  if (!program) {
-    return <AppCard app="mechanics" status="투구 메커니즘 프로그램을 시작해 보세요" />;
+  if (!program?.level) {
+    return <AppCard app="mechanics" status="수준을 골라 투구 메커니즘 프로그램을 시작해 보세요" />;
   }
+  const level = mechanicsLevel(program.level);
   const done = new Set(program.finishedToday ? [] : doneToday);
   const started = session.some((s) => done.has(s.guideId));
+  const completed = program.week == null;
   const bars = (
-    <div className="grid grid-cols-6 gap-1" aria-label="요소별 진행">
-      {MECHANICS_ELEMENTS.map((el) => {
-        const p = program.progress[el.name];
-        const step = isMastered(p) ? 3 : DRILL_STAGE_NAMES.indexOf(p.stage);
-        return (
-          <span
-            key={el.key}
-            title={`${el.name} ${p.stage}`}
-            className={`h-1.5 rounded-full ${
-              step >= 2 ? APPS.mechanics.bar : step === 1 ? APPS.mechanics.barSoft : 'bg-surface-2'
-            }`}
-          />
-        );
-      })}
+    <div className="grid grid-cols-12 gap-0.5" aria-label={`${level.name} ${program.total}번 중 ${program.index}번 마침`}>
+      {Array.from({ length: program.total }, (_, i) => (
+        <span
+          key={i}
+          className={`h-1.5 rounded-full ${
+            i < program.index ? APPS.mechanics.bar : i === program.index ? APPS.mechanics.barSoft : 'bg-surface-2'
+          }`}
+        />
+      ))}
     </div>
   );
   return (
     <AppCard
       app="mechanics"
-      tone={program.finishedToday ? 'done' : 'normal'}
+      tone={program.finishedToday || completed ? 'done' : 'normal'}
       status={
-        program.finishedToday
-          ? '오늘 세션을 마쳤어요'
-          : `${program.sessionsDone + 1}번째 세션 · 드릴 ${session.length}개 · 15~20분`
+        completed
+          ? `${level.name} 프로그램을 마쳤어요`
+          : program.finishedToday
+            ? '오늘 세션을 마쳤어요'
+            : `${level.name} ${program.week}주차 ${program.day}번째 · 드릴 ${session.length}개 · 15~20분`
       }
       action={
         session.length > 0 ? (

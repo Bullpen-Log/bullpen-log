@@ -8,21 +8,14 @@ import { LibraryVideo } from '@/components/library-video';
 import { ErrorLine } from '@/components/error-line';
 import { useWakeLock } from '@/components/use-wake-lock';
 import { OFFLINE_MESSAGE, orOffline } from '@/lib/action-offline';
-import { DRILL_STAGES } from '@/lib/exercise-meta';
 import { mechanicsElement } from '@/lib/mechanics/elements';
-import {
-  EASY_TO_ADVANCE,
-  FEELS,
-  doseFields,
-  filmPrompt,
-  type DrillFeel,
-  type DrillStage,
-} from '@/lib/mechanics/program';
+import { mechanicsLevel } from '@/lib/mechanics/levels';
+import { FEELS, doseFields, filmPrompt, levelAdvice, type DrillFeel } from '@/lib/mechanics/program';
 import type { PlayerVariant, SessionDrillView } from '@/lib/mechanics/load';
 import {
   finishMechanicsSession,
   recordMechanicsDrill,
-  stepDownMechanicsElement,
+  startMechanicsProgram,
 } from '@/app/actions/mechanics';
 import { guideDescription } from '@/app/actions/content';
 import { josa } from '@/lib/korean';
@@ -31,26 +24,30 @@ import { josa } from '@/lib/korean';
  * 메커니즘 세션 따라 하기 — 한 드릴씩(2026-10-04, page.tsx).
  *
  * 드릴에는 시계가 없다(횟수 · 공 수로 한다). 그래서 암케어처럼 쉬는 시계 대신, 마치면 느낌 하나를 누르는 것이 '다음'이다.
- * 느낌은 그 요소의 진행에 들어간다 — '쉬움'이 세 번이면 다음 단계(lib/mechanics/program.ts). 화면이 꺼지지 않게 잡아 둔다.
+ * 느낌은 그 요소에 쌓이고, 수준은 저절로 바꾸지 않는다 — 세션을 마치면 끝 화면이 다음 · 아래 수준을 권한다
+ * (lib/mechanics/program.ts levelAdvice). 화면이 꺼지지 않게 잡아 둔다.
  */
 export function MechanicsPlayer({
   backHref,
   items,
   startAt,
+  label,
   sessionNumber,
   isAdmin,
 }: {
   backHref: string;
   items: SessionDrillView[];
   startAt: number;
+  /** 머리에 쓰는 이름 — '입문 1주차 2번째' */
+  label: string;
+  /** 수준과 상관없이 몇 번째 세션인가 — 여섯 번째마다 찍어서 견주라고 한다 */
   sessionNumber: number;
   isAdmin: boolean;
 }) {
   const [index, setIndex] = useState(startAt);
   const [done, setDone] = useState<boolean[]>(() => items.map((_, i) => i < startAt));
-  const [leveled, setLeveled] = useState<{ element: string; stage: DrillStage }[]>([]);
-  /* '어려움'이 다른 날 두 번 이어진 요소 — 끝 화면에서 한 단계 내려갈지 묻는다 */
-  const [struggling, setStruggling] = useState<string[]>([]);
+  /* 세션을 마친 뒤 서버가 돌려준 권하기 — 끝 화면이 단추와 함께 보인다 */
+  const [advice, setAdvice] = useState<ReturnType<typeof levelAdvice>>(null);
   const [finished, setFinished] = useState(false);
   /* 마치기 저장이 실패했나 — 끝 화면 대신 다시 저장 단추를 둔다(안 그러면 세션 수가 안 올라 같은 세션이 또 나왔다) */
   const [finishFailed, setFinishFailed] = useState(false);
@@ -80,11 +77,6 @@ export function MechanicsPlayer({
         setError(res.error);
         return;
       }
-      const up = res.leveled;
-      if (up) setLeveled((l) => [...l, { element: item.element, stage: up }]);
-      if (res.struggling) {
-        setStruggling((l) => (l.includes(item.element) ? l : [...l, item.element]));
-      }
       setDone((d) => d.map((v, i) => (i === index ? true : v)));
       if (index + 1 < items.length) {
         setIndex(index + 1);
@@ -104,6 +96,7 @@ export function MechanicsPlayer({
       return;
     }
     setFinishFailed(false);
+    setAdvice(res.advice);
     setFinished(true);
   };
 
@@ -133,7 +126,7 @@ export function MechanicsPlayer({
             <X className="h-5 w-5" />
           </Link>
           <p className="min-w-0 flex-1 truncate text-base font-bold text-ink">
-            메커니즘 {sessionNumber}번째 세션
+            메커니즘 · {label}
           </p>
           <span className="shrink-0 text-sm font-semibold text-muted tabular-nums">
             {finished ? items.length : index + 1} / {items.length}
@@ -153,8 +146,7 @@ export function MechanicsPlayer({
 
       {finished ? (
         <FinishView
-          leveled={leveled}
-          struggling={struggling}
+          advice={advice}
           sessionNumber={sessionNumber}
           backHref={backHref}
           count={done.filter(Boolean).length}
@@ -352,10 +344,11 @@ function DrillView({
       {!view.variant.owned ? (
         <p className="text-xs break-keep text-muted">이 도구는 가진 장비에 없어요. 있으면 그대로 해도 돼요.</p>
       ) : (
-        note?.lowered && (
+        note?.replaced &&
+        alt === 0 && (
           <p className="text-xs break-keep text-muted">
-            {note.lowered} 드릴은 {note.need}
-            {josa(note.need, '이/가')} 있어야 해서, 지금은 {item.stage} 드릴로 해요.
+            프로그램의 ‘{note.replaced}’에는 {note.need}
+            {josa(note.need, '이/가')} 있어야 해서, 같은 단계의 이 드릴로 바꿨어요.
           </p>
         )
       )}
@@ -451,17 +444,15 @@ function Description({ guideId }: { guideId: string }) {
   );
 }
 
-/** 세션 끝 — 오른 단계가 있으면 그 단계 설명 한 장씩 */
+/** 세션 끝 — 권할 것이 있으면 다음 · 아래 수준 카드, 여섯 번째마다 찍어서 견주기 */
 function FinishView({
-  leveled,
-  struggling,
+  advice,
   sessionNumber,
   backHref,
   count,
 }: {
-  leveled: { element: string; stage: DrillStage }[];
-  struggling: string[];
-  /** 방금 마친 세션이 몇 번째인가 — 여섯 번째마다 찍어서 견주라고 한다 */
+  advice: ReturnType<typeof levelAdvice>;
+  /** 방금 마친 세션이 몇 번째인가(수준과 상관없이) — 여섯 번째마다 찍어서 견주라고 한다 */
   sessionNumber: number;
   backHref: string;
   count: number;
@@ -481,32 +472,7 @@ function FinishView({
           <p className="text-sm text-muted">드릴 {count}개를 했어요.</p>
         </div>
 
-        {leveled.map(({ element, stage }) => {
-          const el = mechanicsElement(element);
-          const desc = DRILL_STAGES.find((s) => s.name === stage)?.desc;
-          return (
-            <div key={`${element}-${stage}`} className="rise-in space-y-2 rounded-2xl bg-surface px-4 py-4">
-              <p className="text-base font-bold break-keep text-ink">
-                {element}
-                {josa(element, '이/가')} <span className="text-sky-strong">{stage}</span> 단계로 올라갔어요
-              </p>
-              {desc && (
-                <p className="text-sm break-keep text-muted">
-                  다음 세션부터 {stage} 드릴이 나와요({desc}).
-                </p>
-              )}
-              {el && el.cues[0] && (
-                <p className="rounded-xl bg-sky-tint/60 px-3.5 py-2 text-sm font-semibold break-keep text-sky-strong">
-                  “{el.cues[0]}”
-                </p>
-              )}
-            </div>
-          );
-        })}
-
-        {struggling.map((element) => (
-          <StepDownOffer key={element} element={element} />
-        ))}
+        {advice?.to && <LevelOffer kind={advice.kind} to={advice.to} />}
 
         {filmPrompt(sessionNumber) === 'compare' && (
           <div className="space-y-3 rounded-2xl bg-surface px-4 py-4">
@@ -536,30 +502,37 @@ function FinishView({
 }
 
 /**
- * '어려움'이 서로 다른 날 두 번 이어진 요소 — 한 단계 내려갈지 묻는다(2026-10-04 검토). 저절로 내리지 않는다:
- * 새 단계에서 한두 날 어려운 것은 흔하고, 버티며 익히는 사람도 있다.
+ * 다음 · 아래 수준 권하기 — 저절로 바꾸지 않는다(2026-10-04 사용자분). 누르면 그 수준의 1주차 1번째부터.
+ * done: 12세션을 다 마침 · up: 여러 요소에서 '쉬움'이 쌓임 · down: '어려움'이 이어짐.
  */
-function StepDownOffer({ element }: { element: string }) {
-  const [state, setState] = useState<'ask' | 'down' | 'keep'>('ask');
+function LevelOffer({ kind, to }: { kind: 'done' | 'up' | 'down'; to: Parameters<typeof mechanicsLevel>[0] }) {
+  const [state, setState] = useState<'ask' | 'changed' | 'keep'>('ask');
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
   if (state === 'keep') return null;
+  const level = mechanicsLevel(to);
+  const title =
+    kind === 'done'
+      ? `이 수준을 다 마쳤어요. ${level.name}${josa(level.name, '으로/로')} 가 볼까요?`
+      : kind === 'up'
+        ? `${level.name}${josa(level.name, '으로/로')} 올라가 볼까요?`
+        : `${level.name}${josa(level.name, '으로/로')} 낮춰 볼까요?`;
+  const detail =
+    kind === 'down'
+      ? '‘어려움’이 이어지는 요소가 있어요. 한 단계 낮은 수준에서 자세를 다지고 다시 올라와도 돼요.'
+      : kind === 'up'
+        ? '여러 요소에서 ‘쉬움’이 서로 다른 날 쌓였어요. 드릴이 편해졌다면 다음 수준이 더 맞을 수 있어요.'
+        : '4주 동안 12번을 다 했어요. 편하지 않았다면 프로그램 칸에서 같은 수준을 한 번 더 해도 돼요.';
   return (
     <div className="space-y-3 rounded-2xl bg-surface px-4 py-4">
-      {state === 'down' ? (
+      {state === 'changed' ? (
         <p className="text-sm font-semibold break-keep text-ink">
-          {element}
-          {josa(element, '을/를')} 한 단계 내렸어요. 다음 세션부터 쉬운 드릴이 나와요.
+          {level.name} 프로그램으로 바꿨어요. 다음 세션부터 {level.name} 1주차예요.
         </p>
       ) : (
         <>
-          <p className="text-base font-bold break-keep text-ink">
-            {element}
-            {josa(element, '이/가')} 요즘 계속 어려웠어요
-          </p>
-          <p className="text-sm break-keep text-muted">
-            한 단계 내려서 자세를 다시 다져도 돼요. 서로 다른 날 ‘쉬움’을 다시 {EASY_TO_ADVANCE}번 넘기면 또 올라가요.
-          </p>
+          <p className="text-base font-bold break-keep text-ink">{title}</p>
+          <p className="text-sm break-keep text-muted">{detail}</p>
           <div className="grid grid-cols-2 gap-2">
             <button
               type="button"
@@ -567,16 +540,14 @@ function StepDownOffer({ element }: { element: string }) {
               onClick={() =>
                 startTransition(async () => {
                   setError(null);
-                  const res = await orOffline(stepDownMechanicsElement(element), {
-                    error: OFFLINE_MESSAGE,
-                  });
+                  const res = await orOffline(startMechanicsProgram(to), { error: OFFLINE_MESSAGE });
                   if ('error' in res) setError(res.error);
-                  else setState('down');
+                  else setState('changed');
                 })
               }
               className="min-h-11 rounded-full bg-sky text-sm font-bold text-white disabled:opacity-60"
             >
-              {pending ? '내리는 중…' : '한 단계 내려가기'}
+              {pending ? '바꾸는 중…' : `${level.name} 시작`}
             </button>
             <button
               type="button"
@@ -584,7 +555,7 @@ function StepDownOffer({ element }: { element: string }) {
               onClick={() => setState('keep')}
               className="min-h-11 rounded-full bg-surface-2 text-sm font-semibold text-ink"
             >
-              그대로 하기
+              나중에
             </button>
           </div>
           {error && <ErrorLine>{error}</ErrorLine>}

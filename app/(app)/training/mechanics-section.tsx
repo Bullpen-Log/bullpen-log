@@ -1,4 +1,3 @@
-import { prisma } from '@/lib/prisma';
 import { favoriteDrillIds } from '@/lib/favorites';
 import { visibleGuides } from '@/lib/library-cache';
 import { createPlaybackUrls } from '@/lib/storage';
@@ -14,7 +13,7 @@ import { MechanicsProgram } from './mechanics-program';
  * 투구 드릴(라이브러리의 '투구 드릴', MechanicsGuide)을 투구 요소 여섯으로 묶어 보여 준다. 암케어의 부위별 보강과 같은
  * 모양이다 — 요소 → 증상 · 설명 → 단계별 드릴. 글은 lib/mechanics/elements.ts.
  *
- * 프로그램 칸은 쉬운 단계부터 올라가는 과정 — 오늘의 세션 · 요소별 진행(lib/mechanics/program.ts · load.ts).
+ * 프로그램 칸은 수준(입문 · 초급 · 중급 · 고급)을 골라 따라 하는 4주 과정 — lib/mechanics/levels.ts · program.ts · load.ts.
  */
 export async function MechanicsSection({
   user,
@@ -31,12 +30,7 @@ export async function MechanicsSection({
     return <MechanicsProgram program={program} session={session} doneToday={doneToday} />;
   }
 
-  const [guides, favorites, program] = await Promise.all([
-    visibleGuides(),
-    favoriteDrillIds(user.id),
-    /* 요소 카드의 '프로그램에서 강조' 단추가 지금 강조를 안다 */
-    prisma.mechanicsProgram.findUnique({ where: { userId: user.id }, select: { focus: true } }),
-  ]);
+  const [guides, favorites] = await Promise.all([visibleGuides(), favoriteDrillIds(user.id)]);
   const ownThumbs = await createPlaybackUrls(
     guides.filter((g) => !g.referenceVideoId && g.thumbPath).map((g) => g.thumbPath as string)
   );
@@ -47,7 +41,6 @@ export async function MechanicsSection({
       hand={user.throwingHand}
       isAdmin={user.role === 'ADMIN'}
       focus={focus}
-      program={program ? { focus: program.focus } : null}
     />
   );
 }

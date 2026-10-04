@@ -1,14 +1,8 @@
 'use client';
 
-import { useState, useTransition, type ReactNode } from 'react';
-import Link from 'next/link';
-import { useRouter } from 'next/navigation';
-import { Check, ChevronDown, ChevronRight, Target } from 'lucide-react';
+import { useState, type ReactNode } from 'react';
+import { ChevronDown, ChevronRight } from 'lucide-react';
 import { Modal, useModalState } from '@/components/modal';
-import { ErrorLine } from '@/components/error-line';
-import { OFFLINE_MESSAGE, orOffline } from '@/lib/action-offline';
-import { startMechanicsProgram } from '@/app/actions/mechanics';
-import { josa } from '@/lib/korean';
 import { DRILL_STAGES } from '@/lib/exercise-meta';
 import {
   MECHANICS_ELEMENTS,
@@ -42,7 +36,6 @@ export function MechanicsGuide({
   hand,
   isAdmin,
   focus,
-  program,
 }: {
   drills: MechanicsDrillView[];
   /** 던지는 손 — 글의 1루 · 3루, 왼쪽 · 오른쪽을 맞춘다 */
@@ -50,8 +43,6 @@ export function MechanicsGuide({
   isAdmin: boolean;
   /** 처음에 열어 둘 요소(주소의 ?el=) */
   focus: string | null;
-  /** 내 메커닉 프로그램 — 없으면 null. 요소 카드에서 그 요소를 강조로 정한다(2026-10-04 검토) */
-  program: { focus: string | null } | null;
 }) {
   const [open, setOpen] = useState<string | null>(
     () => MECHANICS_ELEMENTS.find((e) => e.key === focus)?.name ?? null
@@ -121,7 +112,6 @@ export function MechanicsGuide({
             onInfo={(e) => modal.show({ kind: 'element', name: el.name }, e)}
             onElement={(name) => openElement(name, null)}
             isAdmin={isAdmin}
-            program={program}
           />
         ))}
       </ul>
@@ -206,7 +196,6 @@ function ElementCard({
   onInfo,
   onElement,
   isAdmin,
-  program,
 }: {
   element: MechanicsElement;
   hand: string | null;
@@ -217,7 +206,6 @@ function ElementCard({
   onInfo: (e: React.MouseEvent<HTMLButtonElement>) => void;
   onElement: (name: string) => void;
   isAdmin: boolean;
-  program: { focus: string | null } | null;
 }) {
   const count = drills.reduce((n, s) => n + s.primary.length + s.secondary.length, 0);
 
@@ -287,7 +275,6 @@ function ElementCard({
               {el.name} 자세히 보기
               <ChevronRight aria-hidden className="h-3.5 w-3.5" />
             </button>
-            <FocusAction name={el.name} program={program} />
           </div>
 
           {drills.map(({ stage, primary, secondary }) =>
@@ -314,72 +301,6 @@ function ElementCard({
         </div>
       )}
     </li>
-  );
-}
-
-/**
- * 이 요소를 프로그램의 강조로 — 증상 칩 · 요소 카드로 고칠 곳을 찾은 사람이 그대로 프로그램에 잇는다(2026-10-04 검토).
- * 프로그램이 없으면 그 요소를 강조로 시작하고 프로그램 칸으로 간다. 이미 강조 중이면 표시만.
- */
-function FocusAction({
-  name,
-  program,
-}: {
-  name: string;
-  program: { focus: string | null } | null;
-}) {
-  const router = useRouter();
-  const [pending, startTransition] = useTransition();
-  const [error, setError] = useState<string | null>(null);
-  /* 누른 뒤 서버가 다시 그리기 전에도 바로 바뀌어 보이게 */
-  const [chosen, setChosen] = useState<string | null>(null);
-  const current = chosen ?? program?.focus ?? null;
-
-  if (program && current === name) {
-    return (
-      <span className="inline-flex min-h-10 items-center gap-1 px-1 text-xs font-semibold text-sky-strong desk:min-h-8">
-        <Check aria-hidden className="h-3.5 w-3.5" />
-        프로그램에서 강조 중
-        {chosen && (
-          <Link href="/training?view=mechanics" className="ml-1 text-muted underline-offset-2 hover:underline">
-            보기
-          </Link>
-        )}
-      </span>
-    );
-  }
-
-  return (
-    <>
-      <button
-        type="button"
-        disabled={pending}
-        onClick={() =>
-          startTransition(async () => {
-            setError(null);
-            const res = await orOffline(startMechanicsProgram(name), { error: OFFLINE_MESSAGE });
-            if ('error' in res) {
-              setError(res.error);
-              return;
-            }
-            if (!program) {
-              router.push('/training?view=mechanics');
-              return;
-            }
-            setChosen(name);
-          })
-        }
-        className="inline-flex min-h-10 items-center gap-1 rounded-full bg-surface-2 px-3.5 text-xs font-semibold text-ink transition-colors hover:bg-sky-tint hover:text-sky-strong disabled:opacity-60 desk:min-h-8"
-      >
-        <Target aria-hidden className="h-3.5 w-3.5" />
-        {pending
-          ? '정하는 중…'
-          : program
-            ? '프로그램에서 강조'
-            : `${name}${josa(name, '으로/로')} 프로그램 시작`}
-      </button>
-      {error && <ErrorLine>{error}</ErrorLine>}
-    </>
   );
 }
 

@@ -9,14 +9,13 @@ import { dbDate, keyOfDbDate } from '@/lib/nutrition/days';
 import { equipmentForToday } from '@/lib/report/equipment';
 import { groupDrills, type MechanicsDrillView, type MechanicsVariant } from '@/lib/mechanics/drills';
 import {
-  buildSession,
+  buildLevelSession,
   canUseVariant,
-  isElementName,
-  readProgress,
-  type ProgramProgress,
+  levelAdvice,
+  readProgramState,
   type SessionItem,
 } from '@/lib/mechanics/program';
-import type { MechanicsElementName } from '@/lib/mechanics/elements';
+import { levelSession, SESSIONS_PER_LEVEL, type LevelKey } from '@/lib/mechanics/levels';
 
 /** 도구 하나 + 가진 장비로 할 수 있나(장비를 안 고른 사람은 늘 true) */
 export type PlayerVariant = MechanicsVariant & { owned: boolean };
@@ -34,11 +33,21 @@ export type SessionDrillView = SessionItem & {
 };
 
 export type MechanicsProgramView = {
-  focus: MechanicsElementName | null;
-  progress: ProgramProgress;
+  /** 고른 수준 — 안 골랐으면 null(수준 고르기 화면) */
+  level: LevelKey | null;
+  /** 이 수준에서 마친 세션 수(0~12) */
+  index: number;
+  /** 다음 세션의 주차 · 그 주의 몇 번째 — 12번을 다 마쳤으면 null */
+  week: number | null;
+  day: number | null;
+  /** 한 수준의 세션 수(12) */
+  total: number;
+  /** 수준과 상관없이 지금까지 마친 세션 수 — 영상 찍기 알림(filmPrompt)이 쓴다 */
   sessionsDone: number;
   /** 오늘 세션을 하나라도 마쳤나 */
   finishedToday: boolean;
+  /** 다음 · 아래 수준 권하기(levelAdvice) */
+  advice: ReturnType<typeof levelAdvice>;
 };
 
 /**
@@ -73,11 +82,17 @@ export async function loadMechanicsProgram(userId: string): Promise<{
     guides.filter((g) => !g.referenceVideoId && g.thumbPath).map((g) => g.thumbPath as string)
   );
   const drills = groupDrills(guides, favorites, ownThumbs);
+  const state = readProgramState(row.progress);
+  const plan = state.level ? levelSession(state.level, state.index) : null;
   const program: MechanicsProgramView = {
-    focus: isElementName(row.focus) ? row.focus : null,
-    progress: readProgress(row.progress),
+    level: state.level,
+    index: state.index,
+    week: plan?.week ?? null,
+    day: plan?.day ?? null,
+    total: SESSIONS_PER_LEVEL,
     sessionsDone: row.sessionsDone,
     finishedToday: row.lastSessionOn ? keyOfDbDate(row.lastSessionOn) === todayKey : false,
+    advice: levelAdvice(state),
   };
   const gear = equipmentForToday(user?.ownedEquipment ?? [], setup?.availableEquipment);
   const owned = gear.length > 0 ? new Set(gear) : null;
@@ -88,13 +103,8 @@ export async function loadMechanicsProgram(userId: string): Promise<{
     guideId,
     variants: d.variants.map((v) => ({ ...v, owned: canUseVariant(v, owned) })),
   });
-  const session = buildSession({
-    drills,
-    progress: program.progress,
-    focus: program.focus,
-    sessionsDone: program.sessionsDone,
-    owned,
-  }).flatMap((item): SessionDrillView[] => {
+  const items = state.level ? buildLevelSession({ drills, level: state.level, index: state.index, owned }) : [];
+  const session = items.flatMap((item): SessionDrillView[] => {
     const variant = variants.get(item.guideId);
     const drill = byTitle.get(item.title);
     if (!variant || !drill) return [];

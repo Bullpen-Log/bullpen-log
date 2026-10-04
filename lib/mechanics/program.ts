@@ -1,18 +1,15 @@
 /**
- * 투구 메커니즘 향상 프로그램의 규칙 — 순수 계산(2026-10-04). 시험: npm run mechanics:test
+ * 투구 메커니즘 향상 프로그램의 규칙 — 순수 계산. 시험: npm run mechanics:test
  *
- * 사용자분과 정한 틀:
- * - 요소 여섯마다 지금 단계(기초 → 연결 → 통합)가 있다. 처음엔 모두 기초.
- * - 한 번(세션)에 드릴 3~4개, 15~20분 — 무브먼트 1 · 메디신볼 1~2 · 스로잉 1. 투구 차례대로(하체 → 팔) 한다.
- *   여섯 요소를 세 묶음(하체: 드리프트 · 드롭 / 가운데: 상하체 분리 · 브레이크 / 상체: 몸통 회전 · 스로잉)으로 보고, 세션마다
- *   묶음에서 하나씩 뽑아 사슬을 잇는다(2026-10-04 검토 — 예전엔 앞 셋 · 뒤 셋을 번갈아, 한 번은 하체만 · 한 번은 팔만 했다).
- * - 드릴마다 느낌을 누른다(어려움 · 적당 · 쉬움). 같은 요소를 '쉬움'으로 서로 다른 날 세 번 넘기면 그 요소가 다음 단계로
- *   오른다 — 하루에 몇 번을 눌러도 한 번(다른 날에도 쉬워야 몸에 붙었다고 본다. 예전엔 하루 두 세션이면 그날 올랐다).
- *   '어려움'이면 세던 것을 처음부터. 올라간 단계에서 '어려움'이 서로 다른 날 두 번 이어지면 한 단계 내려갈지 묻는다.
- * - 강조 요소를 하나 고르면 그 요소는 세션마다 들어가고 드릴도 둘이다(그 묶음의 짝은 쉬고, 다른 두 묶음에서 하나씩).
- *   안 고르면 여섯을 고르게 돌린다(네 번이면 모두 두 번씩).
- * - 가진 장비로 할 수 있는 도구 · 드릴을 먼저 고른다(맨몸 · 야구공은 누구나). 지금 단계에 할 수 있는 드릴이 없으면 한 단계
- *   아래에서 고르고 무엇이 있으면 되는지 알린다. 장비를 아직 안 고른 사람은 거르지 않는다(2026-10-04 검토).
+ * 2026-10-04 사용자분이 바꾼 틀: 세션을 저절로 짜지 않는다. 사용자가 수준(입문 · 초급 · 중급 · 고급)을 골라, 그 수준의
+ * 4주 · 주 3번 · 정해진 세션을 차례로 한다(lib/mechanics/levels.ts). 쉬움이 쌓여도 저절로 올리지 않고 권하기만 한다.
+ * - 드릴마다 느낌을 누른다(어려움 · 적당 · 쉬움). 요소마다 '쉬움'을 넘긴 날 · '어려움'이 이어진 날을 센다 — 하루에 몇 번을
+ *   눌러도 한 번(countFeel). 여섯 요소 중 넷이 서로 다른 날 '쉬움' 세 번이면 다음 수준을, 둘이 '어려움' 두 날이면 아래
+ *   수준을 권한다(levelAdvice). 12세션을 다 마치면 다음 수준을 권한다.
+ * - 진행(고른 수준 · 이 수준에서 마친 세션 수 · 요소별 느낌)은 MechanicsProgram.progress(Json) 한 칸에 둔다 — DB 구조는 그대로다.
+ *   옛 줄(요소마다 stage · easy 를 둔 2026-10-04 아침 모양)은 수준을 안 고른 것으로 읽는다.
+ * - 가진 장비로 할 수 있는 도구를 먼저 고르고, 정해진 드릴을 할 장비가 없으면 같은 요소 · 같은 단계의 할 수 있는 드릴로 바꿔
+ *   넣고 알린다(맨몸 · 야구공은 누구나). 장비를 아직 안 고른 사람은 거르지 않는다.
  * - 안전 규칙(통증 · 세게 던진 다음 날)은 이 프로그램에 걸지 않는다(사용자분 결정).
  */
 import { DRILL_STAGE_NAMES } from '@/lib/exercise-meta';
@@ -21,26 +18,33 @@ import {
   mechanicsElement,
   type MechanicsElementName,
 } from '@/lib/mechanics/elements';
+import { isLevelKey, levelSession, nextLevel, prevLevel, SESSIONS_PER_LEVEL, type LevelKey } from '@/lib/mechanics/levels';
 
 export type DrillStage = (typeof DRILL_STAGE_NAMES)[number];
-/**
- * 요소 하나의 진행 — easy: 지금 단계에서 '쉬움'을 넘긴 날 수 · easyOn: 마지막으로 센 날(YYYY-MM-DD, 하루 한 번만 세려고)
- * hard: '어려움'이 이어진 날 수 · hardOn: 마지막으로 센 날. 옛 줄(stage · easy 만)도 그대로 읽는다.
- */
-export type ElementProgress = {
-  stage: DrillStage;
-  easy: number;
-  easyOn: string | null;
-  hard: number;
-  hardOn: string | null;
-};
-export type ProgramProgress = Record<MechanicsElementName, ElementProgress>;
 export type DrillFeel = 'hard' | 'ok' | 'easy';
 
-/** 다음 단계로 오르는 데 필요한 '쉬움' 날 수 */
-export const EASY_TO_ADVANCE = 3;
-/** 이만큼 '어려움'이 이어지면(서로 다른 날) 한 단계 내려갈지 묻는다 */
-export const HARD_TO_STEP_DOWN = 2;
+/**
+ * 요소 하나의 느낌 — easy: '쉬움'을 넘긴 날 수 · easyOn: 마지막으로 센 날(YYYY-MM-DD, 하루 한 번만 세려고)
+ * hard: '어려움'이 이어진 날 수 · hardOn: 마지막으로 센 날.
+ */
+export type ElementFeel = { easy: number; easyOn: string | null; hard: number; hardOn: string | null };
+export type FeelCounts = Record<MechanicsElementName, ElementFeel>;
+
+/** MechanicsProgram.progress 에 두는 것 */
+export type ProgramState = {
+  /** 고른 수준 — 안 골랐으면 null */
+  level: LevelKey | null;
+  /** 이 수준에서 마친 세션 수(0~12) */
+  index: number;
+  feels: FeelCounts;
+};
+
+/** 다음 수준을 권하는 데 필요한 '쉬움' 날 수(요소마다) · 그런 요소 수 */
+export const EASY_DAYS = 3;
+export const EASY_ELEMENTS_TO_SUGGEST_UP = 4;
+/** 아래 수준을 권하는 데 필요한 '어려움'이 이어진 날 수(요소마다) · 그런 요소 수 */
+export const HARD_DAYS = 2;
+export const HARD_ELEMENTS_TO_SUGGEST_DOWN = 2;
 
 export const FEELS: { value: DrillFeel; label: string; hint: string }[] = [
   { value: 'hard', label: '어려움', hint: '자세가 자주 무너졌어요' },
@@ -58,95 +62,93 @@ export function isFeel(value: unknown): value is DrillFeel {
   return value === 'hard' || value === 'ok' || value === 'easy';
 }
 
-/** DB 의 progress(Json) → 여섯 요소 모두. 모르는 값 · 빠진 요소는 기초 · 0 */
-export function readProgress(json: unknown): ProgramProgress {
-  const raw = (json && typeof json === 'object' ? json : {}) as Record<string, unknown>;
-  const out = {} as ProgramProgress;
+const dayOf = (x: unknown) => (typeof x === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(x) ? x : null);
+const countOf = (x: unknown, max = Infinity) =>
+  typeof x === 'number' && Number.isFinite(x) ? Math.max(0, Math.min(max, Math.floor(x))) : 0;
+
+function readFeels(raw: Record<string, unknown>): FeelCounts {
+  const out = {} as FeelCounts;
   for (const name of ELEMENT_NAMES) {
-    const v = (raw[name] ?? {}) as {
-      stage?: unknown;
-      easy?: unknown;
-      easyOn?: unknown;
-      hard?: unknown;
-      hardOn?: unknown;
+    const v = (raw[name] ?? {}) as Record<string, unknown>;
+    out[name] = {
+      easy: countOf(v.easy, EASY_DAYS),
+      easyOn: dayOf(v.easyOn),
+      hard: countOf(v.hard),
+      hardOn: dayOf(v.hardOn),
     };
-    const stage = (DRILL_STAGE_NAMES as readonly string[]).includes(v.stage as string)
-      ? (v.stage as DrillStage)
-      : '기초';
-    const easy =
-      typeof v.easy === 'number' && Number.isFinite(v.easy)
-        ? Math.max(0, Math.min(EASY_TO_ADVANCE, Math.floor(v.easy)))
-        : 0;
-    const hard =
-      typeof v.hard === 'number' && Number.isFinite(v.hard) ? Math.max(0, Math.floor(v.hard)) : 0;
-    const day = (x: unknown) => (typeof x === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(x) ? x : null);
-    out[name] = { stage, easy, easyOn: day(v.easyOn), hard, hardOn: day(v.hardOn) };
   }
   return out;
 }
 
-export function freshProgress(): ProgramProgress {
-  return readProgress({});
-}
-
-/** 맨 위 단계(통합)를 '쉬움'으로 세 번 넘겼는가 — 그 요소는 다 익혔다 */
-export function isMastered(p: ElementProgress): boolean {
-  return p.stage === '통합' && p.easy >= EASY_TO_ADVANCE;
-}
-
 /**
- * 느낌 하나를 반영한다(today = 'YYYY-MM-DD'). 오른 단계가 있으면 leveled, 내려갈지 물을 때면 struggling 을 돌려준다
- * (따라 하기 끝 화면이 알린다). 통합에서는 더 오를 곳이 없어 '쉬움'을 세 번까지만 센다(다 익힘).
- *
- * - 쉬움: 오늘 이미 셌으면 그대로(강조 요소는 한 세션에 두 번 나온다), 아니면 하루 하나. '어려움' 줄은 끊긴다.
- * - 적당: 쉬움 수는 그대로, '어려움' 줄은 끊긴다.
- * - 어려움: 쉬움 수는 처음부터. '어려움' 줄은 하루 하나씩 늘고, 기초보다 위에서 두 날이 이어지면 struggling.
+ * DB 의 progress(Json) → 진행. 지금 모양은 { v: 2, level, index, feels }. 옛 모양(요소 이름이 맨 위에 있고 stage 를 둔 것)은
+ * 수준을 안 고른 것으로 읽는다 — 옛 '단계'는 새 수준과 뜻이 달라 옮기지 않는다.
  */
-export function applyFeel(
-  progress: ProgramProgress,
-  element: MechanicsElementName,
-  feel: DrillFeel,
-  today: string
-): { progress: ProgramProgress; leveled: DrillStage | null; struggling: boolean } {
-  const cur = progress[element];
-  let next: ElementProgress = cur;
-  let leveled: DrillStage | null = null;
-  const i = DRILL_STAGE_NAMES.indexOf(cur.stage);
-  if (feel === 'hard') {
-    const hard = cur.hardOn === today ? cur.hard : cur.hard + 1;
-    next = { ...cur, easy: 0, hard, hardOn: today };
-  } else if (feel === 'ok') {
-    next = { ...cur, hard: 0, hardOn: null };
-  } else if (cur.easyOn === today) {
-    next = { ...cur, hard: 0, hardOn: null };
-  } else {
-    const easy = cur.easy + 1;
-    if (easy >= EASY_TO_ADVANCE && i < DRILL_STAGE_NAMES.length - 1) {
-      leveled = DRILL_STAGE_NAMES[i + 1];
-      /* 오른 날에는 새 단계의 쉬움을 세지 않는다 — 하루에 두 단계를 오르지 않게 */
-      next = { stage: leveled, easy: 0, easyOn: today, hard: 0, hardOn: null };
-    } else {
-      next = { ...cur, easy: Math.min(easy, EASY_TO_ADVANCE), easyOn: today, hard: 0, hardOn: null };
-    }
-  }
-  const struggling = feel === 'hard' && i > 0 && next.hard >= HARD_TO_STEP_DOWN;
-  return { progress: { ...progress, [element]: next }, leveled, struggling };
-}
-
-/** 한 단계 내려간다(따라 하기 끝 화면의 '내려가기') — 기초면 그대로 */
-export function stepDown(
-  progress: ProgramProgress,
-  element: MechanicsElementName
-): ProgramProgress {
-  const i = DRILL_STAGE_NAMES.indexOf(progress[element].stage);
-  if (i <= 0) return progress;
+export function readProgramState(json: unknown): ProgramState {
+  const raw = (json && typeof json === 'object' ? json : {}) as Record<string, unknown>;
+  if (raw.v !== 2) return freshState(null);
+  const level = isLevelKey(raw.level) ? raw.level : null;
   return {
-    ...progress,
-    [element]: { stage: DRILL_STAGE_NAMES[i - 1], easy: 0, easyOn: null, hard: 0, hardOn: null },
+    level,
+    index: level ? countOf(raw.index, SESSIONS_PER_LEVEL) : 0,
+    feels: readFeels((raw.feels && typeof raw.feels === 'object' ? raw.feels : {}) as Record<string, unknown>),
   };
 }
 
-/* ------------------------------- 세션 짜기 ------------------------------- */
+/** 진행 → DB 에 쓸 Json */
+export function programStateJson(state: ProgramState) {
+  return { v: 2, level: state.level, index: state.index, feels: state.feels };
+}
+
+/** 새로 시작하는 수준 — 세션 0, 느낌도 처음부터(다른 수준의 쉬움을 끌고 오지 않는다) */
+export function freshState(level: LevelKey | null): ProgramState {
+  return { level, index: 0, feels: readFeels({}) };
+}
+
+/**
+ * 느낌 하나를 센다(today = 'YYYY-MM-DD'). 저절로 수준을 바꾸지 않는다.
+ * - 쉬움: 오늘 이미 셌으면 그대로, 아니면 하루 하나(세 날까지). '어려움' 줄은 끊긴다.
+ * - 적당: 쉬움 수는 그대로, '어려움' 줄은 끊긴다.
+ * - 어려움: 쉬움 수는 처음부터. '어려움' 줄은 하루 하나씩 는다.
+ */
+export function countFeel(
+  feels: FeelCounts,
+  element: MechanicsElementName,
+  feel: DrillFeel,
+  today: string
+): FeelCounts {
+  const cur = feels[element];
+  let next: ElementFeel;
+  if (feel === 'hard') {
+    next = { easy: 0, easyOn: cur.easyOn, hard: cur.hardOn === today ? cur.hard : cur.hard + 1, hardOn: today };
+  } else if (feel === 'ok' || cur.easyOn === today) {
+    next = { ...cur, hard: 0, hardOn: null };
+  } else {
+    next = { easy: Math.min(cur.easy + 1, EASY_DAYS), easyOn: today, hard: 0, hardOn: null };
+  }
+  return { ...feels, [element]: next };
+}
+
+/**
+ * 권하기 — 저절로 바꾸지 않고, 끝 화면 · 프로그램 칸이 단추와 함께 보여 준다.
+ * done: 12세션을 다 마쳤다(다음 수준이 있으면 그것을 권하고, 고급이면 한 번 더) · up: 여섯 요소 중 넷이 서로 다른 날 '쉬움'
+ * 세 번 · down: 둘이 '어려움' 두 날. 둘 다면 down 이 먼저다(무리하지 않게).
+ */
+export function levelAdvice(
+  state: ProgramState
+): { kind: 'done' | 'up' | 'down'; to: LevelKey | null } | null {
+  if (!state.level) return null;
+  const up = nextLevel(state.level);
+  const down = prevLevel(state.level);
+  const hardCount = ELEMENT_NAMES.filter((n) => state.feels[n].hard >= HARD_DAYS).length;
+  const easyCount = ELEMENT_NAMES.filter((n) => state.feels[n].easy >= EASY_DAYS).length;
+  if (hardCount >= HARD_ELEMENTS_TO_SUGGEST_DOWN && down) return { kind: 'down', to: down.key };
+  if (state.index >= SESSIONS_PER_LEVEL) return { kind: 'done', to: up?.key ?? null };
+  if (easyCount >= EASY_ELEMENTS_TO_SUGGEST_UP && up) return { kind: 'up', to: up.key };
+  return null;
+}
+
+/* ------------------------------- 세션 펼치기 ------------------------------- */
 
 /** 세션에 넣을 동작 — lib/mechanics/drills.ts 의 MechanicsDrillView 에서 필요한 것만 */
 export type ProgramDrill = {
@@ -195,10 +197,10 @@ export type SessionItem = {
   /** 이 드릴을 할 때 떠올릴 느낌 신호 한 줄(lib/mechanics/elements.ts cues) */
   cue: string;
   /**
-   * 장비 알림 — need: 있으면 되는 장비(예: '메디신볼'). lowered: 지금 단계(그 값)에 할 수 있는 드릴이 없어 한 단계 아래로
-   * 골랐을 때, 아니면 null(고른 드릴 자체에 장비가 모자랄 때 — 어느 단계에도 할 수 있는 것이 없던 요소)
+   * 장비 알림 — need: 있으면 되는 장비(예: '메디신볼'). replaced: 프로그램에 정해진 드릴(그 이름)을 할 장비가 없어 같은
+   * 요소 · 같은 단계의 드릴로 바꿨을 때, 아니면 null(고른 드릴 자체에 장비가 모자랄 때 — 바꿀 드릴도 없던 자리)
    */
-  gearNote: { need: string; lowered: DrillStage | null } | null;
+  gearNote: { need: string; replaced: string | null } | null;
   /** 같은 요소 · 같은 단계에서 할 수 있는 다른 동작(이 세션에 이미 든 것은 뺀다, 최대 4) */
   swaps: SessionSwap[];
 };
@@ -213,9 +215,8 @@ export type Dose = { sets: number; reps: number };
  * 몇 번 · 얼마나 세게 — 드릴(MechanicsGuide)에는 세트 · 횟수가 없어서 트레드 애슬레틱스의 드릴 진행표를 따랐다
  * (Fixing a Late Arm, lib/mechanics/elements.ts [T7]): 드릴마다 2세트 × 8회, 처음 몇 번은 느린 동작으로 감을 잡고
  * 다시 익히기 50~60% → 이어 하기 60~70% → 전체 동작에 옮기기 60~75%. 드라이브라인도 드릴은 전력이 아니라 그날 정한
- * 세기로 한다([D9]). 그래서 단계가 올라도 횟수는 같고 세기와 하는 법만 바뀐다(2026-10-04 사용자: "드라이브라인 · 트레드를
- * 바탕으로"). 분류마다 따로 둔 칸은 나중에 두 곳의 근거가 생기면 고치려고 남겨 둔다. 스로잉 드릴에도 공을 안 던지는 팔 동작이
- * 있어 '구'가 아니라 '회'로 적는다.
+ * 세기로 한다([D9]). 그래서 단계가 올라도 횟수는 같고 세기와 하는 법만 바뀐다. 분류마다 따로 둔 칸은 나중에 두 곳의 근거가
+ * 생기면 고치려고 남겨 둔다. 스로잉 드릴에도 공을 안 던지는 팔 동작이 있어 '구'가 아니라 '회'로 적는다.
  */
 const TREAD_DOSE: Dose = { sets: 2, reps: 8 };
 const DOSES: Record<string, Record<DrillStage, Dose>> = {
@@ -247,107 +248,12 @@ export const FILM_EVERY = 6;
 /**
  * 영상으로 확인할 때인가 — 첫 세션 전에는 처음 모습을 찍어 두고(baseline), {FILM_EVERY}번째 세션을 마칠 때마다 다시 찍어
  * 처음 영상과 나란히 견준다(compare). 느낌과 실제 동작은 자주 달라서, 드릴만 하고 확인하지 않으면 무엇이 바뀌었는지
- * 모른다(2026-10-04 검토).
+ * 모른다(2026-10-04 검토). sessionsDone 은 수준과 상관없이 지금까지 마친 세션 수다.
  */
 export function filmPrompt(sessionsDone: number): 'baseline' | 'compare' | null {
   const n = Math.max(0, Math.floor(sessionsDone));
   if (n === 0) return 'baseline';
   return n % FILM_EVERY === 0 ? 'compare' : null;
-}
-
-/** 투구의 세 묶음 — 하체(드리프트 · 드롭) · 가운데(상하체 분리 · 브레이크) · 상체(몸통 회전 · 스로잉) */
-const CHAIN: MechanicsElementName[][] = [
-  ELEMENT_NAMES.slice(0, 2),
-  ELEMENT_NAMES.slice(2, 4),
-  ELEMENT_NAMES.slice(4, 6),
-];
-
-/**
- * 이번 세션에 넣을 요소 — 세 묶음에서 하나씩, 투구 차례대로(하체 → 가운데 → 상체).
- *
- * 강조가 없으면 묶음마다 짝을 번갈아 고르되 묶음끼리 박자를 어긋나게 한다 — 네 번이면 여섯 요소가 모두 두 번씩, 조합도
- * 매번 다르다. 강조가 있으면 그 묶음 자리는 강조 요소(드릴 둘 — buildSession), 다른 두 묶음은 번갈아.
- */
-export function sessionElements(
-  focus: MechanicsElementName | null,
-  sessionsDone: number
-): MechanicsElementName[] {
-  const n = Math.max(0, Math.floor(sessionsDone));
-  const turn = [n % 2, Math.floor(n / 2) % 2, (n + Math.floor(n / 2)) % 2];
-  return CHAIN.map((group, g) => {
-    if (focus && group.includes(focus)) return focus;
-    return group[focus ? (n + g) % 2 : turn[g]];
-  });
-}
-
-/** 세션의 자리마다 바라는 분류 — 첫 자리는 몸을 여는 무브먼트, 끝은 실제로 던지는 스로잉, 가운데는 메디신볼 */
-function preferredCategory(index: number, count: number): string {
-  if (index === 0) return MOVEMENT;
-  if (index === count - 1) return THROWING;
-  return MEDBALL;
-}
-
-/**
- * 오늘의 세션 — 요소마다 지금 단계의 드릴 하나(강조 요소는 둘).
- *
- * 고르는 차례: 그 요소가 주 요소이고 지금 단계인 동작 중 바라는 분류가 있는 것 → 분류가 없으면 아무 분류 → 그래도
- * 없으면 보조로 그 요소를 쓰는 동작 → 한 단계 아래. 같은 동작은 한 세션에 한 번만. 후보 안에서는 마친 세션 수로 돌려
- * 매번 같은 드릴만 나오지 않게 한다.
- *
- * owned(가진 장비)를 주면 그 장비로 할 수 있는 도구가 하나라도 있는 동작만 후보로 삼고, 도구도 할 수 있는 것으로 고른다.
- * 어느 단계에도 할 수 있는 것이 없으면 장비를 보지 않고 고른다(요소가 통째로 빠지는 것보다 낫다 — 따라 하기에서 도구를
- * 바꿀 수 있다).
- */
-export function buildSession({
-  drills,
-  progress,
-  focus,
-  sessionsDone,
-  owned = null,
-}: {
-  drills: ProgramDrill[];
-  progress: ProgramProgress;
-  focus: MechanicsElementName | null;
-  sessionsDone: number;
-  /** 가진 장비 — null 이면 거르지 않는다(아직 안 고른 사람) */
-  owned?: ReadonlySet<string> | null;
-}): SessionItem[] {
-  const n = Math.max(0, Math.floor(sessionsDone));
-  const slots: MechanicsElementName[] = [];
-  for (const name of sessionElements(focus, n)) {
-    slots.push(name);
-    if (name === focus) slots.push(name);
-  }
-
-  const used = new Set<string>();
-  const picks: { element: MechanicsElementName; pick: Pick; index: number }[] = [];
-  slots.forEach((element, index) => {
-    const stage = progress[element].stage;
-    const want = preferredCategory(index, slots.length);
-    const pick =
-      pickDrill(drills, element, stage, want, used, n + index, owned) ??
-      pickDrill(drills, element, stage, want, used, n + index, null);
-    if (!pick) return;
-    used.add(pick.drill.title);
-    picks.push({ element, pick, index });
-  });
-
-  return picks.map(({ element, pick, index }) => {
-    const cues = mechanicsElement(element)?.cues ?? [];
-    const stage = progress[element].stage;
-    return {
-      element,
-      stage: pick.stage,
-      title: pick.drill.title,
-      guideId: pick.variant.id,
-      category: pick.variant.category,
-      tool: pick.variant.tool,
-      ...doseFields(pick.variant.category, pick.stage),
-      cue: cues.length > 0 ? cues[(n + index) % cues.length] : '',
-      gearNote: gearNoteOf(drills, element, stage, pick, owned),
-      swaps: swapsFor(drills, element, pick.stage, used, owned, preferredCategory(index, slots.length)),
-    };
-  });
 }
 
 /** 분류 · 단계별 몇 번 — 따라 하기에서 도구를 바꾸면 그 분류의 것으로 */
@@ -363,11 +269,8 @@ export function doseFields(category: string, stage: DrillStage) {
   return { dose: doseText(d), sets: d.sets, tempo: CATEGORY_TEMPO[category] ?? STAGE_TEMPO[stage] };
 }
 
-type Pick = {
-  drill: ProgramDrill;
-  variant: ProgramDrill['variants'][number];
-  stage: DrillStage;
-};
+const stageOf = (d: ProgramDrill): DrillStage =>
+  (DRILL_STAGE_NAMES as readonly string[]).includes(d.stage ?? '') ? (d.stage as DrillStage) : '기초';
 
 /** 이 요소가 주(main) · 보조(sub)인 동작 — 그 단계 것만 */
 function candidates(drills: ProgramDrill[], element: MechanicsElementName, stage: DrillStage) {
@@ -378,78 +281,9 @@ function candidates(drills: ProgramDrill[], element: MechanicsElementName, stage
   return [main, sub];
 }
 
-/** 바라는 분류 · 할 수 있는 도구 순으로 */
-function bestVariant(drill: ProgramDrill, want: string, owned: ReadonlySet<string> | null) {
-  const ok = drill.variants.filter((v) => canUseVariant(v, owned));
-  return ok.find((v) => v.category === want) ?? ok[0] ?? null;
-}
-
-function pickDrill(
-  drills: ProgramDrill[],
-  element: MechanicsElementName,
-  stage: DrillStage,
-  want: string,
-  used: Set<string>,
-  turn: number,
-  owned: ReadonlySet<string> | null
-): Pick | null {
-  const free = drills.filter(
-    (d) => !used.has(d.title) && d.variants.some((v) => canUseVariant(v, owned))
-  );
-  const stages: DrillStage[] = [stage];
-  for (let i = DRILL_STAGE_NAMES.indexOf(stage) - 1; i >= 0; i--) stages.push(DRILL_STAGE_NAMES[i]);
-
-  for (const s of stages) {
-    for (const pool of candidates(free, element, s)) {
-      if (pool.length === 0) continue;
-      const withWant = pool.filter((d) =>
-        d.variants.some((v) => v.category === want && canUseVariant(v, owned))
-      );
-      const from = withWant.length > 0 ? withWant : pool;
-      const drill = from[turn % from.length];
-      const variant = bestVariant(drill, want, owned);
-      if (variant) return { drill, variant, stage: s };
-    }
-  }
-  return null;
-}
-
-function gearNoteOf(
-  drills: ProgramDrill[],
-  element: MechanicsElementName,
-  stage: DrillStage,
-  pick: Pick,
-  owned: ReadonlySet<string> | null
-): SessionItem['gearNote'] {
-  const lacking = missingGear(pick.variant, owned);
-  if (lacking.length > 0) return { need: lacking.join(' · '), lowered: null };
-  if (pick.stage === stage) return null;
-  /* 지금 단계에 할 수 있는 드릴이 있었는데 이 세션에 이미 들어 내려온 것이면 장비 탓이 아니다 */
-  const doable = candidates(drills, element, stage).some((pool) =>
-    pool.some((d) => d.variants.some((v) => canUseVariant(v, owned)))
-  );
-  if (doable) return null;
-  const need = gearFor(drills, element, stage, owned);
-  return need ? { need, lowered: stage } : null;
-}
-
-/** 지금 단계 드릴을 열려면 무엇이 있으면 되나 — 모자란 것이 가장 적은 도구의 것 */
-function gearFor(
-  drills: ProgramDrill[],
-  element: MechanicsElementName,
-  stage: DrillStage,
-  owned: ReadonlySet<string> | null
-): string | null {
-  let best: string[] | null = null;
-  for (const pool of candidates(drills, element, stage)) {
-    for (const d of pool) {
-      for (const v of d.variants) {
-        const miss = missingGear(v, owned);
-        if (miss.length > 0 && (!best || miss.length < best.length)) best = miss;
-      }
-    }
-  }
-  return best ? best.join(' · ') : null;
+/** 할 수 있는 도구 중 앞의 것 — 묶음의 도구는 실제 공에 가까운 것부터 놓여 있다(drills.ts TOOL_ORDER) */
+function usableVariant(drill: ProgramDrill, owned: ReadonlySet<string> | null) {
+  return drill.variants.find((v) => canUseVariant(v, owned)) ?? null;
 }
 
 /** 같은 요소 · 같은 단계에서 바꿔 할 수 있는 동작 — 주 요소인 것 먼저, 이 세션에 든 것은 빼고 */
@@ -458,16 +292,85 @@ function swapsFor(
   element: MechanicsElementName,
   stage: DrillStage,
   used: Set<string>,
-  owned: ReadonlySet<string> | null,
-  want: string
+  owned: ReadonlySet<string> | null
 ): SessionSwap[] {
   const out: SessionSwap[] = [];
   for (const pool of candidates(drills, element, stage)) {
     for (const d of pool) {
       if (used.has(d.title) || out.length >= 4) continue;
-      const v = bestVariant(d, want, owned);
+      const v = usableVariant(d, owned);
       if (v) out.push({ title: d.title, guideId: v.id, category: v.category, tool: v.tool });
     }
   }
   return out;
+}
+
+/**
+ * 고른 수준의 index 번째 세션을 펼친다 — 정해진 드릴(levels.ts)마다 할 수 있는 도구를 고르고, 장비가 없어 못 하면 같은
+ * 요소 · 같은 단계의 할 수 있는 드릴로 바꿔 넣는다(없으면 그대로 두고 알린다). 라이브러리에 없는 이름은 건너뛴다(시험이 막는다).
+ * 12세션을 다 마쳤으면 빈 배열.
+ */
+export function buildLevelSession({
+  drills,
+  level,
+  index,
+  owned = null,
+}: {
+  drills: ProgramDrill[];
+  level: LevelKey;
+  index: number;
+  /** 가진 장비 — null 이면 거르지 않는다(아직 안 고른 사람) */
+  owned?: ReadonlySet<string> | null;
+}): SessionItem[] {
+  const plan = levelSession(level, index);
+  if (!plan) return [];
+  const byTitle = new Map(drills.map((d) => [d.title, d] as const));
+  const used = new Set(plan.titles);
+  const picks: { drill: ProgramDrill; variant: ProgramDrill['variants'][number]; replaced: string | null; need: string[] }[] = [];
+
+  for (const title of plan.titles) {
+    const drill = byTitle.get(title);
+    if (!drill) continue;
+    const element = drill.focusPoints[0];
+    const own = usableVariant(drill, owned);
+    if (own) {
+      picks.push({ drill, variant: own, replaced: null, need: [] });
+      continue;
+    }
+    /* 이 드릴을 할 장비가 없다 — 같은 요소 · 같은 단계의 할 수 있는 드릴로 */
+    const need = missingGear(drill.variants[0], owned);
+    const alt = isElementName(element)
+      ? candidates(drills, element, stageOf(drill))
+          .flat()
+          .find((d) => !used.has(d.title) && usableVariant(d, owned))
+      : undefined;
+    const altVariant = alt ? usableVariant(alt, owned) : null;
+    if (alt && altVariant) {
+      used.add(alt.title);
+      picks.push({ drill: alt, variant: altVariant, replaced: drill.title, need });
+    } else {
+      picks.push({ drill, variant: drill.variants[0], replaced: null, need });
+    }
+  }
+
+  return picks.flatMap(({ drill, variant, replaced, need }, i) => {
+    const element = drill.focusPoints[0];
+    if (!isElementName(element)) return [];
+    const stage = stageOf(drill);
+    const cues = mechanicsElement(element)?.cues ?? [];
+    return [
+      {
+        element,
+        stage,
+        title: drill.title,
+        guideId: variant.id,
+        category: variant.category,
+        tool: variant.tool,
+        ...doseFields(variant.category, stage),
+        cue: cues.length > 0 ? cues[(index + i) % cues.length] : '',
+        gearNote: need.length > 0 ? { need: need.join(' · '), replaced } : null,
+        swaps: swapsFor(drills, element, stage, used, owned),
+      },
+    ];
+  });
 }
