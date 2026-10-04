@@ -7,6 +7,7 @@ import { LibraryVideo } from '@/components/library-video';
 import { useArmcareInfo } from '@/components/armcare-info-context';
 import { exerciseDescription } from '@/app/actions/content';
 import { methodByKey, type ArmcareMethodKey } from '@/lib/armcare/methods';
+import { DisclosureButton } from '@/components/disclosure';
 
 /** 암케어 화면이 운동 하나를 그리는 데 쓰는 것 — 서버가 만들어 넘긴다 */
 export type ArmcareExerciseView = {
@@ -129,16 +130,14 @@ export function ExerciseMedia({
   return (
     <div className="border-t border-line/70">
       <div className="flex">
-        <button
-          type="button"
+        <DisclosureButton
+          open={open}
           onClick={toggle}
-          aria-expanded={open}
-          aria-label={`${exercise.title} 자세·영상 ${open ? '접기' : '보기'}`}
-          className="flex flex-1 items-center justify-center gap-1.5 py-2.5 text-xs font-semibold text-muted transition-colors hover:text-sky"
-        >
-          <Info aria-hidden className="h-3.5 w-3.5" />
-          {open ? '접기' : '자세·영상 보기'}
-        </button>
+          icon={Info}
+          label="자세·영상 보기"
+          ariaLabel={`${exercise.title} 자세·영상 ${open ? '접기' : '보기'}`}
+          className="flex-1"
+        />
         {showMuscleButton && info && primary && (
           <button
             type="button"

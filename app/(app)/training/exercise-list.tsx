@@ -17,6 +17,7 @@ import { SWIPE_ACTION, SwipeRow } from '@/components/swipe-row';
 import { toggleExerciseFavorite } from '@/app/actions/favorite';
 import { LibraryVideo } from '@/components/library-video';
 import { CheckRow } from './check-row';
+import { DisclosureButton } from '@/components/disclosure';
 
 export type TodayExercise = {
   id: string;
@@ -328,16 +329,14 @@ function ExerciseVideo({ ex }: { ex: TodayExercise }) {
   const label = '영상';
   return (
     <div className="border-t border-line">
-      <button
-        type="button"
+      <DisclosureButton
+        open={open}
         onClick={() => setOpen((v) => !v)}
-        aria-expanded={open}
-        aria-label={`${ex.title} ${label} ${open ? '접기' : '보기'}`}
-        className="flex min-h-11 w-full items-center justify-center gap-2 px-4 py-2.5 text-sm font-semibold text-sky-strong transition-colors hover:bg-surface-2"
-      >
-        <Play aria-hidden className="h-4 w-4 shrink-0" />
-        {open ? `${label} 접기` : `${label} 보기`}
-      </button>
+        icon={Play}
+        label={`${label} 보기`}
+        openLabel={`${label} 접기`}
+        ariaLabel={`${ex.title} ${label} ${open ? '접기' : '보기'}`}
+      />
       {open && (
         <div className="space-y-3 px-4 pb-4">
           <LibraryVideo

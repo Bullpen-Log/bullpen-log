@@ -8,6 +8,7 @@ import { FavoriteButton } from '@/components/favorite-button';
 import { guideDescription } from '@/app/actions/content';
 import { toggleDrillFavorite } from '@/app/actions/favorite';
 import type { MechanicsDrillView } from '@/lib/mechanics/drills';
+import { DisclosureButton } from '@/components/disclosure';
 
 export type { MechanicsDrillView, MechanicsVariant } from '@/lib/mechanics/drills';
 
@@ -96,16 +97,13 @@ export function MechanicsDrill({
       </div>
 
       <div className="border-t border-line/70">
-        <button
-          type="button"
+        <DisclosureButton
+          open={open}
           onClick={toggle}
-          aria-expanded={open}
-          aria-label={`${drill.title} 자세·영상 ${open ? '접기' : '보기'}`}
-          className="flex min-h-11 w-full items-center justify-center gap-1.5 text-xs font-semibold text-muted transition-colors hover:text-sky"
-        >
-          <Info aria-hidden className="h-3.5 w-3.5" />
-          {open ? '접기' : '자세·영상 보기'}
-        </button>
+          icon={Info}
+          label="자세·영상 보기"
+          ariaLabel={`${drill.title} 자세·영상 ${open ? '접기' : '보기'}`}
+        />
       </div>
 
       {open && (

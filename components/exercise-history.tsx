@@ -10,6 +10,7 @@ import { formatAmount, formatSeconds } from '@/lib/exercise-meta';
 import { formatWeight, type WeightUnit } from '@/lib/units';
 import { volumeIn } from '@/lib/workout/summarize';
 import type { ExerciseHistory, HistoryDay, HistoryKind } from '@/lib/workout/history';
+import { MoreButton } from '@/components/disclosure';
 
 /**
  * 운동 하나의 기록과 흐름 — 최고 기록, 볼륨 흐름, 최근 날짜별 기록.
@@ -416,13 +417,11 @@ export function ExerciseHistoryView({
           ))}
         </ul>
         {days.length > limit && (
-          <button
-            type="button"
+          <MoreButton
+            count={days.length - limit}
+            unit="번"
             onClick={() => setExpanded(true)}
-            className="mt-2 w-full rounded-xl border border-line-strong py-2 text-xs font-semibold text-ink transition-colors active:bg-surface-2"
-          >
-            {days.length - limit}번 더 보기
-          </button>
+          />
         )}
       </div>
     </div>

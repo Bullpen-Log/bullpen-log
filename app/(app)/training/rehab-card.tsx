@@ -4,7 +4,6 @@ import { useState, useTransition } from 'react';
 import Link from 'next/link';
 import {
   Check,
-  ChevronDown,
   CircleCheck,
   ClipboardCheck,
   FlaskConical,
@@ -36,6 +35,7 @@ import {
   type RehabThrowingView,
 } from './rehab-throwing';
 import { WeeklyFlow } from './rehab-weekly';
+import { DisclosureButton } from '@/components/disclosure';
 
 /** 재활 카드가 그리는 것 — 서버(armcare-section.tsx)가 규칙(lib/armcare/rehab.ts)으로 만들어 넘긴다 */
 export type RehabCardView = {
@@ -197,18 +197,12 @@ export function RehabCard({ view }: { view: RehabCardView }) {
 
       <Progress view={view} />
 
-      <button
-        type="button"
+      <DisclosureButton
+        open={open}
         onClick={() => setOpen((v) => !v)}
-        aria-expanded={open}
-        className="flex min-h-11 w-full items-center justify-center gap-1 border-t border-sky-soft/30 pt-2 text-sm font-semibold text-muted transition-colors hover:text-ink"
-      >
-        {open ? '접기' : '자세히'}
-        <ChevronDown
-          aria-hidden
-          className={`h-4 w-4 transition-transform ${open ? 'rotate-180' : ''}`}
-        />
-      </button>
+        label="자세히"
+        className="border-t border-sky-soft/30"
+      />
 
       {open && (
         <div className="space-y-5 motion-safe:animate-fade-in">
