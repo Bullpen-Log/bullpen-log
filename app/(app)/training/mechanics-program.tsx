@@ -91,7 +91,7 @@ export function MechanicsProgram({
         </Link>
         <p className="text-xs leading-relaxed break-keep text-muted">
           드릴마다 느낌을 눌러요. 같은 요소를 서로 다른 날 ‘쉬움’으로 {EASY_TO_ADVANCE}번 넘기면 다음 단계로 올라가요.
-          일주일에 2~3번이 알맞아요.
+          던지는 날 몸을 푼 뒤, 캐치볼 전에 하면 알맞아요.
         </p>
       </Card>
 
@@ -215,7 +215,7 @@ function StartCard() {
         <h2 className="text-heading text-lg text-ink">투구 메커니즘 향상 프로그램</h2>
         <ul className="list-disc space-y-1.5 pl-5 text-sm leading-relaxed break-keep text-ink/85">
           <li>투구의 여섯 요소를 기초 → 연결 → 통합 차례로 하나씩 올려요.</li>
-          <li>한 번에 드릴 3~4개, 15~20분이에요. 일주일에 2~3번이 알맞아요.</li>
+          <li>한 번에 드릴 3~4개, 15~20분이에요. 던지는 날 몸을 푼 뒤, 캐치볼 전에 하면 알맞아요.</li>
           <li>
             드릴을 마칠 때마다 느낌(어려움 · 적당 · 쉬움)을 눌러요. 같은 요소를 서로 다른 날 ‘쉬움’으로{' '}
             {EASY_TO_ADVANCE}번 넘기면 다음 단계로 올라가요.
@@ -316,7 +316,7 @@ function FilmCard({ sessionsDone }: { sessionsDone: number }) {
           <p className="text-sm leading-relaxed break-keep text-muted">
             {kind === 'baseline'
               ? `옆에서 평소처럼 몇 개 던지는 모습을 찍어 투구 기록에 남겨요. 세션 ${FILM_EVERY}번 뒤에 그 영상과 나란히 견줘 봐요.`
-              : `세션 ${sessionsDone}번을 했어요. 같은 자리에서 다시 찍어 남기고, 처음 영상과 나란히 놓고 앞발이 닿는 장면을 멈춰 보세요.`}
+              : `세션 ${sessionsDone}번을 했어요. 같은 자리에서 다시 찍어 처음 영상과 나란히 놓고 앞발이 닿는 장면을 멈춰 보세요. 구속도 같이 재 두면 바뀐 것이 효과가 있었는지 알 수 있어요.`}
           </p>
         </div>
       </div>

@@ -13,6 +13,7 @@ import { DRILL_STAGES } from '@/lib/exercise-meta';
 import {
   MECHANICS_ELEMENTS,
   MECHANICS_OVERVIEW,
+  MECHANICS_SOURCE_NOTE,
   MECHANICS_SYMPTOMS,
   mechanicsElement,
   sideText,
@@ -440,6 +441,7 @@ function ElementDetail({ name, hand }: { name: string; hand: string | null }) {
           ))}
         </ul>
       </Section>
+      <p className="text-xs break-keep text-muted">{MECHANICS_SOURCE_NOTE}</p>
     </div>
   );
 }
@@ -472,6 +474,7 @@ export function OverviewDetail() {
           ))}
         </ol>
       </Section>
+      <p className="text-xs break-keep text-muted">{MECHANICS_SOURCE_NOTE}</p>
     </div>
   );
 }

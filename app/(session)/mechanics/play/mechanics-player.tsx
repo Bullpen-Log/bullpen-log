@@ -512,7 +512,8 @@ function FinishView({
           <div className="space-y-3 rounded-2xl bg-surface px-4 py-4">
             <p className="text-base font-bold break-keep text-ink">세션 {sessionNumber}번 — 찍어서 견줘 볼 때예요</p>
             <p className="text-sm break-keep text-muted">
-              같은 자리에서 다시 찍어 투구 기록에 남기고, 처음 영상과 2분할 비교로 나란히 놓아 보세요.
+              같은 자리에서 다시 찍어 투구 기록에 남기고, 처음 영상과 2분할 비교로 나란히 놓아 보세요. 구속도 같이
+              재 두면 바뀐 것이 효과가 있었는지 알 수 있어요.
             </p>
             <Link
               href="/videos?compare=1"
