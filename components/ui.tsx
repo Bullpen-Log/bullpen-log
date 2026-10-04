@@ -79,7 +79,8 @@ export function PageHeading({
      * 같은 낮은 머리. 휴대폰은 애플의 큰 제목처럼 영어 머리글 · 밑줄 없이 제목 하나(2026-10-01 '애플처럼').
      */
     <div
-      className={`flex gap-4 pb-1 desk:border-b desk:border-line desk:pb-4 ${
+      /* PC 밑줄은 실선 대신 실밥 땀 줄(stitch-rule, globals.css — 2026-10-04 불펜로그다움) */
+      className={`flex gap-4 pb-1 desk:stitch-rule desk:pb-4 ${
         inlineAction ? 'flex-row items-end justify-between' : 'flex-col sm:flex-row sm:items-end sm:justify-between'
       }`}
     >
@@ -225,7 +226,8 @@ export function EmptyState({
   action?: ReactNode;
 }) {
   return (
-    <div className="flex flex-col items-center justify-center gap-2 px-6 py-14 text-center desk:gap-3 desk:rounded-2xl desk:border desk:border-dashed desk:border-line desk:py-16">
+    /* 오른쪽 아래 귀퉁이에 옅은 실밥 무늬(seam-corner, globals.css) — 야구 앱의 빈 화면으로 읽히게(2026-10-04) */
+    <div className="seam-corner flex flex-col items-center justify-center gap-2 rounded-2xl px-6 py-14 text-center desk:gap-3 desk:border desk:border-dashed desk:border-line desk:py-16">
       {icon && (
         <span
           aria-hidden

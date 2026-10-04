@@ -55,7 +55,8 @@ export default async function LandingPage() {
   }
 
   return (
-    <main className="flex min-h-[calc(100dvh-env(safe-area-inset-top)-env(safe-area-inset-bottom))] flex-col bg-page">
+    /* 오른쪽 위에 크게 · 옅게 실밥 무늬(seam-hero) — 첫 화면에서 야구 앱임을 조용히 알린다 */
+    <main className="seam-hero flex min-h-[calc(100dvh-env(safe-area-inset-top)-env(safe-area-inset-bottom))] flex-col bg-page">
       <div className="mx-auto w-full max-w-md flex-1 px-6 pt-10 pb-8 sm:pt-16">
         <Wordmark className="text-2xl text-ink" />
 

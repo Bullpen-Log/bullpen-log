@@ -31,7 +31,7 @@ function todayKey() {
 export default function LoginPage() {
   return (
     /* 평평한 바탕 — 하늘색 빛 그라데이션(bg-spotlight)은 AI 템플릿의 첫 화면 같았다(2026-10-04 'AI 티 줄이기') */
-    <main className="flex min-h-[calc(100dvh-env(safe-area-inset-top)-env(safe-area-inset-bottom))] items-center justify-center px-5 py-4 short:py-3 max-md:items-stretch sm:px-8 sm:py-6 md:py-10 md:short:py-4">
+    <main className="seam-hero flex min-h-[calc(100dvh-env(safe-area-inset-top)-env(safe-area-inset-bottom))] items-center justify-center px-5 py-4 short:py-3 max-md:items-stretch sm:px-8 sm:py-6 md:py-10 md:short:py-4">
       <AuthForm today={todayKey()} />
     </main>
   );

@@ -30,6 +30,12 @@ PC 는 거의 그대로다. 아이폰 앱 쪽(자판 막대 · 바탕색)은 앱
 뺐다. 서버 동작 · API 오류 메시지는 해요체로('로그인이 필요해요.'). 네 영역(영양 화면 · `lib/nutrition` 가이드 · 식단 까닭)도 글만 바뀌었고
 값 · 키는 그대로다(nutrition:test 387 통과). **새 글은 줄표 없이, 짧게, 해요체로.** 메커니즘 흔한 실수 칩은 이제 첫 마침표로 자른다.
 
+**AI 티 줄이기 2~4단계 — 모양**: 메커니즘 앱 색 보라 → 깊은 파랑(`--color-app-mechanics` #1f5fa8), 반짝이(✨) 그림 뺌('AI 맞춤' 글자는
+그대로), 트레이닝 홈 앱 아이콘은 칠한 네모 + 흰 그림, 제목 앞 아이콘 · 빛 그라데이션(`bg-spotlight`) · PC 영어 머리글(`eyebrow` 는 이제
+안 보인다)을 걷었다. `animate-fade-in` 은 옅어지기만(커지며 튀어나오지 않음). 소개 화면을 새로 짰다. **불펜로그다움 = 실밥 무늬**:
+`seam-corner`(빈 상태 귀퉁이) · `seam-hero`(첫 화면) · `stitch-rule`(PC 쪽 머리 밑줄, 실선 대신 바느질 땀) — globals.css 의 `--seam` ·
+`--stitch`. 새 빈 화면은 `EmptyState` 를 쓰면 저절로 들어간다. 낮은 글 상자(`empty-well`)에는 안 깐다(글자와 겹친다).
+
 **새 화면을 만들 때 쓰는 것**
 - 저장 알림은 `toast('저장했어요')`(`components/toast.tsx`, 창 위에도 뜬다). redirect 로 끝나는 폼은 `SafeForm` 의 `doneToast`.
 - 켜고 끄기는 `Switch` · `SwitchRow`(`components/switch.tsx`), 설정 목록은 `ListGroup` · `ListRow` · `SelectRow`(`components/settings-list.tsx`),
