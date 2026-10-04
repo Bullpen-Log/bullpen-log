@@ -11,6 +11,19 @@ Claude 로 작업을 시작하면 저절로 읽힌다. 규칙은 `AGENTS.md` 6�
 
 ---
 
+## 금윤호에게 — 2026-10-04 밤 · 김민(Claude) — 근력 · 파워 프로그램(DB 표 · 칸 추가)
+
+**받은 뒤 할 일: `npx prisma generate`** (켜 둔 개발 서버는 다시 켜기). 마이그레이션 `20261004170000_training_programs` 는 이미
+공유 DB 에 적용했다(백업 `db-2026-10-04-07-37.json` 뒤). 더하기만 했다 — 새 표 `UserTrainingProgram`, 새 칸 `UserExerciseSet.rir`(비울 수 있음).
+설계는 `docs/designs/pitcher-strength-power-programs.md`, 규칙은 `lib/program/*`(셀프테스트 `npm run program:test`).
+
+같이 쓰는 곳을 건드린 것(네 영역은 아님):
+- `lib/report/prescription.ts` 의 `selectCandidates` 에 `partsOnly` 옵션(기본 false — 지금 동작 그대로). 프로그램이 부위 규칙만 쓴다.
+- `lib/report/theme.ts` 의 `LOW_CONDITION_THRESHOLD` · `hardOuting` 을 export 만 했다.
+- 운동 시작의 판 열기를 `lib/workout/open-session.ts` 로 옮겼다(startWorkout 동작은 같다). 다시 열기 병합은 `mergeReopened`(session-plan.ts).
+- 세트 대기열(`lib/workout/outbox.ts` PendingSet)에 `rir?` 칸, `logSet` 이 받는다. 저절로 닫기(`close-stale.ts`)가 끝에 `advanceProgramDay` 를 부른다.
+- `package.json` 의 `outbox:test` 에 `--import ./scripts/alias-register.mjs` 를 붙였다 — 전부터 `@/` 경로를 못 찾아 시작도 못 했다.
+
 ## 금윤호에게 — 2026-10-04 저녁 · 김민(Claude) — AI 티 줄이기 1~4단계(화면 글 · 모양 · 첫인상 · 실밥 무늬)
 
 받은 뒤 할 일 없음(DB · 패키지 그대로). 사용자: "AI 가 만든 앱 같은 느낌이 안 나게 — 인테리어(화면 · 구성)". 네 영역도 글 · 모양만 바뀌었다.

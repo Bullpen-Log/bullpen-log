@@ -205,7 +205,7 @@ export type SessionTheme = {
  * 컨디션이 이 값 이하면 회복 테마로 돌린다.
  * (lib/report/prescription.ts 의 무게 제외 기준과 같은 값이다.)
  */
-const LOW_CONDITION_THRESHOLD = 4;
+export const LOW_CONDITION_THRESHOLD = 4;
 
 /**
  * 세게 던진 날로 치는 최소 투구수(그날 거의 최대 강도로 던진 공의 합).
@@ -225,7 +225,9 @@ export const HARD_OUTING_MIN_PITCHES = 30;
  * 그보다 가볍게 던진 날은 다음 날을 막지 않는다. 공을 쉬어야 하는 날은 투구 계획이 따로 말하고,
  * 쌓인 부하는 부하 지수(주의 · 위험 구간)가 따로 본다.
  */
-function hardOuting(facts: ReportFacts): { daysAgo: number; pitches: number } | null {
+export function hardOuting(
+  facts: ReportFacts
+): { daysAgo: number; pitches: number } | null {
   return (
     (facts.patterns.hardOutings ?? []).find(
       (o) => o.daysAgo <= 1 && o.pitches >= HARD_OUTING_MIN_PITCHES

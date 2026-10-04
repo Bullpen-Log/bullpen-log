@@ -38,7 +38,19 @@ export function DoneClient({
   setCount,
   volumeKg,
   rows,
+  program = null,
 }: {
+  /** 근력 · 파워 프로그램 날이면 — 일차 넘김 · 고비 한 줄 · 운동별 추천 → 실제(설계 §13-9) */
+  program?: {
+    headline: string;
+    note: string | null;
+    lifts: {
+      title: string;
+      suggested: number;
+      actual: number | null;
+      rir: number | null;
+    }[];
+  } | null;
   themeLabel: string;
   dateLabel: string;
   minutes: number;
@@ -124,6 +136,34 @@ export function DoneClient({
               </div>
             ))}
           </dl>
+
+          {program && (
+            <section className="rise-in mt-6 [--rise-delay:800ms]">
+              <h2 className="px-1 text-sm font-semibold text-muted">
+                근력 · 파워 프로그램
+              </h2>
+              <div className="mt-2 space-y-2 rounded-2xl bg-surface px-4 py-3">
+                <p className="text-[15px] font-semibold text-ink">{program.headline}</p>
+                {program.lifts.length > 0 && (
+                  <ul className="divide-y divide-line">
+                    {program.lifts.map((l) => (
+                      <li
+                        key={l.title}
+                        className="flex items-center justify-between gap-3 py-2 text-sm"
+                      >
+                        <span className="min-w-0 truncate text-ink">{l.title}</span>
+                        <span className="text-numeric shrink-0 text-muted">
+                          추천 {l.suggested} → 실제 {l.actual}
+                          {l.rir != null && ` · 여유 ${l.rir >= 4 ? '4+' : l.rir}`}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                {program.note && <p className="text-xs text-muted">{program.note}</p>}
+              </div>
+            </section>
+          )}
 
           {records.length > 0 && (
             <section className="rise-in mt-6 [--rise-delay:900ms]">

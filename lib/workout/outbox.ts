@@ -29,6 +29,8 @@ export type PendingSet = {
   holdSeconds: number | null;
   /** 누른 순간(ISO). 늦게 보내져도 이 시각으로 남아 휴식 시계와 순서가 맞다. */
   recordedAt: string;
+  /** 근력 · 파워 프로그램의 '몇 개 더?'(0~4). 마지막 세트를 같은 번호로 다시 담으며 붙인다. 없으면 서버 값을 그대로 둔다. */
+  rir?: number | null;
 };
 
 type SetKey = Pick<PendingSet, 'sessionId' | 'exerciseId' | 'setNo'>;

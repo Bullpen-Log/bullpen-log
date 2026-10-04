@@ -2,6 +2,13 @@ import { redirect } from 'next/navigation';
 import { prisma } from '@/lib/prisma';
 import { requireUser } from '@/lib/dal';
 import { readFrozenPlan } from '@/lib/workout/session-plan';
+import {
+  TOTAL_DAYS,
+  dayLabel,
+  isLightWeek,
+  isPowerBlock,
+  weekOfDay,
+} from '@/lib/program/program';
 import { summarizeSets, totalVolumeKg } from '@/lib/workout/summarize';
 import { priorBests } from '@/lib/workout/prior-bests';
 import { newRecord } from '@/lib/workout/bests';
@@ -44,6 +51,7 @@ export default async function WorkoutDonePage({
       weightKg: true,
       reps: true,
       holdSeconds: true,
+      rir: true,
     },
   });
   if (sets.length === 0) redirect('/training');
@@ -88,8 +96,61 @@ export default async function WorkoutDonePage({
       };
     });
 
+  /*
+   * 근력 · 파워 프로그램 날이면 — 일차를 넘겼는지, 다음 일차, 운동별 '추천 → 실제 · 여유'(설계 §13-9).
+   * 넘기기는 [종료]가 이미 했다(lib/program/advance.ts). 여기서는 결과를 읽기만 한다.
+   */
+  const program = plan?.program
+    ? await (async () => {
+        const tag = plan.program as NonNullable<typeof plan.program>;
+        const row = await prisma.userTrainingProgram.findFirst({
+          where: {
+            userId: user.id,
+            programKey: tag.key,
+            status: { in: ['active', 'done'] },
+          },
+          orderBy: { startedAt: 'desc' },
+          select: { nextDay: true, status: true },
+        });
+        const advanced =
+          row != null && (row.nextDay > tag.day || row.status === 'done');
+        const nextWeek = weekOfDay(tag.day + 1);
+        const lifts = frozen
+          .filter((e) => e.programSlot && e.suggestedKg != null)
+          .map((e) => {
+            const mine = sets.filter((x) => x.exerciseId === e.id);
+            const last = mine[mine.length - 1];
+            return {
+              title: e.title,
+              suggested: e.suggestedKg as number,
+              actual: last?.weightKg ?? null,
+              rir: last?.rir ?? null,
+            };
+          })
+          .filter((l) => l.actual != null);
+        return {
+          headline:
+            tag.day >= TOTAL_DAYS && advanced
+              ? '프로그램을 다 마쳤어요'
+              : advanced
+                ? `${dayLabel(tag.day)} 완료 · 다음 ${dayLabel(tag.day + 1)}`
+                : `절반이 안 돼 ${dayLabel(tag.day)}를 다시 해요`,
+          note:
+            !advanced || tag.day >= TOTAL_DAYS
+              ? null
+              : isLightWeek(nextWeek) && !isLightWeek(tag.week)
+                ? '다음 주는 가벼운 주예요. 무게가 낮은 게 맞아요.'
+                : isPowerBlock(nextWeek) && !isPowerBlock(tag.week)
+                  ? '다음 주부터 파워 블록이에요. 점프가 큰 하체 바로 뒤로 와요.'
+                  : null,
+          lifts,
+        };
+      })()
+    : null;
+
   return (
     <DoneClient
+      program={program}
       themeLabel={plan?.themeLabel ?? '오늘의 운동'}
       dateLabel={new Intl.DateTimeFormat('ko-KR', {
         month: 'long',

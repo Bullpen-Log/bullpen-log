@@ -105,6 +105,7 @@ model User {
   armcareRoutines   DailyArmcare[]
   myArmcareRoutines UserArmcareRoutine[]
   rehabPrograms     UserRehabProgram[]
+  trainingPrograms  UserTrainingProgram[]
   trainingNotes     DailyTrainingNote[]
   featuredVideos    DailyFeaturedVideo[]
   nutritionProfile  NutritionProfile?
@@ -255,6 +256,38 @@ model UserRehabProgram {
   weeklies         UserRehabWeekly[]
 
   @@index([userId])
+}
+
+/// 근력 · 파워 프로그램 하나(lib/program/program.ts). 진행 중(active)은 한 사람 하나 — 트랜잭션 안에서 확인하고 만든다.
+/// 운동 기록은 TrainingSession(얼린 목록의 program) · UserExerciseSet 에 그대로 남는다.
+model UserTrainingProgram {
+  id           String    @id @default(uuid())
+  userId       String
+  /// lib/program/program.ts 의 ProgramKey
+  programKey   String
+  /// 'active' | 'done' | 'stopped'
+  status       String    @default("active")
+  /// 'off' | 'pre' — 시작 화면에서 고른 시즌
+  season       String
+  /// 다음에 할 일차(1~24, 25면 다 끝남)
+  nextDay      Int       @default(1)
+  /// 고정한 운동 — 변형 키 → 운동 id(lib/program/program.ts 의 Pinned)
+  pinned       Json
+  /// 건너뛴 날 수 — 일차로는 세지만 완료로는 안 센다
+  skippedDays  Int       @default(0)
+  /// 마지막으로 일차를 넘긴 운동의 날짜 — 간격(어제 했으면 오늘은 아님) · 쉰 기간에 쓴다
+  lastDoneDate DateTime? @db.Date
+  /// '그래도 오늘 할래요'를 누른 날(D24) — 그날만 쉬는 날을 넘긴다
+  overrideDate DateTime? @db.Date
+  startedAt    DateTime  @default(now())
+  endedAt      DateTime?
+  /// 'done' | 'stopped' | 'switched'
+  endReason    String?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, status])
 }
 
 /// 재활 세션 하나 — 하루 한 줄. 운동 체크는 UserExerciseLog.
@@ -1043,6 +1076,8 @@ model UserExerciseSet {
   reps        Int?
   /// 실제로 버틴 시간(초). 횟수형 운동이면 없다.
   holdSeconds Int?
+  /// 근력 · 파워 프로그램의 '몇 개 더 할 수 있었나요?'(0~4, 4는 4개 이상). 마지막 세트에만, 안 답했으면 없다.
+  rir         Int?
 
   /**
    * 이 세트를 마친 시각.

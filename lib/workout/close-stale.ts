@@ -2,6 +2,7 @@ import 'server-only';
 import { prisma } from '@/lib/prisma';
 import { summarizeSets } from '@/lib/workout/summarize';
 import { dayStart, isAbandoned, sessionEnd } from '@/lib/workout/stale';
+import { advanceProgramDay } from '@/lib/program/advance';
 
 /**
  * 판을 닫는 쓰기들 — [운동 종료]와, 떠난 판을 대신 닫을 때가 함께 쓴다.
@@ -90,6 +91,11 @@ export async function closeAbandoned(
       },
     }),
   ]);
+  /*
+   * 프로그램 날이면 일차를 넘긴다(처방 세트 절반 이상일 때만, 한 번만 — lib/program/advance.ts, U4).
+   * 화면을 그리기 전에 도는 길이라 실패해도 화면을 막지 않는다. 늦게 온 세트가 절반을 채우면 그때 넘긴다.
+   */
+  await advanceProgramDay(session.id).catch(() => false);
 }
 
 /**
