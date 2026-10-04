@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation';
 import { requireUser } from '@/lib/dal';
 import { loadMechanicsProgram } from '@/lib/mechanics/load';
+import { mechanicsLevel } from '@/lib/mechanics/levels';
 import { MechanicsPlayer } from './mechanics-player';
 
 const BACK = '/training?view=mechanics';
@@ -27,6 +28,11 @@ export default async function MechanicsPlayPage() {
       backHref={BACK}
       items={session}
       startAt={first < 0 ? 0 : first}
+      label={
+        program.level && program.week
+          ? `${mechanicsLevel(program.level).name} ${program.week}주차 ${program.day}번째`
+          : `${program.sessionsDone + 1}번째 세션`
+      }
       sessionNumber={program.sessionsDone + 1}
       isAdmin={user.role === 'ADMIN'}
     />

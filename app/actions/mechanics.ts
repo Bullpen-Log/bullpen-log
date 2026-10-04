@@ -7,39 +7,47 @@ import { requireUser } from '@/lib/dal';
 import { visibleGuides } from '@/lib/library-cache';
 import { toDateKey } from '@/lib/pitch-stats';
 import { dbDate } from '@/lib/nutrition/days';
+import { isLevelKey, SESSIONS_PER_LEVEL } from '@/lib/mechanics/levels';
 import {
-  applyFeel,
-  freshProgress,
+  countFeel,
+  freshState,
   isElementName,
   isFeel,
-  readProgress,
-  stepDown,
-  type DrillStage,
+  levelAdvice,
+  programStateJson,
+  readProgramState,
 } from '@/lib/mechanics/program';
 
 /**
- * 투구 메커니즘 프로그램 — 시작 · 강조 바꾸기 · 처음부터 · 드릴 느낌 · 세션 마치기(2026-10-04).
- * 규칙은 lib/mechanics/program.ts, 표는 MechanicsProgram(한 사람에 하나). '했다'는 UserDrillLog 에 남긴다.
+ * 투구 메커니즘 프로그램 — 수준 고르기(바꾸기) · 처음부터 · 드릴 느낌 · 세션 마치기.
+ * 규칙은 lib/mechanics/program.ts · levels.ts, 표는 MechanicsProgram(한 사람에 하나). 고른 수준 · 몇 번째 세션 · 느낌은
+ * progress(Json) 한 칸에 둔다(DB 구조는 그대로). '했다'는 UserDrillLog 에 남긴다.
  */
 
 type Result = { ok: true } | { error: string };
 
 const PROGRAM_PATH = '/training';
 
-/** 프로그램 시작 — 강조 요소 하나(없으면 여섯을 고르게). 이미 있으면 강조만 바꾼다(진행은 지킨다) */
-export async function startMechanicsProgram(focus: string | null): Promise<Result> {
+const asJson = (v: unknown) => v as Prisma.InputJsonValue;
+
+/**
+ * 수준을 고른다(처음 시작 · 바꾸기 · 한 번 더) — 그 수준의 1주차 1번째 세션부터, 느낌도 처음부터.
+ * 지금까지 마친 세션 수(sessionsDone)는 지킨다(영상 찍기 알림이 쓴다).
+ */
+export async function startMechanicsProgram(level: string): Promise<Result> {
   const user = await requireUser();
-  const value = focus && isElementName(focus) ? focus : null;
+  if (!isLevelKey(level)) return { error: '알 수 없는 수준이에요.' };
+  const progress = asJson(programStateJson(freshState(level)));
   await prisma.mechanicsProgram.upsert({
     where: { userId: user.id },
-    create: { userId: user.id, focus: value, progress: freshProgress() },
-    update: { focus: value },
+    create: { userId: user.id, focus: null, progress },
+    update: { focus: null, progress },
   });
   revalidatePath(PROGRAM_PATH);
   return { ok: true };
 }
 
-/** 처음부터 — 프로그램을 지운다. 지난 '했다' 기록(UserDrillLog)은 남는다 */
+/** 처음부터 — 프로그램을 지운다(수준 고르기로 돌아간다). 지난 '했다' 기록(UserDrillLog)은 남는다 */
 export async function resetMechanicsProgram(): Promise<Result> {
   const user = await requireUser();
   await prisma.mechanicsProgram.deleteMany({ where: { userId: user.id } });
@@ -48,19 +56,17 @@ export async function resetMechanicsProgram(): Promise<Result> {
 }
 
 /**
- * 드릴 하나를 마치고 느낌을 남긴다 — 그 요소의 진행을 바꾸고, 오늘 그 드릴을 '했다'로 적는다.
- * 오른 단계가 있으면 돌려준다(따라 하기 끝 화면이 알린다).
+ * 드릴 하나를 마치고 느낌을 남긴다 — 그 요소의 느낌을 세고(하루 한 번), 오늘 그 드릴을 '했다'로 적는다. 수준은 저절로
+ * 바꾸지 않는다(권하기는 세션을 마칠 때).
  *
- * 화면을 다시 그리지 않는다(revalidatePath 없음) — 따라 하기 도중에 서버가 세션을 새로 짜면, 단계가 오른 요소의
- * 드릴이 바뀌어 지금 하던 차례가 엉킨다. 세션을 마칠 때(finishMechanicsSession) 한 번에 새로 그린다.
+ * 화면을 다시 그리지 않는다(revalidatePath 없음) — 따라 하기 도중에 서버가 세션을 새로 짜면 하던 차례가 엉킨다. 세션을
+ * 마칠 때(finishMechanicsSession) 한 번에 새로 그린다.
  */
 export async function recordMechanicsDrill(input: {
   guideId: string;
   element: string;
   feel: string;
-}): Promise<
-  { ok: true; leveled: DrillStage | null; struggling: boolean } | { error: string }
-> {
+}): Promise<Result> {
   const user = await requireUser();
   const { guideId, element, feel } = input;
   if (!isElementName(element) || !isFeel(feel)) return { error: '알 수 없는 값이에요.' };
@@ -71,17 +77,13 @@ export async function recordMechanicsDrill(input: {
   if (!program) return { error: '프로그램을 먼저 시작해 주세요.' };
 
   const today = toDateKey(new Date());
-  const { progress, leveled, struggling } = applyFeel(
-    readProgress(program.progress),
-    element,
-    feel,
-    today
-  );
+  const state = readProgramState(program.progress);
+  const next = { ...state, feels: countFeel(state.feels, element, feel, today) };
   const date = dbDate(today);
   await prisma.$transaction([
     prisma.mechanicsProgram.update({
       where: { userId: user.id },
-      data: { progress: progress as unknown as Prisma.InputJsonValue },
+      data: { progress: asJson(programStateJson(next)) },
     }),
     prisma.userDrillLog.upsert({
       where: { userId_guideId_date: { userId: user.id, guideId, date } },
@@ -89,39 +91,29 @@ export async function recordMechanicsDrill(input: {
       update: { done: true },
     }),
   ]);
-  return { ok: true, leveled, struggling };
+  return { ok: true };
 }
 
 /**
- * 한 단계 내려간다 — 따라 하기 끝 화면에서 '어려움'이 이어진 요소에 '내려가기'를 눌렀을 때(2026-10-04 검토).
- * 자동으로 내리지 않고 묻는다 — 한두 날 어려운 것은 새 단계에서 흔하다.
+ * 세션을 마쳤다 — 이 수준의 다음 세션으로(12번째 다음은 '다 마침'). 권할 것이 있으면 돌려준다(끝 화면이 단추와 함께 보인다).
  */
-export async function stepDownMechanicsElement(element: string): Promise<Result> {
+export async function finishMechanicsSession(): Promise<
+  { ok: true; advice: ReturnType<typeof levelAdvice> } | { error: string }
+> {
   const user = await requireUser();
-  if (!isElementName(element)) return { error: '알 수 없는 값이에요.' };
   const program = await prisma.mechanicsProgram.findUnique({ where: { userId: user.id } });
   if (!program) return { error: '프로그램을 먼저 시작해 주세요.' };
-  const progress = stepDown(readProgress(program.progress), element);
+  const state = readProgramState(program.progress);
+  if (!state.level) return { error: '수준을 먼저 골라 주세요.' };
+  const next = { ...state, index: Math.min(state.index + 1, SESSIONS_PER_LEVEL) };
   await prisma.mechanicsProgram.update({
     where: { userId: user.id },
-    data: { progress: progress as unknown as Prisma.InputJsonValue },
+    data: {
+      progress: asJson(programStateJson(next)),
+      sessionsDone: { increment: 1 },
+      lastSessionOn: dbDate(toDateKey(new Date())),
+    },
   });
   revalidatePath(PROGRAM_PATH);
-  return { ok: true };
-}
-
-/** 세션을 마쳤다 — 다음 세션은 다른 요소로 짠다(sessionElements) */
-export async function finishMechanicsSession(): Promise<Result> {
-  const user = await requireUser();
-  const program = await prisma.mechanicsProgram.findUnique({
-    where: { userId: user.id },
-    select: { id: true },
-  });
-  if (!program) return { error: '프로그램을 먼저 시작해 주세요.' };
-  await prisma.mechanicsProgram.update({
-    where: { userId: user.id },
-    data: { sessionsDone: { increment: 1 }, lastSessionOn: dbDate(toDateKey(new Date())) },
-  });
-  revalidatePath(PROGRAM_PATH);
-  return { ok: true };
+  return { ok: true, advice: levelAdvice(next) };
 }
