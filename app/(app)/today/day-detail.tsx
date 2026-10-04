@@ -537,7 +537,7 @@ function CheckinDetail({ c, isToday }: { c: DayDetail['checkin']; isToday: boole
         {isToday && (
           <>
             {' '}
-            <OpenCheckinButton className="font-semibold text-sky underline">
+            <OpenCheckinButton className="font-semibold text-sky-strong">
               지금 체크인하기
             </OpenCheckinButton>
           </>

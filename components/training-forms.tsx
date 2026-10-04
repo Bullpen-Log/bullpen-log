@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useFormStatus } from 'react-dom';
 import { RefreshCw, Sparkles } from 'lucide-react';
 import { CheckboxGroup, RadioGroup } from '@/components/choice-inputs';
@@ -26,6 +26,7 @@ import {
   CONDITIONING_GOAL,
 } from '@/lib/report/theme';
 import { SafeForm } from '@/components/safe-form';
+import { SwitchRow } from '@/components/switch';
 
 /**
  * 트레이닝 설정과 일정 만들기 폼.
@@ -424,15 +425,10 @@ export function PlanForm({
       {equipmentField}
 
       {mode === 'manual' && (
-        <label className="flex items-center gap-2.5 text-xs text-muted">
-          <input
-            type="checkbox"
-            name="saveDefaults"
-            value="on"
-            className="h-4 w-4 rounded border-line-strong accent-sky"
-          />
+        /* 아이폰 스위치 한 줄(components/switch.tsx) — 예전 16px 체크 상자는 손가락으로 맞히기 어려웠다 */
+        <SwitchRow name="saveDefaults" value="on">
           이 시간과 목표를 앞으로도 기본으로 쓰기
-        </label>
+        </SwitchRow>
       )}
 
       <div className="flex flex-wrap items-center gap-3">
@@ -491,6 +487,7 @@ export function TrainingSettingsForm({
    * 안내에 적어 둔다. 예전에는 이 상태로 다른 것과 한 폼에 묶여 있어서,
    * 경력만 고치고 저장해도 장비 열여섯 개가 통째로 저장됐다.
    */
+  const levelBox = useRef<HTMLDivElement>(null);
   const hasChosenEquipment = ownedEquipment.length > 0;
   const equipmentSelected = hasChosenEquipment
     ? ownedEquipment
@@ -498,16 +495,22 @@ export function TrainingSettingsForm({
 
   return (
     <div className="space-y-6">
-      <SafeForm action={saveTrainingSettings} className="space-y-5">
+      {/*
+        경력은 고르면 바로 저장된다 — 아이폰 설정처럼(2026-10-04 '앱 느낌' 4단계). 예전에는 고른 뒤 밑의 '경력 저장'을 따로
+        눌러야 했고, 안 누르고 창을 닫으면 고른 것이 사라졌다. 저장되면 토스트로 알린다(SafeForm doneToast).
+      */}
+      <SafeForm action={saveTrainingSettings} doneToast="경력을 저장했어요">
         <input type="hidden" name="returnTo" value={returnTo} />
-        <RadioGroup
-          name="trainingLevel"
-          label="웨이트 트레이닝 경력"
-          hint="경력에 비해 이른 운동을 빼는 기준이에요. 안 고르면 아무것도 빼지 않아요."
-          options={TRAINING_LEVELS.map((l) => ({ name: l.name, desc: l.desc }))}
-          selected={trainingLevel}
-        />
-        <SubmitButton label="경력 저장" busy="저장 중…" />
+        <div ref={levelBox}>
+          <RadioGroup
+            name="trainingLevel"
+            label="웨이트 트레이닝 경력"
+            hint="경력에 비해 이른 운동을 빼는 기준이에요. 고르면 바로 저장돼요."
+            options={TRAINING_LEVELS.map((l) => ({ name: l.name, desc: l.desc }))}
+            selected={trainingLevel}
+            onChange={() => levelBox.current?.closest('form')?.requestSubmit()}
+          />
+        </div>
       </SafeForm>
 
       {/*
@@ -517,6 +520,7 @@ export function TrainingSettingsForm({
       <SafeForm
         action={saveOwnedEquipment}
         className="space-y-5 border-t border-line pt-6"
+        doneToast="가진 장비를 저장했어요"
       >
         <input type="hidden" name="returnTo" value={returnTo} />
         <CheckboxGroup

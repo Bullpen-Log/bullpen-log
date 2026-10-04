@@ -6,6 +6,7 @@ import { LibraryVideo } from '@/components/library-video';
 import { useWakeLock } from '@/components/use-wake-lock';
 import { unstable_rethrow } from 'next/navigation';
 import { finishWarmup } from '@/app/actions/workout';
+import { DisclosureButton } from '@/components/disclosure';
 
 export type WarmupItem = {
   id: string;
@@ -189,15 +190,12 @@ export function WarmupClient({
                       */}
                       {(ex.description || ex.videoPath || ex.referenceVideoId) && (
                         <div className="border-t border-line/70">
-                          <button
-                            type="button"
+                          <DisclosureButton
+                            open={showing}
                             onClick={() => setOpen(showing ? null : ex.id)}
-                            aria-expanded={showing}
-                            className="flex w-full items-center justify-center gap-1.5 py-2 text-[11px] font-semibold text-muted transition-colors active:text-sky"
-                          >
-                            <Info className="h-3.5 w-3.5" />
-                            {showing ? '접기' : '자세·영상 보기'}
-                          </button>
+                            icon={Info}
+                            label="자세·영상 보기"
+                          />
 
                           {showing && (
                             <div className="space-y-3 px-3.5 pb-3.5">

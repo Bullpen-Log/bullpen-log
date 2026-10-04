@@ -13,9 +13,11 @@ import type { PastAmount } from '@/lib/report/exercise-recent';
 import { ExerciseBadges } from '@/components/meta-badges';
 import { CategoryBadge } from '@/components/category-badge';
 import { FavoriteButton } from '@/components/favorite-button';
+import { SWIPE_ACTION, SwipeRow } from '@/components/swipe-row';
 import { toggleExerciseFavorite } from '@/app/actions/favorite';
 import { LibraryVideo } from '@/components/library-video';
 import { CheckRow } from './check-row';
+import { DisclosureButton } from '@/components/disclosure';
 
 export type TodayExercise = {
   id: string;
@@ -327,16 +329,14 @@ function ExerciseVideo({ ex }: { ex: TodayExercise }) {
   const label = '영상';
   return (
     <div className="border-t border-line">
-      <button
-        type="button"
+      <DisclosureButton
+        open={open}
         onClick={() => setOpen((v) => !v)}
-        aria-expanded={open}
-        aria-label={`${ex.title} ${label} ${open ? '접기' : '보기'}`}
-        className="flex min-h-11 w-full items-center justify-center gap-2 px-4 py-2.5 text-sm font-semibold text-sky-strong transition-colors hover:bg-surface-2"
-      >
-        <Play aria-hidden className="h-4 w-4 shrink-0" />
-        {open ? `${label} 접기` : `${label} 보기`}
-      </button>
+        icon={Play}
+        label={`${label} 보기`}
+        openLabel={`${label} 접기`}
+        ariaLabel={`${ex.title} ${label} ${open ? '접기' : '보기'}`}
+      />
       {open && (
         <div className="space-y-3 px-4 pb-4">
           <LibraryVideo
@@ -375,50 +375,79 @@ function ExerciseList({
             두고, 완료 쪽이 남은 자리를 다 쓰게 한다.
           */
           <li key={ex.id} className="flex items-stretch gap-2">
-            <div
-              className={`flex min-w-0 flex-1 flex-col rounded-2xl border transition-colors ${
-                ex.done ? 'border-sky bg-sky-tint' : 'border-line bg-surface'
-              }`}
+            {/*
+              휴대폰은 줄을 왼쪽으로 밀면 [즐겨찾기 | 빼기]가 나온다(아이폰 메일처럼, components/swipe-row.tsx — 2026-10-04
+              '앱 느낌' 4단계). 예전엔 옆에 테두리 상자 칸이 붙어 운동 이름 자리를 빼앗았다. PC 는 옆 칸 그대로(밑).
+            */}
+            <SwipeRow
+              className="min-w-0 flex-1 rounded-2xl"
+              actionWidth={152}
+              actions={
+                <>
+                  <FavoriteButton
+                    variant="swipe"
+                    className={`${SWIPE_ACTION} bg-[#ff9500]`}
+                    favorite={ex.favorite}
+                    label={ex.title}
+                    onToggle={() => toggleExerciseFavorite(ex.id)}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => onRemove(ex.id)}
+                    aria-label={`${ex.title} 목록에서 빼기`}
+                    className={`${SWIPE_ACTION} bg-[#ff3b30]`}
+                  >
+                    <X aria-hidden className="h-5 w-5" />
+                    빼기
+                  </button>
+                </>
+              }
             >
-              {/*
+              <div
+                className={`flex min-w-0 flex-col rounded-2xl border transition-colors ${
+                  ex.done ? 'border-sky bg-sky-tint' : 'border-line bg-surface'
+                }`}
+              >
+                {/*
                 줄 어디를 눌러도 체크된다(check-row.tsx). 부위 칩만 따로 눌려 전신 3D 를
                 띄운다(2026-09-26 사용자분, components/body-parts.tsx).
 
                 경고는 직접 넣었는데 오늘 몸 상태에는 무리인 운동에 붙는다. 빼지 않고
                 알리기만 한다 — 넣은 것은 본인이다.
               */}
-              <CheckRow
-                done={ex.done}
-                onToggle={() => onToggle(ex.id)}
-                title={ex.title}
-                className="w-full rounded-2xl"
-                badges={
-                  <>
-                    <CategoryBadge name={ex.category} />
-                    {/* 참고 영상인지는 밑의 '참고 영상 보기' 단추가 알린다(ExerciseVideo) */}
-                    {ex.manual && (
-                      <span className="text-[10px] font-medium text-muted">
-                        직접 넣음
-                      </span>
-                    )}
-                  </>
-                }
-                prescription={ex.prescription}
-                warning={ex.unsafe ? '오늘 몸 상태에는 권하지 않는 운동이에요' : null}
-                thumbUrl={ex.thumbUrl}
-                thumbClassName="hidden h-16 w-24 sm:block"
-              >
-                <ExerciseBadges
-                  bodyParts={ex.bodyParts}
-                  intensity={ex.intensity}
-                  difficulty={ex.difficulty}
-                  equipment={ex.equipment}
-                />
-              </CheckRow>
+                <CheckRow
+                  done={ex.done}
+                  onToggle={() => onToggle(ex.id)}
+                  title={ex.title}
+                  className="w-full rounded-2xl"
+                  badges={
+                    <>
+                      <CategoryBadge name={ex.category} />
+                      {/* 참고 영상인지는 밑의 '참고 영상 보기' 단추가 알린다(ExerciseVideo) */}
+                      {ex.manual && (
+                        <span className="text-[10px] font-medium text-muted">
+                          직접 넣음
+                        </span>
+                      )}
+                    </>
+                  }
+                  prescription={ex.prescription}
+                  warning={ex.unsafe ? '오늘 몸 상태에는 권하지 않는 운동이에요' : null}
+                  thumbUrl={ex.thumbUrl}
+                  thumbClassName="h-14 w-20 sm:h-16 sm:w-24"
+                >
+                  <ExerciseBadges
+                    bodyParts={ex.bodyParts}
+                    intensity={ex.intensity}
+                    difficulty={ex.difficulty}
+                    equipment={ex.equipment}
+                  />
+                </CheckRow>
 
-              <ExerciseVideo ex={ex} />
-              <PastRecord title={ex.title} past={ex.past} />
-            </div>
+                <ExerciseVideo ex={ex} />
+                <PastRecord title={ex.title} past={ex.past} />
+              </div>
+            </SwipeRow>
 
             {/*
               별과 빼기를 한 칸에 위아래로 쌓는다.
@@ -427,7 +456,7 @@ function ExerciseList({
               여기다. 다만 폰에서 가로로 늘어놓으면 운동 이름이 들어갈 자리가
               없어져서, 이미 있던 빼기 단추 칸을 둘로 나눠 쓴다.
             */}
-            <span className="flex shrink-0 flex-col overflow-hidden rounded-2xl border border-line">
+            <span className="hidden shrink-0 flex-col overflow-hidden rounded-2xl border border-line desk:flex">
               <FavoriteButton
                 className="flex-1 px-2.5"
                 favorite={ex.favorite}

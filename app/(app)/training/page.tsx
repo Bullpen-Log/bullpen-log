@@ -505,7 +505,7 @@ export default async function TrainingPage({
             2026-10-03 부터 통증이 있는 날도 아픈 곳을 피해서 일정을 만든다. 여기 오는 것은 최근에 아팠는데
             오늘 체크인이 없어 나았는지 모르는 날뿐이라, 할 일은 체크인을 남기는 것이다.
           */}
-            <OpenCheckinButton className="text-sm font-semibold text-warn underline">
+            <OpenCheckinButton className="text-sm font-semibold text-sky-strong">
               오늘 체크인 남기기
             </OpenCheckinButton>
           </Card>

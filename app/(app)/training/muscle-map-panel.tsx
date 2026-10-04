@@ -246,7 +246,7 @@ function ShowAreaButton({ label, onClick }: { label: string; onClick: () => void
     <button
       type="button"
       onClick={onClick}
-      className="inline-flex items-center gap-1 text-xs font-semibold text-sky-strong underline underline-offset-2"
+      className="inline-flex items-center gap-1 text-xs font-semibold text-sky-strong"
     >
       {label} 운동 모두 보기
       <ArrowDown aria-hidden className="h-3.5 w-3.5" />
@@ -288,7 +288,7 @@ function MuscleDetail({
         <button
           type="button"
           onClick={onBack}
-          className="text-[13px] font-semibold text-sky-strong underline underline-offset-2"
+          className="text-[13px] font-semibold text-sky-strong"
         >
           {areaLabel}
         </button>

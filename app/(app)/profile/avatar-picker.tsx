@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, useTransition } from 'react';
 import { Camera, Loader2, Trash2 } from 'lucide-react';
 import { saveAvatar } from '@/app/actions/profile';
 import { FormError } from '@/components/ui';
+import { toast } from '@/components/toast';
 import { shrinkImage, UnreadableImageError } from '@/lib/shrink-image';
 
 /**
@@ -41,7 +42,6 @@ export function AvatarPicker({
   const [clearing, setClearing] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
-  const [done, setDone] = useState<string>();
   const [pending, startTransition] = useTransition();
 
   /*
@@ -66,7 +66,6 @@ export function AvatarPicker({
 
   async function pick(file: File) {
     setError(undefined);
-    setDone(undefined);
     setBusy(true);
 
     try {
@@ -103,7 +102,8 @@ export function AvatarPicker({
 
       const saved = await saveAvatar(target.path);
       if (saved?.error) throw new Error(saved.error);
-      setDone(saved?.success ?? '사진을 바꿨어요.');
+      /* 다 됐다고 알린다 — 사진은 고르자마자 바뀌어 보여서, 이 말이 없으면 끝났는지 몰라 창을 일찍 닫게 된다 */
+      toast('사진을 바꿨어요');
     } catch (e) {
       /* 잠깐 띄운 것을 거둔다 — 서버의 사진(바꾸기 전 것)이 다시 보인다 */
       setLocal(null);
@@ -117,13 +117,12 @@ export function AvatarPicker({
 
   function remove() {
     setError(undefined);
-    setDone(undefined);
     setClearing(true);
     startTransition(async () => {
       try {
         const res = await saveAvatar(null);
         if (res?.error) throw new Error(res.error);
-        setDone(res?.success ?? '사진을 지웠어요.');
+        toast('사진을 지웠어요');
       } catch (e) {
         setClearing(false);
         setError(explain(e));
@@ -206,16 +205,6 @@ export function AvatarPicker({
       />
 
       <FormError>{error}</FormError>
-      {/*
-        다 됐다고 알려 준다. 사진은 고르자마자 바뀌어 보여서, 이 말이 없으면 아직
-        올리는 중인지 끝났는지 알 수 없어 창을 일찍 닫게 된다.
-      */}
-      {done && !working && (
-        <p role="status" className="text-xs font-medium text-sky">
-          {done}
-        </p>
-      )}
-
       <p className="text-xs leading-relaxed text-muted/70">
         사진은 작게 줄여서 올려요. 본인만 볼 수 있는 저장소에 들어가고, 화면에 보일
         때만 잠깐 쓰는 주소가 만들어져요.

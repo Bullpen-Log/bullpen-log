@@ -168,7 +168,7 @@ export async function ArmcareSection({
             </ArmPainGuideButton>
           </div>
         )}
-        <OpenCheckinButton className="text-sm font-semibold text-warn underline">
+        <OpenCheckinButton className="text-sm font-semibold text-sky-strong">
           통증이 아니면 체크인 고치기
         </OpenCheckinButton>
       </Card>

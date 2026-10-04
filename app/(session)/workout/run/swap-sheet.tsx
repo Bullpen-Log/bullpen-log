@@ -13,6 +13,7 @@ import {
 } from '@/app/actions/workout';
 import { equipmentLabel, type SwapMode } from '@/lib/workout/swap';
 import type { RunExercise } from '@/lib/workout/run-exercises';
+import { MoreButton } from '@/components/disclosure';
 
 /*
  * 찾기용 전체 목록은 한 번 받으면 이 화면을 나갈 때까지 들고 있는다. 누가 보든
@@ -415,13 +416,10 @@ export function SwapSheetView({
                 {matched.slice(0, limit).map((p) => row(p, kind(p)))}
               </ul>
               {matched.length > limit && (
-                <button
-                  type="button"
+                <MoreButton
+                  count={matched.length - limit}
                   onClick={() => setLimit((n) => n + PAGE)}
-                  className="mt-2 w-full rounded-xl border border-line-strong py-2.5 text-xs font-semibold text-ink transition-colors active:bg-surface-2"
-                >
-                  {matched.length - limit}개 더 보기
-                </button>
+                />
               )}
             </>
           )}

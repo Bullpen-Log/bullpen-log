@@ -287,6 +287,11 @@ export function AppNav({
   const [settingsOpen, setSettingsOpen] = useState(false);
   /* 알림(종)의 작은 창, 그리고 거기서 여는 오늘 체크인 창 */
   const [bellOpen, setBellOpen] = useState(false);
+  /*
+   * 휴대폰 종은 아래 시트로 연다(2026-10-04 '앱 느낌' 4단계) — 위 막대 밑에 붙는 작은 창은 웹사이트의 드롭다운 같았다.
+   * 열고 닫는 것은 bellOpen 하나 그대로, 어느 종으로 열었는지만 여기 적는다(PC 종은 예전처럼 작은 창).
+   */
+  const [bellSheet, setBellSheet] = useState(false);
   const [checkinOpen, setCheckinOpen] = useState(false);
   /* 종 단추 — PC 막대와 휴대폰 위 막대에 한 벌씩 */
   const bellPcRef = useRef<HTMLButtonElement>(null);
@@ -962,7 +967,7 @@ export function AppNav({
     setBellOpen(false);
   }
 
-  const toggleBell = () => {
+  const toggleBell = (sheet: boolean) => {
     /* 도크가 떠 있으면 거둔다 — 도크가 종 밑을 덮는 자리라 둘이 겹친다 */
     if (running.current || place.current === 'dock' || queued.current === 'dock') {
       clearTimers();
@@ -970,6 +975,7 @@ export function AppNav({
     }
     const opening = !bellOpen;
     setBellOpen(opening);
+    if (opening) setBellSheet(sheet);
     /* 지난번 '오늘 안 던졌어요' 실패 알림은 새로 열 때 지운다 — 다음 날 열어도 남아 있었다 */
     if (opening) setRestError(undefined);
     /*
@@ -1001,6 +1007,8 @@ export function AppNav({
    * 종·창 안인지 가린다(within). 안 그러면 창 안의 단추를 누르는 순간 창이 닫힌다.
    */
   const onBellOutside = useEffectEvent((e: PointerEvent) => {
+    /* 시트는 창(Modal)이 스스로 닫는다 — 시트 안을 누를 때마다 닫히면 안 된다 */
+    if (bellSheet) return;
     const t = e.target as Node;
     if (bellPcBox.current?.contains(t) || bellPhoneBox.current?.contains(t)) return;
     if (t === document.documentElement) {
@@ -1088,9 +1096,10 @@ export function AppNav({
     }
   };
 
-  const noticePanel = (id: string, className: string) => (
+  const noticePanel = (id: string, className: string, variant?: 'sheet') => (
     <NoticePanel
       id={id}
+      variant={variant}
       state={notice}
       /*
        * 초점을 먼저 종으로 옮긴다 — 창이 닫히며 누른 단추가 사라지기 전에. 그래야
@@ -1211,11 +1220,12 @@ export function AppNav({
               <NoticeBellButton
                 state={notice}
                 open={bellOpen}
-                onToggle={toggleBell}
+                onToggle={() => toggleBell(false)}
                 buttonRef={bellPcRef}
                 panelId={panelPcId}
               />
               {bellOpen &&
+                !bellSheet &&
                 noticePanel(
                   panelPcId,
                   'absolute right-0 top-full mt-3 w-72 max-h-[calc(100dvh-5rem)] overflow-y-auto overscroll-contain'
@@ -1279,28 +1289,27 @@ export function AppNav({
           <NoticeBellButton
             state={notice}
             open={bellOpen}
-            onToggle={toggleBell}
+            onToggle={() => toggleBell(true)}
             buttonRef={bellPhoneRef}
             panelId={panelPhoneId}
             touch
           />
         }
-        /*
-          휴대폰에서는 종이 아니라 위 막대에 붙여 오른쪽 끝에 맞춘다. 종에 붙이면 그 오른쪽의
-          톱니·사진만큼 밀려, 좁은 폰에서 창의 왼쪽이 화면 밖으로 나간다.
-
-          높이를 막는다 — 가로로 눕힌 폰은 화면이 낮아서, 창 아래쪽 단추가 하단 탭(z-50)
-          밑에 깔리거나 화면 밖으로 나갔다. 막대(56px)·틈·하단 탭만큼 빼고 넘치면 창 안에서 굴린다.
-        */
-        panel={
-          bellOpen
-            ? noticePanel(
-                panelPhoneId,
-                'absolute right-4 top-full mt-2 w-[min(20rem,calc(100vw-2rem))] max-h-[calc(100dvh-8.5rem-env(safe-area-inset-top)-env(safe-area-inset-bottom))] overflow-y-auto overscroll-contain'
-              )
-            : null
-        }
+        /* 휴대폰 알림은 위 막대 밑이 아니라 아래 시트로 뜬다(밑의 Modal) */
+        panel={null}
       />
+
+      {/*
+        휴대폰 알림 — 아래 시트(아이폰 앱의 '오늘' 시트처럼). 내용은 PC 작은 창과 같은 NoticePanel 을 시트 모양으로.
+        늘 그려 둔다 — 닫히는 움직임 동안 빈 시트가 내려가지 않게.
+      */}
+      <Modal
+        open={bellOpen && bellSheet}
+        onClose={() => setBellOpen(false)}
+        title="오늘 할 일"
+      >
+        {noticePanel(panelPhoneId, '', 'sheet')}
+      </Modal>
 
       {/*
         오늘 체크인 — 알림(종)에서 연다. 홈의 체크인 상자가 하던 일을 여기서 한다:

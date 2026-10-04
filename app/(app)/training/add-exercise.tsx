@@ -16,6 +16,7 @@ import {
   formatPrescription,
   type Prescription,
 } from '@/lib/exercise-meta';
+import { MoreButton } from '@/components/disclosure';
 
 /**
  * 목록에 운동을 더하는 창.
@@ -296,13 +297,10 @@ export function AddExercise({
           )}
 
           {matched.length > limit && (
-            <button
-              type="button"
+            <MoreButton
+              count={matched.length - limit}
               onClick={() => setLimit((n) => n + PAGE)}
-              className="w-full rounded-xl border border-line-strong px-4 py-2.5 text-sm font-medium text-ink transition-colors hover:border-sky hover:text-sky"
-            >
-              {matched.length - limit}개 더 보기
-            </button>
+            />
           )}
         </div>
       </Modal>

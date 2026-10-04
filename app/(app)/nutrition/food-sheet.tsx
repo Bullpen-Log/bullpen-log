@@ -89,6 +89,7 @@ import { PhotoCapture } from './photo-panel';
 import { BarcodePanel } from './barcode-panel';
 import { subcategoriesOf, subcategoryOf } from '@/lib/nutrition/food-subcategory';
 import { ErrorLine } from '@/components/error-line';
+import { SwitchRow } from '@/components/switch';
 
 /*
  * 서버에 닿지 못했을 때(신호 끊김) — 부르기가 던지면 전환 안의 오류가 오류 화면으로 넘어가 영양 화면(열어 둔 음식 창까지)이
@@ -1937,17 +1938,12 @@ function CustomFood({
         ))}
       </div>
 
-      <label className="flex min-h-11 cursor-pointer items-center gap-2.5 text-sm text-ink">
-        <input
-          type="checkbox"
-          checked={save}
-          onChange={(e) => setSave(e.target.checked)}
-          className="h-5 w-5 accent-sky"
-        />
+      {/* 아이폰 스위치 한 줄(components/switch.tsx, 2026-10-04 김민 '앱 느낌') — 예전엔 브라우저 체크 상자 */}
+      <SwitchRow checked={save} onChange={setSave}>
         {barcode
           ? '이 바코드로 저장해 다음부터 바로 찾기'
           : '내 음식에 저장해 다음에도 쓰기'}
-      </label>
+      </SwitchRow>
 
       {error && (
         <p

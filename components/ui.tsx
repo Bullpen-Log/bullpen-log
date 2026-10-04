@@ -52,6 +52,7 @@ export function PageHeading({
   title,
   description,
   action,
+  inlineAction = false,
 }: {
   eyebrow?: string;
   /** 휴대폰에서 큰 제목 위에 회색 작은 글씨로 — 앱스토어 '투데이' 위의 날짜처럼(예: '10월 1일 수요일') */
@@ -59,6 +60,11 @@ export function PageHeading({
   title: string;
   description?: string;
   action?: ReactNode;
+  /**
+   * 휴대폰에서도 단추(action)를 제목 오른쪽에 — 아이폰 큰 제목 옆 '+' 처럼(투구 기록, 2026-10-04 '앱 느낌' 4단계).
+   * 없으면 휴대폰은 제목 밑으로 내려간다.
+   */
+  inlineAction?: boolean;
 }) {
   return (
     /*
@@ -69,7 +75,11 @@ export function PageHeading({
      * 제목 글자는 모든 탭이 같은 page-title(globals.css — 휴대폰 32px 큰 제목, PC 24px). PC 는 모든 탭 · 모든 높이에서
      * 같은 낮은 머리. 휴대폰은 애플의 큰 제목처럼 영어 머리글 · 밑줄 없이 제목 하나(2026-10-01 '애플처럼').
      */
-    <div className="flex flex-col gap-4 pb-1 sm:flex-row sm:items-end sm:justify-between desk:border-b desk:border-line desk:pb-4">
+    <div
+      className={`flex gap-4 pb-1 desk:border-b desk:border-line desk:pb-4 ${
+        inlineAction ? 'flex-row items-end justify-between' : 'flex-col sm:flex-row sm:items-end sm:justify-between'
+      }`}
+    >
       <div className="space-y-1">
         {kicker && <p className="text-sm font-medium text-muted desk:hidden">{kicker}</p>}
         {eyebrow && (

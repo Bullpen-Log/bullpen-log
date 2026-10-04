@@ -1,14 +1,15 @@
 'use client';
 
-import Link from 'next/link';
 
-import { useActionState, useState, useSyncExternalStore } from 'react';
+import { useActionState, useEffect, useState, useSyncExternalStore } from 'react';
 import { useFormStatus } from 'react-dom';
-import { CalendarDays } from 'lucide-react';
+import { ChevronDown } from 'lucide-react';
 import { MiniCalendar } from '@/components/mini-calendar';
 import { updateProfile, type ProfileState } from '@/app/actions/profile';
 import { guardFormAction } from '@/lib/action-offline';
-import { Button, Field, FormError, Input } from '@/components/ui';
+import { Button, FormError } from '@/components/ui';
+import { ListGroup, ListRow, ROW_INPUT, RowUnit, SelectRow } from '@/components/settings-list';
+import { toast } from '@/components/toast';
 import { kept } from '@/lib/form-values';
 import {
   fromLength,
@@ -39,7 +40,6 @@ import {
   SEX_OPTIONS,
 } from '@/lib/profile';
 import { TARGET_VELOCITY_MAX, TARGET_VELOCITY_MIN } from '@/lib/velocity';
-import { RadioGroup } from '@/components/choice-inputs';
 import { LevelChoices } from '@/components/level-choices';
 import {
   BASELINE_FREQ_NAMES,
@@ -57,7 +57,7 @@ import {
 function SubmitButton() {
   const { pending } = useFormStatus();
   return (
-    <Button type="submit" disabled={pending}>
+    <Button type="submit" disabled={pending} className="w-full">
       {pending ? '저장 중…' : '저장'}
     </Button>
   );
@@ -79,18 +79,15 @@ function SubmitButton() {
 function BodyField({
   name,
   label,
-  hint,
   base,
   kind,
   min,
   max,
-  placeholder,
   integer = false,
 }: {
   /** 서버로 보낼 칸 이름 — 값은 언제나 cm 또는 kg */
   name: string;
   label: string;
-  hint?: string;
   /** 저장된 값 (cm 또는 kg) */
   base: string;
   /** 어느 단위를 따르는가 */
@@ -98,8 +95,6 @@ function BodyField({
   /** 저장 단위 기준 범위 */
   min: number;
   max: number;
-  /** 기본 단위일 때 보여줄 예시 */
-  placeholder: string;
   /** 저장 값을 정수로(키 — 서버가 정수 cm 만 받는다. 인치로 적은 70 이 177.8cm 로 가 저장이 막혔다) */
   integer?: boolean;
 }) {
@@ -117,7 +112,6 @@ function BodyField({
 
   const isLength = kind === 'length';
   const unit = isLength ? lengthUnit : weightUnit;
-  const swapped = isLength ? lengthUnit === 'in' : weightUnit === 'lb';
   const to = (n: number) =>
     isLength ? toLength(n, lengthUnit) : toWeight(n, weightUnit);
   const from = (n: number) =>
@@ -136,10 +130,12 @@ function BodyField({
         : String(round1(to(Number(stored))));
 
   return (
-    <Field label={`${label} (${unit === 'in' ? 'inch' : unit})`} hint={hint}>
-      <Input
+    /* 아이폰 설정의 한 줄 — 이름 · 숫자 · 단위(components/settings-list.tsx) */
+    <ListRow label={label}>
+      <input
         type="number"
         inputMode="decimal"
+        className={ROW_INPUT}
         value={shown}
         onChange={(e) => {
           const v = e.target.value;
@@ -154,11 +150,13 @@ function BodyField({
          * 폼 저장을 통째로 막았다 — 닉네임만 고쳐도.
          */
         step="any"
-        placeholder={swapped ? String(Math.round(to(Number(placeholder)))) : placeholder}
+        /* 빈 칸은 '입력' — 예시 숫자(75)를 두면 적어 둔 값처럼 보였다 */
+        placeholder="입력"
       />
+      <RowUnit>{unit === 'in' ? 'inch' : unit}</RowUnit>
       {/* 서버로 가는 값은 언제나 cm · kg */}
       <input type="hidden" name={name} value={stored} />
-    </Field>
+    </ListRow>
   );
 }
 
@@ -185,13 +183,11 @@ function TargetVelocityField({ base }: { base: string }) {
         : String(round1(toSpeed(Number(kmh), unit)));
 
   return (
-    <Field
-      label={`목표 구속 (${speedLabel(unit)})`}
-      hint="선택 입력. 비워두면 목표를 지워요."
-    >
-      <Input
+    <ListRow label="목표 구속">
+      <input
         type="number"
         inputMode="decimal"
+        className={ROW_INPUT}
         value={shown}
         onChange={(e) => {
           const v = e.target.value;
@@ -208,11 +204,12 @@ function TargetVelocityField({ base }: { base: string }) {
         min={round1(toSpeed(TARGET_VELOCITY_MIN, unit))}
         max={round1(toSpeed(TARGET_VELOCITY_MAX, unit))}
         step="any"
-        placeholder={unit === 'mph' ? '87' : '140'}
+        placeholder="입력"
       />
+      <RowUnit>{speedLabel(unit)}</RowUnit>
       {/* 서버로 가는 값은 언제나 km/h */}
       <input type="hidden" name="targetVelocity" value={kmh} />
-    </Field>
+    </ListRow>
   );
 }
 
@@ -242,31 +239,27 @@ function BirthDatePicker({
   const max = `${year - MIN_AGE}${monthDay}`;
   const [y, m, d] = value ? value.split('-').map(Number) : [];
 
+  /* 묶음 안의 한 줄 — 누르면 그 밑에 달력이 펴진다(창 안이라 화면 위에 띄우면 창 뒤에 깔린다) */
   return (
-    <div className="space-y-2">
-      <span
-        id="profile-birth-label"
-        className="block text-xs font-medium tracking-normal text-muted"
-      >
-        생년월일
-      </span>
+    <div>
       <input type="hidden" name="birthDate" value={value} />
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
         aria-expanded={open}
-        aria-labelledby="profile-birth-label profile-birth-value"
-        className={`flex min-h-11 w-full items-center justify-between gap-2 rounded-xl border bg-ink/5 px-4 py-3 text-left text-sm transition-colors focus:outline-none desk:min-h-0 desk:bg-surface-2 ${
-          open ? 'border-sky' : 'border-transparent desk:border-line'
-        }`}
+        className="flex min-h-12 w-full items-center gap-3 px-4 text-left"
       >
-        <span id="profile-birth-value" className={value ? 'text-ink' : 'text-muted/60'}>
+        <span className="shrink-0 text-sm text-ink">생년월일</span>
+        <span className={`ml-auto text-sm ${value ? 'text-muted' : 'text-muted/45'}`}>
           {value ? `${y}년 ${m}월 ${d}일` : '날짜 고르기'}
         </span>
-        <CalendarDays aria-hidden className="h-4 w-4 shrink-0 text-muted" />
+        <ChevronDown
+          aria-hidden
+          className={`h-4 w-4 shrink-0 text-muted/60 transition-transform ${open ? 'rotate-180' : ''}`}
+        />
       </button>
       {open && (
-        <div className="motion-safe:animate-fade-in rounded-2xl border border-line bg-surface p-3">
+        <div className="motion-safe:animate-fade-in border-t border-line p-3">
           <MiniCalendar
             value={value}
             today={today}
@@ -282,9 +275,6 @@ function BirthDatePicker({
           />
         </div>
       )}
-      <span className="block text-xs text-muted/70">
-        나이에 따라 안전한 투구수 한도와 영양 기준이 달라져요.
-      </span>
     </div>
   );
 }
@@ -326,6 +316,13 @@ export function ProfileForm({
     guardFormAction(updateProfile),
     undefined
   );
+  /*
+   * 저장되면 잠깐 뜨는 한 줄로 알린다(components/toast.tsx). 예전에는 폼 맨 위의 하늘색 상자였는데, 단추는 폼 맨 밑이라
+   * 상자가 화면 밖에 생겨 저장된 줄 몰랐다.
+   */
+  useEffect(() => {
+    if (state?.success) toast('저장했어요');
+  }, [state]);
 
   /*
    * 오류로 되돌아왔을 때 고치던 내용을 그대로 다시 보여준다.
@@ -337,49 +334,59 @@ export function ProfileForm({
   /* 소속 칸이 나이에 맞춰 바뀌도록 생년월일을 따라 쥔다(칸 자체는 그대로 폼이 보낸다) */
   const [birth, setBirth] = useState(() => pick('birthDate', birthDate));
 
+  const minutes = `${nearestMinutesChoice(dailyWorkoutMinutes ?? DEFAULT_WORKOUT_MINUTES)}분`;
+  const names = (list: readonly string[]) => list.map((value) => ({ value }));
+
+  /*
+   * 아이폰 설정 목록처럼 — 묶음마다 '이름 · 값' 줄(2026-10-04 '앱 느낌' 4단계, components/settings-list.tsx). 예전에는 이름표
+   * 밑에 상자 칸 · 칩 묶음이 하나씩 쌓인 긴 웹 폼이었다. 칸 이름 · 보내는 값은 그대로라 저장(updateProfile)은 바뀌지 않는다 —
+   * 고르는 칸은 라디오 대신 아이폰 기본 고르개(select)로 같은 name · 값을 보낸다. 설명은 묶음 밑 꼬리글로 모았다.
+   */
   return (
-    <form action={formAction} className="space-y-5">
+    <form action={formAction} className="space-y-6">
       <FormError>{state?.error}</FormError>
 
-      {state?.success && (
-        <p className="rounded-lg border border-sky-soft/60 bg-sky/10 px-4 py-3 text-sm text-sky">
-          {state.success}
-        </p>
-      )}
-
-      {/*
-        네 칸을 두 줄로 눕힌다.
-
-        예전에는 한 줄에 하나씩 세로로 쌓여 있었다. 닉네임 칸이 화면 폭을 다
-        쓰는데 정작 들어가는 것은 두세 글자고, 키와 목표 구속도 세 자리 숫자가
-        전부였다. 창으로 옮기면서 그 빈 폭이 그대로 스크롤 길이가 됐다.
-      */}
-      <div className="grid gap-x-4 gap-y-4 sm:grid-cols-2">
-        <Field label="닉네임">
-          <Input
+      <ListGroup
+        title="기본 정보"
+        footer="생년월일에 따라 안전한 투구수 한도와 영양 기준이 달라져요. 성별은 영양 목표(기초대사량)를 계산하는 데 써요."
+      >
+        <ListRow label="닉네임">
+          <input
             name="nickname"
             type="text"
             defaultValue={pick('nickname', nickname)}
             autoComplete="nickname"
             minLength={2}
             required
+            className={ROW_INPUT}
           />
-        </Field>
-
+        </ListRow>
         <BirthDatePicker value={birth} onChange={setBirth} today={today} />
+        {/*
+          성별 — 가입할 때 고른 값. 이 칸이 생기기 전에 가입한 계정은 비어 있다. 꼭 고르게 하지는 않는다 —
+          닉네임 하나 고치려다 막히면 안 된다. 안 고르면(빈 값) 서버가 지금 값을 그대로 둔다.
+        */}
+        <SelectRow
+          label="성별"
+          name="sex"
+          options={SEX_OPTIONS.map((o) => ({ value: o.value, label: o.name }))}
+          defaultValue={pick('sex', sex)}
+        />
+      </ListGroup>
 
+      <ListGroup
+        title="몸"
+        footer="키는 영상에서 잰 보폭을 몸 크기로 견줄 때 써요. 윙스팬은 양팔을 벌린 길이로, 보통 키와 비슷하거나 조금 길어요. 목표 구속은 비워 두면 지워요."
+      >
         <BodyField
           name="heightCm"
           label="키"
-          hint="영상에서 잰 보폭을 몸 크기로 견줄 때 써요."
           base={pick('heightCm', heightCm)}
           kind="length"
           integer
           min={MIN_HEIGHT_CM}
           max={MAX_HEIGHT_CM}
-          placeholder="180"
         />
-
         <BodyField
           name="weightKg"
           label="몸무게"
@@ -387,138 +394,86 @@ export function ProfileForm({
           kind="weight"
           min={MIN_WEIGHT_KG}
           max={MAX_WEIGHT_KG}
-          placeholder="75"
         />
-
         <BodyField
           name="wingspanCm"
           label="윙스팬"
-          hint="양팔을 벌린 길이. 보통 키와 비슷하거나 조금 길어요."
           base={pick('wingspanCm', wingspanCm)}
           kind="length"
           min={MIN_WINGSPAN_CM}
           max={MAX_WINGSPAN_CM}
-          placeholder="185"
         />
-
         <TargetVelocityField base={pick('targetVelocity', targetVelocity)} />
-      </div>
+      </ListGroup>
 
-      {/*
-        성별 — 가입할 때 고른 값. 영양 목표(기초대사량)가 이 값으로 셈한다.
-        이 칸이 생기기 전에 가입한 계정은 비어 있다. 꼭 고르게 하지는 않는다 —
-        닉네임 하나 고치려다 막히면 안 된다. 안 고르면 지금 값을 그대로 둔다.
-      */}
-      <RadioGroup
-        name="sex"
-        label="성별"
-        hint="영양 목표(기초대사량)를 계산하는 데 써요."
-        options={SEX_OPTIONS}
-        selected={pick('sex', sex)}
-        compact
-      />
-
-      {/* 하루 운동 시간 — 트레이닝 화면이 이 시간에 맞춰 종목 수를 정한다. */}
-      <RadioGroup
-        name="dailyWorkoutMinutes"
-        label="하루 운동 시간"
-        hint="트레이닝 화면이 이 시간에 맞춰 운동 개수를 정해요. 몸 상태가 안 좋은 날은 자동으로 줄어요."
-        options={WORKOUT_MINUTES_CHOICES.map((m) => ({ name: `${m}분` }))}
-        selected={pick(
-          'dailyWorkoutMinutes',
-          // 예전에 고를 수 있던 15·20·30분이 저장돼 있으면 짝이 없어 아무것도
-          // 안 골라진 채로 뜬다. 가장 가까운 값을 짚어준다.
-          `${nearestMinutesChoice(dailyWorkoutMinutes ?? DEFAULT_WORKOUT_MINUTES)}분`
-        )}
-        compact
-      />
-
-      {/*
-        경력·목표·장비는 트레이닝 화면에서 고른다.
-        결과를 보면서 바로 고칠 수 있어야 해서 그쪽으로 옮겼다.
-      */}
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-2 border-t border-line pt-5">
-        <p className="text-sm text-muted">
-          웨이트 경력 · 훈련 목표 · 가지고 있는 장비는{' '}
-          <strong className="text-ink">트레이닝</strong> 화면에서 골라요.
-        </p>
-        <Link
-          href="/today"
-          className="rounded-lg border border-line-strong px-3 py-1.5 text-xs font-semibold text-ink transition-colors hover:border-sky hover:text-sky"
-        >
-          트레이닝으로 가기
-        </Link>
-      </div>
-
-      {/* 평소 투구량 문진 — 부하 지수의 추정 기준선. 3개 모두 답해야 저장된다. */}
-      <div className="space-y-4 border-t border-line pt-5">
-        <p className="text-sm font-semibold text-ink">
-          평소 얼마나 던지시나요?
-          <span className="mt-1 block text-xs font-normal text-muted">
-            이 답으로 부하 지수를 기록 첫날부터 계산해요. 상황이 바뀌면 언제든 고칠 수
-            있어요.
-          </span>
-        </p>
-        <RadioGroup
-          name="baselineFreq"
-          label="던지는 횟수"
-          options={BASELINE_FREQ_NAMES.map((name) => ({ name }))}
-          selected={pick('baselineFreq', baseline.baselineFreq)}
+      <ListGroup
+        title="운동"
+        footer="하루 운동 시간에 맞춰 트레이닝 운동 개수를 정해요(몸 상태가 안 좋은 날은 저절로 줄어요). 던지는 손은 투구폼 분석에서 볼 팔이에요. 웨이트 경력 · 가진 장비는 설정 › 트레이닝에서 골라요."
+      >
+        <SelectRow
+          label="하루 운동 시간"
+          name="dailyWorkoutMinutes"
+          options={names(WORKOUT_MINUTES_CHOICES.map((m) => `${m}분`))}
+          /* 예전에 고를 수 있던 15·20·30분이 저장돼 있으면 짝이 없다 — 가장 가까운 값을 짚는다 */
+          defaultValue={pick('dailyWorkoutMinutes', minutes)}
         />
-        <RadioGroup
-          name="baselineVolume"
-          label="한 번에 던지는 양"
-          options={BASELINE_VOLUME_NAMES.map((name) => ({ name }))}
-          selected={pick('baselineVolume', baseline.baselineVolume)}
-        />
-        <RadioGroup
-          name="baselineIntensity"
-          label="평소 강도"
-          options={BASELINE_INTENSITY_NAMES.map((name) => ({ name }))}
-          selected={pick('baselineIntensity', baseline.baselineIntensity)}
-        />
-      </div>
-
-      {/*
-        웨이트 빈도 — 운동 부하 지수의 기준선. 투구와 같은 이유로 받는다.
-        이게 없으면 운동 지수만 28일을 기다려야 해서 앞뒤가 안 맞는다.
-      */}
-      <div className="space-y-4 border-t border-line pt-5">
-        <p className="text-sm font-semibold text-ink">
-          평소 웨이트는 얼마나 하시나요?
-          <span className="mt-1 block text-xs font-normal text-muted">
-            이 답으로 운동 부하 지수를 기록 첫날부터 계산해요.
-          </span>
-        </p>
-        <RadioGroup
-          name="baselineWorkoutFreq"
-          label="웨이트 횟수"
-          options={BASELINE_WORKOUT_FREQ_NAMES.map((name) => ({ name }))}
-          selected={pick('baselineWorkoutFreq', baseline.baselineWorkoutFreq)}
-        />
-      </div>
-
-      <div className="space-y-4 border-t border-line pt-5">
-        <RadioGroup
-          name="throwingHand"
+        <SelectRow
           label="던지는 손"
-          hint="투구폼 분석에서 어느 팔을 볼지 정해요."
-          options={THROWING_HANDS.map((name) => ({ name }))}
-          selected={pick('throwingHand', baseline.throwingHand)}
+          name="throwingHand"
+          options={names(THROWING_HANDS)}
+          defaultValue={pick('throwingHand', baseline.throwingHand)}
         />
-        {/*
-          소속은 위 생년월일과 이어져 있다 — 나이에 안 맞는 곳은 막힌다(components/level-choices).
-          계산을 바꾸는 값은 아니다. 나이는 생년월일로 이미 알고 안전 한도도 거기서 나온다.
-        */}
-        <LevelChoices
-          size="sm"
-          legend="어디서 야구를 하시나요"
-          hint="훈련 내용을 바꾸는 값은 아니에요. 나중에 비슷한 또래와 견줘 보여드리려고 여쭤봐요."
-          birthDate={birth}
-          today={today}
-          initial={pick('competitionLevel', baseline.competitionLevel)}
+      </ListGroup>
+
+      {/* 평소 투구량 · 웨이트 문진 — 부하 지수의 추정 기준선. 투구 셋은 모두 답해야 저장된다(서버 validateBaseline) */}
+      <ListGroup
+        title="평소 투구 · 웨이트"
+        footer="이 답으로 투구 · 운동 부하 지수를 기록 첫날부터 계산해요. 상황이 바뀌면 언제든 고칠 수 있어요."
+      >
+        <SelectRow
+          label="던지는 횟수"
+          name="baselineFreq"
+          options={names(BASELINE_FREQ_NAMES)}
+          defaultValue={pick('baselineFreq', baseline.baselineFreq)}
         />
-      </div>
+        <SelectRow
+          label="한 번에 던지는 양"
+          name="baselineVolume"
+          options={names(BASELINE_VOLUME_NAMES)}
+          defaultValue={pick('baselineVolume', baseline.baselineVolume)}
+        />
+        <SelectRow
+          label="평소 강도"
+          name="baselineIntensity"
+          options={names(BASELINE_INTENSITY_NAMES)}
+          defaultValue={pick('baselineIntensity', baseline.baselineIntensity)}
+        />
+        <SelectRow
+          label="웨이트 횟수"
+          name="baselineWorkoutFreq"
+          options={names(BASELINE_WORKOUT_FREQ_NAMES)}
+          defaultValue={pick('baselineWorkoutFreq', baseline.baselineWorkoutFreq)}
+        />
+      </ListGroup>
+
+      {/*
+        소속은 위 생년월일과 이어져 있다 — 나이에 안 맞는 곳은 막힌다(components/level-choices).
+        계산을 바꾸는 값은 아니다. 나이는 생년월일로 이미 알고 안전 한도도 거기서 나온다.
+      */}
+      <ListGroup
+        title="소속"
+        footer="훈련 내용을 바꾸는 값은 아니에요. 나중에 비슷한 또래와 견줘 보여드리려고 여쭤봐요."
+      >
+        <div className="p-4">
+          <LevelChoices
+            size="sm"
+            legend="어디서 야구를 하시나요"
+            birthDate={birth}
+            today={today}
+            initial={pick('competitionLevel', baseline.competitionLevel)}
+          />
+        </div>
+      </ListGroup>
 
       <SubmitButton />
     </form>

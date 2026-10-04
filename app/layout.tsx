@@ -3,6 +3,8 @@ import { Bebas_Neue } from 'next/font/google';
 import { THEME_INIT_SCRIPT } from '@/lib/theme';
 import { APP_INIT_SCRIPT } from '@/lib/native-app';
 import { PressFeedback } from '@/components/press-feedback';
+import { HapticFeedback } from '@/components/haptic-feedback';
+import { Toaster } from '@/components/toast';
 import { ViewportVars } from '@/components/viewport-vars';
 import { NavMotion } from '@/components/nav-motion';
 import { Suspense } from 'react';
@@ -22,7 +24,8 @@ const bebas = Bebas_Neue({
 });
 
 export const metadata: Metadata = {
-  title: 'Bullpen Log — 투수를 위한 트레이닝 & 기록 플랫폼',
+  /* 이름만 — 공유 미리보기 · 앱 전환 화면에 '…트레이닝 & 기록 플랫폼'이 붙어 웹사이트 같았다(2026-10-04). 소개는 description */
+  title: 'Bullpen Log',
   description:
     '투수 전용 운동 가이드, 투구 메커니즘 분석, 날짜별 투구 기록 관리와 스포츠 과학 자료실을 한 곳에서.',
   /*
@@ -107,6 +110,10 @@ export default function RootLayout({
         {children}
         {/* 손가락으로 누른 것을 옅게 — 아이폰 단추처럼(globals.css '손가락으로 눌렀을 때') */}
         <PressFeedback />
+        {/* 고르면 손에 '톡' — 고르개 · 스위치 · 칩(components/haptic-feedback.tsx) */}
+        <HapticFeedback />
+        {/* '저장했어요' 같은 잠깐 뜨는 알림 — 어디서든 toast('…')(components/toast.tsx) */}
+        <Toaster />
         {/* 자판 높이를 --kb · --vvh 로 — 아이폰은 자판이 올라와도 화면 높이가 그대로라 바닥 단추가 숨었다 */}
         <ViewportVars />
         {/* 화면 이동 방향(들어가기 · 뒤로) · 지나온 화면 — 앱처럼 밀려 들어오고 나간다(components/nav-motion.tsx) */}

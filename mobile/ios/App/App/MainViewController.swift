@@ -18,6 +18,11 @@ class MainViewController: CAPBridgeViewController {
         super.capacitorDidLoad()
         // 사이트가 첫 화면을 다 그렸다는 알림을 받을 곳 — 사이트는 window.webkit.messageHandlers.bullpenIntro 로 보낸다
         webView?.configuration.userContentController.add(self, name: IntroOverlay.messageName)
+        // 사이트의 테마 바탕색 — 웹뷰 바탕을 그 색으로 칠해 둔다(아래 applyPageColor)
+        webView?.configuration.userContentController.add(self, name: Self.themeMessageName)
+        if let saved = UserDefaults.standard.string(forKey: Self.pageColorKey) {
+            applyPageColor(saved)
+        }
         // 구속 측정의 일반 · 광각 동시 촬영(DualCameraPlugin.swift) — 앱 안 부품이라 여기서 등록한다
         bridge?.registerPluginInstance(DualCameraPlugin())
         // 화면 켜 두기 · 휴식 끝 알림(BullpenNativePlugin.swift, 사이트 lib/native-bridge.ts)
@@ -25,6 +30,9 @@ class MainViewController: CAPBridgeViewController {
         // 화면 왼쪽 끝을 밀어 뒤로 — 앱에는 브라우저의 뒤로 단추가 없어, 약관 같은 화면에서 돌아갈 길이 화면 속 단추뿐이었다
         // (2026-10-03 아이폰 점검). 사파리 · 다른 아이폰 앱과 같은 손동작이다
         webView?.allowsBackForwardNavigationGestures = true
+        // 자판 위 '⌃ ⌄ 완료' 막대를 숨긴다 — 사파리의 폼 막대라 앱 안에서 웹페이지 같았다(2026-10-04 '앱 느낌' 3단계).
+        // 자판은 화면을 끌면 내려간다(사이트 components/viewport-vars.tsx)
+        KeyboardAccessoryBar.hide()
     }
 
     override func viewDidLoad() {
@@ -49,15 +57,72 @@ class MainViewController: CAPBridgeViewController {
         intro?.play()
     }
 
+    /// 사이트가 테마 바탕색을 알려 오는 이름(lib/native-app.ts) · 다음에 켤 때 쓰려고 적어 두는 자리
+    static let themeMessageName = "bullpenTheme"
+    private static let pageColorKey = "bullpenPageColor"
+
+    /// 웹뷰 바탕을 사이트의 바탕색으로(2026-10-04 '앱 느낌').
+    ///
+    /// 앱이 오래 뒤에 있으면 아이폰이 웹 화면을 내려놓고, 돌아오면 사이트를 다시 그린다. 그동안 웹뷰의 기본 바탕(흰색)이 보여
+    /// 다크 · 네이비 테마에서 흰 화면이 번쩍였다. 동시 촬영(DualCameraPlugin)이 웹뷰를 투명하게 둔 동안은 칠하지 않고 적어만 둔다
+    /// — 촬영이 끝나면 그 부품이 저장해 둔 바탕으로 되돌린다.
+    func applyPageColor(_ hex: String) {
+        UserDefaults.standard.set(hex, forKey: Self.pageColorKey)
+        guard let color = UIColor(pageHex: hex) else { return }
+        view.backgroundColor = color
+        guard let webView = webView else { return }
+        if !webView.isOpaque && webView.backgroundColor == .clear { return }
+        webView.isOpaque = false
+        webView.backgroundColor = color
+        webView.scrollView.backgroundColor = color
+    }
+
     /// 연출 판은 늘 밝다 — 앱 테마가 어두워 사이트가 흰 시계 글자를 청해도 판이 걷힐 때까지는 검은 글자
     override var preferredStatusBarStyle: UIStatusBarStyle {
         return introShowing ? .darkContent : super.preferredStatusBarStyle
     }
 }
 
+/// 자판 위 막대(inputAccessoryView) 끄기 — 웹뷰의 글 칸(WKContentView)이 막대를 내주는 곳을 '없음'으로 바꾼다.
+///
+/// WebKit 이 이것을 끄는 설정을 따로 두지 않아, @capacitor/keyboard 의 hideFormAccessoryBar 와 같은 방법(메서드 갈아 끼우기)을
+/// 쓴다 — 패키지 하나를 더 들이지 않으려고 그 몇 줄만 옮겼다. 그 클래스가 없으면(웹킷이 이름을 바꾸면) 아무 일도 안 한다.
+enum KeyboardAccessoryBar {
+    private static var done = false
+
+    static func hide() {
+        guard !done else { return }
+        done = true
+        let selector = #selector(getter: UIResponder.inputAccessoryView)
+        let name = ["WK", "Content", "View"].joined()
+        guard let cls = NSClassFromString(name),
+              let method = class_getInstanceMethod(cls, selector) else { return }
+        let none: @convention(block) (AnyObject) -> UIView? = { _ in nil }
+        method_setImplementation(method, imp_implementationWithBlock(none))
+    }
+}
+
 extension MainViewController: WKScriptMessageHandler {
     func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
+        if message.name == Self.themeMessageName {
+            if let hex = message.body as? String { applyPageColor(hex) }
+            return
+        }
         intro?.pageReady()
+    }
+}
+
+private extension UIColor {
+    /// '#rrggbb' 만 읽는다 — 사이트가 보내는 바탕색(lib/theme.ts 의 PAGE_COLORS)
+    convenience init?(pageHex hex: String) {
+        let digits = hex.hasPrefix("#") ? String(hex.dropFirst()) : hex
+        guard digits.count == 6, let value = UInt32(digits, radix: 16) else { return nil }
+        self.init(
+            red: CGFloat((value >> 16) & 0xFF) / 255,
+            green: CGFloat((value >> 8) & 0xFF) / 255,
+            blue: CGFloat(value & 0xFF) / 255,
+            alpha: 1
+        )
     }
 }
 

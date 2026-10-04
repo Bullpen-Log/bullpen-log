@@ -1,4 +1,8 @@
+'use client';
+
+import { useEffect, useRef, useState, type PointerEvent } from 'react';
 import Link from 'next/link';
+import { haptic } from '@/lib/haptics';
 import type { DaySummary, WeightPoint } from '@/lib/nutrition/load';
 import { fmtRate, type Trend } from '@/lib/nutrition/weight-goal';
 import { kcalText } from '@/lib/nutrition/meta';
@@ -56,9 +60,11 @@ export function WeekChart({
                 }`}
                 style={{ height: `${(d.kcal / max) * 100}%` }}
               />
+              {/* 그날 목표 — 막대보다 조금 넓은 짧은 실선(건강 · 피트니스 앱의 목표 표시처럼, 2026-10-04 김민 '앱 느낌').
+                  예전 점선은 막대마다 끊긴 점들이라 지저분했다 */}
               <span
                 aria-hidden
-                className="absolute inset-x-0 border-t-2 border-dotted border-ink/30"
+                className="absolute -inset-x-0.5 h-0.5 translate-y-1/2 rounded-full bg-ink/35"
                 style={{ bottom: `${(d.target / max) * 100}%` }}
               />
             </Link>
@@ -106,6 +112,14 @@ export function WeightTrend({
   trend: Trend;
   targetKg: number | null;
 }) {
+  /*
+   * 누르고 옆으로 훑으면 그 무렵 적은 값 — 밑 줄이 '10월 3일 · 72.4kg' 으로 바뀌고 세로선이 선다(건강 앱처럼, 2026-10-04
+   * 김민 '앱 느낌'). 떼면 1.5초 뒤 돌아온다. 마우스는 올린 대로.
+   */
+  const [hover, setHover] = useState<number | null>(null);
+  const hideTimer = useRef(0);
+  useEffect(() => () => window.clearTimeout(hideTimer.current), []);
+
   if (weights.length < 2) {
     return (
       <p className="text-xs leading-relaxed text-muted">
@@ -178,11 +192,41 @@ export function WeightTrend({
   const change = line ? r1(line.to - line.from) : 0;
   const day = (date: string) => date.slice(5).replace('-', '/');
 
+  /* 손가락 자리 → 가장 가까운 적은 날. 그림은 가로세로 같은 배율로 상자 가운데에 놓인다(viewBox 기본) */
+  const pick = (e: PointerEvent<SVGSVGElement>) => {
+    const r = e.currentTarget.getBoundingClientRect();
+    const scale = Math.min(r.width / W, r.height / H);
+    const vx = (e.clientX - r.left - (r.width - W * scale) / 2) / scale;
+    let best = 0;
+    weights.forEach((wt, i) => {
+      if (Math.abs(x(wt.date) - vx) < Math.abs(x(weights[best].date) - vx)) best = i;
+    });
+    window.clearTimeout(hideTimer.current);
+    if (e.pointerType !== 'mouse' && best !== hover) haptic('selection');
+    setHover(best);
+  };
+  const picked = hover == null ? null : weights[hover];
+  const md = (date: string) =>
+    `${Number(date.slice(5, 7))}월 ${Number(date.slice(8, 10))}일`;
+
   return (
     <figure className="space-y-1">
       <svg
         viewBox={`0 0 ${W} ${H}`}
-        className="h-16 w-full overflow-visible text-sky"
+        className="h-16 w-full touch-pan-y overflow-visible text-sky select-none"
+        onPointerDown={pick}
+        onPointerMove={(e) => {
+          if (e.pointerType === 'mouse' || e.buttons > 0) pick(e);
+        }}
+        onPointerLeave={(e) => {
+          if (e.pointerType === 'mouse') setHover(null);
+        }}
+        onPointerUp={(e) => {
+          if (e.pointerType === 'mouse') return;
+          window.clearTimeout(hideTimer.current);
+          hideTimer.current = window.setTimeout(() => setHover(null), 1500);
+        }}
+        onPointerCancel={() => setHover(null)}
         role="img"
         aria-label={[
           trend.ok && line
@@ -289,6 +333,29 @@ export function WeightTrend({
           ) : null
         )}
 
+        {/* 고른 날 — 세로선과 그 값의 점 */}
+        {picked && hover != null && (
+          <g>
+            <line
+              x1={x(picked.date)}
+              x2={x(picked.date)}
+              y1={0}
+              y2={H}
+              className="stroke-ink/30"
+              strokeWidth={1}
+              vectorEffect="non-scaling-stroke"
+            />
+            <circle
+              cx={x(picked.date)}
+              cy={Math.min(H - 3, Math.max(3, y(values[hover])))}
+              r={4}
+              className="fill-sky stroke-surface"
+              strokeWidth={1.5}
+              vectorEffect="non-scaling-stroke"
+            />
+          </g>
+        )}
+
         {/* 흐름 — 왼쪽에서 오른쪽으로 그어진다 */}
         {line && tx && (
           <line
@@ -307,7 +374,20 @@ export function WeightTrend({
         )}
       </svg>
       <figcaption className="flex justify-between gap-2 text-xs text-muted tabular-nums">
-        {trend.ok && line ? (
+        {picked && hover != null ? (
+          <>
+            <span>{md(picked.date)}</span>
+            <span className="font-semibold text-sky-strong">
+              {r1(values[hover])}
+              {unit}
+              {dropped.has(picked.date) && (
+                <span className="ml-1 font-normal text-muted">
+                  · 흐름 계산에서 뺀 값
+                </span>
+              )}
+            </span>
+          </>
+        ) : trend.ok && line ? (
           <>
             <span>
               {day(trend.fromDate)} · {r1(line.from)}

@@ -49,10 +49,12 @@ export function PitchViewSwitch({
   value,
   options,
   onChange,
+  className,
 }: {
   value: PitchView;
   options: readonly ViewOption[];
   onChange: (next: PitchView) => void;
+  className?: string;
 }) {
   return (
     <Segmented
@@ -61,6 +63,7 @@ export function PitchViewSwitch({
       onChange={onChange}
       options={options}
       tone="raised"
+      className={className}
       itemClassName="px-4 py-1.5"
     />
   );
@@ -76,9 +79,12 @@ export function PitchViewSwitch({
 export function PitchLogHeading({
   controls,
   action,
+  inlineAction = false,
 }: {
   controls: ReactNode;
   action?: ReactNode;
+  /** 휴대폰에서도 단추를 제목 오른쪽에(PageHeading inlineAction) */
+  inlineAction?: boolean;
 }) {
   return (
     <>
@@ -86,6 +92,7 @@ export function PitchLogHeading({
         <PageHeading
           eyebrow="Pitch log"
           title="투구 기록"
+          inlineAction={inlineAction}
           action={
             <div className="flex items-center gap-2">
               <div className="hidden items-center gap-2 desk-low:flex">{controls}</div>

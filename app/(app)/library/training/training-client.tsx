@@ -303,7 +303,7 @@ function ExerciseDetail({
                     setFailed(false);
                     setAttempt((n) => n + 1);
                   }}
-                  className="font-semibold text-sky-strong underline underline-offset-2"
+                  className="font-semibold text-sky-strong"
                 >
                   다시 불러오기
                 </button>

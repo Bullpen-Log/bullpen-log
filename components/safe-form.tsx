@@ -2,6 +2,7 @@
 
 import { useState, type ReactNode } from 'react';
 import { OFFLINE_MESSAGE, orOffline } from '@/lib/action-offline';
+import { toast } from '@/components/toast';
 
 /** 서버에 닿지 못했다는 표시 — 액션이 돌려줄 수 있는 어떤 값과도 겹치지 않는다 */
 const OFFLINE = Symbol('offline');
@@ -17,10 +18,17 @@ const OFFLINE = Symbol('offline');
 export function SafeForm({
   action,
   className,
+  doneToast,
   children,
 }: {
   action: (formData: FormData) => Promise<unknown>;
   className?: string;
+  /**
+   * 저장이 끝나면 잠깐 띄울 한 줄(components/toast.tsx) — 같은 화면으로 돌아오는 저장(설정의 경력 · 장비)은 화면이
+   * 그대로라 된 건지 몰랐다. 서버 동작이 redirect 로 끝나면 그 신호(던짐)가 곧 성공이다 — orOffline 이 넘기는 던짐은
+   * Next 의 신호(redirect · notFound)뿐이다.
+   */
+  doneToast?: string;
   children: ReactNode;
 }) {
   const [error, setError] = useState<string>();
@@ -29,8 +37,15 @@ export function SafeForm({
       className={className}
       action={async (formData) => {
         setError(undefined);
-        if ((await orOffline(action(formData), OFFLINE)) === OFFLINE)
-          setError(OFFLINE_MESSAGE);
+        let result: unknown;
+        try {
+          result = await orOffline(action(formData), OFFLINE);
+        } catch (signal) {
+          if (doneToast) toast(doneToast);
+          throw signal;
+        }
+        if (result === OFFLINE) setError(OFFLINE_MESSAGE);
+        else if (doneToast) toast(doneToast);
       }}
     >
       {children}

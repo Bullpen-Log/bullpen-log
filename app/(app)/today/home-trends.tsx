@@ -3,21 +3,29 @@
 import {
   useEffect,
   useId,
-  useLayoutEffect,
   useMemo,
   useRef,
   useState,
   useSyncExternalStore,
   type PointerEvent,
-  type RefObject,
 } from 'react';
 import {
   ArrowDownRight,
   ArrowUpRight,
   CalendarDays,
   ChartColumn,
+  Dumbbell,
+  Flame,
+  Gauge,
+  HeartPulse,
   Minus,
+  Scale,
+  type LucideIcon,
 } from 'lucide-react';
+import { Baseball } from '@/components/baseball-icon';
+import { haptic } from '@/lib/haptics';
+import { smoothPath } from '@/lib/smooth-path';
+import { useBoxSize } from '@/components/use-box-size';
 import { MiniCalendar } from '@/components/mini-calendar';
 import { Segmented } from '@/components/segmented';
 import { useSpeedUnit, useWeightUnit } from '@/components/use-units';
@@ -192,6 +200,8 @@ const METRICS: {
   total: Combine;
   change: 'pct' | 'diff';
   tone: string;
+  /** 카드 제목 앞 그림 — 건강 앱의 항목 머리처럼(2026-10-04) */
+  icon: LucideIcon;
 }[] = [
   {
     key: 'pitches',
@@ -201,6 +211,7 @@ const METRICS: {
     total: 'sum',
     change: 'pct',
     tone: 'text-sky',
+    icon: Baseball,
   },
   {
     key: 'velocity',
@@ -210,6 +221,7 @@ const METRICS: {
     total: 'max',
     change: 'diff',
     tone: 'text-sky',
+    icon: Gauge,
   },
   {
     key: 'condition',
@@ -219,6 +231,7 @@ const METRICS: {
     total: 'avg',
     change: 'diff',
     tone: 'text-sky',
+    icon: HeartPulse,
   },
   {
     key: 'weight',
@@ -228,6 +241,7 @@ const METRICS: {
     total: 'last',
     change: 'diff',
     tone: 'text-sky',
+    icon: Scale,
   },
   {
     key: 'kcal',
@@ -237,6 +251,7 @@ const METRICS: {
     total: 'avg',
     change: 'pct',
     tone: 'text-sky',
+    icon: Flame,
   },
   {
     key: 'training',
@@ -246,6 +261,7 @@ const METRICS: {
     total: 'sum',
     change: 'pct',
     tone: 'text-sky',
+    icon: Dumbbell,
   },
 ];
 
@@ -265,12 +281,16 @@ function combine(values: (number | null)[], how: Combine): number | null {
 }
 
 /** 큰 숫자 옆의 작은 말 — 그 숫자가 무엇을 센 것인지 */
-function noteOf(key: MetricKey, got: number[]) {
+function noteOf(key: MetricKey, got: number[], fmt: (v: number) => [string, string]) {
+  /* 평균은 그래프 위 이름표 대신 여기 글로 — 건강 앱이 '일평균'을 숫자 밑에 쓰듯(2026-10-04) */
+  const mean = (vs: number[]) => vs.reduce((a, b) => a + b, 0) / vs.length;
   switch (key) {
-    case 'pitches':
-      return `${got.filter((v) => v > 0).length}일 던짐`;
+    case 'pitches': {
+      const thrown = got.filter((v) => v > 0);
+      return `${thrown.length}일 던짐 · 평균 ${fmt(mean(thrown)).join('')}`;
+    }
     case 'velocity':
-      return `${got.length}일 잼`;
+      return `${got.length}일 잼 · 평균 ${fmt(mean(got)).join('')}`;
     case 'condition':
       return `${got.length}일 평균`;
     case 'weight':
@@ -494,15 +514,15 @@ export function HomeTrends({
       )}
 
       {/*
-        여섯 장은 한 상자 안에 — 칸 사이 선은 1px 틈에 깔린 바탕색이다(gap-px + bg-line).
-        좁으면 두 장씩, 상자가 넓으면(48rem 이상) 세 장씩. 화면이 아니라 이 상자의 폭을
+        여섯 장은 따로 떨어진 둥근 카드 — 건강 앱의 요약 카드처럼(2026-10-04 '앱 느낌'). 예전엔 한 상자 안을 1px 선으로
+        나눠 표처럼 보였다. 좁으면 두 장씩, 상자가 넓으면(48rem 이상) 세 장씩. 화면이 아니라 이 상자의 폭을
         본다(@container) — 분석 옆에 설 때와 밑에 설 때 폭이 두 배 가까이 다르다.
 
         기간을 바꾸면 새로 그린다(key) — 막대가 다시 솟고 선이 다시 그어진다.
       */}
       <div
         key={`${range.from}~${range.to}`}
-        className="grid min-h-0 flex-1 auto-rows-fr grid-cols-2 gap-px overflow-hidden rounded-2xl border border-line bg-line @3xl:grid-cols-3"
+        className="grid min-h-0 flex-1 auto-rows-fr grid-cols-2 gap-3 @3xl:grid-cols-3"
       >
         {METRICS.map((m) => {
           const values = days.map((d) => valueOf(m.key, d));
@@ -519,6 +539,7 @@ export function HomeTrends({
             <TrendCell
               key={m.key}
               label={m.label}
+              icon={m.icon}
               kind={m.kind}
               tone={m.tone}
               slots={slots}
@@ -529,7 +550,7 @@ export function HomeTrends({
                 )
               )}
               value={now == null ? null : fmt(now)}
-              note={got.length > 0 ? noteOf(m.key, got) : ''}
+              note={got.length > 0 ? noteOf(m.key, got, fmt) : ''}
               change={changeOf(m.change, now, then, fmt, periodName)}
               format={fmt}
               fixedDomain={m.key === 'condition' ? CONDITION_DOMAIN : null}
@@ -676,6 +697,7 @@ function changeOf(
 
 function TrendCell({
   label,
+  icon: Icon,
   kind,
   tone,
   slots,
@@ -690,6 +712,7 @@ function TrendCell({
   onJump,
 }: {
   label: string;
+  icon: LucideIcon;
   kind: 'bar' | 'line';
   tone: string;
   slots: Slot[];
@@ -706,11 +729,29 @@ function TrendCell({
 }) {
   const Arrow =
     change?.dir === 1 ? ArrowUpRight : change?.dir === -1 ? ArrowDownRight : Minus;
+  /*
+   * 그래프를 가리키는(손가락으로 훑는) 칸 — 그동안 큰 숫자 자리가 그날 값 · 날짜로 바뀐다. 건강 앱처럼 위의 숫자가
+   * 바뀌고 그래프 위에는 세로선만 선다(2026-10-04). 예전 말풍선은 그래프 위에 떠 숫자 · 막대를 가렸다.
+   */
+  const [hover, setHover] = useState<number | null>(null);
+  const picked = hover == null ? undefined : points[hover];
+  const shownValue =
+    picked === undefined ? value : picked == null ? null : format(picked);
+  const shownNote =
+    hover == null
+      ? note
+      : daily
+        ? spokenDay(slots[hover].end)
+        : `${shortDate(slots[hover].start)}~${shortDate(slots[hover].end)}`;
   return (
-    <div className="flex min-h-0 min-w-0 flex-col bg-surface px-4 pb-2 pt-3.5">
+    /* 카드 하나 — 휴대폰은 테두리 없이 흰 면(globals.css 카드 규칙), PC 는 테두리 */
+    <div className="flex min-h-0 min-w-0 flex-col rounded-2xl border border-line bg-surface px-4 pb-2.5 pt-3.5">
       <div className="flex items-center justify-between gap-2">
-        <h3 className="truncate text-xs font-semibold text-muted">{label}</h3>
-        {change && (
+        <h3 className={`flex min-w-0 items-center gap-1 text-xs font-semibold ${tone}`}>
+          <Icon aria-hidden className="h-3.5 w-3.5 shrink-0" />
+          <span className="truncate">{label}</span>
+        </h3>
+        {change && hover == null && (
           <span
             title={change.spoken}
             className={`inline-flex shrink-0 items-center gap-0.5 rounded-full bg-current/10 px-1.5 py-0.5 text-[11px] font-semibold tabular-nums ${tone}`}
@@ -721,26 +762,28 @@ function TrendCell({
           </span>
         )}
       </div>
-      <p className="mt-0.5 flex min-w-0 items-baseline gap-1.5">
-        <span className="truncate text-xl font-bold tabular-nums text-ink">
-          {value ? value[0] : '—'}
-          {value && (
-            <span className="ml-0.5 text-xs font-medium text-muted">{value[1]}</span>
-          )}
-        </span>
-        {note && <span className="truncate text-[11px] text-muted">{note}</span>}
+      <p
+        className={`mt-1 truncate text-xl font-bold tabular-nums ${hover == null ? 'text-ink' : tone}`}
+      >
+        {shownValue ? shownValue[0] : '—'}
+        {shownValue && (
+          <span className="ml-0.5 text-xs font-medium text-muted">{shownValue[1]}</span>
+        )}
       </p>
+      {/* 숫자 밑 한 줄 — 며칠 · 평균(예전엔 숫자 옆에 붙어 좁은 칸에서 잘렸다). 훑는 동안은 그 날짜 */}
+      <p className="min-h-4 truncate text-[11px] leading-4 text-muted">{shownNote}</p>
       <Chart
         kind={kind}
         tone={tone}
         slots={slots}
         points={points}
         spoken={`${label} — ${value ? value.join('') : '기록 없음'}${note ? `, ${note}` : ''}${change ? `, ${change.spoken}` : ''}`}
-        format={format}
         fixedDomain={fixedDomain}
         daily={daily}
         endsToday={endsToday}
         onJump={onJump}
+        hover={hover}
+        setHover={setHover}
       />
     </div>
   );
@@ -782,82 +825,10 @@ function lineDomain(min: number, max: number): Domain {
   return { lo: min, hi: max + 1, ticks: [min, max + 1] };
 }
 
-/**
- * 그래프 위 글자의 테두리 — 바탕색으로 두껍게 한 번 긋고 그 위에 글자를 칠한다
- * (paintOrder="stroke"). 평균 이름표와 최근 값이 선 · 막대와 겹쳐도 읽힌다.
- */
-const HALO = 'stroke-surface';
-
 /** 눈금 숫자 — 1,500 · 82.5 */
 function tickText(v: number) {
   const r = round1(v);
   return Number.isInteger(r) ? r.toLocaleString('ko-KR') : String(r);
-}
-
-/**
- * 점들을 잇는 부드러운 곡선(단조 3차) — 점과 점 사이에서 위아래로 넘치지 않는다.
- * 그냥 곡선으로 이으면 오르다 내리는 자리에서 실제로 없던 봉우리가 생긴다.
- */
-function smoothPath(p: [number, number][]) {
-  if (p.length === 0) return '';
-  const f = (n: number) => Math.round(n * 10) / 10;
-  if (p.length === 1) return `M${f(p[0][0])},${f(p[0][1])}`;
-  const n = p.length;
-  const m: number[] = [];
-  for (let i = 0; i < n - 1; i++) {
-    m.push((p[i + 1][1] - p[i][1]) / (p[i + 1][0] - p[i][0]));
-  }
-  const t: number[] = [m[0]];
-  for (let i = 1; i < n - 1; i++) {
-    t.push(m[i - 1] * m[i] <= 0 ? 0 : (m[i - 1] + m[i]) / 2);
-  }
-  t.push(m[n - 2]);
-  for (let i = 0; i < n - 1; i++) {
-    if (m[i] === 0) {
-      t[i] = 0;
-      t[i + 1] = 0;
-      continue;
-    }
-    const a = t[i] / m[i];
-    const b = t[i + 1] / m[i];
-    const s = a * a + b * b;
-    if (s > 9) {
-      const k = 3 / Math.sqrt(s);
-      t[i] = k * a * m[i];
-      t[i + 1] = k * b * m[i];
-    }
-  }
-  let d = `M${f(p[0][0])},${f(p[0][1])}`;
-  for (let i = 0; i < n - 1; i++) {
-    const h = (p[i + 1][0] - p[i][0]) / 3;
-    d += ` C${f(p[i][0] + h)},${f(p[i][1] + t[i] * h)} ${f(p[i + 1][0] - h)},${f(
-      p[i + 1][1] - t[i + 1] * h
-    )} ${f(p[i + 1][0])},${f(p[i + 1][1])}`;
-  }
-  return d;
-}
-
-/**
- * 그래프 칸의 실제 크기(px). 그래프를 화면 픽셀 그대로 그려야 점이 찌그러지지 않고 글자
- * 크기가 칸마다 같다. 처음 크기는 그리기 전에 바로 재고(칸이 비어 보이는 틈이 없다),
- * 그 뒤로는 칸이 달라질 때마다(창 크기, 옆 분석의 길이) 다시 잰다.
- */
-function useBoxSize(ref: RefObject<HTMLElement | null>) {
-  const [size, setSize] = useState<{ w: number; h: number } | null>(null);
-  useLayoutEffect(() => {
-    const el = ref.current;
-    if (!el) return;
-    const read = () => {
-      const w = el.clientWidth;
-      const h = el.clientHeight;
-      setSize((prev) => (prev && prev.w === w && prev.h === h ? prev : { w, h }));
-    };
-    read();
-    const observer = new ResizeObserver(read);
-    observer.observe(el);
-    return () => observer.disconnect();
-  }, [ref]);
-  return size;
 }
 
 function Chart({
@@ -866,28 +837,33 @@ function Chart({
   slots,
   points,
   spoken,
-  format,
   fixedDomain,
   daily,
   endsToday,
   onJump,
+  hover,
+  setHover,
 }: {
   kind: 'bar' | 'line';
   tone: string;
   slots: Slot[];
   points: (number | null)[];
   spoken: string;
-  format: (v: number) => [string, string];
   fixedDomain: Domain | null;
   daily: boolean;
   endsToday: boolean;
   onJump: (date: string) => void;
+  /** 가리키는 칸 — 카드(TrendCell)가 쥐고 큰 숫자 자리에 그 값을 보인다 */
+  hover: number | null;
+  setHover: (i: number | null) => void;
 }) {
   const box = useRef<HTMLDivElement>(null);
   const size = useBoxSize(box);
-  const [hover, setHover] = useState<number | null>(null);
   /* 마우스로 누를 때만 캘린더로 옮긴다 — 손가락은 값을 보려고 누른다 */
   const pointer = useRef('mouse');
+  /* 손가락을 뗀 뒤 말풍선을 걷는 때 */
+  const hideTimer = useRef(0);
+  useEffect(() => () => window.clearTimeout(hideTimer.current), []);
   const gradient = `trend-${useId().replace(/[^a-zA-Z0-9]/g, '')}`;
 
   const n = points.length;
@@ -899,9 +875,10 @@ function Chart({
   /* ── 자리 셈 ── */
   const w = size?.w ?? 0;
   const h = size?.h ?? 0;
+  /* 세로 눈금 숫자는 오른쪽에 — 건강 앱처럼(2026-10-04). 좁은 칸은 숫자 없이 */
   const showY = w >= 190;
-  const padL = showY ? 30 : 4;
-  const padR = 6;
+  const padL = 4;
+  const padR = showY ? 30 : 6;
   const padT = 12;
   const padB = 18;
   const plotW = Math.max(1, w - padL - padR);
@@ -915,7 +892,6 @@ function Chart({
       ? barDomain(Math.max(...got))
       : (fixedDomain ?? lineDomain(Math.min(...got), Math.max(...got)));
   const y = (v: number) => padT + plotH * (1 - (v - dom.lo) / (dom.hi - dom.lo));
-  const avg = got.length > 1 ? got.reduce((a, b) => a + b, 0) / got.length : null;
   const last = n - 1;
 
   /*
@@ -945,24 +921,21 @@ function Chart({
 
   const pick = (e: PointerEvent<HTMLDivElement>) => {
     const r = e.currentTarget.getBoundingClientRect();
-    const i = Math.floor((e.clientX - r.left - padL) / slotW);
-    setHover(Math.min(last, Math.max(0, i)));
+    const i = Math.min(
+      last,
+      Math.max(0, Math.floor((e.clientX - r.left - padL) / slotW))
+    );
+    window.clearTimeout(hideTimer.current);
+    /* 손가락으로 훑으면 칸을 넘을 때마다 '톡' — 건강 앱 그래프처럼 */
+    if (e.pointerType !== 'mouse' && i !== hover && points[i] != null)
+      haptic('selection');
+    setHover(i);
   };
 
   const linePoints: [number, number, number][] = points.flatMap((v, i) =>
     v == null ? [] : [[x(i), y(v), i] as [number, number, number]]
   );
   const latest = linePoints[linePoints.length - 1];
-  /* 막대 중 가장 최근에 값이 있는 칸 — 진하게 칠하고 값을 붙인다 */
-  const lastBar = points.reduce<number>((at, v, i) => (v ? i : at), -1);
-
-  const hovered = hover == null ? null : points[hover];
-  const tipText =
-    hover == null
-      ? ''
-      : daily
-        ? spokenDay(slots[hover].end)
-        : `${shortDate(slots[hover].start)}~${shortDate(slots[hover].end)}`;
 
   return (
     <div
@@ -977,19 +950,28 @@ function Chart({
         if (!empty) pick(e);
       }}
       onPointerMove={(e) => {
-        if (e.pointerType === 'mouse' && !empty) pick(e);
+        /* 마우스는 올린 대로, 손가락은 누른 채 옆으로 훑는 대로(세로로 밀면 화면이 굴러 pointercancel) */
+        if (empty) return;
+        if (e.pointerType === 'mouse' || e.buttons > 0) pick(e);
       }}
       onPointerLeave={(e) => {
         if (e.pointerType === 'mouse') setHover(null);
       }}
+      onPointerUp={(e) => {
+        /* 손가락을 떼면 잠깐 남겼다가 걷는다 — 톡 친 것도 값을 읽을 틈이 있게 */
+        if (e.pointerType === 'mouse') return;
+        window.clearTimeout(hideTimer.current);
+        hideTimer.current = window.setTimeout(() => setHover(null), 1500);
+      }}
+      onPointerCancel={() => setHover(null)}
       onClick={() => {
         if (daily && hover != null && pointer.current === 'mouse')
           onJump(slots[hover].end);
       }}
     >
       {empty ? (
-        <p className="absolute inset-0 mb-1.5 flex items-center justify-center rounded-lg empty-well text-[11px] text-muted">
-          이 기간 기록이 없어요
+        <p className="absolute inset-0 flex items-center justify-center text-xs text-muted/70">
+          기록 없음
         </p>
       ) : (
         size && (
@@ -1006,7 +988,7 @@ function Chart({
               </linearGradient>
             </defs>
 
-            {/* 세로 눈금 — 가로줄 셋과 숫자. 맨 아래(바닥)만 실선. */}
+            {/* 세로 눈금 — 옅은 실선 셋(바닥만 진하게)과 오른쪽 숫자. 예전 점선은 서류의 표처럼 보였다 */}
             {dom.ticks.map((t, k) => (
               <g key={t}>
                 <line
@@ -1015,13 +997,13 @@ function Chart({
                   y1={y(t)}
                   y2={y(t)}
                   className="stroke-line"
-                  strokeDasharray={k === 0 ? undefined : '3 4'}
+                  strokeOpacity={k === 0 ? 1 : 0.6}
                 />
                 {showY && (
                   <text
-                    x={padL - 6}
+                    x={w - padR + 6}
                     y={y(t)}
-                    textAnchor="end"
+                    textAnchor="start"
                     dominantBaseline="middle"
                     className="fill-muted text-[10px] tabular-nums"
                   >
@@ -1048,23 +1030,17 @@ function Chart({
               ? /* 막대 — 밑에서 솟는다. 지난 칸은 조금 옅게, 가장 최근 칸은 진하게. */
                 points.map((v, i) => {
                   if (!v) return null;
+                  /* 막대는 위쪽만 둥글게, 모두 같은 진하기 — 훑는 동안만 고른 칸 밖을 옅게(건강 앱처럼) */
                   const bw = Math.max(2, Math.min(slotW * 0.62, 22));
+                  const top = y(v);
+                  const r = Math.min(3, bw / 2, Math.max(0, base - top));
+                  const left = x(i) - bw / 2;
                   return (
-                    <rect
+                    <path
                       key={i}
-                      x={x(i) - bw / 2}
-                      y={y(v)}
-                      width={bw}
-                      height={Math.max(1, base - y(v))}
-                      rx={Math.min(3, bw / 2)}
+                      d={`M${left},${base} V${top + r} Q${left},${top} ${left + r},${top} H${left + bw - r} Q${left + bw},${top} ${left + bw},${top + r} V${base} Z`}
                       className={`origin-bottom fill-current transition-opacity duration-150 [transform-box:fill-box] motion-safe:animate-[trend-rise_560ms_cubic-bezier(0.22,1,0.36,1)_both] ${
-                        hover != null
-                          ? hover === i
-                            ? ''
-                            : 'opacity-30'
-                          : i === lastBar
-                            ? ''
-                            : 'opacity-60'
+                        hover != null && hover !== i ? 'opacity-35' : ''
                       }`}
                       style={{ animationDelay: `${Math.round((i / n) * 260)}ms` }}
                     />
@@ -1102,91 +1078,25 @@ function Chart({
                         style={{ animationDelay: `${Math.round((px / w) * 700)}ms` }}
                       />
                     ))}
-                    {/* 가장 최근 값 — 점 옆에 숫자를 붙인다 */}
-                    <text
-                      x={latest[0] - 7}
-                      y={latest[1] - 8 < padT ? latest[1] + 16 : latest[1] - 8}
-                      textAnchor="end"
-                      strokeWidth={3}
-                      paintOrder="stroke"
-                      strokeLinejoin="round"
-                      className={`fill-current text-[10px] font-bold tabular-nums motion-safe:animate-[trend-fade_400ms_ease-out_700ms_both] ${HALO}`}
-                    >
-                      {format(points[latest[2]] as number)[0]}
-                    </text>
                   </g>
                 )}
 
-            {/* 막대의 가장 최근 값 — 막대 위에 숫자를 붙인다 */}
-            {kind === 'bar' && lastBar >= 0 && (
-              <text
-                x={x(lastBar)}
-                y={Math.max(y(points[lastBar] as number) - 5, 9)}
-                textAnchor="middle"
-                strokeWidth={3}
-                paintOrder="stroke"
-                strokeLinejoin="round"
-                className={`fill-current text-[10px] font-bold tabular-nums motion-safe:animate-[trend-fade_400ms_ease-out_600ms_both] ${HALO}`}
-              >
-                {format(points[lastBar] as number)[0]}
-              </text>
-            )}
-
-            {/* 평균 — 점선과 이름표(왼쪽 끝). 요즘 값이 평소보다 높은지 낮은지. */}
-            {avg != null && (
-              <g className="motion-safe:animate-[trend-fade_500ms_ease-out_500ms_both]">
-                <line
-                  x1={padL}
-                  x2={w - padR}
-                  y1={y(avg)}
-                  y2={y(avg)}
-                  stroke="currentColor"
-                  strokeOpacity={0.55}
-                  strokeDasharray="4 3"
-                />
-                <text
-                  x={padL + 3}
-                  y={y(avg) - 4 < padT + 2 ? y(avg) + 11 : y(avg) - 4}
-                  strokeWidth={3}
-                  paintOrder="stroke"
-                  strokeLinejoin="round"
-                  className={`fill-current text-[10px] font-semibold tabular-nums ${HALO}`}
-                >
-                  평균 {format(avg)[0]}
-                </text>
-              </g>
-            )}
-
-            {/* 마우스가 가리키는 칸 — 세로 안내선 */}
+            {/*
+              평균 점선 · '평균 38' 이름표 · 마지막 값 숫자는 뺐다(2026-10-04 '앱 느낌') — 작은 칸에서 막대 · 선과 겹쳐 지저분했다.
+              평균은 큰 숫자 밑 한 줄이, 그날 값은 눌러서 훑는 말풍선이 보인다.
+            */}
+            {/* 가리킨 칸 — 세로 안내선 */}
             {hover != null && (
               <line
                 x1={x(hover)}
                 x2={x(hover)}
-                y1={padT}
+                y1={padT - 6}
                 y2={base}
-                className="stroke-ink/25"
-                strokeDasharray="2 3"
+                className="stroke-ink/30"
               />
             )}
           </svg>
         )
-      )}
-
-      {/* 말풍선 — 가리킨 칸의 날짜(주)와 값 */}
-      {size && hover != null && !empty && (
-        <div
-          aria-hidden
-          className="pointer-events-none absolute z-10 -translate-x-1/2 -translate-y-full whitespace-nowrap rounded-lg bg-ink px-2 py-1 text-center text-[11px] leading-snug text-surface shadow-lg"
-          style={{
-            left: Math.min(Math.max(x(hover), 46), w - 46),
-            top: (hovered != null ? y(hovered) : base) - 8,
-          }}
-        >
-          <span className="block opacity-70">{tipText}</span>
-          <span className="block font-semibold tabular-nums">
-            {hovered != null ? format(hovered).join('') : '기록 없음'}
-          </span>
-        </div>
       )}
     </div>
   );

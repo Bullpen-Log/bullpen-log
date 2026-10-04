@@ -131,6 +131,7 @@ export function NoticeBellButton({
  */
 export function NoticePanel({
   id,
+  variant,
   state,
   onCheckin,
   onRest,
@@ -140,6 +141,11 @@ export function NoticePanel({
   className,
 }: {
   id: string;
+  /**
+   * 'sheet' — 휴대폰 아래 시트 안(components/app-shell.tsx, 2026-10-04 '앱 느낌' 4단계). 창(Modal)이 제목 · 테두리를 맡으므로
+   * 여기서는 날짜 한 줄과 할 일 칸만 — 칸은 테두리 대신 옅은 면, 단추는 알약. 없으면 PC 종 밑의 작은 창.
+   */
+  variant?: 'sheet';
   state: NoticeState;
   /** 체크인 창을 연다 — 누른 단추에서 창이 튀어나오게 그 단추를 준다 */
   onCheckin: (el: HTMLElement) => void;
@@ -156,6 +162,10 @@ export function NoticePanel({
   className: string;
 }) {
   const { day, checkinDone, pitchDone } = state;
+  const sheet = variant === 'sheet';
+  /* 할 일 칸 · 단추 모양 — 시트는 아이폰 목록처럼 옅은 면 · 알약 */
+  const itemCls = sheet ? 'rounded-2xl bg-surface-2 p-4' : 'rounded-xl border border-line p-3';
+  const btnShape = sheet ? 'rounded-full px-4 text-sm' : 'rounded-lg px-3 text-xs';
   const allDone = checkinDone && pitchDone;
   const root = useRef<HTMLDivElement>(null);
   /* 남긴 뒤 화면 읽기 프로그램에 알리는 말 */
@@ -177,15 +187,23 @@ export function NoticePanel({
     <div
       ref={root}
       id={id}
-      role="dialog"
-      aria-label="오늘 할 일"
+      role={sheet ? undefined : 'dialog'}
+      aria-label={sheet ? undefined : '오늘 할 일'}
       tabIndex={-1}
-      className={`motion-safe:animate-fade-in z-50 origin-top-right rounded-2xl border border-line bg-surface p-3 text-ink shadow-lg outline-none ${className}`}
+      className={
+        sheet
+          ? 'text-ink outline-none'
+          : `motion-safe:animate-fade-in z-50 origin-top-right rounded-2xl border border-line bg-surface p-3 text-ink shadow-lg outline-none ${className}`
+      }
     >
       <p role="status" className="sr-only">
         {said}
       </p>
-      <p className="px-1 text-[11px] font-semibold text-ink/65">{spokenDay(day)} · 오늘 할 일</p>
+      {sheet ? (
+        <p className="-mt-1 text-sm text-muted">{spokenDay(day)}</p>
+      ) : (
+        <p className="px-1 text-[11px] font-semibold text-ink/65">{spokenDay(day)} · 오늘 할 일</p>
+      )}
 
       {allDone ? (
         <div className="flex items-center gap-2.5 px-1 py-3">
@@ -197,9 +215,9 @@ export function NoticePanel({
         </div>
       ) : (
         /* 할 일 단추 · 맨 밑 고치기 줄은 휴대폰에서 높이 44px(2026-10-03 아이폰 점검 — 28~36px 라 잘 안 눌렸다). PC 는 예전 크기 */
-        <ul className="mt-2 space-y-1.5">
+        <ul className={sheet ? 'mt-4 space-y-3' : 'mt-2 space-y-1.5'}>
           {!checkinDone && (
-            <li className="rounded-xl border border-line p-3">
+            <li className={itemCls}>
               <p className="flex items-center gap-2 text-sm font-semibold text-ink">
                 <ClipboardList aria-hidden className="h-4 w-4 shrink-0 text-sky" />
                 오늘 체크인을 아직 안 했어요
@@ -210,7 +228,7 @@ export function NoticePanel({
               <button
                 type="button"
                 onClick={(e) => onCheckin(e.currentTarget)}
-                className="mt-2.5 inline-flex min-h-11 items-center gap-1 rounded-lg bg-sky px-3 text-xs font-semibold text-white desk:min-h-9 transition-colors hover:bg-sky-strong"
+                className={`mt-2.5 inline-flex min-h-11 items-center gap-1 ${btnShape} bg-sky font-semibold text-white desk:min-h-9 transition-colors hover:bg-sky-strong`}
               >
                 체크인하기
                 <ChevronRight aria-hidden className="h-3.5 w-3.5" />
@@ -219,7 +237,7 @@ export function NoticePanel({
           )}
 
           {!pitchDone && (
-            <li className="rounded-xl border border-line p-3">
+            <li className={itemCls}>
               <p className="flex items-center gap-2 text-sm font-semibold text-ink">
                 <Target aria-hidden className="h-4 w-4 shrink-0 text-sky" />
                 오늘 투구 기록이 아직 없어요
@@ -232,7 +250,7 @@ export function NoticePanel({
                   href={`/pitch-log/${day}`}
                   transitionTypes={OPEN_POPUP_TYPES}
                   onClick={onNavigate}
-                  className="inline-flex min-h-11 items-center gap-1 rounded-lg bg-sky px-3 text-xs font-semibold text-white desk:min-h-9 transition-colors hover:bg-sky-strong"
+                  className={`inline-flex min-h-11 items-center gap-1 ${btnShape} bg-sky font-semibold text-white desk:min-h-9 transition-colors hover:bg-sky-strong`}
                 >
                   기록하기
                   <LinkPending className="h-3.5 w-3.5">
@@ -243,7 +261,7 @@ export function NoticePanel({
                   type="button"
                   onClick={rest}
                   disabled={resting}
-                  className="inline-flex min-h-11 items-center rounded-lg border border-line-strong px-3 desk:min-h-9 text-xs font-medium text-ink transition-colors hover:bg-surface-2 disabled:opacity-50"
+                  className={`inline-flex min-h-11 items-center ${btnShape} ${sheet ? 'bg-ink/6' : 'border border-line-strong'} desk:min-h-9 font-medium text-ink transition-colors hover:bg-surface-2 disabled:opacity-50`}
                 >
                   {resting ? '남기는 중…' : '오늘 안 던졌어요'}
                 </button>
@@ -263,12 +281,20 @@ export function NoticePanel({
         잘못 누른 '통증' 하나가 오늘 운동을 막으니, 고칠 길이 늘 있어야 한다.
       */}
       {(checkinDone || pitchDone) && (
-        <div className="mt-2 flex flex-wrap gap-x-1 border-t border-line pt-2">
+        <div
+          className={
+            sheet ? 'mt-4 flex flex-wrap gap-2' : 'mt-2 flex flex-wrap gap-x-1 border-t border-line pt-2'
+          }
+        >
           {checkinDone && (
             <button
               type="button"
               onClick={(e) => onCheckin(e.currentTarget)}
-              className="inline-flex min-h-11 items-center rounded-lg px-2 py-1.5 text-xs font-medium text-muted transition-colors hover:bg-ink/6 hover:text-ink desk:min-h-0"
+              className={
+                sheet
+                  ? 'inline-flex min-h-11 items-center rounded-full bg-ink/6 px-4 text-sm font-medium text-ink'
+                  : 'inline-flex min-h-11 items-center rounded-lg px-2 py-1.5 text-xs font-medium text-muted transition-colors hover:bg-ink/6 hover:text-ink desk:min-h-0'
+              }
             >
               체크인 고치기
             </button>
@@ -278,7 +304,11 @@ export function NoticePanel({
               href={`/pitch-log/${day}`}
               transitionTypes={OPEN_POPUP_TYPES}
               onClick={onNavigate}
-              className="inline-flex min-h-11 items-center rounded-lg px-2 py-1.5 text-xs font-medium text-muted transition-colors hover:bg-ink/6 hover:text-ink desk:min-h-0"
+              className={
+                sheet
+                  ? 'inline-flex min-h-11 items-center rounded-full bg-ink/6 px-4 text-sm font-medium text-ink'
+                  : 'inline-flex min-h-11 items-center rounded-lg px-2 py-1.5 text-xs font-medium text-muted transition-colors hover:bg-ink/6 hover:text-ink desk:min-h-0'
+              }
             >
               오늘 투구 기록 보기
             </Link>

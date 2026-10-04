@@ -27,7 +27,8 @@ export function FavoriteButton({
   onToggle: () => Promise<{ favorite: boolean } | { error: string }>;
   /** 무엇의 즐겨찾기인지 — 화면에 안 보이고 읽어주는 데 쓴다 */
   label: string;
-  variant?: 'icon' | 'full';
+  /** swipe — 밀어서 나오는 줄 뒤 단추(components/swipe-row.tsx): 별 + '즐겨찾기 · 해제', 칸 모양은 className 이 준다 */
+  variant?: 'icon' | 'full' | 'swipe';
   className?: string;
 }) {
   const [favorite, setFavorite] = useState(initial);
@@ -59,6 +60,21 @@ export function FavoriteButton({
       strokeWidth={favorite ? 1.5 : 1.9}
     />
   );
+
+  if (variant === 'swipe') {
+    return (
+      <button
+        type="button"
+        onClick={toggle}
+        aria-pressed={favorite}
+        aria-label={`${label} 즐겨찾기`}
+        className={className}
+      >
+        <Star className="h-5 w-5" fill={favorite ? 'currentColor' : 'none'} strokeWidth={1.9} />
+        {error ? '다시 눌러 주세요' : favorite ? '해제' : '즐겨찾기'}
+      </button>
+    );
+  }
 
   if (variant === 'full') {
     return (

@@ -1,13 +1,16 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState, type PointerEvent } from 'react';
 import { NotebookPen } from 'lucide-react';
 import { exerciseHistory } from '@/app/actions/exercise-history';
 import { useWeightUnit } from '@/components/use-units';
+import { useBoxSize } from '@/components/use-box-size';
+import { haptic } from '@/lib/haptics';
 import { formatAmount, formatSeconds } from '@/lib/exercise-meta';
 import { formatWeight, type WeightUnit } from '@/lib/units';
 import { volumeIn } from '@/lib/workout/summarize';
 import type { ExerciseHistory, HistoryDay, HistoryKind } from '@/lib/workout/history';
+import { MoreButton } from '@/components/disclosure';
 
 /**
  * 운동 하나의 기록과 흐름 — 최고 기록, 볼륨 흐름, 최근 날짜별 기록.
@@ -149,10 +152,11 @@ function Stat({
 }
 
 /**
- * 볼륨 흐름 — 날마다 한 양을 오래된 것부터 잇는다.
+ * 볼륨 흐름 — 운동한 날마다 막대 하나, 오래된 것부터(건강 앱의 운동 기록처럼, 2026-10-04 '앱 느낌').
  *
- * 바닥을 0 에 둔다. 가장 적은 날을 바닥으로 잡으면 10% 차이가 화면 끝에서
- * 끝으로 벌어져, 늘지 않은 것이 크게 는 것처럼 보인다.
+ * 예전에는 가로로 늘린 꺾은선이었다. 운동한 날 사이 간격이 제각각이라(사흘 · 열흘) 선으로 이으면 그 사이에 무언가 한 것처럼
+ * 보였다 — 한 번 한 것은 한 칸이 맞다. 바닥은 0 에 둔다: 가장 적은 날을 바닥으로 잡으면 10% 차이가 화면 끝에서 끝으로 벌어진다.
+ * 누르고 옆으로 훑으면 위 줄이 그날 날짜 · 양으로 바뀐다(칸마다 '톡'), 떼면 1.5초 뒤 돌아온다.
  */
 function VolumeTrend({
   points,
@@ -163,77 +167,109 @@ function VolumeTrend({
   kind: HistoryKind;
   unit: WeightUnit;
 }) {
-  const W = 300;
-  const H = 72;
-  const PAD = 6;
+  const box = useRef<HTMLDivElement>(null);
+  const size = useBoxSize(box);
+  const [hover, setHover] = useState<number | null>(null);
+  const hideTimer = useRef(0);
+  useEffect(() => () => window.clearTimeout(hideTimer.current), []);
+
+  const n = points.length;
+  const w = size?.w ?? 0;
+  const h = size?.h ?? 0;
+  const padL = 2;
+  const padR = 2;
+  const padT = 6;
+  const base = h - 2;
+  const slotW = (w - padL - padR) / n;
   const max = Math.max(...points.map((p) => p.value));
-  const x = (i: number) =>
-    points.length === 1 ? W / 2 : PAD + (i * (W - 2 * PAD)) / (points.length - 1);
-  const y = (v: number) => H - PAD - (v / max) * (H - 2 * PAD);
+  const y = (v: number) => base - (v / max) * (base - padT);
   const peak = points.reduce((a, b) => (b.value > a.value ? b : a));
+  const picked = hover == null ? null : points[hover];
+
+  const pick = (e: PointerEvent<HTMLDivElement>) => {
+    const r = e.currentTarget.getBoundingClientRect();
+    const i = Math.min(
+      n - 1,
+      Math.max(0, Math.floor((e.clientX - r.left - padL) / slotW))
+    );
+    window.clearTimeout(hideTimer.current);
+    if (e.pointerType !== 'mouse' && i !== hover) haptic('selection');
+    setHover(i);
+  };
 
   return (
     <div>
-      <div className="flex items-baseline justify-between gap-2 text-[11px] text-muted">
-        <span>
-          {kind === 'weight'
-            ? '볼륨(무게×횟수)'
-            : kind === 'reps'
-              ? '횟수 합'
-              : '버틴 시간 합'}{' '}
-          — 최근 {points.length}번
-        </span>
-        <span className="tabular-nums">
-          가장 많이 {volumeText(kind, peak.value, unit)}
-        </span>
+      <div className="flex min-h-4 items-baseline justify-between gap-2 text-[11px] text-muted">
+        {picked ? (
+          <>
+            <span>{dayLabel(picked.date)}</span>
+            <span className="font-semibold tabular-nums text-sky-strong">
+              {volumeText(kind, picked.value, unit)}
+            </span>
+          </>
+        ) : (
+          <>
+            <span>
+              {kind === 'weight'
+                ? '볼륨(무게×횟수)'
+                : kind === 'reps'
+                  ? '횟수 합'
+                  : '버틴 시간 합'}{' '}
+              — 최근 {n}번
+            </span>
+            <span className="tabular-nums">
+              가장 많이 {volumeText(kind, peak.value, unit)}
+            </span>
+          </>
+        )}
       </div>
-      <svg
-        viewBox={`0 0 ${W} ${H}`}
-        preserveAspectRatio="none"
-        className="mt-1.5 h-16 w-full"
+      <div
+        ref={box}
         role="img"
         aria-label={`날짜별 ${kind === 'weight' ? '볼륨' : '양'}: ${points
           .map((p) => `${dayLabel(p.date)} ${volumeText(kind, p.value, unit)}`)
           .join(', ')}`}
+        className="relative mt-1.5 h-16 touch-pan-y text-sky select-none"
+        onPointerDown={pick}
+        onPointerMove={(e) => {
+          if (e.pointerType === 'mouse' || e.buttons > 0) pick(e);
+        }}
+        onPointerLeave={(e) => {
+          if (e.pointerType === 'mouse') setHover(null);
+        }}
+        onPointerUp={(e) => {
+          if (e.pointerType === 'mouse') return;
+          window.clearTimeout(hideTimer.current);
+          hideTimer.current = window.setTimeout(() => setHover(null), 1500);
+        }}
+        onPointerCancel={() => setHover(null)}
       >
-        <line
-          x1="0"
-          y1={H - PAD}
-          x2={W}
-          y2={H - PAD}
-          className="stroke-line"
-          strokeWidth="1"
-          vectorEffect="non-scaling-stroke"
-        />
-        {points.length > 1 && (
-          <polyline
-            points={points.map((p, i) => `${x(i)},${y(p.value)}`).join(' ')}
-            fill="none"
-            className="stroke-sky"
-            strokeWidth="2"
-            strokeLinejoin="round"
-            strokeLinecap="round"
-            vectorEffect="non-scaling-stroke"
-          />
+        {size && (
+          <svg aria-hidden width={w} height={h} className="absolute inset-0">
+            <line x1={padL} x2={w - padR} y1={base} y2={base} className="stroke-line" />
+            {points.map((p, i) => {
+              /* 위쪽만 둥근 막대 — 훑는 동안만 고른 칸 밖을 옅게 */
+              const bw = Math.max(4, Math.min(slotW * 0.6, 22));
+              const top = y(p.value);
+              const r = Math.min(3, bw / 2, Math.max(0, base - top));
+              const left = padL + slotW * (i + 0.5) - bw / 2;
+              return (
+                <path
+                  key={p.date}
+                  d={`M${left},${base} V${top + r} Q${left},${top} ${left + r},${top} H${left + bw - r} Q${left + bw},${top} ${left + bw},${top + r} V${base} Z`}
+                  className={`origin-bottom fill-current transition-opacity duration-150 [transform-box:fill-box] motion-safe:animate-[trend-rise_560ms_cubic-bezier(0.22,1,0.36,1)_both] ${
+                    hover != null && hover !== i ? 'opacity-35' : ''
+                  }`}
+                  style={{ animationDelay: `${Math.round((i / n) * 260)}ms` }}
+                />
+              );
+            })}
+          </svg>
         )}
-        {/* 점 — 길이 0 인 선에 둥근 끝을 달면, 가로세로가 늘어나도 동그랗게 남는다 */}
-        {points.map((p, i) => (
-          <line
-            key={p.date}
-            x1={x(i)}
-            y1={y(p.value)}
-            x2={x(i)}
-            y2={y(p.value)}
-            className={i === points.length - 1 ? 'stroke-sky-strong' : 'stroke-sky'}
-            strokeWidth={i === points.length - 1 ? 8 : 6}
-            strokeLinecap="round"
-            vectorEffect="non-scaling-stroke"
-          />
-        ))}
-      </svg>
+      </div>
       <div className="mt-1 flex justify-between text-[10px] tabular-nums text-muted">
         <span>{dayLabel(points[0].date)}</span>
-        {points.length > 1 && <span>{dayLabel(points[points.length - 1].date)}</span>}
+        {n > 1 && <span>{dayLabel(points[n - 1].date)}</span>}
       </div>
     </div>
   );
@@ -381,13 +417,11 @@ export function ExerciseHistoryView({
           ))}
         </ul>
         {days.length > limit && (
-          <button
-            type="button"
+          <MoreButton
+            count={days.length - limit}
+            unit="번"
             onClick={() => setExpanded(true)}
-            className="mt-2 w-full rounded-xl border border-line-strong py-2 text-xs font-semibold text-ink transition-colors active:bg-surface-2"
-          >
-            {days.length - limit}번 더 보기
-          </button>
+          />
         )}
       </div>
     </div>
