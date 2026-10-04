@@ -119,7 +119,7 @@
   --color-cat-upper: #0284c7;
   --color-cat-mobility: #0d9488;
   --color-cat-power: #ea580c;
-  --color-cat-core: #7c3aed;
+  --color-cat-core: #a16207; /* 예전 보라(#7c3aed) — 'AI 앱 보라'라 황토색으로(2026-10-04) */
   --color-cat-armcare: #e11d48;
   --color-cat-recovery: #059669;
 
@@ -285,13 +285,13 @@
   --color-cat-upper: #7dd3fc;
   --color-cat-mobility: #5eead4;
   --color-cat-power: #fdba74;
-  --color-cat-core: #c4b5fd;
+  --color-cat-core: #facc15;
   --color-cat-armcare: #fda4af;
   --color-cat-recovery: #6ee7b7;
 
   --color-app-training: #38a8f0;
   --color-app-armcare: #2dd4bf;
-  --color-app-mechanics: #a78bfa;
+  --color-app-mechanics: #7aa7e6; /* 깊은 파랑의 밝은 쪽 — 예전 보라(#a78bfa) */
 }
 
 /*
