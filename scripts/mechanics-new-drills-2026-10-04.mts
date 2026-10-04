@@ -54,11 +54,12 @@ const DRILLS: NewDrill[] = [
     equipment: ['야구공'],
     referenceVideoId: 'QTQtkxqZFCc',
     aspectRatio: WIDE,
-    what: '던지는 방향을 보고 섰다가 빠르게 몸을 옆으로 돌리고, 그 기세 그대로 홈 쪽으로 이어 나가 던지는 드릴입니다. 트레드가 드롭 스텝과 함께 앞다리 블록을 익히는 드릴로 꼽습니다.',
+    /* 처음엔 '던지는 방향을 보고 섰다가'로 썼는데, 영상(TBZ)은 목표를 등지고 시작한다 — 2026-10-04 장면을 보고 고침 */
+    what: '목표를 등지고 서서 시작해, 빠르게 돌아서며 그 기세 그대로 홈 쪽으로 이어 나가 던지는 드릴입니다. 트레드가 드롭 스텝과 함께 앞다리 블록을 익히는 드릴로 꼽습니다.',
     steps: [
-      '던지는 방향을 보고 서서 공과 글러브를 가슴 앞에 모읍니다.',
-      '빠르게 몸을 옆으로 돌리며 홈 쪽으로 이어 나갑니다.',
-      '몸을 다 돌리기 전에는 손을 떼지 않습니다. 손이 일찍 떨어지면 팔이 길게 끌려 나옵니다.',
+      '목표를 등지고 서서 공과 글러브를 가슴 앞에 모읍니다.',
+      '빠르게 돌아서며 홈 쪽으로 이어 나갑니다.',
+      '다 돌아서기 전에는 손을 떼지 않습니다. 손이 일찍 떨어지면 팔이 길게 끌려 나옵니다.',
       '앞발이 닿으면 앞다리로 버티고, 골반부터 돌려 던집니다.',
     ],
     why: '홈 쪽으로 가는 힘과 회전을 한 흐름으로 잇습니다. 트레드는 공이 빠른 투수일수록 뒷다리를 세게 펴며 밀지 않고 골반과 뒷무릎을 비틀어 내리며 돈다고 봅니다. 앞발이 닿은 뒤 앞다리가 버텨 몸을 멈춰야 그 힘이 몸통과 팔로 넘어갑니다.',
@@ -268,6 +269,97 @@ const DRILLS: NewDrill[] = [
     ],
     why: '팔을 느슨하게 돌리며 몸통 회전에 팔을 맞추는 법을 익힙니다. 트레드는 이 드릴을 늦은 팔을 고치는 진행표의 첫 드릴로, 앞다리 블록 드릴로도 씁니다. 팔은 힘을 빼야 더 젖혀지고 빨라집니다.',
   },
+  /*
+   * 둘째 묶음(2026-10-04 사용자분: "남은 빈칸영상도 찾아서 넣어줘") — 브레이크 통합 2 · 상하체 분리 메디신볼 0 을 채운다.
+   * 트레드 '[Full Progression] 앞다리 블록'(던지기 드릴: 허들 드릴 · 슬램보드 롤인), '6 Drills To Help Fix Your Front Leg'
+   * (위에서 딛기), 앞다리 블록 드릴 목록(드롭 스텝 · 턴 앤 번), 'Weight Room Exercising To Train Hip-Shoulder Separation'
+   * (좌우 메디신볼 슬램 · 메디신볼 회전 숏풋 약 2.7kg — 분리 동작을 가르치는 자리는 아니지만 늘어난 끝 자세에서 힘을 내는 몸을 만든다).
+   */
+  {
+    title: '허들 착지 스로우',
+    category: '스로잉 드릴',
+    focusPoints: ['브레이크', '드리프트'],
+    stage: '통합',
+    equipment: ['야구공'],
+    referenceVideoId: 'TQNk9uwU4uo',
+    aspectRatio: TALL,
+    what: '낮은 허들(없으면 콘)을 앞발로 넘어 위에서 아래로 딛고, 그 위에서 버티며 던지는 드릴입니다. 트레드가 앞다리 블록을 익히는 던지기 드릴로 꼽는 허들 드릴입니다.',
+    steps: [
+      '앞발이 닿을 자리 바로 앞에 낮은 허들이나 콘을 둡니다.',
+      '다리를 들어 홈 쪽으로 나가며 앞발로 허들을 넘습니다.',
+      '앞발을 미끄러뜨리지 말고 위에서 아래로 딛습니다.',
+      '딛는 순간 앞다리가 버티고, 그 위에서 골반, 몸통 순서로 돌려 던집니다.',
+    ],
+    why: '앞발이 미끄러지듯 들어가지 않고 위에서 딛게 만듭니다. 드라이브라인은 앞발이 힘이 가는 방향을 따라 위에서 닿아야 앞다리가 브레이크로 힘을 받는다고 봅니다. 앞발이 닿은 뒤 앞무릎이 더 펴지고 몸의 속도를 더 크게 줄이는 투수일수록 평균적으로 공이 빨랐습니다.',
+  },
+  {
+    title: '메디신볼 턴 앤 번 숏풋',
+    category: '메디신볼 드릴',
+    focusPoints: ['브레이크', '몸통 회전'],
+    stage: '통합',
+    equipment: ['메디신볼'],
+    referenceVideoId: 'Ae5Z4sRAyR0',
+    aspectRatio: 0.833,
+    what: '목표를 등지고 서서 메디신볼을 가슴 높이에 들었다가, 돌아서며 앞발을 딛고 공을 벽으로 밀어 던지는 드릴입니다. 트레드가 앞다리 블록 드릴로 꼽는 턴 앤 번을 메디신볼로 합니다.',
+    steps: [
+      '목표를 등지고 서서 메디신볼을 가슴 높이에 듭니다.',
+      '빠르게 돌아서며 홈 쪽으로 나가 앞발을 딛습니다.',
+      '앞다리가 버티는 위에서 골반, 몸통 순서로 돌리며 공을 벽으로 밀어 던집니다.',
+      '투구할 때처럼 자연스럽게 마무리합니다.',
+    ],
+    why: '돌아서는 힘을 앞다리로 멈춰 몸통 회전으로 넘기는 연습입니다. 공이 무거워 팔로는 던질 수 없으니 하체와 몸통이 힘을 내는 순서가 드러납니다. 앞다리가 버티며 몸을 멈춰야 그 힘이 위로 넘어갑니다.',
+  },
+  {
+    title: '메디신볼 회전 숏풋',
+    category: '메디신볼 드릴',
+    focusPoints: ['상하체 분리', '몸통 회전'],
+    stage: '기초',
+    equipment: ['메디신볼'],
+    referenceVideoId: 'zj7cDcXssRU',
+    aspectRatio: WIDE,
+    what: '옆으로 서서 메디신볼을 뒷엉덩이 쪽으로 감았다가, 골반과 몸통을 돌리며 포환 던지듯 벽으로 밀어 던지는 드릴입니다. 트레드가 상하체 분리를 돕는 근력 운동으로 씁니다(약 2.7kg 공).',
+    steps: [
+      '옆으로 서서 메디신볼을 던지는 쪽 어깨 앞에 듭니다. 손바닥은 공 뒤에 둡니다.',
+      '몸통을 뒤로 감으며 체중을 뒷엉덩이에 싣습니다.',
+      '골반을 먼저 돌리고, 가슴이 늦게 따라오며 공을 밀어 던집니다.',
+      '허리를 꺾지 말고 척추를 축으로 돕니다.',
+    ],
+    why: '골반과 가슴이 벌어진 끝 자세에서 힘을 내는 데 몸이 익숙해지게 합니다. 트레드는 이런 근력 운동이 분리 동작을 가르치는 자리는 아니지만, 늘어난 자세에서 버티고 힘을 내는 몸을 만든다고 봅니다. 회전하는 메디신볼 던지기는 투구 구속과 관계가 있는 것으로 알려져 있습니다.',
+  },
+  {
+    title: '스텝 비하인드 회전 메디신볼 숏풋',
+    category: '메디신볼 드릴',
+    focusPoints: ['상하체 분리', '드리프트'],
+    stage: '연결',
+    equipment: ['메디신볼'],
+    referenceVideoId: 'OSL0OZSCGi4',
+    aspectRatio: TALL,
+    what: '뒷발을 앞발 뒤로 엇갈려 딛는 걸음으로 홈 쪽으로 나가며, 메디신볼을 회전 숏풋으로 던지는 드릴입니다.',
+    steps: [
+      '옆으로 서서 메디신볼을 가슴 앞에 듭니다.',
+      '뒷발을 앞발 뒤로 엇갈려 딛으며 홈 쪽으로 나갑니다.',
+      '앞발을 딛으며 골반을 먼저 돌리고, 가슴은 늦게 따라오게 합니다.',
+      '그 회전을 따라 공을 벽으로 밀어 던집니다.',
+    ],
+    why: '걸음으로 만든 홈 쪽 힘을 골반이 먼저 열리는 회전으로 바꾸는 연습입니다. 드라이브라인이 구속 드릴로 쓰는 스텝 비하인드 걸음에, 트레드가 분리를 돕는 데 쓰는 회전 숏풋을 더했습니다.',
+  },
+  {
+    title: '좌우 메디신볼 슬램',
+    category: '메디신볼 드릴',
+    focusPoints: ['상하체 분리', '몸통 회전'],
+    stage: '기초',
+    equipment: ['메디신볼'],
+    referenceVideoId: '-r5hBIqpwWw',
+    aspectRatio: WIDE,
+    what: '메디신볼을 머리 위로 들었다가 몸통을 돌리며 한쪽 바닥에 내려치고, 반대쪽으로 번갈아 하는 드릴입니다. 트레드가 상하체 분리를 돕는 근력 운동으로 씁니다.',
+    steps: [
+      '발을 어깨너비로 벌리고 메디신볼을 머리 위로 듭니다.',
+      '몸통을 돌리며 공을 한쪽 발 옆 바닥에 세게 내려칩니다.',
+      '공을 다시 들어 올려 반대쪽으로 내려칩니다.',
+      '팔로만 치지 말고 몸통을 돌려 칩니다.',
+    ],
+    why: '몸통이 크게 돌았다가 힘을 내는 자세에 몸이 익숙해지게 합니다. 트레드는 이런 운동이 분리 동작을 가르치지는 않지만, 늘어난 끝 자세에서 버티고 힘을 내는 몸을 만든다고 봅니다.',
+  },
 ];
 
 function compose(d: NewDrill): string {
@@ -285,6 +377,16 @@ const existing = await prisma.mechanicsGuide.findMany({ select: { title: true, r
 const haveVideo = new Set(existing.map((r) => r.referenceVideoId).filter(Boolean));
 const haveTitle = new Set(existing.map((r) => r.title));
 const todo = DRILLS.filter((d) => !haveVideo.has(d.referenceVideoId) && !haveTitle.has(d.title));
+/* 이미 넣은 드릴은 설명이 바뀌었을 때만 고친다 — 턴 앤 번의 시작 자세를 바로잡은 것처럼 */
+const current = await prisma.mechanicsGuide.findMany({
+  where: { title: { in: DRILLS.map((d) => d.title) } },
+  select: { id: true, title: true, description: true },
+});
+const stale = current.filter((r) => {
+  const d = DRILLS.find((x) => x.title === r.title);
+  return d != null && r.description !== compose(d);
+});
+console.log(`설명을 고칠 것 ${stale.length}개${stale.length ? `: ${stale.map((r) => r.title).join(', ')}` : ''}`);
 console.log(`드릴 ${DRILLS.length}개 중 새로 넣을 것 ${todo.length}개`);
 for (const d of todo) console.log(`  ${d.title} · ${d.focusPoints.join(',')} · ${d.stage} · ${d.category} · ${d.equipment.join(',')} · ${d.referenceVideoId}`);
 if (process.argv.includes('--show') && todo[0]) console.log(`\n${compose(todo[0])}`);
@@ -305,5 +407,10 @@ if (apply) {
     });
   }
   console.log(`DB 에 ${todo.length}개 넣었어요`);
+  for (const r of stale) {
+    const d = DRILLS.find((x) => x.title === r.title);
+    if (d) await prisma.mechanicsGuide.update({ where: { id: r.id }, data: { description: compose(d) } });
+  }
+  if (stale.length) console.log(`설명 ${stale.length}개 고쳤어요`);
 }
 await prisma.$disconnect();

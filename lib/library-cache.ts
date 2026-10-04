@@ -109,7 +109,7 @@ export const allGuides = unstable_cache(
    * (scripts/mechanics-classify-2026-10-04.mjs). 이름이 같으면 새 칸 없는 옛 줄이 남아 숨긴 드릴이 계속 나온다.
    * :v3 — 같은 날 빈자리를 채우는 드릴 12개를 더했다(scripts/mechanics-add-drills-2026-10-04.mjs).
    */
-  ['library:guides:v5'],
+  ['library:guides:v6'],
   { tags: [LIBRARY_TAG] }
 );
 
