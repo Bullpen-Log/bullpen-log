@@ -25,6 +25,21 @@ Claude 로 작업을 시작하면 저절로 읽힌다. 규칙은 `AGENTS.md` 6�
   휴대폰 알약. (app) 안의 notFound() 는 새 `app/(app)/not-found.tsx` 가 앱 틀 안에서 받는다. 앱에서 `/`(소개)를 열면 홈 · 로그인으로 보낸다.
 - 자료실 글의 첨부는 주소 전체 대신 '원문 보기 + 사이트 이름' 줄.
 
+## 금윤호에게 — 2026-10-04 · 김민(Claude) — 화면별 손질(4단계): 네 영역 몇 곳 · 새 공용 부품
+
+받은 뒤 할 일 없음(DB · 패키지 그대로). 휴대폰 모양만 바뀌고 PC 는 그대로다. **네 영역을 건드린 곳**:
+
+- **투구 기록 머리**(`videos-client.tsx`): 휴대폰은 제목 오른쪽에 둥근 [⋯] [+], 그 밑에 꽉 찬 고르개 한 줄. ⋯ 는 아래 시트(2분할 비교 ·
+  구속 측정). `PageHeading` 에 `inlineAction`(휴대폰에서도 단추를 제목 옆에), `PitchViewSwitch` 에 `className`. 구속 측정 관리자 머리는 그대로.
+  입력 저장 단추는 '10월 4일 기록 저장'(`entry-form.tsx`, 새 `dateKeyLabel` — `lib/pitch-stats.ts`).
+- **알림 종**(`app-shell.tsx` · `notice-bell.tsx`): 휴대폰 종은 아래 시트(`bellSheet`), `NoticePanel variant="sheet"`. PC 는 작은 창 그대로.
+- **영양 머리글 'Nutrition'** 은 PC 에서만(가로 휴대폰에 영어가 떴다). 캘린더 정보(`day-detail.tsx`) · 부하 패널의 밑줄 링크는 파란 글자로.
+- **globals.css**: 휴대폰에서 경고 · 위험 상자(`border-warn-line bg-warn-bg` 등) 테두리를 투명하게(카드와 같은 방식), 손가락 화면의
+  `text-[10px]` → 11px · `text-[9px]` → 10px(하단 탭 nav · svg 안은 그대로). **새 글자는 11px 아래로 쓰지 않으면 된다.**
+- **앱 바탕색**: `lib/native-app.ts` 가 테마 바탕색을 앱에 알리고 앱이 웹뷰 바탕을 칠한다(돌아올 때 흰 화면 번쩍임) — 앱을 새로 구워야.
+- 새 공용 부품: 아이폰 설정 목록 `ListGroup · ListRow · SelectRow`(`components/settings-list.tsx`, 내 정보가 이것으로 바뀜), 밀어서
+  하기 `SwipeRow`(`components/swipe-row.tsx`, 오늘 운동 목록). 문서 제목은 'Bullpen Log' 만.
+
 ## 금윤호에게 — 2026-10-04 · 김민(Claude) — 손맛(3단계): 떨림 · 토스트 · 스위치 · 당겨서 새로고침 · 자판 막대
 
 받은 뒤 할 일 없음(DB · 패키지 그대로). 새 화면을 만들 때 쓰면 되는 공용 부품이 생겼다.
