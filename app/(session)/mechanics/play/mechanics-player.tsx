@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState, useTransition } from 'react';
 import Link from 'next/link';
 import { unstable_rethrow } from 'next/navigation';
-import { ChevronDown, Info, Shuffle, X } from 'lucide-react';
+import { Check, ChevronDown, Info, Shuffle, X } from 'lucide-react';
 import { LibraryVideo } from '@/components/library-video';
 import { ErrorLine } from '@/components/error-line';
 import { useWakeLock } from '@/components/use-wake-lock';
@@ -13,7 +13,7 @@ import { mechanicsElement } from '@/lib/mechanics/elements';
 import {
   EASY_TO_ADVANCE,
   FEELS,
-  doseOf,
+  doseFields,
   filmPrompt,
   type DrillFeel,
   type DrillStage,
@@ -60,9 +60,12 @@ export function MechanicsPlayer({
   useWakeLock(!finished);
   /* 드릴마다 고른 동작(alternatives 의 몇 번째) · 도구 — 장비가 없거나 자리가 좁으면 바꿔 한다(2026-10-04 검토) */
   const [choices, setChoices] = useState(() => items.map((it) => ({ alt: 0, variantId: it.guideId })));
+  /* 지금 드릴에서 마친 세트 수 — 화면 안에서만 센다(드릴을 옮기면 처음부터) */
+  const [setsDone, setSetsDone] = useState(0);
 
   const item = items[index];
   const view = viewOf(item, choices[index]);
+  const counted = Math.min(setsDone, view.sets);
   const choose = (next: { alt: number; variantId: string }) =>
     setChoices((c) => c.map((v, i) => (i === index ? next : v)));
 
@@ -85,6 +88,7 @@ export function MechanicsPlayer({
       setDone((d) => d.map((v, i) => (i === index ? true : v)));
       if (index + 1 < items.length) {
         setIndex(index + 1);
+        setSetsDone(0);
         scroller.current?.scrollTo({ top: 0 });
       } else {
         await finish();
@@ -107,6 +111,7 @@ export function MechanicsPlayer({
   const skip = () => {
     if (index + 1 < items.length) {
       setIndex(index + 1);
+      setSetsDone(0);
       scroller.current?.scrollTo({ top: 0 });
     } else {
       startTransition(async () => {
@@ -169,7 +174,29 @@ export function MechanicsPlayer({
 
           <div className="border-t border-line bg-surface px-4 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
             <div className="mx-auto max-w-xl space-y-2.5">
-              <p className="text-center text-sm font-semibold text-ink">마쳤으면, 어땠어요?</p>
+              {/* 세트 세기 — 한 세트를 마칠 때마다 누른다. 다시 누르면 그 앞까지로 */}
+              <div className="flex items-center gap-2" role="group" aria-label="마친 세트">
+                {Array.from({ length: view.sets }, (_, i) => {
+                  const on = i < counted;
+                  return (
+                    <button
+                      key={i}
+                      type="button"
+                      aria-pressed={on}
+                      onClick={() => setSetsDone(counted === i + 1 ? i : i + 1)}
+                      className={`flex min-h-10 flex-1 items-center justify-center gap-1 rounded-full border text-sm font-semibold transition-colors ${
+                        on ? 'border-sky bg-sky-tint text-sky-strong' : 'border-line text-muted'
+                      }`}
+                    >
+                      {on && <Check aria-hidden className="h-3.5 w-3.5" />}
+                      {i + 1}세트
+                    </button>
+                  );
+                })}
+              </div>
+              <p className="text-center text-sm font-semibold text-ink">
+                {counted === view.sets ? '다 했어요. 어땠어요?' : '마쳤으면, 어땠어요?'}
+              </p>
               <div className="grid grid-cols-3 gap-2">
                 {FEELS.map((f) => (
                   <button
@@ -228,6 +255,8 @@ type DrillChoiceView = {
   guideId: string;
   tool: string;
   dose: string;
+  sets: number;
+  tempo: string;
   variant: PlayerVariant;
   variants: PlayerVariant[];
 };
@@ -240,7 +269,7 @@ function viewOf(item: SessionDrillView, choice: { alt: number; variantId: string
     title: alt?.title ?? item.title,
     guideId: variant.id,
     tool: variant.tool,
-    dose: doseOf(variant.category),
+    ...doseFields(variant.category, item.stage),
     variant,
     variants,
   };
@@ -262,6 +291,7 @@ function DrillView({
   const element = mechanicsElement(item.element);
   const alts = item.alternatives.length;
   const note = item.gearNote;
+
   return (
     <div className="mx-auto max-w-xl space-y-4 px-4 py-5">
       <div className="space-y-1.5">
@@ -290,6 +320,7 @@ function DrillView({
             </button>
           )}
         </div>
+        <p className="text-xs break-keep text-muted">{view.tempo}</p>
       </div>
 
       {view.variants.length > 1 && (

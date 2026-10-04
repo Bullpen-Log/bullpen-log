@@ -43,8 +43,16 @@ function toolOf(g: CachedGuide): string {
   return g.equipment.join(' · ') || '맨몸';
 }
 
-/** 도구만 다른 드릴의 묶음 이름 — 제목 끝의 (큰 공) · (작은 공)을 뗀다 */
-export const familyTitle = (title: string) => title.replace(/\s*\((큰|작은) 공\)\s*$/, '').trim();
+/**
+ * 도구만 다른 드릴의 묶음 이름 — 제목 끝의 (큰 공) · (작은 공)을 떼고, 앞의 P1~P5 도 뗀다.
+ * P1~P5 는 참고 영상 채널(Paradigm Pitching)의 구간 번호라 처음 보는 사람에겐 뜻이 없는 말이었다(2026-10-04 검토) —
+ * 요소 · 단계 칩이 같은 일을 한다. 떼어도 96가지가 겹치지 않는다. 라이브러리(DB)의 이름은 그대로다.
+ */
+export const familyTitle = (title: string) =>
+  title
+    .replace(/\s*\((큰|작은) 공\)\s*$/, '')
+    .replace(/^P\d+\s+/, '')
+    .trim();
 
 /** 도구 차례 — 실제 공에 가까운 것부터(야구공 → 작은 공 → 큰 공) */
 const TOOL_ORDER = ['야구공', '플라이오볼', '작은 메디신볼', '메디신볼', '큰 메디신볼'];

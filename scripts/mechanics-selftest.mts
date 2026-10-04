@@ -287,7 +287,12 @@ for (const [gearLabel, owned] of gearSets) {
               `못 하는 도구면 알림 ${tag} ${it.title}`
             );
           }
-          ok(it.dose === doseOf(it.category), `처방이 분류대로 ${tag}`);
+          ok(
+            it.dose === `${doseOf(it.category, it.stage).sets}세트 × ${doseOf(it.category, it.stage).reps}회` &&
+              it.sets === doseOf(it.category, it.stage).sets &&
+              it.tempo.length > 0,
+            `처방이 분류 · 단계대로 ${tag}`
+          );
           ok(stageAt(it.stage) <= stageAt(progress[it.element].stage), `단계는 넘지 않음 ${tag}`);
           if (it.stage !== progress[it.element].stage && can) {
             loweredItems += 1;

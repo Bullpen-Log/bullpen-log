@@ -186,8 +186,12 @@ export type SessionItem = {
   guideId: string;
   category: string;
   tool: string;
-  /** 몇 번 할지 — 드릴에는 처방이 없어 분류별 기본값(DOSE) */
+  /** 몇 번 할지 — 드릴에는 처방이 없어 분류 · 단계별 기본값(doseOf) */
   dose: string;
+  /** 세트 수 — 따라 하기의 세트 세기 */
+  sets: number;
+  /** 이 단계에서 어떻게 할지 한 줄(STAGE_TEMPO) */
+  tempo: string;
   /** 이 드릴을 할 때 떠올릴 느낌 신호 한 줄(lib/mechanics/elements.ts cues) */
   cue: string;
   /**
@@ -203,15 +207,26 @@ const MOVEMENT = '무브먼트 패턴 드릴';
 const MEDBALL = '메디신볼 드릴';
 const THROWING = '스로잉 드릴';
 
+export type Dose = { sets: number; reps: number };
+
 /**
- * 몇 번 할지 — 드릴(MechanicsGuide)에는 세트 · 횟수가 없어서 분류별로 정했다. 기술을 익히는 드릴이라 적게, 매번 바르게.
- * 무브먼트는 자세를 천천히, 메디신볼은 힘껏 적게, 스로잉은 조금 더. 스로잉 드릴에도 공을 안 던지는 팔 동작(암 패스 ·
- * 90/90 월 드리블)이 있어 '구'가 아니라 '회'로 적는다.
+ * 몇 번 할지 — 드릴(MechanicsGuide)에는 세트 · 횟수가 없어서 분류 · 단계별로 정했다. 기술을 익히는 드릴이라 적게, 매번 바르게.
+ * 무브먼트는 자세를 천천히, 메디신볼은 힘껏 적게, 스로잉은 조금 더. 단계가 오를수록 횟수는 줄고 힘은 실린다 — 기초는
+ * 천천히 여러 번 자세를 맞추고, 통합은 실제 투구처럼 힘껏 적게(2026-10-04 검토 — 예전엔 단계와 상관없이 같았다).
+ * 세션 하나(드릴 3~4개)가 15~20분 안에 들게 맞췄다. 스로잉 드릴에도 공을 안 던지는 팔 동작(암 패스 · 90/90 월 드리블)이
+ * 있어 '구'가 아니라 '회'로 적는다.
  */
-export const DOSE: Record<string, string> = {
-  [MOVEMENT]: '2세트 × 6회',
-  [MEDBALL]: '3세트 × 5회',
-  [THROWING]: '2세트 × 8회',
+const DOSES: Record<string, Record<DrillStage, Dose>> = {
+  [MOVEMENT]: { 기초: { sets: 2, reps: 8 }, 연결: { sets: 2, reps: 6 }, 통합: { sets: 2, reps: 5 } },
+  [MEDBALL]: { 기초: { sets: 2, reps: 6 }, 연결: { sets: 3, reps: 5 }, 통합: { sets: 3, reps: 4 } },
+  [THROWING]: { 기초: { sets: 2, reps: 10 }, 연결: { sets: 2, reps: 8 }, 통합: { sets: 3, reps: 5 } },
+};
+
+/** 단계마다 어떻게 할지 — 따라 하기의 처방 밑 한 줄 */
+export const STAGE_TEMPO: Record<DrillStage, string> = {
+  기초: '천천히 — 끝 자세에서 1초 멈춰 자세를 확인해요',
+  연결: '두 동작을 끊지 말고 한 번에 이어요',
+  통합: '실제로 던지듯 힘껏 — 세트 사이에 1분쯤 쉬어요',
 };
 
 /** 이만큼 세션마다 영상을 찍어 처음과 견주게 한다(2분할 비교) */
@@ -315,7 +330,7 @@ export function buildSession({
       guideId: pick.variant.id,
       category: pick.variant.category,
       tool: pick.variant.tool,
-      dose: doseOf(pick.variant.category),
+      ...doseFields(pick.variant.category, pick.stage),
       cue: cues.length > 0 ? cues[(n + index) % cues.length] : '',
       gearNote: gearNoteOf(drills, element, stage, pick, owned),
       swaps: swapsFor(drills, element, pick.stage, used, owned, preferredCategory(index, slots.length)),
@@ -323,9 +338,17 @@ export function buildSession({
   });
 }
 
-/** 분류별 몇 번 — 따라 하기에서 도구를 바꾸면 그 분류의 것으로 */
-export function doseOf(category: string): string {
-  return DOSE[category] ?? DOSE[MOVEMENT];
+/** 분류 · 단계별 몇 번 — 따라 하기에서 도구를 바꾸면 그 분류의 것으로 */
+export function doseOf(category: string, stage: DrillStage): Dose {
+  return (DOSES[category] ?? DOSES[MOVEMENT])[stage];
+}
+
+export const doseText = (d: Dose) => `${d.sets}세트 × ${d.reps}회`;
+
+/** 세션 한 줄의 처방 칸 — dose · sets · tempo */
+export function doseFields(category: string, stage: DrillStage) {
+  const d = doseOf(category, stage);
+  return { dose: doseText(d), sets: d.sets, tempo: STAGE_TEMPO[stage] };
 }
 
 type Pick = {
