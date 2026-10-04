@@ -42,6 +42,8 @@ const DARK = {
  * 브라우저 설정으로 저장소가 막혀 있어도 화면은 떠야 한다.
  */
 const THEME_STYLE = `
+  .digest { display: none; }
+  @media (min-width: 64rem), (min-width: 36rem) and (hover: hover) and (pointer: fine) { .digest { display: block; } }
   :root { color-scheme: light; --bg:${LIGHT.bg}; --surface:${LIGHT.surface}; --ink:${LIGHT.ink}; --muted:${LIGHT.muted}; --line:${LIGHT.line}; }
   :root[data-theme='dark'] { color-scheme: dark; --bg:${DARK.bg}; --surface:${DARK.surface}; --ink:${DARK.ink}; --muted:${DARK.muted}; --line:${DARK.line}; }
   body { margin:0; background:var(--bg); color:var(--ink);
@@ -116,12 +118,12 @@ export default function GlobalError({
                 onClick={() => retry()}
                 style={{
                   border: 0,
-                  borderRadius: 12,
-                  padding: '10px 16px',
+                  borderRadius: 999,
+                  padding: '12px 20px',
                   fontSize: 14,
                   fontWeight: 600,
                   color: '#fff',
-                  background: '#2563eb',
+                  background: '#0a84d6',
                   cursor: 'pointer',
                 }}
               >
@@ -130,9 +132,9 @@ export default function GlobalError({
               <a
                 href="/today"
                 style={{
-                  borderRadius: 12,
+                  borderRadius: 999,
                   border: '1px solid var(--line)',
-                  padding: '10px 16px',
+                  padding: '12px 20px',
                   fontSize: 14,
                   color: 'var(--ink)',
                   textDecoration: 'none',
@@ -141,8 +143,9 @@ export default function GlobalError({
                 홈으로
               </a>
             </div>
+            {/* 오류 번호는 PC 에서만 — 휴대폰 앱에서 웹 오류 화면처럼 보였다(components/fallback.tsx ErrorDigest) */}
             {error.digest && (
-              <p style={{ marginTop: 24, fontSize: 11, color: 'var(--muted)' }}>
+              <p className="digest" style={{ marginTop: 24, fontSize: 12, color: 'var(--muted)' }}>
                 오류 번호 {error.digest}
               </p>
             )}

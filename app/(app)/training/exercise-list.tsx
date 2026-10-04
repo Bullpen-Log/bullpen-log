@@ -315,7 +315,8 @@ function PastRecord({ title, past }: { title: string; past: PastAmount[] }) {
  *
  * 2026-10-04 사용자분: "생성된 운동 일정에서 참고 영상을 클릭해도 안 나오고, 버튼이 너무 작다". 예전에는 제목 옆에 10px
  * 글자 '참고 영상'만 있었는데, 줄 전체가 체크 단추(check-row.tsx)라 그 글자를 누르면 영상 대신 체크가 됐다 — 목록에는
- * 영상을 여는 길이 아예 없었다. 그래서 체크 줄 밖에 따로 누르는 줄(44px)을 두고, 참고 영상인지는 단추 이름으로 알린다.
+ * 영상을 여는 길이 아예 없었다. 그래서 체크 줄 밖에 따로 누르는 줄(44px)을 둔다. 직접 찍었는지 참고 영상인지는 쓰는
+ * 사람에게는 알릴 일이 아니라 이름은 늘 '영상 보기'(2026-10-04 '앱 안에 머물기' — 촬영 상황은 관리자의 라이브러리에만).
  *
  * 영상은 누르기 전에는 받지 않고(LibraryVideo), 펼친 동안에만 심는다 — 접은 뒤에도 재생기가 남아 있으면 소리 없이 계속
  * 돈다(암케어 '자세·영상 보기'와 같은 방식, armcare-media.tsx).
@@ -323,7 +324,7 @@ function PastRecord({ title, past }: { title: string; past: PastAmount[] }) {
 function ExerciseVideo({ ex }: { ex: TodayExercise }) {
   const [open, setOpen] = useState(false);
   if (!ex.videoPath && !ex.referenceVideoId) return null;
-  const label = ex.isReference ? '참고 영상' : '영상';
+  const label = '영상';
   return (
     <div className="border-t border-line">
       <button

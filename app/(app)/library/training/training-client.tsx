@@ -177,7 +177,8 @@ function ExerciseDetail({
         <div className="flex items-start justify-between gap-3">
           <div className="flex flex-wrap items-center gap-2">
             <h3 className="text-lg font-bold text-ink">{item.title}</h3>
-            {item.source === 'REFERENCE' && (
+            {/* 촬영 상황은 관리자에게만 — 쓰는 사람에게는 알릴 일이 아니다(2026-10-04 '앱 안에 머물기') */}
+            {isAdmin && item.source === 'REFERENCE' && (
               <span className="rounded-md bg-warn-bg px-2 py-0.5 text-[11px] font-semibold text-warn">
                 촬영 전 · 참고 영상
               </span>
@@ -390,7 +391,7 @@ function ExerciseGrid({ items, isAdmin }: { items: ExerciseItem[]; isAdmin: bool
             key={item.id}
             title={item.title}
             thumbUrl={item.thumbUrl}
-            isReference={item.source === 'REFERENCE'}
+            isReference={isAdmin && item.source === 'REFERENCE'}
             favorite={item.favorite}
             onSelect={() => setOpenId(item.id)}
           />
@@ -540,8 +541,8 @@ export function TrainingClient({
         </div>
       )}
 
-      {/* 촬영이 어디까지 됐는지 — 참고 영상이 하나라도 있을 때만 보여준다 */}
-      {referenceCount > 0 && (
+      {/* 촬영이 어디까지 됐는지 — 관리자에게, 참고 영상이 하나라도 있을 때만 보여준다 */}
+      {isAdmin && referenceCount > 0 && (
         <div className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-2xl border border-line bg-surface p-(--block-pad)">
           <span className="text-sm text-muted">
             직접 촬영 <strong className="text-ink">{ownCount}</strong>개 · 촬영 전{' '}

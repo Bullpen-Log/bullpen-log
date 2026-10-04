@@ -1,7 +1,9 @@
 'use client';
 
 import { useEffect } from 'react';
+import { useOnline } from '@/components/use-online';
 import {
+  ErrorDigest,
   FallbackActions,
   FallbackButton,
   FallbackLink,
@@ -37,12 +39,17 @@ export default function AppError({
     console.error('[화면 오류]', error);
   }, [error]);
 
+  const online = useOnline();
+
+  /* 신호가 끊겨 난 오류는 그렇게 말한다 — '잠깐 문제가 생겼어요'라고 하면 앱이 고장 난 줄 안다(2026-10-04) */
   return (
     <FallbackShell>
-      <FallbackTitle>화면을 불러오지 못했어요</FallbackTitle>
+      <FallbackTitle>{online ? '화면을 불러오지 못했어요' : '인터넷 연결이 없어요'}</FallbackTitle>
       <FallbackText>
-        잠깐 문제가 생겼어요. 다시 시도해보시고, 계속 같은 화면이 나오면 조금 뒤에
-        열어주세요. <strong className="text-ink">기록은 그대로 남아 있어요.</strong>
+        {online
+          ? '잠깐 문제가 생겼어요. 다시 시도해 보시고, 계속 같은 화면이 나오면 조금 뒤에 열어 주세요. '
+          : '연결되면 다시 시도해 주세요. '}
+        <strong className="text-ink">기록은 그대로 남아 있어요.</strong>
       </FallbackText>
       <FallbackActions>
         {/*
@@ -61,9 +68,7 @@ export default function AppError({
         같은 오류를 다시 겪었을 때 찾을 수 있는 번호. 없을 수도 있다.
         사용자에게 뜻은 없지만, 물어보실 때 이 번호가 있으면 로그에서 찾기 쉽다.
       */}
-      {error.digest && (
-        <p className="mt-6 text-[11px] text-muted/60">오류 번호 {error.digest}</p>
-      )}
+      <ErrorDigest digest={error.digest} />
     </FallbackShell>
   );
 }

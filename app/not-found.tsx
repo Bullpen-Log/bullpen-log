@@ -19,13 +19,12 @@ import {
 export default function NotFound() {
   return (
     <FallbackShell>
-      <p className="text-display text-5xl leading-none text-line-strong">404</p>
-      <div className="mt-4">
-        <FallbackTitle>없는 주소예요</FallbackTitle>
-        <FallbackText>
-          주소가 바뀌었거나 잘못 입력하셨을 수 있어요. 아래에서 다시 시작해주세요.
-        </FallbackText>
-      </div>
+      {/*
+        '404 · 없는 주소예요'는 웹사이트의 말이었다 — 앱에는 주소가 없다(2026-10-04 '앱 안에 머물기'). 지워졌거나
+        옮겨진 화면이라고만 말한다. 앱 틀 안에서 난 것은 app/(app)/not-found.tsx 가 하단 탭을 남긴 채 같은 말을 한다.
+      */}
+      <FallbackTitle>찾을 수 없어요</FallbackTitle>
+      <FallbackText>지워졌거나 옮겨진 화면이에요. 아래에서 다시 시작해 주세요.</FallbackText>
       <FallbackActions>
         <FallbackLink href="/today" primary>
           홈으로

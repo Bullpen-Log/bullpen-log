@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { ArrowLeft } from 'lucide-react';
+import { ChevronLeft } from 'lucide-react';
 
 /**
  * 약관 · 개인정보의 '돌아가기'(2026-10-03).
@@ -22,10 +22,13 @@ export function LegalBackLink({ fallback }: { fallback: string }) {
         e.preventDefault();
         router.back();
       }}
-      /* 휴대폰은 손가락 크기(44px) — 30px 라 잘 안 눌렸다. PC 는 예전 크기 */
-      className="inline-flex min-h-11 items-center gap-1.5 rounded-lg border border-line px-3.5 text-sm font-medium text-muted transition-colors hover:border-sky hover:text-sky desk:min-h-0 desk:px-3 desk:py-1.5 desk:text-xs"
+      /*
+       * 휴대폰은 아이폰 내비 막대의 '‹ 돌아가기'(테두리 없는 파란 글, 누르는 자리 44px — 2026-10-04 '앱 안에 머물기'),
+       * PC 는 예전 테두리 단추.
+       */
+      className="-mr-1 inline-flex min-h-11 items-center gap-0.5 text-base text-sky transition-opacity active:opacity-60 desk:mr-0 desk:min-h-0 desk:gap-1.5 desk:rounded-lg desk:border desk:border-line desk:px-3 desk:py-1.5 desk:text-xs desk:font-medium desk:text-muted desk:transition-colors desk:hover:border-sky desk:hover:text-sky"
     >
-      <ArrowLeft className="h-4 w-4 desk:h-3.5 desk:w-3.5" />
+      <ChevronLeft aria-hidden className="h-6 w-6 desk:h-3.5 desk:w-3.5" strokeWidth={2.2} />
       돌아가기
     </Link>
   );

@@ -426,18 +426,9 @@ export function Checklist({
                     onToggle={() => toggle(ex.id)}
                     title={ex.title}
                     badges={
-                      <>
-                        {note && (
-                          <span className="text-xs font-semibold text-sky-strong">
-                            {note}
-                          </span>
-                        )}
-                        {ex.isReference && (
-                          <span className="text-[10px] font-medium text-muted">
-                            참고 영상
-                          </span>
-                        )}
-                      </>
+                      note && (
+                        <span className="text-xs font-semibold text-sky-strong">{note}</span>
+                      )
                     }
                     prescription={ex.prescription}
                     warning={

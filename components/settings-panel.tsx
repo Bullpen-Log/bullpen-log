@@ -1,6 +1,6 @@
-import Link from 'next/link';
-import { ChevronRight, Info, Monitor, Ruler, SlidersHorizontal } from 'lucide-react';
-import { CONTACT, MEDICAL_NOTICE } from '@/components/site-footer';
+import { Info, Monitor, Ruler, SlidersHorizontal } from 'lucide-react';
+import { MEDICAL_NOTICE } from '@/components/site-footer';
+import { SettingsInfoRows } from '@/components/settings-info';
 import { ThemeToggle } from '@/components/theme-toggle';
 import { UnitToggle } from '@/components/unit-toggle';
 import { TrainingSettingsForm } from '@/components/training-forms';
@@ -67,29 +67,15 @@ export function SettingsPanel({
       {/*
         ── 정보 ── 휴대폰은 화면마다 붙던 꼬리말을 뺐으므로(components/site-footer.tsx) 약관 · 문의 · 의료 안내가
         여기 있다 — 아이폰 앱의 '설정 › 정보'처럼(2026-10-01 사용자 '애플처럼'). 묶은 줄은 아이폰 설정 목록 모양.
+        약관 · 3D 출처는 넘어가지 않고 창으로 뜬다(components/settings-info.tsx, 2026-10-04 '앱 안에 머물기').
       */}
       <section className={SECTION}>
         <SectionHead
           icon={<Info className="h-4 w-4" />}
           title="정보"
-          desc="약관과 문의는 여기에 있어요."
+          desc="약관 · 출처 · 문의는 여기에 있어요."
         />
-        <div className="divide-y divide-line overflow-hidden rounded-xl bg-surface-2">
-          {[
-            { href: '/terms', label: '이용약관' },
-            { href: '/privacy', label: '개인정보 처리방침' },
-            { href: `mailto:${CONTACT}`, label: '문의하기' },
-          ].map((row) => (
-            <Link
-              key={row.href}
-              href={row.href}
-              className="flex min-h-11 items-center justify-between gap-3 px-4 text-sm text-ink transition-colors active:bg-ink/6"
-            >
-              {row.label}
-              <ChevronRight aria-hidden className="h-4 w-4 shrink-0 text-muted/70" />
-            </Link>
-          ))}
-        </div>
+        <SettingsInfoRows />
         <p className="break-keep text-xs leading-relaxed text-muted">
           {MEDICAL_NOTICE}
         </p>

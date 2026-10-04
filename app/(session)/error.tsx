@@ -1,7 +1,9 @@
 'use client';
 
 import { useEffect } from 'react';
+import { useOnline } from '@/components/use-online';
 import {
+  ErrorDigest,
   FallbackActions,
   FallbackButton,
   FallbackLink,
@@ -32,9 +34,11 @@ export default function SessionError({
     console.error('[운동 화면 오류]', error);
   }, [error]);
 
+  const online = useOnline();
+
   return (
     <FallbackShell>
-      <FallbackTitle>운동 화면에 문제가 생겼어요</FallbackTitle>
+      <FallbackTitle>{online ? '운동 화면에 문제가 생겼어요' : '인터넷 연결이 없어요'}</FallbackTitle>
       <FallbackText>
         남긴 세트는 지워지지 않았어요. 신호가 없을 때 남긴 세트도 이 폰에 보관돼 있다가,
         화면이 다시 뜨면 저절로 보내져요.
@@ -45,9 +49,7 @@ export default function SessionError({
         </FallbackButton>
         <FallbackLink href="/training">트레이닝으로</FallbackLink>
       </FallbackActions>
-      {error.digest && (
-        <p className="mt-6 text-[11px] text-muted/60">오류 번호 {error.digest}</p>
-      )}
+      <ErrorDigest digest={error.digest} />
     </FallbackShell>
   );
 }

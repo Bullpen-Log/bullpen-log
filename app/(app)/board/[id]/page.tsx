@@ -1,5 +1,5 @@
 import { notFound } from 'next/navigation';
-import { ExternalLink, Eye, Trash2 } from 'lucide-react';
+import { ChevronRight, ExternalLink, Eye, Trash2 } from 'lucide-react';
 import { prisma } from '@/lib/prisma';
 import { requireUser } from '@/lib/dal';
 import { deleteArticle } from '@/app/actions/board';
@@ -91,20 +91,25 @@ export default async function ArticleDetailPage({
         </div>
       </header>
 
+      {/*
+        원문 — 주소 전체 대신 '원문 보기'와 사이트 이름만(2026-10-04 '앱 안에 머물기'). 긴 주소 한 줄이 웹페이지 같았다.
+        주소는 길게 눌러 복사할 수 있다(링크 그대로).
+      */}
       {article.attachmentUrl && (
         <a
           href={article.attachmentUrl}
           target="_blank"
           rel="noopener noreferrer"
-          className="flex items-center gap-3 rounded-xl border border-line bg-surface px-5 py-4 text-sm transition-colors hover:border-sky"
+          className="flex min-h-14 items-center gap-3 rounded-xl border border-line bg-surface px-4 py-3 text-sm transition-colors hover:border-sky active:bg-ink/6 desk:px-5"
         >
           <ExternalLink className="h-4 w-4 shrink-0 text-sky" />
-          <span className="min-w-0 flex-1 truncate text-muted">
-            {article.attachmentUrl}
+          <span className="min-w-0 flex-1">
+            <span className="block font-semibold text-ink">원문 보기</span>
+            <span className="block truncate text-xs text-muted">
+              {hostOf(article.attachmentUrl)}
+            </span>
           </span>
-          <span className="shrink-0 text-xs font-medium tracking-normal text-sky">
-            원문 보기
-          </span>
+          <ChevronRight aria-hidden className="h-4 w-4 shrink-0 text-muted/70" />
         </a>
       )}
 
@@ -113,4 +118,13 @@ export default async function ArticleDetailPage({
       </div>
     </article>
   );
+}
+
+/** 원문 주소의 사이트 이름(www. 뺌) — 못 읽는 주소면 그대로 */
+function hostOf(url: string) {
+  try {
+    return new URL(url).hostname.replace(/^www\./, '');
+  } catch {
+    return url;
+  }
 }

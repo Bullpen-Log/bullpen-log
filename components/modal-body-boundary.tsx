@@ -38,15 +38,16 @@ export class ModalBodyBoundary extends Component<
     return (
       <div role="alert" className="space-y-3 rounded-2xl bg-surface-2 px-4 py-6 text-center">
         <p className="text-sm font-semibold text-ink">창을 불러오지 못했어요</p>
+        {/* '새로고침'은 웹 브라우저의 말이라 '다시 불러오기'로(2026-10-04) — 하는 일은 같다(화면을 다시 연다) */}
         <p className="text-xs leading-relaxed break-keep text-muted">
-          인터넷 연결을 확인한 뒤 화면을 새로고침해 주세요.
+          인터넷 연결을 확인한 뒤 다시 불러와 주세요.
         </p>
         <button
           type="button"
           onClick={() => window.location.reload()}
-          className="rounded-xl border border-line-strong px-4 py-2 text-sm font-semibold text-ink transition-colors hover:border-sky hover:text-sky"
+          className="inline-flex min-h-11 items-center rounded-full bg-surface px-5 text-sm font-semibold text-ink transition-colors desk:min-h-0 desk:rounded-xl desk:border desk:border-line-strong desk:bg-transparent desk:px-4 desk:py-2 desk:hover:border-sky desk:hover:text-sky"
         >
-          새로고침
+          다시 불러오기
         </button>
       </div>
     );

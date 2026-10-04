@@ -5,6 +5,9 @@ import { SiteFooter } from '@/components/site-footer';
 import { BullpenMark, Wordmark } from '@/components/logo';
 import { Baseball } from '@/components/baseball-icon';
 import { getCurrentUser } from '@/lib/dal';
+import { headers } from 'next/headers';
+import { redirect } from 'next/navigation';
+import { isNativeUserAgent } from '@/lib/app-env';
 
 /**
  * 소개 — 처음 온 사람이 보는 첫 화면(아이폰 앱이 로그인 전에 여는 화면이기도 하다).
@@ -40,6 +43,13 @@ const FEATURES: { icon: LucideIcon; title: string; desc: string }[] = [
 
 export default async function LandingPage() {
   const user = await getCurrentUser();
+  /*
+   * 아이폰 앱 안에서는 소개 화면을 보이지 않는다 — 웹사이트를 처음 온 사람에게 앱을 소개하는 화면이라, 앱 안에서 열리면
+   * (로그인 화면의 로고를 누르는 등) 웹페이지 같았다(2026-10-04 '앱 안에 머물기'). 로그인했으면 홈, 아니면 로그인.
+   */
+  if (isNativeUserAgent((await headers()).get('user-agent'))) {
+    redirect(user ? '/today' : '/login');
+  }
 
   return (
     <main className="bg-spotlight flex min-h-[calc(100dvh-env(safe-area-inset-top)-env(safe-area-inset-bottom))] flex-col">

@@ -83,7 +83,6 @@ export function MechanicsDrill({
           </span>
           <span className="block text-xs break-keep text-muted">
             {tools.join(' · ')}
-            {variant.isReference && ' · 참고 영상'}
           </span>
         </span>
         {variant.thumbUrl && (

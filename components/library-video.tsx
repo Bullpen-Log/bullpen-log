@@ -99,7 +99,7 @@ export function LibraryVideo({
         <button
           type="button"
           onClick={() => setShowEmbed(true)}
-          aria-label={`${title} 참고 영상 재생`}
+          aria-label={`${title} 영상 재생`}
           className={`group relative flex ${frame} items-center justify-center overflow-hidden rounded-xl bg-surface-2`}
         >
           {thumbUrl && (
@@ -115,18 +115,26 @@ export function LibraryVideo({
           <span className="relative flex h-12 w-12 items-center justify-center rounded-full bg-black/40 text-white backdrop-blur-sm transition-transform group-hover:scale-105">
             <Play className="ml-0.5 h-5 w-5 fill-current" />
           </span>
-          <span className="absolute left-2 top-2 rounded-full bg-black/45 px-2 py-0.5 text-xs font-medium text-white backdrop-blur-sm">
-            참고 영상
-          </span>
+          {/*
+            '참고 영상' 표시 · '유튜브에서 열기'는 관리자에게만 — 촬영 상황은 쓰는 사람이 알 일이 아니고, 밑줄 링크는 누르면
+            앱 밖(유튜브 · 사파리)으로 나갔다(2026-10-04 '앱 안에 머물기'). 재생은 이 자리에서 그대로 된다.
+          */}
+          {isAdmin && (
+            <span className="absolute left-2 top-2 rounded-full bg-black/45 px-2 py-0.5 text-xs font-medium text-white backdrop-blur-sm">
+              참고 영상
+            </span>
+          )}
         </button>
-        <a
-          href={referenceWatchUrl(referenceVideoId)}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="block text-center text-xs text-muted underline-offset-2 hover:underline"
-        >
-          유튜브에서 열기
-        </a>
+        {isAdmin && (
+          <a
+            href={referenceWatchUrl(referenceVideoId)}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="block text-center text-xs text-muted underline-offset-2 hover:underline"
+          >
+            유튜브에서 열기
+          </a>
+        )}
       </div>
     );
   }

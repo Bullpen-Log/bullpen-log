@@ -35,10 +35,11 @@ export function FallbackActions({ children }: { children: ReactNode }) {
   );
 }
 
+/* 휴대폰은 앱의 다른 단추처럼 알약 · 테두리 없는 회색 면(2026-10-04 '앱 안에 머물기'), PC 는 예전 네모 */
 const PRIMARY =
-  'rounded-xl bg-sky px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-sky-strong';
+  'inline-flex min-h-11 items-center rounded-full bg-sky px-5 text-sm font-semibold text-white transition-colors hover:bg-sky-strong desk:min-h-0 desk:rounded-xl desk:px-4 desk:py-2.5';
 const SECONDARY =
-  'rounded-xl border border-line-strong px-4 py-2.5 text-sm font-medium text-ink transition-colors hover:border-sky hover:text-sky';
+  'inline-flex min-h-11 items-center rounded-full bg-surface px-5 text-sm font-medium text-ink transition-colors desk:min-h-0 desk:rounded-xl desk:border desk:border-line-strong desk:bg-transparent desk:px-4 desk:py-2.5 desk:hover:border-sky desk:hover:text-sky';
 
 export function FallbackLink({
   href,
@@ -78,6 +79,15 @@ export function FallbackButton({
  * 빈 화면을 보여주면 멈춘 것처럼 보인다. 실제로 나올 모양과 비슷하게 두면
  * 기다리는 동안에도 무엇이 올지 짐작할 수 있다.
  */
+/**
+ * 오류 번호 — 같은 오류를 다시 겪었을 때 로그에서 찾는 번호. PC 에서만 보인다: 휴대폰 앱에서 '오류 번호 3998…'은
+ * 웹사이트의 오류 화면처럼 보였다(2026-10-04 점검). 사용자에게 뜻이 없는 값이다.
+ */
+export function ErrorDigest({ digest }: { digest?: string }) {
+  if (!digest) return null;
+  return <p className="mt-6 hidden text-xs text-muted/60 desk:block">오류 번호 {digest}</p>;
+}
+
 export function Skeleton({ className = '' }: { className?: string }) {
   return (
     <div aria-hidden className={`animate-pulse rounded-xl bg-surface-2 ${className}`} />

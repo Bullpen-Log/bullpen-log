@@ -21,7 +21,8 @@ export default async function LegalLayout({ children }: { children: React.ReactN
       {/* 왼쪽 위 로고 · 오른쪽 위 '돌아가기'는 PC 의 작아진 크기 기준에서 뺀다(ui-chrome, globals.css) */}
       <header className="ui-chrome border-b border-line bg-surface">
         <div className="mx-auto flex max-w-3xl items-center justify-between gap-4 px-5 py-2.5 sm:px-6 desk:py-4">
-          <Link href="/" className="flex items-center gap-2.5">
+          {/* 앱 안에서는 로고가 소개(웹) 화면으로 가지 않는다 — 앱은 소개를 안 보인다(app/page.tsx) */}
+          <Link href="/" className="flex items-center gap-2.5 in-data-[app=native]:pointer-events-none">
             <Wordmark className="text-2xl text-ink" />
           </Link>
           <LegalBackLink fallback={fallback} />
@@ -32,7 +33,10 @@ export default async function LegalLayout({ children }: { children: React.ReactN
         {children}
       </main>
 
-      <SiteFooter width="max-w-3xl" />
+      {/* 앱 안에는 웹 바닥글이 없다 — 약관 · 문의는 설정 › 정보에 있다(2026-10-04 '앱 안에 머물기') */}
+      <div className="in-data-[app=native]:hidden">
+        <SiteFooter width="max-w-3xl" />
+      </div>
     </div>
   );
 }

@@ -1,7 +1,6 @@
 'use client';
 
 import Link from 'next/link';
-import dynamic from 'next/dynamic';
 import {
   useActionState,
   useCallback,
@@ -15,7 +14,8 @@ import {
 import { createPortal, useFormStatus } from 'react-dom';
 import { CalendarDays, CircleAlert, Info } from 'lucide-react';
 import { MiniCalendar } from '@/components/mini-calendar';
-import { Modal, useModalState } from '@/components/modal';
+import { useModalState } from '@/components/modal';
+import { LegalSheet, wantsNewTab, type LegalDoc } from '@/components/legal-sheet';
 import { checkSignupEmail, login, signup, type AuthState } from '@/app/actions/auth';
 import { guardFormAction } from '@/lib/action-offline';
 import { Button, Field, FormError, Input } from '@/components/ui';
@@ -124,9 +124,10 @@ function AuthCard({
 
       <div className="flex flex-1 flex-col gap-6 pt-5 short:gap-4 short:pt-4 md:grid md:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)] md:gap-14 md:p-12 md:short:p-8 lg:gap-20 lg:p-14 lg:short:p-9">
         <header className="min-w-0">
+          {/* 아이폰 앱에서는 눌리지 않는 그림 — 소개(웹) 화면이 앱에는 없다(app/page.tsx, 2026-10-04) */}
           <Link
             href="/"
-            className="group inline-flex items-center gap-2.5 rounded-lg"
+            className="group inline-flex items-center gap-2.5 rounded-lg in-data-[app=native]:pointer-events-none"
             aria-label="Bullpen Log 첫 화면"
           >
             <Wordmark className="text-2xl text-ink transition-colors group-hover:text-sky md:text-3xl" />
@@ -655,32 +656,6 @@ function Choices({
   );
 }
 
-/*
- * 약관 · 개인정보 글 — 약관 화면(app/(legal))과 같은 글을 창으로 띄운다(2026-10-03).
- *
- * 예전에는 새 탭 링크(target="_blank")였다. 아이폰 앱은 새 탭 링크를 사파리로 넘겨서, 가입하던 사람이 앱 밖으로
- * 튕겨 나갔다. 창으로 띄우면 적던 칸이 그대로 남는다. 글은 창을 처음 열 때 받는다 — 로그인 화면을 무겁게 하지 않게.
- */
-const TermsContent = dynamic(
-  () => import('@/app/(legal)/terms/terms-content').then((m) => m.TermsContent),
-  { loading: () => <p className="py-8 text-center text-sm text-muted">불러오는 중…</p> }
-);
-const PrivacyContent = dynamic(
-  () => import('@/app/(legal)/privacy/privacy-content').then((m) => m.PrivacyContent),
-  { loading: () => <p className="py-8 text-center text-sm text-muted">불러오는 중…</p> }
-);
-
-type LegalDoc = 'terms' | 'privacy';
-const LEGAL_TITLE: Record<LegalDoc, string> = {
-  terms: '이용약관',
-  privacy: '개인정보 처리방침',
-};
-
-/** 새 탭으로 열려는 누름인가(⌘ · Ctrl · 가운데 단추) — 그건 브라우저에 맡긴다(PC) */
-function wantsNewTab(e: React.MouseEvent) {
-  return e.metaKey || e.ctrlKey || e.shiftKey || e.button === 1;
-}
-
 /** 동의 줄 안의 글 이름 링크 — 누르면 창으로 연다. 주소는 그대로 둬 길게 눌러 복사 · 새 탭도 된다 */
 function LegalLink({
   doc,
@@ -703,50 +678,6 @@ function LegalLink({
     >
       {children}
     </a>
-  );
-}
-
-function LegalSheet({
-  doc,
-  open,
-  origin,
-  onClose,
-  onSwitch,
-}: {
-  doc: LegalDoc | null;
-  open: boolean;
-  origin: { x: number; y: number } | null;
-  onClose: () => void;
-  onSwitch: (doc: LegalDoc) => void;
-}) {
-  return (
-    <Modal
-      open={open}
-      onClose={onClose}
-      title={doc ? LEGAL_TITLE[doc] : ''}
-      origin={origin}
-    >
-      {/*
-        글 끝의 '개인정보 처리방침 · 이용약관' 링크는 페이지로 넘어가지 않고 창 안에서 바꿔 보인다 —
-        넘어가면 적던 가입 칸이 사라진다.
-      */}
-      <div
-        onClickCapture={(e) => {
-          const a = (e.target as Element).closest('a');
-          const path = a?.getAttribute('href');
-          if (path !== '/terms' && path !== '/privacy') return;
-          if (wantsNewTab(e)) return;
-          e.preventDefault();
-          onSwitch(path.slice(1) as LegalDoc);
-        }}
-      >
-        {doc === 'terms' ? (
-          <TermsContent />
-        ) : doc === 'privacy' ? (
-          <PrivacyContent />
-        ) : null}
-      </div>
-    </Modal>
   );
 }
 

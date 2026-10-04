@@ -116,7 +116,8 @@ function GuideDetail({
           <div className="min-w-0 space-y-2">
             <div className="flex flex-wrap items-center gap-2">
               <h3 className="text-lg font-bold text-ink">{item.title}</h3>
-              {item.source === 'REFERENCE' && (
+              {/* 촬영 상황은 관리자에게만(2026-10-04 '앱 안에 머물기') */}
+              {isAdmin && item.source === 'REFERENCE' && (
                 <span className="rounded-md bg-warn-bg px-2 py-0.5 text-[11px] font-semibold text-warn">
                   촬영 전 · 참고 영상
                 </span>
@@ -232,7 +233,7 @@ function GuideGrid({ items, isAdmin }: { items: GuideItem[]; isAdmin: boolean })
             key={item.id}
             title={item.title}
             thumbUrl={item.thumbUrl}
-            isReference={item.source === 'REFERENCE'}
+            isReference={isAdmin && item.source === 'REFERENCE'}
             favorite={item.favorite}
             onSelect={() => setOpenId(item.id)}
           />

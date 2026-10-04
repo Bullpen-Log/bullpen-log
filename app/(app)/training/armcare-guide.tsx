@@ -365,9 +365,6 @@ function GuideExercise({
             {secondary && (
               <span className="text-[10px] font-medium text-muted">함께 쓰는 운동</span>
             )}
-            {ex.isReference && (
-              <span className="text-[10px] font-medium text-muted">참고 영상</span>
-            )}
             <AddToRoutine exerciseId={ex.id} title={ex.title} />
           </span>
           {ex.prescription && (
