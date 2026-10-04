@@ -14,6 +14,7 @@ import { MECHANICS_ELEMENTS, type MechanicsElementName } from '@/lib/mechanics/e
 import { EASY_TO_ADVANCE, isMastered } from '@/lib/mechanics/program';
 import type { MechanicsProgramView, SessionDrillView } from '@/lib/mechanics/load';
 import { resetMechanicsProgram, startMechanicsProgram } from '@/app/actions/mechanics';
+import { josa } from '@/lib/korean';
 import { OverviewDetail } from './mechanics-guide';
 
 /**
@@ -71,6 +72,12 @@ export function MechanicsProgram({
                 <span className="block text-xs break-keep text-muted">
                   {item.element} · {item.stage} · {item.tool} · {item.dose}
                 </span>
+                {item.gearNote?.lowered && (
+                  <span className="block text-xs break-keep text-muted">
+                    {item.gearNote.need}
+                    {josa(item.gearNote.need, '이/가')} 있으면 {item.gearNote.lowered} 드릴이 나와요
+                  </span>
+                )}
               </span>
             </li>
           ))}

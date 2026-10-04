@@ -15,6 +15,8 @@ import {
   applyFeel,
   stepDown,
   buildSession,
+  canUseVariant,
+  doseOf,
   freshProgress,
   isMastered,
   readProgress,
@@ -241,6 +243,120 @@ console.log(
 );
 ok(withThrow / sessions >= 0.8, '스로잉 드릴이 든 세션이 8할 넘음', `${withThrow}/${sessions}`);
 ok(withMovement / sessions >= 0.6, '무브먼트가 든 세션이 6할 넘음', `${withMovement}/${sessions}`);
+
+/* ── 장비 ── 가진 장비로 할 수 있는 것을 고르고, 못 하면 한 단계 아래 · 그래도 없으면 알림(2026-10-04 검토) */
+const stageAt = (st: string | null) => DRILL_STAGES_ORDER.indexOf(st as DrillStage);
+const DRILL_STAGES_ORDER: DrillStage[] = ['기초', '연결', '통합'];
+const usable = (title: string, owned: ReadonlySet<string> | null) =>
+  drills.find((d) => d.title === title)?.variants.some((v) => canUseVariant(v, owned)) ?? false;
+const gearSets: [string, ReadonlySet<string> | null][] = [
+  ['안 고름', null],
+  ['맨몸 · 야구공만', new Set<string>()],
+  ['밴드만', new Set(['밴드'])],
+  ['메디신볼', new Set(['메디신볼'])],
+  ['다 있음', new Set(['밴드', '메디신볼', '플라이오볼', '워터백', '워터볼'])],
+];
+let gearSessions = 0;
+let fallbackItems = 0;
+let loweredItems = 0;
+for (const [gearLabel, owned] of gearSets) {
+  for (const focus of [null, ...NAMES] as (MechanicsElementName | null)[]) {
+    for (const [label, progress] of progresses) {
+      for (let s = 0; s < 6; s++) {
+        const items = buildSession({ drills, progress, focus, sessionsDone: s, owned });
+        const tag = `${gearLabel} · ${focus ?? '강조 없음'} · ${label} · ${s}번째`;
+        gearSessions += 1;
+        ok(items.length === (focus ? 4 : 3), `장비 개수 ${tag}`, `${items.length}개`);
+        if (owned === null) {
+          const plain = buildSession({ drills, progress, focus, sessionsDone: s });
+          ok(
+            JSON.stringify(plain) === JSON.stringify(items),
+            `장비를 안 고르면 예전 그대로 ${tag}`
+          );
+        }
+        const titles = new Set(items.map((i) => i.title));
+        for (const it of items) {
+          const v = drills.flatMap((d) => d.variants).find((x) => x.id === it.guideId);
+          const can = v ? canUseVariant(v, owned) : false;
+          if (!can) {
+            fallbackItems += 1;
+            ok(
+              it.gearNote != null && it.gearNote.lowered === null && it.gearNote.need.length > 0,
+              `못 하는 도구면 알림 ${tag} ${it.title}`
+            );
+          }
+          ok(it.dose === doseOf(it.category), `처방이 분류대로 ${tag}`);
+          ok(stageAt(it.stage) <= stageAt(progress[it.element].stage), `단계는 넘지 않음 ${tag}`);
+          if (it.stage !== progress[it.element].stage && can) {
+            loweredItems += 1;
+            /* 지금 단계에 할 수 있는 동작이 정말 없었나(세션의 다른 칸이 가져간 것 말고) */
+            const doable = drills.some(
+              (d) =>
+                d.stage === progress[it.element].stage &&
+                d.focusPoints.includes(it.element) &&
+                d.variants.some((x) => canUseVariant(x, owned))
+            );
+            if (!doable) {
+              ok(
+                it.gearNote?.lowered === progress[it.element].stage && it.gearNote.need.length > 0,
+                `내려 고르면 무엇이 있으면 되는지 ${tag} ${it.element}`,
+                JSON.stringify(it.gearNote)
+              );
+            }
+          }
+          if (it.gearNote?.lowered) {
+            ok(owned !== null, `장비를 안 골랐으면 장비 알림 없음 ${tag}`);
+          }
+          /* 바꿔 할 동작 — 같은 요소 · 같은 단계, 이 세션에 없는 것, 할 수 있는 것, 넷까지 */
+          ok(it.swaps.length <= 4, `바꿀 동작 넷까지 ${tag}`);
+          ok(
+            it.swaps.every((w) => {
+              const d = drills.find((x) => x.title === w.title);
+              return (
+                d != null &&
+                d.stage === it.stage &&
+                d.focusPoints.includes(it.element) &&
+                !titles.has(w.title) &&
+                d.variants.some((x) => x.id === w.guideId && canUseVariant(x, owned)) &&
+                w.tool === d.variants.find((x) => x.id === w.guideId)?.tool
+              );
+            }),
+            `바꿀 동작 ${tag} ${it.title}`,
+            it.swaps.map((w) => w.title).join(' / ')
+          );
+          ok(new Set(it.swaps.map((w) => w.title)).size === it.swaps.length, `바꿀 동작 겹침 없음 ${tag}`);
+          if (owned) ok(it.swaps.every((w) => usable(w.title, owned)), `바꿀 동작은 할 수 있는 것 ${tag}`);
+        }
+      }
+    }
+  }
+}
+console.log(
+  `장비 세션 ${gearSessions}개 — 못 하는 도구로 남은 칸 ${fallbackItems} · 장비 때문에 한 단계 아래 ${loweredItems}`
+);
+/* 맨몸 · 야구공만 가진 사람도 드릴 대부분은 할 수 있어야 한다 */
+{
+  const owned = new Set<string>();
+  let total = 0;
+  let can = 0;
+  for (const focus of [null, ...NAMES] as (MechanicsElementName | null)[]) {
+    for (const [, progress] of progresses) {
+      for (let s = 0; s < 6; s++) {
+        for (const it of buildSession({ drills, progress, focus, sessionsDone: s, owned })) {
+          total += 1;
+          const v = drills.flatMap((d) => d.variants).find((x) => x.id === it.guideId);
+          if (v && canUseVariant(v, owned)) can += 1;
+        }
+      }
+    }
+  }
+  console.log(`맨몸 · 야구공만: 할 수 있는 칸 ${can}/${total}`);
+  ok(can / total >= 0.95, '맨몸 · 야구공만 가져도 9할 5푼 넘게 할 수 있음', `${can}/${total}`);
+}
+ok(canUseVariant({ equipment: ['맨몸', '야구공'] }, new Set()), '맨몸 · 야구공은 누구나');
+ok(!canUseVariant({ equipment: ['메디신볼'] }, new Set(['밴드'])), '없는 장비는 못 함');
+ok(canUseVariant({ equipment: ['메디신볼'] }, null), '장비를 안 고르면 다 됨');
+ok(canUseVariant({}, new Set()), '장비 칸이 없으면 맨몸');
 
 console.log(`\n${pass}개 통과, ${fail}개 실패`);
 if (fail > 0) process.exit(1);

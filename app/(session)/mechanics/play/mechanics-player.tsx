@@ -3,15 +3,15 @@
 import { useEffect, useRef, useState, useTransition } from 'react';
 import Link from 'next/link';
 import { unstable_rethrow } from 'next/navigation';
-import { ChevronDown, Info, X } from 'lucide-react';
+import { ChevronDown, Info, Shuffle, X } from 'lucide-react';
 import { LibraryVideo } from '@/components/library-video';
 import { ErrorLine } from '@/components/error-line';
 import { useWakeLock } from '@/components/use-wake-lock';
 import { OFFLINE_MESSAGE, orOffline } from '@/lib/action-offline';
 import { DRILL_STAGES } from '@/lib/exercise-meta';
 import { mechanicsElement } from '@/lib/mechanics/elements';
-import { EASY_TO_ADVANCE, FEELS, type DrillFeel, type DrillStage } from '@/lib/mechanics/program';
-import type { SessionDrillView } from '@/lib/mechanics/load';
+import { EASY_TO_ADVANCE, FEELS, doseOf, type DrillFeel, type DrillStage } from '@/lib/mechanics/program';
+import type { PlayerVariant, SessionDrillView } from '@/lib/mechanics/load';
 import {
   finishMechanicsSession,
   recordMechanicsDrill,
@@ -51,14 +51,19 @@ export function MechanicsPlayer({
   const [pending, startTransition] = useTransition();
   const scroller = useRef<HTMLDivElement>(null);
   useWakeLock(!finished);
+  /* 드릴마다 고른 동작(alternatives 의 몇 번째) · 도구 — 장비가 없거나 자리가 좁으면 바꿔 한다(2026-10-04 검토) */
+  const [choices, setChoices] = useState(() => items.map((it) => ({ alt: 0, variantId: it.guideId })));
 
   const item = items[index];
+  const view = viewOf(item, choices[index]);
+  const choose = (next: { alt: number; variantId: string }) =>
+    setChoices((c) => c.map((v, i) => (i === index ? next : v)));
 
   const record = (feel: DrillFeel) =>
     startTransition(async () => {
       setError(null);
       const res = await orOffline(
-        recordMechanicsDrill({ guideId: item.guideId, element: item.element, feel }),
+        recordMechanicsDrill({ guideId: view.guideId, element: item.element, feel }),
         { error: OFFLINE_MESSAGE }
       );
       if ('error' in res) {
@@ -144,7 +149,14 @@ export function MechanicsPlayer({
       ) : (
         <>
           <div ref={scroller} className="flex-1 overflow-y-auto">
-            <DrillView key={item.guideId} item={item} isAdmin={isAdmin} />
+            <DrillView
+              key={item.guideId}
+              item={item}
+              view={view}
+              alt={choices[index].alt}
+              onChoose={choose}
+              isAdmin={isAdmin}
+            />
           </div>
 
           <div className="border-t border-line bg-surface px-4 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
@@ -202,19 +214,112 @@ export function MechanicsPlayer({
 }
 
 /** 드릴 하나 — 요소 · 단계, 이름, 몇 번, 느낌 신호, 영상, 설명(펼치면 받음) */
-function DrillView({ item, isAdmin }: { item: SessionDrillView; isAdmin: boolean }) {
+/** 지금 보이는 드릴 — 고른 동작 · 도구의 것(바꾸지 않았으면 세션이 고른 그대로) */
+type DrillChoiceView = {
+  title: string;
+  guideId: string;
+  tool: string;
+  dose: string;
+  variant: PlayerVariant;
+  variants: PlayerVariant[];
+};
+
+function viewOf(item: SessionDrillView, choice: { alt: number; variantId: string }): DrillChoiceView {
+  const alt = item.alternatives[choice.alt] ?? item.alternatives[0];
+  const variants = alt?.variants ?? [{ ...item.variant, owned: true }];
+  const variant = variants.find((v) => v.id === choice.variantId) ?? variants[0];
+  return {
+    title: alt?.title ?? item.title,
+    guideId: variant.id,
+    tool: variant.tool,
+    dose: doseOf(variant.category),
+    variant,
+    variants,
+  };
+}
+
+function DrillView({
+  item,
+  view,
+  alt,
+  onChoose,
+  isAdmin,
+}: {
+  item: SessionDrillView;
+  view: DrillChoiceView;
+  alt: number;
+  onChoose: (next: { alt: number; variantId: string }) => void;
+  isAdmin: boolean;
+}) {
   const element = mechanicsElement(item.element);
+  const alts = item.alternatives.length;
+  const note = item.gearNote;
   return (
     <div className="mx-auto max-w-xl space-y-4 px-4 py-5">
       <div className="space-y-1.5">
         <p className="flex flex-wrap items-center gap-1.5 text-xs font-semibold">
           <span className="rounded-full bg-sky-tint px-2.5 py-0.5 text-sky-strong">{item.element}</span>
           <span className="rounded-full bg-surface-2 px-2.5 py-0.5 text-ink">{item.stage}</span>
-          <span className="text-muted">{item.tool}</span>
+          {view.variants.length < 2 && <span className="text-muted">{view.tool}</span>}
         </p>
-        <h1 className="text-xl font-bold break-keep text-ink">{item.title}</h1>
-        <p className="text-base font-semibold text-sky-strong">{item.dose}</p>
+        <h1 className="text-xl font-bold break-keep text-ink">{view.title}</h1>
+        <div className="flex min-h-10 items-center justify-between gap-2">
+          <p className="text-base font-semibold text-sky-strong">{view.dose}</p>
+          {alts > 1 && (
+            <button
+              type="button"
+              onClick={() => {
+                const next = (alt + 1) % alts;
+                onChoose({ alt: next, variantId: item.alternatives[next].guideId });
+              }}
+              className="-mr-3 flex min-h-10 items-center gap-1.5 rounded-full px-3 text-sm font-semibold text-sky-strong"
+            >
+              <Shuffle aria-hidden className="h-4 w-4" />
+              다른 드릴
+              <span className="text-xs font-medium text-muted tabular-nums">
+                {alt + 1}/{alts}
+              </span>
+            </button>
+          )}
+        </div>
       </div>
+
+      {view.variants.length > 1 && (
+        <div className="flex flex-wrap items-center gap-1.5" role="group" aria-label="도구">
+          {view.variants.map((v) => {
+            const on = v.id === view.guideId;
+            return (
+              <button
+                key={v.id}
+                type="button"
+                aria-pressed={on}
+                onClick={() => onChoose({ alt, variantId: v.id })}
+                /* 가진 장비에 없는 도구는 점선 — 골라도 되지만(오늘 빌린 공) 처음엔 안 고른다 */
+                className={`min-h-10 rounded-full px-3.5 text-sm font-semibold transition-colors ${
+                  on
+                    ? 'bg-sky text-white'
+                    : v.owned
+                      ? 'bg-surface text-ink'
+                      : 'border border-dashed border-line text-muted'
+                }`}
+              >
+                {v.tool}
+              </button>
+            );
+          })}
+        </div>
+      )}
+
+      {!view.variant.owned ? (
+        <p className="text-xs break-keep text-muted">이 도구는 가진 장비에 없어요. 있으면 그대로 해도 돼요.</p>
+      ) : (
+        note?.lowered && (
+          <p className="text-xs break-keep text-muted">
+            {note.lowered} 드릴은 {note.need}
+            {josa(note.need, '이/가')} 있어야 해서, 지금은 {item.stage} 드릴로 해요.
+          </p>
+        )
+      )}
 
       {item.cue && (
         <p className="rounded-2xl bg-sky-tint/60 px-4 py-3 text-sm font-semibold break-keep text-sky-strong">
@@ -222,18 +327,19 @@ function DrillView({ item, isAdmin }: { item: SessionDrillView; isAdmin: boolean
         </p>
       )}
 
-      {(item.variant.videoPath || item.variant.referenceVideoId) && (
+      {(view.variant.videoPath || view.variant.referenceVideoId) && (
         <LibraryVideo
-          path={item.variant.videoPath}
-          referenceVideoId={item.variant.referenceVideoId}
-          title={item.title}
-          thumbUrl={item.variant.thumbUrl}
-          aspectRatio={item.variant.aspectRatio}
+          key={`video-${view.guideId}`}
+          path={view.variant.videoPath}
+          referenceVideoId={view.variant.referenceVideoId}
+          title={view.title}
+          thumbUrl={view.variant.thumbUrl}
+          aspectRatio={view.variant.aspectRatio}
           isAdmin={isAdmin}
         />
       )}
 
-      <Description guideId={item.guideId} />
+      <Description key={`desc-${view.guideId}`} guideId={view.guideId} />
 
       {element && (
         <p className="text-xs leading-relaxed break-keep text-muted">

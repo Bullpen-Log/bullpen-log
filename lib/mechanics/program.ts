@@ -11,6 +11,8 @@
  *   '어려움'이면 세던 것을 처음부터. 올라간 단계에서 '어려움'이 서로 다른 날 두 번 이어지면 한 단계 내려갈지 묻는다.
  * - 강조 요소를 하나 고르면 그 요소는 세션마다 들어가고 드릴도 둘이다(그 묶음의 짝은 쉬고, 다른 두 묶음에서 하나씩).
  *   안 고르면 여섯을 고르게 돌린다(네 번이면 모두 두 번씩).
+ * - 가진 장비로 할 수 있는 도구 · 드릴을 먼저 고른다(맨몸 · 야구공은 누구나). 지금 단계에 할 수 있는 드릴이 없으면 한 단계
+ *   아래에서 고르고 무엇이 있으면 되는지 알린다. 장비를 아직 안 고른 사람은 거르지 않는다(2026-10-04 검토).
  * - 안전 규칙(통증 · 세게 던진 다음 날)은 이 프로그램에 걸지 않는다(사용자분 결정).
  */
 import { DRILL_STAGE_NAMES } from '@/lib/exercise-meta';
@@ -151,8 +153,30 @@ export type ProgramDrill = {
   title: string;
   focusPoints: string[];
   stage: string | null;
-  variants: { id: string; category: string; tool: string }[];
+  /** equipment 가 없으면 맨몸으로 본다 */
+  variants: { id: string; category: string; tool: string; equipment?: string[] }[];
 };
+
+/** 투수라면 누구나 가진 것 — 프로필 장비 목록에 없어도 된다 */
+const ALWAYS_HAVE = new Set(['맨몸', '야구공']);
+
+/** 이 도구로 할 수 있나 — owned 가 null 이면 장비를 아직 안 고른 사람이라 다 된다 */
+export function canUseVariant(
+  variant: { equipment?: string[] },
+  owned: ReadonlySet<string> | null
+): boolean {
+  if (!owned) return true;
+  return (variant.equipment ?? []).every((e) => ALWAYS_HAVE.has(e) || owned.has(e));
+}
+
+/** 이 도구에 모자란 장비 */
+function missingGear(variant: { equipment?: string[] }, owned: ReadonlySet<string> | null): string[] {
+  if (!owned) return [];
+  return (variant.equipment ?? []).filter((e) => !ALWAYS_HAVE.has(e) && !owned.has(e));
+}
+
+/** 바꿔 할 수 있는 같은 요소 · 같은 단계의 다른 동작 — 따라 하기의 '다른 드릴' */
+export type SessionSwap = { title: string; guideId: string; category: string; tool: string };
 
 export type SessionItem = {
   element: MechanicsElementName;
@@ -166,6 +190,13 @@ export type SessionItem = {
   dose: string;
   /** 이 드릴을 할 때 떠올릴 느낌 신호 한 줄(lib/mechanics/elements.ts cues) */
   cue: string;
+  /**
+   * 장비 알림 — need: 있으면 되는 장비(예: '메디신볼'). lowered: 지금 단계(그 값)에 할 수 있는 드릴이 없어 한 단계 아래로
+   * 골랐을 때, 아니면 null(고른 드릴 자체에 장비가 모자랄 때 — 어느 단계에도 할 수 있는 것이 없던 요소)
+   */
+  gearNote: { need: string; lowered: DrillStage | null } | null;
+  /** 같은 요소 · 같은 단계에서 할 수 있는 다른 동작(이 세션에 이미 든 것은 뺀다, 최대 4) */
+  swaps: SessionSwap[];
 };
 
 const MOVEMENT = '무브먼트 패턴 드릴';
@@ -221,17 +252,24 @@ function preferredCategory(index: number, count: number): string {
  * 고르는 차례: 그 요소가 주 요소이고 지금 단계인 동작 중 바라는 분류가 있는 것 → 분류가 없으면 아무 분류 → 그래도
  * 없으면 보조로 그 요소를 쓰는 동작 → 한 단계 아래. 같은 동작은 한 세션에 한 번만. 후보 안에서는 마친 세션 수로 돌려
  * 매번 같은 드릴만 나오지 않게 한다.
+ *
+ * owned(가진 장비)를 주면 그 장비로 할 수 있는 도구가 하나라도 있는 동작만 후보로 삼고, 도구도 할 수 있는 것으로 고른다.
+ * 어느 단계에도 할 수 있는 것이 없으면 장비를 보지 않고 고른다(요소가 통째로 빠지는 것보다 낫다 — 따라 하기에서 도구를
+ * 바꿀 수 있다).
  */
 export function buildSession({
   drills,
   progress,
   focus,
   sessionsDone,
+  owned = null,
 }: {
   drills: ProgramDrill[];
   progress: ProgramProgress;
   focus: MechanicsElementName | null;
   sessionsDone: number;
+  /** 가진 장비 — null 이면 거르지 않는다(아직 안 고른 사람) */
+  owned?: ReadonlySet<string> | null;
 }): SessionItem[] {
   const n = Math.max(0, Math.floor(sessionsDone));
   const slots: MechanicsElementName[] = [];
@@ -241,26 +279,60 @@ export function buildSession({
   }
 
   const used = new Set<string>();
-  const items: SessionItem[] = [];
+  const picks: { element: MechanicsElementName; pick: Pick; index: number }[] = [];
   slots.forEach((element, index) => {
     const stage = progress[element].stage;
     const want = preferredCategory(index, slots.length);
-    const pick = pickDrill(drills, element, stage, want, used, n + index);
+    const pick =
+      pickDrill(drills, element, stage, want, used, n + index, owned) ??
+      pickDrill(drills, element, stage, want, used, n + index, null);
     if (!pick) return;
     used.add(pick.drill.title);
+    picks.push({ element, pick, index });
+  });
+
+  return picks.map(({ element, pick, index }) => {
     const cues = mechanicsElement(element)?.cues ?? [];
-    items.push({
+    const stage = progress[element].stage;
+    return {
       element,
       stage: pick.stage,
       title: pick.drill.title,
       guideId: pick.variant.id,
       category: pick.variant.category,
       tool: pick.variant.tool,
-      dose: DOSE[pick.variant.category] ?? DOSE[MOVEMENT],
+      dose: doseOf(pick.variant.category),
       cue: cues.length > 0 ? cues[(n + index) % cues.length] : '',
-    });
+      gearNote: gearNoteOf(drills, element, stage, pick, owned),
+      swaps: swapsFor(drills, element, pick.stage, used, owned, preferredCategory(index, slots.length)),
+    };
   });
-  return items;
+}
+
+/** 분류별 몇 번 — 따라 하기에서 도구를 바꾸면 그 분류의 것으로 */
+export function doseOf(category: string): string {
+  return DOSE[category] ?? DOSE[MOVEMENT];
+}
+
+type Pick = {
+  drill: ProgramDrill;
+  variant: ProgramDrill['variants'][number];
+  stage: DrillStage;
+};
+
+/** 이 요소가 주(main) · 보조(sub)인 동작 — 그 단계 것만 */
+function candidates(drills: ProgramDrill[], element: MechanicsElementName, stage: DrillStage) {
+  const main = drills.filter((d) => d.stage === stage && d.focusPoints[0] === element);
+  const sub = drills.filter(
+    (d) => d.stage === stage && d.focusPoints[0] !== element && d.focusPoints.includes(element)
+  );
+  return [main, sub];
+}
+
+/** 바라는 분류 · 할 수 있는 도구 순으로 */
+function bestVariant(drill: ProgramDrill, want: string, owned: ReadonlySet<string> | null) {
+  const ok = drill.variants.filter((v) => canUseVariant(v, owned));
+  return ok.find((v) => v.category === want) ?? ok[0] ?? null;
 }
 
 function pickDrill(
@@ -269,25 +341,84 @@ function pickDrill(
   stage: DrillStage,
   want: string,
   used: Set<string>,
-  turn: number
-) {
-  const free = drills.filter((d) => !used.has(d.title));
+  turn: number,
+  owned: ReadonlySet<string> | null
+): Pick | null {
+  const free = drills.filter(
+    (d) => !used.has(d.title) && d.variants.some((v) => canUseVariant(v, owned))
+  );
   const stages: DrillStage[] = [stage];
   for (let i = DRILL_STAGE_NAMES.indexOf(stage) - 1; i >= 0; i--) stages.push(DRILL_STAGE_NAMES[i]);
 
   for (const s of stages) {
-    const main = free.filter((d) => d.stage === s && d.focusPoints[0] === element);
-    const sub = free.filter(
-      (d) => d.stage === s && d.focusPoints[0] !== element && d.focusPoints.includes(element)
-    );
-    for (const pool of [main, sub]) {
+    for (const pool of candidates(free, element, s)) {
       if (pool.length === 0) continue;
-      const withWant = pool.filter((d) => d.variants.some((v) => v.category === want));
+      const withWant = pool.filter((d) =>
+        d.variants.some((v) => v.category === want && canUseVariant(v, owned))
+      );
       const from = withWant.length > 0 ? withWant : pool;
       const drill = from[turn % from.length];
-      const variant = drill.variants.find((v) => v.category === want) ?? drill.variants[0];
-      return { drill, variant, stage: s };
+      const variant = bestVariant(drill, want, owned);
+      if (variant) return { drill, variant, stage: s };
     }
   }
   return null;
+}
+
+function gearNoteOf(
+  drills: ProgramDrill[],
+  element: MechanicsElementName,
+  stage: DrillStage,
+  pick: Pick,
+  owned: ReadonlySet<string> | null
+): SessionItem['gearNote'] {
+  const lacking = missingGear(pick.variant, owned);
+  if (lacking.length > 0) return { need: lacking.join(' · '), lowered: null };
+  if (pick.stage === stage) return null;
+  /* 지금 단계에 할 수 있는 드릴이 있었는데 이 세션에 이미 들어 내려온 것이면 장비 탓이 아니다 */
+  const doable = candidates(drills, element, stage).some((pool) =>
+    pool.some((d) => d.variants.some((v) => canUseVariant(v, owned)))
+  );
+  if (doable) return null;
+  const need = gearFor(drills, element, stage, owned);
+  return need ? { need, lowered: stage } : null;
+}
+
+/** 지금 단계 드릴을 열려면 무엇이 있으면 되나 — 모자란 것이 가장 적은 도구의 것 */
+function gearFor(
+  drills: ProgramDrill[],
+  element: MechanicsElementName,
+  stage: DrillStage,
+  owned: ReadonlySet<string> | null
+): string | null {
+  let best: string[] | null = null;
+  for (const pool of candidates(drills, element, stage)) {
+    for (const d of pool) {
+      for (const v of d.variants) {
+        const miss = missingGear(v, owned);
+        if (miss.length > 0 && (!best || miss.length < best.length)) best = miss;
+      }
+    }
+  }
+  return best ? best.join(' · ') : null;
+}
+
+/** 같은 요소 · 같은 단계에서 바꿔 할 수 있는 동작 — 주 요소인 것 먼저, 이 세션에 든 것은 빼고 */
+function swapsFor(
+  drills: ProgramDrill[],
+  element: MechanicsElementName,
+  stage: DrillStage,
+  used: Set<string>,
+  owned: ReadonlySet<string> | null,
+  want: string
+): SessionSwap[] {
+  const out: SessionSwap[] = [];
+  for (const pool of candidates(drills, element, stage)) {
+    for (const d of pool) {
+      if (used.has(d.title) || out.length >= 4) continue;
+      const v = bestVariant(d, want, owned);
+      if (v) out.push({ title: d.title, guideId: v.id, category: v.category, tool: v.tool });
+    }
+  }
+  return out;
 }
