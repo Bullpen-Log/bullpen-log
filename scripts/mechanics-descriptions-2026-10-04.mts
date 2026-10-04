@@ -1103,7 +1103,8 @@ const unused = Object.keys(D).filter((k) => !rows.some((r) => r.title.replace(/\
 console.log(`보이는 드릴 ${rows.length}개 · 새 글 ${updates.length}개 · 없음 ${missing} · 안 쓴 글 ${unused.length}${unused.length ? ` (${unused.join(', ')})` : ''}`);
 if (process.argv.includes("--show")) for (const u of updates) console.log(`\n=== ${u.title}\n${u.description}`);
 if (apply) {
-  if (missing > 0) throw new Error('설명이 빠진 드릴이 있어 쓰지 않았어요');
+  /* 이 스크립트 뒤에 따로 넣은 드릴(scripts/mechanics-new-drills-2026-10-04.mts)은 거기서 설명을 쓴다 — 건너뛴다 */
+  if (missing > 0) console.log(`설명이 여기 없는 드릴 ${missing}개는 건너뛰어요`);
   for (const u of updates) {
     await prisma.mechanicsGuide.update({ where: { id: u.id }, data: { description: u.description } });
   }
