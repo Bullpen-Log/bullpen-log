@@ -4,6 +4,8 @@ import { THEME_INIT_SCRIPT } from '@/lib/theme';
 import { APP_INIT_SCRIPT } from '@/lib/native-app';
 import { PressFeedback } from '@/components/press-feedback';
 import { ViewportVars } from '@/components/viewport-vars';
+import { NavMotion } from '@/components/nav-motion';
+import { Suspense } from 'react';
 import './globals.css';
 
 /**
@@ -107,6 +109,10 @@ export default function RootLayout({
         <PressFeedback />
         {/* 자판 높이를 --kb · --vvh 로 — 아이폰은 자판이 올라와도 화면 높이가 그대로라 바닥 단추가 숨었다 */}
         <ViewportVars />
+        {/* 화면 이동 방향(들어가기 · 뒤로) · 지나온 화면 — 앱처럼 밀려 들어오고 나간다(components/nav-motion.tsx) */}
+        <Suspense fallback={null}>
+          <NavMotion />
+        </Suspense>
       </body>
     </html>
   );

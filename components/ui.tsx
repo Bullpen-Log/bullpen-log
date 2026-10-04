@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { ChevronLeft } from 'lucide-react';
+import { NavTitle } from './nav-title';
 import type { ComponentProps, ReactNode } from 'react';
 import { ErrorLine } from '@/components/error-line';
 
@@ -31,20 +31,10 @@ export function Eyebrow({ children }: { children: ReactNode }) {
 }
 
 /**
- * 이전 화면으로 — 아이폰 화면 왼쪽 위의 파란 '‹ 이전 화면 이름'(2026-10-01 사용자 '애플처럼'). 예전에는 화면마다
- * 회색 '← ○○로 돌아가기' 글자라 모양 · 문구가 제각각이었다. 누르는 자리는 44px.
+ * 이전 화면으로 — 아이폰 화면 왼쪽 위의 파란 '‹ 이전 화면 이름'(2026-10-01 사용자 '애플처럼'). 2026-10-04 부터 진짜
+ * 뒤로 가고(앞 화면이 목적지면), 휴대폰에서는 위 막대 왼쪽에 선다 — components/back-link.tsx.
  */
-export function BackLink({ href, children }: { href: string; children: ReactNode }) {
-  return (
-    <Link
-      href={href}
-      className="-ml-1.5 inline-flex min-h-11 items-center gap-0.5 text-base text-sky transition-opacity active:opacity-60 desk:min-h-0 desk:text-sm"
-    >
-      <ChevronLeft aria-hidden className="h-6 w-6 desk:h-4 desk:w-4" strokeWidth={2.2} />
-      {children}
-    </Link>
-  );
-}
+export { BackLink } from './back-link';
 
 /** 휴대폰 큰 제목 위에 다는 오늘 날짜 — '10월 1일 수요일'(서울 시각) */
 export function todayKicker(now: Date = new Date()): string {
@@ -88,6 +78,8 @@ export function PageHeading({
           </span>
         )}
         <h1 className="text-heading page-title text-ink">{title}</h1>
+        {/* 큰 제목이 스크롤로 가려지면 위 막대 가운데에 작은 제목이 나온다(아이폰처럼, components/nav-title.tsx) */}
+        <NavTitle title={title} />
         {description && (
           <p className="max-w-2xl break-keep text-sm leading-relaxed text-muted">
             {description}

@@ -481,6 +481,20 @@ html[data-app='native'] :is(a, img, button, [role='button']) {
   -webkit-touch-callout: none;
 }
 
+/*
+ * 아이폰 앱 안에서는 글자를 길게 눌러도 선택되지 않게 — 카드 · 제목 · 칩 · 탭 이름을 길게 누르면 파란 선택과 '복사'
+ * 메뉴가 떠 웹페이지처럼 보였다(2026-10-04 점검). 입력칸 · 글 본문(.selectable)만 선택된다. 사파리는 그대로 둔다
+ * (웹에서 글을 복사하는 것은 쓸모가 있다).
+ */
+html[data-app='native'] body {
+  -webkit-user-select: none;
+  user-select: none;
+}
+html[data-app='native'] :is(input, textarea, [contenteditable='true'], .selectable) {
+  -webkit-user-select: text;
+  user-select: text;
+}
+
 /* 검색칸의 웹킷 ✕ 를 숨긴다 — 화면마다 제 ✕ 단추를 두므로 아이폰에서 ✕ 가 둘 보였다 */
 input[type='search']::-webkit-search-cancel-button,
 input[type='search']::-webkit-search-decoration {
@@ -826,6 +840,87 @@ input[type='date']::-webkit-calendar-picker-indicator {
   animation: none;
 }
 ::view-transition-group(.page) {
+  animation: none;
+}
+
+/*
+ * 앱처럼 화면 이동 — 들어가면 밀려 들어오고, 뒤로는 밀려 나간다(2026-10-04 '앱 틀을 네이티브처럼').
+ *
+ * 방향은 <html data-nav> 가 알려 준다(components/nav-motion.tsx · back-link.tsx).
+ *   push  본문 안의 링크로 들어감 — 새 화면이 오른쪽에서 들어오고, 옛 화면은 왼쪽으로 조금 비키며 어두워진다
+ *   pop   '‹ 뒤로' — 지금 화면이 오른쪽으로 빠지고, 앞 화면이 왼쪽에서 제자리로
+ *   none  손가락으로 밀어 뒤로 · 브라우저 뒤로 — 아이폰이 이미 움직임을 보였으니 그냥 갈아 끼운다
+ * 표시가 없으면(하단 탭 · 메뉴) 위의 옅어지기 그대로 — 옆으로 나란한 탭이라 앞뒤가 없다.
+ *
+ * 예전에는 모든 이동이 똑같이 옅어져 '안으로 들어가기'와 '뒤로'가 구별되지 않았다. 시간 · 곡선은 아이폰의 밀기와
+ * 비슷하게(340ms, 빠르게 출발해 부드럽게 멈춤). 겹쳐 빛나지 않게 섞기는 normal. 이름 규칙과 딱지 규칙을 따로 적는다
+ * (사파리 18.0~18.1 은 딱지를 몰라 한 목록이면 통째로 버린다 — 위 '이름 규칙과 딱지 규칙' 참고).
+ */
+@keyframes nav-in-right {
+  from {
+    transform: translateX(100%);
+  }
+}
+@keyframes nav-out-left {
+  to {
+    transform: translateX(-28%);
+    opacity: 0.55;
+  }
+}
+@keyframes nav-in-left {
+  from {
+    transform: translateX(-28%);
+    opacity: 0.55;
+  }
+}
+@keyframes nav-out-right {
+  to {
+    transform: translateX(100%);
+  }
+}
+@media (prefers-reduced-motion: no-preference) {
+  html[data-nav='push']::view-transition-old(app-main) {
+    animation: 340ms cubic-bezier(0.32, 0.72, 0, 1) both nav-out-left;
+    mix-blend-mode: normal;
+  }
+  html[data-nav='push']::view-transition-old(.page) {
+    animation: 340ms cubic-bezier(0.32, 0.72, 0, 1) both nav-out-left;
+    mix-blend-mode: normal;
+  }
+  html[data-nav='push']::view-transition-new(app-main) {
+    animation: 340ms cubic-bezier(0.32, 0.72, 0, 1) both nav-in-right;
+    mix-blend-mode: normal;
+  }
+  html[data-nav='push']::view-transition-new(.page) {
+    animation: 340ms cubic-bezier(0.32, 0.72, 0, 1) both nav-in-right;
+    mix-blend-mode: normal;
+  }
+  /* 뒤로 — 빠지는 화면이 위에 있어야 앞 화면 위로 미끄러져 나간다 */
+  html[data-nav='pop']::view-transition-old(app-main) {
+    animation: 300ms cubic-bezier(0.32, 0.72, 0, 1) both nav-out-right;
+    mix-blend-mode: normal;
+    z-index: 1;
+  }
+  html[data-nav='pop']::view-transition-old(.page) {
+    animation: 300ms cubic-bezier(0.32, 0.72, 0, 1) both nav-out-right;
+    mix-blend-mode: normal;
+    z-index: 1;
+  }
+  html[data-nav='pop']::view-transition-new(app-main) {
+    animation: 300ms cubic-bezier(0.32, 0.72, 0, 1) both nav-in-left;
+    mix-blend-mode: normal;
+  }
+  html[data-nav='pop']::view-transition-new(.page) {
+    animation: 300ms cubic-bezier(0.32, 0.72, 0, 1) both nav-in-left;
+    mix-blend-mode: normal;
+  }
+}
+html[data-nav='none']::view-transition-old(app-main),
+html[data-nav='none']::view-transition-old(.page) {
+  display: none;
+}
+html[data-nav='none']::view-transition-new(app-main),
+html[data-nav='none']::view-transition-new(.page) {
   animation: none;
 }
 

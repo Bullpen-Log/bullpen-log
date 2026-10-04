@@ -42,7 +42,7 @@ export default async function ArticleDetailPage({
   const canDelete = article.userId === user.id || user.role === 'ADMIN';
 
   return (
-    <article className="mx-auto max-w-3xl space-y-8">
+    <article className="selectable mx-auto max-w-3xl space-y-8">
       <BackLink href="/board">자료실</BackLink>
 
       <header className="space-y-5 border-b border-line pb-8">
