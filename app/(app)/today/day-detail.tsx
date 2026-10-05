@@ -32,7 +32,8 @@ const VelocityClips = dynamic(() => import('./velocity-clips'), {
  * 투구·영상은 캘린더가 이미 들고 있는 기록으로 바로 그린다. 트레이닝·영양·컨디션과 구속 측정 클립은
  * 날짜를 고를 때 그날 것만 받아 온다(/api/day-detail) — 받는 동안 자리를 잡아 둔다.
  *
- * 분석은 여기 없다 — 이 밑의 분석 칸이 늘 떠 있고 고른 날을 따라 바뀐다.
+ * 분석은 머리의 '그날 분석' 한 줄로 분석 · 그래프 화면(/coach)에 그 날짜째 연다 — 2026-10-05 홈 정리 때
+ * 캘린더 밑에 늘 떠 있던 분석 칸이 그리로 옮겨 갔다. 리포트가 있는 날은 리포트 칸으로.
  */
 
 const TITLES: Record<DayFocus, string> = {
@@ -96,6 +97,7 @@ export function DayDetailBlock({
   failed,
   onRetry,
   onReload,
+  hasReport,
 }: {
   date: string;
   today: string;
@@ -111,6 +113,8 @@ export function DayDetailBlock({
   onRetry: () => void;
   /** 받아 둔 그날 요약을 버리고 새로 받는다 — 클립 주소가 만료됐을 때 */
   onReload: () => void;
+  /** 그날 AI 리포트가 있나 — 머리의 '그날 분석'이 리포트 칸으로 연다 */
+  hasReport: boolean;
 }) {
   const { logs, plan, velocity } = facts;
   const needsDetail =
@@ -140,23 +144,32 @@ export function DayDetailBlock({
           {spokenDay(date)}
           <span className="font-normal text-muted"> · {TITLES[focus]}</span>
         </h3>
-        {link && (
+        <span className="flex flex-wrap items-center gap-1">
+          {/* 그날 분석 — 분석 · 그래프 화면을 그 날짜째(리포트가 있으면 리포트 칸으로) */}
           <Link
-            href={link.href}
-            transitionTypes={
-              link.href.startsWith('/pitch-log/') ? OPEN_POPUP_TYPES : undefined
-            }
-            className="group inline-flex items-center gap-1 rounded-lg px-2 py-1 text-sm font-semibold text-sky transition-colors hover:bg-sky-tint hover:text-sky-strong"
+            href={`/coach?date=${date}${hasReport ? '&view=report' : ''}`}
+            className="inline-flex items-center rounded-lg px-2 py-1 text-sm font-medium text-muted transition-colors hover:bg-surface-2 hover:text-ink"
           >
-            {link.label}
-            <LinkPending className="h-3.5 w-3.5">
-              <ArrowRight
-                aria-hidden
-                className="h-3.5 w-3.5 transition-transform duration-150 group-hover:translate-x-0.5"
-              />
-            </LinkPending>
+            {hasReport ? '그날 리포트' : '그날 분석'}
           </Link>
-        )}
+          {link && (
+            <Link
+              href={link.href}
+              transitionTypes={
+                link.href.startsWith('/pitch-log/') ? OPEN_POPUP_TYPES : undefined
+              }
+              className="group inline-flex items-center gap-1 rounded-lg px-2 py-1 text-sm font-semibold text-sky transition-colors hover:bg-sky-tint hover:text-sky-strong"
+            >
+              {link.label}
+              <LinkPending className="h-3.5 w-3.5">
+                <ArrowRight
+                  aria-hidden
+                  className="h-3.5 w-3.5 transition-transform duration-150 group-hover:translate-x-0.5"
+                />
+              </LinkPending>
+            </Link>
+          )}
+        </span>
       </header>
 
       {/* 줄이나 날짜가 바뀔 때마다 새로 그려, 내용이 옅게 떠오르며 바뀐다 */}

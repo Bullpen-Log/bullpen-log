@@ -1,13 +1,6 @@
 'use client';
 
-import {
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-  type ReactNode,
-} from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ChartLine } from 'lucide-react';
 import { Card, FormError } from '@/components/ui';
 import { toDateKey } from '@/lib/pitch-stats';
@@ -28,9 +21,6 @@ import {
   type NutritionDay,
 } from './day-summary';
 import { DayDetailBlock } from './day-detail';
-import { AnalysisBlock } from './analysis-block';
-import type { AnalysisTab } from './analysis-tabs';
-import { HomeTrends } from './home-trends';
 
 /** [캘린더 | 목록] — 같은 기록을 다르게 보는 두 방식 */
 const VIEW_OPTIONS = [
@@ -73,9 +63,6 @@ export function PitchLogPanel({
   velocityByDay,
   checkinByDay,
   reportDays,
-  weightByDay,
-  analysisSlot,
-  initialAnalysisTab,
 }: {
   /** 서비스 기준 오늘(YYYY-MM-DD) — 그날 칸이 '오늘'·'어제'를 가르는 데 쓴다 */
   today: string;
@@ -103,12 +90,6 @@ export function PitchLogPanel({
   checkinByDay: Record<string, CheckinDay>;
   /** AI 리포트가 있는 날들 — 캘린더 칸 왼쪽 위에 그래프 표시를 붙인다 */
   reportDays: string[];
-  /** 날짜별 체중(kg) — 밑의 '기록 추이' 체중 그래프 */
-  weightByDay: Record<string, number>;
-  /** 오늘의 리포트 — 서버가 함께 그려 보낸다(밑의 분석 칸이 오늘·리포트일 때 쓴다) */
-  analysisSlot: ReactNode;
-  /** 분석 칸이 처음 펼 칸 — ?analysis= 로 들어온 경우 */
-  initialAnalysisTab: AnalysisTab;
 }) {
   /*
    * 처음 범위(loadedFrom)보다 옛날 달에서 따로 받아 온 기록만 들고 있는다.
@@ -286,29 +267,6 @@ export function PitchLogPanel({
       if (selectedDate === null) setFocus(firstFocus(factsOf(date)));
       /* 받아 오다 실패한 날은 다시 누르면 다시 받는다 */
       setFailed((prev) => (prev[date] ? { ...prev, [date]: false } : prev));
-      setSelectedDate(date);
-    },
-    [selectedDate, factsOf]
-  );
-
-  /*
-   * 밑의 분석 칸에서 날짜로 건너뛸 때('가장 가까운 이전 리포트', 지난 리포트 목록).
-   *
-   * 캘린더가 그날을 고른다 — 분석 칸은 고른 날을 따르므로 함께 그날로 바뀐다. 다른 달이면
-   * 달도 넘긴다. 이미 고른 날이어도 닫지 않는다(누른 것이 날짜 칸이 아니다). 목록으로
-   * 보고 있었으면 캘린더로 돌린다 — 고른 날이 보여야 한다.
-   */
-  const jumpTo = useCallback(
-    (date: string) => {
-      const [y, m] = date.split('-').map(Number);
-      setMonth((prev) =>
-        prev.getFullYear() === y && prev.getMonth() === m - 1
-          ? prev
-          : new Date(y, m - 1, 1)
-      );
-      setView('calendar');
-      if (selectedDate === date) return;
-      if (selectedDate === null) setFocus(firstFocus(factsOf(date)));
       setSelectedDate(date);
     },
     [selectedDate, factsOf]
@@ -574,46 +532,12 @@ export function PitchLogPanel({
                     )
                   )
                 }
+                hasReport={reportFlags[shownDate] != null}
               />
             </div>
           </div>
         </div>
       )}
-
-      {/*
-        분석 칸 — 늘 떠 있다(예전의 분석 탭). 고른 날을 따라 그날 분석으로 바뀌고,
-        아무 날도 안 골랐으면 오늘이다. 목록으로 보고 있을 때도 남는다.
-
-        넓은 화면(xl)에서는 반으로 줄이고 옆에 '그래프'를 둔다. 분석은 '그날'을, 그래프는
-        '요즘'을 본다 — 둘을 나란히 두면 하루와 흐름을 한 번에 견준다. 좁으면 분석 밑에
-        그래프.
-
-        두 칸의 위아래 끝을 맞춘다 — 한 줄에서 같은 높이로 늘어나고(grid 의 기본 stretch),
-        그래프가 남는 높이를 채워 커진다(home-trends.tsx). 예전에는 위쪽만 맞춰(items-start)
-        아래 끝이 들쭉날쭉했다.
-
-        그래프는 제자리에 둔다. 한때 화면 위쪽에 붙어 따라오게(sticky) 했더니, 스크롤을
-        내렸다 올릴 때 그래프가 같이 미끄러져 내려와 고장 난 것처럼 보였다.
-      */}
-      <div className="grid gap-x-6 xl:grid-cols-2">
-        <AnalysisBlock
-          date={selectedDate ?? today}
-          today={today}
-          initialTab={initialAnalysisTab}
-          todayReport={analysisSlot}
-          onJump={jumpTo}
-        />
-        <HomeTrends
-          today={today}
-          earliest={`${loadedFrom}-01`}
-          logs={logs}
-          trainingByDay={trainingByDay}
-          nutritionByDay={nutritionByDay}
-          checkinByDay={checkinByDay}
-          weightByDay={weightByDay}
-          onJump={jumpTo}
-        />
-      </div>
     </div>
   );
 }

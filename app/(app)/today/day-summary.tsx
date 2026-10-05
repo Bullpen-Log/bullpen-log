@@ -18,8 +18,8 @@ export type CheckinDay = { condition: number; pain: boolean };
 /**
  * 그날 칸의 아이콘 — 누르면 캘린더 밑에 그것의 자세한 요약이 펴진다.
  *
- * '분석' 아이콘은 두지 않는다. 분석은 캘린더 밑의 분석 칸이 늘 보여 주고, 고른 날을 따라
- * 그날 분석으로 바뀐다(analysis-block.tsx) — 여기에도 두면 같은 것이 두 번 나온다.
+ * '분석' 아이콘은 두지 않는다. 그날 분석은 밑 칸 머리의 '그날 분석'이 분석 · 그래프 화면(/coach)을 그 날짜째
+ * 연다(day-detail.tsx) — 여기에도 두면 같은 것이 두 번 나온다.
  */
 export type DayFocus = 'pitch' | 'training' | 'nutrition' | 'checkin' | 'video';
 
