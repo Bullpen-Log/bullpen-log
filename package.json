@@ -20,6 +20,7 @@
     "theme:check": "node --env-file=.env --import ./scripts/alias-register.mjs scripts/theme-time-check.mts",
     "outbox:test": "node --import ./scripts/alias-register.mjs scripts/outbox-selftest.mts",
     "program:test": "node --import ./scripts/alias-register.mjs scripts/program-selftest.mts",
+    "highlights:test": "node --import ./scripts/alias-register.mjs scripts/highlights-selftest.mts",
     "mechanics:test": "node --env-file=.env --import ./scripts/alias-register.mjs scripts/mechanics-selftest.mts",
     "armcare-map:test": "node --env-file=.env --import ./scripts/alias-register.mjs scripts/armcare-map-selftest.mts",
     "velocity:test": "node scripts/velocity-selftest.mts",
