@@ -15,6 +15,8 @@ import { AnalysisSkeleton } from './analysis-block';
 import { AnalysisView } from './analysis-view';
 import { readAnalysisTab, type AnalysisTab } from './analysis-tabs';
 import { TodayRings } from './today-rings';
+import { FirstDayCard } from './first-day-card';
+import { dailyPitchCap, intensityRangeText, pitchRangeText } from '@/lib/report/plan';
 
 /**
  * 홈 — 오늘 남길 것.
@@ -390,21 +392,29 @@ async function TodayBody({ user }: { user: Awaited<ReturnType<typeof requireUser
       )}
 
       {/*
-        처음 온 사람에게 어디부터인지 알려준다.
+        처음 온 사람에게 어디부터인지 알려준다 — 오늘 던져도 되는 양 + 바로 누르는 단추(first-day-card.tsx).
 
-        무엇을 먼저 해야 하는지는 알림(종)이 알려 주지만, 처음 온 사람은 종이 있는
-        줄 모른다. 투구 기록이 하나도 없을 때만 낸다. 한 번이라도 남긴 사람에게는
-        잔소리가 되고, 매일 뜨는 안내는 곧 안 읽게 된다.
+        투구 기록이 하나도 없을 때만 낸다. 한 번이라도 남긴 사람에게는 잔소리가 되고, 매일 뜨는
+        안내는 곧 안 읽게 된다. 숫자는 투구 계획(lib/report/plan.ts)의 오늘 몫 그대로다 — 기록이
+        없으면 나이 한도의 절반에서 시작하고 아직 부하를 몰라 한 번 더 낮춘다.
       */}
       {!core.everLogged && (
-        <div className="rounded-2xl border border-sky-soft/60 bg-sky-tint p-(--block-pad)">
-          <p className="text-sm font-bold text-sky-strong">여기부터 시작하세요</p>
-          <p className="mt-1.5 text-sm leading-relaxed text-ink/80">
-            오른쪽 위 알림(종)을 눌러 &lsquo;오늘 투구&rsquo;부터 남겨 주세요. 던진 양을
-            알아야 무리 없는 운동을 고를 수 있어요. 안 던졌으면 &lsquo;오늘 안
-            던졌어요&rsquo;를 누르면 돼요.
-          </p>
-        </div>
+        <FirstDayCard
+          today={toDateKey(today)}
+          range={
+            !plan.halted && plan.today?.throwing
+              ? pitchRangeText(plan.today) || null
+              : null
+          }
+          intensity={plan.today ? intensityRangeText(plan.today) : ''}
+          note={
+            plan.recovering
+              ? null
+              : facts.profile.age != null
+                ? `만 ${facts.profile.age}세 하루 한도 ${dailyPitchCap(facts.profile.age)}구에서, 처음이라 절반쯤으로 잡았어요.`
+                : '처음이라 낮게 잡았어요. 생년월일을 넣으면 나이에 맞춰요.'
+          }
+        />
       )}
 
       <div className="space-y-3">
