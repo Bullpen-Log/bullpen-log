@@ -2131,6 +2131,8 @@ export type LiveReport = {
   fps: number | null;
   /** 초점거리를 어디서 — 'lens' 렌즈 보정, 'fov' 설정 화각(짐작) */
   focalFrom: 'lens' | 'fov';
+  /** 카메라에 걸린 줌(모르면 null) — 거리 측정은 2배를 청한다. 실제 폰에서 걸렸는지 되짚으려고 */
+  zoom?: number | null;
   /** 장면 시각의 질(일감의 timing) — 모르면 null */
   timing: FrameTiming | null;
   /** 장면을 어떻게 받았나(live-capture.ts 가 붙인다 — 실제 폰에서 어느 길로 도는지 되짚으려고) */
@@ -2290,6 +2292,7 @@ export function liveReport(
       ) / 1000,
     fps,
     focalFrom: camera.focalPx && camera.focalPx > 0 ? 'lens' : 'fov',
+    zoom: camera.zoom ?? null,
     timing,
   };
 }
@@ -2390,6 +2393,7 @@ export function distanceLiveReport(
     sigmaRel: Math.round(Math.hypot(0, ...items.map((i) => i.sigma)) * 1000) / 1000,
     fps,
     focalFrom: camera.focalPx && camera.focalPx > 0 ? 'lens' : 'fov',
+    zoom: camera.zoom ?? null,
     timing,
   };
 }

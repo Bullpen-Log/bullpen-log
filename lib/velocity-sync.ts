@@ -101,6 +101,8 @@ const LIVE_NOTE_CODES = new Set([
   'HDR',
   'BLUR',
   'DARK_BALL',
+  'END_GUESS',
+  'SHAKE',
 ]);
 const LIVE_PIPELINES = new Set(['worker-stream', 'worker-frames', 'main']);
 /** 잰 순간의 스트라이크 존(장면 비율 0~1) — 넷 다 0~1 이고 폭 · 높이가 있을 때만 */
@@ -153,6 +155,7 @@ function sanitizeLive(raw: unknown): Record<string, unknown> | null {
           rotationFix: n(f.rotationFix),
         }
       : null,
+    zoom: n(l.zoom),
   };
 }
 

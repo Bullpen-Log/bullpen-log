@@ -41,9 +41,10 @@ export type AnalysisJson = {
   frameCount: number;
   approach: Approach;
   /**
-   * 카메라 실시간의 촬영 조건(모델 1.7.0) — 알림 코드(LOW_FPS · TIMING · APPROACH · CROPPED · FOV_GUESS · ZOOM · HDR · LOW_RES · BLUR · DARK_BALL) ·
-   * ± 에 더한 σ · 초점거리를 렌즈 보정으로 쟀나 · 장면 시각의 질 · 장면을 받은 길(워커 직접 · 캔버스 · 화면 스레드)과 워커가 본
-   * 장면(형식 · 돌림 · 크기). 영상 파일로 잰 공은 null. 실제 폰(아이폰 웹뷰)에서 어떻게 도는지 되짚으려고.
+   * 카메라 실시간의 촬영 조건(모델 1.7.0) — 알림 코드(LOW_FPS · TIMING · APPROACH · CROPPED · FOV_GUESS · ZOOM · HDR · LOW_RES · BLUR · DARK_BALL,
+   * 2.0 의 END_GUESS · SHAKE) · ± 에 더한 σ · 초점거리를 렌즈 보정으로 쟀나 · 장면 시각의 질 · 장면을 받은 길(워커 직접 · 캔버스 · 화면
+   * 스레드)과 워커가 본 장면(형식 · 돌림 · 크기) · 걸린 줌(2.0 은 2배를 청한다). 영상 파일로 잰 공은 null. 실제 폰(아이폰 웹뷰)에서
+   * 어떻게 도는지 되짚으려고.
    */
   live: {
     notes: string[];
@@ -52,6 +53,7 @@ export type AnalysisJson = {
     timing: FrameTiming | null;
     pipeline: string | null;
     frame: LiveReport['frame'] | null;
+    zoom?: number | null;
   } | null;
   /**
    * 잰 순간의 스트라이크 존 — 카메라 장면 비율(0~1, lib/velocity-setup.ts ZoneRect). 영상 클립도 같은 장면이라 볼 때 그대로
@@ -124,6 +126,7 @@ export function analysisOf(
           timing: result.live.timing,
           pipeline: result.live.pipeline ?? null,
           frame: result.live.frame ?? null,
+          zoom: result.live.zoom ?? null,
         }
       : null,
   };
