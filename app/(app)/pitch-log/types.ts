@@ -18,4 +18,8 @@ export type Log = {
   avgVelocity: number | null;
   memo: string | null;
   videoPaths: string[];
+  /** 투구 만족도 1~5(안 매기면 null)와 좋았던 것 · 아쉬웠던 것 — lib/pitch-satisfaction.ts */
+  satisfaction: number | null;
+  cuesGood: string[];
+  cuesBad: string[];
 };

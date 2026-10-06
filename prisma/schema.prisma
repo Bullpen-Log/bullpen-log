@@ -575,6 +575,12 @@ model PitchLog {
   memo        String?  @db.Text
   /// 그날 던진 영상의 저장소 경로. 최대 2개까지 저장한다.
   videoPaths  String[]
+  /// 투구 만족도 1(아쉬움) ~ 5(만족) — 던진 뒤 스스로 매긴다. '잘 던진 날 찾기'가 체크인 · 운동 · 영양과 맞댄다.
+  /// 불펜 · 라이브 · 경기만 받는다(lib/pitch-satisfaction.ts). 안 매기면 null
+  satisfaction Int?
+  /// 좋았던 것 · 아쉬웠던 것 — lib/pitch-satisfaction.ts 의 PITCH_CUES 값. 한 감각은 둘 중 한쪽에만
+  cuesGood     String[] @default([])
+  cuesBad      String[] @default([])
   createdAt   DateTime @default(now())
 
   user             User              @relation(fields: [userId], references: [id], onDelete: Cascade)
