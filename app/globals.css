@@ -872,10 +872,19 @@ input[type='date']::-webkit-calendar-picker-indicator {
     transform: translateX(100%);
   }
 }
+/*
+ * 들어갈 때 옛 화면은 비키며 사라진다(예전엔 0.55 까지만 옅어졌다). 새 화면의 그림은 내용만큼이라 짧은 화면이면 그 밑으로,
+ * 바탕이 투명해 그 사이로도 옛 화면이 비쳐 홈 화면 잔상이 남았다(2026-10-06 사용자 — 하이라이트를 누르면 홈 잔상이 버그처럼
+ * 남았다가 이동). 미끄러지는 그림에는 아래에서 바탕색을 깐다.
+ */
 @keyframes nav-out-left {
+  /* 옅어지기는 앞쪽 절반 안에 끝낸다 — 비키는 움직임(오른쪽 → 왼쪽)은 끝까지 */
+  50% {
+    opacity: 0;
+  }
   to {
     transform: translateX(-28%);
-    opacity: 0.55;
+    opacity: 0;
   }
 }
 @keyframes nav-in-left {
@@ -905,6 +914,15 @@ input[type='date']::-webkit-calendar-picker-indicator {
   html[data-nav='push']::view-transition-new(.page) {
     animation: 340ms cubic-bezier(0.32, 0.72, 0, 1) both nav-in-right;
     mix-blend-mode: normal;
+  }
+  /* 위에서 미끄러지는 그림은 불투명하게 — 밑의 화면이 글자 사이로 비치지 않게(이름 규칙 · 딱지 규칙 따로) */
+  html[data-nav='push']::view-transition-new(app-main),
+  html[data-nav='pop']::view-transition-old(app-main) {
+    background-color: var(--color-page);
+  }
+  html[data-nav='push']::view-transition-new(.page),
+  html[data-nav='pop']::view-transition-old(.page) {
+    background-color: var(--color-page);
   }
   /* 뒤로 — 빠지는 화면이 위에 있어야 앞 화면 위로 미끄러져 나간다 */
   html[data-nav='pop']::view-transition-old(app-main) {

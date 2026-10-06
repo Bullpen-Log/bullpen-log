@@ -5,6 +5,7 @@ import { ChevronRight } from 'lucide-react';
 import { useSpeedUnit } from '@/components/use-units';
 import { formatSpeed } from '@/lib/units';
 import { OPEN_POPUP_TYPES } from '@/lib/transition-types';
+import { LinkPending } from '@/components/link-pending';
 import type { Highlight, HighlightChart } from '@/lib/report/highlights';
 
 /**
@@ -46,10 +47,13 @@ export function Highlights({ items }: { items: Highlight[] }) {
               </span>
               {h.chart && <MiniChart chart={h.chart} warn={h.warn} />}
               {h.href && (
-                <ChevronRight
-                  aria-hidden
-                  className="h-4 w-4 shrink-0 text-line-strong"
-                />
+                /* 누른 뒤 다음 화면이 뜰 때까지 화살표 자리에서 돈다 — 눌렸는지 바로 보이게 */
+                <LinkPending className="h-4 w-4 shrink-0 text-line-strong">
+                  <ChevronRight
+                    aria-hidden
+                    className="h-4 w-4 shrink-0 text-line-strong"
+                  />
+                </LinkPending>
               )}
             </>
           );

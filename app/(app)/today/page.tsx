@@ -2,6 +2,7 @@ import { Suspense, cache } from 'react';
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { ChevronRight } from 'lucide-react';
+import { LinkPending } from '@/components/link-pending';
 import { prisma } from '@/lib/prisma';
 import { requireUser } from '@/lib/dal';
 import { loadTodayCore } from '@/lib/report/today-data';
@@ -177,7 +178,9 @@ async function PlanLine({ user }: { user: User }) {
         <span className="font-semibold text-ink">{line.main}</span>
         {line.sub && <span className="text-muted"> · {line.sub}</span>}
       </span>
-      <ChevronRight aria-hidden className="h-4 w-4 shrink-0 text-line-strong" />
+      <LinkPending className="h-4 w-4 shrink-0 text-line-strong">
+        <ChevronRight aria-hidden className="h-4 w-4 shrink-0 text-line-strong" />
+      </LinkPending>
     </Link>
   );
 }
@@ -328,7 +331,9 @@ async function TodayBody({ user, today }: { user: User; today: string }) {
         className="flex min-h-12 items-center justify-between rounded-2xl border border-line bg-surface px-(--block-pad) text-[15px] text-ink transition-colors hover:bg-surface-2/60"
       >
         분석 · 그래프 더 보기
-        <ChevronRight aria-hidden className="h-4 w-4 text-line-strong" />
+        <LinkPending className="h-4 w-4 text-line-strong">
+          <ChevronRight aria-hidden className="h-4 w-4 shrink-0 text-line-strong" />
+        </LinkPending>
       </Link>
     </>
   );
