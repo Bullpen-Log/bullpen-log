@@ -601,17 +601,24 @@ export function VelocityScreen({
        * 거리 부족), 공이 맞은 뒤 1초 남짓 흔들리는 흰 과녁 천(번짐 · 궤적 불안정, 실제 영상 18개 중 4개 — 2026-09-30 정확도
        * 검증). 방금 잰 값을 거부 문구로 덮지 않고 '못 쟀어요'도 말하지 않는다.
        */
+      /*
+       * 엔진 2.0(거리 자)은 둥글게 작아지는 덩어리로 알아채, 헛 알아챔(투구 뒤 튄 공 · 굴러가는 공 · 몸짓)은 계산이 거른다 — 그 거부를
+       * '못 쟀어요'로 말하면 방금 잰 값을 덮었다. 자동 모드에서는 고칠 수 있는 흔들림만 알리고 나머지는 조용히 넘긴다(못 잰 공은 안 보임).
+       */
+      const byDistance = 'distance' in result && result.distance != null;
       const noise =
         source === 'camera' &&
         autoMode &&
-        result.track.length < 3 &&
-        [
-          'NOT_ENOUGH_FRAMES',
-          'TOO_FAR',
-          'TRAVEL_TOO_SHORT',
-          'MOTION_BLUR',
-          'UNSTABLE_TRACK',
-        ].includes(result.measure.code);
+        (byDistance
+          ? result.measure.code !== 'CAMERA_SHAKE'
+          : result.track.length < 3 &&
+            [
+              'NOT_ENOUGH_FRAMES',
+              'TOO_FAR',
+              'TRAVEL_TOO_SHORT',
+              'MOTION_BLUR',
+              'UNSTABLE_TRACK',
+            ].includes(result.measure.code));
       if (noise) return;
       setLast(result);
       speak('못 쟀어요');
