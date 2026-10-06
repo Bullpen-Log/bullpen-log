@@ -166,6 +166,8 @@ export class DualCapture {
         net: this.net,
         preview: this.rect(),
         armed: false,
+        /* 거리 측정(엔진 2.0, 투수 뒤)은 일반 카메라 2배 — 옛 앱은 이 칸을 모르고 1배로 켠다(화각은 앱이 알려 준 값을 쓴다) */
+        ...(this.distanceM && this.approach === 'receding' ? { zoom: 2 } : {}),
       });
     } catch (e) {
       if (gen === this.gen) {
@@ -204,7 +206,7 @@ export class DualCapture {
       height: info.mainHeight,
       label: 'DualCamera · 일반',
       focus: this.net ? 'manual' : 'auto',
-      zoom: 1,
+      zoom: this.distanceM && this.approach === 'receding' ? 2 : 1,
       frameRate: info.mainFps,
       cropped: false,
     };
@@ -262,6 +264,8 @@ export class DualCapture {
       approach: this.approach,
       focalPerLongSide: this.focalPerLongSide,
       releaseDistanceM: this.releaseDistanceM,
+      distanceM: this.distanceM,
+      tiltRad: this.tiltRad,
     });
     if (gen !== this.gen) {
       await dropWide();
@@ -350,6 +354,16 @@ export class DualCapture {
   }
   setReleaseDistance(v: number | null) {
     this.releaseDistanceM = v;
+  }
+  /** 엔진 2.0 의 거리 자(m) · 카메라 숙임(라디안) — live-capture.ts 와 같은 뜻 */
+  private distanceM: number | null = null;
+  private tiltRad: number | null = null;
+  setDistance(distanceM: number | null, tiltRad: number | null = this.tiltRad) {
+    this.distanceM = distanceM && distanceM > 0 ? distanceM : null;
+    this.tiltRad = tiltRad;
+  }
+  setTilt(tiltRad: number | null) {
+    this.tiltRad = tiltRad;
   }
   /** 초점은 앱이 건다(네트 있음 = 고정, 없음 = 자동) */
   async refocus(): Promise<CameraFocus> {

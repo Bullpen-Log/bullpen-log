@@ -13,6 +13,7 @@
  */
 import { analyzeScale } from './analyze-frames.ts';
 import {
+  DISTANCE_METER_CONFIG,
   isCroppedAspect,
   liveFocalPx,
   LiveMeter,
@@ -91,6 +92,8 @@ function camera(): LiveCamera | null {
     cropped: isCroppedAspect(dims.sw, dims.sh),
     zoom: settings.zoom,
     hdr,
+    distanceM: settings.distanceM ?? null,
+    tiltRad: settings.tiltRad ?? null,
   };
 }
 
@@ -109,6 +112,7 @@ function setDims(sw: number, sh: number, rot: number) {
   tables = null;
   meter = new LiveMeter(dims.w, dims.h, settings?.approach ?? 'receding', {
     focalPx: meterFocal(),
+    ...(settings?.distanceM ? DISTANCE_METER_CONFIG : {}),
   });
   if (wantArmed) apply(meter.arm());
   post({
@@ -354,6 +358,7 @@ scope.onmessage = (e: MessageEvent<MeterWorkerIn>) => {
       if (meter) {
         meter.approach = settings.approach;
         meter.setFocalPx(meterFocal());
+        meter.setDistanceMode(!!settings.distanceM);
       }
       break;
     }

@@ -26,6 +26,7 @@ import {
   type VideoTransfer,
 } from './video-fps.ts';
 import { isCalibratedCamera, readVideoLens } from './video-lens.ts';
+import { analyzeByDistance, type DistanceReport } from './analyze-distance.ts';
 import {
   anchoredBackgroundTimes,
   coarseGrid,
@@ -114,7 +115,17 @@ export type AnalyzeOptions = {
   releaseDistanceM?: number | null;
   /** 진단용 — 결과에 장면마다 찾은 덩어리 전부를 싣는다(analyze-frames.ts) */
   debug?: boolean;
+  /**
+   * 엔진 2.0 의 거리 자(m) — 투수 뒤는 카메라 → 그물 · 미트, 포수 뒤는 카메라 → 릴리스. 주면 거리로 잰다(analyze-distance.ts):
+   * 구간을 공 앞 0.1초부터 1.55초로 늘려 그물에 닿고 튄 장면까지 꺼낸다. 안 주면 1.x(공 지름으로 거리).
+   */
+  distanceM?: number | null;
+  /** 카메라가 아래로 숙인 각(라디안) — 찍을 때 폰 기울기 센서로 안 값. 모르면 0 */
+  tiltRad?: number | null;
 };
+
+/** 엔진 2.0 의 분석 구간(초) — 공 앞 0.1초 + 1.3초 담기 + 여유. 76km/h 공도 20m 그물에 닿고 튀는 장면까지 */
+const DISTANCE_WINDOW_SEC = 1.55;
 
 /** 영상 파일로 잰 결과에 덧붙이는 것 — 어느 구간을 어떻게 꺼내 쟀나 */
 export type VideoAnalysisInfo = {
@@ -153,7 +164,7 @@ export type VideoAnalysisInfo = {
   timing: { coarseMs: number; findMs: number; framesMs: number; analyzeMs: number; totalMs: number; seeks: number };
 };
 
-export type VideoAnalyzeResult = AnalyzeResult & { video: VideoAnalysisInfo };
+export type VideoAnalyzeResult = AnalyzeResult & { video: VideoAnalysisInfo; distance?: DistanceReport };
 
 /**
  * HDR(HLG · PQ) 영상은 브라우저가 캔버스에 그릴 때 알 수 없는 곡선으로 SDR 로 바꾼다 — 공 가장자리 밝기와 덮은
@@ -223,6 +234,7 @@ export async function analyzeVideo(options: AnalyzeOptions): Promise<VideoAnalyz
     releaseDistanceM = null,
     debug = false,
   } = options;
+  const distanceM = options.distanceM && options.distanceM > 0 ? options.distanceM : null;
   const nativeFps = options.fps === undefined ? await readVideoFps(file) : options.fps;
   const fps = nativeFps != null && nativeFps > 0 ? nativeFps : null;
   /* 장면 시각 표 · 색 — moov 만 읽는다(수십 KB) */
@@ -304,6 +316,9 @@ export async function analyzeVideo(options: AnalyzeOptions): Promise<VideoAnalyz
     } else {
       windows = [{ kind: 'whole', from: 0, to: duration }];
     }
+    /* 엔진 2.0 은 그물에 닿고 튄 장면까지 — 구간을 늘린다(시작은 그대로 공 앞 0.1초) */
+    if (distanceM && startSec == null && endSec == null)
+      windows = windows.map((w) => (w.kind === 'whole' ? w : { ...w, to: Math.min(duration, w.from + DISTANCE_WINDOW_SEC) }));
 
     /*
      * 2) 구간마다 장면을 꺼내 잰다. 꺼낸 장면은 장면 번호로 기억해 두 구간이 겹치는 만큼 다시 되감지 않는다 —
@@ -419,10 +434,28 @@ export async function analyzeVideo(options: AnalyzeOptions): Promise<VideoAnalyz
         calibrated,
         ...(hdr ? { domainSigmaRel: HDR_SIGMA_REL } : {}),
       };
-      let result: AnalyzeResult;
+      let result: AnalyzeResult & { distance?: DistanceReport };
       const a0 = now();
       try {
-        result = analyzeFrames(input);
+        result = distanceM
+          ? analyzeByDistance({
+              frames,
+              backgroundSamples,
+              width,
+              height,
+              sourceWidth: sourceW,
+              sourceHeight: sourceH,
+              focalPx: focalPerLongSide
+                ? focalPerLongSide * Math.max(sourceW, sourceH)
+                : focalPxFromFov(Math.max(sourceW, sourceH), fovDeg),
+              distanceM,
+              approach,
+              tiltRad: options.tiltRad ?? 0,
+              fps: sampleFps,
+              seedHint: plan?.ball?.accepted ? { t: plan.ball.t } : null,
+              shakePx,
+            })
+          : analyzeFrames(input);
         timing.analyzeMs += now() - a0;
       } catch (e) {
         timing.analyzeMs += now() - a0;
@@ -449,7 +482,12 @@ export async function analyzeVideo(options: AnalyzeOptions): Promise<VideoAnalyz
 
     const { result, window } = first;
     const notes: string[] = [];
-    if (hdr) {
+    if (distanceM) {
+      /* 엔진 2.0 은 공 지름을 쓰지 않아 HDR · 다른 카메라의 알림이 맞지 않는다 — 끝을 이어 찾았을 때만 */
+      const d = (result as { distance?: DistanceReport }).distance;
+      if (result.measure.ok && d && d.extended > 0)
+        notes.push('공이 그물 · 미트 앞에서 흐려져 끝을 이어 찾아 쟀어요. 값이 조금 어긋날 수 있어요.');
+    } else if (hdr) {
       notes.push(HDR_NOTE);
       /* 믿음은 '낮음(참고용)' — 값은 그대로 보인다(± 는 analyzeFrames 가 HDR_SIGMA_REL 로 넓혔다) */
       if (result.measure.ok) result.measure.confidence = 'low';

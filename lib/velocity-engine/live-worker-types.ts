@@ -21,6 +21,10 @@ export type LiveSettings = {
   zoom: number | null;
   /** 수동 모드 — 공 하나를 담으면 멈춘다 */
   manual: boolean;
+  /** 엔진 2.0 의 거리 자(m, live-meter.ts LiveCamera.distanceM) — 있으면 거리로 재고 담기도 길게(DISTANCE_METER_CONFIG) */
+  distanceM: number | null;
+  /** 카메라가 아래로 숙인 각(라디안) — 폰 기울기 센서 */
+  tiltRad: number | null;
 };
 
 /** 한 번에 계산 워커에 쌓아 둘 공 — 넘으면 새로 담은 공을 버린다(공 하나가 50~86MB 라 느린 폰에서 쌓이면 메모리가 모자란다) */

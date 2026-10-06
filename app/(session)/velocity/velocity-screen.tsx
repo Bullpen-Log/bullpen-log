@@ -103,6 +103,7 @@ import {
 } from '@/lib/velocity-meta';
 import {
   approachOf,
+  distanceOf,
   DEFAULT_SETUP,
   defaultZone,
   fitZone,
@@ -110,9 +111,13 @@ import {
   viewRectToFrame,
   visibleFrameRect,
   loadSetup,
+  RELEASE_DIST_MAX,
+  RELEASE_DIST_MIN,
   saveSetup,
   SETUP_KEY,
   setupSummary,
+  TARGET_DIST_MAX,
+  TARGET_DIST_MIN,
   ZONE_WIDTH_RANGE,
   zoneAspectIn,
   zoneOfPoint,
@@ -130,6 +135,7 @@ import {
   ZoneGrid,
 } from '@/components/velocity/pitch-editor';
 import {
+  DistanceField,
   LevelBubble,
   PrimaryButton,
   StepShell,
@@ -147,7 +153,6 @@ import { isTipsSkippedToday, TipsPopup } from '@/components/velocity/tips-popup'
 import { VelocitySettingsFields } from '@/components/velocity/velocity-settings';
 import { ClipPlayer } from '@/components/velocity/clip-player';
 import { Panel, StatRow, Note } from '@/components/velocity/kit';
-import { spinAxisFor } from '@/lib/velocity-spin';
 import {
   CircleOverlay,
   DEFAULT_CIRCLE,
@@ -162,11 +167,9 @@ import {
   lensMatches,
 } from '@/lib/velocity-lens';
 import { saveVelocitySession, type SavePitchInput } from '@/app/actions/velocity';
-import { SpinAxisGraphic, SpinAxisNote } from '@/components/velocity/spin-axis';
 import { SessionSummary } from '@/components/velocity/session-summary';
 import { AdminJump } from '@/components/velocity/admin-jump';
 import {
-  throwingHandOf,
   type SessionPitch,
   type VelocityScreenKey,
 } from '@/components/velocity/session-types';
@@ -303,7 +306,6 @@ export function VelocityScreen({
   native,
   today,
   calibration,
-  throwingHand = null,
   initialStep = 'type',
 }: {
   isAdmin: boolean;
@@ -311,14 +313,13 @@ export function VelocityScreen({
   today: string;
   /** 서버가 그 사람의 스피드건 짝으로 맞춘 보정식 */
   calibration: CalFit;
-  /** 프로필의 던지는 손('우투' · '좌투' · '양투') — 회전축 그림의 좌우 */
+  /** 프로필의 던지는 손 — 회전축 그림을 뺀 뒤(엔진 2.0, 사용자 2026-10-06) 쓰지 않는다. 부르는 쪽 호환으로만 남긴다 */
   throwingHand?: string | null;
   /** 처음 보일 단계 — 미리보기 · 시험용. 보통은 처음부터 */
   initialStep?: Step;
 }) {
   const router = useRouter();
   const unit = useSpeedUnit();
-  const hand = throwingHandOf(throwingHand);
   const videoRef = useRef<HTMLVideoElement>(null);
   const finderRef = useRef<HTMLDivElement>(null);
   /* 세션 중 정보 판 · 뷰파인더 위 둘째 줄(수평계 · 카메라 정보) — 판 전환을 곧바로 · 존이 둘째 줄 밑으로 못 가게 */
@@ -342,6 +343,8 @@ export function VelocityScreen({
     net: DEFAULT_SETUP.net,
     focalRatio: null as number | null,
     releaseDistM: DEFAULT_SETUP.releaseDistM,
+    /* 엔진 2.0 의 거리 자 — 투수 뒤 = 그물 · 미트까지, 포수 뒤 = 릴리스까지(distanceOf) */
+    distanceM: DEFAULT_SETUP.targetDistM,
     autoMode: DEFAULT_SETUP.autoMode,
     wideClip: DEFAULT_SETUP.wideClip,
     camMode: DEFAULT_SETUP.camMode,
@@ -364,6 +367,7 @@ export function VelocityScreen({
   const [zone, setZone] = useState<ZoneRect>(DEFAULT_SETUP.zone);
   const [voice, setVoice] = useState(false);
   const [releaseDistM, setReleaseDistM] = useState(DEFAULT_SETUP.releaseDistM);
+  const [targetDistM, setTargetDistM] = useState(DEFAULT_SETUP.targetDistM);
   const [autoMode, setAutoMode] = useState(DEFAULT_SETUP.autoMode);
   const [calibSave, setCalibSave] = useState(DEFAULT_SETUP.calibSave);
   /* 엔진 개발용 녹화(관리자 설정) — 켜면 측정 대기 화면의 시작 단추가 녹화 단추 */
@@ -464,6 +468,7 @@ export function VelocityScreen({
       net: choices.net,
       focalRatio,
       releaseDistM,
+      distanceM: distanceOf({ cameraPos: choices.cameraPos, targetDistM, releaseDistM }),
       autoMode,
       wideClip,
       camMode,
@@ -498,6 +503,18 @@ export function VelocityScreen({
       step === 'zone' ||
       (step === 'measure' && (!live || showCamera) && !summaryOpen));
   const { level, requestPermission } = useDeviceLevel(levelOn);
+  /*
+   * 카메라 숙임(엔진 2.0) — 수평계가 켜진 동안(수평 · 존 · 측정 직전) 읽은 앞뒤 기울기. 위를 보면 + 라 숙임은 그 반대. 세션 중에는
+   * 정보 판이 카메라를 가려 수평계가 꺼지지만 삼각대라 그대로다 — 마지막 값을 쥔다.
+   */
+  const tiltRef = useRef<number | null>(null);
+  useEffect(() => {
+    if (level.pitch == null) return;
+    const tilt = (-level.pitch * Math.PI) / 180;
+    if (tiltRef.current != null && Math.abs(tiltRef.current - tilt) < 1e-6) return;
+    tiltRef.current = tilt;
+    captureRef.current?.setTilt(tilt);
+  }, [level.pitch]);
   const fit = calibration;
   const shown = (raw: number) =>
     useCal && fit.n > 0 ? applyCalibration(raw, fit) : raw;
@@ -562,6 +579,7 @@ export function VelocityScreen({
       voice,
       useCal,
       releaseDistM,
+      targetDistM,
       autoMode,
       calibSave,
       clipZone,
@@ -751,6 +769,8 @@ export function VelocityScreen({
     capture.setReleaseDistance(
       now.approach === 'approaching' ? now.releaseDistM : null
     );
+    /* 엔진 2.0 — 거리 자 · 숙임(폰 기울기). 켜기 전에 넣어야 카메라에 2배 줌을 청한다 */
+    capture.setDistance(now.distanceM, tiltRef.current);
     capture.setManual(!now.autoMode);
     /* 엔진 개발용 녹화 중에는 공마다 클립 녹화기를 끈다 — 긴 녹화와 녹화기 셋이 겹치면 장면이 밀린다 */
     capture.setClips(!now.recordMode);
@@ -855,6 +875,7 @@ export function VelocityScreen({
       setVoice(stored.voice);
       setUseCal(stored.useCal);
       setReleaseDistM(stored.releaseDistM);
+      setTargetDistM(stored.targetDistM);
       setAutoMode(stored.autoMode);
       setCalibSave(stored.calibSave);
       setClipZone(stored.clipZone);
@@ -1055,6 +1076,8 @@ export function VelocityScreen({
         net: choices.net,
         zone: activeZone,
         releaseDistM: approach === 'approaching' ? releaseDistM : null,
+        /* 엔진 2.0 의 거리 자(투수 뒤) — 관리자 편집기가 이 거리로 다시 잰다 */
+        targetDistM: approach === 'receding' ? targetDistM : null,
       },
     });
     if (recorder.state.phase === 'error') {
@@ -1134,6 +1157,9 @@ export function VelocityScreen({
         approach,
         focalPerLongSide: fileFov != null ? null : focalRatio,
         releaseDistanceM: approach === 'approaching' ? releaseDistM : null,
+        /* 엔진 2.0 — 영상 파일은 찍을 때의 폰 기울기를 몰라 숙임 0 */
+        distanceM: distanceOf({ cameraPos: choices.cameraPos, targetDistM, releaseDistM }),
+        tiltRad: null,
       });
       addResult(result, 'file');
       /* HDR · 보정한 촬영과 다른 영상이면 그 알림(± 가 넓은 까닭)을 잠깐 보인다 */
@@ -1239,6 +1265,12 @@ export function VelocityScreen({
       approach === 'approaching' ? releaseDistM : null
     );
   }, [approach, releaseDistM]);
+  useEffect(() => {
+    captureRef.current?.setDistance(
+      distanceOf({ cameraPos: choices.cameraPos, targetDistM, releaseDistM }),
+      tiltRef.current
+    );
+  }, [choices.cameraPos, targetDistM, releaseDistM]);
 
   const changeFov = (next: number) => {
     setFov(next);
@@ -1291,7 +1323,6 @@ export function VelocityScreen({
       : null,
   }));
   const lastPitch = pitches[pitches.length - 1] ?? null;
-  const spinAxis = spinAxisFor(lastPitch?.pitchType ?? null, hand);
   const editingPitch =
     editing == null ? null : (pitches.find((p) => p.id === editing) ?? null);
   const clipPitch =
@@ -1855,24 +1886,50 @@ export function VelocityScreen({
           step={2}
           total={5}
           title="폰을 어디에 둘까요?"
-          subtitle="공은 화면에서 작아지거나 커지는 걸로 재요. 뒤에서 정면으로 보게 두는 두 자리 중 하나."
+          subtitle="공이 날아가는 길과 넣은 거리로 구속을 재요. 뒤에서 정면으로 보게 두는 두 자리 중 하나예요."
           footer={
-            <PrimaryButton onClick={() => setStep('net')}>
+            <PrimaryButton
+              onClick={() => {
+                persistSetup({ targetDistM, releaseDistM });
+                setStep('net');
+              }}
+            >
               다음
               <ChevronRight aria-hidden className="h-4 w-4" />
             </PrimaryButton>
           }
         >
-          <OptionCards
-            label="카메라 위치"
-            options={cameraPosOptions()}
-            value={choices.cameraPos}
-            onChange={(cameraPos) => {
-              if (cameraPos !== choices.cameraPos) setZone(defaultZone(cameraPos));
-              setChoices({ ...choices, cameraPos });
-            }}
-            columns={1}
-          />
+          <div className="space-y-5">
+            <OptionCards
+              label="카메라 위치"
+              options={cameraPosOptions()}
+              value={choices.cameraPos}
+              onChange={(cameraPos) => {
+                if (cameraPos !== choices.cameraPos) setZone(defaultZone(cameraPos));
+                setChoices({ ...choices, cameraPos });
+              }}
+              columns={1}
+            />
+            {choices.cameraPos === 'behind-pitcher' ? (
+              <DistanceField
+                label="폰에서 공이 닿는 곳까지"
+                hint="그물이나 포수 미트까지예요. 줄자로 재서 넣으면 가장 정확해요(5% 틀리면 구속도 5% 틀려요). 정규 마운드에서 폰을 투수판 1m 뒤에 두면 약 19.5m예요."
+                value={targetDistM}
+                min={TARGET_DIST_MIN}
+                max={TARGET_DIST_MAX}
+                onChange={setTargetDistM}
+              />
+            ) : (
+              <DistanceField
+                label="폰에서 투수가 공을 놓는 곳까지"
+                hint="줄자로 재서 넣으면 가장 정확해요. 정규 마운드에서 폰을 홈플레이트 1.8m 뒤에 두면 약 18.5m예요."
+                value={releaseDistM}
+                min={RELEASE_DIST_MIN}
+                max={RELEASE_DIST_MAX}
+                onChange={setReleaseDistM}
+              />
+            )}
+          </div>
         </StepShell>
       )}
       {!showAsk && step === 'net' && (
@@ -2021,41 +2078,6 @@ export function VelocityScreen({
                       })}
                     </div>
                   )}
-                </section>
-
-                {/* 회전축 — 고른 구종의 전형값(카메라는 회전을 못 잰다). 구종 칩을 누르면 축이 돈다 */}
-                <section className="mt-3 rounded-2xl bg-white/[0.06] px-5 py-4">
-                  <div className="flex items-center gap-4">
-                    <SpinAxisGraphic
-                      pitchType={lastPitch?.pitchType ?? null}
-                      hand={hand}
-                      size={104}
-                      tone="dark"
-                      showLabel={false}
-                    />
-                    <div className="min-w-0 flex-1 text-left">
-                      <p className="text-xs font-medium text-white/55">
-                        회전축 · {hand === 'left' ? '좌투' : '우투'} 기준
-                      </p>
-                      <p className="mt-0.5 text-lg font-semibold">
-                        {pitchTypeLabel(lastPitch?.pitchType) ?? '구종을 고르세요'}
-                      </p>
-                      {spinAxis && (
-                        <>
-                          <p className="mt-1 text-sm tabular-nums text-white/85">
-                            {spinAxis.clock} · 효율 {spinAxis.efficiencyPct}% ·{' '}
-                            {spinAxis.rpm[0]}~{spinAxis.rpm[1]}rpm
-                          </p>
-                          <p className="mt-0.5 text-xs leading-snug text-white/55">
-                            {spinAxis.movement}
-                          </p>
-                        </>
-                      )}
-                    </div>
-                  </div>
-                  <div className="mt-2">
-                    <SpinAxisNote tone="dark" />
-                  </div>
                 </section>
 
                 {/* 이번 세션 */}
@@ -2310,7 +2332,6 @@ export function VelocityScreen({
                 <SessionSummary
                   pitches={sessionPitches}
                   unit={unit}
-                  hand={hand}
                   date={today}
                   setupText={sessionSetupText(choices)}
                   calibrationText={useCal && fit.n > 0 ? calibrationText(fit) : null}
@@ -3055,6 +3076,7 @@ export function VelocityScreen({
               useCal,
               fovDeg: fov,
               releaseDistM,
+              targetDistM,
               autoMode,
               calibSave,
               clipZone,
@@ -3075,6 +3097,10 @@ export function VelocityScreen({
               if (patch.releaseDistM != null) {
                 setReleaseDistM(patch.releaseDistM);
                 persistSetup({ releaseDistM: patch.releaseDistM });
+              }
+              if (patch.targetDistM != null) {
+                setTargetDistM(patch.targetDistM);
+                persistSetup({ targetDistM: patch.targetDistM });
               }
               if (patch.autoMode != null) {
                 setAutoMode(patch.autoMode);

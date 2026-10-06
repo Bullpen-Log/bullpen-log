@@ -1,4 +1,5 @@
 import type { AnalyzeResult, Approach } from '@/lib/velocity-engine/analyze-frames';
+import type { DistanceReport } from '@/lib/velocity-engine/analyze-distance';
 import type { FrameTiming, LiveReport } from '@/lib/velocity-engine/live-meter';
 import type { ZoneRect } from '@/lib/velocity-setup';
 
@@ -13,7 +14,8 @@ import type { ZoneRect } from '@/lib/velocity-setup';
  * 섞어 다시 맞추면 안 된다. 그래서 어느 자로 쟀나(ruler) · 가장자리 폭 · 흐림 보정 · 잭나이프 SE 를 같이 싣는다.
  */
 export type AnalysisJson = {
-  v: 2;
+  /** 2 = 모델 1.6~1.8(공 지름 자), 3 = 모델 2.0(거리 자 — distance 가 있다) */
+  v: 2 | 3;
   /** 거리 자 — 'limb'(윤곽, 1.6.0) · 'area'(면적, 1.5.0 까지와 시험용) */
   ruler: 'limb' | 'area' | null;
   /**
@@ -56,16 +58,38 @@ export type AnalysisJson = {
    * 겹쳐 그린다(설정 '영상에 스트라이크 존 표시'). 카메라로 잰 공만 — 영상 파일 · 옛 공은 없음.
    */
   zoneRect?: ZoneRect | null;
+  /**
+   * 모델 2.0(거리 자, lib/velocity-engine/analyze-distance.ts) — 넣은 거리 · 숙임 · 비행 끝을 무엇으로 정했나 · 3차원/수평 속력 ·
+   * 위로 던진 각. 관리자가 다시 잴 때 거리를 여기서 꺼낸다. 1.x 로 잰 공은 없음.
+   */
+  distance?: Omit<DistanceReport, 'seeds' | 'seedFrame' | 'timingMs'> | null;
 };
 
 export function analysisOf(
-  result: AnalyzeResult & { live?: LiveReport },
+  result: AnalyzeResult & { live?: LiveReport; distance?: DistanceReport },
   approach: Approach
 ): AnalysisJson {
   const m = result.measure;
   const d = result.diameter;
+  const dist = result.distance;
   return {
-    v: 2,
+    v: dist ? 3 : 2,
+    distance: dist
+      ? {
+          method: dist.method,
+          distanceM: dist.distanceM,
+          tiltRad: Math.round(dist.tiltRad * 10000) / 10000,
+          impact: dist.impact,
+          te: dist.te != null ? Math.round(dist.te * 10000) / 10000 : null,
+          flightFrames: dist.flightFrames,
+          extended: dist.extended,
+          rmsPx: dist.rmsPx,
+          kmh3d: dist.kmh3d,
+          kmhHorizontal: dist.kmhHorizontal,
+          firstDepthM: dist.firstDepthM,
+          launchDeg: dist.launchDeg,
+        }
+      : null,
     ruler: d ? d.ruler : null,
     polarity: d?.polarity ?? null,
     edgeWidthPx: d ? d.edgeWidthPx : null,

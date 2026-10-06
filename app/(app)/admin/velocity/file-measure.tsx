@@ -61,6 +61,8 @@ export function FileMeasure({
   /* 파일에서 읽은 렌즈 — 아이폰 영상이면 화각을 62° 로 채운다(video-lens.ts) */
   const [lensText, setLensText] = useState<string | null>(null);
   const [releaseDist, setReleaseDist] = useState('18.5');
+  /* 엔진 2.0 의 거리 자 — 투수 뒤: 폰 → 그물 · 미트(m) */
+  const [targetDist, setTargetDist] = useState('20');
   const [date, setDate] = useState(() => toDateKey(new Date()));
   const [gun, setGun] = useState('');
   const [pitchType, setPitchType] = useState('');
@@ -134,6 +136,10 @@ export function FileMeasure({
     if (cameraPos === 'behind-catcher' && !(dist >= 3 && dist <= 40)) {
       return setError('릴리스까지 거리는 3~40m 사이로 넣어주세요.');
     }
+    const target = Number(targetDist);
+    if (cameraPos === 'behind-pitcher' && !(target >= 5 && target <= 40)) {
+      return setError('그물 · 미트까지 거리는 5~40m 사이로 넣어주세요.');
+    }
     setError(null);
     setStage({ kind: 'analyzing', ratio: 0 });
     try {
@@ -143,6 +149,7 @@ export function FileMeasure({
         fovDeg: fov,
         approach,
         releaseDistanceM: cameraPos === 'behind-catcher' ? dist : null,
+        distanceM: cameraPos === 'behind-catcher' ? dist : target,
         onProgress: (ratio) => setStage({ kind: 'analyzing', ratio }),
       });
       setStage({ kind: 'done', result });
@@ -376,6 +383,16 @@ export function FileMeasure({
             onChange={(e) => setFovDeg(e.target.value)}
           />
         </Field>
+        {cameraPos === 'behind-pitcher' && (
+          <Field label="그물 · 미트까지 거리(m)" hint="폰에서 공이 닿는 곳까지예요. 구속을 이 거리로 재요(엔진 2.0).">
+            <Input
+              inputMode="decimal"
+              value={targetDist}
+              disabled={busy}
+              onChange={(e) => setTargetDist(e.target.value)}
+            />
+          </Field>
+        )}
         {cameraPos === 'behind-catcher' && (
           <Field label="릴리스까지 거리(m)" hint="정규 마운드 · 홈 뒤 1.8m 면 약 18.5m">
             <Input

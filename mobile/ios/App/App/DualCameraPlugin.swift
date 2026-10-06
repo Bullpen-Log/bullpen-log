@@ -26,6 +26,7 @@ import WebKit
 ///   setPreview({ x, y, w, h, visible })          미리보기 자리(뷰포트 CSS px)
 ///   setTrigger({ armed, roi })                   던짐 알아채기 켜기/끄기 · 볼 자리(세로 화면 0~1)
 ///   clip({ atSec, beforeSec, afterSec })         → { main: Clip, wide: Clip | null }   Clip = { path, eventSec, durationSec, bytes, fps, width, height, fovDeg }
+///   (start 의 zoom — 일반 카메라 줌 배율, 기본 1. 걸면 fovDeg 는 줌만큼 좁힌 값)
 ///   read({ path, offset, length })               → { data(base64), size, eof }
 ///   discard({ paths })                           다 읽은 클립 파일 지우기
 ///   stop()
@@ -87,7 +88,8 @@ public class DualCameraPlugin: CAPPlugin, CAPBridgedPlugin {
             short: call.getInt("short").map { Int32($0) },
             net: call.getBool("net") ?? false,
             roi: DualCameraPlugin.rect(call.getObject("roi")) ?? MotionTrigger.defaultRoi,
-            armed: call.getBool("armed") ?? true
+            armed: call.getBool("armed") ?? true,
+            zoom: max(1, min(4, call.getDouble("zoom") ?? 1))
         )
         let preview = DualCameraPlugin.rect(call.getObject("preview"))
         let controller = DualCameraController()
@@ -322,6 +324,8 @@ final class DualCameraController: NSObject, AVCaptureVideoDataOutputSampleBuffer
         var net: Bool
         var roi: CGRect
         var armed: Bool
+        /// 일반 카메라의 줌(1 · 2) — 구속 엔진 2.0(거리 자)은 2배로 찍은 영상에 맞췄다(먼 공이 두 배 크기). 광각은 늘 1
+        var zoom: Double = 1
     }
 
     /// 한 카메라의 잡은 모양
@@ -527,7 +531,7 @@ final class DualCameraController: NSObject, AVCaptureVideoDataOutputSampleBuffer
             guard mainPick.fps >= DualCameraController.MIN_MEASURE_FPS else { throw DualCameraError.unsupported("fps") }
         }
         var widePick = try DualCameraController.pick(wideDevice, fps: config.fps)
-        try DualCameraController.apply(mainDevice, mainPick, lockFocus: config.net)
+        try DualCameraController.apply(mainDevice, mainPick, lockFocus: config.net, zoom: config.zoom)
         try DualCameraController.apply(wideDevice, widePick, lockFocus: false)
         if session.hardwareCost > 1.0 {
             widePick = try DualCameraController.pick(wideDevice, fps: 30)
@@ -545,14 +549,17 @@ final class DualCameraController: NSObject, AVCaptureVideoDataOutputSampleBuffer
             let smaller = try DualCameraController.pick(mainDevice, fps: mainPick.fps, smallest: true)
             if smaller.fps >= DualCameraController.MIN_MEASURE_FPS {
                 mainPick = smaller
-                try DualCameraController.apply(mainDevice, mainPick, lockFocus: config.net)
+                try DualCameraController.apply(mainDevice, mainPick, lockFocus: config.net, zoom: config.zoom)
             }
         }
         guard session.hardwareCost <= 1.0 else { throw DualCameraError.unsupported("cost") }
 
         main = mainPick
         wide = widePick
-        mainFov = Double(mainPick.format.videoFieldOfView)
+        /* 줌을 걸었으면 화각은 그만큼 좁다(가운데를 잘라 키움) — tan(화각/2) 이 줌의 역수로 */
+        let zoomed = Double(mainDevice.videoZoomFactor)
+        let fov0 = Double(mainPick.format.videoFieldOfView) * .pi / 180
+        mainFov = zoomed > 1.001 ? 2 * atan(tan(fov0 / 2) / zoomed) * 180 / .pi : Double(mainPick.format.videoFieldOfView)
         wideFov = Double(widePick.format.videoFieldOfView)
         /* 센서는 가로로 찍는다 — 영상 파일에 '세로로 돌려 보기' 표시만 달아 세로 영상이 되게(픽셀은 안 돌린다) */
         let rotate = CGAffineTransform(rotationAngle: .pi / 2)
@@ -601,14 +608,15 @@ final class DualCameraController: NSObject, AVCaptureVideoDataOutputSampleBuffer
         return Picked(format: best.0, fps: max(1, actual), width: Int(best.1), height: Int(best.2))
     }
 
-    private static func apply(_ device: AVCaptureDevice, _ pick: Picked, lockFocus: Bool) throws {
+    private static func apply(_ device: AVCaptureDevice, _ pick: Picked, lockFocus: Bool, zoom: Double = 1) throws {
         try device.lockForConfiguration()
         defer { device.unlockForConfiguration() }
         device.activeFormat = pick.format
         let duration = CMTime(value: 1, timescale: pick.fps)
         device.activeVideoMinFrameDuration = duration
         device.activeVideoMaxFrameDuration = duration
-        if device.videoZoomFactor != 1 { device.videoZoomFactor = 1 }
+        let want = CGFloat(max(1, min(zoom, Double(pick.format.videoMaxZoomFactor))))
+        if device.videoZoomFactor != want { device.videoZoomFactor = want }
         /* 네트 있음 = 수동초점(사용자 규칙 2026-09-27) — 자동초점이면 눈앞의 그물코에 초점이 잡혀 공이 흐려진다 */
         if lockFocus, device.isLockingFocusWithCustomLensPositionSupported {
             device.setFocusModeLocked(lensPosition: 1.0, completionHandler: nil)

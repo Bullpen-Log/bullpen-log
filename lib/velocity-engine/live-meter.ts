@@ -13,6 +13,7 @@ import {
   type CapturedFrame,
 } from './analyze-frames.ts';
 import { BALL_DIAMETER_M, focalPxFromFov } from './geometry.ts';
+import { analyzeByDistance, type DistanceResult } from './analyze-distance.ts';
 import {
   MAX_RELEASE_DISTANCE_M,
   MAX_RELEASE_OFFSET_RATIO,
@@ -185,6 +186,12 @@ export type MeterConfig = {
   postSec: number;
   /** 'motion' 의 던짐 뒤 담는 시간(초) — 1.6.0 그대로 */
   motionPostSec: number;
+  /**
+   * 거리 측정(엔진 2.0, analyze-distance.ts) — 공이 그물 · 미트에 닿고 튄 장면까지 있어야 끝 시각을 안다. 그래서 담은 장면을
+   * 자르지 않고(analysisTailSec 무시), 120fps 넘게 오면 60fps 남짓으로 솎아 담는다(계산은 60fps 면 된다 — 메모리를 아낀다).
+   * DISTANCE_METER_CONFIG 가 담는 시간도 늘린다.
+   */
+  distanceMode: boolean;
   /** 계산에는 공이 마지막으로 보인 뒤 이만큼(초)까지만 넘긴다(적어도 첫 공 뒤 analysisMinSec) — 배경은 담은 구간 전체에서 */
   analysisTailSec: number;
   analysisMinSec: number;
@@ -232,6 +239,7 @@ export const DEFAULT_METER_CONFIG: MeterConfig = {
   preSec: 0.12,
   postSec: 0.9,
   motionPostSec: 0.6,
+  distanceMode: false,
   analysisTailSec: 0.2,
   analysisMinSec: 0.35,
   goneEndSec: null,
@@ -251,6 +259,12 @@ export const DEFAULT_METER_CONFIG: MeterConfig = {
 
 /** 1.6.0 까지의 판단 그대로(되돌려 보기 · 견주기용) */
 export const MOTION_METER_CONFIG: Partial<MeterConfig> = { trigger: 'motion' };
+
+/**
+ * 거리 측정(엔진 2.0)의 담기 — 공이 처음 보인 뒤 1.3초. 76km/h 공도 20m 그물에 닿고 튀는 장면까지 들어온다(1.0초 남짓 + 튄 뒤
+ * 몇 장). 60fps 면 앞 0.12초와 합쳐 85장(1080 세로를 짧은 변 720 으로 줄인 밝기 판이면 78MB).
+ */
+export const DISTANCE_METER_CONFIG: Partial<MeterConfig> = { distanceMode: true, postSec: 1.3, maxFrames: 100 };
 
 /** 초당 장면 수 — 장면 시각 간격의 중앙값(빠진 장면 · 두 번 온 장면에 휘둘리지 않게) */
 export function fpsFromTimes(times: number[]): number | null {
@@ -1353,6 +1367,14 @@ export class LiveMeter {
     if (this.watch) this.watch.k = focalPx * BALL_DIAMETER_M;
   }
 
+  /** 거리 측정(엔진 2.0) 담기로 바꾸거나 되돌린다 — 담는 중이면 다음 공부터 */
+  setDistanceMode(on: boolean) {
+    const base = on ? { ...DEFAULT_METER_CONFIG, ...DISTANCE_METER_CONFIG } : DEFAULT_METER_CONFIG;
+    this.config.distanceMode = on;
+    this.config.postSec = base.postSec;
+    this.config.maxFrames = base.maxFrames;
+  }
+
   /** 가장 최근 장면 — 렌즈 보정이 공 크기를 잴 때 */
   lastFrame(): MeterFrame | null {
     return this.ring[this.ring.length - 1] ?? null;
@@ -1561,7 +1583,9 @@ export class LiveMeter {
 
   private captureBall(frame: MeterFrame, reg: Float32Array, out: MeterEvent[]) {
     if (this.triggerT == null) return;
-    this.captured.push(frame);
+    /* 거리 측정은 60fps 남짓이면 된다 — 120 · 240fps 면 솎아 담는다(찾기 · 따라가기는 모든 장면으로 한다) */
+    const lastKept = this.captured[this.captured.length - 1];
+    if (!this.config.distanceMode || !lastKept || frame.t - lastKept.t >= 0.85 / 60) this.captured.push(frame);
     const watch = this.watch!;
     const period = this.period();
     /* 공을 계속 따라가 언제 사라졌는지 안다 — 계산할 장면을 거기서 자른다(emitJob) */
@@ -1785,7 +1809,8 @@ export class LiveMeter {
         ball.t + this.config.analysisMinSec,
         seen + this.config.analysisTailSec
       );
-      analysisFrames = frames.filter((f) => f.t <= until);
+      /* 거리 측정은 그물 · 미트에 닿고 튄 장면까지 넘긴다 — 판단은 반 해상도라 먼 공을 일찍 놓친다 */
+      if (!this.config.distanceMode) analysisFrames = frames.filter((f) => f.t <= until);
     }
     /* 장면 시각을 고르게 편다(regularTimes) — 흔들림이 크면 그대로 */
     const rawTimes = analysisFrames.map((f) => f.t);
@@ -1911,6 +1936,13 @@ export type LiveCamera = {
   zoom?: number | null;
   /** HDR(HLG · PQ) 장면 — 카메라 장면(VideoFrame)의 색 정보로 알 때만 true */
   hdr?: boolean;
+  /**
+   * 엔진 2.0 의 거리 자(m) — 투수 뒤는 카메라 → 그물 · 미트, 포수 뒤는 카메라 → 릴리스. 있으면 거리로 잰다(analyze-distance.ts),
+   * 없으면 1.x(공 지름으로 거리).
+   */
+  distanceM?: number | null;
+  /** 카메라가 아래로 숙인 각(라디안, 폰 기울기 센서) — 모르면 0 */
+  tiltRad?: number | null;
 };
 
 /**
@@ -2020,6 +2052,7 @@ const LIVE_TIMING_SIGMA_PER_JITTER = 0.4;
 const LIVE_TIMING_SIGMA_MAX = 0.3;
 
 export type LiveNoteCode =
+  | 'END_GUESS'
   | 'LOW_FPS'
   | 'TIMING'
   | 'APPROACH'
@@ -2272,12 +2305,78 @@ export function liveAnalysisInput(
   };
 }
 
+/**
+ * 엔진 2.0(거리 자)의 촬영 조건 알림 — 1.x 의 알림 중 공 지름으로 거리를 재서 생긴 것(화각 짐작 · 줌 · 잘린 화면 · HDR)은 뺀다.
+ * 2.0 은 크기를 사용자가 넣은 거리로 정해 초점거리 · 밝기 곡선의 영향이 작다(옆 · 위아래 성분에만 든다). 남는 것: 초당 장면 ·
+ * 장면 시각 · 포수 뒤(확인 못 함) · 작은 화면, 그리고 끝을 이어 찾아 정한 공.
+ */
+export function distanceLiveReport(
+  fps: number | null,
+  camera: LiveCamera,
+  result: DistanceResult | null,
+  timing: FrameTiming | null = null
+): LiveReport {
+  const keep = new Set<LiveNoteCode>(['LOW_FPS', 'TIMING', 'APPROACH', 'LOW_RES']);
+  const items = preConditions(fps, camera, timing).filter((i) => keep.has(i.code));
+  const notes: LiveNote[] = [];
+  if (result?.measure.ok && result.distance.extended > 0) {
+    notes.push({
+      code: 'END_GUESS',
+      text: '공이 그물 · 미트 앞에서 흐려져 끝을 이어 찾아 쟀어요. 값이 조금 어긋날 수 있어요(공 뒤에 흰 천이 없으면 더 정확해요).',
+    });
+  }
+  for (const i of items) if (i.text) notes.push({ code: i.code, text: i.text });
+  return {
+    notes,
+    sigmaRel: Math.round(Math.hypot(0, ...items.map((i) => i.sigma)) * 1000) / 1000,
+    fps,
+    focalFrom: camera.focalPx && camera.focalPx > 0 ? 'lens' : 'fov',
+    timing,
+  };
+}
+
+/** 엔진 2.0 — 담은 장면 + 거리 자로 잰다(analyze-distance.ts). 촬영 조건의 σ 는 ± 에 더한다 */
+export function analyzeJobByDistance(job: CaptureJob, camera: LiveCamera): LiveAnalyzeResult {
+  let shakePx = 0;
+  let prev: Float64Array | null = null;
+  for (const f of job.frames) {
+    const m = cornerMeans(f.luma, camera.width, camera.height);
+    if (prev) shakePx = Math.max(shakePx, cornerMotion(prev, m));
+    prev = m;
+  }
+  const result = analyzeByDistance({
+    frames: job.frames.map((f) => ({ t: f.t, luma: f.luma })),
+    backgroundSamples: job.backgroundSamples,
+    width: camera.width,
+    height: camera.height,
+    sourceWidth: camera.sourceWidth,
+    sourceHeight: camera.sourceHeight,
+    focalPx: liveFocalPx(camera),
+    distanceM: camera.distanceM as number,
+    approach: camera.approach,
+    tiltRad: camera.tiltRad ?? 0,
+    fps: job.fps,
+    seedHint: job.ball ? { t: job.ball.t, x: job.ball.x, y: job.ball.y } : null,
+    shakePx,
+  });
+  const live = distanceLiveReport(job.fps, camera, result, job.timing ?? null);
+  const m = result.measure;
+  if (m.ok && live.sigmaRel > 0 && m.kmh > 0) {
+    const base = m.errorKmh / 1.645 / m.kmh;
+    m.errorKmh = Math.round(1.645 * m.kmh * Math.hypot(base, live.sigmaRel) * 10) / 10;
+    if (m.confidence === 'high') m.confidence = 'medium';
+  }
+  return { ...result, live };
+}
+
 /** 일감을 계산한다(워커 · 메인 스레드 · 노드 시험 모두 이것) — 결과에 촬영 조건 알림(live)을 붙인다 */
 export function analyzeJob(
   job: CaptureJob,
   camera: LiveCamera,
   extra: Partial<AnalyzeFramesInput> = {}
 ): LiveAnalyzeResult {
+  /* 거리를 넣었으면 엔진 2.0(거리 자). 시험 · 되돌려 보기(거리 없음)는 1.x 그대로 */
+  if (camera.distanceM && camera.distanceM > 0) return analyzeJobByDistance(job, camera);
   let result = analyzeFrames(liveAnalysisInput(job, camera, extra));
   /*
    * 판단은 가운데에서 꽤 벗어난 곳(WATCH_SEED_RATIO)에서 나타난 공도 알아채는데, 계산은 공을 가운데(MAX_RELEASE_OFFSET_RATIO)

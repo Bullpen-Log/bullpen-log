@@ -23,6 +23,8 @@ export type RecordingMeta = {
   cameraPos: 'behind-pitcher' | 'behind-catcher';
   net: boolean | null;
   releaseDistM: number | null;
+  /** 투수 뒤: 폰 → 그물 · 미트(m) — 엔진 2.0 의 거리 자. 2.0 전 녹화는 null */
+  targetDistM: number | null;
   mime: string | null;
   bitrate: number | null;
 };
@@ -53,6 +55,7 @@ export function toRecordingMeta(raw: unknown): RecordingMeta {
     cameraPos: m.cameraPos === 'behind-catcher' ? 'behind-catcher' : 'behind-pitcher',
     net: typeof m.net === 'boolean' ? m.net : null,
     releaseDistM: n(m.releaseDistM),
+    targetDistM: n(m.targetDistM),
     mime: s(m.mime),
     bitrate: n(m.bitrate),
   };

@@ -25,6 +25,8 @@ import {
   approachOf,
   RELEASE_DIST_MIN,
   RELEASE_DIST_MAX,
+  TARGET_DIST_MIN,
+  TARGET_DIST_MAX,
 } from '@/lib/velocity-setup';
 import {
   LENS_CHANGE_EVENT,
@@ -53,6 +55,7 @@ export type SettingsValues = Pick<
   | 'voice'
   | 'useCal'
   | 'releaseDistM'
+  | 'targetDistM'
   | 'autoMode'
   | 'calibSave'
   | 'clipZone'
@@ -147,11 +150,21 @@ export function VelocitySettingsFields({
             disabled={calibration.n === 0}
             onChange={(useCal) => onChange({ useCal })}
           />
+          {approachOf(values) === 'receding' && (
+            <DistanceRow
+              title="카메라에서 그물(포수 미트)까지"
+              hint="구속을 이 거리로 재요. 5% 틀리면 구속도 5% 틀리니 줄자로 폰에서 공이 닿는 곳까지 재서 넣어 주세요. 정규 마운드에서 폰을 투수판 1m 뒤에 두면 약 19.5m예요."
+              value={values.targetDistM}
+              min={TARGET_DIST_MIN}
+              max={TARGET_DIST_MAX}
+              onChange={(targetDistM) => onChange({ targetDistM })}
+            />
+          )}
           <label className="flex min-h-14 items-center justify-between gap-3 px-4 py-3">
             <span className="min-w-0">
               <span className="block text-sm text-ink">카메라 가로 화각</span>
               <span className="block text-xs leading-snug text-muted">
-                아이폰 후면 기본 카메라 약 69°. 크게 잡으면 구속이 낮게 나와요. 렌즈
+                아이폰 후면 기본 카메라 약 69°. 구속은 넣은 거리로 재서 화각의 영향은 작아요. 렌즈
                 보정을 하면 이 값 대신 잰 초점거리를 써요.
               </span>
             </span>
@@ -173,38 +186,14 @@ export function VelocitySettingsFields({
             </span>
           </label>
           {approachOf(values) === 'approaching' && (
-            <label className="flex min-h-14 items-center justify-between gap-3 px-4 py-3">
-              <span className="min-w-0">
-                <span className="block text-sm text-ink">
-                  카메라에서 릴리스 지점까지
-                </span>
-                <span className="block text-xs leading-snug text-muted">
-                  다가오는 공은 마지막 몇 m 만 보여요. 이 거리만큼 공기저항(1m 에 약
-                  0.8km/h)을 되돌려 릴리스 구속을 내요. 정규 마운드 · 홈 뒤 1.8m 면 약
-                  18.5m.
-                </span>
-              </span>
-              <span className="inline-flex shrink-0 items-center gap-1 text-sm">
-                <input
-                  inputMode="decimal"
-                  key={values.releaseDistM}
-                  defaultValue={values.releaseDistM}
-                  onBlur={(e) => {
-                    const n = Math.round(Number(e.target.value) * 10) / 10;
-                    if (
-                      n >= RELEASE_DIST_MIN &&
-                      n <= RELEASE_DIST_MAX &&
-                      n !== values.releaseDistM
-                    )
-                      onChange({ releaseDistM: n });
-                    else e.target.value = String(values.releaseDistM);
-                  }}
-                  aria-label="카메라에서 릴리스 지점까지 거리(m)"
-                  className="h-11 w-20 rounded-xl border border-line bg-surface-2 px-3 text-right text-sm tabular-nums text-ink transition-colors focus:border-sky focus:outline-none"
-                />
-                m
-              </span>
-            </label>
+            <DistanceRow
+              title="카메라에서 릴리스 지점까지"
+              hint="구속을 이 거리로 재요. 줄자로 폰에서 투수가 공을 놓는 자리까지 재서 넣어 주세요. 정규 마운드에서 홈 뒤 1.8m 면 약 18.5m예요."
+              value={values.releaseDistM}
+              min={RELEASE_DIST_MIN}
+              max={RELEASE_DIST_MAX}
+              onChange={(releaseDistM) => onChange({ releaseDistM })}
+            />
           )}
         </Panel>
       </div>
@@ -238,6 +227,47 @@ export function VelocitySettingsFields({
         </div>
       )}
     </div>
+  );
+}
+
+/** 거리 한 줄(m, 0.1 단위) — 고치고 칸을 벗어나면 저장, 범위 밖이면 되돌린다 */
+function DistanceRow({
+  title,
+  hint,
+  value,
+  min,
+  max,
+  onChange,
+}: {
+  title: string;
+  hint: string;
+  value: number;
+  min: number;
+  max: number;
+  onChange: (next: number) => void;
+}) {
+  return (
+    <label className="flex min-h-14 items-center justify-between gap-3 px-4 py-3">
+      <span className="min-w-0">
+        <span className="block text-sm text-ink">{title}</span>
+        <span className="block text-xs leading-snug text-muted">{hint}</span>
+      </span>
+      <span className="inline-flex shrink-0 items-center gap-1 text-sm">
+        <input
+          inputMode="decimal"
+          key={value}
+          defaultValue={value}
+          onBlur={(e) => {
+            const n = Math.round(Number(e.target.value) * 10) / 10;
+            if (n >= min && n <= max && n !== value) onChange(n);
+            else e.target.value = String(value);
+          }}
+          aria-label={`${title}(m)`}
+          className="h-11 w-20 rounded-xl border border-line bg-surface-2 px-3 text-right text-sm tabular-nums text-ink transition-colors focus:border-sky focus:outline-none"
+        />
+        m
+      </span>
+    </label>
   );
 }
 
@@ -375,6 +405,7 @@ export function VelocitySettingsButton({
     voice: base.voice,
     useCal: base.useCal,
     releaseDistM: base.releaseDistM,
+    targetDistM: base.targetDistM,
     autoMode: base.autoMode,
     calibSave: base.calibSave,
     clipZone: base.clipZone,
@@ -401,6 +432,7 @@ export function VelocitySettingsButton({
         voice: base.voice,
         useCal: base.useCal,
         releaseDistM: base.releaseDistM,
+        targetDistM: base.targetDistM,
         autoMode: base.autoMode,
         calibSave: base.calibSave,
         clipZone: base.clipZone,
@@ -448,6 +480,7 @@ export function VelocitySettingsButton({
                   voice: base.voice,
                   useCal: base.useCal,
                   releaseDistM: base.releaseDistM,
+                  targetDistM: base.targetDistM,
                   autoMode: base.autoMode,
                   calibSave: base.calibSave,
                   clipZone: base.clipZone,

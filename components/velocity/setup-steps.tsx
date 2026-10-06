@@ -12,7 +12,9 @@ import {
   ChevronLeft,
   ChevronRight,
   Info,
+  Minus,
   MoveDiagonal2,
+  Plus,
   RotateCcw,
   RotateCw,
 } from 'lucide-react';
@@ -221,6 +223,70 @@ function ChoiceRow({
       <SectionLabel>{label}</SectionLabel>
       {children}
       <p className="mt-2 min-h-4 px-0.5 text-xs leading-relaxed text-muted">{hint}</p>
+    </div>
+  );
+}
+
+/**
+ * 거리 한 칸(m) — 엔진 2.0 은 이 거리로 구속의 크기를 정한다(투수 뒤: 카메라 → 공이 닿는 곳, 포수 뒤: 카메라 → 릴리스).
+ * 빼기 · 더하기는 0.5m, 숫자 칸은 0.1m 까지. 누르는 단추는 48px(폰 화면 규격).
+ */
+export function DistanceField({
+  label,
+  hint,
+  value,
+  min,
+  max,
+  onChange,
+}: {
+  label: string;
+  hint: string;
+  value: number;
+  min: number;
+  max: number;
+  onChange: (next: number) => void;
+}) {
+  const set = (n: number) => {
+    const v = Math.round(Math.min(max, Math.max(min, n)) * 10) / 10;
+    if (v !== value) onChange(v);
+  };
+  return (
+    <div>
+      <SectionLabel>{label}</SectionLabel>
+      <div className="flex items-center gap-2">
+        <button
+          type="button"
+          aria-label="0.5m 줄이기"
+          onClick={() => set(value - 0.5)}
+          className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-surface-2 text-ink"
+        >
+          <Minus aria-hidden className="h-5 w-5" />
+        </button>
+        <label className="flex h-12 min-w-0 flex-1 items-center justify-center gap-1 rounded-2xl bg-surface-2 px-3">
+          <input
+            inputMode="decimal"
+            key={value}
+            defaultValue={value}
+            onBlur={(e) => {
+              const n = Number(e.target.value);
+              if (Number.isFinite(n) && n >= min && n <= max) set(n);
+              else e.target.value = String(value);
+            }}
+            aria-label={`${label}(m)`}
+            className="w-16 bg-transparent text-center text-lg font-semibold tabular-nums text-ink focus:outline-none"
+          />
+          <span className="text-sm text-muted">m</span>
+        </label>
+        <button
+          type="button"
+          aria-label="0.5m 늘리기"
+          onClick={() => set(value + 0.5)}
+          className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-surface-2 text-ink"
+        >
+          <Plus aria-hidden className="h-5 w-5" />
+        </button>
+      </div>
+      <p className="mt-2 px-0.5 text-xs leading-relaxed text-muted">{hint}</p>
     </div>
   );
 }

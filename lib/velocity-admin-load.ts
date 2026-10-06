@@ -133,6 +133,8 @@ export type AdminPitchAnalysis = {
   shakePx: number | null;
   /** 잰 순간의 스트라이크 존(장면 비율) — 영상에 겹쳐 그린다. 옛 공은 null */
   zoneRect: { x: number; y: number; w: number; h: number } | null;
+  /** 모델 2.0(거리 자)으로 잰 공의 넣은 거리(m) — 다시 잴 때 같은 거리로. 1.x 공은 null */
+  distanceM: number | null;
 };
 
 export type AdminPitchRow = {
@@ -534,6 +536,10 @@ function pickAnalysis(raw: unknown): AdminPitchAnalysis | null {
     focalPx: numOrNull(a.focalPx),
     shakePx: numOrNull(a.shakePx),
     zoneRect: zoneRectOf(a.zoneRect),
+    distanceM:
+      a.distance && typeof a.distance === 'object' && !Array.isArray(a.distance)
+        ? numOrNull((a.distance as Record<string, unknown>).distanceM)
+        : null,
   };
 }
 

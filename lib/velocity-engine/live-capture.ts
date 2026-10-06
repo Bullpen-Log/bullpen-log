@@ -4,6 +4,7 @@ import { analyzeScale, type Approach } from './analyze-frames.ts';
 import {
   analyzeJob,
   DEFAULT_METER_CONFIG,
+  DISTANCE_METER_CONFIG,
   isCroppedAspect,
   LIVE_GOOD_FPS,
   liveFocalPx,
@@ -497,6 +498,26 @@ export class LiveCapture {
   }
 
   /**
+   * 엔진 2.0 의 거리 자(m) · 카메라 숙임(라디안) — 거리를 넣으면 거리로 잰다(analyze-distance.ts). 켜기 전에 넣으면 카메라에 줌
+   * 2배를 청한다(엔진 2.0 을 맞춘 영상이 2배 — 먼 공이 1배의 두 배 크기라 끝까지 잇는다).
+   */
+  private distanceM: number | null = null;
+  private tiltRad: number | null = null;
+  setDistance(distanceM: number | null, tiltRad: number | null = this.tiltRad) {
+    const modeChanged = !!distanceM !== !!this.distanceM;
+    this.distanceM = distanceM && distanceM > 0 ? distanceM : null;
+    this.tiltRad = tiltRad;
+    this.sendSettings({ distanceM: this.distanceM, tiltRad: this.tiltRad });
+    if (modeChanged) this.meter?.setDistanceMode(!!this.distanceM);
+  }
+  /** 숙임만 — 폰 기울기 센서가 바뀔 때마다(1° 단위) */
+  setTilt(tiltRad: number | null) {
+    if (tiltRad === this.tiltRad) return;
+    this.tiltRad = tiltRad;
+    this.sendSettings({ tiltRad });
+  }
+
+  /**
    * 지금 화면 한 장(분석 해상도 밝기) — 렌즈 보정이 공 크기를 잴 때. 부를 때마다 화면(video)을 캔버스에 그려 읽는다
    * (장면은 워커에 있어 화면 스레드는 쥐고 있지 않다). 새 버퍼라 같은 장면인지는 부르는 쪽이 지문으로 본다.
    */
@@ -580,6 +601,8 @@ export class LiveCapture {
       releaseDistanceM: this.releaseDistanceM,
       zoom: this.zoom,
       manual: this.manual,
+      distanceM: this.distanceM,
+      tiltRad: this.tiltRad,
     };
   }
 
@@ -607,6 +630,8 @@ export class LiveCapture {
       cropped: this.cropped,
       zoom: this.zoom,
       hdr: false,
+      distanceM: this.distanceM,
+      tiltRad: this.tiltRad,
     };
   }
 
@@ -797,7 +822,9 @@ export class LiveCapture {
       const caps = track?.getCapabilities?.() as
         (MediaTrackCapabilities & { zoom?: { min: number; max: number } }) | undefined;
       if (caps?.zoom) {
-        const z1 = Math.min(caps.zoom.max, Math.max(caps.zoom.min, 1));
+        /* 거리 측정(엔진 2.0)은 2배 — 먼 공이 커서 그물 · 미트까지 잇는다. 줌을 모르는 브라우저(아이폰 웹뷰)는 1배 그대로 */
+        const want = this.distanceM && this.approach === 'receding' ? 2 : 1;
+        const z1 = Math.min(caps.zoom.max, Math.max(caps.zoom.min, want));
         await track
           .applyConstraints({ advanced: [{ zoom: z1 } as MediaTrackConstraintSet] })
           .catch(() => undefined);
@@ -934,6 +961,7 @@ export class LiveCapture {
       this.pipeline = 'main';
       this.meter = new LiveMeter(this.width, this.height, this.approach, {
         focalPx: this.meterFocalPx(),
+        ...(this.distanceM ? DISTANCE_METER_CONFIG : {}),
       });
       this.startFrameLoop();
     }
@@ -1316,6 +1344,7 @@ export class LiveCapture {
       if (this.meter) {
         this.meter = new LiveMeter(this.width, this.height, this.approach, {
           focalPx: this.meterFocalPx(),
+          ...(this.distanceM ? DISTANCE_METER_CONFIG : {}),
         });
         if (this.armed) this.apply(this.meter.arm());
       }

@@ -7,8 +7,7 @@ import { PITCH_TYPES, pitchTypeLabel, summarize, zoneLabel } from '@/lib/velocit
 import { Panel, SectionLabel, StatRow } from './kit';
 import { ZoneGrid } from './pitch-editor';
 import { PrimaryButton } from './setup-steps';
-import { SpinAxisGraphic } from './spin-axis';
-import type { SessionPitch, ThrowingHand } from './session-types';
+import type { SessionPitch } from './session-types';
 
 /**
  * 세션 요약 — 가운데 아래 '세션 종료'를 누르면 카메라 대신 폰 틀 안을 채운다.
@@ -23,7 +22,6 @@ import type { SessionPitch, ThrowingHand } from './session-types';
 export function SessionSummary({
   pitches,
   unit,
-  hand,
   date,
   setupText,
   calibrationText,
@@ -37,7 +35,6 @@ export function SessionSummary({
   /** 이미 seq 차례 */
   pitches: SessionPitch[];
   unit: SpeedUnit;
-  hand: ThrowingHand;
   /** YYYY-MM-DD */
   date: string;
   /** '투구 · 투수 뒤 · 네트 있음' */
@@ -111,13 +108,6 @@ export function SessionSummary({
                         key={g.key ?? 'none'}
                         className="flex min-h-14 items-center gap-3 px-4 py-2"
                       >
-                        <SpinAxisGraphic
-                          pitchType={g.key}
-                          hand={hand}
-                          size={40}
-                          tone="light"
-                          showLabel={false}
-                        />
                         <span className="min-w-0 flex-1">
                           <span className="block truncate text-sm font-semibold">
                             {pitchTypeLabel(g.key) ?? (

@@ -41,6 +41,12 @@ export type VelocitySetup = {
    * 정규 마운드(18.44m)에서 릴리스가 판보다 약 1.8m 앞, 카메라가 홈플레이트 뒤 약 1.8m 면 ≈ 18.5m.
    */
   releaseDistM: number;
+  /**
+   * 투수 뒤에서 찍을 때, 카메라에서 공이 닿는 곳(그물 · 포수 미트)까지의 거리(m) — 엔진 2.0 의 거리 자. 공이 여기 닿은 때의
+   * 깊이를 이 값으로 두고 구속을 낸다(lib/velocity-engine/analyze-distance.ts) — 5% 틀리면 구속도 5% 틀리니 줄자로 재 넣는다.
+   * 정규 마운드(18.44m)에서 폰을 투수판 1m 뒤에 두면 약 19.5m.
+   */
+  targetDistM: number;
   /** 자동 측정 — 켜 두면 공마다 알아서 잡는다. 끄면 공마다 단추를 눌러 기다린다 */
   autoMode: boolean;
   /**
@@ -75,12 +81,15 @@ export type VelocitySetup = {
 
 export const RELEASE_DIST_MIN = 3;
 export const RELEASE_DIST_MAX = 40;
+/** 투수 뒤 거리(카메라 → 그물 · 미트)의 범위 — 마당 그물 5m 부터 외야 송구 40m 까지 */
+export const TARGET_DIST_MIN = 5;
+export const TARGET_DIST_MAX = 40;
 
 export const CAMERA_OPTIONS: { key: CameraPos; label: string; hint: string }[] = [
   {
     key: 'behind-pitcher',
     label: '투수 뒤',
-    hint: '1m 이내 · 공이 멀어져요 · 릴리스 포인트까지 잡혀요',
+    hint: '1m 이내 · 공이 멀어져요 · 그물까지 거리를 넣어요',
   },
   {
     key: 'behind-catcher',
@@ -190,6 +199,7 @@ export const DEFAULT_SETUP: Omit<VelocitySetup, 'savedAt'> = {
   voice: false,
   useCal: true,
   releaseDistM: 18.5,
+  targetDistM: 20,
   autoMode: true,
   calibSave: false,
   clipZone: true,
@@ -234,6 +244,12 @@ export function loadSetup(): VelocitySetup | null {
         p.releaseDistM <= RELEASE_DIST_MAX
           ? p.releaseDistM
           : DEFAULT_SETUP.releaseDistM,
+      targetDistM:
+        typeof p.targetDistM === 'number' &&
+        p.targetDistM >= TARGET_DIST_MIN &&
+        p.targetDistM <= TARGET_DIST_MAX
+          ? p.targetDistM
+          : DEFAULT_SETUP.targetDistM,
       autoMode: p.autoMode !== false,
       calibSave: p.calibSave === true,
       clipZone: p.clipZone !== false,
@@ -267,6 +283,13 @@ export function clearSetup() {
     /* 위와 같다 */
   }
   window.dispatchEvent(new Event(SETUP_CHANGE_EVENT));
+}
+
+/**
+ * 엔진 2.0 의 거리 자(m) — 투수 뒤는 카메라 → 그물 · 미트(targetDistM), 포수 뒤는 카메라 → 릴리스(releaseDistM).
+ */
+export function distanceOf(setup: Pick<VelocitySetup, 'cameraPos' | 'targetDistM' | 'releaseDistM'>): number {
+  return setup.cameraPos === 'behind-pitcher' ? setup.targetDistM : setup.releaseDistM;
 }
 
 /**

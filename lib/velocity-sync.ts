@@ -160,6 +160,29 @@ function sanitizeLive(raw: unknown): Record<string, unknown> | null {
  * 엔진이 본 자료(분석 JSON)를 저장할 모양으로 다듬는다 — 숫자만, 궤적은 200점까지.
  * 브라우저가 보낸 것을 그대로 믿지 않는다.
  */
+/** 모델 2.0 의 거리 자 기록 — 숫자 · 정해진 낱말만 */
+function sanitizeDistance(raw: unknown): Record<string, unknown> | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const d = raw as Record<string, unknown>;
+  const n = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) ? v : null);
+  const distanceM = n(d.distanceM);
+  if (distanceM == null || distanceM <= 0 || distanceM > 100) return null;
+  return {
+    method: 'distance',
+    distanceM,
+    tiltRad: n(d.tiltRad),
+    impact: d.impact === 'rebound' ? 'rebound' : 'end',
+    te: n(d.te),
+    flightFrames: n(d.flightFrames),
+    extended: n(d.extended),
+    rmsPx: n(d.rmsPx),
+    kmh3d: n(d.kmh3d),
+    kmhHorizontal: n(d.kmhHorizontal),
+    firstDepthM: n(d.firstDepthM),
+    launchDeg: n(d.launchDeg),
+  };
+}
+
 export function sanitizeAnalysis(raw: unknown): Record<string, unknown> | null {
   if (!raw || typeof raw !== 'object') return null;
   const a = raw as Record<string, unknown>;
@@ -184,7 +207,9 @@ export function sanitizeAnalysis(raw: unknown): Record<string, unknown> | null {
         .filter((p): p is number[] => !!p)
     : [];
   const out: Record<string, unknown> = {
-    v: a.v === 2 ? 2 : 1,
+    v: a.v === 3 ? 3 : a.v === 2 ? 2 : 1,
+    /* v3(모델 2.0) — 거리 자로 잰 것(lib/velocity-analysis.ts distance) */
+    distance: sanitizeDistance(a.distance),
     /* v2(모델 1.6.0) — 어느 자로 쟀나 · 흐림 · SE(lib/velocity-analysis.ts) */
     ruler: a.ruler === 'limb' || a.ruler === 'area' ? a.ruler : null,
     /* 밝은 배경 앞의 어두운 공(두 번째 길)으로 잰 공 — 자가 달라 보정 짝에 섞지 않으려고(lib/velocity-analysis.ts) */
