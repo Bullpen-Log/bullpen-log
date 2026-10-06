@@ -1013,7 +1013,11 @@ export function VelocityScreen({
     attachWideClipRef.current = attachWideClipToPitch;
   });
 
-  /* 세션 — 시작하면 카메라를 숨기고 알아서 잡는다(수동이면 공마다 단추). 종료하면 저장 시트 */
+  /*
+   * 세션 — 시작해도 카메라를 계속 보이고 알아서 잡는다(수동이면 공마다 단추). 정보 판(구속 · 목록)은 왼쪽 위 '측정 화면'으로
+   * 올린다. 예전에는 시작하면 판이 올라와 카메라를 덮어, 공이 화면에 잘 들어오는지 보려면 '카메라'를 다시 눌러야 했다(사용자
+   * 2026-10-07: "측정 시작을 누르면 바로 카메라가 계속 보이게"). 잰 값은 뷰파인더 아래에 뜬다. 종료하면 저장 시트
+   */
   const startSession = () => {
     const capture = captureRef.current;
     if (!capture) return;
@@ -1021,10 +1025,10 @@ export function VelocityScreen({
     setError(null);
     setLast(null);
     setSaved(false);
-    setShowCamera(false);
+    setShowCamera(true);
     capture.setManual(!autoMode);
     setLive(true);
-    /* 판이 올라오는 첫 장면을 먼저 그린다 — 누른 순간에 대기 · 음성까지 하면 올라오기의 앞 장면들이 빠졌다 */
+    /* 그리기를 먼저 마친 뒤 기다린다 — 누른 순간에 대기 · 음성까지 하면 첫 장면들이 늦었다 */
     requestAnimationFrame(() => {
       capture.arm();
       speak(
