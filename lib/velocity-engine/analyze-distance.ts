@@ -13,7 +13,7 @@
  * 보정(×a+b)이 메운다.
  */
 import type { AnalyzeResult, CapturedFrame, Approach } from './analyze-frames.ts';
-import type { BallObservation } from './geometry.ts';
+import { BALL_DIAMETER_M, type BallObservation } from './geometry.ts';
 import { reject, MAX_CAMERA_SHAKE_PX, MIN_PLAUSIBLE_KMH, MAX_PLAUSIBLE_KMH, type Confidence } from './validate.ts';
 import { fitTrajectory, speedWithSe, trajectoryState, type PinholeCamera, type TrajectoryFit } from './trajectory-fit.ts';
 import {
@@ -78,6 +78,9 @@ export type DistanceReport = {
   firstDepthM: number | null;
   /** 위로 던진 각(°) */
   launchDeg: number | null;
+  /** 카메라 흔들림(분석 px, 귀퉁이 블록) · 문턱을 넘었나 — 넘어도 문턱 3배 안이면 재고 알린다 */
+  shakePx: number;
+  shaky: boolean;
   /** 씨앗 후보 수 · 고른 씨앗 장면 */
   seeds: number;
   seedFrame: number | null;
@@ -120,27 +123,37 @@ function bestFlight(
   hint: DistanceInput['seedHint']
 ) {
   const s = pixelScale(fs);
-  let seeds: Seed[] = [];
+  let hinted: Seed[] = [];
   if (hint) {
     const near = fs.t.map((t, i) => [t, i] as const).filter(([t]) => Math.abs(t - hint.t) <= 0.1);
-    if (near.length) seeds = findSeeds(fs, bg, near[0][1], near[near.length - 1][1]);
+    if (near.length) hinted = findSeeds(fs, bg, near[0][1], near[near.length - 1][1]);
   }
-  if (!seeds.length) seeds = findSeeds(fs, bg);
-  let best: { seed: Seed; raw: TrackedBall[]; seg: ReturnType<typeof toPoints>; fit: TrajectoryFit } | null = null;
-  for (const seed of seeds.slice(0, 16)) {
-    const raw = blobTrack(fs, bg, seed);
-    if (raw.length < 8) continue;
-    const inWin = toPoints(raw, s).filter((q) => q.t - raw[0].t <= 1.3);
-    const pre = consistentPrefix(inWin, cam, dt, s, 8, distanceM);
-    if (!pre) continue;
-    const seg = pre.seg;
-    const shrink = seg[0].diam / seg[seg.length - 1].diam;
-    if (!(shrink >= 1.3)) continue;
-    if (!best || seg.length > best.seg.length) best = { seed, raw, seg, fit: pre.fit };
-    /* 충분히 긴 줄이면(0.25초 · 두 배 넘게 작아짐) 더 보지 않는다 — 이른 씨앗이 대개 그 공이다 */
-    if (seg.length * Math.abs(dt) >= 0.25 && shrink >= 1.8) break;
+  /* 닫힌 함수 안에서 바꾸므로 null 로 좁혀지지 않게 단언으로 둔다 */
+  let best = null as { seed: Seed; raw: TrackedBall[]; seg: ReturnType<typeof toPoints>; fit: TrajectoryFit } | null;
+  const tryAll = (list: Seed[]) => {
+    for (const seed of list.slice(0, 16)) {
+      const raw = blobTrack(fs, bg, seed);
+      if (raw.length < 8) continue;
+      const inWin = toPoints(raw, s).filter((q) => q.t - raw[0].t <= 1.3);
+      const pre = consistentPrefix(inWin, cam, dt, s, 8, distanceM);
+      if (!pre) continue;
+      const seg = pre.seg;
+      const shrink = seg[0].diam / seg[seg.length - 1].diam;
+      if (!(shrink >= 1.3)) continue;
+      if (!best || seg.length > best.seg.length) best = { seed, raw, seg, fit: pre.fit };
+      /* 충분히 긴 줄이면(0.25초 · 두 배 넘게 작아짐) 더 보지 않는다 — 이른 씨앗이 대개 그 공이다 */
+      if (seg.length * Math.abs(dt) >= 0.25 && shrink >= 1.8) break;
+    }
+  };
+  tryAll(hinted);
+  let count = hinted.length;
+  /* 힌트 둘레 씨앗이 비행이 안 되면 나머지 씨앗도 — 판단이 멀리서야 알아챈 공은 가까운 씨앗이 힌트 앞에 있다(실내 114) */
+  if (!best) {
+    const rest = findSeeds(fs, bg).filter((q) => !hinted.some((h) => h.i === q.i));
+    count += rest.length;
+    tryAll(rest);
   }
-  return { best, seeds: seeds.length };
+  return { best, seeds: count };
 }
 
 /**
@@ -203,6 +216,8 @@ export function analyzeByDistance(input: DistanceInput): DistanceResult {
     kmhHorizontal: null,
     firstDepthM: null,
     launchDeg: null,
+    shakePx: Math.round((input.shakePx ?? 0) * 10) / 10,
+    shaky: false,
     seeds: 0,
     seedFrame: null,
     timingMs: 0,
@@ -232,7 +247,13 @@ export function analyzeByDistance(input: DistanceInput): DistanceResult {
     report.timingMs = Math.round(now() - t0);
     return { ...base, measure: { ok: false, ...reject(code) }, track, distance: report };
   };
-  if ((input.shakePx ?? 0) > MAX_CAMERA_SHAKE_PX * (width / 720)) return fail('CAMERA_SHAKE');
+  /*
+   * 흔들림 — 문턱(1.x 와 같은 6, 분석 720 기준)의 3배를 넘으면 거부, 그 사이는 재고 알린다(사용자 규칙 2026-09-30: 실시간은 막지
+   * 말고 알림). 실내 터널에서는 귀퉁이를 지나는 사람 · 포수 움직임도 문턱을 넘곤 했다(102).
+   */
+  const shakeLimit = MAX_CAMERA_SHAKE_PX * (width / 720);
+  if ((input.shakePx ?? 0) > 3 * shakeLimit) return fail('CAMERA_SHAKE');
+  report.shaky = (input.shakePx ?? 0) > shakeLimit;
   if (frames.length < 10 || !(D > 0)) return fail('NOT_ENOUGH_FRAMES');
 
   /* 다가오는 공(포수 뒤)은 시간을 거꾸로 놓고 같은 길로 찾는다 — 거꾸로 보면 공이 멀어지며 작아진다 */
@@ -253,7 +274,25 @@ export function analyzeByDistance(input: DistanceInput): DistanceResult {
    * 포수 앞)는 놓친 뒤를 잇는다. 맞고 튄 덩어리로 끝을 판정해 건너뛰려 했더니 그물에 파고드는 공 · 덩어리 중심이 흔들리는 공에서
    * 판정이 갈려 오히려 나빴다 — 늘 돌린다.
    */
-  if (approach === 'receding') {
+  /*
+   * 잡힌 공 — 앞부분 끝의 공이 이미 거리 D 의 크기에 가깝고(덩어리 지름은 작은 공에서 20~35% 크게 잰다: 밖 그물 0.95~1.32배, 미트
+   * 1.36배, 흰 천 앞에서 놓친 실내 공 2.0~2.4배) 바로 뒤 덩어리가 공이 갈 자리에서 커지면(미트 · 포수와 합쳐짐) 거기가 끝이다. 이어
+   * 찾기는 미트 속 공을 따라가 끝을 0.1초 늦췄다(실내 102: −24km/h). 흰 천 앞 공은 윗부분이 천에 묻혀 작게 잡혀 D 크기처럼 보이기도
+   * 한다 — 그때 커진 덩어리는 궤적에서 먼 딴 것이었다(실내 098: 34px).
+   */
+  const endO = flight[flight.length - 1];
+  const dAtD = (cam.f * BALL_DIAMETER_M) / D;
+  const near = (o: TrackedBall) => {
+    const p = best.fit.project(o.t);
+    return Math.hypot(p[0] - o.u, p[1] - o.v) <= Math.max(4 * s, 0.5 * endO.diam);
+  };
+  const caught =
+    approach === 'receding' &&
+    endO.diam <= 1.6 * dAtD &&
+    best.raw.some(
+      (o) => o.i > endO.i && o.i <= endO.i + Math.round((2 * fps) / 60) && o.diam >= 1.15 * endO.diam && near(o)
+    );
+  if (approach === 'receding' && !caught) {
     let ext = extendRansac(fsOrdered, flight, cam, fps, { dragScaleM: D });
     /*
      * 놓치기 직전 두 장은 공이 배경 띠 · 천 가장자리에 걸쳐 덩어리 중심이 치우친 때가 있다 — 그 두 점이 늘린 궤적을 비틀어 후보를
@@ -347,10 +386,10 @@ export function analyzeByDistance(input: DistanceInput): DistanceResult {
    */
   const relSe = sw.se != null && sw.speed > 0 ? sw.se / sw.speed : 0.02;
   const teRel = (0.5 * dt * Math.hypot(...fit.velocityAt(te))) / 1;
-  const sigmaRel = Math.hypot(0.02, 0.015, teRel, relSe, extended ? 0.03 : 0, approach === 'approaching' ? 0.05 : 0);
+  const sigmaRel = Math.hypot(0.02, 0.015, teRel, relSe, extended ? 0.03 : 0, approach === 'approaching' ? 0.05 : 0, report.shaky ? 0.03 : 0);
   const errorKmh = 1.645 * sigmaRel * kmh;
   let confidence: Confidence = 'medium';
-  if (approach === 'approaching' || extended > 0 || report.impact === 'end') confidence = 'low';
+  if (approach === 'approaching' || extended > 0 || report.impact === 'end' || report.shaky) confidence = 'low';
   else if (used.length * dt >= 0.4 && fit.rms <= 1.2 * s) confidence = 'high';
   report.timingMs = Math.round(now() - t0);
   const kmhEnd = Math.hypot(...fit.velocityAt(used[used.length - 1].t)) * D * 3.6;

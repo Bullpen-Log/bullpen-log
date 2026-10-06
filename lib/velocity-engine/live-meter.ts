@@ -14,6 +14,7 @@ import {
 } from './analyze-frames.ts';
 import { BALL_DIAMETER_M, focalPxFromFov } from './geometry.ts';
 import { analyzeByDistance, type DistanceResult } from './analyze-distance.ts';
+import { SeedWatch } from './seed-watch.ts';
 import {
   MAX_RELEASE_DISTANCE_M,
   MAX_RELEASE_OFFSET_RATIO,
@@ -1262,19 +1263,27 @@ function cornerMotion(prev: Float64Array, cur: Float64Array): number {
     if (saa > 0) gains.push(sab / saa);
   }
   if (!gains.length) return 0;
-  gains.sort((x, y) => x - y);
-  const m = gains.length;
-  const mid = m % 2 ? gains[m >> 1] : (gains[m / 2 - 1] + gains[m / 2]) / 2;
-  const gain = Math.min(EXPOSURE_GAIN_MAX, Math.max(EXPOSURE_GAIN_MIN, mid));
-  const res: number[] = [];
-  for (let c = 0; c < 4; c++) {
-    let r = 0;
-    for (let i = c * per; i < (c + 1) * per; i++)
-      r += Math.abs(cur[i] - gain * prev[i]);
-    res.push(r / per);
+  const sorted = [...gains].sort((x, y) => x - y);
+  const m = sorted.length;
+  const mid = m % 2 ? sorted[m >> 1] : (sorted[m / 2 - 1] + sorted[m / 2]) / 2;
+  /*
+   * 곱은 가운데 값과 귀퉁이마다의 곱을 다 대 보고 남는 차이가 가장 적은 것으로 — 몸이 두 귀퉁이를 덮으면 가운데 값이 그 귀퉁이 곱에
+   * 끌려 깨끗한 귀퉁이에도 차이가 남았다(실내 111: 아래 두 귀퉁이를 투수가 덮자 위 둘이 7 → '움직임'으로 배경을 버리고 0.5초 동안
+   * 공을 못 봤다). 카메라가 밀린 것은 무늬가 옮겨 가 어느 곱으로도 셋 넘는 귀퉁이에 차이가 남는다.
+   */
+  let best = Infinity;
+  for (const g of [mid, ...gains]) {
+    const gain = Math.min(EXPOSURE_GAIN_MAX, Math.max(EXPOSURE_GAIN_MIN, g));
+    const res: number[] = [];
+    for (let c = 0; c < 4; c++) {
+      let r = 0;
+      for (let i = c * per; i < (c + 1) * per; i++) r += Math.abs(cur[i] - gain * prev[i]);
+      res.push(r / per);
+    }
+    res.sort((x, y) => x - y);
+    best = Math.min(best, res[1]);
   }
-  res.sort((x, y) => x - y);
-  return res[1];
+  return best;
 }
 /** 계산 배경('history')은 첫 공보다 이만큼(초) 앞 장면까지만 — 손에 든 공 · 막 던진 팔이 들지 않게 */
 const HISTORY_BG_GAP_SEC = 0.15;
@@ -1296,6 +1305,8 @@ export class LiveMeter {
   private fpsTick = 0;
   private center = { x0: 0, y0: 0, x1: 0, y1: 0 };
   private watch: BallWatch | null = null;
+  /** 거리 측정(엔진 2.0)의 알아채기 — 반 해상도 전체 화면에서 멀어지며 작아지는 둥근 덩어리(seed-watch.ts) */
+  private seedWatch: SeedWatch | null = null;
   private history: HistoryEntry[] = [];
   private bgBuiltAt = -Infinity;
 
@@ -1349,6 +1360,7 @@ export class LiveMeter {
           : focalPxFromFov(Math.max(width, height), 59.8);
       this.watch = new BallWatch(width, height, focal);
     }
+    if (this.config.distanceMode) this.seedWatch = new SeedWatch(width, height);
   }
 
   /** 공으로 알아채나 — 다가오는 공(포수 뒤)은 실제 영상으로 확인하지 못해 1.6.0 의 'motion' 을 쓴다 */
@@ -1373,6 +1385,8 @@ export class LiveMeter {
     this.config.distanceMode = on;
     this.config.postSec = base.postSec;
     this.config.maxFrames = base.maxFrames;
+    if (on && !this.seedWatch) this.seedWatch = new SeedWatch(this.width, this.height);
+    if (!on) this.seedWatch = null;
   }
 
   /** 가장 최근 장면 — 렌즈 보정이 공 크기를 잴 때 */
@@ -1398,6 +1412,7 @@ export class LiveMeter {
     this.weakFollow = false;
     this.retargets = 0;
     this.watch?.reset();
+    this.seedWatch?.reset();
     this.bgBuiltAt = -Infinity;
   }
 
@@ -1460,6 +1475,9 @@ export class LiveMeter {
     if (manual) {
       this.resetArm();
       this.setStatus('idle', out);
+    } else if (this.seedWatch && this.approach === 'receding') {
+      this.seedWatch.clearFollow();
+      this.setStatus(this.seedWatch.hasBackground() ? 'armed' : 'settling', out);
     } else if (this.byBall) {
       this.watch?.clearFollow();
       this.setStatus(this.watch?.hasBackground() ? 'armed' : 'settling', out);
@@ -1517,12 +1535,24 @@ export class LiveMeter {
     if (moved) {
       this.history = [{ t: frame.t, luma: frame.luma, reg: reg.slice() }];
       watch.reset();
+      this.seedWatch?.reset();
       this.bgBuiltAt = -Infinity;
       this.setStatus('settling', out);
       return;
     }
     if (status === 'capturing') {
       this.captureBall(frame, reg, out);
+      return;
+    }
+    /* 거리 측정(엔진 2.0)은 반 해상도 전체 화면의 씨앗 규칙으로 알아챈다(seed-watch.ts) */
+    if (this.seedWatch) {
+      const seeds = this.seedWatch.step(frame.t, frame.luma);
+      if (!this.seedWatch.hasBackground()) return;
+      if (status === 'settling') this.setStatus('armed', out);
+      if (!seeds || frame.t < this.cooldownUntil) return;
+      this.takeBall(seeds as WatchPoint[], this.ring);
+      this.retargets = 0;
+      this.setStatus('capturing', out);
       return;
     }
     /* 배경(중앙값) — 쌓였으면 만들고, 일정 간격으로 새로 만든다 */
@@ -1576,9 +1606,26 @@ export class LiveMeter {
         MAX_RELEASE_OFFSET_RATIO,
     };
     this.triggerT = first.t;
-    this.captured = frames.filter((f) => f.t >= first.t - this.config.preSec);
+    this.captured = frames.filter((f) => f.t >= first.t - this.preSecFor(watch.k / first.d));
+    /* 거리 측정은 60fps 남짓으로 솎는다(captureBall 과 같게) — 120 · 240fps 고리 버퍼가 담는 칸을 다 먹지 않게 */
+    if (this.config.distanceMode) {
+      const kept: MeterFrame[] = [];
+      for (const f of this.captured) if (!kept.length || f.t - kept[kept.length - 1].t >= 0.85 / 60) kept.push(f);
+      this.captured = kept;
+    }
     this.preBackground = this.pickPreBackground(first.t);
     this.goneAt = null;
+  }
+
+  /**
+   * 공 앞으로 담는 시간. 거리 측정은 판단이 멀리서야 공을 알아챌 때가 있다(실내 114 — 11m 에서 처음 둥글게 보임) — 그만큼 앞에서부터
+   * 담아야 계산이 가까운 공(4m 안쪽)을 찾는다. 느린 공(18m/s)으로 쳐서 거꾸로, 0.6초까지. 가까이서 알아챈 공은 그대로 — 앞을 더
+   * 담으면 계산 배경(담은 구간에서 고르게 뽑음)에 와인드업이 섞여 값이 흔들렸다(되돌려 보기 129 · 실내 086 · 111).
+   */
+  private preSecFor(seedZ: number): number {
+    const pre = this.config.preSec;
+    if (!this.config.distanceMode || !(seedZ > 4)) return pre;
+    return Math.min(0.6, pre + (seedZ - 4) / 18);
   }
 
   private captureBall(frame: MeterFrame, reg: Float32Array, out: MeterEvent[]) {
@@ -1586,6 +1633,11 @@ export class LiveMeter {
     /* 거리 측정은 60fps 남짓이면 된다 — 120 · 240fps 면 솎아 담는다(찾기 · 따라가기는 모든 장면으로 한다) */
     const lastKept = this.captured[this.captured.length - 1];
     if (!this.config.distanceMode || !lastKept || frame.t - lastKept.t >= 0.85 / 60) this.captured.push(frame);
+    /* 거리 측정은 따라가지 않는다 — 장면을 자르지 않고 정한 시간만큼 담는다(그물에 닿고 튄 장면까지) */
+    if (this.config.distanceMode) {
+      if (frame.t - this.triggerT >= this.config.postSec || this.captured.length >= this.config.maxFrames) this.emitJob(out);
+      return;
+    }
     const watch = this.watch!;
     const period = this.period();
     /* 공을 계속 따라가 언제 사라졌는지 안다 — 계산할 장면을 거기서 자른다(emitJob) */
@@ -2053,6 +2105,7 @@ const LIVE_TIMING_SIGMA_MAX = 0.3;
 
 export type LiveNoteCode =
   | 'END_GUESS'
+  | 'SHAKE'
   | 'LOW_FPS'
   | 'TIMING'
   | 'APPROACH'
@@ -2319,6 +2372,12 @@ export function distanceLiveReport(
   const keep = new Set<LiveNoteCode>(['LOW_FPS', 'TIMING', 'APPROACH', 'LOW_RES']);
   const items = preConditions(fps, camera, timing).filter((i) => keep.has(i.code));
   const notes: LiveNote[] = [];
+  if (result?.measure.ok && result.distance.shaky) {
+    notes.push({
+      code: 'SHAKE',
+      text: '찍는 동안 화면이 조금 흔들렸어요. 폰을 단단히 고정하면 더 정확해요.',
+    });
+  }
   if (result?.measure.ok && result.distance.extended > 0) {
     notes.push({
       code: 'END_GUESS',
