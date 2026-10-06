@@ -1054,6 +1054,16 @@ console.log(
     awayStrict != null && !awayStrict.measure.ok && awayStrict.measure.code === 'RELEASE_NOT_CENTERED',
     awayStrict ? (awayStrict.measure.ok ? `값 ${awayStrict.release?.releaseKmh}` : awayStrict.measure.code) : '-'
   );
+  /* 화면이 쓰는 표시(1.9.0): 대비 길 알림 한 줄, 판단이 본 공(strong · offCenter) — 거부를 잡음으로 걸러 버릴지 정한다 */
+  check(
+    "대비 길로 잰 공에는 알림 한 줄(FALLBACK) · 판단이 공답게 따라갔다는 표시(live.ball.strong)",
+    awayRes != null &&
+      awayRes.measure.ok &&
+      awayRes.live.notes.some((n) => n.code === 'FALLBACK') &&
+      awayRes.live.ball?.strong === true &&
+      awayRes.live.ball?.offCenter === true,
+    awayRes ? `알림 ${awayRes.live.notes.map((n) => n.code).join(',')} · ball ${JSON.stringify(awayRes.live.ball ?? null)}` : '-'
+  );
 
   /*
    * 던지기 0.4초 전, 가운데에서 멀어지는 공처럼 작아지다 멈춘 헛것(흰 글러브 조각) — 1.7.0 은 거기서 알아채 0.9초를 담고 1.5초를
