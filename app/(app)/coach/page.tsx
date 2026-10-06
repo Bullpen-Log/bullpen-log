@@ -18,6 +18,10 @@ import { AnalysisBody } from './analysis-body';
  *
  * 주소: ?view=report|pitch|training(처음 펼 칸 — 없으면 투구. 리포트는 AI 를 꺼 둔 동안 '멈췄어요'라 첫 칸으로 두지
  * 않는다), ?date=YYYY-MM-DD(그날 분석 — 홈 그날 칸의 '그날 분석'). 예전 홈 주소(/today?analysis=…)도 여기로 온다.
+ *
+ * 한 번에 다 그려 보낸다(2026-10-06 "화면 전환 중 로딩 화면이 깨진다"). 예전에는 화면 뼈대 → 제목 + 분석 뼈대 →
+ * 분석 칸이 뜬 뒤 따로 받아 온 내용으로 세 번 바뀌었다. 이제 기다리는 동안은 같은 모양의 loading.tsx 하나, 다 오면
+ * 처음 펼 칸까지 함께 바뀐다.
  */
 export default async function CoachPage({
   searchParams,
@@ -26,45 +30,43 @@ export default async function CoachPage({
 }) {
   const params = await searchParams;
   const view = readCoachView(params.view);
-  const date = readDateParam(params.date);
+  const user = await requireUser();
+  const today = toDateKey(new Date());
+  const date = readDateParam(params.date) ?? today;
+  const h = await loadPitchHistory(user);
+
+  /* 오늘 리포트 칸 — 리포트 칸을 오늘로 열면 처음 내용이 이것이라 기다려 함께 그리고, 아니면 따로 흘려보낸다 */
+  const report = <AnalysisView user={user} date={today} today={today} tab="report" />;
+  const opensReport = view === 'report' && date === today;
 
   return (
     <div className="stack-page">
       <BackLink href="/today">홈</BackLink>
       <PageHeading title="분석 · 그래프" />
-      <Suspense fallback={<AnalysisSkeleton />}>
-        <AnalysisSection view={view} date={date} />
-      </Suspense>
+      <AnalysisBody
+        today={today}
+        initialDate={date}
+        initialTab={view}
+        /* 오늘 리포트로 열면 아래 todayReport 가 같은 것이라 두 번 그리지 않는다 */
+        initialView={
+          opensReport ? null : (
+            <AnalysisView user={user} date={date} today={today} tab={view} />
+          )
+        }
+        todayReport={
+          opensReport ? (
+            report
+          ) : (
+            <Suspense fallback={<AnalysisSkeleton />}>{report}</Suspense>
+          )
+        }
+        earliest={`${h.loadedFrom}-01`}
+        logs={h.logs}
+        trainingByDay={h.training}
+        nutritionByDay={h.nutritionByDay}
+        checkinByDay={h.checkinByDay}
+        weightByDay={h.weightByDay}
+      />
     </div>
-  );
-}
-
-async function AnalysisSection({
-  view,
-  date,
-}: {
-  view: ReturnType<typeof readCoachView>;
-  date: string | null;
-}) {
-  const user = await requireUser();
-  const today = toDateKey(new Date());
-  const h = await loadPitchHistory(user);
-  return (
-    <AnalysisBody
-      today={today}
-      initialDate={date ?? today}
-      initialTab={view}
-      todayReport={
-        <Suspense fallback={<AnalysisSkeleton />}>
-          <AnalysisView user={user} date={today} today={today} tab="report" />
-        </Suspense>
-      }
-      earliest={`${h.loadedFrom}-01`}
-      logs={h.logs}
-      trainingByDay={h.training}
-      nutritionByDay={h.nutritionByDay}
-      checkinByDay={h.checkinByDay}
-      weightByDay={h.weightByDay}
-    />
   );
 }

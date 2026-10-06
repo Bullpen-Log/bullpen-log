@@ -1,4 +1,3 @@
-import { ViewTransition } from 'react';
 import { headers } from 'next/headers';
 import { requireUser } from '@/lib/dal';
 import { isNativeUserAgent } from '@/lib/app-env';
@@ -20,7 +19,7 @@ import {
 } from '@/lib/checkin';
 import { visibleExercises } from '@/lib/library-cache';
 import { availableParts } from '@/lib/report/today-pick';
-import { OPEN_POPUP, QUIET_REFRESH } from '@/lib/transition-types';
+import { MainTransition } from '@/components/main-transition';
 import { SiteFooter } from '@/components/site-footer';
 import { PullToRefresh } from '@/components/pull-to-refresh';
 
@@ -240,15 +239,8 @@ export default async function AppLayout({
            * 받을 뿐인데 본문 전체가 페이드해, 알림(종)을 누를 때마다 깜빡였다. 표시가
            * 없는 전환(탭 이동)은 default 로 예전처럼 페이드한다.
            */}
-          <ViewTransition
-            name="app-main"
-            share="page"
-            enter="page"
-            exit="page"
-            update={{ [QUIET_REFRESH]: 'none', [OPEN_POPUP]: 'none', default: 'auto' }}
-          >
-            {children}
-          </ViewTransition>
+          {/* 전환 이벤트(밀기 표시 걷기)는 함수라 화면 쪽 부품으로 옮겼다(components/main-transition.tsx) */}
+          <MainTransition>{children}</MainTransition>
         </main>
 
         <SiteFooter tabBar />

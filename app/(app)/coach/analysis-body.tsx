@@ -19,6 +19,7 @@ export function AnalysisBody({
   today,
   initialDate,
   initialTab,
+  initialView,
   todayReport,
   earliest,
   logs,
@@ -30,6 +31,8 @@ export function AnalysisBody({
   today: string;
   initialDate: string;
   initialTab: AnalysisTab;
+  /** 처음 펼 날 · 칸의 내용 — 서버가 함께 그려 보낸다(뜬 뒤에 따로 받아 오지 않게, analysis-block.tsx) */
+  initialView: ReactNode;
   /** 오늘의 리포트 칸 — 서버가 함께 그려 보낸다(analysis-block.tsx) */
   todayReport: ReactNode;
   earliest: string;
@@ -58,6 +61,7 @@ export function AnalysisBody({
         today={today}
         initialTab={initialTab}
         todayReport={todayReport}
+        initialView={{ date: initialDate, tab: initialTab, node: initialView }}
         onJump={setDate}
       />
       <HomeTrends
