@@ -193,7 +193,7 @@ function trimSlots(
     trimmed = 'snack';
   }
   const meals = out.filter(isMeal);
-  if (meals.length > 1 && kcal < ONE_MEAL_KCAL) {
+  if (afterEating && meals.length > 1 && kcal < ONE_MEAL_KCAL) {
     const keep = meals.reduce((a, b) => (b[1] >= a[1] ? b : a));
     out = [keep];
     trimmed = 'one';
@@ -273,14 +273,20 @@ function prepare(template: MealTemplate, input: PlanInput): Prepared | null {
         it.role === 'protein'
           ? (it.food.protein ?? 0) / Math.max(1, sub.protein ?? 0)
           : it.food.kcal / Math.max(1, sub.kcal);
-      /* 그 음식의 단위로 — 찐만두 1인분을 달걀 2.06개로 두면 '가장 적은 양'이 2개로 올림돼 줄일 수 없었다 */
+      /*
+       * 그 음식의 단위로 — 찐만두 1인분을 달걀 2.06개로 두면 '가장 적은 양'이 2개로 올림돼 줄일 수 없었다. 한 끼 상한까지만 —
+       * 쉐이크(단백질 24g)를 우유(6.5g)로 바꾸면 3.5컵이 되고, 그 반이 하한이 되어 묶음 상한(우유류 2컵)을 넘겼다.
+       */
       const step = amountStep(subId!);
       items.push({
         food: sub,
         amount:
           it.role === 'side'
             ? 1
-            : Math.max(step, Math.round((it.amount * by) / step) * step),
+            : Math.min(
+                MAX_PER_MEAL[subId!] ?? Infinity,
+                Math.max(step, Math.round((it.amount * by) / step) * step)
+              ),
         role: it.role,
       });
     } else if (it.role !== 'side') {
@@ -978,7 +984,13 @@ function planDay(
     }
     const dropped = shares.trimmed;
     if (dropped === 'one') reasons.push('남은 양이 적어 한 끼로 짰어요.');
-    if (dropped === 'snack') reasons.push('남은 양이 적어 간식은 빼고 짰어요.');
+    /* 3+2 에서 하나만 뺐거나 간식만 남아 하나를 두었으면 '빼고'가 아니다 */
+    if (dropped === 'snack')
+      reasons.push(
+        shares.some(([s]) => s === 'snack')
+          ? '남은 양에 맞춰 간식을 하나로 줄였어요.'
+          : '남은 양이 적어 간식은 빼고 짰어요.'
+      );
   }
   if (shares.length === 0 || left.kcal < 150) {
     return {
@@ -1147,13 +1159,26 @@ function planDay(
       .filter((l) => l.role === 'protein' && leanness(l.food) >= LEAN_FOOD)
       .sort((x, y) => leanness(y.food) - leanness(x.food))
       .find((l) => nudge(l, 1));
-    if (
-      !grown &&
-      !boostOrder.some(
-        (x) => canBoost(x) && leanness(basicFood(x)!) >= LEAN_FOOD && addBoost(x)
-      )
-    )
-      return false;
+    if (!grown) {
+      /*
+       * 기름진 줄들이 하한까지 내려가며 내줄 수 있는 단백질(g)만큼만, 그만큼을 가장 적은 kcal 로 채우는 것부터 — 닭가슴살 팩
+       * 하나를 통째로 얹으면 세 끼 먹고 156kcal 남은 날이 198kcal(+27%) 이 됐다.
+       */
+      const give = Math.max(
+        1,
+        all()
+          .filter((l) => l.role === 'protein' && leanness(l.food) < FATTY_FOOD)
+          .reduce(
+            (a, l) => a + Math.max(0, l.amount - limits(l).min) * (l.food.protein ?? 0),
+            0
+          )
+      );
+      const kcalOf = (x: string) => sizeFor(x, give) * basicFood(x)!.kcal;
+      const lean = boostOrder
+        .filter((x) => canBoost(x) && leanness(basicFood(x)!) >= LEAN_FOOD)
+        .sort((a, b) => kcalOf(a) - kcalOf(b));
+      if (!lean.some((x) => addBoost(x, give))) return false;
+    }
     const fatty = all()
       .filter(
         (l) => l.role === 'protein' && l.amount > 0 && leanness(l.food) < FATTY_FOOD
@@ -1210,8 +1235,9 @@ function planDay(
         });
       if (grow) continue;
       /*
-       * 모자란 만큼만 더한다. 빠듯한 날은 모자란 만큼을 가장 적은 kcal 로 채우는 것부터 — 남은 저녁 하나에 단백질 6g 이
-       * 모자라 닭가슴살 팩(115kcal)을 통째로 얹으면 +12% 였다.
+       * 모자란 만큼만 더한다(한 단위까지). 빠듯한 날은 그 양의 kcal 이 적은 것부터 — 남은 저녁 하나에 단백질 6g 이 모자라
+       * 닭가슴살 팩(115kcal)을 통째로 얹으면 +12% 였다. 모자란 양이 한 단위를 넘으면 다 덮는 것(닭가슴살 0.5)보다 한 단위가
+       * 싼 것(달걀 1)이 앞설 수 있다 — 닭가슴살을 먼저 키우면 한 끼에 몰려 그대로 둔다.
        */
       const need = left.protein * proteinFloor - t.protein;
       const kcalFor = (x: string) => sizeFor(x, need) * basicFood(x)!.kcal;
@@ -1311,6 +1337,18 @@ function planDay(
     break;
   }
 
+  /*
+   * 못 먹는 것이 많아 단백질 재료가 모두 상한에 닿았으면(소 · 닭 · 유제품을 못 먹고 211g) 묶은 목표가 아니라 실제로 넣은 양을
+   * 말한다 — '211g 까지 넣었어요' 라면서 164g 이었다.
+   */
+  const got = totalOf(all()).protein;
+  if (meals.length > 0 && got < left.protein * 0.85) {
+    const line = `단백질은 넣을 수 있는 ${Math.round(got)}g 까지만 넣었어요.`;
+    const i = reasons.findIndex((l) => l.startsWith('단백질은 남은 열량으로'));
+    if (i >= 0) reasons[i] = line;
+    else reasons.push(line);
+  }
+
   /* ── 결과 ── */
   const items: PlanItem[] = [];
   for (const m of meals) {
@@ -1343,6 +1381,13 @@ function planDay(
         (m) =>
           m.slot === 'snack' &&
           m.lines.some((l) => l.amount > 0 && avoidsOf(l.food.id!).includes('dairy'))
+      ),
+      /* 더운 날 틀의 국 · 과일 · 음료(곁들이)가 kcal 줄이기로 다 빠졌으면 '수분과 나트륨을 챙겼어요' 라고 하지 않게 */
+      meals.some(
+        (m) =>
+          m.template.tags.includes('heat') &&
+          (!m.lines.some((l) => l.role === 'side') ||
+            m.lines.some((l) => l.role === 'side' && l.amount > 0))
       )
     )
   );
@@ -1363,7 +1408,8 @@ function planDay(
 function whyLines(
   input: PlanInput,
   meals: { slot: Slot; template: MealTemplate }[],
-  snackDairy: boolean
+  snackDairy: boolean,
+  heatKept: boolean
 ): string[] {
   const lines: string[] = [];
   const has = (s: Slot) => meals.some((m) => m.slot === s);
@@ -1412,7 +1458,7 @@ function whyLines(
       `근육통이 많은 날이라 간식에 ${snackDairy ? '유제품 ' : ''}단백질을 한 번 더 넣었어요.`
     );
   }
-  if (input.hot && meals.some((m) => m.template.tags.includes('heat')))
+  if (input.hot && heatKept)
     lines.push('더운 날 야외라 국 · 과일 · 음료로 수분과 나트륨을 챙겼어요.');
   if (input.place === 'gym' && (has('lunch') || has('snack')))
     lines.push('헬스장에서 먹을 점심 · 간식은 바로 먹는 것으로 골랐어요.');
