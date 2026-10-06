@@ -18,6 +18,9 @@ export function isRatedSession(sessionType: string) {
 export const SATISFACTION_MIN = 1;
 export const SATISFACTION_MAX = 5;
 
+/** 이 점수부터 '잘 던진 날' — 그날 메모를 다음 투구 전에 다시 보여 준다(today/good-day-note.tsx) */
+export const GOOD_DAY_MIN = 4;
+
 /** 양 끝의 뜻 — 칸 밑에 작게 적는다 */
 export const SATISFACTION_ENDS = { low: '아쉬움', high: '만족' } as const;
 

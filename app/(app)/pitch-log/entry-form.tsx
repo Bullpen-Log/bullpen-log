@@ -12,6 +12,7 @@ import { makePitchThumb } from '@/lib/pitch-thumbs';
 import { dateKeyLabel } from '@/lib/pitch-stats';
 import { DEFAULT_SESSION_TYPE, SESSION_TYPES, isRestSession } from '@/lib/session-type';
 import {
+  GOOD_DAY_MIN,
   PITCH_CUES,
   SATISFACTION_ENDS,
   SATISFACTION_OPTIONS,
@@ -579,7 +580,14 @@ export function EntryForm({
             />
           )}
 
-          <Field label={resting ? '메모' : '특이사항 · 느낀점'}>
+          <Field
+            label={resting ? '메모' : '특이사항 · 느낀점'}
+            hint={
+              rated && Number(form.satisfaction) >= GOOD_DAY_MIN && !form.memo.trim()
+                ? '잘 던진 날 남긴 메모는 다음에 던지는 날 홈에 다시 띄워 드려요.'
+                : undefined
+            }
+          >
             <Textarea
               rows={4}
               value={form.memo}

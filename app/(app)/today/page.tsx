@@ -18,11 +18,15 @@ import {
   type PitchPlan,
 } from '@/lib/report/plan';
 import { buildHighlights } from '@/lib/report/highlights';
-import { RATED_SESSION_TYPES } from '@/lib/pitch-satisfaction';
+import { GOOD_DAY_MIN, RATED_SESSION_TYPES } from '@/lib/pitch-satisfaction';
 import { PitchLogPanel } from './pitch-log-panel';
 import { TodayRings } from './today-rings';
 import { FirstDayCard } from './first-day-card';
 import { RateCard } from './rate-card';
+import { GoodDayNote } from './good-day-note';
+
+/** 오늘 던지는 날이라고 고른 체크인 '던지는 일정'(lib/checkin.ts THROW_PLANS) */
+const PRE_THROW_PLANS: readonly string[] = ['오늘 등판', '오늘 불펜'];
 import { Highlights } from './highlights';
 import { HomeTitleArt } from './home-title';
 import { loadPitchHistory, readDateParam } from './history';
@@ -207,7 +211,7 @@ async function TodayBody({ user, today }: { user: User; today: string }) {
    * 하이라이트 재료 — 모두 하루 한 줄로 가볍게 읽는다. 투구는 6주(구속 선 · 투구 막대), 체크인은 두 달(연속 일수),
    * 운동은 2주(지난주와 견줌).
    */
-  const [core, logs, before, checkins, workouts, lastLog, unrated] = await Promise.all([
+  const [core, logs, before, checkins, workouts, lastLog, unrated, goodDay] = await Promise.all([
     homeCore(user),
     prisma.pitchLog.findMany({
       where: { userId: user.id, date: { gte: dbDate(shiftDateKey(today, -41)) } },
@@ -220,7 +224,7 @@ async function TodayBody({ user, today }: { user: User; today: string }) {
     }),
     prisma.dailyCheckin.findMany({
       where: { userId: user.id, date: { gte: dbDate(shiftDateKey(today, -61)) } },
-      select: { date: true, condition: true },
+      select: { date: true, condition: true, throwPlan: true },
     }),
     prisma.userExerciseLog.findMany({
       where: {
@@ -248,6 +252,17 @@ async function TodayBody({ user, today }: { user: User; today: string }) {
       orderBy: [{ date: 'desc' }, { createdAt: 'desc' }],
       select: { id: true, date: true, sessionType: true },
     }),
+    /* 만족도가 높았던 날의 메모 — 5점 먼저, 같은 점수면 최근 것(good-day-note.tsx) */
+    prisma.pitchLog.findFirst({
+      where: {
+        userId: user.id,
+        sessionType: { in: [...RATED_SESSION_TYPES] },
+        satisfaction: { gte: GOOD_DAY_MIN },
+        memo: { not: null },
+      },
+      orderBy: [{ satisfaction: 'desc' }, { date: 'desc' }, { createdAt: 'desc' }],
+      select: { date: true, sessionType: true, satisfaction: true, memo: true, cuesGood: true },
+    }),
   ]);
   const { facts, plan, picked } = core;
 
@@ -261,6 +276,19 @@ async function TodayBody({ user, today }: { user: User; today: string }) {
     if (l.maxVelocity != null)
       velocityByDay[key] = Math.max(velocityByDay[key] ?? 0, l.maxVelocity);
   }
+  /*
+   * 잘 던진 날 메모는 오늘 던지기 전에만 — 체크인 '던지는 일정'이 오늘 등판 · 오늘 불펜이고 오늘 투구 기록(쉬는 날 포함)이
+   * 아직 없을 때. 기록을 남기면 그날은 거둔다.
+   */
+  const throwsToday = checkins.some(
+    (c) => toDateKey(c.date) === today && PRE_THROW_PLANS.includes(c.throwPlan ?? '')
+  );
+  const loggedToday = logs.some((l) => toDateKey(l.date) === today);
+  const goodNote =
+    goodDay?.memo && goodDay.satisfaction != null && throwsToday && !loggedToday
+      ? { ...goodDay, memo: goodDay.memo, satisfaction: goodDay.satisfaction }
+      : null;
+
   const conditionByDay: Record<string, number> = {};
   for (const c of checkins) {
     if (c.condition != null) conditionByDay[toDateKey(c.date)] = c.condition;
@@ -333,6 +361,16 @@ async function TodayBody({ user, today }: { user: User; today: string }) {
                 ? `만 ${facts.profile.age}세 하루 한도 ${dailyPitchCap(facts.profile.age)}구에서, 처음이라 절반쯤으로 잡았어요.`
                 : '처음이라 낮게 잡았어요. 생년월일을 넣으면 나이에 맞춰요.'
           }
+        />
+      )}
+
+      {goodNote && (
+        <GoodDayNote
+          date={toDateKey(goodNote.date)}
+          sessionType={goodNote.sessionType}
+          satisfaction={goodNote.satisfaction}
+          memo={goodNote.memo}
+          cuesGood={goodNote.cuesGood}
         />
       )}
 
