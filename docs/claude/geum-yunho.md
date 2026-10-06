@@ -265,7 +265,8 @@
      견주고 다시 누르면 다시 켬. 60fps 아래는 막지 않고 주황(칩 · 경고 상자 · 오른쪽 위 알약). 켜 본 화질별 한계는 기기 localStorage
      (`bullpen-velocity-cam-limits`). 보정 짝은 같은 묶음(1.8.)이면 이어짐(`CALIBRATION_FAMILY`). **실제 아이폰 확인은 아직** — 앱은 새로 구워야 Swift 가 들어간다.
   7. 클라우드 식단 정확도 2차 — **끝남(2026-10-06: 클라우드가 main 에 합침 → 메인이 화면 · 코드 검토, 고친 것 6 · 시험 395 → 404 커밋)**.
-     검토 결과와 남은 것(3차 후보 — 가장 큰 것은 '입맛 없는 날 · 밖 · 먹은 뒤' ±10% 밖 26~29%)은 아래 '메인 검토 결과' 줄.
+     검토 결과와 남은 것은 아래 '메인 검토 결과' 줄. **3차는 클라우드에 맡김(2026-10-06 메모 '클라우드 세션 할 일 — 3차')** — 가장 큰 것은
+     '입맛 없는 날 · 밖 · 먹은 뒤' ±10% 밖 26~29%. 클라우드가 올리면 메인이 받아 확인(10~20분).
      (클라우드 1차 검토 결과: 못 먹는 것 새던 6가지는 메인이 고침 — 기대표 · 시험 387.)
   8. **구속 엔진 — 밖 · 그물 앞에서 재지게(대비 길), 가운데 자리 1.9.0.** `docs/velocity/outdoor-2026-10-03.md` 의 처방 다섯:
      ① 지금 길이 거부됐을 때만 닫힘 0 으로 다시(시험판 차이가 그 문서에 있다 · 실내 18개 값 그대로 · 밖 1 → 8) ② 그래도
@@ -291,8 +292,8 @@
        되면 실내 공이 2~3km/h 과보정된다: 실내 18개(2026-09-28)를 먼저 다시 재서 채우거나, 그 둘은 관리자 '보정에서 빼기'를 켠다.
        남은 단계: 6.
 
-- **클라우드 세션 할 일 — 식단 짜기 정확도 2차(2026-10-04, 메인 세션이 맡김).** 사용자가 클라우드 세션을 열어 "메모대로 해 줘"라고
-  하면 이것을 한다. 지난 클라우드 작업(틀 85 → 167 · 시험 382, 커밋 8e1fbd5 · 46cc794 · 96dae5d)을 메인이 세 갈래로 검토했고,
+- **클라우드 식단 짜기 정확도 2차 — 끝남(2026-10-04 맡김 → 10-06 main 합침 · 메인 검토 반영). 지금 클라우드가 할 일은 아래 '3차' 줄.**
+  (아래는 2차 메모 그대로 — 규칙은 3차에도 같다.) 사용자가 클라우드 세션을 열어 "메모대로 해 줘"라고 하면 이것을 했다. 지난 클라우드 작업(틀 85 → 167 · 시험 382, 커밋 8e1fbd5 · 46cc794 · 96dae5d)을 메인이 세 갈래로 검토했고,
   **못 먹는 것이 새던 것은 메인이 고쳤다**(삼계탕 견과 · 돼지국밥 새우젓 · 소면 · 오므라이스 · 두부조림 · 샐러드 드레싱 등 — 시험에
   사람이 적은 '못 먹는 것 기대표'가 생겼다, 시험 387). 남은 것은 계산 정확도 일곱이다.
   - **⚠ 2026-10-06 메인 확인: 지난번 클라우드 작업 결과가 GitHub 에 없다.** 사용자는 "클라우드가 올렸다"고 들었는데 `git ls-remote origin`
@@ -366,6 +367,76 @@
     ⓑ 하루 맞추기가 끼니 몫을 안 봐 아침 140kcal · 저녁 545kcal 같은 쏠림(360판 중 3~6) ⓒ 세 끼 다 먹고 간식만 남으면 1,100kcal 간식 한 칸
     (설계 결정 필요) ⓓ 빠듯한 날 단백질 보충 순서가 한 단위까지의 kcal 로 견주어, 모자람을 못 덮는 달걀이 닭가슴살 0.5 보다 앞선다(결과는
     ±5% 안 — 주석만 고침) ⓔ 끼니 제목이 kcal 줄이기로 0 이 된 곁들이(미역국 · 수박)를 그대로 적는다(이번 변경 전부터).
+
+- **클라우드 세션 할 일 — 식단 짜기 정확도 3차(2026-10-06, 메인 세션이 맡김).** 사용자가 클라우드 세션을 열어 "메모대로 해 줘"라고
+  하면 이것을 한다. 2차(위)를 메인이 검토해 작은 것 여섯은 이미 고쳤다(main 1a57b45 — 시험 404). 남은 것은 설계 손질이 필요한 여섯이다.
+  **읽고 시작하기 전에 메인의 검토 결과 줄(위 '메인 검토 결과')을 먼저 읽는다.**
+  - **시작 전에** `git fetch origin` → 최신 main(1a57b45 또는 그 뒤)에서 `git checkout -b cloud/meal-plan-accuracy-3 origin/main` →
+    `npm install` → `npm run nutrition:test` 가 **404개 통과**하는지 확인(이 PC 22초). 2차에서 push 가 안 된 적이 있으니 **번호 하나를 끝낼
+    때마다** 커밋 → `git push -u origin cloud/meal-plan-accuracy-3` → `git ls-remote origin cloud/meal-plan-accuracy-3` 의 해시가 방금
+    커밋과 같은지 확인. 다르면 멈추고 오류 글을 그대로 사용자에게 보인다(올렸다고 말하지 않는다).
+  - **가지**: `cloud/meal-plan-accuracy-3` 에만 커밋 · push. **main 에는 사용자가 분명히 말할 때만** 합친다.
+  - **고칠 수 있는 파일**: `lib/nutrition/meal-plan.ts` · `lib/nutrition/meal-templates.ts` · `scripts/nutrition-selftest.mts` 만.
+    `CONTAINS`(못 먹는 것 표)에서 꼬리표를 **빼지 않는다** — 더하거나 새 음식을 쓰면 시험의 `EXPECTED_AVOIDS` 도 같이 고친다. 새 화면 글은
+    **줄표 없이, 짧게, 해요체**. 시험 시간은 **30초 안**(격자를 더 늘리면 다른 것을 줄인다).
+  - **할 일**(검토 근거와 재현 입력 그대로 — 입력은 `buildMealPlan` 의 `PlanInput`, 적지 않은 칸은 selftest 의 `base` 와 같다):
+    1. **입맛 없는 날 · 밖(헬스장) · 먹은 뒤가 ±10% 밖 26~29%(가장 큼).** 2차 시험 격자는 입맛 없음이 장소와 같은 홀짝이라 집 · 팀에서만
+       나왔고, 메인이 걸음을 고치자(`appetite: (ai + di) % 2`) 드러났다. 재현: ⓐ `{date:'2026-11-12', seed:'low16', variant:2,
+       targets:{kcal:1250, protein:99}, goal:'lose', prefs:{...DEFAULT_PREFS, mealPattern:'3+1', dietStyle:'mixed', avoid:['dairy']},
+       place:'out', throwKind:'today', appetite:1, eaten:[{meal:'breakfast', kcal:375, protein:20}]}` → 남은 875 에 1,141(+30%): 점심
+       l-udon-gimbap 576 · 저녁 l-seolleong 565. ⓑ 같은 몸 121g, `{date:'2026-11-21', seed:'low664', variant:1, mealPattern:'3+1',
+       dietStyle:'mixed', avoid:['dairy','spicy'], place:'out', throwKind:'after', appetite:1, soreness:5, eaten:[{breakfast 375/24}]}` →
+       875 에 1,143(+31%). ⓒ 먹은 것 없이도: `{date:'2026-11-13', seed:'low904', variant:0, 1250/121, mealPattern:'3+1', dietStyle:'mixed',
+       avoid:['pork','nuts'], place:'out', throwKind:'after', appetite:1, soreness:5}` → 1,250 에 1,596(+28%). ⓓ 1,010kcal 몸:
+       `{date:'2026-03-21', seed:'b6114', variant:5, targets:{kcal:1010, protein:105}, goal:'lose', mealPattern:'2+1', dietStyle:'simple',
+       seasonPhase:'pre', avoid:['spicy'], supplements:false, place:'out', throwKind:'today', appetite:2, eaten:[{meal:'snack', kcal:109,
+       protein:5}]}` → 901 에 1,192(+32%). **원인 셋**: ① `pickTemplate` 의 `near()` 가 RECENT_SLACK(2) 거름을 그날 점수(today)만 보고
+       해서, 입맛 ≤2 의 light 가산 +3 이 light 없는 틀을 위 6개에서 모두 뺀다(몫에 맞는 d-cvs-chicken-salad 같은 것까지) ② 밖의 가벼운
+       틀(l-seolleong 설렁탕 · 쌀밥 · 김치, l-udon-gimbap 우동 · 삼각김밥 · 달걀)은 가장 줄여도 몫(290~350)보다 크다 ③ 설렁탕은 기름진
+       단백질(leanness < LEAN_FOOD)이라 fitMeal 이 단백질 몫을 채우려 1~1.25 로 키운다. **고칠 방향**(검토에서 시험한 것): 던지는 일정
+       꼬리표가 필수인 끼니에서는 slack 거름을 끄기(`if (requiredTag(slot, input) !== null || s.today >= bestToday - RECENT_SLACK)`) —
+       ⓓ 가 1,192 → 973 이 되고 무작위 8,000가지에 회귀가 없었지만 ⓐ~ⓒ 같은 일반 경우는 더 필요하다: 거름을 통과한 틀 가운데 가장 줄여도
+       몫의 1.3배(FLOOR_LIMIT)를 넘는 것은 light 라도 뒤로 보내거나, light 가산을 sizePenalty 와 같은 척도로 두고, 빠듯한(tight) 날은
+       기름진 주재료를 키우지 말고 lean 보충으로. **합격**: selftest '낮은 목표 몸 · 입맛 없는 날 밖 · 헬스장 414가지' 검사가 ±10% 밖
+       1.5% 밑 · 25% 넘게 0 이 되면 그 문턱(지금 15% · 1%, 실측 51 · 3)을 그렇게 조인다. 다른 묶음(둘 넘게 856 · 한 끼 386)과 '실제 앱 목표'
+       864 · 던지는 날 꼬리표 · 묶음 상한은 회귀 0.
+    2. **메모 1번 입력은 아직 간식이 하루의 38%.** `{date:'2026-11-07', seed:'user-a', variant:0, targets:{kcal:1250, protein:99},
+       goal:'lose', prefs:{...DEFAULT_PREFS, mealPattern:'3+2', dietStyle:'simple', avoid:['nuts']}, place:'home'}` → 아침 218 · 점심 345 ·
+       저녁 275 · 간식 둘 510(두유×2 키위×1 / 수박×0.5 요거트×2) 합 1,348(+8%). 원인: 간식 단백질 몫 12.4g(137kcal 의 36%)을 밀도 19% 인
+       두유 · 요거트로 채우려 fitMeal 이 두 배로. 검토에서 시험한 둘은 안 된다 — (a) 간식 단백질 몫을 kcal 의 35%/4 로 묶기는 효과 없음
+       (12.0g), (b) fitMeal 의 단백질 걸음을 칸 kcal 1.5배까지는 이 입력을 고치지만(간식 300 · 합 +1%) 격자 하나가 깨진다(1250/121 없음/3/
+       simple → 1,409). 방향: sizePenalty 의 proteinGap 가중을 간식 칸에서 세게 해 단백질 몫에 두유 · 요거트 틀이 안 뽑히게, 또는 (b)를 넣고
+       하루 맞추기가 끼니 사이로 단백질을 옮기게. **합격**: 이 입력에서 간식 합이 하루의 30% 밑, 저녁이 몫의 0.9배 위, 격자 회귀 0.
+    3. **하루 맞추기가 끼니 몫을 보지 않아 한 끼가 쏠린다.** `{date:'2026-11-13', seed:'g21', targets:{kcal:1250, protein:99}, goal:'lose',
+       prefs:{...DEFAULT_PREFS, mealPattern:'3+2', dietStyle:'mixed', supplements:true}, place:'out', throwKind:'today', appetite:1,
+       soreness:5}` → 아침 b-oat-milk 140(오트밀×0.5 우유×0.5 — 몫 275 의 0.51배) · 점심 288 · 저녁 l-seolleong 545(설렁탕 + 쉐이크
+       1.5 — 몫 312 의 1.75배) · 간식 380, 합 +8%. 늘리기(grow) · 줄이기(trim · side · swapLean 의 기름진 줄 · shrink)가 하루 합만 본다.
+       방향: 끼니 kcal 비율 도우미(`mealRatio`)를 두고 다섯 길 모두에 0.6~1.5배 가드(검토에서 grow · trim · side 셋만 가드하면 1.7배 넘는
+       끼니가 격자 360판에서 6 → 1 이지만 이 입력의 아침은 swapLean · shrink 때문에 그대로 140). **합격**: 360판(낮은 목표 격자 또는 새
+       작은 격자)에서 몫의 0.5배 밑 · 1.7배 위인 끼니 0, 던지는 날 점심이 그날 가장 가벼운 끼니가 아님, 격자 회귀 0.
+    4. **세 끼를 다 먹고 간식만 남으면 남은 양 전부가 간식 한 칸에 쏠린다(1,100kcal · 7가지).** `{date:'2026-07-27', seed:'s11',
+       targets:{kcal:3500, protein:194}, goal:'gain', prefs:{...DEFAULT_PREFS, mealPattern:'3+1', dietStyle:'korean'}, place:'gym',
+       eaten:[{breakfast 572/49}, {lunch 655/49}, {dinner 1135/49}]}` → 간식 한 칸에 감자 2 · 두유 2 · 달걀 · 그릭요거트 · 쉐이크 0.5 ·
+       바나나 2 · 고구마 = 1,108kcal. 옛 코드도 같았다(설계 공백). **사용자 결정이 필요하다 — 먼저 사용자에게 두 길을 보이고 고르게 한다**:
+       ㉠ 남은 칸이 간식만이고 `left.kcal > ONE_MEAL_KCAL`(550) 이면 `pickTemplate` 의 from 을 ['snack', 'dinner'] 로 넓히고 까닭에
+       '세 끼를 다 먹어 남은 양을 간식 한 번에 끼니처럼 짰어요.'(메인 추천) ㉡ 간식 몫을 400kcal 쯤으로 묶고 '간식으로는 다 못 채워요'
+       알림. 사용자가 고르기 전에는 손대지 않는다.
+    5. **빠듯한 날 단백질 보충 순서.** `kcalFor = sizeFor(x, need) * kcal` 에서 sizeFor 가 한 단위로 막혀, 모자란 14.7g 을 못 덮는 달걀
+       1(78kcal)이 덮는 닭가슴살 0.5(83kcal)보다 앞선다. `{date:'2026-11-02', seed:'g1', variant:1, targets:{kcal:1250, protein:99},
+       goal:'lose', prefs:{...DEFAULT_PREFS, mealPattern:'3', dietStyle:'korean', supplements:true}, place:'gym', throwKind:'eve',
+       appetite:1, eaten:[{meal:'breakfast', kcal:313, protein:20}]}`. 고침은 모자란 만큼을 실제로 덮는 양의 kcal 로 견주기
+       (`Math.ceil(need / protein / step) * step * kcal` — 검토: 보충 달걀 60 → 37, 한 끼 남은 날 ±10% 밖 6 → 3)인데 이 입력에서는
+       닭가슴살이 1.75(점심 61g)로 자라 끼니 균형이 나빠지므로 **3번의 끼니 가드와 함께** 넣는다. 메인은 주석만 고쳐 두었다(1213행쯤).
+    6. **끼니 제목이 kcal 줄이기로 0 이 된 곁들이를 그대로 적는다.** `{date:'2026-11-01', seed:'g0', targets:{kcal:1250, protein:99},
+       goal:'lose', prefs:{...DEFAULT_PREFS, mealPattern:'3', dietStyle:'korean'}, place:'home', hot:true, appetite:1, soreness:5}` →
+       점심 l-miyeok-set 이 쌀밥×0.5 계란말이×1.5 돼지 안심×1 인데 제목은 '쌀밥 · 미역국 · 계란말이 · 수박'. `meals[].title` 을 실제 줄
+       (amount > 0)로 만들기 — 화면(plan-parts.tsx)은 건드리지 않는다. 메인이 더운 날 까닭 줄은 이미 곁들이가 남았을 때만 말하게 고쳤다.
+    7. **시험** — 1~3 · 5 · 6 의 재현 입력을 고정 사례로, 1번 합격 뒤 '알려진 구멍' 검사의 문턱을 조인다. 시험 전체 30초 안.
+  - **시험(필수)**: `npm run nutrition:test` 모두 통과 · `npx tsc --noEmit` · 바꾼 파일 `npx eslint`.
+  - **끝내는 법**: 커밋 메시지는 한국어로 사용자가 읽을 말(무엇을 · 왜 · 숫자 전후). 이 줄 밑에 '클라우드 결과(3차):' 한 줄(가지 · GitHub 에서
+    확인한 마지막 커밋 해시 · 시험 결과 · 남은 것)을 같은 가지에 적는다. `.env` 가 없으니 패치노트(`npm run patch:sync`)는 메인이 한다.
+  - **메인(데스크톱)이 받은 뒤 할 일**: `git fetch` → 가지의 '클라우드 결과(3차):' 줄 확인 → `npm run nutrition:test` · `npx tsc --noEmit`
+    → 영양 화면에서 입맛 없음 · 밖 · 먹은 뒤를 직접 보기 → 사용자에게 보고하고 "합쳐줘"라고 하면 main 에 합치고 `npm run patch:sync`.
 
 - **AI — 김민과 회의 전까지 홈 분석 · 영양 사진 멈춤(2026-10-02, 사용자: "우리의 돈과 관련해서 굉장히 중요 — 회의로 정한다").**
   정리 `docs/ai-usage.md`, 스위치 `lib/ai/features.ts` 의 `AI_FEATURES`(homeReport · nutritionPhoto 둘 다 false). 트레이닝
