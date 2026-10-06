@@ -152,6 +152,55 @@ const PATTERN_SHARES: Record<MealPattern, [Slot, number][]> = {
   ],
 };
 
+/** 짤 끼니의 단백질이 kcal 에서 차지할 수 있는 몫의 위 */
+const MAX_PROTEIN_SHARE = 0.35;
+
+/** 몫이 이보다 작은 간식 칸은 빼고, 남은 kcal 이 이보다 작으면 한 끼로 모은다 */
+const MIN_SNACK_KCAL = 120;
+const NO_SNACK_KCAL = 600;
+/** 몫이 이보다 작은 끼니는 간식 틀에서도 고른다 */
+const SMALL_MEAL_KCAL = 400;
+/** 먹은 뒤 끼니 몫이 이보다 작으면 간식을 뺀다 */
+const MIN_MEAL_KCAL = 350;
+const ONE_MEAL_KCAL = 550;
+
+/**
+ * 남은 몫이 작으면 칸을 줄인다 — 간식부터(뒤 간식부터) 빼고, 남은 kcal 이 한 끼 남짓이면 몫이 가장 큰 끼니(같으면 뒤 끼니)
+ * 하나로. 아침 · 점심을 먹은 뒤 남은 250kcal 을 저녁 · 간식 둘에 나누면 칸마다 가장 작은 틀도 몫을 넘어 830kcal 이 됐다.
+ * 먹은 뒤에는 끼니 몫이 작아도(아침을 크게 먹고 남은 687kcal 을 점심 · 저녁 · 간식에 나누면 끼니가 275kcal) 간식부터 뺀다.
+ * 먹은 것이 없는 날은 끼니를 모으지 않는다(1,250kcal 하루의 아침 몫 300kcal 은 작아도 아침이다).
+ */
+function trimSlots(
+  shares: [Slot, number][],
+  kcal: number,
+  afterEating: boolean
+): [Slot, number][] & { trimmed?: 'snack' | 'one' } {
+  const sumOf = (list: [Slot, number][]) => list.reduce((a, [, v]) => a + v, 0);
+  let out = shares;
+  let trimmed: 'snack' | 'one' | undefined;
+  const small = (list: [Slot, number][], slot: Slot, min: number) =>
+    list.some(([s, v]) => s === slot && (kcal * v) / sumOf(list) < min);
+  const isMeal = ([s]: [Slot, number]) => s !== 'snack';
+  /* 끼니가 남아 있으면 작은 간식을 뺀다. 간식만 남았으면 하나는 둔다 */
+  while (
+    out.filter(([s]) => s === 'snack').length > (out.some(isMeal) ? 0 : 1) &&
+    (small(out, 'snack', MIN_SNACK_KCAL) ||
+      kcal < NO_SNACK_KCAL ||
+      (afterEating && out.some(([s]) => s !== 'snack' && small(out, s, MIN_MEAL_KCAL))))
+  ) {
+    const last = out.map(([s]) => s).lastIndexOf('snack');
+    out = out.filter((_, i) => i !== last);
+    trimmed = 'snack';
+  }
+  const meals = out.filter(isMeal);
+  if (meals.length > 1 && kcal < ONE_MEAL_KCAL) {
+    const keep = meals.reduce((a, b) => (b[1] >= a[1] ? b : a));
+    out = [keep];
+    trimmed = 'one';
+  }
+  return Object.assign(out, { trimmed });
+}
+
 function slotShares(input: PlanInput): [Slot, number][] {
   let shares = PATTERN_SHARES[input.prefs.mealPattern].map(
     ([s, v]) => [s, v] as [Slot, number]
@@ -379,6 +428,18 @@ function floorKcal(p: Prepared) {
  */
 const FLOOR_LIMIT = 1.5;
 
+/**
+ * 이 틀을 몫에 맞춰 줄였을 때 모자란 단백질(목표의 85% 까지)을 닭가슴살로 채우면 더해질 kcal — 베이글 · 두유 간식을 남은
+ * 250kcal · 단백질 22g 저녁으로 고르면 닭가슴살 한 팩(115kcal)이 얹혀 375kcal 이 됐다.
+ */
+function topUpKcal(p: Prepared, aim: { kcal: number; protein: number }) {
+  const est = sumMacros(p.items.map((i) => scaleMacros(i.food, i.amount)));
+  const scaled = (est.protein * aim.kcal) / Math.max(1, est.kcal);
+  return Math.max(0, aim.protein * 0.85 - scaled) * 5;
+}
+/** 먹은 뒤 한 끼만 남은 날 — 넘친 것을 다른 끼니에서 덜 수 없어 더 엄격하게 */
+const LAST_FLOOR_LIMIT = 1.1;
+
 function sizePenalty(p: Prepared, kcal: number, protein: number) {
   const est = sumMacros(p.items.map((i) => scaleMacros(i.food, i.amount)));
   const kcalOff = Math.abs(Math.log(Math.max(1, est.kcal) / Math.max(1, kcal)));
@@ -393,12 +454,19 @@ function sizePenalty(p: Prepared, kcal: number, protein: number) {
    * 1,250kcal 하루가 1,670kcal 이 됐다.
    */
   const fatShare = (est.fat * 9) / Math.max(1, est.kcal);
-  const proteinHeavy = (protein * 4) / Math.max(1, kcal) > 0.3;
+  const need = (protein * 4) / Math.max(1, kcal);
+  const proteinHeavy = need > 0.3;
+  /*
+   * 그런 끼니에 단백질이 적은 틀(베이글 · 두유)은 닭가슴살을 얹어야 해서 넘친다 — 먹은 뒤 남은 250kcal 저녁이 375kcal 이 됐다.
+   */
+  const proteinGap = need - (est.protein * 4) / Math.max(1, est.kcal);
   return (
     3 * Math.max(0, kcalOff - 0.3) +
     2 * Math.max(0, proteinOver - 0.4) +
     4 * Math.max(0, floorOver - 0.2) +
-    (proteinHeavy ? 10 * Math.max(0, fatShare - 0.3) : 0)
+    (proteinHeavy
+      ? 10 * Math.max(0, fatShare - 0.3) + 20 * Math.max(0, proteinGap - 0.1)
+      : 0)
   );
 }
 
@@ -423,7 +491,9 @@ function pickTemplate(
   /** 같은 끼니에 이미 담은 음식(간식 둘) — 겹치는 틀은 안 고른다 */
   taken: Set<string>,
   /** 어제 · 그제 고른 틀 — 되도록 피한다 */
-  recent: Set<string>[]
+  recent: Set<string>[],
+  /** 먹은 뒤 남은 것이 한 끼뿐인 날 */
+  small = false
 ): Prepared | null {
   const want = wants(slot, input, snackIndex);
   /* 단백질이 kcal 의 3할을 넘게 차지해야 하는 끼니(감량 · 높은 단백질)는 가벼운 틀로 — 기름진 틀은 단백질을 맞추면 kcal 이 넘친다 */
@@ -432,7 +502,13 @@ function pickTemplate(
     want.steady.dense = (want.steady.dense ?? 0) - 2;
   }
   const place = placeFor(slot, input);
-  const pool = MEAL_TEMPLATES.filter((t) => t.slots.includes(slot))
+  /*
+   * 먹은 뒤 남은 것이 한 끼뿐인 날(저녁만 남았거나 한 끼로 모은 날), 그 몫이 작으면(남은 250kcal 같은) 간식 틀도 — 끼니 틀은
+   * 가장 줄여도 300kcal 을 넘는다. 먹은 것이 없는 날은 몫이 작아도 끼니 틀만(1,250kcal 하루의 저녁이 '고구마 · 이온음료'가 됐다).
+   */
+  const from: Slot[] =
+    small && slot !== 'snack' && aim.kcal < SMALL_MEAL_KCAL ? [slot, 'snack'] : [slot];
+  const pool = MEAL_TEMPLATES.filter((t) => t.slots.some((s) => from.includes(s)))
     .map((t) => {
       if (!memo.prepared.has(t.key)) memo.prepared.set(t.key, prepare(t, input));
       return memo.prepared.get(t.key)!;
@@ -454,7 +530,10 @@ function pickTemplate(
   const placed = atPlace.length > 0 ? atPlace : pool;
   if (placed.length === 0) return null;
   /* 가장 줄여도 몫을 크게 넘는 틀은 빼고 — 다 넘으면 그대로(점수가 작은 것을 고른다) */
-  const sized = placed.filter((p) => floorKcal(p) <= aim.kcal * FLOOR_LIMIT);
+  const limit = small ? LAST_FLOOR_LIMIT : FLOOR_LIMIT;
+  const sized = placed.filter(
+    (p) => floorKcal(p) + (small ? topUpKcal(p, aim) : 0) <= aim.kcal * limit
+  );
   const choices = sized.length > 0 ? sized : placed;
 
   /*
@@ -718,18 +797,42 @@ function planDay(memo: Memo, input: PlanInput, recent: Set<string>[]): MealPlanR
     (a, e) => ({ kcal: a.kcal + e.kcal, protein: a.protein + e.protein }),
     { kcal: 0, protein: 0 }
   );
+  const leftKcal = Math.max(0, input.targets.kcal - eatenTotal.kcal);
+  /*
+   * 단백질은 짤 kcal 로 채울 수 있는 만큼까지(kcal 의 35%) — 단백질이 적은 아침 · 점심을 먹은 뒤 남은 250kcal 에 단백질 60g 을
+   * 채우려다 830kcal 이 됐고, 1,250kcal 에 121g(39%)인 감량 목표는 단백질을 채우다 kcal 이 37% 넘쳤다. 밥 · 국 · 반찬 끼니로
+   * 맞출 수 있는 위쪽이 이쯤이다(닭가슴살만 먹으면 7할이지만 그건 끼니가 아니다).
+   */
   const left = {
-    kcal: Math.max(0, input.targets.kcal - eatenTotal.kcal),
-    protein: Math.max(0, input.targets.protein - eatenTotal.protein),
+    kcal: leftKcal,
+    protein: Math.min(
+      Math.max(0, input.targets.protein - eatenTotal.protein),
+      (leftKcal * MAX_PROTEIN_SHARE) / 4
+    ),
   };
 
-  const shares = slotShares(input).filter(([slot]) => !eatenMeals.has(slot));
+  const shares = trimSlots(
+    slotShares(input).filter(([slot]) => !eatenMeals.has(slot)),
+    left.kcal,
+    eatenMeals.size > 0
+  );
   const skipped = [...eatenMeals].filter(isMealKey);
   const reasons: string[] = [];
   if (skipped.length > 0) {
     reasons.push(
       `이미 먹은 ${skipped.map(mealLabel).join(' · ')}은 빼고, 남은 ${Math.round(left.kcal).toLocaleString('ko-KR')}kcal 을 나눠 짰어요.`
     );
+  }
+  if (shares.length > 0 && left.kcal >= 150) {
+    const wanted = Math.max(0, input.targets.protein - eatenTotal.protein);
+    if (left.protein < wanted * 0.95) {
+      reasons.push(
+        `단백질은 남은 열량으로 채울 수 있는 ${Math.round(left.protein)}g 까지 넣었어요.`
+      );
+    }
+    const dropped = shares.trimmed;
+    if (dropped === 'one') reasons.push('남은 양이 적어 한 끼로 짰어요.');
+    if (dropped === 'snack') reasons.push('남은 양이 적어 간식은 빼고 짰어요.');
   }
   if (shares.length === 0 || left.kcal < 150) {
     return {
@@ -771,7 +874,8 @@ function planDay(memo: Memo, input: PlanInput, recent: Set<string>[]): MealPlanR
       slot === 'snack' ? snackIndex : 0,
       { kcal, protein },
       taken,
-      recent
+      recent,
+      eatenMeals.size > 0 && shares.length === 1
     );
     if (slot === 'snack') snackIndex++;
     if (!picked) continue;
