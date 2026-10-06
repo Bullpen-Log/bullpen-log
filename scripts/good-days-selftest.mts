@@ -66,8 +66,8 @@ console.log('하루 한 줄 만들기');
       },
     ],
     workouts: [
-      { date: d(3), category: '웨이트', bodyParts: ['가슴', '삼두'] },
-      { date: d(3), category: '웨이트', bodyParts: ['햄스트링·둔근'] },
+      { date: d(3), category: '상체 스트렝스', bodyParts: ['가슴', '삼두'] },
+      { date: d(3), category: '하체 스트렝스', bodyParts: ['햄스트링·둔근'] },
     ],
     meals: [
       { date: d(3), protein: 40 },
@@ -420,12 +420,21 @@ console.log('리뷰에서 나온 경계');
       b?.startsWith('잠이 모자랐던 날') === true,
     `${a} / ${b}`
   );
+  /* '충분'과 '보통'이 섞이면 — 예전처럼 '보통'을 모자람으로 치면 잠 줄이 생긴다 */
   const usual = Array.from({ length: 12 }, (_, i) =>
-    plain(i, i % 2 ? 5 : 1, { sleep: '보통' })
+    plain(i, i % 2 ? 5 : 1, { sleep: i % 2 ? '충분' : '보통' })
   );
   check(
-    "느낌 '보통'은 모름",
+    "느낌 '보통'은 모름(충분과 섞임)",
     !findGoodDayPatterns(usual).all.some((x) => x.key === 'sleep')
+  );
+  /* 6~7시간은 체크인 기준으로 '보통' — 모자란 밤이 아니다 */
+  const sixish = Array.from({ length: 12 }, (_, i) =>
+    plain(i, i % 2 ? 5 : 1, { sleepHours: i % 2 ? 8 : 6.5 })
+  );
+  check(
+    '6.5시간은 모름',
+    !findGoodDayPatterns(sixish).all.some((x) => x.key === 'sleep')
   );
 }
 {
@@ -446,13 +455,72 @@ console.log('리뷰에서 나온 경계');
   );
 }
 {
-  /* 칩을 하나도 안 적은 날(홈 카드로만 매김)은 느낌 비교에서 빠진다 */
+  /*
+   * 칩을 하나도 안 적은 날(홈 카드로만 매김)은 느낌 비교에서 빠진다 — 칩 없는 날을 시즌에 고루 섞어야 흐름 빼기에
+   * 묻히지 않고 이 규칙만 시험한다
+   */
   const quick = Array.from({ length: 16 }, (_, i) =>
-    plain(i, i < 8 ? 5 : 2, { cuesGood: i < 8 ? [] : ['제구'] })
+    plain(i, i % 2 ? 2 : 5, { cuesGood: i % 2 ? ['제구'] : [] })
   );
   check(
     '칩 없는 날은 모름 — 가짜 느낌 패턴 없음',
     !findGoodDayPatterns(quick).patterns.some((p) => p.kind === 'feel')
+  );
+}
+{
+  /* 근력 · 파워가 아닌 운동(모빌리티 · 암케어)은 전날 운동이 아니다 */
+  const lg = (date: string) => ({
+    date,
+    sessionType: '불펜',
+    pitchCount: 20,
+    satisfaction: 4,
+    cuesGood: [],
+    cuesBad: [],
+  });
+  const [day] = buildGoodDays({
+    logs: [lg(d(0))],
+    checkins: [],
+    workouts: [
+      { date: d(-1), category: '모빌리티', bodyParts: ['고관절'] },
+      { date: d(-1), category: '워밍업', bodyParts: ['전신'] },
+    ],
+    meals: [],
+  });
+  check(
+    '모빌리티 · 워밍업은 운동한 날 아님',
+    !day.liftedYesterday && !day.lowerYesterday
+  );
+}
+{
+  /* 높은 쪽의 잘 던진 날이 딱 절반이면 말하지 않는다 */
+  const half = Array.from({ length: 12 }, (_, i) =>
+    plain(i, i % 2 ? [5, 5, 5, 3, 3, 3][i >> 1] : 1, { sleepHours: i % 2 ? 8 : 5 })
+  );
+  check('딱 절반이면 말하지 않음', findGoodDayPatterns(half).patterns.length === 0);
+}
+{
+  /*
+   * 만족도가 시즌 내내 오르고 컨디션 좋은 날이 시즌 앞쪽에 몰린 자료 — 흐름을 빼면 '컨디션 7 이상인 날'이 1점 높지만
+   * 원래 평균 차이는 0.17점뿐이다(3.67 대 3.5). 원래 평균까지 보지 않으면 거의 차이 없는 것을 패턴으로 말했다.
+   */
+  const sats = [2, 2, 3, 1, 4, 4, 4, 4, 3, 5, 5, 4, 4, 5];
+  const conds = [8, 5, 8, 5, 8, 8, 8, 5, 5, 8, 5, 5, 5, 5];
+  const flip = sats.map((s, i) => plain(i, s, { condition: conds[i] }));
+  check(
+    '원래 평균 차이가 작으면 말하지 않음',
+    !findGoodDayPatterns(flip).patterns.some((p) => p.key === 'condition')
+  );
+}
+{
+  /* 뒤집어 가른 것도 같은 가름 — '전날 운동한 날'과 '하루 이하로 쉬고 던진 날'이 같은 날들이면 하나만 */
+  const ds = Array.from({ length: 12 }, (_, i) =>
+    plain(i, i % 2 ? 5 : 1, { liftedYesterday: i % 2 === 1, restDays: i % 2 ? 0 : 3 })
+  );
+  const keys = findGoodDayPatterns(ds).patterns.map((p) => p.key);
+  check(
+    '뒤집어 가른 것도 같은 가름',
+    keys.filter((k) => k === 'lifted' || k === 'rest').length === 1,
+    keys.join()
   );
 }
 {

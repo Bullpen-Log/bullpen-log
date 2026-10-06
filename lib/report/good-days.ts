@@ -8,15 +8,14 @@
  *   때마다 모든 항목의 차이 중 최댓값을 재 그 분포로 p 를 낸다(최대값 순열 — 묶음 안 어느 항목이든 우연히 걸릴 확률을 막음).
  * - 시즌 동안 만족도와 컨디션이 같이 오르기만 해도 '컨디션 좋은 날 잘 던졌다'로 보인다. 그래서 만족도에서 날짜에 따른
  *   직선 흐름을 빼고(남은 값으로) 견준다. 화면의 평균 · 횟수는 원래 만족도로 적는다.
- * - 그 밖의 문턱: 매긴 날 8일 이상, 항목의 양쪽 3일 이상, 평균 차이 0.7점 이상, 높은 쪽의 절반 넘게가 잘 던진 날.
+ * - 그 밖의 문턱: 매긴 날 8일 이상, 항목의 양쪽 3일 이상, 평균 차이 0.7점 이상(흐름을 뺀 것 · 원래 평균 둘 다), 높은 쪽의 절반 넘게가 잘 던진 날.
  *
  * 칩(좋았던 것 · 아쉬웠던 것)은 던진 뒤 적는 것이라 원인이 아니라 '잘 된 날의 느낌'이다 — 'feel' 묶음으로 따로 센다.
  * 칩을 하나도 안 적은 날(홈 카드로 만족도만 누른 날)은 '안 고른 날'이 아니라 모르는 날이다.
  */
 import { shiftDateKey } from '@/lib/pitch-stats';
-import { ENOUGH_SLEEP_HOURS } from '@/lib/checkin';
+import { sleepLevelFromHours } from '@/lib/checkin';
 import { josa } from '@/lib/korean';
-import { ARMCARE_CATEGORY } from '@/lib/armcare/anatomy';
 import type { BodyPart } from '@/lib/exercise-meta';
 import { GOOD_DAY_MIN, PITCH_CUES, isRatedSession } from '@/lib/pitch-satisfaction';
 
@@ -24,7 +23,7 @@ import { GOOD_DAY_MIN, PITCH_CUES, isRatedSession } from '@/lib/pitch-satisfacti
 export const GOOD_DAYS_NEEDED = 8;
 /** 항목의 양쪽에 있어야 하는 날 수 */
 const MIN_SIDE = 3;
-/** 평균 만족도 차이(1~5 척도) */
+/** 평균 만족도 차이(1~5 척도) — 흐름을 뺀 차이와 원래 평균 차이 둘 다 이만큼 */
 const MIN_DIFF = 0.7;
 /** 묶음별 우연 허용(최대값 순열의 p) — 두 묶음(몸 · 일정, 느낌)이라 합쳐 약 10% 안 */
 const ALPHA = 0.05;
@@ -39,6 +38,11 @@ const MIN_PROTEIN_DAYS = 6;
 const SAME_SPLIT = 0.9;
 /** 하체 운동으로 치는 부위(lib/exercise-meta.ts BODY_PARTS) */
 const LOWER_PARTS: readonly BodyPart[] = ['고관절', '햄스트링·둔근', '종아리·발목'];
+/**
+ * '전날 운동한 날'로 치는 운동 분류(lib/categories.ts) — 근력 · 파워만. 암케어 · 모빌리티 · 워밍업 · 회복 · 유산소는
+ * 몸에 남는 피로가 적어(lib/training-load.ts 의 MASS_FACTOR) 5분 루틴이 '운동한 날'을 채웠다.
+ */
+const LIFT_CATEGORIES: readonly string[] = ['하체 스트렝스', '상체 스트렝스', '파워'];
 
 /* ───────────────────────── 불러온 줄 → 하루 한 줄 ───────────────────────── */
 
@@ -61,7 +65,7 @@ export type GoodDayRaw = {
     shoulder: string;
     elbow: string;
   }[];
-  /** 완료한 운동 하나에 한 줄 — 암케어는 '운동한 날'로 치지 않는다(5분 고무줄 루틴이 운동한 날을 채웠다) */
+  /** 완료한 운동 하나에 한 줄 — 근력 · 파워(LIFT_CATEGORIES)만 '운동한 날'로 친다 */
   workouts: { date: string; category: string; bodyParts: string[] }[];
   /** 끼니 하나에 한 줄 — 단백질(g)은 양까지 곱한 값, 모르는 음식이면 null */
   meals: { date: string; protein: number | null }[];
@@ -117,7 +121,7 @@ export function buildGoodDays(raw: GoodDayRaw, from?: string): GoodDay[] {
   }
   const liftsOn = new Map<string, string[][]>();
   for (const w of raw.workouts) {
-    if (w.category === ARMCARE_CATEGORY) continue;
+    if (!LIFT_CATEGORIES.includes(w.category)) continue;
     liftsOn.set(w.date, [...(liftsOn.get(w.date) ?? []), w.bodyParts]);
   }
 
@@ -171,7 +175,7 @@ type Context = { pitchesMedian: number; proteinMedian: number | null };
 type Factor = {
   key: string;
   kind: Kind;
-  /** 참인 날 · 거짓인 날의 이름 — 평균이 높은 쪽 이름으로 말한다 */
+  /** 참인 날 · 거짓인 날의 이름 — 만족도(흐름을 뺀 것)가 높은 쪽 이름으로 말한다 */
   yes: string;
   no: string;
   test: (d: GoodDay, ctx: Context) => boolean | null;
@@ -183,15 +187,14 @@ const BEFORE: Factor[] = [
     kind: 'before',
     yes: '잠을 충분히 잔 날',
     no: '잠이 모자랐던 날',
-    /* 잔 시간을 적었으면 체크인과 같은 기준(7시간), 아니면 느낌 — '보통'은 어느 쪽도 아니라 모름 */
-    test: (d) =>
-      d.sleepHours != null
-        ? d.sleepHours >= ENOUGH_SLEEP_HOURS
-        : d.sleep === '충분'
-          ? true
-          : d.sleep === '부족'
-            ? false
-            : null,
+    /*
+     * 체크인과 같은 기준 — 잔 시간을 적었으면 그것을 느낌으로 바꿔(7시간 이상 충분 · 6시간 미만 부족) 쓰고, 느낌 '보통'은
+     * 어느 쪽도 아니라 모름. 예전에는 6~7시간을 '모자랐던 날'로 쳐 같은 밤이 적는 방식에 따라 갈렸다.
+     */
+    test: (d) => {
+      const level = d.sleepHours != null ? sleepLevelFromHours(d.sleepHours) : d.sleep;
+      return level === '충분' ? true : level === '부족' ? false : null;
+    },
   },
   {
     key: 'condition',
@@ -284,9 +287,9 @@ const FACTORS = [...BEFORE, ...FEEL];
 export type FactorResult = {
   key: string;
   kind: Kind;
-  /** 평균이 높은 쪽의 이름 */
+  /** 흐름을 뺀 만족도가 높은 쪽의 이름 */
   label: string;
-  /** 높은 쪽 · 낮은 쪽 날 수와 원래 만족도 평균 */
+  /** 높은 쪽 · 낮은 쪽 날 수와 원래 만족도 평균 — 시즌 흐름 때문에 meanHigh 가 meanLow 보다 낮을 수 있다(그러면 말하지 않는다) */
   nHigh: number;
   nLow: number;
   meanHigh: number;
@@ -454,6 +457,8 @@ export function findGoodDayPatterns(days: GoodDay[]): GoodDayResult {
       if (count >= SHOW[kind]) break;
       if (x.kind !== kind || x.diff < MIN_DIFF || x.p == null || x.p >= ALPHA) continue;
       if (x.goodHigh * 2 <= x.nHigh) continue;
+      /* 원래 평균도 같은 쪽으로 그만큼 높아야 — 흐름을 뺀 값만 보면 '컨디션 좋은 날'이 실제로는 덜 만족한 날일 수 있다 */
+      if (x.meanHigh - x.meanLow < MIN_DIFF) continue;
       if (picked.some((p) => sameSplit(p.groups, r.groups) >= SAME_SPLIT)) continue;
       picked.push(r);
       count++;
