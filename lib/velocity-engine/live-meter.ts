@@ -1820,9 +1820,11 @@ export class LiveMeter {
   /* 던진 뒤 프레임을 모은다. 시간이나 장수가 차면 계산으로 넘긴다 */
   private captureMotion(frame: MeterFrame, out: MeterEvent[]) {
     if (this.triggerT == null) return;
-    this.captured.push(frame);
+    /* 거리 측정(엔진 2.0)은 60fps 남짓으로 솎아 담고, 와인드업에 먼저 반응해도 공이 미트까지 오게 담기 시간(1.3초)을 다 채운다 */
+    const lastKept = this.captured[this.captured.length - 1];
+    if (!this.config.distanceMode || !lastKept || frame.t - lastKept.t >= 0.85 / 60) this.captured.push(frame);
     const enough =
-      frame.t - this.triggerT >= this.config.motionPostSec ||
+      frame.t - this.triggerT >= (this.config.distanceMode ? this.config.postSec : this.config.motionPostSec) ||
       this.captured.length >= this.config.maxFrames;
     if (!enough) return;
     this.emitJob(out);

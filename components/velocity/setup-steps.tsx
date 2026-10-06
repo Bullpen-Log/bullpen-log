@@ -313,24 +313,40 @@ export function tipsFor(c: Choices): Tip[] {
       long: '계산은 "배경은 가만히 있고 공만 움직인다"는 전제로 돌아가요. 손으로 들면 화면 전체가 조금씩 밀려서 공이 아닌 것이 움직인 것처럼 보여요. 조금 흔들리면 값에 알림이 붙고, 많이 흔들리면 재지 않아요. 삼각대가 없으면 가방 위, 펜스 틈 같은 곳에 단단히 기대 두세요. 셔터를 누를 때 폰을 건드리지 않게 소리 안내나 타이머를 쓰면 좋아요.',
       art: <ArtTripod />,
     },
-    {
-      key: 'distance',
-      title: '거리를 줄자로 재 두세요',
-      short: behind
-        ? '폰에서 공이 닿는 그물(미트)까지 거리가 구속의 자예요. 1m 틀리면 값이 5% 틀려요.'
-        : '폰에서 투수가 공을 놓는 곳까지 거리가 구속의 자예요. 1m 틀리면 값이 5% 틀려요.',
-      long: behind
-        ? '구속은 공이 날아가는 길을 장면마다 찾아 물리(공기저항 · 중력)에 맞춘 뒤, 공이 그물 · 미트에 닿은 때의 거리를 이 값으로 둬 크기를 정해요. 그래서 이 거리가 곧 자예요. 20m 를 21m 로 적으면 값이 5% 높게 나와요. 줄자로 폰 렌즈에서 공이 닿는 곳까지 재서 거리 단계나 설정에 적으세요. 화각 · 렌즈 보정은 몰라도 돼요(화각이 10% 틀려도 값은 0.5% 안).'
-        : '포수 뒤에서는 공이 다가와요. 공이 날아오는 길을 물리에 맞춘 뒤 릴리스 쪽 끝의 거리를 이 값으로 둬 크기를 정해요. 그래서 이 거리가 곧 자예요(1m 틀리면 5%). 줄자나 걸음으로 폰에서 투수가 공을 놓는 곳까지 재서 적으세요. 정규 마운드 · 홈 뒤 1.8m 면 약 18.5m 예요.',
-      art: <ArtLens />,
-    },
-    {
-      key: 'camera',
-      title: '2배 줌 그대로, 손떨림 보정 끄기',
-      short: '앱이 2배 줌을 걸어요. 먼 공도 크게 찍혀 그물까지 따라가요.',
-      long: '2배 줌이면 20m 앞의 공도 화면에서 두 배 크게 찍혀, 공이 그물 · 미트에 닿을 때까지 따라가요. 앱이 카메라를 켤 때 2배를 걸고, 안 되는 기기는 1배로 재요(밖에서는 값이 거의 같고, 실내 흰 천 앞에서는 덜 정확해요). 카메라 앱으로 찍어 영상 파일로 잴 때도 2배로 찍으세요. 동영상 손떨림 보정(안정화)은 화면을 잘라 흔들어서 끄세요. 삼각대에 올렸으니 필요 없어요. HDR · 시네마틱 같은 밝기 자동 처리도 끄세요.',
-      art: <ArtCamera />,
-    },
+    ...(behind
+      ? [
+          {
+            key: 'distance',
+            title: '거리를 줄자로 재 두세요',
+            short: '폰에서 공이 닿는 그물(미트)까지 거리가 구속의 자예요. 1m 틀리면 값이 5% 틀려요.',
+            long: '구속은 공이 날아가는 길을 장면마다 찾아 물리(공기저항 · 중력)에 맞춘 뒤, 공이 그물 · 미트에 닿은 때의 거리를 이 값으로 둬 크기를 정해요. 그래서 이 거리가 곧 자예요. 20m 를 21m 로 적으면 값이 5% 높게 나와요. 줄자로 폰 렌즈에서 공이 닿는 곳까지 재서 거리 단계나 설정에 적으세요. 화각 · 렌즈 보정은 몰라도 돼요(화각이 10% 틀려도 값은 0.5% 안).',
+            art: <ArtTape />,
+          },
+          {
+            key: 'camera',
+            title: '2배 줌 그대로, 손떨림 보정 끄기',
+            short: '앱이 2배 줌을 걸어요. 먼 공도 크게 찍혀 그물까지 따라가요.',
+            long: '2배 줌이면 20m 앞의 공도 화면에서 두 배 크게 찍혀, 공이 그물 · 미트에 닿을 때까지 따라가요. 앱이 카메라를 켤 때 2배를 걸고, 안 되는 기기는 1배로 재요(밖에서는 값이 거의 같고, 실내 흰 천 앞에서는 덜 정확해요). 카메라 앱으로 찍어 영상 파일로 잴 때도 2배로 찍으세요. 동영상 손떨림 보정(안정화)은 화면을 잘라 흔들어서 끄세요. 삼각대에 올렸으니 필요 없어요. HDR · 시네마틱 같은 밝기 자동 처리도 끄세요.',
+            art: <ArtCamera zoom2 />,
+          },
+        ]
+      : [
+          {
+            key: 'lens',
+            title: '렌즈 보정을 한 번 하세요',
+            short:
+              '카메라 유리에서 공 앞면까지 줄자로 1m. 원에 맞춰 재면 이 폰의 초점거리가 나와요.',
+            long: '포수 뒤에서는 다가오는 공이 화면에서 몇 픽셀인지로 거리를 재요. 그 환산에 렌즈의 초점거리가 곱해지는데, 기종 · 동영상 모드의 크롭 · 손떨림 보정에 따라 5~10% 달라요. 렌즈 보정은 공을 카메라 렌즈에서 정확히 잰 거리(카메라 유리에서 공 앞면까지 줄자로 1m 권장)에 두고 화면에서 크기를 재 초점거리를 직접 구해요. 폰 · 렌즈(1x/0.5x) · 촬영 해상도를 바꾸면 다시 하세요. 설정 → 렌즈 보정.',
+            art: <ArtLens />,
+          },
+          {
+            key: 'camera',
+            title: '1x 기본 렌즈, 줌 · 손떨림 보정 끄기',
+            short: '0.5x · 2x · 디지털 줌은 크기 기준이 달라져요. 보정한 렌즈 그대로 쓰세요.',
+            long: '렌즈를 바꾸거나 화면을 확대하면 초점거리가 달라져 보정값이 안 맞아요. 항상 1x 기본(광각 아님) 렌즈로, 줌은 1.0 에 두세요. 동영상 손떨림 보정(안정화)은 화면 가장자리를 잘라 확대해서 끄세요. 삼각대에 올렸으니 필요 없어요. HDR · 시네마틱 같은 밝기 자동 처리도 끄세요.',
+            art: <ArtCamera />,
+          },
+        ]),
     {
       key: 'place',
       title: behind ? `${who} 바로 뒤 1m 이내` : '포수 뒤, 네트에서 1~3m',
@@ -339,7 +355,7 @@ export function tipsFor(c: Choices): Tip[] {
         : '포수 · 미트 뒤에서 마운드를 정면으로 보게 두세요. 카메라에서 릴리스 지점까지 거리를 설정에 적어요.',
       long: behind
         ? '공이 카메라에서 멀어지며 작아지는 모습(뒤에서 정면)으로 날아가는 길을 맞춰요. 옆에서 찍으면 공이 화면을 가로지르며 번져 못 재요. 1m 를 넘게 떨어지면 릴리스 쪽 공이 작게 찍혀 앞부분을 놓쳐요. 공이 날아가는 선과 카메라의 시선이 나란할수록 정확해요. 카메라를 던지는 팔 쪽으로 30cm 쯤 옮겨 릴리스가 화면 안 가운데 쪽에 오게 하세요.'
-        : '포수 뒤에서는 공이 카메라 쪽으로 다가오며 커져요. 카메라에서 릴리스 지점까지 거리가 자라서 줄자나 걸음으로 재서 적어 두세요(정규 마운드 · 홈 뒤 1.8m 면 약 18.5m). 네트 바로 뒤에 붙이면 그물코가 공을 가려요. 조금 떨어져서 초점이 네트가 아니라 마운드에 맞게 하세요. 포수 뒤 촬영은 아직 스피드건으로 맞춰 본 영상이 없어 믿음을 낮게 보여요.',
+        : '포수 뒤에서는 공이 카메라 쪽으로 다가오며 커지는 크기로 거리를 재요. 잴 만큼 커지는 것은 마지막 4m 안이라, 설정의 "카메라에서 릴리스 지점까지" 거리만큼 공기저항을 되돌려 릴리스 구속을 내요. 줄자나 걸음으로 재서 적어 두세요(정규 마운드 · 홈 뒤 1.8m 면 약 18.5m). 네트 바로 뒤에 붙이면 그물코가 공을 가려요. 조금 떨어져서 초점이 네트가 아니라 마운드에 맞게 하세요. 포수 뒤 촬영은 아직 스피드건으로 맞춰 본 영상이 없어요.',
       art: <ArtDistance behind={behind} />,
     },
     {
@@ -683,7 +699,7 @@ function ArtFps() {
 }
 
 /** 거리 — 폰에서 그물까지 줄자 */
-function ArtLens() {
+function ArtTape() {
   return (
     <svg
       viewBox="0 0 200 150"
@@ -717,8 +733,43 @@ function ArtLens() {
   );
 }
 
-/** 카메라 설정 — 2배 줌, 손떨림 보정은 끈다 */
-function ArtCamera() {
+/** 렌즈 보정 — 줄자 끝의 공과 화면의 원 */
+function ArtLens() {
+  return (
+    <svg
+      viewBox="0 0 200 150"
+      className={ART}
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="4"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden
+    >
+      <rect x="14" y="30" width="60" height="100" rx="10" fill="white" />
+      <circle cx="44" cy="80" r="17" strokeDasharray="5 5" />
+      <circle cx="44" cy="80" r="11" fill="white" />
+      <path d="M74 80h56" />
+      <path d="M80 72v16M96 74v12M112 72v16M128 74v12" />
+      <circle cx="160" cy="80" r="20" fill="white" />
+      <path d="M148 68c6 6 6 18 0 24M172 68c-6 6-6 18 0 24" strokeWidth="3" />
+      <text
+        x="100"
+        y="142"
+        textAnchor="middle"
+        fontSize="13"
+        fontWeight="700"
+        fill="#b45309"
+        stroke="none"
+      >
+        1m
+      </text>
+    </svg>
+  );
+}
+
+/** 카메라 설정 — 투수 뒤(엔진 2.0)는 2배 줌, 포수 뒤는 1배. 손떨림 보정은 끈다 */
+function ArtCamera({ zoom2 = false }: { zoom2?: boolean }) {
   return (
     <svg
       viewBox="0 0 200 150"
@@ -732,8 +783,17 @@ function ArtCamera() {
     >
       <rect x="28" y="24" width="144" height="102" rx="12" fill="white" />
       <circle cx="56" cy="102" r="16" fill="white" strokeWidth="3" />
-      <circle cx="100" cy="102" r="16" fill="white" strokeWidth="3" />
-      <circle cx="144" cy="102" r="20" fill="#0ea5e9" stroke="#0ea5e9" />
+      {zoom2 ? (
+        <>
+          <circle cx="100" cy="102" r="16" fill="white" strokeWidth="3" />
+          <circle cx="144" cy="102" r="20" fill="#0ea5e9" stroke="#0ea5e9" />
+        </>
+      ) : (
+        <>
+          <circle cx="100" cy="102" r="20" fill="#0ea5e9" stroke="#0ea5e9" />
+          <circle cx="144" cy="102" r="16" fill="white" strokeWidth="3" />
+        </>
+      )}
       <text
         x="56"
         y="107"
@@ -747,25 +807,25 @@ function ArtCamera() {
       </text>
       <text
         x="100"
-        y="107"
+        y={zoom2 ? 107 : 108}
         textAnchor="middle"
-        fontSize="13"
-        fontWeight="700"
-        fill="currentColor"
+        fontSize={zoom2 ? 13 : 16}
+        fontWeight={zoom2 ? 700 : 800}
+        fill={zoom2 ? 'currentColor' : 'white'}
         stroke="none"
       >
-        1
+        {zoom2 ? '1' : '1x'}
       </text>
       <text
         x="144"
-        y="108"
+        y={zoom2 ? 108 : 107}
         textAnchor="middle"
-        fontSize="16"
-        fontWeight="800"
-        fill="white"
+        fontSize={zoom2 ? 16 : 13}
+        fontWeight={zoom2 ? 800 : 700}
+        fill={zoom2 ? 'white' : 'currentColor'}
         stroke="none"
       >
-        2x
+        {zoom2 ? '2x' : '2'}
       </text>
       <path d="M44 52h44" strokeWidth="6" />
       <path d="M112 52h44" strokeWidth="6" opacity="0.3" />
@@ -778,7 +838,7 @@ function ArtCamera() {
         fill="currentColor"
         stroke="none"
       >
-        줌 2.0
+        {zoom2 ? '줌 2.0' : '줌 1.0'}
       </text>
       <text
         x="134"

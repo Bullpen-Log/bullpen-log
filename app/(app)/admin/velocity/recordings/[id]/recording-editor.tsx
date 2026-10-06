@@ -373,11 +373,8 @@ export function RecordingEditor({
         focalPerLongSide: meta.focalRatio,
         approach,
         releaseDistanceM: approach === 'approaching' ? meta.releaseDistM : null,
-        /* 엔진 2.0 — 녹화 때 넣은 거리(없으면 기본: 투수 뒤 20m · 포수 뒤 18.5m) */
-        distanceM:
-          approach === 'approaching'
-            ? (meta.releaseDistM ?? 18.5)
-            : (meta.targetDistM ?? 20),
+        /* 엔진 2.0 — 녹화 때 넣은 거리(없으면 기본 20m). 포수 뒤는 1.x(lib/velocity-setup.ts distanceOf) */
+        distanceM: approach === 'approaching' ? null : (meta.targetDistM ?? 20),
         onProgress: (r) =>
           setBusy((b) => ({
             ...b,

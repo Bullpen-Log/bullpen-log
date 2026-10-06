@@ -344,7 +344,7 @@ export function VelocityScreen({
     focalRatio: null as number | null,
     releaseDistM: DEFAULT_SETUP.releaseDistM,
     /* 엔진 2.0 의 거리 자 — 투수 뒤 = 그물 · 미트까지, 포수 뒤 = 릴리스까지(distanceOf) */
-    distanceM: DEFAULT_SETUP.targetDistM,
+    distanceM: DEFAULT_SETUP.targetDistM as number | null,
     autoMode: DEFAULT_SETUP.autoMode,
     wideClip: DEFAULT_SETUP.wideClip,
     camMode: DEFAULT_SETUP.camMode,

@@ -164,8 +164,9 @@ export function VelocitySettingsFields({
             <span className="min-w-0">
               <span className="block text-sm text-ink">카메라 가로 화각</span>
               <span className="block text-xs leading-snug text-muted">
-                아이폰 후면 기본 카메라 약 69°. 구속은 넣은 거리로 재서 화각의 영향은 작아요. 렌즈
-                보정을 하면 이 값 대신 잰 초점거리를 써요.
+                {approachOf(values) === 'receding'
+                  ? '아이폰 후면 기본 카메라 약 69°. 구속은 넣은 거리로 재서 화각의 영향은 작아요.'
+                  : '아이폰 후면 기본 카메라 약 69°. 포수 뒤는 공 크기로 거리를 재서 화각이 맞아야 해요. 렌즈 보정을 하면 이 값 대신 잰 초점거리를 써요.'}
               </span>
             </span>
             <span className="inline-flex shrink-0 items-center gap-1 text-sm">
@@ -188,7 +189,7 @@ export function VelocitySettingsFields({
           {approachOf(values) === 'approaching' && (
             <DistanceRow
               title="카메라에서 릴리스 지점까지"
-              hint="구속을 이 거리로 재요. 줄자로 폰에서 투수가 공을 놓는 자리까지 재서 넣어 주세요. 정규 마운드에서 홈 뒤 1.8m 면 약 18.5m예요."
+              hint="공기저항을 이 거리만큼 되돌려 릴리스 구속을 내요. 줄자로 폰에서 투수가 공을 놓는 자리까지 재서 넣어 주세요. 정규 마운드에서 홈 뒤 1.8m 면 약 18.5m예요."
               value={values.releaseDistM}
               min={RELEASE_DIST_MIN}
               max={RELEASE_DIST_MAX}

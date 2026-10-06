@@ -305,14 +305,13 @@ export async function remeasurePitch(
         : null,
     releaseDistanceM: session.releaseDistM,
     /*
-     * 엔진 2.0 — 거리 자. 그 공을 잴 때 넣은 거리(analysis.distance)로, 1.x 로 잰 옛 공은 투수 뒤면 기본 20m · 포수 뒤면 세션의
-     * 릴리스 거리. 옛 공을 정확히 다시 재려면 찍은 곳의 거리를 알아야 한다(파일 재기에서 넣을 수 있다).
+     * 엔진 2.0 — 거리 자(투수 뒤만). 그 공을 잴 때 넣은 거리(analysis.distance)로, 1.x 로 잰 옛 공은 기본 20m. 옛 공을 정확히
+     * 다시 재려면 찍은 곳의 거리를 알아야 한다(파일 재기에서 넣을 수 있다). 포수 뒤는 1.x(lib/velocity-setup.ts distanceOf).
      */
     distanceM:
-      pitch.analysis?.distanceM ??
-      (approachOfSession(session) === 'approaching'
-        ? (session.releaseDistM ?? DEFAULT_SETUP.releaseDistM)
-        : DEFAULT_SETUP.targetDistM),
+      approachOfSession(session) === 'approaching'
+        ? null
+        : (pitch.analysis?.distanceM ?? DEFAULT_SETUP.targetDistM),
     onProgress,
   });
 }

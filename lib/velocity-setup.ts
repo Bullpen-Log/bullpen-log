@@ -286,10 +286,14 @@ export function clearSetup() {
 }
 
 /**
- * 엔진 2.0 의 거리 자(m) — 투수 뒤는 카메라 → 그물 · 미트(targetDistM), 포수 뒤는 카메라 → 릴리스(releaseDistM).
+ * 엔진 2.0 의 거리 자(m) — 투수 뒤만: 카메라 → 그물 · 미트(targetDistM). 포수 뒤는 null(1.x 엔진 — 다가오는 공 크기로 거리, 릴리스
+ * 거리로 공기저항 되돌림). 2.0 은 다가오는 공을 '처음 잡힌 장면 = 릴리스'로 놓는데, 18m 앞 공은 1배에서 4px 남짓이라 대개 중간부터
+ * 잡혀(12m 면 +54%) 쓸 수 없다. 포수 뒤 2.0 은 가까운 끝(폰 → 그물)을 자로 삼아야 한다 — 영상이 생기면.
  */
-export function distanceOf(setup: Pick<VelocitySetup, 'cameraPos' | 'targetDistM' | 'releaseDistM'>): number {
-  return setup.cameraPos === 'behind-pitcher' ? setup.targetDistM : setup.releaseDistM;
+export function distanceOf(
+  setup: Pick<VelocitySetup, 'cameraPos' | 'targetDistM' | 'releaseDistM'>
+): number | null {
+  return setup.cameraPos === 'behind-pitcher' ? setup.targetDistM : null;
 }
 
 /**

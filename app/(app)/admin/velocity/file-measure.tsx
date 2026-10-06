@@ -149,7 +149,8 @@ export function FileMeasure({
         fovDeg: fov,
         approach,
         releaseDistanceM: cameraPos === 'behind-catcher' ? dist : null,
-        distanceM: cameraPos === 'behind-catcher' ? dist : target,
+        /* 엔진 2.0 은 투수 뒤만 — 포수 뒤는 1.x(lib/velocity-setup.ts distanceOf) */
+        distanceM: cameraPos === 'behind-catcher' ? null : target,
         onProgress: (ratio) => setStage({ kind: 'analyzing', ratio }),
       });
       setStage({ kind: 'done', result });
