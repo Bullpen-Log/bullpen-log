@@ -49,6 +49,7 @@ export function todayKicker(now: Date = new Date()): string {
 export function PageHeading({
   kicker,
   title,
+  titleArt,
   description,
   action,
   inlineAction = false,
@@ -61,6 +62,11 @@ export function PageHeading({
   /** 휴대폰에서 큰 제목 위에 회색 작은 글씨로 — 앱스토어 '투데이' 위의 날짜처럼(예: '10월 1일 수요일') */
   kicker?: string;
   title: string;
+  /**
+   * 휴대폰에서 큰 제목 글자 대신 그릴 그림 — 홈의 불펜로그 로고(2026-10-06 사용자 "홈 화면 맨 위에 불펜로그 로고").
+   * 제목 글(title)은 PC · 화면 읽기 · 위 막대의 작은 제목으로 그대로 남는다.
+   */
+  titleArt?: ReactNode;
   description?: string;
   action?: ReactNode;
   /**
@@ -86,7 +92,16 @@ export function PageHeading({
     >
       <div className="space-y-1">
         {kicker && <p className="text-sm font-medium text-muted desk:hidden">{kicker}</p>}
-        <h1 className="text-heading page-title text-ink">{title}</h1>
+        <h1 className="text-heading page-title text-ink">
+          {titleArt ? (
+            <>
+              <span aria-hidden className="block desk:hidden">{titleArt}</span>
+              <span className="sr-only desk:not-sr-only">{title}</span>
+            </>
+          ) : (
+            title
+          )}
+        </h1>
         {/* 큰 제목이 스크롤로 가려지면 위 막대 가운데에 작은 제목이 나온다(아이폰처럼, components/nav-title.tsx) */}
         <NavTitle title={title} />
         {description && (

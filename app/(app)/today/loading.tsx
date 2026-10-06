@@ -1,5 +1,6 @@
 import { Skeleton } from '@/components/fallback';
-import { PageHeading, todayKicker } from '@/components/ui';
+import { PageHeading } from '@/components/ui';
+import { HomeTitleArt } from './home-title';
 
 /**
  * 홈을 불러오는 동안.
@@ -12,10 +13,10 @@ import { PageHeading, todayKicker } from '@/components/ui';
 export default function Loading() {
   return (
     <div className="stack-page" aria-busy="true" aria-live="polite">
-      <PageHeading eyebrow="Home" kicker={todayKicker()} title="홈" />
+      <PageHeading eyebrow="Home" title="홈" titleArt={<HomeTitleArt />} />
       <span className="sr-only">불러오는 중이에요</span>
       {/* 오늘 링 자리(today-rings.tsx) */}
-      <Skeleton className="h-[8.75rem] rounded-2xl" />
+      <Skeleton className="h-[13.5rem] rounded-2xl desk:h-[10.5rem]" />
       <Skeleton className="h-[26rem] rounded-2xl" />
       {/* 하이라이트 자리(highlights.tsx) */}
       <div className="space-y-3">
