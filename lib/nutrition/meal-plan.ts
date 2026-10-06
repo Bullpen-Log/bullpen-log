@@ -745,6 +745,10 @@ export const PROTEIN_BOOST = [
   'pork-tenderloin',
 ];
 const MEAT_BOOST = new Set(['tuna-can', 'beef-lean', 'pork-tenderloin']);
+/** kcal 하나에 단백질이 이만큼 넘으면 기름이 적은 단백질(닭가슴살 · 참치 · 살코기 · 흰자) */
+const LEAN_FOOD = 0.15;
+/** 이만큼 밑이면 기름진 단백질(달걀 · 우유 · 두유 · 고등어 · 순두부찌개) */
+const FATTY_FOOD = 0.09;
 /** 하루 kcal 이 모자랄 때(탄수화물을 더 못 늘릴 때) */
 export const KCAL_BOOST = ['banana', 'sweet-potato', 'rice', 'garaetteok', 'oatmeal'];
 
@@ -924,6 +928,68 @@ function planDay(memo: Memo, input: PlanInput, recent: Set<string>[]): MealPlanR
     line.amount = next;
     return true;
   };
+  const proteinShort = (m: (typeof meals)[number]) =>
+    m.protein - totalOf(m.lines).protein;
+  /** 단백질 음식 하나를 단백질이 가장 모자란 끼니에 — 고기 · 생선은 점심 · 저녁에 */
+  const addBoost = (id: string) => {
+    const meal = MEAT_BOOST.has(id)
+      ? (shortest(proteinShort, (m) => m.slot === 'lunch' || m.slot === 'dinner') ??
+        shortest(proteinShort))
+      : shortest(proteinShort);
+    addLine(meal, id, 'protein');
+  };
+  /*
+   * 넘치는데 단백질이 하한에 걸렸으면 기름이 적은 것(닭가슴살 · 참치)을 한 걸음 더하고, 그만큼 기름진 단백질(두유 · 우유 ·
+   * 달걀 · 고등어)을 단백질이 처음보다 줄지 않을 때까지 줄인다. kcal 이 줄 때만 둔다 — 입맛 없는 날 가벼운 틀의 두유 · 우유가
+   * 늘어 1,250kcal 하루가 1,660kcal 이 됐다.
+   */
+  const swapLean = () => {
+    const before = totalOf(all());
+    const saved = meals.map((m) => ({
+      m,
+      n: m.lines.length,
+      amounts: m.lines.map((l) => l.amount),
+      added: added.get(m.slot),
+    }));
+    const grown = all()
+      .filter((l) => l.role === 'protein' && leanness(l.food) >= LEAN_FOOD)
+      .sort((x, y) => leanness(y.food) - leanness(x.food))
+      .find((l) => nudge(l, 1));
+    if (!grown) {
+      const id = boostOrder.find(
+        (x) =>
+          basicFood(x) &&
+          !blocked(x, input) &&
+          leanness(basicFood(x)!) >= LEAN_FOOD &&
+          !all().some((l) => l.food.id === x)
+      );
+      if (!id) return false;
+      addBoost(id);
+    }
+    const fatty = all()
+      .filter(
+        (l) => l.role === 'protein' && l.amount > 0 && leanness(l.food) < FATTY_FOOD
+      )
+      .sort((x, y) => leanness(x.food) - leanness(y.food));
+    for (const l of fatty) {
+      for (;;) {
+        const amount = l.amount;
+        if (!nudge(l, -1)) break;
+        if (totalOf(all()).protein < before.protein) {
+          l.amount = amount;
+          break;
+        }
+      }
+    }
+    if (totalOf(all()).kcal < before.kcal - 10) return true;
+    for (const { m, n, amounts, added: was } of saved) {
+      m.lines.length = n;
+      m.lines.forEach((l, i) => (l.amount = amounts[i]));
+      if (was === undefined) added.delete(m.slot);
+      else added.set(m.slot, was);
+    }
+    return false;
+  };
   /*
    * 단백질이 kcal 의 3할을 넘게 차지해야 하는 날(1,250kcal 에 단백질 120g 같은)은 둘을 다 맞추지 못할 때가 있다. 밥 · 면 ·
    * 곁들이를 다 줄여도 kcal 이 넘치면 그날은 단백질을 8할 6푼까지로 내리고 기름진 단백질 재료부터 줄인다 — 9할까지 채우다
@@ -934,23 +1000,24 @@ function planDay(memo: Memo, input: PlanInput, recent: Set<string>[]): MealPlanR
     const t = totalOf(all());
     if (t.protein < left.protein * proteinFloor) {
       /* 이미 있는 단백질 재료를 늘리고, 다 막혔으면 간식(없으면 저녁)에 단백질 음식을 하나 더한다 */
-      const grow = meals
-        .flatMap((m) => m.lines)
-        .filter((l) => l.role === 'protein' && (l.food.protein ?? 0) > 0)
-        .sort((x, y) => leanness(y.food) - leanness(x.food))
-        .find((l) => nudge(l, 1));
-      if (grow) continue;
       const id = boostOrder.find(
         (x) => basicFood(x) && !blocked(x, input) && !all().some((l) => l.food.id === x)
       );
+      /*
+       * 단백질이 빠듯한 날은 기름진 재료(순두부찌개 · 달걀 · 두유)를 늘리기보다 훨씬 기름이 적은 것(닭가슴살)을 먼저 더한다 —
+       * 입맛 없는 날 가벼운 틀의 순두부 · 두유를 늘려 1,250kcal 하루가 1,770kcal 이 됐다.
+       */
+      const leanFirst =
+        tight && id !== undefined && leanness(basicFood(id)!) >= LEAN_FOOD;
+      const grow = meals
+        .flatMap((m) => m.lines)
+        .filter((l) => l.role === 'protein' && (l.food.protein ?? 0) > 0)
+        .filter((l) => !leanFirst || leanness(l.food) >= LEAN_FOOD)
+        .sort((x, y) => leanness(y.food) - leanness(x.food))
+        .find((l) => nudge(l, 1));
+      if (grow) continue;
       if (id) {
-        const proteinShort = (m: (typeof meals)[number]) =>
-          m.protein - totalOf(m.lines).protein;
-        const meal = MEAT_BOOST.has(id)
-          ? (shortest(proteinShort, (m) => m.slot === 'lunch' || m.slot === 'dinner') ??
-            shortest(proteinShort))
-          : shortest(proteinShort);
-        addLine(meal, id, 'protein');
+        addBoost(id);
         continue;
       }
     } else if (t.protein > left.protein * 1.3) {
@@ -1005,6 +1072,7 @@ function planDay(memo: Memo, input: PlanInput, recent: Set<string>[]): MealPlanR
         side.amount = 0;
         continue;
       }
+      if (swapLean()) continue;
       if (gap < -left.kcal * 0.1 && proteinFloor > 0.86) {
         proteinFloor = 0.86;
         continue;
