@@ -24,6 +24,11 @@ export type AnalysisJson = {
    * 예전 길이면 null.
    */
   polarity?: 'bright' | 'dark' | 'mixed' | null;
+  /**
+   * 대비 길(모델 1.9.0)로 잰 공만 — 'close' 그물코 잇기 없이 · 'center' 거기에 가운데 조건까지 없이(밖 · 표적 그물 앞).
+   * 감지가 달라 같은 영상도 값이 달라질 수 있어 보정 짝에 섞지 않는다. 예전 길 · 극성 길이면 null.
+   */
+  fallback?: 'close' | 'center' | null;
   /** 궤적의 가장자리 폭(분석 px) · 흐림 보정으로 지름에서 뺀 값(분석 px) — 흐린 영상 되짚기 */
   edgeWidthPx: number | null;
   blurCorrectionPx: number | null;
@@ -41,10 +46,10 @@ export type AnalysisJson = {
   frameCount: number;
   approach: Approach;
   /**
-   * 카메라 실시간의 촬영 조건(모델 1.7.0) — 알림 코드(LOW_FPS · TIMING · APPROACH · CROPPED · FOV_GUESS · ZOOM · HDR · LOW_RES · BLUR · DARK_BALL,
-   * 2.0 의 END_GUESS · SHAKE) · ± 에 더한 σ · 초점거리를 렌즈 보정으로 쟀나 · 장면 시각의 질 · 장면을 받은 길(워커 직접 · 캔버스 · 화면
-   * 스레드)과 워커가 본 장면(형식 · 돌림 · 크기) · 걸린 줌(2.0 은 2배를 청한다). 영상 파일로 잰 공은 null. 실제 폰(아이폰 웹뷰)에서
-   * 어떻게 도는지 되짚으려고.
+   * 카메라 실시간의 촬영 조건(모델 1.7.0) — 알림 코드(LOW_FPS · TIMING · APPROACH · CROPPED · FOV_GUESS · ZOOM · HDR · LOW_RES · BLUR · DARK_BALL ·
+   * FALLBACK(모델 1.9.0, 대비 길) · 2.0 의 END_GUESS · SHAKE — lib/velocity-sync.ts LIVE_NOTE_CODES 와 같이 늘린다) · ± 에 더한 σ ·
+   * 초점거리를 렌즈 보정으로 쟀나 · 장면 시각의 질 · 장면을 받은 길(워커 직접 · 캔버스 · 화면 스레드)과 워커가 본 장면(형식 · 돌림 ·
+   * 크기) · 걸린 줌(2.0 은 2배를 청한다). 영상 파일로 잰 공은 null. 실제 폰(아이폰 웹뷰)에서 어떻게 도는지 되짚으려고.
    */
   live: {
     notes: string[];
@@ -99,6 +104,7 @@ export function analysisOf(
       : null,
     ruler: d ? d.ruler : null,
     polarity: d?.polarity ?? null,
+    fallback: result.fallback ?? null,
     edgeWidthPx: d ? d.edgeWidthPx : null,
     blurCorrectionPx: d ? d.blurCorrectionPx : null,
     startSeKmh: m.ok && Number.isFinite(m.detail.startSeKmh) ? m.detail.startSeKmh : null,

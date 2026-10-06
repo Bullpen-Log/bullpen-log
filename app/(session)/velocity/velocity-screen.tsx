@@ -600,6 +600,10 @@ export function VelocityScreen({
        * 자동 모드에서 공 궤적이 세 장도 안 된 거부는 던진 공이 아니라 잡음일 때가 많다 — 튄 공 · 몸짓(장면 부족 · 너무 멂 ·
        * 거리 부족), 공이 맞은 뒤 1초 남짓 흔들리는 흰 과녁 천(번짐 · 궤적 불안정, 실제 영상 18개 중 4개 — 2026-09-30 정확도
        * 검증). 방금 잰 값을 거부 문구로 덮지 않고 '못 쟀어요'도 말하지 않는다.
+       *
+       * 다만 판단이 공을 공답게 따라간 것(live.ball.strong)은 잡음이 아니다 — 밖 · 표적 그물 앞에서는 알아채고도 계산이
+       * 막혀 8개 중 6개가 여기서 조용히 버려져 사용자에게 '한 개도 안 잡혔다'가 됐다(1.9.0, outdoor-2026-10-03.md).
+       * 그것은 '공은 봤는데 못 쟀어요'와 까닭으로 보인다.
        */
       /*
        * 엔진 2.0(거리 자)은 둥글게 작아지는 덩어리로 알아채, 헛 알아챔(투구 뒤 튄 공 · 굴러가는 공 · 몸짓)은 계산이 거른다 — 그 거부를
@@ -612,6 +616,7 @@ export function VelocityScreen({
         (byDistance
           ? result.measure.code !== 'CAMERA_SHAKE'
           : result.track.length < 3 &&
+            !result.live?.ball?.strong &&
             [
               'NOT_ENOUGH_FRAMES',
               'TOO_FAR',
@@ -2033,7 +2038,9 @@ export function VelocityScreen({
                     </div>
                   ) : last && !last.measure.ok ? (
                     <div className="py-3 motion-safe:animate-fade-in">
-                      <p className="text-sm font-bold text-warn-line">재지 않았어요</p>
+                      <p className="text-sm font-bold text-warn-line">
+                        {last.live?.ball?.strong ? '공은 봤는데 못 쟀어요' : '재지 않았어요'}
+                      </p>
                       <p className="mt-1 text-xs leading-relaxed text-white/90">
                         {last.measure.message}
                       </p>
@@ -2242,7 +2249,7 @@ export function VelocityScreen({
                     ) : (
                       <div className="motion-safe:animate-fade-in">
                         <p className="text-sm font-bold text-warn-line">
-                          재지 않았어요
+                          {last.live?.ball?.strong ? '공은 봤는데 못 쟀어요' : '재지 않았어요'}
                         </p>
                         <p className="mt-1 text-xs leading-relaxed text-white/90">
                           {last.measure.message}

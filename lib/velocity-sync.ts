@@ -101,6 +101,9 @@ const LIVE_NOTE_CODES = new Set([
   'HDR',
   'BLUR',
   'DARK_BALL',
+  /* 대비 길(모델 1.9.0)로 잰 공 — live-meter.ts LiveNoteCode 와 같이 늘린다 */
+  'FALLBACK',
+  /* 엔진 2.0 — 끝을 이어 찾음 · 찍는 동안 흔들림 */
   'END_GUESS',
   'SHAKE',
 ]);
@@ -227,6 +230,8 @@ export function sanitizeAnalysis(raw: unknown): Record<string, unknown> | null {
       a.polarity === 'bright' || a.polarity === 'dark' || a.polarity === 'mixed'
         ? a.polarity
         : null,
+    /* 대비 길(모델 1.9.0)로 잰 공 — 보정 짝에 섞지 않으려고(lib/velocity-analysis.ts) */
+    fallback: a.fallback === 'close' || a.fallback === 'center' ? a.fallback : null,
     edgeWidthPx: n(a.edgeWidthPx),
     blurCorrectionPx: n(a.blurCorrectionPx),
     startSeKmh: n(a.startSeKmh),

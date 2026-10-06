@@ -3,6 +3,7 @@
  *
  *   npm run velocity:accuracy            — 표를 찍는다
  *   npm run velocity:accuracy -- --json  — 숫자만(JSON) 찍는다(엔진을 고치기 전후 견줄 때)
+ *   npm run velocity:accuracy -- --no-fallback — 대비 길(1.9.0) 없이(격자 시나리오가 대비 길 덕에 재지는지 볼 때)
  *
  * 진짜 구속을 아는 공을 프레임으로 **그려서**(가장자리 번짐 · 초점 흐림 · 모션 블러 · 센서 잡음 ·
  * 자동 노출 변화 · 배경 무늬 · 릴리스가 가운데서 벗어남 · 옆으로 흐름 · 공기저항) 엔진 전체
@@ -31,6 +32,8 @@ const SEEDS = Number(
 const ONLY = process.argv.find((a) => a.startsWith('--only='))?.split('=')[1] ?? '';
 /** --diag — 첫 씨앗에서 프레임마다 잰 지름 ÷ 진짜 지름을 크기 구간별로 찍는다(지름 치우침 찾기) */
 const DIAG = process.argv.includes('--diag');
+/** --no-fallback — 대비 길(1.9.0) 없이 1.8.x 처럼 두 길만(격자 시나리오가 실제로 대비 길 덕에 재지는지 볼 때) */
+const NO_FALLBACK = process.argv.includes('--no-fallback');
 
 /** 공기저항 — 감속 a = K v² (m/s², v 는 m/s). 야구공(C_d≈0.35, 145g, 지름 7.3cm)이면 K≈0.006/m */
 const DRAG_K = 0.006;
@@ -109,6 +112,12 @@ type Scenario = {
    * 흰 천 · 초점 흐림 · 다가옴이 그 위에서 어떻게 움직이는지를 본다.
    */
   cameraEdgeSrcPx?: number;
+  /**
+   * 흔들리는 표적 그물 격자(밖, 2026-10-03) — pitch 간격의 그물코 점이 배경에 있고 장면마다 밝기가 0~amp 사이로 흔들린다.
+   * 배경('둘째로 어두운 값')과 견주면 그물 전체가 '움직인 픽셀' 점 격자가 되어, 그물코 잇기(닫힘)가 공을 격자에 붙인다
+   * — 1.8.1 은 공 후보를 잃고 '장면 부족'. 대비 길(1.9.0, 닫힘 0)이 잰다(result.fallback 'close').
+   */
+  grid?: { pitch: number; amp: number };
 };
 
 const LANDSCAPE = { w: 1920, h: 1080 };
@@ -196,6 +205,8 @@ const SCENARIOS: Scenario[] = [
     mesh: { strand: 3, pitch: 8, luma: 225 },
   },
   { name: '흰 배경(공 뒤가 흰 망 220)', kmh: 130, fps: 240, source: PORTRAIT, bgLevel: 220 },
+  /* 밖 · 표적 그물 앞(1.9.0 대비 길) — 대비 길 없이(--no-fallback)는 4/6 거부(장면 부족), 대비 길은 닫힘 0 으로 다 잰다 */
+  { name: '흔들리는 그물 격자 앞(4px · ±60) 60fps', kmh: 130, fps: 60, source: PORTRAIT, grid: { pitch: 4, amp: 60 } },
   { name: '밝은 배경(공 뒤 190)', kmh: 130, fps: 240, source: PORTRAIT, bgLevel: 190 },
   {
     name: '모두 섞임(현실)',
@@ -570,7 +581,7 @@ function drawBall(
 /* ─────────────────────────── 한 번 던지기 ─────────────────────────── */
 
 type Outcome =
-  | { ok: true; avgErr: number; relErr: number; frames: number; conf: string; relKmh: number; relSe: number | null; relPm: number | null; trims: number }
+  | { ok: true; avgErr: number; relErr: number; frames: number; conf: string; relKmh: number; relSe: number | null; relPm: number | null; trims: number; fallback: string | null }
   | { ok: false; code: string };
 
 function throwOnce(sc: Scenario, seed: number): Outcome {
@@ -636,10 +647,20 @@ function throwOnce(sc: Scenario, seed: number): Outcome {
     for (let y = target.y0; y <= target.y1; y++) for (let x = target.x0; x <= target.x1; x++) luma[y * width + x] = sc.brightTarget.level;
   };
 
+  /* 흔들리는 그물 격자 — 점마다 장면마다 0~amp 로 흔들린다(배경 표본에도 같은 자리, 다른 밝기) */
+  const paintGrid = (luma: Float32Array) => {
+    if (!sc.grid) return;
+    const { pitch, amp } = sc.grid;
+    for (let y = pitch; y < height; y += pitch) {
+      for (let x = pitch; x < width; x += pitch) luma[y * width + x] += rand() * amp;
+    }
+  };
+
   /* 던지기 전 잠잠한 프레임 넷 — 배경 표본 */
   for (let i = 0; i < 4; i++) {
     const luma = sc.sky ? skyBackground(width, height, 0, sc.sky) : background(width, height, 0, sc.bgLevel);
     paintTarget(luma);
+    paintGrid(luma);
     if (sc.mesh) drawMesh(luma, width, height, sc.mesh);
     addNoise(luma, noise, Math.floor(rand() * 65536));
     backgroundSamples.push(luma);
@@ -666,6 +687,7 @@ function throwOnce(sc: Scenario, seed: number): Outcome {
       ? skyBackground(width, height, shift, sc.sky)
       : background(width, height, shift, sc.bgLevel);
     paintTarget(luma);
+    paintGrid(luma);
     exposure += sc.exposureDrift ?? 0;
     if (exposure) for (let k = 0; k < luma.length; k++) luma[k] += exposure;
     const smear =
@@ -719,6 +741,7 @@ function throwOnce(sc: Scenario, seed: number): Outcome {
     focalPx: sc.calibrated ? trueFocal : undefined,
     approach,
     releaseDistanceM: approach === 'approaching' ? z0 : undefined,
+    ...(NO_FALLBACK ? { fallback: false } : {}),
   });
   if (!result.measure.ok) return { ok: false, code: result.measure.code };
 
@@ -795,6 +818,8 @@ function throwOnce(sc: Scenario, seed: number): Outcome {
     relSe: d.startSeKmh ?? null,
     relPm: (result.release as { errorKmh?: number } | null)?.errorKmh ?? null,
     trims: (d.startTrimmed ?? 0) + (d.endTrimmed ?? 0) + (d.farTrimmed ?? 0),
+    /* 대비 길(1.9.0)로 쟀나 — 격자 시나리오만 'close' 여야 하고 나머지는 전부 null(첫 길에서 끝남) */
+    fallback: result.fallback ?? null,
   };
 }
 
@@ -810,6 +835,8 @@ type Row = {
   relBias: number;
   relP90: number;
   frames: number;
+  /** 대비 길(1.9.0)로 잰 수 — 격자 시나리오 말고는 0 이어야 한다 */
+  fallbacks: number;
   /** 씨앗마다의 결과(릴리스 오차 · SE · ± · 믿음) — --json 으로 불확실성을 따로 본다 */
   outs: Outcome[];
 };
@@ -839,6 +866,7 @@ for (const sc of SCENARIOS.filter((x) => !ONLY || x.name.includes(ONLY))) {
     relBias: mean(rel),
     relP90: p90(rel),
     frames: mean(ok.map((o) => o.frames)),
+    fallbacks: ok.filter((o) => o.fallback != null).length,
     outs,
   });
 }
@@ -854,7 +882,7 @@ if (JSON_OUT) {
   console.log(
     '시나리오'.padEnd(34) +
       '거부'.padStart(6) +
-      '  평균bias  평균p90  릴리스bias  릴리스p90  프레임'
+      '  평균bias  평균p90  릴리스bias  릴리스p90  프레임  대비'
   );
   for (const r of rows) {
     const rej = `${r.rejected}/${r.n}`;
@@ -874,6 +902,7 @@ if (JSON_OUT) {
         f1(r.relP90).padStart(9) +
         '  ' +
         (Number.isFinite(r.frames) ? r.frames.toFixed(0) : '—').padStart(6) +
+        String(r.fallbacks || '').padStart(6) +
         (codes ? '   ' + codes : '')
     );
   }

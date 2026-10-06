@@ -266,6 +266,67 @@ console.log('\n════ 4. 감지부터 구속까지 한 번에 ════
   }
 }
 
+console.log('\n════ 6. 대비 길(1.9.0) — 흔들리는 그물 격자 앞의 공 · 가운데 밖의 릴리스 ════\n');
+{
+  /*
+   * 밖 · 표적 그물 앞(docs/velocity/outdoor-2026-10-03.md): 그물코가 장면마다 밝기가 달라져 4px 간격의 '움직인 픽셀' 점
+   * 격자가 된다. 그물코 잇기(닫힘 2)는 그 점들을 메워 공과 한 덩어리로 만들고, 둥근 모양 검사에서 떨어져 공 후보가
+   * 사라진다. 대비 길은 닫힘 0 으로 다시 찾는다 — 점은 작아서 걸러지고 공만 남는다.
+   */
+  const bg = makeBackground();
+  const f = new Uint8ClampedArray(bg);
+  for (let y = 60; y < H - 60; y += 4) {
+    for (let x = 100; x < W - 100; x += 4) {
+      const i = (y * W + x) * 4;
+      f[i] = f[i + 1] = f[i + 2] = Math.min(255, bg[i] + 60);
+    }
+  }
+  drawCircle(f, 320, 180, 30);
+  const background = toLuma(bg, W, H);
+  const luma = toLuma(f, W, H);
+  const closed = findMovedBlobs(background, luma, W, H);
+  const open = findMovedBlobs(background, luma, W, H, 0, null, undefined, 0);
+  check(
+    '닫힘 2(기본)는 공을 격자에 붙여 잃는다',
+    !closed.some((b) => Math.hypot(b.cx - 320, b.cy - 180) < 4 && Math.abs(blobDiameter(b) - 30) < 6),
+    `후보 ${closed.length}개`
+  );
+  const ball = open.find((b) => Math.hypot(b.cx - 320, b.cy - 180) < 4);
+  check(
+    '닫힘 0(대비 길)은 공을 찾는다',
+    !!ball && Math.abs(blobDiameter(ball) - 30) < 6,
+    ball ? `지름 ${blobDiameter(ball).toFixed(1)}px · 후보 ${open.length}개` : '못 찾음'
+  );
+  /* 격자 없는 장면에서는 닫힘 0 과 닫힘 2 가 같은 공을 찾는다(대비 길이 멀쩡한 장면을 망치지 않는다) */
+  const plain = new Uint8ClampedArray(bg);
+  drawCircle(plain, 320, 180, 30);
+  const a = findMovedBlobs(background, toLuma(plain, W, H), W, H);
+  const b = findMovedBlobs(background, toLuma(plain, W, H), W, H, 0, null, undefined, 0);
+  check(
+    '격자가 없으면 닫힘 0 도 같은 공',
+    a.length === 1 && b.length === 1 && Math.abs(blobDiameter(a[0]) - blobDiameter(b[0])) < 0.5
+  );
+}
+{
+  /*
+   * 릴리스가 화면 가운데(짧은 변 절반의 0.45)에서 벗어난 공 — 낮게 겨눈 밖 촬영(2배 줌이라 각도로 두 배 엄격). 기본
+   * 씨앗 조건으로는 궤적이 없고, 가운데 조건을 풀면(대비 길 ④) 같은 궤적이 잡힌다.
+   */
+  const bg = makeBackground();
+  const background = toLuma(bg, W, H);
+  const frames: FrameBlobs[] = [];
+  for (let k = 0; k < 14; k++) {
+    const f = new Uint8ClampedArray(bg);
+    /* 화면 위 1/5 에서 시작해 멀어지는 공 — 가운데에서 0.9배 떨어진 자리(짧은 변 절반 180px 의 0.9 = 162px) */
+    drawCircle(f, 320 + k * 1.5, 18 + k * 2, 40 - k * 2);
+    frames.push({ t: k / 60, blobs: findMovedBlobs(background, toLuma(f, W, H), W, H) });
+  }
+  const strict = trackBall(frames, { frameWidth: W, frameHeight: H });
+  const loose = trackBall(frames, { frameWidth: W, frameHeight: H, seedCenterRatio: Number.POSITIVE_INFINITY });
+  check('기본 씨앗 조건(0.45)으로는 가운데 밖의 공을 못 잇는다', strict.length === 0, `${strict.length}장`);
+  check('가운데 조건을 풀면(대비 길) 같은 공을 잇는다', loose.length >= 10, `${loose.length}장`);
+}
+
 console.log(`\n${'═'.repeat(50)}`);
 console.log(`통과 ${passed} / 실패 ${failed}`);
 console.log(`${'═'.repeat(50)}\n`);

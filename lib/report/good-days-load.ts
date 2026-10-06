@@ -64,7 +64,10 @@ export async function loadGoodDays(
     }),
     prisma.userExerciseLog.findMany({
       where: { userId, completed: true, date: { gte: dbDate(shiftDateKey(from, -1)) } },
-      select: { date: true, exercise: { select: { bodyParts: true } } },
+      select: {
+        date: true,
+        exercise: { select: { category: true, bodyParts: true } },
+      },
     }),
     prisma.mealEntry.findMany({
       where: { userId, date: { gte: dbDate(shiftDateKey(from, -1)) } },
@@ -78,11 +81,12 @@ export async function loadGoodDays(
       checkins: checkins.map((c) => ({ ...c, date: toDateKey(c.date) })),
       workouts: workouts.map((w) => ({
         date: toDateKey(w.date),
+        category: w.exercise.category,
         bodyParts: w.exercise.bodyParts,
       })),
       meals: meals.map((m) => ({
         date: toDateKey(m.date),
-        protein: (m.protein ?? 0) * m.amount,
+        protein: m.protein == null ? null : m.protein * m.amount,
       })),
     },
     from

@@ -39,4 +39,5 @@ node scripts/velocity-lab/sheet.mjs ~/bullpen-velocity-lab/2026-10-03/clips/132_
 
 ## 지난 기록
 
-- `docs/velocity/outdoor-2026-10-03.md` — 밖에서 찍은 13개: 1/13 만 재지는 까닭 둘과 처방(대비 길).
+- `docs/velocity/outdoor-2026-10-03.md` — 밖에서 찍은 13개: 1/13 만 재지는 까닭 둘과 처방(대비 길). 1.9.0(2026-10-06)이 처방을
+  넣어 13/13 — 결과 줄 끝에 `대비 close` · `대비 center` 가 찍히면 그 길로 잰 것이다(보정 짝에서 빠진다).

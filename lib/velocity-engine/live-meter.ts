@@ -2115,7 +2115,9 @@ export type LiveNoteCode =
   | 'ZOOM'
   | 'HDR'
   | 'BLUR'
-  | 'DARK_BALL';
+  | 'DARK_BALL'
+  /** 대비 길(1.9.0)로 잰 공 — 그물 앞 · 릴리스가 가운데 밖. 아직 스피드건으로 맞추지 않은 조건이라 값이 낮게 나올 수 있다 */
+  | 'FALLBACK';
 export type LiveNote = { code: LiveNoteCode; text: string };
 
 /** 장면을 어디서 어떻게 받나 — 'worker-stream' 워커가 카메라 장면을 직접, 'worker-frames' 화면 스레드가 캔버스로, 'main' 워커 없이 */
@@ -2144,6 +2146,12 @@ export type LiveReport = {
     visible: [number, number];
     rotationFix: number;
   } | null;
+  /**
+   * 판단(BallWatch)이 본 공 — 공으로 알아챈 일감만. strong: 따라가 보니 공답게 멀어졌다, offCenter: 첫 공이 씨앗 자리 밖이었다.
+   * 화면이 거부를 잡음으로 걸러 버릴지 정할 때 쓴다(velocity-screen.tsx addResult): 공답게 따라간 것은 잡음이 아니다 —
+   * '공은 봤는데 못 쟀어요'와 까닭을 보인다(1.9.0, 밖에서 8개 중 6개가 조용히 버려졌다 — outdoor-2026-10-03.md).
+   */
+  ball?: { strong: boolean; offCenter: boolean } | null;
 };
 
 export type LiveAnalyzeResult = AnalyzeResult & { live: LiveReport };
@@ -2281,6 +2289,19 @@ export function liveReport(
     notes.push({
       code: 'DARK_BALL',
       text: '밝은 하늘 · 벽 앞이라 공이 배경보다 어둡게 찍혀 다른 방법으로 쟀어요. 아직 스피드건으로 확인하지 못한 조건이라 값이 조금 어긋날 수 있어요.',
+    });
+  }
+  /*
+   * 대비 길(1.9.0, analyze-frames.ts '대비 길')로 잰 공 — 그물코 잇기 없이('close') · 가운데 조건 없이('center'). 밖 · 2배 줌의
+   * 스피드건 짝 13개가 평균 3km/h 낮게 읽혀 아직 맞추지 않은 조건이다(보정 짝에서도 뺀다). 믿음은 analyzeFrames 가 '보통'까지로 내렸다.
+   */
+  if (result?.measure.ok && result.fallback) {
+    notes.push({
+      code: 'FALLBACK',
+      text:
+        result.fallback === 'center'
+          ? '공을 놓는 지점이 화면 가운데에서 벗어나 다른 방법으로 쟀어요. 값이 조금 낮게 나올 수 있어요. 폰 높이를 릴리스에 맞추면 더 정확해요.'
+          : '그물 앞이라 다른 방법으로 쟀어요. 아직 스피드건으로 확인하지 못한 조건이라 값이 조금 낮게 나올 수 있어요.',
     });
   }
   for (const i of items) if (i.text) notes.push({ code: i.code, text: i.text });
@@ -2456,7 +2477,13 @@ export function analyzeJob(
   ) {
     result = { ...result, measure: { ok: false, ...reject('RELEASE_NOT_CENTERED') } };
   }
-  return { ...result, live: liveReport(job.fps, camera, result, job.timing ?? null) };
+  return {
+    ...result,
+    live: {
+      ...liveReport(job.fps, camera, result, job.timing ?? null),
+      ball: job.ball ? { strong: job.ball.strong === true, offCenter: job.ball.offCenter === true } : null,
+    },
+  };
 }
 
 /** 공을 못 찾거나 못 이어 끝난 까닭들 — 릴리스가 표적에서 벗어난 공이면 그 까닭으로 바꿔 알린다(analyzeJob) */

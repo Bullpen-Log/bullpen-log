@@ -188,6 +188,11 @@ export type AnalyzeFramesInput = {
    * 시험용으로 false 면 예전 길만.
    */
   polarity?: boolean;
+  /**
+   * 대비 길(1.9.0) — 예전 길 · 극성 길로 못 쟀을 때 ① 그물코 잇기(닫힘) 없이, ② 그래도 거부면 가운데 조건까지 없이 한 번씩
+   * 더 돈다(아래 '대비 길'). 기본 true. 시험용으로 false 면 1.8.x 와 같은 두 길만.
+   */
+  fallback?: boolean;
 };
 
 /** 공기저항 상수 — 정의와 설명은 geometry.ts */
@@ -239,7 +244,14 @@ export type AnalyzeResult = {
   seedTrack?: BallObservation[];
   /** 진단용(입력 debug) — 마지막 단계(measureTrack)에 넘긴 입력 그대로. 맞춤만 바꿔 다시 돌릴 때 */
   trackInput?: TrackMeasureInput;
+  /**
+   * 대비 길로 잰 것(1.9.0): 'close' 그물코 잇기 없이 · 'center' 거기에 가운데 조건까지 없이. 예전 길 · 극성 길이면 없다.
+   * 분석 JSON 에 남겨 스피드건 보정 짝에서 뺀다(밖 · 2배 줌 짝 13개가 평균 2.6~3.5km/h 낮게 읽혔다 — 아직 맞추지 않은 조건).
+   */
+  fallback?: AnalyzeFallback;
 };
+
+export type AnalyzeFallback = 'close' | 'center';
 
 /* ───────────────────────── 귀퉁이 — 흔들림 · 노출 ───────────────────────── */
 
@@ -579,8 +591,13 @@ const LIMB_GUARD_MAX = 1.3;
  * 밝은 배경 — 화소의 '공 밝기 − 그 화소의 배경'이 공의 보통 대비(큰 장면 가운데의 공 − 배경)의 이 비율보다
  * 작으면, 그 화소는 공이 덮었는지 알 수 없다(흰 과녁 천 · 흰 벽 · 조명). 1차 조사 · 검증(2026-09-29): 0.5~0.65 가
  * 평평한 구간이고 0.35(−30%)에서 흰 천 영상 두 개가 +13 · +28km/h 로 무너졌다 — 엄격한 쪽 0.6.
+ *
+ * 0.4 로(1.9.0, 2026-10-06): 밖 촬영에서 공 뒤가 표적 그물 위 연회색 구조물(밝기 125~180)이면 0.6 은 20장 중 18장을 '밝은
+ * 배경'으로 뺐다(100_d538e2c9). 0.4 는 실내 보정 영상 18개의 릴리스를 0.1 · 평균을 0.3km/h 안에서 지키고(067 · 077 · 096 · 111 의
+ * 밝은 배경 거름이 1~2장 줄어 그만큼 장면이 늘었다, 096 은 ± 가 1.9 → 2.6 으로 믿음 '보통') 밖 13개를 모두 잰다
+ * (docs/velocity/outdoor-2026-10-03.md ③). 0.35 는 안 된다 — 위 흰 천 영상.
  */
-export const MIN_PIXEL_CONTRAST_RATIO = 0.6;
+export const MIN_PIXEL_CONTRAST_RATIO = 0.4;
 /**
  * 공 원판 안에서 그런 화소가 이 비율을 넘으면 그 장면은 뺀다. 1차 검증: 0.015~0.1 이 평평했고 0.13 부터 흰 천
  * 영상이 +6km/h 로 틀렸다 — 엄격한 쪽 0.05. 윤곽은 가려진 광선을 건너뛰어 반쯤 천에 걸린 공도 원을 맞출 수
@@ -1288,8 +1305,35 @@ export function analyzeFrames(input: AnalyzeFramesInput): AnalyzeResult {
     return bias;
   });
   const second = analyzePass(ctx, { med, spread, biasAt: biasMedAt }, biasMedList);
-  return second.measure.ok ? second : first;
+  if (second.measure.ok || input.fallback === false) return second.measure.ok ? second : first;
+
+  /*
+   * 대비 길(1.9.0) — 밖 · 표적 그물 앞(docs/velocity/outdoor-2026-10-03.md). 거부됐을 때만 돈다 — 늘 끄면 실내 보정 영상
+   * 15개 중 7개의 값이 바뀌고(f43a7958 83.8 → 80.5) 카메라 앞 흰 그물 너머 촬영이 전부 거부된다. 실내 18개 중 잰 15개는 첫
+   * 길에서 끝나 값이 같고, 거부된 3개(094 밝은 배경 · 118 둘 장면 부족)는 대비 길 둘을 돌아도 거부라 first 를 그대로 돌려준다 —
+   * 값 · 거부 까닭 모두 그대로(대비 길로 잰 영상 0). 거부되는 입력은 길이 넷이라 계산 시간이 두 길분 늘어난다.
+   *   ③ 그물코 잇기(닫힘) 없이 — 흔들리는 표적 그물의 격자가 '움직인 픽셀'이 되면 닫힘이 공을 격자에 붙여 공 후보가
+   *      사라진다(8개). 밝아짐만 본다(극성 길과 닫힘 0 의 조합은 실험하지 않았다).
+   *   ④ 거기에 가운데 조건까지 없이 — 씨앗 자리(trackBall seedCenterRatio)와 릴리스 검사(validate.ts)의 0.45 는 픽셀 비율이라
+   *      2배 줌에서는 각도로 두 배 엄격하다(광축에서 4.2°). 조건을 통째로 풀면 실내 2개가 0.6~1.1km/h 바뀌므로 여기서만.
+   * 어느 길로 쟀는지 result.fallback 에 남긴다 — 보정 짝에서 빼고 믿음은 '보통'까지(measureTrack).
+   */
+  const third = analyzePass(ctx, null, [], { closeRadius: 0, fallback: 'close' });
+  if (third.measure.ok) return third;
+  const fourth = analyzePass(ctx, null, [], {
+    closeRadius: 0,
+    centerRatio: Number.POSITIVE_INFINITY,
+    fallback: 'center',
+  });
+  return fourth.measure.ok ? fourth : first;
 }
+
+/** 대비 길의 설정(analyzeFrames) — 닫힘 반지름 · 씨앗 · 릴리스의 가운데 조건 · 결과에 남길 표시 */
+type PassOptions = {
+  closeRadius?: number;
+  centerRatio?: number;
+  fallback?: AnalyzeFallback;
+};
 
 /** analyzeFrames 의 한 길(예전 길 · 두 번째 길)이 함께 쓰는 것 — 장면 · 배경 · 노출 치우침 · 초점거리 · 흔들림 */
 type PassContext = {
@@ -1310,7 +1354,12 @@ type PassContext = {
  * 3~6) 감지 → 추적 → 첫 어림 → 거리 자 → 맞춤. polar 를 주면 두 번째 길(극성 — 'PolarBackground' 설명): 어두워짐도 보고
  * 지름을 화소마다 극성을 가려 잰다. polarBias 는 장면마다 중앙값 배경에 대한 노출 치우침(장면 차례).
  */
-function analyzePass(ctx: PassContext, polar: PolarBackground | null, polarBias: number[] = []): AnalyzeResult {
+function analyzePass(
+  ctx: PassContext,
+  polar: PolarBackground | null,
+  polarBias: number[] = [],
+  pass: PassOptions = {}
+): AnalyzeResult {
   const { input, frames, background, table, biasList, lumaAt, biasAt, focalPx, shakePx, measuredFps } =
     ctx;
   const { width, height, sourceWidth, sourceHeight, approach = 'receding' } = input;
@@ -1323,7 +1372,8 @@ function analyzePass(ctx: PassContext, polar: PolarBackground | null, polarBias:
       height,
       biasList[k],
       table,
-      polar ? { background: polar.med, spread: polar.spread, bias: polarBias[k] ?? 0 } : undefined
+      polar ? { background: polar.med, spread: polar.spread, bias: polarBias[k] ?? 0 } : undefined,
+      pass.closeRadius
     ),
   }));
   const rough = trackBall(blobFrames, {
@@ -1332,6 +1382,7 @@ function analyzePass(ctx: PassContext, polar: PolarBackground | null, polarBias:
     approach,
     seedFrames: input.seedFrames,
     focalDiameterPx: focalPx * (width / sourceWidth) * BALL_DIAMETER_M,
+    ...(pass.centerRatio != null ? { seedCenterRatio: pass.centerRatio } : {}),
   });
 
   /* 두 번째 길 — 공의 밝기(배경과 무관)로 화소마다 극성을 가린다. 궤적이 없으면 아래가 알아서 거부한다 */
@@ -1432,6 +1483,8 @@ function analyzePass(ctx: PassContext, polar: PolarBackground | null, polarBias:
     exposureBlurPx: input.exposureBlurPx,
     exposureBlurSigmaPerPx: input.exposureBlurSigmaPerPx,
     confidenceCap: input.confidenceCap,
+    ...(pass.centerRatio != null ? { maxReleaseOffsetRatio: pass.centerRatio } : {}),
+    ...(pass.fallback ? { fallback: pass.fallback } : {}),
   };
   const { measure, release } = measureTrack(trackInput);
 
@@ -1446,6 +1499,7 @@ function analyzePass(ctx: PassContext, polar: PolarBackground | null, polarBias:
     shakePx: Math.round(shakePx * 10) / 10,
     focalPx: Math.round(focalPx),
     diameter,
+    ...(pass.fallback ? { fallback: pass.fallback } : {}),
     ...(input.debug ? { blobFrames, seedTrack, trackInput } : {}),
   };
 }
@@ -1475,6 +1529,10 @@ export type TrackMeasureInput = {
   exposureBlurSigmaPerPx?: number;
   /** 믿음의 상한 — AnalyzeFramesInput.confidenceCap */
   confidenceCap?: 'medium' | 'low';
+  /** 릴리스가 가운데에서 벗어나도 되는 비율 — 대비 길 ④ 만 Infinity(measure.ts · validate.ts checkFraming) */
+  maxReleaseOffsetRatio?: number;
+  /** 대비 길로 잰 것 — 믿음은 '보통'까지(스피드건으로 맞추지 않은 조건) */
+  fallback?: AnalyzeFallback;
 };
 
 /** 번짐 탓일 수 있는 거부 — 노출 번짐이 문턱을 넘었으면 이 까닭들은 MOTION_BLUR 로 바꿔 알린다(무엇을 고칠지가 분명하게) */
@@ -1493,6 +1551,7 @@ export function measureTrack(input: TrackMeasureInput): {
         stability: { maxBackgroundShiftPx: shakePx },
         approach,
         framingAnchor: anchor,
+        maxReleaseOffsetRatio: input.maxReleaseOffsetRatio,
       });
 
   /*
@@ -1558,6 +1617,8 @@ export function measureTrack(input: TrackMeasureInput): {
    */
   const darkBall = diameter.polarity === 'dark' || diameter.polarity === 'mixed';
   if (measure.ok && darkBall && measure.confidence === 'high') measure = { ...measure, confidence: 'medium' };
+  /* 대비 길(1.9.0)로 잰 것도 '보통'까지 — 밖 · 2배 줌 짝 13개가 평균 2.6~3.5km/h 낮게 읽혔고 아직 그 조건을 맞추지 않았다 */
+  if (measure.ok && input.fallback && measure.confidence === 'high') measure = { ...measure, confidence: 'medium' };
   /* ± 에 잭나이프가 못 보는 σ(흐림 · 보정 조건 밖)를 더한다 — 구간 평균 · 릴리스 둘 다 */
   /*
    * σ 는 1.6px 부터 서서히 켠다(알림 · '낮음'은 문턱 exposureBlurPx 부터) — 문턱에서 계단처럼 켜면 그 바로 밑(1.65~1.8px, 1/30초에
