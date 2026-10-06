@@ -119,6 +119,7 @@ export function DayRecord({
                   </Badge>
                   <Badge>{log.pitchCount}구</Badge>
                   <Badge>강도 {log.intensity}/10</Badge>
+                  {log.satisfaction != null && <Badge>만족도 {log.satisfaction}/5</Badge>}
                   {log.avgVelocity != null && (
                     <Badge>평균 {formatSpeed(log.avgVelocity, speedUnit)}</Badge>
                   )}
@@ -190,6 +191,20 @@ export function DayRecord({
             </p>
           ) : (
             <p className="mt-2 text-sm text-muted">남긴 메모가 없어요.</p>
+          )}
+          {/* 투구 만족도와 같이 고른 감각(lib/pitch-satisfaction.ts) */}
+          {(
+            [
+              ['좋았던 것', log.cuesGood],
+              ['아쉬웠던 것', log.cuesBad],
+            ] as const
+          ).map(
+            ([title, cues]) =>
+              cues.length > 0 && (
+                <p key={title} className="mt-2 text-xs text-muted">
+                  {title} <span className="text-ink/80">{cues.join(' · ')}</span>
+                </p>
+              )
           )}
         </div>
       </div>

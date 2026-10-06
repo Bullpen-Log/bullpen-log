@@ -79,6 +79,7 @@ export function AnalysisBlock({
   today,
   initialTab,
   todayReport,
+  initialView,
   onJump,
 }: {
   /** 보여 줄 날 — 캘린더에서 고른 날, 안 골랐으면 오늘 */
@@ -92,6 +93,13 @@ export function AnalysisBlock({
    * 받아 둔 것으로 그리면 만들기를 눌러도 옛 리포트가 남는다.
    */
   todayReport: ReactNode;
+  /**
+   * 처음 펼 날 · 칸의 내용 — 서버가 화면과 함께 그려 보낸다(분석 · 그래프 화면 /coach).
+   *
+   * 없으면 화면이 뜬 뒤 그 칸을 따로 받아 와(analysisFor), 불러오는 중 뼈대가 화면 뼈대 → 이 칸 뼈대로 두 번 바뀌었다
+   * (2026-10-06 "화면 전환 중 로딩 화면이 깨진다"). 서버가 새로 그려 보내면 이것도 새것으로 온다.
+   */
+  initialView?: { date: string; tab: AnalysisTab; node: ReactNode };
   onJump: (date: string) => void;
 }) {
   const [tab, setTab] = useState<AnalysisTab>(initialTab);
@@ -111,7 +119,11 @@ export function AnalysisBlock({
 
   const key = `${date}:${tab}`;
   const fromServer = date === today && tab === 'report';
-  const node = fromServer ? todayReport : cache[key];
+  const node = fromServer
+    ? todayReport
+    : initialView && key === `${initialView.date}:${initialView.tab}`
+      ? initialView.node
+      : cache[key];
 
   useEffect(() => {
     if (node !== undefined || failed[key]) return;

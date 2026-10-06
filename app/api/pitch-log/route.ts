@@ -4,6 +4,7 @@ import { getCurrentUser } from '@/lib/dal';
 import { deleteVideos, isOwnedBy } from '@/lib/storage';
 import { isRestSession, validateSessionType } from '@/lib/session-type';
 import { isFutureDateKey, toDateKey } from '@/lib/pitch-stats';
+import { cleanCues, isRatedSession, readSatisfaction } from '@/lib/pitch-satisfaction';
 
 const MAX_VIDEOS = 2;
 
@@ -122,6 +123,28 @@ function checkEntry(body: Record<string, unknown>): { error: string } | CheckedE
     avgVelocity,
     memo: String(body.memo ?? '').trim() || null,
   };
+}
+
+/**
+ * 투구 만족도 · 좋았던 것 · 아쉬웠던 것을 검사한다.
+ *
+ * 보낼 때만 손댄다(data 가 null 이면 그대로 둔다) — 영상 목록과 같은 까닭이다. 이 칸이 생기기 전 화면은
+ * 값을 안 보내서, 없을 때 비운다고 치면 그 화면에서 메모만 고쳐도 매겨 둔 만족도가 날아간다.
+ * 만족도를 받지 않는 종류(캐치볼 · 휴식)면 늘 비운다.
+ */
+function checkSatisfaction(
+  body: Record<string, unknown>,
+  sessionType: string
+):
+  | { error: string }
+  | { data: { satisfaction: number | null; cuesGood: string[]; cuesBad: string[] } | null } {
+  if (!isRatedSession(sessionType)) {
+    return { data: { satisfaction: null, cuesGood: [], cuesBad: [] } };
+  }
+  if (body.satisfaction === undefined) return { data: null };
+  const read = readSatisfaction(body.satisfaction);
+  if ('error' in read) return read;
+  return { data: { satisfaction: read.value, ...cleanCues(body.cuesGood, body.cuesBad) } };
 }
 
 /**
@@ -245,6 +268,11 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: checked.error }, { status: 400 });
     }
 
+    const rating = checkSatisfaction(body, checked.sessionType);
+    if ('error' in rating) {
+      return NextResponse.json({ error: rating.error }, { status: 400 });
+    }
+
     const checkedPaths = checkVideoPaths(videoPaths, user.id);
     if ('error' in checkedPaths) {
       return NextResponse.json({ error: checkedPaths.error }, { status: 400 });
@@ -273,6 +301,7 @@ export async function POST(req: Request) {
         userId: user.id,
         date: parsedDate,
         ...checked,
+        ...rating.data,
         videoPaths: paths,
       },
     });
@@ -324,6 +353,10 @@ export async function PATCH(req: Request) {
     if ('error' in checked) {
       return NextResponse.json({ error: checked.error }, { status: 400 });
     }
+    const rating = checkSatisfaction(body, checked.sessionType);
+    if ('error' in rating) {
+      return NextResponse.json({ error: rating.error }, { status: 400 });
+    }
 
     /*
      * 영상 목록은 보낼 때만 손댄다.
@@ -368,7 +401,7 @@ export async function PATCH(req: Request) {
 
       const log = await prisma.pitchLog.update({
         where: { id: target.id },
-        data: { ...checked, videoPaths: finalPaths },
+        data: { ...checked, ...rating.data, videoPaths: finalPaths },
       });
 
       if (removed.length > 0) {
@@ -390,7 +423,7 @@ export async function PATCH(req: Request) {
 
     const log = await prisma.pitchLog.update({
       where: { id: target.id },
-      data: checked,
+      data: { ...checked, ...rating.data },
     });
 
     return NextResponse.json(log);

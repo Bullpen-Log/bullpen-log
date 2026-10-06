@@ -260,6 +260,32 @@ export function PlanForm({
     );
   }
 
+  /*
+   * 가진 장비를 한 번도 안 고른 사람 — 만들기 전에 한 번만 묻는다(2026-10-05 방향 검토 A5).
+   *
+   * 안 고른 채로 두면 '다 있다'로 보고 짜서(lib/report/equipment.ts), 집에서 하는 사람에게 바벨 운동이
+   * 나왔다. 하나도 안 켜고 저장하면 '맨몸'만 남아(readOwnedEquipment) 다시 묻지 않는다. 저장하면 이
+   * 화면으로 돌아와 아래 만들기 폼이 뜬다.
+   */
+  if (owned.length === 0) {
+    return (
+      <SafeForm
+        action={saveOwnedEquipment}
+        className="space-y-4"
+        doneToast="가진 장비를 저장했어요"
+      >
+        <input type="hidden" name="returnTo" value={returnTo} />
+        <CheckboxGroup
+          name="ownedEquipment"
+          label="가진 장비부터 골라 주세요"
+          hint="처음 한 번만 물어요. 없는 장비로 하는 운동은 빼고 짜요. 아무것도 없으면 그대로 저장하세요."
+          options={SELECTABLE_EQUIPMENT}
+        />
+        <SubmitButton label="저장하고 계속" busy="저장 중…" />
+      </SafeForm>
+    );
+  }
+
   /* 오늘 쓸 수 있는 장비 — 두 방식 모두 사람이 고른다. 앱은 모르는 일이다. */
   const equipmentField =
     choices.length > 0 ? (

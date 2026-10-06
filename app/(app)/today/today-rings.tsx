@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import Link from 'next/link';
 import { Check, HeartPulse, type LucideIcon } from 'lucide-react';
 import { prisma } from '@/lib/prisma';
@@ -25,10 +26,13 @@ import { Card } from '@/components/ui';
 export async function TodayRings({
   user,
   today,
+  footer,
 }: {
   user: Awaited<ReturnType<typeof requireUser>>;
   /** 오늘 'YYYY-MM-DD'(한국 시각) */
   today: string;
+  /** 링 밑 한 줄 — 따로 기다리는 것이라 홈이 Suspense 로 감싸 넘긴다 */
+  footer?: ReactNode;
 }) {
   const [detail, logs] = await Promise.all([
     loadDayDetail(user, today),
@@ -79,7 +83,9 @@ export async function TodayRings({
     },
   ];
 
-  return <RingsCard items={items} checkinDone={detail.checkin != null} />;
+  return (
+    <RingsCard items={items} checkinDone={detail.checkin != null} footer={footer} />
+  );
 }
 
 /** 링 하나의 내용 */
@@ -99,46 +105,54 @@ export type RingItem = {
 export function RingsCard({
   items,
   checkinDone,
+  footer,
 }: {
   items: RingItem[];
   checkinDone: boolean;
+  /** 링 밑 한 줄 — 오늘 투구 안내(홈 page.tsx 의 PlanLine) */
+  footer?: ReactNode;
 }) {
   return (
-    <Card className="grid grid-cols-4 gap-1 px-2 desk:px-(--block-pad)">
-      {items.map((it) => {
-        const face = (
-          <>
-            <Ring value={it.value} icon={it.icon} />
-            <span className="mt-2 text-[13px] font-semibold text-ink">{it.label}</span>
-            <span
-              className={`mt-0.5 max-w-full truncate text-xs tabular-nums ${
-                it.value >= 1 ? 'font-semibold text-sky' : 'text-muted'
-              }`}
+    <Card className="px-2 desk:px-(--block-pad)">
+      <div className="grid grid-cols-4 gap-1">
+        {items.map((it) => {
+          const face = (
+            <>
+              <Ring value={it.value} icon={it.icon} />
+              <span className="mt-2 text-[13px] font-semibold text-ink">
+                {it.label}
+              </span>
+              <span
+                className={`mt-0.5 max-w-full truncate text-xs tabular-nums ${
+                  it.value >= 1 ? 'font-semibold text-sky' : 'text-muted'
+                }`}
+              >
+                {it.caption}
+              </span>
+            </>
+          );
+          const cls =
+            'flex min-w-0 flex-col items-center rounded-2xl py-1 transition-opacity hover:opacity-80';
+          return it.href ? (
+            <Link
+              key={it.key}
+              href={it.href}
+              className={cls}
+              aria-label={`${it.label} ${it.caption}`}
             >
-              {it.caption}
-            </span>
-          </>
-        );
-        const cls =
-          'flex min-w-0 flex-col items-center rounded-2xl py-1 transition-opacity hover:opacity-80';
-        return it.href ? (
-          <Link
-            key={it.key}
-            href={it.href}
-            className={cls}
-            aria-label={`${it.label} ${it.caption}`}
-          >
-            {face}
-          </Link>
-        ) : (
-          <OpenCheckinButton key={it.key} className={cls}>
-            {face}
-            <span className="sr-only">
-              {checkinDone ? ', 고치기' : ', 지금 남기기'}
-            </span>
-          </OpenCheckinButton>
-        );
-      })}
+              {face}
+            </Link>
+          ) : (
+            <OpenCheckinButton key={it.key} className={cls}>
+              {face}
+              <span className="sr-only">
+                {checkinDone ? ', 고치기' : ', 지금 남기기'}
+              </span>
+            </OpenCheckinButton>
+          );
+        })}
+      </div>
+      {footer}
     </Card>
   );
 }

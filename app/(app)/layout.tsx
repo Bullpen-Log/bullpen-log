@@ -19,7 +19,7 @@ import {
 } from '@/lib/checkin';
 import { visibleExercises } from '@/lib/library-cache';
 import { availableParts } from '@/lib/report/today-pick';
-import { MainTransition } from '@/components/nav-motion';
+import { MainTransition } from '@/components/main-transition';
 import { SiteFooter } from '@/components/site-footer';
 import { PullToRefresh } from '@/components/pull-to-refresh';
 

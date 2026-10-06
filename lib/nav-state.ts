@@ -111,7 +111,7 @@ export function takeBackPressed(): boolean {
   return was;
 }
 
-/** 방향을 단 때 본문 머리의 화면 위치 — 옛 화면 그림을 보던 자리에 두는 데 쓴다(nav-motion.tsx MainTransition) */
+/** 방향을 단 때 본문 머리의 화면 위치 — 옛 화면 그림을 보던 자리에 두는 데 쓴다(components/main-transition.tsx) */
 let leaveTop: number | null = null;
 
 export function setNavDirection(dir: NavDirection) {

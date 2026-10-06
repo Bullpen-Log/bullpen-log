@@ -1,7 +1,9 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
+import { Check, ChevronDown } from 'lucide-react';
 import { Button, Field, Input, Textarea } from '@/components/ui';
+import { Segmented } from '@/components/segmented';
 import { VideoUpload, type UploadedVideo } from '@/components/video-upload';
 import { usePlaybackUrls } from '@/components/use-playback-urls';
 import { FilmingGuide } from '@/components/filming-guide';
@@ -9,6 +11,13 @@ import { IntensityGuide } from '@/components/intensity-guide';
 import { makePitchThumb } from '@/lib/pitch-thumbs';
 import { dateKeyLabel } from '@/lib/pitch-stats';
 import { DEFAULT_SESSION_TYPE, SESSION_TYPES, isRestSession } from '@/lib/session-type';
+import {
+  GOOD_DAY_MIN,
+  PITCH_CUES,
+  SATISFACTION_ENDS,
+  SATISFACTION_OPTIONS,
+  isRatedSession,
+} from '@/lib/pitch-satisfaction';
 import {
   fromSpeed,
   readSpeedUnit,
@@ -47,6 +56,10 @@ const EMPTY_FORM = {
   maxVelocity: '',
   avgVelocity: '',
   memo: '',
+  /** 투구 만족도 '1'~'5', 안 골랐으면 '' */
+  satisfaction: '',
+  cuesGood: [] as string[],
+  cuesBad: [] as string[],
 };
 
 /** 고칠 기록. 주어지면 수정 모드가 된다. */
@@ -60,7 +73,113 @@ export type EntryDraft = {
   memo: string | null;
   /** 이미 붙어 있는 영상의 저장소 경로 */
   videoPaths: string[];
+  satisfaction?: number | null;
+  cuesGood?: string[];
+  cuesBad?: string[];
 };
+
+/** 고르는 알약 — 휴대폰은 테두리 없는 회색 알약(고른 것은 파랑으로 두름), PC 는 예전 네모 */
+function chipClass(active: boolean) {
+  return `min-h-10 rounded-full border px-4 text-sm transition-colors desk:min-h-0 desk:rounded-xl desk:py-2 ${
+    active
+      ? 'border-sky bg-sky/10 font-semibold text-sky-strong'
+      : 'border-transparent bg-ink/6 text-ink/80 desk:border-line desk:bg-surface-2 desk:text-muted desk:hover:border-sky-soft desk:hover:text-ink'
+  }`;
+}
+
+/**
+ * 투구 만족도 1~5 + 접힌 '느낀 점 더하기'(좋았던 것 · 아쉬웠던 것 칩).
+ *
+ * 매기는 것은 한 번 누르기 하나로 둔다 — 칸이 많으면 귀찮아서 안 남기고, 안 남기면 '잘 던진 날 찾기'가 돌지 않는다.
+ * 칩은 더 적고 싶은 날만 펼친다. 한 감각은 한쪽에만 — 반대쪽에서 고르면 이쪽에서 풀린다.
+ */
+function SatisfactionFields({
+  value,
+  good,
+  bad,
+  onChange,
+}: {
+  value: string;
+  good: string[];
+  bad: string[];
+  onChange: (next: { satisfaction?: string; cuesGood?: string[]; cuesBad?: string[] }) => void;
+}) {
+  const [open, setOpen] = useState(good.length + bad.length > 0);
+  const toggle = (cue: string, side: 'good' | 'bad') => {
+    const mine = side === 'good' ? good : bad;
+    const other = side === 'good' ? bad : good;
+    const nextMine = mine.includes(cue) ? mine.filter((c) => c !== cue) : [...mine, cue];
+    const nextOther = other.filter((c) => c !== cue);
+    onChange(
+      side === 'good'
+        ? { cuesGood: nextMine, cuesBad: nextOther }
+        : { cuesGood: nextOther, cuesBad: nextMine }
+    );
+  };
+
+  return (
+    <div className="space-y-2">
+      <span className="block text-xs font-medium tracking-normal text-muted">
+        투구 만족도
+      </span>
+      <Segmented
+        label="투구 만족도"
+        value={value}
+        onChange={(v) => onChange({ satisfaction: v })}
+        options={SATISFACTION_OPTIONS}
+        size="md"
+      />
+      <div className="flex justify-between px-1 text-xs text-muted/70">
+        <span>1 {SATISFACTION_ENDS.low}</span>
+        <span>{SATISFACTION_ENDS.high} 5</span>
+      </div>
+
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        aria-expanded={open}
+        className="flex min-h-10 items-center gap-1 text-sm font-medium text-sky desk:min-h-0 desk:py-1"
+      >
+        느낀 점 더하기
+        <ChevronDown
+          aria-hidden
+          className={`h-4 w-4 transition-transform ${open ? 'rotate-180' : ''}`}
+        />
+      </button>
+      {open && (
+        <div className="motion-safe:animate-fade-in space-y-3">
+          {(
+            [
+              ['good', '좋았던 것', good],
+              ['bad', '아쉬웠던 것', bad],
+            ] as const
+          ).map(([side, title, picked]) => (
+            <div key={side} role="group" aria-label={title} className="space-y-2">
+              <span className="block text-xs text-muted">{title}</span>
+              <div className="flex flex-wrap gap-2">
+                {PITCH_CUES.map((cue) => {
+                  const on = picked.includes(cue);
+                  return (
+                    <button
+                      key={cue}
+                      type="button"
+                      onClick={() => toggle(cue, side)}
+                      aria-pressed={on}
+                      className={`inline-flex items-center gap-1 ${chipClass(on)}`}
+                    >
+                      {on && <Check aria-hidden className="h-3.5 w-3.5" strokeWidth={2.6} />}
+                      {cue}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
 /** 저장소 경로에서 사람이 읽을 이름만 떼어낸다 */
 function fileNameOf(path: string) {
@@ -152,6 +271,9 @@ export function EntryForm({
           maxVelocity: initial.maxVelocity == null ? '' : String(initial.maxVelocity),
           avgVelocity: initial.avgVelocity == null ? '' : String(initial.avgVelocity),
           memo: initial.memo ?? '',
+          satisfaction: initial.satisfaction == null ? '' : String(initial.satisfaction),
+          cuesGood: initial.cuesGood ?? [],
+          cuesBad: initial.cuesBad ?? [],
         }
       : EMPTY_FORM
   );
@@ -255,6 +377,9 @@ export function EntryForm({
           maxVelocity: form.maxVelocity,
           avgVelocity: form.avgVelocity,
           memo: form.memo,
+          satisfaction: form.satisfaction,
+          cuesGood: form.cuesGood,
+          cuesBad: form.cuesBad,
         }),
       });
 
@@ -287,6 +412,7 @@ export function EntryForm({
   };
 
   const resting = isRestSession(form.sessionType);
+  const rated = isRatedSession(form.sessionType);
 
   return (
     <form onSubmit={handleSubmit} className="space-y-5">
@@ -309,12 +435,7 @@ export function EntryForm({
                     type="button"
                     onClick={() => setForm({ ...form, sessionType: t.name })}
                     aria-pressed={active}
-                    /* 휴대폰은 테두리 없는 회색 알약(고른 것은 파랑으로 두름), PC 는 예전 네모 */
-                    className={`min-h-10 rounded-full border px-4 text-sm transition-colors desk:min-h-0 desk:rounded-xl desk:py-2 ${
-                      active
-                        ? 'border-sky bg-sky/10 font-semibold text-sky-strong'
-                        : 'border-transparent bg-ink/6 text-ink/80 desk:border-line desk:bg-surface-2 desk:text-muted desk:hover:border-sky-soft desk:hover:text-ink'
-                    }`}
+                    className={chipClass(active)}
                   >
                     {t.name}
                   </button>
@@ -449,7 +570,24 @@ export function EntryForm({
             </Field>
           )}
 
-          <Field label={resting ? '메모' : '특이사항 · 느낀점'}>
+          {/* 불펜 · 라이브 · 경기만 — 캐치볼은 가볍게 주고받는 날이라 '잘 던진 날 찾기'를 흐린다 */}
+          {rated && (
+            <SatisfactionFields
+              value={form.satisfaction}
+              good={form.cuesGood}
+              bad={form.cuesBad}
+              onChange={(next) => setForm({ ...form, ...next })}
+            />
+          )}
+
+          <Field
+            label={resting ? '메모' : '특이사항 · 느낀점'}
+            hint={
+              rated && Number(form.satisfaction) >= GOOD_DAY_MIN && !form.memo.trim()
+                ? '잘 던진 날 남긴 메모는 다음에 던지는 날 홈에 다시 띄워 드려요.'
+                : undefined
+            }
+          >
             <Textarea
               rows={4}
               value={form.memo}

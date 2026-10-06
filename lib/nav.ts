@@ -232,6 +232,8 @@ export const DESK_MEDIA =
 export const NAV_ALSO: Record<string, readonly string[]> = {
   /* 구속 측정 관리자도 투구 기록의 한 보기다(같은 머리 · 같은 고르개, app/(app)/videos/pitch-log-heading.tsx) */
   '/videos': ['/pitch-log', '/admin/velocity'],
+  /* 분석 · 그래프는 홈의 '더 보기'다(2026-10-05 홈 정리, app/(app)/coach/page.tsx) */
+  '/today': ['/coach'],
 };
 
 export const MOBILE_TABS: NavItem[] = [

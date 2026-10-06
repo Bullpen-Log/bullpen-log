@@ -88,8 +88,13 @@ export function ErrorDigest({ digest }: { digest?: string }) {
   return <p className="mt-6 hidden text-xs text-muted/60 desk:block">오류 번호 {digest}</p>;
 }
 
+/*
+ * 색은 선 색(bg-line). 예전 bg-surface-2 는 2026-10-01 '애플처럼'에서 바탕(bg-page)과 같은 #f2f2f7 이 되어, 밝은 테마의
+ * 바탕 위 덩어리가 보이지 않았다 — 불러오는 동안 제목만 있는 빈 화면이었다가 내용이 툭 튀어나왔다(2026-10-06 사용자
+ * "화면 전환 중 로딩 화면이 깨진다"). 선 색은 모든 테마에서 바탕 · 카드 둘 다와 구별된다.
+ */
 export function Skeleton({ className = '' }: { className?: string }) {
   return (
-    <div aria-hidden className={`animate-pulse rounded-xl bg-surface-2 ${className}`} />
+    <div aria-hidden className={`animate-pulse rounded-xl bg-line ${className}`} />
   );
 }

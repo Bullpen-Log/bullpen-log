@@ -1,5 +1,6 @@
 import { Skeleton } from '@/components/fallback';
-import { PageHeading, todayKicker } from '@/components/ui';
+import { PageHeading } from '@/components/ui';
+import { HomeTitleArt } from './home-title';
 
 /**
  * 홈을 불러오는 동안.
@@ -7,20 +8,21 @@ import { PageHeading, todayKicker } from '@/components/ui';
  * 다른 화면이 같이 쓰는 기다림 모양((app)/loading.tsx)은 제목 자리를 회색 막대로
  * 둔다. 홈의 제목은 고정된 글('Home' · '홈')이라 기다릴 것이 없으므로 진짜 제목을
  * 그대로 그린다 — 다 도착해도 제목은 제자리다. 그 밑은 홈이 처음 내보내는 자리
- * 모양(page.tsx 의 Suspense 가 쓰는 달력 자리와 돌아보기 자리)과 같게 둔다.
+ * 모양(page.tsx 의 Suspense 가 쓰는 링 · 달력 · 하이라이트 자리)과 같게 둔다.
  */
 export default function Loading() {
   return (
     <div className="stack-page" aria-busy="true" aria-live="polite">
-      <PageHeading eyebrow="Home" kicker={todayKicker()} title="홈" />
+      <PageHeading eyebrow="Home" title="홈" titleArt={<HomeTitleArt />} />
       <span className="sr-only">불러오는 중이에요</span>
       {/* 오늘 링 자리(today-rings.tsx) */}
-      <Skeleton className="h-[8.75rem] rounded-2xl" />
+      <Skeleton className="h-[13.5rem] rounded-2xl desk:h-[10.5rem]" />
       <Skeleton className="h-[26rem] rounded-2xl" />
-      <div className="grid gap-block lg:grid-cols-3">
-        <Skeleton className="h-40 rounded-2xl" />
-        <Skeleton className="h-40 rounded-2xl" />
-        <Skeleton className="h-40 rounded-2xl" />
+      {/* 하이라이트 자리(highlights.tsx) */}
+      <div className="space-y-3">
+        <Skeleton className="h-7 w-28 rounded-lg" />
+        <Skeleton className="h-20 rounded-2xl" />
+        <Skeleton className="h-20 rounded-2xl" />
       </div>
     </div>
   );
