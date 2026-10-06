@@ -8,6 +8,7 @@ import {
   type GoodDayRaw,
 } from '../lib/report/good-days.ts';
 import { shiftDateKey } from '../lib/pitch-stats.ts';
+import { PITCH_CUES } from '../lib/pitch-satisfaction.ts';
 
 let passed = 0;
 let failed = 0;
@@ -65,8 +66,8 @@ console.log('하루 한 줄 만들기');
       },
     ],
     workouts: [
-      { date: d(3), bodyParts: ['가슴', '삼두'] },
-      { date: d(3), bodyParts: ['햄스트링·둔근'] },
+      { date: d(3), category: '웨이트', bodyParts: ['가슴', '삼두'] },
+      { date: d(3), category: '웨이트', bodyParts: ['햄스트링·둔근'] },
     ],
     meals: [
       { date: d(3), protein: 40 },
@@ -231,13 +232,12 @@ const sleepDays = Array.from({ length: 12 }, (_, i) =>
   );
 }
 {
-  /* 잠 · 컨디션 · 쉰 날이 다 같이 가르고 칩도 둘 — 몸 · 일정은 둘, 느낌은 하나까지 */
+  /* 잠 · 컨디션이 (조금씩 다르게) 가르고 칩도 둘 — 몸 · 일정은 둘, 느낌은 하나까지 */
   const many = Array.from({ length: 14 }, (_, i) =>
     plain(i, i % 2 ? 5 : 1, {
-      sleepHours: i % 2 ? 8 : 5,
-      condition: i % 2 ? 9 : 3,
-      restDays: i % 2 ? 3 : 0,
-      cuesGood: i % 2 ? ['하체', '릴리스'] : [],
+      sleepHours: i % 2 || i < 4 ? 8 : 5,
+      condition: i % 2 && i > 3 ? 9 : 3,
+      cuesGood: i % 2 ? ['하체', '릴리스'] : ['제구'],
     })
   );
   const r = findGoodDayPatterns(many);
@@ -257,16 +257,7 @@ console.log('우연을 말하지 않기');
   /* Park–Miller: 곱이 2^53 안이라 정확하다(예전 1103515245 는 넘쳐 같은 자료가 되풀이됐다) */
   const rnd = () => ((a = (a * 48271) % 2147483647), a / 2147483647);
   const pick = <T,>(xs: readonly T[]) => xs[Math.floor(rnd() * xs.length)];
-  const CUES = [
-    '릴리스',
-    '하체',
-    '밸런스',
-    '팔 스윙',
-    '손끝 감각',
-    '제구',
-    '팔 무거움',
-    '몸이 일찍 열림',
-  ];
+  const CUES = PITCH_CUES;
   let found = 0;
   let foundBefore = 0;
   let foundFeel = 0;
@@ -294,11 +285,218 @@ console.log('우연을 말하지 않기');
     if (ps.some((p) => p.kind === 'feel')) foundFeel++;
   }
   check(
-    '묶음마다 우연 ≤ 12% (ALPHA 0.1)',
-    foundBefore / RUNS <= 0.12 && foundFeel / RUNS <= 0.12,
+    '묶음마다 우연 ≤ 7% (ALPHA 0.05)',
+    foundBefore / RUNS <= 0.07 && foundFeel / RUNS <= 0.07,
     `${foundBefore} · ${foundFeel} / ${RUNS}`
   );
-  check('전체 우연 ≤ 20% (두 묶음)', found / RUNS <= 0.2, `${found}/${RUNS}`);
+  check('전체 우연 ≤ 12% (두 묶음)', found / RUNS <= 0.12, `${found}/${RUNS}`);
+}
+
+console.log('리뷰에서 나온 경계');
+{
+  /* 암케어만 한 전날은 운동한 날이 아니다 · 모르는 음식이 섞인 날 단백질은 모름 */
+  const lg = (date: string) => ({
+    date,
+    sessionType: '불펜',
+    pitchCount: 20,
+    satisfaction: 4,
+    cuesGood: [],
+    cuesBad: [],
+  });
+  const [day] = buildGoodDays({
+    logs: [lg(d(0))],
+    checkins: [],
+    workouts: [{ date: d(-1), category: '암케어', bodyParts: ['어깨'] }],
+    meals: [
+      { date: d(-1), protein: 30 },
+      { date: d(-1), protein: null },
+    ],
+  });
+  check('암케어는 운동한 날 아님', day.liftedYesterday === false);
+  check(
+    '모르는 음식이 섞이면 단백질 모름',
+    day.proteinYesterday === null,
+    String(day.proteinYesterday)
+  );
+}
+{
+  const lg = (date: string, s: number) => ({
+    date,
+    sessionType: '불펜',
+    pitchCount: 20,
+    satisfaction: s,
+    cuesGood: [],
+    cuesBad: [],
+  });
+  const days = buildGoodDays({
+    logs: [lg(d(5), 4), lg(d(0), 3), lg(d(2), 5)],
+    checkins: [],
+    workouts: [],
+    meals: [],
+  });
+  check(
+    '순서가 섞여 와도 날짜 순 · 쉰 날 수',
+    days.map((x) => x.date).join() === [d(0), d(2), d(5)].join() &&
+      days[1].restDays === 1 &&
+      days[2].restDays === 2,
+    days.map((x) => `${x.date}:${x.restDays}`).join()
+  );
+}
+{
+  const lg = (date: string, n: number, s: number | null) => ({
+    date,
+    sessionType: s == null ? '캐치볼' : '불펜',
+    pitchCount: n,
+    satisfaction: s,
+    cuesGood: [],
+    cuesBad: [],
+  });
+  const [day] = buildGoodDays({
+    logs: [lg(d(0), 100, null), lg(d(1), 10, null), lg(d(8), 30, 4)],
+    checkins: [],
+    workouts: [],
+    meals: [],
+  });
+  check(
+    '앞 7일 = 7일 전까지 · 8일 전은 빠짐',
+    day.pitches7 === 10,
+    String(day.pitches7)
+  );
+}
+{
+  const seven = Array.from({ length: 7 }, (_, i) =>
+    plain(i, i % 2 ? 5 : 1, { sleepHours: i % 2 ? 8 : 5 })
+  );
+  const r = findGoodDayPatterns(seven);
+  check(
+    '7일이면 갈리는 자료라도 결과 없음',
+    r.patterns.length === 0 && r.all.length === 0 && r.rated === 7
+  );
+  const eight = Array.from({ length: 8 }, (_, i) =>
+    plain(i, i % 3 === 0 ? 1 : 5, { sleepHours: i % 3 === 0 ? 5 : 8 })
+  );
+  const sleep = findGoodDayPatterns(eight).all.find((x) => x.key === 'sleep');
+  check('딱 8일 · 한쪽 딱 3일이면 견줌', sleep?.nLow === 3, JSON.stringify(sleep));
+}
+{
+  const meh = Array.from({ length: 12 }, (_, i) =>
+    plain(i, i % 2 ? 3 : 1, { sleepHours: i % 2 ? 8 : 5 })
+  );
+  check(
+    '높은 쪽도 잘 던진 날이 절반 이하면 말하지 않음',
+    findGoodDayPatterns(meh).patterns.length === 0
+  );
+}
+{
+  const cases: [string, (good: boolean) => Partial<GoodDay>, string][] = [
+    ['soreness', (g) => ({ soreness: g ? 1 : 4 }), '근육통이 적은 날'],
+    ['rest', (g) => ({ restDays: g ? 3 : 0 }), '이틀 이상 쉬고 던진 날'],
+    ['volume7', (g) => ({ pitches7: g ? 10 : 120 }), '앞 일주일에 적게 던진 날'],
+    ['lifted', (g) => ({ liftedYesterday: g }), '전날 운동한 날'],
+    [
+      'protein',
+      (g) => ({ proteinYesterday: g ? 150 : 60 }),
+      '전날 단백질을 평소보다 많이 먹은 날',
+    ],
+  ];
+  for (const [key, over, label] of cases) {
+    const ds = Array.from({ length: 12 }, (_, i) =>
+      plain(i, i % 2 ? 5 : 1, over(i % 2 === 1))
+    );
+    const p = findGoodDayPatterns(ds).patterns[0];
+    check(`${key}: 참인 쪽 이름`, p?.key === key && p.text.startsWith(label), p?.text);
+  }
+}
+{
+  const felt = Array.from({ length: 12 }, (_, i) =>
+    plain(i, i % 2 ? 5 : 1, { sleep: i % 2 ? '충분' : '부족' })
+  );
+  const both = felt.map((x, i) => ({ ...x, sleepHours: i % 2 ? 5 : 8 }));
+  const a = findGoodDayPatterns(felt).patterns[0]?.text;
+  const b = findGoodDayPatterns(both).patterns[0]?.text;
+  check(
+    '잔 시간이 없으면 느낌 · 있으면 시간이 이김',
+    a?.startsWith('잠을 충분히 잔 날') === true &&
+      b?.startsWith('잠이 모자랐던 날') === true,
+    `${a} / ${b}`
+  );
+  const usual = Array.from({ length: 12 }, (_, i) =>
+    plain(i, i % 2 ? 5 : 1, { sleep: '보통' })
+  );
+  check(
+    "느낌 '보통'은 모름",
+    !findGoodDayPatterns(usual).all.some((x) => x.key === 'sleep')
+  );
+}
+{
+  /* 받침 — '팔 스윙'을 · '하체'를 */
+  const feelText = (cue: string) =>
+    findGoodDayPatterns(
+      Array.from({ length: 12 }, (_, i) =>
+        plain(i, i % 2 ? 5 : 1, { cuesGood: i % 2 ? [cue] : ['몸이 일찍 열림'] })
+      )
+    ).patterns.find((p) => p.key === `good:${cue}`)?.text;
+  const swing = feelText('팔 스윙');
+  const lower = feelText('하체');
+  check(
+    "받침 있으면 '을', 없으면 '를'",
+    swing?.startsWith(`'팔 스윙'을 `) === true &&
+      lower?.startsWith(`'하체'를 `) === true,
+    `${swing} / ${lower}`
+  );
+}
+{
+  /* 칩을 하나도 안 적은 날(홈 카드로만 매김)은 느낌 비교에서 빠진다 */
+  const quick = Array.from({ length: 16 }, (_, i) =>
+    plain(i, i < 8 ? 5 : 2, { cuesGood: i < 8 ? [] : ['제구'] })
+  );
+  check(
+    '칩 없는 날은 모름 — 가짜 느낌 패턴 없음',
+    !findGoodDayPatterns(quick).patterns.some((p) => p.kind === 'feel')
+  );
+}
+{
+  /* 전날 운동이 모두 하체면 '전날 운동' · '전날 하체 운동'은 같은 말 — 하나만 */
+  const ds = Array.from({ length: 12 }, (_, i) =>
+    plain(i, i % 2 ? 5 : 1, {
+      liftedYesterday: i % 2 === 1,
+      lowerYesterday: i % 2 === 1,
+    })
+  );
+  const keys = findGoodDayPatterns(ds).patterns.map((p) => p.key);
+  check(
+    '같은 가름은 하나만 보임',
+    keys.filter((k) => k === 'lifted' || k === 'lower').length === 1,
+    keys.join()
+  );
+}
+{
+  /* 만족도와 컨디션이 시즌 내내 같이 오르기만 하는 자료 — 날 단위 관계는 없음 */
+  let a = 11;
+  const rnd = () => ((a = (a * 48271) % 2147483647), a / 2147483647);
+  let hits = 0;
+  const RUNS = 200;
+  for (let run = 0; run < RUNS; run++) {
+    const n = 30;
+    const ds = Array.from({ length: n }, (_, i) =>
+      plain(
+        i,
+        Math.min(5, Math.max(1, Math.round(1.5 + (3 * i) / n + (rnd() - 0.5) * 2))),
+        {
+          condition: Math.min(
+            10,
+            Math.max(1, Math.round(3 + (6 * i) / n + (rnd() - 0.5) * 3))
+          ),
+        }
+      )
+    );
+    if (findGoodDayPatterns(ds).patterns.some((p) => p.key === 'condition')) hits++;
+  }
+  check(
+    '함께 오르기만 한 흐름은 패턴이 아님(≤ 10%)',
+    hits / RUNS <= 0.1,
+    `${hits}/${RUNS}`
+  );
 }
 
 console.log(`\n${passed}개 통과 · ${failed}개 실패`);

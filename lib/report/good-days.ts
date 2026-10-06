@@ -2,15 +2,22 @@
  * 잘 던진 날 찾기 — 선수가 매긴 투구 만족도(lib/pitch-satisfaction.ts)를 이미 쌓이는 기록과 맞대
  * "이런 날 잘 던졌어요"를 한두 개 찾는다(3단계, 화면은 4단계). DB 를 모른다 — 불러오기는 good-days-load.ts.
  *
- * 제일 중요한 것은 적은 기록으로 우연을 말하지 않는 것이다(2026-10-06 eng review).
+ * 제일 중요한 것은 적은 기록으로 우연을 말하지 않는 것이다(2026-10-06 eng review · review).
  * - 하루 한 줄: 같은 날 여러 번 매기면 평균 하나 — 맥락이 같은 줄을 여러 번 세면 표본이 부풀어 우연이 진짜처럼 보인다.
  * - 항목이 25개쯤이라, 항목마다 따로 걸러면 차이가 전혀 없는 자료에서도 거의 늘 무언가 걸린다. 그래서 만족도를 섞을
  *   때마다 모든 항목의 차이 중 최댓값을 재 그 분포로 p 를 낸다(최대값 순열 — 묶음 안 어느 항목이든 우연히 걸릴 확률을 막음).
+ * - 시즌 동안 만족도와 컨디션이 같이 오르기만 해도 '컨디션 좋은 날 잘 던졌다'로 보인다. 그래서 만족도에서 날짜에 따른
+ *   직선 흐름을 빼고(남은 값으로) 견준다. 화면의 평균 · 횟수는 원래 만족도로 적는다.
  * - 그 밖의 문턱: 매긴 날 8일 이상, 항목의 양쪽 3일 이상, 평균 차이 0.7점 이상, 높은 쪽의 절반 넘게가 잘 던진 날.
  *
  * 칩(좋았던 것 · 아쉬웠던 것)은 던진 뒤 적는 것이라 원인이 아니라 '잘 된 날의 느낌'이다 — 'feel' 묶음으로 따로 센다.
+ * 칩을 하나도 안 적은 날(홈 카드로 만족도만 누른 날)은 '안 고른 날'이 아니라 모르는 날이다.
  */
 import { shiftDateKey } from '@/lib/pitch-stats';
+import { ENOUGH_SLEEP_HOURS } from '@/lib/checkin';
+import { josa } from '@/lib/korean';
+import { ARMCARE_CATEGORY } from '@/lib/armcare/anatomy';
+import type { BodyPart } from '@/lib/exercise-meta';
 import { GOOD_DAY_MIN, PITCH_CUES, isRatedSession } from '@/lib/pitch-satisfaction';
 
 /** 결과를 내기 시작하는 매긴 날 수 */
@@ -19,8 +26,8 @@ export const GOOD_DAYS_NEEDED = 8;
 const MIN_SIDE = 3;
 /** 평균 만족도 차이(1~5 척도) */
 const MIN_DIFF = 0.7;
-/** 묶음별 우연 허용(최대값 순열의 p) */
-const ALPHA = 0.1;
+/** 묶음별 우연 허용(최대값 순열의 p) — 두 묶음(몸 · 일정, 느낌)이라 합쳐 약 10% 안 */
+const ALPHA = 0.05;
 const SHUFFLES = 2000;
 /** 같은 자료 = 같은 결과(화면이 날마다 바뀌지 않게) */
 const SEED = 20261006;
@@ -28,8 +35,10 @@ const SEED = 20261006;
 const SHOW = { before: 2, feel: 1 } as const;
 /** 단백질 항목을 쓰려면 끼니를 적은 날이 이만큼 */
 const MIN_PROTEIN_DAYS = 6;
+/** 이미 고른 항목과 날을 이만큼 똑같이 가르면 같은 말 — 하나만 보인다('전날 운동' · '전날 하체 운동') */
+const SAME_SPLIT = 0.9;
 /** 하체 운동으로 치는 부위(lib/exercise-meta.ts BODY_PARTS) */
-const LOWER_PARTS = ['고관절', '햄스트링·둔근', '종아리·발목'];
+const LOWER_PARTS: readonly BodyPart[] = ['고관절', '햄스트링·둔근', '종아리·발목'];
 
 /* ───────────────────────── 불러온 줄 → 하루 한 줄 ───────────────────────── */
 
@@ -52,10 +61,10 @@ export type GoodDayRaw = {
     shoulder: string;
     elbow: string;
   }[];
-  /** 완료한 운동 하나에 한 줄 */
-  workouts: { date: string; bodyParts: string[] }[];
-  /** 끼니 하나에 한 줄 — 단백질(g)은 양까지 곱한 값 */
-  meals: { date: string; protein: number }[];
+  /** 완료한 운동 하나에 한 줄 — 암케어는 '운동한 날'로 치지 않는다(5분 고무줄 루틴이 운동한 날을 채웠다) */
+  workouts: { date: string; category: string; bodyParts: string[] }[];
+  /** 끼니 하나에 한 줄 — 단백질(g)은 양까지 곱한 값, 모르는 음식이면 null */
+  meals: { date: string; protein: number | null }[];
 };
 
 export type GoodDay = {
@@ -70,13 +79,13 @@ export type GoodDay = {
   soreness: number | null;
   /** 어깨 · 팔꿈치가 둘 다 '정상'이었나 — 체크인이 없으면 null */
   armFresh: boolean | null;
-  /** 앞서 매긴 날과의 사이에 쉰 날 수 — 처음이면 null */
+  /** 앞서 던진 불펜 · 라이브 · 경기와의 사이에 쉰 날 수 — 모르면 null */
   restDays: number | null;
   /** 앞 7일(그날 빼고) 던진 공 수 — 캐치볼 포함 */
   pitches7: number;
   liftedYesterday: boolean;
   lowerYesterday: boolean;
-  /** 전날 먹은 단백질(g) — 그날 끼니를 안 적었으면 null */
+  /** 전날 먹은 단백질(g) — 끼니를 안 적었거나 단백질을 모르는 음식이 섞였으면 null */
   proteinYesterday: number | null;
 };
 
@@ -97,9 +106,20 @@ export function buildGoodDays(raw: GoodDayRaw, from?: string): GoodDay[] {
   for (const l of raw.logs)
     pitchesOn.set(l.date, (pitchesOn.get(l.date) ?? 0) + l.pitchCount);
   const checkinOn = new Map(raw.checkins.map((c) => [c.date, c]));
-  const proteinOn = new Map<string, number>();
-  for (const m of raw.meals)
-    proteinOn.set(m.date, (proteinOn.get(m.date) ?? 0) + m.protein);
+  /* 모르는 음식이 하나라도 있으면 그날 단백질은 모름(null) — 0g 으로 치면 '덜 적은 날'이 '적게 먹은 날'이 된다 */
+  const proteinOn = new Map<string, number | null>();
+  for (const m of raw.meals) {
+    const sum = proteinOn.get(m.date);
+    proteinOn.set(
+      m.date,
+      sum === null || m.protein == null ? null : (sum ?? 0) + m.protein
+    );
+  }
+  const liftsOn = new Map<string, string[][]>();
+  for (const w of raw.workouts) {
+    if (w.category === ARMCARE_CATEGORY) continue;
+    liftsOn.set(w.date, [...(liftsOn.get(w.date) ?? []), w.bodyParts]);
+  }
 
   /* 쉰 날은 앞서 던진 불펜 · 라이브 · 경기(매겼든 안 매겼든)부터 센다 */
   const thrown = [
@@ -120,7 +140,7 @@ export function buildGoodDays(raw: GoodDayRaw, from?: string): GoodDay[] {
     );
     const c = checkinOn.get(date);
     const yesterday = shiftDateKey(date, -1);
-    const lifts = raw.workouts.filter((w) => w.date === yesterday);
+    const lifts = liftsOn.get(yesterday) ?? [];
     let pitches7 = 0;
     for (let k = 1; k <= 7; k++) pitches7 += pitchesOn.get(shiftDateKey(date, -k)) ?? 0;
     return {
@@ -136,10 +156,10 @@ export function buildGoodDays(raw: GoodDayRaw, from?: string): GoodDay[] {
       restDays: prev == null ? null : dayIndex(date) - dayIndex(prev) - 1,
       pitches7,
       liftedYesterday: lifts.length > 0,
-      lowerYesterday: lifts.some((w) =>
-        w.bodyParts.some((p) => LOWER_PARTS.includes(p))
+      lowerYesterday: lifts.some((parts) =>
+        parts.some((p) => LOWER_PARTS.includes(p as BodyPart))
       ),
-      proteinYesterday: proteinOn.has(yesterday) ? proteinOn.get(yesterday)! : null,
+      proteinYesterday: proteinOn.get(yesterday) ?? null,
     };
   });
 }
@@ -157,21 +177,21 @@ type Factor = {
   test: (d: GoodDay, ctx: Context) => boolean | null;
 };
 
-/** 받침이 있으면 '을', 없으면 '를' */
-function objectParticle(word: string) {
-  const code = word.charCodeAt(word.length - 1) - 0xac00;
-  return code >= 0 && code <= 11171 && code % 28 !== 0 ? '을' : '를';
-}
-
 const BEFORE: Factor[] = [
   {
     key: 'sleep',
     kind: 'before',
     yes: '잠을 충분히 잔 날',
     no: '잠이 모자랐던 날',
-    /* 잔 시간을 적었으면 7시간, 아니면 느낌 '충분' */
+    /* 잔 시간을 적었으면 체크인과 같은 기준(7시간), 아니면 느낌 — '보통'은 어느 쪽도 아니라 모름 */
     test: (d) =>
-      d.sleepHours != null ? d.sleepHours >= 7 : d.sleep ? d.sleep === '충분' : null,
+      d.sleepHours != null
+        ? d.sleepHours >= ENOUGH_SLEEP_HOURS
+        : d.sleep === '충분'
+          ? true
+          : d.sleep === '부족'
+            ? false
+            : null,
   },
   {
     key: 'condition',
@@ -234,22 +254,25 @@ const BEFORE: Factor[] = [
   },
 ];
 
+/** 칩을 하나도 안 적은 날은 모름 */
+const noChips = (d: GoodDay) => d.cuesGood.length + d.cuesBad.length === 0;
+
 const FEEL: Factor[] = PITCH_CUES.flatMap((cue) => {
-  const quoted = `'${cue}'${objectParticle(cue)}`;
+  const quoted = `'${cue}'${josa(cue, '을/를')}`;
   return [
     {
       key: `good:${cue}`,
       kind: 'feel' as const,
       yes: `${quoted} 좋았던 것으로 고른 날`,
       no: `${quoted} 좋았던 것으로 안 고른 날`,
-      test: (d: GoodDay) => d.cuesGood.includes(cue),
+      test: (d: GoodDay) => (noChips(d) ? null : d.cuesGood.includes(cue)),
     },
     {
       key: `bad:${cue}`,
       kind: 'feel' as const,
       yes: `${quoted} 아쉬웠던 것으로 고른 날`,
       no: `${quoted} 아쉬웠던 것으로 안 고른 날`,
-      test: (d: GoodDay) => d.cuesBad.includes(cue),
+      test: (d: GoodDay) => (noChips(d) ? null : d.cuesBad.includes(cue)),
     },
   ];
 });
@@ -263,15 +286,16 @@ export type FactorResult = {
   kind: Kind;
   /** 평균이 높은 쪽의 이름 */
   label: string;
-  /** 높은 쪽 · 낮은 쪽 날 수와 평균 */
+  /** 높은 쪽 · 낮은 쪽 날 수와 원래 만족도 평균 */
   nHigh: number;
   nLow: number;
   meanHigh: number;
   meanLow: number;
+  /** 흐름을 뺀 만족도로 잰 두 쪽 평균 차이 — 문턱과 순열이 이것을 본다 */
   diff: number;
   /** 높은 쪽 날 가운데 잘 던진 날(GOOD_DAY_MIN 이상) */
   goodHigh: number;
-  /** 최대값 순열의 p — 견주지 않은 항목(한쪽이 모자람 · 묶음에 큰 차이가 없음)은 null */
+  /** 최대값 순열의 p — 그 묶음에 큰 차이가 하나도 없으면 null. 한쪽이 3일 미만인 항목은 all 에 없다 */
   p: number | null;
 };
 
@@ -304,8 +328,24 @@ function random(seed: number) {
   };
 }
 
-/** 참 · 거짓 표시(null 은 모름)로 나눈 두 평균의 차이 절댓값 */
-function gap(groups: (boolean | null)[], scores: number[]) {
+/** 날짜에 따른 직선 흐름을 뺀 값(최소제곱) */
+function detrend(dates: string[], scores: number[]) {
+  const t = dates.map(dayIndex);
+  const n = t.length;
+  const mt = t.reduce((s, v) => s + v, 0) / n;
+  const ms = scores.reduce((s, v) => s + v, 0) / n;
+  let cov = 0;
+  let vt = 0;
+  for (let i = 0; i < n; i++) {
+    cov += (t[i] - mt) * (scores[i] - ms);
+    vt += (t[i] - mt) ** 2;
+  }
+  const slope = vt > 0 ? cov / vt : 0;
+  return scores.map((s, i) => s - ms - slope * (t[i] - mt));
+}
+
+/** 참 · 거짓 표시(null 은 모름)로 나눈 두 평균의 차이(참 − 거짓) */
+function signedGap(groups: (boolean | null)[], scores: number[]) {
   let sy = 0;
   let ny = 0;
   let sn = 0;
@@ -319,7 +359,19 @@ function gap(groups: (boolean | null)[], scores: number[]) {
       nn++;
     }
   }
-  return Math.abs(sy / ny - sn / nn);
+  return sy / ny - sn / nn;
+}
+
+/** 둘 다 아는 날 가운데 같은 쪽으로 가른 비율(뒤집어 가른 것도 같은 가름) */
+function sameSplit(a: (boolean | null)[], b: (boolean | null)[]) {
+  let both = 0;
+  let same = 0;
+  for (let i = 0; i < a.length; i++) {
+    if (a[i] == null || b[i] == null) continue;
+    both++;
+    if (a[i] === b[i]) same++;
+  }
+  return both === 0 ? 0 : Math.max(same, both - same) / both;
 }
 
 export function findGoodDayPatterns(days: GoodDay[]): GoodDayResult {
@@ -333,17 +385,22 @@ export function findGoodDayPatterns(days: GoodDay[]): GoodDayResult {
     pitchesMedian: median(days.map((d) => d.pitches7)),
     proteinMedian: proteins.length >= MIN_PROTEIN_DAYS ? median(proteins) : null,
   };
-  const scores = days.map((d) => d.satisfaction);
+  const raw = days.map((d) => d.satisfaction);
+  const scores = detrend(
+    days.map((d) => d.date),
+    raw
+  );
 
   const rows = FACTORS.flatMap((f) => {
     const groups = days.map((d) => f.test(d, ctx));
-    const yes = scores.filter((_, i) => groups[i] === true);
-    const no = scores.filter((_, i) => groups[i] === false);
+    const yes = raw.filter((_, i) => groups[i] === true);
+    const no = raw.filter((_, i) => groups[i] === false);
     if (yes.length < MIN_SIDE || no.length < MIN_SIDE) return [];
-    const meanYes = yes.reduce((s, v) => s + v, 0) / yes.length;
-    const meanNo = no.reduce((s, v) => s + v, 0) / no.length;
-    const yesHigh = meanYes >= meanNo;
+    const signed = signedGap(groups, scores);
+    const yesHigh = signed >= 0;
     const high = yesHigh ? yes : no;
+    const low = yesHigh ? no : yes;
+    const mean = (v: number[]) => v.reduce((s, x) => s + x, 0) / v.length;
     return [
       {
         factor: f,
@@ -353,10 +410,10 @@ export function findGoodDayPatterns(days: GoodDay[]): GoodDayResult {
           kind: f.kind,
           label: yesHigh ? f.yes : f.no,
           nHigh: high.length,
-          nLow: (yesHigh ? no : yes).length,
-          meanHigh: Math.max(meanYes, meanNo),
-          meanLow: Math.min(meanYes, meanNo),
-          diff: Math.abs(meanYes - meanNo),
+          nLow: low.length,
+          meanHigh: mean(high),
+          meanLow: mean(low),
+          diff: Math.abs(signed),
           goodHigh: high.filter((v) => v >= GOOD_DAY_MIN).length,
           p: null as number | null,
         },
@@ -377,7 +434,8 @@ export function findGoodDayPatterns(days: GoodDay[]): GoodDayResult {
         [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
       }
       let max = 0;
-      for (const r of family) max = Math.max(max, gap(r.groups, shuffled));
+      for (const r of family)
+        max = Math.max(max, Math.abs(signedGap(r.groups, shuffled)));
       family.forEach((r, k) => {
         if (max >= r.result.diff - 1e-9) beat[k]++;
       });
@@ -387,26 +445,28 @@ export function findGoodDayPatterns(days: GoodDay[]): GoodDayResult {
     });
   }
 
-  const all = rows.map((r) => r.result).sort((a, b) => b.diff - a.diff);
-  const patterns: GoodDayPattern[] = [];
+  rows.sort((a, b) => b.result.diff - a.result.diff);
+  const picked: typeof rows = [];
   for (const kind of ['before', 'feel'] as const) {
-    all
-      .filter(
-        (r) =>
-          r.kind === kind &&
-          r.diff >= MIN_DIFF &&
-          r.p != null &&
-          r.p < ALPHA &&
-          r.goodHigh * 2 > r.nHigh
-      )
-      .slice(0, SHOW[kind])
-      .forEach((r) =>
-        patterns.push({
-          key: r.key,
-          kind,
-          text: `${r.label} 잘 던졌어요 · ${r.nHigh}번 중 ${r.goodHigh}번`,
-        })
-      );
+    let count = 0;
+    for (const r of rows) {
+      const x = r.result;
+      if (count >= SHOW[kind]) break;
+      if (x.kind !== kind || x.diff < MIN_DIFF || x.p == null || x.p >= ALPHA) continue;
+      if (x.goodHigh * 2 <= x.nHigh) continue;
+      if (picked.some((p) => sameSplit(p.groups, r.groups) >= SAME_SPLIT)) continue;
+      picked.push(r);
+      count++;
+    }
   }
-  return { rated: days.length, needed: GOOD_DAYS_NEEDED, patterns, all };
+  return {
+    rated: days.length,
+    needed: GOOD_DAYS_NEEDED,
+    patterns: picked.map(({ result: x }) => ({
+      key: x.key,
+      kind: x.kind,
+      text: `${x.label} 잘 던졌어요 · ${x.nHigh}번 중 ${x.goodHigh}번`,
+    })),
+    all: rows.map((r) => r.result),
+  };
 }
