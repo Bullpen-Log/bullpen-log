@@ -203,24 +203,37 @@
     `components/use-box-size.ts`). `next.config.ts` 의 `staleTimes.dynamic: 30`(30초 안에 돌아온 탭은 서버를 다시 안 다녀온다).
   - 셀프테스트의 `scripts/alias-loader.mjs` 는 `lib/workout/session-plan.ts` 의 `import 'server-only'` 만 빈 모듈로 바꾼다(다른 파일은
     예전처럼 던진다). 운동 라이브러리 캐시 이름은 지금 `library:exercises:v12`.
+- **김민의 10-04 저녁 ~ 10-06 정리(HANDOFF 8장에서 옮김, 2026-10-06) — 새 화면 · 글에서 지킬 것과 알아 둘 것.**
+  - **새 글은 줄표(—) 없이, 짧게, 해요체로**(화면 글 170여 곳의 줄표를 걷었다). 문장 속 굵게도 안 쓴다. 메커니즘 앱 색은 깊은 파랑
+    `--color-app-mechanics`, 반짝이(✨) 그림 없음, `PageHeading` 의 `eyebrow` 는 이제 안 보인다. **불펜로그다움 = 실밥 무늬**(사용자가 고름):
+    `seam-corner`(EmptyState 귀퉁이) · `seam-hero`(소개 · 로그인) · `stitch-rule`(PC 쪽 머리 밑줄) — globals.css `--seam` · `--stitch`.
+  - **휴대폰 글자 크기는 아이폰 기준**(globals.css 토큰만, PC 그대로): `text-sm` 15px · `text-base` 17px · 쪽 제목 34px. `text-xs` 12px 와
+    대괄호 글자는 그대로. 구속 측정 화면도 휴대폰이면 따라 커진다 — 좁은 줄이 넘치면 김민에게 알려 준다(375 · 320px 에서 홈 · 트레이닝은 넘침 0).
+  - **본문 전환**: `components/main-transition.tsx` 가 밀기 표시(`<html data-nav>`)를 전환이 끝나는 순간 걷는다(0.7초 뒤가 아니라) —
+    불러오는 중 → 내용 전환이 한 번 더 밀려 들어오던 것. 뼈대(`components/fallback.tsx` Skeleton)는 `bg-line`(surface-2 는 바탕과 같아 안 보였다).
+    밀기 그림에는 바탕색을 깐다(홈 잔상). `PageHeading` 새 칸 `titleArt` — 휴대폰에서 큰 제목 대신 그림(홈은 로고 + 오늘 날짜).
+  - **홈(내 영역)을 김민이 크게 바꿨다**(사용자: "분석 · 돌아보기가 주구절절 — 너무 길어지는 건 싫다"): 위는 '오늘'(링 카드 밑에 알맞은 투구 한 줄),
+    캘린더 밑은 **하이라이트** 최대 3장(`lib/report/highlights.ts` 순수 함수 · 안전 → 성장 → 꾸준함, `npm run highlights:test`) + '분석 · 그래프 더 보기'.
+    돌아보기(`summary-panel.tsx`)는 지웠고 분석 · 그래프는 `/coach` 로 옮겼다(옛 주소 `/today?analysis=` · `/coach/report/<날짜>` 도 여기로,
+    메뉴는 '홈'에 불). 열세 달 기록 읽기는 `today/history.ts`. 첫 기록 전 카드는 `first-day-card.tsx`(오늘 알맞은 투구 + [오늘 투구 남기기] 단추).
+  - **투구 만족도(DB 칸 추가, 김민 10-06)**: `PitchLog.satisfaction`(1~5) · `cuesGood` · `cuesBad` — 규칙 `lib/pitch-satisfaction.ts`(불펜 · 라이브 ·
+    경기만, 칩 `PITCH_CUES`). 입력 폼(`pitch-log/entry-form.tsx`) · 기록 보기(`day-record.tsx`) · API(`app/api/pitch-log/route.ts`, **보낼 때만** 손댄다 —
+    옛 화면이 고쳐도 안 지워지게)에 들어갔다. 홈 '오늘 불펜 어땠어요?' 카드(`today/rate-card.tsx`), 던지는 날 홈에 만족도 4~5 였던 날의
+    메모(`today/good-day-note.tsx`). 3단계(만족도를 수면 · 쉰 날 · 운동 · 영양과 맞대는 계산)까지 들어갔다 — '잘 던진 날 찾기'.
+  - **근력 · 파워 프로그램(김민 10-04, DB 표 · 칸 추가)**: 새 표 `UserTrainingProgram`, `UserExerciseSet.rir`. 설계 `docs/designs/pitcher-strength-power-programs.md`,
+    규칙 `lib/program/*`(`npm run program:test`). 같이 쓰는 곳: `lib/report/prescription.ts` `selectCandidates` 의 `partsOnly`(기본 false),
+    `lib/report/theme.ts` 의 `LOW_CONDITION_THRESHOLD` · `hardOuting` export, 운동 시작의 판 열기는 `lib/workout/open-session.ts`,
+    세트 대기열(`lib/workout/outbox.ts`)에 `rir?`, 저절로 닫기(`close-stale.ts`)가 끝에 `advanceProgramDay`.
+  - **메커닉**: 투구 기록 `/videos?compare=1` 은 비교할 둘을 고르는 자리로 바로 연다(`initialCompare`). 드릴 이름의 P1~P5 는 화면에서만 뗀다.
+    투구 드릴 설명 121개를 드라이브라인 · 트레드 기준으로 다시 썼고 드릴 18개를 더했다(**운영 DB**, 백업 뒤 — 스크립트
+    `scripts/mechanics-descriptions-2026-10-04.mts` · `mechanics-new-drills-2026-10-04.mts`, 보이는 드릴 139개, 캐시 `library:guides:v6`).
 
 ## 4. 진행 중인 일
 
-- **데스크톱에서 이어 하기(2026-10-04 낮, 노트북에서 넘김 — 사용자: "나머지는 데스크톱에서 할 거니까 메모 남겨줘").** 10-03~04 의
-  작업은 모두 **노트북**에서 했다(이 메모의 옛 줄에 '데스크톱'이라 적힌 것은 틀렸다). 데스크톱의 Claude 가 처음 할 일:
-  1. **받기**: `git pull` → `npm ci`(package-lock 이 바뀌었다 — `@zxing/library` 등) → `npx prisma generate` · `npx prisma migrate status`
-     (김민이 DB 표 · 칸을 여럿 더했다 — 이미 운영 DB 에 적용, 읽기만) → 서버 켜기. `.next/types` 가 옛 경로를 붙들면 3절대로 지운다.
-  2. **남은 번호**는 바로 아래 '메인 추천 작업'의 7 · 8번. 사용자가 번호로 시킨다. 끝내면 남은 번호를 한 줄씩 알려 준다.
-  3. **8번(구속 엔진 대비 길)에 필요한 것은 저장소에 다 있다**: 도구 `scripts/velocity-lab/`(README), 진단 · 처방 · 시험판 차이
-     `docs/velocity/outdoor-2026-10-03.md`. 영상은 데스크톱에서 다시 받는다 — `node --env-file=.env scripts/velocity-lab/download.mjs
-     --date=2026-10-03 --manual`(밖 13개) · `--date=2026-09-28`(실내 18개), 받는 곳 `~/bullpen-velocity-lab`. 먼저 지금 엔진으로
-     돌려 기록과 같은지 본다(밖 1/13 — 100 → 97.0, 실내 15/18).
-  4. **노트북에만 있는 것**(못 옮김 · 없어도 됨): 스크래치의 9GB 장면 캐시 · `lab/` · `wf/` · `re1003/`(엔진 복사본 스물여 개 — 필요한
-     차이는 위 문서에 적었다). `npm run velocity:live-test` 는 캐시가 없으면 캐시 시험만 건너뛴다.
-  5. **사용자 확인 대기**(폰): 실계정 점검의 ✗ 넷을 고친 뒤 다시 보기 — 그날 화면 ▶ · 홈 캘린더 클립(금윤호 계정 10-03 에 시험용 세션이
-     있다. 다 보면 그날 화면의 세션 휴지통으로 지운다 — 사용자에게 물어보고) · 끼니 칸 머리 · 아이폰 바코드 카메라. 새 TestFlight 빌드로
-     화질 · 프레임(1080p 60) 고르기. 체크리스트는 claude.ai 아티팩트 "불펜로그 실계정 점검"(같은 계정이라 데스크톱에서도 열린다).
-  6. 이 줄은 데스크톱에서 다 읽고 받은 뒤 지운다.
+- **사용자 확인 대기(폰, 2026-10-04 노트북에서 넘김).** 실계정 점검의 ✗ 넷을 고친 뒤 다시 보기 — 그날 화면 ▶ · 홈 캘린더 클립(금윤호 계정
+  10-03 에 시험용 세션이 있다. 다 보면 그날 화면의 세션 휴지통으로 지운다 — 사용자에게 물어보고) · 끼니 칸 머리 · 아이폰 바코드 카메라.
+  새 TestFlight 빌드로 화질 · 프레임(1080p 60) 고르기. 체크리스트는 claude.ai 아티팩트 "불펜로그 실계정 점검". 10-03~04 작업은 모두
+  **노트북**에서 했고 10-06 부터 데스크톱에서 잇는다(받기 · npm ci · prisma generate 는 10-06 에 했다).
 
 - **정식 출시 전에 물을 것(사용자 2026-10-04: "정식 출시 전에 한 번 더 얘기해줘, 출시할 때쯤 따로 말해 줄게").** 사용자가
   출시 이야기를 꺼내거나 출시 준비 작업을 할 때 먼저 묻는다.
@@ -256,6 +269,9 @@
      조용히 버리던 거부를 '공은 봤는데 못 쟀어요 + 까닭'으로 ⑤ 대비 길로 잰 공은 분석 JSON 에 표시 · 보정 짝에서 뺌. 끝나면 13개를 다시
      재서 보여 주고 허락받아 원본 공에 채운다(3차 보정 차수). 시험: selftest · detect · video · live · accuracy + 실내 18 · 밖 13.
      2~3시간. 도구는 `scripts/velocity-lab/`(어느 컴퓨터에서든 — 영상은 내려받는다). 클라우드는 못 한다(.env · 크롬이 없다).
+     영상은 데스크톱에서 다시 받는다 — `node --env-file=.env scripts/velocity-lab/download.mjs --date=2026-10-03 --manual`(밖 13개) ·
+     `--date=2026-09-28`(실내 18개), 받는 곳 `~/bullpen-velocity-lab`. 먼저 지금 엔진으로 돌려 기록과 같은지 본다(밖 1/13 · 실내 15/18).
+     노트북에만 있는 것(없어도 됨): 9GB 장면 캐시 · 엔진 복사본들(필요한 차이는 위 문서에). `npm run velocity:live-test` 는 캐시가 없으면 그 시험만 건너뛴다.
 
 - **클라우드 세션 할 일 — 식단 짜기 정확도 2차(2026-10-04, 메인 세션이 맡김).** 사용자가 클라우드 세션을 열어 "메모대로 해 줘"라고
   하면 이것을 한다. 지난 클라우드 작업(틀 85 → 167 · 시험 382, 커밋 8e1fbd5 · 46cc794 · 96dae5d)을 메인이 세 갈래로 검토했고,
