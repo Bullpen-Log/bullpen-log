@@ -280,6 +280,16 @@
   하면 이것을 한다. 지난 클라우드 작업(틀 85 → 167 · 시험 382, 커밋 8e1fbd5 · 46cc794 · 96dae5d)을 메인이 세 갈래로 검토했고,
   **못 먹는 것이 새던 것은 메인이 고쳤다**(삼계탕 견과 · 돼지국밥 새우젓 · 소면 · 오므라이스 · 두부조림 · 샐러드 드레싱 등 — 시험에
   사람이 적은 '못 먹는 것 기대표'가 생겼다, 시험 387). 남은 것은 계산 정확도 일곱이다.
+  - **⚠ 2026-10-06 메인 확인: 지난번 클라우드 작업 결과가 GitHub 에 없다.** 사용자는 "클라우드가 올렸다"고 들었는데 `git ls-remote origin`
+    에 `cloud/meal-plan-accuracy` 가지가 없고, 식단 파일의 마지막 변경도 10-04(김민의 글 다듬기)다. 커밋은 했는데 **push 가 안 됐을**
+    가능성이 크다. 그래서 이번에는:
+    1. **시작 전에** `git fetch origin && git ls-remote origin cloud/meal-plan-accuracy` — 가지가 있으면 그 위에서 잇고, 없으면 최신 main 에서
+       새로 만든다(`git checkout -b cloud/meal-plan-accuracy origin/main`). 작업 공간에 지난번 커밋이 남아 있으면 그것을 이 가지로 옮겨 먼저 push.
+    2. **할 일 한 번호를 끝낼 때마다** 커밋 → `git push -u origin cloud/meal-plan-accuracy` → **`git ls-remote origin cloud/meal-plan-accuracy`
+       의 해시가 방금 커밋과 같은지 확인**한다. 다르거나 push 가 실패하면 멈추고 오류 글을 그대로 사용자에게 보인다(올렸다고 말하지 않는다).
+    3. 마지막 보고에는 GitHub 에서 확인한 마지막 커밋 해시를 적는다.
+  - **main 이 10-04 뒤로 많이 바뀌었다**(김민 200여 커밋 — 홈 · 전환 · 글). 식단 세 파일은 글만 바뀌었다(줄표 → 마침표, 해요체). 새로 쓰는
+    화면 글(까닭 줄 등)도 **줄표 없이, 짧게, 해요체**로. 시작할 때 `npm run nutrition:test` 가 387개 통과하는지부터 본다.
   - **가지**: `cloud/meal-plan-accuracy` 를 main 에서 새로 만들어 거기에만 커밋 · push. **main 에는 사용자가 분명히 말할 때만** 합친다.
   - **고칠 수 있는 파일**: `lib/nutrition/meal-plan.ts` · `lib/nutrition/meal-templates.ts` · `scripts/nutrition-selftest.mts` 만.
     `CONTAINS`(못 먹는 것 표)에서 꼬리표를 **빼지 않는다** — 더하거나 새 음식을 쓰면 시험의 `EXPECTED_AVOIDS`(기대표)도 같이 고친다.
@@ -306,6 +316,9 @@
     넘지 않게(지금 13초).
   - **끝내는 법**: 커밋 메시지는 한국어로 사용자가 읽을 말(무엇을 · 왜 · 숫자 전후). 이 줄 밑에 '클라우드 결과:' 한 줄(가지 · 마지막 커밋 ·
     시험 결과 · 남은 것)을 같은 가지에 적는다. `.env` 가 없으니 패치노트(`npm run patch:sync`)는 메인이 한다.
+  - **메인(데스크톱)이 받은 뒤 할 일**: `git fetch` → 가지의 '클라우드 결과:' 줄 확인 → 가지를 받아 `npm run nutrition:test` · `npx tsc --noEmit`
+    · 영양 화면(식단 짜기)에서 낮은 목표 · 먹은 뒤 · 던지는 날을 직접 보기 → 사용자에게 보고하고 "합쳐줘"라고 하면 main 에 합치고
+    `npm run patch:sync` → 메인 추천 7번을 '끝남'으로.
 
 - **AI — 김민과 회의 전까지 홈 분석 · 영양 사진 멈춤(2026-10-02, 사용자: "우리의 돈과 관련해서 굉장히 중요 — 회의로 정한다").**
   정리 `docs/ai-usage.md`, 스위치 `lib/ai/features.ts` 의 `AI_FEATURES`(homeReport · nutritionPhoto 둘 다 false). 트레이닝
