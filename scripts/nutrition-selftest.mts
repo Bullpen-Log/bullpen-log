@@ -3521,7 +3521,6 @@ console.log('\n■ 식단 짜기');
   /* ── 이레 연속 — 같은 조건으로 날마다 짜도 한 틀이 몰리지 않는다 ── */
   let weekSlots = 0,
     weekOver = 0,
-    weekFive = 0,
     nextDays = 0,
     nextSame = 0;
   const weekWorst: string[] = [];
@@ -3577,17 +3576,16 @@ console.log('\n■ 식단 짜기');
         weekOver++;
         weekWorst.push(`${input.seed} ${k} ${most}번`);
       }
-      if (most > 4) weekFive++;
       for (let d = 1; d < list.length; d++) {
         nextDays++;
         if (list[d] === list[d - 1]) nextSame++;
       }
     }
   }
-  /* 넷이 '0' 이어야 하면 씨앗 운이 된다(사람 3,000명이면 못 먹는 것 · 장소가 좁은 둘째 간식에서 드물게 넷이 나온다) */
+  /* 240명은 하나도 없어야 한다 — 여유(0.5% 밑)를 두면 지금 0/900 이라 회귀만 숨긴다 */
   check(
-    '이레 동안 한 끼니에 같은 틀이 넷 넘게 나오는 일은 드물고(0.5% 밑), 다섯은 없다',
-    weekOver <= weekSlots * 0.005 && weekFive === 0,
+    '이레 동안 한 끼니에 같은 틀이 네 번 이상 나오는 일은 없다(240명)',
+    weekOver === 0,
     `${weekOver}/${weekSlots} — ${weekWorst.slice(0, 4).join(' · ')}`
   );
   check(
