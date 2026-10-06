@@ -182,6 +182,15 @@
     --block-pad: 1.25rem;
 
     /*
+     * 휴대폰의 글자 — 아이폰 글자 크기(HIG)에 맞춘다(2026-10-06 사용자 "화면 비율을 앱 기준으로"). 웹 기본값
+     * (본문 14 · 큰 본문 16px)은 아이폰 앱 옆에 두면 작다 — 아이폰은 본문 17 · 부제 15 · 각주 13 · 캡션 12pt.
+     * 가장 많이 쓰는 text-sm 을 15(부제), text-base 를 17(본문)로. text-xs 12px 는 캡션과 같아 그대로.
+     * PC 는 아래 'PC 화면의 크기 기준'에서 원래 값으로 되돌린다.
+     */
+    --text-sm: 0.9375rem;
+    --text-base: 1.0625rem;
+
+    /*
      * 휴대폰의 모서리 — 아이폰(iOS 26 · 앱스토어)처럼 동글동글하게(2026-10-01 사용자 "앱 내부 인터페이스를
      * 애플처럼 전체적으로 동글동글하게"). 사용자가 보낸 앱스토어 화면을 재니 카드 모서리가 약 20pt 라 그 비율로
      * 맞췄다. Tailwind 의 rounded-* 가 이 값을 읽으므로 화면 코드를 하나하나 고치지 않아도 카드(2xl 16 → 20px) ·
@@ -210,6 +219,7 @@
   @media (min-width: 64rem), (min-width: 36rem) and (hover: hover) and (pointer: fine) {
     :root {
       --spacing: 0.2rem;
+      --text-sm: 0.875rem;
       --text-base: 0.9375rem;
       --text-lg: 1rem;
       --text-xl: 1.0625rem;
@@ -233,6 +243,7 @@
 
     .ui-chrome {
       --spacing: 0.25rem;
+      --text-sm: 0.875rem;
       --text-base: 1rem;
       --text-lg: 1.125rem;
       --text-xl: 1.25rem;
@@ -1028,12 +1039,12 @@ html[data-nav='none']::view-transition-new(.page) {
 }
 
 /*
- * 쪽 제목 — PC 는 모든 탭이 24px 하나(윈도우 Fluent 의 Title 3, 머티리얼 3 의 Headline Small), 휴대폰은 32px 큰
- * 제목(아이폰의 Large Title — 2026-10-01 사용자 '애플처럼'). 예전에는 탭마다 24 · 30 · 32 · 36px 로 달랐다.
+ * 쪽 제목 — PC 는 모든 탭이 24px 하나(윈도우 Fluent 의 Title 3, 머티리얼 3 의 Headline Small), 휴대폰은 34px 큰
+ * 제목(아이폰의 Large Title 34pt — 2026-10-01 사용자 '애플처럼', 2026-10-06 32 → 34). 예전에는 탭마다 24 · 30 · 32 · 36px 로 달랐다.
  * 굵기 · 자간은 text-heading 이 준다.
  */
 @utility page-title {
-  font-size: 2rem;
+  font-size: 2.125rem;
   line-height: 1.15;
   @media (min-width: 64rem), (min-width: 36rem) and (hover: hover) and (pointer: fine) {
     font-size: 1.5rem;
