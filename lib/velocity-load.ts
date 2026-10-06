@@ -148,10 +148,13 @@ function zoneRectOf(analysis: unknown) {
 /**
  * 지난 세션 전부(오래된 것부터) — 구속 측정 메인 화면(/velocity)의 구속 변화 그래프 · 최근 세션 목록.
  * 공은 kmh 와 구종만 읽는다 — 그래프에는 세션마다 최고 · 평균 · 공 수면 된다.
+ *
+ * 측정 화면에서 잰 세션만 — 관리자가 엔진 보정용으로 올린 영상(영상 올리기 · 파일로 재기: 'file' + 보정용)은 뺀다. 공 하나짜리
+ * 보정 영상 수십 개가 '최근 세션'을 채웠다(사용자 2026-10-07: "구속 측정 기능을 사용한 기록만").
  */
 export async function loadVelocityHistory(userId: string): Promise<VelocityHistoryItem[]> {
   const rows = await prisma.velocitySession.findMany({
-    where: { userId },
+    where: { userId, NOT: { source: 'file', forCalibration: true } },
     orderBy: [{ date: 'asc' }, { createdAt: 'asc' }],
     select: {
       id: true,
