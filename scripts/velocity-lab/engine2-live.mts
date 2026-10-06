@@ -5,6 +5,7 @@
  *   node scripts/velocity-lab/engine2-live.mts            # 19개 · 720 · 60fps
  *   node scripts/velocity-lab/engine2-live.mts 132_6a345288
  *   node scripts/velocity-lab/engine2-live.mts --zoom1      # 1배 줌 흉내(2배 영상을 반으로 줄여 가운데에, 둘레는 회색)
+ *   node scripts/velocity-lab/engine2-live.mts --hold=2.5   # 던지기 전 첫 장면을 붙잡는 시간(기본 1초)
  *
  * 장면은 engine2-lab.mts 와 같은 밝기 묶음(저장소 밖 ~/bullpen-velocity-lab/proto2/frames).
  */
@@ -84,8 +85,9 @@ for (const name of list) {
   take(meter.arm());
   const p = 1 / 60;
   const first = frame(1);
-  /* 던지기 전 1초는 첫 장면 그대로(삼각대 · 배경 준비) — 장면 0 은 잘라 붙인 자리라 1 부터 */
-  for (let q = 60; q >= 1; q--) take(meter.push({ t: meta.t[1] - q * p, luma: first }));
+  /* 던지기 전 1초(--hold=초)는 첫 장면 그대로(삼각대 · 배경 준비) — 장면 0 은 잘라 붙인 자리라 1 부터 */
+  const hold = Math.round(60 * Number((process.argv.find((a) => a.startsWith('--hold=')) ?? '--hold=1').slice(7)));
+  for (let q = hold; q >= 1; q--) take(meter.push({ t: meta.t[1] - q * p, luma: first }));
   for (let i = 1; i < meta.n; i++) take(meter.push({ t: meta.t[i], luma: i === 1 ? first : frame(i) }));
   let t = meta.t[meta.n - 1];
   const last = frame(meta.n - 1);
@@ -93,6 +95,15 @@ for (const name of list) {
   const gun = Number(name.slice(0, 3));
   const rel = RELEASE[name];
   const job = jobs.find((j) => j.ball && Math.abs(j.ball.t - rel) < 0.3) ?? jobs[0];
+  if (process.argv.includes('--jobs'))
+    for (const j of jobs) {
+      const r = analyzeJob(j, { width: W, height: H, sourceWidth: meta.w, sourceHeight: meta.h, fovDeg: 32.1, focalPx: FOCAL_SRC, approach: 'receding', releaseDistanceM: null, distanceM: D, tiltRad: 0 });
+      const dd = (r as unknown as { distance?: { flightFrames: number; extended: number; impact: string; firstDepthM: number | null; launchDeg: number | null; kmh3d: number | null; seedFrame: number; te: number; releasePx: [number, number] | null; endSizeRatio: number | null; sizeSlope: number | null } }).distance;
+      console.log(`   일감 공 ${j.ball?.t.toFixed(3)} (${j.ball?.x.toFixed(0)},${j.ball?.y.toFixed(0)} d${j.ball?.d.toFixed(1)}) 장면 ${j.frames[0].t.toFixed(3)}~${j.frames[j.frames.length - 1].t.toFixed(3)} → ${r.measure.ok ? r.measure.kmh : r.measure.code}` +
+        (process.argv.includes('--track') ? '\n      ' + r.track.map((o) => `${o.t.toFixed(3)}:${o.x.toFixed(0)},${o.y.toFixed(0)} d${o.diameterPx.toFixed(1)}`).join(' ') + '\n     ' : '') +
+        (r.track.length ? ` 이동 ${Math.hypot(r.track[r.track.length - 1].x - r.track[0].x, r.track[r.track.length - 1].y - r.track[0].y).toFixed(0)}px 첫지름 ${r.track[0].diameterPx.toFixed(1)}` : '') +
+        (dd ? ` · 비행 ${dd.flightFrames}(+${dd.extended}) ${dd.impact} 첫깊이 ${dd.firstDepthM}m 위로 ${dd.launchDeg}° 3d ${dd.kmh3d} 씨앗 ${j.frames[dd.seedFrame]?.t.toFixed(3)} 끝 ${dd.te?.toFixed?.(3)} 릴리스 ${dd.releasePx} 끝크기 ${dd.endSizeRatio} 기울기 ${dd.sizeSlope}` : ''));
+    }
   if (!job) {
     rows.push({ name, gun, kmh: null, info: `못 알아챔(일감 ${jobs.length})` });
     console.log(`${name.padEnd(13)} ${venue(name)} 건 ${gun}  못 알아챔 — 일감 ${jobs.length}`);

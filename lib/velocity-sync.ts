@@ -180,6 +180,13 @@ function sanitizeDistance(raw: unknown): Record<string, unknown> | null {
     kmhHorizontal: n(d.kmhHorizontal),
     firstDepthM: n(d.firstDepthM),
     launchDeg: n(d.launchDeg),
+    releasePx:
+      Array.isArray(d.releasePx) && d.releasePx.length === 2 && d.releasePx.every((x) => n(x) != null)
+        ? (d.releasePx as number[]).map((x) => Math.round(x))
+        : null,
+    endSizeRatio: n(d.endSizeRatio),
+    sizeSlope: n(d.sizeSlope),
+    shakePx: n(d.shakePx),
   };
 }
 

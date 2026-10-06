@@ -78,6 +78,12 @@ export type DistanceReport = {
   firstDepthM: number | null;
   /** 위로 던진 각(°) */
   launchDeg: number | null;
+  /** 궤적을 릴리스(카메라 앞 releaseDistM)까지 되돌린 화면 자리(분석 px) — 투수 뒤만. 릴리스가 보이게 찍었으면 화면 안이다 */
+  releasePx: [number, number] | null;
+  /** 비행 끝 장면의 공 지름 ÷ 거리 D 에 있는 공의 지름(분석 px) — 덩어리 지름은 작은 공에서 20~35% 크게 잰다 */
+  endSizeRatio: number | null;
+  /** ln(지름) 을 ln(맞춘 깊이) 에 맞춘 기울기 — 공이면 −1 근처(멀어진 만큼 작아짐), 제자리 덩어리면 0 근처 */
+  sizeSlope: number | null;
   /** 카메라 흔들림(분석 px, 귀퉁이 블록) · 문턱을 넘었나 — 넘어도 문턱 3배 안이면 재고 알린다 */
   shakePx: number;
   shaky: boolean;
@@ -216,6 +222,9 @@ export function analyzeByDistance(input: DistanceInput): DistanceResult {
     kmhHorizontal: null,
     firstDepthM: null,
     launchDeg: null,
+    releasePx: null,
+    endSizeRatio: null,
+    sizeSlope: null,
     shakePx: Math.round((input.shakePx ?? 0) * 10) / 10,
     shaky: false,
     seeds: 0,
@@ -342,6 +351,41 @@ export function analyzeByDistance(input: DistanceInput): DistanceResult {
   }
   fit = fitTrajectory(used, te, cam, opts);
   report.te = te;
+  {
+    const lastO = used[used.length - 1];
+    report.endSizeRatio = Math.round((lastO.diam / ((cam.f * BALL_DIAMETER_M) / D)) * 100) / 100;
+  }
+  {
+    const lz: number[] = [];
+    const ld: number[] = [];
+    /* 덩어리 점만 — 이어 찾은 테두리 점은 지름이 25% 작게 잡혀 기울기를 비튼다 */
+    for (const o of used) {
+      if (o.ring) continue;
+      const z = fit.positionAt(o.t)[2];
+      if (z > 0 && o.diam > 0) {
+        lz.push(Math.log(z));
+        ld.push(Math.log(o.diam));
+      }
+    }
+    const n = lz.length;
+    const mz = lz.reduce((a, x) => a + x, 0) / n;
+    const md = ld.reduce((a, x) => a + x, 0) / n;
+    let sxy = 0;
+    let sxx = 0;
+    for (let k = 0; k < n; k++) {
+      sxy += (lz[k] - mz) * (ld[k] - md);
+      sxx += (lz[k] - mz) ** 2;
+    }
+    report.sizeSlope = n >= 3 && sxx > 0 ? Math.round((sxy / sxx) * 100) / 100 : null;
+  }
+  /*
+   * 공인가 — 공이면 맞춘 깊이가 늘어난 만큼 지름이 줄어 기울기가 −1 근처다(밖 13개 −0.92 ~ −1.17, 실내 6개 −0.81 ~ −1.28: 자리만으로
+   * 맞춘 깊이가 크기와 맞는다). 제자리에서 밝기만 바뀌는 덩어리 · 몸 · 그물은 0 근처이거나 −2 아래로 벗어난다(실내 111 투구 뒤 화면
+   * 귀퉁이의 덩어리를 공으로 잡아 169.8km/h 를 냈다: −2.08). 공이 아니니 조용히 넘긴다(궤적을 안 넘긴다 — 화면이 '못 쟀어요'를
+   * 말하지 않게).
+   */
+  if (report.sizeSlope != null && used.filter((o) => !o.ring).length >= 6 && (report.sizeSlope > -0.6 || report.sizeSlope < -1.6))
+    return fail('UNSTABLE_TRACK');
   report.flightFrames = used.length;
   report.extended = extended;
   report.rmsPx = Math.round(fit.rms * 100) / 100;
@@ -365,6 +409,8 @@ export function analyzeByDistance(input: DistanceInput): DistanceResult {
       if (s2[2] <= zRel || s2[2] <= 0.01) break;
       tRel -= 0.002;
     }
+    const [px, py, pz] = fit.positionAt(tRel);
+    if (pz > 0) report.releasePx = [Math.round(cam.cx + (cam.f * px) / pz), Math.round(cam.cy + (cam.f * py) / pz)];
   }
   const sw = speedWithSe(fit, tRel, opts);
   /*

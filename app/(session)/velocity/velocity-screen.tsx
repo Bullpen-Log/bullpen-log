@@ -449,7 +449,6 @@ export function VelocityScreen({
   /* 저장된 보정이 지금 카메라(이름 · 비율 · 줌)와 맞을 때만 쓴다 — 다른 폰 · 렌즈 값이 섞이지 않게 */
   const lensOk = lensMatches(lens, camera);
   const focalRatio = lensOk ? lens.focalPerLongSide : null;
-  const zoomBad = camera?.zoom != null && Math.abs(camera.zoom - 1) > 0.05;
   const [circle, setCircle] = useState<Circle>(DEFAULT_CIRCLE);
   /* 뷰파인더 칸의 크기 — 스트라이크 존(장면 좌표)을 칸 좌표로 바꿔 그릴 때 */
   const [finderSize, setFinderSize] = useState<{
@@ -2129,7 +2128,6 @@ export function VelocityScreen({
                     error ||
                     saved ||
                     toast ||
-                    zoomBad ||
                     fpsNote ||
                     cropNote ||
                     (isAdmin && !native)) && (
@@ -2153,12 +2151,6 @@ export function VelocityScreen({
                             : '홈플레이트 위에 두세요. '}
                           화면 어디든 끌면 옮겨지고, 두 손가락으로 벌리거나 모서리
                           손잡이로 크기를 맞춰요.
-                        </p>
-                      )}
-                      {zoomBad && camera && (
-                        <p className="rounded-xl bg-warn/90 px-4 py-2.5 text-sm font-semibold text-white">
-                          줌이 {camera.zoom}배예요 — 값이 부정확할 수 있어요. 1배로 두면
-                          더 정확해요.
                         </p>
                       )}
                       {/* 초당 장면 · 잘림 — 측정 화면에서만(수평 · 존은 오른쪽 위 주황 표시로 충분), 결과가 떠 있으면 결과의 알림이 말한다 */}

@@ -62,7 +62,7 @@ export type AnalysisJson = {
    * 모델 2.0(거리 자, lib/velocity-engine/analyze-distance.ts) — 넣은 거리 · 숙임 · 비행 끝을 무엇으로 정했나 · 3차원/수평 속력 ·
    * 위로 던진 각. 관리자가 다시 잴 때 거리를 여기서 꺼낸다. 1.x 로 잰 공은 없음.
    */
-  distance?: Omit<DistanceReport, 'seeds' | 'seedFrame' | 'timingMs' | 'shakePx' | 'shaky'> | null;
+  distance?: Omit<DistanceReport, 'seeds' | 'seedFrame' | 'timingMs' | 'shaky'> | null;
 };
 
 export function analysisOf(
@@ -88,6 +88,11 @@ export function analysisOf(
           kmhHorizontal: dist.kmhHorizontal,
           firstDepthM: dist.firstDepthM,
           launchDeg: dist.launchDeg,
+          /* 원인 찾기용 — 되돌린 릴리스 자리 · 끝 크기 비 · 지름–깊이 기울기 · 흔들림 */
+          releasePx: dist.releasePx,
+          endSizeRatio: dist.endSizeRatio,
+          sizeSlope: dist.sizeSlope,
+          shakePx: dist.shakePx,
         }
       : null,
     ruler: d ? d.ruler : null,
