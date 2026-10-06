@@ -7,6 +7,7 @@
  *   node scripts/velocity-lab/engine2-lab.mts                 # 앱 분석 해상도(짧은 변 720)로 19개
  *   node scripts/velocity-lab/engine2-lab.mts --res=1080       # 원본 해상도
  *   node scripts/velocity-lab/engine2-lab.mts --whole 132_6a345288   # 클립 전체를 넘겨 씨앗을 스스로 찾게
+ *   node scripts/velocity-lab/engine2-lab.mts --fk=1.1               # 초점거리를 10% 틀리게 넣었을 때
  *
  * 점수: 같은 장소의 나머지 영상으로 거리를 맞춰(LOO — 앱에서는 사용자가 넣는 거리 자리) 스피드건과 견준다.
  * '건 맞춤 D' = 그 영상만으로 스피드건에 맞는 거리(같은 장소면 비슷해야 한다).
@@ -29,7 +30,8 @@ const INDOOR = ['086', '098', '102', '111_0', '114', '119_3'];
 const TILT_DEG: Record<string, number> = { '076': 3.6, '077': 3.6, '079': 3.6, '085': 3.6, '100': 3.6, '113': 3.6 };
 const venue = (n: string) => (INDOOR.some((p) => n.startsWith(p)) ? '실내' : '밖');
 /** 2배 줌 화각 — 1배 긴 변 59.8°(1.x 의 아이폰 영상 값)의 절반 탄젠트 */
-const FOCAL_FULL = (1920 / 2 / Math.tan((59.8 / 2) * (Math.PI / 180))) * 2;
+const FOCAL_FULL =
+  (1920 / 2 / Math.tan((59.8 / 2) * (Math.PI / 180))) * 2 * Number((process.argv.find((a) => a.startsWith('--fk=')) ?? '--fk=1').slice(5));
 
 const args = process.argv.slice(2);
 const res = Number((args.find((a) => a.startsWith('--res=')) ?? '--res=720').slice(6));

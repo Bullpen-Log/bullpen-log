@@ -47,14 +47,28 @@ export function medianBackground(frames: ArrayLike<number>[], w: number, h: numb
   const col = new Float64Array(n);
   const mid = n >> 1;
   for (let p = 0; p < w * h; p++) {
-    for (let k = 0; k < n; k++) {
-      const v = frames[k][p];
-      let j = k - 1;
-      while (j >= 0 && col[j] > v) {
-        col[j + 1] = col[j];
-        j--;
+    for (let k = 0; k < n; k++) col[k] = frames[k][p];
+    /* 가운데 값만 고른다(호어 선택) — 다 정렬하던 것과 같은 값, 21장이면 두 배 넘게 빠르다 */
+    let lo = 0;
+    let hi = n - 1;
+    while (lo < hi) {
+      const pivot = col[(lo + hi) >> 1];
+      let i = lo;
+      let j = hi;
+      while (i <= j) {
+        while (col[i] < pivot) i++;
+        while (col[j] > pivot) j--;
+        if (i <= j) {
+          const t = col[i];
+          col[i] = col[j];
+          col[j] = t;
+          i++;
+          j--;
+        }
       }
-      col[j + 1] = v;
+      if (mid <= j) hi = j;
+      else if (mid >= i) lo = i;
+      else break;
     }
     out[p] = col[mid];
   }
@@ -240,13 +254,32 @@ export function ringScore(
   }
   const c = RING_C;
   let m = 0;
+  const ra = r + d;
+  const rb = r - d;
+  const xmax = w - 1.001;
+  const ymax = h - 1.001;
   for (let k = 0; k < n; k++) {
-    const a = sampleAt(img, w, h, x + (r + d) * co[k], y + (r + d) * sn[k]);
-    const b = sampleAt(img, w, h, x + (r - d) * co[k], y + (r - d) * sn[k]);
-    if (Number.isNaN(a) || Number.isNaN(b)) {
+    /* sampleAt 두 번을 그대로 풀어 쓴 것(한 번에 수십만 번 — 부르는 값만 아낀다, 계산은 같다) */
+    const xa = x + ra * co[k];
+    const ya = y + ra * sn[k];
+    const xb = x + rb * co[k];
+    const yb = y + rb * sn[k];
+    if (xa < 0 || ya < 0 || xa > xmax || ya > ymax || xb < 0 || yb < 0 || xb > xmax || yb > ymax) {
       c[k] = NaN;
       continue;
     }
+    const xa0 = Math.floor(xa);
+    const ya0 = Math.floor(ya);
+    const fxa = xa - xa0;
+    const fya = ya - ya0;
+    const pa = ya0 * w + xa0;
+    const a = (img[pa] * (1 - fxa) + img[pa + 1] * fxa) * (1 - fya) + (img[pa + w] * (1 - fxa) + img[pa + w + 1] * fxa) * fya;
+    const xb0 = Math.floor(xb);
+    const yb0 = Math.floor(yb);
+    const fxb = xb - xb0;
+    const fyb = yb - yb0;
+    const pb = yb0 * w + xb0;
+    const b = (img[pb] * (1 - fxb) + img[pb + 1] * fxb) * (1 - fyb) + (img[pb + w] * (1 - fxb) + img[pb + w + 1] * fxb) * fyb;
     c[k] = Math.abs(a - b);
     m++;
   }
@@ -254,19 +287,32 @@ export function ringScore(
   const L = Math.max(1, Math.round(arc * n));
   const win = RING_W;
   let best = 0;
+  /*
+   * 창(L 칸)을 둘레를 따라 한 칸씩 옮기며 아래 25% 값 — 정렬된 창에서 나가는 값 하나를 빼고 들어오는 값 하나를 끼운다(창마다 새로
+   * 정렬하던 것과 같은 값, 비교 함수를 부르지 않는다 — 수십만 번이라 이것이 시간의 대부분이었다).
+   */
+  let cnt = 0;
+  const add = (v: number) => {
+    if (v !== v) return;
+    let p = cnt++;
+    while (p > 0 && win[p - 1] > v) {
+      win[p] = win[p - 1];
+      p--;
+    }
+    win[p] = v;
+  };
+  for (let j = 0; j < L; j++) add(c[j % n]);
   const starts = arc < 1 ? n : 1;
-  for (let s = 0; s < starts; s++) {
-    /* 창 안 값을 모아 그 자리에서 끼워 정렬(비교 함수를 부르지 않는다 — 수십만 번이라 이것이 시간의 대부분이었다) */
-    let cnt = 0;
-    for (let j = 0; j < L; j++) {
-      const v = c[(s + j) % n];
-      if (v !== v) continue;
-      let p = cnt++;
-      while (p > 0 && win[p - 1] > v) {
-        win[p] = win[p - 1];
-        p--;
+  for (let st = 0; st < starts; st++) {
+    if (st > 0) {
+      const out = c[st - 1];
+      if (out === out) {
+        let p = 0;
+        while (win[p] !== out) p++;
+        for (; p < cnt - 1; p++) win[p] = win[p + 1];
+        cnt--;
       }
-      win[p] = v;
+      add(c[(st + L - 1) % n]);
     }
     if (cnt <= L / 2) continue;
     const q = win[Math.floor(0.25 * cnt)];

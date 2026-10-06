@@ -4,6 +4,7 @@
  *
  *   node scripts/velocity-lab/engine2-live.mts            # 19개 · 720 · 60fps
  *   node scripts/velocity-lab/engine2-live.mts 132_6a345288
+ *   node scripts/velocity-lab/engine2-live.mts --zoom1      # 1배 줌 흉내(2배 영상을 반으로 줄여 가운데에, 둘레는 회색)
  *
  * 장면은 engine2-lab.mts 와 같은 밝기 묶음(저장소 밖 ~/bullpen-velocity-lab/proto2/frames).
  */
@@ -30,17 +31,21 @@ const venue = (n: string) => (INDOOR.some((p) => n.startsWith(p)) ? '실내' : '
 const TILT_DEG: Record<string, number> = { '076': 3.6, '077': 3.6, '079': 3.6, '085': 3.6, '100': 3.6, '113': 3.6 };
 const W = 720;
 const H = 1280;
-const FOCAL_SRC = (1920 / 2 / Math.tan((59.8 / 2) * (Math.PI / 180))) * 2;
+const ZOOM1 = process.argv.includes('--zoom1');
+const FOCAL_SRC = ((1920 / 2 / Math.tan((59.8 / 2) * (Math.PI / 180))) * 2) / (ZOOM1 ? 2 : 1);
 const D = 21.5;
 
 function down(src: Uint8Array, w: number, h: number): Uint8Array {
   const out = new Uint8Array(W * H);
-  const kx = w / W;
-  const ky = h / H;
-  for (let y = 0; y < H; y++)
-    for (let x = 0; x < W; x++) {
-      const sx = (x + 0.5) * kx - 0.5;
-      const sy = (y + 0.5) * ky - 0.5;
+  /* 1배 흉내: 가운데 반(W/2 × H/2)에 2배 장면 전체를 줄여 넣는다 */
+  const [ox, oy, cw, ch] = ZOOM1 ? [W / 4, H / 4, W / 2, H / 2] : [0, 0, W, H];
+  if (ZOOM1) out.fill(110);
+  const kx = w / cw;
+  const ky = h / ch;
+  for (let y = oy; y < oy + ch; y++)
+    for (let x = ox; x < ox + cw; x++) {
+      const sx = (x - ox + 0.5) * kx - 0.5;
+      const sy = (y - oy + 0.5) * ky - 0.5;
       const x0 = Math.max(0, Math.floor(sx));
       const y0 = Math.max(0, Math.floor(sy));
       const x1 = Math.min(w - 1, x0 + 1);
@@ -99,7 +104,7 @@ for (const name of list) {
     height: H,
     sourceWidth: meta.w,
     sourceHeight: meta.h,
-    fovDeg: 32.1,
+    fovDeg: ZOOM1 ? 59.8 : 32.1,
     focalPx: FOCAL_SRC,
     approach: 'receding',
     releaseDistanceM: null,

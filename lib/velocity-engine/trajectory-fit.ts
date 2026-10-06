@@ -102,31 +102,51 @@ const STEP_SEC = 0.008;
 function integrator(opts: FitOptions) {
   const Kn = DRAG_K * (opts.dragScaleM ?? 20);
   const tanTilt = Math.tan(opts.tilt ?? 0);
-  const step = (s: State, h: number, ax: number, ay: number, az: number): State => {
-    const acc = (vx: number, vy: number, vz: number): [number, number, number] => {
-      const sp = Math.hypot(vx, vy, vz);
-      return [ax - Kn * sp * vx, ay - Kn * sp * vy, az - Kn * sp * vz];
-    };
-    const [x, y, z, vx, vy, vz] = s;
-    const a1 = acc(vx, vy, vz);
-    const a2 = acc(vx + 0.5 * h * a1[0], vy + 0.5 * h * a1[1], vz + 0.5 * h * a1[2]);
-    const a3 = acc(vx + 0.5 * h * a2[0], vy + 0.5 * h * a2[1], vz + 0.5 * h * a2[2]);
-    const a4 = acc(vx + h * a3[0], vy + h * a3[1], vz + h * a3[2]);
-    return [
-      x + h * (vx + (h / 6) * (a1[0] + a2[0] + a3[0])),
-      y + h * (vy + (h / 6) * (a1[1] + a2[1] + a3[1])),
-      z + h * (vz + (h / 6) * (a1[2] + a2[2] + a3[2])),
-      vx + (h / 6) * (a1[0] + 2 * a2[0] + 2 * a3[0] + a4[0]),
-      vy + (h / 6) * (a1[1] + 2 * a2[1] + 2 * a3[1] + a4[1]),
-      vz + (h / 6) * (a1[2] + 2 * a2[2] + 2 * a3[2] + a4[2]),
-    ];
-  };
+  /*
+   * 걸음마다 배열을 만들지 않게 숫자 변수로 나아간다(맞춤 한 번에 수천 걸음 — 배열 쓰레기와 Math.hypot 이 계산 시간의 대부분이었다).
+   * 속력은 제곱합의 제곱근(hypot 은 넘침을 막느라 몇 배 느리다 — 공 속력에선 넘칠 일이 없다).
+   */
   const go = (s: State, dt: number, p: number[]): State => {
     const n = Math.max(1, Math.ceil(Math.abs(dt) / STEP_SEC));
     const h = dt / n;
+    const ax = p[5];
+    const ay = p[6];
     const az = p[6] * tanTilt;
-    for (let k = 0; k < n; k++) s = step(s, h, p[5], p[6], az);
-    return s;
+    let [x, y, z, vx, vy, vz] = s;
+    for (let k = 0; k < n; k++) {
+      let sp = Math.sqrt(vx * vx + vy * vy + vz * vz);
+      const a1x = ax - Kn * sp * vx;
+      const a1y = ay - Kn * sp * vy;
+      const a1z = az - Kn * sp * vz;
+      let ux = vx + 0.5 * h * a1x;
+      let uy = vy + 0.5 * h * a1y;
+      let uz = vz + 0.5 * h * a1z;
+      sp = Math.sqrt(ux * ux + uy * uy + uz * uz);
+      const a2x = ax - Kn * sp * ux;
+      const a2y = ay - Kn * sp * uy;
+      const a2z = az - Kn * sp * uz;
+      ux = vx + 0.5 * h * a2x;
+      uy = vy + 0.5 * h * a2y;
+      uz = vz + 0.5 * h * a2z;
+      sp = Math.sqrt(ux * ux + uy * uy + uz * uz);
+      const a3x = ax - Kn * sp * ux;
+      const a3y = ay - Kn * sp * uy;
+      const a3z = az - Kn * sp * uz;
+      ux = vx + h * a3x;
+      uy = vy + h * a3y;
+      uz = vz + h * a3z;
+      sp = Math.sqrt(ux * ux + uy * uy + uz * uz);
+      const a4x = ax - Kn * sp * ux;
+      const a4y = ay - Kn * sp * uy;
+      const a4z = az - Kn * sp * uz;
+      x = x + h * (vx + (h / 6) * (a1x + a2x + a3x));
+      y = y + h * (vy + (h / 6) * (a1y + a2y + a3y));
+      z = z + h * (vz + (h / 6) * (a1z + a2z + a3z));
+      vx = vx + (h / 6) * (a1x + 2 * a2x + 2 * a3x + a4x);
+      vy = vy + (h / 6) * (a1y + 2 * a2y + 2 * a3y + a4y);
+      vz = vz + (h / 6) * (a1z + 2 * a2z + 2 * a3z + a4z);
+    }
+    return [x, y, z, vx, vy, vz];
   };
   const start = (p: number[]): State => [p[0], p[1], 1, p[2], p[3], p[4]];
   return { go, start };
