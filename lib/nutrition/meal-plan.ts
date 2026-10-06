@@ -527,7 +527,14 @@ function pickTemplate(
   };
   /* 그 장소에서 먹을 수 있는 것 — 없으면(못 먹는 것이 많아서) 장소를 풀어 준다 */
   const atPlace = pool.filter((p) => p.template.places.includes(place));
-  const placed = atPlace.length > 0 ? atPlace : pool;
+  const anywhere = atPlace.length > 0 ? atPlace : pool;
+  /*
+   * 던지는 일정에 맞춰야 하는 끼니는 그 꼬리표 틀이 이 장소에 있으면 그 가운데서만 — 점수만 더해서는 입맛 · 더위 점수에 밀려
+   * 던지는 날 점심의 4할이 던지기 전 끼니가 아니었다(까닭 줄은 '탄수화물 위주로 가볍게'라고 했다).
+   */
+  const must = requiredTag(slot, input);
+  const tagged = must ? anywhere.filter((p) => p.template.tags.includes(must)) : [];
+  const placed = tagged.length > 0 ? tagged : anywhere;
   if (placed.length === 0) return null;
   /* 가장 줄여도 몫을 크게 넘는 틀은 빼고 — 다 넘으면 그대로(점수가 작은 것을 고른다) */
   const limit = small ? LAST_FLOOR_LIMIT : FLOOR_LIMIT;
@@ -754,10 +761,19 @@ export const KCAL_BOOST = ['banana', 'sweet-potato', 'rice', 'garaetteok', 'oatm
 
 /* ─────────────────────────── 짜기 ─────────────────────────── */
 
-const PRE_MEAL: Partial<Record<NonNullable<ThrowKind>, Slot>> = {
-  today: 'lunch',
-  eve: 'dinner',
-};
+/** 던지는 일정에 꼭 맞춰야 하는 끼니의 꼬리표 — 오늘 던지면 점심은 던지기 전 · 저녁은 회복식, 내일 등판이면 저녁은 던지기 전 */
+function requiredTag(slot: Slot, input: PlanInput): Tag | null {
+  switch (input.throwKind) {
+    case 'today':
+      return slot === 'lunch' ? 'pre' : slot === 'dinner' ? 'rec' : null;
+    case 'eve':
+      return slot === 'dinner' ? 'pre' : null;
+    case 'after':
+      return slot === 'dinner' ? 'rec' : null;
+    default:
+      return null;
+  }
+}
 
 /**
  * 이레를 한 줄로 이어 짠다 — 지난주 월요일부터 어제까지를 짜 보고, 어제 · 그제 고른 틀을 오늘은 피한다. 늘 지난주 월요일부터
@@ -1123,7 +1139,7 @@ function planDay(memo: Memo, input: PlanInput, recent: Set<string>[]): MealPlanR
   reasons.push(
     ...whyLines(
       input,
-      meals.map((m) => m.slot),
+      meals.map((m) => ({ slot: m.slot, template: m.template })),
       /* 두유 · 두부 간식에 '유제품 단백질'이라고 쓰지 않게 */
       meals.some(
         (m) =>
@@ -1146,32 +1162,63 @@ function planDay(memo: Memo, input: PlanInput, recent: Set<string>[]): MealPlanR
 }
 
 /** 왜 이렇게 짰나 — 앞에 둔 것이 더 중요한 까닭(화면은 넷까지) */
-function whyLines(input: PlanInput, slots: Slot[], snackDairy: boolean): string[] {
+function whyLines(
+  input: PlanInput,
+  meals: { slot: Slot; template: MealTemplate }[],
+  snackDairy: boolean
+): string[] {
   const lines: string[] = [];
-  const has = (s: Slot) => slots.includes(s);
-  const pre = input.throwKind ? PRE_MEAL[input.throwKind] : undefined;
-  if (input.throwKind === 'today' && pre && has(pre)) {
-    lines.push(
-      '오늘 던지는 날이라 점심을 탄수화물 위주로 가볍게, 저녁은 회복식으로 짰어요.'
-    );
-  } else if (input.throwKind === 'eve' && has('dinner')) {
-    lines.push('내일 등판이라 저녁에 밥 · 면으로 탄수화물을 넉넉히 넣었어요.');
-  } else if (input.throwKind === 'after' && (has('dinner') || has('snack'))) {
-    lines.push('던진 뒤라 저녁 · 간식에 단백질과 탄수화물을 같이 넣었어요.');
+  const has = (s: Slot) => meals.some((m) => m.slot === s);
+  /* 실제로 고른 틀의 꼬리표를 보고 말한다 — 던지기 전 틀이 없는 점심에 '탄수화물 위주로 가볍게'라고 하지 않게 */
+  const tagged = (s: Slot, tag: Tag) =>
+    meals.some((m) => m.slot === s && m.template.tags.includes(tag));
+  if (input.throwKind === 'today') {
+    const pre = tagged('lunch', 'pre');
+    const rec = tagged('dinner', 'rec');
+    if (pre && rec) {
+      lines.push(
+        '오늘 던지는 날이라 점심을 탄수화물 위주로 가볍게, 저녁은 회복식으로 짰어요.'
+      );
+    } else if (pre) {
+      lines.push('오늘 던지는 날이라 점심을 탄수화물 위주로 가볍게 짰어요.');
+    } else if (rec) {
+      lines.push('오늘 던지는 날이라 저녁은 회복식으로 짰어요.');
+    }
+  } else if (input.throwKind === 'eve' && tagged('dinner', 'pre')) {
+    lines.push('내일 등판이라 저녁에 탄수화물을 넉넉히 넣었어요.');
+  } else if (input.throwKind === 'after') {
+    const where = (['dinner', 'snack'] as const).filter((s) => tagged(s, 'rec'));
+    if (where.length > 0) {
+      lines.push(
+        `던진 뒤라 ${where.map(mealLabel).join(' · ')}에 단백질과 탄수화물을 같이 넣었어요.`
+      );
+    }
   }
   if (lowAppetite(input)) {
-    lines.push('입맛이 없는 날이라 부드러운 것 위주로, 간식을 더해 양을 나눴어요.');
+    const soft =
+      meals.filter((m) => m.template.tags.includes('light')).length * 2 >= meals.length;
+    /* 간식이 없는 구성이라 입맛 없는 날 더한 간식 */
+    const extra =
+      has('snack') &&
+      !PATTERN_SHARES[input.prefs.mealPattern].some(([s]) => s === 'snack');
+    if (soft && extra) {
+      lines.push('입맛이 없는 날이라 부드러운 것 위주로, 간식을 더해 양을 나눴어요.');
+    } else if (soft) {
+      lines.push('입맛이 없는 날이라 부드러운 것 위주로 짰어요.');
+    } else if (extra) {
+      lines.push('입맛이 없는 날이라 간식을 더해 양을 나눴어요.');
+    }
   }
-  if (highSoreness(input) && has('snack')) {
+  if (highSoreness(input) && tagged('snack', 'bed')) {
     lines.push(
       `근육통이 많은 날이라 간식에 ${snackDairy ? '유제품 ' : ''}단백질을 한 번 더 넣었어요.`
     );
   }
-  if (input.hot)
+  if (input.hot && meals.some((m) => m.template.tags.includes('heat')))
     lines.push('더운 날 야외라 국 · 과일 · 음료로 수분과 나트륨을 챙겼어요.');
-  if (input.place === 'gym')
+  if (input.place === 'gym' && (has('lunch') || has('snack')))
     lines.push('헬스장에서 먹을 점심 · 간식은 바로 먹는 것으로 골랐어요.');
-  if (input.place === 'team')
+  if (input.place === 'team' && has('lunch'))
     lines.push('팀 · 학교에서 먹을 점심은 급식 · 도시락 모양으로 골랐어요.');
   if (input.place === 'out')
     lines.push('밖에서 먹을 끼니는 식당 · 편의점에서 고를 수 있는 것으로 골랐어요.');
