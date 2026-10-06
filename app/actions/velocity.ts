@@ -162,12 +162,13 @@ export async function loadCalibration(): Promise<{ fit: CalFit; pairs: CalPair[]
   });
   /*
    * 밝은 배경 앞의 어두운 공(모델 1.8.0 의 두 번째 길 — analysis.polarity 'dark' · 'mixed')은 다른 자로 쟀다(확인 전) — 짝에서 뺀다.
-   * 밖에서 스피드건 짝이 쌓이면 이 공들만 따로 맞춰 본다.
+   * 대비 길(모델 1.9.0 — analysis.fallback 'close' · 'center', 밖 · 표적 그물 앞)로 잰 공도 뺀다 — 2배 줌 · 밖 짝 13개가 평균
+   * 2.6~3.5km/h 낮게 읽혀 아직 맞추지 않은 조건이다. 밖에서 스피드건 짝이 쌓이면 이 공들만 따로 맞춰 본다.
    */
   const pairs = rows
     .filter((r) => {
-      const pol = (r.analysis as { polarity?: unknown } | null)?.polarity;
-      return pol !== 'dark' && pol !== 'mixed';
+      const a = r.analysis as { polarity?: unknown; fallback?: unknown } | null;
+      return a?.polarity !== 'dark' && a?.polarity !== 'mixed' && a?.fallback == null;
     })
     .map((r) => ({ measured: r.rawKmh, gun: r.gunKmh as number }));
   return { fit: fitCalibration(pairs), pairs };

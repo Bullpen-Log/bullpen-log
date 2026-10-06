@@ -192,6 +192,8 @@ export function sanitizeAnalysis(raw: unknown): Record<string, unknown> | null {
       a.polarity === 'bright' || a.polarity === 'dark' || a.polarity === 'mixed'
         ? a.polarity
         : null,
+    /* 대비 길(모델 1.9.0)로 잰 공 — 보정 짝에 섞지 않으려고(lib/velocity-analysis.ts) */
+    fallback: a.fallback === 'close' || a.fallback === 'center' ? a.fallback : null,
     edgeWidthPx: n(a.edgeWidthPx),
     blurCorrectionPx: n(a.blurCorrectionPx),
     startSeKmh: n(a.startSeKmh),

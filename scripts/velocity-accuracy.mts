@@ -205,7 +205,7 @@ const SCENARIOS: Scenario[] = [
     mesh: { strand: 3, pitch: 8, luma: 225 },
   },
   { name: '흰 배경(공 뒤가 흰 망 220)', kmh: 130, fps: 240, source: PORTRAIT, bgLevel: 220 },
-  /* 밖 · 표적 그물 앞(1.9.0 대비 길) — 1.8.1 은 6/6 거부(장면 부족), 대비 길은 닫힘 0 으로 잰다 */
+  /* 밖 · 표적 그물 앞(1.9.0 대비 길) — 대비 길 없이(--no-fallback)는 4/6 거부(장면 부족), 대비 길은 닫힘 0 으로 다 잰다 */
   { name: '흔들리는 그물 격자 앞(4px · ±60) 60fps', kmh: 130, fps: 60, source: PORTRAIT, grid: { pitch: 4, amp: 60 } },
   { name: '밝은 배경(공 뒤 190)', kmh: 130, fps: 240, source: PORTRAIT, bgLevel: 190 },
   {
