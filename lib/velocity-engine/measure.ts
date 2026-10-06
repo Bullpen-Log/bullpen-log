@@ -49,6 +49,8 @@ export type MeasureInput = {
    * 검사하면 멀쩡한 촬영이 '너무 멀다'로 거부된다(analyze-frames.ts). 속도 계산에는 쓰지 않는다. 없으면 계산의 기준 관측.
    */
   framingAnchor?: BallObservation | null;
+  /** 릴리스가 가운데에서 벗어나도 되는 비율(validate.ts checkFraming) — 대비 길만 Infinity */
+  maxReleaseOffsetRatio?: number;
 };
 
 export type MeasureSuccess = {
@@ -234,6 +236,7 @@ export function measureVelocity(input: MeasureInput): MeasureResult {
     lens: camera,
     stability,
     approach,
+    maxReleaseOffsetRatio: input.maxReleaseOffsetRatio,
   });
   if (framingProblem) return { ok: false, ...framingProblem };
 

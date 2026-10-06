@@ -1025,17 +1025,34 @@ console.log(
   const awayRes = awayHit.length
     ? awayRun.results[awayRun.jobs.indexOf(awayHit[0])]
     : null;
+  /*
+   * 1.8.0 은 '릴리스가 화면 중앙에서 벗어났다'로 거부했다(1.7.0 은 아무 반응 없음). 1.9.0 은 대비 길 ④(가운데 조건 없이)가
+   * 잰다 — 낮게 겨눈 밖 촬영의 릴리스가 모두 가운데 밖이었다(outdoor-2026-10-03.md). 값은 내되 fallback 'center' 로 표시하고
+   * 믿음은 '보통'까지(보정 짝에서도 뺀다). 1.8.x 와 같은 두 길만 돌리면(fallback false) 여전히 그 까닭으로 거부한다.
+   */
+  const awayRel = awayRes?.measure.ok ? (awayRes.release?.releaseKmh ?? null) : null;
   check(
-    "가운데로 끝내 안 들어오는 공 — 알아채고 '릴리스가 화면 중앙에서 벗어났다'고 알린다(1.7.0 은 아무 반응 없음)",
+    "가운데로 끝내 안 들어오는 공 — 대비 길(가운데 조건 없이)로 재고 'center' 표시 · 믿음은 '보통'까지",
     awayHit.length === 1 &&
       awayRes != null &&
-      !awayRes.measure.ok &&
-      awayRes.measure.code === 'RELEASE_NOT_CENTERED',
+      awayRes.measure.ok &&
+      awayRes.fallback === 'center' &&
+      awayRes.measure.confidence !== 'high' &&
+      awayRel != null &&
+      Math.abs(awayRel - away.kmh) / away.kmh < 0.2,
     awayHit.length
       ? awayRes?.measure.ok
-        ? `값 ${awayRes.release?.releaseKmh}`
+        ? `값 ${awayRel} · ${awayRes.fallback ?? '예전 길'} · ${awayRes.measure.confidence}`
         : `거부 ${awayRes && !awayRes.measure.ok ? awayRes.measure.code : '-'}`
       : '못 알아챔'
+  );
+  const awayStrict = awayHit.length
+    ? analyzeJob(awayHit[0], { ...CAMERA, approach: 'receding' }, { fallback: false })
+    : null;
+  check(
+    "대비 길 없이(1.8.x)는 여전히 '릴리스가 화면 중앙에서 벗어났다'",
+    awayStrict != null && !awayStrict.measure.ok && awayStrict.measure.code === 'RELEASE_NOT_CENTERED',
+    awayStrict ? (awayStrict.measure.ok ? `값 ${awayStrict.release?.releaseKmh}` : awayStrict.measure.code) : '-'
   );
 
   /*

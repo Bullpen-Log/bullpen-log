@@ -57,6 +57,7 @@ for (const f of files) {
         kmh: m.ok ? m.kmh : null, conf: m.ok ? m.confidence : null, frames: m.ok ? m.detail.frames : null,
         rel: res.release ? res.release.releaseKmh : null, relPm: res.release ? res.release.errorKmh : null,
         track: obs(res.track), seedTrack: obs(res.seedTrack), diameter: res.diameter ?? null,
+        fallback: res.fallback ?? null,
         blobFrames: ${debug} ? res.blobFrames : undefined,
         video: res.video,
       };
@@ -70,7 +71,7 @@ for (const f of files) {
     '|',
     r.error ??
       (r.ok
-        ? `릴리스 ${r.rel?.toFixed(1)} ±${r.relPm?.toFixed(1)} · 평균 ${r.kmh?.toFixed(1)} · ${r.frames}장 ${r.conf}` +
+        ? `릴리스 ${r.rel?.toFixed(1)} ±${r.relPm?.toFixed(1)} · 평균 ${r.kmh?.toFixed(1)} · ${r.frames}장 ${r.conf}${r.fallback ? ` · 대비 ${r.fallback}` : ""}` +
           (gun != null && r.rel != null
             ? ` · 건 ${gun} 차 ${(r.rel - gun).toFixed(1)}`
             : '')

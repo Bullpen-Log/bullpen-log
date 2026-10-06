@@ -547,7 +547,12 @@ export function findMovedBlobs(
    * 어두워짐도 본다(위 '밝은 배경' 설명) — 밝은 배경 앞의 어두운 공. 비우면 예전처럼 밝아진 곳만(그림자를 거른다) — 실내
    * 보정 영상 · 밝은 공은 이 길 그대로다.
    */
-  dark?: DarkDetect
+  dark?: DarkDetect,
+  /**
+   * 그물코 잇기(닫힘)의 반지름 — 기본 CLOSE_RADIUS. 대비 길(analyze-frames.ts, 1.9.0)만 0 을 준다: 흔들리는 표적 그물의
+   * 격자가 '움직인 픽셀'이 되면 닫힘이 공을 그 격자에 붙여 공 후보가 사라진다(밖 13개 중 8개 — docs/velocity/outdoor-2026-10-03.md).
+   */
+  closeRadius: number = CLOSE_RADIUS
 ): Blob[] {
   /*
    * 마스크는 한 줄을 32픽셀씩 비트로 묶어 쥔다(closeMask 설명) — 문턱값을 넘은 픽셀(raw)과 닫힌 마스크(moved). 덩어리 찾기도
@@ -566,7 +571,7 @@ export function findMovedBlobs(
     for (let i = 0; i < raw.length; i++) raw[i] |= darkRaw[i];
   }
   /* 그물코 · 실밥에 갈린 조각을 잇는다(CLOSE_RADIUS). 덩어리는 이은 마스크에서 찾고, 보이는 비율은 원본으로 센다 */
-  const moved = closeMask(raw, width, height, CLOSE_RADIUS);
+  const moved = closeRadius > 0 ? closeMask(raw, width, height, closeRadius) : raw;
   return blobsOf(raw, moved, width, height, wpr, darkRaw);
 }
 

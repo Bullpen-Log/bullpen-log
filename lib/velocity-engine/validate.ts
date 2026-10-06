@@ -317,6 +317,7 @@ export function checkFraming({
   lens,
   stability,
   approach = 'receding',
+  maxReleaseOffsetRatio = MAX_RELEASE_OFFSET_RATIO,
 }: {
   /** 릴리스 직후 첫 관측 */
   /** 기준 관측 — 멀어지는 공은 첫 관측(릴리스), 다가오는 공은 마지막 관측(가장 가까울 때) */
@@ -324,6 +325,11 @@ export function checkFraming({
   lens: CameraLens;
   stability?: CameraStability;
   approach?: Approach;
+  /**
+   * 릴리스가 가운데에서 벗어나도 되는 비율 — 기본 MAX_RELEASE_OFFSET_RATIO. 대비 길(analyze-frames.ts, 1.9.0)은 Infinity:
+   * 0.45 는 픽셀 비율이라 2배 줌에서는 각도로 두 배 엄격해, 낮게 겨눈 밖 촬영의 릴리스가 모두 밖이었다(outdoor-2026-10-03.md).
+   */
+  maxReleaseOffsetRatio?: number;
 }): Rejection | null {
   if (stability && stability.maxBackgroundShiftPx > MAX_CAMERA_SHAKE_PX) {
     return reject('CAMERA_SHAKE');
@@ -348,7 +354,7 @@ export function checkFraming({
     first.obs.x - lens.frameWidth / 2,
     first.obs.y - lens.frameHeight / 2
   );
-  if (offset / half > MAX_RELEASE_OFFSET_RATIO) {
+  if (offset / half > maxReleaseOffsetRatio) {
     return reject('RELEASE_NOT_CENTERED');
   }
 
