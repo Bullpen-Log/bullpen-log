@@ -44,7 +44,8 @@ export type AnalysisJson = {
   frameCount: number;
   approach: Approach;
   /**
-   * 카메라 실시간의 촬영 조건(모델 1.7.0) — 알림 코드(LOW_FPS · TIMING · APPROACH · CROPPED · FOV_GUESS · ZOOM · HDR · LOW_RES · BLUR · DARK_BALL) ·
+   * 카메라 실시간의 촬영 조건(모델 1.7.0) — 알림 코드(LOW_FPS · TIMING · APPROACH · CROPPED · FOV_GUESS · ZOOM · HDR · LOW_RES · BLUR · DARK_BALL ·
+   * FALLBACK(모델 1.9.0, 대비 길) — lib/velocity-sync.ts LIVE_NOTE_CODES 와 같이 늘린다) ·
    * ± 에 더한 σ · 초점거리를 렌즈 보정으로 쟀나 · 장면 시각의 질 · 장면을 받은 길(워커 직접 · 캔버스 · 화면 스레드)과 워커가 본
    * 장면(형식 · 돌림 · 크기). 영상 파일로 잰 공은 null. 실제 폰(아이폰 웹뷰)에서 어떻게 도는지 되짚으려고.
    */

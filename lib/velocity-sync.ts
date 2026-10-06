@@ -101,6 +101,8 @@ const LIVE_NOTE_CODES = new Set([
   'HDR',
   'BLUR',
   'DARK_BALL',
+  /* 대비 길(모델 1.9.0)로 잰 공 — live-meter.ts LiveNoteCode 와 같이 늘린다 */
+  'FALLBACK',
 ]);
 const LIVE_PIPELINES = new Set(['worker-stream', 'worker-frames', 'main']);
 /** 잰 순간의 스트라이크 존(장면 비율 0~1) — 넷 다 0~1 이고 폭 · 높이가 있을 때만 */
