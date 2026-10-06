@@ -359,6 +359,26 @@ const RECENT_SLACK = 2;
  * 틀의 크기가 이 끼니 몫과 맞나 — 처음 양으로 셈한 kcal · 단백질이 몫에서 멀수록 점수를 뺀다. 양을 늘리고 줄여 맞추긴 하지만,
  * 어린이 간식에 닭가슴살 팩이나 1,600kcal 하루에 돼지국밥이 뽑히면 맞추다 끝내 넘친다. 단백질은 넘칠 때만 뺀다(모자라면 더해 채운다).
  */
+/** 가장 줄였을 때의 kcal — 밥 · 단백질은 처음 양의 반, 한 그릇은 반(낱개는 하나), 곁들이는 그대로. 틀마다 한 번만 셈한다 */
+const FLOORS = new WeakMap<Prepared, number>();
+function floorKcal(p: Prepared) {
+  let v = FLOORS.get(p);
+  if (v === undefined) {
+    v = p.items.reduce(
+      (a, i) => a + i.food.kcal * limits({ ...i, base: i.amount }).min,
+      0
+    );
+    FLOORS.set(p, v);
+  }
+  return v;
+}
+
+/**
+ * 가장 줄여도 끼니 몫의 이만큼을 넘는 틀은 다른 틀이 있으면 고르지 않는다. 김밥 한 줄(380kcal)은 반 줄로 못 줄여서, 목표가 낮은 날
+ * 간식 몫(140~170kcal)에 뽑히면 간식이 하루의 4할이 됐다(점수만 깎아서는 한식 취향 +3 에 밀렸다).
+ */
+const FLOOR_LIMIT = 1.5;
+
 function sizePenalty(p: Prepared, kcal: number, protein: number) {
   const est = sumMacros(p.items.map((i) => scaleMacros(i.food, i.amount)));
   const kcalOff = Math.abs(Math.log(Math.max(1, est.kcal) / Math.max(1, kcal)));
@@ -367,10 +387,7 @@ function sizePenalty(p: Prepared, kcal: number, protein: number) {
    * 가장 줄여도 몫을 크게 넘는 틀 — 김밥 한 줄(380kcal)은 반 줄로 못 줄여서, 목표가 낮은 날 간식 몫(170kcal)에 뽑히면 간식 둘이
    * 하루의 4할이 됐다.
    */
-  const floor = sumMacros(
-    p.items.map((i) => scaleMacros(i.food, limits({ ...i, base: i.amount }).min))
-  );
-  const floorOver = Math.log(Math.max(1, floor.kcal) / Math.max(1, kcal));
+  const floorOver = Math.log(Math.max(1, floorKcal(p)) / Math.max(1, kcal));
   /*
    * 단백질이 kcal 의 3할 넘게를 차지해야 하는 끼니는 기름진 틀(설렁탕 · 목살 — kcal 의 절반이 지방)을 더 깎는다. 단백질을 맞추면
    * 1,250kcal 하루가 1,670kcal 이 됐다.
@@ -434,8 +451,11 @@ function pickTemplate(
   };
   /* 그 장소에서 먹을 수 있는 것 — 없으면(못 먹는 것이 많아서) 장소를 풀어 준다 */
   const atPlace = pool.filter((p) => p.template.places.includes(place));
-  const choices = atPlace.length > 0 ? atPlace : pool;
-  if (choices.length === 0) return null;
+  const placed = atPlace.length > 0 ? atPlace : pool;
+  if (placed.length === 0) return null;
+  /* 가장 줄여도 몫을 크게 넘는 틀은 빼고 — 다 넘으면 그대로(점수가 작은 것을 고른다) */
+  const sized = placed.filter((p) => floorKcal(p) <= aim.kcal * FLOOR_LIMIT);
+  const choices = sized.length > 0 ? sized : placed;
 
   /*
    * 점수는 그날 다른 끼니에 무엇을 골랐는지와 상관없이 매긴다 — 같은 조건이면 날마다 같은 차례여야 아래의 점이 고루 퍼진다

@@ -3249,6 +3249,7 @@ console.log('\n■ 식단 짜기');
   );
 
   /* 단백질 재료의 바꿔 넣기는 1인분 5g 넘는 것만 — 샐러드(3g)로 바꾸면 단백질을 맞추려고 스무 접시까지 늘렸다 */
+  const saladSubs = SUBSTITUTES['chicken-salad'];
   SUBSTITUTES['chicken-salad'] = ['salad'];
   let saladOver = 0;
   for (let i = 0; i < 80; i++) {
@@ -3262,7 +3263,9 @@ console.log('\n■ 식단 짜기');
     });
     if (r.items.some((it) => it.sourceId === 'salad' && it.amount > 1)) saladOver++;
   }
-  delete SUBSTITUTES['chicken-salad'];
+  /* 원래 값으로 — 지우면 그 뒤 시험이 바꿔 넣기 없는 닭가슴살 샐러드로 돈다 */
+  if (saladSubs) SUBSTITUTES['chicken-salad'] = saladSubs;
+  else delete SUBSTITUTES['chicken-salad'];
   check(
     '단백질 재료는 단백질이 적은 음식(샐러드)으로 바꿔 넣지 않는다',
     saladOver === 0,
@@ -3516,6 +3519,39 @@ console.log('\n■ 식단 짜기');
   check(
     '계획의 합은 아직 안 먹은 줄만',
     planMacros(parsed).kcal === parsed[0].kcal * parsed[0].amount
+  );
+
+  /* ── 고정 회귀: 검토(2026-10-04)의 재현 입력 그대로. 남은 몫(r.target) 대비 ±10% 안 ── */
+  const lowTarget = (body: Body, setting: Partial<ProfileSettings>) => {
+    const t = computeTargets({ ...DEFAULT_PROFILE, ...setting }, body, 0);
+    return {
+      ...base,
+      seed: 'user-a',
+      targets: { kcal: t.kcal, protein: t.protein },
+      goal: t.goal,
+      ageBand: t.ageBand,
+    } satisfies PlanInput;
+  };
+  const LOW_W = lowTarget(
+    { weightKg: 55, heightCm: 160, age: 24, sex: 'F' },
+    { goal: 'lose', activity: 'low' }
+  );
+  const kcalOffOf = (r: ReturnType<typeof buildMealPlan>) =>
+    planMacros(r.items).kcal / Math.max(1, r.target.kcal) - 1;
+  const unshrinkable = buildMealPlan({
+    ...LOW_W,
+    date: '2026-11-07',
+    prefs: {
+      ...DEFAULT_PREFS,
+      mealPattern: '3+2',
+      dietStyle: 'simple',
+      avoid: ['nuts'],
+    },
+  });
+  check(
+    '줄일 수 없는 한 그릇 · 낱개가 끼니 몫을 넘지 않는다(1,250kcal · 간식 둘 · 간편식: 간식에 김밥 한 줄이 뽑혀 +33% 였다)',
+    Math.abs(kcalOffOf(unshrinkable)) <= 0.1,
+    `${Math.round(kcalOffOf(unshrinkable) * 100)}%`
   );
 }
 
