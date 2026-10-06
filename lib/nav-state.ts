@@ -97,7 +97,8 @@ export function clearBarBack(href: string) {
 
 /* ── 3. 화면 이동 방향 ── */
 
-export type NavDirection = 'push' | 'pop' | 'none';
+/** fade = 하단 탭 · 메뉴처럼 옆으로 나란한 곳으로 — 옅어지며 바뀐다 */
+export type NavDirection = 'push' | 'pop' | 'fade' | 'none';
 
 /** '‹ 뒤로'가 router.back() 을 부르기 직전에 켠다 — 뒤따르는 popstate 를 '앱 안의 뒤로'로 읽게 */
 let backPressed = false;
@@ -110,7 +111,16 @@ export function takeBackPressed(): boolean {
   return was;
 }
 
+/** 방향을 단 때 본문 머리의 화면 위치 — 옛 화면 그림을 보던 자리에 두는 데 쓴다(components/main-transition.tsx) */
+let leaveTop: number | null = null;
+
 export function setNavDirection(dir: NavDirection) {
   if (typeof document === 'undefined') return;
   document.documentElement.setAttribute('data-nav', dir);
+  leaveTop = document.querySelector('main')?.getBoundingClientRect().top ?? null;
+}
+export function takeLeaveTop(): number | null {
+  const was = leaveTop;
+  leaveTop = null;
+  return was;
 }

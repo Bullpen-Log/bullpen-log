@@ -47,6 +47,7 @@ export function WeekChart({
               key={d.date}
               href={`/nutrition?date=${d.date}`}
               scroll={false}
+              data-nav="none"
               aria-label={`${d.date}, ${kcalText(d.kcal)}kcal 먹음, 목표 ${kcalText(d.target)}kcal`}
               className="group relative flex h-full flex-1 items-end rounded-md focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky"
             >

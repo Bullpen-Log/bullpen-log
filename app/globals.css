@@ -740,6 +740,10 @@ input[type='date']::-webkit-calendar-picker-indicator {
 ::view-transition-new(root) {
   animation: none;
 }
+/* 틀도 그대로 — 브라우저 기본(250ms)이 아무것도 안 움직이면서 전환만 붙잡아, 그동안 누른 것이 안 먹고 다음 조각이 기다렸다 */
+::view-transition-group(root) {
+  animation: none;
+}
 
 /*
  * 틀(로고·상단 막대와 그 알약·도크·상단바·탭바)도 같은 이유로 전환에서 뺀다.
@@ -844,17 +848,29 @@ input[type='date']::-webkit-calendar-picker-indicator {
  * 이름 규칙과 딱지 규칙은 따로 적는다(2026-10-03). 사파리 18.0~18.1 은 딱지 고르기((.page))를 몰라서, 한 목록에
  * 같이 적으면 그 규칙을 통째로 버려 이름(app-main) 쪽까지 안 걸렸다.
  */
-::view-transition-old(app-main) {
+/*
+ * 방향 표시(<html data-nav>)가 있는 전환에만 건다(2026-10-04). 표시가 없는 전환 — 불러오기 뼈대 뒤에 내용 ·
+ * 안쪽 조각이 드러날 때 — 은 아래 '곧장 바꾼다'로 간다. 예전에는 그때마다 본문 전체가 다시 옅어져, 탭 하나 옮기는
+ * 데 1초 사이 서너 번 깜빡이며 옛 화면이 비쳤다. 표시는 첫 전환이 끝날 때 걷힌다(components/main-transition.tsx).
+ */
+html[data-nav]::view-transition-old(app-main) {
   animation: 80ms ease-in both page-fade reverse;
+}
+html[data-nav]::view-transition-old(.page) {
+  animation: 80ms ease-in both page-fade reverse;
+}
+html[data-nav]::view-transition-new(app-main) {
+  animation: 150ms ease-out 40ms both page-fade;
+}
+html[data-nav]::view-transition-new(.page) {
+  animation: 150ms ease-out 40ms both page-fade;
+}
+/* 옛 그림은 누를 때 보이던 자리에 — 스크롤을 내린 채 옮겨도 제자리에서 빠진다(components/main-transition.tsx) */
+::view-transition-old(app-main) {
+  translate: 0 var(--nav-old-y, 0px);
 }
 ::view-transition-old(.page) {
-  animation: 80ms ease-in both page-fade reverse;
-}
-::view-transition-new(app-main) {
-  animation: 150ms ease-out 40ms both page-fade;
-}
-::view-transition-new(.page) {
-  animation: 150ms ease-out 40ms both page-fade;
+  translate: 0 var(--nav-old-y, 0px);
 }
 /* 틀(group)은 움직이지 않는다 — 멀리 내려간 화면에서 탭을 바꾸면 Next 가 이 전환 안에서 맨 위로
    굴려, 틀이 옛 자리(위로 수천 px)에서 날아 내려왔다. 옛 · 새 그림의 옅어지기만 남긴다. */
@@ -955,12 +971,21 @@ input[type='date']::-webkit-calendar-picker-indicator {
     mix-blend-mode: normal;
   }
 }
+/* 곧장 바꾼다 — 밀어서 뒤로(none) · 방향 표시가 없는 전환(내용 조각이 드러날 때 · 코드로 옮길 때). 위 규칙들보다 뒤에 둔다 */
 html[data-nav='none']::view-transition-old(app-main),
-html[data-nav='none']::view-transition-old(.page) {
+html:not([data-nav])::view-transition-old(app-main) {
+  display: none;
+}
+html[data-nav='none']::view-transition-old(.page),
+html:not([data-nav])::view-transition-old(.page) {
   display: none;
 }
 html[data-nav='none']::view-transition-new(app-main),
-html[data-nav='none']::view-transition-new(.page) {
+html:not([data-nav])::view-transition-new(app-main) {
+  animation: none;
+}
+html[data-nav='none']::view-transition-new(.page),
+html:not([data-nav])::view-transition-new(.page) {
   animation: none;
 }
 

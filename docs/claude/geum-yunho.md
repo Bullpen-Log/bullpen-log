@@ -118,7 +118,7 @@
   남던 흐린 네모, 사이드바를 열 때 먼저 흐려지던 오른쪽 띠가 이것이었다(2026-09-28). 흐림이 있는 것은 옅어지기 · 밀기를
   틀(group)에 건다. 틀의 자리는 브라우저가 transform 으로 잡으므로 틀에는 opacity · translate 만(scale 은 자리까지
   끌고 간다), 모서리는 border-radius 로 요소와 맞춘다(globals.css 의 nav-dock · nav-sheet).
-- 운동 라이브러리에 스크립트로 운동을 넣으면 `lib/library-cache.ts` 의 캐시 이름을 하나 올린다(지금 `library:exercises:v12` — 김민 2026-10-04).
+- 운동 라이브러리에 스크립트로 운동을 넣으면 `lib/library-cache.ts` 의 캐시 이름을 하나 올린다(지금 `library:exercises:v13` — 김민 2026-10-04).
 - 셀프테스트는 `npm run nutrition:test` 처럼 npm 으로 돌린다. `node scripts/…mts` 로 바로 돌리면 `@/` 경로를 못 찾는다.
 - 첫 페인트 전에 돌아야 하는 코드는 `next/script` `beforeInteractive` 가 아니라 `<head>` 의 평범한
   `<script dangerouslySetInnerHTML>` 로 둔다(App Router 에서는 첫 페인트 전에 안 돈다).
@@ -202,7 +202,7 @@
   - 그래프(홈 · 부하 지수 · 운동 볼륨 · 영양 둘)는 건강 앱 모양 — 누르고 훑으면 숫자가 그날 값으로(`lib/smooth-path.ts` ·
     `components/use-box-size.ts`). `next.config.ts` 의 `staleTimes.dynamic: 30`(30초 안에 돌아온 탭은 서버를 다시 안 다녀온다).
   - 셀프테스트의 `scripts/alias-loader.mjs` 는 `lib/workout/session-plan.ts` 의 `import 'server-only'` 만 빈 모듈로 바꾼다(다른 파일은
-    예전처럼 던진다). 운동 라이브러리 캐시 이름은 지금 `library:exercises:v12`.
+    예전처럼 던진다). 운동 라이브러리 캐시 이름은 지금 `library:exercises:v13`.
 - **김민의 10-04 저녁 ~ 10-06 정리(HANDOFF 8장에서 옮김, 2026-10-06) — 새 화면 · 글에서 지킬 것과 알아 둘 것.**
   - **새 글은 줄표(—) 없이, 짧게, 해요체로**(화면 글 170여 곳의 줄표를 걷었다). 문장 속 굵게도 안 쓴다. 메커니즘 앱 색은 깊은 파랑
     `--color-app-mechanics`, 반짝이(✨) 그림 없음, `PageHeading` 의 `eyebrow` 는 이제 안 보인다. **불펜로그다움 = 실밥 무늬**(사용자가 고름):
@@ -227,6 +227,9 @@
   - **메커닉**: 투구 기록 `/videos?compare=1` 은 비교할 둘을 고르는 자리로 바로 연다(`initialCompare`). 드릴 이름의 P1~P5 는 화면에서만 뗀다.
     투구 드릴 설명 121개를 드라이브라인 · 트레드 기준으로 다시 썼고 드릴 18개를 더했다(**운영 DB**, 백업 뒤 — 스크립트
     `scripts/mechanics-descriptions-2026-10-04.mts` · `mechanics-new-drills-2026-10-04.mts`, 보이는 드릴 139개, 캐시 `library:guides:v6`).
+  - **10-04 밤 · 10-06 김민 둘 더(HANDOFF 에서 옮김)**: 링크 방향은 `data-nav` 로 정한다(없으면 본문 안 = 밀기, 밖 = 옅어지기). **같은 화면에서 값만 바꾸는
+    링크(`scroll={false}`)에는 `data-nav="none"`** — 영양 날짜 링크 7곳에 달았다. 고르개 링크 칸은 `data-nav="fade"`. 운동 설명의 '투수에게 왜 필요한가'
+    146개 · 암케어 '왜' 26곳을 드라이브라인 · 트레드 근거로 다시 썼다(운영 DB, 백업 뒤, `scripts/exercise-why-2026-10-06.mts`, 캐시 `library:exercises:v13`).
 
 ## 4. 진행 중인 일
 
