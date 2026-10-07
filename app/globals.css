@@ -413,8 +413,8 @@ html[data-theme-switching],
 html[data-theme-switching] *:not([data-thumb]),
 html[data-theme-switching] *::before,
 html[data-theme-switching] *::after {
-  transition-property: background-color, border-color, outline-color, box-shadow,
-    fill, stroke !important;
+  transition-property:
+    background-color, border-color, outline-color, box-shadow, fill, stroke !important;
   transition-duration: 260ms !important;
   transition-timing-function: ease !important;
   transition-delay: 0s !important;
@@ -570,7 +570,6 @@ input[type='search']::-webkit-search-decoration {
       transparent 60%
     );
 }
-
 
 .text-display {
   font-family: var(--font-display);
@@ -1035,7 +1034,8 @@ html:not([data-nav])::view-transition-new(.page) {
       (
           100dvh - var(--cal-chrome, 31rem) - env(safe-area-inset-top) -
             env(safe-area-inset-bottom)
-        ) / var(--cal-rows, 6) - 0.375rem
+        ) /
+        var(--cal-rows, 6) - 0.375rem
     ),
     calc(var(--spacing) * 20)
   );
@@ -1351,7 +1351,6 @@ html:not([data-nav])::view-transition-new(.page) {
     opacity: 0;
   }
 }
-
 
 @keyframes cog-spin {
   from {
@@ -2366,6 +2365,32 @@ html[data-gate-up] *::after {
     animation: ring-grow 900ms cubic-bezier(0.22, 1, 0.36, 1) 120ms both;
   }
 }
+/*
+ * 0 에서 차오르는 숫자(홈 영양 카드 nutrition-card.tsx CountUp) — 정수 사용자 속성을 움직여 counter 로 그린다. 자바스크립트 없이
+ * 서버가 그린 그대로 움직이고, @property 가 없는 브라우저는 끝 값만 그린다. 글자는 sr-only 에 따로 있어 읽기 · 복사는 그쪽.
+ */
+@property --n {
+  syntax: '<integer>';
+  initial-value: 0;
+  inherits: false;
+}
+.count-up {
+  counter-reset: n var(--n);
+}
+.count-up::after {
+  content: counter(n);
+}
+@media (prefers-reduced-motion: no-preference) {
+  .count-up {
+    animation: count-up 800ms cubic-bezier(0.22, 1, 0.36, 1) 120ms both;
+  }
+}
+@keyframes count-up {
+  from {
+    --n: 0;
+  }
+}
+
 @keyframes ring-grow {
   from {
     stroke-dashoffset: 100;
@@ -2384,30 +2409,30 @@ html[data-gate-up] *::after {
  */
 @media (pointer: coarse) {
   :is(
-      input:not(
-          [type='checkbox'],
-          [type='radio'],
-          [type='range'],
-          [type='hidden'],
-          [type='file'],
-          [type='color'],
-          [type='button'],
-          [type='submit'],
-          [type='reset'],
-          [type='image']
-        ),
-      textarea,
-      select
-    ):not(
-      [class*='text-lg'],
-      [class*='text-xl'],
-      [class*='text-2xl'],
-      [class*='text-3xl'],
-      [class*='text-4xl'],
-      [class*='text-5xl'],
-      [class*='text-6xl'],
-      [class*='text-display']
-    ) {
+    input:not(
+      [type='checkbox'],
+      [type='radio'],
+      [type='range'],
+      [type='hidden'],
+      [type='file'],
+      [type='color'],
+      [type='button'],
+      [type='submit'],
+      [type='reset'],
+      [type='image']
+    ),
+    textarea,
+    select
+  ):not(
+    [class*='text-lg'],
+    [class*='text-xl'],
+    [class*='text-2xl'],
+    [class*='text-3xl'],
+    [class*='text-4xl'],
+    [class*='text-5xl'],
+    [class*='text-6xl'],
+    [class*='text-display']
+  ) {
     font-size: 16px;
   }
 }
@@ -2510,7 +2535,8 @@ html[data-app='native'] body:not(:has([data-safe-area]))::before {
   left: 0;
   right: 0;
   height: 3px;
-  background: linear-gradient(90deg, transparent, var(--color-sky), transparent) no-repeat;
+  background: linear-gradient(90deg, transparent, var(--color-sky), transparent)
+    no-repeat;
   background-size: 40% 100%;
   animation: popup-loading 900ms ease-in-out infinite;
   pointer-events: none;
@@ -2597,18 +2623,18 @@ html:has(dialog:modal) {
 @media (pointer: coarse) {
   html:has(
       :is(
-          input:not(
-              [type='checkbox'],
-              [type='radio'],
-              [type='range'],
-              [type='button'],
-              [type='submit'],
-              [type='file'],
-              [type='color']
-            ),
-          textarea,
-          [contenteditable='true']
-        ):focus
+        input:not(
+          [type='checkbox'],
+          [type='radio'],
+          [type='range'],
+          [type='button'],
+          [type='submit'],
+          [type='file'],
+          [type='color']
+        ),
+        textarea,
+        [contenteditable='true']
+      ):focus
     )
     [data-mobile-tabs] {
     display: none;

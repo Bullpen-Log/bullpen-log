@@ -21,6 +21,7 @@ import { buildHighlights } from '@/lib/report/highlights';
 import { GOOD_DAY_MIN, RATED_SESSION_TYPES } from '@/lib/pitch-satisfaction';
 import { PitchLogPanel } from './pitch-log-panel';
 import { TodayRings } from './today-rings';
+import { NutritionCard } from './nutrition-card';
 import { FirstDayCard } from './first-day-card';
 import { RateCard } from './rate-card';
 import { GoodDayNote } from './good-day-note';
@@ -124,6 +125,14 @@ export default async function HomePage({
       </Suspense>
 
       {/*
+        오늘 영양 — 할 일 한 줄 · 탄 · 단 · 지 더 먹을 양 · 균형 점수(nutrition-card.tsx). 음식을 안 적은 날도 체크인의 식사 칸 ·
+        던지는 일정 · 오늘 한 운동으로 말한다. 링과 같은 그날 요약을 읽지만(React cache) 체크인 · 투구를 더 읽어 따로 기다린다.
+      */}
+      <Suspense fallback={<Skeleton className="h-[10.5rem] rounded-2xl" />}>
+        <NutritionCard user={user} today={today} />
+      </Suspense>
+
+      {/*
         달력. 아래 하이라이트와 울타리를 따로 둔다 — 달력은 기록만 읽으면 그려지지만 아래는 오늘 계획 · 부하를
         셈한다. 한 울타리면 달력이 다 준비되고도 아래를 기다리느라 회색으로 남는다.
       */}
@@ -211,59 +220,66 @@ async function TodayBody({ user, today }: { user: User; today: string }) {
    * 하이라이트 재료 — 모두 하루 한 줄로 가볍게 읽는다. 투구는 6주(구속 선 · 투구 막대), 체크인은 두 달(연속 일수),
    * 운동은 2주(지난주와 견줌).
    */
-  const [core, logs, before, checkins, workouts, lastLog, unrated, goodDay] = await Promise.all([
-    homeCore(user),
-    prisma.pitchLog.findMany({
-      where: { userId: user.id, date: { gte: dbDate(shiftDateKey(today, -41)) } },
-      select: { date: true, pitchCount: true, maxVelocity: true, sessionType: true },
-    }),
-    /* 최근 이레 앞의 역대 최고 구속 — '새 기록'을 가른다 */
-    prisma.pitchLog.aggregate({
-      where: { userId: user.id, date: { lt: dbDate(shiftDateKey(today, -6)) } },
-      _max: { maxVelocity: true },
-    }),
-    prisma.dailyCheckin.findMany({
-      where: { userId: user.id, date: { gte: dbDate(shiftDateKey(today, -61)) } },
-      select: { date: true, condition: true, throwPlan: true },
-    }),
-    prisma.userExerciseLog.findMany({
-      where: {
-        userId: user.id,
-        completed: true,
-        date: { gte: dbDate(shiftDateKey(today, -13)) },
-      },
-      select: { date: true },
-      distinct: ['date'],
-    }),
-    /* 마지막으로 남긴 투구 기록(쉬는 날 포함) — 기록이 며칠째 비었나 */
-    prisma.pitchLog.findFirst({
-      where: { userId: user.id },
-      orderBy: { date: 'desc' },
-      select: { date: true },
-    }),
-    /* 투구 만족도를 안 매긴 오늘 · 어제 기록 — '어땠어요?' 카드(rate-card.tsx). 같은 날 여럿이면 나중 것 */
-    prisma.pitchLog.findFirst({
-      where: {
-        userId: user.id,
-        date: { gte: dbDate(shiftDateKey(today, -1)) },
-        sessionType: { in: [...RATED_SESSION_TYPES] },
-        satisfaction: null,
-      },
-      orderBy: [{ date: 'desc' }, { createdAt: 'desc' }],
-      select: { id: true, date: true, sessionType: true },
-    }),
-    /* 만족도가 높았던 날의 메모 — 5점 먼저, 같은 점수면 최근 것(good-day-note.tsx) */
-    prisma.pitchLog.findFirst({
-      where: {
-        userId: user.id,
-        sessionType: { in: [...RATED_SESSION_TYPES] },
-        satisfaction: { gte: GOOD_DAY_MIN },
-        memo: { not: null },
-      },
-      orderBy: [{ satisfaction: 'desc' }, { date: 'desc' }, { createdAt: 'desc' }],
-      select: { date: true, sessionType: true, satisfaction: true, memo: true, cuesGood: true },
-    }),
-  ]);
+  const [core, logs, before, checkins, workouts, lastLog, unrated, goodDay] =
+    await Promise.all([
+      homeCore(user),
+      prisma.pitchLog.findMany({
+        where: { userId: user.id, date: { gte: dbDate(shiftDateKey(today, -41)) } },
+        select: { date: true, pitchCount: true, maxVelocity: true, sessionType: true },
+      }),
+      /* 최근 이레 앞의 역대 최고 구속 — '새 기록'을 가른다 */
+      prisma.pitchLog.aggregate({
+        where: { userId: user.id, date: { lt: dbDate(shiftDateKey(today, -6)) } },
+        _max: { maxVelocity: true },
+      }),
+      prisma.dailyCheckin.findMany({
+        where: { userId: user.id, date: { gte: dbDate(shiftDateKey(today, -61)) } },
+        select: { date: true, condition: true, throwPlan: true },
+      }),
+      prisma.userExerciseLog.findMany({
+        where: {
+          userId: user.id,
+          completed: true,
+          date: { gte: dbDate(shiftDateKey(today, -13)) },
+        },
+        select: { date: true },
+        distinct: ['date'],
+      }),
+      /* 마지막으로 남긴 투구 기록(쉬는 날 포함) — 기록이 며칠째 비었나 */
+      prisma.pitchLog.findFirst({
+        where: { userId: user.id },
+        orderBy: { date: 'desc' },
+        select: { date: true },
+      }),
+      /* 투구 만족도를 안 매긴 오늘 · 어제 기록 — '어땠어요?' 카드(rate-card.tsx). 같은 날 여럿이면 나중 것 */
+      prisma.pitchLog.findFirst({
+        where: {
+          userId: user.id,
+          date: { gte: dbDate(shiftDateKey(today, -1)) },
+          sessionType: { in: [...RATED_SESSION_TYPES] },
+          satisfaction: null,
+        },
+        orderBy: [{ date: 'desc' }, { createdAt: 'desc' }],
+        select: { id: true, date: true, sessionType: true },
+      }),
+      /* 만족도가 높았던 날의 메모 — 5점 먼저, 같은 점수면 최근 것(good-day-note.tsx) */
+      prisma.pitchLog.findFirst({
+        where: {
+          userId: user.id,
+          sessionType: { in: [...RATED_SESSION_TYPES] },
+          satisfaction: { gte: GOOD_DAY_MIN },
+          memo: { not: null },
+        },
+        orderBy: [{ satisfaction: 'desc' }, { date: 'desc' }, { createdAt: 'desc' }],
+        select: {
+          date: true,
+          sessionType: true,
+          satisfaction: true,
+          memo: true,
+          cuesGood: true,
+        },
+      }),
+    ]);
   const { facts, plan, picked } = core;
 
   const pitchesByDay: Record<string, number> = {};
