@@ -880,9 +880,15 @@ export class LiveCapture {
       }
       await this.readVideoSize();
     };
+    /*
+     * 1080p 에서 60fps 를 못 내면 720p 로도 — 아이폰 앱의 웹 카메라(웹킷)는 1080p 를 청하면 30fps 로 켜고, 같은 크기로는 60fps 를
+     * 못 냈다(2026-10-08). 720p 60 · 2배 줌은 그날 실시간으로 잘 잰 조건이다(70.5 · 101.6, 실제 68 · 101).
+     */
     for (const [w, h] of [
       [longSide, mode.short],
       [mode.short, longSide],
+      [1280, 720],
+      [720, 1280],
     ]) {
       const size = sizeNow();
       const fps = fpsNow();

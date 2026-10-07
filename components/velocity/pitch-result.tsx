@@ -5,6 +5,7 @@ import { Maximize2, Pencil, X, ZoomIn } from 'lucide-react';
 import { PITCH_TYPES } from '@/lib/velocity-meta';
 import type { CameraPos } from '@/lib/velocity-setup';
 import { ClipPlayer, Tracer, trailZoom, type TrailPoint } from './clip-player';
+import type { MeasurePhase } from './measure-progress';
 
 /**
  * 공 하나의 결과 화면 — 잴 때마다 카메라 위에 뜬다(SmartScout 처럼, 사용자 2026-10-07). 그 공의 영상을 되풀이 재생하며 손을 떠난 공을
@@ -35,6 +36,7 @@ export function PitchResult({
   nextLabel,
   onAligned,
   onEdit,
+  busy,
 }: {
   /** 공이 바뀌면 바뀌는 값 — 영상 기다림을 새로 센다 */
   pitchKey: number | string;
@@ -60,6 +62,8 @@ export function PitchResult({
   onAligned?: (offset: number) => void;
   /** 있으면 위 오른쪽에 '고치기'(구종 · 코스 · 결과 · 스피드건) — 목록에서 연 결과 화면 */
   onEdit?: () => void;
+  /** 측정이 밑에서 다음 공을 담거나 계산하는 중 — 위에 알약으로 알린다(이 화면이 카메라를 덮고 있어서) */
+  busy?: MeasurePhase | null;
 }) {
   /* 영상이 6초 넘게 안 오면 기다림 글을 거둔다(녹화를 못 하는 기기 · 끊긴 조각) */
   const [waited, setWaited] = useState<number | string | null>(null);
@@ -100,9 +104,19 @@ export function PitchResult({
         >
           <X aria-hidden className="h-5 w-5" />
         </button>
-        <span className="text-sm font-semibold text-white/80 tabular-nums">
-          {index}구째
-        </span>
+        {busy ? (
+          <span className="inline-flex h-9 items-center gap-2 rounded-full bg-sky px-3.5 text-sm font-semibold text-white motion-safe:animate-fade-in">
+            <span
+              aria-hidden
+              className="h-4 w-4 rounded-full border-2 border-white/40 border-t-white motion-safe:animate-spin"
+            />
+            {busy === 'capturing' ? '다음 공 담는 중' : '다음 공 계산 중'}
+          </span>
+        ) : (
+          <span className="text-sm font-semibold text-white/80 tabular-nums">
+            {index}구째
+          </span>
+        )}
         {onEdit ? (
           <button
             type="button"

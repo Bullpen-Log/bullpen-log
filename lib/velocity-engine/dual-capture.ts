@@ -163,6 +163,9 @@ export class DualCapture {
         armed: false,
         /* 광각은 같이 찍지 않는다(설정을 없앴다, 2026-10-08) — 일반 카메라 하나라야 1080p 60 이 나온다 */
         wide: false,
+        /* 초점 — 스트라이크 존 가운데에 자동초점, 측정을 시작하면 맞춘 뒤 잠근다(앱이 armed 로 안다) */
+        focus: this.focusAt,
+        focusFar: this.focusFar(),
         /* 거리 측정(엔진 2.0, 투수 뒤)은 일반 카메라 2배 — 옛 앱은 이 칸을 모르고 1배로 켠다(화각은 앱이 알려 준 값을 쓴다) */
         ...(this.distanceM && this.approach === 'receding' ? { zoom: 2 } : {}),
       });
@@ -205,7 +208,7 @@ export class DualCapture {
       height: info.mainHeight,
       /* 렌즈 보정이 이 이름으로 카메라를 가린다(lensMatches) — 바꾸면 저장해 둔 보정이 안 맞는다 */
       label: 'DualCamera · 일반',
-      focus: this.net ? 'manual' : 'auto',
+      focus: 'auto',
       zoom: this.distanceM && this.approach === 'receding' ? 2 : 1,
       frameRate: info.mainFps,
       cropped: false,
@@ -372,9 +375,32 @@ export class DualCapture {
   setTilt(tiltRad: number | null) {
     this.tiltRad = tiltRad;
   }
-  /** 초점은 앱이 건다(네트 있음 = 고정, 없음 = 자동) */
+  /*
+   * 초점 — 앱이 스트라이크 존 가운데에 자동초점을 걸고, 측정을 시작하면(arm) 그 자리에서 한 번 맞춘 뒤 잠근다(던질 때 투수 몸에
+   * 끌려가지 않게). 투수 뒤이거나 네트가 있으면 먼 곳만 본다(눈앞 그물코 · 투수 몸에 맞지 않게). 예전에는 네트 있음이면 렌즈를
+   * 가장 먼 끝에 고정해 화면이 뿌옇게 나왔다(2026-10-08 사용자).
+   */
+  private focusAt = { x: 0.5, y: 0.5 };
+  private focusFar() {
+    return this.approach === 'receding' || this.net;
+  }
+  /** 초점 자리 — 스트라이크 존 가운데(세로 화면 0~1). 켜져 있으면 곧바로 그리로 다시 맞춘다 */
+  setFocusPoint(p: { x: number; y: number }) {
+    if (Math.abs(p.x - this.focusAt.x) < 0.01 && Math.abs(p.y - this.focusAt.y) < 0.01) return;
+    this.focusAt = p;
+    if (this.running)
+      void callDualCamera('focus', { focus: p, far: this.focusFar() }).catch(() => undefined);
+  }
+  /** 재초점 단추 — 존 가운데에 다시 맞춘다(측정 중이면 맞춘 뒤 잠근다). 옛 앱은 focus 가 없어 그대로 */
   async refocus(): Promise<CameraFocus> {
-    return this.net ? 'manual' : 'auto';
+    if (this.running) {
+      await callDualCamera('focus', { focus: this.focusAt, far: this.focusFar() }).catch(
+        () => undefined
+      );
+      /* 렌즈가 움직여 맞추는 데 1초 안팎 */
+      await new Promise((r) => setTimeout(r, 800));
+    }
+    return 'auto';
   }
   /**
    * 렌즈 보정용 장면 — 받아 둔 것을 돌려주고 다음 장면을 청한다(렌즈 보정은 짧은 틈으로 여러 번 부르고, 같은 장면은 건너뛴다).

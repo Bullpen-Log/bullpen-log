@@ -52,6 +52,7 @@ import {
   type ResultMeta,
 } from '@/lib/velocity-engine/live-capture';
 import { DualCapture, DualUnsupportedError } from '@/lib/velocity-engine/dual-capture';
+import { MeasureProgress, measurePhaseOf } from '@/components/velocity/measure-progress';
 import {
   dualCameraStatus,
   dualStatusNow,
@@ -371,8 +372,8 @@ const STATUS_TEXT: Record<LiveStatus, string> = {
   ready: '준비됨',
   settling: '가만히 — 배경 잡는 중',
   armed: '던지세요',
-  capturing: '담는 중',
-  analyzing: '계산 중…',
+  capturing: '영상 담는 중…',
+  analyzing: '구속 계산 중…',
 };
 
 const THROW_TYPES = SESSION_TYPES.filter((t) => !isRestSession(t.name));
@@ -452,6 +453,8 @@ export function VelocityScreen({
     distanceAuto: DEFAULT_SETUP.distAuto,
     autoMode: DEFAULT_SETUP.autoMode,
     recordMode: false,
+    /* 초점 자리 — 스트라이크 존 가운데(장면 0~1). 앱 카메라가 그 먼 곳에 맞춘다 */
+    focusAt: { x: 0.5, y: 0.5 },
   });
   /* 카메라를 저절로 켠 단계 — 한 단계에 한 번만(아래 안전장치 효과) */
   const autoStartedFor = useRef<Step | null>(null);
@@ -532,6 +535,14 @@ export function VelocityScreen({
 
   /* ── 카메라 · 측정 ── */
   const [status, setStatus] = useState<LiveStatus>('off');
+  /* 던짐을 알아챌 때마다 1씩 — 진행 표시의 담기 막대를 처음부터(measure-progress.tsx) */
+  const [captureRun, setCaptureRun] = useState(0);
+  /* 지금 앱 카메라(DualCapture)로 재나 — 결과가 늦게 와서 진행 막대를 길게 */
+  const [appCamera, setAppCamera] = useState(false);
+  const onCaptureStatus = (s: LiveStatus) => {
+    if (s === 'capturing') setCaptureRun((n) => n + 1);
+    setStatus(s);
+  };
   const [camera, setCamera] = useState<CameraInfo | null>(null);
   const [fps, setFps] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -569,6 +580,7 @@ export function VelocityScreen({
       distanceAuto: distanceAutoOf({ cameraPos: choices.cameraPos, distAuto }),
       autoMode,
       recordMode: recOn,
+      focusAt: cameraSettingsRef.current.focusAt,
     };
     liveRef.current = live;
   });
@@ -591,6 +603,16 @@ export function VelocityScreen({
     frameSize ?? undefined,
     step === 'zone' ? visible : undefined
   );
+  /* 존을 옮기면 앱 카메라의 초점 자리도 그리로(존 가운데 = 공이 그물 · 미트에 닿는 먼 곳). 0.02 칸 단위로만 — 끄는 동안 쉬지 않게 */
+  const focusX = Math.round((activeZone.x + activeZone.w / 2) * 50) / 50;
+  const focusY = Math.round((activeZone.y + activeZone.h / 2) * 50) / 50;
+  useLayoutEffect(() => {
+    cameraSettingsRef.current.focusAt = { x: focusX, y: focusY };
+  }, [focusX, focusY]);
+  useEffect(() => {
+    const capture = captureRef.current;
+    if (capture instanceof DualCapture) capture.setFocusPoint({ x: focusX, y: focusY });
+  }, [focusX, focusY, camera]);
   /* 수평계 — 카메라가 보이는 동안(수평 · 존 · 측정 직전 · 세션 중 '카메라'로 정보 판을 내려 카메라를 볼 때) 저절로 켠다 */
   const levelOn =
     cameraOn &&
@@ -870,7 +892,7 @@ export function VelocityScreen({
         ? new DualCapture(
             finder,
             {
-              onStatus: setStatus,
+              onStatus: onCaptureStatus,
               onResult: (r, meta) => {
                 noteDiagRef.current(r);
                 addResultRef.current(r, 'camera', { ...meta, id: idBase + meta.id });
@@ -887,7 +909,7 @@ export function VelocityScreen({
         : new LiveCapture(
       video,
       {
-        onStatus: setStatus,
+        onStatus: onCaptureStatus,
         onResult: (r, meta) => {
           noteDiagRef.current(r);
           addResultRef.current(r, 'camera', meta && { ...meta, id: idBase + meta.id });
@@ -902,6 +924,8 @@ export function VelocityScreen({
       now.approach,
       now.net
     );
+    if (capture instanceof DualCapture) capture.setFocusPoint(now.focusAt);
+    setAppCamera(capture instanceof DualCapture);
     capture.setFocalPerLongSide(now.focalRatio);
     capture.setReleaseDistance(
       now.approach === 'approaching' ? now.releaseDistM : null
@@ -1656,9 +1680,16 @@ export function VelocityScreen({
   };
 
   const back = showAsk ? null : (BACK_OF[step] ?? null);
-  /* 방금 결과를 카메라 위에 크게 보이나 — 측정에서 카메라가 보일 때 */
+  /* 던짐을 알아채고 결과를 내는 중인가(영상 담기 · 계산) — 크게 보인다. 담기에 걸리는 시간: 앱 카메라는 클립을 2.6초 더 받고 읽어서 */
+  const phase = step === 'measure' ? measurePhaseOf(status) : null;
+  const captureSec = appCamera ? 3.5 : 1;
+  /* 방금 결과를 카메라 위에 크게 보이나 — 측정에서 카메라가 보일 때(다음 공을 재는 동안은 진행 표시가 대신) */
   const resultShown =
-    step === 'measure' && last != null && !fileBusy && !(live && !showCamera);
+    step === 'measure' &&
+    last != null &&
+    !fileBusy &&
+    !(live && !showCamera) &&
+    phase == null;
   /* 카메라 무대 위 가운데 — 단계 이름(측정은 세션 중 상태가 대신) */
   const stageTitle =
     step === 'align'
@@ -2115,6 +2146,11 @@ export function VelocityScreen({
                 data-down={showCamera ? '' : undefined}
                 className="absolute inset-0 z-5 translate-y-0 overflow-y-auto overscroll-contain bg-black/98 px-4 pb-4 pt-[calc(3.5rem+env(safe-area-inset-top))] transition-transform duration-200 ease-[cubic-bezier(0.2,0,0,1)] will-change-transform motion-safe:animate-panel-up motion-reduce:transition-none data-[down]:pointer-events-none data-[down]:translate-y-full data-[down]:duration-150 data-[down]:ease-in"
               >
+                {phase && (
+                  <div className="mb-3">
+                    <MeasureProgress phase={phase} captureSec={captureSec} runKey={captureRun} />
+                  </div>
+                )}
                 <section className="rounded-3xl bg-white/[0.06] px-5 pb-4 pt-5 text-center">
                   {lastPitch ? (
                     <div key={lastPitch.id} className="motion-safe:animate-fade-in">
@@ -2250,8 +2286,20 @@ export function VelocityScreen({
              * 커진다) 뒤로 숨지 않고, 알림과 결과가 서로 겹치지 않는다(2026-09-30 디자인 검토 — 예전에는 막대 높이를 짐작한
              * 자리에 따로 떠 있어 앱에서 10px 가려지고 결과 글자 위에 겹쳤다).
              */}
+            {/* 알아챘다 · 계산 중 — 뷰파인더 테두리가 빛난다(멀리서도 보이게) */}
+            {phase && (!live || showCamera) && (
+              <div
+                aria-hidden
+                className="pointer-events-none absolute inset-0 z-10 ring-4 ring-inset ring-sky-soft motion-safe:animate-pulse"
+              />
+            )}
             {step !== 'lens' && (
               <div className="pointer-events-none absolute inset-x-0 bottom-0 z-10 flex flex-col gap-2">
+                {phase && (!live || showCamera) && (
+                  <div className="px-4 pb-3">
+                    <MeasureProgress phase={phase} captureSec={captureSec} runKey={captureRun} />
+                  </div>
+                )}
                 {(!live || showCamera) &&
                   (step === 'align' ||
                     step === 'zone' ||
@@ -2430,6 +2478,7 @@ export function VelocityScreen({
             <div className="absolute inset-0 z-30">
               <PitchResult
                 pitchKey={shownPitch.id}
+                busy={phase}
                 index={pitches.indexOf(shownPitch) + 1}
                 speed={speedNum(shown(shownPitch.rawKmh))}
                 unit={speedLabel(unit)}

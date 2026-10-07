@@ -32,7 +32,9 @@ import WebKit
 ///   start({ fps, short?, net, preview, roi, armed, wide? }) → { mainFps, wideFps, mainWidth, mainHeight, wideWidth, wideHeight, mainFovDeg, wideFovDeg, hardwareCost, stabilization }
 ///                                                  wide 기본 true(옛 사이트) — false 면 일반 카메라만(wideFps · wide* 는 0)
 ///   setPreview({ x, y, w, h, visible })          미리보기 자리(뷰포트 CSS px)
-///   setTrigger({ armed, roi })                   던짐 알아채기 켜기/끄기 · 볼 자리(세로 화면 0~1)
+///   setTrigger({ armed, roi })                   던짐 알아채기 켜기/끄기 · 볼 자리(세로 화면 0~1). 켜면 초점을 한 번 맞추고 잠근다
+///   focus({ focus?: { x, y }, far? })            초점 다시 맞추기(세로 화면 0~1 — 보통 스트라이크 존 가운데)
+///   (start 의 focus · focusFar — 초점 자리 · 먼 곳만 볼까)
 ///   clip({ atSec, beforeSec, afterSec })         → { main: Clip, wide: Clip | null }   Clip = { path, eventSec, durationSec, bytes, fps, width, height, fovDeg, fovSource, stabilized }
 ///   snapshot({ short })                          → { luma(base64, 세로 화면 · 0~255), width, height, sourceWidth, sourceHeight } — 렌즈 보정용 지금 장면
 ///   (start 의 zoom — 일반 카메라 줌 배율, 기본 1. 걸면 fovDeg 는 줌만큼 좁힌 값)
@@ -54,6 +56,7 @@ public class DualCameraPlugin: CAPPlugin, CAPBridgedPlugin {
         CAPPluginMethod(name: "read", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "discard", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "snapshot", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "focus", returnType: CAPPluginReturnPromise),
     ]
 
     private var controller: DualCameraController?
@@ -100,7 +103,10 @@ public class DualCameraPlugin: CAPPlugin, CAPBridgedPlugin {
             roi: DualCameraPlugin.rect(call.getObject("roi")) ?? MotionTrigger.defaultRoi,
             armed: call.getBool("armed") ?? true,
             zoom: max(1, min(4, call.getDouble("zoom") ?? 1)),
-            wide: call.getBool("wide") ?? true
+            wide: call.getBool("wide") ?? true,
+            focusPoint: DualCameraPlugin.devicePoint(call.getObject("focus")) ?? CGPoint(x: 0.5, y: 0.5),
+            /* 옛 사이트는 이 칸이 없다 — 네트 있음이면 먼 곳만(그물코에 맞지 않게) */
+            focusFar: call.getBool("focusFar") ?? (call.getBool("net") ?? false)
         )
         let preview = DualCameraPlugin.rect(call.getObject("preview"))
         let controller = DualCameraController()
@@ -156,10 +162,23 @@ public class DualCameraPlugin: CAPPlugin, CAPBridgedPlugin {
     }
 
     @objc func setTrigger(_ call: CAPPluginCall) {
+        let armed = call.getBool("armed")
         controller?.trigger.update(
-            armed: call.getBool("armed"),
+            armed: armed,
             roi: DualCameraPlugin.rect(call.getObject("roi"))
         )
+        /* 측정을 시작하면 초점을 한 번 맞추고 잠그고, 멈추면 다시 계속 맞추기로 */
+        if let armed { controller?.refocus(once: armed) }
+        call.resolve()
+    }
+
+    /// 초점 다시 맞추기 — focus({ x, y, far }) 세로 화면 0~1(없으면 그 자리 그대로). 측정 중이면 맞춘 뒤 잠근다
+    @objc func focus(_ call: CAPPluginCall) {
+        guard let controller else {
+            call.reject("카메라가 꺼져 있어요.", "off")
+            return
+        }
+        controller.refocus(point: DualCameraPlugin.devicePoint(call.getObject("focus")), far: call.getBool("far"))
         call.resolve()
     }
 
@@ -293,6 +312,12 @@ public class DualCameraPlugin: CAPPlugin, CAPBridgedPlugin {
         return nil
     }
 
+    /// 세로 화면의 점(0~1, { x, y }) → 장치 좌표(가로 센서 기준 — 초점 · 노출 자리). 세로 (u, v) = 장치 (v, 1 − u)
+    static func devicePoint(_ object: JSObject?) -> CGPoint? {
+        guard let o = object, let u = number(o["x"]), let v = number(o["y"]) else { return nil }
+        return CGPoint(x: v, y: 1 - u)
+    }
+
     static func rect(_ object: JSObject?) -> CGRect? {
         guard let o = object,
               let x = number(o["x"]), let y = number(o["y"]),
@@ -358,6 +383,9 @@ final class DualCameraController: NSObject, AVCaptureVideoDataOutputSampleBuffer
         var zoom: Double = 1
         /// 광각도 같이 찍나 — false 면 일반 카메라 하나(AVCaptureSession, 모든 아이폰)
         var wide: Bool = true
+        /// 초점 자리(장치 좌표 — 가로 센서 기준 0~1) · 먼 곳만 볼까
+        var focusPoint = CGPoint(x: 0.5, y: 0.5)
+        var focusFar = true
     }
 
     /// 한 카메라의 잡은 모양
@@ -388,6 +416,7 @@ final class DualCameraController: NSObject, AVCaptureVideoDataOutputSampleBuffer
     private var wideFov: Double = 0
     private var observers: [NSObjectProtocol] = []
     private var mainConnection: AVCaptureConnection?
+    private var mainDevice: AVCaptureDevice?
     /// 렌즈 값(intrinsics)으로 구한 일반 카메라의 긴 변 화각 — 안 오면 nil
     private var intrinsicFov: Double?
     private var intrinsicFrames = 0
@@ -598,7 +627,9 @@ final class DualCameraController: NSObject, AVCaptureVideoDataOutputSampleBuffer
          * 쓰지 않는다(사용자 규칙 2026-10-03). 그래도 안 되면 '안 됨'(cost)으로 끝내고, 사이트가 일반 카메라만으로 다시 켠다.
          */
         let isMulti = multi != nil
-        var mainPick = try DualCameraController.pick(mainDevice, fps: config.fps, short: config.short, multi: isMulti)
+        var mainPick = try DualCameraController.pick(
+            mainDevice, fps: config.fps, short: config.short, multi: isMulti, zoom: config.zoom
+        )
         /*
          * 자동(고른 화질 없음)이면 60fps 를 못 낼 때 '안 됨' — 사이트가 웹 카메라로 잰다. 화질을 정해 청했으면 60fps 아래도
          * 켠다 — 화면이 주황으로 경고한다(사용자 2026-10-04: "경고는 띄우되 막지는 않게").
@@ -606,27 +637,29 @@ final class DualCameraController: NSObject, AVCaptureVideoDataOutputSampleBuffer
         if config.short == nil {
             guard mainPick.fps >= DualCameraController.MIN_MEASURE_FPS else { throw DualCameraError.unsupported("fps") }
         }
-        try DualCameraController.apply(mainDevice, mainPick, lockFocus: config.net, zoom: config.zoom)
+        try DualCameraController.apply(mainDevice, mainPick, zoom: config.zoom)
         var widePick: Picked?
         if let wideDevice, let multi {
             var pick = try DualCameraController.pick(wideDevice, fps: config.fps, multi: true)
-            try DualCameraController.apply(wideDevice, pick, lockFocus: false)
+            try DualCameraController.apply(wideDevice, pick)
             if multi.hardwareCost > 1.0 {
                 pick = try DualCameraController.pick(wideDevice, fps: 30, multi: true)
-                try DualCameraController.apply(wideDevice, pick, lockFocus: false)
+                try DualCameraController.apply(wideDevice, pick)
             }
             if multi.hardwareCost > 1.0 {
                 pick = try DualCameraController.pick(wideDevice, fps: 30, smallest: true, multi: true)
-                try DualCameraController.apply(wideDevice, pick, lockFocus: false)
+                try DualCameraController.apply(wideDevice, pick)
             }
             /*
              * 일반 카메라의 화면 줄이기는 자동일 때만 — 화질을 정해 청했으면 몰래 줄이지 않고 '안 됨'(cost)으로 끝낸다(2026-10-04).
              */
             if multi.hardwareCost > 1.0, config.short == nil {
-                let smaller = try DualCameraController.pick(mainDevice, fps: mainPick.fps, smallest: true, multi: true)
+                let smaller = try DualCameraController.pick(
+                    mainDevice, fps: mainPick.fps, smallest: true, multi: true, zoom: config.zoom
+                )
                 if smaller.fps >= DualCameraController.MIN_MEASURE_FPS {
                     mainPick = smaller
-                    try DualCameraController.apply(mainDevice, mainPick, lockFocus: config.net, zoom: config.zoom)
+                    try DualCameraController.apply(mainDevice, mainPick, zoom: config.zoom)
                 }
             }
             guard multi.hardwareCost <= 1.0 else { throw DualCameraError.unsupported("cost") }
@@ -649,6 +682,13 @@ final class DualCameraController: NSObject, AVCaptureVideoDataOutputSampleBuffer
             mainConnection.isCameraIntrinsicMatrixDeliveryEnabled = true
         }
         self.mainConnection = mainConnection
+        self.mainDevice = mainDevice
+        focusPoint = config.focusPoint
+        focusFar = config.focusFar
+        focusOnce = config.armed
+        try mainDevice.lockForConfiguration()
+        DualCameraController.focus(mainDevice, at: focusPoint, far: focusFar, once: focusOnce)
+        mainDevice.unlockForConfiguration()
 
         main = mainPick
         wide = widePick
@@ -700,7 +740,7 @@ final class DualCameraController: NSObject, AVCaptureVideoDataOutputSampleBuffer
     /// short 를 주면 그 짧은 변의 16:9 모양 중에서(사용자가 고른 화질), 아니면 1080p 쪽(긴 변 1280~1920)에서 가장 큰 것.
     /// smallest 면 가장 작은 화면(두 카메라의 하드웨어 몫을 줄일 때).
     private static func pick(
-        _ device: AVCaptureDevice, fps: Int32, short: Int32? = nil, smallest: Bool = false, multi: Bool
+        _ device: AVCaptureDevice, fps: Int32, short: Int32? = nil, smallest: Bool = false, multi: Bool, zoom: Double = 1
     ) throws -> Picked {
         let all: [(AVCaptureDevice.Format, Int32, Int32, Double)] = device.formats.compactMap { format in
             guard !multi || format.isMultiCamSupported,
@@ -722,16 +762,31 @@ final class DualCameraController: NSObject, AVCaptureVideoDataOutputSampleBuffer
         /* fps 를 채우는 것 중 가장 큰(smallest 면 가장 작은) 화면 → 없으면 fps 가 가장 높은 것 */
         let enough = candidates.filter { $0.3 >= Double(fps) - 0.5 }
         let area = { (c: (AVCaptureDevice.Format, Int32, Int32, Double)) in Int(c.1) * Int(c.2) }
+        /*
+         * 줌(2배)을 걸어도 화면을 늘리지 않는 모양을 먼저 — 센서를 넓게 읽는 모양이면 가운데를 잘라도 1080 픽셀이 다 찬다. 늘리는
+         * 모양이면 2배에서 화면이 뭉개져 뿌옇게 보인다(2026-10-08 사용자). 같은 크기 모양이 여럿이라 크기만 보면 아무것이나 걸렸다.
+         */
+        let sharp = { (c: (AVCaptureDevice.Format, Int32, Int32, Double)) -> Double in
+            guard zoom > 1.001 else { return 0 }
+            if Double(c.0.videoZoomFactorUpscaleThreshold) > zoom - 0.01 { return 2 }
+            if #available(iOS 16.0, *),
+               c.0.secondaryNativeResolutionZoomFactors.contains(where: { abs(Double($0) - zoom) < 0.01 }) {
+                return 1
+            }
+            return 0
+        }
         let best = (enough.isEmpty ? candidates : enough).max { a, b in
             if enough.isEmpty { return a.3 < b.3 }
-            return smallest ? area(a) > area(b) : area(a) < area(b)
+            if sharp(a) != sharp(b) { return sharp(a) < sharp(b) }
+            if area(a) != area(b) { return smallest ? area(a) > area(b) : area(a) < area(b) }
+            return a.0.videoZoomFactorUpscaleThreshold < b.0.videoZoomFactorUpscaleThreshold
         }
         guard let best else { throw DualCameraError.unsupported("format") }
         let actual = Int32(min(Double(fps), best.3).rounded(.down))
         return Picked(format: best.0, fps: max(1, actual), width: Int(best.1), height: Int(best.2))
     }
 
-    private static func apply(_ device: AVCaptureDevice, _ pick: Picked, lockFocus: Bool, zoom: Double = 1) throws {
+    private static func apply(_ device: AVCaptureDevice, _ pick: Picked, zoom: Double = 1) throws {
         try device.lockForConfiguration()
         defer { device.unlockForConfiguration() }
         device.activeFormat = pick.format
@@ -740,9 +795,44 @@ final class DualCameraController: NSObject, AVCaptureVideoDataOutputSampleBuffer
         device.activeVideoMaxFrameDuration = duration
         let want = CGFloat(max(1, min(zoom, Double(pick.format.videoMaxZoomFactor))))
         if device.videoZoomFactor != want { device.videoZoomFactor = want }
-        /* 네트 있음 = 수동초점(사용자 규칙 2026-09-27) — 자동초점이면 눈앞의 그물코에 초점이 잡혀 공이 흐려진다 */
-        if lockFocus, device.isLockingFocusWithCustomLensPositionSupported {
-            device.setFocusModeLocked(lensPosition: 1.0, completionHandler: nil)
+        if device.isFocusModeSupported(.continuousAutoFocus) { device.focusMode = .continuousAutoFocus }
+    }
+
+    /*
+     * 초점 — 스트라이크 존(먼 곳)에 맞춘다. 준비하는 동안은 계속 맞추고(폰을 옮겨도 따라온다), 측정을 시작하면(armed) 그 자리에서 한
+     * 번 맞춘 뒤 잠근다(.autoFocus 는 맞춘 뒤 저절로 locked) — 던질 때 투수 몸이 앞을 지나가도 렌즈가 그쪽으로 끌려가지 않게.
+     * far 면 먼 곳만 본다(autoFocusRangeRestriction) — 눈앞의 그물코 · 투수 몸에 맞지 않게.
+     *
+     * 예전에는 네트 있음이면 렌즈를 1.0(가장 먼 끝)에 고정했다. 그 자리는 무한대보다 멀어 화면이 통째로 뿌옇게 나왔다
+     * (2026-10-08 사용자: "초점이 안 맞아서 뿌옇게"). 네트 없음은 계속 맞추기라 던지는 순간 투수에게 초점이 끌려갔다.
+     */
+    private var focusPoint = CGPoint(x: 0.5, y: 0.5)
+    private var focusFar = true
+    private var focusOnce = false
+
+    /// 초점을 다시 건다 — point(장치 좌표, nil 이면 그대로) · far · once(잠그기). 세션 줄에서
+    func refocus(point: CGPoint? = nil, far: Bool? = nil, once: Bool? = nil) {
+        sessionQueue.async {
+            if let point { self.focusPoint = point }
+            if let far { self.focusFar = far }
+            if let once { self.focusOnce = once }
+            guard let device = self.mainDevice else { return }
+            do { try device.lockForConfiguration() } catch { return }
+            defer { device.unlockForConfiguration() }
+            DualCameraController.focus(device, at: self.focusPoint, far: self.focusFar, once: self.focusOnce)
+        }
+    }
+
+    /// 잠금 안에서 부른다
+    private static func focus(_ device: AVCaptureDevice, at point: CGPoint, far: Bool, once: Bool) {
+        if device.isAutoFocusRangeRestrictionSupported { device.autoFocusRangeRestriction = far ? .far : .none }
+        if device.isSmoothAutoFocusSupported { device.isSmoothAutoFocusEnabled = false }
+        /* 초점 자리는 모드를 걸 때 쓰인다 — 자리를 먼저 */
+        if device.isFocusPointOfInterestSupported {
+            device.focusPointOfInterest = CGPoint(x: min(1, max(0, point.x)), y: min(1, max(0, point.y)))
+        }
+        if once, device.isFocusModeSupported(.autoFocus) {
+            device.focusMode = .autoFocus
         } else if device.isFocusModeSupported(.continuousAutoFocus) {
             device.focusMode = .continuousAutoFocus
         }
