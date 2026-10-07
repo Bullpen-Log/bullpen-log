@@ -1073,6 +1073,9 @@ export function buildMealPlan(input: PlanInput): MealPlanResult {
 /**
  * 오늘 짤 몫 — 먹은 것을 뺀 남은 kcal · 단백질(kcal 의 35% 까지로 묶음)과 끼니 칸마다의 몫. 식단 짜기와 시험이 같이 쓴다.
  */
+/** 남은 양이 이보다 적으면 짜지 않는다('오늘 목표를 거의 채웠어요') */
+const MIN_PLAN_KCAL = 150;
+
 export function planAims(input: PlanInput) {
   const eatenMeals = new Set(input.eaten.filter((e) => e.kcal > 0).map((e) => e.meal));
   const eatenTotal = input.eaten.reduce(
@@ -1093,11 +1096,15 @@ export function planAims(input: PlanInput) {
     ),
   };
 
-  const shares = trimSlots(
-    slotShares(input).filter(([slot]) => !eatenMeals.has(slot)),
-    left.kcal,
-    eatenMeals.size > 0
-  );
+  let open = slotShares(input).filter(([slot]) => !eatenMeals.has(slot));
+  /*
+   * 짤 칸이 하나도 안 남았는데(간식을 안 고른 '세 끼' 구성에서 세 끼를 다 먹었거나, 간식까지 다 먹었거나) 남은 양이 있으면 간식
+   * 한 칸을 더한다 — 한 끼 남짓이면 아래 trimSlots 가 끼니처럼 짠다. 예전에는 1,200kcal 이 남아도 빈 계획이라 '식단 짜기'를
+   * 눌러도 아무 반응이 없었고, 입맛 없는 날만 간식 칸이 있어 그날만 짜 줬다(2026-10-07 사용자 결정 ㉠: "간식 한 칸을 더해 짜 준다").
+   */
+  if (open.length === 0 && eatenMeals.size > 0 && leftKcal >= MIN_PLAN_KCAL)
+    open = [['snack', 1]];
+  const shares = trimSlots(open, left.kcal, eatenMeals.size > 0);
   const shareSum = shares.reduce((a, [, v]) => a + v, 0);
   /* 단백질은 끼니마다 고르게(간식은 끼니의 반) — 몰아 먹는 것보다 근육이 잘 쓴다(meal-protein.ts) */
   const pWeight = (slot: Slot) => (slot === 'snack' ? 0.5 : 1);
@@ -1122,10 +1129,10 @@ function planDay(
   const reasons: string[] = [];
   if (skipped.length > 0) {
     reasons.push(
-      `이미 먹은 ${skipped.map(mealLabel).join(' · ')}은 빼고, 남은 ${Math.round(left.kcal).toLocaleString('ko-KR')}kcal 을 ${shares.trimmed === 'mealLike' ? '간식 한 번에 끼니처럼' : '나눠'} 짰어요.`
+      `이미 먹은 ${skipped.map(mealLabel).join(' · ')}은 빼고, 남은 ${Math.round(left.kcal).toLocaleString('ko-KR')}kcal 을 ${shares.trimmed === 'mealLike' ? '간식 한 번에 끼니처럼' : shares.length === 1 ? `${mealLabel(shares[0][0])}으로` : '나눠'} 짰어요.`
     );
   }
-  if (shares.length > 0 && left.kcal >= 150) {
+  if (shares.length > 0 && left.kcal >= MIN_PLAN_KCAL) {
     const wanted = Math.max(0, input.targets.protein - eatenTotal.protein);
     if (left.protein < wanted * 0.95) {
       reasons.push(
@@ -1143,7 +1150,7 @@ function planDay(
           : '남은 양이 적어 간식은 빼고 짰어요.'
       );
   }
-  if (shares.length === 0 || left.kcal < 150) {
+  if (shares.length === 0 || left.kcal < MIN_PLAN_KCAL) {
     return {
       items: [],
       meals: [],

@@ -3947,6 +3947,41 @@ console.log('\n■ 식단 짜기');
       !low378.items.some((it) => it.meal === 'dinner' && it.sourceId === 'egg'),
     `${Math.round(offOf(low378) * 100)}% · ${low378.items.map((it) => `${it.sourceId}×${it.amount}`).join(' ')}`
   );
+  /*
+   * 간식을 안 고른 '세 끼' 구성에서 세 끼를 다 먹었는데 남은 양이 있으면 간식 한 칸 — 예전에는 1,200kcal 이 남아도 빈 계획(사용자
+   * 결정 ㉠, 2026-10-07). 한 끼 남짓이면 끼니처럼, 적으면 작은 간식 하나, 150kcal 밑이면 짜지 않는다.
+   */
+  const threeOnly = (left: number) => {
+    const ate = 2900 - left;
+    return buildMealPlan({
+      ...base,
+      seed: 'u1',
+      date: '2026-11-05',
+      prefs: { ...DEFAULT_PREFS, mealPattern: '3' },
+      eaten: ateThree(
+        [
+          Math.round(ate * 0.25),
+          Math.round(ate * 0.35),
+          ate - Math.round(ate * 0.25) - Math.round(ate * 0.35),
+        ],
+        [30, 40, 40]
+      ),
+    });
+  };
+  const [big, mid, few] = [threeOnly(1200), threeOnly(350), threeOnly(100)];
+  check(
+    "'세 끼' 구성 · 세 끼 다 먹음 — 1,200kcal 남으면 간식 한 칸을 끼니처럼(±10%) · 350kcal 이면 간식 하나('간식으로 짰어요') · 100kcal 이면 안 짬",
+    big.meals.length === 1 &&
+      big.meals[0].meal === 'snack' &&
+      Math.abs(offOf(big)) <= 0.1 &&
+      big.reasons.some((l) => l.endsWith('간식 한 번에 끼니처럼 짰어요.')) &&
+      mid.meals.length === 1 &&
+      mid.meals[0].meal === 'snack' &&
+      Math.abs(offOf(mid)) <= 0.25 &&
+      mid.reasons.some((l) => l.endsWith('간식으로 짰어요.')) &&
+      few.items.length === 0,
+    `${big.meals.map((x) => x.template).join(',')} ${Math.round(offOf(big) * 100)}% · ${mid.meals.map((x) => x.template).join(',')} ${Math.round(offOf(mid) * 100)}% · ${mid.reasons[0]}`
+  );
   /* 단백질 줄 — '37g 까지 넣었어요' 라면서 49g 이 담겼다(닭가슴살 팩 둘) */
   const proteinLine = buildMealPlan({
     ...base,
