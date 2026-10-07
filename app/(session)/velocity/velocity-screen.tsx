@@ -168,6 +168,8 @@ import {
 } from '@/lib/velocity-lens';
 import { saveVelocitySession, type SavePitchInput } from '@/app/actions/velocity';
 import { SessionSummary } from '@/components/velocity/session-summary';
+import { PitchResult } from '@/components/velocity/pitch-result';
+import type { TrailPoint } from '@/components/velocity/clip-player';
 import { AdminJump } from '@/components/velocity/admin-jump';
 import {
   type SessionPitch,
@@ -412,6 +414,12 @@ export function VelocityScreen({
   const [showCamera, setShowCamera] = useState(false);
   /* 세션을 끝낸 뒤 — 종합 화면(저장하기 · 계속 재기) */
   const [summaryOpen, setSummaryOpen] = useState(false);
+  /* 공 하나의 결과 화면 — 잴 때마다 띄운다(가장 최근 공). 영상 파일로 잰 공은 그 파일을 되풀이한다 */
+  const [resultOpen, setResultOpen] = useState(false);
+  const [fileReplay, setFileReplay] = useState<{ url: string; from: number; to: number } | null>(null);
+  useEffect(() => () => {
+    if (fileReplay) URL.revokeObjectURL(fileReplay.url);
+  }, [fileReplay]);
   /* 세션 중 오른쪽 아래 '이전 공' 시트 */
   const [prevOpen, setPrevOpen] = useState(false);
   /* 주의사항 팝업 — 설정이 끝나고 카메라 화면 위에 뜬다. '오늘은 보지 않기'면 그날은 안 뜬다 */
@@ -695,6 +703,7 @@ export function VelocityScreen({
       },
     ]);
     setSaved(false);
+    setResultOpen(true);
     /* 앱(아이폰)에서도 떨린다 — navigator.vibrate 는 아이폰에 없다(lib/haptics.ts) */
     buzz(30);
     speak(`${Math.round(toSpeed(value, unit))}`);
@@ -1045,6 +1054,7 @@ export function VelocityScreen({
     setLive(false);
     setShowCamera(false);
     setPrevOpen(false);
+    setResultOpen(false);
   };
   /* 세션 종료 — 잰 공이 있으면 종합 화면으로. 거기서 저장하거나(끝) 이어서 잰다 */
   const endSession = () => {
@@ -1052,6 +1062,7 @@ export function VelocityScreen({
     setLive(false);
     setShowCamera(false);
     setPrevOpen(false);
+    setResultOpen(false);
     if (pitches.length > 0) setSummaryOpen(true);
   };
   /*
@@ -1176,6 +1187,13 @@ export function VelocityScreen({
         distanceM: distanceOf({ cameraPos: choices.cameraPos, targetDistM, releaseDistM }),
         tiltRad: null,
       });
+      const tr = result.track;
+      if (result.measure.ok && tr.length >= 2)
+        setFileReplay({
+          url: URL.createObjectURL(file),
+          from: Math.max(0, tr[0].t - 0.4),
+          to: tr[tr.length - 1].t + 0.5,
+        });
       addResult(result, 'file');
       /* HDR · 보정한 촬영과 다른 영상이면 그 알림(± 가 넓은 까닭)을 잠깐 보인다 */
       if (result.measure.ok && result.video.notes.length)
@@ -1338,6 +1356,34 @@ export function VelocityScreen({
       : null,
   }));
   const lastPitch = pitches[pitches.length - 1] ?? null;
+  /* 결과 화면의 궤적(장면 비율)과 영상 — 가장 최근 공 */
+  const resultTrail: TrailPoint[] | null = (() => {
+    const a = lastPitch?.analysis;
+    if (!a?.track || a.track.length < 2 || !a.analyzeSize?.width) return null;
+    const { width, height } = a.analyzeSize;
+    return a.track.map(([, x, y, d]) => ({ x: x / width, y: y / height, d: (d ?? 0) / width }));
+  })();
+  const resultClip = !lastPitch
+    ? null
+    : lastPitch.source === 'file'
+      ? fileReplay && {
+          url: fileReplay.url,
+          eventSec: fileReplay.from + 0.4,
+          loop: { from: fileReplay.from, to: fileReplay.to },
+        }
+      : lastPitch.clip
+        ? {
+            url: lastPitch.clip.url,
+            eventSec: lastPitch.clip.eventSec,
+            loop: {
+              from: Math.max(0, lastPitch.clip.eventSec - 0.4),
+              to: Math.min(
+                lastPitch.clip.eventSec + 1.6,
+                lastPitch.clip.durationSec || lastPitch.clip.eventSec + 1.6
+              ),
+            },
+          }
+        : null;
   const editingPitch =
     editing == null ? null : (pitches.find((p) => p.id === editing) ?? null);
   const clipPitch =
@@ -2327,6 +2373,31 @@ export function VelocityScreen({
                 onSaved={() => setStep('measure')}
               />
             </div>
+          )}
+
+          {step === 'measure' && resultOpen && lastPitch && !summaryOpen && (
+            <PitchResult
+              pitchKey={lastPitch.id}
+              index={pitches.length}
+              speed={speedNum(shown(lastPitch.rawKmh))}
+              unit={speedLabel(unit)}
+              sub={`± ${speedNum(lastPitch.errorKmh)} · ${
+                CONFIDENCE_TEXT[lastPitch.confidence as keyof typeof CONFIDENCE_TEXT] ?? ''
+              }`}
+              notes={lastPitch.notes ?? []}
+              clip={resultClip}
+              trail={resultTrail}
+              frame={lastPitch.analysis?.analyzeSize ?? null}
+              cameraPos={choices.cameraPos}
+              pitchType={lastPitch.pitchType}
+              onPitchType={(pitchType) => patch(lastPitch.id, { pitchType })}
+              onClose={() => setResultOpen(false)}
+              onNext={() => {
+                setResultOpen(false);
+                if (!autoMode && live) nextPitch();
+              }}
+              nextLabel={autoMode ? '다음 공' : '다음 공 준비'}
+            />
           )}
 
           {/*
