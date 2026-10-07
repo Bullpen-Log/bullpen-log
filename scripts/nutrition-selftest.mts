@@ -32,6 +32,11 @@ import {
   type WeightPoint,
 } from '../lib/nutrition/weight-goal.ts';
 import { shiftDateKey } from '../lib/pitch-stats.ts';
+import {
+  assembleAdviceInput,
+  serviceHour,
+  trainingKinds,
+} from '../lib/nutrition/advice-input.ts';
 import { kcalFor, pitchingBurn, trainingBurn } from '../lib/nutrition/burn.ts';
 import { choseong, matchScore } from '../lib/nutrition/hangul.ts';
 import {
@@ -2907,10 +2912,29 @@ console.log('\n■ 식단 짜기');
   const dropped = dropAvoided(
     [
       { ...dropBase, key: 'a', sourceId: 'samgyetang', name: '삼계탕', done: false },
-      { ...dropBase, key: 'b', sourceId: 'mixed-nuts', name: '견과류 믹스', done: true },
+      {
+        ...dropBase,
+        key: 'b',
+        sourceId: 'mixed-nuts',
+        name: '견과류 믹스',
+        done: true,
+      },
       { ...dropBase, key: 'c', sourceId: 'rice', name: '쌀밥', done: false },
-      { ...dropBase, key: 'd', source: 'mfds', sourceId: 'X1', name: '땅콩', done: false },
-      { ...dropBase, key: 'e', sourceId: 'protein-shake', name: '단백질 쉐이크', done: false },
+      {
+        ...dropBase,
+        key: 'd',
+        source: 'mfds',
+        sourceId: 'X1',
+        name: '땅콩',
+        done: false,
+      },
+      {
+        ...dropBase,
+        key: 'e',
+        sourceId: 'protein-shake',
+        name: '단백질 쉐이크',
+        done: false,
+      },
     ],
     { avoid: ['nuts'], supplements: false }
   );
@@ -3346,7 +3370,8 @@ console.log('\n■ 식단 짜기');
             (said.includes('더운 날') && !anyTag('heat')) ||
             (said.includes('부드러운 것') && !anyTag('light')) ||
             (said.includes('간식은 빼고') && r.meals.some((x) => x.meal === 'snack')) ||
-            (said.includes('간식을 하나로') && !r.meals.some((x) => x.meal === 'snack')) ||
+            (said.includes('간식을 하나로') &&
+              !r.meals.some((x) => x.meal === 'snack')) ||
             said.includes('—')
           )
             lowBad.why.push(`${label} ${said}`);
@@ -3402,7 +3427,11 @@ console.log('\n■ 식단 짜기');
     ...base,
     targets: { kcal: 1250, protein: 99 },
     goal: 'lose' as const,
-    prefs: { ...DEFAULT_PREFS, mealPattern: '3' as const, dietStyle: 'korean' as const },
+    prefs: {
+      ...DEFAULT_PREFS,
+      mealPattern: '3' as const,
+      dietStyle: 'korean' as const,
+    },
   };
   /* 단백질 몫은 남은 kcal 의 35% 까지로 묶인다 — 1,250kcal 에 121g(39%)이면 109g */
   const capped = buildMealPlan({
@@ -3414,7 +3443,9 @@ console.log('\n■ 식단 짜기');
   check(
     '단백질 몫은 남은 kcal 의 35% 까지로 묶이고 까닭에 적는다(1,250kcal · 121g → 109g)',
     capped.target.protein === 109 &&
-      capped.reasons.some((l) => l.startsWith('단백질은 남은 열량으로 채울 수 있는 109g')),
+      capped.reasons.some((l) =>
+        l.startsWith('단백질은 남은 열량으로 채울 수 있는 109g')
+      ),
     `${capped.target.protein} · ${capped.reasons.join(' / ')}`
   );
   /* 한 끼로 모으기는 먹은 뒤에만 */
@@ -3864,14 +3895,21 @@ console.log('\n■ 식단 짜기');
   /* 서버가 DB 의 어제 · 그제 계획(context)을 recent 로 바꾸는 길 — 저장한 모양 그대로 */
   const saved = (keys: string[]) => ({
     place: 'home',
-    meals: keys.map((t, i) => ({ meal: i ? 'lunch' : 'breakfast', title: t, template: t })),
+    meals: keys.map((t, i) => ({
+      meal: i ? 'lunch' : 'breakfast',
+      title: t,
+      template: t,
+    })),
   });
   const rec = recentTemplates('2026-11-10', [
     { date: '2026-11-09', context: saved(['a-1', 'b-2']) },
     { date: '2026-11-07', context: saved(['old']) },
   ]);
   const recEmpty = recentTemplates('2026-11-01', [
-    { date: '2026-10-31', context: { meals: [{ meal: 'lunch', title: 'x', template: '' }] } },
+    {
+      date: '2026-10-31',
+      context: { meals: [{ meal: 'lunch', title: 'x', template: '' }] },
+    },
     { date: '2026-10-30', context: 'junk' },
   ]);
   check(
@@ -3896,7 +3934,8 @@ console.log('\n■ 식단 짜기');
     });
     for (const m of t.meals) {
       avoidAll++;
-      if (y.meals.some((x) => x.meal === m.meal && x.template === m.template)) avoidSame++;
+      if (y.meals.some((x) => x.meal === m.meal && x.template === m.template))
+        avoidSame++;
     }
   }
   check(
@@ -4465,7 +4504,10 @@ console.log('\n■ 음식 세부 분류');
     '세부 칸 개수의 합 = 그 분류 음식 수',
     Object.entries(counts).every(([cat, c]) => {
       const total = Object.values(c).reduce((a, n) => a + n, 0);
-      return total === browsePage(buildBrowseIndex([...allMfdsReps()]), cat as '밥', 0, 1).total;
+      return (
+        total ===
+        browsePage(buildBrowseIndex([...allMfdsReps()]), cat as '밥', 0, 1).total
+      );
     })
   );
   const index = buildBrowseIndex([...allMfdsReps()]);
@@ -4478,7 +4520,9 @@ console.log('\n■ 음식 세부 분류');
   );
 }
 
-console.log('\n■ 검토에서 나온 것(2026-10-02) — 바코드 UPC-E · 분류 규칙이 겹치는 글자');
+console.log(
+  '\n■ 검토에서 나온 것(2026-10-02) — 바코드 UPC-E · 분류 규칙이 겹치는 글자'
+);
 {
   check(
     'UPC-E 8자리 → UPC-A 12자리(콜라 캔 04963406 → 049000006346), EAN-8 은 그대로',
@@ -4521,6 +4565,102 @@ console.log('\n■ 검토에서 나온 것(2026-10-02) — 바코드 UPC-E · �
       sub('과일·채소', '양파, 레드프라임, 생것', 'R106-0') === 'veg' &&
       sub('우유·음료', '새우패티') !== 'coffee' &&
       sub('간식·보충', '사탕무, 생것') !== 'candy'
+  );
+}
+
+/* ── 영양 조언 입력 모으기(lib/nutrition/advice-input.ts, 메인 추천 9번 3단계) — 읽어 온 자료가 그대로 가나 ── */
+console.log(
+  '\n■ 영양 조언 입력 모으기 — 그날 요약 · 체크인 · 투구 · 운동이 그대로 간다'
+);
+{
+  const date = '2026-10-07';
+  const detail = {
+    nutrition: {
+      kcal: 1200,
+      carbs: 150,
+      protein: 60,
+      fat: 40,
+      target: { kcal: 3000, carbs: 400, protein: 150, fat: 85 },
+      weightKg: 75,
+      goal: 'maintain' as const,
+      ageBand: 'adult' as const,
+      meals: [
+        { meal: 'breakfast' as const, label: '아침', kcal: 500, items: [] },
+        { meal: 'lunch' as const, label: '점심', kcal: 700, items: [] },
+      ],
+    },
+    training: {
+      exercises: [
+        { category: '하체 스트렝스', done: true, holdSecondsDone: null },
+        { category: '파워', done: false, holdSecondsDone: null },
+        { category: '유산소', done: true, holdSecondsDone: 1800 },
+        { category: '워밍업', done: true, holdSecondsDone: null },
+      ],
+    },
+  };
+  const args = {
+    date,
+    today: date,
+    hour: 15,
+    detail,
+    checkinToday: {
+      nutrition: '부족',
+      skippedMeals: ['breakfast'],
+      appetite: 2,
+      soreness: 4,
+      throwPlan: '오늘 불펜',
+    },
+    throwPlanYesterday: null,
+    pitches: [],
+    activeSeconds: 3600,
+  };
+  const input = assembleAdviceInput(args);
+  check(
+    '먹은 합 · 끼니별 kcal · 몸(체중 · 목표 · 나이 칸)이 그대로 간다',
+    input.eaten?.kcal === 1200 &&
+      input.eatenMeals.lunch === 700 &&
+      input.body.weightKg === 75 &&
+      input.body.goal === 'maintain' &&
+      input.target.protein === 150
+  );
+  check(
+    '체크인 식사 칸 · 식욕 · 근육통이 간다',
+    input.checkin?.meals.amount === '부족' &&
+      input.checkin.meals.skipped.join() === 'breakfast' &&
+      input.checkin.appetite === 2 &&
+      input.checkin.soreness === 4
+  );
+  check(
+    '오늘 불펜이면 던지는 날(today), 지난 날은 null · 어제 "내일 등판"이면 체크인 없이도 오늘 등판',
+    input.throwKind === 'today' &&
+      assembleAdviceInput({ ...args, date: '2026-10-06' }).throwKind === null &&
+      assembleAdviceInput({
+        ...args,
+        checkinToday: null,
+        throwPlanYesterday: '내일 등판',
+      }).throwKind === 'today'
+  );
+  check(
+    '한 운동만 넷으로 — 웨이트 30분(세션 시간을 나눔) · 유산소 30분(적은 시간), 안 한 파워 · 워밍업은 뺀다',
+    JSON.stringify(input.training) ===
+      JSON.stringify([
+        { kind: 'strength', minutes: 30 },
+        { kind: 'aerobic', minutes: 30 },
+      ]) && trainingKinds([], 3600).length === 0
+  );
+  check(
+    '음식을 안 적은 날은 eaten null(0 이 아니다) · 체크인이 없으면 checkin null',
+    assembleAdviceInput({
+      ...args,
+      detail: { ...detail, nutrition: { ...detail.nutrition, kcal: 0, meals: [] } },
+      checkinToday: null,
+    }).eaten === null &&
+      assembleAdviceInput({ ...args, checkinToday: null }).checkin === null
+  );
+  check(
+    '한국 시각 — UTC 05:00 은 14시, UTC 23:00 은 8시',
+    serviceHour(new Date('2026-10-07T05:00:00Z')) === 14 &&
+      serviceHour(new Date('2026-10-07T23:00:00Z')) === 8
   );
 }
 
