@@ -711,8 +711,10 @@ final class DualCameraController: NSObject, AVCaptureVideoDataOutputSampleBuffer
             let maxFps = format.videoSupportedFrameRateRanges.map(\.maxFrameRate).max() ?? 0
             return (format, d.width, d.height, maxFps)
         }
+        /* 16:9 만 — 1920×1440(4:3) 같은 모양이 넓이로 1080p 를 이기지 않게 */
         let sized = all.filter { c in
-            if let short { return c.2 == short && Int(c.1) * 9 == Int(c.2) * 16 }
+            guard Int(c.1) * 9 == Int(c.2) * 16 else { return false }
+            if let short { return c.2 == short }
             return smallest || c.1 <= 1920
         }
         /* 고른 화질이 없으면(다른 아이폰에서 고른 설정) 1080p 쪽으로 */

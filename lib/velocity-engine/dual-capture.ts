@@ -156,9 +156,12 @@ export class DualCapture {
     let info: DualStartInfo;
     try {
       info = await callDualCamera<DualStartInfo>('start', {
-        /* 늘 1080p · 60fps(사용자 2026-10-08: "화질 · 프레임 고르기 없이 1080 · 60 으로 통일") */
+        /*
+         * 60fps 를 청하고 화질은 앱이 고르게 둔다 — 앱은 1080p 쪽에서 60fps 를 내는 가장 큰 화면을 잡는다(일반 카메라 하나면
+         * 1080p 60). short 를 넘기면 앱이 '사용자가 고른 화질'로 읽어 60fps 를 못 내도 그 화질을 지켜, 광각과 함께 켤 때
+         * 1080p 30 이 됐다(2026-10-08 사용자: 아이폰 15 Pro Max 인데 30프레임). 화질 · 프레임 고르기는 없앴다(1080 · 60 통일).
+         */
         fps: DEFAULT_CAM_MODE.fps,
-        short: DEFAULT_CAM_MODE.short,
         net: this.net,
         preview: this.rect(),
         armed: false,
