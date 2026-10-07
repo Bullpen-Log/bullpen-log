@@ -174,10 +174,10 @@ function trimSlots(
   shares: [Slot, number][],
   kcal: number,
   afterEating: boolean
-): [Slot, number][] & { trimmed?: 'snack' | 'one' } {
+): [Slot, number][] & { trimmed?: 'snack' | 'one' | 'mealLike' } {
   const sumOf = (list: [Slot, number][]) => list.reduce((a, [, v]) => a + v, 0);
   let out = shares;
-  let trimmed: 'snack' | 'one' | undefined;
+  let trimmed: 'snack' | 'one' | 'mealLike' | undefined;
   const small = (list: [Slot, number][], slot: Slot, min: number) =>
     list.some(([s, v]) => s === slot && (kcal * v) / sumOf(list) < min);
   const isMeal = ([s]: [Slot, number]) => s !== 'snack';
@@ -197,6 +197,14 @@ function trimSlots(
     const keep = meals.reduce((a, b) => (b[1] >= a[1] ? b : a));
     out = [keep];
     trimmed = 'one';
+  }
+  /*
+   * 끼니를 다 먹고 간식만 남았는데 한 끼 남짓이면 간식 하나에 끼니 틀까지 — 간식 틀을 키우면 남은 1,138kcal 이 감자 2 · 두유 2 ·
+   * 달걀 · 그릭요거트 · 쉐이크 · 바나나 2 · 고구마, 일곱 가지 간식이 됐다.
+   */
+  if (afterEating && meals.length === 0 && out.length > 0 && kcal > ONE_MEAL_KCAL) {
+    out = out.slice(0, 1);
+    trimmed = 'mealLike';
   }
   return Object.assign(out, { trimmed });
 }
@@ -543,12 +551,15 @@ function pickTemplate(
   /** 어제 · 그제 고른 틀 — 되도록 피한다 */
   recent: Set<string>[],
   /** 먹은 뒤 남은 것이 한 끼뿐인 날 */
-  small = false
+  small = false,
+  /** 끼니를 다 먹고 간식만 남았는데 한 끼 남짓인 날 — 간식 칸에 끼니(저녁) 틀도 */
+  mealLike = false
 ): Prepared | null {
   const key = [
     slot,
     snackIndex,
     small ? 1 : 0,
+    mealLike ? 1 : 0,
     aim.kcal,
     aim.protein,
     input.throwKind,
@@ -568,7 +579,8 @@ function pickTemplate(
       want.steady.lean = (want.steady.lean ?? 0) + 2;
       want.steady.dense = (want.steady.dense ?? 0) - 2;
     }
-    const place = placeFor(slot, input);
+    /* 끼니처럼 짜는 간식은 저녁처럼 — 헬스장 간식 틀만 남으면 감자 · 두유에 일곱 가지를 얹었다 */
+    const place = placeFor(mealLike && slot === 'snack' ? 'dinner' : slot, input);
     /*
      * 먹은 뒤 남은 것이 한 끼뿐인 날(저녁만 남았거나 한 끼로 모은 날), 그 몫이 작으면(남은 250kcal 같은) 간식 틀도 — 끼니 틀은
      * 가장 줄여도 300kcal 을 넘는다. 먹은 것이 없는 날은 몫이 작아도 끼니 틀만(1,250kcal 하루의 저녁이 '고구마 · 이온음료'가 됐다).
@@ -576,7 +588,9 @@ function pickTemplate(
     const from: Slot[] =
       small && slot !== 'snack' && aim.kcal < SMALL_MEAL_KCAL
         ? [slot, 'snack']
-        : [slot];
+        : mealLike && slot === 'snack'
+          ? ['snack', 'dinner']
+          : [slot];
     const pool = MEAL_TEMPLATES.filter((t) => t.slots.some((s) => from.includes(s)))
       .map((t) => {
         if (!memo.prepared.has(t.key)) memo.prepared.set(t.key, prepare(t, input));
@@ -1036,6 +1050,12 @@ function planDay(
     }
     const dropped = shares.trimmed;
     if (dropped === 'one') reasons.push('남은 양이 적어 한 끼로 짰어요.');
+    if (dropped === 'mealLike') {
+      const ate = skipped.filter((m) => m !== 'snack').length;
+      reasons.push(
+        `${['한', '두', '세'][ate - 1] ?? '세'} 끼를 다 먹어 남은 양을 간식 한 번에 끼니처럼 짰어요.`
+      );
+    }
     /* 3+2 에서 하나만 뺐거나 간식만 남아 하나를 두었으면 '빼고'가 아니다 */
     if (dropped === 'snack')
       reasons.push(
@@ -1079,7 +1099,8 @@ function planDay(
       { kcal, protein },
       taken,
       recent,
-      eatenMeals.size > 0 && shares.length === 1
+      eatenMeals.size > 0 && shares.length === 1,
+      shares.trimmed === 'mealLike'
     );
     if (slot === 'snack') snackIndex++;
     if (!picked) continue;
@@ -1211,6 +1232,22 @@ function planDay(
     !blocked(id, input) &&
     !all().some((l) => l.food.id === id) &&
     meals.some((m) => roomFor(m, id));
+  /** 지금 줄 · 양을 적어 두고 되돌린다(새로 더한 줄은 뺀다) */
+  const snapshot = () =>
+    meals.map((m) => ({
+      m,
+      n: m.lines.length,
+      amounts: m.lines.map((l) => l.amount),
+      added: added.get(m.slot),
+    }));
+  const restore = (state: ReturnType<typeof snapshot>) => {
+    for (const { m, n, amounts, added: was } of state) {
+      m.lines.length = n;
+      m.lines.forEach((l, i) => (l.amount = amounts[i]));
+      if (was === undefined) added.delete(m.slot);
+      else added.set(m.slot, was);
+    }
+  };
   /** 끼니 몫 가드 없이 해 본다 — 맞바꾸기에서 늘리는 걸음은 끝난 모양만 본다 */
   const freely = <T>(f: () => T) => {
     wholeOnly = true;
@@ -1238,21 +1275,6 @@ function planDay(
           (r >= MEAL_RATIO_LO || r >= ratios[i] - 1e-9)
         );
       });
-    const snapshot = () =>
-      meals.map((m) => ({
-        m,
-        n: m.lines.length,
-        amounts: m.lines.map((l) => l.amount),
-        added: added.get(m.slot),
-      }));
-    const restore = (state: ReturnType<typeof snapshot>) => {
-      for (const { m, n, amounts, added: was } of state) {
-        m.lines.length = n;
-        m.lines.forEach((l, i) => (l.amount = amounts[i]));
-        if (was === undefined) added.delete(m.slot);
-        else added.set(m.slot, was);
-      }
-    };
     const saved = snapshot();
     const growLean = () =>
       freely(() =>
@@ -1341,6 +1363,72 @@ function planDay(
    * 곁들이를 다 줄여도 kcal 이 넘치면 그날은 단백질을 8할 6푼까지로 내리고 기름진 단백질 재료부터 줄인다 — 9할까지 채우다
    * 1,250kcal 하루가 1,800kcal 이 됐다. 한 번 내리면 그날은 그대로(다시 채우다 넘치기를 되풀이하지 않게).
    */
+  /** 모자란 kcal(gap)을 밥 · 바나나 같은 것으로 채운다 */
+  const fillKcal = (gap: number) => {
+    /*
+     * 가장 모자란 끼니부터, 끼니 몫의 1.5배를 넘지 않는 양으로 — 넘으면 줄이고, 한 걸음도 안 들어가면 다음 끼니로. 덧붙인 것이
+     * 둘인 끼니는 다른 끼니가 다 막혔을 때만. 3,948kcal 하루에 간식만 열려 있어 밥 한 공기가 막히자 맞추기가 멈춰 −21% 였다.
+     */
+    const short = (m: (typeof meals)[number]) => m.kcal - totalOf(m.lines).kcal;
+    const open = meals
+      .filter(
+        (m) => (added.get(m.slot) ?? 0) < 2 && totalOf(m.lines).kcal < m.kcal * 1.25
+      )
+      .sort((x, y) => short(y) - short(x));
+    const rest = meals
+      .filter((m) => !open.includes(m))
+      .sort((x, y) => short(y) - short(x));
+    return [...open, ...rest].some((target) => {
+      const id = KCAL_BOOST.find(
+        (x) =>
+          basicFood(x) &&
+          !blocked(x, input) &&
+          /* 간식 둘은 같은 '간식' 끼니 — 둘 다 보고 겹치지 않게 */
+          !meals.some(
+            (m) => m.slot === target.slot && m.lines.some((l) => l.food.id === x)
+          ) &&
+          roomFor(target, x) &&
+          /* 가장 적게 더해도 지금보다 멀어지지 않는 것 */
+          amountStep(x) * basicFood(x)!.kcal < 2 * gap
+      );
+      if (!id) return false;
+      /* 모자란 만큼에 가까운 양으로(한 단위까지) */
+      const step = amountStep(id);
+      const units = Math.round(gap / basicFood(id)!.kcal / step) * step;
+      let amount = Math.min(1, Math.max(step, units));
+      while (amount > step + 1e-9 && !keepsRatio(target, amount * basicFood(id)!.kcal))
+        amount -= step;
+      if (!keepsRatio(target, amount * basicFood(id)!.kcal)) return false;
+      addLine(target, id, 'carb', amount);
+      return true;
+    });
+  };
+  /*
+   * 한 그릇이 커서 한 걸음 줄이면 반대로 모자라는 날(돼지국밥 ¼ 그릇 175kcal — 한 그릇이면 +12%, ¾ 그릇이면 −15%)은 줄인 뒤
+   * 밥 · 바나나로 채워 하루가 가까워지면 둔다. 단백질은 하한 밑으로 내리지 않는다.
+   */
+  const stepDownAndFill = (gap: number, floor: number) => {
+    const saved = snapshot();
+    const over = [...meals].sort(
+      (x, y) => totalOf(y.lines).kcal - y.kcal - (totalOf(x.lines).kcal - x.kcal)
+    );
+    for (const m of over)
+      for (const l of m.lines.filter(
+        (l) => (l.role === 'carb' || l.role === 'dish') && l.amount > 0
+      )) {
+        if (!nudge(l, -1)) continue;
+        const t = totalOf(all());
+        if (
+          t.protein >= floor &&
+          left.kcal - t.kcal > 0 &&
+          fillKcal(left.kcal - t.kcal) &&
+          Math.abs(left.kcal - totalOf(all()).kcal) < Math.abs(gap)
+        )
+          return true;
+        restore(saved);
+      }
+    return false;
+  };
   let proteinFloor = 0.9;
   for (let round = 0; round < 60 && meals.length > 0; round++) {
     const t = totalOf(all());
@@ -1461,54 +1549,14 @@ function planDay(
         continue;
       }
       if (swapLean()) continue;
+      if (stepDownAndFill(gap, Math.min(t.protein, left.protein * proteinFloor)))
+        continue;
       if (gap < -left.kcal * 0.1 && proteinFloor > 0.86) {
         proteinFloor = 0.86;
         continue;
       }
     }
-    if (gap > 0) {
-      /*
-       * 가장 모자란 끼니부터, 끼니 몫의 1.5배를 넘지 않는 양으로 — 넘으면 줄이고, 한 걸음도 안 들어가면 다음 끼니로. 덧붙인 것이
-       * 둘인 끼니는 다른 끼니가 다 막혔을 때만. 3,948kcal 하루에 간식만 열려 있어 밥 한 공기가 막히자 맞추기가 멈춰 −21% 였다.
-       */
-      const short = (m: (typeof meals)[number]) => m.kcal - totalOf(m.lines).kcal;
-      const open = meals
-        .filter(
-          (m) => (added.get(m.slot) ?? 0) < 2 && totalOf(m.lines).kcal < m.kcal * 1.25
-        )
-        .sort((x, y) => short(y) - short(x));
-      const rest = meals
-        .filter((m) => !open.includes(m))
-        .sort((x, y) => short(y) - short(x));
-      const boosted = [...open, ...rest].some((target) => {
-        const id = KCAL_BOOST.find(
-          (x) =>
-            basicFood(x) &&
-            !blocked(x, input) &&
-            /* 간식 둘은 같은 '간식' 끼니 — 둘 다 보고 겹치지 않게 */
-            !meals.some(
-              (m) => m.slot === target.slot && m.lines.some((l) => l.food.id === x)
-            ) &&
-            roomFor(target, x) &&
-            /* 가장 적게 더해도 지금보다 멀어지지 않는 것 */
-            amountStep(x) * basicFood(x)!.kcal < 2 * gap
-        );
-        if (!id) return false;
-        /* 모자란 만큼에 가까운 양으로(한 단위까지) */
-        const step = amountStep(id);
-        const units = Math.round(gap / basicFood(id)!.kcal / step) * step;
-        let amount = Math.min(1, Math.max(step, units));
-        while (
-          amount > step + 1e-9 &&
-          !keepsRatio(target, amount * basicFood(id)!.kcal)
-        )
-          amount -= step;
-        if (!keepsRatio(target, amount * basicFood(id)!.kcal)) return false;
-        addLine(target, id, 'carb', amount);
-        return true;
-      });
-      if (boosted) continue;
-    }
+    if (gap > 0 && fillKcal(gap)) continue;
     break;
   }
 
@@ -1710,7 +1758,8 @@ function planDay(
           m.template.tags.includes('heat') &&
           (!m.lines.some((l) => l.role === 'side') ||
             m.lines.some((l) => l.role === 'side' && l.amount > 0))
-      )
+      ),
+      shares.trimmed === 'mealLike'
     )
   );
   return {
@@ -1731,7 +1780,9 @@ function whyLines(
   input: PlanInput,
   meals: { slot: Slot; template: MealTemplate }[],
   snackDairy: boolean,
-  heatKept: boolean
+  heatKept: boolean,
+  /** 끼니를 다 먹고 남은 양을 간식 한 번에 끼니처럼 짠 날 — 그 간식은 저녁처럼 집(밖)에서 */
+  mealLike: boolean
 ): string[] {
   const lines: string[] = [];
   const has = (s: Slot) => meals.some((m) => m.slot === s);
@@ -1782,7 +1833,7 @@ function whyLines(
   }
   if (input.hot && heatKept)
     lines.push('더운 날 야외라 국 · 과일 · 음료로 수분과 나트륨을 챙겼어요.');
-  if (input.place === 'gym' && (has('lunch') || has('snack')))
+  if (input.place === 'gym' && (has('lunch') || (has('snack') && !mealLike)))
     lines.push('헬스장에서 먹을 점심 · 간식은 바로 먹는 것으로 골랐어요.');
   if (input.place === 'team' && has('lunch'))
     lines.push('팀 · 학교에서 먹을 점심은 급식 · 도시락 모양으로 골랐어요.');
