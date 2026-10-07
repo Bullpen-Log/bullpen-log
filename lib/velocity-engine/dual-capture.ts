@@ -132,7 +132,7 @@ export class DualCapture {
     );
   };
 
-  /** 고른 화질 · 프레임 — 켜기 전에 건다. null 이면 1080p 쪽 60fps */
+  /** 고른 화질 · 프레임 — 켜기 전에 건다. null 이면 기본(DEFAULT_CAM_MODE, 1080p · 60fps) */
   private mode: CamMode | null = null;
   setMode(mode: CamMode | null) {
     this.mode = mode;
@@ -161,8 +161,8 @@ export class DualCapture {
     let info: DualStartInfo;
     try {
       info = await callDualCamera<DualStartInfo>('start', {
-        fps: this.mode?.fps ?? DEFAULT_CAM_MODE.fps,
-        ...(this.mode ? { short: this.mode.short } : {}),
+        fps: (this.mode ?? DEFAULT_CAM_MODE).fps,
+        short: (this.mode ?? DEFAULT_CAM_MODE).short,
         net: this.net,
         preview: this.rect(),
         armed: false,

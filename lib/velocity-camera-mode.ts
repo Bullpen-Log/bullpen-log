@@ -26,7 +26,10 @@ export const LOW_FPS_WARNING =
 export const FPS_CHOICES = [30, 60, 120, 240] as const;
 export const SIZE_CHOICES = [720, 1080, 2160] as const;
 
-/** 아무것도 안 골랐을 때(자동) — 엔진을 맞춘 조건 */
+/**
+ * 아무것도 안 골랐을 때(자동) — 1080p · 60fps, 엔진 2.0 을 맞춘 영상과 같은 조건. 일반 사용자는 이것으로 고정이다(고르기는
+ * 관리자만, 사용자 2026-10-07).
+ */
 export const DEFAULT_CAM_MODE: CamMode = { short: 1080, fps: 60 };
 
 export const sizeLabel = (short: number) => (short >= 2160 ? '4K' : `${short}p`);

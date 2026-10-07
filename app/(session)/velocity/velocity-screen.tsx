@@ -394,7 +394,7 @@ export function VelocityScreen({
   const [clipZone, setClipZone] = useState(DEFAULT_SETUP.clipZone);
   /* 광각 영상도 같이 저장(설정) — 앱의 동시 촬영 부품이 있을 때 공마다 wideClip 이 붙는다(2단계) */
   const [wideClip, setWideClip] = useState(DEFAULT_SETUP.wideClip);
-  /* 측정 카메라의 화질 · 프레임(오른쪽 위 카메라 정보를 눌러 고름) — null 이면 자동(1080p · 60fps) */
+  /* 측정 카메라의 화질 · 프레임(오른쪽 위 카메라 정보를 눌러 고름) — null 이면 자동(DEFAULT_CAM_MODE, 1080p · 60fps) */
   const [camMode, setCamMode] = useState<CamMode | null>(DEFAULT_SETUP.camMode);
   /* 지금 카메라로 고를 수 있는 화질 — 켤 때마다 카메라가 알려 준다 */
   const [camOptions, setCamOptions] = useState<CamModeOption[]>([]);
@@ -891,7 +891,7 @@ export function VelocityScreen({
       setCalibSave(stored.calibSave);
       setClipZone(stored.clipZone);
       setWideClip(stored.wideClip);
-      setCamMode(stored.camMode);
+      setCamMode(isAdmin ? stored.camMode : null);
       setRecordMode(stored.recordMode);
       setDiagHud(stored.diagHud);
       setDecided(true);
@@ -904,7 +904,7 @@ export function VelocityScreen({
     if (stored) {
       setClipZone(stored.clipZone);
       setWideClip(stored.wideClip);
-      setCamMode(stored.camMode);
+      setCamMode(isAdmin ? stored.camMode : null);
       setRecordMode(stored.recordMode);
       setDiagHud(stored.diagHud);
     }
@@ -1685,9 +1685,25 @@ export function VelocityScreen({
           <div className="flex min-w-0 items-center gap-1.5">
             {levelOn && <LevelBubble level={level} onRequest={requestPermission} />}
           </div>
-          {camera && (
+          {camera && !isAdmin && (
+            /* 화질 · 프레임은 1080p · 60fps 고정(사용자 2026-10-07, DEFAULT_CAM_MODE — 엔진 2.0 을 맞춘 조건). 못 내는 폰은 60fps 를 지키며 화질을 낮춘다 */
+            <span
+              className={`inline-flex h-7 min-w-0 items-center rounded-full px-2.5 tabular-nums backdrop-blur ${
+                lowFps ? 'bg-amber-600 text-white' : 'bg-black/55 text-white/80'
+              }`}
+            >
+              <span className="truncate">
+                {camera.width}×{camera.height}
+                {(fps ?? camera.frameRate) != null &&
+                  ` · ${fps ?? Math.round(camera.frameRate ?? 0)}fps`}
+                {camera.focus === 'manual' && ' · 수동초점'}
+                {camera.focus === 'auto' && ' · 자동초점'}
+              </span>
+            </span>
+          )}
+          {camera && isAdmin && (
             /*
-             * 누르면 화질 · 프레임 고르기(2026-10-03 사용자). 뷰파인더 위 손동작(존 끌기)이 이 누름을 가져가지 않게 pointerdown 을
+             * 관리자만 누르면 화질 · 프레임 고르기(엔진 시험용). 뷰파인더 위 손동작(존 끌기)이 이 누름을 가져가지 않게 pointerdown 을
              * 여기서 멈춘다. 보이는 알약은 h-7 이지만 누르는 자리는 위아래로 넓힌다(before 로 44px).
              */
             <button

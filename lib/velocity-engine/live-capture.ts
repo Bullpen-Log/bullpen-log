@@ -296,7 +296,7 @@ export class LiveCapture {
     this.net = net;
   }
 
-  /** 고른 화질 · 프레임(lib/velocity-camera-mode.ts) — 켜기 전에 건다. null 이면 1080p · 60fps 를 청한다 */
+  /** 고른 화질 · 프레임(lib/velocity-camera-mode.ts) — 켜기 전에 건다. null 이면 기본(DEFAULT_CAM_MODE, 1080p · 60fps)을 청한다 */
   private mode: CamMode | null = null;
   setMode(mode: CamMode | null) {
     this.mode = mode;
@@ -699,7 +699,7 @@ export class LiveCapture {
     }
 
     /*
-     * 후면 카메라, 1080p, 60fps, 원래 비율. ideal 이라 안 되면 브라우저가 가장 가까운 것으로 준다 — 폰 브라우저는 대개
+     * 후면 카메라, 1080p(DEFAULT_CAM_MODE), 60fps, 원래 비율. ideal 이라 안 되면 브라우저가 가장 가까운 것으로 준다 — 폰 브라우저는 대개
      * 30fps, 좋아야 60fps(getUserMedia 는 240fps 를 못 준다 — 1.6.0 은 240 을 청했다).
      * resizeMode 'none': 크롬은 청한 가로 · 세로에 맞추려 가운데를 잘라 줄 수 있다 — 세로 카메라에 1920×1080 을 청하자
      * 1080×1080 이 와서 화각이 어긋나 96km/h 공이 52.5km/h 로 나왔다(2026-09-30 브라우저 시험대). 'none' 이면 카메라 고유
