@@ -8,7 +8,11 @@ import { priorBests } from '@/lib/workout/prior-bests';
 import type { PriorBest } from '@/lib/workout/bests';
 import type { DoneAmount } from '@/lib/exercise-meta';
 import type { SlotKey } from '@/lib/report/theme';
-import type { FrozenExercise, FrozenProgramSlot } from '@/lib/workout/session-plan';
+import type {
+  FrozenExercise,
+  FrozenProgramSlot,
+  SetTarget,
+} from '@/lib/workout/session-plan';
 
 /** 운동 화면(app/(session)/workout/run)이 그리는 운동 하나 */
 export type RunExercise = {
@@ -48,6 +52,8 @@ export type RunExercise = {
   programSlot: FrozenProgramSlot | null;
   /** 프로그램 날 얼린 추천 무게(kg). '추천 담기'와 '몇 개 더?'가 쓴다. 숫자 없이 안내하는 날은 null */
   suggestedKg: number | null;
+  /** 세트마다 다른 처방(% 방식) — 그 세트의 무게 · 횟수 · '+'. 그 밖은 null */
+  setTargets: SetTarget[] | null;
 };
 
 /**
@@ -116,6 +122,7 @@ export async function runExercises(
       best: bests.get(e.id) ?? null,
       programSlot: e.programSlot ?? null,
       suggestedKg: e.suggestedKg ?? null,
+      setTargets: e.setTargets ?? null,
     };
   });
 }

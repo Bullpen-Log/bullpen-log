@@ -1,0 +1,1394 @@
+[
+ {
+  "day": 1,
+  "week": 1,
+  "label": "1주차 · 1일차",
+  "contrast": false,
+  "items": [
+   {
+    "slot": "power",
+    "variant": "jump",
+    "sets": 3,
+    "reps": 3,
+    "reserve": null,
+    "light": false,
+    "rest": 120,
+    "line": "3세트 × 3회 · 최대 속도 · 충분히 쉬고"
+   },
+   {
+    "slot": "bigLower",
+    "variant": "squat",
+    "sets": 3,
+    "reps": 8,
+    "reserve": 3,
+    "light": false,
+    "rest": 180,
+    "line": "3세트 × 8회 · 3개 남기고"
+   },
+   {
+    "slot": "pushPull",
+    "variant": "push",
+    "sets": 3,
+    "reps": 10,
+    "reserve": 3,
+    "light": false,
+    "rest": 120,
+    "line": "3세트 × 10회 · 3개 남기고"
+   },
+   {
+    "slot": "singleLeg",
+    "variant": "singleLeg",
+    "sets": 3,
+    "reps": 8,
+    "reserve": 3,
+    "light": false,
+    "rest": 90,
+    "line": "3세트 × 8회 · 3개 남기고"
+   },
+   {
+    "slot": "core",
+    "variant": "antiRotation",
+    "sets": 3,
+    "reps": 10,
+    "reserve": null,
+    "light": false,
+    "rest": 60,
+    "line": "3세트 × 10회"
+   }
+  ]
+ },
+ {
+  "day": 2,
+  "week": 1,
+  "label": "1주차 · 2일차",
+  "contrast": false,
+  "items": [
+   {
+    "slot": "power",
+    "variant": "medball",
+    "sets": 3,
+    "reps": 3,
+    "reserve": null,
+    "light": false,
+    "rest": 120,
+    "line": "3세트 × 3회 · 최대 속도 · 충분히 쉬고"
+   },
+   {
+    "slot": "bigLower",
+    "variant": "hinge",
+    "sets": 3,
+    "reps": 8,
+    "reserve": 3,
+    "light": false,
+    "rest": 180,
+    "line": "3세트 × 8회 · 3개 남기고"
+   },
+   {
+    "slot": "pushPull",
+    "variant": "pull",
+    "sets": 3,
+    "reps": 10,
+    "reserve": 3,
+    "light": false,
+    "rest": 120,
+    "line": "3세트 × 10회 · 3개 남기고"
+   },
+   {
+    "slot": "singleLeg",
+    "variant": "singleLeg",
+    "sets": 3,
+    "reps": 8,
+    "reserve": 3,
+    "light": false,
+    "rest": 90,
+    "line": "3세트 × 8회 · 3개 남기고"
+   },
+   {
+    "slot": "core",
+    "variant": "antiRotation",
+    "sets": 3,
+    "reps": 10,
+    "reserve": null,
+    "light": false,
+    "rest": 60,
+    "line": "3세트 × 10회"
+   }
+  ]
+ },
+ {
+  "day": 3,
+  "week": 1,
+  "label": "1주차 · 3일차",
+  "contrast": false,
+  "items": [
+   {
+    "slot": "power",
+    "variant": "jump",
+    "sets": 3,
+    "reps": 3,
+    "reserve": null,
+    "light": false,
+    "rest": 120,
+    "line": "3세트 × 3회 · 최대 속도 · 충분히 쉬고"
+   },
+   {
+    "slot": "bigLower",
+    "variant": "squat",
+    "sets": 3,
+    "reps": 8,
+    "reserve": 3,
+    "light": false,
+    "rest": 180,
+    "line": "3세트 × 8회 · 3개 남기고"
+   },
+   {
+    "slot": "pushPull",
+    "variant": "push",
+    "sets": 3,
+    "reps": 10,
+    "reserve": 3,
+    "light": false,
+    "rest": 120,
+    "line": "3세트 × 10회 · 3개 남기고"
+   },
+   {
+    "slot": "singleLeg",
+    "variant": "singleLeg",
+    "sets": 3,
+    "reps": 8,
+    "reserve": 3,
+    "light": false,
+    "rest": 90,
+    "line": "3세트 × 8회 · 3개 남기고"
+   },
+   {
+    "slot": "core",
+    "variant": "antiRotation",
+    "sets": 3,
+    "reps": 10,
+    "reserve": null,
+    "light": false,
+    "rest": 60,
+    "line": "3세트 × 10회"
+   }
+  ]
+ },
+ {
+  "day": 4,
+  "week": 2,
+  "label": "2주차 · 1일차",
+  "contrast": false,
+  "items": [
+   {
+    "slot": "power",
+    "variant": "medball",
+    "sets": 3,
+    "reps": 3,
+    "reserve": null,
+    "light": false,
+    "rest": 120,
+    "line": "3세트 × 3회 · 최대 속도 · 충분히 쉬고"
+   },
+   {
+    "slot": "bigLower",
+    "variant": "hinge",
+    "sets": 4,
+    "reps": 6,
+    "reserve": 2,
+    "light": false,
+    "rest": 180,
+    "line": "4세트 × 6회 · 2개 남기고"
+   },
+   {
+    "slot": "pushPull",
+    "variant": "pull",
+    "sets": 3,
+    "reps": 8,
+    "reserve": 2,
+    "light": false,
+    "rest": 120,
+    "line": "3세트 × 8회 · 2개 남기고"
+   },
+   {
+    "slot": "singleLeg",
+    "variant": "singleLeg",
+    "sets": 3,
+    "reps": 8,
+    "reserve": 2,
+    "light": false,
+    "rest": 90,
+    "line": "3세트 × 8회 · 2개 남기고"
+   },
+   {
+    "slot": "core",
+    "variant": "antiRotation",
+    "sets": 3,
+    "reps": 10,
+    "reserve": null,
+    "light": false,
+    "rest": 60,
+    "line": "3세트 × 10회"
+   }
+  ]
+ },
+ {
+  "day": 5,
+  "week": 2,
+  "label": "2주차 · 2일차",
+  "contrast": false,
+  "items": [
+   {
+    "slot": "power",
+    "variant": "jump",
+    "sets": 3,
+    "reps": 3,
+    "reserve": null,
+    "light": false,
+    "rest": 120,
+    "line": "3세트 × 3회 · 최대 속도 · 충분히 쉬고"
+   },
+   {
+    "slot": "bigLower",
+    "variant": "squat",
+    "sets": 4,
+    "reps": 6,
+    "reserve": 2,
+    "light": false,
+    "rest": 180,
+    "line": "4세트 × 6회 · 2개 남기고"
+   },
+   {
+    "slot": "pushPull",
+    "variant": "push",
+    "sets": 3,
+    "reps": 8,
+    "reserve": 2,
+    "light": false,
+    "rest": 120,
+    "line": "3세트 × 8회 · 2개 남기고"
+   },
+   {
+    "slot": "singleLeg",
+    "variant": "singleLeg",
+    "sets": 3,
+    "reps": 8,
+    "reserve": 2,
+    "light": false,
+    "rest": 90,
+    "line": "3세트 × 8회 · 2개 남기고"
+   },
+   {
+    "slot": "core",
+    "variant": "antiRotation",
+    "sets": 3,
+    "reps": 10,
+    "reserve": null,
+    "light": false,
+    "rest": 60,
+    "line": "3세트 × 10회"
+   }
+  ]
+ },
+ {
+  "day": 6,
+  "week": 2,
+  "label": "2주차 · 3일차",
+  "contrast": false,
+  "items": [
+   {
+    "slot": "power",
+    "variant": "medball",
+    "sets": 3,
+    "reps": 3,
+    "reserve": null,
+    "light": false,
+    "rest": 120,
+    "line": "3세트 × 3회 · 최대 속도 · 충분히 쉬고"
+   },
+   {
+    "slot": "bigLower",
+    "variant": "hinge",
+    "sets": 4,
+    "reps": 6,
+    "reserve": 2,
+    "light": false,
+    "rest": 180,
+    "line": "4세트 × 6회 · 2개 남기고"
+   },
+   {
+    "slot": "pushPull",
+    "variant": "pull",
+    "sets": 3,
+    "reps": 8,
+    "reserve": 2,
+    "light": false,
+    "rest": 120,
+    "line": "3세트 × 8회 · 2개 남기고"
+   },
+   {
+    "slot": "singleLeg",
+    "variant": "singleLeg",
+    "sets": 3,
+    "reps": 8,
+    "reserve": 2,
+    "light": false,
+    "rest": 90,
+    "line": "3세트 × 8회 · 2개 남기고"
+   },
+   {
+    "slot": "core",
+    "variant": "antiRotation",
+    "sets": 3,
+    "reps": 10,
+    "reserve": null,
+    "light": false,
+    "rest": 60,
+    "line": "3세트 × 10회"
+   }
+  ]
+ },
+ {
+  "day": 7,
+  "week": 3,
+  "label": "3주차 · 1일차",
+  "contrast": false,
+  "items": [
+   {
+    "slot": "power",
+    "variant": "jump",
+    "sets": 3,
+    "reps": 3,
+    "reserve": null,
+    "light": false,
+    "rest": 120,
+    "line": "3세트 × 3회 · 최대 속도 · 충분히 쉬고"
+   },
+   {
+    "slot": "bigLower",
+    "variant": "squat",
+    "sets": 4,
+    "reps": 5,
+    "reserve": 2,
+    "light": false,
+    "rest": 180,
+    "line": "4세트 × 5회 · 2개 남기고"
+   },
+   {
+    "slot": "pushPull",
+    "variant": "push",
+    "sets": 4,
+    "reps": 6,
+    "reserve": 2,
+    "light": false,
+    "rest": 120,
+    "line": "4세트 × 6회 · 2개 남기고"
+   },
+   {
+    "slot": "singleLeg",
+    "variant": "singleLeg",
+    "sets": 3,
+    "reps": 6,
+    "reserve": 2,
+    "light": false,
+    "rest": 90,
+    "line": "3세트 × 6회 · 2개 남기고"
+   },
+   {
+    "slot": "core",
+    "variant": "antiRotation",
+    "sets": 3,
+    "reps": 10,
+    "reserve": null,
+    "light": false,
+    "rest": 60,
+    "line": "3세트 × 10회"
+   }
+  ]
+ },
+ {
+  "day": 8,
+  "week": 3,
+  "label": "3주차 · 2일차",
+  "contrast": false,
+  "items": [
+   {
+    "slot": "power",
+    "variant": "medball",
+    "sets": 3,
+    "reps": 3,
+    "reserve": null,
+    "light": false,
+    "rest": 120,
+    "line": "3세트 × 3회 · 최대 속도 · 충분히 쉬고"
+   },
+   {
+    "slot": "bigLower",
+    "variant": "hinge",
+    "sets": 4,
+    "reps": 5,
+    "reserve": 2,
+    "light": false,
+    "rest": 180,
+    "line": "4세트 × 5회 · 2개 남기고"
+   },
+   {
+    "slot": "pushPull",
+    "variant": "pull",
+    "sets": 4,
+    "reps": 6,
+    "reserve": 2,
+    "light": false,
+    "rest": 120,
+    "line": "4세트 × 6회 · 2개 남기고"
+   },
+   {
+    "slot": "singleLeg",
+    "variant": "singleLeg",
+    "sets": 3,
+    "reps": 6,
+    "reserve": 2,
+    "light": false,
+    "rest": 90,
+    "line": "3세트 × 6회 · 2개 남기고"
+   },
+   {
+    "slot": "core",
+    "variant": "antiRotation",
+    "sets": 3,
+    "reps": 10,
+    "reserve": null,
+    "light": false,
+    "rest": 60,
+    "line": "3세트 × 10회"
+   }
+  ]
+ },
+ {
+  "day": 9,
+  "week": 3,
+  "label": "3주차 · 3일차",
+  "contrast": false,
+  "items": [
+   {
+    "slot": "power",
+    "variant": "jump",
+    "sets": 3,
+    "reps": 3,
+    "reserve": null,
+    "light": false,
+    "rest": 120,
+    "line": "3세트 × 3회 · 최대 속도 · 충분히 쉬고"
+   },
+   {
+    "slot": "bigLower",
+    "variant": "squat",
+    "sets": 4,
+    "reps": 5,
+    "reserve": 2,
+    "light": false,
+    "rest": 180,
+    "line": "4세트 × 5회 · 2개 남기고"
+   },
+   {
+    "slot": "pushPull",
+    "variant": "push",
+    "sets": 4,
+    "reps": 6,
+    "reserve": 2,
+    "light": false,
+    "rest": 120,
+    "line": "4세트 × 6회 · 2개 남기고"
+   },
+   {
+    "slot": "singleLeg",
+    "variant": "singleLeg",
+    "sets": 3,
+    "reps": 6,
+    "reserve": 2,
+    "light": false,
+    "rest": 90,
+    "line": "3세트 × 6회 · 2개 남기고"
+   },
+   {
+    "slot": "core",
+    "variant": "antiRotation",
+    "sets": 3,
+    "reps": 10,
+    "reserve": null,
+    "light": false,
+    "rest": 60,
+    "line": "3세트 × 10회"
+   }
+  ]
+ },
+ {
+  "day": 10,
+  "week": 4,
+  "label": "4주차 · 1일차",
+  "contrast": false,
+  "items": [
+   {
+    "slot": "power",
+    "variant": "medball",
+    "sets": 2,
+    "reps": 3,
+    "reserve": null,
+    "light": true,
+    "rest": 120,
+    "line": "2세트 × 3회 · 최대 속도 · 충분히 쉬고"
+   },
+   {
+    "slot": "bigLower",
+    "variant": "hinge",
+    "sets": 2,
+    "reps": 5,
+    "reserve": 4,
+    "light": true,
+    "rest": 180,
+    "line": "2세트 × 5회 · 가볍게 · 4개 남기고"
+   },
+   {
+    "slot": "pushPull",
+    "variant": "pull",
+    "sets": 2,
+    "reps": 8,
+    "reserve": 4,
+    "light": true,
+    "rest": 120,
+    "line": "2세트 × 8회 · 가볍게 · 4개 남기고"
+   },
+   {
+    "slot": "singleLeg",
+    "variant": "singleLeg",
+    "sets": 2,
+    "reps": 6,
+    "reserve": 4,
+    "light": true,
+    "rest": 90,
+    "line": "2세트 × 6회 · 가볍게 · 4개 남기고"
+   },
+   {
+    "slot": "core",
+    "variant": "antiRotation",
+    "sets": 2,
+    "reps": 10,
+    "reserve": null,
+    "light": true,
+    "rest": 60,
+    "line": "2세트 × 10회"
+   }
+  ]
+ },
+ {
+  "day": 11,
+  "week": 4,
+  "label": "4주차 · 2일차",
+  "contrast": false,
+  "items": [
+   {
+    "slot": "power",
+    "variant": "jump",
+    "sets": 2,
+    "reps": 3,
+    "reserve": null,
+    "light": true,
+    "rest": 120,
+    "line": "2세트 × 3회 · 최대 속도 · 충분히 쉬고"
+   },
+   {
+    "slot": "bigLower",
+    "variant": "squat",
+    "sets": 2,
+    "reps": 5,
+    "reserve": 4,
+    "light": true,
+    "rest": 180,
+    "line": "2세트 × 5회 · 가볍게 · 4개 남기고"
+   },
+   {
+    "slot": "pushPull",
+    "variant": "push",
+    "sets": 2,
+    "reps": 8,
+    "reserve": 4,
+    "light": true,
+    "rest": 120,
+    "line": "2세트 × 8회 · 가볍게 · 4개 남기고"
+   },
+   {
+    "slot": "singleLeg",
+    "variant": "singleLeg",
+    "sets": 2,
+    "reps": 6,
+    "reserve": 4,
+    "light": true,
+    "rest": 90,
+    "line": "2세트 × 6회 · 가볍게 · 4개 남기고"
+   },
+   {
+    "slot": "core",
+    "variant": "antiRotation",
+    "sets": 2,
+    "reps": 10,
+    "reserve": null,
+    "light": true,
+    "rest": 60,
+    "line": "2세트 × 10회"
+   }
+  ]
+ },
+ {
+  "day": 12,
+  "week": 4,
+  "label": "4주차 · 3일차",
+  "contrast": false,
+  "items": [
+   {
+    "slot": "power",
+    "variant": "medball",
+    "sets": 2,
+    "reps": 3,
+    "reserve": null,
+    "light": true,
+    "rest": 120,
+    "line": "2세트 × 3회 · 최대 속도 · 충분히 쉬고"
+   },
+   {
+    "slot": "bigLower",
+    "variant": "hinge",
+    "sets": 2,
+    "reps": 5,
+    "reserve": 4,
+    "light": true,
+    "rest": 180,
+    "line": "2세트 × 5회 · 가볍게 · 4개 남기고"
+   },
+   {
+    "slot": "pushPull",
+    "variant": "pull",
+    "sets": 2,
+    "reps": 8,
+    "reserve": 4,
+    "light": true,
+    "rest": 120,
+    "line": "2세트 × 8회 · 가볍게 · 4개 남기고"
+   },
+   {
+    "slot": "singleLeg",
+    "variant": "singleLeg",
+    "sets": 2,
+    "reps": 6,
+    "reserve": 4,
+    "light": true,
+    "rest": 90,
+    "line": "2세트 × 6회 · 가볍게 · 4개 남기고"
+   },
+   {
+    "slot": "core",
+    "variant": "antiRotation",
+    "sets": 2,
+    "reps": 10,
+    "reserve": null,
+    "light": true,
+    "rest": 60,
+    "line": "2세트 × 10회"
+   }
+  ]
+ },
+ {
+  "day": 13,
+  "week": 5,
+  "label": "5주차 · 1일차",
+  "contrast": true,
+  "items": [
+   {
+    "slot": "bigLower",
+    "variant": "squat",
+    "sets": 4,
+    "reps": 4,
+    "reserve": 2,
+    "light": false,
+    "rest": 180,
+    "line": "4세트 × 4회 · 2개 남기고"
+   },
+   {
+    "slot": "power",
+    "variant": "jump",
+    "sets": 4,
+    "reps": 3,
+    "reserve": null,
+    "light": false,
+    "rest": 120,
+    "line": "4세트 × 3회 · 최대 속도 · 충분히 쉬고"
+   },
+   {
+    "slot": "pushPull",
+    "variant": "push",
+    "sets": 3,
+    "reps": 5,
+    "reserve": 2,
+    "light": false,
+    "rest": 120,
+    "line": "3세트 × 5회 · 2개 남기고"
+   },
+   {
+    "slot": "singleLeg",
+    "variant": "singleLeg",
+    "sets": 3,
+    "reps": 5,
+    "reserve": 2,
+    "light": false,
+    "rest": 90,
+    "line": "3세트 × 5회 · 2개 남기고"
+   },
+   {
+    "slot": "core",
+    "variant": "rotationalThrow",
+    "sets": 3,
+    "reps": 5,
+    "reserve": null,
+    "light": false,
+    "rest": 60,
+    "line": "3세트 × 5회"
+   }
+  ]
+ },
+ {
+  "day": 14,
+  "week": 5,
+  "label": "5주차 · 2일차",
+  "contrast": true,
+  "items": [
+   {
+    "slot": "bigLower",
+    "variant": "hinge",
+    "sets": 4,
+    "reps": 4,
+    "reserve": 2,
+    "light": false,
+    "rest": 180,
+    "line": "4세트 × 4회 · 2개 남기고"
+   },
+   {
+    "slot": "power",
+    "variant": "medball",
+    "sets": 4,
+    "reps": 3,
+    "reserve": null,
+    "light": false,
+    "rest": 120,
+    "line": "4세트 × 3회 · 최대 속도 · 충분히 쉬고"
+   },
+   {
+    "slot": "pushPull",
+    "variant": "pull",
+    "sets": 3,
+    "reps": 5,
+    "reserve": 2,
+    "light": false,
+    "rest": 120,
+    "line": "3세트 × 5회 · 2개 남기고"
+   },
+   {
+    "slot": "singleLeg",
+    "variant": "singleLeg",
+    "sets": 3,
+    "reps": 5,
+    "reserve": 2,
+    "light": false,
+    "rest": 90,
+    "line": "3세트 × 5회 · 2개 남기고"
+   },
+   {
+    "slot": "core",
+    "variant": "rotationalThrow",
+    "sets": 3,
+    "reps": 5,
+    "reserve": null,
+    "light": false,
+    "rest": 60,
+    "line": "3세트 × 5회"
+   }
+  ]
+ },
+ {
+  "day": 15,
+  "week": 5,
+  "label": "5주차 · 3일차",
+  "contrast": true,
+  "items": [
+   {
+    "slot": "bigLower",
+    "variant": "squat",
+    "sets": 4,
+    "reps": 4,
+    "reserve": 2,
+    "light": false,
+    "rest": 180,
+    "line": "4세트 × 4회 · 2개 남기고"
+   },
+   {
+    "slot": "power",
+    "variant": "jump",
+    "sets": 4,
+    "reps": 3,
+    "reserve": null,
+    "light": false,
+    "rest": 120,
+    "line": "4세트 × 3회 · 최대 속도 · 충분히 쉬고"
+   },
+   {
+    "slot": "pushPull",
+    "variant": "push",
+    "sets": 3,
+    "reps": 5,
+    "reserve": 2,
+    "light": false,
+    "rest": 120,
+    "line": "3세트 × 5회 · 2개 남기고"
+   },
+   {
+    "slot": "singleLeg",
+    "variant": "singleLeg",
+    "sets": 3,
+    "reps": 5,
+    "reserve": 2,
+    "light": false,
+    "rest": 90,
+    "line": "3세트 × 5회 · 2개 남기고"
+   },
+   {
+    "slot": "core",
+    "variant": "rotationalThrow",
+    "sets": 3,
+    "reps": 5,
+    "reserve": null,
+    "light": false,
+    "rest": 60,
+    "line": "3세트 × 5회"
+   }
+  ]
+ },
+ {
+  "day": 16,
+  "week": 6,
+  "label": "6주차 · 1일차",
+  "contrast": true,
+  "items": [
+   {
+    "slot": "bigLower",
+    "variant": "hinge",
+    "sets": 4,
+    "reps": 3,
+    "reserve": 2,
+    "light": false,
+    "rest": 180,
+    "line": "4세트 × 3회 · 2개 남기고"
+   },
+   {
+    "slot": "power",
+    "variant": "medball",
+    "sets": 4,
+    "reps": 3,
+    "reserve": null,
+    "light": false,
+    "rest": 120,
+    "line": "4세트 × 3회 · 최대 속도 · 충분히 쉬고"
+   },
+   {
+    "slot": "pushPull",
+    "variant": "pull",
+    "sets": 3,
+    "reps": 5,
+    "reserve": 2,
+    "light": false,
+    "rest": 120,
+    "line": "3세트 × 5회 · 2개 남기고"
+   },
+   {
+    "slot": "singleLeg",
+    "variant": "singleLeg",
+    "sets": 3,
+    "reps": 5,
+    "reserve": 2,
+    "light": false,
+    "rest": 90,
+    "line": "3세트 × 5회 · 2개 남기고"
+   },
+   {
+    "slot": "core",
+    "variant": "rotationalThrow",
+    "sets": 3,
+    "reps": 5,
+    "reserve": null,
+    "light": false,
+    "rest": 60,
+    "line": "3세트 × 5회"
+   }
+  ]
+ },
+ {
+  "day": 17,
+  "week": 6,
+  "label": "6주차 · 2일차",
+  "contrast": true,
+  "items": [
+   {
+    "slot": "bigLower",
+    "variant": "squat",
+    "sets": 4,
+    "reps": 3,
+    "reserve": 2,
+    "light": false,
+    "rest": 180,
+    "line": "4세트 × 3회 · 2개 남기고"
+   },
+   {
+    "slot": "power",
+    "variant": "jump",
+    "sets": 4,
+    "reps": 3,
+    "reserve": null,
+    "light": false,
+    "rest": 120,
+    "line": "4세트 × 3회 · 최대 속도 · 충분히 쉬고"
+   },
+   {
+    "slot": "pushPull",
+    "variant": "push",
+    "sets": 3,
+    "reps": 5,
+    "reserve": 2,
+    "light": false,
+    "rest": 120,
+    "line": "3세트 × 5회 · 2개 남기고"
+   },
+   {
+    "slot": "singleLeg",
+    "variant": "singleLeg",
+    "sets": 3,
+    "reps": 5,
+    "reserve": 2,
+    "light": false,
+    "rest": 90,
+    "line": "3세트 × 5회 · 2개 남기고"
+   },
+   {
+    "slot": "core",
+    "variant": "rotationalThrow",
+    "sets": 3,
+    "reps": 5,
+    "reserve": null,
+    "light": false,
+    "rest": 60,
+    "line": "3세트 × 5회"
+   }
+  ]
+ },
+ {
+  "day": 18,
+  "week": 6,
+  "label": "6주차 · 3일차",
+  "contrast": true,
+  "items": [
+   {
+    "slot": "bigLower",
+    "variant": "hinge",
+    "sets": 4,
+    "reps": 3,
+    "reserve": 2,
+    "light": false,
+    "rest": 180,
+    "line": "4세트 × 3회 · 2개 남기고"
+   },
+   {
+    "slot": "power",
+    "variant": "medball",
+    "sets": 4,
+    "reps": 3,
+    "reserve": null,
+    "light": false,
+    "rest": 120,
+    "line": "4세트 × 3회 · 최대 속도 · 충분히 쉬고"
+   },
+   {
+    "slot": "pushPull",
+    "variant": "pull",
+    "sets": 3,
+    "reps": 5,
+    "reserve": 2,
+    "light": false,
+    "rest": 120,
+    "line": "3세트 × 5회 · 2개 남기고"
+   },
+   {
+    "slot": "singleLeg",
+    "variant": "singleLeg",
+    "sets": 3,
+    "reps": 5,
+    "reserve": 2,
+    "light": false,
+    "rest": 90,
+    "line": "3세트 × 5회 · 2개 남기고"
+   },
+   {
+    "slot": "core",
+    "variant": "rotationalThrow",
+    "sets": 3,
+    "reps": 5,
+    "reserve": null,
+    "light": false,
+    "rest": 60,
+    "line": "3세트 × 5회"
+   }
+  ]
+ },
+ {
+  "day": 19,
+  "week": 7,
+  "label": "7주차 · 1일차",
+  "contrast": true,
+  "items": [
+   {
+    "slot": "bigLower",
+    "variant": "squat",
+    "sets": 5,
+    "reps": 3,
+    "reserve": 1,
+    "light": false,
+    "rest": 180,
+    "line": "5세트 × 3회 · 1개 남기고"
+   },
+   {
+    "slot": "power",
+    "variant": "jump",
+    "sets": 4,
+    "reps": 3,
+    "reserve": null,
+    "light": false,
+    "rest": 120,
+    "line": "4세트 × 3회 · 최대 속도 · 충분히 쉬고"
+   },
+   {
+    "slot": "pushPull",
+    "variant": "push",
+    "sets": 4,
+    "reps": 4,
+    "reserve": 2,
+    "light": false,
+    "rest": 120,
+    "line": "4세트 × 4회 · 2개 남기고"
+   },
+   {
+    "slot": "singleLeg",
+    "variant": "singleLeg",
+    "sets": 3,
+    "reps": 5,
+    "reserve": 2,
+    "light": false,
+    "rest": 90,
+    "line": "3세트 × 5회 · 2개 남기고"
+   },
+   {
+    "slot": "core",
+    "variant": "rotationalThrow",
+    "sets": 3,
+    "reps": 5,
+    "reserve": null,
+    "light": false,
+    "rest": 60,
+    "line": "3세트 × 5회"
+   }
+  ]
+ },
+ {
+  "day": 20,
+  "week": 7,
+  "label": "7주차 · 2일차",
+  "contrast": true,
+  "items": [
+   {
+    "slot": "bigLower",
+    "variant": "hinge",
+    "sets": 5,
+    "reps": 3,
+    "reserve": 1,
+    "light": false,
+    "rest": 180,
+    "line": "5세트 × 3회 · 1개 남기고"
+   },
+   {
+    "slot": "power",
+    "variant": "medball",
+    "sets": 4,
+    "reps": 3,
+    "reserve": null,
+    "light": false,
+    "rest": 120,
+    "line": "4세트 × 3회 · 최대 속도 · 충분히 쉬고"
+   },
+   {
+    "slot": "pushPull",
+    "variant": "pull",
+    "sets": 4,
+    "reps": 4,
+    "reserve": 2,
+    "light": false,
+    "rest": 120,
+    "line": "4세트 × 4회 · 2개 남기고"
+   },
+   {
+    "slot": "singleLeg",
+    "variant": "singleLeg",
+    "sets": 3,
+    "reps": 5,
+    "reserve": 2,
+    "light": false,
+    "rest": 90,
+    "line": "3세트 × 5회 · 2개 남기고"
+   },
+   {
+    "slot": "core",
+    "variant": "rotationalThrow",
+    "sets": 3,
+    "reps": 5,
+    "reserve": null,
+    "light": false,
+    "rest": 60,
+    "line": "3세트 × 5회"
+   }
+  ]
+ },
+ {
+  "day": 21,
+  "week": 7,
+  "label": "7주차 · 3일차",
+  "contrast": true,
+  "items": [
+   {
+    "slot": "bigLower",
+    "variant": "squat",
+    "sets": 5,
+    "reps": 3,
+    "reserve": 1,
+    "light": false,
+    "rest": 180,
+    "line": "5세트 × 3회 · 1개 남기고"
+   },
+   {
+    "slot": "power",
+    "variant": "jump",
+    "sets": 4,
+    "reps": 3,
+    "reserve": null,
+    "light": false,
+    "rest": 120,
+    "line": "4세트 × 3회 · 최대 속도 · 충분히 쉬고"
+   },
+   {
+    "slot": "pushPull",
+    "variant": "push",
+    "sets": 4,
+    "reps": 4,
+    "reserve": 2,
+    "light": false,
+    "rest": 120,
+    "line": "4세트 × 4회 · 2개 남기고"
+   },
+   {
+    "slot": "singleLeg",
+    "variant": "singleLeg",
+    "sets": 3,
+    "reps": 5,
+    "reserve": 2,
+    "light": false,
+    "rest": 90,
+    "line": "3세트 × 5회 · 2개 남기고"
+   },
+   {
+    "slot": "core",
+    "variant": "rotationalThrow",
+    "sets": 3,
+    "reps": 5,
+    "reserve": null,
+    "light": false,
+    "rest": 60,
+    "line": "3세트 × 5회"
+   }
+  ]
+ },
+ {
+  "day": 22,
+  "week": 8,
+  "label": "8주차 · 1일차",
+  "contrast": false,
+  "items": [
+   {
+    "slot": "power",
+    "variant": "medball",
+    "sets": 2,
+    "reps": 3,
+    "reserve": null,
+    "light": true,
+    "rest": 120,
+    "line": "2세트 × 3회 · 최대 속도 · 충분히 쉬고"
+   },
+   {
+    "slot": "bigLower",
+    "variant": "hinge",
+    "sets": 2,
+    "reps": 3,
+    "reserve": 4,
+    "light": true,
+    "rest": 180,
+    "line": "2세트 × 3회 · 가볍게 · 4개 남기고"
+   },
+   {
+    "slot": "pushPull",
+    "variant": "pull",
+    "sets": 2,
+    "reps": 5,
+    "reserve": 4,
+    "light": true,
+    "rest": 120,
+    "line": "2세트 × 5회 · 가볍게 · 4개 남기고"
+   },
+   {
+    "slot": "singleLeg",
+    "variant": "singleLeg",
+    "sets": 2,
+    "reps": 5,
+    "reserve": 4,
+    "light": true,
+    "rest": 90,
+    "line": "2세트 × 5회 · 가볍게 · 4개 남기고"
+   },
+   {
+    "slot": "core",
+    "variant": "rotationalThrow",
+    "sets": 2,
+    "reps": 5,
+    "reserve": null,
+    "light": true,
+    "rest": 60,
+    "line": "2세트 × 5회"
+   }
+  ]
+ },
+ {
+  "day": 23,
+  "week": 8,
+  "label": "8주차 · 2일차",
+  "contrast": false,
+  "items": [
+   {
+    "slot": "power",
+    "variant": "jump",
+    "sets": 2,
+    "reps": 3,
+    "reserve": null,
+    "light": true,
+    "rest": 120,
+    "line": "2세트 × 3회 · 최대 속도 · 충분히 쉬고"
+   },
+   {
+    "slot": "bigLower",
+    "variant": "squat",
+    "sets": 2,
+    "reps": 3,
+    "reserve": 4,
+    "light": true,
+    "rest": 180,
+    "line": "2세트 × 3회 · 가볍게 · 4개 남기고"
+   },
+   {
+    "slot": "pushPull",
+    "variant": "push",
+    "sets": 2,
+    "reps": 5,
+    "reserve": 4,
+    "light": true,
+    "rest": 120,
+    "line": "2세트 × 5회 · 가볍게 · 4개 남기고"
+   },
+   {
+    "slot": "singleLeg",
+    "variant": "singleLeg",
+    "sets": 2,
+    "reps": 5,
+    "reserve": 4,
+    "light": true,
+    "rest": 90,
+    "line": "2세트 × 5회 · 가볍게 · 4개 남기고"
+   },
+   {
+    "slot": "core",
+    "variant": "rotationalThrow",
+    "sets": 2,
+    "reps": 5,
+    "reserve": null,
+    "light": true,
+    "rest": 60,
+    "line": "2세트 × 5회"
+   }
+  ]
+ },
+ {
+  "day": 24,
+  "week": 8,
+  "label": "8주차 · 3일차",
+  "contrast": false,
+  "items": [
+   {
+    "slot": "power",
+    "variant": "medball",
+    "sets": 2,
+    "reps": 3,
+    "reserve": null,
+    "light": true,
+    "rest": 120,
+    "line": "2세트 × 3회 · 최대 속도 · 충분히 쉬고"
+   },
+   {
+    "slot": "bigLower",
+    "variant": "hinge",
+    "sets": 2,
+    "reps": 3,
+    "reserve": 4,
+    "light": true,
+    "rest": 180,
+    "line": "2세트 × 3회 · 가볍게 · 4개 남기고"
+   },
+   {
+    "slot": "pushPull",
+    "variant": "pull",
+    "sets": 2,
+    "reps": 5,
+    "reserve": 4,
+    "light": true,
+    "rest": 120,
+    "line": "2세트 × 5회 · 가볍게 · 4개 남기고"
+   },
+   {
+    "slot": "singleLeg",
+    "variant": "singleLeg",
+    "sets": 2,
+    "reps": 5,
+    "reserve": 4,
+    "light": true,
+    "rest": 90,
+    "line": "2세트 × 5회 · 가볍게 · 4개 남기고"
+   },
+   {
+    "slot": "core",
+    "variant": "rotationalThrow",
+    "sets": 2,
+    "reps": 5,
+    "reserve": null,
+    "light": true,
+    "rest": 60,
+    "line": "2세트 × 5회"
+   }
+  ]
+ }
+]

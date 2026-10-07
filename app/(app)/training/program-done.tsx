@@ -3,7 +3,7 @@ import type { ProgramResult } from '@/lib/program/load';
 
 /**
  * 프로그램을 다 마쳤을 때(설계 §13-13) — 큰 운동 넷의 추정 최대를 숫자 그대로. 안 올랐으면 '이번엔 그대로예요'.
- * 끝난 뒤 사흘 동안 트레이닝 맨 위에 둔다. 같은 프로그램 다시 하기는 바로 밑의 입구 한 줄(program-start.tsx).
+ * 끝난 뒤 사흘 동안 트레이닝 맨 위에 둔다. 다음 프로그램 고르기는 바로 밑의 입구 한 줄(program-start.tsx).
  */
 export function ProgramDone({ result }: { result: ProgramResult }) {
   return (
@@ -11,8 +11,9 @@ export function ProgramDone({ result }: { result: ProgramResult }) {
       <div className="space-y-1">
         <p className="text-xs font-semibold text-muted">근력 · 파워 프로그램</p>
         <p className="text-heading text-xl text-ink">다 마쳤어요</p>
-        <p className="text-sm text-muted">
-          완료 {result.completed} · 건너뜀 {result.skipped} · {result.weeks}주 걸렸어요
+        <p className="text-sm text-muted break-keep">
+          {result.name} · 완료 {result.completed} · 건너뜀 {result.skipped} ·{' '}
+          {result.weeks}주 걸렸어요
         </p>
       </div>
       <ul className="divide-y divide-line">
@@ -44,6 +45,7 @@ export function ProgramDone({ result }: { result: ProgramResult }) {
           );
         })}
       </ul>
+      <p className="text-xs text-muted">다음 프로그램은 바로 밑에서 골라요.</p>
     </Card>
   );
 }

@@ -5,13 +5,17 @@ import { goalPrescription } from '@/lib/report/goal-prescription';
 import { SLOT_ORDER, type SlotKey, type ThemeKey } from '@/lib/report/theme';
 import { orderSession } from '@/lib/report/exercise-order';
 import {
+  itemRx,
+  lighterRx,
+  parseProgram,
+  withSets,
   prescriptionLine,
   readSessionProgram,
+  type ItemRx,
   type SessionProgramTag,
   type SlotKind,
-  type SlotRx,
   type VariantKey,
-  slotPrescription,
+  type WeightMode,
 } from '@/lib/program/program';
 
 /**
@@ -60,6 +64,19 @@ export type FrozenExercise = {
   programSlot?: FrozenProgramSlot | null;
   /** 운동 시작 때 얼린 추천 무게(kg) — 세트 기록의 '추천 담기'와 '추천 vs 실제'에 쓴다. 숫자 없이 안내하는 날은 null */
   suggestedKg?: number | null;
+  /**
+   * 세트마다 다른 처방(% 방식 — 5/3/1 의 65 · 75 · 85%+ 같은 것). 운동 화면이 그 세트의 무게 · 횟수를 보여 준다.
+   * 2026-10-07 에 더했다. 모든 세트가 같은 날 · 그 앞에 찍은 판에는 없다.
+   */
+  setTargets?: SetTarget[] | null;
+};
+
+export type SetTarget = {
+  reps: number;
+  /** 숫자 없이 안내하는 날(기준 무게가 아직 없음)은 null */
+  kg: number | null;
+  /** 할 수 있는 만큼, 단 2개 남기고 */
+  plus?: boolean;
 };
 
 export type FrozenProgramSlot = {
@@ -72,6 +89,10 @@ export type FrozenProgramSlot = {
   substitute?: boolean;
   /** 그날 −10% · 세트 −1 조정(D19)을 했는가 — 다음 추천의 기준에서 뺀다(U1.4) */
   adjusted?: boolean;
+  /** 무게 방식(program.ts 의 WeightMode). 2026-10-07 앞에 찍은 판에는 없다 — 무게 칸이면 reserve 로 본다 */
+  mode?: WeightMode;
+  /** 앞 운동과 묶음(바로 이어서) */
+  group?: boolean;
 };
 
 export type FrozenPlan = {
@@ -181,22 +202,22 @@ export function readFrozenPlan(value: unknown): FrozenPlan | null {
 /**
  * 프로그램 날의 운동 하나.
  *
- * 세트 · 횟수 · 휴식은 그 칸 · 그 주의 처방(lib/program/program.ts), 처방 줄은 '4세트 × 5회 · 2개 남기고'.
- * 버티기(초)로 하는 운동은 처방 횟수 대신 그 운동의 시간을 그대로 쓰고 세트만 맞춘다.
+ * 세트 · 횟수 · 휴식은 그날 처방(lib/program/program.ts 의 ItemRx — '가볍게'면 이미 세트를 줄인 것), 처방 줄은 '4세트 × 5회 · 2개 남기고'.
+ * % 방식은 세트마다 목표(setTargets)를 싣는다. 버티기(초)로 하는 운동은 처방 횟수 대신 그 운동의 시간을 그대로 쓰고 세트만 맞춘다.
  * 시작할 때(app/actions/program.ts)와 운동 중 [교체](U3)가 같이 쓴다 — 둘이 따로 찍으면 바꾼 운동만 처방이 달라진다.
  */
 export function freezeProgramExercise(
   ex: SourceExercise,
-  rx: SlotRx,
+  rx: ItemRx,
   opts: {
     substitute?: boolean;
     adjusted?: boolean;
     suggestedKg: number | null;
-    /** 세트 수를 정해서 줄 때(운동 중 [교체]로 남은 세트만 이어 할 때) — 안 주면 처방 세트(조정이면 −1) */
-    sets?: number;
+    /** 세트마다 무게(% 방식) — rx.sets 와 같은 길이 */
+    kgs?: readonly (number | null)[] | null;
   }
 ): FrozenExercise {
-  const sets = opts.sets ?? (opts.adjusted ? Math.max(1, rx.sets - 1) : rx.sets);
+  const sets = rx.sets.length;
   const isHold = ex.holdSeconds != null && ex.reps == null;
   const base = freezeExercise(
     {
@@ -210,16 +231,27 @@ export function freezeProgramExercise(
   return {
     ...base,
     /* 좌우 각각은 운동 화면이 따로 붙인다(perSide) — 여기 넣으면 두 번 나온다 */
-    prescription: isHold ? base.prescription : prescriptionLine({ ...rx, sets }),
+    prescription: isHold ? base.prescription : prescriptionLine(rx, { kgs: opts.kgs ?? undefined }),
     programSlot: {
       slot: rx.slot,
       variant: rx.variant,
       reserve: rx.reserve,
       light: rx.light,
+      mode: rx.mode,
+      ...(rx.group ? { group: true } : {}),
       ...(opts.substitute ? { substitute: true } : {}),
       ...(opts.adjusted ? { adjusted: true } : {}),
     },
     suggestedKg: opts.suggestedKg,
+    ...(rx.mode === 'pct'
+      ? {
+          setTargets: rx.sets.map((s, i) => ({
+            reps: s.reps,
+            kg: opts.kgs?.[i] ?? null,
+            ...(s.plus ? { plus: true } : {}),
+          })),
+        }
+      : {}),
   };
 }
 
@@ -241,30 +273,46 @@ export function mergeReopened(kept: FrozenPlan | null, plan: FrozenPlan): Frozen
 }
 
 /**
- * 운동 중 [교체]로 넣는 운동의 처방 — 프로그램 날의 프로그램 칸에서 바꾸면 그 칸 · 그 주의 처방을 이어받는다(U3).
+ * 운동 중 [교체]로 넣는 운동의 처방 — 프로그램 날의 프로그램 칸에서 바꾸면 그날 그 운동의 처방을 이어받는다(U3).
  * 세트를 남긴 뒤 바꾸면(서버가 '더하기'로 넣는다) 남은 세트만 이어 하고, 바뀐 운동의 처방 세트는 남긴 만큼으로 줄인다 —
  * 그래야 '처방 세트 절반' 셈이 늘지 않는다(§13-17). 프로그램이 아닌 날 · 프로그램 칸이 아닌 운동은 null(지금 그대로).
  */
+export function programSwapRx(
+  plan: FrozenPlan,
+  from: FrozenExercise,
+  loggedFromSets: number
+): { rx: ItemRx; fromPlannedSets: number | null } | null {
+  if (!plan.program || !from.programSlot) return null;
+  const program = parseProgram(plan.program.key);
+  const base = program ? itemRx(program, plan.program.day, from.programSlot.variant) : null;
+  if (!base) return null;
+  const full = from.programSlot.adjusted ? lighterRx(base) : base;
+  const planned = from.plannedSets ?? full.sets.length;
+  const left = loggedFromSets > 0 ? Math.max(1, planned - loggedFromSets) : planned;
+  /* 남은 세트는 뒤쪽 — 5/3/1 이면 아직 안 한 무거운 세트들 */
+  const rx = {
+    ...withSets(full, full.sets.slice(Math.max(0, full.sets.length - left))),
+    restSeconds: from.restSeconds ?? full.restSeconds,
+  };
+  return { rx, fromPlannedSets: loggedFromSets > 0 ? loggedFromSets : null };
+}
+
 export function programSwapEntry(
   plan: FrozenPlan,
   from: FrozenExercise,
   to: SourceExercise,
   loggedFromSets: number,
-  suggestedKg: number | null
+  weigh: (rx: ItemRx) => {
+    suggestedKg: number | null;
+    kgs?: readonly (number | null)[] | null;
+  }
 ): { entry: FrozenExercise; fromPlannedSets: number | null } | null {
-  if (!plan.program || !from.programSlot) return null;
-  const rx = slotPrescription(
-    from.programSlot.slot,
-    from.programSlot.variant,
-    plan.program.week
-  );
-  const planned = from.plannedSets ?? rx.sets;
-  const sets = loggedFromSets > 0 ? Math.max(1, planned - loggedFromSets) : planned;
-  const entry = freezeProgramExercise(to, rx, {
+  const swap = programSwapRx(plan, from, loggedFromSets);
+  if (!swap || !from.programSlot) return null;
+  const entry = freezeProgramExercise(to, swap.rx, {
     substitute: true,
     adjusted: from.programSlot.adjusted,
-    suggestedKg,
-    sets,
+    ...weigh(swap.rx),
   });
-  return { entry, fromPlannedSets: loggedFromSets > 0 ? loggedFromSets : null };
+  return { entry, fromPlannedSets: swap.fromPlannedSets };
 }

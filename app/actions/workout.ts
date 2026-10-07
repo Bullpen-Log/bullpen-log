@@ -18,13 +18,13 @@ import {
   freezeExercise,
   freezePlan,
   programSwapEntry,
+  programSwapRx,
   readFrozenPlan,
   type FrozenExercise,
-  type FrozenPlan,
 } from '@/lib/workout/session-plan';
-import { WEIGHTED_SLOTS, slotPrescription } from '@/lib/program/program';
-import { suggestWeight, weightKindOf } from '@/lib/program/next-weight';
-import { programHistory } from '@/lib/program/load';
+import { activeProgram, programHistory, trainingMaxes } from '@/lib/program/load';
+import { weighItem } from '@/lib/program/next-weight';
+import type { ItemRx } from '@/lib/program/program';
 import { openSession } from '@/lib/workout/open-session';
 import { advanceProgramDay } from '@/lib/program/advance';
 import { runExercises, type RunExercise } from '@/lib/workout/run-exercises';
@@ -740,7 +740,14 @@ export async function changeSessionExercise(input: {
           from,
           to,
           loggedFrom,
-          await swapSuggestedKg(user.id, plan, from, to, session.date)
+          await swapWeigher(
+            user.id,
+            programSwapRx(plan, from, loggedFrom)?.rx ?? null,
+            plan.program.gapDays ?? null,
+            from,
+            to,
+            session.date
+          )
         )
       : null;
 
@@ -770,26 +777,35 @@ export async function changeSessionExercise(input: {
   return { exercise, mode };
 }
 
-/** [교체]로 넣는 운동의 추천 무게 — 그 운동 자신의 지난 프로그램 기록으로(없으면 숫자 없이, §3) */
-async function swapSuggestedKg(
+/**
+ * [교체]로 넣는 운동의 무게 — 그 운동 자신의 기록으로(없으면 숫자 없이, §3). 카드 · 운동 시작과 같은 weighItem.
+ * 쉰 기간은 운동 시작 때 판에 실은 값(카드와 같다), % 방식의 기준 무게는 진행 중인 줄을 시작한 날로. 무게 없는 칸은 묻지 않는다.
+ */
+async function swapWeigher(
   userId: string,
-  plan: FrozenPlan,
+  rx: ItemRx | null,
+  gapDays: number | null,
   from: FrozenExercise,
   to: CachedExercise,
   sessionDate: Date
-): Promise<number | null> {
-  const slot = from.programSlot;
-  if (!plan.program || !slot || !WEIGHTED_SLOTS.includes(slot.slot)) return null;
-  const rx = slotPrescription(slot.slot, slot.variant, plan.program.week);
-  const history = await programHistory(userId, [to.id], toDateKey(sessionDate));
-  return suggestWeight({
-    kind: weightKindOf(to.equipment),
-    bigLower: slot.slot === 'bigLower',
-    reps: rx.reps,
-    reserve: rx.reserve,
-    light: rx.light,
-    adjusted: slot.adjusted === true,
-    gapDays: null,
-    history: history.get(to.id) ?? [],
-  }).kg;
+): Promise<(rx: ItemRx) => { suggestedKg: number | null; kgs: (number | null)[] | null }> {
+  if (!rx || rx.mode === 'none') return () => ({ suggestedKg: null, kgs: null });
+  const todayKey = toDateKey(sessionDate);
+  const [row, history] = await Promise.all([
+    activeProgram(userId),
+    programHistory(userId, [to.id], todayKey),
+  ]);
+  const tms =
+    rx.mode === 'pct'
+      ? await trainingMaxes(userId, [to.id], toDateKey(row?.startedAt ?? sessionDate), todayKey)
+      : new Map<string, number>();
+  return (r) => {
+    const { suggestion, kgs } = weighItem(r, to, {
+      adjusted: from.programSlot?.adjusted === true,
+      gapDays,
+      history: history.get(to.id) ?? [],
+      tmKg: tms.get(to.id) ?? null,
+    });
+    return { suggestedKg: suggestion?.kg ?? null, kgs };
+  };
 }

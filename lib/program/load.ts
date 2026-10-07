@@ -10,39 +10,40 @@ import {
 } from '@/lib/report/theme';
 import type { loadTodayCore } from '@/lib/report/today-data';
 import type { CachedExercise } from '@/lib/library-cache';
-import { readFrozenPlan, type FrozenExercise } from '@/lib/workout/session-plan';
+import { readFrozenPlan } from '@/lib/workout/session-plan';
 import { estimate1RM } from '@/lib/workout/history';
+import { toDateKey } from '@/lib/pitch-stats';
 import {
   CAUTION_TEXT,
-  FIRST_PROGRAM,
+  TM_LOOKBACK_DAYS,
   REST_TEXT,
-  TOTAL_DAYS,
-  VARIANT_KEYS,
   VARIANT_LABELS,
-  WEIGHTED_SLOTS,
   daysBetween,
   dayLabel,
-  daySlotOrder,
-  dayVariants,
+  dayPlan,
   decideToday,
-  isContrastPower,
+  lighterRx,
+  parseProgram,
+  planSubtitle,
   prescriptionLine,
   readPinned,
-  setsNeeded,
-  slotPrescription,
+  usedVariants,
   variantCandidates,
   warmupLine,
+  type ItemRx,
   type Pinned,
+  type ProgramPlan,
   type RecoveryReason,
   type SlotAdjust,
   type SlotKind,
-  type SlotRx,
   type TodayDecision,
   type VariantKey,
 } from '@/lib/program/program';
 import {
+  historyEntry,
   reasonText,
-  suggestWeight,
+  tmFromSets,
+  weighItem,
   weightKindOf,
   weightTag,
   type HistoryEntry,
@@ -129,10 +130,36 @@ async function todaySession(userId: string, midnight: Date) {
   return { id: s.id, status: s.status, program: plan?.program ?? null };
 }
 
+/**
+ * 마지막 프로그램 운동 날(어느 프로그램이든) — 새로 시작한 줄은 lastDoneDate 가 없어, 앞 프로그램을 마친 다음 날
+ * 바로 1일차를 하거나 다섯 주 쉬고도 예전 무게가 그대로 나왔다. 쉰 기간 · 간격(§6 · §13-25)은 프로그램을 바꿔도 잇는다.
+ */
+async function lastProgramSessionKey(userId: string, before: Date): Promise<string | null> {
+  const sessions = await prisma.trainingSession.findMany({
+    where: {
+      userId,
+      status: { in: ['FINISHED', 'ABANDONED'] },
+      date: { lt: before },
+      plan: { path: ['program', 'key'], string_starts_with: '' },
+    },
+    orderBy: { date: 'desc' },
+    take: 10,
+    select: { id: true },
+  });
+  if (sessions.length === 0) return null;
+  /* 세트를 남긴 날만 — 열기만 하고 못 한 판으로 '어제 했어요'가 되지 않게 */
+  const set = await prisma.userExerciseSet.findFirst({
+    where: { userId, sessionId: { in: sessions.map((s) => s.id) } },
+    orderBy: { date: 'desc' },
+    select: { date: true },
+  });
+  return keyOf(set?.date);
+}
+
 /* ─────────────────────────── 지난 기록 ─────────────────────────── */
 
 /**
- * 운동마다 지난 프로그램 기록(무게 추천의 기준) — 지난 판(같은 프로그램을 다시 한 경우)도 함께 본다(§13-13).
+ * 운동마다 지난 프로그램 기록(무게 추천의 기준) — 다른 프로그램 · 지난 판의 것도 함께 본다(§13-13, 프로그램을 바꿔도 무게가 이어진다).
  * 대체로 넣은 운동의 기록은 그 운동 자신의 흐름이다(고정 운동 흐름에는 안 들어간다 — 운동 id 가 다르다).
  */
 export async function programHistory(
@@ -147,7 +174,8 @@ export async function programHistory(
       userId,
       status: { in: ['FINISHED', 'ABANDONED'] },
       date: { lt: new Date(`${beforeKey}T00:00:00.000Z`) },
-      plan: { path: ['program', 'key'], equals: FIRST_PROGRAM.key },
+      /* 프로그램 날 판만(키가 있는 것) */
+      plan: { path: ['program', 'key'], string_starts_with: '' },
     },
     orderBy: { date: 'desc' },
     take: 60,
@@ -185,33 +213,41 @@ export async function programHistory(
   return out;
 }
 
-function historyEntry(
-  date: string,
-  ex: FrozenExercise,
-  sets: {
-    setNo: number;
-    weightKg: number | null;
-    reps: number | null;
-    rir: number | null;
-  }[]
-): HistoryEntry {
-  const planned = ex.plannedSets ?? sets.length;
-  const plannedReps = ex.plannedReps ?? 0;
-  const last = sets[sets.length - 1];
-  const working = sets.slice(0, planned);
-  return {
-    date,
-    prescribedReps: plannedReps,
-    reserve: ex.programSlot?.reserve ?? null,
-    light: ex.programSlot?.light ?? false,
-    adjusted: ex.programSlot?.adjusted ?? false,
-    halfDone: sets.length >= setsNeeded(planned),
-    lastWeightKg: last.weightKg,
-    lastReps: last.reps,
-    rir: last.rir,
-    hitReps:
-      working.length >= planned && working.every((x) => (x.reps ?? 0) >= plannedReps),
-  };
+/**
+ * 운동마다 기준 무게(TM, % 방식) — 시작 전 6주 안의 기록(프로그램 아닌 운동 포함)으로 정해 4주 동안 그대로 둔다.
+ * 시작 전 기록이 없으면 프로그램을 시작한 뒤 첫 기록의 날로 정한다. 오늘(아직 하는 중) 기록은 넣지 않는다.
+ */
+export async function trainingMaxes(
+  userId: string,
+  exerciseIds: readonly string[],
+  startKey: string,
+  todayKey: string
+): Promise<Map<string, number>> {
+  const out = new Map<string, number>();
+  if (exerciseIds.length === 0) return out;
+  const start = new Date(`${startKey}T00:00:00.000Z`);
+  const today = new Date(`${todayKey}T00:00:00.000Z`);
+  /* 시작 뒤 기록은 첫날만 쓴다 — 오래 '진행 중'으로 둔 줄이 기록을 끝없이 읽지 않게 시작 뒤 8주까지만 */
+  const after = new Date(start.getTime() + 56 * 86_400_000);
+  const sets = await prisma.userExerciseSet.findMany({
+    where: {
+      userId,
+      exerciseId: { in: [...exerciseIds] },
+      date: {
+        gte: new Date(start.getTime() - TM_LOOKBACK_DAYS * 86_400_000),
+        lt: today < after ? today : after,
+      },
+    },
+    select: { exerciseId: true, date: true, weightKg: true, reps: true, rir: true },
+  });
+  for (const id of exerciseIds) {
+    const tm = tmFromSets(
+      sets.filter((s) => s.exerciseId === id),
+      startKey
+    );
+    if (tm != null) out.set(id, tm);
+  }
+  return out;
 }
 
 /* ─────────────────────────── 오늘 프로그램 날 ─────────────────────────── */
@@ -220,11 +256,16 @@ export type ProgramDayRow = {
   slot: SlotKind;
   variant: VariantKey;
   exercise: CachedExercise;
-  rx: SlotRx;
+  /** 그날 처방 — '가볍게'면 세트를 이미 줄인 것 */
+  rx: ItemRx;
   /** 세트 기록 화면의 처방 한 줄 */
   line: string;
   /** '−1세트' 같은 조정 뒤 세트 수 */
   sets: number;
+  /** 오늘 −10% · 세트 −1(D19) — 통증 대체와 겹친 날도. 얼릴 때 adjusted 로 실어 다음 추천의 기준에서 뺀다(U1.4) */
+  lighter: boolean;
+  /** % 방식의 세트마다 무게(그 밖은 null) */
+  kgs: (number | null)[] | null;
   adjust: SlotAdjust | null;
   /** 고정 운동 대신 그날 대체했으면 그 까닭(§13-6 줄 표시) */
   substituteFor: { title: string; reason: string } | null;
@@ -236,12 +277,13 @@ export type ProgramDayRow = {
   /** 까닭 시트의 한 문장 */
   reason: string | null;
   warmup: string | null;
-  /** 5~7주 대비 짝인가 */
-  contrast: boolean;
+  /** 앞 운동과 묶음(바로 이어서)이면 그 한 줄 */
+  contrast: string | null;
 };
 
 export type ProgramDayView = {
   row: ProgramRow;
+  plan: ProgramPlan;
   decision: TodayDecision;
   /** 오늘 이미 프로그램 판을 열었는가 · 마쳤는가 */
   todayState: 'none' | 'active' | 'finished';
@@ -257,24 +299,32 @@ export type ProgramDayView = {
   repin: Pinned;
 };
 
-export function progressOf(row: ProgramRow): { completed: number; skipped: number } {
-  const passed = Math.min(TOTAL_DAYS, row.nextDay - 1);
+export function progressOf(
+  row: ProgramRow,
+  plan: ProgramPlan
+): { completed: number; skipped: number } {
+  const passed = Math.min(plan.totalDays, row.nextDay - 1);
   return { completed: Math.max(0, passed - row.skippedDays), skipped: row.skippedDays };
 }
 
 /**
- * 오늘 프로그램 날을 만든다. 카드도, 운동 시작도 이것 하나를 쓴다.
+ * 오늘 프로그램 날을 만든다. 카드도, 운동 시작도 이것 하나를 쓴다. 모르는 프로그램 키면 null.
  */
 export async function buildProgramDay(
   core: TodayCore,
   row: ProgramRow,
   user: { id: string; ownedEquipment: string[]; trainingLevel: string | null }
-): Promise<ProgramDayView> {
+): Promise<ProgramDayView | null> {
+  const plan = parseProgram(row.programKey);
+  if (!plan) return null;
   const todayKey = core.todayKey;
   const facts = core.facts;
-  const [throwing, session] = await Promise.all([
+  const [throwing, session, lastProgramDate] = await Promise.all([
     throwSignals(user.id, todayKey),
     todaySession(user.id, core.midnight),
+    row.lastDoneDate
+      ? Promise.resolve(keyOf(row.lastDoneDate))
+      : lastProgramSessionKey(user.id, core.midnight),
   ]);
 
   const today = facts.condition.today;
@@ -298,9 +348,10 @@ export async function buildProgramDay(
   const safeIds = new Set(safe.candidates.map((e) => e.id));
   const byId = new Map(core.library.map((e) => [e.id, e]));
 
-  const day = Math.min(row.nextDay, TOTAL_DAYS + 1);
+  const day = Math.min(row.nextDay, plan.totalDays + 1);
   const pinned = readPinned(row.pinned);
-  const variants = dayVariants(Math.min(day, TOTAL_DAYS));
+  /* 다 끝났으면 마지막 날 목록(그리지는 않는다) */
+  const items = dayPlan(plan, day).items;
   const owned = user.ownedEquipment;
 
   /* 고정 운동이 숨겨졌으면 같은 칸에서 다시 고른다(§3) */
@@ -318,17 +369,18 @@ export async function buildProgramDay(
   };
 
   const painSlots: SlotKind[] = [];
-  for (const slot of daySlotOrder(Math.min(day, TOTAL_DAYS))) {
-    const { ex } = pinnedFor(variants[slot]);
-    if (ex && !safeIds.has(ex.id)) painSlots.push(slot);
+  for (const x of items) {
+    const { ex } = pinnedFor(x.variant);
+    if (ex && !safeIds.has(ex.id) && !painSlots.includes(x.slot)) painSlots.push(x.slot);
   }
 
-  const decision = decideToday({
+  const decision = decideToday(plan, {
     nextDay: row.nextDay,
     today: todayKey,
-    lastProgramDate: keyOf(row.lastDoneDate),
+    lastProgramDate,
     checkedIn: core.hasCheckinToday,
-    otherWorkoutStarted: session != null && session.program == null,
+    /* 다른 방식이나 다른 프로그램(같은 날 바꿔 시작)으로 오늘 이미 운동했으면 기다린다 */
+    otherWorkoutStarted: session != null && session.program?.key !== row.programKey,
     halted: core.picked.halted,
     ...throwing,
     hardThrowRecent: hardOuting(facts) != null,
@@ -346,9 +398,9 @@ export async function buildProgramDay(
     painSlots,
   });
 
-  const { completed, skipped } = progressOf(row);
+  const { completed, skipped } = progressOf(row, plan);
   const todayState: ProgramDayView['todayState'] =
-    session?.program == null
+    session?.program?.key !== row.programKey
       ? 'none'
       : session.status === 'ACTIVE'
         ? 'active'
@@ -356,10 +408,11 @@ export async function buildProgramDay(
 
   const view: ProgramDayView = {
     row,
+    plan,
     decision,
     todayState,
     day,
-    dayLabel: day <= TOTAL_DAYS ? dayLabel(day) : '다 마쳤어요',
+    dayLabel: day <= plan.totalDays ? dayLabel(plan, day) : '다 마쳤어요',
     completed,
     skipped,
     caution:
@@ -371,27 +424,26 @@ export async function buildProgramDay(
     dropped: [],
     repin,
   };
-  if (day > TOTAL_DAYS) return view;
+  if (day > plan.totalDays) return view;
 
   /* 하는 날이 아니어도 목록은 만든다 — 쉬는 날 · 체크인 전에는 흐린 미리보기로 보인다 */
   const adjust = decision.kind === 'go' ? decision.adjust : {};
   const gapDays = decision.kind === 'go' ? decision.gapDays : null;
-  const week = Math.ceil(day / 3);
 
   const chosen: {
-    slot: SlotKind;
+    rx: ItemRx;
     ex: CachedExercise;
     substituteFor: ProgramDayRow['substituteFor'];
     repinned: boolean;
   }[] = [];
-  for (const slot of daySlotOrder(day)) {
-    const variant = variants[slot];
+  for (const rx of items) {
+    const { slot, variant } = rx;
     const a = adjust[slot];
     const { ex: pinnedEx, repinned } = pinnedFor(variant);
     if (!pinnedEx) {
       view.dropped.push({
         slot,
-        title: variantTitle(variant),
+        title: VARIANT_LABELS[variant],
         reason: '할 수 있는 운동이 없어요',
       });
       continue;
@@ -400,7 +452,8 @@ export async function buildProgramDay(
       view.dropped.push({ slot, title: pinnedEx.title, reason: a.reason });
       continue;
     }
-    if (a?.kind === 'substitute') {
+    /* 대체는 그 운동이 통증 부위에 걸릴 때만 — 같은 칸의 다른 운동(스쿼트 · 힌지처럼 한 날 둘)은 그대로 */
+    if (a?.kind === 'substitute' && !safeIds.has(pinnedEx.id)) {
       const sub = variantCandidates(
         variant,
         core.library,
@@ -412,83 +465,100 @@ export async function buildProgramDay(
         continue;
       }
       chosen.push({
-        slot,
+        rx,
         ex: sub,
         substituteFor: { title: pinnedEx.title, reason: '통증 부위' },
         repinned: false,
       });
       continue;
     }
-    chosen.push({ slot, ex: pinnedEx, substituteFor: null, repinned });
+    chosen.push({ rx, ex: pinnedEx, substituteFor: null, repinned });
   }
 
-  const history = await programHistory(
-    user.id,
-    chosen.map((c) => c.ex.id),
-    todayKey
-  );
+  const pctIds = chosen.filter((c) => c.rx.mode === 'pct').map((c) => c.ex.id);
+  const [history, tms] = await Promise.all([
+    programHistory(
+      user.id,
+      chosen.map((c) => c.ex.id),
+      todayKey
+    ),
+    /* 시작한 날 — 그 사람의 하루(한국 날짜)로 */
+    trainingMaxes(user.id, pctIds, toDateKey(row.startedAt), todayKey),
+  ]);
 
   for (const c of chosen) {
-    const variant = variants[c.slot];
-    const rx = slotPrescription(c.slot, variant, week);
-    const a = adjust[c.slot] ?? null;
-    const lighter = a?.kind === 'lighter';
-    const sets = lighter ? Math.max(1, rx.sets - 1) : rx.sets;
-    const weighted = WEIGHTED_SLOTS.includes(c.slot);
-    const suggestion = weighted
-      ? suggestWeight({
-          kind: weightKindOf(c.ex.equipment),
-          bigLower: c.slot === 'bigLower',
-          reps: rx.reps,
-          reserve: rx.reserve,
-          light: rx.light,
-          adjusted: lighter,
-          gapDays,
-          history: history.get(c.ex.id) ?? [],
-        })
-      : null;
+    const a = adjust[c.rx.slot] ?? null;
+    const lighter = a?.kind === 'lighter' || (a?.kind === 'substitute' && a.lighter === true);
+    const rx = lighter ? lighterRx(c.rx) : c.rx;
+    const { suggestion, kgs } = weighItem(rx, c.ex, {
+      adjusted: lighter,
+      gapDays,
+      history: history.get(c.ex.id) ?? [],
+      tmKg: tms.get(c.ex.id) ?? null,
+    });
     view.rows.push({
-      slot: c.slot,
-      variant,
+      slot: rx.slot,
+      variant: rx.variant,
       exercise: c.ex,
       rx,
-      line: prescriptionLine({ ...rx, sets }, c.ex.perSide),
-      sets,
+      line: prescriptionLine(rx, { perSide: c.ex.perSide, kgs: kgs ?? undefined }),
+      sets: rx.sets.length,
+      lighter,
+      kgs,
       adjust: a,
       substituteFor: c.substituteFor,
       repinned: c.repinned,
       suggestion,
-      tag: lighter ? '−10% · −1세트' : suggestion ? weightTag(suggestion) : null,
-      reason: suggestion ? reasonText(suggestion) : null,
-      warmup:
-        c.slot === 'bigLower' && c.ex.equipment.includes('바벨')
-          ? warmupLine(suggestion?.kg ?? null)
+      tag: lighter
+        ? rx.sets.length < c.rx.sets.length
+          ? '−10% · −1세트'
+          : '−10%'
+        : suggestion
+          ? weightTag(suggestion)
           : null,
-      contrast: c.slot === 'power' && isContrastPower(day),
+      reason: suggestion ? reasonText(suggestion) : null,
+      /* 준비 세트는 첫 세트 무게까지(5/3/1 처럼 세트마다 오르면 그 첫 세트) */
+      warmup:
+        rx.slot === 'bigLower' && c.ex.equipment.includes('바벨')
+          ? warmupLine(kgs?.[0] ?? suggestion?.kg ?? null)
+          : null,
+      contrast: null,
     });
   }
+
+  /*
+   * 묶음(바로 이어서) — 첫 운동은 짧게 쉬고 짝으로 넘어간다(프렌치 컨트라스트 20초). 짝이 오늘 빠졌으면 첫 운동도
+   * 묶음 사이 쉬는 시간으로 쉰다. 짝의 한 줄은 첫 운동이 짧게 쉬면 '번갈아', 길게 쉬면(옛 프로그램 대비) 예전 글.
+   */
+  view.rows.forEach((r, i) => {
+    const at = items.findIndex((x) => x.variant === r.variant);
+    const mates: ItemRx[] = [];
+    for (let j = at + 1; j < items.length && items[j].group; j++) mates.push(items[j]);
+    const prev = view.rows[i - 1];
+    if (r.rx.group && prev) {
+      r.contrast =
+        prev.rx.restSeconds <= BUNDLE_SHORT_REST
+          ? '바로 이어서 · 한 세트씩 번갈아 해요'
+          : '바로 이어서 · 큰 하체 뒤 2~3분 쉬고';
+    }
+    if (mates.length > 0 && !view.rows[i + 1]?.rx.group) {
+      const rest = Math.max(r.rx.restSeconds, ...mates.map((m) => m.restSeconds));
+      if (rest !== r.rx.restSeconds) r.rx = { ...r.rx, restSeconds: rest };
+    }
+  });
   return view;
 }
 
-function variantTitle(v: VariantKey): string {
-  return {
-    squat: '스쿼트',
-    hinge: '힌지',
-    push: '밀기',
-    pull: '당기기',
-    singleLeg: '한쪽 하체',
-    jump: '점프',
-    medball: '메디신볼',
-    antiRotation: '몸통',
-    rotationalThrow: '회전 던지기',
-  }[v];
-}
+/** 이만큼 이하로 쉬는 묶음은 '한 세트씩 번갈아' 하는 묶음이다(운동 화면도 같은 값) */
+const BUNDLE_SHORT_REST = 30;
 
 /* ─────────────────────────── 화면에 넘길 모양 ─────────────────────────── */
 
 /** 트레이닝 카드(program-card.tsx)가 받는 것 — 날짜 · Json · 라이브러리 줄 없이 글과 숫자만 */
 export type ProgramCardProps = {
   name: string;
+  /** '12회 · 주 3번 · 4주' */
+  subtitle: string;
   kind: TodayDecision['kind'];
   todayState: ProgramDayView['todayState'];
   day: number;
@@ -506,14 +576,15 @@ export type ProgramCardProps = {
     kg: number | null;
     /** 덤벨 · 케틀벨 */
     perHand: boolean;
-    sets: number;
-    reps: number;
+    /** '3 × 5' — 세트마다 다르면 '3세트' */
+    amount: string;
     line: string;
     tag: string | null;
     reason: string | null;
     warmup: string | null;
     substituteFor: string | null;
-    contrast: boolean;
+    /** 묶음 한 줄(바로 이어서) */
+    contrast: string | null;
     first: boolean;
   }[];
   dropped: { title: string; reason: string }[];
@@ -527,16 +598,18 @@ export function programCardProps(
   const byId = new Map(library.map((e) => [e.id, e.title]));
   const pinned = { ...readPinned(view.row.pinned), ...view.repin };
   const nextDay = view.day + (view.todayState === 'finished' ? 0 : 1);
+  const plan = view.plan;
   return {
-    name: FIRST_PROGRAM.name,
+    name: plan.def.name,
+    subtitle: planSubtitle(plan),
     kind: view.decision.kind,
     todayState: view.todayState,
     day: view.day,
     dayLabel: view.dayLabel,
-    nextLabel: nextDay <= TOTAL_DAYS ? dayLabel(nextDay) : null,
+    nextLabel: nextDay <= plan.totalDays ? dayLabel(plan, nextDay) : null,
     completed: view.completed,
     skipped: view.skipped,
-    total: TOTAL_DAYS,
+    total: plan.totalDays,
     caution: view.caution,
     restText: view.restText,
     rows: view.rows.map((r) => ({
@@ -545,8 +618,11 @@ export function programCardProps(
       slotLabel: VARIANT_LABELS[r.variant],
       kg: r.suggestion?.kg ?? null,
       perHand: weightKindOf(r.exercise.equipment) === 'dumbbell',
-      sets: r.sets,
-      reps: r.rx.reps,
+      amount: r.rx.sets.every(
+        (x) => x.reps === r.rx.sets[0].reps && x.pct === r.rx.sets[0].pct && !x.plus
+      )
+        ? `${r.sets} × ${r.rx.reps}`
+        : `${r.sets}세트`,
       line: r.line,
       tag: r.substituteFor ? `대체 · ${r.substituteFor.reason}` : r.tag,
       reason: r.reason,
@@ -556,7 +632,7 @@ export function programCardProps(
       first: r.suggestion != null && r.suggestion.kg == null,
     })),
     dropped: view.dropped.map((d) => ({ title: d.title, reason: d.reason })),
-    pinned: VARIANT_KEYS.map((v) => ({
+    pinned: usedVariants(plan.def).map((v) => ({
       variant: v,
       label: VARIANT_LABELS[v],
       title: pinned[v] ? (byId.get(pinned[v] as string) ?? null) : null,
@@ -575,21 +651,27 @@ export type ProgramResult = {
 };
 
 /**
- * 큰 운동 넷(스쿼트 · 힌지 · 밀기 · 당기기)의 추정 최대 — 처음 6번 중 최고 → 마지막 6번 중 최고.
- * 숫자 그대로 보인다(안 올랐으면 화면이 '이번엔 그대로예요').
+ * 큰 운동(스쿼트 · 힌지 · 밀기 · 당기기 중 그 프로그램이 쓰는 것)의 추정 최대 — 처음 6번 중 최고 → 마지막 6번 중 최고.
+ * 숫자 그대로 보인다(안 올랐으면 화면이 '이번엔 그대로예요'). 모르는 프로그램 키면 null.
  */
 export async function programResult(
   row: ProgramRow,
   library: readonly CachedExercise[]
-): Promise<ProgramResult> {
+): Promise<ProgramResult | null> {
+  const plan = parseProgram(row.programKey);
+  if (!plan) return null;
   const pinned = readPinned(row.pinned);
   const byId = new Map(library.map((e) => [e.id, e.title]));
-  const lifts: VariantKey[] = ['squat', 'hinge', 'push', 'pull'];
+  const used = usedVariants(plan.def);
+  const lifts = (['squat', 'hinge', 'push', 'pull'] as const).filter((v) =>
+    used.includes(v)
+  );
   const ids = lifts.map((v) => pinned[v]).filter((id): id is string => !!id);
-  const endKey = (row.endedAt ?? new Date()).toISOString().slice(0, 10);
+  /* 한국 날짜로 — 기록 · 기준 무게(trainingMaxes)와 같은 하루 */
+  const endKey = toDateKey(row.endedAt ?? new Date());
   const history = await programHistory(row.userId, ids, endKey);
-  const startKey = row.startedAt.toISOString().slice(0, 10);
-  const { completed, skipped } = progressOf(row);
+  const startKey = toDateKey(row.startedAt);
+  const { completed, skipped } = progressOf(row, plan);
   const best = (list: HistoryEntry[]) =>
     list.reduce<number | null>((m, e) => {
       const v =
@@ -597,7 +679,7 @@ export async function programResult(
       return v != null && (m == null || v > m) ? v : m;
     }, null);
   return {
-    name: FIRST_PROGRAM.name,
+    name: plan.def.name,
     completed,
     skipped,
     weeks: Math.max(1, Math.ceil(daysBetween(startKey, endKey) / 7)),

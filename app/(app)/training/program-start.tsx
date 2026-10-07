@@ -4,16 +4,28 @@ import { useState, useTransition } from 'react';
 import { ChevronRight } from 'lucide-react';
 import { Modal } from '@/components/modal';
 import { Segmented } from '@/components/segmented';
+import { DisclosureButton } from '@/components/disclosure';
 import { ErrorLine } from '@/components/error-line';
 import { OFFLINE_MESSAGE, orOffline } from '@/lib/action-offline';
 import { previewPinned, programChoices, startProgram } from '@/app/actions/program';
-import { FIRST_PROGRAM, VARIANT_LABELS, type VariantKey } from '@/lib/program/program';
+import {
+  GOAL_LABELS,
+  PLUS_RESERVE,
+  REQUIRED_EQUIPMENT,
+  TM_LOOKBACK_DAYS,
+  VARIANT_LABELS,
+  type PerWeek,
+  type ProgramChoice,
+  type ProgramGoal,
+  type VariantKey,
+} from '@/lib/program/program';
 
 /**
- * 근력 · 파워 프로그램 입구 한 줄 + 시작 시트(설계 §13-12 · 18).
+ * 근력 · 파워 프로그램 입구 한 줄 + 고르기 · 시작 시트(설계 §13-12 · 18).
  *
- * 시트는 한 쪽에 하나씩: ① 시즌 ② 경력(비었을 때만) ③ 장비(비었을 때만, 빈 채로 시작) ④ 고정 9개 ⑤ 요약 + [시작].
- * 막히면 그 쪽에 까닭 한 줄 + 할 일 하나. 프로필(경력 · 장비 · 생년월일)은 [시작] 때만 저장한다(app/actions/program.ts).
+ * 시트는 한 쪽에 하나씩: ⓪ 목표 · 프로그램 고르기 → 그 프로그램 소개 → ① 시즌 ② 경력(비었을 때만) ③ 장비(비었을 때만)
+ * ④ 고정 운동 ⑤ 주 몇 번 + 요약 + [시작]. 막히면 그 쪽에 까닭 한 줄 + 할 일 하나.
+ * 프로필(경력 · 장비 · 생년월일)은 [시작] 때만 저장한다(app/actions/program.ts).
  */
 
 type Season = 'off' | 'pre' | 'in' | 'rehab';
@@ -25,7 +37,13 @@ const SEASONS: { value: Season; label: string }[] = [
   { value: 'rehab', label: '재활' },
 ];
 
+const GOALS: { value: ProgramGoal; label: string }[] = (
+  ['base', 'strength', 'power'] as const
+).map((g) => ({ value: g, label: GOAL_LABELS[g] }));
+
 export type ProgramStartProps = {
+  /** 고를 수 있는 프로그램(lib/program/program.ts 의 programChoiceList) */
+  programs: ProgramChoice[];
   /** 생년월일이 없는가(가입 때 받지만 옛 계정에는 없을 수 있다) */
   needBirth: boolean;
   /** 경력 — 비었으면 시트에서 묻는다 */
@@ -53,7 +71,9 @@ export function ProgramStart({ props }: { props: ProgramStartProps }) {
           <span className="block text-[15px] font-semibold text-ink">
             근력 · 파워 프로그램
           </span>
-          <span className="block text-xs text-muted">{FIRST_PROGRAM.subtitle}</span>
+          <span className="block text-xs text-muted">
+            {props.programs.length}개 중에 골라요 · 모두 {props.programs[0]?.weeks.length ?? 4}주
+          </span>
         </span>
         <ChevronRight aria-hidden className="h-4 w-4 shrink-0 text-muted" />
       </button>
@@ -62,7 +82,7 @@ export function ProgramStart({ props }: { props: ProgramStartProps }) {
   );
 }
 
-type Step = 'intro' | 'season' | 'level' | 'equipment' | 'birth' | 'pins' | 'summary';
+type Step = 'list' | 'intro' | 'season' | 'level' | 'equipment' | 'birth' | 'pins' | 'summary';
 
 function StartSheet({
   open,
@@ -81,8 +101,12 @@ function StartSheet({
     'pins',
     'summary',
   ];
-  const [step, setStep] = useState<Step>('intro');
+  const [step, setStep] = useState<Step>('list');
+  const [goal, setGoal] = useState<ProgramGoal>('strength');
+  const [choice, setChoice] = useState<ProgramChoice | null>(null);
+  const [weeksOpen, setWeeksOpen] = useState(false);
   const [season, setSeason] = useState<Season>(props.season ?? 'off');
+  const [perWeekPick, setPerWeekPick] = useState<PerWeek | null>(null);
   const [birth, setBirth] = useState('');
   const [level, setLevel] = useState<string | null>(props.level);
   const [owned, setOwned] = useState<string[]>([]);
@@ -106,14 +130,34 @@ function StartSheet({
   };
   const back = () => (at <= 0 ? go('intro') : go(steps[at - 1]));
 
+  /* 시즌 직전이면 주 2번(되는 프로그램만), 아니면 주 3번 — 고르면 그대로 */
+  const perWeek: PerWeek = choice
+    ? (perWeekPick ??
+      (season === 'pre' && choice.perWeek.includes(2)
+        ? 2
+        : choice.perWeek.includes(3)
+          ? 3
+          : 2))
+    : 3;
+
   const equipmentForCall = props.owned.length === 0 ? owned : null;
   const levelForCall = props.level == null ? level : null;
 
+  const pick = (c: ProgramChoice) => {
+    setChoice(c);
+    setPins(null);
+    setPerWeekPick(null);
+    setWeeksOpen(false);
+    go('intro');
+  };
+
   const loadPins = () =>
     start(async () => {
+      if (!choice) return;
       setPins(null);
       const r = await orOffline(
         previewPinned({
+          programId: choice.id,
           ownedEquipment: equipmentForCall,
           trainingLevel: levelForCall,
         }),
@@ -141,9 +185,12 @@ function StartSheet({
 
   const submit = () =>
     start(async () => {
+      if (!choice) return;
       setError(undefined);
       const r = await orOffline(
         startProgram({
+          programId: choice.id,
+          perWeek,
           season: season === 'pre' ? 'pre' : 'off',
           birthDate: props.needBirth ? birth : null,
           trainingLevel: levelForCall,
@@ -170,7 +217,7 @@ function StartSheet({
             action: '암케어의 재활 카드에서 이어 가요.',
           }
         : null;
-  const missing = FIRST_PROGRAM.requiredEquipment.filter((e) => !owned.includes(e));
+  const missing = REQUIRED_EQUIPMENT.filter((e) => !owned.includes(e));
   const levelBlocked = level === '입문';
 
   const canNext =
@@ -186,23 +233,25 @@ function StartSheet({
               ? pins != null && changing == null
               : true;
 
+  const shown = props.programs.filter((p) => p.goal === goal);
+
   return (
     <Modal
       open={open}
       onClose={() => {
-        setStep('intro');
+        setStep('list');
         onClose();
       }}
       title={
-        step === 'intro'
-          ? FIRST_PROGRAM.name
+        step === 'list' || !choice
+          ? '프로그램 고르기'
           : changing
             ? `${VARIANT_LABELS[changing]} 바꾸기`
-            : FIRST_PROGRAM.name
+            : choice.name
       }
     >
       <div className="space-y-4">
-        {step !== 'intro' && (
+        {step !== 'list' && step !== 'intro' && (
           <div className="flex gap-1" aria-label={`${at + 1} / ${steps.length}`}>
             {steps.map((s, i) => (
               <span
@@ -213,15 +262,77 @@ function StartSheet({
           </div>
         )}
 
-        {step === 'intro' && (
+        {step === 'list' && (
           <div className="space-y-3">
-            <p className="text-sm text-muted">{FIRST_PROGRAM.subtitle}</p>
-            <p className="text-sm leading-relaxed text-ink break-keep">
-              1~4주는 근력, 5~8주는 파워. 4주와 8주는 가볍게 해요. 고정한 9가지로 24번
-              하며 무게를 올려 가요.
+            <Segmented
+              label="목표"
+              role="tablist"
+              value={goal}
+              onChange={setGoal}
+              options={GOALS}
+            />
+            <ul className="divide-y divide-line">
+              {shown.map((p) => (
+                <li key={p.id}>
+                  <button
+                    type="button"
+                    onClick={() => pick(p)}
+                    className="flex min-h-14 w-full items-center gap-3 py-2 text-left"
+                  >
+                    <span className="min-w-0 flex-1">
+                      <span className="block text-[15px] font-semibold text-ink">
+                        {p.name}
+                      </span>
+                      <span className="block text-xs text-muted break-keep">
+                        {p.summary}
+                      </span>
+                    </span>
+                    <ChevronRight aria-hidden className="h-4 w-4 shrink-0 text-muted" />
+                  </button>
+                </li>
+              ))}
+            </ul>
+            <p className="text-xs text-muted">
+              시즌 중 유지 · 성장기 프로그램은 곧 열려요.
             </p>
+          </div>
+        )}
+
+        {step === 'intro' && choice && (
+          <div className="space-y-3">
+            <div className="space-y-1">
+              <p className="text-sm text-ink break-keep">{choice.summary}</p>
+              <p className="text-xs text-muted">
+                {choice.weeks.length}주 · 주{' '}
+                {choice.perWeek.length > 1
+                  ? `${Math.min(...choice.perWeek)}~${Math.max(...choice.perWeek)}`
+                  : choice.perWeek[0]}
+                번 · {choice.origin}
+              </p>
+            </div>
+            <div className="-mx-1 rounded-xl bg-ink/4">
+              <DisclosureButton
+                open={weeksOpen}
+                onClick={() => setWeeksOpen((v) => !v)}
+                label="자세히 보기"
+              />
+              {weeksOpen && (
+                <div className="space-y-2 px-3 pb-3 text-xs leading-relaxed break-keep">
+                  <ul className="space-y-1 text-muted">
+                    {choice.detail.map((d) => (
+                      <li key={d}>{d}</li>
+                    ))}
+                  </ul>
+                  <ul className="space-y-1 text-ink">
+                    {choice.weeks.map((w) => (
+                      <li key={w}>{w}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </div>
             <div className="flex flex-wrap gap-1.5">
-              {FIRST_PROGRAM.requiredEquipment.map((e) => (
+              {REQUIRED_EQUIPMENT.map((e) => (
                 <span
                   key={e}
                   className="rounded-full border border-line-strong px-2.5 py-1 text-xs font-semibold text-ink"
@@ -241,12 +352,16 @@ function StartSheet({
                 onClick={() => go('season')}
                 className="min-h-12 w-full rounded-2xl bg-sky text-base font-bold text-white"
               >
-                시작하기
+                이걸로 할래요
               </button>
             )}
-            <p className="text-xs text-muted">
-              시즌 중 유지 · 성장기 프로그램은 곧 열려요.
-            </p>
+            <button
+              type="button"
+              onClick={() => go('list')}
+              className="min-h-11 w-full text-sm font-semibold text-sky-strong"
+            >
+              다른 프로그램 보기
+            </button>
           </div>
         )}
 
@@ -313,13 +428,11 @@ function StartSheet({
             </p>
             <div className="flex flex-wrap gap-1.5">
               {[
-                ...FIRST_PROGRAM.requiredEquipment,
-                ...props.equipment.filter(
-                  (e) => !FIRST_PROGRAM.requiredEquipment.includes(e)
-                ),
+                ...REQUIRED_EQUIPMENT,
+                ...props.equipment.filter((e) => !REQUIRED_EQUIPMENT.includes(e)),
               ].map((e) => {
                 const on = owned.includes(e);
-                const required = FIRST_PROGRAM.requiredEquipment.includes(e);
+                const required = REQUIRED_EQUIPMENT.includes(e);
                 return (
                   <button
                     key={e}
@@ -347,7 +460,9 @@ function StartSheet({
         {step === 'pins' && (
           <div className="space-y-2">
             <p className="text-base font-semibold text-ink">
-              {changing ? '바꿀 운동을 골라요' : '이 9가지로 24번 해요'}
+              {changing
+                ? '바꿀 운동을 골라요'
+                : `이 ${pins?.length ?? ''}가지로 해요`}
             </p>
             {changing ? (
               choices == null ? (
@@ -409,20 +524,34 @@ function StartSheet({
           </div>
         )}
 
-        {step === 'summary' && (
-          <div className="space-y-2 text-sm text-ink">
+        {step === 'summary' && choice && (
+          <div className="space-y-3 text-sm text-ink">
             <p className="text-base font-semibold">준비됐어요</p>
-            <p>24회 · 주 3번. 1일차는 오늘 할 수 있으면 오늘부터예요.</p>
-            <p className="text-muted">
-              무게는 처음 두세 번은 숫자 없이 &lsquo;몇 개 남는 무게&rsquo;로 맞추고, 그
-              뒤부터 추천해요.
+            {choice.perWeek.length > 1 && (
+              <Segmented
+                label="주당 횟수"
+                value={String(perWeek)}
+                onChange={(v) => setPerWeekPick(v === '2' ? 2 : 3)}
+                options={choice.perWeek.map((n) => ({
+                  value: String(n),
+                  label: `주 ${n}번`,
+                }))}
+              />
+            )}
+            <p>
+              {perWeek * choice.weeks.length}회 · {choice.weeks.length}주. 오늘부터 할 수 있어요.
+            </p>
+            <p className="text-muted break-keep">
+              {choice.usesPct
+                ? `기준 무게는 시작 전 ${TM_LOOKBACK_DAYS / 7}주 기록으로 정해요. 기록이 없으면 첫날 ${PLUS_RESERVE}개 남는 무게로 정해요.`
+                : '기록이 없으면 처음엔 몇 개 남는 무게로 맞추고, 그 뒤부터 추천해요.'}
             </p>
           </div>
         )}
 
         {error && <ErrorLine>{error}</ErrorLine>}
 
-        {step !== 'intro' && (
+        {step !== 'list' && step !== 'intro' && (
           <div className="flex gap-2">
             <button
               type="button"

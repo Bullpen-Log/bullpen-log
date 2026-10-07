@@ -67,7 +67,7 @@ import {
 } from '@/lib/exercise-meta';
 import type { RunExercise } from '@/lib/workout/run-exercises';
 import {
-  WEIGHTED_SLOTS,
+  asksReserve as asksReserveFor,
   finishLine,
   setsNeeded,
   warmupLine,
@@ -526,6 +526,10 @@ export function SessionClient({
   );
   /* 고치는 세트가 몇 번째 줄인가. 그사이 지워져 없으면 -1 — 고치는 중이 아니다 */
   const editIndex = editing ? mine.findIndex((s) => s.setNo === editing.setNo) : -1;
+  /* 프로그램 % 방식 — 이번에 할 세트의 목표(5/3/1 의 65 · 75 · 85%+ 처럼 세트마다 다르다). 고치는 중이면 그 세트 */
+  const targetIndex = editIndex >= 0 ? editIndex : mine.length;
+  const target = ex.setTargets?.[targetIndex] ?? null;
+  const suggestKg = ex.setTargets ? (target?.kg ?? null) : ex.suggestedKg;
 
   /*
    * 마지막으로 남긴 세트 — 운동과 상관없이 하나. 쉰 시간은 그때부터다.
@@ -964,12 +968,14 @@ export function SessionClient({
     void flush();
   };
 
-  /** 프로그램 날 '추천 95kg 담기' — 무게만 채운다(횟수는 본인이). 칸을 미리 채우지는 않는다(맨 위 설명). */
+  /**
+   * 프로그램 날 '추천 95kg 담기' — 무게만 채운다(횟수는 본인이). 칸을 미리 채우지는 않는다(맨 위 설명).
+   * 세트마다 목표가 다르면 그 세트의 무게와 횟수를 담는다('+' 세트는 횟수를 본인이).
+   */
   const fillSuggested = () => {
-    if (ex.suggestedKg == null) return;
-    setWeight(
-      String(wUnit === 'lb' ? roundForDisplay(ex.suggestedKg, 'lb') : ex.suggestedKg)
-    );
+    if (suggestKg == null) return;
+    setWeight(String(wUnit === 'lb' ? roundForDisplay(suggestKg, 'lb') : suggestKg));
+    if (target && !target.plus) setCount(String(target.reps));
     setError(null);
   };
 
@@ -1206,9 +1212,26 @@ export function SessionClient({
         )}
         {ex.programSlot?.slot === 'bigLower' &&
           wUnit === 'kg' &&
-          warmupLine(ex.suggestedKg) && (
-            <p className="mt-0.5 text-xs text-muted">{warmupLine(ex.suggestedKg)}</p>
+          warmupLine(ex.setTargets?.[0]?.kg ?? ex.suggestedKg) && (
+            <p className="mt-0.5 text-xs text-muted">
+              {warmupLine(ex.setTargets?.[0]?.kg ?? ex.suggestedKg)}
+            </p>
           )}
+        {/* 짧게 쉬는 묶음(프렌치 컨트라스트)만 — 옛 프로그램 대비는 2~3분 쉬고 넘어가서 번갈아 하지 않는다 */}
+        {((ex.programSlot?.group &&
+          (list[at - 1]?.restSeconds ?? Infinity) <= BUNDLE_SHORT_REST) ||
+          (list[at + 1]?.programSlot?.group &&
+            (ex.restSeconds ?? Infinity) <= BUNDLE_SHORT_REST)) && (
+          <p className="mt-0.5 text-xs text-muted">바로 이어서 · 한 세트씩 번갈아 해요</p>
+        )}
+        {/* 세트마다 다른 날 — 지금 할 세트 하나만(+ 의 '몇 개 남기고'는 위 처방 줄에 있다) */}
+        {target && (
+          <p className="mt-1 text-sm font-semibold text-ink">
+            이번 세트 · {target.reps}회{target.plus ? '+' : ''}
+            {target.kg != null &&
+              ` · ${wUnit === 'lb' ? roundForDisplay(target.kg, 'lb') : target.kg}${wUnit}`}
+          </p>
+        )}
         {ex.plannedSets != null && ex.plannedSets > 0 && (
           <SetDots planned={ex.plannedSets} done={mine.length} />
         )}
@@ -1548,7 +1571,7 @@ export function SessionClient({
                     그만두기
                   </button>
                 </div>
-              ) : ex.suggestedKg != null ? (
+              ) : suggestKg != null ? (
                 <button
                   type="button"
                   onClick={fillSuggested}
@@ -1556,9 +1579,7 @@ export function SessionClient({
                 >
                   <RotateCcw aria-hidden className="h-3.5 w-3.5" strokeWidth={2.4} />
                   추천{' '}
-                  {wUnit === 'lb'
-                    ? roundForDisplay(ex.suggestedKg, 'lb')
-                    : ex.suggestedKg}
+                  {wUnit === 'lb' ? roundForDisplay(suggestKg, 'lb') : suggestKg}
                   {wUnit} 담기
                 </button>
               ) : (
@@ -1693,14 +1714,12 @@ export function SessionClient({
   );
 }
 
-/** 프로그램 날, 무게 추천 칸의 처방 마지막 세트 뒤에 '몇 개 더?'를 묻는가(파워 · 몸통 · 가벼운 주는 안 묻는다) */
+/** 이만큼 이하로 쉬는 묶음은 한 세트씩 번갈아 한다(lib/program/load.ts 와 같은 값) */
+const BUNDLE_SHORT_REST = 30;
+
+/** 프로그램 날, 마지막 세트 뒤에 '몇 개 더?'를 묻는가(lib/program/program.ts asksReserve) */
 function asksReserve(ex: RunExercise): boolean {
-  return (
-    ex.programSlot != null &&
-    WEIGHTED_SLOTS.includes(ex.programSlot.slot) &&
-    !ex.programSlot.light &&
-    ex.plannedSets != null
-  );
+  return asksReserveFor(ex.programSlot, ex.plannedSets);
 }
 
 /**

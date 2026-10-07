@@ -4,16 +4,14 @@ import { filterByLevel } from '@/lib/report/personalize';
 import { withJosa } from '@/lib/korean';
 
 /**
- * 근력 · 파워 프로그램 — 정의 · 시작 자격 · 운동 고정 · 오늘 판정 · 일차 넘기기. 순수 함수만(DB 를 모른다).
+ * 근력 · 파워 프로그램 — 프로그램 목록 · 시작 자격 · 운동 고정 · 오늘 판정 · 일차 넘기기. 순수 함수만(DB 를 모른다).
  *
- * 설계: docs/designs/pitcher-strength-power-programs.md (2 숫자표 · 3 고정 · 4~6 안전 · 던지는 일정 · 간격 · 9 진행 · 13 화면).
- * 재활(lib/armcare/rehab.ts)처럼 코드 상수 + 순수 함수로 두고, DB 와 화면은 이것을 읽기만 한다.
- * 무게 추천은 따로 둔다(lib/program/next-weight.ts).
+ * 안전 · 화면 규칙: docs/designs/pitcher-strength-power-programs.md. 프로그램 목록은 이 파일의 PROGRAMS.
+ * 2026-10-07 사용자: "실제 있는 프로그램을 기반으로" — 스트롱리프트 5×5 · 5/3/1 BBB · 5/3/1 · 텍사스 메소드 ·
+ * 저거넛 5회 파도 · WS4SB · 프렌치 컨트라스트. 모두 원본의 첫 4주. 투수라서 원본과 다르게 한 곳에는 '투수 맞춤' 주석을 단다.
+ * 옛 '비시즌 근력 → 파워'(8주)는 목록에서 숨기고, 진행 중인 줄만 같은 모양(LEGACY)으로 이어 간다.
  *
- *   첫 프로그램 '비시즌 근력 → 파워': 주 3번 × 8주 = 24회. 1~4주 근력, 5~8주 파워, 4 · 8주는 가볍게.
- *   날마다 다섯 칸(파워 · 큰 하체 · 밀기 또는 당기기 · 한쪽 하체 · 몸통), 고정하는 운동은 칸 × 변형 9개(U6).
- *
- * 화면 글은 해요체 · 줄표 없이(HANDOFF 2026-10-04).
+ * 무게는 따로 둔다(lib/program/next-weight.ts). 화면 글은 해요체 · 줄표 없이(HANDOFF 2026-10-04).
  */
 
 /** 기능 전체의 스위치 — 끄면 트레이닝 화면의 입구 · 카드가 사라진다. 진행 중이던 줄은 그대로 남는다. */
@@ -21,9 +19,8 @@ export const PROGRAMS_ENABLED = true;
 
 /* ─────────────────────────────── 이름들 ─────────────────────────────── */
 
-export type ProgramKey = 'offseason-strength-power';
 export type SlotKind = 'power' | 'bigLower' | 'pushPull' | 'singleLeg' | 'core';
-/** 고정하는 단위(U6) — 칸 × 변형 */
+/** 고정하는 단위(U6) — 운동 하나가 하나의 변형에 고정된다 */
 export type VariantKey =
   | 'squat'
   | 'hinge'
@@ -48,121 +45,471 @@ export const VARIANT_KEYS: readonly VariantKey[] = [
 ];
 
 export const VARIANT_LABELS: Record<VariantKey, string> = {
-  squat: '큰 하체 A',
-  hinge: '큰 하체 B',
+  squat: '스쿼트',
+  hinge: '힌지',
   push: '밀기',
   pull: '당기기',
-  singleLeg: '한쪽 하체',
-  jump: '파워 점프',
-  medball: '파워 메디신볼',
-  antiRotation: '몸통 (1~4주)',
-  rotationalThrow: '몸통 (5~8주)',
+  singleLeg: '한 다리',
+  jump: '점프',
+  medball: '메디신볼',
+  antiRotation: '몸통 버티기',
+  rotationalThrow: '회전 던지기',
 };
 
-/** 무게 추천이 있는 칸 — '몇 개 더?'도 여기서만 묻는다(§13-7) */
+/** 변형 → 칸 종류. 그날 조정(가볍게 · 빼기 · 대체)과 '몇 개 더?'는 칸 종류로 정한다. */
+export const SLOT_OF: Record<VariantKey, SlotKind> = {
+  squat: 'bigLower',
+  hinge: 'bigLower',
+  push: 'pushPull',
+  pull: 'pushPull',
+  singleLeg: 'singleLeg',
+  jump: 'power',
+  medball: 'power',
+  antiRotation: 'core',
+  rotationalThrow: 'core',
+};
+
+/** 무게를 드는 칸 */
 export const WEIGHTED_SLOTS: readonly SlotKind[] = [
   'bigLower',
   'pushPull',
   'singleLeg',
 ];
 
-export const DAYS_PER_WEEK = 3;
-export const TOTAL_WEEKS = 8;
-export const TOTAL_DAYS = DAYS_PER_WEEK * TOTAL_WEEKS;
-export const LIGHT_WEEKS: readonly number[] = [4, 8];
+/** 시작에 꼭 있어야 하는 장비(§1) — 모든 프로그램이 같다. 트랩바는 '바벨'에 들어간다(§13-21). */
+export const REQUIRED_EQUIPMENT: readonly string[] = ['바벨', '덤벨', '메디신볼'];
 
-export type ProgramMeta = {
-  key: ProgramKey;
+/** 기준 무게(TM) = 추정 최대 × 0.9 — 5/3/1 · 저거넛 원본 규칙 */
+export const TM_RATIO = 0.9;
+
+/** '+' 세트에서 남기는 개수 — 투수 맞춤: 원본처럼 끝까지 가지 않는다 */
+export const PLUS_RESERVE = 2;
+
+/** 기준 무게를 정할 때 보는 시작 전 기간(일) */
+export const TM_LOOKBACK_DAYS = 42;
+
+/* ─────────────────────────────── 프로그램 모양 ─────────────────────────────── */
+
+export type ProgramId =
+  | 'stronglifts-5x5'
+  | '531-bbb'
+  | '531'
+  | 'texas-method'
+  | 'juggernaut-5s'
+  | 'ws4sb'
+  | 'french-contrast'
+  | 'offseason-strength-power';
+export type ProgramGoal = 'base' | 'strength' | 'power';
+export type PerWeek = 2 | 3;
+
+export const GOAL_LABELS: Record<ProgramGoal, string> = {
+  base: '기초',
+  strength: '근력',
+  power: '파워',
+};
+
+/**
+ * 무게를 정하는 방식(lib/program/next-weight.ts).
+ *   pct     — 기준 무게(TM)의 몇 %. TM 은 시작 전 기록으로 정해 4주 동안 그대로(5/3/1 · 저거넛 · 텍사스 · 프렌치 컨트라스트)
+ *   linear  — 다 채우면 다음 회차 한 칸(스트롱리프트)
+ *   reserve — '몇 개 남기고' + 지난 기록(보조 운동 · 최고까지 올리기 · 옛 프로그램)
+ *   none    — 무게 없음(점프 · 메디신볼 · 몸통)
+ */
+export type WeightMode = 'pct' | 'linear' | 'reserve' | 'none';
+
+export type SetRx = {
+  reps: number;
+  /** pct 방식 — TM 비율(0.65 = 65%) */
+  pct?: number;
+  /** reserve 방식 — 목표 여유(몇 개 남기고) */
+  reserve?: number | null;
+  /** '+' — 할 수 있는 만큼, 단 PLUS_RESERVE 개 남기고 */
+  plus?: boolean;
+};
+
+type Item = {
+  variant: VariantKey;
+  mode: WeightMode;
+  sets: readonly SetRx[];
+  /** 세트 사이 쉬는 시간(초) */
+  rest: number;
+  /** 앞 운동과 묶음 — 한 세트씩 번갈아 바로 이어서(대비 · 프렌치 컨트라스트) */
+  group?: boolean;
+  /** 준비 세트로 올라가 본 세트 하나(WS4SB 최대 노력) */
+  top?: boolean;
+};
+
+type DayBuild = { label: string | null; items: readonly Item[] };
+
+export type ProgramDef = {
+  id: ProgramId;
+  goal: ProgramGoal;
   name: string;
-  /** 카드 부제 — '8주'로 약속하지 않는다(§13-15). 경기로 밀리면 늘어난다. */
-  subtitle: string;
-  /** 시작에 꼭 있어야 하는 장비(§1). 트랩바는 '바벨'에 들어간다(§13-21). */
-  requiredEquipment: readonly string[];
+  /** 원작자 · 원래 이름 */
+  origin: string;
+  /** 카드 한 줄 */
+  summary: string;
+  /** '자세히' — 원본에서 가져온 것 · 투수라서 바꾼 것 */
+  detail: readonly string[];
+  weeks: number;
+  /** 고를 수 있는 주당 횟수 — 원본을 따른다 */
+  perWeek: readonly PerWeek[];
+  lightWeeks: readonly number[];
+  /** 그 주로 넘어가는 날 끝 화면의 한 줄(옛 프로그램의 5주 '파워 블록') */
+  weekNotes?: Readonly<Record<number, string>>;
+  /** day = 프로그램 안 일차(1부터), light = 가벼운 주(lightWeeks) */
+  build: (day: number, week: number, perWeek: PerWeek, light: boolean) => DayBuild;
 };
 
-export const FIRST_PROGRAM: ProgramMeta = {
-  key: 'offseason-strength-power',
-  name: '비시즌 근력 → 파워',
-  subtitle: `${TOTAL_DAYS}회 · 주 ${DAYS_PER_WEEK}번 · 보통 8~10주`,
-  requiredEquipment: ['바벨', '덤벨', '메디신볼'],
+/* ─────────────────────────────── 만드는 도구 ─────────────────────────────── */
+
+const reps = (n: number, count: number, reserve: number | null = null): SetRx[] =>
+  Array.from({ length: n }, () => ({ reps: count, reserve }));
+const pctSets = (n: number, count: number, pct: number): SetRx[] =>
+  Array.from({ length: n }, () => ({ reps: count, pct }));
+const at = (count: number, pct: number, plus = false): SetRx =>
+  plus ? { reps: count, pct, plus } : { reps: count, pct };
+const cycle = <T>(list: readonly T[], day: number): T => list[(day - 1) % list.length];
+const item = (
+  variant: VariantKey,
+  mode: WeightMode,
+  sets: readonly SetRx[],
+  rest: number,
+  extra: { group?: boolean; top?: boolean } = {}
+): Item => ({ variant, mode, sets, rest, ...extra });
+
+/** 보조 운동 — 가벼운 주는 2세트 · 4개 남기고 */
+const assist = (
+  variant: VariantKey,
+  n: number,
+  count: number,
+  light: boolean,
+  rest = 90
+): Item =>
+  item(variant, 'reserve', light ? reps(2, count, 4) : reps(n, count, 2), rest);
+
+/* 투수 맞춤: 날마다 끝에 몸통 버티기 하나(원본의 보조 운동 자리) */
+const coreItem = (light = false): Item =>
+  item('antiRotation', 'none', light ? reps(2, 10) : reps(3, 10), 60);
+
+/* ─────────────────────────────── 기초 ─────────────────────────────── */
+
+const STRONGLIFTS: ProgramDef = {
+  id: 'stronglifts-5x5',
+  goal: 'base',
+  name: '스트롱리프트 5×5',
+  origin: 'StrongLifts 5×5 · 메흐디 하딤',
+  summary: '매번 5회 5세트, 다 채우면 다음에 무게를 올려요',
+  detail: [
+    'A 날(스쿼트 · 밀기 · 당기기)과 B 날(스쿼트 · 데드리프트)을 번갈아 해요.',
+    '다 채우면 다음 회차에 2.5kg(데드리프트 5kg)을 올리고, 세 번 연속 못 채우면 10% 낮춰요.',
+    '투수에 맞춰 오버헤드 프레스는 빼고 밀기는 덤벨로 해요. 날마다 몸통 버티기를 더했어요.',
+  ],
+  weeks: 4,
+  perWeek: [3],
+  lightWeeks: [],
+  build: (day) => {
+    const a = day % 2 === 1;
+    return {
+      label: a ? 'A 날' : 'B 날',
+      /* 투수 맞춤: B 날의 오버헤드 프레스는 뺀다 — 밀기가 매 회차면 덤벨 무게가 원본보다 세 배 빨리 오른다 */
+      items: a
+        ? [
+            item('squat', 'linear', reps(5, 5), 180),
+            item('push', 'linear', reps(5, 5), 120),
+            item('pull', 'linear', reps(5, 5), 120),
+            coreItem(),
+          ]
+        : [
+            item('squat', 'linear', reps(5, 5), 180),
+            item('hinge', 'linear', reps(1, 5), 180),
+            coreItem(),
+          ],
+    };
+  },
 };
 
-/** 이 앱이 아는 프로그램 — 지금은 하나. 시즌 중 · 성장기는 '곧 열려요' 한 줄로만 보인다. */
-export function programMeta(key: string): ProgramMeta | null {
-  return key === FIRST_PROGRAM.key ? FIRST_PROGRAM : null;
+/*
+ * 5/3/1 · 저거넛은 하루에 본 운동 하나(주 3번: 스쿼트 · 밀기 · 힌지). 주 2번은 1일 스쿼트 + 밀기, 2일 힌지 —
+ * 투수 맞춤: 원본 2일 판(이틀 다 누르기)과 달리 밀기는 주 1번, 스쿼트 · 힌지와 같게.
+ */
+const mainLifts = (day: number, perWeek: PerWeek): readonly VariantKey[] =>
+  perWeek === 3
+    ? [cycle(['squat', 'push', 'hinge'] as const, day)]
+    : cycle([['squat', 'push'], ['hinge']] as const, day);
+
+/** 5/3/1 의 주마다 세트(TM %) — 4주는 가볍게 */
+const WAVE_531: readonly (readonly SetRx[])[] = [
+  [at(5, 0.65), at(5, 0.75), at(5, 0.85, true)],
+  [at(3, 0.7), at(3, 0.8), at(3, 0.9, true)],
+  [at(5, 0.75), at(3, 0.85), at(1, 0.95, true)],
+  [at(5, 0.4), at(5, 0.5), at(5, 0.6)],
+];
+
+/** 저거넛 5회 파도(쌓기 · 세게 · 기록 · 가볍게, TM %) */
+const WAVE_JUGGERNAUT_5S: readonly (readonly SetRx[])[] = [
+  [...pctSets(4, 5, 0.7), at(5, 0.7, true)],
+  [at(5, 0.625), at(5, 0.7), at(5, 0.775), at(5, 0.775), at(5, 0.775, true)],
+  [at(3, 0.6), at(2, 0.7), at(1, 0.775), at(5, 0.85, true)],
+  [at(5, 0.4), at(5, 0.5), at(5, 0.6)],
+];
+
+/** BBB 5×10 의 TM % — 4주(가볍게)는 하지 않는다 */
+const BBB_PCT = [0.5, 0.6, 0.6];
+
+function waveDay(
+  wave: readonly (readonly SetRx[])[],
+  bbb: boolean
+): ProgramDef['build'] {
+  return (day, week, perWeek, light) => {
+    const lifts = mainLifts(day, perWeek);
+    const items: Item[] = [
+      /* 원저자 권장: 들기 전에 뛰고 던지기. 밀기 날은 메디신볼 */
+      item(lifts[0] === 'push' ? 'medball' : 'jump', 'none', reps(3, 3), 90),
+    ];
+    lifts.forEach((v, i) => {
+      const extra = bbb && i === 0 && !light ? pctSets(5, 10, BBB_PCT[week - 1]) : [];
+      items.push(item(v, 'pct', [...wave[week - 1], ...extra], v === 'push' ? 150 : 180));
+    });
+    if (bbb) {
+      items.push(assist('pull', 5, 10, light));
+    } else {
+      items.push(assist('pull', 3, 10, light), assist('singleLeg', 3, 8, light));
+    }
+    items.push(coreItem(light));
+    return { label: null, items };
+  };
 }
 
-/* ───────────────────────────── 숫자표(§2) ───────────────────────────── */
-
-type WeekRx = {
-  sets: number;
-  reps: number;
-  /** 목표 여유 횟수(T) — 정수. 파워 · 몸통은 없다(null). 7주 '여유1~2'는 1(U1.1). */
-  reserve: number | null;
+const BBB_531: ProgramDef = {
+  id: '531-bbb',
+  goal: 'base',
+  name: '5/3/1 BBB',
+  origin: "5/3/1 Boring But Big · 짐 웬들러",
+  summary: '5/3/1 뒤에 같은 운동을 10회씩 5세트 더 해 근육을 키워요',
+  detail: [
+    '본 운동은 5/3/1 과 같고, 그 뒤에 같은 운동을 가볍게(기준 무게의 50~60%) 10회씩 5세트 더 해요.',
+    '%는 기준 무게(추정 최대의 90%)의 비율이에요. 기준 무게는 시작 전 기록으로 정하고 4주 동안 그대로예요.',
+    '4주는 가볍게 해요. 투수에 맞춰 밀기는 덤벨로, + 세트는 2개 남기고 멈춰요.',
+  ],
+  weeks: 4,
+  perWeek: [2, 3],
+  lightWeeks: [4],
+  build: waveDay(WAVE_531, true),
 };
 
-const rx = (sets: number, reps: number, reserve: number | null = null): WeekRx => ({
-  sets,
-  reps,
-  reserve,
-});
+/* ─────────────────────────────── 근력 ─────────────────────────────── */
 
-/** 칸 × 주(1~8) — 설계 2의 표 그대로. 바꾸면 근거 문서와 셀프테스트를 같이 고친다. */
-const WEEK_TABLE: Record<SlotKind, readonly WeekRx[]> = {
-  power: [
-    rx(3, 3),
-    rx(3, 3),
-    rx(3, 3),
-    rx(2, 3),
-    rx(4, 3),
-    rx(4, 3),
-    rx(4, 3),
-    rx(2, 3),
+const W531: ProgramDef = {
+  id: '531',
+  goal: 'strength',
+  name: '5/3/1',
+  origin: '5/3/1 · 짐 웬들러',
+  summary: '1주 5회, 2주 3회, 3주 5·3·1회, 4주는 가볍게 해요',
+  detail: [
+    '본 운동 3세트의 마지막(+)은 할 수 있는 만큼 하되 2개 남기고 멈춰요.',
+    '%는 기준 무게(추정 최대의 90%)의 비율이에요. 기준 무게는 시작 전 기록으로 정하고 4주 동안 그대로예요.',
+    '원저자 권장대로 들기 전에 점프나 메디신볼을 하고, 보조로 당기기 · 한 다리 · 몸통을 해요.',
   ],
-  bigLower: [
-    rx(3, 8, 3),
-    rx(4, 6, 2),
-    rx(4, 5, 2),
-    rx(2, 5, 4),
-    rx(4, 4, 2),
-    rx(4, 3, 2),
-    rx(5, 3, 1),
-    rx(2, 3, 4),
-  ],
-  pushPull: [
-    rx(3, 10, 3),
-    rx(3, 8, 2),
-    rx(4, 6, 2),
-    rx(2, 8, 4),
-    rx(3, 5, 2),
-    rx(3, 5, 2),
-    rx(4, 4, 2),
-    rx(2, 5, 4),
-  ],
-  singleLeg: [
-    rx(3, 8, 3),
-    rx(3, 8, 2),
-    rx(3, 6, 2),
-    rx(2, 6, 4),
-    rx(3, 5, 2),
-    rx(3, 5, 2),
-    rx(3, 5, 2),
-    rx(2, 5, 4),
-  ],
-  core: [
-    rx(3, 10),
-    rx(3, 10),
-    rx(3, 10),
-    rx(2, 10),
-    rx(3, 5),
-    rx(3, 5),
-    rx(3, 5),
-    rx(2, 5),
-  ],
+  weeks: 4,
+  perWeek: [2, 3],
+  lightWeeks: [4],
+  build: waveDay(WAVE_531, false),
 };
 
-/** 세트 사이 쉬는 시간(초) — 파워는 '충분히 쉬고', 큰 운동은 길게 */
-const REST_SECONDS: Record<SlotKind, number> = {
+/**
+ * 텍사스 금요일 5회 1세트의 TM % — 매주 2.5%씩 최고 기록. 투수 맞춤: 4주차 92.5%(추정 최대의 83%)로 끝내
+ * 5회 최대(약 86%)까지 가지 않는다 — 1~2개는 남는다.
+ */
+const texasFriday = (week: number) => 0.85 + 0.025 * (week - 1);
+
+const TEXAS: ProgramDef = {
+  id: 'texas-method',
+  goal: 'strength',
+  name: '텍사스 메소드',
+  origin: 'Texas Method · 마크 리피토 · 글렌 펜들레이',
+  summary: '월 많이, 수 가볍게, 금 최고 기록을 내요',
+  detail: [
+    '월요일은 5세트 × 5회(금요일 무게의 90%), 수요일은 가볍게(월요일의 80~90%), 금요일은 5회 1세트로 매주 기록을 올려요.',
+    '%는 기준 무게(추정 최대의 90%)의 비율이에요.',
+    '투수에 맞춰 파워 클린 대신 점프, 밀기는 덤벨로 해요. 주 3번만 할 수 있어요.',
+  ],
+  weeks: 4,
+  perWeek: [3],
+  lightWeeks: [],
+  build: (day, week) => {
+    const fri = texasFriday(week);
+    const mon = fri * 0.9;
+    return cycle<DayBuild>(
+      [
+        {
+          label: '많이 하는 날',
+          items: [
+            item('squat', 'pct', pctSets(5, 5, mon), 180),
+            item('push', 'pct', pctSets(5, 5, mon), 150),
+            item('hinge', 'pct', pctSets(1, 5, fri), 180),
+            coreItem(),
+          ],
+        },
+        {
+          label: '가벼운 날',
+          items: [
+            item('squat', 'pct', pctSets(2, 5, mon * 0.8), 120),
+            item('push', 'pct', pctSets(3, 5, mon * 0.9), 120),
+            assist('pull', 3, 8, false),
+            coreItem(),
+          ],
+        },
+        {
+          label: '최고 기록 날',
+          items: [
+            /* 투수 맞춤: 파워 클린 대신 점프 */
+            item('jump', 'none', reps(5, 3), 90),
+            item('squat', 'pct', pctSets(1, 5, fri), 180),
+            item('push', 'pct', pctSets(1, 5, fri), 150),
+            coreItem(),
+          ],
+        },
+      ],
+      day
+    );
+  },
+};
+
+const JUGGERNAUT: ProgramDef = {
+  id: 'juggernaut-5s',
+  goal: 'strength',
+  name: '저거넛 5회 파도',
+  origin: 'Juggernaut Method 5s wave · 채드 웨슬리 스미스',
+  summary: '쌓기, 세게, 기록 내기, 가볍게 순서로 4주를 가요',
+  detail: [
+    '1주는 5회를 여러 세트 쌓고, 2주는 무게를 올리고, 3주는 + 세트로 기록을 내고, 4주는 가볍게 해요.',
+    '%는 기준 무게(추정 최대의 90%)의 비율이에요. + 세트는 2개 남기고 멈춰요.',
+    '들기 전에 점프나 메디신볼을 하고, 보조로 당기기 · 한 다리 · 몸통을 해요.',
+  ],
+  weeks: 4,
+  perWeek: [2, 3],
+  lightWeeks: [4],
+  build: waveDay(WAVE_JUGGERNAUT_5S, false),
+};
+
+/* ─────────────────────────────── 파워 ─────────────────────────────── */
+
+const WS4SB: ProgramDef = {
+  id: 'ws4sb',
+  goal: 'power',
+  name: '웨스트사이드 포 스키니 배스터즈',
+  origin: 'Westside for Skinny Bastards · 조 디프랑코',
+  summary: '최고 기록 날과 점프 날로 힘과 탄력을 같이 길러요',
+  detail: [
+    '웨스트사이드를 운동선수용으로 바꾼 프로그램이에요. 1회 최대 대신 3~5회 최대, 속도 스쿼트 대신 점프를 해요.',
+    '무거운 날은 준비 세트로 올라가 본 세트 하나를 1개 남기고 해요. 운동은 매주 스쿼트와 힌지를 바꿔요.',
+    '주 3번이면 상체를 여러 번 하는 날이 더해져요. 투수에 맞춰 밀기는 덤벨로 해요.',
+  ],
+  weeks: 4,
+  perWeek: [2, 3],
+  lightWeeks: [],
+  build: (day, week, perWeek) => {
+    const heavy: DayBuild = {
+      label: '무거운 날',
+      items: [
+        item('jump', 'none', reps(3, 3), 90),
+        item(
+          (['squat', 'hinge', 'squat', 'hinge'] as const)[week - 1],
+          'reserve',
+          [{ reps: week <= 2 ? 5 : 3, reserve: 1 }],
+          180,
+          { top: true }
+        ),
+        assist('singleLeg', 3, 8, false),
+        assist('pull', 3, 10, false),
+        coreItem(),
+      ],
+    };
+    const jumps: DayBuild = {
+      label: '점프 날',
+      items: [
+        item('jump', 'none', reps(5, 3), 90),
+        item('medball', 'none', reps(4, 3), 90),
+        assist('singleLeg', 3, 10, false),
+        assist('push', 3, 10, false),
+        assist('pull', 3, 10, false),
+        coreItem(),
+      ],
+    };
+    const upper: DayBuild = {
+      label: '상체 반복 날',
+      items: [
+        item('medball', 'none', reps(3, 5), 90),
+        assist('push', 3, 12, false),
+        assist('pull', 4, 10, false),
+        coreItem(),
+      ],
+    };
+    return cycle(perWeek === 3 ? [heavy, jumps, upper] : [heavy, jumps], day);
+  },
+};
+
+/** 프렌치 컨트라스트 — 무겁게(추정 최대의 %) · 횟수 · 묶음 수, 주마다 */
+const CONTRAST_WEEKS = [
+  { max: 0.8, count: 3, rounds: 3 },
+  { max: 0.85, count: 3, rounds: 4 },
+  { max: 0.88, count: 2, rounds: 4 },
+  { max: 0.7, count: 3, rounds: 2 },
+];
+
+const FRENCH_CONTRAST: ProgramDef = {
+  id: 'french-contrast',
+  goal: 'power',
+  name: '프렌치 컨트라스트',
+  origin: 'French Contrast · 칼 디츠',
+  summary: '무겁게 들고 바로 점프, 메디신볼까지 한 묶음으로 해요',
+  detail: [
+    '무겁게(추정 최대의 80~88%, 기준 무게로는 89~98%) → 20초 → 점프 5회 → 20초 → 메디신볼 5회가 한 묶음이에요. 묶음 사이는 3분 쉬어요.',
+    '원본의 넷째 · 다섯째 동작(무게 들고 점프, 도움 받는 점프)은 우리 장비에 맞춰 메디신볼 하나로 합쳤어요.',
+    '4주는 가볍게 해요.',
+  ],
+  weeks: 4,
+  perWeek: [2, 3],
+  lightWeeks: [4],
+  build: (day, week, _perWeek, light) => {
+    const w = CONTRAST_WEEKS[week - 1];
+    const bundle = (v: VariantKey): Item[] => [
+      item(v, 'pct', pctSets(w.rounds, w.count, w.max / TM_RATIO), 20),
+      item('jump', 'none', reps(w.rounds, 5), 20, { group: true }),
+      item('medball', 'none', reps(w.rounds, 5), 180, { group: true }),
+    ];
+    return day % 2 === 1
+      ? {
+          label: 'A 날',
+          items: [
+            ...bundle('squat'),
+            assist('singleLeg', 3, 6, light),
+            assist('pull', 3, 8, light),
+            coreItem(light),
+          ],
+        }
+      : {
+          label: 'B 날',
+          items: [...bundle('hinge'), assist('push', 3, 8, light), coreItem(light)],
+        };
+  },
+};
+
+/* ─────────────────────────── 옛 프로그램(숨김) ─────────────────────────── */
+
+/**
+ * '비시즌 근력 → 파워'(주 3번 × 8주) — 2026-10-07 까지의 하나뿐인 프로그램. 진행 중인 줄만 이어 간다.
+ * 1~24일차의 차례 · 변형 · 처방이 예전과 같은지는 scripts/fixtures/legacy-program.json 으로 셀프테스트가 본다.
+ */
+const LEGACY_TABLE: Record<SlotKind, readonly (readonly [number, number, number | null])[]> = {
+  power: [[3, 3, null], [3, 3, null], [3, 3, null], [2, 3, null], [4, 3, null], [4, 3, null], [4, 3, null], [2, 3, null]],
+  bigLower: [[3, 8, 3], [4, 6, 2], [4, 5, 2], [2, 5, 4], [4, 4, 2], [4, 3, 2], [5, 3, 1], [2, 3, 4]],
+  pushPull: [[3, 10, 3], [3, 8, 2], [4, 6, 2], [2, 8, 4], [3, 5, 2], [3, 5, 2], [4, 4, 2], [2, 5, 4]],
+  singleLeg: [[3, 8, 3], [3, 8, 2], [3, 6, 2], [2, 6, 4], [3, 5, 2], [3, 5, 2], [3, 5, 2], [2, 5, 4]],
+  core: [[3, 10, null], [3, 10, null], [3, 10, null], [2, 10, null], [3, 5, null], [3, 5, null], [3, 5, null], [2, 5, null]],
+};
+const LEGACY_REST: Record<SlotKind, number> = {
   power: 120,
   bigLower: 180,
   pushPull: 120,
@@ -170,102 +517,319 @@ const REST_SECONDS: Record<SlotKind, number> = {
   core: 60,
 };
 
-export function weekOfDay(day: number): number {
-  return Math.min(TOTAL_WEEKS, Math.max(1, Math.ceil(day / DAYS_PER_WEEK)));
-}
-
-export function isLightWeek(week: number): boolean {
-  return LIGHT_WEEKS.includes(week);
-}
-
-/** 1~4주 근력 블록, 5~8주 파워 블록 */
-export function isPowerBlock(week: number): boolean {
-  return week >= 5;
-}
-
-export type SlotRx = WeekRx & {
-  slot: SlotKind;
-  variant: VariantKey;
-  week: number;
-  light: boolean;
-  restSeconds: number;
+const LEGACY: ProgramDef = {
+  id: 'offseason-strength-power',
+  goal: 'strength',
+  name: '비시즌 근력 → 파워',
+  origin: '',
+  summary: '1~4주는 근력, 5~8주는 파워예요',
+  detail: [],
+  weeks: 8,
+  perWeek: [3],
+  lightWeeks: [4, 8],
+  weekNotes: { 5: '다음 주부터 파워 블록이에요. 점프가 큰 하체 바로 뒤로 와요.' },
+  build: (day, week) => {
+    const a = day % 2 === 1;
+    const powerBlock = week >= 5;
+    /* 5~7주는 대비 — 큰 하체 바로 뒤에 파워를 짝으로 */
+    const contrast = powerBlock && week !== 8;
+    const variant: Record<SlotKind, VariantKey> = {
+      power: a ? 'jump' : 'medball',
+      bigLower: a ? 'squat' : 'hinge',
+      pushPull: a ? 'push' : 'pull',
+      singleLeg: 'singleLeg',
+      core: powerBlock ? 'rotationalThrow' : 'antiRotation',
+    };
+    const order: SlotKind[] = contrast
+      ? ['bigLower', 'power', 'pushPull', 'singleLeg', 'core']
+      : ['power', 'bigLower', 'pushPull', 'singleLeg', 'core'];
+    return {
+      label: null,
+      items: order.map((s) => {
+        const [n, count, reserve] = LEGACY_TABLE[s][week - 1];
+        return item(
+          variant[s],
+          WEIGHTED_SLOTS.includes(s) ? 'reserve' : 'none',
+          reps(n, count, reserve),
+          LEGACY_REST[s],
+          s === 'power' && contrast ? { group: true } : {}
+        );
+      }),
+    };
+  },
 };
 
-/** 칸 하나의 그 주 처방 — 운동 중 [교체]도 이 값을 쓴다(U3) */
-export function slotPrescription(
-  slot: SlotKind,
-  variant: VariantKey,
-  week: number
-): SlotRx {
-  const w = WEEK_TABLE[slot][Math.min(TOTAL_WEEKS, Math.max(1, week)) - 1];
+/** 고르기 화면의 차례 */
+export const PROGRAMS: readonly ProgramDef[] = [
+  STRONGLIFTS,
+  BBB_531,
+  W531,
+  TEXAS,
+  JUGGERNAUT,
+  WS4SB,
+  FRENCH_CONTRAST,
+];
+const ALL_PROGRAMS: readonly ProgramDef[] = [...PROGRAMS, LEGACY];
+
+/* ─────────────────────────── 키 · 하루 만들기 ─────────────────────────── */
+
+/** 진행 중인 줄의 프로그램 — DB 의 programKey 를 읽은 것 */
+export type ProgramPlan = {
+  key: string;
+  def: ProgramDef;
+  perWeek: PerWeek;
+  totalWeeks: number;
+  totalDays: number;
+};
+
+/** DB 의 programKey — 주 3번은 id 그대로, 주 2번은 'id:2'(DB 구조를 바꾸지 않으려고 키에 싣는다) */
+export function programKeyOf(id: ProgramId, perWeek: PerWeek): string {
+  return perWeek === 3 ? id : `${id}:2`;
+}
+
+/** programKey 를 읽는다. 모르는 키 · 그 프로그램에 없는 주당 횟수면 null */
+export function parseProgram(key: string): ProgramPlan | null {
+  const [id, suffix, ...rest] = key.split(':');
+  if (rest.length > 0 || (suffix !== undefined && suffix !== '2')) return null;
+  const def = ALL_PROGRAMS.find((p) => p.id === id);
+  const perWeek: PerWeek = suffix === '2' ? 2 : 3;
+  if (!def || !def.perWeek.includes(perWeek)) return null;
   return {
-    ...w,
-    slot,
-    variant,
-    week,
-    light: isLightWeek(week),
-    restSeconds: REST_SECONDS[slot],
+    key,
+    def,
+    perWeek,
+    totalWeeks: def.weeks,
+    totalDays: def.weeks * perWeek,
   };
 }
 
-/**
- * 세트 기록 화면의 처방 한 줄(§13-3) — '4세트 × 5회 · 2개 남기고'.
- * 가벼운 주는 '가볍게 · 4개 남기고', 파워는 '최대 속도 · 충분히 쉬고'.
- */
-export function prescriptionLine(rxs: SlotRx, perSide = false): string {
-  const side = perSide ? ' (좌우 각각)' : '';
-  const base = `${rxs.sets}세트 × ${rxs.reps}회${side}`;
-  if (rxs.slot === 'power') return `${base} · 최대 속도 · 충분히 쉬고`;
-  if (rxs.reserve == null) return base;
-  return rxs.light
-    ? `${base} · 가볍게 · ${rxs.reserve}개 남기고`
-    : `${base} · ${rxs.reserve}개 남기고`;
+export function programDef(id: string): ProgramDef | null {
+  return PROGRAMS.find((p) => p.id === id) ?? null;
 }
 
-/* ─────────────────────────── 하루 만들기 ─────────────────────────── */
+/** 카드 부제 — '12회 · 주 3번 · 4주' */
+export function planSubtitle(plan: ProgramPlan): string {
+  return `${plan.totalDays}회 · 주 ${plan.perWeek}번 · ${plan.totalWeeks}주`;
+}
 
-/**
- * 그날의 다섯 칸과 변형.
- *
- * 큰 하체는 A(스쿼트) · B(힌지)를 날마다 번갈아, 밀기 · 당기기도 번갈아(A 날 밀기, B 날 당기기).
- * 파워는 날마다 하나 — A 날 점프, B 날 메디신볼(§13-24). 몸통은 1~4주 항회전, 5~8주 회전 던지기.
- */
-export function dayVariants(day: number): Record<SlotKind, VariantKey> {
-  const a = day % 2 === 1;
-  const week = weekOfDay(day);
+export function weekOfDay(plan: ProgramPlan, day: number): number {
+  return Math.min(plan.totalWeeks, Math.max(1, Math.ceil(day / plan.perWeek)));
+}
+
+export function isLightWeek(plan: ProgramPlan, week: number): boolean {
+  return plan.def.lightWeeks.includes(week);
+}
+
+/** 운동 하나의 그날 처방 — 운동 중 [교체]도 이 값을 쓴다(U3) */
+export type ItemRx = {
+  slot: SlotKind;
+  variant: VariantKey;
+  mode: WeightMode;
+  sets: readonly SetRx[];
+  /** 본 세트(가장 무거운 세트)의 횟수 — 카드의 '세트 × 횟수' · 무게 기록의 기준 */
+  reps: number;
+  /** reserve 방식의 목표 여유. 그 밖은 null */
+  reserve: number | null;
+  restSeconds: number;
+  light: boolean;
+  /** 앞 운동과 묶음(바로 이어서) */
+  group: boolean;
+  /** 최고까지 올리기(준비 세트 + 본 세트 하나) */
+  top: boolean;
+};
+
+/** 본 세트 — % 가 가장 높은 세트 중 마지막(5/3/1 의 + 세트). % 가 없으면 마지막 세트 */
+export function topSetIndex(sets: readonly SetRx[]): number {
+  let best = 0;
+  sets.forEach((s, i) => {
+    if ((s.pct ?? 0) >= (sets[best].pct ?? 0)) best = i;
+  });
+  return best;
+}
+
+function toRx(x: Item, light: boolean): ItemRx {
+  const top = x.sets[topSetIndex(x.sets)];
   return {
-    power: a ? 'jump' : 'medball',
-    bigLower: a ? 'squat' : 'hinge',
-    pushPull: a ? 'push' : 'pull',
-    singleLeg: 'singleLeg',
-    core: isPowerBlock(week) ? 'rotationalThrow' : 'antiRotation',
+    slot: SLOT_OF[x.variant],
+    variant: x.variant,
+    mode: x.mode,
+    sets: x.sets,
+    reps: top.reps,
+    reserve: x.mode === 'reserve' ? (top.reserve ?? null) : null,
+    restSeconds: x.rest,
+    light,
+    group: x.group === true,
+    top: x.top === true,
   };
 }
 
+/** 그날 하는 것 — 차례대로. 일차는 1~totalDays 로 자른다. */
+export function dayPlan(
+  plan: ProgramPlan,
+  day: number
+): { label: string | null; items: ItemRx[] } {
+  const d = Math.min(plan.totalDays, Math.max(1, day));
+  const week = weekOfDay(plan, d);
+  const light = isLightWeek(plan, week);
+  const built = plan.def.build(d, week, plan.perWeek, light);
+  return { label: built.label, items: built.items.map((x) => toRx(x, light)) };
+}
+
+/** 그날 그 변형의 처방(없으면 null) — 한 날에 같은 변형은 하나뿐이다(셀프테스트) */
+export function itemRx(plan: ProgramPlan, day: number, variant: VariantKey): ItemRx | null {
+  return dayPlan(plan, day).items.find((x) => x.variant === variant) ?? null;
+}
+
+/** 이 프로그램이 쓰는 변형 — 시작 시트 · 고정 운동 바꾸기는 이것만 보여 준다 */
+export function usedVariants(def: ProgramDef): VariantKey[] {
+  const used = new Set<VariantKey>();
+  for (const perWeek of def.perWeek) {
+    for (let day = 1; day <= def.weeks * perWeek; day++) {
+      const week = Math.ceil(day / perWeek);
+      for (const x of def.build(day, week, perWeek, def.lightWeeks.includes(week)).items)
+        used.add(x.variant);
+    }
+  }
+  return VARIANT_KEYS.filter((v) => used.has(v));
+}
+
+export function dayLabel(plan: ProgramPlan, day: number): string {
+  const week = weekOfDay(plan, day);
+  const inWeek = ((day - 1) % plan.perWeek) + 1;
+  const label = dayPlan(plan, day).label;
+  return `${week}주차 · ${inWeek}일차${label ? ` · ${label}` : ''}`;
+}
+
+/** 세트만 바꾼 처방 — 본 세트 횟수 · 여유를 남은 세트로 다시 정한다(가볍게 · 운동 중 교체) */
+export function withSets(rx: ItemRx, sets: readonly SetRx[]): ItemRx {
+  const top = sets[topSetIndex(sets)];
+  return {
+    ...rx,
+    sets,
+    reps: top.reps,
+    reserve: rx.mode === 'reserve' ? (top.reserve ?? null) : null,
+  };
+}
+
+/** 세트를 하나 줄인 처방 — 그날 '가볍게'(D19) */
+export function lighterRx(rx: ItemRx): ItemRx {
+  return withSets(rx, rx.sets.slice(0, Math.max(1, rx.sets.length - 1)));
+}
+
 /**
- * 그날 하는 차례.
- *
- * 1~4주 · 8주는 파워가 맨 앞(오늘 정한 차례 규칙, lib/report/exercise-order.ts 와 같다).
- * 5~7주는 대비 훈련 — 큰 하체 바로 뒤에 파워를 짝으로 붙인다(이때만 '파워 먼저'를 넘는다).
+ * 운동 화면이 마지막 세트 뒤에 '몇 개 더?'를 묻는가 — 무게 칸 · '몇 개 남기고' 방식 · 가벼운 주가 아닐 때만.
+ * % 방식은 기준 무게가 4주 동안 그대로, 스트롱리프트는 다 채웠는지만 본다. mode 가 없는 옛 판은 '몇 개 남기고'다.
  */
-export function daySlotOrder(day: number): SlotKind[] {
-  const week = weekOfDay(day);
-  const contrast = isPowerBlock(week) && !isLightWeek(week);
-  return contrast
-    ? ['bigLower', 'power', 'pushPull', 'singleLeg', 'core']
-    : ['power', 'bigLower', 'pushPull', 'singleLeg', 'core'];
+export function asksReserve(
+  slot: { slot: SlotKind; light: boolean; mode?: WeightMode } | null | undefined,
+  plannedSets: number | null
+): boolean {
+  return (
+    slot != null &&
+    (slot.mode ?? 'reserve') === 'reserve' &&
+    WEIGHTED_SLOTS.includes(slot.slot) &&
+    !slot.light &&
+    plannedSets != null
+  );
 }
 
-/** 대비 짝인가 — 화면에 '바로 이어서 · 큰 하체 뒤 2~3분 쉬고'를 붙인다 */
-export function isContrastPower(day: number): boolean {
-  const week = weekOfDay(day);
-  return isPowerBlock(week) && !isLightWeek(week);
+/** 시작할 때 저장하는 키 — 목록에 없는 프로그램(옛 프로그램 포함) · 그 프로그램에 없는 주당 횟수면 null */
+export function startProgramKey(programId: string, perWeek: number): string | null {
+  const def = programDef(programId);
+  const pw = perWeek === 2 ? 2 : perWeek === 3 ? 3 : null;
+  if (!def || pw == null || !def.perWeek.includes(pw)) return null;
+  return programKeyOf(def.id, pw);
 }
 
-export function dayLabel(day: number): string {
-  const week = weekOfDay(day);
-  const inWeek = ((day - 1) % DAYS_PER_WEEK) + 1;
-  return `${week}주차 · ${inWeek}일차`;
+const pctText = (pct: number) => `${Math.round(pct * 200) / 2}%`;
+const kgText = (kg: number) => `${Number.isInteger(kg) ? kg : kg.toFixed(1)}kg`;
+
+/**
+ * 처방 한 줄(§13-3) — '4세트 × 5회 · 2개 남기고', 가벼운 주는 '가볍게 · 4개 남기고', 파워는 '최대 속도 · 충분히 쉬고'.
+ * % 방식은 같은 세트끼리 묶어 '5회 65% → 5회 75% → 5회+ 85%', 무게(kgs)를 알면 % 대신 kg.
+ */
+export function prescriptionLine(
+  rx: ItemRx,
+  opts: { perSide?: boolean; kgs?: readonly (number | null)[] } = {}
+): string {
+  const side = opts.perSide ? ' (좌우 각각)' : '';
+  const n = rx.sets.length;
+  if (rx.mode === 'none') {
+    const base = `${n}세트 × ${rx.sets[0].reps}회${side}`;
+    return rx.slot === 'power' ? `${base} · 최대 속도 · 충분히 쉬고` : base;
+  }
+  if (rx.top) {
+    return `준비 세트로 올려 ${rx.reps}회 1세트${side} · ${rx.reserve ?? 1}개 남기고`;
+  }
+  if (rx.mode === 'reserve') {
+    const base = `${n}세트 × ${rx.reps}회${side}`;
+    if (rx.reserve == null) return base;
+    return rx.light
+      ? `${base} · 가볍게 · ${rx.reserve}개 남기고`
+      : `${base} · ${rx.reserve}개 남기고`;
+  }
+  if (rx.mode === 'linear') return `${n}세트 × ${rx.reps}회${side} · 다 채우면 다음에 올려요`;
+  const kgs = opts.kgs;
+  const same = (i: number, j: number) =>
+    rx.sets[i].reps === rx.sets[j].reps &&
+    rx.sets[i].pct === rx.sets[j].pct &&
+    !rx.sets[i].plus &&
+    !rx.sets[j].plus &&
+    (kgs?.[i] ?? null) === (kgs?.[j] ?? null);
+  const parts: string[] = [];
+  for (let i = 0; i < n; ) {
+    let j = i;
+    while (j + 1 < n && same(j + 1, i)) j++;
+    const s = rx.sets[i];
+    const kg = kgs?.[i];
+    const amount = kg != null ? kgText(kg) : pctText(s.pct ?? 0);
+    const count = j > i ? `${j - i + 1}세트 × ${s.reps}회` : `${s.reps}회${s.plus ? '+' : ''}`;
+    parts.push(`${count} ${amount}`);
+    i = j + 1;
+  }
+  const plus = rx.sets.some((s) => s.plus) ? ` · +는 ${PLUS_RESERVE}개 남기고` : '';
+  return `${parts.join(' → ')}${side}${plus}`;
+}
+
+/* ─────────────────────────── 고르기 화면 ─────────────────────────── */
+
+/** 고르기 화면(program-start.tsx)에 넘기는 것 — 글과 숫자만 */
+export type ProgramChoice = Pick<
+  ProgramDef,
+  'id' | 'goal' | 'name' | 'origin' | 'summary' | 'detail' | 'perWeek'
+> & {
+  /** 주마다 본 운동 한 줄 — '1주 · 스쿼트 5회 65% → 5회 75% → 5회+ 85%' */
+  weeks: string[];
+  /** 기준 무게(% 방식)를 쓰는가 — 요약의 무게 안내가 다르다 */
+  usesPct: boolean;
+};
+
+export function programChoiceList(): ProgramChoice[] {
+  return PROGRAMS.map((def) => {
+    const perWeek = def.perWeek.includes(3) ? 3 : 2;
+    const plan = parseProgram(programKeyOf(def.id, perWeek)) as ProgramPlan;
+    const weeks = Array.from({ length: def.weeks }, (_, i) => {
+      const week = i + 1;
+      const main = dayPlan(plan, i * perWeek + 1).items.find((x) => x.mode !== 'none');
+      const light = isLightWeek(plan, week) ? ' (가볍게)' : '';
+      return main
+        ? `${week}주${light} · ${VARIANT_LABELS[main.variant]} ${prescriptionLine(main)}`
+        : `${week}주${light}`;
+    });
+    return {
+      id: def.id,
+      goal: def.goal,
+      name: def.name,
+      origin: def.origin,
+      summary: def.summary,
+      detail: def.detail,
+      perWeek: def.perWeek,
+      weeks,
+      usesPct: Array.from({ length: plan.totalDays }, (_, d) => dayPlan(plan, d + 1)).some(
+        (p) => p.items.some((x) => x.mode === 'pct')
+      ),
+    };
+  });
 }
 
 /* ─────────────────────────── 시작 자격(§1) ─────────────────────────── */
@@ -299,10 +863,7 @@ export type Eligibility =
  * 시작할 수 있는가. 묻는 차례는 시작 시트의 차례(§13-12)와 같다 — 생년월일 · 경력 · 시즌 · 장비.
  * 고르기 카드는 프로필로 이미 아는 막힘만 보고(나이 · 경력), 나머지는 시트에서 받는다.
  */
-export function checkEligibility(
-  input: EligibilityInput,
-  meta = FIRST_PROGRAM
-): Eligibility {
+export function checkEligibility(input: EligibilityInput): Eligibility {
   if (input.age == null) {
     return { ok: false, kind: 'ask', step: 'birth', message: '생년월일을 알려 주세요' };
   }
@@ -354,7 +915,7 @@ export function checkEligibility(
       action: '암케어의 재활 카드에서 이어 가요.',
     };
   }
-  const missing = missingEquipment(input.ownedEquipment, meta);
+  const missing = missingEquipment(input.ownedEquipment);
   if (input.ownedEquipment.length === 0) {
     return {
       ok: false,
@@ -374,12 +935,9 @@ export function checkEligibility(
   return { ok: true };
 }
 
-export function missingEquipment(
-  owned: readonly string[],
-  meta = FIRST_PROGRAM
-): string[] {
+export function missingEquipment(owned: readonly string[]): string[] {
   const has = new Set(owned);
-  return meta.requiredEquipment.filter((e) => !has.has(e));
+  return REQUIRED_EQUIPMENT.filter((e) => !has.has(e));
 }
 
 /* ─────────────────────────── 운동 고정(§3 · U6) ─────────────────────────── */
@@ -437,6 +995,7 @@ const VARIANT_RULES: Record<VariantKey, VariantRule> = {
     /* 데드리프트 · RDL 이 큰 힌지다 — 힙 쓰러스트는 보조라 뒤로 */
     rank: (ex) => [/데드리프트|RDL/.test(ex.title) ? 0 : 1, BARBELL_FIRST(ex)],
   },
+  /* 투수 맞춤: 밀기는 덤벨을 먼저(바벨 벤치 · 오버헤드 프레스 대신 — 어깨 보호) */
   push: {
     match: (ex) =>
       ex.category === '상체 스트렝스' &&
@@ -444,7 +1003,7 @@ const VARIANT_RULES: Record<VariantKey, VariantRule> = {
       !ex.perSide &&
       isWeighted(ex) &&
       intensityLevel(ex.intensity) >= 4,
-    rank: (ex) => [BARBELL_FIRST(ex)],
+    rank: (ex) => [ex.equipment.includes('덤벨') ? 0 : 1, BARBELL_FIRST(ex)],
   },
   /* 당기기는 무거운 것이 적어 '중간'까지 받는다. 덤벨 · 바벨 로우를 철봉보다 먼저(무게 흐름을 보려고) */
   pull: {
@@ -582,7 +1141,7 @@ export function readPinned(value: unknown): Pinned {
 export type RecoveryReason = 'loadRisk' | 'soreSevere' | 'lowCondition';
 
 export type TodaySignals = {
-  /** 다음에 할 일차(1~24, 25면 다 끝남) */
+  /** 다음에 할 일차(1~totalDays, 넘으면 다 끝남) */
   nextDay: number;
   /** 오늘 · 마지막 프로그램 세션 날짜 'YYYY-MM-DD' */
   today: string;
@@ -629,8 +1188,8 @@ export type SlotAdjust =
   | { kind: 'drop'; reason: string }
   /** 추천 −10% · 세트 −1 (D19) */
   | { kind: 'lighter' }
-  /** 같은 칸 · 같은 계열로 그날 대체(§3 (a)) */
-  | { kind: 'substitute'; reason: string };
+  /** 같은 칸 · 같은 계열로 그날 대체(§3 (a)). 그 칸이 '가볍게'였으면 lighter — 대체한 운동 · 같은 칸의 다른 운동도 가볍게 */
+  | { kind: 'substitute'; reason: string; lighter?: true };
 
 export type TodayDecision =
   | { kind: 'done' }
@@ -661,9 +1220,9 @@ export function daysBetween(fromKey: string, toKey: string): number {
  * 프로그램은 스스로 진행한다(D22). 기다리는 것은 통증 멈춤 · 경기 앞뒤(넘길 수 있음) · 어제 프로그램 날뿐이고,
  * 나머지 나쁜 날은 진행하되 주의 한 줄과 칸 조정으로 알린다(§4 · §5 · §6).
  */
-export function decideToday(s: TodaySignals): TodayDecision {
+export function decideToday(plan: ProgramPlan, s: TodaySignals): TodayDecision {
   const day = s.nextDay;
-  if (day > TOTAL_DAYS) return { kind: 'done' };
+  if (day > plan.totalDays) return { kind: 'done' };
   if (s.halted) return { kind: 'painWait', day };
   if (!s.checkedIn) return { kind: 'needCheckin', day };
   if (s.otherWorkoutStarted) return { kind: 'otherMode', day };
@@ -683,8 +1242,8 @@ export function decideToday(s: TodaySignals): TodayDecision {
     return { kind: 'rest', day, reason: restReason, canOverride: true };
   }
 
-  const week = weekOfDay(day);
-  const variants = dayVariants(day);
+  const week = weekOfDay(plan, day);
+  const items = dayPlan(plan, day).items;
   const adjust: Partial<Record<SlotKind, SlotAdjust>> = {};
 
   /* 칸 조정 — 회복 데이(컨디션 4 이하)는 큰 하체 · 파워를 가볍게(D19 · D25) */
@@ -696,21 +1255,25 @@ export function decideToday(s: TodaySignals): TodayDecision {
   if (s.soreMany || s.sleepShort) adjust.bigLower = { kind: 'lighter' };
   /* 부하 '주의' — 파워 칸을 뺀다 */
   if (s.loadCaution) adjust.power = { kind: 'drop', reason: '부하 주의' };
-  /* 불펜 날 — 회전 던지기 칸을 뺀다 */
-  if (s.bullpenToday && variants.core === 'rotationalThrow') {
-    adjust.core = { kind: 'drop', reason: '오늘 불펜' };
+  /* 불펜 날 — 회전 던지기를 뺀다(몸통 칸) */
+  if (s.bullpenToday && items.some((x) => x.variant === 'rotationalThrow')) {
+    adjust[SLOT_OF.rotationalThrow] = { kind: 'drop', reason: '오늘 불펜' };
   }
   /* 부위 통증 — 그 칸은 그날 대체(없으면 화면이 '오늘 뺌'으로) */
   for (const slot of s.painSlots) {
     if (adjust[slot]?.kind !== 'drop')
-      adjust[slot] = { kind: 'substitute', reason: '통증 부위' };
+      adjust[slot] = {
+        kind: 'substitute',
+        reason: '통증 부위',
+        ...(adjust[slot]?.kind === 'lighter' ? { lighter: true as const } : {}),
+      };
   }
 
   return {
     kind: 'go',
     day,
     week,
-    caution: pickCaution(s, week, gapDays),
+    caution: pickCaution(s, isLightWeek(plan, week), gapDays),
     adjust,
     gapDays,
   };
@@ -722,7 +1285,7 @@ export function decideToday(s: TodaySignals): TodayDecision {
  */
 export function pickCaution(
   s: TodaySignals,
-  week: number,
+  lightWeek: boolean,
   gapDays: number | null
 ): CautionCode | null {
   if (s.override && (s.gameToday || s.gameTomorrow || s.gameYesterday))
@@ -732,7 +1295,7 @@ export function pickCaution(
   if (s.uncertain) return 'uncertain';
   if (s.loadCaution || s.soreMany || s.sleepShort) return 'lighter';
   if (gapDays != null && gapDays >= 8) return 'restGap';
-  if (isLightWeek(week)) return 'lightWeek';
+  if (lightWeek) return 'lightWeek';
   return null;
 }
 
@@ -755,7 +1318,13 @@ export const REST_TEXT: Record<RestReason, string> = {
 
 /* ─────────────────────────── 일차 넘기기(§9 · U2 · U4) ─────────────────────────── */
 
-export type SessionProgramTag = { key: string; day: number; week: number };
+export type SessionProgramTag = {
+  key: string;
+  day: number;
+  week: number;
+  /** 운동 시작 때 판정한 쉰 기간(일) — 운동 중 [교체]의 무게가 카드와 같게. 2026-10-07 앞의 판에는 없다 */
+  gapDays?: number | null;
+};
 
 /** 얼린 목록의 program 을 읽는다. 모양이 아니면 null(프로그램 아닌 날) */
 export function readSessionProgram(value: unknown): SessionProgramTag | null {
@@ -768,7 +1337,12 @@ export function readSessionProgram(value: unknown): SessionProgramTag | null {
   ) {
     return null;
   }
-  return { key: v.key, day: v.day as number, week: v.week as number };
+  return {
+    key: v.key,
+    day: v.day as number,
+    week: v.week as number,
+    ...(typeof v.gapDays === 'number' ? { gapDays: v.gapDays } : {}),
+  };
 }
 
 /** 다음 일차로 가려면 처방 세트의 절반(올림) 이상 */
@@ -799,10 +1373,6 @@ export function shouldAdvance(a: AdvanceInput): boolean {
 }
 
 /* ─────────────────────────── 진행 · 끝(§13-13 · 15) ─────────────────────────── */
-
-export function progressLine(completed: number, skipped: number): string {
-  return `완료 ${completed} · 건너뜀 ${skipped} / ${TOTAL_DAYS}`;
-}
 
 /**
  * 끝내기 창의 한 줄(§13-9) — '16세트 중 7세트. 8세트를 하면 다음 일차로 가요'.

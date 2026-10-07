@@ -239,6 +239,11 @@ endReason: 'done' · 'stopped' · 'switched'. 멈춤(paused)은 첫 판에 없�
 - **꼭**: 1 시작 자격(나이 · 경력 · 시즌 · 장비 확인) · 2 첫 프로그램 하나 · 3 고정 · 대체 · 4~6 안전 · 던지는 일정 · 간격 · 7 하루 만들기 · 8 무게 추천 · 9 진행 ·
   10 저장 · 4 · 5 의 주의 한 줄 · 근거 문서의 '첫 프로그램' 부분.
 - **뒤로**: 시즌 중 · 성장기 내용과 그 근거 · 측정 도구가 없을 때의 대안 · 프로그램 여러 개를 고르는 화면 · 여러 프로그램용 대상 조건 편집 · 프로그램 고쳐 쓰기 · 알림 · 접근 C.
+- **2026-10-07 — 프로그램 여러 개를 고르는 화면을 열었다**(사용자: "실제 있는 프로그램을 기반으로, 모두 4주"). 스트롱리프트 5×5 · 5/3/1 BBB · 5/3/1 ·
+  텍사스 메소드 · 저거넛 5회 파도 · WS4SB · 프렌치 컨트라스트, 원본의 첫 4주(`lib/program/program.ts` 의 `PROGRAMS`). 투수 맞춤: 1회 최대 없음 · '+' 세트는
+  2개 남기고 · 밀기는 덤벨 먼저 · 파워 클린 → 점프 · 날마다 몸통 버티기. 무게 방식은 셋 — 기준 무게(TM = 추정 최대 × 0.9, 시작 전 기록으로 4주 고정) × % ·
+  스트롱리프트식(다 채우면 한 칸) · 지금의 '몇 개 남기고'. 주 2번은 키 뒤 `:2`(DB 구조 그대로). 이 문서의 8주 '비시즌 근력 → 파워'는 목록에서 숨기고 진행 중인 줄만
+  이어 간다(1~24일차가 예전과 같은지 `scripts/fixtures/legacy-program.json` 으로 셀프테스트).
 
 화면 스케치 v2(디자인 검토 반영, §13): `docs/designs/assets/pitcher-strength-power-programs-sketch-v2.png`. v1(흑백, 배치만 — 지금은 §13 과 어긋남): 저장소 `docs/designs/assets/pitcher-strength-power-programs-sketch.png`
 (같은 그림 `~/.gstack/projects/Bullpen-Log-bullpen-log/pitcher-strength-power-programs-sketch.png`)

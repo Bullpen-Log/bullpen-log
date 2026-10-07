@@ -18,13 +18,15 @@ import {
 } from '@/lib/workout/session-plan';
 import { openSession } from '@/lib/workout/open-session';
 import {
-  FIRST_PROGRAM,
   PROGRAMS_ENABLED,
-  TOTAL_DAYS,
   VARIANT_KEYS,
   checkEligibility,
+  parseProgram,
   pickPinned,
+  programDef,
   readPinned,
+  startProgramKey,
+  usedVariants,
   variantCandidates,
   weekOfDay,
   type Pinned,
@@ -44,10 +46,12 @@ type Result = { ok: true } | { error: string };
 /* ─────────────────────────── 시작 ─────────────────────────── */
 
 /**
- * 프로그램을 시작한다(§13-12). 시작 시트에서 받은 것(시즌 · 비어 있던 경력 · 생년월일 · 장비 · 고정 9개)을
+ * 프로그램을 시작한다(§13-12). 시작 시트에서 받은 것(프로그램 · 주당 횟수 · 시즌 · 비어 있던 경력 · 생년월일 · 장비 · 고정 운동)을
  * [시작] 때 한꺼번에 저장한다 — 중간에 닫으면 프로필은 그대로다.
  */
 export async function startProgram(input: {
+  programId: string;
+  perWeek: number;
   season: ProgramSeason;
   birthDate?: string | null;
   trainingLevel?: string | null;
@@ -55,6 +59,8 @@ export async function startProgram(input: {
   pinned?: Record<string, string> | null;
 }): Promise<Result> {
   if (!PROGRAMS_ENABLED) return { error: '지금은 프로그램을 시작할 수 없어요.' };
+  const programKey = startProgramKey(input.programId, input.perWeek);
+  if (!programKey) return { error: '고른 프로그램을 다시 확인해 주세요.' };
   const user = await requireUser();
   const now = new Date();
 
@@ -86,7 +92,7 @@ export async function startProgram(input: {
     return { error: eligible.kind === 'ask' ? eligible.message : eligible.reason };
   }
 
-  /* 고정 9개 — 보낸 것 중 후보에 있는 것만 지키고, 나머지는 규칙대로 고른다 */
+  /* 고정 운동 — 보낸 것 중 후보에 있는 것만 지키고, 나머지는 규칙대로 고른다(안 쓰는 변형도 골라 둔다 — 해가 없다) */
   const library = await visibleExercises();
   const keep: Pinned = readPinned(input.pinned ?? {});
   const pinned = pickPinned(library, ownedEquipment, trainingLevel, keep);
@@ -95,13 +101,19 @@ export async function startProgram(input: {
     /* 진행 중은 한 사람 하나 — Prisma 가 조건 붙은 유일 규칙을 못 적어 트랜잭션 안에서 본다(재활과 같다) */
     const existing = await tx.userTrainingProgram.findFirst({
       where: { userId: user.id, status: 'active' },
-      select: { id: true },
+      select: { id: true, programKey: true },
     });
-    if (existing) return 'exists' as const;
+    /* 모르는 키의 줄(지운 프로그램)은 이어 갈 수 없다 — 바뀜으로 닫고 새로 시작한다 */
+    if (existing && parseProgram(existing.programKey) == null) {
+      await tx.userTrainingProgram.update({
+        where: { id: existing.id },
+        data: { status: 'stopped', endedAt: new Date(), endReason: 'switched' },
+      });
+    } else if (existing) return 'exists' as const;
     await tx.userTrainingProgram.create({
       data: {
         userId: user.id,
-        programKey: FIRST_PROGRAM.key,
+        programKey,
         season: season as string,
         pinned,
       },
@@ -152,8 +164,9 @@ export async function programChoices(input: {
   };
 }
 
-/** 시작 시트 ④ 의 첫 목록 — 아직 시작 전이라 장비 · 경력은 시트에서 고른 값으로 */
+/** 시작 시트 ④ 의 첫 목록 — 아직 시작 전이라 장비 · 경력은 시트에서 고른 값으로. 그 프로그램이 쓰는 변형만 */
 export async function previewPinned(input: {
+  programId: string;
   ownedEquipment?: string[] | null;
   trainingLevel?: string | null;
 }): Promise<{
@@ -168,8 +181,9 @@ export async function previewPinned(input: {
   const library = await visibleExercises();
   const byId = new Map(library.map((e) => [e.id, e.title]));
   const pinned = pickPinned(library, owned, level);
+  const def = programDef(input.programId);
   return {
-    pinned: VARIANT_KEYS.map((v) => ({
+    pinned: (def ? usedVariants(def) : VARIANT_KEYS).map((v) => ({
       variant: v,
       id: pinned[v] ?? null,
       title: pinned[v] ? (byId.get(pinned[v] as string) ?? null) : null,
@@ -196,14 +210,14 @@ export async function startProgramWorkout() {
   });
   if (open?.status === 'ACTIVE') redirect('/workout/run');
 
-  /* 오늘 이미 마친 프로그램 판을 다시 열면 그 판의 목록 그대로(다음 일차 목록을 섞지 않는다) */
+  /* 오늘 이미 마친 이 프로그램 판을 다시 열면 그 판의 목록 그대로(다음 일차 목록을 섞지 않는다). 다른 프로그램 판이면 아래 판정이 '기다림'으로 막는다 */
   const kept = open ? readFrozenPlan(open.plan) : null;
-  if (open && kept?.program) {
+  if (open && kept?.program?.key === row.programKey) {
     redirect(await openSession(user.id, core.midnight, kept, open));
   }
 
   const view = await buildProgramDay(core, row, user);
-  if (view.decision.kind !== 'go' || view.rows.length === 0) redirect('/training');
+  if (!view || view.decision.kind !== 'go' || view.rows.length === 0) redirect('/training');
 
   /* 관리자 숨김으로 다시 고른 것은 지금 저장한다(§3) */
   if (Object.keys(view.repin).length > 0) {
@@ -218,12 +232,18 @@ export async function startProgramWorkout() {
     themeKey: 'lower',
     themeLabel: `프로그램 · ${view.dayLabel}`,
     goal: null,
-    program: { key: row.programKey, day: view.day, week: weekOfDay(view.day) },
+    program: {
+      key: row.programKey,
+      day: view.day,
+      week: weekOfDay(view.plan, view.day),
+      gapDays: view.decision.gapDays,
+    },
     exercises: view.rows.map((r) =>
       freezeProgramExercise(r.exercise, r.rx, {
         substitute: r.substituteFor != null,
-        adjusted: r.adjust?.kind === 'lighter',
+        adjusted: r.lighter,
         suggestedKg: r.suggestion?.kg ?? null,
+        kgs: r.kgs,
       })
     ),
   };
@@ -246,11 +266,13 @@ export async function overrideProgramRest(): Promise<Result> {
   return { ok: true };
 }
 
-/** 이 날 건너뛰기(§13-16) — 건너뜀으로 세고 다음 일차로. 24일차를 넘으면 끝. */
+/** 이 날 건너뛰기(§13-16) — 건너뜀으로 세고 다음 일차로. 마지막 일차를 넘으면 끝. */
 export async function skipProgramDay(input: { day: number }): Promise<Result> {
   const user = await requireUser();
   const row = await activeProgram(user.id);
   if (!row) return { error: '진행 중인 프로그램이 없어요.' };
+  const total = parseProgram(row.programKey)?.totalDays;
+  if (total == null) return { error: '이 프로그램은 더 이어 갈 수 없어요. 새로 골라 주세요.' };
   /* 화면이 본 일차일 때만 — 두 번 눌러도 한 번 */
   const moved = await prisma.userTrainingProgram.updateMany({
     where: { id: row.id, status: 'active', nextDay: input.day },
@@ -258,7 +280,7 @@ export async function skipProgramDay(input: { day: number }): Promise<Result> {
   });
   if (moved.count === 0)
     return { error: '이미 넘어간 날이에요. 화면을 새로 열어 주세요.' };
-  if (input.day >= TOTAL_DAYS) {
+  if (input.day >= total) {
     await prisma.userTrainingProgram.update({
       where: { id: row.id },
       data: { status: 'done', endedAt: new Date(), endReason: 'done' },

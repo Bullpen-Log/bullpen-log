@@ -35,7 +35,11 @@ import { TrainingCheckin } from './training-checkin';
 import { OpenCheckinButton } from '@/components/notice-bell';
 import { availableParts } from '@/lib/report/today-pick';
 import { exercisesByIds } from '@/lib/library-cache';
-import { PROGRAMS_ENABLED } from '@/lib/program/program';
+import {
+  PROGRAMS_ENABLED,
+  parseProgram,
+  programChoiceList,
+} from '@/lib/program/program';
 import {
   activeProgram,
   buildProgramDay,
@@ -245,7 +249,7 @@ export default async function TrainingPage({
     PROGRAMS_ENABLED && !programRow
       ? recentlyDoneProgram(user.id, today)
       : Promise.resolve(null),
-    PROGRAMS_ENABLED && !programRow
+    PROGRAMS_ENABLED && (!programRow || !parseProgram(programRow.programKey))
       ? prisma.nutritionProfile.findUnique({
           where: { userId: user.id },
           select: { seasonPhase: true },
@@ -257,9 +261,11 @@ export default async function TrainingPage({
     ? await programResult(doneProgram, core.library)
     : null;
   const programAge = user.birthDate ? ageFromBirthDate(user.birthDate, today) : null;
+  /* 진행 중인 줄의 키를 모르면(지운 프로그램) 카드가 없으니 고르기를 다시 보인다 — 시작하면 그 줄은 바뀜으로 닫힌다 */
   const programStart: ProgramStartProps | null =
-    PROGRAMS_ENABLED && !programRow
+    PROGRAMS_ENABLED && !programView
       ? {
+          programs: programChoiceList(),
           needBirth: user.birthDate == null,
           level: user.trainingLevel,
           levels: TRAINING_LEVELS.map((l) => ({ name: l.name, desc: l.desc })),

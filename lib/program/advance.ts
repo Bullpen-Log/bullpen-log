@@ -1,7 +1,7 @@
 import 'server-only';
 import { prisma } from '@/lib/prisma';
 import { readFrozenPlan } from '@/lib/workout/session-plan';
-import { TOTAL_DAYS, shouldAdvance } from '@/lib/program/program';
+import { parseProgram, shouldAdvance } from '@/lib/program/program';
 
 /**
  * 이 판으로 프로그램 일차를 넘긴다 — 넘겼으면 true.
@@ -40,10 +40,11 @@ export async function advanceProgramDay(sessionId: string): Promise<boolean> {
   });
   if (moved.count === 0) return false;
 
-  /* 24일차까지 갔으면 끝 */
-  if (program.day >= TOTAL_DAYS) {
+  /* 마지막 일차까지 갔으면 끝 */
+  const total = parseProgram(program.key)?.totalDays;
+  if (total != null && program.day >= total) {
     await prisma.userTrainingProgram.updateMany({
-      where: { id: row.id, status: 'active', nextDay: { gt: TOTAL_DAYS } },
+      where: { id: row.id, status: 'active', nextDay: { gt: total } },
       data: { status: 'done', endedAt: new Date(), endReason: 'done' },
     });
   }

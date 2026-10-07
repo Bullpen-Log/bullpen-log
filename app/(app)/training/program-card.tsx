@@ -133,9 +133,7 @@ export function ProgramCard({ props }: { props: ProgramCardProps }) {
                 <span className="min-w-0 flex-1">
                   <span className="block truncate text-[15px] text-ink">{r.title}</span>
                   {r.contrast && (
-                    <span className="block text-xs text-muted">
-                      바로 이어서 · 큰 하체 뒤 2~3분 쉬고
-                    </span>
+                    <span className="block text-xs text-muted">{r.contrast}</span>
                   )}
                   {r.tag && (
                     <span className="mt-0.5 inline-block rounded-md bg-ink/6 px-1.5 text-[11px] text-muted">
@@ -156,9 +154,7 @@ export function ProgramCard({ props }: { props: ProgramCardProps }) {
                   ) : r.first ? (
                     <span className="text-xs text-muted">처음</span>
                   ) : null}
-                  <span className="block text-xs text-muted">
-                    {r.sets} × {r.reps}
-                  </span>
+                  <span className="block text-xs text-muted">{r.amount}</span>
                 </span>
               </button>
             </li>
@@ -214,7 +210,9 @@ export function ProgramCard({ props }: { props: ProgramCardProps }) {
         />
         {more && (
           <div className="space-y-1 px-(--block-pad) pb-(--block-pad)">
-            <p className="text-sm text-muted">{p.name} · 24회 · 주 3번 · 보통 8~10주</p>
+            <p className="text-sm text-muted">
+              {p.name} · {p.subtitle}
+            </p>
             {going && !finishedToday && (
               <MoreRow onClick={() => setConfirm('skip')}>이 날 건너뛰기</MoreRow>
             )}
