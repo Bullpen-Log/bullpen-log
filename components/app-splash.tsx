@@ -82,6 +82,16 @@ export function AppSplash() {
   if (!show) return null;
   return (
     <div ref={rootRef} className="app-splash" aria-hidden>
+      {/*
+       * 표시(data-splash)는 HTML 을 읽는 그 자리에서 곧바로 단다 — 붙은(hydration) 뒤의 효과(useEffect)까지 기다리면 그 사이
+       * 스트리밍 조각이 드러나며 거는 화면 전환(view transition)의 그림이 이 판 위로 번쩍였다(왼쪽 · 오른쪽 틀, 2026-10-07).
+       * globals.css 가 이 표시가 있는 동안 view-transition-name 을 모두 끈다(체크인 관문의 data-gate-up 과 같은 방식).
+       */}
+      <script
+        dangerouslySetInnerHTML={{
+          __html: `document.documentElement.setAttribute('${SPLASH_ATTR}','')`,
+        }}
+      />
       <div className="app-splash__stage">
         {/* 끝 장면의 이름 — B 칸은 비워 두고(큰 B 가 와서 앉는다) 글자만 */}
         <span className="app-splash__word text-display">

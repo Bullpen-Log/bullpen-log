@@ -2274,6 +2274,12 @@ html[data-gate-up] *::before,
 html[data-gate-up] *::after {
   view-transition-name: none !important;
 }
+/* 시작 연출(components/app-splash.tsx) 중에도 같다 — 스트리밍 조각이 드러나며 거는 전환의 그림이 판 위로 번쩍였다(2026-10-07) */
+html[data-splash] *,
+html[data-splash] *::before,
+html[data-splash] *::after {
+  view-transition-name: none !important;
+}
 
 /* ── 움직임을 줄여 쓰는 사람에게는 전부 끈다 ─────────────────── */
 
@@ -2377,6 +2383,8 @@ html[data-gate-up] *::after {
   z-index: 100;
   background: var(--color-page);
   pointer-events: none;
+  /* 걷힐 때 무대가 1.06배로 커져도 밖으로 안 넘치게(가로 막대가 번쩍이지 않게) */
+  overflow: hidden;
 }
 .app-splash__stage {
   position: absolute;
@@ -2416,7 +2424,7 @@ html[data-gate-up] *::after {
   position: absolute;
   left: 50%;
   top: 50%;
-  height: calc(0.16 * max(100vw, 100vh));
+  height: min(calc(0.13 * max(100vw, 100vh)), 150px);
   translate: -50% -50%;
   transform-origin: 50% 50%;
 }
