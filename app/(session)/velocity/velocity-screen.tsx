@@ -72,7 +72,18 @@ import { focalPxFromFov } from '@/lib/velocity-engine/geometry';
 import { liveFpsNote, type LiveReport } from '@/lib/velocity-engine/live-meter';
 import { readVideoLens, videoFovFor } from '@/lib/velocity-engine/video-lens';
 import { analysisOf, type AnalysisJson } from '@/lib/velocity-analysis';
-import type { DistanceReport } from '@/lib/velocity-engine/analyze-distance';
+import {
+  SPEED_DISTANCE_EXPONENT,
+  type DistanceReport,
+} from '@/lib/velocity-engine/analyze-distance';
+import {
+  SESSION_DIST_MIN,
+  loadDistMemory,
+  medianOf,
+  saveDistMemory,
+  sessionDistOf,
+  type DistMemory,
+} from '@/lib/velocity-session-distance';
 import {
   SegmentedRecorder,
   recordingBitrate,
@@ -238,9 +249,51 @@ type LocalPitch = SavePitchInput & {
   trail?: TrailPoint[] | null;
   /** 클립의 eventSec 에 해당하는 궤적 시각(ResultMeta.hitT) — 클립 시각 = eventSec + (t − hitT) */
   hitT?: number | null;
-  /** 구속을 낸 거리 — 결과 화면에 '거리 22.4m(공 크기)'로 보인다 */
-  dist?: { m: number; auto: boolean } | null;
+  /** 구속을 낸 거리 — 결과 화면에 '거리 22.4m(공 크기)'로 보인다. from 은 세션 거리(아래 withSessionDistance)로 옮겼으면 어디서 */
+  dist?: { m: number; auto: boolean; from?: 'session' | 'memory' | null } | null;
+  /**
+   * 공 크기로 어림한 거리로 잰 처음 값 — 세션 거리로 옮길 때 여기서 다시 낸다. clean 은 끝이 깨끗했나(맞고 튄 공으로 끝을 정하고 이어
+   * 찾은 것이 없다) — 세션 거리는 이런 공에만 쓴다
+   */
+  auto?: { distM: number; kmh: number; releaseKmh: number | null; errorKmh: number; clean: boolean } | null;
 };
+/**
+ * 세션 거리(규칙 · 숫자는 lib/velocity-session-distance.ts) — 끝이 깨끗한 공(맞고 튄 공으로 끝, 이어 찾기 없음)에만 쓴다. 실내(흰 천 ·
+ * 포수)는 공마다 끝 판정이 흔들리고 그 공의 거리가 그것을 메워, 세션 거리로 옮기면 오히려 5.5 → 8.2 로 나빴다. 세션 거리와 8% 넘게
+ * 다른 공도 다른 일(폰을 옮김 등)이라 제 거리를 둔다. 영상 파일은 파일끼리 따로 세고 지난 세션 거리도 안 쓴다 — 찍은 자리를 모른다.
+ * 공을 더하거나 지울 때마다 다시 센다.
+ */
+const SESSION_DIST_TOL = 0.08;
+function withSessionDistance(
+  list: LocalPitch[],
+  memory: DistMemory | null
+): LocalPitch[] {
+  const cleanOf = (source: LocalPitch['source']) =>
+    list.filter((p) => p.auto?.clean && p.source === source).map((p) => p.auto!.distM);
+  const sess = {
+    camera: sessionDistOf(cleanOf('camera'), memory),
+    file: sessionDistOf(cleanOf('file'), null),
+  };
+  const r1 = (v: number) => Math.round(v * 10) / 10;
+  return list.map((p) => {
+    if (!p.auto) return p;
+    const s = sess[p.source];
+    const on =
+      s != null && p.auto.clean && Math.abs(p.auto.distM / s.m - 1) <= SESSION_DIST_TOL;
+    const use = on ? s.m : p.auto.distM;
+    const k = (use / p.auto.distM) ** SPEED_DISTANCE_EXPONENT;
+    const distance = p.analysis?.distance;
+    return {
+      ...p,
+      rawKmh: r1(p.auto.kmh * k),
+      errorKmh: r1(p.auto.errorKmh * k),
+      releaseKmh: p.auto.releaseKmh != null ? r1(p.auto.releaseKmh * k) : null,
+      dist: { m: r1(use), auto: true, from: on ? s.from : null },
+      analysis:
+        p.analysis && distance ? { ...p.analysis, distance: { ...distance, distanceM: r1(use) } } : p.analysis,
+    };
+  });
+}
 /** 넣은 거리와 공 크기로 본 거리가 이만큼(비율) 넘게 다르면 알린다 — 공 크기 어림의 흩어짐 2.5%, 화각 짐작이면 8% 안팎 */
 const DIST_MISMATCH = 0.12;
 /**
@@ -671,7 +724,6 @@ export function VelocityScreen({
     setLast(result);
     const m = result.measure;
     const r = result.release;
-    const value = shown(m.kmh);
     /*
      * 거리 — 공 크기로 어림하라 했는데 못 했으면(공이 덜 잡힘) 그 까닭을, 넣은 거리가 공 크기로 본 거리와 많이 다르면 다시 재 보라고
      * 알린다(사용자 2026-10-07: 기본 20m 그대로 재 실제 22.5m 와 12% 갈렸다).
@@ -721,47 +773,57 @@ export function VelocityScreen({
         };
       }
     }
-    setPitches((prev) => [
-      ...prev,
-      {
-        id: nextPitchId(prev),
-        source,
-        clip: earlyClip,
-        rawKmh: m.kmh,
-        errorKmh: m.errorKmh,
-        confidence: m.confidence,
-        releaseKmh: r?.releaseKmh ?? null,
-        releaseDxCm: r?.dxCm ?? null,
-        releaseDyCm: r?.dyCm ?? null,
-        releaseDistM: r?.distanceM ?? m.detail.releaseDistanceM,
-        travelM: m.detail.travelM,
-        durationSec: m.detail.durationSec,
-        frames: m.detail.frames,
-        fps: result.fps,
-        analysis: {
-          ...analysisOf(result, approach),
-          /* 클립은 카메라 장면 그대로라 이 존을 영상 위에 그대로 얹는다. 영상 파일은 장면이 달라 싣지 않는다 */
-          zoneRect: source === 'camera' ? activeZone : null,
-        },
-        autoDetected: source === 'camera' ? autoMode : false,
-        captureId: meta?.id,
-        notes: [
-          ...distNotes,
-          ...(result.live?.notes.map((note) => note.text) ?? []),
-          ...(source === 'file' ? ((result as { video?: { notes: string[] } }).video?.notes ?? []) : []),
-        ],
-        trail: trailOf(result),
-        hitT: meta?.hitT ?? null,
-        dist: dist ? { m: dist.distanceM, auto: dist.distanceSource === 'ball' } : null,
-        ...EMPTY_EDIT,
-        zone: guessedZone,
+    const added: Omit<LocalPitch, 'id'> = {
+      source,
+      clip: earlyClip,
+      rawKmh: m.kmh,
+      errorKmh: m.errorKmh,
+      confidence: m.confidence,
+      releaseKmh: r?.releaseKmh ?? null,
+      releaseDxCm: r?.dxCm ?? null,
+      releaseDyCm: r?.dyCm ?? null,
+      releaseDistM: r?.distanceM ?? m.detail.releaseDistanceM,
+      travelM: m.detail.travelM,
+      durationSec: m.detail.durationSec,
+      frames: m.detail.frames,
+      fps: result.fps,
+      analysis: {
+        ...analysisOf(result, approach),
+        /* 클립은 카메라 장면 그대로라 이 존을 영상 위에 그대로 얹는다. 영상 파일은 장면이 달라 싣지 않는다 */
+        zoneRect: source === 'camera' ? activeZone : null,
       },
-    ]);
+      autoDetected: source === 'camera' ? autoMode : false,
+      captureId: meta?.id,
+      notes: [
+        ...distNotes,
+        ...(result.live?.notes.map((note) => note.text) ?? []),
+        ...(source === 'file' ? ((result as { video?: { notes: string[] } }).video?.notes ?? []) : []),
+      ],
+      trail: trailOf(result),
+      hitT: meta?.hitT ?? null,
+      dist: dist ? { m: dist.distanceM, auto: dist.distanceSource === 'ball' } : null,
+      auto:
+        dist?.distanceSource === 'ball'
+          ? {
+              distM: dist.distanceM,
+              kmh: m.kmh,
+              releaseKmh: r?.releaseKmh ?? null,
+              errorKmh: m.errorKmh,
+              clean: dist.impact === 'rebound' && dist.extended === 0,
+            }
+          : null,
+      ...EMPTY_EDIT,
+      zone: guessedZone,
+    };
+    const memory = loadDistMemory();
+    setPitches((prev) => withSessionDistance([...prev, { ...added, id: nextPitchId(prev) }], memory));
     setSaved(false);
     setResultOpen(true);
     /* 앱(아이폰)에서도 떨린다 — navigator.vibrate 는 아이폰에 없다(lib/haptics.ts) */
     buzz(30);
-    speak(`${Math.round(toSpeed(value, unit))}`);
+    /* 읽어 주는 값도 세션 거리로 옮긴 값 */
+    const spoken = withSessionDistance([...pitches, { ...added, id: -1 }], memory).at(-1)?.rawKmh ?? m.kmh;
+    speak(`${Math.round(toSpeed(shown(spoken), unit))}`);
   };
   useEffect(() => {
     addResultRef.current = addResult;
@@ -1363,8 +1425,23 @@ export function VelocityScreen({
 
   const patch = (id: number, edit: Partial<PitchEdit>) =>
     setPitches((prev) => prev.map((p) => (p.id === id ? { ...p, ...edit } : p)));
+  /* 이번 세션(카메라)의 깨끗한 공이 3개를 넘기면 그 중앙값을 지난 세션 거리로 남긴다 — 다음 세션 첫 공부터 쓴다 */
+  useEffect(() => {
+    const ds = pitches.filter((p) => p.auto?.clean && p.source === 'camera').map((p) => p.auto!.distM);
+    if (ds.length >= SESSION_DIST_MIN)
+      saveDistMemory({
+        distM: Math.round(medianOf(ds) * 100) / 100,
+        n: ds.length,
+        at: Date.now(),
+      });
+  }, [pitches]);
   const remove = (id: number) => {
-    setPitches((prev) => prev.filter((p) => p.id !== id));
+    setPitches((prev) =>
+      withSessionDistance(
+        prev.filter((p) => p.id !== id),
+        loadDistMemory()
+      )
+    );
     setSheet('none');
     setEditing(null);
   };
@@ -2448,7 +2525,19 @@ export function VelocityScreen({
               unit={speedLabel(unit)}
               sub={`± ${speedNum(lastPitch.errorKmh)} · ${
                 CONFIDENCE_TEXT[lastPitch.confidence as keyof typeof CONFIDENCE_TEXT] ?? ''
-              }${lastPitch.dist ? ` · 거리 ${lastPitch.dist.m}m${lastPitch.dist.auto ? '(공 크기)' : ''}` : ''}`}
+              }${
+                lastPitch.dist
+                  ? ` · 거리 ${lastPitch.dist.m}m${
+                      lastPitch.dist.from === 'memory'
+                        ? '(지난 세션 + 공 크기)'
+                        : lastPitch.dist.from === 'session'
+                          ? '(세션 공 크기)'
+                          : lastPitch.dist.auto
+                            ? '(공 크기)'
+                            : ''
+                    }`
+                  : ''
+              }`}
               notes={lastPitch.notes ?? []}
               clip={resultClip}
               trail={resultTrail}

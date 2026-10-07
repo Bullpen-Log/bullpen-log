@@ -47,7 +47,14 @@ const names = args.filter((a) => !a.startsWith('--'));
 const list = names.length ? names : Object.keys(RELEASE);
 
 function load(name: string) {
-  const meta = JSON.parse(readFileSync(join(DIR, name + '.json'), 'utf8')) as { w: number; h: number; n: number; t: number[] };
+  const meta = JSON.parse(readFileSync(join(DIR, name + '.json'), 'utf8')) as {
+    w: number;
+    h: number;
+    n: number;
+    t: number[];
+    /** 원본 영상 크기 — 장면을 분석 해상도로 받아 둔 묶음(브라우저가 꺼낸 장면)이면 있다 */
+    src?: [number, number];
+  };
   const fd = openSync(join(DIR, name + '.y8'), 'r');
   const size = meta.w * meta.h;
   const frame = (i: number) => {
@@ -100,8 +107,8 @@ for (const name of list) {
     backgroundSamples: bgs.slice(-3),
     width: W,
     height: H,
-    sourceWidth: clip.w,
-    sourceHeight: clip.h,
+    sourceWidth: clip.src?.[0] ?? clip.w,
+    sourceHeight: clip.src?.[1] ?? clip.h,
     focalPx: FOCAL_FULL,
     distanceM: D,
     fps: 60,
