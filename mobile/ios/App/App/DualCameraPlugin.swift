@@ -1,13 +1,19 @@
 import AVFoundation
 import Capacitor
+import simd
 import UIKit
 import UniformTypeIdentifiers
 import WebKit
 
-/// 일반 · 광각 동시 촬영 — 구속 측정의 '광각 영상도 같이 저장'(사이트 lib/dual-camera.ts, 2026-10-03 계획의 2단계).
+/// 앱 카메라 — 구속 측정을 앱이 직접 잡은 카메라로 한다(사이트 lib/dual-camera.ts). 처음엔 '광각 영상도 같이 저장'용
+/// 일반 · 광각 동시 촬영이었고(2026-10-03), 2026-10-08 부터는 광각 없이 일반 카메라 하나로도 켠다(start 의 wide: false —
+/// 모든 아이폰). 사용자: "웹카메라가 아닌 앱 자체의 카메라로" — 웹 카메라(getUserMedia)는 손떨림 보정을 켤 수 없다.
 ///
 /// 웹 화면(앱 안의 웹뷰도)은 카메라를 한 번에 하나만 켠다 — 두 번째를 켜면 앞의 카메라가 멈춘다(WebKit). 그래서 이
-/// 부품이 앱에서 두 카메라를 직접 잡는다(AVCaptureMultiCamSession — iPhone 11 이후). 측정은 일반 카메라로 한다.
+/// 부품이 앱에서 카메라를 직접 잡는다(광각도 같이면 AVCaptureMultiCamSession — iPhone 11 이후). 측정은 일반 카메라로 한다.
+///
+/// 일반 카메라에는 표준 손떨림 보정을 건다 — 화면 가장자리를 잘라 화각이 좁아지므로, 클립의 화각은 렌즈 값(intrinsics)이 오면
+/// 그것, 안 오면 자른 몫을 짐작한 값이다(fovSource 'intrinsics' · 'estimate' · 보정이 꺼졌으면 'format').
 ///
 /// 측정용 장면을 웹으로 실시간(초당 60장) 넘기지 않는다 — 그 길이 충분히 빠를지 알 수 없어서다. 대신
 ///   1. 두 카메라를 1초 조각(fMP4)으로 이어 녹화해 최근 8초를 쥐고 있다(SegmentRecorder)
@@ -20,12 +26,15 @@ import WebKit
 /// 비워(투명) 존 · 안내만 위에 그린다. 사이트가 쓰던 웹 카메라(getUserMedia)는 start 전에 꺼야 한다(같은 카메라를 둘이 못 쓴다).
 ///
 /// 부르는 법(사이트, window.Capacitor.nativePromise('DualCamera', …)):
-///   status()                                    → { supported, reason?, modes? }   modes = [{ short, long, maxFps }](일반 카메라, 16:9)
-///                                                  reason: multicam · no-ultrawide · pair · fps(함께 켤 때 60fps 를 못 냄)
-///   start({ fps, short?, net, preview, roi, armed }) → { mainFps, wideFps, mainWidth, mainHeight, wideWidth, wideHeight, mainFovDeg, wideFovDeg, hardwareCost }
+///   status()                                    → { supported, reason?, modes?, single }   modes = [{ short, long, maxFps }](일반 카메라, 16:9)
+///                                                  supported · reason 은 광각 동시 촬영: multicam · no-ultrawide · pair · fps(함께 켤 때 60fps 를 못 냄)
+///                                                  single = 일반 카메라 하나로 60fps 를 낼 수 있다(이 칸이 있으면 wide · snapshot 을 안다)
+///   start({ fps, short?, net, preview, roi, armed, wide? }) → { mainFps, wideFps, mainWidth, mainHeight, wideWidth, wideHeight, mainFovDeg, wideFovDeg, hardwareCost, stabilization }
+///                                                  wide 기본 true(옛 사이트) — false 면 일반 카메라만(wideFps · wide* 는 0)
 ///   setPreview({ x, y, w, h, visible })          미리보기 자리(뷰포트 CSS px)
 ///   setTrigger({ armed, roi })                   던짐 알아채기 켜기/끄기 · 볼 자리(세로 화면 0~1)
-///   clip({ atSec, beforeSec, afterSec })         → { main: Clip, wide: Clip | null }   Clip = { path, eventSec, durationSec, bytes, fps, width, height, fovDeg }
+///   clip({ atSec, beforeSec, afterSec })         → { main: Clip, wide: Clip | null }   Clip = { path, eventSec, durationSec, bytes, fps, width, height, fovDeg, fovSource, stabilized }
+///   snapshot({ short })                          → { luma(base64, 세로 화면 · 0~255), width, height, sourceWidth, sourceHeight } — 렌즈 보정용 지금 장면
 ///   (start 의 zoom — 일반 카메라 줌 배율, 기본 1. 걸면 fovDeg 는 줌만큼 좁힌 값)
 ///   read({ path, offset, length })               → { data(base64), size, eof }
 ///   discard({ paths })                           다 읽은 클립 파일 지우기
@@ -44,6 +53,7 @@ public class DualCameraPlugin: CAPPlugin, CAPBridgedPlugin {
         CAPPluginMethod(name: "clip", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "read", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "discard", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "snapshot", returnType: CAPPluginReturnPromise),
     ]
 
     private var controller: DualCameraController?
@@ -89,7 +99,8 @@ public class DualCameraPlugin: CAPPlugin, CAPBridgedPlugin {
             net: call.getBool("net") ?? false,
             roi: DualCameraPlugin.rect(call.getObject("roi")) ?? MotionTrigger.defaultRoi,
             armed: call.getBool("armed") ?? true,
-            zoom: max(1, min(4, call.getDouble("zoom") ?? 1))
+            zoom: max(1, min(4, call.getDouble("zoom") ?? 1)),
+            wide: call.getBool("wide") ?? true
         )
         let preview = DualCameraPlugin.rect(call.getObject("preview"))
         let controller = DualCameraController()
@@ -172,6 +183,21 @@ public class DualCameraPlugin: CAPPlugin, CAPBridgedPlugin {
                 call.resolve(out)
             case .failure(let error):
                 call.reject(error.message, error.code)
+            }
+        }
+    }
+
+    @objc func snapshot(_ call: CAPPluginCall) {
+        guard let controller else {
+            call.reject("카메라가 꺼져 있어요.", "off")
+            return
+        }
+        let short = max(120, min(1080, call.getInt("short") ?? 720))
+        controller.requestSnapshot(short: short) { result in
+            if let result {
+                call.resolve(result)
+            } else {
+                call.reject("장면을 받지 못했어요.", "snapshot")
             }
         }
     }
@@ -284,7 +310,7 @@ struct DualCameraError: Error {
     let message: String
 
     static func unsupported(_ why: String) -> DualCameraError {
-        DualCameraError(code: "unsupported-\(why)", message: "이 아이폰은 일반 · 광각 카메라를 함께 켤 수 없어요.")
+        DualCameraError(code: "unsupported-\(why)", message: "이 아이폰에서는 앱 카메라를 이렇게 켤 수 없어요.")
     }
 }
 
@@ -305,13 +331,17 @@ struct DualClip {
     /// 세로 화면 기준 너비 · 높이(픽셀)
     let width: Int
     let height: Int
-    /// 긴 변 방향 화각(도) — 엔진의 '카메라 가로 화각'과 같은 뜻(videoFieldOfView)
+    /// 긴 변 방향 화각(도) — 엔진의 '카메라 가로 화각'과 같은 뜻(videoFieldOfView, 손떨림 보정이 자른 만큼 좁힘)
     let fovDeg: Double
+    /// 화각을 어디서 얻었나 — intrinsics(렌즈 값) · format(보정 없음) · estimate(보정이 자른 몫을 짐작)
+    let fovSource: String
+    let stabilized: Bool
 
     var json: [String: Any] {
         [
             "path": path, "eventSec": eventSec, "durationSec": durationSec, "bytes": bytes,
             "fps": Int(fps), "width": width, "height": height, "fovDeg": fovDeg,
+            "fovSource": fovSource, "stabilized": stabilized,
         ]
     }
 }
@@ -326,6 +356,8 @@ final class DualCameraController: NSObject, AVCaptureVideoDataOutputSampleBuffer
         var armed: Bool
         /// 일반 카메라의 줌(1 · 2) — 구속 엔진 2.0(거리 자)은 2배로 찍은 영상에 맞췄다(먼 공이 두 배 크기). 광각은 늘 1
         var zoom: Double = 1
+        /// 광각도 같이 찍나 — false 면 일반 카메라 하나(AVCaptureSession, 모든 아이폰)
+        var wide: Bool = true
     }
 
     /// 한 카메라의 잡은 모양
@@ -336,7 +368,8 @@ final class DualCameraController: NSObject, AVCaptureVideoDataOutputSampleBuffer
         let height: Int
     }
 
-    let session = AVCaptureMultiCamSession()
+    /// 광각도 같이면 AVCaptureMultiCamSession, 일반만이면 AVCaptureSession — start 가 정한다
+    private(set) var session = AVCaptureSession()
     let trigger = MotionTrigger()
     var onThrow: ((Double, Double) -> Void)?
     var onError: ((String) -> Void)?
@@ -354,25 +387,46 @@ final class DualCameraController: NSObject, AVCaptureVideoDataOutputSampleBuffer
     private var mainFov: Double = 0
     private var wideFov: Double = 0
     private var observers: [NSObjectProtocol] = []
+    private var mainConnection: AVCaptureConnection?
+    /// 렌즈 값(intrinsics)으로 구한 일반 카메라의 긴 변 화각 — 안 오면 nil
+    private var intrinsicFov: Double?
+    private var intrinsicFrames = 0
+    private let fovLock = NSLock()
+    /// 렌즈 보정용 장면을 기다리는 부름 — 다음 장면에서 풀어 준다
+    private var snapshotWaiters: [(short: Int, done: ([String: Any]?) -> Void)] = []
+    private let snapshotLock = NSLock()
+
+    /// 표준 손떨림 보정이 잘라 내는 배율(긴 변 tan) — 애플은 밝히지 않는다. 화각이 약 10% 준다고 알려져 있다(VisionCamera
+    /// 문서). ponytail: 짐작값 — 렌즈 값이 안 오는 폰에서만 쓴다. 스피드건 짝 · 렌즈 보정(공으로 초점거리 재기)이 쌓이면 맞춘다.
+    static let STAB_CROP = 1.1
 
     /// 이 아이폰이 일반 + 광각을 함께 켤 수 있나 — 되면 일반 카메라로 고를 수 있는 화질(16:9)과 그 최고 fps 도 싣는다.
     /// 측정 카메라는 30fps 이하를 쓰지 않는다(사용자 규칙 2026-10-03) — 함께 켤 때 60fps 를 못 내는 아이폰은 '안 됨'(fps).
+    /// single 은 일반 카메라 하나로 1080p 쪽 60fps 를 낼 수 있나(앱 카메라로 재기 — 광각과 상관없이).
     static func probe() -> [String: Any] {
-        guard AVCaptureMultiCamSession.isMultiCamSupported else {
-            return ["supported": false, "reason": "multicam"]
-        }
         let (mainDevice, wideDevice) = devices()
+        let single = mainDevice.map { device in
+            device.formats.contains { format in
+                let d = CMVideoFormatDescriptionGetDimensions(format.formatDescription)
+                let fps = format.videoSupportedFrameRateRanges.map(\.maxFrameRate).max() ?? 0
+                return d.width >= 1280 && d.width <= 1920 && fps >= Double(MIN_MEASURE_FPS)
+                    && pixelFormats.contains(CMFormatDescriptionGetMediaSubType(format.formatDescription))
+            }
+        } ?? false
+        guard AVCaptureMultiCamSession.isMultiCamSupported else {
+            return ["supported": false, "reason": "multicam", "single": single]
+        }
         guard let mainDevice, let wideDevice else {
-            return ["supported": false, "reason": "no-ultrawide"]
+            return ["supported": false, "reason": "no-ultrawide", "single": single]
         }
         guard pairSupported(mainDevice, wideDevice) else {
-            return ["supported": false, "reason": "pair"]
+            return ["supported": false, "reason": "pair", "single": single]
         }
         let list = modes(mainDevice)
         guard list.contains(where: { ($0["maxFps"] as? Int ?? 0) >= Int(MIN_MEASURE_FPS) }) else {
-            return ["supported": false, "reason": "fps"]
+            return ["supported": false, "reason": "fps", "single": single]
         }
-        return ["supported": true, "modes": list]
+        return ["supported": true, "modes": list, "single": single]
     }
 
     /// 측정 카메라의 가장 낮은 fps — 이보다 낮으면 켜지 않는다(59.94 를 받게 59)
@@ -422,6 +476,9 @@ final class DualCameraController: NSObject, AVCaptureVideoDataOutputSampleBuffer
         completion: @escaping (Result<[String: Any], DualCameraError>) -> Void
     ) {
         trigger.update(armed: config.armed, roi: config.roi)
+        /* 광각도 같이면 두 카메라 세션 — 못 하는 아이폰은 configure 가 '안 됨'(multicam)으로 끝낸다 */
+        session = config.wide && AVCaptureMultiCamSession.isMultiCamSupported
+            ? AVCaptureMultiCamSession() : AVCaptureSession()
         DispatchQueue.main.async {
             let view = DualPreviewView()
             view.backgroundColor = .black
@@ -447,6 +504,12 @@ final class DualCameraController: NSObject, AVCaptureVideoDataOutputSampleBuffer
     func stop() {
         observers.forEach { NotificationCenter.default.removeObserver($0) }
         observers.removeAll()
+        /* 장면을 기다리던 부름은 빈손으로 풀어 준다(카메라가 꺼지면 다음 장면이 안 온다) */
+        snapshotLock.lock()
+        let waiters = snapshotWaiters
+        snapshotWaiters.removeAll()
+        snapshotLock.unlock()
+        waiters.forEach { $0.done(nil) }
         sessionQueue.async {
             if self.session.isRunning { self.session.stopRunning() }
             self.mainQueue.async { self.mainRecorder.finish() }
@@ -470,23 +533,34 @@ final class DualCameraController: NSObject, AVCaptureVideoDataOutputSampleBuffer
     }
 
     private func configure(config: Config, previewLayer: AVCaptureVideoPreviewLayer) throws -> [String: Any] {
-        guard AVCaptureMultiCamSession.isMultiCamSupported else { throw DualCameraError.unsupported("multicam") }
-        let (mainDevice, wideDevice) = DualCameraController.devices()
-        guard let mainDevice, let wideDevice else { throw DualCameraError.unsupported("no-ultrawide") }
-        guard DualCameraController.pairSupported(mainDevice, wideDevice) else { throw DualCameraError.unsupported("pair") }
+        let multi = session as? AVCaptureMultiCamSession
+        if config.wide, multi == nil { throw DualCameraError.unsupported("multicam") }
+        let (mainDevice, wideFound) = DualCameraController.devices()
+        guard let mainDevice else { throw DualCameraError.unsupported("camera") }
+        var wideDevice: AVCaptureDevice?
+        if config.wide {
+            guard let wideFound else { throw DualCameraError.unsupported("no-ultrawide") }
+            guard DualCameraController.pairSupported(mainDevice, wideFound) else { throw DualCameraError.unsupported("pair") }
+            wideDevice = wideFound
+        }
 
         session.beginConfiguration()
         defer { session.commitConfiguration() }
+        /* 한 카메라 세션은 기기의 activeFormat 을 따르게(기본 preset 이면 켤 때 화질을 덮는다) */
+        if multi == nil, session.canSetSessionPreset(.inputPriority) { session.sessionPreset = .inputPriority }
 
         let mainInput = try AVCaptureDeviceInput(device: mainDevice)
-        let wideInput = try AVCaptureDeviceInput(device: wideDevice)
-        guard session.canAddInput(mainInput), session.canAddInput(wideInput) else {
-            throw DualCameraError.unsupported("inputs")
-        }
+        guard session.canAddInput(mainInput) else { throw DualCameraError.unsupported("inputs") }
         session.addInputWithNoConnections(mainInput)
-        session.addInputWithNoConnections(wideInput)
+        var wideInput: AVCaptureDeviceInput?
+        if let wideDevice {
+            let input = try AVCaptureDeviceInput(device: wideDevice)
+            guard session.canAddInput(input) else { throw DualCameraError.unsupported("inputs") }
+            session.addInputWithNoConnections(input)
+            wideInput = input
+        }
 
-        for output in [mainOutput, wideOutput] {
+        for output in wideDevice == nil ? [mainOutput] : [mainOutput, wideOutput] {
             output.videoSettings = [
                 kCVPixelBufferPixelFormatTypeKey as String: kCVPixelFormatType_420YpCbCr8BiPlanarVideoRange,
             ]
@@ -495,94 +569,141 @@ final class DualCameraController: NSObject, AVCaptureVideoDataOutputSampleBuffer
             session.addOutputWithNoConnections(output)
         }
         mainOutput.setSampleBufferDelegate(self, queue: mainQueue)
-        wideOutput.setSampleBufferDelegate(self, queue: wideQueue)
+        if wideDevice != nil { wideOutput.setSampleBufferDelegate(self, queue: wideQueue) }
 
-        guard
-            let mainPort = mainInput.ports(for: .video, sourceDeviceType: mainDevice.deviceType, sourceDevicePosition: .back).first,
-            let widePort = wideInput.ports(for: .video, sourceDeviceType: wideDevice.deviceType, sourceDevicePosition: .back).first
+        guard let mainPort = mainInput.ports(for: .video, sourceDeviceType: mainDevice.deviceType, sourceDevicePosition: .back).first
         else { throw DualCameraError.unsupported("ports") }
-
         let mainConnection = AVCaptureConnection(inputPorts: [mainPort], output: mainOutput)
-        let wideConnection = AVCaptureConnection(inputPorts: [widePort], output: wideOutput)
-        for connection in [mainConnection, wideConnection] {
-            guard session.canAddConnection(connection) else { throw DualCameraError.unsupported("connections") }
-            session.addConnection(connection)
-            /* 손떨림 보정은 화면을 잘라 화각을 바꾼다 — 엔진의 거리 계산이 틀어진다 */
-            if connection.isVideoStabilizationSupported { connection.preferredVideoStabilizationMode = .off }
+        guard session.canAddConnection(mainConnection) else { throw DualCameraError.unsupported("connections") }
+        session.addConnection(mainConnection)
+        if let wideDevice, let wideInput {
+            guard let widePort = wideInput.ports(for: .video, sourceDeviceType: wideDevice.deviceType, sourceDevicePosition: .back).first
+            else { throw DualCameraError.unsupported("ports") }
+            let wideConnection = AVCaptureConnection(inputPorts: [widePort], output: wideOutput)
+            guard session.canAddConnection(wideConnection) else { throw DualCameraError.unsupported("connections") }
+            session.addConnection(wideConnection)
+            /* 광각은 보기용 — 손떨림 보정 없이(두 카메라의 하드웨어 몫을 아낀다) */
+            if wideConnection.isVideoStabilizationSupported { wideConnection.preferredVideoStabilizationMode = .off }
         }
         let previewConnection = AVCaptureConnection(inputPort: mainPort, videoPreviewLayer: previewLayer)
-        if session.canAddConnection(previewConnection) {
+        let hasPreview = session.canAddConnection(previewConnection)
+        if hasPreview {
             session.addConnection(previewConnection)
             DualCameraController.portrait(previewConnection)
         }
 
         /*
-         * 일반은 고른 화질 · fps(보통 1080p 60), 광각도 같게 시도한다. 두 카메라의 하드웨어 몫이 넘치면 광각부터 낮춘다
+         * 일반은 1080p 60(사이트가 늘 청한다), 광각도 같게 시도한다. 두 카메라의 하드웨어 몫이 넘치면 광각부터 낮춘다
          * (30fps → 가장 작은 화면 30fps). 그래도 넘치면 일반의 화면을 줄이되 fps 는 지킨다 — 측정 카메라는 30fps 이하를
-         * 쓰지 않는다(사용자 규칙 2026-10-03). 그래도 안 되면 '안 됨'(cost)으로 끝내고, 사이트가 웹 카메라로 잰다.
+         * 쓰지 않는다(사용자 규칙 2026-10-03). 그래도 안 되면 '안 됨'(cost)으로 끝내고, 사이트가 일반 카메라만으로 다시 켠다.
          */
-        var mainPick = try DualCameraController.pick(mainDevice, fps: config.fps, short: config.short)
+        let isMulti = multi != nil
+        var mainPick = try DualCameraController.pick(mainDevice, fps: config.fps, short: config.short, multi: isMulti)
         /*
-         * 자동(고른 화질 없음)이면 60fps 를 못 낼 때 '안 됨' — 사이트가 웹 카메라로 잰다. 사용자가 화질을 골랐으면 60fps 아래도
-         * 켠다 — 화면이 주황으로 경고한다(사용자 2026-10-04: "경고는 띄우되 막지는 않게"). 예전에는 여기서 끝내 사이트가
-         * 동시 촬영을 잠갔다.
+         * 자동(고른 화질 없음)이면 60fps 를 못 낼 때 '안 됨' — 사이트가 웹 카메라로 잰다. 화질을 정해 청했으면 60fps 아래도
+         * 켠다 — 화면이 주황으로 경고한다(사용자 2026-10-04: "경고는 띄우되 막지는 않게").
          */
         if config.short == nil {
             guard mainPick.fps >= DualCameraController.MIN_MEASURE_FPS else { throw DualCameraError.unsupported("fps") }
         }
-        var widePick = try DualCameraController.pick(wideDevice, fps: config.fps)
         try DualCameraController.apply(mainDevice, mainPick, lockFocus: config.net, zoom: config.zoom)
-        try DualCameraController.apply(wideDevice, widePick, lockFocus: false)
-        if session.hardwareCost > 1.0 {
-            widePick = try DualCameraController.pick(wideDevice, fps: 30)
-            try DualCameraController.apply(wideDevice, widePick, lockFocus: false)
+        var widePick: Picked?
+        if let wideDevice, let multi {
+            var pick = try DualCameraController.pick(wideDevice, fps: config.fps, multi: true)
+            try DualCameraController.apply(wideDevice, pick, lockFocus: false)
+            if multi.hardwareCost > 1.0 {
+                pick = try DualCameraController.pick(wideDevice, fps: 30, multi: true)
+                try DualCameraController.apply(wideDevice, pick, lockFocus: false)
+            }
+            if multi.hardwareCost > 1.0 {
+                pick = try DualCameraController.pick(wideDevice, fps: 30, smallest: true, multi: true)
+                try DualCameraController.apply(wideDevice, pick, lockFocus: false)
+            }
+            /*
+             * 일반 카메라의 화면 줄이기는 자동일 때만 — 화질을 정해 청했으면 몰래 줄이지 않고 '안 됨'(cost)으로 끝낸다(2026-10-04).
+             */
+            if multi.hardwareCost > 1.0, config.short == nil {
+                let smaller = try DualCameraController.pick(mainDevice, fps: mainPick.fps, smallest: true, multi: true)
+                if smaller.fps >= DualCameraController.MIN_MEASURE_FPS {
+                    mainPick = smaller
+                    try DualCameraController.apply(mainDevice, mainPick, lockFocus: config.net, zoom: config.zoom)
+                }
+            }
+            guard multi.hardwareCost <= 1.0 else { throw DualCameraError.unsupported("cost") }
+            widePick = pick
         }
-        if session.hardwareCost > 1.0 {
-            widePick = try DualCameraController.pick(wideDevice, fps: 30, smallest: true)
-            try DualCameraController.apply(wideDevice, widePick, lockFocus: false)
-        }
+
         /*
-         * 일반 카메라의 화면 줄이기는 자동일 때만 — 사용자가 화질을 골랐으면 몰래 줄이지 않고 '안 됨'(cost)으로 끝낸다. 그러면
-         * 사이트가 이번만 웹 카메라로 고른 화질을 켜고 알린다(예전에는 1080p 60 을 골라도 조용히 720p 60 이 됐다, 2026-10-04).
+         * 손떨림 보정(표준) — 손에 든 폰 · 바람에 흔들리는 삼각대(2026-10-08 사용자: "떨림 보조기능을 활성화"). 형식을 정한 뒤에
+         * 건다(되는지는 형식에 달렸다). 미리보기도 같게 걸어 뷰파인더 · 존이 녹화되는 장면과 같은 자리를 보이게 한다.
+         * 보정은 가장자리를 잘라 화각이 좁아진다 — 렌즈 값(intrinsics)을 받을 수 있으면 장면마다 실려 오는 그 값으로 화각을 잰다.
          */
-        if session.hardwareCost > 1.0, config.short == nil {
-            let smaller = try DualCameraController.pick(mainDevice, fps: mainPick.fps, smallest: true)
-            if smaller.fps >= DualCameraController.MIN_MEASURE_FPS {
-                mainPick = smaller
-                try DualCameraController.apply(mainDevice, mainPick, lockFocus: config.net, zoom: config.zoom)
+        let stabilized = mainConnection.isVideoStabilizationSupported
+        if stabilized {
+            mainConnection.preferredVideoStabilizationMode = .standard
+            if hasPreview, previewConnection.isVideoStabilizationSupported {
+                previewConnection.preferredVideoStabilizationMode = .standard
             }
         }
-        guard session.hardwareCost <= 1.0 else { throw DualCameraError.unsupported("cost") }
+        if mainConnection.isCameraIntrinsicMatrixDeliverySupported {
+            mainConnection.isCameraIntrinsicMatrixDeliveryEnabled = true
+        }
+        self.mainConnection = mainConnection
 
         main = mainPick
         wide = widePick
         /* 줌을 걸었으면 화각은 그만큼 좁다(가운데를 잘라 키움) — tan(화각/2) 이 줌의 역수로 */
         let zoomed = Double(mainDevice.videoZoomFactor)
-        let fov0 = Double(mainPick.format.videoFieldOfView) * .pi / 180
-        mainFov = zoomed > 1.001 ? 2 * atan(tan(fov0 / 2) / zoomed) * 180 / .pi : Double(mainPick.format.videoFieldOfView)
-        wideFov = Double(widePick.format.videoFieldOfView)
+        mainFov = DualCameraController.narrow(Double(mainPick.format.videoFieldOfView), by: zoomed)
+        wideFov = widePick.map { Double($0.format.videoFieldOfView) } ?? 0
         /* 센서는 가로로 찍는다 — 영상 파일에 '세로로 돌려 보기' 표시만 달아 세로 영상이 되게(픽셀은 안 돌린다) */
         let rotate = CGAffineTransform(rotationAngle: .pi / 2)
         mainRecorder.configure(width: mainPick.width, height: mainPick.height, fps: mainPick.fps, transform: rotate)
-        wideRecorder.configure(width: widePick.width, height: widePick.height, fps: widePick.fps, transform: rotate)
+        if let widePick {
+            wideRecorder.configure(width: widePick.width, height: widePick.height, fps: widePick.fps, transform: rotate)
+        }
 
         return [
-            "mainFps": Int(mainPick.fps), "wideFps": Int(widePick.fps),
+            "mainFps": Int(mainPick.fps), "wideFps": Int(widePick?.fps ?? 0),
             "mainWidth": mainPick.height, "mainHeight": mainPick.width,
-            "wideWidth": widePick.height, "wideHeight": widePick.width,
-            "mainFovDeg": mainFov, "wideFovDeg": wideFov,
-            "hardwareCost": Double(session.hardwareCost),
+            "wideWidth": widePick?.height ?? 0, "wideHeight": widePick?.width ?? 0,
+            "mainFovDeg": stabilized ? DualCameraController.narrow(mainFov, by: DualCameraController.STAB_CROP) : mainFov,
+            "wideFovDeg": wideFov,
+            "hardwareCost": Double(multi?.hardwareCost ?? 0),
+            "stabilization": stabilized ? "standard" : "off",
         ]
     }
 
-    /// 두 카메라를 함께 켤 수 있는 모양 중 8비트(HDR 아님), 바라는 fps 를 낼 수 있는 것.
+    /// 화각(도)을 배율만큼 좁힌 값 — 가운데를 잘라 키우면 tan(화각/2) 이 배율의 역수로 준다
+    static func narrow(_ fovDeg: Double, by factor: Double) -> Double {
+        guard factor > 1.001 else { return fovDeg }
+        return 2 * atan(tan(fovDeg * .pi / 360) / factor) * 180 / .pi
+    }
+
+    /// 클립에 실을 일반 카메라의 화각과 그 출처. 렌즈 값이 손떨림 보정이 자른 몫까지 셈한 것 같으면(자르기 전보다 좁다) 그것,
+    /// 보정이 꺼져 있으면 형식의 화각, 아니면 자른 몫(STAB_CROP)을 짐작한 값.
+    private func clipFov() -> (deg: Double, source: String, stabilized: Bool) {
+        let stabilized = (mainConnection?.activeVideoStabilizationMode ?? .off) != .off
+        fovLock.lock()
+        let measured = intrinsicFov
+        fovLock.unlock()
+        if let measured {
+            let ratio = tan(measured * .pi / 360) / tan(mainFov * .pi / 360)
+            /* 줌을 빼먹은 값(2배 넓음) · 보정 중인데 자르기 전과 같은 값은 버린다 */
+            if ratio > 0.6, ratio < (stabilized ? 0.98 : 1.03) { return (measured, "intrinsics", stabilized) }
+        }
+        if !stabilized { return (mainFov, "format", false) }
+        return (DualCameraController.narrow(mainFov, by: DualCameraController.STAB_CROP), "estimate", true)
+    }
+
+    /// 켤 수 있는 모양(두 카메라면 함께 켤 수 있는 것) 중 8비트(HDR 아님), 바라는 fps 를 낼 수 있는 것.
     /// short 를 주면 그 짧은 변의 16:9 모양 중에서(사용자가 고른 화질), 아니면 1080p 쪽(긴 변 1280~1920)에서 가장 큰 것.
     /// smallest 면 가장 작은 화면(두 카메라의 하드웨어 몫을 줄일 때).
     private static func pick(
-        _ device: AVCaptureDevice, fps: Int32, short: Int32? = nil, smallest: Bool = false
+        _ device: AVCaptureDevice, fps: Int32, short: Int32? = nil, smallest: Bool = false, multi: Bool
     ) throws -> Picked {
         let all: [(AVCaptureDevice.Format, Int32, Int32, Double)] = device.formats.compactMap { format in
-            guard format.isMultiCamSupported,
+            guard !multi || format.isMultiCamSupported,
                   pixelFormats.contains(CMFormatDescriptionGetMediaSubType(format.formatDescription))
             else { return nil }
             let d = CMVideoFormatDescriptionGetDimensions(format.formatDescription)
@@ -638,10 +759,82 @@ final class DualCameraController: NSObject, AVCaptureVideoDataOutputSampleBuffer
     func captureOutput(_ output: AVCaptureOutput, didOutput sampleBuffer: CMSampleBuffer, from connection: AVCaptureConnection) {
         if output === mainOutput {
             mainRecorder.append(sampleBuffer)
+            readIntrinsics(sampleBuffer)
+            serveSnapshots(sampleBuffer)
             if let hit = trigger.feed(sampleBuffer) { onThrow?(hit.atSec, hit.strength) }
         } else if output === wideOutput {
             wideRecorder.append(sampleBuffer)
         }
+    }
+
+    /// 렌즈 값(intrinsics) — 장면에 실려 오면 긴 변 화각으로 바꿔 둔다. 보정이 자리 잡은 뒤(15장째부터) 1.5초 안에 한 번
+    private func readIntrinsics(_ buffer: CMSampleBuffer) {
+        guard intrinsicFrames < 90 else { return }
+        intrinsicFrames += 1
+        guard intrinsicFrames > 15,
+              let data = CMGetAttachment(buffer, key: kCMSampleBufferAttachmentKey_CameraIntrinsicMatrix, attachmentModeOut: nil) as? Data,
+              data.count >= MemoryLayout<matrix_float3x3>.size,
+              let pixels = CMSampleBufferGetImageBuffer(buffer)
+        else { return }
+        let fx = Double(data.withUnsafeBytes { $0.loadUnaligned(as: matrix_float3x3.self) }.columns.0.x)
+        guard fx > 0 else { return }
+        /* 장면은 가로(센서) — 너비가 긴 변 */
+        let fov = 2 * atan(Double(CVPixelBufferGetWidth(pixels)) / 2 / fx) * 180 / .pi
+        intrinsicFrames = 90
+        fovLock.lock()
+        intrinsicFov = fov
+        fovLock.unlock()
+    }
+
+    // MARK: 렌즈 보정용 장면
+
+    func requestSnapshot(short: Int, done: @escaping ([String: Any]?) -> Void) {
+        snapshotLock.lock()
+        snapshotWaiters.append((short, done))
+        snapshotLock.unlock()
+    }
+
+    private func serveSnapshots(_ buffer: CMSampleBuffer) {
+        snapshotLock.lock()
+        let waiters = snapshotWaiters
+        snapshotWaiters.removeAll()
+        snapshotLock.unlock()
+        for waiter in waiters { waiter.done(DualCameraController.portraitLuma(buffer, short: waiter.short)) }
+    }
+
+    /// 장면의 밝기만 세로 화면으로, 짧은 변 short 픽셀로 줄여(2×2 평균) — 영상 범위(16~235)를 0~255 로 편다(웹 캔버스의 밝기와 같게)
+    static func portraitLuma(_ buffer: CMSampleBuffer, short: Int) -> [String: Any]? {
+        guard let pixels = CMSampleBufferGetImageBuffer(buffer) else { return nil }
+        CVPixelBufferLockBaseAddress(pixels, .readOnly)
+        defer { CVPixelBufferUnlockBaseAddress(pixels, .readOnly) }
+        guard CVPixelBufferGetPlaneCount(pixels) >= 1,
+              let base = CVPixelBufferGetBaseAddressOfPlane(pixels, 0)
+        else { return nil }
+        let width = CVPixelBufferGetWidthOfPlane(pixels, 0)
+        let height = CVPixelBufferGetHeightOfPlane(pixels, 0)
+        let stride = CVPixelBufferGetBytesPerRowOfPlane(pixels, 0)
+        let src = base.assumingMemoryBound(to: UInt8.self)
+        /* 세로 화면: 너비 = 센서 높이, 높이 = 센서 너비. (u, v) = 장면의 (x = v, y = 1 − u) — MotionTrigger 와 같다 */
+        let outW = min(short, height)
+        let outH = Int((Double(width) * Double(outW) / Double(height)).rounded())
+        guard outW >= 2, outH >= 2 else { return nil }
+        var range = [UInt8](repeating: 0, count: 256)
+        for v in 0..<256 { range[v] = UInt8(max(0, min(255, (v - 16) * 255 / 219))) }
+        var out = [UInt8](repeating: 0, count: outW * outH)
+        for j in 0..<outH {
+            let x = min(width - 2, max(0, Int((Double(j) + 0.5) * Double(width) / Double(outH) - 0.5)))
+            for i in 0..<outW {
+                let y = min(height - 2, max(0, Int((1 - (Double(i) + 0.5) / Double(outW)) * Double(height) - 0.5)))
+                let a = y * stride + x
+                let sum = Int(src[a]) + Int(src[a + 1]) + Int(src[a + stride]) + Int(src[a + stride + 1])
+                out[j * outW + i] = range[sum >> 2]
+            }
+        }
+        return [
+            "luma": Data(out).base64EncodedString(),
+            "width": outW, "height": outH,
+            "sourceWidth": height, "sourceHeight": width,
+        ]
     }
 
     // MARK: 클립
@@ -659,24 +852,32 @@ final class DualCameraController: NSObject, AVCaptureVideoDataOutputSampleBuffer
             while Date() < deadline, (self.mainRecorder.latestEnd ?? 0) < until {
                 Thread.sleep(forTimeInterval: 0.1)
             }
-            while Date() < deadline, (self.wideRecorder.latestEnd ?? 0) < until {
+            while self.wide != nil, Date() < deadline, (self.wideRecorder.latestEnd ?? 0) < until {
                 Thread.sleep(forTimeInterval: 0.1)
             }
+            let fov = self.clipFov()
             guard let main = self.main,
-                  let mainClip = self.write(self.mainRecorder, from: at - before, to: until, event: at, label: "main", picked: main, fov: self.mainFov)
+                  let mainClip = self.write(
+                    self.mainRecorder, from: at - before, to: until, event: at, label: "main", picked: main,
+                    fov: fov.deg, fovSource: fov.source, stabilized: fov.stabilized
+                  )
             else {
                 completion(.failure(DualCameraError(code: "clip", message: "그 순간의 영상이 없어요(너무 오래됐거나 아직 안 찍혔어요).")))
                 return
             }
             let wideClip = self.wide.flatMap {
-                self.write(self.wideRecorder, from: at - before, to: until, event: at, label: "wide", picked: $0, fov: self.wideFov)
+                self.write(
+                    self.wideRecorder, from: at - before, to: until, event: at, label: "wide", picked: $0,
+                    fov: self.wideFov, fovSource: "format", stabilized: false
+                )
             }
             completion(.success((mainClip, wideClip)))
         }
     }
 
     private func write(
-        _ recorder: SegmentRecorder, from: Double, to: Double, event: Double, label: String, picked: Picked, fov: Double
+        _ recorder: SegmentRecorder, from: Double, to: Double, event: Double, label: String, picked: Picked,
+        fov: Double, fovSource: String, stabilized: Bool
     ) -> DualClip? {
         guard let cut = recorder.clip(from: from, to: to) else { return nil }
         let dir = FileManager.default.temporaryDirectory.appendingPathComponent("bullpen-dualcam", isDirectory: true)
@@ -695,7 +896,9 @@ final class DualCameraController: NSObject, AVCaptureVideoDataOutputSampleBuffer
             fps: picked.fps,
             width: picked.height,
             height: picked.width,
-            fovDeg: fov
+            fovDeg: fov,
+            fovSource: fovSource,
+            stabilized: stabilized
         )
     }
 }

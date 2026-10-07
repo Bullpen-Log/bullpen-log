@@ -56,6 +56,7 @@ import {
   dualCameraStatus,
   dualStatusNow,
   markDualUnsupported,
+  type DualStatus,
 } from '@/lib/dual-camera';
 import { DEFAULT_CAM_MODE, camModeLabel, fpsGood } from '@/lib/velocity-camera-mode';
 import { focalPxFromFov } from '@/lib/velocity-engine/geometry';
@@ -216,6 +217,25 @@ const BACK_OF: Partial<Record<Step, { to: Step; label: string }>> = {
 };
 type LocalClip = { url: string; blob: Blob; durationSec: number; eventSec: number };
 /** 공의 영상 주소(일반 · 광각)를 푼다 — 저장했거나 화면을 떠날 때 */
+/** 어느 카메라로 재나 — 웹 카메라 · 앱 카메라(일반만) · 앱 카메라(광각도 같이) */
+type CameraPlan = 'web' | 'app' | 'app-wide';
+
+/**
+ * 앱이면 앱 카메라(사용자 2026-10-08: "웹카메라가 아닌 앱 자체의 카메라로" — 손떨림 보정을 켤 수 있다). 옛 앱(single 모름)은
+ * 광각 설정을 켰을 때만 앱 카메라(예전 그대로). 엔진 개발용 녹화는 웹 카메라의 영상 흐름을 찍으므로 웹 카메라. 상태를 아직
+ * 모르면 웹 카메라로 본다(켤 때는 기다렸다 고른다).
+ */
+function cameraPlan(
+  native: boolean,
+  wideClip: boolean,
+  recordMode: boolean,
+  s: DualStatus | null
+): CameraPlan {
+  if (!native || recordMode || !s) return 'web';
+  if (wideClip && s.supported) return 'app-wide';
+  return s.single ? 'app' : 'web';
+}
+
 const revokeClips = (p: { clip?: LocalClip; wideClip?: LocalClip }) => {
   if (p.clip) URL.revokeObjectURL(p.clip.url);
   if (p.wideClip) URL.revokeObjectURL(p.wideClip.url);
@@ -848,18 +868,18 @@ export function VelocityScreen({
     const now = cameraSettingsRef.current;
     const finder = finderRef.current;
     /*
-     * 앱에 동시 촬영 부품이 있고, 이 아이폰이 일반 · 광각을 함께 켤 수 있고, 설정을 켰으면 앱이 두 카메라를 쥔다(웹 카메라는
-     * 켜지 않는다 — 같은 카메라를 둘이 못 쓴다). 결과는 던진 뒤 1~3초에 온다(앱이 자른 클립을 영상 파일 엔진으로 잰다).
-     * 기기 검사는 화면을 열 때 미리 해 둔다 — 아직이면 기다린다(앱 길만. 웹 카메라는 누름에 바로 붙여 켠다).
+     * 앱이면 앱 카메라로 잰다(cameraPlan — 새 앱은 늘, 옛 앱은 광각 설정을 켰을 때만). 웹 카메라는 켜지 않는다(같은 카메라를
+     * 둘이 못 쓴다). 결과는 던진 뒤 2~4초에 온다(앱이 자른 클립을 영상 파일 엔진으로 잰다). 기기 검사는 화면을 열 때 미리 해
+     * 둔다 — 아직이면 기다린다(앱 길만. 웹 카메라는 누름에 바로 붙여 켠다).
      */
-    let dualOk = false;
-    if (native && now.wideClip && !now.recordMode && finder) {
+    let plan: CameraPlan = 'web';
+    if (native && !now.recordMode && finder) {
       const s = dualStatusNow() ?? (await dualCameraStatus());
       if (gen !== captureGenRef.current) return;
-      dualOk = s.supported;
+      plan = cameraPlan(native, now.wideClip, now.recordMode, s);
     }
     const capture =
-      dualOk && finder
+      plan !== 'web' && finder
         ? new DualCapture(
             finder,
             {
@@ -876,7 +896,8 @@ export function VelocityScreen({
             },
             now.fov,
             now.approach,
-            now.net
+            now.net,
+            plan === 'app-wide'
           )
         : new LiveCapture(
       video,
@@ -925,12 +946,17 @@ export function VelocityScreen({
        * 앱이 켜 보고 '이 아이폰은 두 카메라를 함께 못 켬(60fps 를 못 냄 · 하드웨어 몫)'으로 끝냈다 — 기억해 두고(설정 칸이
        * 잠긴다) 웹 카메라로 바꿔 켠다. 측정은 끊기지 않는다.
        */
-      if (e instanceof DualUnsupportedError) {
+      if (e instanceof DualUnsupportedError && capture instanceof DualCapture) {
         /* 그사이 다른 켜기로 바뀌었으면(설정을 끔 · 뒤로) 늦게 온 거절은 아무것도 하지 않는다 */
         if (captureRef.current !== capture) return;
-        markDualUnsupported(e.reason);
+        /* 광각까지 켜다 안 됐으면 일반 카메라만으로, 일반 하나로도 안 됐으면 웹 카메라로 다시 켠다 */
+        markDualUnsupported(e.reason, !capture.wide);
         if (captureRef.current === capture) captureRef.current = null;
-        setToast('광각 동시 촬영이 안 되는 아이폰이라 일반 카메라로 재요');
+        setToast(
+          capture.wide
+            ? '광각 동시 촬영이 안 되는 아이폰이라 일반 카메라로 재요'
+            : '앱 카메라를 켜지 못해 웹 카메라로 재요'
+        );
         void startCamera();
         return;
       }
@@ -1303,15 +1329,16 @@ export function VelocityScreen({
     // eslint-disable-next-line react-hooks/exhaustive-deps -- 단계가 바뀔 때만 본다
   }, [step, showAsk]);
   /*
-   * '광각 영상도 같이 저장'을 바꾸면 카메라를 쥔 쪽이 바뀐다(웹 카메라 ↔ 앱 동시 촬영) — 측정 중이 아니면 바로 다시 켠다.
-   * 측정 중이면 세션을 멈춘 뒤('카메라 다시 켜기') 바뀐다.
+   * '광각 영상도 같이 저장' · 엔진 개발용 녹화를 바꾸면 카메라를 쥔 쪽이 바뀐다(웹 카메라 ↔ 앱 카메라 · 광각 있고 없음) — 측정
+   * 중이 아니면 바로 다시 켠다. 측정 중이면 세션을 멈춘 뒤('카메라 다시 켜기') 바뀐다.
    */
   useEffect(() => {
     const capture = captureRef.current;
     if (!capture || live || recorderRef.current) return;
-    const wantsDual =
-      native && wideClip && !recOn && dualStatusNow()?.supported === true;
-    if (wantsDual === capture instanceof DualCapture) {
+    const plan = cameraPlan(native, wideClip, recOn, dualStatusNow());
+    const held: CameraPlan =
+      capture instanceof DualCapture ? (capture.wide ? 'app-wide' : 'app') : 'web';
+    if (plan === held) {
       capture.setClips(!recOn);
       return;
     }

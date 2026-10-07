@@ -18,14 +18,16 @@ import type {
 } from './live-capture';
 
 /**
- * 아이폰 앱의 일반 · 광각 동시 촬영으로 재기(설정 '광각 영상도 같이 저장' + 앱에 'DualCamera' 부품, 2026-10-03 계획의 4단계).
+ * 아이폰 앱의 카메라로 재기(앱의 'DualCamera' 부품). 처음엔 설정 '광각 영상도 같이 저장'용 일반 · 광각 동시 촬영이었고
+ * (2026-10-03), 2026-10-08 부터 새 앱이면 늘 이 길이다(사용자: "웹카메라가 아닌 앱 자체의 카메라로") — 광각은 설정을 켤 때만
+ * 같이 찍는다(wide). 앱 카메라는 손떨림 보정(표준)을 건다. 웹 카메라(getUserMedia)는 그것을 켤 수 없다.
  *
  * 웹 카메라(LiveCapture)와 같은 모양으로 부른다 — 측정 화면은 둘 중 하나를 쥔다. 다른 점:
  *   - 카메라 · 미리보기는 앱이 쥔다. 미리보기는 웹뷰 뒤에 그려지고, 사이트는 뷰파인더 자리를 투명하게 비운다
  *     (<html data-dualcam>, globals.css). 그래서 뷰파인더 자리가 바뀌면 앱에 알린다(setPreview).
  *   - 던짐은 앱이 알아채('throw' 알림) 그 앞뒤를 두 카메라 다 잘라 준다. 일반 카메라 클립을 영상 파일 엔진으로 잰다 —
  *     결과는 던진 뒤 1~3초(조각이 닫히길 기다림 + 읽기 + 계산). 실시간 값보다 늦지만 보정을 마친 길이다.
- *   - 렌즈 보정용 사진(snapshot)은 없다(장면이 웹에 안 온다).
+ *   - 렌즈 보정용 장면(snapshot)은 앱에 청해 받아 둔다 — 부를 때마다 다음 장면을 청하고 받아 둔 것을 돌려준다(옛 앱은 없음).
  */
 
 export type DualCaptureHandlers = {
@@ -66,6 +68,23 @@ function listen(eventName: string, cb: (data: Record<string, unknown>) => void):
 /** 한 번에 쥐는 던짐 수 — 계산이 밀리면 그 뒤 던짐은 알리고 넘긴다 */
 const MAX_PENDING = 2;
 
+/**
+ * 클립 길이 — 앱은 볼 자리의 움직임으로 던짐을 알아채서, 공보다 투수의 와인드업(다리 듦)에 먼저 반응한다. 다리를 들고 공을
+ * 놓기까지 1초 남짓 · 그물까지 0.6초쯤이라 뒤로 2.6초를 받는다(예전 1.4초는 공이 날기 전에 끊길 수 있었다). 클립 안의 던진 때는
+ * 영상 엔진이 공으로 찾는다(find-throw). 결과는 그만큼 늦게(알아챈 뒤 3~4초) 뜬다.
+ */
+const CLIP_BEFORE_SEC = 0.5;
+const CLIP_AFTER_SEC = 2.6;
+
+/** 렌즈 보정용 장면 — LiveCapture.snapshot() 과 같은 모양 */
+type Snapshot = {
+  luma: Uint8Array;
+  width: number;
+  height: number;
+  sourceWidth: number;
+  sourceHeight: number;
+};
+
 /** 앱이 '이 아이폰은 안 됨'으로 켜기를 끝냈다 — reason 은 lib/dual-camera.ts 의 DualStatus.reason(cost · fps …) */
 export class DualUnsupportedError extends Error {
   constructor(readonly reason: string) {
@@ -102,7 +121,9 @@ export class DualCapture {
     private handlers: DualCaptureHandlers,
     private fovDeg: number,
     private approach: Approach,
-    private net: boolean
+    private net: boolean,
+    /** 광각도 같이 찍나 — false 면 일반 카메라 하나(새 앱만 안다. 옛 앱은 늘 둘) */
+    readonly wide: boolean
   ) {}
 
   private setStatus(s: LiveStatus) {
@@ -141,6 +162,7 @@ export class DualCapture {
         net: this.net,
         preview: this.rect(),
         armed: false,
+        wide: this.wide,
         /* 거리 측정(엔진 2.0, 투수 뒤)은 일반 카메라 2배 — 옛 앱은 이 칸을 모르고 1배로 켠다(화각은 앱이 알려 준 값을 쓴다) */
         ...(this.distanceM && this.approach === 'receding' ? { zoom: 2 } : {}),
       });
@@ -176,9 +198,12 @@ export class DualCapture {
     this.handlers.onFps?.(info.mainFps, info.mainFps < 50);
     this.setStatus('ready');
     if (this.armed) this.arm();
+    /* 렌즈 보정이 첫 장면부터 쓰게 하나 받아 둔다 */
+    this.snapshot();
     return {
       width: info.mainWidth,
       height: info.mainHeight,
+      /* 렌즈 보정이 이 이름으로 카메라를 가린다(lensMatches) — 바꾸면 저장해 둔 보정이 안 맞는다 */
       label: 'DualCamera · 일반',
       focus: this.net ? 'manual' : 'auto',
       zoom: this.distanceM && this.approach === 'receding' ? 2 : 1,
@@ -218,6 +243,8 @@ export class DualCapture {
   private async measure(id: number, atSec: number, gen: number) {
     const clips = await callDualCamera<{ main: DualClip; wide: DualClip | null }>('clip', {
       atSec,
+      beforeSec: CLIP_BEFORE_SEC,
+      afterSec: CLIP_AFTER_SEC,
     });
     const dropWide = () =>
       clips.wide
@@ -241,8 +268,11 @@ export class DualCapture {
       releaseDistanceM: this.releaseDistanceM,
       distanceM: this.distanceM,
       distanceAuto: this.distanceAuto,
-      /* 앱이 잰 화각(videoFieldOfView, 줌만큼 좁힘) — 공 크기 거리가 믿을 만하다 */
-      fovKnown: main.fovDeg > 0,
+      /*
+       * 앱이 잰 화각(videoFieldOfView, 줌만큼 좁힘 · 손떨림 보정이 자른 만큼 좁힘) — 렌즈 값이거나 보정이 꺼졌으면 믿을 만하다.
+       * 보정이 자른 몫을 짐작했으면(estimate) 엔진이 ± 를 넓히고 알린다.
+       */
+      fovKnown: main.fovDeg > 0 && main.fovSource !== 'estimate',
       tiltRad: this.tiltRad,
     });
     if (gen !== this.gen) {
@@ -291,6 +321,7 @@ export class DualCapture {
 
   stop() {
     this.gen++;
+    this.snap = null;
     const wasRunning = this.running;
     this.running = false;
     this.armed = false;
@@ -354,9 +385,30 @@ export class DualCapture {
   async refocus(): Promise<CameraFocus> {
     return this.net ? 'manual' : 'auto';
   }
-  /** 장면이 웹에 오지 않는다 — 렌즈 보정은 웹 카메라로 */
-  snapshot(): null {
-    return null;
+  /**
+   * 렌즈 보정용 장면 — 받아 둔 것을 돌려주고 다음 장면을 청한다(렌즈 보정은 짧은 틈으로 여러 번 부르고, 같은 장면은 건너뛴다).
+   * 옛 앱(snapshot 없음)이면 늘 null.
+   */
+  private snap: Snapshot | null = null;
+  private snapBusy = false;
+  snapshot(): Snapshot | null {
+    if (this.running && !this.snapBusy) {
+      this.snapBusy = true;
+      const gen = this.gen;
+      void callDualCamera<Omit<Snapshot, 'luma'> & { luma: string }>('snapshot', { short: 720 })
+        .then((s) => {
+          if (gen !== this.gen) return;
+          const raw = atob(s.luma);
+          const luma = new Uint8Array(raw.length);
+          for (let i = 0; i < raw.length; i++) luma[i] = raw.charCodeAt(i);
+          this.snap = { ...s, luma };
+        })
+        .catch(() => undefined)
+        .finally(() => {
+          this.snapBusy = false;
+        });
+    }
+    return this.snap;
   }
   getStatus() {
     return this.status;

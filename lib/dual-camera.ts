@@ -32,7 +32,16 @@ export type DualMode = { short: number; long: number; maxFps: number };
  * no-ultrawide(광각 없음) · pair(그 둘을 함께 못 켬) · fps(함께 켤 때 60fps 를 못 냄) · cost(켜 보니 하드웨어 몫이 넘침) ·
  * error(검사 실패)
  */
-export type DualStatus = { supported: boolean; reason?: string; modes?: DualMode[] };
+export type DualStatus = {
+  supported: boolean;
+  reason?: string;
+  modes?: DualMode[];
+  /**
+   * 앱 카메라(일반 하나)로 잴 수 있다 — 2026-10-08 부터의 앱(손떨림 보정 · 광각 없이 켜기 · 렌즈 보정 장면). 옛 앱은 이 칸이
+   * 없어 웹 카메라로 잰다(광각 설정을 켜면 예전처럼 동시 촬영).
+   */
+  single?: boolean;
+};
 
 /** 상태 — 아직 모르면 null(검사 중) */
 let statusNow: DualStatus | null = null;
@@ -69,6 +78,7 @@ export function dualCameraStatus(): Promise<DualStatus> {
         supported: s?.supported === true,
         reason: s?.supported === true ? undefined : (s?.reason ?? 'error'),
         modes: Array.isArray(s?.modes) ? s.modes : undefined,
+        single: s?.single === true,
       })
     )
     .catch(() => settle({ supported: false, reason: 'error' }));
@@ -78,9 +88,17 @@ export function dualCameraStatus(): Promise<DualStatus> {
 /** 지금 아는 상태(검사 전이면 null) */
 export const dualStatusNow = () => statusNow;
 
-/** 켜 보니 안 됐다(하드웨어 몫이 넘침 등) — 이 기기는 안 되는 것으로 기억한다(앱을 다시 열 때까지) */
-export function markDualUnsupported(reason: string) {
-  statusNow = { supported: false, reason, modes: statusNow?.modes };
+/**
+ * 켜 보니 안 됐다(하드웨어 몫이 넘침 등) — 이 기기는 안 되는 것으로 기억한다(앱을 다시 열 때까지). single 이면 일반 카메라
+ * 하나로도 안 켜졌다 — 앱 카메라 길을 접고 웹 카메라로 잰다.
+ */
+export function markDualUnsupported(reason: string, single = false) {
+  statusNow = {
+    supported: false,
+    reason,
+    modes: statusNow?.modes,
+    single: single ? false : statusNow?.single,
+  };
   statusPromise = Promise.resolve(statusNow);
   emitStatus();
 }
@@ -136,6 +154,8 @@ export type DualStartInfo = {
   wideFovDeg: number;
   /** 두 카메라를 함께 켜는 하드웨어 몫(1 이하여야 켜진다) */
   hardwareCost: number;
+  /** 일반 카메라의 손떨림 보정 — 'standard' · 'off'(옛 앱은 없음 = 꺼짐) */
+  stabilization?: string;
 };
 
 /** 앱이 잘라 넘긴 클립 하나 — read 로 조금씩 읽어 Blob 으로 만든다 */
@@ -149,6 +169,9 @@ export type DualClip = {
   width: number;
   height: number;
   fovDeg: number;
+  /** 화각을 어디서 얻었나 — intrinsics(렌즈 값) · format(보정 없음) · estimate(보정이 자른 몫을 짐작). 옛 앱은 없음 = format */
+  fovSource?: string;
+  stabilized?: boolean;
 };
 
 type NativeBridge = {
