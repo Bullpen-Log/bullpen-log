@@ -834,6 +834,13 @@ const lineMacros = (l: Line) => scaleMacros(l.food, l.amount);
 const leanness = (f: Food) => (f.protein ?? 0) / Math.max(1, f.kcal);
 const totalOf = (lines: Line[]) => sumMacros(lines.map(lineMacros));
 
+/**
+ * 하루 맞추기가 끼니를 몫의 이 사이로만 늘리고 줄인다 — 하루 합만 보고 맞추면 아침이 몫의 절반(오트밀 반 · 우유 반)이 되고
+ * 저녁이 1.75배(설렁탕 + 쉐이크 1.5)가 됐다. 곁들이(이온음료 · 주스)를 빼는 것만 몫의 절반까지 둔다.
+ */
+const MEAL_RATIO_LO = 0.6;
+const MEAL_RATIO_HI = 1.5;
+const SIDE_DROP_LO = 0.5;
 /** 한 끼 맞추기에서 단백질 재료를 늘려도 그 끼니가 몫의 이만큼을 넘지 않게 */
 const PROTEIN_GROW_LIMIT = 1.25;
 
@@ -1128,6 +1135,16 @@ function planDay(
     const units = need / Math.max(0.1, food.protein ?? 0);
     return Math.min(1, Math.max(step, Math.ceil(units / step - 1e-9) * step));
   };
+  /** 모자란 단백질(g)을 다 덮는 양의 kcal — 한 단위로 막지 않는다 */
+  const coverKcal = (id: string, need: number) => {
+    const food = basicFood(id)!;
+    const step = amountStep(id);
+    return (
+      Math.ceil(need / Math.max(0.1, food.protein ?? 0) / step - 1e-9) *
+      step *
+      food.kcal
+    );
+  };
   /*
    * 단백질이 kcal 의 4분의 1을 넘게 차지해야 하는 날(감량 · 높은 단백질), 먹은 뒤 한 끼만 남은 날(넘친 것을 다른 끼니에서 덜
    * 수 없다)은 기름이 적은 것부터 더한다 — 어린이의 남은 저녁 309kcal 에 두유를 두 팩으로 늘려 423kcal 이 됐다.
@@ -1145,14 +1162,26 @@ function planDay(
     meals
       .filter((m) => m.slot === slot)
       .flatMap((m) => m.lines.filter((l) => l !== except));
-  /** 한 걸음 늘리거나 줄인다 — 상한 · 하한 · 묶음 상한에 막히면 false */
+  /** 끼니가 제 몫의 몇 배인가 */
+  const mealRatio = (m: (typeof meals)[number], add = 0) =>
+    (totalOf(m.lines).kcal + add) / Math.max(1, m.kcal);
+  /** 맞바꾸기는 중간 걸음을 막지 않고 끝난 모양만 본다 */
+  let wholeOnly = false;
+  /** 이만큼 kcal 을 더하거나 빼도 끼니가 몫의 0.6~1.5배 안에 있나(밖에 있던 끼니는 안쪽으로 가는 걸음만). 한 끼만 남은 날은 보지 않는다 */
+  const keepsRatio = (m: (typeof meals)[number], delta: number, lo = MEAL_RATIO_LO) => {
+    if (wholeOnly || meals.length === 1) return true;
+    const next = mealRatio(m, delta);
+    if (delta > 0) return next <= MEAL_RATIO_HI || next <= mealRatio(m);
+    return next >= lo || next >= mealRatio(m);
+  };
+  /** 한 걸음 늘리거나 줄인다 — 상한 · 하한 · 묶음 상한 · 끼니 몫 가드에 막히면 false */
   const nudge = (line: Line, dir: 1 | -1) => {
     const next = clampAmount(line, line.amount + dir * limits(line).step);
     if (next === line.amount) return false;
-    if (dir > 0) {
-      const slot = meals.find((m) => m.lines.includes(line))!.slot;
-      if (next > groupMax(line.food.id!, slotOthers(slot, line)) + 1e-9) return false;
-    }
+    const meal = meals.find((m) => m.lines.includes(line))!;
+    if (dir > 0 && next > groupMax(line.food.id!, slotOthers(meal.slot, line)) + 1e-9)
+      return false;
+    if (!keepsRatio(meal, (next - line.amount) * line.food.kcal)) return false;
     line.amount = next;
     return true;
   };
@@ -1163,15 +1192,17 @@ function planDay(
     m.protein - totalOf(m.lines).protein;
   /** 단백질 음식 하나를 단백질이 가장 모자란 끼니에 — 고기 · 생선은 점심 · 저녁에 */
   const addBoost = (id: string, need?: number) => {
-    const fits = (m: (typeof meals)[number]) => roomFor(m, id);
+    const amount = need === undefined ? 1 : sizeFor(id, need);
+    const fits = (m: (typeof meals)[number]) =>
+      roomFor(m, id) && keepsRatio(m, amount * basicFood(id)!.kcal);
     const meal = MEAT_BOOST.has(id)
       ? (shortest(
           proteinShort,
           (m) => fits(m) && (m.slot === 'lunch' || m.slot === 'dinner')
         ) ?? shortest(proteinShort, fits))
       : shortest(proteinShort, fits);
-    if (!meal) return false;
-    addLine(meal, id, 'protein', need === undefined ? 1 : sizeFor(id, need));
+    if (!meal || !fits(meal)) return false;
+    addLine(meal, id, 'protein', amount);
     return true;
   };
   /** 더할 수 있는 단백질 음식 — 못 먹는 것이 아니고, 아직 없고, 담을 자리(묶음 상한)가 있는 끼니가 있다 */
@@ -1180,6 +1211,15 @@ function planDay(
     !blocked(id, input) &&
     !all().some((l) => l.food.id === id) &&
     meals.some((m) => roomFor(m, id));
+  /** 끼니 몫 가드 없이 해 본다 — 맞바꾸기에서 늘리는 걸음은 끝난 모양만 본다 */
+  const freely = <T>(f: () => T) => {
+    wholeOnly = true;
+    try {
+      return f();
+    } finally {
+      wholeOnly = false;
+    }
+  };
   /*
    * 넘치는데 단백질이 하한에 걸렸으면 기름이 적은 것(닭가슴살 · 참치)을 더하고, 그만큼 덜 담백한 단백질(두유 · 우유 · 달걀 ·
    * 고등어 · 두부 · 연어)을 단백질이 처음보다 줄지 않을 때까지 줄인다. kcal 이 줄 때만 둔다 — 입맛 없는 날 가벼운 틀의 두유 ·
@@ -1188,18 +1228,63 @@ function planDay(
    */
   const swapLean = () => {
     const before = totalOf(all());
-    const saved = meals.map((m) => ({
-      m,
-      n: m.lines.length,
-      amounts: m.lines.map((l) => l.amount),
-      added: added.get(m.slot),
-    }));
+    const ratios = meals.map((m) => mealRatio(m));
+    /* 끼니마다 몫의 0.6~1.5배 안이거나, 밖에 있던 끼니는 더 멀어지지 않았나 */
+    const ratiosKept = () =>
+      meals.every((m, i) => {
+        const r = mealRatio(m);
+        return (
+          (r <= MEAL_RATIO_HI || r <= ratios[i] + 1e-9) &&
+          (r >= MEAL_RATIO_LO || r >= ratios[i] - 1e-9)
+        );
+      });
+    const snapshot = () =>
+      meals.map((m) => ({
+        m,
+        n: m.lines.length,
+        amounts: m.lines.map((l) => l.amount),
+        added: added.get(m.slot),
+      }));
+    const restore = (state: ReturnType<typeof snapshot>) => {
+      for (const { m, n, amounts, added: was } of state) {
+        m.lines.length = n;
+        m.lines.forEach((l, i) => (l.amount = amounts[i]));
+        if (was === undefined) added.delete(m.slot);
+        else added.set(m.slot, was);
+      }
+    };
+    const saved = snapshot();
+    const growLean = () =>
+      freely(() =>
+        all()
+          .filter((l) => l.role === 'protein' && leanness(l.food) >= LEAN_FOOD)
+          .sort((x, y) => leanness(y.food) - leanness(x.food))
+          .find((l) => nudge(l, 1))
+      );
+    /* 기름진 줄을 기름진 것부터, 단백질이 처음보다 줄지 않는 데까지 줄인다 */
+    const cutFatty = () => {
+      const fatty = all()
+        .filter(
+          (l) => l.role === 'protein' && l.amount > 0 && leanness(l.food) < SWAP_FOOD
+        )
+        .sort((x, y) => leanness(x.food) - leanness(y.food));
+      for (const l of fatty) {
+        for (;;) {
+          const amount = l.amount;
+          if (!nudge(l, -1)) break;
+          if (totalOf(all()).protein < before.protein) {
+            l.amount = amount;
+            break;
+          }
+        }
+      }
+    };
     /*
-     * 기름진 줄이 한 걸음 줄며 내주는 단백질 — 기름 적은 것을 적어도 그만큼 더해야 한 걸음이라도 줄일 수 있다. 설렁탕 ¼ 그릇은
-     * 8g 인데 돼지 안심 ¼ 은 6.5g 이라, 한 걸음씩만 늘리면 맞바꾸지 못하고 멈췄다.
+     * 기름 적은 것을 새로 더한다 — 기름진 줄 한 걸음이 내주는 단백질만큼을 가장 적은 kcal 로. 닭가슴살 팩 하나를 통째로 얹으면
+     * 세 끼 먹고 156kcal 남은 날이 198kcal(+27%) 이 됐다.
      */
-    const stepGive = Math.min(
-      ...all()
+    const addLean = () => {
+      const gives = all()
         .filter(
           (l) =>
             l.role === 'protein' &&
@@ -1207,63 +1292,49 @@ function planDay(
             leanness(l.food) < SWAP_FOOD &&
             l.amount - limits(l).step >= limits(l).min - 1e-9
         )
-        .map((l) => limits(l).step * (l.food.protein ?? 0))
-    );
-    const growLean = () =>
-      all()
-        .filter((l) => l.role === 'protein' && leanness(l.food) >= LEAN_FOOD)
-        .sort((x, y) => leanness(y.food) - leanness(x.food))
-        .find((l) => nudge(l, 1));
-    let grown = growLean();
-    for (
-      let k = 0;
-      grown && k < 4 && totalOf(all()).protein < before.protein + stepGive - 1e-9;
-      k++
-    )
-      grown = growLean() ?? grown;
-    if (!grown) {
-      /*
-       * 기름진 줄들이 하한까지 내려가며 내줄 수 있는 단백질(g)만큼만, 그만큼을 가장 적은 kcal 로 채우는 것부터 — 닭가슴살 팩
-       * 하나를 통째로 얹으면 세 끼 먹고 156kcal 남은 날이 198kcal(+27%) 이 됐다.
-       */
-      const give = Math.max(
-        1,
-        all()
-          .filter((l) => l.role === 'protein' && leanness(l.food) < SWAP_FOOD)
-          .reduce(
-            (a, l) => a + Math.max(0, l.amount - limits(l).min) * (l.food.protein ?? 0),
-            0
-          )
-      );
-      const kcalOf = (x: string) => sizeFor(x, give) * basicFood(x)!.kcal;
+        .map((l) => limits(l).step * (l.food.protein ?? 0));
+      if (gives.length === 0) return false;
+      const give = Math.min(...gives);
       const lean = boostOrder
         .filter((x) => canBoost(x) && leanness(basicFood(x)!) >= LEAN_FOOD)
-        .sort((a, b) => kcalOf(a) - kcalOf(b));
-      if (!lean.some((x) => addBoost(x, give))) return false;
-    }
-    const fatty = all()
-      .filter(
-        (l) => l.role === 'protein' && l.amount > 0 && leanness(l.food) < SWAP_FOOD
-      )
-      .sort((x, y) => leanness(x.food) - leanness(y.food));
-    for (const l of fatty) {
-      for (;;) {
-        const amount = l.amount;
-        if (!nudge(l, -1)) break;
-        if (totalOf(all()).protein < before.protein) {
-          l.amount = amount;
-          break;
-        }
+        .sort((a, b) => coverKcal(a, give) - coverKcal(b, give));
+      return freely(() => lean.some((x) => addBoost(x, give)));
+    };
+    /*
+     * 기름 적은 것을 한 걸음 늘리거나 새로 더할 때마다 기름진 것을 줄여 보고, kcal 이 가장 적었던 때로 돌아간다. 하루가 8% 안에
+     * 들면 멈춘다. 기름진 줄 한 걸음이 내주는 단백질(설렁탕 ¼ 그릇 8g)이 기름 적은 것 한 걸음(돼지 안심 ¼ 7g)보다 크면 두 걸음을
+     * 늘려야 한 걸음을 줄일 수 있다 — 한 걸음만 늘려 보고 멈춰, 설렁탕 저녁이 몫의 1.3배로 남았다. 늘릴 것(단백질 쉐이크 반 개
+     * 60kcal)보다 새로 더할 것(돼지 안심 ¼ 36kcal)이 작으면 그쪽이 낫다.
+     */
+    let best: ReturnType<typeof snapshot> | null = null;
+    let bestKcal = before.kcal - 10;
+    let at = saved;
+    for (let k = 0; k < 6; k++) {
+      let pick: {
+        kcal: number;
+        ok: boolean;
+        state: ReturnType<typeof snapshot>;
+      } | null = null;
+      for (const move of [() => growLean() !== undefined, addLean]) {
+        restore(at);
+        if (!move()) continue;
+        cutFatty();
+        const kcal = totalOf(all()).kcal;
+        const ok = ratiosKept();
+        if (!pick || (ok && !pick.ok) || (ok === pick.ok && kcal < pick.kcal))
+          pick = { kcal, ok, state: snapshot() };
       }
+      if (!pick) break;
+      restore(pick.state);
+      at = pick.state;
+      if (pick.ok && pick.kcal < bestKcal) {
+        bestKcal = pick.kcal;
+        best = pick.state;
+      }
+      if (pick.kcal <= left.kcal * 1.08) break;
     }
-    if (totalOf(all()).kcal < before.kcal - 10) return true;
-    for (const { m, n, amounts, added: was } of saved) {
-      m.lines.length = n;
-      m.lines.forEach((l, i) => (l.amount = amounts[i]));
-      if (was === undefined) added.delete(m.slot);
-      else added.set(m.slot, was);
-    }
-    return false;
+    restore(best ?? saved);
+    return best !== null;
   };
   /*
    * 단백질이 kcal 의 3할을 넘게 차지해야 하는 날(1,250kcal 에 단백질 120g 같은)은 둘을 다 맞추지 못할 때가 있다. 밥 · 면 ·
@@ -1283,35 +1354,51 @@ function planDay(
       const leanFirst =
         tight && id !== undefined && leanness(basicFood(id)!) >= LEAN_FOOD;
       /* 한 걸음에 단백질이 1.3배를 넘으면 그 걸음은 건너뛴다 — 닭가슴살 팩 하나를 더했다 뺐다 되풀이하며 멈춰 있었다 */
-      const grow = meals
-        .flatMap((m) => m.lines)
-        .filter((l) => l.role === 'protein' && (l.food.protein ?? 0) > 0)
-        .filter((l) => !leanFirst || leanness(l.food) >= LEAN_FOOD)
-        .sort((x, y) => leanness(y.food) - leanness(x.food))
-        .find((l) => {
-          const amount = l.amount;
-          if (!nudge(l, 1)) return false;
-          if (totalOf(all()).protein <= left.protein * 1.3) return true;
-          l.amount = amount;
-          return false;
-        });
-      if (grow) continue;
+      const grow = (onlyShort: boolean) =>
+        meals
+          .filter((m) => !onlyShort || proteinShort(m) > 0)
+          .flatMap((m) => m.lines)
+          .filter((l) => l.role === 'protein' && (l.food.protein ?? 0) > 0)
+          .filter((l) => !leanFirst || leanness(l.food) >= LEAN_FOOD)
+          .sort((x, y) => leanness(y.food) - leanness(x.food))
+          .find((l) => {
+            const amount = l.amount;
+            if (!nudge(l, 1)) return false;
+            if (totalOf(all()).protein <= left.protein * 1.3) return true;
+            l.amount = amount;
+            return false;
+          });
       /*
-       * 모자란 만큼만 더한다(한 단위까지). 빠듯한 날은 그 양의 kcal 이 적은 것부터 — 남은 저녁 하나에 단백질 6g 이 모자라
-       * 닭가슴살 팩(115kcal)을 통째로 얹으면 +12% 였다. 모자란 양이 한 단위를 넘으면 다 덮는 것(닭가슴살 0.5)보다 한 단위가
-       * 싼 것(달걀 1)이 앞설 수 있다 — 닭가슴살을 먼저 키우면 한 끼에 몰려 그대로 둔다.
+       * 단백질이 모자란 끼니의 재료부터 늘리고, 거기 늘릴 것이 없으면 그 끼니에 하나 더하고, 그래도 안 되면 아무 끼니나 —
+       * 가장 담백한 줄(저녁의 닭가슴살 팩)부터 늘리면 정작 모자란 던지기 전 점심 대신 저녁이 커지고, 넘친 만큼 점심이
+       * 깎여 던지는 날 점심이 그날 가장 가벼운 끼니가 됐다.
+       */
+      if (grow(true)) continue;
+      /*
+       * 모자란 만큼만 더한다(한 단위까지). 빠듯한 날은 모자란 만큼을 다 덮는 양의 kcal 이 적은 것부터 — 남은 저녁 하나에
+       * 단백질 6g 이 모자라 닭가슴살 팩(115kcal)을 통째로 얹으면 +12% 였다. 한 단위로 막아 견주면 14.7g 이 모자란데 못 덮는
+       * 달걀 1(78kcal)이 다 덮는 닭가슴살 0.5(83kcal)보다 앞서, 달걀을 더하고도 또 모자라 보충이 쌓였다. 한 끼에 몰리는 것은
+       * 끼니 몫 가드(keepsRatio)가 막는다.
        */
       const need = left.protein * proteinFloor - t.protein;
-      const kcalFor = (x: string) => sizeFor(x, need) * basicFood(x)!.kcal;
+      const kcalFor = (x: string) => coverKcal(x, need);
       const order = tight
         ? boostOrder.filter(canBoost).sort((a, b) => kcalFor(a) - kcalFor(b))
         : boostOrder.filter(canBoost);
       if (order.some((x) => addBoost(x, need))) continue;
+      if (grow(false)) continue;
     } else if (t.protein > left.protein * 1.3) {
+      /* 하한 밑으로는 줄이지 않는다 — 작은 간식 하나(16g)에서 소고기 ¼ 을 빼면 하한 밑이라 다시 닭가슴살을 더해 +14% 였다 */
       const shrink = all()
         .filter((l) => l.role === 'protein')
         .sort((x, y) => leanness(x.food) - leanness(y.food))
-        .find((l) => nudge(l, -1));
+        .find((l) => {
+          const amount = l.amount;
+          if (!nudge(l, -1)) return false;
+          if (totalOf(all()).protein >= left.protein * proteinFloor) return true;
+          l.amount = amount;
+          return false;
+        });
       if (shrink) continue;
     }
     const gap = left.kcal - t.kcal;
@@ -1359,7 +1446,12 @@ function planDay(
       const side = meals
         .flatMap((m) =>
           m.lines.filter((l) => l.amount > 0).length > 1
-            ? m.lines.filter((l) => l.role === 'side' && l.amount > 0)
+            ? m.lines.filter(
+                (l) =>
+                  l.role === 'side' &&
+                  l.amount > 0 &&
+                  keepsRatio(m, -lineMacros(l).kcal, SIDE_DROP_LO)
+              )
             : []
         )
         .filter((l) => lineMacros(l).kcal >= 40)
@@ -1375,28 +1467,196 @@ function planDay(
       }
     }
     if (gap > 0) {
-      const target = shortest((m) => m.kcal - totalOf(m.lines).kcal);
-      const id = KCAL_BOOST.find(
-        (x) =>
-          basicFood(x) &&
-          !blocked(x, input) &&
-          /* 간식 둘은 같은 '간식' 끼니 — 둘 다 보고 겹치지 않게 */
-          !meals.some(
-            (m) => m.slot === target.slot && m.lines.some((l) => l.food.id === x)
-          ) &&
-          roomFor(target, x) &&
-          /* 가장 적게 더해도 지금보다 멀어지지 않는 것 */
-          amountStep(x) * basicFood(x)!.kcal < 2 * gap
-      );
-      if (id) {
+      /*
+       * 가장 모자란 끼니부터, 끼니 몫의 1.5배를 넘지 않는 양으로 — 넘으면 줄이고, 한 걸음도 안 들어가면 다음 끼니로. 덧붙인 것이
+       * 둘인 끼니는 다른 끼니가 다 막혔을 때만. 3,948kcal 하루에 간식만 열려 있어 밥 한 공기가 막히자 맞추기가 멈춰 −21% 였다.
+       */
+      const short = (m: (typeof meals)[number]) => m.kcal - totalOf(m.lines).kcal;
+      const open = meals
+        .filter(
+          (m) => (added.get(m.slot) ?? 0) < 2 && totalOf(m.lines).kcal < m.kcal * 1.25
+        )
+        .sort((x, y) => short(y) - short(x));
+      const rest = meals
+        .filter((m) => !open.includes(m))
+        .sort((x, y) => short(y) - short(x));
+      const boosted = [...open, ...rest].some((target) => {
+        const id = KCAL_BOOST.find(
+          (x) =>
+            basicFood(x) &&
+            !blocked(x, input) &&
+            /* 간식 둘은 같은 '간식' 끼니 — 둘 다 보고 겹치지 않게 */
+            !meals.some(
+              (m) => m.slot === target.slot && m.lines.some((l) => l.food.id === x)
+            ) &&
+            roomFor(target, x) &&
+            /* 가장 적게 더해도 지금보다 멀어지지 않는 것 */
+            amountStep(x) * basicFood(x)!.kcal < 2 * gap
+        );
+        if (!id) return false;
         /* 모자란 만큼에 가까운 양으로(한 단위까지) */
         const step = amountStep(id);
         const units = Math.round(gap / basicFood(id)!.kcal / step) * step;
-        addLine(target, id, 'carb', Math.min(1, Math.max(step, units)));
-        continue;
-      }
+        let amount = Math.min(1, Math.max(step, units));
+        while (
+          amount > step + 1e-9 &&
+          !keepsRatio(target, amount * basicFood(id)!.kcal)
+        )
+          amount -= step;
+        if (!keepsRatio(target, amount * basicFood(id)!.kcal)) return false;
+        addLine(target, id, 'carb', amount);
+        return true;
+      });
+      if (boosted) continue;
     }
     break;
+  }
+
+  /*
+   * 던지는 날 점심(던지기 전 끼니)이 그날 가장 가벼운 끼니가 되면, 가장 무거운 끼니에서 한 걸음 빼고 점심에 한 걸음 더한다 — 밥 ·
+   * 면 · 뺐던 곁들이(바나나 · 이온음료) · 담백한 단백질(같은 음식으로 옮김) 가운데, 하루 차이가 8%(이미 넘쳤으면 그만큼) 밖으로
+   * 나가지 않고 단백질이 하한 밑으로 내려가지 않는 짝을 고른다. 넘친 날 줄이기에서 점심의 바나나를 빼 점심(345kcal)이 아침(370) ·
+   * 저녁(396)보다 가벼웠고, 단백질이 모자란 끼니를 채우다 저녁의 닭가슴살이 두 팩이 되며 점심 두부가 깎였다.
+   */
+  const lunch = meals.find((m) => m.slot === 'lunch');
+  const mains = meals.filter((m) => m.slot !== 'lunch' && m.slot !== 'snack');
+  if (input.throwKind === 'today' && lunch && mains.length > 0) {
+    type Undo = () => void;
+    type Move = () => Undo | null;
+    const kcalOf = (m: (typeof meals)[number]) => totalOf(m.lines).kcal;
+    /** 점심이 가장 가벼운 다른 끼니보다 얼마나 무거운가 */
+    const lead = () => kcalOf(lunch) - Math.min(...mains.map(kcalOf));
+    const stepMove =
+      (l: Line, dir: 1 | -1): Move =>
+      () => {
+        const amount = l.amount;
+        return nudge(l, dir) ? () => (l.amount = amount) : null;
+      };
+    const setMove =
+      (m: (typeof meals)[number], l: Line, amount: number, lo?: number): Move =>
+      () => {
+        const was = l.amount;
+        if (!keepsRatio(m, (amount - was) * l.food.kcal, lo)) return null;
+        l.amount = amount;
+        return () => (l.amount = was);
+      };
+    for (let k = 0; k < 8 && lead() <= 0; k++) {
+      const heavy = [...mains].sort((x, y) => kcalOf(y) - kcalOf(x))[0];
+      const now = totalOf(all());
+      const band = Math.max(left.kcal * 0.08, Math.abs(left.kcal - now.kcal));
+      const floor = Math.min(now.protein, left.protein * proteinFloor);
+      /* 단백질은 1.3배(이미 넘었으면 지금)에서 목표의 5% 넘게 더 늘리지 않는다 — 가래떡 반 줄의 2g 까지 막지 않게 */
+      const ceiling = Math.max(now.protein, left.protein * 1.3) + left.protein * 0.05;
+      const ups: Move[] = [
+        ...lunch.lines
+          .filter((l) => (l.role === 'carb' || l.role === 'dish') && l.amount > 0)
+          .map((l) => stepMove(l, 1)),
+        ...lunch.lines
+          .filter((l) => l.role === 'side' && l.amount === 0)
+          .map((l) => setMove(lunch, l, 1)),
+        ...lunch.lines
+          .filter(
+            (l) => l.role === 'protein' && l.amount > 0 && leanness(l.food) >= SWAP_FOOD
+          )
+          .map((l) => stepMove(l, 1)),
+        /* 밥 · 고구마가 한 끼 상한이면 바나나 · 밥 같은 것을 새로(하루 맞추기가 모자란 끼니에 더하는 것과 같은 목록) */
+        ...KCAL_BOOST.filter(
+          (x) =>
+            basicFood(x) &&
+            !blocked(x, input) &&
+            !lunch.lines.some((l) => l.food.id === x) &&
+            roomFor(lunch, x)
+        ).map((x): Move => () => {
+          const food = basicFood(x)!;
+          const amount = amountStep(x);
+          if (!keepsRatio(lunch, amount * food.kcal)) return null;
+          lunch.lines.push({
+            food,
+            amount,
+            role: 'carb',
+            base: Math.min(1, amount * 2),
+          });
+          return () => void lunch.lines.pop();
+        }),
+        /* 무거운 끼니의 담백한 단백질을 같은 음식으로, 또는 기름 적은 단백질(닭가슴살 · 참치)을 새로 점심에 */
+        ...[
+          ...new Set([
+            ...heavy.lines
+              .filter(
+                (l) =>
+                  l.role === 'protein' && l.amount > 0 && leanness(l.food) >= SWAP_FOOD
+              )
+              .map((l) => l.food.id!),
+            ...boostOrder.filter(
+              (x) =>
+                basicFood(x) &&
+                !blocked(x, input) &&
+                leanness(basicFood(x)!) >= LEAN_FOOD
+            ),
+          ]),
+        ].map((id): Move => {
+          const there = lunch.lines.find((x) => x.food.id === id);
+          if (there) return stepMove(there, 1);
+          return () => {
+            const food = basicFood(id)!;
+            const step = amountStep(id);
+            if (groupMax(id, slotOthers('lunch')) < step) return null;
+            if (!keepsRatio(lunch, step * food.kcal)) return null;
+            lunch.lines.push({
+              food,
+              amount: step,
+              role: 'protein',
+              base: Math.min(1, step * 2),
+            });
+            return () => void lunch.lines.pop();
+          };
+        }),
+      ];
+      const downs: Move[] = [
+        ...heavy.lines
+          .filter((l) => l.role !== 'side' && l.amount > 0)
+          .map((l) => stepMove(l, -1)),
+        ...(heavy.lines.filter((l) => l.amount > 0).length > 1
+          ? heavy.lines
+              .filter((l) => l.role === 'side' && l.amount > 0)
+              .map((l) => setMove(heavy, l, 0, SIDE_DROP_LO))
+          : []),
+      ];
+      const leadNow = lead();
+      let pick: { up?: Move; down?: Move; score: [number, number] } | null = null;
+      for (const up of [undefined, ...ups]) {
+        const undoUp = up ? up() : null;
+        if (up && !undoUp) continue;
+        for (const down of [undefined, ...downs]) {
+          if (!up && !down) continue;
+          const undoDown = down ? down() : null;
+          if (down && !undoDown) continue;
+          const t = totalOf(all());
+          const after = lead();
+          if (
+            Math.abs(left.kcal - t.kcal) <= band + 1e-9 &&
+            t.protein >= floor - 1e-9 &&
+            t.protein <= ceiling + 1e-9 &&
+            after > leadNow + 1e-9
+          ) {
+            /* 점심이 가장 가볍지 않게 되는 짝 가운데 하루 차이가 가장 작은 것, 없으면 점심이 가장 많이 따라잡는 것 */
+            const score: [number, number] =
+              after > 0 ? [1, -Math.abs(left.kcal - t.kcal)] : [0, after];
+            if (
+              !pick ||
+              score[0] > pick.score[0] ||
+              (score[0] === pick.score[0] && score[1] > pick.score[1])
+            )
+              pick = { up, down, score };
+          }
+          undoDown?.();
+        }
+        undoUp?.();
+      }
+      if (!pick) break;
+      pick.up?.();
+      pick.down?.();
+    }
   }
 
   /*
