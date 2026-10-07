@@ -1,4 +1,4 @@
-import { basicFood } from '@/lib/nutrition/foods';
+import { basicAliases, basicFood } from '@/lib/nutrition/foods';
 import {
   avoidsOf,
   MEAL_TEMPLATES,
@@ -243,8 +243,45 @@ const minorBand = (i: PlanInput) => i.ageBand !== 'adult';
 
 type Prepared = {
   template: MealTemplate;
-  items: { food: Food; amount: number; role: Role }[];
+  /** label — 끼니 제목에 쓸 이름(틀 이름의 조각 · 바꿔 넣은 음식 이름). null 은 제목에 안 쓰는 곁들이(김치 같은) */
+  items: { food: Food; amount: number; role: Role; label: string | null }[];
 };
+
+/** 음식 이름에서 괄호를 뺀 것 — '닭가슴살(시판 팩)' → '닭가슴살' */
+const shortName = (food: Food) => food.name.replace(/\s*\(.*?\)\s*/g, ' ').trim();
+
+const LABELS = new Map<MealTemplate, (string | null)[]>();
+/**
+ * 틀 이름('쌀밥 · 미역국 · 계란말이 · 수박')의 조각을 틀의 음식마다 붙인다 — 이름(괄호와 띄어쓰기를 뺀 것)이 들어 있는 조각부터,
+ * 그다음 다른 이름으로('즉석밥' 은 쌀밥의 다른 이름 '밥'). 이름에 없는 곁들이(김치 · 시금치나물)는 null.
+ */
+function templateLabels(t: MealTemplate) {
+  const cached = LABELS.get(t);
+  if (cached) return cached;
+  const squash = (x: string) => x.replace(/\(.*?\)|\s/g, '');
+  const parts = t.name.split(' · ');
+  const free = new Set(parts.map((_, k) => k));
+  const found: (string | null)[] = t.items.map(() => null);
+  const passes = [
+    (f: Food) => [squash(f.name)],
+    (f: Food) => basicAliases(f.id ?? '').map(squash),
+  ];
+  for (const namesOf of passes)
+    t.items.forEach((it, i) => {
+      if (found[i] !== null) return;
+      const names = namesOf(it.food).filter((n) => n.length > 0);
+      const k = [...free].find((j) => {
+        const part = squash(parts[j]);
+        return names.some((n) => part.includes(n) || n.includes(part));
+      });
+      if (k === undefined) return;
+      /* 양은 뺀다 — '삼각김밥 둘' 이 하나로 줄어도 제목이 맞게 */
+      found[i] = parts[k].replace(/\s+(하나|둘|셋)$/, '');
+      free.delete(k);
+    });
+  LABELS.set(t, found);
+  return found;
+}
 
 function blocked(foodId: string, input: PlanInput) {
   if (SUPPLEMENTS.has(foodId) && (!input.prefs.supplements || minorBand(input)))
@@ -261,9 +298,11 @@ const MIN_SUB_PROTEIN = 5;
 /** 못 먹는 것 · 보충식품을 바꿔 넣은 틀. 바꿀 수 없는 주재료가 있으면 null */
 function prepare(template: MealTemplate, input: PlanInput): Prepared | null {
   const items: Prepared['items'] = [];
-  for (const it of template.items) {
+  const labels = templateLabels(template);
+  for (let i = 0; i < template.items.length; i++) {
+    const it = template.items[i];
     if (!blocked(it.food.id!, input)) {
-      items.push({ ...it });
+      items.push({ food: it.food, amount: it.amount, role: it.role, label: labels[i] });
       continue;
     }
     const subId = (SUBSTITUTES[it.food.id!] ?? []).find((s) => {
@@ -296,6 +335,8 @@ function prepare(template: MealTemplate, input: PlanInput): Prepared | null {
                 Math.max(step, Math.round((it.amount * by) / step) * step)
               ),
         role: it.role,
+        /* 제목에는 바꿔 넣은 음식 이름으로 — 우유를 못 먹는 날 '오트밀 · 우유 · 바나나' 라고 하지 않게 */
+        label: labels[i] === null ? null : shortName(sub),
       });
     } else if (it.role !== 'side') {
       return null;
@@ -305,8 +346,10 @@ function prepare(template: MealTemplate, input: PlanInput): Prepared | null {
   const merged: Prepared['items'] = [];
   for (const it of items) {
     const same = merged.find((m) => m.food.id === it.food.id);
-    if (same) same.amount += it.amount;
-    else merged.push(it);
+    if (same) {
+      same.amount += it.amount;
+      same.label ??= it.label;
+    } else merged.push(it);
   }
   return merged.length > 0 ? { template, items: merged } : null;
 }
@@ -685,7 +728,8 @@ function pickTemplate(
    * 샐러드가 빠지고 가장 줄여도 몫보다 큰 설렁탕 · 우동만 남아 하루가 +30% 였다.
    */
   const free = (p: Prepared) =>
-    !used.templates.has(p.template.key) && !p.items.some((i) => taken.has(i.food.id!));
+    !used.templates.has(p.template.key) &&
+    (taken.size === 0 || !p.items.some((i) => taken.has(i.food.id!)));
   const fresh = (p: Prepared) => !mainsOf(p).some((m) => used.mains.has(m));
   const notWithin = (days: number) => (p: Prepared) =>
     recent.slice(0, days).every((keys) => !keys.has(p.template.key));
@@ -765,7 +809,26 @@ const BOUNDS: Record<Role, [number, number]> = {
   side: [1, 1],
 };
 
-type Line = { food: Food; amount: number; role: Role; base: number };
+/** label — 틀에서 온 줄의 제목 이름(null 은 제목에 안 씀), 하루 맞추기가 더한 줄은 없다(음식 이름으로) */
+type Line = {
+  food: Food;
+  amount: number;
+  role: Role;
+  base: number;
+  label?: string | null;
+};
+
+/**
+ * 끼니 제목 — 실제로 담은 줄(양이 0 보다 큰 것)로. 틀 이름의 조각을 쓰고, 더한 줄은 음식 이름으로. kcal 을 줄이다 미역국 ·
+ * 수박이 빠진 점심이 '쌀밥 · 미역국 · 계란말이 · 수박' 이었다.
+ */
+function titleOf(lines: Line[], template: MealTemplate) {
+  const names = lines
+    .filter((l) => l.amount > 0 && l.label !== null)
+    .map((l) => l.label ?? shortName(l.food));
+  const unique = [...new Set(names)];
+  return unique.length > 0 ? unique.join(' · ') : template.name;
+}
 
 /*
  * 한 끼에 먹을 만한 양의 위 — 몫을 맞추려고 양을 늘리다 '달걀 5개 · 두유 6팩'이 되지 않게. 여기 없는 것은 역할의 배수(BOUNDS)만 본다.
@@ -1087,9 +1150,10 @@ function planDay(
     const before = meals.filter((m) => m.slot === slot).flatMap((m) => m.lines);
     const taken = new Set(before.map((l) => l.food.id!));
     /* 묶음이 거의 찬 것(한 컵도 못 더 담는 우유류 같은)도 같은 끼니의 둘째 간식에서는 뺀다 */
-    for (const g of FOOD_GROUPS)
-      for (const id of Object.keys(g.weight))
-        if (groupMax(id, before) < 1) taken.add(id);
+    if (before.length > 0)
+      for (const g of FOOD_GROUPS)
+        for (const id of Object.keys(g.weight))
+          if (groupMax(id, before) < 1) taken.add(id);
     const picked = pickTemplate(
       memo,
       slot,
@@ -1766,7 +1830,7 @@ function planDay(
     items,
     meals: meals.map((m) => ({
       meal: m.slot,
-      title: m.template.name,
+      title: titleOf(m.lines, m.template),
       template: m.template.key,
     })),
     reasons: reasons.slice(0, 4),
