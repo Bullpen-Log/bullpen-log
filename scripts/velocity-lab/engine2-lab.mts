@@ -8,6 +8,7 @@
  *   node scripts/velocity-lab/engine2-lab.mts --res=1080       # 원본 해상도
  *   node scripts/velocity-lab/engine2-lab.mts --whole 132_6a345288   # 클립 전체를 넘겨 씨앗을 스스로 찾게
  *   node scripts/velocity-lab/engine2-lab.mts --fk=1.1               # 초점거리를 10% 틀리게 넣었을 때
+ *   node scripts/velocity-lab/engine2-lab.mts --auto --d=20          # 거리를 공 크기로 어림(넣은 20m 는 첫 어림) — 스피드건과 바로 견줌
  *
  * 점수: 같은 장소의 나머지 영상으로 거리를 맞춰(LOO — 앱에서는 사용자가 넣는 거리 자리) 스피드건과 견준다.
  * '건 맞춤 D' = 그 영상만으로 스피드건에 맞는 거리(같은 장소면 비슷해야 한다).
@@ -39,6 +40,8 @@ const whole = args.includes('--whole');
 const useTilt = args.includes('--tilt');
 /** --horiz: 위아래를 뺀 수평 속력으로 견준다(스피드건은 앞으로 가는 성분을 잰다) */
 const horiz = args.includes('--horiz');
+/** --auto: 거리를 공 크기로 어림한다(analyze-distance autoDistance) — 값을 스피드건과 바로 견준다 */
+const auto = args.includes('--auto');
 const D = Number((args.find((a) => a.startsWith('--d=')) ?? '--d=21.5').slice(4));
 const names = args.filter((a) => !a.startsWith('--'));
 const list = names.length ? names : Object.keys(RELEASE);
@@ -103,6 +106,7 @@ for (const name of list) {
     distanceM: D,
     fps: 60,
     tiltRad: useTilt ? ((TILT_DEG[name.slice(0, 3)] ?? 0) * Math.PI) / 180 : 0,
+    autoDistance: auto,
   });
   const gun = Number(name.slice(0, 3));
   const m = r.measure;
@@ -116,7 +120,8 @@ for (const name of list) {
     info: `비행 ${d.flightFrames}장(+${d.extended}) 끝 ${d.impact} 첫깊이 ${d.firstDepthM}m 위로 ${d.launchDeg}° rms ${d.rmsPx} 씨앗 ${d.seeds}@${d.seedFrame} ${d.timingMs}ms`,
   });
   const x = rows[rows.length - 1];
-  if (x.kmh != null) x.Dgun = (gun / x.kmh) * D;
+  if (x.kmh != null) x.Dgun = (gun / x.kmh) * d.distanceM;
+  if (auto) x.info = `거리 ${d.distanceM}m(${d.distanceSource}) 공크기 ${d.sizeDistM} 차이 ${x.kmh != null ? (x.kmh - gun).toFixed(1) : '-'} · ` + x.info;
   console.log(
     `${name.padEnd(13)} ${venue(name)} 건 ${String(gun).padStart(3)}  ${x.kmh != null ? x.kmh.toFixed(1).padStart(6) : '  못 잼'}  D건 ${x.Dgun != null ? x.Dgun.toFixed(2) : x.code}  ${m.ok ? `±${m.errorKmh} ${m.confidence}` : ''}  ${x.info}`
   );
@@ -126,7 +131,7 @@ const med = (a: number[]) => {
   const b = [...a].sort((x, y) => x - y);
   return b.length % 2 ? b[b.length >> 1] : (b[b.length / 2 - 1] + b[b.length / 2]) / 2;
 };
-for (const v of ['밖', '실내']) {
+for (const v of auto ? [] : ['밖', '실내']) {
   const errs: number[] = [];
   let fails = 0;
   for (const r of rows.filter((q) => venue(q.name) === v)) {
@@ -143,5 +148,14 @@ for (const v of ['밖', '실내']) {
   if (errs.length)
     console.log(
       `${v}: 잼 ${errs.length + (rows.some((q) => q.name.startsWith('111_6') && venue(q.name) === v && q.Dgun != null) ? 1 : 0)}/${rows.filter((q) => venue(q.name) === v).length} · MAE ${(errs.reduce((a, x) => a + Math.abs(x), 0) / errs.length).toFixed(1)} · 최대 ${Math.max(...errs.map(Math.abs)).toFixed(1)} · 못 잼 ${fails}`
+    );
+}
+/* --auto: 거리를 안 넣었으니 스피드건과 바로 견준다(그물 밑으로 빠진 111_65 는 평균에서 뺀다) */
+for (const v of auto ? ['밖', '실내'] : []) {
+  const rs = rows.filter((q) => venue(q.name) === v);
+  const errs = rs.filter((q) => q.kmh != null && !q.name.startsWith('111_6')).map((q) => (q.kmh as number) - q.gun);
+  if (errs.length)
+    console.log(
+      `${v}: 잼 ${rs.filter((q) => q.kmh != null).length}/${rs.length} · 평균 차이 ${(errs.reduce((a, x) => a + x, 0) / errs.length).toFixed(1)} · MAE ${(errs.reduce((a, x) => a + Math.abs(x), 0) / errs.length).toFixed(1)} · 최대 ${Math.max(...errs.map(Math.abs)).toFixed(1)}`
     );
 }

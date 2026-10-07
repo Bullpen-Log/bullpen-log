@@ -265,6 +265,9 @@ export class DualCapture {
       focalPerLongSide: this.focalPerLongSide,
       releaseDistanceM: this.releaseDistanceM,
       distanceM: this.distanceM,
+      distanceAuto: this.distanceAuto,
+      /* 앱이 잰 화각(videoFieldOfView, 줌만큼 좁힘) — 공 크기 거리가 믿을 만하다 */
+      fovKnown: main.fovDeg > 0,
       tiltRad: this.tiltRad,
     });
     if (gen !== this.gen) {
@@ -358,9 +361,15 @@ export class DualCapture {
   }
   /** 엔진 2.0 의 거리 자(m) · 카메라 숙임(라디안) — live-capture.ts 와 같은 뜻 */
   private distanceM: number | null = null;
+  private distanceAuto = false;
   private tiltRad: number | null = null;
-  setDistance(distanceM: number | null, tiltRad: number | null = this.tiltRad) {
+  setDistance(
+    distanceM: number | null,
+    tiltRad: number | null = this.tiltRad,
+    distanceAuto: boolean = this.distanceAuto
+  ) {
     this.distanceM = distanceM && distanceM > 0 ? distanceM : null;
+    this.distanceAuto = distanceAuto;
     this.tiltRad = tiltRad;
   }
   setTilt(tiltRad: number | null) {

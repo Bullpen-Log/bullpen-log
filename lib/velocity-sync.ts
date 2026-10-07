@@ -176,6 +176,9 @@ function sanitizeDistance(raw: unknown): Record<string, unknown> | null {
   return {
     method: 'distance',
     distanceM,
+    inputDistM: n(d.inputDistM),
+    sizeDistM: n(d.sizeDistM),
+    distanceSource: d.distanceSource === 'ball' ? 'ball' : 'input',
     tiltRad: n(d.tiltRad),
     impact: d.impact === 'rebound' ? 'rebound' : 'end',
     te: n(d.te),

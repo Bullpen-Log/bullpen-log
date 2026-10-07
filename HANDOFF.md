@@ -58,3 +58,9 @@ Claude 로 작업을 시작하면 저절로 읽힌다. 규칙은 `AGENTS.md` 6�
   공이 처음 보인 장면 → 그물)와 판단이 '담는 중'을 알린 장면 시각 `hitT`(CaptureJob → 'captured' 알림 → ResultMeta)를 더했다. 클립 시각 =
   eventSec + (t − hitT) 는 벽시계 어림이라 첫 재생에서 영상 속 공 자리로 맞춘다(`lib/velocity-tracer.ts` alignTrail — 가짜 카메라 132 에서
   +33ms 를 바로잡음). `npm run velocity:engine2-test` 에 길 · 시각 맞추기 검사를 넣었다(14개).
+- **2.1.0 — 거리를 공 크기로 어림(새 기본 '그물까지 거리: 자동')**. 사용자가 기본 20m 그대로 파일을 재 값이 12% 낮았다 — 밖 실험 영상의
+  실제 거리는 약 22.5m(132: 손 → 그물 0.575초 × 132km/h ≈ 20m, 폰은 투수 뒤). `analyze-distance.ts` 가 궤적의 깊이 비율 + 덩어리
+  지름으로 거리를 내고(`sizeDistM`, 덩어리는 실제 공보다 1.163배 — `BLOB_SIZE_RATIO`), `autoDistance` 면 그 거리로 궤적을 한 번 더 맞춘다.
+  밖 13개 거리 입력 없이 MAE 2.4km/h(줄자 1.1), 실내 7.1. 화각을 짐작했으면(렌즈 정보 · 렌즈 보정 · 앱 카메라 값 없음) ± 8% 를 더하고
+  알린다. 넣은 거리가 공 크기 거리와 12% 넘게 다르면 결과 화면이 알린다. 설정 `distAuto`(옛 설정: 20m 그대로면 자동, 바꿨으면 넣은 값).
+  실험대 `node scripts/velocity-lab/engine2-lab.mts --tilt --horiz --auto --d=20`, 판 묶음이 '2.1.' 로 바뀌어 스피드건 짝은 새로 쌓인다.

@@ -47,6 +47,11 @@ export type VelocitySetup = {
    * 정규 마운드(18.44m)에서 폰을 투수판 1m 뒤에 두면 약 19.5m.
    */
   targetDistM: number;
+  /**
+   * 거리를 공 크기로 어림한다(2026-10-07 사용자: "거리를 판단할 수 없을까") — 켜면 targetDistM 은 첫 어림일 뿐이다. 거리를 안 잰
+   * 사람이 기본 20m 로 재 값이 10% 넘게 틀렸다(밖 실험 영상의 실제 거리 약 22.5m). 줄자로 재 넣으면 끈다.
+   */
+  distAuto: boolean;
   /** 자동 측정 — 켜 두면 공마다 알아서 잡는다. 끄면 공마다 단추를 눌러 기다린다 */
   autoMode: boolean;
   /**
@@ -89,7 +94,7 @@ export const CAMERA_OPTIONS: { key: CameraPos; label: string; hint: string }[] =
   {
     key: 'behind-pitcher',
     label: '투수 뒤',
-    hint: '1m 이내 · 공이 멀어져요 · 그물까지 거리를 넣어요',
+    hint: '1m 이내 · 공이 멀어져요 · 거리는 공 크기로 어림해요',
   },
   {
     key: 'behind-catcher',
@@ -200,6 +205,7 @@ export const DEFAULT_SETUP: Omit<VelocitySetup, 'savedAt'> = {
   useCal: true,
   releaseDistM: 18.5,
   targetDistM: 20,
+  distAuto: true,
   autoMode: true,
   calibSave: false,
   clipZone: true,
@@ -250,6 +256,14 @@ export function loadSetup(): VelocitySetup | null {
         p.targetDistM <= TARGET_DIST_MAX
           ? p.targetDistM
           : DEFAULT_SETUP.targetDistM,
+      /* 이 칸이 생기기 전 설정 — 기본 20m 를 그대로 둔 사람은 자동으로, 바꾼 사람은 넣은 거리로 */
+      distAuto:
+        typeof p.distAuto === 'boolean'
+          ? p.distAuto
+          : !(
+              typeof p.targetDistM === 'number' &&
+              p.targetDistM !== DEFAULT_SETUP.targetDistM
+            ),
       autoMode: p.autoMode !== false,
       calibSave: p.calibSave === true,
       clipZone: p.clipZone !== false,
@@ -294,6 +308,13 @@ export function distanceOf(
   setup: Pick<VelocitySetup, 'cameraPos' | 'targetDistM' | 'releaseDistM'>
 ): number | null {
   return setup.cameraPos === 'behind-pitcher' ? setup.targetDistM : null;
+}
+
+/** 엔진 2.0 의 거리를 공 크기로 어림하나 — 투수 뒤이고 거리를 줄자로 넣지 않았을 때(distAuto) */
+export function distanceAutoOf(
+  setup: Pick<VelocitySetup, 'cameraPos' | 'distAuto'>
+): boolean {
+  return setup.cameraPos === 'behind-pitcher' && setup.distAuto;
 }
 
 /**

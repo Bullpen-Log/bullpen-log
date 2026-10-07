@@ -72,6 +72,7 @@ import { focalPxFromFov } from '@/lib/velocity-engine/geometry';
 import { liveFpsNote, type LiveReport } from '@/lib/velocity-engine/live-meter';
 import { readVideoLens, videoFovFor } from '@/lib/velocity-engine/video-lens';
 import { analysisOf, type AnalysisJson } from '@/lib/velocity-analysis';
+import type { DistanceReport } from '@/lib/velocity-engine/analyze-distance';
 import {
   SegmentedRecorder,
   recordingBitrate,
@@ -103,6 +104,7 @@ import {
 } from '@/lib/velocity-meta';
 import {
   approachOf,
+  distanceAutoOf,
   distanceOf,
   DEFAULT_SETUP,
   defaultZone,
@@ -150,9 +152,10 @@ import {
   SetupSummaryRow,
 } from '@/components/velocity/setup-art';
 import { isTipsSkippedToday, TipsPopup } from '@/components/velocity/tips-popup';
-import { VelocitySettingsFields } from '@/components/velocity/velocity-settings';
+import { DIST_MODES, VelocitySettingsFields } from '@/components/velocity/velocity-settings';
+import { Segmented } from '@/components/segmented';
 import { ClipPlayer } from '@/components/velocity/clip-player';
-import { Panel, StatRow, Note } from '@/components/velocity/kit';
+import { Panel, SectionLabel, StatRow, Note } from '@/components/velocity/kit';
 import {
   CircleOverlay,
   DEFAULT_CIRCLE,
@@ -235,7 +238,11 @@ type LocalPitch = SavePitchInput & {
   trail?: TrailPoint[] | null;
   /** 클립의 eventSec 에 해당하는 궤적 시각(ResultMeta.hitT) — 클립 시각 = eventSec + (t − hitT) */
   hitT?: number | null;
+  /** 구속을 낸 거리 — 결과 화면에 '거리 22.4m(공 크기)'로 보인다 */
+  dist?: { m: number; auto: boolean } | null;
 };
+/** 넣은 거리와 공 크기로 본 거리가 이만큼(비율) 넘게 다르면 알린다 — 공 크기 어림의 흩어짐 2.5%, 화각 짐작이면 8% 안팎 */
+const DIST_MISMATCH = 0.12;
 /**
  * 결과 화면에서 따라 그릴 공 길(장면 비율) — 엔진 2.0 은 맞춘 궤적을 공이 처음 보인 장면부터 그물까지 비춘 길(distance.path), 1.x 는
  * 잡힌 공 자리.
@@ -366,6 +373,8 @@ export function VelocityScreen({
     releaseDistM: DEFAULT_SETUP.releaseDistM,
     /* 엔진 2.0 의 거리 자 — 투수 뒤 = 그물 · 미트까지, 포수 뒤 = 릴리스까지(distanceOf) */
     distanceM: DEFAULT_SETUP.targetDistM as number | null,
+    /* 거리를 공 크기로 어림하나(distanceAutoOf) — 그러면 distanceM 은 첫 어림 */
+    distanceAuto: DEFAULT_SETUP.distAuto,
     autoMode: DEFAULT_SETUP.autoMode,
     wideClip: DEFAULT_SETUP.wideClip,
     camMode: DEFAULT_SETUP.camMode,
@@ -389,6 +398,7 @@ export function VelocityScreen({
   const [voice, setVoice] = useState(false);
   const [releaseDistM, setReleaseDistM] = useState(DEFAULT_SETUP.releaseDistM);
   const [targetDistM, setTargetDistM] = useState(DEFAULT_SETUP.targetDistM);
+  const [distAuto, setDistAuto] = useState(DEFAULT_SETUP.distAuto);
   const [autoMode, setAutoMode] = useState(DEFAULT_SETUP.autoMode);
   const [calibSave, setCalibSave] = useState(DEFAULT_SETUP.calibSave);
   /* 엔진 개발용 녹화(관리자 설정) — 켜면 측정 대기 화면의 시작 단추가 녹화 단추 */
@@ -495,6 +505,7 @@ export function VelocityScreen({
       focalRatio,
       releaseDistM,
       distanceM: distanceOf({ cameraPos: choices.cameraPos, targetDistM, releaseDistM }),
+      distanceAuto: distanceAutoOf({ cameraPos: choices.cameraPos, distAuto }),
       autoMode,
       wideClip,
       camMode,
@@ -606,6 +617,7 @@ export function VelocityScreen({
       useCal,
       releaseDistM,
       targetDistM,
+      distAuto,
       autoMode,
       calibSave,
       clipZone,
@@ -660,6 +672,23 @@ export function VelocityScreen({
     const m = result.measure;
     const r = result.release;
     const value = shown(m.kmh);
+    /*
+     * 거리 — 공 크기로 어림하라 했는데 못 했으면(공이 덜 잡힘) 그 까닭을, 넣은 거리가 공 크기로 본 거리와 많이 다르면 다시 재 보라고
+     * 알린다(사용자 2026-10-07: 기본 20m 그대로 재 실제 22.5m 와 12% 갈렸다).
+     */
+    const dist = (result as { distance?: DistanceReport }).distance ?? null;
+    const distNotes: string[] = [];
+    if (dist && distanceAutoOf({ cameraPos: choices.cameraPos, distAuto }) && dist.distanceSource === 'input')
+      distNotes.push(`공이 덜 잡혀 거리를 어림하지 못했어요. ${dist.distanceM}m로 쟀어요.`);
+    else if (
+      dist &&
+      dist.distanceSource === 'input' &&
+      dist.sizeDistM != null &&
+      Math.abs(dist.sizeDistM / dist.inputDistM - 1) > DIST_MISMATCH
+    )
+      distNotes.push(
+        `넣은 거리 ${dist.inputDistM}m와 공 크기로 본 거리 ${dist.sizeDistM}m가 달라요. 줄자로 다시 재 보세요.`
+      );
 
     /*
      * 코스 짐작 — 마지막으로 잡힌 공이 스트라이크 존의 어느 칸에 있었나. 포수 뒤에서는 마지막
@@ -716,9 +745,14 @@ export function VelocityScreen({
         },
         autoDetected: source === 'camera' ? autoMode : false,
         captureId: meta?.id,
-        notes: result.live?.notes.map((note) => note.text) ?? [],
+        notes: [
+          ...distNotes,
+          ...(result.live?.notes.map((note) => note.text) ?? []),
+          ...(source === 'file' ? ((result as { video?: { notes: string[] } }).video?.notes ?? []) : []),
+        ],
         trail: trailOf(result),
         hitT: meta?.hitT ?? null,
+        dist: dist ? { m: dist.distanceM, auto: dist.distanceSource === 'ball' } : null,
         ...EMPTY_EDIT,
         zone: guessedZone,
       },
@@ -811,7 +845,7 @@ export function VelocityScreen({
       now.approach === 'approaching' ? now.releaseDistM : null
     );
     /* 엔진 2.0 — 거리 자 · 숙임(폰 기울기). 켜기 전에 넣어야 카메라에 2배 줌을 청한다 */
-    capture.setDistance(now.distanceM, tiltRef.current);
+    capture.setDistance(now.distanceM, tiltRef.current, now.distanceAuto);
     capture.setManual(!now.autoMode);
     /* 엔진 개발용 녹화 중에는 공마다 클립 녹화기를 끈다 — 긴 녹화와 녹화기 셋이 겹치면 장면이 밀린다 */
     capture.setClips(!now.recordMode);
@@ -917,6 +951,7 @@ export function VelocityScreen({
       setUseCal(stored.useCal);
       setReleaseDistM(stored.releaseDistM);
       setTargetDistM(stored.targetDistM);
+      setDistAuto(stored.distAuto);
       setAutoMode(stored.autoMode);
       setCalibSave(stored.calibSave);
       setClipZone(stored.clipZone);
@@ -1206,13 +1241,12 @@ export function VelocityScreen({
         releaseDistanceM: approach === 'approaching' ? releaseDistM : null,
         /* 엔진 2.0 — 영상 파일은 찍을 때의 폰 기울기를 몰라 숙임 0 */
         distanceM: distanceOf({ cameraPos: choices.cameraPos, targetDistM, releaseDistM }),
+        distanceAuto: distanceAutoOf({ cameraPos: choices.cameraPos, distAuto }),
         tiltRad: null,
       });
       if (result.measure.ok) setFileReplay(URL.createObjectURL(file));
+      /* 영상의 알림(HDR · 보정 조건 밖 · 화각 짐작)은 결과 화면에 공의 알림으로 뜬다(addResult) */
       addResult(result, 'file');
-      /* HDR · 보정한 촬영과 다른 영상이면 그 알림(± 가 넓은 까닭)을 잠깐 보인다 */
-      if (result.measure.ok && result.video.notes.length)
-        setToast(result.video.notes[0]);
     } catch (e) {
       setError(e instanceof Error ? e.message : '영상을 분석하지 못했습니다.');
     } finally {
@@ -1316,9 +1350,10 @@ export function VelocityScreen({
   useEffect(() => {
     captureRef.current?.setDistance(
       distanceOf({ cameraPos: choices.cameraPos, targetDistM, releaseDistM }),
-      tiltRef.current
+      tiltRef.current,
+      distanceAutoOf({ cameraPos: choices.cameraPos, distAuto })
     );
-  }, [choices.cameraPos, targetDistM, releaseDistM]);
+  }, [choices.cameraPos, targetDistM, releaseDistM, distAuto]);
 
   const changeFov = (next: number) => {
     setFov(next);
@@ -1973,7 +2008,7 @@ export function VelocityScreen({
           step={2}
           total={5}
           title="폰을 어디에 둘까요?"
-          subtitle="공이 날아가는 길과 넣은 거리로 구속을 재요. 뒤에서 정면으로 보게 두는 두 자리 중 하나예요."
+          subtitle="공이 날아가는 길과 그물까지 거리로 구속을 재요. 뒤에서 정면으로 보게 두는 두 자리 중 하나예요."
           footer={
             <PrimaryButton
               onClick={() => {
@@ -1998,14 +2033,34 @@ export function VelocityScreen({
               columns={1}
             />
             {choices.cameraPos === 'behind-pitcher' ? (
-              <DistanceField
-                label="폰에서 공이 닿는 곳까지"
-                hint="그물이나 포수 미트까지예요. 줄자로 재서 넣으면 가장 정확해요(5% 틀리면 구속도 5% 틀려요). 정규 마운드에서 폰을 투수판 1m 뒤에 두면 약 19.5m예요."
-                value={targetDistM}
-                min={TARGET_DIST_MIN}
-                max={TARGET_DIST_MAX}
-                onChange={setTargetDistM}
-              />
+              <div className="space-y-4">
+                {/* 거리 — 공 크기로 어림(기본)하거나 줄자로 잰 값을 넣는다. 거리를 안 잰 사람이 기본 20m 로 재 10% 넘게 틀렸다 */}
+                <div>
+                  <SectionLabel>폰에서 공이 닿는 곳까지</SectionLabel>
+                  <Segmented
+                    label="폰에서 공이 닿는 곳까지"
+                    value={distAuto ? 'auto' : 'manual'}
+                    onChange={(v) => setDistAuto(v === 'auto')}
+                    options={DIST_MODES}
+                    size="md"
+                  />
+                  {distAuto && (
+                    <p className="mt-2 px-0.5 text-xs leading-relaxed text-muted">
+                      공 크기로 거리를 어림해요. 줄자로 재서 넣으면 더 정확해요.
+                    </p>
+                  )}
+                </div>
+                {!distAuto && (
+                  <DistanceField
+                    label="줄자로 잰 거리"
+                    hint="그물이나 포수 미트까지예요. 5% 틀리면 구속도 5% 틀려요. 정규 마운드에서 폰을 투수판 1m 뒤에 두면 약 19.5m예요."
+                    value={targetDistM}
+                    min={TARGET_DIST_MIN}
+                    max={TARGET_DIST_MAX}
+                    onChange={setTargetDistM}
+                  />
+                )}
+              </div>
             ) : (
               <DistanceField
                 label="폰에서 투수가 공을 놓는 곳까지"
@@ -2393,7 +2448,7 @@ export function VelocityScreen({
               unit={speedLabel(unit)}
               sub={`± ${speedNum(lastPitch.errorKmh)} · ${
                 CONFIDENCE_TEXT[lastPitch.confidence as keyof typeof CONFIDENCE_TEXT] ?? ''
-              }`}
+              }${lastPitch.dist ? ` · 거리 ${lastPitch.dist.m}m${lastPitch.dist.auto ? '(공 크기)' : ''}` : ''}`}
               notes={lastPitch.notes ?? []}
               clip={resultClip}
               trail={resultTrail}
@@ -3184,6 +3239,7 @@ export function VelocityScreen({
               fovDeg: fov,
               releaseDistM,
               targetDistM,
+              distAuto,
               autoMode,
               calibSave,
               clipZone,
@@ -3208,6 +3264,10 @@ export function VelocityScreen({
               if (patch.targetDistM != null) {
                 setTargetDistM(patch.targetDistM);
                 persistSetup({ targetDistM: patch.targetDistM });
+              }
+              if (patch.distAuto != null) {
+                setDistAuto(patch.distAuto);
+                persistSetup({ distAuto: patch.distAuto });
               }
               if (patch.autoMode != null) {
                 setAutoMode(patch.autoMode);

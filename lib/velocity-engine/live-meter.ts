@@ -13,7 +13,12 @@ import {
   type CapturedFrame,
 } from './analyze-frames.ts';
 import { BALL_DIAMETER_M, focalPxFromFov } from './geometry.ts';
-import { analyzeByDistance, type DistanceResult } from './analyze-distance.ts';
+import {
+  analyzeByDistance,
+  AUTO_FOV_GUESS_NOTE,
+  AUTO_FOV_GUESS_SIGMA_REL,
+  type DistanceResult,
+} from './analyze-distance.ts';
 import { SeedWatch } from './seed-watch.ts';
 import {
   MAX_RELEASE_DISTANCE_M,
@@ -2010,6 +2015,8 @@ export type LiveCamera = {
    * 없으면 1.x(공 지름으로 거리).
    */
   distanceM?: number | null;
+  /** 거리를 공 크기로 어림한다(analyze-distance autoDistance) — distanceM 은 첫 어림 */
+  distanceAuto?: boolean;
   /** 카메라가 아래로 숙인 각(라디안, 폰 기울기 센서) — 모르면 0 */
   tiltRad?: number | null;
 };
@@ -2425,10 +2432,15 @@ export function distanceLiveReport(
       text: '공이 그물 · 미트 앞에서 흐려져 끝을 이어 찾아 쟀어요. 값이 조금 어긋날 수 있어요(공 뒤에 흰 천이 없으면 더 정확해요).',
     });
   }
+  /* 공 크기로 어림한 거리인데 화각을 짐작했다(렌즈 보정 없음) — 그만큼 더 틀린다 */
+  const fovGuess =
+    !!result?.measure.ok && result.distance.distanceSource === 'ball' && !(camera.focalPx && camera.focalPx > 0);
+  if (fovGuess) notes.push({ code: 'FOV_GUESS', text: AUTO_FOV_GUESS_NOTE });
   for (const i of items) if (i.text) notes.push({ code: i.code, text: i.text });
   return {
     notes,
-    sigmaRel: Math.round(Math.hypot(0, ...items.map((i) => i.sigma)) * 1000) / 1000,
+    sigmaRel:
+      Math.round(Math.hypot(fovGuess ? AUTO_FOV_GUESS_SIGMA_REL : 0, ...items.map((i) => i.sigma)) * 1000) / 1000,
     fps,
     focalFrom: camera.focalPx && camera.focalPx > 0 ? 'lens' : 'fov',
     zoom: camera.zoom ?? null,
@@ -2459,6 +2471,7 @@ export function analyzeJobByDistance(job: CaptureJob, camera: LiveCamera): LiveA
     fps: job.fps,
     seedHint: job.ball ? { t: job.ball.t, x: job.ball.x, y: job.ball.y } : null,
     shakePx,
+    autoDistance: camera.distanceAuto ?? false,
   });
   const live = distanceLiveReport(job.fps, camera, result, job.timing ?? null);
   const m = result.measure;

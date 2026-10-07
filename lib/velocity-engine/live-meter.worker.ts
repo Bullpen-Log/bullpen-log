@@ -93,6 +93,7 @@ function camera(): LiveCamera | null {
     zoom: settings.zoom,
     hdr,
     distanceM: settings.distanceM ?? null,
+    distanceAuto: settings.distanceAuto ?? false,
     tiltRad: settings.tiltRad ?? null,
   };
 }
