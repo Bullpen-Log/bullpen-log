@@ -1,5 +1,6 @@
 'use client';
 
+import { prepareDetachedVideo, waitForFirstFrame } from './video-open.ts';
 import { toLuma } from './detect.ts';
 import {
   analyzeScale,
@@ -254,13 +255,16 @@ export async function analyzeVideo(options: AnalyzeOptions): Promise<VideoAnalyz
 
   const url = URL.createObjectURL(file);
   const video = document.createElement('video');
+  /*
+   * 아이폰 웹킷은 preload='auto' 여도 길이 · 크기(loadedmetadata)에서 멈춰 첫 장면(loadeddata)이 안 온다 — 소리 없이 한 번 틀었다
+   * 멈춰 깨운다(video-open.ts). 그냥 기다리면 측정 화면 '파일로 재기'가 30초 뒤 '영상을 열지 못했습니다'로 끝났다(2026-10-07,
+   * iOS 시뮬레이터 사파리로 재현).
+   */
+  prepareDetachedVideo(video);
   video.src = url;
-  video.muted = true;
-  video.playsInline = true;
-  video.preload = 'auto';
 
   try {
-    const loaded = await waitForEvent(video, 'loadeddata', 30_000);
+    const loaded = (await waitForFirstFrame(video, 30_000)) === 'ok';
     if (!loaded) throw new Error('영상을 열지 못했습니다.');
 
     const sourceW = video.videoWidth;
