@@ -26,6 +26,7 @@ import {
   Plus,
   Settings2,
   Trash2,
+  Utensils,
   X,
 } from 'lucide-react';
 import { MiniCalendar } from '@/components/mini-calendar';
@@ -54,6 +55,7 @@ import {
   type MealKey,
 } from '@/lib/nutrition/meta';
 import type { DaySummary, NutritionDay } from '@/lib/nutrition/load';
+import type { Advice } from '@/lib/nutrition/advice';
 import {
   GUIDE_DISCLAIMER,
   recoveryEaten,
@@ -202,7 +204,16 @@ export function dayTitle(date: string) {
   return `${d.getUTCMonth() + 1}월 ${d.getUTCDate()}일 (${WEEKDAYS[d.getUTCDay()]})`;
 }
 
-export function NutritionView({ day, today }: { day: NutritionDay; today: string }) {
+export function NutritionView({
+  day,
+  today,
+  advice,
+}: {
+  day: NutritionDay;
+  today: string;
+  /** 오늘 영양 조언(lib/nutrition/advice.ts) — 홈 카드와 같은 셈. 지난 날은 할 일이 없어 카드를 안 그린다 */
+  advice: Advice;
+}) {
   useArrowKeys(day.date, today);
   const [, startTransition] = useTransition();
   const [entries, applyEntries] = useOptimistic(day.entries, reduceEntries);
@@ -444,6 +455,8 @@ export function NutritionView({ day, today }: { day: NutritionDay; today: string
       {/* 휴대폰 한 칸도 minmax(0,1fr) — 한 줄 고정 글(식단 카드 요약 같은 것)이 칸의 최소 너비를 밀어 화면 밖으로 넘치지 않게 */}
       <div className="grid grid-cols-[minmax(0,1fr)] items-start gap-block lg:grid-cols-[minmax(0,1fr)_22rem]">
         <div className="stack-block">
+          {/* 오늘 영양 — 홈 카드의 세부판(할 일 · 까닭 · 더 먹을 양과 권하는 범위 · 점수 조각). 오늘만 */}
+          {advice.headline && <AdviceCard advice={advice} />}
           {/* 던지는 날 가이드 — 오늘이 등판 · 불펜 전날이나 당일, 던진 뒤일 때만(lib/nutrition/guide.ts) */}
           {day.guide && (
             <GuideCard
@@ -1098,6 +1111,136 @@ function GuideCard({
           </div>
         </div>
       </div>
+    </section>
+  );
+}
+
+/* ─────────────────────────── 오늘 영양 조언 — 홈 카드의 세부판 ─────────────────────────── */
+
+/**
+ * 홈 카드(app/(app)/today/nutrition-card.tsx)와 같은 숫자에, 탭에서만 보이는 것을 더한다 — 까닭 한 줄, 더 먹을 양 밑에 오늘
+ * 권하는 범위, 펴면 점수 조각(열량 · 단백질 · 탄수화물 · 끼니). 사용자(2026-10-07): 홈은 간단, 탭은 세부.
+ * 던지는 날 가이드 카드(GuideCard)는 그대로 밑에 둔다 — 무엇을 언제 먹을지의 긴 안내는 거기 있다.
+ */
+function AdviceCard({ advice }: { advice: Advice }) {
+  const [open, setOpen] = useState(false);
+  const more = advice.more;
+  const canOpen = advice.parts.length > 0;
+  return (
+    <section
+      aria-labelledby="advice-title"
+      className={`${PANEL} motion-safe:animate-fade-in space-y-3 break-keep`}
+    >
+      <div className="flex items-start gap-2">
+        <div className="min-w-0 flex-1">
+          <p className="flex items-center gap-1.5 text-[15px] font-semibold text-sky">
+            <Utensils aria-hidden className="h-4 w-4" strokeWidth={2.25} />
+            오늘 영양
+          </p>
+          <h2
+            id="advice-title"
+            className={`mt-1.5 text-[17px] leading-snug font-semibold ${
+              advice.highlight ? 'text-sky-strong' : 'text-ink'
+            }`}
+          >
+            {advice.headline}
+          </h2>
+          {advice.why && (
+            <p className="mt-1 text-xs leading-relaxed text-muted">{advice.why}</p>
+          )}
+        </div>
+        {advice.score !== null && (
+          <div className="shrink-0 text-right">
+            <p className="text-[26px] leading-none font-semibold text-ink tabular-nums">
+              {advice.score}
+            </p>
+            <p className="mt-1 text-[11px] text-muted">균형</p>
+          </div>
+        )}
+        {canOpen && (
+          <button
+            type="button"
+            onClick={() => setOpen((o) => !o)}
+            aria-expanded={open}
+            aria-controls="advice-more"
+            aria-label={open ? '점수 접기' : '점수 자세히'}
+            className="-my-2 -mr-2 flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-muted transition-colors hover:bg-surface-2 hover:text-ink"
+          >
+            <ChevronDown
+              aria-hidden
+              className={`h-4 w-4 transition-transform duration-200 ${EASE} ${open ? 'rotate-180' : ''}`}
+            />
+          </button>
+        )}
+      </div>
+
+      {/* 세 칸 — 위는 더 먹을 양(기록 · 어림 · 충분), 밑은 오늘 권하는 범위 */}
+      <dl className="grid grid-cols-3 gap-3 border-t border-line pt-3">
+        {MACROS.map((m) => {
+          const left = more ? more[m.key] : null;
+          const range = advice.range[m.key];
+          return (
+            <div key={m.key} className="min-w-0">
+              <dt className="text-xs text-muted">{m.label}</dt>
+              <dd className="mt-0.5 flex items-baseline gap-0.5 leading-none tabular-nums">
+                {left === null ? (
+                  <>
+                    <span className="text-[17px] font-semibold text-ink">
+                      {range.lo}~{range.hi}
+                    </span>
+                    <span className="text-[13px] font-medium text-muted">g</span>
+                  </>
+                ) : left <= 0 ? (
+                  <span className="text-[22px] font-semibold text-sky">충분</span>
+                ) : (
+                  <>
+                    <span className="text-[15px] font-medium text-muted">
+                      {more?.basis === 'estimate' ? '약 +' : '+'}
+                    </span>
+                    <span className="text-[22px] font-semibold text-ink">{left}</span>
+                    <span className="text-[15px] font-medium text-muted">g</span>
+                  </>
+                )}
+              </dd>
+              {left !== null && (
+                <dd className="mt-1 text-[11px] text-muted tabular-nums">
+                  오늘 {range.lo}~{range.hi}g
+                </dd>
+              )}
+            </div>
+          );
+        })}
+      </dl>
+
+      {/* 더 보기 — 점수 조각. 높이가 부드럽게 열리고 닫힌다(던지는 날 가이드와 같은 방식) */}
+      {canOpen && (
+        <div
+          id="advice-more"
+          className={`-mt-3 grid transition-[grid-template-rows] duration-200 ${EASE} ${
+            open ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'
+          }`}
+        >
+          <div className="min-h-0 overflow-hidden" inert={!open}>
+            <div className="space-y-1.5 pt-3">
+              {advice.parts.map((p) => (
+                <p
+                  key={p.key}
+                  className="flex items-baseline justify-between gap-3 text-xs text-muted"
+                >
+                  <span>{p.label}</span>
+                  <span className="tabular-nums">
+                    <b className="text-sm font-semibold text-ink">{p.score}</b> ·{' '}
+                    {p.note}
+                  </span>
+                </p>
+              ))}
+              <p className="text-[11px] leading-relaxed text-muted">
+                {GUIDE_DISCLAIMER}
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
     </section>
   );
 }
