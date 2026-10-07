@@ -11,6 +11,9 @@
  * 모두 잼 · 4개 ±5 안 · 2개 ±18(미트 앞 끝 판정). 같은 영상에서 1.8.1 은 0개. 합성 장면 셀프테스트(npm run velocity:engine2-test)
  * 빠른 공 · 띄운 공 · 숙임 ±0.7% 안, 흰 천 −2.3%. 절대 크기(넣은 거리 그대로 맞나)는 줄자로 잰 영상이 없어 확인 전이다 — 스피드건
  * 보정(×a+b)이 메운다.
+ *
+ * 거리를 안 잰 사람을 위해 공 크기로도 거리를 어림한다(2.1.0, autoDistance · sizeDistM). 공 지름으로 장면마다 거리를 내던 1.x 와
+ * 달리 거리 하나만 정한다 — 깊이의 비율은 궤적이 정하고, 수십 장의 덩어리 지름으로 그 크기 하나를 맞춰 흔들림이 작다(밖 2.5%).
  */
 import type { AnalyzeResult, CapturedFrame, Approach } from './analyze-frames.ts';
 import { BALL_DIAMETER_M, type BallObservation } from './geometry.ts';
@@ -56,12 +59,40 @@ export type DistanceInput = {
   seedHint?: { t: number; x?: number; y?: number } | null;
   /** 카메라 흔들림(분석 px) — 넘으면 거부 */
   shakePx?: number;
+  /**
+   * 거리를 공 크기로 어림해 잰다(사용자가 거리를 안 쟀을 때, 2026-10-07). distanceM 은 첫 어림 — 공 찾기의 공기저항 배율에만 쓰고,
+   * 찾은 공의 지름으로 거리를 다시 정해 궤적을 한 번 더 맞춘다(공 찾기는 다시 안 한다). 공이 8장 넘게 안 잡히면 distanceM 그대로.
+   */
+  autoDistance?: boolean;
 };
+
+/**
+ * 덩어리 지름 ÷ 실제 공 지름 — 차이 그림의 덩어리는 번짐 · 그늘 · 문턱으로 공보다 크게 잡힌다(132 를 확대해 반높이 폭과 견주면 약
+ * 1.3배). 공 크기로 어림한 거리를 스피드건에 맞는 거리에 맞춘 값: 밖 12개(그물 밑으로 빠진 111 뺌) 0.860배 · 흩어짐 2.5%, 실내
+ * (흰 천) 6개는 0.869배 · 10%(2026-10-07, 아이폰 15 Pro Max 2배, 분석 720). 한 폰 · 한 스피드건으로 정했다.
+ */
+export const BLOB_SIZE_RATIO = 1.163;
+/** 공 크기로 어림한 거리의 σ(비율) — 위 흩어짐 2.5% 에 여유 */
+export const AUTO_DISTANCE_SIGMA_REL = 0.03;
+/**
+ * 공 크기 거리는 초점거리에 비례한다 — 화각을 짐작했으면(렌즈 정보 · 렌즈 보정 · 앱 카메라 값 없음) 그만큼 더 틀린다. 아이폰 영상 · 웹
+ * 카메라의 화각은 짐작과 8% 안팎 갈린다. 부르는 쪽(analyze-video · live-meter)이 ± 에 더하고 이 알림을 붙인다.
+ */
+export const AUTO_FOV_GUESS_SIGMA_REL = 0.08;
+export const AUTO_FOV_GUESS_NOTE =
+  '화각을 몰라 공 크기로 어림한 거리가 틀릴 수 있어요. 폰에서 그물까지 거리를 줄자로 재서 넣으면 정확해요.';
 
 /** 2.0 이 덧붙이는 것 — 무엇으로 어떻게 쟀나(분석 JSON · 진단) */
 export type DistanceReport = {
   method: 'distance';
+  /** 구속을 낸 거리(m) */
   distanceM: number;
+  /** 넣은 거리(m) — 자동이면 첫 어림 */
+  inputDistM: number;
+  /** 공 크기로 어림한 거리(m) — 맞춘 깊이 비율에 잰 덩어리 지름을 견준다(BLOB_SIZE_RATIO). 공이 8장 넘게 안 잡혔으면 null */
+  sizeDistM: number | null;
+  /** 구속을 낸 거리가 어디서 왔나 — 'input' 넣은 거리, 'ball' 공 크기 어림 */
+  distanceSource: 'input' | 'ball';
   tiltRad: number;
   /** 비행 끝을 무엇으로 정했나 — 'rebound' 맞고 튄 공의 줄과 만나는 때, 'end' 마지막 장면 반 장 뒤 */
   impact: 'rebound' | 'end';
@@ -217,6 +248,9 @@ export function analyzeByDistance(input: DistanceInput): DistanceResult {
   const report: DistanceReport = {
     method: 'distance',
     distanceM: D,
+    inputDistM: D,
+    sizeDistM: null,
+    distanceSource: 'input',
     tiltRad: tilt,
     impact: 'end',
     te: null,
@@ -339,152 +373,189 @@ export function analyzeByDistance(input: DistanceInput): DistanceResult {
     .sort((a, b) => a.t - b.t)
     .slice(0, 4);
 
-  /* 앞의 손 붙은 점을 한 번 더 걷고(4장까지) 끝을 정해 맞춘다 */
-  const opts = { dragScaleM: D, tilt };
-  let fit = fitTrajectory(flightPts, flightPts[flightPts.length - 1].t + dt / 2, cam, opts);
-  let a = 0;
-  while (a < 4 && fit.resid[a] > 3 * Math.max(0.5 * s, fit.rms) && fit.resid[a] > 2.5 * s) a++;
-  const used = a ? flightPts.slice(a) : flightPts;
-  if (used.length < 8) return fail('UNSTABLE_TRACK', obsOf(used));
-  let te: number;
-  if (approach === 'receding') {
-    const imp = impactTime(fitTrajectory(used, used[used.length - 1].t + dt / 2, cam, opts), used, postReal, dt);
-    te = imp.te;
-    report.impact = imp.impact;
-  } else {
-    /* 다가오는 공: 크기 자는 릴리스 쪽 끝(시간상 첫 장면) — 거기서 사용자가 넣은 거리 */
-    te = used[0].t - dt / 2;
-  }
-  fit = fitTrajectory(used, te, cam, opts);
-  report.te = te;
-  {
-    const lastO = used[used.length - 1];
-    report.endSizeRatio = Math.round((lastO.diam / ((cam.f * BALL_DIAMETER_M) / D)) * 100) / 100;
-  }
-  {
-    const lz: number[] = [];
-    const ld: number[] = [];
-    /* 덩어리 점만 — 이어 찾은 테두리 점은 지름이 25% 작게 잡혀 기울기를 비튼다 */
-    for (const o of used) {
-      if (o.ring) continue;
-      const z = fit.positionAt(o.t)[2];
-      if (z > 0 && o.diam > 0) {
-        lz.push(Math.log(z));
-        ld.push(Math.log(o.diam));
+  /*
+   * 마무리 — 거리 Dm 으로 궤적을 맞춰 구속을 낸다. 공 크기로 거리를 어림하는 자동 모드는 같은 점들로 한 번 더 부른다(공 찾기는
+   * 다시 안 한다 — 처음 거리는 공 찾기의 공기저항 배율에만 쓰여 값에 거의 안 든다).
+   */
+  const finish = (Dm: number, auto: boolean): DistanceResult => {
+    const dAtDm = (cam.f * BALL_DIAMETER_M) / Dm;
+    report.distanceM = Dm;
+    report.distanceSource = auto ? 'ball' : 'input';
+    report.path = [];
+    /* 앞의 손 붙은 점을 한 번 더 걷고(4장까지) 끝을 정해 맞춘다 */
+    const opts = { dragScaleM: Dm, tilt };
+    let fit = fitTrajectory(flightPts, flightPts[flightPts.length - 1].t + dt / 2, cam, opts);
+    let a = 0;
+    while (a < 4 && fit.resid[a] > 3 * Math.max(0.5 * s, fit.rms) && fit.resid[a] > 2.5 * s) a++;
+    const used = a ? flightPts.slice(a) : flightPts;
+    if (used.length < 8) return fail('UNSTABLE_TRACK', obsOf(used));
+    let te: number;
+    if (approach === 'receding') {
+      const imp = impactTime(fitTrajectory(used, used[used.length - 1].t + dt / 2, cam, opts), used, postReal, dt);
+      te = imp.te;
+      report.impact = imp.impact;
+    } else {
+      /* 다가오는 공: 크기 자는 릴리스 쪽 끝(시간상 첫 장면) — 거기서 사용자가 넣은 거리 */
+      te = used[0].t - dt / 2;
+    }
+    fit = fitTrajectory(used, te, cam, opts);
+    report.te = te;
+    {
+      const lastO = used[used.length - 1];
+      report.endSizeRatio = Math.round((lastO.diam / dAtDm) * 100) / 100;
+    }
+    {
+      /*
+       * 공 크기로 어림한 거리 — 맞춘 궤적이 정한 깊이 비율(te 에서 1)로 장면마다 '거리 Dm 이면 공이 몇 px 일지'를 내 잰 덩어리 지름과
+       * 견준다. 덩어리는 실제 공보다 BLOB_SIZE_RATIO 배 크게 잡혀 그만큼 되돌린다. 테두리로 이어 찾은 점은 자가 달라 뺀다.
+       */
+      const r: number[] = [];
+      for (const o of used) {
+        if (o.ring || !(o.diam > 0)) continue;
+        const z = fit.project(o.t)[2];
+        if (z > 0) r.push(dAtDm / z / o.diam);
+      }
+      r.sort((x, y) => x - y);
+      const sized = r.length >= 8 ? BLOB_SIZE_RATIO * Dm * r[r.length >> 1] : NaN;
+      report.sizeDistM = sized >= 3 && sized <= 60 ? round1(sized) : null;
+    }
+    {
+      const lz: number[] = [];
+      const ld: number[] = [];
+      /* 덩어리 점만 — 이어 찾은 테두리 점은 지름이 25% 작게 잡혀 기울기를 비튼다 */
+      for (const o of used) {
+        if (o.ring) continue;
+        const z = fit.positionAt(o.t)[2];
+        if (z > 0 && o.diam > 0) {
+          lz.push(Math.log(z));
+          ld.push(Math.log(o.diam));
+        }
+      }
+      const n = lz.length;
+      const mz = lz.reduce((a, x) => a + x, 0) / n;
+      const md = ld.reduce((a, x) => a + x, 0) / n;
+      let sxy = 0;
+      let sxx = 0;
+      for (let k = 0; k < n; k++) {
+        sxy += (lz[k] - mz) * (ld[k] - md);
+        sxx += (lz[k] - mz) ** 2;
+      }
+      report.sizeSlope = n >= 3 && sxx > 0 ? Math.round((sxy / sxx) * 100) / 100 : null;
+    }
+    /*
+     * 공인가 — 공이면 맞춘 깊이가 늘어난 만큼 지름이 줄어 기울기가 −1 근처다(밖 13개 −0.92 ~ −1.17, 실내 6개 −0.81 ~ −1.28: 자리만으로
+     * 맞춘 깊이가 크기와 맞는다). 제자리에서 밝기만 바뀌는 덩어리 · 몸 · 그물은 0 근처이거나 −2 아래로 벗어난다(실내 111 투구 뒤 화면
+     * 귀퉁이의 덩어리를 공으로 잡아 169.8km/h 를 냈다: −2.08). 공이 아니니 조용히 넘긴다(궤적을 안 넘긴다 — 화면이 '못 쟀어요'를
+     * 말하지 않게).
+     */
+    if (report.sizeSlope != null && used.filter((o) => !o.ring).length >= 6 && (report.sizeSlope > -0.6 || report.sizeSlope < -1.6))
+      return fail('UNSTABLE_TRACK');
+    report.flightFrames = used.length;
+    report.extended = extended;
+    report.rmsPx = Math.round(fit.rms * 100) / 100;
+
+    /* 속력 — 정규 단위 × Dm. 투수 뒤는 첫 장면 반 장 앞의 속력을 릴리스 깊이까지 되돌리고, 포수 뒤는 첫 장면(릴리스 쪽)에서 */
+    const tFirst = used[0].t - dt / 2;
+    const [vx, vy, vz] = fit.velocityAt(tFirst);
+    const v3 = Math.hypot(vx, vy, vz) * Dm * 3.6;
+    const up = -vy * Math.cos(tilt) - vz * Math.sin(tilt);
+    const vh = Math.sqrt(Math.max(0, vx * vx + vy * vy + vz * vz - up * up)) * Dm * 3.6;
+    const zFirst = fit.positionAt(tFirst)[2] * Dm;
+    report.kmh3d = round1(v3);
+    report.kmhHorizontal = round1(vh);
+    report.firstDepthM = round1(zFirst);
+    report.launchDeg = round1((Math.atan2(up, Math.hypot(vx, vz)) * 180) / Math.PI);
+    let tRel = tFirst;
+    if (approach === 'receding') {
+      const zRel = (input.releaseDistM ?? 1) / Dm;
+      for (let k = 0; k < 150; k++) {
+        const s2 = trajectoryState(fit.p, te, tRel - 0.002, opts);
+        if (s2[2] <= zRel || s2[2] <= 0.01) break;
+        tRel -= 0.002;
+      }
+      const [px, py, pz] = fit.positionAt(tRel);
+      if (pz > 0) report.releasePx = [Math.round(cam.cx + (cam.f * px) / pz), Math.round(cam.cy + (cam.f * py) / pz)];
+    }
+    {
+      /*
+       * 그릴 길 — 공이 손을 떠나 처음 보인 장면(반 장 앞)에서 먼 쪽 끝까지. 릴리스 거리(tRel)까지 되돌리면 그 거리는 어림이라(기본 카메라
+       * 앞 1m) 실제 영상에서 공이 있던 적 없는 팔 자리까지 굵게 그어졌다(132: 실제 릴리스보다 화면 가로 16% 아래 왼쪽).
+       */
+      const tA = tFirst;
+      const tB = approach === 'receding' ? te : used[used.length - 1].t + dt / 2;
+      const n = Math.max(2, Math.ceil((tB - tA) / (dt / 2)));
+      for (let k = 0; k <= n; k++) {
+        const t = tA + ((tB - tA) * k) / n;
+        const [u, v, z] = fit.project(t);
+        if (z > 0) report.path.push([t, u, v, dAtDm / z]);
       }
     }
-    const n = lz.length;
-    const mz = lz.reduce((a, x) => a + x, 0) / n;
-    const md = ld.reduce((a, x) => a + x, 0) / n;
-    let sxy = 0;
-    let sxx = 0;
-    for (let k = 0; k < n; k++) {
-      sxy += (lz[k] - mz) * (ld[k] - md);
-      sxx += (lz[k] - mz) ** 2;
-    }
-    report.sizeSlope = n >= 3 && sxx > 0 ? Math.round((sxy / sxx) * 100) / 100 : null;
-  }
-  /*
-   * 공인가 — 공이면 맞춘 깊이가 늘어난 만큼 지름이 줄어 기울기가 −1 근처다(밖 13개 −0.92 ~ −1.17, 실내 6개 −0.81 ~ −1.28: 자리만으로
-   * 맞춘 깊이가 크기와 맞는다). 제자리에서 밝기만 바뀌는 덩어리 · 몸 · 그물은 0 근처이거나 −2 아래로 벗어난다(실내 111 투구 뒤 화면
-   * 귀퉁이의 덩어리를 공으로 잡아 169.8km/h 를 냈다: −2.08). 공이 아니니 조용히 넘긴다(궤적을 안 넘긴다 — 화면이 '못 쟀어요'를
-   * 말하지 않게).
-   */
-  if (report.sizeSlope != null && used.filter((o) => !o.ring).length >= 6 && (report.sizeSlope > -0.6 || report.sizeSlope < -1.6))
-    return fail('UNSTABLE_TRACK');
-  report.flightFrames = used.length;
-  report.extended = extended;
-  report.rmsPx = Math.round(fit.rms * 100) / 100;
-
-  /* 속력 — 정규 단위 × D. 투수 뒤는 첫 장면 반 장 앞의 속력을 릴리스 깊이까지 되돌리고, 포수 뒤는 첫 장면(릴리스 쪽)에서 */
-  const tFirst = used[0].t - dt / 2;
-  const [vx, vy, vz] = fit.velocityAt(tFirst);
-  const v3 = Math.hypot(vx, vy, vz) * D * 3.6;
-  const up = -vy * Math.cos(tilt) - vz * Math.sin(tilt);
-  const vh = Math.sqrt(Math.max(0, vx * vx + vy * vy + vz * vz - up * up)) * D * 3.6;
-  const zFirst = fit.positionAt(tFirst)[2] * D;
-  report.kmh3d = round1(v3);
-  report.kmhHorizontal = round1(vh);
-  report.firstDepthM = round1(zFirst);
-  report.launchDeg = round1((Math.atan2(up, Math.hypot(vx, vz)) * 180) / Math.PI);
-  let tRel = tFirst;
-  if (approach === 'receding') {
-    const zRel = (input.releaseDistM ?? 1) / D;
-    for (let k = 0; k < 150; k++) {
-      const s2 = trajectoryState(fit.p, te, tRel - 0.002, opts);
-      if (s2[2] <= zRel || s2[2] <= 0.01) break;
-      tRel -= 0.002;
-    }
-    const [px, py, pz] = fit.positionAt(tRel);
-    if (pz > 0) report.releasePx = [Math.round(cam.cx + (cam.f * px) / pz), Math.round(cam.cy + (cam.f * py) / pz)];
-  }
-  {
+    const sw = speedWithSe(fit, tRel, opts);
     /*
-     * 그릴 길 — 공이 손을 떠나 처음 보인 장면(반 장 앞)에서 먼 쪽 끝까지. 릴리스 거리(tRel)까지 되돌리면 그 거리는 어림이라(기본 카메라
-     * 앞 1m) 실제 영상에서 공이 있던 적 없는 팔 자리까지 굵게 그어졌다(132: 실제 릴리스보다 화면 가로 16% 아래 왼쪽).
+     * 대표 구속은 위아래를 뺀 수평 속력 — 스피드건(포켓 레이더)은 앞으로 가는 성분을 잰다. 띄워 던진 느린 공(10~14°)에서 3차원 속력과
+     * 2~3% 갈렸고, 폰 기울기(숙임)를 넣고 수평 속력으로 견주면 밖 13개 평균 오차 2.2 → 1.1km/h(2026-10-07, 720). 낮게 던지는 투구는
+     * 둘이 0.1% 안에서 같다.
      */
-    const tA = tFirst;
-    const tB = approach === 'receding' ? te : used[used.length - 1].t + dt / 2;
-    const n = Math.max(2, Math.ceil((tB - tA) / (dt / 2)));
-    for (let k = 0; k <= n; k++) {
-      const t = tA + ((tB - tA) * k) / n;
-      const [u, v, z] = fit.project(t);
-      if (z > 0) report.path.push([t, u, v, dAtD / z]);
-    }
-  }
-  const sw = speedWithSe(fit, tRel, opts);
-  /*
-   * 대표 구속은 위아래를 뺀 수평 속력 — 스피드건(포켓 레이더)은 앞으로 가는 성분을 잰다. 띄워 던진 느린 공(10~14°)에서 3차원 속력과
-   * 2~3% 갈렸고, 폰 기울기(숙임)를 넣고 수평 속력으로 견주면 밖 13개 평균 오차 2.2 → 1.1km/h(2026-10-07, 720). 낮게 던지는 투구는
-   * 둘이 0.1% 안에서 같다.
-   */
-  const [rx, ry, rz] = fit.velocityAt(tRel);
-  const upRel = -ry * Math.cos(tilt) - rz * Math.sin(tilt);
-  const kmh = Math.sqrt(Math.max(0, rx * rx + ry * ry + rz * rz - upRel * upRel)) * D * 3.6;
-  const track = obsOf(used);
-  if (!(kmh >= MIN_PLAUSIBLE_KMH && kmh <= MAX_PLAUSIBLE_KMH)) return fail('IMPLAUSIBLE_SPEED', track);
-  const durationSec = used[used.length - 1].t - used[0].t;
-  if (durationSec < 0.15) return fail('TRAVEL_TOO_SHORT', track);
+    const [rx, ry, rz] = fit.velocityAt(tRel);
+    const upRel = -ry * Math.cos(tilt) - rz * Math.sin(tilt);
+    const kmh = Math.sqrt(Math.max(0, rx * rx + ry * ry + rz * rz - upRel * upRel)) * Dm * 3.6;
+    const track = obsOf(used);
+    if (!(kmh >= MIN_PLAUSIBLE_KMH && kmh <= MAX_PLAUSIBLE_KMH)) return fail('IMPLAUSIBLE_SPEED', track);
+    const durationSec = used[used.length - 1].t - used[0].t;
+    if (durationSec < 0.15) return fail('TRAVEL_TOO_SHORT', track);
 
-  /*
-   * ± (90% 구간 = 1.645σ) — 넣은 거리 2%(줄자로 쟀다고 보고) · 모형 1.5%(19개 영상의 흩어짐) · 끝 시각 반 장(공이 그 사이 간
-   * 거리 ÷ D) · 맞춤의 표준오차. 이어 찾기로 끝을 정했으면(포수 앞 · 흰 천) 끝이 몇 장 흔들려 3% 를 더한다(실내 5개 ±5%).
-   */
-  const relSe = sw.se != null && sw.speed > 0 ? sw.se / sw.speed : 0.02;
-  const teRel = (0.5 * dt * Math.hypot(...fit.velocityAt(te))) / 1;
-  const sigmaRel = Math.hypot(0.02, 0.015, teRel, relSe, extended ? 0.03 : 0, approach === 'approaching' ? 0.05 : 0, report.shaky ? 0.03 : 0);
-  const errorKmh = 1.645 * sigmaRel * kmh;
-  let confidence: Confidence = 'medium';
-  if (approach === 'approaching' || extended > 0 || report.impact === 'end' || report.shaky) confidence = 'low';
-  else if (used.length * dt >= 0.4 && fit.rms <= 1.2 * s) confidence = 'high';
-  report.timingMs = Math.round(now() - t0);
-  const kmhEnd = Math.hypot(...fit.velocityAt(used[used.length - 1].t)) * D * 3.6;
-  return {
-    ...base,
-    measure: {
-      ok: true,
-      kmh: round1(kmh),
-      errorKmh: round1(errorKmh),
-      confidence,
-      detail: {
-        frames: used.length,
-        fitQuality: Math.round(Math.max(0, 1 - fit.rms / (4 * s)) * 1000) / 1000,
-        travelM: round1(Math.abs(fit.positionAt(used[used.length - 1].t)[2] - fit.positionAt(used[0].t)[2]) * D),
-        releaseDistanceM: round1(fit.positionAt(tRel)[2] * D),
-        durationSec: Math.round(durationSec * 1000) / 1000,
-        startKmh: round1(v3),
-        endKmh: round1(kmhEnd),
-        startSeKmh: sw.se != null ? Math.round(sw.se * D * 3.6 * 100) / 100 : null,
-        startT: tRel,
-        startTrimmed: a,
-        endTrimmed: 0,
-        farTrimmed: 0,
-        curvatureSigma: 0,
+    /*
+     * ± (90% 구간 = 1.645σ) — 넣은 거리 2%(줄자로 쟀다고 보고, 공 크기 어림이면 AUTO_DISTANCE_SIGMA_REL) · 모형 1.5%(19개 영상의 흩어짐) · 끝 시각 반 장(공이 그 사이 간
+     * 거리 ÷ Dm) · 맞춤의 표준오차. 이어 찾기로 끝을 정했으면(포수 앞 · 흰 천) 끝이 몇 장 흔들려 3% 를 더한다(실내 5개 ±5%).
+     */
+    const relSe = sw.se != null && sw.speed > 0 ? sw.se / sw.speed : 0.02;
+    const teRel = (0.5 * dt * Math.hypot(...fit.velocityAt(te))) / 1;
+    const sigmaRel = Math.hypot(auto ? AUTO_DISTANCE_SIGMA_REL : 0.02, 0.015, teRel, relSe, extended ? 0.03 : 0, approach === 'approaching' ? 0.05 : 0, report.shaky ? 0.03 : 0);
+    const errorKmh = 1.645 * sigmaRel * kmh;
+    let confidence: Confidence = 'medium';
+    if (approach === 'approaching' || extended > 0 || report.impact === 'end' || report.shaky) confidence = 'low';
+    /* 공 크기로 어림한 거리는 줄자보다 덜 믿는다 — '보통'까지 */
+    else if (!auto && used.length * dt >= 0.4 && fit.rms <= 1.2 * s) confidence = 'high';
+    report.timingMs = Math.round(now() - t0);
+    const kmhEnd = Math.hypot(...fit.velocityAt(used[used.length - 1].t)) * Dm * 3.6;
+    return {
+      ...base,
+      measure: {
+        ok: true,
+        kmh: round1(kmh),
+        errorKmh: round1(errorKmh),
+        confidence,
+        detail: {
+          frames: used.length,
+          fitQuality: Math.round(Math.max(0, 1 - fit.rms / (4 * s)) * 1000) / 1000,
+          travelM: round1(Math.abs(fit.positionAt(used[used.length - 1].t)[2] - fit.positionAt(used[0].t)[2]) * Dm),
+          releaseDistanceM: round1(fit.positionAt(tRel)[2] * Dm),
+          durationSec: Math.round(durationSec * 1000) / 1000,
+          startKmh: round1(v3),
+          endKmh: round1(kmhEnd),
+          startSeKmh: sw.se != null ? Math.round(sw.se * Dm * 3.6 * 100) / 100 : null,
+          startT: tRel,
+          startTrimmed: a,
+          endTrimmed: 0,
+          farTrimmed: 0,
+          curvatureSigma: 0,
+        },
       },
-    },
-    track,
-    distance: report,
+      track,
+      distance: report,
+    };
   };
+  let out = finish(D, false);
+  /* 자동이면 공 크기로 어림한 거리로 다시 — 넣은 거리로 잰 값이 그럴 수 없는 구속이어도(거리가 크게 틀림) 다시 본다 */
+  const sized = report.sizeDistM;
+  if (
+    input.autoDistance &&
+    sized != null &&
+    Math.abs(sized / D - 1) > 0.002 &&
+    (out.measure.ok || out.measure.code === 'IMPLAUSIBLE_SPEED')
+  )
+    out = finish(sized, true);
+  return out;
 }
 
 function obsOf(pts: { t: number; u: number; v: number; diam: number }[]): BallObservation[] {

@@ -190,6 +190,26 @@ function run(name: string, sc: Scene, tolRel: number) {
   );
   if (!m.ok || sc.whiteFromM != null) return;
   /*
+   * 공 크기 거리(distance.sizeDistM) — 실제 영상의 덩어리는 공보다 16% 크게 잡혀(BLOB_SIZE_RATIO) 그만큼 되돌리는데, 합성 공은 7% 만
+   * 커서 여기서는 참 거리의 1.08~1.10배로 읽힌다. 거리 · 빠르기가 달라도 그 비가 고른가를 본다(실제 영상 밖 12개 흩어짐 2.5%).
+   */
+  const sizeRatio = (res.distance.sizeDistM ?? NaN) / sc.D;
+  sizeRatios.push(sizeRatio);
+  check(
+    sizeRatio >= 1.04 && sizeRatio <= 1.14,
+    `${name} — 공 크기 거리 ${res.distance.sizeDistM}m(참 ${sc.D}m 의 ${sizeRatio.toFixed(3)}배)`
+  );
+  if (autoCheck) {
+    autoCheck = false;
+    /* 자동 — 첫 어림을 크게 틀려도(15m) 공 크기 거리로 다시 맞춰, 그 거리로 잰 값과 같아야 한다 */
+    const auto = analyzeByDistance({ frames, width: W, height: H, sourceWidth: 1080, sourceHeight: 1920, focalPx: (F * 1080) / W, distanceM: 15, tiltRad: (sc.tiltDeg * Math.PI) / 180, fps: FPS, autoDistance: true });
+    const want = m.kmh * ((res.distance.sizeDistM ?? NaN) / sc.D) ** 1.076;
+    check(
+      auto.measure.ok && auto.distance.distanceSource === 'ball' && Math.abs(auto.distance.distanceM - (res.distance.sizeDistM ?? NaN)) <= 0.3 && Math.abs(auto.measure.kmh / want - 1) <= 0.01,
+      `자동 거리 — 첫 어림 15m 에서 ${auto.distance.distanceM}m(${auto.distance.distanceSource})로 다시 맞춰 ${auto.measure.ok ? auto.measure.kmh : auto.measure.code}km/h(기대 ${want.toFixed(1)})`
+    );
+  }
+  /*
    * 결과 화면이 따라 그릴 길(distance.path) — 공이 처음 보인 장면(릴리스 t=0 에서 5장 안 — 카메라 1m 앞 공은 지름 160px 라 몇 장 뒤에
    * 잡힌다)에서 그물에 닿은 때까지, 실제 공 자리에서 2px 또는 공 반지름의 35% 안(관 굵기가 공 지름이라 공을 덮는다).
    */
@@ -228,6 +248,8 @@ function run(name: string, sc: Scene, tolRel: number) {
   check(none == null, `영상 시각 맞추기 — 공이 안 보이는 영상이면 그대로 둔다(${none == null ? 'null' : none.toFixed(3)})`);
 }
 let alignCheck = true;
+let autoCheck = true;
+const sizeRatios: number[] = [];
 
 console.log('엔진 2.0 셀프테스트(합성 장면)');
 const only = process.argv[2];
@@ -237,6 +259,11 @@ run('띄운 느린 공 80km/h · 위로 11°', { kmh: 80, launchDeg: 11, sideDeg
 run('카메라 4° 숙임 · 115km/h', { kmh: 115, launchDeg: 0, sideDeg: -1, D: 20, tiltDeg: 4, seed: 4 }, 0.015);
 run('흰 천 앞에서 사라지는 공 · 100km/h', { kmh: 100, launchDeg: 2, sideDeg: -1, D: 20, tiltDeg: 0, whiteFromM: 12, seed: 5 }, 0.04);
 run('공 없음', { kmh: 100, launchDeg: 0, sideDeg: 0, D: 20, tiltDeg: 0, noBall: true, seed: 6 }, 0);
+if (sizeRatios.length >= 2) {
+  const mean = sizeRatios.reduce((a, x) => a + x, 0) / sizeRatios.length;
+  const spread = (Math.max(...sizeRatios) - Math.min(...sizeRatios)) / mean;
+  check(spread <= 0.04, `공 크기 거리 — 장면 ${sizeRatios.length}개의 비가 고르다(흩어짐 ${(spread * 100).toFixed(1)}%)`);
+}
 
 console.log(`\n${'═'.repeat(50)}\n통과 ${passed} / 실패 ${failed}\n${'═'.repeat(50)}`);
 if (failed) process.exit(1);

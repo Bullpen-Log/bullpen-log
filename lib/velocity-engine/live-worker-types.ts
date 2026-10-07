@@ -23,6 +23,8 @@ export type LiveSettings = {
   manual: boolean;
   /** 엔진 2.0 의 거리 자(m, live-meter.ts LiveCamera.distanceM) — 있으면 거리로 재고 담기도 길게(DISTANCE_METER_CONFIG) */
   distanceM: number | null;
+  /** 거리를 공 크기로 어림한다(LiveCamera.distanceAuto) */
+  distanceAuto?: boolean;
   /** 카메라가 아래로 숙인 각(라디안) — 폰 기울기 센서 */
   tiltRad: number | null;
 };
