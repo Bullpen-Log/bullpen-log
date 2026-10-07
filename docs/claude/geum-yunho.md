@@ -173,7 +173,7 @@
   포수 뒤는 1.x 그대로(distanceOf null). 내 1.9.0 대비 길 · '공은 봤는데 못 쟀어요'는 거리 없이 부르는 1.x 길에서만 돈다. 결과 화면
   (`components/velocity/pitch-result.tsx`, 클립 되풀이 · 파란 관 궤적 2.0.4), 카메라 1080p · 60fps 고정, 아이폰 '파일로 재기' 고침
   (`video-open.ts`), `DualCameraPlugin.swift` zoom 옵션(컴파일 안 해 봄). 시험 `npm run velocity:engine2-test`.
-  **메인 추천 8번 6단계는 2.0 으로 하면 된다**(같은 밖 13개 MAE 1.1km/h) — 1.9 보정 짝 절차는 무효.
+  **메인 추천 8번 6단계는 2.0 으로 하면 된다**(같은 밖 13개 MAE 1.1km/h) — 1.9 보정 짝 절차는 무효. **2.1.0 · 2.1.1(같은 날, HANDOFF 에서 옮김)**: 그물까지 거리의 기본이 '자동'(`distAuto`) — 궤적의 깊이 비율 + 덩어리 지름으로 거리를 어림(`analyze-distance.ts` sizeDistM, 덩어리 되돌림 BLOB_SIZE_RATIO 1.185)하고 그 거리로 궤적을 한 번 더 맞춘다. 거리 없이 밖 12개 MAE 2.0km/h(사파리) · 크롬 2.2, 실내는 약함. 화각을 짐작했으면 ±8% 를 더해 알리고, 넣은 거리가 공 크기 거리와 12% 넘게 다르면 결과 화면이 알린다. 판 묶음 '2.1.' — 스피드건 짝 새로. 실험대 `node scripts/velocity-lab/engine2-lab.mts --tilt --horiz --auto --d=20`.
 - **김민의 아이폰 정리(2026-10-03, HANDOFF 에서 옮김) — 새 화면에서 지킬 것.** 아이폰은 자판이 올라와도 `100dvh` 가 그대로라
   바닥 단추가 숨는다 — `components/viewport-vars.tsx` 가 `<html>` 에 `--kb`(자판 높이) · `--vvh`(보이는 높이) · `[data-keyboard]` 를 단다.
   **바닥에 붙는 새 단추 · 시트는 `bottom: var(--kb,0px)` · `height: var(--vvh,100dvh)`**. 버튼 · 입력칸은 `touch-action: manipulation`
