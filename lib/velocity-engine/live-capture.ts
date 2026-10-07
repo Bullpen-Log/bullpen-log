@@ -17,12 +17,7 @@ import {
   type MeterStatus,
 } from './live-meter.ts';
 import { canvasLuma, rotateLuma } from './live-pixels.ts';
-import {
-  DEFAULT_CAM_MODE,
-  webCamOptions,
-  type CamMode,
-  type CamModeOption,
-} from '../velocity-camera-mode.ts';
+import { DEFAULT_CAM_MODE, type CamMode } from '../velocity-camera-mode.ts';
 import type {
   AnalyzeWorkerOut,
   LiveSettings,
@@ -299,21 +294,9 @@ export class LiveCapture {
     this.net = net;
   }
 
-  /** 고른 화질 · 프레임(lib/velocity-camera-mode.ts) — 켜기 전에 건다. null 이면 기본(DEFAULT_CAM_MODE, 1080p · 60fps)을 청한다 */
-  private mode: CamMode | null = null;
-  setMode(mode: CamMode | null) {
-    this.mode = mode;
-  }
-
   /** 켜진 카메라의 영상 흐름 — 엔진 개발용 녹화(lib/velocity-recorder.ts)가 같은 흐름을 찍는다. 꺼져 있으면 null */
   getStream(): MediaStream | null {
     return this.stream;
-  }
-
-  /** 이 카메라로 고를 수 있는 화질 — 켠 뒤에 안다(브라우저가 알려 주는 범위로 짐작) */
-  private options: CamModeOption[] = [];
-  getModeOptions(): CamModeOption[] {
-    return this.options;
   }
 
   /** 수동 모드 — 공 하나를 재면 다시 기다리지 않고 '준비됨'으로 돌아간다(단추를 눌러야 다음 공) */
@@ -721,8 +704,8 @@ export class LiveCapture {
      * 1080×1080 이 와서 화각이 어긋나 96km/h 공이 52.5km/h 로 나왔다(2026-09-30 브라우저 시험대). 'none' 이면 카메라 고유
      * 크기(1080×1920) 그대로 준다. 모르는 브라우저는 이 제약을 무시한다.
      */
-    /* 고른 화질 · 프레임이 있으면 그것(측정 화면 오른쪽 위 카메라 정보에서 고름 — 2026-10-03 사용자) */
-    const mode = this.mode ?? DEFAULT_CAM_MODE;
+    /* 늘 1080p · 60fps — 고르기는 없앴다(2026-10-08 사용자: "1080 · 60 으로 고정해 통일") */
+    const mode = DEFAULT_CAM_MODE;
     const longSide = Math.round((mode.short * 16) / 9);
     const wanted = {
       facingMode: { ideal: 'environment' },
@@ -825,7 +808,7 @@ export class LiveCapture {
     }
 
     checkAborted();
-    await this.rescueFrameRate(track, mode, longSide, this.mode != null);
+    await this.rescueFrameRate(track, mode, longSide);
     checkAborted();
     const focus = await applyFocus(track, this.net, this.approach);
     /*
@@ -859,17 +842,6 @@ export class LiveCapture {
     if (this.clipsOn) this.startClipLoop();
     const s = track?.getSettings?.() as
       (MediaTrackSettings & { frameRate?: number }) | undefined;
-    let caps: MediaTrackCapabilities | null = null;
-    try {
-      caps = track?.getCapabilities?.() ?? null;
-    } catch {
-      caps = null;
-    }
-    this.options = webCamOptions(caps, {
-      width: this.sourceWidth,
-      height: this.sourceHeight,
-      fps: typeof s?.frameRate === 'number' ? s.frameRate : null,
-    });
     return {
       width: this.sourceWidth,
       height: this.sourceHeight,
@@ -888,25 +860,18 @@ export class LiveCapture {
    * 못 내면 거절한다(거절이면 트랙은 그대로 — 명세). 가로 · 세로 두 방향으로 해 본다(폰 브라우저마다 세로 화면의 가로 · 세로를
    * 다르게 읽는다).
    *
-   * keepSize(사용자가 화질을 골랐다)면 그 화질에서 fps 를 채워야 성공이고, 못 채우면 이 앞의 제약(잘림을 고친 것까지 그대로)으로
-   * 되돌려 고른 화질을 지킨다 — fps 는 화면이 경고한다(막지 않는다, 2026-10-04 사용자). 자동이면 fps 가 먼저다 — 1080p 30 보다
-   * 720p 60 이 잰다(엔진은 어차피 짧은 변 720 으로 줄여 잰다).
+   * 1080p · 60fps 를 둘 다 못 내면 fps 가 먼저다 — 1080p 30 보다 720p 60 이 잰다(엔진은 어차피 짧은 변 720 으로 줄여 잰다).
    */
   private async rescueFrameRate(
     track: MediaStreamTrack | undefined,
     mode: CamMode,
-    longSide: number,
-    keepSize: boolean
+    longSide: number
   ) {
     if (!track?.applyConstraints || !track.getSettings) return;
     const fpsNow = () => (track.getSettings() as MediaTrackSettings).frameRate ?? null;
     const sizeNow = () => `${this.video.videoWidth}x${this.video.videoHeight}`;
-    const shortNow = () => Math.min(this.video.videoWidth, this.video.videoHeight);
     const before = fpsNow();
     if (before == null || before >= mode.fps - 2) return;
-    const shortBefore = shortNow();
-    /* 되돌릴 자리 — 이 앞에 건 제약 그대로(잘려 와서 방향을 바꿔 청한 것까지) */
-    const prev = track.getConstraints?.() ?? null;
     /* 화면 크기나 fps 가 바뀔 때까지(최대 1초) — 같은 화질의 60fps 모양으로 바뀌면 크기는 그대로라 fps 로 안다 */
     const settle = async (size: string, fps: number | null) => {
       for (let i = 0; i < 20; i++) {
@@ -935,23 +900,7 @@ export class LiveCapture {
       await settle(size, fps);
       const got = fpsNow();
       const fpsOk = got != null && got >= mode.fps - 2;
-      if (fpsOk && (!keepSize || Math.abs(shortNow() - mode.short) <= 8)) return;
-    }
-    /* 고른 화질과 fps 를 함께 못 낸다 — 처음엔 고른 화질이 나왔으면 그리로 돌아간다(fps 는 낮은 대로, 화면이 경고) */
-    if (
-      keepSize &&
-      prev &&
-      Math.abs(shortBefore - mode.short) <= 8 &&
-      Math.abs(shortNow() - mode.short) > 8
-    ) {
-      const size = sizeNow();
-      const fps = fpsNow();
-      try {
-        await track.applyConstraints(prev);
-        await settle(size, fps);
-      } catch {
-        /* 못 되돌리면 지금 것 그대로 */
-      }
+      if (fpsOk) return;
     }
   }
 

@@ -2,16 +2,11 @@
 
 import {
   callDualCamera,
-  dualStatusNow,
   readDualClip,
   type DualClip,
   type DualStartInfo,
 } from '@/lib/dual-camera';
-import {
-  DEFAULT_CAM_MODE,
-  type CamMode,
-  type CamModeOption,
-} from '@/lib/velocity-camera-mode';
+import { DEFAULT_CAM_MODE } from '@/lib/velocity-camera-mode';
 import { analyzeVideo, type VideoAnalyzeResult } from './analyze-video';
 import type { Approach } from './validate';
 import type {
@@ -132,27 +127,6 @@ export class DualCapture {
     );
   };
 
-  /** 고른 화질 · 프레임 — 켜기 전에 건다. null 이면 기본(DEFAULT_CAM_MODE, 1080p · 60fps) */
-  private mode: CamMode | null = null;
-  setMode(mode: CamMode | null) {
-    this.mode = mode;
-  }
-
-  /** 고를 수 있는 화질 — 앱 부품이 알려 준 것(status.modes). 옛 앱이면 지금 켠 것 하나 */
-  getModeOptions(): CamModeOption[] {
-    const modes = dualStatusNow()?.modes;
-    if (modes?.length) return modes.map((m) => ({ ...m }));
-    const info = this.info;
-    if (!info) return [];
-    return [
-      {
-        short: Math.min(info.mainWidth, info.mainHeight),
-        long: Math.max(info.mainWidth, info.mainHeight),
-        maxFps: info.mainFps,
-      },
-    ];
-  }
-
   async start(): Promise<CameraInfo> {
     const gen = ++this.gen;
     owner = this.token;
@@ -161,8 +135,9 @@ export class DualCapture {
     let info: DualStartInfo;
     try {
       info = await callDualCamera<DualStartInfo>('start', {
-        fps: (this.mode ?? DEFAULT_CAM_MODE).fps,
-        short: (this.mode ?? DEFAULT_CAM_MODE).short,
+        /* 늘 1080p · 60fps(사용자 2026-10-08: "화질 · 프레임 고르기 없이 1080 · 60 으로 통일") */
+        fps: DEFAULT_CAM_MODE.fps,
+        short: DEFAULT_CAM_MODE.short,
         net: this.net,
         preview: this.rect(),
         armed: false,

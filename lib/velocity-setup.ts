@@ -7,7 +7,6 @@
 
 import type { Approach } from '@/lib/velocity-engine/analyze-frames';
 import { DEFAULT_SESSION_TYPE, isRestSession, isSessionType } from '@/lib/session-type';
-import { isCamMode, type CamMode } from '@/lib/velocity-camera-mode';
 
 export const SETUP_KEY = 'bullpen-velocity-setup';
 /** 같은 탭 안에서 설정이 바뀌었다고 알리는 신호 — storage 이벤트는 다른 탭에만 간다 */
@@ -69,8 +68,6 @@ export type VelocitySetup = {
    * (2026-10-03 사용자). 웹 화면은 카메라를 하나만 켤 수 있어 앱의 'DualCamera' 부품이 있어야 실제로 찍힌다(lib/dual-camera.ts).
    */
   wideClip: boolean;
-  /** 측정 카메라의 화질 · 프레임(lib/velocity-camera-mode.ts) — null 이면 자동(1080p · 60fps) */
-  camMode: CamMode | null;
   /**
    * 엔진 개발용 녹화(관리자) — 켜면 측정 대기 화면의 시작 단추가 녹화 단추가 되어 측정 없이 찍어 구속 측정 관리자로 올린다
    * (lib/velocity-recorder.ts). 관리자가 아니면 켜져 있어도 효과가 없다.
@@ -210,7 +207,6 @@ export const DEFAULT_SETUP: Omit<VelocitySetup, 'savedAt'> = {
   calibSave: false,
   clipZone: true,
   wideClip: false,
-  camMode: null,
   recordMode: false,
   diagHud: false,
 };
@@ -268,7 +264,6 @@ export function loadSetup(): VelocitySetup | null {
       calibSave: p.calibSave === true,
       clipZone: p.clipZone !== false,
       wideClip: p.wideClip === true,
-      camMode: isCamMode(p.camMode) ? p.camMode : null,
       recordMode: p.recordMode === true,
       diagHud: p.diagHud === true,
       savedAt: typeof p.savedAt === 'string' ? p.savedAt : '',

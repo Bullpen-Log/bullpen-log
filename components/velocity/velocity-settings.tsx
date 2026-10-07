@@ -467,7 +467,6 @@ export function VelocitySettingsButton({
         calibSave: base.calibSave,
         clipZone: base.clipZone,
         wideClip: base.wideClip,
-        camMode: base.camMode,
         recordMode: base.recordMode,
         diagHud: base.diagHud,
         ...rest,
@@ -516,7 +515,6 @@ export function VelocitySettingsButton({
                   calibSave: base.calibSave,
                   clipZone: base.clipZone,
                   wideClip: base.wideClip,
-                  camMode: base.camMode,
                   recordMode: base.recordMode,
                   diagHud: base.diagHud,
                 })
