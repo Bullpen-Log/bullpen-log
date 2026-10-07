@@ -541,7 +541,13 @@ const HEAVY_FLOOR_LIMIT = 1.2;
 function sizePenalty(p: Prepared, kcal: number, protein: number) {
   const est = estOf(p);
   const kcalOff = Math.abs(Math.log(Math.max(1, est.kcal) / Math.max(1, kcal)));
-  const proteinOver = Math.log(Math.max(1, est.protein) / Math.max(1, protein));
+  /*
+   * 탄수화물 줄이 없는 틀(삼계탕 · 설렁탕 한 그릇)은 fitMeal 이 그릇을 키워 kcal 을 맞추므로 단백질도 같은 배율로 커진다 — 처음
+   * 양만 보면 벌점이 0 이라, 세 끼 먹고 남은 1,300kcal 간식에 삼계탕 1.5그릇(단백질 114g, 몫의 2배)이 뽑혔다(2026-10-07 메인 검토).
+   */
+  const noCarb = !p.items.some((i) => i.role === 'carb' && i.food.kcal > 0);
+  const grow = noCarb ? Math.min(1.5, Math.max(0.5, kcal / Math.max(1, est.kcal))) : 1;
+  const proteinOver = Math.log(Math.max(1, est.protein * grow) / Math.max(1, protein));
   /*
    * 가장 줄여도 몫을 크게 넘는 틀 — 김밥 한 줄(380kcal)은 반 줄로 못 줄여서, 목표가 낮은 날 간식 몫(170kcal)에 뽑히면 간식 둘이
    * 하루의 4할이 됐다.
@@ -668,10 +674,25 @@ function pickTemplate(
      * 설렁탕(가장 줄여도 380kcal · 단백질 20g)이 350kcal · 31g 점심에 뽑혀, 닭가슴살을 얹고 나면 하루가 더 줄 데 없이 +11% 였다.
      */
     const heavy = (aim.protein * 4) / Math.max(1, aim.kcal) > 0.3;
-    const limit = small ? LAST_FLOOR_LIMIT : heavy ? HEAVY_FLOOR_LIMIT : FLOOR_LIMIT;
-    const sized = placed.filter(
-      (p) => floorKcal(p) + (small || heavy ? topUpKcal(p, aim) : 0) <= aim.kcal * limit
-    );
+    /*
+     * 먹은 뒤 한 끼만 남은 날은 몫 안(LAST_FLOOR_LIMIT) → 1.1배 → FLOOR_LIMIT 순으로 풀고, 그래도 없으면 가장 작게 줄일 수 있는 것
+     * 근처(1.1배 안)만 — 한 번에 다 풀면 등판 전날 남은 160kcal 저녁에 베이글 · 두유(줄여도 270kcal)가 뽑혀 +86% 였다(3차 전
+     * 바나나 · 소고기 +12%, 2026-10-07 메인 검토).
+     */
+    const estFloor = (p: Prepared) =>
+      floorKcal(p) + (small || heavy ? topUpKcal(p, aim) : 0);
+    const steps = small
+      ? [LAST_FLOOR_LIMIT, 1.1, FLOOR_LIMIT]
+      : [heavy ? HEAVY_FLOOR_LIMIT : FLOOR_LIMIT];
+    let sized: Prepared[] = [];
+    for (const l of steps) {
+      sized = placed.filter((p) => estFloor(p) <= aim.kcal * l);
+      if (sized.length > 0) break;
+    }
+    if (sized.length === 0 && small) {
+      const lo = Math.min(...placed.map(estFloor));
+      sized = placed.filter((p) => estFloor(p) <= lo * 1.1);
+    }
     const choices = sized.length > 0 ? sized : placed;
 
     /*
@@ -849,7 +870,7 @@ export const MAX_PER_MEAL: Record<string, number> = {
   'pork-tenderloin': 2, 'pork-neck': 1, salmon: 2, mackerel: 1.5, 'tuna-can': 1.5, tofu: 2, 'braised-tofu': 2,
   bulgogi: 1.75, jeyuk: 1.5, dakbokkeumtang: 1.5,
   /* 단백질 몫을 맞추다 돈가스 2.25인분(1,460kcal) · 갈비탕 세 그릇이 되지 않게 */
-  tonkatsu: 1.25, galbitang: 1.25, seolleongtang: 1.5, yukgaejang: 1.5, 'sundubu-jjigae': 1.5,
+  tonkatsu: 1.25, galbitang: 1.25, seolleongtang: 1.5, samgyetang: 1, yukgaejang: 1.5, 'sundubu-jjigae': 1.5,
   'chicken-salad': 2, dumplings: 2, 'pasta-tomato': 1.5,
 };
 
@@ -1101,7 +1122,7 @@ function planDay(
   const reasons: string[] = [];
   if (skipped.length > 0) {
     reasons.push(
-      `이미 먹은 ${skipped.map(mealLabel).join(' · ')}은 빼고, 남은 ${Math.round(left.kcal).toLocaleString('ko-KR')}kcal 을 나눠 짰어요.`
+      `이미 먹은 ${skipped.map(mealLabel).join(' · ')}은 빼고, 남은 ${Math.round(left.kcal).toLocaleString('ko-KR')}kcal 을 ${shares.trimmed === 'mealLike' ? '간식 한 번에 끼니처럼' : '나눠'} 짰어요.`
     );
   }
   if (shares.length > 0 && left.kcal >= 150) {
@@ -1113,12 +1134,7 @@ function planDay(
     }
     const dropped = shares.trimmed;
     if (dropped === 'one') reasons.push('남은 양이 적어 한 끼로 짰어요.');
-    if (dropped === 'mealLike') {
-      const ate = skipped.filter((m) => m !== 'snack').length;
-      reasons.push(
-        `${['한', '두', '세'][ate - 1] ?? '세'} 끼를 다 먹어 남은 양을 간식 한 번에 끼니처럼 짰어요.`
-      );
-    }
+    /* 끼니처럼 짠 간식(mealLike)은 첫 줄이 말한다 — 따로 한 줄을 더하면 '나눠'와 부딪히고 못 먹는 것 줄이 4줄 밖으로 밀렸다 */
     /* 3+2 에서 하나만 뺐거나 간식만 남아 하나를 두었으면 '빼고'가 아니다 */
     if (dropped === 'snack')
       reasons.push(
@@ -1781,6 +1797,14 @@ function planDay(
     const i = reasons.findIndex((l) => l.startsWith('단백질은 남은 열량으로'));
     if (i >= 0) reasons[i] = line;
     else reasons.push(line);
+  } else if (got > left.protein * 1.15) {
+    /* '37g 까지 넣었어요' 라면서 카드 머리에는 49g 이 보였다(닭가슴살 팩 두 개, 2026-10-07 메인 검토) */
+    const i = reasons.findIndex((l) => l.startsWith('단백질은 남은 열량으로'));
+    const wanted = Math.max(0, input.targets.protein - eatenTotal.protein);
+    if (i >= 0 && got >= wanted * 0.95) reasons.splice(i, 1);
+    else if (i >= 0)
+      reasons[i] =
+        `단백질은 남은 열량으로 채울 수 있는 ${Math.round(got)}g 까지 넣었어요.`;
   }
 
   /* ── 결과 ── */
@@ -1879,8 +1903,10 @@ function whyLines(
     const soft =
       meals.filter((m) => m.template.tags.includes('light')).length * 2 >= meals.length;
     /* 간식이 없는 구성이라 입맛 없는 날 더한 간식 */
+    /* 실제 끼니가 하나라도 있을 때만 — 간식 한 칸뿐인 날(끼니처럼 짠 간식 포함)에 '양을 나눴어요'는 틀린 말이다 */
     const extra =
       has('snack') &&
+      meals.some((m) => m.slot !== 'snack') &&
       !PATTERN_SHARES[input.prefs.mealPattern].some(([s]) => s === 'snack');
     if (soft && extra) {
       lines.push('입맛이 없는 날이라 부드러운 것 위주로, 간식을 더해 양을 나눴어요.');

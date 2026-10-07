@@ -3469,7 +3469,8 @@ console.log('\n■ 식단 짜기');
   );
   /*
    * 하루 맞추기는 끼니 몫을 본다 — 하루 합만 보고 늘리고 줄여 아침이 몫의 절반 · 저녁이 1.75배가 됐고, 던지는 날 점심(던지기
-   * 전 끼니)이 그날 가장 가벼운 끼니인 날이 45/276 이었다(2026-10-07 3차 전). 3차 뒤 0 · 0.
+   * 전 끼니)이 그날 가장 가벼운 끼니인 날이 72/276 이었다(2026-10-07 3차 전, 2번 커밋 뒤 45). 몫의 0.5배 밑 · 1.7배 위 끼니는
+   * 3차 전 25 · 37, 2번 뒤 5 · 18. 3차 뒤 0 · 0.
    */
   check(
     `낮은 목표 몸 ${low}가지 — 끼니마다 몫의 0.5~1.7배 안`,
@@ -3792,7 +3793,12 @@ console.log('\n■ 식단 짜기');
     mealLike.every(
       (r) =>
         r.meals.length === 1 &&
-        r.reasons.includes('세 끼를 다 먹어 남은 양을 간식 한 번에 끼니처럼 짰어요.') &&
+        r.reasons.some(
+          (l) =>
+            l.startsWith('이미 먹은 아침 · 점심 · 저녁은 빼고') &&
+            l.endsWith('간식 한 번에 끼니처럼 짰어요.')
+        ) &&
+        !r.reasons.some((l) => l.includes('나눠 짰어요')) &&
         !r.reasons.some((l) => l.startsWith('헬스장에서')) &&
         r.items.length <= 5 &&
         Math.abs(offOf(r)) <= 0.1
@@ -3804,6 +3810,175 @@ console.log('\n■ 식단 짜기');
       )
       .join(' · ')
   );
+  /* ── 2026-10-07 메인 검토(3차)에서 잡은 것 — 고정 사례 ── */
+  const ateThree = (
+    kcal: [number, number, number],
+    protein: [number, number, number]
+  ) => [
+    { meal: 'breakfast' as const, kcal: kcal[0], protein: protein[0] },
+    { meal: 'lunch' as const, kcal: kcal[1], protein: protein[1] },
+    { meal: 'dinner' as const, kcal: kcal[2], protein: protein[2] },
+  ];
+  /* 입맛 없는 날 '세 끼' 구성에서 세 끼를 다 먹으면 간식 한 칸 — '간식을 더해 양을 나눴어요'는 틀린 말 */
+  const lowApp = buildMealPlan({
+    ...base,
+    seed: 'u1',
+    date: '2026-11-05',
+    prefs: { ...DEFAULT_PREFS, mealPattern: '3' },
+    appetite: 1,
+    eaten: ateThree([450, 600, 650], [25, 30, 35]),
+  });
+  check(
+    "입맛 없는 날 세 끼 다 먹고 간식 한 칸 — '간식을 더해 양을 나눴어요' 없음 · '끼니처럼' 한 줄",
+    lowApp.meals.length === 1 &&
+      !lowApp.reasons.some((l) => l.includes('간식을 더해')) &&
+      lowApp.reasons.some((l) => l.endsWith('간식 한 번에 끼니처럼 짰어요.')),
+    lowApp.reasons.join(' / ')
+  );
+  /* 세 끼 먹고 남은 1,300kcal 간식에 삼계탕 1.5그릇(단백질 몫의 2배)이 뽑혔다 — 시드 여럿 */
+  const gyeBad: string[] = [];
+  for (const seed of ['u1', 'u13', 'u14', 'u16', 'u19', 'u24']) {
+    for (const kcal of [
+      [500, 550, 550],
+      [300, 400, 400],
+    ] as [number, number, number][]) {
+      const r = buildMealPlan({
+        ...base,
+        seed,
+        eaten: ateThree(kcal, [30, 30, 25]),
+      });
+      const p = planMacros(r.items).protein;
+      if (
+        r.items.some((it) => it.sourceId === 'samgyetang' && it.amount > 1) ||
+        p > Math.max(r.target.protein * 1.3, r.target.protein + 25)
+      )
+        gyeBad.push(`${seed} ${kcal.join('/')} ${Math.round(p)}/${r.target.protein}g`);
+    }
+  }
+  check(
+    '세 끼 먹고 간식 한 칸 — 삼계탕은 한 그릇까지 · 단백질은 몫의 1.3배(또는 +25g) 안',
+    gyeBad.length === 0,
+    gyeBad.slice(0, 3).join(' · ')
+  );
+  /* 먹은 뒤 한 끼만 남은 작은 저녁(등판 전날) — 줄일 수 없는 틀이 뽑혀 +86% · +66% 였다(3차 전 +12% · +1%) */
+  const smallEve = [
+    buildMealPlan({
+      ...base,
+      date: '2026-12-09',
+      seed: 'g64338',
+      variant: 2,
+      targets: { kcal: 2075, protein: 103 },
+      goal: 'gain',
+      ageBand: 'child',
+      prefs: {
+        ...DEFAULT_PREFS,
+        seasonPhase: 'in',
+        dietStyle: 'mixed',
+        mealPattern: '3+1',
+        avoid: ['nuts', 'pork', 'spicy'],
+      },
+      place: 'out',
+      throwKind: 'eve',
+      appetite: 3,
+      soreness: 5,
+      eaten: [
+        { meal: 'breakfast', kcal: 997, protein: 43 },
+        { meal: 'lunch', kcal: 918, protein: 39 },
+      ],
+    }),
+    buildMealPlan({
+      ...base,
+      date: '2026-03-22',
+      seed: 'g40438',
+      variant: 1,
+      targets: { kcal: 2771, protein: 133 },
+      goal: 'maintain',
+      ageBand: 'teen',
+      prefs: {
+        ...DEFAULT_PREFS,
+        seasonPhase: 'rehab',
+        dietStyle: 'simple',
+        mealPattern: '3+1',
+      },
+      place: 'gym',
+      throwKind: 'eve',
+      soreness: 1,
+      eaten: [
+        { meal: 'breakfast', kcal: 1563, protein: 36 },
+        { meal: 'lunch', kcal: 1030, protein: 24 },
+      ],
+    }),
+  ];
+  check(
+    '먹은 뒤 남은 160~180kcal 저녁(등판 전날) — 남은 몫의 1.35배 안(줄일 수 없는 틀을 덜 뽑는다)',
+    smallEve.every((r) => offOf(r) <= 0.35),
+    smallEve
+      .map(
+        (r) =>
+          `${r.meals.map((x) => x.template).join(',')} ${Math.round(offOf(r) * 100)}%`
+      )
+      .join(' · ')
+  );
+  /* 5번(보충 순서)을 붙잡는 입력 — 되돌리면 달걀이 얹혀 +13.5% 가 된다(g1 은 옛 코드에서도 통과해 못 붙잡는다) */
+  const low378 = buildMealPlan({
+    ...base,
+    date: '2026-11-18',
+    seed: 'low378',
+    variant: 1,
+    targets: { kcal: 1250, protein: 99 },
+    goal: 'lose',
+    prefs: {
+      ...DEFAULT_PREFS,
+      dietStyle: 'korean',
+      mealPattern: '3+2',
+      avoid: ['beef'],
+      supplements: true,
+    },
+    place: 'gym',
+    throwKind: 'eve',
+    eaten: [
+      { meal: 'breakfast', kcal: 500, protein: 20 },
+      { meal: 'lunch', kcal: 438, protein: 25 },
+    ],
+  });
+  check(
+    '빠듯한 날 보충 순서(low378) — 남은 몫의 ±10% · 저녁에 달걀을 얹지 않는다',
+    Math.abs(offOf(low378)) <= 0.1 &&
+      !low378.items.some((it) => it.meal === 'dinner' && it.sourceId === 'egg'),
+    `${Math.round(offOf(low378) * 100)}% · ${low378.items.map((it) => `${it.sourceId}×${it.amount}`).join(' ')}`
+  );
+  /* 단백질 줄 — '37g 까지 넣었어요' 라면서 49g 이 담겼다(닭가슴살 팩 둘) */
+  const proteinLine = buildMealPlan({
+    ...base,
+    date: '2026-11-02',
+    seed: 't727',
+    variant: 2,
+    targets: { kcal: 1250, protein: 121 },
+    goal: 'lose',
+    prefs: {
+      ...DEFAULT_PREFS,
+      dietStyle: 'mixed',
+      mealPattern: '3+2',
+      avoid: ['dairy'],
+      supplements: true,
+    },
+    place: 'out',
+    throwKind: 'after',
+    appetite: 4,
+    eaten: ateThree([275, 275, 275], [21, 21, 21]),
+  });
+  const plp = Math.round(planMacros(proteinLine.items).protein);
+  check(
+    '단백질 줄의 g 은 실제로 담은 단백질과 맞는다(1.15배 넘게 어긋나지 않음)',
+    proteinLine.reasons
+      .filter((l) => l.startsWith('단백질은'))
+      .every((l) => {
+        const g = Number(l.match(/(\d+)g/)?.[1] ?? 0);
+        return plp <= g * 1.15 && plp >= g * 0.85;
+      }),
+    `${plp}g · ${proteinLine.reasons.filter((l) => l.startsWith('단백질')).join(' / ')}`
+  );
+
   /* 끼니 제목 — 입맛 1 · 근육통 5 · 더운 날(g0)은 kcal 을 줄이다 미역국 · 수박이 빠지는 입력 */
   check(
     '끼니 제목은 실제로 담은 음식으로(g0 — 뺀 미역국을 적지 않는다)',
