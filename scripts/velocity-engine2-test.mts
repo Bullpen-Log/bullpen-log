@@ -9,6 +9,7 @@
  */
 import { analyzeByDistance } from '../lib/velocity-engine/analyze-distance.ts';
 import { DRAG_K } from '../lib/velocity-engine/trajectory-fit.ts';
+import { alignTrail, type TrailPoint } from '../lib/velocity-tracer.ts';
 
 const W = 720;
 const H = 1280;
@@ -187,7 +188,46 @@ function run(name: string, sc: Scene, tolRel: number) {
     m.ok && Math.abs(err) <= tolRel,
     `${name} — 정답 ${truthKmh.toFixed(1)} · 잰 값 ${m.ok ? m.kmh : m.code} (${m.ok ? (err * 100).toFixed(2) + '%' : '-'}, 허용 ±${(tolRel * 100).toFixed(1)}%) · 비행 ${res.distance.flightFrames}장(+${res.distance.extended}) 끝 ${res.distance.impact} ${res.distance.timingMs}ms`
   );
+  if (!m.ok || sc.whiteFromM != null) return;
+  /*
+   * 결과 화면이 따라 그릴 길(distance.path) — 공이 처음 보인 장면(릴리스 t=0 에서 5장 안 — 카메라 1m 앞 공은 지름 160px 라 몇 장 뒤에
+   * 잡힌다)에서 그물에 닿은 때까지, 실제 공 자리에서 2px 또는 공 반지름의 35% 안(관 굵기가 공 지름이라 공을 덮는다).
+   */
+  const { path: truth } = flight(sc);
+  const hitAt = truth.find((q) => q.p[2] >= sc.D)?.t ?? NaN;
+  const path = res.distance.path;
+  /* 벗어난 정도 ÷ 허용(2px 또는 반지름의 35%) 의 최댓값 — 1 밑이면 통과 */
+  let dev = 0;
+  for (const [t, u, v] of path) {
+    const [X, Y, Z] = truth[Math.min(truth.length - 1, Math.max(0, Math.round(t / 0.0005)))].p;
+    if (t < 0 || t > hitAt) continue;
+    const e = Math.hypot(F * (X / Z) + W / 2 - u, F * (Y / Z) + H / 2 - v);
+    dev = Math.max(dev, e / Math.max(2, 0.35 * ((F * R_BALL) / Z)));
+  }
+  const t0 = path[0]?.[0] ?? NaN;
+  const t1 = path[path.length - 1]?.[0] ?? NaN;
+  check(
+    path.length > 10 && t0 >= -0.01 && t0 <= 5 / FPS + 0.005 && Math.abs(t1 - hitAt) <= 0.02 && dev <= 1,
+    `${name} — 그릴 길 ${path.length}점 · 처음 ${(t0 * 1000).toFixed(0)}ms(릴리스 0) · 끝 ${(t1 * 1000).toFixed(0)}ms(닿음 ${(hitAt * 1000).toFixed(0)}) · 실제 자리와 허용의 최대 ${dev.toFixed(2)}배`
+  );
+  if (!alignCheck) return;
+  alignCheck = false;
+  /* 영상 시각 맞추기 — 같은 장면을 클립처럼(시각 + 3.217초) 놓고 일부러 어긋낸 offset 에서 되찾나(한 장 = 16.7ms 의 반 안) */
+  const points: TrailPoint[] = path.map(([t, u, v, d]) => ({ t, x: u / W, y: v / H, d: d / W }));
+  const truthOffset = 3.217;
+  const samples = frames.map((f) => ({ time: f.t + truthOffset, luma: f.luma }));
+  for (const wrong of [0.05, -0.083, 0]) {
+    const got = alignTrail({ samples, width: W, height: H, crop: { x: 0, y: 0, w: 1, h: 1 }, points, offset: truthOffset + wrong });
+    check(
+      got != null && Math.abs(got - truthOffset) <= 1 / 120,
+      `영상 시각 맞추기 — ${(wrong * 1000).toFixed(0)}ms 어긋낸 것을 ${got == null ? '못 맞춤' : ((got - truthOffset) * 1000).toFixed(1) + 'ms 로'}`
+    );
+  }
+  const empty = render({ ...sc, noBall: true }).frames.map((f) => ({ time: f.t + truthOffset, luma: f.luma }));
+  const none = alignTrail({ samples: empty, width: W, height: H, crop: { x: 0, y: 0, w: 1, h: 1 }, points, offset: truthOffset });
+  check(none == null, `영상 시각 맞추기 — 공이 안 보이는 영상이면 그대로 둔다(${none == null ? 'null' : none.toFixed(3)})`);
 }
+let alignCheck = true;
 
 console.log('엔진 2.0 셀프테스트(합성 장면)');
 const only = process.argv[2];

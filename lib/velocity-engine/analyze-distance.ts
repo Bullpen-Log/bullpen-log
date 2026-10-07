@@ -80,6 +80,11 @@ export type DistanceReport = {
   launchDeg: number | null;
   /** 궤적을 릴리스(카메라 앞 releaseDistM)까지 되돌린 화면 자리(분석 px) — 투수 뒤만. 릴리스가 보이게 찍었으면 화면 안이다 */
   releasePx: [number, number] | null;
+  /**
+   * 맞춘 궤적을 화면에 비춘 길 [t, x, y, 지름](분석 px) — 공이 손을 떠나 처음 보인 장면(반 장 앞)에서 그물 · 미트에 닿은 때(te)까지 반 장
+   * 간격. 결과 화면이 영상에 맞춰 공을 따라 그린다. 못 쟀으면 빈 배열.
+   */
+  path: number[][];
   /** 비행 끝 장면의 공 지름 ÷ 거리 D 에 있는 공의 지름(분석 px) — 덩어리 지름은 작은 공에서 20~35% 크게 잰다 */
   endSizeRatio: number | null;
   /** ln(지름) 을 ln(맞춘 깊이) 에 맞춘 기울기 — 공이면 −1 근처(멀어진 만큼 작아짐), 제자리 덩어리면 0 근처 */
@@ -223,6 +228,7 @@ export function analyzeByDistance(input: DistanceInput): DistanceResult {
     firstDepthM: null,
     launchDeg: null,
     releasePx: null,
+    path: [],
     endSizeRatio: null,
     sizeSlope: null,
     shakePx: Math.round((input.shakePx ?? 0) * 10) / 10,
@@ -411,6 +417,20 @@ export function analyzeByDistance(input: DistanceInput): DistanceResult {
     }
     const [px, py, pz] = fit.positionAt(tRel);
     if (pz > 0) report.releasePx = [Math.round(cam.cx + (cam.f * px) / pz), Math.round(cam.cy + (cam.f * py) / pz)];
+  }
+  {
+    /*
+     * 그릴 길 — 공이 손을 떠나 처음 보인 장면(반 장 앞)에서 먼 쪽 끝까지. 릴리스 거리(tRel)까지 되돌리면 그 거리는 어림이라(기본 카메라
+     * 앞 1m) 실제 영상에서 공이 있던 적 없는 팔 자리까지 굵게 그어졌다(132: 실제 릴리스보다 화면 가로 16% 아래 왼쪽).
+     */
+    const tA = tFirst;
+    const tB = approach === 'receding' ? te : used[used.length - 1].t + dt / 2;
+    const n = Math.max(2, Math.ceil((tB - tA) / (dt / 2)));
+    for (let k = 0; k <= n; k++) {
+      const t = tA + ((tB - tA) * k) / n;
+      const [u, v, z] = fit.project(t);
+      if (z > 0) report.path.push([t, u, v, dAtD / z]);
+    }
   }
   const sw = speedWithSe(fit, tRel, opts);
   /*

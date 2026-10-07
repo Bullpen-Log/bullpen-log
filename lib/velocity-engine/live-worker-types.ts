@@ -58,7 +58,7 @@ export type MeterWorkerOut =
   | { type: 'hello' }
   | { type: 'status'; status: MeterStatus }
   | { type: 'fps'; fps: number }
-  | { type: 'captured'; id: number; triggerT: number; frames: number }
+  | { type: 'captured'; id: number; triggerT: number; hitT: number; frames: number }
   /** 담았지만 계산이 밀려(MAX_JOBS_IN_FLIGHT) 버렸다 */
   | { type: 'dropped'; id: number; triggerT: number }
   /** 'probe' 의 답 — 돌리기 전 밝기(분석 크기) */

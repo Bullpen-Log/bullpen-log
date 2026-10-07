@@ -231,7 +231,26 @@ type LocalPitch = SavePitchInput & {
   sample?: boolean;
   /** 카메라 실시간의 촬영 조건 알림(초당 장면 · 잘린 화면 · 짐작한 화각 · 번짐 …) — 화면에만 보인다 */
   notes?: string[];
+  /** 결과 화면이 영상에 맞춰 따라 그릴 공 길(장면 비율, t 는 궤적 시각) — 화면에만 */
+  trail?: TrailPoint[] | null;
+  /** 클립의 eventSec 에 해당하는 궤적 시각(ResultMeta.hitT) — 클립 시각 = eventSec + (t − hitT) */
+  hitT?: number | null;
 };
+/**
+ * 결과 화면에서 따라 그릴 공 길(장면 비율) — 엔진 2.0 은 맞춘 궤적을 공이 처음 보인 장면부터 그물까지 비춘 길(distance.path), 1.x 는
+ * 잡힌 공 자리.
+ */
+function trailOf(result: ScreenResult): TrailPoint[] | null {
+  const { width, height } = result.analyzeSize;
+  if (!width || !height) return null;
+  const path = (result as { distance?: { path?: number[][] } }).distance?.path;
+  const rows =
+    path && path.length >= 2
+      ? path
+      : result.track.map((o) => [o.t, o.x, o.y, o.diameterPx]);
+  if (rows.length < 2) return null;
+  return rows.map(([t, x, y, d]) => ({ t, x: x / width, y: y / height, d: d / width }));
+}
 /** 카메라 실시간 결과에는 촬영 조건 알림(live)이 붙는다(lib/velocity-engine/live-meter.ts) — 영상 파일 결과에는 없다 */
 type ScreenResult = AnalyzeResult & { live?: LiveReport };
 
@@ -416,9 +435,9 @@ export function VelocityScreen({
   const [summaryOpen, setSummaryOpen] = useState(false);
   /* 공 하나의 결과 화면 — 잴 때마다 띄운다(가장 최근 공). 영상 파일로 잰 공은 그 파일을 되풀이한다 */
   const [resultOpen, setResultOpen] = useState(false);
-  const [fileReplay, setFileReplay] = useState<{ url: string; from: number; to: number } | null>(null);
+  const [fileReplay, setFileReplay] = useState<string | null>(null);
   useEffect(() => () => {
-    if (fileReplay) URL.revokeObjectURL(fileReplay.url);
+    if (fileReplay) URL.revokeObjectURL(fileReplay);
   }, [fileReplay]);
   /* 세션 중 오른쪽 아래 '이전 공' 시트 */
   const [prevOpen, setPrevOpen] = useState(false);
@@ -698,6 +717,8 @@ export function VelocityScreen({
         autoDetected: source === 'camera' ? autoMode : false,
         captureId: meta?.id,
         notes: result.live?.notes.map((note) => note.text) ?? [],
+        trail: trailOf(result),
+        hitT: meta?.hitT ?? null,
         ...EMPTY_EDIT,
         zone: guessedZone,
       },
@@ -1187,13 +1208,7 @@ export function VelocityScreen({
         distanceM: distanceOf({ cameraPos: choices.cameraPos, targetDistM, releaseDistM }),
         tiltRad: null,
       });
-      const tr = result.track;
-      if (result.measure.ok && tr.length >= 2)
-        setFileReplay({
-          url: URL.createObjectURL(file),
-          from: Math.max(0, tr[0].t - 0.4),
-          to: tr[tr.length - 1].t + 0.5,
-        });
+      if (result.measure.ok) setFileReplay(URL.createObjectURL(file));
       addResult(result, 'file');
       /* HDR · 보정한 촬영과 다른 영상이면 그 알림(± 가 넓은 까닭)을 잠깐 보인다 */
       if (result.measure.ok && result.video.notes.length)
@@ -1356,34 +1371,29 @@ export function VelocityScreen({
       : null,
   }));
   const lastPitch = pitches[pitches.length - 1] ?? null;
-  /* 결과 화면의 궤적(장면 비율)과 영상 — 가장 최근 공 */
-  const resultTrail: TrailPoint[] | null = (() => {
-    const a = lastPitch?.analysis;
-    if (!a?.track || a.track.length < 2 || !a.analyzeSize?.width) return null;
-    const { width, height } = a.analyzeSize;
-    return a.track.map(([, x, y, d]) => ({ x: x / width, y: y / height, d: (d ?? 0) / width }));
+  /*
+   * 결과 화면 — 가장 최근 공의 길과 영상. 클립 시각 = 궤적 시각 + offset: 카메라 실시간 클립은 '담는 중'을 알린 장면(hitT)이 클립의
+   * eventSec(벽시계라 어림 — 첫 재생에서 영상 속 공으로 맞춘다, lib/velocity-tracer.ts), 영상 파일 · 동시 촬영은 그 영상을 그대로
+   * 쟀으니 0. 되풀이는 공이 처음 보이기 0.5초 앞에서 그물에 닿고 0.7초 뒤까지.
+   */
+  const resultTrail = lastPitch?.trail ?? null;
+  const resultClip = (() => {
+    if (!lastPitch) return null;
+    const c = lastPitch.clip;
+    const url = lastPitch.source === 'file' ? fileReplay : c?.url;
+    if (!url) return null;
+    const offset = c ? c.eventSec - (lastPitch.hitT ?? resultTrail?.[0]?.t ?? 0) : 0;
+    const from = resultTrail ? resultTrail[0].t + offset : (c?.eventSec ?? 0);
+    const to = resultTrail ? resultTrail[resultTrail.length - 1].t + offset : from + 0.6;
+    return {
+      url,
+      offset,
+      loop: {
+        from: Math.max(0, from - 0.5),
+        to: Math.min(c?.durationSec || Infinity, to + 0.7),
+      },
+    };
   })();
-  const resultClip = !lastPitch
-    ? null
-    : lastPitch.source === 'file'
-      ? fileReplay && {
-          url: fileReplay.url,
-          eventSec: fileReplay.from + 0.4,
-          loop: { from: fileReplay.from, to: fileReplay.to },
-        }
-      : lastPitch.clip
-        ? {
-            url: lastPitch.clip.url,
-            eventSec: lastPitch.clip.eventSec,
-            loop: {
-              from: Math.max(0, lastPitch.clip.eventSec - 0.4),
-              to: Math.min(
-                lastPitch.clip.eventSec + 1.6,
-                lastPitch.clip.durationSec || lastPitch.clip.eventSec + 1.6
-              ),
-            },
-          }
-        : null;
   const editingPitch =
     editing == null ? null : (pitches.find((p) => p.id === editing) ?? null);
   const clipPitch =

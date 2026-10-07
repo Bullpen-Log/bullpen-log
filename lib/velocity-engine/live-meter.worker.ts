@@ -159,6 +159,7 @@ function apply(events: MeterEvent[]) {
           type: 'captured',
           id: job.id,
           triggerT: job.triggerT,
+          hitT: job.hitT,
           frames: job.frames.length,
         });
       }

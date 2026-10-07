@@ -4,13 +4,14 @@ import { useEffect, useState } from 'react';
 import { Maximize2, X, ZoomIn } from 'lucide-react';
 import { PITCH_TYPES } from '@/lib/velocity-meta';
 import type { CameraPos } from '@/lib/velocity-setup';
-import { ClipPlayer, TrailOverlay, trailZoom, type TrailPoint } from './clip-player';
+import { ClipPlayer, Tracer, trailZoom, type TrailPoint } from './clip-player';
 
 /**
- * 공 하나의 결과 화면 — 잴 때마다 카메라 위에 뜬다(SmartScout 처럼, 사용자 2026-10-07). 그 공의 영상을 되풀이 재생하며 색을 입힌
- * 궤적을 겹치고, 구속 · ± · 구종을 보인다. 측정은 밑에서 계속 돈다 — 다음 공을 던지면 그 공의 결과로 바뀐다.
+ * 공 하나의 결과 화면 — 잴 때마다 카메라 위에 뜬다(SmartScout 처럼, 사용자 2026-10-07). 그 공의 영상을 되풀이 재생하며 손을 떠난 공을
+ * 반투명 파란 관으로 따라 그리고(영상의 장면에 맞춰 — 미리 그려 두지 않는다), 구속 · ± · 구종을 보인다. 측정은 밑에서 계속 돈다 — 다음
+ * 공을 던지면 그 공의 결과로 바뀐다.
  *
- * 클립은 결과보다 늦게 올 수 있다(녹화 조각이 닫혀야 나온다) — 그동안은 궤적만 어두운 판에 그린다.
+ * 클립은 결과보다 늦게 올 수 있다(녹화 조각이 닫혀야 나온다) — 그동안은 어두운 판에서 같은 빠르기로 따라 그린다.
  */
 export function PitchResult({
   pitchKey,
@@ -38,7 +39,8 @@ export function PitchResult({
   /** ± · 믿음 한 줄 */
   sub: string;
   notes: string[];
-  clip: { url: string; eventSec: number; loop: { from: number; to: number } } | null;
+  /** 클립 시각 = 궤적 시각 + offset */
+  clip: { url: string; offset: number; loop: { from: number; to: number } } | null;
   trail: TrailPoint[] | null;
   /** 궤적을 그린 장면 크기 — 영상이 없을 때 판의 비율 */
   frame: { width: number; height: number } | null;
@@ -101,9 +103,10 @@ export function PitchResult({
           <ClipPlayer
             key={clip.url}
             src={clip.url}
-            eventSec={clip.eventSec}
+            eventSec={null}
             loop={clip.loop}
             trail={trail}
+            trailOffset={clip.offset}
             zoom={zoom}
             controls={false}
             autoPlay
@@ -122,7 +125,7 @@ export function PitchResult({
             }}
           >
             {trail && frame && (
-              <TrailOverlay points={trail} w={frame.width} h={frame.height} />
+              <Tracer points={trail} w={frame.width} h={frame.height} />
             )}
             <p className="absolute inset-x-0 bottom-3 text-center text-xs text-white/60">
               {gaveUp ? '영상이 없어요' : '영상 준비 중…'}

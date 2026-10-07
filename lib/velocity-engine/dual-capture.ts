@@ -271,7 +271,8 @@ export class DualCapture {
       await dropWide();
       return;
     }
-    const meta: ResultMeta = { id, triggerT: performance.now() };
+    /* 클립을 그대로 쟀으니 궤적 시각 = 클립 시각 */
+    const meta: ResultMeta = { id, triggerT: performance.now(), hitT: main.eventSec };
     this.handlers.onResult(result, meta);
     if (!result.measure.ok) {
       await dropWide();

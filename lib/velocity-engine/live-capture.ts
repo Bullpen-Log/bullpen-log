@@ -128,8 +128,11 @@ export type CameraInfo = {
   cropped: boolean;
 };
 
-/** 결과에 붙는 번호 — 나중에 오는 영상 클립(onClip)과 짝을 맞춘다 */
-export type ResultMeta = { id: number; triggerT: number };
+/**
+ * 결과에 붙는 번호 — 나중에 오는 영상 클립(onClip)과 짝을 맞춘다. hitT 는 클립의 eventSec 에 해당하는 궤적 시각(CaptureJob.hitT,
+ * 동시 촬영은 클립 시각 그대로) — 클립 시각 = eventSec + (궤적 시각 − hitT). 모르면 null.
+ */
+export type ResultMeta = { id: number; triggerT: number; hitT: number | null };
 
 /** 공 하나의 영상 클립 — 던진 순간을 담은 3초 조각. eventSec = 클립 안에서 던진 시각 */
 export type PitchClip = {
@@ -1157,7 +1160,7 @@ export class LiveCapture {
         break;
       case 'captured':
         this.pending++;
-        this.metaFor(m.id, m.triggerT);
+        this.metaFor(m.id, m.triggerT, m.hitT);
         this.publish();
         break;
       case 'dropped':
@@ -1194,8 +1197,8 @@ export class LiveCapture {
   }
 
   /** 담은 일감에 결과 번호를 매긴다 — 클립은 알아챈 벽시계 시각으로 짝을 맞춘다 */
-  private metaFor(jobId: number, triggerT: number): ResultMeta {
-    const meta: ResultMeta = { id: ++this.resultSeq, triggerT };
+  private metaFor(jobId: number, triggerT: number, hitT: number): ResultMeta {
+    const meta: ResultMeta = { id: ++this.resultSeq, triggerT, hitT };
     this.metaOf.set(jobId, meta);
     if (this.clipsOn) this.pendingClips.push({ id: meta.id, wallT: this.triggerWall });
     return meta;
@@ -1206,6 +1209,7 @@ export class LiveCapture {
     const meta = this.metaOf.get(m.id) ?? {
       id: ++this.resultSeq,
       triggerT: m.triggerT,
+      hitT: null,
     };
     this.metaOf.delete(m.id);
     this.pending = Math.max(0, this.pending - 1);
@@ -1375,7 +1379,7 @@ export class LiveCapture {
 
   /* 담은 것을 계산한다(화면 스레드 길). 결과를 알리고 다음 공을 기다린다(판단의 finish) */
   private runJob(job: CaptureJob) {
-    const meta = this.metaFor(job.id, job.triggerT);
+    const meta = this.metaFor(job.id, job.triggerT, job.hitT);
     this.metaOf.delete(job.id);
     const meter = this.meter;
     const camera = this.camera();

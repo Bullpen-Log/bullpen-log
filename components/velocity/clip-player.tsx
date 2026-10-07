@@ -1,7 +1,15 @@
 'use client';
 
-import { useCallback, useId, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { zoneCellOnScreen, type CameraPos, type ZoneRect } from '@/lib/velocity-setup';
+import {
+  alignTrail,
+  trailBox,
+  trailUntil,
+  tubePath,
+  type ClipSample,
+  type TrailPoint,
+} from '@/lib/velocity-tracer';
 import { ZoneOverlay } from './setup-steps';
 
 /**
@@ -22,104 +30,173 @@ function seekTo(v: HTMLVideoElement, sec: number) {
   v.currentTime = Number.isFinite(v.duration) ? Math.min(at, v.duration) : at;
 }
 
-/** 공 궤적의 한 점 — 장면 비율(x · y 는 0~1, d 는 공 지름 ÷ 장면 가로) */
-export type TrailPoint = { x: number; y: number; d: number };
+export type { TrailPoint };
+
+/** 따라 그리는 관의 색 — 반투명 파랑(사용자 2026-10-07) */
+const TRACER_BLUE = '#0a84ff';
+const TRACER_OPACITY = 0.55;
 
 /**
- * 공이 날아간 길 — 릴리스(하늘색)에서 그물(분홍)로 색이 바뀌는 선과, 그 길 위에 듬성듬성 그 순간 크기의 공. 그려지며 들어온다.
- * 클립은 벽시계로, 궤적은 카메라 장면 시각으로 잰 것이라 재생에 맞춰 따라 그리면 수십 ms 어긋나 공과 따로 논다 — 길 전체를
- * 고정해 그리고 그 밑에서 영상이 되풀이된다. w · h 는 그릴 판의 크기(영상 크기).
+ * 공을 따라 그리는 반투명 파란 관 — 릴리스에서 그물까지, 지금 보이는 장면의 때까지만 그린다(미리 다 그려 두지 않는다). 굵기는 그때의
+ * 공 지름이라 멀어질수록 가늘어진다. video 가 있으면 장면이 바뀔 때마다(requestVideoFrameCallback 의 mediaTime − offset), 없으면(영상이
+ * 오기 전) 혼자 날아간 빠르기 그대로 되풀이한다. 장면마다 React 를 다시 그리지 않고 path 하나만 고친다.
+ *
+ * 카메라 실시간 클립은 offset 이 어림이라(lib/velocity-tracer.ts) 첫 재생에서 길 둘레를 잘라 받아 영상 속 공 자리로 맞춘다 — 그 뒤
+ * 되풀이부터 공과 같이 간다. w · h 는 그릴 판의 크기(영상 크기).
  */
-export function TrailOverlay({
+export function Tracer({
   points,
   w,
   h,
+  video = null,
+  offset = 0,
 }: {
   points: TrailPoint[];
   w: number;
   h: number;
+  video?: HTMLVideoElement | null;
+  offset?: number;
 }) {
-  const id = useId().replace(/[^a-zA-Z0-9_-]/g, '');
-  if (points.length < 2) return null;
-  const P = points.map((p) => ({ x: p.x * w, y: p.y * h, r: (p.d * w) / 2 }));
-  const first = P[0];
-  const last = P[P.length - 1];
-  const line = Math.max(3, w * 0.007);
-  const d = P.map((p, i) => `${i ? 'L' : 'M'}${p.x.toFixed(1)} ${p.y.toFixed(1)}`).join(
-    ' '
-  );
-  const every = Math.max(1, Math.ceil(P.length / 12));
-  const ghosts = P.filter((_, i) => i % every === 0);
-  const grad = `url(#${id}g)`;
+  const pathRef = useRef<SVGPathElement>(null);
+  useEffect(() => {
+    const el = pathRef.current;
+    if (!el || points.length < 2) return;
+    const minR = w * 0.004;
+    const draw = (t: number) =>
+      el.setAttribute(
+        'd',
+        tubePath(
+          trailUntil(points, t).map((p) => ({
+            x: p.x * w,
+            y: p.y * h,
+            r: Math.max(minR, (p.d * w) / 2),
+          }))
+        )
+      );
+    const t0 = points[0].t;
+    const t1 = points[points.length - 1].t;
+    let stop = false;
+    let raf = 0;
+    if (!video) {
+      /* 영상이 오기 전 — 날아간 시간 그대로 그리고 1초 쉬었다 다시 */
+      const start = performance.now() / 1000;
+      const tick = () => {
+        if (stop) return;
+        draw(t0 + ((performance.now() / 1000 - start) % (t1 - t0 + 1)));
+        raf = requestAnimationFrame(tick);
+      };
+      tick();
+      return () => {
+        stop = true;
+        cancelAnimationFrame(raf);
+      };
+    }
+    let off = offset;
+    const hasFrames = typeof video.requestVideoFrameCallback === 'function';
+    /* 첫 재생에서 길 둘레(긴 변 320px 까지)를 장면마다 받아 둔다 — 장면 시각이 정확한 rVFC 가 있을 때만 */
+    const vw = video.videoWidth;
+    const vh = video.videoHeight;
+    let sampler: {
+      crop: { x: number; y: number; w: number; h: number };
+      W: number;
+      H: number;
+      ctx: CanvasRenderingContext2D;
+      samples: ClipSample[];
+    } | null = null;
+    if (hasFrames && vw && vh) {
+      const b = trailBox(points, vw / vh);
+      const crop = { x: b.x0, y: b.y0, w: b.x1 - b.x0, h: b.y1 - b.y0 };
+      const k = Math.min(1, 320 / Math.max(crop.w * vw, crop.h * vh));
+      const canvas = document.createElement('canvas');
+      canvas.width = Math.max(8, Math.round(crop.w * vw * k));
+      canvas.height = Math.max(8, Math.round(crop.h * vh * k));
+      const ctx = canvas.getContext('2d', { willReadFrequently: true });
+      if (ctx) sampler = { crop, W: canvas.width, H: canvas.height, ctx, samples: [] };
+    }
+    const lo = t0 + offset - 0.25;
+    const hi = t1 + offset + 0.25;
+    const take = (time: number) => {
+      const s = sampler;
+      if (!s) return;
+      const last = s.samples[s.samples.length - 1];
+      if (time > hi || (last && time < last.time)) {
+        /* 길 둘레를 다 지났거나 되감겼다 — 한 번 맞추고 그만 받는다(그리기를 막지 않게 다음 차례에) */
+        sampler = null;
+        setTimeout(() => {
+          if (stop) return;
+          const got = alignTrail({
+            samples: s.samples,
+            width: s.W,
+            height: s.H,
+            crop: s.crop,
+            points,
+            offset,
+          });
+          if (got != null) off = got;
+          el.setAttribute(
+            'data-sync',
+            got == null ? 'keep' : `${Math.round((got - offset) * 1000)}ms`
+          );
+        }, 0);
+        return;
+      }
+      if (time < lo) return;
+      try {
+        s.ctx.drawImage(
+          video,
+          s.crop.x * vw,
+          s.crop.y * vh,
+          s.crop.w * vw,
+          s.crop.h * vh,
+          0,
+          0,
+          s.W,
+          s.H
+        );
+        const d = s.ctx.getImageData(0, 0, s.W, s.H).data;
+        const luma = new Uint8Array(s.W * s.H);
+        for (let i = 0, j = 0; i < luma.length; i++, j += 4)
+          luma[i] = (d[j] * 77 + d[j + 1] * 150 + d[j + 2] * 29) >> 8;
+        s.samples.push({ time, luma });
+      } catch {
+        /* 다른 곳의 영상(CORS)이면 못 읽는다 — 받은 offset 그대로 */
+        sampler = null;
+      }
+    };
+    let handle = 0;
+    const onFrame = (_now: number, meta: VideoFrameCallbackMetadata) => {
+      if (stop) return;
+      take(meta.mediaTime);
+      draw(meta.mediaTime - off);
+      handle = video.requestVideoFrameCallback(onFrame);
+    };
+    const onRaf = () => {
+      if (stop) return;
+      draw(video.currentTime - off);
+      raf = requestAnimationFrame(onRaf);
+    };
+    if (hasFrames) handle = video.requestVideoFrameCallback(onFrame);
+    else onRaf();
+    /* 멈춘 채 옮긴 장면(첫 장면 · 되감기) — rVFC 는 재생 중에만 확실히 온다 */
+    const onSeeked = () => draw(video.currentTime - off);
+    video.addEventListener('seeked', onSeeked);
+    draw(video.currentTime - off);
+    return () => {
+      stop = true;
+      if (hasFrames) video.cancelVideoFrameCallback(handle);
+      cancelAnimationFrame(raf);
+      video.removeEventListener('seeked', onSeeked);
+    };
+  }, [points, w, h, video, offset]);
   return (
     <svg
       viewBox={`0 0 ${w} ${h}`}
       className="pointer-events-none absolute inset-0 h-full w-full"
       aria-hidden
     >
-      <style>{`@keyframes trail-draw{from{stroke-dashoffset:1}to{stroke-dashoffset:0}}.trail-draw{stroke-dasharray:1;animation:trail-draw .8s ease-out both}@media (prefers-reduced-motion:reduce){.trail-draw{animation:none}}`}</style>
-      <defs>
-        <linearGradient
-          id={`${id}g`}
-          gradientUnits="userSpaceOnUse"
-          x1={first.x}
-          y1={first.y}
-          x2={last.x}
-          y2={last.y}
-        >
-          <stop offset="0" stopColor="#22d3ee" />
-          <stop offset="0.55" stopColor="#facc15" />
-          <stop offset="1" stopColor="#f43f5e" />
-        </linearGradient>
-      </defs>
-      <path
-        d={d}
-        pathLength={1}
-        className="trail-draw"
-        fill="none"
-        stroke="rgba(0,0,0,0.5)"
-        strokeWidth={line * 2.2}
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-      <path
-        d={d}
-        pathLength={1}
-        className="trail-draw"
-        fill="none"
-        stroke={grad}
-        strokeWidth={line}
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-      {ghosts.map((p, i) => (
-        <circle
-          key={i}
-          cx={p.x}
-          cy={p.y}
-          r={Math.max(line * 0.9, p.r)}
-          fill={grad}
-          fillOpacity={0.16}
-          stroke={grad}
-          strokeWidth={line * 0.35}
-        />
-      ))}
-      <circle
-        cx={first.x}
-        cy={first.y}
-        r={line * 1.4}
-        fill="#fff"
-        stroke="#22d3ee"
-        strokeWidth={line * 0.6}
-      />
-      <circle
-        cx={last.x}
-        cy={last.y}
-        r={line * 1.4}
-        fill="#f43f5e"
-        stroke="#fff"
-        strokeWidth={line * 0.5}
-      />
+      <g opacity={TRACER_OPACITY}>
+        <path ref={pathRef} fill={TRACER_BLUE} />
+      </g>
     </svg>
   );
 }
@@ -138,6 +215,7 @@ export function ClipPlayer({
   controls = true,
   loop = null,
   trail = null,
+  trailOffset = 0,
   zoom = null,
 }: {
   src: string;
@@ -158,13 +236,17 @@ export function ClipPlayer({
   controls?: boolean;
   /** 이 구간(초)만 되풀이 — 결과 화면 */
   loop?: { from: number; to: number } | null;
-  /** 겹쳐 그릴 공 궤적(장면 비율) */
+  /** 영상에 맞춰 따라 그릴 공 길(장면 비율, t 는 궤적 시각) */
   trail?: TrailPoint[] | null;
+  /** 클립 시각 = 궤적 시각 + trailOffset */
+  trailOffset?: number;
   /** 이 자리(장면 비율)를 가운데 두고 확대 — 영상 · 궤적 · 존이 같이 커진다 */
   zoom?: { cx: number; cy: number; scale: number } | null;
 }) {
   /* 영상 크기 — 어느 영상의 것인지 같이 쥔다(주소가 바뀌면 옛 비율 · 존을 쓰지 않게) */
   const [meta, setMeta] = useState<{ src: string; w: number; h: number } | null>(null);
+  /* 따라 그리기가 장면 시각을 읽을 영상 */
+  const [videoEl, setVideoEl] = useState<HTMLVideoElement | null>(null);
   const dims = meta && meta.src === src ? meta : null;
   /* 영상 그림이 뜬 뒤에 존을 드러낸다 — 던진 때로 찾아가는 동안(검은 화면) 존만 떠 있지 않게 */
   const [shownFor, setShownFor] = useState<string | null>(null);
@@ -176,6 +258,7 @@ export function ClipPlayer({
    */
   const attach = useCallback(
     (v: HTMLVideoElement | null) => {
+      setVideoEl(v);
       if (!v || v.readyState < HTMLMediaElement.HAVE_METADATA) return;
       if (v.videoWidth && v.videoHeight)
         setMeta({ src, w: v.videoWidth, h: v.videoHeight });
@@ -252,7 +335,13 @@ export function ClipPlayer({
           }
         />
         {trail && dims && shownFor === src && (
-          <TrailOverlay points={trail} w={dims.w} h={dims.h} />
+          <Tracer
+            points={trail}
+            w={dims.w}
+            h={dims.h}
+            video={videoEl}
+            offset={trailOffset}
+          />
         )}
         {zoneOn && (
           <div className="pointer-events-none absolute inset-0 motion-safe:animate-fade-in">
@@ -278,18 +367,7 @@ export function trailZoom(
   aspect: number
 ): { cx: number; cy: number; scale: number } | null {
   if (trail.length < 2) return null;
-  let x0 = 1;
-  let x1 = 0;
-  let y0 = 1;
-  let y1 = 0;
-  for (const p of trail) {
-    const rx = p.d / 2;
-    const ry = (p.d / 2) * aspect;
-    x0 = Math.min(x0, p.x - rx);
-    x1 = Math.max(x1, p.x + rx);
-    y0 = Math.min(y0, p.y - ry);
-    y1 = Math.max(y1, p.y + ry);
-  }
+  const { x0, y0, x1, y1 } = trailBox(trail, aspect);
   const scale = Math.min(2.5, 0.6 / Math.max(x1 - x0, y1 - y0, 1e-3));
   if (scale < 1.2) return null;
   const half = 0.5 / scale;

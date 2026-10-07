@@ -112,6 +112,11 @@ export type CaptureJob = {
   id: number;
   /** 던짐을 알아챈 기준 시각(초) — 공으로 알아챘으면 공이 처음 보인 장면 */
   triggerT: number;
+  /**
+   * '담는 중'을 알린 장면의 시각(초) — 화면 스레드는 그 알림이 온 벽시계로 영상 클립 안의 던진 때(eventSec)를 잡는다. 그래서 클립
+   * 시각 = eventSec + (장면 시각 − hitT). triggerT(공이 처음 보인 장면)는 그보다 2~3장 앞이라 그것으로 맞추면 결과 화면의 궤적이 공보다 늦는다.
+   */
+  hitT: number;
   /** 담은 장면(시간순) */
   frames: MeterFrame[];
   /** 던지기 전 장면들 — 배경 */
@@ -1314,6 +1319,8 @@ export class LiveMeter {
   private background: Float32Array | null = null;
   private quietSamples: ArrayLike<number>[] = [];
   private triggerT: number | null = null;
+  /** '담는 중'을 알린 장면의 시각 — CaptureJob.hitT */
+  private hitT: number | null = null;
   private ball: FoundBall | null = null;
   /** 던지기 전 배경 장면 — 공을 알아챈 순간 기록에서 골라 둔다(담는 1초 동안 기록이 밀려나므로) */
   private preBackground: ArrayLike<number>[] = [];
@@ -1405,6 +1412,7 @@ export class LiveMeter {
     this.background = null;
     this.quietSamples = [];
     this.triggerT = null;
+    this.hitT = null;
     this.ball = null;
     this.preBackground = [];
     this.captured = [];
@@ -1552,6 +1560,7 @@ export class LiveMeter {
       if (!seeds || frame.t < this.cooldownUntil) return;
       this.takeBall(seeds as WatchPoint[], this.ring);
       this.retargets = 0;
+      this.hitT = frame.t;
       this.setStatus('capturing', out);
       return;
     }
@@ -1576,6 +1585,7 @@ export class LiveMeter {
     }
     this.takeBall(found, this.ring);
     this.retargets = 0;
+    this.hitT = frame.t;
     this.setStatus('capturing', out);
     /* 이미 담긴 장면들로도 공이 사라졌을 수 있다(30fps) — 다음 장면부터 본다 */
   }
@@ -1814,6 +1824,7 @@ export class LiveMeter {
     const pre =
       this.approach === 'approaching' ? this.config.preSec * 2 : this.config.preSec;
     this.captured = this.ring.filter((f) => f.t >= frame.t - pre);
+    this.hitT = frame.t;
     this.setStatus('capturing', out);
   }
 
@@ -1874,6 +1885,7 @@ export class LiveMeter {
     const job: CaptureJob = {
       id: ++this.seq,
       triggerT,
+      hitT: this.hitT ?? triggerT,
       frames: analysisFrames,
       backgroundSamples,
       inWindowBackground: inWindow,
@@ -1884,6 +1896,7 @@ export class LiveMeter {
     this.pendingBackground = this.background;
     this.captured = [];
     this.triggerT = null;
+    this.hitT = null;
     this.ball = null;
     this.preBackground = [];
     this.goneAt = null;
@@ -1938,6 +1951,7 @@ export function packJob(job: CaptureJob): PackedJob | null {
   return {
     id: job.id,
     triggerT: job.triggerT,
+    hitT: job.hitT,
     inWindowBackground: job.inWindowBackground,
     fps: job.fps,
     ball: job.ball,
@@ -1956,6 +1970,7 @@ export function unpackJob(p: PackedJob): CaptureJob {
   return {
     id: p.id,
     triggerT: p.triggerT,
+    hitT: p.hitT,
     inWindowBackground: p.inWindowBackground,
     fps: p.fps,
     ball: p.ball,
