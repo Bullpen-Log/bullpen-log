@@ -44,6 +44,59 @@ const horiz = args.includes('--horiz');
 const auto = args.includes('--auto');
 const D = Number((args.find((a) => a.startsWith('--d=')) ?? '--d=21.5').slice(4));
 const names = args.filter((a) => !a.startsWith('--'));
+/**
+ * --shake=A: 손에 든 폰처럼 화면을 흔든다(분석 px, 가장 큰 어긋남 ≈ A) — 1~2Hz 흔들림 + 8~10Hz 떨림, 영상마다 같은 흔들림(이름으로
+ * 정함). --roll=도 를 주면 그만큼 돌리기도 한다. 흔들림을 바로잡는 계산(stabilize)을 시험한다.
+ */
+const SHAKE = Number(
+  (args.find((a) => a.startsWith('--shake=')) ?? '--shake=0').slice(8)
+);
+const ROLL = Number((args.find((a) => a.startsWith('--roll=')) ?? '--roll=0').slice(7));
+function shakeAt(name: string, t: number): [number, number, number] {
+  let hsh = 2166136261;
+  for (const c of name) hsh = Math.imul(hsh ^ c.charCodeAt(0), 16777619) >>> 0;
+  const ph = (k: number) => (((hsh >>> (k * 3)) & 1023) / 1024) * 2 * Math.PI;
+  const w = (f: number, k: number) => Math.sin(2 * Math.PI * f * t + ph(k));
+  const sx = SHAKE * (0.62 * w(1.3, 0) + 0.25 * w(2.1, 1) + 0.13 * w(8.7, 2));
+  const sy = SHAKE * (0.62 * w(1.1, 3) + 0.25 * w(2.6, 4) + 0.13 * w(9.4, 5));
+  const th = ((ROLL * Math.PI) / 180) * (0.8 * w(1.7, 6) + 0.2 * w(8.1, 7));
+  return [sx, sy, th];
+}
+/** 흔든 장면 — 화면 (x,y) 에 원래 장면의 (x+sx, y+sy)(가운데 둘레로 th 만큼 돌린 자리)를 쌍선형으로 */
+function shaken(
+  src: Uint8Array,
+  w: number,
+  h: number,
+  [sx, sy, th]: [number, number, number]
+): Uint8Array {
+  if (!sx && !sy && !th) return src;
+  const out = new Uint8Array(w * h);
+  const cx = w / 2;
+  const cy = h / 2;
+  const co = Math.cos(th);
+  const sn = Math.sin(th);
+  for (let y = 0; y < h; y++)
+    for (let x = 0; x < w; x++) {
+      const X = Math.min(
+        w - 1.001,
+        Math.max(0, cx + co * (x - cx) - sn * (y - cy) + sx)
+      );
+      const Y = Math.min(
+        h - 1.001,
+        Math.max(0, cy + sn * (x - cx) + co * (y - cy) + sy)
+      );
+      const x0 = Math.floor(X);
+      const y0 = Math.floor(Y);
+      const fx = X - x0;
+      const fy = Y - y0;
+      const p = y0 * w + x0;
+      out[y * w + x] = Math.round(
+        (src[p] * (1 - fx) + src[p + 1] * fx) * (1 - fy) +
+          (src[p + w] * (1 - fx) + src[p + w + 1] * fx) * fy
+      );
+    }
+  return out;
+}
 const list = names.length ? names : Object.keys(RELEASE);
 
 function load(name: string) {
@@ -99,8 +152,10 @@ for (const name of list) {
   const bgs = [];
   for (let i = 1; i < clip.n; i++) {
     const t = clip.t[i];
-    if (whole || (t >= rel - 0.15 && t <= rel + 1.4)) frames.push({ t, luma: pick(i) });
-    else if (!whole && t < rel - 0.3 && t >= rel - 1.2) bgs.push(pick(i));
+    if (whole || (t >= rel - 0.15 && t <= rel + 1.4))
+      frames.push({ t, luma: shaken(pick(i), W, H, shakeAt(name, t)) });
+    else if (!whole && t < rel - 0.3 && t >= rel - 1.2)
+      bgs.push(shaken(pick(i), W, H, shakeAt(name, t)));
   }
   const r = analyzeByDistance({
     frames,
@@ -114,6 +169,7 @@ for (const name of list) {
     fps: 60,
     tiltRad: useTilt ? ((TILT_DEG[name.slice(0, 3)] ?? 0) * Math.PI) / 180 : 0,
     autoDistance: auto,
+    stabilize: !args.includes('--no-stab'),
   });
   const gun = Number(name.slice(0, 3));
   const m = r.measure;
@@ -124,7 +180,7 @@ for (const name of list) {
     kmh: m.ok ? (horiz && d.kmhHorizontal && d.kmh3d ? (m.kmh * d.kmhHorizontal) / d.kmh3d : m.kmh) : null,
     Dgun: null,
     code: m.ok ? null : m.code,
-    info: `비행 ${d.flightFrames}장(+${d.extended}) 끝 ${d.impact} 첫깊이 ${d.firstDepthM}m 위로 ${d.launchDeg}° rms ${d.rmsPx} 씨앗 ${d.seeds}@${d.seedFrame} ${d.timingMs}ms`,
+    info: `흔들림 ${d.shakePx}${d.stabilized ? `(바로잡음 ${d.stabResidPx})` : ''} te ${d.te?.toFixed(4)} 비행 ${d.flightFrames}장(+${d.extended}) 끝 ${d.impact} 첫깊이 ${d.firstDepthM}m 위로 ${d.launchDeg}° rms ${d.rmsPx} 씨앗 ${d.seeds}@${d.seedFrame} ${d.timingMs}ms`,
   });
   const x = rows[rows.length - 1];
   if (x.kmh != null) x.Dgun = (gun / x.kmh) * d.distanceM;

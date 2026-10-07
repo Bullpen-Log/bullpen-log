@@ -2,6 +2,7 @@ import type { AnalyzeResult, Approach } from '@/lib/velocity-engine/analyze-fram
 import type { DistanceReport } from '@/lib/velocity-engine/analyze-distance';
 import type { FrameTiming, LiveReport } from '@/lib/velocity-engine/live-meter';
 import type { ZoneRect } from '@/lib/velocity-setup';
+import type { TrailPoint } from '@/lib/velocity-tracer';
 
 /**
  * 엔진이 본 자료를 DB(VelocityPitch.analysis)에 남길 모양으로 — 영상 없이도 다시 맞춰 볼 수 있게.
@@ -35,6 +36,12 @@ export type AnalysisJson = {
   /** 첫 관측 시점 속도의 잭나이프 SE(km/h) */
   startSeKmh: number | null;
   track: number[][];
+  /**
+   * 결과 화면이 영상 위에 따라 그린 공 길 — [클립 시각(초), x, y, 지름](장면 비율). 저장한 공을 '잰 직후처럼' 다시 볼 때 쓴다
+   * (replayOf). trailAligned 면 영상 속 공으로 시각을 맞춘 것이다. 2026-10-07 부터 — 옛 공은 track 으로 그린다.
+   */
+  trail?: number[][] | null;
+  trailAligned?: boolean;
   analyzeSize: { width: number; height: number };
   sourceSize: { width: number; height: number };
   fps: number | null;
@@ -103,6 +110,8 @@ export function analysisOf(
           endSizeRatio: dist.endSizeRatio,
           sizeSlope: dist.sizeSlope,
           shakePx: dist.shakePx,
+          stabilized: dist.stabilized,
+          stabResidPx: dist.stabResidPx,
         }
       : null,
     ruler: d ? d.ruler : null,
@@ -138,5 +147,56 @@ export function analysisOf(
           zoom: result.live.zoom ?? null,
         }
       : null,
+  };
+}
+
+/** 저장한 공을 '잰 직후처럼' 다시 보는 자료 — 공 길(장면 비율), 클립 시각 = t + offset, 영상 속 공으로 맞출 폭(초) */
+export type ReplayView = {
+  points: TrailPoint[];
+  offset: number;
+  alignRange: number;
+  frame: { width: number; height: number };
+};
+
+/**
+ * 저장한 분석(VelocityPitch.analysis)에서 다시 볼 공 길. 결과 화면이 남긴 길(trail)이 있으면 그것, 없으면(2026-10-07 전 공) 잡힌 공
+ * 자리(track). 카메라로 잰 공의 클립 시각은 녹화기의 '시작' 알림 시각으로 정해 0.2~0.85초씩 어긋나 있어(아이폰 2026-10-07 4개),
+ * 화면이 영상 속 공으로 넓게(±0.9초) 다시 맞춘다. 영상 파일로 잰 공은 그 영상의 시각 그대로다.
+ */
+export function replayOf(
+  raw: unknown,
+  clipEventSec: number | null,
+  source: string
+): ReplayView | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const a = raw as Partial<AnalysisJson>;
+  const size = a.analyzeSize;
+  if (!size || !(size.width > 0) || !(size.height > 0)) return null;
+  const ok = (q: unknown): q is number[] =>
+    Array.isArray(q) &&
+    q.length >= 4 &&
+    q.slice(0, 4).every((v) => typeof v === 'number' && Number.isFinite(v));
+  if (Array.isArray(a.trail) && a.trail.length >= 2 && a.trail.every(ok)) {
+    return {
+      points: a.trail.map(([t, x, y, d]) => ({ t, x, y, d })),
+      offset: 0,
+      alignRange: a.trailAligned ? 0.15 : 0.9,
+      frame: size,
+    };
+  }
+  if (!Array.isArray(a.track) || a.track.length < 2 || !a.track.every(ok)) return null;
+  const points = a.track.map(([t, x, y, d]) => ({
+    t,
+    x: x / size.width,
+    y: y / size.height,
+    d: d / size.width,
+  }));
+  const file = source === 'file';
+  return {
+    points,
+    /* 카메라: 공이 처음 보인 때가 클립 사건 시각 둘레(평균 0.3초 뒤)라고 보고 넓게 맞춘다 */
+    offset: file ? 0 : (clipEventSec ?? 0) + 0.3 - points[0].t,
+    alignRange: file ? 0.15 : 0.9,
+    frame: size,
   };
 }

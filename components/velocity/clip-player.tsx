@@ -50,14 +50,25 @@ export function Tracer({
   h,
   video = null,
   offset = 0,
+  alignRange = 0.2,
+  onAligned,
 }: {
   points: TrailPoint[];
   w: number;
   h: number;
   video?: HTMLVideoElement | null;
   offset?: number;
+  /** 영상 속 공으로 시각을 맞출 폭(±초) — 클립 시각을 잘 모르면(카메라 실시간 · 저장한 옛 공) 넓게 */
+  alignRange?: number;
+  /** 맞췄을 때 — 맞춘 offset(부르는 쪽이 되풀이 구간을 옮기고 저장할 때 남긴다) */
+  onAligned?: (offset: number) => void;
 }) {
   const pathRef = useRef<SVGPathElement>(null);
+  /* 알림 함수가 바뀌어도 그리기를 다시 시작하지 않게 */
+  const alignedRef = useRef(onAligned);
+  useEffect(() => {
+    alignedRef.current = onAligned;
+  }, [onAligned]);
   useEffect(() => {
     const el = pathRef.current;
     if (!el || points.length < 2) return;
@@ -113,8 +124,8 @@ export function Tracer({
       const ctx = canvas.getContext('2d', { willReadFrequently: true });
       if (ctx) sampler = { crop, W: canvas.width, H: canvas.height, ctx, samples: [] };
     }
-    const lo = t0 + offset - 0.25;
-    const hi = t1 + offset + 0.25;
+    const lo = t0 + offset - alignRange - 0.05;
+    const hi = t1 + offset + alignRange + 0.05;
     const take = (time: number) => {
       const s = sampler;
       if (!s) return;
@@ -131,8 +142,12 @@ export function Tracer({
             crop: s.crop,
             points,
             offset,
+            range: alignRange,
           });
-          if (got != null) off = got;
+          if (got != null) {
+            off = got;
+            alignedRef.current?.(got);
+          }
           el.setAttribute(
             'data-sync',
             got == null ? 'keep' : `${Math.round((got - offset) * 1000)}ms`
@@ -187,7 +202,7 @@ export function Tracer({
       cancelAnimationFrame(raf);
       video.removeEventListener('seeked', onSeeked);
     };
-  }, [points, w, h, video, offset]);
+  }, [points, w, h, video, offset, alignRange]);
   return (
     <svg
       viewBox={`0 0 ${w} ${h}`}
@@ -216,6 +231,8 @@ export function ClipPlayer({
   loop = null,
   trail = null,
   trailOffset = 0,
+  alignRange,
+  onAligned,
   zoom = null,
 }: {
   src: string;
@@ -240,6 +257,9 @@ export function ClipPlayer({
   trail?: TrailPoint[] | null;
   /** 클립 시각 = 궤적 시각 + trailOffset */
   trailOffset?: number;
+  /** 영상 속 공으로 시각을 맞출 폭(±초, Tracer) · 맞췄을 때 */
+  alignRange?: number;
+  onAligned?: (offset: number) => void;
   /** 이 자리(장면 비율)를 가운데 두고 확대 — 영상 · 궤적 · 존이 같이 커진다 */
   zoom?: { cx: number; cy: number; scale: number } | null;
 }) {
@@ -305,6 +325,11 @@ export function ClipPlayer({
           key={src}
           ref={attach}
           src={src}
+          /*
+           * 저장소(Supabase) 영상은 다른 출처 — 공 길을 영상 속 공에 맞추려면 장면을 읽어야 해(Tracer) 교차 출처로 받는다(저장소가
+           * access-control-allow-origin * 로 준다). 방금 찍은 blob: 영상은 같은 출처라 그대로.
+           */
+          crossOrigin={/^https?:/.test(src) ? 'anonymous' : undefined}
           controls={controls}
           playsInline
           muted
@@ -341,6 +366,8 @@ export function ClipPlayer({
             h={dims.h}
             video={videoEl}
             offset={trailOffset}
+            alignRange={alignRange}
+            onAligned={onAligned}
           />
         )}
         {zoneOn && (

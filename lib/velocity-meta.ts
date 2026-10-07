@@ -7,6 +7,7 @@
  */
 
 import type { ZoneRect } from '@/lib/velocity-setup';
+import type { ReplayView } from '@/lib/velocity-analysis';
 
 /**
  * 측정을 저장하며 같이 만든 투구 기록의 메모 머리. 이 표시가 있는 기록만 공을 지울 때 투구수 ·
@@ -88,6 +89,8 @@ export type VelocityPitchView = {
   wideClip?: PitchClipView | null;
   /** 잰 순간의 스트라이크 존(카메라 장면 비율) — 영상 위에 겹친다. 옛 공 · 영상 파일은 없다 */
   zoneRect?: ZoneRect | null;
+  /** '잰 직후처럼' 다시 볼 공 길(lib/velocity-analysis.ts replayOf) — 영상이 있는 공만 */
+  replay?: ReplayView | null;
 };
 
 /** 하루치 카메라 측정 한 줄 — 공 수 · 최고(km/h) · 영상이 남은 공 수(홈 캘린더 정보 · 투구 기록 캘린더) */

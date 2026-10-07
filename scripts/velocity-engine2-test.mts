@@ -46,6 +46,8 @@ type Scene = {
   whiteFromM?: number;
   /** 공을 아예 안 그린다(헛것 거부) */
   noBall?: boolean;
+  /** 손에 든 폰처럼 들쭉날쭉 흔든다(가장 큰 어긋남 px) — 흔들림 바로잡기(stabilize.ts) */
+  shakePx?: number;
   seed: number;
 };
 
@@ -86,6 +88,15 @@ function flight(sc: Scene) {
     t += dt;
   }
   return { path: out, truthKmh: vH * 3.6 };
+}
+
+/** 흔든 양(px) — 화면 (x,y) 에 원래 장면의 (x+sx, y+sy). 공 · 배경이 (−sx, −sy) 만큼 옮겨 보인다 */
+function shakeAt(a: number, t: number): [number, number] {
+  const w = (f: number, ph: number) => Math.sin(2 * Math.PI * f * t + ph);
+  return [
+    a * (0.55 * w(4.3, 0.4) + 0.3 * w(7.7, 1.9) + 0.15 * w(1.3, 3.1)),
+    a * (0.55 * w(5.1, 2.2) + 0.3 * w(8.9, 0.7) + 0.15 * w(1.7, 5.3)),
+  ];
 }
 
 function render(sc: Scene) {
@@ -159,6 +170,24 @@ function render(sc: Scene) {
       }
     }
     const luma = new Uint8Array(W * H);
+    if (sc.shakePx) {
+      /* 화면 (x,y) 에 원래 장면의 (x+sx, y+sy) — 4~9Hz 섞인 흔들림, 쌍선형 */
+      const [sx, sy] = shakeAt(sc.shakePx, t);
+      const src = Float32Array.from(img);
+      for (let y = 0; y < H; y++)
+        for (let x = 0; x < W; x++) {
+          const X = Math.min(W - 1.001, Math.max(0, x + sx));
+          const Y = Math.min(H - 1.001, Math.max(0, y + sy));
+          const x0 = Math.floor(X);
+          const y0 = Math.floor(Y);
+          const fx = X - x0;
+          const fy = Y - y0;
+          const q = y0 * W + x0;
+          img[y * W + x] =
+            (src[q] * (1 - fx) + src[q + 1] * fx) * (1 - fy) +
+            (src[q + W] * (1 - fx) + src[q + W + 1] * fx) * fy;
+        }
+    }
     for (let k = 0; k < W * H; k++) luma[k] = Math.max(0, Math.min(255, Math.round(img[k] + (r() - 0.5) * 4)));
     frames.push({ t, luma });
   }
@@ -185,6 +214,15 @@ function run(name: string, sc: Scene, tolRel: number) {
     return;
   }
   const err = m.ok ? m.kmh / truthKmh - 1 : NaN;
+  /* 흔들림 바로잡기 — 흔든 장면만 바로잡고(움직임을 흔든 만큼 읽음), 삼각대 장면은 손대지 않는다(값이 예전 그대로) */
+  check(
+    sc.shakePx
+      ? res.distance.stabilized &&
+          res.distance.shakePx >= 0.5 * sc.shakePx &&
+          res.distance.shakePx <= 3 * sc.shakePx
+      : !res.distance.stabilized,
+    `${name} — 흔들림 ${sc.shakePx ?? 0}px → 바로잡음 ${res.distance.stabilized ? `${res.distance.shakePx}px` : '없음'}`
+  );
   check(
     m.ok && Math.abs(err) <= tolRel,
     `${name} — 정답 ${truthKmh.toFixed(1)} · 잰 값 ${m.ok ? m.kmh : m.code} (${m.ok ? (err * 100).toFixed(2) + '%' : '-'}, 허용 ±${(tolRel * 100).toFixed(1)}%) · 비행 ${res.distance.flightFrames}장(+${res.distance.extended}) 끝 ${res.distance.impact} ${res.distance.timingMs}ms`
@@ -222,7 +260,9 @@ function run(name: string, sc: Scene, tolRel: number) {
   for (const [t, u, v] of path) {
     const [X, Y, Z] = truth[Math.min(truth.length - 1, Math.max(0, Math.round(t / 0.0005)))].p;
     if (t < 0 || t > hitAt) continue;
-    const e = Math.hypot(F * (X / Z) + W / 2 - u, F * (Y / Z) + H / 2 - v);
+    /* 길은 받은 영상(흔들린 것) 위에 그린다 — 흔든 장면이면 정답 자리도 흔들린 만큼 */
+    const [sx, sy] = sc.shakePx ? shakeAt(sc.shakePx, t) : [0, 0];
+    const e = Math.hypot(F * (X / Z) + W / 2 - sx - u, F * (Y / Z) + H / 2 - sy - v);
     dev = Math.max(dev, e / Math.max(2, 0.35 * ((F * R_BALL) / Z)));
   }
   const t0 = path[0]?.[0] ?? NaN;
@@ -254,12 +294,41 @@ const sizeRatios: number[] = [];
 
 console.log('엔진 2.0 셀프테스트(합성 장면)');
 const only = process.argv[2];
-run('빠른 공 130km/h · 20m', { kmh: 130, launchDeg: -1, sideDeg: -1.2, D: 20, tiltDeg: 0, seed: 1 }, 0.015);
-run('보통 105km/h · 18.5m', { kmh: 105, launchDeg: 1, sideDeg: -0.8, D: 18.5, tiltDeg: 0, seed: 2 }, 0.015);
-run('띄운 느린 공 80km/h · 위로 11°', { kmh: 80, launchDeg: 11, sideDeg: -1, D: 21.5, tiltDeg: 0, seed: 3 }, 0.02);
-run('카메라 4° 숙임 · 115km/h', { kmh: 115, launchDeg: 0, sideDeg: -1, D: 20, tiltDeg: 4, seed: 4 }, 0.015);
-run('흰 천 앞에서 사라지는 공 · 100km/h', { kmh: 100, launchDeg: 2, sideDeg: -1, D: 20, tiltDeg: 0, whiteFromM: 12, seed: 5 }, 0.04);
-run('공 없음', { kmh: 100, launchDeg: 0, sideDeg: 0, D: 20, tiltDeg: 0, noBall: true, seed: 6 }, 0);
+run(
+  '빠른 공 130km/h · 20m',
+  { kmh: 130, launchDeg: -1, sideDeg: -1.2, D: 20, tiltDeg: 0, seed: 1 },
+  0.015
+);
+run(
+  '보통 105km/h · 18.5m',
+  { kmh: 105, launchDeg: 1, sideDeg: -0.8, D: 18.5, tiltDeg: 0, seed: 2 },
+  0.015
+);
+run(
+  '띄운 느린 공 80km/h · 위로 11°',
+  { kmh: 80, launchDeg: 11, sideDeg: -1, D: 21.5, tiltDeg: 0, seed: 3 },
+  0.02
+);
+run(
+  '카메라 4° 숙임 · 115km/h',
+  { kmh: 115, launchDeg: 0, sideDeg: -1, D: 20, tiltDeg: 4, seed: 4 },
+  0.015
+);
+run(
+  '흰 천 앞에서 사라지는 공 · 100km/h',
+  { kmh: 100, launchDeg: 2, sideDeg: -1, D: 20, tiltDeg: 0, whiteFromM: 12, seed: 5 },
+  0.04
+);
+run(
+  '손에 든 폰 · 6px 흔들림 · 125km/h',
+  { kmh: 125, launchDeg: -0.5, sideDeg: -1, D: 20, tiltDeg: 0, shakePx: 6, seed: 7 },
+  0.02
+);
+run(
+  '공 없음',
+  { kmh: 100, launchDeg: 0, sideDeg: 0, D: 20, tiltDeg: 0, noBall: true, seed: 6 },
+  0
+);
 if (sizeRatios.length >= 2) {
   const mean = sizeRatios.reduce((a, x) => a + x, 0) / sizeRatios.length;
   const spread = (Math.max(...sizeRatios) - Math.min(...sizeRatios)) / mean;

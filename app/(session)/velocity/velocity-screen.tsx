@@ -165,7 +165,6 @@ import {
 import { isTipsSkippedToday, TipsPopup } from '@/components/velocity/tips-popup';
 import { DIST_MODES, VelocitySettingsFields } from '@/components/velocity/velocity-settings';
 import { Segmented } from '@/components/segmented';
-import { ClipPlayer } from '@/components/velocity/clip-player';
 import { Panel, SectionLabel, StatRow, Note } from '@/components/velocity/kit';
 import {
   CircleOverlay,
@@ -249,6 +248,8 @@ type LocalPitch = SavePitchInput & {
   trail?: TrailPoint[] | null;
   /** 클립의 eventSec 에 해당하는 궤적 시각(ResultMeta.hitT) — 클립 시각 = eventSec + (t − hitT) */
   hitT?: number | null;
+  /** 결과 화면이 영상 속 공으로 맞춘 클립 시각 − 궤적 시각 — 저장할 때 공 길을 클립 시각으로 남긴다 */
+  clipOffset?: number | null;
   /** 구속을 낸 거리 — 결과 화면에 '거리 22.4m(공 크기)'로 보인다. from 은 세션 거리(아래 withSessionDistance)로 옮겼으면 어디서 */
   dist?: { m: number; auto: boolean; from?: 'session' | 'memory' | null } | null;
   /**
@@ -293,6 +294,25 @@ function withSessionDistance(
         p.analysis && distance ? { ...p.analysis, distance: { ...distance, distanceM: r1(use) } } : p.analysis,
     };
   });
+}
+/**
+ * 저장할 분석에 결과 화면의 공 길을 싣는다 — [클립 시각, x, y, 지름](장면 비율, 160점까지). 결과 화면이 영상 속 공으로 맞췄으면
+ * 그 시각(trailAligned), 아니면 클립의 eventSec 로 어림한 시각. 저장한 공을 목록에서 '잰 직후처럼' 다시 볼 때 쓴다.
+ */
+function withTrail(p: LocalPitch): AnalysisJson | null {
+  if (!p.analysis) return null;
+  const t = p.trail;
+  if (!t || t.length < 2 || (!p.clip && p.source !== 'file')) return p.analysis;
+  const off = p.clipOffset ?? (p.clip ? p.clip.eventSec - (p.hitT ?? t[0].t) : 0);
+  const every = Math.max(1, Math.ceil(t.length / 160));
+  const r = (v: number, k: number) => Math.round(v * k) / k;
+  return {
+    ...p.analysis,
+    trail: t
+      .filter((_, i) => i % every === 0 || i === t.length - 1)
+      .map((q) => [r(q.t + off, 1e4), r(q.x, 1e5), r(q.y, 1e5), r(q.d, 1e5)]),
+    trailAligned: p.clipOffset != null || p.source === 'file',
+  };
 }
 /** 넣은 거리와 공 크기로 본 거리가 이만큼(비율) 넘게 다르면 알린다 — 공 크기 어림의 흩어짐 2.5%, 화각 짐작이면 8% 안팎 */
 const DIST_MISMATCH = 0.12;
@@ -506,7 +526,8 @@ export function VelocityScreen({
   const [prevOpen, setPrevOpen] = useState(false);
   /* 주의사항 팝업 — 설정이 끝나고 카메라 화면 위에 뜬다. '오늘은 보지 않기'면 그날은 안 뜬다 */
   const [tipsOpen, setTipsOpen] = useState(false);
-  const [clipOpen, setClipOpen] = useState<number | null>(null);
+  /* 목록에서 고른 공의 결과 화면('잰 직후처럼') */
+  const [viewPitch, setViewPitch] = useState<number | null>(null);
   const [toast, setToast] = useState<string | null>(null);
   const [focusBusy, setFocusBusy] = useState(false);
   const [uploading, setUploading] = useState<{ done: number; total: number } | null>(
@@ -1488,28 +1509,31 @@ export function VelocityScreen({
    * eventSec(벽시계라 어림 — 첫 재생에서 영상 속 공으로 맞춘다, lib/velocity-tracer.ts), 영상 파일 · 동시 촬영은 그 영상을 그대로
    * 쟀으니 0. 되풀이는 공이 처음 보이기 0.5초 앞에서 그물에 닿고 0.7초 뒤까지.
    */
-  const resultTrail = lastPitch?.trail ?? null;
-  const resultClip = (() => {
-    if (!lastPitch) return null;
-    const c = lastPitch.clip;
-    const url = lastPitch.source === 'file' ? fileReplay : c?.url;
+  /*
+   * 카메라 실시간 클립의 eventSec 은 녹화기의 '시작' 알림 시각으로 정해 아이폰에서 0.2~0.85초씩 어긋났다(2026-10-07 4개) — 결과
+   * 화면이 영상 속 공으로 넓게(±1초) 맞춘다. 맞춘 값(clipOffset)이 있으면 그것, 영상 파일은 그 영상의 시각 그대로(0).
+   */
+  const replayClip = (p: LocalPitch) => {
+    const c = p.clip;
+    const url = p.source === 'file' ? (p === lastPitch ? fileReplay : null) : c?.url;
     if (!url) return null;
-    const offset = c ? c.eventSec - (lastPitch.hitT ?? resultTrail?.[0]?.t ?? 0) : 0;
-    const from = resultTrail ? resultTrail[0].t + offset : (c?.eventSec ?? 0);
-    const to = resultTrail ? resultTrail[resultTrail.length - 1].t + offset : from + 0.6;
+    if (p.clipOffset != null) return { url, offset: p.clipOffset, alignRange: 0.15 };
+    if (!c) return { url, offset: 0, alignRange: 0.15 };
     return {
       url,
-      offset,
-      loop: {
-        from: Math.max(0, from - 0.5),
-        to: Math.min(c?.durationSec || Infinity, to + 0.7),
-      },
+      offset: c.eventSec - (p.hitT ?? p.trail?.[0]?.t ?? 0),
+      alignRange: 1,
     };
-  })();
+  };
+  /* 결과 화면에 보일 공 — 목록에서 고른 공(viewPitch), 아니면 방금 잰 공 */
+  const shownPitch =
+    viewPitch != null
+      ? (pitches.find((p) => p.id === viewPitch) ?? null)
+      : resultOpen && !summaryOpen
+        ? lastPitch
+        : null;
   const editingPitch =
     editing == null ? null : (pitches.find((p) => p.id === editing) ?? null);
-  const clipPitch =
-    clipOpen == null ? null : (pitches.find((p) => p.id === clipOpen) ?? null);
 
   const save = () => {
     if (!stats || saving) return;
@@ -1564,7 +1588,7 @@ export function VelocityScreen({
             result: p.result,
             gunKmh: p.gunKmh,
             memo: p.memo,
-            analysis: p.analysis ?? null,
+            analysis: p.analysis ? withTrail(p) : null,
             autoDetected: p.autoDetected !== false,
           })),
         });
@@ -1619,7 +1643,7 @@ export function VelocityScreen({
       for (const p of pitches) revokeClips(p);
       setSaved(true);
       setPitches([]);
-      setClipOpen(null);
+      setViewPitch(null);
       setSheet('none');
       setSummaryOpen(false);
       /*
@@ -1645,7 +1669,7 @@ export function VelocityScreen({
   const jumpTo = (key: VelocityScreenKey) => {
     setSheet('none');
     setPrevOpen(false);
-    setClipOpen(null);
+    setViewPitch(null);
     setEditing(null);
     if (key === 'ask') {
       if (!stored) {
@@ -2517,41 +2541,69 @@ export function VelocityScreen({
             </div>
           )}
 
-          {step === 'measure' && resultOpen && lastPitch && !summaryOpen && (
-            <PitchResult
-              pitchKey={lastPitch.id}
-              index={pitches.length}
-              speed={speedNum(shown(lastPitch.rawKmh))}
-              unit={speedLabel(unit)}
-              sub={`± ${speedNum(lastPitch.errorKmh)} · ${
-                CONFIDENCE_TEXT[lastPitch.confidence as keyof typeof CONFIDENCE_TEXT] ?? ''
-              }${
-                lastPitch.dist
-                  ? ` · 거리 ${lastPitch.dist.m}m${
-                      lastPitch.dist.from === 'memory'
-                        ? '(지난 세션 + 공 크기)'
-                        : lastPitch.dist.from === 'session'
-                          ? '(세션 공 크기)'
-                          : lastPitch.dist.auto
-                            ? '(공 크기)'
-                            : ''
-                    }`
-                  : ''
-              }`}
-              notes={lastPitch.notes ?? []}
-              clip={resultClip}
-              trail={resultTrail}
-              frame={lastPitch.analysis?.analyzeSize ?? null}
-              cameraPos={choices.cameraPos}
-              pitchType={lastPitch.pitchType}
-              onPitchType={(pitchType) => patch(lastPitch.id, { pitchType })}
-              onClose={() => setResultOpen(false)}
-              onNext={() => {
-                setResultOpen(false);
-                if (!autoMode && live) nextPitch();
-              }}
-              nextLabel={autoMode ? '다음 공' : '다음 공 준비'}
-            />
+          {/* 세션 요약(z-20) 위에서도 — 요약의 ▶ 로 연 공 */}
+          {step === 'measure' && shownPitch && (
+            <div className="absolute inset-0 z-30">
+              <PitchResult
+                pitchKey={shownPitch.id}
+                index={pitches.indexOf(shownPitch) + 1}
+                speed={speedNum(shown(shownPitch.rawKmh))}
+                unit={speedLabel(unit)}
+                sub={`± ${speedNum(shownPitch.errorKmh)} · ${
+                  CONFIDENCE_TEXT[
+                    shownPitch.confidence as keyof typeof CONFIDENCE_TEXT
+                  ] ?? ''
+                }${
+                  shownPitch.dist
+                    ? ` · 거리 ${shownPitch.dist.m}m${
+                        shownPitch.dist.from === 'memory'
+                          ? '(지난 세션 + 공 크기)'
+                          : shownPitch.dist.from === 'session'
+                            ? '(세션 공 크기)'
+                            : shownPitch.dist.auto
+                              ? '(공 크기)'
+                              : ''
+                      }`
+                    : ''
+                }`}
+                notes={shownPitch.notes ?? []}
+                clip={replayClip(shownPitch)}
+                trail={shownPitch.trail ?? null}
+                frame={shownPitch.analysis?.analyzeSize ?? null}
+                cameraPos={choices.cameraPos}
+                pitchType={shownPitch.pitchType}
+                onPitchType={(pitchType) => patch(shownPitch.id, { pitchType })}
+                onAligned={(clipOffset) =>
+                  setPitches((prev) =>
+                    prev.map((q) => (q.id === shownPitch.id ? { ...q, clipOffset } : q))
+                  )
+                }
+                onClose={() => {
+                  setViewPitch(null);
+                  setResultOpen(false);
+                }}
+                onNext={() => {
+                  if (viewPitch != null) {
+                    setViewPitch(null);
+                    return;
+                  }
+                  setResultOpen(false);
+                  if (!autoMode && live) nextPitch();
+                }}
+                nextLabel={
+                  viewPitch != null ? '닫기' : autoMode ? '다음 공' : '다음 공 준비'
+                }
+                onEdit={
+                  viewPitch != null
+                    ? () => {
+                        setViewPitch(null);
+                        setEditing(shownPitch.id);
+                        setSheet('pitch');
+                      }
+                    : undefined
+                }
+              />
+            </div>
           )}
 
           {/*
@@ -2588,7 +2640,7 @@ export function VelocityScreen({
                   calibrationText={useCal && fit.n > 0 ? calibrationText(fit) : null}
                   onSave={() => setSheet('save')}
                   onContinue={continueSession}
-                  onPlayClip={(id) => setClipOpen(id)}
+                  onPlayClip={(id) => setViewPitch(id)}
                   onEditPitch={(id) => {
                     setEditing(id);
                     setSheet('pitch');
@@ -3027,8 +3079,7 @@ export function VelocityScreen({
                     type="button"
                     onClick={() => {
                       setPrevOpen(false);
-                      setEditing(p.id);
-                      setSheet('pitch');
+                      setViewPitch(p.id);
                     }}
                     className="flex min-w-0 flex-1 items-center gap-3 py-2 text-left"
                   >
@@ -3061,7 +3112,7 @@ export function VelocityScreen({
                     type="button"
                     onClick={() => {
                       setPrevOpen(false);
-                      setClipOpen(p.id);
+                      setViewPitch(p.id);
                     }}
                     disabled={!p.clip}
                     aria-label={p.clip ? '영상 보기' : '영상 없음'}
@@ -3075,8 +3126,8 @@ export function VelocityScreen({
             </ul>
           </Panel>
           <p className="text-xs leading-relaxed text-muted">
-            공을 누르면 구종 · 코스 · 결과 · 스피드건 값을 고쳐요. ▶ 는 그 공의
-            영상(세션을 저장하면 같이 올라가요).
+            공을 누르면 잰 직후처럼 영상과 공 길을 다시 봐요. 고치기는 그 화면 오른쪽 위
+            연필(구종 · 코스 · 결과 · 스피드건 값).
           </p>
         </div>
       </BottomSheet>
@@ -3094,32 +3145,6 @@ export function VelocityScreen({
           setTipsOpen(false);
         }}
       />
-
-      {/* 공 하나의 영상 클립 — 세션을 저장할 때 같이 올라간다 */}
-      <BottomSheet
-        open={clipPitch?.clip != null}
-        onClose={() => setClipOpen(null)}
-        title={clipPitch ? `${pitches.indexOf(clipPitch) + 1}번째 공 · 영상` : '영상'}
-      >
-        {clipPitch?.clip && (
-          <div className="space-y-3">
-            <ClipPlayer
-              src={clipPitch.clip.url}
-              eventSec={clipPitch.clip.eventSec}
-              zoneRect={clipPitch.analysis?.zoneRect ?? null}
-              zone={clipPitch.zone}
-              cameraPos={choices.cameraPos}
-              showZone={clipZone}
-              autoPlay
-            />
-            <p className="text-xs leading-relaxed text-muted">
-              {formatSpeed(shown(clipPitch.rawKmh), unit)} · 던진 순간{' '}
-              {clipPitch.clip.eventSec.toFixed(1)}초 · 길이{' '}
-              {clipPitch.clip.durationSec.toFixed(1)}초 · 저장하면 같이 올라가요
-            </p>
-          </div>
-        )}
-      </BottomSheet>
 
       {/* 공 하나 — 구종 · 코스 · 결과 · 건 값 · 메모 · 자세한 값 */}
       <BottomSheet

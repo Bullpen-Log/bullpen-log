@@ -19,6 +19,7 @@ import type { AnalyzeResult, CapturedFrame, Approach } from './analyze-frames.ts
 import { BALL_DIAMETER_M, type BallObservation } from './geometry.ts';
 import { reject, MAX_CAMERA_SHAKE_PX, MIN_PLAUSIBLE_KMH, MAX_PLAUSIBLE_KMH, type Confidence } from './validate.ts';
 import { fitTrajectory, speedWithSe, trajectoryState, type PinholeCamera, type TrajectoryFit } from './trajectory-fit.ts';
+import { motionAt, refToFrame, stabilize } from './stabilize.ts';
 import {
   blobTrack,
   consistentPrefix,
@@ -64,6 +65,8 @@ export type DistanceInput = {
    * 찾은 공의 지름으로 거리를 다시 정해 궤적을 한 번 더 맞춘다(공 찾기는 다시 안 한다). 공이 8장 넘게 안 잡히면 distanceM 그대로.
    */
   autoDistance?: boolean;
+  /** 흔들림을 바로잡나(기본 켬) — 끄면 받은 장면 그대로(시험 · 견주기용) */
+  stabilize?: boolean;
 };
 
 /**
@@ -86,6 +89,10 @@ export const AUTO_DISTANCE_SIGMA_REL = 0.03;
  * 카메라의 화각은 짐작과 8% 안팎 갈린다. 부르는 쪽(analyze-video · live-meter)이 ± 에 더하고 이 알림을 붙인다.
  */
 export const AUTO_FOV_GUESS_SIGMA_REL = 0.08;
+/** 흰 배경 앞에서 묻힌 공 — 덩어리 지름 × 맞춘 깊이가 앞부분의 이만큼 밑이면 공 일부가 배경에 묻힌 것 */
+const PARTIAL_BALL = 0.75;
+/** 바로잡은 흔들림의 σ(비율) — 카메라가 밀린 것(돌지 않고)은 가까운 공 자리에 남는다 */
+export const STAB_SIGMA_REL = 0.015;
 export const AUTO_FOV_GUESS_NOTE =
   '화각을 몰라 공 크기로 어림한 거리가 틀릴 수 있어요. 폰에서 그물까지 거리를 줄자로 재서 넣으면 정확해요.';
 
@@ -127,9 +134,15 @@ export type DistanceReport = {
   endSizeRatio: number | null;
   /** ln(지름) 을 ln(맞춘 깊이) 에 맞춘 기울기 — 공이면 −1 근처(멀어진 만큼 작아짐), 제자리 덩어리면 0 근처 */
   sizeSlope: number | null;
-  /** 카메라 흔들림(분석 px, 귀퉁이 블록) · 문턱을 넘었나 — 넘어도 문턱 3배 안이면 재고 알린다 */
+  /**
+   * 카메라 흔들림(분석 px) · 문턱을 넘었나. 바로잡았으면(stabilized) 배경으로 잰 카메라 움직임의 가장 큰 값, 못 쟀으면(무늬 없는
+   * 화면) 부르는 쪽이 귀퉁이 블록으로 잰 값 — 그때는 문턱 3배 안이면 재고 알린다.
+   */
   shakePx: number;
   shaky: boolean;
+  /** 흔들림을 바로잡았나(stabilize.ts) · 맞춘 정밀도(분석 px, 블록 잔차 RMS 의 가운데 값) */
+  stabilized: boolean;
+  stabResidPx: number | null;
   /** 씨앗 후보 수 · 고른 씨앗 장면 */
   seeds: number;
   seedFrame: number | null;
@@ -242,16 +255,33 @@ function impactTime(
 
 export function analyzeByDistance(input: DistanceInput): DistanceResult {
   const t0 = now();
-  const { frames, width, height, sourceWidth, sourceHeight } = input;
+  const { width, height, sourceWidth, sourceHeight } = input;
   const approach = input.approach ?? 'receding';
   const D = input.distanceM;
   const tilt = input.tiltRad ?? 0;
-  const fs: FrameSet = { w: width, h: height, t: frames.map((f) => f.t), luma: frames.map((f) => f.luma) };
+  /* 흔들림 바로잡기 — 장면을 첫 장면에 맞추고, 찾은 공 자리는 첫 장면 자리로 되돌린다(stabilize.ts · ball-track.ts refOf) */
+  const stab =
+    input.stabilize === false
+      ? stabilize(input.frames, input.backgroundSamples ?? [], 0, 0)
+      : stabilize(input.frames, input.backgroundSamples ?? [], width, height);
+  const frames = stab.frames;
+  const fs: FrameSet = {
+    w: width,
+    h: height,
+    t: frames.map((f) => f.t),
+    luma: frames.map((f) => f.luma),
+    mot: stab.motion,
+  };
   const fps = input.fps && input.fps > 0 ? input.fps : (fpsOf(fs.t) ?? 60);
   const dt = 1 / fps;
   const s = pixelScale(fs);
   const kAnalyze = width / sourceWidth;
   const cam: PinholeCamera = { f: input.focalPx * kAnalyze, cx: width / 2, cy: height / 2 };
+  /* 기준 장면 자리 → 그 때의 영상 자리 — 결과 화면은 받은 그대로의 영상(흔들린 것) 위에 공 길을 그린다 */
+  const onFrame = (t: number, u: number, v: number): [number, number] =>
+    stab.motion
+      ? refToFrame(motionAt(fs.t, stab.motion, t), width, height, u, v)
+      : [u, v];
   const report: DistanceReport = {
     method: 'distance',
     distanceM: D,
@@ -272,8 +302,11 @@ export function analyzeByDistance(input: DistanceInput): DistanceResult {
     path: [],
     endSizeRatio: null,
     sizeSlope: null,
-    shakePx: Math.round((input.shakePx ?? 0) * 10) / 10,
+    shakePx:
+      Math.round((stab.measured ? stab.maxShiftPx : (input.shakePx ?? 0)) * 10) / 10,
     shaky: false,
+    stabilized: stab.motion != null,
+    stabResidPx: stab.measured ? Math.round(stab.residPx * 100) / 100 : null,
     seeds: 0,
     seedFrame: null,
     timingMs: 0,
@@ -284,7 +317,7 @@ export function analyzeByDistance(input: DistanceInput): DistanceResult {
     sourceSize: { width: sourceWidth, height: sourceHeight },
     fps,
     frameCount: frames.length,
-    shakePx: input.shakePx ?? 0,
+    shakePx: stab.measured ? stab.maxShiftPx : (input.shakePx ?? 0),
     focalPx: input.focalPx,
     diameter: {
       ruler: 'area' as const,
@@ -308,14 +341,30 @@ export function analyzeByDistance(input: DistanceInput): DistanceResult {
    * 말고 알림). 실내 터널에서는 귀퉁이를 지나는 사람 · 포수 움직임도 문턱을 넘곤 했다(102).
    */
   const shakeLimit = MAX_CAMERA_SHAKE_PX * (width / 720);
-  if ((input.shakePx ?? 0) > 3 * shakeLimit) return fail('CAMERA_SHAKE');
-  report.shaky = (input.shakePx ?? 0) > shakeLimit;
+  if (stab.measured) {
+    /*
+     * 바로잡았다 — 장면마다 앞 장면을 이어 따라가므로 크게 움직여도 막지 않는다. 손에 든 폰은 공이 날아간 뒤에 폰을 내리며 70px 넘게
+     * 움직이기도 했다(2026-10-07 실시간 71: 그 전에는 '흔들림'으로 거부).
+     */
+    report.shaky = stab.maxShiftPx > shakeLimit;
+  } else {
+    if ((input.shakePx ?? 0) > 3 * shakeLimit) return fail('CAMERA_SHAKE');
+    report.shaky = (input.shakePx ?? 0) > shakeLimit;
+  }
   if (frames.length < 10 || !(D > 0)) return fail('NOT_ENOUGH_FRAMES');
 
   /* 다가오는 공(포수 뒤)은 시간을 거꾸로 놓고 같은 길로 찾는다 — 거꾸로 보면 공이 멀어지며 작아진다 */
   const order = approach === 'approaching' ? frames.map((_, i) => frames.length - 1 - i) : frames.map((_, i) => i);
-  const fsOrdered: FrameSet = approach === 'approaching' ? { ...fs, t: order.map((i) => fs.t[i]), luma: order.map((i) => fs.luma[i]) } : fs;
-  const bg = medianBackground(pickBackground(frames, input.backgroundSamples ?? []), width, height);
+  const fsOrdered: FrameSet =
+    approach === 'approaching'
+      ? {
+          ...fs,
+          t: order.map((i) => fs.t[i]),
+          luma: order.map((i) => fs.luma[i]),
+          mot: stab.motion && order.map((i) => stab.motion![i]),
+        }
+      : fs;
+  const bg = medianBackground(pickBackground(frames, stab.extra), width, height);
   const { best, seeds } = bestFlight(fsOrdered, bg, cam, approach === 'approaching' ? -dt : dt, D, input.seedHint ?? null);
   report.seeds = seeds;
   if (!best) return fail('NOT_ENOUGH_FRAMES');
@@ -325,6 +374,23 @@ export function analyzeByDistance(input: DistanceInput): DistanceResult {
 
   let flight = best.seg.map((o) => ({ ...o }));
   let extended = 0;
+  /*
+   * 흰 천 · 흰 벽 앞으로 들어간 공 — 윗부분이 배경에 묻혀 덩어리가 물리보다 빨리 작아지고(지름 × 맞춘 깊이가 앞부분의 75% 밑) 중심도
+   * 아래로 치우친다. 그 장면들은 궤적을 비틀어 이어 찾기가 길을 놓쳤다(실내 114: 흔들림을 바로잡자 앞부분이 그 다섯 장까지 가서
+   * 지름 18 → 7px, 이어 찾기 0장 · 잴 수 없는 구속). 끝에서 이어진 그런 장면은 떼어 이어 찾기(그늘진 반달)에 맡긴다. 덩어리는 먼 공일수록
+   * 오히려 크게 잡혀(작은 공에서 20~35%) 다 보이는 공이 이 문턱에 걸리지 않는다.
+   */
+  if (approach === 'receding' && flight.length > 10) {
+    const kz = (o: TrackedBall) => o.diam * best.fit.project(o.t)[2];
+    const head = flight
+      .slice(0, Math.max(6, Math.floor(flight.length * 0.6)))
+      .map(kz)
+      .sort((x, y) => x - y);
+    const kd = head[head.length >> 1];
+    let cut = flight.length;
+    while (cut > 8 && kz(flight[cut - 1]) < PARTIAL_BALL * kd) cut--;
+    if (flight.length - cut >= 2) flight = flight.slice(0, cut);
+  }
   /*
    * 끝까지 이어 찾기(RANSAC) — 밖(그물)은 앞부분이 이미 맞은 자리까지 가서 덧붙는 것이 없고(19개 시험: 밖 13개 모두 0장), 실내(흰 천 ·
    * 포수 앞)는 놓친 뒤를 잇는다. 맞고 튄 덩어리로 끝을 판정해 건너뛰려 했더니 그물에 파고드는 공 · 덩어리 중심이 흔들리는 공에서
@@ -520,7 +586,14 @@ export function analyzeByDistance(input: DistanceInput): DistanceResult {
         tRel -= 0.002;
       }
       const [px, py, pz] = fit.positionAt(tRel);
-      if (pz > 0) report.releasePx = [Math.round(cam.cx + (cam.f * px) / pz), Math.round(cam.cy + (cam.f * py) / pz)];
+      if (pz > 0) {
+        const [ru, rv] = onFrame(
+          tRel,
+          cam.cx + (cam.f * px) / pz,
+          cam.cy + (cam.f * py) / pz
+        );
+        report.releasePx = [Math.round(ru), Math.round(rv)];
+      }
     }
     {
       /*
@@ -533,7 +606,7 @@ export function analyzeByDistance(input: DistanceInput): DistanceResult {
       for (let k = 0; k <= n; k++) {
         const t = tA + ((tB - tA) * k) / n;
         const [u, v, z] = fit.project(t);
-        if (z > 0) report.path.push([t, u, v, dAtDm / z]);
+        if (z > 0) report.path.push([t, ...onFrame(t, u, v), dAtDm / z]);
       }
     }
     const sw = speedWithSe(fit, tRel, opts);
@@ -556,7 +629,15 @@ export function analyzeByDistance(input: DistanceInput): DistanceResult {
      */
     const relSe = sw.se != null && sw.speed > 0 ? sw.se / sw.speed : 0.02;
     const teRel = (0.5 * dt * Math.hypot(...fit.velocityAt(te))) / 1;
-    const sigmaRel = Math.hypot(auto ? AUTO_DISTANCE_SIGMA_REL : 0.02, 0.015, teRel, relSe, extended ? 0.03 : 0, approach === 'approaching' ? 0.05 : 0, report.shaky ? 0.03 : 0);
+    const sigmaRel = Math.hypot(
+      auto ? AUTO_DISTANCE_SIGMA_REL : 0.02,
+      0.015,
+      teRel,
+      relSe,
+      extended ? 0.03 : 0,
+      approach === 'approaching' ? 0.05 : 0,
+      report.shaky ? (report.stabilized ? STAB_SIGMA_REL : 0.03) : 0
+    );
     const errorKmh = 1.645 * sigmaRel * kmh;
     let confidence: Confidence = 'medium';
     if (approach === 'approaching' || extended > 0 || report.impact === 'end' || report.shaky) confidence = 'low';

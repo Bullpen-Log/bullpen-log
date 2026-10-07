@@ -196,6 +196,8 @@ function sanitizeDistance(raw: unknown): Record<string, unknown> | null {
     endSizeRatio: n(d.endSizeRatio),
     sizeSlope: n(d.sizeSlope),
     shakePx: n(d.shakePx),
+    stabilized: d.stabilized === true,
+    stabResidPx: n(d.stabResidPx),
   };
 }
 
@@ -251,6 +253,16 @@ export function sanitizeAnalysis(raw: unknown): Record<string, unknown> | null {
     approach: a.approach === 'approaching' ? 'approaching' : 'receding',
     live: sanitizeLive(a.live),
     zoneRect: sanitizeZoneRect(a.zoneRect),
+    trail: Array.isArray(a.trail)
+      ? a.trail
+          .slice(0, 160)
+          .filter(
+            (q): q is number[] =>
+              Array.isArray(q) && q.length === 4 && q.every((v) => n(v) != null)
+          )
+          .map((q) => q.map((v) => Math.round(v * 100000) / 100000))
+      : null,
+    trailAligned: a.trailAligned === true,
   };
   return JSON.stringify(out).length > 40_000 ? null : out;
 }

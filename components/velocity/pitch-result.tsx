@@ -1,7 +1,7 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { Maximize2, X, ZoomIn } from 'lucide-react';
+import { useEffect, useRef, useState, type ComponentProps } from 'react';
+import { Maximize2, Pencil, X, ZoomIn } from 'lucide-react';
 import { PITCH_TYPES } from '@/lib/velocity-meta';
 import type { CameraPos } from '@/lib/velocity-setup';
 import { ClipPlayer, Tracer, trailZoom, type TrailPoint } from './clip-player';
@@ -12,6 +12,10 @@ import { ClipPlayer, Tracer, trailZoom, type TrailPoint } from './clip-player';
  * 공을 던지면 그 공의 결과로 바뀐다.
  *
  * 클립은 결과보다 늦게 올 수 있다(녹화 조각이 닫혀야 나온다) — 그동안은 어두운 판에서 같은 빠르기로 따라 그린다.
+ *
+ * 클립 시각을 잘 모르면(카메라 실시간 — 녹화기의 '시작' 알림이 늦어 0.2~0.85초씩 어긋났다, 2026-10-07 아이폰) 처음엔 영상 전체를
+ * 돌리며 영상 속 공으로 시각을 넓게 맞추고(clip.alignRange), 맞추면 공이 처음 보이기 0.5초 앞에서 그물에 닿고 0.7초 뒤까지만 되풀이한다.
+ * 저장한 공을 목록에서 다시 볼 때도 같은 화면이다(PitchResultDialog — 버튼은 '닫기' · '고치기').
  */
 export function PitchResult({
   pitchKey,
@@ -29,9 +33,11 @@ export function PitchResult({
   onClose,
   onNext,
   nextLabel,
+  onAligned,
+  onEdit,
 }: {
   /** 공이 바뀌면 바뀌는 값 — 영상 기다림을 새로 센다 */
-  pitchKey: number;
+  pitchKey: number | string;
   /** 몇 구째 */
   index: number;
   speed: number;
@@ -39,8 +45,8 @@ export function PitchResult({
   /** ± · 믿음 한 줄 */
   sub: string;
   notes: string[];
-  /** 클립 시각 = 궤적 시각 + offset */
-  clip: { url: string; offset: number; loop: { from: number; to: number } } | null;
+  /** 클립 시각 = 궤적 시각 + offset. alignRange(±초)는 영상 속 공으로 맞출 폭 — 0.3 넘게 모르면 처음엔 영상 전체를 돌린다 */
+  clip: { url: string; offset: number; alignRange?: number } | null;
   trail: TrailPoint[] | null;
   /** 궤적을 그린 장면 크기 — 영상이 없을 때 판의 비율 */
   frame: { width: number; height: number } | null;
@@ -50,9 +56,13 @@ export function PitchResult({
   onClose: () => void;
   onNext: () => void;
   nextLabel: string;
+  /** 영상 속 공으로 시각을 맞췄을 때 — 맞춘 offset */
+  onAligned?: (offset: number) => void;
+  /** 있으면 위 오른쪽에 '고치기'(구종 · 코스 · 결과 · 스피드건) — 목록에서 연 결과 화면 */
+  onEdit?: () => void;
 }) {
   /* 영상이 6초 넘게 안 오면 기다림 글을 거둔다(녹화를 못 하는 기기 · 끊긴 조각) */
-  const [waited, setWaited] = useState<number | null>(null);
+  const [waited, setWaited] = useState<number | string | null>(null);
   useEffect(() => {
     const t = setTimeout(() => setWaited(pitchKey), 6000);
     return () => clearTimeout(t);
@@ -66,6 +76,18 @@ export function PitchResult({
     trail != null &&
     frame != null &&
     trailZoom(trail, frame.width / frame.height) != null;
+  /* 영상 속 공으로 맞춘 offset — 공 · 영상이 바뀌면 버린다 */
+  const [aligned, setAligned] = useState<{ key: string; offset: number } | null>(null);
+  const alignKey = `${pitchKey}|${clip?.url ?? ''}`;
+  const off = aligned?.key === alignKey ? aligned.offset : (clip?.offset ?? 0);
+  const unsure = (clip?.alignRange ?? 0.2) > 0.3 && aligned?.key !== alignKey;
+  const loop =
+    trail && trail.length && !unsure
+      ? {
+          from: Math.max(0, trail[0].t + off - 0.5),
+          to: trail[trail.length - 1].t + off + 0.7,
+        }
+      : { from: 0, to: Infinity };
 
   return (
     <div className="absolute inset-0 z-20 flex flex-col bg-black text-white motion-safe:animate-fade-in">
@@ -81,7 +103,18 @@ export function PitchResult({
         <span className="text-sm font-semibold text-white/80 tabular-nums">
           {index}구째
         </span>
-        <span aria-hidden className="h-11 w-11" />
+        {onEdit ? (
+          <button
+            type="button"
+            onClick={onEdit}
+            aria-label="고치기"
+            className="inline-flex h-11 w-11 items-center justify-center rounded-full text-white/85 transition-colors hover:bg-white/10"
+          >
+            <Pencil aria-hidden className="h-5 w-5" />
+          </button>
+        ) : (
+          <span aria-hidden className="h-11 w-11" />
+        )}
       </div>
 
       <div className="relative flex min-h-0 flex-1 items-center justify-center px-4">
@@ -104,9 +137,14 @@ export function PitchResult({
             key={clip.url}
             src={clip.url}
             eventSec={null}
-            loop={clip.loop}
+            loop={loop}
             trail={trail}
-            trailOffset={clip.offset}
+            trailOffset={off}
+            alignRange={aligned?.key === alignKey ? 0.15 : (clip.alignRange ?? 0.2)}
+            onAligned={(o) => {
+              setAligned({ key: alignKey, offset: o });
+              onAligned?.(o);
+            }}
             zoom={zoom}
             controls={false}
             autoPlay
@@ -172,5 +210,31 @@ export function PitchResult({
         </button>
       </div>
     </div>
+  );
+}
+
+/**
+ * 결과 화면을 화면 맨 위 창으로 — 그날 화면처럼 이미 창(투구 기록 팝업) 안에서 열 때도 그 위에 뜬다(<dialog> 의 맨 위 층). ESC ·
+ * 닫기 단추는 onClose.
+ */
+export function PitchResultDialog(props: ComponentProps<typeof PitchResult>) {
+  const ref = useRef<HTMLDialogElement>(null);
+  const { onClose } = props;
+  useEffect(() => {
+    const d = ref.current;
+    if (d && !d.open) d.showModal();
+    return () => d?.close();
+  }, []);
+  return (
+    <dialog
+      ref={ref}
+      onCancel={(e) => {
+        e.preventDefault();
+        onClose();
+      }}
+      className="fixed inset-0 m-0 h-dvh max-h-none w-full max-w-none overflow-hidden bg-black p-0 backdrop:bg-black"
+    >
+      <PitchResult {...props} />
+    </dialog>
   );
 }

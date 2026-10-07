@@ -12,6 +12,7 @@
  * 시험 코드(2026-10-07, ~/bullpen-velocity-lab/proto2)에서 옮겼다. 정한 까닭은 그 시험의 기록에 있다(기억: velocity-engine-2-rebuild).
  */
 import { fitTrajectory, rebase, type PinholeCamera, type TrackPoint, type TrajectoryFit } from './trajectory-fit.ts';
+import { fromRef, toRef, type Motion } from './stabilize.ts';
 
 /** 장면 묶음 — 분석 해상도의 밝기(0~255)와 시각(초) */
 export type FrameSet = {
@@ -19,7 +20,19 @@ export type FrameSet = {
   h: number;
   t: number[];
   luma: ArrayLike<number>[];
+  /**
+   * 흔들림을 바로잡았으면 장면마다의 움직임(stabilize.ts) — luma 는 정수 px 만큼 맞춘 장면이고, 찾은 공 자리(TrackedBall)는 기준
+   * 장면 자리로 되돌려 둔다(refOf). 궤적이 짐작한 자리(기준)로 장면에서 찾을 때는 imgOf 로 맞춘 장면 자리로 옮긴다.
+   */
+  mot?: (Motion | null)[] | null;
 };
+
+/** 장면 i 의 맞춘 장면에서 찾은 자리 → 기준 장면 자리 */
+export const refOf = (fs: FrameSet, i: number, u: number, v: number) =>
+  toRef(fs.mot?.[i], fs.w, fs.h, u, v);
+/** 기준 장면 자리 → 장면 i 의 맞춘 장면 자리 */
+export const imgOf = (fs: FrameSet, i: number, u: number, v: number) =>
+  fromRef(fs.mot?.[i], fs.w, fs.h, u, v);
 
 /** 이어 찾은 공 한 장면 — 분석 px */
 export type TrackedBall = {
@@ -521,13 +534,8 @@ export function blobTrack(fs: FrameSet, bg: ArrayLike<number>, seed: Seed): Trac
   return raw.map(({ i, b }) => {
     const r = Math.sqrt(b.area / Math.PI);
     const f = refineCenter(fs.luma[i], bg, w, h, b.cx, b.cy, Math.max(4 * s, r * 1.6), 10);
-    return {
-      i,
-      t: fs.t[i],
-      u: f ? f.cx : b.cx,
-      v: f ? f.cy : b.cy,
-      diam: f ? f.diam : 2 * r,
-    };
+    const [u, v] = refOf(fs, i, f ? f.cx : b.cx, f ? f.cy : b.cy);
+    return { i, t: fs.t[i], u, v, diam: f ? f.diam : 2 * r };
   });
 }
 
@@ -618,7 +626,20 @@ export function extendRansac(
   const rs: number[] = [];
   /* 끝 8장의 중앙값 — 끝 몇 장은 공이 배경 띠에 걸쳐 테두리가 틀린 반지름에 걸리곤 했다(실내 098) */
   for (const o of pts.slice(-8)) {
-    const g = findRings(fs.luma[o.i], fs.w, fs.h, o.u, o.v, o.diam / 2, 2 * s, 1, [0.5, 0.6, 0.7, 0.8, 0.9, 1, 1.1], 1, band)[0];
+    const [ou, ov] = imgOf(fs, o.i, o.u, o.v);
+    const g = findRings(
+      fs.luma[o.i],
+      fs.w,
+      fs.h,
+      ou,
+      ov,
+      o.diam / 2,
+      2 * s,
+      1,
+      [0.5, 0.6, 0.7, 0.8, 0.9, 1, 1.1],
+      1,
+      band
+    )[0];
     if (g) rs.push(g.r * fit0.project(o.t)[2]);
   }
   rs.sort((a, b) => a - b);
@@ -626,8 +647,24 @@ export function extendRansac(
   /* 덩어리 중심 − 테두리 중심 어긋남 — 앞부분 끝 6장에서 크고 또렷하고 둥근 공만 */
   const dd: [number, number][] = [];
   for (const o of pts.slice(-6)) {
-    const g = findRings(fs.luma[o.i], fs.w, fs.h, o.u, o.v, (o.diam / 2) * 0.75, Math.max(3 * s, 0.2 * o.diam), 1, [0.6, 0.7, 0.8, 0.9, 1, 1.1, 1.2], 1, band)[0];
-    if (g && g.r >= 6 * s && g.score >= 25 && Math.hypot(g.x - o.u, g.y - o.v) <= 0.5 * g.r) dd.push([g.x - o.u, g.y - o.v]);
+    const [ou, ov] = imgOf(fs, o.i, o.u, o.v);
+    const g = findRings(
+      fs.luma[o.i],
+      fs.w,
+      fs.h,
+      ou,
+      ov,
+      (o.diam / 2) * 0.75,
+      Math.max(3 * s, 0.2 * o.diam),
+      1,
+      [0.6, 0.7, 0.8, 0.9, 1, 1.1, 1.2],
+      1,
+      band
+    )[0];
+    if (!g) continue;
+    const [gu, gv] = refOf(fs, o.i, g.x, g.y);
+    if (g.r >= 6 * s && g.score >= 25 && Math.hypot(gu - o.u, gv - o.v) <= 0.5 * g.r)
+      dd.push([gu - o.u, gv - o.v]);
   }
   const mid = (a: number[]) => {
     const b = [...a].sort((x, y) => x - y);
@@ -641,22 +678,31 @@ export function extendRansac(
   const frames: { i: number; c: Cand[] }[] = [];
   const maxAhead = Math.round(45 * per60);
   for (let i = last.i + 1; i < fs.t.length && i <= last.i + maxAhead; i++) {
-    const [pu, pv, Z] = fit0.project(fs.t[i]);
+    const [ru, rv, Z] = fit0.project(fs.t[i]);
+    /* 짐작 자리는 기준 장면 자리 — 맞춘 장면에서 찾으려면 그 장면 자리로 */
+    const [pu, pv] = imgOf(fs, i, ru, rv);
     const rp = kR / Z;
     if (!(rp >= 3 * s)) break;
     const gate = Math.min(25 * s, 6 * s + (0.8 * s * (i - last.i)) / per60);
     const dw = diffWindow(fs, i, pu, pv, gate + 1.4 * rp + 4 * s, lags);
     const spread = [0.75, 0.85, 0.95, 1.05, 1.15, 1.25];
-    const toCand = (g: { x: number; y: number; r: number; score: number }, x0: number, y0: number): Cand => ({
-      i,
-      t: fs.t[i],
-      u: g.x + x0 - offset[0],
-      v: g.y + y0 - offset[1],
-      diam: 2 * g.r,
-      score: g.score,
-      sigma: ringSigma(g.r, s),
-      ring: true,
-    });
+    const toCand = (
+      g: { x: number; y: number; r: number; score: number },
+      x0: number,
+      y0: number
+    ): Cand => {
+      const [u, v] = refOf(fs, i, g.x + x0, g.y + y0);
+      return {
+        i,
+        t: fs.t[i],
+        u: u - offset[0],
+        v: v - offset[1],
+        diam: 2 * g.r,
+        score: g.score,
+        sigma: ringSigma(g.r, s),
+        ring: true,
+      };
+    };
     const c = findRings(dw.img, dw.W, dw.H, pu - dw.x0, pv - dw.y0, rp, gate, K, spread, 0.5, band)
       .filter((g) => g.score >= 8)
       .map((g) => toCand(g, dw.x0, dw.y0));

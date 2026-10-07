@@ -26,6 +26,7 @@ import {
   ZoneGrid,
 } from '@/components/velocity/pitch-editor';
 import { ClipPlayer } from '@/components/velocity/clip-player';
+import { PitchResultDialog } from '@/components/velocity/pitch-result';
 import { useStoredSetup } from '@/components/velocity/velocity-settings';
 import { DEFAULT_SETUP, type CameraPos } from '@/lib/velocity-setup';
 import {
@@ -40,8 +41,9 @@ import {
  * 투구 기록 한 건(투구수 · 최고 · 평균)은 위의 기록 카드에 있고, 여기는 그 안의 공 하나하나다.
  * 공을 지우면 서버가 그 기록의 투구수 · 구속도 다시 맞춘다(app/actions/velocity.ts).
  *
- * 영상이 남은 공은 줄 오른쪽에 ▶ — 누르면 공 창이 열리며 영상이 바로 돈다(줄을 누르면 영상은 멈춘 채 맨 위에).
- * 설정 '영상에 스트라이크 존 표시'(기기별)가 켜져 있으면 잰 순간의 존과 고르는 중인 코스 칸을 겹친다.
+ * 공(줄 · ▶)을 누르면 잰 직후의 결과 화면처럼 연다 — 그 공의 영상을 되풀이하며 공 길을 파란 관으로 따라 그리고 구속 · 구종을 보인다
+ * (사용자 2026-10-07: "결과 목록에서 측정 직후처럼"). 고치기(구종 · 코스 · 결과 · 스피드건 · 메모)는 그 화면 오른쪽 위 연필 → 아래 시트.
+ * 시트에서는 설정 '영상에 스트라이크 존 표시'(기기별)가 켜져 있으면 잰 순간의 존과 고르는 중인 코스 칸을 겹친다.
  */
 /*
  * 세션 시각 — 한국 시간으로 적는다. 이 칸은 서버(UTC)에서도 그려져, 기기 시각(getHours)을 쓰면 서버 글자와 폰 글자가
@@ -58,6 +60,8 @@ export function VelocitySection({ sessions }: { sessions: VelocitySessionView[] 
   const router = useRouter();
   const unit = useSpeedUnit();
   const [editing, setEditing] = useState<VelocityPitchView | null>(null);
+  /* 잰 직후처럼 보는 공 — 구종을 바꾸면 화면에 바로(서버는 뒤에서) */
+  const [viewing, setViewing] = useState<VelocityPitchView | null>(null);
   /* ▶ 로 열었으면 영상을 바로 돌린다 */
   const [autoPlay, setAutoPlay] = useState(false);
   /*
@@ -241,7 +245,7 @@ export function VelocitySection({ sessions }: { sessions: VelocitySessionView[] 
         </h2>
         <span className="text-xs text-muted">
           {hasClips
-            ? '▶ 는 영상, 줄을 누르면 구종 · 코스 · 결과를 고쳐요'
+            ? '공을 누르면 잰 직후처럼 영상으로 봐요. 연필로 고쳐요'
             : '줄을 누르면 구종 · 코스 · 결과를 고쳐요'}
         </span>
       </div>
@@ -304,7 +308,7 @@ export function VelocitySection({ sessions }: { sessions: VelocitySessionView[] 
                 <li key={p.id} className="flex items-stretch">
                   <button
                     type="button"
-                    onClick={() => open(p)}
+                    onClick={() => (p.clip ? setViewing(p) : open(p))}
                     className={`flex min-h-12 min-w-0 flex-1 items-center gap-3 py-2 pl-4 text-left transition-colors hover:bg-surface-2 ${
                       p.clip ? 'pr-2' : 'pr-4'
                     }`}
@@ -345,7 +349,7 @@ export function VelocitySection({ sessions }: { sessions: VelocitySessionView[] 
                   {p.clip && (
                     <button
                       type="button"
-                      onClick={() => open(p, true)}
+                      onClick={() => setViewing(p)}
                       aria-label={`${p.seq}번째 공 영상 보기`}
                       className="group flex w-13 shrink-0 items-center justify-center pr-1 transition-colors hover:bg-surface-2"
                     >
@@ -360,6 +364,64 @@ export function VelocitySection({ sessions }: { sessions: VelocitySessionView[] 
           </div>
         );
       })}
+
+      {viewing &&
+        (() => {
+          const v = viewing;
+          const vs = sessions.find((x) => x.pitches.some((q) => q.id === v.id));
+          /* 영상 주소는 지금 자료에서 — 만료돼 다시 받으면 새 주소 */
+          const clip = vs?.pitches.find((q) => q.id === v.id)?.clip ?? v.clip;
+          const rel = vs ? releaseOf(vs) : (kmh: number) => kmh;
+          const setType = (pitchType: string | null) => {
+            setViewing({ ...v, pitchType });
+            start(async () => {
+              const res = await updateVelocityPitch(v.id, {
+                pitchType,
+                zone: v.zone,
+                result: v.result,
+                gunKmh: v.gunKmh,
+                memo: v.memo,
+              }).catch(offline);
+              if (!res.ok) setError(res.error);
+              else quietRefresh(router);
+            });
+          };
+          return (
+            <PitchResultDialog
+              pitchKey={v.id}
+              index={v.seq}
+              speed={speedNum(v.kmh)}
+              unit={speedLabel(unit)}
+              sub={`± ${speedNum(v.errorKmh)} · ${CONFIDENCE_TEXT[v.confidence]}${
+                v.releaseKmh != null ? ` · 릴리스 ${speedNum(rel(v.releaseKmh))}` : ''
+              }${v.gunKmh != null ? ` · 건 ${speedNum(v.gunKmh)}` : ''}`}
+              notes={error ? [error] : []}
+              clip={
+                clip
+                  ? {
+                      url: clip.url,
+                      offset: v.replay?.offset ?? 0,
+                      alignRange: v.replay?.alignRange ?? 0.15,
+                    }
+                  : null
+              }
+              trail={v.replay?.points ?? null}
+              frame={v.replay?.frame ?? null}
+              cameraPos={
+                vs?.cameraPos === 'behind-catcher' ? 'behind-catcher' : 'behind-pitcher'
+              }
+              pitchType={v.pitchType}
+              onPitchType={setType}
+              onClose={() => setViewing(null)}
+              onNext={() => setViewing(null)}
+              nextLabel="닫기"
+              onEdit={() => {
+                setViewing(null);
+                open(v);
+              }}
+            />
+          );
+        })()}
 
       <BottomSheet
         open={editing != null}
