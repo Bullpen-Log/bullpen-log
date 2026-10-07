@@ -84,7 +84,7 @@ async function trySaveCheckin(formData: FormData): Promise<CheckinState> {
   };
 
   /*
-   * 근육통 · 잔 시간은 간편 쪽 선택 칸이다. 폼이 표시(body=1)를 보냈을 때만 쓴다(비우면 null).
+   * 근육통 · 잔 시간 · 식사(끼니 양 · 걸른 끼니)는 간편 쪽 선택 칸이다. 폼이 표시(body=1)를 보냈을 때만 쓴다(비우면 null).
    * 표시가 없으면 배포 전에 열려 있던 옛 화면이라, 아침에 적은 값을 빈 값으로 덮지 않게
    * 건드리지 않는다. 상세의 detail=1 과 같은 방식이다.
    *
@@ -93,7 +93,10 @@ async function trySaveCheckin(formData: FormData): Promise<CheckinState> {
    */
   const body =
     formData.get('body') === '1'
-      ? parseCheckinBody((name) => String(formData.get(name) ?? ''))
+      ? parseCheckinBody(
+          (name) => String(formData.get(name) ?? ''),
+          (name) => formData.getAll(name).map(String)
+        )
       : {};
 
   /*

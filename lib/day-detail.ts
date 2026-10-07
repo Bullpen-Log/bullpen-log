@@ -6,6 +6,7 @@ import {
   CHECKIN_PARTS,
   DETAIL_SCALES,
   formatSleepHours,
+  mealSummary,
   pickCheckinParts,
   sorenessWord,
 } from '@/lib/checkin';
@@ -166,6 +167,9 @@ export async function loadDayDetail(
       details.push({ label: '잔 시간', value: formatSleepHours(checkin.sleepHours) });
     const soreness = sorenessWord(checkin.soreness);
     if (soreness) details.push({ label: '근육통', value: soreness });
+    /* 식사(끼니 양 · 걸른 끼니) — 영양 조언이 읽는 간편 칸 */
+    const meals = mealSummary(checkin.nutrition, checkin.skippedMeals);
+    if (meals) details.push({ label: '식사', value: meals });
     for (const s of DETAIL_SCALES) {
       const v = checkin[s.key];
       if (v != null && v >= 1 && v <= s.options.length) {
