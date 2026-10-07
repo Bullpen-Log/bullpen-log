@@ -40,17 +40,13 @@ export function SiteFooter({
         />
       )}
       {/*
-        경계선 없이 블록 안에서 위에서 아래로 — 맨 위는 화면 바탕(page), 블록의 6할쯤에서 원래 꼬리말 색(surface 60% 를 바탕에 섞은 것 —
-        예전 bg-surface/60 과 같은 색)에 닿고 그 아래는 그 색 그대로(2026-10-07 사용자: "위는 원래 배경색, 아래는 원래 블록 색으로
-        그라데이션 — 지금은 배경색이랑 똑같다"). 블록 전체에 걸쳐 옅게 섞으면 글자가 있는 아래쪽도 바탕색처럼 보였다.
+        경계선 없이 블록 안에서 위에서 아래로 — 맨 위는 화면 바탕(page), 블록의 절반쯤에서 블록 색(surface — 카드와 같은 색)에 닿고
+        그 아래는 그 색 그대로(2026-10-07 사용자: "위는 원래 배경색, 아래는 원래 블록 색으로 그라데이션").
+        예전 꼬리말은 surface 를 6할만 덮은 색이었는데, 네이비에서는 바탕(#0b1220)과 겨우 6 단계 차이(#101926)라 경계선이 없으면
+        그라데이션 끝도 바탕과 똑같아 보였다(두 번 지적). 끝 색은 globals.css '.site-footer-bg' — 카드 색(다크 #1c1c1e · 라이트 #ffffff),
+        네이비만 한 단계 밝게(#1e293b). 어느 테마에서도 아래쪽이 블록으로 보인다.
       */}
-      <footer
-        className={tabBar ? 'hidden desk:block' : undefined}
-        style={{
-          backgroundImage:
-            'linear-gradient(to bottom, var(--color-page) 0%, color-mix(in oklab, var(--color-surface) 60%, var(--color-page)) 60%)',
-        }}
-      >
+      <footer className={`site-footer-bg ${tabBar ? 'hidden desk:block' : ''}`}>
         <div
           className={`mx-auto w-full px-4 pt-12 sm:px-6 ${width} ${
             tabBar ? 'pb-[calc(var(--tab-bar-top)+1rem)] desk:pb-5' : 'pb-5'

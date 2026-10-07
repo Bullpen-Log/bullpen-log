@@ -371,6 +371,23 @@
   --color-line-strong: #44556e;
 }
 
+/*
+ * 꼬리말(components/site-footer.tsx) — 블록 안에서 위는 화면 바탕, 절반쯤부터 블록 색. 블록 색은 카드 색(surface)이 기본이고,
+ * 네이비만 한 단계 밝은 surface-2 — 네이비의 카드 색(#141d2b)은 바탕(#0b1220)과 9 단계 차이라 경계선 없는 그라데이션 끝에서는
+ * 바탕과 똑같아 보였다(2026-10-07 사용자 두 번 지적). 다크(#000 → #1c1c1e) · 라이트(#f2f2f7 → #fff)는 카드 색으로 충분히 보인다.
+ */
+.site-footer-bg {
+  --footer-end: var(--color-surface);
+  background-image: linear-gradient(
+    to bottom,
+    var(--color-page) 0%,
+    var(--footer-end) 55%
+  );
+}
+:root[data-theme='navy'] .site-footer-bg {
+  --footer-end: var(--color-surface-2);
+}
+
 html {
   color-scheme: light;
 
@@ -2454,21 +2471,22 @@ html[data-splash] *::after {
   animation: app-splash-leave 0.55s ease-in 1.1s both;
 }
 /*
- * 다시 불러오기 — B 가 자리로 가고 글자가 나오는 것은 처음과 같은 속도(빠르면 경박하다 — 사용자 2026-10-07), 다 나온 이름을
- * 기다리지 않고 마지막 글자가 다 나온 2.6초에 곧바로, 조금 빠르게(0.45초) 걷힌다. 처음 접속은 2.9초에 0.55초.
+ * 다시 불러오기 — B 가 자리로 가고 글자가 나오는 것은 처음보다 조금만 빠르게(약 2할: B 0.3초 뒤 0.8초 · 글자 1초부터 0.06초 간격
+ * 0.55초 — 2.5배는 경박했다, 사용자 2026-10-07), 다 나온 이름을 기다리지 않고 마지막 글자가 다 나온 2.1초에 0.45초 동안 걷힌다.
+ * 처음 접속은 그대로(2.9초에 0.55초).
  */
 .app-splash[data-play='quick'] .app-splash__mark {
-  animation: app-splash-mark 1s cubic-bezier(0.45, 0, 0.55, 1) 0.4s both;
+  animation: app-splash-mark 0.8s cubic-bezier(0.45, 0, 0.55, 1) 0.3s both;
 }
 .app-splash[data-play='quick'] .app-splash__letter {
-  animation: app-splash-letter 0.65s cubic-bezier(0.25, 0.1, 0.25, 1)
-    calc(1.25s + var(--i) * 0.075s) both;
+  animation: app-splash-letter 0.55s cubic-bezier(0.25, 0.1, 0.25, 1)
+    calc(1s + var(--i) * 0.06s) both;
 }
 .app-splash[data-play='quick'] {
-  animation: app-splash-leave 0.45s cubic-bezier(0.42, 0, 1, 1) 2.6s both;
+  animation: app-splash-leave 0.45s cubic-bezier(0.42, 0, 1, 1) 2.1s both;
 }
 .app-splash[data-play='quick'] .app-splash__stage {
-  animation: app-splash-zoom 0.45s cubic-bezier(0.42, 0, 1, 1) 2.6s both;
+  animation: app-splash-zoom 0.45s cubic-bezier(0.42, 0, 1, 1) 2.1s both;
 }
 @keyframes app-splash-mark {
   to {
