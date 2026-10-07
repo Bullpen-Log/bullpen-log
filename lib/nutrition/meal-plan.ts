@@ -834,6 +834,9 @@ const lineMacros = (l: Line) => scaleMacros(l.food, l.amount);
 const leanness = (f: Food) => (f.protein ?? 0) / Math.max(1, f.kcal);
 const totalOf = (lines: Line[]) => sumMacros(lines.map(lineMacros));
 
+/** 한 끼 맞추기에서 단백질 재료를 늘려도 그 끼니가 몫의 이만큼을 넘지 않게 */
+const PROTEIN_GROW_LIMIT = 1.25;
+
 /**
  * 한 끼를 몫에 맞춘다 — 단백질은 단백질 재료로, kcal 는 탄수화물(없으면 한 그릇 요리)로. 단백질은 기름이 적은 재료로
  * 맞춘다(1인분 단백질이 많은 것부터 늘리면 돼지 목살 · 계란말이가 늘어 kcal 이 넘쳤다).
@@ -854,7 +857,17 @@ function fitMeal(lines: Line[], kcal: number, protein: number, others: Line[] = 
     .sort((a, b) => leanness(b.food) - leanness(a.food))[0];
   if (prot) {
     const short = protein - totalOf(lines).protein;
-    fit(prot, prot.amount + short / (prot.food.protein ?? 1));
+    /*
+     * 그 끼니가 몫의 1.25배를 넘도록 늘리지는 않는다 — 모자란 것은 하루 맞추기가 기름 적은 것으로 채운다. 단백질이 적은 요거트 ·
+     * 두유 간식(1g 에 20~28kcal)으로 간식 단백질 몫(12g)을 채우려 두 배로 늘려, 1,250kcal 하루에 간식 둘이 510kcal(38%)이었다.
+     */
+    const room =
+      (kcal * PROTEIN_GROW_LIMIT - totalOf(lines).kcal) / Math.max(1, prot.food.kcal);
+    const amount = Math.min(
+      prot.amount + short / (prot.food.protein ?? 1),
+      Math.max(prot.amount, prot.amount + room)
+    );
+    fit(prot, amount);
   }
   const carb =
     lines.find((l) => l.role === 'carb' && l.food.kcal > 0) ??
