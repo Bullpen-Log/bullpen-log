@@ -85,6 +85,9 @@ export function analysisOf(
       ? {
           method: dist.method,
           distanceM: dist.distanceM,
+          inputDistM: dist.inputDistM,
+          sizeDistM: dist.sizeDistM,
+          distanceSource: dist.distanceSource,
           tiltRad: Math.round(dist.tiltRad * 10000) / 10000,
           impact: dist.impact,
           te: dist.te != null ? Math.round(dist.te * 10000) / 10000 : null,

@@ -505,12 +505,23 @@ export class LiveCapture {
    * 2배를 청한다(엔진 2.0 을 맞춘 영상이 2배 — 먼 공이 1배의 두 배 크기라 끝까지 잇는다).
    */
   private distanceM: number | null = null;
+  /** 거리를 공 크기로 어림한다 — distanceM 은 첫 어림(analyze-distance autoDistance) */
+  private distanceAuto = false;
   private tiltRad: number | null = null;
-  setDistance(distanceM: number | null, tiltRad: number | null = this.tiltRad) {
+  setDistance(
+    distanceM: number | null,
+    tiltRad: number | null = this.tiltRad,
+    distanceAuto: boolean = this.distanceAuto
+  ) {
     const modeChanged = !!distanceM !== !!this.distanceM;
     this.distanceM = distanceM && distanceM > 0 ? distanceM : null;
+    this.distanceAuto = distanceAuto;
     this.tiltRad = tiltRad;
-    this.sendSettings({ distanceM: this.distanceM, tiltRad: this.tiltRad });
+    this.sendSettings({
+      distanceM: this.distanceM,
+      distanceAuto,
+      tiltRad: this.tiltRad,
+    });
     if (modeChanged) this.meter?.setDistanceMode(!!this.distanceM);
   }
   /** 숙임만 — 폰 기울기 센서가 바뀔 때마다(1° 단위) */
@@ -605,6 +616,7 @@ export class LiveCapture {
       zoom: this.zoom,
       manual: this.manual,
       distanceM: this.distanceM,
+      distanceAuto: this.distanceAuto,
       tiltRad: this.tiltRad,
     };
   }
@@ -634,6 +646,7 @@ export class LiveCapture {
       zoom: this.zoom,
       hdr: false,
       distanceM: this.distanceM,
+      distanceAuto: this.distanceAuto,
       tiltRad: this.tiltRad,
     };
   }

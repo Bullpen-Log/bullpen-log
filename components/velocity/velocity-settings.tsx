@@ -56,6 +56,7 @@ export type SettingsValues = Pick<
   | 'useCal'
   | 'releaseDistM'
   | 'targetDistM'
+  | 'distAuto'
   | 'autoMode'
   | 'calibSave'
   | 'clipZone'
@@ -65,6 +66,12 @@ export type SettingsValues = Pick<
 const NET_VALUES = [
   { value: 'yes', label: '네트 있음' },
   { value: 'no', label: '네트 없음' },
+] as const;
+
+/** 그물까지 거리 — 공 크기로 어림(기본) · 줄자로 잰 값(측정 2단계와 같은 칸) */
+export const DIST_MODES = [
+  { value: 'auto', label: '자동' },
+  { value: 'manual', label: '직접 넣기' },
 ] as const;
 
 export function VelocitySettingsFields({
@@ -151,6 +158,24 @@ export function VelocitySettingsFields({
             onChange={(useCal) => onChange({ useCal })}
           />
           {approachOf(values) === 'receding' && (
+            <ChoiceRow
+              title="그물(포수 미트)까지 거리"
+              hint={
+                values.distAuto
+                  ? '공 크기로 거리를 어림해요. 줄자로 재서 넣으면 더 정확해요.'
+                  : undefined
+              }
+            >
+              <Segmented
+                label="그물까지 거리"
+                value={values.distAuto ? 'auto' : 'manual'}
+                onChange={(v) => onChange({ distAuto: v === 'auto' })}
+                options={DIST_MODES}
+                size="sm"
+              />
+            </ChoiceRow>
+          )}
+          {approachOf(values) === 'receding' && !values.distAuto && (
             <DistanceRow
               title="카메라에서 그물(포수 미트)까지"
               hint="구속을 이 거리로 재요. 5% 틀리면 구속도 5% 틀리니 줄자로 폰에서 공이 닿는 곳까지 재서 넣어 주세요. 정규 마운드에서 폰을 투수판 1m 뒤에 두면 약 19.5m예요."
@@ -165,7 +190,9 @@ export function VelocitySettingsFields({
               <span className="block text-sm text-ink">카메라 가로 화각</span>
               <span className="block text-xs leading-snug text-muted">
                 {approachOf(values) === 'receding'
-                  ? '아이폰 후면 기본 카메라 약 69°. 구속은 넣은 거리로 재서 화각의 영향은 작아요.'
+                  ? values.distAuto
+                    ? '아이폰 후면 기본 카메라 약 69°. 거리를 공 크기로 어림해서 화각이 맞아야 해요. 렌즈 보정을 하면 이 값 대신 잰 초점거리를 써요.'
+                    : '아이폰 후면 기본 카메라 약 69°. 구속은 넣은 거리로 재서 화각의 영향은 작아요.'
                   : '아이폰 후면 기본 카메라 약 69°. 포수 뒤는 공 크기로 거리를 재서 화각이 맞아야 해요. 렌즈 보정을 하면 이 값 대신 잰 초점거리를 써요.'}
               </span>
             </span>
@@ -407,6 +434,7 @@ export function VelocitySettingsButton({
     useCal: base.useCal,
     releaseDistM: base.releaseDistM,
     targetDistM: base.targetDistM,
+    distAuto: base.distAuto,
     autoMode: base.autoMode,
     calibSave: base.calibSave,
     clipZone: base.clipZone,
@@ -434,6 +462,7 @@ export function VelocitySettingsButton({
         useCal: base.useCal,
         releaseDistM: base.releaseDistM,
         targetDistM: base.targetDistM,
+        distAuto: base.distAuto,
         autoMode: base.autoMode,
         calibSave: base.calibSave,
         clipZone: base.clipZone,
@@ -482,6 +511,7 @@ export function VelocitySettingsButton({
                   useCal: base.useCal,
                   releaseDistM: base.releaseDistM,
                   targetDistM: base.targetDistM,
+                  distAuto: base.distAuto,
                   autoMode: base.autoMode,
                   calibSave: base.calibSave,
                   clipZone: base.clipZone,

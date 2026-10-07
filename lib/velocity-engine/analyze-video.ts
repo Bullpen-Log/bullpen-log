@@ -26,8 +26,13 @@ import {
   type VideoColor,
   type VideoTransfer,
 } from './video-fps.ts';
-import { isCalibratedCamera, readVideoLens } from './video-lens.ts';
-import { analyzeByDistance, type DistanceReport } from './analyze-distance.ts';
+import { isCalibratedCamera, readVideoLens, videoFovInfo } from './video-lens.ts';
+import {
+  analyzeByDistance,
+  AUTO_FOV_GUESS_NOTE,
+  AUTO_FOV_GUESS_SIGMA_REL,
+  type DistanceReport,
+} from './analyze-distance.ts';
 import {
   anchoredBackgroundTimes,
   coarseGrid,
@@ -123,6 +128,10 @@ export type AnalyzeOptions = {
   distanceM?: number | null;
   /** 카메라가 아래로 숙인 각(라디안) — 찍을 때 폰 기울기 센서로 안 값. 모르면 0 */
   tiltRad?: number | null;
+  /** 거리를 공 크기로 어림한다(analyze-distance autoDistance) — distanceM 은 첫 어림 */
+  distanceAuto?: boolean;
+  /** fovDeg 가 잰 값인가(앱 동시 촬영의 videoFieldOfView) — 안 주면 파일의 렌즈 정보 · 렌즈 보정이 있을 때만 잰 값으로 본다 */
+  fovKnown?: boolean;
 };
 
 /** 엔진 2.0 의 분석 구간(초) — 공 앞 0.1초 + 1.3초 담기 + 여유. 76km/h 공도 20m 그물에 닿고 튀는 장면까지 */
@@ -458,6 +467,7 @@ export async function analyzeVideo(options: AnalyzeOptions): Promise<VideoAnalyz
               fps: sampleFps,
               seedHint: plan?.ball?.accepted ? { t: plan.ball.t } : null,
               shakePx,
+              autoDistance: options.distanceAuto ?? false,
             })
           : analyzeFrames(input);
         timing.analyzeMs += now() - a0;
@@ -491,6 +501,17 @@ export async function analyzeVideo(options: AnalyzeOptions): Promise<VideoAnalyz
       const d = (result as { distance?: DistanceReport }).distance;
       if (result.measure.ok && d && d.extended > 0)
         notes.push('공이 그물 · 미트 앞에서 흐려져 끝을 이어 찾아 쟀어요. 값이 조금 어긋날 수 있어요.');
+      /*
+       * 공 크기로 어림한 거리는 초점거리에 비례한다 — 렌즈 정보(아이폰 메인 센서)도 렌즈 보정도 없으면 화각을 짐작한 만큼 틀린다.
+       * ± 를 넓히고 믿음을 '낮음'으로, 거리를 재서 넣게 권한다.
+       */
+      const fovKnown = options.fovKnown ?? (videoFovInfo(lensInfo) != null || !!focalPerLongSide);
+      if (result.measure.ok && d?.distanceSource === 'ball' && !fovKnown) {
+        const m = result.measure;
+        m.errorKmh = Math.round(1.645 * m.kmh * Math.hypot(m.errorKmh / 1.645 / m.kmh, AUTO_FOV_GUESS_SIGMA_REL) * 10) / 10;
+        m.confidence = 'low';
+        notes.push(AUTO_FOV_GUESS_NOTE);
+      }
     } else if (hdr) {
       notes.push(HDR_NOTE);
       /* 믿음은 '낮음(참고용)' — 값은 그대로 보인다(± 는 analyzeFrames 가 HDR_SIGMA_REL 로 넓혔다) */
