@@ -631,26 +631,3 @@ export function buildPitchPlan(facts: ReportFacts): PitchPlan {
     youthNote,
   };
 }
-
-/**
- * 저장해 둔 계획을 읽는다.
- *
- * AiReport.plan 은 만들 때의 모양 그대로 Json 에 들어간다. 사흘치를 그리던
- * 때에 저장된 것은 today 가 없고 days 배열이 있다. 그대로 읽으면 화면이
- * 터지므로 여기서 옛 모양을 오늘 하나로 옮겨 준다.
- *
- * 내일과 범위가 없던 때의 것도 그대로 읽힌다. 없는 값은 null 로 채우고,
- * 화면은 pitchRangeText 로 읽어 범위가 없으면 '60구 이하'로 낸다.
- *
- * 모양을 알 수 없으면 null 이다 — 억지로 읽으려 하면 값이 비어 곳곳에서
- * 터진다. 다시 만들라고 하는 편이 낫다.
- */
-export function readPitchPlan(value: unknown): PitchPlan | null {
-  if (!value || typeof value !== 'object') return null;
-  const plan = value as Partial<PitchPlan> & { days?: DayPlan[] };
-  const filled = { tomorrow: null, threwToday: false, ...plan };
-  if (filled.today || filled.tomorrow) return filled as PitchPlan;
-  const first = plan.days?.[0];
-  if (!first) return null;
-  return { ...filled, today: first } as PitchPlan;
-}

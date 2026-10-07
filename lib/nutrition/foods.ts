@@ -461,7 +461,7 @@ export const BASIC_FOODS: Food[] = ROWS.map(
 
 const ALIASES = new Map(ROWS.map((r) => [r[0], r[9] ?? []]));
 
-/** 기본 음식의 다른 이름(흰밥 · 공기밥 → 쌀밥) — 사진 기록이 AI 가 부른 이름을 맞출 때도 쓴다 */
+/** 기본 음식의 다른 이름(흰밥 · 공기밥 → 쌀밥) */
 export function basicAliases(id: string): readonly string[] {
   return ALIASES.get(id) ?? [];
 }

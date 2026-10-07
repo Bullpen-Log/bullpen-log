@@ -30,7 +30,6 @@ import {
 } from '@/lib/nutrition/burn';
 import { ageBand } from '@/lib/nutrition/age';
 import { mfdsEnabled } from '@/lib/nutrition/mfds-key';
-import { isAiFeatureOn } from '@/lib/ai/features';
 import { mfdsSubCounts } from '@/lib/nutrition/mfds-browse';
 import { throwDayGuide, type ThrowGuide } from '@/lib/nutrition/guide';
 import {
@@ -116,8 +115,6 @@ export type NutritionDay = {
   body: Body;
   /** 식약처 검색을 쓸 수 있나(인증키가 있나) */
   mfds: boolean;
-  /** 사진 기록(AI)을 쓸 수 있나 — 키가 없으면 음식 창의 '사진으로 담기'를 숨긴다 */
-  photo: boolean;
   /** 식약처 둘러보기의 분류 → 세부 칸 → 음식 수(음식 창이 빈 칸을 숨기고 숫자를 단다) */
   browseSubs: Record<string, Record<string, number>>;
   /**
@@ -575,7 +572,6 @@ export async function loadNutritionDay(
     yesterday,
     body,
     mfds: mfdsEnabled(),
-    photo: isAiFeatureOn('nutritionPhoto'),
     browseSubs: mfdsSubCounts(),
     popular,
     calendar,

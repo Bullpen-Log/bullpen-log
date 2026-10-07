@@ -19,7 +19,6 @@ import { DEFAULT_WORKOUT_MINUTES, SLOT_ORDER } from '@/lib/report/theme';
 import { orderSession } from '@/lib/report/exercise-order';
 import { BackLink, Card, PageHeading } from '@/components/ui';
 import { PlanForm } from '@/components/training-forms';
-import type { AiReportBody } from '@/lib/ai/report-prompt';
 import { ExerciseChecklist, type TodayExercise } from './exercise-list';
 import { AddExercise, type PickableExercise } from './add-exercise';
 import { TrainingNote } from './training-note';
@@ -216,16 +215,7 @@ export default async function TrainingPage({
   const core = await loadTodayCore(user, today);
   const { savedPlan, picked, doneIds, shownPicks, droppedForSafety } = core;
 
-  /*
-   * 오늘 만든 리포트가 있으면 거기에 훈련 설명이 들어 있다.
-   * 여기서 AI를 새로 부르지는 않는다 — 저장된 것을 읽을 뿐이라 화면을 열
-   * 때마다 돈이 나가지 않는다.
-   */
-  const [todayReport, trainingNote, favExercises, todaySession] = await Promise.all([
-    prisma.aiReport.findUnique({
-      where: { userId_asOf: { userId: user.id, asOf: core.midnight } },
-      select: { halted: true, body: true },
-    }),
+  const [trainingNote, favExercises, todaySession] = await Promise.all([
     /* 오늘 운동이 어땠는지 — 하루에 하나. 목록 아래에 적는다. */
     prisma.dailyTrainingNote.findUnique({
       where: { userId_date: { userId: user.id, date: core.midnight } },
@@ -296,15 +286,6 @@ export default async function TrainingPage({
 
   const resume = todaySession?.status === 'ACTIVE';
   const finished = todaySession?.status === 'FINISHED';
-
-  /*
-   * 리포트를 만든 뒤에 통증을 입력했다면 처방이 멈춘다.
-   * 그때는 예전 설명을 보여주면 안 되므로 함께 감춘다.
-   */
-  const aiTraining =
-    !todayReport?.halted && !picked.halted
-      ? ((todayReport?.body as AiReportBody | null)?.training ?? null)
-      : null;
 
   /*
    * 화면에 그릴 운동만 자세히 가져온다.
@@ -534,27 +515,6 @@ export default async function TrainingPage({
 
         {programStart && <ProgramStart props={programStart} />}
 
-        {/* 왜 오늘 이런 구성인지 — 고르는 건 코드, 설명은 AI가 한다 */}
-        {/*
-        AI 설명은 한 줄(무엇에 집중하는 날인지)만 보이고, 까닭은 접는다 — 화면에 글이
-        많으면 읽지 않고 넘긴다(2026-09-26 사용자분).
-      */}
-        {aiTraining && (
-          <details className="group rounded-2xl border border-sky-soft/60 bg-sky-tint p-(--block-pad)">
-            <summary className="flex cursor-pointer list-none items-start gap-2">
-              <span className="min-w-0 flex-1 text-[15px] font-bold leading-snug break-keep text-ink">
-                {aiTraining.focus}
-              </span>
-              <span className="shrink-0 text-xs font-semibold text-sky-strong group-open:hidden">
-                왜?
-              </span>
-            </summary>
-            <p className="mt-2 text-sm leading-relaxed break-keep text-ink/80">
-              {aiTraining.why}
-            </p>
-          </details>
-        )}
-
         {picked.halted ? (
           <Card className="space-y-2 border-warn-line bg-warn-bg">
             <p className="text-sm font-bold text-warn">
@@ -642,7 +602,7 @@ export default async function TrainingPage({
               <p className="text-sm leading-relaxed break-keep text-muted">
                 {savedPlan.theme.reason}
               </p>
-              {/* AI 맞춤이 정한 목표·시간과 그 이유 */}
+              {/* 자동 맞춤이 정한 목표·시간과 그 이유 */}
               {savedPlan.auto && <AutoNote auto={savedPlan.auto} />}
               {savedPlan.minutes < savedPlan.requestedMinutes && (
                 <p className="text-xs text-warn">
@@ -757,12 +717,12 @@ export default async function TrainingPage({
               <ul className="mt-3 space-y-1.5">
                 {[
                   savedPlan.theme.reason,
-                  /* AI 맞춤 — 규칙이 정해 AI가 바꿀 수 없던 것 */
+                  /* 자동 맞춤 — 규칙이 정한 것 */
                   ...(savedPlan.auto?.rules ?? []),
                   ...(savedPlan.goal
                     ? [
                         savedPlan.auto
-                          ? `${savedPlan.auto.by === 'ai' ? 'AI가' : '규칙 초안이'} 정한 목표 '${savedPlan.goal}'에 맞춰 시간을 배분`
+                          ? `자동 맞춤이 정한 목표 '${savedPlan.goal}'에 맞춰 시간을 배분`
                           : `목표 '${savedPlan.goal}'에 맞춰 시간을 배분`,
                       ]
                     : []),

@@ -1,13 +1,6 @@
 'use client';
 
-import {
-  createContext,
-  useContext,
-  useEffect,
-  useState,
-  useTransition,
-  type ReactNode,
-} from 'react';
+import { useEffect, useState, useTransition, type ReactNode } from 'react';
 import { Loader2, RotateCcw } from 'lucide-react';
 import { Segmented } from '@/components/segmented';
 import { Skeleton } from '@/components/fallback';
@@ -16,54 +9,21 @@ import { agoText, spokenDay } from './day-summary';
 import type { AnalysisTab } from './analysis-tabs';
 
 /**
- * 홈의 분석 칸 — 캘린더 밑에 늘 떠 있다.
+ * 분석 칸 — 분석 · 그래프 화면(/coach)이 쥔 날짜의 분석.
  *
- * 예전에는 '분석' 탭이 따로 있었다. 그런데 분석은 결국 '그날 어땠나'를 보는 일이고,
- * 날짜는 홈 캘린더가 이미 쥐고 있었다. 지난 리포트를 보려면 분석 탭의 목록(최근 셋)을
- * 뒤져야 했고, 그보다 옛날 것은 볼 길이 없었다.
- *
- * 이제 분석은 홈 캘린더를 따른다. 아무 날도 안 고르면 오늘, 날짜를 누르면 그날 분석이다.
- * 리포트가 있는 날은 캘린더 칸 왼쪽 위에 그래프 표시가 붙어 있어 지난 분석을 달력에서 찾는다.
- *
- * 세 칸은 분석 탭의 것을 그대로 옮겼다 — 리포트(그날 쓴 코멘트와 투구 계획), 투구(부하
- * 지수·28일 추이·기간별 기록), 트레이닝(운동 부하·4주 돌아보기). 투구·트레이닝은 고른 날
- * 기준으로 다시 셈한다(그날까지의 기록으로 — 그때 어땠는지).
+ * 두 칸 — 투구(부하 지수·28일 추이·기간별 기록), 트레이닝(운동 부하·4주 돌아보기). 고른 날
+ * 기준으로 다시 셈한다(그날까지의 기록으로 — 그때 어땠는지). 리포트 칸은 2026-10-07 AI 를 빼며 지웠다.
  *
  * 내용은 서버가 그려 보낸다(app/actions/analysis.tsx). 분석 화면의 부품들이 서버에서
  * 셈하도록 짜여 있어서다. 한 번 받은 날·칸은 들고 있다가 다시 누르면 바로 보인다.
  */
 
 const TABS = [
-  { value: 'report', label: '리포트' },
   { value: 'pitch', label: '투구' },
   { value: 'training', label: '트레이닝' },
 ] as const;
 
-/*
- * 분석 안에서 날짜로 건너뛰기 — '가장 가까운 리포트' 같은 단추가 캘린더의 날짜를 고른다.
- * 분석 내용은 서버가 그리지만, 누르는 단추는 화면 쪽이라 여기서 길을 이어 준다.
- */
-const JumpContext = createContext<((date: string) => void) | null>(null);
-
-/** 누르면 캘린더가 그날을 고른다(분석 칸도 그날로 바뀐다) */
-export function JumpToDate({
-  date,
-  className,
-  children,
-}: {
-  date: string;
-  className?: string;
-  children: ReactNode;
-}) {
-  const jump = useContext(JumpContext);
-  return (
-    <button type="button" onClick={() => jump?.(date)} className={className}>
-      {children}
-    </button>
-  );
-}
-
-/** 기다리는 동안의 자리 — 리포트 카드와 비슷한 틀 */
+/** 기다리는 동안의 자리 */
 export function AnalysisSkeleton() {
   return (
     <div aria-busy="true" className="space-y-4">
@@ -78,21 +38,12 @@ export function AnalysisBlock({
   date,
   today,
   initialTab,
-  todayReport,
   initialView,
-  onJump,
 }: {
   /** 보여 줄 날 — 캘린더에서 고른 날, 안 골랐으면 오늘 */
   date: string;
   today: string;
   initialTab: AnalysisTab;
-  /**
-   * 오늘의 리포트 칸 — 서버가 홈과 함께 그려 보낸다.
-   *
-   * 여기서 리포트를 만들면 서버가 홈을 새로 그려 보내는데, 이 칸도 그때 같이 바뀐다.
-   * 받아 둔 것으로 그리면 만들기를 눌러도 옛 리포트가 남는다.
-   */
-  todayReport: ReactNode;
   /**
    * 처음 펼 날 · 칸의 내용 — 서버가 화면과 함께 그려 보낸다(분석 · 그래프 화면 /coach).
    *
@@ -100,7 +51,6 @@ export function AnalysisBlock({
    * (2026-10-06 "화면 전환 중 로딩 화면이 깨진다"). 서버가 새로 그려 보내면 이것도 새것으로 온다.
    */
   initialView?: { date: string; tab: AnalysisTab; node: ReactNode };
-  onJump: (date: string) => void;
 }) {
   const [tab, setTab] = useState<AnalysisTab>(initialTab);
   const [cache, setCache] = useState<Record<string, ReactNode>>({});
@@ -108,20 +58,18 @@ export function AnalysisBlock({
   const [, startTransition] = useTransition();
 
   /*
-   * 서버가 홈을 새로 그려 보내면(기록을 남겼거나 리포트를 만들었으면) 받아 둔 분석은
-   * 옛것이다 — 버리고 지금 보는 칸부터 다시 받는다.
+   * 서버가 화면을 새로 그려 보내면(기록을 남겼으면) 받아 둔 분석은 옛것이다 — 버리고 지금 보는 칸부터
+   * 다시 받는다. 새로 그려 보낸 것은 처음 칸(initialView)이 새것으로 오는 것으로 안다.
    */
-  const [seen, setSeen] = useState<ReactNode>(todayReport);
-  if (seen !== todayReport) {
-    setSeen(todayReport);
+  const [seen, setSeen] = useState<ReactNode>(initialView?.node);
+  if (seen !== initialView?.node) {
+    setSeen(initialView?.node);
     setCache({});
   }
 
   const key = `${date}:${tab}`;
-  const fromServer = date === today && tab === 'report';
-  const node = fromServer
-    ? todayReport
-    : initialView && key === `${initialView.date}:${initialView.tab}`
+  const node =
+    initialView && key === `${initialView.date}:${initialView.tab}`
       ? initialView.node
       : cache[key];
 
@@ -166,7 +114,7 @@ export function AnalysisBlock({
   }, []);
 
   return (
-    <JumpContext value={onJump}>
+    <>
       {/*
         @container — 안의 칸 나누기(부하 · 투구량 카드, 코멘트 등)가 화면 폭이 아니라 이
         칸의 폭을 본다. 넓은 화면에서는 이 칸이 '기록 추이' 옆에서 반으로 줄어, 화면 폭만
@@ -249,6 +197,6 @@ export function AnalysisBlock({
           )}
         </div>
       </section>
-    </JumpContext>
+    </>
   );
 }

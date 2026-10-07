@@ -162,7 +162,7 @@ function StartSheet({
     season === 'in'
       ? {
           reason: '시즌 중 유지 프로그램은 곧 열려요.',
-          action: '지금은 AI 맞춤으로 가볍게 이어 가요.',
+          action: '지금은 자동 맞춤으로 가볍게 이어 가요.',
         }
       : season === 'rehab'
         ? {

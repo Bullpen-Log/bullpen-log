@@ -553,7 +553,6 @@ export function NutritionView({ day, today }: { day: NutritionDay; today: string
           combos={day.combos}
           current={entries.filter((e) => e.meal === sheet.meal)}
           mfds={day.mfds}
-          photo={day.photo}
           onError={setError}
           browseSubs={day.browseSubs}
           popular={day.popular}

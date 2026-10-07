@@ -11,6 +11,20 @@ Claude 로 작업을 시작하면 저절로 읽힌다. 규칙은 `AGENTS.md` 6�
 
 ---
 
+## 금윤호에게 — 2026-10-07 · 김민(Claude) — AI 를 앱에서 모두 뺐다(사용자 결정)
+
+받은 뒤 할 일: `npm install`(패키지 `@anthropic-ai/sdk` · `zod` 를 뺐다 — 다른 곳은 안 썼다) · `.next/types` · `.next/dev/types` 가 지운 경로
+(`app/api/nutrition/photo`)를 붙들고 tsc 가 실패하면 그 두 폴더를 지운다. DB 구조는 그대로.
+- **사용자: "AI 사용을 없애려고 해."** — AI 회의로 정하기로 했던 것을 김민이 이렇게 정했다(2026-10-03 'AI 맞춤 켜 둔다'도 뒤집음). 정리 `docs/ai-usage.md`.
+  네 문서(`docs/claude/geum-yunho.md` 4절 'AI — 김민과 회의 전까지…' 줄)는 네가 고쳐 줘.
+- **네 영역을 고쳤다**: 영양 '사진으로 담기'를 지웠다(`nutrition/photo-panel.tsx` · `app/api/nutrition/photo` · `lib/nutrition/photo.ts` · `photo-match.ts` 삭제,
+  `food-sheet.tsx` 의 단추 · `nutrition-view.tsx` 의 photo 넘기기 · `lib/nutrition/load.ts` 의 `photo` 칸 걷음, nutrition-selftest 의 사진 묶음 8개 지움 → 396).
+  홈 캘린더(`today/pitch-log-panel.tsx`)의 '분석 리포트 있음' 표시와 그날 칸의 '그날 리포트' 링크도 걷었다(리포트 칸이 없어짐).
+- 그 밖: /coach 리포트 칸 · 카드 · 만들기 동작 삭제(탭은 투구 · 트레이닝 둘, 옛 `?view=report` 는 투구로, `/coach/report/<날짜>` 는 `/coach?date=` 로),
+  트레이닝 'AI 맞춤' → '자동 맞춤'(늘 규칙 초안, 기다림 없음), 처리방침에서 Anthropic PBC 줄 빼고 시행일 10월 7일 + 바뀐 점 한 줄.
+  DB 의 `AiReport` 표 · `photoCalls` 칸 · 옛 일정 JSON 의 `aiCalls` 는 남겼다(지우려면 둘이 맞춰 2단계로).
+- Vercel 환경변수(`ANTHROPIC_API_KEY` · `AI_MODEL` · `AI_PHOTO_MODEL`) 정리와 키 폐기는 김민이 배포를 확인한 뒤 한다.
+
 ## 금윤호에게 — 2026-10-07 · 김민(Claude) — 구속 엔진 2.0(넣은 거리 + 물리 궤적) · 회전수 뺌 · 2배 줌
 
 받은 뒤 할 일 없음(DB · 패키지 그대로). **네 영역(구속 측정)을 크게 바꿨다** — 사용자: "PitchLab · SmartScout 처럼, 2배 줌 ·

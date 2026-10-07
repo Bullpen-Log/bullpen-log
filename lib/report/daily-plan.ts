@@ -91,19 +91,11 @@ export type DailyPlan = {
   /** 경력에 비해 일러서 뺀 개수 */
   levelExcludedCount: number;
   /**
-   * AI 맞춤으로 만든 날에만 있다 — 누가 목표·시간을 정했고 왜인지
+   * 자동 맞춤으로 만든 날에만 있다 — 목표·시간을 어떻게 정했고 왜인지
    * (lib/report/auto-setup.ts). 옛 기록과 직접 고른 날에는 없으므로 version 은
-   * 그대로 둔다.
+   * 그대로 둔다. (2026-10-07 전 줄에는 AI 호출 수 aiCalls 도 남아 있다 — 읽지 않는다.)
    */
   auto?: AutoRecord;
-  /**
-   * 오늘 AI를 부른 횟수.
-   *
-   * 하루 상한(AI_CALLS_PER_DAY)을 지키려고 센다. 일정을 다시 만들면 이 기록이
-   * 통째로 바뀌므로, 직접 고르기로 다시 만들어도 이어서 적는다 — 안 그러면
-   * 방식을 오가는 것만으로 상한이 풀린다.
-   */
-  aiCalls?: number;
 };
 
 /** 통증 등으로 일정을 만들지 않은 경우 */
@@ -170,7 +162,7 @@ export function buildDailyPlan<T extends ExerciseLike>({
   lastUpperKey: string | null;
   /** 몸 상태 경고를 보고도 고른 대로 받겠다고 했는가 */
   override?: boolean;
-  /** 메모에서 찾은 조심할 부위 (AI 맞춤). 그 부위의 무거운 운동을 뺀다 */
+  /** 조심할 부위. 그 부위의 무거운 운동을 뺀다(자동 맞춤의 규칙 초안은 늘 비어 있다) */
   caution?: AutoCaution[];
 }): BuildResult {
   /*
