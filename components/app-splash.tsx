@@ -33,8 +33,9 @@ const SETTLE_MS = 2900;
 const LEAVE_MS = 550;
 const REDUCED_HOLD_MS = 1100;
 /** 다시 불러오기(새로고침 · 뒤로) · 같은 탭에서 이미 본 뒤에는 짧게 — 사용자 2026-10-07: "재로딩 때는 로고가 더 빨리 사라지게" */
-const QUICK_SETTLE_MS = 1100;
-const QUICK_LEAVE_MS = 350;
+/** 다시 불러오기 — 움직임은 처음과 같고, 다 나온 이름을 기다리지 않고 곧바로(2.6초) 조금 빠르게(0.45초) 걷힌다 */
+const QUICK_SETTLE_MS = 2600;
+const QUICK_LEAVE_MS = 450;
 const SEEN_KEY = 'bullpen-splash-seen';
 
 /** 처음 접속이 아닌가 — 새로고침 · 뒤로/앞으로, 또는 이 탭에서 이미 연출을 봤다 */
