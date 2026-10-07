@@ -77,6 +77,14 @@ import {
   type DistanceReport,
 } from '@/lib/velocity-engine/analyze-distance';
 import {
+  SESSION_DIST_MIN,
+  loadDistMemory,
+  medianOf,
+  saveDistMemory,
+  sessionDistOf,
+  type DistMemory,
+} from '@/lib/velocity-session-distance';
+import {
   SegmentedRecorder,
   recordingBitrate,
   type RecorderState,
@@ -241,8 +249,8 @@ type LocalPitch = SavePitchInput & {
   trail?: TrailPoint[] | null;
   /** 클립의 eventSec 에 해당하는 궤적 시각(ResultMeta.hitT) — 클립 시각 = eventSec + (t − hitT) */
   hitT?: number | null;
-  /** 구속을 낸 거리 — 결과 화면에 '거리 22.4m(공 크기)'로 보인다. session 은 세션 거리(아래 withSessionDistance)로 옮겼나 */
-  dist?: { m: number; auto: boolean; session?: boolean } | null;
+  /** 구속을 낸 거리 — 결과 화면에 '거리 22.4m(공 크기)'로 보인다. from 은 세션 거리(아래 withSessionDistance)로 옮겼으면 어디서 */
+  dist?: { m: number; auto: boolean; from?: 'session' | 'memory' | null } | null;
   /**
    * 공 크기로 어림한 거리로 잰 처음 값 — 세션 거리로 옮길 때 여기서 다시 낸다. clean 은 끝이 깨끗했나(맞고 튄 공으로 끝을 정하고 이어
    * 찾은 것이 없다) — 세션 거리는 이런 공에만 쓴다
@@ -250,30 +258,29 @@ type LocalPitch = SavePitchInput & {
   auto?: { distM: number; kmh: number; releaseKmh: number | null; errorKmh: number; clean: boolean } | null;
 };
 /**
- * 세션 거리 — 카메라로 잰 공이 3개부터는 공 크기 거리의 중앙값을 쓴다. 폰 · 그물은 세션 내내 그대로인데 공 하나의 공 크기 거리는
- * 2~3% 흔들려(132: −4.5%) 가끔 6~8km/h 가 났다 — 앱(웹킷)이 푼 밖 영상 13개로 해 보면 공마다 거리 평균 오차 2.3km/h · 최대 6.0,
- * 세션 중앙값이면 1.5 · 최대 3.9(그물 밑으로 빠진 111 뺌). 끝이 깨끗한 공(맞고 튄 공으로 끝, 이어 찾기 없음)에만 쓴다 — 실내(흰 천 ·
- * 포수)는 공마다 끝 판정이 흔들리고 그 공의 거리가 그것을 메워, 세션 거리로 옮기면 오히려 5.5 → 8.2 로 나빴다. 중앙값과 8% 넘게
- * 다른 공도 다른 일(폰을 옮김 등)이라 제 거리를 둔다. 영상 파일은 파일끼리 따로 센다 — 카메라와 찍은 자리가 다를 수 있다. 공을 더하거나
- * 지울 때마다 다시 센다.
+ * 세션 거리(규칙 · 숫자는 lib/velocity-session-distance.ts) — 끝이 깨끗한 공(맞고 튄 공으로 끝, 이어 찾기 없음)에만 쓴다. 실내(흰 천 ·
+ * 포수)는 공마다 끝 판정이 흔들리고 그 공의 거리가 그것을 메워, 세션 거리로 옮기면 오히려 5.5 → 8.2 로 나빴다. 세션 거리와 8% 넘게
+ * 다른 공도 다른 일(폰을 옮김 등)이라 제 거리를 둔다. 영상 파일은 파일끼리 따로 세고 지난 세션 거리도 안 쓴다 — 찍은 자리를 모른다.
+ * 공을 더하거나 지울 때마다 다시 센다.
  */
-const SESSION_DIST_MIN = 3;
 const SESSION_DIST_TOL = 0.08;
-function withSessionDistance(list: LocalPitch[]): LocalPitch[] {
-  const sessOf = (source: LocalPitch['source']) => {
-    const ds = list
-      .filter((p) => p.auto?.clean && p.source === source)
-      .map((p) => p.auto!.distM)
-      .sort((a, b) => a - b);
-    return ds.length >= SESSION_DIST_MIN ? ds[ds.length >> 1] : null;
+function withSessionDistance(
+  list: LocalPitch[],
+  memory: DistMemory | null
+): LocalPitch[] {
+  const cleanOf = (source: LocalPitch['source']) =>
+    list.filter((p) => p.auto?.clean && p.source === source).map((p) => p.auto!.distM);
+  const sess = {
+    camera: sessionDistOf(cleanOf('camera'), memory),
+    file: sessionDistOf(cleanOf('file'), null),
   };
-  const sess = { camera: sessOf('camera'), file: sessOf('file') };
   const r1 = (v: number) => Math.round(v * 10) / 10;
   return list.map((p) => {
     if (!p.auto) return p;
     const s = sess[p.source];
-    const use =
-      s != null && p.auto.clean && Math.abs(p.auto.distM / s - 1) <= SESSION_DIST_TOL ? s : p.auto.distM;
+    const on =
+      s != null && p.auto.clean && Math.abs(p.auto.distM / s.m - 1) <= SESSION_DIST_TOL;
+    const use = on ? s.m : p.auto.distM;
     const k = (use / p.auto.distM) ** SPEED_DISTANCE_EXPONENT;
     const distance = p.analysis?.distance;
     return {
@@ -281,7 +288,7 @@ function withSessionDistance(list: LocalPitch[]): LocalPitch[] {
       rawKmh: r1(p.auto.kmh * k),
       errorKmh: r1(p.auto.errorKmh * k),
       releaseKmh: p.auto.releaseKmh != null ? r1(p.auto.releaseKmh * k) : null,
-      dist: { m: r1(use), auto: true, session: use !== p.auto.distM },
+      dist: { m: r1(use), auto: true, from: on ? s.from : null },
       analysis:
         p.analysis && distance ? { ...p.analysis, distance: { ...distance, distanceM: r1(use) } } : p.analysis,
     };
@@ -808,13 +815,14 @@ export function VelocityScreen({
       ...EMPTY_EDIT,
       zone: guessedZone,
     };
-    setPitches((prev) => withSessionDistance([...prev, { ...added, id: nextPitchId(prev) }]));
+    const memory = loadDistMemory();
+    setPitches((prev) => withSessionDistance([...prev, { ...added, id: nextPitchId(prev) }], memory));
     setSaved(false);
     setResultOpen(true);
     /* 앱(아이폰)에서도 떨린다 — navigator.vibrate 는 아이폰에 없다(lib/haptics.ts) */
     buzz(30);
     /* 읽어 주는 값도 세션 거리로 옮긴 값 */
-    const spoken = withSessionDistance([...pitches, { ...added, id: -1 }]).at(-1)?.rawKmh ?? m.kmh;
+    const spoken = withSessionDistance([...pitches, { ...added, id: -1 }], memory).at(-1)?.rawKmh ?? m.kmh;
     speak(`${Math.round(toSpeed(shown(spoken), unit))}`);
   };
   useEffect(() => {
@@ -1417,8 +1425,23 @@ export function VelocityScreen({
 
   const patch = (id: number, edit: Partial<PitchEdit>) =>
     setPitches((prev) => prev.map((p) => (p.id === id ? { ...p, ...edit } : p)));
+  /* 이번 세션(카메라)의 깨끗한 공이 3개를 넘기면 그 중앙값을 지난 세션 거리로 남긴다 — 다음 세션 첫 공부터 쓴다 */
+  useEffect(() => {
+    const ds = pitches.filter((p) => p.auto?.clean && p.source === 'camera').map((p) => p.auto!.distM);
+    if (ds.length >= SESSION_DIST_MIN)
+      saveDistMemory({
+        distM: Math.round(medianOf(ds) * 100) / 100,
+        n: ds.length,
+        at: Date.now(),
+      });
+  }, [pitches]);
   const remove = (id: number) => {
-    setPitches((prev) => withSessionDistance(prev.filter((p) => p.id !== id)));
+    setPitches((prev) =>
+      withSessionDistance(
+        prev.filter((p) => p.id !== id),
+        loadDistMemory()
+      )
+    );
     setSheet('none');
     setEditing(null);
   };
@@ -2505,7 +2528,13 @@ export function VelocityScreen({
               }${
                 lastPitch.dist
                   ? ` · 거리 ${lastPitch.dist.m}m${
-                      lastPitch.dist.session ? '(세션 공 크기)' : lastPitch.dist.auto ? '(공 크기)' : ''
+                      lastPitch.dist.from === 'memory'
+                        ? '(지난 세션 + 공 크기)'
+                        : lastPitch.dist.from === 'session'
+                          ? '(세션 공 크기)'
+                          : lastPitch.dist.auto
+                            ? '(공 크기)'
+                            : ''
                     }`
                   : ''
               }`}
