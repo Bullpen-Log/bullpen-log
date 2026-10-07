@@ -15,7 +15,7 @@ export function PrivacyContent() {
     <article>
       <LegalHeading
         title="개인정보 처리방침"
-        updatedAt="2026년 10월 3일"
+        updatedAt="2026년 10월 7일"
         summary={
           <>
             Bullpen Log는 <strong>안전한 투구량을 계산하는 데 필요한 만큼만</strong>{' '}
@@ -100,14 +100,6 @@ export function PrivacyContent() {
           rows={[
             ['Vercel Inc.', '서비스 실행과 배포', '해외'],
             ['Supabase Inc.', '데이터베이스와 영상 저장', '해외'],
-            [
-              'Anthropic PBC',
-              <>
-                리포트 문장 생성. <strong>기록에서 계산한 수치와 계획만</strong> 보내고,
-                이메일·닉네임 같은 신원 정보는 보내지 않습니다.
-              </>,
-              '해외',
-            ],
           ]}
         />
         <p>
@@ -192,6 +184,10 @@ export function PrivacyContent() {
         <p>
           내용이 바뀌면 시행일 7일 전부터 서비스 화면에 알립니다. 회원에게 불리하게
           바뀌는 경우에는 30일 전에 알리고 다시 동의를 받습니다.
+        </p>
+        <p>
+          2026년 10월 7일: AI 기능을 없애면서 맡기는 곳에서 Anthropic PBC(리포트 문장 생성)를
+          뺐습니다.
         </p>
       </Article>
 

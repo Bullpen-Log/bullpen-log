@@ -32,22 +32,14 @@ import { painEasingParts, rehabEasingParts } from '@/lib/report/prescription';
 import type { TrainingLoad } from '@/lib/training-load';
 
 /**
- * AI 맞춤 — 목표·시간·부위를 앱이 정하는 일정 만들기.
+ * 자동 맞춤 — 목표·시간을 앱이 규칙으로 정하는 일정 만들기.
  *
- * 사용자는 장비만 고른다. 나머지는 두 겹으로 정한다(2026-09-23 사용자분과 정함).
+ * 사용자는 장비만 고른다. 몸을 지키는 규칙(통증, 회복날·보조날, 운동 부하, 수면, 전신
+ * 근육통, 체크인에서 고른 운동)이 울타리를 치고, 그 안의 '규칙 초안'(draft)이 오늘 방향이다.
+ * 2026-10-07 AI 를 뺐다(사용자) — 예전에는 이 울타리 안에서 AI 가 골랐다.
  *
- *   규칙   몸을 지키는 것 — 통증, 회복날·보조날, 운동 부하, 수면, 전신 근육통,
- *          체크인에서 고른 운동. 여기서 정한 것은 AI가 바꾸지 못한다.
- *   AI     그 울타리 안에서 목표·시간·부위를 고르고, 메모에서 조심할 부위를
- *          찾고, 왜 그렇게 정했는지 사람 말로 설명한다 (lib/ai/auto-setup.ts).
- *
- * 운동 종목은 둘 다 고르지 않는다. 방향이 정해지면 지금까지처럼 엔진이 안전
- * 필터를 거쳐 고른다(lib/report/daily-plan.ts). AI가 종목을 고르면 없는 운동을
- * 지어내거나 안전 필터를 건너뛸 길이 생긴다.
- *
- * 이 파일은 규칙 쪽이다. DB도 AI도 부르지 않아 자가 시험으로 그대로 밟아 볼 수
- * 있다. 여기서 만드는 '규칙 초안'은 AI가 없거나 실패한 날 그대로 쓰는 답이기도
- * 하다 — 그래서 AI가 없어도 일정은 늘 나온다.
+ * 운동 종목은 여기서 고르지 않는다. 방향이 정해지면 엔진이 안전 필터를 거쳐
+ * 고른다(lib/report/daily-plan.ts). DB 를 부르지 않아 자가 시험으로 그대로 밟아 볼 수 있다.
  */
 
 /**
@@ -82,13 +74,10 @@ for (const name of [DEFAULT_GOAL, POWER_GOAL, STRENGTH_GOAL, CONDITIONING_GOAL])
  */
 export const SLEEP_DEBT_DAYS = 3;
 
-/** 하루에 AI를 부르는 상한. 체크인을 고칠 때마다 다시 묻지만 끝없이는 아니다. */
-export const AI_CALLS_PER_DAY = 5;
-
-/** 메모에서 찾은, 오늘 조심할 부위. 그 부위의 무거운 운동을 뺀다. */
+/** 오늘 조심할 부위. 그 부위의 무거운 운동을 뺀다(규칙 초안은 늘 빈 목록). */
 export type AutoCaution = { part: CheckinPartKey; why: string };
 
-/** 오늘 운동의 방향 — 규칙 초안이든 AI가 고른 것이든 모양이 같다. */
+/** 오늘 운동의 방향 */
 export type AutoDecision = {
   goal: string;
   minutes: number;
@@ -101,19 +90,13 @@ export type AutoDecision = {
   reason: string;
 };
 
-/**
- * 규칙이 친 울타리. AI는 이 안에서만 고른다.
- *
- * 목표·시간·부위를 '고를 수 있는 값의 목록'으로 둔다. 목록 밖의 답은 받지
- * 않으므로(lib/ai/auto-setup-prompt.ts 의 acceptAnswer), AI가 무엇을 쓰든 여기
- * 적힌 선을 넘을 수 없다.
- */
+/** 규칙이 친 울타리 — 목표·시간·부위를 '고를 수 있는 값의 목록'으로 둔다. */
 export type AutoFence = {
   /** 오늘 몸 상태로 정해진 날. 회복·보조날이면 목표가 거의 안 걸린다 */
   day: SessionTheme;
   /** 근력 날(상체·하체)인가. 아니면 부위를 고르지 않는다 */
   strengthDay: boolean;
-  /** 규칙이 정해 AI가 바꿀 수 없는 목표. 없으면 null */
+  /** 규칙이 정한 목표. 없으면 null */
   fixedGoal: string | null;
   /** 고를 수 있는 목표 — fixedGoal 이 있으면 그것 하나 */
   goals: string[];
@@ -121,36 +104,24 @@ export type AutoFence = {
   minutes: Record<string, number[]>;
   /** 목표별로 고를 수 있는 부위. 비어 있으면 앱이 번갈아 정한다 */
   focuses: Record<string, GoalFocusKey[]>;
-  /** 규칙이 정한 것과 그 까닭 — 화면의 '왜 이 운동인가요?'와 AI에게 */
+  /** 규칙이 정한 것과 그 까닭 — 화면의 '왜 이 운동인가요?' */
   rules: string[];
   /** 체크인에서 고른 운동이 몸 상태와 부딪혔는가 — 이유에 꼭 들어가야 한다 */
   clash: { kind: string; reason: string } | null;
-  /** 규칙 초안 — AI가 없거나 실패하면 이대로 만든다 */
+  /** 규칙 초안 — 오늘 방향 */
   draft: AutoDecision;
 };
 
 /**
- * 일정에 함께 저장하는 AI 맞춤 기록 (DailyPlan.auto).
+ * 일정에 함께 저장하는 자동 맞춤 기록 (DailyPlan.auto).
  *
- * 무엇으로 정했는지까지 남긴다. 화면이 "AI가 정했다"와 "AI를 못 불러 규칙대로
- * 했다"를 구별해 말해야 하고, AI 비용도 여기서 따라간다.
+ * 2026-10-07 전에 저장된 줄은 by 'ai' 이고 그때의 칸(fallback · checkin · 토큰 수)이 더 붙어
+ * 있다. 화면은 by 와 상관없이 같은 이름으로 보이고 그 칸들은 읽지 않는다.
  */
 export type AutoRecord = AutoDecision & {
-  /** 누가 정했나 — AI, 또는 AI를 못 써서 규칙 초안 */
   by: 'ai' | 'rules';
-  /** 규칙이 정한 것 (AI가 바꿀 수 없던 것) */
+  /** 규칙이 정한 것 */
   rules: string[];
-  /** by 가 'rules' 인 까닭. 사람에게 보여줄 한 줄 */
-  fallback?: string;
-  /** 그 까닭의 속사정 — 화면에는 안 내고, 무엇이 막혔는지 나중에 보려고 남긴다 */
-  fallbackDetail?: string;
-  /** 이 판단을 내릴 때의 체크인 — 체크인을 고치면 AI에게 다시 묻는다 */
-  checkin: string;
-  model?: string;
-  inputTokens?: number;
-  outputTokens?: number;
-  /** AI가 답하는 데 걸린 시간(밀리초) */
-  ms?: number;
 };
 
 /** 운동 부하 중 여기서 보는 것만 */
@@ -192,28 +163,6 @@ function soreParts(today: CheckinLike | null): CheckinPartKey[] {
   return CHECKIN_PARTS.filter((p) => today[p.key] === '뻐근').map((p) => p.key);
 }
 
-/**
- * 오늘 체크인을 한 줄 도장으로 — 이 값이 같으면 AI에게 다시 묻지 않는다.
- *
- * '다시 만들기'는 대개 운동 목록이 마음에 안 들어서 누른다. 방향(목표·시간)은
- * 그대로 두고 종목만 새로 뽑으면 되는데, 그때마다 AI를 부르면 비용만 든다.
- * 체크인을 고쳤다면 몸 상태가 달라진 것이니 다시 묻는다.
- *
- * 잔 시간 · 근육통도 울타리를 바꾸므로 도장에 든다. 칸이 없는 것(옛 기록)과 null 은
- * 같은 도장이다 — 둘 다 '안 적음'이라 다시 물을 까닭이 없다.
- */
-export function checkinStamp(today: CheckinLike): string {
-  return JSON.stringify([
-    ...CHECKIN_PARTS.map((p) => today[p.key]),
-    today.condition,
-    today.sleep,
-    today.preferredParts,
-    today.preferredWorkout ?? null,
-    today.sleepHours ?? null,
-    today.soreness ?? null,
-  ]);
-}
-
 /** 시간 선택지에서 한 단계 아래. 맨 아래면 그대로 */
 function oneStepDown(goal: string, minutes: number): number {
   const choices = minutesChoicesFor(goal);
@@ -244,8 +193,8 @@ export function decideAutoFence({
   /*
    * 오늘이 어떤 날인지는 지금 엔진이 정한다 — 통증·등판 여파·투구 부하·컨디션.
    *
-   * 몸 상태 경고를 넘기는 것(override)은 AI 맞춤에 없다. 체크인에서 고른 운동이
-   * 몸 상태와 부딪히면 AI 맞춤은 몸 상태 쪽으로 가고 이유를 말한다(사용자분과
+   * 몸 상태 경고를 넘기는 것(override)은 자동 맞춤에 없다. 체크인에서 고른 운동이
+   * 몸 상태와 부딪히면 자동 맞춤은 몸 상태 쪽으로 가고 이유를 말한다(사용자분과
    * 정함). 그래도 하고 싶으면 '직접 고르기'에서 할 수 있다.
    */
   const day = decideTheme({
@@ -326,7 +275,7 @@ export function decideAutoFence({
   }
 
   /*
-   * 전신 근육통 '많이' — 시간을 한 단계 줄이고, AI 가 고를 수 있는 목표에서 파워 향상을 뺀다.
+   * 전신 근육통 '많이' — 시간을 한 단계 줄이고, 고를 수 있는 목표에서 파워 향상을 뺀다.
    *
    * 알이 심하게 밴 날은 점프 · 전력 동작이 먼저 떨어진다. 가장 센 운동은 이미 후보에서 빠지지만
    * (prescription.ts), 목표가 파워면 남은 것으로 파워 날을 채우게 된다. 요일(상체·하체)은 그대로 둔다.
@@ -414,8 +363,8 @@ export function decideAutoFence({
 
   return {
     /*
-     * 컨디셔닝으로 정해진 근력 날은 컨디셔닝 데이다(conditioningDay). AI에게도
-     * 그 이름으로 알려야 "오늘은 하체 위주로" 같은 말을 안 한다.
+     * 컨디셔닝으로 정해진 근력 날은 컨디셔닝 데이다(conditioningDay) — 화면도
+     * 그 이름으로 보여야 "오늘은 하체 위주로" 같은 말을 안 한다.
      */
     day: fixedGoal === CONDITIONING_GOAL ? conditioningDay(day, facts) : day,
     strengthDay,
@@ -450,7 +399,7 @@ export function decideAutoFence({
 }
 
 /**
- * 규칙 초안의 이유 — AI가 없거나 실패한 날 화면에 이 문장이 나간다.
+ * 규칙 초안의 이유 — 화면에 이 문장이 나간다.
  *
  * 왜 이 목표·시간인지만 말한다. 왜 회복날인지는 바로 위에 적힌 테마 이유
  * (decideTheme 의 reason)가 이미 말하므로 되풀이하지 않는다.
@@ -517,26 +466,6 @@ function draftReason({
     return `운동 기록이 아직 적어 ${withJosa(goal, '으로/로')} 시작해요. 기록이 쌓이면 더 맞춰 드려요. ${time}`;
   }
   return `특별히 바꿀 신호가 없어 기본 목표인 ${withJosa(goal, '으로/로')} 잡았어요. ${time}`;
-}
-
-/**
- * 오늘 방향을 AI에게 다시 묻지 않고 그대로 써도 되는가 ('다시 만들기').
- *
- * AI가 정한 것이고, 체크인이 그대로이고, 지금 울타리 안에도 여전히 드는 경우.
- * 만든 뒤에 투구를 기록했다면 울타리가 바뀌었을 수 있다 — 그때는 다시 묻는다.
- */
-export function canReuse(
-  prev: AutoRecord | undefined,
-  fence: AutoFence,
-  stamp: string
-): prev is AutoRecord {
-  if (!prev || prev.by !== 'ai' || prev.checkin !== stamp) return false;
-  if (!fence.goals.includes(prev.goal)) return false;
-  if (!(fence.minutes[prev.goal] ?? []).includes(prev.minutes)) return false;
-  if (prev.focus != null && !(fence.focuses[prev.goal] ?? []).includes(prev.focus)) {
-    return false;
-  }
-  return true;
 }
 
 /** 조심할 부위를 사람 말로 */

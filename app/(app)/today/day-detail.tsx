@@ -97,7 +97,6 @@ export function DayDetailBlock({
   failed,
   onRetry,
   onReload,
-  hasReport,
 }: {
   date: string;
   today: string;
@@ -113,8 +112,6 @@ export function DayDetailBlock({
   onRetry: () => void;
   /** 받아 둔 그날 요약을 버리고 새로 받는다 — 클립 주소가 만료됐을 때 */
   onReload: () => void;
-  /** 그날 AI 리포트가 있나 — 머리의 '그날 분석'이 리포트 칸으로 연다 */
-  hasReport: boolean;
 }) {
   const { logs, plan, velocity } = facts;
   const needsDetail =
@@ -145,12 +142,12 @@ export function DayDetailBlock({
           <span className="font-normal text-muted"> · {TITLES[focus]}</span>
         </h3>
         <span className="flex flex-wrap items-center gap-1">
-          {/* 그날 분석 — 분석 · 그래프 화면을 그 날짜째(리포트가 있으면 리포트 칸으로) */}
+          {/* 그날 분석 — 분석 · 그래프 화면을 그 날짜째 */}
           <Link
-            href={`/coach?date=${date}${hasReport ? '&view=report' : ''}`}
+            href={`/coach?date=${date}`}
             className="inline-flex items-center rounded-lg px-2 py-1 text-sm font-medium text-muted transition-colors hover:bg-surface-2 hover:text-ink"
           >
-            {hasReport ? '그날 리포트' : '그날 분석'}
+            그날 분석
           </Link>
           {link && (
             <Link
