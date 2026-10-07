@@ -386,8 +386,11 @@ model DailyCheckin {
   restingHr    Int?
   /// 물을 얼마나 마셨나: 충분 / 보통 / 부족
   hydration    String?
-  /// 끼니를 얼마나 챙겼나: 잘 먹음 / 보통 / 부족
+  /// 끼니를 얼마나 챙겼나: 잘 먹음 / 보통 / 부족. 2026-09-30 화면에서 뺐다가 2026-10-07 간편 체크인에 되살림 —
+  /// 영양 조언(lib/nutrition/advice.ts, 홈 카드)이 음식 기록 없이도 오늘 몇 g 더 먹을지 어림하는 데 쓴다.
   nutrition    String?
+  /// 걸른 끼니: breakfast / lunch / dinner(lib/checkin.ts SKIPPABLE_MEALS). 영양 조언이 읽는다. 비면 안 걸렀거나 안 적음.
+  skippedMeals String[] @default([])
   /// 식욕 1(거의 없음)~5(왕성). 영양 가이드가 쓴다 — 입맛이 없는 날은 적게 자주 먹게 권한다.
   appetite     Int?
   /// 던지는 일정: 오늘 등판 / 오늘 불펜 / 내일 등판 / 없음 (lib/checkin.ts THROW_PLANS).

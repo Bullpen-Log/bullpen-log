@@ -413,8 +413,8 @@ html[data-theme-switching],
 html[data-theme-switching] *:not([data-thumb]),
 html[data-theme-switching] *::before,
 html[data-theme-switching] *::after {
-  transition-property: background-color, border-color, outline-color, box-shadow,
-    fill, stroke !important;
+  transition-property:
+    background-color, border-color, outline-color, box-shadow, fill, stroke !important;
   transition-duration: 260ms !important;
   transition-timing-function: ease !important;
   transition-delay: 0s !important;
@@ -570,7 +570,6 @@ input[type='search']::-webkit-search-decoration {
       transparent 60%
     );
 }
-
 
 .text-display {
   font-family: var(--font-display);
@@ -1035,7 +1034,8 @@ html:not([data-nav])::view-transition-new(.page) {
       (
           100dvh - var(--cal-chrome, 31rem) - env(safe-area-inset-top) -
             env(safe-area-inset-bottom)
-        ) / var(--cal-rows, 6) - 0.375rem
+        ) /
+        var(--cal-rows, 6) - 0.375rem
     ),
     calc(var(--spacing) * 20)
   );
@@ -1351,7 +1351,6 @@ html:not([data-nav])::view-transition-new(.page) {
     opacity: 0;
   }
 }
-
 
 @keyframes cog-spin {
   from {
@@ -2275,6 +2274,12 @@ html[data-gate-up] *::before,
 html[data-gate-up] *::after {
   view-transition-name: none !important;
 }
+/* 시작 연출(components/app-splash.tsx) 중에도 같다 — 스트리밍 조각이 드러나며 거는 전환의 그림이 판 위로 번쩍였다(2026-10-07) */
+html[data-splash] *,
+html[data-splash] *::before,
+html[data-splash] *::after {
+  view-transition-name: none !important;
+}
 
 /* ── 움직임을 줄여 쓰는 사람에게는 전부 끈다 ─────────────────── */
 
@@ -2366,6 +2371,151 @@ html[data-gate-up] *::after {
     animation: ring-grow 900ms cubic-bezier(0.22, 1, 0.36, 1) 120ms both;
   }
 }
+/*
+ * 시작 연출(components/app-splash.tsx) — 테마 바탕 위에 큰 B → 이름의 B 자리로 → 글자가 한 글자씩 뒤에서 밀려 나옴 → 걷힘.
+ * 때와 곡선은 아이폰 앱의 시작 연출(MainViewController.swift IntroOverlay)과 같다: 큰 B 0.4초, 자리로 1초(ease-in-out),
+ * 글자는 1.25초부터 0.075초 간격으로 0.65초씩(ease), 2.9초에 0.55초 동안 옅어지며 1.06배로(ease-in).
+ * 자리(--splash-dx · dy · scale)는 스크립트가 글꼴을 재서 넣는다 — 그 전(첫 페인트)에는 큰 B 만 가운데에 서 있다.
+ */
+.app-splash {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  background: var(--color-page);
+  pointer-events: none;
+  /* 걷힐 때 무대가 1.06배로 커져도 밖으로 안 넘치게(가로 막대가 번쩍이지 않게) */
+  overflow: hidden;
+}
+.app-splash__stage {
+  position: absolute;
+  inset: 0;
+}
+/* 끝 장면의 이름 — 사이트 머리의 이름과 같은 비율(글자 크기 = 화면 폭의 15%, 최대 68px) */
+.app-splash__word {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  display: inline-flex;
+  align-items: baseline;
+  white-space: nowrap;
+  line-height: 1;
+  font-size: min(15vw, 68px);
+  color: var(--color-ink);
+}
+/* B 칸 — 로고 높이는 대문자 높이 0.7em, 바닥을 기준선에(components/logo.tsx Wordmark 와 같다). 보이지 않고 자리만 */
+.app-splash__slot {
+  display: inline-block;
+  height: 0.7em;
+  margin-right: 0.07em;
+  visibility: hidden;
+}
+.app-splash__space {
+  display: inline-block;
+  width: 0.3em;
+}
+.app-splash__letter {
+  display: inline-block;
+  opacity: 0;
+  transform: translateX(-0.245em);
+}
+/* 큰 B — 긴 변의 16%(앱 시작 화면 그림과 같은 크기), 화면 가운데 */
+.app-splash__mark {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  height: min(calc(0.13 * max(100vw, 100vh)), 150px);
+  translate: -50% -50%;
+  transform-origin: 50% 50%;
+}
+.app-splash[data-play='on'] .app-splash__mark {
+  animation: app-splash-mark 1s cubic-bezier(0.45, 0, 0.55, 1) 0.4s both;
+}
+.app-splash[data-play='on'] .app-splash__letter {
+  animation: app-splash-letter 0.65s cubic-bezier(0.25, 0.1, 0.25, 1)
+    calc(1.25s + var(--i) * 0.075s) both;
+}
+.app-splash[data-play='on'] {
+  animation: app-splash-leave 0.55s cubic-bezier(0.42, 0, 1, 1) 2.9s both;
+}
+.app-splash[data-play='on'] .app-splash__stage {
+  animation: app-splash-zoom 0.55s cubic-bezier(0.42, 0, 1, 1) 2.9s both;
+}
+/* 움직임 줄이기 — 완성된 이름을 잠깐 보이고 걷는다 */
+.app-splash[data-play='still'] .app-splash__mark {
+  transform: translate(var(--splash-dx, 0px), var(--splash-dy, 0px))
+    scale(var(--splash-scale, 1));
+}
+.app-splash[data-play='still'] .app-splash__letter {
+  opacity: 1;
+  transform: none;
+}
+.app-splash[data-play='still'] {
+  animation: app-splash-leave 0.55s ease-in 1.1s both;
+}
+/* 다시 불러오기 — 같은 장면을 2.5배 빠르게(큰 B 0.1초 → 0.4초 자리로 → 글자 0.45초부터 0.03초 간격 0.3초 → 1.1초에 0.35초 걷힘) */
+.app-splash[data-play='quick'] .app-splash__mark {
+  animation: app-splash-mark 0.4s cubic-bezier(0.45, 0, 0.55, 1) 0.1s both;
+}
+.app-splash[data-play='quick'] .app-splash__letter {
+  animation: app-splash-letter 0.3s cubic-bezier(0.25, 0.1, 0.25, 1)
+    calc(0.45s + var(--i) * 0.03s) both;
+}
+.app-splash[data-play='quick'] {
+  animation: app-splash-leave 0.35s cubic-bezier(0.42, 0, 1, 1) 1.1s both;
+}
+.app-splash[data-play='quick'] .app-splash__stage {
+  animation: app-splash-zoom 0.35s cubic-bezier(0.42, 0, 1, 1) 1.1s both;
+}
+@keyframes app-splash-mark {
+  to {
+    transform: translate(var(--splash-dx, 0px), var(--splash-dy, 0px))
+      scale(var(--splash-scale, 1));
+  }
+}
+@keyframes app-splash-letter {
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes app-splash-leave {
+  to {
+    opacity: 0;
+  }
+}
+@keyframes app-splash-zoom {
+  to {
+    scale: 1.06;
+  }
+}
+
+/*
+ * 0 에서 차오르는 숫자(홈 영양 카드 nutrition-card.tsx CountUp) — 정수 사용자 속성을 움직여 counter 로 그린다. 자바스크립트 없이
+ * 서버가 그린 그대로 움직이고, @property 가 없는 브라우저는 끝 값만 그린다. 글자는 sr-only 에 따로 있어 읽기 · 복사는 그쪽.
+ */
+@property --n {
+  syntax: '<integer>';
+  initial-value: 0;
+  inherits: false;
+}
+.count-up {
+  counter-reset: n var(--n);
+}
+.count-up::after {
+  content: counter(n);
+}
+@media (prefers-reduced-motion: no-preference) {
+  .count-up {
+    animation: count-up 800ms cubic-bezier(0.22, 1, 0.36, 1) 120ms both;
+  }
+}
+@keyframes count-up {
+  from {
+    --n: 0;
+  }
+}
+
 @keyframes ring-grow {
   from {
     stroke-dashoffset: 100;
@@ -2384,30 +2534,30 @@ html[data-gate-up] *::after {
  */
 @media (pointer: coarse) {
   :is(
-      input:not(
-          [type='checkbox'],
-          [type='radio'],
-          [type='range'],
-          [type='hidden'],
-          [type='file'],
-          [type='color'],
-          [type='button'],
-          [type='submit'],
-          [type='reset'],
-          [type='image']
-        ),
-      textarea,
-      select
-    ):not(
-      [class*='text-lg'],
-      [class*='text-xl'],
-      [class*='text-2xl'],
-      [class*='text-3xl'],
-      [class*='text-4xl'],
-      [class*='text-5xl'],
-      [class*='text-6xl'],
-      [class*='text-display']
-    ) {
+    input:not(
+      [type='checkbox'],
+      [type='radio'],
+      [type='range'],
+      [type='hidden'],
+      [type='file'],
+      [type='color'],
+      [type='button'],
+      [type='submit'],
+      [type='reset'],
+      [type='image']
+    ),
+    textarea,
+    select
+  ):not(
+    [class*='text-lg'],
+    [class*='text-xl'],
+    [class*='text-2xl'],
+    [class*='text-3xl'],
+    [class*='text-4xl'],
+    [class*='text-5xl'],
+    [class*='text-6xl'],
+    [class*='text-display']
+  ) {
     font-size: 16px;
   }
 }
@@ -2510,7 +2660,8 @@ html[data-app='native'] body:not(:has([data-safe-area]))::before {
   left: 0;
   right: 0;
   height: 3px;
-  background: linear-gradient(90deg, transparent, var(--color-sky), transparent) no-repeat;
+  background: linear-gradient(90deg, transparent, var(--color-sky), transparent)
+    no-repeat;
   background-size: 40% 100%;
   animation: popup-loading 900ms ease-in-out infinite;
   pointer-events: none;
@@ -2597,18 +2748,18 @@ html:has(dialog:modal) {
 @media (pointer: coarse) {
   html:has(
       :is(
-          input:not(
-              [type='checkbox'],
-              [type='radio'],
-              [type='range'],
-              [type='button'],
-              [type='submit'],
-              [type='file'],
-              [type='color']
-            ),
-          textarea,
-          [contenteditable='true']
-        ):focus
+        input:not(
+          [type='checkbox'],
+          [type='radio'],
+          [type='range'],
+          [type='button'],
+          [type='submit'],
+          [type='file'],
+          [type='color']
+        ),
+        textarea,
+        [contenteditable='true']
+      ):focus
     )
     [data-mobile-tabs] {
     display: none;

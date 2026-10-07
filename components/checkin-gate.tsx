@@ -10,6 +10,7 @@ import {
 } from 'react';
 import { Check } from 'lucide-react';
 import { CheckinForm, type CheckinData } from '@/components/checkin-form';
+import { SPLASH_ATTR, SPLASH_END_EVENT } from '@/components/app-splash';
 import { useTodayKey } from '@/components/use-today-key';
 import { buzz } from '@/lib/haptics';
 
@@ -120,6 +121,8 @@ const GATE_WAIT_MS = 2000;
  * 올라왔다. 표시는 열기 직전에 달고, 닫는 움직임이 끝난 뒤(CLOSE_MS)에 뗀다.
  */
 const GATE_UP = 'data-gate-up';
+/** 시작 연출이 끝내 안 걷혀도 이때는 연다(연출 3.5초 + 여유) */
+const SPLASH_WAIT_MS = 5000;
 /** 닫는 움직임(globals.css 의 dialog[data-gate] 0.24초)이 다 끝나는 때 */
 const CLOSE_MS = 300;
 
@@ -271,27 +274,42 @@ export function CheckinGate({
      * 처음 접속한 날 창이 뜨며 화면이 깜빡이던 두 까닭이 거기 적혀 있다.
      */
     let cancelled = false;
-    Promise.race([
-      /* 무슨 일이 있어도 창은 떠야 한다 — 기다리다 실패하면 기다리지 않은 것으로 친다 */
-      readyToOpen(el).catch(() => undefined),
-      new Promise((resolve) => window.setTimeout(resolve, GATE_WAIT_MS)),
-    ]).then(() => {
-      if (cancelled || el.open) return;
-      root.setAttribute(GATE_UP, '');
-      el.showModal();
-      /*
-       * 첫 초점은 창 자체에 둔다.
-       *
-       * 창을 열면 브라우저가 안의 첫 '누를 수 있는 것'에 초점을 준다. 여기서는 그것이
-       * 굴러가는 본문 칸이었는데, 이 창은 화면을 열자마자(아직 아무것도 누르기 전에)
-       * 뜨니 브라우저가 키보드로 옮긴 초점으로 보고 본문 둘레에 흰 테두리를 그렸다.
-       * 무엇이든 누르면 사라졌지만 처음부터 떠 있으면 고장 난 것처럼 보인다.
-       *
-       * 창에 초점을 두면 테두리가 없다(outline-none). 키보드로 쓰는 사람은 Tab 한 번에
-       * 첫 칸으로 들어간다.
-       */
-      el.focus({ preventScroll: true });
-    });
+    /* 시작 연출(components/app-splash.tsx)이 도는 중이면 그것이 걷힌 뒤에 — 창은 맨 위 칸(top layer)이라 연출을 덮는다 */
+    const afterSplash = document.documentElement.hasAttribute(SPLASH_ATTR)
+      ? new Promise<void>((resolve) => {
+          const done = () => {
+            window.removeEventListener(SPLASH_END_EVENT, done);
+            resolve();
+          };
+          window.addEventListener(SPLASH_END_EVENT, done);
+          window.setTimeout(done, SPLASH_WAIT_MS);
+        })
+      : Promise.resolve();
+    afterSplash
+      .then(() =>
+        Promise.race([
+          /* 무슨 일이 있어도 창은 떠야 한다 — 기다리다 실패하면 기다리지 않은 것으로 친다 */
+          readyToOpen(el).catch(() => undefined),
+          new Promise((resolve) => window.setTimeout(resolve, GATE_WAIT_MS)),
+        ])
+      )
+      .then(() => {
+        if (cancelled || el.open) return;
+        root.setAttribute(GATE_UP, '');
+        el.showModal();
+        /*
+         * 첫 초점은 창 자체에 둔다.
+         *
+         * 창을 열면 브라우저가 안의 첫 '누를 수 있는 것'에 초점을 준다. 여기서는 그것이
+         * 굴러가는 본문 칸이었는데, 이 창은 화면을 열자마자(아직 아무것도 누르기 전에)
+         * 뜨니 브라우저가 키보드로 옮긴 초점으로 보고 본문 둘레에 흰 테두리를 그렸다.
+         * 무엇이든 누르면 사라졌지만 처음부터 떠 있으면 고장 난 것처럼 보인다.
+         *
+         * 창에 초점을 두면 테두리가 없다(outline-none). 키보드로 쓰는 사람은 Tab 한 번에
+         * 첫 칸으로 들어간다.
+         */
+        el.focus({ preventScroll: true });
+      });
     return () => {
       cancelled = true;
     };

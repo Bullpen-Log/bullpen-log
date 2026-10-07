@@ -32,12 +32,18 @@ import {
   type WeightPoint,
 } from '../lib/nutrition/weight-goal.ts';
 import { shiftDateKey } from '../lib/pitch-stats.ts';
+import {
+  assembleAdviceInput,
+  serviceHour,
+  trainingKinds,
+} from '../lib/nutrition/advice-input.ts';
 import { kcalFor, pitchingBurn, trainingBurn } from '../lib/nutrition/burn.ts';
 import { choseong, matchScore } from '../lib/nutrition/hangul.ts';
 import {
   BASIC_FOODS,
   FOOD_CATEGORIES,
   FOODS_BY_CATEGORY,
+  basicAliases,
   rankFoods,
   searchBasicFoods,
 } from '../lib/nutrition/foods.ts';
@@ -98,6 +104,7 @@ import {
   dropAvoided,
   parsePlanContext,
   parsePlanItems,
+  planAims,
   planMacros,
   recentTemplates,
   type PlanInput,
@@ -2900,10 +2907,29 @@ console.log('\n■ 식단 짜기');
   const dropped = dropAvoided(
     [
       { ...dropBase, key: 'a', sourceId: 'samgyetang', name: '삼계탕', done: false },
-      { ...dropBase, key: 'b', sourceId: 'mixed-nuts', name: '견과류 믹스', done: true },
+      {
+        ...dropBase,
+        key: 'b',
+        sourceId: 'mixed-nuts',
+        name: '견과류 믹스',
+        done: true,
+      },
       { ...dropBase, key: 'c', sourceId: 'rice', name: '쌀밥', done: false },
-      { ...dropBase, key: 'd', source: 'mfds', sourceId: 'X1', name: '땅콩', done: false },
-      { ...dropBase, key: 'e', sourceId: 'protein-shake', name: '단백질 쉐이크', done: false },
+      {
+        ...dropBase,
+        key: 'd',
+        source: 'mfds',
+        sourceId: 'X1',
+        name: '땅콩',
+        done: false,
+      },
+      {
+        ...dropBase,
+        key: 'e',
+        sourceId: 'protein-shake',
+        name: '단백질 쉐이크',
+        done: false,
+      },
     ],
     { avoid: ['nuts'], supplements: false }
   );
@@ -3217,6 +3243,16 @@ console.log('\n■ 식단 짜기');
     after: [['dinner', 'rec']],
   };
   const tagsOf = (key: string) => MEAL_TEMPLATES.find((t) => t.key === key)?.tags ?? [];
+  /* 제목 조각('즉석밥' · '삶은 달걀')이 담은 음식(쌀밥 · 달걀(삶은 것))의 이름이나 다른 이름을 품는가 */
+  const squash = (x: string) => x.replace(/\(.*?\)|\s/g, '');
+  const namesItem = (part: string, items: ReturnType<typeof buildMealPlan>['items']) =>
+    items.some((it) =>
+      [it.name, ...basicAliases(it.sourceId)]
+        .map(squash)
+        .some(
+          (n) => n.length > 0 && (squash(part).includes(n) || n.includes(squash(part)))
+        )
+    );
   let low = 0;
   /* 남은 끼니가 둘 넘게(먹은 것 없음 · 아침) / 하나(점심까지) — 하나 남은 날은 넘친 것을 덜 끼니가 없어 따로 본다 */
   const lowBad = {
@@ -3231,9 +3267,13 @@ console.log('\n■ 식단 짜기');
     group: [] as string[],
     must: [] as string[],
     why: [] as string[],
+    ratio: [] as string[],
+    throwLight: [] as string[],
+    title: [] as string[],
   };
   let lastN = 0;
   let awayN = 0;
+  let throwN = 0;
   LOW_BODIES.forEach(([body, setting], bi) => {
     const t = computeTargets(
       { ...DEFAULT_PROFILE, goal: 'lose', activity: 'low', ...setting },
@@ -3249,7 +3289,7 @@ console.log('\n■ 식단 짜기');
           const place = places[(ai + pi + di) % 4];
           /* 장소와 다른 걸음으로 — 같은 합(ai+pi+di)의 홀짝이면 입맛 없음이 집 · 팀에서만 나왔다 */
           const appetite = (ai + di) % 2 === 0 ? 1 : null;
-          const r = buildMealPlan({
+          const input: PlanInput = {
             ...base,
             date: `2026-11-${String(1 + ((ai + pi * 7 + di * 3 + bi) % 28)).padStart(2, '0')}`,
             seed: `low${i}`,
@@ -3289,7 +3329,8 @@ console.log('\n■ 식단 짜기');
                   ]
                 : []),
             ],
-          });
+          };
+          const r = buildMealPlan(input);
           if (r.items.length === 0) return;
           const m = planMacros(r.items);
           const label = `${t.kcal}/${t.protein} ${avoid.join('+') || '없음'}/${mealPattern}/${dietStyle} 먹은${ate} 남은${r.target.kcal}`;
@@ -3321,6 +3362,38 @@ console.log('\n■ 식단 짜기');
             if (picked && !tagsOf(picked.template).includes(tag as never))
               lowBad.must.push(`${label} ${meal} ${picked.template}`);
           }
+          /* 끼니마다 몫의 0.5~1.7배 안(간식 둘은 함께) */
+          const kcalOf: Record<string, number> = {};
+          for (const it of r.items)
+            kcalOf[it.meal] = (kcalOf[it.meal] ?? 0) + it.kcal * it.amount;
+          const aimOf: Record<string, number> = {};
+          for (const a of planAims(input).aims)
+            aimOf[a.slot] = (aimOf[a.slot] ?? 0) + a.kcal;
+          for (const meal of new Set(r.meals.map((x) => x.meal))) {
+            const q = (kcalOf[meal] ?? 0) / Math.max(1, aimOf[meal] ?? 0);
+            if (q < 0.5 || q > 1.7)
+              lowBad.ratio.push(`${label} ${meal} ${q.toFixed(2)}배`);
+          }
+          /* 던지는 날 점심(던지기 전 끼니)이 그날 가장 가벼운 끼니가 아니다 */
+          const mains = (['breakfast', 'dinner'] as const).filter((x) => x in kcalOf);
+          if (throwKind === 'today' && 'lunch' in kcalOf && mains.length > 0) {
+            throwN++;
+            if (kcalOf.lunch <= Math.min(...mains.map((x) => kcalOf[x])))
+              lowBad.throwLight.push(
+                `${label} 점심 ${Math.round(kcalOf.lunch)} · ${mains.map((x) => `${x} ${Math.round(kcalOf[x])}`).join(' · ')}`
+              );
+          }
+          /* 제목의 조각마다 그 끼니에 실제로 담은 음식이 있다 */
+          for (const x of r.meals) {
+            const items = r.items.filter((it) => it.meal === x.meal);
+            const missing = x.title
+              .split(' · ')
+              .filter((part) => !namesItem(part, items));
+            if (missing.length > 0)
+              lowBad.title.push(
+                `${label} ${x.meal} '${x.title}' — ${missing.join(', ')}`
+              );
+          }
           /* 까닭 줄은 고른 틀의 꼬리표대로 */
           const said = r.reasons.join(' ');
           const has = (meal: string, tag: string) =>
@@ -3339,7 +3412,8 @@ console.log('\n■ 식단 짜기');
             (said.includes('더운 날') && !anyTag('heat')) ||
             (said.includes('부드러운 것') && !anyTag('light')) ||
             (said.includes('간식은 빼고') && r.meals.some((x) => x.meal === 'snack')) ||
-            (said.includes('간식을 하나로') && !r.meals.some((x) => x.meal === 'snack')) ||
+            (said.includes('간식을 하나로') &&
+              !r.meals.some((x) => x.meal === 'snack')) ||
             said.includes('—')
           )
             lowBad.why.push(`${label} ${said}`);
@@ -3347,26 +3421,30 @@ console.log('\n■ 식단 짜기');
       )
     );
   });
-  /* 허용 비율은 실측(2026-10-06: 끼니 둘 넘게 8/856 · 25% 넘게 0, 하나 22/386 · 0, 단백질 0)에 조금 얹은 것 */
+  /*
+   * 허용 비율은 실측에 조금 얹은 것 — 2026-10-06 끼니 둘 넘게 8/856 · 하나 22/386 이던 것이 3차(2026-10-07) 뒤 1/856 · 0/386
+   * (25% 넘게 0, 단백질 0)
+   */
   const many = low - lastN - awayN;
   check(
-    `낮은 목표 몸 · 남은 끼니 둘 넘게 ${many}가지 — kcal 이 남은 몫의 ±10% 밖은 1.5% 밑 · 25% 넘게는 없다`,
-    lowBad.kcal.length <= many * 0.015 && lowBad.far.length === 0,
+    `낮은 목표 몸 · 남은 끼니 둘 넘게 ${many}가지 — kcal 이 남은 몫의 ±10% 밖은 0.5% 밑 · 25% 넘게는 없다`,
+    lowBad.kcal.length <= many * 0.005 && lowBad.far.length === 0,
     `${lowBad.kcal.length} · ${lowBad.far.length} — ${lowBad.kcal.slice(0, 3).join(' · ')}`
   );
   check(
-    `낮은 목표 몸 · 먹은 뒤 한 끼만 남은 ${lastN}가지 — kcal 이 남은 몫의 ±10% 밖은 7% 밑 · 25% 넘게는 0.5% 밑`,
-    lowBad.lastKcal.length <= lastN * 0.07 && lowBad.lastFar.length <= lastN * 0.005,
+    `낮은 목표 몸 · 먹은 뒤 한 끼만 남은 ${lastN}가지 — kcal 이 남은 몫의 ±10% 밖은 1% 밑 · 25% 넘게는 없다`,
+    lowBad.lastKcal.length <= lastN * 0.01 && lowBad.lastFar.length === 0,
     `${lowBad.lastKcal.length} · ${lowBad.lastFar.length} — ${lowBad.lastKcal.slice(0, 3).join(' · ')}`
   );
   /*
    * 입맛 없는 날 · 밖 · 헬스장 — 2026-10-06 메인 검토에서 드러난 구멍(그전 격자는 입맛 없음이 집 · 팀에서만 나왔다). 가벼운 틀
-   * 가산(+3)이 몫에 맞는 틀을 밀어내고, 밖의 가벼운 틀(설렁탕 · 우동 · 삼각김밥)은 가장 줄여도 몫보다 커서 먹은 뒤에는 ±10% 밖이
-   * 26~29%(2026-10-06 실측 51/414 · 25% 넘게 3). 고치면(3차) 문턱을 조인다.
+   * 가산(+3)이 '그날 점수' 거름에서 몫에 맞는 틀을 밀어내고, 밖의 가벼운 틀(설렁탕 · 우동 · 삼각김밥)은 가장 줄여도 몫보다 커서
+   * ±10% 밖이 51/414 · 25% 넘게 3 이었다. 3차에서 고쳐(거름은 그날 점수에서 크기 벌점을 뺀 값으로, 맞바꾸기는 여러 걸음 ·
+   * 두부 · 연어까지, 빠듯한 끼니와 한 끼 남은 날은 단백질을 채운 어림으로 크기 거름) 실측 2/414 · 0(2026-10-07).
    */
   check(
-    `낮은 목표 몸 · 입맛 없는 날 밖 · 헬스장 ${awayN}가지 — kcal 이 남은 몫의 ±10% 밖은 15% 밑 · 25% 넘게는 1% 밑(알려진 구멍)`,
-    lowBad.away.length <= awayN * 0.15 && lowBad.awayFar.length <= awayN * 0.01,
+    `낮은 목표 몸 · 입맛 없는 날 밖 · 헬스장 ${awayN}가지 — kcal 이 남은 몫의 ±10% 밖은 1% 밑 · 25% 넘게는 없다`,
+    lowBad.away.length <= awayN * 0.01 && lowBad.awayFar.length === 0,
     `${lowBad.away.length} · ${lowBad.awayFar.length} — ${lowBad.away.slice(0, 3).join(' · ')}`
   );
   check(
@@ -3389,13 +3467,36 @@ console.log('\n■ 식단 짜기');
     lowBad.why.length === 0,
     lowBad.why.slice(0, 2).join(' · ')
   );
+  /*
+   * 하루 맞추기는 끼니 몫을 본다 — 하루 합만 보고 늘리고 줄여 아침이 몫의 절반 · 저녁이 1.75배가 됐고, 던지는 날 점심(던지기
+   * 전 끼니)이 그날 가장 가벼운 끼니인 날이 45/276 이었다(2026-10-07 3차 전). 3차 뒤 0 · 0.
+   */
+  check(
+    `낮은 목표 몸 ${low}가지 — 끼니마다 몫의 0.5~1.7배 안`,
+    lowBad.ratio.length === 0,
+    lowBad.ratio.slice(0, 3).join(' · ')
+  );
+  check(
+    `낮은 목표 몸 · 던지는 날 ${throwN}가지 — 점심(던지기 전 끼니)이 그날 가장 가벼운 끼니가 아니다`,
+    throwN > 200 && lowBad.throwLight.length === 0,
+    `${lowBad.throwLight.length} — ${lowBad.throwLight.slice(0, 3).join(' · ')}`
+  );
+  check(
+    `낮은 목표 몸 ${low}가지 — 끼니 제목은 실제로 담은 음식으로(kcal 을 줄이다 뺀 미역국 · 수박을 적지 않는다)`,
+    lowBad.title.length === 0,
+    lowBad.title.slice(0, 3).join(' · ')
+  );
 
   /* ── 2026-10-06 메인 검토에서 잡은 것들 — 고정 사례 ── */
   const lowKorean = {
     ...base,
     targets: { kcal: 1250, protein: 99 },
     goal: 'lose' as const,
-    prefs: { ...DEFAULT_PREFS, mealPattern: '3' as const, dietStyle: 'korean' as const },
+    prefs: {
+      ...DEFAULT_PREFS,
+      mealPattern: '3' as const,
+      dietStyle: 'korean' as const,
+    },
   };
   /* 단백질 몫은 남은 kcal 의 35% 까지로 묶인다 — 1,250kcal 에 121g(39%)이면 109g */
   const capped = buildMealPlan({
@@ -3407,7 +3508,9 @@ console.log('\n■ 식단 짜기');
   check(
     '단백질 몫은 남은 kcal 의 35% 까지로 묶이고 까닭에 적는다(1,250kcal · 121g → 109g)',
     capped.target.protein === 109 &&
-      capped.reasons.some((l) => l.startsWith('단백질은 남은 열량으로 채울 수 있는 109g')),
+      capped.reasons.some((l) =>
+        l.startsWith('단백질은 남은 열량으로 채울 수 있는 109g')
+      ),
     `${capped.target.protein} · ${capped.reasons.join(' / ')}`
   );
   /* 한 끼로 모으기는 먹은 뒤에만 */
@@ -3506,6 +3609,213 @@ console.log('\n■ 식단 짜기');
     '세 끼 먹고 156kcal 남은 날 — 간식 하나가 남은 몫의 ±10% 안(팩 하나를 통째로 얹어 +27% 였다)',
     Math.abs(lastSnackKcal / lastSnack.target.kcal - 1) <= 0.1,
     `${Math.round(lastSnackKcal)}/${lastSnack.target.kcal}kcal`
+  );
+
+  /* ── 2026-10-07 3차 — 메인 메모(3차)의 재현 입력 그대로. kcal 은 남은 몫(r.target) 대비 ── */
+  const lowW = { ...base, targets: { kcal: 1250, protein: 99 }, goal: 'lose' as const };
+  const offOf = (r: ReturnType<typeof buildMealPlan>) =>
+    planMacros(r.items).kcal / Math.max(1, r.target.kcal) - 1;
+  /* 끼니마다 담은 kcal 과 몫의 몇 배인가(간식 둘은 함께) */
+  const mealKcal = (r: ReturnType<typeof buildMealPlan>) => {
+    const got: Record<string, number> = {};
+    for (const it of r.items) got[it.meal] = (got[it.meal] ?? 0) + it.kcal * it.amount;
+    return got;
+  };
+  const ratiosOf = (input: PlanInput, r: ReturnType<typeof buildMealPlan>) => {
+    const aim: Record<string, number> = {};
+    for (const a of planAims(input).aims) aim[a.slot] = (aim[a.slot] ?? 0) + a.kcal;
+    return Object.entries(mealKcal(r)).map(
+      ([meal, kcal]) => [meal, kcal / Math.max(1, aim[meal] ?? 0)] as const
+    );
+  };
+  const awayCases: [string, PlanInput][] = [
+    [
+      'ⓐ',
+      {
+        ...lowW,
+        date: '2026-11-12',
+        seed: 'low16',
+        variant: 2,
+        prefs: {
+          ...DEFAULT_PREFS,
+          mealPattern: '3+1',
+          dietStyle: 'mixed',
+          avoid: ['dairy'],
+        },
+        place: 'out',
+        throwKind: 'today',
+        appetite: 1,
+        eaten: [{ meal: 'breakfast', kcal: 375, protein: 20 }],
+      },
+    ],
+    [
+      'ⓑ',
+      {
+        ...lowW,
+        targets: { kcal: 1250, protein: 121 },
+        date: '2026-11-21',
+        seed: 'low664',
+        variant: 1,
+        prefs: {
+          ...DEFAULT_PREFS,
+          mealPattern: '3+1',
+          dietStyle: 'mixed',
+          avoid: ['dairy', 'spicy'],
+        },
+        place: 'out',
+        throwKind: 'after',
+        appetite: 1,
+        soreness: 5,
+        eaten: [{ meal: 'breakfast', kcal: 375, protein: 24 }],
+      },
+    ],
+    [
+      'ⓒ',
+      {
+        ...lowW,
+        targets: { kcal: 1250, protein: 121 },
+        date: '2026-11-13',
+        seed: 'low904',
+        prefs: {
+          ...DEFAULT_PREFS,
+          mealPattern: '3+1',
+          dietStyle: 'mixed',
+          avoid: ['pork', 'nuts'],
+        },
+        place: 'out',
+        throwKind: 'after',
+        appetite: 1,
+        soreness: 5,
+      },
+    ],
+    [
+      'ⓓ',
+      {
+        ...lowW,
+        targets: { kcal: 1010, protein: 105 },
+        date: '2026-03-21',
+        seed: 'b6114',
+        variant: 5,
+        prefs: {
+          ...DEFAULT_PREFS,
+          mealPattern: '2+1',
+          dietStyle: 'simple',
+          seasonPhase: 'pre',
+          avoid: ['spicy'],
+          supplements: false,
+        },
+        place: 'out',
+        throwKind: 'today',
+        appetite: 2,
+        eaten: [{ meal: 'snack', kcal: 109, protein: 5 }],
+      },
+    ],
+  ];
+  const awayOff = awayCases.map(
+    ([name, input]) => [name, offOf(buildMealPlan(input))] as const
+  );
+  check(
+    '입맛 없는 날 밖 · 먹은 뒤 재현 넷(ⓐ~ⓓ)이 남은 몫의 ±10% 안 — 설렁탕 · 우동 끼니로 +28~32% 였다',
+    awayOff.every(([, o]) => Math.abs(o) <= 0.1),
+    awayOff.map(([n, o]) => `${n} ${Math.round(o * 100)}%`).join(' · ')
+  );
+  /* 끼니 쏠림 — 하루 합만 맞추다 아침이 몫의 0.51배(오트밀 반 · 우유 반), 저녁이 1.75배(설렁탕 + 쉐이크 1.5)였다 */
+  const skewIn: PlanInput = {
+    ...lowW,
+    date: '2026-11-13',
+    seed: 'g21',
+    prefs: {
+      ...DEFAULT_PREFS,
+      mealPattern: '3+2',
+      dietStyle: 'mixed',
+      supplements: true,
+    },
+    place: 'out',
+    throwKind: 'today',
+    appetite: 1,
+    soreness: 5,
+  };
+  const skew = buildMealPlan(skewIn);
+  const skewQ = ratiosOf(skewIn, skew);
+  const skewK = mealKcal(skew);
+  check(
+    '끼니가 몫의 0.6~1.5배 안 · 던지는 날 점심이 그날 가장 가벼운 끼니가 아니다(g21)',
+    skewQ.every(([, q]) => q >= 0.6 && q <= 1.5) &&
+      skewK.lunch > Math.min(skewK.breakfast ?? Infinity, skewK.dinner ?? Infinity),
+    skewQ.map(([meal, q]) => `${meal} ${q.toFixed(2)}배`).join(' · ')
+  );
+  /* 빠듯한 날 보충 순서 — 모자란 만큼을 다 덮는 양의 kcal 로 견준다(닭가슴살이 한 끼에 1.75로 몰리지 않게 끼니 가드와 함께) */
+  const tightIn: PlanInput = {
+    ...lowW,
+    date: '2026-11-02',
+    seed: 'g1',
+    variant: 1,
+    prefs: {
+      ...DEFAULT_PREFS,
+      mealPattern: '3',
+      dietStyle: 'korean',
+      supplements: true,
+    },
+    place: 'gym',
+    throwKind: 'eve',
+    appetite: 1,
+    eaten: [{ meal: 'breakfast', kcal: 313, protein: 20 }],
+  };
+  const tight = buildMealPlan(tightIn);
+  check(
+    '빠듯한 날 단백질 보충(g1) — 남은 몫의 ±10% · 단백질 9할 · 끼니가 몫의 0.6~1.5배 · 닭가슴살은 한 끼에 하나까지',
+    Math.abs(offOf(tight)) <= 0.1 &&
+      planMacros(tight.items).protein >= tight.target.protein * 0.9 &&
+      ratiosOf(tightIn, tight).every(([, q]) => q >= 0.6 && q <= 1.5) &&
+      tight.items.every((it) => it.sourceId !== 'chicken-breast' || it.amount <= 1),
+    `${Math.round(offOf(tight) * 100)}% · ${tight.items.map((it) => `${it.sourceId}×${it.amount}`).join(' ')}`
+  );
+  /* 세 끼 먹고 간식만 남은 날 — 간식 틀 하나에 감자 2 · 두유 2 · 달걀 · 그릭요거트 · 쉐이크 · 바나나 2 · 고구마였다 */
+  const mealLikeOf = (mealPattern: '3+1' | '3+2') =>
+    buildMealPlan({
+      ...base,
+      targets: { kcal: 3500, protein: 194 },
+      goal: 'gain',
+      date: '2026-07-27',
+      seed: 's11',
+      prefs: { ...DEFAULT_PREFS, mealPattern, dietStyle: 'korean' },
+      place: 'gym',
+      eaten: [
+        { meal: 'breakfast', kcal: 572, protein: 49 },
+        { meal: 'lunch', kcal: 655, protein: 49 },
+        { meal: 'dinner', kcal: 1135, protein: 49 },
+      ],
+    });
+  const mealLike = [mealLikeOf('3+1'), mealLikeOf('3+2')];
+  check(
+    "세 끼 먹고 간식만 남은 1,138kcal — 간식 한 번에 끼니 틀로 · 다섯 가지까지 · ±10% 안 · '세 끼를 다 먹어' 까닭",
+    mealLike.every(
+      (r) =>
+        r.meals.length === 1 &&
+        r.reasons.includes('세 끼를 다 먹어 남은 양을 간식 한 번에 끼니처럼 짰어요.') &&
+        !r.reasons.some((l) => l.startsWith('헬스장에서')) &&
+        r.items.length <= 5 &&
+        Math.abs(offOf(r)) <= 0.1
+    ),
+    mealLike
+      .map(
+        (r) =>
+          `${r.meals.map((x) => x.title).join(' | ')} ${Math.round(offOf(r) * 100)}%`
+      )
+      .join(' · ')
+  );
+  /* 끼니 제목 — 입맛 1 · 근육통 5 · 더운 날(g0)은 kcal 을 줄이다 미역국 · 수박이 빠지는 입력 */
+  check(
+    '끼니 제목은 실제로 담은 음식으로(g0 — 뺀 미역국을 적지 않는다)',
+    hotDay.meals.every((x) =>
+      x.title.split(' · ').every((part) =>
+        namesItem(
+          part,
+          hotDay.items.filter((it) => it.meal === x.meal)
+        )
+      )
+    ),
+    hotDay.meals.map((x) => `${x.meal} '${x.title}'`).join(' · ')
   );
 
   /* ── 묶음 상한 — 바꿔 넣은 음식(쉐이크→우유 · 두부조림→두부)도 한 끼 상한을 넘기지 않는다 ── */
@@ -3857,14 +4167,21 @@ console.log('\n■ 식단 짜기');
   /* 서버가 DB 의 어제 · 그제 계획(context)을 recent 로 바꾸는 길 — 저장한 모양 그대로 */
   const saved = (keys: string[]) => ({
     place: 'home',
-    meals: keys.map((t, i) => ({ meal: i ? 'lunch' : 'breakfast', title: t, template: t })),
+    meals: keys.map((t, i) => ({
+      meal: i ? 'lunch' : 'breakfast',
+      title: t,
+      template: t,
+    })),
   });
   const rec = recentTemplates('2026-11-10', [
     { date: '2026-11-09', context: saved(['a-1', 'b-2']) },
     { date: '2026-11-07', context: saved(['old']) },
   ]);
   const recEmpty = recentTemplates('2026-11-01', [
-    { date: '2026-10-31', context: { meals: [{ meal: 'lunch', title: 'x', template: '' }] } },
+    {
+      date: '2026-10-31',
+      context: { meals: [{ meal: 'lunch', title: 'x', template: '' }] },
+    },
     { date: '2026-10-30', context: 'junk' },
   ]);
   check(
@@ -3889,7 +4206,8 @@ console.log('\n■ 식단 짜기');
     });
     for (const m of t.meals) {
       avoidAll++;
-      if (y.meals.some((x) => x.meal === m.meal && x.template === m.template)) avoidSame++;
+      if (y.meals.some((x) => x.meal === m.meal && x.template === m.template))
+        avoidSame++;
     }
   }
   check(
@@ -3928,7 +4246,7 @@ console.log('\n■ 식단 짜기');
   );
   const kcalOffOf = (r: ReturnType<typeof buildMealPlan>) =>
     planMacros(r.items).kcal / Math.max(1, r.target.kcal) - 1;
-  const unshrinkable = buildMealPlan({
+  const unshrinkableIn: PlanInput = {
     ...LOW_W,
     date: '2026-11-07',
     prefs: {
@@ -3937,11 +4255,21 @@ console.log('\n■ 식단 짜기');
       dietStyle: 'simple',
       avoid: ['nuts'],
     },
-  });
+  };
+  const unshrinkable = buildMealPlan(unshrinkableIn);
   check(
     '줄일 수 없는 한 그릇 · 낱개가 끼니 몫을 넘지 않는다(1,250kcal · 간식 둘 · 간편식: 간식에 김밥 한 줄이 뽑혀 +33% 였다)',
     Math.abs(kcalOffOf(unshrinkable)) <= 0.1,
     `${Math.round(kcalOffOf(unshrinkable) * 100)}%`
+  );
+  /* 같은 입력에서 간식 단백질 몫을 두유 · 요거트를 두 배로 늘려 채워, 간식 둘이 하루의 38% 였다(3차 2번) */
+  const unshrinkableK = mealKcal(unshrinkable);
+  const unshrinkableQ = Object.fromEntries(ratiosOf(unshrinkableIn, unshrinkable));
+  check(
+    '간식이 하루의 30% 밑 · 저녁이 몫의 0.9배 위(같은 입력 — 간식이 38% 였다)',
+    (unshrinkableK.snack ?? 0) < planMacros(unshrinkable.items).kcal * 0.3 &&
+      unshrinkableQ.dinner >= 0.9,
+    `간식 ${Math.round(((unshrinkableK.snack ?? 0) / planMacros(unshrinkable.items).kcal) * 100)}% · 저녁 ${unshrinkableQ.dinner?.toFixed(2)}배`
   );
   const afterBreakfast = buildMealPlan({
     ...lowTarget(
@@ -4338,7 +4666,10 @@ console.log('\n■ 음식 세부 분류');
     '세부 칸 개수의 합 = 그 분류 음식 수',
     Object.entries(counts).every(([cat, c]) => {
       const total = Object.values(c).reduce((a, n) => a + n, 0);
-      return total === browsePage(buildBrowseIndex([...allMfdsReps()]), cat as '밥', 0, 1).total;
+      return (
+        total ===
+        browsePage(buildBrowseIndex([...allMfdsReps()]), cat as '밥', 0, 1).total
+      );
     })
   );
   const index = buildBrowseIndex([...allMfdsReps()]);
@@ -4351,7 +4682,9 @@ console.log('\n■ 음식 세부 분류');
   );
 }
 
-console.log('\n■ 검토에서 나온 것(2026-10-02) — 바코드 UPC-E · 분류 규칙이 겹치는 글자');
+console.log(
+  '\n■ 검토에서 나온 것(2026-10-02) — 바코드 UPC-E · 분류 규칙이 겹치는 글자'
+);
 {
   check(
     'UPC-E 8자리 → UPC-A 12자리(콜라 캔 04963406 → 049000006346), EAN-8 은 그대로',
@@ -4394,6 +4727,102 @@ console.log('\n■ 검토에서 나온 것(2026-10-02) — 바코드 UPC-E · �
       sub('과일·채소', '양파, 레드프라임, 생것', 'R106-0') === 'veg' &&
       sub('우유·음료', '새우패티') !== 'coffee' &&
       sub('간식·보충', '사탕무, 생것') !== 'candy'
+  );
+}
+
+/* ── 영양 조언 입력 모으기(lib/nutrition/advice-input.ts, 메인 추천 9번 3단계) — 읽어 온 자료가 그대로 가나 ── */
+console.log(
+  '\n■ 영양 조언 입력 모으기 — 그날 요약 · 체크인 · 투구 · 운동이 그대로 간다'
+);
+{
+  const date = '2026-10-07';
+  const detail = {
+    nutrition: {
+      kcal: 1200,
+      carbs: 150,
+      protein: 60,
+      fat: 40,
+      target: { kcal: 3000, carbs: 400, protein: 150, fat: 85 },
+      weightKg: 75,
+      goal: 'maintain' as const,
+      ageBand: 'adult' as const,
+      meals: [
+        { meal: 'breakfast' as const, label: '아침', kcal: 500, items: [] },
+        { meal: 'lunch' as const, label: '점심', kcal: 700, items: [] },
+      ],
+    },
+    training: {
+      exercises: [
+        { category: '하체 스트렝스', done: true, holdSecondsDone: null },
+        { category: '파워', done: false, holdSecondsDone: null },
+        { category: '유산소', done: true, holdSecondsDone: 1800 },
+        { category: '워밍업', done: true, holdSecondsDone: null },
+      ],
+    },
+  };
+  const args = {
+    date,
+    today: date,
+    hour: 15,
+    detail,
+    checkinToday: {
+      nutrition: '부족',
+      skippedMeals: ['breakfast'],
+      appetite: 2,
+      soreness: 4,
+      throwPlan: '오늘 불펜',
+    },
+    throwPlanYesterday: null,
+    pitches: [],
+    activeSeconds: 3600,
+  };
+  const input = assembleAdviceInput(args);
+  check(
+    '먹은 합 · 끼니별 kcal · 몸(체중 · 목표 · 나이 칸)이 그대로 간다',
+    input.eaten?.kcal === 1200 &&
+      input.eatenMeals.lunch === 700 &&
+      input.body.weightKg === 75 &&
+      input.body.goal === 'maintain' &&
+      input.target.protein === 150
+  );
+  check(
+    '체크인 식사 칸 · 식욕 · 근육통이 간다',
+    input.checkin?.meals.amount === '부족' &&
+      input.checkin.meals.skipped.join() === 'breakfast' &&
+      input.checkin.appetite === 2 &&
+      input.checkin.soreness === 4
+  );
+  check(
+    '오늘 불펜이면 던지는 날(today), 지난 날은 null · 어제 "내일 등판"이면 체크인 없이도 오늘 등판',
+    input.throwKind === 'today' &&
+      assembleAdviceInput({ ...args, date: '2026-10-06' }).throwKind === null &&
+      assembleAdviceInput({
+        ...args,
+        checkinToday: null,
+        throwPlanYesterday: '내일 등판',
+      }).throwKind === 'today'
+  );
+  check(
+    '한 운동만 넷으로 — 웨이트 30분(세션 시간을 나눔) · 유산소 30분(적은 시간), 안 한 파워 · 워밍업은 뺀다',
+    JSON.stringify(input.training) ===
+      JSON.stringify([
+        { kind: 'strength', minutes: 30 },
+        { kind: 'aerobic', minutes: 30 },
+      ]) && trainingKinds([], 3600).length === 0
+  );
+  check(
+    '음식을 안 적은 날은 eaten null(0 이 아니다) · 체크인이 없으면 checkin null',
+    assembleAdviceInput({
+      ...args,
+      detail: { ...detail, nutrition: { ...detail.nutrition, kcal: 0, meals: [] } },
+      checkinToday: null,
+    }).eaten === null &&
+      assembleAdviceInput({ ...args, checkinToday: null }).checkin === null
+  );
+  check(
+    '한국 시각 — UTC 05:00 은 14시, UTC 23:00 은 8시',
+    serviceHour(new Date('2026-10-07T05:00:00Z')) === 14 &&
+      serviceHour(new Date('2026-10-07T23:00:00Z')) === 8
   );
 }
 

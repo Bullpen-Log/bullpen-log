@@ -1,11 +1,14 @@
 import 'server-only';
+import { cache } from 'react';
 import { prisma } from '@/lib/prisma';
+import type { AgeBand } from '@/lib/nutrition/age';
 import { trainingDay, type TrainingDayDetail } from '@/lib/report/training-history';
 import {
   APPETITE_LEVELS,
   CHECKIN_PARTS,
   DETAIL_SCALES,
   formatSleepHours,
+  mealSummary,
   pickCheckinParts,
   sorenessWord,
 } from '@/lib/checkin';
@@ -15,6 +18,7 @@ import {
   amountText,
   isMealKey,
   isSex,
+  type GoalKey,
   type MealKey,
 } from '@/lib/nutrition/meta';
 import { ageOn, computeTargets } from '@/lib/nutrition/targets';
@@ -48,6 +52,11 @@ export type DayDetail = {
       protein: number;
       fat: number;
     };
+    /** 목표 계산에 쓴 체중 — 모르면 null(영양 조언이 g 을 범위로만 말한다) */
+    weightKg: number | null;
+    /** 계산에 쓴 목표 · 나이 칸(영양 조언 lib/nutrition/advice.ts 가 읽는다) */
+    goal: GoalKey;
+    ageBand: AgeBand;
     /** 끼니별 — 먹은 것이 있는 끼니만 */
     meals: {
       meal: MealKey;
@@ -72,7 +81,7 @@ export type DayDetail = {
   clips: DayClip[];
 };
 
-type UserBody = {
+export type DayDetailUser = {
   id: string;
   birthDate: Date | null;
   /** 계정의 성별 'M' | 'F' — 영양 탭과 같은 목표가 나오려면 같이 넘겨야 한다 */
@@ -81,8 +90,16 @@ type UserBody = {
   weightKg: number | null;
 };
 
+/**
+ * 한 요청 안에서 같은 user · 날짜면 한 번만 읽는다 — 홈 맨 위 링과 영양 조언(lib/nutrition/advice-load.ts)이 같은 날 요약을 쓴다.
+ * user 는 레이아웃이 읽어 둔 그 객체여야 같은 것으로 본다(React cache 는 인자가 같은 것일 때만).
+ */
+export const loadDayDetailCached = cache((user: DayDetailUser, date: string) =>
+  loadDayDetail(user, date)
+);
+
 export async function loadDayDetail(
-  user: UserBody,
+  user: DayDetailUser,
   date: string,
   opts: { clips?: boolean } = {}
 ): Promise<DayDetail> {
@@ -166,6 +183,9 @@ export async function loadDayDetail(
       details.push({ label: '잔 시간', value: formatSleepHours(checkin.sleepHours) });
     const soreness = sorenessWord(checkin.soreness);
     if (soreness) details.push({ label: '근육통', value: soreness });
+    /* 식사(끼니 양 · 걸른 끼니) — 영양 조언이 읽는 간편 칸 */
+    const meals = mealSummary(checkin.nutrition, checkin.skippedMeals);
+    if (meals) details.push({ label: '식사', value: meals });
     for (const s of DETAIL_SCALES) {
       const v = checkin[s.key];
       if (v != null && v >= 1 && v <= s.options.length) {
@@ -205,6 +225,9 @@ export async function loadDayDetail(
         protein: targets.protein,
         fat: targets.fat,
       },
+      weightKg,
+      goal: targets.goal,
+      ageBand: targets.ageBand,
       meals: MEALS.map((m) => byMeal.get(m.key))
         .filter((m): m is NonNullable<typeof m> => m != null)
         .map((m) => ({ ...m, kcal: Math.round(m.kcal) })),

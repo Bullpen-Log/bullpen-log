@@ -3,7 +3,9 @@ import Link from 'next/link';
 import { Check, HeartPulse, type LucideIcon } from 'lucide-react';
 import { prisma } from '@/lib/prisma';
 import type { requireUser } from '@/lib/dal';
-import { loadDayDetail } from '@/lib/day-detail';
+import { loadDayDetailCached } from '@/lib/day-detail';
+import { loadAdvice } from '@/lib/nutrition/advice-load';
+import { serviceHour } from '@/lib/nutrition/advice-input';
 import { dbDate } from '@/lib/nutrition/days';
 import { REST_SESSION_TYPE } from '@/lib/session-type';
 import { NAV_ICONS } from '@/components/nav-icons';
@@ -17,8 +19,8 @@ import { Card } from '@/components/ui';
  * 링마다 색을 달리하면 구별이 안 된다는 사용자 규칙(그림은 색 적게)이라, 다 찬 링만 가운데 아이콘이 파래진다.
  *
  * - 체크인 · 투구는 했나 안 했나(링이 비거나 가득). 투구는 쉬는 날로 남긴 것도 한 것이다.
- * - 운동은 오늘 일정 가운데 체크한 수, 영양은 오늘 목표 칼로리 가운데 먹은 만큼(트레이닝 · 영양 탭과 같은 계산 —
- *   달력 밑 그날 칸이 쓰는 lib/day-detail.ts 를 그대로 쓴다).
+ * - 운동은 오늘 일정 가운데 체크한 수, 영양은 오늘의 균형 점수(lib/nutrition/advice.ts — 음식을 적었거나 체크인에 식사를
+ *   적은 날)이고, 아무것도 안 적은 날은 예전처럼 목표 칼로리 가운데 먹은 만큼(달력 밑 그날 칸이 쓰는 lib/day-detail.ts).
  * - 링을 누르면 그 일을 하는 곳으로 — 체크인은 그 자리에서 창, 투구는 오늘 기록 창, 운동 · 영양은 그 탭.
  *
  * 할 일 알림(종)은 '남은 것'을, 이 카드는 '한 만큼'을 보여 준다.
@@ -34,12 +36,13 @@ export async function TodayRings({
   /** 링 밑 한 줄 — 따로 기다리는 것이라 홈이 Suspense 로 감싸 넘긴다 */
   footer?: ReactNode;
 }) {
-  const [detail, logs] = await Promise.all([
-    loadDayDetail(user, today),
+  const [detail, logs, advice] = await Promise.all([
+    loadDayDetailCached(user, today),
     prisma.pitchLog.findMany({
       where: { userId: user.id, date: dbDate(today) },
       select: { sessionType: true, pitchCount: true },
     }),
+    loadAdvice(user, today, today, serviceHour(now())),
   ]);
 
   const exercises = detail.training.exercises;
@@ -77,8 +80,18 @@ export async function TodayRings({
       key: 'nutrition',
       label: '영양',
       icon: NAV_ICONS.utensils,
-      value: target.kcal > 0 ? kcal / target.kcal : 0,
-      caption: kcal > 0 ? `${kcal.toLocaleString('ko-KR')}kcal` : '남기기',
+      value:
+        advice.score !== null
+          ? advice.score / 100
+          : target.kcal > 0
+            ? kcal / target.kcal
+            : 0,
+      caption:
+        advice.score !== null
+          ? `균형 ${advice.score}`
+          : kcal > 0
+            ? `${kcal.toLocaleString('ko-KR')}kcal`
+            : '남기기',
       href: '/nutrition',
     },
   ];
@@ -86,6 +99,11 @@ export async function TodayRings({
   return (
     <RingsCard items={items} checkinDone={detail.checkin != null} footer={footer} />
   );
+}
+
+/** 렌더 중에 현재 시각을 직접 읽지 않도록 함수로 감싼다(홈 page.tsx 와 같다) */
+function now() {
+  return new Date();
 }
 
 /** 링 하나의 내용 */

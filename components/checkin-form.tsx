@@ -56,6 +56,9 @@ import {
   parseSleepHours,
   sleepLevelFromHours,
   sorenessWord,
+  MEAL_AMOUNTS,
+  SKIPPABLE_MEALS,
+  mealSummary,
 } from '@/lib/checkin';
 import { kept, keptAll, withInput } from '@/lib/form-values';
 import { OFFLINE_MESSAGE, orOffline } from '@/lib/action-offline';
@@ -921,6 +924,7 @@ export function CheckinForm({
    * 근육통은 적은 날만 한 칸 더한다 — 안 적은 칸을 '없음'처럼 보이게 하지 않는다.
    */
   const todaySoreness = sorenessWord(today?.soreness);
+  const todayMeals = mealSummary(today?.nutrition, today?.skippedMeals);
   const summaryLines: [string, string][] = today
     ? [
         ...CHECKIN_PARTS.map((p): [string, string] => [p.label, today[p.key]]),
@@ -932,8 +936,12 @@ export function CheckinForm({
             : today.sleep,
         ],
         ...(todaySoreness ? [['근육통', todaySoreness] as [string, string]] : []),
+        ...(todayMeals ? [['식사', todayMeals] as [string, string]] : []),
       ]
     : [];
+  /* 걸른 끼니(여러 개) — 오류로 돌아온 폼 값이 있으면 그것, 아니면 저장된 것 */
+  const skippedPicked: readonly string[] =
+    (before ? keptAll(before, 'skippedMeals') : undefined) ?? today?.skippedMeals ?? [];
 
   return (
     <div>
@@ -1243,6 +1251,40 @@ export function CheckinForm({
                     ?.sleepHours ?? SLEEP_SEED_HOURS
                 }
               />
+
+              {/*
+               * 식사(선택) 두 줄 — 영양 조언(lib/nutrition/advice.ts)이 읽는다. 음식을 적지 않아도 홈 카드가 오늘 몇 g 더
+               * 먹을지를 이걸로 어림한다. '부족'만 주황 — 조언이 바뀌는 답이다. 안 적은 날은 조언이 '모름'으로 본다.
+               */}
+              <Row label="끼니 양" radios>
+                {MEAL_AMOUNTS.map((v) => (
+                  <ChipRadio
+                    key={v}
+                    name="mealAmount"
+                    value={v}
+                    toggleable
+                    defaultChecked={pick('mealAmount', today?.nutrition) === v}
+                    className={v === '부족' ? feelingChipClass('뻐근') : undefined}
+                  >
+                    {v}
+                  </ChipRadio>
+                ))}
+                <span className="ml-1 self-center text-[10px] leading-relaxed break-keep text-muted/60">
+                  지금까지 먹은 끼니로 · 다시 누르면 풀려요
+                </span>
+              </Row>
+              <Row label="걸른 끼니">
+                {SKIPPABLE_MEALS.map((m) => (
+                  <ChipCheckbox
+                    key={m.key}
+                    name="skippedMeals"
+                    value={m.key}
+                    defaultChecked={skippedPicked.includes(m.key)}
+                  >
+                    {m.label}
+                  </ChipCheckbox>
+                ))}
+              </Row>
 
               {/*
                * 상세 쪽.

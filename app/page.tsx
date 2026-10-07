@@ -53,6 +53,8 @@ export default async function LandingPage() {
   if (isNativeUserAgent((await headers()).get('user-agent'))) {
     redirect(user ? '/today' : '/login');
   }
+  /* 로그인했으면 소개 화면 없이 곧장 홈 — 시작 연출이 로고를 보인다(2026-10-07 사용자: "이 화면을 없애 줘") */
+  if (user) redirect('/today');
 
   return (
     /* 오른쪽 위에 크게 · 옅게 실밥 무늬(seam-hero) — 첫 화면에서 야구 앱임을 조용히 알린다 */
@@ -66,7 +68,8 @@ export default async function LandingPage() {
           오늘 할 일을 정해 줘요.
         </h1>
         <p className="mt-3 text-base leading-relaxed break-keep text-muted">
-          투수를 위한 훈련 일지예요. 투구수 · 강도 · 몸 상태를 남기면 던질 양과 운동을 골라 줘요.
+          투수를 위한 훈련 일지예요. 투구수 · 강도 · 몸 상태를 남기면 던질 양과 운동을
+          골라 줘요.
         </p>
 
         {/* 예시 카드 — 앱 안 화면과 같은 모양(홈 리포트의 오늘 · 내일 줄, 투구 기록 달력 칸) */}
@@ -81,7 +84,9 @@ export default async function LandingPage() {
                 <span className="block text-xs text-muted">{d.day}</span>
                 <span
                   className={`flex h-10 items-center justify-center rounded-lg text-xs font-semibold tabular-nums ${
-                    d.pitches ? 'bg-sky/15 text-sky-strong' : 'bg-surface-2 text-muted/60'
+                    d.pitches
+                      ? 'bg-sky/15 text-sky-strong'
+                      : 'bg-surface-2 text-muted/60'
                   }`}
                 >
                   {d.pitches || ''}
@@ -92,7 +97,9 @@ export default async function LandingPage() {
           <div className="mt-4 space-y-2">
             <div className="flex items-center gap-3 rounded-xl bg-surface-2 px-4 py-3">
               <span className="w-10 text-sm font-bold text-ink">오늘</span>
-              <span className="text-numeric text-xl leading-none text-sky tabular-nums">35~50구</span>
+              <span className="text-numeric text-xl leading-none text-sky tabular-nums">
+                35~50구
+              </span>
               <span className="text-xs text-muted">강도 6~8</span>
             </div>
             <div className="flex items-center gap-3 rounded-xl bg-surface-2 px-4 py-3">
@@ -101,14 +108,18 @@ export default async function LandingPage() {
               <span className="ml-auto text-xs text-muted">이틀 연속은 쉬어요</span>
             </div>
           </div>
-          <figcaption className="mt-3 text-xs text-muted/70">예시 화면이에요.</figcaption>
+          <figcaption className="mt-3 text-xs text-muted/70">
+            예시 화면이에요.
+          </figcaption>
         </figure>
 
         <ul className="mt-8 divide-y divide-line">
           {POINTS.map((p) => (
             <li key={p.title} className="py-4 first:pt-0">
               <p className="text-[15px] font-semibold break-keep text-ink">{p.title}</p>
-              <p className="mt-1 text-sm leading-relaxed break-keep text-muted">{p.body}</p>
+              <p className="mt-1 text-sm leading-relaxed break-keep text-muted">
+                {p.body}
+              </p>
             </li>
           ))}
         </ul>

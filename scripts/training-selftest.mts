@@ -21,6 +21,7 @@ import {
   isShortSleep,
   parseArmPain,
   parseCheckinBody,
+  mealSummary,
   pickArmPain,
   pickCheckinBody,
   sleepLevelFromHours,
@@ -1085,14 +1086,55 @@ console.log('\n[체크인 해석] 근육통 · 잔 시간을 오류 없이 읽�
   );
 
   check(
-    'DB 행에서 뽑기: 칸이 없는 행(옛 기록) → 둘 다 null',
+    'DB 행에서 뽑기: 칸이 없는 행(옛 기록) → 모두 null · []',
     JSON.stringify(pickCheckinBody({})) ===
-      JSON.stringify({ sleepHours: null, soreness: null })
+      JSON.stringify({
+        sleepHours: null,
+        soreness: null,
+        nutrition: null,
+        skippedMeals: [],
+      })
   );
   check(
     'DB 행에서 뽑기: 적은 값은 그대로',
-    JSON.stringify(pickCheckinBody({ sleepHours: 6.5, soreness: 4 })) ===
-      JSON.stringify({ sleepHours: 6.5, soreness: 4 })
+    JSON.stringify(
+      pickCheckinBody({
+        sleepHours: 6.5,
+        soreness: 4,
+        nutrition: '보통',
+        skippedMeals: ['dinner'],
+      })
+    ) ===
+      JSON.stringify({
+        sleepHours: 6.5,
+        soreness: 4,
+        nutrition: '보통',
+        skippedMeals: ['dinner'],
+      })
+  );
+
+  /* 식사 두 칸(2026-10-07) — 영양 조언이 읽는다. 목록 밖 · 간식 · 중복은 거르고 오류는 내지 않는다 */
+  const meals = (amount: string, skipped: string[]) =>
+    parseCheckinBody(
+      (name) => ({ mealAmount: amount })[name] ?? '',
+      (name) => (name === 'skippedMeals' ? skipped : [])
+    );
+  check(
+    "식사: '부족' + 아침 → 그대로 · 목록 밖 '많이' → 안 적음 · 간식 · 중복은 거른다 · getAll 없이 부르면 []",
+    meals('부족', ['breakfast']).nutrition === '부족' &&
+      meals('부족', ['breakfast']).skippedMeals.join() === 'breakfast' &&
+      meals('많이', []).nutrition === null &&
+      meals('', ['snack', 'lunch', 'lunch']).skippedMeals.join() === 'lunch' &&
+      parseCheckinBody(() => '').skippedMeals.length === 0
+  );
+  check(
+    "DB 행의 식사: 목록 밖 '먹음' → null · 걸른 끼니의 모르는 값은 거른다 · 요약은 '부족 · 아침 · 저녁 걸름'",
+    pickCheckinBody({ nutrition: '먹음' }).nutrition === null &&
+      pickCheckinBody({ skippedMeals: ['snack', 'dinner'] }).skippedMeals.join() ===
+        'dinner' &&
+      mealSummary('부족', ['dinner', 'breakfast']) === '부족 · 아침 · 저녁 걸름' &&
+      mealSummary(null, []) === null &&
+      mealSummary('잘 먹음', null) === '잘 먹음'
   );
 
   const feel = [7, 6.5, 6, 5.5].map(sleepLevelFromHours);

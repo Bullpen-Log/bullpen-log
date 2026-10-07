@@ -2,6 +2,8 @@ import { requireUser } from '@/lib/dal';
 import { toDateKey } from '@/lib/pitch-stats';
 import { isNutritionDate } from '@/lib/nutrition/days';
 import { loadNutritionDay } from '@/lib/nutrition/load';
+import { loadAdvice } from '@/lib/nutrition/advice-load';
+import { serviceHour } from '@/lib/nutrition/advice-input';
 import { NutritionView } from './nutrition-view';
 
 /**
@@ -26,6 +28,10 @@ export default async function NutritionPage({
   const raw = (await searchParams).date;
   const date = typeof raw === 'string' && isNutritionDate(raw) ? raw : today;
 
-  const day = await loadNutritionDay(user, date);
-  return <NutritionView day={day} today={today} />;
+  /* 오늘 영양 조언(맨 위 카드)은 홈 카드와 같은 길(lib/nutrition/advice-load.ts) — 같이 기다린다 */
+  const [day, advice] = await Promise.all([
+    loadNutritionDay(user, date),
+    loadAdvice(user, date, today, serviceHour(now())),
+  ]);
+  return <NutritionView day={day} today={today} advice={advice} />;
 }
