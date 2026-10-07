@@ -74,6 +74,11 @@ export type DistanceInput = {
  * 2.2(+1.1). 실내(흰 천)는 흩어짐 10% 남짓. 한 폰 · 한 스피드건으로 정했다.
  */
 export const BLOB_SIZE_RATIO = 1.185;
+/**
+ * 거리를 바꿀 때 구속이 바뀌는 지수 — 구속 ∝ D^1.076. 거리만큼 배율이 바뀌고(1), 공기저항 배율(dragScaleM = D)이 함께 바뀌어 되돌린
+ * 릴리스 속력이 조금 더 붙는다(밖 · 실내 6개를 20m · 22.8m 로 재 견줌, 영상마다 1.075~1.078). 화면이 세션 거리로 값을 옮길 때 쓴다.
+ */
+export const SPEED_DISTANCE_EXPONENT = 1.076;
 /** 공 크기로 어림한 거리의 σ(비율) — 위 흩어짐 2~3% 와 길마다 갈리는 1% 남짓 */
 export const AUTO_DISTANCE_SIGMA_REL = 0.03;
 /**
@@ -343,7 +348,41 @@ export function analyzeByDistance(input: DistanceInput): DistanceResult {
     best.raw.some(
       (o) => o.i > endO.i && o.i <= endO.i + Math.round((2 * fps) / 60) && o.diam >= 1.15 * endO.diam && near(o)
     );
-  if (approach === 'receding' && !caught) {
+  /*
+   * 맞고 튄 공 — 앞부분 끝 바로 뒤(2.5장 안)에 덩어리가 3장 넘게 이어지고, 그것이 끝 자리에서 시작해 한 직선 위를 고르게 움직이며 날던
+   * 길에서 벗어나면(그물에 맞고 방향이 바뀜) 공은 거기서 멈췄다 — 이어 찾지 않는다. 앱(웹킷)이 푼 장면에서는 흔들리는 그물의 둥근
+   * 자국을 날던 길 위에 7장 이어 붙여 끝을 0.1초 늦췄다(119, 첫 거리 20m: 86.6 → 크롬이 푼 장면 106.2km/h). 공이 이어 날면 덩어리가
+   * 길 위에 있어 걸리지 않고, 흰 천 앞에서 놓친 공 뒤의 딴 덩어리(포수 쪽)는 직선으로 고르게 움직이지 않아 걸리지 않는다(실내 098).
+   */
+  const after = best.raw
+    .filter((o) => o.t > endO.t && o.t <= endO.t + 6.5 * dt)
+    .sort((a, b) => a.t - b.t)
+    .slice(0, 4);
+  const offPath = (o: TrackedBall) => {
+    const p = best.fit.project(o.t);
+    return Math.hypot(p[0] - o.u, p[1] - o.v);
+  };
+  /* 덩어리들이 시각에 따라 한 직선 위를 고르게 가나 — 곧게 맞춘 자리에서 벗어난 RMS(px) */
+  const lineRms = (pts: TrackedBall[]) => {
+    const n = pts.length;
+    const mt = pts.reduce((a, q) => a + q.t, 0) / n;
+    const den = pts.reduce((a, q) => a + (q.t - mt) ** 2, 0);
+    let ss = 0;
+    for (const key of ['u', 'v'] as const) {
+      const m = pts.reduce((a, q) => a + q[key], 0) / n;
+      const b = den > 0 ? pts.reduce((a, q) => a + (q.t - mt) * (q[key] - m), 0) / den : 0;
+      for (const q of pts) ss += (q[key] - m - b * (q.t - mt)) ** 2;
+    }
+    return Math.sqrt(ss / n);
+  };
+  const rebound =
+    approach === 'receding' &&
+    after.length >= 3 &&
+    after[0].t - endO.t < 2.5 * dt &&
+    Math.hypot(after[0].u - endO.u, after[0].v - endO.v) <= 2 * endO.diam &&
+    after.map(offPath).sort((a, b) => a - b)[after.length >> 1] > 2 * endO.diam &&
+    lineRms(after) <= 0.6 * endO.diam;
+  if (approach === 'receding' && !caught && !rebound) {
     let ext = extendRansac(fsOrdered, flight, cam, fps, { dragScaleM: D });
     /*
      * 놓치기 직전 두 장은 공이 배경 띠 · 천 가장자리에 걸쳐 덩어리 중심이 치우친 때가 있다 — 그 두 점이 늘린 궤적을 비틀어 후보를
@@ -365,15 +404,19 @@ export function analyzeByDistance(input: DistanceInput): DistanceResult {
     flight = ext.pts;
     extended = ext.added;
   }
-  const flightReal = flight.map((o) => back(o)).sort((a, b) => a.t - b.t);
-  const flightPts = toPoints(flightReal, s);
-  const endI = approach === 'approaching' ? flightReal[0].i : flightReal[flightReal.length - 1].i;
-  /* 끝 뒤 덩어리(맞고 튄 공)로 끝 시각을 정하는 것은 이어 찾기가 더한 것이 없을 때만 — 이어 찾은 끝 뒤의 덩어리는 엉뚱한 것이다 */
-  const postReal = (extended ? [] : best.raw)
-    .map(back)
-    .filter((o) => (approach === 'approaching' ? o.i < endI && o.i >= endI - 6 : o.i > endI && o.i <= endI + Math.round((6 * fps) / 60)))
-    .sort((a, b) => a.t - b.t)
-    .slice(0, 4);
+  /* 맞출 점들 — 비행(원래 차례) · 끝 뒤 덩어리. 이어 찾은 것을 빼고 다시 맞출 때도 쓴다 */
+  const prepare = (fl: typeof flight, ext: number) => {
+    const flightReal = fl.map((o) => back(o)).sort((a, b) => a.t - b.t);
+    const endI = approach === 'approaching' ? flightReal[0].i : flightReal[flightReal.length - 1].i;
+    /* 끝 뒤 덩어리(맞고 튄 공)로 끝 시각을 정하는 것은 이어 찾기가 더한 것이 없을 때만 — 이어 찾은 끝 뒤의 덩어리는 엉뚱한 것이다 */
+    const postReal = (ext ? [] : best.raw)
+      .map(back)
+      .filter((o) => (approach === 'approaching' ? o.i < endI && o.i >= endI - 6 : o.i > endI && o.i <= endI + Math.round((6 * fps) / 60)))
+      .sort((a, b) => a.t - b.t)
+      .slice(0, 4);
+    return { flightPts: toPoints(flightReal, s), postReal, extended: ext };
+  };
+  let prep = prepare(flight, extended);
 
   /*
    * 마무리 — 거리 Dm 으로 궤적을 맞춰 구속을 낸다. 공 크기로 거리를 어림하는 자동 모드는 같은 점들로 한 번 더 부른다(공 찾기는
@@ -384,6 +427,7 @@ export function analyzeByDistance(input: DistanceInput): DistanceResult {
     report.distanceM = Dm;
     report.distanceSource = auto ? 'ball' : 'input';
     report.path = [];
+    const { flightPts, postReal, extended } = prep;
     /* 앞의 손 붙은 점을 한 번 더 걷고(4장까지) 끝을 정해 맞춘다 */
     const opts = { dragScaleM: Dm, tilt };
     let fit = fitTrajectory(flightPts, flightPts[flightPts.length - 1].t + dt / 2, cam, opts);
@@ -548,6 +592,26 @@ export function analyzeByDistance(input: DistanceInput): DistanceResult {
     };
   };
   let out = finish(D, false);
+  /*
+   * 넣은 거리인데 이어 찾은 끝이 그 거리 너머로 갔으면(공 크기 거리가 넣은 거리보다 18% 넘게 멀다) — 이어 찾기가 그물에 닿은 뒤 흔들리는
+   * 그물의 둥근 자국을 붙여 끝을 늦췄다. 이어 찾은 것 없이 다시 맞춰, 잴 수 있으면 그것을 쓴다(웹킷이 푼 129, 21.5m: 이어 찾기 8장 →
+   * 공 크기 거리 +22%, −18.8km/h). 실내에서 흰 천 위로 놓친 공을 이어 찾은 것은 넣은 거리가 맞으면 공 크기 거리와 5% 안, 합성 장면의
+   * 흰 천도 13% 라 걸리지 않는다.
+   */
+  if (!input.autoDistance && prep.extended > 0 && report.sizeDistM != null && report.sizeDistM / D > 1.18) {
+    const keep = { prep, out, report: { ...report, path: report.path } };
+    prep = prepare(
+      best.seg.map((o) => ({ ...o })),
+      0
+    );
+    const retry = finish(D, false);
+    if (retry.measure.ok) out = retry;
+    else {
+      prep = keep.prep;
+      Object.assign(report, keep.report);
+      out = keep.out;
+    }
+  }
   /* 자동이면 공 크기로 어림한 거리로 다시 — 넣은 거리로 잰 값이 그럴 수 없는 구속이어도(거리가 크게 틀림) 다시 본다 */
   const sized = report.sizeDistM;
   if (
