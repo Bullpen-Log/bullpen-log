@@ -1,5 +1,5 @@
 /**
- * AI 트레이닝 자가 시험.
+ * 트레이닝 자가 시험.
  *
  *   npm run training:test
  *
@@ -47,7 +47,6 @@ import {
   intensityRangeText,
   pendingOuting,
   pitchRangeText,
-  readPitchPlan,
   requiredRestDays,
   HIGH_VOLUME_PITCHES,
   HIGH_VOLUME_MIN_REST,
@@ -197,8 +196,6 @@ import {
 } from '../lib/armcare/my-routines.ts';
 import { readTrainingPart } from '../lib/training-part.ts';
 import { AREA_VIEW, MUSCLE_MODEL, throwingSide } from '../lib/armcare/muscle-map.ts';
-import { reportReadiness } from '../lib/report/cadence.ts';
-import { SYSTEM_PROMPT, buildUserPrompt } from '../lib/ai/report-prompt.ts';
 import {
   BASELINE_WORKOUT_FREQ_NAMES,
   COMPETITION_LEVELS,
@@ -210,19 +207,9 @@ import {
 import { buildDailyPlan, isHalted, readDailyPlan } from '../lib/report/daily-plan.ts';
 import {
   DEFAULT_GOAL,
-  canReuse,
-  checkinStamp,
   decideAutoFence,
-  type AutoRecord,
   type WorkoutSignals,
 } from '../lib/report/auto-setup.ts';
-import {
-  acceptAnswer,
-  autoSetupSchema,
-  buildAutoPrompt,
-  type AutoAnswer,
-  type AutoPromptInput,
-} from '../lib/ai/auto-setup-prompt.ts';
 import {
   CONDITIONING_DAY_LABEL,
   CONDITIONING_GOAL,
@@ -1833,56 +1820,6 @@ console.log('\n[가입 문진] 받은 답이 실제로 쓰이는가');
   );
 }
 
-console.log('\n[리포트 주기] 하루에 한 번인가');
-{
-  /*
-   * 날짜로 연다. 리포트가 오늘·내일 몇 구까지 던져도 되는지를 내는데, 그것은
-   * 날마다 달라진다 — 사흘 전 숫자를 오늘 보고 있으면 안 보느니만 못하다.
-   * 대신 하루 한 번으로 잠근다. 부를 때마다 AI 비용이 실제로 나간다.
-   */
-  const done = (asOf: string) => ({ asOf, halted: false });
-
-  const first = reportReadiness('2026-09-01', null);
-  check('하나도 없으면 만들 수 있다', first.ready, first.message);
-
-  const madeToday = reportReadiness('2026-09-01', done('2026-09-01'));
-  check(
-    '오늘 몫을 이미 만들었으면 못 만든다',
-    !madeToday.ready && madeToday.madeToday,
-    madeToday.message
-  );
-  check(
-    '언제 다시 되는지 말한다',
-    madeToday.message.includes('내일'),
-    madeToday.message
-  );
-
-  const yesterday = reportReadiness('2026-09-01', done('2026-08-31'));
-  check('어제 만들었으면 오늘 다시 만들 수 있다', yesterday.ready, yesterday.message);
-
-  /*
-   * 통증으로 멈춘 리포트는 하루를 쓰지 않는다.
-   *
-   * 멈춘 리포트에는 AI를 안 불러 비용이 없고, 멈춤 안내가 "체크인을 다시
-   * 저장해주세요"라고 말한다 — 다시 못 만들면 그 안내가 거짓말이 된다.
-   */
-  const halted = reportReadiness('2026-09-01', {
-    asOf: '2026-09-01',
-    halted: true,
-  });
-  check('멈춘 리포트는 하루를 안 쓴다', halted.ready, halted.message);
-  check(
-    '멈춘 뒤에는 무엇을 하면 되는지 말한다',
-    halted.message.includes('체크인'),
-    halted.message
-  );
-  check(
-    '멈췄어도 오늘 만든 것은 만든 것으로 센다',
-    halted.madeToday,
-    String(halted.madeToday)
-  );
-}
-
 console.log('\n[등판 회복] 쉬는 동안에도 가볍게 던지게 하는가');
 {
   /*
@@ -2077,50 +2014,19 @@ console.log('\n[투구 계획] 오늘과 내일을 범위로 내는가');
     String(threw.tomorrow?.reason)
   );
 
-  /* 옛 리포트 — 범위도 내일도 없이 저장된 것 */
-  const old = readPitchPlan({
-    halted: false,
-    haltReason: null,
-    recovering: false,
-    needsPainCheck: false,
-    today: {
-      dateKey: '2026-08-01',
-      label: '오늘',
-      throwing: true,
-      maxPitches: 60,
-      maxIntensity: 8,
-      reason: '평소 수준',
-    },
-    basis: [],
-    youthNote: null,
-  });
-  check('옛 리포트도 읽힌다', old != null, String(old?.today?.maxPitches));
+  /* 범위(minPitches)가 없는 날 — 상한 하나로 읽는다 */
+  const noRange = {
+    dateKey: '2026-08-01',
+    label: '오늘',
+    throwing: true,
+    maxPitches: 60,
+    maxIntensity: 8,
+    reason: '평소 수준',
+  } as unknown as Parameters<typeof pitchRangeText>[0];
   check(
     '범위가 없으면 상한 하나로 읽는다',
-    pitchRangeText(old!.today!) === '60구 이하',
-    pitchRangeText(old!.today!)
-  );
-}
-
-{
-  /*
-   * 문장 규칙.
-   *
-   * "하체 볼륨이 늘었고 투구 강도도 올랐습니다" 같은 사실 나열은 읽는 사람이
-   * "그래서 어쩌라고"에서 멈춘다. 프롬프트에 그 규칙과 예시가 살아 있는지 본다.
-   * (AI를 부르지 않고 프롬프트 자체를 확인한다 — 돈이 들지 않고 빠르다.)
-   */
-  check(
-    '프롬프트가 사실 나열을 막는다',
-    SYSTEM_PROMPT.includes('사실을 나열하고 끝내지 마세요')
-  );
-  check(
-    '프롬프트에 나쁜 예와 좋은 예가 함께 있다',
-    SYSTEM_PROMPT.includes('나쁜 예:') && SYSTEM_PROMPT.includes('좋은 예:')
-  );
-  check(
-    '프롬프트가 두 부하를 합치지 못하게 막는다',
-    SYSTEM_PROMPT.includes('하나로 합치지 않습니다')
+    pitchRangeText(noRange) === '60구 이하',
+    pitchRangeText(noRange)
   );
 }
 
@@ -3507,15 +3413,9 @@ console.log('\n[회복날] 가벼운 것만 · 가동성 중심 · 유산소는 
   );
 }
 
-console.log('\n[AI 맞춤] 규칙이 울타리를 치고, 그 밖의 답은 받지 않는가');
+console.log('\n[자동 맞춤] 규칙이 울타리를 치고 초안을 내는가');
 {
-  /*
-   * AI 맞춤은 두 겹이다 — 규칙이 몸을 지키는 선을 긋고(decideAutoFence),
-   * AI는 그 안에서만 고른다(acceptAnswer 가 밖의 답을 버린다). AI를 실제로
-   * 부르지는 않는다. 부르는 것은 돈이 들고 답이 매번 달라, 여기서는 'AI가
-   * 이렇게 답했다면'을 지어내 검사를 밟아 본다.
-   */
-  const ALL_TITLES = library.map((ex) => ex.title);
+  /* 자동 맞춤 — 규칙이 몸을 지키는 선을 긋고(decideAutoFence) 그 안의 초안(draft)이 오늘 방향이다 */
 
   /** 운동 쪽 신호 — 평소 한 주를 기본으로, 바꿀 것만 준다 */
   const signals = (over: Partial<WorkoutSignals> = {}): WorkoutSignals => ({
@@ -3634,7 +3534,7 @@ console.log('\n[AI 맞춤] 규칙이 울타리를 치고, 그 밖의 답은 받�
   const plain = fenceFor(factsWith({}));
   check('평소 날은 근력 날', plain.strengthDay, plain.day.label);
   check(
-    '평소 날 → 목표는 AI가 셋 중에서 고른다',
+    '평소 날 → 고를 수 있는 목표가 셋',
     plain.fixedGoal == null && plain.goals.length === 3
   );
   check(
@@ -3683,7 +3583,7 @@ console.log('\n[AI 맞춤] 규칙이 울타리를 치고, 그 밖의 답은 받�
     JSON.stringify(loaded.minutes)
   );
   check(
-    '컨디셔닝으로 정해진 근력 날 → AI에게도 컨디셔닝 데이로 알린다',
+    '컨디셔닝으로 정해진 근력 날 → 컨디셔닝 데이로 알린다',
     loaded.day.label === CONDITIONING_DAY_LABEL &&
       plain.day.label !== CONDITIONING_DAY_LABEL,
     `${loaded.day.label} / 평소 ${plain.day.label}`
@@ -3810,14 +3710,14 @@ console.log('\n[AI 맞춤] 규칙이 울타리를 치고, 그 밖의 답은 받�
 
   /*
    * 전신 근육통(2026-09-30).
-   *   '많이'  요일은 그대로 · 시간 한 단계(한 번만) · AI 가 고를 수 있는 목표에서 파워 향상 제외.
+   *   '많이'  요일은 그대로 · 시간 한 단계(한 번만) · 고를 수 있는 목표에서 파워 향상 제외.
    *           체크인에서 파워를 직접 고른 날은 그 뜻 그대로 둔다(부딪힘으로 보지 않는다).
    *   '심함'  회복날이다 — 회복날은 이미 시간을 줄이므로 두 번 줄이지 않는다.
    *   '보통'  아무것도 안 바꾼다.
    */
   const soreHigh = fenceFor(factsWith({ soreness: 4 }));
   check(
-    "근육통 '많이' → 근력 날 그대로 · 목표는 AI 가 고르되 파워 향상은 없다",
+    "근육통 '많이' → 근력 날 그대로 · 고를 수 있는 목표에 파워 향상은 없다",
     soreHigh.strengthDay &&
       soreHigh.day.key === plain.day.key &&
       soreHigh.fixedGoal == null &&
@@ -3918,322 +3818,14 @@ console.log('\n[AI 맞춤] 규칙이 울타리를 치고, 그 밖의 답은 받�
     soreHighFloor.draft.reason
   );
 
-  /* 통증인 날은 AI를 부르지 않는다 — 그 조건이 plan.halted 다 (training-setup.ts) */
+  /* 통증인 날은 자동 맞춤이 방향을 정하지 않는다 — 그 조건이 plan.halted 다 (training-setup.ts) */
   const pain = factsFor({ condition: 7, pain: true });
   check(
-    '통증 체크인 → 계획이 멈춘다 (AI를 안 부르는 조건)',
+    '통증 체크인 → 계획이 멈춘다 (자동 맞춤이 정하지 않는 조건)',
     buildPitchPlan(pain).halted
   );
 
-  /* ── 다시 만들기 ── */
-  const today = factsWith({}).condition.today!;
-  const stamp = checkinStamp(today);
-  const prev: AutoRecord = {
-    ...plain.draft,
-    by: 'ai',
-    rules: [],
-    checkin: stamp,
-  };
-  check('체크인이 그대로면 → AI에게 다시 묻지 않는다', canReuse(prev, plain, stamp));
-  check(
-    '체크인을 고치면 → 다시 묻는다',
-    !canReuse(prev, plain, checkinStamp({ ...today, condition: 5 }))
-  );
-  check(
-    '규칙 초안으로 만든 날은 → 다시 만들 때 AI에게 묻는다',
-    !canReuse({ ...prev, by: 'rules' }, plain, stamp)
-  );
-  check(
-    '울타리가 바뀌어 그 목표가 안 되면 → 다시 묻는다',
-    !canReuse({ ...prev, goal: '파워 향상' }, loaded, stamp)
-  );
-
-  /*
-   * 잔 시간 · 근육통도 울타리를 바꾸므로 도장에 든다 — 고치면 다시 묻는다.
-   * 칸이 없는 것(옛 기록)과 null 은 둘 다 '안 적음'이라 같은 도장이다. 다르면 배포 뒤
-   * 아무것도 안 바꾼 사람까지 다시 묻게 된다.
-   */
-  check(
-    '잔 시간만 바꿔도 도장이 달라진다 → 다시 묻는다',
-    checkinStamp({ ...today, sleepHours: 6.5 }) !== stamp &&
-      checkinStamp({ ...today, sleepHours: 6.5 }) !==
-        checkinStamp({ ...today, sleepHours: 7 }) &&
-      !canReuse(prev, plain, checkinStamp({ ...today, sleepHours: 6.5 }))
-  );
-  check(
-    '근육통만 바꿔도 도장이 달라진다 → 다시 묻는다',
-    checkinStamp({ ...today, soreness: 4 }) !== stamp &&
-      checkinStamp({ ...today, soreness: 3 }) !==
-        checkinStamp({ ...today, soreness: 4 }) &&
-      !canReuse(prev, plain, checkinStamp({ ...today, soreness: 4 }))
-  );
-  check(
-    '칸이 없는 체크인과 null 로 적힌 체크인은 같은 도장',
-    !('sleepHours' in today) &&
-      !('soreness' in today) &&
-      checkinStamp({ ...today, sleepHours: null, soreness: null }) === stamp
-  );
-
-  /* AI 가 파워 향상을 골라 둔 날, 체크인은 그대로인데 울타리에서 파워가 빠졌다면 다시 묻는다 */
-  const soreStamp = checkinStamp(factsWith({ soreness: 4 }).condition.today!);
-  const prevSore: AutoRecord = {
-    ...soreHigh.draft,
-    by: 'ai',
-    rules: [],
-    checkin: soreStamp,
-  };
-  check(
-    "(기준) 근육통 '많이'인 날 울타리 안의 기록은 그대로 쓴다 · 평소 울타리는 파워 향상을 받는다",
-    canReuse(prevSore, soreHigh, soreStamp) &&
-      canReuse({ ...prev, goal: '파워 향상' }, plain, stamp)
-  );
-  check(
-    "AI 가 파워 향상을 골랐던 기록 + 근육통 '많이'의 울타리 → 다시 묻는다 (울타리 밖)",
-    !canReuse({ ...prevSore, goal: '파워 향상' }, soreHigh, soreStamp)
-  );
-
-  /* ── AI 답 검사 ── */
   const facts = factsWith({});
-  const input: AutoPromptInput = {
-    facts,
-    plan: buildPitchPlan(facts),
-    workout: signals(),
-    fence: plain,
-    recentDays: [],
-    lastLowerKey: null,
-    lastUpperKey: null,
-  };
-  const good: AutoAnswer = {
-    goal: '근력 향상',
-    minutes: 60,
-    focus: 'auto',
-    caution: [],
-    painSuspected: false,
-    reason: `어제 40구를 던졌지만 몸 상태가 좋아 근력에 씁니다. 60분이면 충분합니다.`,
-  };
-  const ok = acceptAnswer(good, input, ALL_TITLES);
-  check('울타리 안의 답 → 받는다', ok.ok, ok.ok ? ok.decision.goal : ok.reason);
-  check('focus auto → 앱이 번갈아 정함(null)', ok.ok && ok.decision.focus === null);
-
-  const reject = (label: string, answer: AutoAnswer) => {
-    const r = acceptAnswer(answer, input, ALL_TITLES);
-    check(label, !r.ok, r.ok ? '받아버림' : r.reason);
-  };
-  reject('고를 수 없는 시간(90분) → 버린다', { ...good, minutes: 90 });
-  reject('컨디셔닝에 부위를 좁힘 → 버린다', {
-    ...good,
-    goal: CONDITIONING_GOAL,
-    focus: 'lower',
-  });
-  reject('없앤 목표(균형 잡힌 관리) → 버린다', { ...good, goal: '균형 잡힌 관리' });
-  reject('자료에 없는 투구수 → 버린다', {
-    ...good,
-    reason: '어제 95구를 던지셨습니다.',
-  });
-  /* 한 번도 선택지에 없던 값 — 75분은 이제 고를 수 있는 시간이라 쓰지 않는다 */
-  reject('자료에 없는 시간 → 버린다', { ...good, reason: '오늘은 50분만 하세요.' });
-  reject('운동 종목 이름을 씀 → 버린다', {
-    ...good,
-    reason: '오늘은 데드리프트 위주로 갑니다.',
-  });
-  reject('이유가 너무 김 → 버린다', { ...good, reason: '가'.repeat(400) });
-  reject('조심할 부위를 오늘 할 부위로 → 버린다', {
-    ...good,
-    focus: 'lower',
-    caution: [{ part: 'lowerBody', why: '무릎 불편' }],
-  });
-
-  const many = acceptAnswer(
-    {
-      ...good,
-      caution: [
-        { part: 'lowerBody', why: '무릎' },
-        { part: 'lowerBody', why: '무릎 또' },
-        { part: 'shoulder', why: '어깨' },
-        { part: 'elbow', why: '팔꿈치' },
-        { part: 'wrist', why: '손목' },
-      ],
-    },
-    input,
-    ALL_TITLES
-  );
-  check(
-    '조심할 부위는 같은 것 한 번, 셋까지',
-    many.ok && many.decision.caution.length === 3,
-    many.ok ? many.decision.caution.map((c) => c.part).join(',') : many.reason
-  );
-
-  const clashInput: AutoPromptInput = { ...input, fence: clashed };
-  const quiet = acceptAnswer(
-    {
-      ...good,
-      goal: CONDITIONING_GOAL,
-      minutes: clashed.minutes[CONDITIONING_GOAL][0],
-      reason: '오늘은 가볍게 몸을 풉니다.',
-    },
-    clashInput,
-    ALL_TITLES
-  );
-  check(
-    '부딪힌 날 이유에 그 이야기를 빠뜨리면 → 규칙이 앞에 붙인다',
-    quiet.ok && quiet.decision.reason.startsWith('파워 운동을 하고 싶다고'),
-    quiet.ok ? quiet.decision.reason : quiet.reason
-  );
-
-  /* 답의 모양 — 목록 밖의 목표는 모양 검사에서부터 떨어진다 */
-  const schema = autoSetupSchema(loaded);
-  check(
-    '모양 검사: 울타리 안 → 통과',
-    schema.safeParse({
-      ...good,
-      goal: CONDITIONING_GOAL,
-      minutes: loaded.minutes[CONDITIONING_GOAL][0],
-    }).success
-  );
-  check('모양 검사: 울타리 밖 목표 → 떨어짐', !schema.safeParse(good).success);
-
-  /* 프롬프트에 규칙과 초안이 들어가는가 */
-  const prompt = buildAutoPrompt({ ...input, fence: loaded });
-  check(
-    '프롬프트에 규칙이 정한 것과 초안이 들어간다',
-    prompt.includes('# 규칙이 정한 것') &&
-      prompt.includes(loaded.rules[0]) &&
-      prompt.includes('# 규칙 초안'),
-    `${prompt.length}자`
-  );
-
-  check(
-    '근력 날에 AI가 컨디셔닝을 고를 수 있으면 → 그날 이름이 바뀐다고 알려 준다',
-    buildAutoPrompt(input).includes(CONDITIONING_DAY_LABEL)
-  );
-
-  /*
-   * 잔 시간 · 전신 근육통도 AI 에게 준다 — 적은 날만, 시간은 소수로만('5.5시간').
-   *
-   * '5시간 30분'으로 풀어 주면 AI 가 그 '30분'을 따라 쓰고, 아래 분 검사가 그것을 운동 시간으로
-   * 읽는다. 그래도 AI 는 사람 말로 풀어 쓰곤 하므로, 검사는 오늘 잔 시간과 꼭 맞는 말만 떼고 센다.
-   * 30분을 통째로 허용하지는 않는다 — 운동 시간을 30분이라고 잘못 쓴 답까지 통과한다.
-   */
-  const inputFor = (f: ReturnType<typeof buildFacts>): AutoPromptInput => ({
-    ...input,
-    facts: f,
-    plan: buildPitchPlan(f),
-    fence: fenceFor(f),
-  });
-  const checkinLine = (text: string) =>
-    text.split('\n').find((line) => line.startsWith('- 컨디션 ')) ?? '';
-  const bodyPrompt = buildAutoPrompt(
-    inputFor(factsWith({ sleepHours: 5.5, soreness: 4 }))
-  );
-  check(
-    '프롬프트의 체크인 줄에 잔 시간 · 전신 근육통이 들어간다',
-    checkinLine(bodyPrompt) ===
-      "- 컨디션 8/10 (10이 최상) · 수면 보통 · 잔 시간 5.5시간 · 전신 근육통 '많이'",
-    checkinLine(bodyPrompt)
-  );
-  check(
-    "잔 시간은 소수로만 준다 — '5시간 30분' 꼴은 프롬프트 어디에도 없다",
-    bodyPrompt.includes('5.5시간') && !/5\s*시간\s*30\s*분/.test(bodyPrompt)
-  );
-  check(
-    '값이 없는 날의 체크인 줄은 예전 그대로',
-    checkinLine(buildAutoPrompt(input)) === '- 컨디션 8/10 (10이 최상) · 수면 보통',
-    checkinLine(buildAutoPrompt(input))
-  );
-
-  const spelledOut: AutoAnswer = {
-    ...good,
-    reason:
-      '어젯밤 5시간 30분밖에 못 주무셔서 가장 센 것은 빼고 근력에 씁니다. 60분이면 충분합니다.',
-  };
-  const shortNightInput = inputFor(factsWith({ sleepHours: 5.5 }));
-  const spelled = acceptAnswer(spelledOut, shortNightInput, ALL_TITLES);
-  check(
-    "잔 시간 5.5 인 날 이유에 '5시간 30분밖에 못 주무셔서' → 받는다 (잔 시간을 풀어 쓴 것은 운동 시간이 아니다)",
-    spelled.ok,
-    spelled.ok ? spelled.decision.reason : spelled.reason
-  );
-  const strayHalf = acceptAnswer(
-    {
-      ...good,
-      reason: '어젯밤 5시간 30분밖에 못 주무셨으니 오늘은 30분만 가볍게 합니다.',
-    },
-    shortNightInput,
-    ALL_TITLES
-  );
-  check(
-    '그날에도 운동 시간으로 쓴 30분(자료에 없는 분)은 버린다',
-    !strayHalf.ok && strayHalf.reason.includes('30분'),
-    strayHalf.ok ? '받아버림' : strayHalf.reason
-  );
-  const fullNight = acceptAnswer(
-    spelledOut,
-    inputFor(factsWith({ sleepHours: 7 })),
-    ALL_TITLES
-  );
-  check(
-    "잔 시간 7 인 날 이유에 '30분'(자료에 없는 분) → 지금처럼 버린다",
-    !fullNight.ok && fullNight.reason.includes('30분'),
-    fullNight.ok ? '받아버림' : fullNight.reason
-  );
-  /*
-   * 떼어 내는 것은 오늘 잔 시간이 x.5 인 날의 그 말뿐이다. 정수로 잔 날의 'N시간 30분'은
-   * 잔 시간을 풀어 쓴 것이 아니라 틀린 말이다 — 위 시험은 문장이 '5시간 30분'이라 이것을 못 가른다.
-   */
-  const wrongHalf = acceptAnswer(
-    {
-      ...good,
-      reason: '어젯밤 7시간 30분 주무셔서 근력에 씁니다. 60분이면 충분합니다.',
-    },
-    inputFor(factsWith({ sleepHours: 7 })),
-    ALL_TITLES
-  );
-  check(
-    "잔 시간 7 인 날 이유에 '7시간 30분' → 버린다 (정수로 잔 날은 떼어 낼 말이 없다)",
-    !wrongHalf.ok && wrongHalf.reason.includes('30분'),
-    wrongHalf.ok ? '받아버림' : wrongHalf.reason
-  );
-  /* 소수 뒤 · 다른 숫자 뒤의 '5시간 30분'은 잔 시간을 풀어 쓴 말이 아니다 — 떼지 않는다 */
-  for (const [label, reason] of [
-    [
-      "'5.5시간 30분만'(잔 시간 뒤에 붙여 쓴 운동 시간 30분)",
-      '어젯밤 잔 시간이 5.5시간 30분만 가볍게 합니다.',
-    ],
-    [
-      "'15시간 30분'",
-      '어젯밤 15시간 30분 주무셔서 근력에 씁니다. 60분이면 충분합니다.',
-    ],
-  ] as const) {
-    const r = acceptAnswer({ ...good, reason }, shortNightInput, ALL_TITLES);
-    check(
-      `잔 시간 5.5 인 날 이유에 ${label} → 버린다`,
-      !r.ok && r.reason.includes('30분'),
-      r.ok ? '받아버림' : r.reason
-    );
-  }
-
-  /*
-   * 리포트 프롬프트의 '오늘:' 줄에도 같은 두 조각이 붙는다 — 적은 날만, 시간은 소수로,
-   * 근육통은 숫자 없이 말로. 안 적은 날의 줄은 두 칸이 생기기 전과 같다.
-   */
-  const todayLine = (f: ReturnType<typeof buildFacts>) =>
-    buildUserPrompt(f, buildPitchPlan(f))
-      .split('\n')
-      .find((line) => line.startsWith('- 오늘: ')) ?? '';
-  const reportBody = todayLine(factsWith({ sleepHours: 6.5, soreness: 4 }));
-  check(
-    "리포트 프롬프트의 '오늘:' 줄 끝에 잔 시간 · 전신 근육통이 붙는다",
-    reportBody.endsWith("컨디션 8/10, 수면 보통, 잔 시간 6.5시간, 전신 근육통 '많이'"),
-    reportBody
-  );
-  const reportPlain = todayLine(factsWith({}));
-  check(
-    "값이 없는 날의 '오늘:' 줄은 예전 그대로 (수면에서 끝난다)",
-    reportPlain.endsWith('컨디션 8/10, 수면 보통') &&
-      reportPlain === todayLine(factsWith({ sleepHours: null, soreness: null })) &&
-      reportPlain === todayLine(factsWith({ soreness: 6 })),
-    reportPlain
-  );
 
   /*
    * 메모에서 찾은 조심할 부위가 실제로 무거운 운동을 빼는가.
@@ -5832,7 +5424,7 @@ console.log('\n[암케어] 부위·근육 · 오늘의 루틴 · 부하');
     `암케어 ${armOnly.volume.armCare.sets}세트`
   );
   check(
-    '암케어는 부위 묶음(등·견갑 등)에 안 들어간다 — AI에게 모순된 숫자를 안 준다',
+    '암케어는 부위 묶음(등·견갑 등)에 안 들어간다 — 모순된 숫자를 안 준다',
     armOnly.volume.byPart.every((p) => p.sets === 0),
     armOnly.volume.byPart.map((p) => `${p.label} ${p.sets}`).join(' · ')
   );
@@ -7551,7 +7143,7 @@ console.log(
   );
   const painDay = buildPitchPlan(factsFor({ condition: 7, pain: true, rehab: rf() }));
   check(
-    '투구 계획 — 오늘 통증이면 통증 멈춤이 먼저(재활 표시 없음 — AI 맞춤도 예전처럼 안 부른다)',
+    '투구 계획 — 오늘 통증이면 통증 멈춤이 먼저(재활 표시 없음 — 자동 맞춤도 예전처럼 정하지 않는다)',
     painDay.halted && !painDay.rehab && (painDay.haltReason ?? '').includes('통증')
   );
   const partsOf = (over: Partial<RehabProgramLike>) =>

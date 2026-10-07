@@ -12,15 +12,14 @@ import type { CheckinDay, NutritionDay } from '@/app/(app)/today/day-summary';
  * 분석 · 그래프 화면의 몸통 — 예전 홈 캘린더 밑에 있던 두 칸 그대로(2026-10-05 홈 정리로 옮겨 옴).
  *
  * 분석 칸은 날짜 하나를 본다. 홈에서는 캘린더가 날짜를 쥐었는데, 여기서는 이 화면이 쥔다 — 처음은 주소의 ?date=
- * (홈 그날 칸의 '그날 분석'), 없으면 오늘. 지난 리포트 목록이나 그래프의 점을 누르면 그날로 바뀌고, 그래프에서
- * 눌렀으면 위의 분석 칸까지 올려 보여 준다(휴대폰은 그래프가 분석 밑에 있다).
+ * (홈 그날 칸의 '그날 분석'), 없으면 오늘. 그래프의 점을 누르면 그날로 바뀌고 위의 분석 칸까지 올려 보여 준다
+ * (휴대폰은 그래프가 분석 밑에 있다).
  */
 export function AnalysisBody({
   today,
   initialDate,
   initialTab,
   initialView,
-  todayReport,
   earliest,
   logs,
   trainingByDay,
@@ -33,8 +32,6 @@ export function AnalysisBody({
   initialTab: AnalysisTab;
   /** 처음 펼 날 · 칸의 내용 — 서버가 함께 그려 보낸다(뜬 뒤에 따로 받아 오지 않게, analysis-block.tsx) */
   initialView: ReactNode;
-  /** 오늘의 리포트 칸 — 서버가 함께 그려 보낸다(analysis-block.tsx) */
-  todayReport: ReactNode;
   earliest: string;
   logs: Log[];
   trainingByDay: Record<string, TrainingDaySummary>;
@@ -60,9 +57,7 @@ export function AnalysisBody({
         date={date}
         today={today}
         initialTab={initialTab}
-        todayReport={todayReport}
         initialView={{ date: initialDate, tab: initialTab, node: initialView }}
-        onJump={setDate}
       />
       <HomeTrends
         today={today}

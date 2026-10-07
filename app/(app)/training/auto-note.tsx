@@ -3,13 +3,13 @@ import { GOAL_FOCUSES } from '@/lib/report/personalize';
 import { OpenCheckinButton } from '@/components/notice-bell';
 
 /**
- * AI 맞춤이 무엇을 정했고 왜인지 — 오늘 일정 카드 안에 둔다.
+ * 자동 맞춤이 무엇을 정했고 왜인지 — 오늘 일정 카드 안에 둔다.
  *
  * 목표·시간을 앱이 정했으니, 무엇으로 정했는지 먼저 보여야 한다. 안 보이면
  * '컨디셔닝 40분'이 나온 날 선수는 이유를 알 수 없다.
  *
- * AI를 못 불러 규칙 초안으로 만든 날은 그렇다고 밝힌다. AI 맞춤이라고 해 놓고
- * 규칙이 정한 것을 AI가 정한 것처럼 보이면 안 된다.
+ * 2026-10-07 전에 AI 로 만든 줄(by 'ai')도 같은 이름으로 보인다. 그 줄에만 있을 수 있는
+ * 조심할 곳 · 통증 의심은 그대로 보여 준다(규칙 초안은 늘 비어 있다).
  */
 export function AutoNote({ auto }: { auto: AutoRecord }) {
   const focus = GOAL_FOCUSES.find((f) => f.key === auto.focus)?.label;
@@ -19,7 +19,7 @@ export function AutoNote({ auto }: { auto: AutoRecord }) {
       <details className="group">
         <summary className="flex cursor-pointer list-none flex-wrap items-center gap-x-2 gap-y-1 text-xs font-medium">
           <span className="flex items-center gap-1 text-sky-strong">
-            {auto.by === 'ai' ? 'AI 맞춤' : 'AI 맞춤 · 규칙대로'}
+            자동 맞춤
           </span>
           <span className="text-ink/70">
             목표 {auto.goal} · {auto.minutes}분{focus ? ` · ${focus}` : ''}
@@ -38,10 +38,7 @@ export function AutoNote({ auto }: { auto: AutoRecord }) {
           </p>
         )}
       </details>
-      {/*
-        통증 판정은 AI에게 맡기지 않는다. AI는 의심만 알리고, 멈추는 것은
-        체크인의 '통증'이 한다 — 그래야 같은 입력에 늘 같은 결과가 나온다.
-      */}
+      {/* 통증으로 멈추는 것은 체크인의 '통증'이 한다 — 여기서는 의심만 알린다 */}
       {auto.painSuspected && (
         <p className="rounded-lg border border-warn-line bg-warn-bg px-3 py-2 text-xs leading-relaxed text-warn">
           메모에 통증 같은 말이 있어요.{' '}
@@ -49,9 +46,6 @@ export function AutoNote({ auto }: { auto: AutoRecord }) {
             통증이면 체크인 고치기
           </OpenCheckinButton>
         </p>
-      )}
-      {auto.by === 'rules' && auto.fallback && (
-        <p className="text-xs leading-relaxed text-muted">{auto.fallback}</p>
       )}
     </div>
   );

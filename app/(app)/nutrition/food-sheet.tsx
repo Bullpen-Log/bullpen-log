@@ -85,7 +85,6 @@ import {
 } from '@/app/actions/nutrition';
 import { OFFLINE_MESSAGE, orOffline } from '@/lib/action-offline';
 import { EASE, toFoodInput, type Origin } from './shared';
-import { PhotoCapture } from './photo-panel';
 import { BarcodePanel } from './barcode-panel';
 import { subcategoriesOf, subcategoryOf } from '@/lib/nutrition/food-subcategory';
 import { ErrorLine } from '@/components/error-line';
@@ -199,7 +198,6 @@ export function FoodSheet({
   combos,
   current,
   mfds,
-  photo = false,
   onError,
   browseSubs = {},
   popular,
@@ -220,8 +218,6 @@ export function FoodSheet({
   /** 지금 이 끼니에 담긴 것 — 담는 대로 늘어난다. '이 끼니를 조합으로 저장'이 읽는다 */
   current: MealEntryView[];
   mfds: boolean;
-  /** 사진 기록(AI)을 쓸 수 있나 */
-  photo?: boolean;
   /** 창이 닫힌 뒤에 끝난 일의 실패 — 영양 화면의 오류 줄로 */
   onError?: (message: string) => void;
   /** 식약처 둘러보기의 분류 → 세부 칸 → 음식 수 */
@@ -643,11 +639,6 @@ export function FoodSheet({
             />
           ) : (
             <>
-              {/* 사진으로 담기(AI) — 찍으면 음식과 양을 알아보고 고른 것만 담는다(photo-panel.tsx) */}
-              {photo && !replacing && (
-                <PhotoCapture onAdd={(items, label) => track(label, onAdd(items))} />
-              )}
-
               {/* 자주 먹는 조합 — 이 끼니에 저장한 것부터 세 개. 누르면 한 번에 담는다 */}
               {!replacing && comboList.length > 0 && (
                 <ul className="space-y-2" aria-label="자주 먹는 조합">

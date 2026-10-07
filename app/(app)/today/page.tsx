@@ -168,7 +168,6 @@ async function PitchLogSection({
       nutritionByDay={h.nutritionByDay}
       velocityByDay={h.velocityByDay}
       checkinByDay={h.checkinByDay}
-      reportDays={h.reportDays}
     />
   );
 }

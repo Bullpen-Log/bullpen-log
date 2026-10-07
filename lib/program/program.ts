@@ -343,7 +343,7 @@ export function checkEligibility(
       ok: false,
       kind: 'blocked',
       reason: '시즌 중 유지 프로그램은 곧 열려요.',
-      action: '지금은 AI 맞춤으로 가볍게 이어 가요.',
+      action: '지금은 자동 맞춤으로 가볍게 이어 가요.',
     };
   }
   if (input.season === 'rehab') {
@@ -589,7 +589,7 @@ export type TodaySignals = {
   lastProgramDate: string | null;
   /** 오늘 체크인이 있는가 — 없으면 일정을 만들지 않는다(지금 규칙) */
   checkedIn: boolean;
-  /** 오늘 다른 방식(AI 맞춤 · 직접 고르기)으로 이미 운동을 시작했는가 */
+  /** 오늘 다른 방식(자동 맞춤 · 직접 고르기)으로 이미 운동을 시작했는가 */
   otherWorkoutStarted: boolean;
   /** 오늘 통증으로 운동이 멈췄는가(halted) */
   halted: boolean;

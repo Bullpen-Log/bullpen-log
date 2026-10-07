@@ -209,9 +209,9 @@ export function validateCheckinDate(dateKey: string, now = new Date()): boolean 
  * 안 쌓인다. 다만 꼭 적게 하지는 않는다. 안 적은 날은 아무것도 바꾸지 않는다(안 적은 것과 '보통'은 다르다).
  *
  * 무엇을 바꾸는지(읽는 곳: lib/report/prescription.ts · theme.ts · auto-setup.ts · lib/armcare/routine.ts):
- *   근육통 '많이'  가장 센 운동만 뺀다(AI 맞춤은 시간도 한 단계, 파워 향상은 고르지 않는다)
+ *   근육통 '많이'  가장 센 운동만 뺀다(자동 맞춤은 시간도 한 단계, 파워 향상은 고르지 않는다)
  *   근육통 '심함'  회복·재생 데이 + 무게 드는 운동 제외 + 암케어 회복 루틴
- *   짧은 밤        가장 센 운동만 뺀다. 며칠 이어지면 AI 맞춤이 컨디셔닝으로(원래 있던 규칙)
+ *   짧은 밤        가장 센 운동만 뺀다. 며칠 이어지면 자동 맞춤이 컨디셔닝으로(원래 있던 규칙)
  * 새 신호는 '더 가볍게'만 한다 — 통증 · 부하 규칙을 풀어 주지 못한다.
  */
 
@@ -274,10 +274,7 @@ export function isShortSleep(c: { sleep: string; sleepHours?: number | null }) {
   );
 }
 
-/**
- * '6.5시간'. '6시간 30분'으로 풀어 적지 않는다 — AI 맞춤의 답 검사(lib/ai/auto-setup-prompt.ts)가
- * 자료에 없는 'N분'을 지어낸 숫자로 보고 답을 버린다.
- */
+/** '6.5시간' — '6시간 30분'으로 풀어 적지 않는다(화면 · 기록 어디서나 같은 모양) */
 export function formatSleepHours(hours: number) {
   return `${hours}시간`;
 }

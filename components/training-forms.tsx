@@ -46,7 +46,7 @@ import { SwitchRow } from '@/components/switch';
 
 /** 일정을 만드는 두 방식 */
 const PLAN_MODES = [
-  { value: 'auto', label: 'AI 맞춤' },
+  { value: 'auto', label: '자동 맞춤' },
   { value: 'manual', label: '직접 고르기' },
 ] as const;
 
@@ -140,7 +140,7 @@ export function PlanForm({
   preferredWorkout?: string | null;
   /**
    * 처음 펼칠 방식. 오늘 직접 골라 만들었으면 다시 만들 때도 그쪽으로 연다.
-   * 아직 안 만든 날은 AI 맞춤이 먼저다 — 장비만 고르면 되는 간편한 쪽이다.
+   * 아직 안 만든 날은 자동 맞춤이 먼저다 — 장비만 고르면 되는 간편한 쪽이다.
    */
   startMode?: 'auto' | 'manual';
   /**
@@ -158,9 +158,9 @@ export function PlanForm({
   const [open, setOpen] = useState(!generated);
 
   /*
-   * AI 맞춤 / 직접 고르기.
+   * 자동 맞춤 / 직접 고르기.
    *
-   * AI 맞춤은 장비만 고른다. 목표·시간·부위는 앱이 오늘 체크인·투구·운동
+   * 자동 맞춤은 장비만 고른다. 목표·시간·부위는 앱이 오늘 체크인·투구·운동
    * 기록을 보고 정한다(app/actions/training-setup.ts 의 decideAutoSetup).
    * 직접 고르기는 예전 그대로다 — 둘 다 남겨 두기로 했다(사용자분과 정함).
    */
@@ -330,14 +330,14 @@ export function PlanForm({
       {mode === 'auto' ? (
         <>
           <p className="text-[13px] leading-relaxed text-muted">
-            오늘 체크인 · 최근 투구 · 운동 기록 · 남긴 메모를 보고 AI가 목표와 시간을
-            정해요. 장비만 골라주세요.
+            오늘 체크인 · 최근 투구 · 운동 기록을 보고 목표와 시간을 정해요. 장비만
+            골라주세요.
           </p>
 
           {/*
             체크인에서 고른 운동이 몸 상태와 부딪히는 날.
 
-            AI 맞춤은 몸 상태에 맞춰 가고 이유를 말한다(사용자분과 정함). 경고를
+            자동 맞춤은 몸 상태에 맞춰 가고 이유를 말한다(사용자분과 정함). 경고를
             넘기는 체크는 여기 두지 않는다 — 그건 직접 고르기에서 한다.
           */}
           {clash && (
@@ -346,7 +346,7 @@ export function PlanForm({
                 {clash.kind} 운동을 하고 싶다고 하셨는데, {clash.reason}.
               </p>
               <p className="text-[13px] leading-relaxed text-warn">
-                AI 맞춤은 몸 상태에 맞춰 {clash.fallbackLabel} 위주로 만들어요.{' '}
+                자동 맞춤은 몸 상태에 맞춰 {clash.fallbackLabel} 위주로 만들어요.{' '}
                 {clash.kind} 운동을 하고 싶으면 ‘직접 고르기’에서 만들 수 있어요.
               </p>
             </div>
@@ -443,7 +443,7 @@ export function PlanForm({
         오늘 쓸 수 있는 장비 — 두 방식이 같은 자리에서 함께 쓴다.
 
         예전에는 방식마다 따로 그려서, 방식을 바꾸면 이 칸이 새로 만들어지며 골라
-        둔 장비가 지워졌다. AI 맞춤에서 덤벨·밴드를 켜고 직접 고르기로 넘어가면
+        둔 장비가 지워졌다. 자동 맞춤에서 덤벨·밴드를 켜고 직접 고르기로 넘어가면
         다시 꺼져 있었다. 방식에 따라 바뀌는 칸들 뒤 한자리에 두면 방식을 오가도
         그대로 남는다.
       */}
@@ -459,8 +459,8 @@ export function PlanForm({
       <div className="flex flex-wrap items-center gap-3">
         {mode === 'auto' ? (
           <SubmitButton
-            label={generated ? 'AI 맞춤으로 다시 만들기' : 'AI 맞춤으로 만들기'}
-            busy="AI가 오늘 몸 상태를 보고 있어요…"
+            label={generated ? '자동 맞춤으로 다시 만들기' : '자동 맞춤으로 만들기'}
+            busy="오늘 몸 상태에 맞추고 있어요…"
           />
         ) : (
           <SubmitButton

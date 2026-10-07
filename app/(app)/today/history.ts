@@ -35,7 +35,6 @@ export async function loadPitchHistory(user: { id: string }) {
     featured,
     meals,
     checkins,
-    reports,
     dailyWeights,
     velocityByDay,
   ] = await Promise.all([
@@ -67,10 +66,6 @@ export async function loadPitchHistory(user: { id: string }) {
         /* 그래프의 체중 */
         bodyWeightKg: true,
       },
-    }),
-    prisma.aiReport.findMany({
-      where: { userId: user.id, asOf: { gte: initialFrom } },
-      select: { asOf: true },
     }),
     /* 영양 탭에 적은 체중 — 그래프의 체중 */
     prisma.dailyNutrition.findMany({
@@ -119,7 +114,6 @@ export async function loadPitchHistory(user: { id: string }) {
         { condition: c.condition, pain: hasPain(pickCheckinParts(c)) },
       ])
     ),
-    reportDays: reports.map((r) => toDateKey(r.asOf)),
     weightByDay,
   };
 }
