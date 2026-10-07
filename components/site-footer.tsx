@@ -40,14 +40,19 @@ export function SiteFooter({
         />
       )}
       {/*
-        경계선 없이 위에서 아래로 — 위쪽은 화면 바탕(page)에서 시작해 맨 밑이 꼬리말 색(surface/60)이 된다(2026-10-07 사용자: "나눠져 있어 색만 다르다, 그라데이션으로").
-        위로 넉넉히(pt-16) 번지게 해 본문 끝과 꼬리말 사이가 한 면처럼 이어진다.
+        경계선 없이 블록 안에서 위에서 아래로 — 맨 위는 화면 바탕(page), 블록의 6할쯤에서 원래 꼬리말 색(surface 60% 를 바탕에 섞은 것 —
+        예전 bg-surface/60 과 같은 색)에 닿고 그 아래는 그 색 그대로(2026-10-07 사용자: "위는 원래 배경색, 아래는 원래 블록 색으로
+        그라데이션 — 지금은 배경색이랑 똑같다"). 블록 전체에 걸쳐 옅게 섞으면 글자가 있는 아래쪽도 바탕색처럼 보였다.
       */}
       <footer
-        className={`bg-linear-to-b from-page to-surface/60 ${tabBar ? 'hidden desk:block' : ''}`}
+        className={tabBar ? 'hidden desk:block' : undefined}
+        style={{
+          backgroundImage:
+            'linear-gradient(to bottom, var(--color-page) 0%, color-mix(in oklab, var(--color-surface) 60%, var(--color-page)) 60%)',
+        }}
       >
         <div
-          className={`mx-auto w-full px-4 pt-14 sm:px-6 ${width} ${
+          className={`mx-auto w-full px-4 pt-12 sm:px-6 ${width} ${
             tabBar ? 'pb-[calc(var(--tab-bar-top)+1rem)] desk:pb-5' : 'pb-5'
           }`}
         >
