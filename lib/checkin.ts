@@ -284,25 +284,92 @@ export function sorenessWord(n: number | null | undefined): string | null {
   return n != null && Number.isInteger(n) ? (SORENESS_LEVELS[n - 1] ?? null) : null;
 }
 
+/* ─────────────────────── 식사 (간편 쪽 선택 칸, 2026-10-07) ─────────────────────── */
+
+/*
+ * 영양 조언(lib/nutrition/advice.ts — 홈 카드 · 영양 탭 맨 위)이 읽는 두 칸. 음식을 하나하나 적지 않아도 오늘 몇 g 더
+ * 먹을지 · 균형 점수를 어림하려고 둔다(사용자 2026-10-07: "체크인에서 간단하게 식사를 잘 했는지, 부족했는지, 아침을
+ * 걸렀는지"). 둘 다 안 적어도 된다 — 안 적은 날은 조언이 '모름'으로 본다(안 적은 것과 '보통'은 다르다). 음식을 적은 끼니가
+ * 있으면 조언은 기록을 먼저 믿는다. 트레이닝 추천은 읽지 않는다.
+ *
+ * '끼니 양'은 2026-09-30 에 화면에서 뺀 DailyCheckin.nutrition 칸을 되살린 것(옛 값 '잘 먹음 · 보통 · 부족' 그대로).
+ * '많이 먹음'은 두지 않는다 — 성장기에게 '덜 먹어라'를 하지 않는 규칙과 같은 까닭(많이 먹은 날은 음식 기록으로 안다).
+ */
+export const MEAL_AMOUNTS = ['잘 먹음', '보통', '부족'] as const;
+export type MealAmount = (typeof MEAL_AMOUNTS)[number];
+/** 걸를 수 있는 끼니 — 간식은 거르는 것이 아니다 */
+export const SKIPPABLE_MEALS = [
+  { key: 'breakfast', label: '아침' },
+  { key: 'lunch', label: '점심' },
+  { key: 'dinner', label: '저녁' },
+] as const;
+export type SkippableMeal = (typeof SKIPPABLE_MEALS)[number]['key'];
+
 export type CheckinBody = {
   /** 어젯밤 잔 시간(시간, 0.5 단위). 안 적었으면 null */
   sleepHours: number | null;
   /** 전신 근육통 1~5. 안 적었으면 null */
   soreness: number | null;
+  /** 끼니 양(DailyCheckin.nutrition). 안 적었으면 null */
+  nutrition: MealAmount | null;
+  /** 걸른 끼니(DailyCheckin.skippedMeals). 안 적었으면 [] */
+  skippedMeals: SkippableMeal[];
 };
 
-/** 폼에서 온 두 칸 — 어느 것도 오류를 내지 않는다(목록 · 범위 밖은 안 적은 것으로) */
-export function parseCheckinBody(get: (name: string) => string): CheckinBody {
+const isMealAmount = (v: unknown): v is MealAmount =>
+  typeof v === 'string' && (MEAL_AMOUNTS as readonly string[]).includes(v);
+const isSkippable = (v: unknown): v is SkippableMeal =>
+  typeof v === 'string' && SKIPPABLE_MEALS.some((m) => m.key === v);
+
+/**
+ * 폼에서 온 네 칸 — 어느 것도 오류를 내지 않는다(목록 · 범위 밖은 안 적은 것으로).
+ * 걸른 끼니는 여러 개라 getAll 로 받는다(옛 호출처럼 안 넘기면 빈 것으로).
+ */
+export function parseCheckinBody(
+  get: (name: string) => string,
+  getAll: (name: string) => string[] = () => []
+): CheckinBody {
   const s = Number(get('soreness'));
+  const amount = get('mealAmount').trim();
+  const skipped = [...new Set(getAll('skippedMeals').map((v) => v.trim()))].filter(
+    isSkippable
+  );
   return {
     sleepHours: parseSleepHours(get('sleepHours')),
     soreness: Number.isInteger(s) && s >= 1 && s <= SORENESS_LEVELS.length ? s : null,
+    nutrition: isMealAmount(amount) ? amount : null,
+    skippedMeals: skipped,
   };
 }
 
-/** DB 행에서 두 칸만 뽑는다. 예전 기록처럼 비어 있으면 null */
-export function pickCheckinBody(row: Partial<CheckinBody>): CheckinBody {
-  return { sleepHours: row.sleepHours ?? null, soreness: row.soreness ?? null };
+/** DB 행에서 네 칸만 뽑는다. 예전 기록처럼 비어 있으면 null · []. 목록 밖 값(옛 자료)은 안 적은 것으로 */
+export function pickCheckinBody(row: {
+  sleepHours?: number | null;
+  soreness?: number | null;
+  nutrition?: string | null;
+  skippedMeals?: string[] | null;
+}): CheckinBody {
+  return {
+    sleepHours: row.sleepHours ?? null,
+    soreness: row.soreness ?? null,
+    nutrition: isMealAmount(row.nutrition) ? row.nutrition : null,
+    skippedMeals: (row.skippedMeals ?? []).filter(isSkippable),
+  };
+}
+
+/** 요약 한 칸 — '부족 · 아침 걸름' · '잘 먹음' · '점심 · 저녁 걸름'. 둘 다 안 적었으면 null */
+export function mealSummary(
+  amount: string | null | undefined,
+  skipped: readonly string[] | null | undefined
+): string | null {
+  const names = SKIPPABLE_MEALS.filter((m) => skipped?.includes(m.key)).map(
+    (m) => m.label
+  );
+  const parts = [
+    ...(isMealAmount(amount) ? [amount] : []),
+    ...(names.length > 0 ? [`${names.join(' · ')} 걸름`] : []),
+  ];
+  return parts.length > 0 ? parts.join(' · ') : null;
 }
 
 /* ─────────────────────── 팔 통증 — 아픈 자리 · 정도 ─────────────────────── */

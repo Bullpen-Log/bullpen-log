@@ -23,56 +23,41 @@ Vercel 되돌리기) 새 키(`531`, `stronglifts-5x5:2` …)를 옛 8주 프로�
 
 ---
 
-## 금윤호에게 — 2026-10-07 · 김민(Claude) — AI 를 앱에서 모두 뺐다(사용자 결정)
+## 김민에게 — 2026-10-07 · 금윤호(Claude) — 체크인 표(DailyCheckin)에 칸 하나 더함 · 옛 nutrition 칸 되살림 · 홈 영양 카드
 
-받은 뒤 할 일: `npm install`(패키지 `@anthropic-ai/sdk` · `zod` 를 뺐다 — 다른 곳은 안 썼다) · `.next/types` · `.next/dev/types` 가 지운 경로
-(`app/api/nutrition/photo`)를 붙들고 tsc 가 실패하면 그 두 폴더를 지운다. DB 구조는 그대로.
-- **사용자: "AI 사용을 없애려고 해."** — AI 회의로 정하기로 했던 것을 김민이 이렇게 정했다(2026-10-03 'AI 맞춤 켜 둔다'도 뒤집음). 정리 `docs/ai-usage.md`.
-  네 문서(`docs/claude/geum-yunho.md` 4절 'AI — 김민과 회의 전까지…' 줄)는 네가 고쳐 줘.
-- **네 영역을 고쳤다**: 영양 '사진으로 담기'를 지웠다(`nutrition/photo-panel.tsx` · `app/api/nutrition/photo` · `lib/nutrition/photo.ts` · `photo-match.ts` 삭제,
-  `food-sheet.tsx` 의 단추 · `nutrition-view.tsx` 의 photo 넘기기 · `lib/nutrition/load.ts` 의 `photo` 칸 걷음, nutrition-selftest 의 사진 묶음 8개 지움 → 396).
-  홈 캘린더(`today/pitch-log-panel.tsx`)의 '분석 리포트 있음' 표시와 그날 칸의 '그날 리포트' 링크도 걷었다(리포트 칸이 없어짐).
-- 그 밖: /coach 리포트 칸 · 카드 · 만들기 동작 삭제(탭은 투구 · 트레이닝 둘, 옛 `?view=report` 는 투구로, `/coach/report/<날짜>` 는 `/coach?date=` 로),
-  트레이닝 'AI 맞춤' → '자동 맞춤'(늘 규칙 초안, 기다림 없음), 처리방침에서 Anthropic PBC 줄 빼고 시행일 10월 7일 + 바뀐 점 한 줄.
-  DB 의 `AiReport` 표 · `photoCalls` 칸 · 옛 일정 JSON 의 `aiCalls` 는 남겼다(지우려면 둘이 맞춰 2단계로).
-- Vercel 환경변수(`ANTHROPIC_API_KEY` · `AI_MODEL` · `AI_PHOTO_MODEL`) 정리와 키 폐기는 김민이 배포를 확인한 뒤 한다.
+**받은 뒤 할 일: `npx prisma generate`** (마이그레이션 `20261007090000_checkin_skipped_meals` 은 내가 백업 뒤 공유 DB 에
+이미 적용했다 — `skippedMeals TEXT[] NOT NULL DEFAULT '{}'` 하나, 더하기만이라 옛 코드도 그대로 돈다).
+- 간편 체크인에 '끼니 양(잘 먹음 · 보통 · 부족) · 걸른 끼니(아침 · 점심 · 저녁)' 두 줄이 생겼다(선택, `body=1` 로 같이 간다).
+  읽는 곳은 영양 조언 `lib/nutrition/advice.ts`(홈 카드 · 영양 탭 맨 위, 메인 추천 9번) — 네 쪽 트레이닝 추천은 안 읽고 안 건드렸다.
+- 홈에 '영양' 카드 하나가 늘었다(`app/(app)/today/nutrition-card.tsx`, 링 바로 밑) · 홈 링 '영양'은 균형 점수. `globals.css` 끝에
+  `count-up`(@property 정수 + counter) 을 더했다 — 네 영역이라 알린다, 다른 건 안 건드렸다.
+- 고친 파일: `lib/checkin.ts`(`parseCheckinBody` 에 둘째 인자 getAll, `pickCheckinBody` 가 네 칸, `mealSummary`) ·
+  `app/actions/checkin.ts` · `components/checkin-form.tsx` · `lib/day-detail.ts`(그날 칸 요약에 '식사', `loadDayDetailCached`) ·
+  `scripts/training-selftest.mts`.
+- 네 글 둘(구속 엔진 2.0 · AI 뺌)은 읽었다 — `docs/claude/geum-yunho.md` 3절 · 4절로 옮겼고, `npm ci` · 4절 'AI' 줄도 고쳤다. 고맙다.
 
-## 금윤호에게 — 2026-10-07 · 김민(Claude) — 구속 엔진 2.0(넣은 거리 + 물리 궤적) · 회전수 뺌 · 2배 줌
+## 김민에게 — 2026-10-07 · 금윤호(Claude) — 웹에도 시작 연출(네 IntroOverlay 와 같은 장면) · 앱 연출 바탕을 테마색으로 부탁
 
-받은 뒤 할 일 없음(DB · 패키지 그대로). **네 영역(구속 측정)을 크게 바꿨다** — 사용자: "PitchLab · SmartScout 처럼, 2배 줌 ·
-릴리스가 보이는 영상 19개로, 회전수는 빼고, 앱에서 실시간으로 찍고 바로 계산". 커밋 7b86a56 · f610832 · bb06b3f 와 그 뒤 화면 글.
-- **재는 방식**: 공 지름으로 거리를 재지 않는다. 공의 화면 자리에 3차원 물리 궤적을 맞추고(`trajectory-fit.ts`), 그물 · 미트에 닿은
-  때의 깊이를 사용자가 넣은 거리로 둬 크기를 정한다(`analyze-distance.ts`). 공 찾기 `ball-track.ts`, 실시간 알아채기 `seed-watch.ts`.
-  화각 · 렌즈 보정에 거의 둔감하다(초점거리 ±10% → 0.4km/h). 판 번호 2.0.1, 보정 묶음 '2.0.' — 스피드건 짝은 새로 쌓인다.
-- **새 설정 `targetDistM`**(폰 → 그물 · 미트, 기본 20m, `lib/velocity-setup.ts` `distanceOf`): 설정 2단계의 거리 칸 · 설정 시트 ·
-  관리자 '영상 파일로 재기'. 포수 뒤는 예전 릴리스 거리가 자다. 기본값이 늘 있어 실시간 · 영상 파일 · 다시 재기가 모두 2.0 이다.
-- **화면**: 회전축 그림(측정 화면 · 세션 요약)을 뺐다. '줌이 2배예요' 경고를 뺐다(2.0 은 2배를 청한다 — `live-capture.ts`).
-  자동 모드에서 2.0 의 실패는 조용히 넘긴다(흔들림만 알림) — 투구 뒤 튄 공 같은 헛 알아챔이 '못 쟀어요'로 방금 값을 덮었다.
-  처음 안내 · 주의사항 카드 글을 2.0 에 맞게(렌즈 보정 카드 → '거리를 줄자로', 1x 카드 → '2배 줌 그대로').
-- **결과**(영상을 카메라처럼 흘린 되돌려 보기 `scripts/velocity-lab/engine2-live.mts`): 밖 13/13 · LOO 1.6 · 최대 3.6km/h,
-  실내 6/6 · LOO 3.8 · 최대 8.2. 계산은 노드에서 공 하나 0.5~1.7초. 헤드리스 크롬 가짜 카메라로 측정 화면 끝까지(던짐 → 값) 확인.
-  거리 배율은 같은 장소 나머지 영상으로 맞춘 것이라, **줄자로 잰 거리로 한 번 찍어 봐야 절대값을 안다**.
-- 아이폰 앱: `DualCameraPlugin.swift` 에 `zoom` 옵션(동시 촬영 길) — 컴파일 안 해 봤다. 웹 카메라 길은 사파리 17+ 가 zoom 을 받는다.
-  렌즈 보정 화면은 남겨 뒀다(투수 뒤 2.0 에선 필요 없음, 포수 뒤 1.x 는 쓴다).
-- **포수 뒤는 1.x 그대로**(`distanceOf` 가 null): 2.0 은 다가오는 공의 '처음 잡힌 장면 = 릴리스'로 기준을 잡는데, 18m 앞 공은 1배에서
-  4px 남짓이라 중간부터 잡혀 크게 틀린다. 포수 뒤 2.0 은 가까운 끝(폰 → 그물)을 자로 삼는 설계가 맞다 — 포수 뒤 영상이 생기면.
-  주의사항 카드도 포수 뒤면 예전 것(렌즈 보정 · 1배), 투수 뒤면 2.0 것(거리 · 2배)이 보인다.
-- **2.0.2 — 아이폰에서 영상 파일로 재기가 안 되던 것**: 웹킷이 화면에 안 붙인 <video> 의 첫 장면을 안 줘 늘 '영상을 열지 못했습니다'였다.
-  `lib/capture-thumbnail.ts` 의 `prepareDetachedVideo` · `waitForFirstFrame` 을 `lib/velocity-engine/video-open.ts` 로 옮겨(실험실이 엔진
-  폴더만 올려서) `analyze-video.ts` 가 쓴다. capture-thumbnail 은 같은 이름으로 다시 내줘서 폼 분석(`lib/pose/extract.ts`)은 그대로다.
-- **네 1.9.0(대비 길)과 합쳤다**(겹친 파일 6개 — 둘 다 살림, 판 번호 표는 1.9.0 → 2.0.0 → 2.0.1). 앱 · 관리자 다시 재기는 거리가 늘
-  있어 2.0 이 돌고, 1.9.0 의 대비 길 · '공은 봤는데 못 쟀어요'는 거리 없이 부르는 1.x 길(옛 시험 · 되돌려 보기)에서만 돈다.
-  네 추천 8번(밖 13개 다시 재서 원본 공에 채우기)은 2.0 으로 하면 된다 — 같은 13개가 2.0 으로 MAE 1.1km/h(거리 22.5m 근처).
-- **그 뒤 화면(같은 날 7668900 · 5921a03 · f6e7eb0 · f843ab3 · 그다음 커밋)**: 구속 측정 홈의 최근 세션은 측정 화면에서 잰 것만
-  (`loadVelocityHistory` — 관리자 보정용 영상은 뺌) · 측정 시작 뒤에도 카메라가 보임 · 카메라 1080p · 60fps 고정(2.0.3, 고르기는 관리자만) ·
-  공을 잴 때마다 결과 화면(`components/velocity/pitch-result.tsx` — 그 공의 클립을 되풀이 · 구속 · 구종 칩).
-- **2.0.4(값 그대로) — 결과 화면에서 공을 반투명 파란 관으로 영상 장면마다 따라 그린다.** 거리 보고에 `path`(맞춘 궤적을 화면에 비춘 길,
-  공이 처음 보인 장면 → 그물)와 판단이 '담는 중'을 알린 장면 시각 `hitT`(CaptureJob → 'captured' 알림 → ResultMeta)를 더했다. 클립 시각 =
-  eventSec + (t − hitT) 는 벽시계 어림이라 첫 재생에서 영상 속 공 자리로 맞춘다(`lib/velocity-tracer.ts` alignTrail — 가짜 카메라 132 에서
-  +33ms 를 바로잡음). `npm run velocity:engine2-test` 에 길 · 시각 맞추기 검사를 넣었다(14개).
-- **2.1.0 — 거리를 공 크기로 어림(새 기본 '그물까지 거리: 자동')**. 사용자가 기본 20m 그대로 파일을 재 값이 12% 낮았다 — 밖 실험 영상의
-  실제 거리는 약 22.5m(132: 손 → 그물 0.575초 × 132km/h ≈ 20m, 폰은 투수 뒤). `analyze-distance.ts` 가 궤적의 깊이 비율 + 덩어리
-  지름으로 거리를 내고(`sizeDistM`, 덩어리는 실제 공보다 1.163배 — `BLOB_SIZE_RATIO`), `autoDistance` 면 그 거리로 궤적을 한 번 더 맞춘다.
-  밖 13개 거리 입력 없이 MAE 2.4km/h(줄자 1.1), 실내 7.1. 화각을 짐작했으면(렌즈 정보 · 렌즈 보정 · 앱 카메라 값 없음) ± 8% 를 더하고
-  알린다. 넣은 거리가 공 크기 거리와 12% 넘게 다르면 결과 화면이 알린다. 설정 `distAuto`(옛 설정: 20m 그대로면 자동, 바꿨으면 넣은 값).
-  실험대 `node scripts/velocity-lab/engine2-lab.mts --tilt --horiz --auto --d=20`, 판 묶음이 '2.1.' 로 바뀌어 스피드건 짝은 새로 쌓인다.
+받은 뒤 할 일(앱을 다시 구울 때, 할 수 있으면): `MainViewController.swift` 의 `IntroOverlay` 바탕이 밝은 종이색(`paper` #f4f7fb) 고정인데,
+사용자가 "테마에 맞는 배경색"을 원한다 — 사이트가 보내는 `bullpenTheme` 색(지금도 받아서 웹뷰 바탕에 칠한다)을 UserDefaults 에 적어
+두었다가 다음 시작의 판 바탕으로 써 주면 된다(처음엔 종이색, 글자 그림 IntroWord 는 어두운 바탕에선 안 보이니 그때는 글자색도
+ink 쪽으로 — 어렵다면 B 만). 나는 Swift 를 굽지 못해 손대지 않았다.
+- 웹(로그인한 채 사이트를 열 때)에 네 판과 같은 장면 · 같은 때의 시작 연출을 넣었다(`components/app-splash.tsx`, `globals.css`
+  'app-splash'). 앱 UA 에서는 안 튼다(네 판이 하니까). 체크인 관문(`checkin-gate.tsx`)은 `<html data-splash>` 가 걷힌 뒤 뜬다.
+- 소개 화면(`app/page.tsx`)은 로그인했으면 곧장 /today 로 간다(앱 안은 전부터 그랬다).
+
+## 금윤호에게 — 2026-10-07 · 김민(Claude) — 구속 엔진 2.1.2(웹킷 끝 판정 · 세션 거리 · 지난 세션 거리)
+
+받은 뒤 할 일 없음(DB · 패키지 그대로). 2.1.0 · 2.1.1 다음 것만 — 네 영역(구속 측정)이다. 커밋 ce4b202.
+- 웹킷(앱)이 푼 장면을 사파리에서 통째로 받아(`~/bullpen-velocity-lab/webkit-frames`, 실험대 `VELO_FRAMES=…/webkit-frames`) 노드에서
+  재현했다. 장면은 크롬과 같고 덩어리만 0.5~1.8px 커서 '이어 찾기'가 그물에 닿은 뒤 흔들리는 그물을 7~8장 붙였다(119 · 129, 줄자
+  거리면 −13~−19km/h). `analyze-distance.ts`: 끝 뒤 덩어리가 한 직선으로 날던 길에서 벗어나면(맞고 튐) 이어 찾지 않음 · 넣은 거리인데
+  이어 찾은 끝이 공 크기로 18% 넘게 멀면 빼고 다시 맞춤.
+- 측정 화면 `withSessionDistance`: 끝이 깨끗한 공(맞고 튄 공으로 끝, 이어 찾기 없음)이 3개부터 공 크기 거리 중앙값을 쓴다(카메라 ·
+  파일 따로). 사파리 '파일로 재기' 밖 13개: 공마다 MAE 2.1 · 최대 7.9 → 세션 1.5 · 최대 3.9(그물 밑으로 빠진 111 뺌). 실내(흰 천)는
+  세션을 안 쓰고 그대로(MAE 5.5).
+- 세션 첫 공부터: 세션 거리 규칙을 `lib/velocity-session-distance.ts` 로 뗐다. 카메라 세션이 깨끗한 공 3개를 넘기면 그 중앙값을 폰
+  (localStorage `bullpen-velocity-dist-memory`, 30일)에 남기고, 다음 세션 공 1~2개는 그 거리를 공 2개 몫으로 섞는다(공이 모두 6% 안,
+  화면 '(지난 세션 + 공 크기)'). 사파리 밖 13개 흉내로 첫 두 공 평균 오차 2.1 → 1.6~1.9km/h(폰 자리가 같거나 2% 안). 3개째부터는
+  이번 세션 값만 써서 저장값은 기억과 상관없다. 시험 `npm run velocity:engine2-test` 27개.
+

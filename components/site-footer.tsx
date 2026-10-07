@@ -33,53 +33,68 @@ export function SiteFooter({
         휴대폰의 앱 안 화면은 꼬리말 없이 하단 탭 자리만 비운다 — 앱에는 화면마다 붙는 꼬리말이 없고, 약관 · 문의 ·
         의료 안내는 설정 창 맨 밑 '정보'에 있다(2026-10-01 사용자 '애플처럼'). PC 와 첫 화면 · 약관 화면은 그대로.
       */}
-      {tabBar && <div aria-hidden className="h-[calc(var(--tab-bar-top)+1rem)] shrink-0 desk:hidden" />}
-    <footer className={`border-t border-line bg-surface/60 ${tabBar ? 'hidden desk:block' : ''}`}>
-      <div
-        className={`mx-auto w-full px-4 pt-8 sm:px-6 ${width} ${
-          tabBar ? 'pb-[calc(var(--tab-bar-top)+1.5rem)] desk:pb-10' : 'pb-10'
-        }`}
-      >
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-          <div>
-            <p className="flex items-center gap-2">
-              <Wordmark className="text-lg text-ink" />
-            </p>
-            <p className="mt-1.5 text-xs text-muted">
-              투수를 위한 투구 기록과 트레이닝
-            </p>
+      {tabBar && (
+        <div
+          aria-hidden
+          className="h-[calc(var(--tab-bar-top)+1rem)] shrink-0 desk:hidden"
+        />
+      )}
+      {/*
+        경계선 없이 블록 안에서 위에서 아래로 — 맨 위는 화면 바탕(page), 블록의 절반쯤에서 블록 색(surface — 카드와 같은 색)에 닿고
+        그 아래는 그 색 그대로(2026-10-07 사용자: "위는 원래 배경색, 아래는 원래 블록 색으로 그라데이션").
+        예전 꼬리말은 surface 를 6할만 덮은 색이었는데, 네이비에서는 바탕(#0b1220)과 겨우 6 단계 차이(#101926)라 경계선이 없으면
+        그라데이션 끝도 바탕과 똑같아 보였다(두 번 지적). 끝 색은 globals.css '.site-footer-bg' — 카드 색(다크 #1c1c1e · 라이트 #ffffff),
+        네이비만 한 단계 밝게(#1e293b). 어느 테마에서도 아래쪽이 블록으로 보인다.
+      */}
+      <footer className={`site-footer-bg ${tabBar ? 'hidden desk:block' : ''}`}>
+        <div
+          className={`mx-auto w-full px-4 pt-12 sm:px-6 ${width} ${
+            tabBar ? 'pb-[calc(var(--tab-bar-top)+1rem)] desk:pb-5' : 'pb-5'
+          }`}
+        >
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <p className="flex items-center gap-2">
+                <Wordmark className="text-lg text-ink" />
+              </p>
+              <p className="mt-1 text-xs text-muted">
+                투수를 위한 투구 기록과 트레이닝
+              </p>
+            </div>
+
+            <nav
+              aria-label="사이트 정보"
+              className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs"
+            >
+              <Link
+                href="/terms"
+                className="text-muted transition-colors hover:text-ink"
+              >
+                이용약관
+              </Link>
+              <Link
+                href="/privacy"
+                className="font-semibold text-ink transition-colors hover:text-sky-strong"
+              >
+                개인정보 처리방침
+              </Link>
+              <a
+                href={`mailto:${CONTACT}`}
+                className="text-muted transition-colors hover:text-ink"
+              >
+                문의 {CONTACT}
+              </a>
+            </nav>
           </div>
 
-          <nav
-            aria-label="사이트 정보"
-            className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs"
-          >
-            <Link href="/terms" className="text-muted transition-colors hover:text-ink">
-              이용약관
-            </Link>
-            <Link
-              href="/privacy"
-              className="font-semibold text-ink transition-colors hover:text-sky-strong"
-            >
-              개인정보 처리방침
-            </Link>
-            <a
-              href={`mailto:${CONTACT}`}
-              className="text-muted transition-colors hover:text-ink"
-            >
-              문의 {CONTACT}
-            </a>
-          </nav>
+          <p className="mt-3 max-w-3xl break-keep text-xs leading-relaxed text-muted">
+            {MEDICAL_NOTICE}
+          </p>
+          <p className="mt-1 text-xs text-muted">
+            © 2026 Bullpen Log. All rights reserved.
+          </p>
         </div>
-
-        <p className="mt-5 max-w-3xl break-keep text-xs leading-relaxed text-muted">
-          {MEDICAL_NOTICE}
-        </p>
-        <p className="mt-2 text-xs text-muted">
-          © 2026 Bullpen Log. All rights reserved.
-        </p>
-      </div>
-    </footer>
+      </footer>
     </>
   );
 }

@@ -10,6 +10,7 @@
 import { analyzeByDistance } from '../lib/velocity-engine/analyze-distance.ts';
 import { DRAG_K } from '../lib/velocity-engine/trajectory-fit.ts';
 import { alignTrail, type TrailPoint } from '../lib/velocity-tracer.ts';
+import { sessionDistOf } from '../lib/velocity-session-distance.ts';
 
 const W = 720;
 const H = 1280;
@@ -263,6 +264,42 @@ if (sizeRatios.length >= 2) {
   const mean = sizeRatios.reduce((a, x) => a + x, 0) / sizeRatios.length;
   const spread = (Math.max(...sizeRatios) - Math.min(...sizeRatios)) / mean;
   check(spread <= 0.04, `공 크기 거리 — 장면 ${sizeRatios.length}개의 비가 고르다(흩어짐 ${(spread * 100).toFixed(1)}%)`);
+}
+
+console.log('\n▶ 세션 거리(측정 화면 — 공 크기 거리를 세션에서 모으기)');
+{
+  const mem = { distM: 22.3, n: 12, at: Date.now() };
+  const same = (
+    r: ReturnType<typeof sessionDistOf>,
+    m: number | null,
+    from?: string
+  ) =>
+    m == null ? r == null : r != null && Math.abs(r.m - m) < 1e-9 && r.from === from;
+  check(
+    same(sessionDistOf([21.6], null), null),
+    '기억 없이 공 하나 — 제 거리(세션 거리 없음)'
+  );
+  check(
+    same(sessionDistOf([21.6, 22.4], null), null),
+    '기억 없이 공 둘 — 아직 세션 거리 없음'
+  );
+  check(
+    same(sessionDistOf([21.2, 22.4, 23.3], mem), 22.4, 'session'),
+    '공 셋부터 — 이번 세션 중앙값(기억보다 먼저)'
+  );
+  check(
+    same(sessionDistOf([21.2, 21.6, 22.4, 23.3], null), 22.0, 'session'),
+    '공 넷 — 가운데 둘의 평균'
+  );
+  check(
+    same(sessionDistOf([21.6], mem), (2 * 22.3 + 21.6) / 3, 'memory'),
+    '첫 공이 지난 세션 거리와 6% 안 — 첫 공부터 지난 세션 거리를 공 2개 몫으로 섞음'
+  );
+  check(
+    same(sessionDistOf([21.6, 23.9], mem), null),
+    '둘 중 하나가 6% 밖(23.9) — 폰을 옮겼을 수 있어 기억을 안 씀'
+  );
+  check(same(sessionDistOf([], mem), null), '깨끗한 공이 아직 없음 — 기억을 안 씀');
 }
 
 console.log(`\n${'═'.repeat(50)}\n통과 ${passed} / 실패 ${failed}\n${'═'.repeat(50)}`);

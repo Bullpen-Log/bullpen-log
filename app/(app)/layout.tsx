@@ -22,6 +22,7 @@ import { availableParts } from '@/lib/report/today-pick';
 import { MainTransition } from '@/components/main-transition';
 import { SiteFooter } from '@/components/site-footer';
 import { PullToRefresh } from '@/components/pull-to-refresh';
+import { AppSplash } from '@/components/app-splash';
 
 /** 렌더 중에 현재 시각을 직접 읽지 않도록 함수로 감싼다. */
 function todayKey() {
@@ -107,6 +108,11 @@ export default async function AppLayout({
   return (
     /* 세로로 쌓는 틀 — 본문이 짧은 화면에서도 맨 밑 정보(SiteFooter)가 화면 바닥에 붙는다 */
     <div className="flex min-h-dvh flex-col">
+      {/*
+        시작 연출 — 로그인한 채 사이트를 열면(처음 · 다시) 테마 바탕 위 B → 이름(components/app-splash.tsx). 문서를 처음
+        그릴 때 한 번. 아이폰 앱 안은 제 시작 연출(MainViewController.swift)이 같은 장면을 하므로 뺀다.
+      */}
+      {!isNative && <AppSplash />}
       <AppNav
         groups={visibleGroups(isAdmin, isNative)}
         quick={quickTabs()}
@@ -214,7 +220,10 @@ export default async function AppLayout({
       <div className="flex flex-1 flex-col">
         {/* 밑 여백은 본문과 맨 밑 정보 사이의 틈이다. 휴대폰 하단 탭만큼 비우는 일은 SiteFooter 가 한다. */}
         {/* 양옆은 노치 자리와 견줘 큰 쪽 — 가로로 돌린 사파리에서 글이 노치 밑에 들어갔다(2026-10-03). 세로 · PC 는 그 값이 0 이라 예전 여백 그대로 */}
-        <main data-ptr-target className="mx-auto w-full max-w-5xl flex-1 py-6 pb-10 pl-[max(calc(var(--spacing)*4),env(safe-area-inset-left))] pr-[max(calc(var(--spacing)*4),env(safe-area-inset-right))] sm:pl-[max(calc(var(--spacing)*6),env(safe-area-inset-left))] sm:pr-[max(calc(var(--spacing)*6),env(safe-area-inset-right))] sm:pt-6 xl:max-w-6xl 2xl:max-w-7xl desk:pt-(--page-top) desk:pb-12">
+        <main
+          data-ptr-target
+          className="mx-auto w-full max-w-5xl flex-1 py-6 pb-10 pl-[max(calc(var(--spacing)*4),env(safe-area-inset-left))] pr-[max(calc(var(--spacing)*4),env(safe-area-inset-right))] sm:pl-[max(calc(var(--spacing)*6),env(safe-area-inset-left))] sm:pr-[max(calc(var(--spacing)*6),env(safe-area-inset-right))] sm:pt-6 xl:max-w-6xl 2xl:max-w-7xl desk:pt-(--page-top) desk:pb-32"
+        >
           {/*
            * 탭을 옮길 때 본문만 바뀐다. 틀(사이드바 · 상단바 · 탭바)은 components/app-shell.tsx 에서 각자 이름표를 달아
            * 이 전환에서 빠진다 — 내용만 바뀌고 틀은 가만히 있는 것으로 읽힌다. 언제 · 어떻게 움직이는지는 MainTransition.

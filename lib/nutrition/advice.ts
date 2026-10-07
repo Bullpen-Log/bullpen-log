@@ -13,14 +13,16 @@ import type { ThrowGuideKind } from '@/lib/nutrition/guide';
  * 규칙(사용자가 받아들인 것):
  *  - 목표 구속은 영양 계산에 넣지 않는다(근거 없음) — 동기 문구에만.
  *  - 운동 종류의 차이는 하루 총량이 아니라 '언제 무엇을'(운동 뒤 단백질 · 던지기 전 탄수화물)로 말한다.
- *  - 성장기(child · teen)에게는 '덜 먹어라'를 하지 않는다 — 질 조언만.
- *  - 제품 · 상표 추천은 없다. 기본 음식 조합으로만.
+ *  - 성장기(child · teen)에게는 '덜 먹어라'를 하지 않는다 — 질 조언만. 성인 감량에도 '굶' · '거르'는 없다.
+ *  - 제품 · 상표 · 보충제 이름은 없다. 기본 음식(lib/nutrition/foods.ts 의 이름) 조합으로만.
  *  - 기록이 있으면 기록, 없으면 체크인 답, 둘 다 없으면 조언만(숫자 판단 안 함).
- *  - 할 일은 한 줄(headline). 숫자는 범위로, 소수점 없이.
+ *  - 할 일은 한 줄(headline, 60자 밑). 숫자는 5g · 10g 단위, 설명 없이 할 일만.
  *
- * 이 파일은 계약(타입)과 첫 구현이다. 규칙표 · 문구 · 격자 시험은 클라우드 세션이 깊게 한다
- * (docs/claude/geum-yunho.md 4절 '클라우드 세션 할 일 — 영양 조언'). 내보내는 타입을 바꾸면 홈 · 탭 화면이 같이 바뀌니
- * 칸을 더할 때는 선택(?)으로만.
+ * 2차(2026-10-07, 메모 '클라우드 세션 할 일 — 영양 조언'을 메인이 함): 할 일을 상황표(HEADLINE_RULES — 던지기 × 운동 × 끼니 ×
+ * 입맛 · 근육통 × 목표 × 시각)로, 20시 뒤에는 '자기 전 …', 범위는 사용자 목표가 밖이면 목표 쪽으로, 더 먹을 양 어림과 점수는
+ * 시각(지금까지 먹었어야 할 몫 expectedShare)으로 보정 — 아침에 적은 기록이 '모자람'으로 벌을 받지 않게.
+ *
+ * 내보내는 타입을 바꾸면 홈 · 탭 화면이 같이 바뀌니 칸을 더할 때는 선택(?)으로만.
  */
 
 /* ─────────────────────────── 입력 ─────────────────────────── */
@@ -110,7 +112,8 @@ export type Advice = {
 
 /**
  * 체중 1kg 당 하루 권장 범위(g). 투수 · 야구 선수 연구의 중간값들이다 — 운동 종류로 늘리지 않는다(총량이 아니라
- * 타이밍을 말한다). 체중을 모르면 목표 kcal 에서 비율로 거꾸로 센다.
+ * 타이밍을 말한다). 체중을 모르면 목표에서 ±10%. 사용자 목표(computeTargets — 직접 정한 kcal · 단백질 포함)가 이 범위
+ * 밖이면 목표 쪽으로 당긴다(목표 ±10%) — 사용자가 직접 정한 목표가 이긴다.
  */
 export const CARB_PER_KG: Record<'rest' | 'train' | 'throw', MacroRange> = {
   rest: { lo: 3, hi: 5 },
@@ -119,29 +122,98 @@ export const CARB_PER_KG: Record<'rest' | 'train' | 'throw', MacroRange> = {
 };
 export const PROTEIN_PER_KG: MacroRange = { lo: 1.6, hi: 2.2 };
 export const FAT_PER_KG: MacroRange = { lo: 0.8, hi: 1.2 };
+/** 범위가 목표를 이만큼 넘게 비켜 있으면 목표 쪽으로 당긴다 */
+export const RANGE_SLACK = 0.1;
 
 /** 운동 뒤 · 던진 뒤 단백질 한 끼 — 체중 1kg 당 0.3g 을 20~40g 안에서(어린이 15~30g) */
 export const AFTER_PROTEIN_PER_KG = 0.3;
 
-/** 체크인 '끼니 양'으로 어림한 '먹은 비율' — 기록이 없는 날의 더 먹을 양에 쓴다 */
+/**
+ * 체크인 '끼니 양'을 '지금까지 먹었어야 할 몫(expectedShare)'에 곱하는 계수 — 기록이 없는 날의 더 먹을 양에 쓴다.
+ * 아침 10시에 '보통'이면 하루의 2할쯤만 먹은 것이다(시각 보정, 2차).
+ */
 export const AMOUNT_EATEN_SHARE: Record<NonNullable<MealCheck['amount']>, number> = {
-  '잘 먹음': 0.95,
-  보통: 0.8,
-  부족: 0.6,
+  '잘 먹음': 1,
+  보통: 0.85,
+  부족: 0.65,
 };
+
+/** 끼니 하나가 하루에서 차지하는 몫 — 걸른 끼니를 뺄 때 */
+export const MEAL_SHARE: Record<MealKey, number> = {
+  breakfast: 0.25,
+  lunch: 0.35,
+  dinner: 0.3,
+  snack: 0.1,
+};
+/** 이 시각이 지나면 그 끼니는 '지난 끼니'(걸렀다는 말이 뜻을 가진다 — 영양 가이드와 같은 선) */
+export const MEAL_OVER_HOUR: Record<MealKey, number> = {
+  breakfast: 10,
+  lunch: 14,
+  dinner: 20,
+  snack: 24,
+};
+
+/** 이 시각부터는 '운동 뒤 1시간 안' 대신 '자기 전 …' */
+export const LATE_HOUR = 20;
+/** 이 아래면 입맛이 없는 날(거의 없음 · 적음) — 영양 가이드 · 식단 짜기와 같은 선 */
+export const LOW_APPETITE = 2;
+/** 이 위면 근육통이 많은 날 — 트레이닝 추천(lib/checkin.ts HIGH_SORENESS)과 같은 선 */
+export const HIGH_SORENESS = 4;
+
+/**
+ * 지금까지 먹었어야 할 하루 몫(0~1) — 시각으로. 아침 7~10시 · 점심 12~14시 · 저녁 18~20시에 오르고 사이는 조금씩.
+ * 기록과 체크인 어림이 둘 다 이것에 견준다: 아침에 적은 기록이 '모자람'으로 벌을 받지 않게, 10시에 '보통'이면 2할쯤.
+ */
+export function expectedShare(hour: number): number {
+  const h = Math.min(24, Math.max(0, hour));
+  const points: [number, number][] = [
+    [0, 0],
+    [7, 0],
+    [10, 0.25],
+    [12, 0.3],
+    [14, 0.6],
+    [18, 0.7],
+    [20, 0.95],
+    [24, 1],
+  ];
+  for (let i = 1; i < points.length; i++) {
+    const [h0, s0] = points[i - 1];
+    const [h1, s1] = points[i];
+    if (h <= h1) return s0 + ((s1 - s0) * (h - h0)) / (h1 - h0);
+  }
+  return 1;
+}
 
 /* ─────────────────────────── 계산 ─────────────────────────── */
 
-const round10 = (n: number) => Math.max(0, Math.round(n / 10) * 10);
-const round5 = (n: number) => Math.max(0, Math.round(n / 5) * 5);
+const roundTo = (n: number, unit: number) => Math.round(n / unit) * unit;
+const round10 = (n: number) => Math.max(0, roundTo(n, 10));
+const round5 = (n: number) => Math.max(0, roundTo(n, 5));
+
+/** 범위가 목표를 비켜 있으면 목표 ±10% 로(사용자 목표가 이긴다) */
+function pullToTarget(r: MacroRange, target: number, unit: number): MacroRange {
+  if (target <= 0) return r;
+  if (target < r.lo * (1 - RANGE_SLACK) || target > r.hi * (1 + RANGE_SLACK)) {
+    return {
+      lo: Math.min(
+        Math.max(0, roundTo(target * 0.9, unit)),
+        Math.floor(target / unit) * unit
+      ),
+      hi: Math.max(roundTo(target * 1.1, unit), Math.ceil(target / unit) * unit),
+    };
+  }
+  return r;
+}
 
 function ranges(input: AdviceInput): Advice['range'] {
   const kg = input.body.weightKg;
+  const t = input.target;
   const active =
     input.throwKind !== null ? 'throw' : input.training.length > 0 ? 'train' : 'rest';
+  let r: Advice['range'];
   if (kg != null && kg > 0) {
     const c = CARB_PER_KG[active];
-    return {
+    r = {
       carbs: { lo: round10(c.lo * kg), hi: round10(c.hi * kg) },
       protein: {
         lo: round5(PROTEIN_PER_KG.lo * kg),
@@ -149,37 +221,48 @@ function ranges(input: AdviceInput): Advice['range'] {
       },
       fat: { lo: round5(FAT_PER_KG.lo * kg), hi: round5(FAT_PER_KG.hi * kg) },
     };
+  } else {
+    /* 체중을 모르면 목표에서 ±10% */
+    r = {
+      carbs: { lo: round10(t.carbs * 0.9), hi: round10(t.carbs * 1.1) },
+      protein: { lo: round5(t.protein * 0.9), hi: round5(t.protein * 1.1) },
+      fat: { lo: round5(t.fat * 0.9), hi: round5(t.fat * 1.1) },
+    };
   }
-  /* 체중을 모르면 목표에서 ±10% */
-  const t = input.target;
-  const band = (v: number, step: (n: number) => number) => ({
-    lo: step(v * 0.9),
-    hi: step(v * 1.1),
-  });
   return {
-    carbs: band(t.carbs, round10),
-    protein: band(t.protein, round5),
-    fat: band(t.fat, round5),
+    carbs: pullToTarget(r.carbs, t.carbs, 10),
+    protein: pullToTarget(r.protein, t.protein, 5),
+    fat: pullToTarget(r.fat, t.fat, 5),
   };
+}
+
+/** 체크인으로 어림한 '지금까지 먹은 하루 몫'(0~1). 끼니 양을 안 적었으면 null */
+export function estimatedEatenShare(
+  meals: MealCheck | null | undefined,
+  hour: number
+): number | null {
+  if (!meals || meals.amount === null) return null;
+  let share = expectedShare(hour) * AMOUNT_EATEN_SHARE[meals.amount];
+  /* 걸른 끼니는 그 몫만큼 뺀다 — 아직 안 지난 끼니는 기대 몫에도 없으니 안 뺀다 */
+  for (const m of new Set(meals.skipped)) {
+    if (hour >= MEAL_OVER_HOUR[m]) share -= MEAL_SHARE[m];
+  }
+  return Math.min(1, Math.max(0, share));
 }
 
 function moreToEat(input: AdviceInput): MoreToEat | null {
   const t = input.target;
   if (input.eaten) {
     /* 기록에서 뺀 값은 음수도 그대로 — 목표를 넘겼으면 그만큼(화면은 0 밑을 '충분'으로 보인다) */
-    const step = (n: number, unit: number) => Math.round(n / unit) * unit;
     return {
-      carbs: step(t.carbs - input.eaten.carbs, 10),
-      protein: step(t.protein - input.eaten.protein, 5),
-      fat: step(t.fat - input.eaten.fat, 5),
+      carbs: roundTo(t.carbs - input.eaten.carbs, 10),
+      protein: roundTo(t.protein - input.eaten.protein, 5),
+      fat: roundTo(t.fat - input.eaten.fat, 5),
       basis: 'logged',
     };
   }
-  const amount = input.checkin?.meals.amount ?? null;
-  if (amount === null) return null;
-  /* 끼니 양으로 어림 — 걸른 끼니가 있으면 그만큼 덜 먹은 것으로(끼니 하나 ≈ 하루의 3할) */
-  const skipped = input.checkin?.meals.skipped.length ?? 0;
-  const share = Math.max(0.3, AMOUNT_EATEN_SHARE[amount] - skipped * 0.25);
+  const share = estimatedEatenShare(input.checkin?.meals, input.hour);
+  if (share === null) return null;
   return {
     carbs: round10(t.carbs * (1 - share)),
     protein: round5(t.protein * (1 - share)),
@@ -201,132 +284,324 @@ export function afterProtein(weightKg: number | null, band: AgeBand): MacroRange
 
 const fmtRange = (r: MacroRange) => (r.lo === r.hi ? `${r.lo}g` : `${r.lo}~${r.hi}g`);
 
+/* ─────────────────────────── 할 일 상황표 ─────────────────────────── */
+
+/** 상황표 한 줄이 보는 것 */
+type Situation = {
+  input: AdviceInput;
+  more: MoreToEat | null;
+  /** 20시 뒤 */
+  late: boolean;
+  minor: boolean;
+  /** 운동 뒤 · 던진 뒤 단백질 한 끼 */
+  after: MacroRange;
+  skipped: MealKey[];
+  appetite: number | null;
+  soreness: number | null;
+};
+
+export type HeadlineRule = {
+  key: string;
+  /** 이 줄이 맞는 상황인가 */
+  when: (s: Situation) => boolean;
+  /** 할 일 한 줄 · 까닭 — 시각(late)에 따라 다를 수 있다 */
+  say: (s: Situation) => { headline: string; why: string };
+};
+
+const AFTER_SNACK = '우유 2컵 + 바나나';
+const LATE_PROTEIN = '자기 전 우유 · 요거트';
+
 /**
- * 할 일 한 줄 — 위가 이긴다. 던진 뒤 회복식 → 던지기 전 탄수화물 → 운동 뒤 단백질 → 걸른 끼니 → 더 먹을 양 → 기본.
- * 성장기에게 '덜 먹어라'는 없다.
+ * 할 일 상황표 — 위가 이긴다. 던진 뒤 회복식 → 던지는 날(오전 던지기 전 · 오후 던진 뒤) → 등판 전날 → 운동 뒤 단백질(파워 ·
+ * 웨이트) → 긴 유산소 → 걸른 끼니(지금 채우기) → 입맛 없음 → 근육통 → 더 먹을 양(단백질 → 탄수화물) → 많이 먹음(성인만) →
+ * 목표별 기본. 20시 뒤(late)에는 '1시간 안' 대신 '자기 전 …'.
+ *
+ * 글 규칙: 해요체 · 줄표 없음 · 60자 밑 · 음식은 기본 음식 이름 · 상표 · 보충제 없음. 성장기에게는 '덜' · '가볍게' · '줄이' ·
+ * '빼고' · '적게 먹'이 없고(아래 시험이 격자로 본다), 성인 감량에도 '굶' · '거르'는 없다.
  */
+export const HEADLINE_RULES: readonly HeadlineRule[] = [
+  {
+    key: 'after-throw',
+    when: (s) => s.input.throwKind === 'after',
+    say: (s) =>
+      s.late
+        ? {
+            headline: `던진 뒤라 ${LATE_PROTEIN}로 단백질 ${fmtRange(s.after)}`,
+            why: '던진 날 밤의 단백질이 팔 회복을 돕고 잠도 깊게 해요.',
+          }
+        : {
+            headline: `던진 뒤 1시간 안에 단백질 ${fmtRange(s.after)} · ${AFTER_SNACK}`,
+            why: '던진 뒤 바로 단백질과 탄수화물을 같이 먹으면 팔이 빨리 회복돼요.',
+          },
+  },
+  {
+    key: 'throw-today',
+    when: (s) => s.input.throwKind === 'today',
+    say: (s) =>
+      s.late
+        ? {
+            headline: `던졌으면 ${LATE_PROTEIN}로 단백질 ${fmtRange(s.after)}`,
+            why: '늦게 던진 날은 자기 전 단백질이 회복식이에요.',
+          }
+        : s.input.hour < 12
+          ? {
+              headline: '던지기 3시간 전 밥 한 공기 · 담백한 반찬으로',
+              why: '던지기 전에는 소화가 빠른 탄수화물이 힘이 돼요.',
+            }
+          : {
+              headline: `던진 뒤 1시간 안에 단백질 ${fmtRange(s.after)} · ${AFTER_SNACK}`,
+              why: '던진 뒤 바로 단백질과 탄수화물을 같이 먹으면 팔이 빨리 회복돼요.',
+            },
+  },
+  {
+    key: 'throw-eve',
+    when: (s) => s.input.throwKind === 'eve',
+    say: (s) =>
+      s.late
+        ? {
+            headline: '자기 전 바나나 한 개 + 우유 한 컵',
+            why: '내일 등판이라 오늘 밤 탄수화물이 내일 힘이 돼요.',
+          }
+        : {
+            headline: '저녁에 밥 · 면 · 고구마 한 가지 더',
+            why: '내일 등판이라 오늘 저녁 탄수화물이 내일 힘이 돼요.',
+          },
+  },
+  {
+    key: 'strength',
+    when: (s) =>
+      s.input.training.some((t) => t.kind === 'strength' || t.kind === 'power'),
+    say: (s) => {
+      const power = s.input.training.some((t) => t.kind === 'power');
+      return s.late
+        ? {
+            headline: `${LATE_PROTEIN}로 단백질 ${fmtRange(s.after)}`,
+            why: power
+              ? '파워 운동 뒤 단백질이 근육을 지켜요. 늦었으면 자기 전에.'
+              : '웨이트 뒤 단백질이 근육을 키워요. 늦었으면 자기 전에.',
+          }
+        : {
+            headline: `운동 뒤 1시간 안에 단백질 ${fmtRange(s.after)} · 달걀 2개 + 우유`,
+            why: power
+              ? '파워 운동 뒤 단백질이 근육을 지켜요.'
+              : '웨이트 뒤 단백질이 근육을 키워요.',
+          };
+    },
+  },
+  {
+    key: 'aerobic',
+    when: (s) => s.input.training.some((t) => t.kind === 'aerobic' && t.minutes >= 45),
+    say: (s) =>
+      s.late
+        ? {
+            headline: '자기 전 바나나 한 개 + 우유 한 컵',
+            why: '유산소를 오래 하면 탄수화물이 먼저 비어요.',
+          }
+        : {
+            headline: '운동 뒤 바나나 · 주스로 탄수화물 보충',
+            why: '유산소를 오래 하면 탄수화물이 먼저 비어요.',
+          },
+  },
+  {
+    key: 'skipped-breakfast',
+    when: (s) => s.skipped.includes('breakfast') && s.input.hour < 11,
+    say: () => ({
+      headline: '지금 우유 한 컵 + 바나나 · 점심을 든든히',
+      why: '아침을 걸렀으면 점심 전에 조금이라도 채우는 게 좋아요.',
+    }),
+  },
+  {
+    key: 'skipped-lunch',
+    when: (s) => s.skipped.includes('lunch') && s.input.hour >= 13 && s.input.hour < 17,
+    say: () => ({
+      headline: '지금 삼각김밥 + 우유 · 저녁을 든든히',
+      why: '점심을 걸렀으면 저녁 전에 조금이라도 채우는 게 좋아요.',
+    }),
+  },
+  {
+    key: 'low-appetite',
+    when: (s) => s.appetite !== null && s.appetite <= LOW_APPETITE,
+    say: (s) =>
+      s.late
+        ? {
+            headline: '자기 전 우유 · 요거트처럼 잘 넘어가는 것 한 가지',
+            why: '입맛이 없는 날은 한 번에 많이보다 조금씩 자주가 나아요.',
+          }
+        : {
+            headline: '조금씩 자주 · 우유 · 바나나 · 요거트처럼 잘 넘어가는 것',
+            why: '입맛이 없는 날은 한 번에 많이보다 조금씩 자주가 나아요.',
+          },
+  },
+  {
+    key: 'soreness',
+    when: (s) => s.soreness !== null && s.soreness >= HIGH_SORENESS,
+    say: (s) =>
+      s.late
+        ? {
+            headline: `${LATE_PROTEIN}로 단백질 한 번 더`,
+            why: '근육통이 많은 날은 자기 전 단백질이 회복을 도와요.',
+          }
+        : {
+            headline: '저녁과 자기 전에 단백질 한 번 더 · 우유 · 요거트',
+            why: '근육통이 많은 날은 단백질을 한 번 더 나눠 먹는 게 좋아요.',
+          },
+  },
+  {
+    key: 'more-protein',
+    when: (s) => s.more !== null && s.more.protein >= 20,
+    say: (s) => {
+      const g = s.more!.protein;
+      const basis =
+        s.more!.basis === 'logged'
+          ? '적은 것으로 보면 단백질이 아직 모자라요.'
+          : '체크인의 끼니 양으로 어림한 양이에요.';
+      return s.late
+        ? {
+            headline: `${LATE_PROTEIN}로 단백질 ${Math.min(30, g)}g`,
+            why: basis,
+          }
+        : {
+            headline: `오늘 단백질 ${g}g 더 · 닭가슴살 한 조각 또는 달걀 2개`,
+            why: basis,
+          };
+    },
+  },
+  {
+    key: 'more-carbs',
+    when: (s) => s.more !== null && s.more.carbs >= 80,
+    say: (s) => {
+      const basis =
+        s.more!.basis === 'logged'
+          ? '적은 것으로 보면 탄수화물이 아직 모자라요.'
+          : '체크인의 끼니 양으로 어림한 양이에요.';
+      return s.late
+        ? { headline: '자기 전 바나나 한 개 + 우유 한 컵', why: basis }
+        : { headline: `오늘 탄수화물 ${s.more!.carbs}g 더 · 밥 한 공기쯤`, why: basis };
+    },
+  },
+  {
+    key: 'over',
+    when: (s) =>
+      !s.minor && s.more !== null && s.more.basis === 'logged' && s.more.carbs <= -80,
+    say: (s) =>
+      s.late
+        ? {
+            headline: '오늘은 충분히 먹었어요 · 물 한 컵',
+            why: '목표보다 많이 먹었어요.',
+          }
+        : {
+            headline: '오늘은 충분히 먹었어요 · 저녁은 가볍게',
+            why: '목표보다 많이 먹었어요.',
+          },
+  },
+  {
+    key: 'gain',
+    when: (s) => s.input.body.goal === 'gain',
+    say: (s) =>
+      s.late
+        ? {
+            headline: '자기 전 우유 한 컵 + 바나나',
+            why: '증량 중이라 자기 전 한 끼가 하루를 채워요.',
+          }
+        : {
+            headline: '끼니마다 밥 반 공기 더 · 자기 전 우유',
+            why: '증량 중이라 끼니 사이를 채우는 게 핵심이에요.',
+          },
+  },
+  {
+    key: 'lose',
+    when: (s) => !s.minor && s.input.body.goal === 'lose',
+    say: (s) =>
+      s.late
+        ? {
+            headline: '자기 전엔 물 한 컵 · 배고프면 요거트 하나',
+            why: '감량 중이어도 끼니는 다 챙기고 밤 간식만 가볍게.',
+          }
+        : {
+            headline: '끼니마다 단백질 한 가지 · 채소를 먼저',
+            why: '감량 중에는 단백질과 채소를 먼저 먹으면 배가 덜 고파요.',
+          },
+  },
+  {
+    key: 'default',
+    when: () => true,
+    say: (s) =>
+      s.late
+        ? {
+            headline: '오늘 몫은 다 챙겼어요 · 자기 전 우유 한 컵',
+            why: '오늘은 특별히 더할 게 없어요.',
+          }
+        : {
+            headline: '끼니마다 단백질 한 가지 · 밥은 평소대로',
+            why: '오늘은 특별히 더할 게 없어요. 평소대로 챙기면 돼요.',
+          },
+  },
+];
+
 function headlineOf(
   input: AdviceInput,
   more: MoreToEat | null
-): { headline: string; why: string } {
-  const { body, checkin, throwKind, training, hour } = input;
-  const minor = body.ageBand !== 'adult';
-  const after = afterProtein(body.weightKg, body.ageBand);
-
-  if (throwKind === 'after') {
-    return {
-      headline: `던진 뒤 1시간 안에 단백질 ${fmtRange(after)} · 우유 2컵 + 바나나`,
-      why: '던진 뒤 바로 단백질과 탄수화물을 같이 먹으면 팔이 빨리 회복돼요.',
-    };
-  }
-  if (throwKind === 'today') {
-    return hour < 12
-      ? {
-          headline: '던지기 3시간 전 밥 한 공기 · 기름진 것은 빼고',
-          why: '던지기 전에는 소화가 빠른 탄수화물이 힘이 돼요.',
-        }
-      : {
-          headline: `던진 뒤 1시간 안에 단백질 ${fmtRange(after)}`,
-          why: '던진 뒤 바로 단백질을 먹으면 팔이 빨리 회복돼요.',
-        };
-  }
-  if (throwKind === 'eve') {
-    return {
-      headline: '저녁에 밥 · 면 · 고구마 한 가지 더',
-      why: '내일 등판이라 오늘 저녁 탄수화물이 내일 힘이 돼요.',
-    };
-  }
-  const strength = training.find((t) => t.kind === 'strength' || t.kind === 'power');
-  if (strength) {
-    return {
-      headline: `운동 뒤 1시간 안에 단백질 ${fmtRange(after)} · 달걀 2개 + 우유`,
-      why:
-        strength.kind === 'power'
-          ? '파워 운동 뒤 단백질이 근육을 지켜요.'
-          : '웨이트 뒤 단백질이 근육을 키워요.',
-    };
-  }
-  const aerobic = training.find((t) => t.kind === 'aerobic');
-  if (aerobic && aerobic.minutes >= 45) {
-    return {
-      headline: '운동 뒤 바나나 · 주스로 탄수화물 보충',
-      why: '유산소를 오래 하면 탄수화물이 먼저 비어요.',
-    };
-  }
-  const skipped = checkin?.meals.skipped ?? [];
-  if (skipped.includes('breakfast') && hour < 11) {
-    return {
-      headline: '지금 우유 한 컵 + 바나나 · 점심을 든든히',
-      why: '아침을 걸렀으면 점심 전에 조금이라도 채우는 게 좋아요.',
-    };
-  }
-  if (more && more.protein >= 20) {
-    return {
-      headline: `오늘 단백질 ${more.protein}g 더 · 닭가슴살 한 조각 또는 달걀 2개`,
-      why:
-        more.basis === 'logged'
-          ? '적은 것으로 보면 단백질이 아직 모자라요.'
-          : '끼니가 부족했다고 하셔서 어림한 양이에요.',
-    };
-  }
-  if (more && more.carbs >= 80) {
-    return {
-      headline: `오늘 탄수화물 ${more.carbs}g 더 · 밥 한 공기쯤`,
-      why:
-        more.basis === 'logged'
-          ? '적은 것으로 보면 탄수화물이 아직 모자라요.'
-          : '끼니가 부족했다고 하셔서 어림한 양이에요.',
-    };
-  }
-  if (!minor && more && more.basis === 'logged' && more.carbs <= -80) {
-    return {
-      headline: '오늘은 충분히 먹었어요 · 저녁은 가볍게',
-      why: '목표보다 많이 먹었어요.',
-    };
-  }
-  if (body.goal === 'gain') {
-    return {
-      headline: '끼니마다 밥 반 공기 더 · 자기 전 우유',
-      why: '증량 중이라 끼니 사이를 채우는 게 핵심이에요.',
-    };
-  }
-  return {
-    headline: '끼니마다 단백질 한 가지 · 밥은 평소대로',
-    why: '오늘은 특별히 더할 게 없어요. 평소대로 챙기면 돼요.',
+): { headline: string; why: string; rule: string } {
+  const s: Situation = {
+    input,
+    more,
+    late: input.hour >= LATE_HOUR,
+    minor: input.body.ageBand !== 'adult',
+    after: afterProtein(input.body.weightKg, input.body.ageBand),
+    skipped: input.checkin?.meals.skipped ?? [],
+    appetite: input.checkin?.appetite ?? null,
+    soreness: input.checkin?.soreness ?? null,
   };
+  const rule = HEADLINE_RULES.find((r) => r.when(s))!;
+  return { ...rule.say(s), rule: rule.key };
 }
 
+/* ─────────────────────────── 균형 점수 ─────────────────────────── */
+
+/** 점수 조각의 무게 — 열량 · 단백질 1, 탄수화물 0.5, 끼니(체크인) 1 */
+const PART_WEIGHT: Record<Advice['parts'][number]['key'], number> = {
+  kcal: 1,
+  protein: 1,
+  carbs: 0.5,
+  meals: 1,
+  timing: 1,
+};
+
 /**
- * 균형 점수 0~100. 자료가 있는 부분만 센다(없는 부분은 빼고 평균) — 기록 없이 체크인만 한 날도 점수가 나온다.
- * 아무 자료도 없으면 null.
+ * 85~115% 가 만점, 그 밖은 10% 마다 20점씩. 오늘을 보는 중이면 '지금까지 먹었어야 할 몫'에 견준다 — 아침에 적은 기록이
+ * '모자람'으로 벌을 받지 않게(기록을 벌주지 않는다). 지난 날은 하루 전체.
  */
+function closeness(got: number, want: number) {
+  if (want <= 0) return 100;
+  const r = got / want;
+  const off = r < 0.85 ? 0.85 - r : r > 1.15 ? r - 1.15 : 0;
+  return Math.max(0, Math.round(100 - off * 200));
+}
+
 function scoreOf(input: AdviceInput): { score: number | null; parts: Advice['parts'] } {
   const parts: Advice['parts'] = [];
   const t = input.target;
-  const closeness = (got: number, want: number) => {
-    if (want <= 0) return 100;
-    const r = got / want;
-    /* 85~115% 가 만점, 그 밖은 10% 마다 20점씩 */
-    const off = r < 0.85 ? 0.85 - r : r > 1.15 ? r - 1.15 : 0;
-    return Math.max(0, Math.round(100 - off * 200));
-  };
+  const isToday = input.date === input.today;
+  /* 아침 7시 전에 적은 것은 몫 0 에 견줄 수 없다 — 적어도 하루의 15% 에 견준다 */
+  const pace = isToday ? Math.max(0.15, expectedShare(input.hour)) : 1;
+  const paceNote = isToday && pace < 1 ? ` (지금까지 ${Math.round(pace * 100)}%)` : '';
   if (input.eaten) {
     parts.push({
       key: 'kcal',
       label: '열량',
-      score: closeness(input.eaten.kcal, t.kcal),
-      note: `${Math.round(input.eaten.kcal)} / ${t.kcal}kcal`,
+      score: closeness(input.eaten.kcal, t.kcal * pace),
+      note: `${Math.round(input.eaten.kcal)} / ${t.kcal}kcal${paceNote}`,
     });
     parts.push({
       key: 'protein',
       label: '단백질',
-      score: closeness(input.eaten.protein, t.protein),
+      score: closeness(input.eaten.protein, t.protein * pace),
       note: `${Math.round(input.eaten.protein)} / ${t.protein}g`,
     });
     parts.push({
       key: 'carbs',
       label: '탄수화물',
-      score: closeness(input.eaten.carbs, t.carbs),
+      score: closeness(input.eaten.carbs, t.carbs * pace),
       note: `${Math.round(input.eaten.carbs)} / ${t.carbs}g`,
     });
   }
@@ -340,16 +615,17 @@ function scoreOf(input: AdviceInput): { score: number | null; parts: Advice['par
           : meals.amount === '부족'
             ? 45
             : 80;
-    const score = Math.max(0, base - meals.skipped.length * 20);
-    const note =
-      meals.skipped.length > 0
-        ? `${meals.skipped.length}끼 걸렀어요`
-        : (meals.amount ?? '적음');
+    const skipped = new Set(meals.skipped).size;
+    const score = Math.max(0, base - skipped * 20);
+    const note = skipped > 0 ? `${skipped}끼 걸렀어요` : (meals.amount ?? '적음');
     parts.push({ key: 'meals', label: '끼니', score, note });
   }
   if (parts.length === 0) return { score: null, parts };
-  const score = Math.round(parts.reduce((a, p) => a + p.score, 0) / parts.length);
-  return { score, parts };
+  const weight = parts.reduce((a, p) => a + PART_WEIGHT[p.key], 0);
+  const score = Math.round(
+    parts.reduce((a, p) => a + p.score * PART_WEIGHT[p.key], 0) / weight
+  );
+  return { score: Math.min(100, Math.max(0, score)), parts };
 }
 
 export function buildAdvice(input: AdviceInput): Advice {
@@ -372,8 +648,15 @@ export function buildAdvice(input: AdviceInput): Advice {
   const highlight =
     input.throwKind !== null ||
     input.training.some((t) => t.kind === 'power' || t.kind === 'strength') ||
-    input.checkin?.meals.amount === '부족';
+    input.checkin?.meals.amount === '부족' ||
+    (input.checkin?.meals.skipped.length ?? 0) > 0;
   return { headline, why, range, more, score, parts, highlight };
+}
+
+/** 어느 줄이 골라졌나 — 시험 · 디버그용(화면은 쓰지 않는다) */
+export function headlineRuleOf(input: AdviceInput): string | null {
+  if (input.date !== input.today) return null;
+  return headlineOf(input, moreToEat(input)).rule;
 }
 
 /** 트레이닝 세션의 운동 분류(lib/categories.ts 이름) → 넷 */
