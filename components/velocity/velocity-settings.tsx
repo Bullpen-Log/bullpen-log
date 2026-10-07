@@ -36,7 +36,6 @@ import {
 } from '@/lib/velocity-lens';
 import { applySpeedUnit, SPEED_UNITS } from '@/lib/units';
 import { useSpeedUnit } from '@/components/use-units';
-import { dualReasonText, useDualCameraStatus } from '@/lib/dual-camera';
 import { BottomSheet } from './pitch-editor';
 import { Panel, SectionLabel } from './kit';
 
@@ -60,7 +59,6 @@ export type SettingsValues = Pick<
   | 'autoMode'
   | 'calibSave'
   | 'clipZone'
-  | 'wideClip'
 > & { fovDeg: number };
 
 const NET_VALUES = [
@@ -92,8 +90,6 @@ export function VelocitySettingsFields({
    * 이 기기가 일반 · 광각을 함께 켤 수 있나(앱 부품에 묻는다 — 웹 · 옛 앱 · 못 하는 아이폰은 안 됨). 안 되면 '광각 영상도 같이
    * 저장'을 보이되 못 켜게 잠그고 까닭을 경고로 띄운다(2026-10-03 사용자). 켜 둔 채 저장된 값이 있어도 꺼진 것으로 보인다.
    */
-  const dual = useDualCameraStatus();
-  const dualOk = dual?.supported === true;
   return (
     <div className="space-y-5">
       <div>
@@ -134,18 +130,7 @@ export function VelocitySettingsFields({
             checked={values.clipZone}
             onChange={(clipZone) => onChange({ clipZone })}
           />
-          <ToggleRow
-            title="광각 영상도 같이 저장"
-            hint={
-              dual == null
-                ? '이 기기에서 되는지 확인하는 중이에요…'
-                : '측정은 일반 카메라로 하고, 공마다 광각 카메라 영상도 함께 남겨요. 구속 측정 관리자에서 두 영상을 나란히 봐요.'
-            }
-            warning={dual && !dualOk ? dualReasonText(dual.reason) : undefined}
-            checked={values.wideClip && dualOk}
-            disabled={!dualOk}
-            onChange={(wideClip) => onChange({ wideClip })}
-          />
+          {/* 광각 영상도 같이 저장은 없앴다 — 늘 끔(2026-10-08 사용자: 광각과 함께면 측정 카메라가 720p 로 떨어진다) */}
           <ToggleRow
             title="스피드건 보정 적용"
             hint={
@@ -438,7 +423,6 @@ export function VelocitySettingsButton({
     autoMode: base.autoMode,
     calibSave: base.calibSave,
     clipZone: base.clipZone,
-    wideClip: base.wideClip,
     fovDeg: fov,
   };
   const change = (patch: Partial<SettingsValues>) => {
@@ -466,7 +450,6 @@ export function VelocitySettingsButton({
         autoMode: base.autoMode,
         calibSave: base.calibSave,
         clipZone: base.clipZone,
-        wideClip: base.wideClip,
         recordMode: base.recordMode,
         diagHud: base.diagHud,
         ...rest,
@@ -514,7 +497,6 @@ export function VelocitySettingsButton({
                   autoMode: base.autoMode,
                   calibSave: base.calibSave,
                   clipZone: base.clipZone,
-                  wideClip: base.wideClip,
                   recordMode: base.recordMode,
                   diagHud: base.diagHud,
                 })

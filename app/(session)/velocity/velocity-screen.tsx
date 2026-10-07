@@ -217,28 +217,22 @@ const BACK_OF: Partial<Record<Step, { to: Step; label: string }>> = {
 };
 type LocalClip = { url: string; blob: Blob; durationSec: number; eventSec: number };
 /** 공의 영상 주소(일반 · 광각)를 푼다 — 저장했거나 화면을 떠날 때 */
-/** 어느 카메라로 재나 — 웹 카메라 · 앱 카메라(일반만) · 앱 카메라(광각도 같이) */
-type CameraPlan = 'web' | 'app' | 'app-wide';
+/** 어느 카메라로 재나 — 웹 카메라 · 앱 카메라(일반 하나) */
+type CameraPlan = 'web' | 'app';
 
 /**
- * 앱이면 앱 카메라(사용자 2026-10-08: "웹카메라가 아닌 앱 자체의 카메라로" — 손떨림 보정을 켤 수 있다). 옛 앱(single 모름)은
- * 광각 설정을 켰을 때만 앱 카메라(예전 그대로). 엔진 개발용 녹화는 웹 카메라의 영상 흐름을 찍으므로 웹 카메라. 상태를 아직
- * 모르면 웹 카메라로 본다(켤 때는 기다렸다 고른다).
+ * 앱이면 앱 카메라(사용자 2026-10-08: "웹카메라가 아닌 앱 자체의 카메라로" — 손떨림 보정을 켤 수 있다). 광각은 같이 찍지 않는다
+ * (사용자 2026-10-08 — 광각과 함께면 측정 카메라가 720p 로 떨어진다. 설정 '광각 영상도 같이 저장'을 없앴다). 옛 앱(single 모름)은
+ * 일반 하나로 못 켜서 웹 카메라. 엔진 개발용 녹화는 웹 카메라의 영상 흐름을 찍으므로 웹 카메라. 상태를 아직 모르면 웹 카메라로
+ * 본다(켤 때는 기다렸다 고른다).
  */
-function cameraPlan(
-  native: boolean,
-  wideClip: boolean,
-  recordMode: boolean,
-  s: DualStatus | null
-): CameraPlan {
+function cameraPlan(native: boolean, recordMode: boolean, s: DualStatus | null): CameraPlan {
   if (!native || recordMode || !s) return 'web';
-  if (wideClip && s.supported) return 'app-wide';
   return s.single ? 'app' : 'web';
 }
 
-const revokeClips = (p: { clip?: LocalClip; wideClip?: LocalClip }) => {
+const revokeClips = (p: { clip?: LocalClip }) => {
   if (p.clip) URL.revokeObjectURL(p.clip.url);
-  if (p.wideClip) URL.revokeObjectURL(p.wideClip.url);
 };
 type LocalPitch = SavePitchInput & {
   id: number;
@@ -248,8 +242,6 @@ type LocalPitch = SavePitchInput & {
   /** LiveCapture 결과 번호 — 뒤에 오는 영상 클립과 짝 */
   captureId?: number;
   clip?: LocalClip;
-  /** 같은 공의 광각 카메라 영상 — 앱이 일반 · 광각을 함께 찍을 때(설정 '광각 영상도 같이 저장') */
-  wideClip?: LocalClip;
   /** 관리자 점프 도구가 넣은 예시 공 — 화면 확인용, 저장은 막는다 */
   sample?: boolean;
   /** 카메라 실시간의 촬영 조건 알림(초당 장면 · 잘린 화면 · 짐작한 화각 · 번짐 …) — 화면에만 보인다 */
@@ -459,7 +451,6 @@ export function VelocityScreen({
     /* 거리를 공 크기로 어림하나(distanceAutoOf) — 그러면 distanceM 은 첫 어림 */
     distanceAuto: DEFAULT_SETUP.distAuto,
     autoMode: DEFAULT_SETUP.autoMode,
-    wideClip: DEFAULT_SETUP.wideClip,
     recordMode: false,
   });
   /* 카메라를 저절로 켠 단계 — 한 단계에 한 번만(아래 안전장치 효과) */
@@ -505,8 +496,6 @@ export function VelocityScreen({
   const recording = rec != null && (rec.phase === 'starting' || rec.phase === 'recording' || rec.phase === 'stopping');
   /* 저장된 공 영상에 스트라이크 존을 겹쳐 그릴까(설정) */
   const [clipZone, setClipZone] = useState(DEFAULT_SETUP.clipZone);
-  /* 광각 영상도 같이 저장(설정) — 앱의 동시 촬영 부품이 있을 때 공마다 wideClip 이 붙는다(2단계) */
-  const [wideClip, setWideClip] = useState(DEFAULT_SETUP.wideClip);
   /* 보정용 저장은 관리자만 효과가 있다 */
   const calibOn = isAdmin && calibSave;
   /* 세션 — 시작하면 카메라를 숨기고 정보 판을 보인다 */
@@ -579,12 +568,11 @@ export function VelocityScreen({
       distanceM: distanceOf({ cameraPos: choices.cameraPos, targetDistM, releaseDistM }),
       distanceAuto: distanceAutoOf({ cameraPos: choices.cameraPos, distAuto }),
       autoMode,
-      wideClip,
       recordMode: recOn,
     };
     liveRef.current = live;
   });
-  /* 이 아이폰이 일반 · 광각을 함께 켤 수 있나 — 미리 물어 둔다(설정 칸 · 카메라 켜기가 기다리지 않게) */
+  /* 이 아이폰이 앱 카메라로 잴 수 있나 — 미리 물어 둔다(카메라 켜기가 기다리지 않게) */
   useEffect(() => {
     if (native) void dualCameraStatus();
   }, [native]);
@@ -692,7 +680,6 @@ export function VelocityScreen({
       autoMode,
       calibSave,
       clipZone,
-      wideClip,
       recordMode,
       diagHud,
       ...patch,
@@ -876,7 +863,7 @@ export function VelocityScreen({
     if (native && !now.recordMode && finder) {
       const s = dualStatusNow() ?? (await dualCameraStatus());
       if (gen !== captureGenRef.current) return;
-      plan = cameraPlan(native, now.wideClip, now.recordMode, s);
+      plan = cameraPlan(native, now.recordMode, s);
     }
     const capture =
       plan !== 'web' && finder
@@ -889,15 +876,13 @@ export function VelocityScreen({
                 addResultRef.current(r, 'camera', { ...meta, id: idBase + meta.id });
               },
               onClip: (id, clip) => attachClipRef.current(idBase + id, clip),
-              onWideClip: (id, clip) => attachWideClipRef.current(idBase + id, clip),
               onError: setError,
               onNotice: setToast,
               onFps: (f) => setFps(Math.round(f)),
             },
             now.fov,
             now.approach,
-            now.net,
-            plan === 'app-wide'
+            now.net
           )
         : new LiveCapture(
       video,
@@ -946,17 +931,13 @@ export function VelocityScreen({
        * 앱이 켜 보고 '이 아이폰은 두 카메라를 함께 못 켬(60fps 를 못 냄 · 하드웨어 몫)'으로 끝냈다 — 기억해 두고(설정 칸이
        * 잠긴다) 웹 카메라로 바꿔 켠다. 측정은 끊기지 않는다.
        */
-      if (e instanceof DualUnsupportedError && capture instanceof DualCapture) {
+      if (e instanceof DualUnsupportedError) {
         /* 그사이 다른 켜기로 바뀌었으면(설정을 끔 · 뒤로) 늦게 온 거절은 아무것도 하지 않는다 */
         if (captureRef.current !== capture) return;
-        /* 광각까지 켜다 안 됐으면 일반 카메라만으로, 일반 하나로도 안 됐으면 웹 카메라로 다시 켠다 */
-        markDualUnsupported(e.reason, !capture.wide);
+        /* 앱 카메라로 못 켰다(60fps 를 못 냄 등) — 기억해 두고 웹 카메라로 다시 켠다. 측정은 끊기지 않는다 */
+        markDualUnsupported(e.reason, true);
         if (captureRef.current === capture) captureRef.current = null;
-        setToast(
-          capture.wide
-            ? '광각 동시 촬영이 안 되는 아이폰이라 일반 카메라로 재요'
-            : '앱 카메라를 켜지 못해 웹 카메라로 재요'
-        );
+        setToast('앱 카메라를 켜지 못해 웹 카메라로 재요');
         void startCamera();
         return;
       }
@@ -1012,7 +993,6 @@ export function VelocityScreen({
       setAutoMode(stored.autoMode);
       setCalibSave(stored.calibSave);
       setClipZone(stored.clipZone);
-      setWideClip(stored.wideClip);
       setRecordMode(stored.recordMode);
       setDiagHud(stored.diagHud);
       setDecided(true);
@@ -1024,7 +1004,6 @@ export function VelocityScreen({
     /* 새 설정이어도 보기 취향(영상에 존 표시)은 이어 간다 — 안 그러면 저장할 때 켜짐으로 되돌아간다 */
     if (stored) {
       setClipZone(stored.clipZone);
-      setWideClip(stored.wideClip);
       setRecordMode(stored.recordMode);
       setDiagHud(stored.diagHud);
     }
@@ -1063,7 +1042,6 @@ export function VelocityScreen({
     (r: ScreenResult, s: LocalPitch['source'], m?: ResultMeta) => void
   >(() => undefined);
   const attachClipRef = useRef<(id: number, clip: PitchClip) => void>(() => undefined);
-  const attachWideClipRef = useRef<(id: number, clip: PitchClip) => void>(() => undefined);
   useEffect(() => {
     captureRef.current?.setManual(!autoMode);
   }, [autoMode]);
@@ -1108,29 +1086,8 @@ export function VelocityScreen({
       return next;
     });
   };
-  /* 광각 클립 — DualCapture 가 잰 공(결과 다음)에만 보낸다. 짝이 없으면 버린다 */
-  const attachWideClipToPitch = (id: number, clip: PitchClip) => {
-    if (!acceptedIdsRef.current.has(id)) return;
-    const url = URL.createObjectURL(clip.blob);
-    setPitches((prev) =>
-      prev.map((p) =>
-        p.captureId === id
-          ? {
-              ...p,
-              wideClip: {
-                url,
-                blob: clip.blob,
-                durationSec: clip.durationSec,
-                eventSec: clip.eventSec,
-              },
-            }
-          : p
-      )
-    );
-  };
   useEffect(() => {
     attachClipRef.current = attachClipToPitch;
-    attachWideClipRef.current = attachWideClipToPitch;
   });
 
   /*
@@ -1329,22 +1286,21 @@ export function VelocityScreen({
     // eslint-disable-next-line react-hooks/exhaustive-deps -- 단계가 바뀔 때만 본다
   }, [step, showAsk]);
   /*
-   * '광각 영상도 같이 저장' · 엔진 개발용 녹화를 바꾸면 카메라를 쥔 쪽이 바뀐다(웹 카메라 ↔ 앱 카메라 · 광각 있고 없음) — 측정
-   * 중이 아니면 바로 다시 켠다. 측정 중이면 세션을 멈춘 뒤('카메라 다시 켜기') 바뀐다.
+   * 엔진 개발용 녹화를 바꾸면 카메라를 쥔 쪽이 바뀐다(웹 카메라 ↔ 앱 카메라) — 측정 중이 아니면 바로 다시 켠다. 측정 중이면
+   * 세션을 멈춘 뒤('카메라 다시 켜기') 바뀐다.
    */
   useEffect(() => {
     const capture = captureRef.current;
     if (!capture || live || recorderRef.current) return;
-    const plan = cameraPlan(native, wideClip, recOn, dualStatusNow());
-    const held: CameraPlan =
-      capture instanceof DualCapture ? (capture.wide ? 'app-wide' : 'app') : 'web';
+    const plan = cameraPlan(native, recOn, dualStatusNow());
+    const held: CameraPlan = capture instanceof DualCapture ? 'app' : 'web';
     if (plan === held) {
       capture.setClips(!recOn);
       return;
     }
     void startCamera();
     // eslint-disable-next-line react-hooks/exhaustive-deps -- 설정이 바뀔 때만 본다
-  }, [wideClip, recOn]);
+  }, [recOn]);
 
   /*
    * 1080p · 60fps 로 켜졌나 — 화질 · 프레임은 고르지 않고 늘 이것을 청한다(2026-10-08 사용자: "1080 · 60 으로 고정해 통일"). 카메라가
@@ -1427,11 +1383,8 @@ export function VelocityScreen({
   };
 
   const shownPitches = pitches.map((p) => ({ ...p, kmh: shown(p.rawKmh) }));
-  /* 저장 때 올릴 영상 수 — 일반 + 광각 */
-  const clipCount = pitches.reduce(
-    (n, p) => n + (p.clip ? 1 : 0) + (p.wideClip ? 1 : 0),
-    0
-  );
+  /* 저장 때 올릴 영상 수 */
+  const clipCount = pitches.reduce((n, p) => n + (p.clip ? 1 : 0), 0);
   const stats = summarize(shownPitches);
   /* 세션 화면 · 요약 · 이전 공 시트가 받는 모양(components/velocity/session-types.ts) */
   const sessionPitches: SessionPitch[] = shownPitches.map((p, i) => ({
@@ -1570,13 +1523,12 @@ export function VelocityScreen({
       /* 공마다 영상 클립을 올린다(모든 세션) — 실패해도 측정값은 이미 저장됐다 */
       if (res.pitchIds) {
         const ids = res.pitchIds;
-        /* 공마다 일반 영상 · (있으면) 광각 영상 */
+        /* 공마다 영상 하나 */
         const targets = pitches.flatMap((p, i) => {
           const id = ids[i];
           if (!id) return [];
           const jobs: { id: string; clip: LocalClip; kind: 'main' | 'wide' }[] = [];
           if (p.clip) jobs.push({ id, clip: p.clip, kind: 'main' });
-          if (p.wideClip) jobs.push({ id, clip: p.wideClip, kind: 'wide' });
           return jobs;
         });
         if (targets.length) {
@@ -3256,7 +3208,6 @@ export function VelocityScreen({
               autoMode,
               calibSave,
               clipZone,
-              wideClip,
             }}
             showChoices={false}
             calibration={fit}
@@ -3293,10 +3244,6 @@ export function VelocityScreen({
               if (patch.clipZone != null) {
                 setClipZone(patch.clipZone);
                 persistSetup({ clipZone: patch.clipZone });
-              }
-              if (patch.wideClip != null) {
-                setWideClip(patch.wideClip);
-                persistSetup({ wideClip: patch.wideClip });
               }
             }}
           />

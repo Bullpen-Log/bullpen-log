@@ -1,13 +1,9 @@
 'use client';
 
-import { useSyncExternalStore } from 'react';
-
 /**
- * 아이폰 앱의 일반 · 광각 동시 촬영 부품(앱 쪽 'DualCamera' 플러그인 — mobile/ios, 2026-10-03 계획의 2단계)이 있나.
- *
- * 웹 화면(사파리 · 앱 안의 웹뷰)은 카메라를 한 번에 하나만 켠다 — 두 번째를 켜면 앞의 카메라가 멈춘다(WebKit). 그래서
- * 광각 영상을 일반 카메라와 함께 찍는 일은 앱이 카메라를 직접 잡아야 한다(애플 AVCaptureMultiCamSession). 그 부품이
- * 든 앱이면 true. 설정 '광각 영상도 같이 저장'의 안내가 이것을 본다.
+ * 아이폰 앱의 카메라 부품(앱 쪽 'DualCamera' 플러그인 — mobile/ios)이 있나. 이름은 처음의 일반 · 광각 동시 촬영(2026-10-03)에서
+ * 왔다. 2026-10-08 부터 구속 측정은 새 앱이면 이 부품의 일반 카메라 하나로 잰다(손떨림 보정 — 웹 카메라는 못 켠다). 광각은 찍지
+ * 않는다(설정 '광각 영상도 같이 저장'을 없앴다).
  */
 export const DUAL_CAMERA_PLUGIN = 'DualCamera';
 
@@ -20,9 +16,6 @@ export function dualCameraAvailable(): boolean {
 }
 
 /* ── 이 기기에서 되나(2026-10-03 사용자: "동시에 못 쓰는 아이폰은 설정에서 보이되 못 켜게, 경고") ── */
-
-/** 볼 자리 · 미리보기 자리 */
-export type DualRect = { x: number; y: number; w: number; h: number };
 
 /** 일반 카메라로 고를 수 있는 화질(16:9) 하나 — 앱 부품 status 의 modes */
 export type DualMode = { short: number; long: number; maxFps: number };
@@ -46,8 +39,6 @@ export type DualStatus = {
 /** 상태 — 아직 모르면 null(검사 중) */
 let statusNow: DualStatus | null = null;
 let statusPromise: Promise<DualStatus> | null = null;
-const statusListeners = new Set<() => void>();
-const emitStatus = () => statusListeners.forEach((l) => l());
 
 const isAppShell = () =>
   typeof window !== 'undefined' &&
@@ -62,7 +53,6 @@ export function dualCameraStatus(): Promise<DualStatus> {
   if (statusPromise) return statusPromise;
   const settle = (s: DualStatus) => {
     statusNow = s;
-    emitStatus();
     return s;
   };
   if (typeof window === 'undefined')
@@ -100,45 +90,6 @@ export function markDualUnsupported(reason: string, single = false) {
     single: single ? false : statusNow?.single,
   };
   statusPromise = Promise.resolve(statusNow);
-  emitStatus();
-}
-
-const subscribeStatus = (cb: () => void) => {
-  statusListeners.add(cb);
-  void dualCameraStatus();
-  return () => {
-    statusListeners.delete(cb);
-  };
-};
-
-/** 화면에서 읽기 — 검사 중이면 null. 서버에서 그릴 때는 null */
-export function useDualCameraStatus(): DualStatus | null {
-  return useSyncExternalStore(
-    subscribeStatus,
-    () => statusNow,
-    () => null
-  );
-}
-
-/** 안 되는 까닭을 사람 말로 */
-export function dualReasonText(reason: string | undefined): string {
-  switch (reason) {
-    case 'web':
-      return '아이폰 앱에서만 돼요 — 브라우저는 카메라를 한 번에 하나만 켤 수 있어요.';
-    case 'old-app':
-      return '앱을 최신으로 업데이트하면 쓸 수 있어요.';
-    case 'multicam':
-      return '이 아이폰은 두 카메라를 함께 켤 수 없어요(아이폰 XS · XR · SE 이전).';
-    case 'no-ultrawide':
-      return '이 아이폰에는 광각(0.5x) 카메라가 없어요.';
-    case 'pair':
-      return '이 아이폰은 일반 · 광각 카메라를 함께 켤 수 없어요.';
-    case 'fps':
-    case 'cost':
-      return '이 아이폰은 두 카메라를 함께 켜면 60fps 를 못 내요 — 측정 카메라는 60fps 이상이어야 해요.';
-    default:
-      return '이 아이폰에서는 일반 · 광각 동시 촬영을 쓸 수 없어요.';
-  }
 }
 
 export type DualStartInfo = {

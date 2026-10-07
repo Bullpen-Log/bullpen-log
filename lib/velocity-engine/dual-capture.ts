@@ -19,8 +19,8 @@ import type {
 
 /**
  * 아이폰 앱의 카메라로 재기(앱의 'DualCamera' 부품). 처음엔 설정 '광각 영상도 같이 저장'용 일반 · 광각 동시 촬영이었고
- * (2026-10-03), 2026-10-08 부터 새 앱이면 늘 이 길이다(사용자: "웹카메라가 아닌 앱 자체의 카메라로") — 광각은 설정을 켤 때만
- * 같이 찍는다(wide). 앱 카메라는 손떨림 보정(표준)을 건다. 웹 카메라(getUserMedia)는 그것을 켤 수 없다.
+ * (2026-10-03), 2026-10-08 부터 새 앱이면 늘 이 길이다(사용자: "웹카메라가 아닌 앱 자체의 카메라로") — 일반 카메라 하나로,
+ * 광각은 찍지 않는다(설정을 없앴다). 앱 카메라는 손떨림 보정(표준)을 건다. 웹 카메라(getUserMedia)는 그것을 켤 수 없다.
  *
  * 웹 카메라(LiveCapture)와 같은 모양으로 부른다 — 측정 화면은 둘 중 하나를 쥔다. 다른 점:
  *   - 카메라 · 미리보기는 앱이 쥔다. 미리보기는 웹뷰 뒤에 그려지고, 사이트는 뷰파인더 자리를 투명하게 비운다
@@ -34,8 +34,6 @@ export type DualCaptureHandlers = {
   onStatus: (status: LiveStatus) => void;
   onResult: (result: VideoAnalyzeResult, meta: ResultMeta) => void;
   onClip: (id: number, clip: PitchClip) => void;
-  /** 광각 클립 — 잰 공(ok)에만 온다. 못 잰 공의 광각 파일은 읽지 않고 지운다 */
-  onWideClip: (id: number, clip: PitchClip) => void;
   onError: (message: string) => void;
   onNotice?: (message: string) => void;
   onFps?: (fps: number, low: boolean) => void;
@@ -121,9 +119,7 @@ export class DualCapture {
     private handlers: DualCaptureHandlers,
     private fovDeg: number,
     private approach: Approach,
-    private net: boolean,
-    /** 광각도 같이 찍나 — false 면 일반 카메라 하나(새 앱만 안다. 옛 앱은 늘 둘) */
-    readonly wide: boolean
+    private net: boolean
   ) {}
 
   private setStatus(s: LiveStatus) {
@@ -165,7 +161,8 @@ export class DualCapture {
         net: this.net,
         preview: this.rect(),
         armed: false,
-        wide: this.wide,
+        /* 광각은 같이 찍지 않는다(설정을 없앴다, 2026-10-08) — 일반 카메라 하나라야 1080p 60 이 나온다 */
+        wide: false,
         /* 거리 측정(엔진 2.0, 투수 뒤)은 일반 카메라 2배 — 옛 앱은 이 칸을 모르고 1배로 켠다(화각은 앱이 알려 준 값을 쓴다) */
         ...(this.distanceM && this.approach === 'receding' ? { zoom: 2 } : {}),
       });
@@ -295,17 +292,8 @@ export class DualCapture {
       durationSec: main.durationSec,
       eventSec: main.eventSec,
     });
-    if (clips.wide) {
-      const wide = clips.wide;
-      const wideBlob = await readDualClip(wide);
-      if (gen === this.gen)
-        this.handlers.onWideClip(id, {
-          blob: wideBlob,
-          mime: 'video/mp4',
-          durationSec: wide.durationSec,
-          eventSec: wide.eventSec,
-        });
-    }
+    /* 광각은 청하지 않는다(wide: false) — 혹시 왔으면 지운다 */
+    await dropWide();
   }
 
   arm() {

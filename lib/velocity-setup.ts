@@ -64,11 +64,6 @@ export type VelocitySetup = {
    */
   clipZone: boolean;
   /**
-   * 광각 영상도 같이 저장 — 광각 카메라가 있는 아이폰 앱에서, 측정은 일반 카메라로 하면서 공마다 광각 카메라 영상도 함께 남긴다
-   * (2026-10-03 사용자). 웹 화면은 카메라를 하나만 켤 수 있어 앱의 'DualCamera' 부품이 있어야 실제로 찍힌다(lib/dual-camera.ts).
-   */
-  wideClip: boolean;
-  /**
    * 엔진 개발용 녹화(관리자) — 켜면 측정 대기 화면의 시작 단추가 녹화 단추가 되어 측정 없이 찍어 구속 측정 관리자로 올린다
    * (lib/velocity-recorder.ts). 관리자가 아니면 켜져 있어도 효과가 없다.
    */
@@ -206,7 +201,6 @@ export const DEFAULT_SETUP: Omit<VelocitySetup, 'savedAt'> = {
   autoMode: true,
   calibSave: false,
   clipZone: true,
-  wideClip: false,
   recordMode: false,
   diagHud: false,
 };
@@ -263,7 +257,6 @@ export function loadSetup(): VelocitySetup | null {
       autoMode: p.autoMode !== false,
       calibSave: p.calibSave === true,
       clipZone: p.clipZone !== false,
-      wideClip: p.wideClip === true,
       recordMode: p.recordMode === true,
       diagHud: p.diagHud === true,
       savedAt: typeof p.savedAt === 'string' ? p.savedAt : '',
