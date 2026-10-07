@@ -2453,6 +2453,20 @@ html[data-splash] *::after {
 .app-splash[data-play='still'] {
   animation: app-splash-leave 0.55s ease-in 1.1s both;
 }
+/* 다시 불러오기 — 같은 장면을 2.5배 빠르게(큰 B 0.1초 → 0.4초 자리로 → 글자 0.45초부터 0.03초 간격 0.3초 → 1.1초에 0.35초 걷힘) */
+.app-splash[data-play='quick'] .app-splash__mark {
+  animation: app-splash-mark 0.4s cubic-bezier(0.45, 0, 0.55, 1) 0.1s both;
+}
+.app-splash[data-play='quick'] .app-splash__letter {
+  animation: app-splash-letter 0.3s cubic-bezier(0.25, 0.1, 0.25, 1)
+    calc(0.45s + var(--i) * 0.03s) both;
+}
+.app-splash[data-play='quick'] {
+  animation: app-splash-leave 0.35s cubic-bezier(0.42, 0, 1, 1) 1.1s both;
+}
+.app-splash[data-play='quick'] .app-splash__stage {
+  animation: app-splash-zoom 0.35s cubic-bezier(0.42, 0, 1, 1) 1.1s both;
+}
 @keyframes app-splash-mark {
   to {
     transform: translate(var(--splash-dx, 0px), var(--splash-dy, 0px))

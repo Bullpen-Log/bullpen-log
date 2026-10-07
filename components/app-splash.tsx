@@ -32,6 +32,22 @@ export const SPLASH_END_EVENT = 'bullpen-splash-end';
 const SETTLE_MS = 2900;
 const LEAVE_MS = 550;
 const REDUCED_HOLD_MS = 1100;
+/** 다시 불러오기(새로고침 · 뒤로) · 같은 탭에서 이미 본 뒤에는 짧게 — 사용자 2026-10-07: "재로딩 때는 로고가 더 빨리 사라지게" */
+const QUICK_SETTLE_MS = 1100;
+const QUICK_LEAVE_MS = 350;
+const SEEN_KEY = 'bullpen-splash-seen';
+
+/** 처음 접속이 아닌가 — 새로고침 · 뒤로/앞으로, 또는 이 탭에서 이미 연출을 봤다 */
+function isRevisit() {
+  try {
+    const nav = performance.getEntriesByType('navigation')[0] as
+      PerformanceNavigationTiming | undefined;
+    if (nav && (nav.type === 'reload' || nav.type === 'back_forward')) return true;
+    return sessionStorage.getItem(SEEN_KEY) === '1';
+  } catch {
+    return false;
+  }
+}
 
 export function AppSplash() {
   const [show, setShow] = useState(() => !played);
@@ -66,8 +82,16 @@ export function AppSplash() {
     );
 
     const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    root.dataset.play = reduce ? 'still' : 'on';
-    const total = reduce ? REDUCED_HOLD_MS + LEAVE_MS : SETTLE_MS + LEAVE_MS;
+    const quick = !reduce && isRevisit();
+    root.dataset.play = reduce ? 'still' : quick ? 'quick' : 'on';
+    const total = reduce
+      ? REDUCED_HOLD_MS + LEAVE_MS
+      : quick
+        ? QUICK_SETTLE_MS + QUICK_LEAVE_MS
+        : SETTLE_MS + LEAVE_MS;
+    try {
+      sessionStorage.setItem(SEEN_KEY, '1');
+    } catch {}
     const timer = window.setTimeout(() => {
       html.removeAttribute(SPLASH_ATTR);
       window.dispatchEvent(new Event(SPLASH_END_EVENT));
