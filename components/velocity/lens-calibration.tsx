@@ -19,6 +19,7 @@ import {
   aspectOf,
   focalFromBall,
   fovDegFromFocal,
+  infinityFocal,
   saveLens,
   type LensCalibration,
 } from '@/lib/velocity-lens';
@@ -186,7 +187,7 @@ export function measureStaticBall(
 }
 
 /** 뷰파인더(object-cover) 위의 원 → 카메라 프레임 픽셀. frameToView 의 반대 */
-function viewToFrame(
+export function viewToFrame(
   circle: Circle,
   frame: { width: number; height: number },
   view: { width: number; height: number }
@@ -232,6 +233,7 @@ export function LensCalibrationPanel({
   circle,
   current,
   onSaved,
+  focusedOnBall = false,
 }: {
   /** 카메라의 지금 장면을 준다 — 렌더 중이 아니라 단추를 눌렀을 때 읽는다 */
   snapshot: () => FrameSnapshot | null;
@@ -240,7 +242,13 @@ export function LensCalibrationPanel({
   circle: Circle;
   current: LensCalibration | null;
   onSaved: (cal: LensCalibration) => void;
+  /** 재는 동안 공에 초점을 맞췄다(앱 카메라) — 초점 호흡만큼 덜어 무한대 초점의 값으로 저장한다 */
+  focusedOnBall?: boolean;
 }) {
+  const focalOf = (ballPx: number, dist: number) =>
+    focusedOnBall ? infinityFocal(focalFromBall(ballPx, dist), dist) : focalFromBall(ballPx, dist);
+  /* 보정 · 측정이 같은 줌이어야 한다 — 줌을 같이 저장하고 측정 때 맞춰 본다(lensMatches). 기준 조건은 2배 */
+  const zoom = camera?.zoom ?? 1;
   const [distance, setDistance] = useState<string>(String(RECOMMENDED_DISTANCE_M));
   const [measured, setMeasured] = useState<{
     sourcePx: number;
@@ -332,7 +340,7 @@ export function LensCalibrationPanel({
         return;
       }
       const longSide = Math.max(camera.width, camera.height);
-      const fov = fovDegFromFocal(focalFromBall(mid, Number(distance)), longSide);
+      const fov = fovDegFromFocal(focalOf(mid, Number(distance)) / zoom, longSide);
       if (fov < FOV_SANITY_DEG[0] || fov > FOV_SANITY_DEG[1]) {
         setError('잘못 잰 것 같아요 — 거리나 원 위치를 확인하세요.');
         return;
@@ -348,15 +356,11 @@ export function LensCalibrationPanel({
     }
   };
 
-  const zoom = camera?.zoom ?? 1;
-  /* 줌이 1× 가 아니면 저장을 막는다 — 보정 · 측정이 같은 줌이어야 한다(lensMatches) */
-  const zoomOff = camera?.zoom != null && Math.abs(camera.zoom - 1) > 0.05;
-
   const save = () => {
-    if (!measured || !camera || zoomOff) return;
+    if (!measured || !camera) return;
     const dist = Number(distance);
     const longSide = Math.max(camera.width, camera.height);
-    const focalPx = focalFromBall(measured.sourcePx, dist);
+    const focalPx = focalOf(measured.sourcePx, dist);
     onSaved(
       saveLens({
         focalPerLongSide: focalPx / longSide,
@@ -374,11 +378,8 @@ export function LensCalibrationPanel({
   const preview =
     measured && camera
       ? {
-          focalPx: focalFromBall(measured.sourcePx, Number(distance)),
-          fov: fovDegFromFocal(
-            focalFromBall(measured.sourcePx, Number(distance)),
-            longSide
-          ),
+          focalPx: focalOf(measured.sourcePx, Number(distance)),
+          fov: fovDegFromFocal(focalOf(measured.sourcePx, Number(distance)), longSide),
         }
       : null;
 
@@ -446,18 +447,7 @@ export function LensCalibrationPanel({
               {fovDegFromFocal(current.focalPerLongSide * longSide, longSide)}°)
             </p>
           )}
-          {zoomOff && (
-            <div className="mt-3">
-              <Note tone="warn">
-                줌이 1× 가 아니에요 — 보정 · 측정 모두 1× 에서 하세요
-              </Note>
-            </div>
-          )}
-          <BigButton
-            onClick={save}
-            disabled={zoomOff}
-            className="mt-3 w-full flex-none"
-          >
+          <BigButton onClick={save} className="mt-3 w-full flex-none">
             <Check aria-hidden className="h-4 w-4" />이 값으로 보정 저장
           </BigButton>
         </Panel>
@@ -465,9 +455,12 @@ export function LensCalibrationPanel({
 
       <Note tone="info">
         실제로 던질 그 공으로 재세요(공 크기 차이까지 함께 맞춰져요). 공을 쥔 손이 원
-        둘레 고리에 들어오지 않게 아래에서 받치고, 측정과 같은 초점 상태(네트 있음이면
-        수동초점 그대로)에서 재세요. 저장하면 이 폰에서 재는 구속에 이 초점거리를
-        써요(화각 가정 대신). 폰 · 렌즈(1x · 0.5x) · 촬영 모드가 바뀌면 다시 재세요.
+        둘레 고리에 들어오지 않게 아래에서 받쳐요.{' '}
+        {focusedOnBall
+          ? '재는 동안 원 안의 공에 초점을 맞춰요. '
+          : '측정과 같은 초점 상태(네트 있음이면 수동초점 그대로)에서 재세요. '}
+        저장하면 이 폰에서 재는 구속에 이 초점거리를 써요(화각 가정 대신). 폰 · 렌즈 ·
+        줌 · 촬영 모드가 바뀌면 다시 재세요.
       </Note>
     </div>
   );

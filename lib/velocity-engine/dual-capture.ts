@@ -491,6 +491,16 @@ export class DualCapture {
     if (this.running)
       void callDualCamera('focus', { focus: p, far: this.focusFar() }).catch(() => undefined);
   }
+  /**
+   * 렌즈 보정은 1~2m 앞 공을 잰다 — '먼 곳만' 초점을 풀고 그 자리(세로 화면 0~1)에 맞춘다. null 이면 존 가운데 · 원래 거리로 되돌린다
+   */
+  focusNear(p: { x: number; y: number } | null) {
+    if (!this.running) return;
+    void callDualCamera(
+      'focus',
+      p ? { focus: p, far: false } : { focus: this.focusAt, far: this.focusFar() }
+    ).catch(() => undefined);
+  }
   /** 카메라 상태(형식 · 줌 · 손떨림 보정 · 초점 · 노출) — 옛 앱은 null */
   async diag(): Promise<CameraDiag | null> {
     if (!this.running) return null;

@@ -84,6 +84,9 @@ ink 쪽으로 — 어렵다면 B 만). 나는 Swift 를 굽지 못해 손대지 
   미리보기에 '기준 밖' 배지와 까닭(`explorer-panels.tsx`, `AdminPitchAnalysis.offStandard`). 관리자 통계(편향 · p90)는 예전처럼 다 섞어 센다.
 - 옛 앱(앱 카메라 없음 — `lib/dual-camera.ts` isOldApp: 부품이 없거나 status 에 `single` 칸이 없음)이면 측정 화면의 기준 밖 알림 끝에
   'TestFlight에서 불펜로그를 업데이트하면…'을 붙인다. status 의 `single` 은 이제 칸이 없으면 undefined(예전엔 false).
+- 렌즈 보정이 앱 카메라(2배)에서 막혀 있던 것: 줌이 1× 가 아니면 저장을 막던 것 · 화각 45~100° 검사(2배는 약 38°)를 1배 환산으로 ·
+  렌즈 단계에서 '먼 곳만' 초점을 풀고 원 가운데 공에 맞춤(`DualCapture.focusNear`) · 공에 초점을 맞춘 만큼 초점 호흡을 덜어 저장
+  (`lib/velocity-lens.ts` infinityFocal, F 6.5mm 어림 — 1m 에서 약 0.6%).
 
 ## 금윤호에게 — 2026-10-07 · 김민(Claude) — 구속 엔진 2.2.0(흔들림 바로잡기) · 저장한 공을 잰 직후처럼 보기
 

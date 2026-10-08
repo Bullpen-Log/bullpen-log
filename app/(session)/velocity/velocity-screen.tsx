@@ -164,6 +164,7 @@ import {
   CircleOverlay,
   DEFAULT_CIRCLE,
   LensCalibrationPanel,
+  viewToFrame,
   type Circle,
 } from '@/components/velocity/lens-calibration';
 import { useStoredLens } from '@/components/velocity/velocity-settings';
@@ -622,6 +623,16 @@ export function VelocityScreen({
     const capture = captureRef.current;
     if (capture instanceof DualCapture) capture.setFocusPoint({ x: focusX, y: focusY });
   }, [focusX, focusY, camera]);
+  /* 렌즈 보정(앱 카메라) — 1~2m 앞 공에 초점을 맞춘다('먼 곳만'을 풀고 원 가운데로). 나가면 존 가운데 · 원래 거리로 */
+  const lensFocusX = Math.round(circle.x * 20) / 20;
+  const lensFocusY = Math.round(circle.y * 20) / 20;
+  useEffect(() => {
+    const view = finderRef.current?.getBoundingClientRect();
+    if (step !== 'lens' || !appCapture || !camera || !view) return;
+    const f = viewToFrame({ x: lensFocusX, y: lensFocusY, d: 0 }, camera, view);
+    appCapture.focusNear({ x: f.cx / camera.width, y: f.cy / camera.height });
+    return () => appCapture.focusNear(null);
+  }, [step, appCapture, camera, lensFocusX, lensFocusY]);
   /* 수평계 — 카메라가 보이는 동안(수평 · 존 · 측정 직전 · 세션 중 '카메라'로 정보 판을 내려 카메라를 볼 때) 저절로 켠다 */
   const levelOn =
     cameraOn &&
@@ -2522,6 +2533,7 @@ export function VelocityScreen({
                 circle={circle}
                 current={lens}
                 onSaved={() => setStep('measure')}
+                focusedOnBall={appCamera}
               />
             </div>
           )}
