@@ -83,7 +83,10 @@ ink 쪽으로 — 어렵다면 B 만). 나는 Swift 를 굽지 못해 손대지 
   → `xcrun devicectl device install app` → `devicectl device process launch --console`(30~50분 걸리던 TestFlight 대신 1~2분).
 - (2.3.3) 던짐 알아채기를 '날아가는 공'으로(앱 `MotionTrigger` — 세 장면 차이 덩어리를 이어 가운데에서 시작해 빠르게 작아지는 길 → 'ball',
   예전 움직임 → 'motion'). `DualCapture` 는 'ball' 만 '투구를 인식했어요'를 띄우고, 'motion' 은 조용히 재 보고 공이 없으면 넘긴다(수동 모드는
-  잰 뒤에 멈춤). 맥 시험대 `~/bullpen-velocity-lab/ball-trigger`(앱 Swift 의 BALL_TRIGGER 구간을 떼어 지난 영상에 돌림 — 저장소 밖).
+  잰 뒤에 멈춤). 맥 시험대 `scripts/velocity-lab/ball-trigger/run.sh`(앱 Swift 의 BALL_TRIGGER 구간을 떼어 영상에 돌림).
+- (2.3.4) 맥에서 깐 개발용 앱은 측정 중 장면을 폰에 1분 조각으로 남긴다(`LabRecorder`, `#if DEBUG`) — `scripts/velocity-lab/pull-device.sh`
+  로 케이블 · 같은 와이파이에서 가져와 폰 알림과 시험대 결과를 나란히 본다. **개발용 빌드는 `SWIFT_OPTIMIZATION_LEVEL=-O` 로** — 안 붙이면
+  초당 20장으로 찍힌다(README). 손에 든 폰의 헛 공을 '화면 통째 움직임' 조건으로 막았다.
 
 ## 금윤호에게 — 2026-10-07 · 김민(Claude) — 구속 엔진 2.2.0(흔들림 바로잡기) · 저장한 공을 잰 직후처럼 보기
 

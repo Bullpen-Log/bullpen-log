@@ -358,8 +358,11 @@ export class DualCapture {
       await dropWide();
       return;
     }
-    /* 움직임으로만 잡은 클립에서 공을 못 쟀다 — 헛알림(와인드업 · 사람 · 초점)으로 보고 조용히 넘긴다 */
-    if (!result.measure.ok && !job.visible) {
+    /*
+     * 공을 못 쟀다 — 움직임으로만 잡은 클립이거나, 공 알림이었어도 영상에서 공 길을 거의 못 찾았으면 헛알림(와인드업 · 사람 ·
+     * 폰을 만짐)으로 보고 조용히 넘긴다(띄웠던 카드는 거둬진다). 공 길은 찾았는데 못 잰 것만 '못 쟀어요'로 알린다.
+     */
+    if (!result.measure.ok && (!job.visible || result.track.length < 4)) {
       await dropWide();
       return;
     }
