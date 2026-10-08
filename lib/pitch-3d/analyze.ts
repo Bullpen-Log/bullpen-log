@@ -11,8 +11,25 @@ import {
   type CalibFrame,
   type Obs,
 } from '@/lib/pitch-3d/camera';
-import { cross, dot, median, norm, robustCv, row, sub, type Vec3 } from '@/lib/pitch-3d/linalg';
-import { bodyHeight, computeMetrics, worldAxes, type Frame3, type Metric, type PmFactors } from '@/lib/pitch-3d/metrics';
+import {
+  cross,
+  dot,
+  median,
+  norm,
+  robustCv,
+  row,
+  sub,
+  type Vec3,
+} from '@/lib/pitch-3d/linalg';
+import {
+  bodyHeight,
+  computeMetrics,
+  worldAxes,
+  type Frame3,
+  type Metric,
+  type PmFactors,
+  type WorldAxes,
+} from '@/lib/pitch-3d/metrics';
 import {
   ARM_PAIRS,
   BONE_WEIGHT,
@@ -62,7 +79,8 @@ export type Pitch3dInput = {
 };
 
 export type FailCode = 'short' | 'events' | 'sync' | 'range' | 'calibration';
-export type WarningCode = 'density' | 'narrow' | 'focal' | 'vertical' | 'backCamera' | 'screen' | 'consistency';
+export type WarningCode =
+  'density' | 'narrow' | 'focal' | 'vertical' | 'backCamera' | 'screen' | 'consistency';
 
 export type Pitch3dQuality = {
   /** 다시 비춤 오차(사람 높이 대비 %) */
@@ -76,7 +94,13 @@ export type Pitch3dQuality = {
   coverage: number;
   syncCost: number;
   calibration: 'high' | 'medium' | 'low';
-  flips: { side: number; back: number; repaired: number; handSwapped: boolean; backMirrored: boolean };
+  flips: {
+    side: number;
+    back: number;
+    repaired: number;
+    handSwapped: boolean;
+    backMirrored: boolean;
+  };
   travelVsBackDeg: number | null;
   /** 다시 비춤으로 다듬은 시간 어긋남(뒤 영상 장면 수) */
   offsetFrames: number;
@@ -108,10 +132,13 @@ export type Pitch3dResult = Pitch3dOk | Pitch3dFail;
 
 export const FAIL_TEXT: Record<FailCode, string> = {
   short: '영상에서 사람을 충분히 찾지 못했어요. 투수가 크게 나오게 찍어 주세요.',
-  events: '옆 영상에서 착지와 릴리스를 찾지 못했어요. 옆(3루 쪽)에서 찍은 영상이 맞나요?',
+  events:
+    '옆 영상에서 착지와 릴리스를 찾지 못했어요. 옆(3루 쪽)에서 찍은 영상이 맞나요?',
   sync: '두 영상의 시간을 맞추지 못했어요. 같은 공을 찍은 두 영상인지 봐 주세요.',
-  range: '두 영상이 찍은 구간이 달라요. 두 영상 모두 준비 자세부터 팔로스루까지 찍어 주세요.',
-  calibration: '두 카메라의 위치를 찾지 못했어요. 두 폰 사이 각도를 60~120°로 해서 다시 찍어 주세요.',
+  range:
+    '두 영상이 찍은 구간이 달라요. 두 영상 모두 준비 자세부터 팔로스루까지 찍어 주세요.',
+  calibration:
+    '두 카메라의 위치를 찾지 못했어요. 두 폰 사이 각도를 60~120°로 해서 다시 찍어 주세요.',
 };
 
 export const WARNING_TEXT: Record<WarningCode, string> = {
@@ -127,14 +154,26 @@ export const WARNING_TEXT: Record<WarningCode, string> = {
 /** 1차 보정에 쓰는 관절 — 좌우가 덜 뒤바뀌는 몸통 · 다리(R3) */
 const PASS1_JOINTS = [J.nose, J.lSh, J.rSh, J.lHip, J.rHip, J.lKn, J.rKn, J.lAn, J.rAn];
 /** 2차 보정 관절 — 손목 · 뒤꿈치 · 발끝(흐림 · 작음)은 뺀다 */
-const CALIB_JOINTS = [J.nose, J.lSh, J.rSh, J.lEl, J.rEl, J.lHip, J.rHip, J.lKn, J.rKn, J.lAn, J.rAn];
+const CALIB_JOINTS = [
+  J.nose,
+  J.lSh,
+  J.rSh,
+  J.lEl,
+  J.rEl,
+  J.lHip,
+  J.rHip,
+  J.lKn,
+  J.rKn,
+  J.lAn,
+  J.rAn,
+];
 const ALL_JOINTS = Array.from({ length: N_JOINTS }, (_, j) => j);
 /** 결과에 남기는 장면 상한(검토 R9 — analysis.json 300KB 밑) */
 const MAX_FRAMES = 400;
 /** 장면 밀도(초당) 경고 문턱(검토 R1) */
 const DENSITY_MIN = 20;
 
-type Synced = { i: number; t: number; side: Obs[]; back: Obs[] };
+export type Synced = { i: number; t: number; side: Obs[]; back: Obs[] };
 
 const fail = (code: FailCode, quality?: Partial<Pitch3dQuality>): Pitch3dFail => ({
   ok: false,
@@ -144,14 +183,22 @@ const fail = (code: FailCode, quality?: Partial<Pitch3dQuality>): Pitch3dFail =>
   ...(quality ? { quality } : {}),
 });
 
-function calibInput(synced: Synced[], side: View, back: View, use: number[], bones: typeof BONES) {
+function calibInput(
+  synced: Synced[],
+  side: View,
+  back: View,
+  use: number[],
+  bones: typeof BONES
+) {
   const frames: CalibFrame[] = synced.map((s) => ({ side: s.side, back: s.back }));
   return {
     frames,
     sideSize: { W: side.W, H: side.H },
     backSize: { W: back.W, H: back.H },
     use,
-    bones: bones.map((b) => [b.a, b.b, BONE_WEIGHT[b.group]] as [number, number, number]),
+    bones: bones.map(
+      (b) => [b.a, b.b, BONE_WEIGHT[b.group]] as [number, number, number]
+    ),
     personSide: side.person,
     personBack: back.person,
   };
@@ -163,7 +210,36 @@ const swapIn = (p: Obs[], pairs: [number, number][]) => {
   return o;
 };
 
-export function analyzePitch3d(input: Pitch3dInput): Pitch3dResult {
+/**
+ * 결과를 만들기 직전까지의 계산(v2 맞추기 lib/pitch-3d/v2/fit.ts 가 그대로 이어 쓴다 — 시간 맞춤 · 카메라 · 다듬은 17관절 · 기준 축 · 지표).
+ * 좌표는 보정 좌표계(크기 임의) 그대로 — 결과 좌표(앞 · 위 · 오른쏙, 키 = 1)로 바꾸는 값(origin · ground · R3 · H)을 함께 준다.
+ */
+export type Pitch3dCore = {
+  hand: 'R' | 'L';
+  side: View;
+  back: View;
+  cal: Calibration;
+  synced: Synced[];
+  /** 옆 장면(side.frames 번호)마다 뒤 영상 시각 */
+  backTime: (number | null)[];
+  /** 다듬은 3D(synced 차례, 보정 좌표계) */
+  smooth: Frame3[];
+  evIdx: { kneeUp: number | null; footPlant: number; release: number };
+  axes: WorldAxes;
+  /** 키(보정 좌표계 단위) */
+  H: number;
+  origin: Vec3;
+  ground: number;
+  /** 오른쪽 축 = F × U */
+  R3: Vec3;
+  quality: Pitch3dQuality;
+  warnings: WarningCode[];
+  factors: PmFactors;
+  plantMs: number | null;
+  metrics: Metric[];
+};
+
+export function analyzePitch3dCore(input: Pitch3dInput): Pitch3dCore | Pitch3dFail {
   const { hand } = input;
   const sideEv = detectPitchEvents(input.side);
   const ev = input.events ?? {
@@ -171,7 +247,12 @@ export function analyzePitch3d(input: Pitch3dInput): Pitch3dResult {
     footPlant: sideEv.footPlant?.t ?? NaN,
     release: sideEv.release?.t ?? NaN,
   };
-  if (!Number.isFinite(ev.footPlant) || !Number.isFinite(ev.release) || ev.release <= ev.footPlant) return fail('events');
+  if (
+    !Number.isFinite(ev.footPlant) ||
+    !Number.isFinite(ev.release) ||
+    ev.release <= ev.footPlant
+  )
+    return fail('events');
 
   const side = prepareView(input.side);
   let back = prepareView(input.back);
@@ -183,8 +264,12 @@ export function analyzePitch3d(input: Pitch3dInput): Pitch3dResult {
   const needTo = ev.release + span * 0.3;
   const sync = syncViews(side, back, [needFrom, needTo]);
   if (sync.backMirrored) back = mirrorView(back);
-  const needed = side.frames.map((f, i) => ({ f, i })).filter(({ f }) => f.t >= needFrom && f.t <= needTo);
-  const covered = needed.filter(({ i }) => sync.backTime[i] != null).length / Math.max(1, needed.length);
+  const needed = side.frames
+    .map((f, i) => ({ f, i }))
+    .filter(({ f }) => f.t >= needFrom && f.t <= needTo);
+  const covered =
+    needed.filter(({ i }) => sync.backTime[i] != null).length /
+    Math.max(1, needed.length);
   const q0: Partial<Pitch3dQuality> = {
     density: { side: side.density, back: back.density },
     coverage: covered,
@@ -210,7 +295,9 @@ export function analyzePitch3d(input: Pitch3dInput): Pitch3dResult {
   const trunkLegs = BONES.filter((b) => b.group === 'trunk' || b.group === 'legs');
 
   /* 보정 1차(몸통 · 다리) */
-  let cal: Calibration | null = calibrate(calibInput(buildSynced(), side, back, PASS1_JOINTS, trunkLegs));
+  let cal: Calibration | null = calibrate(
+    calibInput(buildSynced(), side, back, PASS1_JOINTS, trunkLegs)
+  );
   if (!cal) return fail('calibration', q0);
 
   /*
@@ -227,7 +314,8 @@ export function analyzePitch3d(input: Pitch3dInput): Pitch3dResult {
   backTime = refineSync(side, back, backTime, cal, backDt, ALL_JOINTS);
 
   /* 보정 2차(모든 관절) → 시간 한 번 더 */
-  cal = calibrate(calibInput(buildSynced(), side, back, CALIB_JOINTS, trunkLegs)) ?? cal;
+  cal =
+    calibrate(calibInput(buildSynced(), side, back, CALIB_JOINTS, trunkLegs)) ?? cal;
   backTime = refineSync(side, back, backTime, cal, backDt, ALL_JOINTS);
   const synced = buildSynced();
   const shifts = side.frames.flatMap((_, i) =>
@@ -249,7 +337,8 @@ export function analyzePitch3d(input: Pitch3dInput): Pitch3dResult {
     const ls: number[] = [];
     synced.forEach((s, k) => {
       const ok = (j: number) => s.side[j].v >= 0.7 && s.back[j].v >= 0.7;
-      if (ok(c) && ok(p) && raw[k][c] && raw[k][p]) ls.push(norm(sub(raw[k][c]!, raw[k][p]!)));
+      if (ok(c) && ok(p) && raw[k][c] && raw[k][p])
+        ls.push(norm(sub(raw[k][c]!, raw[k][p]!)));
     });
     if (ls.length >= 5) boneLen.set(c, median(ls));
   }
@@ -290,10 +379,22 @@ export function analyzePitch3d(input: Pitch3dInput): Pitch3dResult {
        * (간격 0.5L), 늘 가까운 뿌리로 하면 거의 접할 때 반대쪽으로 튀었다(합성).
        */
       const ref = X ?? prevFixed[j] ?? pts[p]!;
-      const near = norm(sub(roots[0], ref)) <= norm(sub(roots[1], ref)) ? roots[0] : roots[1];
-      const midP: Vec3 = [(roots[0][0] + roots[1][0]) / 2, (roots[0][1] + roots[1][1]) / 2, (roots[0][2] + roots[1][2]) / 2];
-      const wgt = Math.max(0, Math.min(1, (norm(sub(roots[0], roots[1])) / L - 0.15) / 0.35));
-      return [midP[0] + (near[0] - midP[0]) * wgt, midP[1] + (near[1] - midP[1]) * wgt, midP[2] + (near[2] - midP[2]) * wgt] as Vec3;
+      const near =
+        norm(sub(roots[0], ref)) <= norm(sub(roots[1], ref)) ? roots[0] : roots[1];
+      const midP: Vec3 = [
+        (roots[0][0] + roots[1][0]) / 2,
+        (roots[0][1] + roots[1][1]) / 2,
+        (roots[0][2] + roots[1][2]) / 2,
+      ];
+      const wgt = Math.max(
+        0,
+        Math.min(1, (norm(sub(roots[0], roots[1])) / L - 0.15) / 0.35)
+      );
+      return [
+        midP[0] + (near[0] - midP[0]) * wgt,
+        midP[1] + (near[1] - midP[1]) * wgt,
+        midP[2] + (near[2] - midP[2]) * wgt,
+      ] as Vec3;
     });
     out.forEach((P, j) => {
       if (P) prevFixed[j] = P;
@@ -319,7 +420,8 @@ export function analyzePitch3d(input: Pitch3dInput): Pitch3dResult {
       const pts: Vec3[] = [];
       for (let k = k0; k <= k1; k++) {
         const win: Vec3[] = [];
-        for (let q = k - 2; q <= k + 2; q++) if (q >= 0 && q < fixed.length && fixed[q][j]) win.push(fixed[q][j]!);
+        for (let q = k - 2; q <= k + 2; q++)
+          if (q >= 0 && q < fixed.length && fixed[q][j]) win.push(fixed[q][j]!);
         if (win.length < 3) continue;
         pts.push([0, 1, 2].map((d) => median(win.map((w) => w[d]))) as Vec3);
       }
@@ -331,7 +433,9 @@ export function analyzePitch3d(input: Pitch3dInput): Pitch3dResult {
     const glv = hand === 'L' ? J.rWr : J.lWr;
     if (pathLen(glv) > pathLen(thr) * 1.4) {
       handSwapped = true;
-      for (const fr of fixed) for (const [x, y] of [...ARM_PAIRS, ...LEG_PAIRS]) [fr[x], fr[y]] = [fr[y], fr[x]];
+      for (const fr of fixed)
+        for (const [x, y] of [...ARM_PAIRS, ...LEG_PAIRS])
+          [fr[x], fr[y]] = [fr[y], fr[x]];
     }
   }
 
@@ -366,9 +470,15 @@ export function analyzePitch3d(input: Pitch3dInput): Pitch3dResult {
   const boneCv = { trunk: 0, legs: 0, upperArm: 0, forearm: 0 };
   for (const g of ['trunk', 'legs', 'upperArm', 'forearm'] as const) {
     const cvs = BONES.filter((b) => b.group === g)
-      .map((b) => robustCv(smooth.flatMap((p) => (p[b.a] && p[b.b] ? [norm(sub(p[b.a]!, p[b.b]!))] : []))))
+      .map((b) =>
+        robustCv(
+          smooth.flatMap((p) => (p[b.a] && p[b.b] ? [norm(sub(p[b.a]!, p[b.b]!))] : []))
+        )
+      )
       .filter(Number.isFinite);
-    boneCv[g] = cvs.length ? Math.round((cvs.reduce((a, c) => a + c, 0) / cvs.length) * 1000) / 10 : NaN;
+    boneCv[g] = cvs.length
+      ? Math.round((cvs.reduce((a, c) => a + c, 0) / cvs.length) * 1000) / 10
+      : NaN;
   }
   const spread = cal.focalSpread;
   const quality: Pitch3dQuality = {
@@ -380,11 +490,20 @@ export function analyzePitch3d(input: Pitch3dInput): Pitch3dResult {
       back: Math.round((cal.back.f / Math.max(back.W, back.H)) * 100) / 100,
       spread: Math.round(spread * 100) / 100,
     },
-    density: { side: Math.round(side.density * 10) / 10, back: Math.round(back.density * 10) / 10 },
+    density: {
+      side: Math.round(side.density * 10) / 10,
+      back: Math.round(back.density * 10) / 10,
+    },
     coverage: Math.round(covered * 100) / 100,
     syncCost: Math.round(sync.cost * 1000) / 1000,
     calibration: spread <= 0.2 ? 'high' : spread <= 0.45 ? 'medium' : 'low',
-    flips: { side: side.flips, back: back.flips, repaired, handSwapped, backMirrored: sync.backMirrored },
+    flips: {
+      side: side.flips,
+      back: back.flips,
+      repaired,
+      handSwapped,
+      backMirrored: sync.backMirrored,
+    },
     travelVsBackDeg: null,
     offsetFrames,
   };
@@ -394,7 +513,8 @@ export function analyzePitch3d(input: Pitch3dInput): Pitch3dResult {
     start: evIdx.kneeUp ?? 0,
     footPlant: evIdx.footPlant,
   });
-  quality.travelVsBackDeg = axes.travelVsBackDeg == null ? null : Math.round(axes.travelVsBackDeg);
+  quality.travelVsBackDeg =
+    axes.travelVsBackDeg == null ? null : Math.round(axes.travelVsBackDeg);
   const H = bodyHeight(smooth, axes.U, evIdx.kneeUp ?? Math.min(5, smooth.length - 1));
   if (!H || !(H > 0)) return fail('calibration', quality);
 
@@ -417,28 +537,95 @@ export function analyzePitch3d(input: Pitch3dInput): Pitch3dResult {
   if (inconsistent) warnings.add('consistency');
   const axisAngle = cal.axisAngleDeg;
   const factors: PmFactors = {
-    calibration: quality.calibration === 'high' ? 1 : quality.calibration === 'medium' ? 1.25 : 1.5,
-    narrow: axisAngle < 45 || axisAngle > 135 ? 1.5 : axisAngle < 60 || axisAngle > 120 ? 1.2 : 1,
+    calibration:
+      quality.calibration === 'high'
+        ? 1
+        : quality.calibration === 'medium'
+          ? 1.25
+          : 1.5,
+    narrow:
+      axisAngle < 45 || axisAngle > 135
+        ? 1.5
+        : axisAngle < 60 || axisAngle > 120
+          ? 1.2
+          : 1,
     density: Math.min(side.density, back.density) < DENSITY_MIN ? 1.3 : 1,
     vertical: warnings.has('vertical') ? 1.5 : 1,
     consistency: inconsistent ? 1.6 : 1,
   };
-  const metrics = computeMetrics(smooth, { ...axes, hand, height: H }, evIdx, factors, plantMs);
+  const metrics = computeMetrics(
+    smooth,
+    { ...axes, hand, height: H },
+    evIdx,
+    factors,
+    plantMs
+  );
 
   /* 결과 좌표 — [앞, 위, 오른쪽] · 키 = 1 · 원점 = 착지 때 뒷발목, 높이 0 = 가장 낮은 발목 */
   const R3: Vec3 = cross(axes.F, axes.U);
   const backAn = hand === 'L' ? J.lAn : J.rAn;
-  const origin = smooth[evIdx.footPlant][backAn] ?? smooth[evIdx.footPlant][J.lHip] ?? [0, 0, 0];
+  const origin = smooth[evIdx.footPlant][backAn] ??
+    smooth[evIdx.footPlant][J.lHip] ?? [0, 0, 0];
   let ground = Infinity;
-  for (const p of smooth) for (const j of [J.lAn, J.rAn]) if (p[j]) ground = Math.min(ground, dot(sub(p[j]!, origin), axes.U));
+  for (const p of smooth)
+    for (const j of [J.lAn, J.rAn])
+      if (p[j]) ground = Math.min(ground, dot(sub(p[j]!, origin), axes.U));
   if (!Number.isFinite(ground)) ground = 0;
-  const keep = decimate(smooth.length, MAX_FRAMES, [evIdx.footPlant, evIdx.release, evIdx.kneeUp]);
+  return {
+    hand,
+    side,
+    back,
+    cal,
+    synced,
+    backTime,
+    smooth,
+    evIdx,
+    axes,
+    H,
+    origin,
+    ground,
+    R3,
+    quality,
+    warnings: [...warnings],
+    factors,
+    plantMs,
+    metrics,
+  };
+}
+
+/** v1 결과 — core 의 다듬은 관절을 결과 좌표로(장면 400 상한, 순간은 꼭 남긴다) */
+export function analyzePitch3d(input: Pitch3dInput): Pitch3dResult {
+  const c = analyzePitch3dCore(input);
+  if ('ok' in c) return c;
+  const {
+    hand,
+    smooth,
+    evIdx,
+    axes,
+    H,
+    origin,
+    ground,
+    R3,
+    synced,
+    quality,
+    warnings,
+    metrics,
+  } = c;
+  const keep = decimate(smooth.length, MAX_FRAMES, [
+    evIdx.footPlant,
+    evIdx.release,
+    evIdx.kneeUp,
+  ]);
   const r3 = (v: number) => Math.round(v * 1000) / 1000;
   const joints = keep.map((k) =>
     smooth[k].map((P) => {
       if (!P) return null;
       const d = sub(P, origin);
-      return [r3(dot(d, axes.F) / H), r3((dot(d, axes.U) - ground) / H), r3(dot(d, R3) / H)];
+      return [
+        r3(dot(d, axes.F) / H),
+        r3((dot(d, axes.U) - ground) / H),
+        r3(dot(d, R3) / H),
+      ];
     })
   );
   const remap = (k: number | null) => (k == null ? null : keep.indexOf(k));
@@ -448,13 +635,16 @@ export function analyzePitch3d(input: Pitch3dInput): Pitch3dResult {
     hand,
     t: keep.map((k) => Math.round(synced[k].t * 1000) / 1000),
     joints,
-    events: { kneeUp: remap(evIdx.kneeUp), footPlant: remap(evIdx.footPlant)!, release: remap(evIdx.release)! },
+    events: {
+      kneeUp: remap(evIdx.kneeUp),
+      footPlant: remap(evIdx.footPlant)!,
+      release: remap(evIdx.release)!,
+    },
     metrics,
     quality,
-    warnings: [...warnings],
+    warnings,
   };
 }
-
 
 /** 옆 장면 시각 t 에 해당하는 뒤 시각(옆 장면 사이 보간) */
 function timeAt(side: View, backTime: (number | null)[], t: number): number | null {
@@ -474,7 +664,9 @@ function timeAt(side: View, backTime: (number | null)[], t: number): number | nu
 
 /** 뒤 시각 → 옆 시각(단조 대응을 뒤집어 보간) */
 function invertTimes(side: View, backTime: (number | null)[]) {
-  const pairs = side.frames.flatMap((f, i) => (backTime[i] != null ? [[backTime[i]!, f.t] as [number, number]] : []));
+  const pairs = side.frames.flatMap((f, i) =>
+    backTime[i] != null ? [[backTime[i]!, f.t] as [number, number]] : []
+  );
   return (bt: number): number | null => {
     if (pairs.length < 2 || bt < pairs[0][0] || bt > pairs.at(-1)![0]) return null;
     let k = 1;
@@ -486,7 +678,14 @@ function invertTimes(side: View, backTime: (number | null)[]) {
 }
 
 /** 장면 한 쌍의 다시 비춤 오차(관절 평균, 사람 비율) — 관절이 4개 밑이면 null */
-function pairReproj(cal: Calibration, a: Obs[], b: Obs[], joints: number[], ps: number, pb: number): number | null {
+function pairReproj(
+  cal: Calibration,
+  a: Obs[],
+  b: Obs[],
+  joints: number[],
+  ps: number,
+  pb: number
+): number | null {
   let s = 0;
   let n = 0;
   for (const j of joints) {
@@ -499,7 +698,11 @@ function pairReproj(cal: Calibration, a: Obs[], b: Obs[], joints: number[], ps: 
       n++;
       continue;
     }
-    s += Math.min(1, Math.hypot(pa[0] - a[j].x, pa[1] - a[j].y) / ps + Math.hypot(pbb[0] - b[j].x, pbb[1] - b[j].y) / pb);
+    s += Math.min(
+      1,
+      Math.hypot(pa[0] - a[j].x, pa[1] - a[j].y) / ps +
+        Math.hypot(pbb[0] - b[j].x, pbb[1] - b[j].y) / pb
+    );
     n++;
   }
   return n >= 4 ? s / n : null;
@@ -510,7 +713,14 @@ function pairReproj(cal: Calibration, a: Obs[], b: Obs[], joints: number[], ps: 
  * 거의 없음)은 덜 믿고, 이웃 9장면 가중 중앙값 → 5장면 평균 → 단조로 다듬는다.
  */
 /* 시험 · 진단용으로도 내보낸다 */
-export function refineSync(side: View, back: View, backTime: (number | null)[], cal: Calibration, backDt: number, joints: number[]) {
+export function refineSync(
+  side: View,
+  back: View,
+  backTime: (number | null)[],
+  cal: Calibration,
+  backDt: number,
+  joints: number[]
+) {
   const steps = Array.from({ length: 25 }, (_, k) => ((k - 12) * backDt) / 4);
   const shift: (number | null)[] = [];
   const weight: number[] = [];
@@ -624,7 +834,9 @@ export function refineSync(side: View, back: View, backTime: (number | null)[], 
   });
   /* 국소 회귀가 직선에서 반 장면 넘게 벗어나는 장면이 ¼ 넘으면 실제 휨 — 그때만 국소 회귀 */
   const loc = huberFit(fitAt).est;
-  const bent = shift.filter((y, k) => y != null && Math.abs(loc[k] - g.est[k]) > backDt / 2).length;
+  const bent = shift.filter(
+    (y, k) => y != null && Math.abs(loc[k] - g.est[k]) > backDt / 2
+  ).length;
   const sm = bent > shift.filter((y) => y != null).length / 4 ? loc : g.est;
   const out = backTime.map((bt, i) => (bt == null ? null : bt + sm[i]));
   /* 단조 — 앞 장면보다 늦게 */
@@ -708,26 +920,50 @@ export function readPitch3dResult(raw: unknown): Pitch3dResult | null {
   if (typeof r.version !== 'string' || !/^\d+\.\d+\.\d+$/.test(r.version)) return null;
   if (r.ok === false) {
     if (typeof r.code !== 'string' || !(r.code in FAIL_TEXT)) return null;
-    return { ok: false, version: r.version, code: r.code as FailCode, reason: FAIL_TEXT[r.code as FailCode] };
+    return {
+      ok: false,
+      version: r.version,
+      code: r.code as FailCode,
+      reason: FAIL_TEXT[r.code as FailCode],
+    };
   }
   if (r.ok !== true || (r.hand !== 'R' && r.hand !== 'L')) return null;
   const t = r.t;
   const joints = r.joints;
-  if (!Array.isArray(t) || !Array.isArray(joints) || t.length !== joints.length || t.length === 0 || t.length > MAX_FRAMES + 3)
+  if (
+    !Array.isArray(t) ||
+    !Array.isArray(joints) ||
+    t.length !== joints.length ||
+    t.length === 0 ||
+    t.length > MAX_FRAMES + 3
+  )
     return null;
   if (!t.every(isNum)) return null;
   for (const fr of joints) {
     if (!Array.isArray(fr) || fr.length !== N_JOINTS) return null;
-    for (const p of fr) if (p !== null && !(Array.isArray(p) && p.length === 3 && p.every(isNum))) return null;
+    for (const p of fr)
+      if (p !== null && !(Array.isArray(p) && p.length === 3 && p.every(isNum)))
+        return null;
   }
   const e = r.events as Record<string, unknown> | undefined;
-  const okIdx = (v: unknown) => Number.isInteger(v) && (v as number) >= 0 && (v as number) < t.length;
-  if (!e || !okIdx(e.footPlant) || !okIdx(e.release) || !(e.kneeUp === null || okIdx(e.kneeUp))) return null;
+  const okIdx = (v: unknown) =>
+    Number.isInteger(v) && (v as number) >= 0 && (v as number) < t.length;
+  if (
+    !e ||
+    !okIdx(e.footPlant) ||
+    !okIdx(e.release) ||
+    !(e.kneeUp === null || okIdx(e.kneeUp))
+  )
+    return null;
   if (!Array.isArray(r.metrics)) return null;
   for (const m of r.metrics as Record<string, unknown>[]) {
     if (!m || typeof m.key !== 'string' || !isNum(m.value) || !isNum(m.pm)) return null;
   }
   if (!r.quality || typeof r.quality !== 'object') return null;
-  if (!Array.isArray(r.warnings) || !r.warnings.every((w) => typeof w === 'string' && w in WARNING_TEXT)) return null;
+  if (
+    !Array.isArray(r.warnings) ||
+    !r.warnings.every((w) => typeof w === 'string' && w in WARNING_TEXT)
+  )
+    return null;
   return raw as Pitch3dOk;
 }

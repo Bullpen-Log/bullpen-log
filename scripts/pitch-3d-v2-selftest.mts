@@ -29,6 +29,21 @@ import {
   type Pitch3dV2Ok,
 } from '../lib/pitch-3d/v2/contract.ts';
 import { J, JOINTS, N_JOINTS } from '../lib/pitch-3d/motion.ts';
+import { analyzePitch3d, type Pitch3dOk as V1Ok } from '../lib/pitch-3d/analyze.ts';
+import { project } from '../lib/pitch-3d/camera.ts';
+import type { MetricKey } from '../lib/pitch-3d/metrics.ts';
+import { fitPitch3dV2 } from '../lib/pitch-3d/v2/fit.ts';
+import { pickSegment, runFit } from '../lib/pitch-3d/v2/run-node.ts';
+import { toPoseTrack } from '../lib/pitch-3d/v2/track.ts';
+import {
+  base,
+  cameras,
+  EV,
+  realistic,
+  truthMetrics,
+  type Scenario,
+} from './pitch-lab/synth.mts';
+import { makeV2Track } from './pitch-lab/synth-v2.mts';
 
 let passed = 0;
 let failed = 0;
@@ -400,6 +415,317 @@ console.log('■ 작업 상태(job.json)');
     v2WaitingText(q, T0 + 60_000).includes('1~2분') &&
       v2WaitingText(q, T0 + 5 * 60_000).includes('조금 더') &&
       v2WaitingText(q, T0 + 11 * 60_000).includes('15분')
+  );
+}
+
+/* ───────────────────────────── 맞추기 엔진(합성 투수) ───────────────────────────── */
+console.log('■ 맞추기 엔진 — 합성 투수(25관절)');
+const p95 = (xs: number[]) => {
+  const s = [...xs].sort((a, b) => a - b);
+  return s.length ? s[Math.min(s.length - 1, Math.floor(s.length * 0.95))] : 0;
+};
+/** v1 결과(키 = 1)의 장면 사이 가속 p95 — 빈 관절은 건너뜀 */
+const accelV1 = (r: V1Ok) => {
+  const acc: number[] = [];
+  for (let k = 1; k < r.joints.length - 1; k++)
+    for (let j = 0; j < N_JOINTS; j++) {
+      const a = r.joints[k - 1][j];
+      const b = r.joints[k][j];
+      const c = r.joints[k + 1][j];
+      if (a && b && c)
+        acc.push(
+          Math.hypot(
+            c[0] - 2 * b[0] + a[0],
+            c[1] - 2 * b[1] + a[1],
+            c[2] - 2 * b[2] + a[2]
+          )
+        );
+    }
+  return p95(acc);
+};
+function runV2(sc: Scenario, seed: number) {
+  const { side: camS, back: camB } = cameras(sc);
+  const s = makeV2Track(sc, camS, sc.side, 'side', seed * 10 + 1);
+  const b = makeV2Track(sc, camB, sc.back, 'back', seed * 10 + 2);
+  const events = {
+    kneeUp: s.toMedia(EV.kneeUp),
+    footPlant: s.toMedia(EV.footPlant),
+    release: s.toMedia(EV.release),
+  };
+  const t0 = Date.now();
+  const { result, debug } = fitPitch3dV2({
+    side: s.track,
+    back: b.track,
+    hand: sc.hand,
+    heightCm: 183,
+    jobId: JOB_ID,
+    poseModel: 'synth',
+    screenRecorded: true,
+    slowmoFps: 240,
+    events,
+  });
+  const ms = Date.now() - t0;
+  const v1 = analyzePitch3d({
+    side: toPoseTrack(s.track),
+    back: toPoseTrack(b.track),
+    hand: sc.hand,
+    screenRecorded: true,
+    slowmoFps: 240,
+    events,
+  });
+  /* 지표 오차(진짜 3D 에서 같은 지표 함수로, synth.run 과 같은 길) */
+  const errors: Partial<Record<MetricKey, number>> = {};
+  if (result.ok) {
+    const keys = [...s.contentReal.keys()];
+    const realOf = (tm: number) => {
+      let best = keys[0];
+      for (const k of keys) if (Math.abs(k - tm) < Math.abs(best - tm)) best = k;
+      return s.contentReal.get(best)!;
+    };
+    const truth = truthMetrics(sc, result.t.map(realOf), {
+      kneeUp: result.events.kneeUp ?? 0,
+      footPlant: result.events.footPlant,
+      release: result.events.release,
+    });
+    for (const m of result.metrics) {
+      const tr = truth.find((x) => x.key === m.key);
+      if (tr) errors[m.key] = m.value - tr.value;
+    }
+  }
+  return { result, debug, v1, ms, errors, side2d: s.track };
+}
+/* v1 시험의 기준(빠른 판 — 무너짐을 잡는 넉넉한 문턱)과 같다. 어깨 벌림만 2.5 — 뼈 길이를 좌우 같은 값으로 굳히면 깨끗한 합성에서도 2° 쯤 움직인다(v1 1.1°) */
+const V2_CLEAN: Partial<Record<MetricKey, number>> = {
+  trunkForwardTilt: 1.5,
+  trunkLateralTilt: 1.5,
+  separationMax: 1.5,
+  leadKneeAtPlant: 1.5,
+  strideLength: 1,
+  shoulderAbduction: 2.5,
+};
+const V2_MAX: Partial<Record<MetricKey, number>> = {
+  trunkForwardTilt: 10,
+  trunkLateralTilt: 5,
+  separationMax: 13,
+  leadKneeAtPlant: 8,
+  strideLength: 4,
+  shoulderAbduction: 14,
+};
+const V2_SCENARIOS: { sc: Scenario; budget: Partial<Record<MetricKey, number>> }[] = [
+  { sc: { ...base, name: '깨끗함' }, budget: V2_CLEAN },
+  {
+    sc: { ...base, ...realistic, name: '실제처럼(잡음 · 가려짐 · 뒤바뀜 · 슬로모 차)' },
+    budget: V2_MAX,
+  },
+  {
+    sc: {
+      ...base,
+      ...realistic,
+      hand: 'L',
+      backMirror: true,
+      name: '좌투 · 뒤 영상 거울',
+    },
+    budget: V2_MAX,
+  },
+  {
+    sc: {
+      ...base,
+      ...realistic,
+      name: '가까이 넓게(원근 강함)',
+      side: { ...base.side, D: 3.2, k: 0.9 },
+      back: { ...base.back, D: 3.4, k: 0.95 },
+    },
+    budget: V2_MAX,
+  },
+];
+for (const { sc, budget } of V2_SCENARIOS) {
+  const { result, debug, v1, ms, errors } = runV2(sc, 1);
+  if (!result.ok || !debug) {
+    check(
+      `${sc.name} — 맞추기 성공`,
+      false,
+      result.ok ? '' : `${result.code} ${result.stage}`
+    );
+    continue;
+  }
+  const n = result.t.length;
+  console.log(
+    `  · ${sc.name}: ${ms}ms · 장면 ${n} · 뼈 흔들림 ${result.fit.boneCvPct}% · 다시 비춤 ${result.fit.reprojPct}% · 채운 관절 ${result.fit.filled} · 가속 p95 ${result.fit.accelP95}(v1 ${v1.ok ? accelV1(v1).toFixed(4) : '-'}) · 엷은 구간 ${JSON.stringify(result.lowConf)} · 경고 ${result.warnings.join(',') || '없음'}`
+  );
+  check(
+    `${sc.name} · 모든 장면 · 관절이 있고 숫자(빈 칸 0)`,
+    result.joints.every(
+      (fr) => fr.length === N_V2_JOINTS && fr.every((p) => p.every(Number.isInteger))
+    ) && result.conf.every((c) => c.length === N_V2_JOINTS)
+  );
+  check(
+    `${sc.name} · 뼈 길이 흔들림 1% 밑(핵심 합격)`,
+    result.fit.boneCvPct < 1,
+    `${result.fit.boneCvPct}%`
+  );
+  if (v1.ok)
+    check(
+      `${sc.name} · 장면 사이 가속 p95 가 v1 보다 작다(핵심 합격)`,
+      result.fit.accelP95 < accelV1(v1),
+      `v2 ${result.fit.accelP95} · v1 ${accelV1(v1).toFixed(4)}`
+    );
+  check(
+    `${sc.name} · 순간 번호가 장면 안 · 착지 < 릴리스`,
+    result.events.footPlant < result.events.release && result.events.release < n
+  );
+  check(`${sc.name} · 결과 읽기 통과 · 상한 안`, 'json' in storedV2ResultJson(result));
+  for (const [key, lim] of Object.entries(budget)) {
+    const e = errors[key as MetricKey];
+    check(
+      `${sc.name} · ${key} 오차 ±${lim} 안`,
+      e != null && Math.abs(e) <= lim,
+      e == null ? '값 없음' : `${e.toFixed(2)}`
+    );
+  }
+  /* 손 · 귀가 제자리에: 손 MCP 는 같은 쪽 손목에서 뼈 길이(0.09)만큼, 귀는 코에서 0.09 — 좌우가 엇갈리면 1.5~2배로 튄다 */
+  const dist = (a: number[], b: number[]) =>
+    Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]) / 1000;
+  const handOk = result.joints.every(
+    (fr) =>
+      Math.abs(dist(fr[V2J.lHandMid], fr[V2J.lWr]) - 0.09) < 0.02 &&
+      Math.abs(dist(fr[V2J.rHandMid], fr[V2J.rWr]) - 0.09) < 0.02
+  );
+  const earOk = result.joints.every(
+    (fr) =>
+      Math.abs(dist(fr[V2J.lEar], fr[V2J.nose]) - 0.09) < 0.02 &&
+      dist(fr[V2J.lEar], fr[V2J.rEar]) > 0.1
+  );
+  check(`${sc.name} · 손 MCP 가 같은 쪽 손목에 붙어 있다`, handOk);
+  check(`${sc.name} · 귀가 코 옆에 붙어 있다`, earOk);
+  /* 왼손 MCP 는 왼손목 쪽: 왼손목과의 거리 < 오른손목과의 거리(팔이 모일 때 빼고 대부분) */
+  const sideOk = result.joints
+    .filter((fr) => dist(fr[V2J.lWr], fr[V2J.rWr]) > 0.3)
+    .every(
+      (fr) => dist(fr[V2J.lHandMid], fr[V2J.lWr]) < dist(fr[V2J.lHandMid], fr[V2J.rWr])
+    );
+  check(`${sc.name} · 왼손 점이 왼손목 쪽(좌우 안 엇갈림)`, sideOk);
+  /* 카메라를 결과 좌표계로 옮긴 것이 맞나 — 착지 장면의 어깨를 결과 카메라로 비추면 2D 관찰과 맞아야 한다 */
+  if (result.cameras) {
+    const k = result.events.footPlant;
+    const core = debug.core;
+    const obs = core.synced[k].side[J.lSh];
+    const P = result.joints[k][V2J.lSh].map((v) => v / 1000) as [
+      number,
+      number,
+      number,
+    ];
+    const pr = project(
+      { ...result.cameras.side, R: result.cameras.side.R, t: result.cameras.side.t },
+      P
+    );
+    const err = pr
+      ? Math.hypot(pr[0] - obs.x, pr[1] - obs.y) / core.side.person
+      : Infinity;
+    check(
+      `${sc.name} · 결과 카메라로 다시 비춘 어깨가 2D 관찰과 맞다(사람 높이 3% 안)`,
+      err < 0.03,
+      `${(err * 100).toFixed(1)}%`
+    );
+  }
+  /* v1 과 같은 17관절 — 결과 좌표에서 평균 거리(키 단위) */
+  if (v1.ok) {
+    let s = 0;
+    let c = 0;
+    const m = Math.min(v1.joints.length, result.joints.length);
+    for (let k = 0; k < m; k++)
+      for (let j = 0; j < N_JOINTS; j++) {
+        const a = v1.joints[k][j];
+        if (!a) continue;
+        s += dist(
+          result.joints[k][j],
+          a.map((v) => v * 1000)
+        );
+        c++;
+      }
+    const mean = c ? s / c : NaN;
+    check(
+      `${sc.name} · v1 관절과 평균 거리 키의 5% 안(같은 길 위에 뼈 길이만 고정)`,
+      mean < 0.05,
+      `${(mean * 100).toFixed(1)}%`
+    );
+  }
+}
+{
+  const { result } = runV2({ ...base, ...realistic, name: '엷은 구간' }, 2);
+  check(
+    '실제처럼 — 릴리스 근처(손목 · 팔꿈치 흐림)가 엷은 구간에 든다',
+    result.ok &&
+      result.lowConf.some(
+        ([a, b]) => a <= result.events.release && result.events.release <= b
+      ),
+    result.ok ? JSON.stringify(result.lowConf) : result.code
+  );
+  const clean = runV2({ ...base, name: '깨끗함' }, 3).result;
+  check(
+    '깨끗함 — 채운 관절 0(엷은 구간은 릴리스 흐림으로 있을 수 있다)',
+    clean.ok && clean.fit.filled === 0,
+    clean.ok
+      ? `채움 ${clean.fit.filled} · ${JSON.stringify(clean.lowConf)}`
+      : clean.code
+  );
+}
+
+console.log('■ node 실행기(segment · fit)');
+{
+  /* 원본 영상처럼 — 슬로모 배수 1(실제 시간), 60fps 로 거칠게 */
+  const sc: Scenario = {
+    ...base,
+    ...realistic,
+    name: 'segment',
+    slowSide: 1,
+    slowBack: 1,
+    offBack: 0.3,
+    sampleSide: 1 / 60,
+    sampleBack: 1 / 60,
+    sideEnd: 2.4,
+    backEnd: 2.6,
+  };
+  const { side: camS, back: camB } = cameras(sc);
+  const s = makeV2Track(sc, camS, sc.side, 'side', 41);
+  const b = makeV2Track(sc, camB, sc.back, 'back', 42);
+  const seg = pickSegment({ side: s.track, back: b.track });
+  check('구간을 고른다', seg.ok, seg.ok ? '' : seg.code);
+  if (seg.ok) {
+    const fp = s.toMedia(EV.footPlant);
+    const rel = s.toMedia(EV.release);
+    check(
+      '옆 구간이 착지 · 릴리스를 품고 600장 안',
+      seg.side.fromSec < fp && seg.side.toSec > rel && seg.frames <= MAX_V2_FRAMES,
+      JSON.stringify(seg)
+    );
+    const bFp = b.toMedia(EV.footPlant);
+    check(
+      '뒤 구간이 같은 순간(시작 어긋남 0.3초)을 품는다',
+      seg.back.fromSec < bFp && seg.back.toSec > b.toMedia(EV.release),
+      JSON.stringify(seg.back)
+    );
+    check('순간을 찾았다(착지 < 릴리스)', seg.events.footPlant < seg.events.release);
+  }
+  check('segment: 입력 모양이 틀리면 video', !pickSegment({ side: null, back: {} }).ok);
+  const json = runFit({
+    side: s.track,
+    back: b.track,
+    hand: 'R',
+    jobId: JOB_ID,
+    poseModel: 'synth',
+    screenRecorded: true,
+    slowmoFps: 240,
+  });
+  const parsed = JSON.parse(json);
+  check(
+    'fit: JSON 하나로 돌려주고 읽기 검사를 지난다',
+    readPitch3dV2Result(parsed) !== null && parsed.jobId === JOB_ID,
+    parsed.ok ? '' : `${parsed.code}`
+  );
+  const bad = JSON.parse(runFit({ side: 1, back: 2, jobId: JOB_ID }));
+  check(
+    'fit: 입력이 틀리면 실패 결과(video)',
+    bad.ok === false && bad.code === 'video'
   );
 }
 

@@ -350,11 +350,16 @@
      1. **끝남** 결과 약속 — `lib/pitch-3d/v2/contract.ts`(Pitch3dV2Result: 장면 × 관절 25 정수 mm · 확신 0~100 · 엷은 구간 · v1 지표 · 품질 · 카메라,
         Pitch3dV2Job 상태 기계: queued → running → done | failed, 15분 timeout, 옛 번호 버림, shownJobId 로 이전 결과 유지) ·
         `joint-map.json`(RTMW 133 → 25, 앞 17 = v1 J) · `npm run pitch3d:v2-test`(43). 600장 결과 280KB(상한 900KB). 30분.
-     2. 웹 — `lib/pitch-lab.ts`(job.json · analysis-v2-{jobId}.json · 서명 주소) · `lib/pitch-3d/v2/gpu-client.ts`(설정 있나 · 걸기 · 묻기, 프록시 키) ·
-        서버 동작 `requestPitch3dV2` · `checkPitch3dV2` · `loadPitch3dV2` · `.env.example` 이름 셋 · 목록 카드에 v2 상태. 45분.
-     3. 맞추기 엔진(TS) — `analyze.ts` 를 core(보정 · 시간 · 축)와 결과로 가르고, `lib/pitch-3d/v2/fit.ts`: 25관절 교차 → 뼈 길이 고정 · 시간 매끈 ·
-        빈 관절 채움 → 확신 · 엷은 구간 → 결과. node 실행기 `run-node.ts`(segment · fit). 합성 투수 시험(빈 칸 0 · 뼈 흔들림 1% 밑 · 가속 p95 < v1).
-        2시간.
+     2. **끝남** 웹 — `lib/pitch-lab.ts`(job.json · analysis-v2-{jobId}.json · 결과 올리기 서명 주소 · 영상 내려받기 주소 · 샘플 하나 읽기) ·
+        `lib/pitch-3d/v2/gpu-client.ts`(셋 다 있을 때만, POST /jobs 10초 · GET /jobs/{callId} 8초 → GpuStatus) · 서버 동작 `requestPitch3dV2`(동의 ·
+        영상 둘 · Busy · queued 먼저 쓰고 GPU) · `checkPitch3dV2`(done 은 결과 모양이 맞을 때만) · `loadPitch3dV2` · `.env.example` 이름 셋. 커밋 9e95c6a. 45분.
+     3. **끝남** 맞추기 엔진(TS) — `analyze.ts` 를 `analyzePitch3dCore`(보정 · 시간 · 다듬은 17관절 · 축 · 지표 재료)와 결과로 가름(계산 그대로, v1 63 통과).
+        `lib/pitch-3d/v2/fit.ts`: 나머지 8관절(귀 · 손 MCP)은 v1 이 정한 좌우에 붙여(손은 가장 가까운 손목) 교차, 뼈 길이 = 잘 보인 장면 중앙값(좌우 같이),
+        PBD(관찰 당김 → 시간 매끈 → 뼈 투영 앞뒤 훑기) 24번 + 다듬기 8번, 빈 관절은 부모 · 앞 장면으로 채움(확신 0), 장면 확신 = min(17 평균, 던지는 팔 평균)
+        → 엷은 구간, 품질(뼈 흔들림 · 다시 비춤 · 가속 p95(17관절)), v1 지표를 맞춘 17관절로 다시 셈, 카메라를 결과 좌표계로. `run-node.ts`(segment:
+        거친 60fps 두 영상 → 구간 · 순간 · 뒤 영상 구간, fit: 모양 검사 → 결과 JSON). `track.ts`(25 → MediaPipe 33). 합성 투수 25관절
+        `scripts/pitch-lab/synth-v2.mts`. **잰 값(합성, 씨앗 1)**: 뼈 흔들림 0%(v1 2~6%) · 가속 p95 깨끗함 0.0011(v1 0.0022) · 실제처럼 0.0103(v1 0.0323) ·
+        채운 관절 0 · 다시 비춤 0.1~1.1% · 지표 오차는 v1 기준 안(어깨 벌림만 깨끗함 2.0°, 기준 2.5 로 — 좌우 같은 뼈 길이의 값). 시험 116. 2시간.
      4. 화면 — `/videos/lab/[id]`(머리 · 3D 4:5 · 시점 Segmented · 속도 칩 · 재생 막대 엷은 구간 · 원본 두 칸 · 숫자), `analysis-v2.tsx`(동의 ·
         기다림 · 실패 두 갈래 · 다시 분석 띠), `body-3d.tsx`(three.js, body-full.glb 뼈대를 `skeleton-parts.json` 으로 15조각, 어두운 바탕 · 격자 ·
         축 · 고정 4각도 · 1배 ½ ¼ · 키보드 · 움직임 줄이기). `scripts/pitch-lab/skeleton-parts.mjs` 가 조각 표를 만든다. 2.5시간.

@@ -1,6 +1,6 @@
 import 'server-only';
-import type { GpuStatus, V2FailCode, V2Stage } from './contract';
-import { V2_FAIL_TEXT } from './contract';
+import type { GpuStatus, V2FailCode, V2Stage } from '@/lib/pitch-3d/v2/contract';
+import { V2_FAIL_TEXT } from '@/lib/pitch-3d/v2/contract';
 
 /**
  * 클라우드 GPU 함수(Modal) 부르기 — 서버 동작만 쓴다(설계 pitch-3d-quality.md 기술 D1: 알림 주소 없음, 작업 번호로 상태를 묻는다).

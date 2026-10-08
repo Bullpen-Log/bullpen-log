@@ -112,6 +112,10 @@ export type V2Input = {
   jobId: string;
   /** 2D 모델 이름(예: rtmw-l-384) — GPU 가 적는다 */
   poseModel: string;
+  /** 시험용(합성 투수) — 화면 녹화 · 슬로모 · 아는 순간. GPU 는 원본 영상이라 안 준다 */
+  screenRecorded?: boolean;
+  slowmoFps?: number | null;
+  events?: { kneeUp?: number | null; footPlant: number; release: number };
 };
 
 /* ───────────────────────────── 결과 ───────────────────────────── */
