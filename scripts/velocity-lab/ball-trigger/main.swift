@@ -42,7 +42,7 @@ for path in CommandLine.arguments.dropFirst() {
     tl = t
     let c = Date()
     if let h = trig.feed(sb) {
-      hits.append(String(format: "%@ %.2fs(len %d, 넓이 %.0f→%.0f, 자리 %.0f,%.0f)", h.kind, h.atSec - t0, h.length, h.areaFirst, h.areaLast, h.x, h.y))
+      hits.append(String(format: "%@ %.2fs(len %d, 넓이 %.0f→%.0f, 자리 %.0f,%.0f, s %.0f)", h.kind, h.atSec - t0, h.length, h.areaFirst, h.areaLast, h.x, h.y, h.strength))
     }
     ms += Date().timeIntervalSince(c) * 1000
     n += 1

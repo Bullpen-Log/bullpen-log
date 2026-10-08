@@ -17,7 +17,7 @@ import WebKit
 /// 보정이 꺼졌으면 'format'). 15 Pro Max 는 보정을 켜면 렌즈 값을 주지 않는다(2026-10-08 잼).
 ///
 /// 측정용 장면을 웹으로 실시간(초당 60장) 넘기지 않는다 — 그 길이 충분히 빠를지 알 수 없어서다. 대신
-///   1. 두 카메라를 1초 조각(fMP4)으로 이어 녹화해 최근 8초를 쥐고 있다(SegmentRecorder)
+///   1. 두 카메라를 0.5초 조각(fMP4)으로 이어 녹화해 최근 8초를 쥐고 있다(SegmentRecorder)
 ///   2. 일반 카메라 장면의 움직임으로 던짐을 알아채 사이트에 알린다(MotionTrigger → 'throw' 알림, 시각 atSec)
 ///   3. 사이트가 clip({ atSec }) 으로 청하면 그 앞뒤를 두 카메라 다 잘라 파일로 넘긴다(read 로 조금씩 읽어 간다)
 ///   4. 사이트는 일반 카메라 클립을 영상 파일 엔진(lib/velocity-engine/analyze-video.ts)으로 잰다 — 보정을 마친 길이다
@@ -1045,7 +1045,7 @@ final class DualCameraController: NSObject, AVCaptureVideoDataOutputSampleBuffer
                 #if DEBUG
                 lab.event(hit)
                 #endif
-                onThrow?(hit.atSec, hit.strength, hit.kind)
+                if hit.kind == "end" { noteBallEnd(hit) } else { onThrow?(hit.atSec, hit.strength, hit.kind) }
             }
         } else if output === wideOutput {
             wideRecorder.append(sampleBuffer)
@@ -1304,6 +1304,28 @@ final class DualCameraController: NSObject, AVCaptureVideoDataOutputSampleBuffer
 
     // MARK: 클립
 
+    /*
+     * 알린 공이 그물에 닿은 때 — 공 알림 시각 → 공을 마지막으로 본 시각. 클립을 거기서 일찍 끊는다(makeClips). 그물이 흔들려(덩어리가
+     * 넘침) 끝났고 알림 뒤 0.35초 넘게 날았을 때만 믿는다 — 밖 6개는 엔진이 정한 끝과 0.04초 안, 작아져 놓친 공(이어지지 않음)과
+     * 실내에서 몸 · 포수 움직임으로 일찍 끊긴 것(0.13 · 0.28초)은 거른다. 150km/h 공도 20m 를 0.35초 넘게 난다.
+     */
+    private var ballEnds: [(at: Double, end: Double)] = []
+    private let ballEndLock = NSLock()
+    private func noteBallEnd(_ hit: MotionTrigger.Hit) {
+        guard hit.strength == MotionTrigger.END_NET, hit.atSec - hit.ballAt >= 0.35 else { return }
+        ballEndLock.lock()
+        ballEnds.append((hit.ballAt, hit.atSec))
+        if ballEnds.count > 8 { ballEnds.removeFirst() }
+        ballEndLock.unlock()
+    }
+    private func ballEnd(for at: Double) -> Double? {
+        ballEndLock.lock()
+        defer { ballEndLock.unlock() }
+        return ballEnds.last { abs($0.at - at) < 0.02 }?.end
+    }
+    /// 그물에 닿은 뒤 더 담는 시간(초) — 엔진은 끝 뒤 6장쯤(맞고 튐)을 본다. 0.3 이면 배경 장면이 줄어 값이 1~2% 흔들려 넉넉히
+    static let BALL_END_PAD = 0.45
+
     func makeClips(
         at: Double,
         before: Double,
@@ -1311,11 +1333,16 @@ final class DualCameraController: NSObject, AVCaptureVideoDataOutputSampleBuffer
         completion: @escaping (Result<(main: DualClip, wide: DualClip?), DualCameraError>) -> Void
     ) {
         clipQueue.async {
-            /* 던진 뒤 after 초까지 담긴 조각이 닫힐 때까지 기다린다(조각 1초 — 보통 2초 안) */
+            /*
+             * 던진 뒤 after 초까지 담긴 조각이 닫힐 때까지 기다린다(조각 0.5초). 공이 그물에 닿은 때를 알면 그 뒤 0.45초에서 일찍
+             * 끊는다 — 빠른 공은 알림 뒤 0.6초면 닿는데 늘 1.6초를 기다렸다(결과를 빨리 — 2026-10-08)
+             */
             let deadline = Date().addingTimeInterval(5)
-            let until = at + after
-            while Date() < deadline, (self.mainRecorder.latestEnd ?? 0) < until {
-                Thread.sleep(forTimeInterval: 0.1)
+            var until = at + after
+            while Date() < deadline {
+                if let end = self.ballEnd(for: at) { until = min(at + after, end + DualCameraController.BALL_END_PAD) }
+                if (self.mainRecorder.latestEnd ?? 0) >= until { break }
+                Thread.sleep(forTimeInterval: 0.05)
             }
             while self.wide != nil, Date() < deadline, (self.wideRecorder.latestEnd ?? 0) < until {
                 Thread.sleep(forTimeInterval: 0.1)
@@ -1431,7 +1458,8 @@ final class SegmentRecorder: NSObject, AVAssetWriterDelegate {
     private func start(at pts: CMTime, _ s: (width: Int, height: Int, fps: Int32, transform: CGAffineTransform)) {
         let writer = AVAssetWriter(contentType: UTType.mpeg4Movie)
         writer.outputFileTypeProfile = .mpeg4AppleHLS
-        writer.preferredOutputSegmentInterval = CMTime(seconds: 1, preferredTimescale: 600)
+        /* 조각 0.5초 — 클립은 담을 끝이 든 조각이 닫혀야 자른다(1초면 평균 0.5초를 더 기다렸다) */
+        writer.preferredOutputSegmentInterval = CMTime(seconds: 0.5, preferredTimescale: 600)
         writer.initialSegmentStartTime = pts
         writer.delegate = self
         let input = AVAssetWriterInput(mediaType: .video, outputSettings: [
@@ -1440,7 +1468,7 @@ final class SegmentRecorder: NSObject, AVAssetWriterDelegate {
             AVVideoHeightKey: s.height,
             AVVideoCompressionPropertiesKey: [
                 AVVideoAverageBitRateKey: bitrate,
-                AVVideoMaxKeyFrameIntervalDurationKey: 1.0,
+                AVVideoMaxKeyFrameIntervalDurationKey: 0.5,
                 AVVideoExpectedSourceFrameRateKey: Int(s.fps),
                 AVVideoProfileLevelKey: AVVideoProfileLevelH264HighAutoLevel,
                 /* B 장면 없이 — 보이는 차례 = 담긴 차례라 장면 시각을 그대로 쓴다 */
@@ -1750,6 +1778,8 @@ final class MotionTrigger {
         let areaLast: Double
         let x: Double
         let y: Double
+        /// 'end'(알린 공의 길이 끊김 — 그물 · 미트에 닿거나 놓침)일 때 그 공을 알린 시각(atSec 은 공을 마지막으로 본 시각)
+        var ballAt = 0.0
     }
 
     private struct Point {
@@ -1790,6 +1820,8 @@ final class MotionTrigger {
     private var frame = 0
     private var tracks: [[Point]] = []
     private var lastHit = -Double.infinity
+    /// 알린 공의 길 — 알린 뒤에도 이어 가다 3장 넘게 안 이어지면 'end' 를 한 번 알린다(앱이 클립을 거기서 일찍 끊는다)
+    private var follow: [Point]?
 
     /// 장면의 몇 할이 한꺼번에 바뀌면 그 장면을 버리나
     static let GLOBAL_FRACTION = 0.12
@@ -1934,10 +1966,10 @@ final class MotionTrigger {
         var over = 0
         for j in my..<(gh - my) { for i in mx..<(gw - mx) where Int(d[j * gw + i]) > thr { over += 1 } }
         if Double(over) / Double(n) > MotionTrigger.GLOBAL_FRACTION {
-            /* 초점 · 노출 · 폰 흔들림 — 공도 움직임도 아니다 */
+            /* 초점 · 노출 · 폰 흔들림 — 공도 움직임도 아니다(따라가던 공은 여기서 끝으로 본다) */
             tracks.removeAll()
             motionQuietSince = tb
-            return nil
+            return endFollow(MotionTrigger.END_GLOBAL)
         }
 
         /* 덩어리(4이웃) */
@@ -1976,6 +2008,8 @@ final class MotionTrigger {
         /* 잔 덩어리가 너무 많은 장면(흔들리는 그물 · 잎) — 공을 믿고 가를 수 없다. 움직임 세기만 본다 */
         guard blobs.count <= MotionTrigger.MAX_BLOBS else {
             tracks.removeAll()
+            /* 따라가던 공이 그물에 맞아 그물이 흔들린다 — 거기가 끝 */
+            if let end = endFollow(MotionTrigger.END_NET) { return end }
             return armed ? motionHit(energy: energy, t: tb) : nil
         }
         var points: [Point] = []
@@ -2019,17 +2053,53 @@ final class MotionTrigger {
         for (k, p) in points.enumerated() where !used[k] && kept.count < 80 { kept.append([p]) }
         tracks = kept
 
+        if var fl = follow, let last = fl.last {
+            /* 알린 공을 이어 간다 — 길 잇기와 같은 자리 · 넓이 조건(다른 길이 가져간 덩어리여도 된다) */
+            let prev = fl[fl.count - 2]
+            let df = Double(max(1, last.f - prev.f))
+            let px = last.x + (last.x - prev.x) / df * Double(fb - last.f)
+            let py = last.y + (last.y - prev.y) / df * Double(fb - last.f)
+            var best: Point?
+            var bestD = maxStep * Double(fb - last.f)
+            for p in points where p.a / last.a > 0.33 && p.a / last.a < 3 {
+                let dd = hypot(p.x - px, p.y - py)
+                if dd <= bestD { bestD = dd; best = p }
+            }
+            if let best {
+                fl.append(best)
+                follow = fl
+            } else if fb - last.f > 3 {
+                return endFollow(MotionTrigger.END_LOST)
+            }
+        }
+
         guard armed else { return nil }
-        if tb - lastHit >= MotionTrigger.REST_SEC, let hit = ballHit(fb: fb, receding: receding) {
+        if tb - lastHit >= MotionTrigger.REST_SEC, let (hit, tr) = ballHit(fb: fb, receding: receding) {
             lastHit = tb
             tracks.removeAll()
+            follow = tr
             return hit
         }
         return motionHit(energy: energy, t: tb)
     }
 
+    /// 공 끝의 까닭(Hit.strength) — 이어지지 않음(작아져 놓침) · 화면이 통째로 바뀜 · 덩어리가 넘침(그물이 흔들림)
+    static let END_LOST = 0.0
+    static let END_GLOBAL = 1.0
+    static let END_NET = 2.0
+
+    /// 따라가던 공을 여기서 끝낸다 — 마지막으로 본 시각으로 'end'
+    private func endFollow(_ why: Double) -> Hit? {
+        guard let fl = follow, let last = fl.last else { return nil }
+        follow = nil
+        return Hit(
+            kind: "end", atSec: last.t, strength: why, length: fl.count, areaFirst: fl[0].a, areaLast: last.a,
+            x: last.x, y: last.y, ballAt: fl[0].t
+        )
+    }
+
     /// 확실한 공 — 6장 넘게 이은 길이 투수 뒤면 0.35배 밑으로 줄고(포수 뒤면 2.5배 넘게 크고), 거의 직선으로 갈 때
-    private func ballHit(fb: Int, receding: Bool) -> Hit? {
+    private func ballHit(fb: Int, receding: Bool) -> (Hit, [Point])? {
         for tr in tracks where tr.count >= MotionTrigger.MIN_LENGTH && tr.last?.f == fb {
             let first = tr[0], last = tr[tr.count - 1]
             /* 빠진 장면이 많지 않게 · 처음 두 장 · 끝 두 장의 넓이 */
@@ -2056,10 +2126,10 @@ final class MotionTrigger {
                 ? (a0 >= MotionTrigger.MIN_AREA && a1 <= MotionTrigger.SHRINK * a0)
                 : (a1 >= MotionTrigger.MIN_AREA && a1 >= MotionTrigger.GROW * a0)
             guard ok else { continue }
-            return Hit(
+            return (Hit(
                 kind: "ball", atSec: first.t, strength: receding ? a0 / max(1, a1) : a1 / max(1, a0),
                 length: tr.count, areaFirst: a0, areaLast: a1, x: first.x, y: first.y
-            )
+            ), tr)
         }
         return nil
     }
