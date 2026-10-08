@@ -33,7 +33,7 @@ import { analyzePitch3d, type Pitch3dOk as V1Ok } from '../lib/pitch-3d/analyze.
 import { project } from '../lib/pitch-3d/camera.ts';
 import type { MetricKey } from '../lib/pitch-3d/metrics.ts';
 import { fitPitch3dV2 } from '../lib/pitch-3d/v2/fit.ts';
-import { pickSegment, runFit } from '../lib/pitch-3d/v2/run-node.ts';
+import { pickSegment, readV2Events, runFit } from '../lib/pitch-3d/v2/run-node.ts';
 import { toPoseTrack } from '../lib/pitch-3d/v2/track.ts';
 import {
   base,
@@ -717,6 +717,15 @@ console.log('■ node 실행기(segment · fit)');
     check('순간을 찾았다(착지 < 릴리스)', seg.events.footPlant < seg.events.release);
   }
   check('segment: 입력 모양이 틀리면 video', !pickSegment({ side: null, back: {} }).ok);
+  /* segment 가 찾은 순간을 fit 이 넘겨받는다 — 잘라 낸 구간에서 다시 찾다 실패한 2026-10-08 샘플 1 · 3 */
+  check('fit 입력 순간: 착지 < 릴리스면 그대로', readV2Events({ kneeUp: 1, footPlant: 2, release: 2.5 })?.release === 2.5);
+  check('fit 입력 순간: 뒤바뀌거나 없으면 버림(다시 찾기)', !readV2Events({ footPlant: 2, release: 1 }) && !readV2Events(null));
+  if (seg.ok) {
+    const withEv = JSON.parse(
+      runFit({ side: s.track, back: b.track, hand: 'R', jobId: JOB_ID, poseModel: 'synth', screenRecorded: true, slowmoFps: 240, events: seg.events })
+    );
+    check('fit: segment 순간을 넘기면 끝까지 간다', withEv.ok === true, withEv.ok ? '' : String(withEv.code));
+  }
   const json = runFit({
     side: s.track,
     back: b.track,

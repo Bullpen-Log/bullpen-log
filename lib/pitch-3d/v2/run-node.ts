@@ -96,6 +96,17 @@ export function pickSegment(input: { side: unknown; back: unknown }): SegmentOut
   };
 }
 
+/** segment 가 찾은 순간(원본 영상 초) — 모양이 틀리면 undefined(맞추기가 구간 안에서 다시 찾는다) */
+export function readV2Events(raw: unknown): V2Input['events'] {
+  if (!raw || typeof raw !== 'object') return undefined;
+  const r = raw as Record<string, unknown>;
+  const num = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) ? v : null);
+  const footPlant = num(r.footPlant);
+  const release = num(r.release);
+  if (footPlant == null || release == null || !(release > footPlant)) return undefined;
+  return { kneeUp: num(r.kneeUp), footPlant, release };
+}
+
 /** fit 입력 모양 검사 → 맞추기 → 저장할 JSON 문자열(실패도 결과 모양이다) */
 export function runFit(raw: unknown): string {
   const r = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>;
@@ -113,6 +124,8 @@ export function runFit(raw: unknown): string {
     poseModel: typeof r.poseModel === 'string' ? r.poseModel : 'unknown',
     screenRecorded: r.screenRecorded === true,
     slowmoFps: typeof r.slowmoFps === 'number' ? r.slowmoFps : null,
+    /* 거친 전체 영상에서 찾은 순간을 넘겨받는다 — 잘라 낸 구간에서 다시 찾으면 실패했다(2026-10-08 샘플 1 · 3, fit 단계 events) */
+    events: readV2Events(r.events),
   };
   let result;
   try {

@@ -156,6 +156,8 @@ def run_job(job: dict, pose_factory: Callable[[], object], report: Report) -> di
                     "heightCm": meta.get("heightCm"),
                     "jobId": job_id,
                     "poseModel": getattr(pose, "name", "rtmw"),
+                    # segment 가 거친 전체 영상에서 찾은 순간 — 잘라 낸 구간에서 다시 찾으면 실패한다(2026-10-08 샘플 1 · 3)
+                    "events": seg.get("events"),
                 },
             )
             mark("fit")
