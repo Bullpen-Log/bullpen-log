@@ -78,6 +78,8 @@ const MAX_PENDING = 2;
  * 클립 안의 던진 때는 영상 엔진이 공으로 찾는다(find-throw).
  */
 const BALL_CLIP: [before: number, after: number] = [0.6, 1.6];
+/** 공 알림 클립에서 재는 구간 — 공이 처음 보인 때 앞 · 뒤(초). 실험대(릴리스 앞 0.15 ~ 뒤 1.4초)와 같게, 알림이 릴리스보다 조금 늦어 앞을 넉넉히 */
+const BALL_RANGE: [before: number, after: number] = [0.25, 1.45];
 const MOTION_CLIP: [before: number, after: number] = [0.5, 2.6];
 
 /** 재는 클립 하나 — 창(start ~ end, 앱 카메라 시계 초) · 화면에 띄우나 · 계산 중인가 */
@@ -87,6 +89,8 @@ type Job = {
   start: number;
   end: number;
   visible: boolean;
+  /** 공 알림으로 만든 작업 — at 이 공이 처음 보인 때다(움직임 작업이 공 알림으로 '보이게' 바뀐 것은 아님) */
+  ball: boolean;
   analyzing: boolean;
 };
 
@@ -306,6 +310,7 @@ export class DualCapture {
       start: atSec - before,
       end: atSec + after,
       visible: ball,
+      ball,
       analyzing: false,
     };
     this.jobs.push(job);
@@ -349,8 +354,20 @@ export class DualCapture {
     job.analyzing = true;
     if (gen === this.gen) this.syncStatus();
     /* fMP4 라 파일 머리에 fps · 렌즈 정보가 없다 — 앱이 알려 준 값으로 넘긴다 */
+    /*
+     * 공 알림이면 앱이 공이 처음 보인 때(eventSec)를 안다 — 영상 전체를 거칠게 훑어 공을 찾는 일(폰에서 1.85초, 계산의 절반)을
+     * 건너뛰고 그때부터 구간을 바로 준다(실험대와 같은 구간: 릴리스 앞 0.2초 ~ 뒤 1.4초). 움직임 클립은 공이 어디 있는지 몰라 훑는다.
+     */
+    const ballRange = job.ball
+      ? {
+          startSec: Math.max(0, main.eventSec - BALL_RANGE[0]),
+          endSec: Math.min(main.durationSec, main.eventSec + BALL_RANGE[1]),
+          seedT: main.eventSec,
+        }
+      : {};
     const result = await analyzeVideo({
       file: new File([blob], 'dual-main.mp4', { type: 'video/mp4' }),
+      ...ballRange,
       fps: main.fps,
       fovDeg: main.fovDeg > 0 ? main.fovDeg : this.fovDeg,
       approach: this.approach,
@@ -365,8 +382,13 @@ export class DualCapture {
       fovKnown: main.fovDeg > 0 && main.fovSource !== 'estimate',
       tiltRad: this.tiltRad,
     });
+    const tm = result.video?.timing;
     console.info(
-      `[velo] clip ${Math.round(t1 - t0)}ms · read ${Math.round(t2 - t1)}ms (${blob.size}B) · analyze ${Math.round(performance.now() - t2)}ms · ${result.measure.ok ? 'ok' : result.measure.code}`
+      `[velo] clip ${Math.round(t1 - t0)}ms · read ${Math.round(t2 - t1)}ms (${blob.size}B) · analyze ${Math.round(performance.now() - t2)}ms` +
+        (tm
+          ? ` (훑기 ${Math.round(tm.coarseMs)} · 공 찾기 ${Math.round(tm.findMs)} · 장면 ${Math.round(tm.framesMs)} · 엔진 ${Math.round(tm.analyzeMs)} · 되감기 ${tm.seeks}번 기다림 ${Math.round(tm.seekWaitMs)} · 그리기 ${Math.round(tm.drawMs)})`
+          : '') +
+        ` · ${result.measure.ok ? 'ok' : result.measure.code}`
     );
     if (gen !== this.gen) {
       await dropWide();

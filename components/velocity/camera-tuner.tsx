@@ -12,9 +12,12 @@ import type { CameraDiag, DualCapture } from '@/lib/velocity-engine/dual-capture
 export function CameraTuner({
   capture,
   onClose,
+  onTuned,
 }: {
   capture: DualCapture;
   onClose: () => void;
+  /** 바꾼 뒤의 상태 — 측정 화면이 기준 조건 밖이 됐는지(손떨림 보정 끔 · 다른 줌) 기록에 남긴다 */
+  onTuned?: (d: CameraDiag) => void;
 }) {
   const [d, setD] = useState<CameraDiag | null>(null);
   const [lens, setLens] = useState<number | null>(null);
@@ -41,7 +44,10 @@ export function CameraTuner({
     busy.current = true;
     const next = await capture.tune(t);
     busy.current = false;
-    if (next) setD(next);
+    if (next) {
+      setD(next);
+      onTuned?.(next);
+    }
     /* 막대를 끄는 사이에 쌓인 마지막 값 */
     const last = pendingLens.current;
     pendingLens.current = null;

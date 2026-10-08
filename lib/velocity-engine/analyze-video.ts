@@ -128,6 +128,8 @@ export type AnalyzeOptions = {
   distanceM?: number | null;
   /** 카메라가 아래로 숙인 각(라디안) — 찍을 때 폰 기울기 센서로 안 값. 모르면 0 */
   tiltRad?: number | null;
+  /** 공이 처음 보인 때(초, 영상 시각)를 이미 알면 — 앱 카메라의 공 알림. 구간을 줬을 때 공 찾기를 그 둘레부터 한다 */
+  seedT?: number | null;
   /** 거리를 공 크기로 어림한다(analyze-distance autoDistance) — distanceM 은 첫 어림 */
   distanceAuto?: boolean;
   /** fovDeg 가 잰 값인가(앱 동시 촬영의 videoFieldOfView) — 안 주면 파일의 렌즈 정보 · 렌즈 보정이 있을 때만 잰 값으로 본다 */
@@ -171,7 +173,17 @@ export type VideoAnalysisInfo = {
    * 걸린 시간(ms) — 폰에서 어디가 느린지 보려고. coarse: 거친 훑기 되감기 · 그리기, find: 공 찾기 계산,
    * frames: 구간 장면 · 배경 되감기 · 그리기(구간 모두), analyze: analyzeFrames(구간 모두), seeks: 되감은 횟수
    */
-  timing: { coarseMs: number; findMs: number; framesMs: number; analyzeMs: number; totalMs: number; seeks: number };
+  timing: {
+    coarseMs: number;
+    findMs: number;
+    framesMs: number;
+    analyzeMs: number;
+    totalMs: number;
+    seeks: number;
+    /** 되감기를 기다린 시간 · 그려 밝기로 읽은 시간(ms, 거친 훑기 · 구간 모두) — 어느 쪽이 느린지 */
+    seekWaitMs: number;
+    drawMs: number;
+  };
 };
 
 export type VideoAnalyzeResult = AnalyzeResult & { video: VideoAnalysisInfo; distance?: DistanceReport };
@@ -232,7 +244,7 @@ const now = () => (typeof performance !== 'undefined' ? performance.now() : Date
 
 export async function analyzeVideo(options: AnalyzeOptions): Promise<VideoAnalyzeResult> {
   const startedAt = now();
-  const timing = { coarseMs: 0, findMs: 0, framesMs: 0, analyzeMs: 0, totalMs: 0, seeks: 0 };
+  const timing = { coarseMs: 0, findMs: 0, framesMs: 0, analyzeMs: 0, totalMs: 0, seeks: 0, seekWaitMs: 0, drawMs: 0 };
   const {
     file,
     startSec,
@@ -293,13 +305,19 @@ export async function analyzeVideo(options: AnalyzeOptions): Promise<VideoAnalyz
     /* 되감아 그린다. 표가 있으면 늘 그 장면의 한가운데를 짚는다(경계에 걸려 앞 · 뒤 장면을 오가지 않게) */
     const seekTo = async (t: number) => {
       timing.seeks++;
+      const s0 = now();
       video.currentTime = t;
-      return waitForEvent(video, 'seeked', 10_000);
+      const ok = await waitForEvent(video, 'seeked', 10_000);
+      timing.seekWaitMs += now() - s0;
+      return ok;
     };
     const snap = (t: number) => (table ? seekTimeOf(table, sampleIndexAt(table, t)) : t);
     const grab = () => {
+      const d0 = now();
       ctx.drawImage(video, 0, 0, width, height);
-      return toLuma(ctx.getImageData(0, 0, width, height).data, width, height);
+      const luma = toLuma(ctx.getImageData(0, 0, width, height).data, width, height);
+      timing.drawMs += now() - d0;
+      return luma;
     };
 
     /*
@@ -465,7 +483,11 @@ export async function analyzeVideo(options: AnalyzeOptions): Promise<VideoAnalyz
               approach,
               tiltRad: options.tiltRad ?? 0,
               fps: sampleFps,
-              seedHint: plan?.ball?.accepted ? { t: plan.ball.t } : null,
+              seedHint: plan?.ball?.accepted
+                ? { t: plan.ball.t }
+                : options.seedT != null
+                  ? { t: options.seedT }
+                  : null,
               shakePx,
               autoDistance: options.distanceAuto ?? false,
             })
@@ -559,7 +581,7 @@ async function planFromCoarse(
   table: FrameTable | null,
   approach: Approach,
   focalPerSourceWidth: number,
-  timing: { findMs: number; seeks: number },
+  timing: { findMs: number; seeks: number; seekWaitMs: number; drawMs: number },
   onProgress?: (ratio: number) => void
 ): Promise<ThrowPlan> {
   const w = COARSE_WIDTH;
@@ -584,10 +606,16 @@ async function planFromCoarse(
   const drawAt = async (t: number) => {
     const { seek, label } = at(t);
     timing.seeks++;
+    const s0 = now();
     video.currentTime = seek;
-    if (!(await waitForEvent(video, 'seeked', 10_000))) return null;
+    const ok = await waitForEvent(video, 'seeked', 10_000);
+    timing.seekWaitMs += now() - s0;
+    if (!ok) return null;
+    const d0 = now();
     ctx.drawImage(video, 0, 0, w, h);
-    return { label, luma: toLuma(ctx.getImageData(0, 0, w, h).data, w, h) };
+    const luma = toLuma(ctx.getImageData(0, 0, w, h).data, w, h);
+    timing.drawMs += now() - d0;
+    return { label, luma };
   };
 
   /* 고른 격자 — 가장 크게 움직인 때는 예전과 똑같이(앞 장과 차이 합이 가장 큰 사이의 한가운데) */
