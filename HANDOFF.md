@@ -80,6 +80,8 @@ ink 쪽으로 — 어렵다면 B 만). 나는 Swift 를 굽지 못해 손대지 
 - (2.3.7) 손떨림 보정이 자르는 몫을 폰에서 쟀다 — 15 Pro Max(1080p · 2배)는 1.096 배(짐작 1.1). 잰 기종은 화각 출처가 'measured' 라
   거리 자동이어도 ± 를 넓히거나 믿음을 '낮음'으로 낮추지 않는다(`DualCameraPlugin.swift` STAB_CROP_MEASURED). 15 Pro Max 는 보정을 켜면
   렌즈 값(intrinsics)을 주지 않는다. 네 폰도 재 볼 수 있다: 맥에서 깐 개발용 앱 → 카메라 단계에서 폰을 세워 두기 → `scripts/velocity-lab/fov-crop.mjs`(README 7).
+- 기준 밖 공(`analysis.offStandard` 가 빈 배열이 아님)은 스피드건 보정 짝에서 뺀다(`app/actions/velocity.ts` loadCalibration). 관리자 공
+  미리보기에 '기준 밖' 배지와 까닭(`explorer-panels.tsx`, `AdminPitchAnalysis.offStandard`). 관리자 통계(편향 · p90)는 예전처럼 다 섞어 센다.
 
 ## 금윤호에게 — 2026-10-07 · 김민(Claude) — 구속 엔진 2.2.0(흔들림 바로잡기) · 저장한 공을 잰 직후처럼 보기
 

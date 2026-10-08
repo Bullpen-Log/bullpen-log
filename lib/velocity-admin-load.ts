@@ -135,6 +135,8 @@ export type AdminPitchAnalysis = {
   zoneRect: { x: number; y: number; w: number; h: number } | null;
   /** 모델 2.0(거리 자)으로 잰 공의 넣은 거리(m) — 다시 잴 때 같은 거리로. 1.x 공은 null */
   distanceM: number | null;
+  /** 기준 조건(1080p · 60fps · 2배가 진짜 줌 · 손떨림 보정) 밖이었던 까닭 — 보정 짝에서 빠진다. 2.3.5 전 공 · 기준 안은 [] */
+  offStandard: string[];
 };
 
 export type AdminPitchRow = {
@@ -540,6 +542,9 @@ function pickAnalysis(raw: unknown): AdminPitchAnalysis | null {
       a.distance && typeof a.distance === 'object' && !Array.isArray(a.distance)
         ? numOrNull((a.distance as Record<string, unknown>).distanceM)
         : null,
+    offStandard: Array.isArray(a.offStandard)
+      ? a.offStandard.filter((x): x is string => typeof x === 'string')
+      : [],
   };
 }
 
