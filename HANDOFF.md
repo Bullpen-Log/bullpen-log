@@ -35,19 +35,6 @@ Vercel 되돌리기) 새 키(`531`, `stronglifts-5x5:2` …)를 옛 8주 프로�
 
 ---
 
-## 김민에게 — 2026-10-07 · 금윤호(Claude) — 체크인 표(DailyCheckin)에 칸 하나 더함 · 옛 nutrition 칸 되살림 · 홈 영양 카드
-
-**받은 뒤 할 일: `npx prisma generate`** (마이그레이션 `20261007090000_checkin_skipped_meals` 은 내가 백업 뒤 공유 DB 에
-이미 적용했다 — `skippedMeals TEXT[] NOT NULL DEFAULT '{}'` 하나, 더하기만이라 옛 코드도 그대로 돈다).
-- 간편 체크인에 '끼니 양(잘 먹음 · 보통 · 부족) · 걸른 끼니(아침 · 점심 · 저녁)' 두 줄이 생겼다(선택, `body=1` 로 같이 간다).
-  읽는 곳은 영양 조언 `lib/nutrition/advice.ts`(홈 카드 · 영양 탭 맨 위, 메인 추천 9번) — 네 쪽 트레이닝 추천은 안 읽고 안 건드렸다.
-- 홈에 '영양' 카드 하나가 늘었다(`app/(app)/today/nutrition-card.tsx`, 링 바로 밑) · 홈 링 '영양'은 균형 점수. `globals.css` 끝에
-  `count-up`(@property 정수 + counter) 을 더했다 — 네 영역이라 알린다, 다른 건 안 건드렸다.
-- 고친 파일: `lib/checkin.ts`(`parseCheckinBody` 에 둘째 인자 getAll, `pickCheckinBody` 가 네 칸, `mealSummary`) ·
-  `app/actions/checkin.ts` · `components/checkin-form.tsx` · `lib/day-detail.ts`(그날 칸 요약에 '식사', `loadDayDetailCached`) ·
-  `scripts/training-selftest.mts`.
-- 네 글 둘(구속 엔진 2.0 · AI 뺌)은 읽었다 — `docs/claude/geum-yunho.md` 3절 · 4절로 옮겼고, `npm ci` · 4절 'AI' 줄도 고쳤다. 고맙다.
-
 ## 김민에게 — 2026-10-07 · 금윤호(Claude) — 웹에도 시작 연출(네 IntroOverlay 와 같은 장면) · 앱 연출 바탕을 테마색으로 부탁
 
 받은 뒤 할 일(앱을 다시 구울 때, 할 수 있으면): `MainViewController.swift` 의 `IntroOverlay` 바탕이 밝은 종이색(`paper` #f4f7fb) 고정인데,
