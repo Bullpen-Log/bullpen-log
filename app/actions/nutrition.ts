@@ -8,8 +8,24 @@ import { dbDate, isNutritionDate, keyOfDbDate } from '@/lib/nutrition/days';
 import { loadNutritionDay, recentWeightKg } from '@/lib/nutrition/load';
 import { STEP_KCAL } from '@/lib/nutrition/weight-goal';
 import { cleanDietPrefs } from '@/lib/nutrition/diet-prefs';
-import { MAX_WEIGHT_KG, MIN_WEIGHT_KG } from '@/lib/profile';
+import {
+  MAX_HEIGHT_CM,
+  MAX_WEIGHT_KG,
+  MIN_HEIGHT_CM,
+  MIN_WEIGHT_KG,
+  checkOptionalNumber,
+} from '@/lib/profile';
 import { buildProfileData, type ProfileInput } from '@/lib/nutrition/profile-save';
+import {
+  fieldOfNutritionError,
+  levelOf,
+  readNutritionAnswers,
+  toDietPrefsRaw,
+  toProfileInput,
+  type FormLike,
+  type OnboardingBody,
+} from '@/lib/nutrition/onboarding-answers';
+import { ageOn } from '@/lib/nutrition/targets';
 import {
   buildMealPlan,
   dropAvoided,
@@ -824,5 +840,116 @@ export async function applyWeightStep(step: number): Promise<NutritionResult> {
   });
   if (count === 0) return { ok: false, error: '목표를 먼저 저장해 주세요.' };
   revalidatePath(PATH);
+  return { ok: true };
+}
+
+/* ─────────────────────────── 기존 사용자 온보딩(/nutrition/setup) ─────────────────────────── */
+
+/**
+ * 기존 사용자 온보딩의 저장 — 키 · 체중 · 영양 답(가입 마법사와 같은 숨은 칸 모양, lib/nutrition/onboarding-answers.ts)을
+ * 한 트랜잭션으로: 계정(키 · 체중) + 영양 목표(NutritionProfile, 온보딩 끝낸 시각 · 계획 시작일 · 취향) + 오늘 체중(DailyNutrition).
+ * 셋 가운데 하나만 저장되는 일이 없게. 규칙은 가입(trySignup) · 목표 창과 같은 함수(buildProfileData · cleanDietPrefs).
+ *
+ * field 는 막힌 칸 — 화면이 그 칸이 있는 화면으로 되돌아간다.
+ */
+export async function finishNutritionSetup(raw: {
+  heightCm: number | null;
+  weightKg: number | null;
+  fields: [string, string][];
+}): Promise<NutritionResult | { ok: false; error: string; field: string }> {
+  const user = await getCurrentUser();
+  if (!user) return NEED_LOGIN;
+  if (typeof raw !== 'object' || raw === null || !Array.isArray(raw.fields)) {
+    return { ok: false, error: '답이 올바르지 않아요. 새로고침한 뒤 다시 해 주세요.' };
+  }
+  const height = checkOptionalNumber(String(raw.heightCm ?? ''), {
+    label: '키',
+    min: MIN_HEIGHT_CM,
+    max: MAX_HEIGHT_CM,
+    unit: 'cm',
+  });
+  if ('error' in height) return { ok: false, error: height.error, field: 'heightCm' };
+  if (height.value === null || !Number.isInteger(height.value)) {
+    return { ok: false, error: '키를 정수(cm)로 적어 주세요.', field: 'heightCm' };
+  }
+  const weight = checkOptionalNumber(String(raw.weightKg ?? ''), {
+    label: '체중',
+    min: MIN_WEIGHT_KG,
+    max: MAX_WEIGHT_KG,
+    unit: 'kg',
+  });
+  if ('error' in weight) return { ok: false, error: weight.error, field: 'weightKg' };
+  if (weight.value === null) {
+    return { ok: false, error: '지금 체중을 적어 주세요.', field: 'weightKg' };
+  }
+  const heightCm = height.value;
+  const weightKg = weight.value;
+
+  /* 화면이 보낸 [이름, 값] 줄을 폼처럼 읽는다 — 가입(FormData)과 같은 읽기 */
+  const rows = raw.fields.filter(
+    (r): r is [string, string] =>
+      Array.isArray(r) &&
+      r.length === 2 &&
+      typeof r[0] === 'string' &&
+      typeof r[1] === 'string'
+  );
+  const form: FormLike = {
+    get: (name) => rows.find((r) => r[0] === name)?.[1] ?? null,
+    getAll: (name) => rows.filter((r) => r[0] === name).map((r) => r[1]),
+    has: (name) => rows.some((r) => r[0] === name),
+  };
+  const answers = readNutritionAnswers(form);
+  if (answers === null)
+    return { ok: false, error: '답이 없어요. 처음부터 다시 해 주세요.' };
+  if (typeof answers === 'string')
+    return { ok: false, error: answers, field: 'kcalTarget' };
+
+  const today = toDateKey(new Date());
+  const body: OnboardingBody = {
+    age: ageOn(user.birthDate, today),
+    sex: isSex(user.sex) ? user.sex : null,
+    heightCm,
+    weightKg,
+    level: levelOf(user.competitionLevel),
+  };
+  const prev = await prisma.nutritionProfile.findUnique({ where: { userId: user.id } });
+  const built = buildProfileData(
+    toProfileInput(answers, body),
+    { birthDate: user.birthDate, heightCm, weightKg },
+    prev,
+    weightKg,
+    today
+  );
+  if (!built.ok)
+    return { ok: false, error: built.error, field: fieldOfNutritionError(built.error) };
+  const prefs = cleanDietPrefs(toDietPrefsRaw(answers, body), today);
+  if (typeof prefs === 'string')
+    return { ok: false, error: prefs, field: fieldOfNutritionError(prefs) };
+
+  const data = {
+    ...built.data,
+    goalEndDate: prefs.goalEndDate ? dbDate(prefs.goalEndDate) : null,
+    seasonPhase: prefs.seasonPhase,
+    dietStyle: prefs.dietStyle,
+    mealPattern: prefs.mealPattern,
+    avoidFoods: prefs.avoid,
+    allowSupplements: prefs.supplements,
+  };
+  await prisma.$transaction([
+    prisma.user.update({ where: { id: user.id }, data: { heightCm, weightKg } }),
+    prisma.nutritionProfile.upsert({
+      where: { userId: user.id },
+      update: data,
+      create: { userId: user.id, ...data },
+    }),
+    prisma.dailyNutrition.upsert({
+      where: { userId_date: { userId: user.id, date: dbDate(today) } },
+      update: { weightKg },
+      create: { userId: user.id, date: dbDate(today), weightKg },
+    }),
+  ]);
+  revalidatePath(PATH);
+  /* 내 정보의 키 · 몸무게도 바뀌었다(레이아웃이 내려보낸다) */
+  revalidatePath('/', 'layout');
   return { ok: true };
 }

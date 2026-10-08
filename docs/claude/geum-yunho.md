@@ -425,8 +425,15 @@
          나누기 Segmented 3 · 하루 지방 직접 정하기(fatTargetG 20~200, 단백질과 같은 스위치) · 미리보기에 탄단지 막대 + 활동대사량 · 로컬 복사본
          (PERIOD_WEEKS · dayGap · dateText · kgText · rateText)을 period.ts · format.ts 로 · 저장에 goalKind · macroPreset · fatTargetG ·
          setWeight 20~200(내 정보 MIN/MAX_WEIGHT_KG 와 같게). 카드 밑 글은 lib/nutrition/onboarding.ts goalKindHint(가입과 같은 글).
-      8. `/nutrition/setup` 기존 사용자(질문 7~16 + 끼움 셋, finishNutritionSetup 한 트랜잭션) 2h
-      9. 검증 · 마무리(tsc · eslint · 시험 · 임시 경로 지움 + 서버 재시작 · HANDOFF · 메모) 1.5h
+      8. **끝남** `/nutrition/setup` 기존 사용자 — `app/(app)/nutrition/setup/{page,setup-wizard}.tsx`: 키 → 체중 → [운동 소모] → 영양 화면 11
+         (가입과 같은 부품 · 같은 글, 저장된 목표 · 취향으로 채워 열림 answersOfProfile) → 요약 → [저장하고 시작하기] → `finishNutritionSetup`
+         (app/actions/nutrition.ts, 한 트랜잭션: User 키 · 체중 + NutritionProfile upsert(onboardedAt · planSince · 취향) + DailyNutrition 오늘 체중,
+         막힌 칸은 field 로 돌려줘 그 화면으로). 답은 가입과 같은 [이름, 값] 줄(toFormFields → readNutritionAnswers).
+      9. **끝남(2026-10-09)** 검증 · 마무리 — tsc 0 · eslint 0(app/layout.tsx 의 옛 경고 하나는 김민 것) · 영양 시험 456 · 조언 시험 42 · 임시 경로
+         (dev-preview-nutrition · dev-preview-setup) 지움 · HANDOFF(김민: prisma generate · 바뀐 파일 · 폰에서 볼 것) · 이 줄.
+         **남은 것(12번 뒤)**: ① 당류 · 나트륨 · 순탄수(2차, 사용자 확인 뒤 — DB 칸 둘 + 식약처 칸) ② 아이폰 실기기 · 앱 웹뷰에서 가입 25화면 ·
+         자판(--kb) · `/nutrition/setup` 저장까지(사용자 계정으로) ③ 가입 뒤 첫 화면을 /today 로 둔 것(문서 ④ '물은 것')은 그대로 — 바꾸려면 말해 주세요
+         ④ 홈 영양 카드는 손대지 않았다(사용자 규칙).
 
 - **클라우드 식단 짜기 정확도 2차 — 끝남(2026-10-04 맡김 → 10-06 main 합침 · 메인 검토 반영). 지금 클라우드가 할 일은 아래 '3차' 줄.**
   (아래는 2차 메모 그대로 — 규칙은 3차에도 같다.) 사용자가 클라우드 세션을 열어 "메모대로 해 줘"라고 하면 이것을 했다. 지난 클라우드 작업(틀 85 → 167 · 시험 382, 커밋 8e1fbd5 · 46cc794 · 96dae5d)을 메인이 세 갈래로 검토했고,

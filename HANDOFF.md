@@ -11,12 +11,18 @@ Claude 로 작업을 시작하면 저절로 읽힌다. 규칙은 `AGENTS.md` 6�
 
 ---
 
-## 김민에게 — 2026-10-08 밤 · 금윤호(Claude) — DB 칸 넷 더함(NutritionProfile: goalKind · macroPreset · fatTargetG · onboardedAt) — 받으면 `npx prisma generate`
+## 김민에게 — 2026-10-09 · 금윤호(Claude) — 인아웃식 회원가입 · 영양 온보딩 끝(9단계) — 받으면 `npx prisma generate`(아직 안 했으면), 가입 · 영양 탭 · 목표 창을 크게 고쳤다
 
-받은 뒤 할 일: **`npx prisma generate`**(스키마가 바뀌었다 — 안 하면 영양 쪽이 타입 오류). DB 에는 이미 적용했다(백업 `db-2026-10-08-14-03.json`,
-마이그레이션 `20261008150000_nutrition_onboarding`, 넷 다 비워 둘 수 있어 네 옛 코드도 그대로 돈다). 인아웃식 회원가입 · 영양 온보딩
-(클라우드 설계 → `docs/designs/inout-onboarding.md` ④, 진행은 `docs/claude/geum-yunho.md` 4절 12번)을 만드는 중 — 가입 폼
-`app/login/auth-form.tsx` 와 영양 탭을 크게 고친다. 그 두 파일은 당분간 손대지 말아 줘(충돌). 계산은 더하기만이라 홈 영양 숫자는 안 바뀐다.
+받은 뒤 할 일: **`npx prisma generate`**(2026-10-08 스키마에 `NutritionProfile.goalKind · macroPreset · fatTargetG · onboardedAt` 넷을 더했다 —
+DB 에는 이미 적용했고(백업 `db-2026-10-08-14-03.json`, 마이그레이션 `20261008150000_nutrition_onboarding`) 넷 다 비워 둘 수 있어 옛 코드도 돈다).
+`npm ci` 는 필요 없다(패키지 그대로). 자세한 것은 `docs/claude/geum-yunho.md` 4절 12번, 설계는 `docs/designs/inout-onboarding.md` ④.
+- **바뀐 것**: 가입 `app/login/auth-form.tsx` 가 25화면 마법사(이름 → 생년월일 → … → 추천 계획 → 계정 → 요약)로, `trySignup` 이 영양 목표 ·
+  오늘 체중까지 한 트랜잭션으로 만든다(표시 칸 없는 옛 화면은 예전처럼 계정만). 영양 탭 `nutrition-view.tsx` 에 휴대폰 [기록｜통계] · '나의 하루' ·
+  '내 계획' 카드 · 온보딩 배너, 목표 창 `goal-sheet.tsx` 에 목표 카드 5 · 탄단지 나누기 · 지방 g. 새 화면 `/nutrition/setup`(기존 사용자).
+  공용 부품은 `components/onboarding/`, 답 · 차례는 `lib/nutrition/onboarding-answers.ts`. 홈 영양 카드는 안 건드렸다(숫자도 그대로 —
+  새 칸이 비면 예전과 같다, 시험 456). 이제 그 파일들을 손대도 된다(충돌 끝).
+- **네가 봐 주면 좋은 것**: 아이폰 앱(웹뷰)에서 가입 25화면이 자판 · 안전 영역과 잘 맞는지(단추 줄은 `--kb` 로 자판 위로 올림) · 영양 탭
+  [기록｜통계] 고르개 · 옛 계정으로 `/nutrition/setup` 한 번 끝까지(저장은 네 계정으로).
 
 ## 김민에게 — 2026-10-08 밤 · 금윤호(Claude) — 3D v2 를 Modal 에 올려 실제 영상이 끝까지 돌았다(fit 10.7초). 이어서 네가 할 것
 
