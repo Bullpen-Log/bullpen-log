@@ -1222,3 +1222,72 @@ ADD COLUMN     "waterHabit" TEXT;
 - 활동량 3단계 유지(권장) vs 5단계로 넓히기. 넓히면 ACTIVITIES 에 키 둘 추가(DB 변경 없음)지만 운동 OUT 과 두 번 세지 않게 배수를 낮게 잡아야 하고 세 키의 값은 지켜야 한다.
 - 가입 뒤 첫 화면: 지금처럼 /today(CheckinGate 첫 체크인)로 갈지, 영양 탭 '나의 하루'로 보낼지. 투수 앱이라 홈(오늘 던져도 되는 양)을 권한다.
 - DB 작업 시점: 김민에게 알리고 백업할 날짜(이 클라우드엔 .env 가 없어 migrate diff · deploy 는 데스크톱에서만 된다).
+
+
+---
+
+## ④ 합친 안(메인, 2026-10-08) — 연동 우선: 읽히지 않는 질문은 넣지 않는다
+
+안 1(인아웃 충실)과 안 2(투수 우선)를 사용자 원칙 "질문에는 이유가 있고 답이 설정 · 계산 · 추천을 바꿔야 한다"로 심사해 합쳤다.
+기준: 답이 계산(computeTargets · 부하 지수) · 설정(NutritionProfile · User) · 추천(식단 짜기 · 가이드) 가운데 적어도 하나를 바꾸면 남기고, 글 · 동기에만 쓰이면 뺀다.
+
+### 뺀 것(두 안에서) 과 까닭
+- 목표 이유 · 식단 경험 · 물 습관 · 운동 종류 · 코치 말투 · 기대감 · 손글씨 서명 · 사회적 증거 · 알림 허용 끼움 — 계산을 안 바꾸거나(이유 · 경험 · 기대 · 말투) 되살리지 않기로 한 기능(물) 이거나 기록에서 저절로 오는 것(운동 종류는 OUT 으로 셈)이다. 격려 · 설명은 끼움 화면이 숫자(실제 함수값)로 대신한다.
+- 활동량 5단계 → **3단계 유지**(안 2): OUT 이중 계산 · 기존 사용자 목표 보호. 소속으로 미리 고른다(defaultActivity).
+- 키토 · 비건 → **탄단지 프리셋 3**(균형 · 탄수화물 넉넉히 · 단백질 넉넉히, 안 2): 던지는 날 탄수화물 원칙 · 성장기 보호와 맞는다. 비건은 '못 먹는 것'으로.
+- 탄단지 g 고치기의 주인은 **kcal**(두 안 같음): 단백질 → proteinTargetG · 지방 → fatTargetG · 탄수화물 → kcalTarget = 4C + 4P + 9F.
+- 당류 · 나트륨 · 순탄수는 **2차**(DB 칸 둘 · 식약처 칸 번호 확인) — 사용자 확인 뒤.
+
+### 가입 차례(질문 19 + 끼움 6 = 25화면)
+| # | 화면 | 바꾸는 것 |
+|---|---|---|
+| 1 | 반가워요. 뭐라고 부를까요? | nickname → 뒤 제목에 이름 |
+| 2 | 생년월일 (+ 성별 시트) | 나이 칸 · BMR · 투구 한도 · 소속 막힘 · 목표 카드 거름 |
+| 끼움 | {나이}세는 하루 {dailyPitchCap}구까지예요 | — (실제 함수값) |
+| 3 | 어느 손으로 던지세요? | 암케어 · 폼 · 구속 |
+| 4 | 어디서 야구를 하세요?(소속) | 평소 움직임 미리 고르기(defaultActivity) · 또래 기준 |
+| 5 | 평소 얼마나 던지세요?(횟수 · 구수 · 강도 한 화면, 셋 다 고르면 부하 숫자 count-up) | estimateDailyLoad → ACWR 씨앗 |
+| 6 | 웨이트 횟수 + 경력(한 화면) | estimateTrainingDailyLoad · filterByLevel |
+| 7 | 키 [cm｜in] | BMR · BMI 바닥 · 포즈 cm/px (온보딩에선 필수) |
+| 8 | 지금 체중 + 목표 체중(targetAllowed 일 때만 둘째 칸, 범위 즉시 표시) | computeTargets · 체중 흐름 첫 점(DailyNutrition) · etaWeeks |
+| 끼움 | 운동과 투구를 적으면 쓴 만큼 더 먹어요(시트, 체중으로 셈한 kcal 예) | — |
+| 9 | {이름} 님, 몸을 어떻게 만들고 싶으세요?(카드 5, 나이별 거름 · 성장기는 감량 숨김) | goalKind → fold → goal · proteinPerKg → delta · protein |
+| 10 | {목표 체중}kg 까지 얼마나 빨리?(목표 체중 있을 때만 · Segmented 2 + N주 + '언제까지' 칩) | weeklyRateKg · goalEndDate → paceDelta |
+| 11 | 운동과 훈련을 뺀 하루는 어때요?(3단계, 소속으로 미리) | activity → tdee · base |
+| 12 | 지금 시즌은 어느 때예요? | seasonPhase → 식단 짜기 · 트레이닝 |
+| 13 | 탄단지는 어떻게 나눌까요?(프리셋 3 + 미리보기 g) | macroPreset → FAT_SHARE → fat · carbs |
+| 14 | 어떤 음식을 주로 · 하루 몇 번에(한 화면) | dietStyle · mealPattern → 식단 짜기 |
+| 15 | 못 먹거나 안 먹는 것 | avoidFoods → 식단 빼기 |
+| 끼움 | 계획 만드는 중(답이 한 줄씩) → 추천 계획(bmr · tdee · base ✎ · 예상 체중 선) → 탄단지 g 고치기 | kcalTarget · fatTargetG · proteinTargetG |
+| 16 | 이메일(중복 미리 확인) | — |
+| 17 | 비밀번호 | — |
+| 18 | 약관 | — |
+| 19 | {이름} 님의 목표예요(요약 카드 + '던지는 날 앞뒤로 끼니를 거르지 않기로 약속해요' 체크) → [가입하고 시작하기] | trySignup 한 트랜잭션: User + NutritionProfile(onboardedAt · planSince) + DailyNutrition |
+
+계정(16~18)을 뒤에 둔 까닭: 인아웃처럼 이름부터 묻고, 중복 이메일은 그 자리에서 미리 확인(checkSignupEmail)해 끝에서 막히지 않는다. 가입 뒤는 지금처럼 /today(첫 체크인).
+
+### 영양 탭(홈은 손대지 않음)
+안 2 그대로: 휴대폰 위 [기록 ｜ 통계] · '나의 하루'(먹은/목표 큰 숫자 · 탄단지 % 알약 · 자세히｜한눈에 · 운동 소모 줄) · '내 계획' 카드(bmr · tdee · base ✎ · 탄단지 ✎ · N주 · 예상 선, 가입 끼움과 같은 부품) · 목표 창에 목표 카드 5 + 탄단지 나누기 · 기존 사용자는 /nutrition/setup(질문 7~15 + 끼움 셋, 한 트랜잭션).
+
+### 계산 · DB
+계산(안 2 1~10, 모두 더하기만 · 새 칸이 비면 지금 숫자와 같다): Targets.tdee · FAT_SHARE · fatTargetG · foldGoalKind · defaultActivity · forecastWeights · period.ts · profile-save.ts 공용화.
+DB: NutritionProfile 네 칸(goalKind · macroPreset · fatTargetG · onboardedAt) 한 마이그레이션(`20261008…_nutrition_onboarding`), 백업 → 김민 알림 → diff 대조 → deploy → generate.
+
+### 단계표
+| 번호 | 이름 | 시간 |
+|---|---|---|
+| 1 | 계산 더하기(순수) + 시험 — tdee · FAT_SHARE · fatTargetG · foldGoalKind · defaultActivity · forecastWeights · period.ts | 2 |
+| 2 | DB 네 칸 + 저장 공용화(profile-save.ts) + HANDOFF(백업 · 김민 알림) | 1.5 |
+| 3 | 질문 정의 questions.ts + 공용 온보딩 부품(셸 · 카드 · 숫자 칸 · 요약 · 예상 선) | 3 |
+| 4 | 가입 마법사 19 + 끼움 6 · trySignup 트랜잭션 | 5 |
+| 5 | 휴대폰 · 앱 · PC 모양(--kb · 시트 · 375 · 1536×700 · 1920×960) | 2 |
+| 6 | 영양 탭 나의 하루 · [기록｜통계] · 내 계획 카드 | 3 |
+| 7 | 목표 창 확장(카드 5 · 탄단지 나누기) | 2 |
+| 8 | /nutrition/setup 기존 사용자 | 2 |
+| 9 | 검증 · 마무리(tsc · eslint · nutrition:test · advice-test 그대로 · 임시 경로 확인 · HANDOFF · 메모) | 1.5 |
+(2차 · 확인 뒤) 당류 · 나트륨 · 순탄수 | 3 |
+
+### 사용자에게 물은 것(답이 오면 여기에)
+1. 계정(이메일 · 비밀번호 · 약관)을 맨 뒤에 — 추천 그대로?
+2. 성장기 '천천히 빼기' 카드 — 숨김 추천('성장기엔 덜 먹어라 없음' 원칙).
+3. 당류 · 나트륨 · 순탄수 — 2차로 미룸 추천.
