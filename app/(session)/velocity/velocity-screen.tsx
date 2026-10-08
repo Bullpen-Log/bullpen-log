@@ -221,6 +221,8 @@ const BACK_OF: Partial<Record<Step, { to: Step; label: string }>> = {
 };
 type LocalClip = { url: string; blob: Blob; durationSec: number; eventSec: number };
 /** 공의 영상 주소(일반 · 광각)를 푼다 — 저장했거나 화면을 떠날 때 */
+/** 카메라 상태 판(관리자)에서 바꿔 기준 밖이 된 까닭의 꼬리 */
+const TUNED = '(직접 바꿈)';
 /** 기준 조건 밖이라는 알림 한 줄 */
 const standardNoteOf = (offStandard: string[]) =>
   `기준 조건이 아니에요(${offStandard.join(' · ')}). 다른 폰과 값이 다를 수 있어요.`;
@@ -1875,9 +1877,9 @@ export function VelocityScreen({
              */
             <button
               type="button"
-              disabled={!appCamera}
+              disabled={!appCamera || !isAdmin}
               onClick={() => setTunerOpen((v) => !v)}
-              aria-expanded={appCamera ? tunerOpen : undefined}
+              aria-expanded={appCamera && isAdmin ? tunerOpen : undefined}
               aria-label="카메라 상태"
               className={`pointer-events-auto inline-flex h-7 min-w-0 items-center rounded-full px-2.5 tabular-nums backdrop-blur disabled:cursor-default ${
                 lowFps ? 'bg-amber-600 text-white' : 'bg-black/55 text-white/80'
@@ -1894,9 +1896,25 @@ export function VelocityScreen({
           )}
         </div>
       )}
-      {cameraOn && appCapture && tunerOpen && step !== 'lens' && !(live && !showCamera) && (
+      {cameraOn && appCapture && isAdmin && tunerOpen && step !== 'lens' && !(live && !showCamera) && (
         <div className="absolute inset-x-3 top-[calc(5.5rem+env(safe-area-inset-top))] z-20">
-          <CameraTuner capture={appCapture} onClose={() => setTunerOpen(false)} />
+          <CameraTuner
+            capture={appCapture}
+            onClose={() => setTunerOpen(false)}
+            onTuned={(d) =>
+              /* 바꾼 것이 기준 조건 밖이면 알림 · 공 기록에 남긴다(카메라를 다시 켜면 기본으로 돌아가 이 표시도 사라진다) */
+              setCamera((c) =>
+                c && {
+                  ...c,
+                  offStandard: [
+                    ...c.offStandard.filter((r) => !r.endsWith(TUNED)),
+                    ...(d.stabilization === 'off' ? [`손떨림 보정 끔${TUNED}`] : []),
+                    ...(Math.abs(d.zoom - (c.zoom ?? 1)) > 0.05 ? [`줌 ${d.zoom}배${TUNED}`] : []),
+                  ],
+                }
+              )
+            }
+          />
         </div>
       )}
 
