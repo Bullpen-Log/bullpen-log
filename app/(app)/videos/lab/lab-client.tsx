@@ -14,9 +14,11 @@ import { OFFLINE_MESSAGE, orOffline } from '@/lib/action-offline';
 import { quietRefresh } from '@/lib/quiet-refresh';
 import { removeLabSample, saveLabSample } from '@/app/actions/pitch-lab';
 import {
+  LAB_GROUND_OPTIONS,
   LAB_VIEWS,
   LAB_VIEW_LABELS,
   labMetaChips,
+  type LabGround,
   type LabMeta,
   type LabView,
 } from '@/lib/pitch-lab-meta';
@@ -100,6 +102,7 @@ function UploadCard({ defaultHeightCm }: { defaultHeightCm: number | null }) {
   const [fps, setFps] = useState<'unknown' | '120' | '240'>('unknown');
   const [source, setSource] = useState<'screen' | 'original'>('screen');
   const [hand, setHand] = useState<'R' | 'L'>('R');
+  const [ground, setGround] = useState<LabGround>('mound');
   const [height, setHeight] = useState(defaultHeightCm ? String(defaultHeightCm) : '');
   const [distance, setDistance] = useState('');
   const [memo, setMemo] = useState('');
@@ -140,6 +143,7 @@ function UploadCard({ defaultHeightCm }: { defaultHeightCm: number | null }) {
         slowmoFps: fps === 'unknown' ? null : (Number(fps) as 120 | 240),
         screenRecorded: source === 'screen',
         hand,
+        ground,
         heightCm: height ? Number(height) : null,
         distanceM: distance ? Number(distance) : null,
         memo: memo.trim() || null,
@@ -195,6 +199,14 @@ function UploadCard({ defaultHeightCm }: { defaultHeightCm: number | null }) {
         />
         {infoOpen && (
           <div className="space-y-3 px-3 pb-3 text-sm">
+            <Row label="던진 곳">
+              <Segmented
+                label="던진 곳"
+                value={ground}
+                onChange={setGround}
+                options={LAB_GROUND_OPTIONS}
+              />
+            </Row>
             <Row label="촬영">
               <Segmented
                 label="촬영"

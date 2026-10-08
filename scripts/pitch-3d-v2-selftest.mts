@@ -47,6 +47,7 @@ import { makeV2Track } from './pitch-lab/synth-v2.mts';
 import { gapWristError } from './pitch-lab/gap-check.mts';
 import { readFileSync } from 'node:fs';
 import {
+  moundHeightAt,
   PART_NAMES,
   placePoint,
   readSkeletonParts,
@@ -858,6 +859,32 @@ console.log('■ 뼈대 자세(pose-rig) — public/models/skeleton-parts.json +
           prevRig = pose;
         }
         check('거의 편 팔꿈치가 반대로 꺾여도 위팔 조각이 홱 돌지 않는다', spins === 0, `${spins}번 돎`);
+      }
+      /* 마운드(규격 · 키 1.8m) — 투수판 위 25.4cm · 앞 15cm 뒤로 1/12 내리막 · 둘레 밖 0, 발이 경사면 위에 선다 */
+      {
+        const Hm = 1.8;
+        const g = moundHeightAt(0, 0, Hm);
+        const near = (a: number, b: number) => Math.abs(a - b) < 1e-9;
+        check(
+          '마운드: 투수판 위 25.4cm · 앞 1m 는 25.4 − (1 − 0.152)/12 m',
+          near(g(0, 0), 0.254 / Hm) && near(g(1 / Hm, 0), (0.254 - (1 - 0.152) / 12) / Hm)
+        );
+        check(
+          '마운드: 앞 내리막이 둘레(투수판 앞 3.2m)에서 0 · 둘레 밖 0',
+          g(3.19 / Hm, 0) < 0.01 / Hm && g(3.3 / Hm, 0) === 0 && g(0.457 / Hm, 3 / Hm) === 0
+        );
+        const fr = frames[result.events.footPlant];
+        const x0 = frames[0][V2J.rAn][0];
+        const z0 = frames[0][V2J.rAn][2];
+        const gr = moundHeightAt(x0, z0, Hm);
+        const pose = rigPose(fr, 'R', parts, null, gr);
+        let low = Infinity;
+        for (const f of ['footL', 'footR'] as const)
+          for (const q of [A[f].proximal, A[f].distal, A[f].heel]) {
+            const w = placePoint(pose[f], q, A[f].proximal);
+            low = Math.min(low, w[1] - gr(w[0], w[2]));
+          }
+        check('마운드: 두 발 중 경사면에 가장 가까운 점이 경사면 위(0)', Math.abs(low) < 1e-9, `${low}`);
       }
     }
   }

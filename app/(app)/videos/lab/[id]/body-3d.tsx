@@ -15,8 +15,11 @@ import { Segmented } from '@/components/segmented';
 import { hasWebGL } from '@/components/three-stage';
 import { CHIP_BASE, CHIP_ON } from '@/components/velocity/kit';
 import type { Vec3 } from '@/lib/pitch-3d/linalg';
-import type { Pitch3dV2Ok } from '@/lib/pitch-3d/v2/contract';
+import { V2J, type Pitch3dV2Ok } from '@/lib/pitch-3d/v2/contract';
+import type { LabGround } from '@/lib/pitch-lab-meta';
 import {
+  MOUND,
+  moundHeightAt,
   PART_NAMES,
   readSkeletonParts,
   rigPose,
@@ -54,6 +57,9 @@ const BONE = '#eef2f7';
 const ARM = '#63b6ee';
 const GRID_A = '#2b3141';
 const GRID_B = '#1e2230';
+/** 마운드 · 투수판 — 바탕보다 조금 밝은 무채색(뼈대 · 던지는 팔이 먼저 보이게) */
+const MOUND_COLOR = '#2c303d';
+const RUBBER_COLOR = '#d6dbe3';
 const AXIS = { home: '#ef4444', up: '#3b82f6', side: '#38bdf8' } as const;
 const VIEWS: { value: ViewName; label: string }[] = [
   { value: 'side', label: '옆' },
@@ -89,6 +95,44 @@ const loadThree = () => {
   }
   return mods;
 };
+
+/** 마운드 면 — 가운데에서 둘레까지 고리 40 · 둘레 120 칸, 높이는 f(규격 높이 함수) */
+function moundGeometry(
+  THREE: typeof import('three'),
+  f: (x: number, z: number) => number,
+  cx: number,
+  cz: number,
+  R: number
+): Three.BufferGeometry {
+  const rings = 40;
+  const segs = 120;
+  const lift = 0.002;
+  const pos: number[] = [cx, f(cx, cz) + lift, cz];
+  for (let i = 1; i <= rings; i++) {
+    const r = (R * i) / rings;
+    for (let j = 0; j < segs; j++) {
+      const a = (j / segs) * Math.PI * 2;
+      const x = cx + r * Math.cos(a);
+      const z = cz + r * Math.sin(a);
+      pos.push(x, f(x, z) + lift, z);
+    }
+  }
+  const idx: number[] = [];
+  for (let j = 0; j < segs; j++) idx.push(0, 1 + ((j + 1) % segs), 1 + j);
+  for (let i = 1; i < rings; i++) {
+    const a0 = 1 + (i - 1) * segs;
+    const a1 = 1 + i * segs;
+    for (let j = 0; j < segs; j++) {
+      const j1 = (j + 1) % segs;
+      idx.push(a0 + j, a0 + j1, a1 + j, a0 + j1, a1 + j1, a1 + j);
+    }
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  g.setIndex(idx);
+  g.computeVertexNormals();
+  return g;
+}
 
 type Skeleton = {
   parts: SkeletonParts;
@@ -169,8 +213,15 @@ type Status = 'loading' | 'ready' | 'unavailable' | 'error';
 
 export const Body3D = forwardRef<
   Body3DHandle,
-  { result: Pitch3dV2Ok; onTransport?: (t: Transport) => void }
->(function Body3D({ result, onTransport }, ref) {
+  {
+    result: Pitch3dV2Ok;
+    onTransport?: (t: Transport) => void;
+    /** 던진 곳 — 마운드면 규격 마운드를 놓고 발을 그 경사 위에(없으면 마운드) */
+    ground?: LabGround;
+    /** 투수 키(cm) — 마운드 크기를 키 단위로 바꾼다(없으면 180) */
+    heightCm?: number | null;
+  }
+>(function Body3D({ result, onTransport, ground = 'mound', heightCm }, ref) {
   const hostRef = useRef<HTMLDivElement>(null);
   const [status, setStatus] = useState<Status>(() =>
     typeof window !== 'undefined' && !hasWebGL() ? 'unavailable' : 'loading'
@@ -202,26 +253,26 @@ export const Body3D = forwardRef<
       ),
     [result.joints]
   );
-  /* 움직임 전체 상자 — 카메라 거리 · 격자 자리 */
+  /*
+   * 움직임 상자 — 카메라 거리 · 격자 자리. 관절 자리의 2~98% 로 잡는다(튄 장면 하나가 상자를 키의 절반만큼 부풀려 처음 화면이
+   * 멀었다 — 2026-10-08 샘플 1 첫 장면 손목 503mm). 높이는 바닥(0) ~ 위 끝.
+   */
   const bounds = useMemo(() => {
-    const mn: Vec3 = [Infinity, Infinity, Infinity];
-    const mx: Vec3 = [-Infinity, -Infinity, -Infinity];
-    for (const fr of frames)
-      for (const p of fr)
-        for (let d = 0; d < 3; d++) {
-          mn[d] = Math.min(mn[d], p[d]);
-          mx[d] = Math.max(mx[d], p[d]);
-        }
-    const center: Vec3 = [
-      (mn[0] + mx[0]) / 2,
-      Math.max(0.5, (mn[1] + mx[1]) / 2),
-      (mn[2] + mx[2]) / 2,
+    const axes: number[][] = [[], [], []];
+    for (const fr of frames) for (const p of fr) for (let d = 0; d < 3; d++) axes[d].push(p[d]);
+    const pct = (xs: number[], q: number) => {
+      const s = [...xs].sort((a, b) => a - b);
+      return s[Math.min(s.length - 1, Math.max(0, Math.round(q * (s.length - 1))))] ?? 0;
+    };
+    const mn: Vec3 = [pct(axes[0], 0.02), 0, pct(axes[2], 0.02)];
+    const mx: Vec3 = [pct(axes[0], 0.98), Math.max(1, pct(axes[1], 0.98)), pct(axes[2], 0.98)];
+    const center: Vec3 = [(mn[0] + mx[0]) / 2, (mn[1] + mx[1]) / 2, (mn[2] + mx[2]) / 2];
+    const half: Vec3 = [
+      Math.max(0.3, (mx[0] - mn[0]) / 2),
+      Math.max(0.5, (mx[1] - mn[1]) / 2),
+      Math.max(0.3, (mx[2] - mn[2]) / 2),
     ];
-    const radius = Math.max(
-      0.6,
-      Math.hypot(mx[0] - mn[0], mx[1] - mn[1], mx[2] - mn[2]) / 2
-    );
-    return { center, radius };
+    return { center, half };
   }, [frames]);
 
   useEffect(() => {
@@ -256,10 +307,32 @@ export const Body3D = forwardRef<
       rim.position.set(-1.6, 1.0, -1.2);
       scene.add(rim);
 
-      const { center, radius } = bounds;
+      const { center, half } = bounds;
       const grid = new THREE.GridHelper(4, 16, GRID_A, GRID_B);
       grid.position.set(center[0], 0, center[2]);
       scene.add(grid);
+      /* 마운드 — 투수판 앞 모서리 = 니업 때 축발(던지는 손 쪽) 발목 자리 */
+      const heightM = (heightCm ?? 180) / 100;
+      let groundAt: ((x: number, z: number) => number) | undefined;
+      let lift = 0;
+      if (ground === 'mound') {
+        const pivot = frames[result.events.kneeUp ?? 0][result.hand === 'L' ? V2J.lAn : V2J.rAn];
+        const s = 1 / heightM;
+        groundAt = moundHeightAt(pivot[0], pivot[2], heightM);
+        lift = MOUND.top * s;
+        scene.add(
+          new THREE.Mesh(
+            moundGeometry(THREE, groundAt, pivot[0] + MOUND.centerAhead * s, pivot[2], MOUND.radius * s),
+            new THREE.MeshStandardMaterial({ color: MOUND_COLOR, roughness: 1, metalness: 0 })
+          )
+        );
+        const rubber = new THREE.Mesh(
+          new THREE.BoxGeometry(MOUND.rubber.depth * s, 0.02 * s, MOUND.rubber.width * s),
+          new THREE.MeshStandardMaterial({ color: RUBBER_COLOR, roughness: 0.8, metalness: 0 })
+        );
+        rubber.position.set(pivot[0] - (MOUND.rubber.depth * s) / 2, lift + 0.01 * s, pivot[2]);
+        scene.add(rubber);
+      }
       const corner = new THREE.Vector3(center[0] - 1.7, 0.002, center[2] - 1.7);
       const arrow = (dir: [number, number, number], color: string) =>
         scene.add(
@@ -305,7 +378,8 @@ export const Body3D = forwardRef<
       controls.rotateSpeed = 0.8;
       controls.minPolarAngle = THREE.MathUtils.degToRad(10);
       controls.maxPolarAngle = THREE.MathUtils.degToRad(85);
-      const target = new THREE.Vector3(center[0], center[1], center[2]);
+      /* 마운드 위면 몸이 투수판 높이만큼 올라선다 — 겨누는 점도 그 절반만큼 */
+      const target = new THREE.Vector3(center[0], center[1] + lift / 2, center[2]);
       controls.target.copy(target);
       let dirty = true;
       controls.addEventListener('change', () => {
@@ -322,10 +396,30 @@ export const Body3D = forwardRef<
         { passive: true }
       );
 
-      const fitDist = () => {
+      /*
+       * 보는 방향에서 상자가 화면 가로 · 세로에 맞는 거리 — 예전엔 상자 대각선을 지름으로 삼아 옆에서 볼 때 앞뒤 폭까지 넣어 멀었다.
+       * 상자의 8 꼭짓점을 화면 가로 · 세로 축에 내려 가장 먼 것으로, 앞뒤 깊이의 절반을 더한다(가까운 쪽이 잘리지 않게).
+       */
+      const fitDist = (dir: Three.Vector3) => {
         const v = THREE.MathUtils.degToRad(camera.fov);
-        const h = 2 * Math.atan(Math.tan(v / 2) * camera.aspect);
-        return (radius * 1.1) / Math.sin(Math.min(v, h) / 2);
+        const tanV = Math.tan(v / 2);
+        const tanH = tanV * camera.aspect;
+        const d = dir.clone().normalize();
+        const up = Math.abs(d.y) > 0.95 ? new THREE.Vector3(0, 0, 1) : new THREE.Vector3(0, 1, 0);
+        const right = new THREE.Vector3().crossVectors(up, d).normalize();
+        const upS = new THREE.Vector3().crossVectors(d, right).normalize();
+        let w = 0;
+        let h = 0;
+        let depth = 0;
+        for (const sx of [-1, 1])
+          for (const sy of [-1, 1])
+            for (const sz of [-1, 1]) {
+              const c = new THREE.Vector3(sx * half[0], sy * half[1], sz * half[2]);
+              w = Math.max(w, Math.abs(c.dot(right)));
+              h = Math.max(h, Math.abs(c.dot(upS)));
+              depth = Math.max(depth, Math.abs(c.dot(d)));
+            }
+        return Math.max(w / tanH, h / tanV) * 1.06 + depth;
       };
       const viewDir = (name: ViewName): Three.Vector3 => {
         const sideZ = result.hand === 'L' ? 1 : -1;
@@ -346,10 +440,11 @@ export const Body3D = forwardRef<
       };
       let tween: { t: number; from: Three.Vector3; to: Three.Vector3 } | null = null;
       const moveTo = (name: ViewName, animate: boolean) => {
-        const dist = fitDist();
-        controls.minDistance = dist * 0.45;
-        controls.maxDistance = dist * 2.5;
-        const to = target.clone().addScaledVector(viewDir(name).normalize(), dist);
+        const dir = viewDir(name).normalize();
+        const dist = fitDist(dir);
+        controls.minDistance = dist * 0.35;
+        controls.maxDistance = dist * 3;
+        const to = target.clone().addScaledVector(dir, dist);
         if (!animate || window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
           camera.position.copy(to);
           controls.update();
@@ -363,7 +458,7 @@ export const Body3D = forwardRef<
       let prevPose: RigPose | null = null;
       const mat = new THREE.Matrix4();
       const applyFrame = (k: number) => {
-        const pose = rigPose(frames[k], result.hand, parts, prevPose);
+        const pose = rigPose(frames[k], result.hand, parts, prevPose, groundAt);
         prevPose = pose;
         for (const name of PART_NAMES) {
           const p = pose[name];
@@ -524,7 +619,7 @@ export const Body3D = forwardRef<
       disposed = true;
       cleanup?.();
     };
-  }, [bounds, frames, n, result.events.release, result.hand, result.t, retry]);
+  }, [bounds, frames, n, result.events.release, result.events.kneeUp, result.hand, result.t, retry, ground, heightCm]);
 
   useImperativeHandle(ref, () => ({ seek: (k) => ctrl.current?.seek(k) }), []);
 

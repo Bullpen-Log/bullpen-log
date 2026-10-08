@@ -124,7 +124,9 @@ export function rigPose(
   joints: Vec3[],
   hand: 'R' | 'L',
   parts: SkeletonParts,
-  prev?: RigPose | null
+  prev?: RigPose | null,
+  /** 발밑 높이(앞 x · 옆 z → 위 y, 키 = 1) — 없으면 평지(0). 마운드는 moundHeightAt */
+  groundAt?: (x: number, z: number) => number
 ): RigPose {
   const A = parts.anchors;
   const s = 1 / parts.height;
@@ -227,12 +229,14 @@ export function rigPose(
     put(`foot${side}`, attach(`shank${side}`, A[`shank${side}`].distal), foot, footRef);
   }
 
-  /* 두 발 중 낮은 점(뒤꿈치 · 발끝 · 발목)을 바닥(0)에 */
+  /* 두 발 중 발밑에 가장 가까운 점(뒤꿈치 · 발끝 · 발목)을 바닥에 — 마운드면 그 자리의 경사면 높이 */
   let low = Infinity;
   for (const side of ['L', 'R'] as const) {
     const f = `foot${side}` as PartName;
-    for (const p of [A[f].proximal, A[f].distal, A[f].heel])
-      low = Math.min(low, placePoint(out[f], p, A[f].proximal)[1]);
+    for (const p of [A[f].proximal, A[f].distal, A[f].heel]) {
+      const w = placePoint(out[f], p, A[f].proximal);
+      low = Math.min(low, w[1] - (groundAt ? groundAt(w[0], w[2]) : 0));
+    }
   }
   if (Number.isFinite(low))
     for (const name of PART_NAMES)
@@ -242,6 +246,46 @@ export function rigPose(
         out[name].position[2],
       ];
   return out;
+}
+
+/**
+ * 공식 규격 마운드(MLB 규칙 · 미터) — 투수판 위 25.4cm(10인치), 투수판 앞 15cm(6인치)부터 1피트당 1인치(1/12) 내리막이 둘레까지,
+ * 둘레 반지름 2.74m(9피트)이고 그 중심은 투수판 앞 46cm(18인치). 투수판 뒤 60cm 는 평평하고 그 뒤는 둘레까지 곧게 내려간다.
+ */
+export const MOUND = {
+  top: 0.254,
+  flatFront: 0.152,
+  flatBack: 0.6,
+  radius: 2.743,
+  centerAhead: 0.457,
+  rubber: { depth: 0.152, width: 0.61 },
+} as const;
+
+/**
+ * 마운드 높이 함수(키 = 1 좌표, 앞 x 는 홈 쪽 · 옆 z) — 투수판 앞 모서리 자리(x0 · z0)와 투수 키(m)로 미터를 키 단위로 바꾼다.
+ * 앞 내리막이 둘레(투수판 앞 3.2m)에서 0 이 되도록 규격이 맞물려 있다. 둘레 30cm 는 부드럽게 0 으로(땅과 이음).
+ */
+export function moundHeightAt(x0: number, z0: number, heightM: number) {
+  const s = 1 / heightM;
+  const top = MOUND.top * s;
+  const flatFront = MOUND.flatFront * s;
+  const flatBack = MOUND.flatBack * s;
+  const R = MOUND.radius * s;
+  const cx = x0 + MOUND.centerAhead * s;
+  const backEdge = cx - R;
+  const rim = 0.3 * s;
+  return (x: number, z: number): number => {
+    const r = Math.hypot(x - cx, z - z0);
+    if (r >= R) return 0;
+    const d = x - x0;
+    const h =
+      d >= flatFront
+        ? top - (d - flatFront) / 12
+        : d >= -flatBack
+          ? top
+          : (top * (x - backEdge)) / (x0 - flatBack - backEdge);
+    return Math.max(0, h) * Math.min(1, (R - r) / rim);
+  };
 }
 
 /** 던지는 팔의 부위(색을 달리 칠한다) */

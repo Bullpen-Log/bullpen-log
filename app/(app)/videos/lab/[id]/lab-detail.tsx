@@ -6,11 +6,16 @@ import { BackLink, PageHeading } from '@/components/ui';
 import { ErrorLine } from '@/components/error-line';
 import type { LabSample } from '@/lib/pitch-lab';
 import {
+  LAB_GROUND_OPTIONS,
   LAB_VIEWS,
   LAB_VIEW_LABELS,
   labMetaChips,
+  type LabGround,
   type LabView,
 } from '@/lib/pitch-lab-meta';
+import { Segmented } from '@/components/segmented';
+import { saveLabSample } from '@/app/actions/pitch-lab';
+import { orOffline } from '@/lib/action-offline';
 import type { Pitch3dV2Ok } from '@/lib/pitch-3d/v2/contract';
 import type { Metric, MetricKey } from '@/lib/pitch-3d/metrics';
 import { V2EmptyWell, V2RequestRow, V2StatusBadge } from './analysis-v2';
@@ -130,6 +135,18 @@ export function LabDetail({
   };
 
   const meta = sample.meta;
+  /* 던진 곳 — 고르면 3D 무대가 바로 바뀌고 촬영 정보(meta.json)에 저장한다(옛 샘플은 정보가 없어 마운드) */
+  const [ground, setGround] = useState<LabGround>(meta?.ground ?? 'mound');
+  const [groundError, setGroundError] = useState<string>();
+  const changeGround = async (g: LabGround) => {
+    setGround(g);
+    setGroundError(undefined);
+    if (!meta) return;
+    const r = await orOffline(saveLabSample({ id: sample.id, meta: { ...meta, ground: g } }), {
+      error: '연결을 확인해 주세요. 저장하지 못했어요.',
+    });
+    if ('error' in r) setGroundError(r.error);
+  };
   const main = result
     ? MAIN.map((k) => result.metrics.find((m) => m.key === k)).filter(
         (m): m is Metric => m != null
@@ -153,8 +170,21 @@ export function LabDetail({
 
       <div className="desk:grid desk:grid-cols-[3fr_2fr] desk:items-start desk:gap-8">
         <div ref={stage} className="stack-block desk:sticky desk:top-4">
+          <Segmented
+            label="던진 곳"
+            value={ground}
+            onChange={changeGround}
+            options={LAB_GROUND_OPTIONS}
+          />
+          {groundError && <ErrorLine>{groundError}</ErrorLine>}
           {result ? (
-            <Body3D ref={body} result={result} onTransport={onTransport} />
+            <Body3D
+              ref={body}
+              result={result}
+              onTransport={onTransport}
+              ground={ground}
+              heightCm={meta?.heightCm ?? null}
+            />
           ) : (
             <V2EmptyWell
               job={v2.job}

@@ -13,6 +13,12 @@ export const LAB_VIEW_LABELS: Record<LabView, string> = {
   back: '뒤 · 2루 쪽',
 };
 
+export type LabGround = 'mound' | 'flat';
+export const LAB_GROUND_OPTIONS = [
+  { value: 'mound', label: '마운드' },
+  { value: 'flat', label: '평지' },
+] as const;
+
 export type LabMeta = {
   /** 같은 공을 두 대로 동시에 찍었는가 — 아니면 한 대로 옆 · 뒤를 나눠 찍은 것 */
   synced: boolean;
@@ -21,6 +27,11 @@ export type LabMeta = {
   /** 원본이 아니라 재생 화면을 녹화한 것인가(실제 시간 비율이 영상마다 다를 수 있다) */
   screenRecorded: boolean;
   hand: 'R' | 'L';
+  /**
+   * 던진 곳 — 마운드면 3D 무대에 공식 규격 마운드를 놓고 발을 그 경사 위에 세운다(2026-10-08 사용자: "마운드와 평지 두 가지로").
+   * 정보가 없는 옛 샘플은 마운드(그날까지 올린 샘플이 모두 마운드였다).
+   */
+  ground: LabGround;
   heightCm: number | null;
   /** 폰에서 투수까지(m) — 모르면 null */
   distanceM: number | null;
@@ -69,6 +80,7 @@ export function readLabMeta(raw: unknown, createdAt: string): LabMeta {
     slowmoFps: v.slowmoFps === 120 || v.slowmoFps === 240 ? v.slowmoFps : null,
     screenRecorded: v.screenRecorded !== false,
     hand: v.hand === 'L' ? 'L' : 'R',
+    ground: v.ground === 'flat' ? 'flat' : 'mound',
     heightCm: num(v.heightCm, 120, 230),
     distanceM: num(v.distanceM, 1, 60),
     memo: text(v.memo, 500),
@@ -80,6 +92,7 @@ export function readLabMeta(raw: unknown, createdAt: string): LabMeta {
 /** 카드의 작은 표시들 — '동시 촬영 · 슬로모 240 · 오른손 · 화면 녹화' */
 export function labMetaChips(meta: LabMeta): string[] {
   return [
+    meta.ground === 'flat' ? '평지' : '마운드',
     meta.synced ? '동시 촬영' : '한 대로 나눠 찍음',
     meta.slowmoFps ? `슬로모 ${meta.slowmoFps}` : '슬로모 모름',
     meta.hand === 'L' ? '왼손' : '오른손',
