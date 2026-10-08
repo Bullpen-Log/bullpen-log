@@ -828,6 +828,36 @@ console.log('■ 뼈대 자세(pose-rig) — public/models/skeleton-parts.json +
         Math.abs(lowMin) < 1e-6 && Math.abs(lowMax) < 1e-6,
         `${lowMin.toFixed(4)} ~ ${lowMax.toFixed(4)}`
       );
+      /*
+       * 거의 편 팔꿈치(굽힘 12~20°)가 장면마다 반대쪽으로 꺾여도 팔 조각이 180° 돌지 않는다 — 2026-10-08 실제 샘플 1 에서
+       * 굽힘 축(위팔 × 아래팔)이 4번 뒤집혀 던지는 팔이 홱 돌았다(run-node.ts armDiag).
+       */
+      {
+        const f0 = frames[Math.floor(frames.length / 2)];
+        const sh = f0[V2J.rSh];
+        const wr = f0[V2J.rWr];
+        const axis = [wr[0] - sh[0], wr[1] - sh[1], wr[2] - sh[2]];
+        const perp = [-axis[1], axis[0], 0];
+        const pn = Math.hypot(...perp) || 1;
+        let prevRig: RigPose | null = null;
+        let prevRef: number[] | null = null;
+        let spins = 0;
+        for (let k = 0; k < 12; k++) {
+          const off = (k % 2 === 0 ? 1 : -1) * (0.03 + 0.01 * (k % 3));
+          const fr = f0.map((p) => [...p] as [number, number, number]);
+          fr[V2J.rEl] = [0, 1, 2].map(
+            (d) => (sh[d] + wr[d]) / 2 + (perp[d] / pn) * off
+          ) as [number, number, number];
+          const pose = rigPose(fr, 'R', parts, prevRig);
+          const R = pose.upperArmR.R;
+          const r = A.upperArmR.ref;
+          const ref = [0, 1, 2].map((i) => R[i * 3] * r[0] + R[i * 3 + 1] * r[1] + R[i * 3 + 2] * r[2]);
+          if (prevRef && ref[0] * prevRef[0] + ref[1] * prevRef[1] + ref[2] * prevRef[2] < 0) spins++;
+          prevRef = ref;
+          prevRig = pose;
+        }
+        check('거의 편 팔꿈치가 반대로 꺾여도 위팔 조각이 홱 돌지 않는다', spins === 0, `${spins}번 돎`);
+      }
     }
   }
 }

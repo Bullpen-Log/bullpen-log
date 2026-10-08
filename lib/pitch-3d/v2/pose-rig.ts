@@ -100,10 +100,20 @@ export function placePoint(p: PartPose, modelPoint: Vec3, proximal: Vec3): Vec3 
 
 const mid = (a: Vec3, b: Vec3): Vec3 => scale(add(a, b), 0.5);
 
-/** 굽힘 축 = 두 마디의 외적 — 거의 펴졌으면(sin < 0.15) null */
-function bendAxis(a: Vec3, b: Vec3): Vec3 | null {
+/**
+ * 굽힘 축 = 두 마디의 외적, 앞 장면 축과 잇는다 — 반대를 가리키면 뒤집고(조각이 180° 돌지 않게), 거의 펴졌으면(sin 0.15~0.4)
+ * 앞 장면 쪽으로 섞는다. 2026-10-08 실제 샘플에서 거의 편 팔꿈치(굽힘 10~20°)의 축이 장면마다 뒤집혀 던지는 팔이 홱 돌았다.
+ * 앞 장면이 없고 거의 펴졌으면 null(부르는 쪽이 몸통 좌우 축으로).
+ */
+function bendAxis(a: Vec3, b: Vec3, prev: Vec3 | null): Vec3 | null {
   const c = cross(normalize(a), normalize(b));
-  return norm(c) < 0.15 ? null : normalize(c);
+  const s = norm(c);
+  if (!prev) return s < 0.15 ? null : normalize(c);
+  if (s < 1e-6) return prev;
+  const ax = dot(c, prev) < 0 ? scale(c, -1 / s) : scale(c, 1 / s);
+  const w = Math.max(0, Math.min(1, (s - 0.15) / 0.25));
+  const m = add(scale(prev, 1 - w), scale(ax, w));
+  return norm(m) > 1e-6 ? normalize(m) : prev;
 }
 
 /**
@@ -167,7 +177,10 @@ export function rigPose(
     const wr = j(side === 'L' ? V2J.lWr : V2J.rWr);
     const upper = sub(el, sh);
     const fore = sub(wr, el);
-    const bend = refOr(`upperArm${side}`, bendAxis(upper, fore));
+    const bend = refOr(
+      `upperArm${side}`,
+      bendAxis(upper, fore, prevRef(`upperArm${side}`))
+    );
     put(
       `upperArm${side}`,
       attach('trunk', side === 'L' ? A.trunk.shoulderL : A.trunk.shoulderR),
@@ -200,7 +213,7 @@ export function rigPose(
     const toe = j(side === 'L' ? V2J.lTo : V2J.rTo);
     const thigh = sub(kn, hip);
     const shank = sub(an, kn);
-    const bend = refOr(`thigh${side}`, bendAxis(thigh, shank));
+    const bend = refOr(`thigh${side}`, bendAxis(thigh, shank, prevRef(`thigh${side}`)));
     put(
       `thigh${side}`,
       attach('pelvis', side === 'L' ? A.pelvis.hipL : A.pelvis.hipR),
@@ -209,7 +222,8 @@ export function rigPose(
     );
     put(`shank${side}`, attach(`thigh${side}`, A[`thigh${side}`].distal), shank, bend);
     const foot = sub(toe, an);
-    const footRef = bendAxis(shank, foot) ?? refOr(`foot${side}`, null);
+    const footRef =
+      bendAxis(shank, foot, prevRef(`foot${side}`)) ?? refOr(`foot${side}`, null);
     put(`foot${side}`, attach(`shank${side}`, A[`shank${side}`].distal), foot, footRef);
   }
 
