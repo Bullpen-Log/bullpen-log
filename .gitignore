@@ -60,3 +60,7 @@ graphify-out/
 
 # 3D 투구 분석 v2 — GPU 함수용 엔진 묶음(scripts/pitch3d-bundle.mjs 가 lib/ 를 복사해 만든다)
 services/pitch3d-gpu/engine/
+
+# Python 바이트코드(services/pitch3d-gpu)
+__pycache__/
+*.pyc

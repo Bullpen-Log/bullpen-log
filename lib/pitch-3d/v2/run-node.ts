@@ -30,7 +30,7 @@ type SegmentOut =
       /** 구간을 120fps 로 풀면 몇 장인지(상한 600 안으로 잘랐다) */
       frames: number;
     }
-  | { ok: false; code: V2FailCode };
+  | { ok: false; code: V2FailCode; detail?: Record<string, unknown> };
 
 /** 구간 = 니업 0.5초 전 ~ 릴리스 0.5초 뒤(화면 결정 12), 120fps 600장(E-CAP) 안으로 — 넘치면 앞을 자른다(착지~릴리스는 꼭 남긴다) */
 export function pickSegment(input: { side: unknown; back: unknown }): SegmentOut {
@@ -41,7 +41,21 @@ export function pickSegment(input: { side: unknown; back: unknown }): SegmentOut
   const ev = detectPitchEvents(sidePose);
   const fp = ev.footPlant?.t;
   const rel = ev.release?.t;
-  if (fp == null || rel == null || !(rel > fp)) return { ok: false, code: 'events' };
+  if (fp == null || rel == null || !(rel > fp))
+    return {
+      ok: false,
+      code: 'events',
+      detail: {
+        sideViewOk: ev.sideViewOk,
+        direction: ev.direction,
+        kneeUp: ev.kneeUp?.t ?? null,
+        footPlant: fp ?? null,
+        release: rel ?? null,
+        frames: sideT.frames.length,
+        quality: Math.round(sidePose.quality * 100) / 100,
+        coverage: Math.round(sidePose.coverage * 100) / 100,
+      },
+    };
   const span = rel - fp;
   const kneeUp = ev.kneeUp?.t ?? null;
   let from = Math.min(kneeUp ?? Infinity, fp - span * 3) - 0.5;

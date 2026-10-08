@@ -46,11 +46,11 @@ check("발은 왼 17~19 · 오른 20~22(+3)", by_name["rHe"]["rtmw"] == by_name[
 
 print("■ 133점 → 25점")
 kp = [[i * 1.0, i * 2.0] for i in range(RTMW_TOTAL)]
-sc = [min(1.0, i / 100) for i in range(RTMW_TOTAL)]
+sc = [i / 10 for i in range(RTMW_TOTAL)]  # 원시 점수 0~13
 pts = to_v2_points(kp, sc)
 check("모양 25 × [x, y, v]", len(pts) == N_JOINTS and all(len(p) == 3 for p in pts))
 check("코 = RTMW 0, 왼손 셋째 MCP = RTMW 100", pts[0][:2] == [0.0, 0.0] and pts[V2_NAMES.index("lHandMid")][:2] == [100.0, 200.0])
-check("확신은 0~1 로 자른다", all(0.0 <= p[2] <= 1.0 for p in pts))
+check("확신은 점수 / 6 을 0~1 로 자른 값", all(0.0 <= p[2] <= 1.0 for p in pts) and abs(pts[1][2] - 0.5 / 6) < 1e-9 and pts[-1][2] == 1.0)
 
 print("■ 구간 · 장면 수")
 check("600장 넘으면 고르게 줄인다(순서 유지)", _decimate(list(range(1000)), MAX_FRAMES)[:3] == [0, 2, 3] and len(_decimate(list(range(1000)), MAX_FRAMES)) == MAX_FRAMES)

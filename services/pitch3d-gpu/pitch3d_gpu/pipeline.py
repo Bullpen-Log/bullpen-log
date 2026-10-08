@@ -128,10 +128,14 @@ def run_job(job: dict, pose_factory: Callable[[], object], report: Report) -> di
                 "back": pose.track(coarse["back"], bw, bh, min(COARSE_FPS, bfps)),
             }
             mark("pose")
+            for name, tr in tracks.items():
+                print(f"[pitch3d pose] {name}: {track_summary(tr)}")
 
             seg = engine.run("segment", {"side": tracks["side"], "back": tracks["back"]})
             if not seg.get("ok"):
+                print(f"[pitch3d segment] failed: {json.dumps(seg, ensure_ascii=False)[:600]}")
                 raise StepFail(str(seg.get("code", "events")), "segment")
+            print(f"[pitch3d segment] {json.dumps(seg)[:300]}")
             mark("segment")
 
             fine_side = video.decode(side_path, FINE_FPS, seg["side"]["fromSec"], seg["side"]["toSec"], MAX_FRAMES + 50)
@@ -182,6 +186,32 @@ def run_job(job: dict, pose_factory: Callable[[], object], report: Report) -> di
         if parsed.get("ok"):
             return {"status": "done", "stages": stages, "frames": len(parsed.get("t", []))}
         return {"status": "failed", "code": parsed.get("code", "internal"), "stage": parsed.get("stage", "fit"), "stages": stages}
+
+
+def track_summary(track: dict) -> str:
+    """로그용 — 장면 수 · 사람이 보인 장면 비율 · 몸 17점 확신 평균 · 사람 높이(px) 중앙값."""
+    fr = track.get("frames", [])
+    if not fr:
+        return "frames 0"
+    confs = []
+    heights = []
+    seen = 0
+    for f in fr:
+        p = f["p"]
+        body = [v for _, _, v in p[:17]]
+        m = sum(body) / 17
+        confs.append(m)
+        if m >= 0.5:
+            seen += 1
+            ys = [y for _, y, v in p[:17] if v >= 0.5]
+            if len(ys) >= 4:
+                heights.append(max(ys) - min(ys))
+    heights.sort()
+    med = heights[len(heights) // 2] if heights else 0
+    return (
+        f"frames {len(fr)} · {fr[0]['t']:.2f}~{fr[-1]['t']:.2f}s · fps {track.get('fps')} · W×H {track.get('W')}×{track.get('H')} · "
+        f"seen {seen / len(fr):.0%} · conf {sum(confs) / len(confs):.2f} · height {med:.0f}px"
+    )
 
 
 def sanity_track(track: dict) -> None:

@@ -35,7 +35,7 @@ class Pose:
         """사람 고르기 — 몸 17점(0~16)의 확신 평균이 0.3 밑이면 없는 것으로."""
         if keypoints is None or len(keypoints) == 0:
             return None
-        best, best_val = None, -1.0
+        best, best_val = None, -float("inf")  # 거리는 픽셀(수십)이라 -1.0 으로 두면 첫 장면 뒤엔 아무도 못 고른다(2026-10-08)
         for i in range(len(keypoints)):
             body = keypoints[i][:17]
             conf = float(np.mean(scores[i][:17]))

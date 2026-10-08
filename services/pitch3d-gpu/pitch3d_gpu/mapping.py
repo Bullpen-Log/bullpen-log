@@ -30,6 +30,8 @@ V2_NAMES: list[str] = [j["name"] for j in JOINT_MAP["joints"]]
 RTMW_INDEX: list[int] = [int(j["rtmw"]) for j in JOINT_MAP["joints"]]
 N_JOINTS = len(V2_NAMES)
 RTMW_TOTAL = int(JOINT_MAP["rtmwTotal"])
+# RTMW(SimCC)의 점수는 0~1 이 아니라 0~8 안팎(잘 보인 관절 5~7, 안 보이면 2 밑, 실제 영상 2026-10-08) — 6 으로 나눠 0~1 로
+SCORE_SCALE = 6.0
 
 
 def to_v2_points(keypoints, scores) -> list[list[float]]:
@@ -37,6 +39,6 @@ def to_v2_points(keypoints, scores) -> list[list[float]]:
     out = []
     for idx in RTMW_INDEX:
         x, y = keypoints[idx]
-        v = float(scores[idx])
+        v = float(scores[idx]) / SCORE_SCALE
         out.append([float(x), float(y), max(0.0, min(1.0, v))])
     return out
