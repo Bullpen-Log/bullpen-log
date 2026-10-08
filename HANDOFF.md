@@ -11,6 +11,15 @@ Claude 로 작업을 시작하면 저절로 읽힌다. 규칙은 `AGENTS.md` 6�
 
 ---
 
+## 금윤호에게 — 2026-10-08 · 김민(Claude) — 투구 분석(베타)에 3D 분석 · 3D 뼈대 보기
+
+받은 뒤 할 일 없음(DB · 패키지 그대로). 네 영역(투구 기록 › 투구 분석 실험실, 관리자만)에 더했다.
+- 샘플 카드에 '3D 분석하기': 두 영상의 관절을 0.25배로 천천히 찾고(장면을 안 빠뜨리게) → 3D 계산(워커, `lib/pitch-3d/*`) →
+  결과를 샘플 폴더의 `analysis.json` 에 저장(서버 동작 `saveLabAnalysis` · `loadLabAnalysis`, 관리자 · 크기 · 모양 검사). 목록은 '결과 있음'만
+  알고 '결과 보기'를 누를 때 읽는다. 화면 조각 `app/(app)/videos/lab/analysis-panel.tsx` · `skeleton-3d.tsx`(캔버스, 새 패키지 없음).
+- `lib/pose/extract.ts` 의 `extractPoseTrack` 에 넷째 인자 `{ playbackRate }` 를 더했다 — 안 넘기면 예전과 같다(폼 분석 그대로).
+- 설계 · 검토 · 잰 정확도: `docs/designs/pitch-3d-analysis.md`. 시험 `npm run pitch3d:test`(63개).
+
 ## 금윤호에게 — 2026-10-08 · 김민(Claude) — 투구 기록에 '투구 분석(베타)' 단추 · 샘플 올리는 실험실
 
 받은 뒤 할 일 없음(DB · 패키지 그대로). **네 영역(투구 기록)에 단추를 더했다** — 사용자: "3루(옆) · 2루(뒤)에서 동시에 찍어 3D 투구 분석을
@@ -20,6 +29,8 @@ Claude 로 작업을 시작하면 저절로 읽힌다. 규칙은 `AGENTS.md` 6�
 - 저장은 DB 없이 영상 버킷 `{userId}/pitch-lab/{샘플 번호}/`(side · back 영상 + meta.json) — `lib/pitch-lab.ts` · `lib/pitch-lab-meta.ts`,
   올리기 주소 `app/api/pitch-lab/upload-url`. `lib/storage.ts` 에 `videoBucket()` 을, `components/video-upload.tsx` 의 `uploadToStorage` 를 export 로.
 - 시험 `npm run pitch-lab:test`(8).
+- **(같은 날 더함) 영상 버킷 `pitch-videos` 설정을 바꿨다(사용자 허락)**: 받는 파일 종류에 `application/json` 을 더함(`video/*` · `image/jpeg` 뿐이라 정보 파일이
+  거절됐다). 비공개 · 50MB 한도는 그대로. 버킷을 다시 만들거나 설정을 손볼 때 이 셋을 지켜 줘.
 
 ---
 

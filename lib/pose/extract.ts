@@ -246,7 +246,8 @@ function scanByPlayback(
   video: VideoWithFrameCallback,
   duration: number,
   onProgress: (ratio: number) => void,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  playbackRate = 1
 ): Promise<ScanResult> {
   return new Promise((resolve, reject) => {
     if (typeof video.requestVideoFrameCallback !== 'function') {
@@ -340,6 +341,7 @@ function scanByPlayback(
     armStallTimer();
     video.requestVideoFrameCallback(stepCb);
     // 재생이 막히면(자동재생 정책 등) 실패가 아니라 빈 결과로 끝낸다 → seek 방식으로 넘어간다
+    if (playbackRate !== 1) video.playbackRate = playbackRate;
     video.play().catch(() => finish());
   });
 }
@@ -354,8 +356,14 @@ const LOAD_TIMEOUT_MS = 30_000;
 export async function extractPoseTrack(
   src: string,
   onProgress: (ratio: number) => void,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  /**
+   * 재생 속도(기본 1 = 지금 그대로 — 폼 분석). 재생 중 장면마다 관절을 찾는데, 찾는 시간이 장면 간격보다 길면 그사이 장면을 건너뛴다
+   * (느린 폰에서 초당 11장). 3D 투구 분석은 장면 단위로 두 영상의 시간을 맞춰 0.25 로 천천히 튼다(설계 docs/designs/pitch-3d-analysis.md 검토 R1).
+   */
+  opts?: { playbackRate?: number }
 ): Promise<PoseTrack> {
+  const playbackRate = opts?.playbackRate ?? 1;
   const video = document.createElement('video');
   video.crossOrigin = 'anonymous';
   /* 소리 없음 · playsinline 속성까지 — 아이폰이 누름 없이 받고 틀게(lib/capture-thumbnail.ts) */
@@ -424,7 +432,8 @@ export async function extractPoseTrack(
             video as VideoWithFrameCallback,
             duration,
             onProgress,
-            signal
+            signal,
+            playbackRate
           )
         : await scanBySeek(
             engine.landmarker,
@@ -473,7 +482,8 @@ export async function extractPoseTrack(
               video as VideoWithFrameCallback,
               duration,
               onProgress,
-              signal
+              signal,
+              playbackRate
             )
           : await scanBySeek(cpu.landmarker, video, duration, step, onProgress, signal);
         if (distinct(retry) > distinct(scan)) scan = retry;
