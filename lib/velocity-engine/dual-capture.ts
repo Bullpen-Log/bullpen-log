@@ -256,6 +256,7 @@ export class DualCapture {
       zoom: this.distanceM && this.approach === 'receding' ? 2 : 1,
       frameRate: info.mainFps,
       cropped: false,
+      offStandard: dualOffStandard(info),
     };
   }
 
@@ -541,4 +542,16 @@ export class DualCapture {
   getInfo() {
     return this.info;
   }
+}
+
+/** 앱 카메라가 기준 조건에서 벗어난 까닭 — 앱이 알려 준 것(옛 앱은 모름 = 빈 목록) */
+function dualOffStandard(info: DualStartInfo): string[] {
+  const s = info.standard;
+  if (!s) return [];
+  const out: string[] = [];
+  if (!s.resolution) out.push(`${Math.min(info.mainWidth, info.mainHeight)}p`);
+  if (!s.fps) out.push(`${info.mainFps}fps`);
+  if (!s.zoom) out.push('2배가 디지털 줌');
+  if (!s.stabilization) out.push('손떨림 보정 없음');
+  return out;
 }

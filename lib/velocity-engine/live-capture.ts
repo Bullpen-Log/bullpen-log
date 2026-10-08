@@ -121,6 +121,11 @@ export type CameraInfo = {
   frameRate: number | null;
   /** 화면 비율이 카메라 고유 비율(16:9 · 4:3)이 아니다 — 잘려 왔다(값에 알림, 화각은 짐작) */
   cropped: boolean;
+  /**
+   * 기준 조건(1080p · 60fps · 2배가 진짜 줌 · 손떨림 보정 — 모든 사용자 같게, 2026-10-08 사용자)에서 벗어난 까닭. 비었으면 기준대로다.
+   * 기종에 따라 조건을 몰래 낮추지 않고, 벗어나면 화면이 알리고 공의 분석 기록에 남긴다.
+   */
+  offStandard: string[];
 };
 
 /**
@@ -851,16 +856,22 @@ export class LiveCapture {
       frameRate:
         typeof s?.frameRate === 'number' ? Math.round(s.frameRate * 10) / 10 : null,
       cropped: this.cropped,
+      offStandard: webOffStandard({
+        short: Math.min(this.sourceWidth, this.sourceHeight),
+        fps: typeof s?.frameRate === 'number' ? s.frameRate : null,
+        zoom,
+        wantZoom: this.distanceM && this.approach === 'receding' ? 2 : 1,
+      }),
     };
   }
 
   /**
-   * 고른 fps 를 못 받았으면 그 fps 를 '최소'로 걸어 한 번 더 청한다. ideal 만 걸면 브라우저가 화질을 맞추느라 fps 를 버릴 수
+   * 1080p · 60fps 를 못 받았으면 60 을 '최소'로 걸어 한 번 더 청한다. ideal 만 걸면 브라우저가 화질을 맞추느라 fps 를 버릴 수
    * 있다 — 실제로 1080p 60 을 고르면 1080p 30 으로 켜졌다(2026-10-04 사용자). min 을 걸면 그 fps 를 내는 모양으로 바꾸거나,
    * 못 내면 거절한다(거절이면 트랙은 그대로 — 명세). 가로 · 세로 두 방향으로 해 본다(폰 브라우저마다 세로 화면의 가로 · 세로를
    * 다르게 읽는다).
    *
-   * 1080p · 60fps 를 둘 다 못 내면 fps 가 먼저다 — 1080p 30 보다 720p 60 이 잰다(엔진은 어차피 짧은 변 720 으로 줄여 잰다).
+   * 둘 다 못 내면 그대로 둔다 — 화질을 낮추지 않는다(기준 밖은 화면이 알린다).
    */
   private async rescueFrameRate(
     track: MediaStreamTrack | undefined,
@@ -881,14 +892,12 @@ export class LiveCapture {
       await this.readVideoSize();
     };
     /*
-     * 1080p 에서 60fps 를 못 내면 720p 로도 — 아이폰 앱의 웹 카메라(웹킷)는 1080p 를 청하면 30fps 로 켜고, 같은 크기로는 60fps 를
-     * 못 냈다(2026-10-08). 720p 60 · 2배 줌은 그날 실시간으로 잘 잰 조건이다(70.5 · 101.6, 실제 68 · 101).
+     * 1080p 그대로 60fps 만 다시 청한다 — 화질을 낮춰 60fps 를 맞추지 않는다(모든 사용자 같은 조건, 2026-10-08 사용자: "낮춰 버리면 안
+     * 되고"). 못 내면 그대로 켜고 화면이 기준 밖이라고 알린다(offStandard).
      */
     for (const [w, h] of [
       [longSide, mode.short],
       [mode.short, longSide],
-      [1280, 720],
-      [720, 1280],
     ]) {
       const size = sizeNow();
       const fps = fpsNow();
@@ -1367,4 +1376,21 @@ export class LiveCapture {
       }
     }, 0);
   }
+}
+
+/**
+ * 웹 카메라(getUserMedia)가 기준 조건에서 벗어난 까닭 — 웹 카메라는 손떨림 보정을 켤 수 없어 늘 기준 밖이다. 앱 카메라(DualCapture)는
+ * 앱이 알려 준 값으로 따로 센다.
+ */
+export function webOffStandard(c: {
+  short: number;
+  fps: number | null;
+  zoom: number | null;
+  wantZoom: number;
+}): string[] {
+  const out = ['웹 카메라(손떨림 보정 없음)'];
+  if (Math.abs(c.short - 1080) > 8) out.push(`${c.short}p`);
+  if (c.fps != null && c.fps < 59) out.push(`${Math.round(c.fps)}fps`);
+  if (c.wantZoom > 1 && (c.zoom == null || Math.abs(c.zoom - c.wantZoom) > 0.05)) out.push('2배 줌 아님');
+  return out;
 }

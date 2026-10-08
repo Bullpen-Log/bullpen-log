@@ -253,6 +253,13 @@ export function sanitizeAnalysis(raw: unknown): Record<string, unknown> | null {
     approach: a.approach === 'approaching' ? 'approaching' : 'receding',
     live: sanitizeLive(a.live),
     zoneRect: sanitizeZoneRect(a.zoneRect),
+    /* 기준 조건(1080p · 60fps · 진짜 2배 · 손떨림 보정) 밖에서 잰 까닭 — 짧은 글 몇 개 */
+    offStandard: Array.isArray(a.offStandard)
+      ? a.offStandard
+          .filter((x): x is string => typeof x === 'string')
+          .slice(0, 6)
+          .map((x) => x.slice(0, 40))
+      : [],
     trail: Array.isArray(a.trail)
       ? a.trail
           .slice(0, 160)

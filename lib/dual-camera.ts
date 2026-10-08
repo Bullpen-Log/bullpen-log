@@ -107,6 +107,8 @@ export type DualStartInfo = {
   hardwareCost: number;
   /** 일반 카메라의 손떨림 보정 — 'standard' · 'off'(옛 앱은 없음 = 꺼짐) */
   stabilization?: string;
+  /** 기준 조건을 맞췄나(1080p · 60fps · 2배가 진짜 줌 · 손떨림 보정) — 옛 앱은 없음 */
+  standard?: { resolution: boolean; fps: boolean; zoom: boolean; stabilization: boolean };
 };
 
 /** 앱이 잘라 넘긴 클립 하나 — read 로 조금씩 읽어 Blob 으로 만든다 */

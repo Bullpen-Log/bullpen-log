@@ -760,7 +760,27 @@ final class DualCameraController: NSObject, AVCaptureVideoDataOutputSampleBuffer
             "wideFovDeg": wideFov,
             "hardwareCost": Double(multi?.hardwareCost ?? 0),
             "stabilization": stabilized ? "standard" : "off",
+            /*
+             * 기준 조건(모든 사용자 같게 — 2026-10-08 사용자: "폰 기종에 상관없이 일관성 있게") — 1080p · 60fps · 2배가 진짜 줌 · 손떨림
+             * 보정. 못 맞춰도 막지 않고 사이트가 알린다(몰래 낮추지 않는다).
+             */
+            "standard": [
+                "resolution": mainPick.width == 1920 && mainPick.height == 1080,
+                "fps": mainPick.fps >= DualCameraController.MIN_MEASURE_FPS,
+                "zoom": DualCameraController.nativeAt(mainPick.format, zoom: zoomed),
+                "stabilization": stabilized,
+            ],
         ]
+    }
+
+    /// 이 줌에서 화면을 늘리지 않나(진짜 해상도) — 늘리기 시작 배율이 그보다 크거나(3% 안), 진짜 줌 목록에 있으면
+    static func nativeAt(_ format: AVCaptureDevice.Format, zoom: Double) -> Bool {
+        guard zoom > 1.001 else { return true }
+        if Double(format.videoZoomFactorUpscaleThreshold) > zoom - 0.1 { return true }
+        if #available(iOS 16.0, *) {
+            return format.secondaryNativeResolutionZoomFactors.contains { abs(Double($0) - zoom) < 0.05 }
+        }
+        return false
     }
 
     /// 화각(도)을 배율만큼 좁힌 값 — 가운데를 잘라 키우면 tan(화각/2) 이 배율의 역수로 준다

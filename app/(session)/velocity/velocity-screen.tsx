@@ -219,6 +219,10 @@ const BACK_OF: Partial<Record<Step, { to: Step; label: string }>> = {
 };
 type LocalClip = { url: string; blob: Blob; durationSec: number; eventSec: number };
 /** 공의 영상 주소(일반 · 광각)를 푼다 — 저장했거나 화면을 떠날 때 */
+/** 기준 조건 밖이라는 알림 한 줄 */
+const standardNoteOf = (offStandard: string[]) =>
+  `기준 조건이 아니에요(${offStandard.join(' · ')}). 다른 폰과 값이 다를 수 있어요.`;
+
 /** 어느 카메라로 재나 — 웹 카메라 · 앱 카메라(일반 하나) */
 type CameraPlan = 'web' | 'app';
 
@@ -821,10 +825,15 @@ export function VelocityScreen({
         ...analysisOf(result, approach),
         /* 클립은 카메라 장면 그대로라 이 존을 영상 위에 그대로 얹는다. 영상 파일은 장면이 달라 싣지 않는다 */
         zoneRect: source === 'camera' ? activeZone : null,
+        /* 기준 조건 밖에서 잰 공 — 다른 폰 · 다른 조건의 값과 견줄 때 가른다 */
+        offStandard: source === 'camera' ? (camera?.offStandard ?? []) : [],
       },
       autoDetected: source === 'camera' ? autoMode : false,
       captureId: meta?.id,
       notes: [
+        ...(source === 'camera' && camera?.offStandard?.length
+          ? [standardNoteOf(camera.offStandard)]
+          : []),
         ...distNotes,
         ...(result.live?.notes.map((note) => note.text) ?? []),
         ...(source === 'file' ? ((result as { video?: { notes: string[] } }).video?.notes ?? []) : []),
@@ -1706,9 +1715,16 @@ export function VelocityScreen({
         ? { n: '5/5', label: '스트라이크 존' }
         : null;
   const fpsNote = liveFpsNote(fps);
+  /*
+   * 기준 조건(1080p · 60fps · 2배가 진짜 줌 · 손떨림 보정)을 못 맞춘 카메라 — 모든 사용자가 같은 조건이어야 값을 견줄 수 있다(2026-10-08
+   * 사용자). 몰래 낮추지 않고, 막지도 않고, 측정 화면에 계속 알린다
+   */
+  const standardNote = camera?.offStandard?.length ? standardNoteOf(camera.offStandard) : null;
   /* 오른쪽 위 알약을 주황으로 — 실제로 들어오는 fps 가 낮거나(50 아래), 카메라가 60fps 아래로 켜졌거나(시트와 같은 기준) */
   const lowFps =
-    fpsNote != null || (camera?.frameRate != null && !fpsGood(camera.frameRate));
+    fpsNote != null ||
+    standardNote != null ||
+    (camera?.frameRate != null && !fpsGood(camera.frameRate));
   /* 카메라가 잘려 왔으면(원래 비율이 아니면) 화각을 짐작한다 — 막지 않고 알린다 */
   const cropNote =
     camera?.cropped === true
@@ -2328,6 +2344,7 @@ export function VelocityScreen({
                     saved ||
                     toast ||
                     fpsNote ||
+                    standardNote ||
                     cropNote ||
                     (isAdmin && !native)) && (
                     <div className={`space-y-2 px-4 ${resultShown ? '' : 'pb-3'}`}>
@@ -2355,10 +2372,11 @@ export function VelocityScreen({
                       {/* 초당 장면 · 잘림 — 측정 화면에서만(수평 · 존은 오른쪽 위 주황 표시로 충분), 결과가 떠 있으면 결과의 알림이 말한다 */}
                       {step === 'measure' &&
                         !resultShown &&
-                        (fpsNote ?? cropNote) &&
+                        phase == null &&
+                        (fpsNote ?? standardNote ?? cropNote) &&
                         !error && (
                           <p className="rounded-xl bg-warn/90 px-4 py-2.5 text-sm leading-snug text-white">
-                            {fpsNote ?? cropNote}
+                            {fpsNote ?? standardNote ?? cropNote}
                           </p>
                         )}
                       {step === 'measure' && isAdmin && !native && !error && !saved && (
