@@ -7,8 +7,10 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
 
-import numpy as np
+if TYPE_CHECKING:  # numpy 는 이미지 안에만 — selfcheck 는 표준 라이브러리만으로 돈다
+    import numpy as np
 
 
 class DecodeError(Exception):
@@ -18,7 +20,7 @@ class DecodeError(Exception):
 @dataclass
 class Frame:
     t: float
-    image: np.ndarray  # BGR, HxWx3
+    image: "np.ndarray"  # BGR, HxWx3
 
 
 def probe(path: str) -> tuple[int, int, float]:

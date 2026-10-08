@@ -12,8 +12,6 @@ import tempfile
 import time
 from typing import Callable
 
-import requests
-
 from . import engine, video
 from .mapping import N_JOINTS
 
@@ -36,6 +34,8 @@ class StepFail(Exception):
 
 
 def _download(url: str, path: str) -> None:
+    import requests  # 이미지 안에만 있다 — selfcheck 는 표준 라이브러리만으로 돈다
+
     last = None
     for i, wait in enumerate((0.0,) + DOWNLOAD_RETRY):
         if wait:
@@ -59,6 +59,8 @@ def _download(url: str, path: str) -> None:
 
 
 def _upload(url: str, body: str) -> None:
+    import requests
+
     last = None
     for wait in (0.0,) + UPLOAD_RETRY:
         if wait:

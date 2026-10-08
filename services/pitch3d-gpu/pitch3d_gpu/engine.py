@@ -12,7 +12,8 @@ import subprocess
 import tempfile
 from pathlib import Path
 
-ENGINE_DIR = Path(os.environ.get("PITCH3D_ENGINE_DIR", "/root/engine"))
+_LOCAL_ENGINE = Path(__file__).resolve().parent.parent / "engine"  # 로컬(npm run pitch3d:bundle 이 만든 것)
+ENGINE_DIR = Path(os.environ.get("PITCH3D_ENGINE_DIR") or ("/root/engine" if Path("/root/engine").is_dir() else _LOCAL_ENGINE))
 RUNNER = ENGINE_DIR / "lib" / "pitch-3d" / "v2" / "run-node.ts"
 NODE = os.environ.get("PITCH3D_NODE", "node")
 TIMEOUT_SEC = 600

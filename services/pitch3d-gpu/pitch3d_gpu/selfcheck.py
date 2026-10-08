@@ -20,6 +20,10 @@ from .mapping import JOINT_MAP, N_JOINTS, RTMW_INDEX, RTMW_TOTAL, V2_NAMES, to_v
 from .pipeline import MAX_FRAMES, _decimate, sanity_track
 
 passed = 0
+# 윈도우 콘솔(cp949)에서도 한글 · 기호가 깨지지 않게
+for _stream in (sys.stdout, sys.stderr):
+    if hasattr(_stream, "reconfigure"):
+        _stream.reconfigure(encoding="utf-8", errors="replace")
 
 
 def check(name: str, ok: bool, detail: str = "") -> None:
