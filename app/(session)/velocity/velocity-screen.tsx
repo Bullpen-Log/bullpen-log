@@ -826,7 +826,14 @@ export function VelocityScreen({
         /* 클립은 카메라 장면 그대로라 이 존을 영상 위에 그대로 얹는다. 영상 파일은 장면이 달라 싣지 않는다 */
         zoneRect: source === 'camera' ? activeZone : null,
         /* 기준 조건 밖에서 잰 공 — 다른 폰 · 다른 조건의 값과 견줄 때 가른다 */
-        offStandard: source === 'camera' ? (camera?.offStandard ?? []) : [],
+        offStandard:
+          source === 'camera'
+            ? [
+                ...(camera?.offStandard ?? []),
+                /* 실제로 받은 장면 수가 낮았다(처리가 밀려 장면을 버림) */
+                ...(liveFpsNote(fps) ? [`초당 ${fps}장`] : []),
+              ]
+            : [],
       },
       autoDetected: source === 'camera' ? autoMode : false,
       captureId: meta?.id,

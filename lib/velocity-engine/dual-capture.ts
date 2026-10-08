@@ -8,6 +8,7 @@ import {
 } from '@/lib/dual-camera';
 import { DEFAULT_CAM_MODE } from '@/lib/velocity-camera-mode';
 import { analyzeVideo, type VideoAnalyzeResult } from './analyze-video';
+import { LIVE_GOOD_FPS } from './live-meter';
 import type { Approach } from './validate';
 import type {
   CameraFocus,
@@ -237,7 +238,12 @@ export class DualCapture {
         /* 옛 앱은 kind 가 없다 — 움직임으로 본다 */
         if (Number.isFinite(at)) this.onThrow(at, d.kind === 'ball' ? 'ball' : 'motion');
       }),
-      listen('error', (d) => this.handlers.onError(String(d.message ?? '카메라 오류')))
+      listen('error', (d) => this.handlers.onError(String(d.message ?? '카메라 오류'))),
+      /* 실제로 받은 장면 수(1초마다) — 처리가 밀려 장면을 버리면 약속한 60 보다 낮다. 옛 앱은 이 알림이 없다 */
+      listen('fps', (d) => {
+        const f = Number(d.fps);
+        if (Number.isFinite(f) && f > 0) this.handlers.onFps?.(f, f < LIVE_GOOD_FPS);
+      })
     );
     this.previewTimer = setInterval(this.syncPreview, 250);
     window.addEventListener('resize', this.syncPreview);

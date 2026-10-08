@@ -118,6 +118,9 @@ public class DualCameraPlugin: CAPPlugin, CAPBridgedPlugin {
         controller.onError = { [weak self] message in
             self?.notifyListeners("error", data: ["message": message])
         }
+        controller.onFps = { [weak self] fps, dropped in
+            self?.notifyListeners("fps", data: ["fps": fps, "dropped": dropped])
+        }
         self.controller = controller
         controller.start(
             config: config,
@@ -426,6 +429,11 @@ final class DualCameraController: NSObject, AVCaptureVideoDataOutputSampleBuffer
     let trigger = MotionTrigger()
     var onThrow: ((Double, Double, String) -> Void)?
     var onError: ((String) -> Void)?
+    /// 실제로 받은 초당 장면 수 · 그 사이 버린 장면 수 — 1초마다. 약속한 60 과 달리 처리가 밀리면 장면을 버린다(구형 폰 · 개발용 빌드)
+    var onFps: ((Double, Int) -> Void)?
+    private var fpsCount = 0
+    private var fpsDropped = 0
+    private var fpsSince = -1.0
 
     private let sessionQueue = DispatchQueue(label: "bullpen.dualcam.session")
     private let mainQueue = DispatchQueue(label: "bullpen.dualcam.main", qos: .userInitiated)
@@ -990,6 +998,7 @@ final class DualCameraController: NSObject, AVCaptureVideoDataOutputSampleBuffer
 
     func captureOutput(_ output: AVCaptureOutput, didOutput sampleBuffer: CMSampleBuffer, from connection: AVCaptureConnection) {
         if output === mainOutput {
+            countFrame(CMSampleBufferGetPresentationTimeStamp(sampleBuffer).seconds)
             #if DEBUG
             logState()
             #endif
@@ -1075,6 +1084,22 @@ final class DualCameraController: NSObject, AVCaptureVideoDataOutputSampleBuffer
         print(String(format: "[cam] fps=%.1f feed=%.2fms ", fps, ms) + "zoom=\(d.videoZoomFactor) lens=\(d.lensPosition) focus=\(d.focusMode.rawValue) adj=\(d.isAdjustingFocus) far=\(d.autoFocusRangeRestriction.rawValue) stab=\(stab) iso=\(d.iso) ss=\(d.exposureDuration.seconds) manual=\(manualLens.map { "\($0)" } ?? "nil")")
     }
     #endif
+
+    /// 받은 장면을 세어 1초마다 알린다(카메라 장면 줄에서)
+    private func countFrame(_ t: Double) {
+        if fpsSince < 0 { fpsSince = t }
+        fpsCount += 1
+        guard t - fpsSince >= 1 else { return }
+        onFps?(Double(fpsCount - 1) / (t - fpsSince), fpsDropped)
+        fpsSince = t
+        fpsCount = 1
+        fpsDropped = 0
+    }
+
+    /// 늦어서 버린 장면(alwaysDiscardsLateVideoFrames) — 처리가 밀렸다
+    func captureOutput(_ output: AVCaptureOutput, didDrop sampleBuffer: CMSampleBuffer, from connection: AVCaptureConnection) {
+        if output === mainOutput { fpsDropped += 1 }
+    }
 
     // MARK: 렌즈 보정용 장면
 
