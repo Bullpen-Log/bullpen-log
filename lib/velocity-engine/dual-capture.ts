@@ -369,7 +369,7 @@ export class DualCapture {
     console.info(
       `[velo] clip ${Math.round(t1 - t0)}ms · read ${Math.round(t2 - t1)}ms (${blob.size}B) · analyze ${Math.round(performance.now() - t2)}ms` +
         (tm
-          ? ` (훑기 ${Math.round(tm.coarseMs)} · 공 찾기 ${Math.round(tm.findMs)} · 장면 ${Math.round(tm.framesMs)} · 엔진 ${Math.round(tm.analyzeMs)} · 되감기 ${tm.seeks})`
+          ? ` (훑기 ${Math.round(tm.coarseMs)} · 공 찾기 ${Math.round(tm.findMs)} · 장면 ${Math.round(tm.framesMs)} · 엔진 ${Math.round(tm.analyzeMs)} · 되감기 ${tm.seeks}번 기다림 ${Math.round(tm.seekWaitMs)} · 그리기 ${Math.round(tm.drawMs)})`
           : '') +
         ` · ${result.measure.ok ? 'ok' : result.measure.code}`
     );
