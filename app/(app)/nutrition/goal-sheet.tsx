@@ -5,17 +5,32 @@ import { Check } from 'lucide-react';
 import { Modal } from '@/components/modal';
 import { Segmented } from '@/components/segmented';
 import { useWeightUnit } from '@/components/use-units';
-import { fromWeight, round1, toWeight, type WeightUnit } from '@/lib/units';
+import { fromWeight, round1, toWeight } from '@/lib/units';
 import {
   ACTIVITIES,
-  GOALS,
+  FAT_G_MAX,
+  FAT_G_MIN,
+  GOAL_KINDS,
+  MACRO_PRESETS,
   PROTEIN_G_MAX,
   PROTEIN_G_MIN,
   SEXES,
   kcalText,
   type ActivityKey,
-  type GoalKey,
+  type GoalKind,
+  type MacroPreset,
 } from '@/lib/nutrition/meta';
+import {
+  foldGoalKind,
+  goalKindHint,
+  goalKindOf,
+  goalKindsFor,
+  presetProtein,
+} from '@/lib/nutrition/onboarding';
+import { PERIOD_WEEKS, dateText, dayGap } from '@/lib/nutrition/period';
+import { kgText, paceText } from '@/components/onboarding/format';
+import { OptionCards } from '@/components/onboarding/choices';
+import { MacroBar } from '@/components/onboarding/plan-stats';
 import {
   computeTargets,
   type Assumed,
@@ -83,9 +98,6 @@ const BIG = 'min-h-11 px-2';
 /** '+300' · '−400' — 빼기는 U+2212 */
 const signed = (n: number) =>
   `${n > 0 ? '+' : n < 0 ? '−' : ''}${kcalText(Math.abs(n))}`;
-const kgText = (kg: number, unit: WeightUnit) => `${round1(toWeight(kg, unit))}${unit}`;
-const rateText = (kg: number, unit: WeightUnit) =>
-  `주 ${unit === 'kg' ? kg : round1(toWeight(kg, unit))}${unit}`;
 
 export function GoalSheet({
   open,
@@ -126,12 +138,20 @@ export function GoalSheet({
    */
   const rule = ageRule(body.age);
   const savedGoal = effectiveGoal(profile.goal, body.age);
-  const [goal, setGoalState] = useState<GoalKey>(savedGoal);
+  /* 목표 카드(다섯) — 계산이 읽는 목표 셋은 카드를 접은 값(lib/nutrition/onboarding.ts foldGoalKind). 인아웃식 온보딩(2026-10-08) */
+  const [goalKind, setGoalKindState] = useState<GoalKind>(() =>
+    goalKindOf(savedGoal, profile.goalKind, body.age)
+  );
+  const goal = effectiveGoal(foldGoalKind(goalKind, body.age).goal, body.age);
   const [activity, setActivity] = useState<ActivityKey>(profile.activity);
   const [protein, setProtein] = useState(() =>
     effectiveProtein(profile.proteinPerKg, body.age)
   );
-  const goals = GOALS.filter((g) => rule.goalDelta[g.key] !== null);
+  /* 탄단지 나누기 — 지방 몫. null(옛 줄)은 균형 */
+  const [macroPreset, setMacroPresetState] = useState<MacroPreset>(
+    profile.macroPreset ?? 'balanced'
+  );
+  const goalCards = goalKindsFor(body.age);
   const [lo, hi] = [rule.proteinChoices[0], rule.proteinChoices.at(-1)];
   const [manual, setManual] = useState(profile.kcalTarget !== null);
   const [kcal, setKcal] = useState(
@@ -166,13 +186,34 @@ export function GoalSheet({
     prefs.goalEndDate !== null && prefs.goalEndDate > today ? prefs.goalEndDate : null;
   const [period, setPeriod] = useState<string>(savedEnd ? 'saved' : 'none');
 
-  /* 목표를 바꾸면 속도는 그 목표의 기본으로, 목표 체중은 비운다(증량의 82kg 은 감량의 목표가 아니다) */
-  function setGoal(next: GoalKey) {
-    /* 이미 고른 칸을 다시 누른 것 — 고른 속도와 적던 목표 체중을 지우지 않는다 */
-    if (next === goal) return;
-    setGoalState(next);
-    setRate(next === savedGoal ? profile.weeklyRateKg : null);
-    setTargetText(next === savedGoal ? targetShown(savedTarget) : '');
+  /*
+   * 카드를 바꾸면 단백질은 카드가 정한 값(근육 키우기 · 군살만 빼기는 높게, 나머지는 나이 기본)으로, 접은 목표가 바뀌면
+   * 속도는 그 목표의 기본으로, 목표 체중은 비운다(증량의 82kg 은 감량의 목표가 아니다). 증량 ↔ 근육 키우기처럼 접은
+   * 목표가 같으면 속도 · 체중은 둔다.
+   */
+  function setGoalKind(next: GoalKind) {
+    if (next === goalKind) return;
+    const fold = foldGoalKind(next, body.age);
+    const nextGoal = effectiveGoal(fold.goal, body.age);
+    setGoalKindState(next);
+    setProtein(
+      effectiveProtein(
+        presetProtein(macroPreset, fold.proteinPerKg, body.age),
+        body.age
+      )
+    );
+    if (nextGoal === goal) return;
+    setRate(nextGoal === savedGoal ? profile.weeklyRateKg : null);
+    setTargetText(nextGoal === savedGoal ? targetShown(savedTarget) : '');
+  }
+  /* '단백질 넉넉히'를 고르면 단백질을 2.0g/kg 이상으로(성장기는 범위 끝) — 다른 프리셋은 지방 몫만 바꾼다 */
+  function setMacroPreset(next: MacroPreset) {
+    setMacroPresetState(next);
+    if (next === 'protein') {
+      setProtein(
+        effectiveProtein(presetProtein('protein', protein, body.age), body.age)
+      );
+    }
   }
 
   const kcalNum = Number(kcal);
@@ -183,6 +224,14 @@ export function GoalSheet({
     proteinManual && proteinG.trim() !== '' && Number.isFinite(proteinNum)
       ? proteinNum
       : null;
+  /* 하루 지방 직접 정하기 — 단백질과 같은 모양. 탄수화물이 나머지라 따라 움직인다 */
+  const [fatManual, setFatManual] = useState(profile.fatTargetG !== null);
+  const [fatG, setFatG] = useState(
+    profile.fatTargetG !== null ? String(profile.fatTargetG) : ''
+  );
+  const fatNum = Number(fatG);
+  const fatTargetG =
+    fatManual && fatG.trim() !== '' && Number.isFinite(fatNum) ? fatNum : null;
 
   const choices = paceChoices(body.age, goal, refKg);
   const pickedRate = effectiveRate(rate, body.age, goal);
@@ -238,10 +287,13 @@ export function GoalSheet({
     weeklyRateKg: pickedRate,
     kcalAdjust: planned.kcalAdjust,
     planSince: profile.planSince,
+    goalKind,
+    macroPreset,
+    fatTargetG,
   } satisfies ProfileSettings;
   const preview = computeTargets(draft, body, 0);
   const auto = computeTargets(
-    { ...draft, kcalTarget: null, proteinTargetG: null },
+    { ...draft, kcalTarget: null, proteinTargetG: null, fatTargetG: null },
     body,
     0
   );
@@ -263,6 +315,13 @@ export function GoalSheet({
       setError(`하루 단백질은 ${PROTEIN_G_MIN}~${PROTEIN_G_MAX}g 사이로 적어 주세요.`);
       return;
     }
+    if (
+      fatManual &&
+      (fatTargetG === null || fatTargetG < FAT_G_MIN || fatTargetG > FAT_G_MAX)
+    ) {
+      setError(`하루 지방은 ${FAT_G_MIN}~${FAT_G_MAX}g 사이로 적어 주세요.`);
+      return;
+    }
     if (showPlan && !targetCheck.ok) {
       setError(targetHint ?? targetCheck.error);
       return;
@@ -276,6 +335,9 @@ export function GoalSheet({
           proteinPerKg: protein,
           kcalTarget,
           proteinTargetG,
+          goalKind,
+          macroPreset,
+          fatTargetG,
           targetWeightKg: targetSave,
           /*
            * 고른 그대로 보낸다(null = 기본 속도). 지난 날을 보며 열면 이 창은 그날 나이로 셈하는데, 그 나이로
@@ -323,7 +385,7 @@ export function GoalSheet({
   ].join(' · ');
 
   /* ── 속도 줄의 글 ── */
-  const paceLine = `${rateText(pickedRate ?? 0, unit)}${
+  const paceLine = `${paceText(pickedRate ?? 0, unit)}${
     goal === 'lose' && rule.band === 'teen' ? ' 안팎' : ''
   } · 하루 ${signed(goal === 'lose' ? -paceKcal : paceKcal)}kcal`;
   const paceHint = manual
@@ -402,13 +464,13 @@ export function GoalSheet({
     endDate === null || needed === null || pickedRate === null
       ? '날짜를 정하면 거기에 맞는 속도를 골라 드려요.'
       : pickedRate >= needed - 0.005
-        ? `${dateText(endDate)}까지 ${kgText(remaining ?? 0, unit)}, ${rateText(Math.round(needed * 100) / 100, unit)}이면 닿아요.${
+        ? `${dateText(endDate)}까지 ${kgText(remaining ?? 0, unit)}, ${paceText(Math.round(needed * 100) / 100, unit)}이면 닿아요.${
             manual ? ' 칼로리를 직접 정해서 속도는 비교에만 써요.' : ''
           }`
-        : `${dateText(endDate)}까지는 ${rateText(Math.round(needed * 100) / 100, unit)}이 필요해요. ${
+        : `${dateText(endDate)}까지는 ${paceText(Math.round(needed * 100) / 100, unit)}이 필요해요. ${
             pickedRate < (paces.length > 0 ? paces[paces.length - 1] : pickedRate)
-              ? `지금 속도(${rateText(pickedRate, unit)})로는 약 ${etaWeeks(remaining ?? 0, pickedRate) ?? '?'}주, 가장 빠른 속도(${rateText(paces.length > 0 ? paces[paces.length - 1] : pickedRate, unit)})로도 약 ${etaWeeks(remaining ?? 0, paces.length > 0 ? paces[paces.length - 1] : pickedRate) ?? '?'}주 걸려요.`
-              : `몸에 무리 없는 가장 빠른 속도(${rateText(pickedRate, unit)})로도 약 ${etaWeeks(remaining ?? 0, pickedRate) ?? '?'}주 걸려요.`
+              ? `지금 속도(${paceText(pickedRate, unit)})로는 약 ${etaWeeks(remaining ?? 0, pickedRate) ?? '?'}주, 가장 빠른 속도(${paceText(paces.length > 0 ? paces[paces.length - 1] : pickedRate, unit)})로도 약 ${etaWeeks(remaining ?? 0, paces.length > 0 ? paces[paces.length - 1] : pickedRate) ?? '?'}주 걸려요.`
+              : `몸에 무리 없는 가장 빠른 속도(${paceText(pickedRate, unit)})로도 약 ${etaWeeks(remaining ?? 0, pickedRate) ?? '?'}주 걸려요.`
           }`;
 
   return (
@@ -445,17 +507,23 @@ export function GoalSheet({
                 label="목표"
                 hint={
                   rule.band === 'child'
-                    ? `${rule.goalHint[goal]} · ${rule.goalHint.lose}`
-                    : rule.goalHint[goal]
+                    ? rule.goalHint.lose
+                    : rule.band === 'teen'
+                      ? '성장기라 감량 카드는 없어요 — 자라는 몸에서 빼면 키 · 회복이 먼저 손해를 봐요.'
+                      : undefined
                 }
               >
-                <Segmented
+                <OptionCards
+                  name="goalKind"
                   label="목표"
-                  size="md"
-                  itemClassName={BIG}
-                  value={goal}
-                  onChange={setGoal}
-                  options={goals.map((g) => ({ value: g.key, label: g.label }))}
+                  options={goalCards.map((key) => ({
+                    value: key,
+                    label: GOAL_KINDS.find((g) => g.key === key)?.label ?? key,
+                    hint: goalKindHint(key, body.age),
+                  }))}
+                  value={goalKind}
+                  onChange={setGoalKind}
+                  columns={goalCards.length > 3 ? 2 : 1}
                 />
               </Row>
 
@@ -485,7 +553,7 @@ export function GoalSheet({
                             onChange={(v) => setRate(Number(v))}
                             options={paces.map((kg) => ({
                               value: String(kg),
-                              label: rateText(kg, unit),
+                              label: paceText(kg, unit),
                             }))}
                           />
                         )}
@@ -546,6 +614,18 @@ export function GoalSheet({
                 value={activity}
                 onChange={setActivity}
                 options={ACTIVITIES.map((a) => ({ value: a.key, label: a.label }))}
+              />
+            </Row>
+
+            {/* 탄단지 나누기 — 지방 몫. 단백질은 체중으로, 탄수화물은 나머지(인아웃식 온보딩, 2026-10-08) */}
+            <Row label="탄단지 나누기" hint={hint(MACRO_PRESETS, macroPreset)}>
+              <Segmented
+                label="탄단지 나누기"
+                size="md"
+                itemClassName={BIG}
+                value={macroPreset}
+                onChange={setMacroPreset}
+                options={MACRO_PRESETS.map((m) => ({ value: m.key, label: m.label }))}
               />
             </Row>
 
@@ -662,6 +742,48 @@ export function GoalSheet({
                   </label>
                 </div>
               </div>
+
+              {/* 하루 지방 직접 정하기 — 단백질과 같은 모양. 탄수화물이 나머지라 따라 움직인다 */}
+              <label className="flex min-h-12 cursor-pointer items-center gap-3 rounded-xl border border-line bg-surface-2 px-4 py-3 text-sm text-ink transition-colors hover:border-sky-soft">
+                <span className="min-w-0 flex-1">하루 지방을 직접 정하기</span>
+                <input
+                  type="checkbox"
+                  role="switch"
+                  checked={fatManual}
+                  onChange={(e) => {
+                    setFatManual(e.target.checked);
+                    if (e.target.checked && fatG.trim() === '') {
+                      setFatG(
+                        String(Math.min(FAT_G_MAX, Math.max(FAT_G_MIN, auto.fatAuto)))
+                      );
+                    }
+                  }}
+                  className="peer sr-only"
+                />
+                <span
+                  aria-hidden
+                  className="relative h-7 w-12 shrink-0 rounded-full bg-line-strong transition-colors duration-200 peer-checked:bg-sky peer-focus-visible:ring-2 peer-focus-visible:ring-sky peer-focus-visible:ring-offset-2 peer-focus-visible:ring-offset-surface after:absolute after:left-1 after:top-1 after:h-5 after:w-5 after:rounded-full after:bg-white after:shadow after:transition-transform after:duration-200 after:ease-[cubic-bezier(0.22,1,0.36,1)] peer-checked:after:translate-x-5"
+                />
+              </label>
+              <div
+                className={`grid transition-[grid-template-rows] duration-200 ease-out ${
+                  fatManual ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'
+                }`}
+              >
+                <div className="min-h-0 overflow-hidden" inert={!fatManual}>
+                  <label className="flex flex-wrap items-center gap-2 pt-2 text-sm text-muted">
+                    <input
+                      inputMode="numeric"
+                      value={fatG}
+                      onChange={(e) => setFatG(e.target.value.replace(/[^\d]/g, ''))}
+                      placeholder={String(auto.fatAuto)}
+                      className="h-12 w-32 rounded-xl border border-line bg-surface-2 px-3 text-right text-base tabular-nums text-ink transition-colors focus:border-sky focus:outline-none"
+                    />
+                    g · 계산으로는 {auto.fatAuto}g (하루 칼로리의{' '}
+                    {Math.round(auto.fatShare * 100)}%)
+                  </label>
+                </div>
+              </div>
             </div>
 
             <section className="space-y-2 rounded-2xl bg-surface-2 p-4">
@@ -678,6 +800,12 @@ export function GoalSheet({
                 <Stat label="탄수화물" value={`${preview.carbs}g`} />
                 <Stat label="지방" value={`${preview.fat}g`} />
               </dl>
+              <MacroBar
+                carbs={preview.carbs}
+                protein={preview.protein}
+                fat={preview.fat}
+                compact
+              />
               {/* 끼니별 단백질(lib/nutrition/meal-protein.ts) — 끼니 칸의 '단백질 18 / 35g' 이 어디서 왔는지 여기서 말한다 */}
               <p className="text-xs text-muted">
                 단백질은 세 끼에 {mealProteinGoal(preview.protein, preview.ageBand)}g
@@ -709,7 +837,9 @@ export function GoalSheet({
                     <br />
                   </>
                 )}
-                기초대사량 {kcalText(preview.bmr)}kcal ({rule.bmrName})
+                기초대사량 {kcalText(preview.bmr)}kcal ({rule.bmrName}) · 활동대사량{' '}
+                {kcalText(preview.tdee)}kcal (×{' '}
+                {ACTIVITIES.find((a) => a.key === activity)?.factor ?? 1.5})
                 <br />
                 나이 기준: {rule.label}
                 {rule.band !== 'adult' && ' · 자라는 몸에 맞춰 셈해요'}
@@ -795,23 +925,6 @@ function Stat({
 }
 
 type SheetTab = 'goal' | 'diet';
-
-/** '언제까지'의 고를 수 있는 기간(주) */
-const PERIOD_WEEKS = [4, 8, 12, 16, 24];
-
-/** 두 날짜('YYYY-MM-DD') 사이의 날 수 */
-function dayGap(from: string, to: string) {
-  return Math.round(
-    (Date.parse(`${to}T00:00:00.000Z`) - Date.parse(`${from}T00:00:00.000Z`)) /
-      86_400_000
-  );
-}
-
-/** '12월 24일' */
-function dateText(key: string) {
-  const [, m, d] = key.split('-').map(Number);
-  return `${m}월 ${d}일`;
-}
 
 type DietDraft = {
   season: SeasonPhase | null;

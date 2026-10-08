@@ -72,6 +72,66 @@ export function isActivityKey(v: unknown): v is ActivityKey {
   return typeof v === 'string' && ACTIVITIES.some((a) => a.key === v);
 }
 
+/*
+ * ── 인아웃식 온보딩(2026-10-08, docs/designs/inout-onboarding.md ④) ──
+ *
+ * 목표 카드는 다섯이지만 계산은 셋(GOALS)으로 접는다 — lib/nutrition/onboarding.ts foldGoalKind.
+ * 근육 키우기 = 증량 + 단백질 높임, 군살만 빼기 = (성인) 감량 + 단백질 높임. 카드 설명은 나이마다 화면이 다듬는다.
+ */
+export const GOAL_KINDS = [
+  { key: 'gain', label: '증량', hint: '몸을 키워요' },
+  { key: 'muscle', label: '근육 키우기', hint: '단백질을 높여 천천히 키워요' },
+  { key: 'maintain', label: '유지', hint: '지금 몸으로 시즌을 버텨요' },
+  { key: 'lose', label: '감량', hint: '천천히 빼요' },
+  { key: 'lean', label: '군살만 빼기', hint: '힘은 지키고 단백질을 높여요' },
+] as const;
+
+export type GoalKind = (typeof GOAL_KINDS)[number]['key'];
+
+export function isGoalKind(v: unknown): v is GoalKind {
+  return typeof v === 'string' && GOAL_KINDS.some((g) => g.key === v);
+}
+
+/**
+ * 탄단지 나누기 — 지방 몫을 정한다. 단백질은 체중 1kg 당 g(나이 규칙), 탄수화물은 나머지라 지방 몫이 바뀌면 탄수화물이 움직인다.
+ * 키토(탄수 제한) · 비건은 없다 — 던지는 날 탄수화물 원칙 · 성장기 보호와 맞지 않고, 비건은 '못 먹는 것'으로 푼다.
+ * null(옛 줄 · 안 고름) = 균형(25%)이라 지금 숫자와 1kcal 도 안 다르다.
+ */
+export const MACRO_PRESETS = [
+  { key: 'balanced', label: '균형', hint: '지방 25% · 기본', fatShare: 0.25 },
+  {
+    key: 'carb',
+    label: '탄수화물 넉넉히',
+    hint: '지방 20% · 던지는 날이 많은 시즌',
+    fatShare: 0.2,
+  },
+  {
+    key: 'protein',
+    label: '단백질 넉넉히',
+    hint: '체중 1kg 당 2.0g 이상 · 지방 25%',
+    fatShare: 0.25,
+  },
+] as const;
+
+export type MacroPreset = (typeof MACRO_PRESETS)[number]['key'];
+
+export function isMacroPreset(v: unknown): v is MacroPreset {
+  return typeof v === 'string' && MACRO_PRESETS.some((p) => p.key === v);
+}
+
+export const DEFAULT_FAT_SHARE = 0.25;
+
+export function fatShareOf(preset: MacroPreset | null): number {
+  return MACRO_PRESETS.find((p) => p.key === preset)?.fatShare ?? DEFAULT_FAT_SHARE;
+}
+
+/** '단백질 넉넉히' 프리셋의 체중 1kg 당 단백질 바닥(성인) — 성장기는 나이 범위로 당긴다 */
+export const PROTEIN_PRESET_PER_KG = 2.0;
+
+/** 직접 정하는 하루 지방(g)의 범위 — 계산값(체중 0.8g/kg 바닥 ~ 6,000kcal 의 25%)이 늘 이 안에 들게 */
+export const FAT_G_MIN = 20;
+export const FAT_G_MAX = 200;
+
 /* 성별은 계정에 딸린 값이라 lib/profile.ts 에 있다. 영양 쪽에서도 같은 것을 쓴다. */
 export { SEXES, isSex, type Sex } from '@/lib/profile';
 

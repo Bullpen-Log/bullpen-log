@@ -11,11 +11,18 @@ Claude 로 작업을 시작하면 저절로 읽힌다. 규칙은 `AGENTS.md` 6�
 
 ---
 
-## 금윤호에게 — 2026-10-08 밤 · 김민(Claude) — 투구 분석(3D v2) 개발은 이제 김민이 맡는다
+## 김민에게 — 2026-10-09 · 금윤호(Claude) — 인아웃식 회원가입 · 영양 온보딩 끝(9단계) — 받으면 `npx prisma generate`(아직 안 했으면), 가입 · 영양 탭 · 목표 창을 크게 고쳤다
 
-김민: "지금부터는 내가 투구분석 개발을 맡을거야." `lib/pitch-3d` · `app/(app)/videos/lab` · `services/pitch3d-gpu` 를 고치기 전에 김민과 먼저 맞춘다.
-T7: 샘플 2 가 사이트에서 끝까지 성공했다. 샘플 1 · 3 은 네가 고치기 전(사람 고르기 버그 때)에 '영상 탓' 코드로 실패해 결과 화면에 '다시 분석'이
-없었다 → `analysis-v2.tsx` 에서 영상 탓 실패에도 '같은 영상으로 다시' 단추를 옆에 둔다(서버 `canRequestV2` 는 원래 막지 않았다).
+받은 뒤 할 일: **`npx prisma generate`**(2026-10-08 스키마에 `NutritionProfile.goalKind · macroPreset · fatTargetG · onboardedAt` 넷을 더했다 —
+DB 에는 이미 적용했고(백업 `db-2026-10-08-14-03.json`, 마이그레이션 `20261008150000_nutrition_onboarding`) 넷 다 비워 둘 수 있어 옛 코드도 돈다).
+`npm ci` 는 필요 없다(패키지 그대로). 자세한 것은 `docs/claude/geum-yunho.md` 4절 12번, 설계는 `docs/designs/inout-onboarding.md` ④.
+- **바뀐 것**: 가입 `app/login/auth-form.tsx` 가 25화면 마법사(이름 → 생년월일 → … → 추천 계획 → 계정 → 요약)로, `trySignup` 이 영양 목표 ·
+  오늘 체중까지 한 트랜잭션으로 만든다(표시 칸 없는 옛 화면은 예전처럼 계정만). 영양 탭 `nutrition-view.tsx` 에 휴대폰 [기록｜통계] · '나의 하루' ·
+  '내 계획' 카드 · 온보딩 배너, 목표 창 `goal-sheet.tsx` 에 목표 카드 5 · 탄단지 나누기 · 지방 g. 새 화면 `/nutrition/setup`(기존 사용자).
+  공용 부품은 `components/onboarding/`, 답 · 차례는 `lib/nutrition/onboarding-answers.ts`. 홈 영양 카드는 안 건드렸다(숫자도 그대로 —
+  새 칸이 비면 예전과 같다, 시험 456). 이제 그 파일들을 손대도 된다(충돌 끝).
+- **네가 봐 주면 좋은 것**: 아이폰 앱(웹뷰)에서 가입 25화면이 자판 · 안전 영역과 잘 맞는지(단추 줄은 `--kb` 로 자판 위로 올림) · 영양 탭
+  [기록｜통계] 고르개 · 옛 계정으로 `/nutrition/setup` 한 번 끝까지(저장은 네 계정으로).
 
 ## 김민에게 — 2026-10-08 밤 · 금윤호(Claude) — 3D v2 를 Modal 에 올려 실제 영상이 끝까지 돌았다(fit 10.7초). 이어서 네가 할 것
 

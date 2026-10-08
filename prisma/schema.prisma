@@ -1224,6 +1224,15 @@ model NutritionProfile {
   avoidFoods       String[]  @default([])
   /// 단백질 쉐이크 · 바 같은 보충식품을 식단에 넣어도 되나
   allowSupplements Boolean   @default(true)
+  /// ── 인아웃식 온보딩(2026-10-08, docs/designs/inout-onboarding.md ④ — lib/nutrition/onboarding.ts). 넷 다 비면 예전과 같다 ──
+  /// 목표 카드의 원답: 'gain' 증량 · 'muscle' 근육 키우기 · 'maintain' 유지 · 'lose' 감량 · 'lean' 군살만 빼기. 계산은 goal · proteinPerKg 로 접은 값만 본다.
+  goalKind         String?
+  /// 탄단지 나누기(지방 몫): 'balanced' 25% · 'carb' 20% · 'protein' 25% + 단백질 2.0g/kg. 비면 균형(지금 숫자 그대로).
+  macroPreset      String?
+  /// 직접 정한 하루 지방(g, 20~200). 있으면 지방 몫 대신 쓴다(탄수화물은 그 뒤로 계산).
+  fatTargetG       Float?
+  /// 온보딩(가입 또는 /nutrition/setup)을 끝낸 시각. 비면 옛 계정 · 아직 안 함 — 영양 탭이 시작하기를 권한다.
+  onboardedAt      DateTime?
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
   user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)

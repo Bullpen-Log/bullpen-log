@@ -1,6 +1,5 @@
 'use client';
 
-import Link from 'next/link';
 import {
   useActionState,
   useCallback,
@@ -12,48 +11,91 @@ import {
   type ReactNode,
 } from 'react';
 import { createPortal, useFormStatus } from 'react-dom';
-import { CalendarDays, CircleAlert, Info } from 'lucide-react';
+import { CalendarDays, Info } from 'lucide-react';
 import { MiniCalendar } from '@/components/mini-calendar';
 import { useModalState } from '@/components/modal';
 import { LegalSheet, wantsNewTab, type LegalDoc } from '@/components/legal-sheet';
 import { checkSignupEmail, login, signup, type AuthState } from '@/app/actions/auth';
 import { guardFormAction } from '@/lib/action-offline';
 import { Button, Field, FormError, Input } from '@/components/ui';
-import { Wordmark } from '@/components/logo';
-import { LevelChoices } from '@/components/level-choices';
 import { kept } from '@/lib/form-values';
 import { readLoginPrefs, saveLoginPrefs } from '@/lib/login-prefs';
 import {
+  INPUT_LARGE,
+  ProblemLine,
+  StepCard,
+  TextButton,
+  invalidProps,
+} from '@/components/onboarding/step-card';
+import { Chips, OptionCards } from '@/components/onboarding/choices';
+import { CountUp } from '@/components/onboarding/count-up';
+import { BurnInsert, PitchCapInsert } from '@/components/onboarding/insert-cards';
+import { NumberUnitField } from '@/components/onboarding/number-unit-field';
+import { MacroBar } from '@/components/onboarding/plan-stats';
+import { useWeightUnit } from '@/components/use-units';
+import {
+  NutritionStepPanel,
+  answerLines,
+  nutritionStepTitle,
+  type StepCtx,
+} from '@/components/onboarding/nutrition-steps';
+import {
   MAX_AGE,
   MAX_HEIGHT_CM,
+  MAX_WEIGHT_KG,
   MIN_AGE,
   MIN_HEIGHT_CM,
+  MIN_WEIGHT_KG,
   SEX_OPTIONS,
   ageFromBirthDate,
   parseBirthDate,
+  type Sex,
 } from '@/lib/profile';
 import {
   BASELINE_FREQ_NAMES,
   BASELINE_INTENSITY_NAMES,
   BASELINE_VOLUME_NAMES,
   BASELINE_WORKOUT_FREQ_NAMES,
+  COMPETITION_LEVELS,
+  COMPETITION_LEVEL_LABELS,
   THROWING_HANDS,
+  estimateDailyLoad,
+  gradeText,
+  levelFit,
+  type CompetitionLevel,
 } from '@/lib/baseline';
 import { TRAINING_LEVELS } from '@/lib/report/personalize';
+import {
+  EMPTY_ANSWERS,
+  checkNutritionStep,
+  nutritionStepOfField,
+  preview,
+  toFormFields,
+  visibleNutritionSteps,
+  type NutritionAnswers,
+  type NutritionStepKey,
+  type OnboardingBody,
+} from '@/lib/nutrition/onboarding-answers';
+import { GOAL_KINDS, kcalText } from '@/lib/nutrition/meta';
+import { ageOn } from '@/lib/nutrition/targets';
 
 /**
  * 로그인 · 회원가입.
  *
- * 구글 로그인처럼 넓은 카드 한 장을 쓴다. 넓은 화면에서는 왼쪽에 제목, 오른쪽에 칸, 오른쪽
- * 아래에 단추가 선다. 휴대폰에서는 카드 테두리를 걷고 화면 전체를 쓴다 — 제목은 위에,
- * 단추는 아래에 붙어서 단계를 넘겨도 제자리다. 어느 쪽이든 한 화면 안에 들어와 굴릴 일이
- * 없다(360×640 ~ 1920×1080 에서 모든 단계를 재어 봤다).
+ * 구글 로그인처럼 넓은 카드 한 장을 쓴다(components/onboarding/step-card.tsx). 넓은 화면에서는 왼쪽에 제목,
+ * 오른쪽에 칸, 오른쪽 아래에 단추가 선다. 휴대폰에서는 카드 테두리를 걷고 화면 전체를 쓴다.
  *
- * 예전에는 좁은 카드(28rem) 하나에 가입 칸 열세 개와 동의를 다 늘어놓아 한참 굴려야 했다.
- * 이제 가입은 단계로 나뉜다 — 기본 정보 → 비밀번호 → 약관 → 이 앱에 필요한 질문 넷.
+ * 가입은 한 화면에 한 질문이다(인아웃식 온보딩, 2026-10-08 — docs/designs/inout-onboarding.md ④). 이름 → 생년월일 →
+ * 던지는 손 → 소속 → 투구 · 웨이트 → 키 · 체중 → 영양 질문(목표 카드 · 목표 체중 · 속도 · 평소 움직임 · 시즌 · 탄단지 ·
+ * 식사 · 못 먹는 것 → 추천 계획) → 계정(이메일 · 비밀번호 · 약관) → 요약. 질문 사이에 앱이 답으로 셈한 숫자를 보이는
+ * 끼움 화면이 셋 있다(투구 한도 · 운동 소모 · 추천 계획). 질문마다 답이 설정 · 계산 · 추천을 바꾼다 — 바꾸지 않는
+ * 질문은 넣지 않았다.
+ *
+ * 답은 모두 상태(answers)로 쥐고 숨은 칸으로 서버에 보낸다. 그래서 서버가 막고 돌아와 폼이 되돌려져도 적은 것이
+ * 그대로고, "목표 체중 화면은 증량 · 감량일 때만"처럼 답에 따라 차례가 바뀐다.
  */
 
-const inputLarge = 'py-3.5 text-[15px] aria-invalid:border-danger';
+const inputLarge = INPUT_LARGE;
 
 /*
  * 이메일 · 비밀번호 칸은 아이폰이 손대지 않게 한다(2026-10-03). '비밀번호 표시'를 켜면 칸이 type="text" 가 되는데,
@@ -64,126 +106,6 @@ const noAutoFix = {
   autoCorrect: 'off',
   spellCheck: false,
 } as const;
-
-/* ─────────────────────────── 공통 틀 ─────────────────────────── */
-
-/**
- * 카드 한 장 — 왼쪽 제목, 오른쪽 칸, 오른쪽 아래 단추.
- *
- * titleKey 가 바뀌면 제목이 새로 떠오른다(단계가 넘어갈 때). progress 는 0~1, 주면 카드
- * 맨 위에 가는 막대로 얼마나 왔는지 보인다. counter('3 / 7')는 단추 줄 왼쪽에 흐리게.
- *
- * focusHeading — 로그인 ↔ 가입을 바꿔 이 카드가 새로 뜬 경우 제목에 초점을 둔다. 누른
- * 단추가 사라져 초점이 문서 밖으로 떨어지지 않게, 화면 낭독기가 '어느 화면인지'를 읽게.
- * 칸이 아니라 제목이라 휴대폰 자판이 튀어나오지 않는다.
- */
-function AuthCard({
-  title,
-  desc,
-  titleKey,
-  progress,
-  counter,
-  focusHeading = false,
-  children,
-  footer,
-}: {
-  title: string;
-  desc?: string;
-  titleKey: string;
-  progress?: number;
-  counter?: string;
-  focusHeading?: boolean;
-  children: ReactNode;
-  footer: ReactNode;
-}) {
-  const headingRef = useRef<HTMLHeadingElement>(null);
-  useEffect(() => {
-    if (focusHeading) headingRef.current?.focus({ preventScroll: true });
-    // 처음 뜰 때 한 번만 — 단계가 넘어갈 때는 칸으로 간다(SignupWizard)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  return (
-    /*
-     * 휴대폰(카드 테두리 없음)에서는 화면 높이를 다 쓰는 세로 줄이다. 가운데 맞춤을 하면
-     * 단계마다 높이가 달라 로고 · 막대 · 단추가 매번 위아래로 튀었다. 이제 제목 묶음은 위에,
-     * 단추 줄은 아래에 붙는다(칸 묶음이 남는 높이를 가진다).
-     */
-    <section className="relative flex flex-col max-md:min-h-full max-md:flex-1 md:overflow-hidden md:rounded-[28px] md:border md:border-line md:bg-surface md:shadow-[0_1px_2px_rgb(15_23_42/0.04)]">
-      {progress != null && (
-        <div
-          aria-hidden
-          className="absolute inset-x-0 top-0 h-1 overflow-hidden bg-line/50 max-md:rounded-full"
-        >
-          <div
-            className="h-full rounded-r-full bg-sky transition-[width] duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none"
-            style={{ width: `${Math.round(progress * 100)}%` }}
-          />
-        </div>
-      )}
-
-      <div className="flex flex-1 flex-col gap-6 pt-5 short:gap-4 short:pt-4 md:grid md:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)] md:gap-14 md:p-12 md:short:p-8 lg:gap-20 lg:p-14 lg:short:p-9">
-        <header className="min-w-0">
-          {/* 아이폰 앱에서는 눌리지 않는 그림 — 소개(웹) 화면이 앱에는 없다(app/page.tsx, 2026-10-04) */}
-          <Link
-            href="/"
-            className="group inline-flex items-center gap-2.5 rounded-lg in-data-[app=native]:pointer-events-none"
-            aria-label="Bullpen Log 첫 화면"
-          >
-            <Wordmark className="text-2xl text-ink transition-colors group-hover:text-sky md:text-3xl" />
-          </Link>
-
-          <div key={titleKey} className="motion-safe:animate-fade-in">
-            <h1
-              ref={headingRef}
-              tabIndex={-1}
-              className="text-heading mt-6 text-[1.75rem] leading-[1.2] text-ink outline-none short:mt-4 short:text-2xl md:mt-10 md:text-[2.25rem] md:short:mt-6 md:short:text-[1.875rem]"
-            >
-              {title}
-            </h1>
-            {desc && (
-              <p className="mt-2.5 max-w-md text-sm leading-relaxed break-keep text-muted md:mt-4 md:text-[15px] md:short:mt-2.5">
-                {desc}
-              </p>
-            )}
-          </div>
-        </header>
-
-        <div className="flex min-w-0 flex-1 flex-col md:min-h-[23.75rem] md:pt-2 md:short:min-h-[20.5rem]">
-          <div className="flex-1">{children}</div>
-          <div className="mt-6 flex items-center gap-2 short:mt-4 md:mt-10 md:short:mt-6">
-            {counter && (
-              <span className="text-xs tabular-nums text-muted" aria-hidden>
-                {counter}
-              </span>
-            )}
-            <div className="ml-auto flex items-center gap-2">{footer}</div>
-          </div>
-        </div>
-      </div>
-    </section>
-  );
-}
-
-/** 글자만 있는 단추 — 구글의 '계정 만들기'처럼 주 단추 옆에 가볍게 선다 */
-function TextButton({
-  onClick,
-  children,
-}: {
-  onClick: () => void;
-  children: ReactNode;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      /* sky 는 흰 바탕에서 글자로는 옅다(2.8:1) — 글자에는 한 단계 짙은 sky-strong */
-      className="rounded-xl px-4 py-3 text-sm font-semibold text-sky-strong transition-colors hover:bg-sky/10 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-strong"
-    >
-      {children}
-    </button>
-  );
-}
 
 function SubmitButton({
   label,
@@ -301,7 +223,7 @@ function LoginForm({
 
   return (
     <form action={formAction} className="flex flex-1 flex-col">
-      <AuthCard
+      <StepCard
         titleKey="login"
         title="로그인"
         desc="다시 오신 걸 환영해요. 기록을 이어서 관리하려면 로그인하세요."
@@ -392,73 +314,142 @@ function LoginForm({
             )}
           </div>
         </div>
-      </AuthCard>
+      </StepCard>
     </form>
   );
 }
 
-/* ─────────────────────────── 회원가입 ─────────────────────────── */
+/* ─────────────────────────── 회원가입 — 답 · 차례 ─────────────────────────── */
 
-/**
- * 가입 단계. fields 는 그 단계에 있는 칸의 name — 서버가 마지막에 어느 칸을 막았는지
- * 알려 주면(AuthState.field) 그 칸이 있는 단계로 돌아간다.
- */
-const STEPS = [
-  {
-    key: 'basic',
-    title: '계정 만들기',
-    desc: '생년월일은 나이에 맞는 안전한 투구수를, 성별은 영양 목표를 계산하는 데 써요.',
-    fields: ['email', 'nickname', 'birthDate', 'sex'],
-  },
-  {
-    key: 'password',
-    title: '비밀번호 만들기',
-    desc: '8자 이상이면 돼요. 다른 곳에서 쓰지 않는 것으로 정해 주세요.',
-    fields: ['password', 'passwordConfirm'],
-  },
-  {
-    key: 'terms',
-    title: '약관 동의',
-    desc: '두 가지 모두 동의해야 가입할 수 있어요. 눌러서 내용을 볼 수 있어요.',
-    fields: ['agreeTerms', 'agreePrivacy'],
-  },
-  {
-    key: 'body',
-    title: '어느 손으로 던지세요?',
-    desc: '이제 이 앱에 필요한 것을 몇 가지 여쭤볼게요. 모두 가입한 뒤 내 정보에서 바꿀 수 있어요.',
-    fields: ['throwingHand', 'heightCm'],
-  },
-  {
-    key: 'pitching',
-    title: '평소 얼마나 던지시나요?',
-    desc: '부하 지수를 첫날부터 보여드리기 위한 3문항이에요.',
-    fields: ['baselineFreq', 'baselineVolume', 'baselineIntensity'],
-  },
-  {
-    key: 'weight',
-    title: '웨이트는 얼마나 하시나요?',
-    desc: '운동 부하를 첫날부터 보여드리고 경력에 맞는 운동을 고르기 위한 2문항이에요.',
-    fields: ['baselineWorkoutFreq', 'trainingLevel'],
-  },
-  {
-    key: 'league',
-    title: '어디서 야구를 하시나요?',
-    desc: '생년월일에 맞는 소속만 고를 수 있어요. 나중에 비슷한 또래와 견줘 보여드리려고 여쭤봐요.',
-    fields: ['competitionLevel'],
-  },
-] as const;
+type SignupAnswers = {
+  nickname: string;
+  /** 'YYYY-MM-DD' */
+  birthDate: string;
+  sex: Sex | null;
+  throwingHand: string | null;
+  /** 고른 소속 — 보이는 값은 생년월일에 맞춰 다시 본다(levelValue) */
+  competitionLevel: CompetitionLevel | null;
+  baselineFreq: string | null;
+  baselineVolume: string | null;
+  baselineIntensity: string | null;
+  baselineWorkoutFreq: string | null;
+  trainingLevel: string | null;
+  heightCm: number | null;
+  weightKg: number | null;
+  nutrition: NutritionAnswers;
+  email: string;
+  password: string;
+  passwordConfirm: string;
+  agreeTerms: boolean;
+  agreePrivacy: boolean;
+  /** '던지는 날 앞뒤로 끼니를 거르지 않기로 약속해요' — 보내지 않는다 */
+  promise: boolean;
+};
 
-type StepKey = (typeof STEPS)[number]['key'];
-const LAST = STEPS.length - 1;
+const EMPTY: SignupAnswers = {
+  nickname: '',
+  birthDate: '',
+  sex: null,
+  throwingHand: null,
+  competitionLevel: null,
+  baselineFreq: null,
+  baselineVolume: null,
+  baselineIntensity: null,
+  baselineWorkoutFreq: null,
+  trainingLevel: null,
+  heightCm: null,
+  weightKg: null,
+  nutrition: EMPTY_ANSWERS,
+  email: '',
+  password: '',
+  passwordConfirm: '',
+  agreeTerms: false,
+  agreePrivacy: false,
+  promise: false,
+};
 
-/** 막힌 까닭을 적는 줄의 id — 문제의 칸이 aria-describedby 로 가리킨다 */
-const PROBLEM_ID = 'signup-problem';
+/** 화면 열쇠 — 영양 화면은 'n:' 뒤에 lib/nutrition/onboarding-answers.ts 의 열쇠 */
+type StepKey =
+  | 'name'
+  | 'birth'
+  | 'capCard'
+  | 'hand'
+  | 'level'
+  | 'pitching'
+  | 'weights'
+  | 'height'
+  | 'weight'
+  | 'burnCard'
+  | `n:${NutritionStepKey}`
+  | 'email'
+  | 'password'
+  | 'terms'
+  | 'summary';
 
-function stepOfField(field: string | undefined): number {
-  const i = STEPS.findIndex((s) =>
-    (s.fields as readonly string[]).includes(field ?? '')
-  );
-  return i === -1 ? 0 : i;
+/** 막힌 칸이 있는 화면 — 서버가 어느 칸을 막았는지(AuthState.field) 알려 주면 그 화면으로 돌아간다 */
+const FIELD_STEP: Record<string, StepKey> = {
+  nickname: 'name',
+  birthDate: 'birth',
+  sex: 'birth',
+  throwingHand: 'hand',
+  competitionLevel: 'level',
+  baselineFreq: 'pitching',
+  baselineVolume: 'pitching',
+  baselineIntensity: 'pitching',
+  baselineWorkoutFreq: 'weights',
+  trainingLevel: 'weights',
+  heightCm: 'height',
+  weightKg: 'weight',
+  email: 'email',
+  password: 'password',
+  passwordConfirm: 'password',
+  agreeTerms: 'terms',
+  agreePrivacy: 'terms',
+  promise: 'summary',
+};
+
+function stepOfField(field: string | undefined): StepKey {
+  if (!field) return 'summary';
+  const own = FIELD_STEP[field];
+  if (own) return own;
+  const n = nutritionStepOfField(field);
+  return n ? `n:${n}` : 'summary';
+}
+
+/** 숫자 몸 — 영양 질문이 계산에 쓴다 */
+function bodyOf(
+  a: SignupAnswers,
+  level: CompetitionLevel | null,
+  today: string
+): OnboardingBody {
+  return {
+    age: ageOn(parseBirthDate(a.birthDate), today),
+    sex: a.sex,
+    heightCm: a.heightCm,
+    weightKg: a.weightKg,
+    level,
+  };
+}
+
+/** 지금 답으로 보일 화면 차례 — 목표 체중 · 속도는 답에 따라 있고 없다 */
+function visibleSteps(a: SignupAnswers, body: OnboardingBody): StepKey[] {
+  return [
+    'name',
+    'birth',
+    'capCard',
+    'hand',
+    'level',
+    'pitching',
+    'weights',
+    'height',
+    'weight',
+    'burnCard',
+    ...visibleNutritionSteps(a.nutrition, body).map((k): StepKey => `n:${k}`),
+    'email',
+    'password',
+    'terms',
+    'summary',
+  ];
 }
 
 type Problem = { error: string; field: string };
@@ -466,195 +457,123 @@ type Problem = { error: string; field: string };
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 /**
- * 한 단계를 넘어가도 되는가 — 서버(app/actions/auth.ts · lib/profile.ts · lib/baseline.ts)와
- * 같은 기준을 먼저 본다. 여기서 놓치면 일곱 단계를 다 지나 마지막에야 막힌다.
+ * 한 화면을 넘어가도 되는가 — 서버(app/actions/auth.ts · lib/profile.ts · lib/baseline.ts ·
+ * lib/nutrition/profile-save.ts)와 같은 기준을 먼저 본다. 여기서 놓치면 스물다섯 화면을 다 지나 마지막에야 막힌다.
  *
- * 브라우저의 기본 검사는 쓰지 않는다(폼이 noValidate). 모든 단계가 한 폼 안에 있어서,
- * 기본 검사를 켜 두면 아직 안 보인 단계의 빈칸 때문에 '다음'이 막힌다. required 는 화면
- * 낭독기에 '꼭 적을 칸'임을 알리려고 그대로 붙여 둔다.
+ * 브라우저의 기본 검사는 쓰지 않는다(폼이 noValidate). 모든 화면이 한 폼 안에 있어서, 기본 검사를 켜 두면 아직
+ * 안 보인 화면의 빈칸 때문에 '다음'이 막힌다.
  */
-function checkStep(key: StepKey, form: HTMLFormElement, today: string): Problem | null {
-  const fd = new FormData(form);
-  const get = (name: string) => String(fd.get(name) ?? '').trim();
+function checkStep(
+  key: StepKey,
+  a: SignupAnswers,
+  body: OnboardingBody,
+  today: string
+): Problem | null {
   switch (key) {
-    case 'basic': {
-      const email = get('email');
-      if (!email) return { error: '이메일을 입력해주세요.', field: 'email' };
-      if (!EMAIL_RE.test(email)) {
-        return { error: '올바른 이메일 형식이 아니에요.', field: 'email' };
-      }
-      const nickname = get('nickname');
-      if (!nickname) return { error: '닉네임을 입력해주세요.', field: 'nickname' };
-      if (nickname.length < 2) {
-        return { error: '닉네임은 2자 이상이어야 해요.', field: 'nickname' };
-      }
-      const birth = get('birthDate');
-      if (!birth) return { error: '생년월일을 입력해주세요.', field: 'birthDate' };
-      const parsed = parseBirthDate(birth);
-      if (!parsed) {
-        return { error: '생년월일을 올바르게 입력해주세요.', field: 'birthDate' };
-      }
+    case 'name': {
+      const nickname = a.nickname.trim();
+      if (!nickname) return { error: '뭐라고 부를지 적어 주세요.', field: 'nickname' };
+      if (nickname.length < 2)
+        return { error: '이름은 2자 이상이어야 해요.', field: 'nickname' };
+      return null;
+    }
+    case 'birth': {
+      if (!a.birthDate) return { error: '생년월일을 골라 주세요.', field: 'birthDate' };
+      const parsed = parseBirthDate(a.birthDate);
+      if (!parsed)
+        return { error: '생년월일을 올바르게 골라 주세요.', field: 'birthDate' };
       const age = ageFromBirthDate(parsed);
-      if (birth > today || age < MIN_AGE || age > MAX_AGE) {
-        return { error: '생년월일을 다시 확인해주세요.', field: 'birthDate' };
+      if (a.birthDate > today || age < MIN_AGE || age > MAX_AGE) {
+        return { error: '생년월일을 다시 확인해 주세요.', field: 'birthDate' };
       }
-      if (!get('sex')) return { error: '성별을 선택해주세요.', field: 'sex' };
+      if (!a.sex) return { error: '성별을 골라 주세요.', field: 'sex' };
       return null;
     }
-    case 'password': {
-      const password = String(fd.get('password') ?? '');
-      const confirm = String(fd.get('passwordConfirm') ?? '');
-      if (password.length < 8) {
-        return { error: '비밀번호는 8자 이상이어야 해요.', field: 'password' };
-      }
-      if (!confirm) {
-        return { error: '비밀번호를 한 번 더 입력해주세요.', field: 'passwordConfirm' };
-      }
-      if (password !== confirm) {
-        return { error: '비밀번호가 일치하지 않아요.', field: 'passwordConfirm' };
-      }
+    case 'hand':
+      if (!a.throwingHand)
+        return { error: '던지는 손을 골라 주세요.', field: 'throwingHand' };
       return null;
-    }
-    case 'terms':
-      if (fd.get('agreeTerms') !== 'on') {
-        return { error: '이용약관에 동의해주세요.', field: 'agreeTerms' };
-      }
-      if (fd.get('agreePrivacy') !== 'on') {
-        return { error: '개인정보 처리방침에 동의해주세요.', field: 'agreePrivacy' };
-      }
+    case 'level':
+      if (!body.level)
+        return {
+          error: '어디서 야구를 하시는지 골라 주세요.',
+          field: 'competitionLevel',
+        };
       return null;
-    case 'body': {
-      if (!get('throwingHand')) {
-        return { error: '던지는 손을 선택해주세요.', field: 'throwingHand' };
-      }
-      /*
-       * 숫자 칸에 숫자가 아닌 것을 치면 값이 빈 문자열로 읽혀 '안 적음'처럼 조용히
-       * 버려진다(noValidate 라 브라우저도 안 막는다). badInput 으로 따로 본다.
-       */
-      const heightInput = form.elements.namedItem('heightCm');
-      if (heightInput instanceof HTMLInputElement && heightInput.validity.badInput) {
-        return { error: '키는 숫자로 입력해주세요.', field: 'heightCm' };
-      }
-      const height = get('heightCm');
-      if (height) {
-        const n = Number(height);
-        if (!Number.isInteger(n) || n < MIN_HEIGHT_CM || n > MAX_HEIGHT_CM) {
-          return {
-            error: `키는 ${MIN_HEIGHT_CM}~${MAX_HEIGHT_CM}cm 사이의 정수로 입력해주세요.`,
-            field: 'heightCm',
-          };
-        }
-      }
-      return null;
-    }
     case 'pitching':
-      if (!get('baselineFreq')) {
-        return { error: '던지는 횟수를 선택해주세요.', field: 'baselineFreq' };
-      }
-      if (!get('baselineVolume')) {
-        return { error: '한 번에 던지는 양을 선택해주세요.', field: 'baselineVolume' };
-      }
-      if (!get('baselineIntensity')) {
-        return { error: '평소 강도를 선택해주세요.', field: 'baselineIntensity' };
+      if (!a.baselineFreq)
+        return { error: '던지는 횟수를 골라 주세요.', field: 'baselineFreq' };
+      if (!a.baselineVolume)
+        return { error: '한 번에 던지는 양을 골라 주세요.', field: 'baselineVolume' };
+      if (!a.baselineIntensity)
+        return { error: '평소 강도를 골라 주세요.', field: 'baselineIntensity' };
+      return null;
+    case 'weights':
+      if (!a.baselineWorkoutFreq)
+        return { error: '웨이트 횟수를 골라 주세요.', field: 'baselineWorkoutFreq' };
+      if (!a.trainingLevel)
+        return { error: '웨이트 트레이닝 경력을 골라 주세요.', field: 'trainingLevel' };
+      return null;
+    case 'height':
+      if (a.heightCm === null) return { error: '키를 적어 주세요.', field: 'heightCm' };
+      if (
+        !Number.isInteger(a.heightCm) ||
+        a.heightCm < MIN_HEIGHT_CM ||
+        a.heightCm > MAX_HEIGHT_CM
+      ) {
+        return {
+          error: `키는 ${MIN_HEIGHT_CM}~${MAX_HEIGHT_CM}cm 사이로 적어 주세요.`,
+          field: 'heightCm',
+        };
       }
       return null;
     case 'weight':
-      if (!get('baselineWorkoutFreq')) {
-        return { error: '웨이트 횟수를 선택해주세요.', field: 'baselineWorkoutFreq' };
-      }
-      if (!get('trainingLevel')) {
+      if (a.weightKg === null)
+        return { error: '지금 체중을 적어 주세요.', field: 'weightKg' };
+      if (a.weightKg < MIN_WEIGHT_KG || a.weightKg > MAX_WEIGHT_KG) {
         return {
-          error: '웨이트 트레이닝 경력을 선택해주세요.',
-          field: 'trainingLevel',
+          error: `체중은 ${MIN_WEIGHT_KG}~${MAX_WEIGHT_KG}kg 사이로 적어 주세요.`,
+          field: 'weightKg',
         };
       }
       return null;
-    case 'league':
-      if (!get('competitionLevel')) {
-        return {
-          error: '어디서 야구를 하시는지 골라주세요.',
-          field: 'competitionLevel',
-        };
-      }
+    case 'email': {
+      const email = a.email.trim();
+      if (!email) return { error: '이메일을 입력해주세요.', field: 'email' };
+      if (!EMAIL_RE.test(email))
+        return { error: '올바른 이메일 형식이 아니에요.', field: 'email' };
       return null;
+    }
+    case 'password':
+      if (a.password.length < 8)
+        return { error: '비밀번호는 8자 이상이어야 해요.', field: 'password' };
+      if (!a.passwordConfirm)
+        return { error: '비밀번호를 한 번 더 입력해주세요.', field: 'passwordConfirm' };
+      if (a.password !== a.passwordConfirm)
+        return { error: '비밀번호가 일치하지 않아요.', field: 'passwordConfirm' };
+      return null;
+    case 'terms':
+      if (!a.agreeTerms)
+        return { error: '이용약관에 동의해주세요.', field: 'agreeTerms' };
+      if (!a.agreePrivacy)
+        return { error: '개인정보 처리방침에 동의해주세요.', field: 'agreePrivacy' };
+      return null;
+    case 'summary':
+      if (!a.promise)
+        return {
+          error: '약속에 체크해 주세요 — 던지는 날 끼니를 거르지 않기.',
+          field: 'promise',
+        };
+      return null;
+    case 'capCard':
+    case 'burnCard':
+      return null;
+    default:
+      return checkNutritionStep(key.slice(2) as NutritionStepKey, a.nutrition, body);
   }
 }
 
-/** 문제의 칸에 붙이는 속성 — 빨간 테두리(aria-invalid)와 까닭을 적은 줄로의 연결 */
-function invalidProps(invalid: boolean) {
-  return invalid
-    ? { 'aria-invalid': true as const, 'aria-describedby': PROBLEM_ID }
-    : {};
-}
-
-/**
- * 고르는 단추 묶음 — 가입 문진용.
- *
- * 앱 안의 칩보다 크게 둔다. 넓은 카드에 몇 개 없는 선택지라 누르기 쉬운 것이 먼저다.
- * 묶음 이름은 칸 이름(Field)과 같은 모양이다 — 한 단계에 둘이 섞여 있다.
- * list 는 설명이 붙는 항목(웨이트 경력)을 두 줄 카드로 늘어놓는다.
- */
-function Choices({
-  legend,
-  name,
-  options,
-  selected,
-  list = false,
-  required = false,
-  invalid = false,
-}: {
-  legend: string;
-  name: string;
-  options: readonly (string | { name: string; value?: string; desc?: string })[];
-  selected?: string;
-  list?: boolean;
-  required?: boolean;
-  invalid?: boolean;
-}) {
-  return (
-    <fieldset>
-      <legend className="mb-2 block text-xs font-medium text-muted">{legend}</legend>
-      {/* list 도 휴대폰에서 두 줄 — 한 줄에 하나면 작은 폰에서 화면을 넘겨 굴려야 했다 */}
-      <div className={list ? 'grid grid-cols-2 gap-2' : 'flex flex-wrap gap-2'}>
-        {options.map((raw) => {
-          const option = typeof raw === 'string' ? { name: raw } : raw;
-          const value = option.value ?? option.name;
-          return (
-            <label key={value} className={list ? 'block' : 'inline-flex'}>
-              <input
-                type="radio"
-                name={name}
-                value={value}
-                required={required}
-                defaultChecked={selected === value}
-                className="peer sr-only"
-                {...invalidProps(invalid)}
-              />
-              <span
-                className={`block cursor-pointer rounded-xl border bg-surface-2 text-sm text-muted transition-colors select-none hover:border-sky-soft hover:text-ink peer-checked:border-sky peer-checked:bg-sky/10 peer-checked:text-sky-strong peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-sky-strong ${
-                  invalid ? 'border-danger/60' : 'border-line'
-                } ${
-                  list
-                    ? 'h-full px-3.5 py-2.5 sm:px-4'
-                    : 'px-4 py-2.5 peer-checked:font-semibold'
-                }`}
-              >
-                <span className={list ? 'block font-semibold' : undefined}>
-                  {option.name}
-                </span>
-                {option.desc && (
-                  <span className="mt-0.5 block text-xs leading-snug opacity-75">
-                    {option.desc}
-                  </span>
-                )}
-              </span>
-            </label>
-          );
-        })}
-      </div>
-    </fieldset>
-  );
-}
+/* ─────────────────────────── 회원가입 — 부품 ─────────────────────────── */
 
 /** 동의 줄 안의 글 이름 링크 — 누르면 창으로 연다. 주소는 그대로 둬 길게 눌러 복사 · 새 탭도 된다 */
 function LegalLink({
@@ -681,7 +600,7 @@ function LegalLink({
   );
 }
 
-/** 약관 동의 한 줄 — 켜고 끄는 것은 부모가 쥔다(모두 동의와 함께 움직인다) */
+/** 동의 한 줄 — 켜고 끄는 것은 부모가 쥔다(모두 동의와 함께 움직인다). name 이 있으면 서버로 간다 */
 function AgreeLine({
   name,
   checked,
@@ -689,7 +608,7 @@ function AgreeLine({
   invalid,
   children,
 }: {
-  name: string;
+  name?: string;
   checked: boolean;
   onChange: (on: boolean) => void;
   invalid: boolean;
@@ -700,8 +619,9 @@ function AgreeLine({
       <input
         type="checkbox"
         name={name}
+        id={name ? `${name}-field` : undefined}
         checked={checked}
-        required
+        required={!!name}
         data-sync={checked ? 'on' : 'off'}
         onChange={(e) => onChange(e.target.checked)}
         className="mt-0.5 h-5 w-5 shrink-0 cursor-pointer accent-sky"
@@ -794,7 +714,7 @@ function BirthDateField({
       <input type="hidden" name="birthDate" value={value} />
       <button
         ref={buttonRef}
-        id="birthDate-button"
+        id="birthDate-field"
         type="button"
         onClick={() => {
           if (!open) place();
@@ -850,6 +770,29 @@ function isTextLike(el: Element): el is HTMLInputElement {
   );
 }
 
+/** 요약 카드의 한 줄 */
+function SummaryRow({
+  label,
+  value,
+  row,
+}: {
+  label: string;
+  value: ReactNode;
+  row: number;
+}) {
+  return (
+    <div
+      style={{ '--row': row } as React.CSSProperties}
+      className="motion-safe:animate-row-in flex items-baseline justify-between gap-3 py-2 text-sm"
+    >
+      <dt className="shrink-0 text-muted">{label}</dt>
+      <dd className="text-right font-medium break-keep text-ink">{value}</dd>
+    </div>
+  );
+}
+
+/* ─────────────────────────── 회원가입 — 마법사 ─────────────────────────── */
+
 function SignupWizard({
   today,
   onLogin,
@@ -860,69 +803,73 @@ function SignupWizard({
   focusHeading: boolean;
 }) {
   /*
-   * 신호가 끊겨 가입이 던지면 — 예전에는 로그인 밖 오류 화면으로 넘어가 '다시 시도'가 로그인 칸으로 돌아가며 일곱 단계가
-   * 통째로 사라졌다. 이제 누른 자리(마지막 단계)에 한 줄로 알리고 적은 것은 그대로다(lib/action-offline.ts).
+   * 신호가 끊겨 가입이 던지면 — 예전에는 로그인 밖 오류 화면으로 넘어가 '다시 시도'가 로그인 칸으로 돌아가며 답이
+   * 통째로 사라졌다. 이제 누른 자리(요약 화면)에 한 줄로 알리고 적은 것은 그대로다(lib/action-offline.ts).
    */
   const [state, formAction] = useActionState<AuthState, FormData>(
-    guardFormAction(signup, { field: 'competitionLevel' }),
+    guardFormAction(signup, { field: 'promise' }),
     undefined
   );
-  const before = state?.values;
   const formRef = useRef<HTMLFormElement>(null);
 
-  const [step, setStep] = useState(0);
+  const [answers, setAnswers] = useState<SignupAnswers>(EMPTY);
+  const [step, setStep] = useState<StepKey>('name');
   const [dir, setDir] = useState<'next' | 'back'>('next');
   const [checking, setChecking] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
   /* 지금 보여 줄 문제 — 같은 문제가 다시 나도 다시 읽히고 초점이 가도록 번호(seq)를 붙인다 */
   const [problem, setProblem] = useState<(Problem & { seq: number }) | null>(null);
-  /* 단계를 옮긴 것이 사람의 손(다음 · 이전 · 되돌림)인가 — 그때만 새 단계로 초점을 옮긴다 */
+  /* 화면을 옮긴 것이 사람의 손(다음 · 이전 · 되돌림)인가 — 그때만 새 화면으로 초점을 옮긴다 */
   const moved = useRef(false);
-
-  /*
-   * 비밀번호와 동의는 상태로 쥔다.
-   *
-   * 가입이 서버에서 막혀 돌아오면 React 가 폼을 처음 값으로 되돌린다. 다른 칸은 서버가
-   * 돌려준 값(before)으로 다시 채워지지만 비밀번호는 돌려받지 않는다(lib/form-values.ts).
-   * 단계로 나뉜 뒤로는 그러면 이메일 하나 고치러 첫 단계로 갔다가 비밀번호 단계에서 다시
-   * 막힌다. 상태로 쥐고 있으면 되돌려도 그대로다. 동의 둘은 '모두 동의'와 같이 움직여야 해서.
-   */
-  const [password, setPassword] = useState('');
-  const [passwordConfirm, setPasswordConfirm] = useState('');
-  const [showPassword, setShowPassword] = useState(false);
-  const [agreeTerms, setAgreeTerms] = useState(false);
-  const [agreePrivacy, setAgreePrivacy] = useState(false);
-  /* 생년월일 — 달력으로 고른다(BirthDateField). 비밀번호처럼 되돌려도 남게 상태로 쥔다. */
-  const [birthDate, setBirthDate] = useState('');
   /* 약관 · 개인정보 창(LegalSheet) */
   const legal = useModalState<LegalDoc>();
-  /*
-   * 비밀번호 단계에 같이 싣는 이메일(숨은 username 칸) — 아이폰 키체인은 새 비밀번호를 저장할 때 같은 폼의
-   * username 칸을 계정 이름으로 쓴다. 이메일은 첫 단계에 숨어 있어, 이것 없이는 이름 없는 비밀번호로 저장됐다.
-   */
-  const [signupEmail, setSignupEmail] = useState('');
 
-  function show(p: Problem) {
-    setProblem((prev) => ({ ...p, seq: (prev?.seq ?? 0) + 1 }));
+  /* ── 답에서 셈하는 것 ── */
+  const fit = levelFit(answers.birthDate || null, today);
+  const levelValue =
+    answers.competitionLevel && fit.allowed.includes(answers.competitionLevel)
+      ? answers.competitionLevel
+      : fit.suggested;
+  const body = bodyOf(answers, levelValue, today);
+  const visible = visibleSteps(answers, body);
+  const index = Math.max(0, visible.indexOf(step));
+  const current = visible[index];
+  const last = visible.length - 1;
+  const p = preview(answers.nutrition, body);
+  const name = answers.nickname.trim();
+  const unit = useWeightUnit();
+  const who = name ? `${name} 님, ` : '';
+
+  function set(patch: Partial<SignupAnswers>) {
+    setAnswers((prev) => ({ ...prev, ...patch }));
+    /* 고치기 시작하면 막힌 까닭을 걷는다 — 다시 '다음'을 누르면 그때 다시 본다 */
+    if (problem) setProblem(null);
   }
-  const invalid = (name: string) => problem?.field === name;
+  function setNutrition(patch: Partial<NutritionAnswers>) {
+    setAnswers((prev) => ({ ...prev, nutrition: { ...prev.nutrition, ...patch } }));
+    if (problem) setProblem(null);
+  }
+  function show(found: Problem) {
+    setProblem((prev) => ({ ...found, seq: (prev?.seq ?? 0) + 1 }));
+  }
+  const invalid = (field: string) => problem?.field === field;
 
-  /* 서버가 막고 돌아오면 그 칸이 있는 단계로 (그리는 도중 상태 보정) */
+  /* 서버가 막고 돌아오면 그 칸이 있는 화면으로 (그리는 도중 상태 보정) */
   const [seenState, setSeenState] = useState<AuthState>(undefined);
   if (state !== seenState) {
     setSeenState(state);
     if (state?.error) {
       const at = stepOfField(state.field);
-      setDir(at < step ? 'back' : 'next');
+      setDir(visible.indexOf(at) < index ? 'back' : 'next');
       setStep(at);
-      show({ error: state.error, field: state.field ?? STEPS[at].fields[0] });
+      show({ error: state.error, field: state.field ?? 'promise' });
     }
   }
 
   /*
-   * 서버가 막고 돌아오면 React 가 폼을 처음 값으로 되돌린다(form.reset). 손에 쥔
-   * 체크박스(동의 셋 · 비밀번호 표시)는 그때 화면만 꺼지고 상태는 켜진 채로 남아, '모두
-   * 동의'는 켜져 있는데 아래 둘은 꺼져 보였다. 되돌린 직후(같은 그림 안) 상태대로 다시
-   * 칠한다 — data-sync 가 그 체크박스의 지금 상태다.
+   * 서버가 막고 돌아오면 React 가 폼을 처음 값으로 되돌린다(form.reset). 손에 쥔 체크박스(동의 · 비밀번호 표시 ·
+   * 약속 · 보충식품)는 그때 화면만 꺼지고 상태는 켜진 채로 남는다. 되돌린 직후(같은 그림 안) 상태대로 다시 칠한다 —
+   * data-sync 가 그 체크박스의 지금 상태다. 글 칸 · 숨은 칸은 React 가 value 속성까지 맞춰 둬서 되돌려도 그대로다.
    */
   useLayoutEffect(() => {
     formRef.current
@@ -932,65 +879,75 @@ function SignupWizard({
       });
   }, [state]);
 
-  /** 묶음(라디오)이면 고른 것에, 아니면 그 칸에 */
-  function focusField(target: RadioNodeList | Element | null | undefined) {
-    const el =
-      target instanceof RadioNodeList
-        ? (Array.from(target).find((r) => (r as HTMLInputElement).checked) ?? target[0])
-        : target;
-    /* 숨은 칸(생년월일)이면 그 칸을 여는 단추로 */
-    if (el instanceof HTMLInputElement && el.type === 'hidden') {
-      document.getElementById(`${el.name}-button`)?.focus({ preventScroll: true });
+  /** 칸(id "{name}-field")으로 초점 — 고르는 묶음이면 고른 단추(없으면 첫 단추)로 */
+  function focusField(field: string) {
+    const target = document.getElementById(`${field}-field`);
+    if (target) {
+      if (target.dataset.field !== undefined) {
+        const picked =
+          target.querySelector<HTMLElement>('[aria-checked="true"]:not(:disabled)') ??
+          target.querySelector<HTMLElement>('button:not(:disabled)');
+        picked?.focus({ preventScroll: true });
+      } else {
+        target.focus({ preventScroll: true });
+      }
       return;
     }
-    if (el instanceof HTMLElement) el.focus({ preventScroll: true });
+    const el = formRef.current?.elements.namedItem(field);
+    if (
+      el instanceof HTMLElement &&
+      !(el instanceof HTMLInputElement && el.type === 'hidden')
+    ) {
+      el.focus({ preventScroll: true });
+    }
   }
 
   /*
-   * 단계가 바뀌면 새 단계의 첫 칸(고른 것이 있으면 그것)으로 초점을 옮긴다 — 키보드로 쓰는
-   * 사람이 이전 단계의 숨은 단추에 남지 않게. 처음 뜰 때(로그인에서 넘어온 순간)는 옮기지
-   * 않는다 — 그때는 제목이 초점을 받는다(AuthCard).
+   * 화면이 바뀌면 새 화면의 첫 칸(고른 것이 있으면 그것)으로 초점을 옮긴다 — 키보드로 쓰는 사람이 이전 화면의
+   * 숨은 단추에 남지 않게. 처음 뜰 때(로그인에서 넘어온 순간)는 옮기지 않는다 — 그때는 제목이 초점을 받는다(StepCard).
+   * 긴 화면(목표 카드 다섯)에서 다음을 누른 뒤에는 위로 돌아간다.
    */
   useEffect(() => {
     if (!moved.current) return;
     moved.current = false;
-    const panel = formRef.current?.querySelector<HTMLElement>(`[data-step="${step}"]`);
-    const first = panel?.querySelector<HTMLInputElement>('input:not([type=hidden])');
-    if (first?.type === 'radio') {
-      focusField(formRef.current?.elements.namedItem(first.name));
-    } else {
-      first?.focus({ preventScroll: true });
+    if (window.scrollY > 0) {
+      const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      window.scrollTo({ top: 0, behavior: reduce ? 'auto' : 'smooth' });
     }
+    const panel = formRef.current?.querySelector<HTMLElement>(`[data-step="${step}"]`);
+    const first = panel?.querySelector<HTMLElement>(
+      '[data-field], input:not([type=hidden]), button[role=radio], textarea'
+    );
+    if (!first) return;
+    if (first.dataset.field !== undefined) return focusField(first.dataset.field);
+    first.focus({ preventScroll: true });
   }, [step]);
 
   /*
-   * 문제가 난 칸으로 초점을 옮긴다. 위(단계의 첫 칸)보다 뒤에 둔다 — 서버가 막아 단계를
-   * 되돌릴 때는 둘이 한꺼번에 도는데, 첫 칸이 아니라 문제의 칸에 가 있어야 한다.
+   * 문제가 난 칸으로 초점을 옮긴다. 위(화면의 첫 칸)보다 뒤에 둔다 — 서버가 막아 화면을 되돌릴 때는 둘이 한꺼번에
+   * 도는데, 첫 칸이 아니라 문제의 칸에 가 있어야 한다.
    */
   useEffect(() => {
     if (!problem) return;
-    focusField(formRef.current?.elements.namedItem(problem.field));
+    focusField(problem.field);
   }, [problem]);
 
-  function goTo(i: number, direction: 'next' | 'back') {
+  function goTo(key: StepKey, direction: 'next' | 'back') {
     moved.current = true;
     setDir(direction);
-    setStep(i);
+    setStep(key);
   }
 
   async function next() {
-    const form = formRef.current;
-    if (!form || checking) return;
-    const found = checkStep(STEPS[step].key, form, today);
+    if (checking || index >= last) return;
+    const found = checkStep(current, answers, body, today);
     if (found) return show(found);
 
-    /* 첫 단계에서 이메일이 이미 가입된 것인지 미리 본다 — 끝까지 가서 막히지 않게 */
-    if (STEPS[step].key === 'basic') {
-      const email = String(new FormData(form).get('email') ?? '').trim();
-      setSignupEmail(email);
+    /* 이메일 화면에서 이미 가입된 것인지 미리 본다 — 끝까지 가서 막히지 않게 */
+    if (current === 'email') {
       setChecking(true);
       try {
-        const res = await checkSignupEmail(email);
+        const res = await checkSignupEmail(answers.email.trim());
         if (res.error) return show({ error: res.error, field: 'email' });
       } catch {
         /* 확인을 못 했으면 그냥 넘어간다 — 마지막에 서버가 다시 본다 */
@@ -999,22 +956,23 @@ function SignupWizard({
       }
     }
     setProblem(null);
-    goTo(Math.min(LAST, step + 1), 'next');
+    goTo(visible[index + 1], 'next');
   }
 
   function back() {
     setProblem(null);
-    goTo(Math.max(0, step - 1), 'back');
+    /* 끼움 · '계획 만드는 중'은 건너 뛴다 — 되돌아가서 볼 것이 아니다 */
+    let i = index - 1;
+    while (i > 0 && visible[i] === 'n:building') i--;
+    goTo(visible[Math.max(0, i)], 'back');
   }
 
-  /** 마지막 단계에서 보내기 전에 모든 단계를 한 번 더 본다 */
+  /** 마지막 화면에서 보내기 전에 모든 화면을 한 번 더 본다 */
   function allGood(): boolean {
-    const form = formRef.current;
-    if (!form) return false;
-    for (let i = 0; i < STEPS.length; i++) {
-      const found = checkStep(STEPS[i].key, form, today);
+    for (const key of visible) {
+      const found = checkStep(key, answers, body, today);
       if (found) {
-        if (i !== step) goTo(i, i < step ? 'back' : 'next');
+        if (key !== current) goTo(key, visible.indexOf(key) < index ? 'back' : 'next');
         show(found);
         return false;
       }
@@ -1023,7 +981,7 @@ function SignupWizard({
   }
 
   /*
-   * 칸에서 Enter — 이 단계에 다음 칸이 남아 있으면 그리로, 마지막 칸이면 '다음'.
+   * 칸에서 Enter — 이 화면에 다음 칸이 남아 있으면 그리로, 마지막 칸이면 '다음'.
    * 비밀번호 칸에서 Enter 를 눌렀는데 확인 칸이 비었다고 '일치하지 않습니다'가 뜨지 않게.
    */
   function onKeyDown(e: KeyboardEvent<HTMLFormElement>) {
@@ -1037,20 +995,123 @@ function SignupWizard({
     );
     const after = fields[fields.indexOf(target) + 1];
     if (after) return after.focus();
-    if (step < LAST) void next();
+    if (index < last) void next();
     else if (allGood()) formRef.current?.requestSubmit();
   }
 
-  const current = STEPS[step];
+  /* ── 제목 ── */
+  const ctx: StepCtx = {
+    a: answers.nutrition,
+    set: setNutrition,
+    body,
+    p,
+    today,
+    name,
+    invalid,
+    unit,
+    active: false,
+  };
+  function titleOf(key: StepKey): { title: string; desc?: string } {
+    switch (key) {
+      case 'name':
+        return {
+          title: '반가워요. 뭐라고 부를까요?',
+          desc: '앱에서 부를 이름이에요. 2자 이상이면 돼요. 나중에 바꿀 수 있어요.',
+        };
+      case 'birth':
+        return {
+          title: `${who}언제 태어나셨어요?`,
+          desc: '나이에 맞는 하루 투구 한도와 영양 기준을 정해요. 성별은 기초대사량 계산에 써요.',
+        };
+      case 'capCard':
+        return {
+          title: '첫 숫자가 나왔어요',
+          desc: '생년월일 하나로 이만큼이 정해져요.',
+        };
+      case 'hand':
+        return {
+          title: '어느 손으로 던지세요?',
+          desc: '폼 분석에서 어느 팔을 볼지, 암케어가 어느 쪽을 돌볼지 정해요.',
+        };
+      case 'level':
+        return {
+          title: '어디서 야구를 하세요?',
+          desc: '생년월일에 맞는 소속만 고를 수 있어요. 평소 움직임을 미리 골라 두는 데도 써요.',
+        };
+      case 'pitching':
+        return {
+          title: '평소 얼마나 던지세요?',
+          desc: '셋을 고르면 첫날부터 투구 부하 지수를 낼 수 있어요. 기록이 쌓이면 이 답은 자리를 비켜요.',
+        };
+      case 'weights':
+        return {
+          title: '웨이트는 얼마나 하세요?',
+          desc: '운동 부하 지수의 시작점과, 경력에 맞는 운동을 고르는 데 써요.',
+        };
+      case 'height':
+        return {
+          title: '키는 얼마예요?',
+          desc: '기초대사량과 목표 체중의 바닥(BMI 20), 영상에서 잰 길이를 몸 크기로 나눌 때 써요.',
+        };
+      case 'weight':
+        return {
+          title: '지금 체중은요?',
+          desc: '오늘 첫 체중 기록이 돼요. 목표 칼로리와 단백질을 체중으로 셈해요.',
+        };
+      case 'burnCard':
+        return {
+          title: '먹는 것과 쓰는 것',
+          desc: '이 앱의 영양은 운동 · 투구 기록과 이어져 있어요.',
+        };
+      case 'email':
+        return {
+          title: '로그인에 쓸 이메일이에요',
+          desc: '여기까지 답한 것을 이 계정에 담아요.',
+        };
+      case 'password':
+        return {
+          title: '비밀번호를 만들어요',
+          desc: '8자 이상이면 돼요. 다른 곳에서 쓰지 않는 것으로 정해 주세요.',
+        };
+      case 'terms':
+        return {
+          title: '약관 동의',
+          desc: '두 가지 모두 동의해야 가입할 수 있어요. 눌러서 내용을 볼 수 있어요.',
+        };
+      case 'summary':
+        return {
+          title: `${name ? `${name} 님의 ` : ''}목표예요`,
+          desc: '가입하면 오늘 화면으로 가요. 모두 나중에 영양 탭 · 내 정보에서 바꿀 수 있어요.',
+        };
+      default:
+        return nutritionStepTitle(key.slice(2) as NutritionStepKey, ctx);
+    }
+  }
+  const heading = titleOf(current);
+
   const enter =
     dir === 'next' ? 'motion-safe:animate-step-next' : 'motion-safe:animate-step-back';
 
-  /* 단계 한 칸 — 지금 것만 보인다. 숨었다 보이는 순간 들어오는 움직임이 다시 돈다. */
-  const panel = (i: number, children: ReactNode) => (
-    <div data-step={i} hidden={i !== step} className={i === step ? enter : undefined}>
+  /* 화면 한 칸 — 지금 것만 보인다. 숨었다 보이는 순간 들어오는 움직임이 다시 돈다. */
+  const panel = (key: StepKey, children: ReactNode) => (
+    <div
+      key={key}
+      data-step={key}
+      hidden={key !== current}
+      className={key === current ? enter : undefined}
+    >
       {children}
     </div>
   );
+
+  const load = estimateDailyLoad({
+    baselineFreq: answers.baselineFreq,
+    baselineVolume: answers.baselineVolume,
+    baselineIntensity: answers.baselineIntensity,
+  });
+  const building = current === 'n:building';
+  const goalLabel =
+    GOAL_KINDS.find((g) => g.key === answers.nutrition.goalKind)?.label ?? null;
 
   return (
     <form
@@ -1058,41 +1119,39 @@ function SignupWizard({
       action={formAction}
       noValidate
       onKeyDown={onKeyDown}
-      /* 고치기 시작하면 막힌 까닭을 걷는다 — 다시 '다음'을 누르면 그때 다시 본다 */
-      onChange={() => {
-        if (problem) setProblem(null);
-      }}
       className="flex flex-1 flex-col"
     >
-      <AuthCard
-        titleKey={current.key}
-        title={current.title}
-        desc={current.desc}
-        progress={(step + 1) / STEPS.length}
-        counter={`${step + 1} / ${STEPS.length}`}
+      <StepCard
+        titleKey={current}
+        title={heading.title}
+        desc={heading.desc}
+        progress={(index + 1) / visible.length}
+        counter={`${index + 1} / ${visible.length}`}
         focusHeading={focusHeading}
         footer={
           <>
-            {step === 0 ? (
+            {index === 0 ? (
               <TextButton onClick={onLogin}>로그인하기</TextButton>
             ) : (
-              <TextButton onClick={back}>이전</TextButton>
+              <TextButton onClick={back} disabled={building}>
+                이전
+              </TextButton>
             )}
-            {step < LAST ? (
+            {index < last ? (
               <Button
                 type="button"
                 onClick={() => void next()}
-                disabled={checking}
+                disabled={checking || building}
                 className="min-w-28"
               >
-                {checking ? '확인 중…' : '다음'}
+                {checking ? '확인 중…' : building ? '잠시만요…' : '다음'}
               </Button>
             ) : (
               <SubmitButton
                 label="가입하고 시작하기"
                 pendingLabel="가입하는 중…"
                 onClick={(e) => {
-                  /* 보내기 전에 모든 단계를 다시 본다 — 막히면 그 단계로 */
+                  /* 보내기 전에 모든 화면을 다시 본다 — 막히면 그 화면으로 */
                   if (!allGood()) e.preventDefault();
                 }}
               />
@@ -1100,83 +1159,302 @@ function SignupWizard({
           </>
         }
       >
-        {/* 화면 낭독기에 단계가 넘어간 것을 알린다 */}
+        {/* 화면 낭독기에 화면이 넘어간 것을 알린다 */}
         <p className="sr-only" aria-live="polite">
-          {`${STEPS.length}단계 중 ${step + 1}단계, ${current.title}`}
+          {`${visible.length}단계 중 ${index + 1}단계, ${heading.title}`}
         </p>
 
+        {/*
+          서버로 가는 숨은 칸 — 단추로 고른 답(상태)을 폼에 싣는다. 글 칸(이름 · 이메일 · 비밀번호)과 생년월일 ·
+          키 · 체중 · 동의는 제 화면 안의 칸이 보낸다.
+        */}
+        <input type="hidden" name="sex" value={answers.sex ?? ''} />
+        <input type="hidden" name="throwingHand" value={answers.throwingHand ?? ''} />
+        <input type="hidden" name="competitionLevel" value={levelValue ?? ''} />
+        <input type="hidden" name="baselineFreq" value={answers.baselineFreq ?? ''} />
+        <input
+          type="hidden"
+          name="baselineVolume"
+          value={answers.baselineVolume ?? ''}
+        />
+        <input
+          type="hidden"
+          name="baselineIntensity"
+          value={answers.baselineIntensity ?? ''}
+        />
+        <input
+          type="hidden"
+          name="baselineWorkoutFreq"
+          value={answers.baselineWorkoutFreq ?? ''}
+        />
+        <input type="hidden" name="trainingLevel" value={answers.trainingLevel ?? ''} />
+        {toFormFields(answers.nutrition).map(([k, v], i) => (
+          <input key={`${k}:${i}`} type="hidden" name={k} value={v} />
+        ))}
+
+        {/* ── 1 이름 ── */}
         {panel(
-          0,
-          <div className="space-y-4 md:space-y-5">
-            <Field label="이메일">
-              <Input
-                name="email"
-                type="email"
-                autoComplete="email"
-                {...noAutoFix}
-                required
-                /* 이미 가입된 이메일인지 보는 동안에는 고칠 수 없게 — 본 것과 넘어간 것이 같게 */
-                readOnly={checking}
-                defaultValue={kept(before, 'email')}
-                placeholder="pitcher@example.com"
-                className={inputLarge}
-                {...invalidProps(invalid('email'))}
+          'name',
+          <Field label="이름 · 별명">
+            <Input
+              name="nickname"
+              type="text"
+              autoComplete="nickname"
+              required
+              value={answers.nickname}
+              onChange={(e) => set({ nickname: e.target.value })}
+              placeholder="불펜지기"
+              maxLength={20}
+              className={inputLarge}
+              {...invalidProps(invalid('nickname'))}
+            />
+          </Field>
+        )}
+
+        {/* ── 2 생년월일 · 성별 ── */}
+        {panel(
+          'birth',
+          <div className="space-y-5">
+            <Field label="생년월일">
+              <BirthDateField
+                value={answers.birthDate}
+                onChange={(birthDate) => set({ birthDate })}
+                today={today}
+                invalid={invalid('birthDate')}
               />
             </Field>
-            <div className="grid grid-cols-2 gap-3">
-              <Field label="닉네임">
-                <Input
-                  name="nickname"
-                  type="text"
-                  autoComplete="nickname"
-                  required
-                  defaultValue={kept(before, 'nickname')}
-                  placeholder="불펜지기"
-                  className={inputLarge}
-                  {...invalidProps(invalid('nickname'))}
-                />
-              </Field>
-              {/* 나이는 안전한 투구수 한도를 정하는 기준이라 가입할 때 받는다 */}
-              <Field label="생년월일">
-                <BirthDateField
-                  value={birthDate}
-                  onChange={setBirthDate}
-                  today={today}
-                  invalid={invalid('birthDate')}
-                />
-              </Field>
-            </div>
-            {/*
-              성별 — 영양 목표(기초대사량)를 계산하는 기준이라 가입할 때 받는다.
-              몸에 대한 사실이라 계정에 두고, 바꾸는 것도 내 정보 한 곳에서만 한다.
-            */}
-            <Choices
-              legend="성별"
+            {/* 성별 — 영양 목표(기초대사량)를 계산하는 기준이라 가입할 때 받는다. 몸에 대한 사실이라 계정에 두고, 바꾸는 것도 내 정보 한 곳에서만 한다 */}
+            <Chips
               name="sex"
-              options={SEX_OPTIONS}
-              selected={kept(before, 'sex')}
-              required
+              legend="성별"
+              options={SEX_OPTIONS.map((o) => ({
+                value: o.value as Sex,
+                label: o.name,
+              }))}
+              value={answers.sex}
+              onChange={(sex) => set({ sex })}
               invalid={invalid('sex')}
             />
           </div>
         )}
 
+        {/* ── 끼움: 하루 투구 한도 ── */}
+        {panel(
+          'capCard',
+          <PitchCapInsert age={body.age} active={current === 'capCard'} />
+        )}
+
+        {/* ── 3 던지는 손 ── */}
+        {panel(
+          'hand',
+          <Chips
+            name="throwingHand"
+            label="던지는 손"
+            options={THROWING_HANDS.map((h) => ({ value: h, label: h }))}
+            value={answers.throwingHand}
+            onChange={(throwingHand) => set({ throwingHand })}
+            invalid={invalid('throwingHand')}
+            hint="양투는 둘 다 던지는 선수예요. 폼 분석은 영상마다 어느 팔인지 따로 정해요."
+          />
+        )}
+
+        {/* ── 4 소속 — 생년월일과 이어져 있다(lib/baseline.ts levelFit) ── */}
+        {panel(
+          'level',
+          <Chips
+            name="competitionLevel"
+            label="소속"
+            options={COMPETITION_LEVELS.map((level) => ({
+              value: level,
+              label: COMPETITION_LEVEL_LABELS[level],
+              disabled: !fit.allowed.includes(level),
+            }))}
+            value={levelValue}
+            onChange={(competitionLevel) => set({ competitionLevel })}
+            invalid={invalid('competitionLevel')}
+            hint={
+              fit.grade === null
+                ? '생년월일을 넣으면 나이에 맞는 소속을 먼저 골라 드려요.'
+                : `생년월일로 보면 ${gradeText(fit.grade)} 나이예요. 나이에 맞는 소속만 고를 수 있어요.`
+            }
+          />
+        )}
+
+        {/* ── 5 평소 투구량 — 이 답으로 부하 지수를 첫날부터 계산한다 ── */}
+        {panel(
+          'pitching',
+          <div className="space-y-5">
+            <Chips
+              name="baselineFreq"
+              legend="던지는 횟수"
+              options={BASELINE_FREQ_NAMES.map((n) => ({ value: n, label: n }))}
+              value={answers.baselineFreq}
+              onChange={(baselineFreq) => set({ baselineFreq })}
+              invalid={invalid('baselineFreq')}
+            />
+            <Chips
+              name="baselineVolume"
+              legend="한 번에 던지는 양"
+              options={BASELINE_VOLUME_NAMES.map((n) => ({ value: n, label: n }))}
+              value={answers.baselineVolume}
+              onChange={(baselineVolume) => set({ baselineVolume })}
+              invalid={invalid('baselineVolume')}
+            />
+            <Chips
+              name="baselineIntensity"
+              legend="평소 강도"
+              options={BASELINE_INTENSITY_NAMES.map((n) => ({ value: n, label: n }))}
+              value={answers.baselineIntensity}
+              onChange={(baselineIntensity) => set({ baselineIntensity })}
+              invalid={invalid('baselineIntensity')}
+            />
+            {load !== null && (
+              <div className="rise-in rounded-2xl border border-sky/25 bg-sky/5 px-4 py-3">
+                <p className="text-xs font-medium text-sky-strong">평소 하루 부하</p>
+                <p className="text-heading mt-1 text-2xl text-ink">
+                  <CountUp value={load} active={current === 'pitching'} />
+                  <span className="ml-1.5 text-xs font-normal text-muted">
+                    횟수 × 구수 × 강도 ÷ 7
+                  </span>
+                </p>
+                <p className="mt-1 text-xs leading-relaxed break-keep text-muted">
+                  첫날부터 이 값에서 투구 부하 지수를 시작해요. 기록이 쌓일수록 이
+                  짐작은 자리를 비켜요.
+                </p>
+              </div>
+            )}
+          </div>
+        )}
+
         {/*
-          키체인에게 알려 주는 계정 이름(signupEmail) — 보이지 않고, 누르거나 초점이 갈 일도 없고, 서버로도 안 간다(name 없음).
-          display:none 으로 숨기면 키체인이 못 본다고 해서 sr-only 로 둔다. 단계 칸(data-step) 밖이라 단계의 첫 칸이 되지 않는다.
+          6 웨이트 빈도 — 투구와 같은 이유로 받는다. 이게 없으면 운동 부하 지수만 28일을 기다려야 한다.
+          웨이트 경력 — 트레이닝이 경력에 비해 이른 운동을 빼는 기준이다(lib/report/personalize.ts).
+        */}
+        {panel(
+          'weights',
+          <div className="space-y-5">
+            <Chips
+              name="baselineWorkoutFreq"
+              legend="웨이트 횟수"
+              options={BASELINE_WORKOUT_FREQ_NAMES.map((n) => ({ value: n, label: n }))}
+              value={answers.baselineWorkoutFreq}
+              onChange={(baselineWorkoutFreq) => set({ baselineWorkoutFreq })}
+              invalid={invalid('baselineWorkoutFreq')}
+            />
+            <div>
+              <p className="mb-2 text-xs font-medium text-muted">
+                웨이트 트레이닝 경력
+              </p>
+              <OptionCards
+                name="trainingLevel"
+                label="웨이트 트레이닝 경력"
+                options={TRAINING_LEVELS.map((l) => ({
+                  value: l.name,
+                  label: l.name,
+                  hint: l.desc,
+                }))}
+                value={answers.trainingLevel}
+                onChange={(trainingLevel) => set({ trainingLevel })}
+                columns={2}
+                invalid={invalid('trainingLevel')}
+              />
+            </div>
+          </div>
+        )}
+
+        {/* ── 7 키 · 8 체중 — 단위는 cm｜in · kg｜lb, 저장은 cm · kg ── */}
+        {panel(
+          'height',
+          <NumberUnitField
+            name="heightCm"
+            kind="length"
+            label="키"
+            value={answers.heightCm}
+            onChange={(heightCm) => set({ heightCm })}
+            min={MIN_HEIGHT_CM}
+            max={MAX_HEIGHT_CM}
+            placeholder={175}
+            invalid={invalid('heightCm')}
+          />
+        )}
+        {panel(
+          'weight',
+          <NumberUnitField
+            name="weightKg"
+            kind="weight"
+            label="지금 체중"
+            value={answers.weightKg}
+            onChange={(weightKg) => set({ weightKg })}
+            min={MIN_WEIGHT_KG}
+            max={MAX_WEIGHT_KG}
+            placeholder={72}
+            invalid={invalid('weightKg')}
+            hint="아침에 화장실 다녀온 뒤 잰 값이 가장 고르게 나와요. 0.1kg 까지."
+          />
+        )}
+
+        {/* ── 끼움: 운동 소모 ── */}
+        {panel(
+          'burnCard',
+          <BurnInsert weightKg={answers.weightKg} active={current === 'burnCard'} />
+        )}
+
+        {/* ── 9~16 영양 질문 + 끼움(계획 만드는 중 · 추천 계획 · 탄단지 g) ── */}
+        {visible
+          .filter((k) => k.startsWith('n:'))
+          .map((k) =>
+            panel(
+              k,
+              <NutritionStepPanel
+                step={k.slice(2) as NutritionStepKey}
+                ctx={{ ...ctx, active: current === k }}
+                onBuilt={() => {
+                  if (current === 'n:building' && index < last)
+                    goTo(visible[index + 1], 'next');
+                }}
+              />
+            )
+          )}
+
+        {/* ── 17 이메일 ── */}
+        {panel(
+          'email',
+          <Field label="이메일">
+            <Input
+              name="email"
+              type="email"
+              autoComplete="email"
+              {...noAutoFix}
+              required
+              /* 이미 가입된 이메일인지 보는 동안에는 고칠 수 없게 — 본 것과 넘어간 것이 같게 */
+              readOnly={checking}
+              value={answers.email}
+              onChange={(e) => set({ email: e.target.value })}
+              placeholder="pitcher@example.com"
+              className={inputLarge}
+              {...invalidProps(invalid('email'))}
+            />
+          </Field>
+        )}
+
+        {/*
+          키체인에게 알려 주는 계정 이름(이메일) — 보이지 않고, 누르거나 초점이 갈 일도 없고, 서버로도 안 간다(name 없음).
+          아이폰 키체인은 새 비밀번호를 저장할 때 같은 폼의 username 칸을 계정 이름으로 쓴다. display:none 으로 숨기면
+          키체인이 못 본다고 해서 sr-only 로 둔다. 화면 칸(data-step) 밖이라 화면의 첫 칸이 되지 않는다.
         */}
         <input
           type="text"
           autoComplete="username"
-          value={signupEmail}
+          value={answers.email}
           readOnly
           tabIndex={-1}
           aria-hidden
           className="sr-only"
         />
 
+        {/* ── 18 비밀번호 ── */}
         {panel(
-          1,
+          'password',
           <div className="space-y-4 md:space-y-5">
             <Field label="비밀번호" hint="8자 이상">
               <Input
@@ -1186,8 +1464,8 @@ function SignupWizard({
                 {...noAutoFix}
                 required
                 minLength={8}
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
+                value={answers.password}
+                onChange={(e) => set({ password: e.target.value })}
                 placeholder="••••••••"
                 className={inputLarge}
                 {...invalidProps(invalid('password'))}
@@ -1200,14 +1478,14 @@ function SignupWizard({
                 autoComplete="new-password"
                 {...noAutoFix}
                 required
-                value={passwordConfirm}
-                onChange={(e) => setPasswordConfirm(e.target.value)}
+                value={answers.passwordConfirm}
+                onChange={(e) => set({ passwordConfirm: e.target.value })}
                 placeholder="••••••••"
                 className={inputLarge}
                 {...invalidProps(invalid('passwordConfirm'))}
               />
             </Field>
-            <label className="inline-flex cursor-pointer items-center gap-2 pt-1">
+            <label className="inline-flex min-h-11 cursor-pointer items-center gap-2 pt-1 desk:min-h-0">
               <input
                 type="checkbox"
                 checked={showPassword}
@@ -1221,24 +1499,21 @@ function SignupWizard({
         )}
 
         {/*
-          동의 두 가지.
-          받는 정보를 보면 그냥 넘어갈 수준이 아니다 — 생년월일, 키, 통증 부위,
-          투구 기록, 영상. 통증 기록은 건강에 관한 정보라 따로 동의를 받는다.
-          미리 체크해 두지 않는다. 눌러서 동의한 것과 켜져 있어서 넘어간 것은 다르다.
-          '모두 동의'는 둘을 한 번에 켜고 끄는 편의일 뿐, 따로 보내는 값이 없다.
+          19 동의 두 가지. 받는 정보를 보면 그냥 넘어갈 수준이 아니다 — 생년월일, 키, 체중, 통증 부위, 투구 기록, 영상.
+          통증 기록은 건강에 관한 정보라 따로 동의를 받는다. 미리 체크해 두지 않는다. '모두 동의'는 둘을 한 번에
+          켜고 끄는 편의일 뿐, 따로 보내는 값이 없다.
         */}
         {panel(
-          2,
+          'terms',
           <div className="rounded-2xl border border-line bg-surface-2/60 p-3">
             <label className="flex cursor-pointer items-center gap-3 rounded-xl px-1 py-2 text-[15px] font-semibold text-ink">
               <input
                 type="checkbox"
-                checked={agreeTerms && agreePrivacy}
-                data-sync={agreeTerms && agreePrivacy ? 'on' : 'off'}
-                onChange={(e) => {
-                  setAgreeTerms(e.target.checked);
-                  setAgreePrivacy(e.target.checked);
-                }}
+                checked={answers.agreeTerms && answers.agreePrivacy}
+                data-sync={answers.agreeTerms && answers.agreePrivacy ? 'on' : 'off'}
+                onChange={(e) =>
+                  set({ agreeTerms: e.target.checked, agreePrivacy: e.target.checked })
+                }
                 className="h-5 w-5 shrink-0 cursor-pointer accent-sky"
               />
               모두 동의합니다
@@ -1246,8 +1521,8 @@ function SignupWizard({
             <div className="my-2 border-t border-line" />
             <AgreeLine
               name="agreeTerms"
-              checked={agreeTerms}
-              onChange={setAgreeTerms}
+              checked={answers.agreeTerms}
+              onChange={(agreeTerms) => set({ agreeTerms })}
               invalid={invalid('agreeTerms')}
             >
               <LegalLink doc="terms" onOpen={legal.show}>
@@ -1257,8 +1532,8 @@ function SignupWizard({
             </AgreeLine>
             <AgreeLine
               name="agreePrivacy"
-              checked={agreePrivacy}
-              onChange={setAgreePrivacy}
+              checked={answers.agreePrivacy}
+              onChange={(agreePrivacy) => set({ agreePrivacy })}
               invalid={invalid('agreePrivacy')}
             >
               <LegalLink doc="privacy" onOpen={legal.show}>
@@ -1271,131 +1546,59 @@ function SignupWizard({
           </div>
         )}
 
+        {/* ── 20 요약 · 약속 ── */}
         {panel(
-          3,
-          <div className="space-y-4 md:space-y-5">
-            <Choices
-              legend="던지는 손"
-              name="throwingHand"
-              options={THROWING_HANDS}
-              selected={kept(before, 'throwingHand')}
-              required
-              invalid={invalid('throwingHand')}
-            />
-            <Field label="키 (cm)" hint="선택이에요. 나중에 적어도 돼요.">
-              <Input
-                name="heightCm"
-                type="number"
-                inputMode="numeric"
-                defaultValue={kept(before, 'heightCm')}
-                min={MIN_HEIGHT_CM}
-                max={MAX_HEIGHT_CM}
-                step={1}
-                placeholder="예: 178"
-                className={`${inputLarge} max-w-40`}
-                {...invalidProps(invalid('heightCm'))}
+          'summary',
+          <div className="space-y-4">
+            <div className="rounded-2xl border border-sky/30 bg-sky/5 px-4 py-3">
+              <p className="text-xs font-medium text-sky-strong">
+                {goalLabel ?? '목표'} · 운동 없는 날
+              </p>
+              <p className="text-heading mt-1 text-3xl text-ink">
+                {kcalText(p.targets.base)}
+                <span className="ml-1 text-sm font-normal text-muted">kcal</span>
+              </p>
+              <div className="mt-3">
+                <MacroBar
+                  carbs={p.targets.carbs}
+                  protein={p.targets.protein}
+                  fat={p.targets.fat}
+                  compact
+                />
+              </div>
+            </div>
+            <dl className="divide-y divide-line rounded-2xl border border-line bg-surface-2/60 px-4">
+              {answerLines(ctx).map((l, i) => (
+                <SummaryRow key={l.label} label={l.label} value={l.value} row={i} />
+              ))}
+              <SummaryRow
+                label="야구"
+                value={[
+                  answers.throwingHand,
+                  levelValue ? COMPETITION_LEVEL_LABELS[levelValue] : null,
+                ]
+                  .filter(Boolean)
+                  .join(' · ')}
+                row={9}
               />
-            </Field>
+              <SummaryRow label="계정" value={answers.email.trim() || '—'} row={10} />
+            </dl>
+            <AgreeLine
+              checked={answers.promise}
+              onChange={(promise) => set({ promise })}
+              invalid={invalid('promise')}
+            >
+              <span id="promise-field" tabIndex={-1} className="outline-none">
+                던지는 날 앞뒤로 끼니를 거르지 않기로 약속해요.
+              </span>{' '}
+              <span className="text-muted">영양 탭이 그날 가이드를 드릴게요.</span>
+            </AgreeLine>
           </div>
         )}
 
-        {/* 평소 투구량 — 이 답으로 부하 지수를 첫날부터 계산한다 */}
-        {panel(
-          4,
-          <div className="space-y-4 md:space-y-5">
-            <Choices
-              legend="던지는 횟수"
-              name="baselineFreq"
-              options={BASELINE_FREQ_NAMES}
-              selected={kept(before, 'baselineFreq')}
-              required
-              invalid={invalid('baselineFreq')}
-            />
-            <Choices
-              legend="한 번에 던지는 양"
-              name="baselineVolume"
-              options={BASELINE_VOLUME_NAMES}
-              selected={kept(before, 'baselineVolume')}
-              required
-              invalid={invalid('baselineVolume')}
-            />
-            <Choices
-              legend="평소 강도"
-              name="baselineIntensity"
-              options={BASELINE_INTENSITY_NAMES}
-              selected={kept(before, 'baselineIntensity')}
-              required
-              invalid={invalid('baselineIntensity')}
-            />
-          </div>
-        )}
-
-        {/*
-          웨이트 빈도 — 투구와 같은 이유로 받는다. 이게 없으면 운동 부하 지수만
-          28일을 기다려야 한다.
-          웨이트 경력 — 트레이닝이 경력에 비해 이른 운동을 빼는 기준이다
-          (lib/report/personalize.ts). 트레이닝 설정의 경력 칸과 같은 값이라, 가입하고
-          나면 거기에 그대로 보인다.
-        */}
-        {panel(
-          5,
-          <div className="space-y-4 md:space-y-5">
-            <Choices
-              legend="웨이트 횟수"
-              name="baselineWorkoutFreq"
-              options={BASELINE_WORKOUT_FREQ_NAMES}
-              selected={kept(before, 'baselineWorkoutFreq')}
-              required
-              invalid={invalid('baselineWorkoutFreq')}
-            />
-            <Choices
-              legend="웨이트 트레이닝 경력"
-              name="trainingLevel"
-              options={TRAINING_LEVELS}
-              selected={kept(before, 'trainingLevel')}
-              list
-              required
-              invalid={invalid('trainingLevel')}
-            />
-          </div>
-        )}
-
-        {/*
-          소속 — 꼭 고른다(2026-09-30 사용자 요청). 첫 단계의 생년월일과 이어져, 나이에
-          안 맞는 곳은 막히고 학교 나이면 그 학교가 먼저 골라져 있다(components/level-choices).
-          계산을 바꾸는 값은 아니다 — 나이는 생년월일로 이미 알고 안전 한도도 거기서 나온다.
-        */}
-        {panel(
-          6,
-          <LevelChoices
-            legend="소속"
-            birthDate={birthDate}
-            today={today}
-            initial={kept(before, 'competitionLevel')}
-            required
-            invalid={invalid('competitionLevel')}
-          />
-        )}
-
-        {/*
-          막힌 까닭 — 칸들 밑, 단추 바로 위에 한 줄로. 방금 누른 단추 곁이라 눈이 바로 가고,
-          문제의 칸은 초점과 빨간 테두리(aria-invalid)로 따로 짚는다. 예전처럼 맨 위에 상자로
-          띄우면 작은 화면에서는 그 높이만큼 화면을 넘겨 굴려야 했다. key 로 새로 그려, 같은
-          문제가 다시 나도 화면 낭독기가 다시 읽는다.
-        */}
-        {problem && (
-          <p
-            key={problem.seq}
-            id={PROBLEM_ID}
-            role="alert"
-            className="mt-4 flex items-start gap-1.5 text-[13px] leading-5 text-danger md:text-sm"
-          >
-            <CircleAlert aria-hidden className="mt-0.5 h-4 w-4 shrink-0" />
-            {problem.error}
-          </p>
-        )}
-      </AuthCard>
-      {/* 약관 · 개인정보 창 — 안에 칸이 없어 폼의 onChange · Enter 처리와 엮이지 않는다 */}
+        {problem && <ProblemLine seq={problem.seq}>{problem.error}</ProblemLine>}
+      </StepCard>
+      {/* 약관 · 개인정보 창 — 안에 칸이 없어 폼의 Enter 처리와 엮이지 않는다 */}
       <LegalSheet
         doc={legal.content}
         open={legal.open}

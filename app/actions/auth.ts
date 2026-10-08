@@ -11,11 +11,30 @@ import {
   getSession,
   passwordFingerprint,
 } from '@/lib/session';
-import { isSex, validateProfile, type Sex } from '@/lib/profile';
+import {
+  MAX_WEIGHT_KG,
+  MIN_WEIGHT_KG,
+  checkOptionalNumber,
+  isSex,
+  validateProfile,
+  type Sex,
+} from '@/lib/profile';
 import { levelAgeProblem, validateBaseline } from '@/lib/baseline';
 import { toDateKey } from '@/lib/pitch-stats';
 import { readTrainingProfile } from '@/lib/report/personalize';
 import { withInput, type FormValues } from '@/lib/form-values';
+import { dbDate } from '@/lib/nutrition/days';
+import { cleanDietPrefs } from '@/lib/nutrition/diet-prefs';
+import {
+  fieldOfNutritionError,
+  levelOf,
+  readNutritionAnswers,
+  toDietPrefsRaw,
+  toProfileInput,
+  type OnboardingBody,
+} from '@/lib/nutrition/onboarding-answers';
+import { buildProfileData, type ProfileData } from '@/lib/nutrition/profile-save';
+import { ageOn } from '@/lib/nutrition/targets';
 
 /**
  * field — 문제가 난 칸의 name. 가입은 여러 단계로 나뉘어 있어서(app/login/auth-form.tsx)
@@ -155,6 +174,82 @@ async function trySignup(formData: FormData): Promise<AuthState> {
     return { error: '웨이트 트레이닝 경력을 선택해주세요.', field: 'trainingLevel' };
   }
 
+  /*
+   * 영양 온보딩(인아웃식 가입, 2026-10-08 — docs/designs/inout-onboarding.md ④).
+   *
+   * 새 가입 화면은 체중과 영양 질문의 답(목표 카드 · 목표 체중 · 속도 · 평소 움직임 · 시즌 · 탄단지 · 식사 · 못 먹는 것 ·
+   * 직접 고친 kcal · g)을 숨은 칸으로 함께 보낸다(lib/nutrition/onboarding-answers.ts). 그러면 계정과 함께
+   * 영양 목표(NutritionProfile, 온보딩 끝낸 시각 · 계획 시작일 포함)와 오늘의 첫 체중(DailyNutrition)을 한 트랜잭션으로
+   * 만든다 — 가입 직후 영양 탭이 바로 계획을 보인다.
+   *
+   * 표시 칸이 없는 옛 화면(배포 전에 열어 둔 가입 화면)은 예전처럼 계정만 만든다 — 키 · 체중도 선택이다.
+   * 저장 규칙은 목표 창과 같은 함수(buildProfileData · cleanDietPrefs)라 가입으로 만든 목표와 목표 창에서 고친 목표가
+   * 어긋나지 않는다.
+   */
+  const today = toDateKey(new Date());
+  const nutrition = readNutritionAnswers(formData);
+  if (typeof nutrition === 'string') return { error: nutrition, field: 'kcalTarget' };
+  let weightKg: number | null = null;
+  let nutritionRow:
+    | (ProfileData & {
+        goalEndDate: Date | null;
+        seasonPhase: string | null;
+        dietStyle: string;
+        mealPattern: string;
+        avoidFoods: string[];
+        allowSupplements: boolean;
+      })
+    | null = null;
+  if (nutrition) {
+    /* 온보딩 화면은 키 · 체중을 꼭 받는다 — 둘 없이는 목표 체중 범위 · 칼로리를 셈할 수 없다 */
+    if (profile.value.heightCm === null) {
+      return { error: '키를 적어 주세요.', field: 'heightCm' };
+    }
+    const weight = checkOptionalNumber(String(formData.get('weightKg') ?? ''), {
+      label: '체중',
+      min: MIN_WEIGHT_KG,
+      max: MAX_WEIGHT_KG,
+      unit: 'kg',
+    });
+    if ('error' in weight) return { error: weight.error, field: 'weightKg' };
+    if (weight.value === null)
+      return { error: '지금 체중을 적어 주세요.', field: 'weightKg' };
+    weightKg = weight.value;
+
+    const body: OnboardingBody = {
+      age: ageOn(profile.value.birthDate, today),
+      sex,
+      heightCm: profile.value.heightCm,
+      weightKg,
+      level: levelOf(baseline.value.competitionLevel),
+    };
+    const built = buildProfileData(
+      toProfileInput(nutrition, body),
+      {
+        birthDate: profile.value.birthDate,
+        heightCm: profile.value.heightCm,
+        weightKg,
+      },
+      null,
+      weightKg,
+      today
+    );
+    if (!built.ok)
+      return { error: built.error, field: fieldOfNutritionError(built.error) };
+    const prefs = cleanDietPrefs(toDietPrefsRaw(nutrition, body), today);
+    if (typeof prefs === 'string')
+      return { error: prefs, field: fieldOfNutritionError(prefs) };
+    nutritionRow = {
+      ...built.data,
+      goalEndDate: prefs.goalEndDate ? dbDate(prefs.goalEndDate) : null,
+      seasonPhase: prefs.seasonPhase,
+      dietStyle: prefs.dietStyle,
+      mealPattern: prefs.mealPattern,
+      avoidFoods: prefs.avoid,
+      allowSupplements: prefs.supplements,
+    };
+  }
+
   const existing = await prisma.user.findUnique({ where: { email } });
   if (existing) {
     return { error: '이미 가입된 이메일이에요.', field: 'email' };
@@ -164,18 +259,31 @@ async function trySignup(formData: FormData): Promise<AuthState> {
   const role = adminEmail && email === adminEmail ? 'ADMIN' : 'USER';
 
   const passwordHash = await bcrypt.hash(password, 10);
-  const user = await prisma.user.create({
-    data: {
-      email,
-      nickname,
-      password: passwordHash,
-      role,
-      ...profile.value,
-      sex,
-      ...baseline.value,
-      trainingLevel,
-    },
-    select: { id: true, role: true },
+  const row = nutritionRow;
+  const user = await prisma.$transaction(async (tx) => {
+    const created = await tx.user.create({
+      data: {
+        email,
+        nickname,
+        password: passwordHash,
+        role,
+        ...profile.value,
+        sex,
+        ...baseline.value,
+        trainingLevel,
+        /* 온보딩에서 받은 체중은 계정에도 — 내 정보의 몸무게 칸과 영양 탭의 기준 체중이 같은 값에서 시작한다 */
+        ...(weightKg !== null ? { weightKg } : {}),
+      },
+      select: { id: true, role: true },
+    });
+    if (row && weightKg !== null) {
+      await tx.nutritionProfile.create({ data: { userId: created.id, ...row } });
+      /* 오늘의 첫 체중 — 체중 흐름의 첫 점. 가입 날짜 줄은 아직 없으니 그대로 만든다 */
+      await tx.dailyNutrition.create({
+        data: { userId: created.id, date: dbDate(today), weightKg },
+      });
+    }
+    return created;
   });
 
   await createSession({

@@ -389,6 +389,52 @@
      **남은 것**: ① 사용자 결정 넷(HANDOFF · 0-3절) ② T7(김민: 사이트에서 다시 분석 → 샘플 3개 + 깨진 영상) ③ 결정 뒤 0-2절 ④ 각도 호(TD5) ·
      폰 실기기 · /design-review ⑤ 모델을 이미지에 미리 굽기.
 
+  12. **인아웃식 회원가입 · 영양 온보딩(2026-10-08, 사용자: "추천대로 해주는데 멈추지말고 끝까지 해줘" — 계정 질문은 뒤 · 성장기 감량 카드 숨김 ·
+      당류 · 나트륨은 2차).** 설계 `docs/designs/inout-onboarding.md` ④(합친 안 — 질문 19 + 끼움 6 = 25화면, 읽히지 않는 질문은 없음). 홈 영양은
+      안 건드림. 단계(각 단계 끝에 커밋 + 이 줄 갱신):
+      1. **끝남** 계산 더하기(순수) — `Targets.tdee` · 탄단지 프리셋(지방 몫 `MACRO_PRESETS`) · `fatTargetG` · `lib/nutrition/onboarding.ts`(목표 카드
+         5 → 3 접기 foldGoalKind · 나이별 카드 goalKindsFor · 소속 → 평소 움직임 defaultActivity · presetProtein · kcalOfMacros · macroSplit) ·
+         `forecastWeights` · `period.ts`(언제까지). 새 칸이 비면 숫자 그대로(2750/3050/2350). 시험 440. (4fcbb75)
+      2. **끝남** DB 네 칸(`NutritionProfile.goalKind · macroPreset · fatTargetG · onboardedAt`, `20261008150000_nutrition_onboarding` 적용, 백업
+         db-2026-10-08-14-03) + 저장 공용화 `lib/nutrition/profile-save.ts buildProfileData`(목표 창 · 가입 · setup 이 같은 규칙) ·
+         `NutritionDay.onboarded`. 김민에게 HANDOFF(`npx prisma generate`). (a2c56ca)
+      3. **끝남** 답 · 차례 · 폼 칸 `lib/nutrition/onboarding-answers.ts`(NutritionAnswers · preview = computeTargets 그대로 · visibleNutritionSteps —
+         목표 체중 화면은 증량 · 감량(성인) · 증량(성장기)만, 속도 화면은 목표 체중을 적었을 때만 · checkNutritionStep · 숨은 칸 toFormFields ↔ 서버
+         readNutritionAnswers · toProfileInput · toDietPrefsRaw(성장기는 보충식품 끔)) + 공용 부품 `components/onboarding/`: step-card(옛 AuthCard,
+         자판 --kb) · choices(OptionCards · Chips · MultiChips — 단추 radio + 화살표, id "{name}-field") · number-unit-field(cm｜in · kg｜lb, 저장은
+         cm · kg) · count-up · insert-cards(투구 한도 dailyPitchCap · 운동 소모 trainingBurn/pitchingBurn) · weight-forecast(SVG, Web Animations) ·
+         plan-stats(bmr · tdee · base ✎ · MacroBar · 예상 선) · macro-editor(kcal 이 주인: 탄수 g → kcalTarget) · building-steps · nutrition-steps
+         (영양 화면 11 + 제목 + answerLines) · format(주 0.25kg 는 둘째 자리). 시험 440 → 456.
+      4. **끝남** 가입 마법사 `app/login/auth-form.tsx` 25화면(이름 → 생년월일 · 성별 → [투구 한도] → 손 → 소속 → 투구 3문항(부하 count-up) → 웨이트 →
+         키 → 체중 → [운동 소모] → 목표 카드 → 목표 체중('나중에 정할게요') → 속도 · 언제까지 → 평소 움직임(소속으로 미리) → 시즌 → 탄단지 → 식사 →
+         못 먹는 것 → [만드는 중(자동) → 추천 계획 → 탄단지 g] → 이메일(중복 미리 확인) → 비밀번호 → 약관 → 요약 + 약속): 답은 모두 상태 + 숨은 칸,
+         차례는 답에 따라 23~25, 서버가 막으면 그 칸의 화면으로(nutritionStepOfField). `trySignup`: 표시 칸(`nutritionOnboarding`)이 있으면 키 · 체중
+         필수 → buildProfileData + cleanDietPrefs → `$transaction`(User(weightKg 도) + NutritionProfile(onboardedAt · planSince · 취향) + DailyNutrition
+         오늘 체중). 표시 칸 없는 옛 화면은 예전처럼 계정만. 브라우저로 25화면 끝까지 눌러 확인(가입 단추는 안 누름 — 공유 DB).
+      5. **끝남** 휴대폰 · PC 모양 — 제 브라우저 탭에서 375×812 로 25화면을 다시 눌러 봄(이름 · 달력 · 투구 3문항 + 부하 · 끼움 둘 · 목표 카드 5 ·
+         목표 체중 · 속도 · 추천 계획(세 숫자 · 탄단지 · 예상 선) · 탄단지 g · 요약이 폭 안에 들어감), 1536×700 은 가장 긴 화면(요약 652px ·
+         계획 634px)도 굴리지 않음(scrollHeight = 700). 고친 것: 끼움 카드 줄이 flex 칸으로 찢김(글을 한 span 에) · 작은 윗글(eyebrow) 뺌
+         (impeccable craft floor) · 속도 글자 둘째 자리(components/onboarding/format.ts). impeccable detect 0. 자판(--kb)은 StepCard 단추 줄의
+         pb 로 받음 — 아이폰 실기기 · 앱 웹뷰는 사용자 확인 뒤.
+      6. **끝남** 영양 탭 — 휴대폰 위 [기록｜통계](Segmented tablist, lg 에서 숨음, 이 기기에만 `bullpen-nutrition-tab`) · '나의 하루'(SummaryCard:
+         큰 숫자 '먹은 / 목표 kcal' · 더 먹을 양 한 줄(운동 몫 포함) · 탄 · 단 · 지 % 알약 + 목표 비율 · [자세히｜한눈에] `bullpen-nutrition-detail` —
+         한눈에는 숫자 · 알약 · 막대만, 휴대폰 링은 한눈에서만) · '내 계획' 카드 `components/nutrition/my-plan-card.tsx`(통계 열 맨 위, PlanStats 재사용 —
+         previewOfProfile 로 저장값 그대로 운동 없는 날, 고치기 → 목표 창) · onboarded 배너(안 한 계정 '열 가지 질문으로 내 계획을' → /nutrition/setup,
+         옛 계정 '다시 정해 볼까요' + 목표 창에서). 체중 권유 '보기'는 휴대폰에서 통계를 먼저 편다. 임시 경로 dev-preview-nutrition 으로 확인(지움).
+      7. **끝남** 목표 창 — 목표 Segmented 3 → 목표 카드(OptionCards, goalKindsFor · 카드가 단백질을 정함 foldGoalKind · presetProtein) · 탄단지
+         나누기 Segmented 3 · 하루 지방 직접 정하기(fatTargetG 20~200, 단백질과 같은 스위치) · 미리보기에 탄단지 막대 + 활동대사량 · 로컬 복사본
+         (PERIOD_WEEKS · dayGap · dateText · kgText · rateText)을 period.ts · format.ts 로 · 저장에 goalKind · macroPreset · fatTargetG ·
+         setWeight 20~200(내 정보 MIN/MAX_WEIGHT_KG 와 같게). 카드 밑 글은 lib/nutrition/onboarding.ts goalKindHint(가입과 같은 글).
+      8. **끝남** `/nutrition/setup` 기존 사용자 — `app/(app)/nutrition/setup/{page,setup-wizard}.tsx`: 키 → 체중 → [운동 소모] → 영양 화면 11
+         (가입과 같은 부품 · 같은 글, 저장된 목표 · 취향으로 채워 열림 answersOfProfile) → 요약 → [저장하고 시작하기] → `finishNutritionSetup`
+         (app/actions/nutrition.ts, 한 트랜잭션: User 키 · 체중 + NutritionProfile upsert(onboardedAt · planSince · 취향) + DailyNutrition 오늘 체중,
+         막힌 칸은 field 로 돌려줘 그 화면으로). 답은 가입과 같은 [이름, 값] 줄(toFormFields → readNutritionAnswers).
+      9. **끝남(2026-10-09)** 검증 · 마무리 — tsc 0 · eslint 0(app/layout.tsx 의 옛 경고 하나는 김민 것) · 영양 시험 456 · 조언 시험 42 · 임시 경로
+         (dev-preview-nutrition · dev-preview-setup) 지움 · HANDOFF(김민: prisma generate · 바뀐 파일 · 폰에서 볼 것) · 이 줄.
+         **남은 것(12번 뒤)**: ① 당류 · 나트륨 · 순탄수(2차, 사용자 확인 뒤 — DB 칸 둘 + 식약처 칸) ② 아이폰 실기기 · 앱 웹뷰에서 가입 25화면 ·
+         자판(--kb) · `/nutrition/setup` 저장까지(사용자 계정으로) ③ 가입 뒤 첫 화면을 /today 로 둔 것(문서 ④ '물은 것')은 그대로 — 바꾸려면 말해 주세요
+         ④ 홈 영양 카드는 손대지 않았다(사용자 규칙).
+
 - **클라우드 식단 짜기 정확도 2차 — 끝남(2026-10-04 맡김 → 10-06 main 합침 · 메인 검토 반영). 지금 클라우드가 할 일은 아래 '3차' 줄.**
   (아래는 2차 메모 그대로 — 규칙은 3차에도 같다.) 사용자가 클라우드 세션을 열어 "메모대로 해 줘"라고 하면 이것을 했다. 지난 클라우드 작업(틀 85 → 167 · 시험 382, 커밋 8e1fbd5 · 46cc794 · 96dae5d)을 메인이 세 갈래로 검토했고,
   **못 먹는 것이 새던 것은 메인이 고쳤다**(삼계탕 견과 · 돼지국밥 새우젓 · 소면 · 오므라이스 · 두부조림 · 샐러드 드레싱 등 — 시험에
@@ -605,6 +651,18 @@
     → 20시 95%)에 견줘 아침 기록이 벌을 안 받는다(기록한 날 · 체크인만 한 날 평균 차 10점 안) ⑤ 체크인 어림도 시각 · 지난 끼니만 뺌
     ⑥ 무작위 10,000가지 예외 · NaN · 결정성 0. 시험 22 → 42, 타입은 그대로(선택 칸도 안 더함). 남은 것: 실제 사용자 문구 반응 뒤 손질.
 
+- **메인 세션 할 일 — 인아웃식 회원가입 · 영양 온보딩(2026-10-08, 클라우드가 설계 자료까지 만들고 크레딧이 끝나 넘김).** 사용자가 인아웃(INOUT)
+  회원가입 영상(2분 5초)을 첨부하며 요청: "이 기능을 불펜로그식으로 녹여 영양 기능에 적용 · 회원가입(웹 · 휴대폰 · 앱)도 전반적으로 이런 식으로(똑같이는
+  아니고 우리 가입에 필요한 기능 · 인터페이스와 인아웃의 과정 · 질문을 참고해 비슷하게, 휴대폰 · 웹 각각 맞게) · 영양 탭 안의 기능은 인아웃과 완전히 동일하게 ·
+  홈의 영양 기능은 만지지 말 것 · 중요한 건 모든 기능이 연동 — 질문에는 이유가 있고 답에 따라 설정 · 계산 · 추천 영양이 바뀌어야 한다".
+  - **자료는 `docs/designs/inout-onboarding.md` 하나**(가지 `cloud/inout-onboarding`, main 933b059 에서 갈라냄 — 코드 변경 없음): ① 영상 24장면을
+    읽은 인아웃 흐름(질문 · 선택지 · 끼움 화면 · 홈 '기록' 탭 모양 · 설계 원칙) ② 저장소 지도 8갈래(가입 폼 · 영양 탭 화면 · 계산 공식 · 홈 영양(손대면
+    안 되는 목록) · 프로필 · 디자인 체계 · DB 칸 · 앱 틀 — 파일:줄과 '쓸 수 있는 것 · 빈 곳 · 위험') ③ 설계안 둘(인아웃-충실 · 투수-우선: 질문 순서표 ·
+    저장 칸 · 읽는 곳 · PC/휴대폰 모양 · 끼움 화면 · 영양 탭 · 계산 변경 · DB 칸 · 단계표 · 물어볼 것). 셋째 안(연동-우선)과 심사 · 합치기는 못 했다.
+  - **메인(2026-10-08 밤)**: 두 안을 합쳐 문서 ④에 적음(연동 우선 — 질문 19 + 끼움 6, 활동량 3단계 유지 · 프리셋 3 · DB 네 칸 · 당류는 2차) → 단계표 9개(약 22시간)를 사용자에게 보임 → 사용자 "추천대로 · 멈추지 말고 끝까지" → **진행은 위 추천 작업 12번**.
+  - **(지난 메모) 메인이 할 일**: 문서 ③의 두 안을 합쳐(사용자 강조는 '연동' — 읽히지 않는 질문은 넣지 않는다) 단계표를 사용자에게 보이고 "1단계부터 할까요"를 묻는다.
+    DB 새 칸(목표 이유 · 경험 · 활동량 5단계 · 물 · 운동 종류 · 식단 스타일 4종 · 탄단지 비율 등)은 기본값/null 로 더하고 **백업 뒤** 적용 · HANDOFF 로
+    김민에게. 영상 원본은 클라우드 업로드에만 있다 — 다시 보려면 사용자에게 데스크톱에서 다시 첨부해 달라고 한다(문서 ①이 장면마다 적어 두어 없어도 된다).
 - **AI — 앱에서 모두 뺐다(2026-10-07, 사용자 결정 "AI 사용을 없애려고 해", 김민이 함 — HANDOFF 에서 옮김).** 정리 `docs/ai-usage.md`.
   영양 '사진으로 담기'(로드맵 7번: `photo-panel.tsx` · `app/api/nutrition/photo` · `lib/nutrition/photo.ts` · `photo-match.ts`, 시험 8개)를
   지웠고, 홈 분석 리포트 · /coach 리포트 칸 · 트레이닝 'AI 맞춤'('자동 맞춤' = 규칙 초안)도 없어졌다. 패키지 `@anthropic-ai/sdk` · `zod` 뺌
