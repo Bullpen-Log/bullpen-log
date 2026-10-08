@@ -67,12 +67,27 @@ function listen(eventName: string, cb: (data: Record<string, unknown>) => void):
 const MAX_PENDING = 2;
 
 /**
- * 클립 길이 — 앱은 볼 자리의 움직임으로 던짐을 알아채서, 공보다 투수의 와인드업(다리 듦)에 먼저 반응한다. 다리를 들고 공을
- * 놓기까지 1초 남짓 · 그물까지 0.6초쯤이라 뒤로 2.6초를 받는다(예전 1.4초는 공이 날기 전에 끊길 수 있었다). 클립 안의 던진 때는
- * 영상 엔진이 공으로 찾는다(find-throw). 결과는 그만큼 늦게(알아챈 뒤 3~4초) 뜬다.
+ * 앱이 알리는 던짐은 두 가지다(DualCameraPlugin MotionTrigger, 2026-10-08 사용자: "공을 던지지도 않았는데 투구를 인식했다고 한다
+ * — 실제로 날아가는 투구를 인식했을 때만"):
+ *   - 'ball' — 날아가는 공이 확실하다(가운데에서 시작해 장면마다 이어지며 빠르게 작아지는 덩어리). '투구를 인식했어요'를 바로 띄운다.
+ *     클립은 공이 처음 보인 때 앞 0.6 · 뒤 1.6초(그물까지 0.6초쯤).
+ *   - 'motion' — 볼 자리가 크게 움직였다(와인드업 · 사람 · 초점). 공인지 모르니 화면에 띄우지 않고 클립(앞 0.5 · 뒤 2.6초 —
+ *     다리를 들고 공을 놓기까지 1초 남짓)을 재 보고, 공이 있으면 결과만 보이고 없으면 조용히 넘긴다. 공이 작게 찍혀 'ball' 이 못
+ *     잡는 투구를 이것이 잡는다. 재는 중에 'ball' 이 오면 그 클립을 그대로 쓰고 화면에만 띄운다.
+ * 클립 안의 던진 때는 영상 엔진이 공으로 찾는다(find-throw).
  */
-const CLIP_BEFORE_SEC = 0.5;
-const CLIP_AFTER_SEC = 2.6;
+const BALL_CLIP: [before: number, after: number] = [0.6, 1.6];
+const MOTION_CLIP: [before: number, after: number] = [0.5, 2.6];
+
+/** 재는 클립 하나 — 창(start ~ end, 앱 카메라 시계 초) · 화면에 띄우나 · 계산 중인가 */
+type Job = {
+  id: number;
+  at: number;
+  start: number;
+  end: number;
+  visible: boolean;
+  analyzing: boolean;
+};
 
 /** 앱 카메라 상태(DualCameraPlugin diag) — 카메라 상태 판이 보인다 */
 export type CameraDiag = {
@@ -127,7 +142,9 @@ export class DualCapture {
   private running = false;
   private gen = 0;
   private nextId = 0;
-  private pending = 0;
+  private jobs: Job[] = [];
+  /** 끝난 클립의 창 — 같은 공으로 알림이 또 와도 다시 재지 않게(5초 동안) */
+  private recent: { start: number; end: number; until: number }[] = [];
   private queue: Promise<void> = Promise.resolve();
   private unlisten: (() => void)[] = [];
   private previewTimer: ReturnType<typeof setInterval> | null = null;
@@ -217,7 +234,8 @@ export class DualCapture {
     this.unlisten.push(
       listen('throw', (d) => {
         const at = Number(d.atSec);
-        if (Number.isFinite(at)) this.onThrow(at);
+        /* 옛 앱은 kind 가 없다 — 움직임으로 본다 */
+        if (Number.isFinite(at)) this.onThrow(at, d.kind === 'ball' ? 'ball' : 'motion');
       }),
       listen('error', (d) => this.handlers.onError(String(d.message ?? '카메라 오류')))
     );
@@ -241,39 +259,70 @@ export class DualCapture {
     };
   }
 
-  private onThrow(atSec: number) {
+  /** 화면에 띄우는 클립이 있으면 담는 중 · 계산 중, 없으면 기다림 */
+  private syncStatus() {
+    const shown = this.jobs.filter((j) => j.visible);
+    this.setStatus(
+      shown.length === 0
+        ? this.armed
+          ? 'armed'
+          : 'ready'
+        : shown.some((j) => j.analyzing)
+          ? 'analyzing'
+          : 'capturing'
+    );
+  }
+
+  private onThrow(atSec: number, kind: 'ball' | 'motion') {
     if (!this.running || !this.armed) return;
-    if (this.pending >= MAX_PENDING) {
-      this.handlers.onNotice?.('계산이 밀려 공 하나를 건너뛰었어요');
+    const ball = kind === 'ball';
+    /* 재고 있는 클립 창 안이면 그 클립이 이 공을 담는다 — 공이 확실하면 화면에만 띄운다 */
+    const covering = this.jobs.find((j) => atSec >= j.start && atSec <= j.end);
+    if (covering) {
+      if (ball && !covering.visible) {
+        covering.visible = true;
+        this.syncStatus();
+      }
       return;
     }
-    /* 수동이면 한 공만 — 다음 공은 '다음 공' 단추(arm) */
-    if (this.manual) {
-      this.armed = false;
-      void callDualCamera('setTrigger', { armed: false }).catch(() => undefined);
+    const now = performance.now();
+    this.recent = this.recent.filter((r) => r.until > now);
+    if (this.recent.some((r) => atSec >= r.start && atSec <= r.end)) return;
+    if (this.jobs.length >= MAX_PENDING) {
+      if (ball) this.handlers.onNotice?.('계산이 밀려 공 하나를 건너뛰었어요');
+      return;
     }
-    const id = ++this.nextId;
+    const [before, after] = ball ? BALL_CLIP : MOTION_CLIP;
+    const job: Job = {
+      id: ++this.nextId,
+      at: atSec,
+      start: atSec - before,
+      end: atSec + after,
+      visible: ball,
+      analyzing: false,
+    };
+    this.jobs.push(job);
     const gen = this.gen;
-    this.pending++;
-    this.setStatus('capturing');
+    this.syncStatus();
     this.queue = this.queue
-      .then(() => this.measure(id, atSec, gen))
+      .then(() => this.measure(job, gen))
       .catch((e) => {
-        if (gen === this.gen)
+        if (gen === this.gen && job.visible)
           this.handlers.onNotice?.(e instanceof Error ? e.message : '영상을 읽지 못했어요');
       })
       .finally(() => {
-        this.pending--;
-        if (gen === this.gen && this.pending === 0)
-          this.setStatus(this.armed ? 'armed' : 'ready');
+        this.jobs = this.jobs.filter((j) => j !== job);
+        this.recent.push({ start: job.start, end: job.end, until: performance.now() + 5000 });
+        if (gen === this.gen) this.syncStatus();
       });
   }
 
-  private async measure(id: number, atSec: number, gen: number) {
+  private async measure(job: Job, gen: number) {
+    const id = job.id;
     const clips = await callDualCamera<{ main: DualClip; wide: DualClip | null }>('clip', {
-      atSec,
-      beforeSec: CLIP_BEFORE_SEC,
-      afterSec: CLIP_AFTER_SEC,
+      atSec: job.at,
+      beforeSec: job.at - job.start,
+      afterSec: job.end - job.at,
     });
     const dropWide = () =>
       clips.wide
@@ -286,7 +335,8 @@ export class DualCapture {
     }
     const main = clips.main;
     const blob = await readDualClip(main);
-    this.setStatus('analyzing');
+    job.analyzing = true;
+    if (gen === this.gen) this.syncStatus();
     /* fMP4 라 파일 머리에 fps · 렌즈 정보가 없다 — 앱이 알려 준 값으로 넘긴다 */
     const result = await analyzeVideo({
       file: new File([blob], 'dual-main.mp4', { type: 'video/mp4' }),
@@ -308,12 +358,23 @@ export class DualCapture {
       await dropWide();
       return;
     }
+    /* 움직임으로만 잡은 클립에서 공을 못 쟀다 — 헛알림(와인드업 · 사람 · 초점)으로 보고 조용히 넘긴다 */
+    if (!result.measure.ok && !job.visible) {
+      await dropWide();
+      return;
+    }
     /* 클립을 그대로 쟀으니 궤적 시각 = 클립 시각 */
     const meta: ResultMeta = { id, triggerT: performance.now(), hitT: main.eventSec };
     this.handlers.onResult(result, meta);
     if (!result.measure.ok) {
       await dropWide();
       return;
+    }
+    /* 수동이면 한 공만 — 다음 공은 '다음 공' 단추(arm). 헛알림으로 멈추지 않게 잰 뒤에 끈다 */
+    if (this.manual && gen === this.gen) {
+      this.armed = false;
+      void callDualCamera('setTrigger', { armed: false }).catch(() => undefined);
+      this.syncStatus();
     }
     this.handlers.onClip(id, {
       blob,
@@ -329,18 +390,20 @@ export class DualCapture {
     this.armed = true;
     if (!this.running) return;
     void callDualCamera('setTrigger', { armed: true }).catch(() => undefined);
-    if (this.pending === 0) this.setStatus('armed');
+    this.syncStatus();
   }
 
   disarm() {
     this.armed = false;
     if (!this.running) return;
     void callDualCamera('setTrigger', { armed: false }).catch(() => undefined);
-    if (this.pending === 0) this.setStatus('ready');
+    this.syncStatus();
   }
 
   stop() {
     this.gen++;
+    this.jobs = [];
+    this.recent = [];
     this.snap = null;
     const wasRunning = this.running;
     this.running = false;

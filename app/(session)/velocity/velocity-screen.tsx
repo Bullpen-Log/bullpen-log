@@ -1685,9 +1685,12 @@ export function VelocityScreen({
   };
 
   const back = showAsk ? null : (BACK_OF[step] ?? null);
-  /* 던짐을 알아채고 결과를 내는 중인가(영상 담기 · 계산) — 크게 보인다. 담기에 걸리는 시간: 앱 카메라는 클립을 2.6초 더 받고 읽어서 */
+  /*
+   * 던짐을 알아채고 결과를 내는 중인가(영상 담기 · 계산) — 크게 보인다. 앱 카메라는 날아가는 공이 확실할 때만 띄운다(움직임만 잡힌
+   * 것은 조용히 재 본다). 담기에 걸리는 시간: 앱 카메라는 공이 보인 뒤 1.6초를 더 받고 읽어서
+   */
   const phase = step === 'measure' ? measurePhaseOf(status) : null;
-  const captureSec = appCamera ? 3.5 : 1;
+  const captureSec = appCamera ? 2.3 : 1;
   /* 방금 결과를 카메라 위에 크게 보이나 — 측정에서 카메라가 보일 때(다음 공을 재는 동안은 진행 표시가 대신) */
   const resultShown =
     step === 'measure' &&

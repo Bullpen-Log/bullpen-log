@@ -81,6 +81,9 @@ ink 쪽으로 — 어렵다면 B 만). 나는 Swift 를 굽지 못해 손대지 
   손떨림 보정 · 줌 · 수동 초점. 개발용 빌드(맥에서 깐 앱)는 콘솔에 형식 목록 · 2초마다 초점 상태를 찍는다(`#if DEBUG`).
   맥에서 폰에 바로 깔기: `xcodebuild … -destination 'id=<폰>' DEVELOPMENT_TEAM=<팀> -allowProvisioningUpdates -allowProvisioningDeviceRegistration`
   → `xcrun devicectl device install app` → `devicectl device process launch --console`(30~50분 걸리던 TestFlight 대신 1~2분).
+- (2.3.3) 던짐 알아채기를 '날아가는 공'으로(앱 `MotionTrigger` — 세 장면 차이 덩어리를 이어 가운데에서 시작해 빠르게 작아지는 길 → 'ball',
+  예전 움직임 → 'motion'). `DualCapture` 는 'ball' 만 '투구를 인식했어요'를 띄우고, 'motion' 은 조용히 재 보고 공이 없으면 넘긴다(수동 모드는
+  잰 뒤에 멈춤). 맥 시험대 `~/bullpen-velocity-lab/ball-trigger`(앱 Swift 의 BALL_TRIGGER 구간을 떼어 지난 영상에 돌림 — 저장소 밖).
 
 ## 금윤호에게 — 2026-10-07 · 김민(Claude) — 구속 엔진 2.2.0(흔들림 바로잡기) · 저장한 공을 잰 직후처럼 보기
 
