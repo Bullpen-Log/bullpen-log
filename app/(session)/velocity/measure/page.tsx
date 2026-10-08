@@ -11,8 +11,12 @@ import { AppOnly } from '../app-only';
  * 운동 화면과 같은 (session) 그룹 — 위 막대 · 하단 탭 없이 화면 전체를 쓴다. 폰 느낌으로 만든
  * 화면이라 PC 에서는 폰 크기 틀 안에 띄운다.
  */
-export default async function VelocityMeasurePage() {
-  const { user, isAdmin, native, allowed } = await velocityAccess();
+export default async function VelocityMeasurePage({
+  searchParams,
+}: {
+  searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
+}) {
+  const [{ user, isAdmin, native, allowed }, { resume }] = await Promise.all([velocityAccess(), searchParams]);
   if (!allowed) return <AppOnly />;
 
   /* 그 사람의 스피드건 짝으로 맞춘 보정식 — 화면은 이걸로 잰 값을 바로 보정해 보여 준다 */
@@ -25,6 +29,7 @@ export default async function VelocityMeasurePage() {
       today={toDateKey(new Date())}
       calibration={fit}
       throwingHand={user.throwingHand}
+      resume={resume === '1'}
     />
   );
 }

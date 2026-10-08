@@ -1,7 +1,11 @@
 'use client';
 
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { Camera, ChevronLeft } from 'lucide-react';
+import { ConfirmDialog } from '@/components/confirm-delete';
+import { uploadClip } from '@/lib/velocity-clip-upload';
+import { clearDraft, loadDraft, retryUploads } from '@/lib/velocity-draft';
 import type { CalFit } from '@/lib/velocity-calibration';
 import { useSpeedUnit } from '@/components/use-units';
 import { VelocityWordmark } from '@/components/velocity/velocity-logo';
@@ -34,6 +38,22 @@ export function VelocityHome({
 }) {
   const unit = useSpeedUnit();
   const stored = useStoredSetup();
+  /* 폰에 맡겨 둔(저장하지 않은) 세션 — 앱이 꺼졌거나 저장 전에 나갔다(lib/velocity-draft.ts) */
+  const [draft, setDraft] = useState<{ n: number; date: string } | null>(null);
+  const [askClear, setAskClear] = useState(false);
+  useEffect(() => {
+    let alive = true;
+    void loadDraft<unknown, unknown>().then((d) => {
+      if (alive && d?.pitches?.length) setDraft({ n: d.pitches.length, date: d.date });
+    });
+    /* 저장한 뒤 올리지 못한 영상을 다시 올린다 */
+    void retryUploads((u) =>
+      uploadClip(u.pitchId, u.blob, { sec: u.sec, eventSec: u.eventSec }, undefined, u.kind).then((r) => r.ok)
+    );
+    return () => {
+      alive = false;
+    };
+  }, []);
 
   return (
     <div className="ui-chrome relative flex min-h-0 flex-1 flex-col overflow-hidden bg-page text-ink desk:mx-auto desk:my-4 desk:h-[calc(100dvh-2rem)] desk:max-h-[52.75rem] desk:w-[24.375rem] desk:flex-none desk:overflow-hidden desk:rounded-[2.5rem] desk:border-[6px] desk:border-ink/85 desk:shadow-2xl">
@@ -55,6 +75,29 @@ export function VelocityHome({
       </header>
 
       <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 pb-6 pt-4">
+        {draft && (
+          <section className="mb-4 rounded-2xl border border-sky/30 bg-sky-tint p-4 motion-safe:animate-fade-in">
+            <p className="text-sm font-semibold text-ink">저장하지 않은 공 {draft.n}개가 있어요</p>
+            <p className="mt-1 text-xs text-muted">
+              {draft.date === today ? '오늘' : draft.date} 잰 공이에요. 이어서 저장하거나 더 잴 수 있어요.
+            </p>
+            <div className="mt-3 flex gap-2">
+              <Link
+                href="/velocity/measure?resume=1"
+                className="inline-flex h-11 flex-1 items-center justify-center rounded-xl bg-sky text-sm font-semibold text-white transition-colors hover:bg-sky-strong"
+              >
+                이어서 하기
+              </Link>
+              <button
+                type="button"
+                onClick={() => setAskClear(true)}
+                className="inline-flex h-11 items-center justify-center rounded-xl px-4 text-sm font-medium text-danger transition-colors hover:bg-danger/10"
+              >
+                지우기
+              </button>
+            </div>
+          </section>
+        )}
         <section className="overflow-hidden rounded-2xl border border-line bg-surface">
           <div className="px-5 pt-5">
             <VelocityWordmark />
@@ -94,6 +137,19 @@ export function VelocityHome({
           측정 시작
         </Link>
       </div>
+      <ConfirmDialog
+        open={askClear}
+        onClose={() => setAskClear(false)}
+        onConfirm={() => {
+          setAskClear(false);
+          setDraft(null);
+          void clearDraft();
+        }}
+        title="저장하지 않은 공을 지울까요?"
+        detail={`공 ${draft?.n ?? 0}개와 영상이 폰에서 지워져요.`}
+        confirmLabel="지우기"
+        pending={false}
+      />
     </div>
   );
 }

@@ -174,7 +174,17 @@ import {
   fovDegFromFocal,
   lensMatches,
 } from '@/lib/velocity-lens';
-import { saveVelocitySession, type SavePitchInput } from '@/app/actions/velocity';
+import { saveVelocitySession, type SaveSessionInput, type SavePitchInput } from '@/app/actions/velocity';
+import {
+  clearDraft,
+  deleteClip,
+  loadClips,
+  loadDraft,
+  putClip,
+  queueUpload,
+  retryUploads,
+  saveDraft,
+} from '@/lib/velocity-draft';
 import { SessionSummary } from '@/components/velocity/session-summary';
 import { PitchResult } from '@/components/velocity/pitch-result';
 import type { TrailPoint } from '@/components/velocity/clip-player';
@@ -241,6 +251,31 @@ function cameraPlan(native: boolean, recordMode: boolean, s: DualStatus | null):
   return s.single ? 'app' : 'web';
 }
 
+/** 세션의 측정 맥락 — 저장 입력 가운데 화면이 정하는 칸들(폰에 맡긴 세션을 카메라 없이 저장할 때도 그때 값으로) */
+type SessionContext = Pick<
+  SaveSessionInput,
+  | 'fovDeg'
+  | 'source'
+  | 'device'
+  | 'cameraPos'
+  | 'net'
+  | 'forCalibration'
+  | 'autoMode'
+  | 'focalPx'
+  | 'lensCal'
+  | 'releaseDistM'
+  | 'useCal'
+  | 'frameW'
+  | 'frameH'
+>;
+/** 폰에 맡기는 공 — 영상(따로 담는다) · 이번 카메라의 결과 번호(다시 켜면 겹친다)는 빼고 */
+type DraftPitch = Omit<LocalPitch, 'clip' | 'captureId'>;
+const toDraftPitch = (p: LocalPitch): DraftPitch => {
+  const rest: Partial<LocalPitch> = { ...p };
+  delete rest.clip;
+  delete rest.captureId;
+  return rest as DraftPitch;
+};
 const revokeClips = (p: { clip?: LocalClip }) => {
   if (p.clip) URL.revokeObjectURL(p.clip.url);
 };
@@ -420,6 +455,7 @@ export function VelocityScreen({
   today,
   calibration,
   initialStep = 'type',
+  resume = false,
 }: {
   isAdmin: boolean;
   native: boolean;
@@ -430,6 +466,8 @@ export function VelocityScreen({
   throwingHand?: string | null;
   /** 처음 보일 단계 — 미리보기 · 시험용. 보통은 처음부터 */
   initialStep?: Step;
+  /** 구속 측정 첫 화면의 '저장하지 않은 공 이어서 하기' — 폰에 맡겨 둔 공을 되살려 세션 요약부터 연다 */
+  resume?: boolean;
 }) {
   const router = useRouter();
   const unit = useSpeedUnit();
@@ -560,6 +598,9 @@ export function VelocityScreen({
   const [error, setError] = useState<string | null>(null);
   const [last, setLast] = useState<ScreenResult | null>(null);
   const [pitches, setPitches] = useState<LocalPitch[]>([]);
+  /* 폰에 맡겨 둔 세션을 되살렸으면 그 세션의 날짜 · 측정 맥락(카메라를 다시 켜기 전에 저장해도 그때 값으로) */
+  const [draftDate, setDraftDate] = useState<string | null>(null);
+  const [draftMeta, setDraftMeta] = useState<SessionContext | null>(null);
   const [fileBusy, setFileBusy] = useState(false);
   const [fileProgress, setFileProgress] = useState(0);
 
@@ -1506,6 +1547,103 @@ export function VelocityScreen({
   const editingPitch =
     editing == null ? null : (pitches.find((p) => p.id === editing) ?? null);
 
+  /* 세션의 측정 맥락 — 저장할 때 · 폰에 맡길 때 같이 */
+  const sessionContext = (): SessionContext => {
+    const longSide = camera ? Math.max(camera.width, camera.height) : null;
+    return {
+      fovDeg: fov,
+      source: pitches.every((p) => p.source === 'file') ? 'file' : 'camera',
+      device: camera ? `${camera.label} ${camera.width}×${camera.height}`.trim() : null,
+      cameraPos: choices.cameraPos,
+      net: choices.net,
+      forCalibration: calibOn,
+      autoMode,
+      focalPx: longSide ? (focalRatio ? focalRatio * longSide : focalPxFromFov(longSide, fov)) : null,
+      lensCal: lensOk ? lens : null,
+      releaseDistM: approach === 'approaching' ? releaseDistM : null,
+      useCal,
+      frameW: camera?.width ?? null,
+      frameH: camera?.height ?? null,
+    };
+  };
+  /*
+   * 폰에 맡기기(lib/velocity-draft.ts) — 공 목록이 바뀔 때마다 · 영상은 처음 붙을 때 한 번. 담은 영상은 디스크에 놓인 것으로 바꿔 쥐어
+   * 메모리를 던다(지금 보는 공 · 막 잰 공은 재생이 끊기지 않게 그대로). 예시 공은 맡기지 않는다.
+   */
+  const storedRef = useRef(new Map<number, { src: Blob; stored: Blob }>());
+  useEffect(() => {
+    const real = pitches.filter((p) => !p.sample);
+    if (real.length === 0) return;
+    void saveDraft<DraftPitch, SessionContext>({
+      date: draftDate ?? today,
+      meta: camera == null && draftMeta ? draftMeta : sessionContext(),
+      pitches: real.map(toDraftPitch),
+      savedAt: Date.now(),
+    });
+    const newest = real[real.length - 1].id;
+    const ids = new Set(real.map((p) => p.id));
+    for (const id of storedRef.current.keys())
+      if (!ids.has(id)) {
+        storedRef.current.delete(id);
+        void deleteClip(id);
+      }
+    for (const p of real) {
+      const clip = p.clip;
+      if (!clip) continue;
+      const known = storedRef.current.get(p.id);
+      if (!known || (known.src !== clip.blob && known.stored !== clip.blob)) {
+        storedRef.current.set(p.id, { src: clip.blob, stored: clip.blob });
+        void putClip(p.id, { blob: clip.blob, durationSec: clip.durationSec, eventSec: clip.eventSec }).then((got) => {
+          if (got && storedRef.current.get(p.id)?.src === clip.blob)
+            storedRef.current.set(p.id, { src: clip.blob, stored: got.blob });
+        });
+      } else if (known.stored !== clip.blob && p.id !== newest && p.id !== viewPitch) {
+        const url = URL.createObjectURL(known.stored);
+        const old = clip.url;
+        setPitches((prev) =>
+          prev.map((q) => (q.id === p.id && q.clip?.blob === clip.blob ? { ...q, clip: { ...clip, url, blob: known.stored } } : q))
+        );
+        URL.revokeObjectURL(old);
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- 공 목록이 바뀔 때만 맡긴다(맥락은 그때 값)
+  }, [pitches]);
+  /*
+   * 처음 열 때 — 폰에 맡겨 둔 세션이 있으면 이어서 담는다(앱이 꺼져도 잰 공이 사라지지 않게). 첫 화면의 '이어서 하기'로 왔으면
+   * 세션 요약부터. 저장한 뒤 올리지 못한 영상도 다시 올린다.
+   */
+  useEffect(() => {
+    let alive = true;
+    void (async () => {
+      const d = await loadDraft<DraftPitch, SessionContext>();
+      if (!alive || !d?.pitches?.length) return;
+      const clips = await loadClips();
+      if (!alive) return;
+      const restored: LocalPitch[] = d.pitches.map((p) => {
+        const c = clips.get(p.id);
+        if (!c) return p;
+        storedRef.current.set(p.id, { src: c.blob, stored: c.blob });
+        return { ...p, clip: { url: URL.createObjectURL(c.blob), blob: c.blob, durationSec: c.durationSec, eventSec: c.eventSec } };
+      });
+      setPitches((prev) => (prev.length ? prev : restored));
+      setDraftDate(d.date);
+      setDraftMeta(d.meta);
+      setToast(`저장하지 않은 공 ${restored.length}개를 이어서 담았어요`);
+      if (resume) {
+        setDecided(true);
+        setStep('measure');
+        setSummaryOpen(true);
+      }
+    })();
+    void retryUploads((u) =>
+      uploadClip(u.pitchId, u.blob, { sec: u.sec, eventSec: u.eventSec }, undefined, u.kind).then((r) => r.ok)
+    );
+    return () => {
+      alive = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- 처음 한 번
+  }, []);
+
   const save = () => {
     if (!stats || saving) return;
     /* 관리자 점프의 예시 공은 화면 확인용 — 실제 기록에 섞이면 안 된다 */
@@ -1516,32 +1654,14 @@ export function VelocityScreen({
     }
     setError(null);
     startSaving(async () => {
-      const longSide = camera ? Math.max(camera.width, camera.height) : null;
       let res: Awaited<ReturnType<typeof saveVelocitySession>>;
       try {
         res = await saveVelocitySession({
-          date: today,
+          date: draftDate ?? today,
           sessionType,
           intensity,
-          fovDeg: fov,
-          source: pitches.every((p) => p.source === 'file') ? 'file' : 'camera',
-          device: camera
-            ? `${camera.label} ${camera.width}×${camera.height}`.trim()
-            : null,
-          cameraPos: choices.cameraPos,
-          net: choices.net,
-          forCalibration: calibOn,
-          autoMode,
-          focalPx: longSide
-            ? focalRatio
-              ? focalRatio * longSide
-              : focalPxFromFov(longSide, fov)
-            : null,
-          lensCal: lensOk ? lens : null,
-          releaseDistM: approach === 'approaching' ? releaseDistM : null,
-          useCal,
-          frameW: camera?.width ?? null,
-          frameH: camera?.height ?? null,
+          /* 되살린 세션을 카메라를 켜기 전에 저장하면 그때의 맥락으로 */
+          ...(camera == null && draftMeta ? draftMeta : sessionContext()),
           pitches: pitches.map((p) => ({
             rawKmh: p.rawKmh,
             errorKmh: p.errorKmh,
@@ -1602,15 +1722,20 @@ export function VelocityScreen({
               undefined,
               kind
             );
-            if (!r.ok) failed++;
+            if (!r.ok) {
+              failed++;
+              /* 폰에 맡겨 두었다가 다음에 열 때 다시 올린다 */
+              await queueUpload({ pitchId: id, blob: clip.blob, sec: clip.durationSec, eventSec: clip.eventSec, kind });
+            }
             setUploading({ done: i + 1, total: targets.length });
           }
           setUploading(null);
           if (failed)
-            setError(`클립 ${failed}개를 올리지 못했어요(측정값은 저장됐어요).`);
+            setError(`클립 ${failed}개를 올리지 못했어요. 폰에 두었다가 다음에 열 때 다시 올려요(측정값은 저장됐어요).`);
         }
       }
       for (const p of pitches) revokeClips(p);
+      await clearDraft();
       setSaved(true);
       setPitches([]);
       setViewPitch(null);
@@ -2651,7 +2776,7 @@ export function VelocityScreen({
                 <SessionSummary
                   pitches={sessionPitches}
                   unit={unit}
-                  date={today}
+                  date={draftDate ?? today}
                   setupText={sessionSetupText(choices)}
                   calibrationText={useCal && fit.n > 0 ? calibrationText(fit) : null}
                   onSave={() => setSheet('save')}
@@ -3247,7 +3372,7 @@ export function VelocityScreen({
         {stats && (
           <div className="space-y-4">
             <p className="text-sm text-muted">
-              {today} · {stats.n}구 · 최고 {formatSpeed(stats.max, unit)} · 평균{' '}
+              {draftDate ?? today} · {stats.n}구 · 최고 {formatSpeed(stats.max, unit)} · 평균{' '}
               {formatSpeed(stats.avg, unit)}
               {useCal && fit.n > 0 ? ` · 보정 ${calibrationText(fit)}` : ' · 보정 없음'}
             </p>
@@ -3480,6 +3605,7 @@ export function VelocityScreen({
         onClose={() => setAskLeave(false)}
         onConfirm={() => {
           setAskLeave(false);
+          void clearDraft();
           router.push('/velocity');
         }}
         title="저장하지 않고 나갈까요?"
