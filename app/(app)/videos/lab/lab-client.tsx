@@ -20,9 +20,10 @@ import {
   type LabView,
 } from '@/lib/pitch-lab-meta';
 import type { LabSample } from '@/lib/pitch-lab';
+import { AnalysisPanel } from './analysis-panel';
 
 /**
- * 투구 분석(베타) 화면 — 위: 옆 · 뒤 영상 짝 올리기, 아래: 올린 샘플(나란히 재생 · 지우기).
+ * 투구 분석(베타) 화면 — 위: 옆 · 뒤 영상 짝 올리기, 아래: 올린 샘플(나란히 재생 · 3D 분석 · 지우기).
  * 겉은 단순하게 — 촬영 정보는 기본값(동시 촬영 · 화면 녹화 · 오른손)으로 두고 '촬영 정보'를 펴야 보인다.
  */
 
@@ -406,6 +407,8 @@ function SampleCard({ sample, n }: { sample: LabSample; n: number }) {
           같이 재생
         </button>
       )}
+
+      <AnalysisPanel sample={sample} />
 
       {error && <ErrorLine>{error}</ErrorLine>}
 

@@ -7,6 +7,7 @@ import { LAB_VIEWS, readLabMeta, type LabMeta, type LabView } from '@/lib/pitch-
  *
  *   side.mp4 · back.mp4  옆 · 뒤 영상(브라우저가 서명 주소로 직접 올린다 — 서버를 안 거쳐 큰 파일도 된다)
  *   meta.json            촬영 정보(lib/pitch-lab-meta.ts)
+ *   analysis.json        3D 분석 결과(lib/pitch-3d/analyze.ts — 브라우저가 계산해 서버 동작으로 저장, 목록은 '있음'만 · 열 때 읽는다)
  *
  * 버킷이 받는 파일 종류에 application/json 이 있어야 한다(2026-10-08 더함 — video/* · image/jpeg 뿐이면 meta.json 이 거절된다).
  * DB 표를 만들지 않는다 — 베타 실험용이라 구조를 굳히지 않고, 사용자 폴더라 소유권 확인(isOwnedBy)이 그대로 걸린다.
@@ -14,6 +15,7 @@ import { LAB_VIEWS, readLabMeta, type LabMeta, type LabView } from '@/lib/pitch-
  */
 
 const LAB_DIR = 'pitch-lab';
+const ANALYSIS_FILE = 'analysis.json';
 
 const folder = (userId: string, id: string) => `${userId}/${LAB_DIR}/${id}`;
 
@@ -21,6 +23,8 @@ export type LabSample = {
   id: string;
   /** 올리다 멈춰 정보가 없으면 null — 목록에서 지울 수 있게 보인다 */
   meta: LabMeta | null;
+  /** 3D 분석 결과가 저장돼 있나(파일 목록으로만 — 내용은 열 때 읽는다, 검토 R9) */
+  hasAnalysis: boolean;
   videos: Partial<Record<LabView, { path: string; url: string | null }>>;
 };
 
@@ -53,6 +57,27 @@ export async function saveLabMeta(userId: string, id: string, meta: LabMeta) {
   if (error) throw new Error(error.message);
 }
 
+/** 3D 분석 결과 저장(검사를 마친 JSON 문자열) — 같은 자리에 덮어쓴다 */
+export async function saveLabAnalysis(userId: string, id: string, json: string) {
+  const { error } = await videoBucket().upload(
+    `${folder(userId, id)}/${ANALYSIS_FILE}`,
+    new Blob([json], { type: 'application/json' }),
+    { upsert: true, contentType: 'application/json' }
+  );
+  if (error) throw new Error(error.message);
+}
+
+/** 3D 분석 결과 읽기 — 없으면 null(모양 검사는 부르는 쪽이) */
+export async function loadLabAnalysis(userId: string, id: string): Promise<unknown | null> {
+  const { data, error } = await videoBucket().download(`${folder(userId, id)}/${ANALYSIS_FILE}`);
+  if (error || !data) return null;
+  try {
+    return JSON.parse(await data.text());
+  } catch {
+    return null;
+  }
+}
+
 /** 내 샘플 — 최근 것부터. 재생 주소까지 붙인다 */
 export async function listLabSamples(userId: string): Promise<LabSample[]> {
   const bucket = videoBucket();
@@ -80,7 +105,7 @@ export async function listLabSamples(userId: string): Promise<LabSample[]> {
           meta = null;
         }
       }
-      return { id, meta, videos };
+      return { id, meta, videos, hasAnalysis: (files ?? []).some((f) => f.name === ANALYSIS_FILE) };
     })
   );
 

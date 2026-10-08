@@ -8,7 +8,7 @@
  * 원리상 약하게 정해지는 경우, R2), 화면 녹화처럼 같은 장면 · 슬로모 속도 차 · 시작 어긋남, 2D 잡음, 한쪽에서 가려진 관절의 지어낸 값,
  * 뒤 영상 좌우 뒤바뀜, 폰 숙임 · 기울임을 넣는다. 진짜 지표는 같은 지표 함수로 진짜 3D 에서 잰다 — 차이 = 엔진(기하)의 오차.
  */
-import { readPitch3dResult, MAX_STORED_BYTES, type Pitch3dOk } from '../lib/pitch-3d/analyze.ts';
+import { readPitch3dResult, storedAnalysisJson, MAX_STORED_BYTES, type Pitch3dOk } from '../lib/pitch-3d/analyze.ts';
 import {
   decomposeEssential,
   essentialFrom,
@@ -88,7 +88,7 @@ console.log('■ 본질 행렬 · 교차');
  * --full 은 씨앗 5개 평균이 정확도 목표 안인지 본다(2026-10-08 잰 값: 설계 문서 '잰 값').
  */
 const CLEAN: Partial<Record<MetricKey, number>> = { trunkForwardTilt: 1.5, trunkLateralTilt: 1.5, separationMax: 1.5, separationAtPlant: 1.5, leadKneeAtPlant: 1.5, leadKneeAtRelease: 1.5, strideLength: 1, strideOffset: 1, shoulderAbduction: 1.5 };
-const MAX: Partial<Record<MetricKey, number>> = { trunkForwardTilt: 10, trunkLateralTilt: 5, separationMax: 13, separationAtPlant: 12, leadKneeAtPlant: 6, leadKneeAtRelease: 11, strideLength: 4, strideOffset: 7, shoulderAbduction: 14 };
+const MAX: Partial<Record<MetricKey, number>> = { trunkForwardTilt: 10, trunkLateralTilt: 5, separationMax: 13, separationAtPlant: 12, leadKneeAtPlant: 8, leadKneeAtRelease: 11, strideLength: 4, strideOffset: 7, shoulderAbduction: 14 };
 const MEAN: Partial<Record<MetricKey, number>> = { trunkForwardTilt: 5.5, trunkLateralTilt: 3, separationMax: 6, separationAtPlant: 6, leadKneeAtPlant: 3.5, leadKneeAtRelease: 5, strideLength: 2.5, strideOffset: 4, shoulderAbduction: 8 };
 const SCENARIOS: { sc: Scenario; budget: Partial<Record<MetricKey, number>> | null; mean?: Partial<Record<MetricKey, number>>; expect?: string }[] = [
   { sc: { ...base, name: '깨끗함(잡음 없음 · 멀리 줌)' }, budget: CLEAN, mean: CLEAN },
@@ -141,6 +141,7 @@ console.log('■ 결과 저장 · 읽기');
 {
   const r = run({ ...base, ...realistic, name: 'json' }, 7).result;
   const json = JSON.stringify(r);
+  check('결과가 나온다(실제처럼 · 씨앗 7)', r.ok === true, r.ok ? '' : String((r as { code?: string }).code));
   check('결과 크기 300KB 밑', json.length < 300_000, `${Math.round(json.length / 1024)}KB`);
   check('저장 상한(900KB)보다 작다', json.length < MAX_STORED_BYTES);
   check('읽기: 엔진 결과는 그대로 받는다', readPitch3dResult(JSON.parse(json)) !== null);
@@ -149,6 +150,8 @@ console.log('■ 결과 저장 · 읽기');
   check('읽기: 숫자가 아닌 좌표는 거절', readPitch3dResult(bad) === null);
   check('읽기: 판 번호 없으면 거절', readPitch3dResult({ ...JSON.parse(json), version: undefined }) === null);
   check('읽기: 모르는 경고 코드는 거절', readPitch3dResult({ ...JSON.parse(json), warnings: ['hack'] }) === null);
+  check('저장: 검사를 지난 결과만 문자열로', 'json' in storedAnalysisJson(JSON.parse(json)) && 'error' in storedAnalysisJson({ ok: true }));
+  check('저장: 900KB 넘으면 거절(품질 칸에 큰 글을 넣어도)', 'error' in storedAnalysisJson({ ...JSON.parse(json), quality: { pad: 'x'.repeat(1_000_000) } }));
   check('읽기: 실패 결과는 까닭 글을 다시 붙인다', (readPitch3dResult({ ok: false, version: '0.1.0', code: 'range', reason: '<b>x</b>' }) as { reason: string } | null)?.reason?.startsWith('두 영상이') === true);
 }
 

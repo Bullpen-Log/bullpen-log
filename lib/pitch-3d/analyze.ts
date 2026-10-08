@@ -46,7 +46,7 @@ import {
  *
  * | 판    | 날짜       | 바뀐 것 |
  * |-------|------------|---------|
- * | 0.1.0 | 2026-10-08 | 첫 판 — 에피폴라 시간 맞추기, 사람 몸 보정(초점 프로파일 · 8점(Hartley) · Nelder–Mead, 강건 다시 비춤 + 몸통 · 다리 뼈 길이), 2패스 좌우, 가려진 관절, 두 카메라 가로축 수직. 합성 씨앗 5개 평균 오차: 몸통 기울기 2.7~5.1° · 꼬임 1.3~4.6° · 무릎 1.7~4.0° · 보폭 0.5~1.2%p |
+ * | 0.1.0 | 2026-10-08 | 첫 판 — 에피폴라 시간 맞추기, 사람 몸 보정(초점 프로파일 · 8점(Hartley) · Nelder–Mead, 강건 다시 비춤 + 몸통 · 다리 뼈 길이), 2패스 좌우, 가려진 관절, 두 카메라 가로축 수직. 합성 씨앗 5개 평균 오차: 몸통 기울기 0.5~4.1° · 꼬임 1.7~5.6° · 무릎 1.2~3.7° · 보폭 0.6~1.0%p · 어깨 벌림 3.9~5.9° |
  */
 export const PITCH3D_VERSION = '0.1.0';
 
@@ -687,6 +687,17 @@ function decimate(n: number, max: number, must: (number | null)[]): number[] {
 export const MAX_STORED_BYTES = 900_000;
 
 const isNum = (v: unknown) => typeof v === 'number' && Number.isFinite(v);
+
+/**
+ * 브라우저가 보낸 결과를 저장할 문자열로 — 모양 검사(readPitch3dResult)를 통과하고 상한(900KB) 안일 때만. 서버 동작이 쓴다(검토 R9).
+ */
+export function storedAnalysisJson(raw: unknown): { json: string } | { error: string } {
+  const r = readPitch3dResult(raw);
+  if (!r) return { error: '분석 결과의 모양이 맞지 않아요.' };
+  const json = JSON.stringify(r);
+  if (json.length > MAX_STORED_BYTES) return { error: '분석 결과가 너무 커요.' };
+  return { json };
+}
 
 /**
  * 저장된(또는 브라우저가 보낸) 결과를 읽는다 — 판 번호 · 모양 · 숫자가 맞지 않으면 null(신뢰 경계, 서버 동작이 쓴다).
