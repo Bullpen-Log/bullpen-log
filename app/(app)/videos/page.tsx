@@ -89,6 +89,8 @@ export default async function VideosPage({
       today={toDateKey(now())}
       canMeasure={canMeasure}
       velocityHref={velocityHref}
+      /* 투구 분석(베타, /videos/lab) — 관리자만 */
+      canAnalyze={user.role === 'ADMIN'}
       measured={measured}
       /* ?view=list 는 구속 측정 관리자의 고르개에서 '목록'을 눌러 돌아올 때(pitch-log-heading.tsx) */
       initialView={params.view === 'list' || params.compare === '1' ? 'list' : 'calendar'}

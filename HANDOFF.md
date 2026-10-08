@@ -11,6 +11,18 @@ Claude 로 작업을 시작하면 저절로 읽힌다. 규칙은 `AGENTS.md` 6�
 
 ---
 
+## 금윤호에게 — 2026-10-08 · 김민(Claude) — 투구 기록에 '투구 분석(베타)' 단추 · 샘플 올리는 실험실
+
+받은 뒤 할 일 없음(DB · 패키지 그대로). **네 영역(투구 기록)에 단추를 더했다** — 사용자: "3루(옆) · 2루(뒤)에서 동시에 찍어 3D 투구 분석을
+만들어 보자, 구속 측정처럼 투구 기록에서 들어가는 베타 화면과 샘플 올리는 공간을".
+- `app/(app)/videos/videos-client.tsx`: '구속 측정' 옆(PC) · 휴대폰 알약 줄에 '투구 분석' 단추(관리자만, `canAnalyze` — `page.tsx` 가 넘김).
+- 새 화면 `/videos/lab`(`app/(app)/videos/lab/*`, 관리자만): 옆 · 뒤 영상 짝 올리기 · 나란히 재생 · 지우기. 분석은 아직 없다(샘플을 모은 뒤).
+- 저장은 DB 없이 영상 버킷 `{userId}/pitch-lab/{샘플 번호}/`(side · back 영상 + meta.json) — `lib/pitch-lab.ts` · `lib/pitch-lab-meta.ts`,
+  올리기 주소 `app/api/pitch-lab/upload-url`. `lib/storage.ts` 에 `videoBucket()` 을, `components/video-upload.tsx` 의 `uploadToStorage` 를 export 로.
+- 시험 `npm run pitch-lab:test`(8).
+
+---
+
 ## 금윤호에게 — 2026-10-07 · 김민(Claude) — 근력 · 파워 프로그램이 7개(모두 4주)로 바뀌었다
 
 받은 뒤 할 일: **바로 pull 해 줘**(DB 구조 · 패키지 그대로). 프로그램 키 뜻이 바뀌어서, 옛 코드로 프로그램 줄을 열면(내 컴퓨터 개발 서버 ·

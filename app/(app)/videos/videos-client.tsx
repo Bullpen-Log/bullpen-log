@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Columns2, Plus, Radar } from 'lucide-react';
+import { Columns2, Plus, Radar, Rotate3d } from 'lucide-react';
 import Link from 'next/link';
 import { ButtonLink, PageHeading } from '@/components/ui';
 import { useTodayKey } from '@/components/use-today-key';
@@ -57,6 +57,7 @@ export function VideosClient({
   today,
   canMeasure,
   velocityHref,
+  canAnalyze,
   measured,
   initialView,
   initialCompare = false,
@@ -74,6 +75,8 @@ export function VideosClient({
   canMeasure: boolean;
   /** 관리자 웹 — 세 번째 칸을 고르면 보기를 바꾸지 않고 이 주소(구속 측정 관리자)로 간다 */
   velocityHref: string | null;
+  /** 투구 분석(베타) 단추를 보이는가 — 관리자만 */
+  canAnalyze: boolean;
   /** 날짜별 카메라 측정 요약(공 수 · 최고 km/h) — 캘린더의 그날 칸에 적는다 */
   measured: Record<string, { n: number; max: number }>;
   /** 처음 보일 칸 — ?view=velocity 로 들어오면 구속 측정 */
@@ -204,12 +207,29 @@ export function VideosClient({
             구속 측정
           </button>
         )}
+        {canAnalyze && (
+          <button
+            type="button"
+            onClick={() => router.push('/videos/lab')}
+            className="hidden h-9 items-center gap-1.5 rounded-lg border border-sky bg-sky-tint px-3 text-xs font-semibold text-sky-strong transition-colors hover:bg-sky-tint/70 desk:inline-flex"
+          >
+            <Rotate3d aria-hidden className="h-4 w-4" />
+            투구 분석
+          </button>
+        )}
       </div>
       {/* 휴대폰의 구속 측정 — 고르개 밑 줄(2분할 비교 옆) */}
       {canMeasure && (
         <button type="button" onClick={() => router.push('/velocity')} className={`${PHONE_PILL} desk:hidden`}>
           <Radar aria-hidden className="h-4 w-4" />
           구속 측정
+        </button>
+      )}
+      {/* 휴대폰의 투구 분석(베타) — 같은 줄, 관리자만 */}
+      {canAnalyze && (
+        <button type="button" onClick={() => router.push('/videos/lab')} className={`${PHONE_PILL} desk:hidden`}>
+          <Rotate3d aria-hidden className="h-4 w-4" />
+          투구 분석
         </button>
       )}
     </>
