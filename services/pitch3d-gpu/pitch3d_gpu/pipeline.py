@@ -26,6 +26,27 @@ V2_VERSION = "2.0.0"
 Report = Callable[[str, dict], None]
 
 
+def fit_payload(job: dict, fine: dict, seg: dict, pose_name: str) -> dict:
+    """fit 입력 — 촬영 정보(손 · 키 · 슬로모 · 화면 녹화)와 segment 순간을 함께 넘긴다.
+
+    슬로모 · 화면 녹화를 빼면 엔진이 4~8배 느린 영상 시간을 실제로 알아 '착지 → 릴리스'가 그만큼 길게 나왔다(2026-10-08 샘플 셋 0.5~1초).
+    segment 순간을 빼면 잘라 낸 구간에서 다시 찾다 실패했다(같은 날 샘플 1 · 3).
+    """
+    meta = job.get("meta") or {}
+    slowmo = meta.get("slowmoFps")
+    return {
+        "side": fine["side"],
+        "back": fine["back"],
+        "hand": "L" if meta.get("hand") == "L" else "R",
+        "heightCm": meta.get("heightCm"),
+        "jobId": str(job.get("jobId", "")),
+        "poseModel": pose_name,
+        "slowmoFps": slowmo if slowmo in (120, 240) else None,
+        "screenRecorded": meta.get("screenRecorded") is True,
+        "events": seg.get("events"),
+    }
+
+
 class StepFail(Exception):
     def __init__(self, code: str, stage: str, detail: str = ""):
         super().__init__(f"{stage}:{code} {detail}")
@@ -146,20 +167,7 @@ def run_job(job: dict, pose_factory: Callable[[], object], report: Report) -> di
                 "side": pose.track(fine_side, sw, sh, min(FINE_FPS, sfps)),
                 "back": pose.track(fine_back, bw, bh, min(FINE_FPS, bfps)),
             }
-            meta = job.get("meta") or {}
-            result = engine.run(
-                "fit",
-                {
-                    "side": fine["side"],
-                    "back": fine["back"],
-                    "hand": "L" if meta.get("hand") == "L" else "R",
-                    "heightCm": meta.get("heightCm"),
-                    "jobId": job_id,
-                    "poseModel": getattr(pose, "name", "rtmw"),
-                    # segment 가 거친 전체 영상에서 찾은 순간 — 잘라 낸 구간에서 다시 찾으면 실패한다(2026-10-08 샘플 1 · 3)
-                    "events": seg.get("events"),
-                },
-            )
+            result = engine.run("fit", fit_payload(job, fine, seg, getattr(pose, "name", "rtmw")))
             mark("fit")
             result_json = json.dumps(result)
             assert len(result_json) < 900_000, "결과가 900KB 를 넘는다"  # 엔진이 먼저 거르지만 한 번 더

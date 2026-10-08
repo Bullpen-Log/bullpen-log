@@ -17,7 +17,7 @@ from pathlib import Path
 
 from . import engine
 from .mapping import JOINT_MAP, N_JOINTS, RTMW_INDEX, RTMW_TOTAL, V2_NAMES, to_v2_points
-from .pipeline import MAX_FRAMES, _decimate, sanity_track
+from .pipeline import MAX_FRAMES, _decimate, fit_payload, sanity_track
 
 passed = 0
 # 윈도우 콘솔(cp949)에서도 한글 · 기호가 깨지지 않게
@@ -55,6 +55,13 @@ check("확신은 점수 / 6 을 0~1 로 자른 값", all(0.0 <= p[2] <= 1.0 for 
 print("■ 구간 · 장면 수")
 check("600장 넘으면 고르게 줄인다(순서 유지)", _decimate(list(range(1000)), MAX_FRAMES)[:3] == [0, 2, 3] and len(_decimate(list(range(1000)), MAX_FRAMES)) == MAX_FRAMES)
 check("600장 밑이면 그대로", _decimate(list(range(300)), MAX_FRAMES) == list(range(300)))
+
+print("■ fit 입력(촬영 정보 넘기기)")
+_fp = fit_payload({"jobId": "j", "meta": {"hand": "L", "slowmoFps": 240, "screenRecorded": True, "heightCm": 180}}, {"side": 1, "back": 2}, {"events": {"footPlant": 1.0, "release": 1.2}}, "rtmw")
+check("슬로모 · 화면 녹화를 엔진에 넘긴다(빼면 착지 → 릴리스가 4~8배 길었다)", _fp["slowmoFps"] == 240 and _fp["screenRecorded"] is True and _fp["hand"] == "L")
+check("segment 순간을 넘긴다", _fp["events"] == {"footPlant": 1.0, "release": 1.2})
+_fp2 = fit_payload({"jobId": "j", "meta": {"slowmoFps": 999}}, {"side": 1, "back": 2}, {}, "rtmw")
+check("모르는 슬로모 값 · 정보 없음은 None · 원본", _fp2["slowmoFps"] is None and _fp2["screenRecorded"] is False and _fp2["hand"] == "R")
 
 
 class FakePose:
