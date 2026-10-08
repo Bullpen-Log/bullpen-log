@@ -44,6 +44,14 @@ import {
   type Scenario,
 } from './pitch-lab/synth.mts';
 import { makeV2Track } from './pitch-lab/synth-v2.mts';
+import { readFileSync } from 'node:fs';
+import {
+  PART_NAMES,
+  placePoint,
+  readSkeletonParts,
+  rigPose,
+  type RigPose,
+} from '../lib/pitch-3d/v2/pose-rig.ts';
 
 let passed = 0;
 let failed = 0;
@@ -117,6 +125,7 @@ const good = (): Pitch3dV2Ok => {
     hand: 'R',
     engine: { v1: '0.1.0', pose: 'rtmw-l' },
     t: Array.from({ length: n }, (_, i) => i / 120),
+    tBack: Array.from({ length: n }, (_, i) => 0.3 + i / 120),
     joints: Array.from({ length: n }, () =>
       Array.from({ length: N_V2_JOINTS }, (_, j) => [
         j * 10,
@@ -266,6 +275,7 @@ const good = (): Pitch3dV2Ok => {
   const n = MAX_V2_FRAMES;
   const full = {
     ...g,
+    tBack: Array.from({ length: n }, (_, i) => 0.3 + i / 120),
     t: Array.from({ length: n }, (_, i) => Math.round((i / 120) * 1000) / 1000),
     joints: Array.from({ length: n }, (_, i) =>
       Array.from({ length: N_V2_JOINTS }, (_, j) => [
@@ -727,6 +737,90 @@ console.log('■ node 실행기(segment · fit)');
     'fit: 입력이 틀리면 실패 결과(video)',
     bad.ok === false && bad.code === 'video'
   );
+}
+
+console.log('■ 뼈대 자세(pose-rig) — public/models/skeleton-parts.json + 합성 결과');
+{
+  const parts = readSkeletonParts(
+    JSON.parse(readFileSync('public/models/skeleton-parts.json', 'utf8'))
+  );
+  check(
+    '조각 표를 읽는다(부위 15 · 기준 방향 · 정점 수)',
+    parts !== null && parts!.parts.length === 15 && parts!.vertexCount === 21526
+  );
+  check(
+    '조각 표 모양이 틀리면 null',
+    readSkeletonParts({ height: 1.7, parts: ['pelvis'] }) === null
+  );
+  if (parts) {
+    const { result } = runV2({ ...base, ...realistic, name: 'rig' }, 5);
+    if (!result.ok) check('rig — 결과', false, result.code);
+    else {
+      const frames = result.joints.map((fr) =>
+        fr.map(
+          (p) => [p[0] / 1000, p[1] / 1000, p[2] / 1000] as [number, number, number]
+        )
+      );
+      let prev: RigPose | null = null;
+      let nan = 0;
+      let kneeErr = 0;
+      let wristErr = 0;
+      let lowMin = Infinity;
+      let lowMax = -Infinity;
+      let flips = 0;
+      const A = parts.anchors;
+      for (let k = 0; k < frames.length; k++) {
+        const pose = rigPose(frames[k], result.hand, parts, prev);
+        for (const name of PART_NAMES) {
+          const p = pose[name];
+          if ([...p.position, ...p.R].some((v) => !Number.isFinite(v))) nan++;
+          /* 회전이 회전인가(직교 · det 1) */
+          const R = p.R;
+          const det =
+            R[0] * (R[4] * R[8] - R[5] * R[7]) -
+            R[1] * (R[3] * R[8] - R[5] * R[6]) +
+            R[2] * (R[3] * R[7] - R[4] * R[6]);
+          if (Math.abs(det - 1) > 1e-6) flips++;
+        }
+        /* 모델 무릎(넙다리 끝)이 맞춘 무릎 근처에(비율이 달라 몇 cm 어긋난다) · 손목도 */
+        const kneeW = placePoint(pose.thighL, A.thighL.distal, A.thighL.proximal);
+        const wristW = placePoint(
+          pose.forearmR,
+          A.forearmR.distal,
+          A.forearmR.proximal
+        );
+        const d = (a: number[], b: number[]) =>
+          Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]);
+        kneeErr = Math.max(kneeErr, d(kneeW, frames[k][V2J.lKn]));
+        wristErr = Math.max(wristErr, d(wristW, frames[k][V2J.rWr]));
+        /* 두 발 중 낮은 점 = 바닥 */
+        let low = Infinity;
+        for (const f of ['footL', 'footR'] as const)
+          for (const q of [A[f].proximal, A[f].distal, A[f].heel])
+            low = Math.min(low, placePoint(pose[f], q, A[f].proximal)[1]);
+        lowMin = Math.min(lowMin, low);
+        lowMax = Math.max(lowMax, low);
+        prev = pose;
+      }
+      check('모든 장면 · 부위의 자세가 숫자', nan === 0, `NaN ${nan}`);
+      check('회전 행렬 det = 1(거울 아님)', flips === 0, `${flips}`);
+      check(
+        '모델 무릎이 맞춘 무릎에서 키의 8% 안(뼈 길이는 모델 그대로라 조금 어긋난다)',
+        kneeErr < 0.08,
+        `최대 ${(kneeErr * 100).toFixed(1)}%`
+      );
+      check(
+        '모델 손목이 맞춘 손목에서 키의 12% 안(어깨 → 위팔 → 아래팔 세 마디 누적)',
+        wristErr < 0.12,
+        `최대 ${(wristErr * 100).toFixed(1)}%`
+      );
+      check(
+        '두 발 중 낮은 점이 늘 바닥(0)',
+        Math.abs(lowMin) < 1e-6 && Math.abs(lowMax) < 1e-6,
+        `${lowMin.toFixed(4)} ~ ${lowMax.toFixed(4)}`
+      );
+    }
+  }
 }
 
 console.log(`\n통과 ${passed} · 실패 ${failed}`);

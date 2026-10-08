@@ -360,9 +360,17 @@
         거친 60fps 두 영상 → 구간 · 순간 · 뒤 영상 구간, fit: 모양 검사 → 결과 JSON). `track.ts`(25 → MediaPipe 33). 합성 투수 25관절
         `scripts/pitch-lab/synth-v2.mts`. **잰 값(합성, 씨앗 1)**: 뼈 흔들림 0%(v1 2~6%) · 가속 p95 깨끗함 0.0011(v1 0.0022) · 실제처럼 0.0103(v1 0.0323) ·
         채운 관절 0 · 다시 비춤 0.1~1.1% · 지표 오차는 v1 기준 안(어깨 벌림만 깨끗함 2.0°, 기준 2.5 로 — 좌우 같은 뼈 길이의 값). 시험 116. 2시간.
-     4. 화면 — `/videos/lab/[id]`(머리 · 3D 4:5 · 시점 Segmented · 속도 칩 · 재생 막대 엷은 구간 · 원본 두 칸 · 숫자), `analysis-v2.tsx`(동의 ·
-        기다림 · 실패 두 갈래 · 다시 분석 띠), `body-3d.tsx`(three.js, body-full.glb 뼈대를 `skeleton-parts.json` 으로 15조각, 어두운 바탕 · 격자 ·
-        축 · 고정 4각도 · 1배 ½ ¼ · 키보드 · 움직임 줄이기). `scripts/pitch-lab/skeleton-parts.mjs` 가 조각 표를 만든다. 2.5시간.
+     4. **끝남** 화면 — `/videos/lab/[id]`(`page.tsx` 관리자 · `lab-detail.tsx`: 머리 + 상태 배지 · 3D 4:5(화면 60% 까지) · 원본 두 칸 180px(3D 시계를
+        따라감: 멈춤 · 끌기 currentTime, 재생 playbackRate) · 숫자(누르면 그 순간, '아직 참고용'), PC 는 3D 왼쪽 60% sticky), `use-v2-analysis.ts`(shownJobId
+        결과 읽기 · 5초 묻기 · 숨은 탭 쉼 · 신호 끊김 간격 2배), `analysis-v2.tsx`(상태 배지 · 빈 칸 글(분석 전 · 기다림 시간 글 · 실패 두 갈래 — 영상
+        탓이면 '다른 영상으로 올리기') · 동의 칸 + 단추 · 다시 분석 띠), `body-3d.tsx`(three.js 직접: body-full.glb 뼈대를 `skeleton-parts.json` 으로
+        15조각으로 갈라 `lib/pitch-3d/v2/pose-rig.ts`(순수 — 축 · 굽힘 축 · 손바닥 · 두 발 낮은 점 바닥)로 자세, 어두운 바탕 #151722 · 흰 뼈 · 던지는 팔
+        sky · 격자 · 축 화살표(빨강 홈 · 파랑 위 · 하늘 옆) · 고정 4각도 + 끌기 10~85° + Ctrl 휠 · 처음 ½× 로 릴리스까지 한 번 · 1× ½× ¼× · 니업 착지 릴리스
+        칩 · 재생 막대(엷은 구간 회색 · 순간 금, 끌기) · 스페이스 ←→ Shift · 움직임 줄이기면 릴리스 정지 · WebGL 없음 글). 조각 표는
+        `scripts/pitch-lab/skeleton-parts.mjs`(높이 띠 · 좌우로 273조각 → 15부위, 손 기준은 왼손 엄지 자리로 확인 — 해부학 자세 · 손바닥 앞). 목록 카드에
+        배지 + '3D 분석(서버) · 결과 화면' 링크. 확인(합성 결과 임시 경로, 커밋 안 함): 콘솔 오류 0 · 휴대폰 375 넘침 0 · PC 두 칸 · 네이비. GLTFLoader 가
+        이름의 점을 지워 메시를 못 찾던 것은 이름 정리 + 정점 수로 고침. 시험 123(pose-rig: 숫자 · det 1 · 모델 무릎 7.1% · 손목 9.2% · 바닥 0). 2.5시간.
+        남은 것: 각도 호 그리기(TD5) · 폰 실기기 확인 · /design-review.
      5. GPU 패키지 — `services/pitch3d-gpu/`(Modal 앱 · PyAV 원본 트랙 시각 · rtmlib RTMW · joint-map · node 호출 · selfcheck.py) + 묶기
         `scripts/pitch3d-bundle.mjs` + README. **로컬에서 Python 은 못 돌림** — Modal 에서 T7 때 확인. 1시간.
      6. 문서 · 마무리 — 설계 문서 T 표 갱신 · HANDOFF · 이 줄. 20분.

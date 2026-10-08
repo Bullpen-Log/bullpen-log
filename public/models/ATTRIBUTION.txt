@@ -41,3 +41,11 @@ CHANGES MADE (scripts/build-arm-model.mjs)
   - Removed unused vertices, quantized normals to 8-bit (KHR_mesh_quantization)
     and removed materials. Muscle IDs and labels (glTF node extras) are kept.
   - The geometry has not been reviewed by an anatomy specialist.
+
+  skeleton-parts.json (scripts/pitch-lab/skeleton-parts.mjs, 2026-10-08)
+  - Not a model file: a table that assigns each vertex of the skeleton mesh in
+    body-full.glb to one of 15 body parts (pelvis, trunk, head, upper arms,
+    forearms, hands, thighs, shanks, feet) by the height band and side of each
+    connected piece, plus approximate joint anchor points. The pitching-motion
+    viewer splits the mesh with this table at load time and poses the parts;
+    body-full.glb itself is unchanged.

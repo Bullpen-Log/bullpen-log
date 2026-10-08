@@ -184,6 +184,8 @@ export type Pitch3dV2Ok = {
   engine: { v1: string; pose: string };
   /** 장면 시각(옆 영상 원본 트랙 초) */
   t: number[];
+  /** 같은 장면의 뒤 영상 시각(초) — 원본 두 칸이 3D 시계를 따라가게(화면 결정 12) */
+  tBack: number[];
   /** 장면 × 관절 25 × [앞, 위, 오른쪽] 정수 mm(키 = 1000mm) — 빈 칸 없음 */
   joints: number[][][];
   /** 장면 × 관절 확신 0~100(정수) */
@@ -282,6 +284,8 @@ export function readPitch3dV2Result(raw: unknown): Pitch3dV2Result | null {
   const joints = r.joints;
   const conf = r.conf;
   if (!Array.isArray(t) || !Array.isArray(joints) || !Array.isArray(conf)) return null;
+  if (!Array.isArray(r.tBack) || r.tBack.length !== t.length || !r.tBack.every(isNum))
+    return null;
   const n = t.length;
   if (
     n === 0 ||

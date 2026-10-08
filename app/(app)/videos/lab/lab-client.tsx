@@ -2,7 +2,8 @@
 
 import { useRef, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
-import { Film, Play, Rotate3d, Trash2, Upload } from 'lucide-react';
+import Link from 'next/link';
+import { ChevronRight, Film, Play, Rotate3d, Trash2, Upload } from 'lucide-react';
 import { BackLink, Card, EmptyState, PageHeading } from '@/components/ui';
 import { Segmented } from '@/components/segmented';
 import { DisclosureButton } from '@/components/disclosure';
@@ -21,6 +22,7 @@ import {
 } from '@/lib/pitch-lab-meta';
 import type { LabSample } from '@/lib/pitch-lab';
 import { AnalysisPanel } from './analysis-panel';
+import { V2StatusBadge } from './[id]/analysis-v2';
 
 /**
  * 투구 분석(베타) 화면 — 위: 옆 · 뒤 영상 짝 올리기, 아래: 올린 샘플(나란히 재생 · 3D 분석 · 지우기).
@@ -102,7 +104,9 @@ function UploadCard({ defaultHeightCm }: { defaultHeightCm: number | null }) {
   const [height, setHeight] = useState(defaultHeightCm ? String(defaultHeightCm) : '');
   const [distance, setDistance] = useState('');
   const [memo, setMemo] = useState('');
-  const [progress, setProgress] = useState<{ view: LabView; percent: number } | null>(null);
+  const [progress, setProgress] = useState<{ view: LabView; percent: number } | null>(
+    null
+  );
   const [error, setError] = useState<string>();
   const [, start] = useTransition();
 
@@ -141,10 +145,15 @@ function UploadCard({ defaultHeightCm }: { defaultHeightCm: number | null }) {
         distanceM: distance ? Number(distance) : null,
         memo: memo.trim() || null,
         files: Object.fromEntries(
-          LAB_VIEWS.map((v) => [v, { name: files[v]?.name ?? '', size: files[v]?.size ?? 0 }])
+          LAB_VIEWS.map((v) => [
+            v,
+            { name: files[v]?.name ?? '', size: files[v]?.size ?? 0 },
+          ])
         ),
       };
-      const r = await orOffline(saveLabSample({ id, meta }), { error: OFFLINE_MESSAGE });
+      const r = await orOffline(saveLabSample({ id, meta }), {
+        error: OFFLINE_MESSAGE,
+      });
       if ('error' in r) {
         setError(r.error);
         return;
@@ -188,20 +197,50 @@ function UploadCard({ defaultHeightCm }: { defaultHeightCm: number | null }) {
         {infoOpen && (
           <div className="space-y-3 px-3 pb-3 text-sm">
             <Row label="촬영">
-              <Segmented label="촬영" value={synced} onChange={setSynced} options={SYNC_OPTIONS} />
+              <Segmented
+                label="촬영"
+                value={synced}
+                onChange={setSynced}
+                options={SYNC_OPTIONS}
+              />
             </Row>
             <Row label="슬로모(초당 장수)">
-              <Segmented label="슬로모" value={fps} onChange={setFps} options={FPS_OPTIONS} />
+              <Segmented
+                label="슬로모"
+                value={fps}
+                onChange={setFps}
+                options={FPS_OPTIONS}
+              />
             </Row>
             <Row label="영상">
-              <Segmented label="영상" value={source} onChange={setSource} options={SOURCE_OPTIONS} />
+              <Segmented
+                label="영상"
+                value={source}
+                onChange={setSource}
+                options={SOURCE_OPTIONS}
+              />
             </Row>
             <Row label="던지는 손">
-              <Segmented label="던지는 손" value={hand} onChange={setHand} options={HAND_OPTIONS} />
+              <Segmented
+                label="던지는 손"
+                value={hand}
+                onChange={setHand}
+                options={HAND_OPTIONS}
+              />
             </Row>
             <div className="grid grid-cols-2 gap-2">
-              <NumberField label="키(cm)" value={height} onChange={setHeight} placeholder="175" />
-              <NumberField label="폰까지 거리(m)" value={distance} onChange={setDistance} placeholder="모름" />
+              <NumberField
+                label="키(cm)"
+                value={height}
+                onChange={setHeight}
+                placeholder="175"
+              />
+              <NumberField
+                label="폰까지 거리(m)"
+                value={distance}
+                onChange={setDistance}
+                placeholder="모름"
+              />
             </div>
             <label className="block space-y-1">
               <span className="text-xs text-muted">메모</span>
@@ -264,7 +303,9 @@ function FilePick({
       <Film aria-hidden className="h-5 w-5" />
       <span className="text-sm font-semibold">{label}</span>
       <span className="w-full truncate text-xs">
-        {file ? `${file.name} · ${(file.size / 1024 / 1024).toFixed(1)}MB` : '눌러서 고르기'}
+        {file
+          ? `${file.name} · ${(file.size / 1024 / 1024).toFixed(1)}MB`
+          : '눌러서 고르기'}
       </span>
       {percent != null && (
         <span
@@ -320,6 +361,9 @@ function SampleCard({ sample, n }: { sample: LabSample; n: number }) {
   const [error, setError] = useState<string>();
   const [pending, start] = useTransition();
 
+  /* 상태 표시의 '지금' — 렌더 때마다 바뀌지 않게 한 번만 */
+  const [now] = useState(() => Date.now());
+
   /* 같이 재생 — 두 영상을 처음부터 함께(시간 맞추기는 분석이 할 일이라 여기서는 처음부터만) */
   const playBoth = () => {
     for (const view of LAB_VIEWS) {
@@ -332,7 +376,9 @@ function SampleCard({ sample, n }: { sample: LabSample; n: number }) {
 
   const remove = () =>
     start(async () => {
-      const r = await orOffline(removeLabSample({ id: sample.id }), { error: OFFLINE_MESSAGE });
+      const r = await orOffline(removeLabSample({ id: sample.id }), {
+        error: OFFLINE_MESSAGE,
+      });
       if ('error' in r) {
         setError(r.error);
         return;
@@ -358,6 +404,7 @@ function SampleCard({ sample, n }: { sample: LabSample; n: number }) {
             {meta ? labMetaChips(meta).join(' · ') : '올리다 멈췄어요'}
           </p>
           {meta?.memo && <p className="text-sm text-ink break-keep">{meta.memo}</p>}
+          <V2StatusBadge job={sample.v2.job} now={now} />
         </div>
         <button
           type="button"
@@ -409,6 +456,20 @@ function SampleCard({ sample, n }: { sample: LabSample; n: number }) {
       )}
 
       <AnalysisPanel sample={sample} />
+
+      {/* v2(서버 GPU) — 결과 화면에서(설계 pitch-3d-quality.md 화면 결정 1) */}
+      <Link
+        href={`/videos/lab/${sample.id}`}
+        className="flex min-h-11 w-full items-center justify-between rounded-2xl bg-ink/4 px-4 text-sm font-semibold text-ink transition-colors active:bg-ink/8 desk:hover:bg-ink/6"
+      >
+        <span className="flex items-center gap-2">
+          <Rotate3d aria-hidden className="h-4 w-4 text-sky" />
+          {sample.v2.job?.status === 'done'
+            ? '3D 결과 보기(서버)'
+            : '3D 분석(서버) · 결과 화면'}
+        </span>
+        <ChevronRight aria-hidden className="h-4 w-4 text-muted" />
+      </Link>
 
       {error && <ErrorLine>{error}</ErrorLine>}
 

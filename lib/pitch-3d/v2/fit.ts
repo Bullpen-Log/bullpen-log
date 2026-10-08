@@ -651,6 +651,9 @@ export function fitPitch3dV2(input: V2Input): {
     hand: core.hand,
     engine: { v1: PITCH3D_VERSION, pose: input.poseModel },
     t: keep.map((k) => Math.round(synced[k].t * 1000) / 1000),
+    tBack: keep.map(
+      (k) => Math.round((core.backTime[synced[k].i] ?? synced[k].t) * 1000) / 1000
+    ),
     joints: keep.map((k) => X[k].map(toRes)),
     conf: keep.map((k) => conf[k]),
     lowConf: lowConf
