@@ -389,6 +389,34 @@
      **남은 것**: ① 사용자 결정 넷(HANDOFF · 0-3절) ② T7(김민: 사이트에서 다시 분석 → 샘플 3개 + 깨진 영상) ③ 결정 뒤 0-2절 ④ 각도 호(TD5) ·
      폰 실기기 · /design-review ⑤ 모델을 이미지에 미리 굽기.
 
+  12. **인아웃식 회원가입 · 영양 온보딩(2026-10-08, 사용자: "추천대로 해주는데 멈추지말고 끝까지 해줘" — 계정 질문은 뒤 · 성장기 감량 카드 숨김 ·
+      당류 · 나트륨은 2차).** 설계 `docs/designs/inout-onboarding.md` ④(합친 안 — 질문 19 + 끼움 6 = 25화면, 읽히지 않는 질문은 없음). 홈 영양은
+      안 건드림. 단계(각 단계 끝에 커밋 + 이 줄 갱신):
+      1. **끝남** 계산 더하기(순수) — `Targets.tdee` · 탄단지 프리셋(지방 몫 `MACRO_PRESETS`) · `fatTargetG` · `lib/nutrition/onboarding.ts`(목표 카드
+         5 → 3 접기 foldGoalKind · 나이별 카드 goalKindsFor · 소속 → 평소 움직임 defaultActivity · presetProtein · kcalOfMacros · macroSplit) ·
+         `forecastWeights` · `period.ts`(언제까지). 새 칸이 비면 숫자 그대로(2750/3050/2350). 시험 440. (4fcbb75)
+      2. **끝남** DB 네 칸(`NutritionProfile.goalKind · macroPreset · fatTargetG · onboardedAt`, `20261008150000_nutrition_onboarding` 적용, 백업
+         db-2026-10-08-14-03) + 저장 공용화 `lib/nutrition/profile-save.ts buildProfileData`(목표 창 · 가입 · setup 이 같은 규칙) ·
+         `NutritionDay.onboarded`. 김민에게 HANDOFF(`npx prisma generate`). (a2c56ca)
+      3. **끝남** 답 · 차례 · 폼 칸 `lib/nutrition/onboarding-answers.ts`(NutritionAnswers · preview = computeTargets 그대로 · visibleNutritionSteps —
+         목표 체중 화면은 증량 · 감량(성인) · 증량(성장기)만, 속도 화면은 목표 체중을 적었을 때만 · checkNutritionStep · 숨은 칸 toFormFields ↔ 서버
+         readNutritionAnswers · toProfileInput · toDietPrefsRaw(성장기는 보충식품 끔)) + 공용 부품 `components/onboarding/`: step-card(옛 AuthCard,
+         자판 --kb) · choices(OptionCards · Chips · MultiChips — 단추 radio + 화살표, id "{name}-field") · number-unit-field(cm｜in · kg｜lb, 저장은
+         cm · kg) · count-up · insert-cards(투구 한도 dailyPitchCap · 운동 소모 trainingBurn/pitchingBurn) · weight-forecast(SVG, Web Animations) ·
+         plan-stats(bmr · tdee · base ✎ · MacroBar · 예상 선) · macro-editor(kcal 이 주인: 탄수 g → kcalTarget) · building-steps · nutrition-steps
+         (영양 화면 11 + 제목 + answerLines) · format(주 0.25kg 는 둘째 자리). 시험 440 → 456.
+      4. **끝남** 가입 마법사 `app/login/auth-form.tsx` 25화면(이름 → 생년월일 · 성별 → [투구 한도] → 손 → 소속 → 투구 3문항(부하 count-up) → 웨이트 →
+         키 → 체중 → [운동 소모] → 목표 카드 → 목표 체중('나중에 정할게요') → 속도 · 언제까지 → 평소 움직임(소속으로 미리) → 시즌 → 탄단지 → 식사 →
+         못 먹는 것 → [만드는 중(자동) → 추천 계획 → 탄단지 g] → 이메일(중복 미리 확인) → 비밀번호 → 약관 → 요약 + 약속): 답은 모두 상태 + 숨은 칸,
+         차례는 답에 따라 23~25, 서버가 막으면 그 칸의 화면으로(nutritionStepOfField). `trySignup`: 표시 칸(`nutritionOnboarding`)이 있으면 키 · 체중
+         필수 → buildProfileData + cleanDietPrefs → `$transaction`(User(weightKg 도) + NutritionProfile(onboardedAt · planSince · 취향) + DailyNutrition
+         오늘 체중). 표시 칸 없는 옛 화면은 예전처럼 계정만. 브라우저로 25화면 끝까지 눌러 확인(가입 단추는 안 누름 — 공유 DB).
+      5. 휴대폰 · 앱 · PC 모양(--kb · 시트 · 375 · 1536×700 · 1920×960, impeccable detect) 2h
+      6. 영양 탭 '나의 하루' · [기록｜통계] · '내 계획' 카드(plan-stats 재사용) · onboarded 안내 3h
+      7. 목표 창 확장(카드 5 · 탄단지 나누기 · 활동대사량, period.ts 로 바꿈, setWeight 20~200 통일) 2h
+      8. `/nutrition/setup` 기존 사용자(질문 7~16 + 끼움 셋, finishNutritionSetup 한 트랜잭션) 2h
+      9. 검증 · 마무리(tsc · eslint · 시험 · 임시 경로 지움 + 서버 재시작 · HANDOFF · 메모) 1.5h
+
 - **클라우드 식단 짜기 정확도 2차 — 끝남(2026-10-04 맡김 → 10-06 main 합침 · 메인 검토 반영). 지금 클라우드가 할 일은 아래 '3차' 줄.**
   (아래는 2차 메모 그대로 — 규칙은 3차에도 같다.) 사용자가 클라우드 세션을 열어 "메모대로 해 줘"라고 하면 이것을 했다. 지난 클라우드 작업(틀 85 → 167 · 시험 382, 커밋 8e1fbd5 · 46cc794 · 96dae5d)을 메인이 세 갈래로 검토했고,
   **못 먹는 것이 새던 것은 메인이 고쳤다**(삼계탕 견과 · 돼지국밥 새우젓 · 소면 · 오므라이스 · 두부조림 · 샐러드 드레싱 등 — 시험에
@@ -613,7 +641,7 @@
     읽은 인아웃 흐름(질문 · 선택지 · 끼움 화면 · 홈 '기록' 탭 모양 · 설계 원칙) ② 저장소 지도 8갈래(가입 폼 · 영양 탭 화면 · 계산 공식 · 홈 영양(손대면
     안 되는 목록) · 프로필 · 디자인 체계 · DB 칸 · 앱 틀 — 파일:줄과 '쓸 수 있는 것 · 빈 곳 · 위험') ③ 설계안 둘(인아웃-충실 · 투수-우선: 질문 순서표 ·
     저장 칸 · 읽는 곳 · PC/휴대폰 모양 · 끼움 화면 · 영양 탭 · 계산 변경 · DB 칸 · 단계표 · 물어볼 것). 셋째 안(연동-우선)과 심사 · 합치기는 못 했다.
-  - **메인(2026-10-08 밤)**: 두 안을 합쳐 문서 ④에 적음(연동 우선 — 질문 19 + 끼움 6, 활동량 3단계 유지 · 프리셋 3 · DB 네 칸 · 당류는 2차) → 단계표 9개(약 22시간)를 사용자에게 보임, 답 대기(계정 뒤 · 성장기 감량 숨김 · 당류 2차).
+  - **메인(2026-10-08 밤)**: 두 안을 합쳐 문서 ④에 적음(연동 우선 — 질문 19 + 끼움 6, 활동량 3단계 유지 · 프리셋 3 · DB 네 칸 · 당류는 2차) → 단계표 9개(약 22시간)를 사용자에게 보임 → 사용자 "추천대로 · 멈추지 말고 끝까지" → **진행은 위 추천 작업 12번**.
   - **(지난 메모) 메인이 할 일**: 문서 ③의 두 안을 합쳐(사용자 강조는 '연동' — 읽히지 않는 질문은 넣지 않는다) 단계표를 사용자에게 보이고 "1단계부터 할까요"를 묻는다.
     DB 새 칸(목표 이유 · 경험 · 활동량 5단계 · 물 · 운동 종류 · 식단 스타일 4종 · 탄단지 비율 등)은 기본값/null 로 더하고 **백업 뒤** 적용 · HANDOFF 로
     김민에게. 영상 원본은 클라우드 업로드에만 있다 — 다시 보려면 사용자에게 데스크톱에서 다시 첨부해 달라고 한다(문서 ①이 장면마다 적어 두어 없어도 된다).

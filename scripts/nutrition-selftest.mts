@@ -171,6 +171,23 @@ import {
   levelFit,
   normalizeLevel,
 } from '../lib/baseline.ts';
+import {
+  EMPTY_ANSWERS,
+  checkNutritionStep,
+  fieldOfNutritionError,
+  nutritionStepOfField,
+  paceForDate,
+  periodDate,
+  preview,
+  readNutritionAnswers,
+  toDietPrefsRaw,
+  toFormFields,
+  toProfileInput,
+  visibleNutritionSteps,
+  type NutritionAnswers,
+  type OnboardingBody,
+} from '../lib/nutrition/onboarding-answers.ts';
+import { kgText, paceText } from '../components/onboarding/format.ts';
 
 let passed = 0;
 let failed = 0;
@@ -5240,6 +5257,222 @@ console.log('\n■ 인아웃식 온보딩 — 계산 더하기(새 칸이 비면
       pickPace([0.25, 0.35], 0.21) === 0.25 &&
       neededRate(5, '2026-10-08', null) === null &&
       pickPace([], 0.3) === null
+  );
+}
+
+console.log(
+  '\n■ 인아웃식 온보딩 — 답 · 차례 · 폼 칸(lib/nutrition/onboarding-answers.ts)'
+);
+{
+  const adult: OnboardingBody = {
+    age: 20,
+    sex: 'M',
+    heightCm: 180,
+    weightKg: 80,
+    level: '대학교',
+  };
+  const teen: OnboardingBody = { ...adult, age: 15, level: '고등학교' };
+  const child: OnboardingBody = { ...adult, age: 10, level: '초등학교' };
+  const a0: NutritionAnswers = EMPTY_ANSWERS;
+  const gain: NutritionAnswers = { ...a0, goalKind: 'gain' };
+  const steps = (a: NutritionAnswers, b: OnboardingBody) =>
+    visibleNutritionSteps(a, b).join(',');
+
+  check(
+    '차례 — 목표 체중 화면은 증량 · 감량(성인) · 증량(성장기)에만, 속도 화면은 목표 체중을 적었을 때만',
+    !steps(a0, adult).includes('target') &&
+      steps(gain, adult).includes('target') &&
+      !steps(gain, adult).includes('pace') &&
+      steps({ ...gain, targetWeightKg: 84 }, adult).includes('pace') &&
+      steps({ ...a0, goalKind: 'muscle' }, teen).includes('target') &&
+      !steps(gain, child).includes('target') &&
+      !steps({ ...a0, goalKind: 'maintain' }, adult).includes('target') &&
+      steps({ ...a0, goalKind: 'lean' }, adult).includes('target')
+  );
+  check(
+    '차례 — 열한 화면이 다 보일 때의 순서(목표 → 체중 → 속도 → 움직임 → 시즌 → 탄단지 → 식사 → 못 먹는 것 → 만드는 중 → 계획 → g)',
+    steps({ ...gain, targetWeightKg: 84 }, adult) ===
+      'goal,target,pace,activity,season,macroPreset,diet,avoid,building,plan,macroEdit'
+  );
+
+  const p0 = preview(a0, adult);
+  check(
+    '미리보기 — 아무것도 안 골라도 소속(대학교 → 많음 1.7)으로 셈한다: 1830 × 1.7 = 3110, 유지',
+    p0.draft.activity === 'high' &&
+      p0.targets.tdee === 3110 &&
+      p0.targets.base === 3110 &&
+      p0.goal === 'maintain'
+  );
+  const pm = preview({ ...a0, goalKind: 'muscle', macroPreset: 'carb' }, adult);
+  check(
+    '미리보기 — 근육 키우기(성인) = 증량 + 2.0g/kg, 탄수화물 넉넉히 = 지방 20%',
+    pm.goal === 'gain' &&
+      pm.draft.proteinPerKg === 2.0 &&
+      pm.targets.fatShare === 0.2 &&
+      pm.targets.base === 3410
+  );
+  const pl = preview({ ...a0, goalKind: 'lean' }, teen);
+  check(
+    '미리보기 — 군살만 빼기는 성장기면 유지 + 1.8(성장기 끝값), 목표 체중 없음',
+    pl.goal === 'maintain' &&
+      pl.draft.proteinPerKg === 1.8 &&
+      pl.targetAllowed === false
+  );
+  const pt = preview({ ...gain, targetWeightKg: 84 }, adult);
+  check(
+    '미리보기 — 80 → 84kg: 남은 4kg · 기본 속도 0.25 면 16주 · 예상 선 17점 · 범위 80.5~92',
+    pt.remainingKg === 4 &&
+      pt.etaWeeks === 16 &&
+      pt.forecast.length === 17 &&
+      pt.range.ok &&
+      pt.range.min === 80.5 &&
+      pt.range.max === 92 &&
+      pt.paces.join(',') === '0.25,0.35'
+  );
+  check(
+    "'언제까지' — 8주 뒤(12월 3일)에 4kg 이면 주 0.5 가 필요 → 가장 빠른 0.35, 24주면 0.25",
+    periodDate('2026-10-08', 8) === '2026-12-03' &&
+      paceForDate(pt, '2026-10-08', '2026-12-03') === 0.35 &&
+      paceForDate(pt, '2026-10-08', periodDate('2026-10-08', 24)) === 0.25 &&
+      paceForDate(p0, '2026-10-08', '2026-12-03') === null
+  );
+
+  /* 폼 칸 ↔ 답 */
+  const full: NutritionAnswers = {
+    goalKind: 'lean',
+    targetWeightKg: 76.5,
+    targetSkipped: false,
+    weeklyRateKg: 0.35,
+    goalEndDate: '2026-12-31',
+    activity: 'low',
+    seasonPhase: 'off',
+    macroPreset: 'protein',
+    dietStyle: 'korean',
+    mealPattern: '3+2',
+    avoid: ['dairy', 'spicy'],
+    supplements: false,
+    kcalTarget: 2800,
+    proteinTargetG: null,
+    fatTargetG: 70,
+  };
+  const formOf = (rows: [string, string][]) => ({
+    get: (n: string) => rows.find((r) => r[0] === n)?.[1] ?? null,
+    getAll: (n: string) => rows.filter((r) => r[0] === n).map((r) => r[1]),
+    has: (n: string) => rows.some((r) => r[0] === n),
+  });
+  const back = readNutritionAnswers(formOf(toFormFields(full)));
+  check(
+    '숨은 칸으로 보내고 서버가 읽으면 같은 답(못 먹는 것 둘 · 보충식품 끔 · 직접 kcal · 지방 g · 날짜)',
+    typeof back === 'object' &&
+      back !== null &&
+      JSON.stringify(back) === JSON.stringify(full)
+  );
+  const empty = readNutritionAnswers(formOf(toFormFields(a0)));
+  check(
+    '빈 답도 돌아온다 — 안 정한 것은 null, 목표 체중 없음은 건너뜀으로',
+    typeof empty === 'object' &&
+      empty !== null &&
+      empty.goalKind === null &&
+      empty.targetSkipped === true &&
+      empty.supplements === true &&
+      empty.avoid.length === 0
+  );
+  check(
+    '표시 칸이 없는 옛 화면은 null(영양 목표 없이 가입) · 숫자 칸에 글자는 오류 글 · 목록 밖 값은 null',
+    readNutritionAnswers(formOf([['goalKind', 'gain']])) === null &&
+      typeof readNutritionAnswers(
+        formOf([
+          ['nutritionOnboarding', '1'],
+          ['kcalTarget', 'abc'],
+        ])
+      ) === 'string' &&
+      (() => {
+        const r = readNutritionAnswers(
+          formOf([
+            ['nutritionOnboarding', '1'],
+            ['goalKind', 'bulk'],
+            ['avoid', 'dairy'],
+            ['avoid', 'rocks'],
+          ])
+        );
+        return (
+          typeof r === 'object' &&
+          r !== null &&
+          r.goalKind === null &&
+          r.avoid.join() === 'dairy'
+        );
+      })()
+  );
+
+  /* 검사 */
+  const err = (
+    k: Parameters<typeof checkNutritionStep>[0],
+    a: NutritionAnswers,
+    b = adult
+  ) => checkNutritionStep(k, a, b)?.field ?? null;
+  check(
+    '검사 — 목표 안 고름 · 목표 체중은 적거나 건너뛰기 · 범위 밖(95 > 92) · 직접 kcal 900 · 지방 10g',
+    err('goal', a0) === 'goalKind' &&
+      err('goal', { ...a0, goalKind: 'lose' }, teen) === 'goalKind' &&
+      err('target', gain) === 'targetWeightKg' &&
+      err('target', { ...gain, targetSkipped: true }) === null &&
+      err('target', { ...gain, targetWeightKg: 84 }) === null &&
+      err('target', { ...gain, targetWeightKg: 95 }) === 'targetWeightKg' &&
+      err('plan', { ...a0, kcalTarget: 900 }) === 'kcalTarget' &&
+      err('macroEdit', { ...a0, fatTargetG: 10 }) === 'fatTargetG' &&
+      err('macroEdit', { ...a0, proteinTargetG: 150, fatTargetG: 70 }) === null &&
+      err('season', a0) === 'seasonPhase' &&
+      err('diet', { ...a0, dietStyle: 'mixed' }) === 'mealPattern' &&
+      err('avoid', a0) === null
+  );
+
+  /* 저장 규칙에 넣을 값 */
+  const input = toProfileInput(
+    { ...a0, goalKind: 'muscle', macroPreset: 'protein' },
+    adult
+  );
+  check(
+    '저장 — 근육 키우기 + 단백질 넉넉히 → 증량 · 2.0g/kg · 카드 원답 · 온보딩 끝',
+    input.goal === 'gain' &&
+      input.goalKind === 'muscle' &&
+      input.proteinPerKg === 2.0 &&
+      input.activity === 'high' &&
+      input.macroPreset === 'protein' &&
+      input.onboarded === true
+  );
+  check(
+    '취향 — 성장기는 보충식품을 늘 끔, 성인은 고른 대로 · 안 고른 스타일은 기본값',
+    toDietPrefsRaw({ ...a0, supplements: true }, teen).supplements === false &&
+      toDietPrefsRaw({ ...a0, supplements: true }, adult).supplements === true &&
+      toDietPrefsRaw(a0, adult).dietStyle === 'mixed' &&
+      toDietPrefsRaw(a0, adult).mealPattern === '3+1'
+  );
+  check(
+    '막힌 칸 → 화면 · 오류 글 → 칸',
+    nutritionStepOfField('fatTargetG') === 'macroEdit' &&
+      nutritionStepOfField('goalEndDate') === 'pace' &&
+      nutritionStepOfField('nickname') === null &&
+      fieldOfNutritionError('목표 체중은 80.5~92kg 사이로 적어 주세요.') ===
+        'targetWeightKg' &&
+      fieldOfNutritionError('탄단지 나누기를 다시 골라 주세요.') === 'macroPreset' &&
+      fieldOfNutritionError('하루 지방은 20~200g 사이로 적어 주세요.') === 'fatTargetG'
+  );
+}
+
+console.log('\n■ 인아웃식 온보딩 — 글 속 숫자(components/onboarding/format.ts)');
+{
+  check(
+    "속도는 kg 이면 둘째 자리까지('주 0.25kg' · '주 0.35kg' — 첫째 자리로 줄이면 둘 다 0.3), lb 는 첫째 자리",
+    paceText(0.25, 'kg') === '주 0.25kg' &&
+      paceText(0.35, 'kg') === '주 0.35kg' &&
+      paceText(0.2, 'kg') === '주 0.2kg' &&
+      paceText(0.35, 'lb') === '주 0.8lb'
+  );
+  check(
+    "몸무게는 첫째 자리까지, .0 은 뗀다('84kg' · '185.2lb')",
+    kgText(84, 'kg') === '84kg' &&
+      kgText(84, 'lb') === '185.2lb' &&
+      kgText(76.5, 'kg') === '76.5kg'
   );
 }
 
