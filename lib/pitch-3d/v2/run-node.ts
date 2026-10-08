@@ -103,6 +103,7 @@ export function pickSegment(input: { side: unknown; back: unknown }): SegmentOut
  * 던지는 팔 진단(Modal 로그 한 줄, 2026-10-08 '릴리스 때 팔이 튄다' 조사) — 숫자만, 개인 정보 없음.
  * 굽힘 축(위팔 × 아래팔)이 앞 장면과 반대면 3D 화면의 팔 조각이 180° 돈다(pose-rig bendAxis). 손바닥(새끼 − 검지)도 같다.
  * rows: [릴리스에서 몇 장면, 팔꿈치 굽힘°(0 = 폄), 굽힘 축 뒤집힘, 손바닥 뒤집힘, 손목 이동 mm(키 1000), 어깨 · 팔꿈치 · 손목 확신]
+ * jumps: 모든 관절 중 가장 큰 장면 사이 이동 셋, empty: 던지는 어깨 · 팔꿈치 · 손목이 빈(확신 0) 장면 수.
  */
 export function armDiag(r: Pitch3dV2Ok) {
   const L = r.hand === 'L';
@@ -121,7 +122,9 @@ export function armDiag(r: Pitch3dV2Ok) {
     const fo = sub(j[W] as Vec3, j[E] as Vec3);
     const c = cross(up, fo);
     const sin = norm(c) / Math.max(1e-9, norm(up) * norm(fo));
-    const flex = (Math.acos(Math.max(-1, Math.min(1, dot(normalize(up), normalize(fo))))) * 180) / Math.PI;
+    const flex =
+      (Math.acos(Math.max(-1, Math.min(1, dot(normalize(up), normalize(fo))))) * 180) /
+      Math.PI;
     const bend = sin >= 0.15 ? normalize(c) : null;
     const flip = bend && prevBend && dot(bend, prevBend) < 0 ? 1 : 0;
     if (bend) prevBend = bend;
@@ -133,10 +136,42 @@ export function armDiag(r: Pitch3dV2Ok) {
     palmFlips += pFlip;
     maxStep = Math.max(maxStep, step);
     if (k >= fp - 8 && k <= rel + 8)
-      rows.push([k - rel, Math.round(flex), flip, pFlip, Math.round(step), r.conf[k][S], r.conf[k][E], r.conf[k][W]]);
+      rows.push([
+        k - rel,
+        Math.round(flex),
+        flip,
+        pFlip,
+        Math.round(step),
+        r.conf[k][S],
+        r.conf[k][E],
+        r.conf[k][W],
+      ]);
   });
+  /* 모든 관절 중 가장 큰 순간이동 셋 [릴리스에서 몇 장면, 관절 번호, mm, 그 장면 확신] · 던지는 팔 빈 장면(확신 0) 수 */
+  const jumps: number[][] = [];
+  for (let k = 1; k < r.joints.length; k++)
+    r.joints[k].forEach((p, jj) =>
+      jumps.push([
+        k - rel,
+        jj,
+        Math.round(norm(sub(p as Vec3, r.joints[k - 1][jj] as Vec3))),
+        r.conf[k][jj],
+      ])
+    );
+  jumps.sort((a, b) => b[2] - a[2]);
+  const empty = [S, E, W].map((jj) => r.conf.filter((c) => c[jj] === 0).length);
   const dt = r.t.length > 1 ? (r.t[r.t.length - 1] - r.t[0]) / (r.t.length - 1) : 0;
-  return { n: r.joints.length, fps: dt > 0 ? Math.round(1 / dt) : 0, fp: fp - rel, flips, palmFlips, maxStep: Math.round(maxStep), rows };
+  return {
+    n: r.joints.length,
+    fps: dt > 0 ? Math.round(1 / dt) : 0,
+    fp: fp - rel,
+    flips,
+    palmFlips,
+    maxStep: Math.round(maxStep),
+    jumps: jumps.slice(0, 3),
+    empty,
+    rows,
+  };
 }
 
 /** segment 가 찾은 순간(원본 영상 초) — 모양이 틀리면 undefined(맞추기가 구간 안에서 다시 찾는다) */

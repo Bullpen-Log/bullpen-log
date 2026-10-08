@@ -44,6 +44,7 @@ import {
   type Scenario,
 } from './pitch-lab/synth.mts';
 import { makeV2Track } from './pitch-lab/synth-v2.mts';
+import { gapWristError } from './pitch-lab/gap-check.mts';
 import { readFileSync } from 'node:fs';
 import {
   PART_NAMES,
@@ -859,6 +860,21 @@ console.log('■ 뼈대 자세(pose-rig) — public/models/skeleton-parts.json +
         check('거의 편 팔꿈치가 반대로 꺾여도 위팔 조각이 홱 돌지 않는다', spins === 0, `${spins}번 돎`);
       }
     }
+  }
+}
+
+console.log('■ 빈 구간(릴리스 근처 손목 10장면 지움) — 회전으로 잇고 그쪽으로 당긴다');
+{
+  /* 고치기 전(앞 장면 방향 복사 + 다듬기가 빈 구간을 직선으로) 씨앗 44 · 55 에서 키의 22.5% · 23.8% 였다 */
+  for (const seed of [44, 55]) {
+    const r = gapWristError(seed);
+    check(
+      `빈 구간 손목 최대 오차가 키의 17% 밑(씨앗 ${seed})`,
+      r != null && r.gap < 0.17,
+      r
+        ? `${(r.gap * 100).toFixed(1)}% · 보이는 주변 ${(r.seen * 100).toFixed(1)}%`
+        : '맞추기 실패'
+    );
   }
 }
 
