@@ -1045,7 +1045,14 @@ final class DualCameraController: NSObject, AVCaptureVideoDataOutputSampleBuffer
                 #if DEBUG
                 lab.event(hit)
                 #endif
-                if hit.kind == "end" { noteBallEnd(hit) } else { onThrow?(hit.atSec, hit.strength, hit.kind) }
+                if hit.kind == "end" {
+                    noteBallEnd(hit)
+                } else if hit.kind == "motion",
+                          ProcessInfo.processInfo.thermalState.rawValue >= ProcessInfo.ThermalState.serious.rawValue {
+                    /* 폰이 뜨겁다 — 움직임으로 조용히 재 보는 일(영상 받기 · 계산)은 쉬고 확실한 공만 알린다 */
+                } else {
+                    onThrow?(hit.atSec, hit.strength, hit.kind)
+                }
             }
         } else if output === wideOutput {
             wideRecorder.append(sampleBuffer)
@@ -1838,6 +1845,9 @@ final class MotionTrigger {
     static let MAX_MOVED = 0.016
     /// 알린 뒤 쉬는 시간(초)
     static let REST_SEC = 1.0
+    /// 공을 알린 뒤 이만큼(초)은 움직임을 알리지 않는다 — 포수가 공을 돌려주거나 투수가 걸어가는 움직임마다 사이트가 3초 영상을 받아
+    /// 조용히 재는 헛일이 공마다 하나씩 붙었다(배터리 · 발열)
+    static let MOTION_AFTER_BALL = 4.0
     /// 시험대용 — 6장 넘게 이은 길을 볼 때마다(앱에서는 nil)
     var debug: ((String) -> Void)?
 
@@ -2172,7 +2182,9 @@ final class MotionTrigger {
             return nil
         }
         defer { lastAbove = t }
-        guard t - lastAbove >= 0.35, t - lastMotion >= 1.5, t - motionQuietSince >= 0.5 else { return nil }
+        guard t - lastAbove >= 0.35, t - lastMotion >= 1.5, t - motionQuietSince >= 0.5,
+              t - lastHit >= MotionTrigger.MOTION_AFTER_BALL
+        else { return nil }
         lastMotion = t
         return Hit(kind: "motion", atSec: t, strength: energy / max(0.5, baseline), length: 0, areaFirst: 0, areaLast: 0, x: 0, y: 0)
     }
