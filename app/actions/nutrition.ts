@@ -5,16 +5,10 @@ import { prisma } from '@/lib/prisma';
 import { getCurrentUser } from '@/lib/dal';
 import { toDateKey } from '@/lib/pitch-stats';
 import { dbDate, isNutritionDate, keyOfDbDate } from '@/lib/nutrition/days';
-import {
-  effectiveGoal,
-  effectiveRate,
-  paceChoices,
-  storedRate,
-} from '@/lib/nutrition/age';
 import { loadNutritionDay, recentWeightKg } from '@/lib/nutrition/load';
-import { ageOn } from '@/lib/nutrition/targets';
-import { STEP_KCAL, checkTargetWeight, planOnSave } from '@/lib/nutrition/weight-goal';
+import { STEP_KCAL } from '@/lib/nutrition/weight-goal';
 import { cleanDietPrefs } from '@/lib/nutrition/diet-prefs';
+import { buildProfileData, type ProfileInput } from '@/lib/nutrition/profile-save';
 import {
   buildMealPlan,
   dropAvoided,
@@ -37,12 +31,6 @@ import {
   FOOD_NAME_MAX,
   KCAL_MAX,
   MACRO_MAX,
-  PROTEIN_G_MAX,
-  PROTEIN_G_MIN,
-  PROTEIN_MAX,
-  PROTEIN_MIN,
-  isActivityKey,
-  isGoalKey,
   isMealKey,
   isSex,
   type EntrySource,
@@ -661,7 +649,10 @@ export async function saveDietPrefs(raw: unknown): Promise<NutritionResult> {
       const ctx = parsePlanContext(plan.context);
       await prisma.mealPlan.update({
         where: { id: plan.id },
-        data: { items: kept, context: { ...ctx, reasons: [note, ...ctx.reasons].slice(0, 6) } },
+        data: {
+          items: kept,
+          context: { ...ctx, reasons: [note, ...ctx.reasons].slice(0, 6) },
+        },
       });
     }
   }
@@ -764,33 +755,16 @@ export async function markComboUsed(id: string): Promise<NutritionResult> {
 
 /*
  * 성별은 여기서 고르지 않는다 — 계정(User.sex)에 있고 내 정보에서 고친다.
- * NutritionProfile.sex 칸은 스키마에서 뺐다(2026-10-03) — DB 칸도 곧 지운다.
+ * NutritionProfile.sex 칸은 스키마에서 뺐다(2026-10-03) — DB 칸도 지웠다.
  *
  * 다만 배포 전에 열어 둔 영양 화면은 아직 성별 칸을 보낸다(legacySex). 계정의
  * 성별이 비어 있을 때만 그 값으로 채운다 — 버리면 고른 것이 사라지고, 비어 있지
  * 않은데 덮으면 내 정보에서 새로 고른 것을 옛 화면의 값이 되돌린다.
+ *
+ * 검사 · 나이 규칙 · 속도 · 목표 체중 · 계획 시작일은 lib/nutrition/profile-save.ts buildProfileData 에 있다 —
+ * 가입(trySignup) · 기존 사용자 온보딩(finishNutritionSetup)도 같은 함수로 저장한다(2026-10-08 인아웃식 온보딩).
  */
-export type ProfileInput = {
-  goal: string;
-  activity: string;
-  proteinPerKg: number;
-  kcalTarget: number | null;
-  /** 직접 정한 하루 단백질(g). null 은 계산으로. 배포 전에 열어 둔 화면은 안 보낸다(undefined → 저장된 값 그대로) */
-  proteinTargetG?: number | null;
-  /*
-   * 체중 목표(lib/nutrition/weight-goal.ts). 배포 전에 열어 둔 화면은 이 칸들을 안 보낸다(undefined) —
-   * 그때는 목표가 그대로면 저장된 값을 두고, 목표를 바꿨으면 비운다.
-   *
-   * 조정(kcalAdjust)과 계획 시작일(planSince)은 받지 않는다 — 서버가 정한다. 조정은 체중 카드의 단추
-   * (applyWeightStep)로만 움직이고, 여기서는 지우는 것만 된다(clearAdjust).
-   */
-  /** 목표 체중(kg). null 은 안 정함 */
-  targetWeightKg?: number | null;
-  /** 주당 속도(kg). null 은 나이별 기본 속도 */
-  weeklyRateKg?: number | null;
-  /** 받아들여 둔 체중 흐름 조정을 지운다 */
-  clearAdjust?: boolean;
-};
+export type { ProfileInput } from '@/lib/nutrition/profile-save';
 
 export async function saveNutritionProfile(
   input: ProfileInput
@@ -798,131 +772,15 @@ export async function saveNutritionProfile(
   const user = await getCurrentUser();
   if (!user) return NEED_LOGIN;
 
-  if (!isGoalKey(input.goal)) return { ok: false, error: '목표를 다시 골라 주세요.' };
-  if (!isActivityKey(input.activity))
-    return { ok: false, error: '평소 움직임을 다시 골라 주세요.' };
-  if (
-    !isNum(input.proteinPerKg) ||
-    input.proteinPerKg < PROTEIN_MIN ||
-    input.proteinPerKg > PROTEIN_MAX
-  ) {
-    return {
-      ok: false,
-      error: `단백질은 체중 1kg 당 ${PROTEIN_MIN}~${PROTEIN_MAX}g 사이로 골라 주세요.`,
-    };
-  }
-  let kcalTarget: number | null = null;
-  if (input.kcalTarget !== null) {
-    if (
-      !isNum(input.kcalTarget) ||
-      input.kcalTarget < 1000 ||
-      input.kcalTarget > 6000
-    ) {
-      return { ok: false, error: '하루 칼로리는 1,000~6,000 사이로 적어 주세요.' };
-    }
-    kcalTarget = Math.round(input.kcalTarget);
-  }
-  let proteinTargetG: number | null | undefined = undefined;
-  if (input.proteinTargetG === null) proteinTargetG = null;
-  else if (input.proteinTargetG !== undefined) {
-    if (
-      !isNum(input.proteinTargetG) ||
-      input.proteinTargetG < PROTEIN_G_MIN ||
-      input.proteinTargetG > PROTEIN_G_MAX
-    ) {
-      return {
-        ok: false,
-        error: `하루 단백질은 ${PROTEIN_G_MIN}~${PROTEIN_G_MAX}g 사이로 적어 주세요.`,
-      };
-    }
-    proteinTargetG = Math.round(input.proteinTargetG);
-  }
-
-  /* ── 체중 목표: 속도 · 목표 체중은 나이와 지금 체중으로 본다 ── */
   const prev = await prisma.nutritionProfile.findUnique({ where: { userId: user.id } });
   const today = toDateKey(new Date());
-  const age = ageOn(user.birthDate, today);
-  /* 어린이의 감량은 유지로 셈한다 — 속도와 목표 체중도 그 목표로 본다 */
-  const goal = effectiveGoal(input.goal, age);
-  const sameGoal = prev !== null && prev.goal === input.goal;
   const refKg = (await recentWeightKg(user.id, today)) ?? user.weightKg;
-
-  let weeklyRateKg: number | null = null;
-  if (input.weeklyRateKg === undefined) {
-    weeklyRateKg = sameGoal ? prev.weeklyRateKg : null;
-  } else if (isNum(input.weeklyRateKg)) {
-    /*
-     * 고를 수 있는 속도이거나, 이미 저장해 둔 속도 그대로(체중이 70kg 아래로 내려가도 다른 저장이 막히지 않게)일
-     * 때만 받는다. 그 밖은 거절하지 않고 기본 속도로 둔다 — 지난 날을 보며 연 목표 창은 그날 나이로 셈한 속도를
-     * 보내는데(만 18세 생일 전날의 0.2), 거절하면 고를 칸도 없는 화면에서 저장이 통째로 막힌다.
-     * 어느 쪽이든 storedRate 가 오늘 나이의 선택지 안으로 당긴다.
-     */
-    const kept = sameGoal && prev.weeklyRateKg === input.weeklyRateKg;
-    const picked = effectiveRate(input.weeklyRateKg, age, goal);
-    const usable =
-      kept || (picked !== null && paceChoices(age, goal, refKg).includes(picked));
-    weeklyRateKg = storedRate(usable ? input.weeklyRateKg : null, age, goal);
-  }
-
-  let targetWeightKg: number | null = null;
-  if (input.targetWeightKg === undefined) {
-    targetWeightKg = sameGoal ? prev.targetWeightKg : null;
-  } else {
-    const checked = checkTargetWeight(
-      goal,
-      age,
-      refKg,
-      user.heightCm,
-      input.targetWeightKg,
-      sameGoal ? prev.targetWeightKg : null
-    );
-    if (!checked.ok) return checked;
-    targetWeightKg = checked.kg;
-  }
-
-  /* 칼로리 계획이 바뀌면 조정은 0 으로, 계획은 오늘부터 — 목표 창의 미리보기와 같은 규칙 */
-  const plan = planOnSave(
-    prev && {
-      goal: isGoalKey(prev.goal) ? prev.goal : 'maintain',
-      activity: isActivityKey(prev.activity) ? prev.activity : 'mid',
-      weeklyRateKg: prev.weeklyRateKg,
-      kcalTarget: prev.kcalTarget,
-      kcalAdjust: prev.kcalAdjust,
-    },
-    {
-      goal: input.goal,
-      activity: input.activity,
-      weeklyRateKg,
-      kcalTarget,
-      clearAdjust: input.clearAdjust === true,
-    },
-    age
-  );
-
-  const data = {
-    goal: input.goal,
-    activity: input.activity,
-    proteinPerKg: Math.round(input.proteinPerKg * 10) / 10,
-    kcalTarget,
-    /* 안 보낸 화면(undefined)은 저장된 값을 건드리지 않는다 */
-    ...(proteinTargetG !== undefined ? { proteinTargetG } : {}),
-    targetWeightKg,
-    weeklyRateKg,
-    kcalAdjust: plan.kcalAdjust,
-    /*
-     * 계획이 안 바뀐 저장(단백질만 고침)은 시작일을 그대로 둔다. 시작일이 없던 옛 줄은 여기서 '마지막으로
-     * 저장한 날'로 굳힌다 — 이 저장이 updatedAt 을 오늘로 밀면 읽는 쪽(toProfile)이 오늘을 시작일로 읽는다.
-     */
-    ...(plan.restart
-      ? { planSince: dbDate(today) }
-      : prev && prev.planSince === null
-        ? { planSince: dbDate(toDateKey(prev.updatedAt)) }
-        : {}),
-  };
+  const built = buildProfileData(input, user, prev, refKg, today);
+  if (!built.ok) return built;
   await prisma.nutritionProfile.upsert({
     where: { userId: user.id },
-    update: data,
-    create: { userId: user.id, ...data },
+    update: built.data,
+    create: { userId: user.id, ...built.data },
   });
 
   const legacySex = (input as { sex?: unknown }).sex;

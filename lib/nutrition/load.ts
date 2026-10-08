@@ -76,6 +76,8 @@ export type NutritionDay = {
   prefs: DietPrefs;
   /** 목표를 한 번이라도 저장했나 — 안 했으면 처음 설정을 권한다 */
   hasProfile: boolean;
+  /** 온보딩(가입 · /nutrition/setup)을 끝냈나 — 취향만 저장한 옛 줄은 hasProfile 이어도 false(인아웃식 온보딩, 2026-10-08) */
+  onboarded: boolean;
   targets: Targets;
   burnItems: BurnItem[];
   entries: MealEntryView[];
@@ -563,6 +565,7 @@ export async function loadNutritionDay(
     profile,
     prefs: toDietPrefs(profileRow),
     hasProfile: profileRow !== null,
+    onboarded: profileRow?.onboardedAt != null,
     targets,
     burnItems,
     entries,

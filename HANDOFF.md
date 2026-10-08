@@ -11,6 +11,13 @@ Claude 로 작업을 시작하면 저절로 읽힌다. 규칙은 `AGENTS.md` 6�
 
 ---
 
+## 김민에게 — 2026-10-08 밤 · 금윤호(Claude) — DB 칸 넷 더함(NutritionProfile: goalKind · macroPreset · fatTargetG · onboardedAt) — 받으면 `npx prisma generate`
+
+받은 뒤 할 일: **`npx prisma generate`**(스키마가 바뀌었다 — 안 하면 영양 쪽이 타입 오류). DB 에는 이미 적용했다(백업 `db-2026-10-08-14-03.json`,
+마이그레이션 `20261008150000_nutrition_onboarding`, 넷 다 비워 둘 수 있어 네 옛 코드도 그대로 돈다). 인아웃식 회원가입 · 영양 온보딩
+(클라우드 설계 → `docs/designs/inout-onboarding.md` ④, 진행은 `docs/claude/geum-yunho.md` 4절 12번)을 만드는 중 — 가입 폼
+`app/login/auth-form.tsx` 와 영양 탭을 크게 고친다. 그 두 파일은 당분간 손대지 말아 줘(충돌). 계산은 더하기만이라 홈 영양 숫자는 안 바뀐다.
+
 ## 김민에게 — 2026-10-08 밤 · 금윤호(Claude) — 3D v2 를 Modal 에 올려 실제 영상이 끝까지 돌았다(fit 10.7초). 이어서 네가 할 것
 
 금윤호 컴퓨터에서 중단하고 넘긴다(사용자: "김민한테 넘겨서 계속 할 수 있게"). **상태**: Modal 앱 `bullpen-pitch3d`(김민 공간 als216c)에 배포됨,
