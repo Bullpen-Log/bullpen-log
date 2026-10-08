@@ -128,6 +128,8 @@ export type AnalyzeOptions = {
   distanceM?: number | null;
   /** 카메라가 아래로 숙인 각(라디안) — 찍을 때 폰 기울기 센서로 안 값. 모르면 0 */
   tiltRad?: number | null;
+  /** 공이 처음 보인 때(초, 영상 시각)를 이미 알면 — 앱 카메라의 공 알림. 구간을 줬을 때 공 찾기를 그 둘레부터 한다 */
+  seedT?: number | null;
   /** 거리를 공 크기로 어림한다(analyze-distance autoDistance) — distanceM 은 첫 어림 */
   distanceAuto?: boolean;
   /** fovDeg 가 잰 값인가(앱 동시 촬영의 videoFieldOfView) — 안 주면 파일의 렌즈 정보 · 렌즈 보정이 있을 때만 잰 값으로 본다 */
@@ -481,7 +483,11 @@ export async function analyzeVideo(options: AnalyzeOptions): Promise<VideoAnalyz
               approach,
               tiltRad: options.tiltRad ?? 0,
               fps: sampleFps,
-              seedHint: plan?.ball?.accepted ? { t: plan.ball.t } : null,
+              seedHint: plan?.ball?.accepted
+                ? { t: plan.ball.t }
+                : options.seedT != null
+                  ? { t: options.seedT }
+                  : null,
               shakePx,
               autoDistance: options.distanceAuto ?? false,
             })

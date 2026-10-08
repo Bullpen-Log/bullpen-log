@@ -1116,7 +1116,7 @@ final class DualCameraController: NSObject, AVCaptureVideoDataOutputSampleBuffer
      * 움직이지 않았나 본다. 멈추지 않으면 찍지 않고, 끈 채로 5초 넘게 흔들리면 보정을 되켜고 처음부터.
      */
     /*
-     * 가짜 공 알림 — 맥에서 `devicectl … process launch … com.bullpenlog.app -fakeThrow YES` 로 켰을 때만, 측정을 시작하고 5초 뒤 한 번.
+     * 가짜 공 알림 — 맥에서 `devicectl … process launch … com.bullpenlog.app -fakeThrow YES` 로 켰을 때만, 측정을 시작하고 8초 뒤 한 번.
      * 공을 던지지 않고 알림 → 클립 → 옮기기 → 계산의 걸린 시간을 잰다(사이트 콘솔 '[velo] clip …').
      */
     private var fakeArmedAt: Double?
@@ -1127,7 +1127,7 @@ final class DualCameraController: NSObject, AVCaptureVideoDataOutputSampleBuffer
             return
         }
         if fakeArmedAt == nil { fakeArmedAt = t }
-        guard let since = fakeArmedAt, t - since > 5 else { return }
+        guard let since = fakeArmedAt, t - since > 8 else { return }
         fakeDone = true
         print(String(format: "[cam] fake throw at %.2f (wall %.3f)", t, Date().timeIntervalSince1970))
         onThrow?(t - 0.05, 10, "ball")
