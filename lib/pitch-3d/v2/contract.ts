@@ -152,7 +152,7 @@ export const V2_FAIL_TEXT: Record<V2FailCode, string> = {
   internal: '분석 중 문제가 생겼어요. 다시 해 주세요.',
 };
 
-/** 영상 탓(다시 분석해도 같다 — 화면은 '다시 분석' 대신 촬영 안내, 화면 결정 5) */
+/** 영상 탓(다시 분석해도 같을 때가 많다 — 화면은 촬영 안내를 앞에 두고 '같은 영상으로 다시'는 옆에 작게, 화면 결정 5) */
 export const V2_VIDEO_FAULT: ReadonlySet<V2FailCode> = new Set<V2FailCode>([
   'video',
   'short',
