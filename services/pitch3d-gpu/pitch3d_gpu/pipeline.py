@@ -15,10 +15,10 @@ from typing import Callable
 from . import engine, video
 from .mapping import N_JOINTS
 
-COARSE_FPS = 60.0
+COARSE_FPS = 30.0  # 거친 1차는 30fps 면 시간 맞추기에 충분(v1 이 30fps 화면 녹화로 검증됨) — 60 은 장면이 두 배
 FINE_FPS = 120.0
 MAX_FRAMES = 600  # E-CAP — TS contract MAX_V2_FRAMES 와 같은 값
-MAX_VIDEO_SEC = 30.0  # 검토 4절 '너무 김' — 처음 30초만
+MAX_VIDEO_SEC = 20.0  # 검토 4절 '너무 김' — 처음 20초만(투구 한 번은 5~6초)
 DOWNLOAD_RETRY = (1.0, 3.0)
 UPLOAD_RETRY = (1.0, 3.0)
 V2_VERSION = "2.0.0"

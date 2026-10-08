@@ -20,7 +20,8 @@ GPU = os.environ.get("PITCH3D_GPU", "L4")
 TIMEOUT_SEC = 15 * 60  # 웹 쪽 15분 timeout 과 같다
 
 image = (
-    modal.Image.debian_slim(python_version="3.11")
+    # CUDA 12 + cuDNN 런타임 — onnxruntime-gpu 가 GPU 로 돌려면 cuDNN 이 있어야 한다(debian_slim 엔 없어 CPU 로 떨어졌다, 2026-10-08 첫 실제 영상)
+    modal.Image.from_registry("nvidia/cuda:12.4.1-cudnn-runtime-ubuntu22.04", add_python="3.11")
     .apt_install("ffmpeg", "curl", "ca-certificates", "gnupg", "libgl1", "libglib2.0-0")
     # node 22(타입 벗기기) — 엔진 묶음(engine/)을 그대로 돌린다
     .run_commands(
@@ -28,7 +29,9 @@ image = (
         "apt-get install -y nodejs",
         "node --version",
     )
-    .pip_install("rtmlib>=0.0.13", "onnxruntime-gpu>=1.17", "av>=12", "numpy>=1.26", "requests>=2.31", "fastapi[standard]>=0.110")
+    .pip_install("rtmlib>=0.0.13", "av>=12", "numpy>=1.26", "requests>=2.31", "fastapi[standard]>=0.110")
+    # rtmlib 가 끌어오는 CPU 용 onnxruntime 을 빼고 GPU 용만 남긴다(둘이 같이 있으면 CPU 쪽이 잡힌다)
+    .run_commands("pip uninstall -y onnxruntime onnxruntime-gpu", "pip install 'onnxruntime-gpu>=1.17'")
     .add_local_dir(os.path.join(os.path.dirname(__file__), "engine"), remote_path="/root/engine")
     .add_local_python_source("pitch3d_gpu")
 )
