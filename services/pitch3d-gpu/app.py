@@ -31,7 +31,8 @@ image = (
     )
     .pip_install("rtmlib>=0.0.13", "av>=12", "numpy>=1.26", "requests>=2.31", "fastapi[standard]>=0.110")
     # rtmlib 가 끌어오는 CPU 용 onnxruntime 을 빼고 GPU 용만 남긴다(둘이 같이 있으면 CPU 쪽이 잡힌다)
-    .run_commands("pip uninstall -y onnxruntime onnxruntime-gpu", "pip install 'onnxruntime-gpu>=1.17'")
+    # 1.22+ 는 CUDA 13 을 찾는다 — 이미지는 CUDA 12.4 + cuDNN 9 라 1.21 로 못박는다
+    .run_commands("pip uninstall -y onnxruntime onnxruntime-gpu", "pip install onnxruntime-gpu==1.21.1")
     .add_local_dir(os.path.join(os.path.dirname(__file__), "engine"), remote_path="/root/engine")
     .add_local_python_source("pitch3d_gpu")
 )
