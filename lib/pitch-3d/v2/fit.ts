@@ -73,6 +73,70 @@ const GAP_MAX = 15;
  */
 const GAP_PULL = 0.6;
 
+/** 점 P 를 A–B 직선에 대해 뒤집는다 — A · B 까지 거리(뼈 길이)는 그대로 */
+function mirrorAcross(P: Vec3, A: Vec3, B: Vec3): Vec3 {
+  const ab = sub(B, A);
+  const L2 = dot(ab, ab);
+  if (L2 < 1e-12) return P;
+  const foot = add(A, scale(ab, dot(sub(P, A), ab) / L2));
+  return sub(scale(foot, 2), P);
+}
+
+/**
+ * 경첩 관절(팔꿈치 · 무릎)이 반대로 꺾인 장면을 되돌린다 — 2026-10-08 김민: "흔들림 · 꺾임 같은 부자연스러운 움직임".
+ * - 팔꿈치: 거의 편(굽힘 35° 밑) 팔꿈치의 굽힘 축(위팔 × 아래팔)이 앞 장면과 반대면, 어깨–손목 선에 대해 뒤집어 앞 장면 쪽으로.
+ *   거의 편 팔꿈치는 2D 에서 어느 쪽으로 굽었는지 잘 안 보여 장면마다 뒤집혔다(샘플 1 · 3 굽힘 축 뒤집힘 4 · 1번).
+ * - 무릎: 무릎이 골반 앞쪽(엉덩이 좌우 × 위)과 반대(뒤)로 꺾였고 굽힘이 40° 밑이면, 엉덩이–발목 선에 대해 뒤집는다.
+ * 뼈 길이는 그대로(직선에 대한 대칭). 바꾼 장면 수를 돌려준다(시험용).
+ */
+export function fixHingeFlips(X: Vec3[][], U: Vec3): number {
+  let fixed = 0;
+  const flexDeg = (a: Vec3, b: Vec3) =>
+    (Math.acos(Math.max(-1, Math.min(1, dot(normalize(a), normalize(b))))) * 180) /
+    Math.PI;
+  for (const [S, E, W] of [
+    [V2J.lSh, V2J.lEl, V2J.lWr],
+    [V2J.rSh, V2J.rEl, V2J.rWr],
+  ] as const) {
+    let prev: Vec3 | null = null;
+    for (const fr of X) {
+      const up = sub(fr[E], fr[S]);
+      const fo = sub(fr[W], fr[E]);
+      const c = cross(up, fo);
+      const sin = norm(c) / Math.max(1e-12, norm(up) * norm(fo));
+      if (sin < 0.05) continue;
+      let axis = scale(c, 1 / norm(c));
+      if (prev && dot(axis, prev) < 0 && flexDeg(up, fo) < 35) {
+        fr[E] = mirrorAcross(fr[E], fr[S], fr[W]);
+        axis = scale(axis, -1);
+        fixed++;
+      }
+      if (sin >= 0.15) prev = axis;
+    }
+  }
+  for (const [Hp, K, An] of [
+    [V2J.lHip, V2J.lKn, V2J.lAn],
+    [V2J.rHip, V2J.rKn, V2J.rAn],
+  ] as const) {
+    for (const fr of X) {
+      const fwd = cross(sub(fr[V2J.lHip], fr[V2J.rHip]), U);
+      if (norm(fwd) < 1e-9) continue;
+      const ha = sub(fr[An], fr[Hp]);
+      const L2 = dot(ha, ha);
+      if (L2 < 1e-12) continue;
+      const foot = add(fr[Hp], scale(ha, dot(sub(fr[K], fr[Hp]), ha) / L2));
+      const off = sub(fr[K], foot);
+      if (norm(off) < 1e-9) continue;
+      const back = dot(normalize(off), normalize(fwd)) < -0.3;
+      if (back && flexDeg(sub(fr[K], fr[Hp]), sub(fr[An], fr[K])) < 40) {
+        fr[K] = mirrorAcross(fr[K], fr[Hp], fr[An]);
+        fixed++;
+      }
+    }
+  }
+  return fixed;
+}
+
 /** 두 단위 방향 사이 구면 보간 */
 function slerp(a: Vec3, b: Vec3, t: number): Vec3 {
   const th = Math.acos(Math.max(-1, Math.min(1, dot(a, b))));
@@ -442,10 +506,13 @@ export function fitPitch3dV2(input: V2Input): {
     let last = -1;
     for (let k = 0; k < n; k++) {
       if (!dirAt(k)) continue;
+      /* 영상 첫 장면들이 비었으면 처음 보인 방향으로 — 기본 방향으로 채웠다가 처음 보일 때 키의 절반까지 튀었다(2026-10-08 샘플 1 첫 장면 503mm) */
+      if (last < 0) for (let q = 0; q < k; q++) gapDir[q][j] = dirAt(k);
       if (last >= 0 && k - last > 1 && k - last - 1 <= GAP_MAX) {
         const a = dirAt(last)!;
         const b = dirAt(k)!;
-        for (let q = last + 1; q < k; q++) gapDir[q][j] = slerp(a, b, (q - last) / (k - last));
+        for (let q = last + 1; q < k; q++)
+          gapDir[q][j] = slerp(a, b, (q - last) / (k - last));
       }
       last = k;
     }
@@ -572,6 +639,7 @@ export function fitPitch3dV2(input: V2Input): {
     smoothTime(0.5);
     for (let k = 0; k < n; k++) projectBones(k);
   }
+  fixHingeFlips(X, U);
 
   /* ── 확신 · 다시 비춤 ── */
   const ps = core.side.person;

@@ -129,3 +129,61 @@ if (process.argv[1]?.endsWith('gap-check.mts'))
           : '맞추기 실패')
     );
   }
+
+/**
+ * 영상 첫 장면들에서 글러브 쪽 손목 · 손을 두 영상 다 지운 합성 — 처음 보이는 장면 근처에서 손목이 한 장면에 움직인 최대 거리(키 대비).
+ * 고치기 전엔 빈 장면을 기본 방향(아래)으로 채웠다가 처음 보일 때 튀었다(2026-10-08 샘플 1 첫 장면 503mm).
+ */
+export function leadGapJump(seed: number): number | null {
+  const sc: Scenario = {
+    ...base,
+    ...realistic,
+    name: 'lead',
+    slowSide: 4,
+    slowBack: 4,
+    offBack: 0,
+    sampleSide: 1 / 30,
+    sampleBack: 1 / 30,
+  };
+  const { side: cs, back: cb } = cameras(sc);
+  const s = makeV2Track(sc, cs, sc.side, 'side', seed);
+  const b = makeV2Track(sc, cb, sc.back, 'back', seed + 1);
+  const GLOVE = [V2J.lWr, V2J.lHandMid, V2J.lHandIdx, V2J.lHandPinky];
+  const cut = s.toMedia(0.25);
+  for (const tr of [s.track, b.track])
+    for (const f of tr.frames)
+      if (f.t <= cut) for (const j of GLOVE) f.p[j] = [f.p[j][0], f.p[j][1], 0];
+  const { result } = fitPitch3dV2({
+    side: s.track,
+    back: b.track,
+    hand: 'R',
+    heightCm: null,
+    jobId: '00000000-0000-4000-8000-000000000000',
+    poseModel: 'synth',
+    screenRecorded: true,
+    slowmoFps: 120,
+    events: {
+      kneeUp: s.toMedia(EV.kneeUp),
+      footPlant: s.toMedia(EV.footPlant),
+      release: s.toMedia(EV.release),
+    },
+  });
+  if (!result.ok) return null;
+  let jump = 0;
+  for (let k = 1; k < result.joints.length && result.t[k] <= cut + 0.2; k++)
+    jump = Math.max(
+      jump,
+      norm(
+        sub(result.joints[k][V2J.lWr] as Vec3, result.joints[k - 1][V2J.lWr] as Vec3)
+      ) / 1000
+    );
+  return jump;
+}
+
+if (process.argv[1]?.endsWith('gap-check.mts'))
+  for (const seed of [11, 22, 44]) {
+    const j = leadGapJump(seed);
+    console.log(
+      `seed ${seed}: 첫 장면 빈 손목 — 처음 보일 때까지 한 장면 최대 이동 ${j == null ? '실패' : (j * 100).toFixed(1) + '% 키'}`
+    );
+  }

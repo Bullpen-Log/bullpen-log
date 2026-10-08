@@ -32,7 +32,8 @@ import { J, JOINTS, N_JOINTS } from '../lib/pitch-3d/motion.ts';
 import { analyzePitch3d, type Pitch3dOk as V1Ok } from '../lib/pitch-3d/analyze.ts';
 import { project } from '../lib/pitch-3d/camera.ts';
 import type { MetricKey } from '../lib/pitch-3d/metrics.ts';
-import { fitPitch3dV2 } from '../lib/pitch-3d/v2/fit.ts';
+import { fitPitch3dV2, fixHingeFlips } from '../lib/pitch-3d/v2/fit.ts';
+import { add, cross, dot, norm, normalize, scale, sub, type Vec3 } from '../lib/pitch-3d/linalg.ts';
 import { pickSegment, readV2Events, runFit } from '../lib/pitch-3d/v2/run-node.ts';
 import { toPoseTrack } from '../lib/pitch-3d/v2/track.ts';
 import {
@@ -44,7 +45,7 @@ import {
   type Scenario,
 } from './pitch-lab/synth.mts';
 import { makeV2Track } from './pitch-lab/synth-v2.mts';
-import { gapWristError } from './pitch-lab/gap-check.mts';
+import { gapWristError, leadGapJump } from './pitch-lab/gap-check.mts';
 import { readFileSync } from 'node:fs';
 import {
   moundHeightAt,
@@ -902,6 +903,66 @@ console.log('■ 빈 구간(릴리스 근처 손목 10장면 지움) — 회전�
         ? `${(r.gap * 100).toFixed(1)}% · 보이는 주변 ${(r.seen * 100).toFixed(1)}%`
         : '맞추기 실패'
     );
+  }
+}
+
+console.log('■ 흔들림 · 꺾임 — 첫 장면 빈 관절 · 경첩 관절(팔꿈치 · 무릎) 반대로 꺾임');
+{
+  /* 고치기 전(기본 방향으로 채움) 씨앗 22 · 44 에서 키의 3.7% · 3.9% 였다 */
+  for (const seed of [22, 44]) {
+    const j = leadGapJump(seed);
+    check(
+      `첫 장면들이 빈 손목이 처음 보일 때 튀지 않는다(한 장면 키의 2% 밑, 씨앗 ${seed})`,
+      j != null && j < 0.02,
+      j == null ? '맞추기 실패' : `${(j * 100).toFixed(1)}%`
+    );
+  }
+  const { result } = runV2({ ...base, ...realistic, name: 'hinge' }, 5);
+  if (!result.ok) check('경첩 — 결과', false, result.code);
+  else {
+    const f0 = result.joints[Math.floor(result.joints.length / 2)].map(
+      (p) => [p[0] / 1000, p[1] / 1000, p[2] / 1000] as Vec3
+    );
+    const U: Vec3 = [0, 1, 0];
+    const sh = f0[V2J.rSh];
+    const wr = f0[V2J.rWr];
+    const ax = sub(wr, sh);
+    const perp = normalize(cross(ax, U));
+    /* 거의 편 팔꿈치(굽힘 약 15°)가 장면마다 반대쪽으로 */
+    const seq = Array.from({ length: 10 }, (_, k) => {
+      const fr = f0.map((p) => [...p] as Vec3);
+      fr[V2J.rEl] = add(scale(add(sh, wr), 0.5), scale(perp, (k % 2 ? -1 : 1) * 0.035));
+      return fr;
+    });
+    const lenBefore = seq.map((fr) => [norm(sub(fr[V2J.rEl], sh)), norm(sub(wr, fr[V2J.rEl]))]);
+    const nFix = fixHingeFlips(seq, U);
+    let flipsAfter = 0;
+    let prevAx: Vec3 | null = null;
+    let lenErr = 0;
+    seq.forEach((fr, k) => {
+      const c = cross(sub(fr[V2J.rEl], sh), sub(wr, fr[V2J.rEl]));
+      if (prevAx && dot(c, prevAx) < 0) flipsAfter++;
+      prevAx = c;
+      lenErr = Math.max(
+        lenErr,
+        Math.abs(norm(sub(fr[V2J.rEl], sh)) - lenBefore[k][0]),
+        Math.abs(norm(sub(wr, fr[V2J.rEl])) - lenBefore[k][1])
+      );
+    });
+    check(
+      '거의 편 팔꿈치가 장면마다 반대로 꺾이면 앞 장면 쪽으로 되돌린다(뼈 길이 그대로)',
+      nFix === 5 && flipsAfter === 0 && lenErr < 1e-9,
+      `되돌림 ${nFix} · 남은 뒤집힘 ${flipsAfter} · 길이 ${lenErr}`
+    );
+    /* 무릎이 골반 뒤쪽으로 꺾임(굽힘 약 20°) → 앞쪽으로 */
+    const fr = f0.map((p) => [...p] as Vec3);
+    const hip = fr[V2J.rHip];
+    const an = fr[V2J.rAn];
+    const fwd = normalize(cross(sub(fr[V2J.lHip], fr[V2J.rHip]), U));
+    fr[V2J.rKn] = add(scale(add(hip, an), 0.5), scale(fwd, -0.08));
+    const n1 = fixHingeFlips([fr], U);
+    const off = sub(fr[V2J.rKn], scale(add(hip, an), 0.5));
+    check('뒤로 꺾인 무릎을 앞으로 되돌린다', n1 === 1 && dot(off, fwd) > 0, `되돌림 ${n1}`);
   }
 }
 
