@@ -72,6 +72,8 @@ export type AnalysisJson = {
    * 겹쳐 그린다(설정 '영상에 스트라이크 존 표시'). 카메라로 잰 공만 — 영상 파일 · 옛 공은 없음.
    */
   zoneRect?: ZoneRect | null;
+  /** 기준 조건(1080p · 60fps · 2배가 진짜 줌 · 손떨림 보정) 밖에서 잰 까닭 — 비었으면 기준대로(2026-10-08) */
+  offStandard?: string[];
   /**
    * 모델 2.0(거리 자, lib/velocity-engine/analyze-distance.ts) — 넣은 거리 · 숙임 · 비행 끝을 무엇으로 정했나 · 3차원/수평 속력 ·
    * 위로 던진 각. 관리자가 다시 잴 때 거리를 여기서 꺼낸다. 1.x 로 잰 공은 없음.

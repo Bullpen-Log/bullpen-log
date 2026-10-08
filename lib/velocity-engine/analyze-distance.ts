@@ -91,6 +91,8 @@ export const AUTO_DISTANCE_SIGMA_REL = 0.03;
 export const AUTO_FOV_GUESS_SIGMA_REL = 0.08;
 /** 흰 배경 앞에서 묻힌 공 — 덩어리 지름 × 맞춘 깊이가 앞부분의 이만큼 밑이면 공 일부가 배경에 묻힌 것 */
 const PARTIAL_BALL = 0.75;
+/** 공 길을 고를 때 쓰는 거리(m) — 설정의 기본 거리(lib/velocity-setup.ts)와 같다. 넣은 거리는 궤적 맞추기에만 */
+const SELECT_DISTANCE_M = 20;
 /** 바로잡은 흔들림의 σ(비율) — 카메라가 밀린 것(돌지 않고)은 가까운 공 자리에 남는다 */
 export const STAB_SIGMA_REL = 0.015;
 export const AUTO_FOV_GUESS_NOTE =
@@ -258,6 +260,12 @@ export function analyzeByDistance(input: DistanceInput): DistanceResult {
   const { width, height, sourceWidth, sourceHeight } = input;
   const approach = input.approach ?? 'receding';
   const D = input.distanceM;
+  /*
+   * 공 길 고르기(씨앗 · 잡힌 공 판정 · 이어 찾기)는 넣은 거리가 아니라 늘 같은 거리로 한다. 넣은 거리로 고르면 거리를 조금만 바꿔도 끝
+   * 장면이 2~3장 바뀌어(실내: 공기저항 배율 · 'D 크기의 공' 문턱) 구속이 거리 변화의 2~3배로 뛰었다(114: 20 → 21.5m 에 103 → 132km/h).
+   * 늘 같은 거리로 고르면 구속이 넣은 거리에 비례한다. 기본 거리(20m)라 거리를 안 바꾼 사람의 값은 그대로, 밖 13개도 그대로.
+   */
+  const SEL_D = SELECT_DISTANCE_M;
   const tilt = input.tiltRad ?? 0;
   /* 흔들림 바로잡기 — 장면을 첫 장면에 맞추고, 찾은 공 자리는 첫 장면 자리로 되돌린다(stabilize.ts · ball-track.ts refOf) */
   const stab =
@@ -365,7 +373,7 @@ export function analyzeByDistance(input: DistanceInput): DistanceResult {
         }
       : fs;
   const bg = medianBackground(pickBackground(frames, stab.extra), width, height);
-  const { best, seeds } = bestFlight(fsOrdered, bg, cam, approach === 'approaching' ? -dt : dt, D, input.seedHint ?? null);
+  const { best, seeds } = bestFlight(fsOrdered, bg, cam, approach === 'approaching' ? -dt : dt, SEL_D, input.seedHint ?? null);
   report.seeds = seeds;
   if (!best) return fail('NOT_ENOUGH_FRAMES');
   report.seedFrame = order[best.seed.i];
@@ -403,7 +411,7 @@ export function analyzeByDistance(input: DistanceInput): DistanceResult {
    * 한다 — 그때 커진 덩어리는 궤적에서 먼 딴 것이었다(실내 098: 34px).
    */
   const endO = flight[flight.length - 1];
-  const dAtD = (cam.f * BALL_DIAMETER_M) / D;
+  const dAtD = (cam.f * BALL_DIAMETER_M) / SEL_D;
   const near = (o: TrackedBall) => {
     const p = best.fit.project(o.t);
     return Math.hypot(p[0] - o.u, p[1] - o.v) <= Math.max(4 * s, 0.5 * endO.diam);
@@ -449,7 +457,7 @@ export function analyzeByDistance(input: DistanceInput): DistanceResult {
     after.map(offPath).sort((a, b) => a - b)[after.length >> 1] > 2 * endO.diam &&
     lineRms(after) <= 0.6 * endO.diam;
   if (approach === 'receding' && !caught && !rebound) {
-    let ext = extendRansac(fsOrdered, flight, cam, fps, { dragScaleM: D });
+    let ext = extendRansac(fsOrdered, flight, cam, fps, { dragScaleM: SEL_D });
     /*
      * 놓치기 직전 두 장은 공이 배경 띠 · 천 가장자리에 걸쳐 덩어리 중심이 치우친 때가 있다 — 그 두 점이 늘린 궤적을 비틀어 후보를
      * 못 찾았다(실내 098). 아무것도 못 더했으면 빼고 한 번 더.
@@ -459,7 +467,7 @@ export function analyzeByDistance(input: DistanceInput): DistanceResult {
      * 했다(132). 실내에서 놓친 공은 미트까지 8~14장을 더 간다.
      */
     if (!ext.added && flight.length > 10) {
-      const ext2 = extendRansac(fsOrdered, flight.slice(0, -2), cam, fps, { dragScaleM: D });
+      const ext2 = extendRansac(fsOrdered, flight.slice(0, -2), cam, fps, { dragScaleM: SEL_D });
       const beyond = ext2.pts[ext2.pts.length - 1].i - flight[flight.length - 1].i;
       /* 원래 끝 너머 부분도 75% 넘게 차야 한다 — 밖 그물에서 맞은 뒤 흔들림이 띄엄띄엄 이어진 것(129: 6장 중 4)을 거른다 */
       const endI = flight[flight.length - 1].i;

@@ -13,10 +13,11 @@ import WebKit
 /// 부품이 앱에서 카메라를 직접 잡는다(광각도 같이면 AVCaptureMultiCamSession — iPhone 11 이후). 측정은 일반 카메라로 한다.
 ///
 /// 일반 카메라에는 표준 손떨림 보정을 건다 — 화면 가장자리를 잘라 화각이 좁아지므로, 클립의 화각은 렌즈 값(intrinsics)이 오면
-/// 그것, 안 오면 자른 몫을 짐작한 값이다(fovSource 'intrinsics' · 'estimate' · 보정이 꺼졌으면 'format').
+/// 그것, 안 오면 폰마다 잰 자른 몫(STAB_CROP_MEASURED)이나 짐작한 값이다(fovSource 'intrinsics' · 'measured' · 'estimate' ·
+/// 보정이 꺼졌으면 'format'). 15 Pro Max 는 보정을 켜면 렌즈 값을 주지 않는다(2026-10-08 잼).
 ///
 /// 측정용 장면을 웹으로 실시간(초당 60장) 넘기지 않는다 — 그 길이 충분히 빠를지 알 수 없어서다. 대신
-///   1. 두 카메라를 1초 조각(fMP4)으로 이어 녹화해 최근 8초를 쥐고 있다(SegmentRecorder)
+///   1. 두 카메라를 0.5초 조각(fMP4)으로 이어 녹화해 최근 8초를 쥐고 있다(SegmentRecorder)
 ///   2. 일반 카메라 장면의 움직임으로 던짐을 알아채 사이트에 알린다(MotionTrigger → 'throw' 알림, 시각 atSec)
 ///   3. 사이트가 clip({ atSec }) 으로 청하면 그 앞뒤를 두 카메라 다 잘라 파일로 넘긴다(read 로 조금씩 읽어 간다)
 ///   4. 사이트는 일반 카메라 클립을 영상 파일 엔진(lib/velocity-engine/analyze-video.ts)으로 잰다 — 보정을 마친 길이다
@@ -57,6 +58,8 @@ public class DualCameraPlugin: CAPPlugin, CAPBridgedPlugin {
         CAPPluginMethod(name: "discard", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "snapshot", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "focus", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "diag", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "tune", returnType: CAPPluginReturnPromise),
     ]
 
     private var controller: DualCameraController?
@@ -105,16 +108,19 @@ public class DualCameraPlugin: CAPPlugin, CAPBridgedPlugin {
             zoom: max(1, min(4, call.getDouble("zoom") ?? 1)),
             wide: call.getBool("wide") ?? true,
             focusPoint: DualCameraPlugin.devicePoint(call.getObject("focus")) ?? CGPoint(x: 0.5, y: 0.5),
-            /* 옛 사이트는 이 칸이 없다 — 네트 있음이면 먼 곳만(그물코에 맞지 않게) */
-            focusFar: call.getBool("focusFar") ?? (call.getBool("net") ?? false)
+            /* 사이트가 정한다(투수 뒤 · 네트면 먼 곳만). 안 보내면 끔 */
+            focusFar: call.getBool("focusFar") ?? false
         )
         let preview = DualCameraPlugin.rect(call.getObject("preview"))
         let controller = DualCameraController()
-        controller.onThrow = { [weak self] at, strength in
-            self?.notifyListeners("throw", data: ["atSec": at, "strength": strength])
+        controller.onThrow = { [weak self] at, strength, kind in
+            self?.notifyListeners("throw", data: ["atSec": at, "strength": strength, "kind": kind])
         }
         controller.onError = { [weak self] message in
             self?.notifyListeners("error", data: ["message": message])
+        }
+        controller.onFps = { [weak self] fps, dropped in
+            self?.notifyListeners("fps", data: ["fps": fps, "dropped": dropped])
         }
         self.controller = controller
         controller.start(
@@ -173,6 +179,29 @@ public class DualCameraPlugin: CAPPlugin, CAPBridgedPlugin {
     }
 
     /// 초점 다시 맞추기 — focus({ x, y, far }) 세로 화면 0~1(없으면 그 자리 그대로). 측정 중이면 맞춘 뒤 잠근다
+    /// 카메라 상태 — 고른 형식(묶어 읽기 · 늘리기 시작 배율 · 2배가 진짜인가) · 줌 · 손떨림 보정 · 초점 · 노출
+    @objc func diag(_ call: CAPPluginCall) {
+        guard let controller else {
+            call.reject("카메라가 꺼져 있어요.", "off")
+            return
+        }
+        controller.diag { call.resolve($0) }
+    }
+
+    /// 지금 켠 카메라를 바로 바꿔 본다 — { stabilization?: Bool, zoom?: Number, lens?: 0~1(수동 초점), autoFocus?: true } → diag
+    @objc func tune(_ call: CAPPluginCall) {
+        guard let controller else {
+            call.reject("카메라가 꺼져 있어요.", "off")
+            return
+        }
+        controller.tune(
+            stabilization: call.getBool("stabilization"),
+            zoom: call.getDouble("zoom"),
+            lens: call.getDouble("lens"),
+            autoFocus: call.getBool("autoFocus") == true
+        ) { call.resolve($0) }
+    }
+
     @objc func focus(_ call: CAPPluginCall) {
         guard let controller else {
             call.reject("카메라가 꺼져 있어요.", "off")
@@ -399,8 +428,13 @@ final class DualCameraController: NSObject, AVCaptureVideoDataOutputSampleBuffer
     /// 광각도 같이면 AVCaptureMultiCamSession, 일반만이면 AVCaptureSession — start 가 정한다
     private(set) var session = AVCaptureSession()
     let trigger = MotionTrigger()
-    var onThrow: ((Double, Double) -> Void)?
+    var onThrow: ((Double, Double, String) -> Void)?
     var onError: ((String) -> Void)?
+    /// 실제로 받은 초당 장면 수 · 그 사이 버린 장면 수 — 1초마다. 약속한 60 과 달리 처리가 밀리면 장면을 버린다(구형 폰 · 개발용 빌드)
+    var onFps: ((Double, Int) -> Void)?
+    private var fpsCount = 0
+    private var fpsDropped = 0
+    private var fpsSince = -1.0
 
     private let sessionQueue = DispatchQueue(label: "bullpen.dualcam.session")
     private let mainQueue = DispatchQueue(label: "bullpen.dualcam.main", qos: .userInitiated)
@@ -409,10 +443,18 @@ final class DualCameraController: NSObject, AVCaptureVideoDataOutputSampleBuffer
     private let mainOutput = AVCaptureVideoDataOutput()
     private let wideOutput = AVCaptureVideoDataOutput()
     private let mainRecorder = SegmentRecorder(bitrate: 12_000_000)
+    #if DEBUG
+    private let lab = LabRecorder()
+    #endif
     private let wideRecorder = SegmentRecorder(bitrate: 8_000_000)
     private var main: Picked?
     private var wide: Picked?
     private var mainFov: Double = 0
+    /// 형식의 화각(줌 전) — 줌을 바꾸면 mainFov 를 다시 셈한다
+    private var formatFov: Double = 0
+    private var previewConnection: AVCaptureConnection?
+    /// 수동 초점(렌즈 자리 0~1) — 있으면 자동초점 · 잠금이 건드리지 않는다
+    private var manualLens: Float?
     private var wideFov: Double = 0
     private var observers: [NSObjectProtocol] = []
     private var mainConnection: AVCaptureConnection?
@@ -425,9 +467,19 @@ final class DualCameraController: NSObject, AVCaptureVideoDataOutputSampleBuffer
     private var snapshotWaiters: [(short: Int, done: ([String: Any]?) -> Void)] = []
     private let snapshotLock = NSLock()
 
-    /// 표준 손떨림 보정이 잘라 내는 배율(긴 변 tan) — 애플은 밝히지 않는다. 화각이 약 10% 준다고 알려져 있다(VisionCamera
-    /// 문서). ponytail: 짐작값 — 렌즈 값이 안 오는 폰에서만 쓴다. 스피드건 짝 · 렌즈 보정(공으로 초점거리 재기)이 쌓이면 맞춘다.
-    static let STAB_CROP = 1.1
+    /// 표준 손떨림 보정이 잘라 내는 배율(긴 변 tan) — 애플은 밝히지 않아 폰마다 잰다: 개발용 앱이 멈춘 장면을 보정 켬 · 끔으로 찍고
+    /// (fovProbe) 맥의 scripts/velocity-lab/fov-crop.mjs 가 두 장의 배율을 잰다(1080p · 2배, 기준 조건). 기종 이름은 utsname.
+    /// 15 Pro Max(iPhone16,2) 2026-10-08: 1.096(상관 0.998).
+    static let STAB_CROP_MEASURED: [String: Double] = ["iPhone16,2": 1.096]
+    /// 안 잰 폰 — 화각이 약 10% 준다고 알려져 있다(VisionCamera 문서, 15 Pro Max 잰 값과 0.4% 차이). 'estimate' 라 엔진이 ± 를 넓힌다.
+    static let STAB_CROP_GUESS = 1.1
+    static let model: String = {
+        var info = utsname()
+        uname(&info)
+        return withUnsafeBytes(of: &info.machine) { String(decoding: $0.prefix { $0 != 0 }, as: UTF8.self) }
+    }()
+    /// 이 폰의 보정 배율과 잰 값인가
+    static let stabCrop: (factor: Double, measured: Bool) = STAB_CROP_MEASURED[model].map { ($0, true) } ?? (STAB_CROP_GUESS, false)
 
     /// 이 아이폰이 일반 + 광각을 함께 켤 수 있나 — 되면 일반 카메라로 고를 수 있는 화질(16:9)과 그 최고 fps 도 싣는다.
     /// 측정 카메라는 30fps 이하를 쓰지 않는다(사용자 규칙 2026-10-03) — 함께 켤 때 60fps 를 못 내는 아이폰은 '안 됨'(fps).
@@ -541,7 +593,12 @@ final class DualCameraController: NSObject, AVCaptureVideoDataOutputSampleBuffer
         waiters.forEach { $0.done(nil) }
         sessionQueue.async {
             if self.session.isRunning { self.session.stopRunning() }
-            self.mainQueue.async { self.mainRecorder.finish() }
+            self.mainQueue.async {
+                self.mainRecorder.finish()
+                #if DEBUG
+                self.lab.finish()
+                #endif
+            }
             self.wideQueue.async { self.wideRecorder.finish() }
         }
     }
@@ -615,6 +672,7 @@ final class DualCameraController: NSObject, AVCaptureVideoDataOutputSampleBuffer
             if wideConnection.isVideoStabilizationSupported { wideConnection.preferredVideoStabilizationMode = .off }
         }
         let previewConnection = AVCaptureConnection(inputPort: mainPort, videoPreviewLayer: previewLayer)
+        self.previewConnection = previewConnection
         let hasPreview = session.canAddConnection(previewConnection)
         if hasPreview {
             session.addConnection(previewConnection)
@@ -690,15 +748,25 @@ final class DualCameraController: NSObject, AVCaptureVideoDataOutputSampleBuffer
         DualCameraController.focus(mainDevice, at: focusPoint, far: focusFar, once: focusOnce)
         mainDevice.unlockForConfiguration()
 
+        #if DEBUG
+        DualCameraController.logFormats(mainDevice, picked: mainPick.format)
+        #endif
         main = mainPick
         wide = widePick
         /* 줌을 걸었으면 화각은 그만큼 좁다(가운데를 잘라 키움) — tan(화각/2) 이 줌의 역수로 */
         let zoomed = Double(mainDevice.videoZoomFactor)
-        mainFov = DualCameraController.narrow(Double(mainPick.format.videoFieldOfView), by: zoomed)
+        formatFov = Double(mainPick.format.videoFieldOfView)
+        mainFov = DualCameraController.narrow(formatFov, by: zoomed)
         wideFov = widePick.map { Double($0.format.videoFieldOfView) } ?? 0
         /* 센서는 가로로 찍는다 — 영상 파일에 '세로로 돌려 보기' 표시만 달아 세로 영상이 되게(픽셀은 안 돌린다) */
         let rotate = CGAffineTransform(rotationAngle: .pi / 2)
         mainRecorder.configure(width: mainPick.width, height: mainPick.height, fps: mainPick.fps, transform: rotate)
+        #if DEBUG
+        lab.configure(
+            width: mainPick.width, height: mainPick.height, fps: mainPick.fps, transform: rotate,
+            info: ["format": String(describing: mainPick.format), "zoom": config.zoom, "fovDeg": mainFov, "net": config.net]
+        )
+        #endif
         if let widePick {
             wideRecorder.configure(width: widePick.width, height: widePick.height, fps: widePick.fps, transform: rotate)
         }
@@ -707,11 +775,31 @@ final class DualCameraController: NSObject, AVCaptureVideoDataOutputSampleBuffer
             "mainFps": Int(mainPick.fps), "wideFps": Int(widePick?.fps ?? 0),
             "mainWidth": mainPick.height, "mainHeight": mainPick.width,
             "wideWidth": widePick?.height ?? 0, "wideHeight": widePick?.width ?? 0,
-            "mainFovDeg": stabilized ? DualCameraController.narrow(mainFov, by: DualCameraController.STAB_CROP) : mainFov,
+            "mainFovDeg": stabilized ? DualCameraController.narrow(mainFov, by: DualCameraController.stabCrop.factor) : mainFov,
             "wideFovDeg": wideFov,
             "hardwareCost": Double(multi?.hardwareCost ?? 0),
             "stabilization": stabilized ? "standard" : "off",
+            /*
+             * 기준 조건(모든 사용자 같게 — 2026-10-08 사용자: "폰 기종에 상관없이 일관성 있게") — 1080p · 60fps · 2배가 진짜 줌 · 손떨림
+             * 보정. 못 맞춰도 막지 않고 사이트가 알린다(몰래 낮추지 않는다).
+             */
+            "standard": [
+                "resolution": mainPick.width == 1920 && mainPick.height == 1080,
+                "fps": mainPick.fps >= DualCameraController.MIN_MEASURE_FPS,
+                "zoom": DualCameraController.nativeAt(mainPick.format, zoom: zoomed),
+                "stabilization": stabilized,
+            ],
         ]
+    }
+
+    /// 이 줌에서 화면을 늘리지 않나(진짜 해상도) — 늘리기 시작 배율이 그보다 크거나(3% 안), 진짜 줌 목록에 있으면
+    static func nativeAt(_ format: AVCaptureDevice.Format, zoom: Double) -> Bool {
+        guard zoom > 1.001 else { return true }
+        if Double(format.videoZoomFactorUpscaleThreshold) > zoom - 0.1 { return true }
+        if #available(iOS 16.0, *) {
+            return format.secondaryNativeResolutionZoomFactors.contains { abs(Double($0) - zoom) < 0.05 }
+        }
+        return false
     }
 
     /// 화각(도)을 배율만큼 좁힌 값 — 가운데를 잘라 키우면 tan(화각/2) 이 배율의 역수로 준다
@@ -721,7 +809,7 @@ final class DualCameraController: NSObject, AVCaptureVideoDataOutputSampleBuffer
     }
 
     /// 클립에 실을 일반 카메라의 화각과 그 출처. 렌즈 값이 손떨림 보정이 자른 몫까지 셈한 것 같으면(자르기 전보다 좁다) 그것,
-    /// 보정이 꺼져 있으면 형식의 화각, 아니면 자른 몫(STAB_CROP)을 짐작한 값.
+    /// 보정이 꺼져 있으면 형식의 화각, 아니면 자른 몫(stabCrop — 이 폰에서 잰 값이거나 짐작)만큼 좁힌 값.
     private func clipFov() -> (deg: Double, source: String, stabilized: Bool) {
         let stabilized = (mainConnection?.activeVideoStabilizationMode ?? .off) != .off
         fovLock.lock()
@@ -733,7 +821,8 @@ final class DualCameraController: NSObject, AVCaptureVideoDataOutputSampleBuffer
             if ratio > 0.6, ratio < (stabilized ? 0.98 : 1.03) { return (measured, "intrinsics", stabilized) }
         }
         if !stabilized { return (mainFov, "format", false) }
-        return (DualCameraController.narrow(mainFov, by: DualCameraController.STAB_CROP), "estimate", true)
+        let crop = DualCameraController.stabCrop
+        return (DualCameraController.narrow(mainFov, by: crop.factor), crop.measured ? "measured" : "estimate", true)
     }
 
     /// 켤 수 있는 모양(두 카메라면 함께 켤 수 있는 것) 중 8비트(HDR 아님), 바라는 fps 를 낼 수 있는 것.
@@ -768,17 +857,23 @@ final class DualCameraController: NSObject, AVCaptureVideoDataOutputSampleBuffer
          */
         let sharp = { (c: (AVCaptureDevice.Format, Int32, Int32, Double)) -> Double in
             guard zoom > 1.001 else { return 0 }
-            if Double(c.0.videoZoomFactorUpscaleThreshold) > zoom - 0.01 { return 2 }
+            /* 1.94 처럼 2 에 조금 못 미쳐도 늘리는 몫은 3% 라 진짜로 본다 */
+            if Double(c.0.videoZoomFactorUpscaleThreshold) > zoom - 0.1 { return 2 }
             if #available(iOS 16.0, *),
                c.0.secondaryNativeResolutionZoomFactors.contains(where: { abs(Double($0) - zoom) < 0.01 }) {
                 return 1
             }
             return 0
         }
+        /*
+         * 넓이(1080p)가 먼저 — 그 안에서 2배가 진짜인 것 → 센서를 묶어 읽지 않는 것 → 늘리기 시작 배율이 큰 것. 예전에는 '2배가
+         * 진짜인가'를 넓이보다 먼저 봐서 720p 가 1080p 를 이길 수 있었다.
+         */
         let best = (enough.isEmpty ? candidates : enough).max { a, b in
             if enough.isEmpty { return a.3 < b.3 }
-            if sharp(a) != sharp(b) { return sharp(a) < sharp(b) }
             if area(a) != area(b) { return smallest ? area(a) > area(b) : area(a) < area(b) }
+            if sharp(a) != sharp(b) { return sharp(a) < sharp(b) }
+            if a.0.isVideoBinned != b.0.isVideoBinned { return a.0.isVideoBinned }
             return a.0.videoZoomFactorUpscaleThreshold < b.0.videoZoomFactorUpscaleThreshold
         }
         guard let best else { throw DualCameraError.unsupported("format") }
@@ -816,10 +911,75 @@ final class DualCameraController: NSObject, AVCaptureVideoDataOutputSampleBuffer
             if let point { self.focusPoint = point }
             if let far { self.focusFar = far }
             if let once { self.focusOnce = once }
-            guard let device = self.mainDevice else { return }
+            guard let device = self.mainDevice, self.manualLens == nil else { return }
             do { try device.lockForConfiguration() } catch { return }
             defer { device.unlockForConfiguration() }
             DualCameraController.focus(device, at: self.focusPoint, far: self.focusFar, once: self.focusOnce)
+        }
+    }
+
+    func diag(_ done: @escaping ([String: Any]) -> Void) {
+        sessionQueue.async { done(self.diagNow()) }
+    }
+
+    /// 세션 줄에서
+    private func diagNow() -> [String: Any] {
+        guard let device = mainDevice else { return [:] }
+        let format = device.activeFormat
+        var native: [Double] = []
+        if #available(iOS 16.0, *) { native = format.secondaryNativeResolutionZoomFactors.map { Double($0) } }
+        let fov = clipFov()
+        let stab = mainConnection?.activeVideoStabilizationMode ?? .off
+        return [
+            "format": String(describing: format),
+            "binned": format.isVideoBinned,
+            "upscaleAt": Double(format.videoZoomFactorUpscaleThreshold),
+            "nativeZooms": native,
+            "zoom": Double(device.videoZoomFactor),
+            "stabilization": stab == .off ? "off" : (stab == .standard ? "standard" : "on(\(stab.rawValue))"),
+            "stabilizationSupported": mainConnection?.isVideoStabilizationSupported ?? false,
+            "focusMode": device.focusMode == .locked ? "locked" : (device.focusMode == .autoFocus ? "auto" : "continuous"),
+            "manualFocus": manualLens != nil,
+            "lens": Double(device.lensPosition),
+            "adjusting": device.isAdjustingFocus,
+            "farOnly": device.autoFocusRangeRestriction == .far,
+            "iso": Double(device.iso),
+            "shutter": device.exposureDuration.seconds,
+            "fovDeg": fov.deg,
+            "fovSource": fov.source,
+        ]
+    }
+
+    func tune(stabilization: Bool?, zoom: Double?, lens: Double?, autoFocus: Bool, done: @escaping ([String: Any]) -> Void) {
+        sessionQueue.async {
+            guard let device = self.mainDevice else {
+                done([:])
+                return
+            }
+            if let stabilization {
+                let mode: AVCaptureVideoStabilizationMode = stabilization ? .standard : .off
+                if let c = self.mainConnection, c.isVideoStabilizationSupported { c.preferredVideoStabilizationMode = mode }
+                if let c = self.previewConnection, c.isVideoStabilizationSupported { c.preferredVideoStabilizationMode = mode }
+            }
+            if (try? device.lockForConfiguration()) != nil {
+                if let zoom {
+                    let z = CGFloat(max(1, min(zoom, Double(device.activeFormat.videoMaxZoomFactor))))
+                    device.videoZoomFactor = z
+                    self.mainFov = DualCameraController.narrow(self.formatFov, by: Double(z))
+                }
+                if let lens, device.isLockingFocusWithCustomLensPositionSupported {
+                    let p = Float(min(1, max(0, lens)))
+                    self.manualLens = p
+                    device.setFocusModeLocked(lensPosition: p, completionHandler: nil)
+                }
+                if autoFocus {
+                    self.manualLens = nil
+                    DualCameraController.focus(device, at: self.focusPoint, far: self.focusFar, once: self.focusOnce)
+                }
+                device.unlockForConfiguration()
+            }
+            /* 렌즈 · 보정이 자리 잡을 틈 */
+            self.sessionQueue.asyncAfter(deadline: .now() + 0.4) { done(self.diagNow()) }
         }
     }
 
@@ -850,10 +1010,43 @@ final class DualCameraController: NSObject, AVCaptureVideoDataOutputSampleBuffer
 
     func captureOutput(_ output: AVCaptureOutput, didOutput sampleBuffer: CMSampleBuffer, from connection: AVCaptureConnection) {
         if output === mainOutput {
+            countFrame(CMSampleBufferGetPresentationTimeStamp(sampleBuffer).seconds)
+            #if DEBUG
+            logState()
+            #endif
             mainRecorder.append(sampleBuffer)
+            #if DEBUG
+            lab.append(sampleBuffer, armed: trigger.isArmed)
+            #endif
             readIntrinsics(sampleBuffer)
+            #if DEBUG
+            fovProbe(sampleBuffer)
+            #endif
             serveSnapshots(sampleBuffer)
-            if let hit = trigger.feed(sampleBuffer) { onThrow?(hit.atSec, hit.strength) }
+            if let d = mainDevice, d.isAdjustingFocus {
+                /* 렌즈가 움직이는 동안은 화면 전체가 바뀐다 */
+                trigger.quiet(until: CMSampleBufferGetPresentationTimeStamp(sampleBuffer).seconds + 0.3)
+            }
+            #if DEBUG
+            let feedStart = CACurrentMediaTime()
+            let hitNow = trigger.feed(sampleBuffer)
+            feedMs += (CACurrentMediaTime() - feedStart) * 1000
+            #else
+            let hitNow = trigger.feed(sampleBuffer)
+            #endif
+            #if DEBUG
+            fakeThrow(CMSampleBufferGetPresentationTimeStamp(sampleBuffer).seconds)
+            #endif
+            if let hit = hitNow {
+                #if DEBUG
+                print(String(format: "[cam] throw %@ at %.2f strength %.1f len %d area %.0f→%.0f pos %.0f,%.0f",
+                             hit.kind, hit.atSec, hit.strength, hit.length, hit.areaFirst, hit.areaLast, hit.x, hit.y))
+                #endif
+                #if DEBUG
+                lab.event(hit)
+                #endif
+                if hit.kind == "end" { noteBallEnd(hit) } else { onThrow?(hit.atSec, hit.strength, hit.kind) }
+            }
         } else if output === wideOutput {
             wideRecorder.append(sampleBuffer)
         }
@@ -876,6 +1069,186 @@ final class DualCameraController: NSObject, AVCaptureVideoDataOutputSampleBuffer
         fovLock.lock()
         intrinsicFov = fov
         fovLock.unlock()
+    }
+
+    #if DEBUG
+    /// 개발용 빌드(맥에 폰을 연결해 깐 앱)에서만 — 일반 카메라의 1080p · 4K 60fps 형식 전부와 고른 것을 콘솔에
+    static func logFormats(_ device: AVCaptureDevice, picked: AVCaptureDevice.Format) {
+        for format in device.formats {
+            let d = CMVideoFormatDescriptionGetDimensions(format.formatDescription)
+            let fps = format.videoSupportedFrameRateRanges.map(\.maxFrameRate).max() ?? 0
+            guard Int(d.width) * 9 == Int(d.height) * 16, d.width >= 1920, fps >= 59 else { continue }
+            var native: [CGFloat] = []
+            if #available(iOS 16.0, *) { native = format.secondaryNativeResolutionZoomFactors }
+            print("[cam] \(format === picked ? "PICK" : "    ") \(format) binned=\(format.isVideoBinned) up=\(format.videoZoomFactorUpscaleThreshold) native=\(native) stab=\(format.isVideoStabilizationModeSupported(.standard))")
+        }
+    }
+
+    private var logFrame = 0
+    private var logSince = 0.0
+    private var feedMs = 0.0
+    /// 2초마다 줌 · 초점 · 손떨림 · 노출 · 실제로 받은 fps · 장면당 공 찾기 시간
+    private func logState() {
+        logFrame += 1
+        let now = CACurrentMediaTime()
+        if logSince == 0 { logSince = now }
+        guard now - logSince >= 2, let d = mainDevice else { return }
+        let fps = Double(logFrame) / (now - logSince)
+        let ms = feedMs / Double(max(1, logFrame))
+        logFrame = 0
+        logSince = now
+        feedMs = 0
+        let stab = mainConnection?.activeVideoStabilizationMode.rawValue ?? -1
+        print(String(format: "[cam] fps=%.1f feed=%.2fms ", fps, ms) + "zoom=\(d.videoZoomFactor) lens=\(d.lensPosition) focus=\(d.focusMode.rawValue) adj=\(d.isAdjustingFocus) far=\(d.autoFocusRangeRestriction.rawValue) stab=\(stab) iso=\(d.iso) ss=\(d.exposureDuration.seconds) manual=\(manualLens.map { "\($0)" } ?? "nil")")
+    }
+
+    /*
+     * 화각 재기(앱을 켠 뒤 카메라를 처음 켤 때 한 번) — 폰이 1초 멈춰 있으면 손떨림 보정을 켠 장면(on) → 보정을 끄고 멈춘 장면(off) →
+     * 다시 켜고 멈춘 장면(on2)을 밝기 원본(PGM)으로 Documents/lab/fov-<시각>/ 에 남기고 렌즈 값(intrinsics)을 info.json 에 적는다.
+     * 맥에서 scripts/velocity-lab/fov-crop.mjs 가 on · off 를 견줘 보정이 화면을 몇 배 키웠나(STAB_CROP_MEASURED 에 넣을 값)를 재고, on · on2 로 그새 폰이
+     * 움직이지 않았나 본다. 멈추지 않으면 찍지 않고, 끈 채로 5초 넘게 흔들리면 보정을 되켜고 처음부터.
+     */
+    /*
+     * 가짜 공 알림 — 맥에서 `devicectl … process launch … com.bullpenlog.app -fakeThrow YES` 로 켰을 때만, 측정을 시작하고 5초 뒤 한 번.
+     * 공을 던지지 않고 알림 → 클립 → 옮기기 → 계산의 걸린 시간을 잰다(사이트 콘솔 '[velo] clip …').
+     */
+    private var fakeArmedAt: Double?
+    private var fakeDone = false
+    private func fakeThrow(_ t: Double) {
+        guard !fakeDone, UserDefaults.standard.bool(forKey: "fakeThrow"), trigger.isArmed else {
+            if !trigger.isArmed { fakeArmedAt = nil }
+            return
+        }
+        if fakeArmedAt == nil { fakeArmedAt = t }
+        guard let since = fakeArmedAt, t - since > 5 else { return }
+        fakeDone = true
+        print(String(format: "[cam] fake throw at %.2f (wall %.3f)", t, Date().timeIntervalSince1970))
+        onThrow?(t - 0.05, 10, "ball")
+    }
+
+    private static var probeDone = false
+    private var probeStage = 0
+    private var probeWait = 0
+    private var probeStill = 0
+    private var probeGrid: [UInt8] = []
+    private var probeDir: URL?
+    private var probeInfo: [String: Any] = [:]
+
+    private func fovProbe(_ buffer: CMSampleBuffer) {
+        guard !DualCameraController.probeDone, let conn = mainConnection, conn.isVideoStabilizationSupported,
+              let pixels = CMSampleBufferGetImageBuffer(buffer)
+        else { return }
+        probeStill = DualCameraController.isStill(pixels, grid: &probeGrid) ? probeStill + 1 : 0
+        probeWait += 1
+        let want: AVCaptureVideoStabilizationMode = probeStage == 1 ? .off : .standard
+        if probeStage == 1, probeWait > 300 {
+            setProbeStab(.standard)
+            probeStage = 0
+            probeWait = 0
+            return
+        }
+        /* 보정을 바꾼 뒤 0.75초는 기다리고, 바뀐 모드로 1초 멈춰 있으면 */
+        guard probeWait > 45, probeStill >= 60, (conn.activeVideoStabilizationMode == .off) == (want == .off) else { return }
+        if probeStage == 0 {
+            let stamp = DateFormatter()
+            stamp.dateFormat = "yyyyMMdd-HHmmss"
+            guard let docs = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first else { return }
+            let dir = docs.appendingPathComponent("lab/fov-\(stamp.string(from: Date()))", isDirectory: true)
+            try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+            probeDir = dir
+            probeInfo = [
+                "model": DualCameraController.model,
+                "format": String(describing: mainDevice?.activeFormat),
+                "zoom": Double(mainDevice?.videoZoomFactor ?? 1),
+                "formatFovDeg": formatFov,
+                "mainFovDeg": mainFov,
+                "intrinsicsSupported": conn.isCameraIntrinsicMatrixDeliverySupported,
+                "intrinsicsEnabled": conn.isCameraIntrinsicMatrixDeliveryEnabled,
+            ]
+        }
+        guard let dir = probeDir else { return }
+        let name = ["on", "off", "on2"][probeStage]
+        var shot: [String: Any] = [
+            "stab": conn.activeVideoStabilizationMode.rawValue,
+            "width": CVPixelBufferGetWidth(pixels), "height": CVPixelBufferGetHeight(pixels),
+        ]
+        DualCameraController.writePGM(pixels, to: dir.appendingPathComponent("\(name).pgm"))
+        if let data = CMGetAttachment(buffer, key: kCMSampleBufferAttachmentKey_CameraIntrinsicMatrix, attachmentModeOut: nil) as? Data,
+           data.count >= MemoryLayout<matrix_float3x3>.size {
+            let m = data.withUnsafeBytes { $0.loadUnaligned(as: matrix_float3x3.self) }
+            shot["fx"] = Double(m.columns.0.x)
+            shot["fy"] = Double(m.columns.1.y)
+            shot["cx"] = Double(m.columns.2.x)
+            shot["cy"] = Double(m.columns.2.y)
+        }
+        probeInfo[name] = shot
+        print("[cam] fov probe \(name) \(shot)")
+        probeStage += 1
+        probeWait = 0
+        probeStill = 0
+        if probeStage == 1 { setProbeStab(.off) }
+        if probeStage == 2 { setProbeStab(.standard) }
+        if probeStage == 3 {
+            DualCameraController.probeDone = true
+            if let data = try? JSONSerialization.data(withJSONObject: probeInfo, options: [.prettyPrinted, .sortedKeys]) {
+                try? data.write(to: dir.appendingPathComponent("info.json"))
+            }
+        }
+    }
+
+    private func setProbeStab(_ mode: AVCaptureVideoStabilizationMode) {
+        sessionQueue.async {
+            if let c = self.mainConnection, c.isVideoStabilizationSupported { c.preferredVideoStabilizationMode = mode }
+            if let p = self.previewConnection, p.isVideoStabilizationSupported { p.preferredVideoStabilizationMode = mode }
+        }
+    }
+
+    /// 밝기 48×27 점이 앞 장면과 거의 같나(평균 차 4 밑 — 어두운 방의 잡음은 넘김) — 폰이 멈춰 있나
+    static func isStill(_ pixels: CVPixelBuffer, grid: inout [UInt8]) -> Bool {
+        CVPixelBufferLockBaseAddress(pixels, .readOnly)
+        defer { CVPixelBufferUnlockBaseAddress(pixels, .readOnly) }
+        guard let base = CVPixelBufferGetBaseAddressOfPlane(pixels, 0) else { return false }
+        let w = CVPixelBufferGetWidthOfPlane(pixels, 0)
+        let h = CVPixelBufferGetHeightOfPlane(pixels, 0)
+        let stride = CVPixelBufferGetBytesPerRowOfPlane(pixels, 0)
+        let p = base.assumingMemoryBound(to: UInt8.self)
+        var next = [UInt8](repeating: 0, count: 48 * 27)
+        for j in 0 ..< 27 { for i in 0 ..< 48 { next[j * 48 + i] = p[(h * (2 * j + 1) / 54) * stride + w * (2 * i + 1) / 96] } }
+        defer { grid = next }
+        guard grid.count == next.count else { return false }
+        var sum = 0
+        for k in 0 ..< next.count { sum += abs(Int(next[k]) - Int(grid[k])) }
+        return Double(sum) / Double(next.count) < 4
+    }
+
+    /// 밝기 면(Y)을 그대로 PGM(P5)으로 — 센서 방향(가로)
+    static func writePGM(_ pixels: CVPixelBuffer, to url: URL) {
+        CVPixelBufferLockBaseAddress(pixels, .readOnly)
+        defer { CVPixelBufferUnlockBaseAddress(pixels, .readOnly) }
+        guard let base = CVPixelBufferGetBaseAddressOfPlane(pixels, 0) else { return }
+        let w = CVPixelBufferGetWidthOfPlane(pixels, 0)
+        let h = CVPixelBufferGetHeightOfPlane(pixels, 0)
+        let stride = CVPixelBufferGetBytesPerRowOfPlane(pixels, 0)
+        var out = Data("P5\n\(w) \(h)\n255\n".utf8)
+        for y in 0 ..< h { out.append(base.advanced(by: y * stride).assumingMemoryBound(to: UInt8.self), count: w) }
+        try? out.write(to: url)
+    }
+    #endif
+
+    /// 받은 장면을 세어 1초마다 알린다(카메라 장면 줄에서)
+    private func countFrame(_ t: Double) {
+        if fpsSince < 0 { fpsSince = t }
+        fpsCount += 1
+        guard t - fpsSince >= 1 else { return }
+        onFps?(Double(fpsCount - 1) / (t - fpsSince), fpsDropped)
+        fpsSince = t
+        fpsCount = 1
+        fpsDropped = 0
+    }
+
+    /// 늦어서 버린 장면(alwaysDiscardsLateVideoFrames) — 처리가 밀렸다
+    func captureOutput(_ output: AVCaptureOutput, didDrop sampleBuffer: CMSampleBuffer, from connection: AVCaptureConnection) {
+        if output === mainOutput { fpsDropped += 1 }
     }
 
     // MARK: 렌즈 보정용 장면
@@ -931,6 +1304,28 @@ final class DualCameraController: NSObject, AVCaptureVideoDataOutputSampleBuffer
 
     // MARK: 클립
 
+    /*
+     * 알린 공이 그물에 닿은 때 — 공 알림 시각 → 공을 마지막으로 본 시각. 클립을 거기서 일찍 끊는다(makeClips). 그물이 흔들려(덩어리가
+     * 넘침) 끝났고 알림 뒤 0.35초 넘게 날았을 때만 믿는다 — 밖 6개는 엔진이 정한 끝과 0.04초 안, 작아져 놓친 공(이어지지 않음)과
+     * 실내에서 몸 · 포수 움직임으로 일찍 끊긴 것(0.13 · 0.28초)은 거른다. 150km/h 공도 20m 를 0.35초 넘게 난다.
+     */
+    private var ballEnds: [(at: Double, end: Double)] = []
+    private let ballEndLock = NSLock()
+    private func noteBallEnd(_ hit: MotionTrigger.Hit) {
+        guard hit.strength == MotionTrigger.END_NET, hit.atSec - hit.ballAt >= 0.35 else { return }
+        ballEndLock.lock()
+        ballEnds.append((hit.ballAt, hit.atSec))
+        if ballEnds.count > 8 { ballEnds.removeFirst() }
+        ballEndLock.unlock()
+    }
+    private func ballEnd(for at: Double) -> Double? {
+        ballEndLock.lock()
+        defer { ballEndLock.unlock() }
+        return ballEnds.last { abs($0.at - at) < 0.02 }?.end
+    }
+    /// 그물에 닿은 뒤 더 담는 시간(초) — 엔진은 끝 뒤 6장쯤(맞고 튐)을 본다. 0.3 이면 배경 장면이 줄어 값이 1~2% 흔들려 넉넉히
+    static let BALL_END_PAD = 0.45
+
     func makeClips(
         at: Double,
         before: Double,
@@ -938,11 +1333,16 @@ final class DualCameraController: NSObject, AVCaptureVideoDataOutputSampleBuffer
         completion: @escaping (Result<(main: DualClip, wide: DualClip?), DualCameraError>) -> Void
     ) {
         clipQueue.async {
-            /* 던진 뒤 after 초까지 담긴 조각이 닫힐 때까지 기다린다(조각 1초 — 보통 2초 안) */
+            /*
+             * 던진 뒤 after 초까지 담긴 조각이 닫힐 때까지 기다린다(조각 0.5초). 공이 그물에 닿은 때를 알면 그 뒤 0.45초에서 일찍
+             * 끊는다 — 빠른 공은 알림 뒤 0.6초면 닿는데 늘 1.6초를 기다렸다(결과를 빨리 — 2026-10-08)
+             */
             let deadline = Date().addingTimeInterval(5)
-            let until = at + after
-            while Date() < deadline, (self.mainRecorder.latestEnd ?? 0) < until {
-                Thread.sleep(forTimeInterval: 0.1)
+            var until = at + after
+            while Date() < deadline {
+                if let end = self.ballEnd(for: at) { until = min(at + after, end + DualCameraController.BALL_END_PAD) }
+                if (self.mainRecorder.latestEnd ?? 0) >= until { break }
+                Thread.sleep(forTimeInterval: 0.05)
             }
             while self.wide != nil, Date() < deadline, (self.wideRecorder.latestEnd ?? 0) < until {
                 Thread.sleep(forTimeInterval: 0.1)
@@ -963,6 +1363,9 @@ final class DualCameraController: NSObject, AVCaptureVideoDataOutputSampleBuffer
                     fov: self.wideFov, fovSource: "format", stabilized: false
                 )
             }
+            #if DEBUG
+            print(String(format: "[cam] clip %.2f~%.2f ready (wall %.3f)", at - before, until, Date().timeIntervalSince1970))
+            #endif
             completion(.success((mainClip, wideClip)))
         }
     }
@@ -1055,7 +1458,8 @@ final class SegmentRecorder: NSObject, AVAssetWriterDelegate {
     private func start(at pts: CMTime, _ s: (width: Int, height: Int, fps: Int32, transform: CGAffineTransform)) {
         let writer = AVAssetWriter(contentType: UTType.mpeg4Movie)
         writer.outputFileTypeProfile = .mpeg4AppleHLS
-        writer.preferredOutputSegmentInterval = CMTime(seconds: 1, preferredTimescale: 600)
+        /* 조각 0.5초 — 클립은 담을 끝이 든 조각이 닫혀야 자른다(1초면 평균 0.5초를 더 기다렸다) */
+        writer.preferredOutputSegmentInterval = CMTime(seconds: 0.5, preferredTimescale: 600)
         writer.initialSegmentStartTime = pts
         writer.delegate = self
         let input = AVAssetWriterInput(mediaType: .video, outputSettings: [
@@ -1064,7 +1468,7 @@ final class SegmentRecorder: NSObject, AVAssetWriterDelegate {
             AVVideoHeightKey: s.height,
             AVVideoCompressionPropertiesKey: [
                 AVVideoAverageBitRateKey: bitrate,
-                AVVideoMaxKeyFrameIntervalDurationKey: 1.0,
+                AVVideoMaxKeyFrameIntervalDurationKey: 0.5,
                 AVVideoExpectedSourceFrameRateKey: Int(s.fps),
                 AVVideoProfileLevelKey: AVVideoProfileLevelH264HighAutoLevel,
                 /* B 장면 없이 — 보이는 차례 = 담긴 차례라 장면 시각을 그대로 쓴다 */
@@ -1134,6 +1538,138 @@ final class SegmentRecorder: NSObject, AVAssetWriterDelegate {
         return (out, first.start, last.end)
     }
 }
+
+// MARK: - 현장 기록(개발용 빌드만)
+
+#if DEBUG
+/// 맥에 연결해 깐 개발용 앱에서만 — 측정 중(armed)인 장면을 높은 화질(H.264 30Mbps, 키 장면 0.5초)로 앱 문서 폴더
+/// Documents/lab/<세션 시각>/ 에 1분 조각 영상으로 남기고, 던짐 알림(공 · 움직임)을 events.jsonl 에 적는다. 맥에서
+/// scripts/velocity-lab/pull-device.sh 로 가져와 공 찾기(ball-trigger 시험대) · 구속 엔진을 실제 현장 장면으로 맞춘다.
+/// 조각 이름의 숫자는 첫 장면의 카메라 시계(초) — 알림의 시각과 같은 시계다. 모두 합쳐 60조각(약 1시간 · 13GB — 스피드건과 같이 던지는
+/// 불펜 한 번이 다 남게)이 넘거나 폰의 남은 공간이 5GB 밑이면 오래된 것부터 지운다.
+final class LabRecorder {
+    private var root: URL?
+    private var dir: URL?
+    private var settings: (width: Int, height: Int, fps: Int32, transform: CGAffineTransform)?
+    private var writer: AVAssetWriter?
+    private var input: AVAssetWriterInput?
+    private var fileStart = 0.0
+    private let segmentSec = 60.0
+    private let keepFiles = 60
+    private let minFreeBytes: Int64 = 5_000_000_000
+
+    func configure(width: Int, height: Int, fps: Int32, transform: CGAffineTransform, info: [String: Any]) {
+        finish()
+        guard let docs = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first else { return }
+        let stamp = DateFormatter()
+        stamp.dateFormat = "yyyyMMdd-HHmmss"
+        let root = docs.appendingPathComponent("lab", isDirectory: true)
+        let dir = root.appendingPathComponent(stamp.string(from: Date()), isDirectory: true)
+        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        var meta = info
+        meta["width"] = width
+        meta["height"] = height
+        meta["fps"] = Int(fps)
+        if let data = try? JSONSerialization.data(withJSONObject: meta, options: [.prettyPrinted]) {
+            try? data.write(to: dir.appendingPathComponent("session.json"))
+        }
+        self.root = root
+        self.dir = dir
+        settings = (width, height, fps, transform)
+    }
+
+    /// 카메라 장면 줄에서
+    func append(_ buffer: CMSampleBuffer, armed: Bool) {
+        guard armed else {
+            finish()
+            return
+        }
+        let t = CMSampleBufferGetPresentationTimeStamp(buffer).seconds
+        if writer == nil || t - fileStart >= segmentSec {
+            finish()
+            start(at: CMSampleBufferGetPresentationTimeStamp(buffer))
+        }
+        guard let writer, let input, writer.status == .writing, input.isReadyForMoreMediaData else { return }
+        input.append(buffer)
+    }
+
+    func event(_ hit: MotionTrigger.Hit) {
+        guard let dir else { return }
+        let line = String(
+            format: "{\"t\":%.4f,\"kind\":\"%@\",\"strength\":%.2f,\"length\":%d,\"areaFirst\":%.1f,\"areaLast\":%.1f,\"x\":%.1f,\"y\":%.1f}\n",
+            hit.atSec, hit.kind, hit.strength, hit.length, hit.areaFirst, hit.areaLast, hit.x, hit.y
+        )
+        let url = dir.appendingPathComponent("events.jsonl")
+        if let h = try? FileHandle(forWritingTo: url) {
+            h.seekToEndOfFile()
+            h.write(Data(line.utf8))
+            try? h.close()
+        } else {
+            try? Data(line.utf8).write(to: url)
+        }
+    }
+
+    func finish() {
+        guard let writer, let input else { return }
+        self.writer = nil
+        self.input = nil
+        if writer.status == .writing {
+            input.markAsFinished()
+            writer.finishWriting { [weak self] in self?.prune() }
+        }
+    }
+
+    private func start(at pts: CMTime) {
+        guard let dir, let s = settings else { return }
+        let url = dir.appendingPathComponent(String(format: "%.3f.mp4", pts.seconds))
+        guard let writer = try? AVAssetWriter(outputURL: url, fileType: .mp4) else { return }
+        let input = AVAssetWriterInput(mediaType: .video, outputSettings: [
+            AVVideoCodecKey: AVVideoCodecType.h264,
+            AVVideoWidthKey: s.width,
+            AVVideoHeightKey: s.height,
+            AVVideoCompressionPropertiesKey: [
+                AVVideoAverageBitRateKey: 30_000_000,
+                AVVideoMaxKeyFrameIntervalDurationKey: 0.5,
+                AVVideoExpectedSourceFrameRateKey: Int(s.fps),
+                AVVideoProfileLevelKey: AVVideoProfileLevelH264HighAutoLevel,
+                AVVideoAllowFrameReorderingKey: false,
+            ] as [String: Any],
+        ])
+        input.expectsMediaDataInRealTime = true
+        input.transform = s.transform
+        guard writer.canAdd(input) else { return }
+        writer.add(input)
+        guard writer.startWriting() else { return }
+        writer.startSession(atSourceTime: pts)
+        self.writer = writer
+        self.input = input
+        fileStart = pts.seconds
+    }
+
+    /// 모든 세션의 조각을 합쳐 keepFiles 개 · 남은 공간 minFreeBytes 를 지킨다(오래된 것부터 지움, 가장 새 조각은 남김)
+    private func prune() {
+        guard let root else { return }
+        let fm = FileManager.default
+        let dirs = (try? fm.contentsOfDirectory(at: root, includingPropertiesForKeys: nil)) ?? []
+        var files: [(URL, Date)] = []
+        for d in dirs {
+            let items = (try? fm.contentsOfDirectory(at: d, includingPropertiesForKeys: [.creationDateKey])) ?? []
+            for f in items where f.pathExtension == "mp4" {
+                let date = (try? f.resourceValues(forKeys: [.creationDateKey]).creationDate) ?? .distantPast
+                files.append((f, date))
+            }
+        }
+        var left = files.count
+        for (f, _) in files.sorted(by: { $0.1 < $1.1 }).dropLast() {
+            let free = (try? root.resourceValues(forKeys: [.volumeAvailableCapacityForImportantUsageKey]))?
+                .volumeAvailableCapacityForImportantUsage ?? Int64.max
+            guard left > keepFiles || free < minFreeBytes else { break }
+            try? fm.removeItem(at: f)
+            left -= 1
+        }
+    }
+}
+#endif
 
 // MARK: - fMP4 시각 옮기기
 
@@ -1217,72 +1753,428 @@ enum FMP4 {
 
 // MARK: - 던짐 알아채기
 
-/// 일반 카메라 장면의 움직임으로 던짐을 알아챈다 — 볼 자리(roi, 세로 화면 0~1) 안의 48×48 점의 밝기가 앞 장면과 얼마나
-/// 달라졌나(움직임 세기). 0.35초 넘게 조용하다가 평소의 3배(그리고 +4) 넘게 움직이면 그 장면의 시각을 알린다. 한 번
-/// 알리면 1.5초는 쉰다. 잘못 알아채도(사람 움직임) 사이트의 영상 엔진이 공을 못 찾고 넘긴다 — 문턱은 폰 시험(3단계)에서 맞춘다.
+// BALL_TRIGGER_BEGIN — 맥 시험대(scripts/velocity-lab 의 ball-trigger 하네스)가 이 구간을 그대로 떼어 쓴다. Capacitor 없이 돌아야 한다.
+import CoreMedia
+
+/// 날아가는 공으로 던짐을 알아챈다(2026-10-08 사용자: "공을 던지지도 않았는데 투구를 인식했다고 계산으로 넘어간다 — 실제로 날아가는
+/// 투구를 인식했을 때만"). 예전에는 볼 자리의 움직임 크기만 봐서, 측정을 시작할 때 초점을 다시 맞추느라 렌즈가 움직이거나(화면 전체가
+/// 바뀜) 사람이 지나가도 던짐으로 알렸다.
+///
+/// 장면을 짧은 변 270칸 남짓으로 줄여, 앞 장면 · 뒤 장면 모두와 다른 곳(세 장면 차이 — 지나간 자리의 잔상이 안 남는다)만 남긴다.
+/// 그중 작고 옹골진 덩어리를 장면마다 이어, 6장 넘게 같은 길로 가면서 투수 뒤면 크기가 0.4배 밑으로 줄 때(멀어지는 공), 포수 뒤면
+/// 2배 넘게 클 때(다가오는 공)만 알린다. 투수 손 · 팔은 공처럼 빨리 작아지지 않는다(0.1초에 공은 3m → 6.5m 로 넓이 0.2배, 손은 0.6배쯤).
+/// 화면의 12% 넘게 한꺼번에 바뀌면(초점 · 노출 · 폰 흔들림) 그 장면은 버린다. 시각은 공이 처음 보인 장면.
 final class MotionTrigger {
     static let defaultRoi = CGRect(x: 0.15, y: 0.15, width: 0.7, height: 0.7)
 
+    struct Hit {
+        /// 'ball' = 날아가는 공이 확실함(바로 알린다) · 'motion' = 볼 자리가 크게 움직임(공인지는 사이트가 영상으로 가른다)
+        let kind: String
+        let atSec: Double
+        let strength: Double
+        /// 이은 장면 수 · 처음 · 끝 넓이(줄인 칸) · 처음 자리(줄인 칸) — 시험대 · 콘솔용
+        let length: Int
+        let areaFirst: Double
+        let areaLast: Double
+        let x: Double
+        let y: Double
+        /// 'end'(알린 공의 길이 끊김 — 그물 · 미트에 닿거나 놓침)일 때 그 공을 알린 시각(atSec 은 공을 마지막으로 본 시각)
+        var ballAt = 0.0
+    }
+
+    private struct Point {
+        let f: Int
+        let t: Double
+        let x: Double
+        let y: Double
+        let a: Double
+        let fill: Double
+        /// 그 장면에서 바뀐 칸의 몫 — 화면이 통째로 움직이면(손에 든 폰) 크다
+        let moved: Double
+    }
+
+    private struct Blob {
+        var area = 0
+        var sx = 0.0
+        var sy = 0.0
+        var minX = Int.max, maxX = 0, minY = Int.max, maxY = 0
+    }
+
     private let lock = NSLock()
     private var armed = true
-    private var roi = MotionTrigger.defaultRoi
-    private var previous: [UInt8] = []
-    private var baseline: Double = 0
-    private var lastAbove: Double = -10
-    private var lastFire: Double = -10
-    private let grid = 48
+    private var receding = true
+
+    /// 측정 중인가(알림을 내는가)
+    var isArmed: Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        return armed
+    }
+    private var quietUntil = -Double.infinity
+
+    private var step = 0
+    private var gw = 0
+    private var gh = 0
+    private var grids: [[UInt8]] = []
+    private var times: [Double] = []
+    private var frame = 0
+    private var tracks: [[Point]] = []
+    private var lastHit = -Double.infinity
+    /// 알린 공의 길 — 알린 뒤에도 이어 가다 3장 넘게 안 이어지면 'end' 를 한 번 알린다(앱이 클립을 거기서 일찍 끊는다)
+    private var follow: [Point]?
+
+    /// 장면의 몇 할이 한꺼번에 바뀌면 그 장면을 버리나
+    static let GLOBAL_FRACTION = 0.12
+    /// 이을 장면 수 · 투수 뒤 줄어든 배율 · 포수 뒤 커진 배율 · 처음(투수 뒤) · 끝(포수 뒤) 넓이의 바닥(줄인 칸)
+    static let MIN_LENGTH = 6
+    static let SHRINK = 0.35
+    static let GROW = 2.5
+    static let MIN_AREA = 22.0
+    /// 이은 자리가 직선에서 벗어난 정도(줄인 칸, 제곱평균) — 잡티 길은 이리저리 튄다
+    static let MAX_WOBBLE = 6.0
+    /// 한 장면의 덩어리가 이보다 많으면 공 찾기를 쉰다
+    static let MAX_BLOBS = 80
+    /// 공 길 동안 바뀐 칸 몫의 평균 상한
+    static let MAX_MOVED = 0.016
+    /// 알린 뒤 쉬는 시간(초)
+    static let REST_SEC = 1.0
+    /// 시험대용 — 6장 넘게 이은 길을 볼 때마다(앱에서는 nil)
+    var debug: ((String) -> Void)?
 
     func update(armed: Bool?, roi: CGRect?) {
         lock.lock()
-        if let armed { self.armed = armed }
-        if let roi { self.roi = roi }
+        if let armed {
+            /* 측정을 시작하면 초점을 다시 맞춘다(렌즈가 움직여 화면 전체가 바뀐다) — 1초는 보지 않는다 */
+            if armed, !self.armed { quietUntil = max(quietUntil, lastFrameTime + 1.0) }
+            self.armed = armed
+        }
+        _ = roi
         lock.unlock()
     }
 
-    func feed(_ sampleBuffer: CMSampleBuffer) -> (atSec: Double, strength: Double)? {
+    /// 공이 멀어지나(투수 뒤) · 다가오나(포수 뒤)
+    func setReceding(_ v: Bool) {
+        lock.lock()
+        receding = v
+        lock.unlock()
+    }
+
+    /// 이 시각까지 보지 않는다(초점이 움직이는 동안 등)
+    func quiet(until t: Double) {
+        lock.lock()
+        quietUntil = max(quietUntil, t)
+        lock.unlock()
+    }
+
+    private var lastFrameTime = 0.0
+
+    func feed(_ sampleBuffer: CMSampleBuffer) -> Hit? {
         guard let pixels = CMSampleBufferGetImageBuffer(sampleBuffer) else { return nil }
         let t = CMSampleBufferGetPresentationTimeStamp(sampleBuffer).seconds
-        lock.lock()
-        let roi = self.roi
-        let armed = self.armed
-        lock.unlock()
-
         CVPixelBufferLockBaseAddress(pixels, .readOnly)
         defer { CVPixelBufferUnlockBaseAddress(pixels, .readOnly) }
         guard CVPixelBufferGetPlaneCount(pixels) >= 1,
               let base = CVPixelBufferGetBaseAddressOfPlane(pixels, 0)
         else { return nil }
-        let width = CVPixelBufferGetWidthOfPlane(pixels, 0)
-        let height = CVPixelBufferGetHeightOfPlane(pixels, 0)
-        let stride = CVPixelBufferGetBytesPerRowOfPlane(pixels, 0)
-        let luma = base.assumingMemoryBound(to: UInt8.self)
+        return feed(
+            luma: base.assumingMemoryBound(to: UInt8.self),
+            width: CVPixelBufferGetWidthOfPlane(pixels, 0),
+            height: CVPixelBufferGetHeightOfPlane(pixels, 0),
+            stride: CVPixelBufferGetBytesPerRowOfPlane(pixels, 0),
+            t: t
+        )
+    }
 
-        /* 센서는 가로(오른쪽으로 누운 폰)로 찍는다 — 세로 화면의 (u 왼→오, v 위→아래) = 장면의 (x = v, y = 1 − u) */
-        var current = [UInt8](repeating: 0, count: grid * grid)
-        for j in 0..<grid {
-            let v = roi.minY + (Double(j) + 0.5) / Double(grid) * roi.height
-            let x = min(width - 1, max(0, Int(v * Double(width))))
-            for i in 0..<grid {
-                let u = roi.minX + (Double(i) + 0.5) / Double(grid) * roi.width
-                let y = min(height - 1, max(0, Int((1 - u) * Double(height))))
-                current[j * grid + i] = luma[y * stride + x]
+    func feed(luma: UnsafePointer<UInt8>, width: Int, height: Int, stride: Int, t: Double) -> Hit? {
+        lock.lock()
+        let armed = self.armed
+        let receding = self.receding
+        let quietUntil = self.quietUntil
+        lastFrameTime = t
+        lock.unlock()
+
+        let s = max(1, Int((Double(min(width, height)) / 270).rounded()))
+        if s != step || gw != width / s || gh != height / s {
+            step = s
+            gw = width / s
+            gh = height / s
+            grids = []
+            times = []
+            tracks = []
+        }
+        let n = gw * gh
+        var g = [UInt8](repeating: 0, count: n)
+        let o1 = s / 4, o2 = (3 * s) / 4
+        g.withUnsafeMutableBufferPointer { gp in
+            for j in 0..<gh {
+                let r1 = (j * s + o1) * stride, r2 = (j * s + o2) * stride
+                for i in 0..<gw {
+                    let x1 = i * s + o1, x2 = i * s + o2
+                    let sum = Int(luma[r1 + x1]) + Int(luma[r1 + x2]) + Int(luma[r2 + x1]) + Int(luma[r2 + x2])
+                    gp[j * gw + i] = UInt8(truncatingIfNeeded: sum >> 2)
+                }
             }
         }
-        defer { previous = current }
-        guard previous.count == current.count else { return nil }
-        var sum = 0
-        for k in 0..<current.count { sum += abs(Int(current[k]) - Int(previous[k])) }
-        let energy = Double(sum) / Double(current.count)
-        if baseline == 0 { baseline = max(0.5, energy) }
+        grids.append(g)
+        times.append(t)
+        frame += 1
+        if grids.count > 3 {
+            grids.removeFirst()
+            times.removeFirst()
+        }
+        guard grids.count == 3 else { return nil }
+        /* 가운데 장면(b)을 본다 — 앞(a) · 뒤(c) 모두와 다른 곳만 */
+        let tb = times[1]
+        let fb = frame - 1
+        guard tb >= quietUntil else {
+            tracks.removeAll()
+            motionQuietSince = tb
+            return nil
+        }
 
+        var d = [UInt8](repeating: 0, count: n)
+        var sumD = 0
+        var sumE = 0
+        var nE = 0
+        let ex0 = gw * 15 / 100, ex1 = gw * 85 / 100, ey0 = gh * 15 / 100, ey1 = gh * 85 / 100
+        grids[0].withUnsafeBufferPointer { a in
+            grids[1].withUnsafeBufferPointer { b in
+                grids[2].withUnsafeBufferPointer { c in
+                    d.withUnsafeMutableBufferPointer { dp in
+                        for k in 0..<n {
+                            let bb = Int(b[k])
+                            let m = min(abs(bb - Int(a[k])), abs(bb - Int(c[k])))
+                            dp[k] = UInt8(m)
+                            sumD += m
+                        }
+                    }
+                    /* 움직임 세기 — 가운데 70% 에서 장면 b 와 c 의 차이(예전 알아채기와 같은 뜻) */
+                    for j in Swift.stride(from: ey0, to: ey1, by: 2) {
+                        for i in Swift.stride(from: ex0, to: ex1, by: 2) {
+                            let k = j * gw + i
+                            sumE += abs(Int(c[k]) - Int(b[k]))
+                            nE += 1
+                        }
+                    }
+                }
+            }
+        }
+        let energy = Double(sumE) / Double(max(1, nE))
+        let thr = max(12, Int((Double(sumD) / Double(n) * 4).rounded()))
+        /* 가장자리 3% 는 보지 않는다 */
+        let mx = max(1, gw * 3 / 100), my = max(1, gh * 3 / 100)
+        var over = 0
+        for j in my..<(gh - my) { for i in mx..<(gw - mx) where Int(d[j * gw + i]) > thr { over += 1 } }
+        if Double(over) / Double(n) > MotionTrigger.GLOBAL_FRACTION {
+            /* 초점 · 노출 · 폰 흔들림 — 공도 움직임도 아니다(따라가던 공은 여기서 끝으로 본다) */
+            tracks.removeAll()
+            motionQuietSince = tb
+            return endFollow(MotionTrigger.END_GLOBAL)
+        }
+
+        /* 덩어리(4이웃) */
+        var seen = [Bool](repeating: false, count: n)
+        var blobs: [Blob] = []
+        var stack: [Int] = []
+        let maxArea = max(40, n / 250)
+        outer: for j in my..<(gh - my) {
+            for i in mx..<(gw - mx) {
+                let k0 = j * gw + i
+                guard !seen[k0], Int(d[k0]) > thr else { continue }
+                var bl = Blob()
+                stack.removeAll(keepingCapacity: true)
+                stack.append(k0)
+                seen[k0] = true
+                while let k = stack.popLast() {
+                    let x = k % gw, y = k / gw
+                    bl.area += 1
+                    bl.sx += Double(x)
+                    bl.sy += Double(y)
+                    bl.minX = min(bl.minX, x); bl.maxX = max(bl.maxX, x)
+                    bl.minY = min(bl.minY, y); bl.maxY = max(bl.maxY, y)
+                    if bl.area > maxArea * 4 { continue }
+                    for nb in [k - 1, k + 1, k - gw, k + gw] {
+                        guard nb >= 0, nb < n, !seen[nb], Int(d[nb]) > thr else { continue }
+                        let nx = nb % gw
+                        guard abs(nx - x) <= 1, nx >= mx, nx < gw - mx, nb / gw >= my, nb / gw < gh - my else { continue }
+                        seen[nb] = true
+                        stack.append(nb)
+                    }
+                }
+                blobs.append(bl)
+                if blobs.count > MotionTrigger.MAX_BLOBS { break outer }
+            }
+        }
+        /* 잔 덩어리가 너무 많은 장면(흔들리는 그물 · 잎) — 공을 믿고 가를 수 없다. 움직임 세기만 본다 */
+        guard blobs.count <= MotionTrigger.MAX_BLOBS else {
+            tracks.removeAll()
+            /* 따라가던 공이 그물에 맞아 그물이 흔들린다 — 거기가 끝 */
+            if let end = endFollow(MotionTrigger.END_NET) { return end }
+            return armed ? motionHit(energy: energy, t: tb) : nil
+        }
+        var points: [Point] = []
+        for bl in blobs where bl.area >= 2 && bl.area <= maxArea {
+            let w = bl.maxX - bl.minX + 1, h = bl.maxY - bl.minY + 1
+            let fill = Double(bl.area) / Double(w * h)
+            guard Double(max(w, h)) / Double(min(w, h)) <= 3, fill >= 0.3 else { continue }
+            points.append(Point(
+                f: fb, t: tb, x: bl.sx / Double(bl.area), y: bl.sy / Double(bl.area), a: Double(bl.area), fill: fill,
+                moved: Double(over) / Double(n)
+            ))
+        }
+
+        /* 잇기 — 직전 두 장면 안에 끝난 길에서, 예상 자리에 가깝고 넓이가 3배 넘게 안 바뀐 것 */
+        let maxStep = Double(max(gw, gh)) * 0.06
+        var used = [Bool](repeating: false, count: points.count)
+        var kept: [[Point]] = []
+        for var tr in tracks {
+            guard let last = tr.last, fb - last.f <= 2 else { continue }
+            var px = last.x, py = last.y
+            if tr.count >= 2 {
+                let prev = tr[tr.count - 2]
+                let df = Double(max(1, last.f - prev.f))
+                px += (last.x - prev.x) / df * Double(fb - last.f)
+                py += (last.y - prev.y) / df * Double(fb - last.f)
+            }
+            var best = -1
+            var bestD = maxStep * Double(fb - last.f)
+            for (k, p) in points.enumerated() where !used[k] {
+                let r = p.a / last.a
+                guard r > 0.33, r < 3 else { continue }
+                let dd = hypot(p.x - px, p.y - py)
+                if dd <= bestD { bestD = dd; best = k }
+            }
+            if best >= 0 {
+                used[best] = true
+                tr.append(points[best])
+            }
+            kept.append(tr)
+        }
+        for (k, p) in points.enumerated() where !used[k] && kept.count < 80 { kept.append([p]) }
+        tracks = kept
+
+        if var fl = follow, let last = fl.last {
+            /* 알린 공을 이어 간다 — 길 잇기와 같은 자리 · 넓이 조건(다른 길이 가져간 덩어리여도 된다) */
+            let prev = fl[fl.count - 2]
+            let df = Double(max(1, last.f - prev.f))
+            let px = last.x + (last.x - prev.x) / df * Double(fb - last.f)
+            let py = last.y + (last.y - prev.y) / df * Double(fb - last.f)
+            var best: Point?
+            var bestD = maxStep * Double(fb - last.f)
+            for p in points where p.a / last.a > 0.33 && p.a / last.a < 3 {
+                let dd = hypot(p.x - px, p.y - py)
+                if dd <= bestD { bestD = dd; best = p }
+            }
+            if let best {
+                fl.append(best)
+                follow = fl
+            } else if fb - last.f > 3 {
+                return endFollow(MotionTrigger.END_LOST)
+            }
+        }
+
+        guard armed else { return nil }
+        if tb - lastHit >= MotionTrigger.REST_SEC, let (hit, tr) = ballHit(fb: fb, receding: receding) {
+            lastHit = tb
+            tracks.removeAll()
+            follow = tr
+            return hit
+        }
+        return motionHit(energy: energy, t: tb)
+    }
+
+    /// 공 끝의 까닭(Hit.strength) — 이어지지 않음(작아져 놓침) · 화면이 통째로 바뀜 · 덩어리가 넘침(그물이 흔들림)
+    static let END_LOST = 0.0
+    static let END_GLOBAL = 1.0
+    static let END_NET = 2.0
+
+    /// 따라가던 공을 여기서 끝낸다 — 마지막으로 본 시각으로 'end'
+    private func endFollow(_ why: Double) -> Hit? {
+        guard let fl = follow, let last = fl.last else { return nil }
+        follow = nil
+        return Hit(
+            kind: "end", atSec: last.t, strength: why, length: fl.count, areaFirst: fl[0].a, areaLast: last.a,
+            x: last.x, y: last.y, ballAt: fl[0].t
+        )
+    }
+
+    /// 확실한 공 — 6장 넘게 이은 길이 투수 뒤면 0.35배 밑으로 줄고(포수 뒤면 2.5배 넘게 크고), 거의 직선으로 갈 때
+    private func ballHit(fb: Int, receding: Bool) -> (Hit, [Point])? {
+        for tr in tracks where tr.count >= MotionTrigger.MIN_LENGTH && tr.last?.f == fb {
+            let first = tr[0], last = tr[tr.count - 1]
+            /* 빠진 장면이 많지 않게 · 처음 두 장 · 끝 두 장의 넓이 */
+            guard last.f - first.f <= tr.count + 2 else { continue }
+            let a0 = (tr[0].a + tr[1].a) / 2
+            let a1 = (tr[tr.count - 1].a + tr[tr.count - 2].a) / 2
+            var trend = 0
+            for k in 1..<tr.count where receding ? tr[k].a <= tr[k - 1].a : tr[k].a >= tr[k - 1].a { trend += 1 }
+            let wobble = MotionTrigger.wobble(tr)
+            if tr.count == MotionTrigger.MIN_LENGTH {
+                debug?("TRACK \(first.t) " + tr.map { String(format: "%.1f:%.1f:%.0f", $0.x, $0.y, $0.a) }.joined(separator: " ")
+                       + String(format: " W=%.2f", wobble))
+            }
+            guard Double(trend) >= 0.6 * Double(tr.count - 1), wobble <= MotionTrigger.MAX_WOBBLE else { continue }
+            /*
+             * 길 동안 화면이 통째로 움직였으면 공이 아니다 — 손에 든 폰 · 폰을 만짐(2026-10-08 맥에 연결해 본 헛것: 바뀐 칸 평균 1.9~3.2%,
+             * 진짜 공 10개는 0.3~1.4%)
+             */
+            guard tr.reduce(0, { $0 + $1.moved }) / Double(tr.count) <= MotionTrigger.MAX_MOVED else { continue }
+            /* 가운데 70% 에서 시작 — 수평 단계에서 릴리스 포인트를 가운데 표적에 맞춘다. 가장자리(발 · 바닥 · 그물 끝)의 헛것을 뺀다 */
+            let fx = first.x / Double(gw), fy = first.y / Double(gh)
+            guard fx >= 0.15, fx <= 0.85, fy >= 0.15, fy <= 0.85 else { continue }
+            let ok = receding
+                ? (a0 >= MotionTrigger.MIN_AREA && a1 <= MotionTrigger.SHRINK * a0)
+                : (a1 >= MotionTrigger.MIN_AREA && a1 >= MotionTrigger.GROW * a0)
+            guard ok else { continue }
+            return (Hit(
+                kind: "ball", atSec: first.t, strength: receding ? a0 / max(1, a1) : a1 / max(1, a0),
+                length: tr.count, areaFirst: a0, areaLast: a1, x: first.x, y: first.y
+            ), tr)
+        }
+        return nil
+    }
+
+    /// 자리(x, y)를 장면 차례에 맞춘 직선에서 벗어난 정도(제곱평균)
+    private static func wobble(_ tr: [Point]) -> Double {
+        let n = Double(tr.count)
+        let fs = tr.map { Double($0.f) }
+        let mf = fs.reduce(0, +) / n
+        let vf = fs.reduce(0) { $0 + ($1 - mf) * ($1 - mf) }
+        guard vf > 0 else { return 0 }
+        var sum = 0.0
+        for coord in [tr.map(\.x), tr.map(\.y)] {
+            let mv = coord.reduce(0, +) / n
+            var cov = 0.0
+            for k in 0..<tr.count { cov += (fs[k] - mf) * (coord[k] - mv) }
+            let b = cov / vf
+            for k in 0..<tr.count {
+                let r = coord[k] - (mv + b * (fs[k] - mf))
+                sum += r * r
+            }
+        }
+        return (sum / n).squareRoot()
+    }
+
+    /*
+     * 움직임(예전 알아채기) — 볼 자리의 움직임 세기가 0.35초 넘게 조용하다가 평소의 3배(그리고 +4) 넘게 커지면. 투수의 와인드업에
+     * 먼저 반응한다. 이것만으로는 공인지 모른다 — 사이트가 화면에 띄우지 않고 클립을 재 보고, 공이 없으면 조용히 넘긴다.
+     */
+    private var baseline = 0.0
+    private var lastAbove = -Double.infinity
+    private var lastMotion = -Double.infinity
+    private var motionQuietSince = -Double.infinity
+
+    private func motionHit(energy: Double, t: Double) -> Hit? {
+        if baseline == 0 { baseline = max(0.5, energy) }
         let threshold = max(baseline * 3, baseline + 4)
         guard energy > threshold else {
             baseline = baseline * 0.97 + energy * 0.03
             return nil
         }
         defer { lastAbove = t }
-        guard armed, t - lastAbove >= 0.35, t - lastFire >= 1.5 else { return nil }
-        lastFire = t
-        return (t, energy / max(0.5, baseline))
+        guard t - lastAbove >= 0.35, t - lastMotion >= 1.5, t - motionQuietSince >= 0.5 else { return nil }
+        lastMotion = t
+        return Hit(kind: "motion", atSec: t, strength: energy / max(0.5, baseline), length: 0, areaFirst: 0, areaLast: 0, x: 0, y: 0)
     }
 }
+// BALL_TRIGGER_END

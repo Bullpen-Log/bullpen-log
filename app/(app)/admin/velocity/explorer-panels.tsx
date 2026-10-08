@@ -522,6 +522,12 @@ export function PitchPreview({
             <p className="mt-1 text-xs tabular-nums text-muted">
               카메라 {p.rawKmh} → {p.kmh} km/h · ±{p.errorKmh} · {confidence}
             </p>
+            {!!p.analysis?.offStandard.length && (
+              <p className="mt-1.5 flex flex-wrap items-baseline gap-x-2 gap-y-1 break-keep text-xs text-muted">
+                <Badge className="border-warn-line bg-warn-bg text-warn">기준 밖</Badge>
+                {p.analysis.offStandard.join(' · ')}. 보정 짝에는 안 들어가요.
+              </p>
+            )}
           </>
         )}
         <p className="mt-0.5 break-keep text-xs text-muted">

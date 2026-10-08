@@ -115,6 +115,17 @@ export function focalFromBall(ballPx: number, surfaceDistanceM: number): number 
   return (ballPx * centerDistance(surfaceDistanceM)) / BALL_DIAMETER_M;
 }
 
+/**
+ * 초점 호흡 — 초점을 1~2m 의 공에 맞추면 렌즈가 센서에서 멀어져 상이 커진다(얇은 렌즈로 1/(1 − F/u) 배). 던진 공(18m 넘음)을 잴 때는
+ * 거의 무한대 초점이라, 공에 초점을 맞추고 잰 초점거리는 그만큼 덜어 둔다(1m 에서 약 0.6% — 130km/h 에서 0.8). 앱 카메라는 렌즈 보정
+ * 동안 원 안의 공에 초점을 맞춘다. F 는 아이폰 메인 카메라의 실제 초점거리 어림(15 Pro Max 6.86mm, 옛 기종 4~6mm).
+ * ponytail: 기종별 F 를 모름 — 1m 에서 ±0.15%. 거리 셋(1 · 1.5 · 2m)으로 재 보면 기종마다 맞출 수 있다.
+ */
+export const LENS_FOCAL_MM = 6.5;
+export function infinityFocal(focalPx: number, surfaceDistanceM: number): number {
+  return focalPx * (1 - LENS_FOCAL_MM / 1000 / centerDistance(surfaceDistanceM));
+}
+
 /** 보정값 → 이 해상도의 초점거리(원본 픽셀) */
 export function focalPxFor(cal: LensCalibration, longSide: number): number {
   return cal.focalPerLongSide * longSide;
@@ -154,5 +165,5 @@ export function lensMatches(
 export const CALIBRATION_DISTANCES = [1, 1.5, 2] as const;
 export const RECOMMENDED_DISTANCE_M = 1;
 
-/** 환산 화각이 이 범위 밖이면 잘못 잰 것(공이 아닌 것을 쟀거나 거리가 틀렸다) */
+/** 1배로 환산한 화각(초점거리 ÷ 줌)이 이 범위 밖이면 잘못 잰 것(공이 아닌 것을 쟀거나 거리가 틀렸다) */
 export const FOV_SANITY_DEG: readonly [number, number] = [45, 100];

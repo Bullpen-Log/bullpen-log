@@ -53,9 +53,11 @@ import {
 } from '@/lib/velocity-engine/live-capture';
 import { DualCapture, DualUnsupportedError } from '@/lib/velocity-engine/dual-capture';
 import { MeasureProgress, measurePhaseOf } from '@/components/velocity/measure-progress';
+import { CameraTuner } from '@/components/velocity/camera-tuner';
 import {
   dualCameraStatus,
   dualStatusNow,
+  isOldApp,
   markDualUnsupported,
   type DualStatus,
 } from '@/lib/dual-camera';
@@ -162,6 +164,7 @@ import {
   CircleOverlay,
   DEFAULT_CIRCLE,
   LensCalibrationPanel,
+  viewToFrame,
   type Circle,
 } from '@/components/velocity/lens-calibration';
 import { useStoredLens } from '@/components/velocity/velocity-settings';
@@ -218,6 +221,10 @@ const BACK_OF: Partial<Record<Step, { to: Step; label: string }>> = {
 };
 type LocalClip = { url: string; blob: Blob; durationSec: number; eventSec: number };
 /** 공의 영상 주소(일반 · 광각)를 푼다 — 저장했거나 화면을 떠날 때 */
+/** 기준 조건 밖이라는 알림 한 줄 */
+const standardNoteOf = (offStandard: string[]) =>
+  `기준 조건이 아니에요(${offStandard.join(' · ')}). 다른 폰과 값이 다를 수 있어요.`;
+
 /** 어느 카메라로 재나 — 웹 카메라 · 앱 카메라(일반 하나) */
 type CameraPlan = 'web' | 'app';
 
@@ -537,8 +544,11 @@ export function VelocityScreen({
   const [status, setStatus] = useState<LiveStatus>('off');
   /* 던짐을 알아챌 때마다 1씩 — 진행 표시의 담기 막대를 처음부터(measure-progress.tsx) */
   const [captureRun, setCaptureRun] = useState(0);
-  /* 지금 앱 카메라(DualCapture)로 재나 — 결과가 늦게 와서 진행 막대를 길게 */
-  const [appCamera, setAppCamera] = useState(false);
+  /* 지금 앱 카메라(DualCapture)로 재나 — 결과가 늦게 와서 진행 막대를 길게 · 카메라 상태 판이 이것을 만진다 */
+  const [appCapture, setAppCapture] = useState<DualCapture | null>(null);
+  const appCamera = appCapture != null;
+  /* 카메라 상태 판(오른쪽 위 카메라 정보 알약을 누름) — 앱 카메라일 때만 */
+  const [tunerOpen, setTunerOpen] = useState(false);
   const onCaptureStatus = (s: LiveStatus) => {
     if (s === 'capturing') setCaptureRun((n) => n + 1);
     setStatus(s);
@@ -613,6 +623,16 @@ export function VelocityScreen({
     const capture = captureRef.current;
     if (capture instanceof DualCapture) capture.setFocusPoint({ x: focusX, y: focusY });
   }, [focusX, focusY, camera]);
+  /* 렌즈 보정(앱 카메라) — 1~2m 앞 공에 초점을 맞춘다('먼 곳만'을 풀고 원 가운데로). 나가면 존 가운데 · 원래 거리로 */
+  const lensFocusX = Math.round(circle.x * 20) / 20;
+  const lensFocusY = Math.round(circle.y * 20) / 20;
+  useEffect(() => {
+    const view = finderRef.current?.getBoundingClientRect();
+    if (step !== 'lens' || !appCapture || !camera || !view) return;
+    const f = viewToFrame({ x: lensFocusX, y: lensFocusY, d: 0 }, camera, view);
+    appCapture.focusNear({ x: f.cx / camera.width, y: f.cy / camera.height });
+    return () => appCapture.focusNear(null);
+  }, [step, appCapture, camera, lensFocusX, lensFocusY]);
   /* 수평계 — 카메라가 보이는 동안(수평 · 존 · 측정 직전 · 세션 중 '카메라'로 정보 판을 내려 카메라를 볼 때) 저절로 켠다 */
   const levelOn =
     cameraOn &&
@@ -817,10 +837,22 @@ export function VelocityScreen({
         ...analysisOf(result, approach),
         /* 클립은 카메라 장면 그대로라 이 존을 영상 위에 그대로 얹는다. 영상 파일은 장면이 달라 싣지 않는다 */
         zoneRect: source === 'camera' ? activeZone : null,
+        /* 기준 조건 밖에서 잰 공 — 다른 폰 · 다른 조건의 값과 견줄 때 가른다 */
+        offStandard:
+          source === 'camera'
+            ? [
+                ...(camera?.offStandard ?? []),
+                /* 실제로 받은 장면 수가 낮았다(처리가 밀려 장면을 버림) */
+                ...(liveFpsNote(fps) ? [`초당 ${fps}장`] : []),
+              ]
+            : [],
       },
       autoDetected: source === 'camera' ? autoMode : false,
       captureId: meta?.id,
       notes: [
+        ...(source === 'camera' && camera?.offStandard?.length
+          ? [standardNoteOf(camera.offStandard)]
+          : []),
         ...distNotes,
         ...(result.live?.notes.map((note) => note.text) ?? []),
         ...(source === 'file' ? ((result as { video?: { notes: string[] } }).video?.notes ?? []) : []),
@@ -925,7 +957,7 @@ export function VelocityScreen({
       now.net
     );
     if (capture instanceof DualCapture) capture.setFocusPoint(now.focusAt);
-    setAppCamera(capture instanceof DualCapture);
+    setAppCapture(capture instanceof DualCapture ? capture : null);
     capture.setFocalPerLongSide(now.focalRatio);
     capture.setReleaseDistance(
       now.approach === 'approaching' ? now.releaseDistM : null
@@ -982,6 +1014,7 @@ export function VelocityScreen({
   const stopCamera = () => {
     captureRef.current?.stop();
     captureRef.current = null;
+    setAppCapture(null);
     setCamera(null);
     setFps(null);
     setLive(false);
@@ -1680,9 +1713,12 @@ export function VelocityScreen({
   };
 
   const back = showAsk ? null : (BACK_OF[step] ?? null);
-  /* 던짐을 알아채고 결과를 내는 중인가(영상 담기 · 계산) — 크게 보인다. 담기에 걸리는 시간: 앱 카메라는 클립을 2.6초 더 받고 읽어서 */
+  /*
+   * 던짐을 알아채고 결과를 내는 중인가(영상 담기 · 계산) — 크게 보인다. 앱 카메라는 날아가는 공이 확실할 때만 띄운다(움직임만 잡힌
+   * 것은 조용히 재 본다). 담기에 걸리는 시간: 앱 카메라는 공이 보인 뒤 1.6초를 더 받고 읽어서
+   */
   const phase = step === 'measure' ? measurePhaseOf(status) : null;
-  const captureSec = appCamera ? 3.5 : 1;
+  const captureSec = appCamera ? 2.3 : 1;
   /* 방금 결과를 카메라 위에 크게 보이나 — 측정에서 카메라가 보일 때(다음 공을 재는 동안은 진행 표시가 대신) */
   const resultShown =
     step === 'measure' &&
@@ -1698,9 +1734,22 @@ export function VelocityScreen({
         ? { n: '5/5', label: '스트라이크 존' }
         : null;
   const fpsNote = liveFpsNote(fps);
+  /*
+   * 기준 조건(1080p · 60fps · 2배가 진짜 줌 · 손떨림 보정)을 못 맞춘 카메라 — 모든 사용자가 같은 조건이어야 값을 견줄 수 있다(2026-10-08
+   * 사용자). 몰래 낮추지 않고, 막지도 않고, 측정 화면에 계속 알린다
+   */
+  const standardNote = camera?.offStandard?.length
+    ? standardNoteOf(camera.offStandard) +
+      /* 옛 앱(앱 카메라가 없음) — 무엇을 하면 되는지까지(웹 카메라라 손떨림 보정을 못 켠다) */
+      (native && !recOn && isOldApp(dualStatusNow())
+        ? ' TestFlight에서 불펜로그를 업데이트하면 앱 카메라로 기준 조건에 맞춰 재요.'
+        : '')
+    : null;
   /* 오른쪽 위 알약을 주황으로 — 실제로 들어오는 fps 가 낮거나(50 아래), 카메라가 60fps 아래로 켜졌거나(시트와 같은 기준) */
   const lowFps =
-    fpsNote != null || (camera?.frameRate != null && !fpsGood(camera.frameRate));
+    fpsNote != null ||
+    standardNote != null ||
+    (camera?.frameRate != null && !fpsGood(camera.frameRate));
   /* 카메라가 잘려 왔으면(원래 비율이 아니면) 화각을 짐작한다 — 막지 않고 알린다 */
   const cropNote =
     camera?.cropped === true
@@ -1820,9 +1869,17 @@ export function VelocityScreen({
             {levelOn && <LevelBubble level={level} onRequest={requestPermission} />}
           </div>
           {camera && (
-            /* 화질 · 프레임은 1080p · 60fps 고정(사용자 2026-10-08 — 관리자도 고르지 않는다). 못 내는 폰은 60fps 를 지키며 화질을 낮춘다 */
-            <span
-              className={`inline-flex h-7 min-w-0 items-center rounded-full px-2.5 tabular-nums backdrop-blur ${
+            /*
+             * 화질 · 프레임은 1080p · 60fps 고정(사용자 2026-10-08 — 관리자도 고르지 않는다). 못 내는 폰은 60fps 를 지키며 화질을 낮춘다.
+             * 앱 카메라면 누르면 카메라 상태 판(흐린 까닭 가르기 · 손떨림 보정 · 줌 · 수동 초점)
+             */
+            <button
+              type="button"
+              disabled={!appCamera}
+              onClick={() => setTunerOpen((v) => !v)}
+              aria-expanded={appCamera ? tunerOpen : undefined}
+              aria-label="카메라 상태"
+              className={`pointer-events-auto inline-flex h-7 min-w-0 items-center rounded-full px-2.5 tabular-nums backdrop-blur disabled:cursor-default ${
                 lowFps ? 'bg-amber-600 text-white' : 'bg-black/55 text-white/80'
               }`}
             >
@@ -1833,8 +1890,13 @@ export function VelocityScreen({
                 {camera.focus === 'manual' && ' · 수동초점'}
                 {camera.focus === 'auto' && ' · 자동초점'}
               </span>
-            </span>
+            </button>
           )}
+        </div>
+      )}
+      {cameraOn && appCapture && tunerOpen && step !== 'lens' && !(live && !showCamera) && (
+        <div className="absolute inset-x-3 top-[calc(5.5rem+env(safe-area-inset-top))] z-20">
+          <CameraTuner capture={appCapture} onClose={() => setTunerOpen(false)} />
         </div>
       )}
 
@@ -2307,6 +2369,7 @@ export function VelocityScreen({
                     saved ||
                     toast ||
                     fpsNote ||
+                    standardNote ||
                     cropNote ||
                     (isAdmin && !native)) && (
                     <div className={`space-y-2 px-4 ${resultShown ? '' : 'pb-3'}`}>
@@ -2334,10 +2397,11 @@ export function VelocityScreen({
                       {/* 초당 장면 · 잘림 — 측정 화면에서만(수평 · 존은 오른쪽 위 주황 표시로 충분), 결과가 떠 있으면 결과의 알림이 말한다 */}
                       {step === 'measure' &&
                         !resultShown &&
-                        (fpsNote ?? cropNote) &&
+                        phase == null &&
+                        (fpsNote ?? standardNote ?? cropNote) &&
                         !error && (
                           <p className="rounded-xl bg-warn/90 px-4 py-2.5 text-sm leading-snug text-white">
-                            {fpsNote ?? cropNote}
+                            {fpsNote ?? standardNote ?? cropNote}
                           </p>
                         )}
                       {step === 'measure' && isAdmin && !native && !error && !saved && (
@@ -2469,6 +2533,7 @@ export function VelocityScreen({
                 circle={circle}
                 current={lens}
                 onSaved={() => setStep('measure')}
+                focusedOnBall={appCamera}
               />
             </div>
           )}

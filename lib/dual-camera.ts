@@ -68,7 +68,8 @@ export function dualCameraStatus(): Promise<DualStatus> {
         supported: s?.supported === true,
         reason: s?.supported === true ? undefined : (s?.reason ?? 'error'),
         modes: Array.isArray(s?.modes) ? s.modes : undefined,
-        single: s?.single === true,
+        /* 칸이 없으면(2026-10-08 전 앱) 모름으로 둔다 — isOldApp 이 그것으로 옛 앱을 가린다 */
+        single: typeof s?.single === 'boolean' ? s.single : undefined,
       })
     )
     .catch(() => settle({ supported: false, reason: 'error' }));
@@ -77,6 +78,13 @@ export function dualCameraStatus(): Promise<DualStatus> {
 
 /** 지금 아는 상태(검사 전이면 null) */
 export const dualStatusNow = () => statusNow;
+
+/**
+ * 앱 카메라가 없는 옛 앱인가 — 부품이 없거나(2026-10-03 전) 일반 하나로 켜기를 모르는(single 칸이 없는, 2026-10-08 전) 앱. 새 앱인데
+ * 이 폰에서 못 켠 것(single false) · 상태를 못 읽은 것(error)과 가른다 — 옛 앱만 업데이트하면 앱 카메라(기준 조건)로 잰다.
+ */
+export const isOldApp = (s: DualStatus | null) =>
+  s != null && (s.reason === 'old-app' || (s.reason !== 'error' && s.reason !== 'web' && s.single === undefined));
 
 /**
  * 켜 보니 안 됐다(하드웨어 몫이 넘침 등) — 이 기기는 안 되는 것으로 기억한다(앱을 다시 열 때까지). single 이면 일반 카메라
@@ -107,6 +115,8 @@ export type DualStartInfo = {
   hardwareCost: number;
   /** 일반 카메라의 손떨림 보정 — 'standard' · 'off'(옛 앱은 없음 = 꺼짐) */
   stabilization?: string;
+  /** 기준 조건을 맞췄나(1080p · 60fps · 2배가 진짜 줌 · 손떨림 보정) — 옛 앱은 없음 */
+  standard?: { resolution: boolean; fps: boolean; zoom: boolean; stabilization: boolean };
 };
 
 /** 앱이 잘라 넘긴 클립 하나 — read 로 조금씩 읽어 Blob 으로 만든다 */

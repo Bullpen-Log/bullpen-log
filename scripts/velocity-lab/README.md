@@ -26,6 +26,32 @@ node scripts/velocity-lab/sheet.mjs ~/bullpen-velocity-lab/2026-10-03/clips/132_
   --from=0.1083 --to=0.6083 --n=31 --cols=8 --w=170 --crop=0.15,0.1,0.7,0.5
 ```
 
+```bash
+# 5) 앱의 던짐 알아채기(공 찾기)를 영상에 — 앱 Swift 의 BALL_TRIGGER 구간을 그대로 떼어 맥에서 돌린다(V=1 이면 이은 길까지)
+scripts/velocity-lab/ball-trigger/run.sh ~/bullpen-velocity-lab/2026-10-03/clips/*.mov
+
+# 6) 폰의 현장 기록 가져오기 — 맥에서 깐 개발용 앱이 측정 중 장면을 1분 조각(30Mbps)으로 폰에 남긴다.
+#    케이블 또는 같은 와이파이로 짝 맺은 아이폰에서 받아(~/bullpen-velocity-lab/device/<세션>/) 폰 알림과 5) 결과를 나란히 보인다
+scripts/velocity-lab/pull-device.sh
+# 7) 손떨림 보정이 화면을 자르는 몫(새 기종) — 개발용 앱을 켜고 카메라 단계에서 폰을 세워 두면(1초 멈춤) 보정 켬 · 끔 · 다시 켬을
+#    찍어 Documents/lab/fov-<시각>/ 에 남긴다. 6) 으로 받은 뒤 배율을 재 DualCameraPlugin.swift 의 STAB_CROP_MEASURED 에 기종 이름으로 넣는다
+node scripts/velocity-lab/fov-crop.mjs ~/bullpen-velocity-lab/device/fov-<시각>
+```
+
+맥에서 폰에 바로 깔기(개발용 빌드, 1~2분 — TestFlight 30~50분 대신):
+
+```bash
+cd mobile && xcodebuild build -project ios/App/App.xcodeproj -scheme App -configuration Debug \
+  -destination 'id=<폰 UDID>' -derivedDataPath /tmp/bpl-dev DEVELOPMENT_TEAM=<팀 ID> SWIFT_OPTIMIZATION_LEVEL=-O \
+  -allowProvisioningUpdates -allowProvisioningDeviceRegistration
+xcrun devicectl device install app --device <폰 UDID> /tmp/bpl-dev/Build/Products/Debug-iphoneos/App.app
+xcrun devicectl device process launch --device <폰 UDID> --console --terminate-existing com.bullpenlog.app   # 콘솔 [cam] 줄
+```
+
+**`SWIFT_OPTIMIZATION_LEVEL=-O` 를 꼭 붙인다** — 개발용(Debug)은 최적화 없이 구워져 공 찾기가 장면마다 수십 ms 걸리고, 카메라가 늦은
+장면을 버려 초당 20장으로 찍혔다(2026-10-08, 최적화하니 60장 · 장면당 2ms). 폰을 처음 한 번 케이블로 짝 맺으면 그 뒤로는 같은
+와이파이에서 깔기 · 콘솔 · 가져오기가 다 된다.
+
 `run.mjs --debug --json=…` 는 장면마다 찾은 덩어리(`blobFrames`) · 첫 어림 궤적(`seedTrack`) · 뺀 장면 까닭(`diameter`)까지 남긴다.
 더 깊이 볼 때는 `cdp.mjs` 의 `open()` 으로 쪽을 열고 `window.__m['detect']` 같은 엔진 모듈과 `window.__open()`(영상 열기 ·
 `luma(t)`)을 직접 부른다.
