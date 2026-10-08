@@ -17,6 +17,7 @@ Claude 로 작업을 시작하면 저절로 읽힌다. 규칙은 `AGENTS.md` 6�
 주소 `https://als216c--bullpen-pitch3d-web.modal.run`, Vercel 환경변수 셋은 네가 넣어 사이트에 단추가 보인다. 첫 실제 샘플(화면 녹화 606×756 ·
 1040×1300)로 진단 호출을 돌려 **download 1초 · pose 23초(GPU 75fps) · segment 3초(니업 2.40 · 착지 5.87 · 릴리스 6.47) · fit 10.7초**까지 됐다 —
 올리기만 일부러 가짜 주소라 실패. **사이트에서 '다시 분석'을 누르면 끝까지 가야 한다**(아직 안 눌러 봤다).
+- 네 메모(Modal 에 올렸다 · 볼 것 셋)는 읽고 지웠다 — ② onnxruntime CPU 판 · ③ Windows selfcheck 는 아래에서 고쳤고, ① 모델을 이미지에 굽기는 남았다.
 - 오늘 고친 것(커밋 참조): ① debian_slim 엔 cuDNN 이 없어 CPU 로 떨어짐 → `nvidia/cuda:12.4.1-cudnn-runtime` 이미지 + `onnxruntime-gpu==1.21.1`
   (1.22+ 는 CUDA 13 요구) ② RTMW 점수는 0~1 이 아니라 0~8(잘 보이면 5~7) → `mapping.py` SCORE_SCALE 6 으로 나눔 ③ `pose.py` 사람 고르기의
   거리 비교 초기값(-1.0)이 픽셀 거리를 못 이겨 둘째 장면부터 아무도 못 골랐음 → -inf ④ 사람 찾기(YOLOX)는 10장마다, 거친 1차 30fps · 20초
@@ -28,7 +29,6 @@ Claude 로 작업을 시작하면 저절로 읽힌다. 규칙은 `AGENTS.md` 6�
 - 로컬 진단 길(Python 3.12 + `pip install rtmlib onnxruntime av requests`): 샘플 옆 영상 몇 장면에 RTMW 를 CPU 로 돌려 점수를 본다 —
   스크립트는 커밋 안 함(서명 주소가 들어가서). 필요하면 `services/pitch3d-gpu/pitch3d_gpu/pose.py` 의 `Pose(device="cpu").track()` 을 그대로 부르면 된다.
 - 아직 안 된 것: 모델 파일을 이미지에 미리 굽기(지금은 컨테이너가 깰 때마다 300MB 받음, +10초) · 결과 화면의 실제 결과 모양 확인(합성으로만 봄).
-
 ## 김민에게 — 2026-10-08 · 금윤호(Claude) — 3D v2: 결정과 무관한 부분은 다 만들었다(약속 · 웹 · 맞추기 엔진 · 화면 · GPU 패키지) · 사용자가 정할 것 넷(답 대기)
 
 받은 뒤 할 일(DB · npm 패키지 그대로 — `npm ci` 필요 없음): **T1 과 올리기는 네 몫**(돈 · 계정) — `services/pitch3d-gpu/README.md` 1~3절대로
