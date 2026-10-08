@@ -15,31 +15,30 @@ import { REST_REQUIREMENTS, dailyPitchCap } from '@/lib/report/plan';
  */
 export function InsertCard({
   icon,
-  kicker,
   headline,
   lines,
   foot,
 }: {
   icon: ReactNode;
-  /** 작은 윗글('나이로 본 안전 한도') */
-  kicker: string;
-  /** 큰 글(숫자 포함) */
+  /** 큰 글(숫자 포함) — 제목이 스스로 말한다(작은 윗글 없음) */
   headline: ReactNode;
   lines: ReactNode[];
   foot?: ReactNode;
 }) {
   return (
     <div className="rise-in rounded-2xl border border-sky/25 bg-sky/5 p-5 md:p-6">
-      <div className="flex items-center gap-2 text-xs font-medium text-sky-strong">
-        <span className="grid h-7 w-7 place-items-center rounded-full bg-sky/15 [&_svg]:h-4 [&_svg]:w-4">
+      <div className="flex items-start gap-3">
+        <span
+          aria-hidden
+          className="mt-0.5 grid h-9 w-9 shrink-0 place-items-center rounded-full bg-sky/15 text-sky-strong [&_svg]:h-[18px] [&_svg]:w-[18px]"
+        >
           {icon}
         </span>
-        {kicker}
+        <p className="text-heading text-2xl leading-tight text-ink break-keep md:text-[1.75rem]">
+          {headline}
+        </p>
       </div>
-      <p className="text-heading mt-3 text-2xl leading-tight text-ink break-keep md:text-[1.75rem]">
-        {headline}
-      </p>
-      <ul className="mt-4 space-y-2">
+      <ul className="mt-4 space-y-2 md:pl-12">
         {lines.map((line, i) => (
           <li
             key={i}
@@ -50,7 +49,8 @@ export function InsertCard({
               aria-hidden
               className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-sky"
             />
-            {line}
+            {/* 글은 한 덩어리로 — 조각(글 · 굵은 숫자)이 저마다 flex 칸이 되어 세로로 찢기지 않게 */}
+            <span className="min-w-0 flex-1">{line}</span>
           </li>
         ))}
       </ul>
@@ -76,7 +76,6 @@ export function PitchCapInsert({
   return (
     <InsertCard
       icon={<ShieldCheck aria-hidden />}
-      kicker="나이로 본 안전 한도"
       headline={
         <>
           {age === null ? '하루 ' : `만 ${age}세는 하루 `}
@@ -110,7 +109,6 @@ export function BurnInsert({
   return (
     <InsertCard
       icon={<Flame aria-hidden />}
-      kicker="먹는 것과 쓰는 것"
       headline={
         <>
           운동과 투구를 적으면 쓴 만큼{' '}

@@ -411,7 +411,11 @@
          차례는 답에 따라 23~25, 서버가 막으면 그 칸의 화면으로(nutritionStepOfField). `trySignup`: 표시 칸(`nutritionOnboarding`)이 있으면 키 · 체중
          필수 → buildProfileData + cleanDietPrefs → `$transaction`(User(weightKg 도) + NutritionProfile(onboardedAt · planSince · 취향) + DailyNutrition
          오늘 체중). 표시 칸 없는 옛 화면은 예전처럼 계정만. 브라우저로 25화면 끝까지 눌러 확인(가입 단추는 안 누름 — 공유 DB).
-      5. 휴대폰 · 앱 · PC 모양(--kb · 시트 · 375 · 1536×700 · 1920×960, impeccable detect) 2h
+      5. **끝남** 휴대폰 · PC 모양 — 제 브라우저 탭에서 375×812 로 25화면을 다시 눌러 봄(이름 · 달력 · 투구 3문항 + 부하 · 끼움 둘 · 목표 카드 5 ·
+         목표 체중 · 속도 · 추천 계획(세 숫자 · 탄단지 · 예상 선) · 탄단지 g · 요약이 폭 안에 들어감), 1536×700 은 가장 긴 화면(요약 652px ·
+         계획 634px)도 굴리지 않음(scrollHeight = 700). 고친 것: 끼움 카드 줄이 flex 칸으로 찢김(글을 한 span 에) · 작은 윗글(eyebrow) 뺌
+         (impeccable craft floor) · 속도 글자 둘째 자리(components/onboarding/format.ts). impeccable detect 0. 자판(--kb)은 StepCard 단추 줄의
+         pb 로 받음 — 아이폰 실기기 · 앱 웹뷰는 사용자 확인 뒤.
       6. 영양 탭 '나의 하루' · [기록｜통계] · '내 계획' 카드(plan-stats 재사용) · onboarded 안내 3h
       7. 목표 창 확장(카드 5 · 탄단지 나누기 · 활동대사량, period.ts 로 바꿈, setWeight 20~200 통일) 2h
       8. `/nutrition/setup` 기존 사용자(질문 7~16 + 끼움 셋, finishNutritionSetup 한 트랜잭션) 2h
