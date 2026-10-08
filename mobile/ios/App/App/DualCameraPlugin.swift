@@ -1493,7 +1493,8 @@ final class SegmentRecorder: NSObject, AVAssetWriterDelegate {
 /// 맥에 연결해 깐 개발용 앱에서만 — 측정 중(armed)인 장면을 높은 화질(H.264 30Mbps, 키 장면 0.5초)로 앱 문서 폴더
 /// Documents/lab/<세션 시각>/ 에 1분 조각 영상으로 남기고, 던짐 알림(공 · 움직임)을 events.jsonl 에 적는다. 맥에서
 /// scripts/velocity-lab/pull-device.sh 로 가져와 공 찾기(ball-trigger 시험대) · 구속 엔진을 실제 현장 장면으로 맞춘다.
-/// 조각 이름의 숫자는 첫 장면의 카메라 시계(초) — 알림의 시각과 같은 시계다. 모두 합쳐 15조각(약 15분)이 넘으면 오래된 것부터 지운다.
+/// 조각 이름의 숫자는 첫 장면의 카메라 시계(초) — 알림의 시각과 같은 시계다. 모두 합쳐 60조각(약 1시간 · 13GB — 스피드건과 같이 던지는
+/// 불펜 한 번이 다 남게)이 넘거나 폰의 남은 공간이 5GB 밑이면 오래된 것부터 지운다.
 final class LabRecorder {
     private var root: URL?
     private var dir: URL?
@@ -1502,7 +1503,8 @@ final class LabRecorder {
     private var input: AVAssetWriterInput?
     private var fileStart = 0.0
     private let segmentSec = 60.0
-    private let keepFiles = 15
+    private let keepFiles = 60
+    private let minFreeBytes: Int64 = 5_000_000_000
 
     func configure(width: Int, height: Int, fps: Int32, transform: CGAffineTransform, info: [String: Any]) {
         finish()
@@ -1592,7 +1594,7 @@ final class LabRecorder {
         fileStart = pts.seconds
     }
 
-    /// 모든 세션의 조각을 합쳐 keepFiles 개만 남긴다(오래된 것부터 지움)
+    /// 모든 세션의 조각을 합쳐 keepFiles 개 · 남은 공간 minFreeBytes 를 지킨다(오래된 것부터 지움, 가장 새 조각은 남김)
     private func prune() {
         guard let root else { return }
         let fm = FileManager.default
@@ -1605,8 +1607,14 @@ final class LabRecorder {
                 files.append((f, date))
             }
         }
-        guard files.count > keepFiles else { return }
-        for (f, _) in files.sorted(by: { $0.1 < $1.1 }).prefix(files.count - keepFiles) { try? fm.removeItem(at: f) }
+        var left = files.count
+        for (f, _) in files.sorted(by: { $0.1 < $1.1 }).dropLast() {
+            let free = (try? root.resourceValues(forKeys: [.volumeAvailableCapacityForImportantUsageKey]))?
+                .volumeAvailableCapacityForImportantUsage ?? Int64.max
+            guard left > keepFiles || free < minFreeBytes else { break }
+            try? fm.removeItem(at: f)
+            left -= 1
+        }
     }
 }
 #endif
