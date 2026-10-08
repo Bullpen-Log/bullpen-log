@@ -82,6 +82,27 @@
 
 ### 0-3 결정(대기 — 사용자 답으로 채움)
 
+(아직 없음 — HANDOFF.md 의 '정할 것 넷' 참고.)
+
+### 0-3 진행(2026-10-08, 금윤호 쪽 — 결정과 무관한 부분)
+
+결정 넷을 기다리며 0절(뼈대 15조각) · 기술 D1(Modal, 상태 묻기) · E-P7(TS 엔진 재사용) · E-CAP(600장) · 화면 결정 1~16 대로 만들었다.
+진행 기록 · 잰 값은 `docs/claude/geum-yunho.md` 4절 11번, GPU 쪽은 `services/pitch3d-gpu/README.md`. 계획에서 바꾼 것:
+
+1. **T4(뼈대 맞추기)를 Python 이 아니라 TS 로**(`lib/pitch-3d/v2/fit.ts`) — 이 PC 에 Python 이 없고, E-P7 로 GPU 안에서 node 를 어차피 돌리니 같은
+   호출에 넣으면 합성 시험이 로컬에서 되고 지표 두 벌(0-3절 4번)도 안 생긴다. Python 은 영상 풀기 · RTMW · Modal 껍데기만.
+2. **묶기는 esbuild 없이** — `scripts/pitch3d-bundle.mjs` 가 TS 를 복사하고 `@/` 만 상대 경로로 바꾼다(node 22+ 타입 벗기기). 묶음 실행기와 앱 엔진의
+   결과 JSON 이 같은지 --check 로 본다(E-P7 의 확인).
+3. **지표는 v1 정의 그대로, 맞춘 17관절로 다시 셈**(결정 ④ 대기) — 화면의 뼈대와 숫자가 같은 관절에서 나온다.
+4. **결과에 부위 자세(위치 + 회전) 대신 관절 25개**(정수 mm · 확신 · 뒤 영상 시각)를 싣고, 부위 자세는 화면이 `lib/pitch-3d/v2/pose-rig.ts` 로 만든다 —
+   결과가 모델(glb)과 독립이고 작다(600장 290KB). 15조각 표는 `scripts/pitch-lab/skeleton-parts.mjs` → `public/models/skeleton-parts.json`(모델 파일은 안 바꿈).
+5. **엷은 구간 = min(17관절 평균, 던지는 팔 셋 평균) < 60** — '가장 낮은 다섯'으로 하면 닫힌 자세의 가려진 관절만으로 거의 전 구간이 엷어졌다(합성).
+6. 관절 한계 표(무릎 · 팔꿈치) · 표준 곡선 · AI 보정 · 240fps 구간 · 겹쳐 보기 · 각도 호(TD5)는 넣지 않았다(결정 ① ② 뒤, 각도 호는 남은 일).
+
+잰 값(합성 투수 25관절, 씨앗 1): 뼈 길이 흔들림 0%(v1 2~6%) · 장면 사이 가속 p95 깨끗함 0.0011(v1 0.0022) · 실제처럼 0.0103(v1 0.0323) · 채운 관절 0 ·
+다시 비춤 0.1~1.1% · 지표 오차 v1 기준 안(어깨 벌림만 깨끗함 2.0°). 시험 `npm run pitch3d:v2-test` 123 · v1 63 그대로 · `npm run pitch3d:bundle` 같음.
+남은 것: T1(Modal 계정 · 키 · Vercel 환경변수) · T7(실제 샘플 3개 + 깨진 영상) · 결정 넷.
+
 ## 1. 사용자 평가(그대로)
 
 - "어느정도 초안은 된거 같아. 하지만 아직 매우매우 많이 부족해. 최종 결과물은 고품질 3d모션으로 정확하게 나오는걸 원하는데
@@ -1151,6 +1172,8 @@ Conflict flags: lib/pitch-3d/v2 는 B 만 고친다(A 는 약속 파일을 읽�
 
 ## Implementation Tasks(엔지니어링 — CEO 목록을 이 답들로 고친 판)
 
+(2026-10-08 금윤호 쪽: T2~T6 · T8 끝 — T4 는 TS 로(0-3 진행 1번), T1 · T7 남음. 화면 TD1~TD4 · TD6 끝, TD5 는 '누르면 그 순간'만(각도 호 없음).)
+
 (0절: T0 은 없어졌다. 바로 시작할 수 있다.) 비율 가정: 기능 ~30배 · 시험 ~50배 · 구조 ~5배.
 
 - [x] **T0 — 없어짐(0절: SMPL-X 대신 해부학 뼈대, 사용권 구매 필요 없음)** ~~사용권 — SMPL-X 상업 사용권 문의 · 계약~~
@@ -1161,23 +1184,23 @@ Conflict flags: lib/pitch-3d/v2 는 B 만 고친다(A 는 약속 파일을 읽�
   - Surfaced by: CEO 9절 · 기술 1절 4번
   - Files: `.env.example`(이름만)
   - Verify: 설정을 넣으면 관리자 화면에 v2 단추가 보이고, 지우면 숨는다
-- [ ] **T2 (P1, 사람: ~2일 / CC: ~1.5시간)** — GPU — 결과 약속 + RTMW 2D + 33점 짝 표 + 투구 구간 120fps · 600장(E-CAP)
+- [x] **T2 (P1, 사람: ~2일 / CC: ~1.5시간)** — GPU — 결과 약속 + RTMW 2D + 33점 짝 표 + 투구 구간 120fps · 600장(E-CAP)
   - Surfaced by: 기술 D3 · 2절 3번
   - Files: `services/pitch3d-gpu/`, `lib/pitch-3d/v2/`(약속)
   - Verify: `python -m pitch3d_gpu.selfcheck`(짝 표), 샘플 하나에서 구간 장면 수 ≤ 600
-- [ ] **T3 (P1, 사람: ~1일 / CC: ~45분)** — GPU — lib/pitch-3d 를 한 파일 JS 로 묶어 이미지에 넣고 Python 이 node 로 부름(E-P7)
+- [x] **T3 (P1, 사람: ~1일 / CC: ~45분)** — GPU — lib/pitch-3d 를 한 파일 JS 로 묶어 이미지에 넣고 Python 이 node 로 부름(E-P7)
   - Surfaced by: 기술 D2
   - Files: `services/pitch3d-gpu/`, 묶기 스크립트(`scripts/` 아래)
   - Verify: 같은 2D 를 넣으면 node 묶음과 `npm run pitch3d:test` 의 엔진이 같은 시간 맞춤 · 카메라를 낸다
-- [ ] **T4 (P1, 사람: ~1주 / CC: ~3~4시간)** — GPU — 뼈대(고정 뼈 길이 · 관절 한계 · 시간 매끈) 시간 전체 맞추기 + 부위 15개 자세 내보내기 + 자가 점검(E-PYTEST) (0절로 바뀜)
+- [x] **T4 (P1, 사람: ~1주 / CC: ~3~4시간)** — GPU — 뼈대(고정 뼈 길이 · 관절 한계 · 시간 매끈) 시간 전체 맞추기 + 부위 15개 자세 내보내기 + 자가 점검(E-PYTEST) (0절로 바뀜)
   - Surfaced by: CEO 0A · 기술 D5
   - Files: `services/pitch3d-gpu/`
   - Verify: `python -m pitch3d_gpu.selfcheck`(NaN 없음 · 뼈 길이 고정 · 빈 관절 0 · glb 뼈 · 장면 수)
-- [ ] **T5 (P1, 사람: ~2일 / CC: ~1.2시간)** — 웹 — job 상태 · 결과 읽기 · 요청 · 상태 묻기(기술 D1) + 단위 시험
+- [x] **T5 (P1, 사람: ~2일 / CC: ~1.2시간)** — 웹 — job 상태 · 결과 읽기 · 요청 · 상태 묻기(기술 D1) + 단위 시험
   - Surfaced by: 기술 D1 · 3절
   - Files: `lib/pitch-3d/v2/*`, `app/actions/pitch-lab.ts`, `lib/pitch-lab.ts`, `scripts/pitch-3d-selftest.mts`
   - Verify: `npm run pitch3d:test`(번호 바뀐 뒤 옛 결과 · Busy · 15분 timeout · 상태 짝 · 결과 모양 · 900KB)
-- [ ] **T6 (P1, 사람: ~3일 / CC: ~2.5시간)** — 화면 — `analysis-v2.tsx`(동의 · 기다림 · 실패 · 결과) + `body-3d.tsx`(메시 · 시점 · 슬로모 · 원본 나란히)
+- [x] **T6 (P1, 사람: ~3일 / CC: ~2.5시간)** — 화면 — `analysis-v2.tsx`(동의 · 기다림 · 실패 · 결과) + `body-3d.tsx`(메시 · 시점 · 슬로모 · 원본 나란히)
   - Surfaced by: CEO 11절 · 기술 2절 1번
   - Files: `app/(app)/videos/lab/analysis-v2.tsx`, `app/(app)/videos/lab/body-3d.tsx`, `app/(app)/videos/lab/analysis-panel.tsx`(자리만)
   - Verify: 휴대폰 375 · PC 1536 넘침 0, 떠났다 돌아와도 이어 봄
@@ -1185,7 +1208,7 @@ Conflict flags: lib/pitch-3d/v2 는 B 만 고친다(A 는 약속 파일을 읽�
   - Surfaced by: CEO 6절 · 기술 D4
   - Files: 없음
   - Verify: 빈 관절 0 · 뼈 흔들림 1% 밑 · 떨림 p95 < v1, `npm run pitch3d:test` 63 통과, v1 결과 보기 · 다시 분석 · 3D 로 보기
-- [ ] **T8 (P2, 사람: ~2시간 / CC: ~15분)** — 문서 — HANDOFF(금윤호 영역) · `services/pitch3d-gpu/README.md` · 잰 값 · analyze.ts 머리 주석 한 줄
+- [x] **T8 (P2, 사람: ~2시간 / CC: ~15분)** — 문서 — HANDOFF(금윤호 영역) · `services/pitch3d-gpu/README.md` · 잰 값 · analyze.ts 머리 주석 한 줄
   - Surfaced by: CEO 10절
   - Files: `HANDOFF.md`, `services/pitch3d-gpu/README.md`, `docs/designs/pitch-3d-quality.md`, `lib/pitch-3d/analyze.ts`
   - Verify: README 만 보고 `modal deploy` 를 할 수 있음
@@ -1352,19 +1375,19 @@ DESIGN.md 는 없고 globals.css 토큰 · 앱 부품이 기준이다. 계획에
 
 비율 가정: 기능 ~30배. 모두 T0(SMPL-X 사용권) 뒤, 기술 T6 을 이 결정들로 채운 것이다.
 
-- [ ] **TD1 (P1, 사람: ~1일 / CC: ~40분)** — 화면 — 결과 화면 `/videos/lab/[id]`(머리 PageHeading + BackLink, 빈 결과 · 기다림 · 결과) + 카드 한 줄 · 상태 표시
+- [x] **TD1 (P1, 사람: ~1일 / CC: ~40분)** — 화면 — 결과 화면 `/videos/lab/[id]`(머리 PageHeading + BackLink, 빈 결과 · 기다림 · 결과) + 카드 한 줄 · 상태 표시
   - Surfaced by: 화면 1 결정 1 · 화면 2 결정 7 · 화면 7 결정 18
   - Files: `app/(app)/videos/lab/[id]/page.tsx`(새), `app/(app)/videos/lab/lab-client.tsx`, `lib/pitch-lab.ts`
   - Verify: 주소로 바로 열기 · 분석 중 · 결과 · 실패 네 상태를 휴대폰 375 · PC 1536 에서 확인
-- [ ] **TD2 (P1, 사람: ~1일 / CC: ~40분)** — 화면 — 기다림(시간 글 · 3분 · 15분) · 실패 두 갈래 · 다시 분석 중 이전 결과 + 띠 · 동의 칸
+- [x] **TD2 (P1, 사람: ~1일 / CC: ~40분)** — 화면 — 기다림(시간 글 · 3분 · 15분) · 실패 두 갈래 · 다시 분석 중 이전 결과 + 띠 · 동의 칸
   - Surfaced by: 화면 2 결정 4 · 5 · 6 · 화면 3 결정 8
   - Files: `app/(app)/videos/lab/analysis-v2.tsx`, `lib/pitch-3d/v2/*`(작업 번호별 결과 · consentAt)
   - Verify: 실패 종류마다 단추가 맞는지(영상 탓은 다시 분석 없음), 다시 분석 실패 때 이전 결과가 남는지
-- [ ] **TD3 (P1, 사람: ~2일 / CC: ~1.5시간)** — 3D 보기 — 해부학 뼈 15조각(0절) · 어두운 바탕 · 격자 · 축 화살표 · 고정 카메라 4각도 · 처음 한 번 틀고 릴리스에서 멈춤(미리보기 코드를 본으로)
+- [x] **TD3 (P1, 사람: ~2일 / CC: ~1.5시간)** — 3D 보기 — 해부학 뼈 15조각(0절) · 어두운 바탕 · 격자 · 축 화살표 · 고정 카메라 4각도 · 처음 한 번 틀고 릴리스에서 멈춤(미리보기 코드를 본으로)
   - Surfaced by: 화면 4 결정 10 · 11 · 화면 3 결정 9 · 화면 7 결정 17
   - Files: `app/(app)/videos/lab/body-3d.tsx`(새), `components/three-stage.ts`(바꾸지 않고 씀)
   - Verify: 네 시점 · 끌기(좌우, 위아래 5~80°) · 확대, 착지에서 발이 뜨지 않음, 움직임 줄이기면 자동 재생 없음
-- [ ] **TD4 (P1, 사람: ~1일 / CC: ~45분)** — 재생 — 3D 기준 시계 · 구간 · 속도 칩 · 영상 따라가기 · 순간 표시 · 잘 안 보인 구간
+- [x] **TD4 (P1, 사람: ~1일 / CC: ~45분)** — 재생 — 3D 기준 시계 · 구간 · 속도 칩 · 영상 따라가기 · 순간 표시 · 잘 안 보인 구간
   - Surfaced by: 화면 4 결정 12 · 13 · 화면 1 결정 2
   - Files: `app/(app)/videos/lab/body-3d.tsx`, `services/pitch3d-gpu/`(장면별 확신 값을 결과에)
   - Verify: 멈춤 · 끌기 때 영상과 3D 가 같은 장면, 엷은 구간을 누르면 한 줄
@@ -1372,7 +1395,7 @@ DESIGN.md 는 없고 globals.css 토큰 · 앱 부품이 기준이다. 계획에
   - Surfaced by: 화면 1 결정 2 · 3
   - Files: `app/(app)/videos/lab/[id]/page.tsx`, `app/(app)/videos/lab/analysis-panel.tsx`
   - Verify: 숫자 여섯 줄 각각 맞는 순간으로 가고 호가 맞는 관절에 그려짐
-- [ ] **TD6 (P1, 사람: ~반나절 / CC: ~25분)** — 배치 · 접근성 — 폰 · PC 배치 · 초점 안 스페이스 · ←/→ · aria-label · 부품 · 토큰
+- [x] **TD6 (P1, 사람: ~반나절 / CC: ~25분)** — 배치 · 접근성 — 폰 · PC 배치 · 초점 안 스페이스 · ←/→ · aria-label · 부품 · 토큰
   - Surfaced by: 화면 6 결정 15 · 16 · 화면 5 결정 14
   - Files: `app/(app)/videos/lab/[id]/page.tsx`, `app/(app)/videos/lab/body-3d.tsx`
   - Verify: 375 · 1536 넘침 0, 키보드만으로 재생 · 장면 넘기기, impeccable detect 0, 만든 뒤 /design-review

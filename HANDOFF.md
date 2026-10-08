@@ -11,18 +11,24 @@ Claude 로 작업을 시작하면 저절로 읽힌다. 규칙은 `AGENTS.md` 6�
 
 ---
 
-## 김민에게 — 2026-10-08 · 금윤호(Claude) — 3D v2: 0-2절 검토 결과 · 사용자가 정할 것 넷(답 대기) · 결정과 무관한 부분부터 만들기 시작
+## 김민에게 — 2026-10-08 · 금윤호(Claude) — 3D v2: 결정과 무관한 부분은 다 만들었다(약속 · 웹 · 맞추기 엔진 · 화면 · GPU 패키지) · 사용자가 정할 것 넷(답 대기)
 
-받은 뒤 할 일 없음(DB · 패키지 그대로). 알아 둘 것:
+받은 뒤 할 일(DB · npm 패키지 그대로 — `npm ci` 필요 없음): **T1 과 올리기는 네 몫**(돈 · 계정) — `services/pitch3d-gpu/README.md` 1~3절대로
+Modal 가입 → 프록시 토큰 → `npm run pitch3d:bundle` → `modal deploy app.py` → Vercel 에 `PITCH3D_GPU_URL · KEY · SECRET`. 그 뒤 실험실 샘플
+결과 화면(`/videos/lab/[id]`)에서 '3D 분석(서버)'로 T7(샘플 3개 + 깨진 영상 하나, `modal app logs bullpen-pitch3d`). Python 쪽(RTMW · PyAV ·
+Modal)은 이 PC 에 Python 이 없어 **한 번도 안 돌려 봤다** — 첫 올리기에서 막히면 그 로그를 HANDOFF 로. 알아 둘 것:
 - 0-2절 기술 검토를 `docs/designs/pitch-3d-quality.md` **0-3절**에 적었다(7가지 — 출시 기준 '겹침 오차'가 맞추기 자신을 잼 ·
   Driveline OpenBiomechanics 는 CC BY-NC-SA + 프로 구단 금지 + 동기 영상 없음 · 표준 곡선 · AI 보정은 진단과 부딪힘(릴리스 근처가 다
   '짐작'이 됨) · 못 보는 자유도(척추 나눔 · 어깨뼈 · 엎침 · 손목)는 잰 값과 갈라 표시해야 함 · 지표 두 벌 · 결과 900KB · 240fps 편집 목록).
 - **금윤호가 정할 것 넷(아직 답 전 — 답이 오면 0-3절 '결정'에 적고 이 줄은 지운다)**: ① 범위 — 원래 계획(0절까지) 먼저, 0-2절은 2차로(추천) /
   다 한 번에 / 원래만 ② 표준 곡선 섞기 · AI 보정 — 둘 다 뺌(추천) / 곡선만 뺌 / 계획대로 ③ 출시 기준 — 반복성 + 합성 시험을 더함(추천) / 겹침
   오차만 ④ 지표 — v1 지표 그대로 두고 관절각은 그래프로만(추천) / 맞춘 뼈대 관절각(ISB)으로 새로.
-- 메인은 **결정과 무관한 부분부터 만든다**(0절 뼈대 15조각 · Modal 길 · v1 지표 그대로): 결과 약속 `lib/pitch-3d/v2/`(contract.ts · joint-map.json,
-  시험 `npm run pitch3d:v2-test`) → 웹 작업 상태 · 서버 동작 → 맞추기 엔진 → 화면 `/videos/lab/[id]` → GPU 패키지 `services/pitch3d-gpu/` → 문서.
-  진행은 `docs/claude/geum-yunho.md` 4절 11번.
+- **만든 것**(설계 문서 0-3 '진행' 절 · `docs/claude/geum-yunho.md` 4절 11번): 약속 `lib/pitch-3d/v2/contract.ts`(결과 = 장면 × 관절 25 정수 mm ·
+  확신 · 엷은 구간 · v1 지표 · 카메라 · 뒤 영상 시각, job.json 상태 기계) · 웹(`lib/pitch-lab.ts` job.json · analysis-v2-{jobId}.json, `gpu-client.ts`,
+  서버 동작 `requestPitch3dV2 · checkPitch3dV2 · loadPitch3dV2`) · 맞추기 엔진 `v2/fit.ts`(v1 core 재사용 + 25관절 PBD, 합성에서 뼈 흔들림 0% ·
+  가속 p95 v1 의 ⅓) · node 실행기 `v2/run-node.ts`(segment · fit) · 화면 `app/(app)/videos/lab/[id]/`(뼈대 15조각 three.js, 재생 · 원본 따라가기 ·
+  숫자 · 동의 · 기다림 · 실패) · `public/models/skeleton-parts.json`(body-full.glb 뼈대 273조각 → 15부위, ATTRIBUTION 에 방법) · GPU 패키지.
+  v1(`analyze.ts`)은 core 와 결과 만들기로 갈랐을 뿐 계산은 그대로(63 통과). 시험 `npm run pitch3d:v2-test`(123) · `npm run pitch3d:bundle`.
 - **바꾼 것 하나(E-P7 · T4)**: 뼈대 맞추기(T4)를 Python(numpy)이 아니라 **TS**(`lib/pitch-3d/v2/fit.ts`)로 쓴다 — 이 PC 에 Python 이 없고, 이미
   GPU 안에서 node 로 v1 엔진을 돌리기로 했으니 같은 node 호출에 넣으면 합성 투수 시험이 로컬에서 되고 지표 두 벌 문제(0-3절 4번)도 안 생긴다.
   Python 은 영상 풀기(편집 목록 없이 원본 트랙 시각) · RTMW 2D · Modal 껍데기만. 관절 표는 `lib/pitch-3d/v2/joint-map.json` 한 파일(묶기 스크립트가 복사).
