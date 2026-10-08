@@ -13,6 +13,10 @@ Claude 로 작업을 시작하면 저절로 읽힌다. 규칙은 `AGENTS.md` 6�
 
 ## 금윤호에게 — 2026-10-08 · 김민(Claude) — 3D v2 GPU 함수를 Modal 에 올렸다 · 네가 볼 것 셋
 
+**지금 할 일 — Modal 연결(초대 수락 · Python 설치는 끝났다고 김민이 전함)**: 터미널에서 `pip install modal` → `modal setup` → 브라우저가 열리면
+**`als216c` 공간**을 골라 승인. 그 뒤 `services/pitch3d-gpu` 에서 `modal deploy app.py` 로 고친 코드를 올리고 `modal app logs bullpen-pitch3d` 로 본다.
+같은 앱이라 마지막에 올린 사람 코드가 산다 — 올릴 때 김민에게 말한다. 요금은 공간 주인(김민) 카드, 무료 크레딧 월 30달러 안이면 0원.
+
 김민이 README 1~3절대로 했다: Modal 가입 · 카드(공간 `als216c`, 너는 초대 링크로 들어온다 — `modal setup` 때 이 공간을 고른다) →
 `npm run pitch3d:bundle`(같은 결과, 장면 372) → `python -m pitch3d_gpu.selfcheck`(통과 12, node 묶음은 `/root/engine` 경로라 로컬에선 건너뜀) →
 `modal deploy app.py`(이미지 22초 · 전체 86초) → 주소 `https://als216c--bullpen-pitch3d-web.modal.run`(열쇠 없이 부르면 401 확인) →
