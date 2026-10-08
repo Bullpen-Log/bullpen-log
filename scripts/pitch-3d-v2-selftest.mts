@@ -33,7 +33,7 @@ import { analyzePitch3d, type Pitch3dOk as V1Ok } from '../lib/pitch-3d/analyze.
 import { project } from '../lib/pitch-3d/camera.ts';
 import type { MetricKey } from '../lib/pitch-3d/metrics.ts';
 import { fitPitch3dV2 } from '../lib/pitch-3d/v2/fit.ts';
-import { pickSegment, runFit } from '../lib/pitch-3d/v2/run-node.ts';
+import { pickSegment, readV2Events, runFit } from '../lib/pitch-3d/v2/run-node.ts';
 import { toPoseTrack } from '../lib/pitch-3d/v2/track.ts';
 import {
   base,
@@ -44,6 +44,7 @@ import {
   type Scenario,
 } from './pitch-lab/synth.mts';
 import { makeV2Track } from './pitch-lab/synth-v2.mts';
+import { gapWristError } from './pitch-lab/gap-check.mts';
 import { readFileSync } from 'node:fs';
 import {
   PART_NAMES,
@@ -717,6 +718,15 @@ console.log('■ node 실행기(segment · fit)');
     check('순간을 찾았다(착지 < 릴리스)', seg.events.footPlant < seg.events.release);
   }
   check('segment: 입력 모양이 틀리면 video', !pickSegment({ side: null, back: {} }).ok);
+  /* segment 가 찾은 순간을 fit 이 넘겨받는다 — 잘라 낸 구간에서 다시 찾다 실패한 2026-10-08 샘플 1 · 3 */
+  check('fit 입력 순간: 착지 < 릴리스면 그대로', readV2Events({ kneeUp: 1, footPlant: 2, release: 2.5 })?.release === 2.5);
+  check('fit 입력 순간: 뒤바뀌거나 없으면 버림(다시 찾기)', !readV2Events({ footPlant: 2, release: 1 }) && !readV2Events(null));
+  if (seg.ok) {
+    const withEv = JSON.parse(
+      runFit({ side: s.track, back: b.track, hand: 'R', jobId: JOB_ID, poseModel: 'synth', screenRecorded: true, slowmoFps: 240, events: seg.events })
+    );
+    check('fit: segment 순간을 넘기면 끝까지 간다', withEv.ok === true, withEv.ok ? '' : String(withEv.code));
+  }
   const json = runFit({
     side: s.track,
     back: b.track,
@@ -819,7 +829,52 @@ console.log('■ 뼈대 자세(pose-rig) — public/models/skeleton-parts.json +
         Math.abs(lowMin) < 1e-6 && Math.abs(lowMax) < 1e-6,
         `${lowMin.toFixed(4)} ~ ${lowMax.toFixed(4)}`
       );
+      /*
+       * 거의 편 팔꿈치(굽힘 12~20°)가 장면마다 반대쪽으로 꺾여도 팔 조각이 180° 돌지 않는다 — 2026-10-08 실제 샘플 1 에서
+       * 굽힘 축(위팔 × 아래팔)이 4번 뒤집혀 던지는 팔이 홱 돌았다(run-node.ts armDiag).
+       */
+      {
+        const f0 = frames[Math.floor(frames.length / 2)];
+        const sh = f0[V2J.rSh];
+        const wr = f0[V2J.rWr];
+        const axis = [wr[0] - sh[0], wr[1] - sh[1], wr[2] - sh[2]];
+        const perp = [-axis[1], axis[0], 0];
+        const pn = Math.hypot(...perp) || 1;
+        let prevRig: RigPose | null = null;
+        let prevRef: number[] | null = null;
+        let spins = 0;
+        for (let k = 0; k < 12; k++) {
+          const off = (k % 2 === 0 ? 1 : -1) * (0.03 + 0.01 * (k % 3));
+          const fr = f0.map((p) => [...p] as [number, number, number]);
+          fr[V2J.rEl] = [0, 1, 2].map(
+            (d) => (sh[d] + wr[d]) / 2 + (perp[d] / pn) * off
+          ) as [number, number, number];
+          const pose = rigPose(fr, 'R', parts, prevRig);
+          const R = pose.upperArmR.R;
+          const r = A.upperArmR.ref;
+          const ref = [0, 1, 2].map((i) => R[i * 3] * r[0] + R[i * 3 + 1] * r[1] + R[i * 3 + 2] * r[2]);
+          if (prevRef && ref[0] * prevRef[0] + ref[1] * prevRef[1] + ref[2] * prevRef[2] < 0) spins++;
+          prevRef = ref;
+          prevRig = pose;
+        }
+        check('거의 편 팔꿈치가 반대로 꺾여도 위팔 조각이 홱 돌지 않는다', spins === 0, `${spins}번 돎`);
+      }
     }
+  }
+}
+
+console.log('■ 빈 구간(릴리스 근처 손목 10장면 지움) — 회전으로 잇고 그쪽으로 당긴다');
+{
+  /* 고치기 전(앞 장면 방향 복사 + 다듬기가 빈 구간을 직선으로) 씨앗 44 · 55 에서 키의 22.5% · 23.8% 였다 */
+  for (const seed of [44, 55]) {
+    const r = gapWristError(seed);
+    check(
+      `빈 구간 손목 최대 오차가 키의 17% 밑(씨앗 ${seed})`,
+      r != null && r.gap < 0.17,
+      r
+        ? `${(r.gap * 100).toFixed(1)}% · 보이는 주변 ${(r.seen * 100).toFixed(1)}%`
+        : '맞추기 실패'
+    );
   }
 }
 

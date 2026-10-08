@@ -65,6 +65,21 @@ const SEEN = 0.3;
 const SURE = 0.7;
 /** 장면 확신(0~100)이 이 밑이면 엷은 구간 */
 const LOW_CONF = 60;
+/** 빈 구간을 회전으로 이을 최대 장면 수 — 넘으면 앞 장면 방향을 잇는다(긴 가림을 지어내지 않게) */
+const GAP_MAX = 15;
+/**
+ * 회전으로 이은 자리로 당기는 무게(관찰 확신 0~1 과 같은 척도) — 없으면(0) 시간 다듬기가 빈 구간을 앞뒤 직선으로 바꿨다.
+ * 릴리스 근처 손목을 10장면 지운 합성: 빈 구간 손목 최대 오차 키의 14~24% → 0.3 에서 13~16% · 0.6 에서 12~14%.
+ */
+const GAP_PULL = 0.6;
+
+/** 두 단위 방향 사이 구면 보간 */
+function slerp(a: Vec3, b: Vec3, t: number): Vec3 {
+  const th = Math.acos(Math.max(-1, Math.min(1, dot(a, b))));
+  if (th < 1e-4) return normalize(add(scale(a, 1 - t), scale(b, t)));
+  const s = Math.sin(th);
+  return add(scale(a, Math.sin((1 - t) * th) / s), scale(b, Math.sin(t * th) / s));
+}
 
 type Bone = { a: number; b: number; key: string; def: number; soft?: number };
 /** 뼈 — key 가 같은 것은 길이를 같이 쓴다(좌우 대칭). def = 키 대비 기본 길이, soft = 허용 폭(몸통 옆은 꼬이면 실제로 변한다) */
@@ -407,12 +422,43 @@ export function fitPitch3dV2(input: V2Input): {
         return scale(U, -1);
     }
   };
+  /*
+   * 빈 구간의 방향 — 부모에서 자식으로의 방향을 빈 구간 앞뒤로 보인 장면 사이에서 회전으로 잇는다(GAP_MAX 장면까지).
+   * 앞 장면 방향만 복사하면 빈 동안 팔이 멈췄다가 다시 보일 때 홱 튀었다(2026-10-08 릴리스 근처 손목을 지운 합성: 주변의 2배).
+   */
+  const gapDir: (Vec3 | null)[][] = Array.from({ length: n }, () =>
+    new Array<Vec3 | null>(N_V2_JOINTS).fill(null)
+  );
+  for (const j of FILL_ORDER) {
+    const p = PARENT_OF[j];
+    if (p == null) continue;
+    const dirAt = (k: number): Vec3 | null => {
+      const C = obs3[k][j];
+      const P = obs3[k][p];
+      if (!C || !P) return null;
+      const d = sub(C, P);
+      return norm(d) > 1e-6 ? normalize(d) : null;
+    };
+    let last = -1;
+    for (let k = 0; k < n; k++) {
+      if (!dirAt(k)) continue;
+      if (last >= 0 && k - last > 1 && k - last - 1 <= GAP_MAX) {
+        const a = dirAt(last)!;
+        const b = dirAt(k)!;
+        for (let q = last + 1; q < k; q++) gapDir[q][j] = slerp(a, b, (q - last) / (k - last));
+      }
+      last = k;
+    }
+  }
   const X: Vec3[][] = [];
   const dataW: number[][] = [];
+  /* 맞추기에서 당기는 무게 — 관찰은 dataW 그대로, 빈 구간을 회전으로 이은 자리는 GAP_PULL(확신 · 품질은 dataW 로만 — 화면엔 '짐작') */
+  const pullW: number[][] = [];
   let filled = 0;
   for (let k = 0; k < n; k++) {
     const fr: (Vec3 | null)[] = obs3[k].map((v) => (v ? ([...v] as Vec3) : null));
     const w = [...weight[k]];
+    const gapFilled = new Set<number>();
     const prev = X[k - 1];
     /* 뿌리(골반 · 어깨 · 코) — 없으면 짝 · 앞 장면 · 다른 뿌리에서 */
     const rootFill = (j: number, pair: number, up: number) => {
@@ -454,8 +500,9 @@ export function fitPitch3dV2(input: V2Input): {
       w[j] = 0;
       const Lj = boneLenByChild.get(j) ?? 0.1 * H;
       const P = fr[p]!;
-      let dir: Vec3 | null = null;
-      if (prev) {
+      let dir: Vec3 | null = gapDir[k][j];
+      if (dir) gapFilled.add(j);
+      if (!dir && prev) {
         const d = sub(prev[j], prev[p]);
         if (norm(d) > 1e-6) dir = normalize(d);
       }
@@ -463,6 +510,7 @@ export function fitPitch3dV2(input: V2Input): {
     }
     X.push(fr as Vec3[]);
     dataW.push(w);
+    pullW.push(w.map((v, j) => (gapFilled.has(j) ? GAP_PULL : v)));
   }
   const target: Vec3[][] = X.map((fr) => fr.map((v) => [...v] as Vec3));
 
@@ -473,7 +521,7 @@ export function fitPitch3dV2(input: V2Input): {
    */
   const projectBones = (k: number) => {
     const fr = X[k];
-    const w = dataW[k];
+    const w = pullW[k];
     const one = (b: Bone) => {
       const A = fr[b.a];
       const B = fr[b.b];
@@ -502,7 +550,7 @@ export function fitPitch3dV2(input: V2Input): {
   const smoothTime = (gain: number) => {
     for (let j = 0; j < N_V2_JOINTS; j++) {
       for (let k = 1; k < n - 1; k++) {
-        const w = dataW[k][j];
+        const w = pullW[k][j];
         const s = gain * (0.1 + 0.9 * (1 - w) * (1 - w));
         const mid = scale(add(X[k - 1][j], X[k + 1][j]), 0.5);
         X[k][j] = add(X[k][j], scale(sub(mid, X[k][j]), s));
@@ -512,7 +560,7 @@ export function fitPitch3dV2(input: V2Input): {
   for (let it = 0; it < ITERATIONS; it++) {
     for (let k = 0; k < n; k++) {
       for (let j = 0; j < N_V2_JOINTS; j++) {
-        const w = dataW[k][j];
+        const w = pullW[k][j];
         if (w <= 0) continue;
         X[k][j] = add(X[k][j], scale(sub(target[k][j], X[k][j]), 0.5 * w));
       }

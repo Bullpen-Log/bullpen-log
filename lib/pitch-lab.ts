@@ -17,7 +17,7 @@ import {
  *
  *   side.mp4 · back.mp4          옆 · 뒤 영상(브라우저가 서명 주소로 직접 올린다 — 서버를 안 거쳐 큰 파일도 된다)
  *   meta.json                    촬영 정보(lib/pitch-lab-meta.ts)
- *   analysis.json                v1 3D 분석 결과(lib/pitch-3d/analyze.ts — 브라우저가 계산해 서버 동작으로 저장, 목록은 '있음'만 · 열 때 읽는다)
+ *   analysis.json                (옛 v1 결과 — 2026-10-08 v1 화면을 뺐다. 남은 파일은 읽지 않고 폴더를 지울 때 같이 지워진다)
  *   job.json                     v2(서버 GPU) 작업 상태(lib/pitch-3d/v2/contract.ts Pitch3dV2Job) — 서버 동작 둘(요청 · 상태 묻기)만 쓴다
  *   analysis-v2-{jobId}.json     v2 결과 — GPU 함수가 서명 올리기 주소로 올린다. 작업마다 파일이 따로라 다시 분석 중에도 이전 결과가 남는다
  *
@@ -27,7 +27,6 @@ import {
  */
 
 const LAB_DIR = 'pitch-lab';
-const ANALYSIS_FILE = 'analysis.json';
 const JOB_FILE = 'job.json';
 const V2_PREFIX = 'analysis-v2-';
 const v2File = (jobId: string) => `${V2_PREFIX}${jobId}.json`;
@@ -40,8 +39,6 @@ export type LabSample = {
   id: string;
   /** 올리다 멈춰 정보가 없으면 null — 목록에서 지울 수 있게 보인다 */
   meta: LabMeta | null;
-  /** v1 3D 분석 결과가 저장돼 있나(파일 목록으로만 — 내용은 열 때 읽는다, 검토 R9) */
-  hasAnalysis: boolean;
   videos: Partial<Record<LabView, { path: string; url: string | null }>>;
   /** v2(서버) — 작업 상태와 결과 파일이 있는 작업 번호들 */
   v2: { job: Pitch3dV2Job | null; resultIds: string[] };
@@ -91,24 +88,6 @@ async function getJson(path: string): Promise<unknown | null> {
 
 export async function saveLabMeta(userId: string, id: string, meta: LabMeta) {
   await putJson(`${folder(userId, id)}/meta.json`, meta);
-}
-
-/** v1 3D 분석 결과 저장(검사를 마친 JSON 문자열) — 같은 자리에 덮어쓴다 */
-export async function saveLabAnalysis(userId: string, id: string, json: string) {
-  const { error } = await videoBucket().upload(
-    `${folder(userId, id)}/${ANALYSIS_FILE}`,
-    new Blob([json], { type: 'application/json' }),
-    { upsert: true, contentType: 'application/json' }
-  );
-  if (error) throw new Error(error.message);
-}
-
-/** v1 3D 분석 결과 읽기 — 없으면 null(모양 검사는 부르는 쪽이) */
-export async function loadLabAnalysis(
-  userId: string,
-  id: string
-): Promise<unknown | null> {
-  return getJson(`${folder(userId, id)}/${ANALYSIS_FILE}`);
 }
 
 /* ───────────────────────────── v2(서버 GPU) ───────────────────────────── */
@@ -169,7 +148,6 @@ async function scanFolder(userId: string, id: string) {
   return {
     names,
     videos,
-    hasAnalysis: names.includes(ANALYSIS_FILE),
     hasJob: names.includes(JOB_FILE),
     resultIds,
   };
@@ -207,7 +185,6 @@ async function readSample(userId: string, id: string): Promise<LabSample> {
     id,
     meta,
     videos: scan.videos,
-    hasAnalysis: scan.hasAnalysis,
     v2: { job: readPitch3dV2Job(jobRaw), resultIds: scan.resultIds },
   };
 }

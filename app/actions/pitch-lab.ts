@@ -6,18 +6,11 @@ import {
   createV2ResultUploadUrl,
   deleteLabSample,
   labVideoUrls,
-  loadLabAnalysis as loadAnalysis,
   loadLabJob,
   loadV2Result,
-  saveLabAnalysis as saveAnalysis,
   saveLabJob,
   saveLabMeta,
 } from '@/lib/pitch-lab';
-import {
-  readPitch3dResult,
-  storedAnalysisJson,
-  type Pitch3dResult,
-} from '@/lib/pitch-3d/analyze';
 import {
   applyGpuStatus,
   canRequestV2,
@@ -95,39 +88,6 @@ export async function removeLabSample(input: { id: string }): Promise<Result> {
   }
   revalidatePath(LAB_PATH);
   return { ok: true };
-}
-
-/** v1 3D 분석 결과 저장 — 계산은 브라우저가 했다(영상은 기기 밖으로 안 나간다). 모양 · 크기를 검사하고 샘플 폴더에 둔다 */
-export async function saveLabAnalysis(input: {
-  id: string;
-  result: unknown;
-}): Promise<Result> {
-  const user = await admin();
-  if (!user) return { error: '관리자만 할 수 있어요.' };
-  if (!isLabId(input.id)) return { error: '샘플 번호를 확인할 수 없어요.' };
-  const checked = storedAnalysisJson(input.result);
-  if ('error' in checked) return checked;
-  try {
-    await saveAnalysis(user.id, input.id, checked.json);
-  } catch {
-    return { error: '분석 결과를 저장하지 못했어요. 다시 해 주세요.' };
-  }
-  revalidatePath(LAB_PATH);
-  return { ok: true };
-}
-
-/** 저장된 v1 3D 분석 결과 — 없거나 모양이 맞지 않으면 null */
-export async function loadLabAnalysis(input: {
-  id: string;
-}): Promise<{ result: Pitch3dResult | null } | { error: string }> {
-  const user = await admin();
-  if (!user) return { error: '관리자만 할 수 있어요.' };
-  if (!isLabId(input.id)) return { error: '샘플 번호를 확인할 수 없어요.' };
-  try {
-    return { result: readPitch3dResult(await loadAnalysis(user.id, input.id)) };
-  } catch {
-    return { error: '분석 결과를 불러오지 못했어요.' };
-  }
 }
 
 /* ───────────────────────────── v2(서버 GPU) ───────────────────────────── */

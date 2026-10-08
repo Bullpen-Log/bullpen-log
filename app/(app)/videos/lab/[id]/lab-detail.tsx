@@ -13,7 +13,6 @@ import {
 } from '@/lib/pitch-lab-meta';
 import type { Pitch3dV2Ok } from '@/lib/pitch-3d/v2/contract';
 import type { Metric, MetricKey } from '@/lib/pitch-3d/metrics';
-import { LABELS, MAIN } from '../analysis-panel';
 import { V2EmptyWell, V2RequestRow, V2StatusBadge } from './analysis-v2';
 import type { Body3DHandle, Transport } from './body-3d';
 import { useV2Analysis } from './use-v2-analysis';
@@ -35,6 +34,29 @@ const WHEN = new Intl.DateTimeFormat('ko-KR', {
   minute: '2-digit',
   hourCycle: 'h23',
 });
+
+const LABELS: Record<MetricKey, string> = {
+  trunkForwardTilt: '몸통 앞 기울기 · 릴리스',
+  trunkLateralTilt: '몸통 옆 기울기 · 릴리스',
+  separationMax: '골반-어깨 꼬임 최대',
+  separationAtPlant: '골반-어깨 꼬임 · 착지',
+  leadKneeAtPlant: '앞 무릎 굽힘 · 착지',
+  leadKneeAtRelease: '앞 무릎 굽힘 · 릴리스',
+  strideLength: '보폭(키 대비)',
+  strideOffset: '디딤 방향(+ 열림)',
+  shoulderAbduction: '팔 높이 · 어깨 벌림',
+  maxExternalRotation: '어깨 외회전 최대',
+  plantToRelease: '착지 → 릴리스',
+};
+/** 겉에 보이는 지표(나머지는 '자세히') */
+const MAIN: MetricKey[] = [
+  'trunkForwardTilt',
+  'trunkLateralTilt',
+  'separationMax',
+  'leadKneeAtPlant',
+  'strideLength',
+  'shoulderAbduction',
+];
 
 /** 지표 → 보여 줄 순간 */
 const MOMENT: Record<MetricKey, 'footPlant' | 'release'> = {

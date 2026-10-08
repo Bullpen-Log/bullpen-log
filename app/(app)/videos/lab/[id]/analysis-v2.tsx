@@ -80,7 +80,7 @@ export function V2EmptyWell({
   } else if (job?.status === 'failed' && job.fail) {
     title = job.fail.reason;
     line = V2_VIDEO_FAULT.has(job.fail.code)
-      ? '영상 탓이라 같은 영상으로 다시 해도 같아요. 밝은 곳 · 원본 파일 · 삼각대 · 두 폰 60~120° 로 다시 찍어 올려 주세요.'
+      ? '영상 탓일 수 있어요. 밝은 곳 · 원본 파일 · 삼각대 · 두 폰 60~120° 로 다시 찍어 올려 주세요.'
       : '서버 쪽 문제예요. 아래에서 다시 분석할 수 있어요.';
   } else if (!v2Enabled) {
     title = '서버 분석 설정이 없어요';
@@ -169,12 +169,23 @@ export function V2RequestRow({
       </label>
       <div className="flex flex-wrap items-center gap-2">
         {videoFault ? (
-          <Link
-            href="/videos/lab"
-            className="flex min-h-11 flex-1 items-center justify-center rounded-2xl bg-ink/6 px-4 text-sm font-semibold text-ink"
-          >
-            다른 영상으로 올리기
-          </Link>
+          <>
+            <Link
+              href="/videos/lab"
+              className="flex min-h-11 flex-1 items-center justify-center rounded-2xl bg-ink/6 px-4 text-sm font-semibold text-ink"
+            >
+              다른 영상으로 올리기
+            </Link>
+            {/* 영상 탓 판정도 서버 버그일 수 있다(2026-10-08 사람 고르기 버그로 '영상 탓' 실패가 남음) — 서버를 고친 뒤 같은 영상으로 다시 걸 길 */}
+            <button
+              type="button"
+              onClick={submit}
+              disabled={active || busy}
+              className="min-h-11 flex-1 rounded-2xl bg-ink/6 px-4 text-sm font-semibold text-ink disabled:opacity-40"
+            >
+              {busy ? '거는 중' : '같은 영상으로 다시'}
+            </button>
+          </>
         ) : (
           <button
             type="button"
