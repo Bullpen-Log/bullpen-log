@@ -1787,6 +1787,8 @@ final class MotionTrigger {
         let y: Double
         /// 'end'(알린 공의 길이 끊김 — 그물 · 미트에 닿거나 놓침)일 때 그 공을 알린 시각(atSec 은 공을 마지막으로 본 시각)
         var ballAt = 0.0
+        /// 'motion' 일 때 바뀐 곳이 화면 4×4 칸 중 몇 칸에 퍼졌나(직전 장면들 평균) — 시험대 · 콘솔용
+        var spread = 0.0
     }
 
     private struct Point {
@@ -1848,6 +1850,8 @@ final class MotionTrigger {
     /// 공을 알린 뒤 이만큼(초)은 움직임을 알리지 않는다 — 포수가 공을 돌려주거나 투수가 걸어가는 움직임마다 사이트가 3초 영상을 받아
     /// 조용히 재는 헛일이 공마다 하나씩 붙었다(배터리 · 발열)
     static let MOTION_AFTER_BALL = 4.0
+    /// 움직임이 화면 4×4 칸 중 이만큼 넘게 퍼졌으면 폰이 흔들린 것으로 보고 알리지 않는다
+    static let MOTION_MAX_SPREAD = 6.0
     /// 시험대용 — 6장 넘게 이은 길을 볼 때마다(앱에서는 nil)
     var debug: ((String) -> Void)?
 
@@ -1974,7 +1978,18 @@ final class MotionTrigger {
         /* 가장자리 3% 는 보지 않는다 */
         let mx = max(1, gw * 3 / 100), my = max(1, gh * 3 / 100)
         var over = 0
-        for j in my..<(gh - my) { for i in mx..<(gw - mx) where Int(d[j * gw + i]) > thr { over += 1 } }
+        var tiles = [Int](repeating: 0, count: 16)
+        for j in my..<(gh - my) {
+            let ty = min(3, (j - my) * 4 / (gh - 2 * my))
+            for i in mx..<(gw - mx) where Int(d[j * gw + i]) > thr {
+                over += 1
+                tiles[ty * 4 + min(3, (i - mx) * 4 / (gw - 2 * mx))] += 1
+            }
+        }
+        /* 바뀐 곳이 화면에 얼마나 퍼졌나 — 칸의 0.3% 넘게 바뀐 칸 수(0~16). 손에 든 폰은 무늬 있는 곳 모두, 몸 움직임은 몇 칸 */
+        let tileCells = max(1, (gw - 2 * mx) * (gh - 2 * my) / 16)
+        spreads.append(Double(tiles.filter { Double($0) > max(3, 0.003 * Double(tileCells)) }.count))
+        if spreads.count > 8 { spreads.removeFirst() }
         if Double(over) / Double(n) > MotionTrigger.GLOBAL_FRACTION {
             /* 초점 · 노출 · 폰 흔들림 — 공도 움직임도 아니다(따라가던 공은 여기서 끝으로 본다) */
             tracks.removeAll()
@@ -2169,6 +2184,7 @@ final class MotionTrigger {
      * 움직임(예전 알아채기) — 볼 자리의 움직임 세기가 0.35초 넘게 조용하다가 평소의 3배(그리고 +4) 넘게 커지면. 투수의 와인드업에
      * 먼저 반응한다. 이것만으로는 공인지 모른다 — 사이트가 화면에 띄우지 않고 클립을 재 보고, 공이 없으면 조용히 넘긴다.
      */
+    private var spreads: [Double] = []
     private var baseline = 0.0
     private var lastAbove = -Double.infinity
     private var lastMotion = -Double.infinity
@@ -2185,8 +2201,18 @@ final class MotionTrigger {
         guard t - lastAbove >= 0.35, t - lastMotion >= 1.5, t - motionQuietSince >= 0.5,
               t - lastHit >= MotionTrigger.MOTION_AFTER_BALL
         else { return nil }
+        /*
+         * 바뀐 곳이 화면 곳곳에 퍼졌으면(4×4 칸 중 6칸 넘게) 폰이 흔들린 것 — 손에 든 폰은 5초마다 이렇게 울려 사이트가 그때마다 4~6초씩
+         * 재 보다 '카메라 흔들림'으로 버렸고, 그새 진짜 공이 '계산이 밀려 건너뜀'이 될 수 있었다. 삼각대 위 와인드업은 0.8~4.1칸,
+         * 손에 든 폰은 7~14칸이었다(2026-10-08 폰 기록 · 19개 영상)
+         */
+        let spread = spreads.isEmpty ? 0 : spreads.reduce(0, +) / Double(spreads.count)
+        guard spread < MotionTrigger.MOTION_MAX_SPREAD else { return nil }
         lastMotion = t
-        return Hit(kind: "motion", atSec: t, strength: energy / max(0.5, baseline), length: 0, areaFirst: 0, areaLast: 0, x: 0, y: 0)
+        return Hit(
+            kind: "motion", atSec: t, strength: energy / max(0.5, baseline), length: 0, areaFirst: 0, areaLast: 0, x: 0, y: 0,
+            spread: spread
+        )
     }
 }
 // BALL_TRIGGER_END
