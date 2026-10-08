@@ -20,6 +20,7 @@
     "theme:check": "node --env-file=.env --import ./scripts/alias-register.mjs scripts/theme-time-check.mts",
     "outbox:test": "node --import ./scripts/alias-register.mjs scripts/outbox-selftest.mts",
     "program:test": "node --import ./scripts/alias-register.mjs scripts/program-selftest.mts",
+    "pitch-lab:test": "node --import ./scripts/alias-register.mjs scripts/pitch-lab-selftest.mts",
     "highlights:test": "node --import ./scripts/alias-register.mjs scripts/highlights-selftest.mts",
     "good-days:test": "node --import ./scripts/alias-register.mjs scripts/good-days-selftest.mts",
     "mechanics:test": "node --env-file=.env --import ./scripts/alias-register.mjs scripts/mechanics-selftest.mts",

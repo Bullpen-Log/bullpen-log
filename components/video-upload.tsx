@@ -31,7 +31,7 @@ function formatSize(bytes: number) {
  * 브라우저에서 저장소로 파일을 직접 올린다.
  * 서버는 업로드 주소만 발급하므로 큰 파일도 통과한다.
  */
-async function uploadToStorage(
+export async function uploadToStorage(
   file: Blob & { name?: string },
   endpoint: string,
   onProgress: (percent: number) => void,

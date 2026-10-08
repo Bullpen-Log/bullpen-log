@@ -116,6 +116,11 @@ function getClient() {
   });
 }
 
+/** 영상 버킷을 직접 다룰 때(투구 분석 실험실의 폴더 · 정보 파일, lib/pitch-lab.ts) — 서버에서만 */
+export function videoBucket() {
+  return getClient().storage.from(VIDEO_BUCKET);
+}
+
 /** 스토리지 설정이 되어 있는지 확인한다. */
 export function isStorageConfigured() {
   return Boolean(process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY);
