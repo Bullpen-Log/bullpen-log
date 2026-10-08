@@ -355,8 +355,8 @@ export class DualCapture {
       distanceM: this.distanceM,
       distanceAuto: this.distanceAuto,
       /*
-       * 앱이 잰 화각(videoFieldOfView, 줌만큼 좁힘 · 손떨림 보정이 자른 만큼 좁힘) — 렌즈 값이거나 보정이 꺼졌으면 믿을 만하다.
-       * 보정이 자른 몫을 짐작했으면(estimate) 엔진이 ± 를 넓히고 알린다.
+       * 앱이 잰 화각(videoFieldOfView, 줌만큼 좁힘 · 손떨림 보정이 자른 만큼 좁힘) — 렌즈 값 · 이 기종에서 잰 자른 몫(measured) ·
+       * 보정이 꺼졌으면 믿을 만하다. 자른 몫을 짐작했으면(estimate, 안 잰 기종) 엔진이 ± 를 넓히고 알린다.
        */
       fovKnown: main.fovDeg > 0 && main.fovSource !== 'estimate',
       tiltRad: this.tiltRad,

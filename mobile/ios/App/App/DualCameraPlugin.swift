@@ -13,7 +13,8 @@ import WebKit
 /// 부품이 앱에서 카메라를 직접 잡는다(광각도 같이면 AVCaptureMultiCamSession — iPhone 11 이후). 측정은 일반 카메라로 한다.
 ///
 /// 일반 카메라에는 표준 손떨림 보정을 건다 — 화면 가장자리를 잘라 화각이 좁아지므로, 클립의 화각은 렌즈 값(intrinsics)이 오면
-/// 그것, 안 오면 자른 몫을 짐작한 값이다(fovSource 'intrinsics' · 'estimate' · 보정이 꺼졌으면 'format').
+/// 그것, 안 오면 폰마다 잰 자른 몫(STAB_CROP_MEASURED)이나 짐작한 값이다(fovSource 'intrinsics' · 'measured' · 'estimate' ·
+/// 보정이 꺼졌으면 'format'). 15 Pro Max 는 보정을 켜면 렌즈 값을 주지 않는다(2026-10-08 잼).
 ///
 /// 측정용 장면을 웹으로 실시간(초당 60장) 넘기지 않는다 — 그 길이 충분히 빠를지 알 수 없어서다. 대신
 ///   1. 두 카메라를 1초 조각(fMP4)으로 이어 녹화해 최근 8초를 쥐고 있다(SegmentRecorder)
@@ -466,9 +467,19 @@ final class DualCameraController: NSObject, AVCaptureVideoDataOutputSampleBuffer
     private var snapshotWaiters: [(short: Int, done: ([String: Any]?) -> Void)] = []
     private let snapshotLock = NSLock()
 
-    /// 표준 손떨림 보정이 잘라 내는 배율(긴 변 tan) — 애플은 밝히지 않는다. 화각이 약 10% 준다고 알려져 있다(VisionCamera
-    /// 문서). ponytail: 짐작값 — 렌즈 값이 안 오는 폰에서만 쓴다. 스피드건 짝 · 렌즈 보정(공으로 초점거리 재기)이 쌓이면 맞춘다.
-    static let STAB_CROP = 1.1
+    /// 표준 손떨림 보정이 잘라 내는 배율(긴 변 tan) — 애플은 밝히지 않아 폰마다 잰다: 개발용 앱이 멈춘 장면을 보정 켬 · 끔으로 찍고
+    /// (fovProbe) 맥의 scripts/velocity-lab/fov-crop.mjs 가 두 장의 배율을 잰다(1080p · 2배, 기준 조건). 기종 이름은 utsname.
+    /// 15 Pro Max(iPhone16,2) 2026-10-08: 1.096(상관 0.998).
+    static let STAB_CROP_MEASURED: [String: Double] = ["iPhone16,2": 1.096]
+    /// 안 잰 폰 — 화각이 약 10% 준다고 알려져 있다(VisionCamera 문서, 15 Pro Max 잰 값과 0.4% 차이). 'estimate' 라 엔진이 ± 를 넓힌다.
+    static let STAB_CROP_GUESS = 1.1
+    static let model: String = {
+        var info = utsname()
+        uname(&info)
+        return withUnsafeBytes(of: &info.machine) { String(decoding: $0.prefix { $0 != 0 }, as: UTF8.self) }
+    }()
+    /// 이 폰의 보정 배율과 잰 값인가
+    static let stabCrop: (factor: Double, measured: Bool) = STAB_CROP_MEASURED[model].map { ($0, true) } ?? (STAB_CROP_GUESS, false)
 
     /// 이 아이폰이 일반 + 광각을 함께 켤 수 있나 — 되면 일반 카메라로 고를 수 있는 화질(16:9)과 그 최고 fps 도 싣는다.
     /// 측정 카메라는 30fps 이하를 쓰지 않는다(사용자 규칙 2026-10-03) — 함께 켤 때 60fps 를 못 내는 아이폰은 '안 됨'(fps).
@@ -764,7 +775,7 @@ final class DualCameraController: NSObject, AVCaptureVideoDataOutputSampleBuffer
             "mainFps": Int(mainPick.fps), "wideFps": Int(widePick?.fps ?? 0),
             "mainWidth": mainPick.height, "mainHeight": mainPick.width,
             "wideWidth": widePick?.height ?? 0, "wideHeight": widePick?.width ?? 0,
-            "mainFovDeg": stabilized ? DualCameraController.narrow(mainFov, by: DualCameraController.STAB_CROP) : mainFov,
+            "mainFovDeg": stabilized ? DualCameraController.narrow(mainFov, by: DualCameraController.stabCrop.factor) : mainFov,
             "wideFovDeg": wideFov,
             "hardwareCost": Double(multi?.hardwareCost ?? 0),
             "stabilization": stabilized ? "standard" : "off",
@@ -798,7 +809,7 @@ final class DualCameraController: NSObject, AVCaptureVideoDataOutputSampleBuffer
     }
 
     /// 클립에 실을 일반 카메라의 화각과 그 출처. 렌즈 값이 손떨림 보정이 자른 몫까지 셈한 것 같으면(자르기 전보다 좁다) 그것,
-    /// 보정이 꺼져 있으면 형식의 화각, 아니면 자른 몫(STAB_CROP)을 짐작한 값.
+    /// 보정이 꺼져 있으면 형식의 화각, 아니면 자른 몫(stabCrop — 이 폰에서 잰 값이거나 짐작)만큼 좁힌 값.
     private func clipFov() -> (deg: Double, source: String, stabilized: Bool) {
         let stabilized = (mainConnection?.activeVideoStabilizationMode ?? .off) != .off
         fovLock.lock()
@@ -810,7 +821,8 @@ final class DualCameraController: NSObject, AVCaptureVideoDataOutputSampleBuffer
             if ratio > 0.6, ratio < (stabilized ? 0.98 : 1.03) { return (measured, "intrinsics", stabilized) }
         }
         if !stabilized { return (mainFov, "format", false) }
-        return (DualCameraController.narrow(mainFov, by: DualCameraController.STAB_CROP), "estimate", true)
+        let crop = DualCameraController.stabCrop
+        return (DualCameraController.narrow(mainFov, by: crop.factor), crop.measured ? "measured" : "estimate", true)
     }
 
     /// 켤 수 있는 모양(두 카메라면 함께 켤 수 있는 것) 중 8비트(HDR 아님), 바라는 fps 를 낼 수 있는 것.
@@ -1007,6 +1019,9 @@ final class DualCameraController: NSObject, AVCaptureVideoDataOutputSampleBuffer
             lab.append(sampleBuffer, armed: trigger.isArmed)
             #endif
             readIntrinsics(sampleBuffer)
+            #if DEBUG
+            fovProbe(sampleBuffer)
+            #endif
             serveSnapshots(sampleBuffer)
             if let d = mainDevice, d.isAdjustingFocus {
                 /* 렌즈가 움직이는 동안은 화면 전체가 바뀐다 */
@@ -1082,6 +1097,120 @@ final class DualCameraController: NSObject, AVCaptureVideoDataOutputSampleBuffer
         feedMs = 0
         let stab = mainConnection?.activeVideoStabilizationMode.rawValue ?? -1
         print(String(format: "[cam] fps=%.1f feed=%.2fms ", fps, ms) + "zoom=\(d.videoZoomFactor) lens=\(d.lensPosition) focus=\(d.focusMode.rawValue) adj=\(d.isAdjustingFocus) far=\(d.autoFocusRangeRestriction.rawValue) stab=\(stab) iso=\(d.iso) ss=\(d.exposureDuration.seconds) manual=\(manualLens.map { "\($0)" } ?? "nil")")
+    }
+
+    /*
+     * 화각 재기(앱을 켠 뒤 카메라를 처음 켤 때 한 번) — 폰이 1초 멈춰 있으면 손떨림 보정을 켠 장면(on) → 보정을 끄고 멈춘 장면(off) →
+     * 다시 켜고 멈춘 장면(on2)을 밝기 원본(PGM)으로 Documents/lab/fov-<시각>/ 에 남기고 렌즈 값(intrinsics)을 info.json 에 적는다.
+     * 맥에서 scripts/velocity-lab/fov-crop.mjs 가 on · off 를 견줘 보정이 화면을 몇 배 키웠나(STAB_CROP_MEASURED 에 넣을 값)를 재고, on · on2 로 그새 폰이
+     * 움직이지 않았나 본다. 멈추지 않으면 찍지 않고, 끈 채로 5초 넘게 흔들리면 보정을 되켜고 처음부터.
+     */
+    private static var probeDone = false
+    private var probeStage = 0
+    private var probeWait = 0
+    private var probeStill = 0
+    private var probeGrid: [UInt8] = []
+    private var probeDir: URL?
+    private var probeInfo: [String: Any] = [:]
+
+    private func fovProbe(_ buffer: CMSampleBuffer) {
+        guard !DualCameraController.probeDone, let conn = mainConnection, conn.isVideoStabilizationSupported,
+              let pixels = CMSampleBufferGetImageBuffer(buffer)
+        else { return }
+        probeStill = DualCameraController.isStill(pixels, grid: &probeGrid) ? probeStill + 1 : 0
+        probeWait += 1
+        let want: AVCaptureVideoStabilizationMode = probeStage == 1 ? .off : .standard
+        if probeStage == 1, probeWait > 300 {
+            setProbeStab(.standard)
+            probeStage = 0
+            probeWait = 0
+            return
+        }
+        /* 보정을 바꾼 뒤 0.75초는 기다리고, 바뀐 모드로 1초 멈춰 있으면 */
+        guard probeWait > 45, probeStill >= 60, (conn.activeVideoStabilizationMode == .off) == (want == .off) else { return }
+        if probeStage == 0 {
+            let stamp = DateFormatter()
+            stamp.dateFormat = "yyyyMMdd-HHmmss"
+            guard let docs = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first else { return }
+            let dir = docs.appendingPathComponent("lab/fov-\(stamp.string(from: Date()))", isDirectory: true)
+            try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+            probeDir = dir
+            probeInfo = [
+                "model": DualCameraController.model,
+                "format": String(describing: mainDevice?.activeFormat),
+                "zoom": Double(mainDevice?.videoZoomFactor ?? 1),
+                "formatFovDeg": formatFov,
+                "mainFovDeg": mainFov,
+                "intrinsicsSupported": conn.isCameraIntrinsicMatrixDeliverySupported,
+                "intrinsicsEnabled": conn.isCameraIntrinsicMatrixDeliveryEnabled,
+            ]
+        }
+        guard let dir = probeDir else { return }
+        let name = ["on", "off", "on2"][probeStage]
+        var shot: [String: Any] = [
+            "stab": conn.activeVideoStabilizationMode.rawValue,
+            "width": CVPixelBufferGetWidth(pixels), "height": CVPixelBufferGetHeight(pixels),
+        ]
+        DualCameraController.writePGM(pixels, to: dir.appendingPathComponent("\(name).pgm"))
+        if let data = CMGetAttachment(buffer, key: kCMSampleBufferAttachmentKey_CameraIntrinsicMatrix, attachmentModeOut: nil) as? Data,
+           data.count >= MemoryLayout<matrix_float3x3>.size {
+            let m = data.withUnsafeBytes { $0.loadUnaligned(as: matrix_float3x3.self) }
+            shot["fx"] = Double(m.columns.0.x)
+            shot["fy"] = Double(m.columns.1.y)
+            shot["cx"] = Double(m.columns.2.x)
+            shot["cy"] = Double(m.columns.2.y)
+        }
+        probeInfo[name] = shot
+        print("[cam] fov probe \(name) \(shot)")
+        probeStage += 1
+        probeWait = 0
+        probeStill = 0
+        if probeStage == 1 { setProbeStab(.off) }
+        if probeStage == 2 { setProbeStab(.standard) }
+        if probeStage == 3 {
+            DualCameraController.probeDone = true
+            if let data = try? JSONSerialization.data(withJSONObject: probeInfo, options: [.prettyPrinted, .sortedKeys]) {
+                try? data.write(to: dir.appendingPathComponent("info.json"))
+            }
+        }
+    }
+
+    private func setProbeStab(_ mode: AVCaptureVideoStabilizationMode) {
+        sessionQueue.async {
+            if let c = self.mainConnection, c.isVideoStabilizationSupported { c.preferredVideoStabilizationMode = mode }
+            if let p = self.previewConnection, p.isVideoStabilizationSupported { p.preferredVideoStabilizationMode = mode }
+        }
+    }
+
+    /// 밝기 48×27 점이 앞 장면과 거의 같나(평균 차 4 밑 — 어두운 방의 잡음은 넘김) — 폰이 멈춰 있나
+    static func isStill(_ pixels: CVPixelBuffer, grid: inout [UInt8]) -> Bool {
+        CVPixelBufferLockBaseAddress(pixels, .readOnly)
+        defer { CVPixelBufferUnlockBaseAddress(pixels, .readOnly) }
+        guard let base = CVPixelBufferGetBaseAddressOfPlane(pixels, 0) else { return false }
+        let w = CVPixelBufferGetWidthOfPlane(pixels, 0)
+        let h = CVPixelBufferGetHeightOfPlane(pixels, 0)
+        let stride = CVPixelBufferGetBytesPerRowOfPlane(pixels, 0)
+        let p = base.assumingMemoryBound(to: UInt8.self)
+        var next = [UInt8](repeating: 0, count: 48 * 27)
+        for j in 0 ..< 27 { for i in 0 ..< 48 { next[j * 48 + i] = p[(h * (2 * j + 1) / 54) * stride + w * (2 * i + 1) / 96] } }
+        defer { grid = next }
+        guard grid.count == next.count else { return false }
+        var sum = 0
+        for k in 0 ..< next.count { sum += abs(Int(next[k]) - Int(grid[k])) }
+        return Double(sum) / Double(next.count) < 4
+    }
+
+    /// 밝기 면(Y)을 그대로 PGM(P5)으로 — 센서 방향(가로)
+    static func writePGM(_ pixels: CVPixelBuffer, to url: URL) {
+        CVPixelBufferLockBaseAddress(pixels, .readOnly)
+        defer { CVPixelBufferUnlockBaseAddress(pixels, .readOnly) }
+        guard let base = CVPixelBufferGetBaseAddressOfPlane(pixels, 0) else { return }
+        let w = CVPixelBufferGetWidthOfPlane(pixels, 0)
+        let h = CVPixelBufferGetHeightOfPlane(pixels, 0)
+        let stride = CVPixelBufferGetBytesPerRowOfPlane(pixels, 0)
+        var out = Data("P5\n\(w) \(h)\n255\n".utf8)
+        for y in 0 ..< h { out.append(base.advanced(by: y * stride).assumingMemoryBound(to: UInt8.self), count: w) }
+        try? out.write(to: url)
     }
     #endif
 

@@ -33,6 +33,9 @@ scripts/velocity-lab/ball-trigger/run.sh ~/bullpen-velocity-lab/2026-10-03/clips
 # 6) 폰의 현장 기록 가져오기 — 맥에서 깐 개발용 앱이 측정 중 장면을 1분 조각(30Mbps)으로 폰에 남긴다.
 #    케이블 또는 같은 와이파이로 짝 맺은 아이폰에서 받아(~/bullpen-velocity-lab/device/<세션>/) 폰 알림과 5) 결과를 나란히 보인다
 scripts/velocity-lab/pull-device.sh
+# 7) 손떨림 보정이 화면을 자르는 몫(새 기종) — 개발용 앱을 켜고 카메라 단계에서 폰을 세워 두면(1초 멈춤) 보정 켬 · 끔 · 다시 켬을
+#    찍어 Documents/lab/fov-<시각>/ 에 남긴다. 6) 으로 받은 뒤 배율을 재 DualCameraPlugin.swift 의 STAB_CROP_MEASURED 에 기종 이름으로 넣는다
+node scripts/velocity-lab/fov-crop.mjs ~/bullpen-velocity-lab/device/fov-<시각>
 ```
 
 맥에서 폰에 바로 깔기(개발용 빌드, 1~2분 — TestFlight 30~50분 대신):
