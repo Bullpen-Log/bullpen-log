@@ -371,8 +371,15 @@
         배지 + '3D 분석(서버) · 결과 화면' 링크. 확인(합성 결과 임시 경로, 커밋 안 함): 콘솔 오류 0 · 휴대폰 375 넘침 0 · PC 두 칸 · 네이비. GLTFLoader 가
         이름의 점을 지워 메시를 못 찾던 것은 이름 정리 + 정점 수로 고침. 시험 123(pose-rig: 숫자 · det 1 · 모델 무릎 7.1% · 손목 9.2% · 바닥 0). 2.5시간.
         남은 것: 각도 호 그리기(TD5) · 폰 실기기 확인 · /design-review.
-     5. GPU 패키지 — `services/pitch3d-gpu/`(Modal 앱 · PyAV 원본 트랙 시각 · rtmlib RTMW · joint-map · node 호출 · selfcheck.py) + 묶기
-        `scripts/pitch3d-bundle.mjs` + README. **로컬에서 Python 은 못 돌림** — Modal 에서 T7 때 확인. 1시간.
+     5. **끝남** GPU 패키지 — `services/pitch3d-gpu/`: `app.py`(Modal: asgi 하나에 POST /jobs · GET /jobs/{callId}, 프록시 인증, L4, 15분,
+        progress Dict 로 단계 보고, 모르는 예외는 맨 바깥 한 곳에서 internal) · `pitch3d_gpu/`(`video.py` PyAV ignore_editlist 로 원본 트랙 시각 ·
+        4K 는 1920 으로, `pose.py` rtmlib Wholebody performance(RTMW-x 384) + 사람 고르기(첫 장면 가장 큼 · 다음은 가장 가까움), `mapping.py`
+        joint-map.json 한 표, `engine.py` node --experimental-strip-types 로 run-node.ts, `pipeline.py` download → pose 60fps → segment → pose 120fps
+        ≤600 → fit → upload(PUT x-upsert, 실패도 결과 모양으로 올림), `selfcheck.py` 표준 라이브러리 assert) · README(계정 · 키 · 묶기 · 올리기 ·
+        점검 · 약속 · 비용). 묶기 `npm run pitch3d:bundle`(`scripts/pitch3d-bundle.mjs`: 12파일 복사 · `@/` 32개를 상대 경로로 · `engine/` 은
+        .gitignore · --check 가 합성 투수를 묶음 실행기와 앱 엔진 둘로 돌려 JSON 이 같은지 — 같음, 장면 372 · 158KB). **Python · Modal 은 로컬에서
+        못 돌렸다**(이 PC 에 Python 없음) — T7 때 Modal 로그로 확인. 함정: 윈도우에서 node `--import` · ESM import 에 절대 경로를 주면
+        'protocol c:' — pathToFileURL 로. 1시간.
      6. 문서 · 마무리 — 설계 문서 T 표 갱신 · HANDOFF · 이 줄. 20분.
      남은 것(결정 뒤): 0-2절(자유도 35~40 · 240fps 구간 · 겹쳐 보기 · R1 도구) · T1(Modal 계정 · 키 — 김민/사용자) · T7(실제 샘플 3개).
 

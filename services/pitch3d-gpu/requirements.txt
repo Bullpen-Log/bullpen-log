@@ -1,0 +1,8 @@
+# Modal 이미지 안에서 쓰는 것(app.py 가 pip_install 로 같은 목록을 깐다) — 로컬 개발 · selfcheck 에는 필요 없다(selfcheck 는 표준 라이브러리만).
+modal>=1.0
+fastapi[standard]>=0.110
+rtmlib>=0.0.13
+onnxruntime-gpu>=1.17
+av>=12
+numpy>=1.26
+requests>=2.31

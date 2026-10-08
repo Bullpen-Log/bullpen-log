@@ -57,3 +57,6 @@ next-env.d.ts
 
 # graphify 지식 그래프 결과물 — 각자 컴퓨터에서 만든다
 graphify-out/
+
+# 3D 투구 분석 v2 — GPU 함수용 엔진 묶음(scripts/pitch3d-bundle.mjs 가 lib/ 를 복사해 만든다)
+services/pitch3d-gpu/engine/
