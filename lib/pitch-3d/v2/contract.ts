@@ -263,11 +263,7 @@ export function readPitch3dV2Result(raw: unknown): Pitch3dV2Result | null {
   if (r.version !== PITCH3D_V2_VERSION || !isV2JobId(r.jobId)) return null;
   if (r.ok === false) {
     if (typeof r.code !== 'string' || !(r.code in V2_FAIL_TEXT)) return null;
-    const stage = STAGES.includes(r.stage as V2Stage)
-      ? (r.stage as V2Stage)
-      : 'internal' === r.code
-        ? 'fit'
-        : 'fit';
+    const stage = STAGES.includes(r.stage as V2Stage) ? (r.stage as V2Stage) : 'fit';
     return v2Fail(
       r.jobId,
       r.code as V2FailCode,
@@ -545,10 +541,10 @@ export function applyGpuStatus(
   return { ...job, stages };
 }
 
-/** GPU 를 부르지 못했을 때(검토 2절 GpuUnavailable · GpuAuth) */
+/** 서버 동작이 스스로 실패로 돌릴 때 — GPU 를 못 부름(gpu · gpu-auth) · 결과 파일 모양이 틀림(internal, 검토 2절 BadResult) */
 export function failV2Job(
   job: Pitch3dV2Job,
-  code: 'gpu' | 'gpu-auth',
+  code: V2FailCode,
   nowMs: number
 ): Pitch3dV2Job {
   return {
