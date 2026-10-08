@@ -36,7 +36,8 @@
     "rotation:check": "node --env-file=.env --import ./scripts/alias-register.mjs scripts/rotation-check.mts",
     "patch:sync": "node scripts/sync-patch-notes.mjs",
     "prepare": "git config core.hooksPath .githooks || true",
-    "nutrition:advice-test": "node --import ./scripts/alias-register.mjs scripts/nutrition-advice-test.mts"
+    "nutrition:advice-test": "node --import ./scripts/alias-register.mjs scripts/nutrition-advice-test.mts",
+    "pitch3d:v2-test": "node --import ./scripts/alias-register.mjs scripts/pitch-3d-v2-selftest.mts"
   },
   "dependencies": {
     "@mediapipe/tasks-vision": "^1.0.1",

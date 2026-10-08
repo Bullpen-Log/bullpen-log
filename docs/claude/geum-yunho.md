@@ -340,6 +340,29 @@
      '테마에 맞는 배경'은 김민에게 HANDOFF(마지막 `bullpenTheme` 색을 UserDefaults 에 두고 판 바탕으로). 임시 경로로 확인(걷힌 뒤 본문이
      보임 · 끝 장면은 사이트 머리 이름과 같은 모양), 중간 장면은 CSS 그대로.
 
+  11. **3D 투구 분석 v2 — 김민이 설계 · 계획(`docs/designs/pitch-3d-quality.md`)을 넘김, 만들기는 메인(2026-10-08, 사용자: "정해야될 건
+     넘겨둔 상태에서 김민한테 메모해두고 … 정해야될 건 제외하고 해줘").** 0-2절 검토는 0-3절(7가지). **사용자가 정할 것 넷(답 대기 — 답이 오면
+     0-3절 '결정'에 적고 HANDOFF 의 줄을 지운다)**: ① 범위(원래 계획 먼저 · 0-2절은 2차 / 다 / 원래만, 추천 ①) ② 표준 곡선 · AI 보정(둘 다 뺌 /
+     곡선만 / 계획대로, 추천 둘 다 뺌) ③ 출시 기준(반복성 + 합성 시험 더함 / 겹침 오차만, 추천 더함) ④ 지표(v1 그대로 + 관절각은 그래프만 /
+     ISB 관절각으로 새로, 추천 v1 그대로). **결정과 무관한 부분부터**(0절 뼈대 15조각 · Modal 길 · v1 지표). 환경: 이 PC 에 Python 없음(스토어
+     stub) · esbuild 없음 · node 24(type stripping) → 맞추기(T4)는 TS 로, Python 은 RTMW · 영상 풀기 · Modal 껍데기만, 묶기는 `@/` 를 상대 경로로
+     바꿔 복사. 단계(각 단계 끝에 커밋 + 이 줄 갱신):
+     1. **끝남** 결과 약속 — `lib/pitch-3d/v2/contract.ts`(Pitch3dV2Result: 장면 × 관절 25 정수 mm · 확신 0~100 · 엷은 구간 · v1 지표 · 품질 · 카메라,
+        Pitch3dV2Job 상태 기계: queued → running → done | failed, 15분 timeout, 옛 번호 버림, shownJobId 로 이전 결과 유지) ·
+        `joint-map.json`(RTMW 133 → 25, 앞 17 = v1 J) · `npm run pitch3d:v2-test`(43). 600장 결과 280KB(상한 900KB). 30분.
+     2. 웹 — `lib/pitch-lab.ts`(job.json · analysis-v2-{jobId}.json · 서명 주소) · `lib/pitch-3d/v2/gpu-client.ts`(설정 있나 · 걸기 · 묻기, 프록시 키) ·
+        서버 동작 `requestPitch3dV2` · `checkPitch3dV2` · `loadPitch3dV2` · `.env.example` 이름 셋 · 목록 카드에 v2 상태. 45분.
+     3. 맞추기 엔진(TS) — `analyze.ts` 를 core(보정 · 시간 · 축)와 결과로 가르고, `lib/pitch-3d/v2/fit.ts`: 25관절 교차 → 뼈 길이 고정 · 시간 매끈 ·
+        빈 관절 채움 → 확신 · 엷은 구간 → 결과. node 실행기 `run-node.ts`(segment · fit). 합성 투수 시험(빈 칸 0 · 뼈 흔들림 1% 밑 · 가속 p95 < v1).
+        2시간.
+     4. 화면 — `/videos/lab/[id]`(머리 · 3D 4:5 · 시점 Segmented · 속도 칩 · 재생 막대 엷은 구간 · 원본 두 칸 · 숫자), `analysis-v2.tsx`(동의 ·
+        기다림 · 실패 두 갈래 · 다시 분석 띠), `body-3d.tsx`(three.js, body-full.glb 뼈대를 `skeleton-parts.json` 으로 15조각, 어두운 바탕 · 격자 ·
+        축 · 고정 4각도 · 1배 ½ ¼ · 키보드 · 움직임 줄이기). `scripts/pitch-lab/skeleton-parts.mjs` 가 조각 표를 만든다. 2.5시간.
+     5. GPU 패키지 — `services/pitch3d-gpu/`(Modal 앱 · PyAV 원본 트랙 시각 · rtmlib RTMW · joint-map · node 호출 · selfcheck.py) + 묶기
+        `scripts/pitch3d-bundle.mjs` + README. **로컬에서 Python 은 못 돌림** — Modal 에서 T7 때 확인. 1시간.
+     6. 문서 · 마무리 — 설계 문서 T 표 갱신 · HANDOFF · 이 줄. 20분.
+     남은 것(결정 뒤): 0-2절(자유도 35~40 · 240fps 구간 · 겹쳐 보기 · R1 도구) · T1(Modal 계정 · 키 — 김민/사용자) · T7(실제 샘플 3개).
+
 - **클라우드 식단 짜기 정확도 2차 — 끝남(2026-10-04 맡김 → 10-06 main 합침 · 메인 검토 반영). 지금 클라우드가 할 일은 아래 '3차' 줄.**
   (아래는 2차 메모 그대로 — 규칙은 3차에도 같다.) 사용자가 클라우드 세션을 열어 "메모대로 해 줘"라고 하면 이것을 했다. 지난 클라우드 작업(틀 85 → 167 · 시험 382, 커밋 8e1fbd5 · 46cc794 · 96dae5d)을 메인이 세 갈래로 검토했고,
   **못 먹는 것이 새던 것은 메인이 고쳤다**(삼계탕 견과 · 돼지국밥 새우젓 · 소면 · 오므라이스 · 두부조림 · 샐러드 드레싱 등 — 시험에

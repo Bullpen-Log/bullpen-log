@@ -1,0 +1,59 @@
+{
+  "_comment": "3D 투구 분석 v2 관절 25개 — RTMW(COCO-WholeBody 133점) · MediaPipe(33점) 번호 짝. 한 표 한 파일(설계 pitch-3d-quality.md 검토 1절): TS(lib/pitch-3d/v2/contract.ts)와 Python(services/pitch3d-gpu, 묶기 스크립트가 복사)이 같은 파일을 읽는다. 앞 17개는 v1 엔진(lib/pitch-3d/motion.ts J)과 같은 차례다 — 바꾸면 v1 보정 · 지표가 깨진다.",
+  "version": 1,
+  "rtmwTotal": 133,
+  "mediapipeTotal": 33,
+  "joints": [
+    { "name": "nose", "rtmw": 0, "mp": 0, "parent": null, "pair": null },
+    { "name": "lSh", "rtmw": 5, "mp": 11, "parent": null, "pair": "rSh" },
+    { "name": "rSh", "rtmw": 6, "mp": 12, "parent": null, "pair": "lSh" },
+    { "name": "lEl", "rtmw": 7, "mp": 13, "parent": "lSh", "pair": "rEl" },
+    { "name": "rEl", "rtmw": 8, "mp": 14, "parent": "rSh", "pair": "lEl" },
+    { "name": "lWr", "rtmw": 9, "mp": 15, "parent": "lEl", "pair": "rWr" },
+    { "name": "rWr", "rtmw": 10, "mp": 16, "parent": "rEl", "pair": "lWr" },
+    { "name": "lHip", "rtmw": 11, "mp": 23, "parent": null, "pair": "rHip" },
+    { "name": "rHip", "rtmw": 12, "mp": 24, "parent": null, "pair": "lHip" },
+    { "name": "lKn", "rtmw": 13, "mp": 25, "parent": "lHip", "pair": "rKn" },
+    { "name": "rKn", "rtmw": 14, "mp": 26, "parent": "rHip", "pair": "lKn" },
+    { "name": "lAn", "rtmw": 15, "mp": 27, "parent": "lKn", "pair": "rAn" },
+    { "name": "rAn", "rtmw": 16, "mp": 28, "parent": "rKn", "pair": "lAn" },
+    { "name": "lHe", "rtmw": 19, "mp": 29, "parent": "lAn", "pair": "rHe" },
+    { "name": "rHe", "rtmw": 22, "mp": 30, "parent": "rAn", "pair": "lHe" },
+    { "name": "lTo", "rtmw": 17, "mp": 31, "parent": "lAn", "pair": "rTo" },
+    { "name": "rTo", "rtmw": 20, "mp": 32, "parent": "rAn", "pair": "lTo" },
+    { "name": "lEar", "rtmw": 3, "mp": 7, "parent": "nose", "pair": "rEar" },
+    { "name": "rEar", "rtmw": 4, "mp": 8, "parent": "nose", "pair": "lEar" },
+    {
+      "name": "lHandMid",
+      "rtmw": 100,
+      "mp": null,
+      "parent": "lWr",
+      "pair": "rHandMid"
+    },
+    {
+      "name": "rHandMid",
+      "rtmw": 121,
+      "mp": null,
+      "parent": "rWr",
+      "pair": "lHandMid"
+    },
+    { "name": "lHandIdx", "rtmw": 96, "mp": 19, "parent": "lWr", "pair": "rHandIdx" },
+    { "name": "rHandIdx", "rtmw": 117, "mp": 20, "parent": "rWr", "pair": "lHandIdx" },
+    {
+      "name": "lHandPinky",
+      "rtmw": 108,
+      "mp": 17,
+      "parent": "lWr",
+      "pair": "rHandPinky"
+    },
+    {
+      "name": "rHandPinky",
+      "rtmw": 129,
+      "mp": 18,
+      "parent": "rWr",
+      "pair": "lHandPinky"
+    }
+  ],
+  "_rtmwLayout": "0~16 몸(COCO) · 17~22 발(왼 큰발가락 · 작은발가락 · 뒤꿈치, 오른 같은 차례) · 23~90 얼굴 68 · 91~111 왼손 21(91 손목, 96 둘째 MCP, 100 셋째 MCP, 108 다섯째 MCP) · 112~132 오른손 21(117 · 121 · 129)",
+  "_mediapipeFill": "v1 엔진에 넣는 33점 가운데 위 표에 없는 번호는 가까운 것으로 채운다 — 눈 1~6 · 입 9~10 ← 코, 엄지 21/22 ← 같은 쪽 손목(lib/pitch-3d/v2/track.ts toPoseTrack)"
+}
