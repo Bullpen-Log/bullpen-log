@@ -16,7 +16,8 @@ Claude 로 작업을 시작하면 저절로 읽힌다. 규칙은 `AGENTS.md` 6�
 김민이 README 1~3절대로 했다: Modal 가입 · 카드(공간 `als216c`, 너는 초대 링크로 들어온다 — `modal setup` 때 이 공간을 고른다) →
 `npm run pitch3d:bundle`(같은 결과, 장면 372) → `python -m pitch3d_gpu.selfcheck`(통과 12, node 묶음은 `/root/engine` 경로라 로컬에선 건너뜀) →
 `modal deploy app.py`(이미지 22초 · 전체 86초) → 주소 `https://als216c--bullpen-pitch3d-web.modal.run`(열쇠 없이 부르면 401 확인) →
-`modal run app.py::warm`(RTMW-x 384×288 204MB 받음). Vercel 환경변수 셋(`PITCH3D_GPU_URL · KEY · SECRET`)은 김민이 넣는 중 — 값은 여기 안 적는다.
+`modal run app.py::warm`(RTMW-x 384×288 204MB 받음). Vercel 환경변수 셋(`PITCH3D_GPU_URL · KEY · SECRET`, Production · Preview)을 김민이 넣고
+다시 배포했다 — 값은 여기 안 적는다. 버킷 glb 허용(T1 마지막 줄)은 v2 결과가 JSON 이라 안 했다(코드에 glb 가 없다).
 네 PC 에서 시험할 때는 Modal › Settings › Proxy Auth Tokens 에서 **네 토큰을 따로** 만들어 네 `.env` 에. T7(샘플 끝까지)은 아직.
 고치지 않고 넘기는 것 셋(네 영역):
 1. **warm 이 다음 분석에 안 남는다** — 모델을 컨테이너 임시 폴더(`/root/.cache/rtmlib`)에 받는데 Volume 도 이미지 굽기도 없어서, 새 컨테이너마다
