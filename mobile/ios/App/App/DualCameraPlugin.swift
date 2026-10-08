@@ -1034,6 +1034,9 @@ final class DualCameraController: NSObject, AVCaptureVideoDataOutputSampleBuffer
             #else
             let hitNow = trigger.feed(sampleBuffer)
             #endif
+            #if DEBUG
+            fakeThrow(CMSampleBufferGetPresentationTimeStamp(sampleBuffer).seconds)
+            #endif
             if let hit = hitNow {
                 #if DEBUG
                 print(String(format: "[cam] throw %@ at %.2f strength %.1f len %d area %.0f→%.0f pos %.0f,%.0f",
@@ -1105,6 +1108,24 @@ final class DualCameraController: NSObject, AVCaptureVideoDataOutputSampleBuffer
      * 맥에서 scripts/velocity-lab/fov-crop.mjs 가 on · off 를 견줘 보정이 화면을 몇 배 키웠나(STAB_CROP_MEASURED 에 넣을 값)를 재고, on · on2 로 그새 폰이
      * 움직이지 않았나 본다. 멈추지 않으면 찍지 않고, 끈 채로 5초 넘게 흔들리면 보정을 되켜고 처음부터.
      */
+    /*
+     * 가짜 공 알림 — 맥에서 `devicectl … process launch … com.bullpenlog.app -fakeThrow YES` 로 켰을 때만, 측정을 시작하고 5초 뒤 한 번.
+     * 공을 던지지 않고 알림 → 클립 → 옮기기 → 계산의 걸린 시간을 잰다(사이트 콘솔 '[velo] clip …').
+     */
+    private var fakeArmedAt: Double?
+    private var fakeDone = false
+    private func fakeThrow(_ t: Double) {
+        guard !fakeDone, UserDefaults.standard.bool(forKey: "fakeThrow"), trigger.isArmed else {
+            if !trigger.isArmed { fakeArmedAt = nil }
+            return
+        }
+        if fakeArmedAt == nil { fakeArmedAt = t }
+        guard let since = fakeArmedAt, t - since > 5 else { return }
+        fakeDone = true
+        print(String(format: "[cam] fake throw at %.2f (wall %.3f)", t, Date().timeIntervalSince1970))
+        onThrow?(t - 0.05, 10, "ball")
+    }
+
     private static var probeDone = false
     private var probeStage = 0
     private var probeWait = 0
@@ -1315,6 +1336,9 @@ final class DualCameraController: NSObject, AVCaptureVideoDataOutputSampleBuffer
                     fov: self.wideFov, fovSource: "format", stabilized: false
                 )
             }
+            #if DEBUG
+            print(String(format: "[cam] clip %.2f~%.2f ready (wall %.3f)", at - before, until, Date().timeIntervalSince1970))
+            #endif
             completion(.success((mainClip, wideClip)))
         }
     }

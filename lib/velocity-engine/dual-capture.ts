@@ -326,6 +326,8 @@ export class DualCapture {
 
   private async measure(job: Job, gen: number) {
     const id = job.id;
+    /* 걸린 시간 — 클립 기다림 · 옮기기 · 계산(앱 콘솔에서 본다, 결과를 빨리 내는 일의 기준) */
+    const t0 = performance.now();
     const clips = await callDualCamera<{ main: DualClip; wide: DualClip | null }>('clip', {
       atSec: job.at,
       beforeSec: job.at - job.start,
@@ -341,7 +343,9 @@ export class DualCapture {
       return;
     }
     const main = clips.main;
+    const t1 = performance.now();
     const blob = await readDualClip(main);
+    const t2 = performance.now();
     job.analyzing = true;
     if (gen === this.gen) this.syncStatus();
     /* fMP4 라 파일 머리에 fps · 렌즈 정보가 없다 — 앱이 알려 준 값으로 넘긴다 */
@@ -361,6 +365,9 @@ export class DualCapture {
       fovKnown: main.fovDeg > 0 && main.fovSource !== 'estimate',
       tiltRad: this.tiltRad,
     });
+    console.info(
+      `[velo] clip ${Math.round(t1 - t0)}ms · read ${Math.round(t2 - t1)}ms (${blob.size}B) · analyze ${Math.round(performance.now() - t2)}ms · ${result.measure.ok ? 'ok' : result.measure.code}`
+    );
     if (gen !== this.gen) {
       await dropWide();
       return;
