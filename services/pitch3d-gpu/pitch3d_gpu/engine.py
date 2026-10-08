@@ -41,4 +41,8 @@ def run(mode: str, payload: dict) -> dict:
         )
         if r.returncode != 0 or not out.is_file():
             raise EngineError((r.stderr or r.stdout or "node 실패")[-2000:])
+        # 엔진 진단 줄(숫자만)은 성공해도 Modal 로그로 — 품질 조사용
+        for line in (r.stderr or "").splitlines():
+            if line.startswith("[pitch3d"):
+                print(line[:6000])
         return json.loads(out.read_text(encoding="utf-8"))

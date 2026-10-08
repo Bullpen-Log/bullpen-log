@@ -1,10 +1,13 @@
 import { readFileSync, writeFileSync } from 'node:fs';
 import { detectPitchEvents } from '@/lib/pose/detect';
 import { medianStep, prepareView, syncViews } from '@/lib/pitch-3d/motion';
+import { cross, dot, norm, normalize, sub, type Vec3 } from '@/lib/pitch-3d/linalg';
 import {
   MAX_V2_FRAMES,
   storedV2ResultJson,
+  V2J,
   v2Fail,
+  type Pitch3dV2Ok,
   type V2FailCode,
   type V2Input,
 } from '@/lib/pitch-3d/v2/contract';
@@ -96,6 +99,46 @@ export function pickSegment(input: { side: unknown; back: unknown }): SegmentOut
   };
 }
 
+/**
+ * 던지는 팔 진단(Modal 로그 한 줄, 2026-10-08 '릴리스 때 팔이 튄다' 조사) — 숫자만, 개인 정보 없음.
+ * 굽힘 축(위팔 × 아래팔)이 앞 장면과 반대면 3D 화면의 팔 조각이 180° 돈다(pose-rig bendAxis). 손바닥(새끼 − 검지)도 같다.
+ * rows: [릴리스에서 몇 장면, 팔꿈치 굽힘°(0 = 폄), 굽힘 축 뒤집힘, 손바닥 뒤집힘, 손목 이동 mm(키 1000), 어깨 · 팔꿈치 · 손목 확신]
+ */
+export function armDiag(r: Pitch3dV2Ok) {
+  const L = r.hand === 'L';
+  const [S, E, W, I, P] = L
+    ? [V2J.lSh, V2J.lEl, V2J.lWr, V2J.lHandIdx, V2J.lHandPinky]
+    : [V2J.rSh, V2J.rEl, V2J.rWr, V2J.rHandIdx, V2J.rHandPinky];
+  const { footPlant: fp, release: rel } = r.events;
+  let prevBend: Vec3 | null = null;
+  let prevPalm: Vec3 | null = null;
+  let flips = 0;
+  let palmFlips = 0;
+  let maxStep = 0;
+  const rows: number[][] = [];
+  r.joints.forEach((j, k) => {
+    const up = sub(j[E] as Vec3, j[S] as Vec3);
+    const fo = sub(j[W] as Vec3, j[E] as Vec3);
+    const c = cross(up, fo);
+    const sin = norm(c) / Math.max(1e-9, norm(up) * norm(fo));
+    const flex = (Math.acos(Math.max(-1, Math.min(1, dot(normalize(up), normalize(fo))))) * 180) / Math.PI;
+    const bend = sin >= 0.15 ? normalize(c) : null;
+    const flip = bend && prevBend && dot(bend, prevBend) < 0 ? 1 : 0;
+    if (bend) prevBend = bend;
+    const palm = normalize(sub(j[P] as Vec3, j[I] as Vec3));
+    const pFlip = prevPalm && dot(palm, prevPalm) < 0 ? 1 : 0;
+    prevPalm = palm;
+    const step = k > 0 ? norm(sub(j[W] as Vec3, r.joints[k - 1][W] as Vec3)) : 0;
+    flips += flip;
+    palmFlips += pFlip;
+    maxStep = Math.max(maxStep, step);
+    if (k >= fp - 8 && k <= rel + 8)
+      rows.push([k - rel, Math.round(flex), flip, pFlip, Math.round(step), r.conf[k][S], r.conf[k][E], r.conf[k][W]]);
+  });
+  const dt = r.t.length > 1 ? (r.t[r.t.length - 1] - r.t[0]) / (r.t.length - 1) : 0;
+  return { n: r.joints.length, fps: dt > 0 ? Math.round(1 / dt) : 0, fp: fp - rel, flips, palmFlips, maxStep: Math.round(maxStep), rows };
+}
+
 /** segment 가 찾은 순간(원본 영상 초) — 모양이 틀리면 undefined(맞추기가 구간 안에서 다시 찾는다) */
 export function readV2Events(raw: unknown): V2Input['events'] {
   if (!raw || typeof raw !== 'object') return undefined;
@@ -130,6 +173,7 @@ export function runFit(raw: unknown): string {
   let result;
   try {
     result = fitPitch3dV2(input).result;
+    if (result.ok) console.error('[pitch3d diag] ' + JSON.stringify(armDiag(result)));
   } catch (err) {
     console.error('[pitch3d v2 fit]', err instanceof Error ? err.stack : err);
     return JSON.stringify(v2Fail(jobId, 'internal', 'fit'));
