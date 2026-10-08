@@ -53,6 +53,7 @@ import {
 } from '@/lib/velocity-engine/live-capture';
 import { DualCapture, DualUnsupportedError } from '@/lib/velocity-engine/dual-capture';
 import { MeasureProgress, measurePhaseOf } from '@/components/velocity/measure-progress';
+import { CameraTuner } from '@/components/velocity/camera-tuner';
 import {
   dualCameraStatus,
   dualStatusNow,
@@ -537,8 +538,11 @@ export function VelocityScreen({
   const [status, setStatus] = useState<LiveStatus>('off');
   /* 던짐을 알아챌 때마다 1씩 — 진행 표시의 담기 막대를 처음부터(measure-progress.tsx) */
   const [captureRun, setCaptureRun] = useState(0);
-  /* 지금 앱 카메라(DualCapture)로 재나 — 결과가 늦게 와서 진행 막대를 길게 */
-  const [appCamera, setAppCamera] = useState(false);
+  /* 지금 앱 카메라(DualCapture)로 재나 — 결과가 늦게 와서 진행 막대를 길게 · 카메라 상태 판이 이것을 만진다 */
+  const [appCapture, setAppCapture] = useState<DualCapture | null>(null);
+  const appCamera = appCapture != null;
+  /* 카메라 상태 판(오른쪽 위 카메라 정보 알약을 누름) — 앱 카메라일 때만 */
+  const [tunerOpen, setTunerOpen] = useState(false);
   const onCaptureStatus = (s: LiveStatus) => {
     if (s === 'capturing') setCaptureRun((n) => n + 1);
     setStatus(s);
@@ -925,7 +929,7 @@ export function VelocityScreen({
       now.net
     );
     if (capture instanceof DualCapture) capture.setFocusPoint(now.focusAt);
-    setAppCamera(capture instanceof DualCapture);
+    setAppCapture(capture instanceof DualCapture ? capture : null);
     capture.setFocalPerLongSide(now.focalRatio);
     capture.setReleaseDistance(
       now.approach === 'approaching' ? now.releaseDistM : null
@@ -982,6 +986,7 @@ export function VelocityScreen({
   const stopCamera = () => {
     captureRef.current?.stop();
     captureRef.current = null;
+    setAppCapture(null);
     setCamera(null);
     setFps(null);
     setLive(false);
@@ -1820,9 +1825,17 @@ export function VelocityScreen({
             {levelOn && <LevelBubble level={level} onRequest={requestPermission} />}
           </div>
           {camera && (
-            /* 화질 · 프레임은 1080p · 60fps 고정(사용자 2026-10-08 — 관리자도 고르지 않는다). 못 내는 폰은 60fps 를 지키며 화질을 낮춘다 */
-            <span
-              className={`inline-flex h-7 min-w-0 items-center rounded-full px-2.5 tabular-nums backdrop-blur ${
+            /*
+             * 화질 · 프레임은 1080p · 60fps 고정(사용자 2026-10-08 — 관리자도 고르지 않는다). 못 내는 폰은 60fps 를 지키며 화질을 낮춘다.
+             * 앱 카메라면 누르면 카메라 상태 판(흐린 까닭 가르기 · 손떨림 보정 · 줌 · 수동 초점)
+             */
+            <button
+              type="button"
+              disabled={!appCamera}
+              onClick={() => setTunerOpen((v) => !v)}
+              aria-expanded={appCamera ? tunerOpen : undefined}
+              aria-label="카메라 상태"
+              className={`pointer-events-auto inline-flex h-7 min-w-0 items-center rounded-full px-2.5 tabular-nums backdrop-blur disabled:cursor-default ${
                 lowFps ? 'bg-amber-600 text-white' : 'bg-black/55 text-white/80'
               }`}
             >
@@ -1833,8 +1846,13 @@ export function VelocityScreen({
                 {camera.focus === 'manual' && ' · 수동초점'}
                 {camera.focus === 'auto' && ' · 자동초점'}
               </span>
-            </span>
+            </button>
           )}
+        </div>
+      )}
+      {cameraOn && appCapture && tunerOpen && step !== 'lens' && !(live && !showCamera) && (
+        <div className="absolute inset-x-3 top-[calc(5.5rem+env(safe-area-inset-top))] z-20">
+          <CameraTuner capture={appCapture} onClose={() => setTunerOpen(false)} />
         </div>
       )}
 

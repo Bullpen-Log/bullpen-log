@@ -64,6 +64,11 @@ ink 쪽으로 — 어렵다면 B 만). 나는 Swift 를 굽지 못해 손대지 
   (`DualCameraPlugin` focus · setTrigger, `DualCapture.setFocusPoint` · `refocus`). 2배 줌에서 늘리지 않는 형식을 먼저 고른다.
   측정 중 진행 표시 `components/velocity/measure-progress.tsx`(투구를 인식했어요 → 구속 계산 중, 뷰파인더 테두리 · 정보 판 ·
   결과 화면 알약). 웹 카메라 `rescueFrameRate` 가 720p 60 까지 내려가 본다.
+- (2.3.2) 폰을 맥에 연결해 바로 깔아 보니 자동초점은 잘 잡혔다(흐렸던 폰엔 옛 앱이 깔려 있었던 듯). 형식은 1080p 먼저. 카메라 정보 알약을
+  누르면 카메라 상태 판(`components/velocity/camera-tuner.tsx`, 앱 `diag` · `tune`): 형식 원문 · 묶어 읽기 · 디지털 줌인가 · 렌즈 자리,
+  손떨림 보정 · 줌 · 수동 초점. 개발용 빌드(맥에서 깐 앱)는 콘솔에 형식 목록 · 2초마다 초점 상태를 찍는다(`#if DEBUG`).
+  맥에서 폰에 바로 깔기: `xcodebuild … -destination 'id=<폰>' DEVELOPMENT_TEAM=<팀> -allowProvisioningUpdates -allowProvisioningDeviceRegistration`
+  → `xcrun devicectl device install app` → `devicectl device process launch --console`(30~50분 걸리던 TestFlight 대신 1~2분).
 
 ## 금윤호에게 — 2026-10-07 · 김민(Claude) — 구속 엔진 2.2.0(흔들림 바로잡기) · 저장한 공을 잰 직후처럼 보기
 

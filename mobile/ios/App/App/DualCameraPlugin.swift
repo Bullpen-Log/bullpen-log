@@ -57,6 +57,8 @@ public class DualCameraPlugin: CAPPlugin, CAPBridgedPlugin {
         CAPPluginMethod(name: "discard", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "snapshot", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "focus", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "diag", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "tune", returnType: CAPPluginReturnPromise),
     ]
 
     private var controller: DualCameraController?
@@ -105,8 +107,8 @@ public class DualCameraPlugin: CAPPlugin, CAPBridgedPlugin {
             zoom: max(1, min(4, call.getDouble("zoom") ?? 1)),
             wide: call.getBool("wide") ?? true,
             focusPoint: DualCameraPlugin.devicePoint(call.getObject("focus")) ?? CGPoint(x: 0.5, y: 0.5),
-            /* 옛 사이트는 이 칸이 없다 — 네트 있음이면 먼 곳만(그물코에 맞지 않게) */
-            focusFar: call.getBool("focusFar") ?? (call.getBool("net") ?? false)
+            /* 사이트가 정한다(투수 뒤 · 네트면 먼 곳만). 안 보내면 끔 */
+            focusFar: call.getBool("focusFar") ?? false
         )
         let preview = DualCameraPlugin.rect(call.getObject("preview"))
         let controller = DualCameraController()
@@ -173,6 +175,29 @@ public class DualCameraPlugin: CAPPlugin, CAPBridgedPlugin {
     }
 
     /// 초점 다시 맞추기 — focus({ x, y, far }) 세로 화면 0~1(없으면 그 자리 그대로). 측정 중이면 맞춘 뒤 잠근다
+    /// 카메라 상태 — 고른 형식(묶어 읽기 · 늘리기 시작 배율 · 2배가 진짜인가) · 줌 · 손떨림 보정 · 초점 · 노출
+    @objc func diag(_ call: CAPPluginCall) {
+        guard let controller else {
+            call.reject("카메라가 꺼져 있어요.", "off")
+            return
+        }
+        controller.diag { call.resolve($0) }
+    }
+
+    /// 지금 켠 카메라를 바로 바꿔 본다 — { stabilization?: Bool, zoom?: Number, lens?: 0~1(수동 초점), autoFocus?: true } → diag
+    @objc func tune(_ call: CAPPluginCall) {
+        guard let controller else {
+            call.reject("카메라가 꺼져 있어요.", "off")
+            return
+        }
+        controller.tune(
+            stabilization: call.getBool("stabilization"),
+            zoom: call.getDouble("zoom"),
+            lens: call.getDouble("lens"),
+            autoFocus: call.getBool("autoFocus") == true
+        ) { call.resolve($0) }
+    }
+
     @objc func focus(_ call: CAPPluginCall) {
         guard let controller else {
             call.reject("카메라가 꺼져 있어요.", "off")
@@ -413,6 +438,11 @@ final class DualCameraController: NSObject, AVCaptureVideoDataOutputSampleBuffer
     private var main: Picked?
     private var wide: Picked?
     private var mainFov: Double = 0
+    /// 형식의 화각(줌 전) — 줌을 바꾸면 mainFov 를 다시 셈한다
+    private var formatFov: Double = 0
+    private var previewConnection: AVCaptureConnection?
+    /// 수동 초점(렌즈 자리 0~1) — 있으면 자동초점 · 잠금이 건드리지 않는다
+    private var manualLens: Float?
     private var wideFov: Double = 0
     private var observers: [NSObjectProtocol] = []
     private var mainConnection: AVCaptureConnection?
@@ -615,6 +645,7 @@ final class DualCameraController: NSObject, AVCaptureVideoDataOutputSampleBuffer
             if wideConnection.isVideoStabilizationSupported { wideConnection.preferredVideoStabilizationMode = .off }
         }
         let previewConnection = AVCaptureConnection(inputPort: mainPort, videoPreviewLayer: previewLayer)
+        self.previewConnection = previewConnection
         let hasPreview = session.canAddConnection(previewConnection)
         if hasPreview {
             session.addConnection(previewConnection)
@@ -690,11 +721,15 @@ final class DualCameraController: NSObject, AVCaptureVideoDataOutputSampleBuffer
         DualCameraController.focus(mainDevice, at: focusPoint, far: focusFar, once: focusOnce)
         mainDevice.unlockForConfiguration()
 
+        #if DEBUG
+        DualCameraController.logFormats(mainDevice, picked: mainPick.format)
+        #endif
         main = mainPick
         wide = widePick
         /* 줌을 걸었으면 화각은 그만큼 좁다(가운데를 잘라 키움) — tan(화각/2) 이 줌의 역수로 */
         let zoomed = Double(mainDevice.videoZoomFactor)
-        mainFov = DualCameraController.narrow(Double(mainPick.format.videoFieldOfView), by: zoomed)
+        formatFov = Double(mainPick.format.videoFieldOfView)
+        mainFov = DualCameraController.narrow(formatFov, by: zoomed)
         wideFov = widePick.map { Double($0.format.videoFieldOfView) } ?? 0
         /* 센서는 가로로 찍는다 — 영상 파일에 '세로로 돌려 보기' 표시만 달아 세로 영상이 되게(픽셀은 안 돌린다) */
         let rotate = CGAffineTransform(rotationAngle: .pi / 2)
@@ -768,17 +803,23 @@ final class DualCameraController: NSObject, AVCaptureVideoDataOutputSampleBuffer
          */
         let sharp = { (c: (AVCaptureDevice.Format, Int32, Int32, Double)) -> Double in
             guard zoom > 1.001 else { return 0 }
-            if Double(c.0.videoZoomFactorUpscaleThreshold) > zoom - 0.01 { return 2 }
+            /* 1.94 처럼 2 에 조금 못 미쳐도 늘리는 몫은 3% 라 진짜로 본다 */
+            if Double(c.0.videoZoomFactorUpscaleThreshold) > zoom - 0.1 { return 2 }
             if #available(iOS 16.0, *),
                c.0.secondaryNativeResolutionZoomFactors.contains(where: { abs(Double($0) - zoom) < 0.01 }) {
                 return 1
             }
             return 0
         }
+        /*
+         * 넓이(1080p)가 먼저 — 그 안에서 2배가 진짜인 것 → 센서를 묶어 읽지 않는 것 → 늘리기 시작 배율이 큰 것. 예전에는 '2배가
+         * 진짜인가'를 넓이보다 먼저 봐서 720p 가 1080p 를 이길 수 있었다.
+         */
         let best = (enough.isEmpty ? candidates : enough).max { a, b in
             if enough.isEmpty { return a.3 < b.3 }
-            if sharp(a) != sharp(b) { return sharp(a) < sharp(b) }
             if area(a) != area(b) { return smallest ? area(a) > area(b) : area(a) < area(b) }
+            if sharp(a) != sharp(b) { return sharp(a) < sharp(b) }
+            if a.0.isVideoBinned != b.0.isVideoBinned { return a.0.isVideoBinned }
             return a.0.videoZoomFactorUpscaleThreshold < b.0.videoZoomFactorUpscaleThreshold
         }
         guard let best else { throw DualCameraError.unsupported("format") }
@@ -816,10 +857,75 @@ final class DualCameraController: NSObject, AVCaptureVideoDataOutputSampleBuffer
             if let point { self.focusPoint = point }
             if let far { self.focusFar = far }
             if let once { self.focusOnce = once }
-            guard let device = self.mainDevice else { return }
+            guard let device = self.mainDevice, self.manualLens == nil else { return }
             do { try device.lockForConfiguration() } catch { return }
             defer { device.unlockForConfiguration() }
             DualCameraController.focus(device, at: self.focusPoint, far: self.focusFar, once: self.focusOnce)
+        }
+    }
+
+    func diag(_ done: @escaping ([String: Any]) -> Void) {
+        sessionQueue.async { done(self.diagNow()) }
+    }
+
+    /// 세션 줄에서
+    private func diagNow() -> [String: Any] {
+        guard let device = mainDevice else { return [:] }
+        let format = device.activeFormat
+        var native: [Double] = []
+        if #available(iOS 16.0, *) { native = format.secondaryNativeResolutionZoomFactors.map { Double($0) } }
+        let fov = clipFov()
+        let stab = mainConnection?.activeVideoStabilizationMode ?? .off
+        return [
+            "format": String(describing: format),
+            "binned": format.isVideoBinned,
+            "upscaleAt": Double(format.videoZoomFactorUpscaleThreshold),
+            "nativeZooms": native,
+            "zoom": Double(device.videoZoomFactor),
+            "stabilization": stab == .off ? "off" : (stab == .standard ? "standard" : "on(\(stab.rawValue))"),
+            "stabilizationSupported": mainConnection?.isVideoStabilizationSupported ?? false,
+            "focusMode": device.focusMode == .locked ? "locked" : (device.focusMode == .autoFocus ? "auto" : "continuous"),
+            "manualFocus": manualLens != nil,
+            "lens": Double(device.lensPosition),
+            "adjusting": device.isAdjustingFocus,
+            "farOnly": device.autoFocusRangeRestriction == .far,
+            "iso": Double(device.iso),
+            "shutter": device.exposureDuration.seconds,
+            "fovDeg": fov.deg,
+            "fovSource": fov.source,
+        ]
+    }
+
+    func tune(stabilization: Bool?, zoom: Double?, lens: Double?, autoFocus: Bool, done: @escaping ([String: Any]) -> Void) {
+        sessionQueue.async {
+            guard let device = self.mainDevice else {
+                done([:])
+                return
+            }
+            if let stabilization {
+                let mode: AVCaptureVideoStabilizationMode = stabilization ? .standard : .off
+                if let c = self.mainConnection, c.isVideoStabilizationSupported { c.preferredVideoStabilizationMode = mode }
+                if let c = self.previewConnection, c.isVideoStabilizationSupported { c.preferredVideoStabilizationMode = mode }
+            }
+            if (try? device.lockForConfiguration()) != nil {
+                if let zoom {
+                    let z = CGFloat(max(1, min(zoom, Double(device.activeFormat.videoMaxZoomFactor))))
+                    device.videoZoomFactor = z
+                    self.mainFov = DualCameraController.narrow(self.formatFov, by: Double(z))
+                }
+                if let lens, device.isLockingFocusWithCustomLensPositionSupported {
+                    let p = Float(min(1, max(0, lens)))
+                    self.manualLens = p
+                    device.setFocusModeLocked(lensPosition: p, completionHandler: nil)
+                }
+                if autoFocus {
+                    self.manualLens = nil
+                    DualCameraController.focus(device, at: self.focusPoint, far: self.focusFar, once: self.focusOnce)
+                }
+                device.unlockForConfiguration()
+            }
+            /* 렌즈 · 보정이 자리 잡을 틈 */
+            self.sessionQueue.asyncAfter(deadline: .now() + 0.4) { done(self.diagNow()) }
         }
     }
 
@@ -850,6 +956,9 @@ final class DualCameraController: NSObject, AVCaptureVideoDataOutputSampleBuffer
 
     func captureOutput(_ output: AVCaptureOutput, didOutput sampleBuffer: CMSampleBuffer, from connection: AVCaptureConnection) {
         if output === mainOutput {
+            #if DEBUG
+            logState()
+            #endif
             mainRecorder.append(sampleBuffer)
             readIntrinsics(sampleBuffer)
             serveSnapshots(sampleBuffer)
@@ -877,6 +986,29 @@ final class DualCameraController: NSObject, AVCaptureVideoDataOutputSampleBuffer
         intrinsicFov = fov
         fovLock.unlock()
     }
+
+    #if DEBUG
+    /// 개발용 빌드(맥에 폰을 연결해 깐 앱)에서만 — 일반 카메라의 1080p · 4K 60fps 형식 전부와 고른 것을 콘솔에
+    static func logFormats(_ device: AVCaptureDevice, picked: AVCaptureDevice.Format) {
+        for format in device.formats {
+            let d = CMVideoFormatDescriptionGetDimensions(format.formatDescription)
+            let fps = format.videoSupportedFrameRateRanges.map(\.maxFrameRate).max() ?? 0
+            guard Int(d.width) * 9 == Int(d.height) * 16, d.width >= 1920, fps >= 59 else { continue }
+            var native: [CGFloat] = []
+            if #available(iOS 16.0, *) { native = format.secondaryNativeResolutionZoomFactors }
+            print("[cam] \(format === picked ? "PICK" : "    ") \(format) binned=\(format.isVideoBinned) up=\(format.videoZoomFactorUpscaleThreshold) native=\(native) stab=\(format.isVideoStabilizationModeSupported(.standard))")
+        }
+    }
+
+    private var logFrame = 0
+    /// 2초마다 줌 · 초점 · 손떨림 · 노출
+    private func logState() {
+        logFrame += 1
+        guard logFrame % 120 == 1, let d = mainDevice else { return }
+        let stab = mainConnection?.activeVideoStabilizationMode.rawValue ?? -1
+        print("[cam] zoom=\(d.videoZoomFactor) lens=\(d.lensPosition) focus=\(d.focusMode.rawValue) adj=\(d.isAdjustingFocus) far=\(d.autoFocusRangeRestriction.rawValue) poi=\(d.focusPointOfInterest) stab=\(stab) iso=\(d.iso) ss=\(d.exposureDuration.seconds) manual=\(manualLens.map { "\($0)" } ?? "nil")")
+    }
+    #endif
 
     // MARK: 렌즈 보정용 장면
 

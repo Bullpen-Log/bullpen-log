@@ -74,6 +74,32 @@ const MAX_PENDING = 2;
 const CLIP_BEFORE_SEC = 0.5;
 const CLIP_AFTER_SEC = 2.6;
 
+/** 앱 카메라 상태(DualCameraPlugin diag) — 카메라 상태 판이 보인다 */
+export type CameraDiag = {
+  /** 고른 형식을 애플이 적은 그대로(HRSI · fov · binned · upscales @ …) */
+  format: string;
+  /** 센서를 묶어 읽나 — 그러면 2배 줌이 화면을 늘린다 */
+  binned: boolean;
+  /** 이 배율부터 화면을 늘린다 */
+  upscaleAt: number;
+  /** 화면을 늘리지 않는 줌(48MP 센서의 2배 등) */
+  nativeZooms: number[];
+  zoom: number;
+  stabilization: string;
+  stabilizationSupported: boolean;
+  focusMode: 'locked' | 'auto' | 'continuous';
+  manualFocus: boolean;
+  /** 렌즈 자리 0(가까이) ~ 1(멀리) */
+  lens: number;
+  adjusting: boolean;
+  farOnly: boolean;
+  iso: number;
+  /** 노출 시간(초) */
+  shutter: number;
+  fovDeg: number;
+  fovSource: string;
+};
+
 /** 렌즈 보정용 장면 — LiveCapture.snapshot() 과 같은 모양 */
 type Snapshot = {
   luma: Uint8Array;
@@ -377,8 +403,9 @@ export class DualCapture {
   }
   /*
    * 초점 — 앱이 스트라이크 존 가운데에 자동초점을 걸고, 측정을 시작하면(arm) 그 자리에서 한 번 맞춘 뒤 잠근다(던질 때 투수 몸에
-   * 끌려가지 않게). 투수 뒤이거나 네트가 있으면 먼 곳만 본다(눈앞 그물코 · 투수 몸에 맞지 않게). 예전에는 네트 있음이면 렌즈를
-   * 가장 먼 끝에 고정해 화면이 뿌옇게 나왔다(2026-10-08 사용자).
+   * 끌려가지 않게). 투수 뒤이거나 네트가 있으면 먼 곳만 본다. 예전에는 네트 있음이면 렌즈를 가장 먼 끝에 고정해 화면이 뿌옇게
+   * 나왔다(2026-10-08 사용자). 이 설정으로 아이폰 15 Pro Max 에서 자동초점이 잘 잡히는 것을 맥에 연결해 확인했다(렌즈 0.73 에서
+   * 맞추고 잠금). 그래도 흐리면 카메라 상태 판(tune)의 수동 초점으로 맞춘다.
    */
   private focusAt = { x: 0.5, y: 0.5 };
   private focusFar() {
@@ -390,6 +417,21 @@ export class DualCapture {
     this.focusAt = p;
     if (this.running)
       void callDualCamera('focus', { focus: p, far: this.focusFar() }).catch(() => undefined);
+  }
+  /** 카메라 상태(형식 · 줌 · 손떨림 보정 · 초점 · 노출) — 옛 앱은 null */
+  async diag(): Promise<CameraDiag | null> {
+    if (!this.running) return null;
+    return callDualCamera<CameraDiag>('diag').catch(() => null);
+  }
+  /** 지금 켠 카메라를 바로 바꿔 본다 — 손떨림 보정 · 줌 · 수동 초점(lens 0~1) · 자동초점으로 되돌리기. 바뀐 상태를 돌려준다 */
+  async tune(t: {
+    stabilization?: boolean;
+    zoom?: number;
+    lens?: number;
+    autoFocus?: boolean;
+  }): Promise<CameraDiag | null> {
+    if (!this.running) return null;
+    return callDualCamera<CameraDiag>('tune', t).catch(() => null);
   }
   /** 재초점 단추 — 존 가운데에 다시 맞춘다(측정 중이면 맞춘 뒤 잠근다). 옛 앱은 focus 가 없어 그대로 */
   async refocus(): Promise<CameraFocus> {
