@@ -37,6 +37,8 @@ export function PitchResult({
   onAligned,
   onEdit,
   busy,
+  gunText,
+  onGun,
 }: {
   /** 공이 바뀌면 바뀌는 값 — 영상 기다림을 새로 센다 */
   pitchKey: number | string;
@@ -64,6 +66,10 @@ export function PitchResult({
   onEdit?: () => void;
   /** 측정이 밑에서 다음 공을 담거나 계산하는 중 — 위에 알약으로 알린다(이 화면이 카메라를 덮고 있어서) */
   busy?: MeasurePhase | null;
+  /** 스피드건 값(보는 단위로 적은 글) — 있으면 단추에 보인다 */
+  gunText?: string | null;
+  /** 있으면 '스피드건 값 넣기' 단추 — 같이 잰 스피드건 값을 바로 적게(보정 짝이 쌓이게) */
+  onGun?: () => void;
 }) {
   /* 영상이 6초 넘게 안 오면 기다림 글을 거둔다(녹화를 못 하는 기기 · 끊긴 조각) */
   const [waited, setWaited] = useState<number | string | null>(null);
@@ -192,6 +198,16 @@ export function PitchResult({
           <span className="ml-2 text-xl text-white/70">{unit}</span>
         </p>
         <p className="mt-1.5 text-sm text-white/75">{sub}</p>
+        {onGun && (
+          <button
+            type="button"
+            onClick={onGun}
+            className="mt-2 inline-flex h-9 items-center gap-1.5 rounded-full bg-white/10 px-3.5 text-sm font-medium text-white transition-colors hover:bg-white/20"
+          >
+            {gunText ? `스피드건 ${gunText}` : '스피드건 값 넣기'}
+            <Pencil aria-hidden className="h-3.5 w-3.5 opacity-70" />
+          </button>
+        )}
         {notes.slice(0, 2).map((n) => (
           <p key={n} className="mt-1 text-xs leading-snug text-warn-line">
             {n}

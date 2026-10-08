@@ -39,9 +39,12 @@ const textToGun = (text: string, unit: SpeedUnit) => {
 export function PitchEditorFields({
   value,
   onChange,
+  focusGun = false,
 }: {
   value: PitchEdit;
   onChange: (next: PitchEdit) => void;
+  /** 결과 화면의 '스피드건 값 넣기'로 열었다 — 스피드건 칸을 맨 위에 두고 초점을 준다 */
+  focusGun?: boolean;
 }) {
   const set = (patch: Partial<PitchEdit>) => onChange({ ...value, ...patch });
   /*
@@ -56,8 +59,23 @@ export function PitchEditorFields({
     if (textToGun(gunText, unit) !== value.gunKmh)
       setGunText(gunToText(value.gunKmh, unit));
   }
+  /* 창이 열리며 닫기 단추에 초점을 주므로 조금 뒤에 옮긴다(아이폰은 누름 밖에서는 자판을 안 띄워 칸만 보인다) */
+  const gunRef = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    if (!focusGun) return;
+    let tries = 0;
+    let t: ReturnType<typeof setTimeout>;
+    /* 창이 열린 뒤에(열 때 닫기 단추로 가는 초점보다 늦게) — 0.1초씩 1초까지 */
+    const go = () => {
+      const el = gunRef.current;
+      if (el?.closest('dialog')?.open !== false && document.activeElement?.closest('dialog')) el?.focus();
+      else if (++tries < 10) t = setTimeout(go, 100);
+    };
+    t = setTimeout(go, 120);
+    return () => clearTimeout(t);
+  }, [focusGun]);
   return (
-    <div className="space-y-4">
+    <div className="flex flex-col gap-4">
       <Field label="구종">
         <div className="flex flex-wrap gap-1.5">
           {PITCH_TYPES.map((t) => (
@@ -95,9 +113,10 @@ export function PitchEditorFields({
         </div>
       </Field>
 
-      <Field label="스피드건 값" hint="같이 쟀으면 적어요 — 보정에 쓰여요">
+      <Field label="스피드건 값" hint="같이 쟀으면 적어요 — 보정에 쓰여요" className={focusGun ? 'order-first' : ''}>
         <div className="relative">
           <input
+            ref={gunRef}
             inputMode="decimal"
             value={gunText}
             onChange={(e) => {
@@ -133,13 +152,15 @@ function Field({
   label,
   hint,
   children,
+  className,
 }: {
   label: string;
   hint?: string;
   children: React.ReactNode;
+  className?: string;
 }) {
   return (
-    <div>
+    <div className={className}>
       <div className="mb-1.5 flex items-baseline justify-between gap-2">
         <span className="text-xs font-medium text-muted">{label}</span>
         {hint && <span className="text-xs text-muted">{hint}</span>}

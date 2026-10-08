@@ -711,6 +711,8 @@ export function VelocityScreen({
   const [saved, setSaved] = useState(false);
   /* 저장하지 않은 공이 있을 때 나가기 — 묻는 창(앱의 영어 시스템 창 대신) */
   const [askLeave, setAskLeave] = useState(false);
+  /* 결과 화면의 '스피드건 값 넣기'로 공 시트를 열었다 — 스피드건 칸부터 */
+  const [focusGun, setFocusGun] = useState(false);
 
   useEffect(() => {
     pitchesRef.current = pitches;
@@ -2714,6 +2716,14 @@ export function VelocityScreen({
                 cameraPos={choices.cameraPos}
                 pitchType={shownPitch.pitchType}
                 onPitchType={(pitchType) => patch(shownPitch.id, { pitchType })}
+                gunText={
+                  shownPitch.gunKmh != null ? `${speedNum(shownPitch.gunKmh)} ${speedLabel(unit)}` : null
+                }
+                onGun={() => {
+                  setEditing(shownPitch.id);
+                  setFocusGun(true);
+                  setSheet('pitch');
+                }}
                 onAligned={(clipOffset) =>
                   setPitches((prev) =>
                     prev.map((q) => (q.id === shownPitch.id ? { ...q, clipOffset } : q))
@@ -3293,6 +3303,7 @@ export function VelocityScreen({
         onClose={() => {
           setSheet('none');
           setEditing(null);
+          setFocusGun(false);
         }}
         title={
           editingPitch
@@ -3305,6 +3316,7 @@ export function VelocityScreen({
             <PitchEditorFields
               value={editingPitch}
               onChange={(next) => patch(editingPitch.id, next)}
+              focusGun={focusGun}
             />
             <dl className="grid grid-cols-2 gap-x-4 gap-y-1.5 rounded-2xl bg-surface-2 px-4 py-3 text-xs">
               <Detail
