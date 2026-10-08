@@ -21,7 +21,6 @@ import {
   type LabView,
 } from '@/lib/pitch-lab-meta';
 import type { LabSample } from '@/lib/pitch-lab';
-import { AnalysisPanel } from './analysis-panel';
 import { V2StatusBadge } from './[id]/analysis-v2';
 
 /**
@@ -455,18 +454,14 @@ function SampleCard({ sample, n }: { sample: LabSample; n: number }) {
         </button>
       )}
 
-      <AnalysisPanel sample={sample} />
-
-      {/* v2(서버 GPU) — 결과 화면에서(설계 pitch-3d-quality.md 화면 결정 1) */}
+      {/* 3D 분석은 서버 GPU(v2) 결과 화면에서만(설계 pitch-3d-quality.md 화면 결정 1) — v1 기기 안 분석(졸라맨)은 2026-10-08 뺐다 */}
       <Link
         href={`/videos/lab/${sample.id}`}
         className="flex min-h-11 w-full items-center justify-between rounded-2xl bg-ink/4 px-4 text-sm font-semibold text-ink transition-colors active:bg-ink/8 desk:hover:bg-ink/6"
       >
         <span className="flex items-center gap-2">
           <Rotate3d aria-hidden className="h-4 w-4 text-sky" />
-          {sample.v2.job?.status === 'done'
-            ? '3D 결과 보기(서버)'
-            : '3D 분석(서버) · 결과 화면'}
+          {sample.v2.job?.status === 'done' ? '3D 결과 보기' : '3D 분석하기'}
         </span>
         <ChevronRight aria-hidden className="h-4 w-4 text-muted" />
       </Link>
