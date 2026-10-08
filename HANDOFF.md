@@ -20,6 +20,8 @@ Claude 로 작업을 시작하면 저절로 읽힌다. 규칙은 `AGENTS.md` 6�
 - 저장은 DB 없이 영상 버킷 `{userId}/pitch-lab/{샘플 번호}/`(side · back 영상 + meta.json) — `lib/pitch-lab.ts` · `lib/pitch-lab-meta.ts`,
   올리기 주소 `app/api/pitch-lab/upload-url`. `lib/storage.ts` 에 `videoBucket()` 을, `components/video-upload.tsx` 의 `uploadToStorage` 를 export 로.
 - 시험 `npm run pitch-lab:test`(8).
+- **(같은 날 더함) 영상 버킷 `pitch-videos` 설정을 바꿨다(사용자 허락)**: 받는 파일 종류에 `application/json` 을 더함(`video/*` · `image/jpeg` 뿐이라 정보 파일이
+  거절됐다). 비공개 · 50MB 한도는 그대로. 버킷을 다시 만들거나 설정을 손볼 때 이 셋을 지켜 줘.
 
 ---
 

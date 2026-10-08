@@ -8,6 +8,7 @@ import { LAB_VIEWS, readLabMeta, type LabMeta, type LabView } from '@/lib/pitch-
  *   side.mp4 · back.mp4  옆 · 뒤 영상(브라우저가 서명 주소로 직접 올린다 — 서버를 안 거쳐 큰 파일도 된다)
  *   meta.json            촬영 정보(lib/pitch-lab-meta.ts)
  *
+ * 버킷이 받는 파일 종류에 application/json 이 있어야 한다(2026-10-08 더함 — video/* · image/jpeg 뿐이면 meta.json 이 거절된다).
  * DB 표를 만들지 않는다 — 베타 실험용이라 구조를 굳히지 않고, 사용자 폴더라 소유권 확인(isOwnedBy)이 그대로 걸린다.
  * 지우면 폴더째 지운다.
  */
