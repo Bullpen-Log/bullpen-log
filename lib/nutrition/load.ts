@@ -3,8 +3,11 @@ import { prisma } from '@/lib/prisma';
 import { shiftDateKey, toDateKey } from '@/lib/pitch-stats';
 import { NUTRITION_BACK_DAYS, dbDate, keyOfDbDate } from '@/lib/nutrition/days';
 import {
+  ENTRY_SOURCES,
   isActivityKey,
   isGoalKey,
+  isGoalKind,
+  isMacroPreset,
   isMealKey,
   isSex,
   scaleMacros,
@@ -12,7 +15,6 @@ import {
   type Food,
   type MealEntryView,
   type RankedFood,
-  ENTRY_SOURCES,
 } from '@/lib/nutrition/meta';
 import {
   DEFAULT_PROFILE,
@@ -163,6 +165,10 @@ export function toProfile(
     weeklyRateKg?: number | null;
     kcalAdjust?: number | null;
     planSince?: Date | null;
+    /* 인아웃식 온보딩의 세 칸(2026-10-08) — 이 칸들이 생기기 전의 줄 모양도 받는다 */
+    goalKind?: string | null;
+    macroPreset?: string | null;
+    fatTargetG?: number | null;
     updatedAt?: Date;
   } | null
 ): ProfileSettings {
@@ -176,6 +182,9 @@ export function toProfile(
     targetWeightKg: row.targetWeightKg ?? null,
     weeklyRateKg: row.weeklyRateKg ?? null,
     kcalAdjust: row.kcalAdjust ?? null,
+    goalKind: isGoalKind(row.goalKind) ? row.goalKind : null,
+    macroPreset: isMacroPreset(row.macroPreset) ? row.macroPreset : null,
+    fatTargetG: row.fatTargetG ?? null,
     /*
      * 계획 시작일이 없는 줄(이 칸이 생기기 전에 저장한 목표)은 마지막으로 저장한 날을 시작일로 본다 —
      * 배포 며칠 전에 유지 → 증량으로 바꾼 사람에게 첫날 "계획보다 느려요"가 뜨지 않게. 오래된 줄은 그 날짜가

@@ -32,6 +32,18 @@ import {
   type WeightPoint,
 } from '../lib/nutrition/weight-goal.ts';
 import { shiftDateKey } from '../lib/pitch-stats.ts';
+import { forecastWeights } from '../lib/nutrition/weight-goal.ts';
+import {
+  defaultActivity,
+  foldGoalKind,
+  goalKindOf,
+  goalKindsFor,
+  kcalOfMacros,
+  macroSplit,
+  presetProtein,
+} from '../lib/nutrition/onboarding.ts';
+import { neededRate, pickPace } from '../lib/nutrition/period.ts';
+import { fatShareOf, isGoalKind, isMacroPreset } from '../lib/nutrition/meta.ts';
 import {
   assembleAdviceInput,
   serviceHour,
@@ -5033,6 +5045,201 @@ console.log(
     '한국 시각 — UTC 05:00 은 14시, UTC 23:00 은 8시',
     serviceHour(new Date('2026-10-07T05:00:00Z')) === 14 &&
       serviceHour(new Date('2026-10-07T23:00:00Z')) === 8
+  );
+}
+
+/* ───────────────────────────── 인아웃식 온보딩 — 계산 더하기(2026-10-08) ───────────────────────────── */
+console.log('\n■ 인아웃식 온보딩 — 계산 더하기(새 칸이 비면 예전 숫자 그대로)');
+{
+  const man: Body = { weightKg: 80, heightCm: 180, age: 20, sex: 'M' };
+  const teen: Body = { weightKg: 65, heightCm: 172, age: 15, sex: 'M' };
+  const kid: Body = { weightKg: 40, heightCm: 145, age: 11, sex: 'M' };
+  const P = DEFAULT_PROFILE;
+  const base = computeTargets(P, man, 0);
+  check(
+    '새 칸 셋이 비면 예전 숫자 그대로 — 2750 · 단백질 144 · 지방 76 · 활동대사량 2750',
+    base.base === 2750 &&
+      base.protein === 144 &&
+      base.fat === 76 &&
+      base.tdee === 2750 &&
+      !base.fatManual
+  );
+  check(
+    '목표 카드 원답(goalKind)은 계산을 안 바꾼다 — 접은 goal · proteinPerKg 만 본다',
+    computeTargets({ ...P, goalKind: 'muscle' }, man, 0).base === 2750 &&
+      computeTargets({ ...P, goalKind: 'lean' }, man, 0).protein === 144
+  );
+  const gain = computeTargets({ ...P, goal: 'gain' }, man, 0);
+  check(
+    '활동대사량은 목표 · 조정을 얹기 전 — 증량도 2750, base 는 3050',
+    gain.tdee === 2750 && gain.base === 3050
+  );
+  const carb = computeTargets({ ...P, macroPreset: 'carb' }, man, 0);
+  check(
+    "'탄수화물 넉넉히' = 지방 20% — 80kg 은 바닥 0.8g/kg(64g)에 걸려 64, 탄수화물이 그만큼 는다",
+    carb.fatShare === 0.2 &&
+      carb.fat === 64 &&
+      carb.carbs === base.carbs + 27 &&
+      carb.base === 2750,
+    `지방 ${carb.fat} · 탄 ${carb.carbs}`
+  );
+  const teenCarb = computeTargets({ ...P, macroPreset: 'carb' }, teen, 0);
+  const teenBal = computeTargets(P, teen, 0);
+  check(
+    "성장기 65kg '탄수화물 넉넉히' — 지방 60(2710 × 20% ÷ 9), 균형은 75",
+    teenCarb.fat === 60 && teenBal.fat === 75,
+    `${teenCarb.fat} · ${teenBal.fat}`
+  );
+  check(
+    "'단백질 넉넉히' 프리셋 자체는 지방 25% 그대로(단백질은 저장 때 proteinPerKg 로 적는다)",
+    computeTargets({ ...P, macroPreset: 'protein' }, man, 0).fat === 76
+  );
+  const fatM = computeTargets({ ...P, fatTargetG: 90 }, man, 0);
+  check(
+    '지방 g 을 직접 정하면 그 값 · fatAuto 는 셈해 둠 · 탄수화물이 줄어 합은 그대로',
+    fatM.fat === 90 &&
+      fatM.fatManual &&
+      fatM.fatAuto === 76 &&
+      Math.abs(fatM.carbs * 4 + fatM.protein * 4 + fatM.fat * 9 - fatM.kcal) <= 4
+  );
+  const fatW = computeTargets({ ...P, fatTargetG: 90 }, man, 300);
+  check(
+    '직접 정한 지방은 운동한 날도 그대로 — 쓴 300kcal 은 탄수화물 75g 으로',
+    fatW.fat === 90 && fatW.carbs === fatM.carbs + 75
+  );
+  check(
+    '지방 몫 — null · balanced 0.25 · carb 0.2 · protein 0.25',
+    fatShareOf(null) === 0.25 &&
+      fatShareOf('balanced') === 0.25 &&
+      fatShareOf('carb') === 0.2 &&
+      fatShareOf('protein') === 0.25
+  );
+  check(
+    '열쇠 거르기',
+    isGoalKind('lean') &&
+      !isGoalKind('keto') &&
+      isMacroPreset('carb') &&
+      !isMacroPreset('vegan')
+  );
+
+  /* 목표 카드 → 계산 */
+  const f = (k: Parameters<typeof foldGoalKind>[0], age: number | null) =>
+    foldGoalKind(k, age);
+  check(
+    '접기(성인) — 증량 null · 근육 gain 2.0 · 유지 · 감량 null · 군살 lose 2.2',
+    f('gain', 20).goal === 'gain' &&
+      f('gain', 20).proteinPerKg === null &&
+      f('muscle', 20).goal === 'gain' &&
+      f('muscle', 20).proteinPerKg === 2.0 &&
+      f('maintain', 20).goal === 'maintain' &&
+      f('lose', 20).goal === 'lose' &&
+      f('lose', 20).proteinPerKg === null &&
+      f('lean', 20).goal === 'lose' &&
+      f('lean', 20).proteinPerKg === 2.2
+  );
+  check(
+    '접기(성장기) — 근육 gain 1.8(범위 끝) · 군살은 빼지 않고 유지 + 1.8',
+    f('muscle', 15).goal === 'gain' &&
+      f('muscle', 15).proteinPerKg === 1.8 &&
+      f('lean', 15).goal === 'maintain' &&
+      f('lean', 15).proteinPerKg === 1.8
+  );
+  check(
+    '접기(어린이) — 근육 gain 1.5 · 군살 유지 1.5 · 감량은 계산에서 유지로',
+    f('muscle', 11).proteinPerKg === 1.5 &&
+      f('lean', 11).goal === 'maintain' &&
+      f('lean', 11).proteinPerKg === 1.5 &&
+      computeTargets({ ...P, ...f('lose', 11) }, kid, 0).goal === 'maintain'
+  );
+  check(
+    '접은 값으로 셈하면 — 성인 근육 키우기 3050 · 단백질 160, 군살만 빼기 2350 · 176',
+    (() => {
+      const m = computeTargets(
+        { ...P, ...f('muscle', 20), goalKind: 'muscle' },
+        man,
+        0
+      );
+      const l = computeTargets({ ...P, ...f('lean', 20), goalKind: 'lean' }, man, 0);
+      return (
+        m.base === 3050 && m.protein === 160 && l.base === 2350 && l.protein === 176
+      );
+    })()
+  );
+  check(
+    '보이는 카드 — 어린이 둘 · 성장기 셋(감량 · 군살 없음) · 성인 다섯 · 나이 모름 다섯',
+    goalKindsFor(11).join() === 'gain,maintain' &&
+      goalKindsFor(15).join() === 'gain,muscle,maintain' &&
+      goalKindsFor(20).length === 5 &&
+      goalKindsFor(null).length === 5
+  );
+  check(
+    '저장된 줄의 카드 — 원답이 있으면 그것, 없으면 접은 목표, 성장기의 숨긴 감량은 그대로 감량',
+    goalKindOf('gain', 'muscle', 20) === 'muscle' &&
+      goalKindOf('gain', null, 20) === 'gain' &&
+      goalKindOf('lose', 'lean', 15) === 'lose' &&
+      goalKindOf('lose', null, 15) === 'lose'
+  );
+  check(
+    '소속으로 미리 고르는 평소 움직임 — 중 · 고 · 대 · 프로 많음, 초등 · 성인리그 보통, 사회인 적음, 모름 보통',
+    defaultActivity('고등학교') === 'high' &&
+      defaultActivity('프로') === 'high' &&
+      defaultActivity('초등학교') === 'mid' &&
+      defaultActivity('성인리그') === 'mid' &&
+      defaultActivity('사회인') === 'low' &&
+      defaultActivity(null) === 'mid'
+  );
+  check(
+    "'단백질 넉넉히' — 성인 1.8 → 2.0 · 이미 2.2 면 그대로 · 성장기는 1.8 로 당김 · 다른 프리셋은 손대지 않음",
+    presetProtein('protein', 1.8, 20) === 2.0 &&
+      presetProtein('protein', 2.2, 20) === 2.2 &&
+      presetProtein('protein', null, 15) === 1.8 &&
+      presetProtein('carb', 1.6, 20) === 1.6 &&
+      presetProtein(null, null, 20) === null
+  );
+  check(
+    '탄단지 비율 — 372 · 144 · 76 = 54 · 21 · 25, 합 100',
+    (() => {
+      const s = macroSplit(372, 144, 76);
+      return (
+        s.c === 54 &&
+        s.p === 21 &&
+        s.f === 25 &&
+        s.c + s.p + s.f === 100 &&
+        macroSplit(0, 0, 0).c === 0
+      );
+    })()
+  );
+  check(
+    '탄수 g 을 고치면 kcal 이 주인 — 4C + 4P + 9F',
+    kcalOfMacros(300, 144, 76) === 2460
+  );
+
+  /* 예상 체중 선 · 언제까지 */
+  const up = forecastWeights(80, 85, 0.25);
+  const down = forecastWeights(80, 75, 0.35);
+  check(
+    '예상 체중 선 — 80 → 85 (0.25) 는 20주 · 21점 · 끝 85, 80 → 75 (0.35) 는 15주 · 끝 75 · 넘어가지 않음',
+    up.length === 21 &&
+      up[0].kg === 80 &&
+      up[20].kg === 85 &&
+      up[8].kg === 82 &&
+      down.length === 16 &&
+      down[15].kg === 75 &&
+      down.every((p) => p.kg >= 75) &&
+      down[14].kg === 75.1
+  );
+  check(
+    '한 해를 넘거나 남은 것이 없으면 빈 배열',
+    forecastWeights(80, 100, 0.25).length === 0 &&
+      forecastWeights(80, 80, 0.25).length === 0
+  );
+  check(
+    "'언제까지' — 5kg 을 8주면 주 0.625 → 가장 빠른 0.35, 24주면 0.21 → 0.25, 날짜 없음 null",
+    Math.abs((neededRate(5, '2026-10-08', '2026-12-03') ?? 0) - 0.625) < 1e-9 &&
+      pickPace([0.25, 0.35], 0.625) === 0.35 &&
+      pickPace([0.25, 0.35], 0.21) === 0.25 &&
+      neededRate(5, '2026-10-08', null) === null &&
+      pickPace([], 0.3) === null
   );
 }
 

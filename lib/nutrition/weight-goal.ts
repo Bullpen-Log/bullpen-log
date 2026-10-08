@@ -434,6 +434,28 @@ export function etaWeeks(remainingKg: number, paceKg: number): number | null {
 }
 
 /**
+ * 예상 체중 선 — 지금부터 목표까지 주마다 속도만큼(직선). 온보딩 '추천 계획'과 영양 탭 '내 계획'이 그린다.
+ * 한 해를 넘거나 남은 것이 없으면 빈 배열. 마지막 점은 목표 체중(속도로 나눠떨어지지 않아도 거기서 끝난다).
+ */
+export function forecastWeights(
+  nowKg: number,
+  targetKg: number,
+  paceKg: number
+): { week: number; kg: number }[] {
+  const weeks = etaWeeks(Math.abs(targetKg - nowKg), paceKg);
+  if (weeks === null) return [];
+  const up = targetKg >= nowKg;
+  const out: { week: number; kg: number }[] = [];
+  for (let k = 0; k <= weeks; k++) {
+    const raw = nowKg + (up ? 1 : -1) * paceKg * k;
+    const kg =
+      k === weeks ? targetKg : up ? Math.min(targetKg, raw) : Math.max(targetKg, raw);
+    out.push({ week: k, kg: Math.round(kg * 10) / 10 });
+  }
+  return out;
+}
+
+/**
  * 목표 체중을 정할 수 있는 나이 · 목표인가 — 증량(성장기 · 성인)과 감량(성인)만.
  * 미성년자에게는 내려갈 숫자를 주지 않는다. 생년월일을 모르면 성인으로 치지 않는다.
  */

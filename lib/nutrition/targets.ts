@@ -1,7 +1,10 @@
 import {
   ACTIVITIES,
+  fatShareOf,
   type ActivityKey,
   type GoalKey,
+  type GoalKind,
+  type MacroPreset,
   type Sex,
 } from '@/lib/nutrition/meta';
 import {
@@ -30,7 +33,8 @@ import {
  * 영양소는 단백질 → 지방 → 탄수화물 차례로 정한다.
  *   단백질    체중 × 1kg 당 g (기본 성인 1.8 · 성장기 1.5 · 어린이 1.2g). 가장 먼저,
  *             칼로리와 상관없이 챙길 것. 하루 g 을 직접 정했으면 그 값(proteinTargetG).
- *   지방      오늘 목표의 25%. 다만 체중 1kg 당 0.8g 아래로는 내리지 않는다.
+ *   지방      오늘 목표의 25%(탄단지 프리셋 '탄수화물 넉넉히'면 20% — lib/nutrition/meta.ts MACRO_PRESETS).
+ *             다만 체중 1kg 당 0.8g 아래로는 내리지 않는다. 하루 g 을 직접 정했으면 그 값(fatTargetG).
  *   탄수화물  남은 칼로리 전부. 그래서 운동·투구를 많이 한 날은 탄수화물이
  *             저절로 늘어난다 — 던지는 날 먹어야 할 것이 바로 탄수화물이다.
  */
@@ -59,6 +63,15 @@ export type ProfileSettings = {
   kcalAdjust: number | null;
   /** 지금 칼로리 계획이 시작된 날('YYYY-MM-DD') — 체중 흐름을 계획과 견줄 구간의 시작 */
   planSince: string | null;
+  /*
+   * ── 인아웃식 온보딩(2026-10-08, docs/designs/inout-onboarding.md ④). 셋 다 null 이면 목표 숫자는 이 칸들이 생기기 전과 똑같다 ──
+   */
+  /** 목표 카드의 원답(다섯 가지). 계산은 goal · proteinPerKg 로 접은 값만 본다(lib/nutrition/onboarding.ts). null 은 옛 줄 */
+  goalKind: GoalKind | null;
+  /** 탄단지 나누기 — 지방 몫. null 은 균형(25%) */
+  macroPreset: MacroPreset | null;
+  /** 직접 정한 하루 지방(g). null 은 계산(프리셋의 지방 몫, 바닥 0.8g/kg) */
+  fatTargetG: number | null;
 };
 
 export const DEFAULT_PROFILE: ProfileSettings = {
@@ -71,6 +84,9 @@ export const DEFAULT_PROFILE: ProfileSettings = {
   weeklyRateKg: null,
   kcalAdjust: null,
   planSince: null,
+  goalKind: null,
+  macroPreset: null,
+  fatTargetG: null,
 };
 
 export type Body = {
@@ -94,6 +110,8 @@ const FALLBACK = { weightKg: 75, heightCm: 178, age: 20 };
 export type Targets = {
   /** 기초대사량 */
   bmr: number;
+  /** 활동대사량 = 기초대사량 × 평소 움직임(10 단위) — 목표 · 조정을 얹기 전. 온보딩 '추천 계획' · 영양 탭 '내 계획'이 보인다 */
+  tdee: number;
   /** 운동 전 하루 목표 */
   base: number;
   /** 오늘 운동으로 쓴 것(OUT) */
@@ -116,6 +134,12 @@ export type Targets = {
   proteinAuto: number;
   /** 하루 단백질을 직접 정했나 */
   proteinManual: boolean;
+  /** 계산에 쓴 지방 몫(오늘 목표 대비) — 프리셋에서 */
+  fatShare: number;
+  /** 계산으로 나온 하루 지방(g) — 직접 정했어도 셈해 둔다 */
+  fatAuto: number;
+  /** 하루 지방을 직접 정했나 */
+  fatManual: boolean;
   /** 계산에 쓴 목표 — 어린이의 감량은 유지로 셈한다 */
   goal: GoalKey;
   /** 목표에서 온 하루 kcal(부호 있음) — 증량 +300 · 감량 −400 처럼. 직접 정한 날에도 셈해 둔다 */
@@ -167,6 +191,7 @@ export function computeTargets(
 
   const bmr = Math.round(basalKcal(weightKg, heightCm, age, body.sex));
   const activity = ACTIVITIES.find((a) => a.key === profile.activity) ?? ACTIVITIES[1];
+  const tdee = round10(bmr * activity.factor);
   /* 나이 칸은 짐작 나이(20세)까지 넣어서 고른다 — 모르면 성인 기준 */
   const rule = ageRule(age);
   const goal = effectiveGoal(profile.goal, age);
@@ -191,11 +216,15 @@ export function computeTargets(
   const proteinAuto = Math.round(proteinPerKg * weightKg);
   const proteinManual = profile.proteinTargetG !== null;
   const protein = Math.round(profile.proteinTargetG ?? proteinAuto);
-  const fat = Math.round(Math.max((kcal * 0.25) / 9, 0.8 * weightKg));
+  const fatShare = fatShareOf(profile.macroPreset);
+  const fatAuto = Math.round(Math.max((kcal * fatShare) / 9, 0.8 * weightKg));
+  const fatManual = profile.fatTargetG !== null;
+  const fat = Math.round(profile.fatTargetG ?? fatAuto);
   const carbs = Math.max(0, Math.round((kcal - protein * 4 - fat * 9) / 4));
 
   return {
     bmr,
+    tdee,
     base,
     burn,
     kcal,
@@ -209,6 +238,9 @@ export function computeTargets(
     proteinPerKg,
     proteinAuto,
     proteinManual,
+    fatShare,
+    fatAuto,
+    fatManual,
     goal,
     delta,
     adjust,

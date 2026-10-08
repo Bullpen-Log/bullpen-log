@@ -238,6 +238,10 @@ export function GoalSheet({
     weeklyRateKg: pickedRate,
     kcalAdjust: planned.kcalAdjust,
     planSince: profile.planSince,
+    /* 인아웃식 온보딩 칸 — 목표 창 확장(7단계) 전까지는 저장된 값 그대로 */
+    goalKind: profile.goalKind,
+    macroPreset: profile.macroPreset,
+    fatTargetG: profile.fatTargetG,
   } satisfies ProfileSettings;
   const preview = computeTargets(draft, body, 0);
   const auto = computeTargets(
