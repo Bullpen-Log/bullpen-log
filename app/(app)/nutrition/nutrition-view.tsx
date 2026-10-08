@@ -31,6 +31,10 @@ import {
 } from 'lucide-react';
 import { MiniCalendar } from '@/components/mini-calendar';
 import { useWeightUnit } from '@/components/use-units';
+import { Segmented } from '@/components/segmented';
+import { MyPlanCard } from '@/components/nutrition/my-plan-card';
+import { useLocalChoice } from '@/components/nutrition/use-local-choice';
+import { macroSplit } from '@/lib/nutrition/onboarding';
 import { fromWeight, toWeight } from '@/lib/units';
 import { shiftDateKey } from '@/lib/pitch-stats';
 import { NUTRITION_BACK_DAYS } from '@/lib/nutrition/days';
@@ -244,6 +248,15 @@ export function NutritionView({
   /* 식단 카드의 '취향 바꾸기' — 목표 창을 식단 취향 칸부터 연다 */
   const openPrefs = (e: MouseEvent<HTMLElement>) =>
     setGoal({ origin: originOf(e), n: (goal?.n ?? 0) + 1, open: true, tab: 'diet' });
+  /*
+   * 휴대폰 위 [기록｜통계](인아웃식 온보딩, 2026-10-08): 통계 열(내 계획 · 운동 · 체중 · 7일)이 끼니 넷 밑으로 내려가 멀었다.
+   * PC(lg)는 두 열이 나란히라 고르개가 숨고 둘 다 보인다. 고른 칸은 이 기기에만 남는다.
+   */
+  const [tab, setTab] = useLocalChoice<'log' | 'stats'>(
+    'bullpen-nutrition-tab',
+    'log',
+    ['log', 'stats']
+  );
 
   const t = day.targets;
   const eaten = sumMacros(entries.map(entryMacros));
@@ -417,6 +430,19 @@ export function NutritionView({
         </button>
       </header>
 
+      <Segmented
+        label="기록과 통계"
+        role="tablist"
+        value={tab}
+        onChange={setTab}
+        options={[
+          { value: 'log', label: '기록' },
+          { value: 'stats', label: '통계' },
+        ]}
+        size="md"
+        className="lg:hidden"
+      />
+
       {error && (
         <div
           role="alert"
@@ -434,27 +460,43 @@ export function NutritionView({
         </div>
       )}
 
-      {!day.hasProfile && (
+      {/*
+        온보딩을 안 한 계정(가입 때 영양 답이 없었거나 옛 계정) — 가입과 같은 질문 화면(/nutrition/setup)으로 보낸다.
+        목표만 급하면 목표 창도 열 수 있다. 기록 · 통계 어느 쪽에서도 보이게 고르개 밑에 둔다.
+      */}
+      {!day.onboarded && (
         <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-sky/30 bg-sky-tint px-4 py-3">
-          <p className="min-w-0 flex-1 text-sm text-ink">
-            목표를 정하면 칼로리와 단백질이 내 몸과 시즌에 맞춰져요.
+          <p className="min-w-0 flex-1 text-sm text-ink break-keep">
+            {day.hasProfile
+              ? '새 계획 화면으로 목표를 다시 정해 볼까요?'
+              : '열 가지 질문으로 내 계획을 만들어요.'}
             <span className="block text-xs text-muted">
-              지금은 목표 ‘유지’, 평소 움직임 ‘보통’으로 계산하고 있어요.
+              {day.hasProfile
+                ? '목표 카드 · 탄단지 나누기 · 예상 체중 선이 생겼어요. 지금 목표는 그대로예요.'
+                : '지금은 목표 ‘유지’, 평소 움직임 ‘보통’으로 계산하고 있어요. 5분이면 돼요.'}
             </span>
           </p>
-          <button
-            type="button"
-            onClick={openGoal}
-            className="rounded-xl bg-sky px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-sky-strong"
-          >
-            목표 정하기
-          </button>
+          <div className="flex items-center gap-1">
+            <button
+              type="button"
+              onClick={openGoal}
+              className="rounded-xl px-3 py-2 text-sm font-semibold text-sky-strong transition-colors hover:bg-sky/10"
+            >
+              목표 창에서
+            </button>
+            <Link
+              href="/nutrition/setup"
+              className="rounded-xl bg-sky px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-sky-strong"
+            >
+              시작하기
+            </Link>
+          </div>
         </div>
       )}
 
       {/* 휴대폰 한 칸도 minmax(0,1fr) — 한 줄 고정 글(식단 카드 요약 같은 것)이 칸의 최소 너비를 밀어 화면 밖으로 넘치지 않게 */}
       <div className="grid grid-cols-[minmax(0,1fr)] items-start gap-block lg:grid-cols-[minmax(0,1fr)_22rem]">
-        <div className="stack-block">
+        <div className={`stack-block ${tab === 'stats' ? 'max-lg:hidden' : ''}`}>
           {/* 오늘 영양 — 홈 카드의 세부판(할 일 · 까닭 · 더 먹을 양과 권하는 범위 · 점수 조각). 오늘만 */}
           {advice.headline && <AdviceCard advice={advice} />}
           {/* 던지는 날 가이드 — 오늘이 등판 · 불펜 전날이나 당일, 던진 뒤일 때만(lib/nutrition/guide.ts) */}
@@ -467,7 +509,13 @@ export function NutritionView({
               carbsGap={gaps.carbs > 0}
             />
           )}
-          <SummaryCard eaten={eaten} gaps={gaps} day={day} today={today} />
+          <SummaryCard
+            eaten={eaten}
+            gaps={gaps}
+            day={day}
+            today={today}
+            onShowStats={() => setTab('stats')}
+          />
 
           {/* 오늘 식단 짜기 — 짠 식단은 아래 끼니 칸에 '식단' 줄로 들어간다(먹으면 체크) */}
           <PlanCard
@@ -534,7 +582,16 @@ export function NutritionView({
           </ul>
         </div>
 
-        <div className="stack-block">
+        <div className={`stack-block ${tab === 'log' ? 'max-lg:hidden' : ''}`}>
+          {/* 내 계획 — 가입 끼움 '추천 계획'과 같은 부품. 목표를 정한 사람만(안 정했으면 위 배너가 안내한다) */}
+          {day.hasProfile && (
+            <MyPlanCard
+              day={day}
+              today={today}
+              onOpenGoal={openGoal}
+              className={PANEL}
+            />
+          )}
           <BurnCard day={day} />
           <WeightCard day={day} today={today} onOpenGoal={openGoal} />
           <section className={`${PANEL} space-y-3`}>
@@ -1258,15 +1315,28 @@ function SummaryCard({
   gaps,
   day,
   today,
+  onShowStats,
 }: {
   eaten: Macros;
   gaps: MacroGaps;
   day: NutritionDay;
   today: string;
+  /** 휴대폰에서 체중 카드로 가려면 통계 쪽을 먼저 펴야 한다 */
+  onShowStats: () => void;
 }) {
   const t = day.targets;
   /*
-   * 체중 카드의 권유를 여기서 한 줄로 알린다 — 휴대폰에서 체중 카드는 끼니 넷 아래라 안 보인다.
+   * '나의 하루'(인아웃식 온보딩, 2026-10-08): 큰 숫자는 '먹은 / 목표 kcal', 더 먹을 양은 그 밑 한 줄. [자세히｜한눈에]는 이 기기에만
+   * 남는다 — '한눈에'는 숫자 · 비율 · 막대만, '자세히'는 조정 · 정보 없는 음식 · 체중 권유 · 짐작한 몸까지.
+   */
+  const [mode, setMode] = useLocalChoice<'full' | 'brief'>(
+    'bullpen-nutrition-detail',
+    'full',
+    ['full', 'brief']
+  );
+  const brief = mode === 'brief';
+  /*
+   * 체중 카드의 권유를 여기서 한 줄로 알린다 — 휴대폰에서 체중 카드는 통계 쪽이라 안 보인다.
    * 단추는 체중 카드에만 있다(까닭을 읽고 누르게). 던지는 날 가이드가 뜬 날은 알림을 겹치지 않는다.
    */
   const snoozed = useSuggestionSnoozed(day, today);
@@ -1275,131 +1345,164 @@ function SummaryCard({
   const max = Math.max(t.kcal, eaten.kcal, 1);
   const pct = (n: number) => `${Math.min(100, (Math.max(0, n) / max) * 100)}%`;
   const over = left < 0;
-
-  /*
-   * 남은 양 · 게이지 · 탄단지를 촘촘히 쌓는다(예전 218px → 줄여서).
-   *
-   * '먹은 것 · 목표' 줄은 큰 숫자와 같은 줄 오른쪽으로 올렸다 — 게이지 밑에 따로 한 줄을
-   * 차지하던 것이다. 좁으면 숫자 밑으로 내려간다(flex-wrap).
-   */
-  /* 먹은 만큼 차는 링(휴대폰) — 0~100. 넘치면 링은 한 바퀴, 색은 경고 */
+  /* 먹은 만큼 차는 링(휴대폰 · 한눈에) — 0~100. 넘치면 링은 한 바퀴, 색은 경고 */
   const share = t.kcal > 0 ? Math.round((eaten.kcal / t.kcal) * 100) : 0;
   const ring = Math.min(100, share);
+  /* 먹은 열량의 탄단지 비율(탄 4 · 단 4 · 지 9) 과 목표 비율 — 인아웃의 '탄 % · 단 % · 지 %' 알약 */
+  const ate =
+    eaten.kcal > 0
+      ? macroSplit(eaten.carbs, eaten.protein, eaten.fat)
+      : { c: 0, p: 0, f: 0 };
+  const goalSplit = macroSplit(t.carbs, t.protein, t.fat);
+  const pills: [string, number][] = [
+    ['탄', ate.c],
+    ['단', ate.p],
+    ['지', ate.f],
+  ];
 
   return (
     <section className={`${PANEL} space-y-3`}>
+      <div className="flex items-center justify-between gap-3">
+        <h2 className="text-sm font-bold text-ink">나의 하루</h2>
+        <Segmented
+          label="나의 하루 보기"
+          role="tablist"
+          value={mode}
+          onChange={setMode}
+          options={[
+            { value: 'full', label: '자세히' },
+            { value: 'brief', label: '한눈에' },
+          ]}
+          size="sm"
+          className="w-36"
+          itemClassName="py-1"
+        />
+      </div>
+
       <div className="flex flex-wrap items-end justify-between gap-x-4 gap-y-1">
         <div className="flex items-center gap-4">
-          {/*
-            휴대폰은 오늘 먹은 만큼 차는 링 — 아이폰 피트니스의 링처럼 한눈에(2026-10-01 '애플처럼'). 가운데는
-            목표의 몇 %. 밑의 가로 막대(운동으로 늘어난 몫까지 보이는 것)는 PC 에서만 — 휴대폰은 링이 맡는다.
-          */}
-          <span
-            role="img"
-            aria-label={`목표의 ${share}% 먹음`}
-            className="relative grid h-[4.5rem] w-[4.5rem] shrink-0 place-items-center desk:hidden"
-          >
-            <svg
-              aria-hidden
-              viewBox="0 0 64 64"
-              className="absolute inset-0 -rotate-90"
+          {brief && (
+            <span
+              role="img"
+              aria-label={`목표의 ${share}% 먹음`}
+              className="motion-safe:animate-fade-in relative grid h-[4.5rem] w-[4.5rem] shrink-0 place-items-center desk:hidden"
             >
-              <circle
-                cx="32"
-                cy="32"
-                r="27"
-                fill="none"
-                strokeWidth="7"
-                className="stroke-ink/8"
-              />
-              {ring > 0 && (
+              <svg
+                aria-hidden
+                viewBox="0 0 64 64"
+                className="absolute inset-0 -rotate-90"
+              >
                 <circle
                   cx="32"
                   cy="32"
                   r="27"
                   fill="none"
                   strokeWidth="7"
-                  strokeLinecap="round"
-                  pathLength={100}
-                  strokeDasharray="100"
-                  strokeDashoffset={100 - ring}
-                  className={`ring-grow transition-[stroke-dashoffset] duration-500 ${
-                    over ? 'stroke-warn' : 'stroke-sky'
-                  }`}
+                  className="stroke-ink/8"
                 />
-              )}
-            </svg>
-            <span className="text-numeric text-sm text-ink">{share}%</span>
-          </span>
+                {ring > 0 && (
+                  <circle
+                    cx="32"
+                    cy="32"
+                    r="27"
+                    fill="none"
+                    strokeWidth="7"
+                    strokeLinecap="round"
+                    pathLength={100}
+                    strokeDasharray="100"
+                    strokeDashoffset={100 - ring}
+                    className={`ring-grow transition-[stroke-dashoffset] duration-500 ${
+                      over ? 'stroke-warn' : 'stroke-sky'
+                    }`}
+                  />
+                )}
+              </svg>
+              <span className="text-numeric text-sm text-ink">{share}%</span>
+            </span>
+          )}
           <div>
             <p className="text-xs text-muted">
-              {over ? '목표보다' : '오늘 더 먹을 수 있는 양'}
+              {day.date === today ? '오늘 먹은 것' : '이날 먹은 것'}
             </p>
-            <p
-              className={`text-[1.75rem] font-bold leading-tight tabular-nums transition-colors ${
-                over ? 'text-warn' : 'text-ink'
-              }`}
-            >
-              {kcalText(Math.abs(left))}
-              <span className="ml-1 text-sm font-semibold">
-                kcal{over ? ' 더 먹었어요' : ''}
+            <p className="text-numeric text-[1.75rem] leading-tight text-ink">
+              <span className={`transition-colors ${over ? 'text-warn' : ''}`}>
+                {kcalText(eaten.kcal)}
               </span>
+              <span className="mx-1 text-base font-normal text-muted">/</span>
+              {kcalText(t.kcal)}
+              <span className="ml-1 text-sm font-semibold text-muted">kcal</span>
             </p>
           </div>
         </div>
-        <p className="flex flex-wrap gap-x-3 gap-y-1 pb-1 text-xs text-muted tabular-nums">
-          <span>
-            먹은 것 <b className="font-semibold text-ink">{kcalText(eaten.kcal)}</b>
-          </span>
-          <span>
-            목표 <b className="font-semibold text-ink">{kcalText(t.kcal)}</b>
-            {/* 체중 흐름을 보고 받아들인 조정이 얹혀 있으면 말한다 — 숫자가 왜 계산과 다른지 */}
-            {t.adjust !== 0 && (
-              <>
-                {' '}
-                (체중 조정 {t.adjust > 0 ? '+' : '−'}
-                {kcalText(Math.abs(t.adjust))} 포함)
-              </>
-            )}
-            {t.burn > 0 && (
-              <>
-                {' '}
-                = 기본 {kcalText(t.base)} +{' '}
-                <span className="text-sky">운동 {kcalText(t.burn)}</span>
-              </>
-            )}
-          </span>
+        <p
+          className={`pb-1 text-xs leading-relaxed tabular-nums break-keep ${over ? 'text-warn' : 'text-muted'}`}
+        >
+          {over ? (
+            `목표보다 ${kcalText(-left)}kcal 더 먹었어요`
+          ) : (
+            <>
+              {t.burn > 0 && (
+                <span className="text-sky">운동으로 {kcalText(t.burn)}kcal 더 · </span>
+              )}
+              {kcalText(left)}kcal 더 먹을 수 있어요
+            </>
+          )}
+          {/* 체중 흐름을 보고 받아들인 조정이 얹혀 있으면 말한다 — 숫자가 왜 계산과 다른지 */}
+          {!brief && t.adjust !== 0 && (
+            <span className="block text-muted">
+              체중 조정 {t.adjust > 0 ? '+' : '−'}
+              {kcalText(Math.abs(t.adjust))} 포함 · 기본 {kcalText(t.base)}
+            </span>
+          )}
         </p>
       </div>
 
-      <div
-        role="img"
-        aria-label={`목표 ${kcalText(t.kcal)}kcal 가운데 ${kcalText(eaten.kcal)}kcal 먹음`}
-        className="relative hidden h-3 overflow-hidden rounded-full bg-surface-2 desk:block"
-      >
-        {/* 운동으로 늘어난 몫 — 옅은 파랑으로 깔아 둔다 */}
-        {t.burn > 0 && (
-          <div
-            className={`absolute inset-y-0 bg-sky/20 transition-[left,width] duration-500 ${EASE}`}
-            style={{
-              left: pct(t.base),
-              width: `calc(${pct(t.kcal)} - ${pct(t.base)})`,
-            }}
-          />
-        )}
+      {!brief && (
         <div
-          className={`absolute inset-y-0 left-0 rounded-full transition-[width,background-color] duration-500 ${EASE} ${
-            over ? 'bg-warn' : 'bg-sky'
-          }`}
-          style={{ width: pct(eaten.kcal) }}
-        />
-        {over && (
+          role="img"
+          aria-label={`목표 ${kcalText(t.kcal)}kcal 가운데 ${kcalText(eaten.kcal)}kcal 먹음`}
+          className="relative hidden h-3 overflow-hidden rounded-full bg-surface-2 desk:block"
+        >
+          {/* 운동으로 늘어난 몫 — 옅은 파랑으로 깔아 둔다 */}
+          {t.burn > 0 && (
+            <div
+              className={`absolute inset-y-0 bg-sky/20 transition-[left,width] duration-500 ${EASE}`}
+              style={{
+                left: pct(t.base),
+                width: `calc(${pct(t.kcal)} - ${pct(t.base)})`,
+              }}
+            />
+          )}
           <div
-            aria-hidden
-            className="absolute inset-y-0 w-0.5 bg-surface"
-            style={{ left: pct(t.kcal) }}
+            className={`absolute inset-y-0 left-0 rounded-full transition-[width,background-color] duration-500 ${EASE} ${
+              over ? 'bg-warn' : 'bg-sky'
+            }`}
+            style={{ width: pct(eaten.kcal) }}
           />
-        )}
+          {over && (
+            <div
+              aria-hidden
+              className="absolute inset-y-0 w-0.5 bg-surface"
+              style={{ left: pct(t.kcal) }}
+            />
+          )}
+        </div>
+      )}
+
+      {/* 탄 · 단 · 지 비율 알약 — 먹은 열량 기준. 옆에 목표 비율 */}
+      <div className="flex flex-wrap items-center gap-1.5 text-xs">
+        {pills.map(([k, v]) => (
+          <span
+            key={k}
+            className="inline-flex items-center gap-1 rounded-full bg-ink/6 px-2.5 py-1 tabular-nums text-ink"
+          >
+            <span className="text-muted">{k}</span>
+            {v}%
+          </span>
+        ))}
+        <span className="ml-1 text-muted tabular-nums">
+          목표 {goalSplit.c}:{goalSplit.p}:{goalSplit.f}
+        </span>
       </div>
 
       {/*
@@ -1446,7 +1549,7 @@ function SummaryCard({
         })}
       </dl>
 
-      {gaps.foods > 0 && (
+      {!brief && gaps.foods > 0 && (
         <p className="motion-safe:animate-fade-in text-xs text-muted">
           {gapNames(gaps)} 정보가 없는 음식이 {gaps.foods}개라,{' '}
           <b className="font-semibold text-warn">+</b> 표시한 양은 실제보다 적게
@@ -1454,20 +1557,23 @@ function SummaryCard({
         </p>
       )}
 
-      {nudge && (
+      {!brief && nudge && (
         <p className="motion-safe:animate-fade-in flex flex-wrap items-center gap-x-2 text-xs text-muted">
           체중 흐름을 보고 목표를 조금 바꿔 볼까요?
           <a
             href="#weight-card"
             onClick={(e) => {
-              const card = document.getElementById('weight-card');
-              if (!card) return;
               e.preventDefault();
-              card.scrollIntoView({
-                behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches
-                  ? 'auto'
-                  : 'smooth',
-                block: 'center',
+              /* 휴대폰은 통계 쪽을 먼저 펴고(숨은 카드로는 못 간다), 그려진 뒤 굴린다 */
+              onShowStats();
+              requestAnimationFrame(() => {
+                document.getElementById('weight-card')?.scrollIntoView({
+                  behavior: window.matchMedia('(prefers-reduced-motion: reduce)')
+                    .matches
+                    ? 'auto'
+                    : 'smooth',
+                  block: 'center',
+                });
               });
             }}
             className="-my-2 inline-flex min-h-10 items-center rounded-md px-1 font-semibold text-sky-strong underline-offset-2 hover:underline"
@@ -1481,7 +1587,7 @@ function SummaryCard({
         비어서 짐작으로 셈한 것 — 성별도 이제 알린다. 성별은 예전에 목표 창에서
         골랐지만 지금은 내 정보에 있어서, 여기서 말하지 않으면 모르고 지나간다.
       */}
-      {day.hasProfile && t.assumed.length > 0 && (
+      {!brief && day.hasProfile && t.assumed.length > 0 && (
         <p className="text-xs text-muted">
           내 정보에 {withObjectParticle(assumedText(t.assumed))} 넣으면 목표가 더
           정확해져요.

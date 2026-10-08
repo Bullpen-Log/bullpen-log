@@ -8,6 +8,7 @@ import { dbDate, isNutritionDate, keyOfDbDate } from '@/lib/nutrition/days';
 import { loadNutritionDay, recentWeightKg } from '@/lib/nutrition/load';
 import { STEP_KCAL } from '@/lib/nutrition/weight-goal';
 import { cleanDietPrefs } from '@/lib/nutrition/diet-prefs';
+import { MAX_WEIGHT_KG, MIN_WEIGHT_KG } from '@/lib/profile';
 import { buildProfileData, type ProfileInput } from '@/lib/nutrition/profile-save';
 import {
   buildMealPlan,
@@ -280,8 +281,11 @@ export async function setWeight(
   if (!isNutritionDate(date)) return BAD_DATE;
   let weightKg: number | null = null;
   if (kg !== null) {
-    if (!isNum(kg) || kg < 20 || kg > 250) {
-      return { ok: false, error: '체중은 20~250kg 사이로 적어 주세요.' };
+    if (!isNum(kg) || kg < MIN_WEIGHT_KG || kg > MAX_WEIGHT_KG) {
+      return {
+        ok: false,
+        error: `체중은 ${MIN_WEIGHT_KG}~${MAX_WEIGHT_KG}kg 사이로 적어 주세요.`,
+      };
     }
     weightKg = Math.round(kg * 10) / 10;
   }

@@ -14,7 +14,7 @@ import { MacroBar, PlanStats } from '@/components/onboarding/plan-stats';
 import { TextButton } from '@/components/onboarding/step-card';
 import { Segmented } from '@/components/segmented';
 import { kgText, paceText } from '@/components/onboarding/format';
-import { ageRule, effectiveRate, paceDelta } from '@/lib/nutrition/age';
+import { effectiveRate, paceDelta } from '@/lib/nutrition/age';
 import {
   AVOIDS,
   DIET_STYLES,
@@ -28,7 +28,11 @@ import {
   kcalText,
   type GoalKind,
 } from '@/lib/nutrition/meta';
-import { defaultActivity, goalKindsFor } from '@/lib/nutrition/onboarding';
+import {
+  defaultActivity,
+  goalKindHint,
+  goalKindsFor,
+} from '@/lib/nutrition/onboarding';
 import {
   PERIOD_WEEKS,
   activityOf,
@@ -254,32 +258,7 @@ export function NutritionStepPanel({
   }
 }
 
-/* ── 목표 카드 — 나이마다 보이는 카드와 설명이 다르다 ── */
-
-function goalHint(kind: GoalKind, band: 'child' | 'teen' | 'adult'): string {
-  const rule = ageRule(band === 'child' ? 10 : band === 'teen' ? 15 : 20);
-  const top = rule.proteinChoices[rule.proteinChoices.length - 1];
-  switch (kind) {
-    case 'gain':
-      return band === 'child'
-        ? '잘 자라게 조금 더 · 하루 +200kcal'
-        : band === 'teen'
-          ? '몸을 키워요 · 하루 +300kcal'
-          : '몸을 키워요 · 하루 +300kcal부터';
-    case 'muscle':
-      return band === 'adult'
-        ? '증량에 단백질 2.0g/kg · 지방보다 근육이 붙게'
-        : `증량에 단백질 ${top}g/kg(성장기 최대) · 지방보다 근육이 붙게`;
-    case 'maintain':
-      return band === 'adult'
-        ? '지금 몸으로 시즌을 버텨요'
-        : '자라는 만큼 먹으며 시즌을 버텨요';
-    case 'lose':
-      return '천천히 빼요 · 하루 −300kcal부터';
-    case 'lean':
-      return '감량에 단백질 2.2g/kg · 힘은 지키고 군살만';
-  }
-}
+/* ── 목표 카드 — 나이마다 보이는 카드와 설명이 다르다(lib/nutrition/onboarding.ts goalKindHint) ── */
 
 function GoalKindStep({ ctx }: { ctx: StepCtx }) {
   const { a, set, p, invalid } = ctx;
@@ -287,7 +266,7 @@ function GoalKindStep({ ctx }: { ctx: StepCtx }) {
   const options: ChoiceOption<GoalKind>[] = goalKindsFor(p.age).map((key) => ({
     value: key,
     label: GOAL_KINDS.find((g) => g.key === key)?.label ?? key,
-    hint: goalHint(key, band),
+    hint: goalKindHint(key, p.age),
   }));
   const foot =
     p.age === null

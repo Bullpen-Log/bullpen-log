@@ -7,6 +7,7 @@ import {
   isMealPattern,
   isSeasonPhase,
   type AvoidKey,
+  type DietPrefs,
   type DietStyle,
   type MealPattern,
   type SeasonPhase,
@@ -27,6 +28,7 @@ import {
 import {
   defaultActivity,
   foldGoalKind,
+  goalKindOf,
   goalKindsFor,
   presetProtein,
 } from '@/lib/nutrition/onboarding';
@@ -171,7 +173,17 @@ export type Preview = {
 };
 
 export function preview(a: NutritionAnswers, body: OnboardingBody): Preview {
-  const draft = draftOf(a, body);
+  return previewOfProfile(draftOf(a, body), body);
+}
+
+/**
+ * 저장된 목표 그대로(단백질 g/kg 도 저장값)로 셈한 미리보기 — 운동 없는 날. 영양 탭 '내 계획' 카드가 쓴다
+ * (답에서 접은 값이 아니라 목표 창에서 고른 값을 그대로 보여야 한다).
+ */
+export function previewOfProfile(
+  draft: ProfileSettings,
+  body: OnboardingBody
+): Preview {
   const calcBody: Body = {
     weightKg: body.weightKg,
     heightCm: body.heightCm,
@@ -187,7 +199,7 @@ export function preview(a: NutritionAnswers, body: OnboardingBody): Preview {
   const allowed = targetAllowed(draft.goal, body.age);
   const range = targetRange(draft.goal, body.age, body.weightKg, body.heightCm);
   const paces = paceChoices(body.age, draft.goal, body.weightKg);
-  const targetKg = allowed ? a.targetWeightKg : null;
+  const targetKg = allowed ? draft.targetWeightKg : null;
   const remainingKg =
     targetKg !== null && body.weightKg !== null
       ? Math.max(0, Math.round(Math.abs(targetKg - body.weightKg) * 10)) / 10
@@ -210,6 +222,31 @@ export function preview(a: NutritionAnswers, body: OnboardingBody): Preview {
     remainingKg,
     etaWeeks: eta,
     forecast,
+  };
+}
+
+/** 저장된 목표 · 취향 → 답 모양 — 영양 탭 '내 계획' 카드와 목표 창이 온보딩 부품(PlanStats 등)을 같이 쓰게 */
+export function answersOfProfile(
+  profile: ProfileSettings,
+  prefs: DietPrefs,
+  age: number | null
+): NutritionAnswers {
+  return {
+    goalKind: goalKindOf(profile.goal, profile.goalKind, age),
+    targetWeightKg: profile.targetWeightKg,
+    targetSkipped: profile.targetWeightKg === null,
+    weeklyRateKg: profile.weeklyRateKg,
+    goalEndDate: prefs.goalEndDate,
+    activity: profile.activity,
+    seasonPhase: prefs.seasonPhase,
+    macroPreset: profile.macroPreset,
+    dietStyle: prefs.dietStyle,
+    mealPattern: prefs.mealPattern,
+    avoid: prefs.avoid,
+    supplements: prefs.supplements,
+    kcalTarget: profile.kcalTarget,
+    proteinTargetG: profile.proteinTargetG,
+    fatTargetG: profile.fatTargetG,
   };
 }
 

@@ -416,8 +416,15 @@
          계획 634px)도 굴리지 않음(scrollHeight = 700). 고친 것: 끼움 카드 줄이 flex 칸으로 찢김(글을 한 span 에) · 작은 윗글(eyebrow) 뺌
          (impeccable craft floor) · 속도 글자 둘째 자리(components/onboarding/format.ts). impeccable detect 0. 자판(--kb)은 StepCard 단추 줄의
          pb 로 받음 — 아이폰 실기기 · 앱 웹뷰는 사용자 확인 뒤.
-      6. 영양 탭 '나의 하루' · [기록｜통계] · '내 계획' 카드(plan-stats 재사용) · onboarded 안내 3h
-      7. 목표 창 확장(카드 5 · 탄단지 나누기 · 활동대사량, period.ts 로 바꿈, setWeight 20~200 통일) 2h
+      6. **끝남** 영양 탭 — 휴대폰 위 [기록｜통계](Segmented tablist, lg 에서 숨음, 이 기기에만 `bullpen-nutrition-tab`) · '나의 하루'(SummaryCard:
+         큰 숫자 '먹은 / 목표 kcal' · 더 먹을 양 한 줄(운동 몫 포함) · 탄 · 단 · 지 % 알약 + 목표 비율 · [자세히｜한눈에] `bullpen-nutrition-detail` —
+         한눈에는 숫자 · 알약 · 막대만, 휴대폰 링은 한눈에서만) · '내 계획' 카드 `components/nutrition/my-plan-card.tsx`(통계 열 맨 위, PlanStats 재사용 —
+         previewOfProfile 로 저장값 그대로 운동 없는 날, 고치기 → 목표 창) · onboarded 배너(안 한 계정 '열 가지 질문으로 내 계획을' → /nutrition/setup,
+         옛 계정 '다시 정해 볼까요' + 목표 창에서). 체중 권유 '보기'는 휴대폰에서 통계를 먼저 편다. 임시 경로 dev-preview-nutrition 으로 확인(지움).
+      7. **끝남** 목표 창 — 목표 Segmented 3 → 목표 카드(OptionCards, goalKindsFor · 카드가 단백질을 정함 foldGoalKind · presetProtein) · 탄단지
+         나누기 Segmented 3 · 하루 지방 직접 정하기(fatTargetG 20~200, 단백질과 같은 스위치) · 미리보기에 탄단지 막대 + 활동대사량 · 로컬 복사본
+         (PERIOD_WEEKS · dayGap · dateText · kgText · rateText)을 period.ts · format.ts 로 · 저장에 goalKind · macroPreset · fatTargetG ·
+         setWeight 20~200(내 정보 MIN/MAX_WEIGHT_KG 와 같게). 카드 밑 글은 lib/nutrition/onboarding.ts goalKindHint(가입과 같은 글).
       8. `/nutrition/setup` 기존 사용자(질문 7~16 + 끼움 셋, finishNutritionSetup 한 트랜잭션) 2h
       9. 검증 · 마무리(tsc · eslint · 시험 · 임시 경로 지움 + 서버 재시작 · HANDOFF · 메모) 1.5h
 

@@ -102,6 +102,33 @@ export function presetProtein(
   return effectiveProtein(Math.max(perKg ?? 0, PROTEIN_PRESET_PER_KG), age);
 }
 
+/** 목표 카드 밑 한 줄 — 나이마다 다르다(성장기는 단백질 끝값 · 어린이는 +200). 가입 마법사 · 목표 창이 같이 쓴다 */
+export function goalKindHint(kind: GoalKind, age: number | null): string {
+  const rule = ageRule(age);
+  const band = rule.band;
+  const top = rule.proteinChoices[rule.proteinChoices.length - 1];
+  switch (kind) {
+    case 'gain':
+      return band === 'child'
+        ? '잘 자라게 조금 더 · 하루 +200kcal'
+        : band === 'teen'
+          ? '몸을 키워요 · 하루 +300kcal'
+          : '몸을 키워요 · 하루 +300kcal부터';
+    case 'muscle':
+      return band === 'adult'
+        ? '증량에 단백질 2.0g/kg · 지방보다 근육이 붙게'
+        : `증량에 단백질 ${top}g/kg(성장기 최대) · 지방보다 근육이 붙게`;
+    case 'maintain':
+      return band === 'adult'
+        ? '지금 몸으로 시즌을 버텨요'
+        : '자라는 만큼 먹으며 시즌을 버텨요';
+    case 'lose':
+      return '천천히 빼요 · 하루 −300kcal부터';
+    case 'lean':
+      return '감량에 단백질 2.2g/kg · 힘은 지키고 군살만';
+  }
+}
+
 /** 운동 전 칼로리 = 4C + 4P + 9F — 탄수화물 g 을 직접 고칠 때 주인은 kcal 이다(탄수 g → kcalTarget) */
 export const kcalOfMacros = (carbsG: number, proteinG: number, fatG: number) =>
   Math.round(4 * carbsG + 4 * proteinG + 9 * fatG);
