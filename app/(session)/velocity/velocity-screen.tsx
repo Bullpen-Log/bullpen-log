@@ -57,6 +57,7 @@ import { CameraTuner } from '@/components/velocity/camera-tuner';
 import {
   dualCameraStatus,
   dualStatusNow,
+  isOldApp,
   markDualUnsupported,
   type DualStatus,
 } from '@/lib/dual-camera';
@@ -1726,7 +1727,13 @@ export function VelocityScreen({
    * 기준 조건(1080p · 60fps · 2배가 진짜 줌 · 손떨림 보정)을 못 맞춘 카메라 — 모든 사용자가 같은 조건이어야 값을 견줄 수 있다(2026-10-08
    * 사용자). 몰래 낮추지 않고, 막지도 않고, 측정 화면에 계속 알린다
    */
-  const standardNote = camera?.offStandard?.length ? standardNoteOf(camera.offStandard) : null;
+  const standardNote = camera?.offStandard?.length
+    ? standardNoteOf(camera.offStandard) +
+      /* 옛 앱(앱 카메라가 없음) — 무엇을 하면 되는지까지(웹 카메라라 손떨림 보정을 못 켠다) */
+      (native && !recOn && isOldApp(dualStatusNow())
+        ? ' TestFlight에서 불펜로그를 업데이트하면 앱 카메라로 기준 조건에 맞춰 재요.'
+        : '')
+    : null;
   /* 오른쪽 위 알약을 주황으로 — 실제로 들어오는 fps 가 낮거나(50 아래), 카메라가 60fps 아래로 켜졌거나(시트와 같은 기준) */
   const lowFps =
     fpsNote != null ||

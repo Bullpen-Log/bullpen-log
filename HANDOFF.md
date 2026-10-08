@@ -82,6 +82,8 @@ ink 쪽으로 — 어렵다면 B 만). 나는 Swift 를 굽지 못해 손대지 
   렌즈 값(intrinsics)을 주지 않는다. 네 폰도 재 볼 수 있다: 맥에서 깐 개발용 앱 → 카메라 단계에서 폰을 세워 두기 → `scripts/velocity-lab/fov-crop.mjs`(README 7).
 - 기준 밖 공(`analysis.offStandard` 가 빈 배열이 아님)은 스피드건 보정 짝에서 뺀다(`app/actions/velocity.ts` loadCalibration). 관리자 공
   미리보기에 '기준 밖' 배지와 까닭(`explorer-panels.tsx`, `AdminPitchAnalysis.offStandard`). 관리자 통계(편향 · p90)는 예전처럼 다 섞어 센다.
+- 옛 앱(앱 카메라 없음 — `lib/dual-camera.ts` isOldApp: 부품이 없거나 status 에 `single` 칸이 없음)이면 측정 화면의 기준 밖 알림 끝에
+  'TestFlight에서 불펜로그를 업데이트하면…'을 붙인다. status 의 `single` 은 이제 칸이 없으면 undefined(예전엔 false).
 
 ## 금윤호에게 — 2026-10-07 · 김민(Claude) — 구속 엔진 2.2.0(흔들림 바로잡기) · 저장한 공을 잰 직후처럼 보기
 
