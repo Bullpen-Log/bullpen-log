@@ -7212,7 +7212,7 @@
   },
   {
    "week": 8,
-   "end": 148.6,
+   "end": 135.6,
    "stations": [
     {
      "station": "잔디 · 밴드 기둥",
@@ -7458,18 +7458,54 @@
     {
      "station": "메디신볼 벽",
      "start": 46.8,
-     "end": 102.2,
+     "end": 87.4,
      "items": [
       {
-       "exerciseId": "ce5f020d-1a4b-411d-819f-209ee3c613dd",
+       "exerciseId": "50ca932a-93cb-407a-bf94-49a0c8d00cfe",
        "no": "8-14",
-       "title": "P2 힌지 스톰프 스로우 (작은 공)",
+       "title": "P1 스트레치 스로우 (작은 공)",
        "station": "메디신볼 벽",
        "bucket": "메디신볼 드릴",
        "equipment": [
         "메디신볼"
        ],
        "at": 46.8,
+       "minutes": 2,
+       "load": 0.5,
+       "cue": "3회",
+       "perSide": false,
+       "breakAfter": false,
+       "kind": "drill",
+       "group": "기초"
+      },
+      {
+       "exerciseId": "60f5eaa8-7c17-4a57-89ef-1887f1c6681f",
+       "no": "8-15",
+       "title": "P1 스트레치 스로우 (큰 공)",
+       "station": "메디신볼 벽",
+       "bucket": "메디신볼 드릴",
+       "equipment": [
+        "메디신볼"
+       ],
+       "at": 49.8,
+       "minutes": 2,
+       "load": 0.5,
+       "cue": "3회",
+       "perSide": false,
+       "breakAfter": false,
+       "kind": "drill",
+       "group": "기초"
+      },
+      {
+       "exerciseId": "ce5f020d-1a4b-411d-819f-209ee3c613dd",
+       "no": "8-16",
+       "title": "P2 힌지 스톰프 스로우 (작은 공)",
+       "station": "메디신볼 벽",
+       "bucket": "메디신볼 드릴",
+       "equipment": [
+        "메디신볼"
+       ],
+       "at": 52.8,
        "minutes": 2,
        "load": 2,
        "cue": "3회",
@@ -7480,14 +7516,14 @@
       },
       {
        "exerciseId": "812ec56d-2141-4dfe-aec8-ab3cb6b14b59",
-       "no": "8-15",
+       "no": "8-17",
        "title": "P2 힌지 스톰프 스로우 (큰 공)",
        "station": "메디신볼 벽",
        "bucket": "메디신볼 드릴",
        "equipment": [
         "메디신볼"
        ],
-       "at": 49.8,
+       "at": 55.8,
        "minutes": 2,
        "load": 2,
        "cue": "3회",
@@ -7497,87 +7533,51 @@
        "group": "연결"
       },
       {
-       "exerciseId": "9a506010-cf70-4067-8b52-c5bc67bcd511",
-       "no": "8-16",
-       "title": "P3 레터럴 힌지 바운드 스로우 (작은 공)",
-       "station": "메디신볼 벽",
-       "bucket": "메디신볼 드릴",
-       "equipment": [
-        "메디신볼"
-       ],
-       "at": 52.8,
-       "minutes": 2,
-       "load": 2.5,
-       "cue": "3회",
-       "perSide": false,
-       "breakAfter": false,
-       "kind": "drill",
-       "group": "통합"
-      },
-      {
-       "exerciseId": "8607fb9c-34ba-49b0-9c24-a17773db1c10",
-       "no": "8-17",
-       "title": "P3 레터럴 힌지 바운드 스로우 (큰 공)",
-       "station": "메디신볼 벽",
-       "bucket": "메디신볼 드릴",
-       "equipment": [
-        "메디신볼"
-       ],
-       "at": 55.8,
-       "minutes": 2,
-       "load": 2.5,
-       "cue": "3회",
-       "perSide": false,
-       "breakAfter": false,
-       "kind": "drill",
-       "group": "통합"
-      },
-      {
-       "exerciseId": "4f831dc3-c1f5-42c1-8aeb-56c12ddbafa8",
+       "exerciseId": "df6410d8-42aa-4443-9b94-3fb40573a604",
        "no": "8-18",
-       "title": "P4 스플릿 스탠스 스로우 + 모멘텀 (작은 공)",
+       "title": "P3 힌지 드라이브 스로우 (작은 공)",
        "station": "메디신볼 벽",
        "bucket": "메디신볼 드릴",
        "equipment": [
         "메디신볼"
        ],
        "at": 58.8,
-       "minutes": 2.4,
-       "load": 1,
-       "cue": "3회",
-       "perSide": false,
-       "breakAfter": false,
-       "kind": "drill",
-       "group": "연결"
-      },
-      {
-       "exerciseId": "bcec5c64-e5e4-4413-87cc-cdd89f5dc1c6",
-       "no": "8-19",
-       "title": "P5 90도 앞다리 찹 (큰 공)",
-       "station": "메디신볼 벽",
-       "bucket": "메디신볼 드릴",
-       "equipment": [
-        "메디신볼"
-       ],
-       "at": 62.2,
        "minutes": 2,
-       "load": 0.5,
+       "load": 1.5,
        "cue": "3회",
        "perSide": false,
        "breakAfter": false,
        "kind": "drill",
-       "group": "기초"
+       "group": "통합"
       },
       {
-       "exerciseId": "1e524829-077d-47d8-a325-a41b518be45c",
-       "no": "8-20",
-       "title": "P5 앞다리 스플릿 스탠스 스쿱 (큰 공)",
+       "exerciseId": "150090d2-6d52-48ec-965e-81c9d72bed9b",
+       "no": "8-19",
+       "title": "P3 힌지 드라이브 스로우 (큰 공)",
        "station": "메디신볼 벽",
        "bucket": "메디신볼 드릴",
        "equipment": [
         "메디신볼"
        ],
-       "at": 64.2,
+       "at": 61.8,
+       "minutes": 2,
+       "load": 1.5,
+       "cue": "3회",
+       "perSide": false,
+       "breakAfter": false,
+       "kind": "drill",
+       "group": "통합"
+      },
+      {
+       "exerciseId": "c0bcd6e6-23fa-4396-995c-91e400918782",
+       "no": "8-20",
+       "title": "P5 회전 앞다리 슬램 (큰 공)",
+       "station": "메디신볼 벽",
+       "bucket": "메디신볼 드릴",
+       "equipment": [
+        "메디신볼"
+       ],
+       "at": 63.8,
        "minutes": 2,
        "load": 0.5,
        "cue": "3회",
@@ -7587,69 +7587,15 @@
        "group": "기초"
       },
       {
-       "exerciseId": "2aa49604-bb56-49f0-9e0d-6ae7d2a99b10",
-       "no": "8-21",
-       "title": "P5 오버헤드 앞다리 스로우 (작은 공)",
-       "station": "메디신볼 벽",
-       "bucket": "메디신볼 드릴",
-       "equipment": [
-        "메디신볼"
-       ],
-       "at": 72.2,
-       "minutes": 2,
-       "load": 1,
-       "cue": "3회",
-       "perSide": false,
-       "breakAfter": false,
-       "kind": "drill",
-       "group": "연결"
-      },
-      {
-       "exerciseId": "6ccf0906-6cab-4a05-a2de-4d230b4ae89d",
-       "no": "8-22",
-       "title": "P5 오버헤드 앞다리 스로우 (큰 공)",
-       "station": "메디신볼 벽",
-       "bucket": "메디신볼 드릴",
-       "equipment": [
-        "메디신볼"
-       ],
-       "at": 75.2,
-       "minutes": 2,
-       "load": 1,
-       "cue": "3회",
-       "perSide": false,
-       "breakAfter": false,
-       "kind": "drill",
-       "group": "연결"
-      },
-      {
-       "exerciseId": "e7566ad4-1418-430b-b893-675cddc9beed",
-       "no": "8-23",
-       "title": "P5 힌지 오버더톱 슬램 (큰 공)",
-       "station": "메디신볼 벽",
-       "bucket": "메디신볼 드릴",
-       "equipment": [
-        "메디신볼"
-       ],
-       "at": 77.2,
-       "minutes": 2,
-       "load": 1,
-       "cue": "3회",
-       "perSide": false,
-       "breakAfter": false,
-       "kind": "drill",
-       "group": "연결"
-      },
-      {
        "exerciseId": "7096333b-7ba7-4d6b-9f7c-0237098f5039",
-       "no": "8-24",
+       "no": "8-21",
        "title": "P5 오버헤드 앞다리 스로우 + 모멘텀 (작은 공)",
        "station": "메디신볼 벽",
        "bucket": "메디신볼 드릴",
        "equipment": [
         "메디신볼"
        ],
-       "at": 80.2,
+       "at": 71.8,
        "minutes": 2.4,
        "load": 1.5,
        "cue": "3회",
@@ -7660,14 +7606,14 @@
       },
       {
        "exerciseId": "9e3f5bec-99fc-417a-84e2-5503b72b82c4",
-       "no": "8-25",
+       "no": "8-22",
        "title": "P5 오버헤드 앞다리 스로우 + 모멘텀 (큰 공)",
        "station": "메디신볼 벽",
        "bucket": "메디신볼 드릴",
        "equipment": [
         "메디신볼"
        ],
-       "at": 83.6,
+       "at": 75.2,
        "minutes": 2.4,
        "load": 1.5,
        "cue": "3회",
@@ -7677,69 +7623,34 @@
        "group": "통합"
       },
       {
-       "exerciseId": "2fd672ca-1bd4-40e4-8635-fb05029a0f34",
-       "no": "8-26",
-       "title": "스플릿 스탠스 메디신볼 대각선 슬램",
+       "exerciseId": "aee35d44-3887-40e7-8807-2ef944e4be26",
+       "no": "8-23",
+       "title": "오버헤드 메디신볼 스로우",
        "station": "메디신볼 벽",
        "bucket": "메디신볼 드릴",
        "equipment": [
         "메디신볼"
        ],
-       "at": 87,
+       "at": 78.6,
        "minutes": 2,
        "load": 0.5,
        "cue": "3회",
        "perSide": false,
        "breakAfter": false,
        "kind": "drill",
-       "group": "기초"
+       "group": "기초",
+       "oldVideo": "library/f4603bfc-d168-4bf2-9e23-53adcecb9fdd.mov"
       },
       {
-       "exerciseId": "f989f6b2-43f0-416e-b193-a067cdc73abb",
-       "no": "8-27",
-       "title": "좌우 메디신볼 슬램",
+       "exerciseId": "528e7aba-d52c-411c-8064-8134111c525a",
+       "no": "8-24",
+       "title": "수평 메디신볼 슬램 + 앞다리 신전",
        "station": "메디신볼 벽",
        "bucket": "메디신볼 드릴",
        "equipment": [
         "메디신볼"
        ],
-       "at": 89,
-       "minutes": 2,
-       "load": 0.5,
-       "cue": "3회",
-       "perSide": false,
-       "breakAfter": false,
-       "kind": "drill",
-       "group": "기초"
-      },
-      {
-       "exerciseId": "f031df3e-7db4-4043-85d6-793ac9f8eab9",
-       "no": "8-28",
-       "title": "회전 메디신볼 슬램",
-       "station": "메디신볼 벽",
-       "bucket": "메디신볼 드릴",
-       "equipment": [
-        "메디신볼"
-       ],
-       "at": 91,
-       "minutes": 2,
-       "load": 0.5,
-       "cue": "3회",
-       "perSide": false,
-       "breakAfter": false,
-       "kind": "drill",
-       "group": "기초"
-      },
-      {
-       "exerciseId": "0e6b4aab-3340-4bb1-b7f7-975d7a59db74",
-       "no": "8-29",
-       "title": "드롭스텝 → 스쿱 토스",
-       "station": "메디신볼 벽",
-       "bucket": "메디신볼 드릴",
-       "equipment": [
-        "메디신볼"
-       ],
-       "at": 93,
+       "at": 80.6,
        "minutes": 2.4,
        "load": 1,
        "cue": "3회",
@@ -7749,33 +7660,15 @@
        "group": "연결"
       },
       {
-       "exerciseId": "365824c6-316c-4f95-a3d1-8de12ad2ef89",
-       "no": "8-30",
-       "title": "드롭스텝 → 회전 토스",
+       "exerciseId": "d927b54b-c2b3-4cb4-b814-7f853e6f2a7f",
+       "no": "8-25",
+       "title": "크로스오버 스텝 → 슬램",
        "station": "메디신볼 벽",
        "bucket": "메디신볼 드릴",
        "equipment": [
         "메디신볼"
        ],
-       "at": 95.4,
-       "minutes": 2.4,
-       "load": 1,
-       "cue": "3회",
-       "perSide": false,
-       "breakAfter": false,
-       "kind": "drill",
-       "group": "연결"
-      },
-      {
-       "exerciseId": "c9657020-d807-4c7e-ab64-0c425d2a77de",
-       "no": "8-31",
-       "title": "크로스오버 스텝 → 회전 토스",
-       "station": "메디신볼 벽",
-       "bucket": "메디신볼 드릴",
-       "equipment": [
-        "메디신볼"
-       ],
-       "at": 97.8,
+       "at": 83,
        "minutes": 2.4,
        "load": 1,
        "cue": "3회",
@@ -7786,14 +7679,14 @@
       },
       {
        "exerciseId": "4536a33e-b36e-4005-8957-1f026f06d3da",
-       "no": "8-32",
+       "no": "8-26",
        "title": "메디신볼 턴 앤 번 숏풋",
        "station": "메디신볼 벽",
        "bucket": "메디신볼 드릴",
        "equipment": [
         "메디신볼"
        ],
-       "at": 100.2,
+       "at": 85.4,
        "minutes": 2,
        "load": 1.5,
        "cue": "3회",
@@ -7806,19 +7699,19 @@
     },
     {
      "station": "투구 그물",
-     "start": 105.2,
-     "end": 148.6,
+     "start": 90.4,
+     "end": 135.6,
      "items": [
       {
        "exerciseId": "713147e5-fe5e-47f6-ab9b-3af79efeb98e",
-       "no": "8-33",
+       "no": "8-27",
        "title": "P1 스트레치 스로우",
        "station": "투구 그물",
        "bucket": "스로잉 드릴",
        "equipment": [
         "야구공"
        ],
-       "at": 105.2,
+       "at": 90.4,
        "minutes": 2.2,
        "load": 0.5,
        "cue": "2~3구",
@@ -7829,14 +7722,14 @@
       },
       {
        "exerciseId": "19f489f3-c7f2-4f90-97e3-f1eedd61bc83",
-       "no": "8-34",
+       "no": "8-28",
        "title": "P1 와이드 스트레치 스로우",
        "station": "투구 그물",
        "bucket": "스로잉 드릴",
        "equipment": [
         "야구공"
        ],
-       "at": 107.4,
+       "at": 92.6,
        "minutes": 2.2,
        "load": 0.5,
        "cue": "2~3구",
@@ -7847,14 +7740,14 @@
       },
       {
        "exerciseId": "2ad4ef83-9b0e-42bd-be4e-c85f595500f4",
-       "no": "8-35",
+       "no": "8-29",
        "title": "P1 스위치 풋 드롭 힌지 스로우",
        "station": "투구 그물",
        "bucket": "스로잉 드릴",
        "equipment": [
         "야구공"
        ],
-       "at": 109.6,
+       "at": 94.8,
        "minutes": 2.2,
        "load": 1,
        "cue": "2~3구",
@@ -7865,14 +7758,14 @@
       },
       {
        "exerciseId": "5b5d2dda-cb9c-4d44-8ca9-de4184165794",
-       "no": "8-36",
+       "no": "8-30",
        "title": "P2 힌지 스톰프 스로우",
        "station": "투구 그물",
        "bucket": "스로잉 드릴",
        "equipment": [
         "야구공"
        ],
-       "at": 111.8,
+       "at": 97,
        "minutes": 2.2,
        "load": 2,
        "cue": "2~3구",
@@ -7882,15 +7775,15 @@
        "group": "연결"
       },
       {
-       "exerciseId": "3c12ca8c-a7bb-43b8-b82e-275c668c8a52",
-       "no": "8-37",
-       "title": "P3 레터럴 힌지 바운드 스로우",
+       "exerciseId": "b930a979-8476-498a-8637-f2549d4717dc",
+       "no": "8-31",
+       "title": "P3 뎁스 드롭 힌지 스로우",
        "station": "투구 그물",
        "bucket": "스로잉 드릴",
        "equipment": [
         "야구공"
        ],
-       "at": 114,
+       "at": 99.2,
        "minutes": 2.2,
        "load": 2.5,
        "cue": "2~3구",
@@ -7900,17 +7793,17 @@
        "group": "통합"
       },
       {
-       "exerciseId": "f1eaf776-4bf9-461e-8938-8a43527abb4e",
-       "no": "8-38",
-       "title": "P5 포워드 스플릿 스탠스 스로우 + 모멘텀",
+       "exerciseId": "3c12ca8c-a7bb-43b8-b82e-275c668c8a52",
+       "no": "8-32",
+       "title": "P3 레터럴 힌지 바운드 스로우",
        "station": "투구 그물",
        "bucket": "스로잉 드릴",
        "equipment": [
         "야구공"
        ],
-       "at": 116.2,
-       "minutes": 2.6,
-       "load": 1.5,
+       "at": 101.4,
+       "minutes": 2.2,
+       "load": 2.5,
        "cue": "2~3구",
        "perSide": false,
        "breakAfter": false,
@@ -7918,15 +7811,16 @@
        "group": "통합"
       },
       {
-       "exerciseId": "3e951a99-8257-43cf-bfef-d3bcaf7221f8",
-       "no": "8-39",
-       "title": "라소 드릴",
+       "exerciseId": "e37e2dd4-416f-4f81-bb34-4f61fe5c3fa6",
+       "no": "8-33",
+       "title": "무릎 꿇고 짧은 팔 스로우",
        "station": "투구 그물",
        "bucket": "스로잉 드릴",
        "equipment": [
-        "야구공"
+        "야구공",
+        "플라이오볼"
        ],
-       "at": 118.8,
+       "at": 104.6,
        "minutes": 2.2,
        "load": 0.5,
        "cue": "2~3구",
@@ -7936,34 +7830,15 @@
        "group": "기초"
       },
       {
-       "exerciseId": "e37e2dd4-416f-4f81-bb34-4f61fe5c3fa6",
-       "no": "8-40",
-       "title": "무릎 꿇고 짧은 팔 스로우",
-       "station": "투구 그물",
-       "bucket": "스로잉 드릴",
-       "equipment": [
-        "야구공",
-        "플라이오볼"
-       ],
-       "at": 122,
-       "minutes": 2.2,
-       "load": 0.5,
-       "cue": "2~3구",
-       "perSide": false,
-       "breakAfter": true,
-       "kind": "drill",
-       "group": "기초"
-      },
-      {
        "exerciseId": "298daabe-8a34-4f55-8d6c-9b7b995af037",
-       "no": "8-41",
+       "no": "8-34",
        "title": "스플릿 스탠스 피니시 스로우",
        "station": "투구 그물",
        "bucket": "스로잉 드릴",
        "equipment": [
         "야구공"
        ],
-       "at": 130.2,
+       "at": 107.8,
        "minutes": 2.2,
        "load": 0.5,
        "cue": "2~3구",
@@ -7974,14 +7849,14 @@
       },
       {
        "exerciseId": "24ca0034-7a24-404b-b7f5-0cd82c79314f",
-       "no": "8-42",
+       "no": "8-35",
        "title": "풋다운 로커",
        "station": "투구 그물",
        "bucket": "스로잉 드릴",
        "equipment": [
         "야구공"
        ],
-       "at": 132.4,
+       "at": 110,
        "minutes": 2.2,
        "load": 0.5,
        "cue": "2~3구",
@@ -7992,15 +7867,34 @@
       },
       {
        "exerciseId": "f3bac9d9-7c0a-4fec-8849-686a12bcfe1b",
-       "no": "8-43",
+       "no": "8-36",
        "title": "8자 리듬 로커",
        "station": "투구 그물",
        "bucket": "스로잉 드릴",
        "equipment": [
         "야구공"
        ],
-       "at": 134.6,
+       "at": 112.2,
        "minutes": 2.2,
+       "load": 1,
+       "cue": "2~3구",
+       "perSide": false,
+       "breakAfter": false,
+       "kind": "drill",
+       "group": "연결"
+      },
+      {
+       "exerciseId": "f74edbd2-9695-431e-b7a9-08ab8f40ffa5",
+       "no": "8-37",
+       "title": "글러브 팔 밴드 스로우",
+       "station": "투구 그물",
+       "bucket": "스로잉 드릴",
+       "equipment": [
+        "밴드",
+        "야구공"
+       ],
+       "at": 115.4,
+       "minutes": 2.4,
        "load": 1,
        "cue": "2~3구",
        "perSide": false,
@@ -8010,25 +7904,25 @@
       },
       {
        "exerciseId": "658495ed-3a25-488a-aee5-2d5196fb5383",
-       "no": "8-44",
+       "no": "8-38",
        "title": "롤인 스로우",
        "station": "투구 그물",
        "bucket": "스로잉 드릴",
        "equipment": [
         "야구공"
        ],
-       "at": 136.8,
+       "at": 118.8,
        "minutes": 2.2,
        "load": 1,
        "cue": "2~3구",
        "perSide": false,
-       "breakAfter": false,
+       "breakAfter": true,
        "kind": "drill",
        "group": "연결"
       },
       {
        "exerciseId": "5a6fbe5b-f00d-43e8-99e2-ff0b8aab50c9",
-       "no": "8-45",
+       "no": "8-39",
        "title": "다르빗슈 드릴",
        "station": "투구 그물",
        "bucket": "스로잉 드릴",
@@ -8036,7 +7930,7 @@
         "야구공",
         "플라이오볼"
        ],
-       "at": 140,
+       "at": 127,
        "minutes": 2.2,
        "load": 1.5,
        "cue": "2~3구",
@@ -8047,14 +7941,14 @@
       },
       {
        "exerciseId": "484da199-53ed-4d4a-958a-880e177b9abb",
-       "no": "8-46",
+       "no": "8-40",
        "title": "턴 앤 번 스로우",
        "station": "투구 그물",
        "bucket": "스로잉 드릴",
        "equipment": [
         "야구공"
        ],
-       "at": 143.2,
+       "at": 130.2,
        "minutes": 2.2,
        "load": 1.5,
        "cue": "2~3구",
@@ -8065,7 +7959,7 @@
       },
       {
        "exerciseId": "12b48a71-9297-4f7b-8f6d-c6c2afb3f98d",
-       "no": "8-47",
+       "no": "8-41",
        "title": "호버 드릴",
        "station": "투구 그물",
        "bucket": "스로잉 드릴",
@@ -8073,7 +7967,7 @@
         "야구공",
         "플라이오볼"
        ],
-       "at": 146.4,
+       "at": 133.4,
        "minutes": 2.2,
        "load": 1.5,
        "cue": "2~3구",
@@ -8087,880 +7981,14 @@
    ],
    "load": {
     "무브먼트 패턴 드릴": 10.5,
-    "메디신볼 드릴": 23,
-    "스로잉 드릴": 16.5
-   },
-   "outdoor": true
-  },
-  {
-   "week": 9,
-   "end": 145.2,
-   "stations": [
-    {
-     "station": "잔디 · 밴드 기둥",
-     "start": 15,
-     "end": 42.2,
-     "items": [
-      {
-       "exerciseId": "758d684f-8c79-4e2c-8133-bf479ea4be45",
-       "no": "9-01",
-       "title": "P2 레터럴 맥스뎁스 힌지",
-       "station": "잔디 · 밴드 기둥",
-       "bucket": "무브먼트 패턴 드릴",
-       "equipment": [
-        "맨몸"
-       ],
-       "at": 15,
-       "minutes": 1.6,
-       "load": 1.5,
-       "cue": "2~3회",
-       "perSide": false,
-       "breakAfter": false,
-       "kind": "drill",
-       "group": "기초"
-      },
-      {
-       "exerciseId": "22160a0e-cf2e-4a3e-b6ea-e4b23e997678",
-       "no": "9-02",
-       "title": "P2 레그 리프트 드리프트 → 힌지",
-       "station": "잔디 · 밴드 기둥",
-       "bucket": "무브먼트 패턴 드릴",
-       "equipment": [
-        "맨몸"
-       ],
-       "at": 16.6,
-       "minutes": 2,
-       "load": 1,
-       "cue": "3회 · 천천히",
-       "perSide": false,
-       "breakAfter": false,
-       "kind": "drill",
-       "group": "연결"
-      },
-      {
-       "exerciseId": "96b2bcd4-9307-4330-b915-7d2defa9ef27",
-       "no": "9-03",
-       "title": "P3 회전 무릎 슬램",
-       "station": "잔디 · 밴드 기둥",
-       "bucket": "무브먼트 패턴 드릴",
-       "equipment": [
-        "맨몸"
-       ],
-       "at": 18.6,
-       "minutes": 1.6,
-       "load": 0.5,
-       "cue": "3회 · 천천히",
-       "perSide": false,
-       "breakAfter": false,
-       "kind": "drill",
-       "group": "기초"
-      },
-      {
-       "exerciseId": "0de90fb2-4f55-48bc-9702-b1b32d3af939",
-       "no": "9-04",
-       "title": "P3 레터럴 힌지 바운드 → 내회전",
-       "station": "잔디 · 밴드 기둥",
-       "bucket": "무브먼트 패턴 드릴",
-       "equipment": [
-        "맨몸"
-       ],
-       "at": 20.2,
-       "minutes": 2,
-       "load": 2,
-       "cue": "2~3회",
-       "perSide": false,
-       "breakAfter": false,
-       "kind": "drill",
-       "group": "연결"
-      },
-      {
-       "exerciseId": "58320c75-b59b-449a-a4d5-3b699f0300b4",
-       "no": "9-05",
-       "title": "P3 레그 리프트 드리프트 → 힌지 + 반대회전 → 내회전",
-       "station": "잔디 · 밴드 기둥",
-       "bucket": "무브먼트 패턴 드릴",
-       "equipment": [
-        "맨몸"
-       ],
-       "at": 22.2,
-       "minutes": 2,
-       "load": 1.5,
-       "cue": "3회 · 천천히",
-       "perSide": false,
-       "breakAfter": false,
-       "kind": "drill",
-       "group": "통합"
-      },
-      {
-       "exerciseId": "6d466ef3-e4c6-4004-aace-842079e6de43",
-       "no": "9-06",
-       "title": "P4 막대 스플릿 스탠스 분리 회전",
-       "station": "잔디 · 밴드 기둥",
-       "bucket": "무브먼트 패턴 드릴",
-       "equipment": [
-        "맨몸"
-       ],
-       "at": 24.2,
-       "minutes": 1.6,
-       "load": 0.5,
-       "cue": "3회 · 천천히",
-       "perSide": false,
-       "breakAfter": false,
-       "kind": "drill",
-       "group": "기초"
-      },
-      {
-       "exerciseId": "26cf9890-11f0-4231-ae7c-7b12718df66f",
-       "no": "9-07",
-       "title": "P4 스플릿 스탠스 흉추 회전",
-       "station": "잔디 · 밴드 기둥",
-       "bucket": "무브먼트 패턴 드릴",
-       "equipment": [
-        "맨몸"
-       ],
-       "at": 25.8,
-       "minutes": 1.6,
-       "load": 0.5,
-       "cue": "3회 · 천천히",
-       "perSide": false,
-       "breakAfter": false,
-       "kind": "drill",
-       "group": "기초"
-      },
-      {
-       "exerciseId": "c10e7806-2033-436f-9f1f-c54353208448",
-       "no": "9-08",
-       "title": "P5 더블 밴드 TKE",
-       "station": "잔디 · 밴드 기둥",
-       "bucket": "무브먼트 패턴 드릴",
-       "equipment": [
-        "밴드"
-       ],
-       "at": 28.4,
-       "minutes": 1.8,
-       "load": 0.5,
-       "cue": "3회 · 천천히",
-       "perSide": false,
-       "breakAfter": false,
-       "kind": "drill",
-       "group": "기초"
-      },
-      {
-       "exerciseId": "d7c63f0b-ece8-4762-aed9-a6b989e9bae1",
-       "no": "9-09",
-       "title": "P5 지지 홀드 TKE",
-       "station": "잔디 · 밴드 기둥",
-       "bucket": "무브먼트 패턴 드릴",
-       "equipment": [
-        "밴드"
-       ],
-       "at": 30.2,
-       "minutes": 1.8,
-       "load": 0.5,
-       "cue": "3회 · 천천히",
-       "perSide": false,
-       "breakAfter": false,
-       "kind": "drill",
-       "group": "기초"
-      },
-      {
-       "exerciseId": "21b42b35-4574-40b2-88b9-4fecb47512bd",
-       "no": "9-10",
-       "title": "리드암 외전 + 워터볼",
-       "station": "잔디 · 밴드 기둥",
-       "bucket": "무브먼트 패턴 드릴",
-       "equipment": [
-        "워터볼"
-       ],
-       "at": 33,
-       "minutes": 2,
-       "load": 0.5,
-       "cue": "3회 · 천천히",
-       "perSide": false,
-       "breakAfter": false,
-       "kind": "drill",
-       "group": "기초"
-      },
-      {
-       "exerciseId": "019f2867-7701-4a54-9270-0f9cd49dd7f4",
-       "no": "9-11",
-       "title": "밴드 보조 레터럴 드라이브 + 워터볼",
-       "station": "잔디 · 밴드 기둥",
-       "bucket": "무브먼트 패턴 드릴",
-       "equipment": [
-        "밴드"
-       ],
-       "at": 36,
-       "minutes": 2.2,
-       "load": 0.5,
-       "cue": "3회 · 천천히",
-       "perSide": false,
-       "breakAfter": false,
-       "kind": "drill",
-       "group": "기초"
-      },
-      {
-       "exerciseId": "33c537bc-d20d-47f5-93ee-264d01d0c2ac",
-       "no": "9-12",
-       "title": "베이스 밴드 저항 고관절 내회전 + 슬라이드",
-       "station": "잔디 · 밴드 기둥",
-       "bucket": "무브먼트 패턴 드릴",
-       "equipment": [
-        "밴드"
-       ],
-       "at": 38.2,
-       "minutes": 2.2,
-       "load": 0.5,
-       "cue": "3회 · 천천히",
-       "perSide": false,
-       "breakAfter": false,
-       "kind": "drill",
-       "group": "기초"
-      },
-      {
-       "exerciseId": "a6827145-44c3-4e39-88c2-93bc4a834709",
-       "no": "9-13",
-       "title": "밴드 저항 레터럴 푸시 투 베이스",
-       "station": "잔디 · 밴드 기둥",
-       "bucket": "무브먼트 패턴 드릴",
-       "equipment": [
-        "밴드"
-       ],
-       "at": 40.4,
-       "minutes": 1.8,
-       "load": 1,
-       "cue": "3회 · 천천히",
-       "perSide": false,
-       "breakAfter": false,
-       "kind": "drill",
-       "group": "연결"
-      }
-     ]
-    },
-    {
-     "station": "메디신볼 벽",
-     "start": 45.2,
-     "end": 97,
-     "items": [
-      {
-       "exerciseId": "50ca932a-93cb-407a-bf94-49a0c8d00cfe",
-       "no": "9-14",
-       "title": "P1 스트레치 스로우 (작은 공)",
-       "station": "메디신볼 벽",
-       "bucket": "메디신볼 드릴",
-       "equipment": [
-        "메디신볼"
-       ],
-       "at": 45.2,
-       "minutes": 2,
-       "load": 0.5,
-       "cue": "3회",
-       "perSide": false,
-       "breakAfter": false,
-       "kind": "drill",
-       "group": "기초"
-      },
-      {
-       "exerciseId": "60f5eaa8-7c17-4a57-89ef-1887f1c6681f",
-       "no": "9-15",
-       "title": "P1 스트레치 스로우 (큰 공)",
-       "station": "메디신볼 벽",
-       "bucket": "메디신볼 드릴",
-       "equipment": [
-        "메디신볼"
-       ],
-       "at": 48.2,
-       "minutes": 2,
-       "load": 0.5,
-       "cue": "3회",
-       "perSide": false,
-       "breakAfter": false,
-       "kind": "drill",
-       "group": "기초"
-      },
-      {
-       "exerciseId": "aa72043b-c690-40f7-bf04-d9f197219fe7",
-       "no": "9-16",
-       "title": "P1 와이드 스트레치 스로우 (작은 공)",
-       "station": "메디신볼 벽",
-       "bucket": "메디신볼 드릴",
-       "equipment": [
-        "메디신볼"
-       ],
-       "at": 51.2,
-       "minutes": 2,
-       "load": 0.5,
-       "cue": "3회",
-       "perSide": false,
-       "breakAfter": false,
-       "kind": "drill",
-       "group": "기초"
-      },
-      {
-       "exerciseId": "ec08e662-7661-40e1-8f49-9056047b2824",
-       "no": "9-17",
-       "title": "P1 와이드 스트레치 스로우 (큰 공)",
-       "station": "메디신볼 벽",
-       "bucket": "메디신볼 드릴",
-       "equipment": [
-        "메디신볼"
-       ],
-       "at": 54.2,
-       "minutes": 2,
-       "load": 0.5,
-       "cue": "3회",
-       "perSide": false,
-       "breakAfter": false,
-       "kind": "drill",
-       "group": "기초"
-      },
-      {
-       "exerciseId": "079a3513-c094-46a2-882e-526fbad51247",
-       "no": "9-18",
-       "title": "P1 레터럴 셔플 스로우 (작은 공)",
-       "station": "메디신볼 벽",
-       "bucket": "메디신볼 드릴",
-       "equipment": [
-        "메디신볼"
-       ],
-       "at": 57.2,
-       "minutes": 2,
-       "load": 1.5,
-       "cue": "3회",
-       "perSide": false,
-       "breakAfter": false,
-       "kind": "drill",
-       "group": "통합"
-      },
-      {
-       "exerciseId": "eaab7204-3682-4015-89ed-4f2e6f2d6078",
-       "no": "9-19",
-       "title": "P1 레터럴 셔플 스로우 (큰 공)",
-       "station": "메디신볼 벽",
-       "bucket": "메디신볼 드릴",
-       "equipment": [
-        "메디신볼"
-       ],
-       "at": 60.2,
-       "minutes": 2,
-       "load": 1.5,
-       "cue": "3회",
-       "perSide": false,
-       "breakAfter": false,
-       "kind": "drill",
-       "group": "통합"
-      },
-      {
-       "exerciseId": "e0ad14f2-4545-4d17-9c44-6211951aced9",
-       "no": "9-20",
-       "title": "P2 힌지 홉 스로우 (작은 공)",
-       "station": "메디신볼 벽",
-       "bucket": "메디신볼 드릴",
-       "equipment": [
-        "메디신볼"
-       ],
-       "at": 63.2,
-       "minutes": 2,
-       "load": 2,
-       "cue": "3회",
-       "perSide": false,
-       "breakAfter": true,
-       "kind": "drill",
-       "group": "연결"
-      },
-      {
-       "exerciseId": "f0f70f7e-1b6a-479f-9647-d626fea53c3f",
-       "no": "9-21",
-       "title": "P2 힌지 홉 스로우 (큰 공)",
-       "station": "메디신볼 벽",
-       "bucket": "메디신볼 드릴",
-       "equipment": [
-        "메디신볼"
-       ],
-       "at": 71.2,
-       "minutes": 2,
-       "load": 2,
-       "cue": "3회",
-       "perSide": false,
-       "breakAfter": false,
-       "kind": "drill",
-       "group": "연결"
-      },
-      {
-       "exerciseId": "0bb098cf-3120-4118-acb8-18221493c447",
-       "no": "9-22",
-       "title": "P3 뎁스 드롭 힌지 스로우 (작은 공)",
-       "station": "메디신볼 벽",
-       "bucket": "메디신볼 드릴",
-       "equipment": [
-        "메디신볼"
-       ],
-       "at": 74.2,
-       "minutes": 2,
-       "load": 2.5,
-       "cue": "3회",
-       "perSide": false,
-       "breakAfter": false,
-       "kind": "drill",
-       "group": "통합"
-      },
-      {
-       "exerciseId": "f9292553-3959-4cdc-9026-9f488116e015",
-       "no": "9-23",
-       "title": "P3 뎁스 드롭 힌지 스로우 (큰 공)",
-       "station": "메디신볼 벽",
-       "bucket": "메디신볼 드릴",
-       "equipment": [
-        "메디신볼"
-       ],
-       "at": 77.2,
-       "minutes": 2,
-       "load": 2.5,
-       "cue": "3회",
-       "perSide": false,
-       "breakAfter": false,
-       "kind": "drill",
-       "group": "통합"
-      },
-      {
-       "exerciseId": "24650c35-468c-4151-b68c-9579458b5452",
-       "no": "9-24",
-       "title": "P5 스플릿 스탠스 슬램 (큰 공)",
-       "station": "메디신볼 벽",
-       "bucket": "메디신볼 드릴",
-       "equipment": [
-        "메디신볼"
-       ],
-       "at": 79.2,
-       "minutes": 2,
-       "load": 0.5,
-       "cue": "3회",
-       "perSide": false,
-       "breakAfter": false,
-       "kind": "drill",
-       "group": "기초"
-      },
-      {
-       "exerciseId": "8ec0f1b3-dd87-48f0-8a8a-442208243b5f",
-       "no": "9-25",
-       "title": "P5 앞다리 찹 스로우 (큰 공)",
-       "station": "메디신볼 벽",
-       "bucket": "메디신볼 드릴",
-       "equipment": [
-        "메디신볼"
-       ],
-       "at": 81.2,
-       "minutes": 2,
-       "load": 0.5,
-       "cue": "3회",
-       "perSide": false,
-       "breakAfter": false,
-       "kind": "drill",
-       "group": "기초"
-      },
-      {
-       "exerciseId": "c0bcd6e6-23fa-4396-995c-91e400918782",
-       "no": "9-26",
-       "title": "P5 회전 앞다리 슬램 (큰 공)",
-       "station": "메디신볼 벽",
-       "bucket": "메디신볼 드릴",
-       "equipment": [
-        "메디신볼"
-       ],
-       "at": 83.2,
-       "minutes": 2,
-       "load": 0.5,
-       "cue": "3회",
-       "perSide": false,
-       "breakAfter": false,
-       "kind": "drill",
-       "group": "기초"
-      },
-      {
-       "exerciseId": "8d91203e-775a-47e5-a175-fa309052beaa",
-       "no": "9-27",
-       "title": "메디신볼 회전 숏풋",
-       "station": "메디신볼 벽",
-       "bucket": "메디신볼 드릴",
-       "equipment": [
-        "메디신볼"
-       ],
-       "at": 86.2,
-       "minutes": 2,
-       "load": 0.5,
-       "cue": "3회",
-       "perSide": false,
-       "breakAfter": false,
-       "kind": "drill",
-       "group": "기초"
-      },
-      {
-       "exerciseId": "d20c66b7-88f8-43a0-b5af-8547dce60d6f",
-       "no": "9-28",
-       "title": "메디신볼 앞다리 블록 회전 스로우",
-       "station": "메디신볼 벽",
-       "bucket": "메디신볼 드릴",
-       "equipment": [
-        "메디신볼"
-       ],
-       "at": 88.2,
-       "minutes": 2,
-       "load": 1,
-       "cue": "3회",
-       "perSide": false,
-       "breakAfter": false,
-       "kind": "drill",
-       "group": "연결"
-      },
-      {
-       "exerciseId": "528e7aba-d52c-411c-8064-8134111c525a",
-       "no": "9-29",
-       "title": "수평 메디신볼 슬램 + 앞다리 신전",
-       "station": "메디신볼 벽",
-       "bucket": "메디신볼 드릴",
-       "equipment": [
-        "메디신볼"
-       ],
-       "at": 90.2,
-       "minutes": 2.4,
-       "load": 1,
-       "cue": "3회",
-       "perSide": false,
-       "breakAfter": false,
-       "kind": "drill",
-       "group": "연결"
-      },
-      {
-       "exerciseId": "6e935572-f617-4822-9276-6b9bffab4be2",
-       "no": "9-30",
-       "title": "크로스언더 메디신볼 회전 토스",
-       "station": "메디신볼 벽",
-       "bucket": "메디신볼 드릴",
-       "equipment": [
-        "메디신볼"
-       ],
-       "at": 92.6,
-       "minutes": 2,
-       "load": 1,
-       "cue": "3회",
-       "perSide": false,
-       "breakAfter": false,
-       "kind": "drill",
-       "group": "연결"
-      },
-      {
-       "exerciseId": "d927b54b-c2b3-4cb4-b814-7f853e6f2a7f",
-       "no": "9-31",
-       "title": "크로스오버 스텝 → 슬램",
-       "station": "메디신볼 벽",
-       "bucket": "메디신볼 드릴",
-       "equipment": [
-        "메디신볼"
-       ],
-       "at": 94.6,
-       "minutes": 2.4,
-       "load": 1,
-       "cue": "3회",
-       "perSide": false,
-       "breakAfter": false,
-       "kind": "drill",
-       "group": "연결"
-      }
-     ]
-    },
-    {
-     "station": "투구 그물",
-     "start": 100,
-     "end": 145.2,
-     "items": [
-      {
-       "exerciseId": "b7532911-9a89-414a-b23b-226084b97df4",
-       "no": "9-32",
-       "title": "P1 레터럴 셔플 스로우",
-       "station": "투구 그물",
-       "bucket": "스로잉 드릴",
-       "equipment": [
-        "야구공"
-       ],
-       "at": 100,
-       "minutes": 2.2,
-       "load": 1.5,
-       "cue": "2~3구",
-       "perSide": false,
-       "breakAfter": false,
-       "kind": "drill",
-       "group": "통합"
-      },
-      {
-       "exerciseId": "edd9f544-7711-410e-997b-98fa144b2dac",
-       "no": "9-33",
-       "title": "P2 힌지 홉 스로우",
-       "station": "투구 그물",
-       "bucket": "스로잉 드릴",
-       "equipment": [
-        "야구공"
-       ],
-       "at": 102.2,
-       "minutes": 2.2,
-       "load": 2,
-       "cue": "2~3구",
-       "perSide": false,
-       "breakAfter": false,
-       "kind": "drill",
-       "group": "연결"
-      },
-      {
-       "exerciseId": "b930a979-8476-498a-8637-f2549d4717dc",
-       "no": "9-34",
-       "title": "P3 뎁스 드롭 힌지 스로우",
-       "station": "투구 그물",
-       "bucket": "스로잉 드릴",
-       "equipment": [
-        "야구공"
-       ],
-       "at": 104.4,
-       "minutes": 2.2,
-       "load": 2.5,
-       "cue": "2~3구",
-       "perSide": false,
-       "breakAfter": false,
-       "kind": "drill",
-       "group": "통합"
-      },
-      {
-       "exerciseId": "017e18f4-158d-49e6-bba2-2421d858dda7",
-       "no": "9-35",
-       "title": "P4 스플릿 스탠스 스로우",
-       "station": "투구 그물",
-       "bucket": "스로잉 드릴",
-       "equipment": [
-        "야구공"
-       ],
-       "at": 106.6,
-       "minutes": 2.2,
-       "load": 0.5,
-       "cue": "2~3구",
-       "perSide": false,
-       "breakAfter": false,
-       "kind": "drill",
-       "group": "기초"
-      },
-      {
-       "exerciseId": "0ca54974-66ee-4327-92cf-05b8f2ccc0f3",
-       "no": "9-36",
-       "title": "90/90 월 드리블",
-       "station": "투구 그물",
-       "bucket": "스로잉 드릴",
-       "equipment": [
-        "야구공"
-       ],
-       "at": 108.8,
-       "minutes": 2.2,
-       "load": 0.5,
-       "cue": "2~3구",
-       "perSide": false,
-       "breakAfter": false,
-       "kind": "drill",
-       "group": "기초"
-      },
-      {
-       "exerciseId": "9675f83b-aaef-46ed-ad44-492fcfb86c91",
-       "no": "9-37",
-       "title": "암 패스 8자",
-       "station": "투구 그물",
-       "bucket": "스로잉 드릴",
-       "equipment": [
-        "야구공"
-       ],
-       "at": 111,
-       "minutes": 2.2,
-       "load": 0.5,
-       "cue": "2~3구",
-       "perSide": false,
-       "breakAfter": false,
-       "kind": "drill",
-       "group": "기초"
-      },
-      {
-       "exerciseId": "f74edbd2-9695-431e-b7a9-08ab8f40ffa5",
-       "no": "9-38",
-       "title": "글러브 팔 밴드 스로우",
-       "station": "투구 그물",
-       "bucket": "스로잉 드릴",
-       "equipment": [
-        "밴드",
-        "야구공"
-       ],
-       "at": 114.2,
-       "minutes": 2.4,
-       "load": 1,
-       "cue": "2~3구",
-       "perSide": false,
-       "breakAfter": false,
-       "kind": "drill",
-       "group": "연결"
-      },
-      {
-       "exerciseId": "a758460c-ba47-4891-9125-6058a58577e0",
-       "no": "9-39",
-       "title": "로커 스로우",
-       "station": "투구 그물",
-       "bucket": "스로잉 드릴",
-       "equipment": [
-        "야구공",
-        "플라이오볼"
-       ],
-       "at": 117.6,
-       "minutes": 2.2,
-       "load": 1,
-       "cue": "2~3구",
-       "perSide": false,
-       "breakAfter": false,
-       "kind": "drill",
-       "group": "연결"
-      },
-      {
-       "exerciseId": "bf058314-42e4-49c4-b2ee-42c052d3584f",
-       "no": "9-40",
-       "title": "리듬 로커",
-       "station": "투구 그물",
-       "bucket": "스로잉 드릴",
-       "equipment": [
-        "야구공"
-       ],
-       "at": 120.8,
-       "minutes": 2.2,
-       "load": 1,
-       "cue": "2~3구",
-       "perSide": false,
-       "breakAfter": true,
-       "kind": "drill",
-       "group": "연결"
-      },
-      {
-       "exerciseId": "60682fda-35b3-46b0-ba04-ac3eb90166c6",
-       "no": "9-41",
-       "title": "텐 토즈 스로우",
-       "station": "투구 그물",
-       "bucket": "스로잉 드릴",
-       "equipment": [
-        "야구공",
-        "플라이오볼"
-       ],
-       "at": 129,
-       "minutes": 2.2,
-       "load": 1,
-       "cue": "2~3구",
-       "perSide": false,
-       "breakAfter": false,
-       "kind": "drill",
-       "group": "연결"
-      },
-      {
-       "exerciseId": "ee8c11a8-3600-49d0-b183-9d78bf2a58ef",
-       "no": "9-42",
-       "title": "피벗 픽오프",
-       "station": "투구 그물",
-       "bucket": "스로잉 드릴",
-       "equipment": [
-        "플라이오볼",
-        "야구공"
-       ],
-       "at": 132.2,
-       "minutes": 2.2,
-       "load": 1,
-       "cue": "2~3구",
-       "perSide": false,
-       "breakAfter": false,
-       "kind": "drill",
-       "group": "연결"
-      },
-      {
-       "exerciseId": "6eaa7985-9438-4931-bf96-67431faa5e9c",
-       "no": "9-43",
-       "title": "훅엠 드릴",
-       "station": "투구 그물",
-       "bucket": "스로잉 드릴",
-       "equipment": [
-        "야구공"
-       ],
-       "at": 135.4,
-       "minutes": 2.2,
-       "load": 1,
-       "cue": "2~3구",
-       "perSide": false,
-       "breakAfter": false,
-       "kind": "drill",
-       "group": "연결"
-      },
-      {
-       "exerciseId": "1fbba29a-1487-40b2-8d9b-dbfd473d81c9",
-       "no": "9-44",
-       "title": "바우어 드릴",
-       "station": "투구 그물",
-       "bucket": "스로잉 드릴",
-       "equipment": [
-        "야구공"
-       ],
-       "at": 137.6,
-       "minutes": 2.2,
-       "load": 1.5,
-       "cue": "2~3구",
-       "perSide": false,
-       "breakAfter": false,
-       "kind": "drill",
-       "group": "통합"
-      },
-      {
-       "exerciseId": "4fc587ee-0a47-4011-a8f4-2a0cf3ef1c9a",
-       "no": "9-45",
-       "title": "스텝 비하인드 스로우",
-       "station": "투구 그물",
-       "bucket": "스로잉 드릴",
-       "equipment": [
-        "야구공"
-       ],
-       "at": 139.8,
-       "minutes": 2.2,
-       "load": 1.5,
-       "cue": "2~3구",
-       "perSide": false,
-       "breakAfter": false,
-       "kind": "drill",
-       "group": "통합"
-      },
-      {
-       "exerciseId": "209c141a-82ca-43f2-b7de-dbbae1392568",
-       "no": "9-46",
-       "title": "워킹 와인드업",
-       "station": "투구 그물",
-       "bucket": "스로잉 드릴",
-       "equipment": [
-        "플라이오볼",
-        "야구공"
-       ],
-       "at": 143,
-       "minutes": 2.2,
-       "load": 1.5,
-       "cue": "2~3구",
-       "perSide": false,
-       "breakAfter": false,
-       "kind": "drill",
-       "group": "통합"
-      }
-     ]
-    }
-   ],
-   "load": {
-    "무브먼트 패턴 드릴": 11,
-    "메디신볼 드릴": 20,
+    "메디신볼 드릴": 15.5,
     "스로잉 드릴": 18
    },
    "outdoor": true
   },
   {
-   "week": 10,
-   "end": 140,
+   "week": 9,
+   "end": 129.2,
    "stations": [
     {
      "station": "잔디 · 밴드 기둥",
@@ -8969,7 +7997,7 @@
      "items": [
       {
        "exerciseId": "e3b9cb28-87c7-4ab1-a00c-41a6b23c4fca",
-       "no": "10-01",
+       "no": "9-01",
        "title": "P1 레그 리프트 드리프트",
        "station": "잔디 · 밴드 기둥",
        "bucket": "무브먼트 패턴 드릴",
@@ -8987,7 +8015,7 @@
       },
       {
        "exerciseId": "a13f7ec8-c23d-4435-bd21-014070015578",
-       "no": "10-02",
+       "no": "9-02",
        "title": "P1 지지 레그 리프트 드리프트",
        "station": "잔디 · 밴드 기둥",
        "bucket": "무브먼트 패턴 드릴",
@@ -9005,7 +8033,7 @@
       },
       {
        "exerciseId": "f71710df-9268-4c2d-8a0e-078356c0b7f6",
-       "no": "10-03",
+       "no": "9-03",
        "title": "P2 지지 레그 리프트 드리프트 → 힌지",
        "station": "잔디 · 밴드 기둥",
        "bucket": "무브먼트 패턴 드릴",
@@ -9023,7 +8051,7 @@
       },
       {
        "exerciseId": "4fceea7b-3a12-4395-a130-a8f15f79acfb",
-       "no": "10-04",
+       "no": "9-04",
        "title": "P2 레터럴 힌지 바운드",
        "station": "잔디 · 밴드 기둥",
        "bucket": "무브먼트 패턴 드릴",
@@ -9041,7 +8069,7 @@
       },
       {
        "exerciseId": "9a3a9beb-a841-4343-b8bd-1ef59f79ee1d",
-       "no": "10-05",
+       "no": "9-05",
        "title": "P2 레터럴 힌지 바운드 + 정지",
        "station": "잔디 · 밴드 기둥",
        "bucket": "무브먼트 패턴 드릴",
@@ -9059,7 +8087,7 @@
       },
       {
        "exerciseId": "4c16ddb7-0574-4e30-9af4-d27c774af36d",
-       "no": "10-06",
+       "no": "9-06",
        "title": "P2 힌지 홉",
        "station": "잔디 · 밴드 기둥",
        "bucket": "무브먼트 패턴 드릴",
@@ -9077,7 +8105,7 @@
       },
       {
        "exerciseId": "10ec81d8-0a64-4c41-b446-7a328d188d46",
-       "no": "10-07",
+       "no": "9-07",
        "title": "P3 레그 리프트 드리프트 → 힌지 → 내회전",
        "station": "잔디 · 밴드 기둥",
        "bucket": "무브먼트 패턴 드릴",
@@ -9095,7 +8123,7 @@
       },
       {
        "exerciseId": "373f6141-8831-4d0d-bd9c-60e30f1c40d5",
-       "no": "10-08",
+       "no": "9-08",
        "title": "P4 레터럴 힌지 + 고관절 굴곡근 신전",
        "station": "잔디 · 밴드 기둥",
        "bucket": "무브먼트 패턴 드릴",
@@ -9113,7 +8141,7 @@
       },
       {
        "exerciseId": "7f6fe5ab-efc9-4a76-97a6-49e8d5cf5352",
-       "no": "10-09",
+       "no": "9-09",
        "title": "P4 밴드 가슴 분리",
        "station": "잔디 · 밴드 기둥",
        "bucket": "무브먼트 패턴 드릴",
@@ -9131,7 +8159,7 @@
       },
       {
        "exerciseId": "003e35ae-aec7-4ce9-81f1-999d94d11f03",
-       "no": "10-10",
+       "no": "9-10",
        "title": "밴드 저항 레터럴 드라이브 + 몸통 지지",
        "station": "잔디 · 밴드 기둥",
        "bucket": "무브먼트 패턴 드릴",
@@ -9149,7 +8177,7 @@
       },
       {
        "exerciseId": "a833eef8-07a9-433d-9b16-c33997325814",
-       "no": "10-11",
+       "no": "9-11",
        "title": "베이스 밴드 저항 고관절 외회전 + 슬라이드",
        "station": "잔디 · 밴드 기둥",
        "bucket": "무브먼트 패턴 드릴",
@@ -9167,7 +8195,7 @@
       },
       {
        "exerciseId": "bd54de9f-9fb1-48e4-901f-39e271422d98",
-       "no": "10-12",
+       "no": "9-12",
        "title": "불안정 드라이브 레그",
        "station": "잔디 · 밴드 기둥",
        "bucket": "무브먼트 패턴 드릴",
@@ -9185,7 +8213,7 @@
       },
       {
        "exerciseId": "4cd05ef2-af72-41b1-a286-7f1a18b49da5",
-       "no": "10-13",
+       "no": "9-13",
        "title": "스플릿 스탠스 무릎 등척 밀기",
        "station": "잔디 · 밴드 기둥",
        "bucket": "무브먼트 패턴 드릴",
@@ -9206,11 +8234,11 @@
     {
      "station": "메디신볼 벽",
      "start": 44,
-     "end": 94.6,
+     "end": 85.8,
      "items": [
       {
        "exerciseId": "e759318e-e89c-426b-a3d9-b41ea412be90",
-       "no": "10-14",
+       "no": "9-14",
        "title": "P1 스위치 풋 드롭 힌지 스로우 (작은 공)",
        "station": "메디신볼 벽",
        "bucket": "메디신볼 드릴",
@@ -9228,7 +8256,7 @@
       },
       {
        "exerciseId": "7d115fa4-020e-4d84-ae09-11bad3d0d123",
-       "no": "10-15",
+       "no": "9-15",
        "title": "P1 스위치 풋 드롭 힌지 스로우 (큰 공)",
        "station": "메디신볼 벽",
        "bucket": "메디신볼 드릴",
@@ -9245,17 +8273,17 @@
        "group": "연결"
       },
       {
-       "exerciseId": "0dbd7386-80a6-40e5-b64e-3826619ee6d4",
-       "no": "10-16",
-       "title": "P2 헤비 메디신볼 힌지 토스 (큰 공)",
+       "exerciseId": "e0ad14f2-4545-4d17-9c44-6211951aced9",
+       "no": "9-16",
+       "title": "P2 힌지 홉 스로우 (작은 공)",
        "station": "메디신볼 벽",
        "bucket": "메디신볼 드릴",
        "equipment": [
         "메디신볼"
        ],
-       "at": 49,
+       "at": 50,
        "minutes": 2,
-       "load": 1,
+       "load": 2,
        "cue": "3회",
        "perSide": false,
        "breakAfter": false,
@@ -9263,15 +8291,33 @@
        "group": "연결"
       },
       {
-       "exerciseId": "b75434f9-8f2c-48b4-9cf7-46ac93cafdce",
-       "no": "10-17",
-       "title": "P2 레터럴 바운드 힌지 홉 스로우 (작은 공)",
+       "exerciseId": "f0f70f7e-1b6a-479f-9647-d626fea53c3f",
+       "no": "9-17",
+       "title": "P2 힌지 홉 스로우 (큰 공)",
        "station": "메디신볼 벽",
        "bucket": "메디신볼 드릴",
        "equipment": [
         "메디신볼"
        ],
-       "at": 52,
+       "at": 53,
+       "minutes": 2,
+       "load": 2,
+       "cue": "3회",
+       "perSide": false,
+       "breakAfter": false,
+       "kind": "drill",
+       "group": "연결"
+      },
+      {
+       "exerciseId": "0bb098cf-3120-4118-acb8-18221493c447",
+       "no": "9-18",
+       "title": "P3 뎁스 드롭 힌지 스로우 (작은 공)",
+       "station": "메디신볼 벽",
+       "bucket": "메디신볼 드릴",
+       "equipment": [
+        "메디신볼"
+       ],
+       "at": 56,
        "minutes": 2,
        "load": 2.5,
        "cue": "3회",
@@ -9281,53 +8327,17 @@
        "group": "통합"
       },
       {
-       "exerciseId": "c8efb647-1854-4189-a64e-5cedbb765055",
-       "no": "10-18",
-       "title": "P2 레터럴 바운드 힌지 홉 스로우 (큰 공)",
+       "exerciseId": "f9292553-3959-4cdc-9026-9f488116e015",
+       "no": "9-19",
+       "title": "P3 뎁스 드롭 힌지 스로우 (큰 공)",
        "station": "메디신볼 벽",
        "bucket": "메디신볼 드릴",
        "equipment": [
         "메디신볼"
        ],
-       "at": 55,
+       "at": 59,
        "minutes": 2,
        "load": 2.5,
-       "cue": "3회",
-       "perSide": false,
-       "breakAfter": false,
-       "kind": "drill",
-       "group": "통합"
-      },
-      {
-       "exerciseId": "df6410d8-42aa-4443-9b94-3fb40573a604",
-       "no": "10-19",
-       "title": "P3 힌지 드라이브 스로우 (작은 공)",
-       "station": "메디신볼 벽",
-       "bucket": "메디신볼 드릴",
-       "equipment": [
-        "메디신볼"
-       ],
-       "at": 58,
-       "minutes": 2,
-       "load": 1.5,
-       "cue": "3회",
-       "perSide": false,
-       "breakAfter": false,
-       "kind": "drill",
-       "group": "통합"
-      },
-      {
-       "exerciseId": "150090d2-6d52-48ec-965e-81c9d72bed9b",
-       "no": "10-20",
-       "title": "P3 힌지 드라이브 스로우 (큰 공)",
-       "station": "메디신볼 벽",
-       "bucket": "메디신볼 드릴",
-       "equipment": [
-        "메디신볼"
-       ],
-       "at": 61,
-       "minutes": 2,
-       "load": 1.5,
        "cue": "3회",
        "perSide": false,
        "breakAfter": false,
@@ -9336,14 +8346,32 @@
       },
       {
        "exerciseId": "e611b6aa-ed27-4604-a996-47b40c52b24a",
-       "no": "10-21",
+       "no": "9-20",
        "title": "P4 스플릿 스탠스 스로우 (작은 공)",
        "station": "메디신볼 벽",
        "bucket": "메디신볼 드릴",
        "equipment": [
         "메디신볼"
        ],
-       "at": 64,
+       "at": 62,
+       "minutes": 2,
+       "load": 0.5,
+       "cue": "3회",
+       "perSide": false,
+       "breakAfter": false,
+       "kind": "drill",
+       "group": "기초"
+      },
+      {
+       "exerciseId": "05c7ab7b-59f5-4fb5-9b78-7b7d72946587",
+       "no": "9-21",
+       "title": "P4 스플릿 스탠스 스로우 (큰 공)",
+       "station": "메디신볼 벽",
+       "bucket": "메디신볼 드릴",
+       "equipment": [
+        "메디신볼"
+       ],
+       "at": 65,
        "minutes": 2,
        "load": 0.5,
        "cue": "3회",
@@ -9353,69 +8381,33 @@
        "group": "기초"
       },
       {
-       "exerciseId": "05c7ab7b-59f5-4fb5-9b78-7b7d72946587",
-       "no": "10-22",
-       "title": "P4 스플릿 스탠스 스로우 (큰 공)",
+       "exerciseId": "4f831dc3-c1f5-42c1-8aeb-56c12ddbafa8",
+       "no": "9-22",
+       "title": "P4 스플릿 스탠스 스로우 + 모멘텀 (작은 공)",
        "station": "메디신볼 벽",
        "bucket": "메디신볼 드릴",
        "equipment": [
         "메디신볼"
        ],
-       "at": 72,
-       "minutes": 2,
-       "load": 0.5,
-       "cue": "3회",
-       "perSide": false,
-       "breakAfter": false,
-       "kind": "drill",
-       "group": "기초"
-      },
-      {
-       "exerciseId": "be479d34-9728-4532-9f08-811173b9bf3d",
-       "no": "10-23",
-       "title": "P4 힌지 90도 앞다리 스로우 (큰 공)",
-       "station": "메디신볼 벽",
-       "bucket": "메디신볼 드릴",
-       "equipment": [
-        "메디신볼"
-       ],
-       "at": 74,
-       "minutes": 2,
-       "load": 0.5,
-       "cue": "3회",
-       "perSide": false,
-       "breakAfter": false,
-       "kind": "drill",
-       "group": "기초"
-      },
-      {
-       "exerciseId": "67ac5465-c383-4d2c-8831-da7ed4c1eddd",
-       "no": "10-24",
-       "title": "메디신볼 포고 → 스쿱 토스",
-       "station": "메디신볼 벽",
-       "bucket": "메디신볼 드릴",
-       "equipment": [
-        "메디신볼"
-       ],
-       "at": 77,
+       "at": 73,
        "minutes": 2.4,
-       "load": 1.5,
+       "load": 1,
        "cue": "3회",
        "perSide": false,
        "breakAfter": false,
        "kind": "drill",
-       "group": "기초"
+       "group": "연결"
       },
       {
-       "exerciseId": "6f76a8b0-77db-4004-a5c9-e8f9affe630f",
-       "no": "10-25",
-       "title": "싱글렉 메디신볼 스쿱 토스",
+       "exerciseId": "24650c35-468c-4151-b68c-9579458b5452",
+       "no": "9-23",
+       "title": "P5 스플릿 스탠스 슬램 (큰 공)",
        "station": "메디신볼 벽",
        "bucket": "메디신볼 드릴",
        "equipment": [
         "메디신볼"
        ],
-       "at": 79.4,
+       "at": 76.4,
        "minutes": 2,
        "load": 0.5,
        "cue": "3회",
@@ -9425,9 +8417,27 @@
        "group": "기초"
       },
       {
-       "exerciseId": "aee35d44-3887-40e7-8807-2ef944e4be26",
-       "no": "10-26",
-       "title": "오버헤드 메디신볼 스로우",
+       "exerciseId": "e7566ad4-1418-430b-b893-675cddc9beed",
+       "no": "9-24",
+       "title": "P5 힌지 오버더톱 슬램 (큰 공)",
+       "station": "메디신볼 벽",
+       "bucket": "메디신볼 드릴",
+       "equipment": [
+        "메디신볼"
+       ],
+       "at": 78.4,
+       "minutes": 2,
+       "load": 1,
+       "cue": "3회",
+       "perSide": false,
+       "breakAfter": false,
+       "kind": "drill",
+       "group": "연결"
+      },
+      {
+       "exerciseId": "6e935572-f617-4822-9276-6b9bffab4be2",
+       "no": "9-25",
+       "title": "크로스언더 메디신볼 회전 토스",
        "station": "메디신볼 벽",
        "bucket": "메디신볼 드릴",
        "equipment": [
@@ -9435,18 +8445,17 @@
        ],
        "at": 81.4,
        "minutes": 2,
-       "load": 0.5,
+       "load": 1,
        "cue": "3회",
        "perSide": false,
        "breakAfter": false,
        "kind": "drill",
-       "group": "기초",
-       "oldVideo": "library/f4603bfc-d168-4bf2-9e23-53adcecb9fdd.mov"
+       "group": "연결"
       },
       {
-       "exerciseId": "3540ab68-54e0-4c38-a9dc-538f173a4b0f",
-       "no": "10-27",
-       "title": "드롭스텝 → 사이드 토스",
+       "exerciseId": "c9657020-d807-4c7e-ab64-0c425d2a77de",
+       "no": "9-26",
+       "title": "크로스오버 스텝 → 회전 토스",
        "station": "메디신볼 벽",
        "bucket": "메디신볼 드릴",
        "equipment": [
@@ -9460,98 +8469,26 @@
        "breakAfter": false,
        "kind": "drill",
        "group": "연결"
-      },
-      {
-       "exerciseId": "855fd97a-0d4f-4e09-aaf1-12a09e47c2fb",
-       "no": "10-28",
-       "title": "드롭스텝 → 슬램",
-       "station": "메디신볼 벽",
-       "bucket": "메디신볼 드릴",
-       "equipment": [
-        "메디신볼"
-       ],
-       "at": 85.8,
-       "minutes": 2.4,
-       "load": 1,
-       "cue": "3회",
-       "perSide": false,
-       "breakAfter": false,
-       "kind": "drill",
-       "group": "연결"
-      },
-      {
-       "exerciseId": "e3453c82-34f8-4d0f-93f4-a79db894c314",
-       "no": "10-29",
-       "title": "스텝 비하인드 회전 메디신볼 숏풋",
-       "station": "메디신볼 벽",
-       "bucket": "메디신볼 드릴",
-       "equipment": [
-        "메디신볼"
-       ],
-       "at": 88.2,
-       "minutes": 2,
-       "load": 1,
-       "cue": "3회",
-       "perSide": false,
-       "breakAfter": false,
-       "kind": "drill",
-       "group": "연결"
-      },
-      {
-       "exerciseId": "c6f1b0e4-50dc-4c30-8b1d-c978d8d9783a",
-       "no": "10-30",
-       "title": "싱글렉 포고 홉 → 회전 토스",
-       "station": "메디신볼 벽",
-       "bucket": "메디신볼 드릴",
-       "equipment": [
-        "메디신볼"
-       ],
-       "at": 90.2,
-       "minutes": 2.4,
-       "load": 2,
-       "cue": "3회",
-       "perSide": false,
-       "breakAfter": false,
-       "kind": "drill",
-       "group": "연결"
-      },
-      {
-       "exerciseId": "c13756a8-2d2e-4f47-80fc-81a140bfe104",
-       "no": "10-31",
-       "title": "메디신볼 워킹 와인드업 스로우",
-       "station": "메디신볼 벽",
-       "bucket": "메디신볼 드릴",
-       "equipment": [
-        "메디신볼"
-       ],
-       "at": 92.6,
-       "minutes": 2,
-       "load": 1.5,
-       "cue": "3회",
-       "perSide": false,
-       "breakAfter": false,
-       "kind": "drill",
-       "group": "통합"
       }
      ]
     },
     {
      "station": "투구 그물",
-     "start": 97.6,
-     "end": 140,
+     "start": 88.8,
+     "end": 129.2,
      "items": [
       {
-       "exerciseId": "817e0962-15c8-4d3d-9be4-f30457493bd7",
-       "no": "10-32",
-       "title": "P2 레터럴 바운드 힌지 홉 스로우",
+       "exerciseId": "b7532911-9a89-414a-b23b-226084b97df4",
+       "no": "9-27",
+       "title": "P1 레터럴 셔플 스로우",
        "station": "투구 그물",
        "bucket": "스로잉 드릴",
        "equipment": [
         "야구공"
        ],
-       "at": 97.6,
+       "at": 88.8,
        "minutes": 2.2,
-       "load": 2.5,
+       "load": 1.5,
        "cue": "2~3구",
        "perSide": false,
        "breakAfter": false,
@@ -9560,14 +8497,14 @@
       },
       {
        "exerciseId": "e094b522-89c1-41b2-b97f-11b7759f7e2a",
-       "no": "10-33",
+       "no": "9-28",
        "title": "P3 힌지 드라이브 스로우",
        "station": "투구 그물",
        "bucket": "스로잉 드릴",
        "equipment": [
         "야구공"
        ],
-       "at": 99.8,
+       "at": 91,
        "minutes": 2.2,
        "load": 1.5,
        "cue": "2~3구",
@@ -9578,33 +8515,15 @@
       },
       {
        "exerciseId": "cdb9ff10-097c-48d6-9123-b9024349fbd6",
-       "no": "10-34",
+       "no": "9-29",
        "title": "P4 반대다리 스플릿 스탠스 스로우",
        "station": "투구 그물",
        "bucket": "스로잉 드릴",
        "equipment": [
         "야구공"
        ],
-       "at": 102,
+       "at": 93.2,
        "minutes": 2.2,
-       "load": 1,
-       "cue": "2~3구",
-       "perSide": false,
-       "breakAfter": false,
-       "kind": "drill",
-       "group": "연결"
-      },
-      {
-       "exerciseId": "88c66e7e-d3a8-4143-8e47-7aeb358bfc4c",
-       "no": "10-35",
-       "title": "P4 스플릿 스탠스 스로우 + 모멘텀",
-       "station": "투구 그물",
-       "bucket": "스로잉 드릴",
-       "equipment": [
-        "야구공"
-       ],
-       "at": 104.2,
-       "minutes": 2.6,
        "load": 1,
        "cue": "2~3구",
        "perSide": false,
@@ -9614,14 +8533,14 @@
       },
       {
        "exerciseId": "797d8b2b-c95a-4a70-b1ab-a9810425643f",
-       "no": "10-36",
+       "no": "9-30",
        "title": "P5 포워드 스플릿 스탠스 스로우",
        "station": "투구 그물",
        "bucket": "스로잉 드릴",
        "equipment": [
         "야구공"
        ],
-       "at": 106.8,
+       "at": 95.4,
        "minutes": 2.2,
        "load": 1,
        "cue": "2~3구",
@@ -9631,15 +8550,51 @@
        "group": "연결"
       },
       {
+       "exerciseId": "f1eaf776-4bf9-461e-8938-8a43527abb4e",
+       "no": "9-31",
+       "title": "P5 포워드 스플릿 스탠스 스로우 + 모멘텀",
+       "station": "투구 그물",
+       "bucket": "스로잉 드릴",
+       "equipment": [
+        "야구공"
+       ],
+       "at": 97.6,
+       "minutes": 2.6,
+       "load": 1.5,
+       "cue": "2~3구",
+       "perSide": false,
+       "breakAfter": false,
+       "kind": "drill",
+       "group": "통합"
+      },
+      {
+       "exerciseId": "3e951a99-8257-43cf-bfef-d3bcaf7221f8",
+       "no": "9-32",
+       "title": "라소 드릴",
+       "station": "투구 그물",
+       "bucket": "스로잉 드릴",
+       "equipment": [
+        "야구공"
+       ],
+       "at": 100.2,
+       "minutes": 2.2,
+       "load": 0.5,
+       "cue": "2~3구",
+       "perSide": false,
+       "breakAfter": false,
+       "kind": "drill",
+       "group": "기초"
+      },
+      {
        "exerciseId": "2cc8af7a-e6cf-4cd2-a145-bd9d762f3cd6",
-       "no": "10-37",
+       "no": "9-33",
        "title": "리버스 스로우",
        "station": "투구 그물",
        "bucket": "스로잉 드릴",
        "equipment": [
         "플라이오볼"
        ],
-       "at": 110,
+       "at": 103.4,
        "minutes": 2.2,
        "load": 0.5,
        "cue": "2~3구",
@@ -9650,14 +8605,14 @@
       },
       {
        "exerciseId": "bc5ee4b7-4f0a-4111-a063-d968b013c2cf",
-       "no": "10-38",
+       "no": "9-34",
        "title": "암 패스 서클",
        "station": "투구 그물",
        "bucket": "스로잉 드릴",
        "equipment": [
         "야구공"
        ],
-       "at": 113.2,
+       "at": 106.6,
        "minutes": 2.2,
        "load": 0.5,
        "cue": "2~3구",
@@ -9668,14 +8623,14 @@
       },
       {
        "exerciseId": "94783616-3417-4064-af70-77401db57007",
-       "no": "10-39",
+       "no": "9-35",
        "title": "스플릿 스탠스 암 패스 8자 스로우",
        "station": "투구 그물",
        "bucket": "스로잉 드릴",
        "equipment": [
         "야구공"
        ],
-       "at": 115.4,
+       "at": 108.8,
        "minutes": 2.2,
        "load": 1,
        "cue": "2~3구",
@@ -9686,14 +8641,14 @@
       },
       {
        "exerciseId": "01547d00-0baf-41ad-b4eb-d4d59b8da117",
-       "no": "10-40",
+       "no": "9-36",
        "title": "재니터 스로우",
        "station": "투구 그물",
        "bucket": "스로잉 드릴",
        "equipment": [
         "야구공"
        ],
-       "at": 117.6,
+       "at": 111,
        "minutes": 2.2,
        "load": 1,
        "cue": "2~3구",
@@ -9704,33 +8659,14 @@
       },
       {
        "exerciseId": "9f402f8a-972d-4fc9-844f-4505e5e85ddd",
-       "no": "10-41",
+       "no": "9-37",
        "title": "기쿠치 드릴",
        "station": "투구 그물",
        "bucket": "스로잉 드릴",
        "equipment": [
         "야구공"
        ],
-       "at": 119.8,
-       "minutes": 2.2,
-       "load": 1.5,
-       "cue": "2~3구",
-       "perSide": false,
-       "breakAfter": true,
-       "kind": "drill",
-       "group": "통합"
-      },
-      {
-       "exerciseId": "041083fe-82e6-47b3-865e-fe48d8dc64a6",
-       "no": "10-42",
-       "title": "드롭 스텝 스로우",
-       "station": "투구 그물",
-       "bucket": "스로잉 드릴",
-       "equipment": [
-        "플라이오볼",
-        "야구공"
-       ],
-       "at": 128,
+       "at": 113.2,
        "minutes": 2.2,
        "load": 1.5,
        "cue": "2~3구",
@@ -9741,14 +8677,14 @@
       },
       {
        "exerciseId": "30cbb5e3-b068-4518-8b4a-9f9f965e68dc",
-       "no": "10-43",
+       "no": "9-38",
        "title": "로테이셔널 스텝백 스로우",
        "station": "투구 그물",
        "bucket": "스로잉 드릴",
        "equipment": [
         "야구공"
        ],
-       "at": 131.2,
+       "at": 115.4,
        "minutes": 2.2,
        "load": 1.5,
        "cue": "2~3구",
@@ -9759,14 +8695,14 @@
       },
       {
        "exerciseId": "54acde57-f93a-4012-a632-46221b7f23b8",
-       "no": "10-44",
+       "no": "9-39",
        "title": "스텝백 스로우 드릴",
        "station": "투구 그물",
        "bucket": "스로잉 드릴",
        "equipment": [
         "야구공"
        ],
-       "at": 133.4,
+       "at": 117.6,
        "minutes": 2.2,
        "load": 1.5,
        "cue": "2~3구",
@@ -9778,32 +8714,32 @@
       },
       {
        "exerciseId": "17252be0-593b-4a9d-aad8-70ec7b5baa1e",
-       "no": "10-45",
+       "no": "9-40",
        "title": "허들 착지 스로우",
        "station": "투구 그물",
        "bucket": "스로잉 드릴",
        "equipment": [
         "야구공"
        ],
-       "at": 135.6,
+       "at": 119.8,
        "minutes": 2.2,
        "load": 2.5,
        "cue": "2~3구",
        "perSide": false,
-       "breakAfter": false,
+       "breakAfter": true,
        "kind": "drill",
        "group": "통합"
       },
       {
        "exerciseId": "2a4d01d2-aa0e-4dbc-bb3b-70d47fbcaa34",
-       "no": "10-46",
+       "no": "9-41",
        "title": "KBO 로커",
        "station": "투구 그물",
        "bucket": "스로잉 드릴",
        "equipment": [
         "야구공"
        ],
-       "at": 137.8,
+       "at": 127,
        "minutes": 2.2,
        "load": 1.5,
        "cue": "2~3구",
@@ -9817,8 +8753,766 @@
    ],
    "load": {
     "무브먼트 패턴 드릴": 11.5,
-    "메디신볼 드릴": 21.5,
-    "스로잉 드릴": 20
+    "메디신볼 드릴": 16.5,
+    "스로잉 드릴": 18.5
+   },
+   "outdoor": true
+  },
+  {
+   "week": 10,
+   "end": 130.8,
+   "stations": [
+    {
+     "station": "잔디 · 밴드 기둥",
+     "start": 15,
+     "end": 42.2,
+     "items": [
+      {
+       "exerciseId": "758d684f-8c79-4e2c-8133-bf479ea4be45",
+       "no": "10-01",
+       "title": "P2 레터럴 맥스뎁스 힌지",
+       "station": "잔디 · 밴드 기둥",
+       "bucket": "무브먼트 패턴 드릴",
+       "equipment": [
+        "맨몸"
+       ],
+       "at": 15,
+       "minutes": 1.6,
+       "load": 1.5,
+       "cue": "2~3회",
+       "perSide": false,
+       "breakAfter": false,
+       "kind": "drill",
+       "group": "기초"
+      },
+      {
+       "exerciseId": "22160a0e-cf2e-4a3e-b6ea-e4b23e997678",
+       "no": "10-02",
+       "title": "P2 레그 리프트 드리프트 → 힌지",
+       "station": "잔디 · 밴드 기둥",
+       "bucket": "무브먼트 패턴 드릴",
+       "equipment": [
+        "맨몸"
+       ],
+       "at": 16.6,
+       "minutes": 2,
+       "load": 1,
+       "cue": "3회 · 천천히",
+       "perSide": false,
+       "breakAfter": false,
+       "kind": "drill",
+       "group": "연결"
+      },
+      {
+       "exerciseId": "96b2bcd4-9307-4330-b915-7d2defa9ef27",
+       "no": "10-03",
+       "title": "P3 회전 무릎 슬램",
+       "station": "잔디 · 밴드 기둥",
+       "bucket": "무브먼트 패턴 드릴",
+       "equipment": [
+        "맨몸"
+       ],
+       "at": 18.6,
+       "minutes": 1.6,
+       "load": 0.5,
+       "cue": "3회 · 천천히",
+       "perSide": false,
+       "breakAfter": false,
+       "kind": "drill",
+       "group": "기초"
+      },
+      {
+       "exerciseId": "0de90fb2-4f55-48bc-9702-b1b32d3af939",
+       "no": "10-04",
+       "title": "P3 레터럴 힌지 바운드 → 내회전",
+       "station": "잔디 · 밴드 기둥",
+       "bucket": "무브먼트 패턴 드릴",
+       "equipment": [
+        "맨몸"
+       ],
+       "at": 20.2,
+       "minutes": 2,
+       "load": 2,
+       "cue": "2~3회",
+       "perSide": false,
+       "breakAfter": false,
+       "kind": "drill",
+       "group": "연결"
+      },
+      {
+       "exerciseId": "58320c75-b59b-449a-a4d5-3b699f0300b4",
+       "no": "10-05",
+       "title": "P3 레그 리프트 드리프트 → 힌지 + 반대회전 → 내회전",
+       "station": "잔디 · 밴드 기둥",
+       "bucket": "무브먼트 패턴 드릴",
+       "equipment": [
+        "맨몸"
+       ],
+       "at": 22.2,
+       "minutes": 2,
+       "load": 1.5,
+       "cue": "3회 · 천천히",
+       "perSide": false,
+       "breakAfter": false,
+       "kind": "drill",
+       "group": "통합"
+      },
+      {
+       "exerciseId": "6d466ef3-e4c6-4004-aace-842079e6de43",
+       "no": "10-06",
+       "title": "P4 막대 스플릿 스탠스 분리 회전",
+       "station": "잔디 · 밴드 기둥",
+       "bucket": "무브먼트 패턴 드릴",
+       "equipment": [
+        "맨몸"
+       ],
+       "at": 24.2,
+       "minutes": 1.6,
+       "load": 0.5,
+       "cue": "3회 · 천천히",
+       "perSide": false,
+       "breakAfter": false,
+       "kind": "drill",
+       "group": "기초"
+      },
+      {
+       "exerciseId": "26cf9890-11f0-4231-ae7c-7b12718df66f",
+       "no": "10-07",
+       "title": "P4 스플릿 스탠스 흉추 회전",
+       "station": "잔디 · 밴드 기둥",
+       "bucket": "무브먼트 패턴 드릴",
+       "equipment": [
+        "맨몸"
+       ],
+       "at": 25.8,
+       "minutes": 1.6,
+       "load": 0.5,
+       "cue": "3회 · 천천히",
+       "perSide": false,
+       "breakAfter": false,
+       "kind": "drill",
+       "group": "기초"
+      },
+      {
+       "exerciseId": "c10e7806-2033-436f-9f1f-c54353208448",
+       "no": "10-08",
+       "title": "P5 더블 밴드 TKE",
+       "station": "잔디 · 밴드 기둥",
+       "bucket": "무브먼트 패턴 드릴",
+       "equipment": [
+        "밴드"
+       ],
+       "at": 28.4,
+       "minutes": 1.8,
+       "load": 0.5,
+       "cue": "3회 · 천천히",
+       "perSide": false,
+       "breakAfter": false,
+       "kind": "drill",
+       "group": "기초"
+      },
+      {
+       "exerciseId": "d7c63f0b-ece8-4762-aed9-a6b989e9bae1",
+       "no": "10-09",
+       "title": "P5 지지 홀드 TKE",
+       "station": "잔디 · 밴드 기둥",
+       "bucket": "무브먼트 패턴 드릴",
+       "equipment": [
+        "밴드"
+       ],
+       "at": 30.2,
+       "minutes": 1.8,
+       "load": 0.5,
+       "cue": "3회 · 천천히",
+       "perSide": false,
+       "breakAfter": false,
+       "kind": "drill",
+       "group": "기초"
+      },
+      {
+       "exerciseId": "21b42b35-4574-40b2-88b9-4fecb47512bd",
+       "no": "10-10",
+       "title": "리드암 외전 + 워터볼",
+       "station": "잔디 · 밴드 기둥",
+       "bucket": "무브먼트 패턴 드릴",
+       "equipment": [
+        "워터볼"
+       ],
+       "at": 33,
+       "minutes": 2,
+       "load": 0.5,
+       "cue": "3회 · 천천히",
+       "perSide": false,
+       "breakAfter": false,
+       "kind": "drill",
+       "group": "기초"
+      },
+      {
+       "exerciseId": "019f2867-7701-4a54-9270-0f9cd49dd7f4",
+       "no": "10-11",
+       "title": "밴드 보조 레터럴 드라이브 + 워터볼",
+       "station": "잔디 · 밴드 기둥",
+       "bucket": "무브먼트 패턴 드릴",
+       "equipment": [
+        "밴드"
+       ],
+       "at": 36,
+       "minutes": 2.2,
+       "load": 0.5,
+       "cue": "3회 · 천천히",
+       "perSide": false,
+       "breakAfter": false,
+       "kind": "drill",
+       "group": "기초"
+      },
+      {
+       "exerciseId": "33c537bc-d20d-47f5-93ee-264d01d0c2ac",
+       "no": "10-12",
+       "title": "베이스 밴드 저항 고관절 내회전 + 슬라이드",
+       "station": "잔디 · 밴드 기둥",
+       "bucket": "무브먼트 패턴 드릴",
+       "equipment": [
+        "밴드"
+       ],
+       "at": 38.2,
+       "minutes": 2.2,
+       "load": 0.5,
+       "cue": "3회 · 천천히",
+       "perSide": false,
+       "breakAfter": false,
+       "kind": "drill",
+       "group": "기초"
+      },
+      {
+       "exerciseId": "a6827145-44c3-4e39-88c2-93bc4a834709",
+       "no": "10-13",
+       "title": "밴드 저항 레터럴 푸시 투 베이스",
+       "station": "잔디 · 밴드 기둥",
+       "bucket": "무브먼트 패턴 드릴",
+       "equipment": [
+        "밴드"
+       ],
+       "at": 40.4,
+       "minutes": 1.8,
+       "load": 1,
+       "cue": "3회 · 천천히",
+       "perSide": false,
+       "breakAfter": false,
+       "kind": "drill",
+       "group": "연결"
+      }
+     ]
+    },
+    {
+     "station": "메디신볼 벽",
+     "start": 45.2,
+     "end": 81.4,
+     "items": [
+      {
+       "exerciseId": "aa72043b-c690-40f7-bf04-d9f197219fe7",
+       "no": "10-14",
+       "title": "P1 와이드 스트레치 스로우 (작은 공)",
+       "station": "메디신볼 벽",
+       "bucket": "메디신볼 드릴",
+       "equipment": [
+        "메디신볼"
+       ],
+       "at": 45.2,
+       "minutes": 2,
+       "load": 0.5,
+       "cue": "3회",
+       "perSide": false,
+       "breakAfter": false,
+       "kind": "drill",
+       "group": "기초"
+      },
+      {
+       "exerciseId": "ec08e662-7661-40e1-8f49-9056047b2824",
+       "no": "10-15",
+       "title": "P1 와이드 스트레치 스로우 (큰 공)",
+       "station": "메디신볼 벽",
+       "bucket": "메디신볼 드릴",
+       "equipment": [
+        "메디신볼"
+       ],
+       "at": 48.2,
+       "minutes": 2,
+       "load": 0.5,
+       "cue": "3회",
+       "perSide": false,
+       "breakAfter": false,
+       "kind": "drill",
+       "group": "기초"
+      },
+      {
+       "exerciseId": "079a3513-c094-46a2-882e-526fbad51247",
+       "no": "10-16",
+       "title": "P1 레터럴 셔플 스로우 (작은 공)",
+       "station": "메디신볼 벽",
+       "bucket": "메디신볼 드릴",
+       "equipment": [
+        "메디신볼"
+       ],
+       "at": 51.2,
+       "minutes": 2,
+       "load": 1.5,
+       "cue": "3회",
+       "perSide": false,
+       "breakAfter": false,
+       "kind": "drill",
+       "group": "통합"
+      },
+      {
+       "exerciseId": "eaab7204-3682-4015-89ed-4f2e6f2d6078",
+       "no": "10-17",
+       "title": "P1 레터럴 셔플 스로우 (큰 공)",
+       "station": "메디신볼 벽",
+       "bucket": "메디신볼 드릴",
+       "equipment": [
+        "메디신볼"
+       ],
+       "at": 54.2,
+       "minutes": 2,
+       "load": 1.5,
+       "cue": "3회",
+       "perSide": false,
+       "breakAfter": false,
+       "kind": "drill",
+       "group": "통합"
+      },
+      {
+       "exerciseId": "0dbd7386-80a6-40e5-b64e-3826619ee6d4",
+       "no": "10-18",
+       "title": "P2 헤비 메디신볼 힌지 토스 (큰 공)",
+       "station": "메디신볼 벽",
+       "bucket": "메디신볼 드릴",
+       "equipment": [
+        "메디신볼"
+       ],
+       "at": 56.2,
+       "minutes": 2,
+       "load": 1,
+       "cue": "3회",
+       "perSide": false,
+       "breakAfter": false,
+       "kind": "drill",
+       "group": "연결"
+      },
+      {
+       "exerciseId": "9a506010-cf70-4067-8b52-c5bc67bcd511",
+       "no": "10-19",
+       "title": "P3 레터럴 힌지 바운드 스로우 (작은 공)",
+       "station": "메디신볼 벽",
+       "bucket": "메디신볼 드릴",
+       "equipment": [
+        "메디신볼"
+       ],
+       "at": 59.2,
+       "minutes": 2,
+       "load": 2.5,
+       "cue": "3회",
+       "perSide": false,
+       "breakAfter": false,
+       "kind": "drill",
+       "group": "통합"
+      },
+      {
+       "exerciseId": "8607fb9c-34ba-49b0-9c24-a17773db1c10",
+       "no": "10-20",
+       "title": "P3 레터럴 힌지 바운드 스로우 (큰 공)",
+       "station": "메디신볼 벽",
+       "bucket": "메디신볼 드릴",
+       "equipment": [
+        "메디신볼"
+       ],
+       "at": 62.2,
+       "minutes": 2,
+       "load": 2.5,
+       "cue": "3회",
+       "perSide": false,
+       "breakAfter": false,
+       "kind": "drill",
+       "group": "통합"
+      },
+      {
+       "exerciseId": "8ec0f1b3-dd87-48f0-8a8a-442208243b5f",
+       "no": "10-21",
+       "title": "P5 앞다리 찹 스로우 (큰 공)",
+       "station": "메디신볼 벽",
+       "bucket": "메디신볼 드릴",
+       "equipment": [
+        "메디신볼"
+       ],
+       "at": 64.2,
+       "minutes": 2,
+       "load": 0.5,
+       "cue": "3회",
+       "perSide": false,
+       "breakAfter": true,
+       "kind": "drill",
+       "group": "기초"
+      },
+      {
+       "exerciseId": "855fd97a-0d4f-4e09-aaf1-12a09e47c2fb",
+       "no": "10-22",
+       "title": "드롭스텝 → 슬램",
+       "station": "메디신볼 벽",
+       "bucket": "메디신볼 드릴",
+       "equipment": [
+        "메디신볼"
+       ],
+       "at": 72.2,
+       "minutes": 2.4,
+       "load": 1,
+       "cue": "3회",
+       "perSide": false,
+       "breakAfter": false,
+       "kind": "drill",
+       "group": "연결"
+      },
+      {
+       "exerciseId": "365824c6-316c-4f95-a3d1-8de12ad2ef89",
+       "no": "10-23",
+       "title": "드롭스텝 → 회전 토스",
+       "station": "메디신볼 벽",
+       "bucket": "메디신볼 드릴",
+       "equipment": [
+        "메디신볼"
+       ],
+       "at": 74.6,
+       "minutes": 2.4,
+       "load": 1,
+       "cue": "3회",
+       "perSide": false,
+       "breakAfter": false,
+       "kind": "drill",
+       "group": "연결"
+      },
+      {
+       "exerciseId": "c6f1b0e4-50dc-4c30-8b1d-c978d8d9783a",
+       "no": "10-24",
+       "title": "싱글렉 포고 홉 → 회전 토스",
+       "station": "메디신볼 벽",
+       "bucket": "메디신볼 드릴",
+       "equipment": [
+        "메디신볼"
+       ],
+       "at": 77,
+       "minutes": 2.4,
+       "load": 2,
+       "cue": "3회",
+       "perSide": false,
+       "breakAfter": false,
+       "kind": "drill",
+       "group": "연결"
+      },
+      {
+       "exerciseId": "c13756a8-2d2e-4f47-80fc-81a140bfe104",
+       "no": "10-25",
+       "title": "메디신볼 워킹 와인드업 스로우",
+       "station": "메디신볼 벽",
+       "bucket": "메디신볼 드릴",
+       "equipment": [
+        "메디신볼"
+       ],
+       "at": 79.4,
+       "minutes": 2,
+       "load": 1.5,
+       "cue": "3회",
+       "perSide": false,
+       "breakAfter": false,
+       "kind": "drill",
+       "group": "통합"
+      }
+     ]
+    },
+    {
+     "station": "투구 그물",
+     "start": 84.4,
+     "end": 130.8,
+     "items": [
+      {
+       "exerciseId": "edd9f544-7711-410e-997b-98fa144b2dac",
+       "no": "10-26",
+       "title": "P2 힌지 홉 스로우",
+       "station": "투구 그물",
+       "bucket": "스로잉 드릴",
+       "equipment": [
+        "야구공"
+       ],
+       "at": 84.4,
+       "minutes": 2.2,
+       "load": 2,
+       "cue": "2~3구",
+       "perSide": false,
+       "breakAfter": false,
+       "kind": "drill",
+       "group": "연결"
+      },
+      {
+       "exerciseId": "817e0962-15c8-4d3d-9be4-f30457493bd7",
+       "no": "10-27",
+       "title": "P2 레터럴 바운드 힌지 홉 스로우",
+       "station": "투구 그물",
+       "bucket": "스로잉 드릴",
+       "equipment": [
+        "야구공"
+       ],
+       "at": 86.6,
+       "minutes": 2.2,
+       "load": 2.5,
+       "cue": "2~3구",
+       "perSide": false,
+       "breakAfter": false,
+       "kind": "drill",
+       "group": "통합"
+      },
+      {
+       "exerciseId": "017e18f4-158d-49e6-bba2-2421d858dda7",
+       "no": "10-28",
+       "title": "P4 스플릿 스탠스 스로우",
+       "station": "투구 그물",
+       "bucket": "스로잉 드릴",
+       "equipment": [
+        "야구공"
+       ],
+       "at": 88.8,
+       "minutes": 2.2,
+       "load": 0.5,
+       "cue": "2~3구",
+       "perSide": false,
+       "breakAfter": false,
+       "kind": "drill",
+       "group": "기초"
+      },
+      {
+       "exerciseId": "88c66e7e-d3a8-4143-8e47-7aeb358bfc4c",
+       "no": "10-29",
+       "title": "P4 스플릿 스탠스 스로우 + 모멘텀",
+       "station": "투구 그물",
+       "bucket": "스로잉 드릴",
+       "equipment": [
+        "야구공"
+       ],
+       "at": 91,
+       "minutes": 2.6,
+       "load": 1,
+       "cue": "2~3구",
+       "perSide": false,
+       "breakAfter": false,
+       "kind": "drill",
+       "group": "연결"
+      },
+      {
+       "exerciseId": "0ca54974-66ee-4327-92cf-05b8f2ccc0f3",
+       "no": "10-30",
+       "title": "90/90 월 드리블",
+       "station": "투구 그물",
+       "bucket": "스로잉 드릴",
+       "equipment": [
+        "야구공"
+       ],
+       "at": 93.6,
+       "minutes": 2.2,
+       "load": 0.5,
+       "cue": "2~3구",
+       "perSide": false,
+       "breakAfter": false,
+       "kind": "drill",
+       "group": "기초"
+      },
+      {
+       "exerciseId": "9675f83b-aaef-46ed-ad44-492fcfb86c91",
+       "no": "10-31",
+       "title": "암 패스 8자",
+       "station": "투구 그물",
+       "bucket": "스로잉 드릴",
+       "equipment": [
+        "야구공"
+       ],
+       "at": 95.8,
+       "minutes": 2.2,
+       "load": 0.5,
+       "cue": "2~3구",
+       "perSide": false,
+       "breakAfter": false,
+       "kind": "drill",
+       "group": "기초"
+      },
+      {
+       "exerciseId": "a758460c-ba47-4891-9125-6058a58577e0",
+       "no": "10-32",
+       "title": "로커 스로우",
+       "station": "투구 그물",
+       "bucket": "스로잉 드릴",
+       "equipment": [
+        "야구공",
+        "플라이오볼"
+       ],
+       "at": 99,
+       "minutes": 2.2,
+       "load": 1,
+       "cue": "2~3구",
+       "perSide": false,
+       "breakAfter": false,
+       "kind": "drill",
+       "group": "연결"
+      },
+      {
+       "exerciseId": "bf058314-42e4-49c4-b2ee-42c052d3584f",
+       "no": "10-33",
+       "title": "리듬 로커",
+       "station": "투구 그물",
+       "bucket": "스로잉 드릴",
+       "equipment": [
+        "야구공"
+       ],
+       "at": 102.2,
+       "minutes": 2.2,
+       "load": 1,
+       "cue": "2~3구",
+       "perSide": false,
+       "breakAfter": false,
+       "kind": "drill",
+       "group": "연결"
+      },
+      {
+       "exerciseId": "60682fda-35b3-46b0-ba04-ac3eb90166c6",
+       "no": "10-34",
+       "title": "텐 토즈 스로우",
+       "station": "투구 그물",
+       "bucket": "스로잉 드릴",
+       "equipment": [
+        "야구공",
+        "플라이오볼"
+       ],
+       "at": 105.4,
+       "minutes": 2.2,
+       "load": 1,
+       "cue": "2~3구",
+       "perSide": false,
+       "breakAfter": false,
+       "kind": "drill",
+       "group": "연결"
+      },
+      {
+       "exerciseId": "ee8c11a8-3600-49d0-b183-9d78bf2a58ef",
+       "no": "10-35",
+       "title": "피벗 픽오프",
+       "station": "투구 그물",
+       "bucket": "스로잉 드릴",
+       "equipment": [
+        "플라이오볼",
+        "야구공"
+       ],
+       "at": 108.6,
+       "minutes": 2.2,
+       "load": 1,
+       "cue": "2~3구",
+       "perSide": false,
+       "breakAfter": false,
+       "kind": "drill",
+       "group": "연결"
+      },
+      {
+       "exerciseId": "6eaa7985-9438-4931-bf96-67431faa5e9c",
+       "no": "10-36",
+       "title": "훅엠 드릴",
+       "station": "투구 그물",
+       "bucket": "스로잉 드릴",
+       "equipment": [
+        "야구공"
+       ],
+       "at": 111.8,
+       "minutes": 2.2,
+       "load": 1,
+       "cue": "2~3구",
+       "perSide": false,
+       "breakAfter": false,
+       "kind": "drill",
+       "group": "연결"
+      },
+      {
+       "exerciseId": "041083fe-82e6-47b3-865e-fe48d8dc64a6",
+       "no": "10-37",
+       "title": "드롭 스텝 스로우",
+       "station": "투구 그물",
+       "bucket": "스로잉 드릴",
+       "equipment": [
+        "플라이오볼",
+        "야구공"
+       ],
+       "at": 115,
+       "minutes": 2.2,
+       "load": 1.5,
+       "cue": "2~3구",
+       "perSide": false,
+       "breakAfter": false,
+       "kind": "drill",
+       "group": "통합"
+      },
+      {
+       "exerciseId": "1fbba29a-1487-40b2-8d9b-dbfd473d81c9",
+       "no": "10-38",
+       "title": "바우어 드릴",
+       "station": "투구 그물",
+       "bucket": "스로잉 드릴",
+       "equipment": [
+        "야구공"
+       ],
+       "at": 118.2,
+       "minutes": 2.2,
+       "load": 1.5,
+       "cue": "2~3구",
+       "perSide": false,
+       "breakAfter": false,
+       "kind": "drill",
+       "group": "통합"
+      },
+      {
+       "exerciseId": "4fc587ee-0a47-4011-a8f4-2a0cf3ef1c9a",
+       "no": "10-39",
+       "title": "스텝 비하인드 스로우",
+       "station": "투구 그물",
+       "bucket": "스로잉 드릴",
+       "equipment": [
+        "야구공"
+       ],
+       "at": 120.4,
+       "minutes": 2.2,
+       "load": 1.5,
+       "cue": "2~3구",
+       "perSide": false,
+       "breakAfter": true,
+       "kind": "drill",
+       "group": "통합"
+      },
+      {
+       "exerciseId": "209c141a-82ca-43f2-b7de-dbbae1392568",
+       "no": "10-40",
+       "title": "워킹 와인드업",
+       "station": "투구 그물",
+       "bucket": "스로잉 드릴",
+       "equipment": [
+        "플라이오볼",
+        "야구공"
+       ],
+       "at": 128.6,
+       "minutes": 2.2,
+       "load": 1.5,
+       "cue": "2~3구",
+       "perSide": false,
+       "breakAfter": false,
+       "kind": "drill",
+       "group": "통합"
+      }
+     ]
+    }
+   ],
+   "load": {
+    "무브먼트 패턴 드릴": 11,
+    "메디신볼 드릴": 16,
+    "스로잉 드릴": 18
    },
    "outdoor": true
   }

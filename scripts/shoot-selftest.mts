@@ -218,9 +218,9 @@ console.log('\n■ 고정 계획 — 야외 8~10주(투구 드릴만 — 워밍�
   const drills = items.filter((i) => i.kind === 'drill');
   const warms = items.filter((i) => i.kind === 'warmup');
   check(
-    '야외 3주(8 · 9 · 10) — 드릴 139 · 워밍업 없음',
+    '야외 3주(8 · 9 · 10) — 드릴 122 · 워밍업 없음',
     out.map((w) => w.week).join() === '8,9,10' &&
-      drills.length === 139 &&
+      drills.length === 122 &&
       warms.length === 0,
     `${out.map((w) => w.week).join(',')} · 드릴 ${drills.length} · 워밍업 ${warms.length}`
   );
