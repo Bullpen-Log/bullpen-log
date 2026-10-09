@@ -1,0 +1,5296 @@
+{
+ "version": 1,
+ "createdOn": "2026-10-09",
+ "options": {
+  "sessions": 5,
+  "stationPenalty": 1.2,
+  "loadWeight": 1.5
+ },
+ "weeks": [
+  {
+   "week": 1,
+   "end": 148.8,
+   "stations": [
+    {
+     "station": "넓은 바닥(이동)",
+     "start": 15,
+     "end": 33.8,
+     "items": [
+      {
+       "exerciseId": "acfefd8f-fdd5-4ce0-9571-4fa74219ff61",
+       "no": "1-01",
+       "title": "워킹 쿼드 풀",
+       "station": "넓은 바닥(이동)",
+       "bucket": "모빌리티",
+       "equipment": [
+        "맨몸"
+       ],
+       "at": 15,
+       "minutes": 1.6,
+       "load": 0.2,
+       "cue": "2~3회 · 끝 자세 2초 · 한쪽",
+       "perSide": true,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "bcecaaa9-2bb2-4f23-9667-35394281fa62",
+       "no": "1-02",
+       "title": "토 워크",
+       "station": "넓은 바닥(이동)",
+       "bucket": "모빌리티",
+       "equipment": [
+        "맨몸"
+       ],
+       "at": 16.6,
+       "minutes": 1.6,
+       "load": 0.2,
+       "cue": "2~3회 · 끝 자세 2초",
+       "perSide": false,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "dc4c785c-98cc-4b5c-96b4-e12f15c9d743",
+       "no": "1-03",
+       "title": "트랜스버스 런지",
+       "station": "넓은 바닥(이동)",
+       "bucket": "모빌리티",
+       "equipment": [
+        "맨몸"
+       ],
+       "at": 18.2,
+       "minutes": 1.6,
+       "load": 0.5,
+       "cue": "2~3회 · 끝 자세 2초 · 한쪽",
+       "perSide": true,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "2f24932e-a827-4534-a76c-09a737c5431e",
+       "no": "1-04",
+       "title": "포워드 마치 + 회전",
+       "station": "넓은 바닥(이동)",
+       "bucket": "모빌리티",
+       "equipment": [
+        "맨몸"
+       ],
+       "at": 19.8,
+       "minutes": 2,
+       "load": 0.5,
+       "cue": "2~3회 · 끝 자세 2초 · 한쪽",
+       "perSide": true,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "be1893af-9ef5-4a9d-a00d-c4e4db3410d0",
+       "no": "1-05",
+       "title": "A-스킵",
+       "station": "넓은 바닥(이동)",
+       "bucket": "모빌리티",
+       "equipment": [
+        "맨몸"
+       ],
+       "at": 21.8,
+       "minutes": 1.6,
+       "load": 0.5,
+       "cue": "2~3회 · 끝 자세 2초",
+       "perSide": false,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "9b51b7dc-7846-42a5-b57e-87a9e9c9e870",
+       "no": "1-06",
+       "title": "가벼운 조깅",
+       "station": "넓은 바닥(이동)",
+       "bucket": "유산소",
+       "equipment": [
+        "맨몸"
+       ],
+       "at": 23.4,
+       "minutes": 2.2,
+       "load": 0.5,
+       "cue": "10초 걷기 · 뛰기 장면",
+       "perSide": false,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "9a47b942-eec4-44d3-9761-53d2cb9dd663",
+       "no": "1-07",
+       "title": "빠르게 걷기",
+       "station": "넓은 바닥(이동)",
+       "bucket": "유산소",
+       "equipment": [
+        "맨몸"
+       ],
+       "at": 25.6,
+       "minutes": 2.2,
+       "load": 0.5,
+       "cue": "10초 걷기 · 뛰기 장면",
+       "perSide": false,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "0ffc9645-ae9c-4987-b075-99033a23ce7d",
+       "no": "1-08",
+       "title": "셔틀 런 인터벌",
+       "station": "넓은 바닥(이동)",
+       "bucket": "유산소",
+       "equipment": [
+        "맨몸"
+       ],
+       "at": 27.8,
+       "minutes": 2.2,
+       "load": 1,
+       "cue": "10초 걷기 · 뛰기 장면",
+       "perSide": false,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "769edef3-506d-45d8-b6c8-553380b68fa0",
+       "no": "1-09",
+       "title": "버티컬 점프",
+       "station": "넓은 바닥(이동)",
+       "bucket": "하체 파워",
+       "equipment": [
+        "맨몸"
+       ],
+       "at": 30,
+       "minutes": 1.9,
+       "load": 2,
+       "cue": "2~3회",
+       "perSide": false,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "7130118f-1f0d-46de-a44b-856425d28836",
+       "no": "1-10",
+       "title": "브로드 점프",
+       "station": "넓은 바닥(이동)",
+       "bucket": "하체 파워",
+       "equipment": [
+        "맨몸"
+       ],
+       "at": 31.9,
+       "minutes": 1.9,
+       "load": 2,
+       "cue": "2~3회",
+       "perSide": false,
+       "breakAfter": false
+      }
+     ]
+    },
+    {
+     "station": "랙 · 바벨 · 원판",
+     "start": 36.8,
+     "end": 49.4,
+     "items": [
+      {
+       "exerciseId": "3478a21a-89a0-4e3c-a0d6-efadf5ebe7f6",
+       "no": "1-11",
+       "title": "랜드마인 스쿼트",
+       "station": "랙 · 바벨 · 원판",
+       "bucket": "하체 앞(무릎)",
+       "equipment": [
+        "바벨"
+       ],
+       "at": 36.8,
+       "minutes": 1.9,
+       "load": 2,
+       "cue": "3회",
+       "perSide": false,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "cae432ec-396e-47ab-b8f4-d264f73beb61",
+       "no": "1-12",
+       "title": "바벨 RDL",
+       "station": "랙 · 바벨 · 원판",
+       "bucket": "하체 뒤(힌지)",
+       "equipment": [
+        "바벨"
+       ],
+       "at": 38.7,
+       "minutes": 1.9,
+       "load": 2,
+       "cue": "3회",
+       "perSide": false,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "51c7bf3a-fac1-4f18-85c7-5fc1efbc8b92",
+       "no": "1-13",
+       "title": "바벨 프론트 스쿼트",
+       "station": "랙 · 바벨 · 원판",
+       "bucket": "하체 앞(무릎)",
+       "equipment": [
+        "바벨"
+       ],
+       "at": 40.6,
+       "minutes": 1.9,
+       "load": 3,
+       "cue": "3회",
+       "perSide": false,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "7f21e445-ee79-4d11-996a-8e1fe936b0a7",
+       "no": "1-14",
+       "title": "RDL 버티며 내리기+정지",
+       "station": "랙 · 바벨 · 원판",
+       "bucket": "하체 뒤(힌지)",
+       "equipment": [
+        "바벨"
+       ],
+       "at": 42.5,
+       "minutes": 2.7,
+       "load": 3,
+       "cue": "1~2회 천천히 내리기",
+       "perSide": false,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "80eaf219-1024-45a8-98db-4a000c3fd187",
+       "no": "1-15",
+       "title": "원판 힙 모빌리티",
+       "station": "랙 · 바벨 · 원판",
+       "bucket": "모빌리티",
+       "equipment": [
+        "원판"
+       ],
+       "at": 46.2,
+       "minutes": 1.6,
+       "load": 0.5,
+       "cue": "2~3회 · 끝 자세 2초 · 한쪽",
+       "perSide": true,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "28b398e2-2072-47e8-99e3-1c8c38720e4f",
+       "no": "1-16",
+       "title": "프론 원판 스위머",
+       "station": "랙 · 바벨 · 원판",
+       "bucket": "어깨 · 견갑(암케어)",
+       "equipment": [
+        "원판"
+       ],
+       "at": 47.8,
+       "minutes": 1.6,
+       "load": 0.5,
+       "cue": "3회",
+       "perSide": false,
+       "breakAfter": false
+      }
+     ]
+    },
+    {
+     "station": "덤벨 · 케틀벨",
+     "start": 52.4,
+     "end": 84.9,
+     "items": [
+      {
+       "exerciseId": "b9c417d1-ff28-4c50-85dd-e32b180f794c",
+       "no": "1-17",
+       "title": "6방향 덤벨 레터럴 레이즈",
+       "station": "덤벨 · 케틀벨",
+       "bucket": "상체 밀기 · 어깨",
+       "equipment": [
+        "덤벨"
+       ],
+       "at": 52.4,
+       "minutes": 2,
+       "load": 1,
+       "cue": "3회",
+       "perSide": false,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "0a4180b5-857a-4d5b-9f1b-fb83a4591453",
+       "no": "1-18",
+       "title": "교대 싱글암 덤벨 레터럴 레이즈",
+       "station": "덤벨 · 케틀벨",
+       "bucket": "상체 밀기 · 어깨",
+       "equipment": [
+        "덤벨"
+       ],
+       "at": 54.4,
+       "minutes": 1.6,
+       "load": 0.5,
+       "cue": "3회 · 한쪽",
+       "perSide": true,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "f8c5318d-025e-4ccf-88c6-c685f077e274",
+       "no": "1-19",
+       "title": "덤벨 어라운드 더 월드",
+       "station": "덤벨 · 케틀벨",
+       "bucket": "상체 밀기 · 어깨",
+       "equipment": [
+        "덤벨"
+       ],
+       "at": 56,
+       "minutes": 1.6,
+       "load": 0.5,
+       "cue": "3회",
+       "perSide": false,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "68940d99-7734-4947-866e-2b762a55d826",
+       "no": "1-20",
+       "title": "고블렛 레터럴 런지",
+       "station": "덤벨 · 케틀벨",
+       "bucket": "하체 앞(무릎)",
+       "equipment": [
+        "덤벨"
+       ],
+       "at": 57.6,
+       "minutes": 1.6,
+       "load": 1,
+       "cue": "3회 · 한쪽",
+       "perSide": true,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "4035bf7e-8687-4273-a816-7498fe41485b",
+       "no": "1-21",
+       "title": "고블렛 리버스 런지",
+       "station": "덤벨 · 케틀벨",
+       "bucket": "하체 앞(무릎)",
+       "equipment": [
+        "덤벨"
+       ],
+       "at": 59.2,
+       "minutes": 1.6,
+       "load": 1,
+       "cue": "3회 · 한쪽",
+       "perSide": true,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "a33cb7f0-0ae8-4182-ad30-f4082660f79c",
+       "no": "1-22",
+       "title": "덤벨 크로스오버 스텝업",
+       "station": "덤벨 · 케틀벨",
+       "bucket": "하체 앞(무릎)",
+       "equipment": [
+        "덤벨"
+       ],
+       "at": 60.8,
+       "minutes": 1.6,
+       "load": 1,
+       "cue": "3회 · 한쪽",
+       "perSide": true,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "23dada11-1e8b-4735-bc02-d45940e8a832",
+       "no": "1-23",
+       "title": "프론트 레이즈 드롭 캐치",
+       "station": "덤벨 · 케틀벨",
+       "bucket": "상체 밀기 · 어깨",
+       "equipment": [
+        "덤벨"
+       ],
+       "at": 62.4,
+       "minutes": 2.3,
+       "load": 1.5,
+       "cue": "2~3회 · 한쪽",
+       "perSide": true,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "d867fdec-f387-422e-914f-b78c87f1817a",
+       "no": "1-24",
+       "title": "하프닐링 레터럴 레이즈",
+       "station": "덤벨 · 케틀벨",
+       "bucket": "상체 밀기 · 어깨",
+       "equipment": [
+        "덤벨"
+       ],
+       "at": 64.7,
+       "minutes": 1.6,
+       "load": 0.5,
+       "cue": "3회 · 한쪽",
+       "perSide": true,
+       "breakAfter": true
+      },
+      {
+       "exerciseId": "222cc849-e3de-4562-8174-26b856384093",
+       "no": "1-25",
+       "title": "덤벨 푸시 프레스",
+       "station": "덤벨 · 케틀벨",
+       "bucket": "상체 밀기 · 어깨",
+       "equipment": [
+        "덤벨"
+       ],
+       "at": 71.3,
+       "minutes": 1.6,
+       "load": 2,
+       "cue": "3회",
+       "perSide": false,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "15658205-2c66-4dd2-a6fb-439869b0e592",
+       "no": "1-26",
+       "title": "덤벨 피처 스텝업",
+       "station": "덤벨 · 케틀벨",
+       "bucket": "하체 앞(무릎)",
+       "equipment": [
+        "덤벨"
+       ],
+       "at": 72.9,
+       "minutes": 1.6,
+       "load": 1,
+       "cue": "3회 · 한쪽",
+       "perSide": true,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "62e5e4ac-8699-4c05-95f3-088c703d25cb",
+       "no": "1-27",
+       "title": "보수 다이내믹 런지 + 중량",
+       "station": "덤벨 · 케틀벨",
+       "bucket": "하체 앞(무릎)",
+       "equipment": [
+        "덤벨"
+       ],
+       "at": 74.5,
+       "minutes": 2,
+       "load": 2,
+       "cue": "3회 · 한쪽",
+       "perSide": true,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "286b186f-b322-43fc-9da5-462e4e064195",
+       "no": "1-28",
+       "title": "누워서 덤벨 내회전 90도",
+       "station": "덤벨 · 케틀벨",
+       "bucket": "어깨 · 견갑(암케어)",
+       "equipment": [
+        "덤벨"
+       ],
+       "at": 76.5,
+       "minutes": 1.6,
+       "load": 0.5,
+       "cue": "3회 · 한쪽",
+       "perSide": true,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "4fe5cfb9-1867-4f5a-86fe-51e4775f8e98",
+       "no": "1-29",
+       "title": "누워서 서라투스 잽",
+       "station": "덤벨 · 케틀벨",
+       "bucket": "어깨 · 견갑(암케어)",
+       "equipment": [
+        "덤벨"
+       ],
+       "at": 78.1,
+       "minutes": 1.6,
+       "load": 0.5,
+       "cue": "3회 · 한쪽",
+       "perSide": true,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "6fa41de9-408e-43ff-b37f-70e8d4ab69f6",
+       "no": "1-30",
+       "title": "누워서 내회전 과부하 내리기",
+       "station": "덤벨 · 케틀벨",
+       "bucket": "어깨 · 견갑(암케어)",
+       "equipment": [
+        "덤벨"
+       ],
+       "at": 79.7,
+       "minutes": 2,
+       "load": 3,
+       "cue": "1~2회 천천히 내리기 · 한쪽",
+       "perSide": true,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "efc8eb1e-eb4a-4a47-8691-48119353c296",
+       "no": "1-31",
+       "title": "조트만 컬",
+       "station": "덤벨 · 케틀벨",
+       "bucket": "상체 당기기",
+       "equipment": [
+        "덤벨"
+       ],
+       "at": 81.7,
+       "minutes": 1.6,
+       "load": 1,
+       "cue": "3회",
+       "perSide": false,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "43203508-6387-4ddc-ab44-68898ce293fc",
+       "no": "1-32",
+       "title": "크로스바디 해머컬",
+       "station": "덤벨 · 케틀벨",
+       "bucket": "상체 당기기",
+       "equipment": [
+        "덤벨"
+       ],
+       "at": 83.3,
+       "minutes": 1.6,
+       "load": 1,
+       "cue": "3회 · 한쪽",
+       "perSide": true,
+       "breakAfter": false
+      }
+     ]
+    },
+    {
+     "station": "밴드(고정 기둥)",
+     "start": 87.9,
+     "end": 148.8,
+     "items": [
+      {
+       "exerciseId": "3b839bbc-cb7f-4fb3-9b6b-9a5201709835",
+       "no": "1-33",
+       "title": "밴드 저항 감속 + 폭발적 반등",
+       "station": "밴드(고정 기둥)",
+       "bucket": "하체 파워",
+       "equipment": [
+        "밴드"
+       ],
+       "at": 87.9,
+       "minutes": 2,
+       "load": 2,
+       "cue": "2~3회",
+       "perSide": false,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "034e1d17-a750-485e-abd7-a046300c1a83",
+       "no": "1-34",
+       "title": "폭발적 밴드 풀 스루",
+       "station": "밴드(고정 기둥)",
+       "bucket": "하체 파워",
+       "equipment": [
+        "밴드"
+       ],
+       "at": 89.9,
+       "minutes": 1.6,
+       "load": 1,
+       "cue": "3회",
+       "perSide": false,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "f554831b-75fc-4507-afa7-8fd35c181f9f",
+       "no": "1-35",
+       "title": "밴드 트라이셉스 푸쉬다운",
+       "station": "밴드(고정 기둥)",
+       "bucket": "전완 · 팔꿈치",
+       "equipment": [
+        "밴드"
+       ],
+       "at": 91.5,
+       "minutes": 1.6,
+       "load": 0.5,
+       "cue": "3회",
+       "perSide": false,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "119ee9f0-b5da-4454-bc4f-2d4ebfbbb56e",
+       "no": "1-36",
+       "title": "밴드 하이 이두컬",
+       "station": "밴드(고정 기둥)",
+       "bucket": "전완 · 팔꿈치",
+       "equipment": [
+        "밴드"
+       ],
+       "at": 93.1,
+       "minutes": 1.6,
+       "load": 0.5,
+       "cue": "3회 · 한쪽",
+       "perSide": true,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "e9124066-f9a5-4154-831a-8cd229551cf7",
+       "no": "1-37",
+       "title": "밴드 회내 킥백",
+       "station": "밴드(고정 기둥)",
+       "bucket": "전완 · 팔꿈치",
+       "equipment": [
+        "밴드"
+       ],
+       "at": 94.7,
+       "minutes": 1.6,
+       "load": 0.5,
+       "cue": "3회 · 한쪽",
+       "perSide": true,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "e2cee90d-d055-4063-babb-b8214194c0cf",
+       "no": "1-38",
+       "title": "밴드 스탠딩 파이어 하이드런트",
+       "station": "밴드(고정 기둥)",
+       "bucket": "고관절 · 발목 보강",
+       "equipment": [
+        "밴드"
+       ],
+       "at": 96.3,
+       "minutes": 1.6,
+       "load": 0.5,
+       "cue": "3회 · 한쪽",
+       "perSide": true,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "e62fdc0c-7431-4e54-9d34-e046bd43f02c",
+       "no": "1-39",
+       "title": "밴드 저항 고관절 외회전",
+       "station": "밴드(고정 기둥)",
+       "bucket": "고관절 · 발목 보강",
+       "equipment": [
+        "밴드"
+       ],
+       "at": 97.9,
+       "minutes": 1.6,
+       "load": 0.5,
+       "cue": "3회 · 한쪽",
+       "perSide": true,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "8e77ca8d-ba7c-4196-a249-977d59194d39",
+       "no": "1-40",
+       "title": "밴드 저항 무릎 신전",
+       "station": "밴드(고정 기둥)",
+       "bucket": "고관절 · 발목 보강",
+       "equipment": [
+        "밴드"
+       ],
+       "at": 99.5,
+       "minutes": 1.6,
+       "load": 0.5,
+       "cue": "3회 · 한쪽",
+       "perSide": true,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "39f3e556-3b31-440c-87b5-9a9c5b062320",
+       "no": "1-41",
+       "title": "튜빙 전완 굴곡",
+       "station": "밴드(고정 기둥)",
+       "bucket": "전완 · 팔꿈치",
+       "equipment": [
+        "밴드"
+       ],
+       "at": 101.1,
+       "minutes": 1.6,
+       "load": 0.5,
+       "cue": "3회 · 한쪽",
+       "perSide": true,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "edc85549-0f6e-40e4-b016-6f5bdda515de",
+       "no": "1-42",
+       "title": "튜빙 전완 굴곡 (GG)",
+       "station": "밴드(고정 기둥)",
+       "bucket": "전완 · 팔꿈치",
+       "equipment": [
+        "밴드"
+       ],
+       "at": 102.7,
+       "minutes": 1.6,
+       "load": 0.5,
+       "cue": "3회 · 한쪽",
+       "perSide": true,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "c06d787c-1628-465c-b4e5-c969aa8fd56d",
+       "no": "1-43",
+       "title": "튜빙 전완 신전",
+       "station": "밴드(고정 기둥)",
+       "bucket": "전완 · 팔꿈치",
+       "equipment": [
+        "밴드"
+       ],
+       "at": 104.3,
+       "minutes": 1.6,
+       "load": 0.5,
+       "cue": "3회 · 한쪽",
+       "perSide": true,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "ce346310-60ee-4d0d-bb83-3a9229912df2",
+       "no": "1-44",
+       "title": "밴드 클램",
+       "station": "밴드(고정 기둥)",
+       "bucket": "고관절 · 발목 보강",
+       "equipment": [
+        "밴드"
+       ],
+       "at": 105.9,
+       "minutes": 1.6,
+       "load": 0.2,
+       "cue": "3회 · 한쪽",
+       "perSide": true,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "2febc393-1542-4f7c-9cc1-8929de40406d",
+       "no": "1-45",
+       "title": "싱글렉 밴드 RNT 고관절 내·외전",
+       "station": "밴드(고정 기둥)",
+       "bucket": "고관절 · 발목 보강",
+       "equipment": [
+        "밴드"
+       ],
+       "at": 107.5,
+       "minutes": 1.6,
+       "load": 1,
+       "cue": "3회 · 한쪽",
+       "perSide": true,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "188be3df-5b79-4d3b-8c11-1afa060eb896",
+       "no": "1-46",
+       "title": "프론 밴드 쿼드 탠트럼",
+       "station": "밴드(고정 기둥)",
+       "bucket": "고관절 · 발목 보강",
+       "equipment": [
+        "밴드"
+       ],
+       "at": 109.1,
+       "minutes": 1.6,
+       "load": 1,
+       "cue": "3회 · 한쪽",
+       "perSide": true,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "e28e70a7-6c56-4588-b8ed-024efda80343",
+       "no": "1-47",
+       "title": "튜빙 전완 신전 (GG)",
+       "station": "밴드(고정 기둥)",
+       "bucket": "전완 · 팔꿈치",
+       "equipment": [
+        "밴드"
+       ],
+       "at": 110.7,
+       "minutes": 1.6,
+       "load": 0.5,
+       "cue": "3회 · 한쪽",
+       "perSide": true,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "86f1f699-8956-4bd2-94d0-06b596e99363",
+       "no": "1-48",
+       "title": "튜빙 전완 요측 편위",
+       "station": "밴드(고정 기둥)",
+       "bucket": "전완 · 팔꿈치",
+       "equipment": [
+        "밴드"
+       ],
+       "at": 112.3,
+       "minutes": 1.6,
+       "load": 0.5,
+       "cue": "3회 · 한쪽",
+       "perSide": true,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "d05ce8ba-9785-48c1-9e88-8a4992558f3f",
+       "no": "1-49",
+       "title": "튜빙 전완 요측 편위 (GG)",
+       "station": "밴드(고정 기둥)",
+       "bucket": "전완 · 팔꿈치",
+       "equipment": [
+        "밴드"
+       ],
+       "at": 113.9,
+       "minutes": 1.6,
+       "load": 0.5,
+       "cue": "3회 · 한쪽",
+       "perSide": true,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "a6d3642c-d2b0-4c52-9449-2d97d26710f3",
+       "no": "1-50",
+       "title": "프론 밴드 쿼드 탠트럼 (플랭크 자세)",
+       "station": "밴드(고정 기둥)",
+       "bucket": "고관절 · 발목 보강",
+       "equipment": [
+        "밴드"
+       ],
+       "at": 115.5,
+       "minutes": 1.6,
+       "load": 2,
+       "cue": "3회 · 한쪽",
+       "perSide": true,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "de42b84a-b7b9-47fd-9be2-be58e6b805df",
+       "no": "1-51",
+       "title": "하프닐링 밴드 저항 고관절 신전",
+       "station": "밴드(고정 기둥)",
+       "bucket": "고관절 · 발목 보강",
+       "equipment": [
+        "밴드"
+       ],
+       "at": 117.1,
+       "minutes": 1.6,
+       "load": 0.5,
+       "cue": "3회 · 한쪽",
+       "perSide": true,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "fd1ebc45-51d1-4f22-aa84-8b1ae623c0bb",
+       "no": "1-52",
+       "title": "튜빙 전완 척측 편위",
+       "station": "밴드(고정 기둥)",
+       "bucket": "전완 · 팔꿈치",
+       "equipment": [
+        "밴드"
+       ],
+       "at": 118.7,
+       "minutes": 1.6,
+       "load": 0.5,
+       "cue": "3회 · 한쪽",
+       "perSide": true,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "2409a369-3a9a-47bf-977b-1d629904fed0",
+       "no": "1-53",
+       "title": "튜빙 전완 척측 편위 (GG)",
+       "station": "밴드(고정 기둥)",
+       "bucket": "전완 · 팔꿈치",
+       "equipment": [
+        "밴드"
+       ],
+       "at": 120.3,
+       "minutes": 1.6,
+       "load": 0.5,
+       "cue": "3회 · 한쪽",
+       "perSide": true,
+       "breakAfter": true
+      },
+      {
+       "exerciseId": "387f7655-9023-4cf3-bc4c-261e825ca736",
+       "no": "1-54",
+       "title": "튜빙 전완 회내",
+       "station": "밴드(고정 기둥)",
+       "bucket": "전완 · 팔꿈치",
+       "equipment": [
+        "밴드"
+       ],
+       "at": 126.9,
+       "minutes": 1.6,
+       "load": 0.5,
+       "cue": "3회 · 한쪽",
+       "perSide": true,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "f925e22b-8182-4a5e-ad60-b8038c931c4d",
+       "no": "1-55",
+       "title": "튜빙 리버스 스로우",
+       "station": "밴드(고정 기둥)",
+       "bucket": "어깨 · 견갑(암케어)",
+       "equipment": [
+        "밴드"
+       ],
+       "at": 128.5,
+       "minutes": 1.9,
+       "load": 1,
+       "cue": "2~3회 · 한쪽",
+       "perSide": true,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "103afb5c-9760-4506-bef1-56705d07e30e",
+       "no": "1-56",
+       "title": "튜빙 서라투스 펀치",
+       "station": "밴드(고정 기둥)",
+       "bucket": "어깨 · 견갑(암케어)",
+       "equipment": [
+        "밴드"
+       ],
+       "at": 130.4,
+       "minutes": 1.6,
+       "load": 0.5,
+       "cue": "3회",
+       "perSide": false,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "176e3100-d4e7-4552-9606-3264f3c8da39",
+       "no": "1-57",
+       "title": "튜빙 숄더 W",
+       "station": "밴드(고정 기둥)",
+       "bucket": "어깨 · 견갑(암케어)",
+       "equipment": [
+        "밴드"
+       ],
+       "at": 132,
+       "minutes": 1.6,
+       "load": 0.5,
+       "cue": "3회",
+       "perSide": false,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "adc6d6ca-c92d-459d-8edd-cb03b2548052",
+       "no": "1-58",
+       "title": "튜빙 전완 회내 (GG)",
+       "station": "밴드(고정 기둥)",
+       "bucket": "전완 · 팔꿈치",
+       "equipment": [
+        "밴드"
+       ],
+       "at": 133.6,
+       "minutes": 1.6,
+       "load": 0.5,
+       "cue": "3회 · 한쪽",
+       "perSide": true,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "6961201f-d076-4b52-952f-b3325c97e3a3",
+       "no": "1-59",
+       "title": "튜빙 전완 회외",
+       "station": "밴드(고정 기둥)",
+       "bucket": "전완 · 팔꿈치",
+       "equipment": [
+        "밴드"
+       ],
+       "at": 135.2,
+       "minutes": 1.6,
+       "load": 0.5,
+       "cue": "3회 · 한쪽",
+       "perSide": true,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "446d336a-9477-490d-abdc-9f9ae1f8a453",
+       "no": "1-60",
+       "title": "튜빙 전완 회외 (GG)",
+       "station": "밴드(고정 기둥)",
+       "bucket": "전완 · 팔꿈치",
+       "equipment": [
+        "밴드"
+       ],
+       "at": 136.8,
+       "minutes": 1.6,
+       "load": 0.5,
+       "cue": "3회 · 한쪽",
+       "perSide": true,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "0b35eea7-1833-460f-87d8-3dec83ec9f63",
+       "no": "1-61",
+       "title": "튜빙 W",
+       "station": "밴드(고정 기둥)",
+       "bucket": "어깨 · 견갑(암케어)",
+       "equipment": [
+        "밴드"
+       ],
+       "at": 138.4,
+       "minutes": 1.6,
+       "load": 0.5,
+       "cue": "3회",
+       "perSide": false,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "4d9e09d9-5d9e-43a0-850d-cd916c1a4764",
+       "no": "1-62",
+       "title": "밴드 이두컬(버티며 내리기)",
+       "station": "밴드(고정 기둥)",
+       "bucket": "전완 · 팔꿈치",
+       "equipment": [
+        "밴드"
+       ],
+       "at": 140,
+       "minutes": 2,
+       "load": 1.5,
+       "cue": "1~2회 천천히 내리기",
+       "perSide": false,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "d6c837cf-1eb4-48ff-aee5-a20f0f213065",
+       "no": "1-63",
+       "title": "밴드 비하인드 이두컬",
+       "station": "밴드(고정 기둥)",
+       "bucket": "상체 당기기",
+       "equipment": [
+        "밴드"
+       ],
+       "at": 142,
+       "minutes": 1.6,
+       "load": 0.5,
+       "cue": "3회 · 한쪽",
+       "perSide": true,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "5a623e6d-a36e-4192-a7b4-57df91742d9e",
+       "no": "1-64",
+       "title": "3방향 밴드 풀 어파트",
+       "station": "밴드(고정 기둥)",
+       "bucket": "상체 당기기",
+       "equipment": [
+        "밴드"
+       ],
+       "at": 143.6,
+       "minutes": 2,
+       "load": 0.5,
+       "cue": "3회",
+       "perSide": false,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "76bc96af-7a76-44da-b245-df106aebbb2d",
+       "no": "1-65",
+       "title": "밴드 풀 어파트",
+       "station": "밴드(고정 기둥)",
+       "bucket": "상체 당기기",
+       "equipment": [
+        "밴드"
+       ],
+       "at": 145.6,
+       "minutes": 1.6,
+       "load": 0.5,
+       "cue": "3회",
+       "perSide": false,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "c0e39a5a-b78d-48ed-b1ba-f2fd7b265009",
+       "no": "1-66",
+       "title": "밴드 스피드 프레스",
+       "station": "밴드(고정 기둥)",
+       "bucket": "코어",
+       "equipment": [
+        "밴드"
+       ],
+       "at": 147.2,
+       "minutes": 1.6,
+       "load": 1,
+       "cue": "3회",
+       "perSide": false,
+       "breakAfter": false
+      }
+     ]
+    }
+   ],
+   "load": {
+    "모빌리티": 2.4,
+    "유산소": 2,
+    "하체 파워": 7,
+    "하체 앞(무릎)": 11,
+    "하체 뒤(힌지)": 5,
+    "어깨 · 견갑(암케어)": 7,
+    "상체 밀기 · 어깨": 6,
+    "상체 당기기": 3.5,
+    "전완 · 팔꿈치": 9,
+    "고관절 · 발목 보강": 6.2,
+    "코어": 1
+   }
+  },
+  {
+   "week": 2,
+   "end": 145.4,
+   "stations": [
+    {
+     "station": "넓은 바닥(이동)",
+     "start": 15,
+     "end": 42,
+     "items": [
+      {
+       "exerciseId": "c6b20eba-5caa-46b8-b134-3e7ce568ad5d",
+       "no": "2-01",
+       "title": "레터럴 마치 + 회전",
+       "station": "넓은 바닥(이동)",
+       "bucket": "모빌리티",
+       "equipment": [
+        "맨몸"
+       ],
+       "at": 15,
+       "minutes": 2,
+       "load": 0.5,
+       "cue": "2~3회 · 끝 자세 2초 · 한쪽",
+       "perSide": true,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "75a43fb1-9089-41df-b4ad-b0879ff98c9c",
+       "no": "2-02",
+       "title": "리버스 토 워크",
+       "station": "넓은 바닥(이동)",
+       "bucket": "모빌리티",
+       "equipment": [
+        "맨몸"
+       ],
+       "at": 17,
+       "minutes": 1.6,
+       "load": 0.2,
+       "cue": "2~3회 · 끝 자세 2초",
+       "perSide": false,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "d7acede9-5efa-464b-b1f2-c6d3d89cf455",
+       "no": "2-03",
+       "title": "백 페달",
+       "station": "넓은 바닥(이동)",
+       "bucket": "모빌리티",
+       "equipment": [
+        "맨몸"
+       ],
+       "at": 18.6,
+       "minutes": 1.6,
+       "load": 0.5,
+       "cue": "2~3회 · 끝 자세 2초",
+       "perSide": false,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "fc8cf57f-467c-4a6d-8d1f-a0bd6053c1cf",
+       "no": "2-04",
+       "title": "스트라이더",
+       "station": "넓은 바닥(이동)",
+       "bucket": "모빌리티",
+       "equipment": [
+        "맨몸"
+       ],
+       "at": 20.2,
+       "minutes": 1.6,
+       "load": 0.5,
+       "cue": "2~3회 · 끝 자세 2초",
+       "perSide": false,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "752f043d-e7a3-4044-a79e-1f404893e0eb",
+       "no": "2-05",
+       "title": "워킹 니 허그",
+       "station": "넓은 바닥(이동)",
+       "bucket": "모빌리티",
+       "equipment": [
+        "맨몸"
+       ],
+       "at": 21.8,
+       "minutes": 1.6,
+       "load": 0.2,
+       "cue": "2~3회 · 끝 자세 2초 · 한쪽",
+       "perSide": true,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "45f0177a-e1eb-454c-a9b3-359a05784d6c",
+       "no": "2-06",
+       "title": "워킹 런지",
+       "station": "넓은 바닥(이동)",
+       "bucket": "모빌리티",
+       "equipment": [
+        "맨몸"
+       ],
+       "at": 23.4,
+       "minutes": 1.6,
+       "load": 0.5,
+       "cue": "2~3회 · 끝 자세 2초 · 한쪽",
+       "perSide": true,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "b14f8bf1-6ae7-42e7-9530-b1bbaedda0cb",
+       "no": "2-07",
+       "title": "박스 오르내리기",
+       "station": "넓은 바닥(이동)",
+       "bucket": "유산소",
+       "equipment": [
+        "박스"
+       ],
+       "at": 26,
+       "minutes": 2.2,
+       "load": 0.5,
+       "cue": "10초 걷기 · 뛰기 장면",
+       "perSide": false,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "a63b6be8-b2c9-4e48-9726-7e1e81c39803",
+       "no": "2-08",
+       "title": "템포 런",
+       "station": "넓은 바닥(이동)",
+       "bucket": "유산소",
+       "equipment": [
+        "맨몸"
+       ],
+       "at": 29.2,
+       "minutes": 2.2,
+       "load": 1,
+       "cue": "10초 걷기 · 뛰기 장면",
+       "perSide": false,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "34134316-47e2-478d-af1d-5a425d14e157",
+       "no": "2-09",
+       "title": "레터럴 레이즈 리바운드",
+       "station": "넓은 바닥(이동)",
+       "bucket": "상체 밀기 · 어깨",
+       "equipment": [
+        "덤벨"
+       ],
+       "at": 32.4,
+       "minutes": 1.9,
+       "load": 1,
+       "cue": "2~3회",
+       "perSide": false,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "eb89e0b7-9144-4305-a06a-36d6caee6ee5",
+       "no": "2-10",
+       "title": "밴드 저항 브로드 점프",
+       "station": "넓은 바닥(이동)",
+       "bucket": "하체 파워",
+       "equipment": [
+        "밴드"
+       ],
+       "at": 35.3,
+       "minutes": 1.9,
+       "load": 2,
+       "cue": "2~3회",
+       "perSide": false,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "80eb4f68-b4ae-40a2-956c-99b0da4b35a9",
+       "no": "2-11",
+       "title": "사이드라잉 외회전 리바운드",
+       "station": "넓은 바닥(이동)",
+       "bucket": "어깨 · 견갑(암케어)",
+       "equipment": [
+        "덤벨"
+       ],
+       "at": 38.2,
+       "minutes": 1.9,
+       "load": 1,
+       "cue": "2~3회 · 한쪽",
+       "perSide": true,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "a095c8d4-c6f1-46a4-96df-d131ec71aa73",
+       "no": "2-12",
+       "title": "프론트 레이즈 리바운드",
+       "station": "넓은 바닥(이동)",
+       "bucket": "상체 밀기 · 어깨",
+       "equipment": [
+        "덤벨"
+       ],
+       "at": 40.1,
+       "minutes": 1.9,
+       "load": 1,
+       "cue": "2~3회",
+       "perSide": false,
+       "breakAfter": false
+      }
+     ]
+    },
+    {
+     "station": "박스",
+     "start": 45,
+     "end": 56.3,
+     "items": [
+      {
+       "exerciseId": "0e6d326b-181d-4cce-98d8-60d699f5fdd6",
+       "no": "2-13",
+       "title": "레터럴 미니 허들",
+       "station": "박스",
+       "bucket": "하체 파워",
+       "equipment": [
+        "박스"
+       ],
+       "at": 45,
+       "minutes": 1.9,
+       "load": 1,
+       "cue": "2~3회",
+       "perSide": false,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "08a9c815-4017-4311-abc0-1cd0b0357ec1",
+       "no": "2-14",
+       "title": "싱글렉 박스 스쿼트",
+       "station": "박스",
+       "bucket": "하체 앞(무릎)",
+       "equipment": [
+        "박스"
+       ],
+       "at": 46.9,
+       "minutes": 1.6,
+       "load": 1,
+       "cue": "3회 · 한쪽",
+       "perSide": true,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "ecafae17-480f-4192-af44-453b6d6a1baa",
+       "no": "2-15",
+       "title": "싱글렉 박스 스쿼트 + 막대 회전",
+       "station": "박스",
+       "bucket": "하체 앞(무릎)",
+       "equipment": [
+        "박스"
+       ],
+       "at": 48.5,
+       "minutes": 2,
+       "load": 1,
+       "cue": "3회 · 한쪽",
+       "perSide": true,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "ea37a008-ff18-45dc-b6e8-46931c841173",
+       "no": "2-16",
+       "title": "싱글렉 스쿼트 투 박스",
+       "station": "박스",
+       "bucket": "하체 앞(무릎)",
+       "equipment": [
+        "박스"
+       ],
+       "at": 50.5,
+       "minutes": 1.6,
+       "load": 1,
+       "cue": "3회 · 한쪽",
+       "perSide": true,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "130cd92f-3bdb-4b04-90dc-07eff60f538e",
+       "no": "2-17",
+       "title": "덤벨 데드스톱 RDL 투 박스",
+       "station": "박스",
+       "bucket": "하체 뒤(힌지)",
+       "equipment": [
+        "덤벨",
+        "박스"
+       ],
+       "at": 53.1,
+       "minutes": 1.6,
+       "load": 1,
+       "cue": "3회 · 한쪽",
+       "perSide": true,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "74c08d10-2e93-43a5-a3ae-7c5efac87836",
+       "no": "2-18",
+       "title": "덤벨 데드스톱 RDL 투 박스(반대 손)",
+       "station": "박스",
+       "bucket": "하체 뒤(힌지)",
+       "equipment": [
+        "덤벨",
+        "박스"
+       ],
+       "at": 54.7,
+       "minutes": 1.6,
+       "load": 2,
+       "cue": "3회 · 한쪽",
+       "perSide": true,
+       "breakAfter": false
+      }
+     ]
+    },
+    {
+     "station": "랙 · 바벨 · 원판",
+     "start": 59.3,
+     "end": 74.5,
+     "items": [
+      {
+       "exerciseId": "40e17e02-1dc7-43fc-9e60-382ce31236fd",
+       "no": "2-19",
+       "title": "랜드마인 레터럴 런지",
+       "station": "랙 · 바벨 · 원판",
+       "bucket": "하체 앞(무릎)",
+       "equipment": [
+        "바벨"
+       ],
+       "at": 59.3,
+       "minutes": 1.9,
+       "load": 2,
+       "cue": "3회 · 한쪽",
+       "perSide": true,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "0b757e41-42bd-47f7-8662-86df2ab698e5",
+       "no": "2-20",
+       "title": "세이프티바 리버스 런지",
+       "station": "랙 · 바벨 · 원판",
+       "bucket": "하체 앞(무릎)",
+       "equipment": [
+        "바벨"
+       ],
+       "at": 61.2,
+       "minutes": 1.9,
+       "load": 2,
+       "cue": "3회 · 한쪽",
+       "perSide": true,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "2f46e036-af36-4344-8158-c7d92a394abb",
+       "no": "2-21",
+       "title": "랜드마인 RDL",
+       "station": "랙 · 바벨 · 원판",
+       "bucket": "하체 뒤(힌지)",
+       "equipment": [
+        "바벨"
+       ],
+       "at": 63.1,
+       "minutes": 1.9,
+       "load": 2,
+       "cue": "3회",
+       "perSide": false,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "68f72e35-f8ca-4f99-ba5e-5ae06f4147cd",
+       "no": "2-22",
+       "title": "싱글렉 랜드마인 RDL",
+       "station": "랙 · 바벨 · 원판",
+       "bucket": "하체 뒤(힌지)",
+       "equipment": [
+        "바벨"
+       ],
+       "at": 65,
+       "minutes": 1.9,
+       "load": 2,
+       "cue": "3회 · 한쪽",
+       "perSide": true,
+       "breakAfter": true
+      },
+      {
+       "exerciseId": "8c111969-fad7-43fd-926e-e428a460581a",
+       "no": "2-23",
+       "title": "디피싯 싱글렉 카프 레이즈",
+       "station": "랙 · 바벨 · 원판",
+       "bucket": "하체 앞(무릎)",
+       "equipment": [
+        "원판"
+       ],
+       "at": 72.9,
+       "minutes": 1.6,
+       "load": 1,
+       "cue": "3회 · 한쪽",
+       "perSide": true,
+       "breakAfter": false
+      }
+     ]
+    },
+    {
+     "station": "벤치",
+     "start": 77.5,
+     "end": 91.4,
+     "items": [
+      {
+       "exerciseId": "14f96cdf-023f-4a2b-8733-1e830a41049b",
+       "no": "2-24",
+       "title": "프론 인클라인 리어델트 레이즈",
+       "station": "벤치",
+       "bucket": "어깨 · 견갑(암케어)",
+       "equipment": [
+        "덤벨",
+        "벤치"
+       ],
+       "at": 77.5,
+       "minutes": 1.6,
+       "load": 0.5,
+       "cue": "3회",
+       "perSide": false,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "8a4d9f61-1b40-421a-9049-46a299bfd417",
+       "no": "2-25",
+       "title": "프론 90/90 플라이오볼 드롭",
+       "station": "벤치",
+       "bucket": "어깨 · 견갑(암케어)",
+       "equipment": [
+        "플라이오볼",
+        "벤치"
+       ],
+       "at": 80.1,
+       "minutes": 1.9,
+       "load": 1,
+       "cue": "10초 버티기 · 한쪽",
+       "perSide": true,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "81831266-b5c2-40f1-bd05-88af049e30d4",
+       "no": "2-26",
+       "title": "시티드 프레스업",
+       "station": "벤치",
+       "bucket": "어깨 · 견갑(암케어)",
+       "equipment": [
+        "벤치"
+       ],
+       "at": 83,
+       "minutes": 1.6,
+       "load": 0.5,
+       "cue": "3회",
+       "perSide": false,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "afc0ac93-9853-4017-8a22-b652a0fbea6b",
+       "no": "2-27",
+       "title": "인클라인 덤벨컬",
+       "station": "벤치",
+       "bucket": "상체 당기기",
+       "equipment": [
+        "덤벨",
+        "벤치"
+       ],
+       "at": 85.6,
+       "minutes": 1.6,
+       "load": 1,
+       "cue": "3회",
+       "perSide": false,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "f7f8adb9-3c49-45f8-8128-3395be40fdfc",
+       "no": "2-28",
+       "title": "덤벨 헥스 프레스",
+       "station": "벤치",
+       "bucket": "상체 밀기 · 어깨",
+       "equipment": [
+        "덤벨",
+        "벤치"
+       ],
+       "at": 87.2,
+       "minutes": 1.6,
+       "load": 1,
+       "cue": "3회",
+       "perSide": false,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "3963d9a6-baf2-4866-a34a-8330c2bd8e38",
+       "no": "2-29",
+       "title": "벤치 지지 막대 흉추 스트레치",
+       "station": "벤치",
+       "bucket": "모빌리티",
+       "equipment": [
+        "벤치"
+       ],
+       "at": 89.8,
+       "minutes": 1.6,
+       "load": 0.2,
+       "cue": "10초 버티기",
+       "perSide": false,
+       "breakAfter": false
+      }
+     ]
+    },
+    {
+     "station": "덤벨 · 케틀벨",
+     "start": 94.4,
+     "end": 103.6,
+     "items": [
+      {
+       "exerciseId": "7ed34709-2841-430c-89d1-b7f6c676c167",
+       "no": "2-30",
+       "title": "전완 척측 편위",
+       "station": "덤벨 · 케틀벨",
+       "bucket": "전완 · 팔꿈치",
+       "equipment": [
+        "덤벨"
+       ],
+       "at": 94.4,
+       "minutes": 1.6,
+       "load": 0.5,
+       "cue": "3회 · 한쪽",
+       "perSide": true,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "9e9805c1-024a-4656-ba69-411d6df282e1",
+       "no": "2-31",
+       "title": "전완 회내·회외",
+       "station": "덤벨 · 케틀벨",
+       "bucket": "전완 · 팔꿈치",
+       "equipment": [
+        "덤벨"
+       ],
+       "at": 96,
+       "minutes": 1.6,
+       "load": 0.5,
+       "cue": "3회 · 한쪽",
+       "perSide": true,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "cf4629d6-da5c-40b3-96da-9682b702c0fe",
+       "no": "2-32",
+       "title": "전완 요측 편위 과부하 내리기",
+       "station": "덤벨 · 케틀벨",
+       "bucket": "전완 · 팔꿈치",
+       "equipment": [
+        "덤벨"
+       ],
+       "at": 97.6,
+       "minutes": 2,
+       "load": 3,
+       "cue": "1~2회 천천히 내리기 · 한쪽",
+       "perSide": true,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "2d8dd504-7126-41fc-a4b3-53c1722fcd83",
+       "no": "2-33",
+       "title": "전완 척측 편위 과부하 내리기",
+       "station": "덤벨 · 케틀벨",
+       "bucket": "전완 · 팔꿈치",
+       "equipment": [
+        "덤벨"
+       ],
+       "at": 99.6,
+       "minutes": 2,
+       "load": 3,
+       "cue": "1~2회 천천히 내리기 · 한쪽",
+       "perSide": true,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "6ed6b975-884e-4bbf-a547-400b40f4c78b",
+       "no": "2-34",
+       "title": "전완 회내 과부하 내리기",
+       "station": "덤벨 · 케틀벨",
+       "bucket": "전완 · 팔꿈치",
+       "equipment": [
+        "덤벨"
+       ],
+       "at": 101.6,
+       "minutes": 2,
+       "load": 3,
+       "cue": "1~2회 천천히 내리기 · 한쪽",
+       "perSide": true,
+       "breakAfter": false
+      }
+     ]
+    },
+    {
+     "station": "케이블",
+     "start": 106.6,
+     "end": 113.8,
+     "items": [
+      {
+       "exerciseId": "3f47b9af-bb84-4135-ab61-12e92845da8e",
+       "no": "2-35",
+       "title": "스플릿 스탠스 스캡 로우 → 싱글암 로우",
+       "station": "케이블",
+       "bucket": "어깨 · 견갑(암케어)",
+       "equipment": [
+        "케이블"
+       ],
+       "at": 106.6,
+       "minutes": 2,
+       "load": 1,
+       "cue": "3회 · 한쪽",
+       "perSide": true,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "ce3ed06e-fdc3-4d55-9707-d7382ea1a9fe",
+       "no": "2-36",
+       "title": "스플릿 스탠스 스캡 로우 → 프레스",
+       "station": "케이블",
+       "bucket": "어깨 · 견갑(암케어)",
+       "equipment": [
+        "케이블"
+       ],
+       "at": 108.6,
+       "minutes": 2,
+       "load": 1,
+       "cue": "3회 · 한쪽",
+       "perSide": true,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "1f8efd0c-6068-4c3c-b923-419560baa3cb",
+       "no": "2-37",
+       "title": "스플릿 스탠스 페이스 풀",
+       "station": "케이블",
+       "bucket": "어깨 · 견갑(암케어)",
+       "equipment": [
+        "케이블"
+       ],
+       "at": 110.6,
+       "minutes": 1.6,
+       "load": 0.5,
+       "cue": "3회 · 한쪽",
+       "perSide": true,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "aa188769-fde7-4036-a0d4-3f8f20d7db7a",
+       "no": "2-38",
+       "title": "하프닐링 페이스 풀",
+       "station": "케이블",
+       "bucket": "어깨 · 견갑(암케어)",
+       "equipment": [
+        "케이블"
+       ],
+       "at": 112.2,
+       "minutes": 1.6,
+       "load": 0.5,
+       "cue": "3회 · 한쪽",
+       "perSide": true,
+       "breakAfter": false
+      }
+     ]
+    },
+    {
+     "station": "공 · 워터백(벽 앞)",
+     "start": 116.8,
+     "end": 145.4,
+     "items": [
+      {
+       "exerciseId": "d8f969a0-0b0c-4e76-ba28-44575f2f0146",
+       "no": "2-39",
+       "title": "워터백 안정성 홉 + 측면 굽힘·신전",
+       "station": "공 · 워터백(벽 앞)",
+       "bucket": "하체 파워",
+       "equipment": [
+        "워터백"
+       ],
+       "at": 116.8,
+       "minutes": 2.3,
+       "load": 2,
+       "cue": "2~3회",
+       "perSide": false,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "89b14e01-8ca7-4b08-a79b-bc043d6ff140",
+       "no": "2-40",
+       "title": "톨 닐링 메디신볼 오버헤드 던지기",
+       "station": "공 · 워터백(벽 앞)",
+       "bucket": "코어",
+       "equipment": [
+        "메디신볼"
+       ],
+       "at": 120.1,
+       "minutes": 1.9,
+       "load": 1,
+       "cue": "2~3회",
+       "perSide": false,
+       "breakAfter": true
+      },
+      {
+       "exerciseId": "cde9adcf-0e92-4930-b6ae-f5da3fe602ba",
+       "no": "2-41",
+       "title": "톨 닐링 메디신볼 체스트 패스",
+       "station": "공 · 워터백(벽 앞)",
+       "bucket": "코어",
+       "equipment": [
+        "메디신볼"
+       ],
+       "at": 127,
+       "minutes": 1.9,
+       "load": 1,
+       "cue": "2~3회",
+       "perSide": false,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "5a2480cc-db5b-4b65-ad0c-d1d8f5317d9e",
+       "no": "2-42",
+       "title": "오버헤드 메디신볼 슬램",
+       "station": "공 · 워터백(벽 앞)",
+       "bucket": "코어",
+       "equipment": [
+        "메디신볼"
+       ],
+       "at": 128.9,
+       "minutes": 1.9,
+       "load": 2,
+       "cue": "2~3회",
+       "perSide": false,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "bdbe4522-b915-44fa-ab88-49687f1a9b64",
+       "no": "2-43",
+       "title": "불안정 발목 안정성 교대",
+       "station": "공 · 워터백(벽 앞)",
+       "bucket": "고관절 · 발목 보강",
+       "equipment": [
+        "워터볼"
+       ],
+       "at": 131.8,
+       "minutes": 1.6,
+       "load": 1,
+       "cue": "3회 · 한쪽",
+       "perSide": true,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "63b1fff9-be10-4f0a-99ad-8275b41e2038",
+       "no": "2-44",
+       "title": "불안정 발목 안정성 스쿼트",
+       "station": "공 · 워터백(벽 앞)",
+       "bucket": "고관절 · 발목 보강",
+       "equipment": [
+        "워터볼"
+       ],
+       "at": 133.4,
+       "minutes": 1.6,
+       "load": 2,
+       "cue": "3회",
+       "perSide": false,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "4f0c9140-6247-4856-a8c6-9d3ccec7ef04",
+       "no": "2-45",
+       "title": "하프닐링 워터볼 찹 + 흔들기",
+       "station": "공 · 워터백(벽 앞)",
+       "bucket": "코어",
+       "equipment": [
+        "워터볼"
+       ],
+       "at": 135,
+       "minutes": 2,
+       "load": 1,
+       "cue": "3회 · 한쪽",
+       "perSide": true,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "9113f186-4b12-4dab-92de-b76a8b9f84ce",
+       "no": "2-46",
+       "title": "불안정 빠른 발목 안정성 교대",
+       "station": "공 · 워터백(벽 앞)",
+       "bucket": "고관절 · 발목 보강",
+       "equipment": [
+        "워터볼"
+       ],
+       "at": 137,
+       "minutes": 1.6,
+       "load": 2,
+       "cue": "3회 · 한쪽",
+       "perSide": true,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "7364a9ac-15a6-47b2-aa0c-52854bf82e2e",
+       "no": "2-47",
+       "title": "싱글렉 고관절 내·외회전 + 프레스",
+       "station": "공 · 워터백(벽 앞)",
+       "bucket": "고관절 · 발목 보강",
+       "equipment": [
+        "워터볼"
+       ],
+       "at": 138.6,
+       "minutes": 2,
+       "load": 1,
+       "cue": "3회 · 한쪽",
+       "perSide": true,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "4c4ce3b0-e3e3-4707-9b61-bacc95402bf7",
+       "no": "2-48",
+       "title": "90/90 플라이오볼 벽 드리블",
+       "station": "공 · 워터백(벽 앞)",
+       "bucket": "어깨 · 견갑(암케어)",
+       "equipment": [
+        "플라이오볼"
+       ],
+       "at": 141.6,
+       "minutes": 1.9,
+       "load": 1,
+       "cue": "10초 버티기 · 한쪽",
+       "perSide": true,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "45452ae0-a2f5-4bc6-a5c7-d01761fc5f56",
+       "no": "2-49",
+       "title": "한 팔 90/90 플라이오볼 벽 던지기",
+       "station": "공 · 워터백(벽 앞)",
+       "bucket": "어깨 · 견갑(암케어)",
+       "equipment": [
+        "플라이오볼"
+       ],
+       "at": 143.5,
+       "minutes": 1.9,
+       "load": 1,
+       "cue": "2~3회 · 한쪽",
+       "perSide": true,
+       "breakAfter": false
+      }
+     ]
+    }
+   ],
+   "load": {
+    "모빌리티": 2.6,
+    "유산소": 1.5,
+    "상체 밀기 · 어깨": 3,
+    "하체 파워": 5,
+    "어깨 · 견갑(암케어)": 8,
+    "하체 앞(무릎)": 8,
+    "하체 뒤(힌지)": 7,
+    "상체 당기기": 1,
+    "전완 · 팔꿈치": 10,
+    "코어": 5,
+    "고관절 · 발목 보강": 6
+   }
+  },
+  {
+   "week": 3,
+   "end": 157.5,
+   "stations": [
+    {
+     "station": "덤벨 · 케틀벨",
+     "start": 15,
+     "end": 45.9,
+     "items": [
+      {
+       "exerciseId": "6cbff91c-05f7-4dbb-92cc-ee9aae8d8f62",
+       "no": "3-01",
+       "title": "케틀벨 스윙",
+       "station": "덤벨 · 케틀벨",
+       "bucket": "하체 파워",
+       "equipment": [
+        "케틀벨"
+       ],
+       "at": 15,
+       "minutes": 1.6,
+       "load": 2,
+       "cue": "2~3회",
+       "perSide": false,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "7a8f1ff8-ed87-4952-9e55-812021f06605",
+       "no": "3-02",
+       "title": "덤벨 스캡션 레이즈",
+       "station": "덤벨 · 케틀벨",
+       "bucket": "어깨 · 견갑(암케어)",
+       "equipment": [
+        "덤벨"
+       ],
+       "at": 17.6,
+       "minutes": 1.6,
+       "load": 0.5,
+       "cue": "3회",
+       "perSide": false,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "5c56ea67-b528-428f-9bb0-be3adcb193a0",
+       "no": "3-03",
+       "title": "사이드라잉 내회전",
+       "station": "덤벨 · 케틀벨",
+       "bucket": "어깨 · 견갑(암케어)",
+       "equipment": [
+        "덤벨"
+       ],
+       "at": 19.2,
+       "minutes": 1.6,
+       "load": 0.5,
+       "cue": "3회 · 한쪽",
+       "perSide": true,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "fa93cfe7-7453-47db-bf51-090b63f67acf",
+       "no": "3-04",
+       "title": "사이드라잉 외회전",
+       "station": "덤벨 · 케틀벨",
+       "bucket": "어깨 · 견갑(암케어)",
+       "equipment": [
+        "덤벨"
+       ],
+       "at": 20.8,
+       "minutes": 1.6,
+       "load": 0.5,
+       "cue": "3회 · 한쪽",
+       "perSide": true,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "9f24f527-c615-44ea-8ac4-8fd1156184e7",
+       "no": "3-05",
+       "title": "덤벨컬 드롭 캐치",
+       "station": "덤벨 · 케틀벨",
+       "bucket": "전완 · 팔꿈치",
+       "equipment": [
+        "덤벨"
+       ],
+       "at": 22.4,
+       "minutes": 2.3,
+       "load": 1.5,
+       "cue": "2~3회",
+       "perSide": false,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "f70c850d-d583-474d-832d-7667a2efb843",
+       "no": "3-06",
+       "title": "전완 요측 편위",
+       "station": "덤벨 · 케틀벨",
+       "bucket": "전완 · 팔꿈치",
+       "equipment": [
+        "덤벨"
+       ],
+       "at": 24.7,
+       "minutes": 1.6,
+       "load": 0.5,
+       "cue": "3회 · 한쪽",
+       "perSide": true,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "877869ef-dcc3-4273-b58d-936222c4f60d",
+       "no": "3-07",
+       "title": "싱글암 덤벨 오버헤드 슈러그",
+       "station": "덤벨 · 케틀벨",
+       "bucket": "어깨 · 견갑(암케어)",
+       "equipment": [
+        "덤벨"
+       ],
+       "at": 26.3,
+       "minutes": 1.6,
+       "load": 0.5,
+       "cue": "3회 · 한쪽",
+       "perSide": true,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "1d30d0a6-cfd3-4b05-a9cb-0a041e801f2e",
+       "no": "3-08",
+       "title": "프론 외회전",
+       "station": "덤벨 · 케틀벨",
+       "bucket": "어깨 · 견갑(암케어)",
+       "equipment": [
+        "덤벨"
+       ],
+       "at": 27.9,
+       "minutes": 1.6,
+       "load": 0.5,
+       "cue": "3회 · 한쪽",
+       "perSide": true,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "6d561fc0-67f0-49af-9d46-967a438acf5a",
+       "no": "3-09",
+       "title": "프론 익스텐션",
+       "station": "덤벨 · 케틀벨",
+       "bucket": "어깨 · 견갑(암케어)",
+       "equipment": [
+        "덤벨"
+       ],
+       "at": 29.5,
+       "minutes": 1.6,
+       "load": 0.5,
+       "cue": "3회",
+       "perSide": false,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "0971a658-cd8d-4eab-8e0b-75869c1c7359",
+       "no": "3-10",
+       "title": "덤벨컬 과부하 내리기",
+       "station": "덤벨 · 케틀벨",
+       "bucket": "전완 · 팔꿈치",
+       "equipment": [
+        "덤벨"
+       ],
+       "at": 31.1,
+       "minutes": 2,
+       "load": 3,
+       "cue": "1~2회 천천히 내리기 · 한쪽",
+       "perSide": true,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "99021953-678a-4997-aa36-5431349dcae5",
+       "no": "3-11",
+       "title": "프론 Y",
+       "station": "덤벨 · 케틀벨",
+       "bucket": "어깨 · 견갑(암케어)",
+       "equipment": [
+        "덤벨"
+       ],
+       "at": 33.1,
+       "minutes": 1.6,
+       "load": 0.5,
+       "cue": "3회",
+       "perSide": false,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "23b0a88b-9081-404f-a25a-7eac7f9460d4",
+       "no": "3-12",
+       "title": "전완 신전 과부하 내리기",
+       "station": "덤벨 · 케틀벨",
+       "bucket": "전완 · 팔꿈치",
+       "equipment": [
+        "덤벨"
+       ],
+       "at": 34.7,
+       "minutes": 2,
+       "load": 3,
+       "cue": "1~2회 천천히 내리기 · 한쪽",
+       "perSide": true,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "18b52c41-863b-48f9-91d5-3e4bec44aea6",
+       "no": "3-13",
+       "title": "고블렛 커시 스쿼트",
+       "station": "덤벨 · 케틀벨",
+       "bucket": "하체 앞(무릎)",
+       "equipment": [
+        "덤벨"
+       ],
+       "at": 36.7,
+       "minutes": 1.6,
+       "load": 1,
+       "cue": "3회 · 한쪽",
+       "perSide": true,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "053f2f44-fc5f-49be-8467-a0cc97665884",
+       "no": "3-14",
+       "title": "덤벨 프론트 스쿼트",
+       "station": "덤벨 · 케틀벨",
+       "bucket": "하체 앞(무릎)",
+       "equipment": [
+        "덤벨"
+       ],
+       "at": 38.3,
+       "minutes": 1.6,
+       "load": 2,
+       "cue": "3회",
+       "perSide": false,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "e45ca1c0-aafc-48f3-b450-933ad8da28c3",
+       "no": "3-15",
+       "title": "덤벨 스퀴즈 푸쉬업",
+       "station": "덤벨 · 케틀벨",
+       "bucket": "상체 밀기 · 어깨",
+       "equipment": [
+        "덤벨",
+        "맨몸"
+       ],
+       "at": 40.9,
+       "minutes": 1.6,
+       "load": 1,
+       "cue": "3회",
+       "perSide": false,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "c05e750e-ba66-435d-979d-93f98831881f",
+       "no": "3-16",
+       "title": "고블렛 스쿼트(버티며 내리기+정지)",
+       "station": "덤벨 · 케틀벨",
+       "bucket": "하체 앞(무릎)",
+       "equipment": [
+        "덤벨"
+       ],
+       "at": 43.5,
+       "minutes": 2.4,
+       "load": 3,
+       "cue": "1~2회 천천히 내리기",
+       "perSide": false,
+       "breakAfter": false
+      }
+     ]
+    },
+    {
+     "station": "철봉 · TRX",
+     "start": 48.9,
+     "end": 57.3,
+     "items": [
+      {
+       "exerciseId": "dc0e488b-dea5-4a36-89e1-510bc57ca3a3",
+       "no": "3-17",
+       "title": "중량 친업",
+       "station": "철봉 · TRX",
+       "bucket": "상체 당기기",
+       "equipment": [
+        "철봉"
+       ],
+       "at": 48.9,
+       "minutes": 1.6,
+       "load": 3,
+       "cue": "3회",
+       "perSide": false,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "12654463-f5b3-4a5d-b25d-4bfa14a923f2",
+       "no": "3-18",
+       "title": "TRX 리치백",
+       "station": "철봉 · TRX",
+       "bucket": "모빌리티",
+       "equipment": [
+        "TRX"
+       ],
+       "at": 51.5,
+       "minutes": 1.6,
+       "load": 0.2,
+       "cue": "2~3회 · 끝 자세 2초 · 한쪽",
+       "perSide": true,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "6037d857-7ed4-452d-b532-1bd3fbc08db4",
+       "no": "3-19",
+       "title": "TRX 엔젤",
+       "station": "철봉 · TRX",
+       "bucket": "모빌리티",
+       "equipment": [
+        "TRX"
+       ],
+       "at": 53.1,
+       "minutes": 1.6,
+       "load": 0.2,
+       "cue": "2~3회 · 끝 자세 2초",
+       "perSide": false,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "6e002eec-9d51-4450-a61b-f2e6a2f7f4a4",
+       "no": "3-20",
+       "title": "풀업 아이소 홀드",
+       "station": "철봉 · TRX",
+       "bucket": "상체 당기기",
+       "equipment": [
+        "철봉"
+       ],
+       "at": 55.7,
+       "minutes": 1.6,
+       "load": 2,
+       "cue": "10초 버티기",
+       "perSide": false,
+       "breakAfter": false
+      }
+     ]
+    },
+    {
+     "station": "공 · 워터백(벽 앞)",
+     "start": 60.3,
+     "end": 83.3,
+     "items": [
+      {
+       "exerciseId": "9965e618-5500-431b-b100-2e31ab16a55a",
+       "no": "3-21",
+       "title": "스케이터 + 불안정 정지",
+       "station": "공 · 워터백(벽 앞)",
+       "bucket": "하체 파워",
+       "equipment": [
+        "워터볼"
+       ],
+       "at": 60.3,
+       "minutes": 2,
+       "load": 2,
+       "cue": "3회 · 한쪽",
+       "perSide": true,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "13ef4542-c713-493b-a5a8-1773d23720fa",
+       "no": "3-22",
+       "title": "메디신볼 푸시 슬램",
+       "station": "공 · 워터백(벽 앞)",
+       "bucket": "코어",
+       "equipment": [
+        "메디신볼"
+       ],
+       "at": 63.3,
+       "minutes": 1.9,
+       "load": 2,
+       "cue": "2~3회",
+       "perSide": false,
+       "breakAfter": true
+      },
+      {
+       "exerciseId": "9e5babe4-b826-4f7b-99ce-2da507b4ee3c",
+       "no": "3-23",
+       "title": "워터볼 오버헤드 회전 + 립",
+       "station": "공 · 워터백(벽 앞)",
+       "bucket": "코어",
+       "equipment": [
+        "워터볼"
+       ],
+       "at": 71.2,
+       "minutes": 2,
+       "load": 2,
+       "cue": "3회",
+       "perSide": false,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "618b535c-df6a-404b-9c63-5e93497d5464",
+       "no": "3-24",
+       "title": "싱글렉 메디신볼 RDL",
+       "station": "공 · 워터백(벽 앞)",
+       "bucket": "하체 뒤(힌지)",
+       "equipment": [
+        "메디신볼"
+       ],
+       "at": 74.2,
+       "minutes": 1.6,
+       "load": 1,
+       "cue": "3회 · 한쪽",
+       "perSide": true,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "c7b65eec-ccad-4814-864b-d3b3036928c0",
+       "no": "3-25",
+       "title": "워터볼 측면 굽힘·신전",
+       "station": "공 · 워터백(벽 앞)",
+       "bucket": "코어",
+       "equipment": [
+        "워터볼"
+       ],
+       "at": 76.8,
+       "minutes": 1.6,
+       "load": 1,
+       "cue": "3회 · 한쪽",
+       "perSide": true,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "4d9284d2-3651-418f-9b77-d1915accc935",
+       "no": "3-26",
+       "title": "톨 닐링 워터볼 회전 + 흔들기",
+       "station": "공 · 워터백(벽 앞)",
+       "bucket": "코어",
+       "equipment": [
+        "워터볼"
+       ],
+       "at": 78.4,
+       "minutes": 2,
+       "load": 1,
+       "cue": "3회",
+       "perSide": false,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "2b4df3de-9243-4a93-bd70-483d01dd4102",
+       "no": "3-27",
+       "title": "플라이오볼 손목 플립",
+       "station": "공 · 워터백(벽 앞)",
+       "bucket": "전완 · 팔꿈치",
+       "equipment": [
+        "플라이오볼"
+       ],
+       "at": 81.4,
+       "minutes": 1.9,
+       "load": 0.5,
+       "cue": "10초 버티기 · 한쪽",
+       "perSide": true,
+       "breakAfter": false
+      }
+     ]
+    },
+    {
+     "station": "밴드(고정 기둥)",
+     "start": 86.3,
+     "end": 157.5,
+     "items": [
+      {
+       "exerciseId": "b7907962-a474-4e33-9206-5de92e5486ea",
+       "no": "3-28",
+       "title": "밴드 저항 스케이트-스케이트-점프",
+       "station": "밴드(고정 기둥)",
+       "bucket": "하체 파워",
+       "equipment": [
+        "밴드"
+       ],
+       "at": 86.3,
+       "minutes": 1.9,
+       "load": 2,
+       "cue": "2~3회",
+       "perSide": false,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "790c0e94-e2b3-4e90-a2b7-be47edb694aa",
+       "no": "3-29",
+       "title": "누워서 밴드 고관절 굴곡·신전",
+       "station": "밴드(고정 기둥)",
+       "bucket": "고관절 · 발목 보강",
+       "equipment": [
+        "밴드"
+       ],
+       "at": 88.2,
+       "minutes": 1.6,
+       "load": 0.5,
+       "cue": "3회 · 한쪽",
+       "perSide": true,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "bb82b354-fb27-4df7-9791-c0a4d37adbc2",
+       "no": "3-30",
+       "title": "누워서 밴드 스트레이트렉 햄스트링 탠트럼",
+       "station": "밴드(고정 기둥)",
+       "bucket": "고관절 · 발목 보강",
+       "equipment": [
+        "밴드"
+       ],
+       "at": 89.8,
+       "minutes": 1.6,
+       "load": 1,
+       "cue": "3회 · 한쪽",
+       "perSide": true,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "f24029a2-1388-465a-9fd3-ade726c6d674",
+       "no": "3-31",
+       "title": "누워서 밴드 햄스트링 탠트럼 (90/90)",
+       "station": "밴드(고정 기둥)",
+       "bucket": "고관절 · 발목 보강",
+       "equipment": [
+        "밴드"
+       ],
+       "at": 91.4,
+       "minutes": 1.6,
+       "load": 1,
+       "cue": "3회 · 한쪽",
+       "perSide": true,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "f5d0cb68-ba70-478c-ab25-0caf4c820f72",
+       "no": "3-32",
+       "title": "누워서 밴드 무릎 당기기",
+       "station": "밴드(고정 기둥)",
+       "bucket": "모빌리티",
+       "equipment": [
+        "밴드"
+       ],
+       "at": 93,
+       "minutes": 1.6,
+       "load": 0.2,
+       "cue": "2~3회 · 끝 자세 2초 · 한쪽",
+       "perSide": true,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "e4139a5d-134e-49e4-a651-6b269b24d23b",
+       "no": "3-33",
+       "title": "누워서 밴드 종아리 오실레이션",
+       "station": "밴드(고정 기둥)",
+       "bucket": "모빌리티",
+       "equipment": [
+        "밴드"
+       ],
+       "at": 94.6,
+       "minutes": 1.6,
+       "load": 0.2,
+       "cue": "2~3회 · 끝 자세 2초 · 한쪽",
+       "perSide": true,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "f91fadf2-ffb0-498c-bf94-5bd3fd619aee",
+       "no": "3-34",
+       "title": "밴드 가슴 스트레치",
+       "station": "밴드(고정 기둥)",
+       "bucket": "모빌리티",
+       "equipment": [
+        "밴드"
+       ],
+       "at": 96.2,
+       "minutes": 1.6,
+       "load": 0.2,
+       "cue": "10초 버티기 · 한쪽",
+       "perSide": true,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "91f9abad-a8b1-4ff1-bbc0-65f743fdfb1e",
+       "no": "3-35",
+       "title": "밴드 광배 스트레치",
+       "station": "밴드(고정 기둥)",
+       "bucket": "모빌리티",
+       "equipment": [
+        "밴드"
+       ],
+       "at": 97.8,
+       "minutes": 1.6,
+       "load": 0.2,
+       "cue": "10초 버티기 · 한쪽",
+       "perSide": true,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "dee05e37-40ab-4a70-9434-aae148ffeec2",
+       "no": "3-36",
+       "title": "밴드 벤트오버 리치",
+       "station": "밴드(고정 기둥)",
+       "bucket": "모빌리티",
+       "equipment": [
+        "밴드"
+       ],
+       "at": 99.4,
+       "minutes": 1.6,
+       "load": 0.2,
+       "cue": "10초 버티기 · 한쪽",
+       "perSide": true,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "dbe49bc7-f5d1-4f9b-90d9-ac04056d717e",
+       "no": "3-37",
+       "title": "밴드 손목 디스트랙션",
+       "station": "밴드(고정 기둥)",
+       "bucket": "모빌리티",
+       "equipment": [
+        "밴드"
+       ],
+       "at": 101,
+       "minutes": 1.6,
+       "load": 0.2,
+       "cue": "10초 버티기 · 한쪽",
+       "perSide": true,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "f79cdd74-e19c-40b4-9475-6a4c9dbcfad7",
+       "no": "3-38",
+       "title": "밴드 어깨 디스트랙션",
+       "station": "밴드(고정 기둥)",
+       "bucket": "모빌리티",
+       "equipment": [
+        "밴드"
+       ],
+       "at": 102.6,
+       "minutes": 1.6,
+       "load": 0.2,
+       "cue": "10초 버티기 · 한쪽",
+       "perSide": true,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "bdf694eb-d743-46cc-90d6-30570b3fb83c",
+       "no": "3-39",
+       "title": "밴드 흉추 회전 (여러 각도)",
+       "station": "밴드(고정 기둥)",
+       "bucket": "모빌리티",
+       "equipment": [
+        "밴드"
+       ],
+       "at": 104.2,
+       "minutes": 2,
+       "load": 0.2,
+       "cue": "2~3회 · 끝 자세 2초 · 한쪽",
+       "perSide": true,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "feac9329-db5c-4de4-9156-792b0ba0a299",
+       "no": "3-40",
+       "title": "밴드 고정 다리 들어올리기",
+       "station": "밴드(고정 기둥)",
+       "bucket": "고관절 · 발목 보강",
+       "equipment": [
+        "밴드"
+       ],
+       "at": 106.2,
+       "minutes": 1.6,
+       "load": 0.5,
+       "cue": "3회 · 한쪽",
+       "perSide": true,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "bac27e07-f194-4271-91ae-a66642dbe5dc",
+       "no": "3-41",
+       "title": "밴드 몬스터 워크",
+       "station": "밴드(고정 기둥)",
+       "bucket": "고관절 · 발목 보강",
+       "equipment": [
+        "밴드"
+       ],
+       "at": 107.8,
+       "minutes": 1.6,
+       "load": 0.5,
+       "cue": "3회 · 한쪽",
+       "perSide": true,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "038ad28d-a3ff-4609-a889-0c5849214056",
+       "no": "3-42",
+       "title": "밴드 보조 고관절 내회전",
+       "station": "밴드(고정 기둥)",
+       "bucket": "고관절 · 발목 보강",
+       "equipment": [
+        "밴드"
+       ],
+       "at": 109.4,
+       "minutes": 1.6,
+       "load": 0.5,
+       "cue": "3회 · 한쪽",
+       "perSide": true,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "606cd823-2fe6-452c-98cf-75197967da07",
+       "no": "3-43",
+       "title": "밴드 힙 디스트랙션 시리즈",
+       "station": "밴드(고정 기둥)",
+       "bucket": "모빌리티",
+       "equipment": [
+        "밴드"
+       ],
+       "at": 111,
+       "minutes": 2,
+       "load": 0.2,
+       "cue": "10초 버티기 · 한쪽",
+       "perSide": true,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "c03cff8b-18e8-4c99-87ec-99862e5e0aeb",
+       "no": "3-44",
+       "title": "하프닐링 밴드 발목 디스트랙션",
+       "station": "밴드(고정 기둥)",
+       "bucket": "모빌리티",
+       "equipment": [
+        "밴드"
+       ],
+       "at": 113,
+       "minutes": 1.6,
+       "load": 0.2,
+       "cue": "10초 버티기 · 한쪽",
+       "perSide": true,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "3397f038-3604-49c5-9028-f9ff58e9cf9a",
+       "no": "3-45",
+       "title": "밴드 보조 고관절 내회전 + 안정성",
+       "station": "밴드(고정 기둥)",
+       "bucket": "고관절 · 발목 보강",
+       "equipment": [
+        "밴드"
+       ],
+       "at": 114.6,
+       "minutes": 2,
+       "load": 0.5,
+       "cue": "3회 · 한쪽",
+       "perSide": true,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "2847e6fb-d510-4d36-9fb2-0b0d6ebca4e4",
+       "no": "3-46",
+       "title": "밴드 보조 고관절 외회전 + 안정성",
+       "station": "밴드(고정 기둥)",
+       "bucket": "고관절 · 발목 보강",
+       "equipment": [
+        "밴드"
+       ],
+       "at": 116.6,
+       "minutes": 2,
+       "load": 0.5,
+       "cue": "3회 · 한쪽",
+       "perSide": true,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "f27ceaa6-67f4-4a58-af73-27b689616ecf",
+       "no": "3-47",
+       "title": "밴드 사이드 스텝",
+       "station": "밴드(고정 기둥)",
+       "bucket": "고관절 · 발목 보강",
+       "equipment": [
+        "밴드"
+       ],
+       "at": 118.6,
+       "minutes": 1.6,
+       "load": 0.5,
+       "cue": "3회 · 한쪽",
+       "perSide": true,
+       "breakAfter": true
+      },
+      {
+       "exerciseId": "2c7e63d6-4e4f-4212-acb7-3251cbc7bf79",
+       "no": "3-48",
+       "title": "밴드 스캡 핀치",
+       "station": "밴드(고정 기둥)",
+       "bucket": "어깨 · 견갑(암케어)",
+       "equipment": [
+        "밴드"
+       ],
+       "at": 125.2,
+       "minutes": 1.6,
+       "load": 0.2,
+       "cue": "3회",
+       "perSide": false,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "22cf534a-6003-47c9-a17c-34e719fa1dc9",
+       "no": "3-49",
+       "title": "벤트오버 싱글암 리어델트 레이즈",
+       "station": "밴드(고정 기둥)",
+       "bucket": "어깨 · 견갑(암케어)",
+       "equipment": [
+        "밴드"
+       ],
+       "at": 126.8,
+       "minutes": 1.6,
+       "load": 0.5,
+       "cue": "3회 · 한쪽",
+       "perSide": true,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "6718b9aa-106e-45f6-9473-0024a38f05c3",
+       "no": "3-50",
+       "title": "스플릿 스탠스 90/90 버티기",
+       "station": "밴드(고정 기둥)",
+       "bucket": "어깨 · 견갑(암케어)",
+       "equipment": [
+        "밴드"
+       ],
+       "at": 128.4,
+       "minutes": 1.6,
+       "load": 0.5,
+       "cue": "10초 버티기 · 한쪽",
+       "perSide": true,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "ac65afbc-bbdf-4bcf-b960-61673d882284",
+       "no": "3-51",
+       "title": "밴드 스타 스텝",
+       "station": "밴드(고정 기둥)",
+       "bucket": "고관절 · 발목 보강",
+       "equipment": [
+        "밴드"
+       ],
+       "at": 130,
+       "minutes": 1.6,
+       "load": 0.5,
+       "cue": "3회 · 한쪽",
+       "perSide": true,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "1f3818c9-d225-42d8-a125-d7009ae62b8e",
+       "no": "3-52",
+       "title": "어깨 내·외회전 버티기",
+       "station": "밴드(고정 기둥)",
+       "bucket": "어깨 · 견갑(암케어)",
+       "equipment": [
+        "밴드"
+       ],
+       "at": 131.6,
+       "minutes": 1.6,
+       "load": 0.5,
+       "cue": "10초 버티기 · 한쪽",
+       "perSide": true,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "39f4a4da-8f5d-4c8a-b5c5-432d15d83824",
+       "no": "3-53",
+       "title": "톨닐링 밴드 페이스 풀",
+       "station": "밴드(고정 기둥)",
+       "bucket": "어깨 · 견갑(암케어)",
+       "equipment": [
+        "밴드"
+       ],
+       "at": 133.2,
+       "minutes": 1.6,
+       "load": 0.5,
+       "cue": "3회",
+       "perSide": false,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "0d7aef02-3a03-4ed9-a122-cb216ea26de6",
+       "no": "3-54",
+       "title": "튜빙 대각선 굽힘",
+       "station": "밴드(고정 기둥)",
+       "bucket": "어깨 · 견갑(암케어)",
+       "equipment": [
+        "밴드"
+       ],
+       "at": 134.8,
+       "minutes": 1.6,
+       "load": 0.5,
+       "cue": "3회 · 한쪽",
+       "perSide": true,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "323f1ad8-4006-4fb8-97e6-be0ac858f2f0",
+       "no": "3-55",
+       "title": "밴드 피스톨 스쿼트",
+       "station": "밴드(고정 기둥)",
+       "bucket": "하체 앞(무릎)",
+       "equipment": [
+        "밴드"
+       ],
+       "at": 136.4,
+       "minutes": 1.6,
+       "load": 1,
+       "cue": "3회 · 한쪽",
+       "perSide": true,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "966fd7bb-6500-436b-8c8c-40ab4142983f",
+       "no": "3-56",
+       "title": "폭발적 밴드 스텝업",
+       "station": "밴드(고정 기둥)",
+       "bucket": "하체 앞(무릎)",
+       "equipment": [
+        "밴드"
+       ],
+       "at": 138,
+       "minutes": 1.6,
+       "load": 1,
+       "cue": "3회 · 한쪽",
+       "perSide": true,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "7f615a0a-118b-4a12-bcce-bc1f7a2dc78d",
+       "no": "3-57",
+       "title": "밴드 고블렛 스쿼트",
+       "station": "밴드(고정 기둥)",
+       "bucket": "하체 앞(무릎)",
+       "equipment": [
+        "밴드"
+       ],
+       "at": 139.6,
+       "minutes": 1.6,
+       "load": 2,
+       "cue": "3회",
+       "perSide": false,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "d720e60b-21e5-440f-8c32-014da784c3ee",
+       "no": "3-58",
+       "title": "튜빙 대각선 스로우",
+       "station": "밴드(고정 기둥)",
+       "bucket": "어깨 · 견갑(암케어)",
+       "equipment": [
+        "밴드"
+       ],
+       "at": 141.2,
+       "minutes": 1.9,
+       "load": 1,
+       "cue": "2~3회 · 한쪽",
+       "perSide": true,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "440932ad-2a1f-4335-98a4-f62c941a83df",
+       "no": "3-59",
+       "title": "튜빙 대각선 신전",
+       "station": "밴드(고정 기둥)",
+       "bucket": "어깨 · 견갑(암케어)",
+       "equipment": [
+        "밴드"
+       ],
+       "at": 143.1,
+       "minutes": 1.6,
+       "load": 0.5,
+       "cue": "3회 · 한쪽",
+       "perSide": true,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "90ed9bdb-5e7e-475d-a1e6-f7d1521ee0ff",
+       "no": "3-60",
+       "title": "밴드 스쿼트",
+       "station": "밴드(고정 기둥)",
+       "bucket": "하체 앞(무릎)",
+       "equipment": [
+        "밴드"
+       ],
+       "at": 144.7,
+       "minutes": 1.6,
+       "load": 1,
+       "cue": "3회",
+       "perSide": false,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "3b2d882b-8122-4e8e-8093-7c80007b593e",
+       "no": "3-61",
+       "title": "밴드 스쿼트 버티기",
+       "station": "밴드(고정 기둥)",
+       "bucket": "하체 앞(무릎)",
+       "equipment": [
+        "밴드"
+       ],
+       "at": 146.3,
+       "minutes": 1.6,
+       "load": 1,
+       "cue": "10초 버티기",
+       "perSide": false,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "facf4de3-5927-4500-bd84-e63589714703",
+       "no": "3-62",
+       "title": "밴드 굿모닝",
+       "station": "밴드(고정 기둥)",
+       "bucket": "하체 뒤(힌지)",
+       "equipment": [
+        "밴드"
+       ],
+       "at": 147.9,
+       "minutes": 1.6,
+       "load": 0.5,
+       "cue": "3회",
+       "perSide": false,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "7f2937f1-5119-47c6-b25a-65f7507b0604",
+       "no": "3-63",
+       "title": "밴드 보조 힌지",
+       "station": "밴드(고정 기둥)",
+       "bucket": "하체 뒤(힌지)",
+       "equipment": [
+        "밴드"
+       ],
+       "at": 149.5,
+       "minutes": 1.6,
+       "load": 0.5,
+       "cue": "3회",
+       "perSide": false,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "541919ae-c924-4374-bb7e-53c10d0ba3de",
+       "no": "3-64",
+       "title": "밴드 스모 데드리프트",
+       "station": "밴드(고정 기둥)",
+       "bucket": "하체 뒤(힌지)",
+       "equipment": [
+        "밴드"
+       ],
+       "at": 151.1,
+       "minutes": 1.6,
+       "load": 0.5,
+       "cue": "3회",
+       "perSide": false,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "fe1a4c31-541d-4355-84c4-b099000a48f0",
+       "no": "3-65",
+       "title": "밴드 오버헤드 익스텐션",
+       "station": "밴드(고정 기둥)",
+       "bucket": "상체 밀기 · 어깨",
+       "equipment": [
+        "밴드"
+       ],
+       "at": 152.7,
+       "minutes": 1.6,
+       "load": 0.5,
+       "cue": "3회",
+       "perSide": false,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "70a418c7-0510-4dd1-ac51-f25c9162da5e",
+       "no": "3-66",
+       "title": "밴드 프론트 레이즈",
+       "station": "밴드(고정 기둥)",
+       "bucket": "상체 밀기 · 어깨",
+       "equipment": [
+        "밴드"
+       ],
+       "at": 154.3,
+       "minutes": 1.6,
+       "load": 0.5,
+       "cue": "3회",
+       "perSide": false,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "4f22378f-622a-4b91-9fdb-6186a4ca3c7b",
+       "no": "3-67",
+       "title": "스트랩 보조 RDL",
+       "station": "밴드(고정 기둥)",
+       "bucket": "하체 뒤(힌지)",
+       "equipment": [
+        "밴드"
+       ],
+       "at": 155.9,
+       "minutes": 1.6,
+       "load": 1,
+       "cue": "3회",
+       "perSide": false,
+       "breakAfter": false
+      }
+     ]
+    }
+   ],
+   "load": {
+    "하체 파워": 6,
+    "어깨 · 견갑(암케어)": 7.7,
+    "전완 · 팔꿈치": 8.5,
+    "하체 앞(무릎)": 12,
+    "상체 밀기 · 어깨": 2,
+    "상체 당기기": 5,
+    "모빌리티": 2.4,
+    "코어": 6,
+    "하체 뒤(힌지)": 3.5,
+    "고관절 · 발목 보강": 6
+   }
+  },
+  {
+   "week": 4,
+   "end": 160.8,
+   "stations": [
+    {
+     "station": "넓은 바닥(이동)",
+     "start": 15,
+     "end": 22.4,
+     "items": [
+      {
+       "exerciseId": "fadaff47-c0bc-454a-98de-0e5b1e9ee7aa",
+       "no": "4-01",
+       "title": "스탠딩 밴드 마치",
+       "station": "넓은 바닥(이동)",
+       "bucket": "고관절 · 발목 보강",
+       "equipment": [
+        "밴드"
+       ],
+       "at": 15,
+       "minutes": 1.6,
+       "load": 0.5,
+       "cue": "3회 · 한쪽",
+       "perSide": true,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "a676ba56-9ad6-4bff-b97c-68d42f7c2e51",
+       "no": "4-02",
+       "title": "와이드 스탠스 브로드 점프",
+       "station": "넓은 바닥(이동)",
+       "bucket": "하체 파워",
+       "equipment": [
+        "맨몸"
+       ],
+       "at": 17.6,
+       "minutes": 1.9,
+       "load": 2,
+       "cue": "2~3회",
+       "perSide": false,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "4e55dc31-04e8-4b8d-8fa4-e033f093cd7d",
+       "no": "4-03",
+       "title": "튜빙 내회전 0도 리바운드",
+       "station": "넓은 바닥(이동)",
+       "bucket": "어깨 · 견갑(암케어)",
+       "equipment": [
+        "밴드"
+       ],
+       "at": 20.5,
+       "minutes": 1.9,
+       "load": 1,
+       "cue": "2~3회 · 한쪽",
+       "perSide": true,
+       "breakAfter": false
+      }
+     ]
+    },
+    {
+     "station": "박스",
+     "start": 25.4,
+     "end": 27.4,
+     "items": [
+      {
+       "exerciseId": "0676ee85-b2fc-4781-ae96-2bd8c89fb7b0",
+       "no": "4-04",
+       "title": "싱글렉 박스 스쿼트 + 원판",
+       "station": "박스",
+       "bucket": "하체 앞(무릎)",
+       "equipment": [
+        "박스",
+        "원판"
+       ],
+       "at": 25.4,
+       "minutes": 2,
+       "load": 2,
+       "cue": "3회 · 한쪽",
+       "perSide": true,
+       "breakAfter": false
+      }
+     ]
+    },
+    {
+     "station": "덤벨 · 케틀벨",
+     "start": 30.4,
+     "end": 53.2,
+     "items": [
+      {
+       "exerciseId": "b9348dda-78ac-4f3b-b799-364dc8d135c8",
+       "no": "4-05",
+       "title": "덤벨 발목 안정성 교대",
+       "station": "덤벨 · 케틀벨",
+       "bucket": "고관절 · 발목 보강",
+       "equipment": [
+        "덤벨"
+       ],
+       "at": 30.4,
+       "minutes": 1.6,
+       "load": 1,
+       "cue": "3회 · 한쪽",
+       "perSide": true,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "ce8abfa2-e0b0-4646-972b-cbc1853f6076",
+       "no": "4-06",
+       "title": "덤벨 발목 안정성 스쿼트",
+       "station": "덤벨 · 케틀벨",
+       "bucket": "고관절 · 발목 보강",
+       "equipment": [
+        "덤벨"
+       ],
+       "at": 32,
+       "minutes": 1.6,
+       "load": 1,
+       "cue": "3회",
+       "perSide": false,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "8e82b8ae-e53f-4409-a67c-2684fa58c010",
+       "no": "4-07",
+       "title": "싱글렉 케틀벨 교대",
+       "station": "덤벨 · 케틀벨",
+       "bucket": "고관절 · 발목 보강",
+       "equipment": [
+        "케틀벨"
+       ],
+       "at": 34.6,
+       "minutes": 1.6,
+       "load": 1,
+       "cue": "3회 · 한쪽",
+       "perSide": true,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "cdae1cd2-448b-4b00-8bd6-e0ff2f64d46c",
+       "no": "4-08",
+       "title": "덤벨 싱글렉 카프 레이즈",
+       "station": "덤벨 · 케틀벨",
+       "bucket": "하체 앞(무릎)",
+       "equipment": [
+        "덤벨"
+       ],
+       "at": 37.2,
+       "minutes": 1.6,
+       "load": 1,
+       "cue": "3회 · 한쪽",
+       "perSide": true,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "9942ced0-6ce9-481d-b0b2-698e955cc955",
+       "no": "4-09",
+       "title": "디피싯 덤벨 싱글렉 카프 레이즈",
+       "station": "덤벨 · 케틀벨",
+       "bucket": "하체 앞(무릎)",
+       "equipment": [
+        "덤벨"
+       ],
+       "at": 38.8,
+       "minutes": 1.6,
+       "load": 2,
+       "cue": "3회 · 한쪽",
+       "perSide": true,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "a0a44ae3-9f9f-493a-aa6d-eb6bc052245e",
+       "no": "4-10",
+       "title": "전완 굴곡 과부하 내리기",
+       "station": "덤벨 · 케틀벨",
+       "bucket": "전완 · 팔꿈치",
+       "equipment": [
+        "덤벨"
+       ],
+       "at": 40.4,
+       "minutes": 2,
+       "load": 3,
+       "cue": "1~2회 천천히 내리기 · 한쪽",
+       "perSide": true,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "da11d149-7aa9-48a3-8ff7-b80cd880322e",
+       "no": "4-11",
+       "title": "한팔 케틀벨 리버스 런지",
+       "station": "덤벨 · 케틀벨",
+       "bucket": "하체 앞(무릎)",
+       "equipment": [
+        "케틀벨"
+       ],
+       "at": 43.4,
+       "minutes": 1.6,
+       "load": 2,
+       "cue": "3회 · 한쪽",
+       "perSide": true,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "3ad40d05-8eb4-43cc-a43e-b764be44bea7",
+       "no": "4-12",
+       "title": "전완 회외 과부하 내리기",
+       "station": "덤벨 · 케틀벨",
+       "bucket": "전완 · 팔꿈치",
+       "equipment": [
+        "덤벨"
+       ],
+       "at": 46,
+       "minutes": 2,
+       "load": 3,
+       "cue": "1~2회 천천히 내리기 · 한쪽",
+       "perSide": true,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "51979fff-f590-487c-8477-8695866d7b17",
+       "no": "4-13",
+       "title": "오버헤드 내·외회전",
+       "station": "덤벨 · 케틀벨",
+       "bucket": "어깨 · 견갑(암케어)",
+       "equipment": [
+        "맨몸",
+        "덤벨"
+       ],
+       "at": 49,
+       "minutes": 1.6,
+       "load": 0.2,
+       "cue": "3회",
+       "perSide": false,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "8d68ca43-084e-4d60-b2de-f2a7a9127f71",
+       "no": "4-14",
+       "title": "밴드 덤벨 레터럴 레이즈",
+       "station": "덤벨 · 케틀벨",
+       "bucket": "상체 밀기 · 어깨",
+       "equipment": [
+        "덤벨",
+        "밴드"
+       ],
+       "at": 51.6,
+       "minutes": 1.6,
+       "load": 1,
+       "cue": "3회",
+       "perSide": false,
+       "breakAfter": false
+      }
+     ]
+    },
+    {
+     "station": "공 · 워터백(벽 앞)",
+     "start": 56.2,
+     "end": 76.8,
+     "items": [
+      {
+       "exerciseId": "e4a5f53e-5928-4d61-ab83-b10e65f85c0c",
+       "no": "4-15",
+       "title": "워터백 레터럴 안정성 홉",
+       "station": "공 · 워터백(벽 앞)",
+       "bucket": "하체 파워",
+       "equipment": [
+        "워터백"
+       ],
+       "at": 56.2,
+       "minutes": 1.9,
+       "load": 2,
+       "cue": "2~3회",
+       "perSide": false,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "578034da-dcb4-4eb9-84c0-dbac6b14096a",
+       "no": "4-16",
+       "title": "워터볼 180도 연속 점프",
+       "station": "공 · 워터백(벽 앞)",
+       "bucket": "하체 파워",
+       "equipment": [
+        "워터볼"
+       ],
+       "at": 59.1,
+       "minutes": 2.3,
+       "load": 2,
+       "cue": "2~3회",
+       "perSide": false,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "5b62348b-29cc-4ce7-99e9-c34b581b1bba",
+       "no": "4-17",
+       "title": "시티드 발목 내·외번 (메디신볼)",
+       "station": "공 · 워터백(벽 앞)",
+       "bucket": "고관절 · 발목 보강",
+       "equipment": [
+        "메디신볼"
+       ],
+       "at": 62.4,
+       "minutes": 1.6,
+       "load": 0.5,
+       "cue": "3회 · 한쪽",
+       "perSide": true,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "8c6effeb-b0b6-4187-ab58-b020b7fbeb97",
+       "no": "4-18",
+       "title": "벽 지지 짐볼 고관절 굴곡 버티기",
+       "station": "공 · 워터백(벽 앞)",
+       "bucket": "고관절 · 발목 보강",
+       "equipment": [
+        "짐볼"
+       ],
+       "at": 65,
+       "minutes": 1.6,
+       "load": 0.5,
+       "cue": "10초 버티기 · 한쪽",
+       "perSide": true,
+       "breakAfter": true
+      },
+      {
+       "exerciseId": "bb118cc5-3f4d-4520-8f2c-0901dd979661",
+       "no": "4-19",
+       "title": "메디신볼 벽 원 그리기",
+       "station": "공 · 워터백(벽 앞)",
+       "bucket": "어깨 · 견갑(암케어)",
+       "equipment": [
+        "메디신볼"
+       ],
+       "at": 72.6,
+       "minutes": 1.6,
+       "load": 0.5,
+       "cue": "10초 버티기 · 한쪽",
+       "perSide": true,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "2738872b-df7a-4092-85d7-a241338b054b",
+       "no": "4-20",
+       "title": "스플릿 스탠스 불안정 찹",
+       "station": "공 · 워터백(벽 앞)",
+       "bucket": "코어",
+       "equipment": [
+        "워터볼"
+       ],
+       "at": 75.2,
+       "minutes": 1.6,
+       "load": 1,
+       "cue": "3회 · 한쪽",
+       "perSide": true,
+       "breakAfter": false
+      }
+     ]
+    },
+    {
+     "station": "매트",
+     "start": 79.8,
+     "end": 160.8,
+     "items": [
+      {
+       "exerciseId": "aec3eb44-c8c5-48d9-9f23-5eba9f9bb106",
+       "no": "4-21",
+       "title": "손목 굴곡근 스트레칭",
+       "station": "매트",
+       "bucket": "모빌리티",
+       "equipment": [
+        "맨몸"
+       ],
+       "at": 79.8,
+       "minutes": 1.6,
+       "load": 0.2,
+       "cue": "10초 버티기 · 한쪽",
+       "perSide": true,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "b4e7f412-c432-4e9e-80bc-7cc1c3c92993",
+       "no": "4-22",
+       "title": "숄더 플렉션 월 스쿼트",
+       "station": "매트",
+       "bucket": "모빌리티",
+       "equipment": [
+        "맨몸"
+       ],
+       "at": 81.4,
+       "minutes": 1.6,
+       "load": 0.2,
+       "cue": "2~3회 · 끝 자세 2초",
+       "perSide": false,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "dde31619-0ed4-469a-a716-74f0770af32f",
+       "no": "4-23",
+       "title": "스콜피온",
+       "station": "매트",
+       "bucket": "모빌리티",
+       "equipment": [
+        "맨몸"
+       ],
+       "at": 83,
+       "minutes": 1.6,
+       "load": 0.2,
+       "cue": "2~3회 · 끝 자세 2초 · 한쪽",
+       "perSide": true,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "ddaec37e-66e4-432e-a973-d867f1144f8f",
+       "no": "4-24",
+       "title": "스쿼트 로커 발목 모빌리티",
+       "station": "매트",
+       "bucket": "모빌리티",
+       "equipment": [
+        "맨몸"
+       ],
+       "at": 84.6,
+       "minutes": 1.6,
+       "load": 0.2,
+       "cue": "2~3회 · 끝 자세 2초",
+       "perSide": false,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "5e030c46-1d78-4f64-b998-b79719171857",
+       "no": "4-25",
+       "title": "스탠딩 숄더 CAR",
+       "station": "매트",
+       "bucket": "모빌리티",
+       "equipment": [
+        "맨몸"
+       ],
+       "at": 86.2,
+       "minutes": 1.6,
+       "load": 0.2,
+       "cue": "2~3회 · 끝 자세 2초 · 한쪽",
+       "perSide": true,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "7b8a7735-954a-4268-94be-91d0f726f532",
+       "no": "4-26",
+       "title": "스탠딩 힙 CAR",
+       "station": "매트",
+       "bucket": "모빌리티",
+       "equipment": [
+        "맨몸"
+       ],
+       "at": 87.8,
+       "minutes": 1.6,
+       "load": 0.2,
+       "cue": "2~3회 · 끝 자세 2초 · 한쪽",
+       "perSide": true,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "507419d4-04f7-4a0e-a022-5f87c23ef466",
+       "no": "4-27",
+       "title": "슬랜트보드 발목 모빌리티",
+       "station": "매트",
+       "bucket": "모빌리티",
+       "equipment": [
+        "맨몸"
+       ],
+       "at": 89.4,
+       "minutes": 1.6,
+       "load": 0.2,
+       "cue": "10초 버티기",
+       "perSide": false,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "66c3a751-6d8e-4071-a06a-0c3321b5bbe4",
+       "no": "4-28",
+       "title": "슬리퍼 스트레칭",
+       "station": "매트",
+       "bucket": "모빌리티",
+       "equipment": [
+        "맨몸"
+       ],
+       "at": 91,
+       "minutes": 1.6,
+       "load": 0.2,
+       "cue": "10초 버티기 · 한쪽",
+       "perSide": true,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "a2281933-50dc-4f19-9f0b-a08000572537",
+       "no": "4-29",
+       "title": "다방향 스캡 푸쉬업",
+       "station": "매트",
+       "bucket": "어깨 · 견갑(암케어)",
+       "equipment": [
+        "맨몸"
+       ],
+       "at": 92.6,
+       "minutes": 2,
+       "load": 0.5,
+       "cue": "3회",
+       "perSide": false,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "b2400146-241d-4d03-92a5-bf8aa679ad80",
+       "no": "4-30",
+       "title": "벽 슬라이드",
+       "station": "매트",
+       "bucket": "어깨 · 견갑(암케어)",
+       "equipment": [
+        "맨몸"
+       ],
+       "at": 94.6,
+       "minutes": 1.6,
+       "load": 0.2,
+       "cue": "3회",
+       "perSide": false,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "f3f38691-5ac2-459d-bc26-840f721d2727",
+       "no": "4-31",
+       "title": "어깨 내회전 등척성 밀기",
+       "station": "매트",
+       "bucket": "어깨 · 견갑(암케어)",
+       "equipment": [
+        "맨몸"
+       ],
+       "at": 96.2,
+       "minutes": 1.6,
+       "load": 0.2,
+       "cue": "10초 버티기 · 한쪽",
+       "perSide": true,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "62b4a1c8-42f7-472e-b025-aec6e7da84f7",
+       "no": "4-32",
+       "title": "시티드 앵클 CAR",
+       "station": "매트",
+       "bucket": "모빌리티",
+       "equipment": [
+        "맨몸"
+       ],
+       "at": 97.8,
+       "minutes": 1.6,
+       "load": 0.2,
+       "cue": "2~3회 · 끝 자세 2초 · 한쪽",
+       "perSide": true,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "9a8cd142-04aa-4a76-a665-b386a343549f",
+       "no": "4-33",
+       "title": "와이드 스탠스 벤트오버 리치",
+       "station": "매트",
+       "bucket": "모빌리티",
+       "equipment": [
+        "맨몸"
+       ],
+       "at": 99.4,
+       "minutes": 1.6,
+       "load": 0.2,
+       "cue": "2~3회 · 끝 자세 2초",
+       "perSide": false,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "cf9ac5c6-74f3-451e-9e10-8dbc67ad370f",
+       "no": "4-34",
+       "title": "차일드 포즈",
+       "station": "매트",
+       "bucket": "모빌리티",
+       "equipment": [
+        "맨몸"
+       ],
+       "at": 101,
+       "minutes": 1.6,
+       "load": 0.2,
+       "cue": "10초 버티기",
+       "perSide": false,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "6cea48e7-1bc0-4d79-91eb-5e294bf1630d",
+       "no": "4-35",
+       "title": "캣-카멜",
+       "station": "매트",
+       "bucket": "모빌리티",
+       "equipment": [
+        "맨몸"
+       ],
+       "at": 102.6,
+       "minutes": 1.6,
+       "load": 0.2,
+       "cue": "2~3회 · 끝 자세 2초",
+       "perSide": false,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "3b8e2ccb-bd0d-4a86-bee1-3f85060463be",
+       "no": "4-36",
+       "title": "쿼드 힙 플렉서 + 광배 스트레치",
+       "station": "매트",
+       "bucket": "모빌리티",
+       "equipment": [
+        "맨몸"
+       ],
+       "at": 104.2,
+       "minutes": 2,
+       "load": 0.2,
+       "cue": "10초 버티기 · 한쪽",
+       "perSide": true,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "21e92d25-f540-46ea-847c-d644da0c57c0",
+       "no": "4-37",
+       "title": "쿼드 힙 플렉서 + 흉추 회전",
+       "station": "매트",
+       "bucket": "모빌리티",
+       "equipment": [
+        "맨몸"
+       ],
+       "at": 106.2,
+       "minutes": 2,
+       "load": 0.2,
+       "cue": "2~3회 · 끝 자세 2초 · 한쪽",
+       "perSide": true,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "a9cf168e-e9ba-43d6-bc0b-6eaadd7961d5",
+       "no": "4-38",
+       "title": "쿼드 힙 플렉서 스트레치",
+       "station": "매트",
+       "bucket": "모빌리티",
+       "equipment": [
+        "맨몸"
+       ],
+       "at": 108.2,
+       "minutes": 1.6,
+       "load": 0.2,
+       "cue": "10초 버티기 · 한쪽",
+       "perSide": true,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "76288fb9-3b43-4e01-962d-d2e84a4b7bc6",
+       "no": "4-39",
+       "title": "크로스바디 스트레칭",
+       "station": "매트",
+       "bucket": "모빌리티",
+       "equipment": [
+        "맨몸"
+       ],
+       "at": 109.8,
+       "minutes": 1.6,
+       "load": 0.2,
+       "cue": "10초 버티기 · 한쪽",
+       "perSide": true,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "66d0505f-4356-4e67-9907-3f85a8442dc6",
+       "no": "4-40",
+       "title": "어깨 외전 등척성 밀기",
+       "station": "매트",
+       "bucket": "어깨 · 견갑(암케어)",
+       "equipment": [
+        "맨몸"
+       ],
+       "at": 111.4,
+       "minutes": 1.6,
+       "load": 0.2,
+       "cue": "10초 버티기 · 한쪽",
+       "perSide": true,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "7a097fb0-195a-4872-9a65-2716c562c2fe",
+       "no": "4-41",
+       "title": "어깨 외회전 등척성 밀기",
+       "station": "매트",
+       "bucket": "어깨 · 견갑(암케어)",
+       "equipment": [
+        "맨몸"
+       ],
+       "at": 113,
+       "minutes": 1.6,
+       "load": 0.2,
+       "cue": "10초 버티기 · 한쪽",
+       "perSide": true,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "fc08b2a7-6349-41d7-a1d8-31c429000181",
+       "no": "4-42",
+       "title": "쿼드 외회전",
+       "station": "매트",
+       "bucket": "어깨 · 견갑(암케어)",
+       "equipment": [
+        "맨몸"
+       ],
+       "at": 114.6,
+       "minutes": 1.6,
+       "load": 0.5,
+       "cue": "3회 · 한쪽",
+       "perSide": true,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "fbf606d7-1805-4acb-86fd-ad1a1e6a08db",
+       "no": "4-43",
+       "title": "토 홀드 스모 스쿼트",
+       "station": "매트",
+       "bucket": "모빌리티",
+       "equipment": [
+        "맨몸"
+       ],
+       "at": 116.2,
+       "minutes": 1.6,
+       "load": 0.2,
+       "cue": "2~3회 · 끝 자세 2초",
+       "perSide": false,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "96f1ca21-8a13-4a3f-913b-56c7947eeb60",
+       "no": "4-44",
+       "title": "톨 닐링 막대 골반 기울이기",
+       "station": "매트",
+       "bucket": "모빌리티",
+       "equipment": [
+        "맨몸"
+       ],
+       "at": 117.8,
+       "minutes": 1.6,
+       "load": 0.2,
+       "cue": "2~3회 · 끝 자세 2초",
+       "perSide": false,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "96c556af-e774-499f-a5a4-e6f99119cb08",
+       "no": "4-45",
+       "title": "톨 닐링 막대 골반 회전",
+       "station": "매트",
+       "bucket": "모빌리티",
+       "equipment": [
+        "맨몸"
+       ],
+       "at": 119.4,
+       "minutes": 1.6,
+       "load": 0.2,
+       "cue": "2~3회 · 끝 자세 2초 · 한쪽",
+       "perSide": true,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "84f3164f-253f-44a3-b4bd-52965be23c32",
+       "no": "4-46",
+       "title": "프로그 포즈",
+       "station": "매트",
+       "bucket": "모빌리티",
+       "equipment": [
+        "맨몸"
+       ],
+       "at": 121,
+       "minutes": 1.6,
+       "load": 0.2,
+       "cue": "10초 버티기",
+       "perSide": false,
+       "breakAfter": true
+      },
+      {
+       "exerciseId": "3de4717c-0e6e-4048-b560-0b804789a5be",
+       "no": "4-47",
+       "title": "피겨4 햄스트링 스트레치",
+       "station": "매트",
+       "bucket": "모빌리티",
+       "equipment": [
+        "맨몸"
+       ],
+       "at": 127.6,
+       "minutes": 1.6,
+       "load": 0.2,
+       "cue": "10초 버티기 · 한쪽",
+       "perSide": true,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "fb596197-2cb8-4844-943c-4b09cb192163",
+       "no": "4-48",
+       "title": "피전 포즈",
+       "station": "매트",
+       "bucket": "모빌리티",
+       "equipment": [
+        "맨몸"
+       ],
+       "at": 129.2,
+       "minutes": 1.6,
+       "load": 0.2,
+       "cue": "10초 버티기 · 한쪽",
+       "perSide": true,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "e0b09d53-c5af-4789-98a2-cf22f1a89093",
+       "no": "4-49",
+       "title": "하체 다이내믹 워밍업 전체",
+       "station": "매트",
+       "bucket": "모빌리티",
+       "equipment": [
+        "맨몸"
+       ],
+       "at": 130.8,
+       "minutes": 2,
+       "load": 0.5,
+       "cue": "2~3회 · 끝 자세 2초",
+       "perSide": false,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "3321b1ea-e55b-4f7c-a948-134292dee3d5",
+       "no": "4-50",
+       "title": "쿼드 T",
+       "station": "매트",
+       "bucket": "어깨 · 견갑(암케어)",
+       "equipment": [
+        "맨몸"
+       ],
+       "at": 132.8,
+       "minutes": 1.6,
+       "load": 0.5,
+       "cue": "3회 · 한쪽",
+       "perSide": true,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "b1ea2faa-4799-49dc-a1a0-c2cbb6c3d5e4",
+       "no": "4-51",
+       "title": "쿼드 Y",
+       "station": "매트",
+       "bucket": "어깨 · 견갑(암케어)",
+       "equipment": [
+        "맨몸"
+       ],
+       "at": 134.4,
+       "minutes": 1.6,
+       "load": 0.5,
+       "cue": "3회 · 한쪽",
+       "perSide": true,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "0bb9bcac-5b06-48ff-9fbd-75f66aad547a",
+       "no": "4-52",
+       "title": "푸쉬업 플러스",
+       "station": "매트",
+       "bucket": "어깨 · 견갑(암케어)",
+       "equipment": [
+        "맨몸"
+       ],
+       "at": 136,
+       "minutes": 1.6,
+       "load": 1,
+       "cue": "3회",
+       "perSide": false,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "dea70baa-63e0-452e-ad30-bc56c4a71a4a",
+       "no": "4-53",
+       "title": "전완 굴곡 등척성 밀기",
+       "station": "매트",
+       "bucket": "전완 · 팔꿈치",
+       "equipment": [
+        "맨몸"
+       ],
+       "at": 137.6,
+       "minutes": 1.6,
+       "load": 1,
+       "cue": "10초 버티기 · 한쪽",
+       "perSide": true,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "a8641f36-bfa4-47cb-9743-d04b931d0abe",
+       "no": "4-54",
+       "title": "전완 신전 등척성 밀기",
+       "station": "매트",
+       "bucket": "전완 · 팔꿈치",
+       "equipment": [
+        "맨몸"
+       ],
+       "at": 139.2,
+       "minutes": 1.6,
+       "load": 1,
+       "cue": "10초 버티기 · 한쪽",
+       "perSide": true,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "3c4f02c9-e3ab-4ab9-bf10-ae9a4e8b6c1a",
+       "no": "4-55",
+       "title": "전완 요측 편위 등척성 밀기",
+       "station": "매트",
+       "bucket": "전완 · 팔꿈치",
+       "equipment": [
+        "맨몸"
+       ],
+       "at": 140.8,
+       "minutes": 1.6,
+       "load": 1,
+       "cue": "10초 버티기 · 한쪽",
+       "perSide": true,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "c8f2b021-00d1-49aa-907d-6c6c0ad6f8eb",
+       "no": "4-56",
+       "title": "프론 막대 스캡 홀드",
+       "station": "매트",
+       "bucket": "어깨 · 견갑(암케어)",
+       "equipment": [
+        "맨몸"
+       ],
+       "at": 142.4,
+       "minutes": 1.6,
+       "load": 0.5,
+       "cue": "10초 버티기",
+       "perSide": false,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "7081f9e6-246c-4c8b-aa90-41b94177631a",
+       "no": "4-57",
+       "title": "프론 슈퍼맨",
+       "station": "매트",
+       "bucket": "어깨 · 견갑(암케어)",
+       "equipment": [
+        "맨몸"
+       ],
+       "at": 144,
+       "minutes": 1.6,
+       "load": 0.5,
+       "cue": "3회",
+       "perSide": false,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "ebfe0385-7151-4c04-9bc9-10d4e3c4c320",
+       "no": "4-58",
+       "title": "전완 척측 편위 등척성 밀기",
+       "station": "매트",
+       "bucket": "전완 · 팔꿈치",
+       "equipment": [
+        "맨몸"
+       ],
+       "at": 145.6,
+       "minutes": 1.6,
+       "load": 1,
+       "cue": "10초 버티기 · 한쪽",
+       "perSide": true,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "fe01038d-0a4c-480f-a14c-3879f2e2bb15",
+       "no": "4-59",
+       "title": "전완 회내 등척성 밀기",
+       "station": "매트",
+       "bucket": "전완 · 팔꿈치",
+       "equipment": [
+        "맨몸"
+       ],
+       "at": 147.2,
+       "minutes": 1.6,
+       "load": 1,
+       "cue": "10초 버티기 · 한쪽",
+       "perSide": true,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "f370cd28-f0a8-4721-b50e-0377a05cf7a9",
+       "no": "4-60",
+       "title": "보수 다이내믹 런지",
+       "station": "매트",
+       "bucket": "하체 앞(무릎)",
+       "equipment": [
+        "맨몸"
+       ],
+       "at": 148.8,
+       "minutes": 1.6,
+       "load": 1,
+       "cue": "3회 · 한쪽",
+       "perSide": true,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "1245f132-13c1-44d5-8371-4609bdff7e16",
+       "no": "4-61",
+       "title": "월 싯",
+       "station": "매트",
+       "bucket": "하체 앞(무릎)",
+       "equipment": [
+        "맨몸"
+       ],
+       "at": 150.4,
+       "minutes": 1.6,
+       "load": 1,
+       "cue": "10초 버티기",
+       "perSide": false,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "4d1fbb99-86c0-465b-b43f-919f2aeac7b6",
+       "no": "4-62",
+       "title": "템포 맨몸 스쿼트",
+       "station": "매트",
+       "bucket": "하체 앞(무릎)",
+       "equipment": [
+        "맨몸"
+       ],
+       "at": 152,
+       "minutes": 1.6,
+       "load": 1,
+       "cue": "3회",
+       "perSide": false,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "a3dac15f-bcdf-4d9c-855b-978698783d17",
+       "no": "4-63",
+       "title": "노르딕 햄스트링",
+       "station": "매트",
+       "bucket": "하체 뒤(힌지)",
+       "equipment": [
+        "맨몸"
+       ],
+       "at": 153.6,
+       "minutes": 2,
+       "load": 4.5,
+       "cue": "1~2회 천천히 내리기",
+       "perSide": false,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "eeca9584-9618-4bcb-accc-a5e816614fd0",
+       "no": "4-64",
+       "title": "다이아몬드 푸쉬업",
+       "station": "매트",
+       "bucket": "상체 밀기 · 어깨",
+       "equipment": [
+        "맨몸"
+       ],
+       "at": 155.6,
+       "minutes": 1.6,
+       "load": 1,
+       "cue": "3회",
+       "perSide": false,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "042e00b3-2f64-449a-af63-e6cf75244653",
+       "no": "4-65",
+       "title": "파이크 푸쉬업",
+       "station": "매트",
+       "bucket": "상체 밀기 · 어깨",
+       "equipment": [
+        "맨몸"
+       ],
+       "at": 157.2,
+       "minutes": 1.6,
+       "load": 1,
+       "cue": "3회",
+       "perSide": false,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "d231717f-0891-4c51-9d51-ce866d3b0334",
+       "no": "4-66",
+       "title": "리버스 노르딕",
+       "station": "매트",
+       "bucket": "하체 뒤(힌지)",
+       "equipment": [
+        "맨몸"
+       ],
+       "at": 158.8,
+       "minutes": 2,
+       "load": 1.5,
+       "cue": "1~2회 천천히 내리기",
+       "perSide": false,
+       "breakAfter": false
+      }
+     ]
+    }
+   ],
+   "load": {
+    "고관절 · 발목 보강": 4.5,
+    "하체 파워": 6,
+    "어깨 · 견갑(암케어)": 6.5,
+    "하체 앞(무릎)": 10,
+    "전완 · 팔꿈치": 11,
+    "상체 밀기 · 어깨": 3,
+    "코어": 1,
+    "모빌리티": 4.9,
+    "하체 뒤(힌지)": 6
+   }
+  },
+  {
+   "week": 5,
+   "end": 153.7,
+   "stations": [
+    {
+     "station": "넓은 바닥(이동)",
+     "start": 15,
+     "end": 20.4,
+     "items": [
+      {
+       "exerciseId": "986c5b6a-02ef-4c1b-bda2-cf2336930db3",
+       "no": "5-01",
+       "title": "가속 버티기(발목 강성)",
+       "station": "넓은 바닥(이동)",
+       "bucket": "하체 파워",
+       "equipment": [
+        "맨몸"
+       ],
+       "at": 15,
+       "minutes": 1.6,
+       "load": 1,
+       "cue": "10초 버티기 · 한쪽",
+       "perSide": true,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "1a9528b3-5e8b-417f-8037-efe5a6fb6abd",
+       "no": "5-02",
+       "title": "스트레이트렉 바운드(프라임타임)",
+       "station": "넓은 바닥(이동)",
+       "bucket": "하체 파워",
+       "equipment": [
+        "맨몸"
+       ],
+       "at": 16.6,
+       "minutes": 1.9,
+       "load": 2,
+       "cue": "2~3회",
+       "perSide": false,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "e7a64e05-6078-42d7-b843-49bfccc7f376",
+       "no": "5-03",
+       "title": "와이드 스탠스 버티컬 점프",
+       "station": "넓은 바닥(이동)",
+       "bucket": "하체 파워",
+       "equipment": [
+        "맨몸"
+       ],
+       "at": 18.5,
+       "minutes": 1.9,
+       "load": 2,
+       "cue": "2~3회",
+       "perSide": false,
+       "breakAfter": false
+      }
+     ]
+    },
+    {
+     "station": "랙 · 바벨 · 원판",
+     "start": 23.4,
+     "end": 27.9,
+     "items": [
+      {
+       "exerciseId": "01a042cd-2c9e-4582-8620-8b268cf0003c",
+       "no": "5-04",
+       "title": "세이프티바 스쿼트",
+       "station": "랙 · 바벨 · 원판",
+       "bucket": "하체 앞(무릎)",
+       "equipment": [
+        "바벨"
+       ],
+       "at": 23.4,
+       "minutes": 1.9,
+       "load": 3,
+       "cue": "3회",
+       "perSide": false,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "38235418-c222-443a-b577-d937276afd99",
+       "no": "5-05",
+       "title": "원판 핀치 잡기",
+       "station": "랙 · 바벨 · 원판",
+       "bucket": "전완 · 팔꿈치",
+       "equipment": [
+        "원판"
+       ],
+       "at": 26.3,
+       "minutes": 1.6,
+       "load": 1,
+       "cue": "10초 버티기 · 한쪽",
+       "perSide": true,
+       "breakAfter": false
+      }
+     ]
+    },
+    {
+     "station": "벤치",
+     "start": 30.9,
+     "end": 53.1,
+     "items": [
+      {
+       "exerciseId": "9c3e9e11-ac5c-4fd5-803e-36c6aed65f83",
+       "no": "5-06",
+       "title": "덤벨 라잉 트라이셉스 익스텐션",
+       "station": "벤치",
+       "bucket": "상체 밀기 · 어깨",
+       "equipment": [
+        "덤벨",
+        "벤치"
+       ],
+       "at": 30.9,
+       "minutes": 1.6,
+       "load": 1,
+       "cue": "3회",
+       "perSide": false,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "c61dbb25-b509-4438-9072-ae52cb86642f",
+       "no": "5-07",
+       "title": "덤벨 트라이셉스 킥백",
+       "station": "벤치",
+       "bucket": "상체 밀기 · 어깨",
+       "equipment": [
+        "덤벨",
+        "벤치"
+       ],
+       "at": 32.5,
+       "minutes": 1.6,
+       "load": 0.5,
+       "cue": "3회 · 한쪽",
+       "perSide": true,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "45e00f5d-2857-4cb7-8079-7feb9f4a17ae",
+       "no": "5-08",
+       "title": "시티드 덤벨 오버헤드 익스텐션",
+       "station": "벤치",
+       "bucket": "상체 밀기 · 어깨",
+       "equipment": [
+        "덤벨",
+        "벤치"
+       ],
+       "at": 34.1,
+       "minutes": 1.6,
+       "load": 1,
+       "cue": "3회",
+       "perSide": false,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "8bc45844-1c4a-46fd-90f5-cd81ba745f80",
+       "no": "5-09",
+       "title": "벤치 지지 덤벨 외회전",
+       "station": "벤치",
+       "bucket": "어깨 · 견갑(암케어)",
+       "equipment": [
+        "덤벨",
+        "벤치"
+       ],
+       "at": 35.7,
+       "minutes": 1.6,
+       "load": 0.5,
+       "cue": "3회 · 한쪽",
+       "perSide": true,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "c791d242-f45e-43db-b441-5c42eabd7bc6",
+       "no": "5-10",
+       "title": "프론 로우 + 외회전",
+       "station": "벤치",
+       "bucket": "어깨 · 견갑(암케어)",
+       "equipment": [
+        "덤벨",
+        "벤치"
+       ],
+       "at": 37.3,
+       "minutes": 2,
+       "load": 0.5,
+       "cue": "3회 · 한쪽",
+       "perSide": true,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "2c09b44b-efef-4371-ad81-5f120e70700a",
+       "no": "5-11",
+       "title": "시티드 외회전 과부하 내리기",
+       "station": "벤치",
+       "bucket": "어깨 · 견갑(암케어)",
+       "equipment": [
+        "덤벨",
+        "벤치"
+       ],
+       "at": 39.3,
+       "minutes": 2,
+       "load": 3,
+       "cue": "1~2회 천천히 내리기 · 한쪽",
+       "perSide": true,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "9cad367e-53c7-48e9-9612-5d2e0c078686",
+       "no": "5-12",
+       "title": "불가리안 스플릿 스쿼트 버티기",
+       "station": "벤치",
+       "bucket": "하체 앞(무릎)",
+       "equipment": [
+        "벤치"
+       ],
+       "at": 42.3,
+       "minutes": 1.6,
+       "load": 1,
+       "cue": "10초 버티기 · 한쪽",
+       "perSide": true,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "2becc1d5-0e3d-4ca8-902b-e39d7ce7d906",
+       "no": "5-13",
+       "title": "싱글렉 스쿼트 + 앞으로 밀기",
+       "station": "벤치",
+       "bucket": "하체 앞(무릎)",
+       "equipment": [
+        "벤치"
+       ],
+       "at": 43.9,
+       "minutes": 2,
+       "load": 1,
+       "cue": "3회 · 한쪽",
+       "perSide": true,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "21286552-6d54-4b33-8b1c-0614f1ca5dd5",
+       "no": "5-14",
+       "title": "싱글렉→양발 스쿼트 + 앞으로 밀기",
+       "station": "벤치",
+       "bucket": "하체 앞(무릎)",
+       "equipment": [
+        "벤치"
+       ],
+       "at": 45.9,
+       "minutes": 2,
+       "load": 1,
+       "cue": "3회 · 한쪽",
+       "perSide": true,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "4fd0f528-2fd8-43a6-b831-ef71681ca6c7",
+       "no": "5-15",
+       "title": "벤치 파이어 하이드런트 버티기(내전근)",
+       "station": "벤치",
+       "bucket": "고관절 · 발목 보강",
+       "equipment": [
+        "벤치"
+       ],
+       "at": 47.9,
+       "minutes": 1.6,
+       "load": 1,
+       "cue": "10초 버티기 · 한쪽",
+       "perSide": true,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "eae45602-6fe5-48d0-aef9-cb4f2509274f",
+       "no": "5-16",
+       "title": "코펜하겐 내전근 단계별",
+       "station": "벤치",
+       "bucket": "고관절 · 발목 보강",
+       "equipment": [
+        "벤치"
+       ],
+       "at": 49.5,
+       "minutes": 2,
+       "load": 2,
+       "cue": "3회 · 한쪽",
+       "perSide": true,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "c53acfc3-9a2d-4340-84a1-d255cbc755f6",
+       "no": "5-17",
+       "title": "싱글렉 힙 쓰러스트",
+       "station": "벤치",
+       "bucket": "하체 뒤(힌지)",
+       "equipment": [
+        "벤치"
+       ],
+       "at": 51.5,
+       "minutes": 1.6,
+       "load": 1,
+       "cue": "3회 · 한쪽",
+       "perSide": true,
+       "breakAfter": false
+      }
+     ]
+    },
+    {
+     "station": "덤벨 · 케틀벨",
+     "start": 56.1,
+     "end": 71.1,
+     "items": [
+      {
+       "exerciseId": "7c125173-4fd4-4040-8f8a-f6ced2918ac6",
+       "no": "5-18",
+       "title": "덤벨 전완 굴곡",
+       "station": "덤벨 · 케틀벨",
+       "bucket": "전완 · 팔꿈치",
+       "equipment": [
+        "덤벨"
+       ],
+       "at": 56.1,
+       "minutes": 1.6,
+       "load": 0.5,
+       "cue": "3회 · 한쪽",
+       "perSide": true,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "84b2db84-b873-4005-86a3-77294b59f077",
+       "no": "5-19",
+       "title": "덤벨 전완 신전",
+       "station": "덤벨 · 케틀벨",
+       "bucket": "전완 · 팔꿈치",
+       "equipment": [
+        "덤벨"
+       ],
+       "at": 57.7,
+       "minutes": 1.6,
+       "load": 0.5,
+       "cue": "3회 · 한쪽",
+       "perSide": true,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "c04e48f1-76fb-4613-8c0a-a70d473b90fb",
+       "no": "5-20",
+       "title": "덤벨 핑거 컬",
+       "station": "덤벨 · 케틀벨",
+       "bucket": "전완 · 팔꿈치",
+       "equipment": [
+        "덤벨"
+       ],
+       "at": 59.3,
+       "minutes": 1.6,
+       "load": 0.5,
+       "cue": "3회 · 한쪽",
+       "perSide": true,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "d96ec9d2-a70b-4b2f-9ef2-24dc4fc9339f",
+       "no": "5-21",
+       "title": "케틀벨 프론트 스쿼트",
+       "station": "덤벨 · 케틀벨",
+       "bucket": "하체 앞(무릎)",
+       "equipment": [
+        "케틀벨"
+       ],
+       "at": 61.9,
+       "minutes": 1.6,
+       "load": 2,
+       "cue": "3회",
+       "perSide": false,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "5fbf7e4f-28f4-472c-93e7-706377b1e5ca",
+       "no": "5-22",
+       "title": "덤벨 해머컬",
+       "station": "덤벨 · 케틀벨",
+       "bucket": "전완 · 팔꿈치",
+       "equipment": [
+        "덤벨"
+       ],
+       "at": 64.5,
+       "minutes": 1.6,
+       "load": 1,
+       "cue": "3회",
+       "perSide": false,
+       "breakAfter": true
+      }
+     ]
+    },
+    {
+     "station": "철봉 · TRX",
+     "start": 74.1,
+     "end": 87.3,
+     "items": [
+      {
+       "exerciseId": "1dc71bf6-2b0e-4441-9c39-e5f81149e524",
+       "no": "5-23",
+       "title": "밴드 보조 중립그립 풀업",
+       "station": "철봉 · TRX",
+       "bucket": "상체 당기기",
+       "equipment": [
+        "철봉",
+        "밴드"
+       ],
+       "at": 74.1,
+       "minutes": 1.6,
+       "load": 1,
+       "cue": "3회",
+       "perSide": false,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "08d51d4b-3ebd-4c3e-a03b-8d14f3944be9",
+       "no": "5-24",
+       "title": "밴드 보조 친업",
+       "station": "철봉 · TRX",
+       "bucket": "상체 당기기",
+       "equipment": [
+        "철봉",
+        "밴드"
+       ],
+       "at": 75.7,
+       "minutes": 1.6,
+       "load": 1,
+       "cue": "3회",
+       "perSide": false,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "6533120b-38ae-4db7-9257-a6956447bc1a",
+       "no": "5-25",
+       "title": "밴드 보조 풀업",
+       "station": "철봉 · TRX",
+       "bucket": "상체 당기기",
+       "equipment": [
+        "철봉",
+        "밴드"
+       ],
+       "at": 77.3,
+       "minutes": 1.6,
+       "load": 1,
+       "cue": "3회",
+       "perSide": false,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "5ae8f382-bd23-4c08-8651-a74f509bda5b",
+       "no": "5-26",
+       "title": "TRX I 레이즈",
+       "station": "철봉 · TRX",
+       "bucket": "어깨 · 견갑(암케어)",
+       "equipment": [
+        "TRX"
+       ],
+       "at": 79.9,
+       "minutes": 1.6,
+       "load": 1,
+       "cue": "3회",
+       "perSide": false,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "b270c0fa-f0d7-49c4-a97b-a9876fa4082f",
+       "no": "5-27",
+       "title": "TRX T 레이즈",
+       "station": "철봉 · TRX",
+       "bucket": "어깨 · 견갑(암케어)",
+       "equipment": [
+        "TRX"
+       ],
+       "at": 81.5,
+       "minutes": 1.6,
+       "load": 1,
+       "cue": "3회",
+       "perSide": false,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "40532dd5-fd37-41e1-9b77-a5f2e08b4a49",
+       "no": "5-28",
+       "title": "TRX Y 레이즈",
+       "station": "철봉 · TRX",
+       "bucket": "어깨 · 견갑(암케어)",
+       "equipment": [
+        "TRX"
+       ],
+       "at": 83.1,
+       "minutes": 1.6,
+       "load": 1,
+       "cue": "3회",
+       "perSide": false,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "88fb374c-fbb1-47f5-8204-d188d3f62a06",
+       "no": "5-29",
+       "title": "밴드 저항 풀업",
+       "station": "철봉 · TRX",
+       "bucket": "상체 당기기",
+       "equipment": [
+        "철봉",
+        "밴드"
+       ],
+       "at": 85.7,
+       "minutes": 1.6,
+       "load": 2,
+       "cue": "3회",
+       "perSide": false,
+       "breakAfter": false
+      }
+     ]
+    },
+    {
+     "station": "매트",
+     "start": 90.3,
+     "end": 153.7,
+     "items": [
+      {
+       "exerciseId": "9d4ae24c-8ec4-4a83-8220-c967f27513a6",
+       "no": "5-30",
+       "title": "90/90 고관절 회전 + 신전",
+       "station": "매트",
+       "bucket": "모빌리티",
+       "equipment": [
+        "맨몸"
+       ],
+       "at": 90.3,
+       "minutes": 2,
+       "load": 0.2,
+       "cue": "2~3회 · 끝 자세 2초 · 한쪽",
+       "perSide": true,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "8a3701dd-f2ba-4611-9d65-ba7f6755bbe6",
+       "no": "5-31",
+       "title": "90/90 페일즈·레일즈",
+       "station": "매트",
+       "bucket": "모빌리티",
+       "equipment": [
+        "맨몸"
+       ],
+       "at": 92.3,
+       "minutes": 1.6,
+       "load": 0.2,
+       "cue": "10초 버티기 · 한쪽",
+       "perSide": true,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "da3a1867-9ca2-42b9-8bfe-e48f132ff6ce",
+       "no": "5-32",
+       "title": "누워서 고관절 내회전",
+       "station": "매트",
+       "bucket": "모빌리티",
+       "equipment": [
+        "맨몸"
+       ],
+       "at": 93.9,
+       "minutes": 1.6,
+       "load": 0.2,
+       "cue": "2~3회 · 끝 자세 2초 · 한쪽",
+       "perSide": true,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "8b4233a1-d89f-4190-9fa2-e87846ce0a6b",
+       "no": "5-33",
+       "title": "롤링 (상체 시작)",
+       "station": "매트",
+       "bucket": "모빌리티",
+       "equipment": [
+        "맨몸"
+       ],
+       "at": 95.5,
+       "minutes": 1.6,
+       "load": 0.2,
+       "cue": "2~3회 · 끝 자세 2초 · 한쪽",
+       "perSide": true,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "8d669b0a-7839-423b-9a0e-4ffd1d88ab8b",
+       "no": "5-34",
+       "title": "롤링 (하체 시작)",
+       "station": "매트",
+       "bucket": "모빌리티",
+       "equipment": [
+        "맨몸"
+       ],
+       "at": 97.1,
+       "minutes": 1.6,
+       "load": 0.2,
+       "cue": "2~3회 · 끝 자세 2초 · 한쪽",
+       "perSide": true,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "2d2948d6-99d6-4389-83c8-a36ddeb220da",
+       "no": "5-35",
+       "title": "막대 디스로케이트",
+       "station": "매트",
+       "bucket": "모빌리티",
+       "equipment": [
+        "맨몸"
+       ],
+       "at": 98.7,
+       "minutes": 1.6,
+       "load": 0.2,
+       "cue": "2~3회 · 끝 자세 2초",
+       "perSide": false,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "d0f6bafe-4e80-4fec-acf1-c028e6a03f8e",
+       "no": "5-36",
+       "title": "막대 오버헤드 스쿼트",
+       "station": "매트",
+       "bucket": "모빌리티",
+       "equipment": [
+        "맨몸"
+       ],
+       "at": 100.3,
+       "minutes": 1.6,
+       "load": 0.5,
+       "cue": "2~3회 · 끝 자세 2초",
+       "perSide": false,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "04b9e472-706e-46fb-ba93-8dda88eab946",
+       "no": "5-37",
+       "title": "막대 흉추·광배 스트레치",
+       "station": "매트",
+       "bucket": "모빌리티",
+       "equipment": [
+        "맨몸"
+       ],
+       "at": 101.9,
+       "minutes": 1.6,
+       "load": 0.2,
+       "cue": "10초 버티기",
+       "perSide": false,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "42295715-2c75-4145-bd59-7131666e808e",
+       "no": "5-38",
+       "title": "3점 RDL",
+       "station": "매트",
+       "bucket": "하체 뒤(힌지)",
+       "equipment": [
+        "맨몸"
+       ],
+       "at": 103.5,
+       "minutes": 1.6,
+       "load": 1,
+       "cue": "3회 · 한쪽",
+       "perSide": true,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "20cb0e3b-14cc-4be4-adca-f30c97ad9d6c",
+       "no": "5-39",
+       "title": "막대 굿모닝",
+       "station": "매트",
+       "bucket": "하체 뒤(힌지)",
+       "equipment": [
+        "맨몸"
+       ],
+       "at": 105.1,
+       "minutes": 1.6,
+       "load": 0.5,
+       "cue": "3회",
+       "perSide": false,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "c7354e68-2501-4322-b80e-01f5748edbf3",
+       "no": "5-40",
+       "title": "막대 지지 싱글렉 RDL",
+       "station": "매트",
+       "bucket": "하체 뒤(힌지)",
+       "equipment": [
+        "맨몸"
+       ],
+       "at": 106.7,
+       "minutes": 1.6,
+       "load": 1,
+       "cue": "3회 · 한쪽",
+       "perSide": true,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "9a6bbe89-de55-4088-96d2-68c9ebe1502e",
+       "no": "5-41",
+       "title": "브레첼",
+       "station": "매트",
+       "bucket": "모빌리티",
+       "equipment": [
+        "맨몸"
+       ],
+       "at": 108.3,
+       "minutes": 1.6,
+       "load": 0.2,
+       "cue": "10초 버티기 · 한쪽",
+       "perSide": true,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "45193b52-9390-4d2a-9ecf-b860c4853fe5",
+       "no": "5-42",
+       "title": "사이드라잉 윈드밀",
+       "station": "매트",
+       "bucket": "모빌리티",
+       "equipment": [
+        "맨몸"
+       ],
+       "at": 109.9,
+       "minutes": 1.6,
+       "load": 0.2,
+       "cue": "2~3회 · 끝 자세 2초 · 한쪽",
+       "perSide": true,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "a52dc4c0-d920-45b0-afc3-c2711063847a",
+       "no": "5-43",
+       "title": "하프 스플릿 햄스트링 스트레치",
+       "station": "매트",
+       "bucket": "모빌리티",
+       "equipment": [
+        "맨몸"
+       ],
+       "at": 111.5,
+       "minutes": 1.6,
+       "load": 0.2,
+       "cue": "10초 버티기 · 한쪽",
+       "perSide": true,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "d473575d-4013-4542-91c2-909c96cabf5c",
+       "no": "5-44",
+       "title": "하프닐링 레터럴 힌지",
+       "station": "매트",
+       "bucket": "모빌리티",
+       "equipment": [
+        "맨몸"
+       ],
+       "at": 113.1,
+       "minutes": 1.6,
+       "load": 0.2,
+       "cue": "2~3회 · 끝 자세 2초 · 한쪽",
+       "perSide": true,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "c6e68a49-e226-42f9-9b54-ea2fbbe32ba0",
+       "no": "5-45",
+       "title": "핸드 홀드 스플릿 스탠스 회전",
+       "station": "매트",
+       "bucket": "모빌리티",
+       "equipment": [
+        "맨몸"
+       ],
+       "at": 114.7,
+       "minutes": 1.6,
+       "load": 0.2,
+       "cue": "2~3회 · 끝 자세 2초 · 한쪽",
+       "perSide": true,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "0dba32fc-2935-4b6a-9c2e-3cc426c09256",
+       "no": "5-46",
+       "title": "햄스트링 스윕",
+       "station": "매트",
+       "bucket": "모빌리티",
+       "equipment": [
+        "맨몸"
+       ],
+       "at": 116.3,
+       "minutes": 1.6,
+       "load": 0.2,
+       "cue": "2~3회 · 끝 자세 2초 · 한쪽",
+       "perSide": true,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "9d823da5-0cb4-4717-b7ac-9d18b3e8c628",
+       "no": "5-47",
+       "title": "햄스트링 익스텐더",
+       "station": "매트",
+       "bucket": "모빌리티",
+       "equipment": [
+        "맨몸"
+       ],
+       "at": 117.9,
+       "minutes": 1.6,
+       "load": 0.5,
+       "cue": "2~3회 · 끝 자세 2초 · 한쪽",
+       "perSide": true,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "b4cc6903-d731-4fb3-92a5-bc33eea1bb15",
+       "no": "5-48",
+       "title": "흉추 모빌리티 시리즈",
+       "station": "매트",
+       "bucket": "모빌리티",
+       "equipment": [
+        "맨몸"
+       ],
+       "at": 119.5,
+       "minutes": 2,
+       "load": 0.2,
+       "cue": "2~3회 · 끝 자세 2초",
+       "perSide": false,
+       "breakAfter": true
+      },
+      {
+       "exerciseId": "e4329d32-7532-4708-914b-6e2182fe8107",
+       "no": "5-49",
+       "title": "보수 싱글렉 RDL",
+       "station": "매트",
+       "bucket": "하체 뒤(힌지)",
+       "equipment": [
+        "맨몸"
+       ],
+       "at": 126.5,
+       "minutes": 1.6,
+       "load": 1,
+       "cue": "3회 · 한쪽",
+       "perSide": true,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "d4890cfe-2415-42ef-b1fa-59bacf0b2400",
+       "no": "5-50",
+       "title": "양발 글루트 브리지",
+       "station": "매트",
+       "bucket": "하체 뒤(힌지)",
+       "equipment": [
+        "맨몸"
+       ],
+       "at": 128.1,
+       "minutes": 1.6,
+       "load": 0.5,
+       "cue": "3회",
+       "perSide": false,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "0d858e85-d8aa-4fb3-9172-647ab281795c",
+       "no": "5-51",
+       "title": "햄스트링 다이버",
+       "station": "매트",
+       "bucket": "하체 뒤(힌지)",
+       "equipment": [
+        "맨몸"
+       ],
+       "at": 129.7,
+       "minutes": 1.6,
+       "load": 1,
+       "cue": "3회 · 한쪽",
+       "perSide": true,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "4acb4581-8817-42c0-a342-413243475421",
+       "no": "5-52",
+       "title": "힙 플렉서 스트레치",
+       "station": "매트",
+       "bucket": "모빌리티",
+       "equipment": [
+        "맨몸"
+       ],
+       "at": 131.3,
+       "minutes": 1.6,
+       "load": 0.2,
+       "cue": "10초 버티기 · 한쪽",
+       "perSide": true,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "9e2980ce-e668-4347-8680-db1a9360a451",
+       "no": "5-53",
+       "title": "힙 플렉서 스트레치 (발 잡고)",
+       "station": "매트",
+       "bucket": "모빌리티",
+       "equipment": [
+        "맨몸"
+       ],
+       "at": 132.9,
+       "minutes": 1.6,
+       "load": 0.2,
+       "cue": "10초 버티기 · 한쪽",
+       "perSide": true,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "d131581a-cbf3-4d42-8764-71e386949d69",
+       "no": "5-54",
+       "title": "힙 플렉서 스트레치 + 회전",
+       "station": "매트",
+       "bucket": "모빌리티",
+       "equipment": [
+        "맨몸"
+       ],
+       "at": 134.5,
+       "minutes": 2,
+       "load": 0.2,
+       "cue": "10초 버티기 · 한쪽",
+       "perSide": true,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "58ccc770-0d40-4248-879c-c197d44e5efd",
+       "no": "5-55",
+       "title": "힙스 오픈 햄스트링 + 측면 굽히기",
+       "station": "매트",
+       "bucket": "모빌리티",
+       "equipment": [
+        "맨몸"
+       ],
+       "at": 136.5,
+       "minutes": 2,
+       "load": 0.2,
+       "cue": "10초 버티기 · 한쪽",
+       "perSide": true,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "22c6dafd-0179-4a6a-9b9e-093d154ead56",
+       "no": "5-56",
+       "title": "힙스 오픈 햄스트링 + 회전",
+       "station": "매트",
+       "bucket": "모빌리티",
+       "equipment": [
+        "맨몸"
+       ],
+       "at": 138.5,
+       "minutes": 2,
+       "load": 0.2,
+       "cue": "2~3회 · 끝 자세 2초 · 한쪽",
+       "perSide": true,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "dffb94cf-d900-462b-8595-9ae621a0168b",
+       "no": "5-57",
+       "title": "힙스 오픈 햄스트링 스트레치",
+       "station": "매트",
+       "bucket": "모빌리티",
+       "equipment": [
+        "맨몸"
+       ],
+       "at": 140.5,
+       "minutes": 1.6,
+       "load": 0.2,
+       "cue": "10초 버티기",
+       "perSide": false,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "41d546f6-2e29-43f1-b9df-05cfd4e3dcd2",
+       "no": "5-58",
+       "title": "전완 회외 등척성 밀기",
+       "station": "매트",
+       "bucket": "전완 · 팔꿈치",
+       "equipment": [
+        "맨몸"
+       ],
+       "at": 142.1,
+       "minutes": 1.6,
+       "load": 1,
+       "cue": "10초 버티기 · 한쪽",
+       "perSide": true,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "83af9c25-7f87-4928-8491-988a18c44935",
+       "no": "5-59",
+       "title": "팔꿈치 굽힘 등척성 밀기",
+       "station": "매트",
+       "bucket": "전완 · 팔꿈치",
+       "equipment": [
+        "맨몸"
+       ],
+       "at": 143.7,
+       "minutes": 1.6,
+       "load": 0.2,
+       "cue": "10초 버티기 · 한쪽",
+       "perSide": true,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "036e33b3-7682-4f60-bc54-ffa126c63d5a",
+       "no": "5-60",
+       "title": "팔꿈치 폄 등척성 밀기",
+       "station": "매트",
+       "bucket": "전완 · 팔꿈치",
+       "equipment": [
+        "맨몸"
+       ],
+       "at": 145.3,
+       "minutes": 1.6,
+       "load": 0.2,
+       "cue": "10초 버티기 · 한쪽",
+       "perSide": true,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "4fddc686-0c88-47fe-9070-71e9a1e9ef4b",
+       "no": "5-61",
+       "title": "싱글렉 카프 레이즈",
+       "station": "매트",
+       "bucket": "하체 앞(무릎)",
+       "equipment": [
+        "맨몸"
+       ],
+       "at": 146.9,
+       "minutes": 1.6,
+       "load": 1,
+       "cue": "3회 · 한쪽",
+       "perSide": true,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "2c86eac4-ae1e-46d5-a07f-a3f4fc1f7414",
+       "no": "5-62",
+       "title": "양발 카프 레이즈",
+       "station": "매트",
+       "bucket": "하체 앞(무릎)",
+       "equipment": [
+        "맨몸"
+       ],
+       "at": 148.5,
+       "minutes": 1.6,
+       "load": 0.5,
+       "cue": "3회",
+       "perSide": false,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "47178d3f-15ad-40d6-b008-7aafaa4cbfbd",
+       "no": "5-63",
+       "title": "바디 소 + 슬라이드",
+       "station": "매트",
+       "bucket": "코어",
+       "equipment": [
+        "맨몸"
+       ],
+       "at": 150.1,
+       "minutes": 2,
+       "load": 1,
+       "cue": "3회",
+       "perSide": false,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "4749ecec-7154-434d-9e43-fc4784cca4bb",
+       "no": "5-64",
+       "title": "프론 쿼드 탠트럼",
+       "station": "매트",
+       "bucket": "고관절 · 발목 보강",
+       "equipment": [
+        "맨몸"
+       ],
+       "at": 152.1,
+       "minutes": 1.6,
+       "load": 1,
+       "cue": "3회 · 한쪽",
+       "perSide": true,
+       "breakAfter": false
+      }
+     ]
+    }
+   ],
+   "load": {
+    "하체 파워": 5,
+    "하체 앞(무릎)": 9.5,
+    "전완 · 팔꿈치": 4.9,
+    "상체 밀기 · 어깨": 2.5,
+    "어깨 · 견갑(암케어)": 7,
+    "고관절 · 발목 보강": 4,
+    "하체 뒤(힌지)": 6,
+    "상체 당기기": 5,
+    "모빌리티": 5,
+    "코어": 1
+   }
+  }
+ ]
+}

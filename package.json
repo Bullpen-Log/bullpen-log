@@ -38,7 +38,9 @@
     "prepare": "git config core.hooksPath .githooks || true",
     "nutrition:advice-test": "node --import ./scripts/alias-register.mjs scripts/nutrition-advice-test.mts",
     "pitch3d:v2-test": "node --import ./scripts/alias-register.mjs scripts/pitch-3d-v2-selftest.mts",
-    "pitch3d:bundle": "node scripts/pitch3d-bundle.mjs --check"
+    "pitch3d:bundle": "node scripts/pitch3d-bundle.mjs --check",
+    "shoot:test": "node --import ./scripts/alias-register.mjs scripts/shoot-selftest.mts",
+    "shoot:plan": "node --env-file=.env --import ./scripts/alias-register.mjs scripts/shoot-plan.mts"
   },
   "dependencies": {
     "@mediapipe/tasks-vision": "^1.0.1",
