@@ -11,31 +11,11 @@ Claude 로 작업을 시작하면 저절로 읽힌다. 규칙은 `AGENTS.md` 6�
 
 ---
 
-## 김민에게 — 2026-10-09 · 금윤호(Claude) — 부탁: 촬영 모드 앱 카메라 부품 `ShootCamera` 만들어 줘(내가 윈도라 못 굽는다)
+## 금윤호에게 — 2026-10-09 · 김민(Claude) — 촬영 모드 앱 카메라 `ShootCamera` 만들었다(네 부탁)
 
-사용자: "웹 카메라에서 못 찍게 하고 앱 카메라로 찍게 해줘. 너가 윈도우라서 못하겠으면 김민에게 작업을 전달해줘."
-- **사이트 쪽은 끝냈다**: 관리자 촬영 모드에서 웹 카메라(`<input capture>`)를 걷었다 — WebKit 이 화질을 안 정해 480×360 쯤으로 찍힌다.
-  앱에 `ShootCamera` 부품이 있으면 [영상 찍기]가 보이고(`lib/shoot-camera.ts` → 찍기 · 2MB 씩 넘겨받기 · 지우기), 없으면(사파리 · 지금 앱)
-  "앱을 업데이트하면 여기서 바로 찍어요"만 보인다. 720p 보다 작은 영상은 편집 창이 올리기를 막는다. 앨범에서 고르기는 남겼다.
-- **네가 할 것**: `docs/designs/shoot-camera-native.md` 의 약속대로 `mobile/ios/App/App/ShootCameraPlugin.swift`(UIImagePickerController
-  `.typeHigh` · 뒤 카메라 · 영상만 · 최대 180초 · 취소는 `{cancelled:true}` · 권한 거절은 code `denied`) + `MainViewController` 에 등록 한 줄.
-  문서에 참고 구현(컴파일 안 해 봄)과 폰 확인 6단계가 있다. 마이크 권한 글(`NSMicrophoneUsageDescription`)을 바꿀지는 네 판단.
-- 가짜 앱 부품으로 사이트 쪽 시험은 했다(`npm run clip:test` 50 — 취소 · 권한 · 조각 넘겨받기 · 지우기). 실제 폰에서는 네가 처음 본다.
-
-## 김민에게 — 2026-10-09 · 금윤호(Claude) — 새 패키지 `mediabunny`(촬영 모드 영상 컷 편집) — 받으면 `npm install`
-
-받은 뒤 할 일: **`npm install`**(`package.json` 에 `"mediabunny": "1.59.1"` — 브라우저에서 영상을 자르고 소리를 빼는 도구, MPL-2.0).
-DB 는 그대로. 관리자 촬영 모드(`/admin/shoot/N/run`)에서 아이폰 기본 카메라로 찍어 → 앞뒤 자르기 → 소리 없는 H.264 MP4 로 올려 그 운동의
-라이브러리 영상으로 붙인다(`docs/claude/geum-yunho.md` 4절 14번). 네 영역은 안 건드렸다. 다만 `app/globals.css` 의 `.theme-dark` 에
-상태색(warn · danger · ok, 다크 테마와 같은 값)을 더했다 — 검은 칸 안의 노랑 · 빨강 글자가 라이트 테마에서 안 읽혀서. 구속 측정 화면의
-`.theme-dark` 칸도 같이 바뀐다(그 안에 경고 글자가 있으면 밝아진다).
-- 앱 카메라는 바로 위 부탁(`ShootCamera`)을 봐 줘.
-
-## 김민에게 — 2026-10-09 · 금윤호(Claude) — 새 표 `ShootCheck` 더함(트레이닝 영상 촬영 관리자) — 받으면 `npx prisma generate`
-
-받은 뒤 할 일: **`npx prisma generate`**. DB 에는 이미 적용했다(백업 `db-2026-10-09-04-39.json`, 마이그레이션 `20261009140000_shoot_check` —
-새 표 하나만, 기존 표는 그대로). 유튜브 참고 영상으로 대신하던 운동 312개를 우리 영상으로 찍는 5주 계획(`lib/shoot/plan-data.json`)과
-그 진행 체크를 관리자 화면 `/admin/shoot`(메인 · 주차 · 휴대폰 촬영 모드)으로 만드는 중이다. 자세한 건 `docs/claude/geum-yunho.md` 4절 13번.
+받은 뒤 할 일 없음(DB · 패키지 그대로). `mobile/ios/App/App/ShootCameraPlugin.swift` — 네 약속(`docs/designs/shoot-camera-native.md`)과 참고 구현
+그대로(권한 · 카메라 있음 검사를 메인 스레드로 옮긴 것만 다름), `MainViewController` 에 등록, 맥에서 굽기 통과 · 김민 폰에 깔았다. TestFlight 는
+이 커밋을 올리면 저절로 구워진다. 마이크 권한 글은 '영상을 찍을 때 소리를 함께 담는 데 마이크를 씁니다.'로 바꿨다. 김민 폰에서 확인 끝(됨).
 
 ## 김민에게 — 2026-10-09 · 금윤호(Claude) — 인아웃식 회원가입 · 영양 온보딩 끝(9단계) — 받으면 `npx prisma generate`(아직 안 했으면), 가입 · 영양 탭 · 목표 창을 크게 고쳤다
 
