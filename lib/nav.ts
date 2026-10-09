@@ -24,6 +24,8 @@ export type NavIconName =
   | 'shield'
   /* 구속 측정 관리자 — 계기판 */
   | 'gauge'
+  /* 트레이닝 영상 촬영 관리자 — 슬레이트(촬영 시작 판) */
+  | 'clapper'
   /* 구속 측정 — 스피드건(레이더 건)처럼 곧장 잰다. 계기판(관리자)과 가르려고 다른 그림 */
   | 'radar'
   | 'menu';
@@ -145,9 +147,7 @@ export const NAV_GROUPS: NavGroup[] = [
    * 막대에서 날아온 아이콘이 제 줄에 앉지 못한다.
    */
   {
-    items: [
-      { href: '/velocity', label: '구속 측정', icon: 'radar', appOrAdmin: true },
-    ],
+    items: [{ href: '/velocity', label: '구속 측정', icon: 'radar', appOrAdmin: true }],
   },
   {
     title: '라이브러리',
@@ -187,6 +187,14 @@ export const NAV_GROUPS: NavGroup[] = [
         href: '/admin/velocity',
         label: '구속 측정 관리자',
         icon: 'gauge',
+        tone: 'armcare',
+        adminOnly: true,
+      },
+      /* 유튜브 참고 영상을 우리 영상으로 — 촬영 계획 · 체크 · 휴대폰 촬영 모드(2026-10-09) */
+      {
+        href: '/admin/shoot',
+        label: '영상 촬영',
+        icon: 'clapper',
         tone: 'armcare',
         adminOnly: true,
       },
@@ -267,4 +275,3 @@ export function visibleGroups(isAdmin: boolean, isNative = false): NavGroup[] {
     ),
   })).filter((g) => g.items.length > 0);
 }
-

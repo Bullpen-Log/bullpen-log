@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { ChevronRight, Gauge, ScrollText } from 'lucide-react';
+import { ChevronRight, Clapperboard, Gauge, ScrollText } from 'lucide-react';
 import { prisma } from '@/lib/prisma';
 import { requireAdmin } from '@/lib/dal';
 import { Badge, Card, PageHeading } from '@/components/ui';
@@ -200,6 +200,24 @@ export default async function AdminPage() {
           <span className="mt-0.5 block text-xs leading-relaxed text-muted">
             카메라로 잰 값과 스피드건 값을 날짜별로 견주고, 영상 클립을 보며 보정 자료를
             관리합니다.
+          </span>
+        </span>
+        <ChevronRight aria-hidden className="h-4 w-4 shrink-0 text-muted" />
+      </Link>
+
+      {/* 트레이닝 영상 촬영 — 유튜브 참고 영상을 우리 영상으로 바꾸는 계획과 체크(2026-10-09) */}
+      <Link
+        href="/admin/shoot"
+        className="flex items-center gap-4 rounded-2xl border border-line bg-surface p-(--block-pad) transition-colors duration-75 hover:border-sky-soft hover:bg-surface-2"
+      >
+        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-line-strong text-muted">
+          <Clapperboard aria-hidden className="h-4 w-4" />
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block text-sm font-bold text-ink">트레이닝 영상 촬영</span>
+          <span className="mt-0.5 block text-xs leading-relaxed text-muted">
+            5주 촬영 계획과 진행 게이지, 주차별 시간표, 휴대폰으로 찍으며 넘기는 촬영
+            모드.
           </span>
         </span>
         <ChevronRight aria-hidden className="h-4 w-4 shrink-0 text-muted" />

@@ -1,5 +1,6 @@
 import {
   BookOpen,
+  Clapperboard,
   Dumbbell,
   Film,
   Gauge,
@@ -33,6 +34,7 @@ export const NAV_ICONS: Record<NavIconName, LucideIcon> = {
   settings: Settings,
   shield: Shield,
   gauge: Gauge,
+  clapper: Clapperboard,
   radar: Radar,
   menu: Menu,
 };
