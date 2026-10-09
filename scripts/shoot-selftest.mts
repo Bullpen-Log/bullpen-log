@@ -176,24 +176,18 @@ const indoorPlan: ShootPlan = { ...plan, weeks: plan.weeks.filter((w) => !w.outd
   );
 }
 
-console.log('\n■ 고정 계획 — 야외 8~10주(투구 드릴 + 워밍업 이름만)');
+console.log('\n■ 고정 계획 — 야외 8~10주(투구 드릴만 — 워밍업 24개는 2026-10-09 뺐다)');
 {
   const out = plan.weeks.filter((w) => w.outdoor);
   const items = out.flatMap(weekItems);
   const drills = items.filter((i) => i.kind === 'drill');
   const warms = items.filter((i) => i.kind === 'warmup');
   check(
-    '야외 3주(8 · 9 · 10) — 드릴 139 · 워밍업 24',
+    '야외 3주(8 · 9 · 10) — 드릴 139 · 워밍업 없음',
     out.map((w) => w.week).join() === '8,9,10' &&
       drills.length === 139 &&
-      warms.length === SHOOT_WARMUPS.length,
+      warms.length === 0,
     `${out.map((w) => w.week).join(',')} · 드릴 ${drills.length} · 워밍업 ${warms.length}`
-  );
-  check(
-    '워밍업은 정한 이름 그대로, 한 번씩',
-    SHOOT_WARMUPS.every(
-      (w) => warms.filter((i) => i.exerciseId === w.id && i.title === w.title).length === 1
-    )
   );
   const rowIds = SHOOT_WARMUPS.map((w) => warmupRowId(w.id));
   check(
@@ -216,10 +210,9 @@ console.log('\n■ 고정 계획 — 야외 8~10주(투구 드릴 + 워밍업 �
   );
   const order = OUTDOOR_STATIONS as readonly string[];
   check(
-    '자리 차례 — 워밍업 → 무브먼트 → 메디신볼 → 스로잉',
+    '자리 차례 — 무브먼트 → 메디신볼 → 스로잉',
     out.every(
       (w) =>
-        w.stations[0].station === '넓은 잔디(이동)' &&
         w.stations.every(
           (st, i) => i === 0 || order.indexOf(st.station) > order.indexOf(w.stations[i - 1].station)
         )
@@ -289,8 +282,8 @@ console.log('\n■ 고정 계획 — 야외 8~10주(투구 드릴 + 워밍업 �
   }));
   /* 실내 바로 다음 주부터, 고정해 둔 주 수로(scripts/shoot-plan-outdoor.mts) */
   const opts = { ...OUTDOOR_DEFAULT, firstWeek: out[0].week, sessions: out.length };
-  const a = JSON.stringify(buildOutdoorWeeks(drillIn, SHOOT_WARMUPS, opts));
-  const b = JSON.stringify(buildOutdoorWeeks([...drillIn].reverse(), SHOOT_WARMUPS, opts));
+  const a = JSON.stringify(buildOutdoorWeeks(drillIn, [], opts));
+  const b = JSON.stringify(buildOutdoorWeeks([...drillIn].reverse(), [], opts));
   check('같은 드릴이면 같은 계획(순서를 뒤섞어도)', a === b);
   check(
     '고정해 둔 야외 주차 = 지금 계산(다시 뽑아도 번호가 그대로)',
