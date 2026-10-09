@@ -12,6 +12,8 @@
  *   기구    같은 자리(덤벨 · 밴드 · 매트 …)를 한 회에 한 번만 들르게 묶는다(새 자리 벌점).
  *   부하    부위마다 부하 점수(강도 + 천천히 내리기 ×1.5)를 회마다 고르게. 무거운 하체는 회당 · 자리당 상한을 둔다.
  *           한 자리 안에서는 같은 부위를 2~3개(4점)까지만 잇고 다른 부위로 — 파워는 그 자리 맨 앞, 천천히 내리기는 맨 끝.
+ *   자세    한 자리 안에서는 같은 자세(서서 → 무릎 → 네발 → 엎드려 → 옆 → 누워 → 앉아)끼리 붙인다 — 모델이 일어났다 누웠다 하고
+ *           카메라 높이를 다시 맞추는 시간을 줄인다(2026-10-09 사용자 "자세까지 넣어서"). 부위를 바꿀 때도 같은 자세가 이어지는 쪽을 먼저.
  */
 
 export type ShootExercise = {
@@ -54,6 +56,36 @@ export const LOWER_BUCKETS: readonly Bucket[] = [
   '고관절 · 발목 보강',
   '유산소',
 ];
+
+/** 촬영 자세 — 이 차례로 몸을 낮춘다(서 있다가 바닥으로). 운동 이름으로 가른다(라이브러리에 자세 칸이 없다) */
+export const POSTURES = [
+  '서서',
+  '무릎',
+  '네발',
+  '엎드려',
+  '옆으로',
+  '누워',
+  '앉아',
+] as const;
+export type Posture = (typeof POSTURES)[number];
+const POSTURE_RULES: [Posture, RegExp][] = [
+  ['옆으로', /사이드 ?라잉|옆으로 누|사이드 플랭크|코펜하겐|슬리퍼 스트레치|클램/],
+  ['엎드려', /엎드|프론|스콜피온|코브라|스위머|슈퍼맨/],
+  [
+    '누워',
+    /누워|수파인|데드버그|브리지|브릿지|할로우|레그 레이즈|피겨4|햄스트링 익스텐더|롤링/,
+  ],
+  ['네발', /쿼드러펫|네발|버드 ?독|캣-카멜|베어 |차일드 포즈|프로그 포즈|피전/],
+  ['무릎', /톨닐링|하프닐링|무릎 꿇|닐링|노르딕|힙 플렉서|월드 그레이티스트/],
+  [
+    '앉아',
+    /시티드|앉아|롱싯|스트래들|프레첼|월 싯|하프 스플릿|90\/90 (?!어깨|플라이오)/,
+  ],
+  ['네발', /플랭크|푸시업|푸쉬업|바디 소/],
+];
+export function postureOf(title: string): Posture {
+  return POSTURE_RULES.find(([, re]) => re.test(title))?.[0] ?? '서서';
+}
 
 /** 촬영 자리 — 이 순서로 돈다(넓은 곳 파워가 몸이 싱싱할 때, 매트 스트레칭은 정리 운동처럼 맨 끝) */
 export const STATIONS = [
@@ -213,6 +245,7 @@ type Row = ShootExercise & {
   minutes: number;
   load: number;
   eqKey: string;
+  posture: Posture;
 };
 
 export type PlanItem = {
@@ -290,6 +323,7 @@ export function buildPlan(
       minutes: shotMinutes(x),
       load: loadOf(x),
       eqKey: [...x.equipment].sort().join('+') || '맨몸',
+      posture: postureOf(x.title),
     }));
 
   /* 부위별 한 회 목표 = 전체 ÷ N */
@@ -414,8 +448,13 @@ export function buildPlan(
   return { version: 1, createdOn, options, weeks };
 }
 
-/** 한 자리 안의 순서 — 파워 먼저, 같은 부위는 2~3개(4점)까지 잇고 다른 부위로, 천천히 내리기는 그 부위 끝 */
+/**
+ * 한 자리 안의 순서 — 자세끼리 먼저 묶고(서서 → … → 앉아), 같은 자세 안에서는 파워 먼저 · 같은 부위는 2~3개(4점)까지 잇고
+ * 다른 부위로 · 천천히 내리기는 그 부위 끝. 자세를 부위보다 앞에 둔 까닭: 모델이 일어났다 누웠다 하는 시간과 카메라 높이 맞추기가
+ * 부위 피로보다 촬영을 더 늦췄다(사용자 2026-10-09 "자세까지 넣어서"). 같은 부위가 자세 경계를 넘어 이어질 수는 있다.
+ */
 function orderStation(list: Row[], station: Station): Row[] {
+  const pr = (x: Row) => POSTURES.indexOf(x.posture);
   const byKey = (a: Row, b: Row) =>
     (a.eqKey + (a.movementPattern ?? '') + a.title).localeCompare(
       b.eqKey + (b.movementPattern ?? '') + b.title,
@@ -426,9 +465,25 @@ function orderStation(list: Row[], station: Station): Row[] {
     const rank = (x: Row) =>
       x.bucket === '모빌리티' ? 0 : x.bucket === '유산소' ? 1 : 2;
     return [...list].sort(
-      (a, b) => rank(a) - rank(b) || a.title.localeCompare(b.title, 'ko')
+      (a, b) =>
+        rank(a) - rank(b) || pr(a) - pr(b) || a.title.localeCompare(b.title, 'ko')
     );
   }
+  const out: Row[] = [];
+  for (const posture of POSTURES) {
+    const part = list.filter((x) => x.posture === posture);
+    if (part.length)
+      out.push(...rotateBuckets(part, byKey, out.at(-1)?.bucket ?? null));
+  }
+  return out;
+}
+
+/** 같은 자세 안 — 파워 먼저, 같은 부위는 2~3개(4점)까지 잇고 다른 부위로, 천천히 내리기는 그 부위 끝 */
+function rotateBuckets(
+  list: Row[],
+  byKey: (a: Row, b: Row) => number,
+  before: Bucket | null
+): Row[] {
   const q = new Map<Bucket, Row[]>();
   for (const x of [...list].sort(byKey)) {
     const arr = q.get(x.bucket) ?? [];
@@ -448,7 +503,7 @@ function orderStation(list: Row[], station: Station): Row[] {
     q.delete('하체 파워');
   }
   const queues = [...q.values()].sort((a, b) => b.length - a.length);
-  let last: Bucket | null = out.length ? out[out.length - 1].bucket : null;
+  let last: Bucket | null = out.length ? out[out.length - 1].bucket : before;
   while (queues.some((x) => x.length)) {
     const pick =
       queues.find((x) => x.length && x[0].bucket !== last) ??

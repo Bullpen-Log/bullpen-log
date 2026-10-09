@@ -17,8 +17,10 @@ import {
   bucketOf,
   demoCue,
   loadOf,
+  postureOf,
   shotMinutes,
   stationOf,
+  type PlanItem,
   type PlanWeek,
   type ShootExercise,
   type ShootPlan,
@@ -37,7 +39,13 @@ import {
   weekItems,
   type ShootCheckView,
 } from '../lib/shoot/progress.ts';
-import { OUTDOOR_DEFAULT, PLYO, buildOutdoorWeeks, drillMinutes, familyOf } from '../lib/shoot/outdoor.ts';
+import {
+  OUTDOOR_DEFAULT,
+  PLYO,
+  buildOutdoorWeeks,
+  drillMinutes,
+  familyOf,
+} from '../lib/shoot/outdoor.ts';
 import { SHOOT_WARMUPS, warmupRowId } from '../lib/shoot/warmups.ts';
 
 let pass = 0;
@@ -91,7 +99,8 @@ function invariants(p: ShootPlan, label: string) {
     w.stations.every(
       (s, i) =>
         i === 0 ||
-        ALL_STATIONS.indexOf(s.station) > ALL_STATIONS.indexOf(w.stations[i - 1].station)
+        ALL_STATIONS.indexOf(s.station) >
+          ALL_STATIONS.indexOf(w.stations[i - 1].station)
     )
   );
   check(`${label} — 자리는 한 회에 한 번씩, 정한 순서대로`, stationOrderOk);
@@ -114,33 +123,46 @@ function invariants(p: ShootPlan, label: string) {
     })
   );
   check(`${label} — 한 자리에서 같은 쪽 무거운 하체 2개까지`, sideOk);
-  const powerFirst = p.weeks.every((w) =>
-    w.stations.every((s) => {
-      if (s.station === '넓은 바닥(이동)') return true;
-      const idx = s.items
+  /* 한 자리를 같은 자세끼리 끊은 토막 — 자리 안 규칙(파워 먼저 · 같은 부위 3개)은 토막마다 */
+  const runs = (items: PlanItem[]) =>
+    items.reduce<PlanItem[][]>((acc, it, i) => {
+      if (i > 0 && postureOf(items[i - 1].title) === postureOf(it.title))
+        acc[acc.length - 1].push(it);
+      else acc.push([it]);
+      return acc;
+    }, []);
+  const indoorStations = p.weeks.flatMap((w) =>
+    w.stations.filter((s) => s.station !== '넓은 바닥(이동)')
+  );
+  check(
+    `${label} — 자세는 한 자리에서 한 번씩만 바뀐다(같은 자세끼리 붙임)`,
+    indoorStations.every((s) => {
+      const ps = runs(s.items).map((r) => postureOf(r[0].title));
+      return new Set(ps).size === ps.length;
+    })
+  );
+  const powerFirst = indoorStations.every((s) =>
+    runs(s.items).every((r) => {
+      const idx = r
         .map((it, i) => (it.bucket === '하체 파워' ? i : -1))
         .filter((i) => i >= 0);
       return idx.every((v, k) => v === k);
     })
   );
-  check(`${label} — 파워는 그 자리 맨 앞(싱싱할 때)`, powerFirst);
-  const runOk = p.weeks.every((w) =>
-    w.stations.every((s) => {
+  check(`${label} — 파워는 같은 자세 토막의 맨 앞(싱싱할 때)`, powerFirst);
+  const runOk = indoorStations.every((s) =>
+    runs(s.items).every((items) => {
       let run = 0;
-      for (let i = 0; i < s.items.length; i++) {
-        const it = s.items[i];
-        if (i > 0 && s.items[i - 1].bucket === it.bucket) {
+      for (let i = 0; i < items.length; i++) {
+        const it = items[i];
+        if (i > 0 && items[i - 1].bucket === it.bucket) {
           run++;
         } else {
           run = 1;
         }
-        if (
-          it.bucket !== '모빌리티' &&
-          it.bucket !== '하체 파워' &&
-          s.station !== '넓은 바닥(이동)'
-        ) {
+        if (it.bucket !== '모빌리티' && it.bucket !== '하체 파워') {
           /* 다른 부위가 남아 있지 않을 때는 이어질 수 있다 — 그때만 넘침을 봐준다 */
-          const othersLeft = s.items.slice(i + 1).some((x) => x.bucket !== it.bucket);
+          const othersLeft = items.slice(i + 1).some((x) => x.bucket !== it.bucket);
           if (run > 3 && othersLeft) return false;
         }
       }
@@ -148,13 +170,26 @@ function invariants(p: ShootPlan, label: string) {
     })
   );
   check(
-    `${label} — 한 자리에서 같은 부위는 3개까지 잇고 다른 부위로(남은 게 그 부위뿐일 때만 예외)`,
+    `${label} — 같은 자세 안에서 같은 부위는 3개까지 잇고 다른 부위로(남은 게 그 부위뿐일 때만 예외)`,
     runOk
   );
   void BREAK_EVERY;
 }
 
-console.log('\n■ 고정 계획(lib/shoot/plan-data.json) — 실내 1~7주(version 3 — 우리 영상인 운동도 다시 찍는다)');
+check(
+  '자세 가르기 — 이름으로',
+  postureOf('프론 원판 스위머') === '엎드려' &&
+    postureOf('짐볼 데드버그') === '누워' &&
+    postureOf('하프닐링 워터볼 찹') === '무릎' &&
+    postureOf('사이드라잉 윈드밀') === '옆으로' &&
+    postureOf('쿼드러펫 덤벨 T 레이즈') === '네발' &&
+    postureOf('시티드 외회전 에센트릭 오버로드') === '앉아' &&
+    postureOf('고블렛 스쿼트') === '서서'
+);
+
+console.log(
+  '\n■ 고정 계획(lib/shoot/plan-data.json) — 실내 1~7주(version 3 — 우리 영상인 운동도 다시 찍는다)'
+);
 const indoorPlan: ShootPlan = { ...plan, weeks: plan.weeks.filter((w) => !w.outdoor) };
 {
   const items = indoorPlan.weeks.flatMap(weekItems);
@@ -192,15 +227,24 @@ console.log('\n■ 고정 계획 — 야외 8~10주(투구 드릴만 — 워밍�
   const rowIds = SHOOT_WARMUPS.map((w) => warmupRowId(w.id));
   check(
     '워밍업마다 라이브러리 운동 id(uuid)가 따로 정해져 있다',
-    rowIds.every((r) => !!r && /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(r)) &&
-      new Set(rowIds).size === rowIds.length
+    rowIds.every(
+      (r) =>
+        !!r &&
+        /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(r)
+    ) && new Set(rowIds).size === rowIds.length
   );
   const all = plan.weeks.flatMap(weekItems).map((i) => i.exerciseId);
-  check('실내 · 야외 통틀어 한 번씩만', new Set(all).size === all.length, `${all.length}개`);
+  check(
+    '실내 · 야외 통틀어 한 번씩만',
+    new Set(all).size === all.length,
+    `${all.length}개`
+  );
   check(
     '번호는 주차-순번으로 빈틈없이(6-01 …)',
     out.every((w) =>
-      weekItems(w).every((it, i) => it.no === `${w.week}-${String(i + 1).padStart(2, '0')}`)
+      weekItems(w).every(
+        (it, i) => it.no === `${w.week}-${String(i + 1).padStart(2, '0')}`
+      )
     )
   );
   check(
@@ -211,11 +255,12 @@ console.log('\n■ 고정 계획 — 야외 8~10주(투구 드릴만 — 워밍�
   const order = OUTDOOR_STATIONS as readonly string[];
   check(
     '자리 차례 — 무브먼트 → 메디신볼 → 스로잉',
-    out.every(
-      (w) =>
-        w.stations.every(
-          (st, i) => i === 0 || order.indexOf(st.station) > order.indexOf(w.stations[i - 1].station)
-        )
+    out.every((w) =>
+      w.stations.every(
+        (st, i) =>
+          i === 0 ||
+          order.indexOf(st.station) > order.indexOf(w.stations[i - 1].station)
+      )
     )
   );
   check(
@@ -225,7 +270,8 @@ console.log('\n■ 고정 계획 — 야외 8~10주(투구 드릴만 — 워밍�
       return (
         its.every(
           (it, i) =>
-            it.minutes <= 3 && (i === 0 || it.at >= its[i - 1].at + its[i - 1].minutes - 1e-6)
+            it.minutes <= 3 &&
+            (i === 0 || it.at >= its[i - 1].at + its[i - 1].minutes - 1e-6)
         ) && its.filter((it) => it.breakAfter).length <= 2
       );
     })
@@ -429,7 +475,11 @@ console.log('\n■ 계획 계산(합성 운동)');
   check(
     '부하 — 높음 2 · 천천히 내리기 ×1.5',
     loadOf({ ...ex[0], title: 'x', intensity: '높음' }) === 2 &&
-      loadOf({ ...ex[0], title: '리스트 플렉션 에센트릭 오버로드', intensity: '높음' }) === 3
+      loadOf({
+        ...ex[0],
+        title: '리스트 플렉션 에센트릭 오버로드',
+        intensity: '높음',
+      }) === 3
   );
   check(
     '시범 방법 — 천천히 내리기 1~2회 · 버티기 10초 · 좌우는 한쪽',
@@ -572,7 +622,10 @@ console.log('\n■ 진행(지금 · 다음 · 미룬 것)');
     '2주차에는 1주차에서 못 찍은 것이 이어진다',
     carried.length === items.length - 1 && !carried.includes(items[0])
   );
-  check('체크가 없는 앞 주는 넘어오지 않는다', carriedOver(plan, 2, mk([])).length === 0);
+  check(
+    '체크가 없는 앞 주는 넘어오지 않는다',
+    carriedOver(plan, 2, mk([])).length === 0
+  );
   {
     const fixed = JSON.parse(
       readFileSync(new URL('../lib/shoot/plan-data.json', import.meta.url), 'utf8')
@@ -581,7 +634,13 @@ console.log('\n■ 진행(지금 · 다음 · 미룬 것)');
     const one = new Map<string, ShootCheckView>([
       [
         w1[0].exerciseId,
-        { exerciseId: w1[0].exerciseId, status: 'done', at: '2026-10-10T01:00:00.000Z', by: null, note: null },
+        {
+          exerciseId: w1[0].exerciseId,
+          status: 'done',
+          at: '2026-10-10T01:00:00.000Z',
+          by: null,
+          note: null,
+        },
       ],
     ]);
     const firstOut = fixed.weeks.find((w) => w.outdoor)!.week;
