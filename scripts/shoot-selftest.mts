@@ -37,7 +37,7 @@ import {
   weekItems,
   type ShootCheckView,
 } from '../lib/shoot/progress.ts';
-import { PLYO, buildOutdoorWeeks, drillMinutes, familyOf } from '../lib/shoot/outdoor.ts';
+import { OUTDOOR_DEFAULT, PLYO, buildOutdoorWeeks, drillMinutes, familyOf } from '../lib/shoot/outdoor.ts';
 import { SHOOT_WARMUPS, warmupRowId } from '../lib/shoot/warmups.ts';
 
 let pass = 0;
@@ -154,14 +154,14 @@ function invariants(p: ShootPlan, label: string) {
   void BREAK_EVERY;
 }
 
-console.log('\n■ 고정 계획(lib/shoot/plan-data.json) — 실내 1~5주');
+console.log('\n■ 고정 계획(lib/shoot/plan-data.json) — 실내 1~7주(version 3 — 우리 영상인 운동도 다시 찍는다)');
 const indoorPlan: ShootPlan = { ...plan, weeks: plan.weeks.filter((w) => !w.outdoor) };
 {
   const items = indoorPlan.weeks.flatMap(weekItems);
   check(
-    '실내 5주 · 312개(야외를 붙여도 그대로)',
-    indoorPlan.weeks.length === 5 &&
-      items.length === 312 &&
+    '실내 7주 · 417개(야외를 붙여도 그대로)',
+    indoorPlan.weeks.length === 7 &&
+      items.length === 417 &&
       indoorPlan.weeks.every((w, i) => w.week === i + 1),
     `${indoorPlan.weeks.length}주 · ${items.length}개`
   );
@@ -176,16 +176,16 @@ const indoorPlan: ShootPlan = { ...plan, weeks: plan.weeks.filter((w) => !w.outd
   );
 }
 
-console.log('\n■ 고정 계획 — 야외 6~8주(투구 드릴 + 워밍업 이름만)');
+console.log('\n■ 고정 계획 — 야외 8~10주(투구 드릴 + 워밍업 이름만)');
 {
   const out = plan.weeks.filter((w) => w.outdoor);
   const items = out.flatMap(weekItems);
   const drills = items.filter((i) => i.kind === 'drill');
   const warms = items.filter((i) => i.kind === 'warmup');
   check(
-    '야외 3주(6 · 7 · 8) — 드릴 137 · 워밍업 24',
-    out.map((w) => w.week).join() === '6,7,8' &&
-      drills.length === 137 &&
+    '야외 3주(8 · 9 · 10) — 드릴 139 · 워밍업 24',
+    out.map((w) => w.week).join() === '8,9,10' &&
+      drills.length === 139 &&
       warms.length === SHOOT_WARMUPS.length,
     `${out.map((w) => w.week).join(',')} · 드릴 ${drills.length} · 워밍업 ${warms.length}`
   );
@@ -285,9 +285,12 @@ console.log('\n■ 고정 계획 — 야외 6~8주(투구 드릴 + 워밍업 이
     category: d.bucket,
     equipment: d.equipment,
     stage: d.group ?? null,
+    oldVideo: d.oldVideo ?? null,
   }));
-  const a = JSON.stringify(buildOutdoorWeeks(drillIn, SHOOT_WARMUPS));
-  const b = JSON.stringify(buildOutdoorWeeks([...drillIn].reverse(), SHOOT_WARMUPS));
+  /* 실내 바로 다음 주부터, 고정해 둔 주 수로(scripts/shoot-plan-outdoor.mts) */
+  const opts = { ...OUTDOOR_DEFAULT, firstWeek: out[0].week, sessions: out.length };
+  const a = JSON.stringify(buildOutdoorWeeks(drillIn, SHOOT_WARMUPS, opts));
+  const b = JSON.stringify(buildOutdoorWeeks([...drillIn].reverse(), SHOOT_WARMUPS, opts));
   check('같은 드릴이면 같은 계획(순서를 뒤섞어도)', a === b);
   check(
     '고정해 둔 야외 주차 = 지금 계산(다시 뽑아도 번호가 그대로)',
@@ -588,12 +591,13 @@ console.log('\n■ 진행(지금 · 다음 · 미룬 것)');
         { exerciseId: w1[0].exerciseId, status: 'done', at: '2026-10-10T01:00:00.000Z', by: null, note: null },
       ],
     ]);
-    const out6 = carriedOver(fixed, 6, one).length;
+    const firstOut = fixed.weeks.find((w) => w.outdoor)!.week;
+    const outN = carriedOver(fixed, firstOut, one).length;
     const in2 = carriedOver(fixed, 2, one).length;
     check(
       '야외 주차에는 실내에서 남은 것이 넘어오지 않는다(실내끼리만)',
-      out6 === 0 && in2 === w1.length - 1,
-      `6주차 ${out6} · 2주차 ${in2}`
+      outN === 0 && in2 === w1.length - 1,
+      `${firstOut}주차 ${outN} · 2주차 ${in2}`
     );
   }
   /* 계획 대비: 1번(계획 15분, 1.6분)을 0분에 끝냄 → 지금 2번(계획 16.6분)인데 실제 10분 지남 → 계획은 0분 뒤라 10분 늦음 */
