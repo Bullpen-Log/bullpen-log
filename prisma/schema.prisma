@@ -269,7 +269,7 @@ model UserTrainingProgram {
   status       String    @default("active")
   /// 'off' | 'pre' — 시작 화면에서 고른 시즌
   season       String
-  /// 다음에 할 일차(1~24, 25면 다 끝남)
+  /// 다음에 할 일차(1~그 프로그램의 일수, 하나 넘으면 다 끝남 — 2026-10-07 부터 4주 프로그램은 8~12일, lib/program/program.ts totalDays)
   nextDay      Int       @default(1)
   /// 고정한 운동 — 변형 키 → 운동 id(lib/program/program.ts 의 Pinned)
   pinned       Json

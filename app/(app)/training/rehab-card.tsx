@@ -30,6 +30,7 @@ import { Checklist, type ArmcareTodayItem } from './armcare-today';
 import { RedFlags } from './arm-pain-guide-body';
 import { DiagnosisSheet, StageChangeSheet, StageTestSheet } from './rehab-sheets';
 import {
+  ThrowLogFlow,
   ThrowingOpenFlow,
   ThrowingProgram,
   type RehabThrowingView,
@@ -114,6 +115,8 @@ export function RehabCard({ view }: { view: RehabCardView }) {
   /* 매주 확인 · 투구 복귀표 열기 — 닫으면 내용을 비워 다음에 새로 시작한다 */
   const weekly = useModalState<true>();
   const opening = useModalState<true>();
+  /* 투구 복귀표의 [오늘 던진 것 남기기] */
+  const throwLog = useModalState<true>();
 
   const doneCount = view.items.filter((it) => it.done).length;
   const playHref = `/armcare/play/rehab?d=${view.dateKey}`;
@@ -262,7 +265,11 @@ export function RehabCard({ view }: { view: RehabCardView }) {
             </Part>
           ) : opened ? (
             <Part title="투구 복귀표">
-              <ThrowingProgram severity={view.throwing.severity} />
+              <ThrowingProgram
+                severity={view.throwing.severity}
+                view={view.throwing}
+                onLog={(e) => throwLog.show(true, e)}
+              />
               <p className="text-xs text-muted">
                 가능하면 진료 때 투구 복귀를 물어보세요. 마운드 칸까지 통증 없이 마치면
                 재활을 끝내요.
@@ -379,6 +386,17 @@ export function RehabCard({ view }: { view: RehabCardView }) {
               onDone={opening.close}
             />
           )}
+        </Modal>
+      )}
+      {view.throwing && (
+        <Modal
+          open={throwLog.open}
+          onClose={throwLog.close}
+          title="오늘 던진 것 남기기"
+          description="투구 기록에 남고 다음 칸을 정해요"
+          origin={throwLog.origin}
+        >
+          {throwLog.content && <ThrowLogFlow view={view.throwing} onDone={throwLog.close} />}
         </Modal>
       )}
       <DiagnosisSheet

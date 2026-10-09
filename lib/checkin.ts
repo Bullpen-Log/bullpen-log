@@ -569,6 +569,13 @@ export type DetailScaleKey = (typeof DETAIL_SCALES)[number]['key'];
  * 전날 저녁 · 당일 아침에 챙길 것을 미리 알려면 여기서 받아야 한다.
  */
 export const APPETITE_LEVELS = ['거의 없음', '적음', '보통', '좋음', '왕성'] as const;
+
+/**
+ * 컨디션(1~10)이 이 값 이하면 '낮은 날' — 매일 운동 계획은 회복 테마(lib/report/theme.ts), 안전 거름은 무게 드는 운동을
+ * 뺌(lib/report/prescription.ts), 암케어는 회복 루틴(lib/armcare/routine.ts), 프로그램은 조정(lib/program/load.ts).
+ * 2026-10-09 전에는 세 파일에 4 가 따로 적혀 있었다 — 한 곳만 바꾸면 셋이 어긋난다.
+ */
+export const LOW_CONDITION_THRESHOLD = 4;
 export const THROW_PLANS = ['오늘 등판', '오늘 불펜', '내일 등판', '없음'] as const;
 
 export const CHECKIN_NOTE_MAX = 500;

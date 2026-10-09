@@ -25,7 +25,9 @@ import {
   sessionResultText,
   severityLabel,
   stageTestFor,
+  throwingNext,
 } from '@/lib/armcare/rehab';
+import { loadRehabThrows } from '@/lib/armcare/rehab-store';
 import type { RehabToday } from '@/lib/armcare/today';
 import { Card } from '@/components/ui';
 import { OpenCheckinButton } from '@/components/notice-bell';
@@ -131,7 +133,7 @@ export async function ArmcareSection({
   if (data.rehab) {
     custom = (
       <RehabCard
-        view={await rehabCardView(data.rehab, data.todayKey, byId, user.ownedEquipment)}
+        view={await rehabCardView(user.id, data.rehab, data.todayKey, byId, user.ownedEquipment)}
       />
     );
   } else if (!data.hasCheckinToday) {
@@ -316,12 +318,15 @@ export async function ArmcareSection({
  * 그림(toArmcareViews)이고, 재활 운동은 카테고리가 여럿이라 체크는 rehab.doneToday 로 본다.
  */
 async function rehabCardView(
+  userId: string,
   rehab: RehabToday,
   dateKey: string,
   byId: Map<string, CachedExercise>,
   ownedEquipment: string[]
 ): Promise<RehabCardView> {
   const { program, status, session } = rehab;
+  /* 4단계 — 복귀표에 던진 날(투구 기록의 꼬리표)과 다음 칸 */
+  const throws = status.throwing ? await loadRehabThrows(userId, program.startedOn) : [];
   const inSession = session.items.filter((it) => byId.has(it.exerciseId));
   const views = await toArmcareViews(
     inSession.map((it) => byId.get(it.exerciseId)!),
@@ -393,6 +398,11 @@ async function rehabCardView(
           severity: program.severity,
           condition: program.condition,
           daysSinceStart: daysBetween(program.startedOn, dateKey),
+          throws,
+          next: status.throwing.openedOn
+            ? throwingNext({ records: throws, severity: program.severity, todayKey: dateKey })
+            : null,
+          todayKey: dateKey,
         }
       : null,
   };

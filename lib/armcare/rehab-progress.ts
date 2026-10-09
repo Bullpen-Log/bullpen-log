@@ -1,5 +1,6 @@
 import { type ArmcareAreaKey } from '@/lib/armcare/anatomy';
 import { withJosa } from '@/lib/korean';
+import { shiftDateKey } from '@/lib/pitch-stats';
 import {
   rehabJoint,
   type RehabSeverity,
@@ -773,4 +774,169 @@ export function weeklyDueState({
 }): WeeklyDueState {
   const due = daysBetween(lastWeeklyOn ?? startedOn, todayKey) >= WEEKLY_EVERY_DAYS;
   return { due, allowed: due || (stage === 4 && lastWeeklyOn == null) };
+}
+
+/* ─────────────────────────────── 투구 복귀표 기록 ─────────────────────────────── */
+
+/**
+ * 던진 날 남기기(2026-10-09 트레이닝 검토 3-⑧) — 가이드라인 11절은 '기록 없음'이었다. 표만 보여 주고 던진 것은 어디에도
+ * 안 남아, 통증 규칙(다음 칸 · 다시 · 한 칸 내려가기)을 사람이 머릿속으로 돌려야 했고 투구 부하에도 안 잡혔다.
+ *
+ * DB 칸을 새로 만들지 않고(마이그레이션은 사용자가 백업 뒤 직접) 투구 기록(PitchLog)에 남긴다 — 캐치볼(마운드 칸은 불펜)로
+ * 공 수 · 강도가 부하 지수에 그대로 들어가고, 메모의 꼬리표(THROW_TAG)로 몇 칸 · 통증을 다시 읽는다(parseThrowMemo).
+ * 꼬리표 글자를 바꾸면 옛 기록을 못 읽으니 바꾸지 않는다. 제대로 된 칸은 TODOS.md.
+ */
+export const THROW_TAG = '재활 투구 복귀표';
+
+export type ThrowPain = 'none' | 'faded' | 'stayed';
+
+/** 던질 때 통증 — 가이드라인 11절의 규칙 셋(던진 뒤 1시간 넘게 · 다음 날 아픈 것은 따로, laterPain) */
+export const THROW_PAIN_OPTIONS: readonly { value: ThrowPain; label: string }[] = [
+  { value: 'none', label: '안 아팠어요' },
+  { value: 'faded', label: '몸 풀 때 아프다가 15개 안에 사라졌어요' },
+  { value: 'stayed', label: '15개가 지나도 계속 아팠어요' },
+];
+
+const THROW_PAIN_TEXT: Record<ThrowPain, string> = {
+  none: '통증 없음',
+  faded: '몸 풀 때 통증(15개 안에 사라짐)',
+  stayed: '통증 계속',
+};
+const LATER_PAIN_TEXT = '던진 뒤 통증';
+
+export type ThrowRecord = {
+  /** 'YYYY-MM-DD' */
+  date: string;
+  /** 1~6 칸(THROWING_STEPS) */
+  step: number;
+  pitches: number;
+  pain: ThrowPain;
+  /** 던지고 1시간 넘게 · 다음 날 아팠다(나중에 붙인다) */
+  laterPain: boolean;
+};
+
+/** 마운드 칸의 묶음 — 공 수로 고르고 강도는 여기서 정한다(직구 절반 힘 → 거의 전력) */
+export const MOUND_SETS: readonly { pitches: number; label: string; intensity: number }[] = [
+  { pitches: 15, label: '15개 · 절반 힘', intensity: 5 },
+  { pitches: 30, label: '30개 · 절반 힘', intensity: 5 },
+  { pitches: 45, label: '45개 · 3/4 힘', intensity: 7 },
+  { pitches: 60, label: '60개 · 거의 전력', intensity: 9 },
+];
+
+/** 거리 칸의 공 수(25개 → 쉬기 → 25개) · 강도(절반 힘) */
+export const DISTANCE_PITCHES = 50;
+export const DISTANCE_INTENSITY = 5;
+
+export const isThrowStep = (n: unknown): n is number =>
+  typeof n === 'number' && Number.isInteger(n) && n >= 1 && n <= THROWING_STEPS.length;
+export const isThrowPain = (v: unknown): v is ThrowPain =>
+  v === 'none' || v === 'faded' || v === 'stayed';
+
+/** 투구 기록의 강도 — 거리 칸은 절반 힘, 마운드 칸은 공 수로 */
+export function throwIntensity(step: number, pitches: number): number {
+  if (step < THROWING_STEPS.length) return DISTANCE_INTENSITY;
+  return [...MOUND_SETS].reverse().find((m) => pitches >= m.pitches)?.intensity ?? DISTANCE_INTENSITY;
+}
+
+/** 투구 기록의 종류 — 마운드 칸만 불펜, 나머지는 캐치볼(가볍게 주고받기와 같은 무게로 센다) */
+export const throwSessionType = (step: number) =>
+  step >= THROWING_STEPS.length ? '불펜' : '캐치볼';
+
+/** 투구 기록 메모 — '재활 투구 복귀표 2칸 · 18m · 통증 없음' */
+export function throwMemo(step: number, pain: ThrowPain, laterPain = false): string {
+  const distance = THROWING_STEPS[step - 1]?.distance ?? '';
+  return [`${THROW_TAG} ${step}칸`, distance, THROW_PAIN_TEXT[pain], ...(laterPain ? [LATER_PAIN_TEXT] : [])].join(' · ');
+}
+
+const esc = (t: string) => t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+const THROW_MEMO_RE = new RegExp(
+  `^${esc(THROW_TAG)} (\\d)칸 · [^·]+ · (${(Object.keys(THROW_PAIN_TEXT) as ThrowPain[]).map((k) => esc(THROW_PAIN_TEXT[k])).join('|')})( · ${esc(LATER_PAIN_TEXT)})?\\s*$`
+);
+
+/** 메모 → 칸 · 통증. 꼬리표가 아니면 null */
+export function parseThrowMemo(memo: string | null | undefined): Pick<ThrowRecord, 'step' | 'pain' | 'laterPain'> | null {
+  if (!memo) return null;
+  const m = THROW_MEMO_RE.exec(memo);
+  if (!m) return null;
+  const step = Number(m[1]);
+  const pain = (Object.keys(THROW_PAIN_TEXT) as ThrowPain[]).find((k) => THROW_PAIN_TEXT[k] === m[2]);
+  if (!isThrowStep(step) || !pain) return null;
+  return { step, pain, laterPain: m[3] != null };
+}
+
+export type ThrowingNext = {
+  /** 다음에 던질 칸 */
+  step: number;
+  /** 이날부터 던진다 — 오늘이거나 지났으면 null */
+  restUntil: string | null;
+  /** 왜 이 칸인가 — 한 줄 */
+  reason: string;
+  /** 마운드 칸까지 통증 없이 마쳤다 → 재활 끝내기 */
+  done: boolean;
+};
+
+/** 정도별로 한 칸을 몇 번 하나(가이드라인 11절 — 가벼움 한 번, 보통 · 심함 두 번) */
+export const repeatsPerStep = (severity: RehabSeverity) => (severity === 'mild' ? 1 : 2);
+
+/**
+ * 다음에 던질 칸 — 던진 기록과 통증 규칙(Axe 2009)으로.
+ *   안 아픔 → 그 칸을 정도만큼(한 번 · 두 번) 통증 없이 했으면 다음 칸, 아니면 같은 칸 한 번 더
+ *   몸 풀 때 아프다 사라짐 → 지난 칸을 다시. 그 칸에서 두 번 이어 그러면 이틀 쉬고 한 칸 내려감
+ *   계속 아픔 → 이틀 쉬고 한 칸 내려감
+ *   던진 뒤 · 다음 날 아픔(laterPain) → 하루 쉬고 같은 칸
+ * 던지는 날은 모든 정도가 하루 걸러(하루 던지고 하루 쉬기)라 다음 날은 늘 쉰다. 심함은 처음 네 칸을 사흘에 한 칸 —
+ * 그 칸의 첫 던진 날에서 사흘이 지나야 올라간다.
+ */
+export function throwingNext({
+  records,
+  severity,
+  todayKey,
+}: {
+  records: readonly ThrowRecord[];
+  severity: RehabSeverity;
+  todayKey: string;
+}): ThrowingNext {
+  const sorted = [...records].sort((a, b) => a.date.localeCompare(b.date));
+  const last = sorted.at(-1);
+  if (!last) return { step: 1, restUntil: null, reason: '첫 칸부터 시작해요.', done: false };
+
+  const until = (days: number) => {
+    const key = shiftDateKey(last.date, days);
+    return key > todayKey ? key : null;
+  };
+  const down = Math.max(1, last.step - 1);
+
+  if (last.laterPain) {
+    return { step: last.step, restUntil: until(2), reason: '던진 뒤에 아파서 하루 쉬고 같은 칸을 해요.', done: false };
+  }
+  if (last.pain === 'stayed') {
+    return { step: down, restUntil: until(3), reason: '15개가 지나도 아파서 이틀 쉬고 한 칸 내려가요.', done: false };
+  }
+  if (last.pain === 'faded') {
+    const prev = sorted.at(-2);
+    const again = prev != null && prev.step === last.step && prev.pain === 'faded';
+    return again
+      ? { step: down, restUntil: until(3), reason: '같은 칸에서 또 아파서 이틀 쉬고 한 칸 내려가요.', done: false }
+      : { step: last.step, restUntil: until(2), reason: '몸 풀 때 아팠으니 지난 칸을 다시 해요.', done: false };
+  }
+
+  /* 안 아픔 — 그 칸을 정도만큼 통증 없이 이어서 했나(내려갔다 다시 올라온 것은 새로 센다) */
+  const atStep = [];
+  for (let i = sorted.length - 1; i >= 0 && sorted[i].step === last.step && sorted[i].pain === 'none' && !sorted[i].laterPain; i--) {
+    atStep.unshift(sorted[i]);
+  }
+  const need = repeatsPerStep(severity);
+  if (atStep.length < need) {
+    return { step: last.step, restUntil: until(2), reason: `이 칸을 통증 없이 ${need}번 하면 다음 칸으로 가요(지금 ${atStep.length}번).`, done: false };
+  }
+  if (last.step >= THROWING_STEPS.length) {
+    return { step: last.step, restUntil: null, reason: '마운드 칸까지 통증 없이 마쳤어요. 재활을 끝낼 수 있어요.', done: true };
+  }
+  /* 심함은 처음 네 칸을 사흘에 한 칸 — 그 칸의 첫 던진 날에서 사흘 */
+  let rest = until(2);
+  if (severity === 'severe' && last.step <= 4) {
+    const slow = shiftDateKey(atStep[0].date, 3);
+    if (slow > (rest ?? todayKey)) rest = slow > todayKey ? slow : rest;
+  }
+  return { step: last.step + 1, restUntil: rest, reason: '안 아팠으니 다음 칸으로 가요.', done: false };
 }

@@ -35,6 +35,19 @@
   디자인 검토가 매번 '규칙 없음'으로 시작한다. `/design-consultation` 으로 한 문서(DESIGN.md)로 모은다.
   다시 볼 때: 새 화면을 크게 만들기 전(근력 · 파워 프로그램 화면을 만들기 전이면 가장 좋다). 시작점: 설계 문서 §13-19 의 목록.
 
+## 트레이닝 검토(2026-10-09)에서 미룬 것
+
+- **큰 파일 나누기(P3)** — `app/(session)/workout/run/session-client.tsx`(1,800줄) · `lib/report/theme.ts`(1,800줄) · `components/checkin-form.tsx`(1,500줄).
+  시험이 순수 함수 몫만 있어 화면 파일을 쪼개면 손으로 다시 눌러 봐야 한다. 다시 볼 때: 그 화면을 크게 고칠 일이 생기면 그때 같이.
+- **영양이 암케어 · 메커니즘 시간도 읽기(P3)** — 지금은 TrainingSession.activeSeconds(운동 판)만 소모로 센다. 암케어(DailyArmcare) ·
+  메커니즘(MechanicsProgram)에는 한 시간이 안 남아 셀 수 없다. 다시 볼 때: 암케어 · 메커니즘 플레이어가 마친 시각 · 걸린 시간을 남기게 되면.
+
+## 재활
+
+- **투구 복귀표 기록을 제 칸에(P3)** — 2026-10-09 트레이닝 검토 3-⑧. 던진 날을 투구 기록(PitchLog)의 메모 꼬리표('재활 투구 복귀표 N칸 · …')로
+  남긴다 — DB 칸을 더하려면 마이그레이션(백업 뒤 사용자가 직접)이라 미뤘다. 다시 볼 때: 재활 쪽 DB 칸을 더할 일이 생기면 `UserRehabProgram.throws Json`
+  으로 옮기고 `lib/armcare/rehab-store.ts loadRehabThrows` · `app/actions/rehab.ts logRehabThrow` 만 바꾼다(규칙 throwingNext 는 그대로).
+
 ## 근력 · 파워 프로그램(2026-10-07 실제 프로그램 7개 — /review 에서 남긴 것)
 
 - **프로그램 정의를 앱 묶음에서 떼기(P3)** — lib/program/program.ts 의 7개 정의(글 · 만드는 함수)가 운동 화면 · 고르기 화면의 브라우저 묶음에

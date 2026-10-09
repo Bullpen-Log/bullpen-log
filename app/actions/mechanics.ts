@@ -13,9 +13,12 @@ import {
   freshState,
   isElementName,
   isFeel,
+  isFilmVerdict,
   levelAdvice,
   programStateJson,
   readProgramState,
+  withFilm,
+  type FilmNote,
 } from '@/lib/mechanics/program';
 
 /**
@@ -32,12 +35,17 @@ const asJson = (v: unknown) => v as Prisma.InputJsonValue;
 
 /**
  * 수준을 고른다(처음 시작 · 바꾸기 · 한 번 더) — 그 수준의 1주차 1번째 세션부터, 느낌도 처음부터.
- * 지금까지 마친 세션 수(sessionsDone)는 지킨다(영상 찍기 알림이 쓴다).
+ * 지금까지 마친 세션 수(sessionsDone)와 찍어서 견준 결과(films)는 지킨다 — 세션 번호에 붙는 것이라 수준과 상관없다.
  */
 export async function startMechanicsProgram(level: string): Promise<Result> {
   const user = await requireUser();
   if (!isLevelKey(level)) return { error: '알 수 없는 수준이에요.' };
-  const progress = asJson(programStateJson(freshState(level)));
+  const prev = await prisma.mechanicsProgram.findUnique({
+    where: { userId: user.id },
+    select: { progress: true },
+  });
+  const films = prev ? readProgramState(prev.progress).films : [];
+  const progress = asJson(programStateJson({ ...freshState(level), films }));
   await prisma.mechanicsProgram.upsert({
     where: { userId: user.id },
     create: { userId: user.id, focus: null, progress },
@@ -45,6 +53,28 @@ export async function startMechanicsProgram(level: string): Promise<Result> {
   });
   revalidatePath(PROGRAM_PATH);
   return { ok: true };
+}
+
+/**
+ * 찍어서 처음과 견준 결과를 남긴다 — 지금까지 마친 세션 번호(sessionsDone)에 붙여서. 같은 번호면 바꾼다.
+ * 세션 끝 화면과 프로그램 칸의 단추(app/(app)/training/film-verdict.tsx)가 부른다.
+ */
+export async function recordMechanicsFilm(
+  verdict: string
+): Promise<{ ok: true; note: FilmNote } | { error: string }> {
+  const user = await requireUser();
+  if (!isFilmVerdict(verdict)) return { error: '알 수 없는 값이에요.' };
+  const program = await prisma.mechanicsProgram.findUnique({ where: { userId: user.id } });
+  if (!program) return { error: '프로그램을 먼저 시작해 주세요.' };
+  if (program.sessionsDone <= 0) return { error: '세션을 먼저 마쳐 주세요.' };
+  const state = readProgramState(program.progress);
+  const note: FilmNote = { session: program.sessionsDone, on: toDateKey(new Date()), verdict };
+  await prisma.mechanicsProgram.update({
+    where: { userId: user.id },
+    data: { progress: asJson(programStateJson({ ...state, films: withFilm(state.films, note) })) },
+  });
+  revalidatePath(PROGRAM_PATH);
+  return { ok: true, note };
 }
 
 /** 처음부터 — 프로그램을 지운다(수준 고르기로 돌아간다). 지난 '했다' 기록(UserDrillLog)은 남는다 */
