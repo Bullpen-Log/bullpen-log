@@ -45,7 +45,7 @@ import {
   type Scenario,
 } from './pitch-lab/synth.mts';
 import { makeV2Track } from './pitch-lab/synth-v2.mts';
-import { footSway, gapWristError, leadGapJump } from './pitch-lab/gap-check.mts';
+import { footSway, gapWristError, hipSnap, leadGapJump } from './pitch-lab/gap-check.mts';
 import { readFileSync } from 'node:fs';
 import {
   moundHeightAt,
@@ -961,6 +961,20 @@ console.log('■ 발 고정 — 축발(처음 ~ 벗어나기 전) · 앞발(착�
       `붙어 있어야 할 발이 흔들리지 않는다(표준편차 키의 0.2% 밑, 씨앗 ${seed})`,
       f != null && f.pivot < 2 && f.lead < 2,
       f ? `축발 ${f.pivot.toFixed(1)} · 앞발 ${f.lead.toFixed(1)}` : '맞추기 실패'
+    );
+  }
+}
+
+console.log('■ 몸통 흔들림 — 골반선이 한 장면에 크게 돌지 않는다(엉덩이 점 튐 포함)');
+{
+  /* 고치기 전 씨앗 11 · 22: 튐 없음 13.8 · 7.8°, 착지 엉덩이 튐 11.8 · 13.5° */
+  for (const seed of [11, 22]) {
+    const calm = hipSnap(seed, false);
+    const spiked = hipSnap(seed);
+    check(
+      `골반선 한 장면 최대 회전 — 튐 없음 8° · 튐 11° 밑(씨앗 ${seed})`,
+      calm != null && spiked != null && calm < 8 && spiked < 11,
+      `${calm?.toFixed(1)}° · ${spiked?.toFixed(1)}°`
     );
   }
 }

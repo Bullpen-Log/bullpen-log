@@ -257,3 +257,69 @@ if (process.argv[1]?.endsWith('gap-check.mts'))
       `seed ${seed}: 발 흔들림(표준편차, 키 1000) 축발 ${f?.pivot.toFixed(1)} · 앞발 ${f?.lead.toFixed(1)}`
     );
   }
+
+/**
+ * 착지 순간 엉덩이 점이 두 장면 튀는 합성 — 골반선(위에서 본 방향)이 한 장면에 가장 많이 돈 각도(°).
+ * 2026-10-09 실제 샘플 둘에서 착지 장면에 골반선이 한 장면에 35~38° 돌았다(사람이 낼 수 없는 속도) — 관절 모델의 엉덩이 점이 튐.
+ */
+export function hipSnap(seed: number, spike = true): number | null {
+  const sc: Scenario = {
+    ...base,
+    ...realistic,
+    name: 'hip',
+    slowSide: 4,
+    slowBack: 4,
+    offBack: 0,
+    sampleSide: 1 / 30,
+    sampleBack: 1 / 30,
+  };
+  const { side: cs, back: cb } = cameras(sc);
+  const s = makeV2Track(sc, cs, sc.side, 'side', seed);
+  const b = makeV2Track(sc, cb, sc.back, 'back', seed + 1);
+  /* 착지 장면 둘에서 오른 엉덩이 점을 사람 크기의 12% 옆으로 */
+  const tp = s.toMedia(EV.footPlant);
+  for (const tr of [s.track, b.track]) {
+    const near = spike
+      ? tr.frames.filter((f) => Math.abs(f.t - tp) < 0.04).slice(0, 2)
+      : [];
+    for (const f of near) {
+      const ys = f.p.map((q) => q[1]);
+      const px = (Math.max(...ys) - Math.min(...ys)) * 0.12;
+      f.p[V2J.rHip] = [f.p[V2J.rHip][0] + px, f.p[V2J.rHip][1], f.p[V2J.rHip][2]];
+    }
+  }
+  const { result } = fitPitch3dV2({
+    side: s.track,
+    back: b.track,
+    hand: 'R',
+    heightCm: null,
+    jobId: '00000000-0000-4000-8000-000000000000',
+    poseModel: 'synth',
+    screenRecorded: true,
+    slowmoFps: 120,
+    events: {
+      kneeUp: s.toMedia(EV.kneeUp),
+      footPlant: tp,
+      release: s.toMedia(EV.release),
+    },
+  });
+  if (!result.ok) return null;
+  const yaw = (f: number[][]) =>
+    (Math.atan2(f[V2J.lHip][2] - f[V2J.rHip][2], f[V2J.lHip][0] - f[V2J.rHip][0]) *
+      180) /
+    Math.PI;
+  let worst = 0;
+  for (let k = 1; k < result.joints.length; k++) {
+    const d = Math.abs(
+      ((yaw(result.joints[k]) - yaw(result.joints[k - 1]) + 540) % 360) - 180
+    );
+    worst = Math.max(worst, d);
+  }
+  return worst;
+}
+
+if (process.argv[1]?.endsWith('gap-check.mts'))
+  for (const seed of [11, 22])
+    console.log(
+      `seed ${seed}: 착지 엉덩이 튐 — 골반선 한 장면 최대 회전 ${hipSnap(seed)?.toFixed(1)}°`
+    );

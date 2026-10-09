@@ -74,6 +74,46 @@ const GAP_MAX = 15;
 const GAP_PULL = 0.6;
 /** 붙어 있다고 보는 발목 움직임 폭(키 대비) */
 const FOOT_STAY = 0.03;
+/** 몸통 · 머리 점 다듬기 폭 — 착지 → 릴리스 장면 수의 비(그 구간 ≈ 0.17초라 0.06 ≈ 10ms) */
+const TRUNK_SIGMA = 0.06;
+const TRUNK_JOINTS = [
+  V2J.lHip,
+  V2J.rHip,
+  V2J.lSh,
+  V2J.rSh,
+  V2J.nose,
+  V2J.lEar,
+  V2J.rEar,
+];
+
+/** 햄펠 거르기 — 앞뒤 half 장면의 가운데값에서 k 배 MAD 넘게 떨어진 값을 가운데값으로 */
+function hampel(xs: number[], half: number, k: number): number[] {
+  return xs.map((x, i) => {
+    const win = xs.slice(Math.max(0, i - half), i + half + 1);
+    const m = median(win);
+    const mad = median(win.map((v) => Math.abs(v - m))) * 1.4826;
+    return mad > 0 && Math.abs(x - m) > k * mad ? m : x;
+  });
+}
+
+/** 가우스 다듬기(양 끝은 있는 장면만으로 다시 나눔) */
+function gaussSmooth(xs: number[], sigma: number): number[] {
+  const r = Math.ceil(sigma * 2.5);
+  const w = Array.from({ length: 2 * r + 1 }, (_, i) =>
+    Math.exp(-((i - r) ** 2) / (2 * sigma * sigma))
+  );
+  return xs.map((_, i) => {
+    let s = 0;
+    let ws = 0;
+    for (let q = -r; q <= r; q++) {
+      const v = xs[i + q];
+      if (v === undefined) continue;
+      s += v * w[q + r];
+      ws += w[q + r];
+    }
+    return s / ws;
+  });
+}
 
 /** 점 P 를 A–B 직선에 대해 뒤집는다 — A · B 까지 거리(뼈 길이)는 그대로 */
 function mirrorAcross(P: Vec3, A: Vec3, B: Vec3): Vec3 {
@@ -604,6 +644,28 @@ function fitOnce(input: V2Input): {
    * 몸이 위아래로 튀고 발이 떴다
    * (2026-10-09 김민: "발이 땅에 붙어 있는지 · 착지가 언제인지 구분이 안 되고 바닥에서 떨어지거나 흔들린다").
    */
+  /*
+   * 몸통 · 머리 점(엉덩이 · 어깨 · 코 · 귀) 시간 다듬기 — 한두 장면 튄 값은 앞뒤 가운데값으로(햄펠), 그다음 가우스로. 폭은 착지 → 릴리스
+   * 장면 수에 맞춰 실제 약 10ms(그 구간이 실제로 약 0.17초라서 — 슬로모 배수를 몰라도 된다). 2026-10-09 실제 샘플 둘에서 착지 장면에
+   * 골반선이 한 장면에 35~38° 돌았고(관절 모델의 엉덩이 점이 튐) 회전 중 몸통 · 머리가 흔들렸다(김민: "회전이 시작되면 점프하듯 · 흔들림").
+   */
+  {
+    const span = Math.max(1, core.evIdx.release - core.evIdx.footPlant);
+    const sigma = Math.max(1, TRUNK_SIGMA * span);
+    for (const j of TRUNK_JOINTS)
+      for (let d = 0; d < 3; d++) {
+        const ys = gaussSmooth(
+          hampel(
+            target.map((fr) => fr[j][d]),
+            3,
+            3
+          ),
+          sigma
+        );
+        target.forEach((fr, k) => (fr[j][d] = ys[k]));
+      }
+  }
+
   const pinned: boolean[][] = Array.from({ length: n }, () =>
     new Array<boolean>(N_V2_JOINTS).fill(false)
   );
