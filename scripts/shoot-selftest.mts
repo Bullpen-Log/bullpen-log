@@ -27,6 +27,7 @@ import {
   clockText,
   countOf,
   cursorOf,
+  cursorOfList,
   doneShare,
   groupCounts,
   paceMinutes,
@@ -379,6 +380,20 @@ console.log('\n■ 진행(지금 · 다음 · 미룬 것)');
   );
   const c3 = cursorOf(w, all);
   check('다 찍었으면 지금 · 다음 없음', c3.current === null && c3.next === null);
+  const lp = cursorOfList(
+    items,
+    mk([
+      [0, 'done', 0],
+      [1, 'later', 2],
+    ]),
+    items[1].exerciseId
+  );
+  check(
+    '먼저 찍기로 고른 미룬 운동이 지금, 다음은 첫 안 찍은 것',
+    lp.current === items[1] && lp.next === items[2]
+  );
+  const lq = cursorOfList(items, mk([[0, 'done', 0]]), items[0].exerciseId);
+  check('이미 찍은 것을 고르면 무시하고 순서대로', lq.current === items[1]);
   const count = countOf(
     items,
     mk([
@@ -419,6 +434,7 @@ console.log('\n■ 진행(지금 · 다음 · 미룬 것)');
     '2주차에는 1주차에서 못 찍은 것이 이어진다',
     carried.length === items.length - 1 && !carried.includes(items[0])
   );
+  check('체크가 없는 앞 주는 넘어오지 않는다', carriedOver(plan, 2, mk([])).length === 0);
   /* 계획 대비: 1번(계획 15분, 1.6분)을 0분에 끝냄 → 지금 2번(계획 16.6분)인데 실제 10분 지남 → 계획은 0분 뒤라 10분 늦음 */
   const now = new Date(Date.UTC(2026, 9, 10, 0, 10));
   const pace = paceMinutes(w, mk([[0, 'done', 0]]), items[1], now, day);

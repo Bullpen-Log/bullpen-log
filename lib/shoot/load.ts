@@ -4,7 +4,14 @@ import { formatPrescription } from '@/lib/exercise-meta';
 import { prisma } from '@/lib/prisma';
 import { referenceThumbUrl } from '@/lib/reference-video';
 import { createPlaybackUrls } from '@/lib/storage';
-import { isShootStatus, type ShootCheckView } from '@/lib/shoot/progress';
+import {
+  carriedOver,
+  isShootStatus,
+  weekItems,
+  type ShootCheckView,
+} from '@/lib/shoot/progress';
+import { SHOOT_PLAN, weekOf } from '@/lib/shoot/plan';
+import type { PlanItem, PlanWeek } from '@/lib/shoot/schedule';
 
 /**
  * 촬영 관리자 화면이 읽는 것 — 체크(DB ShootCheck)와 운동 정보(라이브러리 캐시).
@@ -100,4 +107,44 @@ export async function loadShootExercises(
       },
     ])
   );
+}
+
+/** 한 주 화면(주차 시간표 · 촬영 모드)이 받는 것 — 그 주 계획 · 앞 주에서 넘어온 것 · 운동 정보 · 모든 체크 */
+export type ShootWeekData = {
+  week: PlanWeek;
+  /** 앞 주에서 아직 못 찍은 것(대기 · 다시 · 미룸) — 그 주 끝에 이어 찍는다 */
+  carried: { week: number; item: PlanItem }[];
+  infos: Record<string, ShootExerciseInfo>;
+  checks: ShootCheckView[];
+  /** 고를 수 있는 주차들 */
+  weeks: number[];
+};
+
+export async function loadShootWeek(n: number): Promise<ShootWeekData | null> {
+  const week = weekOf(n);
+  if (!week) return null;
+  const checks = await loadShootChecks();
+  const map = new Map(checks.map((c) => [c.exerciseId, c]));
+  const carriedItems = new Set(
+    carriedOver(SHOOT_PLAN, n, map).map((it) => it.exerciseId)
+  );
+  const carried = SHOOT_PLAN.weeks
+    .filter((w) => w.week < n)
+    .flatMap((w) =>
+      weekItems(w)
+        .filter((it) => carriedItems.has(it.exerciseId))
+        .map((item) => ({ week: w.week, item }))
+    );
+  const ids = [
+    ...weekItems(week).map((it) => it.exerciseId),
+    ...carried.map((c) => c.item.exerciseId),
+  ];
+  const infos = await loadShootExercises(ids);
+  return {
+    week,
+    carried,
+    infos: Object.fromEntries(infos),
+    checks,
+    weeks: SHOOT_PLAN.weeks.map((w) => w.week),
+  };
 }

@@ -69,17 +69,26 @@ export function cursorOf(
   w: PlanWeek,
   checks: Map<string, ShootCheckView>
 ): { current: PlanItem | null; next: PlanItem | null; index: number } {
-  const items = weekItems(w);
-  const open = items.filter((it) => {
-    const s = stateOf(it, checks);
-    return s === 'todo' || s === 'redo';
-  });
-  const current = open[0] ?? null;
-  return {
-    current,
-    next: open[1] ?? null,
-    index: current ? items.indexOf(current) : items.length,
+  return cursorOfList(weekItems(w), checks);
+}
+
+/** 아무 줄에서나 지금 · 다음 — 촬영 모드는 그 주 운동 뒤에 앞 주에서 넘어온 것을 이어 붙인 줄을 돈다 */
+export function cursorOfList(
+  items: PlanItem[],
+  checks: Map<string, ShootCheckView>,
+  /** 목록에서 '먼저 찍기'로 고른 운동 — 아직 안 찍었으면(미룸이어도) 지금이 된다 */
+  pickId: string | null = null
+): { current: PlanItem | null; next: PlanItem | null; index: number } {
+  const isOpen = (it: PlanItem) => {
+    const st = stateOf(it, checks);
+    return st === 'todo' || st === 'redo';
   };
+  const open = items.filter(isOpen);
+  const picked = pickId ? items.find((it) => it.exerciseId === pickId) : undefined;
+  const current =
+    picked && stateOf(picked, checks) !== 'done' ? picked : (open[0] ?? null);
+  const next = open.find((it) => it !== current) ?? null;
+  return { current, next, index: current ? items.indexOf(current) : items.length };
 }
 
 /** 지금 운동 뒤에 남은 줄 — 다음 자리로 옮기는지, 쉬는지 알려 준다 */
@@ -98,7 +107,10 @@ export function transitionAfter(
   };
 }
 
-/** 이 주보다 앞 주에서 아직 못 찍은 것(대기 · 다시 · 미룸) — 이 주 끝에 이어 찍을 거리 */
+/**
+ * 이 주보다 앞 주에서 아직 못 찍은 것(대기 · 다시 · 미룸) — 이 주 끝에 이어 찍을 거리.
+ * 체크가 하나도 없는 주는 아직 찍으러 가지 않은 주라 넘기지 않는다(시작 전에 2주차를 열어도 1주차 66개가 붙지 않게).
+ */
 export function carriedOver(
   plan: ShootPlan,
   week: number,
@@ -106,7 +118,9 @@ export function carriedOver(
 ): PlanItem[] {
   return plan.weeks
     .filter((w) => w.week < week)
-    .flatMap(weekItems)
+    .map(weekItems)
+    .filter((its) => its.some((it) => checks.has(it.exerciseId)))
+    .flat()
     .filter((it) => stateOf(it, checks) !== 'done');
 }
 
