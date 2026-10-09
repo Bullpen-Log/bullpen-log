@@ -461,7 +461,10 @@ export function NutritionView({
       )}
 
       {/*
-        온보딩을 안 한 계정(가입 때 영양 답이 없었거나 옛 계정) — 가입과 같은 질문 화면(/nutrition/setup)으로 보낸다.
+        온보딩을 안 끝낸 옛 계정 — 줄(NutritionProfile)은 있는데 onboardedAt 이 빈 사람(목표 창에서만 목표를 정했거나 배포 전
+        계정)에게 첫 설정 화면(/nutrition/setup)을 권한다. 막지는 않는다. 줄이 없는 새 계정은 영양 탭이 잠겨 page.tsx 가
+        설정 화면으로 보내므로 여기 오지 않는다(lib/feature-locks.ts, 2026-10-09) — 그래서 !onboarded 만 봐도 되고, 아래
+        hasProfile 이 false 인 글은 그 전 모양으로 남아 있을 뿐 지금은 닿지 않는다.
         목표만 급하면 목표 창도 열 수 있다. 기록 · 통계 어느 쪽에서도 보이게 고르개 밑에 둔다.
       */}
       {!day.onboarded && (
