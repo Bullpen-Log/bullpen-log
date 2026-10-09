@@ -1029,11 +1029,11 @@ export function SessionClient({
        * 한 번에 움직이는 폭도 단위를 따른다. kg 은 2.5, lb 는 5 다 —
        * 원판이 그렇게 생겼다. lb 에서 2.5씩 올리면 있지도 않은 무게가 된다.
        */
-      /* 프로그램 날의 덤벨 · 케틀벨은 한 손 2kg 씩 — 추천 무게와 같은 단위(설계 §13-20) */
+      /* 추천이 있는 날의 덤벨 · 케틀벨은 한 손 2kg 씩 — 추천 무게와 같은 단위(설계 §13-20, 자유 운동 추천도 같다) */
       const step =
         wUnit === 'lb'
           ? 5
-          : ex.programSlot && weightKindOf(ex.equipment) === 'dumbbell'
+          : (ex.programSlot || ex.suggestedKg != null) && weightKindOf(ex.equipment) === 'dumbbell'
             ? UNIT_KG.dumbbell
             : WEIGHT_STEP;
       const next = Math.max(0, (Number(weight) || 0) + delta * step);
@@ -1572,16 +1572,24 @@ export function SessionClient({
                   </button>
                 </div>
               ) : suggestKg != null ? (
-                <button
-                  type="button"
-                  onClick={fillSuggested}
-                  className="mx-auto flex min-h-9 w-fit items-center gap-1.5 rounded-full px-3 text-[13px] font-semibold text-sky transition-opacity active:opacity-60"
-                >
-                  <RotateCcw aria-hidden className="h-3.5 w-3.5" strokeWidth={2.4} />
-                  추천{' '}
-                  {wUnit === 'lb' ? roundForDisplay(suggestKg, 'lb') : suggestKg}
-                  {wUnit} 담기
-                </button>
+                <div className="space-y-0.5">
+                  <button
+                    type="button"
+                    onClick={fillSuggested}
+                    className="mx-auto flex min-h-9 w-fit items-center gap-1.5 rounded-full px-3 text-[13px] font-semibold text-sky transition-opacity active:opacity-60"
+                  >
+                    <RotateCcw aria-hidden className="h-3.5 w-3.5" strokeWidth={2.4} />
+                    추천{' '}
+                    {wUnit === 'lb' ? roundForDisplay(suggestKg, 'lb') : suggestKg}
+                    {wUnit} 담기
+                  </button>
+                  {/* 자유 운동의 추천은 까닭 한 줄을 붙인다 — 왜 올랐는지(안 올랐는지) 보여야 믿고 담는다(free-weight.ts) */}
+                  {ex.suggestNote && (
+                    <p className="text-center text-[11px] leading-relaxed break-keep text-muted">
+                      {ex.suggestNote}
+                    </p>
+                  )}
+                </div>
               ) : (
                 ex.last && (
                   <button

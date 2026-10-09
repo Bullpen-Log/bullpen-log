@@ -50,8 +50,10 @@ export type RunExercise = {
   best: PriorBest | null;
   /** 근력 · 파워 프로그램 날의 칸(session-plan.ts) — 프로그램이 아닌 날은 null */
   programSlot: FrozenProgramSlot | null;
-  /** 프로그램 날 얼린 추천 무게(kg). '추천 담기'와 '몇 개 더?'가 쓴다. 숫자 없이 안내하는 날은 null */
+  /** 얼린 추천 무게(kg) — 프로그램 날(next-weight.ts) · 자유 운동(free-weight.ts). '추천 담기'와 '몇 개 더?'가 쓴다. 숫자 없이 안내하는 날은 null */
   suggestedKg: number | null;
+  /** 자유 운동 추천의 까닭 한 줄 — 추천 단추 밑에 적는다. 프로그램 날 · 추천 없는 운동은 null */
+  suggestNote: string | null;
   /** 세트마다 다른 처방(% 방식) — 그 세트의 무게 · 횟수 · '+'. 그 밖은 null */
   setTargets: SetTarget[] | null;
 };
@@ -122,6 +124,7 @@ export async function runExercises(
       best: bests.get(e.id) ?? null,
       programSlot: e.programSlot ?? null,
       suggestedKg: e.suggestedKg ?? null,
+      suggestNote: e.suggestNote ?? null,
       setTargets: e.setTargets ?? null,
     };
   });

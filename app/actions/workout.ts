@@ -26,6 +26,7 @@ import { activeProgram, programHistory, trainingMaxes } from '@/lib/program/load
 import { weighItem } from '@/lib/program/next-weight';
 import type { ItemRx } from '@/lib/program/program';
 import { openSession } from '@/lib/workout/open-session';
+import { withFreeWeights } from '@/lib/workout/free-weight-load';
 import { advanceProgramDay } from '@/lib/program/advance';
 import { runExercises, type RunExercise } from '@/lib/workout/run-exercises';
 import {
@@ -95,7 +96,13 @@ export async function startWorkout() {
 
   if (plan.exercises.length === 0) redirect('/training');
 
-  redirect(await openSession(user.id, core.midnight, plan, open));
+  /* 프로그램이 아닌 무게 운동의 추천 — 지난번 세트로(lib/workout/free-weight.ts). 다시 여는 판은 제 목록을 지킨다 */
+  const weighed = {
+    ...plan,
+    exercises: await withFreeWeights(user.id, plan.exercises, core.midnight),
+  };
+
+  redirect(await openSession(user.id, core.midnight, weighed, open));
 }
 
 /* ----------------------------- 워밍업 ----------------------------- */
@@ -753,11 +760,20 @@ export async function changeSessionExercise(input: {
 
   const entry =
     program?.entry ??
-    freezeExercise(
-      /* 처음 찍은 목록과 같은 목표로 — 옛 판(목표 없음)은 오늘 일정의 목표 */
-      goalPrescription(to, plan.goal ?? core.savedPlan?.goal),
-      mode === 'replace' ? from.slot : slotForTheme(to, plan.themeKey)
-    );
+    /* 자유 운동의 무게 추천도 운동 시작 때와 같이(free-weight.ts) */
+    (
+      await withFreeWeights(
+        user.id,
+        [
+          freezeExercise(
+            /* 처음 찍은 목록과 같은 목표로 — 옛 판(목표 없음)은 오늘 일정의 목표 */
+            goalPrescription(to, plan.goal ?? core.savedPlan?.goal),
+            mode === 'replace' ? from.slot : slotForTheme(to, plan.themeKey)
+          ),
+        ],
+        session.date
+      )
+    )[0];
   const list =
     program?.fromPlannedSets != null
       ? plan.exercises.map((e) =>
