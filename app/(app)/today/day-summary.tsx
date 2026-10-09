@@ -385,7 +385,7 @@ function SummaryTile({
           )}
         </span>
         <span
-          className={`max-w-full truncate text-xs transition-colors duration-200 lg:text-sm ${
+          className={`whitespace-nowrap text-xs tracking-tight transition-colors duration-200 lg:text-sm ${
             selected
               ? 'font-bold text-ink'
               : done
