@@ -245,7 +245,7 @@
   뜰 때 풍선처럼 둥실, 진짜 살짝만 — 아이폰처럼").** 여는 조건은 그대로(격자 누름 · 5초 머무름). `dialog[data-drawer]` 가 PC 에서
   w-72 · 내용만큼 · 도크와 같은 위 · 오른쪽 끝은 막대 끝(화면 끝에서 조금 띄움, 같은 날 사용자 "오른쪽 끝에 조금 띄운 상태로"; `--pop-top · --pop-right · --pop-max`, app-shell 의 Anchor.edge = 막대 오른쪽 끝, 없으면 16px)에 서고 뒤는 투명.
   연출: dock-sheet 때 도크 상자도 `nav-sheet` 이름표를 달아 브라우저가 상자를 팝업 크기로 늘린다(틀의 UA keyframe 그대로, 시간 · 곡선만
-  `--ease-spring` cubic-bezier(0.3, 1.3, 0.5, 1) ≈ 3% 넘침), 아이콘 여덟이 다 난다. 도크 뜰 때 · 연출 없이 뜰 때는 keyframe 65~70%
+  `--ease-spring` cubic-bezier(0.3, 1.3, 0.5, 1) ≈ 3% 넘침), 주 아이콘 넷만 날고 나머지는 도크에서 잦아들었다 팝업 자리에서 돋는다(같은 날 사용자 "너무 느려" — 상자 220ms · 날기 200ms, 늘리지 말 것). 도크 뜰 때 · 연출 없이 뜰 때는 keyframe 65~70%
   지점 1.012배. 닫을 때는 튕기지 않는다. 휴대폰 시트 그대로. **확인 못 한 것**: 브라우저 패널이 숨겨져 있어(document hidden, rAF 안 돎)
   움직임은 눈으로 못 봤다 — 규칙 · 자리(1536 폭에서 top 74 · right 26 = 막대 끝 · 288×597) · 빌드만 확인. 사용자가 PC 에서 격자를 눌러 보고 느낌을 말해 주면 곡선을 조절.
   **함정**: `view-transition-group` 의 UA 늘리기 keyframe 을 쓰려면 animation 속기를 덮지 말고 duration · timing-function 만 적는다.
