@@ -50,6 +50,7 @@ image = (
         "huggingface_hub==0.26.2",
         "opencv-python-headless==4.10.0.84",
     )
+    .apt_install("git")
     .run_commands(
         "git clone https://github.com/facebookresearch/sam-3d-body.git /opt/sam-3d-body",
         "cd /opt/sam-3d-body && git checkout b5c765a0d89d789985e186d396315e7590887b94",
