@@ -116,6 +116,8 @@ export async function gatherFactsAndPlan(
       // 잔 시간 · 근육통 — 안 적은 날은 null 이고, 그러면 추천이 아무것도 바꾸지 않는다
       sleepHours: c.sleepHours,
       soreness: c.soreness,
+      // 던지는 일정 — 매일 운동 계획이 '오늘 등판 · 내일 등판'을 읽는다(theme.ts 의 plannedOuting)
+      throwPlan: c.throwPlan,
     })),
     memos: usedLogs
       .filter((l) => l.memo?.trim())

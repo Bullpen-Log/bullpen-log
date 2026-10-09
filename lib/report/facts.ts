@@ -49,6 +49,11 @@ export type CheckinLike = CheckinParts & {
    */
   sleepHours?: number | null;
   soreness?: number | null;
+  /**
+   * 체크인에 적은 던지는 일정(lib/checkin.ts 의 THROW_PLANS — '오늘 등판' · '오늘 불펜' · '내일 등판' · '없음').
+   * 매일 운동 계획이 '오늘 등판 · 내일 등판'을 읽는다(theme.ts 의 plannedOuting, 2026-10-09). 칸이 없거나 null 이면 안 적은 것.
+   */
+  throwPlan?: string | null;
 };
 
 export type MemoNote = { date: string; text: string };
@@ -170,6 +175,12 @@ export type ReportFacts = {
      * 그 부위의 무거운 운동을 빼고 근력 날을 피한다(prescription.ts · theme.ts). 4단계는 풀어서 빈 목록이다.
      */
     rehabParts?: CheckinPartKey[];
+    /**
+     * 체크인에 적은 던지는 일정 — 오늘 것과 어제 것(CheckinLike.throwPlan). 어제 '내일 등판'이라고 했으면 오늘이 등판이다.
+     * 매일 운동 계획이 읽는다(theme.ts 의 plannedOuting). 이 칸이 생기기 전에 저장된 facts 에는 없다 — 없으면 모르는 것으로 본다.
+     */
+    throwPlanToday?: string | null;
+    throwPlanYesterday?: string | null;
     /** 최근 메모에서 통증으로 보이는 표현이 걸렸는가 */
     painWordsInMemo: string[];
     /** 최근 7일 평균 컨디션 (1~10, 높을수록 좋음) */
@@ -286,6 +297,8 @@ export function buildFacts({
    * 계획까지 계속 멈춘다.
    */
   const todayCheckin = checkins.find((c) => c.date === asOf) ?? null;
+  /* 어제 체크인 — '내일 등판'이라고 적었는지 보려고(plannedOuting) */
+  const yesterdayCheckin = checkins.find((c) => daysBetween(c.date, asOf) === 1) ?? null;
 
   return {
     asOf,
@@ -334,6 +347,8 @@ export function buildFacts({
       ).map((p) => p.key),
       rehab,
       rehabParts: rehab && rehab.stage <= 3 ? [rehab.joint] : [],
+      throwPlanToday: todayCheckin?.throwPlan ?? null,
+      throwPlanYesterday: yesterdayCheckin?.throwPlan ?? null,
       painWordsInMemo: findPainKeywords(memos),
       avgCondition: conditions.length
         ? conditions.reduce((a, b) => a + b, 0) / conditions.length

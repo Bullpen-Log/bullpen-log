@@ -1,6 +1,7 @@
 import {
   CHECKIN_PARTS,
   HIGH_SORENESS,
+  LOW_CONDITION_THRESHOLD,
   SEVERE_SORENESS,
   SHORT_SLEEP_HOURS,
   formatSleepHours,
@@ -15,10 +16,10 @@ import type { ReportFacts } from '@/lib/report/facts';
 import type { PitchPlan } from '@/lib/report/plan';
 
 /**
- * AI가 운동을 고르기 전에, 코드가 먼저 위험한 것을 걸러낸다.
+ * 운동을 고르기 전에(theme.ts · auto-setup.ts), 코드가 먼저 위험한 것을 걸러낸다.
  *
- * 여기서 빠진 운동은 AI에게 아예 보이지 않으므로 추천될 수가 없다.
- * "AI를 믿는 것"이 아니라 "AI가 틀려도 안전한" 구조를 만드는 부분이다.
+ * 여기서 빠진 운동은 고르는 쪽에 아예 보이지 않으므로 추천될 수가 없다 — 고르는 쪽이 틀려도 안전한 구조.
+ * (AI 가 고르던 때 만든 틀이고, 2026-10-07 AI 를 뺀 뒤에도 같다.)
  *
  * 이 파일의 모든 규칙은 안전을 위한 것이며, 후보가 부족하다고 해서
  * 완화하지 않는다. 부족하면 부족하다고 말하는 편이 맞다.
@@ -49,9 +50,6 @@ const ZONE_CAP: Record<string, number> = {
 
 /** 던진 날은 있는데 부하 지수를 아직 못 낼 때는 보수적으로 간다. */
 const UNKNOWN_ZONE_CAP = INTENSITY_CAP.MODERATE;
-
-/** 컨디션이 이 값 이하면 무게 드는 운동을 뺀다. */
-const LOW_CONDITION_THRESHOLD = 4;
 
 /**
  * 어느 부위가 뻐근할 때 함께 피해야 하는 부위들.
@@ -160,7 +158,7 @@ export function selectCandidates<T extends ExerciseLike>({
   plan: PitchPlan;
   library: T[];
   /**
-   * 메모에서 찾은 조심할 부위 (AI 맞춤 — lib/report/auto-setup.ts).
+   * 메모에서 찾은 조심할 부위 (자동 맞춤 — lib/report/auto-setup.ts).
    * 체크인의 '뻐근'과 똑같이 다룬다. 조심을 더하기만 하고 빼지는 못한다.
    */
   caution?: { part: CheckinPartKey; why: string }[];
@@ -330,7 +328,7 @@ export function selectCandidates<T extends ExerciseLike>({
    *
    * 하루 못 잔 것으로는 목표도 요일도 시간도 안 바꾼다. 가장 센 것만 뺀다 — 하룻밤 부족은
    * 기술 · 순발력이 먼저 떨어지는데, 최대 무게 · 전력 동작이 바로 그것을 요구한다.
-   * (며칠 이어질 때 목표를 바꾸는 것은 AI 맞춤의 몫이다 — auto-setup.ts 의 SLEEP_DEBT_DAYS.)
+   * (며칠 이어질 때 목표를 바꾸는 것은 자동 맞춤의 몫이다 — auto-setup.ts 의 SLEEP_DEBT_DAYS.)
    *
    * 잔 시간도 안 적었고 느낌이 충분 · 보통이면 글을 안 붙인다 — 두 칸이 생기기 전과 같은 근거다.
    */
@@ -393,7 +391,7 @@ export function selectCandidates<T extends ExerciseLike>({
    * 5-1) 메모에서 찾은 조심할 부위도 같은 방식으로 뺀다.
    *
    * "스쿼트 때 무릎이 불편했다"고 적어 두고 체크인은 '정상'으로 넘기는 일이
-   * 흔하다. 메모를 읽는 것은 AI지만, 무엇을 빼는지는 여기 규칙이 정한다.
+   * 흔하다. 메모를 읽는 것은 자동 맞춤(지금은 규칙)이지만, 무엇을 빼는지는 여기 규칙이 정한다.
    * 체크인에서 이미 뻐근이라고 한 부위는 위에서 걸렀으므로 건너뛴다.
    */
   for (const { part, why } of caution) {

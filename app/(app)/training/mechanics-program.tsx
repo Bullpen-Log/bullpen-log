@@ -17,7 +17,8 @@ import {
   type LevelKey,
   type MechanicsLevel,
 } from '@/lib/mechanics/levels';
-import { FILM_EVERY, filmPrompt } from '@/lib/mechanics/program';
+import { FILM_EVERY, FILM_VERDICTS, filmPrompt, type FilmNote } from '@/lib/mechanics/program';
+import { FilmVerdictButtons } from './film-verdict';
 import type { MechanicsProgramView, SessionDrillView } from '@/lib/mechanics/load';
 import { resetMechanicsProgram, startMechanicsProgram } from '@/app/actions/mechanics';
 import { josa } from '@/lib/korean';
@@ -75,7 +76,7 @@ export function MechanicsProgram({
 
       <LevelProgress program={program} level={level} />
 
-      <FilmCard sessionsDone={program.sessionsDone} />
+      <FilmCard sessionsDone={program.sessionsDone} films={program.films} />
 
       <LevelSettings current={level.key} index={program.index} />
 
@@ -412,11 +413,21 @@ function LevelSettings({ current, index }: { current: LevelKey; index: number })
 
 /**
  * 영상으로 확인 — 첫 세션 전에는 처음 모습을 찍어 두고, {FILM_EVERY}번째 세션마다 다시 찍어 2분할 비교로 견준다
- * (lib/mechanics/program.ts filmPrompt). 그 밖의 때에는 아무것도 안 그린다.
+ * (lib/mechanics/program.ts filmPrompt). 견준 결과는 여기서도 남길 수 있고(세션 끝 화면에서 안 눌렀을 때), 남긴 것은
+ * '견준 기록'으로 쌓인다 — 드릴이 효과가 있었는지 보이는 유일한 자리(2026-10-09). 알릴 때도 기록도 없으면 안 그린다.
  */
-function FilmCard({ sessionsDone }: { sessionsDone: number }) {
+function FilmCard({ sessionsDone, films }: { sessionsDone: number; films: FilmNote[] }) {
   const kind = filmPrompt(sessionsDone);
-  if (!kind) return null;
+  const current = films.find((f) => f.session === sessionsDone) ?? null;
+  if (!kind && films.length === 0) return null;
+  if (!kind) {
+    return (
+      <Card className="space-y-2">
+        <h3 className="text-base font-bold text-ink">견준 기록</h3>
+        <FilmHistory films={films} />
+      </Card>
+    );
+  }
   return (
     <Card className="space-y-3">
       <div className="flex items-start gap-3">
@@ -441,6 +452,36 @@ function FilmCard({ sessionsDone }: { sessionsDone: number }) {
       >
         {kind === 'baseline' ? '투구 기록 열기' : '2분할 비교 열기'}
       </ButtonLink>
+      {kind === 'compare' && (
+        <div className="border-t border-line/70 pt-3">
+          <FilmVerdictButtons session={sessionsDone} current={current} />
+        </div>
+      )}
+      {films.some((f) => f.session !== sessionsDone) && (
+        <div className="border-t border-line/70 pt-3">
+          <FilmHistory films={films.filter((f) => f.session !== sessionsDone)} />
+        </div>
+      )}
     </Card>
+  );
+}
+
+/** 견준 기록 한 줄씩 — '세션 6번 · 좋아졌어요 · 10/9' */
+function FilmHistory({ films }: { films: FilmNote[] }) {
+  const label = (v: FilmNote['verdict']) => FILM_VERDICTS.find((x) => x.value === v)?.label ?? v;
+  return (
+    <ul className="space-y-1">
+      {films.map((f) => (
+        <li key={f.session} className="flex items-baseline justify-between gap-3 text-sm">
+          <span className="text-ink">
+            세션 {f.session}번 ·{' '}
+            <b className={f.verdict === 'better' ? 'text-sky-strong' : 'text-ink'}>{label(f.verdict)}</b>
+          </span>
+          <span className="shrink-0 text-xs text-muted tabular-nums">
+            {Number(f.on.slice(5, 7))}/{Number(f.on.slice(8, 10))}
+          </span>
+        </li>
+      ))}
+    </ul>
   );
 }

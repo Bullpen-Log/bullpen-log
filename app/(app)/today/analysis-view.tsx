@@ -6,6 +6,8 @@ import { REVIEW_WEEKS, trainingReview } from '@/lib/report/training-review';
 import { ReportClient } from '@/app/(app)/coach/report-client';
 import { StatsOverview } from '@/app/(app)/coach/overview';
 import { TrainingReviewCards } from '@/app/(app)/coach/training-review';
+import { GoodDaysCard } from '@/app/(app)/coach/good-days';
+import { loadGoodDays } from '@/lib/report/good-days-load';
 import type { AnalysisTab } from './analysis-tabs';
 
 /**
@@ -70,7 +72,7 @@ async function LoadView({
   const asOf = noonOf(date);
   const since = shiftDateKey(date, -LOOKBACK_DAYS);
 
-  const [logs, training, best, review] = await Promise.all([
+  const [logs, training, best, review, goodDays] = await Promise.all([
     prisma.pitchLog.findMany({
       where: { userId: user.id, date: { gte: dbDay(since), lte: dbDay(date) } },
       orderBy: { date: 'asc' },
@@ -88,6 +90,8 @@ async function LoadView({
     }),
     /* 돌아보기는 트레이닝 칸에서만 — 4주치 운동 기록이라 가볍지 않다 */
     tab === 'training' ? trainingReview(user.id, asOf) : null,
+    /* 잘 던진 날은 투구 칸에서만 — 매긴 날이 8일 안 되면 날짜만 센다(lib/report/good-days-load.ts) */
+    tab === 'pitch' ? loadGoodDays(user.id, date) : null,
   ]);
 
   const serialized = logs.map((log) => ({ ...log, date: log.date.toISOString() }));
@@ -118,6 +122,7 @@ async function LoadView({
       {tab === 'training' && review && (
         <TrainingReviewCards review={review} weeks={REVIEW_WEEKS} />
       )}
+      {tab === 'pitch' && goodDays && <GoodDaysCard result={goodDays} />}
       {tab === 'pitch' && <ReportClient logs={serialized} today={asOf} />}
 
       <p className="pb-2 text-center text-[11px] leading-relaxed text-muted/60">

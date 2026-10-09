@@ -79,6 +79,12 @@ export function intensityLevel(name: string): number {
 export const MAX_INTENSITY_LEVEL = 5;
 
 /** 이 단계까지만 허용한다는 뜻 — 규칙을 읽기 쉽게 이름을 붙여 둔다. */
+/**
+ * 무게를 싣는 장비 — 회복날 · 통증날에 이 장비가 드는 운동을 뺀다(lib/report/theme.ts 의 isRecoveryLight,
+ * lib/armcare/routine.ts). 2026-10-09 전에는 두 파일에 같은 목록이 따로 있었다.
+ */
+export const HEAVY_EQUIPMENT: readonly string[] = ['덤벨', '바벨', '케틀벨', '원판', '케이블'];
+
 export const INTENSITY_CAP = {
   /** 스트레칭·가동성만 */
   MOBILITY_ONLY: 1,

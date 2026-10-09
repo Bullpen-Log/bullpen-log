@@ -11,6 +11,8 @@
  * - 가진 장비로 할 수 있는 도구를 먼저 고르고, 정해진 드릴을 할 장비가 없으면 같은 요소 · 같은 단계의 할 수 있는 드릴로 바꿔
  *   넣고 알린다(맨몸 · 야구공은 누구나). 장비를 아직 안 고른 사람은 거르지 않는다.
  * - 안전 규칙(통증 · 세게 던진 다음 날)은 이 프로그램에 걸지 않는다(사용자분 결정).
+ * - 여섯 번째 세션마다 찍어 처음과 견준 결과(좋아짐 · 비슷 · 못 견줌)를 progress.films 에 남긴다(2026-10-09 — 그 전에는
+ *   찍으라고만 하고 결과를 안 받아 드릴이 효과가 있었는지 앱에 남는 것이 없었다). 수준을 바꿔도 지킨다(세션 번호에 붙는 것).
  */
 import { DRILL_STAGE_NAMES } from '@/lib/exercise-meta';
 import {
@@ -30,6 +32,26 @@ export type DrillFeel = 'hard' | 'ok' | 'easy';
 export type ElementFeel = { easy: number; easyOn: string | null; hard: number; hardOn: string | null };
 export type FeelCounts = Record<MechanicsElementName, ElementFeel>;
 
+/** 찍어서 처음과 견준 결과 */
+export type FilmVerdict = 'better' | 'same' | 'unsure';
+export type FilmNote = {
+  /** 수준과 상관없는 세션 번호(MechanicsProgram.sessionsDone 기준) */
+  session: number;
+  /** 남긴 날 'YYYY-MM-DD' */
+  on: string;
+  verdict: FilmVerdict;
+};
+
+export const FILM_VERDICTS: { value: FilmVerdict; label: string }[] = [
+  { value: 'better', label: '좋아졌어요' },
+  { value: 'same', label: '비슷해요' },
+  { value: 'unsure', label: '아직 못 견줬어요' },
+];
+
+export function isFilmVerdict(value: unknown): value is FilmVerdict {
+  return value === 'better' || value === 'same' || value === 'unsure';
+}
+
 /** MechanicsProgram.progress 에 두는 것 */
 export type ProgramState = {
   /** 고른 수준 — 안 골랐으면 null */
@@ -37,6 +59,8 @@ export type ProgramState = {
   /** 이 수준에서 마친 세션 수(0~12) */
   index: number;
   feels: FeelCounts;
+  /** 찍어서 견준 결과 — 세션 번호 순. 2026-10-09 앞에 쓴 줄에는 없다(빈 목록) */
+  films: FilmNote[];
 };
 
 /** 다음 수준을 권하는 데 필요한 '쉬움' 날 수(요소마다) · 그런 요소 수 */
@@ -80,9 +104,28 @@ function readFeels(raw: Record<string, unknown>): FeelCounts {
   return out;
 }
 
+/** 견준 결과 목록 — 모양이 아닌 줄은 버리고, 세션 번호마다 하나(뒤에 쓴 것이 이긴다), 번호 순 */
+function readFilms(raw: unknown): FilmNote[] {
+  if (!Array.isArray(raw)) return [];
+  const by = new Map<number, FilmNote>();
+  for (const x of raw) {
+    const v = (x && typeof x === 'object' ? x : {}) as Record<string, unknown>;
+    const session = countOf(v.session);
+    const on = dayOf(v.on);
+    if (session <= 0 || !on || !isFilmVerdict(v.verdict)) continue;
+    by.set(session, { session, on, verdict: v.verdict });
+  }
+  return [...by.values()].sort((a, b) => a.session - b.session);
+}
+
+/** 견준 결과 하나를 남긴다 — 같은 세션 번호면 바꾼다 */
+export function withFilm(films: readonly FilmNote[], note: FilmNote): FilmNote[] {
+  return [...films.filter((f) => f.session !== note.session), note].sort((a, b) => a.session - b.session);
+}
+
 /**
- * DB 의 progress(Json) → 진행. 지금 모양은 { v: 2, level, index, feels }. 옛 모양(요소 이름이 맨 위에 있고 stage 를 둔 것)은
- * 수준을 안 고른 것으로 읽는다 — 옛 '단계'는 새 수준과 뜻이 달라 옮기지 않는다.
+ * DB 의 progress(Json) → 진행. 지금 모양은 { v: 2, level, index, feels, films }. 옛 모양(요소 이름이 맨 위에 있고 stage 를 둔
+ * 것)은 수준을 안 고른 것으로 읽는다 — 옛 '단계'는 새 수준과 뜻이 달라 옮기지 않는다. films 가 없는 줄은 빈 목록.
  */
 export function readProgramState(json: unknown): ProgramState {
   const raw = (json && typeof json === 'object' ? json : {}) as Record<string, unknown>;
@@ -92,17 +135,18 @@ export function readProgramState(json: unknown): ProgramState {
     level,
     index: level ? countOf(raw.index, SESSIONS_PER_LEVEL) : 0,
     feels: readFeels((raw.feels && typeof raw.feels === 'object' ? raw.feels : {}) as Record<string, unknown>),
+    films: readFilms(raw.films),
   };
 }
 
 /** 진행 → DB 에 쓸 Json */
 export function programStateJson(state: ProgramState) {
-  return { v: 2, level: state.level, index: state.index, feels: state.feels };
+  return { v: 2, level: state.level, index: state.index, feels: state.feels, films: state.films };
 }
 
-/** 새로 시작하는 수준 — 세션 0, 느낌도 처음부터(다른 수준의 쉬움을 끌고 오지 않는다) */
+/** 새로 시작하는 수준 — 세션 0, 느낌도 처음부터(다른 수준의 쉬움을 끌고 오지 않는다). 견준 결과는 부르는 쪽이 이어 붙인다 */
 export function freshState(level: LevelKey | null): ProgramState {
-  return { level, index: 0, feels: readFeels({}) };
+  return { level, index: 0, feels: readFeels({}), films: [] };
 }
 
 /**
