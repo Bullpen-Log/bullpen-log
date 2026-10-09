@@ -317,6 +317,9 @@ export function WeekView({ data, me }: { data: ShootWeekData; me: string }) {
               })
             }
             onPick={clips.edit}
+            appCamera={clips.appCamera}
+            onCamera={(t) => void clips.startCamera(t)}
+            cameraNotice={clips.cameraNotice}
           />
         )}
       </Modal>
@@ -493,6 +496,9 @@ function DetailBody({
   runHref,
   onSet,
   onPick,
+  appCamera,
+  onCamera,
+  cameraNotice,
 }: {
   it: PlanItem;
   info: ShootWeekData['infos'][string] | undefined;
@@ -500,7 +506,11 @@ function DetailBody({
   runHref: string;
   onSet: (status: ShootStatus | null, note?: string | null) => Promise<boolean>;
   /** 영상을 고르면 컷 편집 창으로(useClipFlow().edit) */
-  onPick: (target: ClipTarget, file: File, from: 'camera' | 'album') => void;
+  onPick: (target: ClipTarget, file: File, from: 'album') => void;
+  appCamera: boolean;
+  onCamera: (target: ClipTarget) => void;
+  /** 앱 카메라를 못 연 까닭 */
+  cameraNotice: string | null;
 }) {
   const state: ItemState = check?.status ?? 'todo';
   const [note, setNote] = useState(check?.note ?? '');
@@ -529,7 +539,14 @@ function DetailBody({
         target={{ exerciseId: it.exerciseId, no: it.no, title: it.title, cue: it.cue }}
         uploaded={!!info?.own}
         onPick={onPick}
+        appCamera={appCamera}
+        onCamera={onCamera}
       />
+      {cameraNotice && (
+        <p role="alert" className="-mt-3 text-xs break-keep text-warn">
+          {cameraNotice}
+        </p>
+      )}
       <ShootExerciseDetail item={it} info={info} />
       <form
         onSubmit={async (e) => {

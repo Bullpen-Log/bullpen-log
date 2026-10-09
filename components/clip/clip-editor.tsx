@@ -81,6 +81,7 @@ const GRAB_PX = 24;
 export function ClipEditor({
   open,
   file,
+  loading = null,
   fileKey,
   title,
   cue,
@@ -92,14 +93,16 @@ export function ClipEditor({
 }: {
   open: boolean;
   file: File | null;
+  /** 파일을 아직 받는 중(앱 카메라에서 넘겨받기, 0~1) — file 이 null 일 때 '가져오는 중'을 보인다 */
+  loading?: number | null;
   /** 새 파일마다 바뀌는 값 — 편집 상태를 처음부터 */
   fileKey: string | number;
   /** '1-24 하프닐링 레터럴 레이즈' */
   title: string;
   /** 시범 방법 '3회 · 한쪽' */
   cue?: string;
-  /** 어디서 왔나 — 웹 카메라(화질 알림) · 앨범 · 앱 카메라 */
-  from: 'camera' | 'album' | 'native';
+  /** 어디서 왔나 — 앨범 · 앱 카메라 */
+  from: 'album' | 'native';
   onClose: () => void;
   onRetake?: () => void;
   onSubmit: ClipSubmit;
@@ -136,6 +139,15 @@ export function ClipEditor({
       className="theme-dark m-0 h-dvh max-h-none w-screen max-w-none overflow-hidden bg-black p-0 text-ink backdrop:bg-black/70 desk:m-auto desk:h-[min(54rem,94dvh)] desk:w-[min(64rem,94vw)] desk:rounded-3xl"
     >
       {children}
+      {!file && loading !== null && (
+        <div className="flex h-full flex-col items-center justify-center gap-4 px-8 pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)] text-center">
+          <Loader2 aria-hidden className="h-8 w-8 animate-spin text-muted" />
+          <p className="text-sm font-semibold text-ink" role="status" aria-live="polite">
+            {loading > 0 ? `영상을 가져오는 중 ${Math.round(loading * 100)}%` : '카메라에서 찍는 중'}
+          </p>
+          <p className="text-xs text-muted">{title}</p>
+        </div>
+      )}
       {file && (
         <EditorBody
           key={fileKey}
@@ -168,7 +180,7 @@ function EditorBody({
   file: File;
   title: string;
   cue?: string;
-  from: 'camera' | 'album' | 'native';
+  from: 'album' | 'native';
   onClose: () => void;
   onRetake?: () => void;
   onSubmit: ClipSubmit;
@@ -262,6 +274,8 @@ function EditorBody({
   const length = Math.max(0, trim.end - trim.start);
   const target = info ? pickTarget(info, length) : null;
   const estimate = target ? estimateBytes(target.bitrate, length) : 0;
+  /** 720p 보다 작으면 올리지 않는다 — 웹 카메라(480×360) 영상이 라이브러리에 들어가지 않게 */
+  const lowRes = info ? lowResolution(info) : false;
 
   function seek(t: number) {
     const v = videoRef.current;
@@ -400,7 +414,7 @@ function EditorBody({
 
   async function submit() {
     const m = modRef.current;
-    if (!info || !m || busy) return;
+    if (!info || !m || busy || lowRes) return;
     pause();
     haptic('medium');
     const ac = new AbortController();
@@ -578,10 +592,14 @@ function EditorBody({
 
       {/* ── 자르기 ── */}
       <section className="shrink-0 space-y-3 px-4 pt-3" aria-label="자를 구간">
-        {info && from === 'camera' && lowResolution(info) && (
-          <p className="flex gap-2 rounded-xl bg-warn/15 px-3 py-2 text-xs break-keep text-warn">
+        {lowRes && info && (
+          <p
+            role="alert"
+            className="flex gap-2 rounded-xl bg-warn/15 px-3 py-2 text-xs break-keep text-warn"
+          >
             <AlertTriangle aria-hidden className="mt-px h-4 w-4 shrink-0" />
-            화질이 낮게 찍혔어요({info.width}×{info.height}). 카메라 앱으로 찍고 &lsquo;앨범에서&rsquo;로 고르면 원본 화질로 올라가요.
+            화질이 낮아({info.width}×{info.height}) 올리지 않아요. 앱 카메라로 다시 찍어 주세요 — 웹 카메라로 찍은 영상은 이렇게
+            작아요.
           </p>
         )}
         <div className="flex items-baseline justify-between text-xs tabular-nums text-muted">
@@ -710,7 +728,7 @@ function EditorBody({
         <button
           type="button"
           onClick={() => void submit()}
-          disabled={!info || busy || !!loadError}
+          disabled={!info || busy || !!loadError || lowRes}
           className="inline-flex min-h-14 min-w-0 flex-1 items-center justify-center gap-2 rounded-full bg-sky text-base font-bold text-white transition-transform disabled:opacity-40 motion-safe:active:scale-[0.98]"
         >
           {busy ? (

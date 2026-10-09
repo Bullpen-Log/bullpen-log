@@ -41,8 +41,9 @@ import { toDateKey } from '@/lib/pitch-stats';
  *   위    닫기 · N주차 · 23/66 막대 · 계획 대비(늦음 · 빠름) · 목록
  *   가운데 지금 운동 — 번호(누르면 카메라에 비출 큰 번호판) · 자리 · 시범 방법(크게) · 기구 · 참고 영상 · 진행 방법
  *         그 뒤에 무엇이 오나(자리 옮김 · 쉬기), 다음 운동 카드, 그다음 셋
- *   아래  [영상 찍기] — 아이폰 기본 카메라 → 컷 편집(소리 빼기) → 올려 이 운동의 영상으로 붙이고 '찍음' · 다음으로.
+ *   아래  [영상 찍기] — 앱 카메라(아이폰 기본 카메라 화면, 1080p) → 컷 편집(소리 빼기) → 올려 이 운동의 영상으로 붙이고 '찍음' · 다음.
  *         [찍음](영상 없이 체크만 — 다른 카메라로 찍을 때) · [미루기]. 바꿀 때마다 '되돌리기' 알림.
+ *         앱 카메라가 없으면(웹 · 옛 앱) 찍기 단추 없이 [찍음 · 다음으로]와 까닭 한 줄 — 웹 카메라는 쓰지 않는다.
  *         다른 폰 · 카메라 앱으로 찍었으면 운동 카드 밑 '앨범에서 고르기'. 올리지 못한 영상은 위에 '다시 올리기'.
  *
  * 줄은 그 주 운동 뒤에 앞 주에서 못 찍은 것을 이어 붙인다. 두 사람이 폰 두 대로 찍으면 15초 안에 서로 맞춰진다.
@@ -408,6 +409,17 @@ export function RunClient({
       {current && (
         <div className="shrink-0 border-t border-line bg-surface px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3">
           {errorBox && <div className="mx-auto mb-2 w-full max-w-2xl">{errorBox}</div>}
+          {(clips.cameraNotice || clips.cameraMissingText) && (
+            <p
+              role={clips.cameraNotice ? 'alert' : undefined}
+              className="motion-safe:animate-fade-in mx-auto mb-2 flex w-full max-w-2xl items-start gap-2 text-xs break-keep text-muted"
+            >
+              <Camera aria-hidden className="mt-px h-4 w-4 shrink-0" />
+              <span className={clips.cameraNotice ? 'font-semibold text-warn' : ''}>
+                {clips.cameraNotice ?? clips.cameraMissingText}
+              </span>
+            </p>
+          )}
           <div className="mx-auto flex w-full max-w-2xl items-center gap-2">
             <button
               type="button"
@@ -417,23 +429,37 @@ export function RunClient({
               <PauseCircle aria-hidden className="h-5 w-5" />
               미루기
             </button>
-            <button
-              type="button"
-              onClick={shoot}
-              aria-label="영상 없이 찍음으로 체크하고 다음으로"
-              className="flex h-[72px] w-16 shrink-0 flex-col items-center justify-center gap-0.5 rounded-3xl bg-ink/6 text-xs font-semibold text-ink motion-safe:active:scale-95"
-            >
-              <Check aria-hidden className="h-5 w-5" strokeWidth={2.6} />
-              찍음
-            </button>
-            <button
-              type="button"
-              onClick={() => clipTarget && clips.startCamera(clipTarget)}
-              className="flex h-[72px] min-w-0 flex-1 items-center justify-center gap-2 rounded-full bg-sky text-lg font-bold text-white motion-safe:active:scale-[0.98]"
-            >
-              <Camera aria-hidden className="h-6 w-6" strokeWidth={2.4} />
-              {infos[current.exerciseId]?.own ? '다시 찍기' : '영상 찍기'}
-            </button>
+            {clips.appCamera ? (
+              <>
+                <button
+                  type="button"
+                  onClick={shoot}
+                  aria-label="영상 없이 찍음으로 체크하고 다음으로"
+                  className="flex h-[72px] w-16 shrink-0 flex-col items-center justify-center gap-0.5 rounded-3xl bg-ink/6 text-xs font-semibold text-ink motion-safe:active:scale-95"
+                >
+                  <Check aria-hidden className="h-5 w-5" strokeWidth={2.6} />
+                  찍음
+                </button>
+                <button
+                  type="button"
+                  onClick={() => clipTarget && void clips.startCamera(clipTarget)}
+                  className="flex h-[72px] min-w-0 flex-1 items-center justify-center gap-2 rounded-full bg-sky text-lg font-bold text-white motion-safe:active:scale-[0.98]"
+                >
+                  <Camera aria-hidden className="h-6 w-6" strokeWidth={2.4} />
+                  {infos[current.exerciseId]?.own ? '다시 찍기' : '영상 찍기'}
+                </button>
+              </>
+            ) : (
+              /* 앱 카메라가 없으면(웹 · 옛 앱) 찍기 단추 대신 체크만 — 웹 카메라는 쓰지 않는다 */
+              <button
+                type="button"
+                onClick={shoot}
+                className="flex h-[72px] min-w-0 flex-1 items-center justify-center gap-2 rounded-full bg-sky text-lg font-bold text-white motion-safe:active:scale-[0.98]"
+              >
+                <Check aria-hidden className="h-6 w-6" strokeWidth={2.8} />
+                찍음 · 다음으로
+              </button>
+            )}
           </div>
         </div>
       )}
