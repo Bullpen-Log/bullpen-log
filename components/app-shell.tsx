@@ -110,7 +110,8 @@ const HURRY_RATE = 4;
  *   bar    오른쪽 위 한 줄. 평소.
  *   dock   격자 바로 밑에 뜨는 반투명 상자. 막대의 아이콘들이 모여 앉고, 막대에
  *          없는 것까지 전부 4칸씩 줄지어 있다. 이름은 커서를 올려야 보인다.
- *   sheet  이름과 설명까지 있는 전체 메뉴. 화면을 덮는다.
+ *   sheet  이름까지 있는 전체 메뉴 — PC 는 도크가 그 자리에서 부풀어 된 팝업(2026-10-09, 예전에는 화면
+ *          오른쪽 끝에서 밀려 나오는 세로 판이었다 — "화면을 너무 많이 가린다"), 휴대폰은 아래 시트.
  */
 type Place = 'bar' | 'dock' | 'sheet';
 
@@ -120,7 +121,15 @@ type Choreo = 'bar-dock' | 'dock-bar' | 'dock-sheet' | 'bar-sheet' | 'sheet-bar'
 /** 날아가는 것(양쪽에 다 있다)과 제자리에서 돋아나거나 잦아드는 것(한쪽에만 있다) */
 type FlyKind = 'fly' | 'pop';
 
-type Anchor = { top: number; right: number };
+/**
+ * 도크 · 팝업이 설 자리 — 위에서 잰 거리와, 화면 오른쪽 끝에서 잰 거리.
+ *   right  격자 단추 한가운데까지(도크는 여기에 가운데를 맞춘다)
+ *   edge   도크 상자의 오른쪽 끝까지(팝업은 여기에 오른쪽 끝을 맞춘다 — 도크가 그 자리에서 자라 팝업이 되게)
+ */
+type Anchor = { top: number; right: number; edge: number };
+
+/** 도크 상자 폭의 절반(px) — 4칸 48px + 틈 3×2px + 안쪽 여백 12px + 테두리 2px = 212px. 도크가 안 떠 있을 때 edge 를 셈한다 */
+const DOCK_HALF_PX = 106;
 
 type TimerName = 'open' | 'close' | 'dwell';
 
@@ -160,7 +169,7 @@ const REST_THUMB = { viewTransitionName: 'nav-thumb' } as CSSProperties;
  * 격자 단추를 못 잰 경우의 도크 자리 — 지금 막대 크기로 셈한 값.
  * 격자 오른쪽에 종(32px)이 들어서며 격자 한가운데가 오른쪽 끝에서 34px 멀어졌다.
  */
-const DOCK_FALLBACK: Anchor = { top: 74, right: 158 };
+const DOCK_FALLBACK: Anchor = { top: 74, right: 158, edge: 158 - DOCK_HALF_PX };
 
 /**
  * 점(x, y)이 요소의 네모 안에 있는가.
@@ -387,12 +396,15 @@ export function AppNav({
     const btn = gridRef.current?.getBoundingClientRect();
     const bar = navRef.current?.getBoundingClientRect();
     if (!btn || !bar || btn.width === 0) return null;
-    return {
-      top: Math.round(bar.bottom + 6),
-      right: Math.round(
-        document.documentElement.clientWidth - (btn.left + btn.width / 2)
-      ),
-    };
+    const width = document.documentElement.clientWidth;
+    const right = Math.round(width - (btn.left + btn.width / 2));
+    /* 팝업의 오른쪽 끝 — 도크가 떠 있으면 그 상자를 재고, 아니면 도크 폭으로 셈한다 */
+    const dockRect = dockRef.current?.getBoundingClientRect();
+    const edge =
+      dockRect && dockRect.width > 0
+        ? Math.round(width - dockRect.right)
+        : right - DOCK_HALF_PX;
+    return { top: Math.round(bar.bottom + 6), right, edge };
   };
 
   /*
@@ -431,7 +443,8 @@ export function AppNav({
     /* 옛 모습: 출발하는 쪽에 이름표를 단다. 브라우저가 이 모습을 찍은 뒤에 옮긴다. */
     flushSync(() => {
       setChoreo(kind);
-      if (to === 'dock') setAnchor(measureAnchor());
+      /* 도크 · 팝업이 설 자리 — 팝업은 도크의 자리를 이어받는다(도크가 떠 있는 동안 잰다) */
+      if (to !== 'bar') setAnchor(measureAnchor());
       /* 알림 창은 옛 모습이 찍히기 전에 닫는다 — 찍히면 연출 내내 막대에 매달려 있다 */
       if (to !== 'bar') setBellOpen(false);
     });
@@ -581,7 +594,7 @@ export function AppNav({
     const from = place.current;
     if (from === to) return;
     if (!canChoreo()) {
-      if (to === 'dock') setAnchor(measureAnchor());
+      if (to !== 'bar') setAnchor(measureAnchor());
       setChoreo(null);
       setDockBuilt(false);
       setSheetBuilt(false);
@@ -848,31 +861,31 @@ export function AppNav({
    * 새 모습은 도착한 자리다.
    */
   const at: Place = open ? 'sheet' : dock ? 'dock' : 'bar';
-  /* 도크와 오가는 연출 — 뒤가 어두워지지 않는다 */
+  /* 도크와 오가는 연출 — '지금 여기' 동그라미가 아이콘과 같이 난다(팝업과 오갈 때는 팝업의 줄이 대신 켜진다) */
   const hoverChoreo = choreo === 'bar-dock' || choreo === 'dock-bar';
+  /* 어느 연출이든 알약 · 격자 쪽은 이름표를 달고 제자리를 지킨다 — 뒤를 어둡게 하는 연출이 없어졌다 */
+  const framed = choreo != null;
   /* 막대가 한쪽 끝인 연출에서 막대 쪽을 그리는 중 — 막대의 넷이 날아간다 */
   const barFlies = choreo != null && at === 'bar';
   /*
-   * 판에서 날아가는 아이콘 — 막대에 자리가 있는 것(자주 가는 곳)만 날아온다.
-   * 도크에서 판이 될 때도 같다.
+   * 팝업에서 나는 아이콘.
    *
-   * 예전에는 도크에서 판이 될 때 도크의 아이콘 아홉이 전부 판으로 날아와 앉았다.
-   * 한꺼번에 아홉이 날면 어지럽다는 말을 들었다. 이제 나머지(라이브러리·자료실·
-   * 관리자)는 판이 거의 다 들어온 뒤 판의 제자리에서 돋아난다(growStyle).
+   * 도크가 팝업이 될 때(dock-sheet)는 여덟이 다 난다 — 상자 안 격자에서 그 자리에서 자란 팝업의 줄로,
+   * 짧은 거리라 함께 날아도 어지럽지 않다(예전 판은 화면 끝에서 들어와 멀리 날았고, 그때 아홉이 나는 것이
+   * 어지럽다고 해 넷만 날리고 나머지는 돋게 했다 — growStyle, 지금은 쓰지 않는 bar-sheet 에만 남아 있다).
    *
-   * 판이 닫힐 때는 돋아났던 것들이 판에 실린 채 함께 밀려 나간다 — 갈 곳이 없는데
-   * 따로 떠 있으면 판은 나가는데 아이콘만 남아 흩어진다.
+   * 팝업이 닫힐 때(sheet-bar)는 막대에 자리가 있는 넷만 돌아가고, 나머지는 이름표 없이 팝업에 실린 채
+   * 같이 줄어든다 — 갈 곳이 없는데 따로 떠 있으면 팝업은 줄어드는데 아이콘만 남아 흩어진다.
    */
-  const sheetIcons: 'none' | 'quick' =
-    choreo == null || at !== 'sheet' ? 'none' : 'quick';
-  const sheetGrows =
-    at === 'sheet' && (choreo === 'dock-sheet' || choreo === 'bar-sheet');
+  const sheetIcons: 'none' | 'quick' | 'all' =
+    choreo == null || at !== 'sheet' ? 'none' : choreo === 'dock-sheet' ? 'all' : 'quick';
+  const sheetGrows = at === 'sheet' && choreo === 'bar-sheet';
   /*
-   * 도크에서 날아가는 아이콘 — 막대와 오갈 때는 넷만 날고 나머지는 돋아난다.
-   * 판이 될 때는 넷만 날고, 나머지는 이름표 없이 도크 상자와 함께 옅어진다.
+   * 도크에서 나는 아이콘 — 막대와 오갈 때는 넷만 날고 나머지는 돋아난다.
+   * 팝업이 될 때는 여덟이 다 팝업의 제 줄로 난다.
    */
-  const dockIcons: 'none' | 'hover' | 'quick' =
-    choreo == null ? 'none' : choreo === 'dock-sheet' ? 'quick' : 'hover';
+  const dockIcons: 'none' | 'hover' | 'all' =
+    choreo == null ? 'none' : choreo === 'dock-sheet' ? 'all' : 'hover';
   /*
    * '지금 여기' 동그라미 — 도크와 오갈 때는 제 아이콘과 같은 딱지를 달고 같이
    * 날아간다(막대에 없는 곳이면 같이 돋아난다). 판과 오갈 때는 이름표 없이 판의
@@ -1169,13 +1182,7 @@ export function AppNav({
         */}
         <span
           aria-hidden
-          style={{
-            viewTransitionName: hoverChoreo
-              ? 'nav-pill'
-              : choreo
-                ? 'none'
-                : 'shell-pill',
-          }}
+          style={{ viewTransitionName: framed ? 'nav-pill' : 'shell-pill' }}
           className="absolute inset-0 rounded-full border border-line/70 bg-surface/75 shadow-sm backdrop-blur-md"
         />
         <div
@@ -1200,7 +1207,7 @@ export function AppNav({
             오가는 연출에서는 따로 이름표를 단다(nav-tail).
           */}
           <div
-            style={{ viewTransitionName: hoverChoreo ? 'nav-tail' : 'none' }}
+            style={{ viewTransitionName: framed ? 'nav-tail' : 'none' }}
             className="flex items-center gap-0.5"
           >
             <MenuSquares
@@ -1268,7 +1275,10 @@ export function AppNav({
           onPick={setPick}
           onPointerEnter={enterZone}
           onPointerDown={pickInDock}
-          name={choreo == null ? 'shell-dock' : 'nav-dock'}
+          /* 팝업이 될 때는 팝업과 같은 이름표 — 상자가 그 자리에서 팝업으로 자란다(globals.css '팝업') */
+          name={
+            choreo === 'dock-sheet' ? 'nav-sheet' : choreo == null ? 'shell-dock' : 'nav-dock'
+          }
           icons={dockIcons}
           quickHrefs={quickHrefs}
           flyIndex={flyIndex}
@@ -1373,6 +1383,7 @@ export function AppNav({
           land('bar');
         }}
         onProfile={(el) => openFrom(el, setProfileOpen)}
+        anchor={anchor ?? DOCK_FALLBACK}
         flyIndex={flyIndex}
         flyNames={sheetIcons}
         grows={sheetGrows}
@@ -1760,12 +1771,13 @@ function DockGrid({
   /** 커서가 들어왔다. 나간 것은 AppNav 가 커서 자리로 잰다(overZone). */
   onPointerEnter: (e: ReactPointerEvent) => void;
   onPointerDown: (e: ReactPointerEvent) => void;
-  name: 'shell-dock' | 'nav-dock';
+  /** nav-sheet — 팝업이 될 때(상자가 팝업으로 자란다) */
+  name: 'shell-dock' | 'nav-dock' | 'nav-sheet';
   /**
    * 연출에서 아이콘에 다는 이름표 — 막대와 오갈 때(hover)는 넷만 날고 나머지는
-   * 돋아난다. 판이 될 때(quick)는 넷만 날고 나머지는 이름표 없이 상자와 함께 옅어진다.
+   * 돋아난다. 팝업이 될 때(all)는 여덟이 다 팝업의 제 줄로 난다.
    */
-  icons: 'none' | 'hover' | 'quick';
+  icons: 'none' | 'hover' | 'all';
   quickHrefs: string[];
   flyIndex: (href: string) => number;
   thumbName?: CSSProperties;
@@ -1811,7 +1823,7 @@ function DockGrid({
           const i = flyIndex(item.href);
           const quick = quickHrefs.includes(item.href);
           const kind: FlyKind = icons === 'hover' && !quick ? 'pop' : 'fly';
-          const named = icons === 'hover' || (icons === 'quick' && quick);
+          const named = icons !== 'none';
           return (
             <Link
               key={item.href}
@@ -1866,10 +1878,12 @@ function Tip({ children }: { children: React.ReactNode }) {
 }
 
 /**
- * 격자를 누르거나 도크에 오래 머물면 펴는 상세 메뉴(판). 휴대폰은 '더보기'로 편다.
+ * 격자를 누르거나 도크에 오래 머물면 펴는 상세 메뉴. 휴대폰은 '더보기'로 편다.
  *
- * 화면을 덮는 판으로 둔다. 막대를 그 자리에서 넓히는 방법도 있었지만, 그러면
- * 열고 닫을 때마다 본문 폭이 바뀌어 글이 다시 흐른다 — 읽던 줄을 놓친다.
+ * PC 는 도크 자리에서 부풀어 뜨는 팝업(w-72 · 내용만큼 — globals.css 의 dialog[data-drawer])이다.
+ * 예전에는 화면 오른쪽 끝에서 밀려 나오는 세로 판이었는데 뒤를 어둡게 하고 한 귀퉁이를 위아래로 다 덮어
+ * "화면을 너무 많이 가린다"(2026-10-09 사용자). 막대를 그 자리에서 넓히는 방법도 있었지만, 그러면
+ * 열고 닫을 때마다 본문 폭이 바뀌어 글이 다시 흐른다 — 읽던 줄을 놓친다. 휴대폰은 아래 시트 그대로.
  *
  * 브라우저가 원래 가진 <dialog> 를 쓴다. 직접 만들었더니 다음을 전부 손으로
  * 해야 했다 — ESC 로 닫기, 초점이 뒤로 새지 않게 가두기, 뒤 배경 가리기,
@@ -1898,6 +1912,7 @@ function DetailMenu({
   onNavigate,
   onDismissed,
   onProfile,
+  anchor,
   flyIndex,
   flyNames,
   grows,
@@ -1919,10 +1934,12 @@ function DetailMenu({
   onDismissed: () => void;
   /** 메뉴 맨 아래 내 정보를 눌렀을 때. 누른 버튼을 함께 준다. */
   onProfile: (el: HTMLElement) => void;
+  /** PC 팝업이 설 자리 — 도크와 같은 위, 도크 상자와 같은 오른쪽 끝(휴대폰 시트는 안 쓴다) */
+  anchor: Anchor;
   /** 아이콘의 이름표 번호 — 도크·막대와 같은 번호를 쓴다 */
   flyIndex: (href: string) => number;
-  /** 연출에서 날아오는 아이콘에 이름표를 다는가: 막대의 넷만 · 없음(연출 아님) */
-  flyNames: 'none' | 'quick';
+  /** 연출에서 날아오는 아이콘에 이름표를 다는가: 막대의 넷만 · 여덟 다 · 없음(연출 아님) */
+  flyNames: 'none' | 'quick' | 'all';
   /** 판이 열리는 연출 — 막대에 없는 아이콘이 판의 제자리에서 돋아난다 */
   grows: boolean;
   quickHrefs: string[];
@@ -2003,7 +2020,15 @@ function DetailMenu({
       data-drawer
       data-built={built ? '' : undefined}
       data-quiet={quiet ? '' : undefined}
-      style={flyNames !== 'none' ? { viewTransitionName: 'nav-sheet' } : undefined}
+      style={
+        {
+          viewTransitionName: flyNames !== 'none' ? 'nav-sheet' : undefined,
+          /* PC 팝업의 자리 · 높이 한도 — globals.css 의 dialog[data-drawer] 가 읽는다(휴대폰 시트는 안 읽는다) */
+          '--pop-top': `${anchor.top}px`,
+          '--pop-right': `${anchor.edge}px`,
+          '--pop-max': `calc(100dvh - ${anchor.top}px - 1rem)`,
+        } as CSSProperties
+      }
       aria-label="메뉴"
       /*
        * 브라우저가 판을 닫았다고 알려 올 때는 값만 맞춘다. 여기서 연출을 부르면
@@ -2027,10 +2052,11 @@ function DetailMenu({
         if (e.target === ref.current) onClose();
       }}
       /*
-       * 살짝 비친다(bg-surface/92). 유리처럼 뒤가 어렴풋이 보이되, 글자가 뒤와
+       * 살짝 비친다(bg-surface/85). 유리처럼 뒤가 어렴풋이 보이되, 글자가 뒤와
        * 섞일 만큼은 아니다. 뒤를 흐리는 것은 PC 에서만 — 아이폰 사파리는 흐린
        * 면 위로 무언가 움직일 때마다 다시 계산하다 깜빡인다(MobileTopBar 참고).
-       * 왼쪽 모서리의 곡선은 globals.css 의 dialog[data-drawer] 가 준다.
+       * 모서리 · 자리 · 크기는 globals.css 의 dialog[data-drawer] 가 준다. 뒤 배경(backdrop)은 PC 에서
+       * 투명 — 팝업은 뒤를 가리지 않는다(그래도 모달이라 바깥을 누르면 닫힌다).
        *
        * 안의 것을 올렸을 때의 배경은 반투명한 잉크색(bg-ink/6)이다. 비치는 판 위에
        * 불투명한 surface-2 를 얹으면 밝은 테마에서 판과 거의 같은 색이 되어, 무엇에
@@ -2042,18 +2068,19 @@ function DetailMenu({
        * 대비가 4.4:1 로 기준(4.5:1) 밑으로 내려갔다. 잉크 65% 는 5.5:1 쯤이다.
        */
       /*
-       * 휴대폰은 아래 시트(폭 전체 · 불투명 — globals.css 의 '휴대폰의 더보기'), PC 는 오른쪽 판(w-72 · 비침).
+       * 휴대폰은 아래 시트(폭 전체 · 불투명 — globals.css 의 '휴대폰의 더보기'), PC 는 도크와 같은 유리
+       * 팝업(w-72 · 비침 · 테두리 · 그림자).
        */
-      className="ui-chrome w-full border-0 bg-surface p-0 text-ink shadow-2xl backdrop:bg-black/40 desk:h-full desk:w-72 desk:border-l desk:border-line/80 desk:bg-surface/92 desk:backdrop:bg-shade/50 desk:backdrop-blur-xl"
+      className="ui-chrome w-full border-0 bg-surface p-0 text-ink shadow-2xl backdrop:bg-black/40 desk:w-72 desk:border desk:border-line/70 desk:bg-surface/85 desk:shadow-xl desk:backdrop:bg-transparent desk:backdrop-blur-xl"
     >
       {/*
-        PC 는 위쪽을 시계 · 배터리 자리만큼 내린다(아이폰 앱에서만 값이 있다 — MobileTopBar 참고). 휴대폰 시트는
-        시계 자리 밑에서 멈추므로 내릴 것이 없고, 대신 손잡이를 단다.
+        PC 팝업은 높이 한도(--pop-max)를 창에서 물려받아 안의 목록만 굴린다. 휴대폰 시트는 시계 자리 밑에서
+        멈추고 손잡이를 단다.
       */}
-      <div className="flex max-h-[calc(100dvh-env(safe-area-inset-top)-0.75rem)] flex-col desk:h-full desk:max-h-none desk:pt-[env(safe-area-inset-top)]">
-        {/* 손잡이 · '메뉴' 줄 — 휴대폰은 여기를 잡고 끌어내려 닫는다(startDrag) */}
+      <div className="flex max-h-[calc(100dvh-env(safe-area-inset-top)-0.75rem)] flex-col desk:max-h-[inherit]">
+        {/* 손잡이 · '메뉴' 줄 — 휴대폰은 여기를 잡고 끌어내려 닫는다(startDrag). PC 팝업에는 없다 — Esc · 바깥으로 닫는다 */}
         <div
-          className="shrink-0 touch-none desk:touch-auto"
+          className="shrink-0 touch-none desk:hidden"
           onPointerDown={startDrag}
           onPointerMove={moveDrag}
           onPointerUp={endDrag}
@@ -2075,7 +2102,7 @@ function DetailMenu({
         </div>
         </div>
 
-        <nav className="flex-1 overflow-y-auto overscroll-contain px-2.5 py-2.5">
+        <nav className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-2.5 py-2.5 desk:p-2">
           {groups.map((group, gi) => (
             <div
               key={group.title ?? `g${gi}`}
@@ -2086,8 +2113,8 @@ function DetailMenu({
                */
               className={
                 group.title
-                  ? 'mt-4 space-y-1 desk:mt-3 desk:border-t desk:border-line/70 desk:pt-3'
-                  : 'space-y-1'
+                  ? 'mt-4 space-y-1 desk:mt-2 desk:space-y-0.5 desk:border-t desk:border-line/70 desk:pt-2'
+                  : 'space-y-1 desk:space-y-0.5'
               }
             >
               {group.title && (
@@ -2100,7 +2127,7 @@ function DetailMenu({
                 const active = isActive(item.href);
                 const i = flyIndex(item.href);
                 const quick = quickHrefs.includes(item.href);
-                const fly = flyNames === 'quick' && quick;
+                const fly = flyNames === 'all' || (flyNames === 'quick' && quick);
                 const grow = grows && !quick;
                 return (
                   <Link
@@ -2111,7 +2138,7 @@ function DetailMenu({
                     /*
                       누르는 칸은 44px 이상 — 예전에는 32px 남짓이라 옆 항목을 잘못 누르곤 했다.
                     */
-                    className={`flex min-h-11 items-center gap-3 rounded-xl px-3 py-2 transition-colors duration-75 ${
+                    className={`flex min-h-11 items-center gap-3 rounded-xl px-3 py-2 transition-colors duration-75 desk:min-h-10 desk:rounded-lg desk:py-1.5 ${
                       active
                         ? 'bg-sky text-white'
                         : 'text-ink hover:bg-ink/6 active:bg-ink/6'
@@ -2130,7 +2157,7 @@ function DetailMenu({
                       }
                     />
                     <span
-                      className={`min-w-0 text-[15px] leading-5 ${active ? 'font-semibold' : 'font-medium'}`}
+                      className={`min-w-0 text-[15px] leading-5 desk:text-sm ${active ? 'font-semibold' : 'font-medium'}`}
                     >
                       {item.label}
                     </span>
@@ -2151,7 +2178,7 @@ function DetailMenu({
             onNavigate();
             onProfile(e.currentTarget);
           }}
-          className="flex w-full shrink-0 items-center gap-3 border-t border-line px-4 pt-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] text-left transition-colors duration-75 hover:bg-ink/6"
+          className="flex w-full shrink-0 items-center gap-3 border-t border-line px-4 pt-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] text-left transition-colors duration-75 hover:bg-ink/6 desk:rounded-b-2xl desk:px-3 desk:py-2 desk:pb-2"
         >
           <Avatar nickname={nickname} avatarUrl={avatarUrl} />
           <span className="min-w-0">
