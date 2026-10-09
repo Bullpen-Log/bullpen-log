@@ -17,24 +17,11 @@ import {
   checkOptionalNumber,
   isSex,
   validateProfile,
-  type Sex,
 } from '@/lib/profile';
-import { levelAgeProblem, validateBaseline } from '@/lib/baseline';
+import { isCompetitionLevel, levelAgeProblem } from '@/lib/baseline';
 import { toDateKey } from '@/lib/pitch-stats';
-import { readTrainingProfile } from '@/lib/report/personalize';
 import { withInput, type FormValues } from '@/lib/form-values';
 import { dbDate } from '@/lib/nutrition/days';
-import { cleanDietPrefs } from '@/lib/nutrition/diet-prefs';
-import {
-  fieldOfNutritionError,
-  levelOf,
-  readNutritionAnswers,
-  toDietPrefsRaw,
-  toProfileInput,
-  type OnboardingBody,
-} from '@/lib/nutrition/onboarding-answers';
-import { buildProfileData, type ProfileData } from '@/lib/nutrition/profile-save';
-import { ageOn } from '@/lib/nutrition/targets';
 
 /**
  * field — 문제가 난 칸의 name. 가입은 여러 단계로 나뉘어 있어서(app/login/auth-form.tsx)
@@ -46,17 +33,21 @@ export type AuthState =
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
+/** 이름 길이의 위 한계 — 가입 화면의 maxLength(app/login/auth-form.tsx)와 같은 선. 손으로 만든 요청이 아무 길이나 넣지 못하게 */
+const MAX_NICKNAME = 20;
+
 /**
- * 가입 첫 단계에서 이메일을 미리 본다 — 형식이 맞는지, 이미 가입된 것은 아닌지.
+ * 가입 첫 화면에서 이메일을 미리 본다 — 형식이 맞는지, 이미 가입된 것은 아닌지.
  *
- * 가입은 기본 정보 → 비밀번호 → 약관 → 문진으로 나뉘어 있다. 이것이 없으면 이미 가입한
- * 이메일을 넣은 사람은 문진까지 다 고르고 마지막에야 막혀 처음으로 돌아간다. 이미 가입된
- * 이메일이라는 것은 가입을 끝까지 눌러도 알려 주는 것이라, 미리 알려 준다고 새로 드러나는
- * 것은 없다. 계정을 만들지는 않는다 — 만드는 것은 마지막의 signup 이다.
+ * 가입은 이름 · 이메일 → 생년월일 · 성별 → 키 · 몸무게 → 비밀번호 → 소속 → 약관으로 나뉘어
+ * 있다. 이것이 없으면 이미 가입한 이메일을 넣은 사람은 끝까지 다 적고 마지막에야 막혀
+ * 처음으로 돌아간다. 이미 가입된 이메일이라는 것은 가입을 끝까지 눌러도 알려 주는 것이라,
+ * 미리 알려 준다고 새로 드러나는 것은 없다. 계정을 만들지는 않는다 — 만드는 것은 마지막의
+ * signup 이다.
  */
 export async function checkSignupEmail(raw: string): Promise<{ error?: string }> {
   const email = raw.trim().toLowerCase();
-  if (!email) return { error: '이메일을 입력해주세요.' };
+  if (!email) return { error: '이메일을 적어 주세요.' };
   if (!EMAIL_RE.test(email)) return { error: '올바른 이메일 형식이 아니에요.' };
   const existing = await prisma.user.findUnique({
     where: { email },
@@ -68,7 +59,7 @@ export async function checkSignupEmail(raw: string): Promise<{ error?: string }>
 
 /**
  * 가입 실패로 끝나면 입력한 값을 함께 돌려준다.
- * 이메일 하나 잘못 썼다고 문진까지 다시 채우게 할 수는 없다.
+ * 이메일 하나 잘못 썼다고 다른 칸까지 다시 채우게 할 수는 없다.
  * (비밀번호는 돌려보내지 않는다 — lib/form-values.ts 참고)
  */
 export async function signup(_prev: AuthState, formData: FormData): Promise<AuthState> {
@@ -83,20 +74,27 @@ async function trySignup(formData: FormData): Promise<AuthState> {
   const password = String(formData.get('password') ?? '');
   const passwordConfirm = String(formData.get('passwordConfirm') ?? '');
 
-  if (!email) return { error: '이메일을 입력해주세요.', field: 'email' };
-  if (!nickname) return { error: '닉네임을 입력해주세요.', field: 'nickname' };
-  if (!password) return { error: '비밀번호를 입력해주세요.', field: 'password' };
+  /*
+   * 문구는 화면 검사(app/login/auth-form.tsx checkStep)와 같은 말로 — 화면 라벨이 '이름 · 별명'이라 여기서도
+   * '닉네임'이라 부르지 않는다. 화면 검사를 지나친 요청에서만 보이는 글이지만, 같은 칸을 두 이름으로 부르면 안 된다.
+   */
+  if (!email) return { error: '이메일을 적어 주세요.', field: 'email' };
+  if (!nickname) return { error: '이름을 적어 주세요.', field: 'nickname' };
+  if (!password) return { error: '비밀번호를 적어 주세요.', field: 'password' };
   if (!EMAIL_RE.test(email)) {
     return { error: '올바른 이메일 형식이 아니에요.', field: 'email' };
   }
   if (nickname.length < 2) {
-    return { error: '닉네임은 2자 이상이어야 해요.', field: 'nickname' };
+    return { error: '이름은 2자 이상이어야 해요.', field: 'nickname' };
+  }
+  if (nickname.length > MAX_NICKNAME) {
+    return { error: `이름은 ${MAX_NICKNAME}자까지예요.`, field: 'nickname' };
   }
   if (password.length < 8) {
     return { error: '비밀번호는 8자 이상이어야 해요.', field: 'password' };
   }
   if (!passwordConfirm) {
-    return { error: '비밀번호를 한 번 더 입력해주세요.', field: 'passwordConfirm' };
+    return { error: '비밀번호를 한 번 더 적어 주세요.', field: 'passwordConfirm' };
   }
   if (password !== passwordConfirm) {
     return { error: '비밀번호가 일치하지 않아요.', field: 'passwordConfirm' };
@@ -110,145 +108,78 @@ async function trySignup(formData: FormData): Promise<AuthState> {
    */
   if (formData.get('agreeTerms') !== 'on' || formData.get('agreePrivacy') !== 'on') {
     return {
-      error: '이용약관과 개인정보 처리방침에 동의해주세요.',
+      error: '이용약관과 개인정보 처리방침에 동의해 주세요.',
       field: 'agreeTerms',
     };
   }
 
-  // 나이는 안전한 투구수 한도를 정하는 기준이라 가입할 때 함께 받는다.
+  /*
+   * 생년월일 · 키 — 둘 다 가입할 때 꼭 받는다(2026-10-09 재설계, 키 · 몸무게 화면).
+   *
+   * 나이는 안전한 투구수 한도를 정하는 기준이고, 키는 영상에서 잰 길이를 몸 크기로 나눌 때와
+   * 영양 탭의 기초대사량 · 목표 체중 바닥(BMI 20)에 쓴다. 범위 검사는 내 정보와 같은 함수다
+   * (lib/profile.ts) — 키는 거기서 선택이라 비어 있는지만 여기서 한 번 더 본다.
+   */
+  const rawBirthDate = String(formData.get('birthDate') ?? '').trim();
   const profile = validateProfile(
-    String(formData.get('birthDate') ?? ''),
+    rawBirthDate,
     String(formData.get('heightCm') ?? ''),
     { requireBirthDate: true }
   );
   if ('error' in profile) return profile;
+  if (profile.value.heightCm === null) {
+    return { error: '키를 적어 주세요.', field: 'heightCm' };
+  }
 
   /*
    * 성별 — 영양 목표의 기초대사량 계산에 쓴다(남녀 상수가 다르다).
    *
-   * 가입할 때 꼭 고르게 한다(화면의 단추가 required). 단추 한 번이라 가입이
-   * 무거워지지 않고, 안 고른 계정은 남녀 식의 가운데 값으로 셈해서 목표가 하루
-   * 100kcal 넘게 어긋난다. 나중에 내 정보에서 바꿀 수 있다.
-   *
-   * 칸이 아예 안 왔으면 막지 않고 비워 둔 채로 만든다. 성별 칸이 생기기 전에 열어
-   * 둔 가입 화면이다 — 거기에는 고를 곳이 없어서, 막으면 긴 문진을 다 적고도 가입을
-   * 못 한다. 비어 있는 성별은 영양 탭과 내 정보가 채우라고 알린다.
+   * 가입할 때 꼭 고르게 한다. 단추 한 번이라 가입이 무거워지지 않고, 안 고른 계정은
+   * 남녀 식의 가운데 값으로 셈해서 목표가 하루 100kcal 넘게 어긋난다. 나중에 내 정보에서
+   * 바꿀 수 있다.
    */
-  let sex: Sex | null = null;
-  if (formData.has('sex')) {
-    const picked = String(formData.get('sex') ?? '').trim();
-    if (!isSex(picked)) {
-      return { error: '성별을 선택해주세요.', field: 'sex' };
-    }
-    sex = picked;
+  const sex = String(formData.get('sex') ?? '').trim();
+  if (!isSex(sex)) {
+    return { error: '성별을 골라 주세요.', field: 'sex' };
   }
 
-  // 평소 투구량 문진 — 부하 지수를 첫날부터 내기 위한 추정 기준선.
-  const baseline = validateBaseline({
-    baselineFreq: String(formData.get('baselineFreq') ?? ''),
-    baselineVolume: String(formData.get('baselineVolume') ?? ''),
-    baselineIntensity: String(formData.get('baselineIntensity') ?? ''),
-    baselineWorkoutFreq: String(formData.get('baselineWorkoutFreq') ?? ''),
-    throwingHand: String(formData.get('throwingHand') ?? ''),
-    competitionLevel: String(formData.get('competitionLevel') ?? ''),
+  /*
+   * 몸무게 — 오늘의 첫 체중 기록이 되고, 영양 탭을 열 때(첫 설정) 기준 체중이 된다.
+   * 범위는 내 정보의 몸무게 칸과 같다(lib/profile.ts). 저장 단위는 늘 kg 이다.
+   */
+  const weight = checkOptionalNumber(String(formData.get('weightKg') ?? ''), {
+    label: '몸무게',
+    min: MIN_WEIGHT_KG,
+    max: MAX_WEIGHT_KG,
+    unit: 'kg',
   });
-  if ('error' in baseline) return baseline;
-
-  /* 소속은 생년월일과 맞아야 한다 — 중학생 나이에 '프로'는 받지 않는다(lib/baseline.ts levelFit) */
-  const levelProblem = levelAgeProblem(
-    baseline.value.competitionLevel,
-    String(formData.get('birthDate') ?? '').trim() || null,
-    toDateKey(new Date())
-  );
-  if (levelProblem) return { error: levelProblem, field: 'competitionLevel' };
-
-  /*
-   * 웨이트 트레이닝 경력 — 트레이닝이 경력에 비해 이른 운동을 빼는 기준.
-   *
-   * 트레이닝 설정에서 저장할 때와 같은 함수로 거른다(목록 밖의 값은 null).
-   * 설정에서는 비워 둘 수 있지만 가입할 때는 꼭 고르게 한다 — 안 고른
-   * 사람은 아무것도 빼지 않아서, 웨이트를 처음 하는 사람도 상급 운동을 받는다.
-   */
-  const { trainingLevel } = readTrainingProfile(formData);
-  if (!trainingLevel) {
-    return { error: '웨이트 트레이닝 경력을 선택해주세요.', field: 'trainingLevel' };
+  if ('error' in weight) return { error: weight.error, field: 'weightKg' };
+  if (weight.value === null) {
+    return { error: '몸무게를 적어 주세요.', field: 'weightKg' };
   }
+  const weightKg = weight.value;
 
   /*
-   * 영양 온보딩(인아웃식 가입, 2026-10-08 — docs/designs/inout-onboarding.md ④).
+   * 소속 — 목록 안의 값이거나 비어 있어야 하고, 생년월일과 맞아야 한다(중학생 나이에
+   * '프로'는 받지 않는다 — lib/baseline.ts levelFit). 화면이 이미 막지만 오래 열어 둔 화면이나
+   * 손으로 만든 요청도 있다. 비어 있어도 가입은 된다 — 아무 계산에도 안 쓰는 값이라 이것
+   * 때문에 가입이 막히면 잃는 쪽이 크다.
    *
-   * 새 가입 화면은 체중과 영양 질문의 답(목표 카드 · 목표 체중 · 속도 · 평소 움직임 · 시즌 · 탄단지 · 식사 · 못 먹는 것 ·
-   * 직접 고친 kcal · g)을 숨은 칸으로 함께 보낸다(lib/nutrition/onboarding-answers.ts). 그러면 계정과 함께
-   * 영양 목표(NutritionProfile, 온보딩 끝낸 시각 · 계획 시작일 포함)와 오늘의 첫 체중(DailyNutrition)을 한 트랜잭션으로
-   * 만든다 — 가입 직후 영양 탭이 바로 계획을 보인다.
-   *
-   * 표시 칸이 없는 옛 화면(배포 전에 열어 둔 가입 화면)은 예전처럼 계정만 만든다 — 키 · 체중도 선택이다.
-   * 저장 규칙은 목표 창과 같은 함수(buildProfileData · cleanDietPrefs)라 가입으로 만든 목표와 목표 창에서 고친 목표가
-   * 어긋나지 않는다.
+   * 던지는 손 · 평소 투구량 · 웨이트 횟수 · 경력은 더 받지 않는다(2026-10-09). 투구 기록과
+   * 트레이닝 탭의 첫 설정(app/actions/pitch-setup.ts · training-setup.ts)이 각각 받는다 —
+   * 그때까지 그 탭은 잠겨 있다(lib/feature-locks.ts).
    */
+  const rawLevel = String(formData.get('competitionLevel') ?? '').trim();
+  if (rawLevel !== '' && !isCompetitionLevel(rawLevel)) {
+    return {
+      error: '어디서 야구를 하고 있는지 다시 골라 주세요.',
+      field: 'competitionLevel',
+    };
+  }
+  const competitionLevel = rawLevel || null;
   const today = toDateKey(new Date());
-  const nutrition = readNutritionAnswers(formData);
-  if (typeof nutrition === 'string') return { error: nutrition, field: 'kcalTarget' };
-  let weightKg: number | null = null;
-  let nutritionRow:
-    | (ProfileData & {
-        goalEndDate: Date | null;
-        seasonPhase: string | null;
-        dietStyle: string;
-        mealPattern: string;
-        avoidFoods: string[];
-        allowSupplements: boolean;
-      })
-    | null = null;
-  if (nutrition) {
-    /* 온보딩 화면은 키 · 체중을 꼭 받는다 — 둘 없이는 목표 체중 범위 · 칼로리를 셈할 수 없다 */
-    if (profile.value.heightCm === null) {
-      return { error: '키를 적어 주세요.', field: 'heightCm' };
-    }
-    const weight = checkOptionalNumber(String(formData.get('weightKg') ?? ''), {
-      label: '체중',
-      min: MIN_WEIGHT_KG,
-      max: MAX_WEIGHT_KG,
-      unit: 'kg',
-    });
-    if ('error' in weight) return { error: weight.error, field: 'weightKg' };
-    if (weight.value === null)
-      return { error: '지금 체중을 적어 주세요.', field: 'weightKg' };
-    weightKg = weight.value;
-
-    const body: OnboardingBody = {
-      age: ageOn(profile.value.birthDate, today),
-      sex,
-      heightCm: profile.value.heightCm,
-      weightKg,
-      level: levelOf(baseline.value.competitionLevel),
-    };
-    const built = buildProfileData(
-      toProfileInput(nutrition, body),
-      {
-        birthDate: profile.value.birthDate,
-        heightCm: profile.value.heightCm,
-        weightKg,
-      },
-      null,
-      weightKg,
-      today
-    );
-    if (!built.ok)
-      return { error: built.error, field: fieldOfNutritionError(built.error) };
-    const prefs = cleanDietPrefs(toDietPrefsRaw(nutrition, body), today);
-    if (typeof prefs === 'string')
-      return { error: prefs, field: fieldOfNutritionError(prefs) };
-    nutritionRow = {
-      ...built.data,
-      goalEndDate: prefs.goalEndDate ? dbDate(prefs.goalEndDate) : null,
-      seasonPhase: prefs.seasonPhase,
-      dietStyle: prefs.dietStyle,
-      mealPattern: prefs.mealPattern,
-      avoidFoods: prefs.avoid,
-      allowSupplements: prefs.supplements,
-    };
-  }
+  const levelProblem = levelAgeProblem(competitionLevel, rawBirthDate || null, today);
+  if (levelProblem) return { error: levelProblem, field: 'competitionLevel' };
 
   const existing = await prisma.user.findUnique({ where: { email } });
   if (existing) {
@@ -259,7 +190,11 @@ async function trySignup(formData: FormData): Promise<AuthState> {
   const role = adminEmail && email === adminEmail ? 'ADMIN' : 'USER';
 
   const passwordHash = await bcrypt.hash(password, 10);
-  const row = nutritionRow;
+  /*
+   * 계정과 오늘의 첫 체중을 한 트랜잭션으로. 영양 목표(NutritionProfile)는 만들지 않는다 —
+   * 그 줄이 있어야 영양 탭이 열리는데(lib/feature-locks.ts), 여는 것은 영양 탭의 첫 설정
+   * (/nutrition/setup)이다. DailyNutrition 은 계정에만 매여 있어 목표 줄 없이도 만들 수 있다.
+   */
   const user = await prisma.$transaction(async (tx) => {
     const created = await tx.user.create({
       data: {
@@ -269,20 +204,18 @@ async function trySignup(formData: FormData): Promise<AuthState> {
         role,
         ...profile.value,
         sex,
-        ...baseline.value,
-        trainingLevel,
-        /* 온보딩에서 받은 체중은 계정에도 — 내 정보의 몸무게 칸과 영양 탭의 기준 체중이 같은 값에서 시작한다 */
-        ...(weightKg !== null ? { weightKg } : {}),
+        /* 가입 때 받은 몸무게는 계정에도 — 내 정보의 몸무게 칸과 영양 탭의 기준 체중이 같은 값에서 시작한다 */
+        weightKg,
+        competitionLevel,
+        /* 약관 · 개인정보 처리방침에 동의한 시각 — 위에서 둘 다 'on' 인 것을 봤다 */
+        agreedAt: new Date(),
       },
       select: { id: true, role: true },
     });
-    if (row && weightKg !== null) {
-      await tx.nutritionProfile.create({ data: { userId: created.id, ...row } });
-      /* 오늘의 첫 체중 — 체중 흐름의 첫 점. 가입 날짜 줄은 아직 없으니 그대로 만든다 */
-      await tx.dailyNutrition.create({
-        data: { userId: created.id, date: dbDate(today), weightKg },
-      });
-    }
+    /* 오늘의 첫 체중 — 체중 흐름의 첫 점. 가입 날짜 줄은 아직 없으니 그대로 만든다 */
+    await tx.dailyNutrition.create({
+      data: { userId: created.id, date: dbDate(today), weightKg },
+    });
     return created;
   });
 
