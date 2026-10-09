@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { ArrowRight, Clapperboard, ChevronRight } from 'lucide-react';
+import { Clapperboard, ChevronRight } from 'lucide-react';
 import { BackLink, ButtonLink, Card, PageHeading } from '@/components/ui';
 import { ShootGauge, StackBar } from '@/components/shoot/gauge';
 import { STATE_LABEL, STATE_PILL, dayText, stampText } from '@/components/shoot/status';
@@ -19,7 +19,7 @@ import {
   type Count,
   type ShootCheckView,
 } from '@/lib/shoot/progress';
-import { SESSION_MINUTES, STATIONS, WRAP_MINUTES } from '@/lib/shoot/schedule';
+import { ALL_STATIONS, SESSION_MINUTES, WRAP_MINUTES } from '@/lib/shoot/schedule';
 import { toDateKey } from '@/lib/pitch-stats';
 
 /**
@@ -60,7 +60,16 @@ export async function ShootOverview({
     const cur = cursorOf(w, checks);
     return { w, count, cur, total: its.length };
   });
-  const nextWeek = weeks.find((x) => x.cur.current) ?? null;
+  /* 다음 촬영 — 실내 · 야외를 따로(야외는 날씨를 보고 고른다) */
+  const nexts = [
+    { label: '실내', next: weeks.find((x) => !x.w.outdoor && x.cur.current) ?? null },
+    { label: '야외', next: weeks.find((x) => x.w.outdoor && x.cur.current) ?? null },
+  ].filter((n): n is { label: string; next: (typeof weeks)[number] } => !!n.next);
+  const kindCount = (k: 'exercise' | 'drill' | 'warmup') =>
+    items.filter((i) => (i.kind ?? 'exercise') === k).length;
+  const indoorWeeks = plan.weeks.filter((w) => !w.outdoor).map((w) => w.week);
+  const outdoorWeeks = plan.weeks.filter((w) => w.outdoor).map((w) => w.week);
+  const span = (ws: number[]) => (ws.length ? `${ws[0]}~${ws[ws.length - 1]}주` : '');
   const sessions = sessionsOf(checkList, toDateKey);
   const realPer =
     sessions
@@ -79,7 +88,7 @@ export async function ShootOverview({
   const recent = [...checkList].sort((a, b) => b.at.localeCompare(a.at)).slice(0, 14);
 
   const stations = groupCounts(items, checks, (i) => i.station).sort(
-    (a, b) => STATIONS.indexOf(a.key) - STATIONS.indexOf(b.key)
+    (a, b) => ALL_STATIONS.indexOf(a.key) - ALL_STATIONS.indexOf(b.key)
   );
   const buckets = groupCounts(items, checks, (i) => BUCKET_LABEL[i.bucket]).sort(
     (a, b) => b.count.total - a.count.total
@@ -95,7 +104,7 @@ export async function ShootOverview({
       <BackLink href="/admin">관리자</BackLink>
       <PageHeading
         title="트레이닝 영상 촬영"
-        description={`유튜브 참고 영상으로 대신하던 운동 ${all.total}개를 우리 영상으로 바꿔요. 주 1회 3시간 · ${plan.weeks.length}주 계획.`}
+        description={`실내 ${span(indoorWeeks)} 운동 ${kindCount('exercise')}개 · 야외 ${span(outdoorWeeks)} 투구 드릴 ${kindCount('drill')}개와 워밍업 ${kindCount('warmup')}개를 우리 영상으로 찍어요. 주 1회 3시간 · ${plan.weeks.length}주 계획.`}
       />
 
       {/* ── 게이지 + 이어 찍기 ── */}
@@ -119,32 +128,28 @@ export async function ShootOverview({
             <Legend dot="bg-warn/70" label="다시 · 미룸" value={all.redo + all.later} />
             <Legend dot="bg-ink/15" label="남음" value={all.todo} />
           </dl>
-          {nextWeek?.cur.current ? (
-            <div className="space-y-3 rounded-2xl bg-sky/8 p-4">
-              <p className="text-xs font-semibold text-sky-strong">
-                다음 촬영 · {nextWeek.w.week}주차 {nextWeek.count.done}/{nextWeek.total}
-              </p>
-              <p className="text-base font-bold break-keep text-ink">
-                <span className="text-numeric mr-2 text-muted">
-                  {nextWeek.cur.current.no}
-                </span>
-                {nextWeek.cur.current.title}
-              </p>
-              <div className="flex flex-wrap gap-2">
-                <ButtonLink
-                  href={`/admin/shoot/${nextWeek.w.week}/run`}
-                  className="min-w-40"
-                >
-                  <Clapperboard aria-hidden className="h-4 w-4" />
-                  {nextWeek.count.done > 0 ? '이어 찍기' : '촬영 시작'}
-                </ButtonLink>
-                <ButtonLink
-                  href={`/admin/shoot/${nextWeek.w.week}`}
-                  variant="secondary"
-                >
-                  {nextWeek.w.week}주차 시간표
-                </ButtonLink>
-              </div>
+          {nexts.length > 0 ? (
+            <div className={nexts.length > 1 ? 'grid gap-3 lg:grid-cols-2' : ''}>
+              {nexts.map(({ label, next }) => (
+                <div key={label} className="space-y-3 rounded-2xl bg-sky/8 p-4">
+                  <p className="text-xs font-semibold text-sky-strong">
+                    다음 {label} 촬영 · {next.w.week}주차 {next.count.done}/{next.total}
+                  </p>
+                  <p className="text-base font-bold break-keep text-ink">
+                    <span className="text-numeric mr-2 text-muted">{next.cur.current!.no}</span>
+                    {next.cur.current!.title}
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    <ButtonLink href={`/admin/shoot/${next.w.week}/run`} className="min-w-40">
+                      <Clapperboard aria-hidden className="h-4 w-4" />
+                      {next.count.done > 0 ? '이어 찍기' : '촬영 시작'}
+                    </ButtonLink>
+                    <ButtonLink href={`/admin/shoot/${next.w.week}`} variant="secondary">
+                      {next.w.week}주차 시간표
+                    </ButtonLink>
+                  </div>
+                </div>
+              ))}
             </div>
           ) : (
             <p className="rounded-2xl bg-sky/8 p-4 text-sm font-semibold text-sky-strong">
@@ -159,7 +164,7 @@ export async function ShootOverview({
       {/* ── 주차 ── */}
       <section className="space-y-3">
         <h2 className="text-sm font-bold text-ink">주차별</h2>
-        <ul className="grid gap-block sm:grid-cols-2 desk:grid-cols-3 xl:grid-cols-5">
+        <ul className="grid gap-block sm:grid-cols-2 desk:grid-cols-3 xl:grid-cols-4">
           {weeks.map(({ w, count, cur, total }, i) => {
             const state =
               count.done === total
@@ -178,7 +183,14 @@ export async function ShootOverview({
                   className="group flex h-full flex-col gap-3 rounded-2xl border border-line bg-surface p-(--block-pad) transition-colors duration-75 hover:border-sky-soft hover:bg-surface-2"
                 >
                   <span className="flex items-center justify-between gap-2">
-                    <span className="text-base font-bold text-ink">{w.week}주차</span>
+                    <span className="flex items-center gap-2 text-base font-bold text-ink">
+                      {w.week}주차
+                      {w.outdoor && (
+                        <span className="rounded-full bg-ink/6 px-2 py-0.5 text-[11px] font-semibold text-muted">
+                          야외
+                        </span>
+                      )}
+                    </span>
                     <span
                       className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${
                         state === '다 찍음'
@@ -382,25 +394,23 @@ export async function ShootOverview({
               <h2 className="text-sm font-bold text-ink">
                 올릴 차례 {toUpload.length}개
               </h2>
-              <Link
-                href="/library/training"
-                className="inline-flex items-center gap-1 text-xs font-semibold text-sky-strong hover:underline"
-              >
-                라이브러리에서 영상 올리기
-                <ArrowRight aria-hidden className="h-3.5 w-3.5" />
-              </Link>
             </div>
             <p className="text-xs text-muted">
-              찍었지만 아직 유튜브 참고 영상이 걸려 있는 운동이에요. 라이브러리에서
-              운동을 열고 연필 → &lsquo;직접 찍은 영상 올리기&rsquo;.
+              찍음으로 체크했지만 아직 우리 영상이 없는 것이에요. 번호를 누르면 그 주 시간표에서 그 운동 창이 열려요 —
+              [영상 파일 올리기]로 잘라 올려요.
             </p>
             <ul className="grid gap-x-6 gap-y-1 text-sm sm:grid-cols-2 lg:grid-cols-3">
               {toUpload.map((it) => (
-                <li key={it.exerciseId} className="flex gap-2 truncate">
-                  <span className="text-numeric w-10 shrink-0 text-xs text-muted">
-                    {it.no}
-                  </span>
-                  <span className="truncate text-ink">{it.title}</span>
+                <li key={it.exerciseId}>
+                  <Link
+                    href={`/admin/shoot/${byNo.get(it.exerciseId)?.week ?? 1}#${it.no}`}
+                    className="flex gap-2 truncate rounded-lg px-1 py-0.5 hover:bg-surface-2"
+                  >
+                    <span className="text-numeric w-10 shrink-0 text-xs text-muted">
+                      {it.no}
+                    </span>
+                    <span className="truncate text-ink">{it.title}</span>
+                  </Link>
                 </li>
               ))}
             </ul>

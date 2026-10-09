@@ -148,5 +148,6 @@ export function sizeText(bytes: number): string {
 
 /** 원본 화질 알림 — 웹 카메라로 찍으면 아이폰이 480×360 쯤으로 줄여 보낸다(WebKit). 라이브러리에 쓰기엔 작다 */
 export function lowResolution(info: Pick<ClipInfo, 'width' | 'height'>): boolean {
+  // 짧은 변 700px 아래 = 720p 보다 작다(웹 카메라 480×360, 옛 640×480)
   return Math.min(info.width, info.height) < 700;
 }

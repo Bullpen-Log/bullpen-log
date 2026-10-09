@@ -5,7 +5,9 @@ import { getCurrentUser } from '@/lib/dal';
 import { clearLibraryCache } from '@/lib/library-cache';
 import { prisma } from '@/lib/prisma';
 import { deleteVideos, isLibraryPath } from '@/lib/storage';
+import { EXERCISE_EQUIPMENT } from '@/lib/exercise-meta';
 import { PLAN_EXERCISE_IDS } from '@/lib/shoot/plan';
+import { isWarmupId, warmupOf, warmupRowId } from '@/lib/shoot/warmups';
 import {
   isShootStatus,
   type ShootCheckView,
@@ -111,7 +113,7 @@ function validClip(clip: ShootClip): string | null {
 /**
  * 촬영 모드에서 찍어 자른(소리 없는) 영상을 그 운동의 라이브러리 영상으로 붙이고 '찍음'으로 체크한다.
  *
- * 운동(ExerciseVideo)이든 투구 드릴(MechanicsGuide)이든 같은 자리를 바꾼다 — 라이브러리 관리자 화면에서 영상을 바꿀 때
+ * 운동(ExerciseVideo) · 투구 드릴(MechanicsGuide) · 이름만 있는 워밍업(같은 이름의 '워밍업' 운동, 없으면 숨긴 채 만든다) 모두 같은 자리를 바꾼다 — 라이브러리 관리자 화면에서 영상을 바꿀 때
  * (app/actions/content.ts tryUpdateExercise · tryUpdateGuide)와 같다: videoPath · thumbPath, 출처 OWN, 유튜브 번호 지움
  * (재생기가 유튜브를 먼저 보므로), 그리고 비율(세로로 찍었으면 세로 틀). 유튜브 번호는 lib/shoot/refs.json 에 남아 있어
  * 촬영 화면은 다시 찍을 때도 참고 영상을 보인다. 예전 우리 영상(다시 찍기)은 DB 를 바꾼 뒤에 지운다.
@@ -136,14 +138,64 @@ export async function attachShootClip(
   };
 
   const select = { videoPath: true, thumbPath: true } as const;
-  const exercise = await prisma.exerciseVideo.findUnique({ where: { id: exerciseId }, select });
-  const guide = exercise
-    ? null
-    : await prisma.mechanicsGuide.findUnique({ where: { id: exerciseId }, select });
-  const before = exercise ?? guide;
-  if (!before) return { ok: false, error: '라이브러리에서 이 운동을 찾지 못했어요.' };
-  if (exercise) await prisma.exerciseVideo.update({ where: { id: exerciseId }, data });
-  else await prisma.mechanicsGuide.update({ where: { id: exerciseId }, data });
+  let before: { videoPath: string | null; thumbPath: string | null };
+  let libraryPath: string;
+  const warmup = isWarmupId(exerciseId) ? warmupOf(exerciseId) : null;
+  if (warmup) {
+    // 이름만 있는 워밍업 — 미리 정한 id(warmupRowId)의 운동이 있으면 그것에, 없으면 그 id 로 숨긴 채 만들어 붙인다.
+    // 이름이 아니라 id 로 잇는다 — 라이브러리에서 이름 · 카테고리를 고쳐도 끊기지 않게. 손으로 먼저 만든 같은 이름의
+    // '워밍업' 운동이 있으면 그것을 쓴다. 설명 · 부위를 채워 보이게 하고 루틴에 넣는 것은 라이브러리 관리 화면(/library/warmup).
+    const rowId = warmupRowId(exerciseId);
+    if (!rowId) return { ok: false, error: '워밍업 목록에 없는 운동이에요. 새로고침해 주세요.' };
+    const byId = await prisma.exerciseVideo.findUnique({
+      where: { id: rowId },
+      select: { id: true, videoPath: true, thumbPath: true },
+    });
+    const made =
+      byId ??
+      (
+        await prisma.exerciseVideo.findMany({
+          where: { category: '워밍업' },
+          select: { id: true, title: true, videoPath: true, thumbPath: true },
+          orderBy: { createdAt: 'asc' },
+        })
+      ).find((e) => e.title.replace(/\s+/g, '') === warmup.title.replace(/\s+/g, ''));
+    if (made) {
+      before = made;
+      await prisma.exerciseVideo.update({ where: { id: made.id }, data });
+    } else {
+      before = { videoPath: null, thumbPath: null };
+      const equipment = warmup.equipment.filter((e) =>
+        (EXERCISE_EQUIPMENT as readonly string[]).includes(e)
+      );
+      await prisma.exerciseVideo.create({
+        data: {
+          ...data,
+          id: rowId,
+          title: warmup.title,
+          category: '워밍업',
+          description: '',
+          bodyParts: warmup.bodyParts,
+          equipment: equipment.length ? equipment : ['맨몸'],
+          intensity: '낮음',
+          perSide: /한쪽/.test(warmup.cue),
+          hiddenAt: new Date(),
+        },
+      });
+    }
+    libraryPath = '/library/warmup';
+  } else {
+    const exercise = await prisma.exerciseVideo.findUnique({ where: { id: exerciseId }, select });
+    const guide = exercise
+      ? null
+      : await prisma.mechanicsGuide.findUnique({ where: { id: exerciseId }, select });
+    const found = exercise ?? guide;
+    if (!found) return { ok: false, error: '라이브러리에서 이 운동을 찾지 못했어요.' };
+    before = found;
+    if (exercise) await prisma.exerciseVideo.update({ where: { id: exerciseId }, data });
+    else await prisma.mechanicsGuide.update({ where: { id: exerciseId }, data });
+    libraryPath = exercise ? '/library/training' : '/library/mechanics';
+  }
 
   const prev = await prisma.shootCheck.findUnique({ where: { exerciseId } });
   await prisma.shootCheck.upsert({
@@ -163,7 +215,7 @@ export async function attachShootClip(
   if (old.length) await deleteVideos(old);
 
   clearLibraryCache();
-  revalidatePath(exercise ? '/library/training' : '/library/mechanics');
+  revalidatePath(libraryPath);
   revalidate();
   return { ok: true, checks: await loadShootChecks() };
 }

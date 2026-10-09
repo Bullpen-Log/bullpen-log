@@ -38,7 +38,12 @@ export type Bucket =
   | '상체 밀기 · 어깨'
   | '상체 당기기'
   | '전완 · 팔꿈치'
-  | '어깨 · 견갑(암케어)';
+  | '어깨 · 견갑(암케어)'
+  /* 야외 주차(6주차~, lib/shoot/outdoor.ts) */
+  | '워밍업'
+  | '무브먼트 패턴 드릴'
+  | '메디신볼 드릴'
+  | '스로잉 드릴';
 
 export const LOWER_BUCKETS: readonly Bucket[] = [
   '하체 파워',
@@ -61,7 +66,19 @@ export const STATIONS = [
   '밴드(고정 기둥)',
   '매트',
 ] as const;
-export type Station = (typeof STATIONS)[number];
+/**
+ * 야외 자리(6주차~ 투구 드릴 · 워밍업, lib/shoot/outdoor.ts) — 이 순서로 돈다: 워밍업(모델 몸풀기) → 몸 쓰는 패턴 →
+ * 메디신볼(힘) → 공 던지기(팔은 몸이 다 풀린 뒤).
+ */
+export const OUTDOOR_STATIONS = [
+  '넓은 잔디(이동)',
+  '잔디 · 밴드 기둥',
+  '메디신볼 벽',
+  '투구 그물',
+] as const;
+export type Station = (typeof STATIONS)[number] | (typeof OUTDOOR_STATIONS)[number];
+/** 모든 자리의 차례 — 실내 뒤에 야외 */
+export const ALL_STATIONS: readonly Station[] = [...STATIONS, ...OUTDOOR_STATIONS];
 
 export const SESSION_MINUTES = 180;
 /** 0:00~0:15 카메라 · 조명 · 첫 자리 준비(모델은 그동안 몸풀기) */
@@ -212,6 +229,13 @@ export type PlanItem = {
   perSide: boolean;
   /** 이 운동 뒤에 5분 쉰다 */
   breakAfter: boolean;
+  /**
+   * 무엇인가 — 없으면 운동(ExerciseVideo). drill = 투구 드릴(MechanicsGuide), warmup = 이름만 있는 워밍업
+   * (lib/shoot/warmups.ts — 라이브러리에 아직 없다. 영상을 올리면 그 이름의 '워밍업' 운동을 숨긴 채 만든다).
+   */
+  kind?: 'exercise' | 'drill' | 'warmup';
+  /** 워밍업이 들어갈 고정 루틴('전신 워밍업' …) · 드릴의 단계('기초' …) — 화면에 한 줄 */
+  group?: string;
 };
 
 export type PlanStation = {
@@ -228,6 +252,8 @@ export type PlanWeek = {
   stations: PlanStation[];
   /** 부위별 부하 합 */
   load: Partial<Record<Bucket, number>>;
+  /** 야외 주차(투구 드릴 · 워밍업) — 앞 주에서 넘어오는 것도 같은 쪽끼리만 */
+  outdoor?: boolean;
 };
 
 export type ShootPlan = {
@@ -443,7 +469,7 @@ function layoutWeek(week: number, items: Row[]): PlanWeek {
     byStation.set(x.station, arr);
   }
   const order = [...byStation.keys()].sort(
-    (a, b) => STATIONS.indexOf(a) - STATIONS.indexOf(b)
+    (a, b) => ALL_STATIONS.indexOf(a) - ALL_STATIONS.indexOf(b)
   );
   let clock = SETUP_MINUTES;
   let since = 0;

@@ -10,7 +10,8 @@ import {
   BREAK_EVERY,
   LOWER_BUCKETS,
   SESSION_MINUTES,
-  STATIONS,
+  ALL_STATIONS,
+  OUTDOOR_STATIONS,
   WRAP_MINUTES,
   buildPlan,
   bucketOf,
@@ -36,6 +37,8 @@ import {
   weekItems,
   type ShootCheckView,
 } from '../lib/shoot/progress.ts';
+import { PLYO, buildOutdoorWeeks, drillMinutes, familyOf } from '../lib/shoot/outdoor.ts';
+import { SHOOT_WARMUPS, warmupRowId } from '../lib/shoot/warmups.ts';
 
 let pass = 0;
 let fail = 0;
@@ -88,7 +91,7 @@ function invariants(p: ShootPlan, label: string) {
     w.stations.every(
       (s, i) =>
         i === 0 ||
-        STATIONS.indexOf(s.station) > STATIONS.indexOf(w.stations[i - 1].station)
+        ALL_STATIONS.indexOf(s.station) > ALL_STATIONS.indexOf(w.stations[i - 1].station)
     )
   );
   check(`${label} — 자리는 한 회에 한 번씩, 정한 순서대로`, stationOrderOk);
@@ -151,22 +154,161 @@ function invariants(p: ShootPlan, label: string) {
   void BREAK_EVERY;
 }
 
-console.log('\n■ 고정 계획(lib/shoot/plan-data.json)');
+console.log('\n■ 고정 계획(lib/shoot/plan-data.json) — 실내 1~5주');
+const indoorPlan: ShootPlan = { ...plan, weeks: plan.weeks.filter((w) => !w.outdoor) };
 {
-  const items = plan.weeks.flatMap(weekItems);
+  const items = indoorPlan.weeks.flatMap(weekItems);
   check(
-    '5주 · 312개',
-    plan.weeks.length === 5 && items.length === 312,
-    `${plan.weeks.length}주 · ${items.length}개`
+    '실내 5주 · 312개(야외를 붙여도 그대로)',
+    indoorPlan.weeks.length === 5 &&
+      items.length === 312 &&
+      indoorPlan.weeks.every((w, i) => w.week === i + 1),
+    `${indoorPlan.weeks.length}주 · ${items.length}개`
   );
-  invariants(plan, '고정 계획');
-  const lower = plan.weeks.map((w) =>
+  invariants(indoorPlan, '고정 계획');
+  const lower = indoorPlan.weeks.map((w) =>
     LOWER_BUCKETS.reduce((a, b) => a + (w.load[b] ?? 0), 0)
   );
   check(
     '하체 부하는 회마다 고르게(최대 − 최소 ≤ 8점)',
     Math.max(...lower) - Math.min(...lower) <= 8,
     lower.map((x) => x.toFixed(1)).join(' · ')
+  );
+}
+
+console.log('\n■ 고정 계획 — 야외 6~8주(투구 드릴 + 워밍업 이름만)');
+{
+  const out = plan.weeks.filter((w) => w.outdoor);
+  const items = out.flatMap(weekItems);
+  const drills = items.filter((i) => i.kind === 'drill');
+  const warms = items.filter((i) => i.kind === 'warmup');
+  check(
+    '야외 3주(6 · 7 · 8) — 드릴 137 · 워밍업 24',
+    out.map((w) => w.week).join() === '6,7,8' &&
+      drills.length === 137 &&
+      warms.length === SHOOT_WARMUPS.length,
+    `${out.map((w) => w.week).join(',')} · 드릴 ${drills.length} · 워밍업 ${warms.length}`
+  );
+  check(
+    '워밍업은 정한 이름 그대로, 한 번씩',
+    SHOOT_WARMUPS.every(
+      (w) => warms.filter((i) => i.exerciseId === w.id && i.title === w.title).length === 1
+    )
+  );
+  const rowIds = SHOOT_WARMUPS.map((w) => warmupRowId(w.id));
+  check(
+    '워밍업마다 라이브러리 운동 id(uuid)가 따로 정해져 있다',
+    rowIds.every((r) => !!r && /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(r)) &&
+      new Set(rowIds).size === rowIds.length
+  );
+  const all = plan.weeks.flatMap(weekItems).map((i) => i.exerciseId);
+  check('실내 · 야외 통틀어 한 번씩만', new Set(all).size === all.length, `${all.length}개`);
+  check(
+    '번호는 주차-순번으로 빈틈없이(6-01 …)',
+    out.every((w) =>
+      weekItems(w).every((it, i) => it.no === `${w.week}-${String(i + 1).padStart(2, '0')}`)
+    )
+  );
+  check(
+    '매주 백업 10분 전(2:50)에 끝남',
+    out.every((w) => w.end <= SESSION_MINUTES - WRAP_MINUTES),
+    out.map((w) => clockText(w.end)).join(' · ')
+  );
+  const order = OUTDOOR_STATIONS as readonly string[];
+  check(
+    '자리 차례 — 워밍업 → 무브먼트 → 메디신볼 → 스로잉',
+    out.every(
+      (w) =>
+        w.stations[0].station === '넓은 잔디(이동)' &&
+        w.stations.every(
+          (st, i) => i === 0 || order.indexOf(st.station) > order.indexOf(w.stations[i - 1].station)
+        )
+    )
+  );
+  check(
+    '계획 시각이 앞 것이 끝난 뒤 · 영상 1개 3분 안 · 쉬기 두 번까지',
+    out.every((w) => {
+      const its = weekItems(w);
+      return (
+        its.every(
+          (it, i) =>
+            it.minutes <= 3 && (i === 0 || it.at >= its[i - 1].at + its[i - 1].minutes - 1e-6)
+        ) && its.filter((it) => it.breakAfter).length <= 2
+      );
+    })
+  );
+  const fam = new Map<string, Set<number>>();
+  for (const w of out)
+    for (const it of weekItems(w).filter((i) => i.kind === 'drill')) {
+      const k = `${it.bucket}|${familyOf(it.title)}`;
+      fam.set(k, (fam.get(k) ?? new Set()).add(w.week));
+    }
+  check(
+    '도구만 다른 같은 동작(작은 공 · 큰 공)은 같은 주',
+    [...fam.values()].every((ws) => ws.size === 1),
+    `묶음 ${fam.size}개`
+  );
+  const adjacentOk = out.every((w) => {
+    const its = weekItems(w).filter((i) => i.kind === 'drill');
+    const seen = new Map<string, number>();
+    return its.every((it, i) => {
+      const k = `${it.bucket}|${familyOf(it.title)}`;
+      const last = seen.get(k);
+      seen.set(k, i);
+      return last === undefined || last === i - 1;
+    });
+  });
+  check('같은 동작 묶음은 이어서 찍는다', adjacentOk);
+  const spread = (f: (i: (typeof items)[number]) => boolean) =>
+    out.map((w) => weekItems(w).filter(f).length);
+  const even = (xs: number[], tol: number) => Math.max(...xs) - Math.min(...xs) <= tol;
+  const throws = spread((i) => i.bucket === '스로잉 드릴');
+  const balls = spread((i) => i.bucket === '메디신볼 드릴');
+  const moves = spread((i) => i.bucket === '무브먼트 패턴 드릴');
+  const jumps = spread((i) => i.kind === 'drill' && PLYO.test(i.title));
+  check('주마다 스로잉 수 고르게(차이 3 안)', even(throws, 3), throws.join(' · '));
+  check('주마다 메디신볼 수 고르게(차이 3 안)', even(balls, 3), balls.join(' · '));
+  check('주마다 무브먼트 수 고르게(차이 3 안)', even(moves, 3), moves.join(' · '));
+  check('주마다 점프 · 착지 드릴 고르게(차이 2 안)', even(jumps, 2), jumps.join(' · '));
+  check(
+    '워밍업이 그 주 맨 앞',
+    out.every((w) => {
+      const its = weekItems(w);
+      const n = its.filter((i) => i.kind === 'warmup').length;
+      return its.slice(0, n).every((i) => i.kind === 'warmup');
+    })
+  );
+  /* 같은 입력이면 같은 계획(드릴 순서를 뒤섞어도) */
+  const drillIn = drills.map((d) => ({
+    id: d.exerciseId,
+    title: d.title,
+    category: d.bucket,
+    equipment: d.equipment,
+    stage: d.group ?? null,
+  }));
+  const a = JSON.stringify(buildOutdoorWeeks(drillIn, SHOOT_WARMUPS));
+  const b = JSON.stringify(buildOutdoorWeeks([...drillIn].reverse(), SHOOT_WARMUPS));
+  check('같은 드릴이면 같은 계획(순서를 뒤섞어도)', a === b);
+  check(
+    '고정해 둔 야외 주차 = 지금 계산(다시 뽑아도 번호가 그대로)',
+    JSON.stringify(out) === a
+  );
+  check(
+    '드릴 영상 분 — 던지기 · 이어지는 동작은 더',
+    drillMinutes({
+      id: 'x',
+      title: 'P1 스트레치 스로우',
+      category: '스로잉 드릴',
+      equipment: ['야구공'],
+      stage: '기초',
+    }) === 2.2 &&
+      drillMinutes({
+        id: 'y',
+        title: '드롭스텝 → 스쿱 토스',
+        category: '메디신볼 드릴',
+        equipment: ['메디신볼'],
+        stage: '연결',
+      }) === 2.4
   );
 }
 
@@ -435,6 +577,25 @@ console.log('\n■ 진행(지금 · 다음 · 미룬 것)');
     carried.length === items.length - 1 && !carried.includes(items[0])
   );
   check('체크가 없는 앞 주는 넘어오지 않는다', carriedOver(plan, 2, mk([])).length === 0);
+  {
+    const fixed = JSON.parse(
+      readFileSync(new URL('../lib/shoot/plan-data.json', import.meta.url), 'utf8')
+    ) as ShootPlan;
+    const w1 = weekItems(fixed.weeks[0]);
+    const one = new Map<string, ShootCheckView>([
+      [
+        w1[0].exerciseId,
+        { exerciseId: w1[0].exerciseId, status: 'done', at: '2026-10-10T01:00:00.000Z', by: null, note: null },
+      ],
+    ]);
+    const out6 = carriedOver(fixed, 6, one).length;
+    const in2 = carriedOver(fixed, 2, one).length;
+    check(
+      '야외 주차에는 실내에서 남은 것이 넘어오지 않는다(실내끼리만)',
+      out6 === 0 && in2 === w1.length - 1,
+      `6주차 ${out6} · 2주차 ${in2}`
+    );
+  }
   /* 계획 대비: 1번(계획 15분, 1.6분)을 0분에 끝냄 → 지금 2번(계획 16.6분)인데 실제 10분 지남 → 계획은 0분 뒤라 10분 늦음 */
   const now = new Date(Date.UTC(2026, 9, 10, 0, 10));
   const pace = paceMinutes(w, mk([[0, 'done', 0]]), items[1], now, day);

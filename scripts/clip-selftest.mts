@@ -6,6 +6,8 @@
  *      소리 트랙이 빠졌나 · 길이가 맞나 · 세로 영상이 세로로 남나 · MP4 인가.
  *      영상은 구속 실험대 폴더(~/bullpen-velocity-lab, scripts/velocity-lab/download.mjs 로 받음)에서 가장 긴 것 셋.
  *      폴더가 없으면 ②는 건너뛴다(그렇다고 알린다).
+ *   ③ 앱 카메라 다리(lib/shoot-camera.ts) — 가짜 앱 부품으로: 앱이 아니면 거절 · 취소는 null · 권한 거절 · 조각으로 넘겨받아
+ *      원래 바이트 그대로 · 다 받으면 지우기.
  *   다시 만들기(H.264) 길은 브라우저에서만 돈다 — 편집 화면에서 확인.
  */
 import { existsSync, openAsBlob, readdirSync, statSync } from 'node:fs';
@@ -26,6 +28,12 @@ import {
   snapTime,
 } from '../lib/clip/plan.ts';
 import { exportMutedClip, probeClip } from '../lib/clip/edit.ts';
+import {
+  AppCameraError,
+  appCameraAvailable,
+  decodeBase64,
+  recordWithAppCamera,
+} from '../lib/shoot-camera.ts';
 
 let pass = 0;
 let fail = 0;
@@ -102,6 +110,90 @@ for (const file of samples) {
   check(`${label} — MP4 · clip.mp4`, format.name === 'MP4' && out.file.name === 'clip.mp4' && out.file.type === 'video/mp4', format.name);
   check(`${label} — 원본보다 작다`, out.file.size < blob.size, `${sizeText(out.file.size)} < ${sizeText(blob.size)}`);
   check(`${label} — 진행률을 알린다`, progress.length > 0 && progress.every((p) => p >= 0 && p <= 1));
+}
+
+console.log('③ 앱 카메라 다리 — 가짜 앱 부품');
+{
+  const g = globalThis as unknown as { window?: unknown };
+  const calls: { method: string; options: unknown }[] = [];
+  let mode: 'ok' | 'cancel' | 'denied' = 'ok';
+  const source = Buffer.alloc(5 * 1024 * 1024 + 123);
+  for (let i = 0; i < source.length; i++) source[i] = (i * 31 + 7) % 251;
+  const fake = {
+    isPluginAvailable: (name: string) => name === 'ShootCamera',
+    isNativePlatform: () => true,
+    nativePromise: async (
+      plugin: string,
+      method: string,
+      options: { path?: string; offset?: number; length?: number }
+    ) => {
+      calls.push({ method, options });
+      if (plugin !== 'ShootCamera') throw new Error('plugin');
+      if (method === 'record') {
+        if (mode === 'cancel') return { cancelled: true };
+        if (mode === 'denied') throw Object.assign(new Error('no'), { code: 'denied' });
+        return { path: '/tmp/bullpen-shoot/a.mov', size: source.length };
+      }
+      if (method === 'read') {
+        const off = options.offset ?? 0;
+        const len = Math.min(options.length ?? 0, 4 * 1024 * 1024);
+        const part = source.subarray(off, off + len);
+        return {
+          data: part.toString('base64'),
+          size: source.length,
+          eof: off + part.length >= source.length,
+        };
+      }
+      if (method === 'discard') return {};
+      throw new Error('method');
+    },
+  };
+
+  g.window = {};
+  check('앱이 아니면 앱 카메라 없음', !appCameraAvailable());
+  const missing = await recordWithAppCamera().then(
+    () => null,
+    (e: unknown) => e
+  );
+  check(
+    '앱이 아니면 찍기를 거절(unavailable)',
+    missing instanceof AppCameraError && missing.code === 'unavailable'
+  );
+
+  g.window = { Capacitor: fake };
+  check('새 앱이면 앱 카메라 있음', appCameraAvailable());
+  mode = 'cancel';
+  calls.length = 0;
+  check(
+    '카메라에서 취소하면 null · 읽지 않음',
+    (await recordWithAppCamera()) === null && calls.every((c) => c.method === 'record')
+  );
+  mode = 'denied';
+  const denied = await recordWithAppCamera().then(
+    () => null,
+    (e: unknown) => e
+  );
+  check(
+    '권한이 꺼져 있으면 설정을 알리는 오류',
+    denied instanceof AppCameraError && denied.code === 'denied' && denied.message.includes('설정')
+  );
+  mode = 'ok';
+  calls.length = 0;
+  const seen: number[] = [];
+  const file = await recordWithAppCamera((pr) => seen.push(pr));
+  const got = file ? Buffer.from(await file.arrayBuffer()) : Buffer.alloc(0);
+  const reads = calls.filter((c) => c.method === 'read').length;
+  check('조각으로 넘겨받아 원래 바이트 그대로', !!file && got.equals(source), `${got.length} / ${source.length}`);
+  check('2MB 씩 세 번 읽음', reads === 3, `읽기 ${reads}번`);
+  check('다 받으면 앱의 임시 파일을 지움', calls.at(-1)?.method === 'discard');
+  check('파일 이름 · 종류(mov)', file?.name === 'app-camera.mov' && file?.type === 'video/quicktime');
+  check(
+    '진행률 0 → 1',
+    seen.length === 3 && seen.at(-1) === 1 && seen.every((x, i) => i === 0 || x >= seen[i - 1])
+  );
+  const raw = Buffer.from('불펜로그 앱 카메라');
+  check('base64 풀기', Buffer.from(decodeBase64(raw.toString('base64'))).equals(raw));
+  delete g.window;
 }
 
 console.log(`\n${pass}개 통과, ${fail}개 실패`);

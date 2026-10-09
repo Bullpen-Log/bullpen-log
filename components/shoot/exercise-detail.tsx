@@ -39,6 +39,12 @@ export function ShootExerciseDetail({
           <dd className="text-ink">{item.station}</dd>
           <dt className="text-muted">기구</dt>
           <dd className="text-ink">{equipment.join(' · ') || '맨몸'}</dd>
+          {item.group && (
+            <>
+              <dt className="text-muted">{item.kind === 'warmup' ? '루틴' : '단계'}</dt>
+              <dd className="text-ink">{item.group}</dd>
+            </>
+          )}
           {info?.prescription && (
             <>
               <dt className="text-muted">앱 처방</dt>

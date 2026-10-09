@@ -116,8 +116,11 @@ export function carriedOver(
   week: number,
   checks: Map<string, ShootCheckView>
 ): PlanItem[] {
+  const target = plan.weeks.find((w) => w.week === week);
+  const outdoor = !!target?.outdoor;
   return plan.weeks
-    .filter((w) => w.week < week)
+    // 실내 주차의 남은 것은 실내 주차로, 야외는 야외로만(자리 · 기구가 다르다)
+    .filter((w) => w.week < week && !!w.outdoor === outdoor)
     .map(weekItems)
     .filter((its) => its.some((it) => checks.has(it.exerciseId)))
     .flat()
@@ -225,6 +228,10 @@ export const BUCKET_LABEL: Record<Bucket, string> = {
   '상체 당기기': '상체 당기기',
   '전완 · 팔꿈치': '전완·팔꿈치',
   '어깨 · 견갑(암케어)': '어깨·견갑',
+  워밍업: '워밍업',
+  '무브먼트 패턴 드릴': '무브먼트 드릴',
+  '메디신볼 드릴': '메디신볼 드릴',
+  '스로잉 드릴': '스로잉 드릴',
 };
 
 /** '2:37' */
