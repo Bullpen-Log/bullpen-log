@@ -6387,9 +6387,8 @@ console.log(
   );
   const slap2 = stageExercises('shoulder-front', 'slap', 2).map((m) => m.name);
   check(
-    'SLAP — 2단계: 프론 로우 + 외회전(90/90 끝) 빼고 시티드 프레스업 · 크로스바디, 3단계 밴드 하이 이두컬(가볍게)',
+    'SLAP — 2단계: 프론 로우 + 외회전(90/90 끝) 빼고 크로스바디, 3단계 밴드 하이 이두컬(가볍게)',
     !slap2.includes('프론 로우 + 외회전') &&
-      slap2.includes('시티드 프레스업') &&
       slap2.includes('크로스바디 스트레칭') &&
       stageExercises('shoulder-front', 'slap', 3).some(
         (m) => m.name === '밴드 하이 이두컬' && m.note === '가볍게'

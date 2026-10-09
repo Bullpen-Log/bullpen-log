@@ -123,6 +123,7 @@ export const REHAB_REGIONS: Record<ArmcareAreaKey, RegionSpec> = {
         '프론 Y',
         '튜빙 서라투스 펀치',
         '크로스바디 스트레칭',
+        '케틀벨 바텀업 캐리',
       ],
       [
         '시티드 외회전 과부하 내리기',
@@ -130,7 +131,6 @@ export const REHAB_REGIONS: Record<ArmcareAreaKey, RegionSpec> = {
         '하프닐링 튜빙 내회전 90도',
         '프론 외회전',
         '튜빙 대각선 굽힘',
-        '메디신볼 벽 원 그리기',
       ],
       [
         '사이드라잉 외회전 리바운드',
@@ -174,8 +174,8 @@ export const REHAB_REGIONS: Record<ArmcareAreaKey, RegionSpec> = {
         ['하프닐링 튜빙 외회전 90도', UNTIL_NO_PAIN],
         '누워서 덤벨 내회전 90도',
         '프론 Y',
-        '다방향 스캡 푸쉬업',
-        '메디신볼 벽 원 그리기',
+        '푸쉬업 플러스',
+        '케틀벨 바텀업 캐리',
       ],
       [
         '튜빙 내회전 0도 리바운드',
@@ -203,9 +203,9 @@ export const REHAB_REGIONS: Record<ArmcareAreaKey, RegionSpec> = {
         '사이드라잉 외회전',
         '튜빙 외회전 0도',
         '튜빙 내회전 0도',
-        ['덤벨 스캡션 레이즈', '아프지 않은 높이까지'],
         '벽 슬라이드',
         '튜빙 서라투스 펀치',
+        ['싱글암 Y 레이즈', '아프지 않은 높이까지'],
       ],
       [
         '시티드 외회전 과부하 내리기',
@@ -249,9 +249,8 @@ export const REHAB_REGIONS: Record<ArmcareAreaKey, RegionSpec> = {
         '프론 Y',
         '프론 익스텐션',
         '푸쉬업 플러스',
-        '다방향 스캡 푸쉬업',
         '튜빙 W',
-        '메디신볼 벽 원 그리기',
+        '케틀벨 바텀업 캐리',
       ],
       [
         '케틀벨 바텀업 웨이터 캐리',
@@ -272,9 +271,9 @@ export const REHAB_REGIONS: Record<ArmcareAreaKey, RegionSpec> = {
       [
         '전완 굴곡 등척성 밀기',
         '전완 회내 등척성 밀기',
-        '전완 척측 편위 등척성 밀기',
         '어깨 외회전 등척성 밀기',
         '밴드 스캡 핀치',
+        '팔꿈치 굽힘 등척성 밀기',
       ],
       [
         '튜빙 전완 굴곡',
@@ -294,12 +293,12 @@ export const REHAB_REGIONS: Record<ArmcareAreaKey, RegionSpec> = {
         '하프닐링 튜빙 내회전 90도',
       ],
       [
-        '플라이오볼 손목 플립',
         '톨 닐링 메디신볼 체스트 패스',
         '톨 닐링 메디신볼 오버헤드 던지기',
         '90/90 플라이오볼 벽 드리블',
         '한 팔 90/90 플라이오볼 벽 던지기',
         '전완 회내 과부하 내리기',
+        '튜빙 대각선 스로우',
       ],
     ],
   },
@@ -311,9 +310,9 @@ export const REHAB_REGIONS: Record<ArmcareAreaKey, RegionSpec> = {
       [
         '전완 신전 등척성 밀기',
         '전완 회외 등척성 밀기',
-        '전완 요측 편위 등척성 밀기',
         '밴드 스캡 핀치',
         '어깨 외회전 등척성 밀기',
+        '팔꿈치 굽힘 등척성 밀기',
       ],
       [
         '튜빙 전완 신전',
@@ -332,11 +331,11 @@ export const REHAB_REGIONS: Record<ArmcareAreaKey, RegionSpec> = {
         '하프닐링 튜빙 내회전 90도',
       ],
       [
-        '플라이오볼 손목 플립',
         '톨 닐링 메디신볼 오버헤드 던지기',
         '90/90 플라이오볼 벽 드리블',
         '한 팔 90/90 플라이오볼 벽 던지기',
         '전완 신전 과부하 내리기',
+        '튜빙 대각선 스로우',
       ],
     ],
   },
@@ -351,10 +350,10 @@ export const REHAB_REGIONS: Record<ArmcareAreaKey, RegionSpec> = {
     stages: [
       [
         '팔꿈치 굽힘 등척성 밀기',
-        '팔꿈치 폄 등척성 밀기',
         '전완 굴곡 등척성 밀기',
         '전완 회내 등척성 밀기',
         '밴드 스캡 핀치',
+        '어깨 외회전 등척성 밀기',
       ],
       [
         '밴드 하이 이두컬',
@@ -374,10 +373,10 @@ export const REHAB_REGIONS: Record<ArmcareAreaKey, RegionSpec> = {
       ],
       [
         '덤벨컬 드롭 캐치',
-        '플라이오볼 손목 플립',
         '톨 닐링 메디신볼 체스트 패스',
         '90/90 플라이오볼 벽 드리블',
         '한 팔 90/90 플라이오볼 벽 던지기',
+        '튜빙 대각선 스로우',
       ],
     ],
   },
@@ -389,9 +388,9 @@ export const REHAB_REGIONS: Record<ArmcareAreaKey, RegionSpec> = {
       [
         '팔꿈치 굽힘 등척성 밀기',
         '전완 회외 등척성 밀기',
-        '팔꿈치 폄 등척성 밀기',
         '밴드 스캡 핀치',
         '어깨 외회전 등척성 밀기',
+        '전완 굴곡 등척성 밀기',
       ],
       [
         '밴드 하이 이두컬',
@@ -411,10 +410,10 @@ export const REHAB_REGIONS: Record<ArmcareAreaKey, RegionSpec> = {
       ],
       [
         '덤벨컬 드롭 캐치',
-        '플라이오볼 손목 플립',
         '톨 닐링 메디신볼 체스트 패스',
         '90/90 플라이오볼 벽 드리블',
         '한 팔 90/90 플라이오볼 벽 던지기',
+        '튜빙 대각선 스로우',
       ],
     ],
   },
