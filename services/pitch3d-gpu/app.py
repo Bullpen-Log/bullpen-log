@@ -137,7 +137,7 @@ def analyze(job: dict) -> dict:
     except Exception as e:  # noqa: BLE001 — 모르는 예외는 여기 한 곳에서만 잡고 이름 · 단계 · 번호를 남긴다(검토 2절 Internal)
         print(f"[pitch3d internal] job={job_id} call={call_id} {type(e).__name__}: {e}")
         out = {"status": "failed", "code": "internal", "stage": "fit", "stages": {}}
-    progress[call_id] = {**{k: v for k, v in out.items() if k != "result"}, "jobId": job_id, "at": time.time()}
+    progress[call_id] = {**{k: v for k, v in out.items() if k not in ("result", "tracks")}, "jobId": job_id, "at": time.time()}
     return out
 
 
@@ -208,10 +208,13 @@ def e2e(jobs: str, out: str = ""):
     for p, c in calls:
         r = c.get()
         res = r.pop("result", None)
+        tracks = r.pop("tracks", None)
         print(json.dumps({"job": os.path.basename(p), "wall_s": round(time.time() - t0, 1), **r}, ensure_ascii=False))
         if out and res is not None:
             with open(os.path.join(out, os.path.basename(p).replace(".json", ".result.json")), "w", encoding="utf-8") as f:
                 json.dump(res, f)
+            with open(os.path.join(out, os.path.basename(p).replace(".json", ".tracks.json")), "w", encoding="utf-8") as f:
+                json.dump(tracks, f)
 
 
 if __name__ == "__main__":

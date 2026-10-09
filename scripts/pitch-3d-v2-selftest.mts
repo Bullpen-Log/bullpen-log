@@ -47,7 +47,7 @@ import {
 import { makeV2Track } from './pitch-lab/synth-v2.mts';
 import { footJump, footSway, gapWristError, hipSnap, leadGapJump } from './pitch-lab/gap-check.mts';
 import { readFileSync } from 'node:fs';
-import { blendAi, displayTrack, readAiJoints, readAiMiss } from '../lib/pitch-3d/v2/display.ts';
+import { blendAi, displayTrack, readAiGate, readAiJoints, readAiMiss } from '../lib/pitch-3d/v2/display.ts';
 import { KIN_LIMITS, kinematicTrack } from '../lib/pitch-3d/v2/kinematics.ts';
 import {
   moundHeightAt,
@@ -1168,6 +1168,43 @@ console.log('■ 뼈대 자세(pose-rig) — public/models/skeleton-parts.json +
           check(
             'AI 보정: AI 가 못 본 장면(miss)은 섞지 않는다(관절 · 확신 그대로) · 옆 장면은 섞는다 · 이상한 값은 버린다',
             missSame && otherMoved && missRead.size === 1 && missRead.has(2)
+          );
+          /* 영상과 맞추기(gate) — 0 이면 우리 것 그대로(확신이 낮아도), 팔꿈치만 1 이면 손목은 다시 붙어 아래팔 길이 · 방향이 우리 것 */
+          const zero = ours.map(() => new Array(25).fill(0));
+          const g0 = blendAi(ours, ai, conf, [], new Set(), zero);
+          const g0Same =
+            Math.max(...g0.frames.flatMap((fr, k) => fr.map((p, j) => norm(sub(p, ours[k][j]))))) < 1e-9 &&
+            g0.conf.every((row, k) => row.every((v, j) => v === conf[k][j]));
+          const aiEl = ours.map((fr) => {
+            const a = fr.map((p) => [...p] as Vec3);
+            a[V2J.rEl] = add(a[V2J.rSh], [0, -norm(sub(fr[V2J.rEl], fr[V2J.rSh])), 0]);
+            return a;
+          });
+          const elOnly = ours.map(() => {
+            const row = new Array(25).fill(0);
+            row[V2J.rEl] = 100;
+            return row;
+          });
+          const ge = blendAi(ours, aiEl, conf, [], new Set(), elOnly);
+          const elMoved = norm(sub(ge.frames[2][V2J.rEl], ours[2][V2J.rEl])) > 1e-3;
+          const foreO = sub(ours[2][V2J.rWr], ours[2][V2J.rEl]);
+          const foreB = sub(ge.frames[2][V2J.rWr], ge.frames[2][V2J.rEl]);
+          const foreSame = norm(sub(foreO, foreB)) < 1e-9;
+          check(
+            'AI 보정(gate): 0 이면 우리 것 그대로 · 팔꿈치만 AI 면 손목이 따라 붙어 아래팔 길이 · 방향 그대로',
+            g0Same && elMoved && foreSame,
+            `그대로 ${g0Same} · 팔꿈치 ${elMoved} · 아래팔 ${foreSame}`
+          );
+          const withW = (w: unknown) =>
+            ({ ...result, experimental: { sam3d: { model: 'x', joints: result.joints, w } } }) as typeof result;
+          const goodW = result.joints.map((fr) => fr.map(() => 50));
+          const badW = result.joints.map((fr) => fr.map(() => 150));
+          check(
+            'AI 보정(gate): 비율 50 → 0.5 로 읽음 · 모양이 틀린 비율(150 · 장면 수 다름)이면 AI 를 안 쓴다',
+            readAiGate(withW(goodW))?.[0][0] === 0.5 &&
+              readAiJoints(withW(goodW)) !== null &&
+              readAiJoints(withW(badW)) === null &&
+              readAiJoints(withW(goodW.slice(1))) === null
           );
         }
 
