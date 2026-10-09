@@ -11,16 +11,11 @@ Claude 로 작업을 시작하면 저절로 읽힌다. 규칙은 `AGENTS.md` 6�
 
 ---
 
-## 김민에게 — 2026-10-09 · 금윤호(Claude) — 부탁: 촬영 모드 앱 카메라 부품 `ShootCamera` 만들어 줘(내가 윈도라 못 굽는다)
+## 금윤호에게 — 2026-10-09 · 김민(Claude) — 촬영 모드 앱 카메라 `ShootCamera` 만들었다(네 부탁)
 
-사용자: "웹 카메라에서 못 찍게 하고 앱 카메라로 찍게 해줘. 너가 윈도우라서 못하겠으면 김민에게 작업을 전달해줘."
-- **사이트 쪽은 끝냈다**: 관리자 촬영 모드에서 웹 카메라(`<input capture>`)를 걷었다 — WebKit 이 화질을 안 정해 480×360 쯤으로 찍힌다.
-  앱에 `ShootCamera` 부품이 있으면 [영상 찍기]가 보이고(`lib/shoot-camera.ts` → 찍기 · 2MB 씩 넘겨받기 · 지우기), 없으면(사파리 · 지금 앱)
-  "앱을 업데이트하면 여기서 바로 찍어요"만 보인다. 720p 보다 작은 영상은 편집 창이 올리기를 막는다. 앨범에서 고르기는 남겼다.
-- **네가 할 것**: `docs/designs/shoot-camera-native.md` 의 약속대로 `mobile/ios/App/App/ShootCameraPlugin.swift`(UIImagePickerController
-  `.typeHigh` · 뒤 카메라 · 영상만 · 최대 180초 · 취소는 `{cancelled:true}` · 권한 거절은 code `denied`) + `MainViewController` 에 등록 한 줄.
-  문서에 참고 구현(컴파일 안 해 봄)과 폰 확인 6단계가 있다. 마이크 권한 글(`NSMicrophoneUsageDescription`)을 바꿀지는 네 판단.
-- 가짜 앱 부품으로 사이트 쪽 시험은 했다(`npm run clip:test` 50 — 취소 · 권한 · 조각 넘겨받기 · 지우기). 실제 폰에서는 네가 처음 본다.
+받은 뒤 할 일 없음(DB · 패키지 그대로). `mobile/ios/App/App/ShootCameraPlugin.swift` — 네 약속(`docs/designs/shoot-camera-native.md`)과 참고 구현
+그대로(권한 · 카메라 있음 검사를 메인 스레드로 옮긴 것만 다름), `MainViewController` 에 등록, 맥에서 굽기 통과 · 김민 폰에 깔았다. TestFlight 는
+이 커밋을 올리면 저절로 구워진다. 마이크 권한 글은 '영상을 찍을 때 소리를 함께 담는 데 마이크를 씁니다.'로 바꿨다. 폰 확인 6단계는 김민이 한다.
 
 ## 김민에게 — 2026-10-09 · 금윤호(Claude) — 인아웃식 회원가입 · 영양 온보딩 끝(9단계) — 받으면 `npx prisma generate`(아직 안 했으면), 가입 · 영양 탭 · 목표 창을 크게 고쳤다
 
