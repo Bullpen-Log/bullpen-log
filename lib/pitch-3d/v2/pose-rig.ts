@@ -154,7 +154,12 @@ export function rigPose(
   joints: Vec3[],
   hand: 'R' | 'L',
   parts: SkeletonParts,
-  prev?: RigPose | null
+  prev?: RigPose | null,
+  /**
+   * 부위 기준 방향(세상) — 관절 각도 모델(kinematics.ts)이 정한 팔꿈치 · 무릎이 굽는 축과 손바닥 폭. 주면 점에서 다시 셈하지 않는다
+   * (거의 편 마디에서 점으로는 굽는 면을 못 정해 팔이 홱 돌았다).
+   */
+  refs?: Partial<Record<PartName, Vec3>>
 ): RigPose {
   const A = parts.anchors;
   const s = 1 / parts.height;
@@ -237,14 +242,19 @@ export function rigPose(
     const wr = j(side === 'L' ? V2J.lWr : V2J.rWr);
     const upper = sub(el, sh);
     const fore = sub(wr, el);
-    const bend = refOr(
-      `upperArm${side}`,
-      bendAxis(upper, fore, prevRef(`upperArm${side}`))
-    );
+    const bend =
+      refs?.[`upperArm${side}`] ??
+      refOr(`upperArm${side}`, bendAxis(upper, fore, prevRef(`upperArm${side}`)));
     const shAt = attach('trunk', side === 'L' ? A.trunk.shoulderL : A.trunk.shoulderR);
     put(`upperArm${side}`, shAt, sub(el, shAt), bend, norm(sub(el, shAt)));
     const elAt = attach(`upperArm${side}`, A[`upperArm${side}`].distal);
-    put(`forearm${side}`, elAt, sub(wr, elAt), bend, norm(sub(wr, elAt)));
+    put(
+      `forearm${side}`,
+      elAt,
+      sub(wr, elAt),
+      refs?.[`forearm${side}`] ?? bend,
+      norm(sub(wr, elAt))
+    );
     const idx = j(side === 'L' ? V2J.lHandIdx : V2J.rHandIdx);
     const pinky = j(side === 'L' ? V2J.lHandPinky : V2J.rHandPinky);
     const midH = j(side === 'L' ? V2J.lHandMid : V2J.rHandMid);
@@ -253,7 +263,7 @@ export function rigPose(
       `hand${side}`,
       attach(`forearm${side}`, A[`forearm${side}`].distal),
       sub(midH, wr),
-      norm(palm) > 1e-6 ? palm : bend
+      refs?.[`hand${side}`] ?? (norm(palm) > 1e-6 ? palm : bend)
     );
   }
 
@@ -265,11 +275,19 @@ export function rigPose(
     const toe = j(side === 'L' ? V2J.lTo : V2J.rTo);
     const thigh = sub(kn, hip);
     const shank = sub(an, kn);
-    const bend = refOr(`thigh${side}`, bendAxis(thigh, shank, prevRef(`thigh${side}`)));
+    const bend =
+      refs?.[`thigh${side}`] ??
+      refOr(`thigh${side}`, bendAxis(thigh, shank, prevRef(`thigh${side}`)));
     const hipAt = attach('pelvis', side === 'L' ? A.pelvis.hipL : A.pelvis.hipR);
     put(`thigh${side}`, hipAt, sub(kn, hipAt), bend, norm(sub(kn, hipAt)));
     const knAt = attach(`thigh${side}`, A[`thigh${side}`].distal);
-    put(`shank${side}`, knAt, sub(an, knAt), bend, norm(sub(an, knAt)));
+    put(
+      `shank${side}`,
+      knAt,
+      sub(an, knAt),
+      refs?.[`shank${side}`] ?? bend,
+      norm(sub(an, knAt))
+    );
     const foot = sub(toe, an);
     const footRef =
       bendAxis(shank, foot, prevRef(`foot${side}`)) ?? refOr(`foot${side}`, null);

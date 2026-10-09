@@ -1,0 +1,742 @@
+import {
+  add,
+  cross,
+  dot,
+  fromCols,
+  median,
+  mul3,
+  mulV,
+  norm,
+  normalize,
+  scale,
+  sub,
+  transpose,
+  type Mat3,
+  type Vec3,
+} from '@/lib/pitch-3d/linalg';
+import { V2J, type V2Contact } from '@/lib/pitch-3d/v2/contract';
+
+/**
+ * 관절 각도 모델(2026-10-09 김민: "관절 각도 모델로 가자" — 점 규칙으로는 어깨 · 팔꿈치 회전 · 손 · 글러브 팔 · 목이 계속 어색했다).
+ *
+ * 맞춘 관절 점(25)을 사람 뼈대의 관절 각도로 바꾸고, 각도에 사람 몸의 한계를 넣고, 각도를 시간으로 다듬은 뒤, 고정 뼈 길이로 다시 점을 만든다.
+ *
+ *   골반(세상 방향 · 자리) → 몸통(골반에 대한 돌림 · 기울임) → 목 · 머리(몸통에 대해)
+ *   어깨: 위팔 방향(몸통 틀) + 위팔 비틀림(팔꿈치가 굽는 면) · 팔꿈치 굽힘 · 아래팔 비틀림(손바닥 폭) · 손목 굽힘 · 옆
+ *   엉덩이: 넙다리 방향(골반 틀) + 넙다리 비틀림(무릎이 굽는 면) · 무릎 굽힘 · 발(정강이 틀)
+ *
+ * 점에서 바로 그리면 거의 편 팔꿈치 · 무릎에서 굽는 면을 못 정해 팔이 홱 돌거나 반대로 꺾였다 — 여기서는 비틀림을 '보이는 만큼' 믿고
+ * (굽힘이 클수록 · 확신이 높을수록) 안 보이는 장면은 앞뒤에서 잇는다. 반대로 꺾인 팔꿈치 · 무릎은 비틀림 반 바퀴 + 음의 굽힘으로 읽어
+ * 앞 장면과 가까운 쪽을 고르고, 음의 굽힘(과신전)은 5° 까지만.
+ *
+ * 땅에 닿은 발(엔진의 contacts)은 그 자리에 두고 무릎을 두 마디 길이로 다시 접는다. 순수 함수 — 시험: scripts/pitch-3d-v2-selftest.mts.
+ */
+
+export const KIN_LIMITS = {
+  spineTwist: 60,
+  spineSwing: 55,
+  neckTwist: 70,
+  neckSwing: 45,
+  /** 위팔이 어깨선 뒤로(수평면) */
+  shoulderBack: 45,
+  elbowFlex: 150,
+  elbowHyper: 5,
+  kneeFlex: 150,
+  kneeHyper: 5,
+  wristFlex: 75,
+  wristDev: 30,
+  /** 아래팔 비틀림 — 그 클립의 가운데에서 ± */
+  pronation: 90,
+  /** 넙다리 비틀림 — 그 클립의 가운데에서 ± (무릎이 뒤를 보지 않게) */
+  hipRotation: 60,
+} as const;
+
+const rad = (d: number) => (d * Math.PI) / 180;
+const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v));
+const perp = (v: Vec3, a: Vec3): Vec3 => sub(v, scale(a, dot(v, a)));
+const midOf = (a: Vec3, b: Vec3): Vec3 => scale(add(a, b), 0.5);
+const unit = (v: Vec3, fallback: Vec3): Vec3 =>
+  norm(v) > 1e-9 ? normalize(v) : fallback;
+
+/** 단위 축 k 둘레로 v 를 th 만큼 */
+function rot(v: Vec3, k: Vec3, th: number): Vec3 {
+  const c = Math.cos(th);
+  return add(
+    add(scale(v, c), scale(cross(k, v), Math.sin(th))),
+    scale(k, dot(k, v) * (1 - c))
+  );
+}
+
+/** 가장 짧게 a → b 로 도는 회전을 v 에 */
+function rotFromTo(v: Vec3, a: Vec3, b: Vec3): Vec3 {
+  const ax = cross(a, b);
+  const s = norm(ax);
+  const c = dot(a, b);
+  if (s < 1e-9) return c > 0 ? v : rot(v, unit(perp([1, 0, 0], a), [0, 0, 1]), Math.PI);
+  return rot(v, scale(ax, 1 / s), Math.atan2(s, c));
+}
+
+/** 축 a 둘레로 from → to 의 부호 있는 각(둘 다 a 에 수직 성분만) */
+function signedAngle(from: Vec3, to: Vec3, a: Vec3): number {
+  return Math.atan2(dot(cross(from, to), a), dot(from, to));
+}
+
+/* ───────────────────────────── 사원수 ───────────────────────────── */
+
+type Quat = [number, number, number, number];
+
+function quatFromMat(m: Mat3): Quat {
+  const [m00, m01, m02, m10, m11, m12, m20, m21, m22] = m;
+  const tr = m00 + m11 + m22;
+  let q: Quat;
+  if (tr > 0) {
+    const s = Math.sqrt(tr + 1) * 2;
+    q = [0.25 * s, (m21 - m12) / s, (m02 - m20) / s, (m10 - m01) / s];
+  } else if (m00 > m11 && m00 > m22) {
+    const s = Math.sqrt(1 + m00 - m11 - m22) * 2;
+    q = [(m21 - m12) / s, 0.25 * s, (m01 + m10) / s, (m02 + m20) / s];
+  } else if (m11 > m22) {
+    const s = Math.sqrt(1 + m11 - m00 - m22) * 2;
+    q = [(m02 - m20) / s, (m01 + m10) / s, 0.25 * s, (m12 + m21) / s];
+  } else {
+    const s = Math.sqrt(1 + m22 - m00 - m11) * 2;
+    q = [(m10 - m01) / s, (m02 + m20) / s, (m12 + m21) / s, 0.25 * s];
+  }
+  return qNorm(q);
+}
+
+function matFromQuat([w, x, y, z]: Quat): Mat3 {
+  return [
+    1 - 2 * (y * y + z * z),
+    2 * (x * y - w * z),
+    2 * (x * z + w * y),
+    2 * (x * y + w * z),
+    1 - 2 * (x * x + z * z),
+    2 * (y * z - w * x),
+    2 * (x * z - w * y),
+    2 * (y * z + w * x),
+    1 - 2 * (x * x + y * y),
+  ];
+}
+
+const qNorm = (q: Quat): Quat => {
+  const n = Math.hypot(...q) || 1;
+  return [q[0] / n, q[1] / n, q[2] / n, q[3] / n];
+};
+const qMul = (a: Quat, b: Quat): Quat => [
+  a[0] * b[0] - a[1] * b[1] - a[2] * b[2] - a[3] * b[3],
+  a[0] * b[1] + a[1] * b[0] + a[2] * b[3] - a[3] * b[2],
+  a[0] * b[2] - a[1] * b[3] + a[2] * b[0] + a[3] * b[1],
+  a[0] * b[3] + a[1] * b[2] - a[2] * b[1] + a[3] * b[0],
+];
+const qConj = (q: Quat): Quat => [q[0], -q[1], -q[2], -q[3]];
+
+/** 회전을 축 a(단위, 같은 틀) 둘레 비틀림과 나머지(기울임)로 — 각을 한계 안으로 줄여 다시 합친다 */
+function limitSwingTwist(q: Quat, a: Vec3, twistMax: number, swingMax: number): Quat {
+  const p = q[1] * a[0] + q[2] * a[1] + q[3] * a[2];
+  let twist: Quat = qNorm([q[0], a[0] * p, a[1] * p, a[2] * p]);
+  if (Math.hypot(twist[0], p) < 1e-9) twist = [1, 0, 0, 0];
+  let swing = qMul(q, qConj(twist));
+  const tw =
+    2 * Math.atan2(twist[1] * a[0] + twist[2] * a[1] + twist[3] * a[2], twist[0]);
+  const twC = clamp(Math.atan2(Math.sin(tw), Math.cos(tw)), -twistMax, twistMax);
+  twist = [
+    Math.cos(twC / 2),
+    a[0] * Math.sin(twC / 2),
+    a[1] * Math.sin(twC / 2),
+    a[2] * Math.sin(twC / 2),
+  ];
+  if (swing[0] < 0) swing = [-swing[0], -swing[1], -swing[2], -swing[3]];
+  const sw = 2 * Math.acos(clamp(swing[0], -1, 1));
+  if (sw > swingMax) {
+    const s = Math.sin(sw / 2);
+    if (s > 1e-9) {
+      const ax: Vec3 = [swing[1] / s, swing[2] / s, swing[3] / s];
+      swing = [Math.cos(swingMax / 2), ...scale(ax, Math.sin(swingMax / 2))] as Quat;
+    }
+  }
+  return qNorm(qMul(swing, twist));
+}
+
+/* ───────────────────────────── 시간 다듬기 ───────────────────────────── */
+
+/** 빠르기 기준의 바닥(라디안 · 키 / 장면) — 이보다 느린 움직임은 넓게 다듬는다 */
+const VREF_FLOOR = 0.02;
+
+/**
+ * 무게(보이는 만큼) 있는 앞뒤 가우스 — 빠른 곳은 좁게, 느린 곳은 넓게. 주변에 믿을 값이 없으면 폭을 넓혀 앞뒤에서 잇는다.
+ * xs 는 여러 성분(벡터 · 사원수)을 한꺼번에 — 빠르기는 성분 전체로.
+ */
+function smoothMulti(xs: number[][], ws: number[], sMin = 0.6, sMax = 2.2): number[][] {
+  const n = xs.length;
+  if (n < 3) return xs.map((x) => [...x]);
+  const D = xs[0].length;
+  /*
+   * 빠르기는 한 번 넓게 다듬은 값에서 잰다 — 날 값에서 재면 잡음이 '빠름'으로 읽혀 가만있는 관절의 떨림을 못 줄였다. 기준은 그 값의
+   * 상위 10% 의 4분의 1(빠른 팔은 좁게), 다만 VREF_FLOOR 밑으로는 안 내려간다(잡음뿐인 값에서 기준까지 잡음이 되지 않게).
+   */
+  const pre = xs.map((_, k) => {
+    let sw = 0;
+    const acc = new Array<number>(D).fill(0);
+    for (let q = Math.max(0, k - 4); q <= Math.min(n - 1, k + 4); q++) {
+      const g = (ws[q] + 1e-3) * Math.exp(-((q - k) ** 2) / (2 * 1.5 * 1.5));
+      sw += g;
+      for (let d = 0; d < D; d++) acc[d] += g * xs[q][d];
+    }
+    return acc.map((v) => v / sw);
+  });
+  const speed = pre.map((_, k) => {
+    const a = pre[Math.max(0, k - 1)];
+    const b = pre[Math.min(n - 1, k + 1)];
+    let s = 0;
+    for (let d = 0; d < D; d++) s += (b[d] - a[d]) ** 2;
+    return Math.sqrt(s) / 2;
+  });
+  const sorted = [...speed].sort((a, b) => a - b);
+  const vRef = Math.max(VREF_FLOOR, 0.25 * sorted[Math.floor(sorted.length * 0.9)]);
+  return xs.map((x, k) => {
+    let sigma = sMin + (sMax - sMin) / (1 + (speed[k] / vRef) ** 2);
+    for (let tries = 0; tries < 5; tries++) {
+      const r = Math.ceil(sigma * 2.5);
+      let sw = 0;
+      const acc = new Array<number>(D).fill(0);
+      for (let q = Math.max(0, k - r); q <= Math.min(n - 1, k + r); q++) {
+        const g = ws[q] * Math.exp(-((q - k) ** 2) / (2 * sigma * sigma));
+        sw += g;
+        for (let d = 0; d < D; d++) acc[d] += g * xs[q][d];
+      }
+      if (sw > 0.15) return acc.map((v) => v / sw);
+      sigma *= 2.2;
+    }
+    return [...x];
+  });
+}
+
+/** 각을 이어 붙인다(한 장면에 2π 넘게 튀지 않게) */
+function unwrap(xs: number[]): number[] {
+  const out = [...xs];
+  for (let k = 1; k < out.length; k++) {
+    let d = out[k] - out[k - 1];
+    while (d > Math.PI) {
+      out[k] -= 2 * Math.PI;
+      d -= 2 * Math.PI;
+    }
+    while (d < -Math.PI) {
+      out[k] += 2 * Math.PI;
+      d += 2 * Math.PI;
+    }
+  }
+  return out;
+}
+
+const smooth1 = (xs: number[], ws: number[], sMin?: number, sMax?: number) =>
+  smoothMulti(
+    xs.map((x) => [x]),
+    ws,
+    sMin,
+    sMax
+  ).map((v) => v[0]);
+
+function smoothUnit(vs: Vec3[], ws: number[]): Vec3[] {
+  return smoothMulti(vs as number[][], ws).map((v) => unit(v as Vec3, [0, -1, 0]));
+}
+
+function smoothQuat(qs: Quat[], ws: number[], sMin?: number, sMax?: number): Quat[] {
+  const c = qs.map((q) => [...q] as Quat);
+  for (let k = 1; k < c.length; k++)
+    if (
+      c[k][0] * c[k - 1][0] +
+        c[k][1] * c[k - 1][1] +
+        c[k][2] * c[k - 1][2] +
+        c[k][3] * c[k - 1][3] <
+      0
+    )
+      c[k] = [-c[k][0], -c[k][1], -c[k][2], -c[k][3]];
+  return smoothMulti(c, ws, sMin, sMax).map((q) => qNorm(q as Quat));
+}
+
+/** 무게 있는 가운데값(각 — 이어 붙인 값으로) */
+function weightedMedian(xs: number[], ws: number[]): number {
+  const pairs = xs.map((x, i) => [x, ws[i]] as const).filter(([, w]) => w > 0.2);
+  if (!pairs.length) return median(xs);
+  return median(pairs.map(([x]) => x));
+}
+
+/* ───────────────────────────── 틀 ───────────────────────────── */
+
+/** 열 = [왼쪽, 위, 앞] (앞 = 왼쪽 × 위) */
+const frameOf = (left: Vec3, up: Vec3): Mat3 => fromCols(left, up, cross(left, up));
+const toLocal = (M: Mat3, v: Vec3): Vec3 => mulV(transpose(M), v);
+const toWorld = (M: Mat3, v: Vec3): Vec3 => mulV(M, v);
+
+const DOWN: Vec3 = [0, -1, 0];
+/** 쉬는 자세(팔 · 다리를 아래로)에서 굽는 면의 축 — 팔꿈치는 아래팔이 앞으로(오른쪽 축), 무릎은 정강이가 뒤로(왼쪽 축) */
+const ELBOW_REST_AXIS: Vec3 = [-1, 0, 0];
+const KNEE_REST_AXIS: Vec3 = [1, 0, 0];
+
+type Limb = {
+  /** 몸 틀(팔은 몸통, 다리는 골반)에서 위 마디 방향 */
+  dir: Vec3[];
+  /** 위 마디 비틀림(쉬는 축에서) */
+  twist: number[];
+  twistW: number[];
+  /** 굽힘(라디안, 음수 = 과신전) */
+  flex: number[];
+  flexW: number[];
+};
+
+/** 두 마디(어깨 → 팔꿈치 → 손목, 엉덩이 → 무릎 → 발목)를 방향 · 비틀림 · 굽힘으로 */
+function limbAngles(
+  frames: Vec3[][],
+  bodyM: Mat3[],
+  [A, B, C]: [number, number, number],
+  restAxis: Vec3,
+  conf: (k: number, j: number) => number,
+  flexMaxDeg: number,
+  hyperDeg: number
+): Limb {
+  const out: Limb = { dir: [], twist: [], twistW: [], flex: [], flexW: [] };
+  let prevTwist: number | null = null;
+  frames.forEach((fr, k) => {
+    const M = bodyM[k];
+    const u = toLocal(M, unit(sub(fr[B], fr[A]), toWorld(M, DOWN)));
+    const f = toLocal(M, unit(sub(fr[C], fr[B]), toWorld(M, DOWN)));
+    const th = Math.atan2(norm(cross(u, f)), dot(u, f));
+    const nRef = rotFromTo(restAxis, DOWN, u);
+    let twist: number;
+    let flex: number;
+    const c = cross(u, f);
+    if (norm(c) > 1e-6) {
+      twist = signedAngle(nRef, normalize(c), u);
+      flex = th;
+    } else {
+      twist = prevTwist ?? 0;
+      flex = th;
+    }
+    /* 반대로 꺾임 = 비틀림 반 바퀴 + 음의 굽힘 — 거의 편 마디에서만, 앞 장면 비틀림에 가까운 쪽 */
+    if (prevTwist != null && th < rad(40)) {
+      const alt = twist + Math.PI;
+      const d0 = Math.abs(
+        Math.atan2(Math.sin(twist - prevTwist), Math.cos(twist - prevTwist))
+      );
+      const d1 = Math.abs(
+        Math.atan2(Math.sin(alt - prevTwist), Math.cos(alt - prevTwist))
+      );
+      if (d1 < d0) {
+        twist = alt;
+        flex = -th;
+      }
+    }
+    flex = clamp(flex, -rad(hyperDeg), rad(flexMaxDeg));
+    const cAll = Math.min(conf(k, A), conf(k, B), conf(k, C));
+    out.dir.push(u);
+    out.twist.push(twist);
+    /* 비틀림은 굽힘이 클수록 보인다(10° 밑이면 못 봄, 35° 넘으면 다) */
+    out.twistW.push(cAll * clamp((th - rad(10)) / rad(25), 0, 1) + 0.01);
+    out.flex.push(flex);
+    out.flexW.push(cAll + 0.01);
+    prevTwist = twist;
+  });
+  out.twist = unwrap(out.twist);
+  return out;
+}
+
+/** 두 마디 끝을 새 자리로 — 위 관절은 두고, 가운데 관절은 pole 쪽으로 접는다(길이 그대로) */
+export function twoBoneIk(top: Vec3, midP: Vec3, end: Vec3, target: Vec3): Vec3 {
+  const l1 = norm(sub(midP, top));
+  const l2 = norm(sub(end, midP));
+  const v = sub(target, top);
+  const d = clamp(norm(v), Math.abs(l1 - l2) + 1e-6, l1 + l2 - 1e-6);
+  const e = unit(v, [0, -1, 0]);
+  const along = (l1 * l1 - l2 * l2 + d * d) / (2 * d);
+  const h = Math.sqrt(Math.max(0, l1 * l1 - along * along));
+  const pole = unit(perp(sub(midP, top), e), unit(perp([1, 0, 0], e), [0, 0, 1]));
+  return add(add(top, scale(e, along)), scale(pole, h));
+}
+
+export type KinematicTrack = {
+  /** 다시 만든 관절 점(25, 키 = 1) */
+  frames: Vec3[][];
+  /**
+   * 부위의 기준 방향(세상) — 위팔 · 아래팔은 팔꿈치가 굽는 축, 넙다리 · 정강이는 무릎이 굽는 축, 손은 손바닥 폭(검지 → 새끼).
+   * 점에서 다시 셈하면 거의 편 마디에서 못 정해 이것을 그대로 쓴다(pose-rig rigPose 의 refs).
+   */
+  refs: Partial<
+    Record<
+      | 'upperArmL'
+      | 'upperArmR'
+      | 'forearmL'
+      | 'forearmR'
+      | 'handL'
+      | 'handR'
+      | 'thighL'
+      | 'thighR'
+      | 'shankL'
+      | 'shankR',
+      Vec3
+    >
+  >[];
+};
+
+/**
+ * 점 → 각도 → 한계 · 다듬기 → 점. conf 는 장면 × 관절 확신(0~100), contacts 는 땅에 닿아 묶인 발 구간.
+ */
+export function kinematicTrack(
+  frames: Vec3[][],
+  conf: number[][] | null,
+  contacts: V2Contact[]
+): KinematicTrack {
+  const n = frames.length;
+  const cf = (k: number, j: number) => (conf ? clamp(conf[k][j] / 100, 0, 1) : 1);
+  const lenOf = (a: number, b: number) =>
+    median(frames.map((fr) => norm(sub(fr[a], fr[b]))));
+
+  /* ── 골반 · 몸통 · 머리 틀(세상) ── */
+  const hipMid = frames.map((fr) => midOf(fr[V2J.lHip], fr[V2J.rHip]));
+  const shMid = frames.map((fr) => midOf(fr[V2J.lSh], fr[V2J.rSh]));
+  const pelvisM: Mat3[] = [];
+  const trunkM: Mat3[] = [];
+  const headM: Mat3[] = [];
+  frames.forEach((fr, k) => {
+    const T = unit(sub(shMid[k], hipMid[k]), [0, 1, 0]);
+    /* 골반 — 왼쪽 = 엉덩이선 그대로(골반이 기운 것도), 위 = 몸통 축을 그에 수직으로 */
+    const pl = unit(
+      sub(fr[V2J.lHip], fr[V2J.rHip]),
+      unit(perp([0, 0, -1], T), [1, 0, 0])
+    );
+    pelvisM.push(frameOf(pl, unit(perp(T, pl), T)));
+    const tl = unit(
+      perp(sub(fr[V2J.lSh], fr[V2J.rSh]), T),
+      unit(perp(pl, T), [1, 0, 0])
+    );
+    trunkM.push(frameOf(tl, T));
+    const earMid = midOf(fr[V2J.lEar], fr[V2J.rEar]);
+    let hl = unit(sub(fr[V2J.lEar], fr[V2J.rEar]), tl);
+    /* 귀가 어깨와 반대로 붙었으면(관절 모델의 좌우 뒤바뀜) 바꿔 읽는다 */
+    if (dot(hl, tl) < 0) hl = scale(hl, -1);
+    const hf = unit(perp(sub(fr[V2J.nose], earMid), hl), cross(tl, T));
+    headM.push(frameOf(hl, cross(hf, hl)));
+  });
+  const wTrunk = frames.map(
+    (_, k) =>
+      Math.min(cf(k, V2J.lHip), cf(k, V2J.rHip), cf(k, V2J.lSh), cf(k, V2J.rSh)) + 0.02
+  );
+  const wHead = frames.map(
+    (_, k) => Math.min(cf(k, V2J.nose), cf(k, V2J.lEar), cf(k, V2J.rEar)) + 0.02
+  );
+
+  /* 몸통(골반에 대해) · 목(몸통에 대해, 그 클립의 가운데 자세에서) — 비틀림 · 기울임 한계 */
+  const spineQ = frames.map((_, k) =>
+    limitSwingTwist(
+      quatFromMat(mul3(transpose(pelvisM[k]), trunkM[k])),
+      [0, 1, 0],
+      rad(KIN_LIMITS.spineTwist),
+      rad(KIN_LIMITS.spineSwing)
+    )
+  );
+  const neckRaw = frames.map((_, k) =>
+    quatFromMat(mul3(transpose(trunkM[k]), headM[k]))
+  );
+  const neckNeutral =
+    smoothQuat(neckRaw, wHead, 50, 50)[Math.floor(n / 2)] ?? ([1, 0, 0, 0] as Quat);
+  const neckQ = neckRaw.map((q) =>
+    qMul(
+      neckNeutral,
+      limitSwingTwist(
+        qMul(qConj(neckNeutral), q),
+        [0, 1, 0],
+        rad(KIN_LIMITS.neckTwist),
+        rad(KIN_LIMITS.neckSwing)
+      )
+    )
+  );
+
+  /* 다듬기 — 골반 방향 · 자리, 몸통 · 목은 상대 회전으로(머리는 늘 넓게) */
+  const pelvisQ = smoothQuat(pelvisM.map(quatFromMat), wTrunk);
+  const spineS = smoothQuat(spineQ, wTrunk);
+  const neckS = smoothQuat(neckQ, wHead, 1.2, 4);
+  const hipS = smoothMulti(hipMid as number[][], wTrunk).map((v) => v as Vec3);
+  const pM = pelvisQ.map(matFromQuat);
+  const tM = pM.map((M, k) => mul3(M, matFromQuat(spineS[k])));
+  const hM = tM.map((M, k) => mul3(M, matFromQuat(neckS[k])));
+
+  /* ── 몸통 · 머리 모양(고정) ── */
+  const trunkLen = median(frames.map((_, k) => norm(sub(shMid[k], hipMid[k]))));
+  const hipHalf = lenOf(V2J.lHip, V2J.rHip) / 2;
+  const shHalf = lenOf(V2J.lSh, V2J.rSh) / 2;
+  const headLocal = [V2J.nose, V2J.lEar, V2J.rEar].map((j) => {
+    const ls = frames.map((fr, k) => toLocal(headM[k], sub(fr[j], shMid[k])));
+    return [0, 1, 2].map((d) => median(ls.map((v) => v[d]))) as Vec3;
+  });
+
+  const out: Vec3[][] = frames.map((fr) => fr.map((p) => [...p] as Vec3));
+  const refs: KinematicTrack['refs'] = frames.map(() => ({}));
+  for (let k = 0; k < n; k++) {
+    const o = hipS[k];
+    const left = toWorld(pM[k], [1, 0, 0]);
+    out[k][V2J.lHip] = add(o, scale(left, hipHalf));
+    out[k][V2J.rHip] = add(o, scale(left, -hipHalf));
+    const sm = add(o, toWorld(tM[k], [0, trunkLen, 0]));
+    const tl = toWorld(tM[k], [1, 0, 0]);
+    out[k][V2J.lSh] = add(sm, scale(tl, shHalf));
+    out[k][V2J.rSh] = add(sm, scale(tl, -shHalf));
+    [V2J.nose, V2J.lEar, V2J.rEar].forEach(
+      (j, i) => (out[k][j] = add(sm, toWorld(hM[k], headLocal[i])))
+    );
+  }
+
+  /* ── 팔 ── */
+  for (const side of ['L', 'R'] as const) {
+    const [Sh, El, Wr, Idx, Mid, Pk] =
+      side === 'L'
+        ? [V2J.lSh, V2J.lEl, V2J.lWr, V2J.lHandIdx, V2J.lHandMid, V2J.lHandPinky]
+        : [V2J.rSh, V2J.rEl, V2J.rWr, V2J.rHandIdx, V2J.rHandMid, V2J.rHandPinky];
+    const limb = limbAngles(
+      frames,
+      trunkM,
+      [Sh, El, Wr],
+      ELBOW_REST_AXIS,
+      cf,
+      KIN_LIMITS.elbowFlex,
+      KIN_LIMITS.elbowHyper
+    );
+    /* 어깨 — 위팔이 어깨선 뒤로 너무 가지 않게(수평면에서 바깥 축 기준) */
+    const outAx: Vec3 = side === 'L' ? [1, 0, 0] : [-1, 0, 0];
+    limb.dir = limb.dir.map((u) => {
+      const h = Math.hypot(u[0], u[2]);
+      if (h < 0.35) return u;
+      const back = Math.atan2(-u[2], dot(u, outAx));
+      const lim = rad(KIN_LIMITS.shoulderBack);
+      if (back <= lim) return u;
+      const r1 = rot(u, [0, 1, 0], back - lim);
+      const r2 = rot(u, [0, 1, 0], lim - back);
+      return Math.atan2(-r1[2], dot(r1, outAx)) < Math.atan2(-r2[2], dot(r2, outAx))
+        ? r1
+        : r2;
+    });
+    const dirS = smoothUnit(limb.dir, limb.flexW);
+    const twistS = smooth1(limb.twist, limb.twistW);
+    const flexS = smooth1(limb.flex, limb.flexW).map((f) =>
+      clamp(f, -rad(KIN_LIMITS.elbowHyper), rad(KIN_LIMITS.elbowFlex))
+    );
+    const Lu = lenOf(Sh, El);
+    const Lf = lenOf(El, Wr);
+
+    /* 아래팔 비틀림 · 손목 — 손 점을 아래팔 틀(축 = 아래팔, 둘째 = 팔꿈치가 굽는 축)에서 */
+    const pron: number[] = [];
+    const flexW: number[] = [];
+    const devW: number[] = [];
+    const wHand: number[] = [];
+    const handLocal: Vec3[][] = [];
+    frames.forEach((fr, k) => {
+      const u = unit(sub(fr[El], fr[Sh]), [0, -1, 0]);
+      const f = unit(sub(fr[Wr], fr[El]), u);
+      const nb = cross(u, f);
+      const e1 = f;
+      const e2 = norm(nb) > 1e-6 ? normalize(nb) : toWorld(trunkM[k], [1, 0, 0]);
+      const e3 = cross(e1, e2);
+      const wv = perp(sub(fr[Pk], fr[Idx]), e1);
+      const ps =
+        norm(wv) > 1e-9 ? Math.atan2(dot(wv, e3), dot(wv, e2)) : (pron[k - 1] ?? 0);
+      pron.push(ps);
+      const h2 = add(scale(e2, Math.cos(ps)), scale(e3, Math.sin(ps)));
+      const h3 = cross(e1, h2);
+      const a = unit(sub(fr[Mid], fr[Wr]), e1);
+      flexW.push(Math.atan2(dot(a, h3), dot(a, e1)));
+      devW.push(Math.asin(clamp(dot(a, h2), -1, 1)));
+      const ch = Math.min(cf(k, Idx), cf(k, Mid), cf(k, Pk));
+      /* 비틀림은 팔꿈치가 굽어 있어야 기준 축이 선다 */
+      const bendSeen = clamp(
+        (Math.acos(clamp(dot(u, f), -1, 1)) - rad(10)) / rad(25),
+        0,
+        1
+      );
+      wHand.push(ch * bendSeen + 0.01);
+      /* 손 모양 — 손 틀(손 축 · 손바닥 폭 · 손바닥)에서 세 점 */
+      const ha = a;
+      const hw = unit(perp(sub(fr[Pk], fr[Idx]), ha), h2);
+      const hn = cross(ha, hw);
+      handLocal.push(
+        [Idx, Mid, Pk].map((j) => {
+          const v = sub(fr[j], fr[Wr]);
+          return [dot(v, ha), dot(v, hw), dot(v, hn)] as Vec3;
+        })
+      );
+    });
+    const pronU = unwrap(pron);
+    const pronMid = weightedMedian(pronU, wHand);
+    const pronS = smooth1(pronU, wHand, 0.8, 3).map((p) =>
+      clamp(p, pronMid - rad(KIN_LIMITS.pronation), pronMid + rad(KIN_LIMITS.pronation))
+    );
+    const wHandOnly = frames.map(
+      (_, k) => Math.min(cf(k, Idx), cf(k, Mid), cf(k, Pk)) + 0.01
+    );
+    /* 손 점이 흐리면 손목을 곧게(0) 쪽으로 — 흐린 장면은 무게가 작아 앞뒤 값과 0 사이로 */
+    const wfS = smooth1(
+      flexW.map((v, k) => v * clamp((wHandOnly[k] - 0.2) / 0.4, 0, 1)),
+      wHandOnly.map(() => 1),
+      0.8,
+      3
+    ).map((v) => clamp(v, -rad(KIN_LIMITS.wristFlex), rad(KIN_LIMITS.wristFlex)));
+    const wdS = smooth1(
+      devW.map((v, k) => v * clamp((wHandOnly[k] - 0.2) / 0.4, 0, 1)),
+      wHandOnly.map(() => 1),
+      0.8,
+      3
+    ).map((v) => clamp(v, -rad(KIN_LIMITS.wristDev), rad(KIN_LIMITS.wristDev)));
+    const handShape = [0, 1, 2].map((i) => {
+      const good = handLocal.filter((_, k) => wHandOnly[k] > 0.5).map((h) => h[i]);
+      const src = good.length >= 5 ? good : handLocal.map((h) => h[i]);
+      return [0, 1, 2].map((d) => median(src.map((v) => v[d]))) as Vec3;
+    });
+
+    for (let k = 0; k < n; k++) {
+      const M = tM[k];
+      const S = out[k][Sh];
+      const u = dirS[k];
+      const nRef = rotFromTo(ELBOW_REST_AXIS, DOWN, u);
+      const nb = rot(nRef, u, twistS[k]);
+      const f = rot(u, nb, flexS[k]);
+      const uw = toWorld(M, u);
+      const nw = toWorld(M, nb);
+      const fw = toWorld(M, f);
+      const E = add(S, scale(uw, Lu));
+      const W = add(E, scale(fw, Lf));
+      out[k][El] = E;
+      out[k][Wr] = W;
+      const e2 = nw;
+      const e3 = cross(fw, e2);
+      const h2 = add(scale(e2, Math.cos(pronS[k])), scale(e3, Math.sin(pronS[k])));
+      const h3 = cross(fw, h2);
+      const fl = wfS[k];
+      const dv = wdS[k];
+      const a = unit(
+        add(
+          add(
+            scale(fw, Math.cos(fl) * Math.cos(dv)),
+            scale(h3, Math.sin(fl) * Math.cos(dv))
+          ),
+          scale(h2, Math.sin(dv))
+        ),
+        fw
+      );
+      const hw = unit(perp(h2, a), h2);
+      const hn = cross(a, hw);
+      [Idx, Mid, Pk].forEach((j, i) => {
+        const [x, y, z] = handShape[i];
+        out[k][j] = add(W, add(add(scale(a, x), scale(hw, y)), scale(hn, z)));
+      });
+      refs[k][side === 'L' ? 'upperArmL' : 'upperArmR'] = nw;
+      refs[k][side === 'L' ? 'forearmL' : 'forearmR'] = nw;
+      refs[k][side === 'L' ? 'handL' : 'handR'] = hw;
+    }
+  }
+
+  /* ── 다리 ── */
+  for (const side of ['L', 'R'] as const) {
+    const [Hp, Kn, An, He, To] =
+      side === 'L'
+        ? [V2J.lHip, V2J.lKn, V2J.lAn, V2J.lHe, V2J.lTo]
+        : [V2J.rHip, V2J.rKn, V2J.rAn, V2J.rHe, V2J.rTo];
+    const limb = limbAngles(
+      frames,
+      pelvisM,
+      [Hp, Kn, An],
+      KNEE_REST_AXIS,
+      cf,
+      KIN_LIMITS.kneeFlex,
+      KIN_LIMITS.kneeHyper
+    );
+    const dirS = smoothUnit(limb.dir, limb.flexW);
+    const twistU = smooth1(limb.twist, limb.twistW);
+    const twMid = weightedMedian(limb.twist, limb.twistW);
+    const twistS = twistU.map((t) =>
+      clamp(t, twMid - rad(KIN_LIMITS.hipRotation), twMid + rad(KIN_LIMITS.hipRotation))
+    );
+    const flexS = smooth1(limb.flex, limb.flexW).map((f) =>
+      clamp(f, -rad(KIN_LIMITS.kneeHyper), rad(KIN_LIMITS.kneeFlex))
+    );
+    const Lt = lenOf(Hp, Kn);
+    const Ls = lenOf(Kn, An);
+    /* 발 — 정강이 틀(축 = 정강이, 둘째 = 무릎이 굽는 축)에서 발끝 · 뒤꿈치 */
+    const footL: Vec3[][] = frames.map((fr, k) => {
+      const u = unit(sub(fr[Kn], fr[Hp]), [0, -1, 0]);
+      const s = unit(sub(fr[An], fr[Kn]), u);
+      const e2 = unit(cross(u, s), toWorld(pelvisM[k], [1, 0, 0]));
+      const e3 = cross(s, e2);
+      return [To, He].map((j) => {
+        const v = sub(fr[j], fr[An]);
+        return [dot(v, s), dot(v, e2), dot(v, e3)] as Vec3;
+      });
+    });
+    const wFoot = frames.map(
+      (_, k) => Math.min(cf(k, An), cf(k, He), cf(k, To)) + 0.02
+    );
+    const toeS = smoothMulti(footL.map((f) => f[0]) as number[][], wFoot).map(
+      (v) => v as Vec3
+    );
+    const heelS = smoothMulti(footL.map((f) => f[1]) as number[][], wFoot).map(
+      (v) => v as Vec3
+    );
+    const Lto = lenOf(An, To);
+    const Lhe = lenOf(An, He);
+
+    for (let k = 0; k < n; k++) {
+      const M = pM[k];
+      const Hpt = out[k][Hp];
+      const u = dirS[k];
+      const nRef = rotFromTo(KNEE_REST_AXIS, DOWN, u);
+      const nb = rot(nRef, u, twistS[k]);
+      const s = rot(u, nb, flexS[k]);
+      const uw = toWorld(M, u);
+      const nw = toWorld(M, nb);
+      const sw = toWorld(M, s);
+      const K = add(Hpt, scale(uw, Lt));
+      const A = add(K, scale(sw, Ls));
+      const e3 = cross(sw, nw);
+      const fromLocal = (v: Vec3, L: number) =>
+        scale(unit(add(add(scale(sw, v[0]), scale(nw, v[1])), scale(e3, v[2])), sw), L);
+      out[k][Kn] = K;
+      out[k][An] = A;
+      out[k][To] = add(A, fromLocal(toeS[k], Lto));
+      out[k][He] = add(A, fromLocal(heelS[k], Lhe));
+      refs[k][side === 'L' ? 'thighL' : 'thighR'] = nw;
+      refs[k][side === 'L' ? 'shankL' : 'shankR'] = nw;
+    }
+  }
+
+  /*
+   * 땅에 닿은 발 — 엔진이 묶은 자리(원래 점) 그대로, 무릎은 두 마디 길이로 다시 접는다. 앞뒤 2장면은 섞어(한 장면에 붙지 않게).
+   */
+  const EASE = 2;
+  for (const c of contacts) {
+    const [Hp, Kn, An, He, To] =
+      c.side === 'L'
+        ? [V2J.lHip, V2J.lKn, V2J.lAn, V2J.lHe, V2J.lTo]
+        : [V2J.rHip, V2J.rKn, V2J.rAn, V2J.rHe, V2J.rTo];
+    for (let k = c.from - EASE; k <= c.to + EASE; k++) {
+      if (k < 0 || k >= n) continue;
+      const w =
+        k >= c.from && k <= c.to
+          ? 1
+          : 1 - (k < c.from ? c.from - k : k - c.to) / (EASE + 1);
+      const target = add(scale(out[k][An], 1 - w), scale(frames[k][An], w));
+      const shift = sub(target, out[k][An]);
+      out[k][Kn] = twoBoneIk(out[k][Hp], out[k][Kn], out[k][An], target);
+      out[k][An] = target;
+      out[k][He] = add(scale(add(out[k][He], shift), 1 - w), scale(frames[k][He], w));
+      out[k][To] = add(scale(add(out[k][To], shift), 1 - w), scale(frames[k][To], w));
+      const s = unit(sub(out[k][An], out[k][Kn]), [0, -1, 0]);
+      const t = unit(sub(out[k][Kn], out[k][Hp]), s);
+      const nb = cross(t, s);
+      if (norm(nb) > 1e-6) {
+        const ref = refs[k][c.side === 'L' ? 'thighL' : 'thighR'];
+        const nn = normalize(nb);
+        const pick = ref && dot(ref, nn) < 0 ? scale(nn, -1) : nn;
+        refs[k][c.side === 'L' ? 'thighL' : 'thighR'] = pick;
+        refs[k][c.side === 'L' ? 'shankL' : 'shankR'] = pick;
+      }
+    }
+  }
+  return { frames: out, refs };
+}
