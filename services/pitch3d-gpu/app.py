@@ -85,6 +85,9 @@ def _pose_factory():
     return _pose_cache["pose"]
 
 
+# AI 스켈레톤 보정(SAM 3D Body) 켜기 — 2026-10-09 김민 "일단 꺼줘": 샘플 3 · 4 를 두 영상에 비춰 보니 화면 뼈대를 영상에 더 가깝게 만들지 못했고
+# (좌투 던지는 팔 착지~릴리스 2.3 → 3.7%) 한 번에 33~35초 · GPU 비용의 절반을 썼다. 다시 켜려면 Modal 환경변수 PITCH3D_AI=1(코드 · 시험은 그대로 둔다)
+AI_ON = os.environ.get("PITCH3D_AI", "0") == "1"
 # AI 보정을 같이 맡는 도우미 GPU 수(분석 GPU 와 합쳐 5대) — 장면 300장이면 AI 단계 약 50초. 두 작업이 같이 돌아도 GPU 10대
 AI_HELPERS = int(os.environ.get("PITCH3D_AI_HELPERS", "4"))
 
@@ -123,17 +126,20 @@ def analyze(job: dict) -> dict:
         progress[call_id] = {"status": "running", "stage": stage, "stages": stages, "jobId": job_id, "at": time.time()}
 
     try:
-        with modal.Queue.ephemeral() as q:
-            ai = Coordinator(q, lambda i: AiHelper().work.spawn(q, f"h{i}"), AI_HELPERS if hf_secret else 0)
-            ai.start()  # 도우미가 켜지고 모델을 올리는 동안 관절 찾기가 돈다
+        if not AI_ON:
+            out = run_job(job, _pose_factory, report)
+        else:
+            with modal.Queue.ephemeral() as q:
+                ai = Coordinator(q, lambda i: AiHelper().work.spawn(q, f"h{i}"), AI_HELPERS if hf_secret else 0)
+                ai.start()  # 도우미가 켜지고 모델을 올리는 동안 관절 찾기가 돈다
+                try:
+                    out = run_job(job, _pose_factory, report, ai, use_ai=True)
+                finally:
+                    ai.close()
             try:
-                out = run_job(job, _pose_factory, report, ai)
-            finally:
-                ai.close()
-        try:
-            hf_cache.commit()  # 처음 받은 AI 무게를 남긴다(다음 작업은 안 받는다)
-        except Exception:  # noqa: BLE001
-            pass
+                hf_cache.commit()  # 처음 받은 AI 무게를 남긴다(다음 작업은 안 받는다)
+            except Exception:  # noqa: BLE001
+                pass
     except Exception as e:  # noqa: BLE001 — 모르는 예외는 여기 한 곳에서만 잡고 이름 · 단계 · 번호를 남긴다(검토 2절 Internal)
         print(f"[pitch3d internal] job={job_id} call={call_id} {type(e).__name__}: {e}")
         out = {"status": "failed", "code": "internal", "stage": "fit", "stages": {}}

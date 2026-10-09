@@ -12,9 +12,7 @@ import {
   type LabGround,
   type LabView,
 } from '@/lib/pitch-lab-meta';
-import { Segmented } from '@/components/segmented';
 import type { Pitch3dV2Ok } from '@/lib/pitch-3d/v2/contract';
-import { readAiJoints } from '@/lib/pitch-3d/v2/display';
 import type { Metric, MetricKey } from '@/lib/pitch-3d/metrics';
 import { V2EmptyWell, V2RequestRow, V2StatusBadge } from './analysis-v2';
 import type { Body3DHandle, Transport } from './body-3d';
@@ -51,11 +49,6 @@ const LABELS: Record<MetricKey, string> = {
   maxExternalRotation: '어깨 외회전 최대',
   plantToRelease: '착지 → 릴리스',
 };
-/* 기본은 측정 그대로 — 2026-10-09 샘플 3 · 4 에서 AI 관절이 두 영상에 우리보다 2~5배 멀었다(영상과 맞는 곳만 쓰게 고칠 때까지) */
-const AI_VIEW_OPTIONS: { value: 'ai' | 'raw'; label: string }[] = [
-  { value: 'raw', label: '측정 그대로' },
-  { value: 'ai', label: 'AI 보정' },
-];
 
 /** 겉에 보이는 지표(나머지는 '자세히') */
 const MAIN: MetricKey[] = [
@@ -144,9 +137,6 @@ export function LabDetail({
    * 머리 칩(labMetaChips)에 '마운드' · '평지'가 보인다.
    */
   const ground: LabGround = meta?.ground ?? 'mound';
-  /* AI 스켈레톤 보정(실험) — 결과에 AI 관절이 있을 때만 고르개가 보인다, 처음엔 켬 */
-  const hasAi = result != null && readAiJoints(result) != null;
-  const [aiView, setAiView] = useState<'ai' | 'raw'>('raw');
   const main = result
     ? MAIN.map((k) => result.metrics.find((m) => m.key === k)).filter(
         (m): m is Metric => m != null
@@ -170,14 +160,6 @@ export function LabDetail({
 
       <div className="desk:grid desk:grid-cols-[3fr_2fr] desk:items-start desk:gap-8">
         <div ref={stage} className="stack-block desk:sticky desk:top-4">
-          {hasAi && (
-            <Segmented
-              label="움직임"
-              value={aiView}
-              onChange={setAiView}
-              options={AI_VIEW_OPTIONS}
-            />
-          )}
           {result && meta && result.hand !== meta.hand && (
             <p className="text-xs text-muted break-keep">
               영상으로 보면 {result.hand === 'L' ? '왼손' : '오른손'} 투수라{' '}
@@ -191,7 +173,6 @@ export function LabDetail({
               onTransport={onTransport}
               ground={ground}
               heightCm={meta?.heightCm ?? null}
-              ai={hasAi && aiView === 'ai'}
             />
           ) : (
             <V2EmptyWell
