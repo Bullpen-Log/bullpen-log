@@ -421,13 +421,40 @@ export const Body3D = forwardRef<
             }
         return Math.max(w / tanH, h / tanV) * 1.06 + depth;
       };
+      /*
+       * 옆 · 뒤 = 결과에 담긴 실제 카메라 자리(몸 가운데에서 본 방향) — 영상과 같은 각도로 본다. 예전엔 고정 방향(우투 −z · 좌투 +z)이라
+       * 2026-10-09 샘플 3 · 4 둘 다 옆 카메라 반대편에서 봐, 영상의 앞모습이 뒷모습으로 · 팔다리가 거울처럼 보였다. 위아래는 3~30° 로.
+       */
+      const camDir = (v: 'side' | 'back'): Three.Vector3 | null => {
+        const c = result.cameras?.[v];
+        if (!c) return null;
+        const R = c.R;
+        const C = [0, 1, 2].map((i) => -(R[i] * c.t[0] + R[3 + i] * c.t[1] + R[6 + i] * c.t[2]));
+        const m = [0, 0, 0];
+        let cnt = 0;
+        for (const fr of result.joints)
+          for (const p of fr) {
+            m[0] += p[0] / 1000;
+            m[1] += p[1] / 1000;
+            m[2] += p[2] / 1000;
+            cnt++;
+          }
+        const d = new THREE.Vector3(C[0] - m[0] / cnt, 0, C[2] - m[2] / cnt);
+        if (d.length() < 1e-6) return null;
+        const flat = d.length();
+        d.normalize();
+        d.y = Math.tan(THREE.MathUtils.clamp(Math.atan2(C[1] - m[1] / cnt, flat), 0.05, 0.52));
+        return d;
+      };
+      const sideCam = camDir('side');
+      const backCam = camDir('back');
       const viewDir = (name: ViewName): Three.Vector3 => {
-        const sideZ = result.hand === 'L' ? 1 : -1;
+        const sideZ = sideCam ? Math.sign(sideCam.z) || 1 : result.hand === 'L' ? 1 : -1;
         switch (name) {
           case 'side':
-            return new THREE.Vector3(0, 0.08, sideZ);
+            return sideCam?.clone() ?? new THREE.Vector3(0, 0.08, sideZ);
           case 'back':
-            return new THREE.Vector3(-1, 0.1, 0);
+            return backCam?.clone() ?? new THREE.Vector3(-1, 0.1, 0);
           case 'catcher':
             return new THREE.Vector3(1, 0.05, 0);
           case 'top':
@@ -641,7 +668,7 @@ export const Body3D = forwardRef<
       disposed = true;
       cleanup?.();
     };
-  }, [bounds, frames, track, n, result.events.release, result.hand, result.t, retry, heightCm]);
+  }, [bounds, frames, track, n, result.events.release, result.hand, result.t, result.cameras, result.joints, retry, heightCm]);
 
   useImperativeHandle(ref, () => ({ seek: (k) => ctrl.current?.seek(k) }), []);
 

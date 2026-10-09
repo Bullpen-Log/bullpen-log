@@ -34,6 +34,12 @@ SAME_FRAC = 0.01
 MAX_FAILED_RUN = 1
 # 시간 고르기 — 앞뒤 이만큼의 그림에 2차식(30fps 그림이면 ±67ms)
 SMOOTH_HALF = 2
+# 영상과 맞추기(gate) — 2D 관절을 '보였다'고 칠 확신, AI 가 이만큼(몸 높이 %) 넘게 더 가까워야 쓴다, 앞뒤 장면 평균
+SEEN_CONF = 0.5
+GATE_MARGIN = 0.5
+GATE_HALF = 2
+# 장면마다 AI 몸통을 우리 몸통 방향으로 돌릴 때 쓰는 관절 — AI 는 팔 · 다리가 몸통에 붙은 모양만 준다
+TORSO = ["lSh", "rSh", "lHip", "rHip"]
 
 # MHR 70점 차례(sam_3d_body/metadata/mhr70.py). 손가락은 끝 · first · second · third joint 차례 — third joint 가 손허리뼈 마디(MCP)로
 # 우리 손 관절(RTMW 손 MCP)과 같은 자리. 예전엔 '손목에 가장 가까운 마디'를 골랐는데 주먹을 쥐면(공을 쥔 손) 손끝이 더 가까워 튀었다
@@ -274,6 +280,7 @@ def assemble(result: dict, raw70: dict[int, Any], names: list[str], times: list[
     keys = sorted(shape)
     kt = np.array([times[k] for k in keys])
     half = 0.5 * float(np.median(np.diff(times))) if len(times) > 1 else 0.0  # 그림 하나가 보이는 시간의 반
+    tor = [idx[nm] for nm in TORSO]
     out = np.zeros_like(our)
     miss: list[int] = []
     for k in range(n):
@@ -293,6 +300,12 @@ def assemble(result: dict, raw70: dict[int, Any], names: list[str], times: list[
         if rel is None:
             miss.append(k)
             rel = our[k] - pelvis(our[k])  # 화면이 miss 장면은 섞지 않는다 — 우리 것 그대로
+        else:
+            # 몸통 방향은 우리 것(두 영상으로 잰 것)으로 — 한 영상만 본 AI 는 몸 전체가 돌아간 채로 나오곤 한다
+            ta = rel[tor] - rel[tor].mean(0)
+            to = (our[k] - pelvis(our[k]))[tor]
+            Rk, _ = umeyama(ta, to - to.mean(0))
+            rel = (Rk @ rel.T).T
         out[k] = pelvis(our[k]) + rel
     al = [idx[nm] for nm in ALIGN]
     ok = [k for k in range(n) if k not in set(miss)]
@@ -304,19 +317,12 @@ def assemble(result: dict, raw70: dict[int, Any], names: list[str], times: list[
     return ai
 
 
-def video_agreement(result: dict, joints_mm: Any, tracks: dict, names: list[str]) -> dict:
-    """두 영상의 2D 관절(확신 0.5 넘는 것)과 3D 관절을 카메라로 비춘 자리의 차이 — 부위별 중앙값(그 영상 속 몸 높이의 %). 로그 · 판단용."""
+def reproj_err(result: dict, joints_mm: Any, tracks: dict) -> dict:
+    """3D 관절을 두 영상에 비춘 자리와 그 영상 2D 관절(확신 SEEN_CONF 넘는 것)의 거리 — {view: 장면 × 25(그 영상 속 몸 높이의 %, 못 본 관절 NaN)}."""
     import numpy as np
 
     J = np.array(joints_mm, dtype=float) / 1000.0
-    idx = {nm: i for i, nm in enumerate(names)}
-    th, gl = ("l", "r") if result.get("hand") == "L" else ("r", "l")
-    groups = {
-        "던지는 팔": [th + "El", th + "Wr", th + "HandMid"],
-        "글러브 팔": [gl + "El", gl + "Wr", gl + "HandMid"],
-        "다리": ["lKn", "rKn", "lAn", "rAn"],
-        "몸통": ["lSh", "rSh", "lHip", "rHip"],
-    }
+    n, nj = J.shape[:2]
     out = {}
     for view, tkey in (("side", "t"), ("back", "tBack")):
         cam = (result.get("cameras") or {}).get(view)
@@ -327,25 +333,73 @@ def video_agreement(result: dict, joints_mm: Any, tracks: dict, names: list[str]
         Rc = np.array(cam["R"], dtype=float).reshape(3, 3)
         Tc = np.array(cam["t"], dtype=float)
         ft = np.array([f["t"] for f in tr["frames"]])
-        errs: dict[str, list[float]] = {g: [] for g in groups}
-        for k, tk in enumerate(times):
+        E = np.full((n, nj), np.nan)
+        for k, tk in enumerate(times[:n]):
             fr = tr["frames"][int(np.argmin(np.abs(ft - tk)))]["p"]
-            ys = [y for _, y, v in fr[:17] if v >= 0.5]
+            ys = [y for _, y, v in fr[:17] if v >= SEEN_CONF]
             if len(ys) < 6 or max(ys) - min(ys) < 1:
                 continue
-            body = max(ys) - min(ys)
             X = (Rc @ J[k].T).T + Tc
             if np.any(X[:, 2] <= 1e-6):
                 continue
             u = cam["f"] * X[:, 0] / X[:, 2] + cam["cx"]
             v = cam["f"] * X[:, 1] / X[:, 2] + cam["cy"]
-            for g, js in groups.items():
-                for nm in js:
-                    x, y, c = fr[idx[nm]]
-                    if c >= 0.5:
-                        errs[g].append(float(np.hypot(u[idx[nm]] - x, v[idx[nm]] - y)) / body * 100)
-        out[view] = {g: round(float(np.median(e)), 1) for g, e in errs.items() if e}
+            body = max(ys) - min(ys)
+            for j in range(nj):
+                x, y, c = fr[j]
+                if c >= SEEN_CONF:
+                    E[k, j] = float(np.hypot(u[j] - x, v[j] - y)) / body * 100
+        out[view] = E
     return out
+
+
+def video_agreement(result: dict, joints_mm: Any, tracks: dict, names: list[str]) -> dict:
+    """부위별 영상과의 차이 중앙값(몸 높이 %) — 로그 · 판단용."""
+    import numpy as np
+
+    idx = {nm: i for i, nm in enumerate(names)}
+    th, gl = ("l", "r") if result.get("hand") == "L" else ("r", "l")
+    groups = {
+        "던지는 팔": [th + "El", th + "Wr", th + "HandMid"],
+        "글러브 팔": [gl + "El", gl + "Wr", gl + "HandMid"],
+        "다리": ["lKn", "rKn", "lAn", "rAn"],
+        "몸통": ["lSh", "rSh", "lHip", "rHip"],
+    }
+    out = {}
+    for view, E in reproj_err(result, joints_mm, tracks).items():
+        out[view] = {}
+        for g, js in groups.items():
+            e = E[:, [idx[nm] for nm in js]]
+            e = e[np.isfinite(e)]
+            if e.size:
+                out[view][g] = round(float(np.median(e)), 1)
+    return out
+
+
+def gate(result: dict, ai_mm: Any, tracks: dict, miss: list[int]) -> list[list[int]]:
+    """장면 × 관절마다 AI 를 얼마나 믿을지(0~100) — 두 영상에서 AI 관절이 우리 것보다 2D 관절에 가까운 만큼만.
+
+    g = (우리 차이 − AI 차이) / 우리 차이(두 영상 평균, 몸 높이 %), 차이가 GATE_MARGIN 밑이면 0, 어느 영상도 못 본 관절 · miss 장면은 0(우리 것 그대로).
+    앞뒤 GATE_HALF 장면 평균으로 고른다(장면마다 껐다 켜지면 팔이 떤다). 화면은 이 값을 섞는 비율로 쓴다(display.ts blendAi).
+    """
+    import numpy as np
+
+    eo = reproj_err(result, result["joints"], tracks)
+    ea = reproj_err(result, ai_mm, tracks)
+    views = [v for v in eo if v in ea]
+    if not views:
+        return []
+    with np.errstate(invalid="ignore"):
+        o = np.nanmean(np.stack([eo[v] for v in views]), axis=0)
+        a = np.nanmean(np.stack([ea[v] for v in views]), axis=0)
+        g = np.where(np.isfinite(o) & np.isfinite(a) & (o - a > GATE_MARGIN), (o - a) / np.maximum(o, 1e-6), 0.0)
+    g = np.clip(g, 0.0, 1.0)
+    g[[k for k in miss if 0 <= k < len(g)]] = 0.0
+    n = len(g)
+    sm = np.zeros_like(g)
+    for k in range(n):
+        sm[k] = g[max(0, k - GATE_HALF) : k + GATE_HALF + 1].mean(axis=0)
+    return np.rint(sm * 100).astype(int).tolist()
 
 
 def correct(

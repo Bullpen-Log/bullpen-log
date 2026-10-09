@@ -145,6 +145,7 @@ def run_job(job: dict, pose_factory: Callable[[], object], report: Report, ai: o
         side_path = os.path.join(d, "side.mp4")
         back_path = os.path.join(d, "back.mp4")
         result_json: str
+        fine: dict = {}
         try:
             report("download", {})
             _download(job["side"]["url"], side_path)
@@ -200,12 +201,21 @@ def run_job(job: dict, pose_factory: Callable[[], object], report: Report, ai: o
                     run = (lambda items: ai.run(items, local)) if ai is not None else None
                     out_ai = sam3d.correct(result, fine_side, fine["side"], V2_NAMES, run)
                     if out_ai:
-                        result["experimental"] = {"sam3d": out_ai}
+                        # 영상과 맞추기 — AI 가 두 영상에 우리보다 가까운 장면 · 관절만 쓴다(못 따지면 싣지 않는다)
+                        out_ai["w"] = sam3d.gate(result, out_ai["joints"], fine, out_ai.get("miss", []))
+                        if out_ai["w"]:
+                            result["experimental"] = {"sam3d": out_ai}
+                        import numpy as np
+
+                        w = np.array(out_ai["w"] or 0, dtype=float)[..., None] / 100
+                        mixed = np.rint(np.array(result["joints"]) * (1 - w) + np.array(out_ai["joints"]) * w).astype(int).tolist()
                         agree = {
                             "우리": sam3d.video_agreement(result, result["joints"], fine, V2_NAMES),
                             "AI": sam3d.video_agreement(result, out_ai["joints"], fine, V2_NAMES),
+                            "섞음": sam3d.video_agreement(result, mixed, fine, V2_NAMES),
                         }
-                        print(f"[pitch3d ai] 영상과 차이(몸 높이 %) {json.dumps(agree, ensure_ascii=False)}")
+                        used = float(np.mean(w > 0)) if out_ai["w"] else 0.0
+                        print(f"[pitch3d ai] 영상과 차이(몸 높이 %) {json.dumps(agree, ensure_ascii=False)} · AI 를 쓴 관절 {used:.0%}")
                 except Exception as e:  # noqa: BLE001
                     print(f"[pitch3d ai] 건너뜀 — {type(e).__name__}: {str(e)[:300]}")
                 print(f"[pitch3d ai] {time.time() - t_ai:.1f}초")
@@ -237,8 +247,8 @@ def run_job(job: dict, pose_factory: Callable[[], object], report: Report, ai: o
             return {"status": "failed", "code": e.code, "stage": "upload", "stages": stages}
         mark("upload")
         parsed = json.loads(result_json)
-        if dry:
-            return {"status": "done" if parsed.get("ok") else "failed", "stages": stages, "result": parsed}
+        if dry:  # 2D 관절도 돌려준다 — 화면 그대로(섞기 · 각도 모델)를 영상에 비춰 보는 시험용
+            return {"status": "done" if parsed.get("ok") else "failed", "stages": stages, "result": parsed, "tracks": fine}
         if parsed.get("ok"):
             return {"status": "done", "stages": stages, "frames": len(parsed.get("t", []))}
         return {"status": "failed", "code": parsed.get("code", "internal"), "stage": parsed.get("stage", "fit"), "stages": stages}

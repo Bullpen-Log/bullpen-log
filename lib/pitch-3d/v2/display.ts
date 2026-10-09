@@ -71,10 +71,11 @@ const AI_CHAINS: [number, number][] = [
   [V2J.rAn, V2J.rTo],
 ];
 
-/** 결과에 실린 AI 관절(실험) — 모양이 맞을 때만(키 = 1) */
+/** 결과에 실린 AI 관절(실험) — 모양이 맞을 때만(키 = 1). 섞는 비율(w)이 실렸는데 모양이 틀리면 AI 를 안 쓴다 */
 export function readAiJoints(r: Pitch3dV2Ok): Vec3[][] | null {
   const j = r.experimental?.sam3d?.joints;
   if (!Array.isArray(j) || j.length !== r.joints.length) return null;
+  if (r.experimental?.sam3d?.w !== undefined && readAiGate(r) === null) return null;
   for (const fr of j)
     if (
       !Array.isArray(fr) ||
@@ -85,6 +86,20 @@ export function readAiJoints(r: Pitch3dV2Ok): Vec3[][] | null {
   return j.map((fr) => fr.map((p) => [p[0] / 1000, p[1] / 1000, p[2] / 1000] as Vec3));
 }
 
+/** 장면 × 관절마다 AI 를 섞는 비율 0~1(두 영상에 더 가까운 만큼, GPU 가 잼) — 없거나 모양이 틀리면 null */
+export function readAiGate(r: Pitch3dV2Ok): number[][] | null {
+  const w = r.experimental?.sam3d?.w;
+  if (!Array.isArray(w) || w.length !== r.joints.length) return null;
+  for (const row of w)
+    if (
+      !Array.isArray(row) ||
+      row.length !== r.joints[0].length ||
+      !row.every((v) => Number.isFinite(v) && v >= 0 && v <= 100)
+    )
+      return null;
+  return w.map((row) => row.map((v) => v / 100));
+}
+
 /** AI 가 못 본 장면(섞지 않는다) — 모양이 틀리면 빈 것 */
 export function readAiMiss(r: Pitch3dV2Ok): Set<number> {
   const m = r.experimental?.sam3d?.miss;
@@ -92,7 +107,9 @@ export function readAiMiss(r: Pitch3dV2Ok): Set<number> {
 }
 
 /**
- * AI 스켈레톤 보정 섞기 — 팔 · 다리 · 머리 마디의 방향을 우리 것과 AI 것 사이로(확신이 낮을수록 AI, 늘 AI_MIN 이상), 길이는 우리 것.
+ * AI 스켈레톤 보정 섞기 — 팔 · 다리 · 머리 마디의 방향을 우리 것과 AI 것 사이로, 길이는 우리 것.
+ * 비율: gate(GPU 가 두 영상에 비춰 AI 가 더 가까운 만큼)가 있으면 그것만 — 2026-10-09 샘플 3 · 4 에서 AI 가 영상과 우리보다 2~5배 멀어
+ * '늘 AI_MIN 이상'이 오히려 영상과 멀어지게 했다. gate 가 없는 옛 결과는 예전처럼 확신이 낮을수록 AI(늘 AI_MIN 이상).
  * 땅에 닿아 묶인 발 쪽 다리는 우리 것 그대로. 섞은 관절의 확신도 그만큼 올린다(관절 각도 모델이 믿게).
  */
 export function blendAi(
@@ -100,8 +117,10 @@ export function blendAi(
   ai: Vec3[][],
   conf: number[][],
   contacts: V2Contact[],
-  miss: Set<number> = new Set()
+  miss: Set<number> = new Set(),
+  gate: number[][] | null = null
 ): { frames: Vec3[][]; conf: number[][] } {
+  const weight = (k: number, j: number) => (gate ? gate[k][j] : clamp(1 - conf[k][j] / 100, AI_MIN, 1));
   const unit = (v: Vec3): Vec3 => {
     const n = Math.hypot(...v);
     return n > 1e-9 ? [v[0] / n, v[1] / n, v[2] / n] : [0, 0, 0];
@@ -134,8 +153,8 @@ export function blendAi(
     };
     for (const [p, c] of AI_CHAINS) {
       const side = legOf[c];
-      const w = side && pinned(k, side) ? 0 : clamp(1 - conf[k][c] / 100, AI_MIN, 1);
-      if (w <= 0) continue;
+      const w = side && pinned(k, side) ? 0 : weight(k, c);
+      /* w = 0 이어도 다시 붙인다 — 부모(팔꿈치)만 AI 쪽으로 갔을 때 자식(손목)이 제자리에 남으면 아래팔 길이가 바뀐다 */
       const dO = sub3(fr[c], fr[p]);
       o[c] = mix(o[p], unit(dO), unit(sub3(a[c], a[p])), Math.hypot(...dO), w);
       outConf[k][c] = Math.round(conf[k][c] + (100 - conf[k][c]) * w * 0.8);
@@ -145,7 +164,8 @@ export function blendAi(
     const neckA = add(a[V2J.lSh], a[V2J.rSh]).map((v) => v / 2) as Vec3;
     const neckN = add(o[V2J.lSh], o[V2J.rSh]).map((v) => v / 2) as Vec3;
     for (const j of [V2J.nose, V2J.lEar, V2J.rEar]) {
-      const w = clamp(1 - conf[k][j] / 100, AI_MIN, 1);
+      const w = weight(k, j);
+      if (w <= 0) continue;
       const dO = sub3(fr[j], neckO);
       o[j] = mix(neckN, unit(dO), unit(sub3(a[j], neckA)), Math.hypot(...dO), w);
       outConf[k][j] = Math.round(conf[k][j] + (100 - conf[k][j]) * w * 0.8);
@@ -201,7 +221,7 @@ export function displayTrack(
   const n = raw.length;
   const contacts = readContacts(result);
   const ai = opts.ai ? readAiJoints(result) : null;
-  if (ai) ({ frames: raw, conf } = blendAi(raw, ai, conf, contacts, readAiMiss(result)));
+  if (ai) ({ frames: raw, conf } = blendAi(raw, ai, conf, contacts, readAiMiss(result), readAiGate(result)));
   const { frames, refs } = kinematicTrack(raw, conf, contacts);
 
   /* 2 바닥 하나 */

@@ -163,6 +163,32 @@ if np is not None:
     e_hold = np.median([np.linalg.norm(curve(pic_t[min(19, k // 2)])[w] - ours60[k, w]) for k in range(2, 38)])  # 예전처럼 가까운 그림 그대로
     check("assemble: 30fps 그림 → 60fps 장면을 시각으로 이음(가까운 그림 베끼기의 ¼ 밑 오차)", e_interp < 0.25 * e_hold, f"{e_interp * 1000:.1f} vs {e_hold * 1000:.1f}mm")
 
+    # 영상과 맞추기(gate) — 참 관절을 두 카메라로 비춘 2D 가 있을 때, 우리 손목이 어긋난 장면만 AI(참)를 쓴다
+    ng = 40
+    truth = np.array([base_shape + [0.0, 1.0, 0.0] for _ in range(ng)])
+    cams = {
+        "side": {"f": 1000.0, "cx": 500.0, "cy": 500.0, "R": [1, 0, 0, 0, 1, 0, 0, 0, 1], "t": [0.0, 0.0, 4.0], "W": 1000, "H": 1000},
+        "back": {"f": 1000.0, "cx": 500.0, "cy": 500.0, "R": [0, 0, -1, 0, 1, 0, 1, 0, 0], "t": [0.0, 0.0, 4.0], "W": 1000, "H": 1000},
+    }
+
+    def proj(cam, X):
+        R = np.array(cam["R"], dtype=float).reshape(3, 3)
+        P = (R @ X.T).T + cam["t"]
+        return np.stack([cam["f"] * P[:, 0] / P[:, 2] + cam["cx"], cam["f"] * P[:, 1] / P[:, 2] + cam["cy"]], 1)
+
+    tg = [k / 60 for k in range(ng)]
+    trk = {v: {"frames": [{"t": tg[k], "p": [[*xy, 0.9] for xy in proj(cams[v], truth[k]).tolist()]} for k in range(ng)]} for v in cams}
+    oursg = truth.copy()
+    oursg[10:16, ix["rWr"]] += [0.12, 0.05, 0.0]  # 우리 손목이 어긋난 장면
+    resg = {"ok": True, "t": tg, "tBack": tg, "cameras": cams, "joints": np.rint(oursg * 1000).astype(int).tolist()}
+    gw = np.array(sam3d.gate(resg, np.rint(truth * 1000).astype(int).tolist(), trk, []))
+    check(
+        "gate: AI 가 영상에 더 가까운 장면 · 관절만(어긋난 손목 장면 높음, 같은 곳 · 다른 관절 0)",
+        gw[12, ix["rWr"]] > 50 and gw[30, ix["rWr"]] == 0 and gw[12, ix["lKn"]] == 0,
+        f"{gw[12, ix['rWr']]} · {gw[30, ix['rWr']]} · {gw[12, ix['lKn']]}",
+    )
+    check("gate: miss 장면은 0", np.array(sam3d.gate(resg, np.rint(truth * 1000).astype(int).tolist(), trk, list(range(ng))))[12].max() == 0)
+
     # 나눠 맡기(ai_parallel) — 가짜 줄 · 스레드 도우미
     import queue as _q
     import threading
