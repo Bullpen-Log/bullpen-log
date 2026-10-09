@@ -30,6 +30,7 @@ function view(row: {
   title: string;
   time: string | null;
   memo: string | null;
+  remindMin: number | null;
 }): CalendarEventView {
   return {
     id: row.id,
@@ -37,6 +38,7 @@ function view(row: {
     title: row.title,
     time: row.time,
     memo: row.memo,
+    remindMin: row.remindMin,
   };
 }
 

@@ -18,6 +18,10 @@ CREATE 만이라 옛 코드도 그대로 돈다). 사용자: "홈 캘린더를 �
 - 홈 캘린더(`app/(app)/today/pitch-log-panel.tsx`)만: 앞날도 열림 · 칸 밑에 일정 막대 · 그날 칸에 '일정' 아이콘(여섯째) · 밑 칸에서 일정 더하기 ·
   고치기 · 지우기(`day-schedule.tsx`, 서버 동작 `app/actions/calendar-event.ts`, 규칙 `lib/calendar-event.ts`, 시험 `npm run calendar:test`).
 - 공용 `components/month-calendar.tsx` 에 선택 칸 둘(`allowFuture` · `events`)을 더했다 — 안 넘기면 예전과 같아서 투구 기록 캘린더(`/videos`)는 그대로다.
+- (같은 날 더함) 일정 알림 — 칸 `CalendarEvent.remindMin`(비울 수 있음, 마이그레이션 `20261009160000_calendar_event_remind`, 백업 `db-2026-10-09-13-28.json`)
+  · 폼의 '알림'(없음 · 일정 시각 · 10분 · 30분 · 1시간 · 하루 전, 하루 종일은 오전 9시 기준) · 홈이 열릴 때 앱의 로컬 알림으로 걸어 둠
+  (`app/(app)/today/event-alarms.ts`, 기존 `scheduleAlarm` 그대로). `BullpenNativePlugin.swift` 는 앱이 앞에 떠 있어도 일정 알림(id `event-…`)만은
+  띄우게 고쳤다(휴식 알림은 예전처럼 안 띄움) — 이 푸시로 ios.yml 이 새로 굽는다.
 
 ## 금윤호에게 — 2026-10-09 · 김민(Claude) — 운동 이름 188개를 전문 용어로 바꿨다(운영 DB, 사용자 지시)
 
