@@ -893,6 +893,14 @@ console.log('■ 뼈대 자세(pose-rig) — public/models/skeleton-parts.json +
             low = Math.min(low, w[1] - gr(w[0], w[2]));
           }
         check('마운드: 두 발 중 경사면에 가장 가까운 점이 경사면 위(0)', Math.abs(low) < 1e-9, `${low}`);
+        /* 디딤발 무게 — 오른발만 디딤이면 오른발이 경사면 위(왼발이 더 낮아도 몸을 끌어올리지 않는다) */
+        const poseR = rigPose(fr, 'R', parts, null, gr, { L: 0, R: 1 });
+        let lowR = Infinity;
+        for (const q of [A.footR.proximal, A.footR.distal, A.footR.heel]) {
+          const w = placePoint(poseR.footR, q, A.footR.proximal);
+          lowR = Math.min(lowR, w[1] - gr(w[0], w[2]));
+        }
+        check('디딤발 무게: 오른발만 디딤이면 오른발이 경사면 위(0)', Math.abs(lowR) < 1e-9, `${lowR}`);
       }
     }
   }

@@ -21,6 +21,7 @@ import {
   MOUND,
   moundHeightAt,
   PART_NAMES,
+  placePoint,
   readSkeletonParts,
   rigPose,
   throwingArmParts,
@@ -454,12 +455,54 @@ export const Body3D = forwardRef<
         tween = { t: 0, from: camera.position.clone(), to };
       };
 
+      /*
+       * 디딤발 — 착지 전엔 축발(던지는 손 쪽), 착지 뒤엔 앞발, 착지 앞뒤 3장면은 섞는다. 장면마다 '낮은 발'로 바닥을 잡으면 몸이 튀었다.
+       */
+      const fpK = result.events.footPlant;
+      const pivotSide: 'L' | 'R' = result.hand === 'L' ? 'L' : 'R';
+      const supportAt = (k: number) => {
+        const lead = Math.max(0, Math.min(1, (k - (fpK - 3)) / 6));
+        return pivotSide === 'R' ? { L: lead, R: 1 - lead } : { L: 1 - lead, R: lead };
+      };
+      /* 발밑 그림자 — 발이 바닥(경사면)에 닿아 있을 때만(발밑 가장 가까운 점이 키의 1.2% 안). 앞발 그림자가 생기는 장면이 착지 */
+      const shadowMat = new THREE.MeshBasicMaterial({
+        color: '#000000',
+        transparent: true,
+        opacity: 0.45,
+        depthWrite: false,
+      });
+      const shadows = (['L', 'R'] as const).map(() => {
+        const m = new THREE.Mesh(new THREE.CircleGeometry(1, 32), shadowMat);
+        m.rotation.x = -Math.PI / 2;
+        m.visible = false;
+        scene.add(m);
+        return m;
+      });
+      const placeShadows = (pose: RigPose) => {
+        (['L', 'R'] as const).forEach((side, i) => {
+          const f = `foot${side}` as PartName;
+          const A = parts.anchors[f];
+          const pts = [A.proximal, A.distal, A.heel].map((q) => placePoint(pose[f], q, A.proximal));
+          const gap = Math.min(...pts.map((w) => w[1] - (groundAt ? groundAt(w[0], w[2]) : 0)));
+          const sh = shadows[i];
+          sh.visible = gap < 0.012;
+          if (!sh.visible) return;
+          const cx = (pts[0][0] + pts[1][0] + pts[2][0]) / 3;
+          const cz = (pts[0][2] + pts[1][2] + pts[2][2]) / 3;
+          const len = Math.hypot(pts[1][0] - pts[2][0], pts[1][2] - pts[2][2]);
+          sh.position.set(cx, (groundAt ? groundAt(cx, cz) : 0) + 0.004, cz);
+          sh.scale.set(Math.max(0.05, len * 0.62), Math.max(0.03, len * 0.3), 1);
+          sh.rotation.z = -Math.atan2(pts[1][2] - pts[2][2], pts[1][0] - pts[2][0]);
+        });
+      };
+
       /* 자세 적용 */
       let prevPose: RigPose | null = null;
       const mat = new THREE.Matrix4();
       const applyFrame = (k: number) => {
-        const pose = rigPose(frames[k], result.hand, parts, prevPose, groundAt);
+        const pose = rigPose(frames[k], result.hand, parts, prevPose, groundAt, supportAt(k));
         prevPose = pose;
+        placeShadows(pose);
         for (const name of PART_NAMES) {
           const p = pose[name];
           const R = p.R;
@@ -619,7 +662,7 @@ export const Body3D = forwardRef<
       disposed = true;
       cleanup?.();
     };
-  }, [bounds, frames, n, result.events.release, result.events.kneeUp, result.hand, result.t, retry, ground, heightCm]);
+  }, [bounds, frames, n, result.events.release, result.events.kneeUp, result.events.footPlant, result.hand, result.t, retry, ground, heightCm]);
 
   useImperativeHandle(ref, () => ({ seek: (k) => ctrl.current?.seek(k) }), []);
 

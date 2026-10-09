@@ -126,7 +126,12 @@ export function rigPose(
   parts: SkeletonParts,
   prev?: RigPose | null,
   /** 발밑 높이(앞 x · 옆 z → 위 y, 키 = 1) — 없으면 평지(0). 마운드는 moundHeightAt */
-  groundAt?: (x: number, z: number) => number
+  groundAt?: (x: number, z: number) => number,
+  /**
+   * 디딤발 무게(L · R, 합 1) — 주면 그 발(들)의 발밑 가장 가까운 점을 바닥에, 없으면 두 발 중 가까운 쪽. 장면마다 '두 발 중 낮은 쪽'으로
+   * 하면 발 점이 흔들리거나 낮은 발이 바뀌는 순간 몸 전체가 위아래로 튀었다(2026-10-09 김민: "바닥에서 떨어지거나 흔들린다").
+   */
+  support?: { L: number; R: number }
 ): RigPose {
   const A = parts.anchors;
   const s = 1 / parts.height;
@@ -230,14 +235,18 @@ export function rigPose(
   }
 
   /* 두 발 중 발밑에 가장 가까운 점(뒤꿈치 · 발끝 · 발목)을 바닥에 — 마운드면 그 자리의 경사면 높이 */
-  let low = Infinity;
-  for (const side of ['L', 'R'] as const) {
+  const lowOf = (side: 'L' | 'R') => {
     const f = `foot${side}` as PartName;
+    let m = Infinity;
     for (const p of [A[f].proximal, A[f].distal, A[f].heel]) {
       const w = placePoint(out[f], p, A[f].proximal);
-      low = Math.min(low, w[1] - (groundAt ? groundAt(w[0], w[2]) : 0));
+      m = Math.min(m, w[1] - (groundAt ? groundAt(w[0], w[2]) : 0));
     }
-  }
+    return m;
+  };
+  const lowL = lowOf('L');
+  const lowR = lowOf('R');
+  const low = support ? support.L * lowL + support.R * lowR : Math.min(lowL, lowR);
   if (Number.isFinite(low))
     for (const name of PART_NAMES)
       out[name].position = [
