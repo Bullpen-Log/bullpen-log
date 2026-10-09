@@ -5,8 +5,9 @@ import {
   armPainSpotsFor,
   canDoPainRoutine,
   sorenessWord,
+  LOW_CONDITION_THRESHOLD,
 } from '@/lib/checkin';
-import { intensityLevel, minutesForSets } from '@/lib/exercise-meta';
+import { HEAVY_EQUIPMENT, intensityLevel, minutesForSets } from '@/lib/exercise-meta';
 import type { ReportFacts } from '@/lib/report/facts';
 import { pendingOuting, type PitchPlan } from '@/lib/report/plan';
 import { withJosa } from '@/lib/korean';
@@ -66,8 +67,8 @@ export const HIGH_ARM_FATIGUE = 4;
 /** 팔 피로의 말 — lib/checkin.ts 의 DETAIL_SCALES 와 같은 보기 */
 const ARM_FATIGUE_WORDS = ['없음', '조금', '보통', '많이', '심함'];
 
-/** 이 컨디션 이하면 회복 (lib/report/theme.ts 의 LOW_CONDITION_THRESHOLD 와 같다) */
-const LOW_CONDITION = 4;
+/** 이 컨디션 이하면 회복 — 값은 lib/checkin.ts(매일 운동 계획 · 안전 거름과 같은 값) */
+const LOW_CONDITION = LOW_CONDITION_THRESHOLD;
 
 /**
  * 오늘 어떤 루틴을 할지 정한다.
@@ -302,8 +303,7 @@ const SLACK_MINUTES = 2;
 /** 운동을 바꾸는 데 드는 시간. 밴드를 옮겨 거는 정도라 일정(3분)보다 짧다. */
 const SWITCH_MINUTES = 0.5;
 
-/** 회복날에 빼는 장비 — 무게를 싣는 것 (lib/report/theme.ts 의 isRecoveryLight 와 같다) */
-const HEAVY_EQUIPMENT = ['덤벨', '바벨', '케틀벨', '원판', '케이블'];
+/* 회복날에 빼는 장비 — 무게를 싣는 것. 목록은 lib/exercise-meta.ts 의 HEAVY_EQUIPMENT(theme.ts 의 isRecoveryLight 와 같다) */
 
 /**
  * 통증 루틴에서 더 빼는 장비 — 철봉. 매달리기(데드행)는 버티기지만 몸무게가 통째로 팔에 걸린다.

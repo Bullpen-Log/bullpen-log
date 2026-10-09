@@ -1,6 +1,16 @@
 import { orderWithinSlot } from '@/lib/report/exercise-order';
-import { SEVERE_SORENESS, sorenessWord, type CheckinPartKey } from '@/lib/checkin';
-import { intensityLevel, minutesForSets, type Prescription } from '@/lib/exercise-meta';
+import {
+  LOW_CONDITION_THRESHOLD,
+  SEVERE_SORENESS,
+  sorenessWord,
+  type CheckinPartKey,
+} from '@/lib/checkin';
+import {
+  HEAVY_EQUIPMENT,
+  intensityLevel,
+  minutesForSets,
+  type Prescription,
+} from '@/lib/exercise-meta';
 import { withJosa } from '@/lib/korean';
 import type { ReportFacts } from '@/lib/report/facts';
 import type { PitchPlan } from '@/lib/report/plan';
@@ -201,11 +211,8 @@ export type SessionTheme = {
   reason: string;
 };
 
-/**
- * 컨디션이 이 값 이하면 회복 테마로 돌린다.
- * (lib/report/prescription.ts 의 무게 제외 기준과 같은 값이다.)
- */
-export const LOW_CONDITION_THRESHOLD = 4;
+/** 컨디션이 이 값 이하면 회복 테마로 돌린다 — 값은 lib/checkin.ts(안전 거름 · 암케어 · 프로그램과 같은 값) */
+export { LOW_CONDITION_THRESHOLD };
 
 /**
  * 세게 던진 날로 치는 최소 투구수(그날 거의 최대 강도로 던진 공의 합).
@@ -1050,11 +1057,10 @@ const COMPOSITIONS: Record<ThemeKey, SlotSpec[]> = {
  * 새로 고르는 것에만 쓴다. 오늘 이미 마친 운동이나 직접 더한 운동은 빼지
  * 않는다 — 한 것은 사실이고, 넣은 것은 본인이다.
  */
-const RECOVERY_HEAVY_EQUIPMENT = ['덤벨', '바벨', '케틀벨', '원판', '케이블'];
 function isRecoveryLight(ex: ThemedExercise): boolean {
   return (
     intensityLevel(ex.intensity) <= intensityLevel('낮음') &&
-    !(ex.equipment ?? []).some((q) => RECOVERY_HEAVY_EQUIPMENT.includes(q))
+    !(ex.equipment ?? []).some((q) => HEAVY_EQUIPMENT.includes(q))
   );
 }
 

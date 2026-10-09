@@ -16,7 +16,7 @@ import { Segmented } from '@/components/segmented';
  *
  * 트레이닝의 [트레이닝 | 암케어]처럼 주소로 나눈다(?view=armcare&tab=guide).
  * 부위별 보강은 암케어 운동을 다 늘어놓는 화면이라, 오늘 루틴만 보러 온 사람에게
- * 그 짐까지 내려보낼 까닭이 없다. 움직임도 트레이닝 고르개와 같다(view-switch.tsx).
+ * 그 짐까지 내려보낼 까닭이 없다. 움직임도 트레이닝 홈의 앱 카드와 같다(training-home.tsx · remember-app.tsx).
  */
 const TABS = [
   { value: 'today', label: '루틴', href: '/training?view=armcare' },
