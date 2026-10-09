@@ -469,6 +469,7 @@
          **남은 것(12번 뒤)**: ① 당류 · 나트륨 · 순탄수(2차, 사용자 확인 뒤 — DB 칸 둘 + 식약처 칸) ② 아이폰 실기기 · 앱 웹뷰에서 가입 25화면 ·
          자판(--kb) · `/nutrition/setup` 저장까지(사용자 계정으로) ③ 가입 뒤 첫 화면을 /today 로 둔 것(문서 ④ '물은 것')은 그대로 — 바꾸려면 말해 주세요
          ④ 홈 영양 카드는 손대지 않았다(사용자 규칙).
+      **→ 2026-10-09 가입에서 영양 · 투구 · 웨이트 질문을 뺌(아래 15번).** 25화면 가입은 없어졌고, 영양 질문 화면 · 계산 · `/nutrition/setup` 은 영양 탭의 첫 설정으로 그대로 쓴다.
   13. **끝남(2026-10-09, 커밋만 · push 는 "올려줘" 때) 트레이닝 영상 촬영 관리자(2026-10-09, 사용자: "계획을 관리자에서 자세히 · 찍은 운동 체크 · 주차별 지금/다음 · 앱에서는 촬영할 때
       간편하게(지금 · 다음 · 도구 · 진행 방법 · 영상) · 메인에 게이지 · 웹은 더 자세히").** 바탕 계획은 같은 날 만든 5주 촬영 계획(아티팩트
       "운동 영상 촬영 계획", 유튜브 참고 영상 312개 → 주 1회 3시간, 같은 기구 몰기 + 부위 번갈기 + 하체 부하 고르게). 단계:
@@ -527,6 +528,27 @@
          고쳐도 끊기지 않게). 메인 '올릴 차례'에서 번호를 누르면 `/admin/shoot/N#번호` 로 가 그 운동 창이 열린다. 공유 페이지(아티팩트
          '운동 영상 촬영 계획')도 8주로 다시 냄. 시험 `npm run shoot:test` 66. 검토 3건 고침.
       4. **끝남** 검증 — tsc · eslint · impeccable · 시험(촬영 66 · 컷 편집 50 · 식단 456) · `npx next build` · 모양(1536 · 375).
+  15. **가입 6화면 · 탭별 첫 설정 · 튜토리얼(2026-10-09, 사용자 결정 넷 — "묻지 말고 끝까지 진행"). 만듦 — 화면 확인 · 커밋 전(끝나면 '끝남'으로).**
+      설계 `docs/designs/signup-and-tab-onboarding.md`(결정 D1~D8 · 미룬 것 · 남은 것). 12번의 25화면 가입을 대체한다. 한 것:
+      ① 가입 `app/login/auth-form.tsx` 6화면 — 이름 · 이메일 → 생년월일 · 성별 → 키 · 몸무게 → 비밀번호 · 확인 → 소속 → 약관(아래 칸은 위 칸이
+         맞으면 펴짐 `RevealField`, 한 번 펴지면 안 접힘). `trySignup` 은 User + 오늘 체중만(NutritionProfile 은 안 만든다), 성별 · 키 · 몸무게 필수,
+         소속은 화면 필수 · 서버 선택, `agreedAt` 저장.
+      ② 잠금 — `lib/feature-locks.ts`(featureLocks · SETUP_PATH · FEATURE_HOME · featureOfPath · isSetupPath · 튜토리얼 열쇠). 투구 = `pitchSetupAt`,
+         트레이닝 = `trainingSetupAt`, 영양 = NutritionProfile 줄 유무. 목적지마다 redirect(탭 페이지 · pitch-log load · velocity access · workout ·
+         armcare/mechanics play · 시작 동작 셋), 셸은 `lib/nav.ts applyLocks` → app-shell `NavGlyph`(흐림 + 자물쇠, 누르면 설정 화면).
+         홈은 투구 링 · 첫날 카드 · 종이 곧장 `/videos/setup`, 운동 · 영양은 탭이 보낸다. 분석(/coach)은 안 잠금.
+      ③ 첫 설정 셋 — `/videos/setup`(하루 투구 한도 끼움 → 손 → 평소 투구량 3문항 → 목표 구속(선택) → 요약, `finishPitchSetup`) ·
+         `/training/setup`(경력 → 웨이트 횟수 → 장비 → 하루 시간 → [손, 비었을 때만] → [운동 소모] → 요약, `finishTrainingSetup`) · `/nutrition/setup`
+         (12번 그대로, 줄이 없으면 빈 답으로). 셋 다 영양 온보딩과 같은 꼴(StepCard brand 없음 · `useStepWizard` · [이름, 값] 줄 · 막히면 그 칸).
+      ④ 튜토리얼 — `components/tutorial/`(TutorialDialog · TourGate · TabTutorial · slides). 기본 투어는 처음 홈에서 한 번(웹 5장 · 앱 5장 따로,
+         열쇠 tour:web · tour:app), 차례는 시작 연출 → 투어(`html[data-tour]`) → 체크인 관문(`afterTour`). 탭 튜토리얼은 첫 설정 뒤 그 탭에서 한 번
+         (투어는 홈에서만 저절로 떠 겹치지 않는다). 본 것은 `User.tutorialsDone`(`markTutorialDone`), 다시 보기는 설정 › 정보 '사용 안내 다시 보기'(투어만).
+      ⑤ DB — `User.pitchSetupAt · trainingSetupAt · tutorialsDone · agreedAt`, 마이그레이션 `20261009170000_feature_setup`(백업 db-2026-10-09-14-26,
+         deploy · generate 함). 옛 계정은 같은 마이그레이션의 UPDATE 로 열어 둠(답이나 기록이 있으면 가입 시각) — 튜토리얼만 한 번씩 본다.
+      ⑥ 김민에게 HANDOFF(prisma generate · 25화면 메모 대체 · 김민 영역 파일 · 아이폰 앱에서 볼 것).
+      **남은 것**: ① 줄 없는 옛 계정(목표 · 식단 취향을 한 번도 저장 안 함)은 영양이 잠긴다 — 음식 기록이 있어도. D5 와 어긋나니 사용자에게 물을 것
+      (줄을 만들어 줄지 · 판정에 기록 유무를 더할지) ② 탭 튜토리얼 다시 보기 자리 ③ 약관 버전(agreedAt 은 시각만) ④ 화면 확인 — 휴대폰 375 · PC ·
+      아이폰 앱 웹뷰(가입 자판 · 앱 투어 · 하단 탭 자물쇠 · 설정 셋 → 튜토리얼), 시험 계정으로.
 
 - **클라우드 식단 짜기 정확도 2차 — 끝남(2026-10-04 맡김 → 10-06 main 합침 · 메인 검토 반영). 지금 클라우드가 할 일은 아래 '3차' 줄.**
   (아래는 2차 메모 그대로 — 규칙은 3차에도 같다.) 사용자가 클라우드 세션을 열어 "메모대로 해 줘"라고 하면 이것을 했다. 지난 클라우드 작업(틀 85 → 167 · 시험 382, 커밋 8e1fbd5 · 46cc794 · 96dae5d)을 메인이 세 갈래로 검토했고,

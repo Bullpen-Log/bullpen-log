@@ -11,6 +11,26 @@ Claude 로 작업을 시작하면 저절로 읽힌다. 규칙은 `AGENTS.md` 6�
 
 ---
 
+## 김민에게 — 2026-10-09 · 금윤호(Claude) — 가입을 6화면으로 줄이고 투구 · 트레이닝 · 영양 질문을 각 탭의 첫 설정으로 옮겼다 — 받으면 `npx prisma generate`
+
+받은 뒤 할 일: **`npx prisma generate`** — `User` 에 칸 넷(`pitchSetupAt` · `trainingSetupAt` · `tutorialsDone` · `agreedAt`)을 더했다(마이그레이션
+`20261009170000_feature_setup`, DB 에는 이미 적용했다 — 백업 `db-2026-10-09-14-26.json`). 넷 다 비워 둘 수 있거나 기본값이 있어 옛 코드도 돈다.
+같은 마이그레이션이 옛 계정의 투구 · 트레이닝을 열어 두는 UPDATE 도 돌렸다(옛 가입 답이나 기록이 있으면 가입 시각으로). `npm ci` 는 필요 없다.
+- **바뀐 것(2026-10-09 금윤호 결정 — 어제 넘긴 25화면 가입 메모는 이것으로 대체)**: 가입이 25화면 → 6화면(이름 · 이메일 → 생년월일 · 성별 →
+  키 · 몸무게 → 비밀번호 → 소속 → 약관, 위 칸이 맞으면 아래 칸이 펴진다). 영양 · 투구 · 웨이트 질문은 각 탭의 첫 설정(`/videos/setup` ·
+  `/training/setup` · `/nutrition/setup`)으로 갔고, 마치기 전까지 세 탭은 잠긴다 — 막대 · 탭에 흐리게 + 자물쇠, 누르면 설정 화면(`lib/feature-locks.ts`).
+  설정을 마치면 그 탭 사용법이 한 번, 첫 홈에서는 앱 기본 사용법 투어(웹 · 앱 따로)가 한 번 뜬다(시작 연출 → 투어 → 체크인 관문).
+  옛 계정은 잠기지 않고 안내만 한 번씩 본다(영양은 개편 전에 가입했으면 목표 줄이 없어도 열어 둔다 — `NUTRITION_LOCK_SINCE`).
+- **네 영역 파일을 고쳤다**(줄 수는 `git diff --numstat`): `components/app-shell.tsx` +107 −20, 네 군데 — ① 잠긴 아이콘 `NavGlyph`(흐림 + 자물쇠)를
+  막대 · 도크 · 판 · 하단 탭에 ② '지금 여기' 판정이 잠긴 곁 항목(`isLockSideHref`, 구속 측정)을 건너뜀 ③ 종에 `pitchLocked` 넘기기 ④ 설정 창을 닫는
+  신호 `CLOSE_SETTINGS_EVENT`. `app/(app)/today/*` — `first-day-card.tsx` +65 −35 · `page.tsx` +22 −2 · `today-rings.tsx` +15 −2(투구가 잠기면 첫날
+  카드 · 투구 링이 설정으로). `app/login/auth-form.tsx` +313 −756(6화면 가입). `components/checkin-gate.tsx` +26(투어가 끝난 뒤에 열림 `afterTour`).
+  같이 쓰는 파일도: `components/notice-bell.tsx` +40 −3 · `components/settings-info.tsx` +56('사용 안내 다시 보기') · `lib/nav.ts` +106 −10(`applyLocks`).
+- **아이폰 앱(웹뷰)에서 봐 주면 좋은 것**: ① 가입 6화면 — 칸이 펴질 때 자판이 가리지 않는지 · 단추 줄(`--kb`) ② 첫 홈의 앱 판 투어(아래 탭 ·
+  당겨서 새로고침 글이 앱 모양과 맞는지) → 이어서 체크인 관문 ③ 하단 탭의 자물쇠 · 흐림(기록 · 트레이닝 · 영양) ④ 탭 설정 셋을 끝까지 → 탭 튜토리얼.
+  새 계정은 공유 DB 에 남으니 시험 계정으로.
+- 자세한 것: 설계 `docs/designs/signup-and-tab-onboarding.md`(D1~D8 · 미룬 것 · 남은 것), 메모 `docs/claude/geum-yunho.md` 4절 15번.
+
 ## 금윤호에게 — 2026-10-09 · 김민(Claude) — 탠트럼 운동 5개를 지웠다(회복 및 보강) · 촬영 계획 다시 뽑음
 
 받은 뒤 할 일 없음. 사용자: "탠트럼 다 삭제". 운영 DB(백업 `db-2026-10-09-14-19.json`)에서 완전히 지움(모두 유튜브 참고라 영상 파일 없음):
