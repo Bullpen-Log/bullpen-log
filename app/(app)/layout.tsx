@@ -4,9 +4,17 @@ import { isNativeUserAgent } from '@/lib/app-env';
 import { ageFromBirthDate, isSex, toDateInputValue } from '@/lib/profile';
 import { toDateKey } from '@/lib/pitch-stats';
 import { createAvatarUrl } from '@/lib/storage';
-import { MOBILE_TABS, quickTabs, visibleGroups } from '@/lib/nav';
+import {
+  MOBILE_TABS,
+  applyLocks,
+  applyLocksToGroups,
+  quickTabs,
+  visibleGroups,
+} from '@/lib/nav';
+import { featureLocks, hasSeenTutorial, tourKeyFor } from '@/lib/feature-locks';
 import { AppNav } from '@/components/app-shell';
 import { CheckinGate } from '@/components/checkin-gate';
+import { TourGate } from '@/components/tutorial/tour-gate';
 import { RefreshOnReturn } from '@/components/refresh-on-return';
 import { SendPendingSets } from '@/components/send-pending-sets';
 import type { CheckinData } from '@/components/checkin-form';
@@ -57,6 +65,12 @@ export default async function AppLayout({
   const isAdmin = user.role === 'ADMIN';
   /* 앱(스마트폰 껍데기) 안인가 — 구속 측정 메뉴는 앱이면 누구나, 웹이면 관리자만(lib/nav.ts) */
   const isNative = isNativeUserAgent((await headers()).get('user-agent'));
+  /*
+   * 어느 탭이 잠겨 있나(lib/feature-locks.ts, 2026-10-09) — 처음 가입한 사람은 투구 기록 · 트레이닝 · 영양이 잠겨 있고,
+   * 막대 · 탭에서는 흐리게 + 자물쇠로 보이되 누르면 그 탭의 첫 설정 화면으로 간다(lib/nav.ts applyLocks). 홈의 기능
+   * 링크 · 알림(종)도 같은 값을 본다. 설정을 마치면 revalidatePath('/', 'layout') 으로 여기까지 새로 읽힌다.
+   */
+  const locks = featureLocks(user);
   /*
    * 프로필 사진은 비공개 저장소에 있어 볼 때마다 임시 주소를 만든다.
    *
@@ -114,9 +128,9 @@ export default async function AppLayout({
       */}
       {!isNative && <AppSplash />}
       <AppNav
-        groups={visibleGroups(isAdmin, isNative)}
-        quick={quickTabs()}
-        tabs={MOBILE_TABS}
+        groups={applyLocksToGroups(visibleGroups(isAdmin, isNative), locks)}
+        quick={applyLocks(quickTabs(), locks)}
+        tabs={applyLocks(MOBILE_TABS, locks)}
         nickname={user.nickname}
         avatarUrl={avatarUrl}
         isAdmin={isAdmin}
@@ -165,7 +179,27 @@ export default async function AppLayout({
           parts: availableParts(library),
           /* 만 나이 — 체크인 요약의 팔 통증 안내가 쓴다(만 15세 미만은 루틴 대신 진료). 모르면 null */
           age: user.birthDate ? ageFromBirthDate(user.birthDate) : null,
+          /* 투구 기록이 잠겨 있으면 종의 '기록하기' 대신 첫 설정으로 가는 단추 하나(components/notice-bell.tsx) */
+          pitchLocked: locks.pitch,
         }}
+      />
+
+      {/*
+        앱 기본 사용법 투어 — 처음 한 번(User.tutorialsDone 에 tour:web · tour:app). 웹과 앱(아이폰 웹뷰)은 막대 · 메뉴
+        생김새가 달라 따로 본다. 차례는 시작 연출(AppSplash) → 투어 → 체크인 관문 — 관문은 투어가 떠 있는 동안
+        (<html data-tour>) 기다린다(components/checkin-gate.tsx). 설정 › 정보 '사용 안내 다시 보기'로 다시 볼 수 있다.
+
+        홈(/today) 페이지가 아니라 여기 둔다. 가입은 /today 로 보내므로(app/actions/auth.ts) 새 계정은 첫 홈에서 본다.
+          · 관문과 같은 레이아웃에 있어야 차례가 지켜진다. 페이지에 두면 첫 화면을 그릴 때 틀(관문)이 본문보다 먼저 올 수
+            있어(loading.tsx 뼈대), 연출이 없는 앱에서는 관문이 표시(data-tour)를 못 보고 먼저 열린다.
+          · '사용 안내 다시 보기'는 설정 창이 뜨는 어느 화면에서나 눌린다 — 홈에만 있으면 다른 화면에서는 아무 일도 없다.
+          · 레이아웃은 화면을 옮겨도 그대로라, 한 번 닫으면 다른 화면으로 가도 다시 뜨지 않는다(새로 열 때만).
+        저절로는 홈(/today)에서만 연다(tour-gate.tsx HOME_PATH) — 탭 튜토리얼(투구 기록 · 트레이닝 · 영양, 그 페이지들의
+        TabTutorial)은 탭 화면에서 뜨므로 둘이 한 화면에 겹치지 않는다. 다시 보기는 지금 화면에서 연다.
+      */}
+      <TourGate
+        open={!hasSeenTutorial(user, tourKeyFor(isNative))}
+        variant={isNative ? 'app' : 'web'}
       />
 
       {/*

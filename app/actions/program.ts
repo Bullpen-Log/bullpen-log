@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { prisma } from '@/lib/prisma';
 import { requireUser } from '@/lib/dal';
+import { featureLocks, SETUP_PATH } from '@/lib/feature-locks';
 import { toDateKey } from '@/lib/pitch-stats';
 import { ageFromBirthDate, parseBirthDate } from '@/lib/profile';
 import { pickMany } from '@/lib/exercise-meta';
@@ -66,6 +67,8 @@ export async function startProgram(input: {
   if (!programKey || !def) return { error: '고른 프로그램을 다시 확인해 주세요.' };
   const audience = audienceOf(def);
   const user = await requireUser();
+  /* 처음 가입한 사람은 첫 설정(2026-10-09, lib/feature-locks.ts)을 마쳐야 연다 */
+  if (featureLocks(user).training) redirect(SETUP_PATH.training);
   const now = new Date();
 
   const birthDate =
@@ -224,6 +227,8 @@ export async function previewPinned(input: {
  */
 export async function startProgramWorkout() {
   const user = await requireUser();
+  /* 처음 가입한 사람은 첫 설정(2026-10-09, lib/feature-locks.ts)을 마쳐야 연다 */
+  if (featureLocks(user).training) redirect(SETUP_PATH.training);
   const now = new Date();
   const core = await loadTodayCore(user, now);
   if (core.picked.halted) redirect('/workout/rest');

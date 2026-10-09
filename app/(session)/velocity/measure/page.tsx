@@ -1,4 +1,6 @@
+import { redirect } from 'next/navigation';
 import { toDateKey } from '@/lib/pitch-stats';
+import { SETUP_PATH } from '@/lib/feature-locks';
 import { loadCalibration } from '@/app/actions/velocity';
 import { velocityAccess } from '../access';
 import { VelocityScreen } from '../velocity-screen';
@@ -16,7 +18,12 @@ export default async function VelocityMeasurePage({
 }: {
   searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
 }) {
-  const [{ user, isAdmin, native, allowed }, { resume }] = await Promise.all([velocityAccess(), searchParams]);
+  const [{ user, isAdmin, native, allowed, pitchLocked }, { resume }] = await Promise.all([
+    velocityAccess(),
+    searchParams,
+  ]);
+  /* 처음 가입한 사람은 첫 설정(2026-10-09, lib/feature-locks.ts)을 마쳐야 연다 */
+  if (pitchLocked) redirect(SETUP_PATH.pitch);
   if (!allowed) return <AppOnly />;
 
   /* 그 사람의 스피드건 짝으로 맞춘 보정식 — 화면은 이걸로 잰 값을 바로 보정해 보여 준다 */

@@ -37,10 +37,16 @@ import {
 } from '@/lib/profile';
 
 /**
- * 기존 사용자 온보딩 화면 — 가입 마법사(app/login/auth-form.tsx)의 영양 부분만: 키 → 체중 → [운동 소모] → 목표 카드 → … →
- * [계획 만드는 중 → 추천 계획 → 탄단지 g] → 요약 → 저장. 같은 부품(components/onboarding) · 같은 글이라 가입에서 본 화면 그대로다.
+ * 영양 첫 설정 화면 — 키 → 체중 → [운동 소모] → 목표 카드 → … → [계획 만드는 중 → 추천 계획 → 탄단지 g] → 요약 → 저장.
+ * 한 화면에 한 질문(components/onboarding StepCard, brand 없음). 영양 질문 화면들은 components/onboarding/nutrition-steps.tsx.
+ * 투구 · 트레이닝의 첫 설정(/videos/setup · /training/setup)도 이 모양을 따른다(2026-10-09, lib/feature-locks.ts).
  *
  * 답은 상태로 쥐고 한 번에 보낸다(finishNutritionSetup — 한 트랜잭션). 서버가 막으면 그 칸의 화면으로 돌아간다.
+ * 저장이 끝나면 영양 탭으로 — 잠금이 걷히고 탭 페이지가 사용법 튜토리얼을 한 번 띄운다(app/(app)/nutrition/page.tsx).
+ *
+ * hasProfile — 줄(NutritionProfile)이 있는 옛 계정(영양 탭의 배너로 온 사람)인가. 처음 온 사람은 영양 탭이 잠겨 있어
+ * '그만두기'로 /nutrition 에 가면 다시 여기로 돌아오니, 대신 '홈으로'(/today)를 보인다.
+ * savedHeight · savedWeight — 계정에 있는 키 · 마지막으로 적은 체중. 있으면 칸을 미리 채우고 '맞는지 확인해 주세요'로 묻는다.
  */
 
 type StepKey = 'height' | 'weight' | 'burnCard' | `n:${NutritionStepKey}` | 'summary';
@@ -241,14 +247,18 @@ export function SetupWizard({
       case 'height':
         return {
           title: `${who}키는 얼마예요?`,
-          desc: hasProfile
-            ? '내 정보의 값이에요. 맞으면 그냥 다음으로. 기초대사량과 목표 체중의 바닥(BMI 20)에 써요.'
-            : '기초대사량과 목표 체중의 바닥(BMI 20), 영상에서 잰 길이를 몸 크기로 나눌 때 써요.',
+          desc:
+            savedHeight !== null
+              ? '내 정보에 적힌 키예요. 맞는지 확인해 주세요. 기초대사량과 목표 체중의 바닥(BMI 20)에 써요.'
+              : '기초대사량과 목표 체중의 바닥(BMI 20), 영상에서 잰 길이를 몸 크기로 나눌 때 써요.',
         };
       case 'weight':
         return {
           title: '지금 체중은요?',
-          desc: '오늘 체중 기록이 돼요. 목표 칼로리와 단백질을 체중으로 셈해요.',
+          desc:
+            savedWeight !== null
+              ? '마지막으로 적은 체중이에요. 맞는지 확인해 주세요. 오늘 체중 기록이 되고, 목표 칼로리와 단백질을 체중으로 셈해요.'
+              : '오늘 체중 기록이 돼요. 목표 칼로리와 단백질을 체중으로 셈해요.',
         };
       case 'burnCard':
         return {
@@ -292,8 +302,11 @@ export function SetupWizard({
         footer={
           <>
             {index === 0 ? (
-              <TextButton onClick={() => router.push('/nutrition')}>
-                그만두기
+              /* 처음 온 사람은 영양 탭이 잠겨 있어 /nutrition 이 다시 여기로 보낸다 — 홈으로 */
+              <TextButton
+                onClick={() => router.push(hasProfile ? '/nutrition' : '/today')}
+              >
+                {hasProfile ? '그만두기' : '홈으로'}
               </TextButton>
             ) : (
               <TextButton onClick={back} disabled={building || pending}>

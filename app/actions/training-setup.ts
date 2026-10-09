@@ -39,6 +39,13 @@ import {
 import { trainingLoad } from '@/lib/report/training-acwr';
 import type { ReportFacts } from '@/lib/report/facts';
 import type { PitchPlan } from '@/lib/report/plan';
+import { validateWorkoutBaseline } from '@/lib/baseline';
+import {
+  checkTrainingAnswers,
+  formOfRows,
+  ownedEquipmentToSave,
+  readTrainingAnswers,
+} from '@/lib/training/setup-answers';
 
 /**
  * 트레이닝 화면의 설정과 일정 만들기.
@@ -407,4 +414,58 @@ async function decideAutoSetup({
     lastUpperKey: strengthDates.upper,
   });
   return { ...fence.draft, by: 'rules', rules: fence.rules };
+}
+
+/* ─────────────────────────── 트레이닝 첫 설정(/training/setup) ─────────────────────────── */
+
+/**
+ * 트레이닝 첫 설정의 저장 — 경력 · 웨이트 횟수 · 장비 · 하루 운동 시간 · [던지는 손](숨은 칸 모양, lib/training/setup-answers.ts)
+ * 을 한 번에. 처음 가입한 사람은 이 저장이 트레이닝 탭의 잠금을 푼다 — 잠금은 trainingSetupAt 의 유무(lib/feature-locks.ts
+ * featureLocks). 이미 마친 사람이 다시 와서 저장하면 값만 바뀌고 그 시각은 처음 것을 둔다.
+ *
+ * 검사는 화면과 같은 함수(checkTrainingAnswers) — 경력은 TRAINING_LEVELS 안, 횟수는 validateWorkoutBaseline, 분은
+ * WORKOUT_MINUTES_CHOICES 안, 손은 있을 때만 THROWING_HANDS 안. 목록 밖의 값은 읽을 때 비워져 '골라 주세요'가 된다 —
+ * 이 값들로 부하 기준선이 만들어지고 운동이 걸러지니 저장하면 안 된다.
+ *
+ * 던지는 손은 계정에 없을 때만 받고(화면도 그때만 묻는다), 있을 때는 건드리지 않는다 — 투구 기록 설정이 맡는 값이다.
+ * 장비는 맨몸을 앞에 붙여 저장한다(readOwnedEquipment 와 같은 규칙). 하나도 안 골랐으면 ['맨몸'].
+ *
+ * field 는 막힌 칸 — 화면이 그 칸이 있는 화면으로 되돌아간다.
+ */
+export async function finishTrainingSetup(
+  fields: [string, string][]
+): Promise<{ ok: true } | { ok: false; error: string; field?: string }> {
+  const user = await getCurrentUser();
+  if (!user) return { ok: false, error: '로그인이 필요해요.' };
+  const form = formOfRows(fields);
+  if (!form) {
+    return { ok: false, error: '답이 올바르지 않아요. 새로고침한 뒤 다시 해 주세요.' };
+  }
+  const answers = readTrainingAnswers(form);
+  const askHand = user.throwingHand == null;
+  const bad = checkTrainingAnswers(answers, { askHand });
+  if (bad) return { ok: false, ...bad };
+  /* 가입 문진과 같은 검사 — 이 값으로 운동 부하의 기준선을 세운다(lib/baseline.ts) */
+  const workout = validateWorkoutBaseline({
+    baselineWorkoutFreq: answers.baselineWorkoutFreq ?? '',
+  });
+  if ('error' in workout) return { ok: false, ...workout };
+
+  await prisma.user.update({
+    where: { id: user.id },
+    data: {
+      trainingLevel: answers.trainingLevel,
+      baselineWorkoutFreq: workout.value.baselineWorkoutFreq,
+      ownedEquipment: ownedEquipmentToSave(answers),
+      dailyWorkoutMinutes: Number(answers.dailyWorkoutMinutes),
+      ...(askHand && answers.throwingHand ? { throwingHand: answers.throwingHand } : {}),
+      trainingSetupAt: user.trainingSetupAt ?? new Date(),
+    },
+  });
+
+  revalidatePath('/training');
+  revalidatePath('/today');
+  /* 막대 · 탭의 트레이닝 잠금(흐림 · 자물쇠)이 걷혀야 한다 — 레이아웃이 내려보낸다 */
+  revalidatePath('/', 'layout');
+  return { ok: true };
 }

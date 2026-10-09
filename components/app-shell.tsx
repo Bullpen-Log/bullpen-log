@@ -14,7 +14,7 @@ import {
 } from 'react';
 import { flushSync } from 'react-dom';
 import Link, { useLinkStatus } from 'next/link';
-import { ChevronLeft, X } from 'lucide-react';
+import { ChevronLeft, Lock, X } from 'lucide-react';
 import { goBack } from '@/components/back-link';
 import {
   barSnapshot,
@@ -29,11 +29,12 @@ import { quietRefresh } from '@/lib/quiet-refresh';
 import { forgetPage, rememberPage } from '@/lib/last-page';
 import { REST_SESSION_TYPE } from '@/lib/session-type';
 import type { NavGroup, NavItem } from '@/lib/nav';
-import { DESK_MEDIA, MORE_HREF, NAV_ALSO, NAV_GROUPS } from '@/lib/nav';
+import { DESK_MEDIA, MORE_HREF, NAV_ALSO, NAV_GROUPS, isLockSideHref } from '@/lib/nav';
 import { Wordmark } from '@/components/logo';
 import { Modal } from '@/components/modal';
 import { ProfilePanel, type ProfileData } from '@/components/profile-panel';
 import { SettingsPanel, type SettingsData } from '@/components/settings-panel';
+import { CLOSE_SETTINGS_EVENT } from '@/components/settings-info';
 import { CheckinForm, type CheckinData } from '@/components/checkin-form';
 import {
   NoticeBellButton,
@@ -64,8 +65,11 @@ function useIsActive() {
   /*
    * 메뉴 주소에 ?칸이 붙을 수 있다(트레이닝 — lib/training-part.ts) — 경로만 본다.
    * 그 탭에 속하는 다른 주소도 본다(투구 기록 ← 날짜 화면 · 구속 측정 관리자, lib/nav.ts 의 NAV_ALSO).
+   * 잠긴 곁 항목(구속 측정 → 투구 기록 설정, lib/nav.ts isLockSideHref)은 켜지 않는다 — 같은 설정 화면은 탭 항목
+   * (투구 기록)이 맡는다. 경로만 보면 둘이 같이 켜졌다.
    */
   return (href: string) => {
+    if (isLockSideHref(href)) return false;
     const path = href.split('?')[0];
     if ((NAV_ALSO[path] ?? []).some(under)) return true;
     if (!under(path)) return false;
@@ -252,6 +256,8 @@ export function AppNav({
     parts: string[];
     /** 만 나이 — 체크인 요약의 팔 통증 안내가 쓴다(만 15세 미만은 루틴 대신 진료). 모르면 null */
     age: number | null;
+    /** 투구 기록이 잠겨 있다(첫 설정 전, lib/feature-locks.ts) — 종의 투구 할 일이 설정으로 가는 단추가 된다 */
+    pitchLocked: boolean;
   };
 }) {
   const isActive = useIsActive();
@@ -955,6 +961,7 @@ export function AppNav({
     pitchDone:
       todo.pitchDays.includes(day) ||
       (restedHere?.day === day && restedHere.basis === todo.pitchDays),
+    pitchLocked: todo.pitchLocked,
   };
 
   /* 종과 그 밑의 창을 함께 감싼 자리 — PC·휴대폰 한 벌씩(하나는 늘 숨어 있다) */
@@ -1059,6 +1066,17 @@ export function AppNav({
     const handler = (e: Event) => onOpenCheckinSignal(e);
     window.addEventListener(OPEN_CHECKIN_EVENT, handler);
     return () => window.removeEventListener(OPEN_CHECKIN_EVENT, handler);
+  }, []);
+
+  /*
+   * 설정 › 정보의 '사용 안내 다시 보기'(components/settings-info.tsx)가 설정 창을 닫으라고 보내는 신호. 다시 뜨는 투어는
+   * 본문 안의 창이라 맨 위 칸(top layer)의 설정 창 밑에 깔리고, 설정 창이 떠 있는 동안은 눌리지도 않는다. 설정 창은
+   * 여기 하나라 신호로 받는다(위 체크인 신호와 같은 길).
+   */
+  useEffect(() => {
+    const close = () => setSettingsOpen(false);
+    window.addEventListener(CLOSE_SETTINGS_EVENT, close);
+    return () => window.removeEventListener(CLOSE_SETTINGS_EVENT, close);
   }, []);
 
   /*
@@ -1654,6 +1672,44 @@ function SettingsCog({
  * 도크의 아이콘도 같은 크기로 맞춰, 막대에서 도크로 날아갈 때 크기가 튀지 않는다. 메뉴(격자)
  * 그림만은 1.4rem 으로 조금 더 크게 둔다 — 줄의 맨 끝에서 '전부 보기'를 맡는 단추라 눈에 띄게.
  */
+/**
+ * 메뉴 아이콘 한 칸 — 잠긴 탭(첫 설정 전, lib/nav.ts applyLocks)이면 흐리게 + 오른쪽 아래 귀퉁이에 자물쇠.
+ * 막대(TopIcon) · 도크 · 판 · 휴대폰 탭이 같이 쓴다.
+ *
+ * 흐림 · 자물쇠 · 연출 이름표(style 의 viewTransitionName)를 모두 아이콘을 감싼 이 칸에 단다 — 링크가 아니라.
+ * 막대 · 도크 · 판 사이를 날아가는 연출은 이름표를 단 것과 그 안만 찍고, 조상(링크)의 흐림은 찍지 않는다. 예전에는
+ * 링크를 흐리고 이름표는 아이콘에, 자물쇠는 링크에 따로 달아서 잠긴 아이콘이 날아가는 동안만 짙었다가 내려앉으며
+ * 흐려졌고, 자물쇠는 같이 날지 못하고 옛 자리에서 사라졌다 새 자리에서 생겼다. 도크의 이름 풍선(Tip)도 링크와 함께
+ * 흐려져 뒤가 비쳤다. 자리도 링크 크기가 아니라 아이콘을 기준으로 잡아, 칸마다 크기가 달라도 같은 귀퉁이에 앉는다.
+ */
+function NavGlyph({
+  Icon,
+  locked = false,
+  dim = locked,
+  className,
+  strokeWidth,
+  style,
+}: {
+  Icon: (typeof NAV_ICONS)[keyof typeof NAV_ICONS];
+  locked?: boolean;
+  /** 흐리게 — 기본은 잠겼으면. 판의 '지금 여기'(파란 줄) · 휴대폰 탭(탭이 통째로 흐리다)은 끈다 */
+  dim?: boolean;
+  /** 아이콘 크기 */
+  className: string;
+  strokeWidth: number;
+  /** 연출 이름표(flyStyle · growStyle) */
+  style?: CSSProperties;
+}) {
+  return (
+    <span className={`relative flex shrink-0 ${dim ? 'opacity-55' : ''}`} style={style}>
+      <Icon aria-hidden className={className} strokeWidth={strokeWidth} />
+      {locked && (
+        <Lock aria-hidden className="absolute -bottom-1 -right-1 h-3 w-3" strokeWidth={2.4} />
+      )}
+    </span>
+  );
+}
+
 function TopIcon({
   item,
   current,
@@ -1686,13 +1742,16 @@ function TopIcon({
   instant?: boolean;
 }) {
   const Icon = NAV_ICONS[item.icon];
+  /* 잠긴 탭(첫 설정 전, lib/nav.ts applyLocks)은 흐리게 + 아이콘 오른쪽 아래 자물쇠(NavGlyph). 링크는 산다 — 누르면 설정 화면 */
+  const name = item.locked ? `${item.label}(설정 전)` : item.label;
   return (
     <Link
       href={item.href}
-      title={item.label}
-      aria-label={item.label}
+      title={name}
+      aria-label={name}
       aria-current={current ? 'page' : undefined}
       data-thumb-key={item.href}
+      data-locked={item.locked ? '' : undefined}
       onClick={(e) => {
         if (isPlainClick(e)) onPick();
       }}
@@ -1704,9 +1763,10 @@ function TopIcon({
             : 'opacity-100 [transition:color_75ms,background-color_75ms,opacity_240ms_ease-out]'
       } ${lit ? 'text-sky' : 'text-muted hover:bg-ink/6 hover:text-ink'}`}
     >
-      <Icon
-        aria-hidden
-        className="relative h-[1.375rem] w-[1.375rem]"
+      <NavGlyph
+        Icon={Icon}
+        locked={item.locked}
+        className="h-[1.375rem] w-[1.375rem]"
         strokeWidth={lit ? 2.4 : 1.9}
         style={flyName}
       />
@@ -1816,13 +1876,16 @@ function DockGrid({
           const quick = quickHrefs.includes(item.href);
           const kind: FlyKind = icons === 'hover' && !quick ? 'pop' : 'fly';
           const named = icons !== 'none';
+          /* 잠긴 탭(첫 설정 전, lib/nav.ts applyLocks)은 흐리게 + 자물쇠 — 막대(TopIcon)와 같은 NavGlyph */
+          const name = item.locked ? `${item.label}(설정 전)` : item.label;
           return (
             <Link
               key={item.href}
               href={item.href}
-              aria-label={item.label}
+              aria-label={name}
               aria-current={isActive(item.href) ? 'page' : undefined}
               data-thumb-key={item.href}
+              data-locked={item.locked ? '' : undefined}
               onClick={(e) => {
                 if (isPlainClick(e)) onPick(item.href);
               }}
@@ -1830,13 +1893,14 @@ function DockGrid({
                 lit ? 'text-sky' : 'text-muted hover:bg-ink/6 hover:text-ink'
               }`}
             >
-              <Icon
-                aria-hidden
+              <NavGlyph
+                Icon={Icon}
+                locked={item.locked}
                 className="h-[1.375rem] w-[1.375rem]"
                 strokeWidth={lit ? 2.4 : 1.9}
                 style={named ? flyStyle(`nav-fly-${i}`, i, kind) : undefined}
               />
-              <Tip>{item.label}</Tip>
+              <Tip>{name}</Tip>
             </Link>
           );
         })}
@@ -2121,11 +2185,19 @@ function DetailMenu({
                 const quick = quickHrefs.includes(item.href);
                 const fly = flyNames === 'all' || (flyNames === 'quick' && quick);
                 const grow = grows && !quick;
+                /*
+                 * 잠긴 탭(첫 설정 전, lib/nav.ts applyLocks)은 흐리게 + 아이콘 오른쪽 아래 자물쇠 — 막대와 같은 NavGlyph.
+                 * 흐림은 아이콘 · 이름에 따로 단다(링크에 달면 날아가는 아이콘에 안 실린다 — NavGlyph). 지금 그 설정 화면에
+                 * 있으면(파란 줄) 흐리지 않는다 — 파란 바탕 위 흰 글자를 흐리면 읽히지 않는다.
+                 */
+                const dim = item.locked && !active;
                 return (
                   <Link
                     key={item.href}
                     href={item.href}
                     aria-current={active ? 'page' : undefined}
+                    aria-label={item.locked ? `${item.label}(설정 전)` : undefined}
+                    data-locked={item.locked ? '' : undefined}
                     onClick={onNavigate}
                     /*
                       누르는 칸은 44px 이상 — 예전에는 32px 남짓이라 옆 항목을 잘못 누르곤 했다.
@@ -2136,9 +2208,11 @@ function DetailMenu({
                         : 'text-ink hover:bg-ink/6 active:bg-ink/6'
                     }`}
                   >
-                    <Icon
-                      aria-hidden
-                      className="h-5 w-5 shrink-0"
+                    <NavGlyph
+                      Icon={Icon}
+                      locked={item.locked}
+                      dim={dim}
+                      className="h-5 w-5"
                       strokeWidth={active ? 2.4 : 1.9}
                       style={
                         fly
@@ -2149,7 +2223,7 @@ function DetailMenu({
                       }
                     />
                     <span
-                      className={`min-w-0 text-[15px] leading-5 desk:text-sm ${active ? 'font-semibold' : 'font-medium'}`}
+                      className={`min-w-0 text-[15px] leading-5 desk:text-sm ${active ? 'font-semibold' : 'font-medium'} ${dim ? 'opacity-55' : ''}`}
                     >
                       {item.label}
                     </span>
@@ -2419,10 +2493,13 @@ function TabFace({
   Icon,
   active,
   label,
+  locked = false,
 }: {
   Icon: (typeof NAV_ICONS)[keyof typeof NAV_ICONS];
   active: boolean;
   label: string;
+  /** 잠긴 탭 — 아이콘 귀퉁이에 자물쇠. 흐림은 탭(링크)이 통째로 맡는다(이 탭은 날아가는 연출이 없다) */
+  locked?: boolean;
 }) {
   const { pending } = useLinkStatus();
   return (
@@ -2431,8 +2508,10 @@ function TabFace({
         pending ? 'font-semibold text-sky' : ''
       }`}
     >
-      <Icon
-        aria-hidden
+      <NavGlyph
+        Icon={Icon}
+        locked={locked}
+        dim={false}
         className="h-[26px] w-[26px]"
         strokeWidth={active || pending ? 2.2 : 1.8}
       />
@@ -2518,6 +2597,9 @@ function MobileTabs({
             <Link
               key={tab.href}
               href={tab.href}
+              /* 잠긴 탭(첫 설정 전, lib/nav.ts applyLocks)은 흐리게 + 아이콘 오른쪽 아래 자물쇠. 링크는 산다 — 누르면 설정 화면 */
+              aria-label={tab.locked ? `${tab.label}(설정 전)` : undefined}
+              data-locked={tab.locked ? '' : undefined}
               /*
                * 지금 탭을 한 번 더 누르면 — 그 탭의 첫 화면이면 맨 위로 올라가고, 하위 화면이면 첫 화면으로 간다(아이폰 탭
                * 바처럼, 2026-10-04). 예전에는 아무 일도 없었다.
@@ -2534,8 +2616,8 @@ function MobileTabs({
                * 움직임을 줄여 쓰는 사람에게는 크기 변화 없이 색만 바뀐다.
                */
               className={`relative flex h-[52px] flex-1 flex-col items-center justify-center gap-0.5 rounded-full text-[10px] font-medium transition-[color,transform] duration-75 motion-safe:active:scale-90 ${
-                active ? 'font-semibold text-sky' : 'text-ink active:text-sky'
-              }`}
+                tab.locked ? 'opacity-55' : ''
+              } ${active ? 'font-semibold text-sky' : 'text-ink active:text-sky'}`}
             >
               {/*
                * 지금 어느 탭인지 감싸는 둥근 배경 — 아이폰 탭 바의 고른 칸처럼.
@@ -2555,7 +2637,12 @@ function MobileTabs({
                   className="absolute inset-0 rounded-full bg-ink/8"
                 />
               )}
-              <TabFace Icon={Icon} active={active} label={tab.short ?? tab.label} />
+              <TabFace
+                Icon={Icon}
+                active={active}
+                label={tab.short ?? tab.label}
+                locked={tab.locked}
+              />
             </Link>
           );
         })}

@@ -39,6 +39,16 @@ export const getCurrentUser = cache(async () => {
       trainingLevel: true,
       trainingGoal: true,
       trainingFocus: true,
+      /*
+       * 탭 잠금 · 튜토리얼(lib/feature-locks.ts) — 막대 · 홈 · 각 탭이 매 요청마다 보므로 여기서 한 번에 읽는다.
+       * 영양은 NutritionProfile 줄의 유무로 가른다(가입에서는 더 이상 만들지 않는다).
+       */
+      pitchSetupAt: true,
+      trainingSetupAt: true,
+      tutorialsDone: true,
+      nutritionProfile: { select: { onboardedAt: true } },
+      /* 개편 전에 가입한 계정은 영양을 잠그지 않는다(lib/feature-locks.ts NUTRITION_LOCK_SINCE) */
+      createdAt: true,
       /* 표의 비밀번호 지문과 견주는 데만 쓴다 — 돌려주지 않는다(아래) */
       password: true,
     },

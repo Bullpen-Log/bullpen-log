@@ -843,12 +843,15 @@ export async function applyWeightStep(step: number): Promise<NutritionResult> {
   return { ok: true };
 }
 
-/* ─────────────────────────── 기존 사용자 온보딩(/nutrition/setup) ─────────────────────────── */
+/* ─────────────────────────── 영양 첫 설정(/nutrition/setup) ─────────────────────────── */
 
 /**
- * 기존 사용자 온보딩의 저장 — 키 · 체중 · 영양 답(가입 마법사와 같은 숨은 칸 모양, lib/nutrition/onboarding-answers.ts)을
- * 한 트랜잭션으로: 계정(키 · 체중) + 영양 목표(NutritionProfile, 온보딩 끝낸 시각 · 계획 시작일 · 취향) + 오늘 체중(DailyNutrition).
- * 셋 가운데 하나만 저장되는 일이 없게. 규칙은 가입(trySignup) · 목표 창과 같은 함수(buildProfileData · cleanDietPrefs).
+ * 영양 첫 설정의 저장 — 키 · 체중 · 영양 답(숨은 칸 모양, lib/nutrition/onboarding-answers.ts)을 한 트랜잭션으로:
+ * 계정(키 · 체중) + 영양 목표(NutritionProfile, 온보딩 끝낸 시각 · 계획 시작일 · 취향) + 오늘 체중(DailyNutrition).
+ * 셋 가운데 하나만 저장되는 일이 없게. 규칙은 목표 창(saveNutritionProfile)과 같은 함수(buildProfileData · cleanDietPrefs).
+ *
+ * 처음 가입한 사람은 이 저장이 영양 탭의 잠금을 푼다 — 잠금은 줄의 유무(lib/feature-locks.ts featureLocks). 옛 계정(줄은 있는데
+ * onboardedAt 이 빈 사람)은 같은 화면으로 온보딩을 끝낸다.
  *
  * field 는 막힌 칸 — 화면이 그 칸이 있는 화면으로 되돌아간다.
  */
@@ -949,7 +952,7 @@ export async function finishNutritionSetup(raw: {
     }),
   ]);
   revalidatePath(PATH);
-  /* 내 정보의 키 · 몸무게도 바뀌었다(레이아웃이 내려보낸다) */
+  /* 내 정보의 키 · 몸무게가 바뀌었고, 막대 · 탭의 영양 잠금(흐림 · 자물쇠)도 걷혀야 한다 — 둘 다 레이아웃이 내려보낸다 */
   revalidatePath('/', 'layout');
   return { ok: true };
 }

@@ -86,6 +86,16 @@ model User {
   /// 비어 있으면 아직 안 골랐다는 뜻이라 아무것도 빼지 않는다.
   /// 이름은 lib/exercise-meta.ts의 EXERCISE_EQUIPMENT 안에서만 쓴다.
   ownedEquipment      String[]
+  /// ── 가입 · 탭별 첫 설정 · 튜토리얼(2026-10-09, docs/designs/signup-and-tab-onboarding.md — lib/feature-locks.ts). 비어 있으면 그 탭이 잠겨 있다 ──
+  /// 투구 기록 첫 설정(던지는 손 · 평소 투구량 · 목표 구속)을 마친 시각. 비어 있으면 투구 기록 · 구속 측정이 잠긴다.
+  pitchSetupAt        DateTime?
+  /// 트레이닝 첫 설정(웨이트 경력 · 평소 웨이트 빈도 · 장비 · 하루 시간)을 마친 시각. 비어 있으면 트레이닝 · 운동 · 암케어 · 메커니즘이 잠긴다.
+  trainingSetupAt     DateTime?
+  /// 영양은 NutritionProfile 줄이 있으면 열린 것으로 본다(가입에서는 더 이상 만들지 않는다).
+  /// 본 튜토리얼 — 'tour:web' | 'tour:app'(앱 기본 사용법, 웹 · 앱 따로) · 'pitch' | 'training' | 'nutrition'(탭 사용법). 값은 lib/feature-locks.ts 의 TUTORIAL_KEYS 안에서만.
+  tutorialsDone       String[]  @default([])
+  /// 약관 · 개인정보 처리방침에 동의한 시각(가입 때). 이 칸이 생기기 전 계정은 비어 있다.
+  agreedAt            DateTime?
   createdAt           DateTime  @default(now())
 
   exerciseFavorites UserExerciseFavorite[]

@@ -3,8 +3,10 @@ import { redirect } from 'next/navigation';
 import { prisma } from '@/lib/prisma';
 import { requireUser } from '@/lib/dal';
 import { isNativeUserAgent } from '@/lib/app-env';
+import { featureLocks, hasSeenTutorial, SETUP_PATH } from '@/lib/feature-locks';
 import { loadVelocityByDate } from '@/lib/velocity-load';
 import { toDateKey } from '@/lib/pitch-stats';
+import { TabTutorial } from '@/components/tutorial/tab-tutorial';
 import { VideosClient } from './videos-client';
 
 /**
@@ -24,6 +26,8 @@ export default async function VideosPage({
   searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
 }) {
   const user = await requireUser();
+  /* 처음 가입한 사람은 첫 설정(2026-10-09, lib/feature-locks.ts)을 마쳐야 연다 */
+  if (featureLocks(user).pitch) redirect(SETUP_PATH.pitch);
   const params = await searchParams;
   /*
    * 카메라 구속 측정(/velocity)은 앱 안에서만 — 폰의 고속 촬영이 있어야 해서(lib/app-env.ts). 관리자는
@@ -79,24 +83,32 @@ export default async function VideosPage({
 
   // Date 객체는 클라이언트로 그대로 넘길 수 없어 문자열로 바꿔 전달한다.
   return (
-    <VideosClient
-      logs={logs.map((log) => ({ ...log, date: log.date.toISOString() }))}
-      featured={Object.fromEntries(
-        featured.map((f) => [toDateKey(f.date), f.videoPath])
-      )}
-      initialMonth={month ?? (date ? date.slice(0, 7) : null)}
-      initialDate={date}
-      today={toDateKey(now())}
-      canMeasure={canMeasure}
-      velocityHref={velocityHref}
-      /* 투구 분석(베타, /videos/lab) — 관리자만 */
-      canAnalyze={user.role === 'ADMIN'}
-      measured={measured}
-      /* ?view=list 는 구속 측정 관리자의 고르개에서 '목록'을 눌러 돌아올 때(pitch-log-heading.tsx) */
-      initialView={params.view === 'list' || params.compare === '1' ? 'list' : 'calendar'}
-      /* ?compare=1 — 메커닉 프로그램의 '찍어서 견줘 보세요'에서 곧장 둘을 고르는 자리로 */
-      initialCompare={params.compare === '1'}
-    />
+    <>
+      <VideosClient
+        logs={logs.map((log) => ({ ...log, date: log.date.toISOString() }))}
+        featured={Object.fromEntries(
+          featured.map((f) => [toDateKey(f.date), f.videoPath])
+        )}
+        initialMonth={month ?? (date ? date.slice(0, 7) : null)}
+        initialDate={date}
+        today={toDateKey(now())}
+        canMeasure={canMeasure}
+        velocityHref={velocityHref}
+        /* 투구 분석(베타, /videos/lab) — 관리자만 */
+        canAnalyze={user.role === 'ADMIN'}
+        measured={measured}
+        /* ?view=list 는 구속 측정 관리자의 고르개에서 '목록'을 눌러 돌아올 때(pitch-log-heading.tsx) */
+        initialView={params.view === 'list' || params.compare === '1' ? 'list' : 'calendar'}
+        /* ?compare=1 — 메커닉 프로그램의 '찍어서 견줘 보세요'에서 곧장 둘을 고르는 자리로 */
+        initialCompare={params.compare === '1'}
+      />
+      {/*
+        첫 설정을 마치고 처음 열면 이 탭 사용법을 한 번 보인다(components/tutorial/tab-tutorial.tsx). 앱 기본 사용법 투어
+        (레이아웃의 TourGate)는 홈에서만 저절로 뜨므로 이 화면에서 둘이 겹치지 않는다 — 혹시 같이 대기해도 표시(holdTour)를
+        나눠 붙들어 체크인 관문은 둘 다 끝난 뒤에 연다.
+      */}
+      <TabTutorial tutorialKey="pitch" open={!hasSeenTutorial(user, 'pitch')} />
+    </>
   );
 }
 

@@ -4,6 +4,7 @@ import { Check, HeartPulse, type LucideIcon } from 'lucide-react';
 import { prisma } from '@/lib/prisma';
 import type { requireUser } from '@/lib/dal';
 import { loadDayDetailCached } from '@/lib/day-detail';
+import { SETUP_PATH } from '@/lib/feature-locks';
 import { loadAdvice } from '@/lib/nutrition/advice-load';
 import { serviceHour } from '@/lib/nutrition/advice-input';
 import { dbDate } from '@/lib/nutrition/days';
@@ -22,6 +23,8 @@ import { Card } from '@/components/ui';
  * - 운동은 오늘 일정 가운데 체크한 수, 영양은 오늘의 균형 점수(lib/nutrition/advice.ts — 음식을 적었거나 체크인에 식사를
  *   적은 날)이고, 아무것도 안 적은 날은 예전처럼 목표 칼로리 가운데 먹은 만큼(달력 밑 그날 칸이 쓰는 lib/day-detail.ts).
  * - 링을 누르면 그 일을 하는 곳으로 — 체크인은 그 자리에서 창, 투구는 오늘 기록 창, 운동 · 영양은 그 탭.
+ *   투구 기록이 잠겨 있으면(첫 설정 전, lib/feature-locks.ts) 투구 링은 첫 설정 화면으로 — 기록 창이 어차피 거기로
+ *   보내므로 한 번 덜 튄다. 운동 · 영양 링은 그 탭이 스스로 보낸다.
  *
  * 할 일 알림(종)은 '남은 것'을, 이 카드는 '한 만큼'을 보여 준다.
  */
@@ -29,12 +32,15 @@ export async function TodayRings({
   user,
   today,
   footer,
+  pitchLocked = false,
 }: {
   user: Awaited<ReturnType<typeof requireUser>>;
   /** 오늘 'YYYY-MM-DD'(한국 시각) */
   today: string;
   /** 링 밑 한 줄 — 따로 기다리는 것이라 홈이 Suspense 로 감싸 넘긴다 */
   footer?: ReactNode;
+  /** 투구 기록이 잠겨 있다(첫 설정 전) — 투구 링이 설정 화면으로 간다 */
+  pitchLocked?: boolean;
 }) {
   const [detail, logs, advice] = await Promise.all([
     loadDayDetailCached(user, today),
@@ -65,8 +71,15 @@ export async function TodayRings({
       label: '투구',
       icon: NAV_ICONS.baseball,
       value: logs.length > 0 ? 1 : 0,
-      caption: logs.length === 0 ? '남기기' : rested ? '휴식' : `${pitches}구`,
-      href: `/pitch-log/${today}`,
+      caption:
+        logs.length === 0
+          ? pitchLocked
+            ? '설정하기'
+            : '남기기'
+          : rested
+            ? '휴식'
+            : `${pitches}구`,
+      href: pitchLocked ? SETUP_PATH.pitch : `/pitch-log/${today}`,
     },
     {
       key: 'training',

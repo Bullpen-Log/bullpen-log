@@ -1,5 +1,6 @@
 import { notFound, redirect } from 'next/navigation';
 import { requireUser } from '@/lib/dal';
+import { featureLocks, SETUP_PATH } from '@/lib/feature-locks';
 import { shiftDateKey, toDateKey } from '@/lib/pitch-stats';
 import { visibleExercises } from '@/lib/library-cache';
 import { FALLBACK_REST_SECONDS } from '@/lib/exercise-meta';
@@ -55,6 +56,8 @@ export default async function ArmcarePlayPage({
   searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
 }) {
   const user = await requireUser();
+  /* 처음 가입한 사람은 첫 설정(2026-10-09, lib/feature-locks.ts)을 마쳐야 연다 */
+  if (featureLocks(user).training) redirect(SETUP_PATH.training);
   const [{ id }, { d, areas: areasParam }] = await Promise.all([params, searchParams]);
   if (id !== 'today' && id !== 'rehab' && id !== 'focus' && !isRoutineId(id)) notFound();
   const rehabPlay = id === 'rehab';

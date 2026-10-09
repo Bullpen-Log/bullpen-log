@@ -1,8 +1,11 @@
+import type { ReactNode } from 'react';
 import { favoriteExerciseIds } from '@/lib/favorites';
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { prisma } from '@/lib/prisma';
 import { requireUser } from '@/lib/dal';
+import { featureLocks, hasSeenTutorial, SETUP_PATH } from '@/lib/feature-locks';
+import { TabTutorial } from '@/components/tutorial/tab-tutorial';
 import { createPlaybackUrls } from '@/lib/storage';
 import { referenceThumbUrl } from '@/lib/reference-video';
 import { formatPrescription } from '@/lib/exercise-meta';
@@ -137,6 +140,19 @@ export default async function TrainingPage({
   searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
 }) {
   const user = await requireUser();
+  /* 처음 가입한 사람은 첫 설정(2026-10-09, lib/feature-locks.ts)을 마쳐야 연다 — 홈 · 암케어 · 메커니즘 모든 분기 앞 */
+  if (featureLocks(user).training) redirect(SETUP_PATH.training);
+  /*
+   * 첫 설정을 마치고 처음 열면 이 탭 사용법을 한 번 보인다(components/tutorial/tab-tutorial.tsx). 아래 return 이
+   * 넷(홈 · 암케어 · 메커니즘 · 운동)이라 어느 칸으로 들어오든 같은 창이 뜨게 한 자리에서 감싼다.
+   * 앱 기본 사용법 투어(레이아웃의 TourGate)는 홈에서만 저절로 뜨므로 겹치지 않는다(app/(app)/videos/page.tsx 와 같다).
+   */
+  const withTutorial = (node: ReactNode) => (
+    <>
+      {node}
+      <TabTutorial tutorialKey="training" open={!hasSeenTutorial(user, 'training')} />
+    </>
+  );
   const today = now();
   const savedMinutes = user.dailyWorkoutMinutes ?? DEFAULT_WORKOUT_MINUTES;
 
@@ -148,7 +164,7 @@ export default async function TrainingPage({
    * 그냥 /training 은 늘 운동 앱이다(lib/training-part.ts).
    */
   if (params.view === 'home' || params.view === 'last') {
-    return (
+    return withTutorial(
       <TrainingHome
         user={user}
         today={today}
@@ -167,7 +183,7 @@ export default async function TrainingPage({
   if (view === 'armcare') {
     /* 없앤 '훈련 방식' 칸(?tab=methods)으로 들어오면 루틴 칸을 연다 */
     const tab: ArmcareTab = params.tab === 'guide' ? 'guide' : 'today';
-    return (
+    return withTutorial(
       <div className="stack-page">
         <AppHead
           app="armcare"
@@ -197,7 +213,7 @@ export default async function TrainingPage({
    */
   if (view === 'mechanics') {
     const tab: MechanicsTab = params.tab === 'elements' ? 'elements' : 'program';
-    return (
+    return withTutorial(
       <div className="stack-page">
         <AppHead
           app="mechanics"
@@ -487,7 +503,7 @@ export default async function TrainingPage({
   );
 
   /* 운동의 부위 태그를 누르면 전신 3D 창(components/body-parts.tsx) — 목록과 운동 추가 창이 쓴다 */
-  return (
+  return withTutorial(
     <BodyPartsProvider>
       <div className="stack-page">
         <AppHead

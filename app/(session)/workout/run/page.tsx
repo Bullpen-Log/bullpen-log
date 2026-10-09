@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation';
 import { prisma } from '@/lib/prisma';
 import { requireUser } from '@/lib/dal';
+import { featureLocks, SETUP_PATH } from '@/lib/feature-locks';
 import { readFrozenPlan } from '@/lib/workout/session-plan';
 import { closeAbandonedSessions } from '@/lib/workout/close-stale';
 import { runExercises } from '@/lib/workout/run-exercises';
@@ -14,6 +15,8 @@ import { SessionClient, type RunSet } from './session-client';
  */
 export default async function RunPage() {
   const user = await requireUser();
+  /* 처음 가입한 사람은 첫 설정(2026-10-09, lib/feature-locks.ts)을 마쳐야 연다 */
+  if (featureLocks(user).training) redirect(SETUP_PATH.training);
 
   /*
    * 종료를 안 누르고 떠난 지난 판은 먼저 닫는다(lib/workout/close-stale.ts).
