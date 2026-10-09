@@ -8,6 +8,11 @@ import { exercisesByIds } from '@/lib/library-cache';
 import { readFrozenPlan } from '@/lib/workout/session-plan';
 import { closeAbandonedSessions } from '@/lib/workout/close-stale';
 import { COMMON_WARMUP_KIND, warmupKindFor } from '@/lib/workout/warmup-kind';
+import {
+  SHOOT_WARMUPS,
+  WARMUP_ROUTINE_LABEL,
+  type WarmupRoutineKind,
+} from '@/lib/shoot/warmups';
 import { WarmupClient, type WarmupCard, type WarmupItem } from './warmup-client';
 
 /**
@@ -21,8 +26,14 @@ import { WarmupClient, type WarmupCard, type WarmupItem } from './warmup-client'
  * 쓴 시간은 빼기로 했기 때문이다.
  *
  * 루틴에 담긴 운동은 관리자가 /library/warmup 에서 미리 채워 둔다. 아직 비어
- * 있어도 막지 않는다 — 영상이 올라오기 전에도 흐름은 돌아가야 한다.
+ * 있어도 막지 않는다 — 영상이 올라오기 전에도 흐름은 돌아가야 한다. 비어 있는
+ * 루틴은 야외 주차에서 찍을 워밍업의 이름 · 횟수(lib/shoot/warmups.ts, 루틴마다
+ * 여섯)로 채워 보인다(2026-10-09 트레이닝 검토 1-③) — 그 전에는 빈 칸만 지나갔다.
  */
+
+/** 영상 전 워밍업의 루틴 종류 — 고정 루틴 넷의 kind 와 같은 이름 */
+const isRoutineKind = (kind: string): kind is WarmupRoutineKind =>
+  kind in WARMUP_ROUTINE_LABEL;
 export default async function WarmupPage() {
   const user = await requireUser();
 
@@ -86,7 +97,30 @@ export default async function WarmupPage() {
   const byKind = new Map(routines.map((r) => [r.kind, r]));
   const cards: WarmupCard[] = kinds.flatMap((kind) => {
     const r = byKind.get(kind);
-    if (!r) return [];
+    /* 루틴이 없거나 비어 있으면 이름만 있는 워밍업으로 — 영상 · 자세 설명은 없고 이름과 횟수만 */
+    if (!r || r.items.length === 0) {
+      if (!isRoutineKind(kind)) return [];
+      const named = SHOOT_WARMUPS.filter((w) => w.routine === kind);
+      if (named.length === 0) return [];
+      return [
+        {
+          id: r?.id ?? `named-${kind}`,
+          name: r?.name || WARMUP_ROUTINE_LABEL[kind],
+          description: '영상은 준비 중이에요. 이름과 횟수만 보고 풀어요.',
+          forToday: kind !== COMMON_WARMUP_KIND,
+          items: named.map<WarmupItem>((w) => ({
+            id: w.id,
+            title: w.title,
+            note: w.cue,
+            description: '',
+            videoPath: null,
+            referenceVideoId: null,
+            aspectRatio: null,
+            thumbUrl: null,
+          })),
+        },
+      ];
+    }
     const items: WarmupItem[] = r.items.map((i) => ({
       id: i.exercise.id,
       title: i.exercise.title,
