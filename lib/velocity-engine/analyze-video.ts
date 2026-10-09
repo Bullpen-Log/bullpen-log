@@ -2,6 +2,8 @@
 
 import { prepareDetachedVideo, waitForFirstFrame } from './video-open.ts';
 import { toLuma } from './detect.ts';
+import { lumaOfSample } from './luma-plane.ts';
+import { lumaInWorker, lumaPoolSize, warmLumaPool } from './luma-pool.ts';
 import {
   analyzeScale,
   analyzeFrames,
@@ -624,98 +626,12 @@ export async function analyzeVideo(options: AnalyzeOptions): Promise<VideoAnalyz
 }
 
 /**
- * 디코더 미리 데우기 — 측정을 시작할 때(DualCapture.arm) 한 번. 디코더 모듈을 받아 두고, 밝기 만들기(lumaOfSample)를 빈 장면으로 한 번
+ * 디코더 미리 데우기 — 측정을 시작할 때(DualCapture.arm) 한 번. 디코더 모듈을 받아 두고, 밝기 만들기 일꾼들을 깨워 빈 장면으로 한 번씩
  * 돌려 JIT 를 데우고 Y 버퍼를 잡아 둔다 — 첫 공 계산에서 이것들이 0.4초쯤 먹었다(2026-10-09 폰, 가짜 공).
  */
 export async function warmDecoder(): Promise<void> {
   if (typeof VideoDecoder === 'undefined') return;
-  await import('mediabunny');
-  const w = 1920;
-  const h = 1080;
-  await lumaOfSample(
-    {
-      format: 'NV12',
-      rotation: 90,
-      codedWidth: w,
-      visibleRect: { left: 0, top: 0, width: w, height: h },
-      colorSpace: { fullRange: false },
-      allocationSize: () => (w * h * 3) / 2,
-      copyTo: async () => [{ offset: 0, stride: w }],
-    },
-    720,
-    1280
-  );
-}
-
-/** 영상 범위(16~235) → 0~255, 반올림 · 자름 — 맥 도구 native-decode(decode-range.swift src)와 같은 셈 */
-const VIDEO_RANGE = Uint8Array.from({ length: 256 }, (_, v) => Math.max(0, Math.min(255, Math.round(((v - 16) * 255) / 219))));
-const FULL_RANGE = Uint8Array.from({ length: 256 }, (_, v) => v);
-let yBuffer = new Uint8Array(0);
-
-/**
- * 풀어낸 장면의 밝기 면(Y, NV12 · I420)을 분석 크기 밝기로 — 범위를 펴고(VIDEO_RANGE), 돌림(rotation)을 반영해, 이중선형으로 줄여
- * 반올림한다. 맥 도구(~/bullpen-velocity-lab/native-decode, 실험대 app-rerun · session-audit 가 쓰는 장면)와 한 셈이라, 맥에서
- * 재 본 값이 앱 값과 같다. 예전 캔버스 길(drawImage → RGB → 0.299R+0.587G+0.114B)은 브라우저마다 줄이는 필터 · 색 변환이
- * 달라(크롬 · 웹킷 픽셀 차 최대 1~10) 같은 영상도 값이 조금씩 갈렸다. 다른 형식이면 null — 캔버스로 그린다.
- */
-export async function lumaOfSample(
-  sample: {
-    format: string | null;
-    rotation: number;
-    codedWidth: number;
-    visibleRect: { left: number; top: number; width: number; height: number };
-    colorSpace: { fullRange?: boolean | null };
-    allocationSize: () => number;
-    copyTo: (dest: Uint8Array) => Promise<{ offset: number; stride: number }[]>;
-  },
-  W: number,
-  H: number
-): Promise<Float32Array | null> {
-  if (sample.format !== 'NV12' && sample.format !== 'I420') return null;
-  const need = sample.allocationSize();
-  if (yBuffer.length < need) yBuffer = new Uint8Array(need);
-  const layout = await sample.copyTo(yBuffer);
-  const { offset, stride } = layout[0];
-  const { left, top, width: w, height: h } = sample.visibleRect;
-  const lut = sample.colorSpace.fullRange ? FULL_RANGE : VIDEO_RANGE;
-  const rot = ((sample.rotation % 360) + 360) % 360;
-  const PW = rot === 90 || rot === 270 ? h : w;
-  const PH = rot === 90 || rot === 270 ? w : h;
-  /* 세로 자리 (x, y) → 원본 자리의 첫 칸: col[x] + row[y] */
-  const col = (x: number) =>
-    rot === 0 ? x : rot === 90 ? (h - 1 - x) * stride : rot === 180 ? w - 1 - x : x * stride;
-  const row = (y: number) =>
-    rot === 0 ? y * stride : rot === 90 ? y : rot === 180 ? (h - 1 - y) * stride : w - 1 - y;
-  const base = offset + top * stride + left;
-  const kx = PW / W;
-  const ky = PH / H;
-  const cx0 = new Int32Array(W);
-  const cx1 = new Int32Array(W);
-  const fxs = new Float64Array(W);
-  for (let x = 0; x < W; x++) {
-    const sx = (x + 0.5) * kx - 0.5;
-    const x0 = Math.max(0, Math.floor(sx));
-    cx0[x] = col(x0);
-    cx1[x] = col(Math.min(PW - 1, x0 + 1));
-    fxs[x] = sx - x0;
-  }
-  const out = new Float32Array(W * H);
-  const y = yBuffer;
-  for (let oy = 0; oy < H; oy++) {
-    const sy = (oy + 0.5) * ky - 0.5;
-    const y0 = Math.max(0, Math.floor(sy));
-    const r0 = base + row(y0);
-    const r1 = base + row(Math.min(PH - 1, y0 + 1));
-    const fy = sy - y0;
-    const o = oy * W;
-    for (let x = 0; x < W; x++) {
-      const fx = fxs[x];
-      const a = lut[y[r0 + cx0[x]]] * (1 - fx) + lut[y[r0 + cx1[x]]] * fx;
-      const b = lut[y[r1 + cx0[x]]] * (1 - fx) + lut[y[r1 + cx1[x]]] * fx;
-      out[o + x] = Math.max(0, Math.min(255, Math.round(a * (1 - fy) + b * fy)));
-    }
-  }
-  return out;
+  await Promise.all([import('mediabunny'), warmLumaPool()]);
 }
 
 /**
@@ -757,9 +673,34 @@ async function openDecoder(file: File) {
           .filter((w) => !cache.has(w.key) && !seen.has(w.key) && seen.add(w.key))
           .sort((a, b) => a.seek - b.seek);
         let i = 0;
+        /* 일꾼에게 넘긴 장면 — 너무 많이 쌓이면 디코더가 내줄 장면 버퍼가 모자라 멈출 수 있어 일꾼 수의 두 배까지만 */
+        const inflight: Promise<void>[] = [];
         for await (const sample of sink.samplesAtTimestamps(todo.map((w) => w.seek))) {
           const w = todo[i++];
           if (!sample) continue;
+          if (sample.format === 'NV12' || sample.format === 'I420') {
+            let frame: VideoFrame | null = null;
+            try {
+              frame = sample.toVideoFrame();
+            } catch {
+              frame = null;
+            }
+            const job = frame ? lumaInWorker(frame, sample.rotation, size.width, size.height) : null;
+            if (frame && !job) frame.close();
+            if (job) {
+              sample.close();
+              inflight.push(
+                job.then(({ luma, ms }) => {
+                  /* 일꾼이 못 만들면 그 장면은 비워 둔다 — 부르는 쪽이 되감기로 마저 꺼낸다 */
+                  if (!luma) return;
+                  cache.set(w.key, luma);
+                  onFrame(ms);
+                })
+              );
+              if (inflight.length >= 2 * Math.max(1, lumaPoolSize())) await inflight.shift();
+              continue;
+            }
+          }
           try {
             /* 밝기 면(Y)을 바로 — 캔버스 그리기 · RGB 읽기를 건너뛰고 맥 실험실 도구와 같은 장면을 만든다. 못 읽는 형식이면 그려서 */
             const t0 = now();
@@ -770,6 +711,7 @@ async function openDecoder(file: File) {
             sample.close();
           }
         }
+        await Promise.all(inflight);
       },
       dispose: () => input.dispose(),
     };
