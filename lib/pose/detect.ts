@@ -191,7 +191,7 @@ export function detectPitchEvents(
     const v = (b - a) / dt;
     if (Math.abs(v) > Math.abs(bestVel)) bestVel = v;
   }
-  const direction: 1 | -1 = bestVel >= 0 ? 1 : -1;
+  const hipDirection: 1 | -1 = bestVel >= 0 ? 1 : -1;
 
   // 2) 던지는 팔 — 투구 내내 훨씬 멀리 움직이는 손이 던지는 손이다.
   //    (손목 속도는 모션 블러로 뒤집히기 쉬워 이동 거리를 쓴다)
@@ -224,15 +224,16 @@ export function detectPitchEvents(
   //    신전의 "전역 최대"를 쓰면 안 된다: 투구가 끝나고 걸어다니는 구간에서
   //    팔이 몸보다 앞에 오래 머물면 그쪽이 더 커질 수 있다. 반면 손목 최고
   //    속도는 어떤 영상에서도 팔 채찍 그 자체라 흔들리지 않는 닻이 된다.
-  const ext = smooth(
-    frames.map((_, i) => {
-      const w = px(i, throwWristIdx);
-      const sc = shoulderC[i];
-      if (!w || w.v < WRIST_VIS_OK || !sc) return null;
-      return (direction * (w.x - sc.x)) / trunk;
-    }),
-    3
-  );
+  const extFor = (dir: 1 | -1) =>
+    smooth(
+      frames.map((_, i) => {
+        const w = px(i, throwWristIdx);
+        const sc = shoulderC[i];
+        if (!w || w.v < WRIST_VIS_OK || !sc) return null;
+        return (dir * (w.x - sc.x)) / trunk;
+      }),
+      3
+    );
 
   const wristSpeed = smooth(
     frames.map((_, i) => {
@@ -258,8 +259,9 @@ export function detectPitchEvents(
 
   // 채찍 지점부터 앞으로 훑어 신전의 첫 피크를 찾는다.
   // 피크를 지나 절반 아래로 떨어지거나 인식이 길게 끊기면 멈춘다.
-  let extPeakIdx = -1;
-  if (fastIdx >= 0) {
+  const peakAfterWhip = (ext: (number | null)[]) => {
+    let peak = -1;
+    if (fastIdx < 0) return peak;
     let nullRun = 0;
     for (let j = fastIdx; j < ext.length; j++) {
       const v = ext[j];
@@ -268,8 +270,30 @@ export function detectPitchEvents(
         continue;
       }
       nullRun = 0;
-      if (extPeakIdx < 0 || v > (ext[extPeakIdx] as number)) extPeakIdx = j;
-      else if (v < (ext[extPeakIdx] as number) * 0.5) break;
+      if (peak < 0 || v > (ext[peak] as number)) peak = j;
+      else if (v < (ext[peak] as number) * 0.5) break;
+    }
+    return peak;
+  };
+  /*
+   * 진행 방향 다시 보기 — 골반이 가장 빨리 움직인 쪽이 홈이 아닐 때가 있다(슬로모 영상의 앞뒤 보통 속도 구간에서 걷거나 물러서면 그
+   * 움직임이 투구 보폭보다 빠르다). 그러면 채찍 뒤에 손목이 '앞'으로 뻗는 피크가 없고, 전역 최대로 물러서 팔이 가장 뒤로 간 순간
+   * (다리를 든 때)를 릴리스로 잡았다 — 2026-10-09 좌투 샘플에서 '릴리스' 장면에 앞다리가 키의 90% 높이에 들려 있었다.
+   * 골반 방향으로 채찍 뒤 피크를 못 찾고 반대 방향으로는 찾으면 반대가 홈이다.
+   */
+  let direction: 1 | -1 = hipDirection;
+  let ext = extFor(direction);
+  let extPeakIdx = peakAfterWhip(ext);
+  const okPeak = (e: (number | null)[], k: number) =>
+    k >= 0 && e[k] != null && (e[k] as number) >= MIN_THROW_EXT;
+  if (!okPeak(ext, extPeakIdx)) {
+    const flipped = -hipDirection as 1 | -1;
+    const extB = extFor(flipped);
+    const peakB = peakAfterWhip(extB);
+    if (okPeak(extB, peakB)) {
+      direction = flipped;
+      ext = extB;
+      extPeakIdx = peakB;
     }
   }
   // 채찍 부근에서 피크를 못 찾으면(인식 결손) 전역 최대로 물러선다.

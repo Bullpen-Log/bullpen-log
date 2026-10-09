@@ -16,9 +16,11 @@ import {
 import { V2J } from '@/lib/pitch-3d/v2/contract';
 
 /**
- * 뼈대 15조각의 자세(설계 pitch-3d-quality.md 0절 '움직이는 법') — 맞춘 관절(한 장면, 키 = 1)에서 부위마다 축(가까운 관절 → 먼 관절)과
- * 기준 방향(팔꿈치 · 무릎의 굽힘 축, 몸통 · 머리의 좌우 축, 손바닥)으로 방향을 잡고, 부모 부위에서 자식 부위를 이어 붙인다.
- * 뼈 길이는 모델 그대로(키에 맞춰 한 배율) — 관절 자리가 조금 달라도 뼈가 끊기거나 늘어나지 않는다. 두 발 중 낮은 점을 바닥에.
+ * 뼈대 15조각의 자세(설계 pitch-3d-quality.md 0절 '움직이는 법') — 맞춘 관절(한 장면, 키 = 1)에서 부위마다 축(붙는 자리 → 먼 관절)과
+ * 기준 방향(팔꿈치 · 무릎의 굽힘 축, 몸통 · 머리의 좌우 축, 손바닥)으로 방향을 잡고, 부모 부위의 끝에 자식 부위를 이어 붙인다.
+ * 팔 · 다리 마디는 축 방향으로만 늘이거나 줄여(STRETCH) 끝이 맞춘 관절(팔꿈치 · 손목 · 무릎 · 발목)에 닿게 한다 — 모델 뼈 길이 그대로였을 땐
+ * 사람과 모델의 다리 길이 차이만큼 발이 맞춘 자리에서 벗어나, 땅에 묶인 발도 화면에선 미끄러지고 몸이 떴다(2026-10-09 김민 4/10).
+ * 바닥 맞추기는 보기용 다듬기(display.ts)가 클립 전체에 한 번 한다.
  *
  * 순수 함수 — three.js 를 모른다(보기 화면 body-3d.tsx 가 Matrix4 로 바꾼다). 시험: scripts/pitch-3d-v2-selftest.mts.
  * 모델 표(public/models/skeleton-parts.json)는 scripts/pitch-lab/skeleton-parts.mjs 가 만든다.
@@ -72,7 +74,13 @@ export type PartPose = {
   R: Mat3;
   /** 모델 → 세상 배율(모델 키 → 1) */
   scale: number;
+  /** 모델 축(proximal → distal, 단위) 방향으로만 늘이는 배율 — 팔 · 다리 마디 */
+  stretch: number;
+  axisM: Vec3;
 };
+
+/** 마디를 늘이고 줄이는 범위 — 넘으면 끝이 관절에 못 닿는 대로 둔다(뼈가 지나치게 늘어 보이지 않게) */
+const STRETCH: [number, number] = [0.75, 1.3];
 
 export type RigPose = Record<PartName, PartPose>;
 
@@ -95,7 +103,29 @@ const rotation = (axisM: Vec3, refM: Vec3, axisW: Vec3, refW: Vec3): Mat3 =>
 
 /** 부위 자세로 모델 점을 세상으로 */
 export function placePoint(p: PartPose, modelPoint: Vec3, proximal: Vec3): Vec3 {
-  return add(p.position, scale(mulV(p.R, sub(modelPoint, proximal)), p.scale));
+  const v = sub(modelPoint, proximal);
+  const u = add(v, scale(p.axisM, (p.stretch - 1) * dot(v, p.axisM)));
+  return add(p.position, scale(mulV(p.R, u), p.scale));
+}
+
+/** 그리기 행렬(행 우선 3×4) — X_w = B·X + t, B = scale·R·(I + (stretch − 1)·a·aᵀ) */
+export function partMatrix(p: PartPose, proximal: Vec3): number[] {
+  const a = p.axisM;
+  const k = p.stretch - 1;
+  const B = new Array<number>(9);
+  for (let r = 0; r < 3; r++)
+    for (let c = 0; c < 3; c++) {
+      let v = 0;
+      for (let m = 0; m < 3; m++)
+        v += p.R[r * 3 + m] * ((m === c ? 1 : 0) + k * a[m] * a[c]);
+      B[r * 3 + c] = v * p.scale;
+    }
+  const t = [0, 1, 2].map(
+    (r) =>
+      p.position[r] -
+      (B[r * 3] * proximal[0] + B[r * 3 + 1] * proximal[1] + B[r * 3 + 2] * proximal[2])
+  );
+  return [B[0], B[1], B[2], t[0], B[3], B[4], B[5], t[1], B[6], B[7], B[8], t[2]];
 }
 
 const mid = (a: Vec3, b: Vec3): Vec3 => scale(add(a, b), 0.5);
@@ -117,21 +147,14 @@ function bendAxis(a: Vec3, b: Vec3, prev: Vec3 | null): Vec3 | null {
 }
 
 /**
- * 한 장면의 관절(25 × [앞, 위, 오른쏙], 키 = 1) → 부위 15개 자세.
+ * 한 장면의 관절(25 × [앞, 위, 오른쪽], 키 = 1) → 부위 15개 자세. 관절 자리 그대로 놓는다(바닥은 부르는 쪽이 맞춘다).
  * prev 가 있으면 굽힘 축을 못 정하는 장면(팔 · 다리가 펴짐)에서 앞 장면의 방향을 잇는다 — 없으면 몸통 좌우 축으로.
  */
 export function rigPose(
   joints: Vec3[],
   hand: 'R' | 'L',
   parts: SkeletonParts,
-  prev?: RigPose | null,
-  /** 발밑 높이(앞 x · 옆 z → 위 y, 키 = 1) — 없으면 평지(0). 마운드는 moundHeightAt */
-  groundAt?: (x: number, z: number) => number,
-  /**
-   * 디딤발 무게(L · R, 합 1) — 주면 그 발(들)의 발밑 가장 가까운 점을 바닥에, 없으면 두 발 중 가까운 쪽. 장면마다 '두 발 중 낮은 쪽'으로
-   * 하면 발 점이 흔들리거나 낮은 발이 바뀌는 순간 몸 전체가 위아래로 튀었다(2026-10-09 김민: "바닥에서 떨어지거나 흔들린다").
-   */
-  support?: { L: number; R: number }
+  prev?: RigPose | null
 ): RigPose {
   const A = parts.anchors;
   const s = 1 / parts.height;
@@ -147,11 +170,25 @@ export function rigPose(
     prev ? mulV(prev[name].R, A[name].ref) : null;
   const refOr = (name: PartName, r: Vec3 | null): Vec3 => r ?? prevRef(name) ?? left;
 
-  const put = (name: PartName, position: Vec3, axisW: Vec3, refW: Vec3) => {
+  /** reach 를 주면 축 방향으로 늘여 모델 끝(distal)이 그 거리에 닿게 */
+  const put = (
+    name: PartName,
+    position: Vec3,
+    axisW: Vec3,
+    refW: Vec3,
+    reach?: number
+  ) => {
+    const axisModel = sub(A[name].distal, A[name].proximal);
+    const lenM = norm(axisModel) * s;
     out[name] = {
       position,
-      R: rotation(sub(A[name].distal, A[name].proximal), A[name].ref, axisW, refW),
+      R: rotation(axisModel, A[name].ref, axisW, refW),
       scale: s,
+      stretch:
+        reach == null || lenM < 1e-9
+          ? 1
+          : Math.max(STRETCH[0], Math.min(STRETCH[1], reach / lenM)),
+      axisM: normalize(axisModel),
     };
   };
   const attach = (parent: PartName, modelPoint: Vec3) =>
@@ -169,10 +206,26 @@ export function rigPose(
     position: sub(hipMid, scale(mulV(Rp, sub(hipMidM, A.pelvis.proximal)), s)),
     R: Rp,
     scale: s,
+    stretch: 1,
+    axisM: normalize(sub(A.pelvis.distal, A.pelvis.proximal)),
   };
 
-  /* 몸통 · 머리 */
-  put('trunk', attach('pelvis', A.pelvis.distal), trunkAxis, left);
+  /* 몸통 · 머리 — 몸통은 모델 두 어깨의 가운데가 맞춘 어깨 높이에 오게 늘인다 */
+  const trunkAt = attach('pelvis', A.pelvis.distal);
+  {
+    const aM = normalize(sub(A.trunk.distal, A.trunk.proximal));
+    const shAlongM =
+      dot(sub(mid(A.trunk.shoulderL, A.trunk.shoulderR), A.trunk.proximal), aM) * s;
+    const want = dot(sub(shMid, trunkAt), normalize(trunkAxis));
+    const lenM = norm(sub(A.trunk.distal, A.trunk.proximal)) * s;
+    put(
+      'trunk',
+      trunkAt,
+      trunkAxis,
+      left,
+      shAlongM > 1e-9 ? (want / shAlongM) * lenM : undefined
+    );
+  }
   const c7 = attach('trunk', A.trunk.distal);
   const earMid = mid(j(V2J.lEar), j(V2J.rEar));
   put('head', c7, sub(earMid, c7), sub(j(V2J.lEar), j(V2J.rEar)));
@@ -188,18 +241,10 @@ export function rigPose(
       `upperArm${side}`,
       bendAxis(upper, fore, prevRef(`upperArm${side}`))
     );
-    put(
-      `upperArm${side}`,
-      attach('trunk', side === 'L' ? A.trunk.shoulderL : A.trunk.shoulderR),
-      upper,
-      bend
-    );
-    put(
-      `forearm${side}`,
-      attach(`upperArm${side}`, A[`upperArm${side}`].distal),
-      fore,
-      bend
-    );
+    const shAt = attach('trunk', side === 'L' ? A.trunk.shoulderL : A.trunk.shoulderR);
+    put(`upperArm${side}`, shAt, sub(el, shAt), bend, norm(sub(el, shAt)));
+    const elAt = attach(`upperArm${side}`, A[`upperArm${side}`].distal);
+    put(`forearm${side}`, elAt, sub(wr, elAt), bend, norm(sub(wr, elAt)));
     const idx = j(side === 'L' ? V2J.lHandIdx : V2J.rHandIdx);
     const pinky = j(side === 'L' ? V2J.lHandPinky : V2J.rHandPinky);
     const midH = j(side === 'L' ? V2J.lHandMid : V2J.rHandMid);
@@ -221,39 +266,16 @@ export function rigPose(
     const thigh = sub(kn, hip);
     const shank = sub(an, kn);
     const bend = refOr(`thigh${side}`, bendAxis(thigh, shank, prevRef(`thigh${side}`)));
-    put(
-      `thigh${side}`,
-      attach('pelvis', side === 'L' ? A.pelvis.hipL : A.pelvis.hipR),
-      thigh,
-      bend
-    );
-    put(`shank${side}`, attach(`thigh${side}`, A[`thigh${side}`].distal), shank, bend);
+    const hipAt = attach('pelvis', side === 'L' ? A.pelvis.hipL : A.pelvis.hipR);
+    put(`thigh${side}`, hipAt, sub(kn, hipAt), bend, norm(sub(kn, hipAt)));
+    const knAt = attach(`thigh${side}`, A[`thigh${side}`].distal);
+    put(`shank${side}`, knAt, sub(an, knAt), bend, norm(sub(an, knAt)));
     const foot = sub(toe, an);
     const footRef =
       bendAxis(shank, foot, prevRef(`foot${side}`)) ?? refOr(`foot${side}`, null);
     put(`foot${side}`, attach(`shank${side}`, A[`shank${side}`].distal), foot, footRef);
   }
 
-  /* 두 발 중 발밑에 가장 가까운 점(뒤꿈치 · 발끝 · 발목)을 바닥에 — 마운드면 그 자리의 경사면 높이 */
-  const lowOf = (side: 'L' | 'R') => {
-    const f = `foot${side}` as PartName;
-    let m = Infinity;
-    for (const p of [A[f].proximal, A[f].distal, A[f].heel]) {
-      const w = placePoint(out[f], p, A[f].proximal);
-      m = Math.min(m, w[1] - (groundAt ? groundAt(w[0], w[2]) : 0));
-    }
-    return m;
-  };
-  const lowL = lowOf('L');
-  const lowR = lowOf('R');
-  const low = support ? support.L * lowL + support.R * lowR : Math.min(lowL, lowR);
-  if (Number.isFinite(low))
-    for (const name of PART_NAMES)
-      out[name].position = [
-        out[name].position[0],
-        out[name].position[1] - low,
-        out[name].position[2],
-      ];
   return out;
 }
 

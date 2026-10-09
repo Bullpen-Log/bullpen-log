@@ -174,7 +174,13 @@ export type V2FitQuality = {
   accelP95: number;
   /** 뼈 길이(키 = 1) — 자식 관절 번호 → 길이 */
   boneLen: Record<string, number>;
+  /** 니업에 던지는 손 쪽 다리가 들려 무릎 아래 좌우 이름을 바꿔 맞췄다(2026-10-09 이후 결과만) */
+  legsSwapped?: boolean;
+  /** 발이 땅에 닿아 못 박은 구간(장면 번호, 끝 포함) — 화면이 바닥을 맞춘다(2026-10-09 이후 결과만, 읽을 때 화면이 모양을 본다) */
+  contacts?: V2Contact[];
 };
+
+export type V2Contact = { side: 'L' | 'R'; from: number; to: number };
 
 export type Pitch3dV2Ok = {
   ok: true;

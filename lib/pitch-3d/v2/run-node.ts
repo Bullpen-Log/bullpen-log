@@ -32,6 +32,8 @@ type SegmentOut =
       events: { kneeUp: number | null; footPlant: number; release: number };
       /** 구간을 120fps 로 풀면 몇 장인지(상한 600 안으로 잘랐다) */
       frames: number;
+      /** 진단(로그용) — 진행 방향 · 던진 손목 · 앞다리 · 순간 · 영상 처음과 끝 */
+      diag?: Record<string, unknown>;
     }
   | { ok: false; code: V2FailCode; detail?: Record<string, unknown> };
 
@@ -42,6 +44,17 @@ export function pickSegment(input: { side: unknown; back: unknown }): SegmentOut
   if (!sideT || !backT) return { ok: false, code: 'video' };
   const sidePose = toPoseTrack(sideT);
   const ev = detectPitchEvents(sidePose);
+  /* 구간 진단(명령줄이 Modal 로그에 한 줄로, 숫자만) — 2026-10-09 좌투 샘플이 다리를 든 순간을 릴리스로 잡은 일 조사 */
+  const diag = {
+    direction: ev.direction,
+    wrist: ev.wristSide,
+    lead: ev.leadSide,
+    kneeUp: ev.kneeUp?.t ?? null,
+    footPlant: ev.footPlant?.t ?? null,
+    release: ev.release?.t ?? null,
+    first: sideT.frames[0]?.t ?? null,
+    last: sideT.frames[sideT.frames.length - 1]?.t ?? null,
+  };
   const fp = ev.footPlant?.t;
   const rel = ev.release?.t;
   if (fp == null || rel == null || !(rel > fp))
@@ -96,6 +109,7 @@ export function pickSegment(input: { side: unknown; back: unknown }): SegmentOut
     },
     events: { kneeUp, footPlant: fp, release: rel },
     frames: Math.round((to - from) * 120),
+    diag,
   };
 }
 
@@ -110,6 +124,7 @@ export function pickSegment(input: { side: unknown; back: unknown }): SegmentOut
  * hand · 좌우 바꿈(handSwapped · backMirrored), 장면마다 [릴리스에서 몇 장면, 골반 높이, 왼 · 오른 발목 높이(mm, 키 1000),
  * 어깨선 · 골반선 방향(°, 위에서 본 각), 코 높이, 그 장면 가장 큰 관절 이동 mm] — 착지 30장면 전 ~ 릴리스 20장면 뒤.
  * jumps: 어깨선 · 골반선이 한 장면에 45° 넘게 돈 횟수, 골반이 한 장면에 키의 3% 넘게 오르내린 횟수.
+ * legsSwapped · contacts: 무릎 아래 좌우를 바꿨는지, 발이 땅에 닿아 묶인 구간 [발, 시작, 끝](릴리스에서 몇 장면).
  */
 export function bodyDiag(r: Pitch3dV2Ok) {
   const { footPlant: fp, release: rel } = r.events;
@@ -146,6 +161,8 @@ export function bodyDiag(r: Pitch3dV2Ok) {
   return {
     hand: r.hand,
     flips: r.quality.flips,
+    legsSwapped: r.fit.legsSwapped ?? null,
+    contacts: (r.fit.contacts ?? []).map((c) => [c.side, c.from - rel, c.to - rel]),
     n: r.joints.length,
     fp: fp - rel,
     kneeUp: r.events.kneeUp == null ? null : r.events.kneeUp - rel,
@@ -287,6 +304,11 @@ if (mode === 'segment' || mode === 'fit') {
     process.exit(2);
   }
   const raw = JSON.parse(readFileSync(inPath, 'utf8'));
-  const out = mode === 'segment' ? JSON.stringify(pickSegment(raw)) : runFit(raw);
+  let out: string;
+  if (mode === 'segment') {
+    const seg = pickSegment(raw);
+    console.error('[pitch3d seg] ' + JSON.stringify(seg.ok ? seg.diag : seg));
+    out = JSON.stringify(seg);
+  } else out = runFit(raw);
   writeFileSync(outPath, out);
 }

@@ -323,3 +323,70 @@ if (process.argv[1]?.endsWith('gap-check.mts'))
     console.log(
       `seed ${seed}: 착지 엉덩이 튐 — 골반선 한 장면 최대 회전 ${hipSnap(seed)?.toFixed(1)}°`
     );
+
+/**
+ * 발 순간이동 — 발목 · 뒤꿈치 · 발끝이 한 장면에 움직인 최대 거리(키 대비). swapLegs 면 두 영상의 무릎 아래 이름을 통째로 바꾼다
+ * (관절 모델이 다리 이름만 바꿔 붙인 경우 — 2026-10-09 좌투 샘플: 들린 발을 축발로 묶었다가 풀려 한 장면에 57cm 튀었다).
+ * 2026-10-09 실제 샘플 2 · 4 는 착지 장면에 앞발이 나중 자리로 한 번에 붙어 13 · 9.5cm 튀었다.
+ */
+export function footJump(
+  seed: number,
+  swapLegs = false
+): { jump: number; legsSwapped: boolean } | null {
+  const sc: Scenario = {
+    ...base,
+    ...realistic,
+    name: 'jump',
+    slowSide: 4,
+    slowBack: 4,
+    offBack: 0,
+    sampleSide: 1 / 30,
+    sampleBack: 1 / 30,
+  };
+  const { side: cs, back: cb } = cameras(sc);
+  const s = makeV2Track(sc, cs, sc.side, 'side', seed);
+  const b = makeV2Track(sc, cb, sc.back, 'back', seed + 1);
+  const LEGS: [number, number][] = [
+    [V2J.lKn, V2J.rKn],
+    [V2J.lAn, V2J.rAn],
+    [V2J.lHe, V2J.rHe],
+    [V2J.lTo, V2J.rTo],
+  ];
+  if (swapLegs)
+    for (const tr of [s.track, b.track])
+      for (const f of tr.frames) for (const [l, r] of LEGS) [f.p[l], f.p[r]] = [f.p[r], f.p[l]];
+  const { result } = fitPitch3dV2({
+    side: s.track,
+    back: b.track,
+    hand: 'R',
+    heightCm: null,
+    jobId: '00000000-0000-4000-8000-000000000000',
+    poseModel: 'synth',
+    screenRecorded: true,
+    slowmoFps: 120,
+    events: {
+      kneeUp: s.toMedia(EV.kneeUp),
+      footPlant: s.toMedia(EV.footPlant),
+      release: s.toMedia(EV.release),
+    },
+  });
+  if (!result.ok) return null;
+  const FEET = [V2J.lAn, V2J.lHe, V2J.lTo, V2J.rAn, V2J.rHe, V2J.rTo];
+  let jump = 0;
+  for (let k = 1; k < result.joints.length; k++)
+    for (const j of FEET)
+      jump = Math.max(
+        jump,
+        norm(sub(result.joints[k][j] as Vec3, result.joints[k - 1][j] as Vec3)) / 1000
+      );
+  return { jump, legsSwapped: result.fit.legsSwapped === true };
+}
+
+if (process.argv[1]?.endsWith('gap-check.mts'))
+  for (const seed of [11, 22])
+    for (const swap of [false, true]) {
+      const r = footJump(seed, swap);
+      console.log(
+        `seed ${seed}${swap ? ' 다리 이름 바뀜' : ''}: 발 한 장면 최대 이동 ${r ? (r.jump * 100).toFixed(1) + '% 키 · 바꿈 ' + r.legsSwapped : '실패'}`
+      );
+    }

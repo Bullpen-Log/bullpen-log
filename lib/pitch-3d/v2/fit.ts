@@ -72,8 +72,22 @@ const GAP_MAX = 15;
  * 릴리스 근처 손목을 10장면 지운 합성: 빈 구간 손목 최대 오차 키의 14~24% → 0.3 에서 13~16% · 0.6 에서 12~14%.
  */
 const GAP_PULL = 0.6;
-/** 붙어 있다고 보는 발목 움직임 폭(키 대비) */
-const FOOT_STAY = 0.03;
+/** 발이 땅에 닿았다고 보는 발목 움직임 폭(키 대비) — 5장면 가운데값으로 다듬은 발목이 구간 가운데값에서 이 안 */
+const CONTACT_STAY = 0.035;
+/** 닿은 구간의 높이 띠 — 그 발 발목 높이의 아래 10% + 키의 이만큼(니업 꼭대기에서 잠깐 멈춘 발은 빠진다) */
+const CONTACT_BAND = 0.1;
+/** 닿은 구간의 최소 길이 — 착지 → 릴리스 장면 수의 비(최소 4장면). 실제 약 0.08초 — 내려오는 발(초속 2m 넘게)은 그동안 가만있지 않는다 */
+const CONTACT_MIN = 0.5;
+/** 닿은 구간 안에서 튀어도 되는 점의 몫(가려짐 · 좌우 뒤바뀜) */
+const CONTACT_OUT = 0.2;
+/** 닿은 발이 넘지 않는 빠르기(키 / 실제 초 — 키 1.8m 면 초속 18cm) */
+const CONTACT_SPEED = 0.1;
+/** 착지 → 릴리스의 실제 시간(초) 어림 — 슬로모 배수를 몰라도 장면 수를 실제 시간으로 바꾼다 */
+const PLANT_TO_RELEASE_S = 0.15;
+/** 닿기 앞뒤로 그 자리로 섞어 당기는 장면 수 — 한 장면에 붙거나 떨어지지 않게 */
+const CONTACT_EASE = 2;
+/** 이보다 크게 기운 발(발끝으로 선 발)은 평평하게 펴지 않는다(°) */
+const LEVEL_MAX_DEG = 35;
 /** 몸통 · 머리 점 다듬기 폭 — 착지 → 릴리스 장면 수의 비(그 구간 ≈ 0.17초라 0.06 ≈ 10ms) */
 const TRUNK_SIGMA = 0.06;
 const TRUNK_JOINTS = [
@@ -276,6 +290,13 @@ const PARENT_OF: Record<number, number> = {
 };
 const LEFT_HAND = [V2J.lHandIdx, V2J.lHandMid, V2J.lHandPinky];
 const RIGHT_HAND = [V2J.rHandIdx, V2J.rHandMid, V2J.rHandPinky];
+/** 무릎 아래 좌우 짝 */
+const LEG_PAIRS: [number, number][] = [
+  [V2J.lKn, V2J.rKn],
+  [V2J.lAn, V2J.rAn],
+  [V2J.lHe, V2J.rHe],
+  [V2J.lTo, V2J.rTo],
+];
 const CORE17 = Array.from({ length: N_JOINTS }, (_, j) => j);
 
 const toObs = (o: V2Obs | undefined): Obs =>
@@ -429,6 +450,44 @@ function fitOnce(input: V2Input): {
     obs3.push(row);
     weight.push(w);
   }
+
+  /*
+   * 다리 좌우 확인 — 니업 때 들리는 다리는 앞발(글러브 쪽)이다. 던지는 손 쪽 발목이 훨씬 높이 들렸으면 관절 모델이 무릎 아래 이름만 바꿔
+   * 붙인 것이다(2026-10-09 좌투 샘플: 던지는 손 쪽 발을 축발로 묶었는데 그 발이 니업에 들려 있어, 풀릴 때 한 장면에 57cm 튀고 골반이
+   * 77° 꺾였다). 골반은 어깨와 같은 쪽이 맞으니 무릎 · 발목 · 뒤꿈치 · 발끝만 바꾸고, 바꾼 쪽의 넙다리 길이 좌우 차이가 더 나쁘면 두지 않는다.
+   */
+  const legsSwapped = (() => {
+    const Uv = core.axes.U;
+    const rise = (an: number) => {
+      const hs: number[] = [];
+      for (let k = 0; k <= core.evIdx.footPlant && k < n; k++) {
+        const P = obs3[k][an];
+        if (P && weight[k][an] > 0) hs.push(dot(P, Uv));
+      }
+      return hs.length < 5 ? 0 : Math.max(...hs) - percentile(hs, 0.1);
+    };
+    const [thr, glv] = core.hand === 'L' ? [V2J.lAn, V2J.rAn] : [V2J.rAn, V2J.lAn];
+    const rt = rise(thr);
+    if (!(rt > 0.15 * H && rt > rise(glv) + 0.1 * H)) return false;
+    const asym = (swap: boolean) => {
+      const ds: number[] = [];
+      for (let k = 0; k < n; k++) {
+        const [lh, rh, lk, rk] = [V2J.lHip, V2J.rHip, V2J.lKn, V2J.rKn].map(
+          (j) => obs3[k][j]
+        );
+        if (!lh || !rh || !lk || !rk) continue;
+        const [a, b] = swap ? [rk, lk] : [lk, rk];
+        ds.push(Math.abs(norm(sub(a, lh)) - norm(sub(b, rh))));
+      }
+      return ds.length ? median(ds) : Infinity;
+    };
+    return asym(true) <= asym(false) * 1.2;
+  })();
+  if (legsSwapped)
+    for (let k = 0; k < n; k++)
+      for (const [a, b] of LEG_PAIRS)
+        for (const arr of [obs3[k], weight[k], sideObs[k], backObs[k]] as unknown[][])
+          [arr[a], arr[b]] = [arr[b], arr[a]];
 
   /* ── 뼈 길이(잘 보인 장면 중앙값, 좌우 같이) ── */
   const lengthOf = new Map<string, number>();
@@ -639,12 +698,6 @@ function fitOnce(input: V2Input): {
   const target: Vec3[][] = X.map((fr) => fr.map((v) => [...v] as Vec3));
 
   /*
-   * 발 고정 — 축발(던지는 손 쪽)은 처음 ~ 착지, 앞발은 착지 ~ 릴리스 뒤(착지~릴리스의 절반 더)에 땅에 붙어 있다. 그 구간에서 보인
-   * 자리의 가운데값에 못 박는다(pinned — 뼈 길이 맞추기 · 시간 다듬기가 움직이지 않음). 예전엔 발 점이 장면마다 흔들려 3D 화면에서
-   * 몸이 위아래로 튀고 발이 떴다
-   * (2026-10-09 김민: "발이 땅에 붙어 있는지 · 착지가 언제인지 구분이 안 되고 바닥에서 떨어지거나 흔들린다").
-   */
-  /*
    * 몸통 · 머리 점(엉덩이 · 어깨 · 코 · 귀) 시간 다듬기 — 한두 장면 튄 값은 앞뒤 가운데값으로(햄펠), 그다음 가우스로. 폭은 착지 → 릴리스
    * 장면 수에 맞춰 실제 약 10ms(그 구간이 실제로 약 0.17초라서 — 슬로모 배수를 몰라도 된다). 2026-10-09 실제 샘플 둘에서 착지 장면에
    * 골반선이 한 장면에 35~38° 돌았고(관절 모델의 엉덩이 점이 튐) 회전 중 몸통 · 머리가 흔들렸다(김민: "회전이 시작되면 점프하듯 · 흔들림").
@@ -666,64 +719,158 @@ function fitOnce(input: V2Input): {
       }
   }
 
+  /*
+   * 발이 땅에 닿은 구간 — 이름(축발 · 앞발)이 아니라 자료로 찾는다. 발목(5장면 가운데값으로 다듬음)이 그 발의 낮은 높이 띠(CONTACT_BAND) 안에서
+   * 구간 가운데값의 CONTACT_STAY 안에 머문 구간(착지 → 릴리스 장면 수의 CONTACT_MIN 이상)이다. 그 구간에 발(발목 · 뒤꿈치 · 발끝)을
+   * 가운데값에 못 박고(pinned — 뼈 길이 맞추기 · 시간 다듬기가 움직이지 않음) 뒤꿈치 · 발끝을 같은 높이로 편다(앞꿈치로만 서지 않게).
+   * 앞뒤 CONTACT_EASE 장면은 그 자리로 섞어 당긴다(한 장면에 붙거나 떨어지지 않게).
+   * 2026-10-09 김민 4/10: 예전엔 축발을 처음 ~ 니업까지 움직여도 묶어 들린 발이 니업 뒤 한 장면에 57cm 튀었고(좌투 샘플), 앞발은 착지
+   * 장면에 나중 자리로 한 번에 붙어 13 · 9.5cm 튀었고(땅에 박힘), 축발은 흔들리는 점이 문턱(키의 3%)을 넘는 순간 풀려 계속 움직였다.
+   * 축발을 착지까지 내내 묶지 않는 까닭은 그대로다(보폭 끝 끌림 — 합성 정답 축발은 착지 0.15초 전부터 14cm 끌린다).
+   */
   const pinned: boolean[][] = Array.from({ length: n }, () =>
     new Array<boolean>(N_V2_JOINTS).fill(false)
   );
+  const contacts: { side: 'L' | 'R'; from: number; to: number }[] = [];
   {
-    const fp = core.evIdx.footPlant;
-    const rel = core.evIdx.release;
-    const right = [V2J.rAn, V2J.rHe, V2J.rTo];
-    const left = [V2J.lAn, V2J.lHe, V2J.lTo];
-    const [pivot, lead] = core.hand === 'L' ? [left, right] : [right, left];
-    const medianOf = (j: number, from: number, to: number): Vec3 => {
+    const span = Math.max(1, core.evIdx.release - core.evIdx.footPlant);
+    const minRun = Math.max(4, Math.round(CONTACT_MIN * span));
+    const stay = CONTACT_STAY * H;
+    const med = (vs: Vec3[]): Vec3 =>
+      [0, 1, 2].map((d) => median(vs.map((v) => v[d]))) as Vec3;
+    const seenMedian = (j: number, from: number, to: number): Vec3 => {
       const seen: Vec3[] = [];
       for (let k = from; k <= to; k++) if (dataW[k][j] > 0) seen.push(target[k][j]);
-      const pts =
-        seen.length >= 3 ? seen : target.slice(from, to + 1).map((fr) => fr[j]);
-      return [0, 1, 2].map((d) => median(pts.map((q) => q[d]))) as Vec3;
+      return med(
+        seen.length >= 3 ? seen : target.slice(from, to + 1).map((fr) => fr[j])
+      );
     };
-    /*
-     * 붙어 있는 구간은 데이터로 — 발목이 기준 자리에서 키의 3%(FOOT_STAY) 안에 머무는 동안만. 축발은 보폭 끝에서 끌려가기도 해
-     * '처음 ~ 착지' 내내 묶으면 엉덩이가 발목 쪽으로 끌려 골반 방향이 틀어졌다(합성: 꼬임 최대 오차 −0.4 → −3.7°, 정답 축발은 착지
-     * 0.15초 전부터 14cm 끌림).
-     */
-    const stay = FOOT_STAY * H;
-    const lock = (joints: number[], range: [number, number], ref: [number, number]) => {
-      const [from, to] = range;
-      if (to - from < 2) return;
-      for (const j of joints) {
-        const med = medianOf(j, ref[0], ref[1]);
-        for (let k = from; k <= to; k++) {
-          target[k][j] = [...med] as Vec3;
-          X[k][j] = [...med] as Vec3;
-          pinned[k][j] = true;
+    /* 뒤꿈치 · 발끝을 발목 둘레로 돌려 같은 높이로(길이 그대로) — 많이 기운 발(발끝으로 섬)은 그대로 */
+    const level = (A: Vec3, He: Vec3, To: Vec3): [Vec3, Vec3] => {
+      const f = sub(To, He);
+      const hor = sub(f, scale(U, dot(f, U)));
+      const th = Math.acos(
+        Math.max(-1, Math.min(1, dot(normalize(f), normalize(hor))))
+      );
+      const ax = cross(f, hor);
+      if (norm(hor) < 1e-9 || norm(ax) < 1e-12 || (th * 180) / Math.PI > LEVEL_MAX_DEG)
+        return [He, To];
+      const k = normalize(ax);
+      const rot = (P: Vec3): Vec3 => {
+        const v = sub(P, A);
+        return add(
+          A,
+          add(
+            add(scale(v, Math.cos(th)), scale(cross(k, v), Math.sin(th))),
+            scale(k, dot(k, v) * (1 - Math.cos(th)))
+          )
+        );
+      };
+      return [rot(He), rot(To)];
+    };
+    for (const side of ['L', 'R'] as const) {
+      const foot =
+        side === 'L' ? [V2J.lAn, V2J.lHe, V2J.lTo] : [V2J.rAn, V2J.rHe, V2J.rTo];
+      const s = target.map((_, k) =>
+        med(target.slice(Math.max(0, k - 2), k + 3).map((fr) => fr[foot[0]]))
+      );
+      const h = s.map((p) => dot(p, U));
+      const top = percentile(h, 0.1) + CONTACT_BAND * H;
+      /* 구간 찾기 — 점의 CONTACT_OUT 까지는 튀어도 된다(가려짐 · 뒤바뀜). 끝은 가운데값에서 먼 장면을 깎는다(내려오는 중인 장면을 묶지 않게) */
+      const runs: { from: number; to: number; m: Vec3 }[] = [];
+      for (let k = 0; k < n;) {
+        let e = k - 1;
+        while (e + 1 < n && h[e + 1] <= top) {
+          const run = s.slice(k, e + 2);
+          const m = med(run);
+          if (
+            run.filter((p) => norm(sub(p, m)) > stay).length >
+            CONTACT_OUT * run.length
+          )
+            break;
+          e++;
+        }
+        if (e - k + 1 < minRun) {
+          k++;
+          continue;
+        }
+        const m = med(s.slice(k, e + 1));
+        let a = k;
+        let b = e;
+        while (a < b && norm(sub(s[a], m)) > stay) a++;
+        while (b > a && norm(sub(s[b], m)) > stay) b--;
+        /*
+         * 천천히 움직이는 발은 닿은 것이 아니다 — 앞 · 뒤 3분의 1 가운데값 사이가 실제 시간으로 CONTACT_SPEED 보다 빨리 움직였으면 뺀다
+         * (합성: 내딛는 발이 착지 전 0.1초 동안 키의 5% 안에서 내려오다 공중에 묶였다). 실제 시간은 착지 → 릴리스를 PLANT_TO_RELEASE_S 로 본다.
+         */
+        const len = b - a + 1;
+        const third = Math.max(1, Math.floor(len / 3));
+        const drift = norm(
+          sub(med(s.slice(a, a + third)), med(s.slice(b - third + 1, b + 1)))
+        );
+        const allowed = ((CONTACT_SPEED * len * PLANT_TO_RELEASE_S) / span + 0.005) * H;
+        if (len >= minRun && drift <= allowed) runs.push({ from: a, to: b, m });
+        k = e + 1;
+      }
+      /*
+       * 앞발(글러브 쪽)은 착지 순간을 믿는다 — 착지 → 릴리스는 실제 0.15초라 장면이 적고 착지 충격 · 흐림으로 점이 흔들려 자료만으로는
+       * 이 구간이 끊겼다(합성: 착지 뒤 앞발 점이 5cm 움직여 릴리스 뒤에야 묶임). 착지 ~ 릴리스 뒤(그 절반 더)를 묶되 그 발이 낮을 때만,
+       * 니업 ~ 착지 사이(내딛는 중)에 찾은 구간은 버린다.
+       */
+      const leadSide = (core.hand === 'L' ? 'R' : 'L') === side;
+      if (leadSide) {
+        const fp = core.evIdx.footPlant;
+        const rel = core.evIdx.release;
+        const from0 = core.evIdx.kneeUp ?? Math.floor(fp / 2);
+        for (let i = runs.length - 1; i >= 0; i--)
+          if (runs[i].to >= from0 && runs[i].from < fp) runs.splice(i, 1);
+        const to = Math.min(n - 1, rel + Math.round(span / 2));
+        if (to - fp + 1 >= 3 && median(h.slice(fp, rel + 1)) <= top) {
+          runs.push({ from: fp, to, m: med(s.slice(fp, rel + 1)) });
+          runs.sort((x, y) => x.from - y.from);
+          /* 겹치는 구간은 착지 구간에 녹인다 */
+          for (let i = runs.length - 1; i > 0; i--)
+            if (runs[i].from <= runs[i - 1].to) {
+              runs[i - 1].to = Math.max(runs[i - 1].to, runs[i].to);
+              runs.splice(i, 1);
+            }
         }
       }
-    };
-    /* 축발 — 기준은 처음 ~ 니업(없으면 착지의 절반)까지, 기준에서 벗어나는 첫 장면 전까지 */
-    {
-      const refTo = Math.max(
-        2,
-        Math.min(fp - 1, core.evIdx.kneeUp ?? Math.floor(fp / 2))
-      );
-      const ref = medianOf(pivot[0], 0, refTo);
-      let to = -1;
-      for (let k = 0; k < fp; k++) {
-        if (norm(sub(target[k][pivot[0]], ref)) > stay && k > refTo) break;
-        to = k;
+      /* 같은 자리에 다시 선 구간(사이가 짧음)은 하나로 — 튄 몇 장면 때문에 쪼개진 것 */
+      const merged: { from: number; to: number }[] = [];
+      for (const r of runs) {
+        const last = merged[merged.length - 1];
+        const lastM = last ? med(s.slice(last.from, last.to + 1)) : null;
+        if (
+          last &&
+          lastM &&
+          r.from - last.to - 1 <= span &&
+          norm(sub(r.m, lastM)) <= 2 * stay
+        )
+          last.to = r.to;
+        else merged.push({ from: r.from, to: r.to });
       }
-      lock(pivot, [0, to], [0, refTo]);
+      for (const { from: k, to: e } of merged) {
+        contacts.push({ side, from: k, to: e });
+        const [An, He0, To0] = foot.map((j) => seenMedian(j, k, e));
+        const [He, To] = level(An, He0, To0);
+        const ref = [An, He, To];
+        for (let q = k - CONTACT_EASE; q <= e + CONTACT_EASE; q++) {
+          if (q < 0 || q >= n) continue;
+          const inside = q >= k && q <= e;
+          const w = inside ? 1 : 1 - (q < k ? k - q : q - e) / (CONTACT_EASE + 1);
+          foot.forEach((j, i) => {
+            const P = add(scale(target[q][j], 1 - w), scale(ref[i], w));
+            target[q][j] = P;
+            if (inside) {
+              X[q][j] = [...P] as Vec3;
+              pinned[q][j] = true;
+            } else pullW[q][j] = Math.max(pullW[q][j], 0.9);
+          });
+        }
+      }
     }
-    /* 앞발 — 착지부터(앞발은 착지 뒤 거의 끌리지 않는다 — 묶어도 지표가 그대로였다), 기준은 착지 뒤 자리 잡은 쪽, 벗어나기 전까지 */
-    {
-      const leadTo = Math.min(n - 1, rel + Math.round((rel - fp) / 2));
-      const refFrom = fp + Math.round((leadTo - fp) / 2);
-      const ref = medianOf(lead[0], refFrom, leadTo);
-      let to = leadTo;
-      for (let k = leadTo + 1; k < n && norm(sub(target[k][lead[0]], ref)) <= stay; k++)
-        to = k;
-      lock(lead, [fp, to], [refFrom, leadTo]);
-    }
+    contacts.sort((a, b) => a.from - b.from);
   }
 
   /*
@@ -938,7 +1085,19 @@ function fitOnce(input: V2Input): {
     },
     metrics,
     quality: core.quality,
-    fit: { boneCvPct, reprojPct, filled, accelP95, boneLen },
+    fit: {
+      boneCvPct,
+      reprojPct,
+      filled,
+      accelP95,
+      boneLen,
+      legsSwapped,
+      contacts: contacts.flatMap((c) => {
+        const from = keep.findIndex((k) => k >= c.from);
+        const to = keep.findLastIndex((k) => k <= c.to);
+        return from >= 0 && to >= from ? [{ side: c.side, from, to }] : [];
+      }),
+    },
     warnings: core.warnings,
     cameras: {
       side: toCam(cal.side, core.side.W, core.side.H),

@@ -45,8 +45,20 @@ import {
   type Scenario,
 } from './pitch-lab/synth.mts';
 import { makeV2Track } from './pitch-lab/synth-v2.mts';
-import { footSway, gapWristError, hipSnap, leadGapJump } from './pitch-lab/gap-check.mts';
+import { footJump, footSway, gapWristError, hipSnap, leadGapJump } from './pitch-lab/gap-check.mts';
 import { readFileSync } from 'node:fs';
+import {
+  displayTrack,
+  limitHead,
+  limitShoulders,
+  limitTwist,
+  limitWrists,
+  NECK_TILT_DEG,
+  NECK_TURN_DEG,
+  SHOULDER_BACK_DEG,
+  smoothAdaptive,
+  TWIST_MAX_DEG,
+} from '../lib/pitch-3d/v2/display.ts';
 import {
   moundHeightAt,
   PART_NAMES,
@@ -720,6 +732,33 @@ console.log('■ node 실행기(segment · fit)');
     check('순간을 찾았다(착지 < 릴리스)', seg.events.footPlant < seg.events.release);
   }
   check('segment: 입력 모양이 틀리면 video', !pickSegment({ side: null, back: {} }).ok);
+  /*
+   * 투구 뒤 보통 속도로 홈 반대쪽으로 빨리 물러선 영상 — 골반이 가장 빨리 움직인 쪽을 홈으로 보면 반대가 되어, 팔이 가장 뒤로 간 순간
+   * (다리를 든 때)을 릴리스로 잡았다(2026-10-09 좌투 샘플: '릴리스' 장면에 앞다리가 키의 90% 높이에 들려 있었다).
+   */
+  {
+    const s2 = makeV2Track(sc, camS, sc.side, 'side', 41);
+    const b2 = makeV2Track(sc, camB, sc.back, 'back', 42);
+    const fr = s2.track.frames;
+    const hipX = (f: (typeof fr)[number]) => (f.p[V2J.lHip][0] + f.p[V2J.rHip][0]) / 2;
+    const iFp = fr.findIndex((f) => f.t >= s2.toMedia(EV.footPlant));
+    const homeSign = Math.sign(hipX(fr[iFp]) - hipX(fr[0])) || 1;
+    const trunkPx = Math.abs(fr[0].p[V2J.lSh][1] - fr[0].p[V2J.lHip][1]) || 100;
+    const last = fr[fr.length - 1];
+    const dt = fr[1].t - fr[0].t;
+    for (let q = 1; q <= 12; q++)
+      fr.push({
+        t: last.t + q * dt,
+        p: last.p.map((o) => [o[0] - homeSign * trunkPx * 0.6 * q, o[1], o[2]] as [number, number, number]),
+      });
+    const seg2 = pickSegment({ side: s2.track, back: b2.track });
+    /* 고치기 전: 순간을 못 찾음(events) */
+    check(
+      '투구 뒤 반대쪽으로 빨리 물러서도 같은 릴리스를 찾는다(물러서지 않은 영상과 0.05초 안)',
+      seg.ok && seg2.ok && Math.abs(seg2.events.release - seg.events.release) < 0.05,
+      seg2.ok && seg.ok ? `${seg2.events.release.toFixed(2)} · ${seg.events.release.toFixed(2)}` : seg2.ok ? '' : seg2.code
+    );
+  }
   /* segment 가 찾은 순간을 fit 이 넘겨받는다 — 잘라 낸 구간에서 다시 찾다 실패한 2026-10-08 샘플 1 · 3 */
   check('fit 입력 순간: 착지 < 릴리스면 그대로', readV2Events({ kneeUp: 1, footPlant: 2, release: 2.5 })?.release === 2.5);
   check('fit 입력 순간: 뒤바뀌거나 없으면 버림(다시 찾기)', !readV2Events({ footPlant: 2, release: 1 }) && !readV2Events(null));
@@ -777,8 +816,6 @@ console.log('■ 뼈대 자세(pose-rig) — public/models/skeleton-parts.json +
       let nan = 0;
       let kneeErr = 0;
       let wristErr = 0;
-      let lowMin = Infinity;
-      let lowMax = -Infinity;
       let flips = 0;
       const A = parts.anchors;
       for (let k = 0; k < frames.length; k++) {
@@ -794,7 +831,7 @@ console.log('■ 뼈대 자세(pose-rig) — public/models/skeleton-parts.json +
             R[2] * (R[3] * R[7] - R[4] * R[6]);
           if (Math.abs(det - 1) > 1e-6) flips++;
         }
-        /* 모델 무릎(넙다리 끝)이 맞춘 무릎 근처에(비율이 달라 몇 cm 어긋난다) · 손목도 */
+        /* 모델 무릎(넙다리 끝) · 손목(아래팔 끝)이 맞춘 관절에 — 마디를 축 방향으로 늘여 닿게 한다 */
         const kneeW = placePoint(pose.thighL, A.thighL.distal, A.thighL.proximal);
         const wristW = placePoint(
           pose.forearmR,
@@ -805,31 +842,20 @@ console.log('■ 뼈대 자세(pose-rig) — public/models/skeleton-parts.json +
           Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]);
         kneeErr = Math.max(kneeErr, d(kneeW, frames[k][V2J.lKn]));
         wristErr = Math.max(wristErr, d(wristW, frames[k][V2J.rWr]));
-        /* 두 발 중 낮은 점 = 바닥 */
-        let low = Infinity;
-        for (const f of ['footL', 'footR'] as const)
-          for (const q of [A[f].proximal, A[f].distal, A[f].heel])
-            low = Math.min(low, placePoint(pose[f], q, A[f].proximal)[1]);
-        lowMin = Math.min(lowMin, low);
-        lowMax = Math.max(lowMax, low);
         prev = pose;
       }
       check('모든 장면 · 부위의 자세가 숫자', nan === 0, `NaN ${nan}`);
       check('회전 행렬 det = 1(거울 아님)', flips === 0, `${flips}`);
+      /* 고치기 전(모델 뼈 길이 그대로): 무릎 최대 키의 5~8% · 손목 8~12% 어긋나 땅에 묶인 발도 화면에선 미끄러졌다 */
       check(
-        '모델 무릎이 맞춘 무릎에서 키의 8% 안(뼈 길이는 모델 그대로라 조금 어긋난다)',
-        kneeErr < 0.08,
-        `최대 ${(kneeErr * 100).toFixed(1)}%`
+        '모델 무릎이 맞춘 무릎에 닿는다(키의 0.5% 안)',
+        kneeErr < 0.005,
+        `최대 ${(kneeErr * 100).toFixed(2)}%`
       );
       check(
-        '모델 손목이 맞춘 손목에서 키의 12% 안(어깨 → 위팔 → 아래팔 세 마디 누적)',
-        wristErr < 0.12,
-        `최대 ${(wristErr * 100).toFixed(1)}%`
-      );
-      check(
-        '두 발 중 낮은 점이 늘 바닥(0)',
-        Math.abs(lowMin) < 1e-6 && Math.abs(lowMax) < 1e-6,
-        `${lowMin.toFixed(4)} ~ ${lowMax.toFixed(4)}`
+        '모델 손목이 맞춘 손목에 닿는다(키의 0.5% 안)',
+        wristErr < 0.005,
+        `최대 ${(wristErr * 100).toFixed(2)}%`
       );
       /*
        * 거의 편 팔꿈치(굽힘 12~20°)가 장면마다 반대쪽으로 꺾여도 팔 조각이 180° 돌지 않는다 — 2026-10-08 실제 샘플 1 에서
@@ -881,26 +907,200 @@ console.log('■ 뼈대 자세(pose-rig) — public/models/skeleton-parts.json +
             g(0, 1.5 / Hm) < 0.18 / Hm &&
             g(0.457 / Hm, 2.7 / Hm) < 0.02 / Hm
         );
-        const fr = frames[result.events.footPlant];
-        const x0 = frames[0][V2J.rAn][0];
-        const z0 = frames[0][V2J.rAn][2];
-        const gr = moundHeightAt(x0, z0, Hm);
-        const pose = rigPose(fr, 'R', parts, null, gr);
-        let low = Infinity;
-        for (const f of ['footL', 'footR'] as const)
-          for (const q of [A[f].proximal, A[f].distal, A[f].heel]) {
-            const w = placePoint(pose[f], q, A[f].proximal);
-            low = Math.min(low, w[1] - gr(w[0], w[2]));
-          }
-        check('마운드: 두 발 중 경사면에 가장 가까운 점이 경사면 위(0)', Math.abs(low) < 1e-9, `${low}`);
-        /* 디딤발 무게 — 오른발만 디딤이면 오른발이 경사면 위(왼발이 더 낮아도 몸을 끌어올리지 않는다) */
-        const poseR = rigPose(fr, 'R', parts, null, gr, { L: 0, R: 1 });
-        let lowR = Infinity;
-        for (const q of [A.footR.proximal, A.footR.distal, A.footR.heel]) {
-          const w = placePoint(poseR.footR, q, A.footR.proximal);
-          lowR = Math.min(lowR, w[1] - gr(w[0], w[2]));
+      }
+      /*
+       * 보기용 다듬기(display.ts) — 2026-10-09 김민 4/10: 착지 때 앞발이 땅에 박히고 몸 전체가 붕 뜸(장면마다 디딤발로 바닥을 다시 잡았다),
+       * 마무리에 몸통이 기괴하게 돎(어깨선이 골반선보다 87°), 릴리스에 손목이 꺾임(흐린 손 점 그대로), 떨림.
+       */
+      {
+        const tr = displayTrack(result, { ground: 'mound', heightM: 1.8 });
+        const fp = result.events.footPlant;
+        const leadC = tr.contacts.find((c) => c.side === 'L' && c.to >= fp && c.from <= result.events.release);
+        const gap = (fr: Vec3[], j: number) => fr[j][1] - tr.groundAt(fr[j][0], fr[j][2]);
+        const soleGap = (fr: Vec3[], side: 'L' | 'R') =>
+          side === 'L'
+            ? Math.min(gap(fr, V2J.lHe), gap(fr, V2J.lTo))
+            : Math.min(gap(fr, V2J.rHe), gap(fr, V2J.rTo));
+        let leadErr = Infinity;
+        if (leadC) {
+          const gs = tr.frames.slice(leadC.from, leadC.to + 1).map((fr) => soleGap(fr, 'L'));
+          gs.sort((x, y) => x - y);
+          leadErr = Math.abs(gs[gs.length >> 1]);
         }
-        check('디딤발 무게: 오른발만 디딤이면 오른발이 경사면 위(0)', Math.abs(lowR) < 1e-9, `${lowR}`);
+        check('보기: 착지한 앞발 발바닥이 마운드 경사면 위(키의 0.2% 안)', leadErr < 0.002, `${leadErr.toFixed(4)}`);
+        let below = 0;
+        for (const fr of tr.frames) below = Math.min(below, soleGap(fr, 'L'), soleGap(fr, 'R'));
+        check('보기: 어느 장면에서도 발이 바닥 밑에 없다', below > -1e-9, `${below}`);
+        /* 바닥은 클립 전체에 한 번 — 골반 높이 차(보기 − 결과)가 장면마다 거의 같다(다듬기 몫만) */
+        const lift = tr.frames.map((fr, k) => (fr[V2J.lHip][1] + fr[V2J.rHip][1]) / 2 - (frames[k][V2J.lHip][1] + frames[k][V2J.rHip][1]) / 2);
+        const spread = Math.max(...lift) - Math.min(...lift);
+        check('보기: 몸을 장면마다 따로 올리지 않는다(골반 높이 차 흔들림 키의 1% 밑)', spread < 0.01, `${(spread * 100).toFixed(2)}%`);
+        const flat = displayTrack(result, { ground: 'flat', heightM: 1.8 });
+        let flatBelow = 0;
+        for (const fr of flat.frames)
+          for (const j of [V2J.lHe, V2J.lTo, V2J.rHe, V2J.rTo]) flatBelow = Math.min(flatBelow, fr[j][1]);
+        check('보기: 평지도 발이 바닥(0) 밑에 없다 · 마운드 없음', flatBelow > -1e-9 && flat.mound === null, `${flatBelow}`);
+
+        /* 몸통 꼬임 — 어깨를 골반보다 90° 더 돌린 장면 → TWIST_MAX 안 */
+        const f0 = frames[Math.floor(frames.length / 2)].map((p) => [...p] as Vec3);
+        const hipMid = scale(add(f0[V2J.lHip], f0[V2J.rHip]), 0.5);
+        const shMid = scale(add(f0[V2J.lSh], f0[V2J.rSh]), 0.5);
+        const T = normalize(sub(shMid, hipMid));
+        const twistOf = (fr: Vec3[]) => {
+          const pj = (v: Vec3) => sub(v, scale(T, dot(v, T)));
+          const lh = pj(sub(fr[V2J.lHip], fr[V2J.rHip]));
+          const ls = pj(sub(fr[V2J.lSh], fr[V2J.rSh]));
+          return (Math.abs(Math.atan2(dot(cross(lh, ls), T), dot(lh, ls))) * 180) / Math.PI;
+        };
+        const lh0 = sub(f0[V2J.lHip], f0[V2J.rHip]);
+        const ls0 = normalize(sub(lh0, scale(T, dot(lh0, T))));
+        const half = norm(sub(f0[V2J.lSh], f0[V2J.rSh])) / 2;
+        const twisted = f0.map((p) => [...p] as Vec3);
+        const side90 = normalize(cross(T, ls0));
+        twisted[V2J.lSh] = add(shMid, scale(side90, half));
+        twisted[V2J.rSh] = add(shMid, scale(side90, -half));
+        const before = twistOf(twisted);
+        limitTwist([twisted]);
+        const after = twistOf(twisted);
+        check(`보기: 몸통 꼬임 ${before.toFixed(0)}° → ${TWIST_MAX_DEG}° 안`, after <= TWIST_MAX_DEG + 0.5, `${after.toFixed(1)}°`);
+
+        /* 손목 — 손을 아래팔에서 120° 꺾음: 확신 100 이면 한계 안, 확신 0 이면 곧게 */
+        const bentHand = (cf: number) => {
+          const fr = frames[Math.floor(frames.length / 2)].map((p) => [...p] as Vec3);
+          const el = fr[V2J.rEl];
+          const wr = fr[V2J.rWr];
+          const df = normalize(sub(wr, el));
+          const side = normalize(cross(df, [0, 1, 0]));
+          const nAx = normalize(cross(df, side));
+          const th = (120 * Math.PI) / 180;
+          const a = add(scale(df, Math.cos(th)), scale(nAx, Math.sin(th)));
+          fr[V2J.rHandMid] = add(wr, scale(a, 0.09));
+          fr[V2J.rHandIdx] = add(fr[V2J.rHandMid], scale(side, -0.02));
+          fr[V2J.rHandPinky] = add(fr[V2J.rHandMid], scale(side, 0.03));
+          const conf = [new Array(25).fill(cf)];
+          limitWrists([fr], conf);
+          const a2 = normalize(sub(fr[V2J.rHandMid], wr));
+          return (Math.acos(Math.max(-1, Math.min(1, dot(df, a2)))) * 180) / Math.PI;
+        };
+        const sure = bentHand(100);
+        const blur = bentHand(0);
+        check('보기: 120° 꺾인 손목 → 75° 안(확신 높음) · 곧게(확신 0)', sure <= 75.5 && blur < 1, `${sure.toFixed(1)}° · ${blur.toFixed(1)}°`);
+
+        /* 투수판 — 축발이 투수판 위가 아니라 앞에 선다(2026-10-09 김민: "투구판 위에 올라가서 밟고 던진다") */
+        {
+          const pc = tr.contacts.find((c) => c.side === 'R' && c.from <= fp);
+          const footBack = pc
+            ? Math.min(...[V2J.rAn, V2J.rHe, V2J.rTo].map((j) => tr.frames[pc.from][j][0]))
+            : NaN;
+          check(
+            '보기: 투수판 앞 모서리가 축발 뒤 가장자리보다 뒤(발이 투수판 앞)',
+            tr.mound != null && tr.mound.x0 < footBack - 0.01,
+            tr.mound ? `${tr.mound.x0.toFixed(3)} < ${footBack.toFixed(3)}` : '마운드 없음'
+          );
+        }
+
+        /* 목 · 머리 — 귀선을 어깨선에서 120° 돌리고(뒤바뀐 귀 포함) 머리를 몸통에서 80° 기울인 장면 */
+        {
+          const fr = frames[Math.floor(frames.length / 2)].map((p) => [...p] as Vec3);
+          const neck = scale(add(fr[V2J.lSh], fr[V2J.rSh]), 0.5);
+          const t = normalize(sub(neck, scale(add(fr[V2J.lHip], fr[V2J.rHip]), 0.5)));
+          const lAx = normalize(sub(sub(fr[V2J.lSh], fr[V2J.rSh]), scale(t, dot(sub(fr[V2J.lSh], fr[V2J.rSh]), t))));
+          const fAx = cross(lAx, t);
+          const rot = (v: Vec3, k: Vec3, th: number) =>
+            add(add(scale(v, Math.cos(th)), scale(cross(k, v), Math.sin(th))), scale(k, dot(k, v) * (1 - Math.cos(th))));
+          const tilt = rot(t, lAx, (80 * Math.PI) / 180);
+          const head = add(neck, scale(tilt, 0.12));
+          const ear = rot(lAx, t, (120 * Math.PI) / 180);
+          fr[V2J.lEar] = add(head, scale(ear, 0.07));
+          fr[V2J.rEar] = add(head, scale(ear, -0.07));
+          fr[V2J.nose] = add(head, scale(fAx, 0.05));
+          limitHead([fr]);
+          const e = sub(fr[V2J.lEar], fr[V2J.rEar]);
+          const ep = sub(e, scale(t, dot(e, t)));
+          const turn = (Math.abs(Math.atan2(dot(cross(lAx, ep), t), dot(lAx, ep))) * 180) / Math.PI;
+          const a = sub(scale(add(fr[V2J.lEar], fr[V2J.rEar]), 0.5), neck);
+          const tiltAfter = (Math.atan2(norm(cross(t, a)), dot(t, a)) * 180) / Math.PI;
+          check(
+            `보기: 머리 돌림 ${NECK_TURN_DEG}° · 기울임 ${NECK_TILT_DEG}° 안(120° · 80° 에서)`,
+            turn <= NECK_TURN_DEG + 0.5 && tiltAfter <= NECK_TILT_DEG + 0.5,
+            `${turn.toFixed(1)}° · ${tiltAfter.toFixed(1)}°`
+          );
+        }
+
+        /* 어깨 — 던지는 위팔이 어깨선 뒤로 80° 간 장면 → SHOULDER_BACK 안 · 팔 길이 그대로 */
+        {
+          const fr = frames[Math.floor(frames.length / 2)].map((p) => [...p] as Vec3);
+          const neck = scale(add(fr[V2J.lSh], fr[V2J.rSh]), 0.5);
+          const t = normalize(sub(neck, scale(add(fr[V2J.lHip], fr[V2J.rHip]), 0.5)));
+          const lAx = normalize(sub(sub(fr[V2J.lSh], fr[V2J.rSh]), scale(t, dot(sub(fr[V2J.lSh], fr[V2J.rSh]), t))));
+          const fAx = cross(lAx, t);
+          const out = scale(lAx, -1);
+          const th = (80 * Math.PI) / 180;
+          const dir = add(scale(out, Math.cos(th)), scale(fAx, -Math.sin(th)));
+          const sh = fr[V2J.rSh];
+          const L1 = norm(sub(fr[V2J.rEl], sh));
+          fr[V2J.rEl] = add(sh, scale(dir, L1));
+          fr[V2J.rWr] = add(fr[V2J.rEl], scale(dir, 0.15));
+          const fore0 = norm(sub(fr[V2J.rWr], fr[V2J.rEl]));
+          limitShoulders([fr]);
+          const u = sub(fr[V2J.rEl], sh);
+          const backDeg = (Math.atan2(-dot(u, fAx), dot(u, out)) * 180) / Math.PI;
+          check(
+            `보기: 위팔이 어깨선 뒤로 ${SHOULDER_BACK_DEG}° 안(80° 에서) · 길이 그대로`,
+            backDeg <= SHOULDER_BACK_DEG + 0.5 &&
+              Math.abs(norm(u) - L1) < 1e-9 &&
+              Math.abs(norm(sub(fr[V2J.rWr], fr[V2J.rEl])) - fore0) < 1e-9,
+            `${backDeg.toFixed(1)}°`
+          );
+        }
+
+        /* 던지는 손바닥 — 손 점이 흐리고 손목이 빨리 움직이면 손바닥이 움직이는 쪽을 본다 */
+        {
+          const seq = Array.from({ length: 9 }, (_, k) => {
+            const fr = frames[Math.floor(frames.length / 2)].map((p) => [...p] as Vec3);
+            const shift: Vec3 = [0.06 * k, 0, 0];
+            for (let j = 0; j < fr.length; j++) fr[j] = add(fr[j], shift);
+            const wr = fr[V2J.rWr];
+            const df = normalize(sub(wr, fr[V2J.rEl]));
+            fr[V2J.rHandMid] = add(wr, scale(df, 0.09));
+            /* 손바닥이 +x 와 반대(뒤)를 보게 둔다 — 오른손 손바닥 = 손 축 × (새끼 − 검지) */
+            const w = normalize(cross([1, 0, 0], df));
+            fr[V2J.rHandIdx] = add(fr[V2J.rHandMid], scale(w, -0.02));
+            fr[V2J.rHandPinky] = add(fr[V2J.rHandMid], scale(w, 0.02));
+            return fr;
+          });
+          /* 오른손목만 빨리(+x) — 나머지는 그대로 두어 손목 빠르기가 가장 빠른 것 */
+          seq.forEach((fr, k) => {
+            for (const j of [V2J.rWr, V2J.rHandIdx, V2J.rHandMid, V2J.rHandPinky]) fr[j] = add(fr[j], [0.1 * k, 0, 0]);
+          });
+          const conf = seq.map(() => new Array(25).fill(0));
+          limitWrists(seq, conf, 'R');
+          const fr = seq[4];
+          const a2 = normalize(sub(fr[V2J.rHandMid], fr[V2J.rWr]));
+          const palm = normalize(cross(a2, sub(fr[V2J.rHandPinky], fr[V2J.rHandIdx])));
+          const v = normalize(sub(seq[5][V2J.rWr], seq[3][V2J.rWr]));
+          const vp = normalize(sub(v, scale(a2, dot(v, a2))));
+          const ang = (Math.acos(Math.max(-1, Math.min(1, dot(palm, vp)))) * 180) / Math.PI;
+          check('보기: 흐린 던지는 손 — 손바닥이 손목이 움직이는 쪽을 본다(30° 안)', ang < 30, `${ang.toFixed(1)}°`);
+        }
+
+        /* 떨림 — 가만있는 점의 잡음은 줄이고 빠른 점의 움직임은 지킨다 */
+        let seedR = 7;
+        const rnd = () => ((seedR = (seedR * 16807) % 2147483647) / 2147483647 - 0.5) * 0.02;
+        const seq: Vec3[][] = Array.from({ length: 120 }, (_, k) => [
+          [rnd(), 1 + rnd(), rnd()] as Vec3,
+          [Math.sin((k / 120) * Math.PI * 6) * 0.8, 1, 0] as Vec3,
+        ]);
+        const sd = (xs: number[]) => {
+          const m = xs.reduce((a, v) => a + v, 0) / xs.length;
+          return Math.sqrt(xs.reduce((a, v) => a + (v - m) ** 2, 0) / xs.length);
+        };
+        const sd0 = sd(seq.map((f) => f[0][1]));
+        const pp0 = Math.max(...seq.map((f) => f[1][0])) - Math.min(...seq.map((f) => f[1][0]));
+        smoothAdaptive(seq);
+        const sd1 = sd(seq.map((f) => f[0][1]));
+        const pp1 = Math.max(...seq.map((f) => f[1][0])) - Math.min(...seq.map((f) => f[1][0]));
+        check('보기: 가만있는 점 잡음 절반 밑 · 빠른 점 움직임 95% 넘게 남음', sd1 < sd0 * 0.5 && pp1 > pp0 * 0.95, `잡음 ${(sd1 / sd0).toFixed(2)}배 · 움직임 ${(pp1 / pp0).toFixed(3)}배`);
       }
     }
   }
@@ -961,6 +1161,20 @@ console.log('■ 발 고정 — 축발(처음 ~ 벗어나기 전) · 앞발(착�
       `붙어 있어야 할 발이 흔들리지 않는다(표준편차 키의 0.2% 밑, 씨앗 ${seed})`,
       f != null && f.pivot < 2 && f.lead < 2,
       f ? `축발 ${f.pivot.toFixed(1)} · 앞발 ${f.lead.toFixed(1)}` : '맞추기 실패'
+    );
+  }
+}
+
+console.log('■ 발 순간이동 — 닿기 · 떨어지기를 섞어 잇고, 다리 이름이 바뀌어도 들린 발을 묶지 않는다');
+{
+  /* 고치기 전(축발을 처음 ~ 니업 늘 묶음 · 앞발을 착지 장면에 한 번에 붙임) 씨앗 11 · 22: 그대로 3.9 · 2.8%, 다리 이름 바뀜 20.8 · 21.1% */
+  for (const seed of [11, 22]) {
+    const ok = footJump(seed);
+    const sw = footJump(seed, true);
+    check(
+      `발 한 장면 최대 이동 — 그대로 · 다리 이름 바뀜 모두 키의 4% 밑, 바뀜을 알아챔(씨앗 ${seed})`,
+      ok != null && sw != null && ok.jump < 0.04 && sw.jump < 0.04 && sw.legsSwapped && !ok.legsSwapped,
+      ok && sw ? `${(ok.jump * 100).toFixed(1)}% · ${(sw.jump * 100).toFixed(1)}% · 바꿈 ${ok.legsSwapped}/${sw.legsSwapped}` : '맞추기 실패'
     );
   }
 }
