@@ -40,6 +40,8 @@ node scripts/velocity-lab/fov-crop.mjs ~/bullpen-velocity-lab/device/fov-<시각
 node --env-file=.env scripts/velocity-lab/download.mjs --date=<날짜> --live
 ~/bullpen-velocity-lab/native-decode/decode ~/bullpen-velocity-lab/<날짜>/frames ~/bullpen-velocity-lab/<날짜>/live/*.mp4
 node scripts/velocity-lab/app-rerun.mts --date=<날짜> --d=18.5
+# 9) 현장 기록 점검 — 폰 알림(공 · 움직임)마다 앱과 같은 구간을 맥에서 다시 재 진짜 투구였나 · 잴 수 있었나 · 까닭을 한 줄씩
+node scripts/velocity-lab/session-audit.mts ~/bullpen-velocity-lab/device/<세션> --d=20
 ```
 
 맥에서 폰에 바로 깔기(개발용 빌드, 1~2분 — TestFlight 30~50분 대신):
