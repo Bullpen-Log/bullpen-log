@@ -22,7 +22,9 @@ import {
   mulV,
   norm,
   normalize,
+  reject,
   robustCv,
+  rodrigues,
   scale,
   sub,
   transpose,
@@ -643,18 +645,35 @@ function fitOnce(input: V2Input): {
     const w = [...weight[k]];
     const gapFilled = new Set<number>();
     const prev = X[k - 1];
+    /*
+     * 짝에서 이 점 쪽 방향 — 앞 장면의 같은 선(엉덩이선 · 어깨선)을 그사이 다른 선이 위 축 둘레로 돈 만큼 돌린 것. 예전엔 늘 어깨선
+     * 방향이라, 골반과 어깨가 30~60° 비틀린 착지 ~ 릴리스에 엉덩이 하나가 안 보이면 채운 엉덩이가 키의 7% 엉뚱한 자리로 가 골반이 한 장면에
+     * 12cm 튀었다(2026-10-09 좌투 샘플 — 엉덩이는 두 샘플 모두 착지 뒤 자주 가려진다).
+     */
+    const carriedLine = (j: number, pair: number, isSh: boolean): Vec3 | null => {
+      if (!prev) return null;
+      const v = sub(prev[j], prev[pair]);
+      if (norm(v) < 1e-6) return null;
+      const [oa, ob] = isSh ? [V2J.lHip, V2J.rHip] : [V2J.lSh, V2J.rSh];
+      const a0 = reject(sub(prev[oa], prev[ob]), U);
+      const A = fr[oa];
+      const B = fr[ob];
+      const a1 = A && B ? reject(sub(A, B), U) : null;
+      if (!a1 || norm(a0) < 1e-6 || norm(a1) < 1e-6) return normalize(v);
+      const th = Math.atan2(dot(cross(a0, a1), U), dot(a0, a1));
+      return normalize(mulV(rodrigues(scale(U, th)), v));
+    };
     /* 뿌리(골반 · 어깨 · 코) — 없으면 짝 · 앞 장면 · 다른 뿌리에서 */
     const rootFill = (j: number, pair: number, up: number) => {
       if (fr[j]) return;
       filled++;
       w[j] = 0;
       const mate = fr[pair];
-      const lat = lateralAt(fr);
+      const isSh = j === V2J.lSh || j === V2J.rSh;
       const sgn = j === V2J.lSh || j === V2J.lHip ? 1 : -1;
-      const width = lengthOf.get(
-        j === V2J.lSh || j === V2J.rSh ? 'shoulders' : 'hips'
-      )!;
-      if (mate) fr[j] = add(mate, scale(lat, sgn * width));
+      const width = lengthOf.get(isSh ? 'shoulders' : 'hips')!;
+      if (mate)
+        fr[j] = add(mate, scale(carriedLine(j, pair, isSh) ?? scale(lateralAt(fr), sgn), width));
       else if (prev) fr[j] = prev[j];
       else {
         const other = fr[up];
@@ -826,7 +845,15 @@ function fitOnce(input: V2Input): {
           if (runs[i].to >= from0 && runs[i].from < fp) runs.splice(i, 1);
         const to = Math.min(n - 1, rel + Math.round(span / 2));
         if (to - fp + 1 >= 3 && median(h.slice(fp, rel + 1)) <= top) {
-          runs.push({ from: fp, to, m: med(s.slice(fp, rel + 1)) });
+          /*
+           * 착지 순간이 일러 발이 아직 내려오는 중이면(묶을 자리에서 CONTACT_STAY 밖) 그 장면은 묶지 않는다 — 예전엔 착지 장면에 발을 나중 자리로
+           * 못 박아 다리 길이만큼 골반이 끌려 한 장면에 12cm 튀고, 끌린 골반이 영상과 멀어 14장면 동안 '안 보임'이 됐다(2026-10-09 좌투 샘플:
+           * 앞발 발목이 착지 뒤 20장면 동안 키의 8% 더 내려갔다). 합성처럼 착지 뒤 5cm 안에서 흔들리는 발은 그대로 착지부터 묶인다.
+           */
+          const m0 = med(s.slice(fp, rel + 1));
+          let a = fp;
+          while (a < to - 2 && norm(sub(s[a], m0)) > stay) a++;
+          runs.push({ from: a, to, m: med(s.slice(a, Math.max(a, rel) + 1)) });
           runs.sort((x, y) => x.from - y.from);
           /* 겹치는 구간은 착지 구간에 녹인다 */
           for (let i = runs.length - 1; i > 0; i--)

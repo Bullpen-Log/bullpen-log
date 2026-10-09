@@ -250,8 +250,8 @@ def run_job(
             return {"status": "failed", "code": e.code, "stage": "upload", "stages": stages}
         mark("upload")
         parsed = json.loads(result_json)
-        if dry:  # 2D 관절도 돌려준다 — 화면 그대로(섞기 · 각도 모델)를 영상에 비춰 보는 시험용
-            return {"status": "done" if parsed.get("ok") else "failed", "stages": stages, "result": parsed, "tracks": fine}
+        if dry:  # 2D 관절도 돌려준다 — 화면 그대로(섞기 · 각도 모델)를 영상에 비춰 보는 시험용, 거친 것은 순간 찾기(segment)를 다시 돌려 볼 때
+            return {"status": "done" if parsed.get("ok") else "failed", "stages": stages, "result": parsed, "tracks": fine, "coarse": tracks}
         if parsed.get("ok"):
             return {"status": "done", "stages": stages, "frames": len(parsed.get("t", []))}
         return {"status": "failed", "code": parsed.get("code", "internal"), "stage": parsed.get("stage", "fit"), "stages": stages}

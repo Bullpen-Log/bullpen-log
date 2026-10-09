@@ -48,7 +48,7 @@ import { makeV2Track } from './pitch-lab/synth-v2.mts';
 import { footJump, footSway, gapWristError, hipSnap, leadGapJump } from './pitch-lab/gap-check.mts';
 import { readFileSync } from 'node:fs';
 import { blendAi, displayTrack, readAiGate, readAiJoints, readAiMiss } from '../lib/pitch-3d/v2/display.ts';
-import { KIN_LIMITS, kinematicTrack } from '../lib/pitch-3d/v2/kinematics.ts';
+import { KIN_LIMITS, KIN_SPEED, kinematicTrack, twoBoneIk } from '../lib/pitch-3d/v2/kinematics.ts';
 import {
   moundHeightAt,
   PART_NAMES,
@@ -766,6 +766,60 @@ console.log('■ node 실행기(segment · fit)');
       seg3.ok && seg.ok ? `${seg3.events.release.toFixed(2)} · ${seg.events.release.toFixed(2)}` : seg3.ok ? '' : seg3.code
     );
   }
+  /*
+   * 던진 뒤 걸어 나가며 팔을 빨리 흔드는 장면(보통 속도 구간)에 던지는 손 쪽 발이 앞발을 지나 앞에 있다 — 손목이 가장 빠른 때를 채찍으로 보면
+   * 그쪽을 릴리스로 잡았다(2026-10-09 좌투 샘플: 구간 전체가 투구 뒤로 밀림). 앞발이 던지는 손 반대쪽인 채찍을 쓴다.
+   */
+  if (seg.ok) {
+    const s4 = makeV2Track(sc, camS, sc.side, 'side', 41);
+    const b4 = makeV2Track(sc, camB, sc.back, 'back', 42);
+    const fr = s4.track.frames;
+    const hipX = (f: (typeof fr)[number]) => (f.p[V2J.lHip][0] + f.p[V2J.rHip][0]) / 2;
+    const iFp = fr.findIndex((f) => f.t >= s4.toMedia(EV.footPlant));
+    const homeSign = Math.sign(hipX(fr[iFp]) - hipX(fr[0])) || 1;
+    const trunkPx = Math.abs(fr[0].p[V2J.lSh][1] - fr[0].p[V2J.lHip][1]) || 100;
+    const last = fr[fr.length - 1];
+    const dt = fr[1].t - fr[0].t;
+    for (let q = 1; q <= 24; q++) {
+      const p = last.p.map((o) => [...o] as [number, number, number]);
+      /* 던지는 손(R) 손목이 어깨 둘레로 빠르게 앞뒤로 흔들림(걸을 때처럼) · 던지는 손 쪽 발(R)이 앞발보다 앞 */
+      const shX = (last.p[V2J.lSh][0] + last.p[V2J.rSh][0]) / 2;
+      p[V2J.rWr][0] = shX + homeSign * trunkPx * 1.0 * Math.sin((q * Math.PI) / 4);
+      for (const j of [V2J.rAn, V2J.rHe, V2J.rTo]) p[j][0] = last.p[V2J.lAn][0] + homeSign * trunkPx * 0.9;
+      fr.push({ t: last.t + q * dt, p });
+    }
+    const seg4 = pickSegment({ side: s4.track, back: b4.track });
+    check(
+      '던진 뒤 빠른 팔 흔들기(던지는 쪽 발이 앞)가 있어도 같은 릴리스를 찾는다(0.05초 안)',
+      seg4.ok && Math.abs(seg4.events.release - seg.events.release) < 0.05,
+      seg4.ok ? `${seg4.events.release.toFixed(2)} · ${seg.events.release.toFixed(2)}` : seg4.code
+    );
+  }
+  /*
+   * 앞발이 앞으로 가기를 멈춘 뒤에도 공중에서 내려오는 투수 — 예전엔 멈춘 순간을 착지로 잡아, 엔진이 공중의 발을 디딘 자리에 묶어 골반이
+   * 한 장면에 12cm 튀었다(2026-10-09 좌투 샘플: 착지 뒤 0.45초 동안 발목이 몸통 길이의 0.35 내려옴). 발 높이로 착지를 다듬는다.
+   */
+  if (seg.ok) {
+    const s5 = makeV2Track(sc, camS, sc.side, 'side', 41);
+    const b5 = makeV2Track(sc, camB, sc.back, 'back', 42);
+    const fr = s5.track.frames;
+    const trunkPx = Math.abs(fr[0].p[V2J.lSh][1] - fr[0].p[V2J.lHip][1]) || 100;
+    const fp0 = seg.events.footPlant;
+    const LIFT = 0.12;
+    /* 착지 0.1초 전부터 앞발(L)을 그대로 두되 몸통 길이 0.5 만큼 들었다가, 착지 뒤 LIFT 초 동안 내린다 */
+    for (const f of fr) {
+      const a = (f.t - (fp0 - 0.1)) / 0.1;
+      const b = (f.t - fp0) / LIFT;
+      const up = f.t < fp0 - 0.1 ? 0 : f.t < fp0 ? a : b < 1 ? 1 - b : 0;
+      if (up > 0) for (const j of [V2J.lAn, V2J.lHe, V2J.lTo]) f.p[j][1] -= up * 0.5 * trunkPx;
+    }
+    const seg5 = pickSegment({ side: s5.track, back: b5.track });
+    check(
+      '착지 뒤에도 내려오는 앞발 — 착지를 발이 땅 가까이 온 때로(0.06 ~ 0.14초 늦게)',
+      seg5.ok && seg5.events.footPlant - fp0 > 0.06 && seg5.events.footPlant - fp0 < 0.14,
+      seg5.ok ? `${(seg5.events.footPlant - fp0).toFixed(3)}초` : seg5.code
+    );
+  }
   /* segment 가 찾은 순간을 fit 이 넘겨받는다 — 잘라 낸 구간에서 다시 찾다 실패한 2026-10-08 샘플 1 · 3 */
   check('fit 입력 순간: 착지 < 릴리스면 그대로', readV2Events({ kneeUp: 1, footPlant: 2, release: 2.5 })?.release === 2.5);
   check('fit 입력 순간: 뒤바뀌거나 없으면 버림(다시 찾기)', !readV2Events({ footPlant: 2, release: 1 }) && !readV2Events(null));
@@ -774,6 +828,7 @@ console.log('■ node 실행기(segment · fit)');
       runFit({ side: s.track, back: b.track, hand: 'R', jobId: JOB_ID, poseModel: 'synth', screenRecorded: true, slowmoFps: 240, events: seg.events })
     );
     check('fit: segment 순간을 넘기면 끝까지 간다', withEv.ok === true, withEv.ok ? '' : String(withEv.code));
+    /* 골반 가운데가 한 장면에 움직인 가장 큰 값(키 1000 단위) — from ~ to 영상 초 안 */
   }
   const json = runFit({
     side: s.track,
@@ -1221,6 +1276,116 @@ console.log('■ 뼈대 자세(pose-rig) — public/models/skeleton-parts.json +
           const ang = deg(Math.acos(Math.max(-1, Math.min(1, dot(a, b)))));
           /* 비틀림 한계(60°) + 그 사이 넙다리 방향이 바뀐 몫 — 뒤(180°)를 보지 않으면 된다 */
           check(`각도 모델: 무릎이 뒤를 봐도(180°) 넙다리가 ${KIN_LIMITS.hipRotation}° 남짓만 돈다`, ang < 80, `${ang.toFixed(1)}°`);
+        }
+
+        /* 12 손 점이 손등 쪽으로 넘어가며(−150° → +150°, 손이 아래팔 뒤로 접힘) 잡혀도 손이 한 장면에 뒤집히지 않는다(2026-10-09 샘플 4 글러브 손 78°) */
+        {
+          const seq = seqOf(20, (fr, k) => {
+            const wr = fr[V2J.rWr];
+            const df = normalize(sub(wr, fr[V2J.rEl]));
+            const side = normalize(cross(df, [0, 1, 0]));
+            const nAx = normalize(cross(df, side));
+            const th = ((-150 + (300 * k) / 19) * Math.PI) / 180;
+            const a = add(scale(df, Math.cos(th)), scale(nAx, Math.sin(th)));
+            fr[V2J.rHandMid] = add(wr, scale(a, 0.09));
+            fr[V2J.rHandIdx] = add(fr[V2J.rHandMid], scale(side, -0.02));
+            fr[V2J.rHandPinky] = add(fr[V2J.rHandMid], scale(side, 0.03));
+          });
+          const out = kinematicTrack(seq, fullConf(20), []).frames;
+          let worst = 0;
+          for (let k = 1; k < 20; k++) {
+            const a = normalize(sub(out[k][V2J.rHandMid], out[k][V2J.rWr]));
+            const b = normalize(sub(out[k - 1][V2J.rHandMid], out[k - 1][V2J.rWr]));
+            worst = Math.max(worst, deg(Math.acos(Math.max(-1, Math.min(1, dot(a, b))))));
+          }
+          check(`각도 모델: 손이 아래팔 뒤로 넘어가며 잡혀도 한 장면에 ${KIN_LIMITS.wristRatePerFrame}° 남짓까지만 돈다`, worst <= KIN_LIMITS.wristRatePerFrame + 3, `${worst.toFixed(1)}°`);
+        }
+
+        /* 13 거의 편 다리를 땅에 맞춰 조금 접어도 무릎이 장면마다 앞 · 옆으로 뒤집히지 않는다(2026-10-09 좌투 샘플 착지 41 ~ 55°) */
+        {
+          const hip = mid0[V2J.lHip];
+          const an = mid0[V2J.lAn];
+          const ax = normalize(sub(an, hip));
+          const side = normalize(cross(ax, [0, 0, 1]));
+          const fwd = normalize(cross(side, ax));
+          const L = norm(sub(an, hip)) / 2;
+          let worst = 0;
+          let prev: Vec3 | null = null;
+          for (let k = 0; k < 20; k++) {
+            /* 무릎은 선 위에서 옆으로 ±0.5mm 흔들림(잡음) — 굽은 쪽을 정할 수 없다 */
+            const knee = add(add(hip, scale(ax, L)), scale(side, (k % 2 ? -1 : 1) * 0.0005));
+            const target = add(hip, scale(ax, 1.9 * L));
+            const kn = twoBoneIk(hip, knee, add(hip, scale(ax, 2 * L)), target, fwd);
+            const dir = normalize(sub(kn, add(hip, scale(ax, dot(sub(kn, hip), ax)))));
+            if (prev) worst = Math.max(worst, deg(Math.acos(Math.max(-1, Math.min(1, dot(dir, prev))))));
+            prev = dir;
+          }
+          check('각도 모델: 편 다리를 접을 때 무릎이 굽는 쪽(hint)으로 — 장면마다 안 뒤집힌다', worst < 5, `${worst.toFixed(1)}°`);
+        }
+
+        /* 14 땅을 디딘 다리의 무릎이 4장면 옆으로 튀어도(엔진 실수 — 좌투 샘플 착지 뒤 넙다리 35~38°) 넙다리는 사람 빠르기까지만 돈다 */
+        {
+          const hip = mid0[V2J.lHip];
+          const an = mid0[V2J.lAn];
+          const ax = normalize(sub(an, hip));
+          const { f } = trunkOf(mid0);
+          const L1 = norm(sub(mid0[V2J.lKn], hip));
+          const L2 = norm(sub(an, mid0[V2J.lKn]));
+          /* 무릎을 앞으로 굽힌 자리(발목은 그대로) */
+          const bentKnee = twoBoneIk(hip, add(hip, scale(ax, L1)), add(hip, scale(ax, L1 + L2)), add(hip, scale(ax, 0.9 * (L1 + L2))), f);
+          const seq = seqOf(15, (fr, k) => {
+            fr[V2J.lAn] = add(hip, scale(ax, 0.9 * (L1 + L2)));
+            fr[V2J.lKn] = k >= 7 && k <= 10 ? rotAbout(bentKnee, hip, ax, Math.PI / 2) : bentKnee;
+          });
+          const kk = kinematicTrack(seq, fullConf(15), [{ side: 'L', from: 0, to: 14 }], { dt: 1 / 60, hand: 'R' });
+          let worst = 0;
+          for (let k = 1; k < 15; k++) {
+            const a = normalize(sub(kk.frames[k][V2J.lKn], kk.frames[k][V2J.lHip]));
+            const b = normalize(sub(kk.frames[k - 1][V2J.lKn], kk.frames[k - 1][V2J.lHip]));
+            worst = Math.max(worst, deg(Math.acos(Math.max(-1, Math.min(1, dot(a, b))))));
+          }
+          const cap = KIN_SPEED.plantedThigh / 60;
+          check(`각도 모델: 디딘 다리 무릎이 4장면 옆으로 튀어도 넙다리는 한 장면 ${cap}° 남짓까지`, worst <= cap + 1.5, `${worst.toFixed(1)}°`);
+        }
+
+        /*
+         * 15 엉덩이 돌림 — 무릎이 골반 앞에서 110° 까지 돌아간 다리(좌투 샘플 착지 직전 103~159°: 엉덩이가 가려져 엔진 골반이 늦게 열림).
+         * 엉덩이가 안 보이면(확신 20) 영상과 맞는 다리를 그대로 두고, 잘 보이면 사람 범위(70°)로 무릎을 돌려 놓는다.
+         */
+        {
+          const hip = mid0[V2J.lHip];
+          const { t, l, f } = trunkOf(mid0);
+          const thigh = norm(sub(mid0[V2J.lKn], hip));
+          const shank = norm(sub(mid0[V2J.lAn], mid0[V2J.lKn]));
+          const rotK = (v: Vec3, k: Vec3, th: number) =>
+            add(add(scale(v, Math.cos(th)), scale(cross(k, v), Math.sin(th))), scale(k, dot(k, v) * (1 - Math.cos(th))));
+          const seq = seqOf(21, (fr, k) => {
+            const flex = (30 * Math.PI) / 180;
+            const u = normalize(add(scale(t, -Math.cos(flex)), scale(f, Math.sin(flex))));
+            fr[V2J.lKn] = add(hip, scale(u, thigh));
+            const axis0 = normalize(sub(l, scale(u, dot(l, u))));
+            const axis = rotK(axis0, u, ((110 * k) / 20) * (Math.PI / 180));
+            const s2 = rotK(u, axis, (50 * Math.PI) / 180);
+            fr[V2J.lAn] = add(fr[V2J.lKn], scale(normalize(s2), shank));
+            fr[V2J.lHe] = add(fr[V2J.lAn], scale(f, -0.03));
+            fr[V2J.lTo] = add(fr[V2J.lAn], scale(f, 0.12));
+          });
+          const errOf = (hipConf: number) => {
+            const conf = fullConf(21).map((row) => {
+              row[V2J.lHip] = hipConf;
+              row[V2J.rHip] = hipConf;
+              return row;
+            });
+            const out = kinematicTrack(seq, conf, []).frames;
+            return norm(sub(out[20][V2J.lAn], seq[20][V2J.lAn]));
+          };
+          const unseen = errOf(20);
+          const seen = errOf(100);
+          check(
+            '각도 모델: 엉덩이가 가려지면 110° 돈 다리도 그 자리(키의 2% 안) · 보이면 사람 범위로 돌려 놓는다(5% 넘게 옮김)',
+            unseen < 0.02 && seen > 0.05,
+            `${(unseen * 100).toFixed(2)}% · ${(seen * 100).toFixed(2)}%`
+          );
         }
 
         /* 11 AI 보정 섞기 — 같으면 그대로, 흐린 팔은 AI 방향, 묶인 발 쪽 다리는 우리 것, 뼈 길이는 우리 것 */

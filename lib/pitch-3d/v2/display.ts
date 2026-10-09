@@ -2,6 +2,7 @@ import { add, type Vec3 } from '@/lib/pitch-3d/linalg';
 import { V2J, type Pitch3dV2Ok, type V2Contact } from '@/lib/pitch-3d/v2/contract';
 import {
   kinematicTrack,
+  kneePole,
   twoBoneIk,
   type KinematicTrack,
 } from '@/lib/pitch-3d/v2/kinematics';
@@ -222,7 +223,8 @@ export function displayTrack(
   const contacts = readContacts(result);
   const ai = opts.ai ? readAiJoints(result) : null;
   if (ai) ({ frames: raw, conf } = blendAi(raw, ai, conf, contacts, readAiMiss(result), readAiGate(result)));
-  const { frames, refs } = kinematicTrack(raw, conf, contacts);
+  const dt = median(result.t.slice(1).map((t, k) => t - result.t[k]));
+  const { frames, refs } = kinematicTrack(raw, conf, contacts, { dt, hand: result.hand });
 
   /* 2 바닥 하나 */
   const sole = (k: number, side: 'L' | 'R') =>
@@ -296,7 +298,13 @@ export function displayTrack(
       if (!(pen > 1e-9)) continue;
       const up: Vec3 = [0, pen, 0];
       const an = add(fr[F.an], up);
-      fr[F.kn] = twoBoneIk(fr[F.hip], fr[F.kn], fr[F.an], an);
+      fr[F.kn] = twoBoneIk(
+        fr[F.hip],
+        fr[F.kn],
+        fr[F.an],
+        an,
+        kneePole(fr[F.hip], fr[F.kn], refs[k][side === 'L' ? 'thighL' : 'thighR'])
+      );
       fr[F.an] = an;
       fr[F.he] = add(fr[F.he], up);
       fr[F.to] = add(fr[F.to], up);

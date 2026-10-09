@@ -65,6 +65,8 @@ const RELEASE_EXT_RATIO = 0.8;
  * (발끝이 지면에 닿는 프레임과 대조해 맞춘 값)
  */
 const PLANT_SPEED_RATIO = 0.2;
+/** 착지 = 디딘 높이에서 이만큼(몸통 길이 배수) 안으로 발목이 내려온 첫 순간 — 화면 아래로 +, 키의 약 3% */
+const PLANT_Y_TOL = 0.1;
 
 /** 투구로 인정할 최소 팔 전방 신전 (몸통 길이 배수) */
 const MIN_THROW_EXT = 0.4;
@@ -224,7 +226,7 @@ export function detectPitchEvents(
   //    신전의 "전역 최대"를 쓰면 안 된다: 투구가 끝나고 걸어다니는 구간에서
   //    팔이 몸보다 앞에 오래 머물면 그쪽이 더 커질 수 있다. 반면 손목 최고
   //    속도는 어떤 영상에서도 팔 채찍 그 자체라 흔들리지 않는 닻이 된다.
-  const extFor = (dir: 1 | -1) =>
+  const extFor = (dir: 1 | -1): (number | null)[] =>
     smooth(
       frames.map((_, i) => {
         const w = px(i, throwWristIdx);
@@ -247,15 +249,23 @@ export function detectPitchEvents(
     }),
     3
   );
-  let fastIdx = -1;
-  let fastV = 0;
+  /*
+   * 채찍 후보 — 손목 속도의 봉우리들, 빠른 차례. 가장 빠른 봉우리가 투구가 아닐 때가 있다: 슬로모 화면 녹화는 투구만 느리게 재생하고
+   * 앞뒤는 보통 속도라, 공을 던지고 걸어 나가며 팔을 흔드는 것이 화면에서는 진짜 채찍보다 빠르다(2026-10-09 좌투 샘플 — 팔로스루에서
+   * 뒷다리를 차올린 때를 릴리스로 잡아 구간 전체가 투구 뒤로 밀렸다). 그래서 차례로 보며 릴리스 때 앞발이 던지는 손 반대쪽인 첫 후보를 쓴다.
+   */
+  const whips: number[] = [];
   for (let i = 0; i < wristSpeed.length; i++) {
     const v = wristSpeed[i];
-    if (v != null && v > fastV) {
-      fastV = v;
-      fastIdx = i;
-    }
+    if (v == null) continue;
+    const near = wristSpeed.slice(Math.max(0, i - 3), i + 4);
+    if (near.every((u) => u == null || u <= v)) whips.push(i);
   }
+  whips.sort((a, b) => (wristSpeed[b] as number) - (wristSpeed[a] as number));
+  /* 가장 빠른 것의 10분의 1 밑은 잡음(보통 속도 구간은 슬로모 채찍보다 6배쯤 빠를 수 있다) */
+  const topV = whips.length ? (wristSpeed[whips[0]] as number) : 0;
+  while (whips.length > 1 && (wristSpeed[whips[whips.length - 1]] as number) < topV * 0.1) whips.pop();
+  let fastIdx = whips[0] ?? -1;
 
   // 채찍 지점부터 앞으로 훑어 신전의 첫 피크를 찾는다.
   // 피크를 지나 절반 아래로 떨어지거나 인식이 길게 끊기면 멈춘다.
@@ -281,54 +291,84 @@ export function detectPitchEvents(
    * (다리를 든 때)를 릴리스로 잡았다 — 2026-10-09 좌투 샘플에서 '릴리스' 장면에 앞다리가 키의 90% 높이에 들려 있었다.
    * 골반 방향으로 채찍 뒤 피크를 못 찾고 반대 방향으로는 찾으면 반대가 홈이다.
    */
-  let direction: 1 | -1 = hipDirection;
-  let ext = extFor(direction);
-  let extPeakIdx = peakAfterWhip(ext);
   const okPeak = (e: (number | null)[], k: number) =>
     k >= 0 && e[k] != null && (e[k] as number) >= MIN_THROW_EXT;
-  if (!okPeak(ext, extPeakIdx)) {
-    const flipped = -hipDirection as 1 | -1;
-    const extB = extFor(flipped);
-    const peakB = peakAfterWhip(extB);
-    if (okPeak(extB, peakB)) {
-      direction = flipped;
-      ext = extB;
-      extPeakIdx = peakB;
-    }
-  }
-  // 채찍 부근에서 피크를 못 찾으면(인식 결손) 전역 최대로 물러선다.
-  if (extPeakIdx < 0 || ext[extPeakIdx] == null) {
-    let best = 0;
-    for (let i = 0; i < ext.length; i++) {
-      const v = ext[i];
-      if (v != null && v > best) {
-        best = v;
-        extPeakIdx = i;
+  /** 채찍 하나에서 방향 · 릴리스 · 앞발 — 투구로 못 읽으면 null */
+  const throwAt = (whip: number) => {
+    fastIdx = whip;
+    let direction: 1 | -1 = hipDirection;
+    let ext = extFor(direction);
+    let extPeakIdx = peakAfterWhip(ext);
+    if (!okPeak(ext, extPeakIdx)) {
+      const flipped = -hipDirection as 1 | -1;
+      const extB = extFor(flipped);
+      const peakB = peakAfterWhip(extB);
+      if (okPeak(extB, peakB)) {
+        direction = flipped;
+        ext = extB;
+        extPeakIdx = peakB;
       }
     }
-  }
-  const maxExt = extPeakIdx >= 0 ? (ext[extPeakIdx] as number) : 0;
-  if (maxExt < MIN_THROW_EXT || extPeakIdx < 0) return empty(wristSide);
+    // 채찍 부근에서 피크를 못 찾으면(인식 결손) 전역 최대로 물러선다.
+    if (extPeakIdx < 0 || ext[extPeakIdx] == null) {
+      let best = 0;
+      for (let i = 0; i < ext.length; i++) {
+        const v = ext[i];
+        if (v != null && v > best) {
+          best = v;
+          extPeakIdx = i;
+        }
+      }
+    }
+    const maxExt = extPeakIdx >= 0 ? (ext[extPeakIdx] as number) : 0;
+    if (maxExt < MIN_THROW_EXT || extPeakIdx < 0) return null;
 
-  // 피크에서 거꾸로 훑어 80% 선을 넘어선 첫 프레임 = 릴리스.
-  // (공은 팔이 완전히 펴지기 직전에 손을 떠난다)
-  let releaseIdx = extPeakIdx;
-  while (releaseIdx > 0) {
-    const prev = ext[releaseIdx - 1];
-    if (prev == null || prev < maxExt * RELEASE_EXT_RATIO) break;
-    releaseIdx--;
+    // 피크에서 거꾸로 훑어 80% 선을 넘어선 첫 프레임 = 릴리스.
+    // (공은 팔이 완전히 펴지기 직전에 손을 떠난다)
+    let releaseIdx = extPeakIdx;
+    while (releaseIdx > 0) {
+      const prev = ext[releaseIdx - 1];
+      if (prev == null || prev < maxExt * RELEASE_EXT_RATIO) break;
+      releaseIdx--;
+    }
+    // 4) 리드 다리 — 릴리스 때 홈 쪽으로 더 나가 있는 다리.
+    //    좌우 라벨이 아니라 위치로 정하므로 뒤에서 찍혀 좌우가 뒤집혀도 맞다.
+    const la = px(releaseIdx, LM.leftAnkle);
+    const ra = px(releaseIdx, LM.rightAnkle);
+    const leadSide: 'left' | 'right' =
+      la && ra && direction * la.x > direction * ra.x ? 'left' : 'right';
+    return { direction, releaseIdx, leadSide };
+  };
+  /*
+   * 투구다운 채찍 — 앞발이 던지는 손 반대쪽이고(팔로스루에서 뒷다리가 앞발을 지나간 뒤가 아니고), 릴리스 전에 그 앞발이 홈 쪽으로 몸통 길이
+   * 넘게 내디뎠다(던진 뒤 팔이 거꾸로 흔들리면 '반대 방향 투구'로 읽혔다). 다 아니면 가장 빠른 것.
+   */
+  const strode = (t: { direction: 1 | -1; releaseIdx: number; leadSide: 'left' | 'right' }) => {
+    const idx = t.leadSide === 'left' ? LM.leftAnkle : LM.rightAnkle;
+    const at = px(t.releaseIdx, idx);
+    if (!at || at.v < VIS_OK) return false;
+    for (let i = 0; i < t.releaseIdx; i++) {
+      const p = px(i, idx);
+      if (p && p.v >= VIS_OK && (t.direction * (at.x - p.x)) / trunk >= 1) return true;
+    }
+    return false;
+  };
+  let thrown: ReturnType<typeof throwAt> = null;
+  for (const whip of whips.length ? whips : [-1]) {
+    const t = throwAt(whip);
+    if (!t) continue;
+    thrown ??= t;
+    if (t.leadSide !== wristSide && strode(t)) {
+      thrown = t;
+      break;
+    }
   }
+  if (!thrown) return empty(wristSide);
+  const { direction, releaseIdx, leadSide } = thrown;
   const release: PitchEvent = {
     t: frames[releaseIdx].t,
     confidence: px(releaseIdx, throwWristIdx)?.v ?? 0,
   };
-
-  // 4) 리드 다리 — 릴리스 때 홈 쪽으로 더 나가 있는 다리.
-  //    좌우 라벨이 아니라 위치로 정하므로 뒤에서 찍혀 좌우가 뒤집혀도 맞다.
-  const la = px(releaseIdx, LM.leftAnkle);
-  const ra = px(releaseIdx, LM.rightAnkle);
-  const leadSide: 'left' | 'right' =
-    la && ra && direction * la.x > direction * ra.x ? 'left' : 'right';
   const leadAnkleIdx = leadSide === 'left' ? LM.leftAnkle : LM.rightAnkle;
   const leadKneeIdx = leadSide === 'left' ? LM.leftKnee : LM.rightKnee;
 
@@ -367,10 +407,43 @@ export function detectPitchEvents(
       const v = forwardV[i];
       if (v != null && v <= peakV * PLANT_SPEED_RATIO) {
         plantIdx = i;
-        footPlant = { t: frames[i].t, confidence: px(i, leadAnkleIdx)?.v ?? 0 };
         break;
       }
     }
+  }
+  /*
+   * 발 높이로 다듬기 — 앞으로 가기를 멈춘 뒤에도 발이 아직 공중에서 내려오는 투수가 있다(2026-10-09 좌투 샘플: 멈춘 뒤 슬로모 0.45초 동안
+   * 발목이 몸통 길이의 0.35 더 내려와, 엔진이 공중의 발을 디딘 자리에 묶어 골반 · 무릎이 튀었다). 착지 ~ 릴리스 사이 발목 높이의 아래쪽
+   * 4분위(디딘 높이)에서 몸통 길이의 PLANT_Y_TOL 안으로 처음 들어온 장면.
+   */
+  if (plantIdx > 0) {
+    const ys = smooth(
+      frames.map((_, i) => {
+        const p = px(i, leadAnkleIdx);
+        return p && p.v >= VIS_OK ? p.y : null;
+      }),
+      5
+    );
+    const win = ys
+      .slice(plantIdx, releaseIdx + 1)
+      .filter((v): v is number => v != null)
+      .sort((a, b) => a - b);
+    const planted = win.length >= 3 ? win[Math.floor((win.length - 1) * 0.75)] : null;
+    const y0 = ys[plantIdx];
+    /*
+     * 분명히 공중일 때만(디딘 높이보다 PLANT_Y_TOL 의 2.5배 넘게 위) 옮긴다 — 거의 닿은 발을 한두 장면 옮기면 화면 녹화(확대 정도 모름)에서는
+     * 카메라 맞추기가 흔들려 결과가 통째로 달라졌다(2026-10-09 샘플 4: 한 장면 옮겨 초점 1872 → 1817).
+     */
+    if (planted != null && y0 != null && y0 < planted - 2.5 * PLANT_Y_TOL * trunk) {
+      for (let i = plantIdx; i <= releaseIdx; i++) {
+        const y = ys[i];
+        if (y != null && y >= planted - PLANT_Y_TOL * trunk) {
+          plantIdx = i;
+          break;
+        }
+      }
+    }
+    footPlant = { t: frames[plantIdx].t, confidence: px(plantIdx, leadAnkleIdx)?.v ?? 0 };
   }
 
   // 6) 니업 — 착지 전 구간에서 리드 무릎이 골반보다 가장 높이 올라간 순간.

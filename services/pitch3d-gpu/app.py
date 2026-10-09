@@ -215,12 +215,12 @@ def e2e(jobs: str, out: str = ""):
         r = c.get()
         res = r.pop("result", None)
         tracks = r.pop("tracks", None)
+        coarse = r.pop("coarse", None)
         print(json.dumps({"job": os.path.basename(p), "wall_s": round(time.time() - t0, 1), **r}, ensure_ascii=False))
         if out and res is not None:
-            with open(os.path.join(out, os.path.basename(p).replace(".json", ".result.json")), "w", encoding="utf-8") as f:
-                json.dump(res, f)
-            with open(os.path.join(out, os.path.basename(p).replace(".json", ".tracks.json")), "w", encoding="utf-8") as f:
-                json.dump(tracks, f)
+            for kind, body in (("result", res), ("tracks", tracks), ("coarse", coarse)):
+                with open(os.path.join(out, os.path.basename(p).replace(".json", f".{kind}.json")), "w", encoding="utf-8") as f:
+                    json.dump(body, f)
 
 
 if __name__ == "__main__":
