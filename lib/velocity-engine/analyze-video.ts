@@ -2,7 +2,7 @@
 
 import { prepareDetachedVideo, waitForFirstFrame } from './video-open.ts';
 import { toLuma } from './detect.ts';
-import { lumaOfSample } from './luma-plane.ts';
+import { boxLumaOfSample, lumaOfSample } from './luma-plane.ts';
 import { lumaInWorker, lumaPoolSize, warmLumaPool } from './luma-pool.ts';
 import {
   analyzeScale,
@@ -365,6 +365,26 @@ export async function analyzeVideo(options: AnalyzeOptions): Promise<VideoAnalyz
      *    잘랐다(af31e8d0 · f43a7958). 공으로 잡은 구간에서 재지 못하면 예전 구간으로 한 번 더 잰다.
      */
     const duration = dec?.duration ?? (await getVideo()).duration;
+    /* 거친 훑기가 장면을 받는 길 — 디코더가 열렸으면 차례로 풀어(되감기 기다림 없음), 아니면 <video> 되감기 */
+    const videoSource = async (): Promise<CoarseSource> => {
+      const v = await getVideo();
+      return {
+        width: v.videoWidth,
+        height: v.videoHeight,
+        async *draws(seeks: number[]) {
+          for (const seek of seeks) {
+            if (!(await seekTo(seek))) {
+              yield null;
+              return;
+            }
+            yield (c: CanvasRenderingContext2D, w: number, h: number) => c.drawImage(v, 0, 0, w, h);
+          }
+        },
+      };
+    };
+    const coarseSource: CoarseSource | null = dec
+      ? { width: sourceW, height: sourceH, draws: (seeks: number[], w: number, h: number) => dec.coarse(seeks, w, h) }
+      : null;
     let plan: ThrowPlan | null = null;
     let windows: AnalysisWindow[];
     let progressFrom = 0;
@@ -376,9 +396,16 @@ export async function analyzeVideo(options: AnalyzeOptions): Promise<VideoAnalyz
         ? focalPerLongSide * Math.max(sourceW, sourceH)
         : focalPxFromFov(Math.max(sourceW, sourceH), fovDeg);
       const c0 = now();
-      plan = await planFromCoarse(await getVideo(), duration, table, approach, focalLong / sourceW, timing, (r) =>
-        onProgress?.(r * 0.15)
-      );
+      const coarse = async (src: CoarseSource) =>
+        planFromCoarse(src, duration, table, approach, focalLong / sourceW, timing, (r) => onProgress?.(r * 0.15));
+      try {
+        plan = await coarse(coarseSource ?? (await videoSource()));
+      } catch (e) {
+        /* 디코더가 도중에 넘어지면 되감기로 한 번 더 */
+        if (!coarseSource) throw e;
+        decodeOk = false;
+        plan = await coarse(await videoSource());
+      }
       if (plan.ball?.accepted) options.onBall?.();
       timing.coarseMs = now() - c0 - timing.findMs;
       progressFrom = 0.15;
@@ -713,6 +740,41 @@ async function openDecoder(file: File) {
         }
         await Promise.all(inflight);
       },
+      /**
+       * 거친 훑기용 — 짚을 시각들(차례대로)의 장면을 w × h 칸 평균 밝기로(일꾼이 나눠). 예전 캔버스 'high' 줄이기와 같은 뜻이지만 같은
+       * 값은 아니다 — 디코더 장면을 캔버스에 그리면 크롬은 'high' 를 안 먹여(VideoFrame) 작은 공이 깨졌다(같은 장면 평균 4.7 · 최대 76 차).
+       */
+      async *coarse(seeks: number[], cw: number, ch: number) {
+        const jobs: Promise<Float32Array | null>[] = [];
+        for await (const sample of sink.samplesAtTimestamps(seeks)) {
+          if (!sample) {
+            jobs.push(Promise.resolve(null));
+            break;
+          }
+          let frame: VideoFrame | null = null;
+          try {
+            frame = sample.toVideoFrame();
+          } catch {
+            frame = null;
+          }
+          const job = frame ? lumaInWorker(frame, sample.rotation, cw, ch, true) : null;
+          if (job) {
+            sample.close();
+            jobs.push(job.then((r) => r.luma));
+            /* 넘긴 장면이 쌓여 디코더가 멈추지 않게 */
+            if (jobs.length >= 8) await jobs[jobs.length - 8];
+          } else {
+            frame?.close();
+            /* 일꾼이 없으면 여기서 — 장면을 닫기 전에 다 읽는다 */
+            try {
+              jobs.push(Promise.resolve(await boxLumaOfSample(sample, cw, ch)));
+            } finally {
+              sample.close();
+            }
+          }
+        }
+        for (const j of jobs) yield await j;
+      },
       dispose: () => input.dispose(),
     };
   } catch (e) {
@@ -730,8 +792,22 @@ async function openDecoder(file: File) {
  *
  * @param focalPerSourceWidth 초점거리 ÷ 원본 가로(거친 장면 가로를 곱하면 그 장면의 초점거리)
  */
+/**
+ * 거친 훑기가 장면을 받는 길 — 짚을 시각들(차례대로)마다 그 장면을 캔버스에 그리는 함수, 또는 이미 만든 거친 밝기(디코더 길 — 칸
+ * 평균), 못 꺼내면 null
+ */
+type CoarseSource = {
+  width: number;
+  height: number;
+  draws: (
+    seeks: number[],
+    w: number,
+    h: number
+  ) => AsyncGenerator<((ctx: CanvasRenderingContext2D, w: number, h: number) => void) | Float32Array | null>;
+};
+
 async function planFromCoarse(
-  video: HTMLVideoElement,
+  source: CoarseSource,
   duration: number,
   table: FrameTable | null,
   approach: Approach,
@@ -740,7 +816,7 @@ async function planFromCoarse(
   onProgress?: (ratio: number) => void
 ): Promise<ThrowPlan> {
   const w = COARSE_WIDTH;
-  const h = Math.max(1, Math.round((w * video.videoHeight) / video.videoWidth));
+  const h = Math.max(1, Math.round((w * source.height) / source.width));
   const canvas = document.createElement('canvas');
   canvas.width = w;
   canvas.height = h;
@@ -758,28 +834,36 @@ async function planFromCoarse(
     return { seek: seekTimeOf(table, k), label: table.clock(k) };
   };
   const samples: (ThrowSample & { grid: number })[] = [];
-  const drawAt = async (t: number) => {
-    const { seek, label } = at(t);
-    timing.seeks++;
-    const s0 = now();
-    video.currentTime = seek;
-    const ok = await waitForEvent(video, 'seeked', 10_000);
-    timing.seekWaitMs += now() - s0;
-    if (!ok) return null;
-    const d0 = now();
-    ctx.drawImage(video, 0, 0, w, h);
-    const luma = toLuma(ctx.getImageData(0, 0, w, h).data, w, h);
-    timing.drawMs += now() - d0;
-    return { label, luma };
-  };
+  /* 시각들을 차례로 그려 밝기로 — 못 꺼낸 장면에서 멈춘다(예전처럼) */
+  async function* grabs(ts: number[]) {
+    const marks = ts.map(at);
+    let k = 0;
+    for await (const draw of source.draws(
+      marks.map((m) => m.seek),
+      w,
+      h
+    )) {
+      const { label } = marks[k++];
+      if (!draw) return;
+      if (draw instanceof Float32Array) {
+        yield { label, luma: draw };
+        continue;
+      }
+      const d0 = now();
+      draw(ctx as CanvasRenderingContext2D, w, h);
+      const luma = toLuma((ctx as CanvasRenderingContext2D).getImageData(0, 0, w, h).data, w, h);
+      timing.drawMs += now() - d0;
+      yield { label, luma };
+    }
+  }
 
   /* 고른 격자 — 가장 크게 움직인 때는 예전과 똑같이(앞 장과 차이 합이 가장 큰 사이의 한가운데) */
   let prev: Float32Array | null = null;
   let best = -1;
   let peak: number | null = null;
-  for (const [j, t] of times.entries()) {
-    const got = await drawAt(t);
-    if (!got) break;
+  let j = -1;
+  for await (const got of grabs(times)) {
+    const t = times[++j];
     if (prev) {
       let diff = 0;
       for (let i = 0; i < got.luma.length; i++) diff += Math.abs(got.luma[i] - prev[i]);
@@ -795,11 +879,11 @@ async function planFromCoarse(
   }
   if (approach === 'receding') {
     const band = denseBandTimes(duration, step, peak);
-    for (const [j, t] of band.entries()) {
-      const got = await drawAt(t);
-      if (!got) break;
+    let b = -1;
+    for await (const got of grabs(band)) {
+      const t = band[++b];
       samples.push({ grid: t, t: got.label, luma: Uint8Array.from(got.luma, (v) => Math.round(v)) });
-      onProgress?.(0.8 + ((j + 1) / band.length) * 0.2);
+      onProgress?.(0.8 + ((b + 1) / band.length) * 0.2);
     }
     samples.sort((a, b) => a.t - b.t);
   }

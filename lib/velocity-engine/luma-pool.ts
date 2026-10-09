@@ -56,7 +56,9 @@ export function lumaInWorker(
   frame: VideoFrame,
   rotation: number,
   W: number,
-  H: number
+  H: number,
+  /** 거친 훑기 — 칸 평균(boxLumaOfSample) */
+  box = false
 ): Promise<{ luma: Float32Array | null; ms: number }> | null {
   const slots = ensurePool();
   if (!slots || broken) return null;
@@ -64,7 +66,7 @@ export function lumaInWorker(
   const id = nextId++;
   const done = new Promise<{ luma: Float32Array | null; ms: number }>((resolve) => pending.set(id, { slot, resolve }));
   try {
-    slot.w.postMessage({ id, frame, rotation, W, H }, [frame]);
+    slot.w.postMessage({ id, frame, rotation, W, H, box }, [frame]);
   } catch {
     pending.delete(id);
     return null;
