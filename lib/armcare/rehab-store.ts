@@ -22,6 +22,9 @@ import {
   type RehabResult,
   type RehabSessionLike,
   type RehabWeeklyLike,
+  THROW_TAG,
+  parseThrowMemo,
+  type ThrowRecord,
 } from '@/lib/armcare/rehab';
 
 /**
@@ -254,4 +257,20 @@ export async function loadDoneOn(
     select: { exerciseId: true },
   });
   return new Set(rows.map((r) => r.exerciseId));
+}
+
+/**
+ * 투구 복귀표에 던진 날 — 이 재활 동안의 투구 기록 가운데 꼬리표(THROW_TAG)가 붙은 것(lib/armcare/rehab-progress.ts).
+ * 날짜 순. 같은 날 두 줄이면 둘 다(두 번 던진 것).
+ */
+export async function loadRehabThrows(userId: string, startedOn: string): Promise<ThrowRecord[]> {
+  const rows = await prisma.pitchLog.findMany({
+    where: { userId, date: { gte: dayStart(startedOn) }, memo: { startsWith: THROW_TAG } },
+    orderBy: [{ date: 'asc' }, { createdAt: 'asc' }],
+    select: { date: true, pitchCount: true, memo: true },
+  });
+  return rows.flatMap((r) => {
+    const parsed = parseThrowMemo(r.memo);
+    return parsed ? [{ date: toDateKey(r.date), pitches: r.pitchCount, ...parsed }] : [];
+  });
 }

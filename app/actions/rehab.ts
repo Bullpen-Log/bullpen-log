@@ -42,6 +42,14 @@ import {
   type SidePair,
   type StageTestInput,
   type ThrowingTestRecord,
+  DISTANCE_PITCHES,
+  THROW_TAG,
+  isThrowPain,
+  isThrowStep,
+  parseThrowMemo,
+  throwIntensity,
+  throwMemo,
+  throwSessionType,
 } from '@/lib/armcare/rehab';
 import {
   dayStart,
@@ -638,6 +646,82 @@ export async function openThrowingProgram(input: {
     data: { test: { ...before, throwing } as Prisma.InputJsonObject },
   });
   refresh();
+  return { ok: true };
+}
+
+/* ─────────────────────────────── 투구 복귀표 — 던진 날 남기기 ─────────────────────────────── */
+
+/** 같은 것을 두 번 남기지 않는 창(분) — 신호가 약해 답만 못 받고 다시 누른 것(app/api/pitch-log 와 같은 생각) */
+const THROW_DUPLICATE_MS = 2 * 60_000;
+
+/**
+ * 투구 복귀표의 던진 날 — 투구 기록(PitchLog)으로 남긴다: 거리 칸은 캐치볼 50개(절반 힘), 마운드 칸은 불펜 15~60개.
+ * 몇 칸 · 통증은 메모 꼬리표(lib/armcare/rehab-progress.ts 의 throwMemo)로 — 그것으로 다음 칸을 센다(throwingNext).
+ */
+export async function logRehabThrow(input: {
+  step: number;
+  pitches?: number;
+  pain: string;
+}): Promise<Result> {
+  const user = await requireUser();
+  if (!REHAB_ENABLED) return { error: OFF };
+  const active = await loadActiveRehab(user.id);
+  if (!active) return { error: NOT_ACTIVE };
+  if (active.program.stage !== 4) return { error: '투구 복귀표는 4단계에서 해요.' };
+  const step = Number(input.step);
+  if (!isThrowStep(step) || !isThrowPain(input.pain)) return { error: '알 수 없는 값이에요.' };
+  const pitches = Math.round(Number(input.pitches ?? DISTANCE_PITCHES));
+  if (!Number.isFinite(pitches) || pitches < 1 || pitches > 150) return { error: '공 수를 1~150 사이로 적어 주세요.' };
+
+  const todayKey = toDateKey(new Date());
+  const { weeklies } = await loadRehabRecords(user.id, active.id, todayKey);
+  if (!throwingOpenedOn(active.program, weeklies)) return { error: '먼저 투구 복귀표를 열어 주세요.' };
+
+  const memo = throwMemo(step, input.pain);
+  const date = dayStart(todayKey);
+  const duplicate = await prisma.pitchLog.findFirst({
+    where: { userId: user.id, date, memo, createdAt: { gte: new Date(Date.now() - THROW_DUPLICATE_MS) } },
+    select: { id: true },
+  });
+  if (!duplicate) {
+    await prisma.pitchLog.create({
+      data: {
+        userId: user.id,
+        date,
+        sessionType: throwSessionType(step),
+        pitchCount: pitches,
+        intensity: throwIntensity(step, pitches),
+        memo,
+        videoPaths: [],
+      },
+    });
+  }
+  refresh();
+  revalidatePath('/pitch-log');
+  return { ok: true };
+}
+
+/** 마지막으로 던진 날 뒤에 아팠다(1시간 넘게 · 다음 날) — 그 기록의 메모에 붙인다. 다음은 하루 쉬고 같은 칸(throwingNext) */
+export async function markRehabThrowLaterPain(): Promise<Result> {
+  const user = await requireUser();
+  if (!REHAB_ENABLED) return { error: OFF };
+  const active = await loadActiveRehab(user.id);
+  if (!active) return { error: NOT_ACTIVE };
+  const last = await prisma.pitchLog.findFirst({
+    where: { userId: user.id, date: { gte: dayStart(active.program.startedOn) }, memo: { startsWith: THROW_TAG } },
+    orderBy: [{ date: 'desc' }, { createdAt: 'desc' }],
+    select: { id: true, memo: true },
+  });
+  const parsed = parseThrowMemo(last?.memo);
+  if (!last || !parsed) return { error: '던진 기록이 아직 없어요.' };
+  if (!parsed.laterPain) {
+    await prisma.pitchLog.update({
+      where: { id: last.id },
+      data: { memo: throwMemo(parsed.step, parsed.pain, true) },
+    });
+  }
+  refresh();
+  revalidatePath('/pitch-log');
   return { ok: true };
 }
 

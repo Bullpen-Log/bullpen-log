@@ -5,16 +5,22 @@ import { Button } from '@/components/ui';
 import { ErrorLine } from '@/components/error-line';
 import { OFFLINE_MESSAGE, orOffline } from '@/lib/action-offline';
 import {
+  DISTANCE_PITCHES,
   HALF_EFFORT_NOTE,
+  MOUND_SETS,
   THROWING_PAIN_RULES,
   THROWING_STEPS,
+  THROW_PAIN_OPTIONS,
   judgeThrowingOpen,
   throwingFrequency,
   type RehabConditionKey,
   type RehabSeverity,
   type SidePair,
+  type ThrowPain,
+  type ThrowRecord,
+  type ThrowingNext,
 } from '@/lib/armcare/rehab';
-import { openThrowingProgram } from '@/app/actions/rehab';
+import { logRehabThrow, markRehabThrowLaterPain, openThrowingProgram } from '@/app/actions/rehab';
 import { RehabChips, PAIN_OPTIONS } from './rehab-chips';
 import { Ask, JudgedBox, NumberField, num } from './rehab-sheets';
 
@@ -31,6 +37,11 @@ export type RehabThrowingView = {
   condition: RehabConditionKey | null;
   /** 시작하고 지난 날 — 병명 바닥(UCL 6주 등)을 본다 */
   daysSinceStart: number;
+  /** 복귀표에 던진 날들(투구 기록의 꼬리표, 날짜 순) · 다음에 던질 칸 — 아직 안 열었으면 next 는 null */
+  throws: ThrowRecord[];
+  next: ThrowingNext | null;
+  /** 오늘 'YYYY-MM-DD' — 마지막 던진 날이 어제 · 오늘이면 '던진 뒤 아팠어요'를 둔다 */
+  todayKey: string;
 };
 
 /** 투구 복귀표 열기 시험에 적는 것 */
@@ -268,15 +279,55 @@ export function ThrowingOpenFlow({
   );
 }
 
+const PAIN_SHORT: Record<ThrowPain, string> = {
+  none: '안 아픔',
+  faded: '몸 풀 때 아프다 사라짐',
+  stayed: '계속 아픔',
+};
+
+/** 2026-10-09 → 10/9 */
+const md = (key: string) => `${Number(key.slice(5, 7))}/${Number(key.slice(8, 10))}`;
+
 /**
- * 투구 복귀표(가이드라인 11절) — 여섯 칸 · 정도별 빈도 · 던지기 통증 규칙(Axe) · 절반 힘 한 줄. 기록은 남기지 않는다(표만).
+ * 투구 복귀표(가이드라인 11절) — 여섯 칸 · 정도별 빈도 · 던지기 통증 규칙(Axe) · 절반 힘 한 줄.
+ * 던진 날은 투구 기록으로 남고(2026-10-09, 그 전에는 표만), 다음에 던질 칸을 규칙으로 센다(throwingNext) — 지금 칸에 표.
  */
-export function ThrowingProgram({ severity }: { severity: RehabSeverity }) {
+export function ThrowingProgram({
+  severity,
+  view,
+  onLog,
+}: {
+  severity: RehabSeverity;
+  view: RehabThrowingView;
+  /** [오늘 던진 것 남기기] — 카드가 시트를 연다 */
+  onLog: (e: React.MouseEvent<HTMLButtonElement>) => void;
+}) {
+  const next = view.next;
+  const last = view.throws.at(-1);
+  const lastRecent =
+    last != null && !last.laterPain && last.date >= shiftKey(view.todayKey, -1);
   return (
     <div className="space-y-4 text-sm leading-relaxed break-keep">
+      {next && (
+        <div className="space-y-1 rounded-xl bg-sky-tint px-3.5 py-2.5">
+          <p className="font-semibold text-sky-strong">
+            {next.done
+              ? '마운드 칸까지 마쳤어요'
+              : `다음 ${next.step}칸 · ${THROWING_STEPS[next.step - 1].distance}${
+                  next.restUntil ? ` · ${md(next.restUntil)}부터` : ''
+                }`}
+          </p>
+          <p className="text-xs text-ink/85">{next.reason}</p>
+        </div>
+      )}
       <ol className="divide-y divide-line overflow-hidden rounded-xl bg-surface-2">
         {THROWING_STEPS.map((s, i) => (
-          <li key={s.distance} className="flex items-baseline gap-3 px-3.5 py-2.5">
+          <li
+            key={s.distance}
+            className={`flex items-baseline gap-3 px-3.5 py-2.5 ${
+              next && !next.done && next.step === i + 1 ? 'bg-sky/10' : ''
+            }`}
+          >
             <span className="text-numeric w-4 shrink-0 text-xs text-muted">
               {i + 1}
             </span>
@@ -285,6 +336,33 @@ export function ThrowingProgram({ severity }: { severity: RehabSeverity }) {
           </li>
         ))}
       </ol>
+      {next && (
+        <div className="space-y-2">
+          <button
+            type="button"
+            onClick={onLog}
+            className="flex min-h-11 w-full items-center justify-center rounded-full bg-sky text-sm font-bold text-white"
+          >
+            오늘 던진 것 남기기
+          </button>
+          {lastRecent && <LaterPainButton />}
+        </div>
+      )}
+      {view.throws.length > 0 && (
+        <ul className="space-y-1 text-xs text-muted">
+          {[...view.throws].reverse().slice(0, 6).map((t, i) => (
+            <li key={`${t.date}-${i}`} className="flex items-baseline justify-between gap-3">
+              <span>
+                {md(t.date)} · {t.step}칸 {THROWING_STEPS[t.step - 1].distance} · {t.pitches}개
+              </span>
+              <span className={t.pain === 'none' && !t.laterPain ? 'text-ink/70' : 'text-warn'}>
+                {PAIN_SHORT[t.pain]}
+                {t.laterPain ? ' · 던진 뒤 아픔' : ''}
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
       <p className="font-semibold text-sky-strong">{throwingFrequency(severity)}</p>
       <section className="space-y-1.5">
         <h5 className="text-xs font-bold text-muted">던질 때 아프면</h5>
@@ -298,6 +376,109 @@ export function ThrowingProgram({ severity }: { severity: RehabSeverity }) {
         </ul>
       </section>
       <p className="text-xs text-muted">{HALF_EFFORT_NOTE}</p>
+    </div>
+  );
+}
+
+/** 'YYYY-MM-DD' 에 며칠 더한 것 — 화면에서만 쓰는 작은 것(lib/pitch-stats 의 shiftDateKey 와 같다) */
+function shiftKey(key: string, days: number): string {
+  const [y, m, d] = key.split('-').map(Number);
+  return new Date(Date.UTC(y, m - 1, d + days)).toISOString().slice(0, 10);
+}
+
+/** 던지고 1시간 넘게 · 다음 날 아팠다 — 마지막 던진 기록에 붙인다(다음은 하루 쉬고 같은 칸) */
+function LaterPainButton() {
+  const [pending, startPending] = useTransition();
+  const [error, setError] = useState<string>();
+  return (
+    <div className="space-y-1">
+      <button
+        type="button"
+        disabled={pending}
+        onClick={() =>
+          startPending(async () => {
+            setError(undefined);
+            const res = await orOffline(markRehabThrowLaterPain(), { error: OFFLINE_MESSAGE });
+            if ('error' in res) setError(res.error);
+          })
+        }
+        className="mx-auto flex min-h-10 items-center px-3 text-xs font-semibold text-muted disabled:opacity-60"
+      >
+        {pending ? '남기는 중…' : '던진 뒤에(1시간 넘게 · 다음 날) 아팠어요'}
+      </button>
+      {error && <ErrorLine>{error}</ErrorLine>}
+    </div>
+  );
+}
+
+/**
+ * [오늘 던진 것 남기기] 시트 — 몇 칸 · 공 수(마운드 칸은 묶음) · 던질 때 통증. 저장하면 투구 기록 한 줄(logRehabThrow).
+ */
+export function ThrowLogFlow({ view, onDone }: { view: RehabThrowingView; onDone: () => void }) {
+  const [step, setStep] = useState<number>(view.next?.step ?? 1);
+  const [pitches, setPitches] = useState<string>(String(DISTANCE_PITCHES));
+  const [mound, setMound] = useState<number>(MOUND_SETS[0].pitches);
+  const [pain, setPain] = useState<ThrowPain | null>(null);
+  const [pending, startPending] = useTransition();
+  const [error, setError] = useState<string>();
+
+  const isMound = step === THROWING_STEPS.length;
+  const count = isMound ? mound : num(pitches);
+  const filled = pain != null && count != null && count > 0;
+
+  const submit = () => {
+    if (!filled) return;
+    setError(undefined);
+    startPending(async () => {
+      const res = await orOffline(
+        logRehabThrow({ step, pitches: count!, pain: pain! }),
+        { error: OFFLINE_MESSAGE }
+      );
+      if ('error' in res) setError(res.error);
+      else onDone();
+    });
+  };
+
+  return (
+    <div className="space-y-5 text-sm leading-relaxed break-keep">
+      <Ask title="몇 칸을 던졌나요?">
+        <RehabChips
+          label="칸"
+          options={THROWING_STEPS.map((s, i) => ({ value: i + 1, label: `${i + 1}칸 ${s.distance}` }))}
+          value={step}
+          onChange={setStep}
+        />
+        {view.next && view.next.step !== step && (
+          <p className="text-xs text-muted">규칙으로는 {view.next.step}칸 차례예요.</p>
+        )}
+      </Ask>
+      <Ask title={isMound ? '어디까지 던졌나요?' : '몇 개 던졌나요?'}>
+        {isMound ? (
+          <RehabChips
+            label="마운드 묶음"
+            options={MOUND_SETS.map((m) => ({ value: m.pitches, label: m.label }))}
+            value={mound}
+            onChange={setMound}
+            stacked
+          />
+        ) : (
+          <>
+            <NumberField label="공 수" value={pitches} onChange={setPitches} />
+            <p className="text-xs text-muted">가볍게 몸 풀기 → 25개 → 쉬기 → 25개면 50개예요. 절반 힘으로.</p>
+          </>
+        )}
+      </Ask>
+      <Ask title="던질 때 아팠나요?">
+        <RehabChips label="던질 때 통증" options={THROW_PAIN_OPTIONS} value={pain} onChange={setPain} stacked />
+      </Ask>
+      {error && <ErrorLine>{error}</ErrorLine>}
+      <p className="text-xs text-muted">
+        투구 기록에 {isMound ? '불펜' : '캐치볼'}로 남아 투구 부하에 들어가요. 던진 뒤 1시간 넘게 · 다음 날 아프면 복귀표에서
+        따로 눌러 주세요.
+      </p>
+      <Button type="button" onClick={submit} disabled={!filled || pending} className="w-full">
+        {pending ? '남기는 중…' : '남기기'}
+      </Button>
     </div>
   );
 }
