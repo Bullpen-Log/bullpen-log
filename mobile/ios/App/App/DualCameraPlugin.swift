@@ -442,7 +442,7 @@ final class DualCameraController: NSObject, AVCaptureVideoDataOutputSampleBuffer
     private let clipQueue = DispatchQueue(label: "bullpen.dualcam.clip", qos: .userInitiated)
     private let mainOutput = AVCaptureVideoDataOutput()
     private let wideOutput = AVCaptureVideoDataOutput()
-    private let mainRecorder = SegmentRecorder(bitrate: 12_000_000)
+    private let mainRecorder = SegmentRecorder(bitrate: 14_000_000)
     #if DEBUG
     private let lab = LabRecorder()
     #endif
@@ -1465,8 +1465,11 @@ final class SegmentRecorder: NSObject, AVAssetWriterDelegate {
     private func start(at pts: CMTime, _ s: (width: Int, height: Int, fps: Int32, transform: CGAffineTransform)) {
         let writer = AVAssetWriter(contentType: UTType.mpeg4Movie)
         writer.outputFileTypeProfile = .mpeg4AppleHLS
-        /* 조각 0.5초 — 클립은 담을 끝이 든 조각이 닫혀야 자른다(1초면 평균 0.5초를 더 기다렸다) */
-        writer.preferredOutputSegmentInterval = CMTime(seconds: 0.5, preferredTimescale: 600)
+        /*
+         * 조각 0.25초 — 클립은 담을 끝이 든 조각이 닫혀야 자른다(1초면 평균 0.5초, 0.5초면 0.25초를 더 기다렸다). 조각은 키 장면에서만
+         * 끊기니 키 장면도 0.25초마다(아래) — 키 장면이 늘어난 만큼 비트레이트를 12 → 14Mbps 로 올려 나머지 장면 화질을 지킨다(mainRecorder)
+         */
+        writer.preferredOutputSegmentInterval = CMTime(seconds: 0.25, preferredTimescale: 600)
         writer.initialSegmentStartTime = pts
         writer.delegate = self
         let input = AVAssetWriterInput(mediaType: .video, outputSettings: [
@@ -1475,7 +1478,7 @@ final class SegmentRecorder: NSObject, AVAssetWriterDelegate {
             AVVideoHeightKey: s.height,
             AVVideoCompressionPropertiesKey: [
                 AVVideoAverageBitRateKey: bitrate,
-                AVVideoMaxKeyFrameIntervalDurationKey: 0.5,
+                AVVideoMaxKeyFrameIntervalDurationKey: 0.25,
                 AVVideoExpectedSourceFrameRateKey: Int(s.fps),
                 AVVideoProfileLevelKey: AVVideoProfileLevelH264HighAutoLevel,
                 /* B 장면 없이 — 보이는 차례 = 담긴 차례라 장면 시각을 그대로 쓴다 */

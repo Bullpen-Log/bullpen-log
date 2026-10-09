@@ -7,7 +7,7 @@ import {
   type DualStartInfo,
 } from '@/lib/dual-camera';
 import { DEFAULT_CAM_MODE } from '@/lib/velocity-camera-mode';
-import { analyzeVideo, type VideoAnalyzeResult } from './analyze-video';
+import { analyzeVideo, warmDecoder, type VideoAnalyzeResult } from './analyze-video';
 import { LIVE_GOOD_FPS } from './live-meter';
 import type { Approach } from './validate';
 import type {
@@ -404,7 +404,7 @@ export class DualCapture {
     console.info(
       `[velo] clip ${Math.round(t1 - t0)}ms · read ${Math.round(t2 - t1)}ms (${blob.size}B) · analyze ${Math.round(performance.now() - t2)}ms` +
         (tm
-          ? ` (훑기 ${Math.round(tm.coarseMs)} · 공 찾기 ${Math.round(tm.findMs)} · 장면 ${Math.round(tm.framesMs)} · 엔진 ${Math.round(tm.analyzeMs)} · 되감기 ${tm.seeks}번 기다림 ${Math.round(tm.seekWaitMs)} · 그리기 ${Math.round(tm.drawMs)})`
+          ? ` (훑기 ${Math.round(tm.coarseMs)} · 공 찾기 ${Math.round(tm.findMs)} · 장면 ${Math.round(tm.framesMs)} · 엔진 ${Math.round(tm.analyzeMs)} · 디코더 열기 ${Math.round(tm.openMs)} · 풀기 ${tm.decoded}장 · 되감기 ${tm.seeks}번 기다림 ${Math.round(tm.seekWaitMs)} · 그리기 ${Math.round(tm.drawMs)})`
           : '') +
         ` · ${result.measure.ok ? 'ok' : result.measure.code}`
     );
@@ -458,6 +458,8 @@ export class DualCapture {
   arm() {
     this.armed = true;
     if (!this.running) return;
+    /* 첫 공 계산이 디코더 모듈 받기 · JIT 데우기를 기다리지 않게 */
+    void warmDecoder().catch(() => undefined);
     void callDualCamera('setTrigger', { armed: true }).catch(() => undefined);
     this.syncStatus();
   }
