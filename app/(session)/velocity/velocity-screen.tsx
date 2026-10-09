@@ -20,7 +20,6 @@ import {
   Check,
   ChevronLeft,
   ChevronRight,
-  ChevronUp,
   Clapperboard,
   Database,
   Film,
@@ -140,7 +139,6 @@ import { useWakeLock } from '@/components/use-wake-lock';
 import {
   BottomSheet,
   PitchEditorFields,
-  ZoneGrid,
 } from '@/components/velocity/pitch-editor';
 import {
   DistanceField,
@@ -160,7 +158,7 @@ import {
 import { isTipsSkippedToday, TipsPopup } from '@/components/velocity/tips-popup';
 import { DIST_MODES, VelocitySettingsFields } from '@/components/velocity/velocity-settings';
 import { Segmented } from '@/components/segmented';
-import { Panel, SectionLabel, StatRow, Note } from '@/components/velocity/kit';
+import { SectionLabel, Note } from '@/components/velocity/kit';
 import {
   CircleOverlay,
   DEFAULT_CIRCLE,
@@ -186,7 +184,7 @@ import {
   retryUploads,
   saveDraft,
 } from '@/lib/velocity-draft';
-import { SessionSummary } from '@/components/velocity/session-summary';
+import { SessionDetails, SessionSummary } from '@/components/velocity/session-summary';
 import { PitchResult } from '@/components/velocity/pitch-result';
 import type { TrailPoint } from '@/components/velocity/clip-player';
 import { AdminJump } from '@/components/velocity/admin-jump';
@@ -475,7 +473,8 @@ export function VelocityScreen({
   const videoRef = useRef<HTMLVideoElement>(null);
   const finderRef = useRef<HTMLDivElement>(null);
   /* 세션 중 정보 판 · 뷰파인더 위 둘째 줄(수평계 · 카메라 정보) — 판 전환을 곧바로 · 존이 둘째 줄 밑으로 못 가게 */
-  const panelRef = useRef<HTMLDivElement>(null);
+  /* 세션 중 옆으로 넘기는 두 쪽 — 왼쪽 카메라, 오른쪽 이번 세션(정보 판) */
+  const pagerRef = useRef<HTMLDivElement>(null);
   const topRowRef = useRef<HTMLDivElement>(null);
   /* 웹 카메라(LiveCapture) 또는 앱의 일반 · 광각 동시 촬영(DualCapture — 앱 + 설정 '광각 영상도 같이 저장') */
   const captureRef = useRef<LiveCapture | DualCapture | null>(null);
@@ -560,8 +559,6 @@ export function VelocityScreen({
   useEffect(() => () => {
     if (fileReplay) URL.revokeObjectURL(fileReplay);
   }, [fileReplay]);
-  /* 세션 중 오른쪽 아래 '이전 공' 시트 */
-  const [prevOpen, setPrevOpen] = useState(false);
   /* 주의사항 팝업 — 설정이 끝나고 카메라 화면 위에 뜬다. '오늘은 보지 않기'면 그날은 안 뜬다 */
   const [tipsOpen, setTipsOpen] = useState(false);
   /* 목록에서 고른 공의 결과 화면('잰 직후처럼') */
@@ -1224,13 +1221,25 @@ export function VelocityScreen({
       );
     });
   };
+  /*
+   * 세션 중 두 쪽(카메라 · 이번 세션) 사이를 단추로 — 손으로 넘길 때와 같은 가로 굴림. 어느 쪽인지는 굴림이 정한다(onScroll →
+   * showCamera), 처음 붙을 때만 showCamera 쪽으로 놓는다(관리자 점프의 '측정 중 화면'은 이번 세션부터)
+   */
+  const goPage = (info: boolean) => {
+    const el = pagerRef.current;
+    el?.scrollTo({ left: info ? el.clientWidth : 0 });
+  };
+  useLayoutEffect(() => {
+    const el = pagerRef.current;
+    if (live && el && !showCamera) el.scrollTo({ left: el.clientWidth, behavior: 'instant' });
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- 붙을 때만(그 뒤는 굴림이 showCamera 를 정한다)
+  }, [live]);
   /* 세션을 멈춘다 — 설정에서 존 다시 놓기 · 렌즈 보정으로 갈 때. 잰 공은 그대로라 돌아와 '측정 시작'으로 이어 잰다 */
   const pauseSession = () => {
     if (!live) return;
     captureRef.current?.disarm();
     setLive(false);
     setShowCamera(false);
-    setPrevOpen(false);
     setResultOpen(false);
   };
   /* 세션 종료 — 잰 공이 있으면 종합 화면으로. 거기서 저장하거나(끝) 이어서 잰다 */
@@ -1238,7 +1247,6 @@ export function VelocityScreen({
     captureRef.current?.disarm();
     setLive(false);
     setShowCamera(false);
-    setPrevOpen(false);
     setResultOpen(false);
     if (pitches.length > 0) setSummaryOpen(true);
   };
@@ -1773,7 +1781,6 @@ export function VelocityScreen({
           : step;
   const jumpTo = (key: VelocityScreenKey) => {
     setSheet('none');
-    setPrevOpen(false);
     setViewPitch(null);
     setEditing(null);
     if (key === 'ask') {
@@ -2356,16 +2363,28 @@ export function VelocityScreen({
           >
             {finder}
             {/*
-             * 정보 판 — 세션 중 카메라 위를 덮는다. '카메라'를 누르면 밑으로 내려가 카메라가 보이고, '측정 화면'을 누르면 다시
-             * 밑에서 올라온다(나갈 때 150ms · 들어올 때 200ms, 처음 시작할 때도 올라온다). 내려가 있어도 떼지 않는다.
+             * 세션 중 옆으로 넘기는 두 쪽(김민 2026-10-09: "옆으로 넘기면 이번 세션 공들의 정보를") — 왼쪽은 비어 있어 밑의 카메라가
+             * 보이고, 왼쪽으로 밀면 오른쪽 쪽(이번 세션: 방금 공 · 숫자 · 구종별 · 구속 흐름 · 공 목록)이 손을 따라온다. 가로 굴림 +
+             * 붙기(scroll-snap)라 손 · 단추 · 움직임 줄이기가 브라우저 몫이다. 카메라가 꺼지면 왼쪽 쪽이 '카메라 다시 켜기'를
+             * 가리지 않게 손을 받지 않는다.
              */}
             {step === 'measure' && live && (
               <div
-                ref={panelRef}
-                inert={showCamera}
-                data-down={showCamera ? '' : undefined}
-                className="absolute inset-0 z-5 translate-y-0 overflow-y-auto overscroll-contain bg-black/98 px-4 pb-4 pt-[calc(3.5rem+env(safe-area-inset-top))] transition-transform duration-200 ease-[cubic-bezier(0.2,0,0,1)] will-change-transform motion-safe:animate-panel-up motion-reduce:transition-none data-[down]:pointer-events-none data-[down]:translate-y-full data-[down]:duration-150 data-[down]:ease-in"
+                ref={pagerRef}
+                onScroll={(e) => {
+                  const el = e.currentTarget;
+                  const cam = el.scrollLeft < el.clientWidth / 2;
+                  if (cam !== showCamera) startTransition(() => setShowCamera(cam));
+                }}
+                className={`no-scrollbar absolute inset-0 z-5 flex snap-x snap-mandatory overflow-x-auto overflow-y-hidden overscroll-x-contain motion-safe:scroll-smooth ${
+                  cameraOn ? '' : 'pointer-events-none'
+                }`}
               >
+                <div aria-hidden className="h-full w-full shrink-0 snap-start" />
+                <div
+                  inert={showCamera}
+                  className="pointer-events-auto h-full w-full shrink-0 snap-start overflow-y-auto overscroll-contain bg-black/98 px-4 pb-6 pt-[calc(3.5rem+env(safe-area-inset-top))]"
+                >
                 {phase && (
                   <div className="mb-3">
                     <MeasureProgress phase={phase} captureSec={captureSec} runKey={captureRun} />
@@ -2465,28 +2484,6 @@ export function VelocityScreen({
                   )}
                 </section>
 
-                {/* 이번 세션 */}
-                {stats && (
-                  <dl className="mt-3 grid grid-cols-4 gap-px overflow-hidden rounded-2xl bg-white/10">
-                    <DarkStat
-                      label="최고"
-                      value={speedNum(stats.max)}
-                      unit={speedLabel(unit)}
-                    />
-                    <DarkStat
-                      label="평균"
-                      value={speedNum(stats.avg)}
-                      unit={speedLabel(unit)}
-                    />
-                    <DarkStat label="공" value={stats.n} unit="구" />
-                    <DarkStat
-                      label="스트라이크"
-                      value={stats.strikeRate == null ? '—' : stats.strikeRate}
-                      unit={stats.strikeRate == null ? '' : '%'}
-                    />
-                  </dl>
-                )}
-
                 {error && (
                   <p
                     role="alert"
@@ -2496,9 +2493,19 @@ export function VelocityScreen({
                   </p>
                 )}
 
-                <p className="mt-3 text-center text-xs text-white/45">
-                  이전 공은 오른쪽 아래 목록에서 — 구종 · 코스 고치기와 영상.
-                </p>
+
+                {/* 이번 세션 — 세션 요약과 같은 부품을 어두운 색으로. 공을 누르면 고치기, ▶ 는 그 공의 영상 */}
+                <SessionDetails
+                  className="theme-dark mt-5 text-ink"
+                  pitches={sessionPitches}
+                  unit={unit}
+                  onPlayClip={(id) => setViewPitch(id)}
+                  onEditPitch={(id) => {
+                    setEditing(id);
+                    setSheet('pitch');
+                  }}
+                />
+                </div>
               </div>
             )}
             {/*
@@ -2847,11 +2854,7 @@ export function VelocityScreen({
                 ) : step === 'measure' && live && !showCamera ? (
                   <button
                     type="button"
-                    onClick={() => {
-                      /* 판을 먼저 내리고(그 장면에 시작), 화면 전체 다시 그리기는 틈틈이 — 누른 뒤 0.1초 멈췄다 */
-                      panelRef.current?.setAttribute('data-down', '');
-                      startTransition(() => setShowCamera(true));
-                    }}
+                    onClick={() => goPage(false)}
                     className="inline-flex h-10 items-center gap-1.5 rounded-full bg-white/10 pl-3 pr-3.5 text-xs font-semibold text-white backdrop-blur transition-[background-color,scale] hover:bg-white/15 active:scale-95"
                   >
                     <Camera aria-hidden className="h-4 w-4" />
@@ -2860,14 +2863,11 @@ export function VelocityScreen({
                 ) : step === 'measure' && live && showCamera ? (
                   <button
                     type="button"
-                    onClick={() => {
-                      panelRef.current?.removeAttribute('data-down');
-                      startTransition(() => setShowCamera(false));
-                    }}
-                    className="inline-flex h-10 items-center gap-1 rounded-full bg-black/45 pl-2.5 pr-3.5 text-xs font-semibold text-white backdrop-blur transition-[background-color,scale] hover:bg-black/60 active:scale-95"
+                    onClick={() => goPage(true)}
+                    className="inline-flex h-10 items-center gap-1.5 rounded-full bg-black/45 pl-3 pr-3.5 text-xs font-semibold text-white backdrop-blur transition-[background-color,scale] hover:bg-black/60 active:scale-95"
                   >
-                    <ChevronUp aria-hidden className="h-4 w-4" />
-                    측정 화면
+                    <List aria-hidden className="h-4 w-4" />
+                    이번 세션
                   </button>
                 ) : (
                   <button
@@ -2941,7 +2941,18 @@ export function VelocityScreen({
 
           {/* 아래 단추 — 카메라 앱처럼 셋: 보조 · 셔터(다음 · 완료 · 시작 · 종료) · 보조. 렌즈 보정은 판이 대신한다 */}
           {step !== 'lens' && (
-            <div className="z-10 flex shrink-0 items-start justify-between bg-black px-6 pb-[max(1rem,env(safe-area-inset-bottom))] pt-3">
+            <div className="relative z-10 flex shrink-0 items-start justify-between bg-black px-6 pb-[max(1rem,env(safe-area-inset-bottom))] pt-3">
+              {/* 쪽 점 — 지금 카메라 · 이번 세션 중 어디인지(옆으로 넘길 수 있다는 표시). 검은 막대 위라 내용과 안 겹친다 */}
+              {step === 'measure' && live && (
+                <div aria-hidden className="absolute inset-x-0 top-1 flex justify-center gap-1.5">
+                  <span
+                    className={`h-1.5 w-1.5 rounded-full transition-colors ${showCamera ? 'bg-white' : 'bg-white/35'}`}
+                  />
+                  <span
+                    className={`h-1.5 w-1.5 rounded-full transition-colors ${showCamera ? 'bg-white/35' : 'bg-white'}`}
+                  />
+                </div>
+              )}
               <input
                 ref={fileRef}
                 type="file"
@@ -3191,9 +3202,9 @@ export function VelocityScreen({
                   <div className="flex w-20 flex-col items-center">
                     <button
                       type="button"
-                      onClick={() => setPrevOpen(true)}
+                      onClick={() => goPage(true)}
                       disabled={pitches.length === 0}
-                      aria-label={`이전 공 보기 · ${pitches.length}구`}
+                      aria-label={`이번 세션 공 보기 · ${pitches.length}구`}
                       className={`${SIDE_BTN} relative`}
                     >
                       <List aria-hidden className="h-5 w-5" />
@@ -3211,90 +3222,6 @@ export function VelocityScreen({
           )}
         </div>
       )}
-
-      {/* 이전 공 — 세션 중 오른쪽 아래. 줄을 누르면 고치기, ▶ 는 그 공의 영상 */}
-      <BottomSheet
-        open={prevOpen}
-        onClose={() => setPrevOpen(false)}
-        title={`이전 공 · ${pitches.length}구`}
-      >
-        <div className="space-y-3">
-          {stats && (
-            <Panel>
-              <StatRow
-                items={[
-                  { label: '최고', value: speedNum(stats.max), unit: speedLabel(unit) },
-                  { label: '평균', value: speedNum(stats.avg), unit: speedLabel(unit) },
-                  { label: '공', value: stats.n, unit: '구' },
-                  {
-                    label: '스트라이크',
-                    value: stats.strikeRate == null ? '—' : stats.strikeRate,
-                    unit: stats.strikeRate == null ? '' : '%',
-                  },
-                ]}
-              />
-            </Panel>
-          )}
-          <Panel>
-            <ul className="divide-y divide-line">
-              {[...sessionPitches].reverse().map((p) => (
-                <li key={p.id} className="flex min-h-14 items-center gap-2 pl-4 pr-2">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setPrevOpen(false);
-                      setViewPitch(p.id);
-                    }}
-                    className="flex min-w-0 flex-1 items-center gap-3 py-2 text-left"
-                  >
-                    <span className="w-5 text-xs text-muted tabular-nums">{p.seq}</span>
-                    <span className="text-display w-14 text-2xl leading-none tabular-nums text-ink">
-                      {speedNum(p.kmh)}
-                    </span>
-                    <span className="min-w-0 flex-1">
-                      <span className="block truncate text-sm font-semibold text-ink">
-                        {pitchTypeLabel(p.pitchType) ?? (
-                          <span className="text-muted">구종 —</span>
-                        )}
-                        {p.result === 'strike' && (
-                          <span className="ml-1.5 text-ok">S</span>
-                        )}
-                        {p.result === 'ball' && (
-                          <span className="ml-1.5 text-warn">B</span>
-                        )}
-                      </span>
-                      <span className="block truncate text-xs text-muted">
-                        {zoneLabel(p.zone) ?? '코스 —'}
-                        {p.releaseKmh != null && ` · 릴리스 ${speedNum(p.releaseKmh)}`}
-                        {p.gunKmh != null && ` · 건 ${speedNum(p.gunKmh)}`}
-                        {p.source === 'file' && ' · 파일'}
-                      </span>
-                    </span>
-                    <ZoneGrid value={p.zone} size="sm" />
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setPrevOpen(false);
-                      setViewPitch(p.id);
-                    }}
-                    disabled={!p.clip}
-                    aria-label={p.clip ? '영상 보기' : '영상 없음'}
-                    title={p.clip ? '영상 보기' : '영상 없음'}
-                    className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-surface-2 text-ink transition-colors hover:bg-sky-tint hover:text-sky disabled:opacity-30"
-                  >
-                    <Play aria-hidden className="h-4 w-4 fill-current" />
-                  </button>
-                </li>
-              ))}
-            </ul>
-          </Panel>
-          <p className="text-xs leading-relaxed text-muted">
-            공을 누르면 잰 직후처럼 영상과 공 길을 다시 봐요. 고치기는 그 화면 오른쪽 위
-            연필(구종 · 코스 · 결과 · 스피드건 값).
-          </p>
-        </div>
-      </BottomSheet>
 
       {/*
         주의사항 — 설정이 끝나면 카메라 화면 위에 창처럼 뜬다(뒤 화면은 여백에서만 조금 보인다).
@@ -3689,27 +3616,6 @@ function PreviousSetupStep({
         </p>
       </div>
     </StepShell>
-  );
-}
-
-/** 검은 바탕(세션 정보 판)용 통계 칸 */
-function DarkStat({
-  label,
-  value,
-  unit,
-}: {
-  label: string;
-  value: number | string;
-  unit: string;
-}) {
-  return (
-    <div className="bg-black px-2 py-3 text-center">
-      <dt className="text-xs text-white/55">{label}</dt>
-      <dd className="text-display mt-0.5 text-2xl leading-none tabular-nums text-white">
-        {value}
-        {unit && <span className="ml-0.5 font-sans text-xs text-white/55">{unit}</span>}
-      </dd>
-    </div>
   );
 }
 
