@@ -315,27 +315,48 @@ export function ringScore(
    * 정렬하던 것과 같은 값, 비교 함수를 부르지 않는다 — 수십만 번이라 이것이 시간의 대부분이었다).
    */
   let cnt = 0;
-  const add = (v: number) => {
-    if (v !== v) return;
+  for (let j = 0; j < L; j++) {
+    const v = c[j % n];
+    if (v !== v) continue;
     let p = cnt++;
     while (p > 0 && win[p - 1] > v) {
       win[p] = win[p - 1];
       p--;
     }
     win[p] = v;
-  };
-  for (let j = 0; j < L; j++) add(c[j % n]);
+  }
   const starts = arc < 1 ? n : 1;
   for (let st = 0; st < starts; st++) {
     if (st > 0) {
+      /* 나가는 값을 빼고 들어오는 값을 끼우되, 둘 사이만 한 칸씩 민다(빼고 다시 끼우던 것과 같은 창) */
       const out = c[st - 1];
+      const v = c[(st + L - 1) % n];
       if (out === out) {
         let p = 0;
         while (win[p] !== out) p++;
-        for (; p < cnt - 1; p++) win[p] = win[p + 1];
-        cnt--;
+        if (v === v) {
+          /* p 자리를 비우고 v 를 제자리로 — 왼쪽 · 오른쪽 어느 쪽으로든 */
+          while (p > 0 && win[p - 1] > v) {
+            win[p] = win[p - 1];
+            p--;
+          }
+          while (p < cnt - 1 && win[p + 1] < v) {
+            win[p] = win[p + 1];
+            p++;
+          }
+          win[p] = v;
+        } else {
+          for (; p < cnt - 1; p++) win[p] = win[p + 1];
+          cnt--;
+        }
+      } else if (v === v) {
+        let p = cnt++;
+        while (p > 0 && win[p - 1] > v) {
+          win[p] = win[p - 1];
+          p--;
+        }
+        win[p] = v;
       }
-      add(c[(st + L - 1) % n]);
     }
     if (cnt <= L / 2) continue;
     const q = win[Math.floor(0.25 * cnt)];
