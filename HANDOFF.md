@@ -11,13 +11,16 @@ Claude 로 작업을 시작하면 저절로 읽힌다. 규칙은 `AGENTS.md` 6�
 
 ---
 
-## 금윤호에게 — 2026-10-09 · 김민(Claude) — `lib/pose/detect.ts`(투구 순간 찾기)를 조금 고쳤다 — 투구 기록 2D 분석도 같이 쓴다
+## 김민에게 — 2026-10-09 · 금윤호(Claude) — 부탁: 촬영 모드 앱 카메라 부품 `ShootCamera` 만들어 줘(내가 윈도라 못 굽는다)
 
-- 진행 방향(홈 쪽)을 골반이 가장 빨리 움직인 쪽으로 정하던 것에, 그 방향으로 채찍(손목 최고 속도) 뒤에 손목이 앞으로 뻗는 피크가 없고
-  반대 방향으로는 있으면 반대를 홈으로 보는 단계를 더했다. 슬로모 영상 앞뒤의 보통 속도 구간에서 물러서거나 걸으면 그 움직임이 보폭보다 빨라
-  방향이 뒤집혔고, 다리를 든 순간을 릴리스로 잡았다(3D 좌투 샘플).
-- 예전에 순간을 잘 찾던 영상은 결과가 그대로다(골반 방향으로 피크를 찾으면 바뀌는 게 없다). `components/pose-analysis.tsx` 를 쓰는
-  화면에서 '순간을 못 찾았어요'가 줄어들 수 있다. 할 일은 없다 — 이상하면 알려 줘.
+사용자: "웹 카메라에서 못 찍게 하고 앱 카메라로 찍게 해줘. 너가 윈도우라서 못하겠으면 김민에게 작업을 전달해줘."
+- **사이트 쪽은 끝냈다**: 관리자 촬영 모드에서 웹 카메라(`<input capture>`)를 걷었다 — WebKit 이 화질을 안 정해 480×360 쯤으로 찍힌다.
+  앱에 `ShootCamera` 부품이 있으면 [영상 찍기]가 보이고(`lib/shoot-camera.ts` → 찍기 · 2MB 씩 넘겨받기 · 지우기), 없으면(사파리 · 지금 앱)
+  "앱을 업데이트하면 여기서 바로 찍어요"만 보인다. 720p 보다 작은 영상은 편집 창이 올리기를 막는다. 앨범에서 고르기는 남겼다.
+- **네가 할 것**: `docs/designs/shoot-camera-native.md` 의 약속대로 `mobile/ios/App/App/ShootCameraPlugin.swift`(UIImagePickerController
+  `.typeHigh` · 뒤 카메라 · 영상만 · 최대 180초 · 취소는 `{cancelled:true}` · 권한 거절은 code `denied`) + `MainViewController` 에 등록 한 줄.
+  문서에 참고 구현(컴파일 안 해 봄)과 폰 확인 6단계가 있다. 마이크 권한 글(`NSMicrophoneUsageDescription`)을 바꿀지는 네 판단.
+- 가짜 앱 부품으로 사이트 쪽 시험은 했다(`npm run clip:test` 50 — 취소 · 권한 · 조각 넘겨받기 · 지우기). 실제 폰에서는 네가 처음 본다.
 
 ## 김민에게 — 2026-10-09 · 금윤호(Claude) — 새 패키지 `mediabunny`(촬영 모드 영상 컷 편집) — 받으면 `npm install`
 
@@ -26,8 +29,7 @@ DB 는 그대로. 관리자 촬영 모드(`/admin/shoot/N/run`)에서 아이폰 
 라이브러리 영상으로 붙인다(`docs/claude/geum-yunho.md` 4절 14번). 네 영역은 안 건드렸다. 다만 `app/globals.css` 의 `.theme-dark` 에
 상태색(warn · danger · ok, 다크 테마와 같은 값)을 더했다 — 검은 칸 안의 노랑 · 빨강 글자가 라이트 테마에서 안 읽혀서. 구속 측정 화면의
 `.theme-dark` 칸도 같이 바뀐다(그 안에 경고 글자가 있으면 밝아진다).
-- **곧 부탁할 것(2단계)**: 웹 카메라(`<input capture>`)는 480×360 쯤으로 찍힐 수 있어(WebKit 이 화질을 안 정함) `mobile/` 에 고화질 카메라
-  (UIImagePickerController `.typeHigh`)를 더하려 한다. 손대기 전에 여기로 다시 알린다.
+- 앱 카메라는 바로 위 부탁(`ShootCamera`)을 봐 줘.
 
 ## 김민에게 — 2026-10-09 · 금윤호(Claude) — 새 표 `ShootCheck` 더함(트레이닝 영상 촬영 관리자) — 받으면 `npx prisma generate`
 
