@@ -47,7 +47,7 @@ import {
 import { makeV2Track } from './pitch-lab/synth-v2.mts';
 import { footJump, footSway, gapWristError, hipSnap, leadGapJump } from './pitch-lab/gap-check.mts';
 import { readFileSync } from 'node:fs';
-import { blendAi, displayTrack, readAiJoints } from '../lib/pitch-3d/v2/display.ts';
+import { blendAi, displayTrack, readAiJoints, readAiMiss } from '../lib/pitch-3d/v2/display.ts';
 import { KIN_LIMITS, kinematicTrack } from '../lib/pitch-3d/v2/kinematics.ts';
 import {
   moundHeightAt,
@@ -1161,6 +1161,14 @@ console.log('■ 뼈대 자세(pose-rig) — public/models/skeleton-parts.json +
           );
           const fake = { ...result, experimental: { sam3d: { model: 'x', joints: result.joints.slice(1) } } };
           check('AI 보정: 장면 수가 다른 AI 관절은 읽지 않는다', readAiJoints(fake) === null && readAiJoints(result) === null);
+          const bm = blendAi(ours, ai, conf, [], new Set([2]));
+          const missSame = norm(sub(bm.frames[2][V2J.rWr], ours[2][V2J.rWr])) < 1e-9 && bm.conf[2][V2J.rWr] === 0;
+          const otherMoved = norm(sub(bm.frames[3][V2J.rWr], ours[3][V2J.rWr])) > 1e-3;
+          const missRead = readAiMiss({ ...result, experimental: { sam3d: { model: 'x', joints: result.joints, miss: [2, 1.5, 'x' as unknown as number] } } });
+          check(
+            'AI 보정: AI 가 못 본 장면(miss)은 섞지 않는다(관절 · 확신 그대로) · 옆 장면은 섞는다 · 이상한 값은 버린다',
+            missSame && otherMoved && missRead.size === 1 && missRead.has(2)
+          );
         }
 
         /* 10 떨림 — 가만있는 손목의 잡음은 줄인다 */

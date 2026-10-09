@@ -85,6 +85,12 @@ export function readAiJoints(r: Pitch3dV2Ok): Vec3[][] | null {
   return j.map((fr) => fr.map((p) => [p[0] / 1000, p[1] / 1000, p[2] / 1000] as Vec3));
 }
 
+/** AI 가 못 본 장면(섞지 않는다) — 모양이 틀리면 빈 것 */
+export function readAiMiss(r: Pitch3dV2Ok): Set<number> {
+  const m = r.experimental?.sam3d?.miss;
+  return new Set(Array.isArray(m) ? m.filter((k) => Number.isInteger(k)) : []);
+}
+
 /**
  * AI 스켈레톤 보정 섞기 — 팔 · 다리 · 머리 마디의 방향을 우리 것과 AI 것 사이로(확신이 낮을수록 AI, 늘 AI_MIN 이상), 길이는 우리 것.
  * 땅에 닿아 묶인 발 쪽 다리는 우리 것 그대로. 섞은 관절의 확신도 그만큼 올린다(관절 각도 모델이 믿게).
@@ -93,7 +99,8 @@ export function blendAi(
   ours: Vec3[][],
   ai: Vec3[][],
   conf: number[][],
-  contacts: V2Contact[]
+  contacts: V2Contact[],
+  miss: Set<number> = new Set()
 ): { frames: Vec3[][]; conf: number[][] } {
   const unit = (v: Vec3): Vec3 => {
     const n = Math.hypot(...v);
@@ -115,6 +122,7 @@ export function blendAi(
   const outConf = conf.map((row) => [...row]);
   const frames = ours.map((fr, k) => {
     const o = fr.map((p) => [...p] as Vec3);
+    if (miss.has(k)) return o;
     const a = ai[k];
     const mix = (from: Vec3, dirO: Vec3, dirA: Vec3, len: number, w: number): Vec3 => {
       const d = unit([
@@ -193,7 +201,7 @@ export function displayTrack(
   const n = raw.length;
   const contacts = readContacts(result);
   const ai = opts.ai ? readAiJoints(result) : null;
-  if (ai) ({ frames: raw, conf } = blendAi(raw, ai, conf, contacts));
+  if (ai) ({ frames: raw, conf } = blendAi(raw, ai, conf, contacts, readAiMiss(result)));
   const { frames, refs } = kinematicTrack(raw, conf, contacts);
 
   /* 2 바닥 하나 */
