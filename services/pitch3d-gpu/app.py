@@ -33,12 +33,41 @@ image = (
     # rtmlib 가 끌어오는 CPU 용 onnxruntime 을 빼고 GPU 용만 남긴다(둘이 같이 있으면 CPU 쪽이 잡힌다)
     # 1.22+ 는 CUDA 13 을 찾는다 — 이미지는 CUDA 12.4 + cuDNN 9 라 1.21 로 못박는다
     .run_commands("pip uninstall -y onnxruntime onnxruntime-gpu", "pip install onnxruntime-gpu==1.21.1")
+    # AI 스켈레톤 보정(실험, pitch3d_gpu/sam3d.py) — 메타 SAM 3D Body(ViT-H). 코드는 고정 커밋, 무게는 처음 쓸 때 HF 에서(볼륨에 남김)
+    .pip_install(
+        "torch==2.5.1",
+        "torchvision==0.20.1",
+        extra_index_url="https://download.pytorch.org/whl/cu124",
+    )
+    .pip_install(
+        "pytorch-lightning==2.4.0",
+        "timm==1.0.11",
+        "einops==0.8.0",
+        "yacs==0.1.8",
+        "roma==1.5.1",
+        "omegaconf==2.3.0",
+        "braceexpand==0.1.7",
+        "huggingface_hub==0.26.2",
+        "opencv-python-headless==4.10.0.84",
+    )
+    .run_commands(
+        "git clone https://github.com/facebookresearch/sam-3d-body.git /opt/sam-3d-body",
+        "cd /opt/sam-3d-body && git checkout b5c765a0d89d789985e186d396315e7590887b94",
+    )
+    .env({"HF_HOME": "/cache/hf", "MOMENTUM_ENABLED": "0"})
     .add_local_dir(os.path.join(os.path.dirname(__file__), "engine"), remote_path="/root/engine")
     .add_local_python_source("pitch3d_gpu")
 )
 
 app = modal.App(APP_NAME, image=image)
 progress = modal.Dict.from_name(f"{APP_NAME}-progress", create_if_missing=True)
+# AI 무게 보관(처음 한 번 받는다)
+hf_cache = modal.Volume.from_name(f"{APP_NAME}-hf", create_if_missing=True)
+# Hugging Face 토큰(김민이 Modal 비밀로 넣는다 — 이름 huggingface · 키 HF_TOKEN). 없으면 AI 보정만 건너뛴다
+try:
+    hf_secret = [modal.Secret.from_name("huggingface", required_keys=["HF_TOKEN"])]
+except Exception:  # noqa: BLE001
+    hf_secret = []
 
 _pose_cache: dict = {}
 
@@ -51,7 +80,7 @@ def _pose_factory():
     return _pose_cache["pose"]
 
 
-@app.function(gpu=GPU, timeout=TIMEOUT_SEC, memory=8192)
+@app.function(gpu=GPU, timeout=TIMEOUT_SEC, memory=16384, volumes={"/cache/hf": hf_cache}, secrets=hf_secret)
 def analyze(job: dict) -> dict:
     """한 작업 — 결과는 저장소에 올리고, 상태는 progress[call_id] 에."""
     from pitch3d_gpu.pipeline import run_job
@@ -64,6 +93,10 @@ def analyze(job: dict) -> dict:
 
     try:
         out = run_job(job, _pose_factory, report)
+        try:
+            hf_cache.commit()  # 처음 받은 AI 무게를 남긴다(다음 작업은 안 받는다)
+        except Exception:  # noqa: BLE001
+            pass
     except Exception as e:  # noqa: BLE001 — 모르는 예외는 여기 한 곳에서만 잡고 이름 · 단계 · 번호를 남긴다(검토 2절 Internal)
         print(f"[pitch3d internal] job={job_id} call={call_id} {type(e).__name__}: {e}")
         out = {"status": "failed", "code": "internal", "stage": "fit", "stages": {}}

@@ -54,6 +54,20 @@ export function pickSegment(input: { side: unknown; back: unknown }): SegmentOut
     release: ev.release?.t ?? null,
     first: sideT.frames[0]?.t ?? null,
     last: sideT.frames[sideT.frames.length - 1]?.t ?? null,
+    /* 장면마다 [시각, 왼 · 오른 손목 확신 ×100, 왼 · 오른 발목 높이(화면 아래로 +, 사람 크기 대비 ×100)] — 릴리스를 왜 거기서 잡았는지 */
+    timeline: sideT.frames.map((f) => {
+      const ys = f.p.filter((q) => q[2] >= 0.3).map((q) => q[1]);
+      const top = ys.length ? Math.min(...ys) : 0;
+      const size = ys.length ? Math.max(1, Math.max(...ys) - top) : 1;
+      const r = (v: number) => Math.round(v * 100);
+      return [
+        Math.round(f.t * 100) / 100,
+        r(f.p[V2J.lWr][2]),
+        r(f.p[V2J.rWr][2]),
+        r((f.p[V2J.lAn][1] - top) / size),
+        r((f.p[V2J.rAn][1] - top) / size),
+      ];
+    }),
   };
   const fp = ev.footPlant?.t;
   const rel = ev.release?.t;
