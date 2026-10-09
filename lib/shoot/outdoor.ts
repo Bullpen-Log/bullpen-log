@@ -1,9 +1,9 @@
 /**
- * 야외 주차 계획 — 투구 드릴(MechanicsGuide, 유튜브 참고 영상) + 워밍업(이름만, lib/shoot/warmups.ts)을 1~5주차(실내)
- * 뒤에 새 주차로 붙인다(순수 계산, DB 없음). 2026-10-09 사용자: "투구 드릴과 워밍업은 주차를 추가해서 — 되도록 야외에서".
+ * 야외 주차 계획 — 투구 드릴(MechanicsGuide — version 3 부터 이미 우리 영상인 것도) + 워밍업(이름만, lib/shoot/warmups.ts)을
+ * 실내 주차 뒤에 새 주차로 붙인다(순수 계산, DB 없음). 2026-10-09 사용자: "투구 드릴과 워밍업은 주차를 추가해서 — 되도록 야외에서".
  *
- * 계산은 scripts/shoot-plan-outdoor.mts 가 DB 를 읽어 한 번 돌리고, 결과를 lib/shoot/plan-data.json 의 6주차~ 로 고정한다
- * (1~5주차는 그대로). 실내 계획(schedule.ts)과 같은 시계를 쓴다 — 준비 15 · 자리 옮김 3 · 도구 바꿈 1 · 50분마다 쉬기 5 · 백업 10.
+ * 계산은 scripts/shoot-plan-outdoor.mts 가 DB 를 읽어 한 번 돌리고, 결과를 lib/shoot/plan-data.json 의 실내 다음 주~ 로 고정한다
+ * (실내 주차는 그대로). 실내 계획(schedule.ts)과 같은 시계를 쓴다 — 준비 15 · 자리 옮김 3 · 도구 바꿈 1 · 50분마다 쉬기 5 · 백업 10.
  *
  * ■ 나누기
  *   - 같은 동작을 도구만 바꾼 드릴(작은 공 · 큰 공)은 한 묶음으로 같은 주 · 같은 자리에서 잇는다.
@@ -36,6 +36,8 @@ export type OutdoorDrill = {
   equipment: string[];
   /** 기초 · 연결 · 통합 */
   stage: string | null;
+  /** 계획을 뽑을 때 이미 있던 우리 영상(다시 찍을 것) */
+  oldVideo?: string | null;
 };
 
 export type OutdoorOptions = {
@@ -197,6 +199,7 @@ type Row = {
   group: string;
   /** 도구가 바뀌면 1분 */
   toolKey: string;
+  oldVideo?: string | null;
 };
 
 function layout(week: number, warmups: readonly ShootWarmup[], units: Unit[]): PlanWeek {
@@ -240,6 +243,7 @@ function layout(week: number, warmups: readonly ShootWarmup[], units: Unit[]): P
         kind: 'drill',
         group: d.stage ?? '',
         toolKey: `${d.equipment.join('+')}|${TOOL_RANK(d.title)}`,
+        oldVideo: d.oldVideo,
       });
     }
   }
@@ -281,6 +285,7 @@ function layout(week: number, warmups: readonly ShootWarmup[], units: Unit[]): P
         breakAfter: false,
         kind: r.kind,
         ...(r.group ? { group: r.group } : {}),
+        ...(r.oldVideo ? { oldVideo: r.oldVideo } : {}),
       };
       out.push(item);
       load[r.bucket] = round1((load[r.bucket] ?? 0) + r.load);

@@ -133,7 +133,7 @@ export function WeekView({ data, me }: { data: ShootWeekData; me: string }) {
         settleKey={week.week}
       />
 
-      <PendingClips clips={clips} isUploaded={(id) => !!infos[id]?.own} />
+      <PendingClips clips={clips} isUploaded={(id) => !!infos[id]?.uploaded} />
 
       {/* ── 진행 · 지금 · 다음 ── */}
       <section className="space-y-4 rounded-2xl border border-line bg-surface p-(--block-pad)">
@@ -269,7 +269,7 @@ export function WeekView({ data, me }: { data: ShootWeekData; me: string }) {
                     index={i}
                     state={stateOf(it, map)}
                     check={map.get(it.exerciseId)}
-                    uploaded={infos[it.exerciseId]?.source === 'OWN'}
+                    uploaded={!!infos[it.exerciseId]?.uploaded}
                     mark={it === current ? '지금' : it === next ? '다음' : null}
                     onToggle={() => toggle(it)}
                     onOpen={(e) => detail.show(it.exerciseId, e)}
@@ -301,7 +301,7 @@ export function WeekView({ data, me }: { data: ShootWeekData; me: string }) {
                     index={i}
                     state={stateOf(it, map)}
                     check={map.get(it.exerciseId)}
-                    uploaded={infos[it.exerciseId]?.source === 'OWN'}
+                    uploaded={!!infos[it.exerciseId]?.uploaded}
                     mark={it === current ? '지금' : it === next ? '다음' : null}
                     carried
                     onToggle={() => toggle(it)}
@@ -558,7 +558,7 @@ function DetailBody({
       )}
       <ClipPickButtons
         target={{ exerciseId: it.exerciseId, no: it.no, title: it.title, cue: it.cue }}
-        uploaded={!!info?.own}
+        uploaded={!!info?.uploaded}
         onPick={onPick}
         appCamera={appCamera}
         onCamera={onCamera}

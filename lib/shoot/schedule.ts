@@ -24,6 +24,8 @@ export type ShootExercise = {
   equipment: string[];
   holdSeconds: number | null;
   perSide: boolean;
+  /** 계획을 뽑을 때 이미 있던 우리 영상(다시 찍을 것) — PlanItem.oldVideo */
+  oldVideo?: string | null;
 };
 
 /** 피로를 다는 단위 — 하체는 파워 · 앞(무릎) · 뒤(힌지) · 보강을 따로 */
@@ -39,7 +41,7 @@ export type Bucket =
   | '상체 당기기'
   | '전완 · 팔꿈치'
   | '어깨 · 견갑(암케어)'
-  /* 야외 주차(6주차~, lib/shoot/outdoor.ts) */
+  /* 야외 주차(실내 다음 주~, lib/shoot/outdoor.ts) */
   | '워밍업'
   | '무브먼트 패턴 드릴'
   | '메디신볼 드릴'
@@ -67,7 +69,7 @@ export const STATIONS = [
   '매트',
 ] as const;
 /**
- * 야외 자리(6주차~ 투구 드릴 · 워밍업, lib/shoot/outdoor.ts) — 이 순서로 돈다: 워밍업(모델 몸풀기) → 몸 쓰는 패턴 →
+ * 야외 자리(실내 다음 주~ 투구 드릴 · 워밍업, lib/shoot/outdoor.ts) — 이 순서로 돈다: 워밍업(모델 몸풀기) → 몸 쓰는 패턴 →
  * 메디신볼(힘) → 공 던지기(팔은 몸이 다 풀린 뒤).
  */
 export const OUTDOOR_STATIONS = [
@@ -236,6 +238,11 @@ export type PlanItem = {
   kind?: 'exercise' | 'drill' | 'warmup';
   /** 워밍업이 들어갈 고정 루틴('전신 워밍업' …) · 드릴의 단계('기초' …) — 화면에 한 줄 */
   group?: string;
+  /**
+   * 계획을 뽑을 때 이미 있던 우리 영상의 경로 — 그 운동도 다시 찍는다(김민 2026-10-09: "직접 찍은 영상도 포함해서 다시").
+   * 라이브러리 영상이 이것과 다르면 이번 촬영에서 올린 것(lib/shoot/load.ts uploaded).
+   */
+  oldVideo?: string;
 };
 
 export type PlanStation = {
@@ -504,6 +511,7 @@ function layoutWeek(week: number, items: Row[]): PlanWeek {
         cue: demoCue(x, x.bucket),
         perSide: x.perSide,
         breakAfter: false,
+        ...(x.oldVideo ? { oldVideo: x.oldVideo } : {}),
       };
       out.push(item);
       load[x.bucket] = Math.round(((load[x.bucket] ?? 0) + x.load) * 10) / 10;
