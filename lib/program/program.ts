@@ -10,6 +10,7 @@ import { withJosa } from '@/lib/korean';
  * 2026-10-07 사용자: "실제 있는 프로그램을 기반으로" — 스트롱리프트 5×5 · 5/3/1 BBB · 5/3/1 · 텍사스 메소드 ·
  * 저거넛 5회 파도 · WS4SB · 프렌치 컨트라스트. 모두 원본의 첫 4주. 투수라서 원본과 다르게 한 곳에는 '투수 맞춤' 주석을 단다.
  * 옛 '비시즌 근력 → 파워'(8주)는 목록에서 숨기고, 진행 중인 줄만 같은 모양(LEGACY)으로 이어 간다.
+ * 2026-10-09 기본기 4주(BASICS) — 성장기 · 입문용, 무게 추천 없이 횟수 · 세트로만(docs/designs/youth-beginner-path.md).
  *
  * 무게는 따로 둔다(lib/program/next-weight.ts). 화면 글은 해요체 · 줄표 없이(HANDOFF 2026-10-04).
  */
@@ -98,8 +99,14 @@ export type ProgramId =
   | 'juggernaut-5s'
   | 'ws4sb'
   | 'french-contrast'
-  | 'offseason-strength-power';
+  | 'offseason-strength-power'
+  | 'basics-4w';
 export type ProgramGoal = 'base' | 'strength' | 'power';
+/**
+ * 누구의 프로그램인가 — adult: 만 18세 이상 · 입문 아님(설계 D10), basics: 만 13세부터 · 경력 상관없이(기본기 4주).
+ * 고르기 화면 · 시작 자격 · 운동 고르기 규칙이 이것으로 갈린다.
+ */
+export type ProgramAudience = 'adult' | 'basics';
 export type PerWeek = 2 | 3;
 
 export const GOAL_LABELS: Record<ProgramGoal, string> = {
@@ -159,7 +166,16 @@ export type ProgramDef = {
   weekNotes?: Readonly<Record<number, string>>;
   /** day = 프로그램 안 일차(1부터), light = 가벼운 주(lightWeeks) */
   build: (day: number, week: number, perWeek: PerWeek, light: boolean) => DayBuild;
+  /** 없으면 adult */
+  audience?: ProgramAudience;
+  /** 시작에 꼭 있어야 하는 장비 — 없으면 REQUIRED_EQUIPMENT(바벨 · 덤벨 · 메디신볼) */
+  required?: readonly string[];
 };
+
+export const audienceOf = (def: Pick<ProgramDef, 'audience'>): ProgramAudience =>
+  def.audience ?? 'adult';
+export const requiredOf = (def: Pick<ProgramDef, 'required'>): readonly string[] =>
+  def.required ?? REQUIRED_EQUIPMENT;
 
 /* ─────────────────────────────── 만드는 도구 ─────────────────────────────── */
 
@@ -559,7 +575,61 @@ const LEGACY: ProgramDef = {
   },
 };
 
-/** 고르기 화면의 차례 */
+/* ─────────────────────────── 기본기(성장기 · 입문) ─────────────────────────── */
+
+/**
+ * 기본기 4주 — 2026-10-09 사용자가 정함(docs/designs/youth-beginner-path.md): 만 13세부터 · 보호자 확인 없음 ·
+ * 한 번에 7개(약 35분) · 성인 입문은 다 마치면 성인 프로그램이 열린다(profileBlock 의 basicsDone).
+ *
+ * 무게를 올려 주지 않는다 — 모두 mode 'none'(무게 추천 · '몇 개 더?' 없음). 청소년 웨이트는 감독 아래에서 안전하다는
+ * 근거(Lloyd 2014, 설계 D10)와 부딪히지 않게 횟수 · 세트로만 올린다: 1주 2세트 × 8회 → 2주 세트 +1 → 3주 횟수 +2 → 4주 가볍게.
+ * 날마다 같은 일곱(전신) — 처음 배우는 사람은 같은 동작을 자주 하는 편이 자세가 빨리 익는다(Faigenbaum 2009).
+ * 몸 상태 규칙(통증 멈춤 · 경기 앞뒤 쉼 · 회복 데이 가볍게)은 성인 프로그램과 같은 decideToday 를 탄다.
+ */
+const BASICS_WEEKS: readonly { sets: number; count: number }[] = [
+  { sets: 2, count: 8 },
+  { sets: 3, count: 8 },
+  { sets: 3, count: 10 },
+  { sets: 2, count: 8 },
+];
+
+const BASICS: ProgramDef = {
+  id: 'basics-4w',
+  goal: 'base',
+  audience: 'basics',
+  required: [],
+  name: '기본기 4주',
+  origin: '성장기 · 입문 투수용 맨몸 · 가벼운 저항',
+  summary: '무게 없이 자세부터 익혀요. 횟수와 세트만 조금씩 늘려요',
+  detail: [
+    '날마다 같은 일곱 가지를 해요. 던지기(메디신볼이 없으면 점프) · 스쿼트 · 밀기 · 힌지 · 당기기 · 한 다리 · 몸통 버티기예요.',
+    '2주차에 세트가 하나 늘고, 3주차에 횟수가 둘 늘어요. 4주는 가볍게 해요.',
+    '무게는 추천하지 않아요. 덤벨이나 밴드를 쓰면 같은 자세가 끝까지 유지되는 가장 가벼운 것으로 해요.',
+    '다 마치면 성인은 근력 · 파워 프로그램이 열려요. 만 18세 전이면 코치나 트레이너와 함께 무게를 시작해요.',
+  ],
+  weeks: 4,
+  perWeek: [3],
+  lightWeeks: [4],
+  build: (_day, week) => {
+    const w = BASICS_WEEKS[week - 1];
+    const lift = (v: VariantKey) => item(v, 'none', reps(w.sets, w.count), 60);
+    return {
+      label: null,
+      items: [
+        /* 던지기 · 점프는 지치기 전에 맨 앞 */
+        item('medball', 'none', reps(w.sets, 5), 90),
+        lift('squat'),
+        lift('push'),
+        lift('hinge'),
+        lift('pull'),
+        lift('singleLeg'),
+        item('antiRotation', 'none', reps(w.sets, 8), 45),
+      ],
+    };
+  },
+};
+
+/** 고르기 화면의 차례 — 기본기는 화면이 따로 맨 위에 둔다(audience) */
 export const PROGRAMS: readonly ProgramDef[] = [
   STRONGLIFTS,
   BBB_531,
@@ -568,6 +638,7 @@ export const PROGRAMS: readonly ProgramDef[] = [
   JUGGERNAUT,
   WS4SB,
   FRENCH_CONTRAST,
+  BASICS,
 ];
 const ALL_PROGRAMS: readonly ProgramDef[] = [...PROGRAMS, LEGACY];
 
@@ -678,6 +749,11 @@ export function dayPlan(
 /** 그날 그 변형의 처방(없으면 null) — 한 날에 같은 변형은 하나뿐이다(셀프테스트) */
 export function itemRx(plan: ProgramPlan, day: number, variant: VariantKey): ItemRx | null {
   return dayPlan(plan, day).items.find((x) => x.variant === variant) ?? null;
+}
+
+/** 칸 이름 — 기본기의 첫 칸은 메디신볼이 없으면 점프로 채워 '던지기 · 점프'라 부른다 */
+export function variantLabel(v: VariantKey, audience: ProgramAudience = 'adult'): string {
+  return audience === 'basics' && v === 'medball' ? '던지기 · 점프' : VARIANT_LABELS[v];
 }
 
 /** 이 프로그램이 쓰는 변형 — 시작 시트 · 고정 운동 바꾸기는 이것만 보여 준다 */
@@ -802,6 +878,9 @@ export type ProgramChoice = Pick<
   weeks: string[];
   /** 기준 무게(% 방식)를 쓰는가 — 요약의 무게 안내가 다르다 */
   usesPct: boolean;
+  audience: ProgramAudience;
+  /** 꼭 있어야 하는 장비 — 기본기는 없음(맨몸) */
+  required: string[];
 };
 
 export function programChoiceList(): ProgramChoice[] {
@@ -810,7 +889,10 @@ export function programChoiceList(): ProgramChoice[] {
     const plan = parseProgram(programKeyOf(def.id, perWeek)) as ProgramPlan;
     const weeks = Array.from({ length: def.weeks }, (_, i) => {
       const week = i + 1;
-      const main = dayPlan(plan, i * perWeek + 1).items.find((x) => x.mode !== 'none');
+      const items = dayPlan(plan, i * perWeek + 1).items;
+      /* 무게 없는 프로그램(기본기)은 큰 하체 칸으로 보인다 */
+      const main =
+        items.find((x) => x.mode !== 'none') ?? items.find((x) => x.slot === 'bigLower');
       const light = isLightWeek(plan, week) ? ' (가볍게)' : '';
       return main
         ? `${week}주${light} · ${VARIANT_LABELS[main.variant]} ${prescriptionLine(main)}`
@@ -828,6 +910,8 @@ export function programChoiceList(): ProgramChoice[] {
       usesPct: Array.from({ length: plan.totalDays }, (_, d) => dayPlan(plan, d + 1)).some(
         (p) => p.items.some((x) => x.mode === 'pct')
       ),
+      audience: audienceOf(def),
+      required: [...requiredOf(def)],
     };
   });
 }
@@ -838,8 +922,14 @@ export type ProgramSeason = 'off' | 'pre';
 export type SeasonAnswer = ProgramSeason | 'in' | 'rehab';
 
 export const PROGRAM_MIN_AGE = 18;
+/** 기본기 4주의 아래 끝(2026-10-09 사용자) */
+export const BASICS_MIN_AGE = 13;
 
 export type EligibilityInput = {
+  /** 어느 프로그램의 자격인가 — 없으면 adult */
+  audience?: ProgramAudience;
+  /** 기본기 4주를 다 마친 적이 있는가 — 성인 입문은 마치면 성인 프로그램이 열린다(2026-10-09) */
+  basicsDone?: boolean;
   /** 만 나이. 생년월일이 없으면 null */
   age: number | null;
   /** 경력 이름(입문 · 초급 · 중급 · 상급). 안 골랐으면 null */
@@ -859,36 +949,91 @@ export type Eligibility =
   /** 이 프로그램은 안 되는 사람 — 까닭 한 줄 + 할 일 하나 */
   | { ok: false; kind: 'blocked'; reason: string; action: string };
 
+export type ProgramBlock = { reason: string; action: string };
+
+/**
+ * 프로필(나이 · 경력)로 이미 아는 막힘 — 고르기 화면(training/page.tsx)과 시작 자격이 같은 글을 쓴다. 나이를 모르면 나이는 안 본다
+ * (시작 흐름이 묻는다). 성인: 만 18세 미만 · 입문(기본기를 마쳤으면 열림). 기본기: 만 13세 미만.
+ */
+export function profileBlock(input: {
+  audience?: ProgramAudience;
+  age: number | null;
+  trainingLevel: string | null;
+  basicsDone?: boolean;
+}): ProgramBlock | null {
+  const basics = input.audience === 'basics';
+  if (input.age != null) {
+    if (basics && input.age < BASICS_MIN_AGE) {
+      return {
+        reason: `기본기 4주는 만 ${BASICS_MIN_AGE}세부터 해요.`,
+        action: '직접 고르기의 가벼운 운동으로 몸을 익혀요.',
+      };
+    }
+    if (!basics && input.age < PROGRAM_MIN_AGE) {
+      return {
+        reason: `이 프로그램은 만 ${PROGRAM_MIN_AGE}세부터 해요.`,
+        action:
+          input.age >= BASICS_MIN_AGE
+            ? '기본기 4주로 자세부터 익혀요.'
+            : '직접 고르기의 가벼운 운동으로 자세부터 익혀요.',
+      };
+    }
+  }
+  if (!basics && input.trainingLevel === '입문' && !input.basicsDone) {
+    return {
+      reason: '웨이트를 6개월 넘게 한 사람에게 맞춘 프로그램이에요.',
+      action: '기본기 4주를 마치면 열려요. 건너뛴 날은 세지 않아요.',
+    };
+  }
+  return null;
+}
+
+/**
+ * 시즌으로 막힘 — 시즌 중 · 재활. 기본기도 시즌 중에는 시작하지 않는다(경기 앞뒤 쉬는 날이 잦아 4주를 잇기 어렵다,
+ * 2026-10-09 맡김 — 사용자가 열자고 하면 basics 의 'in' 만 null 로).
+ */
+export function seasonBlock(
+  season: SeasonAnswer,
+  audience: ProgramAudience = 'adult'
+): ProgramBlock | null {
+  if (season === 'in') {
+    return audience === 'basics'
+      ? {
+          reason: '시즌 중에는 경기와 겹쳐 기본기 4주를 시작하지 않아요.',
+          action: '시즌이 끝나면 시작해요. 지금은 자동 맞춤으로 가볍게 이어 가요.',
+        }
+      : {
+          reason: '시즌 중 유지 프로그램은 곧 열려요.',
+          action: '지금은 자동 맞춤으로 가볍게 이어 가요.',
+        };
+  }
+  if (season === 'rehab') {
+    return {
+      reason: '재활 중에는 재활을 먼저 해요.',
+      action: '암케어의 재활 카드에서 이어 가요.',
+    };
+  }
+  return null;
+}
+
 /**
  * 시작할 수 있는가. 묻는 차례는 시작 시트의 차례(§13-12)와 같다 — 생년월일 · 경력 · 시즌 · 장비.
- * 고르기 카드는 프로필로 이미 아는 막힘만 보고(나이 · 경력), 나머지는 시트에서 받는다.
+ * 고르기 카드는 프로필로 이미 아는 막힘만 보고(나이 · 경력 — profileBlock), 나머지는 시트에서 받는다.
+ * 기본기는 꼭 있어야 하는 장비가 없다(맨몸).
  */
 export function checkEligibility(input: EligibilityInput): Eligibility {
+  const audience = input.audience ?? 'adult';
   if (input.age == null) {
     return { ok: false, kind: 'ask', step: 'birth', message: '생년월일을 알려 주세요' };
   }
-  if (input.age < PROGRAM_MIN_AGE) {
-    return {
-      ok: false,
-      kind: 'blocked',
-      reason: '이 프로그램은 만 18세부터 해요.',
-      action: '직접 고르기의 가벼운 운동으로 자세부터 익혀요.',
-    };
-  }
+  const block = profileBlock(input);
+  if (block) return { ok: false, kind: 'blocked', ...block };
   if (input.trainingLevel == null) {
     return {
       ok: false,
       kind: 'ask',
       step: 'level',
       message: '운동 경력을 골라 주세요',
-    };
-  }
-  if (input.trainingLevel === '입문') {
-    return {
-      ok: false,
-      kind: 'blocked',
-      reason: '웨이트를 6개월 넘게 한 사람에게 맞춘 프로그램이에요.',
-      action: '직접 고르기로 기본 동작을 먼저 익혀요.',
     };
   }
   if (input.season == null) {
@@ -899,23 +1044,8 @@ export function checkEligibility(input: EligibilityInput): Eligibility {
       message: '지금 시즌을 골라 주세요',
     };
   }
-  if (input.season === 'in') {
-    return {
-      ok: false,
-      kind: 'blocked',
-      reason: '시즌 중 유지 프로그램은 곧 열려요.',
-      action: '지금은 자동 맞춤으로 가볍게 이어 가요.',
-    };
-  }
-  if (input.season === 'rehab') {
-    return {
-      ok: false,
-      kind: 'blocked',
-      reason: '재활 중에는 재활을 먼저 해요.',
-      action: '암케어의 재활 카드에서 이어 가요.',
-    };
-  }
-  const missing = missingEquipment(input.ownedEquipment);
+  const seasonBlocked = seasonBlock(input.season, audience);
+  if (seasonBlocked) return { ok: false, kind: 'blocked', ...seasonBlocked };
   if (input.ownedEquipment.length === 0) {
     return {
       ok: false,
@@ -924,20 +1054,46 @@ export function checkEligibility(input: EligibilityInput): Eligibility {
       message: '가진 장비를 골라 주세요',
     };
   }
-  if (missing.length > 0) {
-    return {
-      ok: false,
-      kind: 'blocked',
-      reason: `${withJosa(missing.join(', '), '이/가')} 있어야 할 수 있어요.`,
-      action: '장비가 생기면 다시 시작해요.',
-    };
-  }
+  const gear = equipmentBlock(
+    input.ownedEquipment,
+    audience === 'basics' ? [] : REQUIRED_EQUIPMENT
+  );
+  if (gear) return { ok: false, kind: 'blocked', ...gear };
   return { ok: true };
 }
 
-export function missingEquipment(owned: readonly string[]): string[] {
+export function missingEquipment(
+  owned: readonly string[],
+  required: readonly string[] = REQUIRED_EQUIPMENT
+): string[] {
   const has = new Set(owned);
-  return REQUIRED_EQUIPMENT.filter((e) => !has.has(e));
+  return required.filter((e) => !has.has(e));
+}
+
+/**
+ * 저장된 장비로 막힘 — 시작 자격과 고르기 화면의 소개 쪽이 같은 글을 쓴다(2026-10-09 검토: 장비가 이미 저장된 사람은 시트에서
+ * 장비 칸을 건너뛰어, 빠진 장비를 마지막 [시작]에서야 알았다 — 기본기를 맨몸으로 마친 성인 입문이 바로 그 길이다).
+ */
+export function equipmentBlock(
+  owned: readonly string[],
+  required: readonly string[] = REQUIRED_EQUIPMENT
+): ProgramBlock | null {
+  const missing = missingEquipment(owned, required);
+  if (missing.length === 0) return null;
+  return {
+    reason: `${withJosa(missing.join(', '), '이/가')} 있어야 할 수 있어요.`,
+    action: '트레이닝 설정에서 장비를 고치거나, 장비가 생기면 다시 시작해요.',
+  };
+}
+
+/**
+ * 기본기를 '마쳤다'고 칠 만큼 했나 — 일차 절반(올림) 넘게 실제로 한 날(건너뛴 날 빼고). 프로그램의 '다 마침'(status done)은
+ * 완료 + 건너뜀으로 끝까지 간 것이라(설계 §9), 열두 날을 다 건너뛰어도 done 이 된다. 성인 입문의 막힘을 푸는 데는 그것으로
+ * 모자란다(2026-10-09 검토).
+ */
+export function basicsDoneEnough(plan: ProgramPlan, nextDay: number, skippedDays: number): boolean {
+  const did = Math.min(plan.totalDays, nextDay - 1) - skippedDays;
+  return did >= Math.ceil(plan.totalDays / 2);
 }
 
 /* ─────────────────────────── 운동 고정(§3 · U6) ─────────────────────────── */
@@ -1070,6 +1226,118 @@ const VARIANT_RULES: Record<VariantKey, VariantRule> = {
   },
 };
 
+/*
+ * 기본기(성장기 · 입문)의 고르기 — 바벨 · 원판 · 케이블 없이, 강도 '매우 높음' · 난이도 상급은 빼고. 2026-10-09 라이브러리를
+ * 읽어 보고 정했다: 맨몸만 있어도 일곱 칸이 다 찬다(템포 맨몸 스쿼트 · 푸시업 · 양발 글루트 브리지 · 레터럴 런지 · 데드버그 · 포고 홉,
+ * 당기기만 맨몸이 없어 철봉 · 밴드 · TRX · 덤벨 중 하나가 있어야 한다).
+ */
+const BASICS_EQUIPMENT = new Set([
+  '맨몸',
+  '밴드',
+  '덤벨',
+  '케틀벨',
+  '메디신볼',
+  '박스',
+  '벤치',
+  '철봉',
+  'TRX',
+]);
+const basicFit = (ex: PinnableExercise) =>
+  ex.equipment.every((e) => BASICS_EQUIPMENT.has(e)) &&
+  intensityLevel(ex.intensity) <= 4 &&
+  ex.difficulty !== '상급';
+/** 이름에 든 말의 차례 — 앞에 있을수록 먼저, 없으면 맨 뒤 */
+const wordRank = (title: string, words: readonly string[]) => {
+  const at = words.findIndex((w) => title.includes(w));
+  return at === -1 ? words.length : at;
+};
+/* 버티기(아이소) · 불안정 지면(보수볼) · 느리게 내리기 · 한쪽 커시는 처음 배우는 동작으로 두지 않는다 — 맨 뒤 */
+const LATER = /아이소|보수볼|에센트릭|커시/;
+const later = (ex: PinnableExercise) => (LATER.test(ex.title) ? 1 : 0);
+
+const BASICS_RULES: Record<VariantKey, VariantRule> = {
+  ...VARIANT_RULES,
+  /* 맨몸 → 고블렛(설계 메모) — 덤벨이 있으면 고블렛 스쿼트, 없으면 템포 맨몸 스쿼트 */
+  squat: {
+    match: (ex) =>
+      ex.category === '하체 스트렝스' &&
+      ex.movementPattern === '스쿼트' &&
+      !ex.perSide &&
+      basicFit(ex),
+    rank: (ex) => [
+      later(ex),
+      wordRank(ex.title, ['고블렛 스쿼트', '맨몸 스쿼트', '스쿼트']),
+      intensityLevel(ex.intensity),
+    ],
+  },
+  hinge: {
+    match: (ex) =>
+      ex.category === '하체 스트렝스' &&
+      ex.movementPattern === '힌지' &&
+      !ex.perSide &&
+      basicFit(ex),
+    rank: (ex) => [
+      later(ex),
+      wordRank(ex.title, ['RDL', '굿모닝', '스모 데드리프트', '글루트 브리지']),
+      intensityLevel(ex.intensity),
+    ],
+  },
+  /* 푸시업을 먼저 — 어려운 푸시업(파이크 · 다이아몬드 · 저항)과 머리 위로 미는 것은 뒤로(투수 어깨) */
+  push: {
+    match: (ex) =>
+      ex.category === '상체 스트렝스' &&
+      ex.movementPattern === '밀기' &&
+      !ex.perSide &&
+      basicFit(ex),
+    rank: (ex) => [
+      later(ex),
+      /파이크|다이아몬드|핸드 릴리스|스퀴즈|저항|숄더 프레스|푸시 프레스|헥스/.test(ex.title) ? 1 : 0,
+      ex.title === '푸시업' ? 0 : 1,
+      wordRank(ex.title, ['푸시업', '플로어 프레스', '벤치 프레스']),
+    ],
+  },
+  pull: {
+    match: (ex) =>
+      ex.category === '상체 스트렝스' && ex.movementPattern === '당기기' && basicFit(ex),
+    rank: (ex) => [
+      later(ex),
+      /풀오버|중량/.test(ex.title) ? 1 : 0,
+      wordRank(ex.title, ['TRX 로우', '밴드 로우', '덤벨 로우', '보조 친업', '보조 풀업', '풀업', '친업']),
+      ex.perSide ? 1 : 0,
+    ],
+  },
+  singleLeg: {
+    match: (ex) =>
+      ex.category === '하체 스트렝스' && ex.movementPattern === '런지' && basicFit(ex),
+    rank: (ex) => [
+      later(ex),
+      wordRank(ex.title, ['리버스 런지', '스플릿 스쿼트', '스텝업', '레터럴 런지', '박스 스쿼트']),
+      intensityLevel(ex.intensity),
+    ],
+  },
+  /* 던지기를 먼저, 메디신볼이 없으면 맨몸 점프(포고 홉이 가장 가볍다) */
+  medball: {
+    match: (ex) =>
+      ex.category === '파워' &&
+      basicFit(ex) &&
+      (ex.equipment.includes('메디신볼') ||
+        (ex.movementPattern === '스쿼트' && ex.equipment.every((e) => e === '맨몸'))),
+    rank: (ex) => [
+      ex.equipment.includes('메디신볼') ? 0 : 1,
+      ex.movementPattern === '밀기' || ex.movementPattern === '당기기'
+        ? 0
+        : ex.movementPattern === '회전'
+          ? 1
+          : 2,
+      wordRank(ex.title, ['포고', '버티컬 점프', '브로드 점프']),
+    ],
+  },
+  antiRotation: {
+    match: (ex) => VARIANT_RULES.antiRotation.match(ex) && basicFit(ex),
+    rank: VARIANT_RULES.antiRotation.rank,
+  },
+};
+
 function compareRank(a: number[], b: number[]): number {
   for (let i = 0; i < Math.max(a.length, b.length); i++) {
     const d = (a[i] ?? 0) - (b[i] ?? 0);
@@ -1087,10 +1355,12 @@ export function variantCandidates<T extends PinnableExercise>(
   variant: VariantKey,
   library: readonly T[],
   owned: readonly string[],
-  trainingLevel: string | null
+  trainingLevel: string | null,
+  /** 기본기는 다른 규칙(BASICS_RULES) — 바벨 없이, 가벼운 것부터 */
+  audience: ProgramAudience = 'adult'
 ): T[] {
   const ownedSet = new Set(owned);
-  const rule = VARIANT_RULES[variant];
+  const rule = (audience === 'basics' ? BASICS_RULES : VARIANT_RULES)[variant];
   const usable = library.filter((ex) => rule.match(ex) && canDo(ex, ownedSet));
   const leveled = filterByLevel(usable, trainingLevel).pool;
   /* filterByLevel 이 경력 순으로 세운 것을 지키며, 같은 경력 안에서 변형 규칙의 차례로 */
@@ -1109,11 +1379,12 @@ export function pickPinned<T extends PinnableExercise>(
   library: readonly T[],
   owned: readonly string[],
   trainingLevel: string | null,
-  keep: Pinned = {}
+  keep: Pinned = {},
+  audience: ProgramAudience = 'adult'
 ): Pinned {
   const out: Pinned = {};
   for (const v of VARIANT_KEYS) {
-    const candidates = variantCandidates(v, library, owned, trainingLevel);
+    const candidates = variantCandidates(v, library, owned, trainingLevel, audience);
     const kept = keep[v];
     if (kept && candidates.some((c) => c.id === kept)) {
       out[v] = kept;

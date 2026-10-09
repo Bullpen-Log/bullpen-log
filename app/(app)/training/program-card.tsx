@@ -85,7 +85,9 @@ export function ProgramCard({ props }: { props: ProgramCardProps }) {
   return (
     <Card className="space-y-3">
       <div className="space-y-1">
-        <p className="text-xs font-semibold text-muted">근력 · 파워 프로그램</p>
+        <p className="text-xs font-semibold text-muted">
+          {p.basics ? '기본기 프로그램' : '근력 · 파워 프로그램'}
+        </p>
         <p className="text-heading text-xl text-ink">{title}</p>
         {sub && <p className="text-sm text-muted">{sub}</p>}
         {(resting || finishedToday || p.kind === 'otherMode') &&

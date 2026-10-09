@@ -241,6 +241,10 @@
 
 ## 4. 진행 중인 일
 
+- **기본기 4주(2026-10-09, 사용자: 만 13세부터 · 보호자 확인 없음 · 7개 · 성인 입문은 마치면 성인 프로그램).** `lib/program/program.ts` BASICS ·
+  BASICS_RULES · profileBlock/seasonBlock/equipmentBlock · basicsDoneEnough, 화면은 트레이닝의 카드(program-start.tsx). 설계 `docs/designs/youth-beginner-path.md`.
+  맡겨서 정한 것: 시즌 중에는 기본기도 막음 · 맨몸만이면 당기기 칸이 빔. 화면은 로그인 없는 임시 경로로만 봤다(실제 계정 확인은 사용자 몫).
+
 - **트레이닝 검토 1~4단계(2026-10-09, 사용자: "트레이닝 파트 개선점 · 방향 검토하고 계획 짜줘 → 1단계부터 멈추지 말고").** 방향은
   "트레이닝을 투구 결과와 잇는 고리" — 앱이 다음 등판을 모르고, 운동해서 공이 좋아졌는지 안 보였다. 한 것:
   ① 체크인 `throwPlan` 을 매일 계획이 읽음(`facts.condition.throwPlanToday/Yesterday` → `theme.ts plannedOuting`: 오늘 등판 회복 · 내일 등판 보조·코어,

@@ -20,6 +20,7 @@ import { openSession } from '@/lib/workout/open-session';
 import {
   PROGRAMS_ENABLED,
   VARIANT_KEYS,
+  audienceOf,
   checkEligibility,
   parseProgram,
   pickPinned,
@@ -28,12 +29,13 @@ import {
   startProgramKey,
   usedVariants,
   variantCandidates,
+  variantLabel,
   weekOfDay,
   type Pinned,
   type ProgramSeason,
   type VariantKey,
 } from '@/lib/program/program';
-import { activeProgram, buildProgramDay } from '@/lib/program/load';
+import { activeProgram, buildProgramDay, hasFinishedBasics } from '@/lib/program/load';
 
 /**
  * 근력 · 파워 프로그램의 저장 동작 — 시작 · 운동 시작 · 건너뛰기 · 그만두기 · 오늘 할래요 · 고정 운동 바꾸기.
@@ -60,7 +62,9 @@ export async function startProgram(input: {
 }): Promise<Result> {
   if (!PROGRAMS_ENABLED) return { error: '지금은 프로그램을 시작할 수 없어요.' };
   const programKey = startProgramKey(input.programId, input.perWeek);
-  if (!programKey) return { error: '고른 프로그램을 다시 확인해 주세요.' };
+  const def = programDef(input.programId);
+  if (!programKey || !def) return { error: '고른 프로그램을 다시 확인해 주세요.' };
+  const audience = audienceOf(def);
   const user = await requireUser();
   const now = new Date();
 
@@ -74,19 +78,27 @@ export async function startProgram(input: {
     (TRAINING_LEVELS.some((l) => l.name === input.trainingLevel)
       ? (input.trainingLevel ?? null)
       : null);
+  /* 기본기는 아무것도 안 골라도 된다(맨몸만) — 시트의 장비 칸을 지나왔으면(배열) 맨몸으로 저장한다 */
   const ownedEquipment =
     user.ownedEquipment.length > 0
       ? user.ownedEquipment
-      : input.ownedEquipment && input.ownedEquipment.length > 0
+      : input.ownedEquipment &&
+          (input.ownedEquipment.length > 0 || audience === 'basics')
         ? [ALWAYS_OWNED, ...pickMany(input.ownedEquipment, SELECTABLE_EQUIPMENT)]
         : [];
   const season = input.season === 'pre' ? 'pre' : input.season === 'off' ? 'off' : null;
 
   const eligible = checkEligibility({
+    audience,
     age: birthDate ? ageFromBirthDate(birthDate, now) : null,
     trainingLevel,
     season,
     ownedEquipment,
+    /* 성인 입문만 본다 — 기본기를 마쳤으면 열린다 */
+    basicsDone:
+      audience === 'adult' && trainingLevel === '입문'
+        ? await hasFinishedBasics(user.id)
+        : false,
   });
   if (!eligible.ok) {
     return { error: eligible.kind === 'ask' ? eligible.message : eligible.reason };
@@ -95,7 +107,7 @@ export async function startProgram(input: {
   /* 고정 운동 — 보낸 것 중 후보에 있는 것만 지키고, 나머지는 규칙대로 고른다(안 쓰는 변형도 골라 둔다 — 해가 없다) */
   const library = await visibleExercises();
   const keep: Pinned = readPinned(input.pinned ?? {});
-  const pinned = pickPinned(library, ownedEquipment, trainingLevel, keep);
+  const pinned = pickPinned(library, ownedEquipment, trainingLevel, keep, audience);
 
   const result = await prisma.$transaction(async (tx) => {
     /* 진행 중은 한 사람 하나 — Prisma 가 조건 붙은 유일 규칙을 못 적어 트랜잭션 안에서 본다(재활과 같다) */
@@ -139,9 +151,12 @@ export async function startProgram(input: {
   return { ok: true };
 }
 
-/** 시작 시트 ④ · 고정 운동 바꾸기(§13-17)가 보여 줄 후보 */
+/**
+ * 시작 시트 ④ · 고정 운동 바꾸기(§13-17)가 보여 줄 후보. 프로그램을 안 주면 진행 중인 프로그램의 규칙으로(기본기는 바벨 없이).
+ */
 export async function programChoices(input: {
   variant: VariantKey;
+  programId?: string | null;
   ownedEquipment?: string[] | null;
   trainingLevel?: string | null;
 }): Promise<
@@ -154,9 +169,18 @@ export async function programChoices(input: {
       ? user.ownedEquipment
       : [ALWAYS_OWNED, ...pickMany(input.ownedEquipment ?? [], SELECTABLE_EQUIPMENT)];
   const level = user.trainingLevel ?? input.trainingLevel ?? null;
+  const def = input.programId
+    ? programDef(input.programId)
+    : (parseProgram((await activeProgram(user.id))?.programKey ?? '')?.def ?? null);
   const library = await visibleExercises();
   return {
-    choices: variantCandidates(input.variant, library, owned, level).map((e) => ({
+    choices: variantCandidates(
+      input.variant,
+      library,
+      owned,
+      level,
+      def ? audienceOf(def) : 'adult'
+    ).map((e) => ({
       id: e.id,
       title: e.title,
       equipment: e.equipment,
@@ -170,7 +194,7 @@ export async function previewPinned(input: {
   ownedEquipment?: string[] | null;
   trainingLevel?: string | null;
 }): Promise<{
-  pinned: { variant: VariantKey; id: string | null; title: string | null }[];
+  pinned: { variant: VariantKey; label: string; id: string | null; title: string | null }[];
 }> {
   const user = await requireUser();
   const owned =
@@ -180,11 +204,13 @@ export async function previewPinned(input: {
   const level = user.trainingLevel ?? input.trainingLevel ?? null;
   const library = await visibleExercises();
   const byId = new Map(library.map((e) => [e.id, e.title]));
-  const pinned = pickPinned(library, owned, level);
   const def = programDef(input.programId);
+  const audience = def ? audienceOf(def) : 'adult';
+  const pinned = pickPinned(library, owned, level, {}, audience);
   return {
     pinned: (def ? usedVariants(def) : VARIANT_KEYS).map((v) => ({
       variant: v,
+      label: variantLabel(v, audience),
       id: pinned[v] ?? null,
       title: pinned[v] ? (byId.get(pinned[v] as string) ?? null) : null,
     })),
@@ -312,11 +338,13 @@ export async function repinProgramExercise(input: {
   const row = await activeProgram(user.id);
   if (!row) return { error: '진행 중인 프로그램이 없어요.' };
   const library = await visibleExercises();
+  const def = parseProgram(row.programKey)?.def;
   const ok = variantCandidates(
     input.variant,
     library,
     user.ownedEquipment,
-    user.trainingLevel
+    user.trainingLevel,
+    def ? audienceOf(def) : 'adult'
   ).some((e) => e.id === input.exerciseId);
   if (!ok) return { error: '이 칸에 넣을 수 없는 운동이에요.' };
   await prisma.userTrainingProgram.update({

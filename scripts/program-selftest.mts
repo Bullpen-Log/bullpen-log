@@ -10,7 +10,13 @@ import { readFileSync } from 'node:fs';
 import {
   PROGRAMS,
   asksReserve,
+  audienceOf,
+  basicsDoneEnough,
   checkEligibility,
+  equipmentBlock,
+  profileBlock,
+  seasonBlock,
+  variantLabel,
   dayLabel,
   dayPlan,
   decideToday,
@@ -125,14 +131,16 @@ const plans = PROGRAMS.flatMap((def) =>
 const allDays = (p: ProgramPlan) =>
   Array.from({ length: p.totalDays }, (_, d) => dayPlan(p, d + 1));
 check(
-  '프로그램 7개 · 모두 4주 · 옛 프로그램은 목록에 없음',
-  PROGRAMS.length === 7 &&
+  '프로그램 8개(성인 7 + 기본기 1) · 모두 4주 · 옛 프로그램은 목록에 없음',
+  PROGRAMS.length === 8 &&
+    PROGRAMS.filter((p) => audienceOf(p) === 'adult').length === 7 &&
+    PROGRAMS.filter((p) => audienceOf(p) === 'basics').length === 1 &&
     PROGRAMS.every((p) => p.weeks === 4) &&
     !PROGRAMS.some((p) => p.id === 'offseason-strength-power')
 );
 check(
   '주 3번 12회 · 주 2번 8회',
-  plans.every((p) => p.totalDays === p.perWeek * 4) && plans.length === 12
+  plans.every((p) => p.totalDays === p.perWeek * 4) && plans.length === 13
 );
 check(
   '스트롱리프트 · 텍사스는 주 3번만',
@@ -372,14 +380,47 @@ check(
 {
   const list = programChoiceList();
   check(
-    '고르기 목록 7개, 주마다 4줄',
-    list.length === 7 && list.every((c) => c.weeks.length === 4)
+    '고르기 목록 8개, 주마다 4줄',
+    list.length === 8 && list.every((c) => c.weeks.length === 4)
   );
   check(
     '스트롱리프트는 % 안 씀, 5/3/1 은 씀',
     list.find((c) => c.id === 'stronglifts-5x5')?.usesPct === false &&
       list.find((c) => c.id === '531')?.usesPct === true
   );
+}
+
+/* ── 1-1) 기본기 4주(2026-10-09) ─────────────────────────────── */
+console.log('\n1-1) 기본기 4주');
+{
+  const b = plan('basics-4w');
+  check('기본기 키 · 주 3번 12회', b != null && b.totalDays === 12 && parseProgram('basics-4w:2') === null);
+  const days = allDays(b);
+  check('날마다 일곱', days.every((d) => d.items.length === 7), String(days.map((d) => d.items.length)));
+  check('무게 없음(모두 none) · 몇 개 더 안 물음', days.every((d) => d.items.every((x) => x.mode === 'none' && !asksReserve({ slot: x.slot, light: x.light, mode: x.mode }, x.sets.length))));
+  const sq = (day: number) => rxOf(b, day, 'squat');
+  check(
+    '1주 2×8 → 2주 3×8 → 3주 3×10 → 4주 2×8(가볍게)',
+    sq(1).sets.length === 2 && sq(1).reps === 8 &&
+      sq(4).sets.length === 3 && sq(4).reps === 8 &&
+      sq(7).sets.length === 3 && sq(7).reps === 10 &&
+      sq(10).sets.length === 2 && sq(10).reps === 8 && sq(10).light,
+    [1, 4, 7, 10].map((d) => `${sq(d).sets.length}×${sq(d).reps}`).join(' ')
+  );
+  check('던지기 · 점프가 맨 앞', days.every((d) => d.items[0].variant === 'medball'));
+  check(
+    '쓰는 변형 일곱',
+    eq(usedVariants(b.def), ['squat', 'hinge', 'push', 'pull', 'singleLeg', 'medball', 'antiRotation'])
+  );
+  check('처방 한 줄', prescriptionLine(sq(1)) === '2세트 × 8회' && prescriptionLine(rxOf(b, 1, 'medball')) === '2세트 × 5회 · 최대 속도 · 충분히 쉬고', prescriptionLine(rxOf(b, 1, 'medball')));
+  check('칸 이름 — 기본기 첫 칸은 던지기 · 점프', variantLabel('medball', 'basics') === '던지기 · 점프' && variantLabel('medball') === '메디신볼');
+  const c = programChoiceList().find((x) => x.id === 'basics-4w');
+  check('고르기: 기본기 · 꼭 있을 장비 없음 · % 안 씀', c?.audience === 'basics' && c.required.length === 0 && c.usesPct === false && c.weeks[0].startsWith('1주 · 스쿼트'), c?.weeks[0] ?? '');
+  /* 하루 약 35분 — 세트마다 30초 하고 쉬는 시간, 운동 바꿀 때 30초 */
+  const minutes = (d: (typeof days)[number]) =>
+    d.items.reduce((m, x) => m + x.sets.length * (30 + x.restSeconds) / 60 + 0.5, 0);
+  const longest = Math.max(...days.map(minutes));
+  check('가장 긴 날도 40분 안', longest <= 40, `${Math.round(longest)}분`);
 }
 
 /* ── 2) 시작 자격 ─────────────────────────────── */
@@ -416,6 +457,34 @@ check('다 맞으면 시작', checkEligibility(base).ok);
     !rM.ok && rM.kind === 'blocked' && rM.reason.startsWith('메디신볼이'),
     !rM.ok && rM.kind === 'blocked' ? rM.reason : ''
   );
+}
+
+{
+  /* 기본기 · 성인 입문(2026-10-09) */
+  const kid = { ...base, audience: 'basics' as const, age: 15, trainingLevel: '입문', ownedEquipment: ['맨몸'] };
+  check('기본기: 만 15세 입문 · 맨몸만 → 시작', checkEligibility(kid).ok);
+  const r12 = checkEligibility({ ...kid, age: 12 });
+  check('기본기: 만 12세 → 막힘', !r12.ok && r12.kind === 'blocked' && r12.reason.includes('13세'));
+  check('기본기: 만 13세 → 시작', checkEligibility({ ...kid, age: 13 }).ok);
+  check('기본기: 성인 중급도 → 시작', checkEligibility({ ...base, audience: 'basics' }).ok);
+  const rBin = checkEligibility({ ...kid, season: 'in' });
+  check('기본기: 시즌 중 → 막힘(기본기 글)', !rBin.ok && rBin.kind === 'blocked' && rBin.reason.includes('기본기'));
+  const rBe = checkEligibility({ ...kid, ownedEquipment: [] });
+  check('기본기: 장비 안 고름 → 물음', !rBe.ok && rBe.kind === 'ask' && rBe.step === 'equipment');
+  const r16 = checkEligibility({ ...base, age: 16 });
+  check('성인: 만 16세 → 막힘, 할 일은 기본기', !r16.ok && r16.kind === 'blocked' && r16.action.includes('기본기'));
+  const r10 = checkEligibility({ ...base, age: 10 });
+  check('성인: 만 10세 → 막힘, 할 일은 직접 고르기', !r10.ok && r10.kind === 'blocked' && r10.action.includes('직접 고르기'));
+  const rNov = checkEligibility({ ...base, trainingLevel: '입문' });
+  check('성인 입문 · 기본기 안 마침 → 막힘, 할 일은 기본기', !rNov.ok && rNov.kind === 'blocked' && rNov.action.includes('기본기'));
+  check('성인 입문 · 기본기 마침 → 시작', checkEligibility({ ...base, trainingLevel: '입문', basicsDone: true }).ok);
+  check('만 17세는 기본기를 마쳐도 성인은 막힘', !checkEligibility({ ...base, age: 17, basicsDone: true }).ok);
+  check('고르기 화면 막힘 = 시작 자격 막힘', eq(profileBlock({ age: 16, trainingLevel: '초급' }), { reason: r16.ok ? '' : (r16 as { reason: string }).reason, action: r16.ok ? '' : (r16 as { action: string }).action }));
+  check('나이 모르면 고르기 화면은 막지 않음', profileBlock({ age: null, trainingLevel: '초급' }) === null && profileBlock({ audience: 'basics', age: null, trainingLevel: '입문' }) === null);
+  const bplan = plan('basics-4w');
+  check('기본기 마침: 다 건너뛰면 안 셈 · 6번 하면 셈', !basicsDoneEnough(bplan, 13, 12) && !basicsDoneEnough(bplan, 13, 7) && basicsDoneEnough(bplan, 13, 6) && basicsDoneEnough(bplan, 13, 0));
+  check('장비 막힘: 성인은 바벨 · 덤벨 · 메디신볼, 기본기는 없음', equipmentBlock(['맨몸'])?.reason.startsWith('바벨, 덤벨, 메디신볼이') === true && equipmentBlock(['맨몸'], []) === null);
+  check('재활 → 둘 다 막힘', seasonBlock('rehab', 'basics') != null && seasonBlock('rehab') != null && seasonBlock('off', 'basics') === null);
 }
 
 /* ── 3) 운동 고정 ─────────────────────────────── */
@@ -545,6 +614,50 @@ const lib: PinnableExercise[] = [
     '저장된 pinned 읽기 — 모르는 키 버림',
     eq(readPinned({ squat: 'a', foo: 'b', hinge: 3 }), { squat: 'a' })
   );
+}
+
+{
+  /* 기본기 고르기 — 바벨 없이, 가벼운 것부터(2026-10-09 라이브러리에서 이름을 따 옴) */
+  const bx = (id: string, title: string, category: string, pattern: string | null, equipment: string[], intensity = '중간', difficulty: string | null = '초급', perSide = false) =>
+    ex(id, title, category, pattern, equipment, intensity, difficulty, perSide);
+  const blib: PinnableExercise[] = [
+    bx('bsq', '바벨 스쿼트', '하체 스트렝스', '스쿼트', ['바벨'], '높음', '중급'),
+    bx('tbs', '템포 맨몸 스쿼트', '하체 스트렝스', '스쿼트', ['맨몸'], '낮음'),
+    bx('gob', '고블렛 스쿼트', '하체 스트렝스', '스쿼트', ['덤벨']),
+    bx('egs', '에센트릭 포즈 고블렛 스쿼트', '하체 스트렝스', '스쿼트', ['덤벨'], '높음', '중급'),
+    bx('fsq', '바벨 프론트 스쿼트', '하체 스트렝스', '스쿼트', ['바벨'], '매우 높음', '상급'),
+    bx('gbr', '양발 글루트 브리지', '하체 스트렝스', '힌지', ['맨몸'], '낮음'),
+    bx('drdl', '덤벨 RDL', '하체 스트렝스', '힌지', ['덤벨'], '중간', '중급'),
+    bx('pu', '푸시업', '상체 스트렝스', '밀기', ['맨몸']),
+    bx('pk', '파이크 푸시업', '상체 스트렝스', '밀기', ['맨몸'], '중간', '중급'),
+    bx('bp', '벤치프레스', '상체 스트렝스', '밀기', ['바벨', '벤치'], '높음', '중급'),
+    bx('trx', 'TRX 로우', '상체 스트렝스', '당기기', ['TRX']),
+    bx('hbr', '하프닐링 밴드 로우', '상체 스트렝스', '당기기', ['밴드'], '낮음', '초급', true),
+    bx('wpu', '중량 친업', '상체 스트렝스', '당기기', ['철봉'], '매우 높음', '상급'),
+    bx('ll', '레터럴 런지', '하체 스트렝스', '런지', ['맨몸'], '낮음', '초급', true),
+    bx('drl', '덤벨 리버스 런지', '하체 스트렝스', '런지', ['덤벨'], '중간', '초급', true),
+    bx('bosu', '보수볼 포워드 런지', '하체 스트렝스', '런지', ['맨몸'], '중간', '중급', true),
+    bx('mbt', '톨닐링 메디신볼 오버헤드 스로우', '파워', '당기기', ['메디신볼']),
+    bx('pogo', '로우 포고 홉', '파워', '스쿼트', ['맨몸']),
+    bx('bj', '브로드 점프', '파워', '스쿼트', ['맨몸'], '높음', '중급'),
+    bx('dd', '뎁스 점프 투 박스', '파워', '스쿼트', ['박스'], '매우 높음', '상급'),
+    bx('dbug', '데드버그', '코어', null, ['맨몸'], '낮음'),
+    bx('pal', '스탠딩 밴드 팔로프 프레스', '코어', null, ['밴드'], '낮음', '초급', true),
+  ];
+  const first = (v: Parameters<typeof variantCandidates>[0], owned: string[], level: string | null = '중급') =>
+    variantCandidates(v, blib, owned, level, 'basics')[0]?.id ?? null;
+  const all = ['맨몸', '밴드', '덤벨', '메디신볼', '바벨', '벤치', 'TRX', '철봉', '박스'];
+  check('기본기: 바벨 · 매우 높음 · 상급은 후보에 없음', !variantCandidates('squat', blib, all, '상급', 'basics').some((e) => ['bsq', 'fsq'].includes(e.id)) && !variantCandidates('pull', blib, all, '상급', 'basics').some((e) => e.id === 'wpu') && !variantCandidates('medball', blib, all, '상급', 'basics').some((e) => e.id === 'dd'));
+  check('기본기 스쿼트: 덤벨 있으면 고블렛, 맨몸만이면 템포 맨몸', first('squat', all) === 'gob' && first('squat', ['맨몸']) === 'tbs');
+  check('기본기 힌지: 입문(초급만)은 글루트 브리지, 중급은 덤벨 RDL', first('hinge', all, '입문') === 'gbr' && first('hinge', all) === 'drdl');
+  check('기본기 밀기: 푸시업을 파이크보다 먼저', first('push', all) === 'pu');
+  check('기본기 당기기: TRX 로우 먼저, 밴드만이면 밴드 로우, 맨몸만이면 없음', first('pull', all) === 'trx' && first('pull', ['맨몸', '밴드']) === 'hbr' && first('pull', ['맨몸']) === null);
+  check('기본기 한 다리: 리버스 런지 먼저, 맨몸만이면 레터럴 런지(보수볼은 뒤로)', first('singleLeg', all) === 'drl' && first('singleLeg', ['맨몸']) === 'll');
+  check('기본기 첫 칸: 메디신볼 던지기, 없으면 포고 홉', first('medball', all) === 'mbt' && first('medball', ['맨몸']) === 'pogo');
+  check('기본기 몸통: 맨몸이면 데드버그', first('antiRotation', ['맨몸']) === 'dbug' && first('antiRotation', ['맨몸', '밴드']) === 'pal');
+  check('성인 규칙은 그대로(바벨 스쿼트 먼저)', variantCandidates('squat', blib, all, '중급')[0]?.id === 'bsq');
+  const pinsB = pickPinned(blib, ['맨몸'], '입문', {}, 'basics');
+  check('기본기: 맨몸 입문도 일곱 중 여섯이 참(당기기만 빔)', ['squat', 'hinge', 'push', 'singleLeg', 'medball', 'antiRotation'].every((v) => pinsB[v as keyof typeof pinsB]) && !pinsB.pull, JSON.stringify(pinsB));
 }
 
 /* ── 4) 오늘 판정 ─────────────────────────────── */

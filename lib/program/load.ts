@@ -17,7 +17,9 @@ import {
   CAUTION_TEXT,
   TM_LOOKBACK_DAYS,
   REST_TEXT,
-  VARIANT_LABELS,
+  PROGRAMS,
+  audienceOf,
+  basicsDoneEnough,
   daysBetween,
   dayLabel,
   dayPlan,
@@ -29,6 +31,7 @@ import {
   readPinned,
   usedVariants,
   variantCandidates,
+  variantLabel,
   warmupLine,
   type ItemRx,
   type Pinned,
@@ -82,6 +85,26 @@ export async function recentlyDoneProgram(
 }
 
 const keyOf = (d: Date | null | undefined) => (d ? d.toISOString().slice(0, 10) : null);
+
+/**
+ * 기본기 4주를 다 마친 적이 있는가 — 성인 입문은 마치면 성인 프로그램이 열린다(program.ts 의 profileBlock, 2026-10-09).
+ */
+export async function hasFinishedBasics(userId: string): Promise<boolean> {
+  const ids = PROGRAMS.filter((d) => audienceOf(d) === 'basics').map((d) => d.id);
+  const rows = await prisma.userTrainingProgram.findMany({
+    where: {
+      userId,
+      status: 'done',
+      programKey: { in: [...ids, ...ids.map((id) => `${id}:2`)] },
+    },
+    select: { programKey: true, nextDay: true, skippedDays: true },
+  });
+  /* 다 건너뛴 '마침'은 세지 않는다 — 절반 넘게 실제로 한 판이 하나 있어야(basicsDoneEnough) */
+  return rows.some((r) => {
+    const plan = parseProgram(r.programKey);
+    return plan != null && basicsDoneEnough(plan, r.nextDay, r.skippedDays);
+  });
+}
 
 /* ─────────────────────────── 오늘 신호 ─────────────────────────── */
 
@@ -353,6 +376,8 @@ export async function buildProgramDay(
   /* 다 끝났으면 마지막 날 목록(그리지는 않는다) */
   const items = dayPlan(plan, day).items;
   const owned = user.ownedEquipment;
+  /* 기본기는 고르는 규칙이 다르다(바벨 없이) — 다시 고정 · 그날 대체도 같은 규칙으로 */
+  const audience = audienceOf(plan.def);
 
   /* 고정 운동이 숨겨졌으면 같은 칸에서 다시 고른다(§3) */
   const repin: Pinned = {};
@@ -363,7 +388,7 @@ export async function buildProgramDay(
     const ex = id ? byId.get(id) : undefined;
     if (ex) return { ex, repinned: false };
     const next =
-      variantCandidates(v, core.library, owned, user.trainingLevel)[0] ?? null;
+      variantCandidates(v, core.library, owned, user.trainingLevel, audience)[0] ?? null;
     if (next) repin[v] = next.id;
     return { ex: next, repinned: next != null };
   };
@@ -443,7 +468,7 @@ export async function buildProgramDay(
     if (!pinnedEx) {
       view.dropped.push({
         slot,
-        title: VARIANT_LABELS[variant],
+        title: variantLabel(variant, audience),
         reason: '할 수 있는 운동이 없어요',
       });
       continue;
@@ -458,7 +483,8 @@ export async function buildProgramDay(
         variant,
         core.library,
         owned,
-        user.trainingLevel
+        user.trainingLevel,
+        audience
       ).find((c) => c.id !== pinnedEx.id && safeIds.has(c.id));
       if (!sub) {
         view.dropped.push({ slot, title: pinnedEx.title, reason: '오늘 몸 상태' });
@@ -557,6 +583,8 @@ const BUNDLE_SHORT_REST = 30;
 /** 트레이닝 카드(program-card.tsx)가 받는 것 — 날짜 · Json · 라이브러리 줄 없이 글과 숫자만 */
 export type ProgramCardProps = {
   name: string;
+  /** 기본기 4주인가 — 카드 머리가 '기본기 프로그램' */
+  basics: boolean;
   /** '12회 · 주 3번 · 4주' */
   subtitle: string;
   kind: TodayDecision['kind'];
@@ -599,8 +627,10 @@ export function programCardProps(
   const pinned = { ...readPinned(view.row.pinned), ...view.repin };
   const nextDay = view.day + (view.todayState === 'finished' ? 0 : 1);
   const plan = view.plan;
+  const audience = audienceOf(plan.def);
   return {
     name: plan.def.name,
+    basics: audience === 'basics',
     subtitle: planSubtitle(plan),
     kind: view.decision.kind,
     todayState: view.todayState,
@@ -615,7 +645,7 @@ export function programCardProps(
     rows: view.rows.map((r) => ({
       id: r.exercise.id,
       title: r.exercise.title,
-      slotLabel: VARIANT_LABELS[r.variant],
+      slotLabel: variantLabel(r.variant, audience),
       kg: r.suggestion?.kg ?? null,
       perHand: weightKindOf(r.exercise.equipment) === 'dumbbell',
       amount: r.rx.sets.every(
@@ -634,7 +664,7 @@ export function programCardProps(
     dropped: view.dropped.map((d) => ({ title: d.title, reason: d.reason })),
     pinned: usedVariants(plan.def).map((v) => ({
       variant: v,
-      label: VARIANT_LABELS[v],
+      label: variantLabel(v, audience),
       title: pinned[v] ? (byId.get(pinned[v] as string) ?? null) : null,
     })),
   };
@@ -644,6 +674,8 @@ export function programCardProps(
 
 export type ProgramResult = {
   name: string;
+  /** 기본기 4주 — 무게가 없어 추정 최대 대신 다음 길을 말한다 */
+  basics: boolean;
   completed: number;
   skipped: number;
   weeks: number;
@@ -660,6 +692,19 @@ export async function programResult(
 ): Promise<ProgramResult | null> {
   const plan = parseProgram(row.programKey);
   if (!plan) return null;
+  if (audienceOf(plan.def) === 'basics') {
+    const { completed, skipped } = progressOf(row, plan);
+    const startKey = toDateKey(row.startedAt);
+    const endKey = toDateKey(row.endedAt ?? new Date());
+    return {
+      name: plan.def.name,
+      basics: true,
+      completed,
+      skipped,
+      weeks: Math.max(1, Math.ceil(daysBetween(startKey, endKey) / 7)),
+      lifts: [],
+    };
+  }
   const pinned = readPinned(row.pinned);
   const byId = new Map(library.map((e) => [e.id, e.title]));
   const used = usedVariants(plan.def);
@@ -680,6 +725,7 @@ export async function programResult(
     }, null);
   return {
     name: plan.def.name,
+    basics: false,
     completed,
     skipped,
     weeks: Math.max(1, Math.ceil(daysBetween(startKey, endKey) / 7)),
@@ -691,7 +737,7 @@ export async function programResult(
           .filter((e) => e.date >= startKey && !e.light)
           .sort((a, b) => (a.date < b.date ? -1 : 1));
         return {
-          label: VARIANT_LABELS[v],
+          label: variantLabel(v),
           title: byId.get(id) ?? '',
           from: best(mine.slice(0, 6)),
           to: best(mine.slice(-6)),
