@@ -13,6 +13,7 @@ import {
   canUseVariant,
   levelAdvice,
   readProgramState,
+  type FilmNote,
   type SessionItem,
 } from '@/lib/mechanics/program';
 import { levelSession, SESSIONS_PER_LEVEL, type LevelKey } from '@/lib/mechanics/levels';
@@ -48,6 +49,8 @@ export type MechanicsProgramView = {
   finishedToday: boolean;
   /** 다음 · 아래 수준 권하기(levelAdvice) */
   advice: ReturnType<typeof levelAdvice>;
+  /** 찍어서 처음과 견준 결과 — 세션 번호 순(프로그램 칸의 '견준 기록') */
+  films: FilmNote[];
 };
 
 /**
@@ -93,6 +96,7 @@ export async function loadMechanicsProgram(userId: string): Promise<{
     sessionsDone: row.sessionsDone,
     finishedToday: row.lastSessionOn ? keyOfDbDate(row.lastSessionOn) === todayKey : false,
     advice: levelAdvice(state),
+    films: state.films,
   };
   const gear = equipmentForToday(user?.ownedEquipment ?? [], setup?.availableEquipment);
   const owned = gear.length > 0 ? new Set(gear) : null;

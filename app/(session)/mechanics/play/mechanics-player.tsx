@@ -18,6 +18,7 @@ import {
   startMechanicsProgram,
 } from '@/app/actions/mechanics';
 import { guideDescription } from '@/app/actions/content';
+import { FilmVerdictButtons } from '@/app/(app)/training/film-verdict';
 import { josa } from '@/lib/korean';
 
 /**
@@ -487,6 +488,10 @@ function FinishView({
             >
               2분할 비교 열기
             </Link>
+            {/* 견준 결과 — 지금 못 견줬으면 '아직'을 누르거나 프로그램 칸에서 나중에 남긴다 */}
+            <div className="border-t border-line/70 pt-3">
+              <FilmVerdictButtons session={sessionNumber} current={null} />
+            </div>
           </div>
         )}
 
