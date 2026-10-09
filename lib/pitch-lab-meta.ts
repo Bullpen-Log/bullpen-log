@@ -5,6 +5,13 @@
  * 샘플 하나 = 옆 · 뒤 영상 짝 + 이 정보(meta.json). 분석은 샘플이 모인 뒤에 만든다.
  */
 
+/**
+ * 투구 분석 영상 한 개 한도 — 슬로모션(240fps)은 몇 초만 찍어도 50MB 를 넘어 이곳만 150MB(2026-10-09 사용자).
+ * 저장소 버킷(pitch-videos) 한도도 150MB 로 올렸다 — 다른 올리기(투구 기록 · 구속 측정 · 라이브러리)는 서버가 50MB(lib/storage.ts)로 막는다.
+ */
+export const LAB_MAX_VIDEO_MB = 150;
+export const LAB_MAX_VIDEO_BYTES = LAB_MAX_VIDEO_MB * 1024 * 1024;
+
 export const LAB_VIEWS = ['side', 'back'] as const;
 export type LabView = (typeof LAB_VIEWS)[number];
 

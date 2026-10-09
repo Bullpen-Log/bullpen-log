@@ -9,12 +9,14 @@ import { Segmented } from '@/components/segmented';
 import { DisclosureButton } from '@/components/disclosure';
 import { ErrorLine } from '@/components/error-line';
 import { ConfirmDialog } from '@/components/confirm-delete';
-import { MAX_VIDEO_MB, uploadToStorage } from '@/components/video-upload';
+import { uploadToStorage } from '@/components/video-upload';
 import { OFFLINE_MESSAGE, orOffline } from '@/lib/action-offline';
 import { quietRefresh } from '@/lib/quiet-refresh';
 import { removeLabSample, saveLabSample } from '@/app/actions/pitch-lab';
 import {
   LAB_GROUND_OPTIONS,
+  LAB_MAX_VIDEO_BYTES,
+  LAB_MAX_VIDEO_MB,
   LAB_VIEWS,
   LAB_VIEW_LABELS,
   labMetaChips,
@@ -118,8 +120,8 @@ function UploadCard({ defaultHeightCm }: { defaultHeightCm: number | null }) {
   const pick = (view: LabView, file: File | undefined) => {
     setError(undefined);
     if (!file) return;
-    if (file.size > MAX_VIDEO_MB * 1024 * 1024) {
-      setError(`영상은 ${MAX_VIDEO_MB}MB 이하만 올릴 수 있어요.`);
+    if (file.size > LAB_MAX_VIDEO_BYTES) {
+      setError(`영상은 ${LAB_MAX_VIDEO_MB}MB 이하만 올릴 수 있어요.`);
       return;
     }
     setFiles((f) => ({ ...f, [view]: file }));
@@ -175,7 +177,7 @@ function UploadCard({ defaultHeightCm }: { defaultHeightCm: number | null }) {
     <Card className="space-y-4">
       <div className="space-y-1">
         <p className="text-base font-semibold text-ink">샘플 올리기</p>
-        <p className="text-xs text-muted">영상 하나에 {MAX_VIDEO_MB}MB까지예요.</p>
+        <p className="text-xs text-muted">영상 하나에 {LAB_MAX_VIDEO_MB}MB까지예요.</p>
       </div>
 
       <div className="grid grid-cols-2 gap-2">

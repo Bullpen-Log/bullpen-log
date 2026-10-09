@@ -12,7 +12,10 @@ export const VIDEO_BUCKET = 'pitch-videos';
  */
 export const LIBRARY_PREFIX = 'library';
 
-/** 업로드 가능한 최대 용량. 버킷 설정과 같은 값을 유지해야 한다. */
+/**
+ * 업로드 가능한 최대 용량 — 투구 기록 · 구속 측정 · 라이브러리. 버킷(pitch-videos) 한도는 2026-10-09 부터 150MB 라(투구 분석 슬로모션,
+ * lib/pitch-lab-meta.ts LAB_MAX_VIDEO_BYTES) 이 50MB 는 서버가 서명 주소를 줄 때 막는 값이다.
+ */
 export const MAX_VIDEO_BYTES = 50 * 1024 * 1024; // 50MB
 
 /**
