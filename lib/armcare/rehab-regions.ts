@@ -34,7 +34,7 @@ export function severityLabel(s: RehabSeverity): string {
 export const REHAB_STAGES: Record<RehabStage, { name: string; goal: string }> = {
   1: {
     name: '진정 · 버티기',
-    goal: '아프지 않은 범위에서 버티기(등척성)와 날개뼈 세우기, 필요한 스트레칭만 해요.',
+    goal: '아프지 않은 범위에서 버티기(아이소메트릭)와 날개뼈 세우기, 필요한 스트레칭만 해요.',
   },
   2: {
     name: '근력 다시 만들기',

@@ -1804,8 +1804,19 @@ export function pickForTheme<T extends ThemedExercise>({
     );
     while (mainPicks.length < mainSpec.maxCount) {
       const room = minutes + totalSlack(minutes) - totalUsed;
+      /*
+       * 남은 시간을 채울 때도 목표의 파워 상한을 지킨다 — 예전에는 파워가 한 자리 14분 남짓이라 남는 틈에 안 들어갔는데,
+       * 짧은 파워(10초 버티기 · 2026-10-09 '스플릿 스탠스 발목 아이소메트릭 프레스')가 생기자 근력 향상 날에 끼어들었다.
+       */
+      const powerCapped =
+        mainSpec.slot === 'main' &&
+        goalMix.maxPower != null &&
+        mainPicks.filter((ex) => ex.category === '파워').length >= goalMix.maxPower;
       const free = pool.filter(
-        (ex) => !taken.has(ex.id) && estimateMinutes(ex) <= room
+        (ex) =>
+          !taken.has(ex.id) &&
+          estimateMinutes(ex) <= room &&
+          !(powerCapped && ex.category === '파워')
       );
       if (free.length === 0) break;
       const next =

@@ -194,9 +194,9 @@ const indoorPlan: ShootPlan = { ...plan, weeks: plan.weeks.filter((w) => !w.outd
 {
   const items = indoorPlan.weeks.flatMap(weekItems);
   check(
-    '실내 7주 · 417개(야외를 붙여도 그대로)',
+    '실내 7주 · 418개(야외를 붙여도 그대로)',
     indoorPlan.weeks.length === 7 &&
-      items.length === 417 &&
+      items.length === 418 &&
       indoorPlan.weeks.every((w, i) => w.week === i + 1),
     `${indoorPlan.weeks.length}주 · ${items.length}개`
   );
@@ -218,9 +218,9 @@ console.log('\n■ 고정 계획 — 야외 8~10주(투구 드릴만 — 워밍�
   const drills = items.filter((i) => i.kind === 'drill');
   const warms = items.filter((i) => i.kind === 'warmup');
   check(
-    '야외 3주(8 · 9 · 10) — 드릴 122 · 워밍업 없음',
+    '야외 3주(8 · 9 · 10) — 드릴 120 · 워밍업 없음',
     out.map((w) => w.week).join() === '8,9,10' &&
-      drills.length === 122 &&
+      drills.length === 120 &&
       warms.length === 0,
     `${out.map((w) => w.week).join(',')} · 드릴 ${drills.length} · 워밍업 ${warms.length}`
   );
