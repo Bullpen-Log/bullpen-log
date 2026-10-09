@@ -162,7 +162,14 @@ async function PitchLogSection({
       where: { userId: user.id },
       orderBy: { date: 'asc' },
       take: 3000,
-      select: { id: true, date: true, title: true, time: true, memo: true },
+      select: {
+        id: true,
+        date: true,
+        title: true,
+        time: true,
+        memo: true,
+        remindMin: true,
+      },
     }),
   ]);
   return (

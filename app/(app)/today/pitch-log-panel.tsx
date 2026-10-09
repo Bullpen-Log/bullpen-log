@@ -22,6 +22,7 @@ import {
   type NutritionDay,
 } from './day-summary';
 import { DayDetailBlock } from './day-detail';
+import { useEventAlarms } from './event-alarms';
 
 /** [캘린더 | 목록] — 같은 기록을 다르게 보는 두 방식 */
 const VIEW_OPTIONS = [
@@ -102,6 +103,7 @@ export function PitchLogPanel({
     setSeenEvents(initialEvents);
     setEvents(initialEvents);
   }
+  useEventAlarms(events);
   const eventsByDay = useMemo(() => {
     const out: Record<string, CalendarEventView[]> = {};
     for (const e of sortEvents(events)) (out[e.date] ??= []).push(e);

@@ -1521,6 +1521,8 @@ model CalendarEvent {
   /// 'HH:MM' — 비우면 하루 종일
   time      String?
   memo      String?
+  /// 몇 분 전에 알릴까(0 = 그 시각) — 하루 종일 일정은 그날 오전 9시 기준. null 이면 알림 없음(lib/calendar-event.ts)
+  remindMin Int?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)

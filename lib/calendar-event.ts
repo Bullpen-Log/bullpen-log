@@ -13,6 +13,8 @@ export type CalendarEventView = {
   /** 'HH:MM' — null 이면 하루 종일 */
   time: string | null;
   memo: string | null;
+  /** 몇 분 전에 알릴까(0 = 그 시각) — null 이면 알림 없음 */
+  remindMin: number | null;
 };
 
 export type CalendarEventInput = {
@@ -20,7 +22,43 @@ export type CalendarEventInput = {
   title: string;
   time?: string | null;
   memo?: string | null;
+  remindMin?: number | null;
 };
+
+/**
+ * 알림 고르기 — 아이폰 캘린더의 '알림'과 같은 몇 가지. 하루 종일 일정은 그날 오전 9시를 기준으로 센다
+ * (자정에 울리면 자는 중이라).
+ */
+export const REMIND_OPTIONS: {
+  value: number | null;
+  label: string;
+  allDayLabel: string;
+}[] = [
+  { value: null, label: '없음', allDayLabel: '없음' },
+  { value: 0, label: '일정 시각', allDayLabel: '당일 오전 9시' },
+  { value: 10, label: '10분 전', allDayLabel: '당일 오전 8:50' },
+  { value: 30, label: '30분 전', allDayLabel: '당일 오전 8:30' },
+  { value: 60, label: '1시간 전', allDayLabel: '당일 오전 8시' },
+  { value: 1440, label: '하루 전', allDayLabel: '전날 오전 9시' },
+];
+const REMIND_VALUES = new Set(REMIND_OPTIONS.map((o) => o.value));
+
+/** 새 일정의 알림 — 시각이 있으면 30분 전, 하루 종일이면 그날 아침 */
+export function defaultRemind(time: string | null): number {
+  return time ? 30 : 0;
+}
+
+/** 하루 종일 일정의 기준 시각 */
+const ALL_DAY_AT = '09:00';
+
+/**
+ * 알림이 울릴 때(ms, Date.now 기준). 알림이 없으면 null. 한국 시각(+09:00)으로 센다 — 이 앱의 날짜 키가 모두 한국 날짜다.
+ */
+export function remindAt(e: Pick<CalendarEventView, 'date' | 'time' | 'remindMin'>) {
+  if (e.remindMin == null) return null;
+  const at = Date.parse(`${e.date}T${e.time ?? ALL_DAY_AT}:00+09:00`);
+  return Number.isNaN(at) ? null : at - e.remindMin * 60_000;
+}
 
 export const EVENT_TITLE_MAX = 40;
 export const EVENT_MEMO_MAX = 300;
@@ -63,9 +101,13 @@ export function cleanEvent(
   if (rawMemo.length > EVENT_MEMO_MAX)
     return { ok: false, error: `메모는 ${EVENT_MEMO_MAX}자까지 적을 수 있어요.` };
 
+  const remindMin = input.remindMin ?? null;
+  if (!REMIND_VALUES.has(remindMin))
+    return { ok: false, error: '알림이 올바르지 않아요.' };
+
   return {
     ok: true,
-    value: { date, title, time: rawTime || null, memo: rawMemo || null },
+    value: { date, title, time: rawTime || null, memo: rawMemo || null, remindMin },
   };
 }
 

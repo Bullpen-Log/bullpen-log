@@ -1,20 +1,30 @@
 'use client';
 
 import { useState, useTransition } from 'react';
-import { Plus, Trash2 } from 'lucide-react';
+import { Bell, Plus, Trash2 } from 'lucide-react';
 import { Button, Field, FormError, Input, Textarea } from '@/components/ui';
 import { ConfirmDialog } from '@/components/confirm-delete';
 import { toast } from '@/components/toast';
 import { orOffline, OFFLINE_MESSAGE } from '@/lib/action-offline';
+import { hasNativeBridge } from '@/lib/native-bridge';
 import { deleteCalendarEvent, saveCalendarEvent } from '@/app/actions/calendar-event';
 import {
   EVENT_MEMO_MAX,
   EVENT_TITLE_MAX,
+  REMIND_OPTIONS,
+  defaultRemind,
   timeLabel,
   type CalendarEventView,
 } from '@/lib/calendar-event';
 
 const OFFLINE = { ok: false as const, error: OFFLINE_MESSAGE };
+
+/** '30분 전' — 목록 줄에 붙인다 */
+function remindText(e: CalendarEventView) {
+  const o = REMIND_OPTIONS.find((x) => x.value === e.remindMin);
+  if (!o || o.value == null) return null;
+  return e.time ? o.label : o.allDayLabel;
+}
 
 /**
  * 캘린더 밑 칸의 '일정' — 그날 일정 목록과 더하기 · 고치기 · 지우기.
@@ -77,8 +87,15 @@ export function DaySchedule({
                     <span className="block truncate text-sm font-semibold text-ink">
                       {e.title}
                     </span>
-                    <span className="block text-xs text-muted">
+                    <span className="flex items-center gap-1 text-xs text-muted">
                       {timeLabel(e.time)}
+                      {remindText(e) && (
+                        <>
+                          <Bell aria-hidden className="ml-1 h-3 w-3" />
+                          <span className="sr-only">알림</span>
+                          {remindText(e)}
+                        </>
+                      )}
                     </span>
                     {e.memo && (
                       <span className="mt-0.5 block whitespace-pre-line break-words text-xs text-muted">
@@ -136,6 +153,11 @@ function EventForm({
   const [title, setTitle] = useState(event?.title ?? '');
   const [time, setTime] = useState(event?.time ?? '');
   const [memo, setMemo] = useState(event?.memo ?? '');
+  /* 'auto' — 아직 안 골랐다: 시각이 있으면 30분 전, 하루 종일이면 그날 아침(defaultRemind) */
+  const [remind, setRemind] = useState<number | null | 'auto'>(
+    event ? event.remindMin : 'auto'
+  );
+  const remindMin = remind === 'auto' ? defaultRemind(time || null) : remind;
   const [error, setError] = useState<string>();
   const [pending, start] = useTransition();
   const [asking, setAsking] = useState(false);
@@ -144,7 +166,7 @@ function EventForm({
     start(async () => {
       setError(undefined);
       const res = await orOffline(
-        saveCalendarEvent(event?.id ?? null, { date, title, time, memo }),
+        saveCalendarEvent(event?.id ?? null, { date, title, time, memo, remindMin }),
         OFFLINE
       );
       if (!res.ok) {
@@ -156,6 +178,7 @@ function EventForm({
         setTitle('');
         setTime('');
         setMemo('');
+        setRemind('auto');
       }
       onDone(res.event);
     });
@@ -195,6 +218,27 @@ function EventForm({
           </Button>
         )}
       </div>
+      <Field
+        label="알림"
+        hint={hasNativeBridge() ? undefined : '알림은 아이폰 앱에서 와요.'}
+      >
+        <select
+          value={remindMin == null ? 'none' : String(remindMin)}
+          onChange={(e) =>
+            setRemind(e.target.value === 'none' ? null : Number(e.target.value))
+          }
+          className="w-full rounded-xl border border-transparent bg-ink/5 px-4 py-3 text-sm text-ink transition-colors focus:border-sky focus:bg-surface focus:outline-none desk:border-line desk:bg-surface-2"
+        >
+          {REMIND_OPTIONS.map((o) => (
+            <option
+              key={String(o.value)}
+              value={o.value == null ? 'none' : String(o.value)}
+            >
+              {time ? o.label : o.allDayLabel}
+            </option>
+          ))}
+        </select>
+      </Field>
       <Field label="메모">
         <Textarea
           value={memo}
