@@ -3,12 +3,21 @@
 import type { CSSProperties } from 'react';
 import { formatSpeed } from '@/lib/units';
 import { useSpeedUnit } from '@/components/use-units';
-import { Dumbbell, Film, HeartPulse, Utensils, X, type LucideIcon } from 'lucide-react';
+import {
+  CalendarDays,
+  Dumbbell,
+  Film,
+  HeartPulse,
+  Utensils,
+  X,
+  type LucideIcon,
+} from 'lucide-react';
 import { REST_SESSION_TYPE } from '@/lib/session-type';
 import { Baseball } from '@/components/baseball-icon';
 import type { Log } from '@/app/(app)/pitch-log/types';
 import type { PlanDaySummary, TrainingDaySummary } from '@/lib/report/training-history';
 import type { VelocityDayFact } from '@/lib/velocity-meta';
+import type { CalendarEventView } from '@/lib/calendar-event';
 
 /** 그날 먹은 것 — 칼로리·단백질 합 */
 export type NutritionDay = { kcal: number; protein: number };
@@ -21,7 +30,8 @@ export type CheckinDay = { condition: number; pain: boolean };
  * '분석' 아이콘은 두지 않는다. 그날 분석은 밑 칸 머리의 '그날 분석'이 분석 · 그래프 화면(/coach)을 그 날짜째
  * 연다(day-detail.tsx) — 여기에도 두면 같은 것이 두 번 나온다.
  */
-export type DayFocus = 'pitch' | 'training' | 'nutrition' | 'checkin' | 'video';
+export type DayFocus =
+  'pitch' | 'training' | 'nutrition' | 'checkin' | 'video' | 'schedule';
 
 /** 한 날에 대해 미리 알고 있는 것(캘린더와 함께 읽어 둔 한 줄 요약들) */
 export type DayFacts = {
@@ -32,9 +42,18 @@ export type DayFacts = {
   checkin: CheckinDay | undefined;
   /** 그날 카메라로 잰 공 — 공 수 · 최고 · 영상이 남은 공 수 */
   velocity: VelocityDayFact | undefined;
+  /** 그날 일정(사용자가 적은 할 일) — 홈 캘린더만 */
+  events: CalendarEventView[];
 };
 
-const ORDER: DayFocus[] = ['pitch', 'training', 'nutrition', 'checkin', 'video'];
+const ORDER: DayFocus[] = [
+  'pitch',
+  'training',
+  'nutrition',
+  'checkin',
+  'video',
+  'schedule',
+];
 
 /** 아이콘마다 남긴 것이 있나 */
 export function dayHas(f: DayFacts): Record<DayFocus, boolean> {
@@ -48,6 +67,7 @@ export function dayHas(f: DayFacts): Record<DayFocus, boolean> {
     checkin: f.checkin != null,
     /* 투구 기록에 올린 영상 + 구속 측정이 공마다 남긴 클립 */
     video: f.logs.some((l) => l.videoPaths.length > 0) || (f.velocity?.clips ?? 0) > 0,
+    schedule: f.events.length > 0,
   };
 }
 
@@ -77,6 +97,9 @@ export function agoText(date: string, today: string) {
     (Date.parse(`${today}T00:00:00.000Z`) - Date.parse(`${date}T00:00:00.000Z`)) /
       86_400_000
   );
+  /* 앞날 — 홈 캘린더는 일정을 적으러 앞날도 연다 */
+  if (days === -1) return '내일';
+  if (days < 0) return -days < 60 ? `${-days}일 뒤` : `${Math.floor(-days / 30)}달 뒤`;
   if (days === 1) return '어제';
   if (days < 7) return `${days}일 전`;
   if (days < 60) return `${Math.floor(days / 7)}주 전`;
@@ -112,7 +135,7 @@ export function DaySummary({
 }) {
   /* 구속을 보여줄 단위. 저장은 늘 km/h 다(lib/units.ts). */
   const speedUnit = useSpeedUnit();
-  const { logs, training, plan, nutrition, checkin, velocity } = facts;
+  const { logs, training, plan, nutrition, checkin, velocity, events } = facts;
 
   /*
    * 하루에 여러 건이면 합쳐서 본다.
@@ -205,6 +228,14 @@ export function DaySummary({
       value: videos + clips > 0 ? `${videos + clips}개` : null,
       sub: clips > 0 ? `구속 측정 ${clips}개` : undefined,
     },
+    {
+      key: 'schedule',
+      icon: CalendarDays,
+      tone: TONES.schedule,
+      label: '일정',
+      value: events.length > 0 ? `${events.length}개` : null,
+      sub: events[0]?.title,
+    },
   ];
 
   return (
@@ -232,14 +263,14 @@ export function DaySummary({
         </header>
 
         {/*
-          좁은 화면: 다섯을 한 줄로 — 휴대폰 아래쪽 독(dock)처럼.
+          좁은 화면: 여섯을 한 줄로 — 휴대폰 아래쪽 독(dock)처럼(2026-10-09 일정이 더해져 다섯 → 여섯).
 
           넓은 화면: 캘린더 높이만큼 긴 옆 칸이다. 처음에는 셋씩 두 줄을 가운데에 모아
-          두었더니 아이콘끼리 붙고 위아래가 텅 비었다. 이제 한 줄에 셋, 다음 줄에 둘을
+          두었더니 아이콘끼리 붙고 위아래가 텅 비었다. 이제 한 줄에 셋씩 두 줄을
           가운데 맞춰 놓고(flex-wrap · justify-center), 줄 사이를 칸 높이에 고루 나눈다
           (content-evenly). 칸이 길어지든(달력이 여섯 주) 짧아지든 간격이 따라 맞는다.
         */}
-        <ul className="grid flex-1 grid-cols-5 border-t border-line px-2 pb-5 pt-4 lg:flex lg:flex-wrap lg:content-evenly lg:justify-center lg:gap-0 lg:px-3 lg:py-4">
+        <ul className="grid flex-1 grid-cols-6 border-t border-line px-2 pb-5 pt-4 lg:flex lg:flex-wrap lg:content-evenly lg:justify-center lg:gap-0 lg:px-3 lg:py-4">
           {rows.map((row, i) => (
             <SummaryTile
               key={row.key}
@@ -273,6 +304,7 @@ const TONES = {
   nutrition: ONE_TONE,
   checkin: ONE_TONE,
   video: ONE_TONE,
+  schedule: ONE_TONE,
 } satisfies Record<DayFocus, { fill: string; ring: string }>;
 
 type Row = {
@@ -334,7 +366,7 @@ function SummaryTile({
         className="group flex w-full flex-col items-center gap-1.5 rounded-xl py-1 outline-offset-2 focus-visible:outline-2 focus-visible:outline-sky lg:gap-2"
       >
         <span
-          className={`relative flex h-12 w-12 items-center justify-center rounded-[28%] transition-[translate,scale,box-shadow,background-color,color,filter] duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] motion-safe:group-hover:-translate-y-0.5 motion-safe:group-active:scale-95 lg:h-16 lg:w-16 ${
+          className={`relative flex h-11 w-11 items-center justify-center rounded-[28%] transition-[translate,scale,box-shadow,background-color,color,filter] duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] motion-safe:group-hover:-translate-y-0.5 motion-safe:group-active:scale-95 lg:h-16 lg:w-16 ${
             done
               ? `${row.tone.fill} text-surface shadow-[0_3px_8px_-3px_rgb(15_23_42/0.45)] group-hover:brightness-110`
               : 'bg-surface-2 text-muted group-hover:bg-line group-hover:text-ink'
@@ -353,7 +385,7 @@ function SummaryTile({
           )}
         </span>
         <span
-          className={`max-w-full truncate text-xs transition-colors duration-200 lg:text-sm ${
+          className={`whitespace-nowrap text-xs tracking-tight transition-colors duration-200 lg:text-sm ${
             selected
               ? 'font-bold text-ink'
               : done

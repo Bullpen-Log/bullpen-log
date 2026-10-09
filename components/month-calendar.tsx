@@ -65,6 +65,8 @@ export function MonthCalendar({
   size = 'normal',
   emptySpoken = '기록 없음',
   flags,
+  allowFuture = false,
+  events,
   children,
 }: {
   month: Date;
@@ -103,6 +105,13 @@ export function MonthCalendar({
    * 홈은 분석 리포트가 있는 날에 붙인다. 투구를 안 한 날에도 붙는다.
    */
   flags?: Record<string, string>;
+  /**
+   * 앞날도 고를 수 있게 한다 — 홈 캘린더는 일정을 앞날에 적는다. 투구 기록 캘린더(/videos)는 지난 기록만 보는
+   * 곳이라 주지 않는다(기본 false — 앞날 칸 · 앞 달이 막혀 있다).
+   */
+  allowFuture?: boolean;
+  /** 날짜마다 일정 수 — 칸 밑에 짧은 막대(홈 캘린더만) */
+  events?: Record<string, number>;
   /** 달력 아래 범례 */
   children?: ReactNode;
 }) {
@@ -215,6 +224,8 @@ export function MonthCalendar({
     size,
     emptySpoken,
     flags,
+    allowFuture,
+    events,
   };
   /*
    * 큰 캘린더(영상 캘린더)는 세로가 낮은 PC(desk-low)에서 머리 · 꼬리 틈을 줄인다 — 줄인 만큼
@@ -236,6 +247,7 @@ export function MonthCalendar({
         <MonthJump
           month={month}
           dir={direction}
+          allowFuture={allowFuture}
           onPick={(next) => onMonthChange(() => next)}
         />
         <div className="flex gap-1">
@@ -376,6 +388,8 @@ function DayGrid({
   size,
   emptySpoken,
   flags,
+  allowFuture,
+  events,
 }: {
   month: Date;
   marks: Record<string, DayMark>;
@@ -387,6 +401,8 @@ function DayGrid({
   size: 'normal' | 'large';
   emptySpoken: string;
   flags?: Record<string, string>;
+  allowFuture?: boolean;
+  events?: Record<string, number>;
 }) {
   const year = month.getFullYear();
   const monthIndex = month.getMonth();
@@ -420,15 +436,21 @@ function DayGrid({
          * 눌러서 "앞으로 올 날짜에는 기록할 수 없습니다"를 봐야 알았다.
          * 누르고 나서 알려주는 것과 보면 아는 것은 다르다.
          */
-        const isFuture = key > todayKey;
-        const flag = isFuture ? undefined : flags?.[key];
+        const isAhead = key > todayKey;
+        /* 막힌 앞날 — 일정을 받는 캘린더(allowFuture)는 앞날도 열려 있다 */
+        const isFuture = isAhead && !allowFuture;
+        const flag = isAhead ? undefined : flags?.[key];
+        const eventCount = events?.[key] ?? 0;
         const label =
           (isFuture
             ? `${monthIndex + 1}월 ${day}일, 아직 오지 않은 날`
-            : mark
-              ? `${monthIndex + 1}월 ${day}일, ${mark.spoken}`
-              : `${monthIndex + 1}월 ${day}일${isToday ? ', 오늘' : ''}, ${emptySpoken}`) +
-          (flag ? `, ${flag}` : '');
+            : isAhead && !mark
+              ? `${monthIndex + 1}월 ${day}일`
+              : mark
+                ? `${monthIndex + 1}월 ${day}일, ${mark.spoken}`
+                : `${monthIndex + 1}월 ${day}일${isToday ? ', 오늘' : ''}, ${emptySpoken}`) +
+          (flag ? `, ${flag}` : '') +
+          (eventCount > 0 ? `, 일정 ${eventCount}개` : '');
 
         /* 칸 속을 부르는 쪽이 그린다(영상 캘린더). 테두리와 고른 표시만 여기서 준다. */
         if (renderDay) {
@@ -485,7 +507,9 @@ function DayGrid({
                   ? intensityClass(mark.intensity)
                   : mark
                     ? ''
-                    : 'text-ink desk:bg-surface-2 desk:text-muted desk:hover:text-ink'
+                    : isAhead
+                      ? 'text-ink/70 desk:bg-surface-2/50 desk:text-muted desk:hover:text-ink'
+                      : 'text-ink desk:bg-surface-2 desk:text-muted desk:hover:text-ink'
             }`}
           >
             {/*
@@ -515,6 +539,21 @@ function DayGrid({
                 aria-hidden
                 className="absolute right-1 top-1 h-1.5 w-1.5 rounded-full bg-sky-strong ring-1 ring-surface"
               />
+            )}
+            {/*
+              일정 — 칸 밑의 짧은 막대(아이폰 캘린더의 점처럼). 글자색을 따라가 진한 칸(흰 글자) 위에서도 보인다.
+              둘 넘으면 막대를 하나 더 — 몇 개인지는 낭독 말과 그날 칸에.
+            */}
+            {eventCount > 0 && (
+              <span
+                aria-hidden
+                className="absolute inset-x-0 bottom-0.5 flex justify-center gap-0.5"
+              >
+                <span className="h-1 w-3 rounded-full bg-current opacity-70" />
+                {eventCount > 1 && (
+                  <span className="h-1 w-1 rounded-full bg-current opacity-70" />
+                )}
+              </span>
             )}
             {/* 흰 바탕을 깔아 둔다 — 진한 칸(강도 높음) 위에서도 보이게 */}
             {flag && (
@@ -568,11 +607,14 @@ const UNIT_CLASS =
 function MonthJump({
   month,
   dir,
+  allowFuture = false,
   onPick,
 }: {
   month: Date;
   /** 캘린더가 넘어간 방향. 제목도 같은 쪽에서 들어온다. 0 이면 움직이지 않는다. */
   dir: number;
+  /** 앞 해 · 앞 달도 고르게(일정 캘린더) — 몇 해 앞까지는 lastYear */
+  allowFuture?: boolean;
   onPick: (next: Date) => void;
 }) {
   const [open, setOpen] = useState(false);
@@ -586,6 +628,8 @@ function MonthJump({
   const now = new Date();
   const thisYear = now.getFullYear();
   const thisMonth = now.getMonth();
+  /* 고를 수 있는 마지막 해 — 일정은 lib/calendar-event.ts 의 앞 5년까지 받는다 */
+  const lastYear = allowFuture ? thisYear + 5 : thisYear;
 
   /*
    * 해 쪽의 한 쪽(12년)이 어디서 시작하는지.
@@ -595,7 +639,7 @@ function MonthJump({
    * 칸이 자리만 차지한다.
    */
   const pageStartFor = (year: number) =>
-    thisYear - 11 - 12 * Math.max(0, Math.floor((thisYear - year) / 12));
+    lastYear - 11 - 12 * Math.max(0, Math.floor((lastYear - year) / 12));
 
   useEffect(() => {
     if (!open) return;
@@ -699,7 +743,7 @@ function MonthJump({
                   <button
                     type="button"
                     aria-label="다음 해"
-                    disabled={pickYear >= thisYear}
+                    disabled={pickYear >= lastYear}
                     onClick={() => setPickYear((y) => y + 1)}
                     className={arrowClass}
                   >
@@ -711,7 +755,8 @@ function MonthJump({
                   {MONTHS.map((label, i) => {
                     const on = pickYear === currentYear && i === currentMonth;
                     const future =
-                      pickYear > thisYear || (pickYear === thisYear && i > thisMonth);
+                      !allowFuture &&
+                      (pickYear > thisYear || (pickYear === thisYear && i > thisMonth));
                     return (
                       <button
                         key={label}
@@ -746,7 +791,7 @@ function MonthJump({
                   <button
                     type="button"
                     aria-label="다음 12년"
-                    disabled={pageStart + 11 >= thisYear}
+                    disabled={pageStart + 11 >= lastYear}
                     onClick={() => setPageStart((y) => y + 12)}
                     className={arrowClass}
                   >
@@ -762,7 +807,7 @@ function MonthJump({
                         key={year}
                         type="button"
                         aria-pressed={on}
-                        disabled={year > thisYear}
+                        disabled={year > lastYear}
                         onClick={() => {
                           setPickYear(year);
                           setView('month');

@@ -38,11 +38,13 @@ import { exercisesByIds } from '@/lib/library-cache';
 import {
   PROGRAMS_ENABLED,
   parseProgram,
+  profileBlock,
   programChoiceList,
 } from '@/lib/program/program';
 import {
   activeProgram,
   buildProgramDay,
+  hasFinishedBasics,
   programCardProps,
   programResult,
   recentlyDoneProgram,
@@ -261,6 +263,16 @@ export default async function TrainingPage({
     ? await programResult(doneProgram, core.library)
     : null;
   const programAge = user.birthDate ? ageFromBirthDate(user.birthDate, today) : null;
+  /* 성인 입문만 — 기본기 4주를 마쳤으면 성인 프로그램이 열린다(program.ts 의 profileBlock) */
+  const basicsDone =
+    PROGRAMS_ENABLED && !programView && user.trainingLevel === '입문'
+      ? await hasFinishedBasics(user.id)
+      : false;
+  const knownProfile = {
+    age: programAge,
+    trainingLevel: user.trainingLevel,
+    basicsDone,
+  };
   /* 진행 중인 줄의 키를 모르면(지운 프로그램) 카드가 없으니 고르기를 다시 보인다 — 시작하면 그 줄은 바뀜으로 닫힌다 */
   const programStart: ProgramStartProps | null =
     PROGRAMS_ENABLED && !programView
@@ -275,18 +287,10 @@ export default async function TrainingPage({
             nutritionSeason?.seasonPhase && isSeasonPhase(nutritionSeason.seasonPhase)
               ? nutritionSeason.seasonPhase
               : null,
-          blocked:
-            programAge != null && programAge < 18
-              ? {
-                  reason: '이 프로그램은 만 18세부터 해요.',
-                  action: '직접 고르기의 가벼운 운동으로 자세부터 익혀요.',
-                }
-              : user.trainingLevel === '입문'
-                ? {
-                    reason: '웨이트를 6개월 넘게 한 사람에게 맞춘 프로그램이에요.',
-                    action: '직접 고르기로 기본 동작을 먼저 익혀요.',
-                  }
-                : null,
+          /* 고르기 화면의 막힘 — 시작 자격(app/actions/program.ts)과 같은 함수 */
+          blocked: profileBlock({ audience: 'adult', ...knownProfile }),
+          basicsBlocked: profileBlock({ audience: 'basics', ...knownProfile }),
+          basicsDone,
         }
       : null;
 

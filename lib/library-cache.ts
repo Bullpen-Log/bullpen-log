@@ -88,7 +88,7 @@ export const allExercises = unstable_cache(
    * 오늘의 암케어가 루틴을 못 짠다. 관리자가 운동을 하나 저장해야(clearLibraryCache)
    * 풀리는데, 그것을 기다릴 일이 아니다.
    */
-  ['library:exercises:v14'],
+  ['library:exercises:v18'],
   { tags: [LIBRARY_TAG] }
 );
 
@@ -108,8 +108,10 @@ export const allGuides = unstable_cache(
    * :v2 — 2026-10-04 단계(stage) · 숨김(hiddenAt) 칸이 생기고 요소가 6가지로 바뀌었다
    * (scripts/mechanics-classify-2026-10-04.mjs). 이름이 같으면 새 칸 없는 옛 줄이 남아 숨긴 드릴이 계속 나온다.
    * :v3 — 같은 날 빈자리를 채우는 드릴 12개를 더했다(scripts/mechanics-add-drills-2026-10-04.mjs).
+   * :v8 — 2026-10-09 겹치는 메디신볼 드릴 13개를 숨겼다(51 → 38).
+   * :v9 — 같은 날 '스플릿 스탠스 발목 등척 밀기'를 운동 라이브러리 파워로 옮기고 '등척'을 '아이소메트릭'으로.
    */
-  ['library:guides:v6'],
+  ['library:guides:v9'],
   { tags: [LIBRARY_TAG] }
 );
 

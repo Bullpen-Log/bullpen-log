@@ -8,7 +8,7 @@ import { requireUser } from '@/lib/dal';
 import { loadTodayCore } from '@/lib/report/today-data';
 import { shiftDateKey, toDateKey } from '@/lib/pitch-stats';
 import { REST_SESSION_TYPE } from '@/lib/session-type';
-import { dbDate } from '@/lib/nutrition/days';
+import { dbDate, keyOfDbDate } from '@/lib/nutrition/days';
 import { Card, PageHeading } from '@/components/ui';
 import { Skeleton } from '@/components/fallback';
 import {
@@ -155,7 +155,28 @@ async function PitchLogSection({
   user: User;
   initialDate: string | null;
 }) {
-  const h = await loadPitchHistory(user);
+  const [h, events] = await Promise.all([
+    loadPitchHistory(user),
+    /*
+     * 일정 — 사람마다 많지 않아 전부 읽는다(지난 달 · 앞 달을 넘겨도 바로 보이게).
+     * 관리자는 다른 관리자의 일정도 함께 본다(읽기만 — 고치기 · 알림은 제 것만).
+     */
+    prisma.calendarEvent.findMany({
+      where: user.role === 'ADMIN' ? { user: { role: 'ADMIN' } } : { userId: user.id },
+      orderBy: { date: 'asc' },
+      take: 3000,
+      select: {
+        id: true,
+        date: true,
+        title: true,
+        time: true,
+        memo: true,
+        remindMin: true,
+        userId: true,
+        user: { select: { nickname: true } },
+      },
+    }),
+  ]);
   return (
     <PitchLogPanel
       today={toDateKey(now())}
@@ -168,6 +189,11 @@ async function PitchLogSection({
       nutritionByDay={h.nutritionByDay}
       velocityByDay={h.velocityByDay}
       checkinByDay={h.checkinByDay}
+      initialEvents={events.map(({ userId, user: owner, ...e }) => ({
+        ...e,
+        date: keyOfDbDate(e.date),
+        ...(userId === user.id ? {} : { owner: owner.nickname }),
+      }))}
     />
   );
 }

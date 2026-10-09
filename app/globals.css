@@ -138,7 +138,6 @@
    * 다크 · 네이비는 밑의 테마 칸에서 흰빛으로 바꾼다.
    */
   --seam: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 160 160' fill='none' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M160,22 C96,30 30,96 22,160' stroke='rgba(29,29,31,0.07)' stroke-width='2'/%3E%3Cpath d='M147.5,17.6L145.2,24.8L150.7,30.1 M131.9,22.1L130.5,29.6L136.6,34.2 M116.7,28.5L116.1,36.1L122.6,40.0 M102.0,36.5L102.1,44.1L109.0,47.4 M87.9,46.0L88.7,53.6L95.8,56.3 M74.6,56.8L76.0,64.2L83.3,66.3 M62.2,68.7L64.2,76.0L71.7,77.5 M50.9,81.5L53.6,88.7L61.1,89.5 M40.8,95.2L44.1,102.1L51.7,102.2 M32.1,109.6L36.1,116.1L43.7,115.5 M25.0,124.5L29.6,130.5L37.1,129.2 M19.6,139.7L24.8,145.2L32.1,143.0' stroke='rgba(29,29,31,0.11)' stroke-width='1.6'/%3E%3C/svg%3E");
-  --stitch: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 14 8' fill='none' stroke-linecap='round'%3E%3Cpath d='M0 4H14' stroke='rgba(29,29,31,0.12)' stroke-width='1'/%3E%3Cpath d='M5.2 1.4L8.8 6.6' stroke='rgba(29,29,31,0.24)' stroke-width='1.2'/%3E%3C/svg%3E");
 
   --font-sans:
     'Pretendard Variable', Pretendard, system-ui, -apple-system, 'Malgun Gothic',
@@ -268,7 +267,6 @@
 :root[data-theme='dark'],
 :root[data-theme='navy'] {
   --seam: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 160 160' fill='none' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M160,22 C96,30 30,96 22,160' stroke='rgba(255,255,255,0.06)' stroke-width='2'/%3E%3Cpath d='M147.5,17.6L145.2,24.8L150.7,30.1 M131.9,22.1L130.5,29.6L136.6,34.2 M116.7,28.5L116.1,36.1L122.6,40.0 M102.0,36.5L102.1,44.1L109.0,47.4 M87.9,46.0L88.7,53.6L95.8,56.3 M74.6,56.8L76.0,64.2L83.3,66.3 M62.2,68.7L64.2,76.0L71.7,77.5 M50.9,81.5L53.6,88.7L61.1,89.5 M40.8,95.2L44.1,102.1L51.7,102.2 M32.1,109.6L36.1,116.1L43.7,115.5 M25.0,124.5L29.6,130.5L37.1,129.2 M19.6,139.7L24.8,145.2L32.1,143.0' stroke='rgba(255,255,255,0.10)' stroke-width='1.6'/%3E%3C/svg%3E");
-  --stitch: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 14 8' fill='none' stroke-linecap='round'%3E%3Cpath d='M0 4H14' stroke='rgba(255,255,255,0.12)' stroke-width='1'/%3E%3Cpath d='M5.2 1.4L8.8 6.6' stroke='rgba(255,255,255,0.22)' stroke-width='1.2'/%3E%3C/svg%3E");
   color-scheme: dark;
 
   /* 버튼 배경으로 쓰이므로 흰 글자와의 대비를 라이트와 같게 유지한다 */
@@ -1130,13 +1128,6 @@ html:not([data-nav])::view-transition-new(.page) {
   /* 귀퉁이에서만 보이게 — 더 안쪽으로 오면 제목 글자 뒤를 지나가 거슬렸다 */
   background-position: right -120px top -110px;
   background-size: 240px;
-}
-/* PC 쪽 머리 밑줄 — 실선 대신 실밥 땀 줄(--stitch). 높이 8px 타일을 바닥에 가로로 잇는다 */
-@utility stitch-rule {
-  background-image: var(--stitch);
-  background-repeat: repeat-x;
-  background-position: left bottom;
-  background-size: 14px 8px;
 }
 
 /* 새로 온 것이 조용히 나타난다 — 프로필 사진처럼 자리가 이미 잡혀 있는 곳에 쓴다 */

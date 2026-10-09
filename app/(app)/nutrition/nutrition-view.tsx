@@ -407,7 +407,7 @@ export function NutritionView({
         보내 밑줄을 통째로 쓴다(order-last). 넓은 화면(lg)에서는 띠가 제자리로 돌아와 같은
         줄에 선다 — 예전에는 띠가 따로 한 줄(57px + 간격)을 차지해 오른쪽 절반이 비었다.
       */}
-      <header className="flex flex-wrap items-end gap-x-3 gap-y-3 pb-1 sm:gap-x-4 desk:stitch-rule desk:pb-4">
+      <header className="flex flex-wrap items-end gap-x-3 gap-y-3 pb-1 sm:gap-x-4 desk:pb-4">
         {/* 머리글은 휴대폰에서 뺀다 — 제목 줄에 날짜 · 목표가 같이 서서, 넣으면 목표 단추가 밑줄로 밀린다 */}
         <div className="space-y-2 desk:space-y-1">
           <h1 className="text-heading page-title text-ink">영양</h1>

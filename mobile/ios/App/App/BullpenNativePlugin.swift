@@ -105,13 +105,18 @@ public class BullpenNativePlugin: CAPPlugin, CAPBridgedPlugin, UNUserNotificatio
         call.resolve()
     }
 
-    /// 앱이 앞에 떠 있을 때 온 알림 — 띄우지 않는다. 화면의 시계 · 소리 · 진동이 이미 알린다
+    /// 앱이 앞에 떠 있을 때 온 알림 — 휴식 알림은 띄우지 않는다(화면의 시계 · 소리 · 진동이 이미 알린다).
+    /// 홈 캘린더 일정 알림(id 'event-…')은 화면이 따로 알리지 않으므로 띄운다
     public func userNotificationCenter(
         _ center: UNUserNotificationCenter,
         willPresent notification: UNNotification,
         withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void
     ) {
-        completionHandler([])
+        if notification.request.identifier.hasPrefix(Self.prefix + "event-") {
+            completionHandler([.banner, .list, .sound])
+        } else {
+            completionHandler([])
+        }
     }
 
     /// 알림을 눌러 앱으로 들어옴 — 따로 할 일은 없다(앱이 열리면 화면이 지난 시간을 따라잡는다)

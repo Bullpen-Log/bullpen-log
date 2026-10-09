@@ -35,13 +35,14 @@ const rows = found.map(({ source, videoPath, ...x }) => ({ ...x, oldVideo: sourc
 
 const today = new Date().toISOString().slice(0, 10);
 /*
- * 모든 회가 3시간 안(끝 정리 10분 앞)에 드는 가장 적은 회 수. 부하 무게는 2 — 기본 1.5 로 417개를 7회에 나누면 마지막 회에 하체가
- * 몰렸다(최대 − 최소 9.3점, 시험 기준 8). 2 면 5.3점 · 가장 늦은 끝 2:39.
+ * 모든 회가 3시간 안(끝 정리 10분 앞)에 드는 가장 적은 회 수. 부하 무게는 1.75 — 기본 1.5 로 417개를 7회에 나누면 마지막 회에 하체가
+ * 몰렸다(최대 − 최소 9.3점, 시험 기준 8). 2026-10-09 탠트럼 5개를 지운 413개에서는 2 가 8.5점이라 1.75(6.0점 · 가장 늦은 끝 2:35).
+ * 운동이 바뀌어 시험이 걸리면 1.5 ~ 3 사이를 견줘 7회 그대로 · 차이가 가장 작은 값으로.
  */
 const fits = (p: ReturnType<typeof buildPlan>) => p.weeks.every((w) => w.end <= SESSION_MINUTES - WRAP_MINUTES);
 let plan = buildPlan(rows, today);
 for (let n = DEFAULT_OPTIONS.sessions; n <= 20; n++) {
-  plan = { ...buildPlan(rows, today, { ...DEFAULT_OPTIONS, sessions: n, loadWeight: 2 }), version: 3 };
+  plan = { ...buildPlan(rows, today, { ...DEFAULT_OPTIONS, sessions: n, loadWeight: 1.75 }), version: 3 };
   if (fits(plan)) break;
 }
 for (const w of plan.weeks) {

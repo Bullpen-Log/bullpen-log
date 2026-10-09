@@ -3,19 +3,28 @@ import type { ProgramResult } from '@/lib/program/load';
 
 /**
  * 프로그램을 다 마쳤을 때(설계 §13-13) — 큰 운동 넷의 추정 최대를 숫자 그대로. 안 올랐으면 '이번엔 그대로예요'.
+ * 기본기 4주는 무게가 없어 숫자 대신 다음 길(성인은 근력 · 파워 프로그램, 만 18세 전이면 코치와 함께 무게)을 말한다.
  * 끝난 뒤 사흘 동안 트레이닝 맨 위에 둔다. 다음 프로그램 고르기는 바로 밑의 입구 한 줄(program-start.tsx).
  */
 export function ProgramDone({ result }: { result: ProgramResult }) {
   return (
     <Card className="space-y-3">
       <div className="space-y-1">
-        <p className="text-xs font-semibold text-muted">근력 · 파워 프로그램</p>
+        <p className="text-xs font-semibold text-muted">
+          {result.basics ? '기본기 프로그램' : '근력 · 파워 프로그램'}
+        </p>
         <p className="text-heading text-xl text-ink">다 마쳤어요</p>
         <p className="text-sm text-muted break-keep">
           {result.name} · 완료 {result.completed} · 건너뜀 {result.skipped} ·{' '}
           {result.weeks}주 걸렸어요
         </p>
       </div>
+      {result.basics && (
+        <p className="text-sm leading-relaxed break-keep text-ink">
+          자세가 익숙해졌으면 무게를 더할 때예요. 성인은 이제 근력 · 파워 프로그램을 고를 수 있어요. 만 18세
+          전이면 코치나 트레이너와 함께 무게를 시작해요.
+        </p>
+      )}
       <ul className="divide-y divide-line">
         {result.lifts.map((l) => {
           const up = l.from != null && l.to != null && l.to > l.from;

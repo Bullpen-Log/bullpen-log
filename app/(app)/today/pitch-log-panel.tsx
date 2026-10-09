@@ -12,6 +12,7 @@ import type { Log } from '@/app/(app)/pitch-log/types';
 import type { PlanDaySummary, TrainingDaySummary } from '@/lib/report/training-history';
 import type { DayDetail } from '@/lib/day-detail';
 import type { VelocityDayFact } from '@/lib/velocity-meta';
+import { sortEvents, type CalendarEventView } from '@/lib/calendar-event';
 import {
   DaySummary,
   firstFocus,
@@ -21,6 +22,7 @@ import {
   type NutritionDay,
 } from './day-summary';
 import { DayDetailBlock } from './day-detail';
+import { useEventAlarms } from './event-alarms';
 
 /** [캘린더 | 목록] — 같은 기록을 다르게 보는 두 방식 */
 const VIEW_OPTIONS = [
@@ -62,6 +64,7 @@ export function PitchLogPanel({
   nutritionByDay,
   velocityByDay,
   checkinByDay,
+  initialEvents,
 }: {
   /** 서비스 기준 오늘(YYYY-MM-DD) — 그날 칸이 '오늘'·'어제'를 가르는 데 쓴다 */
   today: string;
@@ -87,7 +90,40 @@ export function PitchLogPanel({
   velocityByDay: Record<string, VelocityDayFact>;
   /** 날짜별 체크인 — 컨디션과 통증 여부 */
   checkinByDay: Record<string, CheckinDay>;
+  /** 사용자가 적은 일정 전부(lib/calendar-event.ts) — 이 홈 캘린더에만 보인다 */
+  initialEvents: CalendarEventView[];
 }) {
+  /*
+   * 일정 — 그날 칸에서 더하고 고치면 서버가 돌려준 줄로 여기를 바로 고친다(홈 전체를 다시 받지 않게).
+   * 서버가 새 목록을 보내 주면(다른 화면에서 돌아옴) 그것으로 갈아 끼운다 — 그리는 도중에 견주는 방식.
+   */
+  const [events, setEvents] = useState(initialEvents);
+  const [seenEvents, setSeenEvents] = useState(initialEvents);
+  if (seenEvents !== initialEvents) {
+    setSeenEvents(initialEvents);
+    setEvents(initialEvents);
+  }
+  useEventAlarms(events);
+  const eventsByDay = useMemo(() => {
+    const out: Record<string, CalendarEventView[]> = {};
+    for (const e of sortEvents(events)) (out[e.date] ??= []).push(e);
+    return out;
+  }, [events]);
+  const eventCounts = useMemo(
+    () =>
+      Object.fromEntries(Object.entries(eventsByDay).map(([d, l]) => [d, l.length])),
+    [eventsByDay]
+  );
+  const saveEvent = useCallback(
+    (e: CalendarEventView) =>
+      setEvents((prev) => [...prev.filter((x) => x.id !== e.id), e]),
+    []
+  );
+  const dropEvent = useCallback(
+    (id: string) => setEvents((prev) => prev.filter((x) => x.id !== id)),
+    []
+  );
+
   /*
    * 처음 범위(loadedFrom)보다 옛날 달에서 따로 받아 온 기록만 들고 있는다.
    *
@@ -188,6 +224,8 @@ export function PitchLogPanel({
 
   useEffect(() => {
     if (!selectedDate || details[selectedDate] || failed[selectedDate]) return;
+    /* 앞날은 받아 올 그날 요약이 없다(일정만) */
+    if (selectedDate > today) return;
     const date = selectedDate;
     let cancelled = false;
     /* 클립은 그날 클립이 있을 때만 청한다 */
@@ -205,7 +243,7 @@ export function PitchLogPanel({
     return () => {
       cancelled = true;
     };
-  }, [selectedDate, details, failed, velocityByDay]);
+  }, [selectedDate, details, failed, velocityByDay, today]);
 
   /*
    * 좁은 화면에서는 그날 칸이 달력 밑에서 펴진다. 달력이 화면을 거의 채우고 있어서,
@@ -240,8 +278,17 @@ export function PitchLogPanel({
       nutrition: nutritionByDay[date],
       checkin: checkinByDay[date],
       velocity: velocityByDay[date],
+      events: eventsByDay[date] ?? [],
     }),
-    [logs, trainingByDay, planByDay, nutritionByDay, checkinByDay, velocityByDay]
+    [
+      logs,
+      trainingByDay,
+      planByDay,
+      nutritionByDay,
+      checkinByDay,
+      velocityByDay,
+      eventsByDay,
+    ]
   );
 
   /*
@@ -260,13 +307,14 @@ export function PitchLogPanel({
         setSelectedDate(null);
         return;
       }
-      /* 닫혀 있다가 열 때만 줄을 새로 고른다 */
-      if (selectedDate === null) setFocus(firstFocus(factsOf(date)));
+      /* 앞날은 일정만 쓴다 — 늘 일정 줄로. 그 밖은 닫혀 있다가 열 때만 줄을 새로 고른다 */
+      if (date > today) setFocus('schedule');
+      else if (selectedDate === null) setFocus(firstFocus(factsOf(date)));
       /* 받아 오다 실패한 날은 다시 누르면 다시 받는다 */
       setFailed((prev) => (prev[date] ? { ...prev, [date]: false } : prev));
       setSelectedDate(date);
     },
-    [selectedDate, factsOf]
+    [selectedDate, factsOf, today]
   );
 
   /*
@@ -430,6 +478,8 @@ export function PitchLogPanel({
                 onSelect={openDay}
                 marks={marks}
                 compact={panelOpen}
+                allowFuture
+                events={eventCounts}
               >
                 <span>강도</span>
                 <LegendSwatch className="h-3 w-5 rounded bg-sky/15">낮음</LegendSwatch>
@@ -445,6 +495,9 @@ export function PitchLogPanel({
                   <ChartLine aria-hidden className="h-3 w-3 text-sky" />
                   분석
                 </span>
+                <LegendSwatch className="h-1 w-3 rounded-full bg-ink/70">
+                  일정
+                </LegendSwatch>
               </MonthCalendar>
             </Card>
 
@@ -515,6 +568,8 @@ export function PitchLogPanel({
                 detail={details[shownDate] ?? null}
                 failed={failed[shownDate] ?? false}
                 onRetry={() => setFailed((prev) => ({ ...prev, [shownDate]: false }))}
+                onEventSaved={saveEvent}
+                onEventDeleted={dropEvent}
                 onReload={() =>
                   setDetails((prev) =>
                     Object.fromEntries(
