@@ -441,8 +441,10 @@
          (`npm run shoot:plan [-- --write]`, DB 읽기만) → `lib/shoot/plan-data.json`(고정 — 다시 뽑으면 번호가 바뀌니 version 을 올린다) ·
          `lib/shoot/plan.ts`(서버에서만 읽기) · `lib/shoot/progress.ts`(찍음 · 다시 찍기 · 미룸 · 지금/다음 · 이어 찍기 · 계획 대비 · 날별 속도) ·
          시험 `npm run shoot:test` 44. 아티팩트 문서도 이 JSON 으로 다시 뽑아 숫자를 맞춤(끝 2:25~2:41).
-      2. DB 표 `ShootCheck`(운동 하나에 하나: 상태 done/redo/later · 누가 · 언제 · 메모) + 서버 동작(체크 · 되돌리기 · 메모) — 백업 · migrate diff ·
-         deploy · generate · HANDOFF(김민) 1.5h
+      2. **끝남** DB 표 `ShootCheck`(운동 하나에 하나: 상태 done/redo/later · 누가 · 언제 · 메모, 관계 없이 id 만) — 백업 db-2026-10-09-04-39 ·
+         `20261009140000_shoot_check`(CREATE 만) deploy · generate · HANDOFF(김민). 읽기 `lib/shoot/load.ts`(체크 + 닉네임 · 운동 정보 =
+         라이브러리 캐시 + 처방 한 줄 + 썸네일) · 동작 `app/actions/shoot.ts`(setShootStatus: 계획에 있는 운동만 · null 은 되돌리기 · 메모만 고치면
+         시각 그대로, fetchShootChecks: 두 사람 폰 맞추기 — 둘 다 모든 체크를 돌려준다).
       3. 관리자 메인 `/admin/shoot`: 진행 게이지(찍음 · 올림) · 주차 카드 · 웹은 자리 · 부위 · 카테고리별 진행 · 날별 속도 · 최근 체크 · 남은 주 예상,
          관리자 허브 카드 · 사이드바 '관리' 메뉴 3h
       4. 주차 화면 `/admin/shoot/[week]`: 시간표 + 체크 · 지금/다음 강조 · 미룬 것 · 앞 주에서 이어진 것 2.5h

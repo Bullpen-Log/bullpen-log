@@ -1483,3 +1483,30 @@ model VelocityRecordingCut {
   @@index([recordingId])
   @@index([partId])
 }
+
+// ── 트레이닝 영상 촬영(관리자) ───────────────────────────────────────────────
+
+/**
+ * 트레이닝 영상 촬영 체크 — 유튜브 참고 영상으로 대신하던 운동을 우리 영상으로 찍었나(관리자 /admin/shoot).
+ *
+ * 계획(주차 · 자리 · 순서)은 lib/shoot/plan-data.json 에 고정돼 있고, 여기에는 운동마다 한 줄로 상태만 남긴다. 주차가 아니라
+ * 운동에 붙는다 — 다음 주로 미뤄 찍어도 같은 줄이다. 줄이 없으면 아직 안 찍은 것(대기). 되돌리기는 줄을 지운다.
+ * User · ExerciseVideo 관계는 걸지 않는다(VelocityRecording 과 같이 id 만) — 운동을 지우면 계획에서도 빠지고 이 줄은 남아도 읽히지 않는다.
+ */
+model ShootCheck {
+  id         String   @id @default(uuid())
+  /// ExerciseVideo.id — 운동 하나에 하나
+  exerciseId String   @unique
+  /// 'done' 찍음 · 'redo' 다시 찍어야 함 · 'later' 미룸(lib/shoot/progress.ts)
+  status     String   @default("done")
+  /// 짧은 메모 — '초점 나감 · 다시' 같은 것
+  note       String?
+  /// 체크한 관리자(User.id)
+  userId     String
+  /// 상태를 마지막으로 바꾼 때 — 날별 촬영 속도 · 계획 대비를 이 시각으로 센다
+  checkedAt  DateTime @default(now())
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([checkedAt])
+}

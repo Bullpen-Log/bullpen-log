@@ -11,6 +11,12 @@ Claude 로 작업을 시작하면 저절로 읽힌다. 규칙은 `AGENTS.md` 6�
 
 ---
 
+## 김민에게 — 2026-10-09 · 금윤호(Claude) — 새 표 `ShootCheck` 더함(트레이닝 영상 촬영 관리자) — 받으면 `npx prisma generate`
+
+받은 뒤 할 일: **`npx prisma generate`**. DB 에는 이미 적용했다(백업 `db-2026-10-09-04-39.json`, 마이그레이션 `20261009140000_shoot_check` —
+새 표 하나만, 기존 표는 그대로). 유튜브 참고 영상으로 대신하던 운동 312개를 우리 영상으로 찍는 5주 계획(`lib/shoot/plan-data.json`)과
+그 진행 체크를 관리자 화면 `/admin/shoot`(메인 · 주차 · 휴대폰 촬영 모드)으로 만드는 중이다. 자세한 건 `docs/claude/geum-yunho.md` 4절 13번.
+
 ## 김민에게 — 2026-10-09 · 금윤호(Claude) — 인아웃식 회원가입 · 영양 온보딩 끝(9단계) — 받으면 `npx prisma generate`(아직 안 했으면), 가입 · 영양 탭 · 목표 창을 크게 고쳤다
 
 받은 뒤 할 일: **`npx prisma generate`**(2026-10-08 스키마에 `NutritionProfile.goalKind · macroPreset · fatTargetG · onboardedAt` 넷을 더했다 —
