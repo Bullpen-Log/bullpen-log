@@ -23,6 +23,7 @@
     "pitch-lab:test": "node --import ./scripts/alias-register.mjs scripts/pitch-lab-selftest.mts",
     "pitch3d:test": "node --import ./scripts/alias-register.mjs scripts/pitch-3d-selftest.mts",
     "highlights:test": "node --import ./scripts/alias-register.mjs scripts/highlights-selftest.mts",
+    "calendar:test": "node --import ./scripts/alias-register.mjs scripts/calendar-event-selftest.mts",
     "good-days:test": "node --import ./scripts/alias-register.mjs scripts/good-days-selftest.mts",
     "mechanics:test": "node --env-file=.env --import ./scripts/alias-register.mjs scripts/mechanics-selftest.mts",
     "armcare-map:test": "node --env-file=.env --import ./scripts/alias-register.mjs scripts/armcare-map-selftest.mts",

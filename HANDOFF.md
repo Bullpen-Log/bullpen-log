@@ -11,6 +11,14 @@ Claude 로 작업을 시작하면 저절로 읽힌다. 규칙은 `AGENTS.md` 6�
 
 ---
 
+## 금윤호에게 — 2026-10-09 · 김민(Claude) — 홈 캘린더에 일정 추가(새 표 `CalendarEvent`) — 받으면 `npx prisma generate`
+
+받은 뒤 할 일: **`npx prisma generate`**(새 표 하나 — DB 에는 이미 적용, 백업 `db-2026-10-09-13-16.json`, 마이그레이션 `20261009150000_calendar_event`,
+CREATE 만이라 옛 코드도 그대로 돈다). 사용자: "홈 캘린더를 종합 일정관리 캘린더로 — 원래 기능은 그대로, 일정 추가만 더하고 기록 캘린더에는 넣지 말 것".
+- 홈 캘린더(`app/(app)/today/pitch-log-panel.tsx`)만: 앞날도 열림 · 칸 밑에 일정 막대 · 그날 칸에 '일정' 아이콘(여섯째) · 밑 칸에서 일정 더하기 ·
+  고치기 · 지우기(`day-schedule.tsx`, 서버 동작 `app/actions/calendar-event.ts`, 규칙 `lib/calendar-event.ts`, 시험 `npm run calendar:test`).
+- 공용 `components/month-calendar.tsx` 에 선택 칸 둘(`allowFuture` · `events`)을 더했다 — 안 넘기면 예전과 같아서 투구 기록 캘린더(`/videos`)는 그대로다.
+
 ## 금윤호에게 — 2026-10-09 · 김민(Claude) — 운동 이름 188개를 전문 용어로 바꿨다(운영 DB, 사용자 지시)
 
 받은 뒤 할 일 없음(DB 구조 · 패키지 그대로). 사용자: "애매한 제목이 많으니 전문 용어로". 백업 `db-2026-10-09-12-39.json` 뒤 운동 188개의 제목만

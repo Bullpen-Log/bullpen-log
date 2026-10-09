@@ -16,6 +16,8 @@ import { dayHas, spokenDay, type DayFacts, type DayFocus } from './day-summary';
 import { OPEN_POPUP_TYPES } from '@/lib/transition-types';
 import { LinkPending } from '@/components/link-pending';
 import type { VelocityDayFact } from '@/lib/velocity-meta';
+import type { CalendarEventView } from '@/lib/calendar-event';
+import { DaySchedule } from './day-schedule';
 
 /* 구속 측정 클립 — 클립이 있는 날에만 불러온다(재생기가 스트라이크 존 그림까지 끌고 와 홈을 무겁게 하지 않게) */
 const VelocityClips = dynamic(() => import('./velocity-clips'), {
@@ -42,6 +44,7 @@ const TITLES: Record<DayFocus, string> = {
   nutrition: '영양',
   checkin: '컨디션',
   video: '영상',
+  schedule: '일정',
 };
 
 /** 각 탭으로 가는 길 — 그날 남긴 것이 없으면 '남기러 가는' 말로 */
@@ -84,6 +87,9 @@ function tabLink(
     case 'checkin':
       /* 체크인은 따로 탭이 없다 — 오늘 것은 오른쪽 위 알림(종)의 체크인 창에서 고친다 */
       return null;
+    case 'schedule':
+      /* 일정은 이 칸에서 바로 적고 고친다 */
+      return null;
   }
 }
 
@@ -97,6 +103,8 @@ export function DayDetailBlock({
   failed,
   onRetry,
   onReload,
+  onEventSaved,
+  onEventDeleted,
 }: {
   date: string;
   today: string;
@@ -112,10 +120,15 @@ export function DayDetailBlock({
   onRetry: () => void;
   /** 받아 둔 그날 요약을 버리고 새로 받는다 — 클립 주소가 만료됐을 때 */
   onReload: () => void;
+  /** 일정을 더하거나 고쳤다 · 지웠다 — 캘린더가 쥔 목록을 고친다 */
+  onEventSaved: (event: CalendarEventView) => void;
+  onEventDeleted: (id: string) => void;
 }) {
   const { logs, plan, velocity } = facts;
+  /* 앞날 — 남긴 기록이 있을 수 없어 일정만 쓴다(받아 올 그날 요약도 없다) */
+  const ahead = date > today;
   const needsDetail =
-    focus === 'training' || focus === 'nutrition' || focus === 'checkin';
+    !ahead && (focus === 'training' || focus === 'nutrition' || focus === 'checkin');
   const videos = logs.flatMap((l) => l.videoPaths);
   const clips = velocity?.clips ?? 0;
   /* 영상 칸에서 고른 구속 측정 공 — 주소를 다시 받아도 그 공에 머물게 여기서 쥔다 */
@@ -126,10 +139,12 @@ export function DayDetailBlock({
    * 밑 칸 링크는 '기록하러 가기'인 식으로 둘이 어긋난다.
    */
   const empty = !dayHas(facts)[focus];
-  const link = tabLink(focus, date, today, {
-    empty,
-    clipsOnly: videos.length === 0 && clips > 0,
-  });
+  const link = ahead
+    ? null
+    : tabLink(focus, date, today, {
+        empty,
+        clipsOnly: videos.length === 0 && clips > 0,
+      });
 
   return (
     <section
@@ -142,13 +157,15 @@ export function DayDetailBlock({
           <span className="font-normal text-muted"> · {TITLES[focus]}</span>
         </h3>
         <span className="flex flex-wrap items-center gap-1">
-          {/* 그날 분석 — 분석 · 그래프 화면을 그 날짜째 */}
-          <Link
-            href={`/coach?date=${date}`}
-            className="inline-flex items-center rounded-lg px-2 py-1 text-sm font-medium text-muted transition-colors hover:bg-surface-2 hover:text-ink"
-          >
-            그날 분석
-          </Link>
+          {/* 그날 분석 — 분석 · 그래프 화면을 그 날짜째(앞날은 없다) */}
+          {!ahead && (
+            <Link
+              href={`/coach?date=${date}`}
+              className="inline-flex items-center rounded-lg px-2 py-1 text-sm font-medium text-muted transition-colors hover:bg-surface-2 hover:text-ink"
+            >
+              그날 분석
+            </Link>
+          )}
           {link && (
             <Link
               href={link.href}
@@ -171,8 +188,21 @@ export function DayDetailBlock({
 
       {/* 줄이나 날짜가 바뀔 때마다 새로 그려, 내용이 옅게 떠오르며 바뀐다 */}
       <div key={`${date}-${focus}`} className="motion-safe:animate-fade-in px-5 py-4">
-        {focus === 'pitch' && <PitchDetail logs={logs} velocity={velocity} />}
-        {focus === 'video' && (
+        {focus === 'schedule' && (
+          <DaySchedule
+            date={date}
+            events={facts.events}
+            onSaved={onEventSaved}
+            onDeleted={onEventDeleted}
+          />
+        )}
+        {ahead && focus !== 'schedule' && (
+          <p className="text-sm text-muted">
+            아직 오지 않은 날이에요. 일정을 적어 둘 수 있어요.
+          </p>
+        )}
+        {!ahead && focus === 'pitch' && <PitchDetail logs={logs} velocity={velocity} />}
+        {!ahead && focus === 'video' && (
           <div className="space-y-5">
             {(videos.length > 0 || clips === 0) && (
               <VideoDetail videos={videos} featured={featuredVideo ?? null} />

@@ -112,6 +112,7 @@ model User {
   mealEntries       MealEntry[]
   userFoods         UserFood[]
   mealCombos        MealCombo[]
+  calendarEvents    CalendarEvent[]
   mealPlans         MealPlan[]
   dailyNutrition    DailyNutrition[]
 }
@@ -1509,4 +1510,20 @@ model ShootCheck {
   updatedAt  DateTime @updatedAt
 
   @@index([checkedAt])
+}
+
+/// 홈 캘린더의 일정(app/(app)/today) — 사용자가 직접 적는 앞날 · 지난날 할 일. 투구 기록 캘린더(/videos)에는 안 나온다.
+model CalendarEvent {
+  id        String   @id @default(uuid())
+  userId    String
+  date      DateTime @db.Date
+  title     String
+  /// 'HH:MM' — 비우면 하루 종일
+  time      String?
+  memo      String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, date])
 }
