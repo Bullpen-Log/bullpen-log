@@ -874,6 +874,13 @@ console.log('■ 뼈대 자세(pose-rig) — public/models/skeleton-parts.json +
           '마운드: 앞 내리막이 둘레(투수판 앞 3.2m)에서 0 · 둘레 밖 0',
           g(3.19 / Hm, 0) < 0.01 / Hm && g(3.3 / Hm, 0) === 0 && g(0.457 / Hm, 3 / Hm) === 0
         );
+        /* 옆 경사 — 예전엔 옆으로 원 끝까지 꼭대기 높이(폭 5.5m 의 평평한 언덕)라 '너무 크다'고 보였다 */
+        check(
+          '마운드: 옆으로 꼭대기 폭 5피트(±0.76m) 안은 꼭대기, 밖은 둘레까지 내려간다',
+          near(g(0, 0.7 / Hm), 0.254 / Hm) &&
+            g(0, 1.5 / Hm) < 0.18 / Hm &&
+            g(0.457 / Hm, 2.7 / Hm) < 0.02 / Hm
+        );
         const fr = frames[result.events.footPlant];
         const x0 = frames[0][V2J.rAn][0];
         const z0 = frames[0][V2J.rAn][2];
