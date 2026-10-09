@@ -78,6 +78,8 @@ const MAX_PENDING = 2;
  * 클립 안의 던진 때는 영상 엔진이 공으로 찾는다(find-throw).
  */
 const BALL_CLIP: [before: number, after: number] = [0.6, 1.6];
+/** 공 알림 카드를 띄웠는데 계산에서 공 길을 못 찾았을 때의 알림 */
+const LOST_BALL_NOTE = '공을 끝까지 찾지 못해 이번 공은 재지 못했어요. 다시 던져 주세요.';
 /** 공 알림 클립에서 재는 구간 — 공이 처음 보인 때 앞 · 뒤(초). 실험대(릴리스 앞 0.15 ~ 뒤 1.4초)와 같게, 알림이 릴리스보다 조금 늦어 앞을 넉넉히 */
 const BALL_RANGE: [before: number, after: number] = [0.25, 1.45];
 const MOTION_CLIP: [before: number, after: number] = [0.5, 2.6];
@@ -381,6 +383,12 @@ export class DualCapture {
        */
       fovKnown: main.fovDeg > 0 && main.fovSource !== 'estimate',
       tiltRad: this.tiltRad,
+      /* 움직임으로 잡아 조용히 재던 클립에서 공을 찾았다 — 그때부터 '구속 계산 중'을 띄운다(결과가 알림 없이 불쑥 뜨지 않게) */
+      onBall: () => {
+        if (job.visible || gen !== this.gen) return;
+        job.visible = true;
+        this.syncStatus();
+      },
     });
     const tm = result.video?.timing;
     console.info(
@@ -399,8 +407,20 @@ export class DualCapture {
      * 폰을 만짐)으로 보고 조용히 넘긴다(띄웠던 카드는 거둬진다). 공 길은 찾았는데 못 잰 것만 '못 쟀어요'로 알린다.
      */
     if (!result.measure.ok && (!job.visible || result.track.length < 4)) {
+      /* 카드를 띄웠는데(공 알림) 공 길을 못 찾았다 — 말없이 거두지 않고 알린다(2026-10-09 김민: "인식하다가 아무것도 안 뜬다") */
+      if (job.visible && gen === this.gen) this.handlers.onNotice?.(LOST_BALL_NOTE);
       await dropWide();
       return;
+    }
+    /* 조용히 재던 클립이 거친 훑기 없이 공을 찾았다 — 결과 전에 잠깐 '인식했어요'를 보인다(카드 없이 결과가 불쑥 뜨지 않게) */
+    if (!job.visible && gen === this.gen) {
+      job.visible = true;
+      this.syncStatus();
+      await new Promise((r) => setTimeout(r, 400));
+      if (gen !== this.gen) {
+        await dropWide();
+        return;
+      }
     }
     /* 클립을 그대로 쟀으니 궤적 시각 = 클립 시각 */
     const meta: ResultMeta = { id, triggerT: performance.now(), hitT: main.eventSec };
