@@ -241,28 +241,11 @@ export function validateBaseline(raw: {
   throwingHand: string;
   competitionLevel: string;
 }): { error: string; field: keyof BaselineAnswers } | { value: BaselineAnswers } {
-  const baselineFreq = raw.baselineFreq.trim();
-  const baselineVolume = raw.baselineVolume.trim();
-  const baselineIntensity = raw.baselineIntensity.trim();
-  const baselineWorkoutFreq = raw.baselineWorkoutFreq.trim();
-  const throwingHand = raw.throwingHand.trim();
+  const pitch = validatePitchBaseline(raw);
+  if ('error' in pitch) return pitch;
+  const workout = validateWorkoutBaseline(raw);
+  if ('error' in workout) return workout;
   const competitionLevel = raw.competitionLevel.trim();
-
-  if (!BASELINE_FREQ_NAMES.includes(baselineFreq)) {
-    return { error: '평소 던지는 횟수를 선택해주세요.', field: 'baselineFreq' };
-  }
-  if (!BASELINE_VOLUME_NAMES.includes(baselineVolume)) {
-    return { error: '한 번에 던지는 양을 선택해주세요.', field: 'baselineVolume' };
-  }
-  if (!BASELINE_INTENSITY_NAMES.includes(baselineIntensity)) {
-    return { error: '평소 던지는 강도를 선택해주세요.', field: 'baselineIntensity' };
-  }
-  if (!BASELINE_WORKOUT_FREQ_NAMES.includes(baselineWorkoutFreq)) {
-    return { error: '평소 웨이트 횟수를 선택해주세요.', field: 'baselineWorkoutFreq' };
-  }
-  if (!(THROWING_HANDS as readonly string[]).includes(throwingHand)) {
-    return { error: '던지는 손을 선택해주세요.', field: 'throwingHand' };
-  }
   if (
     competitionLevel !== '' &&
     !(COMPETITION_LEVELS as readonly string[]).includes(competitionLevel)
@@ -275,14 +258,62 @@ export function validateBaseline(raw: {
 
   return {
     value: {
-      baselineFreq,
-      baselineVolume,
-      baselineIntensity,
-      baselineWorkoutFreq,
-      throwingHand,
+      ...pitch.value,
+      ...workout.value,
       competitionLevel: competitionLevel || null,
     },
   };
+}
+
+/** 투구 쪽 문진 — 던지는 손 · 평소 투구량 셋. 투구 기록 첫 설정(app/actions/pitch-setup.ts)이 이것만 받는다 */
+export type PitchBaselineAnswers = Pick<
+  BaselineAnswers,
+  'baselineFreq' | 'baselineVolume' | 'baselineIntensity' | 'throwingHand'
+>;
+
+/**
+ * 투구 문진만 검사한다(2026-10-09 — 가입에서 빠져 투구 기록 탭의 첫 설정이 됐다).
+ * 넷 다 목록 안의 값이어야 한다 — 이 값들로 부하 기준선이 만들어진다.
+ */
+export function validatePitchBaseline(raw: {
+  baselineFreq: string;
+  baselineVolume: string;
+  baselineIntensity: string;
+  throwingHand: string;
+}):
+  | { error: string; field: keyof PitchBaselineAnswers }
+  | { value: PitchBaselineAnswers } {
+  const baselineFreq = raw.baselineFreq.trim();
+  const baselineVolume = raw.baselineVolume.trim();
+  const baselineIntensity = raw.baselineIntensity.trim();
+  const throwingHand = raw.throwingHand.trim();
+
+  if (!BASELINE_FREQ_NAMES.includes(baselineFreq)) {
+    return { error: '평소 던지는 횟수를 선택해주세요.', field: 'baselineFreq' };
+  }
+  if (!BASELINE_VOLUME_NAMES.includes(baselineVolume)) {
+    return { error: '한 번에 던지는 양을 선택해주세요.', field: 'baselineVolume' };
+  }
+  if (!BASELINE_INTENSITY_NAMES.includes(baselineIntensity)) {
+    return { error: '평소 던지는 강도를 선택해주세요.', field: 'baselineIntensity' };
+  }
+  if (!(THROWING_HANDS as readonly string[]).includes(throwingHand)) {
+    return { error: '던지는 손을 선택해주세요.', field: 'throwingHand' };
+  }
+  return { value: { baselineFreq, baselineVolume, baselineIntensity, throwingHand } };
+}
+
+/** 웨이트 쪽 문진 — 평소 웨이트 횟수. 트레이닝 첫 설정(app/actions/training-setup.ts)이 받는다 */
+export function validateWorkoutBaseline(raw: {
+  baselineWorkoutFreq: string;
+}):
+  | { error: string; field: 'baselineWorkoutFreq' }
+  | { value: { baselineWorkoutFreq: string } } {
+  const baselineWorkoutFreq = raw.baselineWorkoutFreq.trim();
+  if (!BASELINE_WORKOUT_FREQ_NAMES.includes(baselineWorkoutFreq)) {
+    return { error: '평소 웨이트 횟수를 선택해주세요.', field: 'baselineWorkoutFreq' };
+  }
+  return { value: { baselineWorkoutFreq } };
 }
 
 /**
