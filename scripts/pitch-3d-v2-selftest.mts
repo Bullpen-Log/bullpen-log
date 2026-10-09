@@ -47,7 +47,7 @@ import {
 import { makeV2Track } from './pitch-lab/synth-v2.mts';
 import { footJump, footSway, gapWristError, hipSnap, leadGapJump } from './pitch-lab/gap-check.mts';
 import { readFileSync } from 'node:fs';
-import { blendAi, displayTrack, readAiJoints } from '../lib/pitch-3d/v2/display.ts';
+import { blendAi, displayTrack, readAiGate, readAiJoints, readAiMiss } from '../lib/pitch-3d/v2/display.ts';
 import { KIN_LIMITS, kinematicTrack } from '../lib/pitch-3d/v2/kinematics.ts';
 import {
   moundHeightAt,
@@ -1113,6 +1113,99 @@ console.log('■ 뼈대 자세(pose-rig) — public/models/skeleton-parts.json +
           check(`각도 모델: 머리 돌림이 몸통에 대해 ${KIN_LIMITS.neckTwist}° 안(120° 에서)`, turn <= KIN_LIMITS.neckTwist + 2, `${turn.toFixed(1)}°`);
         }
 
+        /*
+         * 12 영상에 맞게(2026-10-09 샘플 3 · 4 를 두 영상에 비춰 보니 각도 모델이 측정보다 2배 멀었다) — 고치기 전 값은 각 시험의 주석에.
+         * ① 던지는 어깨를 15° 올림(팔도 따라) → 어깨 자리 그대로(고치기 전 키의 3% 넘게 — 어깨선을 늘 몸통 축에 수직으로 다시 만듦)
+         */
+        {
+          const seq = seqOf(15, (fr) => {
+            const { neck, f } = trunkOf(fr);
+            const before = fr[V2J.rSh];
+            for (const j of [V2J.lSh, V2J.rSh]) fr[j] = rotAbout(fr[j], neck, f, (15 * Math.PI) / 180);
+            const mv = sub(fr[V2J.rSh], before);
+            for (const j of [V2J.rEl, V2J.rWr, V2J.rHandIdx, V2J.rHandMid, V2J.rHandPinky]) fr[j] = add(fr[j], mv);
+            const mvL = sub(fr[V2J.lSh], rotAbout(fr[V2J.lSh], neck, f, (-15 * Math.PI) / 180));
+            for (const j of [V2J.lEl, V2J.lWr, V2J.lHandIdx, V2J.lHandMid, V2J.lHandPinky]) fr[j] = add(fr[j], mvL);
+          });
+          const out = kinematicTrack(seq, fullConf(15), []).frames[7];
+          const e = Math.max(norm(sub(out[V2J.rSh], seq[7][V2J.rSh])), norm(sub(out[V2J.lSh], seq[7][V2J.lSh])), norm(sub(out[V2J.rWr], seq[7][V2J.rWr])));
+          check('각도 모델: 한쪽 어깨를 15° 올려도 어깨 · 손목이 그 자리(키의 0.5% 안)', e < 0.005, `${(e * 100).toFixed(2)}%`);
+        }
+        /* ② 고개를 목 위에서 좌우로 ±40° 돌림 → 머리 자리 그대로(고치기 전 키의 2~3% — 머리를 어깨 가운데를 축으로 돌림) */
+        {
+          const seq = seqOf(31, (fr, k) => {
+            const { t } = trunkOf(fr);
+            const c = scale(add(fr[V2J.lEar], fr[V2J.rEar]), 0.5);
+            const yaw = ((40 * Math.PI) / 180) * Math.sin(k / 5);
+            for (const j of [V2J.nose, V2J.lEar, V2J.rEar]) fr[j] = rotAbout(fr[j], c, t, yaw);
+          });
+          const out = kinematicTrack(seq, fullConf(31), []).frames;
+          let e = 0;
+          for (let k = 3; k < 28; k++) for (const j of [V2J.nose, V2J.lEar, V2J.rEar]) e = Math.max(e, norm(sub(out[k][j], seq[k][j])));
+          check('각도 모델: 고개를 목 위에서 ±40° 돌려도 머리가 그 자리(키의 1% 안)', e < 0.01, `${(e * 100).toFixed(2)}%`);
+        }
+        /*
+         * ③ 몸통 확신이 거의 0 인데 몸통이 돈다 → 어깨 · 손목이 그 장면 자리를 따라간다(키의 2% 안). 고치기 전엔 주변 무게가 모자라면 다듬기 폭을
+         * 23배까지 넓혀(50장면) 윗몸이 크게 늦고 무뎌졌다 — 좌투 샘플(몸통 확신 가운데 27)에서 던지는 팔이 영상에서 더 멀고 손목이 더 떨었다
+         */
+        {
+          const len = 90;
+          const UPPER = [V2J.lSh, V2J.rSh, V2J.lEl, V2J.rEl, V2J.lWr, V2J.rWr, V2J.lHandIdx, V2J.rHandIdx, V2J.lHandMid, V2J.rHandMid, V2J.lHandPinky, V2J.rHandPinky, V2J.nose, V2J.lEar, V2J.rEar];
+          const seq = seqOf(len, (fr, k) => {
+            const { neck, t } = trunkOf(fr);
+            for (const j of UPPER) fr[j] = rotAbout(fr[j], neck, t, 0.8 * Math.sin(k / 9));
+          });
+          const conf = Array.from({ length: len }, () => new Array(25).fill(100));
+          for (const row of conf) for (const j of [V2J.rSh, V2J.lSh, V2J.lHip, V2J.rHip]) row[j] = 0;
+          const out = kinematicTrack(seq, conf, []).frames;
+          let e = 0;
+          for (let k = 10; k < len - 10; k++) for (const j of [V2J.rSh, V2J.rWr]) e = Math.max(e, norm(sub(out[k][j], seq[k][j])));
+          check('각도 모델: 몸통 확신이 0 이어도 도는 윗몸을 따라간다(어깨 · 손목 키의 2% 안)', e < 0.02, `${(e * 100).toFixed(2)}%`);
+        }
+
+        /*
+         * ④ 확신이 5장면마다 0 · 100 으로 바뀌어도 부드럽게 흔드는 팔이 원본보다 튀지 않는다(고치기 전: 흐린 장면 무게를 0 가까이 두고 다시 다듬어
+         * 경계에서 튐 — 샘플 4 던지는 팔 흔들림 p90 원본 0.77 → 화면 1.26)
+         */
+        {
+          const len = 60;
+          const seq = seqOf(len, (fr, k) => {
+            const { f } = trunkOf(fr);
+            const S = fr[V2J.rSh];
+            for (const j of [V2J.rEl, V2J.rWr, V2J.rHandIdx, V2J.rHandMid, V2J.rHandPinky]) fr[j] = rotAbout(fr[j], S, f, 0.7 * Math.sin(k / 6));
+          });
+          const conf = Array.from({ length: len }, (_, k) => new Array(25).fill(Math.floor(k / 5) % 2 ? 100 : 0));
+          const p90 = (fs: Vec3[][]) => {
+            const v: number[] = [];
+            for (let k = 1; k + 1 < fs.length; k++) v.push(norm(add(sub(fs[k + 1][V2J.rWr], scale(fs[k][V2J.rWr], 2)), fs[k - 1][V2J.rWr])));
+            return v.sort((a, b) => a - b)[Math.floor(v.length * 0.9)];
+          };
+          const r0 = p90(seq);
+          const r1 = p90(kinematicTrack(seq, conf, []).frames);
+          check('각도 모델: 확신이 들쭉날쭉해도 팔이 원본보다 튀지 않는다(p90 1.2배 안)', r1 <= r0 * 1.2, `${(r1 / r0).toFixed(2)}배`);
+        }
+        /* ⑤ 편 팔꿈치(굽는 면을 못 봄)가 반대쪽 면으로 굽기 시작해도 굽는 면이 한 장면에 20° 넘게 안 돈다(고치기 전 한 장면에 80~90° 휙) */
+        {
+          const sh = mid0[V2J.rSh];
+          const down: Vec3 = [0, -1, 0];
+          const L1 = norm(sub(mid0[V2J.rEl], mid0[V2J.rSh]));
+          const L2 = norm(sub(mid0[V2J.rWr], mid0[V2J.rEl]));
+          const seq = seqOf(30, (fr, k) => {
+            const el = add(sh, scale(down, L1));
+            fr[V2J.rEl] = el;
+            /* 0~9 장면: 앞으로 조금 굽음(면 = 옆 축) · 10~14 편 팔 · 15~ 옆으로 굽음(면이 90° 돈 축) */
+            const bendDir: Vec3 = k < 10 ? [0, 0, 1] : [1, 0, 0];
+            const th = k < 10 ? 0.9 : k < 15 ? 0 : Math.min(1.2, (k - 14) * 0.3);
+            const dir = normalize(add(scale(down, Math.cos(th)), scale(bendDir, Math.sin(th))));
+            fr[V2J.rWr] = add(el, scale(dir, L2));
+            for (const j of [V2J.rHandIdx, V2J.rHandMid, V2J.rHandPinky]) fr[j] = add(fr[V2J.rWr], scale(dir, 0.05));
+          });
+          const kk = kinematicTrack(seq, fullConf(30), []);
+          let worst = 0;
+          for (let k = 1; k < 30; k++) worst = Math.max(worst, deg(Math.acos(Math.max(-1, Math.min(1, dot(kk.refs[k].forearmR!, kk.refs[k - 1].forearmR!))))));
+          check(`각도 모델: 굽기 시작한 팔의 굽는 면이 한 장면에 ${KIN_LIMITS.twistRatePerFrame}° 남짓까지만 돈다`, worst <= KIN_LIMITS.twistRatePerFrame + 3, `${worst.toFixed(1)}°`);
+        }
+
         /* 9 무릎이 뒤를 보는 장면(넙다리 반 바퀴) → 클립 가운데에서 60° 안 */
         {
           const seq = seqOf(15, (fr, k) => {
@@ -1161,6 +1254,51 @@ console.log('■ 뼈대 자세(pose-rig) — public/models/skeleton-parts.json +
           );
           const fake = { ...result, experimental: { sam3d: { model: 'x', joints: result.joints.slice(1) } } };
           check('AI 보정: 장면 수가 다른 AI 관절은 읽지 않는다', readAiJoints(fake) === null && readAiJoints(result) === null);
+          const bm = blendAi(ours, ai, conf, [], new Set([2]));
+          const missSame = norm(sub(bm.frames[2][V2J.rWr], ours[2][V2J.rWr])) < 1e-9 && bm.conf[2][V2J.rWr] === 0;
+          const otherMoved = norm(sub(bm.frames[3][V2J.rWr], ours[3][V2J.rWr])) > 1e-3;
+          const missRead = readAiMiss({ ...result, experimental: { sam3d: { model: 'x', joints: result.joints, miss: [2, 1.5, 'x' as unknown as number] } } });
+          check(
+            'AI 보정: AI 가 못 본 장면(miss)은 섞지 않는다(관절 · 확신 그대로) · 옆 장면은 섞는다 · 이상한 값은 버린다',
+            missSame && otherMoved && missRead.size === 1 && missRead.has(2)
+          );
+          /* 영상과 맞추기(gate) — 0 이면 우리 것 그대로(확신이 낮아도), 팔꿈치만 1 이면 손목은 다시 붙어 아래팔 길이 · 방향이 우리 것 */
+          const zero = ours.map(() => new Array(25).fill(0));
+          const g0 = blendAi(ours, ai, conf, [], new Set(), zero);
+          const g0Same =
+            Math.max(...g0.frames.flatMap((fr, k) => fr.map((p, j) => norm(sub(p, ours[k][j]))))) < 1e-9 &&
+            g0.conf.every((row, k) => row.every((v, j) => v === conf[k][j]));
+          const aiEl = ours.map((fr) => {
+            const a = fr.map((p) => [...p] as Vec3);
+            a[V2J.rEl] = add(a[V2J.rSh], [0, -norm(sub(fr[V2J.rEl], fr[V2J.rSh])), 0]);
+            return a;
+          });
+          const elOnly = ours.map(() => {
+            const row = new Array(25).fill(0);
+            row[V2J.rEl] = 100;
+            return row;
+          });
+          const ge = blendAi(ours, aiEl, conf, [], new Set(), elOnly);
+          const elMoved = norm(sub(ge.frames[2][V2J.rEl], ours[2][V2J.rEl])) > 1e-3;
+          const foreO = sub(ours[2][V2J.rWr], ours[2][V2J.rEl]);
+          const foreB = sub(ge.frames[2][V2J.rWr], ge.frames[2][V2J.rEl]);
+          const foreSame = norm(sub(foreO, foreB)) < 1e-9;
+          check(
+            'AI 보정(gate): 0 이면 우리 것 그대로 · 팔꿈치만 AI 면 손목이 따라 붙어 아래팔 길이 · 방향 그대로',
+            g0Same && elMoved && foreSame,
+            `그대로 ${g0Same} · 팔꿈치 ${elMoved} · 아래팔 ${foreSame}`
+          );
+          const withW = (w: unknown) =>
+            ({ ...result, experimental: { sam3d: { model: 'x', joints: result.joints, w } } }) as typeof result;
+          const goodW = result.joints.map((fr) => fr.map(() => 50));
+          const badW = result.joints.map((fr) => fr.map(() => 150));
+          check(
+            'AI 보정(gate): 비율 50 → 0.5 로 읽음 · 모양이 틀린 비율(150 · 장면 수 다름)이면 AI 를 안 쓴다',
+            readAiGate(withW(goodW))?.[0][0] === 0.5 &&
+              readAiJoints(withW(goodW)) !== null &&
+              readAiJoints(withW(badW)) === null &&
+              readAiJoints(withW(goodW.slice(1))) === null
+          );
         }
 
         /* 10 떨림 — 가만있는 손목의 잡음은 줄인다 */

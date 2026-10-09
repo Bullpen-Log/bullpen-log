@@ -86,6 +86,11 @@ async function getJson(path: string): Promise<unknown | null> {
   }
 }
 
+/** 촬영 정보(meta.json) 원본 — 없으면 null. 모양 검사는 readLabMeta 가 */
+export async function loadLabMetaRaw(userId: string, id: string): Promise<unknown | null> {
+  return getJson(`${folder(userId, id)}/meta.json`);
+}
+
 export async function saveLabMeta(userId: string, id: string, meta: LabMeta) {
   await putJson(`${folder(userId, id)}/meta.json`, meta);
 }

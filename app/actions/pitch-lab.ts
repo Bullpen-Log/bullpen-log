@@ -7,6 +7,7 @@ import {
   deleteLabSample,
   labVideoUrls,
   loadLabJob,
+  loadLabMetaRaw,
   loadV2Result,
   saveLabJob,
   saveLabMeta,
@@ -110,10 +111,12 @@ export async function requestPitch3dV2(input: {
 
   let prev: Pitch3dV2Job | null;
   let urls: { side: string; back: string } | null;
+  let metaRaw: unknown;
   try {
-    [prev, urls] = await Promise.all([
+    [prev, urls, metaRaw] = await Promise.all([
       loadLabJob(user.id, input.id),
       labVideoUrls(user.id, input.id),
+      loadLabMetaRaw(user.id, input.id),
     ]);
   } catch {
     return { error: STORAGE_ERROR };
@@ -148,7 +151,8 @@ export async function requestPitch3dV2(input: {
     return { error: STORAGE_ERROR };
   }
 
-  const meta = readLabMeta(null, nowIso);
+  /* 샘플의 촬영 정보(던지는 손 · 슬로모 · 화면 녹화 · 키) — 예전엔 null 로 읽어 늘 기본값(오른손 · 화면 녹화 · 슬로모 모름)이 갔다 */
+  const meta = readLabMeta(metaRaw, nowIso);
   const started = await startGpuJob({
     jobId: job.jobId,
     engine: PITCH3D_V2_VERSION,

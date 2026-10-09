@@ -55,6 +55,10 @@ image = (
         "git clone https://github.com/facebookresearch/sam-3d-body.git /opt/sam-3d-body",
         "cd /opt/sam-3d-body && git checkout b5c765a0d89d789985e186d396315e7590887b94",
     )
+    # 관절 모델(RTMW · RTMDet) 파일을 이미지에 — 컨테이너가 깰 때마다 300MB 를 받던 10초를 없앤다(CPU 로 한 번 불러 받아 둔다)
+    .run_commands(
+        "python -c \"from rtmlib import Wholebody; Wholebody(to_openpose=False, mode='performance', backend='onnxruntime', device='cpu')\""
+    )
     .env({"HF_HOME": "/cache/hf", "MOMENTUM_ENABLED": "0"})
     .add_local_dir(os.path.join(os.path.dirname(__file__), "engine"), remote_path="/root/engine")
     .add_local_python_source("pitch3d_gpu")
@@ -81,9 +85,35 @@ def _pose_factory():
     return _pose_cache["pose"]
 
 
+# AI 보정을 같이 맡는 도우미 GPU 수(분석 GPU 와 합쳐 5대) — 장면 300장이면 AI 단계 약 50초. 두 작업이 같이 돌아도 GPU 10대
+AI_HELPERS = int(os.environ.get("PITCH3D_AI_HELPERS", "4"))
+
+
+@app.cls(gpu=GPU, timeout=TIMEOUT_SEC, memory=16384, volumes={"/cache/hf": hf_cache}, secrets=hf_secret, scaledown_window=20)
+class AiHelper:
+    """AI 보정 도우미(pitch3d_gpu/ai_parallel.py) — 켜지면서 모델을 올리고, 영상 정보를 받아 같은 장면을 풀고, 묶음을 집는다."""
+
+    @modal.enter()
+    def load(self) -> None:
+        from pitch3d_gpu import sam3d
+
+        sam3d._load()
+
+    @modal.method()
+    def work(self, q: modal.Queue, name: str) -> int:
+        from pitch3d_gpu import ai_parallel, sam3d
+        from pitch3d_gpu.pipeline import helper_frames
+
+        est = sam3d._load()
+        if est is None:
+            return 0
+        return ai_parallel.helper_loop(q, name, helper_frames, lambda frames, chunk: sam3d.infer_items(est, frames, chunk))
+
+
 @app.function(gpu=GPU, timeout=TIMEOUT_SEC, memory=16384, volumes={"/cache/hf": hf_cache}, secrets=hf_secret)
 def analyze(job: dict) -> dict:
     """한 작업 — 결과는 저장소에 올리고, 상태는 progress[call_id] 에."""
+    from pitch3d_gpu.ai_parallel import Coordinator
     from pitch3d_gpu.pipeline import run_job
 
     call_id = modal.current_function_call_id()
@@ -93,7 +123,13 @@ def analyze(job: dict) -> dict:
         progress[call_id] = {"status": "running", "stage": stage, "stages": stages, "jobId": job_id, "at": time.time()}
 
     try:
-        out = run_job(job, _pose_factory, report)
+        with modal.Queue.ephemeral() as q:
+            ai = Coordinator(q, lambda i: AiHelper().work.spawn(q, f"h{i}"), AI_HELPERS if hf_secret else 0)
+            ai.start()  # 도우미가 켜지고 모델을 올리는 동안 관절 찾기가 돈다
+            try:
+                out = run_job(job, _pose_factory, report, ai)
+            finally:
+                ai.close()
         try:
             hf_cache.commit()  # 처음 받은 AI 무게를 남긴다(다음 작업은 안 받는다)
         except Exception:  # noqa: BLE001
@@ -101,7 +137,7 @@ def analyze(job: dict) -> dict:
     except Exception as e:  # noqa: BLE001 — 모르는 예외는 여기 한 곳에서만 잡고 이름 · 단계 · 번호를 남긴다(검토 2절 Internal)
         print(f"[pitch3d internal] job={job_id} call={call_id} {type(e).__name__}: {e}")
         out = {"status": "failed", "code": "internal", "stage": "fit", "stages": {}}
-    progress[call_id] = {**out, "jobId": job_id, "at": time.time()}
+    progress[call_id] = {**{k: v for k, v in out.items() if k not in ("result", "tracks")}, "jobId": job_id, "at": time.time()}
     return out
 
 
@@ -152,6 +188,33 @@ def web():
         }
 
     return api
+
+
+@app.local_entrypoint()
+def e2e(jobs: str, out: str = ""):
+    """시험 — 실제 영상으로 끝까지(올리지 않음, job.dryRun). `modal run app.py --jobs a.json,b.json --out 폴더`
+
+    작업 JSON 은 서명 주소가 들어 있어 저장소 밖에 둔다. 작업들을 동시에 보내(사이트에서 둘을 같이 누른 것처럼) 걸린 시간 · 단계를 찍고,
+    out 이 있으면 결과를 <out>/<파일 이름>.result.json 으로 남긴다.
+    """
+    paths = [p for p in jobs.split(",") if p]
+    t0 = time.time()
+    calls = []
+    for p in paths:
+        with open(p, encoding="utf-8") as f:
+            job = json.load(f)
+        job["dryRun"] = True
+        calls.append((p, analyze.spawn(job)))
+    for p, c in calls:
+        r = c.get()
+        res = r.pop("result", None)
+        tracks = r.pop("tracks", None)
+        print(json.dumps({"job": os.path.basename(p), "wall_s": round(time.time() - t0, 1), **r}, ensure_ascii=False))
+        if out and res is not None:
+            with open(os.path.join(out, os.path.basename(p).replace(".json", ".result.json")), "w", encoding="utf-8") as f:
+                json.dump(res, f)
+            with open(os.path.join(out, os.path.basename(p).replace(".json", ".tracks.json")), "w", encoding="utf-8") as f:
+                json.dump(tracks, f)
 
 
 if __name__ == "__main__":
