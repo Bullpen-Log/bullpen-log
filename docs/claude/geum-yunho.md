@@ -1288,3 +1288,5 @@
      보조 `grilling` · `domain-modeling` · `research` · `prototype`. 스킬은 세션을 시작할 때만 붙는다 — 설치한 그 세션에서
      쓰려면 SKILL.md 를 직접 읽는다. `/setup-matt-pocock-skills` 는 같이 쓰는 `CLAUDE.md` 를 고치므로 올릴 때
      `HANDOFF.md` 로 김민에게 알린다. GitHub 이슈 방식은 `gh` 가 필요하다(데스크톱엔 없다).
+
+- **예상 시간은 Claude 기준(2026-10-09 사용자 규칙).** 계획표 시간은 Claude 가 실제로 걸릴 시간으로 적는다(사람 개발자 기준 금지). 사용자가 할 일은 따로 "사용자 몫"으로.
