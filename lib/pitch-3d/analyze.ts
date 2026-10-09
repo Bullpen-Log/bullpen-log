@@ -324,6 +324,7 @@ export function analyzePitch3dCore(input: Pitch3dInput): Pitch3dCore | Pitch3dFa
   cal =
     calibrate(calibInput(buildSynced(), side, back, CALIB_JOINTS, trunkLegs)) ?? cal;
   backTime = refineSync(side, back, backTime, cal, backDt, ALL_JOINTS);
+  backTime = refineFastSync(side, back, backTime, cal, backDt, fastWin);
   const synced = buildSynced();
   const shifts = side.frames.flatMap((_, i) =>
     backTime[i] != null && dtwTime[i] != null ? [backTime[i]! - dtwTime[i]!] : []
@@ -331,10 +332,18 @@ export function analyzePitch3dCore(input: Pitch3dInput): Pitch3dCore | Pitch3dFa
   const offsetFrames = Math.round((median(shifts.map(Math.abs)) / backDt) * 10) / 10;
 
   /* 3D — 두 영상 다 보이면 교차, 한쪽만 믿을 만하면 그 시선 위 · 부모로부터 뼈 길이만큼(R4) */
-  const raw: Frame3[] = synced.map((s) =>
+  /* 두 영상이 서로 안 맞아 버린 관찰(agrees) — 또렷한 쪽 시선 위에 다시 놓는다(아래 R4) */
+  const dropped: boolean[][] = synced.map(() => new Array<boolean>(N_JOINTS).fill(false));
+  const raw: Frame3[] = synced.map((s, k) =>
     s.side.map((a, j) => {
       const b = s.back[j];
-      return a.v >= 0.3 && b.v >= 0.3 ? triangulate(cal!.side, a, cal!.back, b) : null;
+      if (!(a.v >= 0.3 && b.v >= 0.3)) return null;
+      const X = triangulate(cal!.side, a, cal!.back, b);
+      if (X && !agrees(cal!, X, a, b, side.person, back.person)) {
+        dropped[k][j] = true;
+        return null;
+      }
+      return X;
     })
   );
   const boneLen = new Map<number, number>();
@@ -363,10 +372,12 @@ export function analyzePitch3dCore(input: Pitch3dInput): Pitch3dCore | Pitch3dFa
       if (p == null || L == null) return X;
       const a = s.side[j];
       const b = s.back[j];
-      const parentOk = s.side[p].v >= 0.7 && s.back[p].v >= 0.7 && pts[p];
+      /* 버린 관찰은 부모가 있기만 하면(또렷하지 않아도) 또렷한 쪽 시선 위에 — 앞뒤로 채우면 또렷한 영상에서도 멀어졌다(샘플 4 글러브 손목) */
+      const drop = dropped[k][j] && pts[p] != null;
+      const parentOk = drop || (s.side[p].v >= 0.7 && s.back[p].v >= 0.7 && pts[p]);
       if (!parentOk) return X;
-      const sideOnly = a.v >= 0.7 && b.v < 0.5;
-      const backOnly = b.v >= 0.7 && a.v < 0.5;
+      const sideOnly = a.v >= 0.7 && (b.v < 0.5 || (drop && a.v >= b.v));
+      const backOnly = b.v >= 0.7 && (a.v < 0.5 || (drop && b.v > a.v));
       if (!sideOnly && !backOnly) return X;
       const r = sideOnly ? ray(cal!.side, a.x, a.y) : ray(cal!.back, b.x, b.y);
       const roots = rootsOnRay(r, pts[p]!, L);
@@ -853,6 +864,154 @@ export function refineSync(
     if (v == null) return null;
     last = Math.max(last + 1e-6, v);
     return last;
+  });
+}
+
+/**
+ * 교차한 점이 두 영상과 맞는가 — 한쪽이 흐린(확신 0.5 밑) 관찰이 다른 영상과 크게 어긋나면(다시 비춤 합이 사람 크기의 8% 넘게) 엉뚱한 곳에 붙은
+ * 것으로 본다(2026-10-09 샘플 4: 착지 직후 몸에 가려진 글러브 손목을 뒤 영상이 확신 0.35 로 던지는 손 쪽에 붙여, 3D 손목이 영상에서 85~100px
+ * 벗어났다). 두 영상 다 또렷하면 어긋나도 둔다(시간 어긋남은 refineSync · refineFastSync 가 맡는다).
+ */
+export function agrees(cal: Calibration, X: Vec3, a: Obs, b: Obs, ps: number, pb: number): boolean {
+  if (Math.min(a.v, b.v) >= 0.5) return true;
+  const pa = project(cal.side, X);
+  const pbb = project(cal.back, X);
+  if (!pa || !pbb) return false;
+  return Math.hypot(pa[0] - a.x, pa[1] - a.y) / ps + Math.hypot(pbb[0] - b.x, pbb[1] - b.y) / pb <= 0.08;
+}
+
+/**
+ * 빠른 구간 시간 다시 맞추기 — 착지 ~ 릴리스 둘레(fastWin, 옆 시각)에서 두 팔꿈치 · 손목만 보고 뒤 시각을 ±8장면 안에서 다시 찾는다.
+ * refineSync 는 몸 전체(대개 천천히 움직여 비용이 평평함)를 ±3장면 안에서 보고 클립 전체를 한 직선으로 묶어, 슬로모 화면 녹화의 재생
+ * 빠르기가 두 영상에서 조금 다를 때 생기는 이 구간만의 어긋남을 못 잡았다(2026-10-09 샘플 4: 뒤 영상을 +4~6장면 밀면 던지는 손목이
+ * 두 영상과 2~8px 로 맞는데 그대로는 24~78px — 3D 손이 영상보다 머리 위로 높이 떴다). 장면마다 찾은 밀림을 강건 국소 직선(±8장면)으로
+ * 다듬어 구간 밖으로 10장면에 걸쳐 0 으로 줄이고, 그 구간 팔의 다시 비춤 가운데값이 20% 넘게 줄 때만 쓴다.
+ */
+export function refineFastSync(
+  side: View,
+  back: View,
+  backTime: (number | null)[],
+  cal: Calibration,
+  backDt: number,
+  fastWin: [number, number]
+): (number | null)[] {
+  const ARM = [J.lEl, J.rEl, J.lWr, J.rWr];
+  const t = side.frames.map((f) => f.t);
+  const sideDt = medianStep(side);
+  const FADE = 10;
+  const inWin = (i: number) => t[i] >= fastWin[0] && t[i] <= fastWin[1];
+  /* 그 장면 팔의 다시 비춤(사람 크기 대비, 관절 평균) — 두 영상 다 보이는 관절 둘 이상 */
+  const armErr = (i: number, bt: number): number | null => {
+    const b = backAt(back, bt, backDt);
+    if (!b) return null;
+    const a = side.frames[i].p;
+    let s = 0;
+    let n = 0;
+    for (const j of ARM) {
+      if (a[j].v < 0.5 || b[j].v < 0.5) continue;
+      const X = triangulate(cal.side, a[j], cal.back, b[j]);
+      const pa = X && project(cal.side, X);
+      const pb = X && project(cal.back, X);
+      if (!pa || !pb) continue;
+      s +=
+        Math.hypot(pa[0] - a[j].x, pa[1] - a[j].y) / side.person +
+        Math.hypot(pb[0] - b[j].x, pb[1] - b[j].y) / back.person;
+      n++;
+    }
+    return n >= 2 ? s / n : null;
+  };
+  const idx = t.map((_, i) => i).filter((i) => inWin(i) && backTime[i] != null);
+  if (idx.length < 6) return backTime;
+  const steps = Array.from({ length: 65 }, (_, k) => ((k - 32) * backDt) / 4);
+  const shift = new Map<number, { d: number; w: number }>();
+  for (const i of idx) {
+    const e = steps.map((d) => armErr(i, backTime[i]! + d));
+    let k = -1;
+    e.forEach((v, q) => {
+      if (v != null && (k < 0 || v < e[k]!)) k = q;
+    });
+    if (k < 0) continue;
+    const vals = e.filter((v): v is number => v != null);
+    const mean = vals.reduce((a, v) => a + v, 0) / vals.length;
+    shift.set(i, { d: steps[k], w: Math.max(0, (mean - e[k]!) / (mean || 1)) });
+  }
+  /* 강건 국소 직선(±12장면, Huber 두 번) */
+  const HALF = 12;
+  const fitAt = (i: number, rw: Map<number, number>): number | null => {
+    let sw = 0;
+    let sx = 0;
+    let sy = 0;
+    let sxx = 0;
+    let sxy = 0;
+    for (let q = i - HALF; q <= i + HALF; q++) {
+      const s = shift.get(q);
+      if (!s || !(s.w > 0)) continue;
+      const u = Math.abs(q - i) / (HALF + 1);
+      const w = s.w * (1 - u * u * u) ** 3 * (rw.get(q) ?? 1);
+      const x = t[q] - t[i];
+      sw += w;
+      sx += w * x;
+      sy += w * s.d;
+      sxx += w * x * x;
+      sxy += w * x * s.d;
+    }
+    if (!(sw > 0)) return null;
+    const den = sw * sxx - sx * sx;
+    if (Math.abs(den) < 1e-18) return sy / sw;
+    return (sy - ((sw * sxy - sx * sy) / den) * sx) / sw;
+  };
+  let rw = new Map<number, number>();
+  let est = new Map<number, number>();
+  for (let pass = 0; pass < 3; pass++) {
+    est = new Map(idx.map((i) => [i, fitAt(i, rw) ?? 0]));
+    const c = backDt / 2;
+    rw = new Map(
+      [...shift].map(([i, s]) => {
+        const r = Math.abs(s.d - (est.get(i) ?? 0));
+        return [i, r <= c ? 1 : c / r];
+      })
+    );
+  }
+  /*
+   * 재생 빠르기 차이는 매끈하다 — 밀림이 옆 한 장면에 뒤 장면 간격의 5분의 1 넘게 바뀌지 않게(앞 · 뒤로 한 번씩 묶어 가운데로).
+   * 릴리스 뒤 흐린 팔에서 밀림이 0 ↔ +4장면으로 출렁였다.
+   */
+  {
+    const cap = backDt * 0.2;
+    const fw = idx.map((i) => est.get(i) ?? 0);
+    const bw = [...fw];
+    for (let q = 1; q < fw.length; q++) fw[q] = fw[q - 1] + Math.max(-cap, Math.min(cap, fw[q] - fw[q - 1]));
+    for (let q = bw.length - 2; q >= 0; q--) bw[q] = bw[q + 1] + Math.max(-cap, Math.min(cap, bw[q] - bw[q + 1]));
+    idx.forEach((i, q) => est.set(i, (fw[q] + bw[q]) / 2));
+  }
+  /* 구간 안은 그대로, 밖으로 FADE 장면에 걸쳐 0 으로 */
+  const first = idx[0];
+  const last = idx[idx.length - 1];
+  const out = backTime.map((bt, i) => {
+    if (bt == null) return null;
+    let d: number;
+    if (i < first) d = (est.get(first) ?? 0) * Math.max(0, 1 - (first - i) / FADE);
+    else if (i > last) d = (est.get(last) ?? 0) * Math.max(0, 1 - (i - last) / FADE);
+    else d = est.get(i) ?? 0;
+    return bt + d;
+  });
+  /* 그 구간 팔이 실제로 더 맞을 때만 */
+  const med = (bts: (number | null)[]) => {
+    const v = idx.flatMap((i) => {
+      const e = armErr(i, bts[i]!);
+      return e == null ? [] : [e];
+    });
+    return v.length ? median(v) : Infinity;
+  };
+  const before = med(backTime);
+  const after = med(out);
+  if (!(after < before * 0.8)) return backTime;
+  /* 단조 — 앞 장면보다 늦게(옆 장면 간격의 10분의 1 은 앞으로) */
+  let prev = -Infinity;
+  return out.map((v) => {
+    if (v == null) return null;
+    prev = Math.max(prev + sideDt * 0.1, v);
+    return prev;
   });
 }
 

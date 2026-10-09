@@ -1,4 +1,5 @@
 import {
+  agrees,
   analyzePitch3dCore,
   PITCH3D_VERSION,
   type Pitch3dCore,
@@ -443,7 +444,10 @@ function fitOnce(input: V2Input): {
       const both = a.v >= SEEN && b.v >= SEEN;
       let X: Vec3 | null = null;
       if (j < N_JOINTS) X = smooth[k][j] ?? null;
-      else if (both) X = triangulate(cal.side, a, cal.back, b);
+      else if (both) {
+        const T = triangulate(cal.side, a, cal.back, b);
+        X = T && agrees(cal, T, a, b, core.side.person, core.back.person) ? T : null;
+      }
       row.push(X);
       w.push(
         X ? (both ? Math.min(a.v, b.v) : Math.max(a.v, b.v) >= SURE ? 0.3 : 0.15) : 0
@@ -1000,13 +1004,18 @@ function fitOnce(input: V2Input): {
    */
   const armJ = core.hand === 'L' ? [J.lSh, J.lEl, J.lWr] : [J.rSh, J.rEl, J.rWr];
   const mean = (xs: number[]) => xs.reduce((a, v) => a + v, 0) / (xs.length || 1);
+  const frameConf = conf.map((row) =>
+    Math.min(mean(CORE17.map((j) => row[j])), mean(armJ.map((j) => row[j])))
+  );
+  /*
+   * 영상 절반 넘게 문턱 밑이면 문턱을 그 영상 가운데값의 0.7 배로 — 화면 녹화한 실제 영상은 장면 확신이 늘 30~55 라 60 하나로 재면 영상
+   * 전체가 엷은 구간이 되어 '잘 안 보였어요' 가 내내 떴다(2026-10-10 두 샘플). 그때는 그 영상에서 유난히 흐린 구간만 드러낸다.
+   */
+  const med = median(frameConf);
+  const lowAt = med < LOW_CONF ? Math.min(LOW_CONF, 0.7 * med) : LOW_CONF;
   const lowConf: [number, number][] = [];
   for (let k = 0; k < n; k++) {
-    const fc = Math.min(
-      mean(CORE17.map((j) => conf[k][j])),
-      mean(armJ.map((j) => conf[k][j]))
-    );
-    if (fc >= LOW_CONF) continue;
+    if (frameConf[k] >= lowAt) continue;
     const last = lowConf[lowConf.length - 1];
     if (last && last[1] === k - 1) last[1] = k;
     else lowConf.push([k, k]);

@@ -92,8 +92,14 @@ function rateLimitQuat(qs: Quat[], rate: number): Quat[] {
 export const KIN_LIMITS = {
   spineTwist: 80,
   spineSwing: 75,
+  /** 몸통에 대한 고개 돌림(위 축 둘레) — 몸통이 돌아도 홈을 보고 있다 */
   neckTwist: 85,
-  neckSwing: 65,
+  /** 몸통에 대한 고개 숙임 · 옆 기울임 */
+  neckSwing: 50,
+  /** 목(어깨 가운데 → 귀 가운데, 몸통 틀) 앞뒤 기울기 [뒤, 앞] · 옆 기울기 ± */
+  neckBack: 45,
+  neckForward: 40,
+  neckSide: 30,
   /** 위팔이 어깨선 뒤로(수평면) */
   shoulderBack: 45,
   /** 어깨선이 몸통 축 수직에서 위아래로(어깨뼈 올림 · 내림) */
@@ -122,23 +128,28 @@ export const KIN_LIMITS = {
 } as const;
 
 /**
- * 사람 관절이 낼 수 있는 가장 빠른 각속도(°/초) — 투구 연구의 최대값(골반 ~700 · 몸통 ~1200 · 무릎 펴기 ~900 · 팔꿈치 펴기 ~2500)보다
+ * 사람 관절이 낼 수 있는 가장 빠른 각속도(°/초, 실제 시간) — 투구 연구의 최대값(골반 ~700 · 몸통 ~1200 · 무릎 펴기 ~900 · 팔꿈치 펴기 ~2500)보다
  * 넉넉히. 엔진이 한 장면 잘못 맞춘 관절(2026-10-09 좌투 샘플: 땅을 디딘 앞무릎이 한 장면에 16cm · 넙다리 28°)이 화면에서 '휙' 하지 않게
- * 한 장면에 이만큼까지만 돈다. 슬로모는 영상 1초가 실제로는 더 짧아 이 상한이 더 넉넉해진다(실제 움직임은 안 깎는다).
+ * 한 장면에 이만큼까지만 돈다. 장면 간격은 실제 시간으로 받는다(display.ts — 슬로모는 착지 → 릴리스로 배수를 어림). 목은 몸통만큼 —
+ * 몸통이 돌 때 고개는 홈을 보고 있어 몸통에 대한 고개 돌림이 몸통 빠르기로 바뀐다.
  */
 export const KIN_SPEED = {
-  pelvis: 1200,
+  /**
+   * 골반은 연구 최대값 가까이 — 1200 일 때 좌투 샘플 골반이 착지 직후 12장면에 97° 돌았다(뒤 영상 엉덩이 점이 엇갈려 지나가지 못하고 한 장면에
+   * 좌우가 튀어 엔진 골반이 한꺼번에 열림). 옆 영상은 착지 → 릴리스 내내 고르게 열린다. 몸통은 다듬은 골반에 대해 재서 어깨는 늦지 않는다.
+   */
+  pelvis: 800,
   spine: 1200,
-  neck: 600,
+  neck: 1200,
   shoulderTilt: 600,
-  throwUpperArm: 2700,
-  throwElbow: 3000,
-  gloveUpperArm: 1200,
-  gloveElbow: 1500,
-  thigh: 900,
-  knee: 900,
+  throwUpperArm: 3600,
+  throwElbow: 4000,
+  gloveUpperArm: 1500,
+  gloveElbow: 2000,
+  thigh: 1000,
+  knee: 1200,
   /** 땅을 디딘 다리 */
-  plantedThigh: 480,
+  plantedThigh: 800,
   plantedKnee: 600,
 } as const;
 
@@ -322,22 +333,26 @@ function smoothMulti(
   });
 }
 
-/** 각을 이어 붙인다(한 장면에 2π 넘게 튀지 않게) */
+/**
+ * 각을 이어 붙인다 — 바로 앞 장면이 아니라 앞 5장면 가운데값에 가깝게. 앞 장면에만 맞추면 두세 장면 반 바퀴 튄 값(손 점 검지 · 새끼 뒤바뀜)을
+ * 지나 돌아올 때 반대쪽으로 돌아 그 뒤 전체가 한 바퀴 밀렸고, 화면 손이 한 바퀴를 천천히 따라 돌다 한계에 걸려 150° 뒤집힌 채 남았다
+ * (2026-10-10 샘플 4 글러브 손, 착지 ~ 끝).
+ */
 function unwrap(xs: number[]): number[] {
   const out = [...xs];
   for (let k = 1; k < out.length; k++) {
-    let d = out[k] - out[k - 1];
-    while (d > Math.PI) {
-      out[k] -= 2 * Math.PI;
-      d -= 2 * Math.PI;
-    }
-    while (d < -Math.PI) {
-      out[k] += 2 * Math.PI;
-      d += 2 * Math.PI;
-    }
+    const ref = median(out.slice(Math.max(0, k - 5), k));
+    out[k] += 2 * Math.PI * Math.round((ref - out[k]) / (2 * Math.PI));
   }
   return out;
 }
+
+/** 몇 장면만 튄 각(앞뒤 7장면 가운데값에서 60° 넘게)은 안 본 것으로 — 이웃 장면으로 잇게 무게를 거의 0 으로 */
+const outlierW = (xs: number[], ws: number[]) =>
+  ws.map((w, k) => {
+    const win = xs.slice(Math.max(0, k - 7), k + 8).sort((a, b) => a - b);
+    return Math.abs(xs[k] - win[win.length >> 1]) > rad(60) ? 0.001 : w;
+  });
 
 const smooth1 = (xs: number[], ws: number[], sMin?: number, sMax?: number, widen = false) =>
   smoothMulti(
@@ -440,8 +455,12 @@ function limbAngles(
       twist = prevTwist ?? 0;
       flex = th;
     }
-    /* 반대로 꺾임 = 비틀림 반 바퀴 + 음의 굽힘 — 거의 편 마디에서만, 앞 장면 비틀림에 가까운 쪽 */
-    if (prevTwist != null && th < rad(40)) {
+    /*
+     * 반대로 꺾임 = 비틀림 반 바퀴 + 음의 굽힘 — 거의 편 마디(과신전 한계 + 20° 밑)에서만, 앞 장면 비틀림에 가까운 쪽. 40° 까지 보면 편 팔이
+     * 다시 굽기 시작할 때 '반대로 꺾임'으로 읽어 팔을 편 채(−5°) 두다가 40° 에서 한 번에 따라갔다(2026-10-09 샘플 4 착지 직전 글러브 팔꿈치
+     * 7 → 47° 동안 화면은 5°, 손이 영상에서 90px).
+     */
+    if (prevTwist != null && th < rad(hyperDeg + 20)) {
       const alt = twist + Math.PI;
       const d0 = Math.abs(
         Math.atan2(Math.sin(twist - prevTwist), Math.cos(twist - prevTwist))
@@ -588,25 +607,19 @@ export function kinematicTrack(
     (_, k) => Math.min(cf(k, V2J.nose), cf(k, V2J.lEar), cf(k, V2J.rEar)) + 0.02
   );
 
-  /* 몸통(골반에 대해) · 목(몸통에 대해, 그 클립의 가운데 자세에서) — 비틀림 · 기울임 한계 */
-  const spineQ = frames.map((_, k) =>
-    limitSwingTwist(
-      quatFromMat(mul3(transpose(pelvisM[k]), trunkM[k])),
-      [0, 1, 0],
-      rad(KIN_LIMITS.spineTwist),
-      rad(KIN_LIMITS.spineSwing)
-    )
-  );
-  const neckRaw = frames.map((_, k) =>
-    quatFromMat(mul3(transpose(trunkM[k]), headM[k]))
-  );
-  const neckNeutral =
-    smoothQuat(neckRaw, wHead, 50, 50)[Math.floor(n / 2)] ?? ([1, 0, 0, 0] as Quat);
+  /*
+   * 고개 — 돌림(위 축 둘레)은 그 클립 가운데 돌림에서 ±, 숙임 · 옆 기울임은 몸통에 대해(바로 선 머리 = 0) 한계. 예전엔 클립 가운데 자세 전체를 0 으로
+   * 봐서, 한쪽 영상에 가려진 귀를 엔진이 엉뚱한 깊이에 둔 샘플(4: 다리 들기 내내 귀 가운데가 어깨 가운데에서 옆으로 34~42°)은 '늘 옆으로 꺾인
+   * 고개'가 0 이 되어 그대로 보였다. 돌림은 투수가 홈을 보느라 몸통에 대해 크게 돌아 있어 가운데에서 잰다.
+   */
+  const neckRaw = frames.map((_, k) => quatFromMat(mul3(transpose(trunkM[k]), headM[k])));
+  const mid0 = smoothQuat(neckRaw, wHead, 50, 50)[Math.floor(n / 2)] ?? ([1, 0, 0, 0] as Quat);
+  const yaw0 = qNorm([mid0[0], 0, mid0[2], 0]);
   const neckQ = neckRaw.map((q) =>
     qMul(
-      neckNeutral,
+      yaw0,
       limitSwingTwist(
-        qMul(qConj(neckNeutral), q),
+        qMul(qConj(yaw0), q),
         [0, 1, 0],
         rad(KIN_LIMITS.neckTwist),
         rad(KIN_LIMITS.neckSwing)
@@ -615,11 +628,29 @@ export function kinematicTrack(
   );
 
   /* 다듬기 — 골반 방향 · 자리, 몸통 · 목은 상대 회전으로(머리는 늘 넓게) */
-  const pelvisQ = rateLimitQuat(smoothQuat(pelvisM.map(quatFromMat), wTrunk), perFrame(KIN_SPEED.pelvis));
+  /*
+   * 골반은 무거운 덩어리라 실제 시간으로 8~25ms 폭으로 다듬는다 — 엉덩이가 자주 가려져 엔진 골반 방향이 다리 드는 동안 6장면마다 ±15° 흔들렸다
+   * (좌투 샘플, 슬로모라 실제로는 30ms). 원본 속도 영상은 예전 폭 그대로.
+   */
+  const pelvisQ = rateLimitQuat(
+    smoothQuat(pelvisM.map(quatFromMat), wTrunk, Math.max(0.6, 0.008 / dt), Math.max(2.2, 0.025 / dt)),
+    perFrame(KIN_SPEED.pelvis)
+  );
+  const pM = pelvisQ.map(matFromQuat);
+  /*
+   * 몸통은 다듬은 골반에 대해 — 비틀림 · 기울임 한계. 엔진 골반에 대해 재고 다듬은 골반에 붙이면 골반이 늦는 만큼 잘 보이는 어깨 · 팔까지 늦었다.
+   */
+  const spineQ = frames.map((_, k) =>
+    limitSwingTwist(
+      quatFromMat(mul3(transpose(pM[k]), trunkM[k])),
+      [0, 1, 0],
+      rad(KIN_LIMITS.spineTwist),
+      rad(KIN_LIMITS.spineSwing)
+    )
+  );
   const spineS = rateLimitQuat(smoothQuat(spineQ, wTrunk), perFrame(KIN_SPEED.spine));
   const neckS = rateLimitQuat(smoothQuat(neckQ, wHead, 1.2, 4), perFrame(KIN_SPEED.neck));
   const hipS = smoothMulti(hipMid as number[][], wTrunk).map((v) => v as Vec3);
-  const pM = pelvisQ.map(matFromQuat);
   const tM = pM.map((M, k) => mul3(M, matFromQuat(spineS[k])));
   const hM = tM.map((M, k) => mul3(M, matFromQuat(neckS[k])));
 
@@ -646,10 +677,29 @@ export function kinematicTrack(
    * 어깨 가운데에서 머리 틀로 붙여 고개를 돌리면 머리 전체가 어깨 가운데를 돌았다(머리가 영상에서 0.8 → 2.0%).
    */
   const earMidOf = (fr: Vec3[]) => midOf(fr[V2J.lEar], fr[V2J.rEar]);
-  const neckOffS = smoothMulti(
-    frames.map((fr, k) => toLocal(trunkM[k], sub(earMidOf(fr), shMid[k]))) as number[][],
+  /*
+   * 목 방향은 사람 범위(앞 40° · 뒤 45° · 옆 30°, 앞으로 숙인 몸통에서 고개를 들면 뒤로 40° 넘게 젖혀진다) · 길이는 그 클립 가운데값의 0.8~1.2배 — 가려진 귀 탓에 목이 키의 5~14% 로 늘었다 줄고 옆으로
+   * 40° 꺾여, 목 아래(C7)에서 귀 쪽으로 돌려 붙이는 머리뼈가 목에서 꺾여 떨어져 보였다(2026-10-09 김민 "목뼈가 분리된 수준", 두 샘플).
+   */
+  const neckRawV = frames.map((fr, k) => toLocal(trunkM[k], sub(earMidOf(fr), shMid[k])));
+  const neckLen = median(neckRawV.map(norm));
+  const neckDir = rateLimitDir(
+    smoothUnit(
+      neckRawV.map((v) => {
+        const y = Math.max(v[1], 1e-6);
+        const fw = clamp(Math.atan2(v[2], y), -rad(KIN_LIMITS.neckBack), rad(KIN_LIMITS.neckForward));
+        const sd = clamp(Math.atan2(v[0], y), -rad(KIN_LIMITS.neckSide), rad(KIN_LIMITS.neckSide));
+        return normalize([Math.tan(sd), 1, Math.tan(fw)]);
+      }),
+      wHead
+    ),
+    perFrame(KIN_SPEED.neck)
+  );
+  const neckLenS = smooth1(
+    neckRawV.map((v) => clamp(norm(v), 0.8 * neckLen, 1.2 * neckLen)),
     wHead
-  ).map((v) => v as Vec3);
+  );
+  const neckOffS = neckDir.map((d, k) => scale(d, neckLenS[k]));
   const headLocal = [V2J.nose, V2J.lEar, V2J.rEar].map((j) => {
     const ls = frames.map((fr, k) => toLocal(headM[k], sub(fr[j], earMidOf(fr))));
     return [0, 1, 2].map((d) => median(ls.map((v) => v[d]))) as Vec3;
@@ -707,15 +757,15 @@ export function kinematicTrack(
       smoothUnit(limb.dir, limb.flexW),
       perFrame(throwing ? KIN_SPEED.throwUpperArm : KIN_SPEED.gloveUpperArm)
     );
-    const twistS = rateLimit(
-      smooth1(limb.twist, limb.twistW, undefined, undefined, true),
-      rad(KIN_LIMITS.twistRatePerFrame)
-    );
     const flexS = rateLimit(
       smooth1(limb.flex, limb.flexW).map((f) =>
         clamp(f, -rad(KIN_LIMITS.elbowHyper), rad(KIN_LIMITS.elbowFlex))
       ),
       perFrame(throwing ? KIN_SPEED.throwElbow : KIN_SPEED.gloveElbow)
+    );
+    const twistS = rateLimit(
+      smooth1(limb.twist, outlierW(limb.twist, limb.twistW), undefined, undefined, true),
+      rad(KIN_LIMITS.twistRatePerFrame)
     );
     const Lu = lenOf(Sh, El);
     const Lf = lenOf(El, Wr);
@@ -762,9 +812,10 @@ export function kinematicTrack(
       );
     });
     const pronU = unwrap(pron);
-    const pronMid = weightedMedian(pronU, wHand);
+    const wPron = outlierW(pronU, wHand);
+    const pronMid = weightedMedian(pronU, wPron);
     const pronS = rateLimit(
-      smooth1(pronU, wHand, 0.8, 3, true),
+      smooth1(pronU, wPron, 0.8, 3, true),
       rad(KIN_LIMITS.pronationRatePerFrame)
     ).map((p) =>
       clamp(p, pronMid - rad(KIN_LIMITS.pronation), pronMid + rad(KIN_LIMITS.pronation))
@@ -775,11 +826,12 @@ export function kinematicTrack(
     /*
      * 손 점이 흐리거나 사람 손목이 못 가는 쪽(손등 · 손바닥 쪽으로 110° 넘게, 옆으로 70° 넘게)이면 손목을 곧게(0) 쪽으로 — 흐린 장면은
      * 앞뒤 값과 0 사이로. 손이 아래팔 뒤로 접혀 잡히면 굽힘이 −179° ↔ +166° 로 넘어가는데, 한계에서 자르기만 하면 −75° → +75° 로
-     * 손이 한 장면에 뒤집혔다(2026-10-09 샘플 4 글러브 손 한 장면 78°).
+     * 손이 한 장면에 뒤집혔다(2026-10-09 샘플 4 글러브 손 한 장면 78°). 흐림은 손 확신 0.1 아래부터 — 글러브 손은 영상과 잘 맞아도 확신이
+     * 0.3~0.5 라, 0.2 ~ 0.6 으로 깎으면 굽은 손목이 늘 곧게 펴져 글러브가 영상에서 4~9% 벗어났다(2026-10-10 좌투 샘플).
      */
     const handOk = flexW.map(
       (v, k) =>
-        clamp((wHandOnly[k] - 0.2) / 0.4, 0, 1) *
+        clamp((wHandOnly[k] - 0.1) / 0.25, 0, 1) *
         clamp((rad(110) - Math.abs(v)) / rad(40), 0, 1) *
         clamp((rad(70) - Math.abs(devW[k])) / rad(30), 0, 1)
     );
@@ -864,7 +916,7 @@ export function kinematicTrack(
         : [V2J.rHip, V2J.rKn, V2J.rAn, V2J.rHe, V2J.rTo];
     const limb = limbAngles(
       frames,
-      pelvisM,
+      pM,
       [Hp, Kn, An],
       kneeRef,
       cf,
@@ -876,16 +928,18 @@ export function kinematicTrack(
       smoothUnit(limb.dir, limb.flexW),
       onGround.map((g) => perFrame(g ? KIN_SPEED.plantedThigh : KIN_SPEED.thigh))
     );
+    const flexS = rateLimit(
+      smooth1(limb.flex, limb.flexW).map((f) =>
+        clamp(f, -rad(KIN_LIMITS.kneeHyper), rad(KIN_LIMITS.kneeFlex))
+      ),
+      onGround.map((g) => perFrame(g ? KIN_SPEED.plantedKnee : KIN_SPEED.knee))
+    );
     /*
      * 몇 장면만 튄 비틀림(앞뒤 7장면 가운데값에서 60° 넘게)은 안 본 것으로 — 이웃 장면으로 잇는다. 엔진이 무릎을 몇 장면 반대편에 두면
      * (시험 9: 3장면 반 바퀴) 사람 범위 안이라도 무릎이 한쪽으로 100° 휙 돌았다. 오래 이어지는 변화(다리를 드는 동안)는 그대로 둔다.
      */
-    const twW = limb.twistW.map((w, k) => {
-      const win = limb.twist.slice(Math.max(0, k - 7), k + 8).sort((a, b) => a - b);
-      return Math.abs(limb.twist[k] - win[win.length >> 1]) > rad(60) ? 0.001 : w;
-    });
     const twistU = rateLimit(
-      smooth1(limb.twist, twW, undefined, undefined, true),
+      smooth1(limb.twist, outlierW(limb.twist, limb.twistW), undefined, undefined, true),
       rad(KIN_LIMITS.twistRatePerFrame)
     );
     /* 엉덩이 돌림 — 0(무릎이 앞)에서 사람 범위까지(이어 붙인 각이라 그 클립이 도는 바퀴 수를 맞춘 0 에서) */
@@ -894,12 +948,6 @@ export function kinematicTrack(
       const lim = rad(KIN_LIMITS.hipRotation + KIN_LIMITS.hipRotationUnseen * (1 - hipSeen[k]));
       return clamp(t, c0 - lim, c0 + lim);
     });
-    const flexS = rateLimit(
-      smooth1(limb.flex, limb.flexW).map((f) =>
-        clamp(f, -rad(KIN_LIMITS.kneeHyper), rad(KIN_LIMITS.kneeFlex))
-      ),
-      onGround.map((g) => perFrame(g ? KIN_SPEED.plantedKnee : KIN_SPEED.knee))
-    );
     const Lt = lenOf(Hp, Kn);
     const Ls = lenOf(Kn, An);
     /* 발 — 정강이 틀(축 = 정강이, 둘째 = 무릎이 굽는 축)에서 발끝 · 뒤꿈치 */
@@ -924,6 +972,14 @@ export function kinematicTrack(
     );
     const Lto = lenOf(An, To);
     const Lhe = lenOf(An, He);
+    /*
+     * 무릎이 안 보이고 발목은 또렷하면 발목을 엔진 자리로 두고 무릎은 두 마디로 다시 접는다 — 엔진이 채운 무릎에서 정강이를 그리면 잘 보인 발목이
+     * 어긋났다(2026-10-10 좌투 샘플 착지 직전 3장면: 무릎 확신 3~7 · 발목 70, 화면 발목이 영상에서 11%). 무게는 앞뒤로 다듬어 한 장면에 바뀌지 않게.
+     */
+    const wAnk = smooth1(
+      frames.map((_, k) => (conf ? clamp((conf[k][An] - conf[k][Kn] - 30) / 30, 0, 1) : 0)),
+      frames.map(() => 1)
+    );
 
     for (let k = 0; k < n; k++) {
       const M = pM[k];
@@ -933,10 +989,19 @@ export function kinematicTrack(
       const nb = rot(nRef, u, twistS[k]);
       const s = rot(u, nb, flexS[k]);
       const uw = toWorld(M, u);
-      const nw = toWorld(M, nb);
-      const sw = toWorld(M, s);
-      const K = add(Hpt, scale(uw, Lt));
-      const A = add(K, scale(sw, Ls));
+      let nw = toWorld(M, nb);
+      let sw = toWorld(M, s);
+      let K = add(Hpt, scale(uw, Lt));
+      let A = add(K, scale(sw, Ls));
+      if (wAnk[k] > 0.01) {
+        const target = add(scale(A, 1 - wAnk[k]), scale(frames[k][An], wAnk[k]));
+        K = twoBoneIk(Hpt, K, A, target, kneePole(Hpt, K, nw));
+        A = target;
+        sw = unit(sub(A, K), sw);
+        const nb2 = cross(unit(sub(K, Hpt), uw), sw);
+        if (norm(nb2) > 1e-3) nw = scale(normalize(nb2), dot(nb2, nw) < 0 ? -1 : 1);
+        else nw = unit(perp(nw, sw), nw);
+      }
       const e3 = cross(sw, nw);
       const fromLocal = (v: Vec3, L: number) =>
         scale(unit(add(add(scale(sw, v[0]), scale(nw, v[1])), scale(e3, v[2])), sw), L);

@@ -993,8 +993,30 @@ console.log('■ 뼈대 자세(pose-rig) — public/models/skeleton-parts.json +
         let below = 0;
         for (const fr of tr.frames) below = Math.min(below, soleGap(fr, 'L'), soleGap(fr, 'R'));
         check('보기: 어느 장면에서도 발이 바닥 밑에 없다', below > -1e-9, `${below}`);
-        /* 바닥은 클립 전체에 한 번 — 골반 높이 차(보기 − 결과)가 장면마다 거의 같다(다듬기 몫만) */
-        const lift = tr.frames.map((fr, k) => (fr[V2J.lHip][1] + fr[V2J.rHip][1]) / 2 - (frames[k][V2J.lHip][1] + frames[k][V2J.rHip][1]) / 2);
+        /*
+         * 바닥은 클립 전체에 한 번 — 골반 높이 차(보기 − 결과)가 장면마다 거의 같다(다듬기 몫만). 마운드에 두 발을 맞추느라 몸 전체를 한 번 기울이면
+         * (display.ts MOUND_TILT_MAX) 높이 차가 앞뒤 · 옆 자리에 1차로 따라 변하니 그 몫(최소제곱 평면)은 빼고 본다.
+         */
+        const hipAt = (fr: Vec3[]) => scale(add(fr[V2J.lHip], fr[V2J.rHip]), 0.5);
+        const rows = tr.frames.map((fr, k) => {
+          const r0 = hipAt(frames[k]);
+          return { x: r0[0], z: r0[2], y: hipAt(fr)[1] - r0[1] };
+        });
+        /* y ≈ a + b·x + c·z */
+        const S = [[0, 0, 0], [0, 0, 0], [0, 0, 0]];
+        const B = [0, 0, 0];
+        for (const q of rows) {
+          const v = [1, q.x, q.z];
+          for (let i = 0; i < 3; i++) {
+            B[i] += v[i] * q.y;
+            for (let j = 0; j < 3; j++) S[i][j] += v[i] * v[j];
+          }
+        }
+        const det3 = (m: number[][]) =>
+          m[0][0] * (m[1][1] * m[2][2] - m[1][2] * m[2][1]) - m[0][1] * (m[1][0] * m[2][2] - m[1][2] * m[2][0]) + m[0][2] * (m[1][0] * m[2][1] - m[1][1] * m[2][0]);
+        const D3 = det3(S);
+        const coef = [0, 1, 2].map((c) => det3(S.map((row, i) => row.map((v, j) => (j === c ? B[i] : v)))) / D3);
+        const lift = rows.map((q) => q.y - (coef[0] + coef[1] * q.x + coef[2] * q.z));
         const spread = Math.max(...lift) - Math.min(...lift);
         check('보기: 몸을 장면마다 따로 올리지 않는다(골반 높이 차 흔들림 키의 1% 밑)', spread < 0.01, `${(spread * 100).toFixed(2)}%`);
         const flat = displayTrack(result, { ground: 'flat', heightM: 1.8 });
@@ -1386,6 +1408,35 @@ console.log('■ 뼈대 자세(pose-rig) — public/models/skeleton-parts.json +
             unseen < 0.02 && seen > 0.05,
             `${(unseen * 100).toFixed(2)}% · ${(seen * 100).toFixed(2)}%`
           );
+        }
+
+        /*
+         * 16 손 점 검지 · 새끼가 세 장면 반 바퀴 돌았다 돌아와도(100° → −20 · −160 · −125° → 75°) 그 뒤 손이 한 바퀴 밀려 뒤집힌 채 남지 않는다
+         * (2026-10-10 샘플 4 글러브 손: 앞 장면에만 맞춰 각을 이으면 뒤 전체가 −360° 밀려 화면 손이 150° 돌아 있었다)
+         */
+        {
+          const pr = [...new Array(15).fill(100), -20, -160, -125, ...Array.from({ length: 22 }, (_, i) => 75 + i)];
+          const seq = seqOf(pr.length, (fr, k) => {
+            const el = fr[V2J.rEl];
+            const u = normalize(sub(el, fr[V2J.rSh]));
+            const bend = normalize(cross(u, [0, 0, 1]));
+            const L = norm(sub(fr[V2J.rWr], el));
+            fr[V2J.rWr] = rotAbout(add(el, scale(u, L)), el, bend, (70 * Math.PI) / 180);
+            const e1 = normalize(sub(fr[V2J.rWr], el));
+            const e2 = normalize(cross(u, e1));
+            const e3 = cross(e1, e2);
+            const p = (pr[k] * Math.PI) / 180;
+            const w = add(scale(e2, Math.cos(p)), scale(e3, Math.sin(p)));
+            fr[V2J.rHandMid] = add(fr[V2J.rWr], scale(e1, 0.08));
+            fr[V2J.rHandIdx] = add(fr[V2J.rHandMid], scale(w, -0.02));
+            fr[V2J.rHandPinky] = add(fr[V2J.rHandMid], scale(w, 0.02));
+          });
+          const out = kinematicTrack(seq, fullConf(pr.length), []).frames;
+          const last = pr.length - 1;
+          const a = normalize(sub(out[last][V2J.rHandPinky], out[last][V2J.rHandIdx]));
+          const b = normalize(sub(seq[last][V2J.rHandPinky], seq[last][V2J.rHandIdx]));
+          const off = deg(Math.acos(Math.max(-1, Math.min(1, dot(a, b)))));
+          check('각도 모델: 손 점이 세 장면 반 바퀴 튀었다 돌아와도 뒤 손 방향은 그대로(25° 안)', off < 25, `${off.toFixed(1)}°`);
         }
 
         /* 11 AI 보정 섞기 — 같으면 그대로, 흐린 팔은 AI 방향, 묶인 발 쪽 다리는 우리 것, 뼈 길이는 우리 것 */

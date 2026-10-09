@@ -25,6 +25,10 @@ import { moundHeightAt } from '@/lib/pitch-3d/v2/pose-rig';
 const FOOT_HALF_WIDTH_M = 0.05;
 /** 마운드 높이 배율 범위 — 자료의 두 발 높이 차가 규격과 다를 때 */
 const MOUND_SCALE: [number, number] = [0.5, 1.5];
+/** 배율로 못 맞추는 두 발 높이 차는 몸 전체를 축발 둘레로 기울여 맞춘다 — 이만큼(라디안)까지 */
+const MOUND_TILT_MAX = (8 * Math.PI) / 180;
+/** 착지 → 릴리스의 실제 시간 상한(초) — 투수는 0.13~0.18초, 넉넉히 */
+const PLANT_TO_RELEASE_MAX_S = 0.25;
 
 export type DisplayTrack = {
   /** 장면 × 관절 25 × [앞, 위, 오른쪽](키 = 1) — 바닥에 맞춰 올린 자리 */
@@ -223,8 +227,18 @@ export function displayTrack(
   const contacts = readContacts(result);
   const ai = opts.ai ? readAiJoints(result) : null;
   if (ai) ({ frames: raw, conf } = blendAi(raw, ai, conf, contacts, readAiMiss(result), readAiGate(result)));
-  const dt = median(result.t.slice(1).map((t, k) => t - result.t[k]));
-  const { frames, refs } = kinematicTrack(raw, conf, contacts, { dt, hand: result.hand });
+  /*
+   * 장면 간격(실제 초) — 화면 녹화 슬로모는 영상 1초가 실제로 몇 분의 1 이라, 착지 → 릴리스가 실제로 PLANT_TO_RELEASE_MAX_S 를 넘지 않는다고 보고
+   * 그만큼 줄인다(원본 속도 영상은 그대로). 사람 최대 빠르기(KIN_SPEED)를 영상 시간으로 재면 슬로모에서 4~6배 넉넉해져, 착지 직후 골반 · 어깨가
+   * 6장면에 60° 넘게 '휙' 도는 엔진 결과가 그대로 보였다(좌투 샘플).
+   */
+  const dtMedia = median(result.t.slice(1).map((t, k) => t - result.t[k]));
+  const spanMedia =
+    result.t[Math.min(n - 1, result.events.release)] - result.t[Math.min(n - 1, result.events.footPlant)];
+  const dt = dtMedia * (spanMedia > PLANT_TO_RELEASE_MAX_S ? PLANT_TO_RELEASE_MAX_S / spanMedia : 1);
+  const kin = kinematicTrack(raw, conf, contacts, { dt, hand: result.hand });
+  const frames = kin.frames;
+  let refs = kin.refs;
 
   /* 2 바닥 하나 */
   const sole = (k: number, side: 'L' | 'R') =>
@@ -254,8 +268,49 @@ export function displayTrack(
   const leadC = contacts.find(
     (c) => c.side === leadSide && c.to >= fp && c.from <= rel
   );
-  const P = pivotC ? spot(pivotC) : null;
-  const L = leadC ? spot(leadC) : null;
+  let P = pivotC ? spot(pivotC) : null;
+  let L = leadC ? spot(leadC) : null;
+  /*
+   * 두 발 높이 차가 마운드 배율(0.5~1.5배)로 못 맞추는 만큼은 몸 전체를 축발 자리 둘레로 기울인다(±8°) — 엔진의 위 축이 홈 쪽으로 몇 도 기울면
+   * (화면 녹화 · 휴대용 경사판) 높이 차가 규격의 2.4배가 되어, 앞발을 경사면에 두면 축발이 투수판 앞에서 12cm 떠 있었다(2026-10-09 좌투 샘플 시작).
+   */
+  if (opts.ground === 'mound' && P && L) {
+    const f0 = moundHeightAt(P.back - FOOT_HALF_WIDTH_M / opts.heightM, P.z, opts.heightM);
+    const spec0 = f0(P.x, P.z) - f0(L.x, L.z);
+    const drop = P.h - L.h;
+    const hor = Math.hypot(L.x - P.x, L.z - P.z);
+    if (spec0 > 0.002 && hor > 0.05) {
+      const want = clamp(drop, spec0 * MOUND_SCALE[0], spec0 * MOUND_SCALE[1]);
+      if (Math.abs(drop - want) > 1e-4) {
+        const th = clamp(Math.atan2(drop - want, hor), -MOUND_TILT_MAX, MOUND_TILT_MAX);
+        /* 축 = 수평에서 축발 → 앞발에 수직, 앞발 쪽이 (drop − want) 만큼 오르는 쪽으로 */
+        const d: Vec3 = [(L.x - P.x) / hor, 0, (L.z - P.z) / hor];
+        const ax: Vec3 = [-d[2], 0, d[0]];
+        const C: Vec3 = [P.x, P.h, P.z];
+        const turn = (v: Vec3, a: number): Vec3 => {
+          const c = Math.cos(a);
+          const s2 = Math.sin(a);
+          const k = ax;
+          const kv = k[0] * v[0] + k[1] * v[1] + k[2] * v[2];
+          const kx: Vec3 = [k[1] * v[2] - k[2] * v[1], k[2] * v[0] - k[0] * v[2], k[0] * v[1] - k[1] * v[0]];
+          return [0, 1, 2].map((i) => v[i] * c + kx[i] * s2 + k[i] * kv * (1 - c)) as Vec3;
+        };
+        /* 앞발 쪽이 오르는 방향을 고른다 */
+        const lift = turn([L.x - P.x, L.h - P.h, L.z - P.z], th)[1] - (L.h - P.h);
+        const a = lift * (drop - want) >= 0 ? th : -th;
+        for (const fr of frames)
+          for (let j = 0; j < fr.length; j++) {
+            const v = turn([fr[j][0] - C[0], fr[j][1] - C[1], fr[j][2] - C[2]], a);
+            fr[j] = [v[0] + C[0], v[1] + C[1], v[2] + C[2]];
+          }
+        refs = refs.map((r) =>
+          Object.fromEntries(Object.entries(r).map(([key, v]) => [key, turn(v as Vec3, a)]))
+        ) as typeof refs;
+        P = pivotC ? spot(pivotC) : null;
+        L = leadC ? spot(leadC) : null;
+      }
+    }
+  }
   let offset: number;
   let mound: DisplayTrack['mound'] = null;
   let groundAt: (x: number, z: number) => number = () => 0;
