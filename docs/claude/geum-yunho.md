@@ -217,7 +217,7 @@
 - **김민의 10-04 저녁 ~ 10-06 정리(HANDOFF 8장에서 옮김, 2026-10-06) — 새 화면 · 글에서 지킬 것과 알아 둘 것.**
   - **새 글은 줄표(—) 없이, 짧게, 해요체로**(화면 글 170여 곳의 줄표를 걷었다). 문장 속 굵게도 안 쓴다. 메커니즘 앱 색은 깊은 파랑
     `--color-app-mechanics`, 반짝이(✨) 그림 없음, `PageHeading` 의 `eyebrow` 는 이제 안 보인다. **불펜로그다움 = 실밥 무늬**(사용자가 고름):
-    `seam-corner`(EmptyState 귀퉁이) · `seam-hero`(소개 · 로그인) · `stitch-rule`(PC 쪽 머리 밑줄) — globals.css `--seam` · `--stitch`.
+    `seam-corner`(EmptyState 귀퉁이) · `seam-hero`(소개 · 로그인) — globals.css `--seam`. PC 머리 밑줄 `stitch-rule` 은 2026-10-09 사용자가 "필요없어"로 지웠다.
   - **휴대폰 글자 크기는 아이폰 기준**(globals.css 토큰만, PC 그대로): `text-sm` 15px · `text-base` 17px · 쪽 제목 34px. `text-xs` 12px 와
     대괄호 글자는 그대로. 구속 측정 화면도 휴대폰이면 따라 커진다 — 좁은 줄이 넘치면 김민에게 알려 준다(375 · 320px 에서 홈 · 트레이닝은 넘침 0).
   - **본문 전환**: `components/main-transition.tsx` 가 밀기 표시(`<html data-nav>`)를 전환이 끝나는 순간 걷는다(0.7초 뒤가 아니라) —
