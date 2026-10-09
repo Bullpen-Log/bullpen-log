@@ -86,7 +86,7 @@ export function ShootExerciseDetail({
 
       {info?.own && (
         <Fold
-          label="올린 우리 영상"
+          label={info.uploaded ? '올린 우리 영상' : '예전에 찍은 우리 영상'}
           badge="소리 없음"
           open={showOwn}
           onToggle={() => setShowOwn((v) => !v)}

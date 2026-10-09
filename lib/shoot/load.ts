@@ -10,7 +10,7 @@ import {
   weekItems,
   type ShootCheckView,
 } from '@/lib/shoot/progress';
-import { SHOOT_PLAN, weekOf } from '@/lib/shoot/plan';
+import { SHOOT_PLAN, itemOf, weekOf } from '@/lib/shoot/plan';
 import refsData from '@/lib/shoot/refs.json';
 import { WARMUP_ROUTINE_LABEL, isWarmupId, warmupOf, warmupRowId } from '@/lib/shoot/warmups';
 import type { PlanItem, PlanWeek } from '@/lib/shoot/schedule';
@@ -71,6 +71,11 @@ export type ShootExerciseInfo = {
   youtube: { id: string; aspectRatio: number | null } | null;
   /** 올린 우리 영상 — 아직이면 null */
   own: { path: string; thumbUrl: string | null; aspectRatio: number | null } | null;
+  /**
+   * 이번 촬영에서 우리 영상을 올렸나 — 우리 영상이 있고, 계획을 뽑을 때 이미 있던 영상(PlanItem.oldVideo)과 다르다. 예전에 찍은 영상만
+   * 있으면 아니다(다시 찍는다). 게이지 '올림' · '다시 찍기' 단추가 이것을 본다.
+   */
+  uploaded: boolean;
 };
 
 /** 라이브러리 한 줄(운동 · 드릴 · 만든 워밍업)을 촬영 화면 정보로 — 공통 모양 */
@@ -124,6 +129,7 @@ function toInfo(
       : ref
         ? { id: ref.yt, aspectRatio: ref.ar ?? null }
         : null,
+    uploaded: r.source === 'OWN' && !!r.videoPath && r.videoPath !== itemOf(id)?.item.oldVideo,
     own:
       r.source === 'OWN' && r.videoPath
         ? {

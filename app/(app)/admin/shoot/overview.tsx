@@ -46,10 +46,8 @@ export async function ShootOverview({
   ]);
   const checks = new Map(checkList.map((c) => [c.exerciseId, c]));
   const all = countOf(items, checks);
-  const uploadedItems = items.filter((i) => info.get(i.exerciseId)?.source === 'OWN');
-  const toUpload = items.filter(
-    (i) => stateOf(i, checks) === 'done' && info.get(i.exerciseId)?.source !== 'OWN'
-  );
+  const uploadedItems = items.filter((i) => info.get(i.exerciseId)?.uploaded);
+  const toUpload = items.filter((i) => stateOf(i, checks) === 'done' && !info.get(i.exerciseId)?.uploaded);
   const attention = items.filter((i) => {
     const s = stateOf(i, checks);
     return s === 'redo' || s === 'later';

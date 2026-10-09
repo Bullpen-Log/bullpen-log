@@ -217,7 +217,7 @@ export function RunClient({
         <div className="mx-auto w-full max-w-2xl space-y-5 px-4 py-4">
           {!current && errorBox}
 
-          <PendingClips clips={clips} isUploaded={(id) => !!infos[id]?.own} />
+          <PendingClips clips={clips} isUploaded={(id) => !!infos[id]?.uploaded} />
 
           {current ? (
             <article
@@ -237,7 +237,7 @@ export function RunClient({
                   <MapPin aria-hidden className="h-3.5 w-3.5 text-muted" />
                   {current.station}
                 </span>
-                {infos[current.exerciseId]?.own && (
+                {infos[current.exerciseId]?.uploaded && (
                   <span className="inline-flex items-center gap-1 rounded-full bg-sky/12 px-2.5 py-1 text-xs font-bold text-sky-strong">
                     <CircleCheck aria-hidden className="h-3.5 w-3.5" />
                     올림
@@ -449,7 +449,7 @@ export function RunClient({
                   className="flex h-[72px] min-w-0 flex-1 items-center justify-center gap-2 rounded-full bg-sky text-lg font-bold text-white motion-safe:active:scale-[0.98]"
                 >
                   <Camera aria-hidden className="h-6 w-6" strokeWidth={2.4} />
-                  {infos[current.exerciseId]?.own ? '다시 찍기' : '영상 찍기'}
+                  {infos[current.exerciseId]?.uploaded ? '다시 찍기' : '영상 찍기'}
                 </button>
               </>
             ) : (
