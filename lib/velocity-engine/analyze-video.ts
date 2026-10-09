@@ -130,6 +130,8 @@ export type AnalyzeOptions = {
   tiltRad?: number | null;
   /** 공이 처음 보인 때(초, 영상 시각)를 이미 알면 — 앱 카메라의 공 알림. 구간을 줬을 때 공 찾기를 그 둘레부터 한다 */
   seedT?: number | null;
+  /** 거친 훑기에서 날아가는 공을 믿었을 때 한 번(구간 장면을 꺼내기 전) — 조용히 재던 클립이 '인식했어요'로 바뀐다 */
+  onBall?: () => void;
   /** 거리를 공 크기로 어림한다(analyze-distance autoDistance) — distanceM 은 첫 어림 */
   distanceAuto?: boolean;
   /** fovDeg 가 잰 값인가(앱 동시 촬영의 videoFieldOfView) — 안 주면 파일의 렌즈 정보 · 렌즈 보정이 있을 때만 잰 값으로 본다 */
@@ -341,6 +343,7 @@ export async function analyzeVideo(options: AnalyzeOptions): Promise<VideoAnalyz
       plan = await planFromCoarse(video, duration, table, approach, focalLong / sourceW, timing, (r) =>
         onProgress?.(r * 0.15)
       );
+      if (plan.ball?.accepted) options.onBall?.();
       timing.coarseMs = now() - c0 - timing.findMs;
       progressFrom = 0.15;
       windows = plan.windows;

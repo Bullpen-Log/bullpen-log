@@ -126,7 +126,12 @@ export function rigPose(
   parts: SkeletonParts,
   prev?: RigPose | null,
   /** 발밑 높이(앞 x · 옆 z → 위 y, 키 = 1) — 없으면 평지(0). 마운드는 moundHeightAt */
-  groundAt?: (x: number, z: number) => number
+  groundAt?: (x: number, z: number) => number,
+  /**
+   * 디딤발 무게(L · R, 합 1) — 주면 그 발(들)의 발밑 가장 가까운 점을 바닥에, 없으면 두 발 중 가까운 쪽. 장면마다 '두 발 중 낮은 쪽'으로
+   * 하면 발 점이 흔들리거나 낮은 발이 바뀌는 순간 몸 전체가 위아래로 튀었다(2026-10-09 김민: "바닥에서 떨어지거나 흔들린다").
+   */
+  support?: { L: number; R: number }
 ): RigPose {
   const A = parts.anchors;
   const s = 1 / parts.height;
@@ -230,14 +235,18 @@ export function rigPose(
   }
 
   /* 두 발 중 발밑에 가장 가까운 점(뒤꿈치 · 발끝 · 발목)을 바닥에 — 마운드면 그 자리의 경사면 높이 */
-  let low = Infinity;
-  for (const side of ['L', 'R'] as const) {
+  const lowOf = (side: 'L' | 'R') => {
     const f = `foot${side}` as PartName;
+    let m = Infinity;
     for (const p of [A[f].proximal, A[f].distal, A[f].heel]) {
       const w = placePoint(out[f], p, A[f].proximal);
-      low = Math.min(low, w[1] - (groundAt ? groundAt(w[0], w[2]) : 0));
+      m = Math.min(m, w[1] - (groundAt ? groundAt(w[0], w[2]) : 0));
     }
-  }
+    return m;
+  };
+  const lowL = lowOf('L');
+  const lowR = lowOf('R');
+  const low = support ? support.L * lowL + support.R * lowR : Math.min(lowL, lowR);
   if (Number.isFinite(low))
     for (const name of PART_NAMES)
       out[name].position = [
@@ -256,6 +265,8 @@ export const MOUND = {
   top: 0.254,
   flatFront: 0.152,
   flatBack: 0.6,
+  /** 꼭대기 평평한 곳의 너비(옆으로, 5피트) — 그 밖은 원 둘레까지 내려간다 */
+  flatWidth: 1.524,
   radius: 2.743,
   centerAhead: 0.457,
   rubber: { depth: 0.152, width: 0.61 },
@@ -263,7 +274,7 @@ export const MOUND = {
 
 /**
  * 마운드 높이 함수(키 = 1 좌표, 앞 x 는 홈 쪽 · 옆 z) — 투수판 앞 모서리 자리(x0 · z0)와 투수 키(m)로 미터를 키 단위로 바꾼다.
- * 앞 내리막이 둘레(투수판 앞 3.2m)에서 0 이 되도록 규격이 맞물려 있다. 둘레 30cm 는 부드럽게 0 으로(땅과 이음).
+ * 앞 내리막이 둘레(투수판 앞 3.2m)에서 0 이 되도록 규격이 맞물려 있다. 옆으로는 꼭대기 폭 5피트 밖에서 둘레까지 내려간다.
  */
 export function moundHeightAt(x0: number, z0: number, heightM: number) {
   const s = 1 / heightM;
@@ -273,18 +284,31 @@ export function moundHeightAt(x0: number, z0: number, heightM: number) {
   const R = MOUND.radius * s;
   const cx = x0 + MOUND.centerAhead * s;
   const backEdge = cx - R;
-  const rim = 0.3 * s;
+  const halfFlat = (MOUND.flatWidth / 2) * s;
   return (x: number, z: number): number => {
     const r = Math.hypot(x - cx, z - z0);
     if (r >= R) return 0;
     const d = x - x0;
-    const h =
+    /* 앞뒤 단면 */
+    const along =
       d >= flatFront
         ? top - (d - flatFront) / 12
         : d >= -flatBack
           ? top
           : (top * (x - backEdge)) / (x0 - flatBack - backEdge);
-    return Math.max(0, h) * Math.min(1, (R - r) / rim);
+    /*
+     * 옆 단면 — 꼭대기 폭 5피트 밖은 그 자리의 원 둘레(반현)까지 곧게 내려간다. 예전엔 옆으로 원 끝까지 꼭대기 높이라 폭 5.5m 의
+     * 평평한 언덕이 돼 '실제보다 너무 크다'고 보였다(2026-10-09 김민).
+     */
+    const half = Math.sqrt(Math.max(0, R * R - (x - cx) ** 2));
+    const side = Math.abs(z - z0);
+    const across =
+      side <= halfFlat
+        ? top
+        : half <= halfFlat
+          ? 0
+          : (top * (half - side)) / (half - halfFlat);
+    return Math.max(0, Math.min(along, across));
   };
 }
 

@@ -44,5 +44,5 @@ def run(mode: str, payload: dict) -> dict:
         # 엔진 진단 줄(숫자만)은 성공해도 Modal 로그로 — 품질 조사용
         for line in (r.stderr or "").splitlines():
             if line.startswith("[pitch3d"):
-                print(line[:6000])
+                print(line[:20000])
         return json.loads(out.read_text(encoding="utf-8"))

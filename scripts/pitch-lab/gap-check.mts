@@ -187,3 +187,139 @@ if (process.argv[1]?.endsWith('gap-check.mts'))
       `seed ${seed}: 첫 장면 빈 손목 — 처음 보일 때까지 한 장면 최대 이동 ${j == null ? '실패' : (j * 100).toFixed(1) + '% 키'}`
     );
   }
+
+/**
+ * 발 고정 — 땅에 붙어 있어야 할 구간(축발: 처음 ~ 니업, 앞발: 착지 ~ 릴리스)에서 발목 · 뒤꿈치 · 발끝이 움직인 폭(키 대비 mm 의 표준편차).
+ * 2026-10-09 김민: "발이 땅에 잘 붙어 있는지 · 착지는 언제인지 구분이 안 되고 바닥에서 떨어지거나 흔들린다".
+ */
+export function footSway(seed: number): { pivot: number; lead: number } | null {
+  const sc: Scenario = {
+    ...base,
+    ...realistic,
+    name: 'foot',
+    slowSide: 4,
+    slowBack: 4,
+    offBack: 0,
+    sampleSide: 1 / 30,
+    sampleBack: 1 / 30,
+  };
+  const { side: cs, back: cb } = cameras(sc);
+  const s = makeV2Track(sc, cs, sc.side, 'side', seed);
+  const b = makeV2Track(sc, cb, sc.back, 'back', seed + 1);
+  const { result } = fitPitch3dV2({
+    side: s.track,
+    back: b.track,
+    hand: 'R',
+    heightCm: null,
+    jobId: '00000000-0000-4000-8000-000000000000',
+    poseModel: 'synth',
+    screenRecorded: true,
+    slowmoFps: 120,
+    events: {
+      kneeUp: s.toMedia(EV.kneeUp),
+      footPlant: s.toMedia(EV.footPlant),
+      release: s.toMedia(EV.release),
+    },
+  });
+  if (!result.ok) return null;
+  const { footPlant: fp, release: rel } = result.events;
+  const sway = (joints: number[], from: number, to: number) => {
+    let worst = 0;
+    for (const j of joints) {
+      const pts = result.joints.slice(from, to + 1).map((f) => f[j]);
+      const mean = [0, 1, 2].map((d) => pts.reduce((a, p) => a + p[d], 0) / pts.length);
+      const sd = Math.sqrt(
+        pts.reduce(
+          (a, p) =>
+            a + (p[0] - mean[0]) ** 2 + (p[1] - mean[1]) ** 2 + (p[2] - mean[2]) ** 2,
+          0
+        ) / pts.length
+      );
+      worst = Math.max(worst, sd);
+    }
+    return worst;
+  };
+  return {
+    /* 축발은 니업까지(합성 정답 축발은 보폭 끝에 끌린다) */
+    pivot: sway(
+      [V2J.rAn, V2J.rHe, V2J.rTo],
+      0,
+      result.events.kneeUp ?? Math.floor(fp / 2)
+    ),
+    lead: sway([V2J.lAn, V2J.lHe, V2J.lTo], fp + 2, rel),
+  };
+}
+
+if (process.argv[1]?.endsWith('gap-check.mts'))
+  for (const seed of [11, 22]) {
+    const f = footSway(seed);
+    console.log(
+      `seed ${seed}: 발 흔들림(표준편차, 키 1000) 축발 ${f?.pivot.toFixed(1)} · 앞발 ${f?.lead.toFixed(1)}`
+    );
+  }
+
+/**
+ * 착지 순간 엉덩이 점이 두 장면 튀는 합성 — 골반선(위에서 본 방향)이 한 장면에 가장 많이 돈 각도(°).
+ * 2026-10-09 실제 샘플 둘에서 착지 장면에 골반선이 한 장면에 35~38° 돌았다(사람이 낼 수 없는 속도) — 관절 모델의 엉덩이 점이 튐.
+ */
+export function hipSnap(seed: number, spike = true): number | null {
+  const sc: Scenario = {
+    ...base,
+    ...realistic,
+    name: 'hip',
+    slowSide: 4,
+    slowBack: 4,
+    offBack: 0,
+    sampleSide: 1 / 30,
+    sampleBack: 1 / 30,
+  };
+  const { side: cs, back: cb } = cameras(sc);
+  const s = makeV2Track(sc, cs, sc.side, 'side', seed);
+  const b = makeV2Track(sc, cb, sc.back, 'back', seed + 1);
+  /* 착지 장면 둘에서 오른 엉덩이 점을 사람 크기의 12% 옆으로 */
+  const tp = s.toMedia(EV.footPlant);
+  for (const tr of [s.track, b.track]) {
+    const near = spike
+      ? tr.frames.filter((f) => Math.abs(f.t - tp) < 0.04).slice(0, 2)
+      : [];
+    for (const f of near) {
+      const ys = f.p.map((q) => q[1]);
+      const px = (Math.max(...ys) - Math.min(...ys)) * 0.12;
+      f.p[V2J.rHip] = [f.p[V2J.rHip][0] + px, f.p[V2J.rHip][1], f.p[V2J.rHip][2]];
+    }
+  }
+  const { result } = fitPitch3dV2({
+    side: s.track,
+    back: b.track,
+    hand: 'R',
+    heightCm: null,
+    jobId: '00000000-0000-4000-8000-000000000000',
+    poseModel: 'synth',
+    screenRecorded: true,
+    slowmoFps: 120,
+    events: {
+      kneeUp: s.toMedia(EV.kneeUp),
+      footPlant: tp,
+      release: s.toMedia(EV.release),
+    },
+  });
+  if (!result.ok) return null;
+  const yaw = (f: number[][]) =>
+    (Math.atan2(f[V2J.lHip][2] - f[V2J.rHip][2], f[V2J.lHip][0] - f[V2J.rHip][0]) *
+      180) /
+    Math.PI;
+  let worst = 0;
+  for (let k = 1; k < result.joints.length; k++) {
+    const d = Math.abs(
+      ((yaw(result.joints[k]) - yaw(result.joints[k - 1]) + 540) % 360) - 180
+    );
+    worst = Math.max(worst, d);
+  }
+  return worst;
+}
+
+if (process.argv[1]?.endsWith('gap-check.mts'))
+  for (const seed of [11, 22])
+    console.log(
+      `seed ${seed}: 착지 엉덩이 튐 — 골반선 한 장면 최대 회전 ${hipSnap(seed)?.toFixed(1)}°`
+    );

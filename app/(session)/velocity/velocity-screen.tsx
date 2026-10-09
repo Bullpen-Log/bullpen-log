@@ -65,7 +65,7 @@ import { DEFAULT_CAM_MODE, camModeLabel, fpsGood } from '@/lib/velocity-camera-m
 import { focalPxFromFov } from '@/lib/velocity-engine/geometry';
 import { liveFpsNote, type LiveReport } from '@/lib/velocity-engine/live-meter';
 import { readVideoLens, videoFovFor } from '@/lib/velocity-engine/video-lens';
-import { analysisOf, type AnalysisJson } from '@/lib/velocity-analysis';
+import { analysisOf, type AnalysisJson, distanceMismatch } from '@/lib/velocity-analysis';
 import {
   SPEED_DISTANCE_EXPONENT,
   type DistanceReport,
@@ -130,6 +130,7 @@ import {
   zoneOfPoint,
   type VelocitySetup,
   type ZoneRect,
+  STANDARD_TARGET_DIST_M,
 } from '@/lib/velocity-setup';
 import { useDeviceLevel } from '@/lib/use-device-level';
 import { SESSION_TYPES, isRestSession } from '@/lib/session-type';
@@ -821,8 +822,13 @@ export function VelocityScreen({
      */
     const dist = (result as { distance?: DistanceReport }).distance ?? null;
     const distNotes: string[] = [];
+    const mismatch = dist ? distanceMismatch({ distance: dist }) : null;
     if (dist && distanceAutoOf({ cameraPos: choices.cameraPos, distAuto }) && dist.distanceSource === 'input')
       distNotes.push(`공이 덜 잡혀 거리를 어림하지 못했어요. ${dist.distanceM}m로 쟀어요.`);
+    else if (mismatch)
+      distNotes.push(
+        `공을 미트까지 따라가지 못한 것 같아요(넣은 거리 ${mismatch.input}m · 공 크기로 본 거리 ${mismatch.size}m). 값이 틀릴 수 있어 최고 · 평균에서 뺐어요.`
+      );
     else if (
       dist &&
       dist.distanceSource === 'input' &&
@@ -1090,8 +1096,9 @@ export function VelocityScreen({
       setVoice(stored.voice);
       setUseCal(stored.useCal);
       setReleaseDistM(stored.releaseDistM);
-      setTargetDistM(stored.targetDistM);
-      setDistAuto(stored.distAuto);
+      /* 거리는 기준 20m 고정 — 관리자만 저장한 거리(특수 시험) */
+      setTargetDistM(isAdmin ? stored.targetDistM : STANDARD_TARGET_DIST_M);
+      setDistAuto(isAdmin ? stored.distAuto : false);
       setAutoMode(stored.autoMode);
       setCalibSave(stored.calibSave);
       setClipZone(stored.clipZone);
@@ -1487,10 +1494,11 @@ export function VelocityScreen({
   const shownPitches = pitches.map((p) => ({ ...p, kmh: shown(p.rawKmh) }));
   /* 저장 때 올릴 영상 수 */
   const clipCount = pitches.reduce((n, p) => n + (p.clip ? 1 : 0), 0);
-  const stats = summarize(shownPitches);
+  const stats = summarize(shownPitches.map((p) => ({ ...p, excluded: distanceMismatch(p.analysis) != null })));
   /* 세션 화면 · 요약 · 이전 공 시트가 받는 모양(components/velocity/session-types.ts) */
   const sessionPitches: SessionPitch[] = shownPitches.map((p, i) => ({
     id: p.id,
+    excluded: distanceMismatch(p.analysis) != null,
     seq: i + 1,
     kmh: p.kmh,
     rawKmh: p.rawKmh,
@@ -2255,7 +2263,12 @@ export function VelocityScreen({
               }}
               columns={1}
             />
-            {choices.cameraPos === 'behind-pitcher' ? (
+            {choices.cameraPos === 'behind-pitcher' && !isAdmin ? (
+              <p className="px-0.5 text-sm leading-relaxed text-muted">
+                폰에서 포수 미트까지 {STANDARD_TARGET_DIST_M}m로 재요. 정식 마운드(18.44m)에서 포수가 조금 뒤에서 받고, 폰을 투수 1m
+                뒤에 둔 거리예요.
+              </p>
+            ) : choices.cameraPos === 'behind-pitcher' ? (
               <div className="space-y-4">
                 {/* 거리 — 공 크기로 어림(기본)하거나 줄자로 잰 값을 넣는다. 거리를 안 잰 사람이 기본 20m 로 재 10% 넘게 틀렸다 */}
                 <div>

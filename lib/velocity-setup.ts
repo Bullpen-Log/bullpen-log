@@ -188,6 +188,13 @@ export function zoneCellOnScreen(
   return row * 3 + (cameraPos === 'behind-catcher' ? 2 - col : col);
 }
 
+/**
+ * 폰 → 미트 거리의 기준(2026-10-09 김민: "거리는 늘 정식 규격 18.44m 에 포수가 조금 뒤에서 받아 19m 쯤, 카메라 1m 뒤 해서 20m 로
+ * 고정"). 모든 사용자 같은 조건 — 일반 사용자는 이 값으로만 재고(거리 고르기는 관리자의 특수 시험용), 공 크기 거리와 15% 넘게
+ * 다르면 그 공은 믿음을 낮추고 최고 · 평균에서 뺀다(엔진 INPUT_SIZE_MISMATCH).
+ */
+export const STANDARD_TARGET_DIST_M = 20;
+
 export const DEFAULT_SETUP: Omit<VelocitySetup, 'savedAt'> = {
   sessionType: DEFAULT_SESSION_TYPE,
   cameraPos: 'behind-pitcher',
@@ -196,8 +203,8 @@ export const DEFAULT_SETUP: Omit<VelocitySetup, 'savedAt'> = {
   voice: false,
   useCal: true,
   releaseDistM: 18.5,
-  targetDistM: 20,
-  distAuto: true,
+  targetDistM: STANDARD_TARGET_DIST_M,
+  distAuto: false,
   autoMode: true,
   calibSave: false,
   clipZone: true,

@@ -45,7 +45,7 @@ import {
   type Scenario,
 } from './pitch-lab/synth.mts';
 import { makeV2Track } from './pitch-lab/synth-v2.mts';
-import { gapWristError, leadGapJump } from './pitch-lab/gap-check.mts';
+import { footSway, gapWristError, hipSnap, leadGapJump } from './pitch-lab/gap-check.mts';
 import { readFileSync } from 'node:fs';
 import {
   moundHeightAt,
@@ -874,6 +874,13 @@ console.log('■ 뼈대 자세(pose-rig) — public/models/skeleton-parts.json +
           '마운드: 앞 내리막이 둘레(투수판 앞 3.2m)에서 0 · 둘레 밖 0',
           g(3.19 / Hm, 0) < 0.01 / Hm && g(3.3 / Hm, 0) === 0 && g(0.457 / Hm, 3 / Hm) === 0
         );
+        /* 옆 경사 — 예전엔 옆으로 원 끝까지 꼭대기 높이(폭 5.5m 의 평평한 언덕)라 '너무 크다'고 보였다 */
+        check(
+          '마운드: 옆으로 꼭대기 폭 5피트(±0.76m) 안은 꼭대기, 밖은 둘레까지 내려간다',
+          near(g(0, 0.7 / Hm), 0.254 / Hm) &&
+            g(0, 1.5 / Hm) < 0.18 / Hm &&
+            g(0.457 / Hm, 2.7 / Hm) < 0.02 / Hm
+        );
         const fr = frames[result.events.footPlant];
         const x0 = frames[0][V2J.rAn][0];
         const z0 = frames[0][V2J.rAn][2];
@@ -886,6 +893,14 @@ console.log('■ 뼈대 자세(pose-rig) — public/models/skeleton-parts.json +
             low = Math.min(low, w[1] - gr(w[0], w[2]));
           }
         check('마운드: 두 발 중 경사면에 가장 가까운 점이 경사면 위(0)', Math.abs(low) < 1e-9, `${low}`);
+        /* 디딤발 무게 — 오른발만 디딤이면 오른발이 경사면 위(왼발이 더 낮아도 몸을 끌어올리지 않는다) */
+        const poseR = rigPose(fr, 'R', parts, null, gr, { L: 0, R: 1 });
+        let lowR = Infinity;
+        for (const q of [A.footR.proximal, A.footR.distal, A.footR.heel]) {
+          const w = placePoint(poseR.footR, q, A.footR.proximal);
+          lowR = Math.min(lowR, w[1] - gr(w[0], w[2]));
+        }
+        check('디딤발 무게: 오른발만 디딤이면 오른발이 경사면 위(0)', Math.abs(lowR) < 1e-9, `${lowR}`);
       }
     }
   }
@@ -902,6 +917,64 @@ console.log('■ 빈 구간(릴리스 근처 손목 10장면 지움) — 회전�
       r
         ? `${(r.gap * 100).toFixed(1)}% · 보이는 주변 ${(r.seen * 100).toFixed(1)}%`
         : '맞추기 실패'
+    );
+  }
+}
+
+console.log('■ 던지는 손 — 촬영 정보가 틀려도(좌투를 오른손으로) 손을 바꿔 맞춘다');
+{
+  /* 2026-10-09 좌투 샘플이 '오른손'으로 올라와 팔 · 다리 이름이 통째로 뒤집혔다(몸이 뒤를 봄 · 발목이 골반 높이) */
+  const sc: Scenario = { ...base, ...realistic, hand: 'L', name: '좌투를 오른손으로' };
+  const { side: camS, back: camB } = cameras(sc);
+  const s = makeV2Track(sc, camS, sc.side, 'side', 61);
+  const b = makeV2Track(sc, camB, sc.back, 'back', 62);
+  const run = (hand: 'R' | 'L') =>
+    fitPitch3dV2({
+      side: s.track,
+      back: b.track,
+      hand,
+      heightCm: null,
+      jobId: JOB_ID,
+      poseModel: 'synth',
+      screenRecorded: true,
+      slowmoFps: sc.slowSide > 1 ? 30 * sc.slowSide : null,
+    }).result;
+  const wrong = run('R');
+  const right = run('L');
+  check(
+    '촬영 정보 오른손 → 결과는 왼손 · 이름 안 뒤집힘',
+    wrong.ok && wrong.hand === 'L' && !wrong.quality.flips.handSwapped,
+    wrong.ok ? `hand ${wrong.hand} · handSwapped ${wrong.quality.flips.handSwapped}` : wrong.code
+  );
+  check(
+    '손을 바로 준 결과와 같다',
+    wrong.ok && right.ok && JSON.stringify(wrong.joints) === JSON.stringify(right.joints)
+  );
+}
+
+console.log('■ 발 고정 — 축발(처음 ~ 벗어나기 전) · 앞발(착지 ~ 릴리스 뒤)이 땅에 붙어 있다');
+{
+  /* 고치기 전 씨앗 11 · 22: 축발 10.4 · 10.2, 앞발 23.6 · 10.0(표준편차, 키 1000) */
+  for (const seed of [11, 22]) {
+    const f = footSway(seed);
+    check(
+      `붙어 있어야 할 발이 흔들리지 않는다(표준편차 키의 0.2% 밑, 씨앗 ${seed})`,
+      f != null && f.pivot < 2 && f.lead < 2,
+      f ? `축발 ${f.pivot.toFixed(1)} · 앞발 ${f.lead.toFixed(1)}` : '맞추기 실패'
+    );
+  }
+}
+
+console.log('■ 몸통 흔들림 — 골반선이 한 장면에 크게 돌지 않는다(엉덩이 점 튐 포함)');
+{
+  /* 고치기 전 씨앗 11 · 22: 튐 없음 13.8 · 7.8°, 착지 엉덩이 튐 11.8 · 13.5° */
+  for (const seed of [11, 22]) {
+    const calm = hipSnap(seed, false);
+    const spiked = hipSnap(seed);
+    check(
+      `골반선 한 장면 최대 회전 — 튐 없음 8° · 튐 11° 밑(씨앗 ${seed})`,
+      calm != null && spiked != null && calm < 8 && spiked < 11,
+      `${calm?.toFixed(1)}° · ${spiked?.toFixed(1)}°`
     );
   }
 }

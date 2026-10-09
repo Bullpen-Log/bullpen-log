@@ -105,6 +105,57 @@ export function pickSegment(input: { side: unknown; back: unknown }): SegmentOut
  * rows: [릴리스에서 몇 장면, 팔꿈치 굽힘°(0 = 폄), 굽힘 축 뒤집힘, 손바닥 뒤집힘, 손목 이동 mm(키 1000), 어깨 · 팔꿈치 · 손목 확신]
  * jumps: 모든 관절 중 가장 큰 장면 사이 이동 셋, empty: 던지는 어깨 · 팔꿈치 · 손목이 빈(확신 0) 장면 수.
  */
+/**
+ * 몸 전체 진단(Modal 로그 한 줄, 2026-10-09 '회전이 시작되면 위로 점프 · 몸통 · 머리가 흔들림 · 발이 뜸' 조사) — 숫자만.
+ * hand · 좌우 바꿈(handSwapped · backMirrored), 장면마다 [릴리스에서 몇 장면, 골반 높이, 왼 · 오른 발목 높이(mm, 키 1000),
+ * 어깨선 · 골반선 방향(°, 위에서 본 각), 코 높이, 그 장면 가장 큰 관절 이동 mm] — 착지 30장면 전 ~ 릴리스 20장면 뒤.
+ * jumps: 어깨선 · 골반선이 한 장면에 45° 넘게 돈 횟수, 골반이 한 장면에 키의 3% 넘게 오르내린 횟수.
+ */
+export function bodyDiag(r: Pitch3dV2Ok) {
+  const { footPlant: fp, release: rel } = r.events;
+  const yaw = (a: number[], b: number[]) => (Math.atan2(a[2] - b[2], a[0] - b[0]) * 180) / Math.PI;
+  const wrap = (d: number) => Math.abs(((d + 540) % 360) - 180);
+  let shJumps = 0;
+  let hipJumps = 0;
+  let rise = 0;
+  const rows: number[][] = [];
+  r.joints.forEach((j, k) => {
+    const pel = (j[V2J.lHip][1] + j[V2J.rHip][1]) / 2;
+    const sh = yaw(j[V2J.lSh], j[V2J.rSh]);
+    const hp = yaw(j[V2J.lHip], j[V2J.rHip]);
+    let maxMove = 0;
+    if (k > 0) {
+      const p = r.joints[k - 1];
+      if (wrap(sh - yaw(p[V2J.lSh], p[V2J.rSh])) > 45) shJumps++;
+      if (wrap(hp - yaw(p[V2J.lHip], p[V2J.rHip])) > 45) hipJumps++;
+      if (Math.abs(pel - (p[V2J.lHip][1] + p[V2J.rHip][1]) / 2) > 30) rise++;
+      j.forEach((q, jj) => (maxMove = Math.max(maxMove, norm(sub(q as Vec3, p[jj] as Vec3)))));
+    }
+    if (k >= fp - 30 && k <= rel + 20)
+      rows.push([
+        k - rel,
+        Math.round(pel),
+        j[V2J.lAn][1],
+        j[V2J.rAn][1],
+        Math.round(sh),
+        Math.round(hp),
+        j[V2J.nose][1],
+        Math.round(maxMove),
+      ]);
+  });
+  return {
+    hand: r.hand,
+    flips: r.quality.flips,
+    n: r.joints.length,
+    fp: fp - rel,
+    kneeUp: r.events.kneeUp == null ? null : r.events.kneeUp - rel,
+    shJumps,
+    hipJumps,
+    rise,
+    rows,
+  };
+}
+
 export function armDiag(r: Pitch3dV2Ok) {
   const L = r.hand === 'L';
   const [S, E, W, I, P] = L
@@ -208,7 +259,14 @@ export function runFit(raw: unknown): string {
   let result;
   try {
     result = fitPitch3dV2(input).result;
-    if (result.ok) console.error('[pitch3d diag] ' + JSON.stringify(armDiag(result)));
+    /* 진단은 실패해도 분석을 망치지 않게 따로 */
+    if (result.ok)
+      try {
+        console.error('[pitch3d diag] ' + JSON.stringify(armDiag(result)));
+        console.error('[pitch3d body] ' + JSON.stringify(bodyDiag(result)));
+      } catch (err) {
+        console.error('[pitch3d diag-error]', err instanceof Error ? err.message : err);
+      }
   } catch (err) {
     console.error('[pitch3d v2 fit]', err instanceof Error ? err.stack : err);
     return JSON.stringify(v2Fail(jobId, 'internal', 'fit'));

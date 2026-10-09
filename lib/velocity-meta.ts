@@ -162,17 +162,22 @@ export type PitchEdit = {
   memo: string | null;
 };
 
-/** 세션 요약 — 최고 · 평균 · 스트라이크 비율 · 릴리스 포인트 흩어짐 */
+/**
+ * 세션 요약 — 최고 · 평균 · 스트라이크 비율 · 릴리스 포인트 흩어짐. excluded(넣은 거리와 공 크기 거리가 크게 달라 값이 틀릴 수 있는 공 —
+ * velocity-analysis.ts distanceMismatch)는 최고 · 평균에서 뺀다(다 그런 공이면 다 쓴다)
+ */
 export function summarize(
   pitches: {
     kmh: number;
     result: string | null;
     releaseDxCm: number | null;
     releaseDyCm: number | null;
+    excluded?: boolean;
   }[]
 ) {
   if (pitches.length === 0) return null;
-  const kmhs = pitches.map((p) => p.kmh);
+  const sure = pitches.filter((p) => !p.excluded);
+  const kmhs = (sure.length ? sure : pitches).map((p) => p.kmh);
   const max = Math.max(...kmhs);
   const avg = Math.round((kmhs.reduce((s, v) => s + v, 0) / kmhs.length) * 10) / 10;
   const judged = pitches.filter((p) => p.result === 'strike' || p.result === 'ball');
