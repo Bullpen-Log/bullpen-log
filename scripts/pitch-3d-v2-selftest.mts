@@ -906,6 +906,37 @@ console.log('■ 빈 구간(릴리스 근처 손목 10장면 지움) — 회전�
   }
 }
 
+console.log('■ 던지는 손 — 촬영 정보가 틀려도(좌투를 오른손으로) 손을 바꿔 맞춘다');
+{
+  /* 2026-10-09 좌투 샘플이 '오른손'으로 올라와 팔 · 다리 이름이 통째로 뒤집혔다(몸이 뒤를 봄 · 발목이 골반 높이) */
+  const sc: Scenario = { ...base, ...realistic, hand: 'L', name: '좌투를 오른손으로' };
+  const { side: camS, back: camB } = cameras(sc);
+  const s = makeV2Track(sc, camS, sc.side, 'side', 61);
+  const b = makeV2Track(sc, camB, sc.back, 'back', 62);
+  const run = (hand: 'R' | 'L') =>
+    fitPitch3dV2({
+      side: s.track,
+      back: b.track,
+      hand,
+      heightCm: null,
+      jobId: JOB_ID,
+      poseModel: 'synth',
+      screenRecorded: true,
+      slowmoFps: sc.slowSide > 1 ? 30 * sc.slowSide : null,
+    }).result;
+  const wrong = run('R');
+  const right = run('L');
+  check(
+    '촬영 정보 오른손 → 결과는 왼손 · 이름 안 뒤집힘',
+    wrong.ok && wrong.hand === 'L' && !wrong.quality.flips.handSwapped,
+    wrong.ok ? `hand ${wrong.hand} · handSwapped ${wrong.quality.flips.handSwapped}` : wrong.code
+  );
+  check(
+    '손을 바로 준 결과와 같다',
+    wrong.ok && right.ok && JSON.stringify(wrong.joints) === JSON.stringify(right.joints)
+  );
+}
+
 console.log('■ 흔들림 · 꺾임 — 첫 장면 빈 관절 · 경첩 관절(팔꿈치 · 무릎) 반대로 꺾임');
 {
   /* 고치기 전(기본 방향으로 채움) 씨앗 22 · 44 에서 키의 3.7% · 3.9% 였다 */

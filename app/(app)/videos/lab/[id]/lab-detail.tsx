@@ -177,6 +177,12 @@ export function LabDetail({
             options={LAB_GROUND_OPTIONS}
           />
           {groundError && <ErrorLine>{groundError}</ErrorLine>}
+          {result && meta && result.hand !== meta.hand && (
+            <p className="text-xs text-muted break-keep">
+              영상으로 보면 {result.hand === 'L' ? '왼손' : '오른손'} 투수라{' '}
+              {result.hand === 'L' ? '왼손' : '오른손'}으로 분석했어요.
+            </p>
+          )}
           {result ? (
             <Body3D
               ref={body}

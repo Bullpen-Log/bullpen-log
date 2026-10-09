@@ -308,8 +308,23 @@ export type FitDebug = {
   weights: number[][];
 };
 
-/** 맞추기 — 결과(Pitch3dV2Result). 시험용으로 중간값도 돌려준다(debug) */
+/**
+ * 맞추기 — 결과(Pitch3dV2Result). 시험용으로 중간값도 돌려준다(debug).
+ * 영상으로 본 던지는 손이 촬영 정보와 반대면(v1 이 '좌우 이름이 거울로 붙었다'고 보고 팔 · 다리 이름을 통째로 바꿈) 이름을 바꾸지 않고
+ * 던지는 손을 바꿔 한 번 더 맞춘다 — 2026-10-09 좌투 샘플이 촬영 정보 '오른손'으로 올라와 이름이 뒤집혀 몸이 뒤를 보고 발목이 골반
+ * 높이에 갔다. 관절 모델(RTMW)은 해부학 좌우로 이름을 붙여 두 영상이 함께 거울이 되는 일은 드물고, 틀리기 쉬운 건 촬영 정보다.
+ */
 export function fitPitch3dV2(input: V2Input): {
+  result: Pitch3dV2Result;
+  debug?: FitDebug;
+} {
+  const first = fitOnce(input);
+  if (!first.result.ok || !first.result.quality.flips.handSwapped) return first;
+  const other = fitOnce({ ...input, hand: input.hand === 'L' ? 'R' : 'L' });
+  return other.result.ok && !other.result.quality.flips.handSwapped ? other : first;
+}
+
+function fitOnce(input: V2Input): {
   result: Pitch3dV2Result;
   debug?: FitDebug;
 } {
