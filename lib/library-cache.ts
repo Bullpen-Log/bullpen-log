@@ -88,7 +88,7 @@ export const allExercises = unstable_cache(
    * 오늘의 암케어가 루틴을 못 짠다. 관리자가 운동을 하나 저장해야(clearLibraryCache)
    * 풀리는데, 그것을 기다릴 일이 아니다.
    */
-  ['library:exercises:v14'],
+  ['library:exercises:v15'],
   { tags: [LIBRARY_TAG] }
 );
 
@@ -109,7 +109,7 @@ export const allGuides = unstable_cache(
    * (scripts/mechanics-classify-2026-10-04.mjs). 이름이 같으면 새 칸 없는 옛 줄이 남아 숨긴 드릴이 계속 나온다.
    * :v3 — 같은 날 빈자리를 채우는 드릴 12개를 더했다(scripts/mechanics-add-drills-2026-10-04.mjs).
    */
-  ['library:guides:v6'],
+  ['library:guides:v7'],
   { tags: [LIBRARY_TAG] }
 );
 

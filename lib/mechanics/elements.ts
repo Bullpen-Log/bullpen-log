@@ -74,7 +74,7 @@ export type MechanicsElement = {
 };
 
 /** 설명글의 바탕 — 자세히 보기 창 끝에 한 줄 */
-export const MECHANICS_SOURCE_NOTE = '드라이브라인 베이스볼 · 트레드 애슬레틱스 자료를 바탕으로 정리했어요.';
+export const MECHANICS_SOURCE_NOTE = '투구 전문 코칭 자료를 바탕으로 정리했어요.';
 
 export const MECHANICS_ELEMENTS: MechanicsElement[] = [
   /* [T1] 드리프트 · [T3] 뒷다리 힘을 천천히 · [D2] 무게중심 속도 */
