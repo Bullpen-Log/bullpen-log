@@ -248,6 +248,9 @@
 
 ## 4. 진행 중인 일
 
+- **김민이 2026-10-09 남긴 규칙 둘(HANDOFF 에서 옮겨 둠).** ① 화면 · 운동/드릴 설명 글에 두 투구 코칭 기관 이름을 쓰지 않는다(내용은 써도 됨, 코드 주석의 근거는 괜찮다).
+  ② 새 운동 이름: 등척성 미는 운동은 '…아이소메트릭 프레스', 과부하로 내리는 운동은 '…에센트릭 오버로드' 로 끝내야 암케어 방법이 붙는다(lib/armcare/methods.ts). 운동 이름 188개가 전문 용어로 바뀌었다(캐시 v16).
+
 - **기본기 4주(2026-10-09, 사용자: 만 13세부터 · 보호자 확인 없음 · 7개 · 성인 입문은 마치면 성인 프로그램).** `lib/program/program.ts` BASICS ·
   BASICS_RULES · profileBlock/seasonBlock/equipmentBlock · basicsDoneEnough, 화면은 트레이닝의 카드(program-start.tsx). 설계 `docs/designs/youth-beginner-path.md`.
   맡겨서 정한 것: 시즌 중에는 기본기도 막음 · 맨몸만이면 당기기 칸이 빔. 화면은 로그인 없는 임시 경로로만 봤다(실제 계정 확인은 사용자 몫).
