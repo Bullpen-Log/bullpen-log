@@ -494,7 +494,9 @@ export const Body3D = forwardRef<
        */
       const poses: RigPose[] = [];
       for (let k = 0; k < n; k++)
-        poses.push(rigPose(frames[k], result.hand, parts, poses[k - 1] ?? null));
+        poses.push(
+          rigPose(frames[k], result.hand, parts, poses[k - 1] ?? null, track.refs[k])
+        );
       const mat = new THREE.Matrix4();
       const applyFrame = (k: number) => {
         const pose = poses[k];
