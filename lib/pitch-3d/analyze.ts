@@ -307,10 +307,17 @@ export function analyzePitch3dCore(input: Pitch3dInput): Pitch3dCore | Pitch3dFa
   const dtwTime = backTime;
   backTime = refineSync(side, back, backTime, cal, backDt, PASS1_JOINTS);
 
-  /* 좌우 다시 고침(R3) — 장면 · 묶음마다 그대로 / 뒤집음 중 다시 비춤이 30% 넘게 작은 쪽(뒤 영상 먼저, 그다음 옆) */
+  /*
+   * 좌우 다시 고침(R3) — 장면 · 묶음마다 그대로 / 뒤집음 중 다시 비춤이 30% 넘게 작은 쪽(뒤 영상 먼저, 그다음 옆). 빠른 구간 = 착지 → 릴리스
+   * 길이의 30% 앞 ~ 릴리스 뒤 50%(옆 시각) — 그 안의 팔은 앞뒤 장면과 이어질 때만(repairLabels 주석).
+   */
+  const fastWin: [number, number] = [
+    ev.footPlant - 0.3 * (ev.release - ev.footPlant),
+    ev.release + 0.5 * (ev.release - ev.footPlant),
+  ];
   const repaired =
-    repairLabels(back, side, invertTimes(side, backTime), sideDt, cal, 'back') +
-    repairLabels(side, back, (t) => timeAt(side, backTime, t), backDt, cal, 'side');
+    repairLabels(back, side, invertTimes(side, backTime), sideDt, cal, 'back', fastWin) +
+    repairLabels(side, back, (t) => timeAt(side, backTime, t), backDt, cal, 'side', fastWin);
   backTime = refineSync(side, back, backTime, cal, backDt, ALL_JOINTS);
 
   /* 보정 2차(모든 관절) → 시간 한 번 더 */
@@ -414,7 +421,8 @@ export function analyzePitch3dCore(input: Pitch3dInput): Pitch3dCore | Pitch3dFa
     const k1 = Math.min(fixed.length - 1, (relK < 0 ? fixed.length - 1 : relK) + 4);
     /*
      * 다듬은(5장면 중앙값) 손목이 그 구간에 지나간 길이 — 순간 최대 속도는 흐린 손목의 튐 하나에 뒤집혀, 맞는 이름을 통째로 바꾼
-     * 일이 있었다(합성 씨앗 4: 보폭 135% 틀림). 바꾸는 쪽이 훨씬 위험해 1.4배 넘게 차이 날 때만 바꾼다.
+     * 일이 있었다(합성 씨앗 4: 보폭 135% 틀림). 바꾸는 쪽이 훨씬 위험해 1.3배 넘게 차이 날 때만 바꾼다(1.4 → 1.3, 2026-10-09: 합성
+     * '좌투를 오른손으로'는 1.37 — 예전엔 옆 영상 팔을 잘못 뒤집은 장면 하나 덕에 1.42 로 넘었다. 실제 샘플 바른 손은 0.20 · 0.62, 틀린 손은 5.11 · 1.60).
      */
     const pathLen = (j: number) => {
       const pts: Vec3[] = [];
@@ -431,7 +439,7 @@ export function analyzePitch3dCore(input: Pitch3dInput): Pitch3dCore | Pitch3dFa
     };
     const thr = hand === 'L' ? J.lWr : J.rWr;
     const glv = hand === 'L' ? J.rWr : J.lWr;
-    if (pathLen(glv) > pathLen(thr) * 1.4) {
+    if (pathLen(glv) > pathLen(thr) * 1.3) {
       handSwapped = true;
       for (const fr of fixed)
         for (const [x, y] of [...ARM_PAIRS, ...LEG_PAIRS])
@@ -858,14 +866,19 @@ function repairLabels(
   otherTimeOf: (t: number) => number | null,
   otherDt: number,
   cal: Calibration,
-  which: 'side' | 'back'
+  which: 'side' | 'back',
+  /** 빠른 구간(옆 시각) — 여기서는 팔을 앞뒤 장면과 이어질 때만 뒤집는다 */
+  fastWin: [number, number] | null = null
 ): number {
   let n = 0;
-  for (const f of target.frames) {
+  const fr = target.frames;
+  fr.forEach((f, i) => {
     const ot = otherTimeOf(f.t);
-    if (ot == null) continue;
+    if (ot == null) return;
     const o = backAt(other, ot, otherDt);
-    if (!o) continue;
+    if (!o) return;
+    const sideT = which === 'side' ? f.t : ot;
+    const fast = fastWin != null && sideT >= fastWin[0] && sideT <= fastWin[1];
     for (const pairs of [ARM_PAIRS, LEG_PAIRS]) {
       const joints = pairs.flat();
       const err = (p: Obs[]) =>
@@ -875,12 +888,39 @@ function repairLabels(
       const keep = err(f.p);
       const sw = swapIn(f.p, pairs);
       const flip = err(sw);
-      if (keep != null && flip != null && flip < keep * 0.7) {
+      /*
+       * 빠른 구간(착지 조금 전 ~ 릴리스 뒤)의 팔은 그 영상 안에서 앞뒤 장면과도 더 이어져야 뒤집는다 — 관절 모델의 좌우 뒤바뀜은 한두 장면만 튀어
+       * 뒤집으면 앞뒤와 이어지지만, 빠른 팔에서 두 영상 시간이 몇 장면 어긋나면 이어진 원래 이름을 뒤집는 쪽이 우연히 더 맞아 보였다(2026-10-09
+       * 샘플 4: 공 놓기 직전 12장면의 뒤 영상 팔을 바꿨는데 원래가 맞았다 — 오른어깨 · 팔꿈치가 화면 오른쪽, 오른손목이 머리 높이. 틀린 이름이
+       * 다음 보정 · 시간 맞추기를 끌고 가 공 놓은 뒤 손목이 영상에서 7.8% → 3.4%). 느린 구간 · 다리는 그대로 — 어디서나 걸면 좌투 샘플의 맞는 고침
+       * (니업 전 팔)까지 막혀 몸 좌우 판단이 뒤집히고 다리가 영상에서 64% 어긋났다.
+       */
+      /* 앞뒤 3장면 각각과의 거리(관절 평균)의 가운데값 — 화면 녹화는 같은 그림이 두 장씩이라 뒤바뀜도 두 장씩 붙어 온다 */
+      const jump = (p: Obs[]) => {
+        const ds: number[] = [];
+        for (let q = i - 3; q <= i + 3; q++) {
+          const nb = fr[q];
+          if (q === i || !nb) continue;
+          let s = 0;
+          let m = 0;
+          for (const j of joints) {
+            if (p[j].v < 0.3 || nb.p[j].v < 0.3) continue;
+            s += Math.hypot(p[j].x - nb.p[j].x, p[j].y - nb.p[j].y);
+            m++;
+          }
+          if (m) ds.push(s / m);
+        }
+        return ds.length ? median(ds) : null;
+      };
+      const jk = jump(f.p);
+      const js = jump(sw);
+      const smoother = !fast || pairs !== ARM_PAIRS || jk == null || js == null || js < jk;
+      if (keep != null && flip != null && flip < keep * 0.7 && smoother) {
         f.p = sw;
         n++;
       }
     }
-  }
+  });
   return n;
 }
 
