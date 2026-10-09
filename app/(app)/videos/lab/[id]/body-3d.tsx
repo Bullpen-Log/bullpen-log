@@ -15,12 +15,13 @@ import { Segmented } from '@/components/segmented';
 import { hasWebGL } from '@/components/three-stage';
 import { CHIP_BASE, CHIP_ON } from '@/components/velocity/kit';
 import type { Vec3 } from '@/lib/pitch-3d/linalg';
-import { V2J, type Pitch3dV2Ok } from '@/lib/pitch-3d/v2/contract';
+import type { Pitch3dV2Ok } from '@/lib/pitch-3d/v2/contract';
+import { displayTrack } from '@/lib/pitch-3d/v2/display';
 import type { LabGround } from '@/lib/pitch-lab-meta';
 import {
   MOUND,
-  moundHeightAt,
   PART_NAMES,
+  partMatrix,
   placePoint,
   readSkeletonParts,
   rigPose,
@@ -246,14 +247,12 @@ export const Body3D = forwardRef<
     transport.current = onTransport;
   }, [onTransport]);
 
-  /* 장면 → 관절(키 = 1) */
-  const frames = useMemo(
-    () =>
-      result.joints.map((fr) =>
-        fr.map((p) => [p[0] / 1000, p[1] / 1000, p[2] / 1000] as Vec3)
-      ),
-    [result.joints]
+  /* 장면 → 보기용 관절(키 = 1, 사람 몸 한계 · 떨림 다듬기 · 바닥 하나 — display.ts) */
+  const track = useMemo(
+    () => displayTrack(result, { ground, heightM: (heightCm ?? 180) / 100 }),
+    [result, ground, heightCm]
   );
+  const frames = track.frames;
   /*
    * 움직임 상자 — 카메라 거리 · 격자 자리. 관절 자리의 2~98% 로 잡는다(튄 장면 하나가 상자를 키의 절반만큼 부풀려 처음 화면이
    * 멀었다 — 2026-10-08 샘플 1 첫 장면 손목 503mm). 높이는 바닥(0) ~ 위 끝.
@@ -312,18 +311,13 @@ export const Body3D = forwardRef<
       const grid = new THREE.GridHelper(4, 16, GRID_A, GRID_B);
       grid.position.set(center[0], 0, center[2]);
       scene.add(grid);
-      /* 마운드 — 투수판 앞 모서리 = 니업 때 축발(던지는 손 쪽) 발목 자리 */
-      const heightM = (heightCm ?? 180) / 100;
-      let groundAt: ((x: number, z: number) => number) | undefined;
-      let lift = 0;
-      if (ground === 'mound') {
-        const pivot = frames[result.events.kneeUp ?? 0][result.hand === 'L' ? V2J.lAn : V2J.rAn];
-        const s = 1 / heightM;
-        groundAt = moundHeightAt(pivot[0], pivot[2], heightM);
-        lift = MOUND.top * s;
+      /* 마운드 — 투수판 앞 모서리 = 축발이 처음 닿은 자리, 높이는 두 발 자리에 맞춘 배율(display.ts) */
+      const { groundAt, mound } = track;
+      if (mound) {
+        const s = 1 / ((heightCm ?? 180) / 100);
         scene.add(
           new THREE.Mesh(
-            moundGeometry(THREE, groundAt, pivot[0] + MOUND.centerAhead * s, pivot[2], MOUND.radius * s),
+            moundGeometry(THREE, groundAt, mound.x0 + MOUND.centerAhead * s, mound.z0, MOUND.radius * s),
             new THREE.MeshStandardMaterial({ color: MOUND_COLOR, roughness: 1, metalness: 0 })
           )
         );
@@ -331,7 +325,11 @@ export const Body3D = forwardRef<
           new THREE.BoxGeometry(MOUND.rubber.depth * s, 0.02 * s, MOUND.rubber.width * s),
           new THREE.MeshStandardMaterial({ color: RUBBER_COLOR, roughness: 0.8, metalness: 0 })
         );
-        rubber.position.set(pivot[0] - (MOUND.rubber.depth * s) / 2, lift + 0.01 * s, pivot[2]);
+        rubber.position.set(
+          mound.x0 - (MOUND.rubber.depth * s) / 2,
+          groundAt(mound.x0, mound.z0) + 0.01 * s,
+          mound.z0
+        );
         scene.add(rubber);
       }
       const corner = new THREE.Vector3(center[0] - 1.7, 0.002, center[2] - 1.7);
@@ -379,8 +377,7 @@ export const Body3D = forwardRef<
       controls.rotateSpeed = 0.8;
       controls.minPolarAngle = THREE.MathUtils.degToRad(10);
       controls.maxPolarAngle = THREE.MathUtils.degToRad(85);
-      /* 마운드 위면 몸이 투수판 높이만큼 올라선다 — 겨누는 점도 그 절반만큼 */
-      const target = new THREE.Vector3(center[0], center[1] + lift / 2, center[2]);
+      const target = new THREE.Vector3(center[0], center[1], center[2]);
       controls.target.copy(target);
       let dirty = true;
       controls.addEventListener('change', () => {
@@ -456,15 +453,6 @@ export const Body3D = forwardRef<
       };
 
       /*
-       * 디딤발 — 착지 전엔 축발(던지는 손 쪽), 착지 뒤엔 앞발, 착지 앞뒤 3장면은 섞는다. 장면마다 '낮은 발'로 바닥을 잡으면 몸이 튀었다.
-       */
-      const fpK = result.events.footPlant;
-      const pivotSide: 'L' | 'R' = result.hand === 'L' ? 'L' : 'R';
-      const supportAt = (k: number) => {
-        const lead = Math.max(0, Math.min(1, (k - (fpK - 3)) / 6));
-        return pivotSide === 'R' ? { L: lead, R: 1 - lead } : { L: 1 - lead, R: lead };
-      };
-      /*
        * 발 닿은 자리 — 발이 바닥(경사면)에 닿아 있을 때만(발밑 가장 가까운 점이 키의 1.2% 안) 뼈 색을 옅게 깐다. 앞발 자리가 생기는
        * 장면이 착지. 검은 그림자는 어두운 바닥에 묻혀 안 보였다.
        */
@@ -486,54 +474,37 @@ export const Body3D = forwardRef<
           const f = `foot${side}` as PartName;
           const A = parts.anchors[f];
           const pts = [A.proximal, A.distal, A.heel].map((q) => placePoint(pose[f], q, A.proximal));
-          const gap = Math.min(...pts.map((w) => w[1] - (groundAt ? groundAt(w[0], w[2]) : 0)));
+          const gap = Math.min(...pts.map((w) => w[1] - groundAt(w[0], w[2])));
           const sh = shadows[i];
           sh.visible = gap < 0.012;
           if (!sh.visible) return;
           const cx = (pts[0][0] + pts[1][0] + pts[2][0]) / 3;
           const cz = (pts[0][2] + pts[1][2] + pts[2][2]) / 3;
           const len = Math.hypot(pts[1][0] - pts[2][0], pts[1][2] - pts[2][2]);
-          sh.position.set(cx, (groundAt ? groundAt(cx, cz) : 0) + 0.004, cz);
+          sh.position.set(cx, groundAt(cx, cz) + 0.004, cz);
           /* 발 뼈보다 넉넉히(뼈에 가려 안 보였다) */
           sh.scale.set(Math.max(0.08, len * 0.95), Math.max(0.05, len * 0.5), 1);
           sh.rotation.z = -Math.atan2(pts[1][2] - pts[2][2], pts[1][0] - pts[2][0]);
         });
       };
 
-      /* 자세 적용 */
-      let prevPose: RigPose | null = null;
+      /*
+       * 자세 — 처음부터 차례로 한 번에 만든다(굽힘 축은 앞 장면을 잇는다). 예전엔 보여 줄 때마다 바로 앞에 '보여 준' 장면을 이어
+       * 끌거나 건너뛰면 같은 장면이 다르게 보였다.
+       */
+      const poses: RigPose[] = [];
+      for (let k = 0; k < n; k++)
+        poses.push(rigPose(frames[k], result.hand, parts, poses[k - 1] ?? null));
       const mat = new THREE.Matrix4();
       const applyFrame = (k: number) => {
-        const pose = rigPose(frames[k], result.hand, parts, prevPose, groundAt, supportAt(k));
-        prevPose = pose;
+        const pose = poses[k];
         placeShadows(pose);
         for (const name of PART_NAMES) {
-          const p = pose[name];
-          const R = p.R;
-          const s = p.scale;
-          const pr = parts.anchors[name].proximal;
-          /* X_w = position + s·R·(X − proximal) */
-          const tx = p.position[0] - s * (R[0] * pr[0] + R[1] * pr[1] + R[2] * pr[2]);
-          const ty = p.position[1] - s * (R[3] * pr[0] + R[4] * pr[1] + R[5] * pr[2]);
-          const tz = p.position[2] - s * (R[6] * pr[0] + R[7] * pr[1] + R[8] * pr[2]);
-          mat.set(
-            R[0] * s,
-            R[1] * s,
-            R[2] * s,
-            tx,
-            R[3] * s,
-            R[4] * s,
-            R[5] * s,
-            ty,
-            R[6] * s,
-            R[7] * s,
-            R[8] * s,
-            tz,
-            0,
-            0,
-            0,
-            1
+          const [a, b, c, tx, d, e, f, ty, g, h, i, tz] = partMatrix(
+            pose[name],
+            parts.anchors[name].proximal
           );
+          mat.set(a, b, c, tx, d, e, f, ty, g, h, i, tz, 0, 0, 0, 1);
           meshes[name].matrix.copy(mat);
           meshes[name].matrixWorldNeedsUpdate = true;
         }
@@ -666,7 +637,7 @@ export const Body3D = forwardRef<
       disposed = true;
       cleanup?.();
     };
-  }, [bounds, frames, n, result.events.release, result.events.kneeUp, result.events.footPlant, result.hand, result.t, retry, ground, heightCm]);
+  }, [bounds, frames, track, n, result.events.release, result.hand, result.t, retry, heightCm]);
 
   useImperativeHandle(ref, () => ({ seek: (k) => ctrl.current?.seek(k) }), []);
 

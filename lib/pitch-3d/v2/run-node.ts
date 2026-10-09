@@ -110,6 +110,7 @@ export function pickSegment(input: { side: unknown; back: unknown }): SegmentOut
  * hand · 좌우 바꿈(handSwapped · backMirrored), 장면마다 [릴리스에서 몇 장면, 골반 높이, 왼 · 오른 발목 높이(mm, 키 1000),
  * 어깨선 · 골반선 방향(°, 위에서 본 각), 코 높이, 그 장면 가장 큰 관절 이동 mm] — 착지 30장면 전 ~ 릴리스 20장면 뒤.
  * jumps: 어깨선 · 골반선이 한 장면에 45° 넘게 돈 횟수, 골반이 한 장면에 키의 3% 넘게 오르내린 횟수.
+ * legsSwapped · contacts: 무릎 아래 좌우를 바꿨는지, 발이 땅에 닿아 묶인 구간 [발, 시작, 끝](릴리스에서 몇 장면).
  */
 export function bodyDiag(r: Pitch3dV2Ok) {
   const { footPlant: fp, release: rel } = r.events;
@@ -146,6 +147,8 @@ export function bodyDiag(r: Pitch3dV2Ok) {
   return {
     hand: r.hand,
     flips: r.quality.flips,
+    legsSwapped: r.fit.legsSwapped ?? null,
+    contacts: (r.fit.contacts ?? []).map((c) => [c.side, c.from - rel, c.to - rel]),
     n: r.joints.length,
     fp: fp - rel,
     kneeUp: r.events.kneeUp == null ? null : r.events.kneeUp - rel,
