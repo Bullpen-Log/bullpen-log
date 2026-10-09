@@ -192,6 +192,8 @@ export type VideoAnalysisInfo = {
     drawMs: number;
     /** 하드웨어 디코더로 푼 장면 수(0 이면 되감기로만 꺼냄) */
     decoded: number;
+    /** 디코더를 연 시간(ms, 모듈 · 파일 머리 · 길이) */
+    openMs: number;
   };
 };
 
@@ -263,6 +265,7 @@ export async function analyzeVideo(options: AnalyzeOptions): Promise<VideoAnalyz
     seekWaitMs: 0,
     drawMs: 0,
     decoded: 0,
+    openMs: 0,
   };
   const {
     file,
@@ -298,7 +301,9 @@ export async function analyzeVideo(options: AnalyzeOptions): Promise<VideoAnalyz
    * 못 푼 장면)이 필요할 때만 깨운다 — 깨우기(첫 장면 기다림)만 해도 시간이 들고, 시뮬레이터 웹킷은 앱 클립(fMP4)의 첫 장면을 30초
    * 안에 못 받았다(2026-10-09).
    */
+  const o0 = now();
   const dec = options.frames !== 'seek' ? await openDecoder(file).catch(() => null) : null;
+  timing.openMs = now() - o0;
   let decodeOk = dec != null;
   const url = URL.createObjectURL(file);
   let video: HTMLVideoElement | null = null;
@@ -616,6 +621,30 @@ export async function analyzeVideo(options: AnalyzeOptions): Promise<VideoAnalyz
     URL.revokeObjectURL(url);
     dec?.dispose();
   }
+}
+
+/**
+ * 디코더 미리 데우기 — 측정을 시작할 때(DualCapture.arm) 한 번. 디코더 모듈을 받아 두고, 밝기 만들기(lumaOfSample)를 빈 장면으로 한 번
+ * 돌려 JIT 를 데우고 Y 버퍼를 잡아 둔다 — 첫 공 계산에서 이것들이 0.4초쯤 먹었다(2026-10-09 폰, 가짜 공).
+ */
+export async function warmDecoder(): Promise<void> {
+  if (typeof VideoDecoder === 'undefined') return;
+  await import('mediabunny');
+  const w = 1920;
+  const h = 1080;
+  await lumaOfSample(
+    {
+      format: 'NV12',
+      rotation: 90,
+      codedWidth: w,
+      visibleRect: { left: 0, top: 0, width: w, height: h },
+      colorSpace: { fullRange: false },
+      allocationSize: () => (w * h * 3) / 2,
+      copyTo: async () => [{ offset: 0, stride: w }],
+    },
+    720,
+    1280
+  );
 }
 
 /** 영상 범위(16~235) → 0~255, 반올림 · 자름 — 맥 도구 native-decode(decode-range.swift src)와 같은 셈 */
