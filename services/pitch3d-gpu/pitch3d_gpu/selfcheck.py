@@ -113,12 +113,136 @@ if np is not None:
     check("거울은 회전으로 안 만든다(det +1)", abs(np.linalg.det(R2) - 1) < 1e-9)
     k70 = rng.normal(size=(70, 3))
     k70[41] = [0, 0, 0]
-    for i, c in enumerate([28, 27, 26, 25]):
-        k70[c] = [0.02 * (i + 1) + 0.05, 0, 0]
+    k70[25] = [0.01, 0, 0]  # 주먹(공을 쥔 손) — 손끝이 손목에 더 가깝다
+    k70[28] = [0.09, 0, 0]
     v = sam3d.to_v2(k70, _NAMES)
     ix = {n: i for i, n in enumerate(_NAMES)}
-    check("손 관절 = 손가락 네 점 중 손목에 가장 가까운 마디", np.allclose(v[ix["rHandIdx"]], k70[28]))
-    check("엔진 관절 25개가 모두 MHR 에 있다", all(n in sam3d.MHR or n in sam3d.FINGERS for n in _NAMES))
+    check("손 관절 = 늘 손허리뼈 마디(third joint) — 주먹을 쥐어 손끝이 가까워도", np.allclose(v[ix["rHandIdx"]], k70[28]))
+    check("엔진 관절 25개가 모두 MHR 에 있다", all(n in sam3d.MHR for n in _NAMES))
+
+    # assemble — 알려진 회전 · 크기 · 이동으로 만든 AI 점이 우리 관절로 되돌아오는지, 짧은 틈은 잇고 긴 틈은 miss
+    n = 24
+    base_shape = rng.normal(size=(25, 3)) * 0.2
+    ours = np.array([base_shape + [0.01 * k, 0, 0.002 * k] for k in range(n)])
+    inv = {}
+    th = 0.4
+    Rz = np.array([[np.cos(th), -np.sin(th), 0], [np.sin(th), np.cos(th), 0], [0, 0, 1]])
+    for k in range(n):
+        a70 = np.zeros((70, 3))
+        a = (Rz @ (ours[k] / 1.3).T).T + [0.5, -0.2, 3.0]  # 카메라 좌표(다른 회전 · 크기 · 위치)
+        for nm, j in sam3d.MHR.items():
+            a70[j] = a[ix[nm]]
+        inv[k] = a70.tolist()
+    ts = [k / 60 for k in range(n)]
+    res = {"ok": True, "t": ts, "joints": np.rint(ours * 1000).astype(int).tolist(), "conf": [[90] * 25 for _ in range(n)]}
+    raw = {k: v for k, v in inv.items() if k != 5 and not 10 <= k <= 15}
+    ai = sam3d.assemble(res, raw, _NAMES, ts)
+    out = np.array(ai["joints"]) / 1000
+    err = np.abs(out - ours).max()
+    check("assemble: 회전 · 크기를 되찾아 우리 관절로(1mm 안) · 실패한 그림 하나는 이음 · 고르기가 곧은 움직임을 안 바꿈", err < 0.0015, f"{err * 1000:.2f}mm")
+    check("assemble: 실패한 그림이 둘 넘게 이어진 틈은 miss(우리 것 그대로)", ai.get("miss") == list(range(10, 16)))
+    # 30fps 그림을 60fps 장면에 — 그림 시각(두 장면 가운데)으로 이어 계단이 없어야
+    t60 = [k / 60 for k in range(40)]
+    def curve(tt):
+        c = base_shape.copy()
+        c[ix["lWr"]] += [0.3 * np.sin(4 * tt), 0.2 * tt, 0.0]  # 손목만 움직인다
+        return c
+
+    ours60 = np.array([curve(tt) for tt in t60])
+    res60 = {"ok": True, "t": t60, "joints": np.rint(ours60 * 1000).astype(int).tolist(), "conf": [[90] * 25 for _ in range(40)]}
+    pic_t = [(2 * i + 0.5) / 60 for i in range(20)]
+    raw30 = {}
+    for i, tt in enumerate(pic_t):
+        a70 = np.zeros((70, 3))
+        for nm, j in sam3d.MHR.items():
+            a70[j] = curve(tt)[ix[nm]]
+        raw30[i] = a70.tolist()
+    o60 = np.array(sam3d.assemble(res60, raw30, _NAMES, pic_t)["joints"]) / 1000
+    w = ix["lWr"]
+    e_interp = np.median([np.linalg.norm(o60[k, w] - ours60[k, w]) for k in range(2, 38)])
+    e_hold = np.median([np.linalg.norm(curve(pic_t[min(19, k // 2)])[w] - ours60[k, w]) for k in range(2, 38)])  # 예전처럼 가까운 그림 그대로
+    check("assemble: 30fps 그림 → 60fps 장면을 시각으로 이음(가까운 그림 베끼기의 ¼ 밑 오차)", e_interp < 0.25 * e_hold, f"{e_interp * 1000:.1f} vs {e_hold * 1000:.1f}mm")
+
+    # 나눠 맡기(ai_parallel) — 가짜 줄 · 스레드 도우미
+    import queue as _q
+    import threading
+    import time as _t
+
+    from . import ai_parallel as ap
+
+    class FakeQ:
+        def __init__(self):
+            self.parts: dict = {}
+            self.lock = threading.Lock()
+
+        def _p(self, name):
+            with self.lock:
+                return self.parts.setdefault(name or "", _q.Queue())
+
+        def put(self, v, partition=None):
+            self._p(partition).put(v)
+
+        def get(self, block=True, timeout=None, partition=None):
+            p = self._p(partition)
+            if not block:
+                try:
+                    return p.get_nowait()
+                except _q.Empty:
+                    return None
+            return p.get(timeout=timeout)  # 시간이 다 되면 queue.Empty(Modal 과 같다)
+
+    class Handle:
+        def cancel(self):
+            pass
+
+    def fake_infer(frames, chunk, fail_on=None):
+        _t.sleep(0.005)
+        return {it["k"]: [[float(it["k"])] * 3] * 70 for it in chunk if it["k"] != fail_on}
+
+    items = [{"k": k, "fi": k, "t": k / 60, "box": [0, 0, 1, 1], "K": []} for k in range(100)]
+    ap.HELPER_WAIT_SEC = 1.5
+
+    def scenario(helper_kinds, fail_on=None):
+        q = FakeQ()
+        threads = []
+
+        def spawn(i):
+            kind = helper_kinds[i]
+            if kind == "never":
+                return Handle()
+
+            def infer(frames, chunk):
+                if kind == "dies":
+                    raise RuntimeError("죽음")  # 묶음을 집은 채 죽는다
+                return fake_infer(frames, chunk, fail_on)
+
+            def body():
+                try:
+                    ap.helper_loop(q, f"h{i}", lambda cfg: [], infer)
+                except RuntimeError:
+                    pass
+
+            th = threading.Thread(target=body, daemon=True)
+            th.start()
+            threads.append(th)
+            return Handle()
+
+        co = ap.Coordinator(q, spawn, len(helper_kinds))
+        co.start()
+        co.video({"url": "x", "fromSec": 0, "toSec": 1})
+        t0 = _t.time()
+        out = co.run(items, lambda c: fake_infer([], c, fail_on))
+        co.close()
+        return out, _t.time() - t0, co.by
+
+    out, dt, by = scenario(["ok", "ok"])
+    check("나눠 맡기: 모든 장면 · 같은 답 · 도우미도 맡음", set(out) == set(range(100)) and all(out[k][0][0] == k for k in out) and sum(by.values()) > 0, f"{by} {dt:.2f}s")
+    out, dt, by = scenario(["dies", "ok"])
+    check("나눠 맡기: 묶음을 든 채 죽은 도우미 — 빠지는 장면 없음", set(out) == set(range(100)), f"{dt:.2f}s")
+    out, dt, by = scenario(["never", "never"])
+    check("나눠 맡기: 도우미가 안 켜져도 분석 GPU 혼자 끝냄 · 기다리지 않음", set(out) == set(range(100)) and dt < 1.0, f"{dt:.2f}s")
+    out, dt, by = scenario(["ok"], fail_on=7)
+    check("나눠 맡기: 사람을 못 찾은 장면이 있어도 기다리지 않음(빠진 것은 그 장면만)", set(out) == set(range(100)) - {7} and dt < 1.0, f"{dt:.2f}s")
 else:
     print("  건너뜀 — numpy 없음")
 

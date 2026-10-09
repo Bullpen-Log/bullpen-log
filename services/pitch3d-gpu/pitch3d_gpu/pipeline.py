@@ -113,10 +113,29 @@ def _decimate(frames: list, cap: int) -> list:
     return [frames[i] for i in keep]
 
 
-def run_job(job: dict, pose_factory: Callable[[], object], report: Report) -> dict:
+def fine_frames(path: str, from_sec: float, to_sec: float) -> list:
+    """구간의 장면(120fps, 600장까지) — 분석 GPU 와 AI 도우미가 같은 그림을 얻게 한 곳에서."""
+    return _decimate(video.decode(path, FINE_FPS, from_sec, to_sec, MAX_FRAMES + 50), MAX_FRAMES)
+
+
+def helper_frames(cfg: dict) -> list:
+    """AI 도우미 — 옆 영상을 받아 분석 GPU 와 같은 구간 장면을 푼다(ai_parallel.helper_loop)."""
+    with tempfile.TemporaryDirectory() as d:
+        path = os.path.join(d, "side.mp4")
+        _download(cfg["url"], path)
+        return fine_frames(path, cfg["fromSec"], cfg["toSec"])
+
+
+def run_job(job: dict, pose_factory: Callable[[], object], report: Report, ai: object | None = None) -> dict:
+    """ai 는 AI 보정을 나눠 맡기는 손잡이(ai_parallel.Coordinator — video · run · close). 없으면 이 GPU 하나로.
+
+    job["dryRun"] 이 True 면 올리지 않고 결과를 돌려준다(app.py e2e — 실제 영상으로 끝까지 시험할 때).
+    """
     job_id = str(job["jobId"])
+    dry = job.get("dryRun") is True
     stages: dict[str, float] = {}
     t_start = time.time()
+    from . import sam3d  # AI 모델은 AI 단계에서 올린다 — 앞에서 미리 올리면 받기 · 관절 찾기와 CPU 를 다퉈 20초쯤 늦었다(2026-10-09 시험)
 
     def mark(stage: str) -> None:
         stages[stage] = round(time.time() - t_start - sum(stages.values()), 1)
@@ -158,11 +177,11 @@ def run_job(job: dict, pose_factory: Callable[[], object], report: Report) -> di
                 raise StepFail(str(seg.get("code", "events")), "segment")
             print(f"[pitch3d segment] {json.dumps(seg)[:300]}")
             mark("segment")
+            if ai is not None:
+                ai.video({"url": job["side"]["url"], "fromSec": seg["side"]["fromSec"], "toSec": seg["side"]["toSec"]})
 
-            fine_side = video.decode(side_path, FINE_FPS, seg["side"]["fromSec"], seg["side"]["toSec"], MAX_FRAMES + 50)
-            fine_back = video.decode(back_path, FINE_FPS, seg["back"]["fromSec"], seg["back"]["toSec"], MAX_FRAMES + 50)
-            fine_side = _decimate(fine_side, MAX_FRAMES)
-            fine_back = _decimate(fine_back, MAX_FRAMES)
+            fine_side = fine_frames(side_path, seg["side"]["fromSec"], seg["side"]["toSec"])
+            fine_back = fine_frames(back_path, seg["back"]["fromSec"], seg["back"]["toSec"])
             fine = {
                 "side": pose.track(fine_side, sw, sh, min(FINE_FPS, sfps)),
                 "back": pose.track(fine_back, bw, bh, min(FINE_FPS, bfps)),
@@ -170,40 +189,56 @@ def run_job(job: dict, pose_factory: Callable[[], object], report: Report) -> di
             result = engine.run("fit", fit_payload(job, fine, seg, getattr(pose, "name", "rtmw")))
             # AI 스켈레톤 보정(실험, sam3d.py) — 못 하면 그대로(분석은 막지 않는다). 단계 이름은 fit 안에(화면의 단계 표를 안 바꾼다)
             if result.get("ok"):
+                t_ai = time.time()
                 try:
-                    from . import sam3d
                     from .mapping import V2_NAMES
 
-                    ai = sam3d.correct(result, fine_side, fine["side"], V2_NAMES)
-                    if ai:
-                        result["experimental"] = {"sam3d": ai}
+                    def local(chunk: list) -> dict:
+                        est = sam3d._load()
+                        return sam3d.infer_items(est, fine_side, chunk) if est is not None else {}
+
+                    run = (lambda items: ai.run(items, local)) if ai is not None else None
+                    out_ai = sam3d.correct(result, fine_side, fine["side"], V2_NAMES, run)
+                    if out_ai:
+                        result["experimental"] = {"sam3d": out_ai}
+                        agree = {
+                            "우리": sam3d.video_agreement(result, result["joints"], fine, V2_NAMES),
+                            "AI": sam3d.video_agreement(result, out_ai["joints"], fine, V2_NAMES),
+                        }
+                        print(f"[pitch3d ai] 영상과 차이(몸 높이 %) {json.dumps(agree, ensure_ascii=False)}")
                 except Exception as e:  # noqa: BLE001
                     print(f"[pitch3d ai] 건너뜀 — {type(e).__name__}: {str(e)[:300]}")
+                print(f"[pitch3d ai] {time.time() - t_ai:.1f}초")
             mark("fit")
             result_json = json.dumps(result)
             assert len(result_json) < 900_000, "결과가 900KB 를 넘는다"  # 엔진이 먼저 거르지만 한 번 더
         except StepFail as e:
             result_json = _fail_result(job_id, e.code, e.stage)
             try:
-                _upload(job["result"]["uploadUrl"], result_json)
+                if not dry:
+                    _upload(job["result"]["uploadUrl"], result_json)
             except StepFail:
                 pass
             return {"status": "failed", "code": e.code, "stage": e.stage, "stages": stages}
         except engine.EngineError as e:
             result_json = _fail_result(job_id, "internal", "fit")
             try:
-                _upload(job["result"]["uploadUrl"], result_json)
+                if not dry:
+                    _upload(job["result"]["uploadUrl"], result_json)
             except StepFail:
                 pass
             return {"status": "failed", "code": "internal", "stage": "fit", "stages": stages, "detail": str(e)[:500]}
 
         report("upload", dict(stages))
         try:
-            _upload(job["result"]["uploadUrl"], result_json)
+            if not dry:
+                _upload(job["result"]["uploadUrl"], result_json)
         except StepFail as e:
             return {"status": "failed", "code": e.code, "stage": "upload", "stages": stages}
         mark("upload")
         parsed = json.loads(result_json)
+        if dry:
+            return {"status": "done" if parsed.get("ok") else "failed", "stages": stages, "result": parsed}
         if parsed.get("ok"):
             return {"status": "done", "stages": stages, "frames": len(parsed.get("t", []))}
         return {"status": "failed", "code": parsed.get("code", "internal"), "stage": parsed.get("stage", "fit"), "stages": stages}

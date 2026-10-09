@@ -54,9 +54,10 @@ const LABELS: Record<MetricKey, string> = {
   maxExternalRotation: '어깨 외회전 최대',
   plantToRelease: '착지 → 릴리스',
 };
+/* 기본은 측정 그대로 — 2026-10-09 샘플 3 · 4 에서 AI 관절이 두 영상에 우리보다 2~5배 멀었다(영상과 맞는 곳만 쓰게 고칠 때까지) */
 const AI_VIEW_OPTIONS: { value: 'ai' | 'raw'; label: string }[] = [
-  { value: 'ai', label: 'AI 보정' },
   { value: 'raw', label: '측정 그대로' },
+  { value: 'ai', label: 'AI 보정' },
 ];
 
 /** 겉에 보이는 지표(나머지는 '자세히') */
@@ -155,7 +156,7 @@ export function LabDetail({
   };
   /* AI 스켈레톤 보정(실험) — 결과에 AI 관절이 있을 때만 고르개가 보인다, 처음엔 켬 */
   const hasAi = result != null && readAiJoints(result) != null;
-  const [aiView, setAiView] = useState<'ai' | 'raw'>('ai');
+  const [aiView, setAiView] = useState<'ai' | 'raw'>('raw');
   const main = result
     ? MAIN.map((k) => result.metrics.find((m) => m.key === k)).filter(
         (m): m is Metric => m != null
