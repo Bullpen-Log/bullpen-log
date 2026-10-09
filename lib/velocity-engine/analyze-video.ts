@@ -2,6 +2,8 @@
 
 import { prepareDetachedVideo, waitForFirstFrame } from './video-open.ts';
 import { toLuma } from './detect.ts';
+import { lumaOfSample } from './luma-plane.ts';
+import { lumaInWorker, lumaPoolSize, warmLumaPool } from './luma-pool.ts';
 import {
   analyzeScale,
   analyzeFrames,
@@ -136,6 +138,11 @@ export type AnalyzeOptions = {
   distanceAuto?: boolean;
   /** fovDeg 가 잰 값인가(앱 동시 촬영의 videoFieldOfView) — 안 주면 파일의 렌즈 정보 · 렌즈 보정이 있을 때만 잰 값으로 본다 */
   fovKnown?: boolean;
+  /**
+   * 장면 꺼내기 — 'decode'(기본): 하드웨어 디코더(WebCodecs)로 차례로 풀어 필요한 장면만 그린다, 못 하면 'seek' 로.
+   * 'seek': <video> 를 장면마다 되감아 그린다(예전 길 — 견주기 · 시험용)
+   */
+  frames?: 'decode' | 'seek';
 };
 
 /** 엔진 2.0 의 분석 구간(초) — 공 앞 0.1초 + 1.3초 담기 + 여유. 76km/h 공도 20m 그물에 닿고 튀는 장면까지 */
@@ -185,6 +192,10 @@ export type VideoAnalysisInfo = {
     /** 되감기를 기다린 시간 · 그려 밝기로 읽은 시간(ms, 거친 훑기 · 구간 모두) — 어느 쪽이 느린지 */
     seekWaitMs: number;
     drawMs: number;
+    /** 하드웨어 디코더로 푼 장면 수(0 이면 되감기로만 꺼냄) */
+    decoded: number;
+    /** 디코더를 연 시간(ms, 모듈 · 파일 머리 · 길이) */
+    openMs: number;
   };
 };
 
@@ -246,7 +257,18 @@ const now = () => (typeof performance !== 'undefined' ? performance.now() : Date
 
 export async function analyzeVideo(options: AnalyzeOptions): Promise<VideoAnalyzeResult> {
   const startedAt = now();
-  const timing = { coarseMs: 0, findMs: 0, framesMs: 0, analyzeMs: 0, totalMs: 0, seeks: 0, seekWaitMs: 0, drawMs: 0 };
+  const timing = {
+    coarseMs: 0,
+    findMs: 0,
+    framesMs: 0,
+    analyzeMs: 0,
+    totalMs: 0,
+    seeks: 0,
+    seekWaitMs: 0,
+    drawMs: 0,
+    decoded: 0,
+    openMs: 0,
+  };
   const {
     file,
     startSec,
@@ -276,22 +298,35 @@ export async function analyzeVideo(options: AnalyzeOptions): Promise<VideoAnalyz
     !hdr &&
     approach === 'receding';
 
-  const url = URL.createObjectURL(file);
-  const video = document.createElement('video');
   /*
-   * 아이폰 웹킷은 preload='auto' 여도 길이 · 크기(loadedmetadata)에서 멈춰 첫 장면(loadeddata)이 안 온다 — 소리 없이 한 번 틀었다
-   * 멈춰 깨운다(video-open.ts). 그냥 기다리면 측정 화면 '파일로 재기'가 30초 뒤 '영상을 열지 못했습니다'로 끝났다(2026-10-07,
-   * iOS 시뮬레이터 사파리로 재현).
+   * 하드웨어 디코더(WebCodecs) — 열리면 크기 · 길이도 여기서 읽고 장면도 여기서 푼다. <video> 는 되감기 길(거친 훑기 · 디코더가
+   * 못 푼 장면)이 필요할 때만 깨운다 — 깨우기(첫 장면 기다림)만 해도 시간이 들고, 시뮬레이터 웹킷은 앱 클립(fMP4)의 첫 장면을 30초
+   * 안에 못 받았다(2026-10-09).
    */
-  prepareDetachedVideo(video);
-  video.src = url;
+  const o0 = now();
+  const dec = options.frames !== 'seek' ? await openDecoder(file).catch(() => null) : null;
+  timing.openMs = now() - o0;
+  let decodeOk = dec != null;
+  const url = URL.createObjectURL(file);
+  let video: HTMLVideoElement | null = null;
+  const getVideo = async () => {
+    if (video) return video;
+    const v = document.createElement('video');
+    /*
+     * 아이폰 웹킷은 preload='auto' 여도 길이 · 크기(loadedmetadata)에서 멈춰 첫 장면(loadeddata)이 안 온다 — 소리 없이 한 번 틀었다
+     * 멈춰 깨운다(video-open.ts). 그냥 기다리면 측정 화면 '파일로 재기'가 30초 뒤 '영상을 열지 못했습니다'로 끝났다(2026-10-07,
+     * iOS 시뮬레이터 사파리로 재현).
+     */
+    prepareDetachedVideo(v);
+    v.src = url;
+    video = v;
+    if ((await waitForFirstFrame(v, 30_000)) !== 'ok') throw new Error('영상을 열지 못했습니다.');
+    return v;
+  };
 
   try {
-    const loaded = (await waitForFirstFrame(video, 30_000)) === 'ok';
-    if (!loaded) throw new Error('영상을 열지 못했습니다.');
-
-    const sourceW = video.videoWidth;
-    const sourceH = video.videoHeight;
+    const sourceW = dec?.width ?? (await getVideo()).videoWidth;
+    const sourceH = dec?.height ?? (await getVideo()).videoHeight;
     if (!sourceW || !sourceH) throw new Error('영상 크기를 읽지 못했습니다.');
 
     const scale = analyzeScale(sourceW, sourceH);
@@ -306,17 +341,18 @@ export async function analyzeVideo(options: AnalyzeOptions): Promise<VideoAnalyz
 
     /* 되감아 그린다. 표가 있으면 늘 그 장면의 한가운데를 짚는다(경계에 걸려 앞 · 뒤 장면을 오가지 않게) */
     const seekTo = async (t: number) => {
+      const v = await getVideo();
       timing.seeks++;
       const s0 = now();
-      video.currentTime = t;
-      const ok = await waitForEvent(video, 'seeked', 10_000);
+      v.currentTime = t;
+      const ok = await waitForEvent(v, 'seeked', 10_000);
       timing.seekWaitMs += now() - s0;
       return ok;
     };
     const snap = (t: number) => (table ? seekTimeOf(table, sampleIndexAt(table, t)) : t);
     const grab = () => {
       const d0 = now();
-      ctx.drawImage(video, 0, 0, width, height);
+      ctx.drawImage(video as HTMLVideoElement, 0, 0, width, height);
       const luma = toLuma(ctx.getImageData(0, 0, width, height).data, width, height);
       timing.drawMs += now() - d0;
       return luma;
@@ -328,7 +364,7 @@ export async function analyzeVideo(options: AnalyzeOptions): Promise<VideoAnalyz
      *    던진 뒤 따라 나오는 몸 · 영상 첫머리 준비 동작)에 끌려, 구간이 던지기 전에 끝나거나(89288ada) 릴리스 첫 장면을
      *    잘랐다(af31e8d0 · f43a7958). 공으로 잡은 구간에서 재지 못하면 예전 구간으로 한 번 더 잰다.
      */
-    const duration = video.duration;
+    const duration = dec?.duration ?? (await getVideo()).duration;
     let plan: ThrowPlan | null = null;
     let windows: AnalysisWindow[];
     let progressFrom = 0;
@@ -340,7 +376,7 @@ export async function analyzeVideo(options: AnalyzeOptions): Promise<VideoAnalyz
         ? focalPerLongSide * Math.max(sourceW, sourceH)
         : focalPxFromFov(Math.max(sourceW, sourceH), fovDeg);
       const c0 = now();
-      plan = await planFromCoarse(video, duration, table, approach, focalLong / sourceW, timing, (r) =>
+      plan = await planFromCoarse(await getVideo(), duration, table, approach, focalLong / sourceW, timing, (r) =>
         onProgress?.(r * 0.15)
       );
       if (plan.ball?.accepted) options.onBall?.();
@@ -406,6 +442,25 @@ export async function analyzeVideo(options: AnalyzeOptions): Promise<VideoAnalyz
       const frames: CapturedFrame[] = [];
       let shakePx = 0;
       const f0 = now();
+      /* 하드웨어 디코더로 이 구간 · 배경 장면을 한 번에 — 되감기(장면마다 'seeked' 기다림)를 건너뛴다. 못 풀면 아래 되감기가 마저 */
+      if (dec && decodeOk) {
+        decodeOk = await dec
+          .fill(
+            [...planned, ...bgPlan],
+            cache,
+            { width, height },
+            (draw) => {
+              draw(ctx, width, height);
+              return toLuma(ctx.getImageData(0, 0, width, height).data, width, height);
+            },
+            (ms) => {
+              timing.drawMs += ms;
+              timing.decoded++;
+            }
+          )
+          .then(() => true)
+          .catch(() => false);
+      }
       for (const [k, q] of planned.entries()) {
         let luma = cache.get(q.key);
         if (!luma) {
@@ -564,8 +619,105 @@ export async function analyzeVideo(options: AnalyzeOptions): Promise<VideoAnalyz
       },
     };
   } finally {
-    video.src = '';
+    if (video) (video as HTMLVideoElement).src = '';
     URL.revokeObjectURL(url);
+    dec?.dispose();
+  }
+}
+
+/**
+ * 디코더 미리 데우기 — 측정을 시작할 때(DualCapture.arm) 한 번. 디코더 모듈을 받아 두고, 밝기 만들기 일꾼들을 깨워 빈 장면으로 한 번씩
+ * 돌려 JIT 를 데우고 Y 버퍼를 잡아 둔다 — 첫 공 계산에서 이것들이 0.4초쯤 먹었다(2026-10-09 폰, 가짜 공).
+ */
+export async function warmDecoder(): Promise<void> {
+  if (typeof VideoDecoder === 'undefined') return;
+  await Promise.all([import('mediabunny'), warmLumaPool()]);
+}
+
+/**
+ * 하드웨어 디코더(WebCodecs, mediabunny) — 크기(돌림 반영) · 길이와, 장면을 차례로 풀어 아직 없는 장면만 grab 으로 그려 cache 에
+ * 넣는 fill. <video> 되감기는 장면마다 'seeked' 를 기다려 앱 클립 100장에 1초 넘게 들었다(2026-10-09 폰). 그리기 · 밝기 셈
+ * (drawImage → getImageData → toLuma)은 되감기 길과 같고, 짚는 시각(seek)도 같다 — 그 시각에 보이는 장면(시작이 그 시각 이하인
+ * 마지막 장면). 웹코덱이 없거나 코덱을 못 풀면 null — 되감기로 꺼낸다. fill 이 던지면 부르는 쪽이 되감기로 마저 꺼낸다.
+ */
+async function openDecoder(file: File) {
+  if (typeof VideoDecoder === 'undefined') return null;
+  const { ALL_FORMATS, BlobSource, Input, VideoSampleSink } = await import('mediabunny');
+  const input = new Input({ source: new BlobSource(file), formats: ALL_FORMATS });
+  try {
+    const track = await input.getPrimaryVideoTrack();
+    if (!track || !(await track.canDecode())) {
+      input.dispose();
+      return null;
+    }
+    const [width, height, duration] = await Promise.all([
+      track.getDisplayWidth(),
+      track.getDisplayHeight(),
+      track.computeDuration(),
+    ]);
+    const sink = new VideoSampleSink(track);
+    return {
+      width,
+      height,
+      duration,
+      async fill(
+        wants: { key: string; seek: number }[],
+        cache: Map<string, Float32Array>,
+        size: { width: number; height: number },
+        grab: (draw: (ctx: CanvasRenderingContext2D, width: number, height: number) => void) => Float32Array,
+        /* 한 장을 밝기로 만드는 데 든 시간(ms) — 풀기 기다림은 빼고 */
+        onFrame: (ms: number) => void
+      ) {
+        const seen = new Set<string>();
+        const todo = wants
+          .filter((w) => !cache.has(w.key) && !seen.has(w.key) && seen.add(w.key))
+          .sort((a, b) => a.seek - b.seek);
+        let i = 0;
+        /* 일꾼에게 넘긴 장면 — 너무 많이 쌓이면 디코더가 내줄 장면 버퍼가 모자라 멈출 수 있어 일꾼 수의 두 배까지만 */
+        const inflight: Promise<void>[] = [];
+        for await (const sample of sink.samplesAtTimestamps(todo.map((w) => w.seek))) {
+          const w = todo[i++];
+          if (!sample) continue;
+          if (sample.format === 'NV12' || sample.format === 'I420') {
+            let frame: VideoFrame | null = null;
+            try {
+              frame = sample.toVideoFrame();
+            } catch {
+              frame = null;
+            }
+            const job = frame ? lumaInWorker(frame, sample.rotation, size.width, size.height) : null;
+            if (frame && !job) frame.close();
+            if (job) {
+              sample.close();
+              inflight.push(
+                job.then(({ luma, ms }) => {
+                  /* 일꾼이 못 만들면 그 장면은 비워 둔다 — 부르는 쪽이 되감기로 마저 꺼낸다 */
+                  if (!luma) return;
+                  cache.set(w.key, luma);
+                  onFrame(ms);
+                })
+              );
+              if (inflight.length >= 2 * Math.max(1, lumaPoolSize())) await inflight.shift();
+              continue;
+            }
+          }
+          try {
+            /* 밝기 면(Y)을 바로 — 캔버스 그리기 · RGB 읽기를 건너뛰고 맥 실험실 도구와 같은 장면을 만든다. 못 읽는 형식이면 그려서 */
+            const t0 = now();
+            const luma = await lumaOfSample(sample, size.width, size.height).catch(() => null);
+            cache.set(w.key, luma ?? grab((ctx, dw, dh) => sample.draw(ctx, 0, 0, dw, dh)));
+            onFrame(now() - t0);
+          } finally {
+            sample.close();
+          }
+        }
+        await Promise.all(inflight);
+      },
+      dispose: () => input.dispose(),
+    };
+  } catch (e) {
+    input.dispose();
+    throw e;
   }
 }
 

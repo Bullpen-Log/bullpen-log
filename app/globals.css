@@ -403,11 +403,11 @@ html {
   overflow-x: clip;
 
   /*
-   * 사이드바(판)의 왼쪽 두 귀의 곡선. 오른쪽 벽에 붙은 판이라 왼쪽만 둥글다.
-   * 살짝만이다 — 카드(1rem)만큼 둥글면 화면 가장자리에 붙은 물건이 아니라 떠 있는
-   * 창처럼 보인다. 판이 만들어지고 말리는 연출의 모서리 keyframe 도 이 값을 읽는다.
+   * 둥실 — 메뉴(도크 · 팝업)가 뜰 때의 곡선. 끝에서 아주 살짝(3%쯤) 넘쳤다가 제자리에 앉는다 —
+   * 아이폰의 창이 뜨는 느낌(2026-10-09 사용자: "풍선처럼 둥실, 너무 과하면 안 되고 진짜 살짝만").
+   * 닫을 때는 쓰지 않는다 — 사라지는 것이 튕기면 어수선하다.
    */
-  --drawer-radius: 14px;
+  --ease-spring: cubic-bezier(0.3, 1.3, 0.5, 1);
 }
 
 /**
@@ -1530,76 +1530,66 @@ dialog[data-pop][open] {
 }
 
 /*
- * 오른쪽에서 밀려 나오는 판 — PC 의 '더보기' 메뉴.
+ * 격자 밑에서 부풀어 뜨는 팝업 — PC 의 전체 메뉴(components/app-shell.tsx 의 DetailMenu).
  *
- * 가운데 뜨는 창과 같은 <dialog> 지만 들고 나는 방향이 다르다. 가운데 창은
- * 제자리에서 살짝 떠오르면 되지만, 화면 가장자리에 붙는 판이 위아래로
- * 움직이면 어디서 왔는지 알 수 없다. 붙어 있는 쪽에서 나와야 한다.
+ * 예전에는 화면 오른쪽 끝에서 세로로 통째로 밀려 나오는 판(w-72 · 100dvh)이었다. 메뉴 여덟 줄 때문에
+ * 화면 한 귀퉁이를 위아래로 다 덮고 뒤를 어둡게 해 "화면을 너무 많이 가린다"(2026-10-09 사용자). 이제
+ * 아이콘만 있는 도크(격자 밑의 작은 상자)가 그 자리에서 커지며 이름까지 있는 작은 판이 된다 — 위는 도크와
+ * 같고 오른쪽 끝은 막대와 같다(화면 끝에서 16px — "오른쪽 끝에 조금 띄운 상태로", --pop-top · --pop-right 는
+ * app-shell 이 잰다). 왼쪽 · 아래로 자라며 오른쪽으로 조금 옮겨 앉는다.
+ * 뒤는 어둡게 하지 않는다(backdrop 투명 — 그래도 모달이라 바깥을 누르면 닫힌다).
  *
- * 브라우저가 <dialog> 에 기본으로 주는 여백과 크기 제한을 먼저 지운다.
- * 그대로 두면 가운데로 끌려가고 높이도 화면에 못 미친다.
+ * 브라우저가 <dialog> 에 기본으로 주는 가운데 정렬(inset 0 · margin auto)을 지우고 자리를 직접 잡는다.
+ * 높이는 내용만큼(fit-content), 화면 아래 끝 1rem 전까지(--pop-max — 넘치면 안이 굴러간다).
  */
 dialog[data-drawer] {
-  margin: 0 0 0 auto;
+  margin: 0;
+  inset: auto;
+  top: var(--pop-top, 74px);
+  right: var(--pop-right, 16px);
+  width: 18rem;
   max-width: none;
-  max-height: none;
-  height: 100dvh;
-  /* 왼쪽 두 귀만 살짝 둥글다 — 값과 까닭은 위 html 의 --drawer-radius */
-  border-radius: var(--drawer-radius) 0 0 var(--drawer-radius);
-  /*
-   * 화면 바깥 오른쪽에서 통째로 밀려 들어온다.
-   *
-   * 전에는 1.75rem 만 움직였다. 그 정도로는 '살짝 나타났다'로 읽히지
-   * '오른쪽에서 나왔다'로는 안 읽힌다. 제 폭만큼(100%) 밀어 두면 어디에서
-   * 오는 물건인지가 움직임만으로 분명해진다.
-   *
-   * 폭이 얼마든 100% 면 정확히 화면 밖에 선다 — 픽셀을 적어 두면 좁은
-   * 화면에서 덜 나가거나 넘어간다.
-   */
-  transform: translateX(100%);
-}
-dialog[data-drawer][open] {
-  transform: translateX(0);
-  /* 미끄러지는 것만 보이면 된다. 투명도까지 겹치면 흐릿하게 번져 보인다. */
-  animation: drawer-in 240ms cubic-bezier(0.32, 0.72, 0, 1);
-}
-@keyframes drawer-in {
-  from {
-    transform: translateX(100%);
-  }
-}
-
-/* 사이드바의 시간.
- *
- * 일반 창의 시간(열 때 0.16초, 닫을 때 0.12초)을 그대로 물려받고 있었다. 그건
- * 몇 px 만 움직이는 창에 맞춘 시간이다. 사이드바는 제 폭(288px)을 통째로
- * 달려오므로, 같은 시간이면 번쩍 하고 끝나 '옆에서 나온다'가 눈에 안 보인다.
- *
- * 들어올 때 0.24초(위 drawer-in), 부드럽게 멈추는 곡선(창·화면 전환과 같은
- * 것). 나갈 때는 0.14초로 빠르게 — 닫는 것은 이미 끝난 일이라 기다리면
- * 답답하다. (처음 0.32·0.22초였다가 '느리다'는 말에 줄였다.)
- *
- * 닫힐 때도 투명해지지 않는다(opacity 1). 일반 창은 닫힐 때 옅어지는데, 그
- * 규칙을 물려받으면 사이드바가 미끄러져 나가기도 전에 제자리에서 사라진다.
- *
- * 뒤 배경도 같은 시간에 맞춘다. 배경만 먼저 어두워지면 창을 기다리는 시간이
- * 실제보다 길게 느껴진다.
- */
-dialog[data-drawer] {
-  opacity: 1;
+  height: fit-content;
+  max-height: var(--pop-max, calc(100dvh - 90px));
+  border-radius: 1rem;
+  transform-origin: top right;
+  /* 닫힌 모습 — 격자 쪽(오른쪽 위)으로 살짝 줄어 옅어진다 */
+  opacity: 0;
+  transform: scale(0.94);
+  /* 닫는 것은 빠르게 — 이미 끝난 일이라 기다리면 답답하다 */
   transition:
-    transform 140ms cubic-bezier(0.4, 0, 1, 1),
-    overlay 140ms ease-in allow-discrete,
-    display 140ms ease-in allow-discrete;
+    opacity 120ms ease-in,
+    transform 120ms ease-in,
+    overlay 120ms ease-in allow-discrete,
+    display 120ms ease-in allow-discrete;
+}
+/*
+ * 연출 없이 뜰 때(이 기능이 없는 브라우저 · 연출이 건너뛰어졌을 때) — 격자 쪽에서 부풀어 뜨며 끝에서 살짝
+ * 넘쳤다 앉는다(70% 지점 1.012배). 연출로 뜨면(data-built) 끈다 — 커지는 것은 연출이 그린다.
+ */
+dialog[data-drawer][open] {
+  opacity: 1;
+  transform: none;
+  animation: popover-in 180ms cubic-bezier(0.2, 0, 0, 1);
+}
+@keyframes popover-in {
+  0% {
+    opacity: 0;
+    transform: scale(0.92);
+  }
+  70% {
+    opacity: 1;
+    transform: scale(1.012);
+  }
+  100% {
+    transform: none;
+  }
 }
 dialog[data-drawer]::backdrop {
   transition:
-    background-color 140ms ease-in,
-    overlay 140ms ease-in allow-discrete,
-    display 140ms ease-in allow-discrete;
-}
-dialog[data-drawer][open]::backdrop {
-  animation-duration: 240ms;
+    background-color 120ms ease-in,
+    overlay 120ms ease-in allow-discrete,
+    display 120ms ease-in allow-discrete;
 }
 
 /*
@@ -1612,12 +1602,17 @@ dialog[data-drawer][open]::backdrop {
   (max-width: 63.999rem) and (hover: none),
   (max-width: 63.999rem) and (pointer: coarse) {
   dialog[data-drawer] {
+    /* 팝업(위 기본 규칙)의 자리 잡기를 되돌린다 — 시트는 바닥에 붙는다 */
+    inset: 0;
     margin: auto 0 0;
     width: 100%;
     /* auto 가 아니라 fit-content — 화면에 붙은(fixed · inset 0) 창은 auto 면 화면 높이로 늘어난다 */
     height: fit-content;
     max-height: calc(100dvh - env(safe-area-inset-top) - 0.75rem);
     border-radius: 28px 28px 0 0;
+    transform-origin: center;
+    /* 미끄러지는 것만 — 옅어지면 내려가기도 전에 사라진다 */
+    opacity: 1;
     transform: translateY(100%);
     transition:
       transform 260ms cubic-bezier(0.32, 0.72, 0, 1),
@@ -1642,24 +1637,23 @@ dialog[data-drawer][open]::backdrop {
  *               아이콘이 떠나는 그 순간부터 그것을 감싸던 알약이 줄어든다.
  *   dock-bar    커서가 떠나면. 거꾸로 — 알약이 먼저 펴지고, 돋아났던 것이 잦아들고,
  *               넷이 막대의 제자리로 돌아가며, 상자는 격자 쪽으로 접힌다.
- *   dock-sheet  도크가 떠 있을 때 격자를 누르거나 5초 머무르면. 큰 판이 화면 오른쪽
- *               끝에서 밀려 들어오고, 도크의 아이콘 전부가 그 판의 제 줄로 날아가
- *               앉는다. 빈 도크 상자는 제자리에서 옅어진다.
+ *   dock-sheet  도크가 떠 있을 때 격자를 누르거나 5초 머무르면. 도크 상자가 그 자리에서
+ *               부풀어 이름까지 있는 팝업이 되고(위는 그대로, 오른쪽 끝은 막대 끝으로, 왼쪽 · 아래로),
+ *               도크의 아이콘 전부가 팝업의 제 줄로 날아가 앉는다. 끝에서 살짝 넘쳤다
+ *               앉는다(--ease-spring). 뒤는 어두워지지 않는다.
  *   bar-sheet   (지금은 쓰지 않는다) 도크 없이 격자를 누를 때 막대에서 판으로 곧장 날리던
  *               연출. 이제 막대에서 판으로는 도크를 거친다 — bar-dock 을 4배로 빨리 감고
  *               곧바로 dock-sheet 로 잇는다(app-shell.tsx 의 go · hurry). 도크가 모이는
  *               중에 눌렀을 때도 끊지 않고 같은 식으로 잇는다 — 끊으면 아이콘이 툭 튄다.
- *   sheet-bar   판을 닫으면(X · Esc · 바깥). 판이 오른쪽으로 밀려 나가고, 넷이 막대의
- *               제자리로 돌아간다. 도크로 돌아가지 않는다 — X 는 '다 닫는다'다.
+ *   sheet-bar   팝업을 닫으면(Esc · 바깥). 팝업이 격자 쪽으로 줄며 옅어지고, 넷이 막대의
+ *               제자리로 돌아간다. 도크로 돌아가지 않는다 — 닫는 것은 '다 닫는다'다.
  *
  * 이름표.
- *   nav-pill    막대의 알약(바탕). 도크와 오갈 때만 단다 — 판과 오갈 때는 판의 어두운
- *               배경 막 밑에서 같이 어두워져야 해서 달지 않는다(이름표가 붙은 것은
- *               막 위로 따로 그려져, 끝날 때까지 안 어두워졌다가 툭 어두워진다).
+ *   nav-pill    막대의 알약(바탕). 연출마다 단다 — 뒤를 어둡게 하는 연출이 없어졌다.
  *   nav-tail    격자·톱니·내 정보. 알약이 줄고 펴는 동안 제자리를 지킨다.
- *   nav-dock    도크 상자.
- *   nav-sheet   판. 한쪽 모습에만 있다 — 다른 무엇에서 커지지 않고 오른쪽 밖에서
- *               들어오고 나간다.
+ *   nav-dock    도크 상자(막대와 오갈 때).
+ *   nav-sheet   팝업. 도크가 팝업이 될 때는 도크 상자도 이 이름표를 달아, 브라우저가 상자의
+ *               옛 자리 · 크기에서 팝업의 자리 · 크기로 늘려 그린다(부풀기).
  *   nav-fly-N   아이콘. N 은 전체 메뉴에서의 차례(홈 0 · 영상 1 · … · 관리자 7).
  *               옛·새 모습에 다 있으면 날아가고(딱지 nav-fly), 한쪽에만 있으면 그
  *               자리에서 돋아나거나 잦아든다(딱지 nav-pop).
@@ -1697,13 +1691,13 @@ html[data-nav-choreo='dock-bar'] {
   --fly-dur: 140ms;
 }
 /*
- * 판으로 갈 때는 판과 아이콘이 같이 출발한다. 판이 들어오는 0.28초 안에 아이콘도
- * 제 줄에 거의 다 앉도록, 아홉 개가 날 때(dock-sheet)는 간격을 좁혔다.
+ * 팝업으로 갈 때 — 주 아이콘 넷이 상자가 부푸는 0.22초 안에 제 줄에 앉는다(2026-10-09 사용자: "너무 느려").
+ * 나머지는 도크에서 잦아들고(nav-pop) 팝업에서 돋는다(nav-grow, 아래 dock-sheet 몫).
  */
 html[data-nav-choreo='dock-sheet'] {
   --fly-base: 0ms;
-  --fly-step: 18ms;
-  --fly-dur: 260ms;
+  --fly-step: 8ms;
+  --fly-dur: 200ms;
 }
 html[data-nav-choreo='bar-sheet'] {
   --fly-base: 0ms;
@@ -1726,45 +1720,14 @@ html[data-nav-choreo]::view-transition-group(root) {
 }
 
 /*
- * 판과 오갈 때 뒤 화면이 어두워지고 밝아지는 것.
- *
- * 화면을 옮길 때의 전환은 뒤 화면 전체(root)를 겹치지 않게 꺼 두었다(위 page-fade
- * 쪽). 그대로 두면 판이 열리는 순간 뒤 배경이 한 번에 툭 어두워진다. 여기서만
- * 되살린다.
- *
- * 옛 화면은 그대로 두고 새 화면만 그 위로 떠오르게 한다. 둘 다 옅어지게 하면
- * 가운데쯤에서 둘 다 반만 보여 화면이 잠깐 비치듯 흐려진다.
- *
- * 도크와 오갈 때는 되살리지 않는다. 도크는 뒤를 어둡게 하지 않아 옛·새 화면이
- * 같고, 움직이는 것은 전부 이름표를 달고 따로 그려진다.
+ * 뒤 화면(root)은 어느 연출에서도 움직이지 않는다 — 팝업은 뒤를 어둡게 하지 않으므로
+ * 옛 · 새 화면이 같다. 예전 판은 뒤를 어둡게 해서 여기서 root 를 되살려 어둡게 · 밝게 했다.
  */
-html[data-nav-choreo='dock-sheet']::view-transition-old(root),
-html[data-nav-choreo='bar-sheet']::view-transition-old(root),
-html[data-nav-choreo='sheet-bar']::view-transition-old(root) {
-  display: block;
-  animation: none;
-}
-/* 판이 밀려 들어오고 나가는 시간과 맞춘다 — 배경만 먼저 어두워지면 판을 기다리는 것 같다 */
-html[data-nav-choreo='dock-sheet']::view-transition-new(root),
-html[data-nav-choreo='bar-sheet']::view-transition-new(root) {
-  mix-blend-mode: normal;
-  animation: sheet-root-in 280ms ease-out both;
-}
-html[data-nav-choreo='sheet-bar']::view-transition-new(root) {
-  mix-blend-mode: normal;
-  animation: sheet-root-in 220ms ease-in-out both;
-}
-@keyframes sheet-root-in {
-  from {
-    opacity: 0;
-  }
-}
 
 /*
- * 연출로 연 판은 제 여는 애니메이션(drawer-in)을 끈다. 밀려 들어오는 것은 연출이
- * 대신한다 — 끄지 않으면 브라우저가 새 모습을 찍는 순간 판이 아직 화면 밖(첫
- * 장면)에 있어서, 연출은 화면 밖으로 들어오고 끝난 뒤에 판이 한 번 더 밀려 들어온다.
- * 뒤 배경도 연출(위 root)이 어둡게 하므로 끈다.
+ * 연출로 연 팝업은 제 여는 애니메이션(popover-in)을 끈다. 부푸는 것은 연출이 대신한다 —
+ * 끄지 않으면 브라우저가 새 모습을 찍는 순간 팝업이 아직 작은 첫 장면이라, 연출이 끝난 뒤
+ * 한 번 더 부푼다.
  */
 dialog[data-drawer][data-built][open] {
   animation: none;
@@ -1774,8 +1737,8 @@ dialog[data-drawer][data-built][open]::backdrop {
 }
 
 /*
- * 거꾸로 닫을 때는 판의 닫는 움직임(미끄러져 나감)도 끈다. 판은 새 모습에서
- * 그 자리에서 바로 사라지고, 말려 들어가는 모습은 연출이 그린다.
+ * 거꾸로 닫을 때는 팝업의 닫는 움직임(줄며 옅어짐)도 끈다. 팝업은 새 모습에서
+ * 그 자리에서 바로 사라지고, 격자 쪽으로 줄어드는 모습은 연출이 그린다.
  */
 dialog[data-drawer][data-quiet],
 dialog[data-drawer][data-quiet]::backdrop {
@@ -1844,12 +1807,13 @@ html[data-nav-choreo]::view-transition-group(nav-dock) {
   z-index: 1;
   border-radius: 1rem;
 }
+/* 뜰 때는 끝에서 살짝 넘쳤다 앉는다(dock-grow 의 65% 지점 1.012배 — 둥실). 접을 때는 튕기지 않는다 */
 html[data-nav-choreo='bar-dock']::view-transition-group(nav-dock) {
-  animation: dock-glass-in 220ms cubic-bezier(0.2, 0, 0, 1) 30ms both;
+  animation: dock-glass-in 260ms var(--ease-spring) 30ms both;
 }
 html[data-nav-choreo='bar-dock']::view-transition-new(nav-dock) {
   transform-origin: top center;
-  animation: dock-grow 220ms cubic-bezier(0.2, 0, 0, 1) 30ms both;
+  animation: dock-grow 260ms cubic-bezier(0.2, 0, 0, 1) 30ms both;
 }
 html[data-nav-choreo='dock-bar']::view-transition-group(nav-dock) {
   animation: dock-glass-out 110ms cubic-bezier(0.4, 0, 1, 1) 40ms both;
@@ -1858,17 +1822,7 @@ html[data-nav-choreo='dock-bar']::view-transition-old(nav-dock) {
   transform-origin: top center;
   animation: dock-shrink 110ms cubic-bezier(0.4, 0, 1, 1) 40ms both;
 }
-/*
- * 도크가 판이 될 때 — 아이콘은 모두 판으로 날아가고, 빈 상자는 제자리에서 곧장
- * 옅어진다. 상자까지 판을 따라 오른쪽으로 가면 판이 둘 들어오는 것처럼 보인다.
- */
-html[data-nav-choreo='dock-sheet']::view-transition-group(nav-dock) {
-  animation: dock-glass-out 160ms cubic-bezier(0.4, 0, 1, 1) both;
-}
-html[data-nav-choreo='dock-sheet']::view-transition-old(nav-dock) {
-  transform-origin: top center;
-  animation: dock-shrink 160ms cubic-bezier(0.4, 0, 1, 1) both;
-}
+/* 도크가 팝업이 될 때 상자는 nav-dock 이 아니라 nav-sheet 이름표를 단다(아래 '팝업') — 여기 규칙은 걸리지 않는다 */
 @keyframes dock-glass-in {
   from {
     opacity: 0;
@@ -1882,8 +1836,14 @@ html[data-nav-choreo='dock-sheet']::view-transition-old(nav-dock) {
   }
 }
 @keyframes dock-grow {
-  from {
-    scale: 0.92;
+  0% {
+    scale: 0.9;
+  }
+  65% {
+    scale: 1.012;
+  }
+  100% {
+    scale: 1;
   }
 }
 @keyframes dock-shrink {
@@ -1891,11 +1851,18 @@ html[data-nav-choreo='dock-sheet']::view-transition-old(nav-dock) {
     scale: 0.92;
   }
 }
-/* 연출 없이 뜰 때(아래 [data-dock])의 모양 — 연출의 두 몫(틀 · 그림)을 한 번에 */
+/* 연출 없이 뜰 때(아래 [data-dock])의 모양 — 연출의 두 몫(틀 · 그림)을 한 번에, 같은 둥실 */
 @keyframes dock-in {
-  from {
+  0% {
     opacity: 0;
-    transform: translateY(-6px) scale(0.92);
+    transform: translateY(-6px) scale(0.9);
+  }
+  65% {
+    opacity: 1;
+    transform: translateY(0) scale(1.012);
+  }
+  100% {
+    transform: none;
   }
 }
 
@@ -1905,52 +1872,55 @@ html[data-nav-choreo='dock-sheet']::view-transition-old(nav-dock) {
  */
 [data-dock]:not([data-built]) {
   transform-origin: top center;
-  animation: dock-in 200ms cubic-bezier(0.2, 0, 0, 1);
+  animation: dock-in 260ms cubic-bezier(0.2, 0, 0, 1);
 }
 
 /*
- * 판 — 화면 오른쪽 끝에서 밀려 들어오고, 그리로 밀려 나간다.
+ * 팝업 — 도크 상자가 그 자리에서 부풀어 팝업이 되고, 닫을 때는 격자 쪽으로 줄며 옅어진다.
  *
- * 예전에는 판이 도크 상자나 격자 단추 자리에서 부풀어 커졌다. 그러면 오른쪽에서
- * 나오는 큰 메뉴가 아니라 작은 상자가 커진 것으로 보여, 늘 보던 판과 다른 것처럼
- * 읽혔다. 판은 늘 붙어 있는 쪽(오른쪽)에서 나온다 — 연출이 없을 때의 판
- * (dialog[data-drawer])과 같은 길, 같은 곡선이다.
+ * 부풀기: 옛 모습의 도크 상자와 새 모습의 팝업이 같은 이름표(nav-sheet)라, 브라우저가 틀(group)을
+ * 상자의 자리 · 크기에서 팝업의 자리 · 크기로 늘린다(브라우저가 만드는 keyframe 그대로 — 시간과 곡선만
+ * 정한다). 곡선은 둥실(--ease-spring) — 크기가 목표를 3%쯤 넘쳤다가 앉는다(세로 400px 가 자라면
+ * 12px 쯤). 상자의 그림(아이콘 격자)은 빨리 옅어지고, 팝업의 그림은 조금 뒤에 떠오른다 — 둘을
+ * 그냥 섞으면 격자와 줄이 겹쳐 흐릿하다. 아이콘은 이름표를 달고 따로 날아가므로 두 그림에는 그
+ * 자리가 비어 있다.
  *
- * 판은 한쪽 모습에만 있다(들어올 때는 새 모습, 나갈 때는 옛 모습). 판을 제 폭만큼
- * (100%) 오른쪽 밖에서 들이고 밖으로 내보낸다. 판에 실린 아이콘은 이름표를 달고 따로
- * 날아가므로, 판의 그림에는 그 자리가 비어 있다가 날아온 아이콘이 채운다.
- *
- * 미는 것은 그림이 아니라 틀(group)이다. 크롬은 판의 뒤 흐림(backdrop-filter)을 틀에
- * 옮겨 칠한다. 예전처럼 틀은 판의 자리에 세워 두고 그림만 밀었더니, 판이 오기도 전에
- * 화면 오른쪽 띠가 먼저 흐려졌고 닫을 때는 판이 나간 뒤에도 흐린 띠가 남았다가 툭
- * 사라졌다 — 메뉴를 열고 닫을 때 화면이 깜빡이던 것(2026-09-28 사용자). 틀을 밀면 흐림도
- * 판과 함께 움직인다. 틀의 자리는 브라우저가 transform 으로 잡아 두므로 translate 로 민다.
- * 틀의 모서리는 판(dialog[data-drawer])과 같게 둥글린다.
+ * 틀을 움직이는 까닭(그림이 아니라): 크롬은 팝업의 뒤 흐림(backdrop-filter)을 틀에 옮겨 칠한다.
+ * 틀의 모서리는 팝업 · 도크(rounded-2xl)와 같게 둥글린다.
  */
 html[data-nav-choreo]::view-transition-group(nav-sheet) {
   z-index: 1;
-  border-radius: var(--drawer-radius) 0 0 var(--drawer-radius);
+  border-radius: 1rem;
 }
-html[data-nav-choreo]::view-transition-old(nav-sheet),
-html[data-nav-choreo]::view-transition-new(nav-sheet) {
+html[data-nav-choreo='dock-sheet']::view-transition-group(nav-sheet) {
+  animation-duration: 220ms;
+  animation-timing-function: var(--ease-spring);
+}
+html[data-nav-choreo='dock-sheet']::view-transition-old(nav-sheet) {
   mix-blend-mode: normal;
-  animation: none;
+  animation: pop-fade-out 80ms ease-out both;
 }
-html[data-nav-choreo='dock-sheet']::view-transition-group(nav-sheet),
-html[data-nav-choreo='bar-sheet']::view-transition-group(nav-sheet) {
-  animation: sheet-slide-in 280ms cubic-bezier(0.32, 0.72, 0, 1) both;
+html[data-nav-choreo='dock-sheet']::view-transition-new(nav-sheet) {
+  mix-blend-mode: normal;
+  animation: pop-fade-in 140ms ease-out 20ms both;
 }
+/* 닫기 — 도크를 접을 때와 같은 움직임(옅어지며 격자 쪽으로 살짝 줄어든다), 튕기지 않는다 */
 html[data-nav-choreo='sheet-bar']::view-transition-group(nav-sheet) {
-  animation: sheet-slide-out 220ms cubic-bezier(0.4, 0, 1, 1) both;
+  animation: dock-glass-out 150ms cubic-bezier(0.4, 0, 1, 1) both;
 }
-@keyframes sheet-slide-in {
-  from {
-    translate: 100% 0;
+html[data-nav-choreo='sheet-bar']::view-transition-old(nav-sheet) {
+  mix-blend-mode: normal;
+  transform-origin: top right;
+  animation: dock-shrink 150ms cubic-bezier(0.4, 0, 1, 1) both;
+}
+@keyframes pop-fade-out {
+  to {
+    opacity: 0;
   }
 }
-@keyframes sheet-slide-out {
-  to {
-    translate: 100% 0;
+@keyframes pop-fade-in {
+  from {
+    opacity: 0;
   }
 }
 
@@ -1977,6 +1947,10 @@ html[data-nav-choreo]::view-transition-new(.nav-pop) {
 }
 html[data-nav-choreo]::view-transition-old(.nav-pop) {
   animation: nav-pop-out 160ms ease-in both;
+}
+/* 도크가 팝업이 될 때 주 아이콘 아닌 것은 도크에서 빨리 잦아든다 — 상자가 부풀기 시작할 때 비켜 준다 */
+html[data-nav-choreo='dock-sheet']::view-transition-old(.nav-pop) {
+  animation-duration: 90ms;
 }
 /* 도크가 닫힐 때 잦아드는 것도 빨리 — 시간만 줄인다(차례 딱지의 늦춤은 아래 dN 이 준다) */
 html[data-nav-choreo='dock-bar']::view-transition-old(.nav-pop) {
@@ -2028,6 +2002,26 @@ html[data-nav-choreo]::view-transition-new(.nav-grow.g4) {
 }
 html[data-nav-choreo]::view-transition-new(.nav-grow.g5) {
   animation-delay: 290ms;
+}
+/* 팝업이 될 때는 상자가 거의 다 부푼 때(0.12초)부터 작은 것이 커지며 돋는다 — 간격도 짧게 */
+html[data-nav-choreo='dock-sheet']::view-transition-new(.nav-grow) {
+  animation-duration: 160ms;
+  animation-delay: 120ms;
+}
+html[data-nav-choreo='dock-sheet']::view-transition-new(.nav-grow.g1) {
+  animation-delay: 135ms;
+}
+html[data-nav-choreo='dock-sheet']::view-transition-new(.nav-grow.g2) {
+  animation-delay: 150ms;
+}
+html[data-nav-choreo='dock-sheet']::view-transition-new(.nav-grow.g3) {
+  animation-delay: 165ms;
+}
+html[data-nav-choreo='dock-sheet']::view-transition-new(.nav-grow.g4) {
+  animation-delay: 180ms;
+}
+html[data-nav-choreo='dock-sheet']::view-transition-new(.nav-grow.g5) {
+  animation-delay: 195ms;
 }
 @keyframes nav-grow-in {
   from {
