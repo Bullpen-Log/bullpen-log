@@ -1570,7 +1570,7 @@ dialog[data-drawer] {
 dialog[data-drawer][open] {
   opacity: 1;
   transform: none;
-  animation: popover-in 260ms cubic-bezier(0.2, 0, 0, 1);
+  animation: popover-in 180ms cubic-bezier(0.2, 0, 0, 1);
 }
 @keyframes popover-in {
   0% {
@@ -1691,13 +1691,13 @@ html[data-nav-choreo='dock-bar'] {
   --fly-dur: 140ms;
 }
 /*
- * 팝업으로 갈 때는 상자가 부푸는 0.32초 안에 아이콘 여덟이 제 줄에 다 앉도록 간격을 좁혔다.
- * 짧은 거리라(상자 안 격자 → 그 자리에서 자란 팝업의 줄) 여덟이 함께 날아도 어지럽지 않다.
+ * 팝업으로 갈 때 — 주 아이콘 넷이 상자가 부푸는 0.22초 안에 제 줄에 앉는다(2026-10-09 사용자: "너무 느려").
+ * 나머지는 도크에서 잦아들고(nav-pop) 팝업에서 돋는다(nav-grow, 아래 dock-sheet 몫).
  */
 html[data-nav-choreo='dock-sheet'] {
   --fly-base: 0ms;
-  --fly-step: 14ms;
-  --fly-dur: 280ms;
+  --fly-step: 8ms;
+  --fly-dur: 200ms;
 }
 html[data-nav-choreo='bar-sheet'] {
   --fly-base: 0ms;
@@ -1893,16 +1893,16 @@ html[data-nav-choreo]::view-transition-group(nav-sheet) {
   border-radius: 1rem;
 }
 html[data-nav-choreo='dock-sheet']::view-transition-group(nav-sheet) {
-  animation-duration: 320ms;
+  animation-duration: 220ms;
   animation-timing-function: var(--ease-spring);
 }
 html[data-nav-choreo='dock-sheet']::view-transition-old(nav-sheet) {
   mix-blend-mode: normal;
-  animation: pop-fade-out 120ms ease-out both;
+  animation: pop-fade-out 80ms ease-out both;
 }
 html[data-nav-choreo='dock-sheet']::view-transition-new(nav-sheet) {
   mix-blend-mode: normal;
-  animation: pop-fade-in 200ms ease-out 40ms both;
+  animation: pop-fade-in 140ms ease-out 20ms both;
 }
 /* 닫기 — 도크를 접을 때와 같은 움직임(옅어지며 격자 쪽으로 살짝 줄어든다), 튕기지 않는다 */
 html[data-nav-choreo='sheet-bar']::view-transition-group(nav-sheet) {
@@ -1947,6 +1947,10 @@ html[data-nav-choreo]::view-transition-new(.nav-pop) {
 }
 html[data-nav-choreo]::view-transition-old(.nav-pop) {
   animation: nav-pop-out 160ms ease-in both;
+}
+/* 도크가 팝업이 될 때 주 아이콘 아닌 것은 도크에서 빨리 잦아든다 — 상자가 부풀기 시작할 때 비켜 준다 */
+html[data-nav-choreo='dock-sheet']::view-transition-old(.nav-pop) {
+  animation-duration: 90ms;
 }
 /* 도크가 닫힐 때 잦아드는 것도 빨리 — 시간만 줄인다(차례 딱지의 늦춤은 아래 dN 이 준다) */
 html[data-nav-choreo='dock-bar']::view-transition-old(.nav-pop) {
@@ -1998,6 +2002,26 @@ html[data-nav-choreo]::view-transition-new(.nav-grow.g4) {
 }
 html[data-nav-choreo]::view-transition-new(.nav-grow.g5) {
   animation-delay: 290ms;
+}
+/* 팝업이 될 때는 상자가 거의 다 부푼 때(0.12초)부터 작은 것이 커지며 돋는다 — 간격도 짧게 */
+html[data-nav-choreo='dock-sheet']::view-transition-new(.nav-grow) {
+  animation-duration: 160ms;
+  animation-delay: 120ms;
+}
+html[data-nav-choreo='dock-sheet']::view-transition-new(.nav-grow.g1) {
+  animation-delay: 135ms;
+}
+html[data-nav-choreo='dock-sheet']::view-transition-new(.nav-grow.g2) {
+  animation-delay: 150ms;
+}
+html[data-nav-choreo='dock-sheet']::view-transition-new(.nav-grow.g3) {
+  animation-delay: 165ms;
+}
+html[data-nav-choreo='dock-sheet']::view-transition-new(.nav-grow.g4) {
+  animation-delay: 180ms;
+}
+html[data-nav-choreo='dock-sheet']::view-transition-new(.nav-grow.g5) {
+  animation-delay: 195ms;
 }
 @keyframes nav-grow-in {
   from {

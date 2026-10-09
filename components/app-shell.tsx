@@ -864,22 +864,20 @@ export function AppNav({
   /*
    * 팝업에서 나는 아이콘.
    *
-   * 도크가 팝업이 될 때(dock-sheet)는 여덟이 다 난다 — 상자 안 격자에서 그 자리에서 자란 팝업의 줄로,
-   * 짧은 거리라 함께 날아도 어지럽지 않다(예전 판은 화면 끝에서 들어와 멀리 날았고, 그때 아홉이 나는 것이
-   * 어지럽다고 해 넷만 날리고 나머지는 돋게 했다 — growStyle, 지금은 쓰지 않는 bar-sheet 에만 남아 있다).
+   * 도크가 팝업이 될 때(dock-sheet)는 막대에도 있는 주 아이콘 넷만 도크에서 팝업의 제 줄로 난다. 나머지는
+   * 도크에서 작아지며 사라지고(nav-pop), 팝업의 제자리에서 작은 것이 커지며 돋는다(growStyle) — 2026-10-09
+   * 사용자: "메인으로 주로 쓰는 아이콘들만 날아오고 나머지는 작아지면서 사라졌다가 메뉴가 생기는 곳에서 커지게".
    *
    * 팝업이 닫힐 때(sheet-bar)는 막대에 자리가 있는 넷만 돌아가고, 나머지는 이름표 없이 팝업에 실린 채
    * 같이 줄어든다 — 갈 곳이 없는데 따로 떠 있으면 팝업은 줄어드는데 아이콘만 남아 흩어진다.
    */
   const sheetIcons: 'none' | 'quick' | 'all' =
-    choreo == null || at !== 'sheet' ? 'none' : choreo === 'dock-sheet' ? 'all' : 'quick';
-  const sheetGrows = at === 'sheet' && choreo === 'bar-sheet';
+    choreo == null || at !== 'sheet' ? 'none' : 'quick';
+  const sheetGrows = at === 'sheet' && (choreo === 'bar-sheet' || choreo === 'dock-sheet');
   /*
-   * 도크에서 나는 아이콘 — 막대와 오갈 때는 넷만 날고 나머지는 돋아난다.
-   * 팝업이 될 때는 여덟이 다 팝업의 제 줄로 난다.
+   * 도크에서 나는 아이콘 — 막대 · 팝업 어느 쪽과 오가든 넷만 날고 나머지는 돋거나 잦아든다.
    */
-  const dockIcons: 'none' | 'hover' | 'all' =
-    choreo == null ? 'none' : choreo === 'dock-sheet' ? 'all' : 'hover';
+  const dockIcons: 'none' | 'hover' | 'all' = choreo == null ? 'none' : 'hover';
   /*
    * '지금 여기' 동그라미 — 도크와 오갈 때는 제 아이콘과 같은 딱지를 달고 같이
    * 날아간다(막대에 없는 곳이면 같이 돋아난다). 판과 오갈 때는 이름표 없이 판의
