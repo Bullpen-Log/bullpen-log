@@ -23,7 +23,9 @@ export function useEventAlarms(events: CalendarEventView[]) {
   useEffect(() => {
     if (!hasNativeBridge()) return;
     const now = Date.now();
+    /* 다른 관리자의 일정(owner)은 보기만 — 알림은 제 일정만 */
     const want = events
+      .filter((e) => !e.owner)
       .map((e) => ({ e, at: remindAt(e) }))
       .filter(
         (x): x is { e: CalendarEventView; at: number } => x.at != null && x.at > now

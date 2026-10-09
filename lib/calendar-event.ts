@@ -15,6 +15,10 @@ export type CalendarEventView = {
   memo: string | null;
   /** 몇 분 전에 알릴까(0 = 그 시각) — null 이면 알림 없음 */
   remindMin: number | null;
+  /**
+   * 다른 관리자의 일정이면 그 사람 닉네임 — 관리자끼리는 서로의 일정을 본다(읽기만). 내 일정이면 없음.
+   */
+  owner?: string;
 };
 
 export type CalendarEventInput = {

@@ -73,37 +73,21 @@ export function DaySchedule({
               </li>
             ) : (
               <li key={e.id}>
-                <button
-                  type="button"
-                  onClick={() => setEditing(e.id)}
-                  aria-label={`${e.title}, ${timeLabel(e.time)}, 고치기`}
-                  className="flex min-h-14 w-full items-start gap-3 py-2.5 text-left"
-                >
-                  <span
-                    className="mt-1 h-4 w-1 shrink-0 rounded-full bg-sky"
-                    aria-hidden
-                  />
-                  <span className="min-w-0 flex-1">
-                    <span className="block truncate text-sm font-semibold text-ink">
-                      {e.title}
-                    </span>
-                    <span className="flex items-center gap-1 text-xs text-muted">
-                      {timeLabel(e.time)}
-                      {remindText(e) && (
-                        <>
-                          <Bell aria-hidden className="ml-1 h-3 w-3" />
-                          <span className="sr-only">알림</span>
-                          {remindText(e)}
-                        </>
-                      )}
-                    </span>
-                    {e.memo && (
-                      <span className="mt-0.5 block whitespace-pre-line break-words text-xs text-muted">
-                        {e.memo}
-                      </span>
-                    )}
-                  </span>
-                </button>
+                {e.owner ? (
+                  /* 다른 관리자의 일정 — 보기만(고치기 · 지우기는 그 사람만) */
+                  <div className="flex min-h-14 w-full items-start gap-3 py-2.5">
+                    <EventLine e={e} />
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => setEditing(e.id)}
+                    aria-label={`${e.title}, ${timeLabel(e.time)}, 고치기`}
+                    className="flex min-h-14 w-full items-start gap-3 py-2.5 text-left"
+                  >
+                    <EventLine e={e} />
+                  </button>
+                )}
               </li>
             )
           )}
@@ -133,6 +117,44 @@ export function DaySchedule({
         )
       )}
     </div>
+  );
+}
+
+/** 목록 한 줄의 속 — 내 일정은 파란 막대, 다른 관리자의 일정은 회색 막대 + 이름 */
+function EventLine({ e }: { e: CalendarEventView }) {
+  const remind = e.owner ? null : remindText(e);
+  return (
+    <>
+      <span
+        className={`mt-1 h-4 w-1 shrink-0 rounded-full ${e.owner ? 'bg-muted/50' : 'bg-sky'}`}
+        aria-hidden
+      />
+      <span className="min-w-0 flex-1">
+        <span className="flex items-center gap-1.5">
+          <span className="truncate text-sm font-semibold text-ink">{e.title}</span>
+          {e.owner && (
+            <span className="shrink-0 rounded-full bg-surface-2 px-2 py-0.5 text-xs text-muted">
+              {e.owner}
+            </span>
+          )}
+        </span>
+        <span className="flex items-center gap-1 text-xs text-muted">
+          {timeLabel(e.time)}
+          {remind && (
+            <>
+              <Bell aria-hidden className="ml-1 h-3 w-3" />
+              <span className="sr-only">알림</span>
+              {remind}
+            </>
+          )}
+        </span>
+        {e.memo && (
+          <span className="mt-0.5 block whitespace-pre-line break-words text-xs text-muted">
+            {e.memo}
+          </span>
+        )}
+      </span>
+    </>
   );
 }
 

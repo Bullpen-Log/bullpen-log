@@ -157,9 +157,12 @@ async function PitchLogSection({
 }) {
   const [h, events] = await Promise.all([
     loadPitchHistory(user),
-    /* 일정 — 사람마다 많지 않아 전부 읽는다(지난 달 · 앞 달을 넘겨도 바로 보이게) */
+    /*
+     * 일정 — 사람마다 많지 않아 전부 읽는다(지난 달 · 앞 달을 넘겨도 바로 보이게).
+     * 관리자는 다른 관리자의 일정도 함께 본다(읽기만 — 고치기 · 알림은 제 것만).
+     */
     prisma.calendarEvent.findMany({
-      where: { userId: user.id },
+      where: user.role === 'ADMIN' ? { user: { role: 'ADMIN' } } : { userId: user.id },
       orderBy: { date: 'asc' },
       take: 3000,
       select: {
@@ -169,6 +172,8 @@ async function PitchLogSection({
         time: true,
         memo: true,
         remindMin: true,
+        userId: true,
+        user: { select: { nickname: true } },
       },
     }),
   ]);
@@ -184,7 +189,11 @@ async function PitchLogSection({
       nutritionByDay={h.nutritionByDay}
       velocityByDay={h.velocityByDay}
       checkinByDay={h.checkinByDay}
-      initialEvents={events.map((e) => ({ ...e, date: keyOfDbDate(e.date) }))}
+      initialEvents={events.map(({ userId, user: owner, ...e }) => ({
+        ...e,
+        date: keyOfDbDate(e.date),
+        ...(userId === user.id ? {} : { owner: owner.nickname }),
+      }))}
     />
   );
 }
