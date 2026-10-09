@@ -4,8 +4,11 @@ import Link from 'next/link';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ArrowRight,
+  Camera,
   Check,
+  CircleCheck,
   Coffee,
+  Images,
   ListOrdered,
   MapPin,
   PauseCircle,
@@ -15,6 +18,8 @@ import { Modal, useModalState } from '@/components/modal';
 import { ShootExerciseDetail } from '@/components/shoot/exercise-detail';
 import { STATE_LABEL, STATE_PILL } from '@/components/shoot/status';
 import { ShootUndoToast } from '@/components/shoot/undo-toast';
+import { PendingClips } from '@/components/shoot/pending-clips';
+import { useClipFlow } from '@/components/shoot/use-clip-flow';
 import { useShootChecks } from '@/components/shoot/use-shoot-checks';
 import { useWakeLock } from '@/components/use-wake-lock';
 import { haptic } from '@/lib/haptics';
@@ -36,7 +41,9 @@ import { toDateKey } from '@/lib/pitch-stats';
  *   위    닫기 · N주차 · 23/66 막대 · 계획 대비(늦음 · 빠름) · 목록
  *   가운데 지금 운동 — 번호(누르면 카메라에 비출 큰 번호판) · 자리 · 시범 방법(크게) · 기구 · 참고 영상 · 진행 방법
  *         그 뒤에 무엇이 오나(자리 옮김 · 쉬기), 다음 운동 카드, 그다음 셋
- *   아래  [찍음 · 다음으로] · 미루기 — 바꿀 때마다 '되돌리기' 알림
+ *   아래  [영상 찍기] — 아이폰 기본 카메라 → 컷 편집(소리 빼기) → 올려 이 운동의 영상으로 붙이고 '찍음' · 다음으로.
+ *         [찍음](영상 없이 체크만 — 다른 카메라로 찍을 때) · [미루기]. 바꿀 때마다 '되돌리기' 알림.
+ *         다른 폰 · 카메라 앱으로 찍었으면 운동 카드 밑 '앨범에서 고르기'. 올리지 못한 영상은 위에 '다시 올리기'.
  *
  * 줄은 그 주 운동 뒤에 앞 주에서 못 찍은 것을 이어 붙인다. 두 사람이 폰 두 대로 찍으면 15초 안에 서로 맞춰진다.
  * 화면은 켜 둔다(찍는 동안 꺼지면 안 된다).
@@ -51,7 +58,7 @@ export function RunClient({
   startAt: string | null;
 }) {
   const { week, carried, infos } = data;
-  const { map, set, toast, undo, closeToast, error, clearError } = useShootChecks(
+  const { map, set, adopt, toast, undo, closeToast, error, clearError } = useShootChecks(
     data.checks,
     { me }
   );
@@ -134,6 +141,20 @@ export function RunClient({
     </p>
   );
 
+  // 붙인 운동이 목록에서 고른 운동이었을 때만 고른 것을 푼다(다시 올리기로 다른 운동이 붙어도 지금 운동은 그대로)
+  const clips = useClipFlow({
+    adopt,
+    onAttached: (id) => setPickId((p) => (p === id ? null : p)),
+  });
+  const clipTarget = current
+    ? {
+        exerciseId: current.exerciseId,
+        no: current.no,
+        title: current.title,
+        cue: current.cue,
+      }
+    : null;
+
   function shoot() {
     if (!current) return;
     haptic('success');
@@ -195,6 +216,8 @@ export function RunClient({
         <div className="mx-auto w-full max-w-2xl space-y-5 px-4 py-4">
           {!current && errorBox}
 
+          <PendingClips clips={clips} isUploaded={(id) => !!infos[id]?.own} />
+
           {current ? (
             <article
               key={current.exerciseId}
@@ -213,6 +236,12 @@ export function RunClient({
                   <MapPin aria-hidden className="h-3.5 w-3.5 text-muted" />
                   {current.station}
                 </span>
+                {infos[current.exerciseId]?.own && (
+                  <span className="inline-flex items-center gap-1 rounded-full bg-sky/12 px-2.5 py-1 text-xs font-bold text-sky-strong">
+                    <CircleCheck aria-hidden className="h-3.5 w-3.5" />
+                    올림
+                  </span>
+                )}
                 {!carriedNow && (
                   <span className="ml-auto text-xs tabular-nums text-muted">
                     계획 {clockText(current.at)}
@@ -252,6 +281,17 @@ export function RunClient({
                 info={infos[current.exerciseId]}
                 compact
               />
+              <p className="flex flex-wrap items-center gap-x-2 text-xs text-muted">
+                다른 폰 · 카메라 앱으로 찍었으면
+                <button
+                  type="button"
+                  onClick={() => clipTarget && clips.startAlbum(clipTarget)}
+                  className="inline-flex min-h-10 items-center gap-1 rounded-full px-1 font-semibold text-sky-strong"
+                >
+                  <Images aria-hidden className="h-4 w-4" />
+                  앨범에서 고르기
+                </button>
+              </p>
 
               {(rest || move) && (
                 <p className="flex items-center gap-2 rounded-xl border border-dashed border-line-strong px-4 py-3 text-sm text-ink">
@@ -372,7 +412,7 @@ export function RunClient({
             <button
               type="button"
               onClick={postpone}
-              className="flex h-[72px] w-20 shrink-0 flex-col items-center justify-center gap-0.5 rounded-3xl bg-ink/6 text-xs font-semibold text-ink motion-safe:active:scale-95"
+              className="flex h-[72px] w-16 shrink-0 flex-col items-center justify-center gap-0.5 rounded-3xl bg-ink/6 text-xs font-semibold text-ink motion-safe:active:scale-95"
             >
               <PauseCircle aria-hidden className="h-5 w-5" />
               미루기
@@ -380,14 +420,25 @@ export function RunClient({
             <button
               type="button"
               onClick={shoot}
+              aria-label="영상 없이 찍음으로 체크하고 다음으로"
+              className="flex h-[72px] w-16 shrink-0 flex-col items-center justify-center gap-0.5 rounded-3xl bg-ink/6 text-xs font-semibold text-ink motion-safe:active:scale-95"
+            >
+              <Check aria-hidden className="h-5 w-5" strokeWidth={2.6} />
+              찍음
+            </button>
+            <button
+              type="button"
+              onClick={() => clipTarget && clips.startCamera(clipTarget)}
               className="flex h-[72px] min-w-0 flex-1 items-center justify-center gap-2 rounded-full bg-sky text-lg font-bold text-white motion-safe:active:scale-[0.98]"
             >
-              <Check aria-hidden className="h-6 w-6" strokeWidth={2.8} />
-              찍음 · 다음으로
+              <Camera aria-hidden className="h-6 w-6" strokeWidth={2.4} />
+              {infos[current.exerciseId]?.own ? '다시 찍기' : '영상 찍기'}
             </button>
           </div>
         </div>
       )}
+
+      {clips.elements}
 
       <ShootUndoToast
         toast={toast}

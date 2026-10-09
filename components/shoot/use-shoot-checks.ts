@@ -129,11 +129,21 @@ export function useShootChecks(
     void set(exerciseId, status, { undoable: false });
   }, [toast, set]);
 
+  /** 서버가 돌려준 체크로 바꾼다(영상을 붙이면 그 운동이 '찍음'이 된다) — 알림은 되돌리기 없이 */
+  const adopt = useCallback((next: ShootCheckView[], label?: string) => {
+    if (inflight.current === 0) setChecks(next);
+    setError(null);
+    if (label) {
+      setToast((t) => ({ seq: (t?.seq ?? 0) + 1, text: label, revert: null }));
+    }
+  }, []);
+
   return {
     checks,
     undo,
     map,
     set,
+    adopt,
     saving: saving > 0,
     error,
     clearError: () => setError(null),

@@ -1,14 +1,16 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import { ChevronDown, Wrench } from 'lucide-react';
 import { LibraryVideo } from '@/components/library-video';
+import { referenceThumbUrl } from '@/lib/reference-video';
 import type { ShootExerciseInfo } from '@/lib/shoot/load';
 import type { PlanItem } from '@/lib/shoot/schedule';
 
 /**
  * 촬영할 운동 한 개의 자세한 것 — 참고 영상 · 시범 방법 · 기구 · 앱 처방 · 진행 방법(설명).
- * 주차 화면의 창과 촬영 모드가 같이 쓴다. 영상은 라이브러리와 같은 재생기(유튜브 참고 영상 · 우리 영상).
+ * 주차 화면의 창과 촬영 모드가 같이 쓴다. 영상은 라이브러리와 같은 재생기 — 참고 영상(유튜브, 우리 영상을 올린 뒤에도
+ * lib/shoot/refs.json 에 남은 번호)과 올린 우리 영상을 따로 접어 둔다.
  */
 export function ShootExerciseDetail({
   item,
@@ -25,6 +27,7 @@ export function ShootExerciseDetail({
 }) {
   const [showVideo, setShowVideo] = useState(videoOpen);
   const [showHow, setShowHow] = useState(!compact);
+  const [showOwn, setShowOwn] = useState(!compact && !info?.youtube);
   const equipment = info?.equipment.length ? info.equipment : item.equipment;
   return (
     <div className="space-y-4">
@@ -61,34 +64,37 @@ export function ShootExerciseDetail({
         </p>
       )}
 
-      {info && (info.referenceVideoId || info.videoPath) && (
-        <section>
-          <button
-            type="button"
-            onClick={() => setShowVideo((v) => !v)}
-            aria-expanded={showVideo}
-            className="flex min-h-10 w-full items-center justify-between gap-2 text-left text-sm font-semibold text-ink"
-          >
-            {info.source === 'OWN' ? '우리 영상(올림)' : '참고 영상'}
-            <ChevronDown
-              aria-hidden
-              className={`h-4 w-4 text-muted transition-transform duration-200 ${showVideo ? 'rotate-180' : ''}`}
-            />
-          </button>
-          {showVideo && (
-            <div className="motion-safe:animate-fade-in mt-2">
-              <LibraryVideo
-                key={info.id}
-                path={info.videoPath}
-                referenceVideoId={info.referenceVideoId}
-                title={info.title}
-                thumbUrl={info.thumbUrl}
-                aspectRatio={info.aspectRatio}
-                isAdmin
-              />
-            </div>
-          )}
-        </section>
+      {info?.youtube && (
+        <Fold label="참고 영상" open={showVideo} onToggle={() => setShowVideo((v) => !v)}>
+          <LibraryVideo
+            key={`yt-${info.youtube.id}`}
+            path={null}
+            referenceVideoId={info.youtube.id}
+            title={info.title}
+            thumbUrl={referenceThumbUrl(info.youtube.id)}
+            aspectRatio={info.youtube.aspectRatio}
+            isAdmin
+          />
+        </Fold>
+      )}
+
+      {info?.own && (
+        <Fold
+          label="올린 우리 영상"
+          badge="소리 없음"
+          open={showOwn}
+          onToggle={() => setShowOwn((v) => !v)}
+        >
+          <LibraryVideo
+            key={info.own.path}
+            path={info.own.path}
+            referenceVideoId={null}
+            title={info.title}
+            thumbUrl={info.own.thumbUrl}
+            aspectRatio={info.own.aspectRatio}
+            isAdmin
+          />
+        </Fold>
       )}
 
       {info?.description && (
@@ -113,5 +119,45 @@ export function ShootExerciseDetail({
         </section>
       )}
     </div>
+  );
+}
+
+/** 접히는 칸 — 제목 줄을 누르면 펼친다 */
+function Fold({
+  label,
+  badge,
+  open,
+  onToggle,
+  children,
+}: {
+  label: string;
+  badge?: string;
+  open: boolean;
+  onToggle: () => void;
+  children: ReactNode;
+}) {
+  return (
+    <section>
+      <button
+        type="button"
+        onClick={onToggle}
+        aria-expanded={open}
+        className="flex min-h-10 w-full items-center justify-between gap-2 text-left text-sm font-semibold text-ink"
+      >
+        <span className="flex items-center gap-2">
+          {label}
+          {badge && (
+            <span className="rounded-full bg-sky/12 px-2 py-0.5 text-[11px] font-bold text-sky-strong">
+              {badge}
+            </span>
+          )}
+        </span>
+        <ChevronDown
+          aria-hidden
+          className={`h-4 w-4 text-muted transition-transform duration-200 ${open ? 'rotate-180' : ''}`}
+        />
+      </button>
+      {open && <div className="motion-safe:animate-fade-in mt-2">{children}</div>}
+    </section>
   );
 }

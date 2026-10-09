@@ -10,6 +10,9 @@ import { StackBar } from '@/components/shoot/gauge';
 import { ShootExerciseDetail } from '@/components/shoot/exercise-detail';
 import { STATE_LABEL, STATE_PILL, stampText } from '@/components/shoot/status';
 import { ShootUndoToast } from '@/components/shoot/undo-toast';
+import { ClipPickButtons } from '@/components/shoot/clip-pick-buttons';
+import { PendingClips } from '@/components/shoot/pending-clips';
+import { useClipFlow, type ClipTarget } from '@/components/shoot/use-clip-flow';
 import { useShootChecks } from '@/components/shoot/use-shoot-checks';
 import { haptic } from '@/lib/haptics';
 import type { ShootWeekData } from '@/lib/shoot/load';
@@ -35,10 +38,11 @@ type Filter = 'all' | 'open' | 'done';
 export function WeekView({ data, me }: { data: ShootWeekData; me: string }) {
   const router = useRouter();
   const { week, carried, infos, weeks } = data;
-  const { map, set, toast, undo, closeToast, error, clearError } = useShootChecks(
+  const { map, set, adopt, toast, undo, closeToast, error, clearError } = useShootChecks(
     data.checks,
     { me }
   );
+  const clips = useClipFlow({ adopt });
   const [filter, setFilter] = useState<Filter>('all');
   const detail = useModalState<string>();
 
@@ -109,6 +113,8 @@ export function WeekView({ data, me }: { data: ShootWeekData; me: string }) {
         size="md"
         settleKey={week.week}
       />
+
+      <PendingClips clips={clips} isUploaded={(id) => !!infos[id]?.own} />
 
       {/* ── 진행 · 지금 · 다음 ── */}
       <section className="space-y-4 rounded-2xl border border-line bg-surface p-(--block-pad)">
@@ -310,9 +316,12 @@ export function WeekView({ data, me }: { data: ShootWeekData; me: string }) {
                 label: `${open.no} ${status ? STATE_LABEL[status] : '대기로 되돌림'}`,
               })
             }
+            onPick={clips.edit}
           />
         )}
       </Modal>
+
+      {clips.elements}
 
       <ShootUndoToast toast={toast} onUndo={undo} onClose={closeToast} />
     </>
@@ -483,12 +492,15 @@ function DetailBody({
   check,
   runHref,
   onSet,
+  onPick,
 }: {
   it: PlanItem;
   info: ShootWeekData['infos'][string] | undefined;
   check: ShootCheckView | undefined;
   runHref: string;
   onSet: (status: ShootStatus | null, note?: string | null) => Promise<boolean>;
+  /** 영상을 고르면 컷 편집 창으로(useClipFlow().edit) */
+  onPick: (target: ClipTarget, file: File, from: 'camera' | 'album') => void;
 }) {
   const state: ItemState = check?.status ?? 'todo';
   const [note, setNote] = useState(check?.note ?? '');
@@ -513,6 +525,11 @@ function DetailBody({
           {check.by ?? '누군가'} · {stampText(check.at)}
         </p>
       )}
+      <ClipPickButtons
+        target={{ exerciseId: it.exerciseId, no: it.no, title: it.title, cue: it.cue }}
+        uploaded={!!info?.own}
+        onPick={onPick}
+      />
       <ShootExerciseDetail item={it} info={info} />
       <form
         onSubmit={async (e) => {

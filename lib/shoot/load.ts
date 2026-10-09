@@ -11,6 +11,7 @@ import {
   type ShootCheckView,
 } from '@/lib/shoot/progress';
 import { SHOOT_PLAN, weekOf } from '@/lib/shoot/plan';
+import refsData from '@/lib/shoot/refs.json';
 import type { PlanItem, PlanWeek } from '@/lib/shoot/schedule';
 
 /**
@@ -40,6 +41,12 @@ export async function loadShootChecks(): Promise<ShootCheckView[]> {
     }));
 }
 
+/**
+ * 유튜브 참고 영상 — 라이브러리의 지금 번호가 먼저, 우리 영상을 올려 지워진 뒤에는 저장소에 남겨 둔 번호
+ * (scripts/shoot-refs.mts).
+ */
+const REFS = refsData as Record<string, { yt: string; ar?: number }>;
+
 /** 촬영 화면에 보일 운동 정보 — 영상 · 설명 · 처방 · 지금 출처(우리 영상으로 바뀌었나) */
 export type ShootExerciseInfo = {
   id: string;
@@ -59,6 +66,10 @@ export type ShootExerciseInfo = {
   thumbUrl: string | null;
   aspectRatio: number | null;
   hidden: boolean;
+  /** 모델이 볼 참고 영상(유튜브) — 우리 영상을 올린 뒤에도 남는다 */
+  youtube: { id: string; aspectRatio: number | null } | null;
+  /** 올린 우리 영상 — 아직이면 null */
+  own: { path: string; thumbUrl: string | null; aspectRatio: number | null } | null;
 };
 
 export async function loadShootExercises(
@@ -104,6 +115,20 @@ export async function loadShootExercises(
             : null,
         aspectRatio: ex.aspectRatio,
         hidden: ex.hiddenAt != null,
+        // 라이브러리에 지금 유튜브 번호가 있으면 그것(관리자가 바꿨을 수 있다), 우리 영상으로 바뀌어 지워졌으면 남겨 둔 번호
+        youtube: ex.referenceVideoId
+          ? { id: ex.referenceVideoId, aspectRatio: ex.aspectRatio }
+          : REFS[ex.id]
+            ? { id: REFS[ex.id].yt, aspectRatio: REFS[ex.id].ar ?? null }
+            : null,
+        own:
+          ex.source === 'OWN' && ex.videoPath
+            ? {
+                path: ex.videoPath,
+                thumbUrl: ex.thumbPath ? (thumbs[ex.thumbPath] ?? null) : null,
+                aspectRatio: ex.aspectRatio,
+              }
+            : null,
       },
     ])
   );
