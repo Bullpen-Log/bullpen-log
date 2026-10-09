@@ -124,12 +124,10 @@ type FlyKind = 'fly' | 'pop';
 /**
  * 도크 · 팝업이 설 자리 — 위에서 잰 거리와, 화면 오른쪽 끝에서 잰 거리.
  *   right  격자 단추 한가운데까지(도크는 여기에 가운데를 맞춘다)
- *   edge   도크 상자의 오른쪽 끝까지(팝업은 여기에 오른쪽 끝을 맞춘다 — 도크가 그 자리에서 자라 팝업이 되게)
+ *   edge   막대의 오른쪽 끝까지 = 화면 끝에서 조금 띄운 자리(팝업은 여기에 오른쪽 끝을 맞춘다 — 2026-10-09 사용자:
+ *          "오른쪽 끝에 조금 띄운 상태로 붙여줘"). 도크는 격자 밑 가운데라 팝업으로 자라며 오른쪽으로 조금 옮겨 앉는다
  */
 type Anchor = { top: number; right: number; edge: number };
-
-/** 도크 상자 폭의 절반(px) — 4칸 48px + 틈 3×2px + 안쪽 여백 12px + 테두리 2px = 212px. 도크가 안 떠 있을 때 edge 를 셈한다 */
-const DOCK_HALF_PX = 106;
 
 type TimerName = 'open' | 'close' | 'dwell';
 
@@ -169,7 +167,7 @@ const REST_THUMB = { viewTransitionName: 'nav-thumb' } as CSSProperties;
  * 격자 단추를 못 잰 경우의 도크 자리 — 지금 막대 크기로 셈한 값.
  * 격자 오른쪽에 종(32px)이 들어서며 격자 한가운데가 오른쪽 끝에서 34px 멀어졌다.
  */
-const DOCK_FALLBACK: Anchor = { top: 74, right: 158, edge: 158 - DOCK_HALF_PX };
+const DOCK_FALLBACK: Anchor = { top: 74, right: 158, edge: 16 };
 
 /**
  * 점(x, y)이 요소의 네모 안에 있는가.
@@ -398,12 +396,8 @@ export function AppNav({
     if (!btn || !bar || btn.width === 0) return null;
     const width = document.documentElement.clientWidth;
     const right = Math.round(width - (btn.left + btn.width / 2));
-    /* 팝업의 오른쪽 끝 — 도크가 떠 있으면 그 상자를 재고, 아니면 도크 폭으로 셈한다 */
-    const dockRect = dockRef.current?.getBoundingClientRect();
-    const edge =
-      dockRect && dockRect.width > 0
-        ? Math.round(width - dockRect.right)
-        : right - DOCK_HALF_PX;
+    /* 팝업의 오른쪽 끝 — 막대의 오른쪽 끝(right-4, 화면 끝에서 16px) */
+    const edge = Math.round(width - bar.right);
     return { top: Math.round(bar.bottom + 6), right, edge };
   };
 
@@ -1934,7 +1928,7 @@ function DetailMenu({
   onDismissed: () => void;
   /** 메뉴 맨 아래 내 정보를 눌렀을 때. 누른 버튼을 함께 준다. */
   onProfile: (el: HTMLElement) => void;
-  /** PC 팝업이 설 자리 — 도크와 같은 위, 도크 상자와 같은 오른쪽 끝(휴대폰 시트는 안 쓴다) */
+  /** PC 팝업이 설 자리 — 도크와 같은 위, 막대와 같은 오른쪽 끝(휴대폰 시트는 안 쓴다) */
   anchor: Anchor;
   /** 아이콘의 이름표 번호 — 도크·막대와 같은 번호를 쓴다 */
   flyIndex: (href: string) => number;
