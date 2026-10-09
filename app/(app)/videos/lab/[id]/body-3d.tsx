@@ -222,8 +222,10 @@ export const Body3D = forwardRef<
     ground?: LabGround;
     /** 투수 키(cm) — 마운드 크기를 키 단위로 바꾼다(없으면 180) */
     heightCm?: number | null;
+    /** AI 스켈레톤 보정을 섞을지(결과에 AI 관절이 있을 때만 효과) */
+    ai?: boolean;
   }
->(function Body3D({ result, onTransport, ground = 'mound', heightCm }, ref) {
+>(function Body3D({ result, onTransport, ground = 'mound', heightCm, ai = false }, ref) {
   const hostRef = useRef<HTMLDivElement>(null);
   const [status, setStatus] = useState<Status>(() =>
     typeof window !== 'undefined' && !hasWebGL() ? 'unavailable' : 'loading'
@@ -249,8 +251,8 @@ export const Body3D = forwardRef<
 
   /* 장면 → 보기용 관절(키 = 1, 사람 몸 한계 · 떨림 다듬기 · 바닥 하나 — display.ts) */
   const track = useMemo(
-    () => displayTrack(result, { ground, heightM: (heightCm ?? 180) / 100 }),
-    [result, ground, heightCm]
+    () => displayTrack(result, { ground, heightM: (heightCm ?? 180) / 100, ai }),
+    [result, ground, heightCm, ai]
   );
   const frames = track.frames;
   /*

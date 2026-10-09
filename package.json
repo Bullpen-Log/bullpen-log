@@ -42,7 +42,8 @@
     "shoot:test": "node --import ./scripts/alias-register.mjs scripts/shoot-selftest.mts",
     "clip:test": "node --import ./scripts/alias-register.mjs scripts/clip-selftest.mts",
     "shoot:plan": "node --env-file=.env --import ./scripts/alias-register.mjs scripts/shoot-plan.mts",
-    "shoot:refs": "node --env-file=.env --import ./scripts/alias-register.mjs scripts/shoot-refs.mts"
+    "shoot:refs": "node --env-file=.env --import ./scripts/alias-register.mjs scripts/shoot-refs.mts",
+    "shoot:outdoor": "node --env-file=.env --import ./scripts/alias-register.mjs scripts/shoot-plan-outdoor.mts"
   },
   "dependencies": {
     "@mediapipe/tasks-vision": "^1.0.1",

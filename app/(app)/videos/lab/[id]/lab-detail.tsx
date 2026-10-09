@@ -17,6 +17,7 @@ import { Segmented } from '@/components/segmented';
 import { saveLabSample } from '@/app/actions/pitch-lab';
 import { orOffline } from '@/lib/action-offline';
 import type { Pitch3dV2Ok } from '@/lib/pitch-3d/v2/contract';
+import { readAiJoints } from '@/lib/pitch-3d/v2/display';
 import type { Metric, MetricKey } from '@/lib/pitch-3d/metrics';
 import { V2EmptyWell, V2RequestRow, V2StatusBadge } from './analysis-v2';
 import type { Body3DHandle, Transport } from './body-3d';
@@ -53,6 +54,11 @@ const LABELS: Record<MetricKey, string> = {
   maxExternalRotation: '어깨 외회전 최대',
   plantToRelease: '착지 → 릴리스',
 };
+const AI_VIEW_OPTIONS: { value: 'ai' | 'raw'; label: string }[] = [
+  { value: 'ai', label: 'AI 보정' },
+  { value: 'raw', label: '측정 그대로' },
+];
+
 /** 겉에 보이는 지표(나머지는 '자세히') */
 const MAIN: MetricKey[] = [
   'trunkForwardTilt',
@@ -147,6 +153,9 @@ export function LabDetail({
     });
     if ('error' in r) setGroundError(r.error);
   };
+  /* AI 스켈레톤 보정(실험) — 결과에 AI 관절이 있을 때만 고르개가 보인다, 처음엔 켬 */
+  const hasAi = result != null && readAiJoints(result) != null;
+  const [aiView, setAiView] = useState<'ai' | 'raw'>('ai');
   const main = result
     ? MAIN.map((k) => result.metrics.find((m) => m.key === k)).filter(
         (m): m is Metric => m != null
@@ -177,6 +186,14 @@ export function LabDetail({
             options={LAB_GROUND_OPTIONS}
           />
           {groundError && <ErrorLine>{groundError}</ErrorLine>}
+          {hasAi && (
+            <Segmented
+              label="움직임"
+              value={aiView}
+              onChange={setAiView}
+              options={AI_VIEW_OPTIONS}
+            />
+          )}
           {result && meta && result.hand !== meta.hand && (
             <p className="text-xs text-muted break-keep">
               영상으로 보면 {result.hand === 'L' ? '왼손' : '오른손'} 투수라{' '}
@@ -190,6 +207,7 @@ export function LabDetail({
               onTransport={onTransport}
               ground={ground}
               heightCm={meta?.heightCm ?? null}
+              ai={hasAi && aiView === 'ai'}
             />
           ) : (
             <V2EmptyWell

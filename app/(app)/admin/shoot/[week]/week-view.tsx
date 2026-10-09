@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState, type MouseEvent } from 'react';
+import { useEffect, useMemo, useRef, useState, type MouseEvent } from 'react';
 import { useRouter } from 'next/navigation';
 import { Check, Clapperboard, Clock3, Coffee, RotateCcw, Wrench } from 'lucide-react';
 import { ButtonLink, PageHeading } from '@/components/ui';
@@ -57,6 +57,25 @@ export function WeekView({ data, me }: { data: ShootWeekData; me: string }) {
   );
   const count = countOf(items, map);
   const { current, next } = cursorOfList(queue, map);
+  /* 메인 '올릴 차례' · '다시 찍기' 목록에서 #6-12 로 오면 그 운동 창을 연다 — 처음 한 번만(올린 뒤 다시 그려져도 또 열지 않게) */
+  const hashDone = useRef(false);
+  const showDetail = detail.show;
+  useEffect(() => {
+    if (hashDone.current) return;
+    const no = decodeURIComponent(window.location.hash.slice(1));
+    const hit = no ? queue.find((it) => it.no === no) : undefined;
+    if (!hit) {
+      hashDone.current = true;
+      return;
+    }
+    // 연 뒤에 '했음' — 개발 모드는 효과를 두 번 돌리며 첫 예약을 지운다
+    const id = window.setTimeout(() => {
+      hashDone.current = true;
+      showDetail(hit.exerciseId);
+    }, 0);
+    return () => window.clearTimeout(id);
+  }, [queue, showDetail]);
+
   const equipment = useMemo(
     () => [...new Set(items.flatMap((it) => it.equipment))].filter((e) => e !== '맨몸'),
     [items]
@@ -87,7 +106,7 @@ export function WeekView({ data, me }: { data: ShootWeekData; me: string }) {
   return (
     <>
       <PageHeading
-        title={`${week.week}주차 촬영`}
+        title={`${week.week}주차 촬영${week.outdoor ? ' · 야외' : ''}`}
         description={`${items.length}개 · 계획 0:15~${clockText(week.end)} · 자리 ${week.stations.length}곳${carried.length ? ` · 앞 주에서 넘어온 것 ${carried.length}개` : ''}`}
         action={
           /* 휴대폰은 진행 칸의 큰 [이어 찍기] 하나만 — ButtonLink 의 inline-flex 가 hidden 을 이겨서 감싼다 */
@@ -188,8 +207,10 @@ export function WeekView({ data, me }: { data: ShootWeekData; me: string }) {
           ))}
         </p>
         <p className="text-xs leading-relaxed text-muted">
-          자리 순서 · {week.stations.map((s) => s.station).join(' → ')}. 시범은 가볍게
-          3회 · 버티기 10초 · 천천히 내리기는 1~2회 · 좌우는 한쪽만.
+          자리 순서 · {week.stations.map((s) => s.station).join(' → ')}.{' '}
+          {week.outdoor
+            ? '워밍업으로 모델이 몸을 푼 뒤 드릴로. 던지는 드릴은 2~3구, 메디신볼은 3회 — 공 줍는 사람 한 명.'
+            : '시범은 가볍게 3회 · 버티기 10초 · 천천히 내리기는 1~2회 · 좌우는 한쪽만.'}
         </p>
       </section>
 
@@ -454,7 +475,7 @@ function Row({
             </span>
           </span>
           <span className="hidden w-24 shrink-0 truncate text-xs text-muted desk:block">
-            {carried ? it.station : BUCKET_LABEL[it.bucket]}
+            {carried ? it.station : (it.group ?? BUCKET_LABEL[it.bucket])}
           </span>
           <span className="hidden w-28 shrink-0 text-right text-[11px] text-muted lg:block">
             {check ? `${check.by ?? ''} ${stampText(check.at)}` : ''}

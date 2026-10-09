@@ -272,9 +272,12 @@ export function RunClient({
                 </p>
                 <p className="mt-1 text-xs text-muted">
                   {BUCKET_LABEL[current.bucket]}
-                  {current.load >= 2
-                    ? ' · 부하 높음 — 무게는 평소의 절반쯤'
-                    : ' · 가볍게, 자세가 보이게'}
+                  {current.group ? ` · ${current.group}` : ''}
+                  {current.kind === 'drill'
+                    ? ' · 자세가 보이게, 세게 말고'
+                    : current.load >= 2
+                      ? ' · 부하 높음 — 무게는 평소의 절반쯤'
+                      : ' · 가볍게, 자세가 보이게'}
                 </p>
               </div>
               <ShootExerciseDetail

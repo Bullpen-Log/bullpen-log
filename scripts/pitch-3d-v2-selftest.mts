@@ -47,7 +47,7 @@ import {
 import { makeV2Track } from './pitch-lab/synth-v2.mts';
 import { footJump, footSway, gapWristError, hipSnap, leadGapJump } from './pitch-lab/gap-check.mts';
 import { readFileSync } from 'node:fs';
-import { displayTrack } from '../lib/pitch-3d/v2/display.ts';
+import { blendAi, displayTrack, readAiJoints } from '../lib/pitch-3d/v2/display.ts';
 import { KIN_LIMITS, kinematicTrack } from '../lib/pitch-3d/v2/kinematics.ts';
 import {
   moundHeightAt,
@@ -749,6 +749,23 @@ console.log('■ node 실행기(segment · fit)');
       seg2.ok && seg.ok ? `${seg2.events.release.toFixed(2)} · ${seg.events.release.toFixed(2)}` : seg2.ok ? '' : seg2.code
     );
   }
+  /*
+   * 슬로모 끝의 보통 속도 구간 — 릴리스 0.1초 뒤부터 영상 시간이 6배 빨리 흐른다(팔로스루가 영상 시간으로 6배 빠름). 손목 빠르기만 보면 그쪽을
+   * 채찍으로 잡아 릴리스를 팔로스루에서 찾았다(2026-10-09 좌투 샘플 — 릴리스가 영상 끝 0.23초 전).
+   */
+  {
+    const s3 = makeV2Track(sc, camS, sc.side, 'side', 41);
+    const b3 = makeV2Track(sc, camB, sc.back, 'back', 42);
+    const tc = (seg.ok ? seg.events.release : s3.toMedia(EV.release)) + 0.1;
+    for (const tr of [s3.track, b3.track])
+      for (const f of tr.frames) if (f.t > tc) f.t = tc + (f.t - tc) / 6;
+    const seg3 = pickSegment({ side: s3.track, back: b3.track });
+    check(
+      '슬로모 끝 보통 속도 구간이 있어도 같은 릴리스를 찾는다(0.05초 안)',
+      seg.ok && seg3.ok && Math.abs(seg3.events.release - seg.events.release) < 0.05,
+      seg3.ok && seg.ok ? `${seg3.events.release.toFixed(2)} · ${seg.events.release.toFixed(2)}` : seg3.ok ? '' : seg3.code
+    );
+  }
   /* segment 가 찾은 순간을 fit 이 넘겨받는다 — 잘라 낸 구간에서 다시 찾다 실패한 2026-10-08 샘플 1 · 3 */
   check('fit 입력 순간: 착지 < 릴리스면 그대로', readV2Events({ kneeUp: 1, footPlant: 2, release: 2.5 })?.release === 2.5);
   check('fit 입력 순간: 뒤바뀌거나 없으면 버림(다시 찾기)', !readV2Events({ footPlant: 2, release: 1 }) && !readV2Events(null));
@@ -1111,6 +1128,39 @@ console.log('■ 뼈대 자세(pose-rig) — public/models/skeleton-parts.json +
           const ang = deg(Math.acos(Math.max(-1, Math.min(1, dot(a, b)))));
           /* 비틀림 한계(60°) + 그 사이 넙다리 방향이 바뀐 몫 — 뒤(180°)를 보지 않으면 된다 */
           check(`각도 모델: 무릎이 뒤를 봐도(180°) 넙다리가 ${KIN_LIMITS.hipRotation}° 남짓만 돈다`, ang < 80, `${ang.toFixed(1)}°`);
+        }
+
+        /* 11 AI 보정 섞기 — 같으면 그대로, 흐린 팔은 AI 방향, 묶인 발 쪽 다리는 우리 것, 뼈 길이는 우리 것 */
+        {
+          const len = 6;
+          const ours = Array.from({ length: len }, () => mid0.map((p) => [...p] as Vec3));
+          const same = blendAi(ours, ours, ours.map(() => new Array(25).fill(100)), []).frames;
+          const d0 = Math.max(...same.flatMap((fr, k) => fr.map((p, j) => norm(sub(p, ours[k][j])))));
+          const ai = ours.map((fr) => {
+            const a = fr.map((p) => [...p] as Vec3);
+            /* AI 는 오른 아래팔을 위로 */
+            a[V2J.rWr] = add(a[V2J.rEl], [0, norm(sub(fr[V2J.rWr], fr[V2J.rEl])), 0]);
+            /* 왼 정강이도 다르게 */
+            a[V2J.lAn] = add(a[V2J.lKn], [0.2, -0.1, 0]);
+            return a;
+          });
+          const conf = ours.map(() => {
+            const row = new Array(25).fill(100);
+            row[V2J.rWr] = 0;
+            row[V2J.lAn] = 0;
+            return row;
+          });
+          const b = blendAi(ours, ai, conf, [{ side: 'L', from: 0, to: len - 1 }]);
+          const fore = normalize(sub(b.frames[2][V2J.rWr], b.frames[2][V2J.rEl]));
+          const lenOk = Math.abs(norm(sub(b.frames[2][V2J.rWr], b.frames[2][V2J.rEl])) - norm(sub(ours[2][V2J.rWr], ours[2][V2J.rEl]))) < 1e-9;
+          const legSame = norm(sub(b.frames[2][V2J.lAn], ours[2][V2J.lAn])) < 1e-9;
+          check(
+            'AI 보정: 같으면 그대로 · 흐린 손목은 AI 쪽(위) · 길이는 우리 것 · 묶인 발 다리는 그대로',
+            d0 < 1e-9 && fore[1] > 0.99 && lenOk && legSame,
+            `${d0.toExponential(1)} · 위 ${fore[1].toFixed(3)} · 길이 ${lenOk} · 다리 ${legSame}`
+          );
+          const fake = { ...result, experimental: { sam3d: { model: 'x', joints: result.joints.slice(1) } } };
+          check('AI 보정: 장면 수가 다른 AI 관절은 읽지 않는다', readAiJoints(fake) === null && readAiJoints(result) === null);
         }
 
         /* 10 떨림 — 가만있는 손목의 잡음은 줄인다 */

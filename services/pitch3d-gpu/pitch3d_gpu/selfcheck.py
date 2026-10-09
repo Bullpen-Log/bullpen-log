@@ -93,4 +93,33 @@ if node and engine.RUNNER.is_file():
 else:
     print(f"  건너뜀 — node({engine.NODE}) 또는 묶음({engine.RUNNER})이 없다. `node scripts/pitch3d-bundle.mjs` 뒤 다시.")
 
+print("■ AI 스켈레톤 보정(sam3d) — 좌표 맞추기 · 관절 고르기(numpy 가 있으면)")
+try:
+    import numpy as np
+except ImportError:
+    np = None
+if np is not None:
+    from . import sam3d
+    from .mapping import V2_NAMES as _NAMES
+
+    rng = np.random.default_rng(1)
+    A = rng.normal(size=(40, 3))
+    A -= A.mean(0)
+    th = 0.7
+    R0 = np.array([[np.cos(th), -np.sin(th), 0], [np.sin(th), np.cos(th), 0], [0, 0, 1]])
+    R, s = sam3d.umeyama(A, 1.7 * (R0 @ A.T).T)
+    check("Umeyama 가 회전 · 크기를 되찾는다", np.abs(R - R0).max() < 1e-9 and abs(s - 1.7) < 1e-9)
+    R2, _ = sam3d.umeyama(A, A * np.array([-1, 1, 1]))
+    check("거울은 회전으로 안 만든다(det +1)", abs(np.linalg.det(R2) - 1) < 1e-9)
+    k70 = rng.normal(size=(70, 3))
+    k70[41] = [0, 0, 0]
+    for i, c in enumerate([28, 27, 26, 25]):
+        k70[c] = [0.02 * (i + 1) + 0.05, 0, 0]
+    v = sam3d.to_v2(k70, _NAMES)
+    ix = {n: i for i, n in enumerate(_NAMES)}
+    check("손 관절 = 손가락 네 점 중 손목에 가장 가까운 마디", np.allclose(v[ix["rHandIdx"]], k70[28]))
+    check("엔진 관절 25개가 모두 MHR 에 있다", all(n in sam3d.MHR or n in sam3d.FINGERS for n in _NAMES))
+else:
+    print("  건너뜀 — numpy 없음")
+
 print(f"\n통과 {passed}")
