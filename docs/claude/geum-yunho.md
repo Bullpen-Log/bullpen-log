@@ -241,6 +241,18 @@
 
 ## 4. 진행 중인 일
 
+- **트레이닝 검토 1~4단계(2026-10-09, 사용자: "트레이닝 파트 개선점 · 방향 검토하고 계획 짜줘 → 1단계부터 멈추지 말고").** 방향은
+  "트레이닝을 투구 결과와 잇는 고리" — 앱이 다음 등판을 모르고, 운동해서 공이 좋아졌는지 안 보였다. 한 것:
+  ① 체크인 `throwPlan` 을 매일 계획이 읽음(`facts.condition.throwPlanToday/Yesterday` → `theme.ts plannedOuting`: 오늘 등판 회복 · 내일 등판 보조·코어,
+  오늘 답이 먼저) ③ 워밍업 창이 빈 루틴을 이름만 있는 24개로 채움(`lib/shoot/warmups.ts`) ④ 분석 투구 칸 "잘 던진 날" 카드(`coach/good-days.tsx`,
+  계산은 2026-10-06 것) ⑤ 자유 운동 무게 추천 `lib/workout/free-weight.ts`(이중 진행 · 쉰 기간, FrozenExercise.suggestNote) ⑥ 메커니즘 견준 결과
+  `progress.films`(세션 끝 · 프로그램 칸 단추, 수준 바꿔도 지킴) ⑧ 재활 투구 복귀표 던진 날 → PitchLog 메모 꼬리표 + `throwingNext`(Axe 규칙)
+  ⑩ `LOW_CONDITION_THRESHOLD`(lib/checkin.ts) · `HEAVY_EQUIPMENT`(lib/exercise-meta.ts) 한 곳. **코드 없이 둔 것**: ⑦ 성장기 · 입문 길은
+  `docs/designs/youth-beginner-path.md` 제안(D10 그대로, 사용자가 정할 것 넷) · ② 장비 뜻은 이미 2026-10-05 에 통일돼 있었음(빈 목록 = 안 고름,
+  매일 계획도 처음 한 번 묻는다) · ⑨ 큰 파일 나누기 · ⑪ 영양의 암케어 시간은 TODOS. 시험: program:test 151 · mechanics:test 2766 · 임시 확인 셋.
+  **못 본 것**: 화면은 로그인이 필요해 브라우저로 못 봤다 — tsc · eslint · `npx next build` 만. 사용자가 PC/폰에서 눌러 보면 좋을 곳: 분석 투구 칸,
+  운동 화면의 "추천 N kg 담기" 밑 한 줄, 메커니즘 6번째 세션 끝, 재활 4단계 카드.
+
 - **PC 메뉴 = 도크가 부풀어 뜨는 팝업(2026-10-09, 사용자: "오른쪽에서 나오는 판은 화면을 너무 많이 가린다 · 미니 메뉴가 커지며 팝업으로 ·
   뜰 때 풍선처럼 둥실, 진짜 살짝만 — 아이폰처럼").** 여는 조건은 그대로(격자 누름 · 5초 머무름). `dialog[data-drawer]` 가 PC 에서
   w-72 · 내용만큼 · 도크와 같은 위 · 오른쪽 끝은 막대 끝(화면 끝에서 조금 띄움, 같은 날 사용자 "오른쪽 끝에 조금 띄운 상태로"; `--pop-top · --pop-right · --pop-max`, app-shell 의 Anchor.edge = 막대 오른쪽 끝, 없으면 16px)에 서고 뒤는 투명.
