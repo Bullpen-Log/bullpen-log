@@ -2,7 +2,7 @@ import 'server-only';
 import { prisma } from '@/lib/prisma';
 import { createPlaybackUrls } from '@/lib/storage';
 import { isRect } from '@/lib/velocity-setup';
-import { replayOf } from '@/lib/velocity-analysis';
+import { distanceMismatch, replayOf } from '@/lib/velocity-analysis';
 import type {
   DayClip,
   PitchClipView,
@@ -92,6 +92,7 @@ export async function loadVelocityDay(
       wideClip: clipOf(p.wideClipPath, p.wideClipEventSec, p.wideClipSec),
       zoneRect: zoneRectOf(p.analysis),
       replay: p.clipPath ? replayOf(p.analysis, p.clipEventSec, s.source) : null,
+      excluded: distanceMismatch(p.analysis) != null,
     })),
   }));
 }

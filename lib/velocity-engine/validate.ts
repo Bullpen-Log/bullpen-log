@@ -68,6 +68,13 @@ export const MIN_TRAVEL_M = 2.5;
 export const MIN_FIT_QUALITY = 0.9;
 
 /** 사람이 던질 수 있는 범위(km/h). 밖이면 측정이 틀린 것이다. */
+/**
+ * 넣은 거리와 공 크기로 본 끝 거리가 이만큼(비율) 넘게 다르면 공을 미트 · 그물까지 따라가지 못한 것(앞에서 놓침) 또는 너머까지 따라간 것 —
+ * 끝 장면이 넣은 거리가 아니라 넣은 거리를 엉뚱한 장면에 붙여 값이 크게 틀린다. 2026-10-09 실내(폰 → 미트 18.5m) 13구: 15% 안 8구
+ * MAE 1.45km/h, 넘은 4구 +22~+76km/h(공 크기 13.6 · 14.8 · 22.1 · 26.5m). 값은 보이되(막지 않음) 믿음 '낮음' · ± 를 그 차이만큼.
+ */
+export const INPUT_SIZE_MISMATCH = 0.15;
+
 export const MIN_PLAUSIBLE_KMH = 40;
 export const MAX_PLAUSIBLE_KMH = 180;
 

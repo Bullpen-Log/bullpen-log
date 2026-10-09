@@ -223,6 +223,7 @@ export function SessionSummary({
                                 ` · 릴리스 ${speedNum(p.releaseKmh)}`}
                               {p.gunKmh != null && ` · 건 ${speedNum(p.gunKmh)}`}
                               {p.source === 'file' && ' · 파일'}
+                              {p.excluded && ' · 최고 · 평균에서 뺌'}
                             </span>
                           </span>
                           {/* onChange 없이 두면 span 으로 그려져 button 안에 둬도 된다(pitch-editor.tsx) */}

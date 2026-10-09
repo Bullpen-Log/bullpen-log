@@ -7,6 +7,8 @@ import type { ConfidenceKey } from '@/lib/velocity-meta';
  */
 export type SessionPitch = {
   id: number;
+  /** 넣은 거리와 공 크기 거리가 크게 달라(distanceMismatch) 최고 · 평균에서 뺀 공 */
+  excluded?: boolean;
   /** 1부터 — 세션에서 몇 번째 공 */
   seq: number;
   /** 보정 뒤 km/h(화면에 보이는 값). 단위 바꾸기는 부르는 쪽이 한다(lib/units.ts) */

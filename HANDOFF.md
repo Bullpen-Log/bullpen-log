@@ -187,6 +187,9 @@ ink 쪽으로 — 어렵다면 B 만). 나는 Swift 를 굽지 못해 손대지 
   이어서 담고, 구속 측정 첫 화면에 '저장하지 않은 공 N개 — 이어서 하기 · 지우기'(`/velocity/measure?resume=1` → 요약부터). 저장하거나
   '저장하지 않고 나가기'면 지운다. 저장 뒤 영상 올리기에 실패한 것은 맡겨 두었다가 다음에 열 때 다시 올린다. 저장 입력의 측정 맥락은
   `sessionContext()` 한곳(되살린 세션을 카메라 없이 저장하면 그때 맥락 · 날짜로).
+- (2.3.10) 넣은 거리 모드에서 공 크기 거리와 15% 넘게 다르면(`validate.ts` INPUT_SIZE_MISMATCH) 믿음 '낮음' · ± 를 그 차이만큼, 측정 화면이 알리고
+  세션 최고 · 평균(측정 · 요약 · 그날 화면, `velocity-meta.ts` summarize 의 `excluded`)에서 뺀다. 판정은 `velocity-analysis.ts` distanceMismatch.
+  김민 실내(투수판 → 미트 17.5m, 폰 1m 뒤 = 18.5m) 13구: 15% 안 8구 MAE 1.45km/h. 맥에서 다시 재는 도구 `scripts/velocity-lab/app-rerun.mts`(README 8).
 
 ## 금윤호에게 — 2026-10-07 · 김민(Claude) — 구속 엔진 2.2.0(흔들림 바로잡기) · 저장한 공을 잰 직후처럼 보기
 
