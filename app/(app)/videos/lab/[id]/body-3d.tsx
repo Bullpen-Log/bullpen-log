@@ -464,11 +464,14 @@ export const Body3D = forwardRef<
         const lead = Math.max(0, Math.min(1, (k - (fpK - 3)) / 6));
         return pivotSide === 'R' ? { L: lead, R: 1 - lead } : { L: 1 - lead, R: lead };
       };
-      /* 발밑 그림자 — 발이 바닥(경사면)에 닿아 있을 때만(발밑 가장 가까운 점이 키의 1.2% 안). 앞발 그림자가 생기는 장면이 착지 */
+      /*
+       * 발 닿은 자리 — 발이 바닥(경사면)에 닿아 있을 때만(발밑 가장 가까운 점이 키의 1.2% 안) 뼈 색을 옅게 깐다. 앞발 자리가 생기는
+       * 장면이 착지. 검은 그림자는 어두운 바닥에 묻혀 안 보였다.
+       */
       const shadowMat = new THREE.MeshBasicMaterial({
-        color: '#000000',
+        color: BONE,
         transparent: true,
-        opacity: 0.45,
+        opacity: 0.35,
         depthWrite: false,
       });
       const shadows = (['L', 'R'] as const).map(() => {
@@ -491,7 +494,8 @@ export const Body3D = forwardRef<
           const cz = (pts[0][2] + pts[1][2] + pts[2][2]) / 3;
           const len = Math.hypot(pts[1][0] - pts[2][0], pts[1][2] - pts[2][2]);
           sh.position.set(cx, (groundAt ? groundAt(cx, cz) : 0) + 0.004, cz);
-          sh.scale.set(Math.max(0.05, len * 0.62), Math.max(0.03, len * 0.3), 1);
+          /* 발 뼈보다 넉넉히(뼈에 가려 안 보였다) */
+          sh.scale.set(Math.max(0.08, len * 0.95), Math.max(0.05, len * 0.5), 1);
           sh.rotation.z = -Math.atan2(pts[1][2] - pts[2][2], pts[1][0] - pts[2][0]);
         });
       };
