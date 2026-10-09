@@ -32,6 +32,8 @@ type SegmentOut =
       events: { kneeUp: number | null; footPlant: number; release: number };
       /** 구간을 120fps 로 풀면 몇 장인지(상한 600 안으로 잘랐다) */
       frames: number;
+      /** 진단(로그용) — 진행 방향 · 던진 손목 · 앞다리 · 순간 · 영상 처음과 끝 */
+      diag?: Record<string, unknown>;
     }
   | { ok: false; code: V2FailCode; detail?: Record<string, unknown> };
 
@@ -42,6 +44,17 @@ export function pickSegment(input: { side: unknown; back: unknown }): SegmentOut
   if (!sideT || !backT) return { ok: false, code: 'video' };
   const sidePose = toPoseTrack(sideT);
   const ev = detectPitchEvents(sidePose);
+  /* 구간 진단(명령줄이 Modal 로그에 한 줄로, 숫자만) — 2026-10-09 좌투 샘플이 다리를 든 순간을 릴리스로 잡은 일 조사 */
+  const diag = {
+    direction: ev.direction,
+    wrist: ev.wristSide,
+    lead: ev.leadSide,
+    kneeUp: ev.kneeUp?.t ?? null,
+    footPlant: ev.footPlant?.t ?? null,
+    release: ev.release?.t ?? null,
+    first: sideT.frames[0]?.t ?? null,
+    last: sideT.frames[sideT.frames.length - 1]?.t ?? null,
+  };
   const fp = ev.footPlant?.t;
   const rel = ev.release?.t;
   if (fp == null || rel == null || !(rel > fp))
@@ -96,6 +109,7 @@ export function pickSegment(input: { side: unknown; back: unknown }): SegmentOut
     },
     events: { kneeUp, footPlant: fp, release: rel },
     frames: Math.round((to - from) * 120),
+    diag,
   };
 }
 
@@ -290,6 +304,11 @@ if (mode === 'segment' || mode === 'fit') {
     process.exit(2);
   }
   const raw = JSON.parse(readFileSync(inPath, 'utf8'));
-  const out = mode === 'segment' ? JSON.stringify(pickSegment(raw)) : runFit(raw);
+  let out: string;
+  if (mode === 'segment') {
+    const seg = pickSegment(raw);
+    console.error('[pitch3d seg] ' + JSON.stringify(seg.ok ? seg.diag : seg));
+    out = JSON.stringify(seg);
+  } else out = runFit(raw);
   writeFileSync(outPath, out);
 }
