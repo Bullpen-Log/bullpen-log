@@ -216,7 +216,7 @@ export default async function AdminPage() {
         <span className="min-w-0 flex-1">
           <span className="block text-sm font-bold text-ink">트레이닝 영상 촬영</span>
           <span className="mt-0.5 block text-xs leading-relaxed text-muted">
-            5주 촬영 계획과 진행 게이지, 주차별 시간표, 휴대폰으로 찍으며 넘기는 촬영
+            실내 · 야외 주차별 촬영 계획과 진행 게이지, 시간표, 휴대폰으로 찍으며 넘기는 촬영
             모드.
           </span>
         </span>
