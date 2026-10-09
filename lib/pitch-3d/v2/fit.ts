@@ -72,6 +72,8 @@ const GAP_MAX = 15;
  * 릴리스 근처 손목을 10장면 지운 합성: 빈 구간 손목 최대 오차 키의 14~24% → 0.3 에서 13~16% · 0.6 에서 12~14%.
  */
 const GAP_PULL = 0.6;
+/** 붙어 있다고 보는 발목 움직임 폭(키 대비) */
+const FOOT_STAY = 0.03;
 
 /** 점 P 를 A–B 직선에 대해 뒤집는다 — A · B 까지 거리(뼈 길이)는 그대로 */
 function mirrorAcross(P: Vec3, A: Vec3, B: Vec3): Vec3 {
@@ -597,6 +599,72 @@ function fitOnce(input: V2Input): {
   const target: Vec3[][] = X.map((fr) => fr.map((v) => [...v] as Vec3));
 
   /*
+   * 발 고정 — 축발(던지는 손 쪽)은 처음 ~ 착지, 앞발은 착지 ~ 릴리스 뒤(착지~릴리스의 절반 더)에 땅에 붙어 있다. 그 구간에서 보인
+   * 자리의 가운데값에 못 박는다(pinned — 뼈 길이 맞추기 · 시간 다듬기가 움직이지 않음). 예전엔 발 점이 장면마다 흔들려 3D 화면에서
+   * 몸이 위아래로 튀고 발이 떴다
+   * (2026-10-09 김민: "발이 땅에 붙어 있는지 · 착지가 언제인지 구분이 안 되고 바닥에서 떨어지거나 흔들린다").
+   */
+  const pinned: boolean[][] = Array.from({ length: n }, () =>
+    new Array<boolean>(N_V2_JOINTS).fill(false)
+  );
+  {
+    const fp = core.evIdx.footPlant;
+    const rel = core.evIdx.release;
+    const right = [V2J.rAn, V2J.rHe, V2J.rTo];
+    const left = [V2J.lAn, V2J.lHe, V2J.lTo];
+    const [pivot, lead] = core.hand === 'L' ? [left, right] : [right, left];
+    const medianOf = (j: number, from: number, to: number): Vec3 => {
+      const seen: Vec3[] = [];
+      for (let k = from; k <= to; k++) if (dataW[k][j] > 0) seen.push(target[k][j]);
+      const pts =
+        seen.length >= 3 ? seen : target.slice(from, to + 1).map((fr) => fr[j]);
+      return [0, 1, 2].map((d) => median(pts.map((q) => q[d]))) as Vec3;
+    };
+    /*
+     * 붙어 있는 구간은 데이터로 — 발목이 기준 자리에서 키의 3%(FOOT_STAY) 안에 머무는 동안만. 축발은 보폭 끝에서 끌려가기도 해
+     * '처음 ~ 착지' 내내 묶으면 엉덩이가 발목 쪽으로 끌려 골반 방향이 틀어졌다(합성: 꼬임 최대 오차 −0.4 → −3.7°, 정답 축발은 착지
+     * 0.15초 전부터 14cm 끌림).
+     */
+    const stay = FOOT_STAY * H;
+    const lock = (joints: number[], range: [number, number], ref: [number, number]) => {
+      const [from, to] = range;
+      if (to - from < 2) return;
+      for (const j of joints) {
+        const med = medianOf(j, ref[0], ref[1]);
+        for (let k = from; k <= to; k++) {
+          target[k][j] = [...med] as Vec3;
+          X[k][j] = [...med] as Vec3;
+          pinned[k][j] = true;
+        }
+      }
+    };
+    /* 축발 — 기준은 처음 ~ 니업(없으면 착지의 절반)까지, 기준에서 벗어나는 첫 장면 전까지 */
+    {
+      const refTo = Math.max(
+        2,
+        Math.min(fp - 1, core.evIdx.kneeUp ?? Math.floor(fp / 2))
+      );
+      const ref = medianOf(pivot[0], 0, refTo);
+      let to = -1;
+      for (let k = 0; k < fp; k++) {
+        if (norm(sub(target[k][pivot[0]], ref)) > stay && k > refTo) break;
+        to = k;
+      }
+      lock(pivot, [0, to], [0, refTo]);
+    }
+    /* 앞발 — 착지부터(앞발은 착지 뒤 거의 끌리지 않는다 — 묶어도 지표가 그대로였다), 기준은 착지 뒤 자리 잡은 쪽, 벗어나기 전까지 */
+    {
+      const leadTo = Math.min(n - 1, rel + Math.round((rel - fp) / 2));
+      const refFrom = fp + Math.round((leadTo - fp) / 2);
+      const ref = medianOf(lead[0], refFrom, leadTo);
+      let to = leadTo;
+      for (let k = leadTo + 1; k < n && norm(sub(target[k][lead[0]], ref)) <= stay; k++)
+        to = k;
+      lock(lead, [fp, to], [refFrom, leadTo]);
+    }
+  }
+
+  /*
    * ── 자리 기반 맞추기 ──
    * 되풀이마다 관찰로 당김 → 시간 매끈 → 뼈 길이 투영(앞 · 뒤 두 번 훑음) 차례 — 뼈 투영이 마지막이라 매 되풀이 끝에 길이가 맞고,
    * 끝에 관찰 당김 없는 다듬기 몇 번으로 길이를 굳힌다(처음엔 당김이 마지막이어서 뼈 흔들림이 6% 남았다, 합성).
@@ -619,8 +687,9 @@ function fitOnce(input: V2Input): {
         want = len < lo ? lo : hi;
       }
       const corr = (len - want) / len;
-      const ia = 1 / (w[b.a] + 0.05);
-      const ib = 1 / (w[b.b] + 0.05);
+      const ia = pinned[k][b.a] ? 0 : 1 / (w[b.a] + 0.05);
+      const ib = pinned[k][b.b] ? 0 : 1 / (w[b.b] + 0.05);
+      if (ia + ib === 0) return;
       const sa = ia / (ia + ib);
       const sb = ib / (ia + ib);
       fr[b.a] = sub(A, scale(d, corr * sa));
@@ -632,6 +701,7 @@ function fitOnce(input: V2Input): {
   const smoothTime = (gain: number) => {
     for (let j = 0; j < N_V2_JOINTS; j++) {
       for (let k = 1; k < n - 1; k++) {
+        if (pinned[k][j]) continue;
         const w = pullW[k][j];
         const s = gain * (0.1 + 0.9 * (1 - w) * (1 - w));
         const mid = scale(add(X[k - 1][j], X[k + 1][j]), 0.5);

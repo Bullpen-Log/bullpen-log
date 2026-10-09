@@ -187,3 +187,73 @@ if (process.argv[1]?.endsWith('gap-check.mts'))
       `seed ${seed}: 첫 장면 빈 손목 — 처음 보일 때까지 한 장면 최대 이동 ${j == null ? '실패' : (j * 100).toFixed(1) + '% 키'}`
     );
   }
+
+/**
+ * 발 고정 — 땅에 붙어 있어야 할 구간(축발: 처음 ~ 니업, 앞발: 착지 ~ 릴리스)에서 발목 · 뒤꿈치 · 발끝이 움직인 폭(키 대비 mm 의 표준편차).
+ * 2026-10-09 김민: "발이 땅에 잘 붙어 있는지 · 착지는 언제인지 구분이 안 되고 바닥에서 떨어지거나 흔들린다".
+ */
+export function footSway(seed: number): { pivot: number; lead: number } | null {
+  const sc: Scenario = {
+    ...base,
+    ...realistic,
+    name: 'foot',
+    slowSide: 4,
+    slowBack: 4,
+    offBack: 0,
+    sampleSide: 1 / 30,
+    sampleBack: 1 / 30,
+  };
+  const { side: cs, back: cb } = cameras(sc);
+  const s = makeV2Track(sc, cs, sc.side, 'side', seed);
+  const b = makeV2Track(sc, cb, sc.back, 'back', seed + 1);
+  const { result } = fitPitch3dV2({
+    side: s.track,
+    back: b.track,
+    hand: 'R',
+    heightCm: null,
+    jobId: '00000000-0000-4000-8000-000000000000',
+    poseModel: 'synth',
+    screenRecorded: true,
+    slowmoFps: 120,
+    events: {
+      kneeUp: s.toMedia(EV.kneeUp),
+      footPlant: s.toMedia(EV.footPlant),
+      release: s.toMedia(EV.release),
+    },
+  });
+  if (!result.ok) return null;
+  const { footPlant: fp, release: rel } = result.events;
+  const sway = (joints: number[], from: number, to: number) => {
+    let worst = 0;
+    for (const j of joints) {
+      const pts = result.joints.slice(from, to + 1).map((f) => f[j]);
+      const mean = [0, 1, 2].map((d) => pts.reduce((a, p) => a + p[d], 0) / pts.length);
+      const sd = Math.sqrt(
+        pts.reduce(
+          (a, p) =>
+            a + (p[0] - mean[0]) ** 2 + (p[1] - mean[1]) ** 2 + (p[2] - mean[2]) ** 2,
+          0
+        ) / pts.length
+      );
+      worst = Math.max(worst, sd);
+    }
+    return worst;
+  };
+  return {
+    /* 축발은 니업까지(합성 정답 축발은 보폭 끝에 끌린다) */
+    pivot: sway(
+      [V2J.rAn, V2J.rHe, V2J.rTo],
+      0,
+      result.events.kneeUp ?? Math.floor(fp / 2)
+    ),
+    lead: sway([V2J.lAn, V2J.lHe, V2J.lTo], fp + 2, rel),
+  };
+}
+
+if (process.argv[1]?.endsWith('gap-check.mts'))
+  for (const seed of [11, 22]) {
+    const f = footSway(seed);
+    console.log(
+      `seed ${seed}: 발 흔들림(표준편차, 키 1000) 축발 ${f?.pivot.toFixed(1)} · 앞발 ${f?.lead.toFixed(1)}`
+    );
+  }

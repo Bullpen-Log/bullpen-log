@@ -45,7 +45,7 @@ import {
   type Scenario,
 } from './pitch-lab/synth.mts';
 import { makeV2Track } from './pitch-lab/synth-v2.mts';
-import { gapWristError, leadGapJump } from './pitch-lab/gap-check.mts';
+import { footSway, gapWristError, leadGapJump } from './pitch-lab/gap-check.mts';
 import { readFileSync } from 'node:fs';
 import {
   moundHeightAt,
@@ -942,6 +942,19 @@ console.log('■ 던지는 손 — 촬영 정보가 틀려도(좌투를 오른�
     '손을 바로 준 결과와 같다',
     wrong.ok && right.ok && JSON.stringify(wrong.joints) === JSON.stringify(right.joints)
   );
+}
+
+console.log('■ 발 고정 — 축발(처음 ~ 벗어나기 전) · 앞발(착지 ~ 릴리스 뒤)이 땅에 붙어 있다');
+{
+  /* 고치기 전 씨앗 11 · 22: 축발 10.4 · 10.2, 앞발 23.6 · 10.0(표준편차, 키 1000) */
+  for (const seed of [11, 22]) {
+    const f = footSway(seed);
+    check(
+      `붙어 있어야 할 발이 흔들리지 않는다(표준편차 키의 0.2% 밑, 씨앗 ${seed})`,
+      f != null && f.pivot < 2 && f.lead < 2,
+      f ? `축발 ${f.pivot.toFixed(1)} · 앞발 ${f.lead.toFixed(1)}` : '맞추기 실패'
+    );
+  }
 }
 
 console.log('■ 흔들림 · 꺾임 — 첫 장면 빈 관절 · 경첩 관절(팔꿈치 · 무릎) 반대로 꺾임');
