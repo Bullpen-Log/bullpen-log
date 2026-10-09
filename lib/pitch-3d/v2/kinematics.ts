@@ -44,11 +44,16 @@ function rateLimit(xs: number[], rate: number): number[] {
   return f.map((v, k) => (v + b[k]) / 2);
 }
 
+/*
+ * 몸통 · 목 한계는 투구에서 실제로 나오는 만큼 넉넉히 — 60 · 55 · 70 · 45 일 때 좌투 샘플의 골반-어깨 꼬임 · 공 놓은 뒤 숙임과 고개가 잘려 팔 · 머리가
+ * 영상에서 멀어졌다(2026-10-09 샘플 3 던지는 팔 착지~릴리스 3.2 → 2.3%, 샘플 4 머리 릴리스 뒤 3.0 → 2.0%). 여기 '몸통'은 엉덩이 가운데 → 어깨 가운데를
+ * 엉덩이선 틀로 본 것이라 해부학 척추 범위보다 크게 읽힌다. 반 바퀴 도는 몸통 · 고개 같은 말도 안 되는 자세는 여전히 막는다.
+ */
 export const KIN_LIMITS = {
-  spineTwist: 60,
-  spineSwing: 55,
-  neckTwist: 70,
-  neckSwing: 45,
+  spineTwist: 80,
+  spineSwing: 75,
+  neckTwist: 85,
+  neckSwing: 65,
   /** 위팔이 어깨선 뒤로(수평면) */
   shoulderBack: 45,
   /** 어깨선이 몸통 축 수직에서 위아래로(어깨뼈 올림 · 내림) */
