@@ -1163,6 +1163,49 @@ console.log('■ 뼈대 자세(pose-rig) — public/models/skeleton-parts.json +
           check('각도 모델: 몸통 확신이 0 이어도 도는 윗몸을 따라간다(어깨 · 손목 키의 2% 안)', e < 0.02, `${(e * 100).toFixed(2)}%`);
         }
 
+        /*
+         * ④ 확신이 5장면마다 0 · 100 으로 바뀌어도 부드럽게 흔드는 팔이 원본보다 튀지 않는다(고치기 전: 흐린 장면 무게를 0 가까이 두고 다시 다듬어
+         * 경계에서 튐 — 샘플 4 던지는 팔 흔들림 p90 원본 0.77 → 화면 1.26)
+         */
+        {
+          const len = 60;
+          const seq = seqOf(len, (fr, k) => {
+            const { f } = trunkOf(fr);
+            const S = fr[V2J.rSh];
+            for (const j of [V2J.rEl, V2J.rWr, V2J.rHandIdx, V2J.rHandMid, V2J.rHandPinky]) fr[j] = rotAbout(fr[j], S, f, 0.7 * Math.sin(k / 6));
+          });
+          const conf = Array.from({ length: len }, (_, k) => new Array(25).fill(Math.floor(k / 5) % 2 ? 100 : 0));
+          const p90 = (fs: Vec3[][]) => {
+            const v: number[] = [];
+            for (let k = 1; k + 1 < fs.length; k++) v.push(norm(add(sub(fs[k + 1][V2J.rWr], scale(fs[k][V2J.rWr], 2)), fs[k - 1][V2J.rWr])));
+            return v.sort((a, b) => a - b)[Math.floor(v.length * 0.9)];
+          };
+          const r0 = p90(seq);
+          const r1 = p90(kinematicTrack(seq, conf, []).frames);
+          check('각도 모델: 확신이 들쭉날쭉해도 팔이 원본보다 튀지 않는다(p90 1.2배 안)', r1 <= r0 * 1.2, `${(r1 / r0).toFixed(2)}배`);
+        }
+        /* ⑤ 편 팔꿈치(굽는 면을 못 봄)가 반대쪽 면으로 굽기 시작해도 굽는 면이 한 장면에 20° 넘게 안 돈다(고치기 전 한 장면에 80~90° 휙) */
+        {
+          const sh = mid0[V2J.rSh];
+          const down: Vec3 = [0, -1, 0];
+          const L1 = norm(sub(mid0[V2J.rEl], mid0[V2J.rSh]));
+          const L2 = norm(sub(mid0[V2J.rWr], mid0[V2J.rEl]));
+          const seq = seqOf(30, (fr, k) => {
+            const el = add(sh, scale(down, L1));
+            fr[V2J.rEl] = el;
+            /* 0~9 장면: 앞으로 조금 굽음(면 = 옆 축) · 10~14 편 팔 · 15~ 옆으로 굽음(면이 90° 돈 축) */
+            const bendDir: Vec3 = k < 10 ? [0, 0, 1] : [1, 0, 0];
+            const th = k < 10 ? 0.9 : k < 15 ? 0 : Math.min(1.2, (k - 14) * 0.3);
+            const dir = normalize(add(scale(down, Math.cos(th)), scale(bendDir, Math.sin(th))));
+            fr[V2J.rWr] = add(el, scale(dir, L2));
+            for (const j of [V2J.rHandIdx, V2J.rHandMid, V2J.rHandPinky]) fr[j] = add(fr[V2J.rWr], scale(dir, 0.05));
+          });
+          const kk = kinematicTrack(seq, fullConf(30), []);
+          let worst = 0;
+          for (let k = 1; k < 30; k++) worst = Math.max(worst, deg(Math.acos(Math.max(-1, Math.min(1, dot(kk.refs[k].forearmR!, kk.refs[k - 1].forearmR!))))));
+          check(`각도 모델: 굽기 시작한 팔의 굽는 면이 한 장면에 ${KIN_LIMITS.twistRatePerFrame}° 남짓까지만 돈다`, worst <= KIN_LIMITS.twistRatePerFrame + 3, `${worst.toFixed(1)}°`);
+        }
+
         /* 9 무릎이 뒤를 보는 장면(넙다리 반 바퀴) → 클립 가운데에서 60° 안 */
         {
           const seq = seqOf(15, (fr, k) => {

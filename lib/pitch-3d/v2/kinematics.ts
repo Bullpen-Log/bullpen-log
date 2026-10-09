@@ -32,6 +32,18 @@ import { V2J, type V2Contact } from '@/lib/pitch-3d/v2/contract';
  * 땅에 닿은 발(엔진의 contacts)은 그 자리에 두고 무릎을 두 마디 길이로 다시 접는다. 순수 함수 — 시험: scripts/pitch-3d-v2-selftest.mts.
  */
 
+/**
+ * 한 장면에 rate(라디안, 장면마다 다를 수 있음)까지만 바뀌게 — 앞으로 · 뒤로 한 번씩 묶어 가운데로(한쪽으로 늦지 않게).
+ * 팔이 굽는 면 · 손 돌림이 한 장면에 80~90° 휙 돌던 것(편 팔꿈치에서 들고 있던 값 → 굽기 시작한 장면의 잰 값, 흐린 손 점)을 몇 장면에 걸쳐 돌게 한다.
+ */
+function rateLimit(xs: number[], rate: number): number[] {
+  const f = [...xs];
+  for (let k = 1; k < f.length; k++) f[k] = f[k - 1] + clamp(f[k] - f[k - 1], -rate, rate);
+  const b = [...xs];
+  for (let k = b.length - 2; k >= 0; k--) b[k] = b[k + 1] + clamp(b[k] - b[k + 1], -rate, rate);
+  return f.map((v, k) => (v + b[k]) / 2);
+}
+
 export const KIN_LIMITS = {
   spineTwist: 60,
   spineSwing: 55,
@@ -51,6 +63,10 @@ export const KIN_LIMITS = {
   pronation: 90,
   /** 넙다리 비틀림 — 그 클립의 가운데에서 ± (무릎이 뒤를 보지 않게) */
   hipRotation: 60,
+  /** 한 장면(60fps)에 팔 · 다리가 굽는 면이 도는 최대 */
+  twistRatePerFrame: 20,
+  /** 한 장면에 손(아래팔 엎침)이 도는 최대 — 손 점이 작고 흐려 손바닥 방향이 장면마다 30~50° 흔들렸다 */
+  pronationRatePerFrame: 8,
 } as const;
 
 const rad = (d: number) => (d * Math.PI) / 180;
@@ -409,7 +425,14 @@ export function kinematicTrack(
   contacts: V2Contact[]
 ): KinematicTrack {
   const n = frames.length;
-  const cf = (k: number, j: number) => (conf ? clamp(conf[k][j] / 100, 0, 1) : 1);
+  /*
+   * 확신은 손에만 쓴다. 엔진이 이미 흐린 관절을 앞뒤로 부드럽게 채워 보내는데, 여기서 흐린 장면의 무게를 0 가까이 두고 다시 다듬으면 흐린 장면과
+   * 또렷한 장면 경계에서 값이 갑자기 바뀌어 팔이 원본보다 더 튀었다(2026-10-09 샘플 4 던지는 팔 흔들림 p90 원본 0.77 → 화면 1.26, 머리 · 다리도).
+   * 손은 점이 작아 흐리면 손목을 곧게 두는 편이 낫다(시험 6).
+   */
+  const HAND = new Set<number>([V2J.lHandIdx, V2J.lHandMid, V2J.lHandPinky, V2J.rHandIdx, V2J.rHandMid, V2J.rHandPinky]);
+  const cf = (k: number, j: number) =>
+    conf && HAND.has(j) ? clamp(conf[k][j] / 100, 0, 1) : 1;
   const lenOf = (a: number, b: number) =>
     median(frames.map((fr) => norm(sub(fr[a], fr[b]))));
 
@@ -558,7 +581,10 @@ export function kinematicTrack(
         : r2;
     });
     const dirS = smoothUnit(limb.dir, limb.flexW);
-    const twistS = smooth1(limb.twist, limb.twistW, undefined, undefined, true);
+    const twistS = rateLimit(
+      smooth1(limb.twist, limb.twistW, undefined, undefined, true),
+      rad(KIN_LIMITS.twistRatePerFrame)
+    );
     const flexS = smooth1(limb.flex, limb.flexW).map((f) =>
       clamp(f, -rad(KIN_LIMITS.elbowHyper), rad(KIN_LIMITS.elbowFlex))
     );
@@ -608,7 +634,10 @@ export function kinematicTrack(
     });
     const pronU = unwrap(pron);
     const pronMid = weightedMedian(pronU, wHand);
-    const pronS = smooth1(pronU, wHand, 0.8, 3, true).map((p) =>
+    const pronS = rateLimit(
+      smooth1(pronU, wHand, 0.8, 3, true),
+      rad(KIN_LIMITS.pronationRatePerFrame)
+    ).map((p) =>
       clamp(p, pronMid - rad(KIN_LIMITS.pronation), pronMid + rad(KIN_LIMITS.pronation))
     );
     const wHandOnly = frames.map(
@@ -691,7 +720,10 @@ export function kinematicTrack(
       KIN_LIMITS.kneeHyper
     );
     const dirS = smoothUnit(limb.dir, limb.flexW);
-    const twistU = smooth1(limb.twist, limb.twistW, undefined, undefined, true);
+    const twistU = rateLimit(
+      smooth1(limb.twist, limb.twistW, undefined, undefined, true),
+      rad(KIN_LIMITS.twistRatePerFrame)
+    );
     const twMid = weightedMedian(limb.twist, limb.twistW);
     const twistS = twistU.map((t) =>
       clamp(t, twMid - rad(KIN_LIMITS.hipRotation), twMid + rad(KIN_LIMITS.hipRotation))
