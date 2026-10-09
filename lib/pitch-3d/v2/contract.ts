@@ -211,6 +211,11 @@ export type Pitch3dV2Ok = {
   } | null;
   /** 옆 영상에서 분석한 구간(원본 트랙 초) */
   segment: { fromSec: number; toSec: number };
+  /**
+   * 실험 — AI 스켈레톤 보정(GPU 의 SAM 3D Body 가 장면마다 낸 관절, joints 와 같은 좌표 · 단위). 화면이 우리 관절과 섞는다(display.ts).
+   * 읽을 때 화면이 모양을 본다(신뢰 경계). 2026-10-09 뒤 결과 · Modal 비밀(HF)이 있을 때만.
+   */
+  experimental?: { sam3d?: { model: string; joints: number[][][] } };
 };
 
 export type Pitch3dV2Fail = {

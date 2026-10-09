@@ -168,6 +168,17 @@ def run_job(job: dict, pose_factory: Callable[[], object], report: Report) -> di
                 "back": pose.track(fine_back, bw, bh, min(FINE_FPS, bfps)),
             }
             result = engine.run("fit", fit_payload(job, fine, seg, getattr(pose, "name", "rtmw")))
+            # AI 스켈레톤 보정(실험, sam3d.py) — 못 하면 그대로(분석은 막지 않는다). 단계 이름은 fit 안에(화면의 단계 표를 안 바꾼다)
+            if result.get("ok"):
+                try:
+                    from . import sam3d
+                    from .mapping import V2_NAMES
+
+                    ai = sam3d.correct(result, fine_side, fine["side"], V2_NAMES)
+                    if ai:
+                        result["experimental"] = {"sam3d": ai}
+                except Exception as e:  # noqa: BLE001
+                    print(f"[pitch3d ai] 건너뜀 — {type(e).__name__}: {str(e)[:300]}")
             mark("fit")
             result_json = json.dumps(result)
             assert len(result_json) < 900_000, "결과가 900KB 를 넘는다"  # 엔진이 먼저 거르지만 한 번 더
