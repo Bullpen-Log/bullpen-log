@@ -3,8 +3,10 @@
 이 파일은 금윤호가 Claude 로 이 저장소를 작업할 때의 설정과 기억이다. `CLAUDE.md` 가 불러온다.
 
 - **`git config user.name` 이 `금윤호` 일 때만 따른다.** 김민(`Kim Min`)이 작업 중이면 이 파일은 무시한다.
-- 금윤호는 데스크톱과 노트북 두 대에서 같은 Claude 계정으로 작업한다. Claude 의 자동 메모리는
-  컴퓨터마다 따로 저장돼 서로 보이지 않으므로, **두 컴퓨터가 같이 알아야 할 것은 여기에 둔다.**
+- **클라우드 세션(불펜로그 개발 서브 1, claude.ai/code)은 `user.name` 이 `Claude` 로 온다.** 세션 사용자가 금윤호(이메일이 git log 의
+  금윤호 것)면 이 파일을 따르고, 시작할 때 `git config user.name 금윤호` · `user.email`(git log 의 금윤호 이메일)을 건다. 자세한 것은 6절.
+- 금윤호는 데스크톱 · 노트북 · 클라우드 서브 1(6절) 세 곳에서 같은 Claude 계정으로 작업한다. Claude 의 자동 메모리는
+  컴퓨터마다 따로 저장돼 서로 보이지 않으므로, **세 곳이 같이 알아야 할 것은 여기에 둔다.**
 - 새로 기억할 것(사용자가 정한 방식, 겪은 함정, 진행 중인 일)이 생기면 자동 메모리와 함께 **이 파일에도
   적고 커밋**한다. 자동 메모리에만 적으면 다른 컴퓨터의 Claude 는 모른다. 다 끝난 일은 지운다.
 - 공개 저장소다 — 비밀번호 · 키 · `.env` 값, 연락처 같은 개인 정보는 적지 않는다.
@@ -281,7 +283,7 @@
      거부면 가운데 조건 없이 한 번 더(밖 12개까지 — 대비 길로는 아직 안 돌려 봄) ③ 밝은 배경 문턱 0.4(13개 전부) ④ 실시간 화면이
      조용히 버리던 거부를 '공은 봤는데 못 쟀어요 + 까닭'으로 ⑤ 대비 길로 잰 공은 분석 JSON 에 표시 · 보정 짝에서 뺌. 끝나면 13개를 다시
      재서 보여 주고 허락받아 원본 공에 채운다(3차 보정 차수). 시험: selftest · detect · video · live · accuracy + 실내 18 · 밖 13.
-     2~3시간. 도구는 `scripts/velocity-lab/`(어느 컴퓨터에서든 — 영상은 내려받는다). 클라우드는 못 한다(.env · 크롬이 없다).
+     2~3시간. 도구는 `scripts/velocity-lab/`(어느 컴퓨터에서든 — 영상은 내려받는다). 클라우드는 못 한다(.env 가 없다 — 서브 1 에 크로미움은 있지만 영상을 받을 DB · 저장소 키가 없다, 6절).
      영상은 데스크톱에서 다시 받는다 — `node --env-file=.env scripts/velocity-lab/download.mjs --date=2026-10-03 --manual`(밖 13개) ·
      `--date=2026-09-28`(실내 18개), 받는 곳 `~/bullpen-velocity-lab`. 먼저 지금 엔진으로 돌려 기록과 같은지 본다(밖 1/13 · 실내 15/18).
      노트북에만 있는 것(없어도 됨): 9GB 장면 캐시 · 엔진 복사본들(필요한 차이는 위 문서에). `npm run velocity:live-test` 는 캐시가 없으면 그 시험만 건너뛴다.
@@ -1267,3 +1269,31 @@
      보조 `grilling` · `domain-modeling` · `research` · `prototype`. 스킬은 세션을 시작할 때만 붙는다 — 설치한 그 세션에서
      쓰려면 SKILL.md 를 직접 읽는다. `/setup-matt-pocock-skills` 는 같이 쓰는 `CLAUDE.md` 를 고치므로 올릴 때
      `HANDOFF.md` 로 김민에게 알린다. GitHub 이슈 방식은 `gh` 가 필요하다(데스크톱엔 없다).
+
+## 6. 클라우드 서브 1 (claude.ai/code 세션) — 2026-10-09 세팅
+
+사용자가 브라우저(claude.ai/code)에서 여는 클라우드 컨테이너. 이름은 **불펜로그 개발 서브 1**. 데스크톱 · 노트북과 같은 저장소를 쓰되
+세션마다 새로 받고, 끝나면 컨테이너가 사라진다 — **커밋 · 푸시하지 않은 것은 남지 않는다.**
+
+- **시작 때 저절로**: `.claude/hooks/session-start.sh`(`.claude/settings.json` 에 등록, `CLAUDE_CODE_REMOTE` 가 true 일 때만 — 로컬에서는
+  바로 끝남)가 `npm install --no-save` → `.env` 자리표(없을 때만 — DB 주소는 가짜 127.0.0.1, SESSION_SECRET 은 무작위) → `npx prisma generate`.
+  처음 45초, 캐시된 컨테이너는 10초. `--no-save` 인 까닭: 여기 npm 10 은 `npm install` 때 데스크톱 npm 이 적은 package-lock 의 `libc` 줄
+  115개를 지운다 — 락파일이 바뀌어 보이면 `git checkout -- package-lock.json`.
+- **신원**: `git config user.name` 이 `Claude` 로 온다. 세션을 시작하면 `git config user.name 금윤호` · `user.email`(git log 의 금윤호 이메일)을
+  걸고 이 파일의 규칙(한국어 · ADHD 모드 · 보고 형식)을 따른다. 클라우드 커밋 끝에는 하네스 규칙으로 `Co-Authored-By` · `Claude-Session` 줄이
+  붙는다(패치노트 상세에 보인다 — 정상).
+- **있는 것**: Node 22(데스크톱 24 — `node scripts/*.mts` 바로 실행 · `--import` 모두 됨), Python 3.13(데스크톱엔 없음 — `services/pitch3d-gpu`
+  의 파이썬을 돌려 볼 수 있다, pypi 열림), 헤드리스 크로미움 `/opt/pw-browsers/chromium`(141, `--headless=new --no-sandbox` 로 켬 — 임시 경로를
+  CDP 로 재는 방법은 2절 그대로), `gh` 는 깔려 있지만 GitHub 은 MCP 도구(`mcp__github__*`)로. 네트워크: npm · GitHub · pypi 열림.
+- **없는 것**: **실제 DB · 저장소** — supabase.co 가 네트워크 정책에 막히고(CONNECT 403) `.env` 는 자리표라, DB 를 읽는 것은 모두 안 된다:
+  `prisma migrate *` · `npm run backup` · `patch:sync` · `velocity:review` · `shoot:plan` · `training:test`(DB 읽음) · 영상 내려받기
+  (`velocity-lab/download.mjs`) · 로그인한 화면. 거꾸로 **운영 DB 를 건드릴 길이 없어 그 점은 안전하다**(AGENTS.md 1~3번 사고가 여기서는
+  날 수 없다). Modal 키 · Vercel 환경변수 · 폰도 없다. 개발 서버(`npm run dev`)는 켜지지만 DB 가 필요한 화면은 오류 — 로그인 없는 임시 경로
+  (`app/dev-preview-*`)만. pre-push 훅은 자리표 `.env` 로 패치노트를 맞추려다 접속 실패로 건너뛴다(정상, push 는 된다).
+- **할 수 있는 것**: 순수 계산 셀프테스트 전부(`nutrition:test` · `nutrition:advice-test` · `velocity:*` · `shoot:test` · `clip:test` · `pitch3d:*`
+  · `program:test` · `highlights:test` · `good-days:test` · `outbox:test` · `pitch-lab:test`), `npx tsc --noEmit` · `npx eslint <파일>`, 헤드리스
+  크로미움으로 임시 경로 재기, 설계 문서 · 규칙 코드 작성. 확인(2026-10-09): tsc 0 · eslint 0 · `nutrition:advice-test` 42 통과.
+- **올리기 규칙**: 세션이 지정한 `claude/<이름>` 가지에만 커밋 · 푸시한다(시스템이 가지 이름을 준다). **main 에는 사용자가 "합쳐줘"라고 할 때만.**
+  패치노트는 메인(데스크톱)이 받은 뒤 `npm run patch:sync`. 받는 쪽이 할 일은 HANDOFF 에 적는 규칙 그대로. 클라우드 작업의 메모는 4절의
+  '클라우드 세션 할 일' 줄처럼 이 파일에 둔다.
+- 실제 자료가 필요한 일(DB · 영상 · 폰)은 여기서 하지 않고 데스크톱에 넘긴다 — HANDOFF 또는 4절 메모로.

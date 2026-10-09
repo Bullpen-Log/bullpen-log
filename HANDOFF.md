@@ -11,6 +11,12 @@ Claude 로 작업을 시작하면 저절로 읽힌다. 규칙은 `AGENTS.md` 6�
 
 ---
 
+## 김민에게 — 2026-10-09 · 금윤호(Claude) — `.claude/settings.json` · `.claude/hooks/session-start.sh` 를 더했다(클라우드 세션 준비 훅)
+
+받은 뒤 할 일 없음. 클라우드 세션(claude.ai/code)이 시작될 때만 돌고(`CLAUDE_CODE_REMOTE` 가 true), 네 컴퓨터의 Claude 에서는 아무것도 하지
+않고 바로 끝난다. 클라우드에서는 npm 설치 · `.env` 자리표(실제 키 없음 — DB 는 네트워크에서 막혀 운영 DB 를 못 건드린다) · `prisma generate` 를
+한다. 네가 클라우드 세션을 열어도 같은 훅이 돈다. 자세한 것은 `docs/claude/geum-yunho.md` 6절.
+
 ## 김민에게 — 2026-10-09 · 금윤호(Claude) — 인아웃식 회원가입 · 영양 온보딩 끝(9단계) — 받으면 `npx prisma generate`(아직 안 했으면), 가입 · 영양 탭 · 목표 창을 크게 고쳤다
 
 받은 뒤 할 일: **`npx prisma generate`**(2026-10-08 스키마에 `NutritionProfile.goalKind · macroPreset · fatTargetG · onboardedAt` 넷을 더했다 —
