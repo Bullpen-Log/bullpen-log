@@ -133,7 +133,7 @@
       {
        "exerciseId": "62e5e4ac-8699-4c05-95f3-088c703d25cb",
        "no": "1-07",
-       "title": "보수 다이내믹 런지 + 중량",
+       "title": "보수볼 덤벨 포워드 런지",
        "station": "덤벨 · 케틀벨",
        "bucket": "하체 앞(무릎)",
        "equipment": [
@@ -149,7 +149,7 @@
       {
        "exerciseId": "e45ca1c0-aafc-48f3-b450-933ad8da28c3",
        "no": "1-08",
-       "title": "덤벨 스퀴즈 푸쉬업",
+       "title": "덤벨 스퀴즈 푸시업",
        "station": "덤벨 · 케틀벨",
        "bucket": "상체 밀기 · 어깨",
        "equipment": [
@@ -216,7 +216,7 @@
       {
        "exerciseId": "c05e750e-ba66-435d-979d-93f98831881f",
        "no": "1-12",
-       "title": "고블렛 스쿼트(버티며 내리기+정지)",
+       "title": "에센트릭 포즈 고블렛 스쿼트",
        "station": "덤벨 · 케틀벨",
        "bucket": "하체 앞(무릎)",
        "equipment": [
@@ -248,7 +248,7 @@
       {
        "exerciseId": "ad977421-3082-491e-849c-9b1530fdebf6",
        "no": "1-14",
-       "title": "3점 쿼드 T",
+       "title": "쿼드러펫 덤벨 T 레이즈",
        "station": "덤벨 · 케틀벨",
        "bucket": "어깨 · 견갑(암케어)",
        "equipment": [
@@ -265,7 +265,7 @@
       {
        "exerciseId": "9d374d76-2f51-4e64-aaab-c2a431dbb7af",
        "no": "1-15",
-       "title": "3점 쿼드 Y",
+       "title": "쿼드러펫 덤벨 Y 레이즈",
        "station": "덤벨 · 케틀벨",
        "bucket": "어깨 · 견갑(암케어)",
        "equipment": [
@@ -299,7 +299,7 @@
       {
        "exerciseId": "9e9805c1-024a-4656-ba69-411d6df282e1",
        "no": "1-17",
-       "title": "전완 회내·회외",
+       "title": "덤벨 전완 프로네이션·수피네이션",
        "station": "덤벨 · 케틀벨",
        "bucket": "전완 · 팔꿈치",
        "equipment": [
@@ -315,7 +315,7 @@
       {
        "exerciseId": "0971a658-cd8d-4eab-8e0b-75869c1c7359",
        "no": "1-18",
-       "title": "덤벨컬 과부하 내리기",
+       "title": "덤벨 컬 에센트릭 오버로드",
        "station": "덤벨 · 케틀벨",
        "bucket": "전완 · 팔꿈치",
        "equipment": [
@@ -331,7 +331,7 @@
       {
        "exerciseId": "6fa41de9-408e-43ff-b37f-70e8d4ab69f6",
        "no": "1-19",
-       "title": "누워서 내회전 과부하 내리기",
+       "title": "수파인 내회전 에센트릭 오버로드",
        "station": "덤벨 · 케틀벨",
        "bucket": "어깨 · 견갑(암케어)",
        "equipment": [
@@ -347,7 +347,7 @@
       {
        "exerciseId": "a0a44ae3-9f9f-493a-aa6d-eb6bc052245e",
        "no": "1-20",
-       "title": "전완 굴곡 과부하 내리기",
+       "title": "리스트 플렉션 에센트릭 오버로드",
        "station": "덤벨 · 케틀벨",
        "bucket": "전완 · 팔꿈치",
        "equipment": [
@@ -363,7 +363,7 @@
       {
        "exerciseId": "43203508-6387-4ddc-ab44-68898ce293fc",
        "no": "1-21",
-       "title": "크로스바디 해머컬",
+       "title": "크로스바디 해머 컬",
        "station": "덤벨 · 케틀벨",
        "bucket": "상체 당기기",
        "equipment": [
@@ -396,7 +396,7 @@
       {
        "exerciseId": "6ed6b975-884e-4bbf-a547-400b40f4c78b",
        "no": "1-23",
-       "title": "전완 회내 과부하 내리기",
+       "title": "전완 프로네이션 에센트릭 오버로드",
        "station": "덤벨 · 케틀벨",
        "bucket": "전완 · 팔꿈치",
        "equipment": [
@@ -419,7 +419,7 @@
       {
        "exerciseId": "e4a5f53e-5928-4d61-ab83-b10e65f85c0c",
        "no": "1-24",
-       "title": "워터백 레터럴 안정성 홉",
+       "title": "워터백 레터럴 홉 스틱 랜딩",
        "station": "공 · 워터백(벽 앞)",
        "bucket": "하체 파워",
        "equipment": [
@@ -435,7 +435,7 @@
       {
        "exerciseId": "d8f969a0-0b0c-4e76-ba28-44575f2f0146",
        "no": "1-25",
-       "title": "워터백 안정성 홉 + 측면 굽힘·신전",
+       "title": "워터백 레터럴 홉 + 사이드 벤드",
        "station": "공 · 워터백(벽 앞)",
        "bucket": "하체 파워",
        "equipment": [
@@ -451,7 +451,7 @@
       {
        "exerciseId": "cde9adcf-0e92-4930-b6ae-f5da3fe602ba",
        "no": "1-26",
-       "title": "톨 닐링 메디신볼 체스트 패스",
+       "title": "톨닐링 메디신볼 체스트 패스",
        "station": "공 · 워터백(벽 앞)",
        "bucket": "코어",
        "equipment": [
@@ -467,7 +467,7 @@
       {
        "exerciseId": "c7b65eec-ccad-4814-864b-d3b3036928c0",
        "no": "1-27",
-       "title": "워터볼 측면 굽힘·신전",
+       "title": "워터볼 오버헤드 사이드 크런치",
        "station": "공 · 워터백(벽 앞)",
        "bucket": "코어",
        "equipment": [
@@ -483,7 +483,7 @@
       {
        "exerciseId": "4d9284d2-3651-418f-9b77-d1915accc935",
        "no": "1-28",
-       "title": "톨 닐링 워터볼 회전 + 흔들기",
+       "title": "톨닐링 워터볼 로테이션",
        "station": "공 · 워터백(벽 앞)",
        "bucket": "코어",
        "equipment": [
@@ -499,7 +499,7 @@
       {
        "exerciseId": "63b1fff9-be10-4f0a-99ad-8275b41e2038",
        "no": "1-29",
-       "title": "불안정 발목 안정성 스쿼트",
+       "title": "워터볼 내로우 스쿼트",
        "station": "공 · 워터백(벽 앞)",
        "bucket": "고관절 · 발목 보강",
        "equipment": [
@@ -515,7 +515,7 @@
       {
        "exerciseId": "9113f186-4b12-4dab-92de-b76a8b9f84ce",
        "no": "1-30",
-       "title": "불안정 빠른 발목 안정성 교대",
+       "title": "워터볼 스피드 마치",
        "station": "공 · 워터백(벽 앞)",
        "bucket": "고관절 · 발목 보강",
        "equipment": [
@@ -531,7 +531,7 @@
       {
        "exerciseId": "4f0c9140-6247-4856-a8c6-9d3ccec7ef04",
        "no": "1-31",
-       "title": "하프닐링 워터볼 찹 + 흔들기",
+       "title": "하프닐링 워터볼 찹",
        "station": "공 · 워터백(벽 앞)",
        "bucket": "코어",
        "equipment": [
@@ -564,7 +564,7 @@
       {
        "exerciseId": "93b96209-ce6a-4da5-8172-25d253693a60",
        "no": "1-33",
-       "title": "짐볼 팟 스터",
+       "title": "짐볼 스터 더 팟",
        "station": "공 · 워터백(벽 앞)",
        "bucket": "코어",
        "equipment": [
@@ -597,7 +597,7 @@
       {
        "exerciseId": "45452ae0-a2f5-4bc6-a5c7-d01761fc5f56",
        "no": "1-35",
-       "title": "한 팔 90/90 플라이오볼 벽 던지기",
+       "title": "싱글암 90/90 플라이오볼 벽 던지기",
        "station": "공 · 워터백(벽 앞)",
        "bucket": "어깨 · 견갑(암케어)",
        "equipment": [
@@ -630,7 +630,7 @@
       {
        "exerciseId": "afba1b8d-6eaf-43a9-a2e1-ccb213c2cad8",
        "no": "1-37",
-       "title": "짐볼 힙 홀드",
+       "title": "수파인 짐볼 레그 홀드",
        "station": "공 · 워터백(벽 앞)",
        "bucket": "코어",
        "equipment": [
@@ -670,7 +670,7 @@
       {
        "exerciseId": "96f1ca21-8a13-4a3f-913b-56c7947eeb60",
        "no": "1-39",
-       "title": "톨 닐링 막대 골반 기울이기",
+       "title": "톨닐링 막대 펠빅 틸트",
        "station": "매트",
        "bucket": "모빌리티",
        "equipment": [
@@ -686,7 +686,7 @@
       {
        "exerciseId": "96c556af-e774-499f-a5a4-e6f99119cb08",
        "no": "1-40",
-       "title": "톨 닐링 막대 골반 회전",
+       "title": "톨닐링 막대 골반 회전",
        "station": "매트",
        "bucket": "모빌리티",
        "equipment": [
@@ -750,7 +750,7 @@
       {
        "exerciseId": "e0b09d53-c5af-4789-98a2-cf22f1a89093",
        "no": "1-44",
-       "title": "하체 다이내믹 워밍업 전체",
+       "title": "하체 다이내믹 워밍업 루틴",
        "station": "매트",
        "bucket": "모빌리티",
        "equipment": [
@@ -847,7 +847,7 @@
       {
        "exerciseId": "a3dac15f-bcdf-4d9c-855b-978698783d17",
        "no": "1-50",
-       "title": "노르딕 햄스트링",
+       "title": "노르딕 햄스트링 컬",
        "station": "매트",
        "bucket": "하체 뒤(힌지)",
        "equipment": [
@@ -863,7 +863,7 @@
       {
        "exerciseId": "f1b81b21-b64a-4f53-8d2c-8d588361d347",
        "no": "1-51",
-       "title": "푸쉬업",
+       "title": "푸시업",
        "station": "매트",
        "bucket": "상체 밀기 · 어깨",
        "equipment": [
@@ -953,7 +953,7 @@
       {
        "exerciseId": "fc8cf57f-467c-4a6d-8d1f-a0bd6053c1cf",
        "no": "2-04",
-       "title": "스트라이더",
+       "title": "스트라이드 런",
        "station": "넓은 바닥(이동)",
        "bucket": "모빌리티",
        "equipment": [
@@ -1001,7 +1001,7 @@
       {
        "exerciseId": "986c5b6a-02ef-4c1b-bda2-cf2336930db3",
        "no": "2-07",
-       "title": "가속 버티기(발목 강성)",
+       "title": "가속 포지션 아이소 홀드",
        "station": "넓은 바닥(이동)",
        "bucket": "하체 파워",
        "equipment": [
@@ -1073,7 +1073,7 @@
       {
        "exerciseId": "cc1f99c3-c33b-495c-a0b0-02e1c0387121",
        "no": "2-11",
-       "title": "벤치프레스",
+       "title": "벤치 프레스",
        "station": "랙 · 바벨 · 원판",
        "bucket": "상체 밀기 · 어깨",
        "equipment": [
@@ -1124,7 +1124,7 @@
       {
        "exerciseId": "868d711f-84fb-42f3-8693-a1e02ac725e9",
        "no": "2-14",
-       "title": "바벨 스쿼트",
+       "title": "바벨 백 스쿼트",
        "station": "랙 · 바벨 · 원판",
        "bucket": "하체 앞(무릎)",
        "equipment": [
@@ -1141,7 +1141,7 @@
       {
        "exerciseId": "a2f81d6b-fc34-40b8-a82b-47fb9884c757",
        "no": "2-15",
-       "title": "중량 푸쉬업",
+       "title": "중량 푸시업",
        "station": "랙 · 바벨 · 원판",
        "bucket": "상체 밀기 · 어깨",
        "equipment": [
@@ -1207,7 +1207,7 @@
       {
        "exerciseId": "38235418-c222-443a-b577-d937276afd99",
        "no": "2-19",
-       "title": "원판 핀치 잡기",
+       "title": "원판 핀치 홀드",
        "station": "랙 · 바벨 · 원판",
        "bucket": "전완 · 팔꿈치",
        "equipment": [
@@ -1247,7 +1247,7 @@
       {
        "exerciseId": "85c334b4-50b3-45ba-830c-93b3308c2dc5",
        "no": "2-21",
-       "title": "케이블 트라이셉스 푸쉬다운",
+       "title": "케이블 트라이셉스 푸시다운",
        "station": "케이블",
        "bucket": "상체 밀기 · 어깨",
        "equipment": [
@@ -1305,7 +1305,7 @@
       {
        "exerciseId": "86ac9808-a5b5-4068-aa1a-1d35c8e2356f",
        "no": "2-24",
-       "title": "레터럴 미디얼 점프 + 슬램",
+       "title": "레터럴 바운드 + 메디신볼 슬램",
        "station": "공 · 워터백(벽 앞)",
        "bucket": "하체 파워",
        "equipment": [
@@ -1370,7 +1370,7 @@
       {
        "exerciseId": "bdbe4522-b915-44fa-ab88-49687f1a9b64",
        "no": "2-28",
-       "title": "불안정 발목 안정성 교대",
+       "title": "워터볼 마치 홀드",
        "station": "공 · 워터백(벽 앞)",
        "bucket": "고관절 · 발목 보강",
        "equipment": [
@@ -1386,7 +1386,7 @@
       {
        "exerciseId": "7364a9ac-15a6-47b2-aa0c-52854bf82e2e",
        "no": "2-29",
-       "title": "싱글렉 고관절 내·외회전 + 프레스",
+       "title": "싱글렉 고관절 회전 + 워터볼 프레스",
        "station": "공 · 워터백(벽 앞)",
        "bucket": "고관절 · 발목 보강",
        "equipment": [
@@ -1402,7 +1402,7 @@
       {
        "exerciseId": "2738872b-df7a-4092-85d7-a241338b054b",
        "no": "2-30",
-       "title": "스플릿 스탠스 불안정 찹",
+       "title": "스플릿 스탠스 워터볼 찹",
        "station": "공 · 워터백(벽 앞)",
        "bucket": "코어",
        "equipment": [
@@ -1418,7 +1418,7 @@
       {
        "exerciseId": "9e5babe4-b826-4f7b-99ce-2da507b4ee3c",
        "no": "2-31",
-       "title": "워터볼 오버헤드 회전 + 립",
+       "title": "워터볼 오버헤드 찹",
        "station": "공 · 워터백(벽 앞)",
        "bucket": "코어",
        "equipment": [
@@ -1473,7 +1473,7 @@
       {
        "exerciseId": "6718b9aa-106e-45f6-9473-0024a38f05c3",
        "no": "2-34",
-       "title": "스플릿 스탠스 90/90 버티기",
+       "title": "스플릿 스탠스 90/90 아이소 홀드",
        "station": "밴드(고정 기둥)",
        "bucket": "어깨 · 견갑(암케어)",
        "equipment": [
@@ -1489,7 +1489,7 @@
       {
        "exerciseId": "f47f2526-1a8b-4aeb-82ce-5d369e17fe6e",
        "no": "2-35",
-       "title": "스플릿 스탠스 크로스바디 아웃",
+       "title": "스플릿 스탠스 싱글암 리버스 플라이",
        "station": "밴드(고정 기둥)",
        "bucket": "어깨 · 견갑(암케어)",
        "equipment": [
@@ -1506,7 +1506,7 @@
       {
        "exerciseId": "edc85549-0f6e-40e4-b016-6f5bdda515de",
        "no": "2-36",
-       "title": "튜빙 전완 굴곡 (GG)",
+       "title": "튜빙 리스트 플렉션 (두꺼운 그립)",
        "station": "밴드(고정 기둥)",
        "bucket": "전완 · 팔꿈치",
        "equipment": [
@@ -1522,7 +1522,7 @@
       {
        "exerciseId": "c06d787c-1628-465c-b4e5-c969aa8fd56d",
        "no": "2-37",
-       "title": "튜빙 전완 신전",
+       "title": "튜빙 리스트 익스텐션",
        "station": "밴드(고정 기둥)",
        "bucket": "전완 · 팔꿈치",
        "equipment": [
@@ -1538,7 +1538,7 @@
       {
        "exerciseId": "e28e70a7-6c56-4588-b8ed-024efda80343",
        "no": "2-38",
-       "title": "튜빙 전완 신전 (GG)",
+       "title": "튜빙 리스트 익스텐션 (두꺼운 그립)",
        "station": "밴드(고정 기둥)",
        "bucket": "전완 · 팔꿈치",
        "equipment": [
@@ -1554,7 +1554,7 @@
       {
        "exerciseId": "52471c45-886b-43c8-810a-53f86880754b",
        "no": "2-39",
-       "title": "스플릿 스탠스 크로스바디 인",
+       "title": "스플릿 스탠스 싱글암 체스트 플라이",
        "station": "밴드(고정 기둥)",
        "bucket": "어깨 · 견갑(암케어)",
        "equipment": [
@@ -1605,7 +1605,7 @@
       {
        "exerciseId": "86f1f699-8956-4bd2-94d0-06b596e99363",
        "no": "2-42",
-       "title": "튜빙 전완 요측 편위",
+       "title": "튜빙 래디얼 디비에이션",
        "station": "밴드(고정 기둥)",
        "bucket": "전완 · 팔꿈치",
        "equipment": [
@@ -1621,7 +1621,7 @@
       {
        "exerciseId": "d05ce8ba-9785-48c1-9e88-8a4992558f3f",
        "no": "2-43",
-       "title": "튜빙 전완 요측 편위 (GG)",
+       "title": "튜빙 래디얼 디비에이션 (두꺼운 그립)",
        "station": "밴드(고정 기둥)",
        "bucket": "전완 · 팔꿈치",
        "equipment": [
@@ -1637,7 +1637,7 @@
       {
        "exerciseId": "fd1ebc45-51d1-4f22-aa84-8b1ae623c0bb",
        "no": "2-44",
-       "title": "튜빙 전완 척측 편위",
+       "title": "튜빙 울나 디비에이션",
        "station": "밴드(고정 기둥)",
        "bucket": "전완 · 팔꿈치",
        "equipment": [
@@ -1704,7 +1704,7 @@
       {
        "exerciseId": "2409a369-3a9a-47bf-977b-1d629904fed0",
        "no": "2-48",
-       "title": "튜빙 전완 척측 편위 (GG)",
+       "title": "튜빙 울나 디비에이션 (두꺼운 그립)",
        "station": "밴드(고정 기둥)",
        "bucket": "전완 · 팔꿈치",
        "equipment": [
@@ -1737,7 +1737,7 @@
       {
        "exerciseId": "1f3818c9-d225-42d8-a125-d7009ae62b8e",
        "no": "2-50",
-       "title": "어깨 내·외회전 버티기",
+       "title": "밴드 내·외회전 아이소 홀드",
        "station": "밴드(고정 기둥)",
        "bucket": "어깨 · 견갑(암케어)",
        "equipment": [
@@ -1769,7 +1769,7 @@
       {
        "exerciseId": "790c0e94-e2b3-4e90-a2b7-be47edb694aa",
        "no": "2-52",
-       "title": "누워서 밴드 고관절 굴곡·신전",
+       "title": "수파인 밴드 고관절 굴곡·신전",
        "station": "밴드(고정 기둥)",
        "bucket": "고관절 · 발목 보강",
        "equipment": [
@@ -1785,7 +1785,7 @@
       {
        "exerciseId": "bb82b354-fb27-4df7-9791-c0a4d37adbc2",
        "no": "2-53",
-       "title": "누워서 밴드 스트레이트렉 햄스트링 탠트럼",
+       "title": "수파인 밴드 스트레이트렉 햄스트링 탠트럼",
        "station": "밴드(고정 기둥)",
        "bucket": "고관절 · 발목 보강",
        "equipment": [
@@ -1801,7 +1801,7 @@
       {
        "exerciseId": "f24029a2-1388-465a-9fd3-ade726c6d674",
        "no": "2-54",
-       "title": "누워서 밴드 햄스트링 탠트럼 (90/90)",
+       "title": "수파인 90/90 밴드 햄스트링 탠트럼",
        "station": "밴드(고정 기둥)",
        "bucket": "고관절 · 발목 보강",
        "equipment": [
@@ -1834,7 +1834,7 @@
       {
        "exerciseId": "0d7aef02-3a03-4ed9-a122-cb216ea26de6",
        "no": "2-56",
-       "title": "튜빙 대각선 굽힘",
+       "title": "튜빙 대각선 굴곡",
        "station": "밴드(고정 기둥)",
        "bucket": "어깨 · 견갑(암케어)",
        "equipment": [
@@ -1850,7 +1850,7 @@
       {
        "exerciseId": "323f1ad8-4006-4fb8-97e6-be0ac858f2f0",
        "no": "2-57",
-       "title": "밴드 피스톨 스쿼트",
+       "title": "밴드 저항 싱글렉 박스 스쿼트",
        "station": "밴드(고정 기둥)",
        "bucket": "하체 앞(무릎)",
        "equipment": [
@@ -1946,7 +1946,7 @@
       {
        "exerciseId": "7c125173-4fd4-4040-8f8a-f6ced2918ac6",
        "no": "3-04",
-       "title": "덤벨 전완 굴곡",
+       "title": "덤벨 리스트 플렉션",
        "station": "덤벨 · 케틀벨",
        "bucket": "전완 · 팔꿈치",
        "equipment": [
@@ -1962,7 +1962,7 @@
       {
        "exerciseId": "84b2db84-b873-4005-86a3-77294b59f077",
        "no": "3-05",
-       "title": "덤벨 전완 신전",
+       "title": "덤벨 리스트 익스텐션",
        "station": "덤벨 · 케틀벨",
        "bucket": "전완 · 팔꿈치",
        "equipment": [
@@ -1994,7 +1994,7 @@
       {
        "exerciseId": "6d561fc0-67f0-49af-9d46-967a438acf5a",
        "no": "3-07",
-       "title": "프론 익스텐션",
+       "title": "프론 숄더 익스텐션",
        "station": "덤벨 · 케틀벨",
        "bucket": "어깨 · 견갑(암케어)",
        "equipment": [
@@ -2010,7 +2010,7 @@
       {
        "exerciseId": "99021953-678a-4997-aa36-5431349dcae5",
        "no": "3-08",
-       "title": "프론 Y",
+       "title": "프론 Y 레이즈",
        "station": "덤벨 · 케틀벨",
        "bucket": "어깨 · 견갑(암케어)",
        "equipment": [
@@ -2026,7 +2026,7 @@
       {
        "exerciseId": "c7dd043f-3209-46bb-948d-cc806a55986b",
        "no": "3-09",
-       "title": "T 레이즈",
+       "title": "사이드라잉 T 레이즈",
        "station": "덤벨 · 케틀벨",
        "bucket": "어깨 · 견갑(암케어)",
        "equipment": [
@@ -2043,7 +2043,7 @@
       {
        "exerciseId": "5fbf7e4f-28f4-472c-93e7-706377b1e5ca",
        "no": "3-10",
-       "title": "덤벨 해머컬",
+       "title": "덤벨 해머 컬",
        "station": "덤벨 · 케틀벨",
        "bucket": "전완 · 팔꿈치",
        "equipment": [
@@ -2059,7 +2059,7 @@
       {
        "exerciseId": "9f24f527-c615-44ea-8ac4-8fd1156184e7",
        "no": "3-11",
-       "title": "덤벨컬 드롭 캐치",
+       "title": "덤벨 컬 드롭 캐치",
        "station": "덤벨 · 케틀벨",
        "bucket": "전완 · 팔꿈치",
        "equipment": [
@@ -2109,7 +2109,7 @@
       {
        "exerciseId": "3ad40d05-8eb4-43cc-a43e-b764be44bea7",
        "no": "3-14",
-       "title": "전완 회외 과부하 내리기",
+       "title": "전완 수피네이션 에센트릭 오버로드",
        "station": "덤벨 · 케틀벨",
        "bucket": "전완 · 팔꿈치",
        "equipment": [
@@ -2157,7 +2157,7 @@
       {
        "exerciseId": "6ce63658-62fe-4a42-a0af-d9e90ec3509f",
        "no": "3-17",
-       "title": "덤벨 루마니안 데드리프트",
+       "title": "덤벨 RDL",
        "station": "덤벨 · 케틀벨",
        "bucket": "하체 뒤(힌지)",
        "equipment": [
@@ -2174,7 +2174,7 @@
       {
        "exerciseId": "ec84ee5c-bdd8-4dbd-b1b6-2468770c400e",
        "no": "3-18",
-       "title": "싱글렉 덤벨 루마니안 데드리프트",
+       "title": "싱글렉 덤벨 RDL",
        "station": "덤벨 · 케틀벨",
        "bucket": "하체 뒤(힌지)",
        "equipment": [
@@ -2191,7 +2191,7 @@
       {
        "exerciseId": "da11d149-7aa9-48a3-8ff7-b80cd880322e",
        "no": "3-19",
-       "title": "한팔 케틀벨 리버스 런지",
+       "title": "싱글암 케틀벨 리버스 런지",
        "station": "덤벨 · 케틀벨",
        "bucket": "하체 앞(무릎)",
        "equipment": [
@@ -2207,7 +2207,7 @@
       {
        "exerciseId": "fe4a2898-801a-45d6-b86d-37bbc834e3d4",
        "no": "3-20",
-       "title": "케틀벨 와이드 8자 돌리기",
+       "title": "와이드 스탠스 케틀벨 피겨 8",
        "station": "덤벨 · 케틀벨",
        "bucket": "코어",
        "equipment": [
@@ -2265,7 +2265,7 @@
       {
        "exerciseId": "9965e618-5500-431b-b100-2e31ab16a55a",
        "no": "3-23",
-       "title": "스케이터 + 불안정 정지",
+       "title": "워터볼 스케이터 스틱 랜딩",
        "station": "공 · 워터백(벽 앞)",
        "bucket": "하체 파워",
        "equipment": [
@@ -2281,7 +2281,7 @@
       {
        "exerciseId": "89b14e01-8ca7-4b08-a79b-bc043d6ff140",
        "no": "3-24",
-       "title": "톨 닐링 메디신볼 오버헤드 던지기",
+       "title": "톨닐링 메디신볼 오버헤드 스로우",
        "station": "공 · 워터백(벽 앞)",
        "bucket": "코어",
        "equipment": [
@@ -2330,7 +2330,7 @@
       {
        "exerciseId": "8c6effeb-b0b6-4187-ab58-b020b7fbeb97",
        "no": "3-27",
-       "title": "벽 지지 짐볼 고관절 굴곡 버티기",
+       "title": "짐볼 월 니 드라이브 아이소 홀드",
        "station": "공 · 워터백(벽 앞)",
        "bucket": "고관절 · 발목 보강",
        "equipment": [
@@ -2353,7 +2353,7 @@
       {
        "exerciseId": "b7907962-a474-4e33-9206-5de92e5486ea",
        "no": "3-28",
-       "title": "밴드 저항 스케이트-스케이트-점프",
+       "title": "밴드 저항 더블 스케이터 + 점프",
        "station": "밴드(고정 기둥)",
        "bucket": "하체 파워",
        "equipment": [
@@ -2450,7 +2450,7 @@
       {
        "exerciseId": "709dce07-9632-4fc3-843c-268649f7cfb2",
        "no": "3-34",
-       "title": "밴드 풀(스피드)",
+       "title": "스피드 밴드 로우",
        "station": "밴드(고정 기둥)",
        "bucket": "상체 당기기",
        "equipment": [
@@ -2467,7 +2467,7 @@
       {
        "exerciseId": "4bb084d1-cf99-4f33-a70a-03c135f5baa0",
        "no": "3-35",
-       "title": "싱글암 밴드 ISO 로우",
+       "title": "싱글암 밴드 로우 아이소 홀드",
        "station": "밴드(고정 기둥)",
        "bucket": "상체 당기기",
        "equipment": [
@@ -2517,7 +2517,7 @@
       {
        "exerciseId": "176e3100-d4e7-4552-9606-3264f3c8da39",
        "no": "3-38",
-       "title": "튜빙 숄더 W",
+       "title": "튜빙 언더핸드 W",
        "station": "밴드(고정 기둥)",
        "bucket": "어깨 · 견갑(암케어)",
        "equipment": [
@@ -2584,7 +2584,7 @@
       {
        "exerciseId": "787563dd-83e7-46a8-af68-918e8a717c1c",
        "no": "3-42",
-       "title": "밴드 보조 푸쉬업",
+       "title": "밴드 보조 푸시업",
        "station": "밴드(고정 기둥)",
        "bucket": "상체 밀기 · 어깨",
        "equipment": [
@@ -2602,7 +2602,7 @@
       {
        "exerciseId": "c955b5a9-b8e9-48e7-a5c6-294b9e525dfd",
        "no": "3-43",
-       "title": "밴드 푸쉬업",
+       "title": "밴드 저항 푸시업",
        "station": "밴드(고정 기둥)",
        "bucket": "상체 밀기 · 어깨",
        "equipment": [
@@ -2675,7 +2675,7 @@
       {
        "exerciseId": "c6e68a49-e226-42f9-9b54-ea2fbbe32ba0",
        "no": "3-47",
-       "title": "핸드 홀드 스플릿 스탠스 회전",
+       "title": "스플릿 스탠스 골반 회전 (손 지지)",
        "station": "매트",
        "bucket": "모빌리티",
        "equipment": [
@@ -2723,7 +2723,7 @@
       {
        "exerciseId": "b4cc6903-d731-4fb3-92a5-bc33eea1bb15",
        "no": "3-50",
-       "title": "흉추 모빌리티 시리즈",
+       "title": "흉추 3방향 모빌리티",
        "station": "매트",
        "bucket": "모빌리티",
        "equipment": [
@@ -2787,7 +2787,7 @@
       {
        "exerciseId": "58ccc770-0d40-4248-879c-c197d44e5efd",
        "no": "3-54",
-       "title": "힙스 오픈 햄스트링 + 측면 굽히기",
+       "title": "스트래들 스트레치 + 사이드 벤드",
        "station": "매트",
        "bucket": "모빌리티",
        "equipment": [
@@ -2854,7 +2854,7 @@
       {
        "exerciseId": "d231717f-0891-4c51-9d51-ce866d3b0334",
        "no": "3-58",
-       "title": "리버스 노르딕",
+       "title": "리버스 노르딕 컬",
        "station": "매트",
        "bucket": "하체 뒤(힌지)",
        "equipment": [
@@ -2870,7 +2870,7 @@
       {
        "exerciseId": "47178d3f-15ad-40d6-b008-7aafaa4cbfbd",
        "no": "3-59",
-       "title": "바디 소 + 슬라이드",
+       "title": "슬라이더 바디 소",
        "station": "매트",
        "bucket": "코어",
        "equipment": [
@@ -3008,7 +3008,7 @@
       {
        "exerciseId": "d800582b-00aa-475a-b2e1-c2e4616f40bd",
        "no": "4-06",
-       "title": "레터럴 미디얼 점프1",
+       "title": "연속 레터럴 바운드",
        "station": "넓은 바닥(이동)",
        "bucket": "하체 파워",
        "equipment": [
@@ -3025,7 +3025,7 @@
       {
        "exerciseId": "71922c97-658b-4182-9b5c-b85d87b87008",
        "no": "4-07",
-       "title": "레터럴 미디얼 점프2",
+       "title": "레터럴 점프 스틱 랜딩",
        "station": "넓은 바닥(이동)",
        "bucket": "하체 파워",
        "equipment": [
@@ -3098,7 +3098,7 @@
       {
        "exerciseId": "b5251f24-fc2a-42d9-b8fa-46e01ed1c222",
        "no": "4-11",
-       "title": "RFE 스피드 스플릿 스쿼트",
+       "title": "스피드 불가리안 스플릿 스쿼트",
        "station": "박스",
        "bucket": "하체 파워",
        "equipment": [
@@ -3172,7 +3172,7 @@
       {
        "exerciseId": "198c22e8-cc94-476e-9be3-9322288f58b3",
        "no": "4-15",
-       "title": "인클라인 벤치프레스",
+       "title": "인클라인 벤치 프레스",
        "station": "랙 · 바벨 · 원판",
        "bucket": "상체 밀기 · 어깨",
        "equipment": [
@@ -3206,7 +3206,7 @@
       {
        "exerciseId": "2da0ac06-0f71-452a-91c4-77c4baf01011",
        "no": "4-17",
-       "title": "밴트 오버 플레이트 로우 ISO",
+       "title": "벤트오버 원판 로우 아이소 홀드",
        "station": "랙 · 바벨 · 원판",
        "bucket": "상체 당기기",
        "equipment": [
@@ -3223,7 +3223,7 @@
       {
        "exerciseId": "80eaf219-1024-45a8-98db-4a000c3fd187",
        "no": "4-18",
-       "title": "원판 힙 모빌리티",
+       "title": "원판 고블렛 스쿼트 프라잉",
        "station": "랙 · 바벨 · 원판",
        "bucket": "모빌리티",
        "equipment": [
@@ -3297,7 +3297,7 @@
       {
        "exerciseId": "afc0ac93-9853-4017-8a22-b652a0fbea6b",
        "no": "4-22",
-       "title": "인클라인 덤벨컬",
+       "title": "인클라인 덤벨 컬",
        "station": "벤치",
        "bucket": "상체 당기기",
        "equipment": [
@@ -3314,7 +3314,7 @@
       {
        "exerciseId": "d0188f51-6795-4154-9cb1-5b3e7dd766f6",
        "no": "4-23",
-       "title": "덤벨 풀 오버",
+       "title": "덤벨 풀오버",
        "station": "벤치",
        "bucket": "상체 당기기",
        "equipment": [
@@ -3332,7 +3332,7 @@
       {
        "exerciseId": "f5a3fc4e-c310-4762-bcc3-07c014b7c5aa",
        "no": "4-24",
-       "title": "원 암 덤벨로우",
+       "title": "싱글암 덤벨 로우",
        "station": "벤치",
        "bucket": "상체 당기기",
        "equipment": [
@@ -3367,7 +3367,7 @@
       {
        "exerciseId": "00024d87-7425-4111-9357-aee4a5171d43",
        "no": "4-26",
-       "title": "싱글암 덤벨 프레스",
+       "title": "싱글암 덤벨 벤치 프레스",
        "station": "벤치",
        "bucket": "상체 밀기 · 어깨",
        "equipment": [
@@ -3385,7 +3385,7 @@
       {
        "exerciseId": "d2136ece-6888-45d2-af06-d4bbf8a6bdea",
        "no": "4-27",
-       "title": "인클라인 벤치 덤벨로우",
+       "title": "체스트 서포티드 덤벨 로우",
        "station": "벤치",
        "bucket": "상체 당기기",
        "equipment": [
@@ -3403,7 +3403,7 @@
       {
        "exerciseId": "3196fcf3-d8c2-4748-a166-453208d49ce6",
        "no": "4-28",
-       "title": "체스트 서포트 로우 ISO",
+       "title": "체스트 서포티드 로우 아이소 홀드",
        "station": "벤치",
        "bucket": "상체 당기기",
        "equipment": [
@@ -3421,7 +3421,7 @@
       {
        "exerciseId": "9cad367e-53c7-48e9-9612-5d2e0c078686",
        "no": "4-29",
-       "title": "불가리안 스플릿 스쿼트 버티기",
+       "title": "불가리안 스플릿 스쿼트 아이소 홀드",
        "station": "벤치",
        "bucket": "하체 앞(무릎)",
        "equipment": [
@@ -3437,7 +3437,7 @@
       {
        "exerciseId": "2becc1d5-0e3d-4ca8-902b-e39d7ce7d906",
        "no": "4-30",
-       "title": "싱글렉 스쿼트 + 앞으로 밀기",
+       "title": "싱글렉 스쿼트 + 원판 프레스 아웃",
        "station": "벤치",
        "bucket": "하체 앞(무릎)",
        "equipment": [
@@ -3453,7 +3453,7 @@
       {
        "exerciseId": "21286552-6d54-4b33-8b1c-0614f1ca5dd5",
        "no": "4-31",
-       "title": "싱글렉→양발 스쿼트 + 앞으로 밀기",
+       "title": "싱글렉 에센트릭 스쿼트 (원판)",
        "station": "벤치",
        "bucket": "하체 앞(무릎)",
        "equipment": [
@@ -3502,7 +3502,7 @@
       {
        "exerciseId": "4fd0f528-2fd8-43a6-b831-ef71681ca6c7",
        "no": "4-34",
-       "title": "벤치 파이어 하이드런트 버티기(내전근)",
+       "title": "쿼드러펫 벤치 내전근 아이소 홀드",
        "station": "벤치",
        "bucket": "고관절 · 발목 보강",
        "equipment": [
@@ -3541,7 +3541,7 @@
       {
        "exerciseId": "3f47b9af-bb84-4135-ab61-12e92845da8e",
        "no": "4-36",
-       "title": "스플릿 스탠스 스캡 로우 → 싱글암 로우",
+       "title": "스플릿 스탠스 스캡 로우 + 싱글암 로우",
        "station": "케이블",
        "bucket": "어깨 · 견갑(암케어)",
        "equipment": [
@@ -3557,7 +3557,7 @@
       {
        "exerciseId": "ce3ed06e-fdc3-4d55-9707-d7382ea1a9fe",
        "no": "4-37",
-       "title": "스플릿 스탠스 스캡 로우 → 프레스",
+       "title": "스플릿 스탠스 스캡 로우 + 프레스",
        "station": "케이블",
        "bucket": "어깨 · 견갑(암케어)",
        "equipment": [
@@ -3589,7 +3589,7 @@
       {
        "exerciseId": "cd0cf6df-e3b5-4b6c-876e-5b56fabe21b0",
        "no": "4-39",
-       "title": "스트랩 스탠딩 로테이션",
+       "title": "스탠딩 케이블 로테이션",
        "station": "케이블",
        "bucket": "코어",
        "equipment": [
@@ -3697,7 +3697,7 @@
       {
        "exerciseId": "00e3aa2c-052a-4b01-be1e-e96aa446d58d",
        "no": "4-45",
-       "title": "밴드 어시스트 플라이오 푸쉬업",
+       "title": "밴드 보조 플라이오 푸시업",
        "station": "밴드(고정 기둥)",
        "bucket": "하체 파워",
        "equipment": [
@@ -3762,7 +3762,7 @@
       {
        "exerciseId": "f554831b-75fc-4507-afa7-8fd35c181f9f",
        "no": "4-49",
-       "title": "밴드 트라이셉스 푸쉬다운",
+       "title": "밴드 트라이셉스 푸시다운",
        "station": "밴드(고정 기둥)",
        "bucket": "전완 · 팔꿈치",
        "equipment": [
@@ -3778,7 +3778,7 @@
       {
        "exerciseId": "119ee9f0-b5da-4454-bc4f-2d4ebfbbb56e",
        "no": "4-50",
-       "title": "밴드 하이 이두컬",
+       "title": "밴드 하이 바이셉스 컬",
        "station": "밴드(고정 기둥)",
        "bucket": "전완 · 팔꿈치",
        "equipment": [
@@ -3794,7 +3794,7 @@
       {
        "exerciseId": "e9124066-f9a5-4154-831a-8cd229551cf7",
        "no": "4-51",
-       "title": "밴드 회내 킥백",
+       "title": "밴드 킥백 + 프로네이션",
        "station": "밴드(고정 기둥)",
        "bucket": "전완 · 팔꿈치",
        "equipment": [
@@ -3826,7 +3826,7 @@
       {
        "exerciseId": "8e77ca8d-ba7c-4196-a249-977d59194d39",
        "no": "4-53",
-       "title": "밴드 저항 무릎 신전",
+       "title": "밴드 터미널 니 익스텐션",
        "station": "밴드(고정 기둥)",
        "bucket": "고관절 · 발목 보강",
        "equipment": [
@@ -3842,7 +3842,7 @@
       {
        "exerciseId": "39f3e556-3b31-440c-87b5-9a9c5b062320",
        "no": "4-54",
-       "title": "튜빙 전완 굴곡",
+       "title": "튜빙 리스트 플렉션",
        "station": "밴드(고정 기둥)",
        "bucket": "전완 · 팔꿈치",
        "equipment": [
@@ -3858,7 +3858,7 @@
       {
        "exerciseId": "4d9e09d9-5d9e-43a0-850d-cd916c1a4764",
        "no": "4-55",
-       "title": "밴드 이두컬(버티며 내리기)",
+       "title": "에센트릭 밴드 바이셉스 컬",
        "station": "밴드(고정 기둥)",
        "bucket": "전완 · 팔꿈치",
        "equipment": [
@@ -3975,7 +3975,7 @@
       {
        "exerciseId": "953f9d01-3669-485d-a607-259365c82f46",
        "no": "4-62",
-       "title": "밴드 팔로프 프레스",
+       "title": "하프닐링 밴드 팔로프 프레스",
        "station": "밴드(고정 기둥)",
        "bucket": "코어",
        "equipment": [
@@ -4050,7 +4050,7 @@
       {
        "exerciseId": "6c120966-4c02-44cf-87d8-5af3c8799192",
        "no": "5-03",
-       "title": "발목 불안정 스냅다운",
+       "title": "불안정 지면 스냅다운",
        "station": "넓은 바닥(이동)",
        "bucket": "하체 파워",
        "equipment": [
@@ -4067,7 +4067,7 @@
       {
        "exerciseId": "1a9528b3-5e8b-417f-8037-efe5a6fb6abd",
        "no": "5-04",
-       "title": "스트레이트렉 바운드(프라임타임)",
+       "title": "스트레이트렉 바운드",
        "station": "넓은 바닥(이동)",
        "bucket": "하체 파워",
        "equipment": [
@@ -4198,7 +4198,7 @@
       {
        "exerciseId": "b9c417d1-ff28-4c50-85dd-e32b180f794c",
        "no": "5-11",
-       "title": "6방향 덤벨 레터럴 레이즈",
+       "title": "6방향 덤벨 숄더 레이즈",
        "station": "덤벨 · 케틀벨",
        "bucket": "어깨 · 견갑(암케어)",
        "equipment": [
@@ -4230,7 +4230,7 @@
       {
        "exerciseId": "286b186f-b322-43fc-9da5-462e4e064195",
        "no": "5-13",
-       "title": "누워서 덤벨 내회전 90도",
+       "title": "수파인 덤벨 내회전 90도",
        "station": "덤벨 · 케틀벨",
        "bucket": "어깨 · 견갑(암케어)",
        "equipment": [
@@ -4295,7 +4295,7 @@
       {
        "exerciseId": "4fe5cfb9-1867-4f5a-86fe-51e4775f8e98",
        "no": "5-17",
-       "title": "누워서 서라투스 잽",
+       "title": "수파인 서라투스 잽",
        "station": "덤벨 · 케틀벨",
        "bucket": "어깨 · 견갑(암케어)",
        "equipment": [
@@ -4442,7 +4442,7 @@
       {
        "exerciseId": "f70c850d-d583-474d-832d-7667a2efb843",
        "no": "5-26",
-       "title": "전완 요측 편위",
+       "title": "덤벨 래디얼 디비에이션",
        "station": "덤벨 · 케틀벨",
        "bucket": "전완 · 팔꿈치",
        "equipment": [
@@ -4458,7 +4458,7 @@
       {
        "exerciseId": "7ed34709-2841-430c-89d1-b7f6c676c167",
        "no": "5-27",
-       "title": "전완 척측 편위",
+       "title": "덤벨 울나 디비에이션",
        "station": "덤벨 · 케틀벨",
        "bucket": "전완 · 팔꿈치",
        "equipment": [
@@ -4474,7 +4474,7 @@
       {
        "exerciseId": "23b0a88b-9081-404f-a25a-7eac7f9460d4",
        "no": "5-28",
-       "title": "전완 신전 과부하 내리기",
+       "title": "리스트 익스텐션 에센트릭 오버로드",
        "station": "덤벨 · 케틀벨",
        "bucket": "전완 · 팔꿈치",
        "equipment": [
@@ -4506,7 +4506,7 @@
       {
        "exerciseId": "cf4629d6-da5c-40b3-96da-9682b702c0fe",
        "no": "5-30",
-       "title": "전완 요측 편위 과부하 내리기",
+       "title": "래디얼 디비에이션 에센트릭 오버로드",
        "station": "덤벨 · 케틀벨",
        "bucket": "전완 · 팔꿈치",
        "equipment": [
@@ -4522,7 +4522,7 @@
       {
        "exerciseId": "b9348dda-78ac-4f3b-b799-364dc8d135c8",
        "no": "5-31",
-       "title": "덤벨 발목 안정성 교대",
+       "title": "덤벨 프론트랙 마치 홀드",
        "station": "덤벨 · 케틀벨",
        "bucket": "고관절 · 발목 보강",
        "equipment": [
@@ -4538,7 +4538,7 @@
       {
        "exerciseId": "ce8abfa2-e0b0-4646-972b-cbc1853f6076",
        "no": "5-32",
-       "title": "덤벨 발목 안정성 스쿼트",
+       "title": "덤벨 프론트랙 내로우 스쿼트",
        "station": "덤벨 · 케틀벨",
        "bucket": "고관절 · 발목 보강",
        "equipment": [
@@ -4554,7 +4554,7 @@
       {
        "exerciseId": "8e82b8ae-e53f-4409-a67c-2684fa58c010",
        "no": "5-33",
-       "title": "싱글렉 케틀벨 교대",
+       "title": "싱글렉 RDL 케틀벨 핸드 패스",
        "station": "덤벨 · 케틀벨",
        "bucket": "고관절 · 발목 보강",
        "equipment": [
@@ -4570,7 +4570,7 @@
       {
        "exerciseId": "2d8dd504-7126-41fc-a4b3-53c1722fcd83",
        "no": "5-34",
-       "title": "전완 척측 편위 과부하 내리기",
+       "title": "울나 디비에이션 에센트릭 오버로드",
        "station": "덤벨 · 케틀벨",
        "bucket": "전완 · 팔꿈치",
        "equipment": [
@@ -4619,7 +4619,7 @@
       {
        "exerciseId": "d4ce2ed4-2092-4f9c-b321-31741963beff",
        "no": "5-37",
-       "title": "싱글 암 숄더프레스",
+       "title": "싱글암 덤벨 숄더 프레스",
        "station": "덤벨 · 케틀벨",
        "bucket": "상체 밀기 · 어깨",
        "equipment": [
@@ -4636,7 +4636,7 @@
       {
        "exerciseId": "91d762a0-bfd1-4013-85d1-f605065c2aa2",
        "no": "5-38",
-       "title": "덤벨컬",
+       "title": "덤벨 컬",
        "station": "덤벨 · 케틀벨",
        "bucket": "상체 당기기",
        "equipment": [
@@ -4686,7 +4686,7 @@
       {
        "exerciseId": "510db540-932d-4f2d-9db8-11a1bf16f6ef",
        "no": "5-41",
-       "title": "편측 파머스 캐리",
+       "title": "싱글암 파머스 캐리",
        "station": "덤벨 · 케틀벨",
        "bucket": "코어",
        "equipment": [
@@ -4710,7 +4710,7 @@
       {
        "exerciseId": "9d4ae24c-8ec4-4a83-8220-c967f27513a6",
        "no": "5-42",
-       "title": "90/90 고관절 회전 + 신전",
+       "title": "90/90 힙 스위치 + 익스텐션",
        "station": "매트",
        "bucket": "모빌리티",
        "equipment": [
@@ -4759,7 +4759,7 @@
       {
        "exerciseId": "da3a1867-9ca2-42b9-8bfe-e48f132ff6ce",
        "no": "5-45",
-       "title": "누워서 고관절 내회전",
+       "title": "수파인 고관절 내회전",
        "station": "매트",
        "bucket": "모빌리티",
        "equipment": [
@@ -4775,7 +4775,7 @@
       {
        "exerciseId": "8d669b0a-7839-423b-9a0e-4ffd1d88ab8b",
        "no": "5-46",
-       "title": "롤링 (하체 시작)",
+       "title": "하체 주도 롤링",
        "station": "매트",
        "bucket": "모빌리티",
        "equipment": [
@@ -4791,7 +4791,7 @@
       {
        "exerciseId": "2d2948d6-99d6-4389-83c8-a36ddeb220da",
        "no": "5-47",
-       "title": "막대 디스로케이트",
+       "title": "막대 숄더 디스로케이트",
        "station": "매트",
        "bucket": "모빌리티",
        "equipment": [
@@ -4823,7 +4823,7 @@
       {
        "exerciseId": "9a6bbe89-de55-4088-96d2-68c9ebe1502e",
        "no": "5-49",
-       "title": "브레첼",
+       "title": "프레첼 스트레치",
        "station": "매트",
        "bucket": "모빌리티",
        "equipment": [
@@ -4839,7 +4839,7 @@
       {
        "exerciseId": "7c6c8872-8e17-4a08-a5d9-bfbcc9e7644e",
        "no": "5-50",
-       "title": "베어크롤 어깨 터치",
+       "title": "베어 플랭크 숄더 탭",
        "station": "매트",
        "bucket": "코어",
        "equipment": [
@@ -4856,7 +4856,7 @@
       {
        "exerciseId": "e2c9ee57-e7dd-4a8a-9245-ea68f9b79fb1",
        "no": "5-51",
-       "title": "톨 닐링 플랭크",
+       "title": "톨닐링 포스처 홀드",
        "station": "매트",
        "bucket": "코어",
        "equipment": [
@@ -4906,7 +4906,7 @@
       {
        "exerciseId": "22c6dafd-0179-4a6a-9b9e-093d154ead56",
        "no": "5-54",
-       "title": "힙스 오픈 햄스트링 + 회전",
+       "title": "스트래들 스트레치 + 흉추 회전",
        "station": "매트",
        "bucket": "모빌리티",
        "equipment": [
@@ -4922,7 +4922,7 @@
       {
        "exerciseId": "dffb94cf-d900-462b-8595-9ae621a0168b",
        "no": "5-55",
-       "title": "힙스 오픈 햄스트링 스트레치",
+       "title": "스트래들 스트레치",
        "station": "매트",
        "bucket": "모빌리티",
        "equipment": [
@@ -4955,7 +4955,7 @@
       {
        "exerciseId": "42295715-2c75-4145-bd59-7131666e808e",
        "no": "5-57",
-       "title": "3점 RDL",
+       "title": "싱글렉 RDL 3방향 리치",
        "station": "매트",
        "bucket": "하체 뒤(힌지)",
        "equipment": [
@@ -4971,7 +4971,7 @@
       {
        "exerciseId": "e4329d32-7532-4708-914b-6e2182fe8107",
        "no": "5-58",
-       "title": "보수 싱글렉 RDL",
+       "title": "보수볼 싱글렉 RDL",
        "station": "매트",
        "bucket": "하체 뒤(힌지)",
        "equipment": [
@@ -5044,7 +5044,7 @@
       {
        "exerciseId": "db60b7c3-4879-4c26-a86c-46bd93402777",
        "no": "6-01",
-       "title": "뎁스 드롭 - 박스 점프",
+       "title": "뎁스 점프 투 박스",
        "station": "박스",
        "bucket": "하체 파워",
        "equipment": [
@@ -5061,7 +5061,7 @@
       {
        "exerciseId": "63605f6f-16d8-447b-8f00-f0690ad82e19",
        "no": "6-02",
-       "title": "뎁스 드롭 정지",
+       "title": "뎁스 드롭",
        "station": "박스",
        "bucket": "하체 파워",
        "equipment": [
@@ -5078,7 +5078,7 @@
       {
        "exerciseId": "0676ee85-b2fc-4781-ae96-2bd8c89fb7b0",
        "no": "6-03",
-       "title": "싱글렉 박스 스쿼트 + 원판",
+       "title": "원판 싱글렉 박스 스쿼트",
        "station": "박스",
        "bucket": "하체 앞(무릎)",
        "equipment": [
@@ -5127,7 +5127,7 @@
       {
        "exerciseId": "130cd92f-3bdb-4b04-90dc-07eff60f538e",
        "no": "6-06",
-       "title": "덤벨 데드스톱 RDL 투 박스",
+       "title": "싱글렉 덤벨 데드스톱 RDL",
        "station": "박스",
        "bucket": "하체 뒤(힌지)",
        "equipment": [
@@ -5144,7 +5144,7 @@
       {
        "exerciseId": "74c08d10-2e93-43a5-a3ae-7c5efac87836",
        "no": "6-07",
-       "title": "덤벨 데드스톱 RDL 투 박스(반대 손)",
+       "title": "싱글렉 덤벨 데드스톱 RDL (반대손)",
        "station": "박스",
        "bucket": "하체 뒤(힌지)",
        "equipment": [
@@ -5161,7 +5161,7 @@
       {
        "exerciseId": "927bb4c5-77ef-44b4-b81d-830e909249bc",
        "no": "6-08",
-       "title": "인클라인 푸쉬업",
+       "title": "인클라인 푸시업",
        "station": "박스",
        "bucket": "상체 밀기 · 어깨",
        "equipment": [
@@ -5209,7 +5209,7 @@
       {
        "exerciseId": "4d3da8de-425c-4ed5-bc53-523a55bd14c0",
        "no": "6-10",
-       "title": "케이브 와이드 스텐스 로테이션",
+       "title": "케이블 와이드 스탠스 로테이션",
        "station": "케이블",
        "bucket": "코어",
        "equipment": [
@@ -5277,7 +5277,7 @@
       {
        "exerciseId": "0c6e203b-e329-4d51-864f-71aca6f1c8cd",
        "no": "6-14",
-       "title": "시티드 로우",
+       "title": "시티드 케이블 로우",
        "station": "케이블",
        "bucket": "상체 당기기",
        "equipment": [
@@ -5493,7 +5493,7 @@
       {
        "exerciseId": "c9c39b44-d7fc-4092-9c8c-6963c9d549db",
        "no": "6-26",
-       "title": "밴드 스쿼트 점프(버티며 내리기)",
+       "title": "밴드 저항 스쿼트 점프 (에센트릭)",
        "station": "밴드(고정 기둥)",
        "bucket": "하체 파워",
        "equipment": [
@@ -5558,7 +5558,7 @@
       {
        "exerciseId": "ce346310-60ee-4d0d-bb83-3a9229912df2",
        "no": "6-30",
-       "title": "밴드 클램",
+       "title": "밴드 클램쉘",
        "station": "밴드(고정 기둥)",
        "bucket": "고관절 · 발목 보강",
        "equipment": [
@@ -5574,7 +5574,7 @@
       {
        "exerciseId": "2febc393-1542-4f7c-9cc1-8929de40406d",
        "no": "6-31",
-       "title": "싱글렉 밴드 RNT 고관절 내·외전",
+       "title": "싱글렉 밴드 고관절 내·외전 (반응성)",
        "station": "밴드(고정 기둥)",
        "bucket": "고관절 · 발목 보강",
        "equipment": [
@@ -5693,7 +5693,7 @@
       {
        "exerciseId": "b2400146-241d-4d03-92a5-bf8aa679ad80",
        "no": "6-38",
-       "title": "벽 슬라이드",
+       "title": "월 슬라이드",
        "station": "매트",
        "bucket": "어깨 · 견갑(암케어)",
        "equipment": [
@@ -5709,7 +5709,7 @@
       {
        "exerciseId": "f3f38691-5ac2-459d-bc26-840f721d2727",
        "no": "6-39",
-       "title": "어깨 내회전 등척성 밀기",
+       "title": "어깨 내회전 아이소메트릭 프레스",
        "station": "매트",
        "bucket": "어깨 · 견갑(암케어)",
        "equipment": [
@@ -5725,7 +5725,7 @@
       {
        "exerciseId": "66d0505f-4356-4e67-9907-3f85a8442dc6",
        "no": "6-40",
-       "title": "어깨 외전 등척성 밀기",
+       "title": "어깨 외전 아이소메트릭 프레스",
        "station": "매트",
        "bucket": "어깨 · 견갑(암케어)",
        "equipment": [
@@ -5741,7 +5741,7 @@
       {
        "exerciseId": "aec3eb44-c8c5-48d9-9f23-5eba9f9bb106",
        "no": "6-41",
-       "title": "손목 굴곡근 스트레칭",
+       "title": "손목 굴곡근 스트레치",
        "station": "매트",
        "bucket": "모빌리티",
        "equipment": [
@@ -5853,7 +5853,7 @@
       {
        "exerciseId": "66c3a751-6d8e-4071-a06a-0c3321b5bbe4",
        "no": "6-48",
-       "title": "슬리퍼 스트레칭",
+       "title": "슬리퍼 스트레치",
        "station": "매트",
        "bucket": "모빌리티",
        "equipment": [
@@ -5869,7 +5869,7 @@
       {
        "exerciseId": "7a097fb0-195a-4872-9a65-2716c562c2fe",
        "no": "6-49",
-       "title": "어깨 외회전 등척성 밀기",
+       "title": "어깨 외회전 아이소메트릭 프레스",
        "station": "매트",
        "bucket": "어깨 · 견갑(암케어)",
        "equipment": [
@@ -5885,7 +5885,7 @@
       {
        "exerciseId": "fc08b2a7-6349-41d7-a1d8-31c429000181",
        "no": "6-50",
-       "title": "쿼드 외회전",
+       "title": "쿼드러펫 외회전",
        "station": "매트",
        "bucket": "어깨 · 견갑(암케어)",
        "equipment": [
@@ -5901,7 +5901,7 @@
       {
        "exerciseId": "3321b1ea-e55b-4f7c-a948-134292dee3d5",
        "no": "6-51",
-       "title": "쿼드 T",
+       "title": "쿼드러펫 T 레이즈",
        "station": "매트",
        "bucket": "어깨 · 견갑(암케어)",
        "equipment": [
@@ -5933,7 +5933,7 @@
       {
        "exerciseId": "b1ea2faa-4799-49dc-a1a0-c2cbb6c3d5e4",
        "no": "6-53",
-       "title": "쿼드 Y",
+       "title": "쿼드러펫 Y 레이즈",
        "station": "매트",
        "bucket": "어깨 · 견갑(암케어)",
        "equipment": [
@@ -5949,7 +5949,7 @@
       {
        "exerciseId": "0bb9bcac-5b06-48ff-9fbd-75f66aad547a",
        "no": "6-54",
-       "title": "푸쉬업 플러스",
+       "title": "푸시업 플러스",
        "station": "매트",
        "bucket": "어깨 · 견갑(암케어)",
        "equipment": [
@@ -5981,7 +5981,7 @@
       {
        "exerciseId": "dea70baa-63e0-452e-ad30-bc56c4a71a4a",
        "no": "6-56",
-       "title": "전완 굴곡 등척성 밀기",
+       "title": "리스트 플렉션 아이소메트릭 프레스",
        "station": "매트",
        "bucket": "전완 · 팔꿈치",
        "equipment": [
@@ -5997,7 +5997,7 @@
       {
        "exerciseId": "a8641f36-bfa4-47cb-9743-d04b931d0abe",
        "no": "6-57",
-       "title": "전완 신전 등척성 밀기",
+       "title": "리스트 익스텐션 아이소메트릭 프레스",
        "station": "매트",
        "bucket": "전완 · 팔꿈치",
        "equipment": [
@@ -6013,7 +6013,7 @@
       {
        "exerciseId": "fe01038d-0a4c-480f-a14c-3879f2e2bb15",
        "no": "6-58",
-       "title": "전완 회내 등척성 밀기",
+       "title": "전완 프로네이션 아이소메트릭 프레스",
        "station": "매트",
        "bucket": "전완 · 팔꿈치",
        "equipment": [
@@ -6045,7 +6045,7 @@
       {
        "exerciseId": "41d546f6-2e29-43f1-b9df-05cfd4e3dcd2",
        "no": "6-60",
-       "title": "전완 회외 등척성 밀기",
+       "title": "전완 수피네이션 아이소메트릭 프레스",
        "station": "매트",
        "bucket": "전완 · 팔꿈치",
        "equipment": [
@@ -6061,7 +6061,7 @@
       {
        "exerciseId": "83af9c25-7f87-4928-8491-988a18c44935",
        "no": "6-61",
-       "title": "팔꿈치 굽힘 등척성 밀기",
+       "title": "엘보 플렉션 아이소메트릭 프레스",
        "station": "매트",
        "bucket": "전완 · 팔꿈치",
        "equipment": [
@@ -6094,7 +6094,7 @@
       {
        "exerciseId": "f370cd28-f0a8-4721-b50e-0377a05cf7a9",
        "no": "6-63",
-       "title": "보수 다이내믹 런지",
+       "title": "보수볼 포워드 런지",
        "station": "매트",
        "bucket": "하체 앞(무릎)",
        "equipment": [
@@ -6126,7 +6126,7 @@
       {
        "exerciseId": "9b82fc9b-c773-4b55-bb0f-8e0cb1b2d551",
        "no": "6-65",
-       "title": "노핸즈 푸쉬업",
+       "title": "핸드 릴리스 푸시업",
        "station": "매트",
        "bucket": "상체 밀기 · 어깨",
        "equipment": [
@@ -6143,7 +6143,7 @@
       {
        "exerciseId": "eeca9584-9618-4bcb-accc-a5e816614fd0",
        "no": "6-66",
-       "title": "다이아몬드 푸쉬업",
+       "title": "다이아몬드 푸시업",
        "station": "매트",
        "bucket": "상체 밀기 · 어깨",
        "equipment": [
@@ -6159,7 +6159,7 @@
       {
        "exerciseId": "042e00b3-2f64-449a-af63-e6cf75244653",
        "no": "6-67",
-       "title": "파이크 푸쉬업",
+       "title": "파이크 푸시업",
        "station": "매트",
        "bucket": "상체 밀기 · 어깨",
        "equipment": [
@@ -6233,7 +6233,7 @@
       {
        "exerciseId": "854ee1d0-f529-4ddf-b502-20afa9a9ce8b",
        "no": "7-02",
-       "title": "RFE 스플릿 스쿼트 점프",
+       "title": "불가리안 스플릿 스쿼트 점프",
        "station": "박스",
        "bucket": "하체 파워",
        "equipment": [
@@ -6308,7 +6308,7 @@
       {
        "exerciseId": "4aefadde-f3f1-4bc8-a16d-083b2b214ead",
        "no": "7-06",
-       "title": "베어 포지션 원판 슬라이드",
+       "title": "베어 플랭크 원판 드래그",
        "station": "랙 · 바벨 · 원판",
        "bucket": "코어",
        "equipment": [
@@ -6374,7 +6374,7 @@
       {
        "exerciseId": "7f21e445-ee79-4d11-996a-8e1fe936b0a7",
        "no": "7-10",
-       "title": "RDL 버티며 내리기+정지",
+       "title": "에센트릭 포즈 RDL",
        "station": "랙 · 바벨 · 원판",
        "bucket": "하체 뒤(힌지)",
        "equipment": [
@@ -6397,7 +6397,7 @@
       {
        "exerciseId": "99672396-0335-4fb8-beb1-d02d04b0ac00",
        "no": "7-11",
-       "title": "덤벨 프레스",
+       "title": "덤벨 벤치 프레스",
        "station": "벤치",
        "bucket": "상체 밀기 · 어깨",
        "equipment": [
@@ -6484,7 +6484,7 @@
       {
        "exerciseId": "aee68678-bf0e-4977-8d2a-597eb4343a86",
        "no": "7-16",
-       "title": "힙 오프 원암 덤벨 프레스",
+       "title": "힙 브리지 싱글암 덤벨 프레스",
        "station": "벤치",
        "bucket": "상체 밀기 · 어깨",
        "equipment": [
@@ -6502,7 +6502,7 @@
       {
        "exerciseId": "ef7aa8ec-cf87-44d7-9110-0cb375cbdbb1",
        "no": "7-17",
-       "title": "덤벨 프레스(버티며 내리기)",
+       "title": "에센트릭 덤벨 벤치 프레스",
        "station": "벤치",
        "bucket": "상체 밀기 · 어깨",
        "equipment": [
@@ -6520,7 +6520,7 @@
       {
        "exerciseId": "2c09b44b-efef-4371-ad81-5f120e70700a",
        "no": "7-18",
-       "title": "시티드 외회전 과부하 내리기",
+       "title": "시티드 외회전 에센트릭 오버로드",
        "station": "벤치",
        "bucket": "어깨 · 견갑(암케어)",
        "equipment": [
@@ -6537,7 +6537,7 @@
       {
        "exerciseId": "51cef6b8-8712-4127-bfb5-0a2876f3a32c",
        "no": "7-19",
-       "title": "덤벨 프리처 컬(네거티브)",
+       "title": "에센트릭 덤벨 프리처 컬",
        "station": "벤치",
        "bucket": "전완 · 팔꿈치",
        "equipment": [
@@ -6573,7 +6573,7 @@
       {
        "exerciseId": "eae45602-6fe5-48d0-aef9-cb4f2509274f",
        "no": "7-21",
-       "title": "코펜하겐 내전근 단계별",
+       "title": "코펜하겐 플랭크",
        "station": "벤치",
        "bucket": "고관절 · 발목 보강",
        "equipment": [
@@ -6596,7 +6596,7 @@
       {
        "exerciseId": "dc822a45-81a6-4ae0-9edf-fc23f9869a9d",
        "no": "7-22",
-       "title": "밴드 어시스트 스플릿 스탠스 점프",
+       "title": "밴드 보조 스플릿 스쿼트 점프",
        "station": "철봉 · TRX",
        "bucket": "하체 파워",
        "equipment": [
@@ -6736,7 +6736,7 @@
       {
        "exerciseId": "3b839bbc-cb7f-4fb3-9b6b-9a5201709835",
        "no": "7-30",
-       "title": "밴드 저항 감속 + 폭발적 반등",
+       "title": "밴드 오버스피드 감속 + 반등",
        "station": "밴드(고정 기둥)",
        "bucket": "하체 파워",
        "equipment": [
@@ -6768,7 +6768,7 @@
       {
        "exerciseId": "f5d0cb68-ba70-478c-ab25-0caf4c820f72",
        "no": "7-32",
-       "title": "누워서 밴드 무릎 당기기",
+       "title": "수파인 밴드 힙 디스트랙션",
        "station": "밴드(고정 기둥)",
        "bucket": "모빌리티",
        "equipment": [
@@ -6784,7 +6784,7 @@
       {
        "exerciseId": "e4139a5d-134e-49e4-a651-6b269b24d23b",
        "no": "7-33",
-       "title": "누워서 밴드 종아리 오실레이션",
+       "title": "수파인 밴드 카프 오실레이션",
        "station": "밴드(고정 기둥)",
        "bucket": "모빌리티",
        "equipment": [
@@ -6880,7 +6880,7 @@
       {
        "exerciseId": "bdf694eb-d743-46cc-90d6-30570b3fb83c",
        "no": "7-39",
-       "title": "밴드 흉추 회전 (여러 각도)",
+       "title": "쿼드러펫 밴드 흉추 회전",
        "station": "밴드(고정 기둥)",
        "bucket": "모빌리티",
        "equipment": [
@@ -6896,7 +6896,7 @@
       {
        "exerciseId": "feac9329-db5c-4de4-9156-792b0ba0a299",
        "no": "7-40",
-       "title": "밴드 고정 다리 들어올리기",
+       "title": "밴드 풀다운 레그 로어링",
        "station": "밴드(고정 기둥)",
        "bucket": "고관절 · 발목 보강",
        "equipment": [
@@ -6944,7 +6944,7 @@
       {
        "exerciseId": "387f7655-9023-4cf3-bc4c-261e825ca736",
        "no": "7-43",
-       "title": "튜빙 전완 회내",
+       "title": "튜빙 전완 프로네이션",
        "station": "밴드(고정 기둥)",
        "bucket": "전완 · 팔꿈치",
        "equipment": [
@@ -6960,7 +6960,7 @@
       {
        "exerciseId": "adc6d6ca-c92d-459d-8edd-cb03b2548052",
        "no": "7-44",
-       "title": "튜빙 전완 회내 (GG)",
+       "title": "튜빙 전완 프로네이션 (두꺼운 그립)",
        "station": "밴드(고정 기둥)",
        "bucket": "전완 · 팔꿈치",
        "equipment": [
@@ -6976,7 +6976,7 @@
       {
        "exerciseId": "6961201f-d076-4b52-952f-b3325c97e3a3",
        "no": "7-45",
-       "title": "튜빙 전완 회외",
+       "title": "튜빙 전완 수피네이션",
        "station": "밴드(고정 기둥)",
        "bucket": "전완 · 팔꿈치",
        "equipment": [
@@ -6992,7 +6992,7 @@
       {
        "exerciseId": "3397f038-3604-49c5-9028-f9ff58e9cf9a",
        "no": "7-46",
-       "title": "밴드 보조 고관절 내회전 + 안정성",
+       "title": "밴드 보조 고관절 내회전 (오버헤드)",
        "station": "밴드(고정 기둥)",
        "bucket": "고관절 · 발목 보강",
        "equipment": [
@@ -7008,7 +7008,7 @@
       {
        "exerciseId": "2847e6fb-d510-4d36-9fb2-0b0d6ebca4e4",
        "no": "7-47",
-       "title": "밴드 보조 고관절 외회전 + 안정성",
+       "title": "밴드 보조 고관절 외회전 (막대 지지)",
        "station": "밴드(고정 기둥)",
        "bucket": "고관절 · 발목 보강",
        "equipment": [
@@ -7024,7 +7024,7 @@
       {
        "exerciseId": "446d336a-9477-490d-abdc-9f9ae1f8a453",
        "no": "7-48",
-       "title": "튜빙 전완 회외 (GG)",
+       "title": "튜빙 전완 수피네이션 (두꺼운 그립)",
        "station": "밴드(고정 기둥)",
        "bucket": "전완 · 팔꿈치",
        "equipment": [
@@ -7040,7 +7040,7 @@
       {
        "exerciseId": "c0e39a5a-b78d-48ed-b1ba-f2fd7b265009",
        "no": "7-49",
-       "title": "밴드 스피드 프레스",
+       "title": "밴드 스피드 벤치 프레스",
        "station": "밴드(고정 기둥)",
        "bucket": "코어",
        "equipment": [
@@ -7193,7 +7193,7 @@
       {
        "exerciseId": "76288fb9-3b43-4e01-962d-d2e84a4b7bc6",
        "no": "7-58",
-       "title": "크로스바디 스트레칭",
+       "title": "크로스바디 스트레치",
        "station": "매트",
        "bucket": "모빌리티",
        "equipment": [

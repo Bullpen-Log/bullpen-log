@@ -370,7 +370,7 @@ console.log('\n■ 계획 계산(합성 운동)');
     }) === 1.6 &&
       shotMinutes({
         ...ex[1],
-        title: '전완 굴곡 과부하 내리기',
+        title: '리스트 플렉션 에센트릭 오버로드',
         equipment: ['덤벨'],
         category: '암케어',
       }) === 2 &&
@@ -430,20 +430,20 @@ console.log('\n■ 계획 계산(합성 운동)');
         ...ex[0],
         category: '암케어',
         bodyParts: ['손목·전완'],
-        title: '튜빙 전완 굴곡',
+        title: '튜빙 리스트 플렉션',
       }) === '전완 · 팔꿈치'
   );
   check(
     '부하 — 높음 2 · 천천히 내리기 ×1.5',
     loadOf({ ...ex[0], title: 'x', intensity: '높음' }) === 2 &&
-      loadOf({ ...ex[0], title: '전완 굴곡 과부하 내리기', intensity: '높음' }) === 3
+      loadOf({ ...ex[0], title: '리스트 플렉션 에센트릭 오버로드', intensity: '높음' }) === 3
   );
   check(
     '시범 방법 — 천천히 내리기 1~2회 · 버티기 10초 · 좌우는 한쪽',
     demoCue(
       {
         ...ex[0],
-        title: '노르딕 햄스트링',
+        title: '노르딕 햄스트링 컬',
         holdSeconds: null,
         perSide: false,
         category: '하체 스트렝스',

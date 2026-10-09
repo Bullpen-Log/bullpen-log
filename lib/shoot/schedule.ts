@@ -93,9 +93,9 @@ export const BREAK_EVERY = 50;
 export const MOVE_MINUTES = 3;
 export const SWAP_MINUTES = 1;
 
-const ECC = /과부하 내리기|버티며 내리기|노르딕|드롭 캐치/;
+const ECC = /과부하 내리기|버티며 내리기|에센트릭|노르딕|드롭 캐치/;
 /** 화면에 '천천히 내리기'로 알리는 것(드롭 캐치는 시간만 더 든다) */
-export const SLOW_LOWER = /과부하 내리기|버티며 내리기|노르딕/;
+export const SLOW_LOWER = /과부하 내리기|버티며 내리기|에센트릭|노르딕/;
 const MULTI = /\+|→|시리즈|단계별|전체|여러 각도|연속|3방향|6방향|다방향/;
 export const JUMPY =
   /점프|바운드|홉|슬램|던지기|패스|허들|스케이트|드리블|드롭|리바운드|플립|스로우/;
@@ -139,7 +139,7 @@ export function bucketOf(x: ShootExercise): Bucket {
   if (x.category === '암케어') {
     if (
       p[0] === '손목·전완' ||
-      (p.includes('손목·전완') && /전완|핑거|핀치|손목/.test(x.title))
+      (p.includes('손목·전완') && /전완|리스트|디비에이션|핑거|핀치|손목/.test(x.title))
     )
       return '전완 · 팔꿈치';
     if (p[0] === '이두' || p[0] === '삼두') return '전완 · 팔꿈치';

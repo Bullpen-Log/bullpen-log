@@ -126,8 +126,11 @@ def helper_frames(cfg: dict) -> list:
         return fine_frames(path, cfg["fromSec"], cfg["toSec"])
 
 
-def run_job(job: dict, pose_factory: Callable[[], object], report: Report, ai: object | None = None) -> dict:
-    """ai 는 AI 보정을 나눠 맡기는 손잡이(ai_parallel.Coordinator — video · run · close). 없으면 이 GPU 하나로.
+def run_job(
+    job: dict, pose_factory: Callable[[], object], report: Report, ai: object | None = None, use_ai: bool = False
+) -> dict:
+    """use_ai 면 AI 스켈레톤 보정까지(app.py AI_ON — 지금 꺼 둠). ai 는 그것을 나눠 맡기는 손잡이(ai_parallel.Coordinator — video · run · close),
+    없으면 이 GPU 하나로.
 
     job["dryRun"] 이 True 면 올리지 않고 결과를 돌려준다(app.py e2e — 실제 영상으로 끝까지 시험할 때).
     """
@@ -178,7 +181,7 @@ def run_job(job: dict, pose_factory: Callable[[], object], report: Report, ai: o
                 raise StepFail(str(seg.get("code", "events")), "segment")
             print(f"[pitch3d segment] {json.dumps(seg)[:300]}")
             mark("segment")
-            if ai is not None:
+            if use_ai and ai is not None:
                 ai.video({"url": job["side"]["url"], "fromSec": seg["side"]["fromSec"], "toSec": seg["side"]["toSec"]})
 
             fine_side = fine_frames(side_path, seg["side"]["fromSec"], seg["side"]["toSec"])
@@ -188,8 +191,8 @@ def run_job(job: dict, pose_factory: Callable[[], object], report: Report, ai: o
                 "back": pose.track(fine_back, bw, bh, min(FINE_FPS, bfps)),
             }
             result = engine.run("fit", fit_payload(job, fine, seg, getattr(pose, "name", "rtmw")))
-            # AI 스켈레톤 보정(실험, sam3d.py) — 못 하면 그대로(분석은 막지 않는다). 단계 이름은 fit 안에(화면의 단계 표를 안 바꾼다)
-            if result.get("ok"):
+            # AI 스켈레톤 보정(실험, sam3d.py) — 켰을 때만, 못 하면 그대로(분석은 막지 않는다). 단계 이름은 fit 안에(화면의 단계 표를 안 바꾼다)
+            if use_ai and result.get("ok"):
                 t_ai = time.time()
                 try:
                     from .mapping import V2_NAMES

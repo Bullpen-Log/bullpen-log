@@ -496,9 +496,9 @@ export const CKCUEST_METHOD =
 /** 힘 비교 운동 — 어깨 넷: 사이드라잉 외회전, 팔꿈치 안쪽 · 뒤쪽: 덤벨 전완 굴곡, 바깥쪽: 덤벨 전완 신전, 앞쪽: 덤벨 해머컬 */
 function strengthExercise(area: ArmcareAreaKey): string {
   if (SHOULDER_AREAS.includes(area)) return '사이드라잉 외회전';
-  if (area === 'elbow-outer') return '덤벨 전완 신전';
-  if (area === 'elbow-front') return '덤벨 해머컬';
-  return '덤벨 전완 굴곡';
+  if (area === 'elbow-outer') return '덤벨 리스트 익스텐션';
+  if (area === 'elbow-front') return '덤벨 해머 컬';
+  return '덤벨 리스트 플렉션';
 }
 
 /** 이 단계에서 다음으로 가는 시험 — 4단계는 투구 복귀표 열기(judgeThrowingOpen)라 null */

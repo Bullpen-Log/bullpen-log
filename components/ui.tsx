@@ -85,8 +85,7 @@ export function PageHeading({
      * 같은 낮은 머리. 휴대폰은 애플의 큰 제목처럼 영어 머리글 · 밑줄 없이 제목 하나(2026-10-01 '애플처럼').
      */
     <div
-      /* PC 밑줄은 실선 대신 실밥 땀 줄(stitch-rule, globals.css — 2026-10-04 불펜로그다움) */
-      className={`flex gap-4 pb-1 desk:stitch-rule desk:pb-4 ${
+      className={`flex gap-4 pb-1 desk:pb-4 ${
         inlineAction ? 'flex-row items-end justify-between' : 'flex-col sm:flex-row sm:items-end sm:justify-between'
       }`}
     >

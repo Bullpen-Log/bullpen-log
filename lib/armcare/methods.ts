@@ -50,8 +50,8 @@ export type ArmcareMethod = {
 export const ARMCARE_METHODS: readonly ArmcareMethod[] = [
   {
     key: 'press',
-    label: '등척성 밀기',
-    titleMarker: '등척성 밀기',
+    label: '아이소메트릭 프레스',
+    titleMarker: '아이소메트릭 프레스',
     cue: '반대 손·벽에 대고 밀기',
     what: '움직이지 않는 것(반대 손·벽·고정한 봉)에 대고 있는 힘껏 밀되, 관절은 그 자리에 둡니다.',
     why: '관절이 움직이지 않아 부담은 적은데, 근육은 거의 최대로 힘을 냅니다. 손목·아래팔처럼 평소 따로 키우지 않는 곳을 챙기기 좋고, 원리는 같아서 어깨 같은 다른 관절에도 쓸 수 있습니다.',
@@ -83,8 +83,8 @@ export const ARMCARE_METHODS: readonly ArmcareMethod[] = [
   },
   {
     key: 'eccentric',
-    label: '과부하 내리기',
-    titleMarker: '과부하 내리기',
+    label: '에센트릭 오버로드',
+    titleMarker: '에센트릭 오버로드',
     cue: '3~5초 천천히 내리기',
     what: '혼자서는 못 올리는 무게를, 올릴 때는 도움을 받고 내릴 때만 혼자 천천히 버팁니다.',
     why: '근육은 들어 올릴 때보다 늘어나며 버틸 때 더 큰 무게를 견딥니다. 공을 놓은 뒤 팔을 멈추는 일도 근육이 늘어나며 버티는 일이라, 이 힘을 따로 키워 둡니다. 몸에는 감당하기 힘든 힘이 걸리면 근육의 힘을 스스로 줄이는 보호 장치가 있는데, 이 방식은 스스로 낼 수 있는 것보다 큰 힘을 안전하게 받아 내는 법을 몸에 익혀 줍니다.',

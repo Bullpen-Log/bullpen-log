@@ -8,7 +8,7 @@ import { requireUser } from '@/lib/dal';
 import { loadTodayCore } from '@/lib/report/today-data';
 import { shiftDateKey, toDateKey } from '@/lib/pitch-stats';
 import { REST_SESSION_TYPE } from '@/lib/session-type';
-import { dbDate } from '@/lib/nutrition/days';
+import { dbDate, keyOfDbDate } from '@/lib/nutrition/days';
 import { Card, PageHeading } from '@/components/ui';
 import { Skeleton } from '@/components/fallback';
 import {
@@ -155,7 +155,16 @@ async function PitchLogSection({
   user: User;
   initialDate: string | null;
 }) {
-  const h = await loadPitchHistory(user);
+  const [h, events] = await Promise.all([
+    loadPitchHistory(user),
+    /* 일정 — 사람마다 많지 않아 전부 읽는다(지난 달 · 앞 달을 넘겨도 바로 보이게) */
+    prisma.calendarEvent.findMany({
+      where: { userId: user.id },
+      orderBy: { date: 'asc' },
+      take: 3000,
+      select: { id: true, date: true, title: true, time: true, memo: true },
+    }),
+  ]);
   return (
     <PitchLogPanel
       today={toDateKey(now())}
@@ -168,6 +177,7 @@ async function PitchLogSection({
       nutritionByDay={h.nutritionByDay}
       velocityByDay={h.velocityByDay}
       checkinByDay={h.checkinByDay}
+      initialEvents={events.map((e) => ({ ...e, date: keyOfDbDate(e.date) }))}
     />
   );
 }
