@@ -1113,6 +1113,56 @@ console.log('■ 뼈대 자세(pose-rig) — public/models/skeleton-parts.json +
           check(`각도 모델: 머리 돌림이 몸통에 대해 ${KIN_LIMITS.neckTwist}° 안(120° 에서)`, turn <= KIN_LIMITS.neckTwist + 2, `${turn.toFixed(1)}°`);
         }
 
+        /*
+         * 12 영상에 맞게(2026-10-09 샘플 3 · 4 를 두 영상에 비춰 보니 각도 모델이 측정보다 2배 멀었다) — 고치기 전 값은 각 시험의 주석에.
+         * ① 던지는 어깨를 15° 올림(팔도 따라) → 어깨 자리 그대로(고치기 전 키의 3% 넘게 — 어깨선을 늘 몸통 축에 수직으로 다시 만듦)
+         */
+        {
+          const seq = seqOf(15, (fr) => {
+            const { neck, f } = trunkOf(fr);
+            const before = fr[V2J.rSh];
+            for (const j of [V2J.lSh, V2J.rSh]) fr[j] = rotAbout(fr[j], neck, f, (15 * Math.PI) / 180);
+            const mv = sub(fr[V2J.rSh], before);
+            for (const j of [V2J.rEl, V2J.rWr, V2J.rHandIdx, V2J.rHandMid, V2J.rHandPinky]) fr[j] = add(fr[j], mv);
+            const mvL = sub(fr[V2J.lSh], rotAbout(fr[V2J.lSh], neck, f, (-15 * Math.PI) / 180));
+            for (const j of [V2J.lEl, V2J.lWr, V2J.lHandIdx, V2J.lHandMid, V2J.lHandPinky]) fr[j] = add(fr[j], mvL);
+          });
+          const out = kinematicTrack(seq, fullConf(15), []).frames[7];
+          const e = Math.max(norm(sub(out[V2J.rSh], seq[7][V2J.rSh])), norm(sub(out[V2J.lSh], seq[7][V2J.lSh])), norm(sub(out[V2J.rWr], seq[7][V2J.rWr])));
+          check('각도 모델: 한쪽 어깨를 15° 올려도 어깨 · 손목이 그 자리(키의 0.5% 안)', e < 0.005, `${(e * 100).toFixed(2)}%`);
+        }
+        /* ② 고개를 목 위에서 좌우로 ±40° 돌림 → 머리 자리 그대로(고치기 전 키의 2~3% — 머리를 어깨 가운데를 축으로 돌림) */
+        {
+          const seq = seqOf(31, (fr, k) => {
+            const { t } = trunkOf(fr);
+            const c = scale(add(fr[V2J.lEar], fr[V2J.rEar]), 0.5);
+            const yaw = ((40 * Math.PI) / 180) * Math.sin(k / 5);
+            for (const j of [V2J.nose, V2J.lEar, V2J.rEar]) fr[j] = rotAbout(fr[j], c, t, yaw);
+          });
+          const out = kinematicTrack(seq, fullConf(31), []).frames;
+          let e = 0;
+          for (let k = 3; k < 28; k++) for (const j of [V2J.nose, V2J.lEar, V2J.rEar]) e = Math.max(e, norm(sub(out[k][j], seq[k][j])));
+          check('각도 모델: 고개를 목 위에서 ±40° 돌려도 머리가 그 자리(키의 1% 안)', e < 0.01, `${(e * 100).toFixed(2)}%`);
+        }
+        /*
+         * ③ 몸통 확신이 거의 0 인데 몸통이 돈다 → 어깨 · 손목이 그 장면 자리를 따라간다(키의 2% 안). 고치기 전엔 주변 무게가 모자라면 다듬기 폭을
+         * 23배까지 넓혀(50장면) 윗몸이 크게 늦고 무뎌졌다 — 좌투 샘플(몸통 확신 가운데 27)에서 던지는 팔이 영상에서 더 멀고 손목이 더 떨었다
+         */
+        {
+          const len = 90;
+          const UPPER = [V2J.lSh, V2J.rSh, V2J.lEl, V2J.rEl, V2J.lWr, V2J.rWr, V2J.lHandIdx, V2J.rHandIdx, V2J.lHandMid, V2J.rHandMid, V2J.lHandPinky, V2J.rHandPinky, V2J.nose, V2J.lEar, V2J.rEar];
+          const seq = seqOf(len, (fr, k) => {
+            const { neck, t } = trunkOf(fr);
+            for (const j of UPPER) fr[j] = rotAbout(fr[j], neck, t, 0.8 * Math.sin(k / 9));
+          });
+          const conf = Array.from({ length: len }, () => new Array(25).fill(100));
+          for (const row of conf) for (const j of [V2J.rSh, V2J.lSh, V2J.lHip, V2J.rHip]) row[j] = 0;
+          const out = kinematicTrack(seq, conf, []).frames;
+          let e = 0;
+          for (let k = 10; k < len - 10; k++) for (const j of [V2J.rSh, V2J.rWr]) e = Math.max(e, norm(sub(out[k][j], seq[k][j])));
+          check('각도 모델: 몸통 확신이 0 이어도 도는 윗몸을 따라간다(어깨 · 손목 키의 2% 안)', e < 0.02, `${(e * 100).toFixed(2)}%`);
+        }
+
         /* 9 무릎이 뒤를 보는 장면(넙다리 반 바퀴) → 클립 가운데에서 60° 안 */
         {
           const seq = seqOf(15, (fr, k) => {

@@ -39,6 +39,8 @@ export const KIN_LIMITS = {
   neckSwing: 45,
   /** 위팔이 어깨선 뒤로(수평면) */
   shoulderBack: 45,
+  /** 어깨선이 몸통 축 수직에서 위아래로(어깨뼈 올림 · 내림) */
+  shoulderTilt: 35,
   elbowFlex: 150,
   elbowHyper: 5,
   kneeFlex: 150,
@@ -164,10 +166,19 @@ function limitSwingTwist(q: Quat, a: Vec3, twistMax: number, swingMax: number): 
 const VREF_FLOOR = 0.02;
 
 /**
- * 무게(보이는 만큼) 있는 앞뒤 가우스 — 빠른 곳은 좁게, 느린 곳은 넓게. 주변에 믿을 값이 없으면 폭을 넓혀 앞뒤에서 잇는다.
- * xs 는 여러 성분(벡터 · 사원수)을 한꺼번에 — 빠르기는 성분 전체로.
+ * 무게(보이는 만큼) 있는 앞뒤 가우스 — 빠른 곳은 좁게, 느린 곳은 넓게. xs 는 여러 성분(벡터 · 사원수)을 한꺼번에 — 빠르기는 성분 전체로.
+ *
+ * 폭은 앞뒤 3장면으로 고른다 — 장면마다 폭이 크게 달라지면 이웃 장면 값이 계단처럼 튀었다(2026-10-09 좌투 샘플: 다듬은 손목이 원본보다 더
+ * 떨림 0.62 → 1.08). widen 이면 주변 무게가 모자랄 때 폭을 넓혀 앞뒤에서 잇는다 — 팔을 편 장면에서 굽는 면(비틀림 · 엎침)을 못 볼 때만 쓴다.
+ * 다른 값에 넓힘(폭 최대 23배)을 쓰면 흐린 장면을 멀리서 끌어와 영상과 멀어졌다.
  */
-function smoothMulti(xs: number[][], ws: number[], sMin = 0.6, sMax = 2.2): number[][] {
+function smoothMulti(
+  xs: number[][],
+  ws: number[],
+  sMin = 0.6,
+  sMax = 2.2,
+  widen = false
+): number[][] {
   const n = xs.length;
   if (n < 3) return xs.map((x) => [...x]);
   const D = xs[0].length;
@@ -194,9 +205,19 @@ function smoothMulti(xs: number[][], ws: number[], sMin = 0.6, sMax = 2.2): numb
   });
   const sorted = [...speed].sort((a, b) => a - b);
   const vRef = Math.max(VREF_FLOOR, 0.25 * sorted[Math.floor(sorted.length * 0.9)]);
+  const sig0 = speed.map((v) => sMin + (sMax - sMin) / (1 + (v / vRef) ** 2));
+  const sig = sig0.map((_, k) => {
+    let a = 0;
+    let c = 0;
+    for (let q = Math.max(0, k - 3); q <= Math.min(n - 1, k + 3); q++) {
+      a += sig0[q];
+      c++;
+    }
+    return a / c;
+  });
   return xs.map((x, k) => {
-    let sigma = sMin + (sMax - sMin) / (1 + (speed[k] / vRef) ** 2);
-    for (let tries = 0; tries < 5; tries++) {
+    let sigma = sig[k];
+    for (let tries = 0; tries < (widen ? 5 : 1); tries++) {
       const r = Math.ceil(sigma * 2.5);
       let sw = 0;
       const acc = new Array<number>(D).fill(0);
@@ -205,7 +226,7 @@ function smoothMulti(xs: number[][], ws: number[], sMin = 0.6, sMax = 2.2): numb
         sw += g;
         for (let d = 0; d < D; d++) acc[d] += g * xs[q][d];
       }
-      if (sw > 0.15) return acc.map((v) => v / sw);
+      if (sw > 0.15 || (!widen && sw > 0)) return acc.map((v) => v / sw);
       sigma *= 2.2;
     }
     return [...x];
@@ -229,12 +250,13 @@ function unwrap(xs: number[]): number[] {
   return out;
 }
 
-const smooth1 = (xs: number[], ws: number[], sMin?: number, sMax?: number) =>
+const smooth1 = (xs: number[], ws: number[], sMin?: number, sMax?: number, widen = false) =>
   smoothMulti(
     xs.map((x) => [x]),
     ws,
     sMin,
-    sMax
+    sMax,
+    widen
   ).map((v) => v[0]);
 
 function smoothUnit(vs: Vec3[], ws: number[]): Vec3[] {
@@ -464,8 +486,28 @@ export function kinematicTrack(
   const trunkLen = median(frames.map((_, k) => norm(sub(shMid[k], hipMid[k]))));
   const hipHalf = lenOf(V2J.lHip, V2J.rHip) / 2;
   const shHalf = lenOf(V2J.lSh, V2J.rSh) / 2;
+  /*
+   * 어깨선 기울기 — 몸통 축(엉덩이 가운데 → 어깨 가운데)에 수직에서 위아래로. 던지는 어깨가 올라가면 10~20° 라, 예전처럼 늘 수직으로
+   * 다시 만들면 어깨가 키의 3% 쯤 어긋나고 팔 전체가 따라 어긋났다(2026-10-09 샘플 4 던지는 팔이 영상에서 1.5 → 3.3%).
+   */
+  const tiltS = smooth1(
+    frames.map((fr, k) => {
+      const d = toLocal(trunkM[k], sub(fr[V2J.lSh], fr[V2J.rSh]));
+      return Math.atan2(d[1], d[0]);
+    }),
+    wTrunk
+  ).map((e) => clamp(e, -rad(KIN_LIMITS.shoulderTilt), rad(KIN_LIMITS.shoulderTilt)));
+  /*
+   * 머리 — 목(어깨 가운데 → 귀 가운데, 몸통 틀)은 장면마다 다듬어 따라가고, 머리 점은 귀 가운데에서 머리 틀로(모양 고정). 예전엔 머리 점을
+   * 어깨 가운데에서 머리 틀로 붙여 고개를 돌리면 머리 전체가 어깨 가운데를 돌았다(머리가 영상에서 0.8 → 2.0%).
+   */
+  const earMidOf = (fr: Vec3[]) => midOf(fr[V2J.lEar], fr[V2J.rEar]);
+  const neckOffS = smoothMulti(
+    frames.map((fr, k) => toLocal(trunkM[k], sub(earMidOf(fr), shMid[k]))) as number[][],
+    wHead
+  ).map((v) => v as Vec3);
   const headLocal = [V2J.nose, V2J.lEar, V2J.rEar].map((j) => {
-    const ls = frames.map((fr, k) => toLocal(headM[k], sub(fr[j], shMid[k])));
+    const ls = frames.map((fr, k) => toLocal(headM[k], sub(fr[j], earMidOf(fr))));
     return [0, 1, 2].map((d) => median(ls.map((v) => v[d]))) as Vec3;
   });
 
@@ -477,11 +519,12 @@ export function kinematicTrack(
     out[k][V2J.lHip] = add(o, scale(left, hipHalf));
     out[k][V2J.rHip] = add(o, scale(left, -hipHalf));
     const sm = add(o, toWorld(tM[k], [0, trunkLen, 0]));
-    const tl = toWorld(tM[k], [1, 0, 0]);
+    const tl = toWorld(tM[k], [Math.cos(tiltS[k]), Math.sin(tiltS[k]), 0]);
     out[k][V2J.lSh] = add(sm, scale(tl, shHalf));
     out[k][V2J.rSh] = add(sm, scale(tl, -shHalf));
+    const head = add(sm, toWorld(tM[k], neckOffS[k]));
     [V2J.nose, V2J.lEar, V2J.rEar].forEach(
-      (j, i) => (out[k][j] = add(sm, toWorld(hM[k], headLocal[i])))
+      (j, i) => (out[k][j] = add(head, toWorld(hM[k], headLocal[i])))
     );
   }
 
@@ -515,7 +558,7 @@ export function kinematicTrack(
         : r2;
     });
     const dirS = smoothUnit(limb.dir, limb.flexW);
-    const twistS = smooth1(limb.twist, limb.twistW);
+    const twistS = smooth1(limb.twist, limb.twistW, undefined, undefined, true);
     const flexS = smooth1(limb.flex, limb.flexW).map((f) =>
       clamp(f, -rad(KIN_LIMITS.elbowHyper), rad(KIN_LIMITS.elbowFlex))
     );
@@ -565,7 +608,7 @@ export function kinematicTrack(
     });
     const pronU = unwrap(pron);
     const pronMid = weightedMedian(pronU, wHand);
-    const pronS = smooth1(pronU, wHand, 0.8, 3).map((p) =>
+    const pronS = smooth1(pronU, wHand, 0.8, 3, true).map((p) =>
       clamp(p, pronMid - rad(KIN_LIMITS.pronation), pronMid + rad(KIN_LIMITS.pronation))
     );
     const wHandOnly = frames.map(
@@ -648,7 +691,7 @@ export function kinematicTrack(
       KIN_LIMITS.kneeHyper
     );
     const dirS = smoothUnit(limb.dir, limb.flexW);
-    const twistU = smooth1(limb.twist, limb.twistW);
+    const twistU = smooth1(limb.twist, limb.twistW, undefined, undefined, true);
     const twMid = weightedMedian(limb.twist, limb.twistW);
     const twistS = twistU.map((t) =>
       clamp(t, twMid - rad(KIN_LIMITS.hipRotation), twMid + rad(KIN_LIMITS.hipRotation))
