@@ -130,6 +130,7 @@ import {
   zoneOfPoint,
   type VelocitySetup,
   type ZoneRect,
+  STANDARD_TARGET_DIST_M,
 } from '@/lib/velocity-setup';
 import { useDeviceLevel } from '@/lib/use-device-level';
 import { SESSION_TYPES, isRestSession } from '@/lib/session-type';
@@ -1095,8 +1096,9 @@ export function VelocityScreen({
       setVoice(stored.voice);
       setUseCal(stored.useCal);
       setReleaseDistM(stored.releaseDistM);
-      setTargetDistM(stored.targetDistM);
-      setDistAuto(stored.distAuto);
+      /* 거리는 기준 20m 고정 — 관리자만 저장한 거리(특수 시험) */
+      setTargetDistM(isAdmin ? stored.targetDistM : STANDARD_TARGET_DIST_M);
+      setDistAuto(isAdmin ? stored.distAuto : false);
       setAutoMode(stored.autoMode);
       setCalibSave(stored.calibSave);
       setClipZone(stored.clipZone);
@@ -2261,7 +2263,12 @@ export function VelocityScreen({
               }}
               columns={1}
             />
-            {choices.cameraPos === 'behind-pitcher' ? (
+            {choices.cameraPos === 'behind-pitcher' && !isAdmin ? (
+              <p className="px-0.5 text-sm leading-relaxed text-muted">
+                폰에서 포수 미트까지 {STANDARD_TARGET_DIST_M}m로 재요. 정식 마운드(18.44m)에서 포수가 조금 뒤에서 받고, 폰을 투수 1m
+                뒤에 둔 거리예요.
+              </p>
+            ) : choices.cameraPos === 'behind-pitcher' ? (
               <div className="space-y-4">
                 {/* 거리 — 공 크기로 어림(기본)하거나 줄자로 잰 값을 넣는다. 거리를 안 잰 사람이 기본 20m 로 재 10% 넘게 틀렸다 */}
                 <div>

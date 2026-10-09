@@ -190,6 +190,8 @@ ink 쪽으로 — 어렵다면 B 만). 나는 Swift 를 굽지 못해 손대지 
 - (2.3.10) 넣은 거리 모드에서 공 크기 거리와 15% 넘게 다르면(`validate.ts` INPUT_SIZE_MISMATCH) 믿음 '낮음' · ± 를 그 차이만큼, 측정 화면이 알리고
   세션 최고 · 평균(측정 · 요약 · 그날 화면, `velocity-meta.ts` summarize 의 `excluded`)에서 뺀다. 판정은 `velocity-analysis.ts` distanceMismatch.
   김민 실내(투수판 → 미트 17.5m, 폰 1m 뒤 = 18.5m) 13구: 15% 안 8구 MAE 1.45km/h. 맥에서 다시 재는 도구 `scripts/velocity-lab/app-rerun.mts`(README 8).
+- **거리는 늘 20m 고정**(김민 2026-10-09: 정식 18.44m + 포수가 조금 뒤 ≈ 19m + 폰 1m 뒤) — `velocity-setup.ts` STANDARD_TARGET_DIST_M, 기본값
+  거리 자동 끔. 일반 사용자는 거리를 못 고르고(설정 시트의 거리 줄 뺌), 관리자만 측정의 '폰 자리' 단계에서 바꾼다(특수 시험용).
 
 ## 금윤호에게 — 2026-10-07 · 김민(Claude) — 구속 엔진 2.2.0(흔들림 바로잡기) · 저장한 공을 잰 직후처럼 보기
 
