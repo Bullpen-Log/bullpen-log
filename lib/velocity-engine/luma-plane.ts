@@ -76,3 +76,45 @@ export async function lumaOfSample(
   }
   return out;
 }
+
+/**
+ * 거친 훑기용 — 밝기 면을 범위를 펴 돌림을 반영해 W × H 로 칸 평균(넓이 평균)한다. 크게 줄이므로(1080 → 320) 이중선형이면 작은 공이
+ * 칸 사이로 빠진다 — 예전 캔버스 길이 'high' 로 흐려 줄이던 것과 같은 뜻. 다른 형식이면 null.
+ */
+export async function boxLumaOfSample(sample: LumaSource, W: number, H: number): Promise<Float32Array | null> {
+  if (sample.format !== 'NV12' && sample.format !== 'I420') return null;
+  const need = sample.allocationSize();
+  if (yBuffer.length < need) yBuffer = new Uint8Array(need);
+  const layout = await sample.copyTo(yBuffer);
+  const { offset, stride } = layout[0];
+  const { left, top, width: w, height: h } = sample.visibleRect;
+  const lut = sample.colorSpace.fullRange ? FULL_RANGE : VIDEO_RANGE;
+  const rot = ((sample.rotation % 360) + 360) % 360;
+  const PW = rot === 90 || rot === 270 ? h : w;
+  const PH = rot === 90 || rot === 270 ? w : h;
+  const col = (x: number) =>
+    rot === 0 ? x : rot === 90 ? (h - 1 - x) * stride : rot === 180 ? w - 1 - x : x * stride;
+  const row = (y: number) =>
+    rot === 0 ? y * stride : rot === 90 ? y : rot === 180 ? (h - 1 - y) * stride : w - 1 - y;
+  const base = offset + top * stride + left;
+  const xs = Int32Array.from({ length: W + 1 }, (_, x) => Math.min(PW, Math.floor((x * PW) / W)));
+  const ys = Int32Array.from({ length: H + 1 }, (_, y) => Math.min(PH, Math.floor((y * PH) / H)));
+  const cols = Int32Array.from({ length: PW }, (_, x) => col(x));
+  const out = new Float32Array(W * H);
+  const acc = new Float64Array(W);
+  const y = yBuffer;
+  for (let oy = 0; oy < H; oy++) {
+    acc.fill(0);
+    for (let sy = ys[oy]; sy < ys[oy + 1]; sy++) {
+      const r = base + row(sy);
+      for (let ox = 0; ox < W; ox++) {
+        let sum = 0;
+        for (let sx = xs[ox]; sx < xs[ox + 1]; sx++) sum += lut[y[r + cols[sx]]];
+        acc[ox] += sum;
+      }
+    }
+    const rows = ys[oy + 1] - ys[oy];
+    for (let ox = 0; ox < W; ox++) out[oy * W + ox] = acc[ox] / Math.max(1, rows * (xs[ox + 1] - xs[ox]));
+  }
+  return out;
+}

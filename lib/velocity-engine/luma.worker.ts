@@ -2,7 +2,7 @@
  * 밝기 일꾼 — 풀어낸 장면(VideoFrame, 넘겨받음) 하나를 분석 크기 밝기로(luma-plane.ts lumaOfSample) 만들어 돌려준다. 화면 스레드에서
  * 한 장씩 하면 앱 클립 100장에 0.77초(2026-10-09 폰) — 일꾼 여럿(luma-pool.ts)이 나눠 한다. 값은 화면 스레드에서 한 것과 같다.
  */
-import { lumaOfSample } from './luma-plane.ts';
+import { boxLumaOfSample, lumaOfSample } from './luma-plane.ts';
 
 /* 워커 전역 — 저장소 tsconfig 는 dom 만 싣는다(webworker 를 같이 실으면 이름이 겹친다) */
 const scope = self as unknown as {
@@ -11,10 +11,17 @@ const scope = self as unknown as {
 };
 
 scope.onmessage = async (e: MessageEvent) => {
-  const { id, frame, rotation, W, H } = e.data as { id: number; frame: VideoFrame; rotation: number; W: number; H: number };
+  const { id, frame, rotation, W, H, box } = e.data as {
+    id: number;
+    frame: VideoFrame;
+    rotation: number;
+    W: number;
+    H: number;
+    box?: boolean;
+  };
   const t0 = performance.now();
   try {
-    const luma = await lumaOfSample(
+    const luma = await (box ? boxLumaOfSample : lumaOfSample)(
       {
         format: frame.format,
         rotation,
