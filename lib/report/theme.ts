@@ -219,7 +219,8 @@ export const HARD_OUTING_MIN_PITCHES = 30;
  * 2026-10-03 사용자분과 다시 정했다. 예전에는 투구 계획의 남은 휴식일(Pitch Smart 표, plan.ts 의
  * pendingOuting)을 그대로 따라 90구 다음 날부터 이틀은 회복, 사흘째는 보조, 나흘째에야 무게가 나왔다.
  * 그 표는 '공을 언제 다시 던져도 되나'의 기준이라 웨이트까지 그만큼 막을 까닭이 없었고, 5일
- * 로테이션이면 첫 무거운 날이 다음 등판 전날이 됐다. 다음 등판이 며칠 뒤인지는 앱이 모른다.
+ * 로테이션이면 첫 무거운 날이 다음 등판 전날이 됐다. 며칠 뒤 등판인지는 앱이 모르고, 체크인에 적은
+ * '오늘 등판 · 내일 등판'만 읽는다(plannedOuting, 2026-10-09 — 그 전에는 묻기만 하고 안 읽었다).
  *
  * '세게 던진 날' = 경기, 또는 강도 9~10으로 그날 합쳐 30구 이상(facts.patterns.hardOutings).
  * 그보다 가볍게 던진 날은 다음 날을 막지 않는다. 공을 쉬어야 하는 날은 투구 계획이 따로 말하고,
@@ -233,6 +234,36 @@ export function hardOuting(
       (o) => o.daysAgo <= 1 && o.pitches >= HARD_OUTING_MIN_PITCHES
     ) ?? null
   );
+}
+
+/**
+ * 체크인에 적은 등판 — 아직 던지기 전이라 투구 기록에는 없는 것.
+ *
+ * 세게 던진 날 규칙(hardOuting)은 던지고 난 뒤의 기록을 본다. 등판 날 아침과 그 전날에는 기록이 없어
+ * 무거운 하체가 나왔다 — 체크인의 '던지는 일정'은 2025-10 부터 묻고 있었는데(lib/checkin.ts 의 THROW_PLANS)
+ * 영양과 프로그램만 읽고 매일 운동 계획은 안 읽었다(2026-10-09 트레이닝 검토 1-①).
+ *
+ * 오늘 적은 답이 먼저다. 어제 '내일 등판'이라고 했어도 오늘 '없음'이라고 고쳤으면(비 · 순서 바뀜) 오늘 것을
+ * 따른다 — 오늘 안 적었을 때만 어제 답을 본다. '오늘 불펜'은 날을 바꾸지 않는다 — 가볍게 던지는 날이라
+ * 세게 던진 날 규칙이 던진 뒤에 따로 본다. 프로그램의 읽기(lib/program/load.ts 의 throwSignals)는 경기 기록까지
+ * 합쳐 보는데, 여기서는 기록은 hardOuting 이 맡으니 체크인만 본다.
+ */
+export function plannedOuting(facts: ReportFacts): 'today' | 'tomorrow' | null {
+  const today = facts.condition.throwPlanToday ?? null;
+  const yesterday = facts.condition.throwPlanYesterday ?? null;
+  if (today != null) {
+    if (today === '오늘 등판') return 'today';
+    if (today === '내일 등판') return 'tomorrow';
+    return null;
+  }
+  return yesterday === '내일 등판' ? 'today' : null;
+}
+
+/** 등판 날 · 등판 전날의 이유 — 언제부터 다시 무게를 드는지까지 말한다(hardOutingReason 과 같은 틀) */
+function plannedOutingReason(when: 'today' | 'tomorrow'): string {
+  return when === 'today'
+    ? '오늘 등판이에요. 가볍게 풀고 활성화만 하고, 무게는 모레부터 다시 올려요.'
+    : '내일 등판이라 무게 대신 코어와 보강을 해요. 등판 전날은 다리를 가볍게 둬요.';
 }
 
 /** '오늘 거의 전력으로 82구를 던지셨어요' / '어제 …' */
@@ -278,6 +309,11 @@ export function workoutConflict({
   if (outing) {
     return { reason: outingPhrase(outing), fallback: 'recovery' };
   }
+  /* 체크인에 적은 오늘 등판 — 아직 안 던져 기록이 없어도 그날은 가볍게(plannedOuting) */
+  const planned = plannedOuting(facts);
+  if (planned === 'today') {
+    return { reason: '오늘 등판이에요', fallback: 'recovery' };
+  }
   if (facts.load.zone === 'danger') {
     return { reason: '투구 부하가 위험 구간이에요', fallback: 'recovery' };
   }
@@ -298,6 +334,10 @@ export function workoutConflict({
   const soreWord = sorenessWord(soreness);
   if (soreness != null && soreWord && soreness >= SEVERE_SORENESS) {
     return { reason: `전신 근육통이 '${soreWord}'이에요`, fallback: 'recovery' };
+  }
+  /* 등판 전날 — 회복까지는 아니고 무게만 뺀다(보조·코어). decideTheme 의 같은 자리에도 같은 줄이 있다 */
+  if (planned === 'tomorrow') {
+    return { reason: '내일 등판이에요', fallback: 'assist' };
   }
   if (facts.load.zone === 'caution') {
     return { reason: '투구 부하가 주의 구간이에요', fallback: 'assist' };
@@ -544,6 +584,18 @@ function decideThemeForBody({
         reason: hardOutingReason(outing),
       };
     }
+    /*
+     * 체크인에 적은 오늘 등판(plannedOuting) — 세게 던진 날 바로 뒤. 아직 안 던져 기록이 없어도 그날은
+     * 가볍게 풀고 활성화만 한다. 던지고 나면 hardOuting 이 같은 결론을 기록으로 낸다.
+     */
+    const planned = plannedOuting(facts);
+    if (planned === 'today') {
+      return {
+        key: 'recovery',
+        label: '회복·재생 데이',
+        reason: plannedOutingReason('today'),
+      };
+    }
     if (facts.load.zone === 'danger') {
       return {
         key: 'recovery',
@@ -573,6 +625,17 @@ function decideThemeForBody({
         key: 'recovery',
         label: '회복·재생 데이',
         reason: `전신 근육통이 '${soreWord}'이라 가볍게 움직이며 푸는 회복 위주로 짰어요.`,
+      };
+    }
+    /*
+     * 등판 전날 — 회복(위 넷)보다 뒤, 부하 주의와 같은 자리(보조·코어). 전날 무거운 하체를 하면 다음 날
+     * 다리가 무겁다. 통증이 아니라 고를 수 있다(override). workoutConflict 의 같은 자리에도 같은 줄이 있다.
+     */
+    if (planned === 'tomorrow') {
+      return {
+        key: 'assist',
+        label: '보조·코어 데이',
+        reason: plannedOutingReason('tomorrow'),
       };
     }
     if (facts.load.zone === 'caution') {
