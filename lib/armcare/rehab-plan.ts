@@ -54,7 +54,7 @@ export const REHAB_CONDITIONS: Record<RehabConditionKey, ConditionSpec> = {
     label: '회전근개 건염',
     area: 'shoulder-top',
     earlyPainLimit: 3,
-    add: { 2: [['시티드 외회전 과부하 내리기', '가볍게']] },
+    add: { 2: [['시티드 외회전 에센트릭 오버로드', '가볍게']] },
     lines: [],
   },
   slap: {
@@ -65,8 +65,8 @@ export const REHAB_CONDITIONS: Record<RehabConditionKey, ConditionSpec> = {
     /* 1 · 2단계에 90/90 끝 범위 빼기 — 1단계에는 그런 운동이 없고, 2단계의 프론 로우 + 외회전이 그 자세다 */
     remove: { 2: ['프론 로우 + 외회전'] },
     add: {
-      2: ['크로스바디 스트레칭'],
-      3: [['밴드 하이 이두컬', '가볍게']],
+      2: ['크로스바디 스트레치'],
+      3: [['밴드 하이 바이셉스 컬', '가볍게']],
     },
     avoid: ['팔을 끝까지 뒤로 젖히는 자세(90/90 끝, 1 · 2단계)'],
     lines: [
@@ -352,11 +352,11 @@ export function rehabNotes(area: ArmcareAreaKey, condition: RehabConditionKey | 
 export const ONE_ARM_PLYO = [
   '90/90 플라이오볼 벽 드리블',
   '프론 90/90 플라이오볼 드롭',
-  '한 팔 90/90 플라이오볼 벽 던지기',
+  '싱글암 90/90 플라이오볼 벽 던지기',
 ] as const;
 export const TWO_HAND_MEDBALL = [
-  '톨 닐링 메디신볼 체스트 패스',
-  '톨 닐링 메디신볼 오버헤드 던지기',
+  '톨닐링 메디신볼 체스트 패스',
+  '톨닐링 메디신볼 오버헤드 스로우',
 ] as const;
 
 /** 설계에 적힌 운동 이름 전부 — 자가 시험이 라이브러리에 다 있는지 본다 */

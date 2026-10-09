@@ -1313,7 +1313,7 @@ console.log('\n[운동 부하] 무거운 운동과 가벼운 운동이 갈리는
   const heavy = trainingDayLoad(
     [
       { ...dead, setsDone: 3 },
-      { ...find('바벨 스쿼트'), setsDone: 3 },
+      { ...find('바벨 백 스쿼트'), setsDone: 3 },
     ],
     8
   );
@@ -1574,7 +1574,7 @@ console.log('\n[부위별 볼륨] 무엇을 하고 무엇을 안 했는지 보�
      * 한 운동이 같은 묶음에 두 부위로 걸리는 경우.
      * 벤치프레스 [가슴, 삼두, 어깨]는 셋 다 '가슴·어깨'라 세 번 세면 안 된다.
      */
-    const rows = [row(1, '벤치프레스', 3)];
+    const rows = [row(1, '벤치 프레스', 3)];
     check(
       '같은 묶음에 두 번 걸려도 한 번만 센다',
       get(rows, 'push').sets === 3,
@@ -1585,7 +1585,7 @@ console.log('\n[부위별 볼륨] 무엇을 하고 무엇을 안 했는지 보�
   {
     const rows = [
       row(1, '데드리프트', 3),
-      row(3, '바벨 스쿼트', 4),
+      row(3, '바벨 백 스쿼트', 4),
       row(9, '데드리프트', 5), // 지난주
     ];
     const lower = get(rows, 'lower');
@@ -1622,7 +1622,7 @@ console.log('\n[부위별 볼륨] 무엇을 하고 무엇을 안 했는지 보�
      * 있어(그립) 하체만 한 주에도 그 줄이 6세트로 찼다. 암케어를 통째로
      * 건너뛴 사람이 "팔 6세트"를 보고 했다고 착각한다. 이 시험이 그걸 잡았다.
      */
-    const legOnly = [row(1, '데드리프트', 6), row(3, '바벨 스쿼트', 6)];
+    const legOnly = [row(1, '데드리프트', 6), row(3, '바벨 백 스쿼트', 6)];
     check(
       '하체만 해도 팔·전완 줄은 찬다 (그립)',
       get(legOnly, 'arm').sets > 0,
@@ -5358,7 +5358,7 @@ console.log('\n[암케어] 부위·근육 · 오늘의 루틴 · 부하');
     `${band.items.length}개 · ${band.estimatedMinutes}분`
   );
   /*
-   * 맨몸 · 밴드만으로는 어깨 상부가 비었었는데, 2026-10-03 '어깨 외전 등척성 밀기'(맨몸)가 들어와 채워진다.
+   * 맨몸 · 밴드만으로는 어깨 상부가 비었었는데, 2026-10-03 '어깨 외전 아이소메트릭 프레스'(맨몸)가 들어와 채워진다.
    * 조사를 보려고 그 부위 운동을 빼서 일부러 비운다.
    */
   const noTop = build('strength', {
@@ -6319,10 +6319,10 @@ console.log(
     (['shoulder-back', 'shoulder-front', 'shoulder-top', 'scapula'] as const).every(
       (a) => exerciseOf(a) === '사이드라잉 외회전'
     ) &&
-      exerciseOf('elbow-inner') === '덤벨 전완 굴곡' &&
-      exerciseOf('elbow-back') === '덤벨 전완 굴곡' &&
-      exerciseOf('elbow-outer') === '덤벨 전완 신전' &&
-      exerciseOf('elbow-front') === '덤벨 해머컬' &&
+      exerciseOf('elbow-inner') === '덤벨 리스트 플렉션' &&
+      exerciseOf('elbow-back') === '덤벨 리스트 플렉션' &&
+      exerciseOf('elbow-outer') === '덤벨 리스트 익스텐션' &&
+      exerciseOf('elbow-front') === '덤벨 해머 컬' &&
       stageTestFor('elbow-inner', 4) === null
   );
   const open = (over: Partial<Parameters<typeof judgeThrowingOpen>[0]> = {}) =>
@@ -6379,19 +6379,19 @@ console.log(
   check(
     '병명 — 회전근개 건염 2단계에 시티드 외회전 과부하 내리기(가볍게)',
     stageExercises('shoulder-top', 'cuff-tendinopathy', 2).some(
-      (m) => m.name === '시티드 외회전 과부하 내리기' && m.note === '가볍게'
+      (m) => m.name === '시티드 외회전 에센트릭 오버로드' && m.note === '가볍게'
     ) &&
       !stageExercises('shoulder-top', null, 2).some(
-        (m) => m.name === '시티드 외회전 과부하 내리기'
+        (m) => m.name === '시티드 외회전 에센트릭 오버로드'
       )
   );
   const slap2 = stageExercises('shoulder-front', 'slap', 2).map((m) => m.name);
   check(
     'SLAP — 2단계: 프론 로우 + 외회전(90/90 끝) 빼고 크로스바디, 3단계 밴드 하이 이두컬(가볍게)',
     !slap2.includes('프론 로우 + 외회전') &&
-      slap2.includes('크로스바디 스트레칭') &&
+      slap2.includes('크로스바디 스트레치') &&
       stageExercises('shoulder-front', 'slap', 3).some(
-        (m) => m.name === '밴드 하이 이두컬' && m.note === '가볍게'
+        (m) => m.name === '밴드 하이 바이셉스 컬' && m.note === '가볍게'
       ),
     slap2.join(' · ')
   );
@@ -6429,11 +6429,11 @@ console.log(
     });
   const lib4 = [
     mk('사이드라잉 외회전 리바운드', { equipment: ['덤벨'], intensity: '중간' }),
-    ballOf('톨 닐링 메디신볼 오버헤드 던지기'),
-    ballOf('톨 닐링 메디신볼 체스트 패스'),
+    ballOf('톨닐링 메디신볼 오버헤드 스로우'),
+    ballOf('톨닐링 메디신볼 체스트 패스'),
     mk('90/90 플라이오볼 벽 드리블', { equipment: ['플라이오볼'], intensity: '중간' }),
     mk('프론 90/90 플라이오볼 드롭', { equipment: ['플라이오볼'], intensity: '중간' }),
-    mk('한 팔 90/90 플라이오볼 벽 던지기', {
+    mk('싱글암 90/90 플라이오볼 벽 던지기', {
       equipment: ['플라이오볼'],
       intensity: '중간',
     }),
@@ -6457,14 +6457,14 @@ console.log(
   const noPlyo = session4(['밴드', '메디신볼']);
   check(
     '세션 — 플라이오볼이 없으면 한 팔 공 운동을 두 손 메디신볼로(이미 든 오버헤드는 빼고 체스트 패스 하나), 남은 둘은 빼고 한 줄',
-    titles(noPlyo).includes('톨 닐링 메디신볼 체스트 패스') &&
-      noPlyo.items.find((it) => it.title === '톨 닐링 메디신볼 체스트 패스')
+    titles(noPlyo).includes('톨닐링 메디신볼 체스트 패스') &&
+      noPlyo.items.find((it) => it.title === '톨닐링 메디신볼 체스트 패스')
         ?.replaces === '90/90 플라이오볼 벽 드리블' &&
       !titles(noPlyo).some((t) => t.includes('플라이오볼')) &&
       noPlyo.notes.some(
         (n) =>
           n.includes('프론 90/90 플라이오볼 드롭') &&
-          n.includes('한 팔 90/90 플라이오볼 벽 던지기')
+          n.includes('싱글암 90/90 플라이오볼 벽 던지기')
       ),
     `${titles(noPlyo).join(' · ')} / ${noPlyo.notes.join(' / ')}`
   );
@@ -6478,14 +6478,14 @@ console.log(
     '세션 — 플라이오볼 · 메디신볼 둘 다 없으면 공 운동은 빼고 빠진 이름을 한 줄로',
     titles(bandOnly).join(',') === '밴드 외회전 0도,튜빙 리버스 스로우' &&
       bandOnly.notes.some(
-        (n) => n.includes('톨 닐링 메디신볼 오버헤드 던지기') && n.includes('뺐어요')
+        (n) => n.includes('톨닐링 메디신볼 오버헤드 스로우') && n.includes('뺐어요')
       ),
     `${titles(bandOnly).join(' · ')} / ${bandOnly.notes.join(' / ')}`
   );
   check(
     '세션 — 카테고리와 상관없이 이름으로 찾는다(파워의 오버헤드 던지기), 장비를 안 골랐으면 아무것도 빼지 않는다',
     session4([]).items.length === 6 &&
-      titles(session4([])).includes('톨 닐링 메디신볼 오버헤드 던지기')
+      titles(session4([])).includes('톨닐링 메디신볼 오버헤드 스로우')
   );
   const lib1 = stageExercises('shoulder-back', null, 1).map((m, i) =>
     mk(m.name, { sets: i === 0 ? 1 : 3 })
@@ -6545,7 +6545,7 @@ console.log(
       library: lib23,
       ownedEquipment: [],
     }).notes.some(
-      (n) => n.includes('라이브러리에 아직 없어') && n.includes('덤벨 해머컬')
+      (n) => n.includes('라이브러리에 아직 없어') && n.includes('덤벨 해머 컬')
     )
   );
 
@@ -7080,12 +7080,12 @@ console.log(
   ];
   check(
     '재활 체크 — 재활 기간 안의 그 재활 운동 이름만(모빌리티 크로스바디 · 파워 메디신볼 · 상체 조트만 컬), 기간 밖 · 다른 운동은 아님',
-    shoulderNames.has('크로스바디 스트레칭') &&
-      shoulderNames.has('톨 닐링 메디신볼 체스트 패스') &&
-      isRehabCheck('크로스바디 스트레칭', '2026-06-10', periods) &&
-      isRehabCheck('크로스바디 스트레칭', '2026-06-20', periods) &&
-      !isRehabCheck('크로스바디 스트레칭', '2026-06-21', periods) &&
-      !isRehabCheck('크로스바디 스트레칭', '2026-05-31', periods) &&
+    shoulderNames.has('크로스바디 스트레치') &&
+      shoulderNames.has('톨닐링 메디신볼 체스트 패스') &&
+      isRehabCheck('크로스바디 스트레치', '2026-06-10', periods) &&
+      isRehabCheck('크로스바디 스트레치', '2026-06-20', periods) &&
+      !isRehabCheck('크로스바디 스트레치', '2026-06-21', periods) &&
+      !isRehabCheck('크로스바디 스트레치', '2026-05-31', periods) &&
       !isRehabCheck('바벨 백스쿼트', '2026-06-10', periods) &&
       isRehabCheck('조트만 컬', '2026-08-01', periods) &&
       !isRehabCheck('조트만 컬', '2026-06-10', periods)
@@ -7211,14 +7211,14 @@ console.log(
     perSide = false
   ) => ({ title, category, intensity, movementPattern, perSide });
   const main = orderWithinSlot('main', [
-    ex('덤벨컬', '상체 스트렝스', '중간', '고립'),
+    ex('덤벨 컬', '상체 스트렝스', '중간', '고립'),
     ex('리버스 런지', '하체 스트렝스', '높음', '런지'),
     ex('뎁스 드롭', '파워', '매우 높음', '스쿼트'),
     ex('고블렛 스쿼트', '하체 스트렝스', '중간', '스쿼트'),
     ex('막대 RDL', '하체 스트렝스', '낮음', '힌지'),
     ex('스냅다운', '파워', '중간', '힌지'),
     ex('싱글렉 RDL', '하체 스트렝스', '높음', '힌지', true),
-    ex('바벨 스쿼트', '하체 스트렝스', '매우 높음', '스쿼트'),
+    ex('바벨 백 스쿼트', '하체 스트렝스', '매우 높음', '스쿼트'),
     ex('박스 점프', '파워', '높음', '스쿼트'),
     ex('바벨 RDL', '하체 스트렝스', '높음', '힌지'),
     ex('카프 레이즈', '하체 스트렝스', '낮음', '카프'),
@@ -7226,7 +7226,7 @@ console.log(
   check(
     '본운동 — 파워(가벼운 것 → 센 것) → 본 운동(센 것 → 가벼운 것, 같으면 양발 먼저) → 보조',
     main.join(',') ===
-      '스냅다운,박스 점프,뎁스 드롭,바벨 스쿼트,바벨 RDL,리버스 런지,싱글렉 RDL,고블렛 스쿼트,덤벨컬,막대 RDL,카프 레이즈',
+      '스냅다운,박스 점프,뎁스 드롭,바벨 백 스쿼트,바벨 RDL,리버스 런지,싱글렉 RDL,고블렛 스쿼트,덤벨 컬,막대 RDL,카프 레이즈',
     main.join(' → ')
   );
   /*
@@ -7307,15 +7307,15 @@ console.log(
   const session = orderSession(
     [
       { slot: 'core' as const, ex: ex('데드버그', '코어', '낮음') },
-      { slot: 'main' as const, ex: ex('덤벨컬', '상체 스트렝스', '중간', '고립') },
+      { slot: 'main' as const, ex: ex('덤벨 컬', '상체 스트렝스', '중간', '고립') },
       { slot: 'mobility' as const, ex: ex('캣-카멜', '모빌리티', '매우 낮음') },
-      { slot: 'main' as const, ex: ex('벤치프레스', '상체 스트렝스', '높음', '밀기') },
+      { slot: 'main' as const, ex: ex('벤치 프레스', '상체 스트렝스', '높음', '밀기') },
     ],
     SLOT_ORDER
   ).map((it) => it.ex.title);
   check(
     '일정 전체 — 구간 차례(가동성 → 본운동 → 코어) 다음 구간 안의 차례',
-    session.join(',') === '캣-카멜,벤치프레스,덤벨컬,데드버그',
+    session.join(',') === '캣-카멜,벤치 프레스,덤벨 컬,데드버그',
     session.join(' → ')
   );
 
@@ -7372,7 +7372,7 @@ console.log(
    * --force)를 다시 돌리면 '힌지 · 밀기'로 돌아갈 수 있어 라이브러리 값을 지킨다(2026-10-04 고침,
    * scripts/library-isolation-retag-2026-10-04.mjs).
    */
-  const isoTitles = ['노르딕 햄스트링', '리버스 노르딕', '사이드 레터럴 레이즈'];
+  const isoTitles = ['노르딕 햄스트링 컬', '리버스 노르딕 컬', '사이드 레터럴 레이즈'];
   const notIso = isoTitles.filter(
     (t) => library.find((e) => e.title === t)?.movementPattern !== '고립'
   );
