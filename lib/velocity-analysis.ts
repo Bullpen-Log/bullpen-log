@@ -1,5 +1,6 @@
 import type { AnalyzeResult, Approach } from '@/lib/velocity-engine/analyze-frames';
 import type { DistanceReport } from '@/lib/velocity-engine/analyze-distance';
+import { INPUT_SIZE_MISMATCH } from '@/lib/velocity-engine/validate';
 import type { FrameTiming, LiveReport } from '@/lib/velocity-engine/live-meter';
 import type { ZoneRect } from '@/lib/velocity-setup';
 import type { TrailPoint } from '@/lib/velocity-tracer';
@@ -80,6 +81,22 @@ export type AnalysisJson = {
    */
   distance?: Omit<DistanceReport, 'seeds' | 'seedFrame' | 'timingMs' | 'shaky' | 'path'> | null;
 };
+
+/**
+ * 넣은 거리로 쟀는데 공 크기로 본 끝 거리가 15% 넘게 다른가(INPUT_SIZE_MISMATCH) — 공을 미트까지 따라가지 못해 값이 크게 틀릴 수 있다.
+ * 세션 최고 · 평균에서 빼고 알린다. 다르면 두 거리, 아니면 null(거리 자동 · 1.x 공도 null)
+ */
+export function distanceMismatch(
+  analysis: unknown
+): { input: number; size: number } | null {
+  const d = (analysis as { distance?: { distanceSource?: unknown; inputDistM?: unknown; sizeDistM?: unknown } } | null)
+    ?.distance;
+  if (!d || d.distanceSource !== 'input') return null;
+  const input = Number(d.inputDistM);
+  const size = Number(d.sizeDistM);
+  if (!(input > 0) || !(size > 0) || d.sizeDistM == null) return null;
+  return Math.abs(size / input - 1) > INPUT_SIZE_MISMATCH ? { input, size } : null;
+}
 
 export function analysisOf(
   result: AnalyzeResult & { live?: LiveReport; distance?: DistanceReport },

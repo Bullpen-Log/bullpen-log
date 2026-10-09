@@ -187,6 +187,17 @@ ink 쪽으로 — 어렵다면 B 만). 나는 Swift 를 굽지 못해 손대지 
   이어서 담고, 구속 측정 첫 화면에 '저장하지 않은 공 N개 — 이어서 하기 · 지우기'(`/velocity/measure?resume=1` → 요약부터). 저장하거나
   '저장하지 않고 나가기'면 지운다. 저장 뒤 영상 올리기에 실패한 것은 맡겨 두었다가 다음에 열 때 다시 올린다. 저장 입력의 측정 맥락은
   `sessionContext()` 한곳(되살린 세션을 카메라 없이 저장하면 그때 맥락 · 날짜로).
+- (2.3.10) 넣은 거리 모드에서 공 크기 거리와 15% 넘게 다르면(`validate.ts` INPUT_SIZE_MISMATCH) 믿음 '낮음' · ± 를 그 차이만큼, 측정 화면이 알리고
+  세션 최고 · 평균(측정 · 요약 · 그날 화면, `velocity-meta.ts` summarize 의 `excluded`)에서 뺀다. 판정은 `velocity-analysis.ts` distanceMismatch.
+  김민 실내(투수판 → 미트 17.5m, 폰 1m 뒤 = 18.5m) 13구: 15% 안 8구 MAE 1.45km/h. 맥에서 다시 재는 도구 `scripts/velocity-lab/app-rerun.mts`(README 8).
+- **거리는 늘 20m 고정**(김민 2026-10-09: 정식 18.44m + 포수가 조금 뒤 ≈ 19m + 폰 1m 뒤) — `velocity-setup.ts` STANDARD_TARGET_DIST_M, 기본값
+  거리 자동 끔. 일반 사용자는 거리를 못 고르고(설정 시트의 거리 줄 뺌), 관리자만 측정의 '폰 자리' 단계에서 바꾼다(특수 시험용).
+- (2.3.11) 공 알림 카드를 띄운 공이 공 길을 못 찾으면 "공을 끝까지 찾지 못해 …" 알림(예전엔 말없이 거둠), 조용히 재던 움직임 클립은 공을
+  찾는 순간(`analyzeVideo` 의 새 선택 칸 `onBall`) '구속 계산 중'을 띄운다(`dual-capture.ts` measure).
+- (2.3.12) 앱 공 찾기 공 알림의 처음 덩어리 바닥 22 → 60칸(`MotionTrigger.MIN_AREA`) — 실내 기록의 작은 공 알림 8개 중 4개가 펄럭이는 과녁 천
+  · 헛것, 4개는 늦게 알아챈 공(움직임 알림이 먼저 잡아 그쪽이 더 맞음). 현장 기록 점검 도구 `scripts/velocity-lab/session-audit.mts`(README 9).
+- (2.3.13) 엔진 23% 빠르게(값 그대로 — `ball-track.ts` findSeeds 가 장면마다 덩어리 찾기를 두 번 하던 것). (2.3.14) 움직임 작업의 클립 창 안에
+  공 알림이 오면 그 공 시각으로 공 구간을 잰다(`dual-capture.ts` Job.ballAt — 예전엔 거친 훑기가 와인드업 몸을 공으로 골랐다).
 
 ## 금윤호에게 — 2026-10-07 · 김민(Claude) — 구속 엔진 2.2.0(흔들림 바로잡기) · 저장한 공을 잰 직후처럼 보기
 

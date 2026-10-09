@@ -17,7 +17,14 @@
  */
 import type { AnalyzeResult, CapturedFrame, Approach } from './analyze-frames.ts';
 import { BALL_DIAMETER_M, type BallObservation } from './geometry.ts';
-import { reject, MAX_CAMERA_SHAKE_PX, MIN_PLAUSIBLE_KMH, MAX_PLAUSIBLE_KMH, type Confidence } from './validate.ts';
+import {
+  reject,
+  INPUT_SIZE_MISMATCH,
+  MAX_CAMERA_SHAKE_PX,
+  MIN_PLAUSIBLE_KMH,
+  MAX_PLAUSIBLE_KMH,
+  type Confidence,
+} from './validate.ts';
 import { fitTrajectory, speedWithSe, trajectoryState, type PinholeCamera, type TrajectoryFit } from './trajectory-fit.ts';
 import { motionAt, refToFrame, stabilize } from './stabilize.ts';
 import {
@@ -699,6 +706,15 @@ export function analyzeByDistance(input: DistanceInput): DistanceResult {
       prep = keep.prep;
       Object.assign(report, keep.report);
       out = keep.out;
+    }
+  }
+  {
+    const s = report.sizeDistM;
+    const off = !input.autoDistance && s != null ? Math.abs(s / D - 1) : 0;
+    if (off > INPUT_SIZE_MISMATCH && out.measure.ok) {
+      const m = out.measure;
+      m.confidence = 'low';
+      m.errorKmh = Math.max(m.errorKmh, round1(m.kmh * off));
     }
   }
   /* 자동이면 공 크기로 어림한 거리로 다시 — 넣은 거리로 잰 값이 그럴 수 없는 구속이어도(거리가 크게 틀림) 다시 본다 */

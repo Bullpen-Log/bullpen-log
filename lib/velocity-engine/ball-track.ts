@@ -99,6 +99,9 @@ export type Blob = {
   fill: number;
 };
 
+/** findBlobs 가 다시 쓰는 표시 배열 — 장면마다 새로 잡지 않는다 */
+let BLOB_MASK = new Uint8Array(0);
+
 /**
  * 배경보다 thr 넘게 밝아진(abs 면 달라진) 덩어리 — 영역 roi=[x0,y0,x1,y1] 안에서만, 4방향으로 이은 것. minArea 밑은 버린다.
  */
@@ -116,16 +119,23 @@ export function findBlobs(
   const rh = y1 - y0;
   if (rw <= 0 || rh <= 0) return [];
   const dif = (p: number) => (abs ? Math.abs(frame[p] - bg[p]) : frame[p] - bg[p]);
-  const mask = new Uint8Array(rw * rh);
+  /*
+   * 한 장에 수십만 화소 · 장면마다 여러 번 — 표시(1 = 문턱 넘음, 2 = 이미 이음)를 한 배열에, 배열은 다시 쓴다(계산은 예전과 같다).
+   * 문턱 검사는 abs 를 밖에서 갈라 화소마다 함수를 부르지 않는다.
+   */
+  const n = rw * rh;
+  if (BLOB_MASK.length < n) BLOB_MASK = new Uint8Array(n);
+  const mask = BLOB_MASK;
   for (let y = 0; y < rh; y++) {
     const row = (y + y0) * w + x0;
-    for (let x = 0; x < rw; x++) if (dif(row + x) > thr) mask[y * rw + x] = 1;
+    const o = y * rw;
+    if (abs) for (let x = 0; x < rw; x++) mask[o + x] = Math.abs(frame[row + x] - bg[row + x]) > thr ? 1 : 0;
+    else for (let x = 0; x < rw; x++) mask[o + x] = frame[row + x] - bg[row + x] > thr ? 1 : 0;
   }
-  const label = new Uint8Array(rw * rh);
   const stack: number[] = [];
   const blobs: Blob[] = [];
-  for (let s = 0; s < rw * rh; s++) {
-    if (!mask[s] || label[s]) continue;
+  for (let s = 0; s < n; s++) {
+    if (mask[s] !== 1) continue;
     let area = 0;
     let sw = 0;
     let sx = 0;
@@ -135,7 +145,7 @@ export function findBlobs(
     let bx1 = -1;
     let by1 = -1;
     stack.push(s);
-    label[s] = 1;
+    mask[s] = 2;
     while (stack.length) {
       const q = stack.pop() as number;
       const qx = q % rw;
@@ -149,20 +159,20 @@ export function findBlobs(
       if (qx > bx1) bx1 = qx;
       if (qy < by0) by0 = qy;
       if (qy > by1) by1 = qy;
-      if (qx > 0 && mask[q - 1] && !label[q - 1]) {
-        label[q - 1] = 1;
+      if (qx > 0 && mask[q - 1] === 1) {
+        mask[q - 1] = 2;
         stack.push(q - 1);
       }
-      if (qx < rw - 1 && mask[q + 1] && !label[q + 1]) {
-        label[q + 1] = 1;
+      if (qx < rw - 1 && mask[q + 1] === 1) {
+        mask[q + 1] = 2;
         stack.push(q + 1);
       }
-      if (qy > 0 && mask[q - rw] && !label[q - rw]) {
-        label[q - rw] = 1;
+      if (qy > 0 && mask[q - rw] === 1) {
+        mask[q - rw] = 2;
         stack.push(q - rw);
       }
-      if (qy < rh - 1 && mask[q + rw] && !label[q + rw]) {
-        label[q + rw] = 1;
+      if (qy < rh - 1 && mask[q + rw] === 1) {
+        mask[q + rw] = 2;
         stack.push(q + rw);
       }
     }
@@ -469,12 +479,24 @@ export function findSeeds(
   const s = pixelScale(fs);
   const roi: [number, number, number, number] = [0, 0, fs.w, Math.round(fs.h * 0.85)];
   const out: Seed[] = [];
+  /*
+   * 장면마다 덩어리를 한 번만 찾는다 — 예전에는 장면 i 를 '큰 덩어리'(넓이 30 밑 버림)로, 다음 차례에 '다음 장면'(20 밑 버림)으로 두 번
+   * 찾았다. 문턱이 같아 20 으로 한 번 찾고 넓이로 거르면 같은 덩어리다.
+   */
+  const memo = new Map<number, Blob[]>();
+  const blobsAt = (k: number) => {
+    let b = memo.get(k);
+    if (!b) {
+      b = findBlobs(fs.luma[k], bg, fs.w, roi, 22, 20 * s * s);
+      memo.set(k, b);
+      memo.delete(k - 2);
+    }
+    return b;
+  };
   for (let i = Math.max(0, from); i <= Math.min(fs.t.length - 2, to); i++) {
-    const big = findBlobs(fs.luma[i], bg, fs.w, roi, 22, 30 * s * s).filter(
-      (b) => round(b) && b.area > 150 * s * s
-    );
+    const big = blobsAt(i).filter((b) => b.area >= 30 * s * s && round(b) && b.area > 150 * s * s);
     if (!big.length) continue;
-    const next = findBlobs(fs.luma[i + 1], bg, fs.w, roi, 22, 20 * s * s).filter(round);
+    const next = blobsAt(i + 1).filter(round);
     for (const b of big.sort((p, q) => q.area - p.area)) {
       const r = Math.sqrt(b.area / Math.PI);
       const m = next.find((c) => {

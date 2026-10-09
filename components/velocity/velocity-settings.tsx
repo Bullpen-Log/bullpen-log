@@ -25,8 +25,6 @@ import {
   approachOf,
   RELEASE_DIST_MIN,
   RELEASE_DIST_MAX,
-  TARGET_DIST_MIN,
-  TARGET_DIST_MAX,
 } from '@/lib/velocity-setup';
 import {
   LENS_CHANGE_EVENT,
@@ -142,34 +140,7 @@ export function VelocitySettingsFields({
             disabled={calibration.n === 0}
             onChange={(useCal) => onChange({ useCal })}
           />
-          {approachOf(values) === 'receding' && (
-            <ChoiceRow
-              title="그물(포수 미트)까지 거리"
-              hint={
-                values.distAuto
-                  ? '공 크기로 거리를 어림해요. 줄자로 재서 넣으면 더 정확해요.'
-                  : undefined
-              }
-            >
-              <Segmented
-                label="그물까지 거리"
-                value={values.distAuto ? 'auto' : 'manual'}
-                onChange={(v) => onChange({ distAuto: v === 'auto' })}
-                options={DIST_MODES}
-                size="sm"
-              />
-            </ChoiceRow>
-          )}
-          {approachOf(values) === 'receding' && !values.distAuto && (
-            <DistanceRow
-              title="카메라에서 그물(포수 미트)까지"
-              hint="구속을 이 거리로 재요. 5% 틀리면 구속도 5% 틀리니 줄자로 폰에서 공이 닿는 곳까지 재서 넣어 주세요. 정규 마운드에서 폰을 투수판 1m 뒤에 두면 약 19.5m예요."
-              value={values.targetDistM}
-              min={TARGET_DIST_MIN}
-              max={TARGET_DIST_MAX}
-              onChange={(targetDistM) => onChange({ targetDistM })}
-            />
-          )}
+          {/* 투수 뒤 거리는 기준 20m 고정(lib/velocity-setup.ts STANDARD_TARGET_DIST_M) — 관리자는 측정의 '폰 자리' 단계에서 바꾼다 */}
           <label className="flex min-h-14 items-center justify-between gap-3 px-4 py-3">
             <span className="min-w-0">
               <span className="block text-sm text-ink">카메라 가로 화각</span>
