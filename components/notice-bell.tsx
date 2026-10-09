@@ -4,6 +4,7 @@ import { useRef, useState, type RefObject } from 'react';
 import Link from 'next/link';
 import { Bell, CheckCircle2, ChevronRight, ClipboardList, Target } from 'lucide-react';
 import { OPEN_POPUP_TYPES } from '@/lib/transition-types';
+import { SETUP_PATH } from '@/lib/feature-locks';
 import { LinkPending } from '@/components/link-pending';
 
 /**
@@ -62,10 +63,23 @@ export type NoticeState = {
   day: string;
   checkinDone: boolean;
   pitchDone: boolean;
+  /**
+   * 투구 기록이 잠겨 있다(첫 설정 전, lib/feature-locks.ts — 2026-10-09 가입에서 투구 질문을 뺐다).
+   * 투구 할 일이 '기록하기 · 오늘 안 던졌어요' 대신 첫 설정으로 가는 단추 하나가 된다 — 기록 창이 어차피
+   * 설정 화면으로 보내고, 설정 전에 쉬는 날을 남겨 둘 까닭도 없다. 종의 점은 이것을 세지 않는다(아래 pendingCount).
+   */
+  pitchLocked: boolean;
 };
 
+/**
+ * 종의 점이 셀 '오늘 할 일'. 투구 기록이 잠겨 있으면(첫 설정 전) 투구는 세지 않는다 — 창 안에는 설정으로 가는 단추가
+ * 그대로 있지만, 첫 설정은 오늘 안에 끝낼 일이 아니라 한 번 하는 일이다. 세면 설정을 마칠 때까지 점이 날마다 켜져
+ * 있고 끌 길도 없어(잠긴 동안은 '오늘 안 던졌어요'가 없다), 점이 늘 켜진 종은 곧 안 보게 된다 — 체크인을 알리는 점까지
+ * 같이 묻힌다. 위 머리 주석의 '할 수 없는 일로 점을 켜 두지 않는다'와 같은 까닭. 설정으로 이끄는 일은 막대 · 탭의
+ * 자물쇠와 홈의 첫날 카드가 한다.
+ */
 export const pendingCount = (s: NoticeState) =>
-  (s.checkinDone ? 0 : 1) + (s.pitchDone ? 0 : 1);
+  (s.checkinDone ? 0 : 1) + (s.pitchDone || s.pitchLocked ? 0 : 1);
 
 /**
  * 종 단추. 설정 톱니보다 한 단계 작다 — 메뉴 줄의 식구가 아니라 곁에 붙은 것이라.
@@ -161,7 +175,7 @@ export function NoticePanel({
   /** 자리(PC·휴대폰마다 다르다) */
   className: string;
 }) {
-  const { day, checkinDone, pitchDone } = state;
+  const { day, checkinDone, pitchDone, pitchLocked } = state;
   const sheet = variant === 'sheet';
   /* 할 일 칸 · 단추 모양 — 시트는 아이폰 목록처럼 옅은 면 · 알약 */
   const itemCls = sheet ? 'rounded-2xl bg-surface-2 p-4' : 'rounded-xl border border-line p-3';
@@ -236,7 +250,30 @@ export function NoticePanel({
             </li>
           )}
 
-          {!pitchDone && (
+          {/* 투구 기록이 잠겨 있으면(첫 설정 전) 기록 · 휴식 단추 대신 첫 설정으로 가는 단추 하나 */}
+          {!pitchDone && pitchLocked && (
+            <li className={itemCls}>
+              <p className="flex items-center gap-2 text-sm font-semibold text-ink">
+                <Target aria-hidden className="h-4 w-4 shrink-0 text-sky" />
+                투구 기록을 아직 시작하지 않았어요
+              </p>
+              <p className="mt-1 text-xs leading-relaxed text-muted">
+                몇 가지만 알려 주면 투구 기록을 시작할 수 있어요.
+              </p>
+              <Link
+                href={SETUP_PATH.pitch}
+                onClick={onNavigate}
+                className={`mt-2.5 inline-flex min-h-11 items-center gap-1 ${btnShape} bg-sky font-semibold text-white desk:min-h-9 transition-colors hover:bg-sky-strong`}
+              >
+                투구 기록 설정하기
+                <LinkPending className="h-3.5 w-3.5">
+                  <ChevronRight aria-hidden className="h-3.5 w-3.5" />
+                </LinkPending>
+              </Link>
+            </li>
+          )}
+
+          {!pitchDone && !pitchLocked && (
             <li className={itemCls}>
               <p className="flex items-center gap-2 text-sm font-semibold text-ink">
                 <Target aria-hidden className="h-4 w-4 shrink-0 text-sky" />

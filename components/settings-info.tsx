@@ -1,9 +1,14 @@
 'use client';
 
+import { useState, useTransition } from 'react';
 import { ChevronRight } from 'lucide-react';
 import { Modal, useModalState } from '@/components/modal';
 import { LegalSheet, type LegalDoc } from '@/components/legal-sheet';
 import { CONTACT } from '@/components/site-footer';
+import { resetTutorial } from '@/app/actions/onboarding-state';
+import { tourKeyFor } from '@/lib/feature-locks';
+import { TOUR_REPLAY_EVENT } from '@/components/tutorial/tour-gate';
+import { OFFLINE_MESSAGE, orOffline } from '@/lib/action-offline';
 
 type Sheet = LegalDoc | 'credit';
 
@@ -15,14 +20,71 @@ const ROW =
  *
  * 예전 약관 줄은 약관 화면으로 넘어가 웹 문서 머리(로고 · 바닥글)가 떴고, 3D 출처는 지도 밑에 밑줄 링크로 붙어 있어
  * 누르면 앱 밖(사파리)으로 나갔다. 아이폰 앱의 '설정 › 정보 › 법적 고지'처럼 여기 모은다.
+ *
+ * '사용 안내 다시 보기'(2026-10-09) — 처음 한 번 뜨는 앱 기본 사용법 투어(components/tutorial/tour-gate.tsx)를 다시
+ * 본다. 본 기록(User.tutorialsDone)에서 이 기기의 열쇠(웹 · 앱 따로)를 지우면 액션이 틀을 새로 읽어 돌려주고
+ * (resetTutorial 의 revalidatePath), 레이아웃의 TourGate 가 다시 연다.
+ *
+ * 지우고 나면 이 설정 창부터 닫는다(CLOSE_SETTINGS_EVENT). 설정 창은 <dialog> 의 맨 위 칸(top layer)이고 투어는 본문
+ * 안의 창(fixed z-60)이라, z-index 와 상관없이 투어가 설정 창 밑에 깔린다. 설정 창이 떠 있는 동안은 그 밖이 다 inert 라
+ * 투어를 누를 수도 없다 — 예전에는 '준비 중…' 뒤에 아무 일도 없다가 설정 창을 닫아야 투어가 보였다.
  */
+
+/**
+ * 설정 창을 닫으라는 신호. 창은 셸(components/app-shell.tsx)이 쥐고 있고 이 줄은 그 안 깊이(SettingsPanel 밑)에 있어,
+ * 닫는 함수를 내려 주는 대신 신호를 보낸다 — 체크인 창을 여는 OPEN_CHECKIN_EVENT(components/notice-bell.tsx)와 같은 길.
+ */
+export const CLOSE_SETTINGS_EVENT = 'bullpen:close-settings';
+
 export function SettingsInfoRows() {
   const sheet = useModalState<Sheet>();
   const legal = sheet.content === 'credit' ? null : sheet.content;
+  const [tourPending, startTour] = useTransition();
+  const [tourError, setTourError] = useState<string>();
+
+  const replayTour = () => {
+    setTourError(undefined);
+    startTour(async () => {
+      /* 앱(아이폰 웹뷰)이면 앱 투어, 아니면 웹 투어 — 화면 쪽은 <html data-app> 로 가린다(lib/native-app.ts) */
+      const key = tourKeyFor(document.documentElement.dataset.app === 'native');
+      /* 신호가 끊겨도 오류 화면 대신 알린다(lib/action-offline.ts) */
+      const res = await orOffline(resetTutorial(key), { ok: false, error: OFFLINE_MESSAGE });
+      if (!res.ok) {
+        setTourError('error' in res ? res.error : '다시 눌러 주세요.');
+        return;
+      }
+      /*
+       * 실패하면 이 줄에 알려야 하므로 창은 지운 뒤에 닫는다. router.refresh 는 부르지 않는다 — 새 틀은 액션 응답에 이미
+       * 실려 왔고, 한 번 더 받으면 본문 전환(MainTransition)이 돌아 본문이 한 번 옅어진다(lib/quiet-refresh.ts).
+       */
+      window.dispatchEvent(new Event(CLOSE_SETTINGS_EVENT));
+      /*
+       * 투어를 지금 화면에서 다시 연다 — 이번 접속에서 Esc 로 닫았으면 서버 열쇠는 원래 비어 있어 위 응답만으로는 투어가
+       * 다시 열 까닭을 모른다(components/tutorial/tour-gate.tsx TOUR_REPLAY_EVENT).
+       */
+      window.dispatchEvent(new Event(TOUR_REPLAY_EVENT));
+    });
+  };
 
   return (
     <>
       <div className="divide-y divide-line overflow-hidden rounded-xl bg-surface-2">
+        <button
+          type="button"
+          className={`${ROW} disabled:opacity-50`}
+          onClick={replayTour}
+          disabled={tourPending}
+        >
+          사용 안내 다시 보기
+          <span className="flex min-w-0 items-center gap-1 text-muted">
+            {(tourPending || tourError) && (
+              <span className={`truncate text-xs ${tourError ? 'text-danger' : ''}`}>
+                {tourPending ? '준비 중…' : tourError}
+              </span>
+            )}
+            <ChevronRight aria-hidden className="h-4 w-4 shrink-0 text-muted/70" />
+          </span>
+        </button>
         <button type="button" className={ROW} onClick={(e) => sheet.show('terms', e)}>
           이용약관
           <ChevronRight aria-hidden className="h-4 w-4 shrink-0 text-muted/70" />

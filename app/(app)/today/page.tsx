@@ -5,6 +5,7 @@ import { ChevronRight } from 'lucide-react';
 import { LinkPending } from '@/components/link-pending';
 import { prisma } from '@/lib/prisma';
 import { requireUser } from '@/lib/dal';
+import { featureLocks } from '@/lib/feature-locks';
 import { loadTodayCore } from '@/lib/report/today-data';
 import { shiftDateKey, toDateKey } from '@/lib/pitch-stats';
 import { REST_SESSION_TYPE } from '@/lib/session-type';
@@ -94,6 +95,12 @@ export default async function HomePage({
   }
 
   const today = toDateKey(now());
+  /*
+   * 어느 탭이 잠겨 있나(lib/feature-locks.ts, 2026-10-09) — 투구 기록이 잠긴 사람(첫 설정 전)에게는 홈의 투구 링과
+   * 첫날 카드가 오늘 기록 창 대신 첫 설정 화면으로 보낸다. 운동 · 영양 링은 그대로 그 탭으로 — 잠겨 있으면 그 탭이
+   * 설정 화면으로 보낸다.
+   */
+  const locks = featureLocks(user);
 
   return (
     <div className="stack-page">
@@ -114,6 +121,7 @@ export default async function HomePage({
         <TodayRings
           user={user}
           today={today}
+          pitchLocked={locks.pitch}
           footer={
             <Suspense
               fallback={<div className="mt-3 h-11 border-t border-line desk:h-9" />}
@@ -141,7 +149,7 @@ export default async function HomePage({
       </Suspense>
 
       <Suspense fallback={<TodaySkeleton />}>
-        <TodayBody user={user} today={today} />
+        <TodayBody user={user} today={today} pitchLocked={locks.pitch} />
       </Suspense>
     </div>
   );
@@ -240,7 +248,16 @@ function planLine(plan: PitchPlan): { main: string; sub: string } | null {
 }
 
 /** 캘린더 밑 — 알림 카드 · 첫날 카드 · 하이라이트 · 더 보기 */
-async function TodayBody({ user, today }: { user: User; today: string }) {
+async function TodayBody({
+  user,
+  today,
+  pitchLocked,
+}: {
+  user: User;
+  today: string;
+  /** 투구 기록이 잠겨 있다(첫 설정 전) — 첫날 카드가 숫자 대신 설정으로 가는 단추를 낸다 */
+  pitchLocked: boolean;
+}) {
   /*
    * 하이라이트 재료 — 모두 하루 한 줄로 가볍게 읽는다. 투구는 6주(구속 선 · 투구 막대), 체크인은 두 달(연속 일수),
    * 운동은 2주(지난주와 견줌).
@@ -385,10 +402,13 @@ async function TodayBody({ user, today }: { user: User; today: string }) {
         투구 기록이 하나도 없을 때만 낸다. 한 번이라도 남긴 사람에게는 잔소리가 되고, 매일 뜨는
         안내는 곧 안 읽게 된다. 숫자는 투구 계획(lib/report/plan.ts)의 오늘 몫 그대로다 — 기록이
         없으면 나이 한도의 절반에서 시작하고 아직 부하를 몰라 한 번 더 낮춘다.
+        투구 기록이 잠겨 있으면(첫 설정 전) 숫자 없이 설정으로 가는 단추 하나다 — 던지는 손 · 평소 투구량을
+        모르는 채 낸 숫자라 아직 믿을 것이 못 된다.
       */}
       {!core.everLogged && (
         <FirstDayCard
           today={today}
+          pitchLocked={pitchLocked}
           range={
             !plan.halted && plan.today?.throwing
               ? pitchRangeText(plan.today) || null

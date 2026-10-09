@@ -1,9 +1,12 @@
+import { redirect } from 'next/navigation';
 import { requireUser } from '@/lib/dal';
+import { featureLocks, hasSeenTutorial, SETUP_PATH } from '@/lib/feature-locks';
 import { toDateKey } from '@/lib/pitch-stats';
 import { isNutritionDate } from '@/lib/nutrition/days';
 import { loadNutritionDay } from '@/lib/nutrition/load';
 import { loadAdvice } from '@/lib/nutrition/advice-load';
 import { serviceHour } from '@/lib/nutrition/advice-input';
+import { TabTutorial } from '@/components/tutorial/tab-tutorial';
 import { NutritionView } from './nutrition-view';
 
 /**
@@ -24,6 +27,8 @@ export default async function NutritionPage({
   searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
 }) {
   const user = await requireUser();
+  /* 처음 가입한 사람은 첫 설정(2026-10-09, lib/feature-locks.ts)을 마쳐야 연다 */
+  if (featureLocks(user).nutrition) redirect(SETUP_PATH.nutrition);
   const today = toDateKey(now());
   const raw = (await searchParams).date;
   const date = typeof raw === 'string' && isNutritionDate(raw) ? raw : today;
@@ -33,5 +38,14 @@ export default async function NutritionPage({
     loadNutritionDay(user, date),
     loadAdvice(user, date, today, serviceHour(now())),
   ]);
-  return <NutritionView day={day} today={today} advice={advice} />;
+  return (
+    <>
+      <NutritionView day={day} today={today} advice={advice} />
+      {/*
+        첫 설정을 마치고 처음 열면 이 탭 사용법을 한 번 보인다(components/tutorial/tab-tutorial.tsx). 앱 기본 사용법 투어
+        (레이아웃의 TourGate)는 홈에서만 저절로 뜨므로 겹치지 않는다(app/(app)/videos/page.tsx 와 같다).
+      */}
+      <TabTutorial tutorialKey="nutrition" open={!hasSeenTutorial(user, 'nutrition')} />
+    </>
+  );
 }

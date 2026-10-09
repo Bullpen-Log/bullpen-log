@@ -7,6 +7,12 @@
  */
 
 import { TRAINING_HOME_HREF } from '@/lib/training-part';
+import {
+  FEATURE_HOME,
+  SETUP_PATH,
+  type FeatureKey,
+  type FeatureLocks,
+} from '@/lib/feature-locks';
 
 /** 쓸 수 있는 아이콘 이름. 그림은 components/nav-icons.tsx 에 있다. */
 export type NavIconName =
@@ -67,6 +73,16 @@ export type NavItem = {
    * 하는 구속 측정. 여는 쪽의 규칙(app/(session)/velocity/access.ts)과 같다.
    */
   appOrAdmin?: boolean;
+  /**
+   * 어느 기능에 속하나 — 처음 가입한 사람에게 잠긴 탭(lib/feature-locks.ts, 2026-10-09). 잠겨 있으면
+   * 아래 applyLocks 가 주소를 그 기능의 첫 설정 화면으로 바꾸고 locked 를 단다. 없으면 늘 열린 항목.
+   */
+  lock?: FeatureKey;
+  /**
+   * 잠겨 있다 — applyLocks 만 단다. 셸(components/app-shell.tsx)이 보고 흐리게 + 자물쇠로 그린다.
+   * 링크는 산다(누르면 첫 설정 화면으로 간다) — 그래서 aria-disabled 가 아니라 이 표시다.
+   */
+  locked?: boolean;
 };
 
 export type NavGroup = {
@@ -127,27 +143,43 @@ export const NAV_GROUPS: NavGroup[] = [
   {
     items: [{ href: '/today', label: '홈', icon: 'home' }],
   },
+  /* 투구 기록 · 트레이닝 · 영양 · 구속 측정은 처음 가입한 사람에게 잠겨 있다(lock — 위 NavItem.lock) */
   {
-    items: [{ href: '/videos', label: '투구 기록', icon: 'baseball' }],
+    items: [{ href: '/videos', label: '투구 기록', icon: 'baseball', lock: 'pitch' }],
   },
   {
     /* 트레이닝 홈 — 트레이닝 · 암케어 · 메커니즘 앱 카드(lib/training-part.ts) */
-    items: [{ href: TRAINING_HOME_HREF, label: '트레이닝', icon: 'dumbbell' }],
+    items: [
+      {
+        href: TRAINING_HOME_HREF,
+        label: '트레이닝',
+        icon: 'dumbbell',
+        lock: 'training',
+      },
+    ],
   },
   /*
    * 영양은 트레이닝 바로 뒤에 둔다. 몸을 만드는 두 바퀴라 나란히 있어야 하고,
    * 매일 적는 것이라 하단 탭에도 들어간다(아래 MOBILE_TABS).
    */
   {
-    items: [{ href: '/nutrition', label: '영양', icon: 'utensils' }],
+    items: [{ href: '/nutrition', label: '영양', icon: 'utensils', lock: 'nutrition' }],
   },
   /*
    * 구속 측정 — 투구 기록을 거치지 않고 카메라 측정으로 곧장(2026-09-28 사용자). 막대의 넷
    * (홈 · 투구 기록 · 트레이닝 · 영양) 뒤에 둔다 — 도크의 첫 줄이 막대의 넷이라, 그 사이에 끼우면
-   * 막대에서 날아온 아이콘이 제 줄에 앉지 못한다.
+   * 막대에서 날아온 아이콘이 제 줄에 앉지 못한다. 투구 기록에 속하므로 같은 자물쇠다.
    */
   {
-    items: [{ href: '/velocity', label: '구속 측정', icon: 'radar', appOrAdmin: true }],
+    items: [
+      {
+        href: '/velocity',
+        label: '구속 측정',
+        icon: 'radar',
+        appOrAdmin: true,
+        lock: 'pitch',
+      },
+    ],
   },
   {
     title: '라이브러리',
@@ -238,19 +270,83 @@ export const DESK_MEDIA =
  * 캘린더에서 날짜를 눌러 들어가도 지금 어느 탭에 있는지 메뉴가 알려 준다.
  */
 export const NAV_ALSO: Record<string, readonly string[]> = {
-  /* 구속 측정 관리자도 투구 기록의 한 보기다(같은 머리 · 같은 고르개, app/(app)/videos/pitch-log-heading.tsx) */
-  '/videos': ['/pitch-log', '/admin/velocity'],
+  /*
+   * 구속 측정 관리자도 투구 기록의 한 보기다(같은 머리 · 같은 고르개, app/(app)/videos/pitch-log-heading.tsx).
+   * 첫 설정 화면(lib/feature-locks.ts SETUP_PATH)도 그 탭의 것이다 — 탭 주소 밑이라 이미 켜지지만, 설정을 마친 뒤
+   * 다시 들어와도 그 탭이라는 것을 여기 적어 둔다.
+   */
+  '/videos': ['/pitch-log', '/admin/velocity', SETUP_PATH.pitch],
+  '/training': [SETUP_PATH.training],
+  '/nutrition': [SETUP_PATH.nutrition],
   /* 분석 · 그래프는 홈의 '더 보기'다(2026-10-05 홈 정리, app/(app)/coach/page.tsx) */
   '/today': ['/coach'],
 };
 
 export const MOBILE_TABS: NavItem[] = [
   { href: '/today', label: '홈', icon: 'home' },
-  { href: '/videos', label: '투구 기록', short: '기록', icon: 'baseball' },
-  { href: TRAINING_HOME_HREF, label: '트레이닝', icon: 'dumbbell' },
-  { href: '/nutrition', label: '영양', icon: 'utensils' },
+  {
+    href: '/videos',
+    label: '투구 기록',
+    short: '기록',
+    icon: 'baseball',
+    lock: 'pitch',
+  },
+  { href: TRAINING_HOME_HREF, label: '트레이닝', icon: 'dumbbell', lock: 'training' },
+  { href: '/nutrition', label: '영양', icon: 'utensils', lock: 'nutrition' },
   { href: MORE_HREF, label: '더보기', icon: 'menu' },
 ];
+
+/** applyLocks 가 곁 항목(탭의 첫 화면이 아닌 잠긴 항목)의 주소에 붙이는 칸 이름 — isLockSideHref 가 같은 이름을 본다 */
+const LOCK_FROM_PARAM = 'from';
+
+/**
+ * 잠긴 항목의 주소를 첫 설정 화면으로 바꾸고 locked 를 단다(lib/feature-locks.ts, 2026-10-09).
+ *
+ * 항목을 지우지 않는다 — 처음 가입한 사람도 막대에서 그 탭이 '있다'는 것은 보고, 누르면 질문 몇 개를 거쳐 열린다.
+ * 셸은 locked 를 보고 흐리게 + 자물쇠로 그린다(components/app-shell.tsx).
+ *
+ * 탭의 첫 화면(FEATURE_HOME)이 아닌 항목(구속 측정 → 투구 기록 설정)은 ?from= 을 붙여 주소를 갈라 둔다. 셸이 주소를
+ * 항목의 이름(React key · 아이콘 이름표 nav-fly-N · 판의 돋는 차례)으로 쓰는데, 같은 주소가 둘이면 이름표가 겹쳐 메뉴
+ * 연출이 통째로 멈춘다. 그 칸은 셸의 '지금 여기' 판정도 본다(isLockSideHref) — 설정 화면은 읽지 않는다.
+ *
+ * 주소에 뜻 없는 칸이 하나 남지만(복사하면 보인다) 그대로 둔다. 없애려면 셸이 주소 대신 다른 열쇠로 항목을 가려야 해서
+ * 막대 · 도크 · 판 · 탭의 이름표 · 동그라미(useSlidingThumb) · 고른 자리(pick)를 다 바꿔야 한다. 설정 화면이 이 칸을
+ * 읽어 마친 뒤 그 자리(/velocity)로 돌려보내게 되면 뜻도 생긴다.
+ */
+export function applyLocks<T extends NavItem>(
+  items: T[],
+  locks: FeatureLocks
+): (T & { locked?: boolean })[] {
+  return items.map((item) => {
+    const key = item.lock;
+    if (!key || !locks[key]) return item;
+    const path = item.href.split('?')[0];
+    const href =
+      path === FEATURE_HOME[key]
+        ? SETUP_PATH[key]
+        : `${SETUP_PATH[key]}?${LOCK_FROM_PARAM}=${encodeURIComponent(path)}`;
+    return { ...item, href, locked: true };
+  });
+}
+
+/**
+ * applyLocks 가 바꾼 곁 항목의 주소인가(구속 측정 → /videos/setup?from=%2Fvelocity).
+ *
+ * 셸은 이것을 '지금 여기'로 켜지 않는다 — 같은 설정 화면을 가리키는 탭 항목(투구 기록 → /videos/setup)이 따로 있어서,
+ * 경로만 보면 투구 기록 설정 화면에서 둘이 같이 켜졌다(aria-current 둘, 판에서는 파란 줄 둘).
+ */
+export function isLockSideHref(href: string): boolean {
+  const q = href.indexOf('?');
+  return q >= 0 && new URLSearchParams(href.slice(q + 1)).has(LOCK_FROM_PARAM);
+}
+
+/** 도크 · 판의 묶음에 같은 것을 — 묶음은 그대로, 항목만 바꾼다 */
+export function applyLocksToGroups(
+  groups: NavGroup[],
+  locks: FeatureLocks
+): NavGroup[] {
+  return groups.map((g) => ({ ...g, items: applyLocks(g.items, locks) }));
+}
 
 /**
  * PC 오른쪽 간편 이동 막대에 둘 항목.

@@ -5,6 +5,7 @@ import { redirect, RedirectType } from 'next/navigation';
 import { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 import { requireUser } from '@/lib/dal';
+import { featureLocks, SETUP_PATH } from '@/lib/feature-locks';
 import { exercisesByIds, type CachedExercise } from '@/lib/library-cache';
 import { loadTodayCore } from '@/lib/report/today-data';
 import { selectCandidates } from '@/lib/report/prescription';
@@ -64,6 +65,8 @@ import { saveTrainingNote } from '@/app/actions/exercise-log';
  */
 export async function startWorkout() {
   const user = await requireUser();
+  /* 처음 가입한 사람은 첫 설정(2026-10-09, lib/feature-locks.ts)을 마쳐야 연다 — 시작만 막고 진행 중인 판은 건드리지 않는다 */
+  if (featureLocks(user).training) redirect(SETUP_PATH.training);
   const today = new Date();
   const core = await loadTodayCore(user, today);
 

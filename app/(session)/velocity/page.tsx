@@ -1,4 +1,6 @@
+import { redirect } from 'next/navigation';
 import { toDateKey } from '@/lib/pitch-stats';
+import { SETUP_PATH } from '@/lib/feature-locks';
 import { loadCalibration } from '@/app/actions/velocity';
 import { loadVelocityHistory } from '@/lib/velocity-load';
 import { velocityAccess } from './access';
@@ -16,7 +18,9 @@ import { VelocityHome } from './velocity-home';
  * 위 막대 · 하단 탭 없이 화면 전체를 쓰고, PC 에서는 폰 크기 틀 안에 띄운다.
  */
 export default async function VelocityPage() {
-  const { user, allowed } = await velocityAccess();
+  const { user, allowed, pitchLocked } = await velocityAccess();
+  /* 처음 가입한 사람은 첫 설정(2026-10-09, lib/feature-locks.ts)을 마쳐야 연다 */
+  if (pitchLocked) redirect(SETUP_PATH.pitch);
   if (!allowed) return <AppOnly />;
 
   const [history, { fit }] = await Promise.all([

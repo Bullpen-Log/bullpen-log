@@ -11,6 +11,7 @@ import {
 import { Check } from 'lucide-react';
 import { CheckinForm, type CheckinData } from '@/components/checkin-form';
 import { SPLASH_ATTR, SPLASH_END_EVENT } from '@/components/app-splash';
+import { TOUR_ATTR, TOUR_END_EVENT } from '@/components/tutorial/tour-gate';
 import { useTodayKey } from '@/components/use-today-key';
 import { buzz } from '@/lib/haptics';
 
@@ -125,6 +126,29 @@ const GATE_UP = 'data-gate-up';
 const SPLASH_WAIT_MS = 5000;
 /** 닫는 움직임(globals.css 의 dialog[data-gate] 0.24초)이 다 끝나는 때 */
 const CLOSE_MS = 300;
+/** 투어가 떠 있는 동안 표시(<html data-tour>)가 걷혔는지 다시 보는 간격 — 끝 신호를 놓쳐도 관문이 영영 안 뜨지는 않게 */
+const TOUR_POLL_MS = 500;
+
+/**
+ * 앱 기본 사용법 투어(components/tutorial/tour-gate.tsx)가 떠 있으면 그것이 끝날 때까지 — 차례는 시작 연출 → 투어 →
+ * 관문(2026-10-09). 투어는 읽는 데 얼마나 걸릴지 모르니 시작 연출처럼 시간을 정해 두고 열지는 않는다. 다만 투어가
+ * 신호 없이 사라지면(다른 틀로 옮겨 가며 걷히는 경우) 표시가 없어진 것을 보고 연다.
+ */
+function afterTour() {
+  const root = document.documentElement;
+  if (!root.hasAttribute(TOUR_ATTR)) return Promise.resolve();
+  return new Promise<void>((resolve) => {
+    const done = () => {
+      window.removeEventListener(TOUR_END_EVENT, done);
+      window.clearInterval(poll);
+      resolve();
+    };
+    const poll = window.setInterval(() => {
+      if (!root.hasAttribute(TOUR_ATTR)) done();
+    }, TOUR_POLL_MS);
+    window.addEventListener(TOUR_END_EVENT, done);
+  });
+}
 
 /** 리액트가 화면 전환을 돌리는 동안 document 에 달아 두는 손잡이(react-dom 이 붙이고 뗀다) */
 type ReactViewTransitionDocument = Document & {
@@ -293,6 +317,8 @@ export function CheckinGate({
           new Promise((resolve) => window.setTimeout(resolve, GATE_WAIT_MS)),
         ])
       )
+      /* 처음 한 번 뜨는 기본 사용법 투어가 떠 있으면 그것이 끝난 뒤에 — 열기 직전에 본다(투어도 시작 연출 뒤에 뜬다) */
+      .then(afterTour)
       .then(() => {
         if (cancelled || el.open) return;
         root.setAttribute(GATE_UP, '');
