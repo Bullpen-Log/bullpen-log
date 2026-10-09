@@ -51,12 +51,6 @@ export function SessionSummary({
   onDeletePitch?: (id: number) => void;
   saving?: boolean;
 }) {
-  const unitText = speedLabel(unit);
-  /* km/h → 보는 단위, 소수 1자리. 측정 화면 · 그날 화면의 speedNum 과 같은 셈 */
-  const speedNum = (kmh: number) => Math.round(toSpeed(kmh, unit) * 10) / 10;
-
-  const stats = useMemo(() => summarize(pitches), [pitches]);
-  const byType = useMemo(() => groupByType(pitches), [pitches]);
   const empty = pitches.length === 0;
 
   return (
@@ -74,189 +68,14 @@ export function SessionSummary({
         {empty ? (
           <EmptyState />
         ) : (
-          stats && (
-            <div className="mt-5 space-y-5 short:mt-4">
-              {/* (2) 숫자 줄 */}
-              <Panel>
-                <StatRow
-                  items={[
-                    { label: '최고', value: speedNum(stats.max), unit: unitText },
-                    { label: '평균', value: speedNum(stats.avg), unit: unitText },
-                    { label: '공', value: stats.n, unit: '구' },
-                    {
-                      label: '스트라이크',
-                      value: stats.strikeRate == null ? '—' : stats.strikeRate,
-                      unit: stats.strikeRate == null ? undefined : '%',
-                    },
-                  ]}
-                />
-              </Panel>
-
-              {/* (3) 구종별 */}
-              <section>
-                <SectionLabel
-                  action={
-                    <span className="text-xs text-muted">공 수 · 평균 · 최고</span>
-                  }
-                >
-                  구종별
-                </SectionLabel>
-                <Panel>
-                  <ul className="divide-y divide-line">
-                    {byType.map((g) => (
-                      <li
-                        key={g.key ?? 'none'}
-                        className="flex min-h-14 items-center gap-3 px-4 py-2"
-                      >
-                        <span className="min-w-0 flex-1">
-                          <span className="block truncate text-sm font-semibold">
-                            {pitchTypeLabel(g.key) ?? (
-                              <span className="text-muted">구종 —</span>
-                            )}
-                          </span>
-                          <span className="block text-xs text-muted">{g.n}구</span>
-                        </span>
-                        <span className="text-right">
-                          <span className="text-display block text-xl leading-none tabular-nums">
-                            {speedNum(g.avg)}
-                            <span className="ml-0.5 font-sans text-xs text-muted">
-                              {unitText}
-                            </span>
-                          </span>
-                          <span className="mt-0.5 block text-xs tabular-nums text-muted">
-                            최고 {speedNum(g.max)}
-                          </span>
-                        </span>
-                      </li>
-                    ))}
-                  </ul>
-                </Panel>
-              </section>
-
-              {/* (4) 구속 흐름 */}
-              <section>
-                <SectionLabel
-                  action={
-                    <span className="text-xs text-muted">1구 → {pitches.length}구</span>
-                  }
-                >
-                  구속 흐름
-                </SectionLabel>
-                <Panel className="px-4 pb-3 pt-4">
-                  <SpeedBars
-                    pitches={pitches}
-                    max={stats.max}
-                    label={`구속 흐름 — ${pitches.length}구, 최고 ${speedNum(stats.max)} ${unitText}, 평균 ${speedNum(stats.avg)} ${unitText}`}
-                  />
-                  <div className="mt-2 flex justify-between text-xs tabular-nums text-muted">
-                    <span>{speedNum(pitches[0].kmh)}</span>
-                    <span>{speedNum(pitches[pitches.length - 1].kmh)}</span>
-                  </div>
-                </Panel>
-              </section>
-
-              {/* (5) 릴리스 포인트 — 두 공 넘게 잡혔을 때만(summarize 가 spreadCm 을 준다) */}
-              {stats.spreadCm != null && (
-                <section>
-                  <SectionLabel>릴리스 포인트</SectionLabel>
-                  <Panel className="flex items-center gap-4 px-4 py-3">
-                    <ReleaseScatter pitches={pitches} spreadCm={stats.spreadCm} />
-                    <div className="min-w-0 flex-1">
-                      <p className="text-display text-2xl leading-none tabular-nums">
-                        {stats.spreadCm}
-                        <span className="ml-0.5 font-sans text-xs text-muted">cm</span>
-                      </p>
-                      <p className="mt-1 text-sm font-semibold">릴리스 흩어짐</p>
-                      <p className="mt-0.5 text-xs leading-relaxed text-muted">
-                        표적 십자 기준, 공마다 놓는 자리. 모일수록 같은 팔 위치에서 던진
-                        거예요.
-                      </p>
-                    </div>
-                  </Panel>
-                </section>
-              )}
-
-              {/* (6) 공 목록 */}
-              <section>
-                <SectionLabel
-                  action={
-                    <span className="text-xs text-muted">
-                      누르면 구종 · 코스를 고쳐요
-                    </span>
-                  }
-                >
-                  공 목록
-                </SectionLabel>
-                <Panel>
-                  <ul className="divide-y divide-line">
-                    {pitches.map((p) => (
-                      <li
-                        key={p.id}
-                        className="flex min-h-14 items-center gap-2 pl-4 pr-2"
-                      >
-                        <button
-                          type="button"
-                          onClick={() => onEditPitch(p.id)}
-                          className="flex min-w-0 flex-1 items-center gap-3 py-2 text-left transition-opacity active:opacity-60"
-                        >
-                          <span className="w-5 text-xs tabular-nums text-muted">
-                            {p.seq}
-                          </span>
-                          <span className="text-display w-16 text-2xl leading-none tabular-nums text-ink">
-                            {speedNum(p.kmh)}
-                          </span>
-                          <span className="min-w-0 flex-1">
-                            <span className="block truncate text-sm font-semibold text-ink">
-                              {pitchTypeLabel(p.pitchType) ?? (
-                                <span className="text-muted">구종 —</span>
-                              )}
-                              {p.result === 'strike' && (
-                                <span className="ml-1.5 text-ok">S</span>
-                              )}
-                              {p.result === 'ball' && (
-                                <span className="ml-1.5 text-warn">B</span>
-                              )}
-                            </span>
-                            <span className="block truncate text-xs text-muted">
-                              {zoneLabel(p.zone) ?? '코스 —'}
-                              {p.releaseKmh != null &&
-                                ` · 릴리스 ${speedNum(p.releaseKmh)}`}
-                              {p.gunKmh != null && ` · 건 ${speedNum(p.gunKmh)}`}
-                              {p.source === 'file' && ' · 파일'}
-                              {p.excluded && ' · 최고 · 평균에서 뺌'}
-                            </span>
-                          </span>
-                          {/* onChange 없이 두면 span 으로 그려져 button 안에 둬도 된다(pitch-editor.tsx) */}
-                          <ZoneGrid value={p.zone} size="sm" />
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => onPlayClip(p.id)}
-                          disabled={!p.clip}
-                          aria-label={p.clip ? '영상 보기' : '영상 없음'}
-                          title={p.clip ? '영상 보기' : '영상 없음'}
-                          className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-surface-2 text-ink transition-colors hover:bg-sky-tint hover:text-sky disabled:opacity-40 disabled:hover:bg-surface-2 disabled:hover:text-ink"
-                        >
-                          <Play aria-hidden className="h-4 w-4 fill-current" />
-                        </button>
-                        {onDeletePitch && (
-                          <button
-                            type="button"
-                            onClick={() => onDeletePitch(p.id)}
-                            aria-label={`${p.seq}번째 공 지우기`}
-                            title="이 공 지우기"
-                            className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-muted transition-colors hover:bg-danger-bg hover:text-danger"
-                          >
-                            <Trash2 aria-hidden className="h-4 w-4" />
-                          </button>
-                        )}
-                      </li>
-                    ))}
-                  </ul>
-                </Panel>
-              </section>
-            </div>
-          )
+          <SessionDetails
+            className="mt-5 short:mt-4"
+            pitches={pitches}
+            unit={unit}
+            onPlayClip={onPlayClip}
+            onEditPitch={onEditPitch}
+            onDeletePitch={onDeletePitch}
+          />
         )}
       </div>
 
@@ -276,6 +95,206 @@ export function SessionSummary({
           </>
         )}
       </div>
+    </div>
+  );
+}
+
+/**
+ * 세션 숫자 · 구종별 · 구속 흐름 · 릴리스 포인트 · 공 목록 — 세션 요약과 측정 중 오른쪽 쪽(옆으로 넘기면 나오는 이번 세션)이
+ * 같이 쓴다. 잰 공이 없으면 그리지 않는다.
+ */
+export function SessionDetails({
+  pitches,
+  unit,
+  onPlayClip,
+  onEditPitch,
+  onDeletePitch,
+  className = '',
+}: {
+  /** 이미 seq 차례 */
+  pitches: SessionPitch[];
+  unit: SpeedUnit;
+  onPlayClip: (id: number) => void;
+  onEditPitch: (id: number) => void;
+  onDeletePitch?: (id: number) => void;
+  className?: string;
+}) {
+  const unitText = speedLabel(unit);
+  /* km/h → 보는 단위, 소수 1자리. 측정 화면 · 그날 화면의 speedNum 과 같은 셈 */
+  const speedNum = (kmh: number) => Math.round(toSpeed(kmh, unit) * 10) / 10;
+
+  const stats = useMemo(() => summarize(pitches), [pitches]);
+  const byType = useMemo(() => groupByType(pitches), [pitches]);
+  if (!stats) return null;
+
+  return (
+    <div className={`space-y-5 ${className}`}>
+      {/* (2) 숫자 줄 */}
+      <Panel>
+        <StatRow
+          items={[
+            { label: '최고', value: speedNum(stats.max), unit: unitText },
+            { label: '평균', value: speedNum(stats.avg), unit: unitText },
+            { label: '공', value: stats.n, unit: '구' },
+            {
+              label: '스트라이크',
+              value: stats.strikeRate == null ? '—' : stats.strikeRate,
+              unit: stats.strikeRate == null ? undefined : '%',
+            },
+          ]}
+        />
+      </Panel>
+
+      {/* (3) 구종별 */}
+      <section>
+        <SectionLabel
+          action={<span className="text-xs text-muted">공 수 · 평균 · 최고</span>}
+        >
+          구종별
+        </SectionLabel>
+        <Panel>
+          <ul className="divide-y divide-line">
+            {byType.map((g) => (
+              <li
+                key={g.key ?? 'none'}
+                className="flex min-h-14 items-center gap-3 px-4 py-2"
+              >
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-sm font-semibold">
+                    {pitchTypeLabel(g.key) ?? (
+                      <span className="text-muted">구종 —</span>
+                    )}
+                  </span>
+                  <span className="block text-xs text-muted">{g.n}구</span>
+                </span>
+                <span className="text-right">
+                  <span className="text-display block text-xl leading-none tabular-nums">
+                    {speedNum(g.avg)}
+                    <span className="ml-0.5 font-sans text-xs text-muted">
+                      {unitText}
+                    </span>
+                  </span>
+                  <span className="mt-0.5 block text-xs tabular-nums text-muted">
+                    최고 {speedNum(g.max)}
+                  </span>
+                </span>
+              </li>
+            ))}
+          </ul>
+        </Panel>
+      </section>
+
+      {/* (4) 구속 흐름 */}
+      <section>
+        <SectionLabel
+          action={<span className="text-xs text-muted">1구 → {pitches.length}구</span>}
+        >
+          구속 흐름
+        </SectionLabel>
+        <Panel className="px-4 pb-3 pt-4">
+          <SpeedBars
+            pitches={pitches}
+            max={stats.max}
+            label={`구속 흐름 — ${pitches.length}구, 최고 ${speedNum(stats.max)} ${unitText}, 평균 ${speedNum(stats.avg)} ${unitText}`}
+          />
+          <div className="mt-2 flex justify-between text-xs tabular-nums text-muted">
+            <span>{speedNum(pitches[0].kmh)}</span>
+            <span>{speedNum(pitches[pitches.length - 1].kmh)}</span>
+          </div>
+        </Panel>
+      </section>
+
+      {/* (5) 릴리스 포인트 — 두 공 넘게 잡혔을 때만(summarize 가 spreadCm 을 준다) */}
+      {stats.spreadCm != null && (
+        <section>
+          <SectionLabel>릴리스 포인트</SectionLabel>
+          <Panel className="flex items-center gap-4 px-4 py-3">
+            <ReleaseScatter pitches={pitches} spreadCm={stats.spreadCm} />
+            <div className="min-w-0 flex-1">
+              <p className="text-display text-2xl leading-none tabular-nums">
+                {stats.spreadCm}
+                <span className="ml-0.5 font-sans text-xs text-muted">cm</span>
+              </p>
+              <p className="mt-1 text-sm font-semibold">릴리스 흩어짐</p>
+              <p className="mt-0.5 text-xs leading-relaxed text-muted">
+                표적 십자 기준, 공마다 놓는 자리. 모일수록 같은 팔 위치에서 던진 거예요.
+              </p>
+            </div>
+          </Panel>
+        </section>
+      )}
+
+      {/* (6) 공 목록 */}
+      <section>
+        <SectionLabel
+          action={
+            <span className="text-xs text-muted">누르면 구종 · 코스를 고쳐요</span>
+          }
+        >
+          공 목록
+        </SectionLabel>
+        <Panel>
+          <ul className="divide-y divide-line">
+            {pitches.map((p) => (
+              <li key={p.id} className="flex min-h-14 items-center gap-2 pl-4 pr-2">
+                <button
+                  type="button"
+                  onClick={() => onEditPitch(p.id)}
+                  className="flex min-w-0 flex-1 items-center gap-3 py-2 text-left transition-opacity active:opacity-60"
+                >
+                  <span className="w-5 text-xs tabular-nums text-muted">{p.seq}</span>
+                  <span className="text-display w-16 text-2xl leading-none tabular-nums text-ink">
+                    {speedNum(p.kmh)}
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-sm font-semibold text-ink">
+                      {pitchTypeLabel(p.pitchType) ?? (
+                        <span className="text-muted">구종 —</span>
+                      )}
+                      {p.result === 'strike' && (
+                        <span className="ml-1.5 text-ok">S</span>
+                      )}
+                      {p.result === 'ball' && (
+                        <span className="ml-1.5 text-warn">B</span>
+                      )}
+                    </span>
+                    <span className="block truncate text-xs text-muted">
+                      {zoneLabel(p.zone) ?? '코스 —'}
+                      {p.releaseKmh != null && ` · 릴리스 ${speedNum(p.releaseKmh)}`}
+                      {p.gunKmh != null && ` · 건 ${speedNum(p.gunKmh)}`}
+                      {p.source === 'file' && ' · 파일'}
+                      {p.excluded && ' · 최고 · 평균에서 뺌'}
+                    </span>
+                  </span>
+                  {/* onChange 없이 두면 span 으로 그려져 button 안에 둬도 된다(pitch-editor.tsx) */}
+                  <ZoneGrid value={p.zone} size="sm" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onPlayClip(p.id)}
+                  disabled={!p.clip}
+                  aria-label={p.clip ? '영상 보기' : '영상 없음'}
+                  title={p.clip ? '영상 보기' : '영상 없음'}
+                  className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-surface-2 text-ink transition-colors hover:bg-sky-tint hover:text-sky disabled:opacity-40 disabled:hover:bg-surface-2 disabled:hover:text-ink"
+                >
+                  <Play aria-hidden className="h-4 w-4 fill-current" />
+                </button>
+                {onDeletePitch && (
+                  <button
+                    type="button"
+                    onClick={() => onDeletePitch(p.id)}
+                    aria-label={`${p.seq}번째 공 지우기`}
+                    title="이 공 지우기"
+                    className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-muted transition-colors hover:bg-danger-bg hover:text-danger"
+                  >
+                    <Trash2 aria-hidden className="h-4 w-4" />
+                  </button>
+                )}
+              </li>
+            ))}
+          </ul>
+        </Panel>
+      </section>
     </div>
   );
 }
