@@ -93,6 +93,8 @@ type Job = {
   visible: boolean;
   /** 공 알림으로 만든 작업 — at 이 공이 처음 보인 때다(움직임 작업이 공 알림으로 '보이게' 바뀐 것은 아님) */
   ball: boolean;
+  /** 움직임 작업의 클립 창 안에 공 알림이 왔으면 그 시각(카메라 시계) — 그 공 시각으로 잰다 */
+  ballAt?: number;
   analyzing: boolean;
 };
 
@@ -292,6 +294,11 @@ export class DualCapture {
     /* 재고 있는 클립 창 안이면 그 클립이 이 공을 담는다 — 공이 확실하면 화면에만 띄운다 */
     const covering = this.jobs.find((j) => atSec >= j.start && atSec <= j.end);
     if (covering) {
+      /*
+       * 움직임 클립(와인드업에서 알림) 안에 공 알림이 왔다 — 그 공 시각으로 잰다(거친 훑기는 와인드업 몸 움직임을 공으로 골라 진짜 공 구간을
+       * 놓치곤 했다: 2026-10-09 실내 41.3초 움직임 길 59.2 · 공 길 64.5km/h, 99.5초 움직임 길 못 잼 · 공 길 65.6)
+       */
+      if (ball && !covering.ball && covering.ballAt == null) covering.ballAt = atSec;
       if (ball && !covering.visible) {
         covering.visible = true;
         this.syncStatus();
@@ -360,13 +367,16 @@ export class DualCapture {
      * 공 알림이면 앱이 공이 처음 보인 때(eventSec)를 안다 — 영상 전체를 거칠게 훑어 공을 찾는 일(폰에서 1.85초, 계산의 절반)을
      * 건너뛰고 그때부터 구간을 바로 준다(실험대와 같은 구간: 릴리스 앞 0.2초 ~ 뒤 1.4초). 움직임 클립은 공이 어디 있는지 몰라 훑는다.
      */
-    const ballRange = job.ball
-      ? {
-          startSec: Math.max(0, main.eventSec - BALL_RANGE[0]),
-          endSec: Math.min(main.durationSec, main.eventSec + BALL_RANGE[1]),
-          seedT: main.eventSec,
-        }
-      : {};
+    /* 공이 처음 보인 때(클립 시각) — 공 알림 작업은 알림 시각, 움직임 작업에 묶인 공 알림은 그 차이만큼 뒤 */
+    const ballEv = job.ball ? main.eventSec : job.ballAt != null ? main.eventSec + (job.ballAt - job.at) : null;
+    const ballRange =
+      ballEv != null && ballEv < main.durationSec
+        ? {
+            startSec: Math.max(0, ballEv - BALL_RANGE[0]),
+            endSec: Math.min(main.durationSec, ballEv + BALL_RANGE[1]),
+            seedT: ballEv,
+          }
+        : {};
     const result = await analyzeVideo({
       file: new File([blob], 'dual-main.mp4', { type: 'video/mp4' }),
       ...ballRange,

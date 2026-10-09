@@ -196,6 +196,8 @@ ink 쪽으로 — 어렵다면 B 만). 나는 Swift 를 굽지 못해 손대지 
   찾는 순간(`analyzeVideo` 의 새 선택 칸 `onBall`) '구속 계산 중'을 띄운다(`dual-capture.ts` measure).
 - (2.3.12) 앱 공 찾기 공 알림의 처음 덩어리 바닥 22 → 60칸(`MotionTrigger.MIN_AREA`) — 실내 기록의 작은 공 알림 8개 중 4개가 펄럭이는 과녁 천
   · 헛것, 4개는 늦게 알아챈 공(움직임 알림이 먼저 잡아 그쪽이 더 맞음). 현장 기록 점검 도구 `scripts/velocity-lab/session-audit.mts`(README 9).
+- (2.3.13) 엔진 23% 빠르게(값 그대로 — `ball-track.ts` findSeeds 가 장면마다 덩어리 찾기를 두 번 하던 것). (2.3.14) 움직임 작업의 클립 창 안에
+  공 알림이 오면 그 공 시각으로 공 구간을 잰다(`dual-capture.ts` Job.ballAt — 예전엔 거친 훑기가 와인드업 몸을 공으로 골랐다).
 
 ## 금윤호에게 — 2026-10-07 · 김민(Claude) — 구속 엔진 2.2.0(흔들림 바로잡기) · 저장한 공을 잰 직후처럼 보기
 
