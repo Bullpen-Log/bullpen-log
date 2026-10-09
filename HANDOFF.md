@@ -19,6 +19,22 @@ Claude 로 작업을 시작하면 저절로 읽힌다. 규칙은 `AGENTS.md` 6�
 - 예전에 순간을 잘 찾던 영상은 결과가 그대로다(골반 방향으로 피크를 찾으면 바뀌는 게 없다). `components/pose-analysis.tsx` 를 쓰는
   화면에서 '순간을 못 찾았어요'가 줄어들 수 있다. 할 일은 없다 — 이상하면 알려 줘.
 
+## 김민에게 — 2026-10-09 · 금윤호(Claude) — 새 패키지 `mediabunny`(촬영 모드 영상 컷 편집) — 받으면 `npm install`
+
+받은 뒤 할 일: **`npm install`**(`package.json` 에 `"mediabunny": "1.59.1"` — 브라우저에서 영상을 자르고 소리를 빼는 도구, MPL-2.0).
+DB 는 그대로. 관리자 촬영 모드(`/admin/shoot/N/run`)에서 아이폰 기본 카메라로 찍어 → 앞뒤 자르기 → 소리 없는 H.264 MP4 로 올려 그 운동의
+라이브러리 영상으로 붙인다(`docs/claude/geum-yunho.md` 4절 14번). 네 영역은 안 건드렸다. 다만 `app/globals.css` 의 `.theme-dark` 에
+상태색(warn · danger · ok, 다크 테마와 같은 값)을 더했다 — 검은 칸 안의 노랑 · 빨강 글자가 라이트 테마에서 안 읽혀서. 구속 측정 화면의
+`.theme-dark` 칸도 같이 바뀐다(그 안에 경고 글자가 있으면 밝아진다).
+- **곧 부탁할 것(2단계)**: 웹 카메라(`<input capture>`)는 480×360 쯤으로 찍힐 수 있어(WebKit 이 화질을 안 정함) `mobile/` 에 고화질 카메라
+  (UIImagePickerController `.typeHigh`)를 더하려 한다. 손대기 전에 여기로 다시 알린다.
+
+## 김민에게 — 2026-10-09 · 금윤호(Claude) — 새 표 `ShootCheck` 더함(트레이닝 영상 촬영 관리자) — 받으면 `npx prisma generate`
+
+받은 뒤 할 일: **`npx prisma generate`**. DB 에는 이미 적용했다(백업 `db-2026-10-09-04-39.json`, 마이그레이션 `20261009140000_shoot_check` —
+새 표 하나만, 기존 표는 그대로). 유튜브 참고 영상으로 대신하던 운동 312개를 우리 영상으로 찍는 5주 계획(`lib/shoot/plan-data.json`)과
+그 진행 체크를 관리자 화면 `/admin/shoot`(메인 · 주차 · 휴대폰 촬영 모드)으로 만드는 중이다. 자세한 건 `docs/claude/geum-yunho.md` 4절 13번.
+
 ## 김민에게 — 2026-10-09 · 금윤호(Claude) — 인아웃식 회원가입 · 영양 온보딩 끝(9단계) — 받으면 `npx prisma generate`(아직 안 했으면), 가입 · 영양 탭 · 목표 창을 크게 고쳤다
 
 받은 뒤 할 일: **`npx prisma generate`**(2026-10-08 스키마에 `NutritionProfile.goalKind · macroPreset · fatTargetG · onboardedAt` 넷을 더했다 —

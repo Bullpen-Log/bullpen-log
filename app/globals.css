@@ -353,6 +353,14 @@
   --color-muted: #98989d;
   --color-sky-soft: #1c5372;
   --color-sky-tint: #0a1f2b;
+  /* 상태색도 다크 값으로 — 라이트 테마의 짙은 노랑 · 빨강 글자는 검은 칸에서 안 읽힌다(촬영 컷 편집 창, 2026-10-09) */
+  --color-warn: #fcd34d;
+  --color-warn-line: #78350f;
+  --color-warn-bg: #2a1e08;
+  --color-ok: #34d399;
+  --color-danger: #f87171;
+  --color-danger-line: #7f1d1d;
+  --color-danger-bg: #2a1010;
   color-scheme: dark;
 }
 
