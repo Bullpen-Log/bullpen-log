@@ -2196,7 +2196,7 @@ console.log('\n■ 식단 취향');
   check(
     'DB 줄을 읽는다 — 모르는 값은 기본값, 겹친 것 · 모르는 꼬리표는 뺀다',
     read.goalEndDate === '2026-12-24' &&
-      read.seasonPhase === 'in' &&
+      read.seasonPhase === null /* 시즌은 2026-10-10 부터 안 씀 — 옛 값도 무시 */ &&
       read.dietStyle === 'mixed' &&
       read.mealPattern === '3+2' &&
       read.avoid.join(',') === 'egg,spicy' &&
@@ -2227,10 +2227,10 @@ console.log('\n■ 식단 취향');
       !bad({ goalEndDate: '2028-09-30' })
   );
   check(
-    '저장 검사 — 모르는 스타일 · 끼니 구성 · 시즌 · 꼬리표 · 보충식품 모양은 거절',
+    '저장 검사 — 모르는 스타일 · 끼니 구성 · 꼬리표 · 보충식품 모양은 거절 · 시즌은 무시',
     bad({ dietStyle: 'keto' }) &&
       bad({ mealPattern: '5' }) &&
-      bad({ seasonPhase: 'summer' }) &&
+      !bad({ seasonPhase: 'summer' }) &&
       bad({ avoid: ['egg', 'gluten'] }) &&
       bad({ supplements: 'yes' }) &&
       !bad({ seasonPhase: null }) &&
@@ -5290,9 +5290,9 @@ console.log(
       steps({ ...a0, goalKind: 'lean' }, adult).includes('target')
   );
   check(
-    '차례 — 열한 화면이 다 보일 때의 순서(목표 → 체중 → 속도 → 움직임 → 시즌 → 탄단지 → 식사 → 못 먹는 것 → 만드는 중 → 계획 → g)',
+    '차례 — 열 화면이 다 보일 때의 순서(목표 → 체중 → 속도 → 움직임 → 탄단지 → 식사 → 못 먹는 것 → 만드는 중 → 계획 → g)',
     steps({ ...gain, targetWeightKg: 84 }, adult) ===
-      'goal,target,pace,activity,season,macroPreset,diet,avoid,building,plan,macroEdit'
+      'goal,target,pace,activity,macroPreset,diet,avoid,building,plan,macroEdit'
   );
 
   const p0 = preview(a0, adult);
@@ -5421,7 +5421,6 @@ console.log(
       err('plan', { ...a0, kcalTarget: 900 }) === 'kcalTarget' &&
       err('macroEdit', { ...a0, fatTargetG: 10 }) === 'fatTargetG' &&
       err('macroEdit', { ...a0, proteinTargetG: 150, fatTargetG: 70 }) === null &&
-      err('season', a0) === 'seasonPhase' &&
       err('diet', { ...a0, dietStyle: 'mixed' }) === 'mealPattern' &&
       err('avoid', a0) === null
   );

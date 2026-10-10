@@ -6,7 +6,6 @@ import { recentWeightKg, toProfile } from '@/lib/nutrition/load';
 import {
   EMPTY_ANSWERS,
   answersOfProfile,
-  levelOf,
 } from '@/lib/nutrition/onboarding-answers';
 import { ageOn } from '@/lib/nutrition/targets';
 import { isSex } from '@/lib/profile';
@@ -41,7 +40,8 @@ export default async function NutritionSetupPage() {
       sex={isSex(user.sex) ? user.sex : null}
       heightCm={user.heightCm}
       weightKg={recent ?? user.weightKg}
-      level={levelOf(user.competitionLevel)}
+      /* 경기 수준은 2026-10-10 에 묻지 않기로 했다 — 평소 움직임은 기본값에서 사용자가 고른다 */
+      level={null}
       hasProfile={row !== null}
       initial={initial}
     />

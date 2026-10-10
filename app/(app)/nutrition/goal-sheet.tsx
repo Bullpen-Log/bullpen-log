@@ -57,12 +57,10 @@ import {
   AVOIDS,
   DIET_STYLES,
   MEAL_PATTERNS,
-  SEASON_PHASES,
   type AvoidKey,
   type DietPrefs,
   type DietStyle,
   type MealPattern,
-  type SeasonPhase,
 } from '@/lib/nutrition/diet-prefs';
 import { shiftDateKey } from '@/lib/pitch-stats';
 import { saveDietPrefs, saveNutritionProfile } from '@/app/actions/nutrition';
@@ -126,7 +124,6 @@ export function GoalSheet({
   const [tab, setTab] = useState<SheetTab>(initialTab);
   /* ── 식단 취향(식단 짜기가 읽는다) ── */
   const [diet, setDiet] = useState<DietDraft>(() => ({
-    season: prefs.seasonPhase,
     style: prefs.dietStyle,
     pattern: prefs.mealPattern,
     avoid: prefs.avoid,
@@ -356,7 +353,6 @@ export function GoalSheet({
       const prefsRes = await orOffline(
         saveDietPrefs({
           goalEndDate: showPlan && remaining !== null ? endDate : null,
-          seasonPhase: diet.season,
           dietStyle: diet.style,
           mealPattern: diet.pattern,
           avoid: diet.avoid,
@@ -927,7 +923,6 @@ function Stat({
 type SheetTab = 'goal' | 'diet';
 
 type DietDraft = {
-  season: SeasonPhase | null;
   style: DietStyle;
   pattern: MealPattern;
   avoid: AvoidKey[];
@@ -948,7 +943,6 @@ function DietPanel({
   minor: boolean;
 }) {
   const set = (patch: Partial<DietDraft>) => onChange({ ...draft, ...patch });
-  const season = SEASON_PHASES.find((x) => x.key === draft.season);
   const style = DIET_STYLES.find((x) => x.key === draft.style);
   return (
     <div key="diet" role="tabpanel" className="motion-safe:animate-fade-in space-y-6">
@@ -956,24 +950,6 @@ function DietPanel({
         &lsquo;오늘 식단 짜기&rsquo;가 여기 정한 대로 끼니를 짜요. 칼로리 · 단백질은
         [목표] 칸에서 정해요.
       </p>
-
-      <Row
-        label="시즌 단계"
-        hint={
-          season
-            ? season.hint
-            : '고르지 않으면 시즌 중처럼 무난하게 짜요. 한 번 더 누르면 풀려요.'
-        }
-      >
-        <ChoiceChips
-          label="시즌 단계"
-          options={SEASON_PHASES.map((x) => ({ value: x.key, label: x.label }))}
-          value={draft.season ?? ''}
-          onChange={(v) =>
-            set({ season: v === draft.season ? null : (v as SeasonPhase) })
-          }
-        />
-      </Row>
 
       <Row label="식단 스타일" hint={style?.hint}>
         <ChoiceChips

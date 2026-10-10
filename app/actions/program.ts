@@ -33,7 +33,6 @@ import {
   variantLabel,
   weekOfDay,
   type Pinned,
-  type ProgramSeason,
   type VariantKey,
 } from '@/lib/program/program';
 import { activeProgram, buildProgramDay, hasFinishedBasics } from '@/lib/program/load';
@@ -55,7 +54,6 @@ type Result = { ok: true } | { error: string };
 export async function startProgram(input: {
   programId: string;
   perWeek: number;
-  season: ProgramSeason;
   birthDate?: string | null;
   trainingLevel?: string | null;
   ownedEquipment?: string[] | null;
@@ -89,13 +87,11 @@ export async function startProgram(input: {
           (input.ownedEquipment.length > 0 || audience === 'basics')
         ? [ALWAYS_OWNED, ...pickMany(input.ownedEquipment, SELECTABLE_EQUIPMENT)]
         : [];
-  const season = input.season === 'pre' ? 'pre' : input.season === 'off' ? 'off' : null;
 
   const eligible = checkEligibility({
     audience,
     age: birthDate ? ageFromBirthDate(birthDate, now) : null,
     trainingLevel,
-    season,
     ownedEquipment,
     /* 성인 입문만 본다 — 기본기를 마쳤으면 열린다 */
     basicsDone:
@@ -129,7 +125,8 @@ export async function startProgram(input: {
       data: {
         userId: user.id,
         programKey,
-        season: season as string,
+        /* 시즌은 묻지 않는다(2026-10-10) — 칸은 옛 줄 때문에 남기고 늘 'off' */
+        season: 'off',
         pinned,
       },
     });

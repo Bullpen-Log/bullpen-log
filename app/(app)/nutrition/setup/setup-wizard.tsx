@@ -46,7 +46,8 @@ import {
  *
  * hasProfile — 줄(NutritionProfile)이 있는 옛 계정(영양 탭의 배너로 온 사람)인가. 처음 온 사람은 영양 탭이 잠겨 있어
  * '그만두기'로 /nutrition 에 가면 다시 여기로 돌아오니, 대신 '홈으로'(/today)를 보인다.
- * savedHeight · savedWeight — 계정에 있는 키 · 마지막으로 적은 체중. 있으면 칸을 미리 채우고 '맞는지 확인해 주세요'로 묻는다.
+ * savedHeight · savedWeight — 계정에 있는 키 · 마지막으로 적은 체중. 있으면 그 화면을 건너뛴다(가입에서 이미 받았다),
+ * 비어 있는 옛 계정만 묻는다.
  */
 
 type StepKey = 'height' | 'weight' | 'burnCard' | `n:${NutritionStepKey}` | 'summary';
@@ -80,7 +81,12 @@ export function SetupWizard({
   const [heightCm, setHeightCm] = useState<number | null>(savedHeight);
   const [weightKg, setWeightKg] = useState<number | null>(savedWeight);
   const [a, setA] = useState<NutritionAnswers>(initial);
-  const [step, setStep] = useState<StepKey>('height');
+  /* 가입에서 이미 받은 키 · 몸무게는 다시 묻지 않는다(2026-10-10 사용자) — 비어 있는 옛 계정만 묻는다 */
+  const askBody: StepKey[] = [
+    ...(savedHeight === null ? (['height'] as const) : []),
+    ...(savedWeight === null ? (['weight'] as const) : []),
+  ];
+  const [step, setStep] = useState<StepKey>(askBody[0] ?? 'burnCard');
   const [dir, setDir] = useState<'next' | 'back'>('next');
   const [problem, setProblem] = useState<(Problem & { seq: number }) | null>(null);
   const [pending, startTransition] = useTransition();
@@ -89,8 +95,7 @@ export function SetupWizard({
 
   const body: OnboardingBody = { age, sex, heightCm, weightKg, level };
   const visible: StepKey[] = [
-    'height',
-    'weight',
+    ...askBody,
     'burnCard',
     ...visibleNutritionSteps(a, body).map((k): StepKey => `n:${k}`),
     'summary',

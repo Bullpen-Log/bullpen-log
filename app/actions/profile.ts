@@ -14,7 +14,6 @@ import {
 } from '@/lib/profile';
 import { levelAgeProblem, validateBaseline } from '@/lib/baseline';
 import { toDateKey } from '@/lib/pitch-stats';
-import { validateTargetVelocity } from '@/lib/velocity';
 import { WORKOUT_MINUTES_CHOICES } from '@/lib/report/theme';
 import { withInput, type FormValues } from '@/lib/form-values';
 import { deleteVideos, forgetPlaybackUrls, isOwnAvatarPath } from '@/lib/storage';
@@ -98,9 +97,6 @@ async function tryUpdateProfile(formData: FormData): Promise<ProfileState> {
   });
   if ('error' in wingspan) return wingspan;
 
-  // 목표 구속 — 비워두면 목표를 지운다.
-  const target = validateTargetVelocity(String(formData.get('targetVelocity') ?? ''));
-  if ('error' in target) return target;
 
   /*
    * 성별 — 영양 목표의 기초대사량 계산에 쓴다.
@@ -139,7 +135,7 @@ async function tryUpdateProfile(formData: FormData): Promise<ProfileState> {
       wingspanCm: wingspan.value,
       ...baselineValue,
       ...minutesValue,
-      targetVelocity: target.value,
+      /* 목표 구속은 2026-10-10 부터 사용자가 적지 않는다 — 나중에 앱이 계산해 채운다 */
       /*
        * 경력·목표·장비는 여기서 건드리지 않는다. 트레이닝 화면에서 고르고
        * saveTrainingSettings 가 저장한다. 이 폼은 그 항목을 보내지 않으므로,

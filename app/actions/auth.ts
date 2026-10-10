@@ -18,7 +18,6 @@ import {
   isSex,
   validateProfile,
 } from '@/lib/profile';
-import { isCompetitionLevel, levelAgeProblem } from '@/lib/baseline';
 import { toDateKey } from '@/lib/pitch-stats';
 import { withInput, type FormValues } from '@/lib/form-values';
 import { dbDate } from '@/lib/nutrition/days';
@@ -160,27 +159,14 @@ async function trySignup(formData: FormData): Promise<AuthState> {
   const weightKg = weight.value;
 
   /*
-   * 소속 — 목록 안의 값이거나 비어 있어야 하고, 생년월일과 맞아야 한다(중학생 나이에
-   * '프로'는 받지 않는다 — lib/baseline.ts levelFit). 화면이 이미 막지만 오래 열어 둔 화면이나
-   * 손으로 만든 요청도 있다. 비어 있어도 가입은 된다 — 아무 계산에도 안 쓰는 값이라 이것
-   * 때문에 가입이 막히면 잃는 쪽이 크다.
+   * 소속(경기 수준)은 2026-10-10 에 묻지 않기로 했다 — 계산에 안 쓰는 값이었다. 칸(User.competitionLevel)은 옛 줄 때문에 남긴다.
    *
    * 던지는 손 · 평소 투구량 · 웨이트 횟수 · 경력은 더 받지 않는다(2026-10-09). 투구 기록과
    * 트레이닝 탭의 첫 설정(app/actions/pitch-setup.ts · training-setup.ts)이 각각 받는다 —
    * 그때까지 그 탭은 잠겨 있다(lib/feature-locks.ts).
    */
-  const rawLevel = String(formData.get('competitionLevel') ?? '').trim();
-  if (rawLevel !== '' && !isCompetitionLevel(rawLevel)) {
-    return {
-      error: '어디서 야구를 하고 있는지 다시 골라 주세요.',
-      field: 'competitionLevel',
-    };
-  }
-  const competitionLevel = rawLevel || null;
-  const today = toDateKey(new Date());
-  const levelProblem = levelAgeProblem(competitionLevel, rawBirthDate || null, today);
-  if (levelProblem) return { error: levelProblem, field: 'competitionLevel' };
 
+  const today = toDateKey(new Date());
   const existing = await prisma.user.findUnique({ where: { email } });
   if (existing) {
     return { error: '이미 가입된 이메일이에요.', field: 'email' };
@@ -206,7 +192,6 @@ async function trySignup(formData: FormData): Promise<AuthState> {
         sex,
         /* 가입 때 받은 몸무게는 계정에도 — 내 정보의 몸무게 칸과 영양 탭의 기준 체중이 같은 값에서 시작한다 */
         weightKg,
-        competitionLevel,
         /* 약관 · 개인정보 처리방침에 동의한 시각 — 위에서 둘 다 'on' 인 것을 봤다 */
         agreedAt: new Date(),
       },

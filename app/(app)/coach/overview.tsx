@@ -308,14 +308,9 @@ export function StatsOverview({
               unit=""
               footer={
                 bestVelocity ? (
+                  /* 목표 구속은 2026-10-10 부터 사용자가 적지 않는다 — 나중에 앱이 계산해 보여 준다 */
                   <span className="text-xs text-muted">
-                    {user.targetVelocity ? (
-                      <>
-                        목표 <Speed kmh={user.targetVelocity} />
-                      </>
-                    ) : (
-                      `${formatShortDate(bestVelocity.date)} 기록`
-                    )}
+                    {`${formatShortDate(bestVelocity.date)} 기록`}
                   </span>
                 ) : (
                   <span className="text-xs text-muted/60">

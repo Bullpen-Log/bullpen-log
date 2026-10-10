@@ -19,7 +19,6 @@ import {
   AVOIDS,
   DIET_STYLES,
   MEAL_PATTERNS,
-  SEASON_PHASES,
 } from '@/lib/nutrition/diet-prefs';
 import {
   ACTIVITIES,
@@ -103,11 +102,6 @@ export function nutritionStepTitle(
         title: '운동과 훈련을 뺀 하루는 어때요?',
         desc: '앱에 적는 운동 · 투구는 그날 따로 더해요. 여기서는 팀 훈련처럼 앱에 안 적히는 움직임만 봐요.',
       };
-    case 'season':
-      return {
-        title: '지금 시즌은 어느 때예요?',
-        desc: '식단 짜기가 탄수화물과 회복의 비중을 바꿔요. 바뀌면 영양 탭에서 고쳐요.',
-      };
     case 'macroPreset':
       return {
         title: '탄단지는 어떻게 나눌까요?',
@@ -182,8 +176,6 @@ export function answerLines(ctx: StepCtx): { label: string; value: string }[] {
     label: '평소 움직임',
     value: label(ACTIVITIES, activityOf(a, body.level)) ?? '보통',
   });
-  const season = label(SEASON_PHASES, a.seasonPhase);
-  if (season) out.push({ label: '시즌', value: season });
   const preset = label(MACRO_PRESETS, a.macroPreset);
   if (preset) out.push({ label: '탄단지', value: preset });
   const diet = [
@@ -223,8 +215,6 @@ export function NutritionStepPanel({
       return <PaceStep ctx={ctx} />;
     case 'activity':
       return <ActivityStep ctx={ctx} />;
-    case 'season':
-      return <SeasonStep ctx={ctx} />;
     case 'macroPreset':
       return <MacroPresetStep ctx={ctx} />;
     case 'diet':
@@ -475,27 +465,6 @@ function ActivityStep({ ctx }: { ctx: StepCtx }) {
       onChange={(activity) => set({ activity })}
       columns={1}
       invalid={invalid('activity')}
-    />
-  );
-}
-
-/* ── 시즌 ── */
-
-function SeasonStep({ ctx }: { ctx: StepCtx }) {
-  const { a, set, invalid } = ctx;
-  return (
-    <OptionCards
-      name="seasonPhase"
-      label="시즌"
-      options={SEASON_PHASES.map((s) => ({
-        value: s.key,
-        label: s.label,
-        hint: s.hint,
-      }))}
-      value={a.seasonPhase}
-      onChange={(seasonPhase) => set({ seasonPhase })}
-      columns={2}
-      invalid={invalid('seasonPhase')}
     />
   );
 }

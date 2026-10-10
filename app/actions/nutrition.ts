@@ -18,7 +18,6 @@ import {
 import { buildProfileData, type ProfileInput } from '@/lib/nutrition/profile-save';
 import {
   fieldOfNutritionError,
-  levelOf,
   readNutritionAnswers,
   toDietPrefsRaw,
   toProfileInput,
@@ -913,7 +912,7 @@ export async function finishNutritionSetup(raw: {
     sex: isSex(user.sex) ? user.sex : null,
     heightCm,
     weightKg,
-    level: levelOf(user.competitionLevel),
+    level: null,
   };
   const prev = await prisma.nutritionProfile.findUnique({ where: { userId: user.id } });
   const built = buildProfileData(

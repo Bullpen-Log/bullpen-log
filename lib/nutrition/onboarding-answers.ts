@@ -1,4 +1,4 @@
-import { normalizeLevel, type CompetitionLevel } from '@/lib/baseline';
+import type { CompetitionLevel } from '@/lib/baseline';
 import { ageRule, paceChoices } from '@/lib/nutrition/age';
 import {
   AVOIDS,
@@ -275,7 +275,6 @@ export const NUTRITION_STEP_KEYS = [
   'target',
   'pace',
   'activity',
-  'season',
   'macroPreset',
   'diet',
   'avoid',
@@ -344,10 +343,6 @@ export function checkNutritionStep(
         return { error: '평소 움직임을 다시 골라 주세요.', field: 'activity' };
       }
       return null;
-    case 'season':
-      if (!a.seasonPhase)
-        return { error: '시즌을 하나 골라 주세요.', field: 'seasonPhase' };
-      return null;
     case 'macroPreset':
       if (!a.macroPreset) {
         return { error: '탄단지 나누기를 하나 골라 주세요.', field: 'macroPreset' };
@@ -412,8 +407,6 @@ export function nutritionStepOfField(field: string): NutritionStepKey | null {
       return 'pace';
     case 'activity':
       return 'activity';
-    case 'seasonPhase':
-      return 'season';
     case 'macroPreset':
       return 'macroPreset';
     case 'dietStyle':
@@ -567,16 +560,10 @@ export function fieldOfNutritionError(message: string): string {
   if (message.includes('칼로리')) return 'kcalTarget';
   if (message.includes('단백질')) return 'proteinTargetG';
   if (message.includes('지방')) return 'fatTargetG';
-  if (message.includes('시즌')) return 'seasonPhase';
   if (message.includes('스타일')) return 'dietStyle';
   if (message.includes('끼니')) return 'mealPattern';
   if (message.includes('못 먹는')) return 'avoid';
   if (message.includes('날짜')) return 'goalEndDate';
   if (message.includes('속도')) return 'weeklyRateKg';
   return 'goalKind';
-}
-
-/** 소속 글자 → 소속(옛 선택지도 받는다) — 서버가 폼의 소속을 몸에 넣을 때 */
-export function levelOf(raw: string | null | undefined): CompetitionLevel | null {
-  return normalizeLevel(raw ?? null);
 }
