@@ -249,7 +249,11 @@ export function rigPose(
     const bend =
       refs?.[`upperArm${side}`] ??
       refOr(`upperArm${side}`, bendAxis(upper, fore, prevRef(`upperArm${side}`)));
-    const shAt = attach('trunk', side === 'L' ? A.trunk.shoulderL : A.trunk.shoulderR);
+    /*
+     * 위팔은 맞춘 어깨 자리에 — 모델 몸통의 어깨 자리는 몸통과 통째로 돌아, 실제 어깨가 들썩이고 기울면(던지는 어깨 10~20°) 장면마다 2~42mm
+     * 어긋나 위팔이 그만큼 늘었다 줄었다 했다(2026-10-10 샘플 다섯: 늘임 0.77~1.07배, 아래팔이 한 장면에 10%).
+     */
+    const shAt = sh;
     put(`upperArm${side}`, shAt, sub(el, shAt), bend, norm(sub(el, shAt)));
     const elAt = attach(`upperArm${side}`, A[`upperArm${side}`].distal);
     put(
@@ -282,7 +286,8 @@ export function rigPose(
     const bend =
       refs?.[`thigh${side}`] ??
       refOr(`thigh${side}`, bendAxis(thigh, shank, prevRef(`thigh${side}`)));
-    const hipAt = attach('pelvis', side === 'L' ? A.pelvis.hipL : A.pelvis.hipR);
+    /* 넙다리도 맞춘 엉덩이 자리에(모델 골반 폭이 달라 30~40mm 어긋난 채 다리 방향에 따라 늘임이 0.96~1.21배로 바뀌었다) */
+    const hipAt = hip;
     put(`thigh${side}`, hipAt, sub(kn, hipAt), bend, norm(sub(kn, hipAt)));
     const knAt = attach(`thigh${side}`, A[`thigh${side}`].distal);
     put(

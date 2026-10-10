@@ -1227,21 +1227,20 @@ console.log('■ 뼈대 자세(pose-rig) — public/models/skeleton-parts.json +
           check('각도 모델: 묶인 발이 풀릴 때 발목이 한 장면에 키의 1.2% 안', worst <= 0.012, `${(worst * 100).toFixed(2)}%`);
         }
 
-        /* 4-7 마지막 걸름 — 한 장면만 5cm 튄 글러브 팔꿈치는 이웃 가운데로, 릴리스 앞뒤 던지는 팔꿈치 · 손목은 그대로(손목은 늘 걸지 않는다) */
+        /* 4-7 원본 걸름 — 한 장면만 5cm 튄 글러브 팔꿈치 · 손목은 이웃 가운데로, 손 점 · 발목(다리) · 릴리스 앞뒤 던지는 팔꿈치는 그대로 */
         {
           const fr0 = mid0.map((p) => [...p] as Vec3);
           const seq = Array.from({ length: 20 }, (_, k) => fr0.map((p) => [p[0] + k * 0.002, p[1], p[2]] as Vec3));
-          seq[8][V2J.lEl] = add(seq[8][V2J.lEl], [0, 0.05, 0]);
-          seq[8][V2J.lWr] = add(seq[8][V2J.lWr], [0, 0.05, 0]);
+          for (const j of [V2J.lEl, V2J.lWr, V2J.lHandMid, V2J.lAn]) seq[8][j] = add(seq[8][j], [0, 0.05, 0]);
           seq[10][V2J.rEl] = add(seq[10][V2J.rEl], [0, 0.05, 0]);
           const out = despike(seq, 'R', 10);
-          const glove = norm(sub(out[8][V2J.lEl], seq[7][V2J.lEl]));
-          const wristKept = norm(sub(out[8][V2J.lWr], seq[8][V2J.lWr]));
+          const glove = Math.max(norm(sub(out[8][V2J.lEl], seq[7][V2J.lEl])), norm(sub(out[8][V2J.lWr], seq[7][V2J.lWr])));
+          const kept = Math.max(norm(sub(out[8][V2J.lHandMid], seq[8][V2J.lHandMid])), norm(sub(out[8][V2J.lAn], seq[8][V2J.lAn])));
           const thr = norm(sub(out[10][V2J.rEl], seq[10][V2J.rEl]));
           check(
-            '마지막 걸름: 한 장면 튄 글러브 팔꿈치는 되돌리고, 손목 · 릴리스의 던지는 팔꿈치는 그대로',
-            glove < 0.005 && wristKept < 1e-9 && thr < 1e-9,
-            `글러브 ${(glove * 1000).toFixed(1)}mm · 손목 ${(wristKept * 1000).toFixed(2)} · 던지는 ${(thr * 1000).toFixed(1)}`
+            '원본 걸름: 한 장면 튄 글러브 팔꿈치 · 손목은 되돌리고, 손 점 · 다리 · 릴리스의 던지는 팔꿈치는 그대로',
+            glove < 0.005 && kept < 1e-9 && thr < 1e-9,
+            `글러브 ${(glove * 1000).toFixed(1)}mm · 그대로 둘 것 ${(kept * 1000).toFixed(2)} · 던지는 ${(thr * 1000).toFixed(1)}`
           );
         }
 

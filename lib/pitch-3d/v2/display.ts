@@ -218,8 +218,15 @@ const THROW_ARM = {
 } as const;
 const DESPIKE_KEEP = 10;
 const SKIP = new Set<number>([
-  V2J.lWr,
-  V2J.rWr,
+  /* 다리 — 땅에 묶인 구간 경계는 관절 각도 모델이 묶인 자리에서 서서히 풀어 준다. 여기서 경계 장면을 옮기면 그것과 엇갈려 무릎 · 발목이 8~14mm 튀었다 */
+  V2J.lKn,
+  V2J.rKn,
+  V2J.lAn,
+  V2J.rAn,
+  V2J.lHe,
+  V2J.rHe,
+  V2J.lTo,
+  V2J.rTo,
   V2J.lHandIdx,
   V2J.lHandMid,
   V2J.lHandPinky,
@@ -229,7 +236,7 @@ const SKIP = new Set<number>([
 ]);
 
 /**
- * 마지막 걸름 — 관절마다 장면 사이 굽음(두 이웃 가운데에서 벗어난 거리)이 앞뒤 3~6장면 굽음의 아래쪽 값보다 4배 넘게, 키의 1% 넘게 튀면 두 이웃 가운데로
+ * 원본 걸름 — 관절마다 장면 사이 굽음(두 이웃 가운데에서 벗어난 거리)이 앞뒤 3~6장면 굽음의 아래쪽 값보다 4배 넘게, 키의 1% 넘게 튀면 두 이웃 가운데로
  * 되돌린다(세 번까지 — 지그재그도). 관절 각도 모델을 지나고도 한 장면만 튀는 관절(손 확신이 0 으로 떨어지는 장면의 글러브 손목 · 엔진이 한 장면
  * 79mm 옮긴 팔꿈치)이 남았다(2026-10-10 샘플 다섯). 꾸준히 빠른 움직임은 이웃 굽음도 커서 걸리지 않는다.
  */
@@ -243,8 +250,7 @@ export function despike(frames: Vec3[][], hand: 'R' | 'L', release: number): Vec
     return Math.hypot(...[0, 1, 2].map((i) => out[k][j][i] - m[i]));
   };
   /*
-   * 손목 · 손 점은 걸지 않는다 — 손목만 옮기면 팔꿈치는 그대로라 아래팔 방향이 바뀌어 손목 굽음이 34 → 17 → 32 → 7° 로 지그재그가 되며 손이
-   * 오히려 23~28° 튀었다(같은 날 김정엽 글러브 손). 손목 튐은 관절 각도 모델(비틀림 가운데값)에서 막는다.
+   * 손 점은 걸지 않는다 — 점이 작아 늘 들쭉날쭉해 '튐'으로 잘못 읽힌다(손은 관절 각도 모델이 손목 틀에서 다시 만든다). 손목은 건다.
    */
   const order = Array.from({ length: 25 }, (_, j) => j).filter((j) => !SKIP.has(j));
   for (const j of order) {
@@ -303,8 +309,16 @@ export function displayTrack(
   const spanMedia =
     result.t[Math.min(n - 1, result.events.release)] - result.t[Math.min(n - 1, result.events.footPlant)];
   const dt = dtMedia * (spanMedia > PLANT_TO_RELEASE_MAX_S ? PLANT_TO_RELEASE_MAX_S / spanMedia : 1);
-  const kin = kinematicTrack(raw, conf, contacts, { dt, hand: result.hand, events: result.events });
-  const frames = despike(kin.frames, result.hand, result.events.release);
+  /*
+   * 걸름은 관절 각도 모델 앞(엔진 원본)에 — 뒤에 두면 팔꿈치만 옮겨 위팔 · 아래팔 길이가 한 장면에 5~10% 바뀌었다(2026-10-10 김창주 글러브 팔).
+   * 앞에 두면 엔진이 한 장면 옮긴 관절(팔꿈치 79mm)을 먼저 걷고, 뼈 길이는 각도 모델이 고정한다.
+   */
+  const kin = kinematicTrack(despike(raw, result.hand, result.events.release), conf, contacts, {
+    dt,
+    hand: result.hand,
+    events: result.events,
+  });
+  const frames = kin.frames;
   let refs = kin.refs;
 
   /* 2 바닥 하나 */
