@@ -79,8 +79,11 @@ export type PartPose = {
   axisM: Vec3;
 };
 
-/** 마디를 늘이고 줄이는 범위 — 넘으면 끝이 관절에 못 닿는 대로 둔다(뼈가 지나치게 늘어 보이지 않게) */
-const STRETCH: [number, number] = [0.75, 1.3];
+/**
+ * 마디를 늘이고 줄이는 범위 — 넘으면 끝이 관절에 못 닿는 대로 둔다(뼈가 지나치게 늘어 보이지 않게). 위 끝 1.4 — 1.3 일 때 엔진이 아래팔을 키의
+ * 16.7% 로 잡은 샘플(권준재, 모델 12.5%)이 내내 한계에 걸려 손이 손목에서 떨어졌다(2026-10-10).
+ */
+const STRETCH: [number, number] = [0.75, 1.4];
 
 export type RigPose = Record<PartName, PartPose>;
 

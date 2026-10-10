@@ -952,12 +952,20 @@ export function kinematicTrack(
      * 엎침은 먼저 앞뒤 11장면 가운데값으로 — 손 점(검지 · 새끼)이 몇 장면 뒤바뀌면 손바닥 방향이 150~300° 튀는데(2026-10-10 샘플 김정엽 글러브 손
      * 114 → 267 → 301 · 125 → −23 → 199), 그대로 다듬으면 다듬은 값이 장면마다 한계(8°)만큼 지그재그로 흔들려 손이 떨렸다.
      */
+    /*
+     * 한 장면 상한 — 글러브 손은 늘 절반, 던지는 손은 착지 전까지 절반(공을 글러브에 쥐고 두 손이 겹쳐 손 점이 헷갈려 셋업 · 다리 들기 동안
+     * 던지는 손이 8~12° 튀었다, 2026-10-10 샘플 넷), 착지부터는 그대로(진짜 빠르다).
+     */
+    const handRate = (deg: number): number[] =>
+      frames.map((_, k) =>
+        rad(deg * (throwing && (!ev || k >= ev.footPlant) ? 1 : GLOVE_HAND_RATE))
+      );
     const pronU = medianFilter(unwrap(pron), 5);
     const wPron = outlierW(pronU, wHand);
     const pronMid = weightedMedian(pronU, wPron);
     const pronS = rateLimit(
       smooth1(pronU, wPron, HAND_SMOOTH[0], HAND_SMOOTH[1], true),
-      rad(KIN_LIMITS.pronationRatePerFrame * (throwing ? 1 : GLOVE_HAND_RATE))
+      handRate(KIN_LIMITS.pronationRatePerFrame)
     ).map((p) =>
       clamp(p, pronMid - rad(KIN_LIMITS.pronation), pronMid + rad(KIN_LIMITS.pronation))
     );
@@ -983,7 +991,7 @@ export function kinematicTrack(
         HAND_SMOOTH[0],
         HAND_SMOOTH[1]
       ).map((v) => clamp(v, -rad(KIN_LIMITS.wristFlex), rad(KIN_LIMITS.wristFlex))),
-      rad(KIN_LIMITS.wristRatePerFrame * (throwing ? 1 : GLOVE_HAND_RATE))
+      handRate(KIN_LIMITS.wristRatePerFrame)
     );
     const wdS = rateLimit(
       smooth1(
@@ -992,7 +1000,7 @@ export function kinematicTrack(
         HAND_SMOOTH[0],
         HAND_SMOOTH[1]
       ).map((v) => clamp(v, -rad(KIN_LIMITS.wristDev), rad(KIN_LIMITS.wristDev))),
-      rad(KIN_LIMITS.wristRatePerFrame * (throwing ? 1 : GLOVE_HAND_RATE))
+      handRate(KIN_LIMITS.wristRatePerFrame)
     );
     const handShape = [0, 1, 2].map((i) => {
       const good = handLocal.filter((_, k) => wHandOnly[k] > 0.5).map((h) => h[i]);
