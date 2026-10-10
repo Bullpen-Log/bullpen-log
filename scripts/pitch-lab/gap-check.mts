@@ -390,3 +390,83 @@ if (process.argv[1]?.endsWith('gap-check.mts'))
         `seed ${seed}${swap ? ' 다리 이름 바뀜' : ''}: 발 한 장면 최대 이동 ${r ? (r.jump * 100).toFixed(1) + '% 키 · 바꿈 ' + r.legsSwapped : '실패'}`
       );
     }
+
+const GLOVE_ARM = [V2J.lEl, V2J.lWr, V2J.lHandMid, V2J.lHandIdx, V2J.lHandPinky];
+
+/**
+ * 착지 ~ 릴리스에 뒤 영상의 글러브 팔(팔꿈치 · 손목 · 손)을 '가려져 2D 모델이 지어낸 점'으로 바꾼 합성 — 확신 0.4, 자리는 몸 높이 기준으로
+ * 떠돌고 가끔 크게 튄다(실제 샘플 8개 중 7개: 확신 0.35~0.45 로 한 장면에 몸 높이의 30~50%). 그 구간 글러브 손목 오차 가운데값(키 대비).
+ * 고치기 전엔 그 점을 옆 영상과 교차해 팔 깊이가 따라 출렁였다.
+ */
+export function junkGloveError(seed: number): number | null {
+  const sc: Scenario = {
+    ...base,
+    ...realistic,
+    name: 'junk',
+    slowSide: 4,
+    slowBack: 4,
+    offBack: 0,
+    sampleSide: 1 / 30,
+    sampleBack: 1 / 30,
+  };
+  const { side: cs, back: cb } = cameras(sc);
+  const s = makeV2Track(sc, cs, sc.side, 'side', seed);
+  const b = makeV2Track(sc, cb, sc.back, 'back', seed + 1);
+  const [g0, g1] = [s.toMedia(EV.footPlant), s.toMedia(EV.release)];
+  /* 같은 씨앗이면 같은 떠돎 — 몸 높이(픽셀)의 25% 안 어딘가에 머물다 장면마다 40% 확률로 새 자리로 튐(실제: 한 장면에 30~50%) */
+  let st = seed * 7919 + 13;
+  const rnd = () => ((st = (st * 1103515245 + 12345) % 2147483648) / 2147483648) * 2 - 1;
+  const body = (p: [number, number, number][]) => {
+    const ys = p.slice(0, 17).map((q) => q[1]);
+    return Math.max(...ys) - Math.min(...ys);
+  };
+  let drift: [number, number] | null = null;
+  const [b0, b1] = [b.toMedia(EV.footPlant), b.toMedia(EV.release)];
+  for (const f of b.track.frames) {
+    if (f.t < b0 || f.t > b1) continue;
+    const hp = body(f.p as [number, number, number][]);
+    if (!drift || rnd() > 0.2) drift = [0.25 * hp * rnd(), 0.25 * hp * rnd()];
+    for (const j of GLOVE_ARM) f.p[j] = [f.p[j][0] + drift[0], f.p[j][1] + drift[1], 0.4];
+  }
+  const { result } = fitPitch3dV2({
+    side: s.track,
+    back: b.track,
+    hand: 'R',
+    heightCm: null,
+    jobId: '00000000-0000-4000-8000-000000000000',
+    poseModel: 'synth',
+    screenRecorded: true,
+    slowmoFps: 120,
+    events: {
+      kneeUp: s.toMedia(EV.kneeUp),
+      footPlant: s.toMedia(EV.footPlant),
+      release: s.toMedia(EV.release),
+    },
+  });
+  if (!result.ok) return null;
+  const truthAt = (k: number) =>
+    pitcher25(
+      Math.max(
+        0,
+        Math.min(1.5, Math.floor(result.t[k] * 30 + 1e-6) / 30 / sc.slowSide - 0.05)
+      ),
+      'R'
+    );
+  const inGap = (k: number) => result.t[k] >= g0 && result.t[k] <= g1;
+  const src: Vec3[] = [];
+  const dst: Vec3[] = [];
+  result.joints.forEach((fr, k) => {
+    const T = truthAt(k);
+    for (let j = 0; j < 17; j++)
+      if (result.conf[k][j] > 0 && !(GLOVE_ARM.includes(j) && inGap(k))) {
+        src.push(fr[j] as Vec3);
+        dst.push(T[j]);
+      }
+  });
+  const f = align(src, dst);
+  const errs = result.joints.flatMap((fr, k) =>
+    inGap(k) ? [norm(sub(f(fr[V2J.lWr] as Vec3), truthAt(k)[V2J.lWr])) / H] : []
+  );
+  errs.sort((a, z) => a - z);
+  return errs[errs.length >> 1] ?? null;
+}

@@ -45,7 +45,7 @@ import {
   type Scenario,
 } from './pitch-lab/synth.mts';
 import { makeV2Track } from './pitch-lab/synth-v2.mts';
-import { footJump, footSway, gapWristError, hipSnap, leadGapJump } from './pitch-lab/gap-check.mts';
+import { footJump, footSway, gapWristError, hipSnap, junkGloveError, leadGapJump } from './pitch-lab/gap-check.mts';
 import { readFileSync } from 'node:fs';
 import { blendAi, despike, displayTrack, readAiGate, readAiJoints, readAiMiss } from '../lib/pitch-3d/v2/display.ts';
 import { KIN_LIMITS, KIN_SPEED, kinematicTrack, twoBoneIk } from '../lib/pitch-3d/v2/kinematics.ts';
@@ -1781,6 +1781,19 @@ console.log('■ 몸통 흔들림 — 골반선이 한 장면에 크게 돌지 �
       `골반선 한 장면 최대 회전 — 튐 없음 8° · 튐 11° 밑(씨앗 ${seed})`,
       calm != null && spiked != null && calm < 8 && spiked < 11,
       `${calm?.toFixed(1)}° · ${spiked?.toFixed(1)}°`
+    );
+  }
+}
+
+console.log('■ 글러브 팔 — 착지 ~ 릴리스 뒤 영상이 지어낸 점(확신 0.4, 장면마다 튐)을 믿지 않는다');
+{
+  /* 고치기 전(흐린 뒤 영상 점과 교차) 씨앗 33 · 44: 4.5 · 8.2%, 고친 뒤 4.0 · 5.2% */
+  for (const seed of [33, 44]) {
+    const e = junkGloveError(seed);
+    check(
+      `글러브 손목 오차 가운데값이 키의 6% 밑(씨앗 ${seed})`,
+      e != null && e < 0.06,
+      e == null ? '맞추기 실패' : `${(e * 100).toFixed(1)}%`
     );
   }
 }

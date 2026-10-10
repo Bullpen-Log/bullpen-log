@@ -67,6 +67,12 @@ const POLISH = 8;
 /** 2D 확신 문턱 — 두 시선 교차 · 한 시선만 · 안 보임 */
 const SEEN = 0.3;
 const SURE = 0.7;
+/** 팔은 두 영상 다 이만큼 또렷해야 교차한다 — 밑이면 또렷한 한 영상의 시선 위(아래 '한쪽 영상만 또렷한 관절') */
+const ARM_TRI_MIN = 0.5;
+/** 흐린 영상과 교차한 팔 관절이 부모에서 뼈 길이의 이만큼 안이면 믿는다 */
+const ARM_LEN_TOL = 0.25;
+/** 한 영상 시선 위에 둔 관절로 당기는 무게(v1 R4 와 같은 값) */
+const ONE_VIEW_W = 0.3;
 /** 장면 확신(0~100)이 이 밑이면 엷은 구간 */
 const LOW_CONF = 60;
 /** 빈 구간을 회전으로 이을 최대 장면 수 — 넘으면 앞 장면 방향을 잇는다(긴 가림을 지어내지 않게) */
@@ -83,6 +89,8 @@ const GAP_PULL = 0.6;
 const TPL_PULL = 0.6;
 const TPL_SD_REF = 0.03;
 const TPL_MIN_PITCHES = 20;
+/** 틀은 이만큼 이어서 빈 관절에만(짧은 틈은 앞뒤를 회전으로 잇는다) */
+const TPL_MIN_GAP = 4;
 /** 발이 땅에 닿았다고 보는 발목 움직임 폭(키 대비) — 5장면 가운데값으로 다듬은 발목이 구간 가운데값에서 이 안 */
 const CONTACT_STAY = 0.035;
 /** 닿은 구간의 높이 띠 — 그 발 발목 높이의 아래 10% + 키의 이만큼(니업 꼭대기에서 잠깐 멈춘 발은 빠진다) */
@@ -277,6 +285,18 @@ const FILL_ORDER: number[] = [
   V2J.lTo,
   V2J.rTo,
 ];
+const ARM_JOINTS = new Set<number>([
+  V2J.lEl,
+  V2J.rEl,
+  V2J.lWr,
+  V2J.rWr,
+  V2J.lHandMid,
+  V2J.rHandMid,
+  V2J.lHandIdx,
+  V2J.rHandIdx,
+  V2J.lHandPinky,
+  V2J.rHandPinky,
+]);
 const PARENT_OF: Record<number, number> = {
   [V2J.lEar]: V2J.nose,
   [V2J.rEar]: V2J.nose,
@@ -527,28 +547,58 @@ function fitOnce(input: V2Input): {
   const boneLenByChild = new Map<number, number>();
   for (const b of RIGID) if (PARENT_OF[b.a] === b.b) boneLenByChild.set(b.a, L(b));
 
-  /* ── 한쪽 영상만 보인 나머지 8 관절: 부모에서 뼈 길이만큼 그 시선 위(v1 R4 와 같은 규칙) ── */
+  /*
+   * ── 한쪽 영상만 또렷한 관절: 교차하지 않고 그 영상의 시선 위, 부모에서 뼈 길이만큼(자리는 아래 채우기에서 — 시선 위 두 뿌리 중 틀 · 앞 장면에
+   * 가까운 쪽) ──
+   * 팔(팔꿈치 · 손목 · 손)은 다른 영상 확신이 ARM_TRI_MIN 밑이면 교차한 점도 버린다. 착지 ~ 릴리스 글러브 팔은 뒤 영상에서 몸통에 가려,
+   * 2D 모델이 확신 0.35~0.45 로 지어낸 점이 한 장면에 몸 높이의 30~50% 튀었고(실제 샘플 8개 중 7개 — 그 구간 장면의 30~75%가 이 점으로
+   * 교차), 팔 깊이가 그 점을 따라 출렁였다(아래팔이 한 장면에 최대 57°). 둘 다 흐리면(릴리스 번짐) 예전처럼 교차 — 그 점은 대개 맞는
+   * 자리라, 버리면 빈 구간이 길어져 릴리스 손목이 키의 38%까지 틀렸다(합성).
+   * 나머지 8 관절(귀 · 손 MCP)은 예전처럼 다른 영상이 SEEN 밑일 때만(v1 R4 와 같은 규칙).
+   */
+  const rayOf: ({ o: Vec3; d: Vec3 } | null)[][] = Array.from({ length: n }, () =>
+    new Array<{ o: Vec3; d: Vec3 } | null>(N_V2_JOINTS).fill(null)
+  );
+  /* 버린 교차점 — 틀이 없을 때 시선 위 두 뿌리 중 고르는 데만 쓴다 */
+  const triRef: (Vec3 | null)[][] = Array.from({ length: n }, () =>
+    new Array<Vec3 | null>(N_V2_JOINTS).fill(null)
+  );
   for (let k = 0; k < n; k++) {
-    for (let j = N_JOINTS; j < N_V2_JOINTS; j++) {
-      if (obs3[k][j]) continue;
-      const p = PARENT_OF[j];
-      const Lj = boneLenByChild.get(j);
-      const P = obs3[k][p];
-      if (Lj == null || !P) continue;
+    for (let j = 0; j < N_V2_JOINTS; j++) {
+      if (PARENT_OF[j] == null || !boneLenByChild.has(j)) continue;
       const a = sideObs[k][j];
       const b = backObs[k][j];
-      const sideOnly = a.v >= SURE && b.v < SEEN;
-      const backOnly = b.v >= SURE && a.v < SEEN;
-      if (!sideOnly && !backOnly) continue;
-      const r = sideOnly ? ray(cal.side, a.x, a.y) : ray(cal.back, b.x, b.y);
-      const roots = rootsOnRay(r, P, Lj);
-      const ref = obs3[k - 1]?.[j] ?? P;
-      if (roots.length === 0) obs3[k][j] = pointOnRayAtDistance(r, P, Lj, ref);
-      else
-        obs3[k][j] = roots.reduce((best, X) =>
-          norm(sub(X, ref)) < norm(sub(best, ref)) ? X : best
-        );
-      weight[k][j] = 0.3;
+      const arm = ARM_JOINTS.has(j);
+      const weak = arm ? ARM_TRI_MIN : SEEN;
+      if (!arm && obs3[k][j]) continue;
+      if (arm && obs3[k][j] && Math.min(a.v, b.v) >= weak) continue;
+      /* 두 영상이 서로 안 맞아 v1 이 버린 팔 관절(교차점 없음)은 더 또렷한 쪽 시선 위(v1 R4 의 '버린 관찰'과 같은 규칙) */
+      const dropped = arm && !obs3[k][j] && a.v >= weak && b.v >= weak;
+      const sideOnly = a.v >= SURE && (b.v < weak || (dropped && a.v >= b.v));
+      const backOnly = b.v >= SURE && (a.v < weak || (dropped && b.v > a.v));
+      if (!sideOnly && !backOnly) {
+        /*
+         * 부모를 시선 위로 옮겼는데 이 관절은 두 영상 다 흐리면(지어낸 점끼리 교차) 버리고 틀 · 회전 잇기로 — 남겨 두면 다른 근거로 놓인 부모와
+         * 어긋나 아래팔이 한 장면에 20° 넘게 튀었다(실제 샘플 2 릴리스 뒤: 팔꿈치는 뒤 영상 1.0, 손목은 0.33/0.47)
+         */
+        if (arm && obs3[k][j] && rayOf[k][PARENT_OF[j]] && Math.max(a.v, b.v) < weak) {
+          triRef[k][j] = obs3[k][j];
+          obs3[k][j] = null;
+          weight[k][j] = 0;
+        }
+        continue;
+      }
+      /* 흐린 쪽과 교차한 점이 부모에서 뼈 길이(±ARM_LEN_TOL)에 있으면 그 점은 맞는 것 — 그대로 둔다(지어낸 점은 깊이가 틀려 길이가 어긋난다) */
+      const Pp = obs3[k][PARENT_OF[j]];
+      const C = obs3[k][j];
+      if (arm && C && Pp) {
+        const Lj = boneLenByChild.get(j)!;
+        if (Math.abs(norm(sub(C, Pp)) - Lj) <= ARM_LEN_TOL * Lj) continue;
+      }
+      rayOf[k][j] = sideOnly ? ray(cal.side, a.x, a.y) : ray(cal.back, b.x, b.y);
+      triRef[k][j] = obs3[k][j];
+      obs3[k][j] = null;
+      weight[k][j] = 0;
     }
   }
 
@@ -578,6 +628,23 @@ function fitOnce(input: V2Input): {
           tplPos[k][j] = res.pos[j];
           tplW[k][j] = TPL_PULL * Math.min(1, Math.max(0.2, (TPL_SD_REF * H) / Math.max(1e-9, res.sd[j])));
         }
+    }
+    /*
+     * 짧은 빈 틈(TPL_MIN_GAP 장면 밑)은 틀 대신 앞뒤 보인 장면을 회전으로 잇는다 — 한두 장면만 비는 곳에 틀을 쓰면 앞뒤 관찰과 다른 자리로
+     * 가 팔이 장면마다 오갔다(실제 샘플 1: 옆 영상과 어긋남 2.4 → 6.0%). 시선 위에 놓을 관절은 틀을 뿌리 고르기에만 쓰니 그대로 둔다.
+     */
+    for (let j = 0; j < N_V2_JOINTS; j++) {
+      let k = 0;
+      while (k < n) {
+        if (obs3[k][j] || rayOf[k][j]) {
+          k++;
+          continue;
+        }
+        let e = k;
+        while (e + 1 < n && !obs3[e + 1][j] && !rayOf[e + 1][j]) e++;
+        if (e - k + 1 < TPL_MIN_GAP && k > 0 && e < n - 1) for (let q = k; q <= e; q++) tplPos[q][j] = null;
+        k = e + 1;
+      }
     }
   }
 
@@ -745,6 +812,28 @@ function fitOnce(input: V2Input): {
       const Lj = boneLenByChild.get(j) ?? 0.1 * H;
       const P = fr[p]!;
       const T = tplPos[k][j];
+      const r = rayOf[k][j];
+      if (r) {
+        /* 한 영상 시선 위 — 두 뿌리 중 틀 짐작(없으면 버린 교차점 · 앞 장면 방향)에 가까운 쪽. 시선이 구에 안 닿으면 가장 가까운 자리 */
+        filled--;
+        const prevRef =
+          prev && norm(sub(prev[j], prev[p])) > 1e-6
+            ? add(P, scale(normalize(sub(prev[j], prev[p])), Lj))
+            : null;
+        const ref = T ?? prevRef ?? triRef[k][j] ?? P;
+        const roots = rootsOnRay(r, P, Lj);
+        if (roots.length === 0) fr[j] = pointOnRayAtDistance(r, P, Lj, ref);
+        else if (roots.length === 1) fr[j] = roots[0];
+        else {
+          /* 두 뿌리가 가까우면(시선이 구를 스침) 고르기가 불확실해 가운데로 — 간격이 뼈 길이의 15% 밑이면 가운데, 50% 넘으면 그 뿌리(v1 R4 와 같음) */
+          const near = norm(sub(roots[0], ref)) <= norm(sub(roots[1], ref)) ? roots[0] : roots[1];
+          const mid = scale(add(roots[0], roots[1]), 0.5);
+          const g = Math.max(0, Math.min(1, (norm(sub(roots[0], roots[1])) / Lj - 0.15) / 0.35));
+          fr[j] = add(mid, scale(sub(near, mid), g));
+        }
+        w[j] = ONE_VIEW_W;
+        continue;
+      }
       if (T && norm(sub(T, P)) > 1e-9) {
         fr[j] = add(P, scale(normalize(sub(T, P)), Lj));
         tplPulled.add(j);

@@ -152,8 +152,10 @@ def make_tracks(c3d_path: str, out_dir: str, noise: float = 0.004, occlude: bool
 
 
 def tracks_from_joints(J: np.ndarray, rate: float, out_dir: str, source: str, noise: float = 0.004, occlude: bool = False,
-                       hide: list[str] | None = None, seed: int = 3, height_m: float | None = None):
-    """진짜 25관절(장면, 25, 3) m · 위 = +z → 가상 카메라 둘의 엔진 입력(tracks.json) · 정답(truth.json). 다른 자료(드라이브라인 등)도 이 길로."""
+                       hide: list[str] | None = None, seed: int = 3, height_m: float | None = None, junk: list[str] | None = None):
+    """진짜 25관절(장면, 25, 3) m · 위 = +z → 가상 카메라 둘의 엔진 입력(tracks.json) · 정답(truth.json). 다른 자료(드라이브라인 등)도 이 길로.
+    junk = [관절+관절, 시작, 끝]: 뒤 영상에서 그 관절을 '가려져 2D 모델이 지어낸 점'으로 — 확신 0.4, 자리는 몸 높이 기준으로 떠돌고 가끔
+    크게 튄다(실제 샘플: 착지~릴리스 글러브 손목이 확신 0.35~0.45 로 한 장면에 몸 높이의 30~50% 튐)."""
     n = len(J)
     # 던지는 손 = 손목이 가장 빠른 쪽, 홈 방향 = 그 반대쪽(앞발) 발목이 처음 → 끝 옮긴 수평 방향
     sp = {s: np.max(np.linalg.norm(np.diff(J[:, IX[s + "Wr"]], axis=0), axis=-1)) for s in "lr"}
@@ -182,6 +184,7 @@ def tracks_from_joints(J: np.ndarray, rate: float, out_dir: str, source: str, no
     if hide:
         hj, h0, h1 = hide[0], int(hide[1]), int(hide[2])
         hide_rule = ([IX[x] for x in hj.split("+")], h0, h1)
+    junk_rule = ([IX[x] for x in junk[0].split("+")], int(junk[1]), int(junk[2])) if junk else None
     tracks = {}
     for view, cam in cams.items():
         center = -cam["R"].T @ cam["t"]
@@ -189,9 +192,12 @@ def tracks_from_joints(J: np.ndarray, rate: float, out_dir: str, source: str, no
         hp = np.median(np.max(uv[:, :17, 1], 1) - np.min(uv[:, :17, 1], 1))
         height_px[view] = float(hp)
         sig = noise * hp
+        drift = rng.normal(0, 0.15 * hp, 2)  # 지어낸 점의 처음 어긋남
         frames = []
         offset = 0.0 if view == "side" else 0.137
         for k in range(n):
+            if junk_rule and view == "back" and junk_rule[1] <= k <= junk_rule[2]:
+                drift = drift + rng.normal(0, 0.03 * hp, 2) + (rng.normal(0, 0.3 * hp, 2) if rng.random() < 0.15 else 0)
             p = []
             for j in range(25):
                 u, v = uv[k, j] + rng.normal(0, sig, 2)
@@ -199,6 +205,9 @@ def tracks_from_joints(J: np.ndarray, rate: float, out_dir: str, source: str, no
                 if occlude and occluded(center, J[k], j):
                     vis = 0.45
                     u, v = uv[k, j] + rng.normal(0, sig * 5, 2)
+                if junk_rule and view == "back" and j in junk_rule[0] and junk_rule[1] <= k <= junk_rule[2]:
+                    vis = 0.4
+                    u, v = uv[k, j] + drift + rng.normal(0, sig * 3, 2)
                 if hide_rule and j in hide_rule[0] and hide_rule[1] <= k <= hide_rule[2]:
                     vis = 0.0
                 p.append([round(float(u), 2), round(float(v), 2), vis])
@@ -207,7 +216,7 @@ def tracks_from_joints(J: np.ndarray, rate: float, out_dir: str, source: str, no
     os.makedirs(out_dir, exist_ok=True)
     meta = {"hand": hand, "rate": rate, "frames": n,
             "height_m": float(height_m if height_m else np.percentile(J[:, IX["nose"], 2], 90) + 0.12),
-            "height_px": height_px, "source": source, "noise": noise, "occlude": occlude, "hide": hide}
+            "height_px": height_px, "source": source, "noise": noise, "occlude": occlude, "hide": hide, "junk": junk}
     with open(os.path.join(out_dir, "tracks.json"), "w", encoding="utf-8") as f:
         json.dump({"meta": meta, **tracks}, f)
     with open(os.path.join(out_dir, "truth.json"), "w", encoding="utf-8") as f:
