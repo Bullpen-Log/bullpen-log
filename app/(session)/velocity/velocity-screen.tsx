@@ -1654,7 +1654,7 @@ export function VelocityScreen({
       }
     })();
     void retryUploads((u) =>
-      uploadClip(u.pitchId, u.blob, { sec: u.sec, eventSec: u.eventSec }, undefined, u.kind).then((r) => r.ok)
+      uploadClip(u.pitchId, u.blob, { sec: u.sec, eventSec: u.eventSec }, undefined, u.kind, u.phone).then((r) => r.ok)
     );
     return () => {
       alive = false;
@@ -1733,17 +1733,20 @@ export function VelocityScreen({
           let failed = 0;
           for (let i = 0; i < targets.length; i++) {
             const { id, clip, kind } = targets[i];
+            /* 회원 클립은 폰 사진 앱에, 관리자 보정용 저장만 서버에 */
+            const phone = !calibOn;
             const r = await uploadClip(
               id,
               clip.blob,
               { sec: clip.durationSec, eventSec: clip.eventSec },
               undefined,
-              kind
+              kind,
+              phone
             );
             if (!r.ok) {
               failed++;
               /* 폰에 맡겨 두었다가 다음에 열 때 다시 올린다 */
-              await queueUpload({ pitchId: id, blob: clip.blob, sec: clip.durationSec, eventSec: clip.eventSec, kind });
+              await queueUpload({ pitchId: id, blob: clip.blob, sec: clip.durationSec, eventSec: clip.eventSec, kind, phone });
             }
             setUploading({ done: i + 1, total: targets.length });
           }

@@ -1,5 +1,6 @@
 'use client';
 
+import { isPhoneVideoPath, loadPhoneVideo, phoneVideoElsewhereText } from '@/lib/local-video';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { zoneCellOnScreen, type CameraPos, type ZoneRect } from '@/lib/velocity-setup';
 import {
@@ -216,7 +217,40 @@ export function Tracer({
   );
 }
 
-export function ClipPlayer({
+/**
+ * 폰 사진 앱에 둔 회원 클립(`{userId}/local-…`, lib/local-video.ts)은 이 폰에서 꺼내 blob 주소로 튼다. 다른 기기 · 웹 · 지운
+ * 클립이면 '찍은 폰에 있어요'. 서버 주소는 그대로.
+ */
+export function ClipPlayer(props: ClipPlayerProps) {
+  const phone = isPhoneVideoPath(props.src);
+  const [local, setLocal] = useState<{ path: string; url: string | null } | null>(null);
+  useEffect(() => {
+    if (!phone) return;
+    let alive = true;
+    const path = props.src;
+    loadPhoneVideo(path)
+      .then((url) => alive && setLocal({ path, url }))
+      .catch(() => alive && setLocal({ path, url: null }));
+    return () => {
+      alive = false;
+    };
+  }, [phone, props.src]);
+  if (!phone) return <ClipPlayerInner {...props} />;
+  const got = local?.path === props.src ? local : null;
+  if (got?.url) return <ClipPlayerInner {...props} src={got.url} />;
+  return (
+    <div
+      className={`mx-auto flex aspect-[9/16] w-full items-center justify-center rounded-2xl bg-black px-6 text-center text-xs text-white/70 ${props.className ?? ''}`}
+      style={{ maxHeight: props.maxHeight ?? '60dvh' }}
+    >
+      {got ? phoneVideoElsewhereText() : '영상을 불러오는 중…'}
+    </div>
+  );
+}
+
+type ClipPlayerProps = Parameters<typeof ClipPlayerInner>[0];
+
+function ClipPlayerInner({
   src,
   eventSec,
   zoneRect,

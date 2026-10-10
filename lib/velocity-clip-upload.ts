@@ -2,6 +2,7 @@
 
 import { unstable_rethrow } from 'next/navigation';
 import { attachClip, createClipUpload } from '@/app/actions/velocity';
+import { localVideoAvailable, saveBlobToPhone } from '@/lib/local-video';
 
 /* 서버 액션이 신호 끊김으로 던지면 — 부르는 쪽(저장 · 전환)이 오류 화면으로 넘어가지 않게 실패로 돌려준다 */
 const OFFLINE = { ok: false, error: '신호가 약해 클립을 올리지 못했어요.' } as const;
@@ -17,9 +18,33 @@ export async function uploadClip(
   info: { sec: number | null; eventSec: number | null },
   onProgress?: (percent: number) => void,
   /** 'wide' 면 같은 공의 광각 카메라 영상 칸에 적는다 */
-  kind: 'main' | 'wide' = 'main'
+  kind: 'main' | 'wide' = 'main',
+  /**
+   * 회원 클립 — 서버가 아니라 폰 사진 앱 '불펜로그' 앨범에(lib/local-video.ts, 2026-10-10 사용자: 회원 클립은 폰, 숫자 계산용 분석
+   * 정보만 서버). 부품이 없는 옛 앱 · 웹은 예전처럼 서버. 관리자의 보정용 저장은 늘 서버(false).
+   */
+  toPhone = false
 ): Promise<{ ok: true; path: string } | { ok: false; error: string }> {
   const mime = blob.type || 'video/webm';
+  if (toPhone && localVideoAvailable()) {
+    let localId: string;
+    try {
+      localId = await saveBlobToPhone(blob, (p) => onProgress?.(Math.round(p * 100)));
+    } catch (e) {
+      return { ok: false, error: e instanceof Error ? e.message : '사진 앱에 저장하지 못했어요.' };
+    }
+    try {
+      const attached = await attachClip(
+        pitchId,
+        { path: '', localId, bytes: blob.size, sec: info.sec, mime, eventSec: info.eventSec },
+        kind
+      );
+      return attached;
+    } catch (err) {
+      unstable_rethrow(err);
+      return OFFLINE;
+    }
+  }
   let target: Awaited<ReturnType<typeof createClipUpload>>;
   try {
     target = await createClipUpload(pitchId, mime, blob.size);

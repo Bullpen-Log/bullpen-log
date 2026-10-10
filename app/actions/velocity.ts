@@ -1,5 +1,6 @@
 'use server';
 
+import { phoneVideoPath } from '@/lib/phone-video-path';
 import { Prisma } from '@prisma/client';
 import { revalidatePath } from 'next/cache';
 import { prisma } from '@/lib/prisma';
@@ -488,17 +489,22 @@ export async function attachClip(
   pitchId: string,
   info: {
     path: string;
+    /** 폰 사진 앱에 둔 클립의 영상 번호(lib/local-video.ts) — 주면 path 대신 `{userId}/local-…` 를 적는다 */
+    localId?: string;
     bytes: number;
     sec: number | null;
     mime: string;
     eventSec: number | null;
   },
   kind: 'main' | 'wide' = 'main'
-): Promise<VelocityActionResult> {
+): Promise<{ ok: true; path: string } | { ok: false; error: string }> {
   const user = await getCurrentUser();
   if (!user) return { ok: false, error: '로그인이 필요합니다.' };
-  const path = String(info.path ?? '');
-  if (!isOwnedBy(path, user.id))
+  const path =
+    typeof info.localId === 'string'
+      ? (phoneVideoPath(user.id, info.localId) ?? '')
+      : String(info.path ?? '');
+  if (!path || !isOwnedBy(path, user.id))
     return { ok: false, error: '클립 경로가 올바르지 않습니다.' };
   const row = await prisma.velocityPitch.findFirst({
     where: { id: pitchId, userId: user.id },
@@ -538,5 +544,5 @@ export async function attachClip(
     await deleteVideos([old]).catch(() => undefined);
   }
   revalidateDay(row.session.date.toISOString().slice(0, 10));
-  return { ok: true };
+  return { ok: true, path };
 }

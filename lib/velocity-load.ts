@@ -1,6 +1,7 @@
 import 'server-only';
 import { prisma } from '@/lib/prisma';
 import { createPlaybackUrls } from '@/lib/storage';
+import { isPhoneVideoPath } from '@/lib/phone-video-path';
 import { isRect } from '@/lib/velocity-setup';
 import { distanceMismatch, replayOf } from '@/lib/velocity-analysis';
 import type {
@@ -49,7 +50,8 @@ export async function loadVelocityDay(
     eventSec: number | null,
     sec: number | null
   ): PitchClipView | null => {
-    const url = path ? urls[path] : undefined;
+    /* 폰 사진 앱에 둔 클립은 경로 그대로 — 재생기(ClipPlayer)가 이 폰에서 꺼낸다 */
+    const url = path ? (isPhoneVideoPath(path) ? path : urls[path]) : undefined;
     return url ? { url, eventSec, sec } : null;
   };
   return rows.map((s) => ({
@@ -124,7 +126,7 @@ export async function loadVelocityClipsDay(userId: string, at: Date): Promise<Da
     return {} as Record<string, string>;
   });
   return rows.flatMap((r) => {
-    const url = urls[r.clipPath!];
+    const url = isPhoneVideoPath(r.clipPath) ? r.clipPath : urls[r.clipPath!];
     if (!url) return [];
     return [
       {

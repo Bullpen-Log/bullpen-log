@@ -25,6 +25,8 @@ export type PendingUpload = {
   sec: number | null;
   eventSec: number | null;
   kind: 'main' | 'wide';
+  /** 폰 사진 앱에 둘 클립(회원) — 없으면 서버(옛 대기열 · 보정용) */
+  phone?: boolean;
 };
 
 let opening: Promise<IDBDatabase | null> | null = null;

@@ -48,7 +48,7 @@ export function VelocityHome({
     });
     /* 저장한 뒤 올리지 못한 영상을 다시 올린다 */
     void retryUploads((u) =>
-      uploadClip(u.pitchId, u.blob, { sec: u.sec, eventSec: u.eventSec }, undefined, u.kind).then((r) => r.ok)
+      uploadClip(u.pitchId, u.blob, { sec: u.sec, eventSec: u.eventSec }, undefined, u.kind, u.phone).then((r) => r.ok)
     );
     return () => {
       alive = false;
