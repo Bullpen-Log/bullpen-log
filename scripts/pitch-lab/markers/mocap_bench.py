@@ -152,10 +152,16 @@ def make_tracks(c3d_path: str, out_dir: str, noise: float = 0.004, occlude: bool
 
 
 def tracks_from_joints(J: np.ndarray, rate: float, out_dir: str, source: str, noise: float = 0.004, occlude: bool = False,
-                       hide: list[str] | None = None, seed: int = 3, height_m: float | None = None, junk: list[str] | None = None):
+                       hide: list[str] | None = None, seed: int = 3, height_m: float | None = None, junk: list[str] | None = None,
+                       mistakes: str = ""):
     """진짜 25관절(장면, 25, 3) m · 위 = +z → 가상 카메라 둘의 엔진 입력(tracks.json) · 정답(truth.json). 다른 자료(드라이브라인 등)도 이 길로.
     junk = [관절+관절, 시작, 끝]: 뒤 영상에서 그 관절을 '가려져 2D 모델이 지어낸 점'으로 — 확신 0.4, 자리는 몸 높이 기준으로 떠돌고 가끔
-    크게 튄다(실제 샘플: 착지~릴리스 글러브 손목이 확신 0.35~0.45 로 한 장면에 몸 높이의 30~50% 튐)."""
+    크게 튄다(실제 샘플: 착지~릴리스 글러브 손목이 확신 0.35~0.45 로 한 장면에 몸 높이의 30~50% 튐).
+    mistakes = 'leg,hip,ear' 중 고른 것 — 실제 영상의 2D 모델 버릇을 흉내(정답은 그대로):
+      leg  다른 다리에 가려진 무릎 · 발목 · 발은 보이는 다리 위에 겹쳐 찍힘(확신 0.7)
+      hip  엉덩이 점이 관절 중심이 아니라 보이는 살 쪽 — 카메라 쪽을 본 엉덩이는 바깥으로 7cm, 반대쪽은 안으로(확신 0.6)
+      ear  카메라 반대쪽 귀는 보이는 귀 곁에 지어냄(확신 0.75)"""
+    mk = set(filter(None, mistakes.split(",")))
     n = len(J)
     # 던지는 손 = 손목이 가장 빠른 쪽, 홈 방향 = 그 반대쪽(앞발) 발목이 처음 → 끝 옮긴 수평 방향
     sp = {s: np.max(np.linalg.norm(np.diff(J[:, IX[s + "Wr"]], axis=0), axis=-1)) for s in "lr"}
@@ -205,6 +211,30 @@ def tracks_from_joints(J: np.ndarray, rate: float, out_dir: str, source: str, no
                 if occlude and occluded(center, J[k], j):
                     vis = 0.45
                     u, v = uv[k, j] + rng.normal(0, sig * 5, 2)
+                nm = NAMES[j]
+                if "leg" in mk and nm[1:] in ("Kn", "An", "He", "To") and occluded(center, J[k], j):
+                    other = IX[("r" if nm[0] == "l" else "l") + nm[1:]]
+                    vis = 0.7
+                    u, v = uv[k, other] + rng.normal(0, sig * 2, 2)
+                if "hip" in mk and nm in ("lHip", "rHip"):
+                    mid = (J[k, IX["lHip"]] + J[k, IX["rHip"]]) / 2
+                    out = J[k, j] - mid
+                    out[2] = 0
+                    out = out / max(np.linalg.norm(out), 1e-9)
+                    to_cam = center - J[k, j]
+                    to_cam[2] = 0
+                    s = float(out @ (to_cam / max(np.linalg.norm(to_cam), 1e-9)))
+                    X = J[k, j] + 0.07 * s * out
+                    uvx, _ = project(cam, X[None])
+                    u, v = uvx[0] + rng.normal(0, sig, 2)
+                    vis = 0.6 if s < 0 else 0.9
+                if "ear" in mk and nm in ("lEar", "rEar"):
+                    other = IX["rEar" if nm == "lEar" else "lEar"]
+                    out = J[k, j] - J[k, other]
+                    to_cam = center - J[k, j]
+                    if out @ to_cam < -0.2 * np.linalg.norm(out) * np.linalg.norm(to_cam):
+                        vis = 0.75
+                        u, v = uv[k, other] + rng.normal(0, 0.02 * hp, 2)
                 if junk_rule and view == "back" and j in junk_rule[0] and junk_rule[1] <= k <= junk_rule[2]:
                     vis = 0.4
                     u, v = uv[k, j] + drift + rng.normal(0, sig * 3, 2)
@@ -216,7 +246,7 @@ def tracks_from_joints(J: np.ndarray, rate: float, out_dir: str, source: str, no
     os.makedirs(out_dir, exist_ok=True)
     meta = {"hand": hand, "rate": rate, "frames": n,
             "height_m": float(height_m if height_m else np.percentile(J[:, IX["nose"], 2], 90) + 0.12),
-            "height_px": height_px, "source": source, "noise": noise, "occlude": occlude, "hide": hide, "junk": junk}
+            "height_px": height_px, "source": source, "noise": noise, "occlude": occlude, "hide": hide, "junk": junk, "mistakes": mistakes}
     with open(os.path.join(out_dir, "tracks.json"), "w", encoding="utf-8") as f:
         json.dump({"meta": meta, **tracks}, f)
     with open(os.path.join(out_dir, "truth.json"), "w", encoding="utf-8") as f:

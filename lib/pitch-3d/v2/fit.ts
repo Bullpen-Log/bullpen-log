@@ -45,6 +45,7 @@ import {
   type V2Input,
   type V2Obs,
 } from '@/lib/pitch-3d/v2/contract';
+import { dropLegOverlaps } from '@/lib/pitch-3d/v2/clean2d';
 import { phaseOf, templateFill } from '@/lib/pitch-3d/v2/motion-template';
 import { byTime, medianStepOf, obsAt, toPoseTrack } from '@/lib/pitch-3d/v2/track';
 
@@ -71,6 +72,8 @@ const SURE = 0.7;
 const ARM_TRI_MIN = 0.5;
 /** 흐린 영상과 교차한 팔 관절이 부모에서 뼈 길이의 이만큼 안이면 믿는다 */
 const ARM_LEN_TOL = 0.25;
+/** 한 영상에서 두 다리 점이 사람 크기의 이만큼 안이면 겹침 */
+const LEG_OVERLAP = 0.035;
 /** 한 영상 시선 위에 둔 관절로 당기는 무게(v1 R4 와 같은 값) */
 const ONE_VIEW_W = 0.3;
 /** 장면 확신(0~100)이 이 밑이면 엷은 구간 */
@@ -418,10 +421,14 @@ export function fitPitch3dV2(input: V2Input): {
   return other.result.ok && !other.result.quality.flips.handSwapped ? other : first;
 }
 
-function fitOnce(input: V2Input): {
+function fitOnce(raw: V2Input): {
   result: Pitch3dV2Result;
   debug?: FitDebug;
 } {
+  /* 2D 모델 버릇 걷기(clean2d.ts) — 한 영상 안에서 겹쳐 찍힌 다리 */
+  const cleanSide = dropLegOverlaps(raw.side);
+  const cleanBack = dropLegOverlaps(raw.back);
+  const input: V2Input = { ...raw, side: cleanSide.track, back: cleanBack.track };
   const jobId = input.jobId;
   const core = analyzePitch3dCore({
     side: toPoseTrack(input.side),
@@ -599,6 +606,50 @@ function fitOnce(input: V2Input): {
       triRef[k][j] = obs3[k][j];
       obs3[k][j] = null;
       weight[k][j] = 0;
+    }
+  }
+
+  /*
+   * ── 다리 겹침(한 영상) ── 다른 다리에 가려진 무릎 · 발목 · 발을 2D 모델은 보이는 다리 위에 겹쳐 찍는다(확신 0.7 쯤). 한 영상에서 두 다리 점이
+   * 사람 크기의 LEG_OVERLAP 안이고 다른 영상에선 떨어져 있으면, 이름마다 두 영상을 교차해 다시 비춘 어긋남이 큰 쪽이 가려진 다리다 — 그 영상의
+   * 점을 버리고 다른 영상의 시선 위에 둔다(다른 영상도 흐리면 빈 관절). 한 영상 안에서 앞뒤 장면으로 가르면 섞인 점의 31%만 잡고 멀쩡한 점을
+   * 그만큼 버렸다(드라이브라인 30구 시험). 그대로 두면 가려진 다리가 보이는 다리 쪽으로 끌려 다리가 장면마다 30cm 넘게 튀었다.
+   */
+  let legOverlaps = 0;
+  {
+    const ps = core.side.person;
+    const pb = core.back.person;
+    for (let k = 0; k < n; k++) {
+      for (const [a, b] of LEG_PAIRS) {
+        for (const view of ['side', 'back'] as const) {
+          const A = view === 'side' ? sideObs[k] : backObs[k];
+          const B = view === 'side' ? backObs[k] : sideObs[k];
+          const [pA, pB] = view === 'side' ? [ps, pb] : [pb, ps];
+          if (A[a].v < SEEN || A[b].v < SEEN || d2(A[a], A[b]) >= LEG_OVERLAP * pA) continue;
+          if (B[a].v < SEEN || B[b].v < SEEN || d2(B[a], B[b]) < LEG_OVERLAP * pB) continue;
+          const camA = view === 'side' ? cal.side : cal.back;
+          const camB = view === 'side' ? cal.back : cal.side;
+          const err = (j: number) => {
+            const X = triangulate(camA, A[j], camB, B[j]);
+            const qa = X && project(camA, X);
+            const qb = X && project(camB, X);
+            return qa && qb
+              ? Math.hypot(qa[0] - A[j].x, qa[1] - A[j].y) / pA + Math.hypot(qb[0] - B[j].x, qb[1] - B[j].y) / pB
+              : Infinity;
+          };
+          const ea = err(a);
+          const eb = err(b);
+          const hid = ea > eb ? a : b;
+          if (Math.max(ea, eb) < 1.5 * Math.min(ea, eb) + 0.01) continue;
+          A[hid] = { ...A[hid], v: 0 };
+          triRef[k][hid] = null;
+          obs3[k][hid] = null;
+          weight[k][hid] = 0;
+          rayOf[k][hid] =
+            B[hid].v >= SURE && boneLenByChild.has(hid) ? ray(camB, B[hid].x, B[hid].y) : null;
+          legOverlaps++;
+        }
+      }
     }
   }
 
@@ -1261,6 +1312,7 @@ function fitOnce(input: V2Input): {
       accelP95,
       boneLen,
       legsSwapped,
+      legOverlaps: legOverlaps + cleanSide.dropped + cleanBack.dropped,
       contacts: contacts.flatMap((c) => {
         const from = keep.findIndex((k) => k >= c.from);
         const to = keep.findLastIndex((k) => k <= c.to);
