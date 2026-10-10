@@ -441,6 +441,25 @@ type Limb = {
 };
 
 /** 두 마디(어깨 → 팔꿈치 → 손목, 엉덩이 → 무릎 → 발목)를 방향 · 비틀림 · 굽힘으로 */
+/** 앞뒤 half 장면의 가운데값 — 몇 장면만 튄 값을 걷는다(양 끝은 있는 만큼) */
+function medianFilter(xs: number[], half: number): number[] {
+  return xs.map((_, k) => {
+    const w = xs.slice(Math.max(0, k - half), Math.min(xs.length, k + half + 1)).sort((a, b) => a - b);
+    return w[w.length >> 1];
+  });
+}
+
+/**
+ * 글러브 손의 손목 굽힘 · 손바닥 돌림 한 장면 상한 배율 — 글러브 손은 던지는 손보다 훨씬 느린데 같은 상한(12 · 8°)을 한 장면에 다 써 손이
+ * 7~25° 튀어 보였다(2026-10-10 샘플 다섯). 던지는 손은 릴리스 앞뒤로 진짜 빨라 그대로.
+ */
+const GLOVE_HAND_RATE = 0.5;
+
+/** 이만큼 굽어야 팔꿈치 · 무릎이 굽는 면(비틀림)이 보인다 */
+const TWIST_SEEN_DEG = 12;
+/** 편 장면을 앞뒤로 이은 비틀림의 무게 */
+const TWIST_FILLED_W = 0.3;
+
 function limbAngles(
   frames: Vec3[][],
   bodyM: Mat3[],
@@ -452,6 +471,7 @@ function limbAngles(
   hyperDeg: number
 ): Limb {
   const out: Limb = { dir: [], twist: [], twistW: [], flex: [], flexW: [] };
+  const seen: boolean[] = [];
   let prevTwist: number | null = null;
   frames.forEach((fr, k) => {
     const M = bodyM[k];
@@ -496,8 +516,35 @@ function limbAngles(
     out.flex.push(flex);
     out.flexW.push(cAll + 0.01);
     prevTwist = twist;
+    seen.push(th >= rad(TWIST_SEEN_DEG));
   });
-  out.twist = unwrap(out.twist);
+  /*
+   * 거의 편 장면(굽힘 TWIST_SEEN_DEG 밑)의 비틀림은 버리고 앞뒤 보이는 장면에서 곧게 잇는다(양 끝은 가장 가까운 값). 편 마디에서 위 × 아래 마디의
+   * 외적은 잡음뿐인데 무게 0.01 로 남겨 두니, 오래 편 구간 가운데서 잡음이 다듬기를 이겨 팔 · 다리가 제 축으로 한 장면에 14~21° 홱 돌았다
+   * (2026-10-10 샘플 셋 글러브 팔 · 던지는 팔, 팔꿈치 굽힘 1~9°). 보이는 장면끼리만 이어 붙여(unwrap) 반 바퀴씩 쌓이지도 않는다.
+   */
+  const idx = seen.flatMap((v, k) => (v ? [k] : []));
+  if (idx.length === 0) out.twist = out.twist.map(() => 0);
+  else {
+    const u = unwrap(idx.map((k) => out.twist[k]));
+    const tw = new Array<number>(out.twist.length);
+    idx.forEach((k, i) => (tw[k] = u[i]));
+    let j = 0;
+    for (let k = 0; k < tw.length; k++) {
+      if (seen[k]) continue;
+      while (j < idx.length && idx[j] < k) j++;
+      const a = idx[j - 1];
+      const b = idx[j];
+      tw[k] =
+        a == null ? tw[b] : b == null ? tw[a] : tw[a] + ((tw[b] - tw[a]) * (k - a)) / (b - a);
+    }
+    out.twist = tw;
+    /*
+     * 이어 붙인 장면은 앞뒤 보이는 값 사이의 곧은 선이라 믿을 만하다 — 무게를 0.01 로 두면 다듬기가 장면마다 폭을 크게 넓혔다 좁혔다 하며 오히려
+     * 한 장면에 20° 씩 튀게 만들었다(같은 날 샘플 셋 글러브 팔: 이은 값 −50 → −92° 는 매끈한데 다듬은 값 −21 → −41 → −51 → −32 → −58).
+     */
+    out.twistW = out.twistW.map((w, k) => (seen[k] ? w : Math.max(w, TWIST_FILLED_W)));
+  }
   return out;
 }
 
@@ -887,12 +934,16 @@ export function kinematicTrack(
         })
       );
     });
-    const pronU = unwrap(pron);
+    /*
+     * 엎침은 먼저 앞뒤 11장면 가운데값으로 — 손 점(검지 · 새끼)이 몇 장면 뒤바뀌면 손바닥 방향이 150~300° 튀는데(2026-10-10 샘플 김정엽 글러브 손
+     * 114 → 267 → 301 · 125 → −23 → 199), 그대로 다듬으면 다듬은 값이 장면마다 한계(8°)만큼 지그재그로 흔들려 손이 떨렸다.
+     */
+    const pronU = medianFilter(unwrap(pron), 5);
     const wPron = outlierW(pronU, wHand);
     const pronMid = weightedMedian(pronU, wPron);
     const pronS = rateLimit(
       smooth1(pronU, wPron, 0.8, 3, true),
-      rad(KIN_LIMITS.pronationRatePerFrame)
+      rad(KIN_LIMITS.pronationRatePerFrame * (throwing ? 1 : GLOVE_HAND_RATE))
     ).map((p) =>
       clamp(p, pronMid - rad(KIN_LIMITS.pronation), pronMid + rad(KIN_LIMITS.pronation))
     );
@@ -918,7 +969,7 @@ export function kinematicTrack(
         0.8,
         3
       ).map((v) => clamp(v, -rad(KIN_LIMITS.wristFlex), rad(KIN_LIMITS.wristFlex))),
-      rad(KIN_LIMITS.wristRatePerFrame)
+      rad(KIN_LIMITS.wristRatePerFrame * (throwing ? 1 : GLOVE_HAND_RATE))
     );
     const wdS = rateLimit(
       smooth1(
@@ -927,7 +978,7 @@ export function kinematicTrack(
         0.8,
         3
       ).map((v) => clamp(v, -rad(KIN_LIMITS.wristDev), rad(KIN_LIMITS.wristDev))),
-      rad(KIN_LIMITS.wristRatePerFrame)
+      rad(KIN_LIMITS.wristRatePerFrame * (throwing ? 1 : GLOVE_HAND_RATE))
     );
     const handShape = [0, 1, 2].map((i) => {
       const good = handLocal.filter((_, k) => wHandOnly[k] > 0.5).map((h) => h[i]);
@@ -1101,26 +1152,46 @@ export function kinematicTrack(
    * 땅에 닿은 발 — 엔진이 묶은 자리(원래 점) 그대로, 무릎은 두 마디 길이로 다시 접는다. 앞뒤 장면은 섞는다 — 다듬은 발과 묶은 자리가 멀수록
    * 길게(한 장면에 키의 0.8% 까지만 끌려가게, 2~10장면). 늘 2장면이면 착지 순간 발을 한 번에 11cm 끌어 앞다리가 한 장면에 18° 꺾였다(좌투 샘플).
    */
-  const easeFor = (k: number, An: number) =>
-    k < 0 || k >= n
-      ? 2
-      : clamp(Math.ceil(norm(sub(frames[k][An], out[k][An])) / 0.008), 2, 10);
+  /*
+   * 섞는 길이 — 묶인 자리에서 묶음 밖 다듬은 발까지 앞(dir −1) · 뒤(+1) 12장면 안에서 가장 먼 거리를, 한 장면에 키의 0.6% 씩 따라잡게(4~12장면).
+   * 경계 장면 하나의 거리로 정하면 엔진이 풀리는 장면에 발을 한꺼번에 옮길 때 2~3장면 만에 따라잡느라 오히려 23mm 튀었다(2026-10-10 샘플 5 뒷발).
+   */
+  const easeFor = (edge: number, dir: -1 | 1, An: number) => {
+    if (edge < 0 || edge >= n) return 4;
+    let far = 0;
+    for (let q = 1; q <= 12; q++) {
+      const k = edge + dir * q;
+      if (k < 0 || k >= n) break;
+      far = Math.max(far, norm(sub(frames[edge][An], out[k][An])) / q);
+    }
+    return clamp(Math.ceil((far * 4) / 0.006), 4, 12);
+  };
+  /* 묶음 쪽 무게(1 = 묶인 자리) — 곧은 선 대신 smoothstep(처음 · 끝 빠르기 0) */
+  const easeW = (q: number, len: number) => {
+    const t = clamp(q / (len + 1), 0, 1);
+    return 1 - t * t * (3 - 2 * t);
+  };
   for (const c of contacts) {
     const [Hp, Kn, An, He, To] =
       c.side === 'L'
         ? [V2J.lHip, V2J.lKn, V2J.lAn, V2J.lHe, V2J.lTo]
         : [V2J.rHip, V2J.rKn, V2J.rAn, V2J.rHe, V2J.rTo];
-    const easeIn = easeFor(c.from, An);
-    const easeOut = easeFor(c.to, An);
+    const easeIn = easeFor(c.from, -1, An);
+    const easeOut = easeFor(c.to, 1, An);
     for (let k = c.from - easeIn; k <= c.to + easeOut; k++) {
       if (k < 0 || k >= n) continue;
       const w =
         k >= c.from && k <= c.to
           ? 1
           : k < c.from
-            ? 1 - (c.from - k) / (easeIn + 1)
-            : 1 - (k - c.to) / (easeOut + 1);
-      const target = add(scale(out[k][An], 1 - w), scale(frames[k][An], w));
+            ? easeW(c.from - k, easeIn)
+            : easeW(k - c.to, easeOut);
+      /*
+       * 묶음 밖(앞뒤로 섞는 장면)은 그 장면의 원본이 아니라 묶인 자리(경계 장면의 원본)와 섞는다 — 엔진은 묶음이 풀리는 장면에 발을 15~25mm
+       * 한꺼번에 옮겨, 그 원본과 섞으면 무릎 · 발목이 한 장면에 튀었다(2026-10-10 샘플 다섯 중 무릎 · 발목 자리 튐 대부분이 묶음 경계).
+       */
+      const at = k < c.from ? c.from : k > c.to ? c.to : k;
+      const target = add(scale(out[k][An], 1 - w), scale(frames[at][An], w));
       const shift = sub(target, out[k][An]);
       out[k][Kn] = twoBoneIk(
         out[k][Hp],
@@ -1130,8 +1201,8 @@ export function kinematicTrack(
         kneePole(out[k][Hp], out[k][Kn], refs[k][c.side === 'L' ? 'thighL' : 'thighR'])
       );
       out[k][An] = target;
-      out[k][He] = add(scale(add(out[k][He], shift), 1 - w), scale(frames[k][He], w));
-      out[k][To] = add(scale(add(out[k][To], shift), 1 - w), scale(frames[k][To], w));
+      out[k][He] = add(scale(add(out[k][He], shift), 1 - w), scale(frames[at][He], w));
+      out[k][To] = add(scale(add(out[k][To], shift), 1 - w), scale(frames[at][To], w));
       const s = unit(sub(out[k][An], out[k][Kn]), [0, -1, 0]);
       const t = unit(sub(out[k][Kn], out[k][Hp]), s);
       const nb = cross(t, s);
@@ -1144,5 +1215,34 @@ export function kinematicTrack(
       }
     }
   }
+  /*
+   * 발 방향 — 땅에 묶인 구간의 시작 · 끝 앞뒤 FOOT_EASE 장면은 발끝 · 뒤꿈치 방향(발목 기준)을 고정 폭 가우스로 다듬는다. 엔진은 묶인 동안 발을
+   * 그 자리에 두고 풀리는 순간 실제 방향으로 한꺼번에 움직여, 발 조각이 한 장면에 14~21° 돌았다(2026-10-10 샘플 다섯 중 발 튐 5곳 모두 묶음 경계).
+   * 발목 자리는 그대로라 땅에 묶인 발은 미끄러지지 않는다.
+   */
+  for (const c of contacts) {
+    const [An, He, To] =
+      c.side === 'L' ? [V2J.lAn, V2J.lHe, V2J.lTo] : [V2J.rAn, V2J.rHe, V2J.rTo];
+    for (const edge of [c.from, c.to]) {
+      const lo = Math.max(0, edge - FOOT_EASE);
+      const hi = Math.min(n - 1, edge + FOOT_EASE);
+      for (const J of [To, He]) {
+        const dirs = out.map((fr) => unit(sub(fr[J], fr[An]), [1, 0, 0]));
+        const lens = out.map((fr) => norm(sub(fr[J], fr[An])));
+        for (let k = lo; k <= hi; k++) {
+          const acc: Vec3 = [0, 0, 0];
+          for (let q = Math.max(0, k - 6); q <= Math.min(n - 1, k + 6); q++) {
+            const g = Math.exp(-((q - k) ** 2) / (2 * FOOT_SIGMA * FOOT_SIGMA));
+            for (let d = 0; d < 3; d++) acc[d] += g * dirs[q][d];
+          }
+          out[k][J] = add(out[k][An], scale(unit(acc, dirs[k]), lens[k]));
+        }
+      }
+    }
+  }
   return { frames: out, refs };
 }
+
+/** 땅에 묶인 구간 경계 앞뒤로 발 방향을 다듬는 장면 수 · 가우스 폭(장면) */
+const FOOT_EASE = 6;
+const FOOT_SIGMA = 2;

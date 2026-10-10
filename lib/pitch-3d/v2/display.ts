@@ -211,6 +211,68 @@ export function readContacts(r: Pitch3dV2Ok): V2Contact[] {
   ];
 }
 
+/** 던지는 팔 관절(릴리스 앞뒤 DESPIKE_KEEP 장면은 걸지 않는다 — 진짜로 빠르다) */
+const THROW_ARM = {
+  R: [V2J.rSh, V2J.rEl, V2J.rWr, V2J.rHandIdx, V2J.rHandMid, V2J.rHandPinky],
+  L: [V2J.lSh, V2J.lEl, V2J.lWr, V2J.lHandIdx, V2J.lHandMid, V2J.lHandPinky],
+} as const;
+const DESPIKE_KEEP = 10;
+const HAND_OF: Record<number, number[]> = {
+  [V2J.lWr]: [V2J.lHandIdx, V2J.lHandMid, V2J.lHandPinky],
+  [V2J.rWr]: [V2J.rHandIdx, V2J.rHandMid, V2J.rHandPinky],
+};
+
+/**
+ * 마지막 걸름 — 관절마다 장면 사이 굽음(두 이웃 가운데에서 벗어난 거리)이 앞뒤 3~6장면 굽음의 아래쪽 값보다 4배 넘게, 키의 1% 넘게 튀면 두 이웃 가운데로
+ * 되돌린다(세 번까지 — 지그재그도). 관절 각도 모델을 지나고도 한 장면만 튀는 관절(손 확신이 0 으로 떨어지는 장면의 글러브 손목 · 엔진이 한 장면
+ * 79mm 옮긴 팔꿈치)이 남았다(2026-10-10 샘플 다섯). 꾸준히 빠른 움직임은 이웃 굽음도 커서 걸리지 않는다.
+ */
+export function despike(frames: Vec3[][], hand: 'R' | 'L', release: number): Vec3[][] {
+  const n = frames.length;
+  const out = frames.map((fr) => fr.map((p) => [...p] as Vec3));
+  if (n < 5) return out;
+  const keep = new Set<number>(THROW_ARM[hand]);
+  const bend = (j: number, k: number) => {
+    const m = [0, 1, 2].map((i) => (out[k - 1][j][i] + out[k + 1][j][i]) / 2);
+    return Math.hypot(...[0, 1, 2].map((i) => out[k][j][i] - m[i]));
+  };
+  /* 손목을 손 점보다 먼저(손목을 옮기며 손 점도 옮긴 뒤 손 점 각자의 튐을 본다) */
+  const order = [V2J.lWr, V2J.rWr, ...Array.from({ length: 25 }, (_, j) => j).filter((j) => j !== V2J.lWr && j !== V2J.rWr)];
+  for (const j of order) {
+    for (let pass = 0; pass < 3; pass++) {
+      const b = Array.from({ length: n }, (_, k) => (k > 0 && k < n - 1 ? bend(j, k) : 0));
+      /* 크게 튄 장면부터 — 튄 장면 바로 옆은 '반쯤 튄' 것으로 읽혀 먼저 고치면 튄 장면이 덜 돌아온다. 고친 장면의 이웃은 다음 차례에 다시 잰다 */
+      const hits: number[] = [];
+      for (let k = 1; k < n - 1; k++) {
+        if (keep.has(j) && Math.abs(k - release) <= DESPIKE_KEEP) continue;
+        /* 이웃 굽음 — 튐이 몇 장면 이어지면(지그재그) 가까운 이웃도 튀어 있어 앞뒤 3~6장면에서 아래쪽 값으로 */
+        const near = [k - 6, k - 5, k - 4, k - 3, k + 3, k + 4, k + 5, k + 6]
+          .filter((q) => q > 0 && q < n - 1)
+          .map((q) => b[q])
+          .sort((x, y) => x - y);
+        const loc = near.length ? near[Math.floor(near.length / 3)] : 0;
+        if (b[k] > 0.01 && b[k] > 4 * loc) hits.push(k);
+      }
+      hits.sort((x, y) => b[y] - b[x]);
+      const done = new Set<number>();
+      let changed = false;
+      for (const k of hits) {
+        if (done.has(k - 1) || done.has(k + 1)) continue;
+        const to = [0, 1, 2].map((i) => (out[k - 1][j][i] + out[k + 1][j][i]) / 2) as Vec3;
+        const d = [0, 1, 2].map((i) => to[i] - out[k][j][i]);
+        out[k][j] = to;
+        /* 손목을 옮기면 그 손 점도 같이 — 손목만 옮기면 손 조각이 새로 돌아 보였다 */
+        for (const h of HAND_OF[j] ?? [])
+          out[k][h] = [0, 1, 2].map((i) => out[k][h][i] + d[i]) as Vec3;
+        done.add(k);
+        changed = true;
+      }
+      if (!changed) break;
+    }
+  }
+  return out;
+}
+
 /**
  * 보기용 관절 — 결과 하나와 던진 곳(마운드 · 평지) · 키(m).
  */
@@ -237,7 +299,7 @@ export function displayTrack(
     result.t[Math.min(n - 1, result.events.release)] - result.t[Math.min(n - 1, result.events.footPlant)];
   const dt = dtMedia * (spanMedia > PLANT_TO_RELEASE_MAX_S ? PLANT_TO_RELEASE_MAX_S / spanMedia : 1);
   const kin = kinematicTrack(raw, conf, contacts, { dt, hand: result.hand, events: result.events });
-  const frames = kin.frames;
+  const frames = despike(kin.frames, result.hand, result.events.release);
   let refs = kin.refs;
 
   /* 2 바닥 하나 */

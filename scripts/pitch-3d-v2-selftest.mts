@@ -47,7 +47,7 @@ import {
 import { makeV2Track } from './pitch-lab/synth-v2.mts';
 import { footJump, footSway, gapWristError, hipSnap, leadGapJump } from './pitch-lab/gap-check.mts';
 import { readFileSync } from 'node:fs';
-import { blendAi, displayTrack, readAiGate, readAiJoints, readAiMiss } from '../lib/pitch-3d/v2/display.ts';
+import { blendAi, despike, displayTrack, readAiGate, readAiJoints, readAiMiss } from '../lib/pitch-3d/v2/display.ts';
 import { KIN_LIMITS, KIN_SPEED, kinematicTrack, twoBoneIk } from '../lib/pitch-3d/v2/kinematics.ts';
 import {
   moundHeightAt,
@@ -1192,6 +1192,56 @@ console.log('■ 뼈대 자세(pose-rig) — public/models/skeleton-parts.json +
           let worst = 0;
           for (let k = 1; k < 12; k++) worst = Math.max(worst, Math.abs(((yaw(F[k]) - yaw(F[k - 1]) + 540) % 360) - 180));
           check('각도 모델: 거의 편 다리가 흔들려도 발 방향이 한 장면에 10° 넘게 돌지 않는다', worst < 10, `${worst.toFixed(1)}°`);
+        }
+
+        /* 4-5 오래 편 팔(굽힘 3°)에서 비틀림 잡음이 장면마다 튀어도 위팔 굽는 축이 한 장면에 6° 넘게 돌지 않는다 — 2026-10-10 샘플 셋 14~21° */
+        {
+          const sh = mid0[V2J.lSh];
+          const wr = mid0[V2J.lWr];
+          const axis = normalize(sub(wr, sh));
+          const p1 = normalize(cross(axis, [0, 1, 0]));
+          const p2 = cross(axis, p1);
+          const seq = seqOf(30, (fr, k) => {
+            const th = (k * 2.399) % (2 * Math.PI); // 장면마다 엉뚱한 쪽으로
+            const off = add(scale(p1, Math.cos(th) * 0.004), scale(p2, Math.sin(th) * 0.004));
+            fr[V2J.lEl] = add(scale(add(sh, wr), 0.5), off);
+          });
+          const kk = kinematicTrack(seq, fullConf(30), []);
+          let worst = 0;
+          for (let k = 1; k < 30; k++) {
+            const a = kk.refs[k].upperArmL!;
+            const b = kk.refs[k - 1].upperArmL!;
+            worst = Math.max(worst, deg(Math.acos(Math.min(1, Math.abs(dot(a, b))))));
+          }
+          check('각도 모델: 오래 편 팔의 굽는 축이 한 장면에 6° 넘게 돌지 않는다', worst <= 6, `${worst.toFixed(1)}°`);
+        }
+
+        /* 4-6 땅에 묶인 발이 풀리는 장면에 엔진이 발을 3cm 옮겨도 화면 발목은 한 장면에 키의 1.2% 넘게 움직이지 않는다 — 2026-10-10 샘플 5 뒷발 23mm */
+        {
+          const seq = seqOf(30, (fr, k) => {
+            if (k > 14) for (const j of [V2J.rAn, V2J.rHe, V2J.rTo, V2J.rKn]) fr[j] = add(fr[j], [0.03 + (k - 15) * 0.004, 0.01, 0]);
+          });
+          const F = kinematicTrack(seq, fullConf(30), [{ side: 'R', from: 0, to: 14 }]).frames;
+          let worst = 0;
+          for (let k = 1; k < 30; k++) worst = Math.max(worst, norm(sub(F[k][V2J.rAn], F[k - 1][V2J.rAn])));
+          check('각도 모델: 묶인 발이 풀릴 때 발목이 한 장면에 키의 1.2% 안', worst <= 0.012, `${(worst * 100).toFixed(2)}%`);
+        }
+
+        /* 4-7 마지막 걸름 — 한 장면만 5cm 튄 글러브 손목(손 점도 같이)은 이웃 가운데로, 릴리스 앞뒤 던지는 손목은 그대로 */
+        {
+          const fr0 = mid0.map((p) => [...p] as Vec3);
+          const seq = Array.from({ length: 20 }, (_, k) => fr0.map((p) => [p[0] + k * 0.002, p[1], p[2]] as Vec3));
+          for (const j of [V2J.lWr, V2J.lHandMid]) seq[8][j] = add(seq[8][j], [0, 0.05, 0]);
+          seq[10][V2J.rWr] = add(seq[10][V2J.rWr], [0, 0.05, 0]);
+          const out = despike(seq, 'R', 10);
+          const glove = norm(sub(out[8][V2J.lWr], seq[7][V2J.lWr]));
+          const handKept = norm(sub(sub(out[8][V2J.lHandMid], out[8][V2J.lWr]), sub(seq[8][V2J.lHandMid], seq[8][V2J.lWr])));
+          const thr = norm(sub(out[10][V2J.rWr], seq[10][V2J.rWr]));
+          check(
+            '마지막 걸름: 한 장면 튄 글러브 손목은 되돌리고(손 모양 그대로), 릴리스의 던지는 손목은 그대로',
+            glove < 0.005 && handKept < 1e-9 && thr < 1e-9,
+            `글러브 ${(glove * 1000).toFixed(1)}mm · 손 ${(handKept * 1000).toFixed(2)} · 던지는 ${(thr * 1000).toFixed(1)}`
+          );
         }
 
         /* 5 거의 편 팔꿈치가 장면마다 반대로 꺾여도 굽는 축(위팔 비틀림)이 뒤집히지 않는다 · 과신전 5° 안 */
