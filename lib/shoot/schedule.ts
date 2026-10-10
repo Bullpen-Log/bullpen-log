@@ -14,6 +14,10 @@
  *           한 자리 안에서는 같은 부위를 2~3개(4점)까지만 잇고 다른 부위로 — 파워는 그 자리 맨 앞, 천천히 내리기는 맨 끝.
  *   자세    한 자리 안에서는 같은 자세(서서 → 무릎 → 네발 → 엎드려 → 옆 → 누워 → 앉아)끼리 붙인다 — 모델이 일어났다 누웠다 하고
  *           카메라 높이를 다시 맞추는 시간을 줄인다(2026-10-09 사용자 "자세까지 넣어서"). 부위를 바꿀 때도 같은 자세가 이어지는 쪽을 먼저.
+ *   몸풀기  매 회 처음은 매트 · 넓은 바닥의 가벼운 모빌리티 · 스트레칭(warmup 자리) — 모델 몸이 풀린 뒤 근력 · 파워(2026-10-10 1주차 촬영 뒤
+ *           사용자 "강도가 낮은 걸 우선 배치, 모델이 몸이 풀린다").
+ *   준비물  한 자리 안에서는 같은 준비물(랜드마인 · 바벨 · 케이블 …)끼리 이어 찍는다 — 1주차에 랜드마인을 두 번 세웠다 치웠다(같은 날 사용자
+ *           "같은 방식의 운동들을 한 번에"). 준비물 안에서 자세 → 부위 차례.
  */
 
 export type ShootExercise = {
@@ -124,6 +128,22 @@ export const BREAK_MINUTES = 5;
 export const BREAK_EVERY = 50;
 export const MOVE_MINUTES = 3;
 export const SWAP_MINUTES = 1;
+
+/** 몸풀기로 맨 앞에 둘 가벼운 것 — 매트 · 넓은 바닥의 모빌리티 · 스트레칭(밴드 기둥 · 기구가 드는 것은 제 자리에) */
+const STRETCH = /스트레치|스트레칭/;
+export function isWarmupItem(x: { bucket: Bucket; title: string; station: Station }) {
+  return (
+    (x.bucket === '모빌리티' || STRETCH.test(x.title)) &&
+    (x.station === '매트' || x.station === '넓은 바닥(이동)')
+  );
+}
+
+/** 세웠다 치우는 준비물 — 이것끼리 이어 찍는다. 이름에 든 것(랜드마인)이 먼저, 그다음 장비 칸의 차례 */
+const SETUP_PRIORITY = ['바벨', '케이블', 'TRX', '철봉', '박스', '벤치', '케틀벨', '덤벨', '원판', '짐볼', '메디신볼', '워터볼', '워터백', '플라이오볼', '밴드'];
+export function setupOf(x: { title: string; equipment: string[] }): string {
+  if (/랜드마인/.test(x.title)) return '랜드마인';
+  return SETUP_PRIORITY.find((e) => x.equipment.includes(e)) ?? '맨몸';
+}
 
 const ECC = /과부하 내리기|버티며 내리기|에센트릭|노르딕|드롭 캐치/;
 /** 화면에 '천천히 내리기'로 알리는 것(드롭 캐치는 시간만 더 든다) */
@@ -280,6 +300,8 @@ export type PlanItem = {
 
 export type PlanStation = {
   station: Station;
+  /** 회 처음의 몸풀기(가벼운 모빌리티 · 스트레칭) — 자리 차례 규칙 밖 */
+  warmup?: boolean;
   start: number;
   end: number;
   items: PlanItem[];
@@ -461,21 +483,48 @@ function orderStation(list: Row[], station: Station): Row[] {
       'ko'
     );
   if (station === '넓은 바닥(이동)') {
-    /* 모빌리티(모델 몸풀기) → 유산소 → 나머지(파워) */
+    /* 맨몸 먼저, 같은 준비물끼리 — 그 안에서 모빌리티 → 유산소 → 나머지(파워) */
     const rank = (x: Row) =>
       x.bucket === '모빌리티' ? 0 : x.bucket === '유산소' ? 1 : 2;
+    const set = (x: Row) => (setupOf(x) === '맨몸' ? '' : setupOf(x));
     return [...list].sort(
       (a, b) =>
-        rank(a) - rank(b) || pr(a) - pr(b) || a.title.localeCompare(b.title, 'ko')
+        set(a).localeCompare(set(b), 'ko') ||
+        rank(a) - rank(b) ||
+        pr(a) - pr(b) ||
+        a.title.localeCompare(b.title, 'ko')
     );
   }
+  /* 준비물끼리 묶고(첫 운동의 자세 → 파워 든 것 먼저 → 이름), 그 안에서 자세 → 부위 */
+  const sets = new Map<string, Row[]>();
+  for (const x of list) {
+    const k = setupOf(x);
+    sets.set(k, [...(sets.get(k) ?? []), x]);
+  }
+  const minPosture = (xs: Row[]) => Math.min(...xs.map(pr));
+  const hasPower = (xs: Row[]) => (xs.some((x) => x.bucket === '하체 파워') ? 0 : 1);
+  const groups = [...sets.entries()].sort(
+    ([ka, a], [kb, b]) =>
+      minPosture(a) - minPosture(b) || hasPower(a) - hasPower(b) || ka.localeCompare(kb, 'ko')
+  );
   const out: Row[] = [];
-  for (const posture of POSTURES) {
-    const part = list.filter((x) => x.posture === posture);
-    if (part.length)
-      out.push(...rotateBuckets(part, byKey, out.at(-1)?.bucket ?? null));
+  for (const [, xs] of groups) {
+    for (const posture of POSTURES) {
+      const part = xs.filter((x) => x.posture === posture);
+      if (part.length)
+        out.push(...rotateBuckets(part, byKey, out.at(-1)?.bucket ?? null));
+    }
   }
   return out;
+}
+
+/** 몸풀기 — 서서 → … → 앉아, 같은 자세 안에서는 이름 차례(한 부위라 돌리지 않는다) */
+function orderWarmup(list: Row[]): Row[] {
+  return [...list].sort(
+    (a, b) =>
+      POSTURES.indexOf(a.posture) - POSTURES.indexOf(b.posture) ||
+      a.title.localeCompare(b.title, 'ko')
+  );
 }
 
 /** 같은 자세 안 — 파워 먼저, 같은 부위는 2~3개(4점)까지 잇고 다른 부위로, 천천히 내리기는 그 부위 끝 */
@@ -524,15 +573,19 @@ function rotateBuckets(
 }
 
 function layoutWeek(week: number, items: Row[]): PlanWeek {
+  const warm = items.filter(isWarmupItem);
   const byStation = new Map<Station, Row[]>();
-  for (const x of items) {
+  for (const x of items.filter((x) => !isWarmupItem(x))) {
     const arr = byStation.get(x.station) ?? [];
     arr.push(x);
     byStation.set(x.station, arr);
   }
-  const order = [...byStation.keys()].sort(
-    (a, b) => ALL_STATIONS.indexOf(a) - ALL_STATIONS.indexOf(b)
-  );
+  const order: { station: Station; warmup: boolean; rows: Row[] }[] = [
+    ...(warm.length ? [{ station: '매트' as Station, warmup: true, rows: orderWarmup(warm) }] : []),
+    ...[...byStation.keys()]
+      .sort((a, b) => ALL_STATIONS.indexOf(a) - ALL_STATIONS.indexOf(b))
+      .map((st) => ({ station: st, warmup: false, rows: orderStation(byStation.get(st)!, st) })),
+  ];
   let clock = SETUP_MINUTES;
   let since = 0;
   let prev: Row | null = null;
@@ -540,15 +593,15 @@ function layoutWeek(week: number, items: Row[]): PlanWeek {
   let n = 0;
   const stations: PlanStation[] = [];
   const load: Partial<Record<Bucket, number>> = {};
-  for (const st of order) {
+  for (const { station: st, warmup, rows } of order) {
     if (prev) {
       clock += MOVE_MINUTES;
       since += MOVE_MINUTES;
     }
     const start = clock;
     const out: PlanItem[] = [];
-    for (const x of orderStation(byStation.get(st)!, st)) {
-      if (prev && prev.station === x.station && prev.eqKey !== x.eqKey) {
+    for (const x of rows) {
+      if (prev && prev.station === x.station && setupOf(prev) !== setupOf(x)) {
         clock += SWAP_MINUTES;
         since += SWAP_MINUTES;
       }
@@ -582,6 +635,7 @@ function layoutWeek(week: number, items: Row[]): PlanWeek {
     }
     stations.push({
       station: st,
+      ...(warmup ? { warmup: true } : {}),
       start: Math.round(start * 10) / 10,
       end: Math.round(clock * 10) / 10,
       items: out,

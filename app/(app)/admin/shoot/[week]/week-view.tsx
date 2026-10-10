@@ -207,7 +207,7 @@ export function WeekView({ data, me }: { data: ShootWeekData; me: string }) {
           ))}
         </p>
         <p className="text-xs leading-relaxed text-muted">
-          자리 순서 · {week.stations.map((s) => s.station).join(' → ')}.{' '}
+          자리 순서 · {week.stations.map((s) => (s.warmup ? '몸풀기' : s.station)).join(' → ')}.{' '}
           {week.outdoor
             ? '워밍업으로 모델이 몸을 푼 뒤 드릴로. 던지는 드릴은 2~3구, 메디신볼은 3회 — 공 줍는 사람 한 명.'
             : '시범은 가볍게 3회 · 버티기 10초 · 천천히 내리기는 1~2회 · 좌우는 한쪽만.'}
@@ -247,11 +247,13 @@ export function WeekView({ data, me }: { data: ShootWeekData; me: string }) {
           const c = countOf(s.items, map);
           return (
             <section
-              key={s.station}
+              key={s.warmup ? 'warmup' : s.station}
               className="overflow-hidden rounded-2xl border border-line bg-surface"
             >
               <header className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 border-b border-line px-4 py-3">
-                <h3 className="text-sm font-bold text-ink">{s.station}</h3>
+                <h3 className="text-sm font-bold text-ink">
+                  {s.warmup ? '몸풀기 · 가벼운 모빌리티 · 스트레칭' : s.station}
+                </h3>
                 <p className="flex items-center gap-3 text-xs tabular-nums text-muted">
                   <span>
                     {clockText(s.start)}–{clockText(s.end)}

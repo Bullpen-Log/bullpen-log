@@ -18,6 +18,8 @@ import {
   demoCue,
   loadOf,
   postureOf,
+  setupOf,
+  isWarmupItem,
   shotMinutes,
   stationOf,
   type PlanItem,
@@ -98,15 +100,18 @@ function invariants(p: ShootPlan, label: string) {
     (w) => weekItems(w).filter((it) => it.breakAfter).length <= 2
   );
   check(`${label} — 쉬기는 한 회 두 번까지`, breaksOk);
-  const stationOrderOk = p.weeks.every((w) =>
-    w.stations.every(
-      (s, i) =>
-        i === 0 ||
-        ALL_STATIONS.indexOf(s.station) >
-          ALL_STATIONS.indexOf(w.stations[i - 1].station)
-    )
+  /* 회 처음의 몸풀기 칸(warmup)은 자리 차례 밖 — 그 뒤 자리들이 한 번씩, 정한 순서대로 */
+  const stationOrderOk = p.weeks.every((w) => {
+    const sts = w.stations.filter((s) => !s.warmup);
+    return sts.every(
+      (s, i) => i === 0 || ALL_STATIONS.indexOf(s.station) > ALL_STATIONS.indexOf(sts[i - 1].station)
+    );
+  });
+  check(`${label} — 자리는 한 회에 한 번씩, 정한 순서대로(몸풀기 칸 빼고)`, stationOrderOk);
+  const warmOk = p.weeks.every((w) =>
+    w.stations.every((s, i) => !s.warmup || (i === 0 && s.items.every((it) => isWarmupItem(it))))
   );
-  check(`${label} — 자리는 한 회에 한 번씩, 정한 순서대로`, stationOrderOk);
+  check(`${label} — 몸풀기 칸은 회 맨 앞, 가벼운 모빌리티 · 스트레칭만`, warmOk);
   const heavy = (w: PlanWeek) =>
     weekItems(w).filter((it) => LOWER_BUCKETS.includes(it.bucket) && it.load >= 2);
   const heavyTotal = p.weeks.reduce((a, w) => a + heavy(w).length, 0);
@@ -126,23 +131,26 @@ function invariants(p: ShootPlan, label: string) {
     })
   );
   check(`${label} — 한 자리에서 같은 쪽 무거운 하체 2개까지`, sideOk);
-  /* 한 자리를 같은 자세끼리 끊은 토막 — 자리 안 규칙(파워 먼저 · 같은 부위 3개)은 토막마다 */
-  const runs = (items: PlanItem[]) =>
+  /* 한 자리를 준비물(랜드마인 · 바벨 …)끼리, 그 안을 같은 자세끼리 끊은 토막 — 자리 안 규칙(파워 먼저 · 같은 부위 3개)은 토막마다 */
+  const cut = (items: PlanItem[], key: (it: PlanItem) => string) =>
     items.reduce<PlanItem[][]>((acc, it, i) => {
-      if (i > 0 && postureOf(items[i - 1].title) === postureOf(it.title))
-        acc[acc.length - 1].push(it);
+      if (i > 0 && key(items[i - 1]) === key(it)) acc[acc.length - 1].push(it);
       else acc.push([it]);
       return acc;
     }, []);
+  const setups = (items: PlanItem[]) => cut(items, setupOf);
+  const runs = (items: PlanItem[]) => setups(items).flatMap((g) => cut(g, (it) => postureOf(it.title)));
   const indoorStations = p.weeks.flatMap((w) =>
-    w.stations.filter((s) => s.station !== '넓은 바닥(이동)')
+    w.stations.filter((s) => s.station !== '넓은 바닥(이동)' && !s.warmup)
   );
   check(
-    `${label} — 자세는 한 자리에서 한 번씩만 바뀐다(같은 자세끼리 붙임)`,
-    indoorStations.every((s) => {
-      const ps = runs(s.items).map((r) => postureOf(r[0].title));
-      return new Set(ps).size === ps.length;
-    })
+    `${label} — 자세는 한 준비물 안에서 한 번씩만 바뀐다(같은 자세끼리 붙임)`,
+    indoorStations.every((s) =>
+      setups(s.items).every((g) => {
+        const ps = cut(g, (it) => postureOf(it.title)).map((r) => postureOf(r[0].title));
+        return new Set(ps).size === ps.length;
+      })
+    )
   );
   const powerFirst = indoorStations.every((s) =>
     runs(s.items).every((r) => {
@@ -175,6 +183,18 @@ function invariants(p: ShootPlan, label: string) {
   check(
     `${label} — 같은 자세 안에서 같은 부위는 3개까지 잇고 다른 부위로(남은 게 그 부위뿐일 때만 예외)`,
     runOk
+  );
+  /* 2주차부터(새 규칙으로 뽑은 주) — 한 자리에서 같은 준비물은 한 번에(랜드마인을 두 번 세우지 않게) */
+  check(
+    `${label} — 같은 준비물은 한 자리에서 한 번에 이어 찍는다(2주차부터)`,
+    p.weeks
+      .filter((w) => w.week > 1 && !w.outdoor)
+      .every((w) =>
+        w.stations.every((s) => {
+          const ks = setups(s.items).map((g) => setupOf(g[0]));
+          return new Set(ks).size === ks.length;
+        })
+      )
   );
   void BREAK_EVERY;
 }
