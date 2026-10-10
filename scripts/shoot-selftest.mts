@@ -194,9 +194,9 @@ const indoorPlan: ShootPlan = { ...plan, weeks: plan.weeks.filter((w) => !w.outd
 {
   const items = indoorPlan.weeks.flatMap(weekItems);
   check(
-    '실내 7주 · 408개(야외를 붙여도 그대로)',
+    '실내 7주 · 406개(야외를 붙여도 그대로)',
     indoorPlan.weeks.length === 7 &&
-      items.length === 408 &&
+      items.length === 406 &&
       indoorPlan.weeks.every((w, i) => w.week === i + 1),
     `${indoorPlan.weeks.length}주 · ${items.length}개`
   );
