@@ -34,7 +34,7 @@ import { project } from '../lib/pitch-3d/camera.ts';
 import type { MetricKey } from '../lib/pitch-3d/metrics.ts';
 import { fitPitch3dV2, fixHingeFlips } from '../lib/pitch-3d/v2/fit.ts';
 import { add, cross, dot, norm, normalize, scale, sub, type Vec3 } from '../lib/pitch-3d/linalg.ts';
-import { pickSegment, readV2Events, runFit } from '../lib/pitch-3d/v2/run-node.ts';
+import { pickSegment, readV2Events, runFit, segmentWindow } from '../lib/pitch-3d/v2/run-node.ts';
 import { toPoseTrack } from '../lib/pitch-3d/v2/track.ts';
 import {
   base,
@@ -722,6 +722,21 @@ console.log('■ node 실행기(segment · fit)');
     check('순간을 찾았다(착지 < 릴리스)', seg.events.footPlant < seg.events.release);
   }
   check('segment: 입력 모양이 틀리면 video', !pickSegment({ side: null, back: {} }).ok);
+  {
+    /* 2026-10-10 샘플 5 — 240 슬로모션을 30fps 로 구운 영상(니업 6.0 · 착지 10.9 · 릴리스 13.5초, 길이 19.4초) */
+    const w30 = segmentWindow({ kneeUp: 6, footPlant: 10.9, release: 13.53, first: 0, last: 19.37, fineFps: 30 });
+    check(
+      'segment 구간: 30fps 슬로모션은 착지 · 릴리스까지 담는다(예전 2.9~7.9초)',
+      w30.from <= 6 && w30.to >= 13.53 && (w30.to - w30.from) * 30 <= 600,
+      `${w30.from.toFixed(2)}~${w30.to.toFixed(2)}`
+    );
+    const w120 = segmentWindow({ kneeUp: 6, footPlant: 10.9, release: 13.53, first: 0, last: 19.37, fineFps: 120 });
+    check(
+      'segment 구간: 길어 600장을 넘으면 앞을 자르고 릴리스 뒤는 남긴다',
+      w120.to >= 13.53 && (w120.to - w120.from) * 120 <= 600 + 1e-6,
+      `${w120.from.toFixed(2)}~${w120.to.toFixed(2)}`
+    );
+  }
   /*
    * 투구 뒤 보통 속도로 홈 반대쪽으로 빨리 물러선 영상 — 골반이 가장 빨리 움직인 쪽을 홈으로 보면 반대가 되어, 팔이 가장 뒤로 간 순간
    * (다리를 든 때)을 릴리스로 잡았다(2026-10-09 좌투 샘플: '릴리스' 장면에 앞다리가 키의 90% 높이에 들려 있었다).

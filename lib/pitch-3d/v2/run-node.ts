@@ -30,15 +30,50 @@ type SegmentOut =
       side: { fromSec: number; toSec: number };
       back: { fromSec: number; toSec: number };
       events: { kneeUp: number | null; footPlant: number; release: number };
-      /** 구간을 120fps 로 풀면 몇 장인지(상한 600 안으로 잘랐다) */
+      /** 구간을 고운 fps(min(120, 영상 fps))로 풀면 몇 장인지(상한 600 안으로 잘랐다) */
       frames: number;
       /** 진단(로그용) — 진행 방향 · 던진 손목 · 앞다리 · 순간 · 영상 처음과 끝 */
       diag?: Record<string, unknown>;
     }
   | { ok: false; code: V2FailCode; detail?: Record<string, unknown> };
 
-/** 구간 = 니업 0.5초 전 ~ 릴리스 0.5초 뒤(화면 결정 12), 120fps 600장(E-CAP) 안으로 — 넘치면 앞을 자른다(착지~릴리스는 꼭 남긴다) */
-export function pickSegment(input: { side: unknown; back: unknown }): SegmentOut {
+/**
+ * 구간(영상 초) = 니업 0.5초 전(착지 전 세 배 걸음까지) ~ 릴리스 0.5초 뒤(화면 결정 12). 고운 2D 를 풀 장면 수(fineFps × 길이)가 600장(E-CAP)을
+ * 넘으면 앞을 자른다 — 릴리스 뒤는 늘 남는다(순수, 시험이 본다).
+ *
+ * 2026-10-10 샘플 5: 상한을 '120fps × 5초'로 셈해 슬로모션(240 을 30fps 로 구운 영상, 투구가 8배 느림)의 2.9~7.9초만 남기고 착지(10.9) ·
+ * 릴리스(13.5)를 잘라 냈다(뒤쪽을 자르는 줄이 있었다) → 다리만 들다 끝나고 던진 손도 반대로 잡혔다. 상한은 그 영상을 실제로 풀 fps 로 센다.
+ */
+export function segmentWindow(o: {
+  kneeUp: number | null;
+  footPlant: number;
+  release: number;
+  first: number;
+  last: number;
+  /** 고운 2D 를 풀 fps — min(120, 영상 fps) */
+  fineFps: number;
+}): { from: number; to: number } {
+  const span = o.release - o.footPlant;
+  let from = Math.min(o.kneeUp ?? Infinity, o.footPlant - span * 3) - 0.5;
+  const to = Math.min(o.last, o.release + 0.5);
+  from = Math.max(o.first, from);
+  const cap = MAX_V2_FRAMES / Math.max(1, o.fineFps);
+  if (to - from > cap) from = Math.max(o.first, to - cap);
+  return { from, to };
+}
+
+/** 고운 2D 를 풀 fps — 파이프라인이 넘긴 영상 fps(없으면 옛 가정 120) */
+function fineFpsOf(v: unknown): number {
+  const fps = typeof v === 'number' && Number.isFinite(v) && v > 0 ? v : 120;
+  return Math.min(120, fps);
+}
+
+export function pickSegment(input: {
+  side: unknown;
+  back: unknown;
+  /** 영상 fps(파이프라인 probe) — 구간 상한을 실제로 풀 장면 수로 세려고 */
+  fps?: { side?: unknown; back?: unknown };
+}): SegmentOut {
   const sideT = readV2Track(input.side);
   const backT = readV2Track(input.back);
   if (!sideT || !backT) return { ok: false, code: 'video' };
@@ -86,17 +121,16 @@ export function pickSegment(input: { side: unknown; back: unknown }): SegmentOut
         coverage: Math.round(sidePose.coverage * 100) / 100,
       },
     };
-  const span = rel - fp;
   const kneeUp = ev.kneeUp?.t ?? null;
-  let from = Math.min(kneeUp ?? Infinity, fp - span * 3) - 0.5;
-  let to = rel + 0.5;
-  const first = sideT.frames[0]?.t ?? 0;
-  const last = sideT.frames[sideT.frames.length - 1]?.t ?? to;
-  from = Math.max(first, from);
-  to = Math.min(last, to);
-  const cap = MAX_V2_FRAMES / 120;
-  if (to - from > cap) from = Math.max(first, Math.min(to - cap, fp - span * 3 - 0.1));
-  if (to - from > cap) to = from + cap;
+  const fineFps = fineFpsOf(input.fps?.side);
+  const { from, to } = segmentWindow({
+    kneeUp,
+    footPlant: fp,
+    release: rel,
+    first: sideT.frames[0]?.t ?? 0,
+    last: sideT.frames[sideT.frames.length - 1]?.t ?? rel + 0.5,
+    fineFps,
+  });
 
   /* 뒤 영상 구간 — 시간 맞추기(에피폴라)로 옆 시각 → 뒤 시각 */
   const side = prepareView(sidePose);
@@ -122,7 +156,7 @@ export function pickSegment(input: { side: unknown; back: unknown }): SegmentOut
       toSec: r3(Math.min(bLast, Math.max(...bts) + margin)),
     },
     events: { kneeUp, footPlant: fp, release: rel },
-    frames: Math.round((to - from) * 120),
+    frames: Math.round((to - from) * fineFps),
     diag,
   };
 }

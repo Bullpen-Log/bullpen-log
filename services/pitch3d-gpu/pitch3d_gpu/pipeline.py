@@ -175,7 +175,11 @@ def run_job(
             for name, tr in tracks.items():
                 print(f"[pitch3d pose] {name}: {track_summary(tr)}")
 
-            seg = engine.run("segment", {"side": tracks["side"], "back": tracks["back"]})
+            # 영상 fps 도 넘긴다 — 구간 상한(600장)을 실제로 풀 장면 수로 센다(30fps 로 구운 슬로모션은 120 가정의 네 배 길이까지 담긴다)
+            seg = engine.run(
+                "segment",
+                {"side": tracks["side"], "back": tracks["back"], "fps": {"side": sfps, "back": bfps}},
+            )
             if not seg.get("ok"):
                 print(f"[pitch3d segment] failed: {json.dumps(seg, ensure_ascii=False)[:600]}")
                 raise StepFail(str(seg.get("code", "events")), "segment")
