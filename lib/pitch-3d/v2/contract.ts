@@ -6,6 +6,7 @@ import {
   type WarningCode,
 } from '@/lib/pitch-3d/analyze';
 import type { Metric } from '@/lib/pitch-3d/metrics';
+import type { MotionTemplate } from '@/lib/pitch-3d/v2/motion-template';
 import jointMap from './joint-map.json' with { type: 'json' };
 
 /**
@@ -116,6 +117,8 @@ export type V2Input = {
   screenRecorded?: boolean;
   slowmoFps?: number | null;
   events?: { kneeUp?: number | null; footPlant: number; release: number };
+  /** 통계 움직임 틀(motion-template.ts) — 두 영상 다 안 보인 관절 짐작. 없으면 예전 채우기 */
+  motionTemplate?: MotionTemplate;
 };
 
 /* ───────────────────────────── 결과 ───────────────────────────── */
