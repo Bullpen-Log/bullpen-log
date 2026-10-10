@@ -111,7 +111,7 @@ export const REHAB_REGIONS: Record<ArmcareAreaKey, RegionSpec> = {
     stages: [
       [
         '크로스바디 스트레치',
-        '어깨 외회전 아이소메트릭 프레스',
+        '어깨 외전 아이소메트릭 프레스',
         '어깨 내회전 아이소메트릭 프레스',
         '밴드 스캡 핀치',
         '프론 막대 스캡 홀드',
@@ -156,7 +156,7 @@ export const REHAB_REGIONS: Record<ArmcareAreaKey, RegionSpec> = {
     stages: [
       [
         '어깨 내회전 아이소메트릭 프레스',
-        '어깨 외회전 아이소메트릭 프레스',
+        '어깨 외전 아이소메트릭 프레스',
         '밴드 스캡 핀치',
         '프론 막대 스캡 홀드',
         '크로스바디 스트레치',
@@ -194,8 +194,8 @@ export const REHAB_REGIONS: Record<ArmcareAreaKey, RegionSpec> = {
     stages: [
       [
         '어깨 외전 아이소메트릭 프레스',
-        '어깨 외회전 아이소메트릭 프레스',
         '어깨 내회전 아이소메트릭 프레스',
+        '밴드 내·외회전 아이소 홀드',
         '밴드 스캡 핀치',
         '크로스바디 스트레치',
       ],
@@ -235,7 +235,7 @@ export const REHAB_REGIONS: Record<ArmcareAreaKey, RegionSpec> = {
         '프론 막대 스캡 홀드',
         '밴드 가슴 스트레치',
         '흉추 3방향 모빌리티',
-        '어깨 외회전 아이소메트릭 프레스',
+        '어깨 외전 아이소메트릭 프레스',
       ],
       [
         '월 슬라이드',
@@ -271,7 +271,7 @@ export const REHAB_REGIONS: Record<ArmcareAreaKey, RegionSpec> = {
       [
         '리스트 플렉션 아이소메트릭 프레스',
         '전완 프로네이션 아이소메트릭 프레스',
-        '어깨 외회전 아이소메트릭 프레스',
+        '어깨 외전 아이소메트릭 프레스',
         '밴드 스캡 핀치',
         '엘보 플렉션 아이소메트릭 프레스',
       ],
@@ -311,7 +311,7 @@ export const REHAB_REGIONS: Record<ArmcareAreaKey, RegionSpec> = {
         '리스트 익스텐션 아이소메트릭 프레스',
         '전완 수피네이션 아이소메트릭 프레스',
         '밴드 스캡 핀치',
-        '어깨 외회전 아이소메트릭 프레스',
+        '어깨 외전 아이소메트릭 프레스',
         '엘보 플렉션 아이소메트릭 프레스',
       ],
       [
@@ -353,7 +353,7 @@ export const REHAB_REGIONS: Record<ArmcareAreaKey, RegionSpec> = {
         '리스트 플렉션 아이소메트릭 프레스',
         '전완 프로네이션 아이소메트릭 프레스',
         '밴드 스캡 핀치',
-        '어깨 외회전 아이소메트릭 프레스',
+        '어깨 외전 아이소메트릭 프레스',
       ],
       [
         '밴드 하이 바이셉스 컬',
@@ -389,7 +389,7 @@ export const REHAB_REGIONS: Record<ArmcareAreaKey, RegionSpec> = {
         '엘보 플렉션 아이소메트릭 프레스',
         '전완 수피네이션 아이소메트릭 프레스',
         '밴드 스캡 핀치',
-        '어깨 외회전 아이소메트릭 프레스',
+        '어깨 외전 아이소메트릭 프레스',
         '리스트 플렉션 아이소메트릭 프레스',
       ],
       [
