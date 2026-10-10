@@ -5,28 +5,16 @@
  * 서버(Supabase)에는 올리지 않는다 — 2026-10-10 사용자: "폰에 저장해도 되는 것과 서버에 저장해야 하는 것을 확실히 구분".
  * 서버에 두는 것: 관리자가 올리는 라이브러리 · 촬영 · 투구 분석 샘플 · 구속 보정용 클립, 나중의 유료 클라우드 · 팀 기능.
  *
- * DB 에는 영상 자리에 'local:<사진 앱 영상 번호>' 를 적는다(PitchLog.videoPaths · VelocityPitch.clipPath — 칸은 그대로).
+ * DB 에는 영상 자리에 '{userId}/local-<사진 앱 영상 번호>' 를 적는다(lib/phone-video-path.ts — 칸은 그대로).
  * 그 영상은 찍은 폰에서만 열린다. 다른 기기 · 웹에서는 '찍은 폰에 있어요'.
  * 사이트는 Capacitor 패키지 없이 window.Capacitor.nativePromise 로 부른다(lib/shoot-camera.ts 와 같은 방식).
  */
 
 import { decodeBase64 } from '@/lib/shoot-camera';
+import { isPhoneVideoPath, phoneAssetId } from '@/lib/phone-video-path';
 
 export const LOCAL_VIDEO_PLUGIN = 'LocalVideo';
-export const LOCAL_PREFIX = 'local:';
-
-/** 'local:…' — 폰 사진 앱에 있는 영상 */
-export function isLocalPath(path: string | null | undefined): path is string {
-  return typeof path === 'string' && path.startsWith(LOCAL_PREFIX);
-}
-
-export function localPathOf(id: string) {
-  return LOCAL_PREFIX + id;
-}
-
-function idOf(path: string) {
-  return path.slice(LOCAL_PREFIX.length);
-}
+export { isPhoneVideoPath } from '@/lib/phone-video-path';
 
 /** 앱 쪽 상한 4MB 안 · base64 로 커지는 것까지 */
 const CHUNK = 2 * 1024 * 1024;
@@ -93,7 +81,7 @@ function toBase64(bytes: Uint8Array): string {
   return btoa(s);
 }
 
-/** 사이트가 가진 영상(Blob)을 사진 앱 '불펜로그' 앨범에 넣고 'local:…' 경로를 돌려준다 */
+/** 사이트가 가진 영상(Blob)을 사진 앱 '불펜로그' 앨범에 넣고 영상 번호를 돌려준다(경로는 서버가 붙인다 — phoneVideoPath) */
 export async function saveBlobToPhone(
   blob: Blob,
   onProgress: (p: number) => void = () => {}
@@ -107,25 +95,25 @@ export async function saveBlobToPhone(
     onProgress(Math.min(1, (offset + bytes.length) / blob.size));
   }
   const { id } = await call<{ id: string }>('finish', { token });
-  return localPathOf(id);
+  return id;
 }
 
-/** 앱이 이미 가진 파일(구속 측정 클립 — 앱 임시 폴더)을 앨범에 */
+/** 앱이 이미 가진 파일(구속 측정 클립 — 앱 임시 폴더)을 앨범에 넣고 영상 번호를 돌려준다 */
 export async function saveAppFileToPhone(path: string): Promise<string> {
   await ensurePhotoAccess();
   const { id } = await call<{ id: string }>('saveFile', { path });
-  return localPathOf(id);
+  return id;
 }
 
 /* 한 번 꺼낸 영상은 화면이 살아 있는 동안 다시 쓴다 */
 const loaded = new Map<string, Promise<string>>();
 
-/** 'local:…' 영상을 꺼내 재생 주소(blob:)로. 없거나 허락이 없으면 던진다 */
+/** 폰 영상 경로를 꺼내 재생 주소(blob:)로. 없거나 허락이 없으면 던진다 */
 export function loadPhoneVideo(path: string, onProgress: (p: number) => void = () => {}): Promise<string> {
   const hit = loaded.get(path);
   if (hit) return hit;
   const job = (async () => {
-    const res = await call<{ path: string; size: number }>('load', { id: idOf(path) });
+    const res = await call<{ path: string; size: number }>('load', { id: phoneAssetId(path) });
     const parts: Uint8Array<ArrayBuffer>[] = [];
     let offset = 0;
     try {
@@ -154,10 +142,11 @@ export function loadPhoneVideo(path: string, onProgress: (p: number) => void = (
 
 /** 아직 사진 앱에 있는 것만 — 앱이 아니면 빈 집합 */
 export async function phoneVideosPresent(paths: string[]): Promise<Set<string>> {
-  const local = paths.filter(isLocalPath);
+  const local = paths.filter(isPhoneVideoPath);
   if (!local.length || !localVideoAvailable()) return new Set();
-  const { found } = await call<{ found: string[] }>('exists', { ids: local.map(idOf) });
-  return new Set(found.map(localPathOf));
+  const { found } = await call<{ found: string[] }>('exists', { ids: local.map(phoneAssetId) });
+  const have = new Set(found);
+  return new Set(local.filter((p) => have.has(phoneAssetId(p))));
 }
 
 /** 이 폰에서 열 수 없는 영상의 말 — 웹 · 다른 기기 · 옛 앱 */

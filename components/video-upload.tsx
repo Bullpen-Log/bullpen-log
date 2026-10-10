@@ -4,6 +4,8 @@ import { useEffect, useRef, useState } from 'react';
 import { Film, Loader2, Upload, X } from 'lucide-react';
 import { captureThumbnail } from '@/lib/capture-thumbnail';
 import { useWakeLock } from '@/components/use-wake-lock';
+import { insideApp } from '@/lib/shoot-camera';
+import { localVideoAvailable, saveBlobToPhone } from '@/lib/local-video';
 
 export const MAX_VIDEO_MB = 50;
 const MAX_VIDEO_BYTES = MAX_VIDEO_MB * 1024 * 1024;
@@ -140,11 +142,17 @@ export function VideoUpload({
   /** 목록에서 재생 전에 보여줄 이미지를 함께 만들지 여부 */
   withThumbnail = false,
   compress = false,
+  toPhone = false,
   onUploadingChange,
   onUploaded,
 }: {
   /** 올리기 전에 줄인다(shrinkVideo) — 회원이 올리는 투구 영상. 라이브러리 · 투구 분석 샘플은 원본 그대로 */
   compress?: boolean;
+  /**
+   * 회원 영상 — 서버가 아니라 폰 사진 앱 '불펜로그' 앨범에 둔다(lib/local-video.ts, 2026-10-10 사용자). 기록에는 그 영상의 경로만
+   * (`{userId}/local-…`, 서버가 붙인다). 웹(앱 밖)은 올리기를 막고 앱으로 안내, 부품이 없는 옛 앱은 예전처럼 서버에.
+   */
+  toPhone?: boolean;
   /**
    * 한 개를 다 올렸을 때 — 저장소 경로와 올린 파일을 넘긴다.
    *
@@ -177,8 +185,15 @@ export function VideoUpload({
   const inputRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
   const [progress, setProgress] = useState(0);
-  /** 'shrink' = 줄이는 중 · 'upload' = 올리는 중 */
-  const [stage, setStage] = useState<'shrink' | 'upload'>('upload');
+  /** 'shrink' = 줄이는 중 · 'upload' = 올리는 중 · 'phone' = 폰에 저장하는 중 */
+  const [stage, setStage] = useState<'shrink' | 'upload' | 'phone'>('upload');
+  /* 웹(앱 밖)에서는 회원 영상을 받지 않는다 — 붙은 뒤에 가린다(서버 그림과 어긋나지 않게) */
+  const [where, setWhere] = useState<'web' | 'phone' | 'server'>('server');
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- 붙은 뒤 한 번, 앱 안인지 본다
+    if (toPhone) setWhere(localVideoAvailable() ? 'phone' : insideApp() ? 'server' : 'web');
+  }, [toPhone]);
+  const webOnly = where === 'web';
   const [error, setError] = useState<string>();
   /** 한 번 눌러 물어본 영상. 같은 것을 또 누르면 그때 뺀다. */
   const [asking, setAsking] = useState<string | null>(null);
@@ -242,6 +257,23 @@ export function VideoUpload({
         setStage('shrink');
         file = (await shrinkVideo(file, setProgress)) ?? file;
         setProgress(0);
+      }
+      if (toPhone && localVideoAvailable()) {
+        setStage('phone');
+        const localId = await saveBlobToPhone(file, (p) => setProgress(Math.round(p * 100)));
+        const res = await fetch(endpoint, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ localId }),
+        });
+        const data = (await res.json().catch(() => ({}))) as { path?: string; error?: string };
+        if (!res.ok || !data.path) throw new Error(data.error ?? '영상을 기록에 붙이지 못했어요.');
+        onUploaded?.(data.path, file);
+        onChange([
+          ...latestVideos.current,
+          { path: data.path, name: picked.name, previewUrl: URL.createObjectURL(file) },
+        ]);
+        return;
       }
       setStage('upload');
       if (file.size > MAX_VIDEO_BYTES) {
@@ -314,13 +346,14 @@ export function VideoUpload({
         <button
           type="button"
           onClick={() => inputRef.current?.click()}
-          disabled={disabled || uploading || full}
+          disabled={disabled || uploading || full || webOnly}
           className="inline-flex items-center gap-2 rounded-xl border border-line-strong bg-surface-2 px-4 py-3 text-sm text-ink transition-colors hover:border-sky hover:text-sky disabled:cursor-not-allowed disabled:opacity-50"
         >
           {uploading ? (
             <>
               <Loader2 className="h-4 w-4 animate-spin" />
-              {stage === 'shrink' ? '영상 줄이는 중…' : '올리는 중…'} {progress}%
+              {stage === 'shrink' ? '영상 줄이는 중…' : stage === 'phone' ? '사진 앱에 저장하는 중…' : '올리는 중…'}{' '}
+              {progress}%
             </>
           ) : (
             <>
@@ -333,6 +366,14 @@ export function VideoUpload({
           {videos.length} / {max} · 최대 {compress ? MAX_SOURCE_MB : MAX_VIDEO_MB}MB
         </span>
       </div>
+      {webOnly && (
+        <p className="text-xs text-muted">
+          영상은 불펜로그 앱에서 남길 수 있어요. 찍은 폰의 사진 앱 &apos;불펜로그&apos; 앨범에 저장돼요.
+        </p>
+      )}
+      {where === 'phone' && (
+        <p className="text-xs text-muted">영상은 이 폰의 사진 앱 &apos;불펜로그&apos; 앨범에 저장돼요.</p>
+      )}
 
       <input
         ref={inputRef}
