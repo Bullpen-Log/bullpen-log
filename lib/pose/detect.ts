@@ -390,9 +390,37 @@ export function detectPitchEvents(
     return (direction * (b - a)) / dt / trunk;
   });
 
+  const ankleY = smooth(
+    frames.map((_, i) => {
+      const p = px(i, leadAnkleIdx);
+      return p && p.v >= VIS_OK ? p.y : null;
+    }),
+    5
+  );
+  /*
+   * 내딛기 최고 속도는 앞발이 다리 들기 꼭대기에서 땅 쪽으로 1/4 넘게 내려온 뒤에서 찾는다 — 다리를 들며 발을 홈 쪽으로 뻗는 투수는 그
+   * 움직임이 내딛기보다 빨라(2026-10-10 샘플 8: 다리 들기 1.94 · 내딛기 1.82 몸통/초) 거기서 착지를 찾았고, 발 높이로 다듬어도 아직 앞으로
+   * 미끄러지는 발(2.6초, 실제 4.5초)을 땅에 묶었다. 꼭대기와 릴리스 때 발 높이 차가 몸통의 0.2 밑(다리를 거의 안 듦)이면 처음부터.
+   */
+  let strideFrom = 0;
+  {
+    let apex = -1;
+    for (let i = 0; i < releaseIdx; i++) {
+      const y = ankleY[i];
+      if (y != null && (apex < 0 || y < ankleY[apex]!)) apex = i;
+    }
+    const ground = ankleY.slice(Math.max(0, releaseIdx - 5), releaseIdx + 1).filter((v): v is number => v != null);
+    const g = ground.length ? ground.reduce((a, v) => a + v, 0) / ground.length : null;
+    if (apex >= 0 && g != null && g - ankleY[apex]! >= 0.2 * trunk) {
+      const lowEnough = ankleY[apex]! + 0.25 * (g - ankleY[apex]!);
+      strideFrom = apex;
+      while (strideFrom < releaseIdx && (ankleY[strideFrom] == null || ankleY[strideFrom]! < lowEnough)) strideFrom++;
+    }
+  }
+
   let peakV = 0;
   let peakIdx = -1;
-  for (let i = 0; i < releaseIdx; i++) {
+  for (let i = strideFrom; i < releaseIdx; i++) {
     const v = forwardV[i];
     if (v != null && v > peakV) {
       peakV = v;
@@ -417,13 +445,7 @@ export function detectPitchEvents(
    * 4분위(디딘 높이)에서 몸통 길이의 PLANT_Y_TOL 안으로 처음 들어온 장면.
    */
   if (plantIdx > 0) {
-    const ys = smooth(
-      frames.map((_, i) => {
-        const p = px(i, leadAnkleIdx);
-        return p && p.v >= VIS_OK ? p.y : null;
-      }),
-      5
-    );
+    const ys = ankleY;
     const win = ys
       .slice(plantIdx, releaseIdx + 1)
       .filter((v): v is number => v != null)
