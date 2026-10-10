@@ -28,6 +28,7 @@ const FILES = [
   'lib/pitch-3d/motion.ts',
   'lib/pitch-3d/v2/contract.ts',
   'lib/pitch-3d/v2/track.ts',
+  'lib/pitch-3d/v2/clean2d.ts',
   'lib/pitch-3d/v2/fit.ts',
   'lib/pitch-3d/v2/run-node.ts',
   'lib/pitch-3d/v2/joint-map.json',
