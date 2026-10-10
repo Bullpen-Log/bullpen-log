@@ -52,8 +52,8 @@ export type ExerciseItem = {
   targetMuscles: string[];
   /** 우리 저장소에 올린 영상 경로. 참고 영상이면 없다. */
   videoPath: string | null;
-  /** OWN(직접 촬영) / REFERENCE(아직 촬영 전, 유튜브 참고 영상) */
-  source: 'OWN' | 'REFERENCE';
+  /** OWN(직접 촬영) / REFERENCE(아직 촬영 전, 유튜브 참고 영상) / RETAKE(한 달 전에 찍어 다시 찍을 우리 영상 — 촬영 전으로 센다) */
+  source: 'OWN' | 'REFERENCE' | 'RETAKE';
   /** 참고 영상의 유튜브 영상 ID */
   referenceVideoId: string | null;
   thumbUrl: string | null;
@@ -434,7 +434,8 @@ export function TrainingClient({
     () =>
       exercises.filter(
         (ex) =>
-          (sourceView === 'ALL' || ex.source === sourceView) &&
+          (sourceView === 'ALL' ||
+            (sourceView === 'OWN' ? ex.source === 'OWN' : ex.source !== 'OWN')) &&
           (!onlyFavorites || ex.favorite) &&
           (matchesSearch(ex.title, query) || matchesSearch(ex.category, query))
       ),
@@ -553,7 +554,7 @@ export function TrainingClient({
               [
                 ['ALL', '전체'],
                 ['OWN', '직접 촬영'],
-                ['REFERENCE', '참고 영상'],
+                ['REFERENCE', '촬영 전'],
               ] as const
             ).map(([key, label]) => (
               <button
