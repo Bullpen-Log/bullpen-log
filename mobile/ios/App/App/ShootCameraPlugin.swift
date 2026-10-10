@@ -2,7 +2,7 @@ import AVFoundation
 import Capacitor
 import UIKit
 
-/// 촬영 모드 앱 카메라 — 뒤 카메라를 1080p · 60fps 로 찍고, 찍은 파일을 사이트에 조금씩 넘긴다(사이트 lib/shoot-camera.ts,
+/// 촬영 모드 앱 카메라 — 뒤 카메라(기본 0.5배 광각, 1배로 바꿀 수 있음)를 1080p · 60fps 로 찍고, 찍은 파일을 사이트에 조금씩 넘긴다(사이트 lib/shoot-camera.ts,
 /// 약속은 docs/designs/shoot-camera-native.md). 웹의 <input capture> 는 WebKit 이 화질을 안 정해 약 480×360 으로 찍혀 걷었고,
 /// 아이폰 기본 촬영 화면(UIImagePickerController)은 프레임 수를 못 정해 늘 30fps 라 직접 만든 화면으로 바꿨다(2026-10-10 사용자: 60프레임).
 /// 소리는 담지 않는다 — 사이트 편집 창이 어차피 소리 트랙을 지운다.
@@ -153,6 +153,7 @@ final class ShootRecorderViewController: UIViewController, AVCaptureFileOutputRe
     private let sessionQueue = DispatchQueue(label: "bullpen.shoot.session")
     private var device: AVCaptureDevice?
     private var fps: Double = 0
+    private var lens = ""
     private var rotation: Any?  // AVCaptureDevice.RotationCoordinator (iOS 17+)
 
     private let preview = AVCaptureVideoPreviewLayer()
@@ -160,6 +161,7 @@ final class ShootRecorderViewController: UIViewController, AVCaptureFileOutputRe
     private let recordInner = UIView()
     private let cancelButton = UIButton(type: .system)
     private let timeLabel = UILabel()
+    private let lensControl = UISegmentedControl(items: ["0.5×", "1×"])
     private var timer: Timer?
     private var startedAt: Date?
 
@@ -199,6 +201,18 @@ final class ShootRecorderViewController: UIViewController, AVCaptureFileOutputRe
         cancelButton.translatesAutoresizingMaskIntoConstraints = false
         view.addSubview(cancelButton)
 
+        lensControl.selectedSegmentIndex = 0
+        lensControl.isHidden = !hasUltraWide
+        lensControl.isEnabled = false
+        lensControl.backgroundColor = UIColor.black.withAlphaComponent(0.45)
+        lensControl.selectedSegmentTintColor = .white
+        lensControl.setTitleTextAttributes([.foregroundColor: UIColor.white, .font: UIFont.systemFont(ofSize: 15, weight: .semibold)], for: .normal)
+        lensControl.setTitleTextAttributes([.foregroundColor: UIColor.black, .font: UIFont.systemFont(ofSize: 15, weight: .semibold)], for: .selected)
+        lensControl.accessibilityLabel = "렌즈"
+        lensControl.addTarget(self, action: #selector(lensChanged), for: .valueChanged)
+        lensControl.translatesAutoresizingMaskIntoConstraints = false
+        view.addSubview(lensControl)
+
         recordButton.layer.cornerRadius = 38
         recordButton.layer.borderWidth = 5
         recordButton.layer.borderColor = UIColor.white.cgColor
@@ -229,6 +243,10 @@ final class ShootRecorderViewController: UIViewController, AVCaptureFileOutputRe
             cancelButton.centerYAnchor.constraint(equalTo: recordButton.centerYAnchor),
             cancelButton.leadingAnchor.constraint(equalTo: g.leadingAnchor, constant: 24),
             cancelButton.heightAnchor.constraint(equalToConstant: 44),
+            lensControl.bottomAnchor.constraint(equalTo: recordButton.topAnchor, constant: -20),
+            lensControl.centerXAnchor.constraint(equalTo: view.centerXAnchor),
+            lensControl.widthAnchor.constraint(equalToConstant: 140),
+            lensControl.heightAnchor.constraint(equalToConstant: 36),
         ] + innerSize)
 
         sessionQueue.async { self.configure() }
@@ -255,21 +273,35 @@ final class ShootRecorderViewController: UIViewController, AVCaptureFileOutputRe
 
     // MARK: 카메라
 
+    private let hasUltraWide = AVCaptureDevice.default(.builtInUltraWideCamera, for: .video, position: .back) != nil
+    /// 0.5배 광각으로 찍는지 — 기본은 광각(2026-10-10 사용자: 광각을 고를 수 있게), 광각이 없는 기종은 늘 1배
+    private var useUltraWide = true
+
+    /// 렌즈를 (다시) 고른다 — 처음 켤 때와 [0.5× | 1×] 를 바꿀 때. sessionQueue 에서만 부른다.
     private func configure() {
-        guard let camera = AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: .back),
+        let ultra = useUltraWide && hasUltraWide
+        guard let camera = AVCaptureDevice.default(ultra ? .builtInUltraWideCamera : .builtInWideAngleCamera, for: .video, position: .back),
               let input = try? AVCaptureDeviceInput(device: camera) else {
             DispatchQueue.main.async { self.finish(.failed("카메라를 켜지 못했어요.")) }
             return
         }
         session.beginConfiguration()
-        guard session.canAddInput(input), session.canAddOutput(output) else {
+        for old in session.inputs { session.removeInput(old) }
+        guard session.canAddInput(input) else {
             session.commitConfiguration()
             DispatchQueue.main.async { self.finish(.failed("카메라를 켜지 못했어요.")) }
             return
         }
         session.addInput(input)
-        session.addOutput(output)
-        output.maxRecordedDuration = CMTime(seconds: maxSeconds, preferredTimescale: 600)
+        if !session.outputs.contains(output) {
+            guard session.canAddOutput(output) else {
+                session.commitConfiguration()
+                DispatchQueue.main.async { self.finish(.failed("카메라를 켜지 못했어요.")) }
+                return
+            }
+            session.addOutput(output)
+            output.maxRecordedDuration = CMTime(seconds: maxSeconds, preferredTimescale: 600)
+        }
 
         /* 1920×1080 중 60fps 를 내는 형식 — 없으면 1080p 에서 가장 높은 fps. 손떨림 보정이 되는 것을 먼저 고른다 */
         let candidates = camera.formats.filter {
@@ -299,15 +331,25 @@ final class ShootRecorderViewController: UIViewController, AVCaptureFileOutputRe
         session.commitConfiguration()
         device = camera
         fps = rate
-        session.startRunning()
+        lens = ultra ? "0.5× · " : (hasUltraWide ? "1× · " : "")
+        if !session.isRunning { session.startRunning() }
 
         DispatchQueue.main.async {
             if #available(iOS 17.0, *) {
                 self.rotation = AVCaptureDevice.RotationCoordinator(device: camera, previewLayer: self.preview)
             }
             self.recordButton.isEnabled = true
-            self.timeLabel.text = "  1080p · \(Int(self.fps))fps  "
+            self.lensControl.isEnabled = true
+            self.timeLabel.text = "  \(self.lens)1080p · \(Int(self.fps))fps  "
         }
+    }
+
+    @objc private func lensChanged() {
+        useUltraWide = lensControl.selectedSegmentIndex == 0
+        recordButton.isEnabled = false
+        lensControl.isEnabled = false
+        timeLabel.text = "카메라 바꾸는 중"
+        sessionQueue.async { self.configure() }
     }
 
     /// 녹화를 시작하는 순간 폰을 든 방향(세로 · 가로)으로 영상을 세운다
@@ -344,6 +386,7 @@ final class ShootRecorderViewController: UIViewController, AVCaptureFileOutputRe
         }
         let url = ShootCameraPlugin.folder.appendingPathComponent(UUID().uuidString + ".mov")
         cancelButton.isHidden = true
+        lensControl.isEnabled = false
         setRecordingLook(true)
         startedAt = Date()
         tick()
