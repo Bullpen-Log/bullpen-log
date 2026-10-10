@@ -68,12 +68,15 @@ function invariants(p: ShootPlan, label: string) {
     new Set(ids).size === ids.length,
     `${ids.length}개`
   );
-  const nosOk = p.weeks.every((w) =>
-    weekItems(w).every(
-      (it, i) => it.no === `${w.week}-${String(i + 1).padStart(2, '0')}`
-    )
-  );
-  check(`${label} — 번호는 주차-순번(1-01 …)으로 빈틈없이`, nosOk);
+  /* 촬영이 시작된 뒤 운동을 빼면 그 번호만 비운다 — 이미 찍은 영상의 번호판과 어긋나지 않게(2026-10-10 1-05 뺌) */
+  const nosOk = p.weeks.every((w) => {
+    const seq = weekItems(w).map((it) => {
+      const m = /^(\d+)-(\d{2})$/.exec(it.no);
+      return m && Number(m[1]) === w.week ? Number(m[2]) : NaN;
+    });
+    return seq.every((n, i) => n >= 1 && (i === 0 || n > seq[i - 1]));
+  });
+  check(`${label} — 번호는 주차-순번(1-01 …)으로 차례대로(뺀 운동 자리는 빈다)`, nosOk);
   const clockOk = p.weeks.every((w) => {
     const its = weekItems(w);
     return its.every(
@@ -194,9 +197,9 @@ const indoorPlan: ShootPlan = { ...plan, weeks: plan.weeks.filter((w) => !w.outd
 {
   const items = indoorPlan.weeks.flatMap(weekItems);
   check(
-    '실내 7주 · 406개(야외를 붙여도 그대로)',
+    '실내 7주 · 405개(야외를 붙여도 그대로)',
     indoorPlan.weeks.length === 7 &&
-      items.length === 406 &&
+      items.length === 405 &&
       indoorPlan.weeks.every((w, i) => w.week === i + 1),
     `${indoorPlan.weeks.length}주 · ${items.length}개`
   );

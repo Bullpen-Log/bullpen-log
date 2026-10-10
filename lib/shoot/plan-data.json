@@ -84,22 +84,6 @@
        "breakAfter": false
       },
       {
-       "exerciseId": "ea37a008-ff18-45dc-b6e8-46931c841173",
-       "no": "1-05",
-       "title": "싱글렉 스쿼트 투 박스",
-       "station": "박스",
-       "bucket": "하체 앞(무릎)",
-       "equipment": [
-        "박스"
-       ],
-       "at": 24,
-       "minutes": 1.6,
-       "load": 1,
-       "cue": "3회 · 한쪽",
-       "perSide": true,
-       "breakAfter": false
-      },
-      {
        "exerciseId": "927bb4c5-77ef-44b4-b81d-830e909249bc",
        "no": "1-06",
        "title": "인클라인 푸시업",
