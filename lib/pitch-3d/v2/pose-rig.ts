@@ -231,9 +231,13 @@ export function rigPose(
       shAlongM > 1e-9 ? (want / shAlongM) * lenM : undefined
     );
   }
+  /*
+   * 머리 — 목 아래(모델 C7)에 붙이고, 방향은 맞춘 목(어깨 가운데 → 귀 가운데)과 나란히. 예전엔 C7 → 귀 가운데라 모델 몸통 끝과 맞춘 어깨 가운데가
+   * 어긋난 만큼 목이 더 꺾여 보였다(2026-10-10 샘플 5: 관절 각도 모델이 묶은 목 40° 가 화면 머리 조각에선 몸통 축과 56°).
+   */
   const c7 = attach('trunk', A.trunk.distal);
   const earMid = mid(j(V2J.lEar), j(V2J.rEar));
-  put('head', c7, sub(earMid, c7), sub(j(V2J.lEar), j(V2J.rEar)));
+  put('head', c7, sub(earMid, shMid), sub(j(V2J.lEar), j(V2J.rEar)));
 
   /* 팔 — 굽힘 축 = 위팔 × 아래팔(펴졌으면 앞 장면 · 몸통 좌우), 아래팔 · 손은 같은 축(엎침은 못 본다), 손바닥은 둘째 → 다섯째 MCP */
   for (const side of ['L', 'R'] as const) {

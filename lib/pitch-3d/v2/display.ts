@@ -236,7 +236,7 @@ export function displayTrack(
   const spanMedia =
     result.t[Math.min(n - 1, result.events.release)] - result.t[Math.min(n - 1, result.events.footPlant)];
   const dt = dtMedia * (spanMedia > PLANT_TO_RELEASE_MAX_S ? PLANT_TO_RELEASE_MAX_S / spanMedia : 1);
-  const kin = kinematicTrack(raw, conf, contacts, { dt, hand: result.hand });
+  const kin = kinematicTrack(raw, conf, contacts, { dt, hand: result.hand, events: result.events });
   const frames = kin.frames;
   let refs = kin.refs;
 

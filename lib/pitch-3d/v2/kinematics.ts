@@ -100,6 +100,20 @@ export const KIN_LIMITS = {
   neckBack: 45,
   neckForward: 40,
   neckSide: 30,
+  /**
+   * 릴리스 전 — 투수는 공을 놓을 때까지 포수를 보고 고개를 세운다. 목 앞 숙임 · 옆 기울임 · 고개 끄덕임을 이만큼으로 좁힌다(뒤로 젖힘은
+   * 몸통이 앞으로 숙을 때 고개를 드는 만큼이라 그대로). 2026-10-10 샘플 5: 가려진 귀 탓에 다리를 내딛는 동안 고개가 몸통보다 31° 앞으로
+   * 숙여 '목이 꺾인' 모양 — 김민 "가장 많이 일어나는 문제".
+   */
+  neckForwardPre: 15,
+  neckSidePre: 20,
+  neckSwingPre: 20,
+  /**
+   * 다리를 드는 동안(니업까지) 어깨선과 엉덩이선의 비틀림 — 투수는 몸통과 골반을 같이 닫고 든다(꼬임은 내딛으며 생겨 착지 무렵 가장 크다).
+   * 니업 → 착지 사이는 spineTwist 까지 고르게 넓힌다. 넘으면 골반을 몸통 쪽으로 돌린다 — 다리를 들면 엉덩이가 가려져 골반이 먼저 틀린다
+   * (2026-10-10 샘플 5: 엉덩이 확신 10~30 · 어깨 40~60, 다리 드는 동안 꼬임 44°).
+   */
+  liftTwist: 15,
   /** 위팔이 어깨선 뒤로(수평면) */
   shoulderBack: 45,
   /** 어깨선이 몸통 축 수직에서 위아래로(어깨뼈 올림 · 내림) */
@@ -555,9 +569,15 @@ export function kinematicTrack(
   frames: Vec3[][],
   conf: number[][] | null,
   contacts: V2Contact[],
-  opts: { dt?: number; hand?: 'L' | 'R' } = {}
+  opts: {
+    dt?: number;
+    hand?: 'L' | 'R';
+    /** 투구 순간(장면 번호) — 있으면 순간마다 사람 범위를 좁힌다(다리 드는 동안 골반 · 릴리스 전 고개) */
+    events?: { kneeUp: number | null; footPlant: number; release: number };
+  } = {}
 ): KinematicTrack {
   const n = frames.length;
+  const ev = opts.events;
   const dt = opts.dt && opts.dt > 0 ? opts.dt : 1 / 60;
   const perFrame = (degPerSec: number) => rad(degPerSec * dt);
   const planted = (side: 'L' | 'R') =>
@@ -599,6 +619,27 @@ export function kinematicTrack(
     const hf = unit(perp(sub(fr[V2J.nose], earMid), hl), cross(tl, T));
     headM.push(frameOf(hl, cross(hf, hl)));
   });
+  /*
+   * 다리를 드는 동안 골반은 몸통을 따른다 — 어깨선 · 엉덩이선 비틀림이 liftTwist(니업까지) → spineTwist(착지)를 넘으면 골반 좌우축을 몸통 축 둘레로
+   * 넘은 만큼 돌린다. 몸통(어깨)은 그대로 — 다리를 들면 엉덩이가 먼저 가려진다.
+   */
+  if (ev) {
+    const lift = ev.kneeUp ?? Math.max(0, ev.footPlant - 1);
+    for (let k = 0; k < Math.min(n, ev.footPlant); k++) {
+      const a = k <= lift ? 0 : (k - lift) / Math.max(1, ev.footPlant - lift);
+      const lim = rad(KIN_LIMITS.liftTwist + (KIN_LIMITS.spineTwist - KIN_LIMITS.liftTwist) * a);
+      const T = toWorld(trunkM[k], [0, 1, 0]);
+      const pl = toWorld(pelvisM[k], [1, 0, 0]);
+      const tl = toWorld(trunkM[k], [1, 0, 0]);
+      const plH = perp(pl, T);
+      if (norm(plH) < 1e-6) continue;
+      const th = signedAngle(normalize(plH), tl, T);
+      if (Math.abs(th) <= lim) continue;
+      const pl2 = rot(pl, T, th - Math.sign(th) * lim);
+      const up = unit(perp(T, pl2), T);
+      pelvisM[k] = frameOf(normalize(pl2), up);
+    }
+  }
   const wTrunk = frames.map(
     (_, k) =>
       Math.min(cf(k, V2J.lHip), cf(k, V2J.rHip), cf(k, V2J.lSh), cf(k, V2J.rSh)) + 0.02
@@ -615,14 +656,20 @@ export function kinematicTrack(
   const neckRaw = frames.map((_, k) => quatFromMat(mul3(transpose(trunkM[k]), headM[k])));
   const mid0 = smoothQuat(neckRaw, wHead, 50, 50)[Math.floor(n / 2)] ?? ([1, 0, 0, 0] as Quat);
   const yaw0 = qNorm([mid0[0], 0, mid0[2], 0]);
-  const neckQ = neckRaw.map((q) =>
+  /* 릴리스 전은 고개 끄덕임 · 옆 기울임을 좁게(neckSwingPre) — 릴리스 뒤 6장면에 걸쳐 넓힌다 */
+  const preRelease = (k: number) =>
+    !ev ? 0 : k <= ev.release ? 1 : clamp(1 - (k - ev.release) / 6, 0, 1);
+  const neckQ = neckRaw.map((q, k) =>
     qMul(
       yaw0,
       limitSwingTwist(
         qMul(qConj(yaw0), q),
         [0, 1, 0],
         rad(KIN_LIMITS.neckTwist),
-        rad(KIN_LIMITS.neckSwing)
+        rad(
+          KIN_LIMITS.neckSwing +
+            (KIN_LIMITS.neckSwingPre - KIN_LIMITS.neckSwing) * preRelease(k)
+        )
       )
     )
   );
@@ -681,14 +728,36 @@ export function kinematicTrack(
    * 목 방향은 사람 범위(앞 40° · 뒤 45° · 옆 30°, 앞으로 숙인 몸통에서 고개를 들면 뒤로 40° 넘게 젖혀진다) · 길이는 그 클립 가운데값의 0.8~1.2배 — 가려진 귀 탓에 목이 키의 5~14% 로 늘었다 줄고 옆으로
    * 40° 꺾여, 목 아래(C7)에서 귀 쪽으로 돌려 붙이는 머리뼈가 목에서 꺾여 떨어져 보였다(2026-10-09 김민 "목뼈가 분리된 수준", 두 샘플).
    */
-  const neckRawV = frames.map((fr, k) => toLocal(trunkM[k], sub(earMidOf(fr), shMid[k])));
+  const neckMeas = frames.map((fr, k) => toLocal(trunkM[k], sub(earMidOf(fr), shMid[k])));
+  /*
+   * 바로 선 목 — 다리를 들기 전까지(니업 앞) 목 방향의 평균을 그 사람의 0 으로 둔다. 귀 · 어깨 점은 사람마다 · 관절 모델마다 앞뒤로 치우쳐
+   * 서 있을 때도 목이 15~20° 앞으로 잡히는데, 모델 머리뼈는 귀가 어깨 위에 있을 때 바로 서서 화면 내내 고개를 숙인 모양이 됐다
+   * (2026-10-10 샘플 5). 0 에서 움직인 만큼만 그린다 — 치우침은 30° 까지만 덜어 낸다(그 넘게 기운 목은 실제 자세일 수 있다).
+   */
+  const UP: Vec3 = [0, 1, 0];
+  const restEnd = ev ? (ev.kneeUp ?? ev.footPlant) : 0;
+  let neck0 = UP;
+  if (restEnd >= 3) {
+    const acc: Vec3 = [0, 0, 0];
+    for (let k = 0; k < Math.min(n, restEnd); k++) {
+      const v = unit(neckMeas[k], UP);
+      for (let d = 0; d < 3; d++) acc[d] += v[d] * wHead[k];
+    }
+    const m = unit(acc, UP);
+    const tilt = Math.acos(clamp(dot(m, UP), -1, 1));
+    neck0 = tilt <= rad(30) ? m : unit(add(UP, scale(unit(perp(m, UP), UP), Math.tan(rad(30)))), UP);
+  }
+  const neckRawV = neckMeas.map((v) => (neck0 === UP ? v : rotFromTo(v, neck0, UP)));
   const neckLen = median(neckRawV.map(norm));
   const neckDir = rateLimitDir(
     smoothUnit(
-      neckRawV.map((v) => {
+      neckRawV.map((v, k) => {
         const y = Math.max(v[1], 1e-6);
-        const fw = clamp(Math.atan2(v[2], y), -rad(KIN_LIMITS.neckBack), rad(KIN_LIMITS.neckForward));
-        const sd = clamp(Math.atan2(v[0], y), -rad(KIN_LIMITS.neckSide), rad(KIN_LIMITS.neckSide));
+        const pre = preRelease(k);
+        const fwd = KIN_LIMITS.neckForward + (KIN_LIMITS.neckForwardPre - KIN_LIMITS.neckForward) * pre;
+        const side = KIN_LIMITS.neckSide + (KIN_LIMITS.neckSidePre - KIN_LIMITS.neckSide) * pre;
+        const fw = clamp(Math.atan2(v[2], y), -rad(KIN_LIMITS.neckBack), rad(fwd));
+        const sd = clamp(Math.atan2(v[0], y), -rad(side), rad(side));
         return normalize([Math.tan(sd), 1, Math.tan(fw)]);
       }),
       wHead
@@ -753,12 +822,19 @@ export function kinematicTrack(
     });
     /* 손을 모르면 두 팔 다 던지는 팔만큼 빠르게 둔다(깎지 않는 쪽) */
     const throwing = opts.hand == null || opts.hand === side;
+    /*
+     * 글러브 팔은 더 넓게 다듬는다(앞뒤 1.2~4장면) — 던지는 팔보다 느리게 움직이는데 손 · 손목 점이 작고 몸에 가려 떨림이 그대로 보였다
+     * (2026-10-10 샘플 5 왼손목 떨림 가운데값 0.7 · 던지는 손목 0.3).
+     */
+    const [gMin, gMax] = throwing ? [0.6, 2.2] : [1.2, 4];
     const dirS = rateLimitDir(
-      smoothUnit(limb.dir, limb.flexW),
+      smoothMulti(limb.dir as number[][], limb.flexW, gMin, gMax).map((v) =>
+        unit(v as Vec3, [0, -1, 0])
+      ),
       perFrame(throwing ? KIN_SPEED.throwUpperArm : KIN_SPEED.gloveUpperArm)
     );
     const flexS = rateLimit(
-      smooth1(limb.flex, limb.flexW).map((f) =>
+      smooth1(limb.flex, limb.flexW, gMin, gMax).map((f) =>
         clamp(f, -rad(KIN_LIMITS.elbowHyper), rad(KIN_LIMITS.elbowFlex))
       ),
       perFrame(throwing ? KIN_SPEED.throwElbow : KIN_SPEED.gloveElbow)
@@ -950,12 +1026,19 @@ export function kinematicTrack(
     });
     const Lt = lenOf(Hp, Kn);
     const Ls = lenOf(Kn, An);
-    /* 발 — 정강이 틀(축 = 정강이, 둘째 = 무릎이 굽는 축)에서 발끝 · 뒤꿈치 */
+    /*
+     * 발 — 정강이 틀(축 = 정강이, 둘째 = 골반 좌우축을 정강이에 수직으로)에서 발끝 · 뒤꿈치. 예전엔 둘째가 무릎이 굽는 축(넙다리 × 정강이)이라
+     * 다리가 거의 펴지는 장면(내딛는 앞다리)에서 그 축이 뒤집혀 원본은 매끈한 발이 화면에선 한 장면에 100° 넘게 돌았다(2026-10-10 샘플 5 왼발
+     * 209~213장면 131 → 24 → −14 → 111°). 다시 그릴 때도 같은 틀(다듬은 골반)이라 발은 원본 방향 그대로 따라간다.
+     */
+    const footFrame = (s: Vec3, M: Mat3): [Vec3, Vec3] => {
+      const e2 = unit(perp(toWorld(M, [1, 0, 0]), s), unit(perp(toWorld(M, [0, 0, 1]), s), [1, 0, 0]));
+      return [e2, cross(s, e2)];
+    };
     const footL: Vec3[][] = frames.map((fr, k) => {
       const u = unit(sub(fr[Kn], fr[Hp]), [0, -1, 0]);
       const s = unit(sub(fr[An], fr[Kn]), u);
-      const e2 = unit(cross(u, s), toWorld(pelvisM[k], [1, 0, 0]));
-      const e3 = cross(s, e2);
+      const [e2, e3] = footFrame(s, pM[k]);
       return [To, He].map((j) => {
         const v = sub(fr[j], fr[An]);
         return [dot(v, s), dot(v, e2), dot(v, e3)] as Vec3;
@@ -1002,9 +1085,9 @@ export function kinematicTrack(
         if (norm(nb2) > 1e-3) nw = scale(normalize(nb2), dot(nb2, nw) < 0 ? -1 : 1);
         else nw = unit(perp(nw, sw), nw);
       }
-      const e3 = cross(sw, nw);
+      const [f2, f3] = footFrame(sw, M);
       const fromLocal = (v: Vec3, L: number) =>
-        scale(unit(add(add(scale(sw, v[0]), scale(nw, v[1])), scale(e3, v[2])), sw), L);
+        scale(unit(add(add(scale(sw, v[0]), scale(f2, v[1])), scale(f3, v[2])), sw), L);
       out[k][Kn] = K;
       out[k][An] = A;
       out[k][To] = add(A, fromLocal(toeS[k], Lto));

@@ -1124,6 +1124,76 @@ console.log('■ 뼈대 자세(pose-rig) — public/models/skeleton-parts.json +
           check(`각도 모델: 몸통 꼬임 90° → ${KIN_LIMITS.spineTwist}° 안`, tw <= KIN_LIMITS.spineTwist + 0.5, `${tw.toFixed(1)}°`);
         }
 
+        /* 4-2 다리 드는 동안(니업 전) 꼬임 50° → liftTwist 안 · 어깨선은 그대로(골반이 몸통을 따른다) — 2026-10-10 샘플 5 */
+        {
+          const UP = [V2J.lSh, V2J.rSh, V2J.lEl, V2J.rEl, V2J.lWr, V2J.rWr, V2J.lHandIdx, V2J.rHandIdx, V2J.lHandMid, V2J.rHandMid, V2J.lHandPinky, V2J.rHandPinky, V2J.nose, V2J.lEar, V2J.rEar];
+          const twistOf = (fr: Vec3[]) => {
+            const { t, l } = trunkOf(fr);
+            const hv = sub(fr[V2J.lHip], fr[V2J.rHip]);
+            const lh = normalize(sub(hv, scale(t, dot(hv, t))));
+            return { tw: Math.atan2(dot(cross(lh, l), t), dot(lh, l)), l };
+          };
+          const seq = seqOf(9, (fr) => {
+            const { neck, t } = trunkOf(fr);
+            const now = twistOf(fr).tw;
+            for (const j of UP) fr[j] = rotAbout(fr[j], neck, t, (50 * Math.PI) / 180 - now);
+          });
+          const out = kinematicTrack(seq, fullConf(9), [], { events: { kneeUp: 8, footPlant: 8, release: 8 } }).frames[4];
+          const tw = Math.abs(deg(twistOf(out).tw));
+          const shoulderMove = deg(Math.acos(Math.min(1, dot(twistOf(out).l, twistOf(seq[4]).l))));
+          check(
+            `각도 모델: 다리 드는 동안 꼬임 50° → ${KIN_LIMITS.liftTwist}° 안, 어깨선은 그대로`,
+            tw <= KIN_LIMITS.liftTwist + 3 && shoulderMove < 5,
+            `꼬임 ${tw.toFixed(1)}° · 어깨선 ${shoulderMove.toFixed(1)}°`
+          );
+        }
+
+        /* 4-3 목 — 서 있을 때부터 귀가 앞으로 25° 치우친 사람은 그것을 바로 선 목으로, 릴리스 전 앞 숙임은 neckForwardPre 안 — 2026-10-10 샘플 5 */
+        {
+          const neckFwd = (fr: Vec3[]) => {
+            const { neck, t, f } = trunkOf(fr);
+            const v = sub(scale(add(fr[V2J.lEar], fr[V2J.rEar]), 0.5), neck);
+            return deg(Math.atan2(dot(v, f), dot(v, t)));
+          };
+          const tilt = (fr: Vec3[], th: number) => {
+            const { neck, l } = trunkOf(fr);
+            for (const j of [V2J.nose, V2J.lEar, V2J.rEar]) fr[j] = rotAbout(fr[j], neck, l, th);
+          };
+          const base = neckFwd(mid0);
+          const sign = (() => {
+            const fr = mid0.map((p) => [...p] as Vec3);
+            tilt(fr, 0.3);
+            return neckFwd(fr) > base ? 1 : -1;
+          })();
+          const rad25 = (sign * 25 * Math.PI) / 180;
+          /* 늘 25° 앞 → 바로 선 목(0 근처) */
+          const same = seqOf(12, (fr) => tilt(fr, rad25 - (sign * base * Math.PI) / 180));
+          const o1 = kinematicTrack(same, fullConf(12), [], { events: { kneeUp: 6, footPlant: 9, release: 11 } }).frames[8];
+          /* 서 있을 땐 바로, 내딛는 동안 50° 앞 → 릴리스 전이라 15° 안 */
+          const late = seqOf(12, (fr, k) => tilt(fr, (k >= 6 ? sign * 50 * Math.PI / 180 : 0) - (sign * base * Math.PI) / 180));
+          const o2 = kinematicTrack(late, fullConf(12), [], { events: { kneeUp: 5, footPlant: 9, release: 11 } }).frames[9];
+          check(
+            '각도 모델: 서 있을 때의 목 치우침은 덜어 내고, 릴리스 전 앞 숙임은 15° 안',
+            Math.abs(neckFwd(o1)) < 5 && neckFwd(o2) <= KIN_LIMITS.neckForwardPre + 1,
+            `늘 25° → ${neckFwd(o1).toFixed(1)}° · 내딛을 때 50° → ${neckFwd(o2).toFixed(1)}°`
+          );
+        }
+
+        /* 4-4 거의 편 다리가 장면마다 반대로 살짝 굽어도 발 방향이 돌지 않는다 — 2026-10-10 샘플 5 왼발 한 장면 100° */
+        {
+          const hip = mid0[V2J.lHip];
+          const an = mid0[V2J.lAn];
+          const side = normalize(cross(sub(an, hip), [0, 0, 1]));
+          const seq = seqOf(12, (fr, k) => {
+            fr[V2J.lKn] = add(scale(add(hip, an), 0.5), scale(side, (k % 2 ? -1 : 1) * 0.01));
+          });
+          const F = kinematicTrack(seq, fullConf(12), []).frames;
+          const yaw = (fr: Vec3[]) => deg(Math.atan2(fr[V2J.lTo][2] - fr[V2J.lHe][2], fr[V2J.lTo][0] - fr[V2J.lHe][0]));
+          let worst = 0;
+          for (let k = 1; k < 12; k++) worst = Math.max(worst, Math.abs(((yaw(F[k]) - yaw(F[k - 1]) + 540) % 360) - 180));
+          check('각도 모델: 거의 편 다리가 흔들려도 발 방향이 한 장면에 10° 넘게 돌지 않는다', worst < 10, `${worst.toFixed(1)}°`);
+        }
+
         /* 5 거의 편 팔꿈치가 장면마다 반대로 꺾여도 굽는 축(위팔 비틀림)이 뒤집히지 않는다 · 과신전 5° 안 */
         {
           const sh = mid0[V2J.rSh];
