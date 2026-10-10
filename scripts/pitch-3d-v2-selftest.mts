@@ -835,6 +835,31 @@ console.log('■ node 실행기(segment · fit)');
       seg5.ok ? `${(seg5.events.footPlant - fp0).toFixed(3)}초` : seg5.code
     );
   }
+  /*
+   * 다리를 들며 앞발을 홈 쪽으로 내뻗는 투수 — 그 움직임이 내딛기보다 빠르면 예전엔 거기서 착지를 찾아, 아직 앞으로 가는 발을 땅에 묶었다
+   * (2026-10-10 샘플 8: 착지 2.6초, 실제 4.5초). 니업 0.12초 전부터 0.04초 동안 발을 몸통 길이 1.2 만큼 내뻗고 0.08초 동안 되돌린다.
+   */
+  if (seg.ok) {
+    const s6 = makeV2Track(sc, camS, sc.side, 'side', 41);
+    const b6 = makeV2Track(sc, camB, sc.back, 'back', 42);
+    const fr = s6.track.frames;
+    const hipX = (f: (typeof fr)[number]) => (f.p[V2J.lHip][0] + f.p[V2J.rHip][0]) / 2;
+    const iFp = fr.findIndex((f) => f.t >= s6.toMedia(EV.footPlant));
+    const homeSign = Math.sign(hipX(fr[iFp]) - hipX(fr[0])) || 1;
+    const trunkPx = Math.abs(fr[0].p[V2J.lSh][1] - fr[0].p[V2J.lHip][1]) || 100;
+    const t0 = s6.toMedia(EV.kneeUp) - 0.12;
+    for (const f of fr) {
+      const u = (f.t - t0) / 0.04;
+      const w = u < 0 ? 0 : u < 1 ? u : u < 3 ? 1 - (u - 1) / 2 : 0;
+      if (w > 0) for (const j of [V2J.lAn, V2J.lHe, V2J.lTo]) f.p[j][0] += homeSign * w * 1.2 * trunkPx;
+    }
+    const seg6 = pickSegment({ side: s6.track, back: b6.track });
+    check(
+      '다리 들며 앞발을 빠르게 내뻗어도 같은 착지를 찾는다(0.05초 안)',
+      seg6.ok && Math.abs(seg6.events.footPlant - seg.events.footPlant) < 0.05,
+      seg6.ok ? `${seg6.events.footPlant.toFixed(3)} · ${seg.events.footPlant.toFixed(3)}` : seg6.code
+    );
+  }
   /* segment 가 찾은 순간을 fit 이 넘겨받는다 — 잘라 낸 구간에서 다시 찾다 실패한 2026-10-08 샘플 1 · 3 */
   check('fit 입력 순간: 착지 < 릴리스면 그대로', readV2Events({ kneeUp: 1, footPlant: 2, release: 2.5 })?.release === 2.5);
   check('fit 입력 순간: 뒤바뀌거나 없으면 버림(다시 찾기)', !readV2Events({ footPlant: 2, release: 1 }) && !readV2Events(null));
