@@ -197,18 +197,19 @@ const indoorPlan: ShootPlan = { ...plan, weeks: plan.weeks.filter((w) => !w.outd
 {
   const items = indoorPlan.weeks.flatMap(weekItems);
   check(
-    '실내 7주 · 405개(야외를 붙여도 그대로)',
+    '실내 7주 · 403개(야외를 붙여도 그대로)',
     indoorPlan.weeks.length === 7 &&
-      items.length === 405 &&
+      items.length === 403 &&
       indoorPlan.weeks.every((w, i) => w.week === i + 1),
     `${indoorPlan.weeks.length}주 · ${items.length}개`
   );
   invariants(indoorPlan, '고정 계획');
-  const lower = indoorPlan.weeks.map((w) =>
-    LOWER_BUCKETS.reduce((a, b) => a + (w.load[b] ?? 0), 0)
-  );
+  /* 1주차는 찍은 대로(2026-10-10 촬영 — 못 찍은 노르딕 햄스트링 컬은 4주차로 옮겨 하체가 가볍다), 고르게는 남은 주끼리 */
+  const lower = indoorPlan.weeks
+    .filter((w) => w.week > 1)
+    .map((w) => LOWER_BUCKETS.reduce((a, b) => a + (w.load[b] ?? 0), 0));
   check(
-    '하체 부하는 회마다 고르게(최대 − 최소 ≤ 8점)',
+    '하체 부하는 2주차부터 회마다 고르게(최대 − 최소 ≤ 8점)',
     Math.max(...lower) - Math.min(...lower) <= 8,
     lower.map((x) => x.toFixed(1)).join(' · ')
   );
