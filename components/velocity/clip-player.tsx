@@ -218,7 +218,7 @@ export function Tracer({
 }
 
 /**
- * 폰 사진 앱에 둔 회원 클립(`{userId}/local-…`, lib/local-video.ts)은 이 폰에서 꺼내 blob 주소로 튼다. 다른 기기 · 웹 · 지운
+ * 폰의 앱 안에 둔 회원 클립(`{userId}/local-…`, lib/local-video.ts)은 이 폰에서 꺼내 blob 주소로 튼다. 다른 기기 · 웹 · 지운
  * 클립이면 '찍은 폰에 있어요'. 서버 주소는 그대로.
  */
 export function ClipPlayer(props: ClipPlayerProps) {

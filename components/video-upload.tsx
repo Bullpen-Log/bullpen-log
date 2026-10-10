@@ -5,7 +5,7 @@ import { Film, Loader2, Upload, X } from 'lucide-react';
 import { captureThumbnail } from '@/lib/capture-thumbnail';
 import { useWakeLock } from '@/components/use-wake-lock';
 import { insideApp } from '@/lib/shoot-camera';
-import { localVideoAvailable, saveBlobToPhone } from '@/lib/local-video';
+import { localVideoAvailable, removePhoneVideos, saveBlobToPhone } from '@/lib/local-video';
 
 export const MAX_VIDEO_MB = 50;
 const MAX_VIDEO_BYTES = MAX_VIDEO_MB * 1024 * 1024;
@@ -149,7 +149,7 @@ export function VideoUpload({
   /** 올리기 전에 줄인다(shrinkVideo) — 회원이 올리는 투구 영상. 라이브러리 · 투구 분석 샘플은 원본 그대로 */
   compress?: boolean;
   /**
-   * 회원 영상 — 서버가 아니라 폰 사진 앱 '불펜로그' 앨범에 둔다(lib/local-video.ts, 2026-10-10 사용자). 기록에는 그 영상의 경로만
+   * 회원 영상 — 서버가 아니라 폰의 앱 안에 둔다(lib/local-video.ts, 2026-10-10 사용자). 기록에는 그 영상의 경로만
    * (`{userId}/local-…`, 서버가 붙인다). 웹(앱 밖)은 올리기를 막고 앱으로 안내, 부품이 없는 옛 앱은 예전처럼 서버에.
    */
   toPhone?: boolean;
@@ -205,6 +205,8 @@ export function VideoUpload({
    * 끝나는 순간 되살아났다. 끝날 때의 목록을 봐야 한다.
    */
   const latestVideos = useRef(videos);
+  /** 이 창에서 폰에 넣은 영상 — 빼면 폰에서도 지운다 */
+  const addedRef = useRef(new Set<string>());
   useEffect(() => {
     latestVideos.current = videos;
   }, [videos]);
@@ -268,6 +270,7 @@ export function VideoUpload({
         });
         const data = (await res.json().catch(() => ({}))) as { path?: string; error?: string };
         if (!res.ok || !data.path) throw new Error(data.error ?? '영상을 기록에 붙이지 못했어요.');
+        addedRef.current.add(data.path);
         onUploaded?.(data.path, file);
         onChange([
           ...latestVideos.current,
@@ -333,6 +336,8 @@ export function VideoUpload({
      */
     if (target.previewUrl?.startsWith('blob:')) {
       URL.revokeObjectURL(target.previewUrl);
+      /* 방금 폰에 넣은 영상 — 폰에서도 지운다(이미 저장된 기록의 영상도 blob 으로 보이니, 이 창에서 넣은 것만) */
+      if (addedRef.current.delete(target.path)) void removePhoneVideos([target.path]);
     }
     setAsking(null);
     onChange(videos.filter((v) => v.path !== path));
@@ -352,7 +357,7 @@ export function VideoUpload({
           {uploading ? (
             <>
               <Loader2 className="h-4 w-4 animate-spin" />
-              {stage === 'shrink' ? '영상 줄이는 중…' : stage === 'phone' ? '사진 앱에 저장하는 중…' : '올리는 중…'}{' '}
+              {stage === 'shrink' ? '영상 줄이는 중…' : stage === 'phone' ? '폰에 저장하는 중…' : '올리는 중…'}{' '}
               {progress}%
             </>
           ) : (
@@ -368,11 +373,11 @@ export function VideoUpload({
       </div>
       {webOnly && (
         <p className="text-xs text-muted">
-          영상은 불펜로그 앱에서 남길 수 있어요. 찍은 폰의 사진 앱 &apos;불펜로그&apos; 앨범에 저장돼요.
+          영상은 불펜로그 앱에서 남길 수 있어요. 찍은 폰의 앱 안에 저장돼요.
         </p>
       )}
       {where === 'phone' && (
-        <p className="text-xs text-muted">영상은 이 폰의 사진 앱 &apos;불펜로그&apos; 앨범에 저장돼요.</p>
+        <p className="text-xs text-muted">영상은 이 폰의 불펜로그 앱 안에 저장돼요. 앱을 지우면 같이 지워져요.</p>
       )}
 
       <input

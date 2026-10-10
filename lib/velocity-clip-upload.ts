@@ -20,7 +20,7 @@ export async function uploadClip(
   /** 'wide' 면 같은 공의 광각 카메라 영상 칸에 적는다 */
   kind: 'main' | 'wide' = 'main',
   /**
-   * 회원 클립 — 서버가 아니라 폰 사진 앱 '불펜로그' 앨범에(lib/local-video.ts, 2026-10-10 사용자: 회원 클립은 폰, 숫자 계산용 분석
+   * 회원 클립 — 서버가 아니라 폰의 앱 안에(lib/local-video.ts, 2026-10-10 사용자: 회원 클립은 폰, 숫자 계산용 분석
    * 정보만 서버). 부품이 없는 옛 앱 · 웹은 예전처럼 서버. 관리자의 보정용 저장은 늘 서버(false).
    */
   toPhone = false
@@ -31,7 +31,7 @@ export async function uploadClip(
     try {
       localId = await saveBlobToPhone(blob, (p) => onProgress?.(Math.round(p * 100)));
     } catch (e) {
-      return { ok: false, error: e instanceof Error ? e.message : '사진 앱에 저장하지 못했어요.' };
+      return { ok: false, error: e instanceof Error ? e.message : '폰에 저장하지 못했어요.' };
     }
     try {
       const attached = await attachClip(

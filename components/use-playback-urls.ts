@@ -82,7 +82,7 @@ export function usePlaybackUrls(paths: (string | undefined)[]) {
       }));
 
     /*
-     * 폰 사진 앱에 둔 회원 영상(lib/local-video.ts) — 서버에 묻지 않고 이 폰에서 꺼낸다(blob: 주소, 낡지 않는다). 다른 기기 · 웹 ·
+     * 폰의 앱 안에 둔 회원 영상(lib/local-video.ts) — 서버에 묻지 않고 이 폰에서 꺼낸다(blob: 주소, 낡지 않는다). 다른 기기 · 웹 ·
      * 지운 영상은 주소 없이 'done' — 부르는 쪽이 isPhoneVideoPath 로 '찍은 폰에 있어요'를 띄운다.
      */
     const phone = missing.filter(isPhoneVideoPath);

@@ -1,11 +1,11 @@
 'use client';
 
 /**
- * 회원 영상은 폰의 사진 앱 '불펜로그' 앨범에 둔다(아이폰 앱의 'LocalVideo' 부품 — mobile/ios/App/App/LocalVideoPlugin.swift).
+ * 회원 영상은 폰의 앱 안에 둔다 — 사진 앱 · 아이클라우드에도 두지 않는다(2026-10-10 사용자: "앱 내부에만"). 아이폰 앱의 'LocalVideo' 부품 — mobile/ios/App/App/LocalVideoPlugin.swift).
  * 서버(Supabase)에는 올리지 않는다 — 2026-10-10 사용자: "폰에 저장해도 되는 것과 서버에 저장해야 하는 것을 확실히 구분".
  * 서버에 두는 것: 관리자가 올리는 라이브러리 · 촬영 · 투구 분석 샘플 · 구속 보정용 클립, 나중의 유료 클라우드 · 팀 기능.
  *
- * DB 에는 영상 자리에 '{userId}/local-<사진 앱 영상 번호>' 를 적는다(lib/phone-video-path.ts — 칸은 그대로).
+ * DB 에는 영상 자리에 '{userId}/local-<영상 번호>' 를 적는다(lib/phone-video-path.ts — 칸은 그대로).
  * 그 영상은 찍은 폰에서만 열린다. 다른 기기 · 웹에서는 '찍은 폰에 있어요'.
  * 사이트는 Capacitor 패키지 없이 window.Capacitor.nativePromise 로 부른다(lib/shoot-camera.ts 와 같은 방식).
  */
@@ -35,14 +35,12 @@ export function localVideoAvailable(): boolean {
 }
 
 export class LocalVideoError extends Error {
-  readonly code: 'denied' | 'missing' | 'unavailable' | 'failed';
+  readonly code: 'missing' | 'unavailable' | 'failed';
   constructor(message: string, code: LocalVideoError['code']) {
     super(message);
     this.code = code;
   }
 }
-
-const DENIED_TEXT = '사진 접근이 꺼져 있어요. 아이폰 설정 → 불펜로그 → 사진에서 \'모든 사진\'이나 \'선택한 사진\'을 켜 주세요.';
 
 async function call<T>(method: string, options?: unknown): Promise<T> {
   const cap = bridge();
@@ -53,21 +51,9 @@ async function call<T>(method: string, options?: unknown): Promise<T> {
     return (await cap.nativePromise(LOCAL_VIDEO_PLUGIN, method, options)) as T;
   } catch (err) {
     const e = err as { code?: string; message?: string };
-    if (e?.code === 'denied') throw new LocalVideoError(DENIED_TEXT, 'denied');
     if (e?.code === 'missing')
-      throw new LocalVideoError('사진 앱에서 이 영상을 찾지 못했어요. 지웠거나 다른 폰에서 찍은 영상이에요.', 'missing');
+      throw new LocalVideoError('이 폰에 그 영상이 없어요. 다른 폰에서 찍었거나 앱을 다시 깔아 지워졌어요.', 'missing');
     throw new LocalVideoError(e?.message || '영상을 다루지 못했어요.', 'failed');
-  }
-}
-
-/** 사진 접근 허락 — 처음이면 묻는다. 거절이면 던진다 */
-export async function ensurePhotoAccess(): Promise<void> {
-  const { access } = await call<{ access: string }>('status');
-  if (access === 'authorized' || access === 'limited') return;
-  if (access === 'denied') throw new LocalVideoError(DENIED_TEXT, 'denied');
-  const res = await call<{ access: string }>('requestAccess');
-  if (res.access !== 'authorized' && res.access !== 'limited') {
-    throw new LocalVideoError(DENIED_TEXT, 'denied');
   }
 }
 
@@ -81,12 +67,11 @@ function toBase64(bytes: Uint8Array): string {
   return btoa(s);
 }
 
-/** 사이트가 가진 영상(Blob)을 사진 앱 '불펜로그' 앨범에 넣고 영상 번호를 돌려준다(경로는 서버가 붙인다 — phoneVideoPath) */
+/** 사이트가 가진 영상(Blob)을 폰의 앱 안에 넣고 영상 번호를 돌려준다(경로는 서버가 붙인다 — phoneVideoPath) */
 export async function saveBlobToPhone(
   blob: Blob,
   onProgress: (p: number) => void = () => {}
 ): Promise<string> {
-  await ensurePhotoAccess();
   const ext = blob.type === 'video/quicktime' ? 'mov' : 'mp4';
   const { token } = await call<{ token: string }>('begin', { ext });
   for (let offset = 0; offset < blob.size; offset += CHUNK) {
@@ -98,9 +83,8 @@ export async function saveBlobToPhone(
   return id;
 }
 
-/** 앱이 이미 가진 파일(구속 측정 클립 — 앱 임시 폴더)을 앨범에 넣고 영상 번호를 돌려준다 */
+/** 앱이 이미 가진 파일(구속 측정 클립 — 앱 임시 폴더)을 앱 안에 넣고 영상 번호를 돌려준다 */
 export async function saveAppFileToPhone(path: string): Promise<string> {
-  await ensurePhotoAccess();
   const { id } = await call<{ id: string }>('saveFile', { path });
   return id;
 }
@@ -140,7 +124,15 @@ export function loadPhoneVideo(path: string, onProgress: (p: number) => void = (
   return job;
 }
 
-/** 아직 사진 앱에 있는 것만 — 앱이 아니면 빈 집합 */
+/** 이 폰의 앱 안 영상 지우기 — 기록에 붙이기 전에 뺀 것. 앱이 아니면 아무것도 안 한다 */
+export async function removePhoneVideos(paths: string[]): Promise<void> {
+  const local = paths.filter(isPhoneVideoPath);
+  if (!local.length || !localVideoAvailable()) return;
+  for (const p of local) loaded.delete(p);
+  await call('remove', { ids: local.map(phoneAssetId) }).catch(() => undefined);
+}
+
+/** 아직 이 폰에 있는 것만 — 앱이 아니면 빈 집합 */
 export async function phoneVideosPresent(paths: string[]): Promise<Set<string>> {
   const local = paths.filter(isPhoneVideoPath);
   if (!local.length || !localVideoAvailable()) return new Set();
@@ -152,6 +144,6 @@ export async function phoneVideosPresent(paths: string[]): Promise<Set<string>> 
 /** 이 폰에서 열 수 없는 영상의 말 — 웹 · 다른 기기 · 옛 앱 */
 export function phoneVideoElsewhereText(): string {
   return localVideoAvailable()
-    ? '이 영상은 이 폰의 사진 앱에 없어요. 찍은 폰에서 볼 수 있어요.'
+    ? '이 영상은 이 폰에 없어요. 찍은 폰의 불펜로그 앱에서 볼 수 있어요.'
     : '이 영상은 찍은 폰의 불펜로그 앱에서 볼 수 있어요.';
 }

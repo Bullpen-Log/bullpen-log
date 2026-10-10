@@ -20,7 +20,7 @@ export async function POST(req: Request) {
   try {
     const body = await req.clone().json();
     /*
-     * 폰 사진 앱에 둔 영상(lib/local-video.ts) — 저장소에 올리지 않고 기록에 적을 경로만 준다. 사용자 번호를 붙이는 일이라
+     * 폰의 앱 안에 둔 영상(lib/local-video.ts) — 저장소에 올리지 않고 기록에 적을 경로만 준다. 사용자 번호를 붙이는 일이라
      * 서버가 한다(브라우저는 자기 번호를 모른다).
      */
     if (typeof body?.localId === 'string') {

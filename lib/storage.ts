@@ -162,7 +162,7 @@ export async function createUploadTarget(userId: string, fileName: string) {
 export async function createPlaybackUrls(
   all: string[]
 ): Promise<Record<string, string>> {
-  /* 폰 사진 앱에 둔 영상은 저장소에 없다 — 주소를 만들지 않는다(화면이 폰에서 꺼낸다, lib/local-video.ts) */
+  /* 폰의 앱 안에 둔 영상은 저장소에 없다 — 주소를 만들지 않는다(화면이 폰에서 꺼낸다, lib/local-video.ts) */
   const paths = all.filter((p) => !isPhoneVideoPath(p));
   if (paths.length === 0) return {};
 

@@ -489,7 +489,7 @@ export async function attachClip(
   pitchId: string,
   info: {
     path: string;
-    /** 폰 사진 앱에 둔 클립의 영상 번호(lib/local-video.ts) — 주면 path 대신 `{userId}/local-…` 를 적는다 */
+    /** 폰의 앱 안에 둔 클립의 영상 번호(lib/local-video.ts) — 주면 path 대신 `{userId}/local-…` 를 적는다 */
     localId?: string;
     bytes: number;
     sec: number | null;
