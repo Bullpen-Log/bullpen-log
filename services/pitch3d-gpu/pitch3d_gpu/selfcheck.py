@@ -18,6 +18,7 @@ from pathlib import Path
 from . import engine
 from .mapping import JOINT_MAP, N_JOINTS, RTMW_INDEX, RTMW_TOTAL, V2_NAMES, to_v2_points
 from .pipeline import MAX_FRAMES, _decimate, fit_payload, sanity_track
+from .video import upright_turn
 
 passed = 0
 # 윈도우 콘솔(cp949)에서도 한글 · 기호가 깨지지 않게
@@ -79,6 +80,12 @@ class _F:
 t = FakePose().track([_F(0.0), _F(1 / 60)], 1080, 1920, 60.0)
 sanity_track(t)
 check("가짜 관절로 엔진 입력 모양(V2Track)", len(t["frames"]) == 2)
+
+print("■ 영상 회전(display matrix) → 바로 세우기")
+check(
+    "회전 없음 0 · 거꾸로 180 · 아이폰 세로(-90) 90 · 반대 세로(90) 270",
+    [upright_turn(r) for r in (None, 0, 180, -180, -90, 90, 270, -270)] == [0, 0, 180, 180, 90, 270, 90, 270],
+)
 
 print("■ node 묶음 실행기(있으면)")
 node = shutil.which(engine.NODE)
