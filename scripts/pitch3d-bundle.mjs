@@ -31,6 +31,9 @@ const FILES = [
   'lib/pitch-3d/v2/fit.ts',
   'lib/pitch-3d/v2/run-node.ts',
   'lib/pitch-3d/v2/joint-map.json',
+  'lib/pitch-3d/v2/motion-template.ts',
+  'lib/pitch-3d/v2/motion-template.json',
+  'lib/pitch-3d/v2/MOTION-TEMPLATE-LICENSE.md',
   'lib/pose/types.ts',
   'lib/pose/detect.ts',
 ];
@@ -42,7 +45,7 @@ for (const rel of FILES) {
   const src = join(ROOT, rel);
   const dst = join(OUT, rel);
   mkdirSync(dirname(dst), { recursive: true });
-  if (rel.endsWith('.json')) {
+  if (!rel.endsWith('.ts')) {
     cpSync(src, dst);
     continue;
   }

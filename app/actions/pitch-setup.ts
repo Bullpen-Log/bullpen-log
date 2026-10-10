@@ -5,7 +5,6 @@ import { prisma } from '@/lib/prisma';
 import { getCurrentUser } from '@/lib/dal';
 import { validatePitchBaseline } from '@/lib/baseline';
 import { formOfFields, readPitchAnswers } from '@/lib/pitching/setup-answers';
-import { validateTargetVelocity } from '@/lib/velocity';
 
 /**
  * 투구 기록 첫 설정(/videos/setup)의 저장 — 던지는 손 · 평소 투구량 셋 · 목표 구속을 한 번에(User 한 줄).
@@ -41,17 +40,11 @@ export async function finishPitchSetup(
   if ('error' in baseline) {
     return { ok: false, error: baseline.error, field: baseline.field };
   }
-  /* 목표 구속 — 비워 두면 목표 없이(null). 내 정보에서 언제든 정할 수 있다 */
-  const target = validateTargetVelocity(answers.targetVelocity);
-  if ('error' in target) {
-    return { ok: false, error: target.error, field: 'targetVelocity' };
-  }
 
   await prisma.user.update({
     where: { id: user.id },
     data: {
       ...baseline.value,
-      targetVelocity: target.value,
       pitchSetupAt: user.pitchSetupAt ?? new Date(),
     },
   });

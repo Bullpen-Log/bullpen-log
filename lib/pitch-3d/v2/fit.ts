@@ -45,6 +45,7 @@ import {
   type V2Input,
   type V2Obs,
 } from '@/lib/pitch-3d/v2/contract';
+import { phaseOf, templateFill } from '@/lib/pitch-3d/v2/motion-template';
 import { byTime, medianStepOf, obsAt, toPoseTrack } from '@/lib/pitch-3d/v2/track';
 
 /**
@@ -75,6 +76,13 @@ const GAP_MAX = 15;
  * 릴리스 근처 손목을 10장면 지운 합성: 빈 구간 손목 최대 오차 키의 14~24% → 0.3 에서 13~16% · 0.6 에서 12~14%.
  */
 const GAP_PULL = 0.6;
+/**
+ * 통계 움직임 틀(motion-template.ts)로 채운 관절로 당기는 무게 — 틀이 확실할수록(표준편차가 키의 TPL_SD_REF 안) 이만큼, 흐리면 줄인다.
+ * 틀은 투구 TPL_MIN_PITCHES 개 넘게로 만든 것만 쓴다.
+ */
+const TPL_PULL = 0.6;
+const TPL_SD_REF = 0.03;
+const TPL_MIN_PITCHES = 20;
 /** 발이 땅에 닿았다고 보는 발목 움직임 폭(키 대비) — 5장면 가운데값으로 다듬은 발목이 구간 가운데값에서 이 안 */
 const CONTACT_STAY = 0.035;
 /** 닿은 구간의 높이 띠 — 그 발 발목 높이의 아래 10% + 키의 이만큼(니업 꼭대기에서 잠깐 멈춘 발은 빠진다) */
@@ -544,6 +552,35 @@ function fitOnce(input: V2Input): {
     }
   }
 
+  /*
+   * ── 통계 움직임 틀: 두 영상 다 안 보인 관절(부모가 있는 것) ── 실제 투구 모션캡처의 구간별 평균 자세 + 사람마다 다른 방향으로, 그
+   * 장면에 잘 보인 관절(두 영상 확신 0.5↑)에 맞춰 짐작한다. 방향만 쓰고 길이는 뼈 길이(아래 채우기). 틀이 없으면 예전 채우기 그대로.
+   */
+  const tpl = input.motionTemplate;
+  const tplPos: (Vec3 | null)[][] = Array.from({ length: n }, () => new Array<Vec3 | null>(N_V2_JOINTS).fill(null));
+  const tplW: number[][] = Array.from({ length: n }, () => new Array<number>(N_V2_JOINTS).fill(0));
+  if (tpl && tpl.n >= TPL_MIN_PITCHES) {
+    const ev = { kneeUp: core.evIdx.kneeUp ?? null, footPlant: core.evIdx.footPlant, release: core.evIdx.release };
+    for (let k = 0; k < n; k++) {
+      if (!obs3[k].some((v, j) => !v && PARENT_OF[j] != null)) continue;
+      const res = templateFill(
+        tpl,
+        obs3[k],
+        weight[k].map((w) => w >= 0.5),
+        core.axes,
+        H,
+        core.hand,
+        phaseOf(k, ev)
+      );
+      if (!res) continue;
+      for (let j = 0; j < N_V2_JOINTS; j++)
+        if (res.pos[j] && PARENT_OF[j] != null) {
+          tplPos[k][j] = res.pos[j];
+          tplW[k][j] = TPL_PULL * Math.min(1, Math.max(0.2, (TPL_SD_REF * H) / Math.max(1e-9, res.sd[j])));
+        }
+    }
+  }
+
   /* ── 처음 자리: 관찰 → 없으면 부모 + 앞 장면 방향 · 기본 방향 ── */
   const U = core.axes.U;
   const facingAt = (fr: (Vec3 | null)[]): Vec3 => {
@@ -648,6 +685,7 @@ function fitOnce(input: V2Input): {
     const fr: (Vec3 | null)[] = obs3[k].map((v) => (v ? ([...v] as Vec3) : null));
     const w = [...weight[k]];
     const gapFilled = new Set<number>();
+    const tplPulled = new Set<number>();
     const prev = X[k - 1];
     /*
      * 짝에서 이 점 쪽 방향 — 앞 장면의 같은 선(엉덩이선 · 어깨선)을 그사이 다른 선이 위 축 둘레로 돈 만큼 돌린 것. 예전엔 늘 어깨선
@@ -706,6 +744,12 @@ function fitOnce(input: V2Input): {
       w[j] = 0;
       const Lj = boneLenByChild.get(j) ?? 0.1 * H;
       const P = fr[p]!;
+      const T = tplPos[k][j];
+      if (T && norm(sub(T, P)) > 1e-9) {
+        fr[j] = add(P, scale(normalize(sub(T, P)), Lj));
+        tplPulled.add(j);
+        continue;
+      }
       let dir: Vec3 | null = gapDir[k][j];
       if (dir) gapFilled.add(j);
       if (!dir && prev) {
@@ -716,7 +760,7 @@ function fitOnce(input: V2Input): {
     }
     X.push(fr as Vec3[]);
     dataW.push(w);
-    pullW.push(w.map((v, j) => (gapFilled.has(j) ? GAP_PULL : v)));
+    pullW.push(w.map((v, j) => (gapFilled.has(j) ? GAP_PULL : tplPulled.has(j) ? tplW[k][j] : v)));
   }
   const target: Vec3[][] = X.map((fr) => fr.map((v) => [...v] as Vec3));
 

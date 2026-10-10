@@ -15,7 +15,6 @@ import {
   checkEligibility,
   equipmentBlock,
   profileBlock,
-  seasonBlock,
   variantLabel,
   dayLabel,
   dayPlan,
@@ -429,7 +428,6 @@ const full = ['바벨', '덤벨', '메디신볼', '박스', '벤치'];
 const base = {
   age: 24,
   trainingLevel: '중급',
-  season: 'off' as const,
   ownedEquipment: full,
 };
 check('다 맞으면 시작', checkEligibility(base).ok);
@@ -442,10 +440,6 @@ check('다 맞으면 시작', checkEligibility(base).ok);
   check('경력 없음 → 물음', !rLv.ok && rLv.kind === 'ask' && rLv.step === 'level');
   const rIn = checkEligibility({ ...base, trainingLevel: '입문' });
   check('입문 → 막힘', !rIn.ok && rIn.kind === 'blocked');
-  const rS = checkEligibility({ ...base, season: 'in' });
-  check('시즌 중 → 막힘', !rS.ok && rS.kind === 'blocked');
-  const rR = checkEligibility({ ...base, season: 'rehab' });
-  check('재활 → 막힘', !rR.ok && rR.kind === 'blocked');
   const rE = checkEligibility({ ...base, ownedEquipment: [] });
   check(
     '장비 안 고름 → 물음(모두로 보지 않음)',
@@ -467,8 +461,6 @@ check('다 맞으면 시작', checkEligibility(base).ok);
   check('기본기: 만 12세 → 막힘', !r12.ok && r12.kind === 'blocked' && r12.reason.includes('13세'));
   check('기본기: 만 13세 → 시작', checkEligibility({ ...kid, age: 13 }).ok);
   check('기본기: 성인 중급도 → 시작', checkEligibility({ ...base, audience: 'basics' }).ok);
-  const rBin = checkEligibility({ ...kid, season: 'in' });
-  check('기본기: 시즌 중 → 막힘(기본기 글)', !rBin.ok && rBin.kind === 'blocked' && rBin.reason.includes('기본기'));
   const rBe = checkEligibility({ ...kid, ownedEquipment: [] });
   check('기본기: 장비 안 고름 → 물음', !rBe.ok && rBe.kind === 'ask' && rBe.step === 'equipment');
   const r16 = checkEligibility({ ...base, age: 16 });
@@ -484,7 +476,6 @@ check('다 맞으면 시작', checkEligibility(base).ok);
   const bplan = plan('basics-4w');
   check('기본기 마침: 다 건너뛰면 안 셈 · 6번 하면 셈', !basicsDoneEnough(bplan, 13, 12) && !basicsDoneEnough(bplan, 13, 7) && basicsDoneEnough(bplan, 13, 6) && basicsDoneEnough(bplan, 13, 0));
   check('장비 막힘: 성인은 바벨 · 덤벨 · 메디신볼, 기본기는 없음', equipmentBlock(['맨몸'])?.reason.startsWith('바벨, 덤벨, 메디신볼이') === true && equipmentBlock(['맨몸'], []) === null);
-  check('재활 → 둘 다 막힘', seasonBlock('rehab', 'basics') != null && seasonBlock('rehab') != null && seasonBlock('off', 'basics') === null);
 }
 
 /* ── 3) 운동 고정 ─────────────────────────────── */

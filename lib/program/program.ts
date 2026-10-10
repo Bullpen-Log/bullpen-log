@@ -918,9 +918,6 @@ export function programChoiceList(): ProgramChoice[] {
 
 /* ─────────────────────────── 시작 자격(§1) ─────────────────────────── */
 
-export type ProgramSeason = 'off' | 'pre';
-export type SeasonAnswer = ProgramSeason | 'in' | 'rehab';
-
 export const PROGRAM_MIN_AGE = 18;
 /** 기본기 4주의 아래 끝(2026-10-09 사용자) */
 export const BASICS_MIN_AGE = 13;
@@ -934,13 +931,11 @@ export type EligibilityInput = {
   age: number | null;
   /** 경력 이름(입문 · 초급 · 중급 · 상급). 안 골랐으면 null */
   trainingLevel: string | null;
-  /** 시작 화면에서 고른 시즌. 아직이면 null */
-  season: SeasonAnswer | null;
   /** 가진 장비. 비어 있으면 아직 안 고른 것(§13-21 — '모두'로 보지 않는다) */
   ownedEquipment: readonly string[];
 };
 
-export type EligibilityStep = 'birth' | 'level' | 'season' | 'equipment';
+export type EligibilityStep = 'birth' | 'level' | 'equipment';
 
 export type Eligibility =
   | { ok: true }
@@ -989,35 +984,8 @@ export function profileBlock(input: {
 }
 
 /**
- * 시즌으로 막힘 — 시즌 중 · 재활. 기본기도 시즌 중에는 시작하지 않는다(경기 앞뒤 쉬는 날이 잦아 4주를 잇기 어렵다,
- * 2026-10-09 맡김 — 사용자가 열자고 하면 basics 의 'in' 만 null 로).
- */
-export function seasonBlock(
-  season: SeasonAnswer,
-  audience: ProgramAudience = 'adult'
-): ProgramBlock | null {
-  if (season === 'in') {
-    return audience === 'basics'
-      ? {
-          reason: '시즌 중에는 경기와 겹쳐 기본기 4주를 시작하지 않아요.',
-          action: '시즌이 끝나면 시작해요. 지금은 자동 맞춤으로 가볍게 이어 가요.',
-        }
-      : {
-          reason: '시즌 중 유지 프로그램은 곧 열려요.',
-          action: '지금은 자동 맞춤으로 가볍게 이어 가요.',
-        };
-  }
-  if (season === 'rehab') {
-    return {
-      reason: '재활 중에는 재활을 먼저 해요.',
-      action: '암케어의 재활 카드에서 이어 가요.',
-    };
-  }
-  return null;
-}
-
-/**
- * 시작할 수 있는가. 묻는 차례는 시작 시트의 차례(§13-12)와 같다 — 생년월일 · 경력 · 시즌 · 장비.
+ * 시작할 수 있는가. 묻는 차례는 시작 시트의 차례(§13-12)와 같다 — 생년월일 · 경력 · 장비.
+ * 시즌은 2026-10-10 에 묻지 않기로 했다(사용자: "시즌 정하는 건 다 빼").
  * 고르기 카드는 프로필로 이미 아는 막힘만 보고(나이 · 경력 — profileBlock), 나머지는 시트에서 받는다.
  * 기본기는 꼭 있어야 하는 장비가 없다(맨몸).
  */
@@ -1036,16 +1004,6 @@ export function checkEligibility(input: EligibilityInput): Eligibility {
       message: '운동 경력을 골라 주세요',
     };
   }
-  if (input.season == null) {
-    return {
-      ok: false,
-      kind: 'ask',
-      step: 'season',
-      message: '지금 시즌을 골라 주세요',
-    };
-  }
-  const seasonBlocked = seasonBlock(input.season, audience);
-  if (seasonBlocked) return { ok: false, kind: 'blocked', ...seasonBlocked };
   if (input.ownedEquipment.length === 0) {
     return {
       ok: false,

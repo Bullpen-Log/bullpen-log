@@ -40,7 +40,6 @@ import { availableParts } from '@/lib/report/today-pick';
 import { exercisesByIds } from '@/lib/library-cache';
 import {
   PROGRAMS_ENABLED,
-  parseProgram,
   profileBlock,
   programChoiceList,
 } from '@/lib/program/program';
@@ -55,7 +54,6 @@ import {
 import { ageFromBirthDate } from '@/lib/profile';
 import { TRAINING_LEVELS } from '@/lib/report/personalize';
 import { SELECTABLE_EQUIPMENT } from '@/lib/report/equipment';
-import { isSeasonPhase } from '@/lib/nutrition/diet-prefs';
 import { ProgramCard } from './program-card';
 import { ProgramDone } from './program-done';
 import { ProgramStart, type ProgramStartProps } from './program-start';
@@ -262,16 +260,10 @@ export default async function TrainingPage({
    * 카드의 목록 · 무게는 운동 시작(app/actions/program.ts)이 얼리는 것과 같은 함수에서 나온다.
    */
   const programRow = PROGRAMS_ENABLED ? await activeProgram(user.id) : null;
-  const [programView, doneProgram, nutritionSeason] = await Promise.all([
+  const [programView, doneProgram] = await Promise.all([
     programRow ? buildProgramDay(core, programRow, user) : Promise.resolve(null),
     PROGRAMS_ENABLED && !programRow
       ? recentlyDoneProgram(user.id, today)
-      : Promise.resolve(null),
-    PROGRAMS_ENABLED && (!programRow || !parseProgram(programRow.programKey))
-      ? prisma.nutritionProfile.findUnique({
-          where: { userId: user.id },
-          select: { seasonPhase: true },
-        })
       : Promise.resolve(null),
   ]);
   const programCard = programView ? programCardProps(programView, core.library) : null;
@@ -299,10 +291,6 @@ export default async function TrainingPage({
           levels: TRAINING_LEVELS.map((l) => ({ name: l.name, desc: l.desc })),
           owned: user.ownedEquipment,
           equipment: [...SELECTABLE_EQUIPMENT],
-          season:
-            nutritionSeason?.seasonPhase && isSeasonPhase(nutritionSeason.seasonPhase)
-              ? nutritionSeason.seasonPhase
-              : null,
           /* 고르기 화면의 막힘 — 시작 자격(app/actions/program.ts)과 같은 함수 */
           blocked: profileBlock({ audience: 'adult', ...knownProfile }),
           basicsBlocked: profileBlock({ audience: 'basics', ...knownProfile }),

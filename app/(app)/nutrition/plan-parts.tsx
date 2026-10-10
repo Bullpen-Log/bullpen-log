@@ -14,7 +14,6 @@ import {
 import {
   DIET_STYLES,
   MEAL_PATTERNS,
-  SEASON_PHASES,
   type DietPrefs,
 } from '@/lib/nutrition/diet-prefs';
 import {
@@ -101,7 +100,6 @@ export function PlanCard({
     signals?.throwKind ? THROW_WORD[signals.throwKind] : null,
     signals?.appetite != null && signals.appetite <= 2 ? '입맛 없음' : null,
     signals?.soreness != null && signals.soreness >= 4 ? '근육통 많음' : null,
-    label(SEASON_PHASES, prefs.seasonPhase),
     label(DIET_STYLES, prefs.dietStyle),
     label(MEAL_PATTERNS, prefs.mealPattern),
   ].filter(Boolean);

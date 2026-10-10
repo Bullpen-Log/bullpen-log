@@ -1,4 +1,4 @@
-import { readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { detectPitchEvents } from '@/lib/pose/detect';
 import { medianStep, prepareView, syncViews } from '@/lib/pitch-3d/motion';
 import { cross, dot, norm, normalize, sub, type Vec3 } from '@/lib/pitch-3d/linalg';
@@ -12,6 +12,7 @@ import {
   type V2Input,
 } from '@/lib/pitch-3d/v2/contract';
 import { fitPitch3dV2 } from '@/lib/pitch-3d/v2/fit';
+import type { MotionTemplate } from '@/lib/pitch-3d/v2/motion-template';
 import { readV2Track, toPoseTrack } from '@/lib/pitch-3d/v2/track';
 
 /**
@@ -301,6 +302,19 @@ export function readV2Events(raw: unknown): V2Input['events'] {
   return { kneeUp: num(r.kneeUp), footPlant, release };
 }
 
+/**
+ * 통계 움직임 틀(motion-template.json, 0.7MB) — 처음 맞출 때 한 번 읽는다. 파일이 없으면 틀 없이(예전 채우기).
+ * 출처: Driveline OpenBiomechanics(CC BY-NC-SA 4.0) — 같은 폴더 MOTION-TEMPLATE-LICENSE.md.
+ */
+let template: MotionTemplate | null | undefined;
+function motionTemplate(): MotionTemplate | undefined {
+  if (template === undefined) {
+    const url = new URL('./motion-template.json', import.meta.url);
+    template = existsSync(url) ? (JSON.parse(readFileSync(url, 'utf8')) as MotionTemplate) : null;
+  }
+  return template ?? undefined;
+}
+
 /** fit 입력 모양 검사 → 맞추기 → 저장할 JSON 문자열(실패도 결과 모양이다) */
 export function runFit(raw: unknown): string {
   const r = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>;
@@ -320,6 +334,7 @@ export function runFit(raw: unknown): string {
     slowmoFps: typeof r.slowmoFps === 'number' ? r.slowmoFps : null,
     /* 거친 전체 영상에서 찾은 순간을 넘겨받는다 — 잘라 낸 구간에서 다시 찾으면 실패했다(2026-10-08 샘플 1 · 3, fit 단계 events) */
     events: readV2Events(r.events),
+    motionTemplate: motionTemplate(),
   };
   let result;
   try {

@@ -11,6 +11,20 @@ Claude 로 작업을 시작하면 저절로 읽힌다. 규칙은 `AGENTS.md` 6�
 
 ---
 
+## 금윤호에게 — 2026-10-10 · 김민(Claude) — 안 쓰는 질문 뺌(소속 · 시즌 · 목표 구속) · 몸무게는 체크인이 원본
+
+받은 뒤 할 일 없음(DB 구조 그대로 — 칸은 지우지 않고 묻기만 멈춤). 사용자 결정. **네 영역 파일을 많이 고쳤다.**
+- **소속(경기 수준)**: 가입 6 → 5화면(`app/login/auth-form.tsx` 의 'level' 화면 · `trySignup` 저장 뺌), 내 정보의 소속 칸 뺌, `components/level-choices.tsx` 지움.
+  영양 첫 설정의 평소 움직임 기본값도 소속을 안 본다(`level: null`). `User.competitionLevel` 칸은 옛 줄 때문에 남김.
+- **시즌**: 영양 첫 설정의 시즌 화면 · 목표 창의 시즌 줄 · 식단 카드의 시즌 칩 뺌, `toDietPrefs` · `cleanDietPrefs` 가 늘 null(옛 값도 계산에 안 씀).
+  프로그램 시작의 시즌 화면 · `seasonBlock` · 자격의 시즌 물음 뺌(시즌 중 · 재활 막힘도 없어짐), `UserTrainingProgram.season` 은 늘 'off'.
+- **목표 구속**: 투구 첫 설정의 목표 화면 · 내 정보 칸 · 분석 화면 '목표' 표시 뺌. 사용자: 나중에 현재 구속 · 몸 · 운동 수준 · 투구 분석으로
+  "몇 달 뒤 달성 가능한 목표 구속"을 앱이 계산해 알려 줄 것 — `User.targetVelocity` 칸은 그때 쓴다.
+- **몸무게**: 오늘 체크인에 적은 몸무게가 `User.weightKg` 도 바꾼다(`app/actions/checkin.ts`, 지난 날 고친 것은 안 건드림). 가입에서는 그대로 받는다.
+- **영양 첫 설정**: 가입에서 받은 키 · 몸무게가 있으면 그 화면을 건너뛴다(`setup-wizard.tsx` askBody).
+- 시험: nutrition 456 · program 183 · training 687 통과.
+
+
 
 
 

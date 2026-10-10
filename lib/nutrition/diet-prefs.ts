@@ -110,7 +110,8 @@ export function toDietPrefs(
   if (!row) return DEFAULT_PREFS;
   return {
     goalEndDate: row.goalEndDate ? row.goalEndDate.toISOString().slice(0, 10) : null,
-    seasonPhase: isSeasonPhase(row.seasonPhase) ? row.seasonPhase : null,
+    /* 시즌은 2026-10-10 에 묻지 않기로 했다(사용자: "시즌 정하는 건 다 빼") — 옛 줄에 남은 값도 계산에 안 쓴다 */
+    seasonPhase: null,
     dietStyle: isDietStyle(row.dietStyle) ? row.dietStyle : DEFAULT_PREFS.dietStyle,
     mealPattern: isMealPattern(row.mealPattern)
       ? row.mealPattern
@@ -139,13 +140,6 @@ export function cleanDietPrefs(raw: unknown, todayKey: string): DietPrefs | stri
     }
     goalEndDate = o.goalEndDate;
   }
-  if (
-    o.seasonPhase !== null &&
-    o.seasonPhase !== undefined &&
-    !isSeasonPhase(o.seasonPhase)
-  ) {
-    return '시즌 단계를 다시 골라 주세요.';
-  }
   if (!isDietStyle(o.dietStyle)) return '식단 스타일을 다시 골라 주세요.';
   if (!isMealPattern(o.mealPattern)) return '끼니 구성을 다시 골라 주세요.';
   if (
@@ -159,7 +153,7 @@ export function cleanDietPrefs(raw: unknown, todayKey: string): DietPrefs | stri
 
   return {
     goalEndDate,
-    seasonPhase: isSeasonPhase(o.seasonPhase) ? o.seasonPhase : null,
+    seasonPhase: null,
     dietStyle: o.dietStyle,
     mealPattern: o.mealPattern,
     avoid: [...new Set(o.avoid)],

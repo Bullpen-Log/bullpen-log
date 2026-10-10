@@ -46,13 +46,6 @@ import {
   parseBirthDate,
   type Sex,
 } from '@/lib/profile';
-import {
-  COMPETITION_LEVELS,
-  COMPETITION_LEVEL_LABELS,
-  gradeText,
-  levelFit,
-  type CompetitionLevel,
-} from '@/lib/baseline';
 
 /**
  * 로그인 · 회원가입.
@@ -305,8 +298,6 @@ type SignupAnswers = {
   weightKg: number | null;
   password: string;
   passwordConfirm: string;
-  /** 고른 소속 — 보이는 값은 생년월일에 맞춰 다시 본다(levelOf) */
-  competitionLevel: CompetitionLevel | null;
   agreeTerms: boolean;
   agreePrivacy: boolean;
 };
@@ -320,15 +311,14 @@ const EMPTY: SignupAnswers = {
   weightKg: null,
   password: '',
   passwordConfirm: '',
-  competitionLevel: null,
   agreeTerms: false,
   agreePrivacy: false,
 };
 
-type StepKey = 'name' | 'birth' | 'body' | 'password' | 'level' | 'terms';
+type StepKey = 'name' | 'birth' | 'body' | 'password' | 'terms';
 
-/** 화면 차례 — 답에 따라 생기고 빠지는 화면이 없어 늘 여섯이다 */
-const STEPS: StepKey[] = ['name', 'birth', 'body', 'password', 'level', 'terms'];
+/** 화면 차례 — 답에 따라 생기고 빠지는 화면이 없어 늘 다섯이다(소속은 2026-10-10 에 뺐다 — 계산에 안 쓴다) */
+const STEPS: StepKey[] = ['name', 'birth', 'body', 'password', 'terms'];
 
 /** 칸이 있는 화면 — 서버가 어느 칸을 막았는지(AuthState.field) 알려 주면 그 화면으로 돌아간다 */
 const FIELD_STEP: Record<string, StepKey> = {
@@ -340,7 +330,6 @@ const FIELD_STEP: Record<string, StepKey> = {
   weightKg: 'body',
   password: 'password',
   passwordConfirm: 'password',
-  competitionLevel: 'level',
   agreeTerms: 'terms',
   agreePrivacy: 'terms',
 };
@@ -350,19 +339,6 @@ const WHOLE_FORM = 'form';
 
 function stepOfField(field: string): StepKey {
   return FIELD_STEP[field] ?? 'terms';
-}
-
-/**
- * 보이는 소속 — 고른 것이 생년월일에 맞으면 그것, 아니면 나이로 먼저 골라 둔 것(lib/baseline.ts levelFit).
- * 소속 화면보다 생년월일 화면이 앞이라, 생년월일을 고치고 돌아와도 어긋난 소속이 남지 않는다.
- */
-function levelOf(a: SignupAnswers, today: string) {
-  const fit = levelFit(a.birthDate || null, today);
-  const value =
-    a.competitionLevel && fit.allowed.includes(a.competitionLevel)
-      ? a.competitionLevel
-      : fit.suggested;
-  return { fit, value };
 }
 
 /** 키 · 몸무게가 범위 안인가 — 서버(lib/profile.ts)와 같은 선. 몸무게 칸은 키가 이 선을 넘어야 펴진다 */
@@ -435,13 +411,6 @@ function checkStep(
         return { error: '비밀번호를 한 번 더 적어 주세요.', field: 'passwordConfirm' };
       if (a.password !== a.passwordConfirm)
         return { error: '비밀번호가 일치하지 않아요.', field: 'passwordConfirm' };
-      return null;
-    case 'level':
-      if (!levelOf(a, today).value)
-        return {
-          error: '어디서 야구를 하고 있는지 골라 주세요.',
-          field: 'competitionLevel',
-        };
       return null;
     case 'terms':
       if (!a.agreeTerms)
@@ -683,7 +652,6 @@ function SignupWizard({
   const legal = useModalState<LegalDoc>();
 
   /* ── 답에서 셈하는 것 ── */
-  const level = levelOf(answers, today);
   const name = answers.nickname.trim();
   const who = name ? `${name} 님, ` : '';
   const last = w.total - 1;
@@ -815,11 +783,6 @@ function SignupWizard({
           title: '비밀번호를 정해 주세요',
           desc: '8자 이상이면 돼요. 다른 곳에서 쓰지 않는 것으로 정해 주세요.',
         };
-      case 'level':
-        return {
-          title: '어디서 야구를 하고 있어요?',
-          desc: '생년월일에 맞는 소속만 고를 수 있어요.',
-        };
       case 'terms':
         return {
           title: '약관을 확인해 주세요',
@@ -900,7 +863,6 @@ function SignupWizard({
           키 · 몸무게 · 동의는 제 화면 안의 칸이 보낸다.
         */}
         <input type="hidden" name="sex" value={answers.sex ?? ''} />
-        <input type="hidden" name="competitionLevel" value={level.value ?? ''} />
 
         {/* ── 1 이름 · 이메일 — 이름이 2자가 되면 이메일 칸이 펴진다 ── */}
         {panel(
@@ -1077,34 +1039,8 @@ function SignupWizard({
           </div>
         )}
 
-        {/* ── 5 소속 — 생년월일과 이어져 있다(lib/baseline.ts levelFit) ── */}
-        {panel(
-          'level',
-          <Chips
-            name="competitionLevel"
-            label="소속"
-            options={COMPETITION_LEVELS.map((lv) => ({
-              value: lv,
-              label: COMPETITION_LEVEL_LABELS[lv],
-              disabled: !level.fit.allowed.includes(lv),
-            }))}
-            value={level.value}
-            onChange={(competitionLevel) => w.patch({ competitionLevel })}
-            invalid={invalid('competitionLevel')}
-            /*
-             * 생년월일 화면이 앞이고 필수라 이 화면이 보일 때는 늘 grade 가 있다(올바른 날짜면 schoolGrade 가 숫자를 준다).
-             * null 은 아직 생년월일을 안 고른 채 숨어서 그려질 때뿐이라 글을 두지 않는다.
-             */
-            hint={
-              level.fit.grade === null
-                ? undefined
-                : `생년월일로 보면 ${gradeText(level.fit.grade)} 나이예요. 나이에 맞는 소속만 고를 수 있어요.`
-            }
-          />
-        )}
-
         {/*
-          6 동의 두 가지. 받는 정보를 보면 그냥 넘어갈 수준이 아니다 — 생년월일, 키, 몸무게, 통증 부위, 투구 기록, 영상.
+          5 동의 두 가지. 받는 정보를 보면 그냥 넘어갈 수준이 아니다 — 생년월일, 키, 몸무게, 통증 부위, 투구 기록, 영상.
           통증 기록은 건강에 관한 정보라 따로 동의를 받는다. 미리 체크해 두지 않는다. '모두 동의'는 둘을 한 번에
           켜고 끄는 편의일 뿐, 따로 보내는 값이 없다.
         */}

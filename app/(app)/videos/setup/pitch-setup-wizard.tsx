@@ -1,22 +1,13 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { useEffect, useRef, useState, useTransition, type ReactNode } from 'react';
-import { Button, Input } from '@/components/ui';
-import { Segmented } from '@/components/segmented';
-import { useSpeedUnit } from '@/components/use-units';
+import { useEffect, useRef, useTransition, type ReactNode } from 'react';
+import { Button } from '@/components/ui';
 import { Chips } from '@/components/onboarding/choices';
 import { CountUp } from '@/components/onboarding/count-up';
 import { PitchCapInsert } from '@/components/onboarding/insert-cards';
-import {
-  INPUT_LARGE,
-  ProblemLine,
-  StepCard,
-  TextButton,
-  invalidProps,
-} from '@/components/onboarding/step-card';
+import { ProblemLine, StepCard, TextButton } from '@/components/onboarding/step-card';
 import { useStepWizard } from '@/components/onboarding/use-step-wizard';
-import { useSyncedText } from '@/components/onboarding/use-synced-text';
 import { finishPitchSetup } from '@/app/actions/pitch-setup';
 import { OFFLINE_MESSAGE, orOffline } from '@/lib/action-offline';
 import {
@@ -34,19 +25,9 @@ import {
   type PitchSetupAnswers,
   type PitchStepKey,
 } from '@/lib/pitching/setup-answers';
-import {
-  SPEED_UNITS,
-  applySpeedUnit,
-  fromSpeed,
-  round1,
-  speedLabel,
-  toSpeed,
-  type SpeedUnit,
-} from '@/lib/units';
-import { TARGET_VELOCITY_MAX, TARGET_VELOCITY_MIN } from '@/lib/velocity';
 
 /**
- * 투구 기록 첫 설정 화면 — 하루 투구 한도(끼움) → 던지는 손 → 평소 투구량 → 목표 구속 → 요약 → 저장.
+ * 투구 기록 첫 설정 화면 — 하루 투구 한도(끼움) → 던지는 손 → 평소 투구량 → 요약 → 저장.
  * 한 화면에 한 질문(components/onboarding StepCard, brand 없음) — 영양 첫 설정(app/(app)/nutrition/setup/setup-wizard.tsx)과
  * 같은 모양이고, 뼈대는 useStepWizard(components/onboarding/use-step-wizard.ts). 던지는 손 · 투구량 화면의 글과 모양은
  * 가입 마법사에 있던 것을 그대로 옮겼다(2026-10-09, lib/feature-locks.ts).
@@ -73,7 +54,6 @@ export function PitchSetupWizard({
   initial: PitchSetupAnswers;
 }) {
   const router = useRouter();
-  const unit = useSpeedUnit();
   const w = useStepWizard<PitchStepKey, PitchSetupAnswers>({
     initial,
     steps: visiblePitchSteps,
@@ -115,12 +95,6 @@ export function PitchSetupWizard({
   function back() {
     moved.current = true;
     w.back();
-  }
-  /* '아직 몰라요' — 목표를 비우고 요약으로. 검사 없이 넘어가므로 적다 만 글자가 막지 않는다 */
-  function skipTarget() {
-    w.patch({ targetVelocity: '' });
-    moved.current = true;
-    w.goTo('summary');
   }
 
   function save() {
@@ -171,11 +145,6 @@ export function PitchSetupWizard({
           title: '평소 얼마나 던져요?',
           desc: '셋을 고르면 첫날부터 투구 부하 지수를 낼 수 있어요. 기록이 쌓이면 이 답은 자리를 비켜요.',
         };
-      case 'target':
-        return {
-          title: '목표 구속이 있어요?',
-          desc: '있으면 적어 주세요. 구속을 적을 때마다 목표까지 얼마나 남았는지 보여 드려요. 없으면 비워 두어도 돼요.',
-        };
       case 'summary':
         return {
           title: `${name ? `${name} 님의 ` : ''}투구 기록 설정이에요`,
@@ -202,10 +171,6 @@ export function PitchSetupWizard({
     </div>
   );
 
-  const targetText =
-    a.targetVelocity.trim() === ''
-      ? '아직 없어요'
-      : `${round1(toSpeed(Number(a.targetVelocity), unit))}${speedLabel(unit)}`;
   const lines: { label: string; value: string }[] = [
     { label: '던지는 손', value: a.throwingHand ?? '아직 안 골랐어요' },
     {
@@ -215,7 +180,6 @@ export function PitchSetupWizard({
           .filter(Boolean)
           .join(' · ') || '아직 안 골랐어요',
     },
-    { label: '목표 구속', value: targetText },
   ];
 
   return (
@@ -328,24 +292,6 @@ export function PitchSetupWizard({
           </div>
         )}
 
-        {/* ── 목표 구속 — 안 적어도 된다 ── */}
-        {panel(
-          'target',
-          <div className="space-y-4">
-            <TargetVelocityField
-              value={a.targetVelocity}
-              onChange={(targetVelocity) => w.patch({ targetVelocity })}
-              invalid={invalid('targetVelocity')}
-            />
-            <div className="flex items-center gap-3">
-              <TextButton onClick={skipTarget}>아직 몰라요</TextButton>
-              <span className="text-xs leading-relaxed break-keep text-muted">
-                목표 없이 시작해요. 내 정보에서 언제든 정할 수 있어요.
-              </span>
-            </div>
-          </div>
-        )}
-
         {/* ── 요약 ── */}
         {panel(
           'summary',
@@ -392,93 +338,3 @@ export function PitchSetupWizard({
   );
 }
 
-/**
- * 목표 구속 칸 — 보이는 숫자는 고른 단위(km/h｜mph), 쥐는 값은 늘 정수 km/h(내 정보의 칸, app/(app)/profile/profile-form.tsx
- * TargetVelocityField 와 같은 규칙 — 이 칸은 Int 로 저장되고 서버도 정수만 받는다, lib/velocity.ts).
- *
- * 단위는 설정의 단위 고르기와 같은 저장소(lib/units.ts)라 여기서 바꾸면 앱 전체가 따라 바뀐다.
- * 치는 동안의 글자는 그대로 둔다 — mph 로 적은 90 을 정수 km/h 로 바꿨다 되돌려 보이면 90.1 이 되어 적은 적 없는 숫자가
- * 된다. 단위를 바꾸면 그때 바뀐 단위의 숫자로 다시 보인다(useSyncedText). 흘려 친 글("7a")만 비운다.
- */
-function TargetVelocityField({
-  value,
-  onChange,
-  invalid,
-}: {
-  /** 정수 km/h 글자. '' 은 빈칸 */
-  value: string;
-  onChange: (kmh: string) => void;
-  invalid: boolean;
-}) {
-  const unit = useSpeedUnit();
-  const [focused, setFocused] = useState(false);
-  const fmt = (kmh: string) =>
-    kmh.trim() === '' ? '' : String(round1(toSpeed(Number(kmh), unit)));
-  const [text, setText] = useSyncedText(fmt(value), focused);
-
-  function edit(next: string) {
-    setText(next);
-    const trimmed = next.trim();
-    if (trimmed === '') return onChange('');
-    const n = Number(trimmed);
-    if (!Number.isFinite(n)) return onChange('');
-    onChange(String(Math.round(fromSpeed(n, unit))));
-  }
-
-  const range = `${round1(toSpeed(TARGET_VELOCITY_MIN, unit))}~${round1(
-    toSpeed(TARGET_VELOCITY_MAX, unit)
-  )}${speedLabel(unit)}`;
-
-  return (
-    <div className="space-y-2">
-      <div className="flex items-end justify-between gap-3">
-        <label
-          htmlFor="targetVelocity-field"
-          className="text-xs font-medium text-muted"
-        >
-          목표 구속
-        </label>
-        <Segmented
-          label="구속 단위"
-          value={unit}
-          onChange={(v: SpeedUnit) => applySpeedUnit(v)}
-          options={SPEED_UNITS.map((u) => ({
-            value: u.value,
-            label: u.label,
-            hint: u.hint,
-          }))}
-          size="sm"
-          className="w-32"
-          itemClassName="py-1"
-        />
-      </div>
-      <div className="relative">
-        <Input
-          id="targetVelocity-field"
-          type="text"
-          inputMode="decimal"
-          autoComplete="off"
-          value={text}
-          onChange={(e) => edit(e.target.value)}
-          onFocus={() => setFocused(true)}
-          onBlur={() => {
-            setFocused(false);
-            if (!Number.isFinite(Number(text.trim()))) setText(fmt(value));
-          }}
-          placeholder={fmt('140')}
-          className={`${INPUT_LARGE} pr-16 text-lg tabular-nums`}
-          {...invalidProps(invalid)}
-        />
-        <span
-          aria-hidden
-          className="pointer-events-none absolute inset-y-0 right-4 flex items-center text-sm text-muted"
-        >
-          {speedLabel(unit)}
-        </span>
-      </div>
-      <p className="text-xs leading-relaxed break-keep text-muted/80">
-        {range} 사이로 적어 주세요. 저장은 km/h 정수로 해요.
-      </p>
-    </div>
-  );
-}

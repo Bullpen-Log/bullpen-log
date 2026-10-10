@@ -13,19 +13,14 @@ import { toast } from '@/components/toast';
 import { kept } from '@/lib/form-values';
 import {
   fromLength,
-  fromSpeed,
   fromWeight,
   readLengthUnit,
-  readSpeedUnit,
   readWeightUnit,
   round1,
   serverLengthUnit,
-  serverSpeedUnit,
   serverWeightUnit,
-  speedLabel,
   subscribeUnits,
   toLength,
-  toSpeed,
   toWeight,
 } from '@/lib/units';
 import {
@@ -39,8 +34,6 @@ import {
   MIN_WINGSPAN_CM,
   SEX_OPTIONS,
 } from '@/lib/profile';
-import { TARGET_VELOCITY_MAX, TARGET_VELOCITY_MIN } from '@/lib/velocity';
-import { LevelChoices } from '@/components/level-choices';
 import {
   BASELINE_FREQ_NAMES,
   BASELINE_INTENSITY_NAMES,
@@ -161,59 +154,6 @@ function BodyField({
 }
 
 /**
- * 목표 구속 — 고른 단위로 보여주고 저장은 늘 km/h 로 한다.
- *
- * 몸 치수와 따로 둔 이유는 단위가 다르기 때문이다(길이도 무게도 아니다).
- *
- * 소수 한 자리를 남긴다. 단위를 바꾸면 딱 떨어지던 값이 소수가 되는데, 정수로
- * 반올림하면 되돌렸을 때 적은 적 없는 숫자가 된다 — 145km/h 가 90mph 를 거쳐
- * 144.8km/h 로 돌아온다.
- */
-function TargetVelocityField({ base }: { base: string }) {
-  const unit = useSyncExternalStore(subscribeUnits, readSpeedUnit, serverSpeedUnit);
-  const [kmh, setKmh] = useState(base);
-
-  /* 적는 중인 글자와 그 단위 — 정수 km/h 로 바꿨다 되돌려 보이면 mph 로 적는 사이 글자가 바뀌었다(9 → 8.7). 몸 치수와 같다 */
-  const [draft, setDraft] = useState<{ text: string; unit: string } | null>(null);
-  const shown =
-    draft && draft.unit === unit
-      ? draft.text
-      : kmh === ''
-        ? ''
-        : String(round1(toSpeed(Number(kmh), unit)));
-
-  return (
-    <ListRow label="목표 구속">
-      <input
-        type="number"
-        inputMode="decimal"
-        className={ROW_INPUT}
-        value={shown}
-        onChange={(e) => {
-          const v = e.target.value;
-          /*
-           * 담아 두는 값은 정수 km/h 다. 이 칸은 Int 로 저장되고 서버도 정수만
-           * 받는다(lib/velocity.ts) — 소수를 그대로 보내면 저장이 막힌다.
-           *
-           * 보여줄 때만 소수를 남긴다. mph 로 보면 90.1 처럼 떨어지지 않는 것이
-           * 정상이고, 그것을 반올림해 버리면 목표가 슬금슬금 달라진다.
-           */
-          setDraft({ text: v, unit });
-          setKmh(v === '' ? '' : String(Math.round(fromSpeed(Number(v), unit))));
-        }}
-        min={round1(toSpeed(TARGET_VELOCITY_MIN, unit))}
-        max={round1(toSpeed(TARGET_VELOCITY_MAX, unit))}
-        step="any"
-        placeholder="입력"
-      />
-      <RowUnit>{speedLabel(unit)}</RowUnit>
-      {/* 서버로 가는 값은 언제나 km/h */}
-      <input type="hidden" name="targetVelocity" value={kmh} />
-    </ListRow>
-  );
-}
-
-/**
  * 생년월일 — 가입 화면과 같은 작은 달력(components/mini-calendar.tsx)으로 고른다(2026-10-03).
  *
  * 예전에는 브라우저의 날짜 칸(type="date")이었다. 아이폰은 max 를 무시해 앞날도 골라졌고(저장할 때에야 막혔다),
@@ -286,7 +226,6 @@ export function ProfileForm({
   heightCm,
   weightKg,
   wingspanCm,
-  targetVelocity,
   dailyWorkoutMinutes,
   baseline,
   /** 오늘 날짜(YYYY-MM-DD). 미래 날짜를 못 고르게 막는 데 쓴다. */
@@ -299,7 +238,6 @@ export function ProfileForm({
   heightCm: number | null;
   weightKg: number | null;
   wingspanCm: number | null;
-  targetVelocity: number | null;
   dailyWorkoutMinutes: number | null;
   baseline: {
     baselineFreq: string | null;
@@ -376,7 +314,7 @@ export function ProfileForm({
 
       <ListGroup
         title="몸"
-        footer="키는 영상에서 잰 보폭을 견줄 때 써요. 윙스팬은 양팔을 벌린 길이예요. 목표 구속은 비워 두면 지워져요."
+        footer="키는 영상에서 잰 보폭을 견줄 때 써요. 윙스팬은 양팔을 벌린 길이예요."
       >
         <BodyField
           name="heightCm"
@@ -403,7 +341,6 @@ export function ProfileForm({
           min={MIN_WINGSPAN_CM}
           max={MAX_WINGSPAN_CM}
         />
-        <TargetVelocityField base={pick('targetVelocity', targetVelocity)} />
       </ListGroup>
 
       <ListGroup
@@ -454,25 +391,6 @@ export function ProfileForm({
           options={names(BASELINE_WORKOUT_FREQ_NAMES)}
           defaultValue={pick('baselineWorkoutFreq', baseline.baselineWorkoutFreq)}
         />
-      </ListGroup>
-
-      {/*
-        소속은 위 생년월일과 이어져 있다 — 나이에 안 맞는 곳은 막힌다(components/level-choices).
-        계산을 바꾸는 값은 아니다. 나이는 생년월일로 이미 알고 안전 한도도 거기서 나온다.
-      */}
-      <ListGroup
-        title="소속"
-        footer="훈련 내용을 바꾸는 값은 아니에요. 나중에 비슷한 또래와 견줘 보여드리려고 여쭤봐요."
-      >
-        <div className="p-4">
-          <LevelChoices
-            size="sm"
-            legend="어디서 야구를 하시나요"
-            birthDate={birth}
-            today={today}
-            initial={pick('competitionLevel', baseline.competitionLevel)}
-          />
-        </div>
       </ListGroup>
 
       <SubmitButton />

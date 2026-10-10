@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache';
 import { prisma } from '@/lib/prisma';
 import { getCurrentUser } from '@/lib/dal';
+import { toDateKey } from '@/lib/pitch-stats';
 import {
   CHECKIN_PARTS,
   parseArmPain,
@@ -133,19 +134,31 @@ async function trySaveCheckin(formData: FormData): Promise<CheckinState> {
     };
   }
 
-  await prisma.dailyCheckin.upsert({
-    where: { userId_date: { userId: user.id, date } },
-    update: { ...quick, ...body, ...armPain, ...detail },
-    create: {
-      userId: user.id,
-      date,
-      preferredParts: [],
-      ...quick,
-      ...body,
-      ...armPain,
-      ...detail,
-    },
-  });
+  /*
+   * 몸무게는 체크인이 원본이다(2026-10-10 사용자: "몸무게 체크인으로 통일"). 오늘 적은 몸무게는 계정의 몸무게
+   * (User.weightKg — 내 정보 · 영양 기준 체중 · 운동 소모)도 같이 바꾼다. 지난 날을 고친 것은 계정을 안 건드린다.
+   */
+  const weightKg = (detail as { bodyWeightKg?: number | null }).bodyWeightKg ?? null;
+  const updateUserWeight = weightKg !== null && dateKey === toDateKey(new Date());
+
+  await prisma.$transaction([
+    prisma.dailyCheckin.upsert({
+      where: { userId_date: { userId: user.id, date } },
+      update: { ...quick, ...body, ...armPain, ...detail },
+      create: {
+        userId: user.id,
+        date,
+        preferredParts: [],
+        ...quick,
+        ...body,
+        ...armPain,
+        ...detail,
+      },
+    }),
+    ...(updateUserWeight
+      ? [prisma.user.update({ where: { id: user.id }, data: { weightKg } })]
+      : []),
+  ]);
 
   // 통증·뻐근함 · 근육통 · 잔 시간은 오늘의 운동 후보를 바꾼다.
   revalidatePath('/today');

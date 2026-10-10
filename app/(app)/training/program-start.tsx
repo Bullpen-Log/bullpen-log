@@ -16,7 +16,6 @@ import {
   TM_LOOKBACK_DAYS,
   equipmentBlock,
   profileBlock,
-  seasonBlock,
   type PerWeek,
   type ProgramBlock,
   type ProgramChoice,
@@ -33,18 +32,9 @@ import {
  *
  * 기본기 4주(2026-10-09, 성장기 · 입문)는 트레이닝 화면에 카드 하나로 따로 서고(누르면 시트가 기본기 소개로 바로 열린다),
  * 시트의 목록에서도 목표 칸과 상관없이 맨 위다. 성인 프로그램이 막힌 사람(만 13~17세 · 입문)에게는 '추천'을 달고 카드를
- * 입구 줄보다 위에 둔다. 만 12세 이하는 기본기도 못 해 카드를 숨긴다. 막힘 글은 서버와 같은 함수(profileBlock · seasonBlock ·
+ * 입구 줄보다 위에 둔다. 만 12세 이하는 기본기도 못 해 카드를 숨긴다. 막힘 글은 서버와 같은 함수(profileBlock ·
  * equipmentBlock)에서 나온다. 진행 중인 프로그램이 있으면 이 입구 전체가 없다(training/page.tsx — 한 번에 하나).
  */
-
-type Season = 'off' | 'pre' | 'in' | 'rehab';
-
-const SEASONS: { value: Season; label: string }[] = [
-  { value: 'off', label: '비시즌' },
-  { value: 'pre', label: '시즌 전' },
-  { value: 'in', label: '시즌 중' },
-  { value: 'rehab', label: '재활' },
-];
 
 const GOALS: { value: ProgramGoal; label: string }[] = (
   ['base', 'strength', 'power'] as const
@@ -61,8 +51,6 @@ export type ProgramStartProps = {
   /** 가진 장비 — 비었으면 시트에서 묻는다(§13-21, 빈 채로 시작) */
   owned: string[];
   equipment: string[];
-  /** 영양 시즌으로 미리 채운 값 */
-  season: Season | null;
   /** 프로필로 이미 아는 성인 프로그램의 막힘(만 17세 이하 · 입문) */
   blocked: ProgramBlock | null;
   /** 프로필로 이미 아는 기본기의 막힘(만 12세 이하) */
@@ -154,7 +142,7 @@ export function ProgramStart({ props }: { props: ProgramStartProps }) {
   );
 }
 
-type Step = 'list' | 'intro' | 'season' | 'level' | 'equipment' | 'birth' | 'pins' | 'summary';
+type Step = 'list' | 'intro' | 'level' | 'equipment' | 'birth' | 'pins' | 'summary';
 
 type PinView = { variant: VariantKey; label: string; id: string | null; title: string | null };
 
@@ -171,7 +159,6 @@ function StartSheet({
   startWith: ProgramChoice | null;
 }) {
   const steps: Step[] = [
-    'season',
     ...(props.needBirth ? (['birth'] as const) : []),
     ...(props.level == null ? (['level'] as const) : []),
     ...(props.owned.length === 0 ? (['equipment'] as const) : []),
@@ -182,7 +169,6 @@ function StartSheet({
   const [goal, setGoal] = useState<ProgramGoal>('strength');
   const [choice, setChoice] = useState<ProgramChoice | null>(startWith);
   const [weeksOpen, setWeeksOpen] = useState(false);
-  const [season, setSeason] = useState<Season>(props.season ?? 'off');
   const [perWeekPick, setPerWeekPick] = useState<PerWeek | null>(null);
   const [birth, setBirth] = useState('');
   const [level, setLevel] = useState<string | null>(props.level);
@@ -208,14 +194,9 @@ function StartSheet({
   };
   const back = () => (at <= 0 ? go('intro') : go(steps[at - 1]));
 
-  /* 시즌 직전이면 주 2번(되는 프로그램만), 아니면 주 3번 — 고르면 그대로 */
+  /* 주 3번이 기본(되는 프로그램만) — 고르면 그대로 */
   const perWeek: PerWeek = choice
-    ? (perWeekPick ??
-      (season === 'pre' && choice.perWeek.includes(2)
-        ? 2
-        : choice.perWeek.includes(3)
-          ? 3
-          : 2))
+    ? (perWeekPick ?? (choice.perWeek.includes(3) ? 3 : 2))
     : 3;
 
   const equipmentForCall = props.owned.length === 0 ? owned : null;
@@ -270,7 +251,6 @@ function StartSheet({
         startProgram({
           programId: choice.id,
           perWeek,
-          season: season === 'pre' ? 'pre' : 'off',
           birthDate: props.needBirth ? birth : null,
           trainingLevel: levelForCall,
           ownedEquipment: equipmentForCall,
@@ -292,7 +272,6 @@ function StartSheet({
     ? ((basics ? props.basicsBlocked : props.blocked) ??
       (props.owned.length > 0 ? equipmentBlock(props.owned, choice.required) : null))
     : null;
-  const seasonBlocked = seasonBlock(season, audience);
   const birthAge = ageOf(birth);
   const birthBlocked =
     birthAge == null ? null : profileBlock({ audience, age: birthAge, trainingLevel: null });
@@ -306,17 +285,15 @@ function StartSheet({
   const missing = required.filter((e) => !owned.includes(e));
 
   const canNext =
-    step === 'season'
-      ? !seasonBlocked
-      : step === 'birth'
-        ? birthAge != null && !birthBlocked
-        : step === 'level'
-          ? level != null && !levelBlocked
-          : step === 'equipment'
-            ? missing.length === 0
-            : step === 'pins'
-              ? pins != null && changing == null
-              : true;
+    step === 'birth'
+      ? birthAge != null && !birthBlocked
+      : step === 'level'
+        ? level != null && !levelBlocked
+        : step === 'equipment'
+          ? missing.length === 0
+          : step === 'pins'
+            ? pins != null && changing == null
+            : true;
 
   const basicsChoices = props.programs.filter((p) => p.audience === 'basics');
   const shown = props.programs.filter((p) => p.audience === 'adult' && p.goal === goal);
@@ -408,7 +385,6 @@ function StartSheet({
                 </li>
               ))}
             </ul>
-            <p className="text-xs text-muted">시즌 중 유지 프로그램은 곧 열려요.</p>
           </div>
         )}
 
@@ -466,7 +442,7 @@ function StartSheet({
             ) : (
               <button
                 type="button"
-                onClick={() => go('season')}
+                onClick={next}
                 className="min-h-12 w-full rounded-2xl bg-sky text-base font-bold text-white"
               >
                 이걸로 할래요
@@ -479,19 +455,6 @@ function StartSheet({
             >
               다른 프로그램 보기
             </button>
-          </div>
-        )}
-
-        {step === 'season' && (
-          <div className="space-y-3">
-            <p className="text-base font-semibold text-ink">지금 시즌은 언제예요?</p>
-            <Segmented
-              label="시즌"
-              value={season}
-              onChange={setSeason}
-              options={SEASONS}
-            />
-            {seasonBlocked && <Blocked {...seasonBlocked} />}
           </div>
         )}
 

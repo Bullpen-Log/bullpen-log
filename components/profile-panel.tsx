@@ -64,7 +64,6 @@ export function ProfilePanel({
           heightCm={data.heightCm}
           weightKg={data.weightKg}
           wingspanCm={data.wingspanCm}
-          targetVelocity={data.targetVelocity}
           dailyWorkoutMinutes={data.dailyWorkoutMinutes}
           baseline={data.baseline}
           today={today}
