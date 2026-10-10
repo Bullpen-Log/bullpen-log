@@ -311,7 +311,9 @@ final class ShootRecorderViewController: UIViewController, AVCaptureFileOutputRe
         func maxRate(_ f: AVCaptureDevice.Format) -> Double { f.videoSupportedFrameRateRanges.map(\.maxFrameRate).max() ?? 0 }
         let sixty = candidates.filter { maxRate($0) >= Self.targetFps }
         let pool = sixty.isEmpty ? candidates : sixty
-        let format = pool.first(where: { $0.isVideoStabilizationModeSupported(.standard) && maxRate($0) <= 120 })
+        let format = pool.first(where: { $0.isVideoStabilizationModeSupported(.cinematicExtended) && maxRate($0) <= 120 })
+            ?? pool.first(where: { $0.isVideoStabilizationModeSupported(.cinematic) && maxRate($0) <= 120 })
+            ?? pool.first(where: { $0.isVideoStabilizationModeSupported(.standard) && maxRate($0) <= 120 })
             ?? pool.first(where: { maxRate($0) <= 120 })
             ?? pool.first
         let rate = format.map { min(Self.targetFps, maxRate($0)) } ?? 30
@@ -326,7 +328,10 @@ final class ShootRecorderViewController: UIViewController, AVCaptureFileOutputRe
             camera.unlockForConfiguration()
         } catch {}
         if let connection = output.connection(with: .video), connection.isVideoStabilizationSupported {
-            connection.preferredVideoStabilizationMode = .standard
+            /* 흔들림 보정 — 강한 것부터(2026-10-10 사용자) */
+            let f = camera.activeFormat
+            connection.preferredVideoStabilizationMode = f.isVideoStabilizationModeSupported(.cinematicExtended) ? .cinematicExtended
+                : f.isVideoStabilizationModeSupported(.cinematic) ? .cinematic : .standard
         }
         session.commitConfiguration()
         device = camera
