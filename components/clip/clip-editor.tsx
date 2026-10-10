@@ -192,7 +192,9 @@ function EditorBody({
   const [trim, setTrim] = useState({ start: 0, end: 0 });
   const [time, setTime] = useState(0);
   const [playing, setPlaying] = useState(false);
-  const [dragging, setDragging] = useState<'start' | 'end' | null>(null);
+  const [dragging, setDragging] = useState<'start' | 'end' | 'scrub' | null>(null);
+  /** 영상이 아직 앞 자리로 옮기는 중일 때 들어온 마지막 자리 — 옮기기가 끝나면(seeked) 그리로. 아이폰 WebKit 은 옮기는 중에 새 자리를 주면 앞의 것을 버려 끄는 동안 화면이 멈춰 보였다 */
+  const pendingSeek = useRef<number | null>(null);
   const [phase, setPhase] = useState<Phase>({ kind: 'edit' });
   const videoRef = useRef<HTMLVideoElement>(null);
   const stripRef = useRef<HTMLDivElement>(null);
@@ -279,8 +281,18 @@ function EditorBody({
 
   function seek(t: number) {
     const v = videoRef.current;
-    if (v && Number.isFinite(t)) v.currentTime = t;
+    if (v && Number.isFinite(t)) {
+      if (v.seeking) pendingSeek.current = t;
+      else v.currentTime = t;
+    }
     setTime(t);
+  }
+
+  function onSeeked() {
+    const v = videoRef.current;
+    const t = pendingSeek.current;
+    pendingSeek.current = null;
+    if (v && t !== null && Math.abs(v.currentTime - t) > 0.001) v.currentTime = t;
   }
 
   function pause() {
@@ -347,11 +359,18 @@ function EditorBody({
       haptic('selection');
       return;
     }
+    /* 손잡이가 아니면 재생 자리를 손가락으로 끌어 본다 */
+    e.currentTarget.setPointerCapture(e.pointerId);
+    setDragging('scrub');
     seek(Math.min(Math.max(timeAt(e.clientX), trim.start), trim.end));
   }
 
   function stripMove(e: PointerEvent<HTMLDivElement>) {
     if (!dragging) return;
+    if (dragging === 'scrub') {
+      seek(Math.min(Math.max(timeAt(e.clientX), trim.start), trim.end));
+      return;
+    }
     moveHandle(dragging, snapTime(timeAt(e.clientX)));
   }
 
@@ -493,6 +512,7 @@ function EditorBody({
           onClick={togglePlay}
           onPause={() => setPlaying(false)}
           onLoadedData={() => seek(trimRef.current.start)}
+          onSeeked={onSeeked}
           className="absolute inset-0 h-full w-full object-contain"
         />
         {!info && !loadError && (
