@@ -380,22 +380,6 @@
        "breakAfter": true
       },
       {
-       "exerciseId": "fc8cf57f-467c-4a6d-8d1f-a0bd6053c1cf",
-       "no": "1-23",
-       "title": "스트라이드 런",
-       "station": "매트",
-       "bucket": "모빌리티",
-       "equipment": [
-        "맨몸"
-       ],
-       "at": 71.2,
-       "minutes": 1.6,
-       "load": 0.5,
-       "cue": "2~3회 · 끝 자세 2초",
-       "perSide": false,
-       "breakAfter": false
-      },
-      {
        "exerciseId": "41d546f6-2e29-43f1-b9df-05cfd4e3dcd2",
        "no": "1-24",
        "title": "전완 수피네이션 아이소메트릭 프레스",
@@ -460,22 +444,6 @@
        "breakAfter": false
       },
       {
-       "exerciseId": "7a097fb0-195a-4872-9a65-2716c562c2fe",
-       "no": "1-28",
-       "title": "어깨 외회전 아이소메트릭 프레스",
-       "station": "매트",
-       "bucket": "어깨 · 견갑(암케어)",
-       "equipment": [
-        "맨몸"
-       ],
-       "at": 79.2,
-       "minutes": 1.6,
-       "load": 0.2,
-       "cue": "10초 버티기 · 한쪽",
-       "perSide": true,
-       "breakAfter": false
-      },
-      {
        "exerciseId": "269c7ca3-75ea-4739-9b05-60e60a1eeb5f",
        "no": "1-29",
        "title": "레터럴 베어크롤",
@@ -521,22 +489,6 @@
        "minutes": 1.6,
        "load": 0.5,
        "cue": "3회",
-       "perSide": false,
-       "breakAfter": false
-      },
-      {
-       "exerciseId": "a3dac15f-bcdf-4d9c-855b-978698783d17",
-       "no": "1-32",
-       "title": "노르딕 햄스트링 컬",
-       "station": "매트",
-       "bucket": "하체 뒤(힌지)",
-       "equipment": [
-        "맨몸"
-       ],
-       "at": 85.6,
-       "minutes": 2,
-       "load": 4.5,
-       "cue": "1~2회 천천히 내리기",
        "perSide": false,
        "breakAfter": false
       },
@@ -794,10 +746,10 @@
     "상체 밀기 · 어깨": 4.5,
     "상체 당기기": 3,
     "코어": 4,
-    "하체 뒤(힌지)": 6.5,
-    "어깨 · 견갑(암케어)": 4.8,
+    "하체 뒤(힌지)": 2,
+    "어깨 · 견갑(암케어)": 4.6,
     "전완 · 팔꿈치": 4.2,
-    "모빌리티": 1.9,
+    "모빌리티": 1.4,
     "고관절 · 발목 보강": 1
    }
   },
@@ -2861,7 +2813,7 @@
   },
   {
    "week": 4,
-   "end": 159.6,
+   "end": 161.6,
    "stations": [
     {
      "station": "넓은 바닥(이동)",
@@ -3697,7 +3649,7 @@
     {
      "station": "매트",
      "start": 131.2,
-     "end": 159.6,
+     "end": 161.6,
      "items": [
       {
        "exerciseId": "2d2948d6-99d6-4389-83c8-a36ddeb220da",
@@ -3796,15 +3748,31 @@
        "breakAfter": false
       },
       {
-       "exerciseId": "4acb4581-8817-42c0-a342-413243475421",
+       "exerciseId": "a3dac15f-bcdf-4d9c-855b-978698783d17",
        "no": "4-55",
+       "title": "노르딕 햄스트링 컬",
+       "station": "매트",
+       "bucket": "하체 뒤(힌지)",
+       "equipment": [
+        "맨몸"
+       ],
+       "at": 141.2,
+       "minutes": 2,
+       "load": 4.5,
+       "cue": "1~2회 천천히 내리기",
+       "perSide": false,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "4acb4581-8817-42c0-a342-413243475421",
+       "no": "4-56",
        "title": "힙 플렉서 스트레치",
        "station": "매트",
        "bucket": "모빌리티",
        "equipment": [
         "맨몸"
        ],
-       "at": 141.2,
+       "at": 143.2,
        "minutes": 1.6,
        "load": 0.2,
        "cue": "10초 버티기 · 한쪽",
@@ -3813,14 +3781,14 @@
       },
       {
        "exerciseId": "9e2980ce-e668-4347-8680-db1a9360a451",
-       "no": "4-56",
+       "no": "4-57",
        "title": "힙 플렉서 스트레치 (발 잡고)",
        "station": "매트",
        "bucket": "모빌리티",
        "equipment": [
         "맨몸"
        ],
-       "at": 142.8,
+       "at": 144.8,
        "minutes": 1.6,
        "load": 0.2,
        "cue": "10초 버티기 · 한쪽",
@@ -3829,14 +3797,14 @@
       },
       {
        "exerciseId": "d131581a-cbf3-4d42-8764-71e386949d69",
-       "no": "4-57",
+       "no": "4-58",
        "title": "힙 플렉서 스트레치 + 회전",
        "station": "매트",
        "bucket": "모빌리티",
        "equipment": [
         "맨몸"
        ],
-       "at": 144.4,
+       "at": 146.4,
        "minutes": 2,
        "load": 0.2,
        "cue": "10초 버티기 · 한쪽",
@@ -3845,14 +3813,14 @@
       },
       {
        "exerciseId": "eeca9584-9618-4bcb-accc-a5e816614fd0",
-       "no": "4-58",
+       "no": "4-59",
        "title": "다이아몬드 푸시업",
        "station": "매트",
        "bucket": "상체 밀기 · 어깨",
        "equipment": [
         "맨몸"
        ],
-       "at": 146.4,
+       "at": 148.4,
        "minutes": 1.6,
        "load": 1,
        "cue": "3회",
@@ -3861,14 +3829,14 @@
       },
       {
        "exerciseId": "042e00b3-2f64-449a-af63-e6cf75244653",
-       "no": "4-59",
+       "no": "4-60",
        "title": "파이크 푸시업",
        "station": "매트",
        "bucket": "상체 밀기 · 어깨",
        "equipment": [
         "맨몸"
        ],
-       "at": 148,
+       "at": 150,
        "minutes": 1.6,
        "load": 1,
        "cue": "3회",
@@ -3877,14 +3845,14 @@
       },
       {
        "exerciseId": "f1b81b21-b64a-4f53-8d2c-8d588361d347",
-       "no": "4-60",
+       "no": "4-61",
        "title": "푸시업",
        "station": "매트",
        "bucket": "상체 밀기 · 어깨",
        "equipment": [
         "맨몸"
        ],
-       "at": 149.6,
+       "at": 151.6,
        "minutes": 1.6,
        "load": 1,
        "cue": "3회",
@@ -3894,14 +3862,14 @@
       },
       {
        "exerciseId": "45193b52-9390-4d2a-9ecf-b860c4853fe5",
-       "no": "4-61",
+       "no": "4-62",
        "title": "사이드라잉 윈드밀",
        "station": "매트",
        "bucket": "모빌리티",
        "equipment": [
         "맨몸"
        ],
-       "at": 151.2,
+       "at": 153.2,
        "minutes": 1.6,
        "load": 0.2,
        "cue": "2~3회 · 끝 자세 2초 · 한쪽",
@@ -3910,14 +3878,14 @@
       },
       {
        "exerciseId": "1245f132-13c1-44d5-8371-4609bdff7e16",
-       "no": "4-62",
+       "no": "4-63",
        "title": "월 싯",
        "station": "매트",
        "bucket": "하체 앞(무릎)",
        "equipment": [
         "맨몸"
        ],
-       "at": 152.8,
+       "at": 154.8,
        "minutes": 1.6,
        "load": 1,
        "cue": "10초 버티기",
@@ -3926,14 +3894,14 @@
       },
       {
        "exerciseId": "8a3701dd-f2ba-4611-9d65-ba7f6755bbe6",
-       "no": "4-63",
+       "no": "4-64",
        "title": "90/90 페일즈·레일즈",
        "station": "매트",
        "bucket": "모빌리티",
        "equipment": [
         "맨몸"
        ],
-       "at": 154.4,
+       "at": 156.4,
        "minutes": 1.6,
        "load": 0.2,
        "cue": "10초 버티기 · 한쪽",
@@ -3942,14 +3910,14 @@
       },
       {
        "exerciseId": "6170b9ba-0caf-4735-8b2e-387f46e440ab",
-       "no": "4-64",
+       "no": "4-65",
        "title": "90/90 힙 스위치",
        "station": "매트",
        "bucket": "모빌리티",
        "equipment": [
         "맨몸"
        ],
-       "at": 156,
+       "at": 158,
        "minutes": 1.6,
        "load": 0.2,
        "cue": "2~3회 · 끝 자세 2초",
@@ -3959,14 +3927,14 @@
       },
       {
        "exerciseId": "9d4ae24c-8ec4-4a83-8220-c967f27513a6",
-       "no": "4-65",
+       "no": "4-66",
        "title": "90/90 힙 스위치 + 익스텐션",
        "station": "매트",
        "bucket": "모빌리티",
        "equipment": [
         "맨몸"
        ],
-       "at": 157.6,
+       "at": 159.6,
        "minutes": 2,
        "load": 0.2,
        "cue": "2~3회 · 끝 자세 2초 · 한쪽",
@@ -3981,7 +3949,7 @@
     "하체 파워": 9,
     "고관절 · 발목 보강": 3.5,
     "어깨 · 견갑(암케어)": 8.2,
-    "하체 뒤(힌지)": 4,
+    "하체 뒤(힌지)": 8.5,
     "상체 당기기": 5,
     "하체 앞(무릎)": 7,
     "상체 밀기 · 어깨": 6.5,

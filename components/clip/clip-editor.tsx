@@ -466,10 +466,11 @@ function EditorBody({
     } finally {
       abortRef.current = null;
     }
-    // 여기부터는 취소가 없다 — 바로 '올리는 중'으로 바꾸고, 첫 장면 이미지는 잠깐만 기다린다
+    // 여기부터는 취소가 없다 — 바로 '올리는 중'으로 바꾸고, 썸네일은 잠깐만 기다린다.
+    // 썸네일은 자른 영상의 가운데 장면 — 운동하는 모습(앞쪽은 준비 자세라 목록에서 다 비슷해 보였다)
     setPhase({ kind: 'upload', p: 0 });
     const thumb = await Promise.race([
-      captureThumbnail(clip.file).catch(() => null),
+      captureThumbnail(clip.file, clip.duration / 2).catch(() => null),
       new Promise<null>((resolve) => setTimeout(() => resolve(null), THUMB_WAIT_MS)),
     ]);
     await upload(clip, thumb);
