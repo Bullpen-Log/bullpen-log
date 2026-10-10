@@ -7,6 +7,31 @@ import { useWakeLock } from '@/components/use-wake-lock';
 
 export const MAX_VIDEO_MB = 50;
 const MAX_VIDEO_BYTES = MAX_VIDEO_MB * 1024 * 1024;
+/** 줄여서 올릴 때 고를 수 있는 원본 크기 — 4K 원본도 1080p 로 줄이면 대개 50MB 안에 든다 */
+const MAX_SOURCE_MB = 400;
+/** 이보다 작으면 줄이지 않는다(이미 작은 영상을 다시 만들어도 거의 안 준다) */
+const SKIP_BELOW_BYTES = 6 * 1024 * 1024;
+
+/**
+ * 올리기 전에 줄이기 — 소리를 빼고 긴 변 1080p · 6~8Mbps H.264 로 다시 만든다(lib/clip/edit.ts, 촬영 영상과 같은 엔진).
+ * 아이폰 원본(.mov, HEVC · 4K 가 많다)이 3~5배 준다. 장면 수(fps)는 그대로라 슬로모 · 폼 분석에 쓸 수 있다.
+ * 다시 만들 수 없는 브라우저이거나, 줄인 것이 원본의 8할보다 크면 null — 원본을 그대로 올린다.
+ */
+async function shrinkVideo(file: File, onProgress: (p: number) => void): Promise<File | null> {
+  if (typeof VideoEncoder === 'undefined') return null;
+  try {
+    const { exportMutedClip } = await import('@/lib/clip/edit');
+    const clip = await exportMutedClip(
+      file,
+      { start: 0, end: Number.MAX_SAFE_INTEGER },
+      { onProgress: (p) => onProgress(Math.round(p * 100)) }
+    );
+    if (clip.path !== 'transcode' || clip.file.size >= file.size * 0.8) return null;
+    return new File([clip.file], file.name.replace(/\.[^.]+$/, '') + '.mp4', { type: 'video/mp4' });
+  } catch {
+    return null;
+  }
+}
 
 export type UploadedVideo = {
   path: string;
@@ -114,9 +139,12 @@ export function VideoUpload({
   endpoint = '/api/pitch-log/upload-url',
   /** 목록에서 재생 전에 보여줄 이미지를 함께 만들지 여부 */
   withThumbnail = false,
+  compress = false,
   onUploadingChange,
   onUploaded,
 }: {
+  /** 올리기 전에 줄인다(shrinkVideo) — 회원이 올리는 투구 영상. 라이브러리 · 투구 분석 샘플은 원본 그대로 */
+  compress?: boolean;
   /**
    * 한 개를 다 올렸을 때 — 저장소 경로와 올린 파일을 넘긴다.
    *
@@ -149,6 +177,8 @@ export function VideoUpload({
   const inputRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
   const [progress, setProgress] = useState(0);
+  /** 'shrink' = 줄이는 중 · 'upload' = 올리는 중 */
+  const [stage, setStage] = useState<'shrink' | 'upload'>('upload');
   const [error, setError] = useState<string>();
   /** 한 번 눌러 물어본 영상. 같은 것을 또 누르면 그때 뺀다. */
   const [asking, setAsking] = useState<string | null>(null);
@@ -176,10 +206,11 @@ export function VideoUpload({
   };
 
   const handlePick = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
+    const picked = e.target.files?.[0];
     // 같은 파일을 다시 골라도 동작하도록 값을 비운다.
     e.target.value = '';
-    if (!file) return;
+    if (!picked) return;
+    let file: File = picked;
 
     setError(undefined);
 
@@ -187,13 +218,14 @@ export function VideoUpload({
       setError('영상 파일만 올릴 수 있어요.');
       return;
     }
-    if (file.size > MAX_VIDEO_BYTES) {
+    const canShrink = compress && typeof VideoEncoder !== 'undefined';
+    if (file.size > (canShrink ? MAX_SOURCE_MB * 1024 * 1024 : MAX_VIDEO_BYTES)) {
       /*
        * 무엇을 하면 되는지까지 — 아이폰 카메라는 4K · 60fps 가 기본이라 몇 초짜리도 50MB 를 넘는다(2026-10-03).
        * 사진 앱의 '편집'으로 던지는 부분만 남기거나, 설정 › 카메라 › 비디오 녹화를 1080p 로 바꾸면 된다.
        */
       setError(
-        `${MAX_VIDEO_MB}MB 이하만 올릴 수 있어요(고른 영상 ${formatSize(file.size)}). 사진 앱의 '편집'에서 던지는 부분만 남기고 잘라 주세요. 다음부터는 설정 › 카메라 › 비디오 녹화를 1080p 로 찍으면 작아져요.`
+        `${canShrink ? MAX_SOURCE_MB : MAX_VIDEO_MB}MB 이하만 올릴 수 있어요(고른 영상 ${formatSize(file.size)}). 사진 앱의 '편집'에서 던지는 부분만 남기고 잘라 주세요. 다음부터는 설정 › 카메라 › 비디오 녹화를 1080p 로 찍으면 작아져요.`
       );
       return;
     }
@@ -206,6 +238,17 @@ export function VideoUpload({
     setProgress(0);
 
     try {
+      if (canShrink && file.size >= SKIP_BELOW_BYTES) {
+        setStage('shrink');
+        file = (await shrinkVideo(file, setProgress)) ?? file;
+        setProgress(0);
+      }
+      setStage('upload');
+      if (file.size > MAX_VIDEO_BYTES) {
+        throw new Error(
+          `줄여도 ${MAX_VIDEO_MB}MB 를 넘어요(${formatSize(file.size)}). 사진 앱의 '편집'에서 던지는 부분만 남기고 잘라 주세요.`
+        );
+      }
       const path = await uploadToStorage(file, endpoint, setProgress);
       onUploaded?.(path, file);
 
@@ -229,7 +272,7 @@ export function VideoUpload({
 
       onChange([
         ...latestVideos.current,
-        { path, name: file.name, previewUrl: URL.createObjectURL(file), thumbPath },
+        { path, name: picked.name, previewUrl: URL.createObjectURL(file), thumbPath },
       ]);
     } catch (err) {
       setError(err instanceof Error ? err.message : '업로드에 실패했어요.');
@@ -277,7 +320,7 @@ export function VideoUpload({
           {uploading ? (
             <>
               <Loader2 className="h-4 w-4 animate-spin" />
-              올리는 중… {progress}%
+              {stage === 'shrink' ? '영상 줄이는 중…' : '올리는 중…'} {progress}%
             </>
           ) : (
             <>
@@ -287,7 +330,7 @@ export function VideoUpload({
           )}
         </button>
         <span className="text-xs text-muted">
-          {videos.length} / {max} · 최대 {MAX_VIDEO_MB}MB
+          {videos.length} / {max} · 최대 {compress ? MAX_SOURCE_MB : MAX_VIDEO_MB}MB
         </span>
       </div>
 

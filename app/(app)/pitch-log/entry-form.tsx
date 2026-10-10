@@ -560,6 +560,7 @@ export function EntryForm({
                   disabled={resting}
                   confirmRemove={removeNote}
                   onUploadingChange={setUploading}
+                  compress
                   /* 영상 캘린더의 썸네일 — 손에 든 파일에서 바로 뜬다(기다리지 않는다) */
                   onUploaded={(path, file) => {
                     freshRef.current.add(path);
