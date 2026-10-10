@@ -559,6 +559,7 @@ function DetailBody({
       <ClipPickButtons
         target={{ exerciseId: it.exerciseId, no: it.no, title: it.title, cue: it.cue }}
         uploaded={!!info?.uploaded}
+        ownPath={info?.own?.path ?? null}
         onPick={onPick}
         appCamera={appCamera}
         onCamera={onCamera}

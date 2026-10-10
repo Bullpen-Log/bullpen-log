@@ -1,7 +1,7 @@
 'use client';
 
-import { useRef } from 'react';
-import { Camera, Upload } from 'lucide-react';
+import { useRef, useState } from 'react';
+import { Camera, Loader2, Scissors, Upload } from 'lucide-react';
 import type { ClipTarget } from '@/components/shoot/use-clip-flow';
 import { appCameraMissingText } from '@/lib/shoot-camera';
 
@@ -16,6 +16,7 @@ export function ClipPickButtons({
   appCamera,
   onCamera,
   onPick,
+  ownPath,
 }: {
   target: ClipTarget;
   /** 이미 올린 우리 영상이 있나 — 글자가 '다시'로 */
@@ -24,8 +25,34 @@ export function ClipPickButtons({
   appCamera: boolean;
   onCamera: (target: ClipTarget) => void;
   onPick: (target: ClipTarget, file: File, from: 'album') => void;
+  /** 이미 올린 우리 영상의 저장소 경로 — 있으면 [올린 영상 편집](그 영상을 내려받아 컷 편집 창으로) */
+  ownPath?: string | null;
 }) {
   const albumRef = useRef<HTMLInputElement>(null);
+  const [loading, setLoading] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
+
+  async function editOwn() {
+    if (!ownPath || loading) return;
+    setLoading(true);
+    setLoadError(null);
+    try {
+      const res = await fetch('/api/library/video-url', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ paths: [ownPath] }),
+      });
+      const url = (await res.json().catch(() => ({})))?.urls?.[ownPath];
+      if (!url) throw new Error();
+      const blob = await (await fetch(url)).blob();
+      const name = ownPath.split('/').pop() ?? 'clip.mp4';
+      onPick(target, new File([blob], name, { type: blob.type || 'video/mp4' }), 'album');
+    } catch {
+      setLoadError('올린 영상을 불러오지 못했어요. 다시 눌러 주세요.');
+    } finally {
+      setLoading(false);
+    }
+  }
   return (
     <div className="flex flex-wrap gap-2">
       <input
@@ -62,6 +89,26 @@ export function ClipPickButtons({
           {uploaded ? '영상 파일 다시 올리기' : '영상 파일 올리기'}
         </span>
       </button>
+      {ownPath && (
+        <button
+          type="button"
+          onClick={() => void editOwn()}
+          disabled={loading}
+          className="inline-flex min-h-11 w-full items-center justify-center gap-1.5 rounded-full bg-ink/6 px-4 text-sm font-semibold text-ink motion-safe:active:scale-[0.98] disabled:opacity-60 desk:w-auto"
+        >
+          {loading ? (
+            <Loader2 aria-hidden className="h-4 w-4 motion-safe:animate-spin" />
+          ) : (
+            <Scissors aria-hidden className="h-4 w-4" />
+          )}
+          {loading ? '올린 영상 불러오는 중' : '올린 영상 편집'}
+        </button>
+      )}
+      {loadError && (
+        <p role="alert" className="w-full text-xs text-warn">
+          {loadError}
+        </p>
+      )}
       <p className="w-full text-xs text-muted">
         앞뒤를 잘라 소리 없이 올리면 이 운동의 라이브러리 영상이 돼요.
         {!appCamera && <span className="desk:hidden"> {appCameraMissingText()}</span>}
