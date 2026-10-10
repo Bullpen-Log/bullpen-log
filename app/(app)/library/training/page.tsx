@@ -1,4 +1,5 @@
 import { prisma } from '@/lib/prisma';
+import { OLD_OWN_VIDEOS } from '@/lib/shoot/plan';
 import { requireUser } from '@/lib/dal';
 import { allExercises } from '@/lib/library-cache';
 import { favoriteExerciseIds } from '@/lib/favorites';
@@ -76,7 +77,9 @@ export default async function TrainingPage() {
     /* 마이그레이션 전에 캐시에 담긴 줄에는 이 칸이 없을 수 있다(lib/library-cache.ts) */
     targetMuscles: ex.targetMuscles ?? [],
     videoPath: ex.videoPath,
-    source: ex.source,
+    /* 한 달 전에 찍어 다시 찍을 영상은 '촬영 전'으로 센다(lib/shoot/plan.ts OLD_OWN_VIDEOS) */
+    source:
+      ex.source === 'OWN' && ex.videoPath && OLD_OWN_VIDEOS.has(ex.videoPath) ? 'RETAKE' : ex.source,
     referenceVideoId: ex.referenceVideoId,
     /* 캐시가 이미 문자열로 바꿔 둔다 (lib/library-cache.ts) */
     hiddenAt: ex.hiddenAt,
