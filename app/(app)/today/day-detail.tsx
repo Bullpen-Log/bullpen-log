@@ -1,5 +1,6 @@
 'use client';
 
+import { isPhoneVideoPath, phoneVideoElsewhereText } from '@/lib/local-video';
 import Link from 'next/link';
 import dynamic from 'next/dynamic';
 import { useState, type CSSProperties, type ReactNode } from 'react';
@@ -676,7 +677,11 @@ function DayVideo({ path, label }: { path: string; label: string }) {
           />
         ) : (
           <div className="flex aspect-video w-full items-center justify-center bg-surface-2 text-xs text-muted">
-            {ready ? '영상을 불러오지 못했어요' : '영상을 불러오는 중…'}
+            {ready
+              ? isPhoneVideoPath(path)
+                ? phoneVideoElsewhereText()
+                : '영상을 불러오지 못했어요'
+              : '영상을 불러오는 중…'}
           </div>
         )}
       </div>

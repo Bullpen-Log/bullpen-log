@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import { isPhoneVideoPath, loadPhoneVideo, localVideoAvailable } from '@/lib/local-video';
 
 /**
  * 한 번에 물을 수 있는 경로 수. 재생 주소 API(app/api/pitch-log/video-url/route.ts
@@ -80,8 +81,29 @@ export function usePlaybackUrls(paths: (string | undefined)[]) {
         ...Object.fromEntries(chunk.map((p) => [p, value])),
       }));
 
-    for (let i = 0; i < missing.length; i += PATHS_PER_REQUEST) {
-      const chunk = missing.slice(i, i + PATHS_PER_REQUEST);
+    /*
+     * 폰 사진 앱에 둔 회원 영상(lib/local-video.ts) — 서버에 묻지 않고 이 폰에서 꺼낸다(blob: 주소, 낡지 않는다). 다른 기기 · 웹 ·
+     * 지운 영상은 주소 없이 'done' — 부르는 쪽이 isPhoneVideoPath 로 '찍은 폰에 있어요'를 띄운다.
+     */
+    const phone = missing.filter(isPhoneVideoPath);
+    for (const p of phone) {
+      if (!localVideoAvailable()) {
+        fetchedAtRef.current.set(p, Number.POSITIVE_INFINITY);
+        mark([p], 'done');
+        continue;
+      }
+      loadPhoneVideo(p)
+        .then((url) => setUrls((prev) => ({ ...prev, [p]: url })))
+        .catch(() => undefined)
+        .finally(() => {
+          fetchedAtRef.current.set(p, Number.POSITIVE_INFINITY);
+          mark([p], 'done');
+        });
+    }
+    const server = missing.filter((p) => !isPhoneVideoPath(p));
+
+    for (let i = 0; i < server.length; i += PATHS_PER_REQUEST) {
+      const chunk = server.slice(i, i + PATHS_PER_REQUEST);
       fetch('/api/pitch-log/video-url', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

@@ -1,5 +1,6 @@
 'use client';
 
+import { isPhoneVideoPath, phoneVideoElsewhereText } from '@/lib/local-video';
 import { useState } from 'react';
 import { formatSpeed } from '@/lib/units';
 import { useSpeedUnit } from '@/components/use-units';
@@ -245,7 +246,11 @@ export function DayRecord({
                 </>
               ) : (
                 <div className="flex aspect-video items-center justify-center rounded-xl border border-line bg-surface-2 text-xs text-muted">
-                  {urlsPending ? '불러오는 중…' : '영상을 불러올 수 없어요'}
+                  {urlsPending
+                    ? '불러오는 중…'
+                    : isPhoneVideoPath(path)
+                      ? phoneVideoElsewhereText()
+                      : '영상을 불러올 수 없어요'}
                 </div>
               )}
             </div>
