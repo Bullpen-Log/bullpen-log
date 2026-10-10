@@ -12,6 +12,18 @@ Claude 로 작업을 시작하면 저절로 읽힌다. 규칙은 `AGENTS.md` 6�
 ---
 
 
+
+## 금윤호에게 — 2026-10-10 · 김민(Claude) — 회원 영상은 이제 폰 사진 앱에 둔다(투구 기록 · 구속 클립) — 네 영역을 고쳤다
+
+받은 뒤 할 일 없음(DB · 패키지 그대로). 사용자 결정: "폰에 저장해도 되는 것과 서버에 저장해야 하는 것을 확실히 구분 — 회원 영상은
+폰, 관리자 샘플 · 테스트는 서버, 나중에 유료 클라우드 · 팀 기능만 서버". 고른 것: 사진 앱 '불펜로그' 앨범 · 웹은 회원 영상 올리기를
+막음 · 이미 올라간 영상은 그대로 · 구속 클립은 분석 정보만 서버.
+- 앱 부품 `LocalVideoPlugin.swift` + 사이트 `lib/local-video.ts`. DB 칸은 그대로 — 영상 자리에 `{userId}/local-<사진 앱 영상 번호>`
+  (`lib/phone-video-path.ts`)를 적어 본인 폴더 검사 · 썸네일 자리가 그대로 돈다(썸네일만 서버). `createPlaybackUrls` 는 이 경로를 건너뛴다.
+- 네 영역: 투구 기록 입력(`VideoUpload` 의 `toPhone`, entry-form) · 재생(`use-playback-urls.ts` 가 폰에서 꺼냄, day-record · 홈 day-detail
+  문구) · 구속 클립(`uploadClip` 의 `toPhone` — 보정용 저장을 켠 관리자 세션만 서버, `attachClip` 의 `localId`, `ClipPlayer` 가 폰에서 꺼냄,
+  `velocity-load.ts`). 커밋 1a2b30e · 6ccab58 · b0e31f7 · f9985f2.
+- 부품이 없는 옛 앱은 예전처럼 서버. 새 앱(TestFlight)부터 폰. 투구 기록 영상을 새로 다룰 때 이 경로를 서명하거나 지우지 않게 해 줘.
 ## 금윤호에게 — 2026-10-10 · 김민(Claude) — 투구 기록 영상을 올리기 전에 줄인다
 
 받은 뒤 할 일 없음. 네 영역(투구 기록 입력 폼) — `components/video-upload.tsx` 에 `compress` 를 더하고 `pitch-log/entry-form.tsx` 만 켰다.
