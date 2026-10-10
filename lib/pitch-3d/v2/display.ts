@@ -355,13 +355,17 @@ export function displayTrack(
    * 두 발 높이 차가 마운드 배율(0.5~1.5배)로 못 맞추는 만큼은 몸 전체를 축발 자리 둘레로 기울인다(±8°) — 엔진의 위 축이 홈 쪽으로 몇 도 기울면
    * (화면 녹화 · 휴대용 경사판) 높이 차가 규격의 2.4배가 되어, 앞발을 경사면에 두면 축발이 투수판 앞에서 12cm 떠 있었다(2026-10-09 좌투 샘플 시작).
    */
-  if (opts.ground === 'mound' && P && L) {
+  /*
+   * 평지도 같다 — 두 발이 같은 높이여야 하는데 낮은 발만 바닥에 맞춰, 위 축이 조금 기운 만큼 다른 발이 떴다(2026-10-10 샘플 5 앞발 21mm).
+   */
+  if (P && L) {
+    const mound = opts.ground === 'mound';
     const f0 = moundHeightAt(P.back - FOOT_HALF_WIDTH_M / opts.heightM, P.z, opts.heightM);
-    const spec0 = f0(P.x, P.z) - f0(L.x, L.z);
+    const spec0 = mound ? f0(P.x, P.z) - f0(L.x, L.z) : 0;
     const drop = P.h - L.h;
     const hor = Math.hypot(L.x - P.x, L.z - P.z);
-    if (spec0 > 0.002 && hor > 0.05) {
-      const want = clamp(drop, spec0 * MOUND_SCALE[0], spec0 * MOUND_SCALE[1]);
+    if ((!mound || spec0 > 0.002) && hor > 0.05) {
+      const want = mound ? clamp(drop, spec0 * MOUND_SCALE[0], spec0 * MOUND_SCALE[1]) : 0;
       if (Math.abs(drop - want) > 1e-4) {
         const th = clamp(Math.atan2(drop - want, hor), -MOUND_TILT_MAX, MOUND_TILT_MAX);
         /* 축 = 수평에서 축발 → 앞발에 수직, 앞발 쪽이 (drop − want) 만큼 오르는 쪽으로 */
