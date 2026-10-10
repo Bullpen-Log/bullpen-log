@@ -31,7 +31,9 @@
 	<key>NSMicrophoneUsageDescription</key>
 	<string>영상을 찍을 때 소리를 함께 담는 데 마이크를 씁니다.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
-	<string>사진 보관함의 투구 영상을 올릴 때 씁니다.</string>
+	<string>투구 영상을 사진 앱의 '불펜로그' 앨범에 저장하고, 저장한 영상을 다시 재생할 때 씁니다.</string>
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>투구 영상을 사진 앱의 '불펜로그' 앨범에 저장할 때 씁니다.</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>

@@ -29,6 +29,7 @@ class MainViewController: CAPBridgeViewController {
         bridge?.registerPluginInstance(BullpenNativePlugin())
         // 관리자 촬영 모드의 앱 카메라 — 1080p 로 찍어 사이트 편집 창에 넘긴다(ShootCameraPlugin.swift, 사이트 lib/shoot-camera.ts)
         bridge?.registerPluginInstance(ShootCameraPlugin())
+        bridge?.registerPluginInstance(LocalVideoPlugin())
         // 화면 왼쪽 끝을 밀어 뒤로 — 앱에는 브라우저의 뒤로 단추가 없어, 약관 같은 화면에서 돌아갈 길이 화면 속 단추뿐이었다
         // (2026-10-03 아이폰 점검). 사파리 · 다른 아이폰 앱과 같은 손동작이다
         webView?.allowsBackForwardNavigationGestures = true
