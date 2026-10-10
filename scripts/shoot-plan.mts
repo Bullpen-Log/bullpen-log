@@ -14,8 +14,9 @@ import { prisma } from '@/lib/prisma';
 import { buildPlan, DEFAULT_OPTIONS, SESSION_MINUTES, WRAP_MINUTES } from '../lib/shoot/schedule.ts';
 
 const write = process.argv.includes('--write');
+/* 워밍업 카테고리는 실내 촬영에서 뺀다 — 영상은 라이브러리에 두고 워밍업 루틴에서 쓴다(2026-10-10 사용자: 하체 다이내믹 워밍업 루틴) */
 const found = await prisma.exerciseVideo.findMany({
-  where: { hiddenAt: null },
+  where: { hiddenAt: null, category: { not: '워밍업' } },
   select: {
     id: true,
     title: true,
@@ -41,7 +42,8 @@ const today = new Date().toISOString().slice(0, 10);
  */
 const fits = (p: ReturnType<typeof buildPlan>) => p.weeks.every((w) => w.end <= SESSION_MINUTES - WRAP_MINUTES);
 let plan = buildPlan(rows, today);
-for (let n = DEFAULT_OPTIONS.sessions; n <= 20; n++) {
+/* 7회 아래로는 줄이지 않는다 — 2026-10-10 408개는 6회에 들긴 했지만 여유 5분 · 하체 차이 11점이었고 야외 주차 번호가 당겨졌다 */
+for (let n = Math.max(DEFAULT_OPTIONS.sessions, 7); n <= 20; n++) {
   plan = { ...buildPlan(rows, today, { ...DEFAULT_OPTIONS, sessions: n, loadWeight: 1.75 }), version: 3 };
   if (fits(plan)) break;
 }
