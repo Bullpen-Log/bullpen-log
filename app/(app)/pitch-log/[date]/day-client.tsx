@@ -11,7 +11,6 @@ import { usePlaybackUrls } from '@/components/use-playback-urls';
 import { isFutureDateKey } from '@/lib/pitch-stats';
 import { REST_SESSION_TYPE } from '@/lib/session-type';
 import { PlanNote, type PlanNoteData } from '@/components/plan-note';
-import type { SavedAnalysisView } from '@/lib/pose/saved';
 import { EntryForm } from '../entry-form';
 import { DayRecord } from '../day-record';
 import type { Log } from '../types';
@@ -84,17 +83,13 @@ function BackLink({
 export function DayClient({
   date,
   todayKey,
-  heightCm,
   todayPlan,
   todayLimits,
   initialLogs,
-  saved,
-  earlier,
   velocity,
 }: {
   date: string;
   todayKey: string;
-  heightCm: number | null;
   /** 오늘 날짜일 때만 들어온다 */
   todayPlan: PlanNoteData | null;
   /** 오늘 계획의 상한 — 남긴 기록이 넘었는지 견준다. 오늘 날짜일 때만 들어온다 */
@@ -104,10 +99,6 @@ export function DayClient({
     maxIntensity: number | null;
   } | null;
   initialLogs: Log[];
-  /** 이 날 기록에 저장해 둔 폼 분석 */
-  saved: SavedAnalysisView[];
-  /** 이 날보다 앞선 분석들 — 변화를 견주는 기준 */
-  earlier: SavedAnalysisView[];
   /** 카메라로 잰 구속 — 세션과 공 하나하나. 없으면 빈 배열 */
   velocity: VelocitySessionView[];
 }) {
@@ -151,34 +142,6 @@ export function DayClient({
     loading: urlsLoading,
     ready: urlsReady,
   } = usePlaybackUrls(videoPaths);
-
-  const savedByPath = useMemo(
-    () => new Map(saved.map((a) => [a.videoPath, a])),
-    [saved]
-  );
-  const savedFor = useCallback(
-    (videoPath: string) => savedByPath.get(videoPath) ?? null,
-    [savedByPath]
-  );
-
-  /** 이 영상보다 앞선 날짜의 가장 최근 저장 분석 — 변화 비교의 기준 */
-  const previousFor = useCallback(
-    (_date: string, videoPath: string): SavedAnalysisView | null => {
-      let best: SavedAnalysisView | null = null;
-      for (const a of earlier) {
-        if (a.videoPath === videoPath) continue;
-        if (
-          !best ||
-          a.date > best.date ||
-          (a.date === best.date && a.updatedAt > best.updatedAt)
-        ) {
-          best = a;
-        }
-      }
-      return best;
-    },
-    [earlier]
-  );
 
   const handleSaved = useCallback(() => {
     setEditingId(null);
@@ -280,8 +243,6 @@ export function DayClient({
               onSaved={handleSaved}
               onError={setError}
               onCancel={() => setEditingId(null)}
-              /* 폼 분석이 붙은 영상은 뺄 때 알려주려고 넘긴다 */
-              analyzedPaths={saved.map((a) => a.videoPath)}
             />
           </div>
         ) : (
@@ -289,11 +250,8 @@ export function DayClient({
             key={log.id}
             log={log}
             date={date}
-            heightCm={heightCm}
             playbackUrls={playbackUrls}
             urlsPending={urlsLoading || !urlsReady}
-            savedFor={savedFor}
-            previousFor={previousFor}
             onEdit={(l) => {
               setEditingId(l.id);
               setError(undefined);

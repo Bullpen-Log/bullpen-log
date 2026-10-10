@@ -155,7 +155,7 @@ export default async function HomePage({
   );
 }
 
-/** 달력 — 지난 기록 열세 달(history.ts). 그날의 수치 · 영상 · 폼 분석은 /pitch-log/<날짜> 가 따로 읽는다 */
+/** 달력 — 지난 기록 열세 달(history.ts). 그날의 수치 · 영상은 /pitch-log/<날짜> 가 따로 읽는다 */
 async function PitchLogSection({
   user,
   initialDate,

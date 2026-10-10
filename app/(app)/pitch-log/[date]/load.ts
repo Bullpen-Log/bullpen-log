@@ -6,8 +6,6 @@ import { gatherFactsAndPlan } from '@/lib/report/gather';
 import { toDateKey } from '@/lib/pitch-stats';
 import { intensityRangeText, pitchRangeText } from '@/lib/report/plan';
 import type { PlanNoteData } from '@/components/plan-note';
-import type { PitchMetric } from '@/lib/pose/measure';
-import type { SavedAnalysisView } from '@/lib/pose/saved';
 import { loadVelocityDay } from '@/lib/velocity-load';
 import type { DayClient } from './day-client';
 
@@ -53,24 +51,6 @@ export async function loadPitchDay(date: string): Promise<PitchDayData | null> {
     loadVelocityDay(user.id, at),
   ]);
 
-  /* 이 날의 기록에 붙은 폼 분석만 읽는다. 다른 날 것까지 부를 이유가 없다. */
-  const analyses = logs.length
-    ? await prisma.poseAnalysis.findMany({
-        where: { userId: user.id, pitchLogId: { in: logs.map((l) => l.id) } },
-      })
-    : [];
-
-  /*
-   * 지난 세션과 견주려면 이 날보다 앞선 분석도 필요하다. 같은 영상 경로가 아니라
-   * '같은 사람의 이전 분석'을 찾는 것이라 날짜를 함께 읽는다.
-   */
-  const earlier = await prisma.poseAnalysis.findMany({
-    where: { userId: user.id, pitchLog: { date: { lt: at } } },
-    include: { pitchLog: { select: { date: true } } },
-    orderBy: { updatedAt: 'desc' },
-    take: 20,
-  });
-
   const todayPlanDay = plan.today;
   const todayPlan: PlanNoteData | null =
     date === todayKey && todayPlanDay && !plan.halted
@@ -81,25 +61,6 @@ export async function loadPitchDay(date: string): Promise<PitchDayData | null> {
           reason: todayPlanDay.reason,
         }
       : null;
-
-  const toView = (a: (typeof analyses)[number], onDate: string): SavedAnalysisView => ({
-    videoPath: a.videoPath,
-    date: onDate,
-    throwingSide: a.throwingSide as 'left' | 'right',
-    wristSide: a.wristSide as 'left' | 'right',
-    leadSide: a.leadSide as 'left' | 'right',
-    direction: a.direction as 1 | -1,
-    quality: a.quality,
-    coverage: a.coverage,
-    kneeUpT: a.kneeUpT,
-    footPlantT: a.footPlantT,
-    releaseT: a.releaseT,
-    kneeUpManualT: a.kneeUpManualT,
-    footPlantManualT: a.footPlantManualT,
-    releaseManualT: a.releaseManualT,
-    metrics: a.metrics as PitchMetric[],
-    updatedAt: a.updatedAt.toISOString(),
-  });
 
   /*
    * 오늘 계획의 상한 — 남긴 기록이 계획을 넘었는지 견준다. 계획 글(todayPlan)과 같은
@@ -118,12 +79,9 @@ export async function loadPitchDay(date: string): Promise<PitchDayData | null> {
   return {
     date,
     todayKey,
-    heightCm: user.heightCm,
     todayPlan,
     todayLimits,
     initialLogs: logs.map((log) => ({ ...log, date: log.date.toISOString() })),
-    saved: analyses.map((a) => toView(a, date)),
     velocity,
-    earlier: earlier.map((a) => toView(a, a.pitchLog.date.toISOString().slice(0, 10))),
   };
 }

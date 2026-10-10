@@ -244,7 +244,6 @@ export function EntryForm({
   onSaved,
   onError,
   onCancel,
-  analyzedPaths,
 }: {
   date: string;
   /** 주어지면 등록이 아니라 수정 폼이 된다. */
@@ -252,8 +251,6 @@ export function EntryForm({
   onSaved: () => Promise<void> | void;
   onError: (message?: string) => void;
   onCancel?: () => void;
-  /** 폼 분석이 저장돼 있는 영상 경로 — 뺄 때 함께 사라진다고 알려주려고 받는다 */
-  analyzedPaths?: readonly string[];
 }) {
   const editing = Boolean(initial);
 
@@ -345,13 +342,11 @@ export function EntryForm({
     [videos, playbackUrls]
   );
 
-  /** 이 영상을 빼면 폼 분석도 같이 사라진다 — 뺄 때 알린다 */
+  /** 저장돼 있던 영상을 빼면 되돌릴 수 없다 — 뺄 때 알린다 */
   const removeNote = (video: UploadedVideo) =>
-    analyzedPaths?.includes(video.path)
-      ? '이 영상에는 폼 분석이 저장돼 있어요. 영상을 빼면 분석도 함께 지워지고, 되돌릴 수 없어요.'
-      : initial?.videoPaths.includes(video.path)
-        ? '저장돼 있던 영상이에요. 빼면 되돌릴 수 없어요.'
-        : undefined;
+    initial?.videoPaths.includes(video.path)
+      ? '저장돼 있던 영상이에요. 빼면 되돌릴 수 없어요.'
+      : undefined;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
