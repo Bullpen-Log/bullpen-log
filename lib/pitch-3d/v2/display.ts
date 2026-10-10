@@ -217,10 +217,16 @@ const THROW_ARM = {
   L: [V2J.lSh, V2J.lEl, V2J.lWr, V2J.lHandIdx, V2J.lHandMid, V2J.lHandPinky],
 } as const;
 const DESPIKE_KEEP = 10;
-const HAND_OF: Record<number, number[]> = {
-  [V2J.lWr]: [V2J.lHandIdx, V2J.lHandMid, V2J.lHandPinky],
-  [V2J.rWr]: [V2J.rHandIdx, V2J.rHandMid, V2J.rHandPinky],
-};
+const SKIP = new Set<number>([
+  V2J.lWr,
+  V2J.rWr,
+  V2J.lHandIdx,
+  V2J.lHandMid,
+  V2J.lHandPinky,
+  V2J.rHandIdx,
+  V2J.rHandMid,
+  V2J.rHandPinky,
+]);
 
 /**
  * 마지막 걸름 — 관절마다 장면 사이 굽음(두 이웃 가운데에서 벗어난 거리)이 앞뒤 3~6장면 굽음의 아래쪽 값보다 4배 넘게, 키의 1% 넘게 튀면 두 이웃 가운데로
@@ -236,8 +242,11 @@ export function despike(frames: Vec3[][], hand: 'R' | 'L', release: number): Vec
     const m = [0, 1, 2].map((i) => (out[k - 1][j][i] + out[k + 1][j][i]) / 2);
     return Math.hypot(...[0, 1, 2].map((i) => out[k][j][i] - m[i]));
   };
-  /* 손목을 손 점보다 먼저(손목을 옮기며 손 점도 옮긴 뒤 손 점 각자의 튐을 본다) */
-  const order = [V2J.lWr, V2J.rWr, ...Array.from({ length: 25 }, (_, j) => j).filter((j) => j !== V2J.lWr && j !== V2J.rWr)];
+  /*
+   * 손목 · 손 점은 걸지 않는다 — 손목만 옮기면 팔꿈치는 그대로라 아래팔 방향이 바뀌어 손목 굽음이 34 → 17 → 32 → 7° 로 지그재그가 되며 손이
+   * 오히려 23~28° 튀었다(같은 날 김정엽 글러브 손). 손목 튐은 관절 각도 모델(비틀림 가운데값)에서 막는다.
+   */
+  const order = Array.from({ length: 25 }, (_, j) => j).filter((j) => !SKIP.has(j));
   for (const j of order) {
     for (let pass = 0; pass < 3; pass++) {
       const b = Array.from({ length: n }, (_, k) => (k > 0 && k < n - 1 ? bend(j, k) : 0));
@@ -259,11 +268,7 @@ export function despike(frames: Vec3[][], hand: 'R' | 'L', release: number): Vec
       for (const k of hits) {
         if (done.has(k - 1) || done.has(k + 1)) continue;
         const to = [0, 1, 2].map((i) => (out[k - 1][j][i] + out[k + 1][j][i]) / 2) as Vec3;
-        const d = [0, 1, 2].map((i) => to[i] - out[k][j][i]);
         out[k][j] = to;
-        /* 손목을 옮기면 그 손 점도 같이 — 손목만 옮기면 손 조각이 새로 돌아 보였다 */
-        for (const h of HAND_OF[j] ?? [])
-          out[k][h] = [0, 1, 2].map((i) => out[k][h][i] + d[i]) as Vec3;
         done.add(k);
         changed = true;
       }

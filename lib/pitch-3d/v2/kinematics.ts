@@ -441,10 +441,14 @@ type Limb = {
 };
 
 /** 두 마디(어깨 → 팔꿈치 → 손목, 엉덩이 → 무릎 → 발목)를 방향 · 비틀림 · 굽힘으로 */
-/** 앞뒤 half 장면의 가운데값 — 몇 장면만 튄 값을 걷는다(양 끝은 있는 만큼) */
+/**
+ * 앞뒤 half 장면의 가운데값 — 몇 장면만 튄 값을 걷는다. 양 끝은 창을 앞뒤 같게 줄인다(한쪽만 보면 고르게 움직이는 값이 끝에서 늦었다 —
+ * 끝 장면까지 고르게 도는 다리가 1.5장면 늦어 발목이 키의 2.7% 어긋남).
+ */
 function medianFilter(xs: number[], half: number): number[] {
   return xs.map((_, k) => {
-    const w = xs.slice(Math.max(0, k - half), Math.min(xs.length, k + half + 1)).sort((a, b) => a - b);
+    const h = Math.min(half, k, xs.length - 1 - k);
+    const w = xs.slice(k - h, k + h + 1).sort((a, b) => a - b);
     return w[w.length >> 1];
   });
 }
@@ -454,9 +458,19 @@ function medianFilter(xs: number[], half: number): number[] {
  * 7~25° 튀어 보였다(2026-10-10 샘플 다섯). 던지는 손은 릴리스 앞뒤로 진짜 빨라 그대로.
  */
 const GLOVE_HAND_RATE = 0.5;
+/**
+ * 손(손바닥 돌림 · 손목 굽힘 · 옆)의 다듬기 폭(장면, 빠를 때 ~ 느릴 때) — 손 점이 작아 손 조각이 다른 부위보다 열 배 떨렸다(2026-10-10 샘플 다섯:
+ * 회전 빠르기 변화 상위 10% 손 4~5° · 몸통 0.4°). 빠른 장면(던지는 손 릴리스)은 다듬기가 저절로 좁아진다(smoothMulti).
+ */
+const HAND_SMOOTH: [number, number] = [1.2, 4.5];
 
+/*
+ * 비틀림(팔꿈치 · 무릎이 굽는 면)은 다듬기 전에 앞뒤 7장면 가운데값으로 — 세 장면까지 튄 반 바퀴를 걷는다. 예전엔 '가운데값에서 60° 넘게 벗어난
+ * 장면은 무게를 끈다'(outlierW)였는데, 진짜로 크게 도는 움직임(2026-10-10 김정엽 글러브 팔: 10장면 동안 56 → 135 → 20°, 원본 손목은 매끈)에서
+ * 무게가 장면마다 꺼졌다 켜져 다듬은 값이 88 → 79 → 75 → 85° 로 흔들렸고 손목이 한 장면에 49mm 튀었다. 팔 · 다리 둘 다(kinematicTrack).
+ */
 /** 이만큼 굽어야 팔꿈치 · 무릎이 굽는 면(비틀림)이 보인다 */
-const TWIST_SEEN_DEG = 12;
+const TWIST_SEEN_DEG = 20;
 /** 편 장면을 앞뒤로 이은 비틀림의 무게 */
 const TWIST_FILLED_W = 0.3;
 
@@ -521,7 +535,7 @@ function limbAngles(
   /*
    * 거의 편 장면(굽힘 TWIST_SEEN_DEG 밑)의 비틀림은 버리고 앞뒤 보이는 장면에서 곧게 잇는다(양 끝은 가장 가까운 값). 편 마디에서 위 × 아래 마디의
    * 외적은 잡음뿐인데 무게 0.01 로 남겨 두니, 오래 편 구간 가운데서 잡음이 다듬기를 이겨 팔 · 다리가 제 축으로 한 장면에 14~21° 홱 돌았다
-   * (2026-10-10 샘플 셋 글러브 팔 · 던지는 팔, 팔꿈치 굽힘 1~9°). 보이는 장면끼리만 이어 붙여(unwrap) 반 바퀴씩 쌓이지도 않는다.
+   * (2026-10-10 샘플 셋 글러브 팔 · 던지는 팔, 팔꿈치 굽힘 1~9°). 기준이 12° 일 땐 막 굽기 시작한 12~20° 의 잡음 섞인 값을 바로 믿어 그 경계에서 8~9° 튀었다(김창주 글러브 팔). 보이는 장면끼리만 이어 붙여(unwrap) 반 바퀴씩 쌓이지도 않는다.
    */
   const idx = seen.flatMap((v, k) => (v ? [k] : []));
   if (idx.length === 0) out.twist = out.twist.map(() => 0);
@@ -887,7 +901,7 @@ export function kinematicTrack(
       perFrame(throwing ? KIN_SPEED.throwElbow : KIN_SPEED.gloveElbow)
     );
     const twistS = rateLimit(
-      smooth1(limb.twist, outlierW(limb.twist, limb.twistW), undefined, undefined, true),
+      smooth1(medianFilter(limb.twist, 3), limb.twistW, undefined, undefined, true),
       rad(KIN_LIMITS.twistRatePerFrame)
     );
     const Lu = lenOf(Sh, El);
@@ -942,7 +956,7 @@ export function kinematicTrack(
     const wPron = outlierW(pronU, wHand);
     const pronMid = weightedMedian(pronU, wPron);
     const pronS = rateLimit(
-      smooth1(pronU, wPron, 0.8, 3, true),
+      smooth1(pronU, wPron, HAND_SMOOTH[0], HAND_SMOOTH[1], true),
       rad(KIN_LIMITS.pronationRatePerFrame * (throwing ? 1 : GLOVE_HAND_RATE))
     ).map((p) =>
       clamp(p, pronMid - rad(KIN_LIMITS.pronation), pronMid + rad(KIN_LIMITS.pronation))
@@ -966,8 +980,8 @@ export function kinematicTrack(
       smooth1(
         flexW.map((v, k) => v * handOk[k]),
         wHandOnly.map(() => 1),
-        0.8,
-        3
+        HAND_SMOOTH[0],
+        HAND_SMOOTH[1]
       ).map((v) => clamp(v, -rad(KIN_LIMITS.wristFlex), rad(KIN_LIMITS.wristFlex))),
       rad(KIN_LIMITS.wristRatePerFrame * (throwing ? 1 : GLOVE_HAND_RATE))
     );
@@ -975,8 +989,8 @@ export function kinematicTrack(
       smooth1(
         devW.map((v, k) => v * handOk[k]),
         wHandOnly.map(() => 1),
-        0.8,
-        3
+        HAND_SMOOTH[0],
+        HAND_SMOOTH[1]
       ).map((v) => clamp(v, -rad(KIN_LIMITS.wristDev), rad(KIN_LIMITS.wristDev))),
       rad(KIN_LIMITS.wristRatePerFrame * (throwing ? 1 : GLOVE_HAND_RATE))
     );
@@ -1066,7 +1080,7 @@ export function kinematicTrack(
      * (시험 9: 3장면 반 바퀴) 사람 범위 안이라도 무릎이 한쪽으로 100° 휙 돌았다. 오래 이어지는 변화(다리를 드는 동안)는 그대로 둔다.
      */
     const twistU = rateLimit(
-      smooth1(limb.twist, outlierW(limb.twist, limb.twistW), undefined, undefined, true),
+      smooth1(medianFilter(limb.twist, 3), limb.twistW, undefined, undefined, true),
       rad(KIN_LIMITS.twistRatePerFrame)
     );
     /* 엉덩이 돌림 — 0(무릎이 앞)에서 사람 범위까지(이어 붙인 각이라 그 클립이 도는 바퀴 수를 맞춘 0 에서) */
