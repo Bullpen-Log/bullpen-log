@@ -1,32 +1,20 @@
 'use client';
 
 import { isPhoneVideoPath, phoneVideoElsewhereText } from '@/lib/local-video';
-import { useState } from 'react';
 import { formatSpeed } from '@/lib/units';
 import { useSpeedUnit } from '@/components/use-units';
-import { Activity, ChevronDown, Pencil, Trash2, VideoOff } from 'lucide-react';
+import { Pencil, Trash2, VideoOff } from 'lucide-react';
 import { Badge, Card } from '@/components/ui';
 import { PitchVideoPlayer } from '@/components/pitch-video-player';
-import { PoseAnalysis } from '@/components/pose-analysis';
 import { REST_SESSION_TYPE } from '@/lib/session-type';
 import { ConfirmDelete } from '@/components/confirm-delete';
-import type { SavedAnalysisView } from '@/lib/pose/saved';
 import type { Log } from './types';
 
 /**
- * 기록 한 건을 통째로 보여준다 — 수치, 느낀점, 영상, 폼 분석.
+ * 기록 한 건을 통째로 보여준다 — 수치, 느낀점, 영상. 읽을 것을 먼저 둔다(수치 · 느낀점 · 그다음 영상).
  *
- * 예전에는 수치·느낀점이 '투구기록'에, 영상·폼 분석이 '영상분석'에
- * 나뉘어 있었다. 그날 무슨 일이 있었는지 알려면 두 화면을 오가야 했는데,
- * 원래 한 기록이므로 여기서 한 번에 본다.
- *
- * 순서가 한 번 더 바뀌었다. 수치 다음에 바로 영상, 그 밑에 느낀점이었는데
- * 영상 하나에 폼 분석까지 붙으면 화면 몇 판을 잡아먹는다. 그래서 정작 그날
- * 무슨 생각을 했는지는 한참 내려가야 나왔다.
- *
- * 지금은 읽을 것을 먼저 둔다 — 수치 · 느낀점 · 그다음 영상.
- * 폼 분석은 접어 두고 누를 때 편다. 영상을 보러 온 사람은 한 번 더 누르면
- * 되지만, 기록을 되돌아보러 온 사람은 아무것도 안 눌러도 다 읽을 수 있다.
+ * 영상마다 붙던 '폼 분석'(관절 추출 · 지표)은 2026-10-10 뺐다 — 사용자: "투구 분석 기능을 추가해서 폼 분석은 없애".
+ * 저장돼 있던 분석(PoseAnalysis 표)은 DB 에 그대로 남는다.
  */
 const WEEKDAYS = ['일', '월', '화', '수', '목', '금', '토'];
 
@@ -39,22 +27,16 @@ function spokenDate(key: string) {
 export function DayRecord({
   log,
   date,
-  heightCm,
   playbackUrls,
   urlsPending,
-  savedFor,
-  previousFor,
   onEdit,
   onDelete,
 }: {
   log: Log;
   date: string;
-  heightCm: number | null;
   playbackUrls: Record<string, string>;
   /** 재생 주소를 아직 받아오는 중인가 */
   urlsPending: boolean;
-  savedFor: (videoPath: string) => SavedAnalysisView | null;
-  previousFor: (date: string, videoPath: string) => SavedAnalysisView | null;
   onEdit: (log: Log) => void;
   onDelete: (id: string) => void;
 }) {
@@ -68,11 +50,8 @@ export function DayRecord({
    */
   const rested = log.sessionType === REST_SESSION_TYPE;
 
-  /** 어느 영상의 폼 분석을 펴 두었는가. 한 번에 하나만 편다. */
-  const [openPose, setOpenPose] = useState<string | null>(null);
-
   /*
-   * 넓은 화면에서 영상이 있으면 두 칸 — 왼쪽에 수치와 느낀점, 오른쪽에 영상과 폼 분석.
+   * 넓은 화면에서 영상이 있으면 두 칸 — 왼쪽에 수치와 느낀점, 오른쪽에 영상.
    * 한 줄로 쌓으면 폭 가득 커진 영상(16:9) 하나가 500px 넘게 차지해, 수치를 보고 영상을
    * 보려면 굴려야 했다. 나란히 두면 한 화면에 다 들어온다.
    */
@@ -157,8 +136,7 @@ export function DayRecord({
                   </p>
                   {log.videoPaths.length > 0 && (
                     <p className="text-warn">
-                      올려둔 영상 {log.videoPaths.length}개와 그 영상의 폼 분석도 함께
-                      지워져요.
+                      올려둔 영상 {log.videoPaths.length}개도 함께 지워져요.
                     </p>
                   )}
                   <p className="text-muted">
@@ -177,7 +155,7 @@ export function DayRecord({
         그날의 느낀점 — 영상보다 위에 둔다.
 
         지난 기록을 다시 열어 보는 이유는 대개 "그날 뭐라고 적어놨더라"이지
-        영상을 다시 보려는 것이 아니다. 그런데 영상과 폼 분석이 사이에 있어
+        영상을 다시 보려는 것이 아니다. 그런데 영상이 사이에 있어
         화면을 세 판쯤 내려야 닿았다.
       */}
         <div
@@ -210,7 +188,7 @@ export function DayRecord({
         </div>
       </div>
 
-      {/* 영상과 폼 분석 */}
+      {/* 영상 */}
       {log.videoPaths.length > 0 ? (
         <div className="grid gap-5">
           {log.videoPaths.map((path, i) => (
@@ -219,31 +197,10 @@ export function DayRecord({
                 <p className="text-xs font-medium text-muted">영상 {i + 1}</p>
               )}
               {playbackUrls[path] ? (
-                <>
-                  <PitchVideoPlayer
-                    src={playbackUrls[path]}
-                    label={`${date} 투구 영상 ${i + 1}`}
-                  />
-                  {/*
-                    폼 분석은 접어 둔다. 관절 추출·구간 지정·지표 표까지
-                    펼쳐지면 영상 하나가 화면 두 판을 더 잡아먹는다.
-                  */}
-                  <PoseSection
-                    open={openPose === path}
-                    onToggle={() => setOpenPose(openPose === path ? null : path)}
-                    saved={savedFor(path) != null}
-                  >
-                    <PoseAnalysis
-                      src={playbackUrls[path]}
-                      label={`${date} 투구 영상 ${i + 1}`}
-                      heightCm={heightCm}
-                      pitchLogId={log.id}
-                      videoPath={path}
-                      saved={savedFor(path)}
-                      previous={previousFor(date, path)}
-                    />
-                  </PoseSection>
-                </>
+                <PitchVideoPlayer
+                  src={playbackUrls[path]}
+                  label={`${date} 투구 영상 ${i + 1}`}
+                />
               ) : (
                 <div className="flex aspect-video items-center justify-center rounded-xl border border-line bg-surface-2 text-xs text-muted">
                   {urlsPending
@@ -265,45 +222,3 @@ export function DayRecord({
   );
 }
 
-/**
- * 폼 분석을 감싸는 접이식 껍데기.
- *
- * 열기 전까지는 PoseAnalysis 를 아예 그리지 않는다. 붙어만 있어도 캔버스와
- * 상태가 따라오는 무거운 화면이라, 영상 두 개짜리 기록을 열면 그것만으로
- * 화면이 버벅였다.
- */
-function PoseSection({
-  open,
-  onToggle,
-  saved,
-  children,
-}: {
-  open: boolean;
-  onToggle: () => void;
-  /** 저장해 둔 분석이 있는가 — 있으면 열어볼 값어치가 있다고 알려준다 */
-  saved: boolean;
-  children: React.ReactNode;
-}) {
-  return (
-    <div className="rounded-xl border border-line">
-      <button
-        type="button"
-        onClick={onToggle}
-        aria-expanded={open}
-        className="flex w-full items-center gap-2 px-4 py-3 text-left text-sm text-muted transition-colors hover:text-ink"
-      >
-        <Activity className="h-4 w-4 shrink-0" />
-        <span className="font-medium">폼 분석</span>
-        {saved && (
-          <span className="rounded-md bg-sky/10 px-1.5 py-0.5 text-[11px] font-medium text-sky-strong">
-            저장됨
-          </span>
-        )}
-        <ChevronDown
-          className={`ml-auto h-4 w-4 shrink-0 transition-transform ${open ? 'rotate-180 text-sky' : ''}`}
-        />
-      </button>
-      {open && <div className="border-t border-line p-4">{children}</div>}
-    </div>
-  );
-}

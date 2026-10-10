@@ -27,6 +27,14 @@ Claude 로 작업을 시작하면 저절로 읽힌다. 규칙은 `AGENTS.md` 6�
 
 
 
+
+## 금윤호에게 — 2026-10-10 · 김민(Claude) — 투구 기록의 '폼 분석'을 걷었다 — 받으면 `npm ci`
+
+사용자: "투구 분석 기능을 추가해서 폼 분석은 없애". 그날 화면(`day-record.tsx`)의 영상 밑 접이식 '폼 분석', 그 자료 읽기(`load.ts` 의
+poseAnalysis) · 넘기기(`day-client.tsx`), 입력 폼의 '폼 분석이 저장돼 있어요' 알림을 걷었고, 안 쓰게 된 파일(`components/pose-analysis.tsx` ·
+`app/actions/pose-analysis.ts` · `lib/pose/extract.ts · measure.ts · saved.ts`)과 패키지 `@mediapipe/tasks-vision` 을 지웠다(그래서 `npm ci`).
+`lib/pose/detect.ts · types.ts` 는 3D 투구 분석이 써서 남겼다. DB 의 `PoseAnalysis` 표는 그대로(지우려면 둘이 맞춰서) — 영상을 빼면 거기 붙은
+줄을 지우는 API 코드도 그대로 둔다.
 ## 금윤호에게 — 2026-10-10 · 김민(Claude) — 회원 영상은 이제 폰의 앱 안에 둔다(사진 앱 · 아이클라우드 아님)(투구 기록 · 구속 클립) — 네 영역을 고쳤다
 
 받은 뒤 할 일 없음(DB · 패키지 그대로). 사용자 결정: "폰에 저장해도 되는 것과 서버에 저장해야 하는 것을 확실히 구분 — 회원 영상은

@@ -6,7 +6,7 @@ import { Camera, Check, ChevronDown, Smartphone } from 'lucide-react';
 /**
  * 투구 영상 촬영 가이드.
  *
- * 나중에 자동 폼 분석을 붙이려면 영상이 일정한 조건으로 찍혀 있어야 한다.
+ * 나중에 투구 분석에 쓰려면 영상이 일정한 조건으로 찍혀 있어야 한다.
  * 각도가 매번 다르면 지표를 비교할 수 없고, 프레임이 낮으면 팔 동작이 뭉개진다.
  * 그래서 "지금부터 찍는 영상"이 나중에 그대로 쓰일 수 있도록 미리 안내한다.
  */
@@ -247,7 +247,7 @@ export function FilmingGuide({ defaultOpen = false }: { defaultOpen?: boolean })
             투구 영상 촬영 가이드
           </span>
           <span className="mt-0.5 block text-xs text-muted">
-            이대로 찍어두면 나중에 자동 폼 분석에 그대로 쓸 수 있어요
+            이대로 찍어 두면 나중에 투구 분석에 그대로 쓸 수 있어요
           </span>
         </span>
         <ChevronDown

@@ -138,7 +138,7 @@ export function PitchSetupWizard({
       case 'hand':
         return {
           title: '던지는 손은 어느 쪽이에요?',
-          desc: '폼 분석에서 어느 팔을 볼지, 암케어가 어느 쪽을 돌볼지 정해요.',
+          desc: '투구 분석과 암케어가 어느 팔을 볼지 정해요.',
         };
       case 'pitching':
         return {
@@ -237,7 +237,7 @@ export function PitchSetupWizard({
             value={a.throwingHand}
             onChange={(throwingHand) => w.patch({ throwingHand })}
             invalid={invalid('throwingHand')}
-            hint="양투는 둘 다 던지는 선수예요. 폼 분석은 영상마다 어느 팔인지 따로 정해요."
+            hint="양투는 둘 다 던지는 선수예요."
           />
         )}
 
