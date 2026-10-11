@@ -22,6 +22,7 @@ import { HARD_OUTING_MIN_PITCHES } from '../lib/report/theme.ts';
 import { YOUTH_AGE_THRESHOLD } from '../lib/report/plan.ts';
 import { THROW_PLANS } from '../lib/checkin.ts';
 import { REST_SESSION_TYPE } from '../lib/session-type.ts';
+import { readPlanSwaps } from '../lib/report/plan-swaps.ts';
 
 const startedAt = Date.now();
 
@@ -234,7 +235,7 @@ async function sectionCheckin() {
 
 /* ───────────────────── ② 완료율 — 만든 일정 · 연 세션 · 마친 날 ───────────────────── */
 
-/* swaps 는 뺀 · 바꾼 기록(lib/report/plan-swaps.ts, P2) — ⑥ 되먹임 표가 readPlanSwaps 로 읽을 칸(P2 마무리 커밋에서) */
+/* swaps 는 뺀 · 바꾼 기록(lib/report/plan-swaps.ts, P2 ①) — ⑥ 되먹임 표가 readPlanSwaps 로 센다(countRecordedSwaps) */
 type PlanPicks = {
   picks?: { exerciseId: string; manual?: boolean }[];
   swaps?: unknown;
@@ -907,13 +908,56 @@ async function sectionLibrary() {
 
 /* ───────────────────── ⑥ 되먹임 — 운동 바꾸기 · 힘듦이 어디에 남나 ───────────────────── */
 
+/**
+ * 기록된 바꾸기(P2 ①, lib/report/plan-swaps.ts)를 센다. 세션에서 바꾼 것은 세션 판과 그날 일정에 같은 at 으로
+ * 적히므로 gather.ts 의 swappedOutRecently 와 같은 열쇠(사용자 · 날짜 · from · kind · at)로 한 번만 센다 —
+ * 두 출처를 따로 더하면 세션에서 바꾼 것이 두 번 잡힌다. 판이 상한을 넘어 안 올렸으면 null.
+ */
+function countRecordedSwaps(
+  setups: Awaited<ReturnType<typeof loadSetups>>,
+  sessions: Awaited<ReturnType<typeof loadSessions>>
+) {
+  if (!setups.rows || !sessions.rows) return null;
+  const seen = new Set<string>();
+  const byKind = new Map<string, number>();
+  const byWhere = new Map<string, number>();
+  const users = new Set<string>();
+  const days = new Set<string>();
+  let setupsWith = 0;
+  let sessionsWith = 0;
+  const tally = (userId: string, date: Date, plan: unknown): boolean => {
+    const swaps = readPlanSwaps(plan);
+    for (const s of swaps) {
+      const key = `${userId}|${keyOf(date)}|${s.from}|${s.kind}|${s.at}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      byKind.set(s.kind, (byKind.get(s.kind) ?? 0) + 1);
+      byWhere.set(s.where, (byWhere.get(s.where) ?? 0) + 1);
+      users.add(userId);
+      days.add(`${userId}|${keyOf(date)}`);
+    }
+    return swaps.length > 0;
+  };
+  for (const s of setups.rows) if (tally(s.userId, s.date, s.plan)) setupsWith += 1;
+  for (const s of sessions.rows) if (tally(s.userId, s.date, s.plan)) sessionsWith += 1;
+  return {
+    entries: seen.size,
+    kind: (k: string) => byKind.get(k) ?? 0,
+    where: (w: string) => byWhere.get(w) ?? 0,
+    setupsWith,
+    sessionsWith,
+    users: users.size,
+    days: days.size,
+  };
+}
+
 async function sectionFeedback(
   setups: Awaited<ReturnType<typeof loadSetups>>,
   sessions: Awaited<ReturnType<typeof loadSessions>>,
   pairing: Pairing
 ) {
   heading('⑥ 되먹임 기록 — 운동 바꾸기 · 힘듦(sRPE) 이 지금 어디에 남나');
-  const [notes, noteUsers, noteByIntensity, sets, setsWithRir, setUsers] =
+  const [notes, noteUsers, noteByIntensity, noteDays, sets, setsWithRir, setUsers] =
     await Promise.all([
       prisma.dailyTrainingNote.count(),
       prisma.dailyTrainingNote.groupBy({ by: ['userId'] }),
@@ -922,26 +966,52 @@ async function sectionFeedback(
         _count: { _all: true },
         orderBy: { intensity: 'asc' },
       }),
+      /* 힘듦 줄이 있는 날 — 세션 판과 짝지으려고 사용자 · 날짜만(메모 글은 읽지 않는다) */
+      prisma.dailyTrainingNote.findMany({ select: { userId: true, date: true } }),
       prisma.userExerciseSet.count(),
       prisma.userExerciseSet.count({ where: { rir: { not: null } } }),
       prisma.userExerciseSet.groupBy({ by: ['userId'] }),
     ]);
 
   /*
-   * 운동 바꾸기는 아무 데도 남지 않는다. app/actions/workout.ts 의 교체 · 더하기는 lib/workout/swap.ts
-   * placeExercise 로 세션 판(TrainingSession.plan.exercises)을 제자리에서 덮어쓰고, FrozenExercise 에 '무엇에서
-   * 바꿨나' 칸이 없다. 그래서 대신 '세션 판의 운동 목록이 그날 일정(DailyTrainingSetup.plan.picks)과 다른가'로
-   * 어림한다 — 더한 것 · 뺀 것 · 바꾼 것이 모두 여기 잡히지만 무엇이었는지는 모른다. 일정의 picks.manual 은
-   * 사용자가 트레이닝 화면에서 직접 더한 것(app/actions/plan-edit.ts)이라 따로 센다. 짝은 ② 와 같은
-   * pairSetupsAndSessions 한 곳에서 맞춘다.
+   * 운동 바꾸기는 2026-10-12(P2 ①)부터 기록이 남는다 — 운동 화면의 빼기 · 교체는 세션 판과 그날 일정의 swaps 에,
+   * 일정 화면의 빼기는 일정의 swaps 에(lib/report/plan-swaps.ts). 그 전 판에는 칸이 없어 '세션 판의 운동 목록이
+   * 그날 일정(DailyTrainingSetup.plan.picks)과 다른가'로 어림한 수를 곁들인다 — 더한 것 · 뺀 것 · 바꾼 것이 모두
+   * 잡히지만 무엇이었는지는 모른다. 일정의 picks.manual 은 사용자가 트레이닝 화면에서 직접 더한 것
+   * (app/actions/plan-edit.ts)이라 따로 센다. 짝은 ② 와 같은 pairSetupsAndSessions 한 곳에서 맞춘다.
    */
+  const recorded = countRecordedSwaps(setups, sessions);
+  const skipped = `판이 ${PLAN_LOAD_LIMIT}줄을 넘어 건너뜀`;
+  const swapRows: (string | number)[][] = recorded
+    ? [
+        [
+          '운동 바꾸기 기록(swaps, P2 ① 2026-10-12 부터 — 같은 줄은 한 번)',
+          recorded.entries,
+        ],
+        [
+          '  교체(replace) · 더하기(add) · 빼기(remove)',
+          `${recorded.kind('replace')} · ${recorded.kind('add')} · ${recorded.kind('remove')}`,
+        ],
+        [
+          '  운동 화면(session) · 일정 화면(plan)',
+          `${recorded.where('session')} · ${recorded.where('plan')}`,
+        ],
+        [
+          '  기록이 있는 일정 · 세션 판',
+          `${recorded.setupsWith} / ${setups.n} · ${recorded.sessionsWith} / ${sessions.n}`,
+        ],
+        ['  기록을 남긴 사용자 · 날', `${recorded.users} · ${recorded.days}`],
+      ]
+    : [['운동 바꾸기 기록(swaps, P2 ①)', skipped]];
   let diffRows: (string | number)[][];
   if (pairing) {
     const { matched, noSetup, changed, added, removed, manualPicks, setupsWithManual } =
       pairing;
     diffRows = [
-      ['운동 바꾸기 기록', '안 남음(세션 판을 제자리에서 덮어씀, 바꾼 흔적 칸 없음)'],
-      ['  어림: 그날 일정과 짝이 맞는 세션', `${matched} / ${sessions.n}`],
+      [
+        '  어림(기록 전 판까지): 그날 일정과 짝이 맞는 세션',
+        `${matched} / ${sessions.n}`,
+      ],
       ['  어림: 일정 없이 열린 세션(프로그램 · 옛 자료)', noSetup],
       ['  어림: 목록이 일정과 다른 세션', withPct(changed, matched)],
       ['  어림: 일정에 없던 운동(더함 · 바꿔 넣음)', added],
@@ -950,18 +1020,39 @@ async function sectionFeedback(
       ['  직접 더한 운동이 있는 일정', withPct(setupsWithManual, setups.n)],
     ];
   } else {
-    diffRows = [
-      ['운동 바꾸기 기록', '안 남음(세션 판을 제자리에서 덮어씀, 바꾼 흔적 칸 없음)'],
-      ['  어림', `판이 ${PLAN_LOAD_LIMIT}줄을 넘어 건너뜀`],
-    ];
+    diffRows = [['  어림', skipped]];
   }
+
+  /*
+   * 마친 판 중 힘듦을 남긴 비율(P2 ②) — 축하 화면의 칩 넷이 누름 수를 줄였으니 이 수가 올라야 한다. 힘듦은 날짜마다
+   * 한 줄이라 세션 날짜(keyOf)로 짝짓는다(rateWorkoutEffort · finishWorkout 이 같은 날짜 규칙). 판을 안 올렸으면 '·'.
+   */
+  const noteDayKeys = new Set(noteDays.map((n) => `${n.userId}|${keyOf(n.date)}`));
+  const finishedRows = sessions.rows?.filter((s) => s.status === 'FINISHED') ?? null;
+  const withNote = (rows: typeof finishedRows) =>
+    rows
+      ? rows.filter((s) => noteDayKeys.has(`${s.userId}|${keyOf(s.date)}`)).length
+      : null;
+  const finishedWithNote = withNote(finishedRows);
+  const allWithNote = withNote(sessions.rows);
 
   table(
     ['항목', '수'],
     [
+      ...swapRows,
       ...diffRows,
       ['운동 힘듦(sRPE 꼴): DailyTrainingNote.intensity 1~10, 하루 한 줄', notes],
       ['  적은 사용자', noteUsers.length],
+      [
+        '  마친 판(FINISHED) 중 그날 힘듦 줄이 있는 판',
+        finishedRows && finishedWithNote != null
+          ? withPct(finishedWithNote, finishedRows.length)
+          : '·',
+      ],
+      [
+        '  세션 판(전체) 중 그날 힘듦 줄이 있는 판',
+        sessions.rows && allWithNote != null ? withPct(allWithNote, sessions.n) : '·',
+      ],
       ['세트 줄(UserExerciseSet)', sets],
       ['  rir(몇 개 더?) 있는 세트', withPct(setsWithRir, sets)],
       ['  세트를 남긴 사용자', setUsers.length],

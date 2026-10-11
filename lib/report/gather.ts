@@ -3,11 +3,7 @@ import { cache } from 'react';
 import { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 import { strengthDatesFrom, type StrengthDates } from '@/lib/report/daily-plan';
-import {
-  SWAP_LOOKBACK_DAYS,
-  readPlanSwaps,
-  swappedOutCounts,
-} from '@/lib/report/plan-swaps';
+import { SWAP_LOOKBACK_DAYS, swappedOutCounts } from '@/lib/report/plan-swaps';
 import { ageFromBirthDate } from '@/lib/profile';
 import { estimateDailyLoad } from '@/lib/baseline';
 import { buildFacts, type CheckinLike, type MemoNote } from '@/lib/report/facts';
@@ -314,9 +310,11 @@ export async function lastStrengthDates(
  * 오늘을 넣는다(lte) — 오늘 빼고 '다시 만들기'한 날 그 운동이 되돌아오지 않게. recentExerciseIds 가 오늘을 빼는 까닭
  * (체크를 켜고 끄면 목록이 흔들림)은 여기 없다.
  *
- * 세션 판(운동 15개 × 처방 · 부위가 든 수 KB)은 그날 일정이 이미 기록을 들고 있는 날짜를 빼고만 읽는다 — 세션에서 바꾼
- * 것은 그날 일정에도 같이 적히므로(writeSessionList), 일정에 기록이 있는 날은 세션 판에 더 있을 것이 없다. 일정 줄이
- * 없는 날(프로그램 날)과 기록 없이 나중에 만들어진 날은 세션 판에서 읽고, 같은 줄은 swappedOutCounts 가 한 번만 센다.
+ * 세션 판(운동 15개 × 처방 · 부위가 든 수 KB)도 기간 안 것을 거르지 않고 다 읽는다. 세션에서 바꾼 것은 그날 일정에도
+ * 같이 적히지만(writeSessionList) 그때 일정 줄이 없으면(프로그램 날 · 일정을 만들기 전에 운동한 날) 세션 판에만 남고,
+ * 그 뒤 같은 날 일정을 만들어 거기서 하나를 빼면 일정에도 기록이 생긴다. '일정에 기록이 있는 날짜의 세션 판은 건너뛰기'
+ * 는 바로 그 경우에 세션에만 있던 줄을 잃었다(2026-10-12 검토에서 확인 — 아낀 것은 바이트뿐). 같은 줄(날짜 · from ·
+ * kind · at)은 swappedOutCounts 가 한 번만 센다.
  */
 export async function swappedOutRecently(
   userId: string,
@@ -328,17 +326,16 @@ export async function swappedOutRecently(
     gte: new Date(`${sinceKey}T00:00:00.000Z`),
     lte: new Date(`${todayKey}T00:00:00.000Z`),
   };
-  const setups = await prisma.dailyTrainingSetup.findMany({
-    where: { userId, date: range, plan: { not: Prisma.DbNull } },
-    select: { date: true, plan: true },
-  });
-  const recorded = setups
-    .filter((s) => readPlanSwaps(s.plan).length > 0)
-    .map((s) => s.date);
-  const sessions = await prisma.trainingSession.findMany({
-    where: { userId, date: { ...range, notIn: recorded } },
-    select: { date: true, plan: true },
-  });
+  const [setups, sessions] = await Promise.all([
+    prisma.dailyTrainingSetup.findMany({
+      where: { userId, date: range, plan: { not: Prisma.DbNull } },
+      select: { date: true, plan: true },
+    }),
+    prisma.trainingSession.findMany({
+      where: { userId, date: range },
+      select: { date: true, plan: true },
+    }),
+  ]);
   return swappedOutCounts({
     plans: setups.map((s) => ({ date: toDateKey(s.date), plan: s.plan })),
     sessions: sessions.map((s) => ({ date: toDateKey(s.date), plan: s.plan })),

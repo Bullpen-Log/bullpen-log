@@ -60,6 +60,19 @@ Claude 로 작업을 시작하면 저절로 읽힌다. 규칙은 `AGENTS.md` 6�
 - **`lib/prisma.ts`**: 시험 계정의 요청일 때만, 만들고 고칠 때 비어 있는 시각 칸(createdAt · startedAt · recordedAt · updatedAt …, 표 `TIME_FIELDS`)을
   시뮬레이션 지금으로 채우는 `$extends` 를 씌웠다 — DB 의 now() 는 실제 시각이라 운동 시간 · 쉬는 시계 · 2분 안 같은 기록 막기가 어긋났다.
   다른 계정은 손대지 않는다(`__bpNow` 가 실제 시각이면 그냥 지나감). 새 표에 `@default(now())` 칸을 더하면 이 표에도 적어 줘.
+## 김민에게 — 2026-10-12 · 금윤호(Claude) — 운동 마치기 창의 강도를 선택으로 · 축하 화면에 힘듦 칩 넷(rateWorkoutEffort) · 세션 판 JSON 에 `swaps` 칸
+
+받은 뒤 할 일 없음(DB · 패키지 그대로 — 일정 · 세션 판 Json 의 선택 칸만). 트레이닝 추천 2판 P2(`docs/designs/training-recommendation-engine.md` 'P2 결과').
+**네 영역 파일을 고쳤다**(커밋 be00279):
+- `app/(session)/workout/run/finish-sheet.tsx`: 강도 1~10 이 '필수'에서 '선택'으로 — 안 골라도 마칠 수 있고, 느낀점만 적고 강도가 없으면 단추를 끄고 한 줄
+  알린다(서버가 강도 없는 메모를 버리므로). 열 칸 · 기준표 · 느낀점은 그대로.
+- `app/(session)/workout/done/page.tsx` · `done-client.tsx` · 새 `effort-card.tsx`: 그날 `DailyTrainingNote` 가 없으면 [완료] 위에 칩 넷(가벼움 3 · 보통 5 ·
+  힘듦 7 · 아주 힘듦 9, 같은 1~10 눈금). 한 번 누르면 저장(`rateWorkoutEffort`, `app/actions/workout.ts` — 본인 판이면, 그새 적은 줄은 덮지 않음),
+  '건너뛰기'는 서버에 안 간다. 추천은 아직 이 값을 안 읽는다(P4 · P5).
+- 세션 판 JSON(`TrainingSession.plan`)에 선택 칸 `swaps`(뺀 · 바꾼 기록), 일정 JSON(`DailyTrainingSetup.plan`)에 `swaps` · `fingerprint` 가 생겼다
+  (커밋 fd28e02 · 9c5da50, 모양은 `lib/report/plan-swaps.ts` · `plan-fingerprint.ts`). `readFrozenPlan` 이 `swaps` 를 옮기니 판을 새로 쓸 때 아는
+  칸만 옮기면 잃는다 — `{ ...plan }` 꼴로 써 줘.
+- 아이폰 앱에서 봐 주면 좋은 것: 운동을 마치고 축하 화면의 칩 하나 누르기(떨림 · 고정) · 마치기 창에서 강도 없이 느낀점만 적었을 때의 알림 줄.
 
 ## 금윤호에게 — 2026-10-12 · 김민(Claude) — 영양: 평소 움직임 글 · 튜토리얼 뺌 · 던지는 날 카드 하나로 · 운동 소모를 운동별 강도로
 

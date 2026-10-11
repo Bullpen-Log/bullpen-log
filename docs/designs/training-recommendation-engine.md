@@ -1,6 +1,6 @@
 # 트레이닝 추천 메커니즘 2판 — 결정과 진행(2026-10-11)
 
-**상태: P0 끝남(2026-10-11, 서브1 세션 — 커밋은 메인이) · 다음은 P1.** 검토안 2판(2026-10-10, 사실 조사 3 · 설계 3안 + 반박 · 종합 1)은 claude.ai 문서
+**상태: P0 · P1 · Y · P2 끝남(2026-10-12, 서브1 세션) · 다음은 P3.** 검토안 2판(2026-10-10, 사실 조사 3 · 설계 3안 + 반박 · 종합 1)은 claude.ai 문서
 '트레이닝 추천 메커니즘 검토안'과 쉬운 판 '트레이닝 추천 고치기 쉬운 설명'에 있다. 이 파일은 그 안의 **결정과 진행**만 저장소에 남긴다
 (두 컴퓨터 · 김민이 같이 본다). 기준 코드 main `110594f`(검토 시점) → P0 는 main `01e7959` 위에서.
 
@@ -31,7 +31,7 @@
 | --- | --- | --- | --- | --- |
 | P0 | 재는 도구와 안전망: 실제 운동 표로 가상 선수 시뮬레이션 · DB 읽기만 하는 사용 통계 · 자체 시험에 등판 답 · 기능 엇갈림 표 · 불변식 | 없음 | 4~6시간 | 끝남(2026-10-11) — 아래 'P0 결과' |
 | P1 | 싼 고침: 씨앗에 사용자 id · 번갈아 예비 규칙을 계획 기록으로 · 대비책 상한 · 재활 메모 오탐 | 없음 | 3~4시간 | 끝남(2026-10-12) — 아래 'P1 결과' |
-| P2 | 되먹임 모으기: 운동 바꾸기 기록 · 운동 끝 힘듦 한 번 · 일정 지문 | 없음 | 4~6시간 | |
+| P2 | 되먹임 모으기: 운동 바꾸기 기록 · 운동 끝 힘듦 한 번 · 일정 지문 | 없음 | 4~6시간 | 끝남(2026-10-12) — 아래 'P2 결과' |
 | P3 | 오늘 상태 한 장 + 등판 입력(간편 체크인) + 체감 강도 0~100% | D1 · D2 | 12~16시간 | |
 | P4 | 부하 기준 날 종류(D3) · 달력 낱말 · 같은 요일 추정 · 팔 피로 안전 규칙 | D3 | 8~12시간 | |
 | P5 | 점수와 양 · 이유 한 줄 · 횟수로 무게 올리기 | 없음(P3 뒤) | 10~14시간 | |
@@ -263,3 +263,83 @@ private 이라 '누가 봐도 그 부위'만 보는 좁은 판정이고, ⑨ 의
 검토가 OK 로 확인한 것: ① 씨앗의 결정성 · '다시 만들기' · 다른 호출자 없음 · 쌍둥이 id, ② 같은 날 완료 우선 · 오늘 제외 · 컨디셔닝 제외 · 옛 모양 제외 · `Prisma.DbNull` 거름 유효 · 반환형 상위집합 · 자동 맞춤 울타리 영향 없음,
 ③ `fitsSlot` 이 옛 인라인 거르기와 동일 · 바뀐 테마를 minutes · pickForTheme · conditioningDay · 저장 key 가 모두 씀 · 날짜 키 꼴 일치, ④ 정규식 양끝 고정 · 통증 꼬리표 셋은 그대로 잡힘 · import 사슬에 server-only · 순환 없음,
 공통으로 `selectCandidates` 변경 없음 · 새 글 셋 모두 해요체 · 줄표 없음.
+
+## P2 결과(2026-10-12, 서브1 세션 — Y `1bb402d` 위, 커밋 셋 `fd28e02` ① 바꾸기 기록 · `9c5da50` ③ 일정 지문 · `be00279` ② 운동 끝 힘듦 + 검토 반영 1)
+
+되먹임 셋을 **모으기만** 했다 — 세 기록 모두 아직 어느 규칙도 읽지 않는다(읽을 자리는 ④). 일정 · 세션 판 Json 의 선택 칸(`swaps` · `fingerprint`)과
+하루 한 줄(`DailyTrainingNote.intensity`)뿐이라 DB 구조 · `prisma/` 는 그대로다. 기준선 JSON 은 P1 ④ 와 meta 빼고 글자 단위로 같다(② 커밋에서 확인 — 세 기록은
+`buildDailyPlan` 결과 모양에 안 들어간다). 화면은 축하 화면의 칩 카드와 마치기 창의 강도 선택만(김민 영역 — HANDOFF 에 적음). 결정 사항이 코드 주석에만
+흩어져 있던 것을 ② 에 모았다(검토 반영).
+
+### ① 만든 것 셋(파일 · 규칙)
+
+| 번호 | 무엇 | 어디 | 규칙 |
+| --- | --- | --- | --- |
+| ① 바꾸기 기록 | 운동 화면의 빼기(`reorderSession`) · 교체(`changeSessionExercise`), 일정 화면의 빼기(`removeFromTodayPlan`)를 한 줄씩 남긴다 | 순수 `lib/report/plan-swaps.ts`(`PlanSwap` · `readPlanSwaps` · `withSwaps` · `carrySwaps` · `swappedOutCounts`) · `app/actions/workout.ts` `writeSessionList` · `app/actions/plan-edit.ts` · `app/actions/training-setup.ts` · `lib/workout/session-plan.ts` `readFrozenPlan` · `mergeReopened` · `lib/report/gather.ts` `swappedOutRecently` | `PlanSwap { from · to · kind replace/add/remove · where session/plan · slot · at }`. `DailyPlan` · `FrozenPlan` 에 선택 칸 `swaps`(version 그대로). `readFrozenPlan` 이 아는 칸만 옮기던 함정을 막아 다음 쓰기에서 안 사라진다. 화면 · 서버가 돌려주는 모양은 그대로 |
+| ② 운동 끝 힘듦 | 축하 화면(`/workout/done`)에서 칩 하나를 누르면 그날 강도로 남고, facts 가 최근 힘듦 · 급증 깃발을 안다 | 순수 `lib/workout/effort.ts`(`EFFORT_CHIPS` · `intensityOfEffort` · `effortOf` · `trainingEffortOf`) · `app/(session)/workout/done/{page,done-client,effort-card}.tsx` · `app/actions/workout.ts` `rateWorkoutEffort` · `run/finish-sheet.tsx` · `lib/report/facts.ts` `condition.trainingEffort?` · `gather.ts`(45일) | 칩 넷 = 1~10 눈금의 3 · 5 · 7 · 9. `buildFacts` 에 `trainingNotes?` 를 안 넘기면 칸 자체가 없다(옛 입력과 같은 모양). `trainingEffort = { last7, last28, spikeFlag }` |
+| ③ 일정 지문 | 일정을 만들 때 본 상태를 구조로 저장하고, 읽을 때 지금 facts 로 다시 찍어 다르면 한 줄씩 | 순수 `lib/report/plan-fingerprint.ts`(`fingerprintOf` · `readPlanFingerprint` · `diffFingerprint` · `diffFingerprintChanges` · `onlyPainPartChanges` · `stateChangesOf`) · `training-setup.ts`(저장) · `lib/report/today-data.ts` `loadTodayCore` → `stateChanged` · `stateChanges` | `DailyPlan.fingerprint?`(v 1 · asOf · 오늘 체크인 · 어제 던지는 일정 · 최근 통증 · 메모 통증 · 재활 · 부하 구간 · 마지막 투구 · 세게 던진 날). 글은 해요체 · 줄표 없음 · 60자 안 |
+
+### ② 정한 것 11(코드 주석에 흩어진 결정을 한곳에 — 바꾸려면 여기부터)
+
+1. 세션에서 뺀 · 바꾼 것은 **세션 판과 그날(세션 날짜) 일정에 같이**(한 트랜잭션, 같은 `at`). 그때 일정 줄이 없으면(프로그램 날 · 일정을 만들기 전에 운동한 날)
+   세션 판에만. 일정 화면에서 뺀 것은 일정에만(세션이 열려 있어도 세션 목록은 안 건드리므로). 순서만 바꾸면 세션 판만 쓰고 `swaps` 키도 안 더한다.
+2. 셈(`swappedOutCounts`)은 **두 출처를 합치고 같은 줄(날짜 · from · kind · at)은 한 번**. DB 읽기(`swappedOutRecently`)도 두 표를 거르지 않고 다 읽는다 — '일정에
+   기록이 있는 날짜의 세션 판은 건너뛰기'는 1 의 '세션 판에만' 줄을 잃었다(검토 반영 ⑥-1).
+3. `add`(세트를 남겨 더하기로 바뀐 교체)는 from 을 실제로 했으니 '바꿔서 뺀' 것으로 안 센다.
+4. 기간은 **오늘 포함 60일**(sinceKey ≤ 날짜 ≤ 오늘 — 교체 창의 '최근'과 같은 60일). 오늘을 넣는 까닭: 오늘 빼고 '다시 만들기'한 날 그 운동이 되돌아오지 않게
+   (`recentExerciseIds` 가 오늘을 빼는 까닭 — 체크를 켜고 끄면 목록이 흔들림 — 은 여기 없다).
+5. 하루 한 판의 기록 **상한 40**(넘으면 오래된 것부터) — 그 수준이면 이미 신호가 아니다.
+6. '다시 만들기'(`generateTodayPlan`)는 그날 기록을 잇는다(`carrySwaps`). 통증으로 멈춘 날(plan `DbNull`)은 **그날 기록이 사라진다** — 드물고 그날은 처방을 안 한다.
+7. 다시 열기(`mergeReopened`)는 그 판에서 뺀 · 바꾼 운동을 **되살리지 않는다**('뺀 운동은 오늘만 빠져요' 약속 — 일정 picks 에는 남아 있어 되살아났었다). add 는 거를 것 없음.
+8. 일정에서 뺀 뒤 같은 운동을 다시 더해도(`addToTodayPlan`) remove 줄은 **지우지 않는다** — 마음을 바꿨어도 한 번은 거절한 것.
+9. 기록 없는 판은 예전과 글자 하나 같은 모양(`withSwaps` 가 같은 객체를 돌려줌 — `program:test` RG 회귀가 지킨다).
+10. 힘듦: 칩 넷 **가벼움 3 · 보통 5 · 힘듦 7 · 아주 힘듦 9**(사용자 결정) — 같은 1~10 눈금이라 부하 계산 · 트레이닝 탭 '강도 N/10' 그대로. 축하 화면에서 한 번,
+    마치기 창에서 골랐으면(줄 있음) 안 묻는다. 그새 적은 줄은 덮지 않고 그 값을 돌려준다. 마치기 창의 강도는 **선택**(느낀점만 적고 강도가 없으면 막음 — 서버가 강도
+    없는 메모를 버리므로). 급증 깃발 = 7일 안 3개 이상 · 7일 평균이 28일 평균보다 2 이상 높음(검토안 '7일 중 3개'). `excludeToday` 는 오늘 로그와 같은 규칙.
+    **아직 아무 규칙도 안 읽는다** — 읽게 되면 같은 커밋에서 지문에 칸을 더한다.
+11. 지문: 칸은 `decideTheme` · `selectCandidates` · `buildPitchPlan` 이 실제로 읽는 facts 칸과 1:1(`FINGERPRINT_KEYS` 고정 — 자체 시험이 지킨다). `generateTodayPlan` 이
+    저장할 때 넣고 `buildDailyPlan` 은 안 넣는다(기준선 도구 · 시험의 결과 모양을 안 흔들려고). 다른 날 지문은 안 견준다. 안전 재검사(`safeIds` · `droppedForSafety`)와
+    독립 — 한 줄로 합치는 규칙은 P6 화면 몫. 화면은 안 바꿨다.
+
+### ③ 자체 시험 — `training:test` 787(P1) → Y → 819(① +27) → 863(③ +44) → 887(② +24), 실패 0 · `program:test` 183 → 184(① +1)
+
+| 묶음 | 검사 | 무엇을 고정하나 |
+| --- | --- | --- |
+| (f) 바꾸기 기록 | 27 | 읽기(옛 모양 · 틀린 줄 거름 · slot 선택) · 붙이기(상한 40 · 붙일 것 없으면 같은 객체) · 잇기 · 세기(두 출처 중복 한 번 · 세션 판에만 더 있는 줄은 더 셈 · add 안 셈 · 기간 양끝 · 결정성) |
+| (g) 일정 지문 | 44 | 칸 목록 고정 · 같은 facts 두 번 글자까지 같음(311자) · JSON 왕복 · 깨진 지문 20가지 null · 칸마다 하나만 바꾸면 그 한 줄 · 순서만 바꾸는 입력은 바뀜 없음 · 재활 꼬리표 '통증 없음'은 안 잡힘 · 체크인 통째로 없어짐 한 줄 · 다른 날 [] · 격자 57가지의 글 118개 해요체 · 줄표 없음 · 60자 · 조사 |
+| (h) 운동 끝 힘듦 | 24 | 눈금 · 왕복 · 1~10 띠 · 부하 배수 차례 · 급증 셈 8(3개 미만 · 차이 2 경계 · 창 7/28 · 깨진 줄 · 결정성) · facts 잇기 5 · 지문 · 투구 계획 · 후보가 그대로(안 읽음) |
+| program RG | 1 | 다시 열기에서 뺀 · 바꾼 운동 안 되살림 · 기록 없는 판 모양 그대로 |
+
+**바뀌면 안 되는 것 그대로**: 불변식 ①~⑩ · 엇갈림 표 C1~C6 · 등판 답 · (e) 한쪽 갇힘 · P1 (f) 모두 통과. 검증은 `npx tsc --noEmit -p .` 전체 오류 0(P1 때 남아 있던 `scripts/pitch-lab/mannequin/build.mts` 의 오류도 지금은 없다) · 바꾼 파일 eslint 0 · prettier 맞음. 브라우저는 안 켰다(축하 화면 · 마치기 창은 임시 경로 없이 코드로만).
+
+### ④ 다음 단계가 읽을 자리(지금은 아무도 안 읽는다)
+
+- **바꾸기 → P5 점수 '두 번 이상 바꿔서 뺀 운동 −2'**: `generateTodayPlan` 의 `Promise.all` 에 `swappedOutRecently(user.id, today)` → `buildDailyPlan({ …, swappedOut?: Map<string, number> })`
+  → `pickForTheme` → `orderCandidates`. 기준선 도구는 `historyOf` 에 `swappedOutCounts` 를 같은 뜻으로(메모리 — `strengthDatesFrom` 과 같은 식). 그때 대본에 '두 번 뺀 운동' 선수를 더한다.
+- **힘듦 → P4 D3 '최근 운동 부하'**(투구수 × 체감 강도 + 운동 부하) · **P5 '경고와 그래도 하기'**(`spikeFlag`). 읽게 되면 같은 커밋에서 지문(`fingerprintOf`)에 칸을 더한다.
+- **지문 → P6 '상태 바뀜 알림'**: `today-data.ts` 의 `stateChanged` · `stateChanges` 를 화면으로. 안전 재검사 알림과 겹침은 `onlyPainPartChanges` 로 가른다.
+
+### ⑤ DB 사용 통계 ⑥(`npm run training:usage`, 2026-10-12 — 검토 반영에서 '기록된 바꾸기' · '마친 판 중 힘듦' 줄을 더함)
+
+| 항목 | 수(2026-10-12) |
+| --- | --- |
+| 운동 바꾸기 기록(`swaps`, 2026-10-12 부터 — 같은 줄은 한 번) | **0**(교체 · 더하기 · 빼기 0 · 0 · 0, 기록 있는 일정 0/13 · 세션 판 0/7) — 배포 뒤 첫 빼기 · 교체부터 쌓인다 |
+| 어림(기록 전 판까지): 일정과 짝 맞는 세션 6/7 · 목록이 다른 세션 0 · 일정 없이 열린 세션 1 · 직접 더한 운동(`picks.manual`) 4(일정 1) | P0 와 같음 |
+| 힘듦(`DailyTrainingNote.intensity`) | 4줄 · 3명(1 · 2 · 5 · 7) — **마친 판(FINISHED) 3 중 3(100%)** · 세션 판 전체 7 중 3(42.9%). P0 때 3줄이었다 |
+| 세트(`UserExerciseSet`) | 19 · `rir` 0 |
+
+### ⑥ 검토 반영(반박 검토 셋 — 코드로 다시 확인하고 셋 다 반영)
+
+| 번호 | 지적 | 한 것 |
+| --- | --- | --- |
+| 1 | `gather.ts swappedOutRecently` 가 '일정에 swaps 가 있는 날짜'의 세션 판을 통째로 건너뛰었다(`date notIn`). `writeSessionList` 는 일정 줄이 없으면 세션 판에만 적으므로, 같은 날 나중에 일정을 만들고 거기서 하나를 빼면 그 날짜가 걸러져 세션에만 있던 remove · replace 가 셈에서 사라진다. 아직 앱 경로에 안 끼워져 화면엔 안 보이지만 P5 가 그대로 쓰면 틀린 점수 | 거름을 없애고 두 표를 `Promise.all` 로 다 읽는다. 중복은 `swappedOutCounts` 의 seen 이 가른다(순수 시험 (f)의 '세션 판에만 더 있는 줄' 사례가 이미 그 규칙을 고정). 주석의 틀린 전제를 지움 |
+| 2 | 단계표 P2 결과 칸 · 'P2 결과' 절 · 메모 17번이 비어 있고, 결정이 주석에만 흩어짐. `training-usage-stats.mts` 237행 주석이 약속한 ⑥ '기록된 바꾸기' 줄도 없음 | 이 절 · 단계표 · 상태 줄 · `docs/claude/geum-yunho.md` 17번 · 사용 통계 ⑥ 에 '기록된 바꾸기'(두 출처 같은 열쇠로 한 번) · '마친 판 중 힘듦 줄' |
+| 3 | 김민 영역(`finish-sheet.tsx` · `done/*`)을 고쳤는데 HANDOFF 에 항목이 없음 | HANDOFF 맨 위에 더함(받은 뒤 할 일 없음 · 고친 파일 넷 · 세션 판 JSON 의 `swaps` 칸) |
+
+### ⑦ 못 한 것 · P3 로 넘기는 것
+
+1. 실제 계정으로 화면을 안 봤다(축하 화면 칩 카드 · 마치기 창 선택 · 신호 끊김 줄 — 운영 DB 라 임시 경로도 안 만들었다). 사용자가 운동 한 번 마쳐 보면 좋을 곳.
+2. 기준선 대본에 바꾸기 · 힘듦 · 지문이 없어 전후 수치가 없다(JSON 같음만 확인). P5 가 점수를 넣을 때 대본을 늘린다(④).
+3. 지문 · `stateChanged` 는 화면에 안 보인다(P6).
+4. `DailyTrainingNote` 의 메모(느낀점)는 강도 없이는 저장되지 않는다(서버 규칙 그대로) — 마치기 창이 막아서 알린다. 느낀점만 남기고 싶다는 요청이 오면 서버 규칙을 바꾼다.
+5. P3: 오늘 상태 한 장(`lib/engine/day-state.ts`) + 등판 입력(간편 체크인) + 체감 강도 0~100%(D1 · D2, 12~16시간).
